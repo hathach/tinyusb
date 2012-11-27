@@ -38,10 +38,18 @@
 #ifndef _TUSB_ARCH_LPC134_X_H_
 #define _TUSB_ARCH_LPC134_X_H_
 
+#ifdef __cplusplus
+ extern "C" {
+#endif
+
 #include "arm_mx.h"
 
 #define ARM ARM_M3
 
 #define DEVICE_ROMDRIVER
+
+#ifdef __cplusplus
+ }
+#endif
 
 #endif /* _TUSB_ARCH_LPC134_X_H_ */

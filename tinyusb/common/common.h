@@ -38,8 +38,16 @@
 #ifndef _TUSB_COMMON_H_
 #define _TUSB_COMMON_H_
 
+#ifdef __cplusplus
+ extern "C" {
+#endif
+
 #include "arch/arch.h"
 #include "compiler/compiler.h"
 #include "errors.h"
+
+#ifdef __cplusplus
+ }
+#endif
 
 #endif /* _TUSB_COMMON_H_ */

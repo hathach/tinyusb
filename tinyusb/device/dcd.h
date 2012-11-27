@@ -38,10 +38,18 @@
 #ifndef _TUSB_DCD_H_
 #define _TUSB_DCD_H_
 
+#ifdef __cplusplus
+ extern "C" {
+#endif
+
 #include "tusb_cfg.h"
 
 #ifdef DEVICE_ROMDRIVER
 #include "romdriver/mw_usbd_rom_api.h"
+#endif
+
+#ifdef __cplusplus
+ }
 #endif
 
 #endif /* _TUSB_DCD_H_ */

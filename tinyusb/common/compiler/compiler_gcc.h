@@ -35,6 +35,10 @@
  * This file is part of the tiny usb stack.
  */
 
+#ifdef __cplusplus
+ extern "C" {
+#endif
+
 #ifndef _TUSB_COMPILER_GCC_H_
 #define _TUSB_COMPILER_GCC_H_
 
@@ -51,5 +55,9 @@
 #define ATTR_NO_RETURN					__attribute__ ((noreturn))
 #define ATTR_WARN_UNUSED_RESULT __attribute__ ((warn_unused_result))
 #define ATTR_ALWAYS_INLINE			__attribute__ ((always_inline))
+
+#ifdef __cplusplus
+ }
+#endif
 
 #endif /* _TUSB_COMPILER_GCC_H_ */

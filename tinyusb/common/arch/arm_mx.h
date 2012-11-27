@@ -38,7 +38,15 @@
 #ifndef _TUSB_ARM_MX_H_
 #define _TUSB_ARM_MX_H_
 
+#ifdef __cplusplus
+ extern "C" {
+#endif
+
 #define ENDIAN_LITTLE
 #define ALIGNMENT (4)
+
+#ifdef __cplusplus
+ }
+#endif
 
 #endif /* _TUSB_ARM_MX_H_ */

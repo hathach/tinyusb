@@ -38,6 +38,10 @@
 #ifndef _TUSB_ARCH_H_
 #define _TUSB_ARCH_H_
 
+#ifdef __cplusplus
+ extern "C" {
+#endif
+
 #define ARCH_LPC134X 1
 #define ARCH_LPC43XX 2
 #define ARCH ARCH_LPC134X
@@ -49,6 +53,10 @@
   #include "arch_lpc134x.h"
 #elif ARCH == ARCH_LPC43XX
 
+#endif
+
+#ifdef __cplusplus
+ }
 #endif
 
 #endif /* _TUSB_ARCH_H_ */

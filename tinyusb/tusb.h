@@ -35,8 +35,12 @@
  * This file is part of the tiny usb stack.
  */
 
-#ifndef TUSB_H_
-#define TUSB_H_
+#ifndef _TUSB_H_
+#define _TUSB_H_
+
+#ifdef __cplusplus
+ extern "C" {
+#endif
 
 #include "common/common.h"
 #include "tusb_cfg.h"
@@ -45,4 +49,8 @@
 #include "device/dcd.h"
 #endif
 
-#endif /* TUSB_H_ */
+#ifdef __cplusplus
+ }
+#endif
+
+#endif /* _TUSB_H_ */

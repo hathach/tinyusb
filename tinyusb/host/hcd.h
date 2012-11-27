@@ -35,3 +35,15 @@
  * This file is part of the tiny usb stack.
  */
 
+#ifndef _TUSB_HCD_H_
+#define _TUSB_HCD_H_
+
+#ifdef __cplusplus
+ extern "C" {
+#endif
+
+#ifdef __cplusplus
+ }
+#endif
+
+ #endif /* _TUSB_HCD_H_ */

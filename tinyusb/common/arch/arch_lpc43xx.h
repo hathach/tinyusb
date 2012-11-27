@@ -38,9 +38,17 @@
 #ifndef _TUSB_ARCH_LPC43XX_H_
 #define _TUSB_ARCH_LPC43XX_H_
 
+#ifdef __cplusplus
+ extern "C" {
+#endif
+
 #define ARM ARM_M4
 //#define ARM ARM_M0
 
 #include "arm_mx.h"
+
+#ifdef __cplusplus
+ }
+#endif
 
 #endif /* _TUSB_ARCH_LPC43XX_H_ */
