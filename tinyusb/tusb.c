@@ -36,7 +36,10 @@
  */
 
 #include "tusb.h"
-#include "LPC13Uxx.h" // TODO HAL
+
+#ifdef CFG_TUSB_DEVICE
+  #include "device/dcd.h"
+#endif
 
 ErrorCode_t tusb_init(void)
 {

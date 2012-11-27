@@ -28,7 +28,7 @@
 					<folderInfo id="com.crt.advproject.config.lib.debug.341253724." name="/" resourcePath="">
 						<toolChain id="com.crt.advproject.toolchain.lib.debug.972883292" name="Code Red MCU Tools" superClass="com.crt.advproject.toolchain.lib.debug">
 							<targetPlatform binaryParser="org.eclipse.cdt.core.ELF;org.eclipse.cdt.core.GNU_ELF" id="com.crt.advproject.platform.lib.debug.241809325" name="ARM-based MCU (Debug)" superClass="com.crt.advproject.platform.lib.debug"/>
-							<builder buildPath="${workspace_loc:/tinyusb/Debug}" id="com.crt.advproject.builder.lib.debug.2144305142" keepEnvironmentInBuildfile="false" managedBuildOn="true" name="Gnu Make Builder" superClass="com.crt.advproject.builder.lib.debug"/>
+							<builder buildPath="${workspace_loc:/tinyusb/Debug}" enableAutoBuild="true" id="com.crt.advproject.builder.lib.debug.2144305142" keepEnvironmentInBuildfile="false" managedBuildOn="true" name="Gnu Make Builder" superClass="com.crt.advproject.builder.lib.debug"/>
 							<tool id="com.crt.advproject.cpp.lib.debug.1524252612" name="MCU C++ Compiler" superClass="com.crt.advproject.cpp.lib.debug"/>
 							<tool id="com.crt.advproject.gcc.lib.debug.858148136" name="MCU C Compiler" superClass="com.crt.advproject.gcc.lib.debug">
 								<option id="com.crt.advproject.gcc.arch.704503495" name="Architecture" superClass="com.crt.advproject.gcc.arch" value="com.crt.advproject.gcc.target.cm3" valueType="enumerated"/>

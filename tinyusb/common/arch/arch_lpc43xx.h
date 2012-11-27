@@ -42,8 +42,8 @@
  extern "C" {
 #endif
 
-#define ARM ARM_M4
-//#define ARM ARM_M0
+#define ARM_M4
+//#define ARM_M0
 
 #include "arm_mx.h"
 

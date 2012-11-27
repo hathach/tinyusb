@@ -47,7 +47,7 @@
 #define CFG_TUSB_HOST
 #define CFG_TUSB_DEVICE
 
-
+// TODO APP
 #define USB_MAX_IF_NUM          8
 #define USB_MAX_EP_NUM          5
 

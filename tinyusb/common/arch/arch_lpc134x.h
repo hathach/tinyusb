@@ -43,8 +43,9 @@
 #endif
 
 #include "arm_mx.h"
+#include "LPC13Uxx.h"
 
-#define ARM ARM_M3
+#define ARM_M3
 
 #define DEVICE_ROMDRIVER
 
