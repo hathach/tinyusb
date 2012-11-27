@@ -35,8 +35,8 @@
  * This file is part of the tiny usb stack.
  */
 
-#ifndef ARCH_H_
-#define ARCH_H_
+#ifndef _TUSB_ARCH_H_
+#define _TUSB_ARCH_H_
 
 #define ARCH_LPC134X 1
 #define ARCH_LPC43XX 2
@@ -51,4 +51,4 @@
 
 #endif
 
-#endif /* ARCH_H_ */
+#endif /* _TUSB_ARCH_H_ */

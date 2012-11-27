@@ -1,7 +1,7 @@
 /*
- * compiler.h
+ * tusb.h
  *
- *  Created on: Nov 26, 2012
+ *  Created on: Nov 27, 2012
  *      Author: hathach (thachha@live.com)
  */
 
@@ -35,11 +35,14 @@
  * This file is part of the tiny usb stack.
  */
 
-#ifndef _TUSB_COMPILER_H_
-#define _TUSB_COMPILER_H_
+#ifndef TUSB_H_
+#define TUSB_H_
 
-#if defined(__GNUC__)
-  #include "compiler_gcc.h"
+#include "common/common.h"
+#include "tusb_cfg.h"
+
+#ifdef CFG_TUSB_DEVICE
+#include "device/dcd.h"
 #endif
 
-#endif /* _TUSB_COMPILER_H_ */
+#endif /* TUSB_H_ */

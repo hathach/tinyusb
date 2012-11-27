@@ -35,10 +35,11 @@
  * This file is part of the tiny usb stack.
  */
 
-#ifndef COMMON_H_
-#define COMMON_H_
+#ifndef _TUSB_COMMON_H_
+#define _TUSB_COMMON_H_
 
 #include "arch/arch.h"
 #include "compiler/compiler.h"
+#include "errors.h"
 
-#endif /* COMMON_H_ */
+#endif /* _TUSB_COMMON_H_ */

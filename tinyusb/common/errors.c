@@ -1,7 +1,7 @@
 /*
- * compiler.h
+ * errors.c
  *
- *  Created on: Nov 26, 2012
+ *  Created on: Nov 27, 2012
  *      Author: hathach (thachha@live.com)
  */
 
@@ -35,11 +35,3 @@
  * This file is part of the tiny usb stack.
  */
 
-#ifndef _TUSB_COMPILER_H_
-#define _TUSB_COMPILER_H_
-
-#if defined(__GNUC__)
-  #include "compiler_gcc.h"
-#endif
-
-#endif /* _TUSB_COMPILER_H_ */

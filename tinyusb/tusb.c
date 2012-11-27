@@ -1,7 +1,7 @@
 /*
- * compiler.h
+ * tusb.c
  *
- *  Created on: Nov 26, 2012
+ *  Created on: Nov 27, 2012
  *      Author: hathach (thachha@live.com)
  */
 
@@ -35,11 +35,25 @@
  * This file is part of the tiny usb stack.
  */
 
-#ifndef _TUSB_COMPILER_H_
-#define _TUSB_COMPILER_H_
+#include "tusb.h"
+#include "LPC13Uxx.h" // TODO HAL
 
-#if defined(__GNUC__)
-  #include "compiler_gcc.h"
+ErrorCode_t tusb_init(void)
+{
+  /* HARDWARE INIT */
+
+  /* Enable AHB clock to the USB block and USB RAM. */
+  LPC_SYSCON->SYSAHBCLKCTRL |= ((0x1<<14) | (0x1<<27));
+
+  /* Pull-down is needed, or internally, VBUS will be floating. This is to
+  address the wrong status in VBUSDebouncing bit in CmdStatus register.  */
+  LPC_IOCON->PIO0_3   &= ~0x1F;
+  LPC_IOCON->PIO0_3   |= (0x01<<0);            /* Secondary function VBUS */
+  LPC_IOCON->PIO0_6   &= ~0x07;
+  LPC_IOCON->PIO0_6   |= (0x01<<0);            /* Secondary function SoftConn */
+
+#ifdef CFG_TUSB_DEVICE
+  dcd_init();
 #endif
-
-#endif /* _TUSB_COMPILER_H_ */
+  return LPC_OK;
+}

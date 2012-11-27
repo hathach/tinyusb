@@ -1,7 +1,7 @@
 /*
- * compiler.h
+ * dcd.c
  *
- *  Created on: Nov 26, 2012
+ *  Created on: Nov 27, 2012
  *      Author: hathach (thachha@live.com)
  */
 
@@ -35,11 +35,35 @@
  * This file is part of the tiny usb stack.
  */
 
-#ifndef _TUSB_COMPILER_H_
-#define _TUSB_COMPILER_H_
+#include "dcd.h"
+#include "romdriver/power_api.h"
+#define USBD_API     ((*(ROM **)(0x1FFF1FF8))->pUSBD) // TODO HAL
+#define ASSERT_STATUS(x) x
 
-#if defined(__GNUC__)
-  #include "compiler_gcc.h"
-#endif
+void dcd_init()
+{
+    /* ROM DRIVER INIT */
+  USBD_API_INIT_PARAM_T usb_param =
+  {
+//    .usb_reg_base        = LPC_USB_BASE,
+//    .max_num_ep          = USB_MAX_EP_NUM,
+//    .mem_base            = (uint32_t) usb_RomDriver_buffer,
+//    .mem_size            = USB_ROM_SIZE, //USBD_API->hw->GetMemSize()
+//
+//    .USB_Configure_Event = USB_Configure_Event,
+//    .USB_Reset_Event     = USB_Reset_Event
+  };
 
-#endif /* _TUSB_COMPILER_H_ */
+  USB_CORE_DESCS_T DeviceDes =
+  {
+//    .device_desc      = (uint8_t*) &USB_DeviceDescriptor,
+//    .string_desc      = (uint8_t*) &USB_StringDescriptor,
+//    .full_speed_desc  = (uint8_t*) &USB_FsConfigDescriptor,
+//    .high_speed_desc  = (uint8_t*) &USB_FsConfigDescriptor,
+//    .device_qualifier = NULL
+  };
+
+  USBD_HANDLE_T g_hUsb;
+  /* Start USB hardware initialisation */
+  ASSERT_STATUS(USBD_API->hw->Init(&g_hUsb, &DeviceDes, &usb_param));
+}

@@ -35,11 +35,13 @@
  * This file is part of the tiny usb stack.
  */
 
-#ifndef ARCH_LPC134X_H_
-#define ARCH_LPC134X_H_
-
-#define ARM ARM_M3
+#ifndef _TUSB_ARCH_LPC134_X_H_
+#define _TUSB_ARCH_LPC134_X_H_
 
 #include "arm_mx.h"
 
-#endif /* ARCH_LPC134X_H_ */
+#define ARM ARM_M3
+
+#define DEVICE_ROMDRIVER
+
+#endif /* _TUSB_ARCH_LPC134_X_H_ */

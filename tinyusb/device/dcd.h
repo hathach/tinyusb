@@ -35,8 +35,13 @@
  * This file is part of the tiny usb stack.
  */
 
-#ifndef DCD_H_
-#define DCD_H_
+#ifndef _TUSB_DCD_H_
+#define _TUSB_DCD_H_
 
+#include "tusb_cfg.h"
 
-#endif /* DCD_H_ */
+#ifdef DEVICE_ROMDRIVER
+#include "romdriver/mw_usbd_rom_api.h"
+#endif
+
+#endif /* _TUSB_DCD_H_ */

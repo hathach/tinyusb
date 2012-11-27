@@ -35,10 +35,10 @@
  * This file is part of the tiny usb stack.
  */
 
-#ifndef ARM_MX_H_
-#define ARM_MX_H_
+#ifndef _TUSB_ARM_MX_H_
+#define _TUSB_ARM_MX_H_
 
 #define ENDIAN_LITTLE
 #define ALIGNMENT (4)
 
-#endif /* ARM_MX_H_ */
+#endif /* _TUSB_ARM_MX_H_ */

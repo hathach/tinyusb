@@ -35,12 +35,12 @@
  * This file is part of the tiny usb stack.
  */
 
-#ifndef ARCH_LPC43XX_H_
-#define ARCH_LPC43XX_H_
+#ifndef _TUSB_ARCH_LPC43XX_H_
+#define _TUSB_ARCH_LPC43XX_H_
 
 #define ARM ARM_M4
 //#define ARM ARM_M0
 
 #include "arm_mx.h"
 
-#endif /* ARCH_LPC43XX_H_ */
+#endif /* _TUSB_ARCH_LPC43XX_H_ */

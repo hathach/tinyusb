@@ -35,8 +35,8 @@
  * This file is part of the tiny usb stack.
  */
 
-#ifndef COMPILER_GCC_H_
-#define COMPILER_GCC_H_
+#ifndef _TUSB_COMPILER_GCC_H_
+#define _TUSB_COMPILER_GCC_H_
 
 #define ATTR_ALIGNED(Bytes) 		__attribute__ ((aligned(Bytes)))
 #define ATTR_PACKED 						__attribute__ ((packed))
@@ -52,4 +52,4 @@
 #define ATTR_WARN_UNUSED_RESULT __attribute__ ((warn_unused_result))
 #define ATTR_ALWAYS_INLINE			__attribute__ ((always_inline))
 
-#endif /* COMPILER_GCC_H_ */
+#endif /* _TUSB_COMPILER_GCC_H_ */
