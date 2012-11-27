@@ -38,7 +38,6 @@
 #include "dcd.h"
 #include "romdriver/power_api.h"
 #define USBD_API     ((*(ROM **)(0x1FFF1FF8))->pUSBD) // TODO HAL
-#define ASSERT_STATUS(x) x
 
 void dcd_init()
 {

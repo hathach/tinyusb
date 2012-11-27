@@ -42,9 +42,38 @@
  extern "C" {
 #endif
 
+#include <stddef.h>
 #include "arch/arch.h"
 #include "compiler/compiler.h"
 #include "errors.h"
+
+//#if ( defined CFG_PRINTF_UART || defined CFG_PRINTF_USBCDC || defined CFG_PRINTF_DEBUG )
+#if 1
+  #define PRINTF_LOCATION(mess)	printf("Assert: %s at line %d: %s\n", __func__, __LINE__, mess)
+#else
+  #define PRINTF_LOCATION(mess)
+#endif
+
+#define ASSERT_MESSAGE(condition, value, message) \
+	do{\
+	  if (!(condition)) {\
+			PRINTF_LOCATION(message);\
+			return (value);\
+		}\
+	}while(0)
+
+#define ASSERT(condition, value)  ASSERT_MESSAGE(condition, value, NULL)
+
+#define ASSERT_STATUS_MESSAGE(sts, message) \
+	do{\
+	  ErrorCode_t status = (sts);\
+	  if (LPC_OK != status) {\
+	    PRINTF_LOCATION(message);\
+	    return status;\
+	  }\
+	}while(0)
+
+#define ASSERT_STATUS(sts)		ASSERT_STATUS_MESSAGE(sts, NULL)
 
 #ifdef __cplusplus
  }
