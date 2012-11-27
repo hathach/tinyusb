@@ -43,6 +43,9 @@
 #endif
 
 #include <stddef.h>
+#include <stdbool.h>
+#include <string.h>
+
 #include "arch/arch.h"
 #include "compiler/compiler.h"
 #include "errors.h"

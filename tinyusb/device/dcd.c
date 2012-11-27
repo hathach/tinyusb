@@ -36,8 +36,11 @@
  */
 
 #include "dcd.h"
-#include "romdriver/power_api.h"
-#define USBD_API     ((*(ROM **)(0x1FFF1FF8))->pUSBD) // TODO HAL
+
+// TODO refractor later
+#include "descriptors.h"
+
+
 
 void dcd_init()
 {
@@ -55,11 +58,11 @@ void dcd_init()
 
   USB_CORE_DESCS_T DeviceDes =
   {
-//    .device_desc      = (uint8_t*) &USB_DeviceDescriptor,
-//    .string_desc      = (uint8_t*) &USB_StringDescriptor,
-//    .full_speed_desc  = (uint8_t*) &USB_FsConfigDescriptor,
-//    .high_speed_desc  = (uint8_t*) &USB_FsConfigDescriptor,
-//    .device_qualifier = NULL
+    .device_desc      = (uint8_t*) &USB_DeviceDescriptor,
+    .string_desc      = (uint8_t*) &USB_StringDescriptor,
+    .full_speed_desc  = (uint8_t*) &USB_FsConfigDescriptor,
+    .high_speed_desc  = (uint8_t*) &USB_FsConfigDescriptor,
+    .device_qualifier = NULL
   };
 
   USBD_HANDLE_T g_hUsb;

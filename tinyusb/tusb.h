@@ -46,7 +46,11 @@
 #include "tusb_cfg.h"
 
 #ifdef CFG_TUSB_DEVICE
-#include "device/dcd.h"
+  #include "device/dcd.h"
+#endif
+
+#if CLASS_HID
+  #include "class/hid.h"
 #endif
 
 #ifdef __cplusplus

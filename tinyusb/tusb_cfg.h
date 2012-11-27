@@ -47,6 +47,11 @@
 #define CFG_TUSB_HOST
 #define CFG_TUSB_DEVICE
 
+#define CFG_USB_HID_KEYBOARD
+
+#define CLASS_HID (defined CFG_USB_HID_KEYBOARD)
+
+
 // TODO APP
 #define USB_MAX_IF_NUM          8
 #define USB_MAX_EP_NUM          5
