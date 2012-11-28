@@ -1,7 +1,7 @@
 /*
- * common.h
+ * fifo.h
  *
- *  Created on: Nov 26, 2012
+ *  Created on: Nov 27, 2012
  *      Author: hathach (thachha@live.com)
  */
 
@@ -35,51 +35,42 @@
  * This file is part of the tiny usb stack.
  */
 
-#ifndef _TUSB_COMMON_H_
-#define _TUSB_COMMON_H_
+#ifndef _TUSB_FIFO_H_
+#define _TUSB_FIFO_H_
 
-#ifdef __cplusplus
- extern "C" {
-#endif
+#include "common/common.h"
 
-#include <stddef.h>
-#include <stdbool.h>
-#include <string.h>
+/* ToDo: Describe each field in fifo_t */
+typedef struct _fifo_t
+{
+  uint8_t* buf;
+  uint16_t size;
+  volatile uint16_t len;
+  volatile uint16_t wr_ptr;
+  volatile uint16_t rd_ptr;
+  bool overwritable;
+  IRQn_Type irq;
+} fifo_t;
 
-#include "arch/arch.h"
-#include "compiler/compiler.h"
-#include "errors.h"
+void fifo_init(fifo_t* f, uint8_t* buffer, uint16_t size, bool overwritable, IRQn_Type irq);
+bool fifo_write(fifo_t* f, uint8_t data);
+bool fifo_read(fifo_t* f, uint8_t *data);
+uint16_t fifo_readArray(fifo_t* f, uint8_t * rx, uint16_t maxlen);
+void fifo_clear(fifo_t*);
 
-//#if ( defined CFG_PRINTF_UART || defined CFG_PRINTF_USBCDC || defined CFG_PRINTF_DEBUG )
-#if 1 // TODO refractor ASSERT
-  #define PRINTF_LOCATION(mess)	printf("Assert: %s at line %d: %s\n", __func__, __LINE__, mess)
-#else
-  #define PRINTF_LOCATION(mess)
-#endif
+static inline bool fifo_isEmpty(fifo_t* f)
+{
+  return (f->len == 0);
+}
 
-#define ASSERT_MESSAGE(condition, value, message) \
-	do{\
-	  if (!(condition)) {\
-			PRINTF_LOCATION(message);\
-			return (value);\
-		}\
-	}while(0)
+static inline bool fifo_isFull(fifo_t* f)
+{
+  return (f->len == f->size);
+}
 
-#define ASSERT(condition, value)  ASSERT_MESSAGE(condition, value, NULL)
+static inline uint16_t fifo_getLength(fifo_t* f)
+{
+  return f->len;
+}
 
-#define ASSERT_STATUS_MESSAGE(sts, message) \
-	do{\
-	  ErrorCode_t status = (sts);\
-	  if (LPC_OK != status) {\
-	    PRINTF_LOCATION(message);\
-	    return status;\
-	  }\
-	}while(0)
-
-#define ASSERT_STATUS(sts)		ASSERT_STATUS_MESSAGE(sts, NULL)
-
-#ifdef __cplusplus
- }
-#endif
-
-#endif /* _TUSB_COMMON_H_ */
+#endif /* _TUSB_FIFO_H_ */

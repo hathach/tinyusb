@@ -40,20 +40,58 @@
 // TODO refractor later
 #include "descriptors.h"
 
+#define USB_ROM_SIZE (1024*2)
+uint8_t usb_RomDriver_buffer[USB_ROM_SIZE]ALIGNED(2048) /*__BSS(RAM2)*/;
+USBD_HANDLE_T g_hUsb;
+volatile static bool isConfigured = false;
 
+/**************************************************************************/
+/*!
+    @brief Handler for the USB Configure Event
+*/
+/**************************************************************************/
+ErrorCode_t USB_Configure_Event (USBD_HANDLE_T hUsb)
+{
+  USB_CORE_CTRL_T* pCtrl = (USB_CORE_CTRL_T*)hUsb;
+  if (pCtrl->config_value)
+  {
+    #if defined(CLASS_HID)
+    ASSERT_STATUS( usb_hid_configured(hUsb) );
+    #endif
+
+    #ifdef CFG_USB_CDC
+    ASSERT_STATUS( usb_cdc_configured(hUsb) );
+    #endif
+  }
+
+  isConfigured = true;
+
+  return LPC_OK;
+}
+
+/**************************************************************************/
+/*!
+    @brief Handler for the USB Reset Event
+*/
+/**************************************************************************/
+ErrorCode_t USB_Reset_Event (USBD_HANDLE_T hUsb)
+{
+  isConfigured = false;
+  return LPC_OK;
+}
 
 void dcd_init()
 {
-    /* ROM DRIVER INIT */
+  /* ROM DRIVER INIT */
   USBD_API_INIT_PARAM_T usb_param =
   {
-//    .usb_reg_base        = LPC_USB_BASE,
-//    .max_num_ep          = USB_MAX_EP_NUM,
-//    .mem_base            = (uint32_t) usb_RomDriver_buffer,
-//    .mem_size            = USB_ROM_SIZE, //USBD_API->hw->GetMemSize()
-//
-//    .USB_Configure_Event = USB_Configure_Event,
-//    .USB_Reset_Event     = USB_Reset_Event
+    .usb_reg_base        = LPC_USB_BASE,
+    .max_num_ep          = USB_MAX_EP_NUM,
+    .mem_base            = (uint32_t) usb_RomDriver_buffer,
+    .mem_size            = USB_ROM_SIZE, //USBD_API->hw->GetMemSize()
+
+    .USB_Configure_Event = USB_Configure_Event,
+    .USB_Reset_Event     = USB_Reset_Event
   };
 
   USB_CORE_DESCS_T DeviceDes =
@@ -65,7 +103,50 @@ void dcd_init()
     .device_qualifier = NULL
   };
 
-  USBD_HANDLE_T g_hUsb;
   /* Start USB hardware initialisation */
   ASSERT_STATUS(USBD_API->hw->Init(&g_hUsb, &DeviceDes, &usb_param));
+
+    /* Initialise the class driver(s) */
+  #ifdef CFG_USB_CDC
+    ASSERT_STATUS( usb_cdc_init(g_hUsb, &USB_FsConfigDescriptor.CDC_CCI_Interface,
+            &USB_FsConfigDescriptor.CDC_DCI_Interface, &usb_param.mem_base, &usb_param.mem_size) );
+  #endif
+
+  #ifdef CFG_CLASS_HID_KEYBOARD
+    ASSERT_STATUS( usb_hid_init(g_hUsb , &USB_FsConfigDescriptor.HID_KeyboardInterface ,
+            HID_KeyboardReportDescriptor, USB_FsConfigDescriptor.HID_KeyboardHID.DescriptorList[0].wDescriptorLength,
+            &usb_param.mem_base , &usb_param.mem_size) );
+  #endif
+
+  #ifdef CFG_USB_HID_MOUSE
+    ASSERT_STATUS( usb_hid_init(g_hUsb , &USB_FsConfigDescriptor.HID_MouseInterface    ,
+            HID_MouseReportDescriptor, USB_FsConfigDescriptor.HID_MouseHID.DescriptorList[0].wDescriptorLength,
+            &usb_param.mem_base , &usb_param.mem_size) );
+  #endif
+
+  /* Enable the USB interrupt */
+  NVIC_EnableIRQ(USB_IRQ_IRQn);
+
+  /* Perform USB soft connect */
+  USBD_API->hw->Connect(g_hUsb, 1);
+}
+
+/**************************************************************************/
+/*!
+    @brief Indicates whether USB is configured or not
+*/
+/**************************************************************************/
+bool usb_isConfigured(void)
+{
+  return isConfigured;
+}
+
+/**************************************************************************/
+/*!
+    @brief Redirect the USB IRQ handler to the ROM handler
+*/
+/**************************************************************************/
+void USB_IRQHandler(void)
+{
+  USBD_API->hw->ISR(g_hUsb);
 }

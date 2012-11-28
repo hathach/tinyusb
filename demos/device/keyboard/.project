@@ -4,6 +4,7 @@
 	<comment></comment>
 	<projects>
 		<project>CMSISv2p10_LPC13Uxx</project>
+		<project>LPC13Uxx_DriverLib</project>
 		<project>tinyusb</project>
 	</projects>
 	<buildSpec>

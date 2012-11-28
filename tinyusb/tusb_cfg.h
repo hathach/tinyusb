@@ -47,9 +47,9 @@
 #define CFG_TUSB_HOST
 #define CFG_TUSB_DEVICE
 
-#define CFG_USB_HID_KEYBOARD
+#define CFG_CLASS_HID_KEYBOARD
 
-#define CLASS_HID (defined CFG_USB_HID_KEYBOARD)
+#define CLASS_HID (defined CFG_CLASS_HID_KEYBOARD)
 
 
 // TODO APP

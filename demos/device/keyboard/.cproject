@@ -35,6 +35,7 @@
 								<option id="gnu.c.compiler.option.misc.other.204394496" name="Other flags" superClass="gnu.c.compiler.option.misc.other" value="-c -fmessage-length=0 -fno-builtin -ffunction-sections -fdata-sections" valueType="string"/>
 								<option id="gnu.c.compiler.option.include.paths.1207481236" name="Include paths (-I)" superClass="gnu.c.compiler.option.include.paths" valueType="includePath">
 									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/CMSISv2p10_LPC13Uxx/inc}&quot;"/>
+									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/LPC13Uxx_DriverLib/inc}&quot;"/>
 									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/tinyusb/tinyusb}&quot;"/>
 								</option>
 								<option id="gnu.c.compiler.option.include.files.318820756" name="Include files (-include)" superClass="gnu.c.compiler.option.include.files"/>
@@ -59,10 +60,12 @@
 								</option>
 								<option id="gnu.c.link.option.paths.1465143173" name="Library search path (-L)" superClass="gnu.c.link.option.paths" valueType="libPaths">
 									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/CMSISv2p10_LPC13Uxx/Debug}&quot;"/>
+									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/LPC13Uxx_DriverLib/Debug}&quot;"/>
 									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/tinyusb/Debug}&quot;"/>
 								</option>
 								<option id="gnu.c.link.option.libs.447978281" name="Libraries (-l)" superClass="gnu.c.link.option.libs" valueType="libs">
 									<listOptionValue builtIn="false" value="CMSISv2p10_LPC13Uxx"/>
+									<listOptionValue builtIn="false" value="LPC13Uxx_DriverLib"/>
 									<listOptionValue builtIn="false" value="tinyusb"/>
 								</option>
 								<option id="com.crt.advproject.link.gcc.hdrlib.1111642583" name="Use C library" superClass="com.crt.advproject.link.gcc.hdrlib" value="com.crt.advproject.gcc.link.hdrlib.codered.nohost" valueType="enumerated"/>

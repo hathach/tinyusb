@@ -88,7 +88,7 @@ typedef PRE_PACK struct POST_PACK _USB_INTERFACE_ASSOCIATION_DESCRIPTOR
 
 ///////////////////////////////////////////////////////////////////////
 // Interface Assosication Descriptor if device is CDC + other class
-#define IAD_DESC_REQUIRED ( defined(CFG_USB_CDC) && (defined(CFG_USB_HID_KEYBOARD) || defined(CFG_USB_HID_MOUSE)) )
+#define IAD_DESC_REQUIRED ( defined(CFG_USB_CDC) && (CLASS_HID) )
 
 #ifdef CFG_USB_CDC
   #define INTERFACES_OF_CDC           2
@@ -96,7 +96,7 @@ typedef PRE_PACK struct POST_PACK _USB_INTERFACE_ASSOCIATION_DESCRIPTOR
   #define INTERFACES_OF_CDC           0
 #endif
 
-#ifdef CFG_USB_HID_KEYBOARD
+#ifdef CFG_CLASS_HID_KEYBOARD
   #define INTERFACES_OF_HID_KEYBOARD  1
 #else
   #define INTERFACES_OF_HID_KEYBOARD  0
@@ -157,7 +157,7 @@ typedef struct
   USB_ENDPOINT_DESCRIPTOR                     CDC_DataInEndpoint;
 #endif
 
-#ifdef CFG_USB_HID_KEYBOARD
+#ifdef CFG_CLASS_HID_KEYBOARD
   //Keyboard HID Interface
   USB_INTERFACE_DESCRIPTOR                    HID_KeyboardInterface;
   HID_DESCRIPTOR                              HID_KeyboardHID;
