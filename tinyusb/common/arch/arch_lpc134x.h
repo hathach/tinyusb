@@ -2,12 +2,12 @@
  * arch_lpc134x.h
  *
  *  Created on: Nov 26, 2012
- *      Author: hathach (thachha@live.com)
+ *      Author: hathach
  */
 
 /*
  * Software License Agreement (BSD License)
- * Copyright (c) 2012, hathach (thachha@live.com)
+ * Copyright (c) 2012, hathach (tinyusb.net)
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without modification,

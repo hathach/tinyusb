@@ -1,7 +1,7 @@
 /*
- * arm_mx.h
+ * arch_lpc11xx.h
  *
- *  Created on: Nov 26, 2012
+ *  Created on: Nov 29, 2012
  *      Author: hathach
  */
 
@@ -36,7 +36,7 @@
  */
 
 /** \file
- *  \brief ARM Cortex Mx Header
+ *  \brief LPC11xx Header File
  *
  *  \note TBD
  */
@@ -46,13 +46,15 @@
  *  @{
  */
 
-#ifndef _TUSB_ARM_MX_H_
-#define _TUSB_ARM_MX_H_
+#ifndef ARCH_LPC11XX_H_
+#define ARCH_LPC11XX_H_
 
-// #ifdef ARM_M3 ARM_M4 ARM_M0
+#define ARM_M0
+#define DEVICE_ROMDRIVER
 
-#define ENDIAN_LITTLE
-#define ALIGNMENT (4)
+#include "arm_mx.h"
+#include "LPC11Uxx.h"
 
-#endif /* _TUSB_ARM_MX_H_ */
+#endif /* ARCH_LPC11XX_H_ */
+
 /** @} */

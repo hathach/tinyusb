@@ -2,12 +2,12 @@
  * hid.c
  *
  *  Created on: Nov 27, 2012
- *      Author: hathach (thachha@live.com)
+ *      Author: hathach
  */
 
 /*
  * Software License Agreement (BSD License)
- * Copyright (c) 2012, hathach (thachha@live.com)
+ * Copyright (c) 2012, hathach (tinyusb.net)
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without modification,
@@ -179,7 +179,7 @@ ErrorCode_t HID_EpOut_Hdlr (USBD_HANDLE_T hUsb, void* data, uint32_t event)
     @brief Initialises USB HID using the ROM based drivers
 */
 /**************************************************************************/
-TUSB_Error_t usb_hid_init(USBD_HANDLE_T hUsb, USB_INTERFACE_DESCRIPTOR const *const pIntfDesc, uint8_t const * const pHIDReportDesc, uint32_t ReportDescLength, uint32_t* mem_base, uint32_t* mem_size)
+TUSB_Error_t tusb_hid_init(USBD_HANDLE_T hUsb, USB_INTERFACE_DESCRIPTOR const *const pIntfDesc, uint8_t const * const pHIDReportDesc, uint32_t ReportDescLength, uint32_t* mem_base, uint32_t* mem_size)
 {
   USB_HID_REPORT_T reports_data =
   {
@@ -220,7 +220,7 @@ TUSB_Error_t usb_hid_init(USBD_HANDLE_T hUsb, USB_INTERFACE_DESCRIPTOR const *co
 
 */
 /**************************************************************************/
-TUSB_Error_t usb_hid_configured(USBD_HANDLE_T hUsb)
+TUSB_Error_t tusb_hid_configured(USBD_HANDLE_T hUsb)
 {
   #ifdef  CFG_CLASS_HID_KEYBOARD
     USBD_API->hw->WriteEP(hUsb , HID_KEYBOARD_EP_IN , (uint8_t* ) &hid_keyboard_report , sizeof(USB_HID_KeyboardReport_t) ); // initial packet for IN endpoint , will not work if omitted
@@ -257,20 +257,20 @@ TUSB_Error_t usb_hid_configured(USBD_HANDLE_T hUsb)
     if (usb_isConfigured())
     {
       uint8_t keys[6] = {HID_USAGE_KEYBOARD_aA};
-      usb_hid_keyboard_sendKeys(0x00, keys, 1);
+      tusb_hid_keyboard_sendKeys(0x00, keys, 1);
     }
 
     // Send Windows + 'e' (shortcut for 'explorer.exe')
     if (usb_isConfigured())
     {
       uint8_t keys[6] = {HID_USAGE_KEYBOARD_aA + 'e' - 'a'};
-      usb_hid_keyboard_sendKeys((1<<HID_KEYMODIFIER_LEFTGUI), keys, 1);
+      tusb_hid_keyboard_sendKeys((1<<HID_KEYMODIFIER_LEFTGUI), keys, 1);
     }
 
     @endcode
 */
 /**************************************************************************/
-TUSB_Error_t usb_hid_keyboard_sendKeys(uint8_t modifier, uint8_t keycodes[], uint8_t numkey)
+TUSB_Error_t tusb_hid_keyboard_sendKeys(uint8_t modifier, uint8_t keycodes[], uint8_t numkey)
 {
 //  uint32_t start_time = systickGetSecondsActive();
 //  while (bKeyChanged) // TODO blocking while previous key has yet sent - can use fifo to improve this
@@ -315,13 +315,13 @@ TUSB_Error_t usb_hid_keyboard_sendKeys(uint8_t modifier, uint8_t keycodes[], uin
     if (usb_isConfigured())
     {
       // Move the mouse +10 in the X direction and + 10 in the Y direction
-      usb_hid_mouse_send(0x00, 10, 10);
+      tusb_hid_mouse_send(0x00, 10, 10);
     }
 
     @endcode
 */
 /**************************************************************************/
-TUSB_Error_t usb_hid_mouse_send(uint8_t buttons, int8_t x, int8_t y)
+TUSB_Error_t tusb_hid_mouse_send(uint8_t buttons, int8_t x, int8_t y)
 {
 //  uint32_t start_time = systickGetSecondsActive();
 //  while (bMouseChanged) // TODO Block while previous key hasn't been sent - can use fifo to improve this

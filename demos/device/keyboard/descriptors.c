@@ -2,12 +2,12 @@
  * descriptors.c
  *
  *  Created on: Nov 26, 2012
- *      Author: hathach (thachha@live.com)
+ *      Author: hathach
  */
 
 /*
  * Software License Agreement (BSD License)
- * Copyright (c) 2012, hathach (thachha@live.com)
+ * Copyright (c) 2012, hathach (tinyusb.net)
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without modification,
@@ -130,7 +130,7 @@ ATTR_ALIGNED(4) const USB_DEVICE_DESCRIPTOR USB_DeviceDescriptor =
   .bDeviceClass       = USB_DEVICE_CLASS_IAD,
   .bDeviceSubClass    = USB_DEVICE_SUBCLASS_IAD,
   .bDeviceProtocol    = USB_DEVICE_PROTOCOL_IAD,
-  #elif defined CFG_USB_CDC
+  #elif defined CFG_CLASS_CDC
   .bDeviceClass       = CDC_COMMUNICATION_INTERFACE_CLASS,
   .bDeviceSubClass    = 0x00,
   .bDeviceProtocol    = 0x00,
@@ -187,7 +187,7 @@ ATTR_ALIGNED(4) const USB_FS_CONFIGURATION_DESCRIPTOR USB_FsConfigDescriptor =
     },
     #endif
 
-    #ifdef CFG_USB_CDC
+    #ifdef CFG_CLASS_CDC
     // USB CDC Serial Interface
     // CDC Control Interface
     .CDC_CCI_Interface =

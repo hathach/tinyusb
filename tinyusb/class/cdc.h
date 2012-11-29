@@ -1,5 +1,5 @@
 /*
- * tusb.h
+ * cdc.h
  *
  *  Created on: Nov 27, 2012
  *      Author: hathach
@@ -36,46 +36,78 @@
  */
 
 /** \file
- *  \brief Tiny USB header
+ *  \brief CDC Class Driver
  *
- *  \note Tiny USB header Note
+ *  \note TBD
  */
 
-/** \defgroup Group_TinyUSB Tiny USB
- *  \brief Group_TinyUSB brief
- *
+/** \ingroup Group_TinyUSB
+ *  \addtogroup Group_ClassDriver Class Driver
+ *  @{
+ *  \defgroup Group_CDC Communication Device Class
  *  @{
  */
 
-#ifndef _TUSB_H_
-#define _TUSB_H_
+#ifndef _TUSB_CDC_H__
+#define _TUSB_CDC_H__
 
-#ifdef __cplusplus
- extern "C" {
-#endif
-
+// todo refractor later
 #include "common/common.h"
+#include "device/dcd.h"
 
-#ifdef CFG_TUSB_HOST
-  #include "host/hcd.h"
+#define CDC_BUFFER_SIZE (2*CDC_DATA_EP_MAXPACKET_SIZE)
+
+/** \brief send a character to host
+ *
+ * \param[in]  para1
+ * \param[out] para2
+ * \return Error Code of the \ref TUSB_ERROR enum
+ * \note
+ */
+bool tusb_cdc_putc(uint8_t c);
+
+/** \brief get a character from host
+ *
+ * \param[in]  para1
+ * \param[out] para2
+ * \return Error Code of the \ref TUSB_ERROR enum
+ * \note
+ */
+bool tusb_cdc_getc(uint8_t *c);
+
+/** \brief send a number of characters to host
+ *
+ * \param[in]  para1
+ * \param[out] para2
+ * \return Error Code of the \ref TUSB_ERROR enum
+ * \note
+ */
+uint16_t tusb_cdc_send(uint8_t* buffer, uint16_t count);
+
+/** \brief get a number of characters from host
+ *
+ * \param[in]  para1
+ * \param[out] para2
+ * \return Error Code of the \ref TUSB_ERROR enum
+ * \note
+ */
+uint16_t tusb_cdc_recv(uint8_t* buffer, uint16_t max);
+
+/** \brief initialize cdc driver
+ *
+ * \param[in]  para1
+ * \param[out] para2
+ * \return Error Code of the \ref TUSB_ERROR enum
+ * \note
+ */
+TUSB_Error_t tusb_cdc_init(USBD_HANDLE_T hUsb, USB_INTERFACE_DESCRIPTOR const *const pControlIntfDesc, USB_INTERFACE_DESCRIPTOR const *const pDataIntfDesc, uint32_t* mem_base, uint32_t* mem_size);
+
+/** \brief notify cdc driver that usb is configured
+ *
+ * \param[in]  para1
+ * \param[out] para2
+ * \return Error Code of the \ref TUSB_ERROR enum
+ * \note
+ */
+TUSB_Error_t tusb_cdc_configured(USBD_HANDLE_T hUsb);
 #endif
-
-#ifdef CFG_TUSB_DEVICE
-  #include "device/dcd.h"
-#endif
-
-#if CLASS_HID
-  #include "class/hid.h"
-#endif
-
-#ifdef CFG_CLASS_CDC
-  #include "class/cdc.h"
-#endif
-
-#ifdef __cplusplus
- }
-#endif
-
-#endif /* _TUSB_H_ */
-
-/** @} */

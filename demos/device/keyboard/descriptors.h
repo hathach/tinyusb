@@ -2,13 +2,8 @@
  * descriptors.h
  *
  *  Created on: Nov 26, 2012
- *      Author: hathach (thachha@live.com)
- */
-
-/*
- * Software License Agreement (BSD License)
- * Copyright (c) 2012, hathach (thachha@live.com)
- * All rights reserved.
+ *      Author: hathachtware License Agreement (BSD License)
+ * Copyright (c) 2012, hathach (tinyusb.net)All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without modification,
  * are permitted provided that the following conditions are met:
@@ -88,9 +83,9 @@ typedef PRE_PACK struct POST_PACK _USB_INTERFACE_ASSOCIATION_DESCRIPTOR
 
 ///////////////////////////////////////////////////////////////////////
 // Interface Assosication Descriptor if device is CDC + other class
-#define IAD_DESC_REQUIRED ( defined(CFG_USB_CDC) && (CLASS_HID) )
+#define IAD_DESC_REQUIRED ( defined(CFG_CLASS_CDC) && (CLASS_HID) )
 
-#ifdef CFG_USB_CDC
+#ifdef CFG_CLASS_CDC
   #define INTERFACES_OF_CDC           2
 #else
   #define INTERFACES_OF_CDC           0
@@ -142,7 +137,7 @@ typedef struct
   USB_INTERFACE_ASSOCIATION_DESCRIPTOR        CDC_IAD;
 #endif
 
-#ifdef CFG_USB_CDC
+#ifdef CFG_CLASS_CDC
   //CDC - Serial
   //CDC Control Interface
   USB_INTERFACE_DESCRIPTOR                    CDC_CCI_Interface;

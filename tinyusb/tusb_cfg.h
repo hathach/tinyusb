@@ -2,12 +2,12 @@
  * tusb_cfg.h
  *
  *  Created on: Nov 26, 2012
- *      Author: hathach (thachha@live.com)
+ *      Author: hathach
  */
 
 /*
  * Software License Agreement (BSD License)
- * Copyright (c) 2012, hathach (thachha@live.com)
+ * Copyright (c) 2012, hathach (tinyusb.net)
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without modification,
@@ -57,6 +57,9 @@
 
 /// Enable Device Support
 #define CFG_TUSB_DEVICE
+
+/// Enable CDC Support
+#define CFG_CLASS_CDC
 
 /// Enable HID Keyboard support
 #define CFG_CLASS_HID_KEYBOARD

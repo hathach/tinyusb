@@ -2,12 +2,12 @@
  * hid.h
  *
  *  Created on: Nov 27, 2012
- *      Author: hathach (thachha@live.com)
+ *      Author: hathach
  */
 
 /*
  * Software License Agreement (BSD License)
- * Copyright (c) 2012, hathach (thachha@live.com)
+ * Copyright (c) 2012, hathach (tinyusb.net)
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without modification,
@@ -152,11 +152,41 @@ enum USB_HID_LOCAL_CODE
  extern "C" {
 #endif
 
-TUSB_Error_t usb_hid_init(USBD_HANDLE_T hUsb, USB_INTERFACE_DESCRIPTOR const *const pIntfDesc, uint8_t const * const pHIDReportDesc, uint32_t ReportDescLength, uint32_t* mem_base, uint32_t* mem_size) ATTR_NON_NULL;
-TUSB_Error_t usb_hid_configured(USBD_HANDLE_T hUsb);
+/** \brief Initialize HID driver
+ *
+ * \param[in]  para1
+ * \param[out] para2
+ * \return Error Code of the \ref TUSB_ERROR enum
+ * \note
+ */
+TUSB_Error_t tusb_hid_init(USBD_HANDLE_T hUsb, USB_INTERFACE_DESCRIPTOR const *const pIntfDesc, uint8_t const * const pHIDReportDesc, uint32_t ReportDescLength, uint32_t* mem_base, uint32_t* mem_size) ATTR_NON_NULL;
 
-TUSB_Error_t usb_hid_keyboard_sendKeys(uint8_t modifier, uint8_t keycodes[], uint8_t numkey) ATTR_NON_NULL;
-TUSB_Error_t usb_hid_mouse_send(uint8_t buttons, int8_t x, int8_t y);
+/** \brief Notify HID class that usb is configured
+ *
+ * \param[in]  para1
+ * \param[out] para2
+ * \return Error Code of the \ref TUSB_ERROR enum
+ * \note
+ */
+TUSB_Error_t tusb_hid_configured(USBD_HANDLE_T hUsb);
+
+/** \brief Used by Application to send Keycode to Host
+ *
+ * \param[in]  para1
+ * \param[out] para2
+ * \return Error Code of the \ref TUSB_ERROR enum
+ * \note
+ */
+TUSB_Error_t tusb_hid_keyboard_sendKeys(uint8_t modifier, uint8_t keycodes[], uint8_t numkey) ATTR_NON_NULL;
+
+/** \brief
+ *
+ * \param[in]  para1
+ * \param[out] para2
+ * \return Error Code of the \ref TUSB_ERROR enum
+ * \note
+ */
+TUSB_Error_t tusb_hid_mouse_send(uint8_t buttons, int8_t x, int8_t y);
 
 #ifdef __cplusplus
  }

@@ -2,12 +2,12 @@
  * compiler_gcc.h
  *
  *  Created on: Nov 26, 2012
- *      Author: hathach (thachha@live.com)
+ *      Author: hathach
  */
 
 /*
  * Software License Agreement (BSD License)
- * Copyright (c) 2012, hathach (thachha@live.com)
+ * Copyright (c) 2012, hathach (tinyusb.net)
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without modification,
@@ -103,7 +103,7 @@
 /// The alias attribute causes the declaration to be emitted as an alias for another symbol, which must be specified
 #define ATTR_ALIAS(func)					 __attribute__ ((alias(#func)))
 
-/// The weakref attribute marks a declaration as a weak reference. It is equivalent with weak + alias attribute
+/// The weakref attribute marks a declaration as a weak reference. It is equivalent with weak + alias attribute, but require function is static
 #define ATTR_WEAKREF(func)				 __attribute__ ((weakref(#func)))
 
 /// The warn_unused_result attribute causes a warning to be emitted if a caller of the function with this attribute does not use its return value. This is useful for functions where not checking the result is either a security problem or always a bug

@@ -2,12 +2,12 @@
  * dcd.c
  *
  *  Created on: Nov 27, 2012
- *      Author: hathach (thachha@live.com)
+ *      Author: hathach
  */
 
 /*
  * Software License Agreement (BSD License)
- * Copyright (c) 2012, hathach (thachha@live.com)
+ * Copyright (c) 2012, hathach (tinyusb.net)
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without modification,
@@ -60,11 +60,11 @@ ErrorCode_t USB_Configure_Event (USBD_HANDLE_T hUsb)
   if (pCtrl->config_value)
   {
     #if defined(CLASS_HID)
-    ASSERT( tERROR_NONE == usb_hid_configured(hUsb), ERR_FAILED );
+    ASSERT( tERROR_NONE == tusb_hid_configured(hUsb), ERR_FAILED );
     #endif
 
-    #ifdef CFG_USB_CDC
-    ASSERT_STATUS( usb_cdc_configured(hUsb) );
+    #ifdef CFG_CLASS_CDC
+    ASSERT( tERROR_NONE == tusb_cdc_configured(hUsb), ERR_FAILED );
     #endif
   }
 
@@ -118,18 +118,18 @@ TUSB_Error_t dcd_init()
 
   /* Initialise the class driver(s) */
   #ifdef CFG_CLASS_CDC
-  ASSERT_ERROR( usb_cdc_init(g_hUsb, &USB_FsConfigDescriptor.CDC_CCI_Interface,
+  ASSERT_ERROR( tusb_cdc_init(g_hUsb, &USB_FsConfigDescriptor.CDC_CCI_Interface,
             &USB_FsConfigDescriptor.CDC_DCI_Interface, &membase, &memsize) );
   #endif
 
   #ifdef CFG_CLASS_HID_KEYBOARD
-  ASSERT_ERROR( usb_hid_init(g_hUsb , &USB_FsConfigDescriptor.HID_KeyboardInterface ,
+  ASSERT_ERROR( tusb_hid_init(g_hUsb , &USB_FsConfigDescriptor.HID_KeyboardInterface ,
             HID_KeyboardReportDescriptor, USB_FsConfigDescriptor.HID_KeyboardHID.DescriptorList[0].wDescriptorLength,
             &membase , &memsize) );
   #endif
 
   #ifdef CFG_CLASS_HID_MOUSE
-  ASSERT_ERROR( usb_hid_init(g_hUsb , &USB_FsConfigDescriptor.HID_MouseInterface    ,
+  ASSERT_ERROR( tusb_hid_init(g_hUsb , &USB_FsConfigDescriptor.HID_MouseInterface    ,
             HID_MouseReportDescriptor, USB_FsConfigDescriptor.HID_MouseHID.DescriptorList[0].wDescriptorLength,
             &membase , &memsize) );
   #endif
