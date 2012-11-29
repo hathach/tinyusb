@@ -35,18 +35,22 @@
  * This file is part of the tiny usb stack.
  */
 
+/** \file
+ *  \brief ARM Cortex Mx Header
+ *
+ *  \note TBD
+ */
+
+/** \ingroup Group_Arch
+ *
+ *  @{
+ */
+
 #ifndef _TUSB_ARM_MX_H_
 #define _TUSB_ARM_MX_H_
-
-#ifdef __cplusplus
- extern "C" {
-#endif
 
 #define ENDIAN_LITTLE
 #define ALIGNMENT (4)
 
-#ifdef __cplusplus
- }
-#endif
-
 #endif /* _TUSB_ARM_MX_H_ */
+/// @}

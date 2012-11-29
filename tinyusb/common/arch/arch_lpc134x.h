@@ -35,12 +35,19 @@
  * This file is part of the tiny usb stack.
  */
 
+/** \file
+ *  \brief LPC13Uxx Header
+ *
+ *  \note TBD
+ */
+
+/** \ingroup Group_Arch
+ *
+ *  @{
+ */
+
 #ifndef _TUSB_ARCH_LPC134_X_H_
 #define _TUSB_ARCH_LPC134_X_H_
-
-#ifdef __cplusplus
- extern "C" {
-#endif
 
 #include "arm_mx.h"
 #include "LPC13Uxx.h"
@@ -48,9 +55,5 @@
 #define ARM_M3
 
 #define DEVICE_ROMDRIVER
-
-#ifdef __cplusplus
- }
-#endif
 
 #endif /* _TUSB_ARCH_LPC134_X_H_ */

@@ -35,22 +35,25 @@
  * This file is part of the tiny usb stack.
  */
 
+/** \file
+ *  \brief Configure File
+ *
+ *  \note TBD
+ */
+
+/** \ingroup Group_TinyUSB
+ *
+ *  @{
+ */
+
 #ifndef _TUSB_CFG_H_
 #define _TUSB_CFG_H_
 
-#ifdef __cplusplus
- extern "C" {
-#endif
-
-#include "common/common.h"
-
-#define CFG_TUSB_HOST
-#define CFG_TUSB_DEVICE
-
-#define CFG_CLASS_HID_KEYBOARD
+#define CFG_TUSB_HOST ///< Enable Host Support
+#define CFG_TUSB_DEVICE ///< Enable Device Support
+#define CFG_CLASS_HID_KEYBOARD ///< Enable HID Keyboard support
 
 #define CLASS_HID (defined CFG_CLASS_HID_KEYBOARD)
-
 
 // TODO APP
 #define USB_MAX_IF_NUM          8
@@ -75,8 +78,6 @@
 #define  CDC_NOTIFICATION_EP_MAXPACKETSIZE  8
 #define  CDC_DATA_EP_MAXPACKET_SIZE         16
 
-#ifdef __cplusplus
- }
-#endif
-
 #endif /* _TUSB_CFG_H_ */
+
+/** @} */

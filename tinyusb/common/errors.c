@@ -35,3 +35,8 @@
  * This file is part of the tiny usb stack.
  */
 
+char const* const TUSB_ErrorStr[] = {
+#   define ERROR_ENUM(x) #x,
+#   include "errors_def"
+#   undef ERROR_ENUM
+};

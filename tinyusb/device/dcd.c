@@ -39,9 +39,10 @@
 
 // TODO refractor later
 #include "descriptors.h"
+#include <cr_section_macros.h>
 
 #define USB_ROM_SIZE (1024*2)
-uint8_t usb_RomDriver_buffer[USB_ROM_SIZE]ALIGNED(2048) /*__BSS(RAM2)*/;
+uint8_t usb_RomDriver_buffer[USB_ROM_SIZE] ATTR_ALIGNED(2048) __BSS(RAM2);
 USBD_HANDLE_T g_hUsb;
 volatile static bool isConfigured = false;
 
@@ -83,12 +84,15 @@ ErrorCode_t USB_Reset_Event (USBD_HANDLE_T hUsb)
 void dcd_init()
 {
   /* ROM DRIVER INIT */
+  uint32_t membase = (uint32_t) usb_RomDriver_buffer;
+  uint32_t memsize = USB_ROM_SIZE;
+
   USBD_API_INIT_PARAM_T usb_param =
   {
     .usb_reg_base        = LPC_USB_BASE,
     .max_num_ep          = USB_MAX_EP_NUM,
-    .mem_base            = (uint32_t) usb_RomDriver_buffer,
-    .mem_size            = USB_ROM_SIZE, //USBD_API->hw->GetMemSize()
+    .mem_base            = membase,
+    .mem_size            = memsize,
 
     .USB_Configure_Event = USB_Configure_Event,
     .USB_Reset_Event     = USB_Reset_Event
@@ -106,22 +110,25 @@ void dcd_init()
   /* Start USB hardware initialisation */
   ASSERT_STATUS(USBD_API->hw->Init(&g_hUsb, &DeviceDes, &usb_param));
 
-    /* Initialise the class driver(s) */
+  membase += (memsize - usb_param.mem_size);
+  memsize = usb_param.mem_size;
+
+  /* Initialise the class driver(s) */
   #ifdef CFG_USB_CDC
     ASSERT_STATUS( usb_cdc_init(g_hUsb, &USB_FsConfigDescriptor.CDC_CCI_Interface,
-            &USB_FsConfigDescriptor.CDC_DCI_Interface, &usb_param.mem_base, &usb_param.mem_size) );
+            &USB_FsConfigDescriptor.CDC_DCI_Interface, &membase, &memsize) );
   #endif
 
   #ifdef CFG_CLASS_HID_KEYBOARD
     ASSERT_STATUS( usb_hid_init(g_hUsb , &USB_FsConfigDescriptor.HID_KeyboardInterface ,
             HID_KeyboardReportDescriptor, USB_FsConfigDescriptor.HID_KeyboardHID.DescriptorList[0].wDescriptorLength,
-            &usb_param.mem_base , &usb_param.mem_size) );
+            &membase , &memsize) );
   #endif
 
   #ifdef CFG_USB_HID_MOUSE
     ASSERT_STATUS( usb_hid_init(g_hUsb , &USB_FsConfigDescriptor.HID_MouseInterface    ,
             HID_MouseReportDescriptor, USB_FsConfigDescriptor.HID_MouseHID.DescriptorList[0].wDescriptorLength,
-            &usb_param.mem_base , &usb_param.mem_size) );
+            &membase , &memsize) );
   #endif
 
   /* Enable the USB interrupt */

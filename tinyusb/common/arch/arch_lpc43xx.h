@@ -35,20 +35,25 @@
  * This file is part of the tiny usb stack.
  */
 
+/** \file
+ *  \brief LPC43xx Header
+ *
+ *  \note TBD
+ */
+
+/** \ingroup Group_Arch
+ *
+ *  @{
+ */
+
 #ifndef _TUSB_ARCH_LPC43XX_H_
 #define _TUSB_ARCH_LPC43XX_H_
-
-#ifdef __cplusplus
- extern "C" {
-#endif
 
 #define ARM_M4
 //#define ARM_M0
 
 #include "arm_mx.h"
 
-#ifdef __cplusplus
- }
-#endif
-
 #endif /* _TUSB_ARCH_LPC43XX_H_ */
+
+/// @}

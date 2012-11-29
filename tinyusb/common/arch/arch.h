@@ -35,28 +35,33 @@
  * This file is part of the tiny usb stack.
  */
 
+/** \file
+ *  \brief Architecture Header
+ *
+ *  \note TBD
+ */
+
+/** \ingroup Group_Common
+ *  \defgroup Group_Arch Architecture
+ *  \brief Group_Arch brief
+ *
+ *  @{
+ */
+
 #ifndef _TUSB_ARCH_H_
 #define _TUSB_ARCH_H_
-
-#ifdef __cplusplus
- extern "C" {
-#endif
 
 #define ARCH_LPC134X 1
 #define ARCH_LPC43XX 2
 #define ARCH ARCH_LPC134X
 
-#define ENDIAN_LITTLE
-#define ALIGNMENT (4)
+#define ENDIAN_LITTLE ///< MCU Endian
+#define ALIGNMENT (4) ///< MCU Alignment
 
 #if ARCH == ARCH_LPC134X
   #include "arch_lpc134x.h"
 #elif ARCH == ARCH_LPC43XX
 
-#endif
-
-#ifdef __cplusplus
- }
 #endif
 
 #endif /* _TUSB_ARCH_H_ */

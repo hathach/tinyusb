@@ -35,13 +35,31 @@
  * This file is part of the tiny usb stack.
  */
 
+/** \file
+ *  \brief Error Header
+ *
+ *  \note TBD
+ */
+
+/** \ingroup Group_Common
+ *
+ *  @{
+ */
+
 #ifndef _TUSB_ERRORS_H_
 #define _TUSB_ERRORS_H_
+
+enum TUSB_ERROR {
+#   define ERROR_ENUM(x) x,
+#   include "errors_def"
+#   undef ERROR_ENUM
+};
 
 #ifdef __cplusplus
  extern "C" {
 #endif
 
+extern char const* const TUSB_ErrorStr[];
 
 #ifdef __cplusplus
  }

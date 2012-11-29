@@ -210,7 +210,7 @@ ErrorCode_t usb_hid_init(USBD_HANDLE_T hUsb, USB_INTERFACE_DESCRIPTOR const *con
   ASSERT_STATUS( USBD_API->hid->init(hUsb, &hid_param) );
 
   /* update memory variables */
-  *mem_base = hid_param.mem_base;
+  *mem_base += (*mem_size - hid_param.mem_size);
   *mem_size = hid_param.mem_size;
 
   return LPC_OK;

@@ -35,12 +35,21 @@
  * This file is part of the tiny usb stack.
  */
 
+/** \file
+ *  \brief Common Header File
+ *
+ *  \note TBD
+ */
+
+/** \ingroup Group_TinyUSB
+ *  \defgroup Group_Common Common Files
+ *  \brief Group_Common brief
+ *
+ *  @{
+ */
+
 #ifndef _TUSB_COMMON_H_
 #define _TUSB_COMMON_H_
-
-#ifdef __cplusplus
- extern "C" {
-#endif
 
 #include <stddef.h>
 #include <stdbool.h>
@@ -77,9 +86,5 @@
 	}while(0)
 
 #define ASSERT_STATUS(sts)		ASSERT_STATUS_MESSAGE(sts, NULL)
-
-#ifdef __cplusplus
- }
-#endif
 
 #endif /* _TUSB_COMMON_H_ */

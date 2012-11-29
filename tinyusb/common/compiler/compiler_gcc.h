@@ -35,9 +35,16 @@
  * This file is part of the tiny usb stack.
  */
 
-#ifdef __cplusplus
- extern "C" {
-#endif
+/** \file
+ *  \brief GCC Header
+ *
+ *  \note TBD
+ */
+
+/** \ingroup Group_Compiler
+ *
+ *  @{
+ */
 
 #ifndef _TUSB_COMPILER_GCC_H_
 #define _TUSB_COMPILER_GCC_H_
@@ -56,8 +63,6 @@
 #define ATTR_WARN_UNUSED_RESULT __attribute__ ((warn_unused_result))
 #define ATTR_ALWAYS_INLINE			__attribute__ ((always_inline))
 
-#ifdef __cplusplus
- }
-#endif
-
 #endif /* _TUSB_COMPILER_GCC_H_ */
+
+/// @}

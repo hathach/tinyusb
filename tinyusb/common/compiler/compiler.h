@@ -35,19 +35,25 @@
  * This file is part of the tiny usb stack.
  */
 
+/** \file
+ *  \brief Compiler Header
+ *
+ *  \note TBD
+ */
+
+/** \ingroup Group_Common
+ *  \defgroup Group_Compiler Compiler
+ *  \brief Group_Compiler brief
+ *
+ *  @{
+ */
+
 #ifndef _TUSB_COMPILER_H_
 #define _TUSB_COMPILER_H_
-
-#ifdef __cplusplus
- extern "C" {
-#endif
 
 #if defined(__GNUC__)
   #include "compiler_gcc.h"
 #endif
 
-#ifdef __cplusplus
- }
-#endif
-
 #endif /* _TUSB_COMPILER_H_ */
+/// @}

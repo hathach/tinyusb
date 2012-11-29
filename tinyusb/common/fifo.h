@@ -35,22 +35,39 @@
  * This file is part of the tiny usb stack.
  */
 
+/** \file
+ *  \brief Error Header
+ *
+ *  \note TBD
+ */
+
+/** \ingroup Group_Common
+ *
+ *  @{
+ */
+
 #ifndef _TUSB_FIFO_H_
 #define _TUSB_FIFO_H_
 
 #include "common/common.h"
 
-/* ToDo: Describe each field in fifo_t */
-typedef struct _fifo_t
+/**
+ * \brief Simple FIFO
+ */
+typedef struct
 {
-  uint8_t* buf;
-  uint16_t size;
-  volatile uint16_t len;
-  volatile uint16_t wr_ptr;
-  volatile uint16_t rd_ptr;
-  bool overwritable;
-  IRQn_Type irq;
+  uint8_t* buf; ///< buffer pointer
+  uint16_t size; ///< buffer size
+  volatile uint16_t len; ///< bytes in fifo
+  volatile uint16_t wr_ptr; ///< write pointer
+  volatile uint16_t rd_ptr; ///< read pointer
+  bool overwritable; ///< allow overwrite data when full
+  IRQn_Type irq; ///< interrupt used to lock fifo
 } fifo_t;
+
+#ifdef __cplusplus
+ extern "C" {
+#endif
 
 void fifo_init(fifo_t* f, uint8_t* buffer, uint16_t size, bool overwritable, IRQn_Type irq);
 bool fifo_write(fifo_t* f, uint8_t data);
@@ -72,5 +89,9 @@ static inline uint16_t fifo_getLength(fifo_t* f)
 {
   return f->len;
 }
+
+#ifdef __cplusplus
+ }
+#endif
 
 #endif /* _TUSB_FIFO_H_ */
