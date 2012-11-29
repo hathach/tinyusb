@@ -36,7 +36,6 @@
  */
 
 #include "hid.h"
-//#include "../systick/systick.h"
 
 #ifdef CLASS_HID
 
@@ -45,7 +44,7 @@ USB_HID_KeyboardReport_t hid_keyboard_report;
 volatile static bool bKeyChanged = false;
 #endif
 
-#ifdef CFG_USB_HID_MOUSE
+#ifdef CFG_CLASS_HID_MOUSE
 USB_HID_MouseReport_t hid_mouse_report;
 volatile static bool bMouseChanged = false;
 #endif
@@ -78,7 +77,7 @@ ErrorCode_t HID_GetReport( USBD_HANDLE_T hHid, USB_SETUP_PACKET* pSetup, uint8_t
       break;
     #endif
 
-    #ifdef CFG_USB_HID_MOUSE
+    #ifdef CFG_CLASS_HID_MOUSE
       case HID_PROTOCOL_MOUSE:
         *pBuffer = (uint8_t*) &hid_mouse_report;
         *plength = sizeof(USB_HID_MouseReport_t);
@@ -139,7 +138,7 @@ ErrorCode_t HID_EpIn_Hdlr (USBD_HANDLE_T hUsb, void* data, uint32_t event)
         break;
       #endif
 
-      #ifdef CFG_USB_HID_MOUSE
+      #ifdef CFG_CLASS_HID_MOUSE
         case HID_PROTOCOL_MOUSE:
           if (!bMouseChanged)
           {
@@ -213,7 +212,7 @@ TUSB_Error_t usb_hid_init(USBD_HANDLE_T hUsb, USB_INTERFACE_DESCRIPTOR const *co
   *mem_base += (*mem_size - hid_param.mem_size);
   *mem_size = hid_param.mem_size;
 
-  return LPC_OK;
+  return tERROR_NONE;
 }
 
 /**************************************************************************/
@@ -227,7 +226,7 @@ TUSB_Error_t usb_hid_configured(USBD_HANDLE_T hUsb)
     USBD_API->hw->WriteEP(hUsb , HID_KEYBOARD_EP_IN , (uint8_t* ) &hid_keyboard_report , sizeof(USB_HID_KeyboardReport_t) ); // initial packet for IN endpoint , will not work if omitted
   #endif
 
-  #ifdef  CFG_USB_HID_MOUSE
+  #ifdef  CFG_CLASS_HID_MOUSE
     USBD_API->hw->WriteEP(hUsb , HID_MOUSE_EP_IN    , (uint8_t* ) &hid_mouse_report    , sizeof(USB_HID_MouseReport_t) ); // initial packet for IN endpoint, will not work if omitted
   #endif
 
@@ -292,11 +291,11 @@ TUSB_Error_t usb_hid_keyboard_sendKeys(uint8_t modifier, uint8_t keycodes[], uin
 
   bKeyChanged = true;
 
-  return LPC_OK;
+  return tERROR_NONE;
 }
 #endif
 
-#ifdef CFG_USB_HID_MOUSE
+#ifdef CFG_CLASS_HID_MOUSE
 /**************************************************************************/
 /*!
     @brief Send the supplied mouse event out via HID USB mouse emulation
@@ -341,7 +340,7 @@ TUSB_Error_t usb_hid_mouse_send(uint8_t buttons, int8_t x, int8_t y)
 
   bMouseChanged = true;
 
-  return LPC_OK;
+  return tERROR_NONE;
 }
 #endif
 

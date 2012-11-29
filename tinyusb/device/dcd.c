@@ -37,6 +37,8 @@
 
 #include "dcd.h"
 
+#ifdef CFG_TUSB_DEVICE
+
 // TODO refractor later
 #include "descriptors.h"
 #include <cr_section_macros.h>
@@ -160,3 +162,5 @@ void USB_IRQHandler(void)
 {
   USBD_API->hw->ISR(g_hUsb);
 }
+
+#endif

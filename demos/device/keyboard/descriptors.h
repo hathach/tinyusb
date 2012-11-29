@@ -102,7 +102,7 @@ typedef PRE_PACK struct POST_PACK _USB_INTERFACE_ASSOCIATION_DESCRIPTOR
   #define INTERFACES_OF_HID_KEYBOARD  0
 #endif
 
-#ifdef CFG_USB_HID_MOUSE
+#ifdef CFG_CLASS_HID_MOUSE
   #define INTERFACES_OF_HID_MOUSE     1
 #else
   #define INTERFACES_OF_HID_MOUSE     0
@@ -164,7 +164,7 @@ typedef struct
   USB_ENDPOINT_DESCRIPTOR                     HID_KeyboardEndpoint;
 #endif
 
-#ifdef CFG_USB_HID_MOUSE
+#ifdef CFG_CLASS_HID_MOUSE
   //Mouse HID Interface
   USB_INTERFACE_DESCRIPTOR                    HID_MouseInterface;
   HID_DESCRIPTOR                              HID_MouseHID;

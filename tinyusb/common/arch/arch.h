@@ -51,17 +51,20 @@
 #ifndef _TUSB_ARCH_H_
 #define _TUSB_ARCH_H_
 
-#define ARCH_LPC134X 1
-#define ARCH_LPC43XX 2
-#define ARCH ARCH_LPC134X
+#define ARCH_LPC134X
+//#define ARCH_LPC11XX
 
 #define ENDIAN_LITTLE ///< MCU Endian
 #define ALIGNMENT (4) ///< MCU Alignment
 
-#if ARCH == ARCH_LPC134X
+#if defined ARCH_LPC134X
   #include "arch_lpc134x.h"
-#elif ARCH == ARCH_LPC43XX
-
+#elif defined ARCH_LPC43XX
+  #include "arch_lpc43xx.h"
+#elif defined ARCH_LPC11XX
+  #include "arch_lpc11xx.h"
+#else
+  #error Arch is not found
 #endif
 
 #endif /* _TUSB_ARCH_H_ */

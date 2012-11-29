@@ -38,19 +38,10 @@
 #ifndef _TUSB_HID_H_
 #define _TUSB_HID_H_
 
-#ifdef __cplusplus
- extern "C" {
-#endif
-
  // TODO refractor
 #include "common/common.h"
 #include "device/dcd.h"
 
-TUSB_Error_t usb_hid_init(USBD_HANDLE_T hUsb, USB_INTERFACE_DESCRIPTOR const *const pIntfDesc, uint8_t const * const pHIDReportDesc, uint32_t ReportDescLength, uint32_t* mem_base, uint32_t* mem_size) ATTR_NON_NULL;
-TUSB_Error_t usb_hid_configured(USBD_HANDLE_T hUsb);
-
-TUSB_Error_t usb_hid_keyboard_sendKeys(uint8_t modifier, uint8_t keycodes[], uint8_t numkey) ATTR_NON_NULL;
-TUSB_Error_t usb_hid_mouse_send(uint8_t buttons, int8_t x, int8_t y);
 
 /** \brief Standard HID Boot Protocol Mouse Report.
  *
@@ -134,6 +125,16 @@ enum USB_HID_LOCAL_CODE
   HID_Local_Yugoslavia,
   HID_Local_Turkish_F
 };
+
+#ifdef __cplusplus
+ extern "C" {
+#endif
+
+TUSB_Error_t usb_hid_init(USBD_HANDLE_T hUsb, USB_INTERFACE_DESCRIPTOR const *const pIntfDesc, uint8_t const * const pHIDReportDesc, uint32_t ReportDescLength, uint32_t* mem_base, uint32_t* mem_size) ATTR_NON_NULL;
+TUSB_Error_t usb_hid_configured(USBD_HANDLE_T hUsb);
+
+TUSB_Error_t usb_hid_keyboard_sendKeys(uint8_t modifier, uint8_t keycodes[], uint8_t numkey) ATTR_NON_NULL;
+TUSB_Error_t usb_hid_mouse_send(uint8_t buttons, int8_t x, int8_t y);
 
 #ifdef __cplusplus
  }

@@ -48,7 +48,7 @@ int main(void)
           usb_hid_keyboard_sendKeys(0x00, keys, 1);
         #endif
 
-        #ifdef CFG_USB_HID_MOUSE
+        #ifdef CFG_CLASS_HID_MOUSE          
           usb_hid_mouse_send(0, 10, 10);
         #endif
       }

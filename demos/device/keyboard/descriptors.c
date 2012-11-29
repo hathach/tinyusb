@@ -80,7 +80,7 @@ ATTR_ALIGNED(4) const uint8_t HID_KeyboardReportDescriptor[] = {
 };
 #endif
 
-#ifdef CFG_USB_HID_MOUSE
+#ifdef CFG_CLASS_HID_MOUSE
 ATTR_ALIGNED(4) const uint8_t HID_MouseReportDescriptor[] = {
   HID_UsagePage  ( HID_USAGE_PAGE_GENERIC     ),
   HID_Usage      ( HID_USAGE_GENERIC_MOUSE ),
@@ -316,7 +316,7 @@ ATTR_ALIGNED(4) const USB_FS_CONFIGURATION_DESCRIPTOR USB_FsConfigDescriptor =
     },
     #endif
 
-    #ifdef CFG_USB_HID_MOUSE
+    #ifdef CFG_CLASS_HID_MOUSE
     .HID_MouseInterface =
     {
         .bLength            = sizeof(USB_INTERFACE_DESCRIPTOR),

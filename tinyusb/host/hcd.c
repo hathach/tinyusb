@@ -37,9 +37,13 @@
 
 #include "hcd.h"
 
+#ifdef CFG_TUSB_HOST
+
 TUSB_Error_t hcd_init()
 {
 
 
   return tERROR_NONE;
 }
+
+#endif

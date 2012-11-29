@@ -49,12 +49,13 @@
 #ifndef _TUSB_ARCH_LPC134_X_H_
 #define _TUSB_ARCH_LPC134_X_H_
 
+#define ARM_M3
+#define DEVICE_ROMDRIVER
+
 #include "arm_mx.h"
 #include "LPC13Uxx.h"
 
-#define ARM_M3
 
-#define DEVICE_ROMDRIVER
 
 #endif /* _TUSB_ARCH_LPC134_X_H_ */
 

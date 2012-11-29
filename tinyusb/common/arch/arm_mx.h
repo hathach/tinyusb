@@ -49,6 +49,8 @@
 #ifndef _TUSB_ARM_MX_H_
 #define _TUSB_ARM_MX_H_
 
+// #ifdef ARM_M3 ARM_M4 ARM_M0
+
 #define ENDIAN_LITTLE
 #define ALIGNMENT (4)
 

@@ -61,7 +61,10 @@
 /// Enable HID Keyboard support
 #define CFG_CLASS_HID_KEYBOARD
 
-#define CLASS_HID (defined CFG_CLASS_HID_KEYBOARD)
+/// Enable HID Mouse support
+#define CFG_CLASS_HID_MOUSE
+
+#define CLASS_HID ( (defined CFG_CLASS_HID_KEYBOARD) || (defined CFG_CLASS_HID_MOUSE) )
 
 // TODO APP
 #define USB_MAX_IF_NUM          8
