@@ -35,6 +35,19 @@
  * This file is part of the tiny usb stack.
  */
 
+/** \file
+ *  \brief HID Class Driver
+ *
+ *  \note TBD
+ */
+
+/** \ingroup Group_TinyUSB
+ *  \addtogroup Group_ClassDriver Class Driver
+ *  @{
+ *  \defgroup Group_HID Human Interface Device
+ *  @{
+ */
+
 #ifndef _TUSB_HID_H_
 #define _TUSB_HID_H_
 
@@ -43,7 +56,8 @@
 #include "device/dcd.h"
 
 
-/** \brief Standard HID Boot Protocol Mouse Report.
+/** \struct USB_HID_MouseReport_t
+ *  \brief Standard HID Boot Protocol Mouse Report.
  *
  *  Type define for a standard Boot Protocol Mouse report
  */
@@ -54,7 +68,8 @@ typedef PRE_PACK struct
   int8_t  Y; /**< Current delta Y movement on the mouse. */
 } POST_PACK USB_HID_MouseReport_t;
 
-/** \brief Standard HID Boot Protocol Keyboard Report.
+/** \struct USB_HID_KeyboardReport_t
+ *  \brief Standard HID Boot Protocol Keyboard Report.
  *
  *  Type define for a standard Boot Protocol Keyboard report
  */
@@ -65,7 +80,9 @@ typedef PRE_PACK struct
   uint8_t KeyCode[6]; /**< Key codes of the currently pressed keys. */
 } POST_PACK USB_HID_KeyboardReport_t;
 
-/* Button codes for HID mouse */
+/** \enum USB_HID_MOUSE_BUTTON_CODE
+ * \brief Button codes for HID mouse
+ */
 enum USB_HID_MOUSE_BUTTON_CODE
 {
 	HID_MOUSEBUTTON_RIGHT = 0,
@@ -73,7 +90,9 @@ enum USB_HID_MOUSE_BUTTON_CODE
 	HID_MOUSEBUTTON_MIDDLE = 2
 };
 
-/* KB modifier codes for HID KB */
+/** \enum USB_HID_KB_KEYMODIFIER_CODE
+ * \brief KB modifier codes for HID KB
+ */
 enum USB_HID_KB_KEYMODIFIER_CODE
 {
 	HID_KEYMODIFIER_LEFTCTRL = 0,
@@ -86,6 +105,9 @@ enum USB_HID_KB_KEYMODIFIER_CODE
 	HID_KEYMODIFIER_RIGHTGUI
 };
 
+/** \enum USB_HID_LOCAL_CODE
+ * \brief Local Country code for HID
+ */
 enum USB_HID_LOCAL_CODE
 {
   HID_Local_NotSupported = 0,
@@ -141,3 +163,6 @@ TUSB_Error_t usb_hid_mouse_send(uint8_t buttons, int8_t x, int8_t y);
 #endif
 
 #endif /* _TUSB_HID_H__ */
+
+/// @}
+/// @}

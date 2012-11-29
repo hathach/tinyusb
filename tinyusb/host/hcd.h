@@ -35,6 +35,19 @@
  * This file is part of the tiny usb stack.
  */
 
+/** \file
+ *  \brief Host Controller Driver
+ *
+ *  \note TBD
+ */
+
+/** \ingroup Group_TinyUSB
+ *  \defgroup Group_HCD Host Controller Driver
+ *  \brief Host Controller Driver
+ *
+ *  @{
+ */
+
 #ifndef _TUSB_HCD_H_
 #define _TUSB_HCD_H_
 
@@ -44,6 +57,14 @@
  extern "C" {
 #endif
 
+/** \brief Initialize HCD
+*
+* \param[in]  para1
+* \param[out] para2
+* \return Error Code of the \ref TUSB_ERROR enum
+* \note
+*/
+
 TUSB_Error_t hcd_init() ATTR_WARN_UNUSED_RESULT;
 
 #ifdef __cplusplus
@@ -51,3 +72,5 @@ TUSB_Error_t hcd_init() ATTR_WARN_UNUSED_RESULT;
 #endif
 
  #endif /* _TUSB_HCD_H_ */
+
+/// @}

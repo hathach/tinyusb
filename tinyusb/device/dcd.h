@@ -35,6 +35,19 @@
  * This file is part of the tiny usb stack.
  */
 
+/** \file
+ *  \brief Device Controller Driver
+ *
+ *  \note TBD
+ */
+
+/** \ingroup Group_TinyUSB
+ *  \defgroup Group_DCD Device Controller Driver
+ *  \brief Device Controller Driver
+ *
+ *  @{
+ */
+
 #ifndef _TUSB_DCD_H_
 #define _TUSB_DCD_H_
 
@@ -51,6 +64,14 @@
  extern "C" {
 #endif
 
+/** \brief Initialize DCD
+ *
+ * \param[in]  para1
+ * \param[out] para2
+ * \return Error Code of the \ref TUSB_ERROR enum
+ * \note
+ */
+
 TUSB_Error_t dcd_init() ATTR_WARN_UNUSED_RESULT;
 
 #ifdef __cplusplus
@@ -58,3 +79,5 @@ TUSB_Error_t dcd_init() ATTR_WARN_UNUSED_RESULT;
 #endif
 
 #endif /* _TUSB_DCD_H_ */
+
+/// @}
