@@ -41,6 +41,7 @@ TUSB_Error_t tusb_init(void)
 {
   /* HARDWARE INIT */
 
+	// TODO usb abstract later
   /* Enable AHB clock to the USB block and USB RAM. */
   LPC_SYSCON->SYSAHBCLKCTRL |= ((0x1<<14) | (0x1<<27));
 

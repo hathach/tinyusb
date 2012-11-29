@@ -57,3 +57,6 @@
 #define DEVICE_ROMDRIVER
 
 #endif /* _TUSB_ARCH_LPC134_X_H_ */
+
+/** @} */
+

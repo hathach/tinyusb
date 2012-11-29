@@ -41,8 +41,9 @@
 #include "descriptors.h"
 #include <cr_section_macros.h>
 
+// TODO dcd abstract later
 #define USB_ROM_SIZE (1024*2)
-uint8_t usb_RomDriver_buffer[USB_ROM_SIZE] ATTR_ALIGNED(2048) __BSS(RAM2);
+uint8_t usb_RomDriver_buffer[USB_ROM_SIZE] ATTR_ALIGNED(2048) __DATA(RAM2);
 USBD_HANDLE_T g_hUsb;
 volatile static bool isConfigured = false;
 

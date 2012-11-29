@@ -53,4 +53,4 @@
 #define ALIGNMENT (4)
 
 #endif /* _TUSB_ARM_MX_H_ */
-/// @}
+/** @} */

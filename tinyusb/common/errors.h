@@ -49,7 +49,7 @@
 #ifndef _TUSB_ERRORS_H_
 #define _TUSB_ERRORS_H_
 
-/** \enum TUSB_Error
+/** \enum TUSB_Error_t
  *  \brief Error Code returned
  */
 
@@ -73,4 +73,4 @@ extern char const* const TUSB_ErrorStr[];
 
 #endif /* _TUSB_ERRORS_H_ */
 
- /**  @{ */
+ /**  @} */
