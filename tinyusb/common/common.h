@@ -41,7 +41,7 @@
  *  \note TBD
  */
 
-/** \ingroup Group_TinyUSB
+/**
  *  \defgroup Group_Common Common Files
  *  \brief Group_Common brief
  *
@@ -54,37 +54,41 @@
 #include <stddef.h>
 #include <stdbool.h>
 #include <string.h>
+#include <stdio.h>
 
+#include "tusb_cfg.h"
 #include "arch/arch.h"
 #include "compiler/compiler.h"
 #include "errors.h"
 
 //#if ( defined CFG_PRINTF_UART || defined CFG_PRINTF_USBCDC || defined CFG_PRINTF_DEBUG )
-#if 1 // TODO refractor ASSERT
-  #define PRINTF_LOCATION(mess)	printf("Assert: %s at line %d: %s\n", __func__, __LINE__, mess)
+#if CFG_TUSB_DEBUG_LEVEL
+  #define PRINTF(...)	printf(__VA_ARGS__)
 #else
-  #define PRINTF_LOCATION(mess)
+  #define PRINTF(...)
 #endif
 
 #define ASSERT_MESSAGE(condition, value, message) \
 	do{\
 	  if (!(condition)) {\
-			PRINTF_LOCATION(message);\
+			PRINTF("Assert at %s line %d: %s\n", __func__, __LINE__, message); \
 			return (value);\
 		}\
 	}while(0)
 
 #define ASSERT(condition, value)  ASSERT_MESSAGE(condition, value, NULL)
 
-#define ASSERT_STATUS_MESSAGE(sts, message) \
+#define ASSERT_ERROR_MESSAGE(sts, message) \
 	do{\
-	  ErrorCode_t status = (sts);\
-	  if (LPC_OK != status) {\
-	    PRINTF_LOCATION(message);\
+	  TUSB_Error_t status = (TUSB_Error_t)(sts);\
+	  if (tERROR_NONE != status) {\
+	    PRINTF("Assert at %s line %d: %s %s\n", __func__, __LINE__, TUSB_ErrorStr[status], message); \
 	    return status;\
 	  }\
 	}while(0)
 
-#define ASSERT_STATUS(sts)		ASSERT_STATUS_MESSAGE(sts, NULL)
+#define ASSERT_ERROR(sts)		ASSERT_ERROR_MESSAGE(sts, NULL)
 
 #endif /* _TUSB_COMMON_H_ */
+
+/**  @{ */

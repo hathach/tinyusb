@@ -38,11 +38,7 @@
 #ifndef _TUSB_DCD_H_
 #define _TUSB_DCD_H_
 
-#ifdef __cplusplus
- extern "C" {
-#endif
 
-#include "tusb_cfg.h"
 #include "common/common.h"
 
 #ifdef DEVICE_ROMDRIVER
@@ -51,6 +47,11 @@
 #define USBD_API     ((*(ROM **)(0x1FFF1FF8))->pUSBD) // TODO HAL
 #endif
 
+#ifdef __cplusplus
+ extern "C" {
+#endif
+
+TUSB_Error_t dcd_init() ATTR_WARN_UNUSED_RESULT;
 
 #ifdef __cplusplus
  }

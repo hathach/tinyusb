@@ -1,7 +1,7 @@
 /*
- * errors.h
+ * hcd.c
  *
- *  Created on: Nov 27, 2012
+ *  Created on: Nov 29, 2012
  *      Author: hathach (thachha@live.com)
  */
 
@@ -35,42 +35,11 @@
  * This file is part of the tiny usb stack.
  */
 
-/** \file
- *  \brief Error Header
- *
- *  \note TBD
- */
+#include "hcd.h"
 
-/** \ingroup Group_Common
- *  \defgroup Group_Error tinyUSB Error Codes
- *  @{
- */
+TUSB_Error_t hcd_init()
+{
 
-#ifndef _TUSB_ERRORS_H_
-#define _TUSB_ERRORS_H_
 
-/** \enum TUSB_Error
- *  \brief Error Code returned
- */
-
-typedef enum {
-#   define ERROR_ENUM(x) x,
-#   include "errors_def"
-#   undef ERROR_ENUM
-  ERROR_COUNT
-}TUSB_Error_t;
-
-#ifdef __cplusplus
- extern "C" {
-#endif
-
-/// Enum to String for debugging purposes. Only available if \ref CFG_TUSB_DEBUG_LEVEL > 0
-extern char const* const TUSB_ErrorStr[];
-
-#ifdef __cplusplus
- }
-#endif
-
-#endif /* _TUSB_ERRORS_H_ */
-
- /**  @{ */
+  return tERROR_NONE;
+}

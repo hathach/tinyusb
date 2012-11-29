@@ -180,7 +180,7 @@ ErrorCode_t HID_EpOut_Hdlr (USBD_HANDLE_T hUsb, void* data, uint32_t event)
     @brief Initialises USB HID using the ROM based drivers
 */
 /**************************************************************************/
-ErrorCode_t usb_hid_init(USBD_HANDLE_T hUsb, USB_INTERFACE_DESCRIPTOR const *const pIntfDesc, uint8_t const * const pHIDReportDesc, uint32_t ReportDescLength, uint32_t* mem_base, uint32_t* mem_size)
+TUSB_Error_t usb_hid_init(USBD_HANDLE_T hUsb, USB_INTERFACE_DESCRIPTOR const *const pIntfDesc, uint8_t const * const pHIDReportDesc, uint32_t ReportDescLength, uint32_t* mem_base, uint32_t* mem_size)
 {
   USB_HID_REPORT_T reports_data =
   {
@@ -207,7 +207,7 @@ ErrorCode_t usb_hid_init(USBD_HANDLE_T hUsb, USB_INTERFACE_DESCRIPTOR const *con
 
   ASSERT( (pIntfDesc != NULL) && (pIntfDesc->bInterfaceClass == USB_DEVICE_CLASS_HUMAN_INTERFACE), ERR_FAILED);
 
-  ASSERT_STATUS( USBD_API->hid->init(hUsb, &hid_param) );
+  ASSERT( LPC_OK == USBD_API->hid->init(hUsb, &hid_param), tERROR_FAILED );
 
   /* update memory variables */
   *mem_base += (*mem_size - hid_param.mem_size);
@@ -221,7 +221,7 @@ ErrorCode_t usb_hid_init(USBD_HANDLE_T hUsb, USB_INTERFACE_DESCRIPTOR const *con
 
 */
 /**************************************************************************/
-ErrorCode_t usb_hid_configured(USBD_HANDLE_T hUsb)
+TUSB_Error_t usb_hid_configured(USBD_HANDLE_T hUsb)
 {
   #ifdef  CFG_CLASS_HID_KEYBOARD
     USBD_API->hw->WriteEP(hUsb , HID_KEYBOARD_EP_IN , (uint8_t* ) &hid_keyboard_report , sizeof(USB_HID_KeyboardReport_t) ); // initial packet for IN endpoint , will not work if omitted
@@ -231,7 +231,7 @@ ErrorCode_t usb_hid_configured(USBD_HANDLE_T hUsb)
     USBD_API->hw->WriteEP(hUsb , HID_MOUSE_EP_IN    , (uint8_t* ) &hid_mouse_report    , sizeof(USB_HID_MouseReport_t) ); // initial packet for IN endpoint, will not work if omitted
   #endif
 
-  return LPC_OK;
+  return tERROR_NONE;
 }
 
 #ifdef CFG_CLASS_HID_KEYBOARD
@@ -271,13 +271,19 @@ ErrorCode_t usb_hid_configured(USBD_HANDLE_T hUsb)
     @endcode
 */
 /**************************************************************************/
-ErrorCode_t usb_hid_keyboard_sendKeys(uint8_t modifier, uint8_t keycodes[], uint8_t numkey)
+TUSB_Error_t usb_hid_keyboard_sendKeys(uint8_t modifier, uint8_t keycodes[], uint8_t numkey)
 {
-  uint32_t start_time = systickGetSecondsActive();
-  while (bKeyChanged) // TODO blocking while previous key has yet sent - can use fifo to improve this
+//  uint32_t start_time = systickGetSecondsActive();
+//  while (bKeyChanged) // TODO blocking while previous key has yet sent - can use fifo to improve this
+//  {
+//    ASSERT_MESSAGE(systickGetSecondsActive() - start_time < 5, ERR_FAILED, "HID Keyboard Timeout");
+//  }
+
+  if (bKeyChanged)
   {
-    ASSERT_MESSAGE(systickGetSecondsActive() - start_time < 5, ERR_FAILED, "HID Keyboard Timeout");
+    return tERROR_FAILED;
   }
+
   ASSERT(keycodes && numkey && numkey <=6, ERR_FAILED);
 
   hid_keyboard_report.Modifier = modifier;
@@ -316,12 +322,17 @@ ErrorCode_t usb_hid_keyboard_sendKeys(uint8_t modifier, uint8_t keycodes[], uint
     @endcode
 */
 /**************************************************************************/
-ErrorCode_t usb_hid_mouse_send(uint8_t buttons, int8_t x, int8_t y)
+TUSB_Error_t usb_hid_mouse_send(uint8_t buttons, int8_t x, int8_t y)
 {
-  uint32_t start_time = systickGetSecondsActive();
-  while (bMouseChanged) // TODO Block while previous key hasn't been sent - can use fifo to improve this
+//  uint32_t start_time = systickGetSecondsActive();
+//  while (bMouseChanged) // TODO Block while previous key hasn't been sent - can use fifo to improve this
+//  {
+//    ASSERT_MESSAGE(systickGetSecondsActive() - start_time < 5, ERR_FAILED, "HID Mouse Timeout");
+//  }
+
+  if (bMouseChanged)
   {
-    ASSERT_MESSAGE(systickGetSecondsActive() - start_time < 5, ERR_FAILED, "HID Mouse Timeout");
+    return tERROR_FAILED;
   }
 
   hid_mouse_report.Button = buttons;

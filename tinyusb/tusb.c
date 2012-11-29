@@ -37,11 +37,7 @@
 
 #include "tusb.h"
 
-#ifdef CFG_TUSB_DEVICE
-  #include "device/dcd.h"
-#endif
-
-ErrorCode_t tusb_init(void)
+TUSB_Error_t tusb_init(void)
 {
   /* HARDWARE INIT */
 
@@ -55,8 +51,13 @@ ErrorCode_t tusb_init(void)
   LPC_IOCON->PIO0_6   &= ~0x07;
   LPC_IOCON->PIO0_6   |= (0x01<<0);            /* Secondary function SoftConn */
 
-#ifdef CFG_TUSB_DEVICE
-  dcd_init();
+#ifdef CFG_TUSB_HOST
+  ASSERT_ERROR( hcd_init() );
 #endif
+
+#ifdef CFG_TUSB_DEVICE
+  ASSERT_ERROR( dcd_init() );
+#endif
+
   return LPC_OK;
 }

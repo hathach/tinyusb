@@ -57,7 +57,7 @@ ErrorCode_t USB_Configure_Event (USBD_HANDLE_T hUsb)
   if (pCtrl->config_value)
   {
     #if defined(CLASS_HID)
-    ASSERT_STATUS( usb_hid_configured(hUsb) );
+    ASSERT( tERROR_NONE == usb_hid_configured(hUsb), ERR_FAILED );
     #endif
 
     #ifdef CFG_USB_CDC
@@ -81,7 +81,7 @@ ErrorCode_t USB_Reset_Event (USBD_HANDLE_T hUsb)
   return LPC_OK;
 }
 
-void dcd_init()
+TUSB_Error_t dcd_init()
 {
   /* ROM DRIVER INIT */
   uint32_t membase = (uint32_t) usb_RomDriver_buffer;
@@ -107,26 +107,26 @@ void dcd_init()
     .device_qualifier = NULL
   };
 
-  /* Start USB hardware initialisation */
-  ASSERT_STATUS(USBD_API->hw->Init(&g_hUsb, &DeviceDes, &usb_param));
+  /* USB hardware core initialization */
+  ASSERT(LPC_OK == USBD_API->hw->Init(&g_hUsb, &DeviceDes, &usb_param), tERROR_FAILED);
 
   membase += (memsize - usb_param.mem_size);
   memsize = usb_param.mem_size;
 
   /* Initialise the class driver(s) */
-  #ifdef CFG_USB_CDC
-    ASSERT_STATUS( usb_cdc_init(g_hUsb, &USB_FsConfigDescriptor.CDC_CCI_Interface,
+  #ifdef CFG_CLASS_CDC
+  ASSERT_ERROR( usb_cdc_init(g_hUsb, &USB_FsConfigDescriptor.CDC_CCI_Interface,
             &USB_FsConfigDescriptor.CDC_DCI_Interface, &membase, &memsize) );
   #endif
 
   #ifdef CFG_CLASS_HID_KEYBOARD
-    ASSERT_STATUS( usb_hid_init(g_hUsb , &USB_FsConfigDescriptor.HID_KeyboardInterface ,
+  ASSERT_ERROR( usb_hid_init(g_hUsb , &USB_FsConfigDescriptor.HID_KeyboardInterface ,
             HID_KeyboardReportDescriptor, USB_FsConfigDescriptor.HID_KeyboardHID.DescriptorList[0].wDescriptorLength,
             &membase , &memsize) );
   #endif
 
-  #ifdef CFG_USB_HID_MOUSE
-    ASSERT_STATUS( usb_hid_init(g_hUsb , &USB_FsConfigDescriptor.HID_MouseInterface    ,
+  #ifdef CFG_CLASS_HID_MOUSE
+  ASSERT_ERROR( usb_hid_init(g_hUsb , &USB_FsConfigDescriptor.HID_MouseInterface    ,
             HID_MouseReportDescriptor, USB_FsConfigDescriptor.HID_MouseHID.DescriptorList[0].wDescriptorLength,
             &membase , &memsize) );
   #endif
@@ -136,6 +136,8 @@ void dcd_init()
 
   /* Perform USB soft connect */
   USBD_API->hw->Connect(g_hUsb, 1);
+
+  return tERROR_NONE;
 }
 
 /**************************************************************************/

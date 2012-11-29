@@ -55,7 +55,10 @@
 #endif
 
 #include "common/common.h"
-#include "tusb_cfg.h"
+
+#ifdef CFG_TUSB_HOST
+  #include "host/hcd.h"
+#endif
 
 #ifdef CFG_TUSB_DEVICE
   #include "device/dcd.h"

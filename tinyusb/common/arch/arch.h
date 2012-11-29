@@ -65,3 +65,5 @@
 #endif
 
 #endif /* _TUSB_ARCH_H_ */
+
+/**  @{ */

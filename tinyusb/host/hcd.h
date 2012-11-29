@@ -38,9 +38,13 @@
 #ifndef _TUSB_HCD_H_
 #define _TUSB_HCD_H_
 
+#include "common/common.h"
+
 #ifdef __cplusplus
  extern "C" {
 #endif
+
+TUSB_Error_t hcd_init() ATTR_WARN_UNUSED_RESULT;
 
 #ifdef __cplusplus
  }

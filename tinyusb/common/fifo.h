@@ -51,10 +51,10 @@
 
 #include "common/common.h"
 
-/**
- * \brief Simple FIFO
+/** \struct fifo_t
+ * \brief Simple Circular FIFO
  */
-typedef struct
+typedef struct _fifo_t
 {
   uint8_t* buf; ///< buffer pointer
   uint16_t size; ///< buffer size

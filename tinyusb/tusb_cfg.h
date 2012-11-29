@@ -42,16 +42,24 @@
  */
 
 /** \ingroup Group_TinyUSB
- *
+ *  \defgroup Group_TinyUSB_Configure Configuration tusb_cfg.h
  *  @{
  */
 
 #ifndef _TUSB_CFG_H_
 #define _TUSB_CFG_H_
 
-#define CFG_TUSB_HOST ///< Enable Host Support
-#define CFG_TUSB_DEVICE ///< Enable Device Support
-#define CFG_CLASS_HID_KEYBOARD ///< Enable HID Keyboard support
+/// 0: no debug infor 3: most debug infor provided
+#define CFG_TUSB_DEBUG_LEVEL 3
+
+/// Enable Host Support
+#define CFG_TUSB_HOST
+
+/// Enable Device Support
+#define CFG_TUSB_DEVICE
+
+/// Enable HID Keyboard support
+#define CFG_CLASS_HID_KEYBOARD
 
 #define CLASS_HID (defined CFG_CLASS_HID_KEYBOARD)
 
