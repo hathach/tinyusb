@@ -42,7 +42,6 @@
 TUSB_Error_t hcd_init()
 {
 
-
   return tERROR_NONE;
 }
 
