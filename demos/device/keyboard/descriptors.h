@@ -27,7 +27,7 @@
  * IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY
  * OF SUCH DAMAGE.
  *
- * This file is part of the tiny usb stack.
+ * This file is part of the tinyUSB stack
  */
 
 #ifndef _DESCRIPTORS_H_

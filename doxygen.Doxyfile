@@ -360,12 +360,12 @@ LOOKUP_CACHE_SIZE = 0
 # Private class members and static file members will be hidden unless
 # the EXTRACT_PRIVATE and EXTRACT_STATIC tags are set to YES
 
-EXTRACT_ALL = NO
+EXTRACT_ALL = YES
 
 # If the EXTRACT_PRIVATE tag is set to YES all private members of a class
 # will be included in the documentation.
 
-EXTRACT_PRIVATE = NO
+EXTRACT_PRIVATE = YES
 
 # If the EXTRACT_PACKAGE tag is set to YES all members with package or internal
 # scope will be included in the documentation.
@@ -375,7 +375,7 @@ EXTRACT_PACKAGE = NO
 # If the EXTRACT_STATIC tag is set to YES all static members of a file
 # will be included in the documentation.
 
-EXTRACT_STATIC = NO
+EXTRACT_STATIC = YES
 
 # If the EXTRACT_LOCAL_CLASSES tag is set to YES classes (and structs)
 # defined locally in source files will be included in the documentation.
@@ -404,7 +404,7 @@ EXTRACT_ANON_NSPACES = NO
 # various overviews, but no documentation section is generated.
 # This option has no effect if EXTRACT_ALL is enabled.
 
-HIDE_UNDOC_MEMBERS = YES
+HIDE_UNDOC_MEMBERS = NO
 
 # If the HIDE_UNDOC_CLASSES tag is set to YES, Doxygen will hide all
 # undocumented classes that are normally visible in the class hierarchy.
@@ -661,7 +661,7 @@ WARN_LOGFILE =
 # directories like "/usr/src/myproject". Separate the files or directories
 # with spaces.
 
-INPUT = tinyusb/class tinyusb/common tinyusb/host tinyusb/common/arch tinyusb/common/compiler tinyusb tinyusb\device 
+INPUT = tinyusb/class tinyusb/common tinyusb/host tinyusb/common/arch tinyusb/common/compiler tinyusb tinyusb\device overview.md license.md 
 
 # This tag can be used to specify the character encoding of the source files
 # that doxygen parses. Internally doxygen uses the UTF-8 encoding, which is
