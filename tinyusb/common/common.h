@@ -62,8 +62,34 @@
 
 #include "tusb_cfg.h"
 #include "arch/arch.h"
+#include "arch/hal.h"
 #include "compiler/compiler.h"
 #include "errors.h"
+
+/// min value
+#ifndef MIN
+#define MIN(x, y) (((x) < (y)) ? (x) : (y))
+#endif
+
+/// max value
+#ifndef MAX
+#define MAX(x, y) (((x) > (y)) ? (x) : (y))
+#endif
+
+/// n-th Bit
+#ifndef BIT
+#define BIT(n) (1 << (n))
+#endif
+
+/// set n-th bit of x to 1
+#ifndef BIT_SET
+#define BIT_SET(x, n) ( (x) | BIT(n) )
+#endif
+
+/// clear n-th bit of x
+#ifndef BIT_CLR
+#define BIT_CLR(x, n) ( (x) & (~BIT(n)) )
+#endif
 
 //#if ( defined CFG_PRINTF_UART || defined CFG_PRINTF_USBCDC || defined CFG_PRINTF_DEBUG )
 #if CFG_TUSB_DEBUG_LEVEL
