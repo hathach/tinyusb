@@ -37,22 +37,6 @@
 
 #include "tusb.h"
 
-TUSB_Error_t hal_init()
-{
-	// TODO usb abstract later
-  /* Enable AHB clock to the USB block and USB RAM. */
-  LPC_SYSCON->SYSAHBCLKCTRL |= ((0x1<<14) | (0x1<<27));
-
-  /* Pull-down is needed, or internally, VBUS will be floating. This is to
-  address the wrong status in VBUSDebouncing bit in CmdStatus register.  */
-  LPC_IOCON->PIO0_3   &= ~0x1F;
-  LPC_IOCON->PIO0_3   |= (0x01<<0);            /* Secondary function VBUS */
-  LPC_IOCON->PIO0_6   &= ~0x07;
-  LPC_IOCON->PIO0_6   |= (0x01<<0);            /* Secondary function SoftConn */
-
-  return tERROR_NONE;
-}
-
 TUSB_Error_t tusb_init(void)
 {
   ASSERT_ERROR( hal_init() ) ; /* HARDWARE INIT */

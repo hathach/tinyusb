@@ -49,6 +49,10 @@
 #ifndef _TUSB_ERRORS_H_
 #define _TUSB_ERRORS_H_
 
+#ifdef __cplusplus
+ extern "C" {
+#endif
+
 /** \enum TUSB_Error_t
  *  \brief Error Code returned
  */
@@ -59,10 +63,6 @@ typedef enum {
 #   undef ERROR_ENUM
   ERROR_COUNT
 }TUSB_Error_t;
-
-#ifdef __cplusplus
- extern "C" {
-#endif
 
 /// Enum to String for debugging purposes. Only available if \ref CFG_TUSB_DEBUG_LEVEL > 0
 extern char const* const TUSB_ErrorStr[];

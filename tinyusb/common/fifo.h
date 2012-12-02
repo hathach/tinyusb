@@ -51,6 +51,10 @@
 
 #include "common/common.h"
 
+#ifdef __cplusplus
+ extern "C" {
+#endif
+
 /** \struct fifo_t
  * \brief Simple Circular FIFO
  */
@@ -65,9 +69,6 @@ typedef struct _fifo_t
   IRQn_Type irq; ///< interrupt used to lock fifo
 } fifo_t;
 
-#ifdef __cplusplus
- extern "C" {
-#endif
 
 void fifo_init(fifo_t* f, uint8_t* buffer, uint16_t size, bool overwritable, IRQn_Type irq);
 bool fifo_write(fifo_t* f, uint8_t data);

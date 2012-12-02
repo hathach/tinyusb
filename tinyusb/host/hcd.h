@@ -51,11 +51,11 @@
 #ifndef _TUSB_HCD_H_
 #define _TUSB_HCD_H_
 
-#include "common/common.h"
-
 #ifdef __cplusplus
  extern "C" {
 #endif
+
+#include "common/common.h"
 
 /** \brief Initialize HCD
 *

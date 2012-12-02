@@ -51,6 +51,9 @@
 #ifndef _TUSB_DCD_H_
 #define _TUSB_DCD_H_
 
+#ifdef __cplusplus
+ extern "C" {
+#endif
 
 #include "common/common.h"
 
@@ -60,9 +63,6 @@
 #define USBD_API     ((*(ROM **)(0x1FFF1FF8))->pUSBD) // TODO HAL
 #endif
 
-#ifdef __cplusplus
- extern "C" {
-#endif
 
 /** \brief Initialize DCD
  *

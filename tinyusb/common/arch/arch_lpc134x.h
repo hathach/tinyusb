@@ -54,7 +54,7 @@
 
 #include "arm_mx.h"
 #include "LPC13Uxx.h"
-
+#include "system_LPC13Uxx.h"
 
 
 #endif /* _TUSB_ARCH_LPC134_X_H_ */

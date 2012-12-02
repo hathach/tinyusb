@@ -46,6 +46,10 @@
  *  @{
  */
 
+#ifdef __cplusplus
+ extern "C" {
+#endif
+
 #ifndef _TUSB_CFG_H_
 #define _TUSB_CFG_H_
 
@@ -91,6 +95,10 @@
 
 #define  CDC_NOTIFICATION_EP_MAXPACKETSIZE  8
 #define  CDC_DATA_EP_MAXPACKET_SIZE         16
+
+#ifdef __cplusplus
+ }
+#endif
 
 #endif /* _TUSB_CFG_H_ */
 

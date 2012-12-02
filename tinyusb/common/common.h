@@ -51,6 +51,10 @@
 #ifndef _TUSB_COMMON_H_
 #define _TUSB_COMMON_H_
 
+#ifdef __cplusplus
+ extern "C" {
+#endif
+
 #include <stddef.h>
 #include <stdbool.h>
 #include <string.h>
@@ -88,6 +92,10 @@
 	}while(0)
 
 #define ASSERT_ERROR(sts)		ASSERT_ERROR_MESSAGE(sts, NULL)
+
+#ifdef __cplusplus
+ }
+#endif
 
 #endif /* _TUSB_COMMON_H_ */
 
