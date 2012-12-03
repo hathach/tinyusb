@@ -1,7 +1,7 @@
 /*
- * errors.h
+ * hal.h
  *
- *  Created on: Nov 27, 2012
+ *  Created on: Dec 2, 2012
  *      Author: hathach
  */
 
@@ -32,45 +32,44 @@
  * IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY
  * OF SUCH DAMAGE.
  *
- * This file is part of the tinyUSB stack.
+ * This file is part of the tiny usb stack.
  */
 
 /** \file
- *  \brief Error Header
+ *  \brief TBD
  *
  *  \note TBD
  */
 
-/** \ingroup Group_Common
- *  \defgroup Group_Error Error Codes
+/** 
+ *  \defgroup Group_HAL Hardware Abtract Layer
+ *  \brief Hardware dependent layer
+ *
  *  @{
  */
 
-#ifndef _TUSB_ERRORS_H_
-#define _TUSB_ERRORS_H_
+#ifndef _TUSB_HAL_H_
+#define _TUSB_HAL_H_
 
 #ifdef __cplusplus
  extern "C" {
 #endif
 
-/** \enum TUSB_Error_t
- *  \brief Error Code returned
+#include "common/errors.h"
+
+/** \brief USB hardware init
+ *
+ * \param[in]  para1
+ * \param[out] para2
+ * \return Error Code of the \ref TUSB_ERROR enum
+ * \note
  */
-
-typedef enum {
-#   define ERROR_ENUM(x) x,
-#   include "errors_def"
-#   undef ERROR_ENUM
-  ERROR_COUNT
-}TUSB_Error_t;
-
-/// Enum to String for debugging purposes. Only available if \ref CFG_TUSB_DEBUG_LEVEL > 0
-extern char const* const TUSB_ErrorStr[];
+TUSB_Error_t hal_init();
 
 #ifdef __cplusplus
  }
 #endif
 
-#endif /* _TUSB_ERRORS_H_ */
+#endif /* _TUSB_HAL_H_ */
 
- /**  @} */
+/** @} */

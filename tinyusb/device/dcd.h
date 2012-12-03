@@ -41,7 +41,7 @@
  *  \note TBD
  */
 
-/** \ingroup Group_TinyUSB
+/** 
  *  \defgroup Group_DCD Device Controller Driver
  *  \brief Device Controller Driver
  *
@@ -72,7 +72,7 @@
  * \note
  */
 
-TUSB_Error_t dcd_init() ATTR_WARN_UNUSED_RESULT;
+TUSB_Error_t dcd_init(uint8_t coreid) ATTR_WARN_UNUSED_RESULT;
 
 #ifdef __cplusplus
  }

@@ -84,7 +84,7 @@ ErrorCode_t USB_Reset_Event (USBD_HANDLE_T hUsb)
   return LPC_OK;
 }
 
-TUSB_Error_t dcd_init()
+TUSB_Error_t dcd_init(uint8_t coreid)
 {
   /* ROM DRIVER INIT */
   uint32_t membase = (uint32_t) usb_RomDriver_buffer;

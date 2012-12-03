@@ -53,6 +53,8 @@
 
 #if defined(__GNUC__)
   #include "compiler_gcc.h"
+#elif deinfed __ICCARM__ // IAR compiler
+  #include "compiler_iar.h"
 #endif
 
 #endif /* _TUSB_COMPILER_H_ */

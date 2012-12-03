@@ -41,9 +41,10 @@
  *  \note TBD
  */
 
-/**
- *  \defgroup Group_Common Common Files
- *  \brief Group_Common brief
+/** \defgroup Group_Common Common Files
+ * @{
+ *
+ *  \defgroup Group_CommonH common.h
  *
  *  @{
  */
@@ -65,6 +66,7 @@
 #include "arch/hal.h"
 #include "compiler/compiler.h"
 #include "errors.h"
+#include "core/tusb_types.h"
 
 /// min value
 #ifndef MIN
@@ -125,4 +127,5 @@
 
 #endif /* _TUSB_COMMON_H_ */
 
+/**  @} */
 /**  @} */

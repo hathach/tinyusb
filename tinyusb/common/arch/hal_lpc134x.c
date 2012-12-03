@@ -1,7 +1,7 @@
 /*
- * errors.h
+ * hal_lpc134x.c
  *
- *  Created on: Nov 27, 2012
+ *  Created on: Dec 2, 2012
  *      Author: hathach
  */
 
@@ -32,45 +32,27 @@
  * IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY
  * OF SUCH DAMAGE.
  *
- * This file is part of the tinyUSB stack.
+ * This file is part of the tiny usb stack.
  */
 
-/** \file
- *  \brief Error Header
- *
- *  \note TBD
- */
+#include "common/common.h"
 
-/** \ingroup Group_Common
- *  \defgroup Group_Error Error Codes
- *  @{
- */
+#ifdef ARCH_LPC134X
 
-#ifndef _TUSB_ERRORS_H_
-#define _TUSB_ERRORS_H_
+TUSB_Error_t hal_init()
+{
+	// TODO usb abstract later
+  /* Enable AHB clock to the USB block and USB RAM. */
+  LPC_SYSCON->SYSAHBCLKCTRL |= ((0x1<<14) | (0x1<<27));
 
-#ifdef __cplusplus
- extern "C" {
+  /* Pull-down is needed, or internally, VBUS will be floating. This is to
+  address the wrong status in VBUSDebouncing bit in CmdStatus register.  */
+  LPC_IOCON->PIO0_3   &= ~0x1F;
+  LPC_IOCON->PIO0_3   |= (0x01<<0);            /* Secondary function VBUS */
+  LPC_IOCON->PIO0_6   &= ~0x07;
+  LPC_IOCON->PIO0_6   |= (0x01<<0);            /* Secondary function SoftConn */
+
+  return tERROR_NONE;
+}
+
 #endif
-
-/** \enum TUSB_Error_t
- *  \brief Error Code returned
- */
-
-typedef enum {
-#   define ERROR_ENUM(x) x,
-#   include "errors_def"
-#   undef ERROR_ENUM
-  ERROR_COUNT
-}TUSB_Error_t;
-
-/// Enum to String for debugging purposes. Only available if \ref CFG_TUSB_DEBUG_LEVEL > 0
-extern char const* const TUSB_ErrorStr[];
-
-#ifdef __cplusplus
- }
-#endif
-
-#endif /* _TUSB_ERRORS_H_ */
-
- /**  @} */

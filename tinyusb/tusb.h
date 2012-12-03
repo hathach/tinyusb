@@ -41,12 +41,6 @@
  *  \note Tiny USB header Note
  */
 
-/** \defgroup Group_TinyUSB Tiny USB
- *  \brief Group_TinyUSB brief
- *
- *  @{
- */
-
 #ifndef _TUSB_H_
 #define _TUSB_H_
 
@@ -77,5 +71,3 @@
 #endif
 
 #endif /* _TUSB_H_ */
-
-/** @} */

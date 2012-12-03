@@ -41,7 +41,7 @@
  *  \note TBD
  */
 
-/** \ingroup Group_TinyUSB
+/** 
  *  \addtogroup Group_ClassDriver Class Driver
  *  @{
  *  \defgroup Group_CDC Communication Device Class

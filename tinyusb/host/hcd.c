@@ -39,7 +39,7 @@
 
 #ifdef CFG_TUSB_HOST
 
-TUSB_Error_t hcd_init()
+TUSB_Error_t hcd_init(uint8_t coreid)
 {
 
   return tERROR_NONE;

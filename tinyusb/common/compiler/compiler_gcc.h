@@ -37,8 +37,6 @@
 
 /** \file
  *  \brief GCC Header
- *
- *  \note TBD
  */
 
 /** \ingroup Group_Compiler
@@ -74,7 +72,6 @@
 #define ATTR_PACKED 							 __attribute__ ((packed))
 
 #define ATTR_PREPACKED
-#define ATTR_POSTPACKED            ATTR_PACKED
 /** @} */
 
 /** \ingroup Group_GCC

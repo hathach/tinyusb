@@ -41,7 +41,7 @@
  *  \note TBD
  */
 
-/** \ingroup Group_TinyUSB
+/** 
  *  \defgroup Group_TinyUSB_Configure Configuration tusb_cfg.h
  *  @{
  */
@@ -71,7 +71,10 @@
 /// Enable HID Mouse support
 #define CFG_CLASS_HID_MOUSE
 
-#define CLASS_HID ( (defined CFG_CLASS_HID_KEYBOARD) || (defined CFG_CLASS_HID_MOUSE) )
+#define TUSB_CLASS_HID ( (defined CFG_CLASS_HID_KEYBOARD) || (defined CFG_CLASS_HID_MOUSE) )
+#define TUSB_EHCI
+
+
 
 // TODO APP
 #define USB_MAX_IF_NUM          8

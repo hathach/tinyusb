@@ -83,7 +83,7 @@ typedef PRE_PACK struct POST_PACK _USB_INTERFACE_ASSOCIATION_DESCRIPTOR
 
 ///////////////////////////////////////////////////////////////////////
 // Interface Assosication Descriptor if device is CDC + other class
-#define IAD_DESC_REQUIRED ( defined(CFG_CLASS_CDC) && (CLASS_HID) )
+#define IAD_DESC_REQUIRED ( defined(CFG_CLASS_CDC) && (TUSB_CLASS_HID) )
 
 #ifdef CFG_CLASS_CDC
   #define INTERFACES_OF_CDC           2
