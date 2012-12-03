@@ -52,13 +52,13 @@
 #endif
 
 /// Normally, the compiler places the objects it generates in sections like data or bss & function in text. Sometimes, however, you need additional sections, or you need certain particular variables to appear in special sections, for example to map to special hardware. The section attribute specifies that a variable (or function) lives in a particular section
-#define ATTR_SECTION(section) 		 __attribute__ ((#section))
+#define ATTR_SECTION(section)      __attribute__ ((#section))
 
 /// If this attribute is used on a function declaration and a call to such a function is not eliminated through dead code elimination or other optimizations, an error that includes message is diagnosed. This is useful for compile-time checking
-#define ATTR_ERROR(Message) 			 __attribute__ ((error(Message)))
+#define ATTR_ERROR(Message)        __attribute__ ((error(Message)))
 
 /// If this attribute is used on a function declaration and a call to such a function is not eliminated through dead code elimination or other optimizations, a warning that includes message is diagnosed. This is useful for compile-time checking
-#define ATTR_WARNING(Message) 		 __attribute__ ((warning(Message)))
+#define ATTR_WARNING(Message)      __attribute__ ((warning(Message)))
 
 /** \ingroup Group_GCC
  *  \defgroup Group_VariableAttr Variable Attributes
@@ -66,10 +66,10 @@
  */
 
 /// This attribute specifies a minimum alignment for the variable or structure field, measured in bytes
-#define ATTR_ALIGNED(Bytes) 			 __attribute__ ((aligned(Bytes)))
+#define ATTR_ALIGNED(Bytes)        __attribute__ ((aligned(Bytes)))
 
 /// The packed attribute specifies that a variable or structure field should have the smallest possible alignment—one byte for a variable, and one bit for a field, unless you specify a larger value with the aligned attribute
-#define ATTR_PACKED 							 __attribute__ ((packed))
+#define ATTR_PACKED                __attribute__ ((packed))
 
 #define ATTR_PREPACKED
 /** @} */
@@ -80,41 +80,41 @@
  */
 
 /// Generally, functions are not inlined unless optimization is specified. For functions declared inline, this attribute inlines the function even if no optimization level is specified
-#define ATTR_ALWAYS_INLINE				 __attribute__ ((always_inline))
+#define ATTR_ALWAYS_INLINE         __attribute__ ((always_inline))
 
 /// The nonnull attribute specifies that some function parameters should be non-null pointers. f the compiler determines that a null pointer is passed in an argument slot marked as non-null, and the -Wnonnull option is enabled, a warning is issued. All pointer arguments are marked as non-null
-#define ATTR_NON_NULL 						 __attribute__ ((nonull))
+#define ATTR_NON_NULL              __attribute__ ((nonull))
 
 /// Many functions have no effects except the return value and their return value depends only on the parameters and/or global variables. Such a function can be subject to common subexpression elimination and loop optimization just as an arithmetic operator would be. These functions should be declared with the attribute pur
-#define ATTR_PURE 								 __attribute__ ((pure))
+#define ATTR_PURE                  __attribute__ ((pure))
 
 /// Many functions do not examine any values except their arguments, and have no effects except the return value. Basically this is just slightly more strict class than the pure attribute below, since function is not allowed to read global memory.
 /// Note that a function that has pointer arguments and examines the data pointed to must not be declared const. Likewise, a function that calls a non-const function usually must not be const. It does not make sense for a const function to return void
-#define ATTR_CONST								 __attribute__ ((const))
+#define ATTR_CONST                 __attribute__ ((const))
 
 /// The deprecated attribute results in a warning if the function is used anywhere in the source file. This is useful when identifying functions that are expected to be removed in a future version of a program. The warning also includes the location of the declaration of the deprecated function, to enable users to easily find further information about why the function is deprecated, or what they should do instead. Note that the warnings only occurs for uses
-#define ATTR_DEPRECATED 					 __attribute__ ((deprecated))
+#define ATTR_DEPRECATED            __attribute__ ((deprecated))
 
 /// Same as the deprecated attribute with optional message in the warning
 #define ATTR_DEPRECATED_MESS(mess) __attribute__ ((deprecated(mess)))
 
 /// The weak attribute causes the declaration to be emitted as a weak symbol rather than a global. This is primarily useful in defining library functions that can be overridden in user code
-#define ATTR_WEAK 								 __attribute__ ((weak))
+#define ATTR_WEAK                  __attribute__ ((weak))
 
 /// The alias attribute causes the declaration to be emitted as an alias for another symbol, which must be specified
-#define ATTR_ALIAS(func)					 __attribute__ ((alias(#func)))
+#define ATTR_ALIAS(func)           __attribute__ ((alias(#func)))
 
 /// The weakref attribute marks a declaration as a weak reference. It is equivalent with weak + alias attribute, but require function is static
-#define ATTR_WEAKREF(func)				 __attribute__ ((weakref(#func)))
+#define ATTR_WEAKREF(func)         __attribute__ ((weakref(#func)))
 
 /// The warn_unused_result attribute causes a warning to be emitted if a caller of the function with this attribute does not use its return value. This is useful for functions where not checking the result is either a security problem or always a bug
-#define ATTR_WARN_UNUSED_RESULT 	 __attribute__ ((warn_unused_result))
+#define ATTR_WARN_UNUSED_RESULT    __attribute__ ((warn_unused_result))
 
 /// This attribute, attached to a function, means that code must be emitted for the function even if it appears that the function is not referenced. This is useful, for example, when the function is referenced only in inline assembly.
-#define ATTR_USED 								 __attribute__ ((used))
+#define ATTR_USED                  __attribute__ ((used))
 
 /// This attribute, attached to a function, means that the function is meant to be possibly unused. GCC does not produce a warning for this function.
-#define ATTR_UNUSED 							 __attribute__ ((unused))
+#define ATTR_UNUSED                __attribute__ ((unused))
 
 /** @} */
 

@@ -60,13 +60,13 @@
  */
 typedef struct _fifo_t
 {
-  uint8_t* buf; ///< buffer pointer
-  uint16_t size; ///< buffer size
-  volatile uint16_t len; ///< bytes in fifo
-  volatile uint16_t wr_ptr; ///< write pointer
-  volatile uint16_t rd_ptr; ///< read pointer
-  bool overwritable; ///< allow overwrite data when full
-  IRQn_Type irq; ///< interrupt used to lock fifo
+           uint8_t* buf          ; ///< buffer pointer
+           uint16_t size         ; ///< buffer size
+  volatile uint16_t len          ; ///< bytes in fifo
+  volatile uint16_t wr_ptr       ; ///< write pointer
+  volatile uint16_t rd_ptr       ; ///< read pointer
+           bool     overwritable ; ///< allow overwrite data when full
+           IRQn_Type irq         ; ///< interrupt used to lock fifo
 } fifo_t;
 
 
