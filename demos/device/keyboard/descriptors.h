@@ -65,22 +65,6 @@ typedef PRE_PACK struct POST_PACK _USB_STR_DESCRIPTOR
 #define  USB_DEVICE_SUBCLASS_IAD     0x02
 #define  USB_DEVICE_PROTOCOL_IAD     0x01
 
-// USB Interface Association Descriptor
-typedef PRE_PACK struct POST_PACK _USB_INTERFACE_ASSOCIATION_DESCRIPTOR
-{
-  uint8_t bLength;           /**< Size of descriptor*/
-  uint8_t bDescriptorType;   /**< Other_speed_Configuration Type*/
-
-  uint8_t bFirstInterface;   /**< Index of the first associated interface. */
-  uint8_t bInterfaceCount;   /**< Total number of associated interfaces. */
-
-  uint8_t bFunctionClass;    /**< Interface class ID. */
-  uint8_t bFunctionSubClass; /**< Interface subclass ID. */
-  uint8_t bFunctionProtocol; /**< Interface protocol ID. */
-
-  uint8_t iFunction;         /**< Index of the string descriptor describing the interface association. */
-} USB_INTERFACE_ASSOCIATION_DESCRIPTOR;
-
 ///////////////////////////////////////////////////////////////////////
 // Interface Assosication Descriptor if device is CDC + other class
 #define IAD_DESC_REQUIRED ( defined(CFG_CLASS_CDC) && (TUSB_CLASS_HID) )

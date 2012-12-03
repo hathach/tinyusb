@@ -58,7 +58,7 @@ typedef enum {
   FULL_SPEED =0,
   LOWS_PEED,
   HIGH_SPEED
-}TUSB_Speed_t;
+}USB_Speed_t;
 
 /// defined base on USB Specs Endpoint's bmAttributes
 typedef enum {
@@ -66,16 +66,45 @@ typedef enum {
   ISOCHRONOUS_TYPE,
   BULK_TYPE,
   INTERRUPT_TYPE
-}TUSB_TransferType_t;
+}USB_TransferType_t;
 
 /// TBD
 typedef enum {
   SETUP_TOKEN,
   IN_TOKEN,
   OUT_TOKEN
-}TUSB_PID_t;
+}USB_PID_t;
 
+/// USB Descriptor Types (section 9.4 table 9-5)
+typedef enum {
+  DEVICE_DESC=1 								 , ///< 1
+  CONFIGURATIONT_DESC 					 , ///< 2
+  STRING_DESC 									 , ///< 3
+  INTERFACE_DESC								 , ///< 4
+  ENDPOINT_DESC 								 , ///< 5
+  DEVICE_QUALIFIER_DESC 				 , ///< 6
+  OTHER_SPEED_CONFIGURATION_DESC , ///< 7
+  INTERFACE_POWER_DESC					 , ///< 8
+  OTG_DESC											 , ///< 9
+  DEBUG_DESCRIPTOR							 , ///< 10
+  INTERFACE_ASSOCIATION_DESC			 ///< 11
+}USB_DescriptorType_t;
 
+typedef enum {
+  REQUEST_GET_STATUS =0 		, ///< 0
+  REQUEST_CLEAR_FEATURE 		, ///< 1
+  REQUEST_RESERVED					, ///< 2
+  REQUEST_SET_FEATURE 			, ///< 3
+  REQUEST_RESERVED2 				, ///< 4
+  REQUEST_SET_ADDRESS 			, ///< 5
+  REQUEST_GET_DESCRIPTOR		, ///< 6
+  REQUEST_SET_DESCRIPTOR		, ///< 7
+  REQUEST_GET_CONFIGURATION , ///< 8
+  REQUEST_SET_CONFIGURATION , ///< 9
+  REQUEST_GET_INTERFACE 		, ///< 10
+  REQUEST_SET_INTERFACE 		, ///< 11
+  REQUEST_SYNCH_FRAME 				///< 12
+}USB_RequestCode_t;
 
 #ifdef __cplusplus
  }
