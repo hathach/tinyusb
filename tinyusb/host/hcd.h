@@ -68,10 +68,10 @@
 
 TUSB_Error_t hcd_init(uint8_t hostid) ATTR_WARN_UNUSED_RESULT;
 
-TUSB_Error_t hcd_pipe_open(
-    uint8_t hostid, uint8_t device_address,
-
-    )ATTR_WARN_UNUSED_RESULT;
+//TUSB_Error_t hcd_pipe_open(
+//    uint8_t hostid, uint8_t device_address,
+//
+//    )ATTR_WARN_UNUSED_RESULT;
 TUSB_Error_t hcd_pipe_close()ATTR_WARN_UNUSED_RESULT;
 TUSB_Error_t hcd_pipe_transfer()ATTR_WARN_UNUSED_RESULT;
 TUSB_Error_t hcd_pipe_cancel()ATTR_WARN_UNUSED_RESULT;

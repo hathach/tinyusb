@@ -67,6 +67,7 @@
 #include "compiler/compiler.h"
 #include "errors.h"
 #include "core/tusb_types.h"
+#include "core/std_descriptors.h"
 
 /// min value
 #ifndef MIN

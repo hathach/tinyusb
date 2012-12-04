@@ -59,7 +59,7 @@ ErrorCode_t USB_Configure_Event (USBD_HANDLE_T hUsb)
   USB_CORE_CTRL_T* pCtrl = (USB_CORE_CTRL_T*)hUsb;
   if (pCtrl->config_value)
   {
-    #if defined(CLASS_HID)
+    #if defined(TUSB_CLASS_HID)
     ASSERT( tERROR_NONE == tusb_hid_configured(hUsb), ERR_FAILED );
     #endif
 

@@ -118,7 +118,7 @@ typedef struct
   USB_CONFIGURATION_DESCRIPTOR                Config;
 
 #if IAD_DESC_REQUIRED
-  USB_INTERFACE_ASSOCIATION_DESCRIPTOR        CDC_IAD;
+  USB_Descriptor_InterfaceAssociation_t        CDC_IAD;
 #endif
 
 #ifdef CFG_CLASS_CDC

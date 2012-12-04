@@ -173,7 +173,7 @@ ATTR_ALIGNED(4) const USB_FS_CONFIGURATION_DESCRIPTOR USB_FsConfigDescriptor =
     // IAD points to CDC Interfaces
     .CDC_IAD =
     {
-        .bLength           = sizeof(USB_INTERFACE_ASSOCIATION_DESCRIPTOR),
+        .bLength           = sizeof(USB_Descriptor_InterfaceAssociation_t),
         .bDescriptorType   = USB_INTERFACE_ASSOCIATION_DESCRIPTOR_TYPE,
 
         .bFirstInterface   = 0,

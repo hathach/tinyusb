@@ -53,7 +53,7 @@
 
 #if defined(__GNUC__)
   #include "compiler_gcc.h"
-#elif deinfed __ICCARM__ // IAR compiler
+#elif defined __ICCARM__ // IAR compiler
   #include "compiler_iar.h"
 #endif
 

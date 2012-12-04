@@ -58,7 +58,7 @@
   #include "device/dcd.h"
 #endif
 
-#if CLASS_HID
+#if TUSB_CLASS_HID
   #include "class/hid.h"
 #endif
 
