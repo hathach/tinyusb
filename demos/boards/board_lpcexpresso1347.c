@@ -1,7 +1,7 @@
 /*
- * arm_mx.h
+ * board_lpcexpresso1347.c
  *
- *  Created on: Nov 26, 2012
+ *  Created on: Dec 4, 2012
  *      Author: hathach
  */
 
@@ -32,27 +32,33 @@
  * IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY
  * OF SUCH DAMAGE.
  *
- * This file is part of the tinyUSB stack.
+ * This file is part of the tiny usb stack.
  */
 
-/** \file
- *  \brief ARM Cortex Mx Header
- *
- *  \note TBD
- */
+#include "board.h"
 
-/** \ingroup Group_Arch
- *
- *  @{
- */
+#if BOARD == BOARD_LPCXPRESSO1347
 
-#ifndef _TUSB_ARM_MX_H_
-#define _TUSB_ARM_MX_H_
+#include "LPC13Uxx.h"
 
-// #ifdef ARM_M3 ARM_M4 ARM_M0
+#define CFG_LED_PORT                  (0)
+#define CFG_LED_PIN                   (7)
+#define CFG_LED_ON                    (1)
+#define CFG_LED_OFF                   (0)
 
-#define ENDIAN_LITTLE
-#define ALIGNMENT (4)
+void board_init(void)
+{
+  SystemInit();
+  systickInit(1);
+  GPIOInit();
+  GPIOSetDir(CFG_LED_PORT, CFG_LED_PIN, 1);
+  LPC_GPIO->CLR[CFG_LED_PORT] = (1 << CFG_LED_PIN);
+}
 
-#endif /* _TUSB_ARM_MX_H_ */
-/** @} */
+void board_leds(uint32_t mask, uint32_t state)
+{
+  if (mask)
+    GPIOSetBitValue(CFG_LED_PORT, CFG_LED_PIN, state);
+}
+
+#endif

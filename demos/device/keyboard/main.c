@@ -4,6 +4,7 @@
 
 #include <cr_section_macros.h>
 #include <NXP/crp.h>
+#include "board.h"
 #include "tusb.h"
 
 // Variable to store CRP value in. Will be placed automatically
@@ -16,19 +17,7 @@ int main(void)
   uint32_t currentSecond, lastSecond;
   currentSecond = lastSecond = 0;
 
-  SystemInit();
-
-  systickInit(1);
-  GPIOInit();
-
-    #define CFG_LED_PORT                  (0)
-    #define CFG_LED_PIN                   (7)
-    #define CFG_LED_ON                    (1)
-    #define CFG_LED_OFF                   (0)
-
-  GPIOSetDir(CFG_LED_PORT, CFG_LED_PIN, 1);
-  LPC_GPIO->CLR[CFG_LED_PORT] = (1 << CFG_LED_PIN);
-
+  board_init();
   tusb_init();
 
   while (1)
@@ -38,7 +27,7 @@ int main(void)
     {
       /* Toggle LED once per second */
       lastSecond = currentSecond;
-      GPIOSetBitValue(CFG_LED_PORT, CFG_LED_PIN, lastSecond % 2);
+      board_leds(0x01, lastSecond%2);
 
       #ifndef CFG_CLASS_CDC
       if (usb_isConfigured())
@@ -55,38 +44,38 @@ int main(void)
       #endif
     }
 
-    #ifdef CFG_CLASS_CDC
-    if (usb_isConfigured())
-    {
-      uint8_t cdc_char;
-      if( tusb_cdc_getc(&cdc_char) )
-      {
-        switch (cdc_char)
-        {
-          #ifdef CFG_CLASS_HID_KEYBOARD
-          case '1' :
-          {
-            uint8_t keys[6] = {HID_USAGE_KEYBOARD_aA + 'e' - 'a'};
-            tusb_hid_keyboard_sendKeys(0x08, keys, 1); // windows + E --> open explorer
-          }
-          break;
-          #endif
-
-          #ifdef CFG_CLASS_HID_MOUSE
-          case '2' :
-            tusb_hid_mouse_send(0, 10, 10);
-          break;
-          #endif
-
-          default :
-            cdc_char = toupper(cdc_char);
-            tusb_cdc_putc(cdc_char);
-          break;
-
-        }
-      }
-    }
-#endif
+//    #ifdef CFG_CLASS_CDC
+//    if (usb_isConfigured())
+//    {
+//      uint8_t cdc_char;
+//      if( tusb_cdc_getc(&cdc_char) )
+//      {
+//        switch (cdc_char)
+//        {
+//          #ifdef CFG_CLASS_HID_KEYBOARD
+//          case '1' :
+//          {
+//            uint8_t keys[6] = {HID_USAGE_KEYBOARD_aA + 'e' - 'a'};
+//            tusb_hid_keyboard_sendKeys(0x08, keys, 1); // windows + E --> open explorer
+//          }
+//          break;
+//          #endif
+//
+//          #ifdef CFG_CLASS_HID_MOUSE
+//          case '2' :
+//            tusb_hid_mouse_send(0, 10, 10);
+//          break;
+//          #endif
+//
+//          default :
+//            cdc_char = toupper(cdc_char);
+//            tusb_cdc_putc(cdc_char);
+//          break;
+//
+//        }
+//      }
+//    }
+//#endif
   }
 
   return 0;

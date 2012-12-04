@@ -62,7 +62,7 @@
 #include <stdio.h>
 
 #include "tusb_cfg.h"
-#include "arch/arch.h"
+#include "mcu/mcu.h"
 #include "hal/hal.h"
 #include "compiler/compiler.h"
 #include "errors.h"

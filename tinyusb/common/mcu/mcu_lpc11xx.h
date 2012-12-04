@@ -1,7 +1,7 @@
 /*
- * arch.h
+ * mcu_lpc11xx.h
  *
- *  Created on: Nov 26, 2012
+ *  Created on: Nov 29, 2012
  *      Author: hathach
  */
 
@@ -36,39 +36,23 @@
  */
 
 /** \file
- *  \brief Architecture Header
+ *  \brief LPC11xx Header File
  *
  *  \note TBD
  */
 
-/** \ingroup Group_Common
- *  \defgroup Group_Arch Architecture
- *  \brief Group_Arch brief
+/** \ingroup Group_MCU
  *
  *  @{
  */
 
-#ifndef _TUSB_ARCH_H_
-#define _TUSB_ARCH_H_
+#ifndef MCU_LPC11XX_H_
+#define MCU_LPC11XX_H_
 
-//#define ARCH_LPC134X
-//#define ARCH_LPC11XX
-#define ARCH_LPC43XX
+#include "LPC11Uxx.h"
 
-#define ENDIAN_LITTLE ///< MCU Endian
-#define ALIGNMENT (4) ///< MCU Alignment
+#define DEVICE_ROMDRIVER
 
-#if defined ARCH_LPC134X
-  #include "arch_lpc134x.h"
-#elif defined ARCH_LPC43XX
-  #include "arch_lpc43xx.h"
-#elif defined ARCH_LPC11XX
-  #include "arch_lpc11xx.h"
-#else
-  #error Arch is not found
-#endif
-
-#endif /* _TUSB_ARCH_H_ */
+#endif /* MCU_LPC11XX_H_ */
 
 /** @} */
-

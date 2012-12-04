@@ -1,5 +1,5 @@
 /*
- * arch_lpc134x.h
+ * mcu.h
  *
  *  Created on: Nov 26, 2012
  *      Author: hathach
@@ -36,26 +36,41 @@
  */
 
 /** \file
- *  \brief LPC13Uxx Header
+ *  \brief Architecture Header
  *
  *  \note TBD
  */
 
-/** \ingroup Group_Arch
+/** \ingroup Group_Common
+ *  \defgroup Group_MCU MicroController
+ *  \brief Group_MCU brief
  *
  *  @{
  */
 
-#ifndef _TUSB_ARCH_LPC134_X_H_
-#define _TUSB_ARCH_LPC134_X_H_
+#ifndef _TUSB_MCU_H_
+#define _TUSB_MCU_H_
 
-#define ARM_M3
-#define DEVICE_ROMDRIVER
+//#define MCU MCU_LPC43XX
 
-#include "arm_mx.h"
-#include "LPC13Uxx.h"
+#define MCU_LPC134X 1
+#define MCU_LPC11XX 2
+#define MCU_LPC43XX 3
 
-#endif /* _TUSB_ARCH_LPC134_X_H_ */
+#define ENDIAN_LITTLE ///< MCU Endian
+#define ALIGNMENT (4) ///< MCU Alignment
+
+#if MCU == MCU_LPC134X
+  #include "mcu_lpc134x.h"
+#elif MCU == MCU_LPC43XX
+  #include "mcu_lpc43xx.h"
+#elif MCU == MCU_LPC11XX
+  #include "mcu_lpc11xx.h"
+#else
+  #error Arch is not supported yet
+#endif
+
+#endif /* _TUSB_MCU_H_ */
 
 /** @} */
 

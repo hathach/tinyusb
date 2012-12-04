@@ -1,7 +1,7 @@
 /*
- * arch_lpc11xx.h
+ * compiler_iar.h
  *
- *  Created on: Nov 29, 2012
+ *  Created on: Dec 3, 2012
  *      Author: hathach
  */
 
@@ -32,29 +32,32 @@
  * IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY
  * OF SUCH DAMAGE.
  *
- * This file is part of the tinyUSB stack.
+ * This file is part of the tiny usb stack.
  */
 
 /** \file
- *  \brief LPC11xx Header File
- *
- *  \note TBD
+ *  \brief IAR Compiler
  */
 
-/** \ingroup Group_Arch
- *
+/** \ingroup Group_Compiler
+ *  \defgroup Group_IAR IAR ARM
  *  @{
  */
 
-#ifndef ARCH_LPC11XX_H_
-#define ARCH_LPC11XX_H_
+#ifndef _TUSB_COMPILER_IAR_H_
+#define _TUSB_COMPILER_IAR_H_
 
-#define ARM_M0
-#define DEVICE_ROMDRIVER
+#ifdef __cplusplus
+ extern "C" {
+#endif
 
-#include "arm_mx.h"
-#include "LPC11Uxx.h"
+#define ATTR_PREPACKED  __packed
+#define ATTR_PACKED
 
-#endif /* ARCH_LPC11XX_H_ */
+#ifdef __cplusplus
+ }
+#endif
+
+#endif /* _TUSB_COMPILER_IAR_H_ */
 
 /** @} */

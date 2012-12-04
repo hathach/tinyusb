@@ -1,7 +1,7 @@
 /*
- * arch_lpc43xx.h
+ * board.h
  *
- *  Created on: Nov 26, 2012
+ *  Created on: Dec 4, 2012
  *      Author: hathach
  */
 
@@ -32,30 +32,55 @@
  * IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY
  * OF SUCH DAMAGE.
  *
- * This file is part of the tinyUSB stack.
+ * This file is part of the tiny usb stack.
  */
 
 /** \file
- *  \brief LPC43xx Header
+ *  \brief TBD
  *
  *  \note TBD
  */
 
-/** \ingroup Group_Arch
+/**
+ *  \defgroup Group_Board Boards
+ *  \brief TBD
  *
  *  @{
  */
 
-#ifndef _TUSB_ARCH_LPC43XX_H_
-#define _TUSB_ARCH_LPC43XX_H_
+#ifndef _TUSB_BOARD_H_
+#define _TUSB_BOARD_H_
 
-#define ARM_M4
-//#define ARM_M0
+#ifdef __cplusplus
+ extern "C" {
+#endif
 
-#include "arm_mx.h"
-#include "LPC43xx.h"
-#include "lpc43xx_cgu.h"
+#include <stdint.h>
 
-#endif /* _TUSB_ARCH_LPC43XX_H_ */
+ /// n-th Bit
+#ifndef BIT
+#define BIT(n) (1 << (n))
+#endif
 
-/// @}
+#ifndef BOARD
+#define BOARD BOARD_NGX4330_EXPLORER
+#endif
+
+#define BOARD_NGX4330_EXPLORER 1
+#define BOARD_LPCXPRESSO1347  2
+
+//#ifdef BOARD == BOARD_NGX4330_EXPLORER
+//#include "board_ngx4330_explorer.h"
+//#endif
+
+/// Init board peripherals : Clock, UART, LEDs, Buttons
+void board_init(void);
+void board_leds(uint32_t mask, uint32_t state);
+
+#ifdef __cplusplus
+ }
+#endif
+
+#endif /* _TUSB_BOARD_H_ */
+
+/** @} */

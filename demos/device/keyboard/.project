@@ -3,8 +3,6 @@
 	<name>device_keyboard</name>
 	<comment></comment>
 	<projects>
-		<project>CMSISv2p10_LPC13Uxx</project>
-		<project>LPC13Uxx_DriverLib</project>
 		<project>tinyusb</project>
 	</projects>
 	<buildSpec>
@@ -82,4 +80,11 @@
 		<nature>org.eclipse.cdt.managedbuilder.core.managedBuildNature</nature>
 		<nature>org.eclipse.cdt.managedbuilder.core.ScannerConfigNature</nature>
 	</natures>
+	<linkedResources>
+		<link>
+			<name>boards</name>
+			<type>2</type>
+			<locationURI>PARENT-2-PROJECT_LOC/boards</locationURI>
+		</link>
+	</linkedResources>
 </projectDescription>

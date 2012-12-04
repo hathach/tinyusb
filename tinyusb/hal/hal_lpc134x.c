@@ -37,7 +37,7 @@
 
 #include "common/common.h"
 
-#ifdef ARCH_LPC134X
+#if MCU == MCU_LPC134X
 
 TUSB_Error_t hal_init()
 {
