@@ -86,6 +86,7 @@ ErrorCode_t USB_Reset_Event (USBD_HANDLE_T hUsb)
 
 TUSB_Error_t dcd_init(uint8_t coreid)
 {
+#ifdef DEVICE_ROMDRIVER // TODO refractor later
   /* ROM DRIVER INIT */
   uint32_t membase = (uint32_t) usb_RomDriver_buffer;
   uint32_t memsize = USB_ROM_SIZE;
@@ -139,6 +140,7 @@ TUSB_Error_t dcd_init(uint8_t coreid)
 
   /* Perform USB soft connect */
   USBD_API->hw->Connect(g_hUsb, 1);
+#endif
 
   return tERROR_NONE;
 }

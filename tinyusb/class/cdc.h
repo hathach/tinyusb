@@ -93,6 +93,7 @@ uint16_t tusb_cdc_send(uint8_t* buffer, uint16_t count);
  */
 uint16_t tusb_cdc_recv(uint8_t* buffer, uint16_t max);
 
+#ifdef DEVICE_ROMDRIVER
 /** \brief initialize cdc driver
  *
  * \param[in]  para1
@@ -110,4 +111,6 @@ TUSB_Error_t tusb_cdc_init(USBD_HANDLE_T hUsb, USB_INTERFACE_DESCRIPTOR const *c
  * \note
  */
 TUSB_Error_t tusb_cdc_configured(USBD_HANDLE_T hUsb);
+#endif
+
 #endif

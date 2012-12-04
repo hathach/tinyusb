@@ -60,7 +60,7 @@
 #define CFG_TUSB_HOST
 
 /// Enable Device Support
-#define CFG_TUSB_DEVICE
+//#define CFG_TUSB_DEVICE
 
 /// Enable CDC Support
 #define CFG_CLASS_CDC

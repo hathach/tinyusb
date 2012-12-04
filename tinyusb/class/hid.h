@@ -51,6 +51,10 @@
 #ifndef _TUSB_HID_H_
 #define _TUSB_HID_H_
 
+#ifdef __cplusplus
+ extern "C" {
+#endif
+
  // TODO refractor
 #include "common/common.h"
 #include "device/dcd.h"
@@ -61,24 +65,24 @@
  *
  *  Type define for a standard Boot Protocol Mouse report
  */
-typedef PRE_PACK struct
+typedef ATTR_PREPACKED struct
 {
   uint8_t Button; /**< Button mask for currently pressed buttons in the mouse. */
   int8_t  X; /**< Current delta X movement of the mouse. */
   int8_t  Y; /**< Current delta Y movement on the mouse. */
-} POST_PACK USB_HID_MouseReport_t;
+} ATTR_PACKED USB_HID_MouseReport_t;
 
 /** \struct USB_HID_KeyboardReport_t
  *  \brief Standard HID Boot Protocol Keyboard Report.
  *
  *  Type define for a standard Boot Protocol Keyboard report
  */
-typedef PRE_PACK struct
+typedef ATTR_PREPACKED struct
 {
   uint8_t Modifier; /**< Keyboard modifier byte, indicating pressed modifier keys (a combination of HID_KEYBOARD_MODIFER_* masks). */
   uint8_t Reserved; /**< Reserved for OEM use, always set to 0. */
   uint8_t KeyCode[6]; /**< Key codes of the currently pressed keys. */
-} POST_PACK USB_HID_KeyboardReport_t;
+} ATTR_PACKED USB_HID_KeyboardReport_t;
 
 /** \enum USB_HID_MOUSE_BUTTON_CODE
  * \brief Button codes for HID mouse
@@ -148,10 +152,7 @@ enum USB_HID_LOCAL_CODE
   HID_Local_Turkish_F
 };
 
-#ifdef __cplusplus
- extern "C" {
-#endif
-
+#ifdef DEVICE_ROMDRIVER
 /** \brief Initialize HID driver
  *
  * \param[in]  para1
@@ -187,6 +188,7 @@ TUSB_Error_t tusb_hid_keyboard_sendKeys(uint8_t modifier, uint8_t keycodes[], ui
  * \note
  */
 TUSB_Error_t tusb_hid_mouse_send(uint8_t buttons, int8_t x, int8_t y);
+#endif
 
 #ifdef __cplusplus
  }

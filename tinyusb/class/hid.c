@@ -37,7 +37,7 @@
 
 #include "hid.h"
 
-#ifdef TUSB_CLASS_HID
+#if defined TUSB_CLASS_HID && defined CFG_TUSB_DEVICE
 
 #ifdef CFG_CLASS_HID_KEYBOARD
 USB_HID_KeyboardReport_t hid_keyboard_report;

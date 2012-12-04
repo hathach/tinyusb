@@ -51,8 +51,9 @@
 #ifndef _TUSB_ARCH_H_
 #define _TUSB_ARCH_H_
 
-#define ARCH_LPC134X
+//#define ARCH_LPC134X
 //#define ARCH_LPC11XX
+#define ARCH_LPC43XX
 
 #define ENDIAN_LITTLE ///< MCU Endian
 #define ALIGNMENT (4) ///< MCU Alignment

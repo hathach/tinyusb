@@ -53,6 +53,8 @@
 //#define ARM_M0
 
 #include "arm_mx.h"
+#include "LPC43xx.h"
+#include "lpc43xx_cgu.h"
 
 #endif /* _TUSB_ARCH_LPC43XX_H_ */
 

@@ -63,7 +63,7 @@
 
 #include "tusb_cfg.h"
 #include "arch/arch.h"
-#include "arch/hal.h"
+#include "hal/hal.h"
 #include "compiler/compiler.h"
 #include "errors.h"
 #include "core/tusb_types.h"
