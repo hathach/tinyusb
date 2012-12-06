@@ -1,7 +1,7 @@
 /*
- * board_lpcexpresso1347.c
+ * hal_lpc13uxx.c
  *
- *  Created on: Dec 4, 2012
+ *  Created on: Dec 2, 2012
  *      Author: hathach
  */
 
@@ -35,30 +35,24 @@
  * This file is part of the tiny usb stack.
  */
 
-#include "board.h"
+#include "common/common.h"
 
-#if BOARD == BOARD_LPCXPRESSO1347
+#if MCU == MCU_LPC13UXX
 
-#include "LPC13Uxx.h"
-
-#define CFG_LED_PORT                  (0)
-#define CFG_LED_PIN                   (7)
-#define CFG_LED_ON                    (1)
-#define CFG_LED_OFF                   (0)
-
-void board_init(void)
+TUSB_Error_t hal_init()
 {
-  SystemInit();
-  systickInit(1);
-  GPIOInit();
-  GPIOSetDir(CFG_LED_PORT, CFG_LED_PIN, 1);
-  LPC_GPIO->CLR[CFG_LED_PORT] = (1 << CFG_LED_PIN);
-}
+	// TODO usb abstract later
+  /* Enable AHB clock to the USB block and USB RAM. */
+  LPC_SYSCON->SYSAHBCLKCTRL |= ((0x1<<14) | (0x1<<27));
 
-void board_leds(uint32_t mask, uint32_t state)
-{
-  if (mask)
-    GPIOSetBitValue(CFG_LED_PORT, CFG_LED_PIN, state);
+  /* Pull-down is needed, or internally, VBUS will be floating. This is to
+  address the wrong status in VBUSDebouncing bit in CmdStatus register.  */
+  LPC_IOCON->PIO0_3   &= ~0x1F;
+  LPC_IOCON->PIO0_3   |= (0x01<<0);            /* Secondary function VBUS */
+  LPC_IOCON->PIO0_6   &= ~0x07;
+  LPC_IOCON->PIO0_6   |= (0x01<<0);            /* Secondary function SoftConn */
+
+  return tERROR_NONE;
 }
 
 #endif

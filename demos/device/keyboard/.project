@@ -3,7 +3,6 @@
 	<name>device_keyboard</name>
 	<comment></comment>
 	<projects>
-		<project>tinyusb</project>
 	</projects>
 	<buildSpec>
 		<buildCommand>
@@ -82,9 +81,9 @@
 	</natures>
 	<linkedResources>
 		<link>
-			<name>boards</name>
+			<name>bsp</name>
 			<type>2</type>
-			<locationURI>PARENT-2-PROJECT_LOC/boards</locationURI>
+			<location>C:/Users/hathach/Dropbox/tinyusb/tinyusb/demos/bsp</location>
 		</link>
 	</linkedResources>
 </projectDescription>

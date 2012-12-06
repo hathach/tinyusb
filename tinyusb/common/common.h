@@ -104,7 +104,7 @@
 #define ASSERT_MESSAGE(condition, value, message) \
 	do{\
 	  if (!(condition)) {\
-			PRINTF("Assert at %s line %d: %s\n", __func__, __LINE__, message); \
+			PRINTF("Assert at %s line %d: %s\n", __PRETTY_FUNCTION__, __LINE__, message); \
 			return (value);\
 		}\
 	}while(0)

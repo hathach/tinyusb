@@ -1,7 +1,7 @@
 /*
- * hal_lpc134x.c
+ * mcu_lpc13uxx.h
  *
- *  Created on: Dec 2, 2012
+ *  Created on: Nov 26, 2012
  *      Author: hathach
  */
 
@@ -32,27 +32,28 @@
  * IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY
  * OF SUCH DAMAGE.
  *
- * This file is part of the tiny usb stack.
+ * This file is part of the tinyUSB stack.
  */
 
-#include "common/common.h"
+/** \file
+ *  \brief LPC13Uxx Header
+ *
+ *  \note TBD
+ */
 
-#if MCU == MCU_LPC134X
+/** \ingroup Group_MCU
+ *
+ *  @{
+ */
 
-TUSB_Error_t hal_init()
-{
-	// TODO usb abstract later
-  /* Enable AHB clock to the USB block and USB RAM. */
-  LPC_SYSCON->SYSAHBCLKCTRL |= ((0x1<<14) | (0x1<<27));
+#ifndef _TUSB_MCU_LPC13UXX_H_
+#define _TUSB_MCU_LPC13UXX_H_
 
-  /* Pull-down is needed, or internally, VBUS will be floating. This is to
-  address the wrong status in VBUSDebouncing bit in CmdStatus register.  */
-  LPC_IOCON->PIO0_3   &= ~0x1F;
-  LPC_IOCON->PIO0_3   |= (0x01<<0);            /* Secondary function VBUS */
-  LPC_IOCON->PIO0_6   &= ~0x07;
-  LPC_IOCON->PIO0_6   |= (0x01<<0);            /* Secondary function SoftConn */
+#include "LPC13Uxx.h"
 
-  return tERROR_NONE;
-}
+#define DEVICE_ROMDRIVER
 
-#endif
+#endif /* _TUSB_MCU_LPC13UXX_H_ */
+
+/** @} */
+

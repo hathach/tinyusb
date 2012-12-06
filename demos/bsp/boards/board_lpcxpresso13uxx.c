@@ -1,4 +1,11 @@
 /*
+ * board_lpcexpresso1347.c
+ *
+ *  Created on: Dec 4, 2012
+ *      Author: hathach
+ */
+
+/*
  * Software License Agreement (BSD License)
  * Copyright (c) 2012, hathach (tinyusb.net)
  * All rights reserved.
@@ -27,3 +34,31 @@
  *
  * This file is part of the tiny usb stack.
  */
+
+#include "board.h"
+
+#if BOARD == BOARD_LPCXPRESSO13UXX
+
+#include "LPC13Uxx.h"
+
+#define CFG_LED_PORT                  (0)
+#define CFG_LED_PIN                   (7)
+#define CFG_LED_ON                    (1)
+#define CFG_LED_OFF                   (0)
+
+void board_init(void)
+{
+  SystemInit();
+  systickInit(1);
+  GPIOInit();
+  GPIOSetDir(CFG_LED_PORT, CFG_LED_PIN, 1);
+  LPC_GPIO->CLR[CFG_LED_PORT] = (1 << CFG_LED_PIN);
+}
+
+void board_leds(uint32_t mask, uint32_t state)
+{
+  if (mask)
+    GPIOSetBitValue(CFG_LED_PORT, CFG_LED_PIN, state);
+}
+
+#endif

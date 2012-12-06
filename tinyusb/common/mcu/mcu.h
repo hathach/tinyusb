@@ -53,21 +53,21 @@
 
 //#define MCU MCU_LPC43XX
 
-#define MCU_LPC134X 1
-#define MCU_LPC11XX 2
+#define MCU_LPC13UXX 1
+#define MCU_LPC11UXX 2
 #define MCU_LPC43XX 3
 
 #define ENDIAN_LITTLE ///< MCU Endian
 #define ALIGNMENT (4) ///< MCU Alignment
 
-#if MCU == MCU_LPC134X
-  #include "mcu_lpc134x.h"
+#if MCU == MCU_LPC13UXX
+  #include "mcu_lpc13uxx.h"
 #elif MCU == MCU_LPC43XX
   #include "mcu_lpc43xx.h"
-#elif MCU == MCU_LPC11XX
+#elif MCU == MCU_LPC11UXX
   #include "mcu_lpc11xx.h"
 #else
-  #error Arch is not supported yet
+  #error MCU is not defined or supported yet
 #endif
 
 #endif /* _TUSB_MCU_H_ */

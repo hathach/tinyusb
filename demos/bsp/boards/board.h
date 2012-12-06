@@ -1,5 +1,5 @@
 /*
- * board_ngx4330_explorer.c
+ * board.h
  *
  *  Created on: Dec 4, 2012
  *      Author: hathach
@@ -35,59 +35,52 @@
  * This file is part of the tiny usb stack.
  */
 
-#include "board.h"
+/** \file
+ *  \brief TBD
+ *
+ *  \note TBD
+ */
 
-#if BOARD == BOARD_NGX4330_EXPLORER
+/**
+ *  \defgroup Group_Board Boards
+ *  \brief TBD
+ *
+ *  @{
+ */
 
-#include "lpc43xx_uart.h"
-#include "lpc43xx_scu.h"
-#include "lpc43xx_cgu.h"
-#include "lpc43xx_gpio.h"
-#include "lpc43xx_timer.h"
-#include "lpc43xx_i2c.h"
-#include "lpc43xx_gpdma.h"
-#include "lpc43xx_i2s.h"
-#include "lpc43xx_emc.h"
+#ifndef _TUSB_BOARD_H_
+#define _TUSB_BOARD_H_
 
-#define BOARD_MAX_LEDS  2
-const static struct {
-  uint8_t port;
-  uint8_t pin;
-}leds[BOARD_MAX_LEDS] = { {1, 11}, {1,12} };
+#ifdef __cplusplus
+ extern "C" {
+#endif
 
-void board_init(void)
-{
-  CGU_Init();
-	SysTick_Config( CGU_GetPCLKFrequency(CGU_PERIPHERAL_M4CORE)/1000 );	/* 1 ms Timer */
+#include <stdint.h>
 
-	/* Turn on 5V USB VBUS TODO Should be Host-only */
-	scu_pinmux(0x2, 6, MD_PUP | MD_EZI, FUNC4);				// P2_6 USB1_PWR_EN, USB1 VBus function
-	scu_pinmux(0x2, 5, MD_PLN | MD_EZI | MD_ZI, FUNC2);		// P2_5 USB1_VBUS, MUST CONFIGURE THIS SIGNAL FOR USB1 NORMAL OPERATION
+/// n-th Bit
+#ifndef BIT
+#define BIT(n) (1 << (n))
+#endif
 
-	/* Turn on 5V USB VBUS TODO Should be Host-only */
-#if 1 //(BOARD == BOARD_XPLORER)
-	scu_pinmux(0x1, 7, MD_PUP | MD_EZI, FUNC4);				// P1_7 USB0_PWR_EN, USB0 VBus function Xplorer
+#define BOARD_NGX43XX 1
+#define BOARD_LPCXPRESSOUXX  2
+
+#if BOARD == BOARD_NGX43XX
+//#include "board_ngx4330.h"
+#elif BOARD == BOARD_LPCXPRESSO13UXX
+
 #else
-	scu_pinmux(0x2, 3, MD_PUP | MD_EZI, FUNC7);     		// P2_3 USB0_PWR_EN, USB0 VBus function Farnell
+  #error BOARD is not defined or supported yet
 #endif
 
-	// Leds Init
-	uint8_t i;
-	for (i=0; i<BOARD_MAX_LEDS; i++)
-	{
-	  scu_pinmux(leds[i].port, leds[i].pin, MD_PUP|MD_EZI|MD_ZI, FUNC0);
-	  GPIO_SetDir(leds[i].port, BIT(leds[i].pin), 1); // output
-	}
-}
+/// Init board peripherals : Clock, UART, LEDs, Buttons
+void board_init(void);
+void board_leds(uint32_t mask, uint32_t state);
 
-void board_leds(uint32_t mask, uint32_t state)
-{
-  uint8_t i;
-  for(i=0; i<BOARD_MAX_LEDS; i++)
-  {
-    if ( mask & BIT(i) )
-      (mask & state) ? GPIO_SetValue(leds[i].port, BIT(leds[i].pin)) : GPIO_ClearValue(leds[i].port, BIT(leds[i].pin)) ;
-  }
-}
-
+#ifdef __cplusplus
+ }
 #endif
+
+#endif /* _TUSB_BOARD_H_ */
+
+/** @} */
