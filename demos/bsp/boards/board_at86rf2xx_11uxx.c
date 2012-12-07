@@ -1,7 +1,7 @@
 /*
- * mcu.h
+ * board_at86rf2xx_11uxx.c
  *
- *  Created on: Nov 26, 2012
+ *  Created on: Dec 7, 2012
  *      Author: hathach
  */
 
@@ -32,47 +32,35 @@
  * IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY
  * OF SUCH DAMAGE.
  *
- * This file is part of the tinyUSB stack.
+ * This file is part of the tiny usb stack.
  */
 
-/** \file
- *  \brief Architecture Header
- *
- *  \note TBD
- */
+#include "board.h"
 
-/** \ingroup Group_Common
- *  \defgroup Group_MCU MicroController
- *  \brief Group_MCU brief
- *
- *  @{
- */
+#if BOARD == BOARD_AT86RF2XX_11UXX
 
-#ifndef _TUSB_MCU_H_
-#define _TUSB_MCU_H_
+#include "LPC11Uxx.h"
+#include "gpio.h"
 
-#ifndef MCU // elcipse view
-#define MCU MCU_LPC11UXX
+#define CFG_LED_PORT                  (1)
+#define CFG_LED_PIN                   (31)
+#define CFG_LED_ON                    (0)
+#define CFG_LED_OFF                   (1)
+
+void board_init(void)
+{
+  SystemInit();
+  SysTick_Config(SystemCoreClock / TICKS_PER_SECOND); // 1 msec tick timer
+  GPIOInit();
+
+//  GPIOSetDir(CFG_LED_PORT, CFG_LED_PIN, 1);
+  board_leds(0x01, 0); // turn off the led first
+}
+
+void board_leds(uint32_t mask, uint32_t state)
+{
+//  if (mask)
+//    GPIOSetBitValue(CFG_LED_PORT, CFG_LED_PIN, mask & state ? CFG_LED_ON : CFG_LED_OFF);
+}
+
 #endif
-
-#define MCU_LPC13UXX 1
-#define MCU_LPC11UXX 2
-#define MCU_LPC43XX 3
-
-#define ENDIAN_LITTLE ///< MCU Endian
-#define ALIGNMENT (4) ///< MCU Alignment
-
-#if MCU == MCU_LPC13UXX
-  #include "mcu_lpc13uxx.h"
-#elif MCU == MCU_LPC43XX
-  #include "mcu_lpc43xx.h"
-#elif MCU == MCU_LPC11UXX
-  #include "mcu_lpc11uxx.h"
-#else
-  #error MCU is not defined or supported yet
-#endif
-
-#endif /* _TUSB_MCU_H_ */
-
-/** @} */
-

@@ -46,13 +46,13 @@
  *  @{
  */
 
-#ifndef MCU_LPC11XX_H_
-#define MCU_LPC11XX_H_
+#ifndef _TUSB_MCU_LPC11UXX_H_
+#define _TUSB_MCU_LPC11UXX_H_
 
 #include "LPC11Uxx.h"
 
 #define DEVICE_ROMDRIVER
 
-#endif /* MCU_LPC11XX_H_ */
+#endif /* _TUSB_MCU_LPC11UXX_H_ */
 
 /** @} */

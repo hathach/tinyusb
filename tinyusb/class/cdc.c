@@ -309,15 +309,16 @@ TUSB_Error_t tusb_cdc_configured(USBD_HANDLE_T hUsb)
   uint8_t dummy=0;
   USBD_API->hw->WriteEP(hUsb, CDC_DATA_EP_IN, &dummy, 1); // initial packet for IN endpoint, will not work if omitted
 
-//  #if defined CFG_MCU_FAMILY_LPC11UXX
-//    fifo_init (&ffTX, qBuffer[0], CDC_BUFFER_SIZE, false, USB_IRQn);     // TX is non-overwritable
-//    fifo_init (&ffRX, qBuffer[1], CDC_BUFFER_SIZE, true, USB_IRQn);      // RX is overwritable
-//  #elif defined CFG_MCU_FAMILY_LPC13UXX
+  // FIXME abstract to hal
+  #if MCU == MCU_LPC11UXX
+    fifo_init (&ffTX, qBuffer[0], CDC_BUFFER_SIZE, false, USB_IRQn);     // TX is non-overwritable
+    fifo_init (&ffRX, qBuffer[1], CDC_BUFFER_SIZE, true, USB_IRQn);      // RX is overwritable
+  #elif  MCU == MCU_LPC13UXX
     fifo_init (&ffTX, qBuffer[0], CDC_BUFFER_SIZE, false, USB_IRQ_IRQn); // TX is non-overwritable
     fifo_init (&ffRX, qBuffer[1], CDC_BUFFER_SIZE, true, USB_IRQ_IRQn);  // RX is overwritable
-//  #else
-//    #error "usb_cdc.c: No MCU defined"
-//  #endif
+  #else
+    #error "usb_cdc.c: No MCU defined"
+  #endif
 
   return tERROR_NONE;
 }
