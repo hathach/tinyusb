@@ -367,8 +367,8 @@ ATTR_ALIGNED(4) const USB_STR_DESCRIPTOR USB_StringDescriptor =
     .strManufacturer = {'t', 'i', 'n', 'y', 'U', 'S', 'B'},
 
     .Product = { .bLength = USB_STRING_LEN(sizeof(CFG_USB_STRING_PRODUCT)-1), .bDescriptorType = USB_STRING_DESCRIPTOR_TYPE },
-    .strProduct = {'D', 'e', 'v', 'i', 'c', ' ', 'e', 'K', 'e', 'y', 'b', 'o', 'a', 'r', 'd'},
+    .strProduct = {'D', 'e', 'v', 'i', 'c', 'e', ' ', 'K', 'e', 'y', 'b', 'o', 'a', 'r', 'd'},
 
-    .Serial = { .bLength = USB_STRING_LEN(USB_STRING_SERIAL_LEN), .bDescriptorType = USB_STRING_DESCRIPTOR_TYPE },
+    .Serial = { .bLength = USB_STRING_LEN(sizeof(CFG_USB_STRING_SERIAL)-1), .bDescriptorType = USB_STRING_DESCRIPTOR_TYPE },
     .strSerial = {'1', '2', '3', '4'}
 };

@@ -5,6 +5,6 @@ proj_path =  $(build_dir)/..
 #get workspace absolute path
 workspace_dir = $(shell cd $(proj_path)/../../.. ; pwd)
 #workspace_dir = $(proj_path)/../../../
-$(info workspace $(workspace_dir))
+$(warning workspace $(workspace_dir))
 
 include $(workspace_dir)/demos/demos.mk

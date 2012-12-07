@@ -13,7 +13,7 @@ buildname :=  $(shell echo $(notdir $(build_dir)) | tr a-z A-Z)
 board = $(buildname)
 mcu = $(shell echo $(MCU) | tr A-Z a-z)
 
-$(info board $(board) )
+$(warning board $(board) )
 
 ifeq (,$(findstring BOARD_,$(board)))
  $(error build's name must be name exactly the same as the macro BOARD_NAME defined in the tinyusb/demos/boards/board.h)
@@ -25,7 +25,7 @@ ifeq (,$(MCU))
 $(error build name must contain one of supported mcu: $(mcu_support))
 endif
 
-$(info MCU $(MCU) $(mcu))
+$(warning MCU $(MCU) $(mcu))
 
 ################ Build Manipulate ################
 #Remove all other mcu in demos/bsp and keep only needed one
