@@ -53,14 +53,14 @@ void board_init(void)
   SysTick_Config(SystemCoreClock / TICKS_PER_SECOND); // 1 msec tick timer
   GPIOInit();
 
-//  GPIOSetDir(CFG_LED_PORT, CFG_LED_PIN, 1);
+  GPIOSetDir(CFG_LED_PORT, CFG_LED_PIN, 1);
   board_leds(0x01, 0); // turn off the led first
 }
 
 void board_leds(uint32_t mask, uint32_t state)
 {
-//  if (mask)
-//    GPIOSetBitValue(CFG_LED_PORT, CFG_LED_PIN, mask & state ? CFG_LED_ON : CFG_LED_OFF);
+  if (mask)
+    GPIOSetBitValue(CFG_LED_PORT, CFG_LED_PIN, mask & state ? CFG_LED_ON : CFG_LED_OFF);
 }
 
 #endif

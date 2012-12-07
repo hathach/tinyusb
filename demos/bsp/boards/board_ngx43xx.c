@@ -1,5 +1,5 @@
 /*
- * board_ngx4330_explorer.c
+ * board_ngx4330.c
  *
  *  Created on: Dec 4, 2012
  *      Author: hathach
