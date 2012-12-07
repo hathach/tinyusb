@@ -57,17 +57,22 @@
 
 #include <stdint.h>
 
+#define TICKS_PER_SECOND 1000
+
 /// n-th Bit
 #ifndef BIT
 #define BIT(n) (1 << (n))
 #endif
 
 #define BOARD_NGX43XX 1
-#define BOARD_LPCXPRESSOUXX  2
+#define BOARD_LPCXPRESSO1347  2
+#define BOARD_AT86RF2XX 3
 
 #if BOARD == BOARD_NGX43XX
-//#include "board_ngx4330.h"
-#elif BOARD == BOARD_LPCXPRESSO13UXX
+
+#elif BOARD == BOARD_LPCXPRESSO1347
+
+#elif BOARD == BOARD_AT86RF2XX
 
 #else
   #error BOARD is not defined or supported yet

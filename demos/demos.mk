@@ -5,11 +5,11 @@ CFLAGS = $(MACROS_DEF) $(INC_PATH)
 MACROS_DEF += -DBOARD=$(board) -DMCU=MCU_$(MCU)
 
 #MCU currently supported
-mcu_support = 13UXX
+mcu_support = 13UXX 11UXX
 
 ################ Board and MCU determination ################
 #all configuration build's name must be named after the macro BOARD_NAME defined in the tinyusb/demos/boards/board.h
-buildname :=  $(shell echo $(notdir $(build_dir)) | tr a-z A-Z)
+buildname =  $(shell echo $(notdir $(build_dir)) | tr a-z A-Z)
 board = $(buildname)
 mcu = $(shell echo $(MCU) | tr A-Z a-z)
 
@@ -19,11 +19,13 @@ ifeq (,$(findstring BOARD_,$(board)))
  $(error build's name must be name exactly the same as the macro BOARD_NAME defined in the tinyusb/demos/boards/board.h)
 endif
 
-MCU := LPC$(findstring $(mcu_support),$(board))
+MCU := $(strip $(foreach supported_chip, $(mcu_support), $(findstring $(supported_chip),$(board))))
 
 ifeq (,$(MCU))
 $(error build name must contain one of supported mcu: $(mcu_support))
 endif
+
+MCU := LPC$(MCU)
 
 $(warning MCU $(MCU) $(mcu))
 
@@ -36,20 +38,19 @@ toolchain = xpresso
 OBJS := $(filter-out ./bsp/$(mcu)/startup%,$(OBJS)) $(filter ./bsp/$(mcu)/startup_$(toolchain)%,$(OBJS))
 
 #CMSIS include path & lib path
-cmsis_proj = CMSISv2p10_$(shell echo $(MCU) | tr X x)
+cmsis_proj = $(shell cd $(workspace_dir); ls | grep -i "CMSIS.*$(MCU)")
 rel_include +=  $(cmsis_proj)/inc
 rel_include +=  demos/bsp/boards
 rel_include +=  demos/bsp/$(mcu)/inc
 INC_PATH = $(addprefix  -I"$(workspace_dir)/, $(addsuffix ",$(rel_include)))
 
 LIBS += -l$(cmsis_proj) -L"$(workspace_dir)/$(cmsis_proj)/Debug"
-#$(warning $(OBJS))
+#$(error $(OBJS))
 
 #generate makefiles.def containing MCU define for tinyusb lib
-$(shell echo CFLAGS = -DMCU=MCU_$(MCU) > $(workspace_dir)/tinyusb/makefile.defs) 
-
-
-
+#tinyusb_CFLAGS = -DMCU=MCU_$(MCU) -I\"$(workspace_dir)/$(cmsis_proj)/inc\"
+#$(shell echo CFLAGS = $(tinyusb_CFLAGS) > $(workspace_dir)/tinyusb/makefile.defs) 
+#$(shell echo $$\(warning MCU = MCU_$(MCU)\) >> $(workspace_dir)/tinyusb/makefile.defs)
 
 
 

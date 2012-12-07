@@ -51,10 +51,6 @@
 #ifndef _TUSB_MCU_H_
 #define _TUSB_MCU_H_
 
-#ifndef MCU // elcipse view
-#define MCU MCU_LPC11UXX
-#endif
-
 #define MCU_LPC13UXX 1
 #define MCU_LPC11UXX 2
 #define MCU_LPC43XX 3

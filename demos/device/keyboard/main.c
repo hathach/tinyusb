@@ -4,7 +4,7 @@
 
 #include <cr_section_macros.h>
 #include <NXP/crp.h>
-#include "board.h"
+#include "boards/board.h"
 #include "tusb.h"
 
 // Variable to store CRP value in. Will be placed automatically
@@ -12,22 +12,26 @@
 // See crp.h header for more information
 __CRP const unsigned int CRP_WORD = CRP_NO_CRP ;
 
+volatile uint32_t system_tick = 0;
+
+void SysTick_Handler (void)
+{
+  system_tick++;
+}
+
 int main(void) 
 {
-  uint32_t currentSecond, lastSecond;
-  currentSecond = lastSecond = 0;
+  uint32_t current_tick = system_tick;
 
   board_init();
   tusb_init();
 
   while (1)
   {
-    currentSecond = systickGetSecondsActive();
-    if (currentSecond != lastSecond)
+    if (current_tick + 1000 < system_tick)
     {
-      /* Toggle LED once per second */
-      lastSecond = currentSecond;
-      board_leds(0x01, lastSecond%2);
+      current_tick += 1000;
+      board_leds(0x01, (current_tick/1000)%2); /* Toggle LED once per second */
 
       #ifndef CFG_CLASS_CDC
       if (usb_isConfigured())

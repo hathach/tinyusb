@@ -1,7 +1,7 @@
 /*
- * board_lpcexpresso1347.c
+ * board_at86rf2xx.c
  *
- *  Created on: Dec 4, 2012
+ *  Created on: Dec 7, 2012
  *      Author: hathach
  */
 
@@ -37,28 +37,30 @@
 
 #include "board.h"
 
-#if BOARD == BOARD_LPCXPRESSO13UXX
+#if BOARD == BOARD_AT86RF2XX
 
-#include "LPC13Uxx.h"
+#include "LPC11Uxx.h"
+#include "gpio.h"
 
-#define CFG_LED_PORT                  (0)
-#define CFG_LED_PIN                   (7)
-#define CFG_LED_ON                    (1)
-#define CFG_LED_OFF                   (0)
+#define CFG_LED_PORT                  (1)
+#define CFG_LED_PIN                   (31)
+#define CFG_LED_ON                    (0)
+#define CFG_LED_OFF                   (1)
 
 void board_init(void)
 {
   SystemInit();
-  systickInit(1);
+  SysTick_Config(SystemCoreClock / TICKS_PER_SECOND); // 1 msec tick timer
   GPIOInit();
-  GPIOSetDir(CFG_LED_PORT, CFG_LED_PIN, 1);
-  LPC_GPIO->CLR[CFG_LED_PORT] = (1 << CFG_LED_PIN);
+
+//  GPIOSetDir(CFG_LED_PORT, CFG_LED_PIN, 1);
+  board_leds(0x01, 0); // turn off the led first
 }
 
 void board_leds(uint32_t mask, uint32_t state)
 {
-  if (mask)
-    GPIOSetBitValue(CFG_LED_PORT, CFG_LED_PIN, state);
+//  if (mask)
+//    GPIOSetBitValue(CFG_LED_PORT, CFG_LED_PIN, mask & state ? CFG_LED_ON : CFG_LED_OFF);
 }
 
 #endif

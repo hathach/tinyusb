@@ -61,11 +61,12 @@
 #include <string.h>
 #include <stdio.h>
 
-#include "tusb_cfg.h"
-#include "mcu/mcu.h"
-#include "hal/hal.h"
 #include "compiler/compiler.h"
+#include "tusb_cfg.h"
 #include "errors.h"
+#include "mcu/mcu.h"
+
+#include "hal/hal.h"
 #include "core/tusb_types.h"
 #include "core/std_descriptors.h"
 
