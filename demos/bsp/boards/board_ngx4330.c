@@ -58,18 +58,14 @@ const static struct {
 void board_init(void)
 {
   CGU_Init();
-	SysTick_Config( CGU_GetPCLKFrequency(CGU_PERIPHERAL_M4CORE)/1000 );	/* 1 ms Timer */
+	SysTick_Config( CGU_GetPCLKFrequency(CGU_PERIPHERAL_M4CORE)/TICKS_PER_SECOND );	/* 1 ms Timer */
 
 	/* Turn on 5V USB VBUS TODO Should be Host-only */
 	scu_pinmux(0x2, 6, MD_PUP | MD_EZI, FUNC4);				// P2_6 USB1_PWR_EN, USB1 VBus function
 	scu_pinmux(0x2, 5, MD_PLN | MD_EZI | MD_ZI, FUNC2);		// P2_5 USB1_VBUS, MUST CONFIGURE THIS SIGNAL FOR USB1 NORMAL OPERATION
 
 	/* Turn on 5V USB VBUS TODO Should be Host-only */
-#if 1 //(BOARD == BOARD_XPLORER)
 	scu_pinmux(0x1, 7, MD_PUP | MD_EZI, FUNC4);				// P1_7 USB0_PWR_EN, USB0 VBus function Xplorer
-#else
-	scu_pinmux(0x2, 3, MD_PUP | MD_EZI, FUNC7);     		// P2_3 USB0_PWR_EN, USB0 VBus function Farnell
-#endif
 
 	// Leds Init
 	uint8_t i;
