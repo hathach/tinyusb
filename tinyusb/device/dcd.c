@@ -135,13 +135,8 @@ TUSB_Error_t dcd_init(uint8_t coreid)
             &membase , &memsize) );
   #endif
 
-  // FIXME abstract to hal
-  /* Enable the USB interrupt */
-#if MCU == MCU_LPC13UXX
-  NVIC_EnableIRQ(USB_IRQ_IRQn);
-#elif MCU == MCU_LPC11UXX
-  NVIC_EnableIRQ(USB_IRQn);
-#endif
+  hal_interrupt_enable(); /* Enable the USB interrupt */
+
   /* Perform USB soft connect */
   USBD_API->hw->Connect(g_hUsb, 1);
 #endif

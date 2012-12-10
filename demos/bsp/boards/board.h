@@ -60,8 +60,8 @@
 #define TICKS_PER_SECOND 1000
 
 /// n-th Bit
-#ifndef BIT
-#define BIT(n) (1 << (n))
+#ifndef BIT_
+#define BIT_(n) (1 << (n))
 #endif
 
 #define BOARD_NGX43XX 1

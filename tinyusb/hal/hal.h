@@ -55,6 +55,7 @@
  extern "C" {
 #endif
 
+#include "common/compiler/compiler.h"
 #include "common/errors.h"
 
 /** \brief USB hardware init
@@ -66,6 +67,23 @@
  */
 TUSB_Error_t hal_init();
 
+/**
+ * Enable USB Interrupt
+ */
+static inline void hal_interrupt_enable() ATTR_ALWAYS_INLINE;
+
+/**
+ * Disable USB Interrupt
+ */
+static inline void hal_interrupt_disable() ATTR_ALWAYS_INLINE;
+
+#if MCU == MCU_LPC11UXX
+  #include "hal_lpc11uxx.h"
+#elif MCU == MCU_LPC13UXX
+  #include "hal_lpc13uxx.h"
+#elif MCU == MCU_LPC43XX
+
+#endif
 #ifdef __cplusplus
  }
 #endif

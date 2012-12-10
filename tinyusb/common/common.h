@@ -71,29 +71,42 @@
 #include "core/std_descriptors.h"
 
 /// min value
-#ifndef MIN
-#define MIN(x, y) (((x) < (y)) ? (x) : (y))
-#endif
+#define MIN_(x, y) (((x) < (y)) ? (x) : (y))
 
 /// max value
-#ifndef MAX
-#define MAX(x, y) (((x) > (y)) ? (x) : (y))
-#endif
+#define MAX_(x, y) (((x) > (y)) ? (x) : (y))
 
 /// n-th Bit
-#ifndef BIT
-#define BIT(n) (1 << (n))
-#endif
+#define BIT_(n) (1 << (n))
 
 /// set n-th bit of x to 1
-#ifndef BIT_SET
-#define BIT_SET(x, n) ( (x) | BIT(n) )
-#endif
+#define BIT_SET_(x, n) ( (x) | BIT_(n) )
 
 /// clear n-th bit of x
-#ifndef BIT_CLR
-#define BIT_CLR(x, n) ( (x) & (~BIT(n)) )
-#endif
+#define BIT_CLR_(x, n) ( (x) & (~BIT_(n)) )
+
+/// add hex represenation
+#define HEX_(n) 0x##n##LU
+
+//  internal macro of B8, B16, B32
+#define _B8__(x) ((x&0x0000000FLU)?1:0) \
+                +((x&0x000000F0LU)?2:0) \
+                +((x&0x00000F00LU)?4:0) \
+                +((x&0x0000F000LU)?8:0) \
+                +((x&0x000F0000LU)?16:0) \
+                +((x&0x00F00000LU)?32:0) \
+                +((x&0x0F000000LU)?64:0) \
+                +((x&0xF0000000LU)?128:0)
+
+#define B8_(d) ((unsigned char)_B8__(HEX_(d)))
+#define B16_(dmsb,dlsb) (((unsigned short)B8(dmsb)<<8) + B8(dlsb))
+#define B32_(dmsb,db2,db3,dlsb) \
+            (((unsigned long)B8(dmsb)<<24) \
+            + ((unsigned long)B8(db2)<<16) \
+            + ((unsigned long)B8(db3)<<8) \
+            + B8(dlsb))
+
+
 
 //#if ( defined CFG_PRINTF_UART || defined CFG_PRINTF_USBCDC || defined CFG_PRINTF_DEBUG )
 #if CFG_TUSB_DEBUG_LEVEL

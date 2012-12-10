@@ -74,7 +74,7 @@ void fifo_init(fifo_t* f, uint8_t* buffer, uint16_t size, bool overwritable, IRQ
 bool fifo_write(fifo_t* f, uint8_t data);
 bool fifo_read(fifo_t* f, uint8_t *data);
 uint16_t fifo_readArray(fifo_t* f, uint8_t * rx, uint16_t maxlen);
-void fifo_clear(fifo_t*);
+void fifo_clear(fifo_t *f);
 
 static inline bool fifo_isEmpty(fifo_t* f)
 {
