@@ -62,9 +62,6 @@ static inline void hal_interrupt_enable()
   NVIC_EnableIRQ(USB_IRQ_IRQn);
 }
 
-/**
- * Disable USB Interrupt
- */
 static inline void hal_interrupt_disable()
 {
   NVIC_DisableIRQ(USB_IRQ_IRQn);

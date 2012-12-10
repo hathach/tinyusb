@@ -64,11 +64,11 @@
 #define BIT_(n) (1 << (n))
 #endif
 
-#define BOARD_NGX43XX 1
+#define BOARD_NGX4330 1
 #define BOARD_LPCXPRESSO1347  2
 #define BOARD_AT86RF2XX 3
 
-#if BOARD == BOARD_NGX43XX
+#if BOARD == BOARD_NGX4330
 
 #elif BOARD == BOARD_LPCXPRESSO1347
 

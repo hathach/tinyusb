@@ -37,7 +37,7 @@
 
 #include "board.h"
 
-#if BOARD == BOARD_NGX43XX
+#if BOARD == BOARD_NGX4330
 
 #include "lpc43xx_uart.h"
 #include "lpc43xx_scu.h"

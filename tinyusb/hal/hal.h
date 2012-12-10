@@ -82,8 +82,9 @@ static inline void hal_interrupt_disable() ATTR_ALWAYS_INLINE;
 #elif MCU == MCU_LPC13UXX
   #include "hal_lpc13uxx.h"
 #elif MCU == MCU_LPC43XX
-
+  #include "hal_lpc43xx.h"
 #endif
+
 #ifdef __cplusplus
  }
 #endif
