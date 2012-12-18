@@ -12,26 +12,21 @@
 // See crp.h header for more information
 __CRP const unsigned int CRP_WORD = CRP_NO_CRP ;
 
-volatile uint32_t system_tick = 0;
-
-void SysTick_Handler (void)
-{
-  system_tick++;
-}
-
 int main(void) 
 {
-  uint32_t current_tick = system_tick;
+  uint32_t current_tick = system_ticks;
 
   board_init();
   tusb_init();
 
   while (1)
   {
-    if (current_tick + 1000 < system_tick)
+    if (current_tick + 1000 < system_ticks)
     {
       current_tick += 1000;
       board_leds(0x01, (current_tick/1000)%2); /* Toggle LED once per second */
+
+      printf("hello world\n");
 
       #ifndef CFG_CLASS_CDC
       if (usb_isConfigured())

@@ -58,8 +58,9 @@ const static struct {
 void board_init(void)
 {
   CGU_Init();
-	SysTick_Config( CGU_GetPCLKFrequency(CGU_PERIPHERAL_M4CORE)/TICKS_PER_SECOND );	/* 1 ms Timer */
+	SysTick_Config( CGU_GetPCLKFrequency(CGU_PERIPHERAL_M4CORE)/BSP_TICKS_PER_SECOND );	/* 1 ms Timer */
 
+	// USB Pin init
 	/* Turn on 5V USB VBUS TODO Should be Host-only */
 	scu_pinmux(0x2, 6, MD_PUP | MD_EZI, FUNC4);				// P2_6 USB1_PWR_EN, USB1 VBus function
 	scu_pinmux(0x2, 5, MD_PLN | MD_EZI | MD_ZI, FUNC2);		// P2_5 USB1_VBUS, MUST CONFIGURE THIS SIGNAL FOR USB1 NORMAL OPERATION
@@ -74,6 +75,18 @@ void board_init(void)
 	  scu_pinmux(leds[i].port, leds[i].pin, MD_PUP|MD_EZI|MD_ZI, FUNC0);
 	  GPIO_SetDir(leds[i].port, BIT_(leds[i].pin), 1); // output
 	}
+
+	// UART init
+	UART_CFG_Type UARTConfigStruct;
+
+	scu_pinmux(0x6 ,4, MD_PDN|MD_EZI, FUNC2); 	// UART0_TXD
+	scu_pinmux(0x6 ,5, MD_PDN|MD_EZI, FUNC2); 	// UART0_RXD
+
+	UART_ConfigStructInit(&UARTConfigStruct);                   // default: baud = 9600, 8 bit data, 1 stop bit, no parity
+	UARTConfigStruct.Baud_rate = BSP_UART_BAUDRATE;             // Re-configure baudrate
+
+	UART_Init((LPC_USARTn_Type*) LPC_USART0, &UARTConfigStruct); // Initialize UART port
+	UART_TxCmd((LPC_USARTn_Type*) LPC_USART0, ENABLE);           // Enable UART
 }
 
 void board_leds(uint32_t mask, uint32_t state)
@@ -82,10 +95,20 @@ void board_leds(uint32_t mask, uint32_t state)
   for(i=0; i<BOARD_MAX_LEDS; i++)
   {
     if ( mask & BIT_(i) )
-	{
+    {
       (mask & state) ? GPIO_SetValue(leds[i].port, BIT_(leds[i].pin)) : GPIO_ClearValue(leds[i].port, BIT_(leds[i].pin)) ;
-	}
+    }
   }
+}
+
+uint32_t board_uart_send(uint8_t *p_buffer, uint32_t length)
+{
+  return UART_Send((LPC_USARTn_Type*) LPC_UART1, p_buffer, length, BLOCKING);
+}
+
+uint32_t board_uart_recv(uint8_t *p_buffer, uint32_t length)
+{
+  return UART_Receive((LPC_USARTn_Type*) LPC_UART1, p_buffer, length, BLOCKING);
 }
 
 #endif

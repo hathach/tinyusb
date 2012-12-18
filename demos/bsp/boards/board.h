@@ -57,7 +57,11 @@
 
 #include <stdint.h>
 
-#define TICKS_PER_SECOND 1000
+#define BSP_TICKS_PER_SECOND 1000
+
+//#define BSP_UART_ENABLE
+#define BSP_UART_BAUDRATE     115200
+
 
 /// n-th Bit
 #ifndef BIT_
@@ -81,6 +85,8 @@
 /// Init board peripherals : Clock, UART, LEDs, Buttons
 void board_init(void);
 void board_leds(uint32_t mask, uint32_t state);
+
+extern volatile uint32_t system_ticks;
 
 #ifdef __cplusplus
  }

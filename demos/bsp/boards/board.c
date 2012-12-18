@@ -1,7 +1,7 @@
 /*
- * board_at86rf2xx.c
+ * board.c
  *
- *  Created on: Dec 7, 2012
+ *  Created on: Dec 10, 2012
  *      Author: hathach
  */
 
@@ -37,30 +37,40 @@
 
 #include "board.h"
 
-#if BOARD == BOARD_AT86RF2XX
+volatile uint32_t system_ticks = 0;
 
-#include "LPC11Uxx.h"
-#include "gpio.h"
-
-#define CFG_LED_PORT                  (1)
-#define CFG_LED_PIN                   (31)
-#define CFG_LED_ON                    (0)
-#define CFG_LED_OFF                   (1)
-
-void board_init(void)
+void SysTick_Handler (void)
 {
-  SystemInit();
-  SysTick_Config(SystemCoreClock / BSP_TICKS_PER_SECOND); // 1 msec tick timer
-  GPIOInit();
-
-  GPIOSetDir(CFG_LED_PORT, CFG_LED_PIN, 1);
-  board_leds(0x01, 0); // turn off the led first
+  system_ticks++;
 }
 
-void board_leds(uint32_t mask, uint32_t state)
+//-------------------------------------------------------------------- +
+//                    LPCXpresso printf redirection                    +
+//-------------------------------------------------------------------- +
+#if (defined BSP_UART_ENABLE) && (__REDLIB_INTERFACE_VERSION__ >= __REDLIB_INTERFACE_VERSION__)
+// Called by bottom level of printf routine within RedLib C library to write
+// a character. With the default semihosting stub, this would write the character
+// to the debugger console window . But this version writes
+// the character to the LPC1768/RDB1768 UART.
+int __sys_write (int iFileHandle, char *pcBuffer, int iLength)
 {
-  if (mask)
-    GPIOSetBitValue(CFG_LED_PORT, CFG_LED_PIN, mask & state ? CFG_LED_ON : CFG_LED_OFF);
+	return board_uart_send(pcBuffer, iLength);
+}
+
+// Called by bottom level of scanf routine within RedLib C library to read
+// a character. With the default semihosting stub, this would read the character
+// from the debugger console window (which acts as stdin). But this version reads
+// the character from the LPC1768/RDB1768 UART.
+int __sys_readc (void)
+{
+	uint8_t c;
+	board_uart_recv(&c, 1);
+	return (int)c;
 }
 
 #endif
+
+void check_failed(uint8_t *file, uint32_t line)
+{
+
+}

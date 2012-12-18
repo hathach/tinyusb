@@ -84,7 +84,7 @@
 		<link>
 			<name>bsp</name>
 			<type>2</type>
-			<location>C:/Users/hathach/Dropbox/tinyusb/tinyusb/demos/bsp</location>
+			<locationURI>PARENT-2-PROJECT_LOC/bsp</locationURI>
 		</link>
 	</linkedResources>
 	<filteredResources>

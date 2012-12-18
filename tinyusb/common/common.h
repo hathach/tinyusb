@@ -118,7 +118,7 @@
 #define ASSERT_MESSAGE(condition, value, message) \
 	do{\
 	  if (!(condition)) {\
-			PRINTF("Assert at %s line %d: %s\n", __PRETTY_FUNCTION__, __LINE__, message); \
+			PRINTF("Assert at %s %s line %d: %s\n", __BASE_FILE__, __PRETTY_FUNCTION__, __LINE__, message); \
 			return (value);\
 		}\
 	}while(0)
@@ -129,7 +129,7 @@
 	do{\
 	  TUSB_Error_t status = (TUSB_Error_t)(sts);\
 	  if (tERROR_NONE != status) {\
-	    PRINTF("Assert at %s line %d: %s %s\n", __func__, __LINE__, TUSB_ErrorStr[status], message); \
+	    PRINTF("Assert at %s line %d: %s %s\n", __BASE_FILE__, __PRETTY_FUNCTION__, __LINE__, TUSB_ErrorStr[status], message); \
 	    return status;\
 	  }\
 	}while(0)

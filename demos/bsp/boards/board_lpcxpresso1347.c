@@ -40,7 +40,8 @@
 #if BOARD == BOARD_LPCXPRESSO1347
 
 #include "LPC13Uxx.h"
-#include "gpio.h"
+#include "lpc13uxx/inc/gpio.h"
+#include "lpc13uxx/inc/uart.h"
 
 #define CFG_LED_PORT                  (0)
 #define CFG_LED_PIN                   (7)
@@ -50,10 +51,15 @@
 void board_init(void)
 {
   SystemInit();
-  SysTick_Config(SystemCoreClock / TICKS_PER_SECOND); // 1 msec tick timer
+  SysTick_Config(SystemCoreClock / BSP_TICKS_PER_SECOND); // 1 msec tick timer
   GPIOInit();
+
+  // Leds Init
   GPIOSetDir(CFG_LED_PORT, CFG_LED_PIN, 1);
   LPC_GPIO->CLR[CFG_LED_PORT] = (1 << CFG_LED_PIN);
+
+  // Uart Init
+  UARTInit(BSP_UART_BAUDRATE);
 }
 
 void board_leds(uint32_t mask, uint32_t state)
@@ -62,6 +68,18 @@ void board_leds(uint32_t mask, uint32_t state)
   {
     GPIOSetBitValue(CFG_LED_PORT, CFG_LED_PIN, mask & state ? CFG_LED_ON : CFG_LED_OFF);
   }
+}
+
+uint32_t board_uart_send(uint8_t *p_buffer, uint32_t length)
+{
+  UARTSend(p_buffer, length);
+  return length;
+}
+
+uint32_t board_uart_recv(uint8_t *p_buffer, uint32_t length)
+{
+  *p_buffer = get_key();
+  return 1;
 }
 
 #endif

@@ -46,15 +46,22 @@
  *  @{
  */
 
+#ifndef _TUSB_TUSB_CFG_H_
+#define _TUSB_TUSB_CFG_H_
+
 #ifdef __cplusplus
  extern "C" {
 #endif
 
-#ifndef _TUSB_CFG_H_
-#define _TUSB_CFG_H_
+/// define this symbol will make tinyusb look for external configure file
+#ifdef TUSB_USE_CONFIG_FILE
+#include "tusb_config.h"
+#endif
 
 /// 0: no debug infor 3: most debug infor provided
+#ifndef CFG_TUSB_DEBUG_LEVEL
 #define CFG_TUSB_DEBUG_LEVEL 3
+#endif
 
 /// Enable Host Support
 #define CFG_TUSB_HOST
@@ -103,6 +110,6 @@
  }
 #endif
 
-#endif /* _TUSB_CFG_H_ */
+#endif /* _TUSB_TUSB_CFG_H_ */
 
 /** @} */
