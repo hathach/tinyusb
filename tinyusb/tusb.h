@@ -50,19 +50,19 @@
 
 #include "common/common.h"
 
-#ifdef CFG_TUSB_HOST
+#ifdef TUSB_CFG_HOST
   #include "host/hcd.h"
 #endif
 
-#ifdef CFG_TUSB_DEVICE
+#ifdef TUSB_CFG_DEVICE
   #include "device/dcd.h"
 #endif
 
-#if TUSB_CLASS_HID
+#if DEVICE_CLASS_HID
   #include "class/hid.h"
 #endif
 
-#ifdef CFG_CLASS_CDC
+#ifdef TUSB_CFG_DEVICE_CDC
   #include "class/cdc.h"
 #endif
 

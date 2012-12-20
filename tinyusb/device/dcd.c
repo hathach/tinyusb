@@ -37,7 +37,7 @@
 
 #include "dcd.h"
 
-#ifdef CFG_TUSB_DEVICE
+#ifdef TUSB_CFG_DEVICE
 
 // TODO refractor later
 #include "descriptors.h"
@@ -59,11 +59,11 @@ ErrorCode_t USB_Configure_Event (USBD_HANDLE_T hUsb)
   USB_CORE_CTRL_T* pCtrl = (USB_CORE_CTRL_T*)hUsb;
   if (pCtrl->config_value)
   {
-    #if defined(TUSB_CLASS_HID)
+    #if defined(DEVICE_CLASS_HID)
     ASSERT( tERROR_NONE == tusb_hid_configured(hUsb), ERR_FAILED );
     #endif
 
-    #ifdef CFG_CLASS_CDC
+    #ifdef TUSB_CFG_DEVICE_CDC
     ASSERT( tERROR_NONE == tusb_cdc_configured(hUsb), ERR_FAILED );
     #endif
   }
@@ -118,18 +118,18 @@ TUSB_Error_t dcd_init(uint8_t coreid)
   memsize = usb_param.mem_size;
 
   /* Initialise the class driver(s) */
-  #ifdef CFG_CLASS_CDC
+  #ifdef TUSB_CFG_DEVICE_CDC
   ASSERT_ERROR( tusb_cdc_init(g_hUsb, &USB_FsConfigDescriptor.CDC_CCI_Interface,
             &USB_FsConfigDescriptor.CDC_DCI_Interface, &membase, &memsize) );
   #endif
 
-  #ifdef CFG_CLASS_HID_KEYBOARD
+  #ifdef TUSB_CFG_DEVICE_HID_KEYBOARD
   ASSERT_ERROR( tusb_hid_init(g_hUsb , &USB_FsConfigDescriptor.HID_KeyboardInterface ,
             HID_KeyboardReportDescriptor, USB_FsConfigDescriptor.HID_KeyboardHID.DescriptorList[0].wDescriptorLength,
             &membase , &memsize) );
   #endif
 
-  #ifdef CFG_CLASS_HID_MOUSE
+  #ifdef TUSB_CFG_DEVICE_HID_MOUSE
   ASSERT_ERROR( tusb_hid_init(g_hUsb , &USB_FsConfigDescriptor.HID_MouseInterface    ,
             HID_MouseReportDescriptor, USB_FsConfigDescriptor.HID_MouseHID.DescriptorList[0].wDescriptorLength,
             &membase , &memsize) );

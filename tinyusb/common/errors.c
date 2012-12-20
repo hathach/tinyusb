@@ -35,9 +35,15 @@
  * This file is part of the tinyUSB stack.
  */
 
+#include "errors.h"
+
+#if TUSB_CFG_DEBUG == 3
+
 char const* const TUSB_ErrorStr[] = {
 #   define ERROR_ENUM(x) #x,
 #   include "errors_def"
 #   undef ERROR_ENUM
     0
 };
+
+#endif

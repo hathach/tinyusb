@@ -57,8 +57,14 @@
 
  // TODO refractor
 #include "common/common.h"
-#include "device/dcd.h"
 
+#ifdef TUSB_CFG_DEVICE
+#include "device/dcd.h"
+#endif
+
+#ifdef TUSB_CFG_HOST
+#include "device/hcd.h"
+#endif
 
 /** \struct USB_HID_MouseReport_t
  *  \brief Standard HID Boot Protocol Mouse Report.
@@ -160,7 +166,7 @@ enum USB_HID_LOCAL_CODE
  * \return Error Code of the \ref TUSB_ERROR enum
  * \note
  */
-TUSB_Error_t tusb_hid_init(USBD_HANDLE_T hUsb, USB_INTERFACE_DESCRIPTOR const *const pIntfDesc, uint8_t const * const pHIDReportDesc, uint32_t ReportDescLength, uint32_t* mem_base, uint32_t* mem_size) ATTR_NON_NULL;
+TUSB_Error_t tusb_hid_init(USBD_HANDLE_T hUsb, USB_INTERFACE_DESCRIPTOR const *const pIntfDesc, uint8_t const * const pHIDReportDesc, uint32_t ReportDescLength, uint32_t* mem_base, uint32_t* mem_size);
 
 /** \brief Notify HID class that usb is configured
  *
@@ -178,7 +184,7 @@ TUSB_Error_t tusb_hid_configured(USBD_HANDLE_T hUsb);
  * \return Error Code of the \ref TUSB_ERROR enum
  * \note
  */
-TUSB_Error_t tusb_hid_keyboard_sendKeys(uint8_t modifier, uint8_t keycodes[], uint8_t numkey) ATTR_NON_NULL;
+TUSB_Error_t tusb_hid_keyboard_sendKeys(uint8_t modifier, uint8_t keycodes[], uint8_t numkey);
 
 /** \brief
  *
@@ -188,6 +194,10 @@ TUSB_Error_t tusb_hid_keyboard_sendKeys(uint8_t modifier, uint8_t keycodes[], ui
  * \note
  */
 TUSB_Error_t tusb_hid_mouse_send(uint8_t buttons, int8_t x, int8_t y);
+#endif
+
+
+#ifdef TUSB_CFG_HOST
 #endif
 
 #ifdef __cplusplus

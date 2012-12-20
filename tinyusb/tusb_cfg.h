@@ -59,27 +59,27 @@
 #endif
 
 /// 0: no debug infor 3: most debug infor provided
-#ifndef CFG_TUSB_DEBUG_LEVEL
-#define CFG_TUSB_DEBUG_LEVEL 3
+#ifndef TUSB_CFG_DEBUG
+#define TUSB_CFG_DEBUG 3
 #endif
 
 /// Enable Host Support
-#define CFG_TUSB_HOST
+//#define TUSB_CFG_HOST
 
 /// Enable Device Support
-//#define CFG_TUSB_DEVICE
+#define TUSB_CFG_DEVICE
 
 /// Enable CDC Support
-#define CFG_CLASS_CDC
+#define TUSB_CFG_DEVICE_CDC
 
 /// Enable HID Keyboard support
-#define CFG_CLASS_HID_KEYBOARD
+#define TUSB_CFG_DEVICE_HID_KEYBOARD
 
 /// Enable HID Mouse support
-#define CFG_CLASS_HID_MOUSE
+#define TUSB_CFG_DEVICE_HID_MOUSE
 
-#define TUSB_CLASS_HID ( (defined CFG_CLASS_HID_KEYBOARD) || (defined CFG_CLASS_HID_MOUSE) )
-#define TUSB_EHCI
+#define DEVICE_CLASS_HID ( (defined TUSB_CFG_DEVICE_HID_KEYBOARD) || (defined TUSB_CFG_DEVICE_HID_MOUSE) )
+#define HOST_EHCI
 
 
 

@@ -38,7 +38,7 @@
 #include "cdc.h"
 #include "common/fifo.h"
 
-#if defined CFG_CLASS_CDC && defined CFG_TUSB_DEVICE
+#if defined TUSB_CFG_DEVICE_CDC && defined TUSB_CFG_DEVICE
 
 static USBD_HANDLE_T g_hCdc;
 static CDC_LINE_CODING line_coding;

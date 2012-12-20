@@ -41,11 +41,11 @@ TUSB_Error_t tusb_init(void)
 {
   ASSERT_ERROR( hal_init() ) ; /* HARDWARE INIT */
 
-#ifdef CFG_TUSB_HOST
+#ifdef TUSB_CFG_HOST
   ASSERT_ERROR( hcd_init(0) );
 #endif
 
-#ifdef CFG_TUSB_DEVICE
+#ifdef TUSB_CFG_DEVICE
   ASSERT_ERROR( dcd_init(0) );
 #endif
 

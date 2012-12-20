@@ -37,7 +37,7 @@
 
 #include "hcd.h"
 
-#ifdef CFG_TUSB_HOST
+#ifdef TUSB_CFG_HOST
 
 TUSB_Error_t hcd_init(uint8_t coreid)
 {

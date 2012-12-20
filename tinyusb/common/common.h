@@ -109,7 +109,7 @@
 
 
 //#if ( defined CFG_PRINTF_UART || defined CFG_PRINTF_USBCDC || defined CFG_PRINTF_DEBUG )
-#if CFG_TUSB_DEBUG_LEVEL
+#if TUSB_CFG_DEBUG
   #define PRINTF(...)	printf(__VA_ARGS__)
 #else
   #define PRINTF(...)
