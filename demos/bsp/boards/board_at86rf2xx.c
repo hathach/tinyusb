@@ -40,7 +40,7 @@
 #if BOARD == BOARD_AT86RF2XX
 
 #include "LPC11Uxx.h"
-#include "gpio.h"
+#include "lpc11uxx/gpio.h"
 
 #define CFG_LED_PORT                  (1)
 #define CFG_LED_PIN                   (31)

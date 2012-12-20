@@ -40,8 +40,8 @@
 #if BOARD == BOARD_LPCXPRESSO1347
 
 #include "LPC13Uxx.h"
-#include "lpc13uxx/inc/gpio.h"
-#include "lpc13uxx/inc/uart.h"
+#include "lpc13uxx/gpio.h"
+#include "lpc13uxx/uart.h"
 
 #define CFG_LED_PORT                  (0)
 #define CFG_LED_PIN                   (7)
