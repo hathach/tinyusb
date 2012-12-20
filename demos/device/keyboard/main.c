@@ -28,22 +28,22 @@ int main(void)
 
       printf("hello world\n");
 
-      #ifndef CFG_CLASS_CDC
+      #ifndef TUSB_CFG_DEVICE_CDC
       if (usb_isConfigured())
       {
-        #ifdef CFG_CLASS_HID_KEYBOARD
+        #ifdef TUSB_CFG_DEVICE_HID_KEYBOARD
           uint8_t keys[6] = {HID_USAGE_KEYBOARD_aA};
           tusb_hid_keyboard_sendKeys(0x00, keys, 1);
         #endif
 
-        #ifdef CFG_CLASS_HID_MOUSE          
+        #ifdef TUSB_CFG_DEVICE_HID_MOUSE          
           tusb_hid_mouse_send(0, 10, 10);
         #endif
       }
       #endif
     }
 
-    #ifdef CFG_CLASS_CDC
+    #ifdef TUSB_CFG_DEVICE_CDC
     if (usb_isConfigured())
     {
       uint8_t cdc_char;
@@ -51,7 +51,7 @@ int main(void)
       {
         switch (cdc_char)
         {
-          #ifdef CFG_CLASS_HID_KEYBOARD
+          #ifdef TUSB_CFG_DEVICE_HID_KEYBOARD
           case '1' :
           {
             uint8_t keys[6] = {HID_USAGE_KEYBOARD_aA + 'e' - 'a'};
@@ -60,7 +60,7 @@ int main(void)
           break;
           #endif
 
-          #ifdef CFG_CLASS_HID_MOUSE
+          #ifdef TUSB_CFG_DEVICE_HID_MOUSE
           case '2' :
             tusb_hid_mouse_send(0, 10, 10);
           break;

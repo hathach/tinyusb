@@ -37,7 +37,7 @@
 
 #include "descriptors.h"
 
-#ifdef CFG_CLASS_HID_KEYBOARD
+#ifdef TUSB_CFG_DEVICE_HID_KEYBOARD
 ATTR_ALIGNED(4) const uint8_t HID_KeyboardReportDescriptor[] = {
   HID_UsagePage  ( HID_USAGE_PAGE_GENERIC     ),
   HID_Usage      ( HID_USAGE_GENERIC_KEYBOARD ),
@@ -80,7 +80,7 @@ ATTR_ALIGNED(4) const uint8_t HID_KeyboardReportDescriptor[] = {
 };
 #endif
 
-#ifdef CFG_CLASS_HID_MOUSE
+#ifdef TUSB_CFG_DEVICE_HID_MOUSE
 ATTR_ALIGNED(4) const uint8_t HID_MouseReportDescriptor[] = {
   HID_UsagePage  ( HID_USAGE_PAGE_GENERIC     ),
   HID_Usage      ( HID_USAGE_GENERIC_MOUSE ),
@@ -130,7 +130,7 @@ ATTR_ALIGNED(4) const USB_DEVICE_DESCRIPTOR USB_DeviceDescriptor =
   .bDeviceClass       = USB_DEVICE_CLASS_IAD,
   .bDeviceSubClass    = USB_DEVICE_SUBCLASS_IAD,
   .bDeviceProtocol    = USB_DEVICE_PROTOCOL_IAD,
-  #elif defined CFG_CLASS_CDC
+  #elif defined TUSB_CFG_DEVICE_CDC
   .bDeviceClass       = CDC_COMMUNICATION_INTERFACE_CLASS,
   .bDeviceSubClass    = 0x00,
   .bDeviceProtocol    = 0x00,
@@ -187,7 +187,7 @@ ATTR_ALIGNED(4) const USB_FS_CONFIGURATION_DESCRIPTOR USB_FsConfigDescriptor =
     },
     #endif
 
-    #ifdef CFG_CLASS_CDC
+    #ifdef TUSB_CFG_DEVICE_CDC
     // USB CDC Serial Interface
     // CDC Control Interface
     .CDC_CCI_Interface =
@@ -276,7 +276,7 @@ ATTR_ALIGNED(4) const USB_FS_CONFIGURATION_DESCRIPTOR USB_FsConfigDescriptor =
     },
     #endif
 
-    #ifdef CFG_CLASS_HID_KEYBOARD
+    #ifdef TUSB_CFG_DEVICE_HID_KEYBOARD
     ///// USB HID Keyboard interface
     .HID_KeyboardInterface =
     {
@@ -316,7 +316,7 @@ ATTR_ALIGNED(4) const USB_FS_CONFIGURATION_DESCRIPTOR USB_FsConfigDescriptor =
     },
     #endif
 
-    #ifdef CFG_CLASS_HID_MOUSE
+    #ifdef TUSB_CFG_DEVICE_HID_MOUSE
     .HID_MouseInterface =
     {
         .bLength            = sizeof(USB_INTERFACE_DESCRIPTOR),

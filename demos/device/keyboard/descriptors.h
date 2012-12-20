@@ -67,21 +67,21 @@ typedef PRE_PACK struct POST_PACK _USB_STR_DESCRIPTOR
 
 ///////////////////////////////////////////////////////////////////////
 // Interface Assosication Descriptor if device is CDC + other class
-#define IAD_DESC_REQUIRED ( defined(CFG_CLASS_CDC) && (TUSB_CLASS_HID) )
+#define IAD_DESC_REQUIRED ( defined(TUSB_CFG_DEVICE_CDC) && (DEVICE_CLASS_HID) )
 
-#ifdef CFG_CLASS_CDC
+#ifdef TUSB_CFG_DEVICE_CDC
   #define INTERFACES_OF_CDC           2
 #else
   #define INTERFACES_OF_CDC           0
 #endif
 
-#ifdef CFG_CLASS_HID_KEYBOARD
+#ifdef TUSB_CFG_DEVICE_HID_KEYBOARD
   #define INTERFACES_OF_HID_KEYBOARD  1
 #else
   #define INTERFACES_OF_HID_KEYBOARD  0
 #endif
 
-#ifdef CFG_CLASS_HID_MOUSE
+#ifdef TUSB_CFG_DEVICE_HID_MOUSE
   #define INTERFACES_OF_HID_MOUSE     1
 #else
   #define INTERFACES_OF_HID_MOUSE     0
@@ -121,7 +121,7 @@ typedef struct
   USB_Descriptor_InterfaceAssociation_t        CDC_IAD;
 #endif
 
-#ifdef CFG_CLASS_CDC
+#ifdef TUSB_CFG_DEVICE_CDC
   //CDC - Serial
   //CDC Control Interface
   USB_INTERFACE_DESCRIPTOR                    CDC_CCI_Interface;
@@ -136,14 +136,14 @@ typedef struct
   USB_ENDPOINT_DESCRIPTOR                     CDC_DataInEndpoint;
 #endif
 
-#ifdef CFG_CLASS_HID_KEYBOARD
+#ifdef TUSB_CFG_DEVICE_HID_KEYBOARD
   //Keyboard HID Interface
   USB_INTERFACE_DESCRIPTOR                    HID_KeyboardInterface;
   HID_DESCRIPTOR                              HID_KeyboardHID;
   USB_ENDPOINT_DESCRIPTOR                     HID_KeyboardEndpoint;
 #endif
 
-#ifdef CFG_CLASS_HID_MOUSE
+#ifdef TUSB_CFG_DEVICE_HID_MOUSE
   //Mouse HID Interface
   USB_INTERFACE_DESCRIPTOR                    HID_MouseInterface;
   HID_DESCRIPTOR                              HID_MouseHID;
