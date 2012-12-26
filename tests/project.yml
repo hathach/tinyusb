@@ -1,0 +1,78 @@
+---
+
+# Notes:
+# Sample project C code is not presently written to produce a release artifact.
+# As such, release build options are disabled.
+# This sample, therefore, only demonstrates running a collection of unit tests.
+
+:project:
+  :use_exceptions: FALSE
+  :use_test_preprocessor: TRUE
+  :use_auxiliary_dependencies: TRUE
+  :use_deep_dependencies: FALSE
+  :build_root: build
+#  :release_build: TRUE
+  :test_file_prefix: test_
+
+:release_build:
+  :output: test_tinyusb.exe
+  :use_assembly: FALSE
+
+:environment:
+
+:extension:
+  :executable: .exe
+
+:paths:
+  :test:
+    - +:test/**
+    - -:test/support
+  :source:
+    - src/**
+    - ../../tinyusb/**
+    - ../../../CMSISv2p10_LPC43xx_DriverLib/inc
+  :support:
+    - test/support
+
+:defines:
+  # in order to add common defines:
+  #  1) remove the trailing [] from the :common: section
+  #  2) add entries to the :common: section (e.g. :test: has TEST defined)
+  :commmon: &common_defines []
+  :test:
+    - *common_defines
+    - _TEST_
+    - MCU=MCU_LPC43XX
+    - CORE_M4
+  :test_preprocess:
+    - *common_defines
+    - _TEST_
+    - MCU=MCU_LPC43XX
+    - CORE_M4
+
+:cmock:
+  :mock_prefix: mock_
+  :when_no_prototypes: :warn
+  :enforce_strict_ordering: TRUE
+  :plugins:
+    - :ignore
+    - :callback
+  :treat_as:
+    uint8:    HEX8
+    uint16:   HEX16
+    uint32:   UINT32
+    int8:     INT8
+    bool:     UINT8
+
+#:tools:
+# Ceedling defaults to using gcc for compiling, linking, etc.
+# As [:tools] is blank, gcc will be used (so long as it's in your system path)
+# See documentation to configure a given toolchain for use
+
+:plugins:
+  :load_paths:
+    - vendor/ceedling/plugins
+  :enabled:
+    - stdout_pretty_tests_report
+    - module_generator
+...
