@@ -70,7 +70,7 @@ void usb_cdc_recv_isr_stub (void)
     @note See example for tusb_cdc_getc
 */
 /**************************************************************************/
-bool tusb_cdc_putc(uint8_t c)
+bool tusb_cdc_putc (uint8_t c)
 {
   return fifo_write(&ffTX, c);
 }
