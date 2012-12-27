@@ -29,8 +29,8 @@
     - -:test/support
   :source:
     - src/**
-    - ../../tinyusb/**
-    - ../../../CMSISv2p10_LPC43xx_DriverLib/inc
+    - ../tinyusb/**
+    - ../../CMSISv2p10_LPC43xx_DriverLib/inc
   :support:
     - test/support
 

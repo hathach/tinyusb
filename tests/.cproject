@@ -158,15 +158,15 @@
 			<storageModule moduleId="org.eclipse.cdt.internal.ui.text.commentOwnerProjectMappings"/>
 			<storageModule moduleId="org.eclipse.cdt.make.core.buildtargets">
 				<buildTargets>
-					<target name="default" path="" targetID="org.eclipse.cdt.build.MakeTargetBuilder">
+					<target name="release" path="" targetID="org.eclipse.cdt.build.MakeTargetBuilder">
 						<buildCommand>rake.bat</buildCommand>
 						<buildArguments/>
-						<buildTarget>default</buildTarget>
+						<buildTarget>release</buildTarget>
 						<stopOnError>true</stopOnError>
 						<useDefaultCommand>false</useDefaultCommand>
 						<runAllBuilders>true</runAllBuilders>
 					</target>
-					<target name="tests" path="" targetID="org.eclipse.cdt.build.MakeTargetBuilder">
+					<target name="test" path="" targetID="org.eclipse.cdt.build.MakeTargetBuilder">
 						<buildCommand>rake.bat</buildCommand>
 						<buildArguments/>
 						<buildTarget>test:all</buildTarget>
@@ -176,6 +176,7 @@
 					</target>
 					<target name="test delta" path="" targetID="org.eclipse.cdt.build.MakeTargetBuilder">
 						<buildCommand>rake.bat</buildCommand>
+						<buildArguments/>
 						<buildTarget>test:delta</buildTarget>
 						<stopOnError>true</stopOnError>
 						<useDefaultCommand>false</useDefaultCommand>
@@ -183,7 +184,6 @@
 					</target>
 					<target name="clean" path="" targetID="org.eclipse.cdt.build.MakeTargetBuilder">
 						<buildCommand>rake.bat</buildCommand>
-						<buildArguments/>
 						<buildTarget>clean</buildTarget>
 						<stopOnError>true</stopOnError>
 						<useDefaultCommand>false</useDefaultCommand>

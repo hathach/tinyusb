@@ -59,6 +59,7 @@
  *  \brief Error Code returned
  */
 
+// TODO X macro to remove define/undefine
 typedef enum {
 #   define ERROR_ENUM(x) x,
 #   include "errors_def"

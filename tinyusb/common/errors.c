@@ -39,6 +39,7 @@
 
 #if TUSB_CFG_DEBUG == 3
 
+// TODO X macro to remove define/undefine
 char const* const TUSB_ErrorStr[] = {
 #   define ERROR_ENUM(x) #x,
 #   include "errors_def"
