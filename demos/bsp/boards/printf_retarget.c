@@ -1,7 +1,7 @@
 /*
- * board.c
+ * printf_retarget.c
  *
- *  Created on: Dec 10, 2012
+ *  Created on: Jan 11, 2013
  *      Author: hathach
  */
 
@@ -37,14 +37,29 @@
 
 #include "board.h"
 
-volatile uint32_t system_ticks = 0;
-
-void SysTick_Handler (void)
+//-------------------------------------------------------------------- +
+//                    LPCXpresso printf redirection                    +
+//-------------------------------------------------------------------- +
+#if BSP_UART_ENABLE
+// Called by bottom level of printf routine within RedLib C library to write
+// a character. With the default semihosting stub, this would write the character
+// to the debugger console window . But this version writes
+// the character to the UART.
+int __sys_write (int iFileHandle, char *pcBuffer, int iLength)
 {
-  system_ticks++;
+  (void) iFileHandle;
+	return board_uart_send(pcBuffer, iLength);
 }
 
-void check_failed(uint8_t *file, uint32_t line)
+// Called by bottom level of scanf routine within RedLib C library to read
+// a character. With the default semihosting stub, this would read the character
+// from the debugger console window (which acts as stdin). But this version reads
+// the character from the UART.
+int __sys_readc (void)
 {
-
+	uint8_t c;
+	board_uart_recv(&c, 1);
+	return (int)c;
 }
+
+#endif

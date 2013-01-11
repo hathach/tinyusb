@@ -59,8 +59,8 @@
 
 #define BSP_TICKS_PER_SECOND 1000
 
-//#define BSP_UART_ENABLE
-#define BSP_UART_BAUDRATE     115200
+#define BSP_UART_ENABLE 1
+#define BSP_UART_BAUDRATE 115200
 
 
 /// n-th Bit
