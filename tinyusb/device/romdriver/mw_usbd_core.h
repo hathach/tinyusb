@@ -26,7 +26,7 @@
 
 #include "error.h"
 #include "mw_usbd.h"
-#include "tusb_cfg.h"
+#include "tusb_option.h"
 
 /** \file
  *  \brief ROM API for USB device stack.

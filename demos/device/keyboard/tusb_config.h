@@ -1,7 +1,7 @@
 /*
- * tusb_cfg.h
+ * tusb_config.h
  *
- *  Created on: Nov 26, 2012
+ *  Created on: Jan 11, 2013
  *      Author: hathach
  */
 
@@ -32,39 +32,28 @@
  * IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY
  * OF SUCH DAMAGE.
  *
- * This file is part of the tinyUSB stack.
+ * This file is part of the tiny usb stack.
  */
 
 /** \file
- *  \brief Configure File
+ *  \brief TBD
  *
  *  \note TBD
  */
 
-/** 
- *  \defgroup Group_TinyUSB_Configure Configuration tusb_cfg.h
+/** \ingroup TBD
+ *  \defgroup TBD
+ *  \brief TBD
+ *
  *  @{
  */
 
-#ifndef _TUSB_TUSB_CFG_H_
-#define _TUSB_TUSB_CFG_H_
+#ifndef _TUSB_TUSB_CONFIG_H_
+#define _TUSB_TUSB_CONFIG_H_
 
 #ifdef __cplusplus
  extern "C" {
 #endif
-
-/// define this symbol will make tinyusb look for external configure file
-#ifdef TUSB_USE_CONFIG_FILE
-#include "tusb_config.h"
-#endif
-
-/// 0: no debug infor 3: most debug infor provided
-#ifndef TUSB_CFG_DEBUG
-#define TUSB_CFG_DEBUG 3
-#endif
-
-/// Enable Host Support
-//#define TUSB_CFG_HOST
 
 /// Enable Device Support
 #define TUSB_CFG_DEVICE
@@ -78,38 +67,11 @@
 /// Enable HID Mouse support
 #define TUSB_CFG_DEVICE_HID_MOUSE
 
-#define DEVICE_CLASS_HID ( (defined TUSB_CFG_DEVICE_HID_KEYBOARD) || (defined TUSB_CFG_DEVICE_HID_MOUSE) )
-#define HOST_EHCI
-
-
-
-// TODO APP
-#define USB_MAX_IF_NUM          8
-#define USB_MAX_EP_NUM          5
-
-#define USB_FS_MAX_BULK_PACKET  64
-#define USB_HS_MAX_BULK_PACKET  USB_FS_MAX_BULK_PACKET /* Full speed device only */
-
-// Control Endpoint
-#define USB_MAX_PACKET0         64
-
-/* HID In/Out Endpoint Address */
-#define    HID_KEYBOARD_EP_IN       USB_ENDPOINT_IN(1)
-//#define  HID_KEYBOARD_EP_OUT      USB_ENDPOINT_OUT(1)
-#define    HID_MOUSE_EP_IN          USB_ENDPOINT_IN(4)
-
-/* CDC Endpoint Address */
-#define  CDC_NOTIFICATION_EP                USB_ENDPOINT_IN(2)
-#define  CDC_DATA_EP_OUT                    USB_ENDPOINT_OUT(3)
-#define  CDC_DATA_EP_IN                     USB_ENDPOINT_IN(3)
-
-#define  CDC_NOTIFICATION_EP_MAXPACKETSIZE  8
-#define  CDC_DATA_EP_MAXPACKET_SIZE         16
 
 #ifdef __cplusplus
  }
 #endif
 
-#endif /* _TUSB_TUSB_CFG_H_ */
+#endif /* _TUSB_TUSB_CONFIG_H_ */
 
 /** @} */

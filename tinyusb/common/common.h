@@ -62,7 +62,7 @@
 #include <stdio.h>
 
 #include "compiler/compiler.h"
-#include "tusb_cfg.h"
+#include "tusb_option.h"
 #include "errors.h"
 #include "mcu/mcu.h"
 

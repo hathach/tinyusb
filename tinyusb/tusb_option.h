@@ -1,7 +1,7 @@
 /*
- * errors.h
+ * tusb_option.h
  *
- *  Created on: Nov 27, 2012
+ *  Created on: Nov 26, 2012
  *      Author: hathach
  */
 
@@ -36,50 +36,67 @@
  */
 
 /** \file
- *  \brief Error Header
+ *  \brief Configure File
  *
  *  \note TBD
  */
 
-/** \ingroup Group_Common
- *  \defgroup Group_Error Error Codes
+/** 
+ *  \defgroup Group_TinyUSB_Configure Configuration tusb_option.h
  *  @{
  */
 
-#ifndef _TUSB_ERRORS_H_
-#define _TUSB_ERRORS_H_
-
-#include "../tusb_option.h"
+#ifndef _TUSB_TUSB_OPTION_H_
+#define _TUSB_TUSB_OPTION_H_
 
 #ifdef __cplusplus
  extern "C" {
 #endif
 
-#define ERROR_ENUM(x) x,
-#define ERROR_STRING(x) #x,
+/// define this symbol will make tinyusb look for external configure file
+#include "tusb_config.h"
 
-#define ERROR_TABLE(ENTRY) \
-    ENTRY(tERROR_NONE)\
-    ENTRY(tERROR_FAILED)\
-
-
-/** \enum TUSB_Error_t
- *  \brief Error Code returned
- */
-typedef enum {
-  ERROR_TABLE(ERROR_ENUM)
-  ERROR_COUNT
-}TUSB_Error_t;
-
-#if TUSB_CFG_DEBUG == 3
-/// Enum to String for debugging purposes. Only available if \ref TUSB_CFG_DEBUG > 0
-extern char const* const TUSB_ErrorStr[];
+/// 0: no debug infor 3: most debug infor provided
+#ifndef TUSB_CFG_DEBUG
+#define TUSB_CFG_DEBUG 3
 #endif
+
+/// Enable Host Support
+//#define TUSB_CFG_HOST
+
+/// Enable Device Support
+//#define TUSB_CFG_DEVICE
+
+#define DEVICE_CLASS_HID ( (defined TUSB_CFG_DEVICE_HID_KEYBOARD) || (defined TUSB_CFG_DEVICE_HID_MOUSE) )
+#define HOST_EHCI
+
+// TODO APP
+#define USB_MAX_IF_NUM          8
+#define USB_MAX_EP_NUM          5
+
+#define USB_FS_MAX_BULK_PACKET  64
+#define USB_HS_MAX_BULK_PACKET  USB_FS_MAX_BULK_PACKET /* Full speed device only */
+
+// Control Endpoint
+#define USB_MAX_PACKET0         64
+
+/* HID In/Out Endpoint Address */
+#define    HID_KEYBOARD_EP_IN       USB_ENDPOINT_IN(1)
+//#define  HID_KEYBOARD_EP_OUT      USB_ENDPOINT_OUT(1)
+#define    HID_MOUSE_EP_IN          USB_ENDPOINT_IN(4)
+
+/* CDC Endpoint Address */
+#define  CDC_NOTIFICATION_EP                USB_ENDPOINT_IN(2)
+#define  CDC_DATA_EP_OUT                    USB_ENDPOINT_OUT(3)
+#define  CDC_DATA_EP_IN                     USB_ENDPOINT_IN(3)
+
+#define  CDC_NOTIFICATION_EP_MAXPACKETSIZE  8
+#define  CDC_DATA_EP_MAXPACKET_SIZE         16
 
 #ifdef __cplusplus
  }
 #endif
 
-#endif /* _TUSB_ERRORS_H_ */
+#endif /* _TUSB_TUSB_OPTION_H_ */
 
- /**  @} */
+/** @} */

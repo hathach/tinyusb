@@ -28,7 +28,7 @@
 #include "mw_usbd.h"
 #include "mw_usbd_msc.h"
 #include "mw_usbd_core.h"
-#include "tusb_cfg.h"
+#include "tusb_option.h"
 
 /** \file
  *  \brief Mass Storage Class (MSC) API structures and function prototypes.

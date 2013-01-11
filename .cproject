@@ -27,7 +27,7 @@
 								<inputType id="com.crt.advproject.compiler.input.2103556147" superClass="com.crt.advproject.compiler.input"/>
 							</tool>
 							<tool id="com.crt.advproject.gas.exe.debug.11272906" name="MCU Assembler" superClass="com.crt.advproject.gas.exe.debug">
-								<option id="gnu.both.asm.option.include.paths.2001474673" superClass="gnu.both.asm.option.include.paths" valueType="includePath">
+								<option id="gnu.both.asm.option.include.paths.2001474673" name="Include paths (-I)" superClass="gnu.both.asm.option.include.paths" valueType="includePath">
 									<listOptionValue builtIn="false" value="&quot;C:\nxp\LPCXpresso_4.3.0_1023\lpcxpresso\Tools\lib\gcc\arm-none-eabi\4.5.1\include&quot;"/>
 									<listOptionValue builtIn="false" value="&quot;C:\nxp\LPCXpresso_4.3.0_1023\lpcxpresso\Tools\lib\gcc\arm-none-eabi\4.5.1\include-fixed&quot;"/>
 									<listOptionValue builtIn="false" value="&quot;C:\nxp\LPCXpresso_4.3.0_1023\lpcxpresso\Tools\arm-none-eabi\include&quot;"/>
