@@ -3,7 +3,6 @@
 	<name>device_keyboard</name>
 	<comment></comment>
 	<projects>
-		<project>tinyusb</project>
 	</projects>
 	<buildSpec>
 		<buildCommand>
@@ -94,7 +93,7 @@
 	</linkedResources>
 	<filteredResources>
 		<filter>
-			<id>1354876380300</id>
+			<id>1357896068317</id>
 			<name></name>
 			<type>26</type>
 			<matcher>

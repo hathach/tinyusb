@@ -55,15 +55,19 @@
  extern "C" {
 #endif
 
+#define ERROR_ENUM(x) x,
+#define ERROR_STRING(x) #x,
+
+#define ERROR_TABLE(ENTRY) \
+    ENTRY(tERROR_NONE)\
+    ENTRY(tERROR_FAILED)\
+
+
 /** \enum TUSB_Error_t
  *  \brief Error Code returned
  */
-
-// TODO X macro to remove define/undefine
 typedef enum {
-#   define ERROR_ENUM(x) x,
-#   include "errors_def"
-#   undef ERROR_ENUM
+  ERROR_TABLE(ERROR_ENUM)
   ERROR_COUNT
 }TUSB_Error_t;
 
