@@ -38,7 +38,8 @@
 								<option id="gnu.c.compiler.option.include.paths.1207481236" name="Include paths (-I)" superClass="gnu.c.compiler.option.include.paths" valueType="includePath">
 									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/CMSISv2p10_LPC13Uxx/inc}&quot;"/>
 									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/${ProjName}/bsp}&quot;"/>
-									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/tinyusb}&quot;"/>
+									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/${ProjName}/tinyusb}&quot;"/>
+									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/${ProjName}}&quot;"/>
 								</option>
 								<option id="gnu.c.compiler.option.include.files.318820756" name="Include files (-include)" superClass="gnu.c.compiler.option.include.files"/>
 								<option id="com.crt.advproject.c.misc.dialect.1002654194" name="C Dialect" superClass="com.crt.advproject.c.misc.dialect" value="com.crt.advproject.misc.dialect.gnu99" valueType="enumerated"/>
@@ -54,7 +55,7 @@
 							<tool command="arm-none-eabi-gcc" commandLinePattern="${COMMAND} ${FLAGS} ${OUTPUT_FLAG}${OUTPUT_PREFIX}${OUTPUT} ${INPUTS}" errorParsers="org.eclipse.cdt.core.GLDErrorParser" id="com.crt.advproject.link.exe.debug.1506176667" name="MCU Linker" superClass="com.crt.advproject.link.exe.debug">
 								<option id="com.crt.advproject.link.arch.1411471839" name="Architecture" superClass="com.crt.advproject.link.arch" value="com.crt.advproject.link.target.cm3" valueType="enumerated"/>
 								<option id="com.crt.advproject.link.thumb.897273840" name="Thumb mode" superClass="com.crt.advproject.link.thumb" value="true" valueType="boolean"/>
-								<option id="com.crt.advproject.link.script.935550147" name="Linker script" superClass="com.crt.advproject.link.script" value="&quot;device_keyboard_LPCXpresso1347.ld&quot;" valueType="string"/>
+								<option id="com.crt.advproject.link.script.935550147" name="Linker script" superClass="com.crt.advproject.link.script" value="&quot;device_keyboard_Board_LPCXpresso1347.ld&quot;" valueType="string"/>
 								<option id="com.crt.advproject.link.manage.1693118885" name="Manage linker script" superClass="com.crt.advproject.link.manage" value="true" valueType="boolean"/>
 								<option id="gnu.c.link.option.nostdlibs.2134659918" name="No startup or default libs (-nostdlib)" superClass="gnu.c.link.option.nostdlibs" value="true" valueType="boolean"/>
 								<option id="gnu.c.link.option.other.347869425" name="Other options (-Xlinker [option])" superClass="gnu.c.link.option.other" valueType="stringList">
@@ -62,11 +63,9 @@
 									<listOptionValue builtIn="false" value="--gc-sections"/>
 								</option>
 								<option id="gnu.c.link.option.paths.1465143173" name="Library search path (-L)" superClass="gnu.c.link.option.paths" valueType="libPaths">
-									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/tinyusb/lpc13uxx}&quot;"/>
 									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/CMSISv2p10_LPC13Uxx/Debug}&quot;"/>
 								</option>
 								<option id="gnu.c.link.option.libs.447978281" name="Libraries (-l)" superClass="gnu.c.link.option.libs" valueType="libs">
-									<listOptionValue builtIn="false" value="tinyusb"/>
 									<listOptionValue builtIn="false" value="CMSISv2p10_LPC13Uxx"/>
 								</option>
 								<option id="com.crt.advproject.link.gcc.hdrlib.1111642583" name="Use C library" superClass="com.crt.advproject.link.gcc.hdrlib" value="com.crt.advproject.gcc.link.hdrlib.codered.nohost" valueType="enumerated"/>
@@ -666,7 +665,7 @@
 				</extensions>
 			</storageModule>
 			<storageModule moduleId="cdtBuildSystem" version="4.0.0">
-				<configuration artifactExtension="axf" artifactName="${ProjName}" buildArtefactType="org.eclipse.cdt.build.core.buildArtefactType.exe" buildProperties="org.eclipse.cdt.build.core.buildArtefactType=org.eclipse.cdt.build.core.buildArtefactType.exe" cleanCommand="rm -rf" description="lpc11uxx from microbuilder" errorParsers="org.eclipse.cdt.core.MakeErrorParser;org.eclipse.cdt.core.GCCErrorParser;org.eclipse.cdt.core.GLDErrorParser;org.eclipse.cdt.core.GASErrorParser;org.eclipse.cdt.core.CWDLocator;org.eclipse.cdt.core.GmakeErrorParser" id="com.crt.advproject.config.exe.debug.856400198.534940316" name="Board at86rf2xx" parent="com.crt.advproject.config.exe.debug" postannouncebuildStep="Performing post-build steps" postbuildStep="arm-none-eabi-size &quot;${BuildArtifactFileName}&quot;; # arm-none-eabi-objcopy -O binary &quot;${BuildArtifactFileName}&quot; &quot;${BuildArtifactFileBaseName}.bin&quot; ; checksum -p ${TargetChip} -d &quot;${BuildArtifactFileBaseName}.bin&quot;;  " preannouncebuildStep="" prebuildStep="">
+				<configuration artifactExtension="axf" artifactName="${ProjName}" buildArtefactType="org.eclipse.cdt.build.core.buildArtefactType.exe" buildProperties="org.eclipse.cdt.build.core.buildArtefactType=org.eclipse.cdt.build.core.buildArtefactType.exe" cleanCommand="rm -rf" description="lpc11uxx from microbuilder" errorParsers="org.eclipse.cdt.core.MakeErrorParser;org.eclipse.cdt.core.GCCErrorParser;org.eclipse.cdt.core.GLDErrorParser;org.eclipse.cdt.core.GASErrorParser;org.eclipse.cdt.core.CWDLocator;org.eclipse.cdt.core.GmakeErrorParser" id="com.crt.advproject.config.exe.debug.856400198.534940316" name="Board at86rf2xx" parent="com.crt.advproject.config.exe.debug" postannouncebuildStep="Performing post-build steps" postbuildStep="arm-none-eabi-size &quot;${BuildArtifactFileName}&quot;; arm-none-eabi-objcopy -O binary &quot;${BuildArtifactFileName}&quot; &quot;${BuildArtifactFileBaseName}.bin&quot; ; checksum -p ${TargetChip} -d &quot;${BuildArtifactFileBaseName}.bin&quot;;  " preannouncebuildStep="" prebuildStep="">
 					<folderInfo id="com.crt.advproject.config.exe.debug.856400198.534940316." name="/" resourcePath="">
 						<toolChain errorParsers="" id="com.crt.advproject.toolchain.exe.debug.1347871780" name="Code Red MCU Tools" superClass="com.crt.advproject.toolchain.exe.debug">
 							<targetPlatform binaryParser="org.eclipse.cdt.core.ELF;org.eclipse.cdt.core.GNU_ELF" id="com.crt.advproject.platform.exe.debug.1543738985" name="ARM-based MCU (Debug)" superClass="com.crt.advproject.platform.exe.debug"/>
@@ -686,7 +685,8 @@
 								<option id="gnu.c.compiler.option.include.paths.2143003127" name="Include paths (-I)" superClass="gnu.c.compiler.option.include.paths" valueType="includePath">
 									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/CMSISv2p00_LPC11Uxx/inc}&quot;"/>
 									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/${ProjName}/bsp}&quot;"/>
-									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/tinyusb}&quot;"/>
+									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/${ProjName}/tinyusb}&quot;"/>
+									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/${ProjName}}&quot;"/>
 								</option>
 								<option id="gnu.c.compiler.option.include.files.1663093508" name="Include files (-include)" superClass="gnu.c.compiler.option.include.files"/>
 								<option id="com.crt.advproject.c.misc.dialect.378026709" name="C Dialect" superClass="com.crt.advproject.c.misc.dialect" value="com.crt.advproject.misc.dialect.gnu99" valueType="enumerated"/>
@@ -702,7 +702,7 @@
 							<tool command="arm-none-eabi-gcc" commandLinePattern="${COMMAND} ${FLAGS} ${OUTPUT_FLAG}${OUTPUT_PREFIX}${OUTPUT} ${INPUTS}" errorParsers="org.eclipse.cdt.core.GLDErrorParser" id="com.crt.advproject.link.exe.debug.332994381" name="MCU Linker" superClass="com.crt.advproject.link.exe.debug">
 								<option id="com.crt.advproject.link.arch.5439507" name="Architecture" superClass="com.crt.advproject.link.arch" value="com.crt.advproject.link.target.cm0" valueType="enumerated"/>
 								<option id="com.crt.advproject.link.thumb.1052282054" name="Thumb mode" superClass="com.crt.advproject.link.thumb" value="true" valueType="boolean"/>
-								<option id="com.crt.advproject.link.script.1723865493" name="Linker script" superClass="com.crt.advproject.link.script" value="&quot;device_keyboard_at86rf2xx.ld&quot;" valueType="string"/>
+								<option id="com.crt.advproject.link.script.1723865493" name="Linker script" superClass="com.crt.advproject.link.script" value="&quot;device_keyboard_Board_at86rf2xx.ld&quot;" valueType="string"/>
 								<option id="com.crt.advproject.link.manage.314167409" name="Manage linker script" superClass="com.crt.advproject.link.manage" value="true" valueType="boolean"/>
 								<option id="gnu.c.link.option.nostdlibs.7792622" name="No startup or default libs (-nostdlib)" superClass="gnu.c.link.option.nostdlibs" value="true" valueType="boolean"/>
 								<option id="gnu.c.link.option.other.1046893879" name="Other options (-Xlinker [option])" superClass="gnu.c.link.option.other" valueType="stringList">
@@ -710,11 +710,9 @@
 									<listOptionValue builtIn="false" value="--gc-sections"/>
 								</option>
 								<option id="gnu.c.link.option.paths.1946871342" name="Library search path (-L)" superClass="gnu.c.link.option.paths" valueType="libPaths">
-									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/tinyusb/lpc11uxx}&quot;"/>
 									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/CMSISv2p00_LPC11Uxx/Debug}&quot;"/>
 								</option>
 								<option id="gnu.c.link.option.libs.937236410" name="Libraries (-l)" superClass="gnu.c.link.option.libs" valueType="libs">
-									<listOptionValue builtIn="false" value="tinyusb"/>
 									<listOptionValue builtIn="false" value="CMSISv2p00_LPC11Uxx"/>
 								</option>
 								<option id="com.crt.advproject.link.gcc.hdrlib.1273255587" name="Use C library" superClass="com.crt.advproject.link.gcc.hdrlib" value="com.crt.advproject.gcc.link.hdrlib.codered.nohost" valueType="enumerated"/>

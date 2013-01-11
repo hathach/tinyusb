@@ -36,27 +36,31 @@ CC         := arm-none-eabi-gcc
 RM         := rm -rf
 #AR LD
 
-toolchain_def = __REDLIB__ __CODE_RED __USE_CMSIS=CMSISv2p00_LPC11Uxx
-mcu           = lpc11uxx
-build_path    = ../build/
+toolchain_def    = __REDLIB__ __CODE_RED __USE_CMSIS=CMSISv2p00_LPC11Uxx
+mcu              = lpc11uxx
+build_path       = ../build/
 
 #helper function
-rel2abs = $(shell cd $(1); pwd)
+rel2abs          = $(shell cd $(1); pwd)
 
 #path
-tinyusb_path = ../../../tinyusb
-bsp_path     = ../../bsp
-cmsis_path   = ../../../../CMSISv2p00_LPC11Uxx
+tinyusb_path     = ../../../tinyusb
+bsp_path         = ../../bsp
+cmsis_path       = ../../../../CMSISv2p00_LPC11Uxx
 
 build_path_abs   = $(CURDIR)/$(build_path_relative)
 tinyusb_path_abs = $(CURDIR)/$(tinyusb_path)
 bsp_path_abs     = $(CURDIR)/$(bsp_path)
 cmsis_path_abs   = $(CURDIR)/$(cmsis_path)
 
-# Source
-src          = $(shell find -type f -name "*.c") $(tinyusb_src) $(bsp_src)
-objects      = $(subst .c,.o,$(src))
-dependencies = $(subst .c,.d,$(src))
+############ Sources ############
+src              = $(shell find $(CURDIR) -type f -name "*.c") $(tinyusb_src) $(bsp_src)
+objects          = $(subst .c,.o,$(src))
+dependencies     = $(subst .c,.d,$(src))
+
+tinyusb_src      = $(shell find $(tinyusb_path_abs) \( ! -name "*hal*" \) -type f -name "*.c") $(tinyusb_path_abs)/hal/hal_$(mcu).c
+bsp_src          = $(shell find $(bsp_path_abs)/boards -type f -name "*.c") $(shell find $(bsp_path_abs)/$(mcu) -type f -name "*.c")
+cmsis_src        = $(shell find $(cmsis_path_abs) -type f -name "*.c")
 
 ############ CFLAGS C Compiler Flag ##############
 #CFLAGS = $(addprefix -D,$(toolchain_def) $(macros_def)) $(addprefix -I,$(inc_path))
@@ -70,11 +74,7 @@ CPPFLAGS = $(addprefix -D,$(toolchain_def) $(macros_def)) $(addprefix -I,$(inc_p
 macros_def += BOARD=BOARD_AT86RF2XX
 macros_def += MCU=MCU_LPC11UXX
 
-inc_path     = $(tinyusb_path_abs) $(bsp_path_abs) $(cmsis_path_abs)/inc $(call rel2abs, ./)
-
-tinyusb_src  = $(shell find $(tinyusb_path_abs) \( ! -name "*hal*" \) -type f -name "*.c") $(tinyusb_path)/hal/hal_$(mcu).c
-bsp_src      = $(shell find $(bsp_path_abs)/boards -type f -name "*.c") $(shell find $(bsp_path)/$(mcu) -type f -name "*.c")
-cmsis_src    = $(shell find $(cmsis_path) -type f -name "*.c")
+inc_path     = $(CURDIR) $(tinyusb_path_abs) $(bsp_path_abs) $(cmsis_path_abs)/inc
 
 ############ Compile Rules ##############
 #%.o : %.c  
