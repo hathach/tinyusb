@@ -66,6 +66,8 @@
   #include "class/cdc.h"
 #endif
 
+TUSB_Error_t tusb_init(void);
+
 #ifdef __cplusplus
  }
 #endif

@@ -41,12 +41,12 @@
 
 #ifdef TUSB_CFG_DEVICE_HID_KEYBOARD
 USB_HID_KeyboardReport_t hid_keyboard_report;
-volatile static bool bKeyChanged = false;
+static volatile bool bKeyChanged = false;
 #endif
 
 #ifdef TUSB_CFG_DEVICE_HID_MOUSE
 USB_HID_MouseReport_t hid_mouse_report;
-volatile static bool bMouseChanged = false;
+static volatile bool bMouseChanged = false;
 #endif
 
 /**************************************************************************/

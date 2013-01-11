@@ -64,6 +64,8 @@
 #include "compiler/compiler.h"
 #include "tusb_option.h"
 #include "errors.h"
+#include "assertion.h"
+#include "binary.h"
 #include "mcu/mcu.h"
 
 #include "hal/hal.h"
@@ -75,66 +77,6 @@
 
 /// max value
 #define MAX_(x, y) (((x) > (y)) ? (x) : (y))
-
-/// n-th Bit
-#define BIT_(n) (1 << (n))
-
-/// set n-th bit of x to 1
-#define BIT_SET_(x, n) ( (x) | BIT_(n) )
-
-/// clear n-th bit of x
-#define BIT_CLR_(x, n) ( (x) & (~BIT_(n)) )
-
-/// add hex represenation
-#define HEX_(n) 0x##n##LU
-
-//  internal macro of B8, B16, B32
-#define _B8__(x) ((x&0x0000000FLU)?1:0) \
-                +((x&0x000000F0LU)?2:0) \
-                +((x&0x00000F00LU)?4:0) \
-                +((x&0x0000F000LU)?8:0) \
-                +((x&0x000F0000LU)?16:0) \
-                +((x&0x00F00000LU)?32:0) \
-                +((x&0x0F000000LU)?64:0) \
-                +((x&0xF0000000LU)?128:0)
-
-#define B8_(d) ((unsigned char)_B8__(HEX_(d)))
-#define B16_(dmsb,dlsb) (((unsigned short)B8(dmsb)<<8) + B8(dlsb))
-#define B32_(dmsb,db2,db3,dlsb) \
-            (((unsigned long)B8(dmsb)<<24) \
-            + ((unsigned long)B8(db2)<<16) \
-            + ((unsigned long)B8(db3)<<8) \
-            + B8(dlsb))
-
-
-
-//#if ( defined CFG_PRINTF_UART || defined CFG_PRINTF_USBCDC || defined CFG_PRINTF_DEBUG )
-#if TUSB_CFG_DEBUG
-  #define PRINTF(...)	printf(__VA_ARGS__)
-#else
-  #define PRINTF(...)
-#endif
-
-#define ASSERT_MESSAGE(condition, value, message) \
-	do{\
-	  if (!(condition)) {\
-			PRINTF("Assert at %s %s line %d: %s\n", __BASE_FILE__, __PRETTY_FUNCTION__, __LINE__, message); \
-			return (value);\
-		}\
-	}while(0)
-
-#define ASSERT(condition, value)  ASSERT_MESSAGE(condition, value, NULL)
-
-#define ASSERT_ERROR_MESSAGE(sts, message) \
-	do{\
-	  TUSB_Error_t status = (TUSB_Error_t)(sts);\
-	  if (tERROR_NONE != status) {\
-	    PRINTF("Assert at %s line %d: %s %s\n", __BASE_FILE__, __PRETTY_FUNCTION__, __LINE__, TUSB_ErrorStr[status], message); \
-	    return status;\
-	  }\
-	}while(0)
-
-#define ASSERT_ERROR(sts)		ASSERT_ERROR_MESSAGE(sts, NULL)
 
 #ifdef __cplusplus
  }
