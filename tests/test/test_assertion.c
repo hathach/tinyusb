@@ -87,3 +87,15 @@ void test_assert_int_eqal(void)
 
   TEST_FAIL();
 }
+
+void test_assert_int_within(void)
+{
+  ASSERT_INT_WITHIN (1, 5, 3, (void) 0);
+  ASSERT_INT_WITHIN (1, 5, 1, (void) 0);
+  ASSERT_INT_WITHIN (1, 5, 5, (void) 0);
+
+  ASSERT_INT_WITHIN (1, 5, 10, (void) 0);
+  ASSERT_INT_WITHIN (1, 5, 0, (void) 0);
+
+  TEST_FAIL();
+}

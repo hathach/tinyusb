@@ -109,9 +109,18 @@ extern "C"
 
 #define ASSERT_INT(...)  ASSERT_INT_EQUAL(__VA_ARGS__)
 #define ASSERT_INT_EQUAL(expected, actual, error)  \
-    ASSERT_DEFINE( uint32_t exp = (expected); uint32_t act = (actual), exp==act, error, "expected %d, actual %d", exp, act)
+    ASSERT_DEFINE(\
+                  uint32_t exp = (expected); uint32_t act = (actual),\
+                  exp==act,\
+                  error,\
+                  "expected %d, actual %d", exp, act)
 
-#define ASSERT_INT_WITHIN(lower, upper, actual)
+#define ASSERT_INT_WITHIN(lower, upper, actual, error) \
+    ASSERT_DEFINE(\
+                  uint32_t low = (lower); uint32_t up = (upper); uint32_t act = (actual),\
+                  (low <= act) && (act <= up),\
+                  error,\
+                  "expected within %d-%d, actual %d", low, up, act)
 
 
 #ifdef __cplusplus
