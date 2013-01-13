@@ -72,9 +72,10 @@ extern "C"
 #define ASSERT_FUNCTION  __PRETTY_FUNCTION__
 //#define ASSERT_STATEMENT _PRINTF("Assert at %s line %d: %s %s\n", ASSERT_FILENAME, ASSERT_FUNCTION, __LINE__);
 #define ASSERT_STATEMENT _PRINTF("assert at %s: %s :%d :\n", ASSERT_FILENAME, ASSERT_FUNCTION, __LINE__)
-#define ASSERT_DEFINE(ASSERT_TEST, error, format, __VA_ARGS__) \
+#define ASSERT_DEFINE(setup_statement, condition, error, format, ...) \
   do{\
-	  if (!(ASSERT_TEST)) {\
+    setup_statement;\
+	  if (!(condition)) {\
 	    _PRINTF("Assert at %s: %s:%d: " format "\n", ASSERT_FILENAME, ASSERT_FUNCTION, __LINE__, __VA_ARGS__);\
 	    return error;\
 	  }\
@@ -97,23 +98,18 @@ extern "C"
 //--------------------------------------------------------------------+
 // Logical Assert
 //--------------------------------------------------------------------+
-#define TEST_TRUE(condition)  (condition)
-#define TEST_FALSE(condition)  (!condition)
-
-#define ASSERT(condition, error       ) ASSERT_TRUE(condition, error)
-#define ASSERT_TRUE(condition, error  ) ASSERT_DEFINE(TEST_TRUE(condition), error, "%s", "evaluated to false")
-#define ASSERT_FALSE(condition, error ) ASSERT_DEFINE(TEST_FALSE(condition), error, "%s", "evaluated to true")
+#define ASSERT(...) ASSERT_TRUE(__VA_ARGS__)
+#define ASSERT_TRUE(condition  , error ) ASSERT_DEFINE( ,(condition), error, "%s", "evaluated to false")
+#define ASSERT_FALSE(condition , error ) ASSERT_DEFINE( ,!(condition), error, "%s", "evaluated to true")
 
 //--------------------------------------------------------------------+
 // Integer Assert
 //--------------------------------------------------------------------+
 #define TEST_INT_EQUAL
 
-#define ASSERT_INT(expected, actual)  ASSERT_INT_EQUAL(expected, actual)
-#define ASSERT_INT_EQUAL(expected, actual)  \
-    uint32 exp = (expected);\
-    uint32 act = (actual);\
-    ASSERT_DEFINE(TEST_INT_EQUAL(condition), error, "expected %d, actual %d", exp, act)
+#define ASSERT_INT(...)  ASSERT_INT_EQUAL(__VA_ARGS__)
+#define ASSERT_INT_EQUAL(expected, actual, error)  \
+    ASSERT_DEFINE( uint32_t exp = (expected); uint32_t act = (actual), exp==act, error, "expected %d, actual %d", exp, act)
 
 #define ASSERT_INT_WITHIN(lower, upper, actual)
 

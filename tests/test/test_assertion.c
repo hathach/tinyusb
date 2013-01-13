@@ -35,6 +35,7 @@
  * This file is part of the tiny usb stack.
  */
 
+#include <stdint.h>
 #include <stdio.h>
 #include <stdbool.h>
 #include "unity.h"
@@ -48,15 +49,41 @@ void tearDown(void)
 {
 }
 
-void test_assert_true(void)
+//--------------------------------------------------------------------+
+// Logical
+//--------------------------------------------------------------------+
+void test_assert_logical_true(void)
 {
-  ASSERT(true, (void)0 );
-  ASSERT_TRUE(true, (void)0 );
-  ASSERT_TRUE(false, (void)0 );
+  ASSERT      (true  , (void)0 );
+  ASSERT_TRUE (true  , (void)0 );
+
+  ASSERT_TRUE (false , (void)0 );
+  TEST_FAIL();
 }
 
-void test_assert_false(void)
+void test_assert_logical_false(void)
 {
-  ASSERT_FALSE(false, (void)0 );
-  ASSERT_FALSE(true, (void)0 );
+  ASSERT_FALSE(false , (void)0 );
+  ASSERT_FALSE(true  , (void)0 );
+
+  TEST_FAIL();
+}
+
+//--------------------------------------------------------------------+
+// Integer
+//--------------------------------------------------------------------+
+void test_assert_int_eqal(void)
+{
+  ASSERT_INT       (1, 1, (void) 0);
+  ASSERT_INT_EQUAL (1, 1, (void) 0);
+
+  uint32_t x = 0;
+  uint32_t y = 0;
+  ASSERT_INT (x++, y++, (void) 0); // test side effect
+  TEST_ASSERT_EQUAL(1, x);
+  TEST_ASSERT_EQUAL(1, y);
+
+  ASSERT_INT(0, 1, (void) 0);
+
+  TEST_FAIL();
 }
