@@ -105,8 +105,6 @@ extern "C"
 //--------------------------------------------------------------------+
 // Integer Assert
 //--------------------------------------------------------------------+
-#define TEST_INT_EQUAL
-
 #define ASSERT_INT(...)  ASSERT_INT_EQUAL(__VA_ARGS__)
 #define ASSERT_INT_EQUAL(expected, actual, error)  \
     ASSERT_DEFINE(\
@@ -122,6 +120,23 @@ extern "C"
                   error,\
                   "expected within %d-%d, actual %d", low, up, act)
 
+//--------------------------------------------------------------------+
+// Hex Assert
+//--------------------------------------------------------------------+
+#define ASSERT_HEX(...)  ASSERT_HEX_EQUAL(__VA_ARGS__)
+#define ASSERT_HEX_EQUAL(expected, actual, error)  \
+    ASSERT_DEFINE(\
+                  uint32_t exp = (expected); uint32_t act = (actual),\
+                  exp==act,\
+                  error,\
+                  "expected 0x%x, actual 0x%x", exp, act)
+
+#define ASSERT_HEX_WITHIN(lower, upper, actual, error) \
+    ASSERT_DEFINE(\
+                  uint32_t low = (lower); uint32_t up = (upper); uint32_t act = (actual),\
+                  (low <= act) && (act <= up),\
+                  error,\
+                  "expected within 0x%x-0x%x, actual 0x%x", low, up, act)
 
 #ifdef __cplusplus
 }

@@ -106,3 +106,46 @@ void test_assert_int_within_greater(void)
   ASSERT_INT_WITHIN (1, 5, 10, (void) 0);
   TEST_FAIL();
 }
+
+//--------------------------------------------------------------------+
+// HEX
+//--------------------------------------------------------------------+
+void test_assert_hex_equal(void)
+{
+  ASSERT_HEX       (0xffee, 0xffee, (void) 0);
+  ASSERT_HEX_EQUAL (0xffee, 0xffee, (void) 0);
+
+  uint32_t x = 0xf0f0;
+  uint32_t y = 0xf0f0;
+  ASSERT_HEX (x++, y++, (void) 0); // test side effect
+  TEST_ASSERT_EQUAL(0xf0f1, x);
+  TEST_ASSERT_EQUAL(0xf0f1, y);
+
+  ASSERT_HEX(0x1234, 0x4321, (void) 0);
+
+  TEST_FAIL();
+}
+
+void test_assert_hex_within_succeed(void)
+{
+  ASSERT_HEX_WITHIN (0xff00, 0xffff, 0xff11, (void) 0);
+  ASSERT_HEX_WITHIN (0xff00, 0xffff, 0xff00, (void) 0);
+  ASSERT_HEX_WITHIN (0xff00, 0xffff, 0xffff, (void) 0);
+}
+
+void test_assert_hex_within_less(void)
+{
+  ASSERT_HEX_WITHIN (0xff00, 0xffff, 0xeeee, (void) 0);
+  TEST_FAIL();
+}
+
+void test_assert_hex_within_greater(void)
+{
+  ASSERT_HEX_WITHIN (0xff00, 0xffff, 0x1eeee, (void) 0);
+  TEST_FAIL();
+}
+
+
+
+
+
