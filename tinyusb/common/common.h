@@ -73,10 +73,18 @@
 #include "core/std_descriptors.h"
 
 /// min value
-#define MIN_(x, y) (((x) < (y)) ? (x) : (y))
+static inline uint32_t min_of(uint32_t x, uint32_t y) ATTR_ALWAYS_INLINE;
+static inline uint32_t min_of(uint32_t x, uint32_t y)
+{
+  return (x < y) ? x : y;
+}
 
 /// max value
-#define MAX_(x, y) (((x) > (y)) ? (x) : (y))
+static inline uint32_t max_of(uint32_t x, uint32_t y) ATTR_ALWAYS_INLINE;
+static inline uint32_t max_of(uint32_t x, uint32_t y)
+{
+  return (x > y) ? x : y;
+}
 
 #ifdef __cplusplus
  }

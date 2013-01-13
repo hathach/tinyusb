@@ -145,6 +145,25 @@ void test_assert_hex_within_greater(void)
   TEST_FAIL();
 }
 
+//--------------------------------------------------------------------+
+// HEX
+//--------------------------------------------------------------------+
+void test_assert_bin_equal(void)
+{
+//  ASSERT_HEX       (0xffee, 0xffee, (void) 0);
+//  ASSERT_HEX_EQUAL (0xffee, 0xffee, (void) 0);
+//
+//  uint32_t x = 0xf0f0;
+//  uint32_t y = 0xf0f0;
+//  ASSERT_HEX (x++, y++, (void) 0); // test side effect
+//  TEST_ASSERT_EQUAL(0xf0f1, x);
+//  TEST_ASSERT_EQUAL(0xf0f1, y);
+//
+//  ASSERT_HEX(0x1234, 0x4321, (void) 0);
+
+  TEST_IGNORE();
+}
+
 
 
 

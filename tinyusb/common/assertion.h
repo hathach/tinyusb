@@ -70,7 +70,6 @@ extern "C"
 //--------------------------------------------------------------------+
 #define ASSERT_FILENAME  __BASE_FILE__
 #define ASSERT_FUNCTION  __PRETTY_FUNCTION__
-//#define ASSERT_STATEMENT _PRINTF("Assert at %s line %d: %s %s\n", ASSERT_FILENAME, ASSERT_FUNCTION, __LINE__);
 #define ASSERT_STATEMENT _PRINTF("assert at %s: %s :%d :\n", ASSERT_FILENAME, ASSERT_FUNCTION, __LINE__)
 #define ASSERT_DEFINE(setup_statement, condition, error, format, ...) \
   do{\
@@ -98,45 +97,37 @@ extern "C"
 //--------------------------------------------------------------------+
 // Logical Assert
 //--------------------------------------------------------------------+
-#define ASSERT(...) ASSERT_TRUE(__VA_ARGS__)
-#define ASSERT_TRUE(condition  , error ) ASSERT_DEFINE( ,(condition), error, "%s", "evaluated to false")
-#define ASSERT_FALSE(condition , error ) ASSERT_DEFINE( ,!(condition), error, "%s", "evaluated to true")
+#define ASSERT(...)                      ASSERT_TRUE(__VA_ARGS__)
+#define ASSERT_TRUE(condition  , error)  ASSERT_DEFINE( ,(condition), error, "%s", "evaluated to false")
+#define ASSERT_FALSE(condition , error)  ASSERT_DEFINE( ,!(condition), error, "%s", "evaluated to true")
 
 //--------------------------------------------------------------------+
 // Integer Assert
 //--------------------------------------------------------------------+
-#define ASSERT_INT(...)  ASSERT_INT_EQUAL(__VA_ARGS__)
-#define ASSERT_INT_EQUAL(expected, actual, error)  \
+#define ASSERT_XXX_EQUAL(type_format, expected, actual, error) \
     ASSERT_DEFINE(\
                   uint32_t exp = (expected); uint32_t act = (actual),\
                   exp==act,\
                   error,\
-                  "expected %d, actual %d", exp, act)
+                  "expected " type_format ", actual " type_format, exp, act)
 
-#define ASSERT_INT_WITHIN(lower, upper, actual, error) \
+#define ASSERT_XXX_WITHIN(type_format, lower, upper, actual, error) \
     ASSERT_DEFINE(\
                   uint32_t low = (lower); uint32_t up = (upper); uint32_t act = (actual),\
                   (low <= act) && (act <= up),\
                   error,\
-                  "expected within %d-%d, actual %d", low, up, act)
+                  "expected within " type_format " - " type_format ", actual " type_format, low, up, act)
+
+#define ASSERT_INT(...)        ASSERT_INT_EQUAL(__VA_ARGS__)
+#define ASSERT_INT_EQUAL(...)  ASSERT_XXX_EQUAL("%d", __VA_ARGS__)
+#define ASSERT_INT_WITHIN(...) ASSERT_XXX_WITHIN("%d", __VA_ARGS__)
 
 //--------------------------------------------------------------------+
 // Hex Assert
 //--------------------------------------------------------------------+
-#define ASSERT_HEX(...)  ASSERT_HEX_EQUAL(__VA_ARGS__)
-#define ASSERT_HEX_EQUAL(expected, actual, error)  \
-    ASSERT_DEFINE(\
-                  uint32_t exp = (expected); uint32_t act = (actual),\
-                  exp==act,\
-                  error,\
-                  "expected 0x%x, actual 0x%x", exp, act)
-
-#define ASSERT_HEX_WITHIN(lower, upper, actual, error) \
-    ASSERT_DEFINE(\
-                  uint32_t low = (lower); uint32_t up = (upper); uint32_t act = (actual),\
-                  (low <= act) && (act <= up),\
-                  error,\
-                  "expected within 0x%x-0x%x, actual 0x%x", low, up, act)
+#define ASSERT_HEX(...)        ASSERT_HEX_EQUAL(__VA_ARGS__)
+#define ASSERT_HEX_EQUAL(...)  ASSERT_XXX_EQUAL("0x%x", __VA_ARGS__)
+#define ASSERT_HEX_WITHIN(...) ASSERT_XXX_WITHIN("0x%x", __VA_ARGS__)
 
 #ifdef __cplusplus
 }
