@@ -1,7 +1,7 @@
 /*
- * tusb.c
+ * test_binary_const.c
  *
- *  Created on: Nov 27, 2012
+ *  Created on: Jan 12, 2013
  *      Author: hathach
  */
 
@@ -32,22 +32,24 @@
  * IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY
  * OF SUCH DAMAGE.
  *
- * This file is part of the tinyUSB stack.
+ * This file is part of the tiny usb stack.
  */
 
-#include "tusb.h"
+#include <stdio.h>
+#include "unity.h"
+#include "common/binary.h"
 
-TUSB_Error_t tusb_init(void)
+#define TT(a, ...)  printf(a, ##__VA_ARGS__)
+
+void setUp(void)
 {
-  ASSERT_STATUS( hal_init() ) ; /* HARDWARE INIT */
+}
 
-#ifdef TUSB_CFG_HOST
-  ASSERT_STATUS( hcd_init(0) );
-#endif
+void tearDown(void)
+{
+}
 
-#ifdef TUSB_CFG_DEVICE
-  ASSERT_STATUS( dcd_init(0) );
-#endif
-
-  return tERROR_NONE;
+void test_binary_byte()
+{
+  TEST_IGNORE();
 }

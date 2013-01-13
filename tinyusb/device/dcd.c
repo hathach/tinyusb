@@ -119,18 +119,18 @@ TUSB_Error_t dcd_init(uint8_t coreid)
 
   /* Initialise the class driver(s) */
   #ifdef TUSB_CFG_DEVICE_CDC
-  ASSERT_ERROR( tusb_cdc_init(g_hUsb, &USB_FsConfigDescriptor.CDC_CCI_Interface,
+  ASSERT_STATUS( tusb_cdc_init(g_hUsb, &USB_FsConfigDescriptor.CDC_CCI_Interface,
             &USB_FsConfigDescriptor.CDC_DCI_Interface, &membase, &memsize) );
   #endif
 
   #ifdef TUSB_CFG_DEVICE_HID_KEYBOARD
-  ASSERT_ERROR( tusb_hid_init(g_hUsb , &USB_FsConfigDescriptor.HID_KeyboardInterface ,
+  ASSERT_STATUS( tusb_hid_init(g_hUsb , &USB_FsConfigDescriptor.HID_KeyboardInterface ,
             HID_KeyboardReportDescriptor, USB_FsConfigDescriptor.HID_KeyboardHID.DescriptorList[0].wDescriptorLength,
             &membase , &memsize) );
   #endif
 
   #ifdef TUSB_CFG_DEVICE_HID_MOUSE
-  ASSERT_ERROR( tusb_hid_init(g_hUsb , &USB_FsConfigDescriptor.HID_MouseInterface    ,
+  ASSERT_STATUS( tusb_hid_init(g_hUsb , &USB_FsConfigDescriptor.HID_MouseInterface    ,
             HID_MouseReportDescriptor, USB_FsConfigDescriptor.HID_MouseHID.DescriptorList[0].wDescriptorLength,
             &membase , &memsize) );
   #endif

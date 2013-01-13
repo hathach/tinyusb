@@ -1,7 +1,7 @@
 /*
- * tusb.c
+ * test_assertion.c
  *
- *  Created on: Nov 27, 2012
+ *  Created on: Jan 13, 2013
  *      Author: hathach
  */
 
@@ -32,22 +32,31 @@
  * IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY
  * OF SUCH DAMAGE.
  *
- * This file is part of the tinyUSB stack.
+ * This file is part of the tiny usb stack.
  */
 
-#include "tusb.h"
+#include <stdio.h>
+#include <stdbool.h>
+#include "unity.h"
+#include "common/assertion.h"
 
-TUSB_Error_t tusb_init(void)
+void setUp(void)
 {
-  ASSERT_STATUS( hal_init() ) ; /* HARDWARE INIT */
+}
 
-#ifdef TUSB_CFG_HOST
-  ASSERT_STATUS( hcd_init(0) );
-#endif
+void tearDown(void)
+{
+}
 
-#ifdef TUSB_CFG_DEVICE
-  ASSERT_STATUS( dcd_init(0) );
-#endif
+void test_assert_true(void)
+{
+  ASSERT(true, (void)0 );
+  ASSERT_TRUE(true, (void)0 );
+  ASSERT_TRUE(false, (void)0 );
+}
 
-  return tERROR_NONE;
+void test_assert_false(void)
+{
+  ASSERT_FALSE(false, (void)0 );
+  ASSERT_FALSE(true, (void)0 );
 }

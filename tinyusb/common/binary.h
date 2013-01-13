@@ -1,7 +1,7 @@
 /*
- * tusb_option.h
+ * binary.h
  *
- *  Created on: Nov 26, 2012
+ *  Created on: Jan 11, 2013
  *      Author: hathach
  */
 
@@ -32,73 +32,71 @@
  * IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY
  * OF SUCH DAMAGE.
  *
- * This file is part of the tinyUSB stack.
+ * This file is part of the tiny usb stack.
  */
 
 /** \file
- *  \brief Configure File
+ *  \brief TBD
  *
  *  \note TBD
  */
 
-/** 
- *  \defgroup Group_TinyUSB_Configure Configuration tusb_option.h
+/** \ingroup TBD
+ *  \defgroup TBD
+ *  \brief TBD
+ *
  *  @{
  */
 
-#ifndef _TUSB_TUSB_OPTION_H_
-#define _TUSB_TUSB_OPTION_H_
+#ifndef _TUSB_BINARY_H_
+#define _TUSB_BINARY_H_
 
 #ifdef __cplusplus
  extern "C" {
 #endif
 
-/// define this symbol will make tinyusb look for external configure file
-#ifndef _TEST_ // TODO allow configurable name
-#include "tusb_config.h"
+#include <stdint.h>
+
+/// n-th Bit
+#define BIT_(n) (1 << (n))
+
+/// set n-th bit of x to 1
+#define BIT_SET_(x, n) ( (x) | BIT_(n) )
+
+/// clear n-th bit of x
+#define BIT_CLR_(x, n) ( (x) & (~BIT_(n)) )
+
+#if defined(__GNUC__)
+
+#define BIN8(x) (0b##x)
+#define BIN16   BIN8
+#define BIN32   BIN8
+
+#else
+
+//  internal macro of B8, B16, B32
+#define _B8__(x) ((x&0x0000000FLU)?1:0) \
+                +((x&0x000000F0LU)?2:0) \
+                +((x&0x00000F00LU)?4:0) \
+                +((x&0x0000F000LU)?8:0) \
+                +((x&0x000F0000LU)?16:0) \
+                +((x&0x00F00000LU)?32:0) \
+                +((x&0x0F000000LU)?64:0) \
+                +((x&0xF0000000LU)?128:0)
+
+#define BIN8(d) ((uint8_t)_B8__(0x##d##LU))
+#define BIN16(dmsb,dlsb) (((uint16_t)B8(dmsb)<<8) + B8(dlsb))
+#define BIN32(dmsb,db2,db3,dlsb) \
+            (((uint32_t)B8(dmsb)<<24) \
+            + ((uint32_t)B8(db2)<<16) \
+            + ((uint32_t)B8(db3)<<8) \
+            + B8(dlsb))
 #endif
-
-/// 0: no debug infor 3: most debug infor provided
-#ifndef TUSB_CFG_DEBUG
-#define TUSB_CFG_DEBUG 3
-#endif
-
-/// Enable Host Support
-//#define TUSB_CFG_HOST
-
-/// Enable Device Support
-//#define TUSB_CFG_DEVICE
-
-#define DEVICE_CLASS_HID ( (defined TUSB_CFG_DEVICE_HID_KEYBOARD) || (defined TUSB_CFG_DEVICE_HID_MOUSE) )
-#define HOST_EHCI
-
-// TODO APP
-#define USB_MAX_IF_NUM          8
-#define USB_MAX_EP_NUM          5
-
-#define USB_FS_MAX_BULK_PACKET  64
-#define USB_HS_MAX_BULK_PACKET  USB_FS_MAX_BULK_PACKET /* Full speed device only */
-
-// Control Endpoint
-#define USB_MAX_PACKET0         64
-
-/* HID In/Out Endpoint Address */
-#define    HID_KEYBOARD_EP_IN       USB_ENDPOINT_IN(1)
-//#define  HID_KEYBOARD_EP_OUT      USB_ENDPOINT_OUT(1)
-#define    HID_MOUSE_EP_IN          USB_ENDPOINT_IN(4)
-
-/* CDC Endpoint Address */
-#define  CDC_NOTIFICATION_EP                USB_ENDPOINT_IN(2)
-#define  CDC_DATA_EP_OUT                    USB_ENDPOINT_OUT(3)
-#define  CDC_DATA_EP_IN                     USB_ENDPOINT_IN(3)
-
-#define  CDC_NOTIFICATION_EP_MAXPACKETSIZE  8
-#define  CDC_DATA_EP_MAXPACKET_SIZE         16
 
 #ifdef __cplusplus
- }
+}
 #endif
 
-#endif /* _TUSB_TUSB_OPTION_H_ */
+#endif /* _TUSB_BINARY_H_ */
 
 /** @} */
