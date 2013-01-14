@@ -66,11 +66,12 @@
 /// clear n-th bit of x
 #define BIT_CLR_(x, n) ( (x) & (~BIT_(n)) )
 
+
 #if defined(__GNUC__)
 
-#define BIN8(x) (0b##x)
-#define BIN16   BIN8
-#define BIN32   BIN8
+#define BIN8(x)               (0b##x)
+#define BIN16(b1, b2)         (0b##b1##b2)
+#define BIN32(b1, b2, b3, b4) (0b##b1##b2##b3##b4)
 
 #else
 
@@ -85,12 +86,12 @@
                 +((x&0xF0000000LU)?128:0)
 
 #define BIN8(d) ((uint8_t)_B8__(0x##d##LU))
-#define BIN16(dmsb,dlsb) (((uint16_t)B8(dmsb)<<8) + B8(dlsb))
+#define BIN16(dmsb,dlsb) (((uint16_t)BIN8(dmsb)<<8) + BIN8(dlsb))
 #define BIN32(dmsb,db2,db3,dlsb) \
-            (((uint32_t)B8(dmsb)<<24) \
-            + ((uint32_t)B8(db2)<<16) \
-            + ((uint32_t)B8(db3)<<8) \
-            + B8(dlsb))
+            (((uint32_t)BIN8(dmsb)<<24) \
+            + ((uint32_t)BIN8(db2)<<16) \
+            + ((uint32_t)BIN8(db3)<<8) \
+            + BIN8(dlsb))
 #endif
 
 #ifdef __cplusplus
