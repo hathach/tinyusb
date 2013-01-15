@@ -1,7 +1,7 @@
 /*
- * test_main.c
+ * test_template.c
  *
- *  Created on: Dec 18, 2012
+ *  Created on: Jan 15, 2013
  *      Author: hathach
  */
 
@@ -47,5 +47,6 @@ void tearDown(void)
 
 void test_()
 {
-  TEST_IGNORE();
+  // TEST_FAIL();
 }
+
