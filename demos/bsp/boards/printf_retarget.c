@@ -48,7 +48,20 @@
 int __sys_write (int iFileHandle, char *pcBuffer, int iLength)
 {
   (void) iFileHandle;
+
+#if CFG_PRINTF_TARGET == PRINTF_TARGET_UART
 	return board_uart_send((uint8_t*)pcBuffer, iLength);
+#elif CFG_PRINTF_TARGET == PRINTF_TARGET_SWO
+	uint32_t i;
+	for (i = 0; i<iLength; i++)
+	{
+		ITM_SendChar(pcBuffer[i]); // print each character
+	}
+	return iLength;
+#else
+	#error Thach, did you forget something
+#endif
+
 }
 
 // Called by bottom level of scanf routine within RedLib C library to read
@@ -58,7 +71,15 @@ int __sys_write (int iFileHandle, char *pcBuffer, int iLength)
 int __sys_readc (void)
 {
 	uint8_t c;
+
+#if CFG_PRINTF_TARGET == PRINTF_TARGET_UART
 	board_uart_recv(&c, 1);
+#elif CFG_PRINTF_TARGET == PRINTF_TARGET_SWO
+	c = ITM_ReceiveChar();
+#else
+	#error Thach, did you forget something
+#endif
+
 	return (int)c;
 }
 

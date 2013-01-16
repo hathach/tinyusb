@@ -49,11 +49,6 @@
 #include "lpc43xx_i2s.h"
 #include "lpc43xx_emc.h"
 
-// TODO abstract later: n-th Bit
-#ifndef BIT_
-#define BIT_(n) (1 << (n))
-#endif
-
 #define BOARD_MAX_LEDS  2
 const static struct {
   uint8_t port;
