@@ -51,7 +51,8 @@
 #ifndef _TUSB_HAL_LPC43XX_H_
 #define _TUSB_HAL_LPC43XX_H_
 
-#include "common/mcu/mcu.h"
+#include "LPC43xx.h"
+#include "lpc43xx_cgu.h"
 
 #ifdef __cplusplus
  extern "C" {

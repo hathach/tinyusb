@@ -51,7 +51,9 @@
 #ifndef _TUSB_HAL_LPC11UXX_H_
 #define _TUSB_HAL_LPC11UXX_H_
 
-#include "common/mcu/mcu.h"
+#include "LPC11Uxx.h"
+
+#define DEVICE_ROMDRIVER
 
 #ifdef __cplusplus
  extern "C" {

@@ -1,7 +1,7 @@
 /*
- * mcu.h
+ * test_project_settings.c
  *
- *  Created on: Nov 26, 2012
+ *  Created on: Jan 15, 2013
  *      Author: hathach
  */
 
@@ -32,43 +32,20 @@
  * IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY
  * OF SUCH DAMAGE.
  *
- * This file is part of the tinyUSB stack.
+ * This file is part of the tiny usb stack.
  */
 
-/** \file
- *  \brief Architecture Header
- *
- *  \note TBD
- */
+#include "unity.h"
 
-/** \ingroup Group_Common
- *  \defgroup Group_MCU MicroController
- *  \brief Group_MCU brief
- *
- *  @{
- */
+void setUp(void)
+{
+}
 
-#ifndef _TUSB_MCU_H_
-#define _TUSB_MCU_H_
+void tearDown(void)
+{
+}
 
-#define ENDIAN_LITTLE ///< MCU Endian
-#define ALIGNMENT (4) ///< MCU Alignment
-
-#define MCU_LPC13UXX 0
-#define MCU_LPC11UXX 1
-#define MCU_LPC43XX  2
-
-#if MCU == MCU_LPC13UXX
-  #include "mcu_lpc13uxx.h"
-#elif MCU == MCU_LPC43XX
-  #include "mcu_lpc43xx.h"
-#elif MCU == MCU_LPC11UXX
-  #include "mcu_lpc11uxx.h"
-#else
-  #error MCU is not defined or supported yet
-#endif
-
-#endif /* _TUSB_MCU_H_ */
-
-/** @} */
-
+void test_()
+{
+  TEST_IGNORE();
+}

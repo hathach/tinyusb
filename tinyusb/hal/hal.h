@@ -58,6 +58,10 @@
 #include "common/compiler/compiler.h"
 #include "common/errors.h"
 
+#define MCU_LPC13UXX 0
+#define MCU_LPC11UXX 1
+#define MCU_LPC43XX  2
+
 /** \brief USB hardware init
  *
  * \param[in]  para1

@@ -66,7 +66,6 @@
 #include "errors.h"
 #include "assertion.h"
 #include "binary.h"
-#include "mcu/mcu.h"
 
 #include "hal/hal.h"
 #include "core/tusb_types.h"
