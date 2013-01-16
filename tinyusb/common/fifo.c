@@ -84,13 +84,17 @@ static inline void mutex_unlock (fifo_t* f)
                 Set the -1 if not required.
 */
 /**************************************************************************/
-void fifo_init(fifo_t* f, uint8_t* buffer, uint16_t size, bool overwritable, IRQn_Type irq)
+bool fifo_init(fifo_t* f, uint8_t* buffer, uint16_t size, bool overwritable, IRQn_Type irq)
 {
+  ASSERT(size > 0, false);
+
   f->buf = buffer;
   f->size = size;
   f->rd_ptr = f->wr_ptr = f->len = 0;
   f->overwritable = overwritable;
   f->irq = irq;
+
+  return true;
 }
 
 /**************************************************************************/

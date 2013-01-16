@@ -41,6 +41,7 @@
 
 #include "LPC11Uxx.h"
 #include "lpc11uxx/gpio.h"
+#include "lpc11uxx/uart.h"
 
 #define CFG_LED_PORT                  (1)
 #define CFG_LED_PIN                   (31)
@@ -55,12 +56,36 @@ void board_init(void)
 
   GPIOSetDir(CFG_LED_PORT, CFG_LED_PIN, 1);
   board_leds(0x01, 0); // turn off the led first
+
+#if BSP_UART_ENABLE
+  UARTInit(BSP_UART_BAUDRATE);
+#endif
 }
 
+//--------------------------------------------------------------------+
+// LEDS
+//--------------------------------------------------------------------+
 void board_leds(uint32_t mask, uint32_t state)
 {
   if (mask)
     GPIOSetBitValue(CFG_LED_PORT, CFG_LED_PIN, mask & state ? CFG_LED_ON : CFG_LED_OFF);
 }
+
+//--------------------------------------------------------------------+
+// UART
+//--------------------------------------------------------------------+
+#if BSP_UART_ENABLE
+uint32_t board_uart_send(uint8_t *buffer, uint32_t length)
+{
+  UARTSend(buffer, length);
+  return length;
+}
+
+uint32_t board_uart_recv(uint8_t *buffer, uint32_t length)
+{
+//  *buffer = get_key(); TODO cannot find available code for uart getchar
+  return 0;
+}
+#endif
 
 #endif

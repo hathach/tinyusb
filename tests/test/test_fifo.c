@@ -36,6 +36,7 @@
  */
 
 #include "unity.h"
+#include "fifo.h"
 
 void setUp(void)
 {

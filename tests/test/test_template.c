@@ -47,6 +47,6 @@ void tearDown(void)
 
 void test_()
 {
-  // TEST_FAIL();
+  // TEST_IGNORE();
 }
 

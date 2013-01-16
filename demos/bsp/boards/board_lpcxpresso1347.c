@@ -58,10 +58,14 @@ void board_init(void)
   GPIOSetDir(CFG_LED_PORT, CFG_LED_PIN, 1);
   LPC_GPIO->CLR[CFG_LED_PORT] = (1 << CFG_LED_PIN);
 
-  // Uart Init
+#if BSP_UART_ENABLE
   UARTInit(BSP_UART_BAUDRATE);
+#endif
 }
 
+//--------------------------------------------------------------------+
+// LEDS
+//--------------------------------------------------------------------+
 void board_leds(uint32_t mask, uint32_t state)
 {
   if (mask)
@@ -70,16 +74,21 @@ void board_leds(uint32_t mask, uint32_t state)
   }
 }
 
-uint32_t board_uart_send(uint8_t *p_buffer, uint32_t length)
+//--------------------------------------------------------------------+
+// UART
+//--------------------------------------------------------------------+
+#if BSP_UART_ENABLE
+uint32_t board_uart_send(uint8_t *buffer, uint32_t length)
 {
-  UARTSend(p_buffer, length);
+  UARTSend(buffer, length);
   return length;
 }
 
-uint32_t board_uart_recv(uint8_t *p_buffer, uint32_t length)
+uint32_t board_uart_recv(uint8_t *buffer, uint32_t length)
 {
-  *p_buffer = get_key();
+  *buffer = get_key();
   return 1;
 }
+#endif
 
 #endif

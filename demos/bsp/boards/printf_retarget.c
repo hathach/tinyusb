@@ -48,7 +48,7 @@
 int __sys_write (int iFileHandle, char *pcBuffer, int iLength)
 {
   (void) iFileHandle;
-	return board_uart_send(pcBuffer, iLength);
+	return board_uart_send((uint8_t*)pcBuffer, iLength);
 }
 
 // Called by bottom level of scanf routine within RedLib C library to read

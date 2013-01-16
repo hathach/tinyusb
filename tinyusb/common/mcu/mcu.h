@@ -51,12 +51,12 @@
 #ifndef _TUSB_MCU_H_
 #define _TUSB_MCU_H_
 
-#define MCU_LPC13UXX 1
-#define MCU_LPC11UXX 2
-#define MCU_LPC43XX 3
-
 #define ENDIAN_LITTLE ///< MCU Endian
 #define ALIGNMENT (4) ///< MCU Alignment
+
+#define MCU_LPC13UXX 0
+#define MCU_LPC11UXX 1
+#define MCU_LPC43XX  2
 
 #if MCU == MCU_LPC13UXX
   #include "mcu_lpc13uxx.h"
