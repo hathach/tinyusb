@@ -66,7 +66,7 @@ typedef struct _fifo_t
   volatile uint16_t wr_ptr       ; ///< write pointer
   volatile uint16_t rd_ptr       ; ///< read pointer
            bool     overwritable ; ///< allow overwrite data when full
-           IRQn_Type irq         ; ///< interrupt used to lock fifo
+           IRQn_Type irq         ; ///< TODO (abstract later) interrupt used to lock fifo
 } fifo_t;
 
 bool fifo_init(fifo_t* f, uint8_t* buffer, uint16_t size, bool overwritable, IRQn_Type irq);

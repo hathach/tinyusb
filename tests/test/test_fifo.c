@@ -38,16 +38,60 @@
 #include "unity.h"
 #include "fifo.h"
 
+#define FIFO_SIZE 10
+static fifo_t ff;
+static uint8_t buffer[FIFO_SIZE];
+
 void setUp(void)
 {
+  fifo_init(&ff, buffer, FIFO_SIZE, 0, 0);
 }
 
 void tearDown(void)
 {
+  memset(&ff, 0, sizeof(fifo_t));
 }
-
-void test_()
+void test_create_null(void)
 {
-  TEST_IGNORE();
+  memset(&ff, 0, sizeof(fifo_t)); // clear fifo to test null created
+  TEST_ASSERT_FALSE( fifo_init(&ff, buffer, 0, 0, 0) );
+  TEST_ASSERT_TRUE( fifo_init(&ff, buffer, 1, 0, 0) );
 }
 
+void test_normal(void)
+{
+  uint8_t i;
+
+  for(i=0; i < FIFO_SIZE; i++)
+  {
+    fifo_write(&ff, i);
+  }
+
+  for(i=0; i < FIFO_SIZE; i++)
+  {
+    uint8_t c;
+    fifo_read(&ff, &c);
+    TEST_ASSERT_EQUAL(i, c);
+  }
+}
+
+void test_is_empty(void)
+{
+  TEST_ASSERT_TRUE(fifo_isEmpty(&ff));
+  fifo_write(&ff, 1);
+  TEST_ASSERT_FALSE(fifo_isEmpty(&ff));
+}
+
+void test_is_full(void)
+{
+  uint8_t i;
+
+  TEST_ASSERT_FALSE(fifo_isFull(&ff));
+
+  for(i=0; i < FIFO_SIZE; i++)
+  {
+    fifo_write(&ff, i);
+  }
+
+  TEST_ASSERT_TRUE(fifo_isFull(&ff));
+}
