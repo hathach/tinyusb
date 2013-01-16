@@ -49,6 +49,11 @@
 #include "lpc43xx_i2s.h"
 #include "lpc43xx_emc.h"
 
+// TODO abstract later: n-th Bit
+#ifndef BIT_
+#define BIT_(n) (1 << (n))
+#endif
+
 #define BOARD_MAX_LEDS  2
 const static struct {
   uint8_t port;
@@ -58,7 +63,7 @@ const static struct {
 void board_init(void)
 {
   CGU_Init();
-	SysTick_Config( CGU_GetPCLKFrequency(CGU_PERIPHERAL_M4CORE)/BSP_TICKS_PER_SECOND );	/* 1 ms Timer */
+	SysTick_Config( CGU_GetPCLKFrequency(CGU_PERIPHERAL_M4CORE)/CFG_TICKS_PER_SECOND );	/* 1 ms Timer */
 
 	// USB Pin init
 	/* Turn on 5V USB VBUS TODO Should be Host-only */
@@ -83,7 +88,7 @@ void board_init(void)
 	scu_pinmux(0x6 ,5, MD_PDN|MD_EZI, FUNC2); 	// UART0_RXD
 
 	UART_ConfigStructInit(&UARTConfigStruct);                   // default: baud = 9600, 8 bit data, 1 stop bit, no parity
-	UARTConfigStruct.Baud_rate = BSP_UART_BAUDRATE;             // Re-configure baudrate
+	UARTConfigStruct.Baud_rate = CFG_UART_BAUDRATE;             // Re-configure baudrate
 
 	UART_Init((LPC_USARTn_Type*) LPC_USART0, &UARTConfigStruct); // Initialize UART port
 	UART_TxCmd((LPC_USARTn_Type*) LPC_USART0, ENABLE);           // Enable UART
