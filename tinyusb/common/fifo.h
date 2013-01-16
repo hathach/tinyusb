@@ -72,20 +72,20 @@ typedef struct _fifo_t
 bool fifo_init(fifo_t* f, uint8_t* buffer, uint16_t size, bool overwritable, IRQn_Type irq);
 bool fifo_write(fifo_t* f, uint8_t data);
 bool fifo_read(fifo_t* f, uint8_t *data);
-uint16_t fifo_readArray(fifo_t* f, uint8_t * rx, uint16_t maxlen);
+uint16_t fifo_read_n(fifo_t* f, uint8_t * rx, uint16_t maxlen);
 void fifo_clear(fifo_t *f);
 
-static inline bool fifo_isEmpty(fifo_t* f)
+static inline bool fifo_is_empty(fifo_t* f)
 {
   return (f->len == 0);
 }
 
-static inline bool fifo_isFull(fifo_t* f)
+static inline bool fifo_is_full(fifo_t* f)
 {
   return (f->len == f->size);
 }
 
-static inline uint16_t fifo_getLength(fifo_t* f)
+static inline uint16_t fifo_get_length(fifo_t* f)
 {
   return f->len;
 }

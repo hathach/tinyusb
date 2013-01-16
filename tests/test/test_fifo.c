@@ -77,21 +77,21 @@ void test_normal(void)
 
 void test_is_empty(void)
 {
-  TEST_ASSERT_TRUE(fifo_isEmpty(&ff));
+  TEST_ASSERT_TRUE(fifo_is_empty(&ff));
   fifo_write(&ff, 1);
-  TEST_ASSERT_FALSE(fifo_isEmpty(&ff));
+  TEST_ASSERT_FALSE(fifo_is_empty(&ff));
 }
 
 void test_is_full(void)
 {
   uint8_t i;
 
-  TEST_ASSERT_FALSE(fifo_isFull(&ff));
+  TEST_ASSERT_FALSE(fifo_is_full(&ff));
 
   for(i=0; i < FIFO_SIZE; i++)
   {
     fifo_write(&ff, i);
   }
 
-  TEST_ASSERT_TRUE(fifo_isFull(&ff));
+  TEST_ASSERT_TRUE(fifo_is_full(&ff));
 }

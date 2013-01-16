@@ -185,7 +185,7 @@ uint16_t tusb_cdc_recv(uint8_t* buffer, uint16_t max)
 {
   ASSERT(buffer && max, 0);
 
-  return fifo_readArray(&ffRX, buffer, max);
+  return fifo_read_n(&ffRX, buffer, max);
 }
 
 // ROM driver bug: cannot hook this to CIC_GetRequest
@@ -229,7 +229,7 @@ ErrorCode_t CDC_BulkIn_Hdlr(USBD_HANDLE_T hUsb, void* data, uint32_t event)
     uint8_t buffer[CDC_DATA_EP_MAXPACKET_SIZE];
     uint16_t count;
 
-    count = fifo_readArray(&ffTX, buffer, CDC_DATA_EP_MAXPACKET_SIZE);
+    count = fifo_read_n(&ffTX, buffer, CDC_DATA_EP_MAXPACKET_SIZE);
     USBD_API->hw->WriteEP(hUsb, CDC_DATA_EP_IN, buffer, count); // write data to EP
   }
 

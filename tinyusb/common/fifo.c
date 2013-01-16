@@ -115,7 +115,7 @@ bool fifo_init(fifo_t* f, uint8_t* buffer, uint16_t size, bool overwritable, IRQ
 /**************************************************************************/
 bool fifo_read(fifo_t* f, uint8_t *data)
 {
-  if (fifo_isEmpty(f))
+  if (fifo_is_empty(f))
     return false;
 
   mutex_lock(f);
@@ -143,7 +143,7 @@ bool fifo_read(fifo_t* f, uint8_t *data)
     @returns The actual number of bytes read from the FIFO
  */
 /**************************************************************************/
-uint16_t fifo_readArray(fifo_t* f, uint8_t* rx, uint16_t maxlen)
+uint16_t fifo_read_n(fifo_t* f, uint8_t* rx, uint16_t maxlen)
 {
   uint16_t len = 0;
   
@@ -175,7 +175,7 @@ uint16_t fifo_readArray(fifo_t* f, uint8_t* rx, uint16_t maxlen)
 /**************************************************************************/
 bool fifo_write(fifo_t* f, uint8_t data)
 {
-  if ( fifo_isFull(f) && f->overwritable == false)
+  if ( fifo_is_full(f) && f->overwritable == false)
       return false;
 
   mutex_lock(f);
@@ -183,7 +183,7 @@ bool fifo_write(fifo_t* f, uint8_t data)
   f->buf[f->wr_ptr] = data;
   f->wr_ptr = (f->wr_ptr + 1) % f->size;
 
-  if (fifo_isFull(f))
+  if (fifo_is_full(f))
   {
     f->rd_ptr = f->wr_ptr; // keep the full state (rd == wr && len = size)
   }else
