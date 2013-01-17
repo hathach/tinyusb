@@ -316,8 +316,11 @@ TUSB_Error_t tusb_cdc_configured(USBD_HANDLE_T hUsb)
   #elif  MCU == MCU_LPC13UXX
     fifo_init (&ffTX, qBuffer[0], CDC_BUFFER_SIZE, false, USB_IRQ_IRQn); // TX is non-overwritable
     fifo_init (&ffRX, qBuffer[1], CDC_BUFFER_SIZE, true, USB_IRQ_IRQn);  // RX is overwritable
+  #elif  MCU == MCU_LPC43XX
+    fifo_init (&ffTX, qBuffer[0], CDC_BUFFER_SIZE, false, USB0_IRQn); //  TODO USB1 TX is non-overwritable
+    fifo_init (&ffRX, qBuffer[1], CDC_BUFFER_SIZE, true, USB0_IRQn);  // RX is overwritable
   #else
-    #error "usb_cdc.c: No MCU defined"
+    #error No MCU defined" // TODO asbtract MCU
   #endif
 
   return tERROR_NONE;

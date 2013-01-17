@@ -54,7 +54,7 @@
 #include "LPC13Uxx.h"
 
 #define DEVICE_ROMDRIVER
-
+#define DEVICE_ROM_REG_BASE LPC_USB_BASE
 
 #ifdef __cplusplus
  extern "C" {

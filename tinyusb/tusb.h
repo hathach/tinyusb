@@ -58,6 +58,10 @@
   #include "device/dcd.h"
 #endif
 
+#if !(defined TUSB_CFG_HOST) && !(defined TUSB_CFG_DEVICE)
+ #error please enable either TUSB_CFG_HOST or TUSB_CFG_DEVICE
+#endif
+
 #if DEVICE_CLASS_HID
   #include "class/hid.h"
 #endif

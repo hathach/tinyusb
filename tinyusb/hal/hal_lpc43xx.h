@@ -59,6 +59,7 @@
 #endif
 
 #define DEVICE_ROMDRIVER
+#define DEVICE_ROM_REG_BASE LPC_USB0_BASE // TODO USB1
 
 static inline void hal_interrupt_enable()
 {

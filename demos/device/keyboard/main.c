@@ -26,9 +26,9 @@ int main(void)
       current_tick += 1000;
       board_leds(0x01, (current_tick/1000)%2); /* Toggle LED once per second */
 
-      printf("hello world\n");
+      printf("tinyusb: " __DATE__ "\t" __TIME__ "\n");
 
-      #ifndef TUSB_CFG_DEVICE_CDC
+      #if !(defined TUSB_CFG_DEVICE_CDC) && 0
       if (usb_isConfigured())
       {
         #ifdef TUSB_CFG_DEVICE_HID_KEYBOARD
@@ -43,7 +43,7 @@ int main(void)
       #endif
     }
 
-    #ifdef TUSB_CFG_DEVICE_CDC
+    #if defined TUSB_CFG_DEVICE_CDC && 0
     if (usb_isConfigured())
     {
       uint8_t cdc_char;

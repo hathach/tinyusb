@@ -55,12 +55,17 @@
  extern "C" {
 #endif
 
-#define CFG_LED_PORT             (0)
-#define CFG_LED_PIN              (8)
+#include "LPC43xx.h"
+#include "lpc43xx_scu.h"
+#include "lpc43xx_cgu.h"
+#include "lpc43xx_gpio.h"
+#include "lpc43xx_uart.h"
+
+#define CFG_LED_NUMBER  0
 #define CFG_LED_ON               (1)
 #define CFG_LED_OFF              (0)
 
-#define CFG_PRINTF_TARGET PRINTF_TARGET_DEBUG_CONSOLE
+#define CFG_PRINTF_TARGET       PRINTF_TARGET_UART
 
 #ifdef __cplusplus
  }

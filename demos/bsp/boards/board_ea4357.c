@@ -39,35 +39,69 @@
 
 #if BOARD == BOARD_EA4357
 
+#define UART_PORT   LPC_USART0
+
+#if 0
+static const struct {
+  uint8_t port;
+  uint8_t pin;
+}leds[CFG_LED_NUMBER] = { {0, 8} };
+#endif
+
 void board_init(void)
 {
-//  SystemInit();
-//  SysTick_Config(SystemCoreClock / CFG_TICKS_PER_SECOND); // 1 msec tick timer
-//  GPIOInit();
-//
-//  // Leds Init
-//  GPIOSetDir(CFG_LED_PORT, CFG_LED_PIN, 1);
-//  LPC_GPIO->CLR[CFG_LED_PORT] = (1 << CFG_LED_PIN);
-//
-//#if CFG_UART_ENABLE
-//  UARTInit(CFG_UART_BAUDRATE);
-//#endif
-//
-//#if CFG_PRINTF_TARGET == PRINTF_TARGET_SWO
+  SystemInit();
+  CGU_Init();
+
+  SysTick_Config(CGU_GetPCLKFrequency(CGU_PERIPHERAL_M4CORE) / CFG_TICKS_PER_SECOND); // 1 msec tick timer
+
+#if 0
+  // Leds Init
+	uint8_t i;
+	for (i=0; i<CFG_LED_NUMBER; i++)
+	{
+	  scu_pinmux(leds[i].port, leds[i].pin, MD_PUP|MD_EZI|MD_ZI, 0); // MD_PDN
+	  GPIO_SetDir(leds[i].port, BIT_(leds[i].pin), 1); // output
+	}
+#endif
+
+#if CFG_UART_ENABLE
+  // pinsel for UART
+	scu_pinmux(0xF ,10 , MD_PDN, FUNC1); 	              // PF.10 : UART0_TXD
+	scu_pinmux(0xF ,11 , MD_PLN|MD_EZI|MD_ZI, FUNC1); 	// PF.11 : UART0_RXD
+
+	UART_CFG_Type UARTConfigStruct;
+  UART_ConfigStructInit(&UARTConfigStruct);
+	UARTConfigStruct.Baud_rate = CFG_UART_BAUDRATE;
+	UARTConfigStruct.Clock_Speed = 0;
+
+	UART_Init(UART_PORT, &UARTConfigStruct);
+	UART_TxCmd(UART_PORT, ENABLE); // Enable UART Transmit
+#endif
+
+#if CFG_PRINTF_TARGET == PRINTF_TARGET_SWO
+	tttt
 //  LPC_IOCON->PIO0_9 &= ~0x07;    /*  UART I/O config */
 //  LPC_IOCON->PIO0_9 |= 0x03;     /* UART RXD */
-//#endif
+#endif
 }
 
 //--------------------------------------------------------------------+
 // LEDS
 //--------------------------------------------------------------------+
+void board_leds(uint32_t mask, uint32_t state) __attribute__ ((deprecated("not supported yet")));
 void board_leds(uint32_t mask, uint32_t state)
 {
-//  if (mask)
-//  {
-//    GPIOSetBitValue(CFG_LED_PORT, CFG_LED_PIN, mask & state ? CFG_LED_ON : CFG_LED_OFF);
-//  }
+#if 0
+  uint8_t i;
+  for(i=0; i<CFG_LED_NUMBER; i++)
+  {
+    if ( mask & BIT_(i) )
+    {
+      (mask & state) ? GPIO_SetValue(leds[i].port, BIT_(leds[i].pin)) : GPIO_ClearValue(leds[i].port, BIT_(leds[i].pin)) ;
+    }
+  }
+#endif
 }
 
 //--------------------------------------------------------------------+
@@ -76,14 +110,12 @@ void board_leds(uint32_t mask, uint32_t state)
 #if CFG_UART_ENABLE
 uint32_t board_uart_send(uint8_t *buffer, uint32_t length)
 {
-  UARTSend(buffer, length);
-  return length;
+  return UART_Send(UART_PORT, buffer, length, BLOCKING);
 }
 
 uint32_t board_uart_recv(uint8_t *buffer, uint32_t length)
 {
-  *buffer = get_key();
-  return 1;
+  return UART_Receive(UART_PORT, buffer, length, BLOCKING);
 }
 #endif
 

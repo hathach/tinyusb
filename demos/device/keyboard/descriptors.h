@@ -45,7 +45,7 @@
 
 #define USB_STRING_LEN(n) (2 + ((n)<<1))
 
-typedef PRE_PACK struct POST_PACK _USB_STR_DESCRIPTOR
+typedef ATTR_PREPACKED struct ATTR_PACKED _USB_STR_DESCRIPTOR
 {
   USB_COMMON_DESCRIPTOR LangID;
   uint16_t strLangID[1];
