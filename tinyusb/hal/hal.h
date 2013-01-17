@@ -58,9 +58,9 @@
 #include "common/compiler/compiler.h"
 #include "common/errors.h"
 
-#define MCU_LPC13UXX 0
-#define MCU_LPC11UXX 1
-#define MCU_LPC43XX  2
+#define MCU_LPC13UXX 1
+#define MCU_LPC11UXX 2
+#define MCU_LPC43XX  3
 
 /** \brief USB hardware init
  *
@@ -81,7 +81,9 @@ static inline void hal_interrupt_enable() ATTR_ALWAYS_INLINE;
  */
 static inline void hal_interrupt_disable() ATTR_ALWAYS_INLINE;
 
-#if MCU == MCU_LPC11UXX
+#if MCU == 0
+  #error MCU is not defined or supported
+#elif MCU == MCU_LPC11UXX
   #include "hal_lpc11uxx.h"
 #elif MCU == MCU_LPC13UXX
   #include "hal_lpc13uxx.h"

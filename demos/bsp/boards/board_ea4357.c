@@ -1,7 +1,7 @@
 /*
- * board.h
+ * board_ea4357.c
  *
- *  Created on: Dec 4, 2012
+ *  Created on: Jan 17, 2013
  *      Author: hathach
  */
 
@@ -35,77 +35,56 @@
  * This file is part of the tiny usb stack.
  */
 
-/** \file
- *  \brief TBD
- *
- *  \note TBD
- */
+#include "board.h"
 
-/**
- *  \defgroup Group_Board Boards
- *  \brief TBD
- *
- *  @{
- */
+#if BOARD == BOARD_EA4357
 
-#ifndef _TUSB_BOARD_H_
-#define _TUSB_BOARD_H_
-
-#ifdef __cplusplus
- extern "C" {
-#endif
-
-#include <stdint.h>
-#include "common/binary.h" // This file is too good to not use
-
-#define BOARD_AT86RF2XX             1
-#define BOARD_LPCXPRESSO1347        2
-#define BOARD_NGX4330               3
-#define BOARD_EA4357                4
-
-#define PRINTF_TARGET_DEBUG_CONSOLE 0 // IDE semihosting console
-#define PRINTF_TARGET_UART          1
-#define PRINTF_TARGET_SWO           2 // aka SWV, ITM
-
-#if BOARD == 0
- #error BOARD is not defined or supported yet
-#elif BOARD == BOARD_NGX4330
- #include "board_ngx4330.h"
-#elif BOARD == BOARD_LPCXPRESSO1347
- #include "board_lpcxpresso1347.h"
-#elif BOARD == BOARD_AT86RF2XX
- #include "board_at86rf2xx.h"
-#elif BOARD == BOARD_EA4357
- #include "board_ea4357.h"
-#else
-  #error BOARD is not defined or supported yet
-#endif
+void board_init(void)
+{
+//  SystemInit();
+//  SysTick_Config(SystemCoreClock / CFG_TICKS_PER_SECOND); // 1 msec tick timer
+//  GPIOInit();
+//
+//  // Leds Init
+//  GPIOSetDir(CFG_LED_PORT, CFG_LED_PIN, 1);
+//  LPC_GPIO->CLR[CFG_LED_PORT] = (1 << CFG_LED_PIN);
+//
+//#if CFG_UART_ENABLE
+//  UARTInit(CFG_UART_BAUDRATE);
+//#endif
+//
+//#if CFG_PRINTF_TARGET == PRINTF_TARGET_SWO
+//  LPC_IOCON->PIO0_9 &= ~0x07;    /*  UART I/O config */
+//  LPC_IOCON->PIO0_9 |= 0x03;     /* UART RXD */
+//#endif
+}
 
 //--------------------------------------------------------------------+
-// Common Configuration
+// LEDS
 //--------------------------------------------------------------------+
-#define CFG_TICKS_PER_SECOND 1000
+void board_leds(uint32_t mask, uint32_t state)
+{
+//  if (mask)
+//  {
+//    GPIOSetBitValue(CFG_LED_PORT, CFG_LED_PIN, mask & state ? CFG_LED_ON : CFG_LED_OFF);
+//  }
+}
 
-#if CFG_PRINTF_TARGET == PRINTF_TARGET_UART
-  #define CFG_UART_ENABLE      1
-  #define CFG_UART_BAUDRATE    115200
+//--------------------------------------------------------------------+
+// UART
+//--------------------------------------------------------------------+
+#if CFG_UART_ENABLE
+uint32_t board_uart_send(uint8_t *buffer, uint32_t length)
+{
+  UARTSend(buffer, length);
+  return length;
+}
+
+uint32_t board_uart_recv(uint8_t *buffer, uint32_t length)
+{
+  *buffer = get_key();
+  return 1;
+}
 #endif
 
-//--------------------------------------------------------------------+
-// Board Common API
-//--------------------------------------------------------------------+
-// Init board peripherals : Clock, UART, LEDs, Buttons
-void board_init(void);
-void board_leds(uint32_t mask, uint32_t state);
-uint32_t board_uart_send(uint8_t *buffer, uint32_t length);
-uint32_t board_uart_recv(uint8_t *buffer, uint32_t length);
-
-extern volatile uint32_t system_ticks;
-
-#ifdef __cplusplus
- }
 #endif
-
-#endif /* _TUSB_BOARD_H_ */
-
-/** @} */

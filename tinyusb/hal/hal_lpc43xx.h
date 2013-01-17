@@ -58,6 +58,8 @@
  extern "C" {
 #endif
 
+#define DEVICE_ROMDRIVER
+
 static inline void hal_interrupt_enable()
 {
   // TODO support multiple controller later
