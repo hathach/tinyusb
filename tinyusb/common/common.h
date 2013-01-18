@@ -71,6 +71,8 @@
 #include "hal/hal.h"
 #include "core/tusb_types.h"
 #include "core/std_descriptors.h"
+#include "osal/osal.h"
+
 
 /// min value
 static inline uint32_t min_of(uint32_t x, uint32_t y) ATTR_ALWAYS_INLINE;

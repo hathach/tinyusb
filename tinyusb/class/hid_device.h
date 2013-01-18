@@ -65,7 +65,7 @@
  * \return Error Code of the \ref TUSB_ERROR enum
  * \note
  */
-TUSB_Error_t tusb_hid_init(USBD_HANDLE_T hUsb, USB_INTERFACE_DESCRIPTOR const *const pIntfDesc, uint8_t const * const pHIDReportDesc, uint32_t ReportDescLength, uint32_t* mem_base, uint32_t* mem_size);
+tusb_error_t tusb_hid_init(USBD_HANDLE_T hUsb, USB_INTERFACE_DESCRIPTOR const *const pIntfDesc, uint8_t const * const pHIDReportDesc, uint32_t ReportDescLength, uint32_t* mem_base, uint32_t* mem_size);
 
 /** \brief Notify HID class that usb is configured
  *
@@ -74,7 +74,7 @@ TUSB_Error_t tusb_hid_init(USBD_HANDLE_T hUsb, USB_INTERFACE_DESCRIPTOR const *c
  * \return Error Code of the \ref TUSB_ERROR enum
  * \note
  */
-TUSB_Error_t tusb_hid_configured(USBD_HANDLE_T hUsb);
+tusb_error_t tusb_hid_configured(USBD_HANDLE_T hUsb);
 
 /** \brief Used by Application to send Keycode to Host
  *
@@ -83,7 +83,7 @@ TUSB_Error_t tusb_hid_configured(USBD_HANDLE_T hUsb);
  * \return Error Code of the \ref TUSB_ERROR enum
  * \note
  */
-TUSB_Error_t tusb_hid_keyboard_sendKeys(uint8_t modifier, uint8_t keycodes[], uint8_t numkey);
+tusb_error_t tusb_hid_keyboard_sendKeys(uint8_t modifier, uint8_t keycodes[], uint8_t numkey);
 
 /** \brief
  *
@@ -92,7 +92,7 @@ TUSB_Error_t tusb_hid_keyboard_sendKeys(uint8_t modifier, uint8_t keycodes[], ui
  * \return Error Code of the \ref TUSB_ERROR enum
  * \note
  */
-TUSB_Error_t tusb_hid_mouse_send(uint8_t buttons, int8_t x, int8_t y);
+tusb_error_t tusb_hid_mouse_send(uint8_t buttons, int8_t x, int8_t y);
 
 #endif /* ROM DRIVRER */
 

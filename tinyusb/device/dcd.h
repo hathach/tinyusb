@@ -71,7 +71,7 @@
  * \note
  */
 
-TUSB_Error_t dcd_init(uint8_t coreid) ATTR_WARN_UNUSED_RESULT;
+tusb_error_t dcd_init(uint8_t coreid) ATTR_WARN_UNUSED_RESULT;
 
 #ifdef __cplusplus
  }

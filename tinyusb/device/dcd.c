@@ -57,11 +57,11 @@ ErrorCode_t USB_Configure_Event (USBD_HANDLE_T hUsb)
   if (pCtrl->config_value)
   {
     #if defined(DEVICE_CLASS_HID)
-    ASSERT( tERROR_NONE == tusb_hid_configured(hUsb), ERR_FAILED );
+    ASSERT( TUSB_ERROR_NONE == tusb_hid_configured(hUsb), ERR_FAILED );
     #endif
 
     #ifdef TUSB_CFG_DEVICE_CDC
-    ASSERT( tERROR_NONE == tusb_cdc_configured(hUsb), ERR_FAILED );
+    ASSERT( TUSB_ERROR_NONE == tusb_cdc_configured(hUsb), ERR_FAILED );
     #endif
   }
 
@@ -81,7 +81,7 @@ ErrorCode_t USB_Reset_Event (USBD_HANDLE_T hUsb)
   return LPC_OK;
 }
 
-TUSB_Error_t dcd_init(uint8_t coreid)
+tusb_error_t dcd_init(uint8_t coreid)
 {
 #ifdef DEVICE_ROMDRIVER // TODO refractor later
   /* ROM DRIVER INIT */
@@ -138,7 +138,7 @@ TUSB_Error_t dcd_init(uint8_t coreid)
   USBD_API->hw->Connect(g_hUsb, 1);
 #endif
 
-  return tERROR_NONE;
+  return TUSB_ERROR_NONE;
 }
 
 /**************************************************************************/

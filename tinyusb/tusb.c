@@ -37,7 +37,7 @@
 
 #include "tusb.h"
 
-TUSB_Error_t tusb_init(void)
+tusb_error_t tusb_init(void)
 {
   ASSERT_STATUS( hal_init() ) ; /* HARDWARE INIT */
 
@@ -49,5 +49,5 @@ TUSB_Error_t tusb_init(void)
   ASSERT_STATUS( dcd_init(0) );
 #endif
 
-  return tERROR_NONE;
+  return TUSB_ERROR_NONE;
 }

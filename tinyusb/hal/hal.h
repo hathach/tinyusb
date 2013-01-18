@@ -69,7 +69,7 @@
  * \return Error Code of the \ref TUSB_ERROR enum
  * \note
  */
-TUSB_Error_t hal_init();
+tusb_error_t hal_init();
 
 /**
  * Enable USB Interrupt

@@ -265,7 +265,7 @@ ErrorCode_t CDC_BulkOut_Hdlr(USBD_HANDLE_T hUsb, void* data, uint32_t event)
     @brief Initialises USB CDC using the ROM driver
 */
 /**************************************************************************/
-TUSB_Error_t tusb_cdc_init(USBD_HANDLE_T hUsb, USB_INTERFACE_DESCRIPTOR const *const pControlIntfDesc, USB_INTERFACE_DESCRIPTOR const *const pDataIntfDesc, uint32_t* mem_base, uint32_t* mem_size)
+tusb_error_t tusb_cdc_init(USBD_HANDLE_T hUsb, USB_INTERFACE_DESCRIPTOR const *const pControlIntfDesc, USB_INTERFACE_DESCRIPTOR const *const pDataIntfDesc, uint32_t* mem_base, uint32_t* mem_size)
 {
   USBD_CDC_INIT_PARAM_T cdc_param =
   {
@@ -296,7 +296,7 @@ TUSB_Error_t tusb_cdc_init(USBD_HANDLE_T hUsb, USB_INTERFACE_DESCRIPTOR const *c
   *mem_base = cdc_param.mem_base;
   *mem_size = cdc_param.mem_size;
 
-  return tERROR_NONE;
+  return TUSB_ERROR_NONE;
 }
 
 /**************************************************************************/
@@ -304,7 +304,7 @@ TUSB_Error_t tusb_cdc_init(USBD_HANDLE_T hUsb, USB_INTERFACE_DESCRIPTOR const *c
     @brief TODO Add description
 */
 /**************************************************************************/
-TUSB_Error_t tusb_cdc_configured(USBD_HANDLE_T hUsb)
+tusb_error_t tusb_cdc_configured(USBD_HANDLE_T hUsb)
 {
   uint8_t dummy=0;
   USBD_API->hw->WriteEP(hUsb, CDC_DATA_EP_IN, &dummy, 1); // initial packet for IN endpoint, will not work if omitted
@@ -323,7 +323,7 @@ TUSB_Error_t tusb_cdc_configured(USBD_HANDLE_T hUsb)
     #error No MCU defined // TODO asbtract MCU
   #endif
 
-  return tERROR_NONE;
+  return TUSB_ERROR_NONE;
 }
 
 #endif

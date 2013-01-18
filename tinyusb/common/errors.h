@@ -59,17 +59,17 @@
 #define ERROR_STRING(x) #x,
 
 #define ERROR_TABLE(ENTRY) \
-    ENTRY(tERROR_NONE)\
+    ENTRY(TUSB_ERROR_NONE)\
     ENTRY(tERROR_FAILED)\
 
 
-/** \enum TUSB_Error_t
+/** \enum tusb_error_t
  *  \brief Error Code returned
  */
 typedef enum {
   ERROR_TABLE(ERROR_ENUM)
   ERROR_COUNT
-}TUSB_Error_t;
+}tusb_error_t;
 
 #if TUSB_CFG_DEBUG == 3
 /// Enum to String for debugging purposes. Only available if \ref TUSB_CFG_DEBUG > 0

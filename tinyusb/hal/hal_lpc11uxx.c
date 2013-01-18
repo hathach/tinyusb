@@ -39,7 +39,7 @@
 
 #if MCU == MCU_LPC11UXX
 
-TUSB_Error_t hal_init()
+tusb_error_t hal_init()
 {
 	// TODO remove magic number
   /* Enable AHB clock to the USB block and USB RAM. */
@@ -52,7 +52,7 @@ TUSB_Error_t hal_init()
   LPC_IOCON->PIO0_6   &= ~0x07;
   LPC_IOCON->PIO0_6   |= (0x01<<0);            /* Secondary function SoftConn */
 
-  return tERROR_NONE;
+  return TUSB_ERROR_NONE;
 }
 
 #endif

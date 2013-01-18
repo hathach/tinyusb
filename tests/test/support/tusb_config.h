@@ -71,6 +71,8 @@
 
 #define TUSB_CFG_DEBUG 3
 
+#define TUSB_CFG_OS TUSB_OS_NONE
+
 #ifdef __CODE_RED // make use of code red's support for ram region macros
   #if (MCU == MCU_LPC11UXX) || (MCU == MCU_LPC13UXX)
     #define TUSB_RAM_SECTION  ".data.$RAM2"

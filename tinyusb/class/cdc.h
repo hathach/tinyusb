@@ -101,7 +101,7 @@ uint16_t tusb_cdc_recv(uint8_t* buffer, uint16_t max);
  * \return Error Code of the \ref TUSB_ERROR enum
  * \note
  */
-TUSB_Error_t tusb_cdc_init(USBD_HANDLE_T hUsb, USB_INTERFACE_DESCRIPTOR const *const pControlIntfDesc, USB_INTERFACE_DESCRIPTOR const *const pDataIntfDesc, uint32_t* mem_base, uint32_t* mem_size);
+tusb_error_t tusb_cdc_init(USBD_HANDLE_T hUsb, USB_INTERFACE_DESCRIPTOR const *const pControlIntfDesc, USB_INTERFACE_DESCRIPTOR const *const pDataIntfDesc, uint32_t* mem_base, uint32_t* mem_size);
 
 /** \brief notify cdc driver that usb is configured
  *
@@ -110,7 +110,7 @@ TUSB_Error_t tusb_cdc_init(USBD_HANDLE_T hUsb, USB_INTERFACE_DESCRIPTOR const *c
  * \return Error Code of the \ref TUSB_ERROR enum
  * \note
  */
-TUSB_Error_t tusb_cdc_configured(USBD_HANDLE_T hUsb);
+tusb_error_t tusb_cdc_configured(USBD_HANDLE_T hUsb);
 #endif
 
 #endif

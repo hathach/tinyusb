@@ -39,7 +39,7 @@
 
 #if MCU == MCU_LPC43XX
 
-TUSB_Error_t hal_init()
+tusb_error_t hal_init()
 {
   /* Set up USB0 clock */
   CGU_EnableEntity(CGU_CLKSRC_PLL0, DISABLE); /* Disable PLL first */
@@ -48,7 +48,7 @@ TUSB_Error_t hal_init()
   CGU_EnableEntity(CGU_CLKSRC_PLL0, ENABLE);   /* Enable PLL after all setting is done */
   LPC_CREG->CREG0 &= ~(1<<5); /* Turn on the phy */
 
-  return tERROR_NONE;
+  return TUSB_ERROR_NONE;
 }
 
 #endif

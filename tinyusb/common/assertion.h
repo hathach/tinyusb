@@ -81,12 +81,12 @@ extern "C"
 	}while(0)
 
 //--------------------------------------------------------------------+
-// TUSB_Error_t Status Assert
+// tusb_error_t Status Assert
 //--------------------------------------------------------------------+
 #define ASSERT_STATUS_MESSAGE(sts, message) \
 	do{\
-	  TUSB_Error_t status = (TUSB_Error_t)(sts);\
-	  if (tERROR_NONE != status) {\
+	  tusb_error_t status = (tusb_error_t)(sts);\
+	  if (TUSB_ERROR_NONE != status) {\
 	    _PRINTF("Assert at %s line %d: %s %s\n", ASSERT_FILENAME, ASSERT_FUNCTION, __LINE__, TUSB_ErrorStr[status], message); \
 	    return status;\
 	  }\
