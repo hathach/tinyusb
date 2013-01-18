@@ -1,7 +1,7 @@
 /*
- * test_host_hid_keyboard.c
+ * hid_host.c
  *
- *  Created on: Jan 18, 2013
+ *  Created on: Dec 20, 2012
  *      Author: hathach
  */
 
@@ -35,15 +35,17 @@
  * This file is part of the tiny usb stack.
  */
 
-void setUp(void)
+#include "hid.h"
+
+#if defined DEVICE_CLASS_HID && defined TUSB_CFG_HOST
+
+bool tusb_host_keyboard_get(tusb_interface_keyboard_handle_t const * const handle, tusb_keyboard_report_t * const report)
 {
+  ASSSERT_PTR(handle, false);
+  ASSSERT_PTR(report, false);
+
+  return true;
 }
 
-void tearDown(void)
-{
-}
+#endif
 
-void test_()
-{
-  TEST_IGNORE();
-}

@@ -98,7 +98,7 @@ extern "C"
 // Logical Assert
 //--------------------------------------------------------------------+
 #define ASSERT(...)                      ASSERT_TRUE(__VA_ARGS__)
-#define ASSERT_TRUE(condition  , error)  ASSERT_DEFINE( ,(condition), error, "%s", "evaluated to false")
+#define ASSERT_TRUE(condition  , error)  ASSERT_DEFINE( , (condition), error, "%s", "evaluated to false")
 #define ASSERT_FALSE(condition , error)  ASSERT_DEFINE( ,!(condition), error, "%s", "evaluated to true")
 
 //--------------------------------------------------------------------+
@@ -128,6 +128,14 @@ extern "C"
 #define ASSERT_HEX(...)        ASSERT_HEX_EQUAL(__VA_ARGS__)
 #define ASSERT_HEX_EQUAL(...)  ASSERT_XXX_EQUAL("0x%x", __VA_ARGS__)
 #define ASSERT_HEX_WITHIN(...) ASSERT_XXX_WITHIN("0x%x", __VA_ARGS__)
+
+//--------------------------------------------------------------------+
+// Pointer Assert
+//--------------------------------------------------------------------+
+#define ASSSERT_PTR(...)                    ASSERT_PTR_NOT_NULL(__VA_ARGS__)
+#define ASSERT_PTR_NOT_NULL(pointer, error) ASSERT_DEFINE( , NULL != (pointer), error, "%s", "pointer is NULL")
+#define ASSSERT_PTR_NULL(pointer, error)    ASSERT_DEFINE( , NULL == (pointer), error, "%s", "pointer is NULL")
+
 
 #ifdef __cplusplus
 }

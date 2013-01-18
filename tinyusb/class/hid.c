@@ -40,7 +40,7 @@
 #if defined DEVICE_CLASS_HID && defined TUSB_CFG_DEVICE
 
 #ifdef TUSB_CFG_DEVICE_HID_KEYBOARD
-USB_HID_KeyboardReport_t hid_keyboard_report;
+tusb_keyboard_report_t hid_keyboard_report;
 static volatile bool bKeyChanged = false;
 #endif
 
@@ -67,7 +67,7 @@ ErrorCode_t HID_GetReport( USBD_HANDLE_T hHid, USB_SETUP_PACKET* pSetup, uint8_t
     #ifdef TUSB_CFG_DEVICE_HID_KEYBOARD
       case HID_PROTOCOL_KEYBOARD:
         *pBuffer = (uint8_t*) &hid_keyboard_report;
-        *plength = sizeof(USB_HID_KeyboardReport_t);
+        *plength = sizeof(tusb_keyboard_report_t);
 
         if (!bKeyChanged)
         {
@@ -131,9 +131,9 @@ ErrorCode_t HID_EpIn_Hdlr (USBD_HANDLE_T hUsb, void* data, uint32_t event)
         case HID_PROTOCOL_KEYBOARD:
           if (!bKeyChanged)
           {
-            memset(&hid_keyboard_report, 0, sizeof(USB_HID_KeyboardReport_t));
+            memset(&hid_keyboard_report, 0, sizeof(tusb_keyboard_report_t));
           }
-          USBD_API->hw->WriteEP(hUsb, pHidCtrl->epin_adr, (uint8_t*) &hid_keyboard_report, sizeof(USB_HID_KeyboardReport_t));
+          USBD_API->hw->WriteEP(hUsb, pHidCtrl->epin_adr, (uint8_t*) &hid_keyboard_report, sizeof(tusb_keyboard_report_t));
           bKeyChanged = false;
         break;
       #endif
@@ -223,7 +223,7 @@ TUSB_Error_t tusb_hid_init(USBD_HANDLE_T hUsb, USB_INTERFACE_DESCRIPTOR const *c
 TUSB_Error_t tusb_hid_configured(USBD_HANDLE_T hUsb)
 {
   #ifdef  TUSB_CFG_DEVICE_HID_KEYBOARD
-    USBD_API->hw->WriteEP(hUsb , HID_KEYBOARD_EP_IN , (uint8_t* ) &hid_keyboard_report , sizeof(USB_HID_KeyboardReport_t) ); // initial packet for IN endpoint , will not work if omitted
+    USBD_API->hw->WriteEP(hUsb , HID_KEYBOARD_EP_IN , (uint8_t* ) &hid_keyboard_report , sizeof(tusb_keyboard_report_t) ); // initial packet for IN endpoint , will not work if omitted
   #endif
 
   #ifdef  TUSB_CFG_DEVICE_HID_MOUSE

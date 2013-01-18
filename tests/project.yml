@@ -47,7 +47,7 @@
     - _TEST_
     - MCU=MCU_LPC43XX
     - CORE_M4
-    - __CODE_RED    
+    - __CODE_RED
   :test_preprocess:
     - *common_defines
     - _TEST_

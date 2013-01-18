@@ -67,6 +67,8 @@
 /// Enable HID Mouse support
 //#define TUSB_CFG_DEVICE_HID_MOUSE
 
+#define TUSB_CFG_DEBUG 3
+
 #ifdef __CODE_RED // make use of code red's support for ram region macros
   #if (MCU == MCU_LPC11UXX) || (MCU == MCU_LPC13UXX)
     #define TUSB_RAM_SECTION  ".data.$RAM2"

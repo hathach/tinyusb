@@ -1,7 +1,7 @@
 /*
- * common.h
+ * hid_device.h
  *
- *  Created on: Nov 26, 2012
+ *  Created on: Jan 18, 2013
  *      Author: hathach
  */
 
@@ -32,65 +32,74 @@
  * IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY
  * OF SUCH DAMAGE.
  *
- * This file is part of the tinyUSB stack.
+ * This file is part of the tiny usb stack.
  */
 
 /** \file
- *  \brief Common Header File
+ *  \brief TBD
  *
  *  \note TBD
  */
 
-/** \defgroup Group_Common Common Files
- * @{
- *
- *  \defgroup Group_CommonH common.h
+/** \ingroup TBD
+ *  \defgroup TBD
+ *  \brief TBD
  *
  *  @{
  */
 
-#ifndef _TUSB_COMMON_H_
-#define _TUSB_COMMON_H_
+#ifndef _TUSB_HID_DEVICE_H_
+#define _TUSB_HID_DEVICE_H_
 
 #ifdef __cplusplus
  extern "C" {
 #endif
 
-#include <stdbool.h>
-#include <stdint.h>
-#include <stddef.h>
-#include <string.h>
-#include <stdio.h>
+#include "hid.h"
 
-#include "compiler/compiler.h"
-#include "tusb_option.h"
-#include "errors.h"
-#include "assertion.h"
-#include "binary.h"
+#ifdef DEVICE_ROMDRIVER
+/** \brief Initialize HID driver
+ *
+ * \param[in]  para1
+ * \param[out] para2
+ * \return Error Code of the \ref TUSB_ERROR enum
+ * \note
+ */
+TUSB_Error_t tusb_hid_init(USBD_HANDLE_T hUsb, USB_INTERFACE_DESCRIPTOR const *const pIntfDesc, uint8_t const * const pHIDReportDesc, uint32_t ReportDescLength, uint32_t* mem_base, uint32_t* mem_size);
 
-#include "hal/hal.h"
-#include "core/tusb_types.h"
-#include "core/std_descriptors.h"
+/** \brief Notify HID class that usb is configured
+ *
+ * \param[in]  para1
+ * \param[out] para2
+ * \return Error Code of the \ref TUSB_ERROR enum
+ * \note
+ */
+TUSB_Error_t tusb_hid_configured(USBD_HANDLE_T hUsb);
 
-/// min value
-static inline uint32_t min_of(uint32_t x, uint32_t y) ATTR_ALWAYS_INLINE;
-static inline uint32_t min_of(uint32_t x, uint32_t y)
-{
-  return (x < y) ? x : y;
-}
+/** \brief Used by Application to send Keycode to Host
+ *
+ * \param[in]  para1
+ * \param[out] para2
+ * \return Error Code of the \ref TUSB_ERROR enum
+ * \note
+ */
+TUSB_Error_t tusb_hid_keyboard_sendKeys(uint8_t modifier, uint8_t keycodes[], uint8_t numkey);
 
-/// max value
-static inline uint32_t max_of(uint32_t x, uint32_t y) ATTR_ALWAYS_INLINE;
-static inline uint32_t max_of(uint32_t x, uint32_t y)
-{
-  return (x > y) ? x : y;
-}
+/** \brief
+ *
+ * \param[in]  para1
+ * \param[out] para2
+ * \return Error Code of the \ref TUSB_ERROR enum
+ * \note
+ */
+TUSB_Error_t tusb_hid_mouse_send(uint8_t buttons, int8_t x, int8_t y);
+
+#endif /* ROM DRIVRER */
 
 #ifdef __cplusplus
  }
 #endif
 
-#endif /* _TUSB_COMMON_H_ */
+#endif /* _TUSB_HID_DEVICE_H_ */
 
-/**  @} */
-/**  @} */
+/** @} */

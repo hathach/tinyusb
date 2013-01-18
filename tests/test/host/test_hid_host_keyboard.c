@@ -1,7 +1,7 @@
 /*
- * common.h
+ * test_host_hid_keyboard.c
  *
- *  Created on: Nov 26, 2012
+ *  Created on: Jan 18, 2013
  *      Author: hathach
  */
 
@@ -32,65 +32,25 @@
  * IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY
  * OF SUCH DAMAGE.
  *
- * This file is part of the tinyUSB stack.
+ * This file is part of the tiny usb stack.
  */
 
-/** \file
- *  \brief Common Header File
- *
- *  \note TBD
- */
+#include "unity.h"
+#include "hid.h"
+#include "hid_host.h"
 
-/** \defgroup Group_Common Common Files
- * @{
- *
- *  \defgroup Group_CommonH common.h
- *
- *  @{
- */
-
-#ifndef _TUSB_COMMON_H_
-#define _TUSB_COMMON_H_
-
-#ifdef __cplusplus
- extern "C" {
-#endif
-
-#include <stdbool.h>
-#include <stdint.h>
-#include <stddef.h>
-#include <string.h>
-#include <stdio.h>
-
-#include "compiler/compiler.h"
-#include "tusb_option.h"
-#include "errors.h"
-#include "assertion.h"
-#include "binary.h"
-
-#include "hal/hal.h"
-#include "core/tusb_types.h"
-#include "core/std_descriptors.h"
-
-/// min value
-static inline uint32_t min_of(uint32_t x, uint32_t y) ATTR_ALWAYS_INLINE;
-static inline uint32_t min_of(uint32_t x, uint32_t y)
+void setUp(void)
 {
-  return (x < y) ? x : y;
 }
 
-/// max value
-static inline uint32_t max_of(uint32_t x, uint32_t y) ATTR_ALWAYS_INLINE;
-static inline uint32_t max_of(uint32_t x, uint32_t y)
+void tearDown(void)
 {
-  return (x > y) ? x : y;
 }
 
-#ifdef __cplusplus
- }
-#endif
-
-#endif /* _TUSB_COMMON_H_ */
-
-/**  @} */
-/**  @} */
+void test_keyboard_get_invalid_parameter()
+{
+  tusb_interface_keyboard_handle_t handle;
+  tusb_keyboard_report_t report;
+  TEST_ASSERT_FALSE (tusb_host_keyboard_get(NULL, &report));
+  TEST_ASSERT_FALSE (tusb_host_keyboard_get(&handle, NULL));
+}

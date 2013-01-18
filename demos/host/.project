@@ -86,6 +86,11 @@
 			<type>2</type>
 			<locationURI>PARENT-1-PROJECT_LOC/bsp</locationURI>
 		</link>
+		<link>
+			<name>tinyusb</name>
+			<type>2</type>
+			<location>C:/Users/hathach/Dropbox/tinyusb/workspace/tinyusb/tinyusb</location>
+		</link>
 	</linkedResources>
 	<filteredResources>
 		<filter>
