@@ -54,9 +54,7 @@
 #endif
 
 /// define this symbol will make tinyusb look for external configure file
-#ifndef _TEST_ // TODO allow configurable name
-  #include "tusb_config.h"
-#endif
+#include "tusb_config.h"
 
 /// 0: no debug information 3: most debug information provided
 #ifndef TUSB_CFG_DEBUG

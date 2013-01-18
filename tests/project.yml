@@ -32,8 +32,8 @@
     - ../tinyusb/**
     - -:../demos
     - -:../test_old
-    - ../../CMSISv2p10_LPC13Uxx/**
-    #- ../../CMSISv2p10_LPC43xx_DriverLib/inc
+    #- ../../CMSISv2p10_LPC13Uxx/**
+    - ../../CMSISv2p10_LPC43xx_DriverLib/inc
   :support:
     - test/support
 
@@ -45,13 +45,15 @@
   :test:
     - *common_defines
     - _TEST_
-    - MCU=MCU_LPC13UXX
+    - MCU=MCU_LPC43XX
     - CORE_M4
+    - __CODE_RED    
   :test_preprocess:
     - *common_defines
     - _TEST_
-    - MCU=MCU_LPC13UXX
+    - MCU=MCU_LPC43XX
     - CORE_M4
+    - __CODE_RED
 
 #:flags:
 #  :test:

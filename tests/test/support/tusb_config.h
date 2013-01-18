@@ -1,7 +1,7 @@
 /*
- * test_host_hid_keyboard.c
+ * tusb_config.h
  *
- *  Created on: Jan 18, 2013
+ *  Created on: Jan 11, 2013
  *      Author: hathach
  */
 
@@ -35,15 +35,57 @@
  * This file is part of the tiny usb stack.
  */
 
-void setUp(void)
-{
-}
+/** \file
+ *  \brief TBD
+ *
+ *  \note TBD
+ */
 
-void tearDown(void)
-{
-}
+/** \ingroup TBD
+ *  \defgroup TBD
+ *  \brief TBD
+ *
+ *  @{
+ */
 
-void test_()
-{
-  TEST_IGNORE();
-}
+#ifndef _TUSB_TUSB_CONFIG_H_
+#define _TUSB_TUSB_CONFIG_H_
+
+#ifdef __cplusplus
+ extern "C" {
+#endif
+
+#define TUSB_CFG_HOST
+
+/// Enable Device Support
+//#define TUSB_CFG_DEVICE
+
+/// Enable CDC Support
+//#define TUSB_CFG_DEVICE_CDC
+
+/// Enable HID Keyboard support
+#define TUSB_CFG_DEVICE_HID_KEYBOARD
+
+/// Enable HID Mouse support
+//#define TUSB_CFG_DEVICE_HID_MOUSE
+
+#define TUSB_CFG_DEBUG 3
+
+#ifdef __CODE_RED // make use of code red's support for ram region macros
+  #if (MCU == MCU_LPC11UXX) || (MCU == MCU_LPC13UXX)
+    #define TUSB_RAM_SECTION  ".data.$RAM2"
+  #elif  (MCU == MCU_LPC43XX)
+    #define TUSB_RAM_SECTION  ".data.$RAM3"
+  #endif
+
+  #define TUSB_ATTR_RAM_SECTION   __attribute__ ((section(TUSB_RAM_SECTION)))
+#endif
+
+
+#ifdef __cplusplus
+ }
+#endif
+
+#endif /* _TUSB_TUSB_CONFIG_H_ */
+
+/** @} */
