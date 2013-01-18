@@ -1,5 +1,5 @@
 /*
- * test_main.c
+ * test_host_hid.c
  *
  *  Created on: Dec 18, 2012
  *      Author: hathach

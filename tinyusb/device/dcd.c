@@ -39,11 +39,9 @@
 
 #ifdef TUSB_CFG_DEVICE
 
-// TODO refractor later
-#include "descriptors.h"
+#include "descriptors.h" // TODO refractor later
 
-// TODO dcd abstract later
-#define USB_ROM_SIZE (1024*2)
+#define USB_ROM_SIZE (1024*2) // TODO dcd abstract later
 uint8_t usb_RomDriver_buffer[USB_ROM_SIZE] ATTR_ALIGNED(2048) TUSB_ATTR_RAM_SECTION;
 USBD_HANDLE_T g_hUsb;
 static volatile bool isConfigured = false;
