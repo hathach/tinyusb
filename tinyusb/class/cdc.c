@@ -320,7 +320,7 @@ TUSB_Error_t tusb_cdc_configured(USBD_HANDLE_T hUsb)
     fifo_init (&ffTX, qBuffer[0], CDC_BUFFER_SIZE, false, USB0_IRQn); //  TODO USB1 TX is non-overwritable
     fifo_init (&ffRX, qBuffer[1], CDC_BUFFER_SIZE, true, USB0_IRQn);  // RX is overwritable
   #else
-    #error No MCU defined" // TODO asbtract MCU
+    #error No MCU defined // TODO asbtract MCU
   #endif
 
   return tERROR_NONE;

@@ -38,7 +38,7 @@
 #include "descriptors.h"
 
 #ifdef TUSB_CFG_DEVICE_HID_KEYBOARD
-ATTR_ALIGNED(4) const uint8_t HID_KeyboardReportDescriptor[] = {
+TUSB_ATTR_RAM_SECTION ATTR_ALIGNED(4) const uint8_t HID_KeyboardReportDescriptor[] = {
   HID_UsagePage  ( HID_USAGE_PAGE_GENERIC     ),
   HID_Usage      ( HID_USAGE_GENERIC_KEYBOARD ),
   HID_Collection ( HID_Application            ),
@@ -81,7 +81,7 @@ ATTR_ALIGNED(4) const uint8_t HID_KeyboardReportDescriptor[] = {
 #endif
 
 #ifdef TUSB_CFG_DEVICE_HID_MOUSE
-ATTR_ALIGNED(4) const uint8_t HID_MouseReportDescriptor[] = {
+TUSB_ATTR_RAM_SECTION ATTR_ALIGNED(4) const uint8_t HID_MouseReportDescriptor[] = {
   HID_UsagePage  ( HID_USAGE_PAGE_GENERIC     ),
   HID_Usage      ( HID_USAGE_GENERIC_MOUSE ),
   HID_Collection ( HID_Application            ),
@@ -119,7 +119,7 @@ ATTR_ALIGNED(4) const uint8_t HID_MouseReportDescriptor[] = {
 #endif
 
 /* USB Standard Device Descriptor */
-ATTR_ALIGNED(4) const USB_DEVICE_DESCRIPTOR USB_DeviceDescriptor =
+TUSB_ATTR_RAM_SECTION ATTR_ALIGNED(4) const USB_DEVICE_DESCRIPTOR USB_DeviceDescriptor =
 {
   .bLength            = sizeof(USB_DEVICE_DESCRIPTOR),
   .bDescriptorType    = USB_DEVICE_DESCRIPTOR_TYPE,
@@ -153,7 +153,7 @@ ATTR_ALIGNED(4) const USB_DEVICE_DESCRIPTOR USB_DeviceDescriptor =
   .bNumConfigurations = 0x01
 };
 
-ATTR_ALIGNED(4) const USB_FS_CONFIGURATION_DESCRIPTOR USB_FsConfigDescriptor =
+TUSB_ATTR_RAM_SECTION ATTR_ALIGNED(4) const USB_FS_CONFIGURATION_DESCRIPTOR USB_FsConfigDescriptor =
 {
     .Config =
     {
@@ -358,7 +358,7 @@ ATTR_ALIGNED(4) const USB_FS_CONFIGURATION_DESCRIPTOR USB_FsConfigDescriptor =
     .ConfigDescTermination = 0,
 };
 
-ATTR_ALIGNED(4) const USB_STR_DESCRIPTOR USB_StringDescriptor =
+TUSB_ATTR_RAM_SECTION ATTR_ALIGNED(4) const USB_STR_DESCRIPTOR USB_StringDescriptor =
 {
     .LangID = { .bLength = 0x04, .bDescriptorType = USB_STRING_DESCRIPTOR_TYPE },
     .strLangID= {0x0409}, // US English

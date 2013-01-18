@@ -59,13 +59,23 @@
 #define TUSB_CFG_DEVICE
 
 /// Enable CDC Support
-#define TUSB_CFG_DEVICE_CDC
+//#define TUSB_CFG_DEVICE_CDC
 
 /// Enable HID Keyboard support
 #define TUSB_CFG_DEVICE_HID_KEYBOARD
 
 /// Enable HID Mouse support
-#define TUSB_CFG_DEVICE_HID_MOUSE
+//#define TUSB_CFG_DEVICE_HID_MOUSE
+
+#ifdef __CODE_RED // make use of code red's support for ram region macros
+  #if (MCU == MCU_LPC11UXX) || (MCU == MCU_LPC13UXX)
+    #define TUSB_RAM_SECTION  ".data.$RAM2"
+  #elif  (MCU == MCU_LPC43XX)
+    #define TUSB_RAM_SECTION  ".data.$RAM3"
+  #endif
+
+  #define TUSB_ATTR_RAM_SECTION   __attribute__ ((section(TUSB_RAM_SECTION)))
+#endif
 
 
 #ifdef __cplusplus

@@ -58,9 +58,8 @@
 #include "common/common.h"
 
 #ifdef DEVICE_ROMDRIVER
-#include "romdriver/mw_usbd_rom_api.h"
-#include "romdriver/power_api.h"
-#define USBD_API     ((*(ROM **)(0x1FFF1FF8))->pUSBD) // TODO HAL
+  #include "romdriver/mw_usbd_rom_api.h"
+  #define USBD_API ((USBD_API_T*) DEVICE_ROM_DRIVER_ADDR)
 #endif
 
 

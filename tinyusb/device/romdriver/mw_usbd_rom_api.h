@@ -39,7 +39,6 @@
 #include "mw_usbd_dfuuser.h"
 #include "mw_usbd_hiduser.h"
 #include "mw_usbd_cdcuser.h"
-//#include "power_api.h"
 
 /** \brief Main USBD API functions structure.
  *  \ingroup Group_USBD

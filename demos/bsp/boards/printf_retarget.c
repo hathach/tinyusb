@@ -40,7 +40,7 @@
 //-------------------------------------------------------------------- +
 //                    LPCXpresso printf redirection                    +
 //-------------------------------------------------------------------- +
-#if CFG_PRINTF_TARGET != PRINTF_TARGET_DEBUG_CONSOLE
+#if (defined __CODE_RED) && (CFG_PRINTF_TARGET != PRINTF_TARGET_DEBUG_CONSOLE)
 // Called by bottom level of printf routine within RedLib C library to write
 // a character. With the default semihosting stub, this would write the character
 // to the debugger console window . But this version writes

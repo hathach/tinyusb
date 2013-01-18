@@ -55,12 +55,13 @@
 
 /// define this symbol will make tinyusb look for external configure file
 #ifndef _TEST_ // TODO allow configurable name
-#include "tusb_config.h"
+  #include "tusb_config.h"
 #endif
 
-/// 0: no debug infor 3: most debug infor provided
+/// 0: no debug information 3: most debug information provided
 #ifndef TUSB_CFG_DEBUG
-#define TUSB_CFG_DEBUG 3
+  #define TUSB_CFG_DEBUG 3
+  #warning TUSB_CFG_DEBUG is not defined, default value is 3
 #endif
 
 /// Enable Host Support
@@ -68,6 +69,13 @@
 
 /// Enable Device Support
 //#define TUSB_CFG_DEVICE
+
+/// USB RAM Section Placement, MCU's usb controller often has limited access to specific RAM region. This will be used to declare internal variables as follow:
+/// uint8_t tinyusb_data[10] TUSB_ATTR_RAM_SECTION;
+/// if your mcu's usb controller has no such limit, define TUSB_ATTR_RAM_SECTION as empty macro.
+#ifndef TUSB_ATTR_RAM_SECTION
+ #error TUSB_ATTR_RAM_SECTION is not defined, needed to place data in accessible RAM for usb controller
+#endif
 
 #define DEVICE_CLASS_HID ( (defined TUSB_CFG_DEVICE_HID_KEYBOARD) || (defined TUSB_CFG_DEVICE_HID_MOUSE) )
 #define HOST_EHCI

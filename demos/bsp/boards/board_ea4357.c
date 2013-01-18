@@ -55,6 +55,10 @@ void board_init(void)
 
   SysTick_Config(CGU_GetPCLKFrequency(CGU_PERIPHERAL_M4CORE) / CFG_TICKS_PER_SECOND); // 1 msec tick timer
 
+  // USB Host Power Enable
+  // USB0
+  // TODO USB1
+
 #if 0
   // Leds Init
 	uint8_t i;
@@ -89,7 +93,7 @@ void board_init(void)
 //--------------------------------------------------------------------+
 // LEDS
 //--------------------------------------------------------------------+
-void board_leds(uint32_t mask, uint32_t state) __attribute__ ((deprecated("not supported yet")));
+void board_leds(uint32_t mask, uint32_t state) __attribute__ ((warning("not supported yet")));
 void board_leds(uint32_t mask, uint32_t state)
 {
 #if 0
