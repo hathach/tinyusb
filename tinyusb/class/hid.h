@@ -58,6 +58,16 @@
  // TODO refractor
 #include "common/common.h"
 
+#ifdef TUSB_CFG_DEVICE
+  #include "device/dcd.h"
+  #include "hid_device.h"
+#endif
+
+#ifdef TUSB_CFG_HOST
+  #include "host/usbd_host.h"
+  #include "hid_host.h"
+#endif
+
 /** \struct tusb_mouse_report_t
  *  \brief Standard HID Boot Protocol Mouse Report.
  *
@@ -159,18 +169,6 @@ enum USB_HID_LOCAL_CODE
   HID_Local_Yugoslavia,
   HID_Local_Turkish_F
 };
-
-#ifdef TUSB_CFG_DEVICE
-  #include "device/dcd.h"
-  #include "hid_device.h"
-#endif
-
-#ifdef TUSB_CFG_HOST
-  #include "host/usbd_host.h"
-  #include "hid_host.h"
-#endif
-
-
 
 #ifdef __cplusplus
  }

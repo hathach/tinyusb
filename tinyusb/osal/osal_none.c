@@ -35,7 +35,7 @@
  * This file is part of the tiny usb stack.
  */
 
-#include "osal.h"
+#include "osal_none.h"
 
 #if TUSB_CFG_OS == TUSB_OS_NONE
 

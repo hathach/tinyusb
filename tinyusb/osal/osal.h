@@ -62,6 +62,12 @@
 #define TUSB_OS_FREERTOS 3
 #define TUSB_OS_UCOS     4
 
+#if TUSB_CFG_OS == TUSB_OS_NONE
+  #include "osal_none.h"
+#else
+  #error TUSB_CFG_OS is not defined or OS is not supported yet
+#endif
+
 typedef uint32_t osal_status_t; // TODO OSAL port
 typedef uint32_t osal_timeout_t; // TODO OSAL port
 
@@ -77,12 +83,6 @@ typedef uint32_t osal_queue_id_t;
 
 tusb_error_t osal_queue_put(osal_queue_id_t qid, uint32_t data, osal_timeout_t msec);
 tusb_error_t osal_queue_get(osal_queue_id_t qid, uint32_t *data, osal_timeout_t msec);
-
-#if TUSB_CFG_OS == TUSB_OS_NONE
-  #include "osal_none.h"
-#else
-  #error TUSB_CFG_OS is not defined or OS is not supported yet
-#endif
 
 #ifdef __cplusplus
  }

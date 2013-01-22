@@ -35,7 +35,7 @@
  * This file is part of the tiny usb stack.
  */
 
-#include "hid.h"
+#include "hid_host.h"
 
 #if defined DEVICE_CLASS_HID && defined TUSB_CFG_HOST
 

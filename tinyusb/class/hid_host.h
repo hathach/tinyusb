@@ -60,7 +60,7 @@
 tusb_error_t tusbh_keyboard_get(tusb_handle_configure_t const handle, tusb_keyboard_report_t * const report);
 
 #ifdef __cplusplus
- }
+}
 #endif
 
 #endif /* _TUSB_HID_HOST_H_ */
