@@ -39,12 +39,24 @@
 
 #if defined DEVICE_CLASS_HID && defined TUSB_CFG_HOST
 
-bool tusb_host_keyboard_get(tusb_interface_keyboard_handle_t const * const handle, tusb_keyboard_report_t * const report)
+tusb_error_t tusbh_keyboard_get(tusb_handle_configure_t const config_hdl, tusb_keyboard_report_t * const report)
 {
-  ASSSERT_PTR(handle, false);
-  ASSSERT_PTR(report, false);
+  tusb_configure_info_t *p_cfg_info;
 
-  return true;
+  pipe_handle_t pipe_in;
+  osal_queue_id_t qid;
+
+  ASSERT_PTR(report, TUSB_ERROR_INVALID_PARA);
+  ASSERT_STATUS( usbh_configure_info_get(config_hdl, &p_cfg_info) );
+
+  pipe_in = p_cfg_info->classes.hid_keyboard.pipe_in;
+  qid     = p_cfg_info->classes.hid_keyboard.qid;
+
+  ASSERT(0 != pipe_in, TUSB_ERROR_CLASS_DEVICE_DONT_SUPPORT);
+  ASSERT_STATUS( osal_queue_get(qid, (uint32_t*)report, OSAL_TIMEOUT_WAIT_FOREVER) );
+  ASSERT_STATUS( osal_queue_get(qid, ((uint32_t*)report)+1, OSAL_TIMEOUT_WAIT_FOREVER) );
+
+  return TUSB_ERROR_NONE;
 }
 
 #endif

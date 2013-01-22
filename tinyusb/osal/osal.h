@@ -1,7 +1,7 @@
 /*
- * tusb_config.h
+ * osal.h
  *
- *  Created on: Jan 11, 2013
+ *  Created on: Jan 18, 2013
  *      Author: hathach
  */
 
@@ -48,49 +48,46 @@
  *  @{
  */
 
-#ifndef _TUSB_TUSB_CONFIG_H_
-#define _TUSB_TUSB_CONFIG_H_
+#ifndef _TUSB_OSAL_H_
+#define _TUSB_OSAL_H_
 
 #ifdef __cplusplus
  extern "C" {
 #endif
 
-#define TUSB_CFG_HOST
-#define TUSB_CFG_HOST_CONTROLLER_NUM 2
-#define TUSB_CFG_HOST_DEVICE_MAX 2
-#define TUSB_CFG_CONFIGURATION_MAX 2
+#include "common/common.h"
 
-/// Enable Device Support
-//#define TUSB_CFG_DEVICE
+#define TUSB_OS_NONE     1
+#define TUSB_OS_CMSIS    2
+#define TUSB_OS_FREERTOS 3
+#define TUSB_OS_UCOS     4
 
-/// Enable CDC Support
-//#define TUSB_CFG_DEVICE_CDC
+typedef uint32_t osal_status_t; // TODO OSAL port
+typedef uint32_t osal_timeout_t; // TODO OSAL port
 
-/// Enable HID Keyboard support
-#define TUSB_CFG_DEVICE_HID_KEYBOARD
+enum
+{
+  OSAL_TIMEOUT_WAIT_FOREVER = 0
+};
 
-/// Enable HID Mouse support
-//#define TUSB_CFG_DEVICE_HID_MOUSE
+//--------------------------------------------------------------------+
+// QUEUE API
+//--------------------------------------------------------------------+
+typedef uint32_t osal_queue_id_t;
 
-#define TUSB_CFG_DEBUG 3
+tusb_error_t osal_queue_put(osal_queue_id_t qid, uint32_t data, osal_timeout_t msec);
+tusb_error_t osal_queue_get(osal_queue_id_t qid, uint32_t *data, osal_timeout_t msec);
 
-#define TUSB_CFG_OS TUSB_OS_NONE
-
-#ifdef __CODE_RED // make use of code red's support for ram region macros
-  #if (MCU == MCU_LPC11UXX) || (MCU == MCU_LPC13UXX)
-    #define TUSB_RAM_SECTION  ".data.$RAM2"
-  #elif  (MCU == MCU_LPC43XX)
-    #define TUSB_RAM_SECTION  ".data.$RAM3"
-  #endif
-
-  #define TUSB_ATTR_RAM_SECTION   __attribute__ ((section(TUSB_RAM_SECTION)))
+#if TUSB_CFG_OS == TUSB_OS_NONE
+  #include "osal_none.h"
+#else
+  #error TUSB_CFG_OS is not defined or OS is not supported yet
 #endif
-
 
 #ifdef __cplusplus
  }
 #endif
 
-#endif /* _TUSB_TUSB_CONFIG_H_ */
+#endif /* _TUSB_OSAL_H_ */
 
 /** @} */

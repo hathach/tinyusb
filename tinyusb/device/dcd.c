@@ -109,7 +109,7 @@ tusb_error_t dcd_init(uint8_t coreid)
   };
 
   /* USB hardware core initialization */
-  ASSERT(LPC_OK == USBD_API->hw->Init(&g_hUsb, &DeviceDes, &usb_param), tERROR_FAILED);
+  ASSERT(LPC_OK == USBD_API->hw->Init(&g_hUsb, &DeviceDes, &usb_param), TUSB_ERROR_FAILED);
 
   membase += (memsize - usb_param.mem_size);
   memsize = usb_param.mem_size;

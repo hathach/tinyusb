@@ -45,7 +45,7 @@ static volatile bool bKeyChanged = false;
 #endif
 
 #ifdef TUSB_CFG_DEVICE_HID_MOUSE
-USB_HID_MouseReport_t hid_mouse_report;
+tusb_mouse_report_t hid_mouse_report;
 static volatile bool bMouseChanged = false;
 #endif
 
@@ -80,7 +80,7 @@ ErrorCode_t HID_GetReport( USBD_HANDLE_T hHid, USB_SETUP_PACKET* pSetup, uint8_t
     #ifdef TUSB_CFG_DEVICE_HID_MOUSE
       case HID_PROTOCOL_MOUSE:
         *pBuffer = (uint8_t*) &hid_mouse_report;
-        *plength = sizeof(USB_HID_MouseReport_t);
+        *plength = sizeof(tusb_mouse_report_t);
 
         if (!bMouseChanged)
         {
@@ -142,9 +142,9 @@ ErrorCode_t HID_EpIn_Hdlr (USBD_HANDLE_T hUsb, void* data, uint32_t event)
         case HID_PROTOCOL_MOUSE:
           if (!bMouseChanged)
           {
-            memset(&hid_mouse_report, 0, sizeof(USB_HID_MouseReport_t));
+            memset(&hid_mouse_report, 0, sizeof(tusb_mouse_report_t));
           }
-          USBD_API->hw->WriteEP(hUsb, pHidCtrl->epin_adr, (uint8_t*) &hid_mouse_report, sizeof(USB_HID_MouseReport_t));
+          USBD_API->hw->WriteEP(hUsb, pHidCtrl->epin_adr, (uint8_t*) &hid_mouse_report, sizeof(tusb_mouse_report_t));
           bMouseChanged = false;
         break;
       #endif
@@ -206,7 +206,7 @@ tusb_error_t tusb_hid_init(USBD_HANDLE_T hUsb, USB_INTERFACE_DESCRIPTOR const *c
 
   ASSERT( (pIntfDesc != NULL) && (pIntfDesc->bInterfaceClass == USB_DEVICE_CLASS_HUMAN_INTERFACE), ERR_FAILED);
 
-  ASSERT( LPC_OK == USBD_API->hid->init(hUsb, &hid_param), tERROR_FAILED );
+  ASSERT( LPC_OK == USBD_API->hid->init(hUsb, &hid_param), TUSB_ERROR_FAILED );
 
   /* update memory variables */
   *mem_base += (*mem_size - hid_param.mem_size);
@@ -227,7 +227,7 @@ tusb_error_t tusb_hid_configured(USBD_HANDLE_T hUsb)
   #endif
 
   #ifdef  TUSB_CFG_DEVICE_HID_MOUSE
-    USBD_API->hw->WriteEP(hUsb , HID_MOUSE_EP_IN    , (uint8_t* ) &hid_mouse_report    , sizeof(USB_HID_MouseReport_t) ); // initial packet for IN endpoint, will not work if omitted
+    USBD_API->hw->WriteEP(hUsb , HID_MOUSE_EP_IN    , (uint8_t* ) &hid_mouse_report    , sizeof(tusb_mouse_report_t) ); // initial packet for IN endpoint, will not work if omitted
   #endif
 
   return TUSB_ERROR_NONE;
@@ -280,14 +280,14 @@ tusb_error_t tusb_hid_keyboard_sendKeys(uint8_t modifier, uint8_t keycodes[], ui
 
   if (bKeyChanged)
   {
-    return tERROR_FAILED;
+    return TUSB_ERROR_FAILED;
   }
 
   ASSERT(keycodes && numkey && numkey <=6, ERR_FAILED);
 
-  hid_keyboard_report.Modifier = modifier;
-  memset(hid_keyboard_report.KeyCode, 0, 6);
-  memcpy(hid_keyboard_report.KeyCode, keycodes, numkey);
+  hid_keyboard_report.modifier = modifier;
+  memset(hid_keyboard_report.keycode, 0, 6);
+  memcpy(hid_keyboard_report.keycode, keycodes, numkey);
 
   bKeyChanged = true;
 
@@ -304,9 +304,9 @@ tusb_error_t tusb_hid_keyboard_sendKeys(uint8_t modifier, uint8_t keycodes[], ui
                 Indicate which button(s) are being pressed (see
                 USB_HID_MOUSE_BUTTON_CODE)
     @param[in]  x
-                Position adjustment on the X scale
+                Position adjustment on the x scale
     @param[in]  y
-                Position adjustment on the Y scale
+                Position adjustment on the y scale
 
     @section EXAMPLE
 
@@ -314,7 +314,7 @@ tusb_error_t tusb_hid_keyboard_sendKeys(uint8_t modifier, uint8_t keycodes[], ui
 
     if (usb_isConfigured())
     {
-      // Move the mouse +10 in the X direction and + 10 in the Y direction
+      // Move the mouse +10 in the x direction and + 10 in the y direction
       tusb_hid_mouse_send(0x00, 10, 10);
     }
 
@@ -331,12 +331,12 @@ tusb_error_t tusb_hid_mouse_send(uint8_t buttons, int8_t x, int8_t y)
 
   if (bMouseChanged)
   {
-    return tERROR_FAILED;
+    return TUSB_ERROR_FAILED;
   }
 
-  hid_mouse_report.Button = buttons;
-  hid_mouse_report.X = x;
-  hid_mouse_report.Y = y;
+  hid_mouse_report.buttons = buttons;
+  hid_mouse_report.x = x;
+  hid_mouse_report.y = y;
 
   bMouseChanged = true;
 

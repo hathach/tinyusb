@@ -55,56 +55,88 @@
 
 /// defined base on EHCI specs value for Endpoint Speed
 typedef enum {
-  FULL_SPEED =0,
-  LOWS_PEED,
-  HIGH_SPEED
-}USB_Speed_t;
+  TUSB_SPEED_FULL = 0,
+  TUSB_SPEED_LOW     ,
+  TUSB_SPEED_HIGH
+}tusb_speed_t;
 
 /// defined base on USB Specs Endpoint's bmAttributes
 typedef enum {
-  CONTROL_TYPE = 0,
-  ISOCHRONOUS_TYPE,
-  BULK_TYPE,
-  INTERRUPT_TYPE
-}USB_TransferType_t;
+  TUSB_XFER_CONTROL = 0 ,
+  TUSB_XFER_ISOCHRONOUS ,
+  TUSB_XFER_BULK        ,
+  TUSB_XFER_INTERRUPT
+}tusb_transfer_type_t;
 
 /// TBD
 typedef enum {
-  SETUP_TOKEN,
-  IN_TOKEN,
-  OUT_TOKEN
-}USB_PID_t;
+  TUSB_PID_SETUP,
+  TUSB_PID_IN,
+  TUSB_PID_OUT
+}tusb_pid_t;
 
 /// USB Descriptor Types (section 9.4 table 9-5)
 typedef enum {
-  DEVICE_DESC=1                  , ///< 1
-  CONFIGURATIONT_DESC            , ///< 2
-  STRING_DESC                    , ///< 3
-  INTERFACE_DESC                 , ///< 4
-  ENDPOINT_DESC                  , ///< 5
-  DEVICE_QUALIFIER_DESC          , ///< 6
-  OTHER_SPEED_CONFIGURATION_DESC , ///< 7
-  INTERFACE_POWER_DESC           , ///< 8
-  OTG_DESC                       , ///< 9
-  DEBUG_DESCRIPTOR               , ///< 10
-  INTERFACE_ASSOCIATION_DESC       ///< 11
-}USB_DescriptorType_t;
+  TUSB_DESC_DEVICE =1                 , ///< 1
+  TUSB_DESC_CONFIGURATION             , ///< 2
+  TUSB_DESC_STRING                    , ///< 3
+  TUSB_DESC_INTERFACE                 , ///< 4
+  TUSB_DESC_ENDPOINT                  , ///< 5
+  TUSB_DESC_DEVICE_QUALIFIER          , ///< 6
+  TUSB_DESC_OTHER_SPEED_CONFIGURATION , ///< 7
+  TUSB_DESC_INTERFACE_POWER           , ///< 8
+  TUSB_DESC_OTG                       , ///< 9
+  TUSB_DESC_DEBUGRIPTOR               , ///< 10
+  TUSB_DESC_INTERFACE_ASSOCIATION       ///< 11
+}tusb_std_descriptor_type_t;
 
 typedef enum {
-  REQUEST_GET_STATUS =0     , ///< 0
-  REQUEST_CLEAR_FEATURE     , ///< 1
-  REQUEST_RESERVED          , ///< 2
-  REQUEST_SET_FEATURE       , ///< 3
-  REQUEST_RESERVED2         , ///< 4
-  REQUEST_SET_ADDRESS       , ///< 5
-  REQUEST_GET_DESCRIPTOR    , ///< 6
-  REQUEST_SET_DESCRIPTOR    , ///< 7
-  REQUEST_GET_CONFIGURATION , ///< 8
-  REQUEST_SET_CONFIGURATION , ///< 9
-  REQUEST_GET_INTERFACE     , ///< 10
-  REQUEST_SET_INTERFACE     , ///< 11
-  REQUEST_SYNCH_FRAME         ///< 12
-}USB_RequestCode_t;
+  TUSB_REQUEST_GET_STATUS =0     , ///< 0
+  TUSB_REQUEST_CLEAR_FEATURE     , ///< 1
+  TUSB_REQUEST_RESERVED          , ///< 2
+  TUSB_REQUEST_SET_FEATURE       , ///< 3
+  TUSB_REQUEST_RESERVED2         , ///< 4
+  TUSB_REQUEST_SET_ADDRESS       , ///< 5
+  TUSB_REQUEST_GET_DESCRIPTOR    , ///< 6
+  TUSB_REQUEST_SET_DESCRIPTOR    , ///< 7
+  TUSB_REQUEST_GET_CONFIGURATION , ///< 8
+  TUSB_REQUEST_SET_CONFIGURATION , ///< 9
+  TUSB_REQUEST_GET_INTERFACE     , ///< 10
+  TUSB_REQUEST_SET_INTERFACE     , ///< 11
+  TUSB_REQUEST_SYNCH_FRAME         ///< 12
+}tusb_std_request_code_t;
+
+typedef enum {
+  TUSB_CLASS_UNSPECIFIED          = 0    , ///< 0
+  TUSB_CLASS_AUDIO                = 1    , ///< 1
+  TUSB_CLASS_CDC                  = 2    , ///< 2
+  TUSB_CLASS_HID                  = 3    , ///< 3
+  TUSB_CLASS_RESERVED_4           = 4    , ///< 4
+  TUSB_CLASS_PHYSICAL             = 5    , ///< 5
+  TUSB_CLASS_IMAGE                = 6    , ///< 6
+  TUSB_CLASS_PRINTER              = 7    ,  ///< 7
+  TUSB_CLASS_MSC                  = 8    ,  ///< 8
+  TUSB_CLASS_HUB                  = 9    ,  ///< 9
+  TUSB_CLASS_CDC_DATA             = 10   ,  ///< 10
+  TUSB_CLASS_SMART_CARD           = 11   ,  ///< 11
+  TUSB_CLASS_RESERVED_12          = 12   , ///< 12
+  TUSB_CLASS_CONTENT_SECURITY     = 13   ,  ///< 13
+  TUSB_CLASS_VIDEO                = 14   ,  ///< 14
+  TUSB_CLASS_PERSONAL_HEALTHCARE  = 15   ,  ///< 15
+  TUSB_CLASS_AUDIO_VIDEO          = 16   ,  ///< 16
+
+  TUSB_CLASS_DIAGNOSTIC           = 0xDC ,
+  TUSB_CLASS_WIRELESS_CONTROLLER  = 0xE0 ,
+  TUSB_CLASS_MISC                 = 0xEF ,
+  TUSB_CLASS_APPLICATION_SPECIFIC = 0xEF ,
+  TUSB_CLASS_VENDOR_SPECIFIC      = 0xFF
+}tusb_std_class_code_t;
+
+enum {
+  TUSB_DESC_CONFIG_ATT_BUS_POWER = BIT_(7),
+  TUSB_DESC_CONFIG_ATT_SELF_POWER = BIT_(6),
+  TUSB_DESC_CONFIG_ATT_REMOTE_WAKEUP = BIT_(5)
+};
 
 #ifdef __cplusplus
  }

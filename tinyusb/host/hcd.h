@@ -58,6 +58,9 @@
 #include "common/common.h"
 #include "core/tusb_types.h"
 
+typedef uint32_t pipe_handle_t;
+
+#if 0
 /** \brief Initialize HCD
 *
 * \param[in]  para1
@@ -75,6 +78,7 @@ tusb_error_t hcd_init(uint8_t hostid) ATTR_WARN_UNUSED_RESULT;
 tusb_error_t hcd_pipe_close()ATTR_WARN_UNUSED_RESULT;
 tusb_error_t hcd_pipe_transfer()ATTR_WARN_UNUSED_RESULT;
 tusb_error_t hcd_pipe_cancel()ATTR_WARN_UNUSED_RESULT;
+#endif
 
 #ifdef __cplusplus
  }

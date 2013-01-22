@@ -63,7 +63,24 @@
 #endif
 
 /// Enable Host Support
-//#define TUSB_CFG_HOST
+#ifdef TUSB_CFG_HOST
+
+#ifndef TUSB_CFG_HOST_CONTROLLER_NUM
+  #define TUSB_CFG_HOST_CONTROLLER_NUM 1
+  #warning TUSB_CFG_HOST_CONTROLLER_NUM is not defined, default value is 1
+#endif
+
+#ifndef TUSB_CFG_HOST_DEVICE_MAX
+  #define TUSB_CFG_HOST_DEVICE_MAX 1
+  #warning TUSB_CFG_HOST_DEVICE_MAX is not defined, default value is 1
+#endif
+
+#endif
+
+#ifndef TUSB_CFG_CONFIGURATION_MAX
+  #define TUSB_CFG_CONFIGURATION_MAX 1
+  #warning TUSB_CFG_CONFIGURATION_MAX is not defined, default value is 1
+#endif
 
 /// Enable Device Support
 //#define TUSB_CFG_DEVICE

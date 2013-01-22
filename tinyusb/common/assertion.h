@@ -71,28 +71,32 @@ extern "C"
 #define ASSERT_FILENAME  __BASE_FILE__
 #define ASSERT_FUNCTION  __PRETTY_FUNCTION__
 #define ASSERT_STATEMENT _PRINTF("assert at %s: %s :%d :\n", ASSERT_FILENAME, ASSERT_FUNCTION, __LINE__)
+
+#ifndef _TEST_ASSERT_
+  #define ASSERT_ERROR_HANDLE(x)  return (x)
+#else
+  #define ASSERT_ERROR_HANDLE(x)  Throw(x)
+#endif
+
 #define ASSERT_DEFINE(setup_statement, condition, error, format, ...) \
   do{\
     setup_statement;\
 	  if (!(condition)) {\
 	    _PRINTF("Assert at %s: %s:%d: " format "\n", ASSERT_FILENAME, ASSERT_FUNCTION, __LINE__, __VA_ARGS__);\
-	    return error;\
+	    ASSERT_ERROR_HANDLE(error);\
 	  }\
 	}while(0)
 
 //--------------------------------------------------------------------+
-// tusb_error_t Status Assert
+// tusb_error_t Status Assert TODO use ASSERT_DEFINE
 //--------------------------------------------------------------------+
 #define ASSERT_STATUS_MESSAGE(sts, message) \
-	do{\
-	  tusb_error_t status = (tusb_error_t)(sts);\
-	  if (TUSB_ERROR_NONE != status) {\
-	    _PRINTF("Assert at %s line %d: %s %s\n", ASSERT_FILENAME, ASSERT_FUNCTION, __LINE__, TUSB_ErrorStr[status], message); \
-	    return status;\
-	  }\
-	}while(0)
+    ASSERT_DEFINE(tusb_error_t status = (tusb_error_t)(sts),\
+                  TUSB_ERROR_NONE == status, status, "%s: %s", TUSB_ErrorStr[status], message)
 
-#define ASSERT_STATUS(sts)		ASSERT_STATUS_MESSAGE(sts, NULL)
+#define ASSERT_STATUS(sts) \
+    ASSERT_DEFINE(tusb_error_t status = (tusb_error_t)(sts),\
+                  TUSB_ERROR_NONE == status, status, "%s", TUSB_ErrorStr[status])
 
 //--------------------------------------------------------------------+
 // Logical Assert
@@ -102,7 +106,14 @@ extern "C"
 #define ASSERT_FALSE(condition , error)  ASSERT_DEFINE( ,!(condition), error, "%s", "evaluated to true")
 
 //--------------------------------------------------------------------+
-// Integer Assert
+// Pointer Assert
+//--------------------------------------------------------------------+
+#define ASSERT_PTR(...)                    ASSERT_PTR_NOT_NULL(__VA_ARGS__)
+#define ASSERT_PTR_NOT_NULL(pointer, error) ASSERT_DEFINE( , NULL != (pointer), error, "%s", "pointer is NULL")
+#define ASSERT_PTR_NULL(pointer, error)    ASSERT_DEFINE( , NULL == (pointer), error, "%s", "pointer is not NULL")
+
+//--------------------------------------------------------------------+
+// Integral Assert
 //--------------------------------------------------------------------+
 #define ASSERT_XXX_EQUAL(type_format, expected, actual, error) \
     ASSERT_DEFINE(\
@@ -118,6 +129,9 @@ extern "C"
                   error,\
                   "expected within " type_format " - " type_format ", actual " type_format, low, up, act)
 
+//--------------------------------------------------------------------+
+// Integer Assert
+//--------------------------------------------------------------------+
 #define ASSERT_INT(...)        ASSERT_INT_EQUAL(__VA_ARGS__)
 #define ASSERT_INT_EQUAL(...)  ASSERT_XXX_EQUAL("%d", __VA_ARGS__)
 #define ASSERT_INT_WITHIN(...) ASSERT_XXX_WITHIN("%d", __VA_ARGS__)
@@ -130,11 +144,12 @@ extern "C"
 #define ASSERT_HEX_WITHIN(...) ASSERT_XXX_WITHIN("0x%x", __VA_ARGS__)
 
 //--------------------------------------------------------------------+
-// Pointer Assert
+// TODO Bin Assert
 //--------------------------------------------------------------------+
-#define ASSSERT_PTR(...)                    ASSERT_PTR_NOT_NULL(__VA_ARGS__)
-#define ASSERT_PTR_NOT_NULL(pointer, error) ASSERT_DEFINE( , NULL != (pointer), error, "%s", "pointer is NULL")
-#define ASSSERT_PTR_NULL(pointer, error)    ASSERT_DEFINE( , NULL == (pointer), error, "%s", "pointer is NULL")
+
+//--------------------------------------------------------------------+
+// TODO Bit Assert
+//--------------------------------------------------------------------+
 
 
 #ifdef __cplusplus

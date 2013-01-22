@@ -58,17 +58,17 @@
  // TODO refractor
 #include "common/common.h"
 
-/** \struct USB_HID_MouseReport_t
+/** \struct tusb_mouse_report_t
  *  \brief Standard HID Boot Protocol Mouse Report.
  *
  *  Type define for a standard Boot Protocol Mouse report
  */
 typedef ATTR_PREPACKED struct
 {
-  uint8_t Button; /**< Button mask for currently pressed buttons in the mouse. */
-  int8_t  X; /**< Current delta X movement of the mouse. */
-  int8_t  Y; /**< Current delta Y movement on the mouse. */
-} ATTR_PACKED USB_HID_MouseReport_t;
+  uint8_t buttons; /**< buttons mask for currently pressed buttons in the mouse. */
+  int8_t  x; /**< Current delta x movement of the mouse. */
+  int8_t  y; /**< Current delta y movement on the mouse. */
+} ATTR_PACKED tusb_mouse_report_t;
 
 /** \struct tusb_keyboard_report_t
  *  \brief Standard HID Boot Protocol Keyboard Report.
@@ -77,13 +77,13 @@ typedef ATTR_PREPACKED struct
  */
 typedef ATTR_PREPACKED struct
 {
-  uint8_t Modifier; /**< Keyboard modifier byte, indicating pressed modifier keys (a combination of HID_KEYBOARD_MODIFER_* masks). */
-  uint8_t Reserved; /**< Reserved for OEM use, always set to 0. */
-  uint8_t KeyCode[6]; /**< Key codes of the currently pressed keys. */
+  uint8_t modifier; /**< Keyboard modifier byte, indicating pressed modifier keys (a combination of HID_KEYBOARD_MODIFER_* masks). */
+  uint8_t reserved; /**< Reserved for OEM use, always set to 0. */
+  uint8_t keycode[6]; /**< Key codes of the currently pressed keys. */
 } ATTR_PACKED tusb_keyboard_report_t;
 
 /** \enum USB_HID_MOUSE_BUTTON_CODE
- * \brief Button codes for HID mouse
+ * \brief buttons codes for HID mouse
  */
 enum USB_HID_MOUSE_BUTTON_CODE
 {
@@ -95,16 +95,26 @@ enum USB_HID_MOUSE_BUTTON_CODE
 /** \enum USB_HID_KB_KEYMODIFIER_CODE
  * \brief KB modifier codes for HID KB
  */
-enum USB_HID_KB_KEYMODIFIER_CODE
+enum TUSB_KEYBOARD_MODIFIER_CODE
 {
-	HID_KEYMODIFIER_LEFTCTRL = 0,
-	HID_KEYMODIFIER_LEFTSHIFT,
-	HID_KEYMODIFIER_LEFTALT,
-	HID_KEYMODIFIER_LEFTGUI,
-	HID_KEYMODIFIER_RIGHTCTRL,
-	HID_KEYMODIFIER_RIGHTSHIFT,
-	HID_KEYMODIFIER_RIGHTALT,
-	HID_KEYMODIFIER_RIGHTGUI
+	TUSB_KEYBOARD_MODIFIER_LEFTCTRL   = BIN8(00000001),
+	TUSB_KEYBOARD_MODIFIER_LEFTSHIFT  = BIN8(00000010),
+	TUSB_KEYBOARD_MODIFIER_LEFTALT    = BIN8(00000100),
+	TUSB_KEYBOARD_MODIFIER_LEFTGUI    = BIN8(00001000),
+	TUSB_KEYBOARD_MODIFIER_RIGHTCTRL  = BIN8(00010000),
+	TUSB_KEYBOARD_MODIFIER_RIGHTSHIFT = BIN8(00100000),
+	TUSB_KEYBOARD_MODIFIER_RIGHTALT   = BIN8(01000000),
+	TUSB_KEYBOARD_MODIFIER_RIGHTGUI   = BIN8(10000000)
+};
+
+enum TUSB_KEYBOARD_KEYCODE
+{
+  TUSB_KEYBOARD_KEYCODE_a = 0x04,
+  TUSB_KEYBOARD_KEYCODE_z = 0x1d,
+
+  TUSB_KEYBOARD_KEYCODE_1 = 0x1e,
+  TUSB_KEYBOARD_KEYCODE_0 = 0x27
+  // TODO complete keycode table
 };
 
 /** \enum USB_HID_LOCAL_CODE
@@ -156,7 +166,7 @@ enum USB_HID_LOCAL_CODE
 #endif
 
 #ifdef TUSB_CFG_HOST
-  #include "host/hcd.h"
+  #include "host/usbd_host.h"
   #include "hid_host.h"
 #endif
 

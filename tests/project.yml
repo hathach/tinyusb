@@ -6,7 +6,7 @@
 # This sample, therefore, only demonstrates running a collection of unit tests.
 
 :project:
-  :use_exceptions: FALSE
+  :use_exceptions: TRUE
   :use_test_preprocessor: TRUE
   :use_auxiliary_dependencies: TRUE
   :use_deep_dependencies: TRUE
@@ -69,9 +69,11 @@
   :mock_prefix: mock_
   :when_no_prototypes: :warn
   :enforce_strict_ordering: TRUE
+#  :callback_include_count: FALSE
   :plugins:
     - :ignore
     - :callback
+    - :array
   :treat_as:
     uint8:    HEX8
     uint16:   HEX16

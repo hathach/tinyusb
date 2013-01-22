@@ -1,7 +1,7 @@
 /*
- * tusb_config.h
+ * usbd_host.c
  *
- *  Created on: Jan 11, 2013
+ *  Created on: Jan 19, 2013
  *      Author: hathach
  */
 
@@ -35,62 +35,21 @@
  * This file is part of the tiny usb stack.
  */
 
-/** \file
- *  \brief TBD
- *
- *  \note TBD
- */
+#include "usbd_host.h"
 
-/** \ingroup TBD
- *  \defgroup TBD
- *  \brief TBD
- *
- *  @{
- */
+#ifdef TUSB_CFG_HOST
 
-#ifndef _TUSB_TUSB_CONFIG_H_
-#define _TUSB_TUSB_CONFIG_H_
+#if 0
+tusb_error_t tusbh_keyboard_open(tusb_handle_device_t device_hdl, uint8_t configure_num, tusb_handle_keyboard_t *keyboard_hdl)
+{
+  ASSERT(device_hdl < TUSB_CFG_HOST_DEVICE_MAX, TUSB_ERROR_INVALID_PARA);
+  ASSERT_INT_WITHIN(1, TUSB_CFG_CONFIGURATION_MAX, configure_num, TUSB_ERROR_INVALID_PARA);
+  ASSERT_PTR(keyboard_hdl, TUSB_ERROR_INVALID_PARA);
 
-#ifdef __cplusplus
- extern "C" {
+  return TUSB_ERROR_NONE;
+}
 #endif
 
-#define TUSB_CFG_HOST
-#define TUSB_CFG_HOST_CONTROLLER_NUM 2
-#define TUSB_CFG_HOST_DEVICE_MAX 2
-#define TUSB_CFG_CONFIGURATION_MAX 2
+tusb_device_info_t usbh_device_pool[TUSB_CFG_HOST_DEVICE_MAX];
 
-/// Enable Device Support
-//#define TUSB_CFG_DEVICE
-
-/// Enable CDC Support
-//#define TUSB_CFG_DEVICE_CDC
-
-/// Enable HID Keyboard support
-#define TUSB_CFG_DEVICE_HID_KEYBOARD
-
-/// Enable HID Mouse support
-//#define TUSB_CFG_DEVICE_HID_MOUSE
-
-#define TUSB_CFG_DEBUG 3
-
-#define TUSB_CFG_OS TUSB_OS_NONE
-
-#ifdef __CODE_RED // make use of code red's support for ram region macros
-  #if (MCU == MCU_LPC11UXX) || (MCU == MCU_LPC13UXX)
-    #define TUSB_RAM_SECTION  ".data.$RAM2"
-  #elif  (MCU == MCU_LPC43XX)
-    #define TUSB_RAM_SECTION  ".data.$RAM3"
-  #endif
-
-  #define TUSB_ATTR_RAM_SECTION   __attribute__ ((section(TUSB_RAM_SECTION)))
 #endif
-
-
-#ifdef __cplusplus
- }
-#endif
-
-#endif /* _TUSB_TUSB_CONFIG_H_ */
-
-/** @} */

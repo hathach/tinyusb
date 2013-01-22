@@ -74,15 +74,22 @@
 #include "osal/osal.h"
 
 
+/// form an uint32_t from 4 x uint8_t
+static inline uint32_t u32_from_u8(uint8_t b1, uint8_t b2, uint8_t b3, uint8_t b4) ATTR_ALWAYS_INLINE ATTR_CONST;
+static inline uint32_t u32_from_u8(uint8_t b1, uint8_t b2, uint8_t b3, uint8_t b4)
+{
+  return (b1 << 24) + (b2 << 16) + (b3 << 8) + b4;
+}
+
 /// min value
-static inline uint32_t min_of(uint32_t x, uint32_t y) ATTR_ALWAYS_INLINE;
+static inline uint32_t min_of(uint32_t x, uint32_t y) ATTR_ALWAYS_INLINE ATTR_CONST;
 static inline uint32_t min_of(uint32_t x, uint32_t y)
 {
   return (x < y) ? x : y;
 }
 
 /// max value
-static inline uint32_t max_of(uint32_t x, uint32_t y) ATTR_ALWAYS_INLINE;
+static inline uint32_t max_of(uint32_t x, uint32_t y) ATTR_ALWAYS_INLINE ATTR_CONST;
 static inline uint32_t max_of(uint32_t x, uint32_t y)
 {
   return (x > y) ? x : y;

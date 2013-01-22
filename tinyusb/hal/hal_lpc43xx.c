@@ -43,7 +43,7 @@ tusb_error_t hal_init()
 {
   /* Set up USB0 clock */
   CGU_EnableEntity(CGU_CLKSRC_PLL0, DISABLE); /* Disable PLL first */
-  ASSERT_INT( CGU_ERROR_SUCCESS, CGU_SetPLL0(), tERROR_FAILED); /* the usb core require output clock = 480MHz */
+  ASSERT_INT( CGU_ERROR_SUCCESS, CGU_SetPLL0(), TUSB_ERROR_FAILED); /* the usb core require output clock = 480MHz */
   CGU_EntityConnect(CGU_CLKSRC_XTAL_OSC, CGU_CLKSRC_PLL0);
   CGU_EnableEntity(CGU_CLKSRC_PLL0, ENABLE);   /* Enable PLL after all setting is done */
   LPC_CREG->CREG0 &= ~(1<<5); /* Turn on the phy */

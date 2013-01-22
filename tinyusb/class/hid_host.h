@@ -57,9 +57,7 @@
 
 #include "hid.h"
 
-typedef uint32_t tusb_interface_keyboard_handle_t;
-
-bool tusb_host_keyboard_get(tusb_interface_keyboard_handle_t const * const handle, tusb_keyboard_report_t *report);
+tusb_error_t tusbh_keyboard_get(tusb_handle_configure_t const handle, tusb_keyboard_report_t * const report);
 
 #ifdef __cplusplus
  }

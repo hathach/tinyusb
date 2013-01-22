@@ -287,10 +287,10 @@ tusb_error_t tusb_cdc_init(USBD_HANDLE_T hUsb, USB_INTERFACE_DESCRIPTOR const *c
   ASSERT (pControlIntfDesc && pDataIntfDesc, ERR_FAILED);
 
   /* register Bulk IN & OUT endpoint interrupt handler */
-  ASSERT ( LPC_OK == USBD_API->core->RegisterEpHandler (hUsb , ((CDC_DATA_EP_IN & 0x0F) << 1) +1 , CDC_BulkIn_Hdlr  , NULL), tERROR_FAILED );
-  ASSERT ( LPC_OK == USBD_API->core->RegisterEpHandler (hUsb , (CDC_DATA_EP_OUT & 0x0F) << 1     , CDC_BulkOut_Hdlr , NULL), tERROR_FAILED );
+  ASSERT ( LPC_OK == USBD_API->core->RegisterEpHandler (hUsb , ((CDC_DATA_EP_IN & 0x0F) << 1) +1 , CDC_BulkIn_Hdlr  , NULL), TUSB_ERROR_FAILED );
+  ASSERT ( LPC_OK == USBD_API->core->RegisterEpHandler (hUsb , (CDC_DATA_EP_OUT & 0x0F) << 1     , CDC_BulkOut_Hdlr , NULL), TUSB_ERROR_FAILED );
 
-  ASSERT ( LPC_OK == USBD_API->cdc->init(hUsb, &cdc_param, &g_hCdc), tERROR_FAILED);
+  ASSERT ( LPC_OK == USBD_API->cdc->init(hUsb, &cdc_param, &g_hCdc), TUSB_ERROR_FAILED);
 
   /* update memory variables */
   *mem_base = cdc_param.mem_base;

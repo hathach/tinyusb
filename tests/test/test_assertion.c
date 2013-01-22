@@ -35,14 +35,21 @@
  * This file is part of the tiny usb stack.
  */
 
+#define _TEST_ASSERT_
+
 #include <stdint.h>
 #include <stdio.h>
 #include <stdbool.h>
 #include "unity.h"
+#include "CException.h"
 #include "common/assertion.h"
+#include "errors.h"
+
+CEXCEPTION_T e;
 
 void setUp(void)
 {
+  e = 0;
 }
 
 void tearDown(void)
@@ -50,23 +57,81 @@ void tearDown(void)
 }
 
 //--------------------------------------------------------------------+
+// Error Status
+//--------------------------------------------------------------------+
+void test_assert_status(void)
+{
+  Try
+  {
+    ASSERT_STATUS(TUSB_ERROR_NONE);
+    ASSERT_STATUS(TUSB_ERROR_INVALID_PARA);
+  }
+  Catch (e)
+  {
+  }
+}
+
+//--------------------------------------------------------------------+
 // Logical
 //--------------------------------------------------------------------+
 void test_assert_logical_true(void)
 {
-  ASSERT      (true  , (void)0 );
-  ASSERT_TRUE (true  , (void)0 );
-
-  ASSERT_TRUE (false , (void)0 );
-  TEST_FAIL();
+  Try
+  {
+    ASSERT       (true , __LINE__);
+    ASSERT_TRUE  (true , __LINE__);
+    ASSERT_TRUE  (false, 0);
+  }
+  Catch(e)
+  {
+    TEST_ASSERT_EQUAL(0, e);
+  }
 }
 
 void test_assert_logical_false(void)
 {
-  ASSERT_FALSE(false , (void)0 );
-  ASSERT_FALSE(true  , (void)0 );
+  Try
+  {
+    ASSERT_FALSE (false, __LINE__);
+    ASSERT_FALSE (true , 0);
+  }
+  Catch(e)
+  {
+    TEST_ASSERT_EQUAL(0, e);
+  }
+}
+//--------------------------------------------------------------------+
+// Pointer
+//--------------------------------------------------------------------+
+void test_assert_pointer_not_null(void)
+{
+  uint32_t n;
 
-  TEST_FAIL();
+  Try
+  {
+    ASSERT_PTR_NOT_NULL(&n, __LINE__);
+    ASSERT_PTR(&n, __LINE__);
+    ASSERT_PTR(NULL, 0);
+  }
+  Catch(e)
+  {
+    TEST_ASSERT_EQUAL(0, e);
+  }
+}
+
+void test_assert_pointer_null(void)
+{
+  uint32_t n;
+
+  Try
+  {
+    ASSERT_PTR_NULL(NULL, __LINE__);
+    ASSERT_PTR_NULL(&n, 0);
+  }
+  Catch(e)
+  {
+    TEST_ASSERT_EQUAL(0, e);
+  }
 }
 
 //--------------------------------------------------------------------+
@@ -74,37 +139,67 @@ void test_assert_logical_false(void)
 //--------------------------------------------------------------------+
 void test_assert_int_eqal(void)
 {
-  ASSERT_INT       (1, 1, (void) 0);
-  ASSERT_INT_EQUAL (1, 1, (void) 0);
+  Try
+  {
+    ASSERT_INT       (1, 1, __LINE__);
+    ASSERT_INT_EQUAL (1, 1, __LINE__);
 
-  uint32_t x = 0;
-  uint32_t y = 0;
-  ASSERT_INT (x++, y++, (void) 0); // test side effect
-  TEST_ASSERT_EQUAL(1, x);
-  TEST_ASSERT_EQUAL(1, y);
+    // test side effect
+    uint32_t x = 0;
+    uint32_t y = 0;
+    ASSERT_INT (x++, y++, __LINE__);
+    TEST_ASSERT_EQUAL(1, x);
+    TEST_ASSERT_EQUAL(1, y);
 
-  ASSERT_INT(0, 1, (void) 0);
-
-  TEST_FAIL();
+    ASSERT_INT (1, 0, 0);
+  }
+  Catch(e)
+  {
+    TEST_ASSERT_EQUAL(0, e);
+  }
 }
 
-void test_assert_int_within_succeed(void)
+void test_assert_int_within(void)
 {
-  ASSERT_INT_WITHIN (1, 5, 3, (void) 0);
-  ASSERT_INT_WITHIN (1, 5, 1, (void) 0);
-  ASSERT_INT_WITHIN (1, 5, 5, (void) 0);
-}
+  Try
+  {
+    ASSERT_INT_WITHIN (1, 5, 3, __LINE__);
+    ASSERT_INT_WITHIN (1, 5, 1, __LINE__);
+    ASSERT_INT_WITHIN (1, 5, 5, __LINE__);
 
-void test_assert_int_within_less(void)
-{
-  ASSERT_INT_WITHIN (1, 5, 0, (void) 0);
-  TEST_FAIL();
+    ASSERT_INT_WITHIN (1, 5, 0, 0);
+    ASSERT_INT_WITHIN (1, 5, 10, 0);
+  }
+  Catch(e)
+  {
+    TEST_ASSERT_EQUAL(0, e);
+  }
 }
 
 void test_assert_int_within_greater(void)
 {
-  ASSERT_INT_WITHIN (1, 5, 10, (void) 0);
-  TEST_FAIL();
+  Try
+  {
+    ASSERT_INT_WITHIN (1, 5, 10, 0);
+  }
+  Catch(e)
+  {
+    TEST_ASSERT_EQUAL(0, e);
+  }
+
+}
+
+void test_assert_int_within_less(void)
+{
+  Try
+  {
+    ASSERT_INT_WITHIN (1, 5, 0, 0);
+  }
+  Catch(e)
+  {
+    TEST_ASSERT_EQUAL(0, e);
+  }
+
 }
 
 //--------------------------------------------------------------------+
@@ -112,54 +207,79 @@ void test_assert_int_within_greater(void)
 //--------------------------------------------------------------------+
 void test_assert_hex_equal(void)
 {
-  ASSERT_HEX       (0xffee, 0xffee, (void) 0);
-  ASSERT_HEX_EQUAL (0xffee, 0xffee, (void) 0);
+  Try
+  {
+    ASSERT_HEX       (0xffee, 0xffee, __LINE__);
+    ASSERT_HEX_EQUAL (0xffee, 0xffee, __LINE__);
 
-  uint32_t x = 0xf0f0;
-  uint32_t y = 0xf0f0;
-  ASSERT_HEX (x++, y++, (void) 0); // test side effect
-  TEST_ASSERT_EQUAL(0xf0f1, x);
-  TEST_ASSERT_EQUAL(0xf0f1, y);
+    // test side effect
+    uint32_t x = 0xf0f0;
+    uint32_t y = 0xf0f0;
+    ASSERT_HEX (x++, y++, __LINE__);
+    TEST_ASSERT_EQUAL(0xf0f1, x);
+    TEST_ASSERT_EQUAL(0xf0f1, y);
 
-  ASSERT_HEX(0x1234, 0x4321, (void) 0);
-
-  TEST_FAIL();
+    ASSERT_HEX(0x1234, 0x4321, 0);
+  }
+  Catch(e)
+  {
+    TEST_ASSERT_EQUAL(0, e);
+  }
 }
 
-void test_assert_hex_within_succeed(void)
+void test_assert_hex_within(void)
 {
-  ASSERT_HEX_WITHIN (0xff00, 0xffff, 0xff11, (void) 0);
-  ASSERT_HEX_WITHIN (0xff00, 0xffff, 0xff00, (void) 0);
-  ASSERT_HEX_WITHIN (0xff00, 0xffff, 0xffff, (void) 0);
+  Try
+  {
+    ASSERT_HEX_WITHIN (0xff00, 0xffff, 0xff11, __LINE__);
+    ASSERT_HEX_WITHIN (0xff00, 0xffff, 0xff00, __LINE__);
+    ASSERT_HEX_WITHIN (0xff00, 0xffff, 0xffff, __LINE__);
+  }
+  Catch (e)
+  {
+    TEST_ASSERT_EQUAL(0, e);
+  }
 }
 
 void test_assert_hex_within_less(void)
 {
-  ASSERT_HEX_WITHIN (0xff00, 0xffff, 0xeeee, (void) 0);
-  TEST_FAIL();
+  Try
+  {
+    ASSERT_HEX_WITHIN (0xff00, 0xffff, 0xeeee, 0);
+  }
+  Catch(e)
+  {
+    TEST_ASSERT_EQUAL(0, e);
+  }
 }
 
 void test_assert_hex_within_greater(void)
 {
-  ASSERT_HEX_WITHIN (0xff00, 0xffff, 0x1eeee, (void) 0);
-  TEST_FAIL();
+  Try
+  {
+    ASSERT_HEX_WITHIN (0xff00, 0xffff, 0x1eeee, 0);
+  }
+  Catch(e)
+  {
+    TEST_ASSERT_EQUAL(0, e);
+  }
 }
 
 //--------------------------------------------------------------------+
-// HEX
+// BIN
 //--------------------------------------------------------------------+
 void test_assert_bin_equal(void)
 {
-//  ASSERT_HEX       (0xffee, 0xffee, (void) 0);
-//  ASSERT_HEX_EQUAL (0xffee, 0xffee, (void) 0);
+//  ASSERT_HEX       (0xffee, 0xffee, __LINE__);
+//  ASSERT_HEX_EQUAL (0xffee, 0xffee, __LINE__);
 //
 //  uint32_t x = 0xf0f0;
 //  uint32_t y = 0xf0f0;
-//  ASSERT_HEX (x++, y++, (void) 0); // test side effect
+//  ASSERT_HEX (x++, y++, __LINE__); // test side effect
 //  TEST_ASSERT_EQUAL(0xf0f1, x);
 //  TEST_ASSERT_EQUAL(0xf0f1, y);
 //
-//  ASSERT_HEX(0x1234, 0x4321, (void) 0);
+//  ASSERT_HEX(0x1234, 0x4321, __LINE__);
 
   TEST_IGNORE();
 }

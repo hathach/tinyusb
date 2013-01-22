@@ -55,17 +55,19 @@
  extern "C" {
 #endif
 
+#define TUSB_CFG_CONFIGURATION_MAX 1
+
 /// Enable Device Support
 #define TUSB_CFG_DEVICE
 
 /// Enable CDC Support
-#define TUSB_CFG_DEVICE_CDC
+//#define TUSB_CFG_DEVICE_CDC
 
 /// Enable HID Keyboard support
 #define TUSB_CFG_DEVICE_HID_KEYBOARD
 
 /// Enable HID Mouse support
-#define TUSB_CFG_DEVICE_HID_MOUSE
+//#define TUSB_CFG_DEVICE_HID_MOUSE
 
 #define TUSB_CFG_DEBUG 3
 #define TUSB_CFG_OS TUSB_OS_NONE
