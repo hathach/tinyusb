@@ -35,9 +35,11 @@
  * This file is part of the tiny usb stack.
  */
 
-#include "hid_host.h"
+#include "common/common.h"
 
-#if defined DEVICE_CLASS_HID && defined TUSB_CFG_HOST
+#if defined TUSB_CFG_HOST && defined DEVICE_CLASS_HID
+
+#include "hid_host.h"
 
 tusb_error_t tusbh_keyboard_get(tusb_handle_configure_t const config_hdl, tusb_keyboard_report_t * const report)
 {
