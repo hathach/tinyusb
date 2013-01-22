@@ -188,12 +188,14 @@ uint16_t tusb_cdc_recv(uint8_t* buffer, uint16_t max)
   return fifo_read_n(&ffRX, buffer, max);
 }
 
+#if 0
 // ROM driver bug: cannot hook this to CIC_GetRequest
 // Need this to implement GetLineCode & detect
-//ErrorCode_t CDC_Control_GetRequest(USBD_HANDLE_T hUsb, USB_SETUP_PACKET *pSetup, uint8_t **pBuffer, uint16_t *length)
-//{
-//  return LPC_OK;
-//}
+ErrorCode_t CDC_Control_GetRequest(USBD_HANDLE_T hUsb, USB_SETUP_PACKET *pSetup, uint8_t **pBuffer, uint16_t *length)
+{
+  return LPC_OK;
+}
+#endif
 
 /**************************************************************************/
 /*!
