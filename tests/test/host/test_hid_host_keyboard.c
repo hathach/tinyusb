@@ -41,7 +41,7 @@
 #include "mock_osal.h"
 #include "mock_usbd_host.h"
 
-tusb_device_info_t usbh_device_pool [2];
+usbh_device_info_t usbh_device_pool [2];
 
 tusb_keyboard_report_t sample_key[2] =
 {
@@ -55,21 +55,16 @@ tusb_keyboard_report_t sample_key[2] =
     }
 };
 
-tusb_handle_configure_t config_hdl;
+tusb_handle_device_t device_hdl;
 tusb_keyboard_report_t report;
-tusb_configure_info_t *p_cfg_info;
 
 void setUp(void)
 {
-  config_hdl = 1; // deviceID = 0 ; Configure = 1
+  device_hdl = 0; // deviceID = 0 ; Configure = 1
   memset(&report, 0, sizeof(tusb_keyboard_report_t));
-  p_cfg_info = NULL;
 
-  usbh_device_pool[0].configuration[0].classes.hid_keyboard.pipe_in = 1;
-  usbh_device_pool[0].configuration[0].classes.hid_keyboard.qid = 1;
-
-  usbh_device_pool[0].configuration[1].classes.hid_keyboard.pipe_in = 0;
-  usbh_device_pool[0].configuration[1].classes.hid_keyboard.qid = 0;
+  usbh_device_pool[0].configuration.classes.hid_keyboard.pipe_in = 1;
+  usbh_device_pool[0].configuration.classes.hid_keyboard.qid = 1;
 }
 
 void tearDown(void)
@@ -82,50 +77,51 @@ tusb_error_t queue_get_stub(osal_queue_id_t qid, uint32_t *data, osal_timeout_t 
   return TUSB_ERROR_NONE;
 }
 
-tusb_error_t get_configure_class_not_support_stub(tusb_handle_configure_t configure_hdl, tusb_configure_info_t **pp_configure_info, int num_call)
+usbh_device_info_t* get_device_class_not_support_stub(tusb_handle_device_t device_hdl, int num_call)
 {
-  (*pp_configure_info) = &(usbh_device_pool[0].configuration[1]);
-  return TUSB_ERROR_NONE;
+  usbh_device_pool[0].configuration.classes.hid_keyboard.pipe_in = 0;
+  usbh_device_pool[0].configuration.classes.hid_keyboard.qid = 0;
+
+  return &(usbh_device_pool[0]);
 }
 
-tusb_error_t get_configure_stub(tusb_handle_configure_t configure_hdl, tusb_configure_info_t **pp_configure_info, int num_call)
+usbh_device_info_t* get_device_stub(tusb_handle_device_t device_hdl, int num_call)
 {
-  (*pp_configure_info) = &(usbh_device_pool[0].configuration[0]);
-  return TUSB_ERROR_NONE;
+  return &(usbh_device_pool[0]);
 }
 
 void test_keyboard_get_invalid_para()
 {
-  usbh_configure_info_get_IgnoreAndReturn(TUSB_ERROR_INVALID_PARA);
-  TEST_ASSERT_EQUAL(TUSB_ERROR_INVALID_PARA, tusbh_keyboard_get(config_hdl, NULL));
-  TEST_ASSERT_EQUAL(TUSB_ERROR_INVALID_PARA, tusbh_keyboard_get(config_hdl, &report));
+  usbh_device_info_get_IgnoreAndReturn(NULL);
+  TEST_ASSERT_EQUAL(TUSB_ERROR_INVALID_PARA, tusbh_keyboard_get(device_hdl, NULL));
+  TEST_ASSERT_EQUAL(TUSB_ERROR_INVALID_PARA, tusbh_keyboard_get(device_hdl, &report));
 }
 
 void test_keyboard_get_class_not_supported()
 {
-  usbh_configure_info_get_StubWithCallback(get_configure_class_not_support_stub);
+  usbh_device_info_get_StubWithCallback(get_device_class_not_support_stub);
 
-  TEST_ASSERT_EQUAL(TUSB_ERROR_CLASS_DEVICE_DONT_SUPPORT, tusbh_keyboard_get(config_hdl, &report));
+  TEST_ASSERT_EQUAL(TUSB_ERROR_CLASS_DEVICE_DONT_SUPPORT, tusbh_keyboard_get(device_hdl, &report));
 }
 
 void test_keyboard_get_from_empty_queue()
 {
-  usbh_configure_info_get_StubWithCallback(get_configure_stub);
+  usbh_device_info_get_StubWithCallback(get_device_stub);
   osal_queue_get_IgnoreAndReturn(TUSB_ERROR_OSAL_TIMEOUT);
 //  osal_queue_get_ExpectAndReturn( usbh_device_pool[0].configuration[0].classes.hid_keyboard.qid, );
 
-  TEST_ASSERT_EQUAL(TUSB_ERROR_OSAL_TIMEOUT, tusbh_keyboard_get(config_hdl, &report));
+  TEST_ASSERT_EQUAL(TUSB_ERROR_OSAL_TIMEOUT, tusbh_keyboard_get(device_hdl, &report));
 }
 
 void test_keyboard_get_ok()
 {
-  usbh_configure_info_get_StubWithCallback(get_configure_stub);
+  usbh_device_info_get_StubWithCallback(get_device_stub);
   osal_queue_get_StubWithCallback(queue_get_stub);
 
-  TEST_ASSERT_EQUAL(TUSB_ERROR_NONE, tusbh_keyboard_get(config_hdl, &report));
+  TEST_ASSERT_EQUAL(TUSB_ERROR_NONE, tusbh_keyboard_get(device_hdl, &report));
   TEST_ASSERT_EQUAL_MEMORY(&sample_key[0], &report, sizeof(tusb_keyboard_report_t));
 
-  TEST_ASSERT_EQUAL(TUSB_ERROR_NONE, tusbh_keyboard_get(config_hdl, &report));
+  TEST_ASSERT_EQUAL(TUSB_ERROR_NONE, tusbh_keyboard_get(device_hdl, &report));
   TEST_ASSERT_EQUAL_MEMORY(&sample_key[1], &report, sizeof(tusb_keyboard_report_t));
 }
 

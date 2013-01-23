@@ -50,6 +50,6 @@ tusb_error_t tusbh_keyboard_open(tusb_handle_device_t device_hdl, uint8_t config
 }
 #endif
 
-tusb_device_info_t usbh_device_pool[TUSB_CFG_HOST_DEVICE_MAX];
+usbh_device_info_t usbh_device_pool[TUSB_CFG_HOST_DEVICE_MAX];
 
 #endif
