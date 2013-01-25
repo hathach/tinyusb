@@ -81,6 +81,7 @@ enum
 //--------------------------------------------------------------------+
 typedef uint32_t osal_queue_id_t;
 
+tusb_error_t osal_queue_create(osal_queue_id_t qid, uint8_t *buffer);
 tusb_error_t osal_queue_put(osal_queue_id_t qid, uint32_t data, osal_timeout_t msec);
 tusb_error_t osal_queue_get(osal_queue_id_t qid, uint32_t *data, osal_timeout_t msec);
 

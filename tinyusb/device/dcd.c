@@ -42,7 +42,7 @@
 #include "descriptors.h" // TODO refractor later
 
 #define USB_ROM_SIZE (1024*2) // TODO dcd abstract later
-uint8_t usb_RomDriver_buffer[USB_ROM_SIZE] ATTR_ALIGNED(2048) TUSB_ATTR_RAM_SECTION;
+uint8_t usb_RomDriver_buffer[USB_ROM_SIZE] ATTR_ALIGNED(2048) TUSB_CFG_ATTR_USBRAM;
 USBD_HANDLE_T g_hUsb;
 static volatile bool isConfigured = false;
 

@@ -39,28 +39,56 @@
 
 #if defined TUSB_CFG_HOST && defined DEVICE_CLASS_HID
 
+//--------------------------------------------------------------------+
+// INCLUDE
+//--------------------------------------------------------------------+
 #include "hid_host.h"
 
-tusb_error_t tusbh_keyboard_get(tusb_handle_device_t const device_hdl, tusb_keyboard_report_t * const report)
-{
-  usbh_device_info_t *p_device_info;
+//--------------------------------------------------------------------+
+// MACRO CONSTANT TYPEDEF
+//--------------------------------------------------------------------+
 
-  pipe_handle_t pipe_in;
-  osal_queue_id_t qid;
+//--------------------------------------------------------------------+
+// INTERNAL OBJECT & FUNCTION DECLARATION
+//--------------------------------------------------------------------+
+class_hid_keyboard_info_t keyboard_info_pool[TUSB_CFG_HOST_DEVICE_MAX];
+
+
+//--------------------------------------------------------------------+
+// IMPLEMENTATION
+//--------------------------------------------------------------------+
+tusb_error_t tusbh_hid_keyboard_get(tusb_handle_device_t const device_hdl, uint8_t instance_num, tusb_keyboard_report_t * const report)
+{
+  keyboard_interface_t *p_kbd;
 
   ASSERT_PTR(report, TUSB_ERROR_INVALID_PARA);
-  p_device_info = usbh_device_info_get(device_hdl);
-  ASSERT_PTR(p_device_info, TUSB_ERROR_INVALID_PARA);
+  ASSERT(device_hdl < TUSB_CFG_HOST_DEVICE_MAX, TUSB_ERROR_INVALID_PARA);
+  ASSERT(instance_num < TUSB_CFG_HOST_HID_KEYBOARD_NO_INSTANCES_PER_DEVICE, TUSB_ERROR_INVALID_PARA);
 
-  pipe_in = p_device_info->configuration.classes.hid_keyboard.pipe_in;
-  qid     = p_device_info->configuration.classes.hid_keyboard.qid;
+  p_kbd = &keyboard_info_pool[device_hdl].instance[instance_num];
 
-  ASSERT(0 != pipe_in, TUSB_ERROR_CLASS_DEVICE_DONT_SUPPORT);
-  ASSERT_STATUS( osal_queue_get(qid, (uint32_t*)report, OSAL_TIMEOUT_WAIT_FOREVER) );
-  ASSERT_STATUS( osal_queue_get(qid, ((uint32_t*)report)+1, OSAL_TIMEOUT_WAIT_FOREVER) );
+  ASSERT(0 != p_kbd->pipe_in, TUSB_ERROR_CLASS_DEVICE_DONT_SUPPORT);
+
+  ASSERT_INT(PIPE_STATUS_COMPLETE, usbh_pipe_status_get(p_kbd->pipe_in), TUSB_ERROR_CLASS_DATA_NOT_AVAILABLE);
+
+  memcpy(report, p_kbd->buffer, p_kbd->report_size);
 
   return TUSB_ERROR_NONE;
 }
+
+uint8_t tusbh_hid_keyboard_no_instances(tusb_handle_device_t const device_hdl)
+{
+  return 0;
+}
+
+tusb_error_t class_hid_keyboard_install(uint8_t const dev_addr, uint8_t const *descriptor)
+{
+  ASSERT(dev_addr < TUSB_CFG_HOST_DEVICE_MAX, TUSB_ERROR_INVALID_PARA);
+  ASSERT_PTR(descriptor, TUSB_ERROR_INVALID_PARA);
+
+  return TUSB_ERROR_NONE;
+}
+
 
 #endif
 

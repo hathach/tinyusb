@@ -45,7 +45,7 @@ void tearDown(void)
 {
 }
 
-void test_()
+void test_project_memory()
 {
-  TEST_IGNORE();
+  TEST_IGNORE_MESSAGE("Try to keep project total memory usage up-to-date");
 }

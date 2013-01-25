@@ -55,22 +55,35 @@
  extern "C" {
 #endif
 
+//--------------------------------------------------------------------+
+// HOST CONFIGURATION
+//--------------------------------------------------------------------+
 #define TUSB_CFG_HOST
+
+//------------- CORE/CONTROLLER -------------//
 #define TUSB_CFG_HOST_CONTROLLER_NUM 2
 #define TUSB_CFG_HOST_DEVICE_MAX 2
 #define TUSB_CFG_CONFIGURATION_MAX 2
 
-/// Enable Device Support
+//------------- CLASS -------------//
+#define TUSB_CFG_HOST_HID_KEYBOARD  1
+#define TUSB_CFG_HOST_HID_KEYBOARD_ENDPOINT_SIZE  64
+
+//--------------------------------------------------------------------+
+// DEVICE CONFIGURATION
+//--------------------------------------------------------------------+
 //#define TUSB_CFG_DEVICE
 
-/// Enable CDC Support
+//------------- CORE/CONTROLLER -------------//
+
+//------------- CLASS -------------//
 //#define TUSB_CFG_DEVICE_CDC
-
-/// Enable HID Keyboard support
 #define TUSB_CFG_DEVICE_HID_KEYBOARD
-
-/// Enable HID Mouse support
 //#define TUSB_CFG_DEVICE_HID_MOUSE
+
+//--------------------------------------------------------------------+
+// COMMON CONFIGURATION
+//--------------------------------------------------------------------+
 
 #define TUSB_CFG_DEBUG 3
 
@@ -83,7 +96,7 @@
     #define TUSB_RAM_SECTION  ".data.$RAM3"
   #endif
 
-  #define TUSB_ATTR_RAM_SECTION   __attribute__ ((section(TUSB_RAM_SECTION)))
+  #define TUSB_CFG_ATTR_USBRAM   __attribute__ ((section(TUSB_RAM_SECTION)))
 #endif
 
 

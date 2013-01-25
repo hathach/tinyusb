@@ -55,9 +55,30 @@
  extern "C" {
 #endif
 
+#include "host/usbd_host.h"
 #include "hid.h"
 
-tusb_error_t tusbh_keyboard_get(tusb_handle_device_t const handle, tusb_keyboard_report_t * const report);
+//--------------------------------------------------------------------+
+// APPLICATION API
+//--------------------------------------------------------------------+
+uint8_t tusbh_hid_keyboard_no_instances(tusb_handle_device_t const device_hdl);
+tusb_error_t tusbh_hid_keyboard_get(tusb_handle_device_t const handle, uint8_t instance_num, tusb_keyboard_report_t * const report);
+
+//--------------------------------------------------------------------+
+// INTERNAL API
+//--------------------------------------------------------------------+
+typedef struct {
+  pipe_handle_t pipe_in;
+  uint8_t report_size;
+  uint8_t buffer[TUSB_CFG_HOST_HID_KEYBOARD_ENDPOINT_SIZE];
+}keyboard_interface_t;
+
+typedef struct { // TODO internal structure
+  uint8_t instance_count;
+  keyboard_interface_t instance[TUSB_CFG_HOST_HID_KEYBOARD_NO_INSTANCES_PER_DEVICE];
+} class_hid_keyboard_info_t;
+
+tusb_error_t class_hid_keyboard_install(uint8_t const dev_addr, uint8_t const *descriptor);
 
 #ifdef __cplusplus
 }

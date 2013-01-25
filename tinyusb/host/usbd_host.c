@@ -39,6 +39,8 @@
 
 #ifdef TUSB_CFG_HOST
 
+usbh_device_info_t usbh_device_pool[TUSB_CFG_HOST_DEVICE_MAX];
+
 #if 0
 tusb_error_t tusbh_keyboard_open(tusb_handle_device_t device_hdl, uint8_t configure_num, tusb_handle_keyboard_t *keyboard_hdl)
 {
@@ -50,6 +52,5 @@ tusb_error_t tusbh_keyboard_open(tusb_handle_device_t device_hdl, uint8_t config
 }
 #endif
 
-usbh_device_info_t usbh_device_pool[TUSB_CFG_HOST_DEVICE_MAX];
 
 #endif

@@ -55,19 +55,18 @@
  extern "C" {
 #endif
 
- // TODO refractor
 #include "common/common.h"
 
-#ifdef TUSB_CFG_DEVICE
-  #include "device/dcd.h"
-  #include "hid_device.h"
-#endif
+enum {
+  TUSB_HID_SUBCLASS_NONE = 0,
+  TUSB_HID_SUBCLASS_BOOT = 1
+};
 
-#ifdef TUSB_CFG_HOST
-  #include "host/usbd_host.h"
-  #include "hid_host.h"
-#endif
-
+enum {
+  TUSB_HID_PROTOCOL_NONE     = 0,
+  TUSB_HID_PROTOCOL_KEYBOARD = 1,
+  TUSB_HID_PROTOCOL_MOUSE    = 2
+};
 /** \struct tusb_mouse_report_t
  *  \brief Standard HID Boot Protocol Mouse Report.
  *

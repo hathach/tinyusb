@@ -79,7 +79,7 @@
     #define TUSB_RAM_SECTION  ".data.$RAM3"
   #endif
 
-  #define TUSB_ATTR_RAM_SECTION   __attribute__ ((section(TUSB_RAM_SECTION)))
+  #define TUSB_CFG_ATTR_USBRAM   __attribute__ ((section(TUSB_RAM_SECTION)))
 #endif
 
 

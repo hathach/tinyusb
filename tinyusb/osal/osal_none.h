@@ -60,6 +60,17 @@
 //--------------------------------------------------------------------+
 // QUEUE API
 //--------------------------------------------------------------------+
+typedef struct{
+           uint8_t  *buf         ; ///< buffer pointer
+           uint16_t size         ; ///< buffer size
+  volatile uint16_t len          ; ///< bytes in fifo
+  volatile uint16_t wr_ptr       ; ///< write pointer
+  volatile uint16_t rd_ptr       ; ///< read pointer
+} osal_queue_t;
+
+#define OSAL_DEF_QUEUE(name, size)\
+  osal_queue_t name;\
+  uint8_t buffer_##name[size]
 
 #ifdef __cplusplus
  }

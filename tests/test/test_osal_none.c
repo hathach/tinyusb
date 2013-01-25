@@ -1,7 +1,7 @@
 /*
- * tusb.h
+ * test_osal_none.c
  *
- *  Created on: Nov 27, 2012
+ *  Created on: Jan 22, 2013
  *      Author: hathach
  */
 
@@ -32,53 +32,25 @@
  * IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY
  * OF SUCH DAMAGE.
  *
- * This file is part of the tinyUSB stack.
+ * This file is part of the tiny usb stack.
  */
 
-/** \file
- *  \brief Tiny USB header
- *
- *  \note Tiny USB header Note
- */
+#include "unity.h"
+#include "osal_none.h"
 
-#ifndef _TUSB_H_
-#define _TUSB_H_
+void setUp(void)
+{
 
-#ifdef __cplusplus
- extern "C" {
-#endif
+}
 
-#include "common/common.h"
+void tearDown(void)
+{
 
-#ifdef TUSB_CFG_HOST
-  #include "host/usbd_host.h"
+}
 
-  #ifdef HOST_CLASS_HID
-    #include "class/hid_host.h"
-  #endif
-#endif
-
-#ifdef TUSB_CFG_DEVICE
-  #include "device/dcd.h"
-
-  #if DEVICE_CLASS_HID
-    #include "class/hid_device.h"
-  #endif
-
-  #ifdef TUSB_CFG_DEVICE_CDC
-    #include "class/cdc.h"
-  #endif
-#endif
-
-#if !(defined TUSB_CFG_HOST) && !(defined TUSB_CFG_DEVICE)
- #error please enable either TUSB_CFG_HOST or TUSB_CFG_DEVICE
-#endif
+void test_queue_put_invalid_para(void)
+{
+//  osal_queue_put();
+}
 
 
-tusb_error_t tusb_init(void);
-
-#ifdef __cplusplus
- }
-#endif
-
-#endif /* _TUSB_H_ */

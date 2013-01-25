@@ -57,6 +57,12 @@
 
 #define TUSB_CFG_HOST
 
+#define TUSB_CFG_HOST_CONTROLLER_NUM 1
+#define TUSB_CFG_HOST_DEVICE_MAX 1
+#define TUSB_CFG_CONFIGURATION_MAX 1
+
+#define TUSB_CFG_HOST_HID_KEYBOARD
+
 /// Enable Device Support
 //#define TUSB_CFG_DEVICE
 
@@ -80,7 +86,7 @@
     #define TUSB_RAM_SECTION  ".data.$RAM3"
   #endif
 
-  #define TUSB_ATTR_RAM_SECTION   __attribute__ ((section(TUSB_RAM_SECTION)))
+  #define TUSB_CFG_ATTR_USBRAM   __attribute__ ((section(TUSB_RAM_SECTION)))
 #endif
 
 

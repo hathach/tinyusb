@@ -75,6 +75,19 @@
   #warning TUSB_CFG_HOST_DEVICE_MAX is not defined, default value is 1
 #endif
 
+#if TUSB_CFG_HOST_HID_KEYBOARD
+  #if !defined(TUSB_CFG_HOST_HID_KEYBOARD_ENDPOINT_SIZE)
+    #define TUSB_CFG_HOST_HID_KEYBOARD_ENDPOINT_SIZE 64
+    #warning TUSB_CFG_HOST_HID_KEYBOARD_ENDPOINT_SIZE is not defined, default value is 64
+  #elif TUSB_CFG_HOST_HID_KEYBOARD_ENDPOINT_SIZE < 8
+    #error no endpoint size is allowed to be less than 8
+  #endif
+
+  #if !defined(TUSB_CFG_HOST_HID_KEYBOARD_NO_INSTANCES_PER_DEVICE)
+    #define TUSB_CFG_HOST_HID_KEYBOARD_NO_INSTANCES_PER_DEVICE 1
+  #endif
+#endif
+
 #endif
 
 #ifndef TUSB_CFG_CONFIGURATION_MAX
@@ -86,13 +99,15 @@
 //#define TUSB_CFG_DEVICE
 
 /// USB RAM Section Placement, MCU's usb controller often has limited access to specific RAM region. This will be used to declare internal variables as follow:
-/// uint8_t tinyusb_data[10] TUSB_ATTR_RAM_SECTION;
-/// if your mcu's usb controller has no such limit, define TUSB_ATTR_RAM_SECTION as empty macro.
-#ifndef TUSB_ATTR_RAM_SECTION
- #error TUSB_ATTR_RAM_SECTION is not defined, needed to place data in accessible RAM for usb controller
+/// uint8_t tinyusb_data[10] TUSB_CFG_ATTR_USBRAM;
+/// if your mcu's usb controller has no such limit, define TUSB_CFG_ATTR_USBRAM as empty macro.
+#ifndef TUSB_CFG_ATTR_USBRAM
+ #error TUSB_CFG_ATTR_USBRAM is not defined, please help me know how to place data in accessible RAM for usb controller
 #endif
 
 #define DEVICE_CLASS_HID ( (defined TUSB_CFG_DEVICE_HID_KEYBOARD) || (defined TUSB_CFG_DEVICE_HID_MOUSE) )
+#define HOST_CLASS_HID   ( (defined TUSB_CFG_HOST_HID_KEYBOARD) )
+
 #define HOST_EHCI
 
 // TODO APP
