@@ -95,21 +95,20 @@ enum {
 typedef uint32_t tusbh_flag_class_t;
 
 typedef struct {
-  uint8_t interface_count;
-  uint8_t attributes;
-} usbh_configure_info_t;
-
-typedef struct {
   uint8_t core_id;
   pipe_handle_t pipe_control;
-  uint8_t configure_count;
 
 #if 0 // TODO allow configure for vendor/product
   uint16_t vendor_id;
   uint16_t product_id;
+
+  uint8_t configure_count;
+  struct {
+    uint8_t interface_count;
+    uint8_t attributes;
+  } configuration;
 #endif
 
-  usbh_configure_info_t configuration;
 } usbh_device_info_t;
 
 typedef enum {
@@ -125,8 +124,8 @@ typedef uint32_t tusb_handle_device_t;
 //--------------------------------------------------------------------+
 // APPLICATION API
 //--------------------------------------------------------------------+
-void         tusbh_device_mounting_cb (tusb_error_t error, tusb_handle_device_t device_hdl, uint32_t *configure_flags, uint8_t number_of_configure);
-void         tusbh_device_mounted_cb (tusb_error_t error, tusb_handle_device_t device_hdl, uint32_t *configure_flags, uint8_t number_of_configure);
+void         tusbh_device_mounting_cb (tusb_error_t const error, tusb_handle_device_t const device_hdl);
+void         tusbh_device_mounted_cb (tusb_error_t const error, tusb_handle_device_t const device_hdl);
 tusb_error_t tusbh_configuration_set     (tusb_handle_device_t const device_hdl, uint8_t const configure_number);
 
 
@@ -134,8 +133,8 @@ tusb_error_t tusbh_configuration_set     (tusb_handle_device_t const device_hdl,
 //--------------------------------------------------------------------+
 // CLASS API
 //--------------------------------------------------------------------+
-usbh_device_info_t*   usbh_device_info_get(tusb_handle_device_t device_hdl);
-pipe_status_t         usbh_pipe_status_get(pipe_handle_t pipe_hdl);
+bool          usbh_device_is_plugged(tusb_handle_device_t const device_hdl);
+pipe_status_t usbh_pipe_status_get(pipe_handle_t pipe_hdl);
 
 #ifdef __cplusplus
  }

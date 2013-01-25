@@ -61,8 +61,8 @@ tusb_error_t tusbh_hid_keyboard_get(tusb_handle_device_t const device_hdl, uint8
 {
   keyboard_interface_t *p_kbd;
 
+  ASSERT(usbh_device_is_plugged(device_hdl), TUSB_ERROR_INVALID_PARA);
   ASSERT_PTR(report, TUSB_ERROR_INVALID_PARA);
-  ASSERT(device_hdl < TUSB_CFG_HOST_DEVICE_MAX, TUSB_ERROR_INVALID_PARA);
   ASSERT(instance_num < TUSB_CFG_HOST_HID_KEYBOARD_NO_INSTANCES_PER_DEVICE, TUSB_ERROR_INVALID_PARA);
 
   p_kbd = &keyboard_info_pool[device_hdl].instance[instance_num];
@@ -78,13 +78,14 @@ tusb_error_t tusbh_hid_keyboard_get(tusb_handle_device_t const device_hdl, uint8
 
 uint8_t tusbh_hid_keyboard_no_instances(tusb_handle_device_t const device_hdl)
 {
-  return 0;
+  ASSERT(usbh_device_is_plugged(device_hdl), 0);
+
+  return keyboard_info_pool[device_hdl].instance_count;
 }
 
 tusb_error_t class_hid_keyboard_install(uint8_t const dev_addr, uint8_t const *descriptor)
 {
-  ASSERT(dev_addr < TUSB_CFG_HOST_DEVICE_MAX, TUSB_ERROR_INVALID_PARA);
-  ASSERT_PTR(descriptor, TUSB_ERROR_INVALID_PARA);
+  keyboard_info_pool[0].instance_count++;
 
   return TUSB_ERROR_NONE;
 }
