@@ -53,38 +53,39 @@ void UnityPrintOk(void);
 
 void UnityPrint(const char* string)
 {
-    const char* pch = string;
-
-    if (pch != NULL)
-    {
-        while (*pch)
-        {
-            // printable characters plus CR & LF are printed
-            if ((*pch <= 126) && (*pch >= 32))
-            {
-                UNITY_OUTPUT_CHAR(*pch);
-            }
-            //write escaped carriage returns
-            else if (*pch == 13)
-            {
-                UNITY_OUTPUT_CHAR('\\');
-                UNITY_OUTPUT_CHAR('r');
-            }
-            //write escaped line feeds
-            else if (*pch == 10)
-            {
-                UNITY_OUTPUT_CHAR('\\');
-                UNITY_OUTPUT_CHAR('n');
-            }
-            // unprintable characters are shown as codes
-            else
-            {
-                UNITY_OUTPUT_CHAR('\\');
-                UnityPrintNumberHex((_U_SINT)*pch, 2);
-            }
-            pch++;
-        }
-    }
+//     const char* pch = string;
+//
+//     if (pch != NULL)
+//     {
+//         while (*pch)
+//         {
+//             // printable characters plus CR & LF are printed
+//             if ((*pch <= 126) && (*pch >= 32))
+//             {
+//                 UNITY_OUTPUT_CHAR(*pch);
+//             }
+//             //write escaped carriage returns
+//             else if (*pch == 13)
+//             {
+//                 UNITY_OUTPUT_CHAR('\\');
+//                 UNITY_OUTPUT_CHAR('r');
+//             }
+//             //write escaped line feeds
+//             else if (*pch == 10)
+//             {
+//                 UNITY_OUTPUT_CHAR('\\');
+//                 UNITY_OUTPUT_CHAR('n');
+//             }
+//             // unprintable characters are shown as codes
+//             else
+//             {
+//                 UNITY_OUTPUT_CHAR('\\');
+//                 UnityPrintNumberHex((_U_SINT)*pch, 2);
+//             }
+//             pch++;
+//         }
+//     }
+        printf (string);
 }
 
 //-----------------------------------------------
