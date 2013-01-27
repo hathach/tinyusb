@@ -39,6 +39,8 @@
 
 #if defined TUSB_CFG_HOST && defined DEVICE_CLASS_HID
 
+#define _TINY_USB_SOURCE_FILE_
+
 //--------------------------------------------------------------------+
 // INCLUDE
 //--------------------------------------------------------------------+
@@ -55,7 +57,7 @@ class_hid_keyboard_info_t keyboard_info_pool[TUSB_CFG_HOST_DEVICE_MAX];
 
 
 //--------------------------------------------------------------------+
-// IMPLEMENTATION
+// PUBLIC API
 //--------------------------------------------------------------------+
 tusb_error_t tusbh_hid_keyboard_get(tusb_handle_device_t const device_hdl, uint8_t instance_num, tusb_keyboard_report_t * const report)
 {
@@ -83,6 +85,14 @@ uint8_t tusbh_hid_keyboard_no_instances(tusb_handle_device_t const device_hdl)
   return keyboard_info_pool[device_hdl].instance_count;
 }
 
+//--------------------------------------------------------------------+
+// CLASS-USBD API
+//--------------------------------------------------------------------+
+tusb_error_t class_hid_keyboard_init(void)
+{
+  memset(&keyboard_info_pool, 0, sizeof(class_hid_keyboard_info_t)*TUSB_CFG_HOST_DEVICE_MAX);
+}
+
 tusb_error_t class_hid_keyboard_install(uint8_t const dev_addr, uint8_t const *descriptor)
 {
   keyboard_info_pool[0].instance_count++;
@@ -90,6 +100,4 @@ tusb_error_t class_hid_keyboard_install(uint8_t const dev_addr, uint8_t const *d
   return TUSB_ERROR_NONE;
 }
 
-
 #endif
-

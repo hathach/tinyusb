@@ -90,7 +90,7 @@ void tearDown(void)
 }
 
 //--------------------------------------------------------------------+
-// keyboard_install, keyboard_no_instances
+// keyboard_install, keyboard_no_instances, keybaord_init
 //--------------------------------------------------------------------+
 void test_keyboard_no_instances_invalid_para(void)
 {
@@ -105,6 +105,16 @@ void test_keyboard_install_ok(void)
   TEST_ASSERT_EQUAL(0, tusbh_hid_keyboard_no_instances(device_hdl));
   TEST_ASSERT_EQUAL(TUSB_ERROR_NONE, class_hid_keyboard_install(device_hdl, (uint8_t*) &kbd_descriptor));
   TEST_ASSERT_EQUAL(1, tusbh_hid_keyboard_no_instances(device_hdl));
+}
+
+void test_keyboard_init(void)
+{
+  class_hid_keyboard_info_t keyboard_info_zero[TUSB_CFG_HOST_DEVICE_MAX];
+  memset(&keyboard_info_zero, 0, sizeof(class_hid_keyboard_info_t)*TUSB_CFG_HOST_DEVICE_MAX);
+
+  class_hid_keyboard_init();
+
+  TEST_ASSERT_EQUAL_MEMORY(keyboard_info_zero, keyboard_info_pool, sizeof(class_hid_keyboard_info_t)*TUSB_CFG_HOST_DEVICE_MAX);
 }
 
 //--------------------------------------------------------------------+

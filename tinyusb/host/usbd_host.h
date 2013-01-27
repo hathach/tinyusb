@@ -55,8 +55,14 @@
  extern "C" {
 #endif
 
+//--------------------------------------------------------------------+
+// INCLUDE
+//--------------------------------------------------------------------+
 #include "hcd.h"
 
+//--------------------------------------------------------------------+
+// MACRO CONSTANT TYPEDEF
+//--------------------------------------------------------------------+
 enum {
   TUSB_FLAGS_CLASS_UNSPECIFIED          = BIT_(0)    , ///< 0
   TUSB_FLAGS_CLASS_AUDIO                = BIT_(1)    , ///< 1
@@ -116,10 +122,11 @@ typedef enum {
   PIPE_STATUS_BUSY,
   PIPE_STATUS_COMPLETE
 } pipe_status_t;
-//--------------------------------------------------------------------+
-// Structures & Types
-//--------------------------------------------------------------------+
+
 typedef uint32_t tusb_handle_device_t;
+//--------------------------------------------------------------------+
+// INTERNAL OBJECT & FUNCTION DECLARATION
+//--------------------------------------------------------------------+
 
 //--------------------------------------------------------------------+
 // APPLICATION API
@@ -129,12 +136,15 @@ void         tusbh_device_mounted_cb (tusb_error_t const error, tusb_handle_devi
 tusb_error_t tusbh_configuration_set     (tusb_handle_device_t const device_hdl, uint8_t const configure_number);
 
 
-// TODO hiding from application include
 //--------------------------------------------------------------------+
-// CLASS API
+// CLASS-USBD API
 //--------------------------------------------------------------------+
+#ifdef _TINY_USB_SOURCE_FILE_
+
 bool          usbh_device_is_plugged(tusb_handle_device_t const device_hdl);
 pipe_status_t usbh_pipe_status_get(pipe_handle_t pipe_hdl);
+
+#endif
 
 #ifdef __cplusplus
  }

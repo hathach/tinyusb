@@ -67,18 +67,23 @@ tusb_error_t tusbh_hid_keyboard_get(tusb_handle_device_t const handle, uint8_t i
 //--------------------------------------------------------------------+
 // INTERNAL API
 //--------------------------------------------------------------------+
+#ifdef _TINY_USB_SOURCE_FILE_
+
 typedef struct {
   pipe_handle_t pipe_in;
   uint8_t report_size;
   uint8_t buffer[TUSB_CFG_HOST_HID_KEYBOARD_ENDPOINT_SIZE];
 }keyboard_interface_t;
 
-typedef struct { // TODO internal structure
+typedef struct {
   uint8_t instance_count;
   keyboard_interface_t instance[TUSB_CFG_HOST_HID_KEYBOARD_NO_INSTANCES_PER_DEVICE];
 } class_hid_keyboard_info_t;
 
+tusb_error_t class_hid_keyboard_init(void);
 tusb_error_t class_hid_keyboard_install(uint8_t const dev_addr, uint8_t const *descriptor);
+
+#endif
 
 #ifdef __cplusplus
 }
