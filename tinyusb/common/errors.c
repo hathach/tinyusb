@@ -39,7 +39,7 @@
 
 #if TUSB_CFG_DEBUG == 3
 
-unsigned char const* const TUSB_ErrorStr[] =
+uint8_t const* const TUSB_ErrorStr[] =
 {
  ERROR_TABLE(ERROR_STRING)
  0

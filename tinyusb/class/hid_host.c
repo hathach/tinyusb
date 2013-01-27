@@ -88,7 +88,7 @@ uint8_t tusbh_hid_keyboard_no_instances(tusb_handle_device_t const device_hdl)
 //--------------------------------------------------------------------+
 // CLASS-USBD API
 //--------------------------------------------------------------------+
-tusb_error_t class_hid_keyboard_init(void)
+void class_hid_keyboard_init(void)
 {
   memset(&keyboard_info_pool, 0, sizeof(class_hid_keyboard_info_t)*TUSB_CFG_HOST_DEVICE_MAX);
 }

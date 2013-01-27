@@ -80,7 +80,7 @@ typedef struct {
   keyboard_interface_t instance[TUSB_CFG_HOST_HID_KEYBOARD_NO_INSTANCES_PER_DEVICE];
 } class_hid_keyboard_info_t;
 
-tusb_error_t class_hid_keyboard_init(void);
+void class_hid_keyboard_init(void);
 tusb_error_t class_hid_keyboard_install(uint8_t const dev_addr, uint8_t const *descriptor);
 
 #endif
