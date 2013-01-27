@@ -7,7 +7,7 @@
 
 /*
  * Software License Agreement (BSD License)
- * Copyright (c) 2012, hathach (tinyusb.net)
+ * Copyright (c) 2013, hathach (tinyusb.net)
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without modification,
@@ -79,6 +79,7 @@
 #else
   #define STATIC_
 #endif
+
 
 /// form an uint32_t from 4 x uint8_t
 static inline uint32_t u32_from_u8(uint8_t b1, uint8_t b2, uint8_t b3, uint8_t b4) ATTR_ALWAYS_INLINE ATTR_CONST;

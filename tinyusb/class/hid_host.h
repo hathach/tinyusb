@@ -7,7 +7,7 @@
 
 /*
  * Software License Agreement (BSD License)
- * Copyright (c) 2012, hathach (tinyusb.net)
+ * Copyright (c) 2013, hathach (tinyusb.net)
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without modification,
@@ -61,8 +61,8 @@
 //--------------------------------------------------------------------+
 // APPLICATION API
 //--------------------------------------------------------------------+
-uint8_t tusbh_hid_keyboard_no_instances(tusb_handle_device_t const device_hdl);
-tusb_error_t tusbh_hid_keyboard_get(tusb_handle_device_t const handle, uint8_t instance_num, tusb_keyboard_report_t * const report);
+uint8_t tusbh_hid_keyboard_no_instances(tusb_handle_device_t const device_hdl) ATTR_WARN_UNUSED_RESULT;
+tusb_error_t tusbh_hid_keyboard_get(tusb_handle_device_t const handle, uint8_t instance_num, tusb_keyboard_report_t * const report) ATTR_WARN_UNUSED_RESULT;
 
 //--------------------------------------------------------------------+
 // INTERNAL API
@@ -81,7 +81,7 @@ typedef struct {
 } class_hid_keyboard_info_t;
 
 void class_hid_keyboard_init(void);
-tusb_error_t class_hid_keyboard_install(uint8_t const dev_addr, uint8_t const *descriptor);
+tusb_error_t class_hid_keyboard_install(uint8_t const dev_addr, uint8_t const *descriptor) ATTR_WARN_UNUSED_RESULT;
 
 #endif
 

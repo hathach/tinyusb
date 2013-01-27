@@ -7,7 +7,7 @@
 
 /*
  * Software License Agreement (BSD License)
- * Copyright (c) 2012, hathach (tinyusb.net)
+ * Copyright (c) 2013, hathach (tinyusb.net)
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without modification,
@@ -55,25 +55,35 @@
  extern "C" {
 #endif
 
+//--------------------------------------------------------------------+
+// HOST CONFIGURATION
+//--------------------------------------------------------------------+
 #define TUSB_CFG_HOST
 
+//------------- CORE/CONTROLLER -------------//
 #define TUSB_CFG_HOST_CONTROLLER_NUM 1
-#define TUSB_CFG_HOST_DEVICE_MAX 1
-#define TUSB_CFG_CONFIGURATION_MAX 1
+#define TUSB_CFG_HOST_DEVICE_MAX     1
+#define TUSB_CFG_CONFIGURATION_MAX   1
 
-#define TUSB_CFG_HOST_HID_KEYBOARD
+//------------- CLASS -------------//
+#define TUSB_CFG_HOST_HID_KEYBOARD  1
+#define TUSB_CFG_HOST_HID_KEYBOARD_ENDPOINT_SIZE  64
 
-/// Enable Device Support
+//--------------------------------------------------------------------+
+// DEVICE CONFIGURATION
+//--------------------------------------------------------------------+
 //#define TUSB_CFG_DEVICE
 
-/// Enable CDC Support
+//------------- CORE/CONTROLLER -------------//
+
+//------------- CLASS -------------//
 //#define TUSB_CFG_DEVICE_CDC
-
-/// Enable HID Keyboard support
 #define TUSB_CFG_DEVICE_HID_KEYBOARD
-
-/// Enable HID Mouse support
 //#define TUSB_CFG_DEVICE_HID_MOUSE
+
+//--------------------------------------------------------------------+
+// COMMON CONFIGURATION
+//--------------------------------------------------------------------+
 
 #define TUSB_CFG_DEBUG 3
 

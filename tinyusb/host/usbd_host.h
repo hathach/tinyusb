@@ -7,7 +7,7 @@
 
 /*
  * Software License Agreement (BSD License)
- * Copyright (c) 2012, hathach (tinyusb.net)
+ * Copyright (c) 2013, hathach (tinyusb.net)
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without modification,
@@ -133,7 +133,7 @@ typedef uint32_t tusb_handle_device_t;
 //--------------------------------------------------------------------+
 void         tusbh_device_mounting_cb (tusb_error_t const error, tusb_handle_device_t const device_hdl);
 void         tusbh_device_mounted_cb (tusb_error_t const error, tusb_handle_device_t const device_hdl);
-tusb_error_t tusbh_configuration_set     (tusb_handle_device_t const device_hdl, uint8_t const configure_number);
+tusb_error_t tusbh_configuration_set     (tusb_handle_device_t const device_hdl, uint8_t const configure_number) ATTR_WARN_UNUSED_RESULT;
 
 
 //--------------------------------------------------------------------+
@@ -141,8 +141,8 @@ tusb_error_t tusbh_configuration_set     (tusb_handle_device_t const device_hdl,
 //--------------------------------------------------------------------+
 #ifdef _TINY_USB_SOURCE_FILE_
 
-bool          usbh_device_is_plugged(tusb_handle_device_t const device_hdl);
-pipe_status_t usbh_pipe_status_get(pipe_handle_t pipe_hdl);
+bool          usbh_device_is_plugged(tusb_handle_device_t const device_hdl) ATTR_WARN_UNUSED_RESULT;
+pipe_status_t usbh_pipe_status_get(pipe_handle_t pipe_hdl) ATTR_WARN_UNUSED_RESULT;
 
 #endif
 
