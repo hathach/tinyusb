@@ -98,10 +98,21 @@ enum {
   TUSB_FLAGS_CLASS_VENDOR_SPECIFIC      = BIT_(31)
 };
 
+/// Device Status
+enum {
+  TUSB_DEVICE_STATUS_UNPLUG = 0,
+  TUSB_DEVICE_STATUS_READY = BIT_(0),
+
+  TUSB_DEVICE_STATUS_REMOVING = BIT_(2),
+  TUSB_DEVICE_STATUS_SAFE_REMOVE = BIT_(3),
+};
+
+typedef uint8_t  tusbh_device_status_t;
 typedef uint32_t tusbh_flag_class_t;
 
-typedef struct {
+typedef struct { // TODO internal structure
   uint8_t core_id;
+  tusbh_device_status_t status;
   pipe_handle_t pipe_control;
 
 #if 0 // TODO allow configure for vendor/product
@@ -134,6 +145,7 @@ typedef uint32_t tusb_handle_device_t;
 void         tusbh_device_mounting_cb (tusb_error_t const error, tusb_handle_device_t const device_hdl);
 void         tusbh_device_mounted_cb (tusb_error_t const error, tusb_handle_device_t const device_hdl);
 tusb_error_t tusbh_configuration_set     (tusb_handle_device_t const device_hdl, uint8_t const configure_number) ATTR_WARN_UNUSED_RESULT;
+tusbh_device_status_t tusbh_device_status_get (tusb_handle_device_t const device_hdl) ATTR_WARN_UNUSED_RESULT;
 
 
 //--------------------------------------------------------------------+
@@ -141,7 +153,7 @@ tusb_error_t tusbh_configuration_set     (tusb_handle_device_t const device_hdl,
 //--------------------------------------------------------------------+
 #ifdef _TINY_USB_SOURCE_FILE_
 
-bool          usbh_device_is_plugged(tusb_handle_device_t const device_hdl) ATTR_WARN_UNUSED_RESULT;
+void usbh_init(void);
 pipe_status_t usbh_pipe_status_get(pipe_handle_t pipe_hdl) ATTR_WARN_UNUSED_RESULT;
 
 #endif

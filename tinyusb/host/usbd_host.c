@@ -35,11 +35,44 @@
  * This file is part of the tiny usb stack.
  */
 
-#include "usbd_host.h"
+#include "tusb_option.h"
 
 #ifdef TUSB_CFG_HOST
 
-usbh_device_info_t usbh_device_pool[TUSB_CFG_HOST_DEVICE_MAX];
+#define _TINY_USB_SOURCE_FILE_
+
+//--------------------------------------------------------------------+
+// INCLUDE
+//--------------------------------------------------------------------+
+#include "common/common.h"
+#include "usbd_host.h"
+
+//--------------------------------------------------------------------+
+// MACRO CONSTANT TYPEDEF
+//--------------------------------------------------------------------+
+
+
+//--------------------------------------------------------------------+
+// INTERNAL OBJECT & FUNCTION DECLARATION
+//--------------------------------------------------------------------+
+STATIC_ usbh_device_info_t device_info_pool[TUSB_CFG_HOST_DEVICE_MAX];
+
+//--------------------------------------------------------------------+
+// PUBLIC API (Parameter Verification is required)
+//--------------------------------------------------------------------+
+tusbh_device_status_t tusbh_device_status_get (tusb_handle_device_t const device_hdl)
+{
+  ASSERT(device_hdl < TUSB_CFG_HOST_DEVICE_MAX, 0);
+  return device_info_pool[device_hdl].status;
+}
+
+//--------------------------------------------------------------------+
+// CLASS-USBD API (don't require to verify parameters)
+//--------------------------------------------------------------------+
+void usbh_init(void)
+{
+  memset(device_info_pool, 0, sizeof(usbh_device_info_t)*TUSB_CFG_HOST_DEVICE_MAX);
+}
 
 #if 0
 tusb_error_t tusbh_keyboard_open(tusb_handle_device_t device_hdl, uint8_t configure_num, tusb_handle_keyboard_t *keyboard_hdl)

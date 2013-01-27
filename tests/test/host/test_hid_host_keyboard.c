@@ -94,13 +94,13 @@ void tearDown(void)
 //--------------------------------------------------------------------+
 void test_keyboard_no_instances_invalid_para(void)
 {
-  usbh_device_is_plugged_IgnoreAndReturn(false);
+  tusbh_device_status_get_IgnoreAndReturn(0);
   TEST_ASSERT_EQUAL(0, tusbh_hid_keyboard_no_instances(TUSB_CFG_HOST_DEVICE_MAX));
 }
 
 void test_keyboard_install_ok(void)
 {
-  usbh_device_is_plugged_IgnoreAndReturn(true);
+  tusbh_device_status_get_IgnoreAndReturn(TUSB_DEVICE_STATUS_READY);
 
   TEST_ASSERT_EQUAL(0, tusbh_hid_keyboard_no_instances(device_hdl));
   TEST_ASSERT_EQUAL(TUSB_ERROR_NONE, class_hid_keyboard_install(device_hdl, (uint8_t*) &kbd_descriptor));
@@ -110,7 +110,7 @@ void test_keyboard_install_ok(void)
 void test_keyboard_init(void)
 {
   class_hid_keyboard_info_t keyboard_info_zero[TUSB_CFG_HOST_DEVICE_MAX];
-  memset(&keyboard_info_zero, 0, sizeof(class_hid_keyboard_info_t)*TUSB_CFG_HOST_DEVICE_MAX);
+  memset(keyboard_info_zero, 0, sizeof(class_hid_keyboard_info_t)*TUSB_CFG_HOST_DEVICE_MAX);
 
   class_hid_keyboard_init();
 
@@ -149,22 +149,24 @@ pipe_status_t pipe_status_get_stub(pipe_handle_t pipe_hdl, int num_call)
 
 void test_keyboard_get_invalid_para()
 {
-  usbh_device_is_plugged_IgnoreAndReturn(false);
+  tusbh_device_status_get_IgnoreAndReturn(TUSB_DEVICE_STATUS_READY);
   TEST_ASSERT_EQUAL(TUSB_ERROR_INVALID_PARA, tusbh_hid_keyboard_get(0, 0, NULL));
-  TEST_ASSERT_EQUAL(TUSB_ERROR_INVALID_PARA, tusbh_hid_keyboard_get(TUSB_CFG_HOST_DEVICE_MAX, 0, &report));
-  TEST_ASSERT_EQUAL(TUSB_ERROR_INVALID_PARA, tusbh_hid_keyboard_get(0, TUSB_CFG_HOST_HID_KEYBOARD_NO_INSTANCES_PER_DEVICE, &report));
+
+  tusbh_device_status_get_IgnoreAndReturn(0);
+  TEST_ASSERT_EQUAL(TUSB_ERROR_DEVICE_NOT_READY, tusbh_hid_keyboard_get(TUSB_CFG_HOST_DEVICE_MAX, 0, &report));
+  TEST_ASSERT_EQUAL(TUSB_ERROR_DEVICE_NOT_READY, tusbh_hid_keyboard_get(0, TUSB_CFG_HOST_HID_KEYBOARD_NO_INSTANCES_PER_DEVICE, &report));
 }
 
 void test_keyboard_get_class_not_supported()
 {
-  usbh_device_is_plugged_IgnoreAndReturn(true);
+  tusbh_device_status_get_IgnoreAndReturn(TUSB_DEVICE_STATUS_READY);
   keyboard_info_pool[device_hdl].instance[0].pipe_in = 0;
   TEST_ASSERT_EQUAL(TUSB_ERROR_CLASS_DEVICE_DONT_SUPPORT, tusbh_hid_keyboard_get(device_hdl, instance_num, &report));
 }
 
 void test_keyboard_get_report_not_available()
 {
-  usbh_device_is_plugged_IgnoreAndReturn(true);
+  tusbh_device_status_get_IgnoreAndReturn(TUSB_DEVICE_STATUS_READY);
 
   usbh_pipe_status_get_IgnoreAndReturn(PIPE_STATUS_BUSY);
   TEST_ASSERT_EQUAL(TUSB_ERROR_CLASS_DATA_NOT_AVAILABLE, tusbh_hid_keyboard_get(device_hdl, instance_num, &report));
@@ -175,7 +177,7 @@ void test_keyboard_get_report_not_available()
 
 void test_keyboard_get_ok()
 {
-  usbh_device_is_plugged_IgnoreAndReturn(true);
+  tusbh_device_status_get_IgnoreAndReturn(TUSB_DEVICE_STATUS_READY);
   usbh_pipe_status_get_StubWithCallback(pipe_status_get_stub);
 
   TEST_ASSERT_EQUAL(TUSB_ERROR_NONE, tusbh_hid_keyboard_get(device_hdl, instance_num, &report));

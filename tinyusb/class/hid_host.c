@@ -35,7 +35,7 @@
  * This file is part of the tiny usb stack.
  */
 
-#include "common/common.h"
+#include "tusb_option.h"
 
 #if defined TUSB_CFG_HOST && defined DEVICE_CLASS_HID
 
@@ -44,6 +44,7 @@
 //--------------------------------------------------------------------+
 // INCLUDE
 //--------------------------------------------------------------------+
+#include "common/common.h"
 #include "hid_host.h"
 
 //--------------------------------------------------------------------+
@@ -57,13 +58,13 @@ STATIC_ class_hid_keyboard_info_t keyboard_info_pool[TUSB_CFG_HOST_DEVICE_MAX];
 
 
 //--------------------------------------------------------------------+
-// PUBLIC API
+// PUBLIC API (Parameter Verification is required)
 //--------------------------------------------------------------------+
 tusb_error_t tusbh_hid_keyboard_get(tusb_handle_device_t const device_hdl, uint8_t instance_num, tusb_keyboard_report_t * const report)
 {
   keyboard_interface_t *p_kbd;
 
-  ASSERT(usbh_device_is_plugged(device_hdl), TUSB_ERROR_INVALID_PARA);
+  ASSERT_INT(TUSB_DEVICE_STATUS_READY, tusbh_device_status_get(device_hdl), TUSB_ERROR_DEVICE_NOT_READY);
   ASSERT_PTR(report, TUSB_ERROR_INVALID_PARA);
   ASSERT(instance_num < TUSB_CFG_HOST_HID_KEYBOARD_NO_INSTANCES_PER_DEVICE, TUSB_ERROR_INVALID_PARA);
 
@@ -80,13 +81,13 @@ tusb_error_t tusbh_hid_keyboard_get(tusb_handle_device_t const device_hdl, uint8
 
 uint8_t tusbh_hid_keyboard_no_instances(tusb_handle_device_t const device_hdl)
 {
-  ASSERT(usbh_device_is_plugged(device_hdl), 0);
+  ASSERT_INT(TUSB_DEVICE_STATUS_READY, tusbh_device_status_get(device_hdl), 0);
 
   return keyboard_info_pool[device_hdl].instance_count;
 }
 
 //--------------------------------------------------------------------+
-// CLASS-USBD API
+// CLASS-USBD API (don't require to verify parameters)
 //--------------------------------------------------------------------+
 void class_hid_keyboard_init(void)
 {
@@ -95,7 +96,7 @@ void class_hid_keyboard_init(void)
 
 tusb_error_t class_hid_keyboard_install(uint8_t const dev_addr, uint8_t const *descriptor)
 {
-  keyboard_info_pool[0].instance_count++;
+  keyboard_info_pool[dev_addr].instance_count++;
 
   return TUSB_ERROR_NONE;
 }

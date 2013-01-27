@@ -38,15 +38,38 @@
 #include "unity.h"
 #include "usbd_host.h"
 
+extern usbh_device_info_t device_info_pool[TUSB_CFG_HOST_DEVICE_MAX];
+tusb_handle_device_t dev_hdl;
 void setUp(void)
 {
+  dev_hdl = 0;
+  device_info_pool[dev_hdl].status = TUSB_DEVICE_STATUS_READY;
 }
 
 void tearDown(void)
 {
 }
 
-void test_()
+void test_usbh_init(void)
 {
-  // TEST_IGNORE();
+  usbh_device_info_t device_info_zero[TUSB_CFG_HOST_DEVICE_MAX];
+  memset(device_info_zero, 0, sizeof(usbh_device_info_t)*TUSB_CFG_HOST_DEVICE_MAX);
+
+  usbh_init();
+
+  TEST_ASSERT_EQUAL_MEMORY(device_info_zero, device_info_pool, sizeof(usbh_device_info_t)*TUSB_CFG_HOST_DEVICE_MAX);
 }
+
+void test_usbh_status_get_fail(void)
+{
+  usbh_init();
+  TEST_ASSERT_EQUAL( 0, tusbh_device_status_get(TUSB_CFG_HOST_DEVICE_MAX) );
+  TEST_ASSERT_EQUAL( TUSB_DEVICE_STATUS_UNPLUG, tusbh_device_status_get(dev_hdl) );
+}
+
+void test_usbh_status_get_succeed(void)
+{
+  device_info_pool[dev_hdl].status = TUSB_DEVICE_STATUS_READY;
+  TEST_ASSERT_EQUAL( TUSB_DEVICE_STATUS_READY, tusbh_device_status_get(dev_hdl) );
+}
+
