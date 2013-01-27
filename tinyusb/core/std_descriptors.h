@@ -71,6 +71,7 @@ typedef ATTR_PREPACKED struct ATTR_PACKED {
   uint8_t  iManufacturer      ; ///< Index of string descriptor describing manufacturer.
   uint8_t  iProduct           ; ///< Index of string descriptor describing product.
   uint8_t  iSerialNumber      ; ///< Index of string descriptor describing the device's serial number.
+
   uint8_t  bNumConfigurations ; ///< Number of possible configurations.
 } tusb_descriptor_device_t;
 
@@ -79,6 +80,7 @@ typedef ATTR_PREPACKED struct ATTR_PACKED {
   uint8_t  bLength             ; ///< Size of this descriptor in bytes
   uint8_t  bDescriptorType     ; ///< CONFIGURATION Descriptor Type
   uint16_t wTotalLength        ; ///< Total length of data returned for this configuration. Includes the combined length of all descriptors (configuration, interface, endpoint, and class- or vendor-specific) returned for this configuration.
+
   uint8_t  bNumInterfaces      ; ///< Number of interfaces supported by this configuration
   uint8_t  bConfigurationValue ; ///< Value to use as an argument to the SetConfiguration() request to select this configuration.
   uint8_t  iConfiguration      ; ///< Index of string descriptor describing this configuration
@@ -90,6 +92,7 @@ typedef ATTR_PREPACKED struct ATTR_PACKED {
 typedef ATTR_PREPACKED struct ATTR_PACKED {
   uint8_t  bLength            ; ///< Size of this descriptor in bytes
   uint8_t  bDescriptorType    ; ///< INTERFACE Descriptor Type
+
   uint8_t  bInterfaceNumber   ; ///< Number of this interface. Zero-based value identifying the index in the array of concurrent interfaces supported by this configuration.
   uint8_t  bAlternateSetting  ; ///< Value used to select this alternate setting for the interface identified in the prior field
   uint8_t  bNumEndpoints      ; ///< Number of endpoints used by this interface (excluding endpoint zero). If this value is zero, this interface only uses the Default Control Pipe.
@@ -103,6 +106,7 @@ typedef ATTR_PREPACKED struct ATTR_PACKED {
 typedef ATTR_PREPACKED struct ATTR_PACKED {
   uint8_t  bLength          ; ///< Size of this descriptor in bytes
   uint8_t  bDescriptorType  ; ///< ENDPOINT Descriptor Type
+
   uint8_t  bEndpointAddress ; ///< The address of the endpoint on the USB device described by this descriptor. The address is encoded as follows: \n Bit 3...0: The endpoint number \n Bit 6...4: Reserved, reset to zero \n Bit 7: Direction, ignored for control endpoints 0 = OUT endpoint 1 = IN endpoint.
   uint8_t  bmAttributes     ; ///< This field describes the endpoint's attributes when it is configured using the bConfigurationValue. \n Bits 1..0: Transfer Type \n- 00 = Control \n- 01 = Isochronous \n- 10 = Bulk \n- 11 = Interrupt \n If not an isochronous endpoint, bits 5..2 are reserved and must be set to zero. If isochronous, they are defined as follows: \n Bits 3..2: Synchronization Type \n- 00 = No Synchronization \n- 01 = Asynchronous \n- 10 = Adaptive \n- 11 = Synchronous \n Bits 5..4: Usage Type \n- 00 = Data endpoint \n- 01 = Feedback endpoint \n- 10 = Implicit feedback Data endpoint \n- 11 = Reserved \n Refer to Chapter 5 of USB 2.0 specification for more information. \n All other bits are reserved and must be reset to zero. Reserved bits must be ignored by the host.
   uint16_t wMaxPacketSize   ; ///< Maximum packet size this endpoint is capable of sending or receiving when this configuration is selected. \n For isochronous endpoints, this value is used to reserve the bus time in the schedule, required for the per-(micro)frame data payloads. The pipe may, on an ongoing basis, actually use less bandwidth than that reserved. The device reports, if necessary, the actual bandwidth used via its normal, non-USB defined mechanisms. \n For all endpoints, bits 10..0 specify the maximum packet size (in bytes). \n For high-speed isochronous and interrupt endpoints: \n Bits 12..11 specify the number of additional transaction opportunities per microframe: \n- 00 = None (1 transaction per microframe) \n- 01 = 1 additional (2 per microframe) \n- 10 = 2 additional (3 per microframe) \n- 11 = Reserved \n Bits 15..13 are reserved and must be set to zero.
@@ -114,6 +118,7 @@ typedef ATTR_PREPACKED struct ATTR_PACKED {
   uint8_t  bLength             ; ///< Size of descriptor
   uint8_t  bDescriptorType     ; ///< Other_speed_Configuration Type
   uint16_t wTotalLength        ; ///< Total length of data returned
+
   uint8_t  bNumInterfaces      ; ///< Number of interfaces supported by this speed configuration
   uint8_t  bConfigurationValue ; ///< Value to use to select configuration
   uint8_t  IConfiguration      ; ///< Index of string descriptor
@@ -126,6 +131,7 @@ typedef ATTR_PREPACKED struct ATTR_PACKED {
   uint8_t  bLength            ; ///< Size of descriptor
   uint8_t  bDescriptorType    ; ///< Device Qualifier Type
   uint16_t bcdUSB             ; ///< USB specification version number (e.g., 0200H for V2.00)
+
   uint8_t  bDeviceClass       ; ///< Class Code
   uint8_t  bDeviceSubClass    ; ///< SubClass Code
   uint8_t  bDeviceProtocol    ; ///< Protocol Code
