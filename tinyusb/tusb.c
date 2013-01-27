@@ -35,6 +35,8 @@
  * This file is part of the tinyUSB stack.
  */
 
+#define _TINY_USB_SOURCE_FILE_
+
 #include "tusb.h"
 
 tusb_error_t tusb_init(void)
