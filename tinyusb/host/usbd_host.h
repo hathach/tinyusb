@@ -135,6 +135,13 @@ typedef enum {
 } pipe_status_t;
 
 typedef uint32_t tusb_handle_device_t;
+
+typedef struct {
+  uint8_t core_id;
+  uint8_t hub_address;
+  uint8_t hub_port;
+} usbh_enumerate_t;
+
 //--------------------------------------------------------------------+
 // INTERNAL OBJECT & FUNCTION DECLARATION
 //--------------------------------------------------------------------+
@@ -153,8 +160,9 @@ tusbh_device_status_t tusbh_device_status_get (tusb_handle_device_t const device
 //--------------------------------------------------------------------+
 #ifdef _TINY_USB_SOURCE_FILE_
 
-void usbh_init(void);
+tusb_error_t usbh_init(void);
 pipe_status_t usbh_pipe_status_get(pipe_handle_t pipe_hdl) ATTR_WARN_UNUSED_RESULT;
+void usbh_enum_task(void);
 
 #endif
 

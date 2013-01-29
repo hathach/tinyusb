@@ -46,6 +46,7 @@
 //--------------------------------------------------------------------+
 #include "common/common.h"
 #include "usbd_host.h"
+#include "osal/osal.h"
 
 //--------------------------------------------------------------------+
 // MACRO CONSTANT TYPEDEF
@@ -56,6 +57,10 @@
 // INTERNAL OBJECT & FUNCTION DECLARATION
 //--------------------------------------------------------------------+
 STATIC_ usbh_device_info_t device_info_pool[TUSB_CFG_HOST_DEVICE_MAX];
+
+#define ENUM_DEPTH  2
+STATIC_ osal_queue_t queue_enumerate;
+STATIC_ uint8_t queue_enumerate_buffer[ENUM_DEPTH*sizeof(usbh_enumerate_t)];
 
 //--------------------------------------------------------------------+
 // PUBLIC API (Parameter Verification is required)
@@ -69,21 +74,16 @@ tusbh_device_status_t tusbh_device_status_get (tusb_handle_device_t const device
 //--------------------------------------------------------------------+
 // CLASS-USBD API (don't require to verify parameters)
 //--------------------------------------------------------------------+
-void usbh_init(void)
+tusb_error_t usbh_init(void)
 {
   memset(device_info_pool, 0, sizeof(usbh_device_info_t)*TUSB_CFG_HOST_DEVICE_MAX);
-}
-
-#if 0
-tusb_error_t tusbh_keyboard_open(tusb_handle_device_t device_hdl, uint8_t configure_num, tusb_handle_keyboard_t *keyboard_hdl)
-{
-  ASSERT(device_hdl < TUSB_CFG_HOST_DEVICE_MAX, TUSB_ERROR_INVALID_PARA);
-  ASSERT_INT_WITHIN(1, TUSB_CFG_CONFIGURATION_MAX, configure_num, TUSB_ERROR_INVALID_PARA);
-  ASSERT_PTR(keyboard_hdl, TUSB_ERROR_INVALID_PARA);
-
+//  ASSERT_STATUS(osal_queue_create());
   return TUSB_ERROR_NONE;
 }
-#endif
 
+void usbh_enumerate_task(void)
+{
+
+}
 
 #endif

@@ -68,6 +68,8 @@ typedef struct{
   volatile uint16_t rd_ptr       ; ///< read pointer
 } osal_queue_t;
 
+//typedef osal_queue_t osal_queue_id_t*;
+
 #define OSAL_DEF_QUEUE(name, size)\
   osal_queue_t name;\
   uint8_t buffer_##name[size]

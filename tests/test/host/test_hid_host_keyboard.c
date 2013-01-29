@@ -190,34 +190,3 @@ void test_keyboard_get_ok()
   TEST_ASSERT_EQUAL_MEMORY(&sample_key[1], &report, sizeof(tusb_keyboard_report_t));
 }
 
-#if 0
-void test_keyboard_open_invalid_para()
-{
-  tusb_handle_keyboard_t keyboard_handle;
-
-  TEST_ASSERT_EQUAL(TUSB_ERROR_INVALID_PARA, tusbh_keyboard_open(TUSB_CFG_HOST_DEVICE_MAX, 1, &keyboard_handle) );
-  TEST_ASSERT_EQUAL(TUSB_ERROR_INVALID_PARA, tusbh_keyboard_open(0, 0, &keyboard_handle) );
-  TEST_ASSERT_EQUAL(TUSB_ERROR_INVALID_PARA, tusbh_keyboard_open(0, TUSB_CFG_CONFIGURATION_MAX+1, &keyboard_handle) );
-  TEST_ASSERT_EQUAL(TUSB_ERROR_INVALID_PARA, tusbh_keyboard_open(0, 1, NULL) );
-}
-
-void test_keyboard_open_succeed()
-{
-  tusb_handle_keyboard_t keyboard_handle = 0;
-
-  TEST_ASSERT_EQUAL(TUSB_ERROR_NONE, tusbh_keyboard_open(0, 1, &keyboard_handle));
-  TEST_ASSERT_TRUE( 0 != keyboard_handle);
-}
-
-void test_keyboard_callback__()
-{
-  TEST_IGNORE();
-  tusb_handle_device_t device_handle = __LINE__;
-  tusb_handle_configure_t configure_handle = __LINE__;
-  tusb_handle_interface_t interface_handle = __LINE__;
-  uint32_t configure_flags = BIT_(TUSB_CLASS_HID);
-  tusbh_usbd_device_mounted_cb_ExpectWithArray(TUSB_ERROR_NONE, device_handle, &configure_flags, 1, 1);
-}
-#endif
-
-
