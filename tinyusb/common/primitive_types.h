@@ -1,13 +1,13 @@
 /*
- * common.h
+ * primitive_types.h
  *
- *  Created on: Nov 26, 2012
+ *  Created on: Jan 29, 2013
  *      Author: hathach
  */
 
 /*
  * Software License Agreement (BSD License)
- * Copyright (c) 2013, hathach (tinyusb.net)
+ * Copyright (c) 2012, hathach (tinyusb.net)
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without modification,
@@ -32,79 +32,36 @@
  * IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY
  * OF SUCH DAMAGE.
  *
- * This file is part of the tinyUSB stack.
+ * This file is part of the tiny usb stack.
  */
 
 /** \file
- *  \brief Common Header File
+ *  \brief TBD
  *
  *  \note TBD
  */
 
-/** \defgroup Group_Common Common Files
- * @{
- *
- *  \defgroup Group_CommonH common.h
+/** \ingroup TBD
+ *  \defgroup TBD
+ *  \brief TBD
  *
  *  @{
  */
 
-#ifndef _TUSB_COMMON_H_
-#define _TUSB_COMMON_H_
+#ifndef _TUSB_PRIMITIVE_TYPES_H_
+#define _TUSB_PRIMITIVE_TYPES_H_
 
 #ifdef __cplusplus
  extern "C" {
 #endif
 
-#include "primitive_types.h"
-#include <stddef.h>
-#include <string.h>
-#include <stdio.h>
-
-#include "compiler/compiler.h"
-#include "tusb_option.h"
-#include "errors.h"
-#include "assertion.h"
-#include "binary.h"
-
-#include "hal/hal.h"
-#include "core/tusb_types.h"
-#include "core/std_descriptors.h"
-
-// TODO try to manipulate gcc cmd option instead
-#ifndef _TEST_
-  #define STATIC_ static
-#else
-  #define STATIC_
-#endif
-
-
-/// form an uint32_t from 4 x uint8_t
-static inline uint32_t u32_from_u8(uint8_t b1, uint8_t b2, uint8_t b3, uint8_t b4) ATTR_ALWAYS_INLINE ATTR_CONST;
-static inline uint32_t u32_from_u8(uint8_t b1, uint8_t b2, uint8_t b3, uint8_t b4)
-{
-  return (b1 << 24) + (b2 << 16) + (b3 << 8) + b4;
-}
-
-/// min value
-static inline uint32_t min_of(uint32_t x, uint32_t y) ATTR_ALWAYS_INLINE ATTR_CONST;
-static inline uint32_t min_of(uint32_t x, uint32_t y)
-{
-  return (x < y) ? x : y;
-}
-
-/// max value
-static inline uint32_t max_of(uint32_t x, uint32_t y) ATTR_ALWAYS_INLINE ATTR_CONST;
-static inline uint32_t max_of(uint32_t x, uint32_t y)
-{
-  return (x > y) ? x : y;
-}
+#include <stdbool.h>
+#include <stdint.h>
 
 #ifdef __cplusplus
  }
 #endif
 
-#endif /* _TUSB_COMMON_H_ */
+#endif /* _TUSB_PRIMITIVE_TYPES_H_ */
 
-/**  @} */
-/**  @} */
+/** @} */

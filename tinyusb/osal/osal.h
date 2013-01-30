@@ -55,7 +55,7 @@
  extern "C" {
 #endif
 
-#include "common/common.h"
+#include "tusb_option.h"
 
 #define TUSB_OS_NONE     1
 #define TUSB_OS_CMSIS    2
@@ -68,22 +68,21 @@
   #error TUSB_CFG_OS is not defined or OS is not supported yet
 #endif
 
-typedef uint32_t osal_status_t; // TODO OSAL port
-typedef uint32_t osal_timeout_t; // TODO OSAL port
-
-enum
-{
-  OSAL_TIMEOUT_WAIT_FOREVER = 0
-};
+//--------------------------------------------------------------------+
+// SEMAPHORE API
+//--------------------------------------------------------------------+
 
 //--------------------------------------------------------------------+
 // QUEUE API
 //--------------------------------------------------------------------+
 typedef uint32_t osal_queue_id_t;
-//osal_queue_id_t osal_queue_create(osal_queue_t *queue, uint8_t *buffer);
+////osal_queue_id_t osal_queue_create(osal_queue_t *queue, uint8_t *buffer);
 osal_queue_id_t osal_queue_create(osal_queue_id_t *queue, uint8_t *buffer);
-tusb_error_t osal_queue_put(osal_queue_id_t qid, uint32_t data, osal_timeout_t msec);
-tusb_error_t osal_queue_get(osal_queue_id_t qid, uint32_t *data, osal_timeout_t msec);
+//tusb_error_t osal_queue_put(osal_queue_id_t qid, uint32_t data, osal_timeout_t msec);
+//tusb_error_t osal_queue_get(osal_queue_id_t qid, uint32_t *data, osal_timeout_t msec);
+
+
+
 
 #ifdef __cplusplus
  }

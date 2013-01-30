@@ -55,7 +55,63 @@
  extern "C" {
 #endif
 
-#include "osal.h"
+#include "osal_common.h"
+
+typedef uint32_t osal_timeout_t;
+
+//--------------------------------------------------------------------+
+// TASK API
+// NOTES: Each blocking OSAL_NONE services such as semaphore wait,
+// queue receive embedded return statement, therefore local variable
+// retain value before/after such services needed to declare as static
+// OSAL_TASK_LOOP
+// {
+//   OSAL_TASK_LOOP_BEGIN
+//
+//   task body statements
+//
+//   OSAL_TASK_LOOP_ENG
+// }
+//--------------------------------------------------------------------+
+#define OSAL_TASK_LOOP  \
+  static uint16_t state = 0;\
+  switch(state)\
+
+#define OSAL_TASK_LOOP_BEGIN \
+  case 0:
+
+#define OSAL_TASK_LOOP_END \
+  default:\
+    state = 0;
+//--------------------------------------------------------------------+
+// Semaphore API
+//--------------------------------------------------------------------+
+typedef uint8_t osal_semaphore_t;
+typedef osal_semaphore_t * osal_semaphore_handle_t;
+
+static inline osal_semaphore_handle_t osal_semaphore_create(osal_semaphore_t * const sem) ATTR_CONST ATTR_ALWAYS_INLINE;
+static inline osal_semaphore_handle_t osal_semaphore_create(osal_semaphore_t * const sem)
+{
+  (*sem) = 0;
+  return (osal_semaphore_handle_t) sem;
+}
+
+static inline  tusb_error_t osal_semaphore_post(osal_semaphore_handle_t const sem_hdl) ATTR_ALWAYS_INLINE;
+static inline  tusb_error_t osal_semaphore_post(osal_semaphore_handle_t const sem_hdl)
+{
+  (*sem_hdl)++;
+
+  return TUSB_ERROR_NONE;
+}
+
+#define osal_semaphore_wait(sem_hdl, msec) \
+  do {\
+    state = __LINE__; case __LINE__:\
+    if( (*sem_hdl) == 0 ) \
+      return;\
+    else\
+      (*sem_hdl)--;\
+  }while(0)
 
 //--------------------------------------------------------------------+
 // QUEUE API
@@ -68,8 +124,9 @@ typedef struct{
   volatile uint16_t rd_ptr       ; ///< read pointer
 } osal_queue_t;
 
-//typedef osal_queue_t osal_queue_id_t*;
+typedef osal_queue_t * osal_queue_handle_t;
 
+// queue_send, queue_receive
 #define OSAL_DEF_QUEUE(name, size)\
   osal_queue_t name;\
   uint8_t buffer_##name[size]
