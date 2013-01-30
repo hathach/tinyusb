@@ -41,7 +41,9 @@
 
 #include "unity.h"
 #include "osal_none.h"
+
 #define QUEUE_DEPTH 10
+
 uint32_t statements[10];
 
 osal_semaphore_t sem;
@@ -132,7 +134,7 @@ void test_task_with_semaphore(void)
     sample_task_semaphore();
   TEST_ASSERT_EQUAL(1, statements[0]);
 
-  // several invoke after posting semaphore
+  // invoke after posting semaphore
   osal_semaphore_post(sem_hdl);
   sample_task_semaphore();
   TEST_ASSERT_EQUAL(1, statements[1]);
@@ -148,24 +150,53 @@ void test_task_with_semaphore(void)
   TEST_ASSERT_EQUAL(2, statements[0]);
 }
 
-//void sample_task_with_queue(void)
-//{
-//  OSAL_TASK_LOOP
-//  {
-//    OSAL_TASK_LOOP_BEGIN
-//
-//    statements[0]++;
-//
-//    osal_queue_receive(queue_hdl, OSAL_TIMEOUT_WAIT_FOREVER);
-//    statements[1]++;
-//
-//    osal_queue_receive(queue_hdl, OSAL_TIMEOUT_WAIT_FOREVER);
-//    statements[2]++;
-//
-//    osal_queue_receive(queue_hdl, OSAL_TIMEOUT_WAIT_FOREVER);
-//    statements[3]++;
-//
-//    OSAL_TASK_LOOP_END
-//  }
-//}
+void sample_task_with_queue(void)
+{
+  uint32_t data;
+  OSAL_TASK_LOOP
+  {
+    OSAL_TASK_LOOP_BEGIN
+
+    statements[0]++;
+
+    osal_queue_receive(queue_hdl, &data, OSAL_TIMEOUT_WAIT_FOREVER);
+    TEST_ASSERT_EQUAL(0x1111, data);
+    statements[1]++;
+
+    osal_queue_receive(queue_hdl, &data, OSAL_TIMEOUT_WAIT_FOREVER);
+    TEST_ASSERT_EQUAL(0x2222, data);
+    statements[2]++;
+
+    osal_queue_receive(queue_hdl, &data, OSAL_TIMEOUT_WAIT_FOREVER);
+    TEST_ASSERT_EQUAL(0x3333, data);
+    statements[3]++;
+
+    OSAL_TASK_LOOP_END
+  }
+}
+
+void test_task_with_queue(void)
+{
+  uint32_t i = 0;
+
+  sample_task_with_queue();
+  // several invoke before queue is available
+  for(i=0; i<10; i++)
+    sample_task_with_queue();
+  TEST_ASSERT_EQUAL(1, statements[0]);
+
+  // invoke after posting semaphore
+  osal_queue_send(queue_hdl, 0x1111);
+  sample_task_with_queue();
+  TEST_ASSERT_EQUAL(1, statements[1]);
+  sample_task_with_queue();
+  TEST_ASSERT_EQUAL(1, statements[1]);
+
+  osal_queue_send(queue_hdl, 0x2222);
+  osal_queue_send(queue_hdl, 0x3333);
+  sample_task_with_queue();
+  TEST_ASSERT_EQUAL(1, statements[2]);
+  TEST_ASSERT_EQUAL(1, statements[3]);
+
+}
 

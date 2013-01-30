@@ -88,7 +88,7 @@ typedef uint32_t osal_timeout_t;
 //--------------------------------------------------------------------+
 // Semaphore API
 //--------------------------------------------------------------------+
-typedef uint8_t osal_semaphore_t;
+typedef volatile uint8_t osal_semaphore_t;
 typedef osal_semaphore_t * osal_semaphore_handle_t;
 
 static inline osal_semaphore_handle_t osal_semaphore_create(osal_semaphore_t * const p_sem) ATTR_ALWAYS_INLINE;
@@ -112,7 +112,7 @@ static inline  tusb_error_t osal_semaphore_post(osal_semaphore_handle_t const se
     if( (*sem_hdl) == 0 ) \
       return;\
     else\
-      (*sem_hdl)--;\
+      (*sem_hdl)--; /*TODO mutex hal_interrupt_disable consideration*/\
   }while(0)
 
 //--------------------------------------------------------------------+
@@ -143,9 +143,12 @@ static inline osal_queue_handle_t osal_queue_create(osal_queue_t * const p_queue
   return (osal_queue_handle_t) p_queue;
 }
 
+// when queue is full, it will overwrite the oldest data in the queue
 static inline tusb_error_t osal_queue_send(osal_queue_handle_t const queue_hdl, uint32_t data) ATTR_ALWAYS_INLINE;
 static inline tusb_error_t osal_queue_send(osal_queue_handle_t const queue_hdl, uint32_t data)
 {
+  //TODO mutex lock hal_interrupt_disable
+
   queue_hdl->buffer[queue_hdl->wr_idx] = data;
   queue_hdl->wr_idx = (queue_hdl->wr_idx + 1) % queue_hdl->depth;
 
@@ -157,8 +160,25 @@ static inline tusb_error_t osal_queue_send(osal_queue_handle_t const queue_hdl, 
     queue_hdl->count++;
   }
 
+  //TODO mutex unlock hal_interrupt_enable
+
   return TUSB_ERROR_NONE;
 }
+
+#define osal_queue_receive(queue_hdl, p_data, msec) \
+  do {\
+    state = __LINE__; case __LINE__:\
+    if( queue_hdl-> count == 0 ) \
+      return;\
+    else{\
+      /*TODO mutex lock hal_interrupt_disable */\
+      *p_data = queue_hdl->buffer[queue_hdl->rd_idx];\
+      queue_hdl->rd_idx = (queue_hdl->rd_idx + 1) % queue_hdl->depth;\
+      queue_hdl->count--;\
+      /*TODO mutex unlock hal_interrupt_enable */\
+    }\
+  }while(0)
+
 
 // queue_send, queue_receive
 
