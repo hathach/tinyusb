@@ -41,16 +41,20 @@
 
 #include "unity.h"
 #include "osal_none.h"
-
+#define QUEUE_DEPTH 10
 uint32_t statements[10];
+
 osal_semaphore_t sem;
 osal_semaphore_handle_t sem_hdl;
+
+OSAL_DEF_QUEUE(queue, QUEUE_DEPTH, uin32_t);
+osal_queue_handle_t queue_hdl;
 
 void setUp(void)
 {
   memset(statements, 0, sizeof(statements));
-  sem = 0;
   sem_hdl = osal_semaphore_create(&sem);
+  queue_hdl = osal_queue_create(&queue);
 }
 
 void tearDown(void)
@@ -72,15 +76,29 @@ void test_semaphore_post(void)
   osal_semaphore_post(sem_hdl);
   TEST_ASSERT_EQUAL(1, sem);
 }
+// blocking service such as semaphore wait need to be invoked within a task's loop
 
 //--------------------------------------------------------------------+
 // Queue
 //--------------------------------------------------------------------+
 void test_queue_create(void)
 {
-  TEST_IGNORE();
-//  osal_queue_put();
+  TEST_ASSERT_EQUAL_PTR(&queue, queue_hdl);
+  TEST_ASSERT_EQUAL(QUEUE_DEPTH, queue_hdl->depth);
+  TEST_ASSERT_EQUAL_PTR(queue_buffer, queue_hdl->buffer);
+  TEST_ASSERT_EQUAL(0, queue_hdl->count);
+  TEST_ASSERT_EQUAL(0, queue_hdl->wr_idx);
+  TEST_ASSERT_EQUAL(0, queue_hdl->rd_idx);
 }
+
+void test_queue_send(void)
+{
+  uint32_t const item = 0x1234;
+  osal_queue_send(queue_hdl, item);
+  TEST_ASSERT_EQUAL(1, queue_hdl->count);
+  TEST_ASSERT_EQUAL(item, queue_hdl->buffer[queue_hdl->rd_idx]);
+}
+// blocking service such as semaphore wait need to be invoked within a task's loop
 
 //--------------------------------------------------------------------+
 // TASK
@@ -128,8 +146,26 @@ void test_task_with_semaphore(void)
   // reach end of task loop, back to beginning
   sample_task_semaphore();
   TEST_ASSERT_EQUAL(2, statements[0]);
-
 }
 
-
+//void sample_task_with_queue(void)
+//{
+//  OSAL_TASK_LOOP
+//  {
+//    OSAL_TASK_LOOP_BEGIN
+//
+//    statements[0]++;
+//
+//    osal_queue_receive(queue_hdl, OSAL_TIMEOUT_WAIT_FOREVER);
+//    statements[1]++;
+//
+//    osal_queue_receive(queue_hdl, OSAL_TIMEOUT_WAIT_FOREVER);
+//    statements[2]++;
+//
+//    osal_queue_receive(queue_hdl, OSAL_TIMEOUT_WAIT_FOREVER);
+//    statements[3]++;
+//
+//    OSAL_TASK_LOOP_END
+//  }
+//}
 

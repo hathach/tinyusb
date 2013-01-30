@@ -91,11 +91,11 @@ typedef uint32_t osal_timeout_t;
 typedef uint8_t osal_semaphore_t;
 typedef osal_semaphore_t * osal_semaphore_handle_t;
 
-static inline osal_semaphore_handle_t osal_semaphore_create(osal_semaphore_t * const sem) ATTR_CONST ATTR_ALWAYS_INLINE;
-static inline osal_semaphore_handle_t osal_semaphore_create(osal_semaphore_t * const sem)
+static inline osal_semaphore_handle_t osal_semaphore_create(osal_semaphore_t * const p_sem) ATTR_ALWAYS_INLINE;
+static inline osal_semaphore_handle_t osal_semaphore_create(osal_semaphore_t * const p_sem)
 {
-  (*sem) = 0;
-  return (osal_semaphore_handle_t) sem;
+  (*p_sem) = 0;
+  return (osal_semaphore_handle_t) p_sem;
 }
 
 static inline  tusb_error_t osal_semaphore_post(osal_semaphore_handle_t const sem_hdl) ATTR_ALWAYS_INLINE;
@@ -119,19 +119,48 @@ static inline  tusb_error_t osal_semaphore_post(osal_semaphore_handle_t const se
 // QUEUE API
 //--------------------------------------------------------------------+
 typedef struct{
-           uint8_t  *buf         ; ///< buffer pointer
-           uint16_t size         ; ///< buffer size
-  volatile uint16_t len          ; ///< bytes in fifo
-  volatile uint16_t wr_ptr       ; ///< write pointer
-  volatile uint16_t rd_ptr       ; ///< read pointer
+           uint32_t * const buffer     ; ///< buffer pointer
+           uint16_t const depth        ; ///< buffer size
+  volatile uint16_t count          ; ///< bytes in fifo
+  volatile uint16_t wr_idx       ; ///< write pointer
+  volatile uint16_t rd_idx       ; ///< read pointer
 } osal_queue_t;
 
 typedef osal_queue_t * osal_queue_handle_t;
 
+// use to declare a queue, within the scope of tinyusb, should only use primitive type only
+#define OSAL_DEF_QUEUE(name, queue_depth, type)\
+  uint32_t name##_buffer[queue_depth];\
+  osal_queue_t name = {\
+      .buffer = name##_buffer,\
+      .depth   = queue_depth\
+  }
+
+static inline osal_queue_handle_t osal_queue_create(osal_queue_t * const p_queue) ATTR_ALWAYS_INLINE;
+static inline osal_queue_handle_t osal_queue_create(osal_queue_t * const p_queue)
+{
+  p_queue->count = p_queue->wr_idx = p_queue->rd_idx = 0;
+  return (osal_queue_handle_t) p_queue;
+}
+
+static inline tusb_error_t osal_queue_send(osal_queue_handle_t const queue_hdl, uint32_t data) ATTR_ALWAYS_INLINE;
+static inline tusb_error_t osal_queue_send(osal_queue_handle_t const queue_hdl, uint32_t data)
+{
+  queue_hdl->buffer[queue_hdl->wr_idx] = data;
+  queue_hdl->wr_idx = (queue_hdl->wr_idx + 1) % queue_hdl->depth;
+
+  if (queue_hdl->depth == queue_hdl->count) // queue is full, 1st rd is overwritten
+  {
+    queue_hdl->rd_idx = queue_hdl->wr_idx; // keep full state
+  }else
+  {
+    queue_hdl->count++;
+  }
+
+  return TUSB_ERROR_NONE;
+}
+
 // queue_send, queue_receive
-#define OSAL_DEF_QUEUE(name, size)\
-  osal_queue_t name;\
-  uint8_t buffer_##name[size]
 
 #ifdef __cplusplus
  }

@@ -86,7 +86,7 @@ tusb_error_t osal_semaphore_post(osal_semaphore_handle_t const sem_hdl);
 //------------- Queue -------------//
 typedef uint32_t osal_queue_t;
 typedef void* osal_queue_handle_t;
-osal_queue_handle_t osal_queue_create(osal_queue_t *queue, uint8_t *buffer);
+osal_queue_handle_t osal_queue_create(osal_queue_t *queue);
 
 #endif
 
