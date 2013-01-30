@@ -71,7 +71,6 @@
   :mock_prefix: mock_
   :when_no_prototypes: :warn
   :enforce_strict_ordering: TRUE
-#  :callback_include_count: FALSE
   :plugins:
     - :ignore
     - :callback

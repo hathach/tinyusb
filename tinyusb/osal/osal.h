@@ -62,27 +62,33 @@
 #define TUSB_OS_FREERTOS 3
 #define TUSB_OS_UCOS     4
 
+#ifndef _TEST_
+
 #if TUSB_CFG_OS == TUSB_OS_NONE
   #include "osal_none.h"
 #else
   #error TUSB_CFG_OS is not defined or OS is not supported yet
 #endif
 
-//--------------------------------------------------------------------+
-// SEMAPHORE API
-//--------------------------------------------------------------------+
+#else // OSAL API for cmock
 
-//--------------------------------------------------------------------+
-// QUEUE API
-//--------------------------------------------------------------------+
-typedef uint32_t osal_queue_id_t;
-////osal_queue_id_t osal_queue_create(osal_queue_t *queue, uint8_t *buffer);
-osal_queue_id_t osal_queue_create(osal_queue_id_t *queue, uint8_t *buffer);
-//tusb_error_t osal_queue_put(osal_queue_id_t qid, uint32_t data, osal_timeout_t msec);
-//tusb_error_t osal_queue_get(osal_queue_id_t qid, uint32_t *data, osal_timeout_t msec);
+#include "osal_common.h"
 
+typedef uint32_t osal_timeout_t;
 
+//------------- Semaphore -------------//
+typedef uint32_t osal_semaphore_t;
+typedef void* osal_semaphore_handle_t;
+osal_semaphore_handle_t osal_semaphore_create(osal_semaphore_t * const sem);
+tusb_error_t osal_semaphore_wait(osal_semaphore_handle_t const sem_hdl, osal_timeout_t msec);
+tusb_error_t osal_semaphore_post(osal_semaphore_handle_t const sem_hdl);
 
+//------------- Queue -------------//
+typedef uint32_t osal_queue_t;
+typedef void* osal_queue_handle_t;
+osal_queue_handle_t osal_queue_create(osal_queue_t *queue, uint8_t *buffer);
+
+#endif
 
 #ifdef __cplusplus
  }

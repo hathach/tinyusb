@@ -39,9 +39,8 @@
 #undef TUSB_CFG_OS
 #endif
 
-#define TUSB_CFG_OS TUSB_OS_NONE
 #include "unity.h"
-#include "osal.h"
+#include "osal_none.h"
 
 uint32_t statements[10];
 osal_semaphore_t sem;

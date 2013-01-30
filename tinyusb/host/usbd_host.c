@@ -59,8 +59,8 @@
 STATIC_ usbh_device_info_t device_info_pool[TUSB_CFG_HOST_DEVICE_MAX];
 
 #define ENUM_DEPTH  2
-STATIC_ osal_queue_t queue_enumerate;
-STATIC_ uint8_t queue_enumerate_buffer[ENUM_DEPTH*sizeof(usbh_enumerate_t)];
+//STATIC_ osal_queue_t queue_enumerate;
+//STATIC_ uint8_t queue_enumerate_buffer[ENUM_DEPTH*sizeof(usbh_enumerate_t)];
 
 //--------------------------------------------------------------------+
 // PUBLIC API (Parameter Verification is required)
