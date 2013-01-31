@@ -65,6 +65,12 @@ enum
   OSAL_TIMEOUT_WAIT_FOREVER = 1
 };
 
+typedef enum {
+  OSAL_PRIO_LOW,
+  OSAL_PRIO_NORMAL,
+  OSAL_PRIO_HIGH
+}osal_prio_t;
+
 #ifdef __cplusplus
  }
 #endif

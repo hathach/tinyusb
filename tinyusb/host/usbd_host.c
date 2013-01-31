@@ -58,9 +58,11 @@
 //--------------------------------------------------------------------+
 STATIC_ usbh_device_info_t device_info_pool[TUSB_CFG_HOST_DEVICE_MAX];
 
-#define ENUM_DEPTH  2
-//STATIC_ osal_queue_t queue_enumerate;
-//STATIC_ uint8_t queue_enumerate_buffer[ENUM_DEPTH*sizeof(usbh_enumerate_t)];
+OSAL_TASK_DEF(enumeration_task, usbh_enumerate_task, 128, OSAL_PRIO_HIGH);
+
+#define ENUM_QUEUE_DEPTH  5
+OSAL_DEF_QUEUE(enumeration_queue, ENUM_QUEUE_DEPTH, uin32_t);
+osal_queue_handle_t enumeration_queue_hdl;
 
 //--------------------------------------------------------------------+
 // PUBLIC API (Parameter Verification is required)
@@ -77,7 +79,11 @@ tusbh_device_status_t tusbh_device_status_get (tusb_handle_device_t const device
 tusb_error_t usbh_init(void)
 {
   memset(device_info_pool, 0, sizeof(usbh_device_info_t)*TUSB_CFG_HOST_DEVICE_MAX);
-//  ASSERT_STATUS(osal_queue_create());
+
+  ASSERT_STATUS( osal_task_create(&enumeration_task) );
+  enumeration_queue_hdl = osal_queue_create(&enumeration_queue);
+  ASSERT_PTR(enumeration_queue_hdl, TUSB_ERROR_OSAL_QUEUE_FAILED);
+
   return TUSB_ERROR_NONE;
 }
 

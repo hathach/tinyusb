@@ -77,11 +77,14 @@
 typedef uint32_t osal_timeout_t;
 
 //------------- Task -------------//
+typedef uint32_t osal_task_t;
+#define OSAL_TASK_DEF(name, code, stack_depth, prio) \
+    osal_task_t name
+
 #define OSAL_TASK_LOOP
 #define OSAL_TASK_LOOP_BEGIN
 #define OSAL_TASK_LOOP_END
 
-typedef uint32_t osal_task_t;
 tusb_error_t osal_task_create(osal_task_t *task);
 
 //------------- Semaphore -------------//
@@ -94,6 +97,10 @@ tusb_error_t osal_semaphore_post(osal_semaphore_handle_t const sem_hdl);
 //------------- Queue -------------//
 typedef uint32_t osal_queue_t;
 typedef void* osal_queue_handle_t;
+
+#define OSAL_DEF_QUEUE(name, queue_depth, type) \
+  osal_queue_t name
+
 osal_queue_handle_t osal_queue_create(osal_queue_t *queue);
 
 #endif

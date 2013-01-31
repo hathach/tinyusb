@@ -68,7 +68,7 @@ extern "C"
 //--------------------------------------------------------------------+
 // Assert Helper
 //--------------------------------------------------------------------+
-#define ASSERT_FILENAME  __BASE_FILE__
+#define ASSERT_FILENAME  __FILE__
 #define ASSERT_FUNCTION  __PRETTY_FUNCTION__
 #define ASSERT_STATEMENT _PRINTF("assert at %s: %s :%d :\n", ASSERT_FILENAME, ASSERT_FUNCTION, __LINE__)
 

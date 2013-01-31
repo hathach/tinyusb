@@ -36,6 +36,7 @@
  */
 
 #include "unity.h"
+#include "errors.h"
 #include "usbd_host.h"
 #include "mock_osal.h"
 
@@ -54,27 +55,38 @@ void tearDown(void)
 //--------------------------------------------------------------------+
 // init, get_status
 //--------------------------------------------------------------------+
+void test_usbh_init_task_create_failed(void)
+{
+  osal_task_create_IgnoreAndReturn(TUSB_ERROR_OSAL_TASK_FAILED);
+  TEST_ASSERT_EQUAL(TUSB_ERROR_OSAL_TASK_FAILED, usbh_init());
+}
+
+void test_usbh_init_queue_create_failed(void)
+{
+  osal_task_create_IgnoreAndReturn(TUSB_ERROR_NONE);
+  osal_queue_create_IgnoreAndReturn(NULL);
+  TEST_ASSERT_EQUAL(TUSB_ERROR_OSAL_QUEUE_FAILED, usbh_init());
+}
+
 void test_usbh_init_checkmem(void)
 {
+  uint32_t dummy;
+
   usbh_device_info_t device_info_zero[TUSB_CFG_HOST_DEVICE_MAX];
   memset(device_info_zero, 0, sizeof(usbh_device_info_t)*TUSB_CFG_HOST_DEVICE_MAX);
 
-  osal_queue_create_IgnoreAndReturn(TUSB_ERROR_NONE);
+  osal_task_create_IgnoreAndReturn(TUSB_ERROR_NONE);
+  osal_queue_create_IgnoreAndReturn((osal_queue_handle_t)(&dummy));
 
   TEST_ASSERT_EQUAL(TUSB_ERROR_NONE, usbh_init());
-  TEST_ASSERT_EQUAL_MEMORY(device_info_zero, device_info_pool, sizeof(usbh_device_info_t)*TUSB_CFG_HOST_DEVICE_MAX);
-}
 
-void test_usbh_init_queue_create_fail(void)
-{
-  TEST_IGNORE();
-  osal_queue_create_IgnoreAndReturn(TUSB_ERROR_OSAL_QUEUE_FAILED);
-  TEST_ASSERT_EQUAL(TUSB_ERROR_OSAL_QUEUE_FAILED, usbh_init());
+  TEST_ASSERT_EQUAL_MEMORY(device_info_zero, device_info_pool, sizeof(usbh_device_info_t)*TUSB_CFG_HOST_DEVICE_MAX);
 }
 
 void test_usbh_status_get_fail(void)
 {
-  usbh_init();
+  device_info_pool[dev_hdl].status = 0;
+
   TEST_ASSERT_EQUAL( 0, tusbh_device_status_get(TUSB_CFG_HOST_DEVICE_MAX) );
   TEST_ASSERT_EQUAL( TUSB_DEVICE_STATUS_UNPLUG, tusbh_device_status_get(dev_hdl) );
 }

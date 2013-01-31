@@ -75,6 +75,7 @@
     - :ignore
     - :callback
     - :array
+  :ignore: :args_only
   :treat_as:
     uint8:    HEX8
     uint16:   HEX16

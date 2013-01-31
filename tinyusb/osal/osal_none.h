@@ -73,7 +73,7 @@ typedef uint32_t osal_timeout_t;
 //   OSAL_TASK_LOOP_ENG
 // }
 //--------------------------------------------------------------------+
-#define osal_task_create(code, name, stack_depth, parameters, prio)
+//#define osal_task_create(code, name, stack_depth, parameters, prio)
 
 #define OSAL_TASK_LOOP  \
   static uint16_t state = 0;\
