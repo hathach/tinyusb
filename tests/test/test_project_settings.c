@@ -36,6 +36,11 @@
  */
 
 #include "unity.h"
+#include "common.h"
+#include "tusb_option.h"
+
+#define LATEST_VERSION        "00.00"
+#define LATEST_VERSION_NAME   "alpha"
 
 void setUp(void)
 {
@@ -45,7 +50,13 @@ void tearDown(void)
 {
 }
 
-void test_project_memory()
+void test_memory_usage(void)
 {
   TEST_IGNORE_MESSAGE("Try to keep project total memory usage up-to-date");
+}
+
+void test_latest_version(void)
+{
+  TEST_ASSERT_EQUAL_STRING(LATEST_VERSION, TUSB_VERSION);
+  TEST_ASSERT_EQUAL_STRING(LATEST_VERSION_NAME, TUSB_VERSION_NAME);
 }

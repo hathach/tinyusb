@@ -53,6 +53,12 @@
  extern "C" {
 #endif
 
+#define TUSB_VERSION_YEAR   00
+#define TUSB_VERSION_MONTH  00
+#define TUSB_VERSION_WEEK   0
+#define TUSB_VERSION_NAME   "alpha"
+#define TUSB_VERSION        XSTRING_(TUSB_VERSION_YEAR) "." XSTRING_(TUSB_VERSION_MONTH)
+
 /// define this symbol will make tinyusb look for external configure file
 #include "tusb_config.h"
 

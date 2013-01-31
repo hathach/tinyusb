@@ -62,11 +62,11 @@
 #include <stdio.h>
 
 #include "compiler/compiler.h"
-#include "tusb_option.h"
-#include "errors.h"
 #include "assertion.h"
 #include "binary.h"
+#include "errors.h"
 
+#include "tusb_option.h"
 #include "hal/hal.h"
 #include "core/tusb_types.h"
 #include "core/std_descriptors.h"
@@ -78,6 +78,8 @@
   #define STATIC_
 #endif
 
+#define STRING_(x)  #x  // stringify without expand
+#define XSTRING_(x) STRING_(x) // expand then stringify
 
 /// form an uint32_t from 4 x uint8_t
 static inline uint32_t u32_from_u8(uint8_t b1, uint8_t b2, uint8_t b3, uint8_t b4) ATTR_ALWAYS_INLINE ATTR_CONST;
