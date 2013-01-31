@@ -57,6 +57,8 @@
 
 #include "common/common.h"
 
+//typedef void (*pfTask)( void * );
+
 enum
 {
   OSAL_TIMEOUT_NOTIMEOUT = 0, // for use within ISR,  return immediately

@@ -76,6 +76,14 @@
 
 typedef uint32_t osal_timeout_t;
 
+//------------- Task -------------//
+#define OSAL_TASK_LOOP
+#define OSAL_TASK_LOOP_BEGIN
+#define OSAL_TASK_LOOP_END
+
+typedef uint32_t osal_task_t;
+tusb_error_t osal_task_create(osal_task_t *task);
+
 //------------- Semaphore -------------//
 typedef uint32_t osal_semaphore_t;
 typedef void* osal_semaphore_handle_t;

@@ -42,6 +42,7 @@
 #include <stdbool.h>
 #include "unity.h"
 #include "CException.h"
+#include "binary.h"
 #include "common/assertion.h"
 #include "errors.h"
 
@@ -270,18 +271,24 @@ void test_assert_hex_within_greater(void)
 //--------------------------------------------------------------------+
 void test_assert_bin_equal(void)
 {
-//  ASSERT_HEX       (0xffee, 0xffee, __LINE__);
-//  ASSERT_HEX_EQUAL (0xffee, 0xffee, __LINE__);
-//
-//  uint32_t x = 0xf0f0;
-//  uint32_t y = 0xf0f0;
-//  ASSERT_HEX (x++, y++, __LINE__); // test side effect
-//  TEST_ASSERT_EQUAL(0xf0f1, x);
-//  TEST_ASSERT_EQUAL(0xf0f1, y);
-//
-//  ASSERT_HEX(0x1234, 0x4321, __LINE__);
+  Try
+  {
+    ASSERT_BIN8       (BIN8(11110000), BIN8(11110000), __LINE__);
+    ASSERT_BIN8_EQUAL (BIN8(00001111), BIN8(00001111), __LINE__);
 
-  TEST_IGNORE();
+    // test side effect
+    uint32_t x = BIN8(11001100);
+    uint32_t y = BIN8(11001100);
+    ASSERT_BIN8 (x++, y++, __LINE__);
+    TEST_ASSERT_EQUAL(BIN8(11001101), x);
+    TEST_ASSERT_EQUAL(BIN8(11001101), y);
+
+    ASSERT_BIN8(BIN8(11001111), BIN8(11111100), 0);
+  }
+  Catch(e)
+  {
+    TEST_ASSERT_EQUAL(0, e);
+  }
 }
 
 

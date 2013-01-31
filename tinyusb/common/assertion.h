@@ -146,6 +146,24 @@ extern "C"
 //--------------------------------------------------------------------+
 // TODO Bin Assert
 //--------------------------------------------------------------------+
+#define BIN8_PRINTF_PATTERN "%d%d%d%d%d%d%d%d"
+#define BIN8_PRINTF_CONVERT(byte)  \
+  ((byte) & 0x80 ? 1 : 0), \
+  ((byte) & 0x40 ? 1 : 0), \
+  ((byte) & 0x20 ? 1 : 0), \
+  ((byte) & 0x10 ? 1 : 0), \
+  ((byte) & 0x08 ? 1 : 0), \
+  ((byte) & 0x04 ? 1 : 0), \
+  ((byte) & 0x02 ? 1 : 0), \
+  ((byte) & 0x01 ? 1 : 0)
+
+#define ASSERT_BIN8(...)        ASSERT_BIN8_EQUAL(__VA_ARGS__)
+#define ASSERT_BIN8_EQUAL(expected, actual, error)\
+    ASSERT_DEFINE(\
+                  uint8_t exp = (expected); uint8_t act = (actual),\
+                  exp==act,\
+                  error,\
+                  "expected " BIN8_PRINTF_PATTERN ", actual " BIN8_PRINTF_PATTERN, BIN8_PRINTF_CONVERT(exp), BIN8_PRINTF_CONVERT(act) )
 
 //--------------------------------------------------------------------+
 // TODO Bit Assert
