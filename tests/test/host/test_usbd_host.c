@@ -117,7 +117,7 @@ void test_usbh_status_get_succeed(void)
 //--------------------------------------------------------------------+
 // enum task
 //--------------------------------------------------------------------+
-extern osal_queue_handle_t enumeration_queue_hdl;
+extern osal_queue_handle_t enum_queue_hdl;
 usbh_enumerate_t enum_connect =
 {
     .core_id = 0,
@@ -128,7 +128,7 @@ usbh_enumerate_t enum_connect =
 
 void queue_recv_stub (osal_queue_handle_t const queue_hdl, uint32_t *p_data, uint32_t msec, tusb_error_t *p_error, int num_call)
 {
-  TEST_ASSERT_EQUAL_PTR(enumeration_queue_hdl, queue_hdl);
+  TEST_ASSERT_EQUAL_PTR(enum_queue_hdl, queue_hdl);
   memcpy(p_data, &enum_connect, 4);
   (*p_error) = TUSB_ERROR_NONE;
 }
@@ -138,7 +138,7 @@ void test_enum_task_connect(void)
   osal_queue_receive_StubWithCallback(queue_recv_stub);
   hcd_port_connect_status_ExpectAndReturn(enum_connect.core_id, true);
 
-  usbh_enumerate_task();
+  usbh_enumeration_task();
 }
 
 void test_enum_task_disconnect(void)

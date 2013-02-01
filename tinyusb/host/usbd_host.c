@@ -70,19 +70,19 @@ tusbh_device_status_t tusbh_device_status_get (tusb_handle_device_t const device
 //--------------------------------------------------------------------+
 // ENUMERATION TASK & ITS DATA
 //--------------------------------------------------------------------+
-OSAL_TASK_DEF(enumeration_task, usbh_enumerate_task, 128, OSAL_PRIO_HIGH);
+OSAL_TASK_DEF(enum_task, usbh_enumeration_task, 128, OSAL_PRIO_HIGH);
 
 #define ENUM_QUEUE_DEPTH  5
-OSAL_DEF_QUEUE(enumeration_queue, ENUM_QUEUE_DEPTH, uin32_t);
-osal_queue_handle_t enumeration_queue_hdl;
+OSAL_DEF_QUEUE(enum_queue, ENUM_QUEUE_DEPTH, uin32_t);
+osal_queue_handle_t enum_queue_hdl;
 
-void usbh_enumerate_task(void)
+void usbh_enumeration_task(void)
 {
   OSAL_TASK_LOOP
   {
     OSAL_TASK_LOOP_BEGIN
 
-
+//    osal_queue_receive(enumeration_queue_hdl, )
 
     OSAL_TASK_LOOP_END
   }
@@ -102,9 +102,9 @@ tusb_error_t usbh_init(void)
     ASSERT_STATUS( hcd_init(i) );
   }
 
-  ASSERT_STATUS( osal_task_create(&enumeration_task) );
-  enumeration_queue_hdl = osal_queue_create(&enumeration_queue);
-  ASSERT_PTR(enumeration_queue_hdl, TUSB_ERROR_OSAL_QUEUE_FAILED);
+  ASSERT_STATUS( osal_task_create(&enum_task) );
+  enum_queue_hdl = osal_queue_create(&enum_queue);
+  ASSERT_PTR(enum_queue_hdl, TUSB_ERROR_OSAL_QUEUE_FAILED);
 
   return TUSB_ERROR_NONE;
 }
