@@ -35,10 +35,33 @@
  * This file is part of the tiny usb stack.
  */
 
-#include "osal_none.h"
+#include "tusb_option.h"
 
 #if TUSB_CFG_OS == TUSB_OS_NONE
 
+#define _TINY_USB_SOURCE_FILE_
 
+//--------------------------------------------------------------------+
+// INCLUDE
+//--------------------------------------------------------------------+
+#include "osal_none.h"
+
+//--------------------------------------------------------------------+
+// INTERNAL OBJECT & FUNCTION DECLARATION
+//--------------------------------------------------------------------+
+static volatile uint32_t osal_tick_current = 0;
+
+//--------------------------------------------------------------------+
+// IMPLEMENTATION
+//--------------------------------------------------------------------+
+volatile uint32_t osal_tick_get(void)
+{
+  return osal_tick_current;
+}
+
+void osal_tick_tock(void)
+{
+  osal_tick_current++;
+}
 
 #endif

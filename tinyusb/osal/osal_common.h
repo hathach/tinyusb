@@ -56,13 +56,13 @@
 #endif
 
 #include "common/common.h"
-
 //typedef void (*pfTask)( void * );
 
 enum
 {
   OSAL_TIMEOUT_NOTIMEOUT = 0, // for use within ISR,  return immediately
-  OSAL_TIMEOUT_WAIT_FOREVER = 1
+  OSAL_TIMEOUT_WAIT_FOREVER = 1,
+  OSAL_TIMEOUT_NORMAL = 10 // default is 10 msec
 };
 
 typedef enum {
@@ -70,6 +70,12 @@ typedef enum {
   OSAL_PRIO_NORMAL,
   OSAL_PRIO_HIGH
 }osal_prio_t;
+
+static inline uint32_t osal_tick_from_msec(uint32_t msec) ATTR_CONST ATTR_ALWAYS_INLINE;
+static inline uint32_t osal_tick_from_msec(uint32_t msec)
+{
+  return  (msec * TUSB_CFG_OS_TICKS_PER_SECOND)/1000;
+}
 
 #ifdef __cplusplus
  }

@@ -88,7 +88,7 @@
 #define TUSB_CFG_DEBUG 3
 
 #define TUSB_CFG_OS TUSB_OS_NONE
-#define TUSB_CFG_OS_TICK_PER_SECOND 1000 // 1 ms tick
+#define TUSB_CFG_OS_TICKS_PER_SECOND 1000 // 1 ms tick
 
 #ifdef __CODE_RED // make use of code red's support for ram region macros
   #if (MCU == MCU_LPC11UXX) || (MCU == MCU_LPC13UXX)

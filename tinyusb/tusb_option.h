@@ -78,6 +78,17 @@
  #error TUSB_CFG_ATTR_USBRAM is not defined, please help me know how to place data in accessible RAM for usb controller
 #endif
 
+#if TUSB_CFG_OS == TUSB_OS_NONE
+  #ifndef TUSB_CFG_OS_TICKS_PER_SECOND
+    #error TUSB_CFG_OS_TICKS_PER_SECOND is required to use with OS_NONE
+  #endif
+#endif
+
+#ifndef TUSB_CFG_CONFIGURATION_MAX
+  #define TUSB_CFG_CONFIGURATION_MAX 1
+  #warning TUSB_CFG_CONFIGURATION_MAX is not defined, default value is 1
+#endif
+
 //--------------------------------------------------------------------+
 // HOST OPTIONS
 //--------------------------------------------------------------------+
@@ -103,20 +114,9 @@
     #endif
   #endif // end TUSB_CFG_HOST_HID_KEYBOARD
 
-  #if TUSB_CFG_OS == TUSB_OS_NONE
-    #ifndef TUSB_CFG_OS_TICK_PER_SECOND
-      #error TUSB_CFG_OS_TICK_PER_SECOND is required to use with OS_NONE
-    #endif
-  #endif
-
   #define HOST_CLASS_HID   ( (defined TUSB_CFG_HOST_HID_KEYBOARD) )
   #define HOST_EHCI
 #endif // end TUSB_CFG_HOST
-
-#ifndef TUSB_CFG_CONFIGURATION_MAX
-  #define TUSB_CFG_CONFIGURATION_MAX 1
-  #warning TUSB_CFG_CONFIGURATION_MAX is not defined, default value is 1
-#endif
 
 //--------------------------------------------------------------------+
 // DEVICE OPTIONS

@@ -57,7 +57,11 @@
 
 #include "osal_common.h"
 
-typedef uint32_t osal_timeout_t;
+//--------------------------------------------------------------------+
+// TICK API
+//--------------------------------------------------------------------+
+void osal_tick_tock(void);
+uint32_t osal_tick_get(void);
 
 //--------------------------------------------------------------------+
 // TASK API
@@ -76,6 +80,7 @@ typedef uint32_t osal_timeout_t;
 //#define osal_task_create(code, name, stack_depth, parameters, prio)
 
 #define OSAL_TASK_LOOP  \
+  static uint32_t timeout = 0;\
   static uint16_t state = 0;\
   switch(state)\
 
@@ -85,6 +90,7 @@ typedef uint32_t osal_timeout_t;
 #define OSAL_TASK_LOOP_END \
   default:\
     state = 0;
+
 //--------------------------------------------------------------------+
 // Semaphore API
 //--------------------------------------------------------------------+
@@ -108,11 +114,15 @@ static inline  tusb_error_t osal_semaphore_post(osal_semaphore_handle_t const se
 
 #define osal_semaphore_wait(sem_hdl, msec, p_error) \
   do {\
+    timeout = osal_tick_get();\
     state = __LINE__; case __LINE__:\
-    if( (*sem_hdl) == 0 ) \
-      return;\
-    else\
-      (*sem_hdl)--; /*TODO mutex hal_interrupt_disable consideration*/\
+    if( *(sem_hdl) == 0 ) {\
+      if ( timeout + osal_tick_from_msec(msec) < osal_tick_get() ) /* time out */ \
+        *(p_error) = TUSB_ERROR_OSAL_TIMEOUT;\
+      else\
+        return;\
+    } else\
+      (*(sem_hdl))--; /*TODO mutex hal_interrupt_disable consideration*/\
   }while(0)
 
 //--------------------------------------------------------------------+

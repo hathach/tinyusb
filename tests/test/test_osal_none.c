@@ -123,15 +123,18 @@ void sample_task_semaphore(void)
     osal_semaphore_wait(sem_hdl, OSAL_TIMEOUT_WAIT_FOREVER, &error);
     statements[3]++;
 
+    osal_semaphore_wait(sem_hdl, OSAL_TIMEOUT_NORMAL, &error);
+    statements[4]++;
+    TEST_ASSERT_EQUAL(TUSB_ERROR_OSAL_TIMEOUT, error);
+
     OSAL_TASK_LOOP_END
   }
 }
 
 void test_task_with_semaphore(void)
 {
-  uint32_t i;
   // several invoke before sempahore is available
-  for(i=0; i<10; i++)
+  for(uint32_t i=0; i<10; i++)
     sample_task_semaphore();
   TEST_ASSERT_EQUAL(1, statements[0]);
 
@@ -148,7 +151,12 @@ void test_task_with_semaphore(void)
   TEST_ASSERT_EQUAL(1, statements[3]);
 
   // timeout
-
+  for(uint32_t i=0; i<(OSAL_TIMEOUT_NORMAL*TUSB_CFG_OS_TICKS_PER_SECOND)/1000 ; i++) // not enough time
+    osal_tick_tock();
+  sample_task_semaphore();
+  TEST_ASSERT_EQUAL(0, statements[4]);
+  osal_tick_tock();
+  sample_task_semaphore();
 
   // reach end of task loop, back to beginning
   sample_task_semaphore();
