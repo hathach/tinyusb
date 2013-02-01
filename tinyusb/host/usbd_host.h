@@ -140,6 +140,7 @@ typedef struct {
   uint8_t core_id;
   uint8_t hub_address;
   uint8_t hub_port;
+  uint8_t connect_status;
 } usbh_enumerate_t;
 
 //--------------------------------------------------------------------+

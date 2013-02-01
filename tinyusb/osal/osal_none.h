@@ -106,7 +106,7 @@ static inline  tusb_error_t osal_semaphore_post(osal_semaphore_handle_t const se
   return TUSB_ERROR_NONE;
 }
 
-#define osal_semaphore_wait(sem_hdl, msec) \
+#define osal_semaphore_wait(sem_hdl, msec, p_error) \
   do {\
     state = __LINE__; case __LINE__:\
     if( (*sem_hdl) == 0 ) \

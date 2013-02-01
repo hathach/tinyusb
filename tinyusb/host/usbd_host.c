@@ -58,12 +58,6 @@
 //--------------------------------------------------------------------+
 STATIC_ usbh_device_info_t device_info_pool[TUSB_CFG_HOST_DEVICE_MAX];
 
-OSAL_TASK_DEF(enumeration_task, usbh_enumerate_task, 128, OSAL_PRIO_HIGH);
-
-#define ENUM_QUEUE_DEPTH  5
-OSAL_DEF_QUEUE(enumeration_queue, ENUM_QUEUE_DEPTH, uin32_t);
-osal_queue_handle_t enumeration_queue_hdl;
-
 //--------------------------------------------------------------------+
 // PUBLIC API (Parameter Verification is required)
 //--------------------------------------------------------------------+
@@ -74,11 +68,39 @@ tusbh_device_status_t tusbh_device_status_get (tusb_handle_device_t const device
 }
 
 //--------------------------------------------------------------------+
+// ENUMERATION TASK & ITS DATA
+//--------------------------------------------------------------------+
+OSAL_TASK_DEF(enumeration_task, usbh_enumerate_task, 128, OSAL_PRIO_HIGH);
+
+#define ENUM_QUEUE_DEPTH  5
+OSAL_DEF_QUEUE(enumeration_queue, ENUM_QUEUE_DEPTH, uin32_t);
+osal_queue_handle_t enumeration_queue_hdl;
+
+void usbh_enumerate_task(void)
+{
+  OSAL_TASK_LOOP
+  {
+    OSAL_TASK_LOOP_BEGIN
+
+
+
+    OSAL_TASK_LOOP_END
+  }
+}
+
+//--------------------------------------------------------------------+
 // CLASS-USBD API (don't require to verify parameters)
 //--------------------------------------------------------------------+
 tusb_error_t usbh_init(void)
 {
+  uint32_t i;
+
   memset(device_info_pool, 0, sizeof(usbh_device_info_t)*TUSB_CFG_HOST_DEVICE_MAX);
+
+  for(i=0; i<TUSB_CFG_HOST_CONTROLLER_NUM; i++)
+  {
+    ASSERT_STATUS( hcd_init(i) );
+  }
 
   ASSERT_STATUS( osal_task_create(&enumeration_task) );
   enumeration_queue_hdl = osal_queue_create(&enumeration_queue);
@@ -86,10 +108,4 @@ tusb_error_t usbh_init(void)
 
   return TUSB_ERROR_NONE;
 }
-
-void usbh_enumerate_task(void)
-{
-
-}
-
 #endif

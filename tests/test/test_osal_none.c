@@ -107,19 +107,20 @@ void test_queue_send(void)
 //--------------------------------------------------------------------+
 void sample_task_semaphore(void)
 {
+  tusb_error_t error = TUSB_ERROR_NONE;
   OSAL_TASK_LOOP
   {
     OSAL_TASK_LOOP_BEGIN
 
     statements[0]++;
 
-    osal_semaphore_wait(sem_hdl, OSAL_TIMEOUT_WAIT_FOREVER);
+    osal_semaphore_wait(sem_hdl, OSAL_TIMEOUT_WAIT_FOREVER, &error);
     statements[1]++;
 
-    osal_semaphore_wait(sem_hdl, OSAL_TIMEOUT_WAIT_FOREVER);
+    osal_semaphore_wait(sem_hdl, OSAL_TIMEOUT_WAIT_FOREVER, &error);
     statements[2]++;
 
-    osal_semaphore_wait(sem_hdl, OSAL_TIMEOUT_WAIT_FOREVER);
+    osal_semaphore_wait(sem_hdl, OSAL_TIMEOUT_WAIT_FOREVER, &error);
     statements[3]++;
 
     OSAL_TASK_LOOP_END
@@ -139,11 +140,15 @@ void test_task_with_semaphore(void)
   sample_task_semaphore();
   TEST_ASSERT_EQUAL(1, statements[1]);
 
+  // post 2 consecutive times
   osal_semaphore_post(sem_hdl);
   osal_semaphore_post(sem_hdl);
   sample_task_semaphore();
   TEST_ASSERT_EQUAL(1, statements[2]);
   TEST_ASSERT_EQUAL(1, statements[3]);
+
+  // timeout
+
 
   // reach end of task loop, back to beginning
   sample_task_semaphore();

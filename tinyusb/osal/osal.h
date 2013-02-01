@@ -76,6 +76,9 @@
 
 typedef uint32_t osal_timeout_t;
 
+//------------- Tick -------------//
+uint32_t osal_tick_get(void);
+
 //------------- Task -------------//
 typedef uint32_t osal_task_t;
 #define OSAL_TASK_DEF(name, code, stack_depth, prio) \
@@ -91,7 +94,7 @@ tusb_error_t osal_task_create(osal_task_t *task);
 typedef uint32_t osal_semaphore_t;
 typedef void* osal_semaphore_handle_t;
 osal_semaphore_handle_t osal_semaphore_create(osal_semaphore_t * const sem);
-tusb_error_t osal_semaphore_wait(osal_semaphore_handle_t const sem_hdl, osal_timeout_t msec);
+void osal_semaphore_wait(osal_semaphore_handle_t const sem_hdl, osal_timeout_t msec, tusb_error_t *p_error);
 tusb_error_t osal_semaphore_post(osal_semaphore_handle_t const sem_hdl);
 
 //------------- Queue -------------//
@@ -101,7 +104,9 @@ typedef void* osal_queue_handle_t;
 #define OSAL_DEF_QUEUE(name, queue_depth, type) \
   osal_queue_t name
 
-osal_queue_handle_t osal_queue_create(osal_queue_t *queue);
+osal_queue_handle_t  osal_queue_create  (osal_queue_t *p_queue);
+void                 osal_queue_receive (osal_queue_handle_t const queue_hdl, uint32_t *p_data, osal_timeout_t msec, tusb_error_t *p_error);
+tusb_error_t         osal_queue_send    (osal_queue_handle_t const queue_hdl, uint32_t data);
 
 #endif
 

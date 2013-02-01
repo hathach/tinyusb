@@ -62,47 +62,14 @@
 /// define this symbol will make tinyusb look for external configure file
 #include "tusb_config.h"
 
+//--------------------------------------------------------------------+
+// COMMON OPTIONS
+//--------------------------------------------------------------------+
 /// 0: no debug information 3: most debug information provided
 #ifndef TUSB_CFG_DEBUG
   #define TUSB_CFG_DEBUG 3
   #warning TUSB_CFG_DEBUG is not defined, default value is 3
 #endif
-
-/// Enable Host Support
-#ifdef TUSB_CFG_HOST
-
-#ifndef TUSB_CFG_HOST_CONTROLLER_NUM
-  #define TUSB_CFG_HOST_CONTROLLER_NUM 1
-  #warning TUSB_CFG_HOST_CONTROLLER_NUM is not defined, default value is 1
-#endif
-
-#ifndef TUSB_CFG_HOST_DEVICE_MAX
-  #define TUSB_CFG_HOST_DEVICE_MAX 1
-  #warning TUSB_CFG_HOST_DEVICE_MAX is not defined, default value is 1
-#endif
-
-#if TUSB_CFG_HOST_HID_KEYBOARD
-  #if !defined(TUSB_CFG_HOST_HID_KEYBOARD_ENDPOINT_SIZE)
-    #define TUSB_CFG_HOST_HID_KEYBOARD_ENDPOINT_SIZE 64
-    #warning TUSB_CFG_HOST_HID_KEYBOARD_ENDPOINT_SIZE is not defined, default value is 64
-  #elif TUSB_CFG_HOST_HID_KEYBOARD_ENDPOINT_SIZE < 8
-    #error no endpoint size is allowed to be less than 8
-  #endif
-
-  #if !defined(TUSB_CFG_HOST_HID_KEYBOARD_NO_INSTANCES_PER_DEVICE)
-    #define TUSB_CFG_HOST_HID_KEYBOARD_NO_INSTANCES_PER_DEVICE 1
-  #endif
-#endif
-
-#endif
-
-#ifndef TUSB_CFG_CONFIGURATION_MAX
-  #define TUSB_CFG_CONFIGURATION_MAX 1
-  #warning TUSB_CFG_CONFIGURATION_MAX is not defined, default value is 1
-#endif
-
-/// Enable Device Support
-//#define TUSB_CFG_DEVICE
 
 /// USB RAM Section Placement, MCU's usb controller often has limited access to specific RAM region. This will be used to declare internal variables as follow:
 /// uint8_t tinyusb_data[10] TUSB_CFG_ATTR_USBRAM;
@@ -111,12 +78,54 @@
  #error TUSB_CFG_ATTR_USBRAM is not defined, please help me know how to place data in accessible RAM for usb controller
 #endif
 
+//--------------------------------------------------------------------+
+// HOST OPTIONS
+//--------------------------------------------------------------------+
+#ifdef TUSB_CFG_HOST
+  #ifndef TUSB_CFG_HOST_CONTROLLER_NUM
+    #define TUSB_CFG_HOST_CONTROLLER_NUM 1
+    #warning TUSB_CFG_HOST_CONTROLLER_NUM is not defined, default value is 1
+  #endif
+
+  #ifndef TUSB_CFG_HOST_DEVICE_MAX
+    #define TUSB_CFG_HOST_DEVICE_MAX 1
+    #warning TUSB_CFG_HOST_DEVICE_MAX is not defined, default value is 1
+  #endif
+
+  #if TUSB_CFG_HOST_HID_KEYBOARD
+    #if !defined(TUSB_CFG_HOST_HID_KEYBOARD_ENDPOINT_SIZE)
+      #define TUSB_CFG_HOST_HID_KEYBOARD_ENDPOINT_SIZE 64
+      #warning TUSB_CFG_HOST_HID_KEYBOARD_ENDPOINT_SIZE is not defined, default value is 64
+    #endif
+
+    #if !defined(TUSB_CFG_HOST_HID_KEYBOARD_NO_INSTANCES_PER_DEVICE)
+      #define TUSB_CFG_HOST_HID_KEYBOARD_NO_INSTANCES_PER_DEVICE 1
+    #endif
+  #endif // end TUSB_CFG_HOST_HID_KEYBOARD
+
+  #if TUSB_CFG_OS == TUSB_OS_NONE
+    #ifndef TUSB_CFG_OS_TICK_PER_SECOND
+      #error TUSB_CFG_OS_TICK_PER_SECOND is required to use with OS_NONE
+    #endif
+  #endif
+
+  #define HOST_CLASS_HID   ( (defined TUSB_CFG_HOST_HID_KEYBOARD) )
+  #define HOST_EHCI
+#endif // end TUSB_CFG_HOST
+
+#ifndef TUSB_CFG_CONFIGURATION_MAX
+  #define TUSB_CFG_CONFIGURATION_MAX 1
+  #warning TUSB_CFG_CONFIGURATION_MAX is not defined, default value is 1
+#endif
+
+//--------------------------------------------------------------------+
+// DEVICE OPTIONS
+//--------------------------------------------------------------------+
+//#define TUSB_CFG_DEVICE
+
 #define DEVICE_CLASS_HID ( (defined TUSB_CFG_DEVICE_HID_KEYBOARD) || (defined TUSB_CFG_DEVICE_HID_MOUSE) )
-#define HOST_CLASS_HID   ( (defined TUSB_CFG_HOST_HID_KEYBOARD) )
 
-#define HOST_EHCI
-
-// TODO APP
+// TODO Device APP
 #define USB_MAX_IF_NUM          8
 #define USB_MAX_EP_NUM          5
 

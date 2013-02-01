@@ -60,7 +60,6 @@
 
 typedef uint32_t pipe_handle_t;
 
-#if 0
 /** \brief Initialize HCD
 *
 * \param[in]  para1
@@ -71,6 +70,10 @@ typedef uint32_t pipe_handle_t;
 
 tusb_error_t hcd_init(uint8_t hostid) ATTR_WARN_UNUSED_RESULT;
 
+/// return the current connect status of roothub port
+bool hcd_port_connect_status(uint8_t hostid) ATTR_WARN_UNUSED_RESULT;
+
+#if 0
 //tusb_error_t hcd_pipe_open(
 //    uint8_t hostid, uint8_t device_address,
 //

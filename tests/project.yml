@@ -44,14 +44,14 @@
   :commmon: &common_defines []
   :test:
     - *common_defines
-    - _TEST_
+    - _TEST_ -std=gnu99
     - MCU=MCU_LPC43XX
     - CORE_M4
     - __CODE_RED
     - _TINY_USB_SOURCE_FILE_
   :test_preprocess:
     - *common_defines
-    - _TEST_
+    - _TEST_ -std=gnu99
     - MCU=MCU_LPC43XX
     - CORE_M4
     - __CODE_RED

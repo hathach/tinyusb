@@ -41,7 +41,6 @@
 
 tusb_error_t hcd_init(uint8_t coreid)
 {
-
   return TUSB_ERROR_NONE;
 }
 

@@ -39,6 +39,7 @@
 #include "errors.h"
 #include "usbd_host.h"
 #include "mock_osal.h"
+#include "mock_hcd.h"
 
 extern usbh_device_info_t device_info_pool[TUSB_CFG_HOST_DEVICE_MAX];
 tusb_handle_device_t dev_hdl;
@@ -55,25 +56,41 @@ void tearDown(void)
 //--------------------------------------------------------------------+
 // init, get_status
 //--------------------------------------------------------------------+
+void test_usbh_init_hcd_failed(void)
+{
+  hcd_init_IgnoreAndReturn(TUSB_ERROR_HCD_FAILED);
+  TEST_ASSERT_EQUAL(TUSB_ERROR_HCD_FAILED, usbh_init());
+}
+
 void test_usbh_init_task_create_failed(void)
 {
+  for(uint32_t i=0; i<TUSB_CFG_HOST_CONTROLLER_NUM; i++)
+    hcd_init_ExpectAndReturn(i, TUSB_ERROR_NONE);
+
   osal_task_create_IgnoreAndReturn(TUSB_ERROR_OSAL_TASK_FAILED);
   TEST_ASSERT_EQUAL(TUSB_ERROR_OSAL_TASK_FAILED, usbh_init());
 }
 
 void test_usbh_init_queue_create_failed(void)
 {
+  for(uint32_t i=0; i<TUSB_CFG_HOST_CONTROLLER_NUM; i++)
+    hcd_init_ExpectAndReturn(i, TUSB_ERROR_NONE);
+
   osal_task_create_IgnoreAndReturn(TUSB_ERROR_NONE);
   osal_queue_create_IgnoreAndReturn(NULL);
   TEST_ASSERT_EQUAL(TUSB_ERROR_OSAL_QUEUE_FAILED, usbh_init());
 }
 
-void test_usbh_init_checkmem(void)
+
+void test_usbh_init_ok(void)
 {
   uint32_t dummy;
 
   usbh_device_info_t device_info_zero[TUSB_CFG_HOST_DEVICE_MAX];
   memset(device_info_zero, 0, sizeof(usbh_device_info_t)*TUSB_CFG_HOST_DEVICE_MAX);
+
+  for(uint32_t i=0; i<TUSB_CFG_HOST_CONTROLLER_NUM; i++)
+    hcd_init_ExpectAndReturn(i, TUSB_ERROR_NONE);
 
   osal_task_create_IgnoreAndReturn(TUSB_ERROR_NONE);
   osal_queue_create_IgnoreAndReturn((osal_queue_handle_t)(&dummy));
@@ -100,40 +117,41 @@ void test_usbh_status_get_succeed(void)
 //--------------------------------------------------------------------+
 // enum task
 //--------------------------------------------------------------------+
-void test_enum_task(void)
+extern osal_queue_handle_t enumeration_queue_hdl;
+usbh_enumerate_t enum_connect =
 {
-//  osal_queue_
-  TEST_IGNORE();
+    .core_id = 0,
+    .hub_address = 0,
+    .hub_port = 0,
+    .connect_status = 1
+};
+
+void queue_recv_stub (osal_queue_handle_t const queue_hdl, uint32_t *p_data, osal_timeout_t msec, tusb_error_t *p_error, int num_call)
+{
+  TEST_ASSERT_EQUAL_PTR(enumeration_queue_hdl, queue_hdl);
+  memcpy(p_data, &enum_connect, 4);
+  (*p_error) = TUSB_ERROR_NONE;
+}
+
+void test_enum_task_connect(void)
+{
+  osal_queue_receive_StubWithCallback(queue_recv_stub);
+  hcd_port_connect_status_ExpectAndReturn(enum_connect.core_id, true);
+
   usbh_enumerate_task();
 }
 
-
-#if 0
-void test_keyboard_open_invalid_para()
-{
-  tusb_handle_keyboard_t keyboard_handle;
-
-  TEST_ASSERT_EQUAL(TUSB_ERROR_INVALID_PARA, tusbh_keyboard_open(TUSB_CFG_HOST_DEVICE_MAX, 1, &keyboard_handle) );
-  TEST_ASSERT_EQUAL(TUSB_ERROR_INVALID_PARA, tusbh_keyboard_open(0, 0, &keyboard_handle) );
-  TEST_ASSERT_EQUAL(TUSB_ERROR_INVALID_PARA, tusbh_keyboard_open(0, TUSB_CFG_CONFIGURATION_MAX+1, &keyboard_handle) );
-  TEST_ASSERT_EQUAL(TUSB_ERROR_INVALID_PARA, tusbh_keyboard_open(0, 1, NULL) );
-}
-
-void test_keyboard_open_succeed()
-{
-  tusb_handle_keyboard_t keyboard_handle = 0;
-
-  TEST_ASSERT_EQUAL(TUSB_ERROR_NONE, tusbh_keyboard_open(0, 1, &keyboard_handle));
-  TEST_ASSERT_TRUE( 0 != keyboard_handle);
-}
-
-void test_keyboard_callback__()
+void test_enum_task_disconnect(void)
 {
   TEST_IGNORE();
-  tusb_handle_device_t device_handle = __LINE__;
-  tusb_handle_configure_t configure_handle = __LINE__;
-  tusb_handle_interface_t interface_handle = __LINE__;
-  uint32_t configure_flags = BIT_(TUSB_CLASS_HID);
-  tusbh_usbd_device_mounted_cb_ExpectWithArray(TUSB_ERROR_NONE, device_handle, &configure_flags, 1, 1);
 }
-#endif
+
+void test_enum_task_connect_via_hub(void)
+{
+  TEST_IGNORE();
+}
+
+void test_enum_task_disconnect_via_hub(void)
+{
+  TEST_IGNORE();
+}
