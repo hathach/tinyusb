@@ -166,23 +166,29 @@ void test_task_with_semaphore(void)
 void sample_task_with_queue(void)
 {
   uint32_t data;
+  tusb_error_t error;
+
   OSAL_TASK_LOOP
   {
     OSAL_TASK_LOOP_BEGIN
 
     statements[0]++;
 
-    osal_queue_receive(queue_hdl, &data, OSAL_TIMEOUT_WAIT_FOREVER);
+    osal_queue_receive(queue_hdl, &data, OSAL_TIMEOUT_WAIT_FOREVER, &error);
     TEST_ASSERT_EQUAL(0x1111, data);
     statements[1]++;
 
-    osal_queue_receive(queue_hdl, &data, OSAL_TIMEOUT_WAIT_FOREVER);
+    osal_queue_receive(queue_hdl, &data, OSAL_TIMEOUT_WAIT_FOREVER, &error);
     TEST_ASSERT_EQUAL(0x2222, data);
     statements[2]++;
 
-    osal_queue_receive(queue_hdl, &data, OSAL_TIMEOUT_WAIT_FOREVER);
+    osal_queue_receive(queue_hdl, &data, OSAL_TIMEOUT_WAIT_FOREVER, &error);
     TEST_ASSERT_EQUAL(0x3333, data);
     statements[3]++;
+
+    osal_queue_receive(queue_hdl, &data, OSAL_TIMEOUT_NORMAL, &error);
+    statements[4]++;
+    TEST_ASSERT_EQUAL(TUSB_ERROR_OSAL_TIMEOUT, error);
 
     OSAL_TASK_LOOP_END
   }
@@ -211,5 +217,16 @@ void test_task_with_queue(void)
   TEST_ASSERT_EQUAL(1, statements[2]);
   TEST_ASSERT_EQUAL(1, statements[3]);
 
+  // timeout
+  for(uint32_t i=0; i<(OSAL_TIMEOUT_NORMAL*TUSB_CFG_OS_TICKS_PER_SECOND)/1000 ; i++) // not enough time
+    osal_tick_tock();
+  sample_task_with_queue();
+  TEST_ASSERT_EQUAL(0, statements[4]);
+  osal_tick_tock();
+  sample_task_with_queue();
+
+  // reach end of task loop, back to beginning
+  sample_task_with_queue();
+  TEST_ASSERT_EQUAL(2, statements[0]);
 }
 

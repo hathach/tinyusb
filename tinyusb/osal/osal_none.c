@@ -54,7 +54,7 @@ static volatile uint32_t osal_tick_current = 0;
 //--------------------------------------------------------------------+
 // IMPLEMENTATION
 //--------------------------------------------------------------------+
-volatile uint32_t osal_tick_get(void)
+uint32_t osal_tick_get(void)
 {
   return osal_tick_current;
 }
