@@ -60,18 +60,13 @@
 
 typedef uint32_t pipe_handle_t;
 
-/** \brief Initialize HCD
-*
-* \param[in]  para1
-* \param[out] para2
-* \return Error Code of the \ref TUSB_ERROR enum
-* \note
-*/
 
 tusb_error_t hcd_init(uint8_t hostid) ATTR_WARN_UNUSED_RESULT;
 
-/// return the current connect status of roothub port
-bool hcd_port_connect_status(uint8_t hostid) ATTR_WARN_UNUSED_RESULT;
+//--------------------------------------------------------------------+
+// PIPE API
+//--------------------------------------------------------------------+
+//pipe_handle_t hcd_pipe_control_open(core_id, speed, hub_addr, hub_port, dev_addr, max_packet_size);
 
 #if 0
 //tusb_error_t hcd_pipe_open(
@@ -82,6 +77,13 @@ tusb_error_t hcd_pipe_close()ATTR_WARN_UNUSED_RESULT;
 tusb_error_t hcd_pipe_transfer()ATTR_WARN_UNUSED_RESULT;
 tusb_error_t hcd_pipe_cancel()ATTR_WARN_UNUSED_RESULT;
 #endif
+
+//--------------------------------------------------------------------+
+// PORT API
+//--------------------------------------------------------------------+
+/// return the current connect status of roothub port
+bool hcd_port_connect_status(uint8_t core_id) ATTR_WARN_UNUSED_RESULT;
+tusb_speed_t hcd_port_speed_get(uint8_t core_id) ATTR_WARN_UNUSED_RESULT;
 
 #ifdef __cplusplus
  }

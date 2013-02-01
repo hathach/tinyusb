@@ -136,7 +136,7 @@ typedef enum {
 
 typedef uint32_t tusb_handle_device_t;
 
-typedef struct {
+typedef struct ATTR_ALIGNED(4){
   uint8_t core_id;
   uint8_t hub_address;
   uint8_t hub_port;

@@ -129,7 +129,7 @@ usbh_enumerate_t enum_connect =
 void queue_recv_stub (osal_queue_handle_t const queue_hdl, uint32_t *p_data, uint32_t msec, tusb_error_t *p_error, int num_call)
 {
   TEST_ASSERT_EQUAL_PTR(enum_queue_hdl, queue_hdl);
-  memcpy(p_data, &enum_connect, 4);
+  (*p_data) = ( *((uint32_t*) &enum_connect) );
   (*p_error) = TUSB_ERROR_NONE;
 }
 

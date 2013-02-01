@@ -78,11 +78,31 @@ osal_queue_handle_t enum_queue_hdl;
 
 void usbh_enumeration_task(void)
 {
+  usbh_enumerate_t enum_item;
+  tusb_error_t error;
+
   OSAL_TASK_LOOP
   {
     OSAL_TASK_LOOP_BEGIN
 
-//    osal_queue_receive(enumeration_queue_hdl, )
+    osal_queue_receive(enum_queue_hdl, (uint32_t*)&enum_item, OSAL_TIMEOUT_NORMAL, &error);
+    if (error != TUSB_ERROR_NONE)
+    {
+      ASSERT_STATEMENT("%s", TUSB_ErrorStr[error]);
+    }
+    else
+    {
+      if (enum_item.hub_address == 0) // direct connection
+      {
+        if ( enum_item.connect_status == hcd_port_connect_status(enum_item.core_id) ) // there chances the event is out-dated
+        {
+
+        }
+      }else // device connect via a hub
+      {
+        ASSERT_STATEMENT("%s", "Hub is not supported yet");
+      }
+    }
 
     OSAL_TASK_LOOP_END
   }
