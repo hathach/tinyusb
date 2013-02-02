@@ -110,16 +110,21 @@ enum {
 typedef uint8_t  tusbh_device_status_t;
 typedef uint32_t tusbh_flag_class_t;
 
-typedef struct { // TODO internal structure
+typedef struct { // TODO internal structure, re-order members
   uint8_t core_id;
-  tusbh_device_status_t status;
-  pipe_handle_t pipe_control;
+  tusb_speed_t speed;
+  uint8_t hub_addr;
+  uint8_t hub_port;
 
-#if 0 // TODO allow configure for vendor/product
   uint16_t vendor_id;
   uint16_t product_id;
-
   uint8_t configure_count;
+
+  tusbh_device_status_t status;
+  pipe_handle_t pipe_control;
+  tusb_std_request_t request_control;
+
+#if 0 // TODO allow configure for vendor/product
   struct {
     uint8_t interface_count;
     uint8_t attributes;

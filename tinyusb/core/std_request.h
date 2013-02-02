@@ -1,13 +1,13 @@
 /*
- * common.h
+ * std_request.h
  *
- *  Created on: Nov 26, 2012
+ *  Created on: Feb 1, 2013
  *      Author: hathach
  */
 
 /*
  * Software License Agreement (BSD License)
- * Copyright (c) 2013, hathach (tinyusb.net)
+ * Copyright (c) 2012, hathach (tinyusb.net)
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without modification,
@@ -32,82 +32,48 @@
  * IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY
  * OF SUCH DAMAGE.
  *
- * This file is part of the tinyUSB stack.
+ * This file is part of the tiny usb stack.
  */
 
 /** \file
- *  \brief Common Header File
+ *  \brief TBD
  *
  *  \note TBD
  */
 
-/** \defgroup Group_Common Common Files
- * @{
- *
- *  \defgroup Group_CommonH common.h
+/** \ingroup TBD
+ *  \defgroup TBD
+ *  \brief TBD
  *
  *  @{
  */
 
-#ifndef _TUSB_COMMON_H_
-#define _TUSB_COMMON_H_
+#ifndef _TUSB_STD_REQUEST_H_
+#define _TUSB_STD_REQUEST_H_
 
 #ifdef __cplusplus
  extern "C" {
 #endif
 
-#include "primitive_types.h"
-#include <stddef.h>
-#include <string.h>
-#include <stdio.h>
+#include "common/common.h"
 
-#include "compiler/compiler.h"
-#include "assertion.h"
-#include "binary.h"
-#include "errors.h"
+typedef ATTR_PREPACKED struct ATTR_PACKED {
+  struct {
+    uint8_t recipient :  5; /**< Recipient type. */
+    uint8_t type      :  2; /**< Request type.  */
+    uint8_t direction :  1; /**< Direction type. */
+  } bmRequestType;
 
-#include "tusb_option.h"
-#include "hal/hal.h"
-#include "core/tusb_types.h"
-#include "core/std_descriptors.h"
-#include "core/std_request.h"
-
-// TODO try to manipulate gcc cmd option instead
-#ifndef _TEST_
-  #define STATIC_ static
-#else
-  #define STATIC_
-#endif
-
-#define STRING_(x)  #x  // stringify without expand
-#define XSTRING_(x) STRING_(x) // expand then stringify
-
-/// form an uint32_t from 4 x uint8_t
-static inline uint32_t u32_from_u8(uint8_t b1, uint8_t b2, uint8_t b3, uint8_t b4) ATTR_ALWAYS_INLINE ATTR_CONST;
-static inline uint32_t u32_from_u8(uint8_t b1, uint8_t b2, uint8_t b3, uint8_t b4)
-{
-  return (b1 << 24) + (b2 << 16) + (b3 << 8) + b4;
-}
-
-/// min value
-static inline uint32_t min_of(uint32_t x, uint32_t y) ATTR_ALWAYS_INLINE ATTR_CONST;
-static inline uint32_t min_of(uint32_t x, uint32_t y)
-{
-  return (x < y) ? x : y;
-}
-
-/// max value
-static inline uint32_t max_of(uint32_t x, uint32_t y) ATTR_ALWAYS_INLINE ATTR_CONST;
-static inline uint32_t max_of(uint32_t x, uint32_t y)
-{
-  return (x > y) ? x : y;
-}
+  uint8_t  bRequest;
+  uint16_t wValue;
+  uint16_t wIndex;
+  uint16_t wLength;
+} tusb_std_request_t;
 
 #ifdef __cplusplus
  }
 #endif
 
-#endif /* _TUSB_COMMON_H_ */
+#endif /* _TUSB_STD_REQUEST_H_ */
 
-/**  @} */
-/**  @} */
+/** @} */

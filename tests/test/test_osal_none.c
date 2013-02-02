@@ -108,27 +108,25 @@ void test_queue_send(void)
 void sample_task_semaphore(void)
 {
   tusb_error_t error = TUSB_ERROR_NONE;
-  OSAL_TASK_LOOP
-  {
-    OSAL_TASK_LOOP_BEGIN
 
-    statements[0]++;
+  OSAL_TASK_LOOP_BEGIN
 
-    osal_semaphore_wait(sem_hdl, OSAL_TIMEOUT_WAIT_FOREVER, &error);
-    statements[1]++;
+  statements[0]++;
 
-    osal_semaphore_wait(sem_hdl, OSAL_TIMEOUT_WAIT_FOREVER, &error);
-    statements[2]++;
+  osal_semaphore_wait(sem_hdl, OSAL_TIMEOUT_WAIT_FOREVER, &error);
+  statements[1]++;
 
-    osal_semaphore_wait(sem_hdl, OSAL_TIMEOUT_WAIT_FOREVER, &error);
-    statements[3]++;
+  osal_semaphore_wait(sem_hdl, OSAL_TIMEOUT_WAIT_FOREVER, &error);
+  statements[2]++;
 
-    osal_semaphore_wait(sem_hdl, OSAL_TIMEOUT_NORMAL, &error);
-    statements[4]++;
-    TEST_ASSERT_EQUAL(TUSB_ERROR_OSAL_TIMEOUT, error);
+  osal_semaphore_wait(sem_hdl, OSAL_TIMEOUT_WAIT_FOREVER, &error);
+  statements[3]++;
 
-    OSAL_TASK_LOOP_END
-  }
+  osal_semaphore_wait(sem_hdl, OSAL_TIMEOUT_NORMAL, &error);
+  statements[4]++;
+  TEST_ASSERT_EQUAL(TUSB_ERROR_OSAL_TIMEOUT, error);
+
+  OSAL_TASK_LOOP_END
 }
 
 void test_task_with_semaphore(void)
@@ -168,30 +166,27 @@ void sample_task_with_queue(void)
   uint32_t data;
   tusb_error_t error;
 
-  OSAL_TASK_LOOP
-  {
-    OSAL_TASK_LOOP_BEGIN
+  OSAL_TASK_LOOP_BEGIN
 
-    statements[0]++;
+  statements[0]++;
 
-    osal_queue_receive(queue_hdl, &data, OSAL_TIMEOUT_WAIT_FOREVER, &error);
-    TEST_ASSERT_EQUAL(0x1111, data);
-    statements[1]++;
+  osal_queue_receive(queue_hdl, &data, OSAL_TIMEOUT_WAIT_FOREVER, &error);
+  TEST_ASSERT_EQUAL(0x1111, data);
+  statements[1]++;
 
-    osal_queue_receive(queue_hdl, &data, OSAL_TIMEOUT_WAIT_FOREVER, &error);
-    TEST_ASSERT_EQUAL(0x2222, data);
-    statements[2]++;
+  osal_queue_receive(queue_hdl, &data, OSAL_TIMEOUT_WAIT_FOREVER, &error);
+  TEST_ASSERT_EQUAL(0x2222, data);
+  statements[2]++;
 
-    osal_queue_receive(queue_hdl, &data, OSAL_TIMEOUT_WAIT_FOREVER, &error);
-    TEST_ASSERT_EQUAL(0x3333, data);
-    statements[3]++;
+  osal_queue_receive(queue_hdl, &data, OSAL_TIMEOUT_WAIT_FOREVER, &error);
+  TEST_ASSERT_EQUAL(0x3333, data);
+  statements[3]++;
 
-    osal_queue_receive(queue_hdl, &data, OSAL_TIMEOUT_NORMAL, &error);
-    statements[4]++;
-    TEST_ASSERT_EQUAL(TUSB_ERROR_OSAL_TIMEOUT, error);
+  osal_queue_receive(queue_hdl, &data, OSAL_TIMEOUT_NORMAL, &error);
+  statements[4]++;
+  TEST_ASSERT_EQUAL(TUSB_ERROR_OSAL_TIMEOUT, error);
 
-    OSAL_TASK_LOOP_END
-  }
+  OSAL_TASK_LOOP_END
 }
 
 void test_task_with_queue(void)

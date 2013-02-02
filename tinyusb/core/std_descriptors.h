@@ -54,6 +54,9 @@
 
 #include "common/common.h"
 
+//--------------------------------------------------------------------+
+// STANDARD DESCRIPTORS
+//--------------------------------------------------------------------+
 /// USB Standard Device Descriptor (section 9.6.1, table 9-8)
 typedef ATTR_PREPACKED struct ATTR_PACKED {
   uint8_t  bLength            ; ///< Size of this descriptor in bytes.

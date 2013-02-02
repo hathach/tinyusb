@@ -70,7 +70,7 @@ extern "C"
 //--------------------------------------------------------------------+
 #define ASSERT_FILENAME  __FILE__
 #define ASSERT_FUNCTION  __PRETTY_FUNCTION__
-#define ASSERT_STATEMENT(format, ...)\
+#define ASSERT_MESSAGE(format, ...)\
     _PRINTF("Assert at %s: %s:%d: " format "\n", ASSERT_FILENAME, ASSERT_FUNCTION, __LINE__, __VA_ARGS__)
 
 #ifndef _TEST_ASSERT_
@@ -83,7 +83,7 @@ extern "C"
   do{\
     setup_statement;\
 	  if (!(condition)) {\
-	    ASSERT_STATEMENT(format, __VA_ARGS__);\
+	    ASSERT_MESSAGE(format, __VA_ARGS__);\
 	    ASSERT_ERROR_HANDLE(error);\
 	  }\
 	}while(0)

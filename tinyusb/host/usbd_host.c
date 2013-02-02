@@ -56,6 +56,12 @@
 //--------------------------------------------------------------------+
 // INTERNAL OBJECT & FUNCTION DECLARATION
 //--------------------------------------------------------------------+
+struct {
+  tusb_speed_t speed;
+  uint8_t hub_addr;
+  uint8_t hub_port;
+} usbh_device_addr0[TUSB_CFG_HOST_CONTROLLER_NUM];
+
 STATIC_ usbh_device_info_t device_info_pool[TUSB_CFG_HOST_DEVICE_MAX];
 
 //--------------------------------------------------------------------+
@@ -81,31 +87,39 @@ void usbh_enumeration_task(void)
   usbh_enumerate_t enum_item;
   tusb_error_t error;
 
-  OSAL_TASK_LOOP
+  OSAL_TASK_LOOP_BEGIN
+
+  osal_queue_receive(enum_queue_hdl, (uint32_t*)&enum_item, OSAL_TIMEOUT_NORMAL, &error);
+  TASK_ASSERT_STATUS(error);
+
+  if (enum_item.hub_address == 0) // direct connection
   {
-    OSAL_TASK_LOOP_BEGIN
-
-    osal_queue_receive(enum_queue_hdl, (uint32_t*)&enum_item, OSAL_TIMEOUT_NORMAL, &error);
-    if (error != TUSB_ERROR_NONE)
+    if ( enum_item.connect_status == hcd_port_connect_status(enum_item.core_id) ) // there chances the event is out-dated
     {
-      ASSERT_STATEMENT("%s", TUSB_ErrorStr[error]);
-    }
-    else
-    {
-      if (enum_item.hub_address == 0) // direct connection
+      tusb_std_request_t request_dev_desc =
       {
-        if ( enum_item.connect_status == hcd_port_connect_status(enum_item.core_id) ) // there chances the event is out-dated
-        {
+          .bmRequestType =
+          {
+              .direction = TUSB_DIR_DEV_TO_HOST,
+              .type      = TUSB_REQUEST_TYPE_STANDARD,
+              .recipient = TUSB_REQUEST_RECIPIENT_DEVICE
+          },
 
-        }
-      }else // device connect via a hub
-      {
-        ASSERT_STATEMENT("%s", "Hub is not supported yet");
-      }
+          .bRequest = TUSB_REQUEST_GET_DESCRIPTOR,
+          .wValue   = (TUSB_DESC_DEVICE << 8),
+          .wLength  = 8
+      };
+      tusb_speed_t speed = hcd_port_speed(enum_item.core_id);
+      pipe_handle_t pipe_addr0 = hcd_pipe_addr0_open(enum_item.core_id, speed, enum_item.hub_address, enum_item.hub_port);
+
+      //        hcd_pipe_control_xfer(pipe_addr0, &request_dev_desc)
     }
-
-    OSAL_TASK_LOOP_END
+  }else // device connect via a hub
+  {
+    ASSERT_MESSAGE("%s", "Hub is not supported yet");
   }
+
+  OSAL_TASK_LOOP_END
 }
 
 //--------------------------------------------------------------------+

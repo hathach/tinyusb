@@ -56,7 +56,6 @@
 #endif
 
 #include "common/common.h"
-#include "core/tusb_types.h"
 
 typedef uint32_t pipe_handle_t;
 
@@ -66,7 +65,11 @@ tusb_error_t hcd_init(uint8_t hostid) ATTR_WARN_UNUSED_RESULT;
 //--------------------------------------------------------------------+
 // PIPE API
 //--------------------------------------------------------------------+
-//pipe_handle_t hcd_pipe_control_open(core_id, speed, hub_addr, hub_port, dev_addr, max_packet_size);
+pipe_handle_t hcd_pipe_addr0_open(uint8_t core_id, tusb_speed_t speed, uint8_t hub_addr, uint8_t hub_port);
+
+pipe_handle_t hcd_pipe_control_open(uint8_t dev_addr, uint8_t max_packet_size);
+tusb_error_t  hcd_pipe_control_xfer(pipe_handle_t pipe_hdl, const tusb_std_request_t * const p_request, uint8_t data[]);
+pipe_handle_t hcd_pipe_open(uint8_t dev_addr, tusb_descriptor_endpoint_t* endpoint_desc);
 
 #if 0
 //tusb_error_t hcd_pipe_open(
@@ -83,7 +86,7 @@ tusb_error_t hcd_pipe_cancel()ATTR_WARN_UNUSED_RESULT;
 //--------------------------------------------------------------------+
 /// return the current connect status of roothub port
 bool hcd_port_connect_status(uint8_t core_id) ATTR_WARN_UNUSED_RESULT;
-tusb_speed_t hcd_port_speed_get(uint8_t core_id) ATTR_WARN_UNUSED_RESULT;
+tusb_speed_t hcd_port_speed(uint8_t core_id) ATTR_WARN_UNUSED_RESULT;
 
 #ifdef __cplusplus
  }

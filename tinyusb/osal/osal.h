@@ -82,9 +82,12 @@ typedef uint32_t osal_task_t;
 #define OSAL_TASK_DEF(name, code, stack_depth, prio) \
     osal_task_t name
 
-#define OSAL_TASK_LOOP
 #define OSAL_TASK_LOOP_BEGIN
 #define OSAL_TASK_LOOP_END
+#define TASK_ASSERT_STATUS(sts) \
+    ASSERT_DEFINE(tusb_error_t status = (tusb_error_t)(sts),\
+                  TUSB_ERROR_NONE == status, (void) 0, "%s", TUSB_ErrorStr[status])
+
 
 tusb_error_t osal_task_create(osal_task_t *task);
 

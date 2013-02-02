@@ -46,7 +46,7 @@ tusb_handle_device_t dev_hdl;
 void setUp(void)
 {
   dev_hdl = 0;
-  device_info_pool[dev_hdl].status = TUSB_DEVICE_STATUS_READY;
+  memset(device_info_pool, 0, TUSB_CFG_HOST_DEVICE_MAX*sizeof(usbh_device_info_t));
 }
 
 void tearDown(void)
@@ -133,10 +133,60 @@ void queue_recv_stub (osal_queue_handle_t const queue_hdl, uint32_t *p_data, uin
   (*p_error) = TUSB_ERROR_NONE;
 }
 
+tusb_error_t pipe_control_stub(pipe_handle_t pipe_hdl, const tusb_std_request_t * const p_request, uint8_t data[], int num_call)
+{
+  tusb_descriptor_device_t dev_desc =
+  {
+      .bLength            = sizeof(tusb_descriptor_device_t),
+      .bDescriptorType    = TUSB_DESC_DEVICE,
+      .bcdUSB             = 0x0200,
+      .bDeviceClass       = 0x00,
+      .bDeviceSubClass    = 0x00,
+      .bDeviceProtocol    = 0x00,
+
+      .bMaxPacketSize0    = 64,
+
+      .idVendor           = 0x1FC9,
+      .idProduct          = 0x4000,
+      .bcdDevice          = 0x0100,
+
+      .iManufacturer      = 0x01,
+      .iProduct           = 0x02,
+      .iSerialNumber      = 0x03,
+
+      .bNumConfigurations = 0x02
+  };
+
+  if (p_request->bRequest == TUSB_REQUEST_GET_DESCRIPTOR)
+  {
+    switch (p_request->wValue >> 8)
+    {
+      case TUSB_DESC_DEVICE:
+        memcpy(data, &dev_desc, p_request->wLength);
+      break;
+
+      default:
+        TEST_FAIL();
+      break;
+    }
+  }
+
+  return TUSB_ERROR_NONE;
+}
+
 void test_enum_task_connect(void)
 {
+  pipe_handle_t pipe_addr0 = 12;
+
+
+
   osal_queue_receive_StubWithCallback(queue_recv_stub);
   hcd_port_connect_status_ExpectAndReturn(enum_connect.core_id, true);
+  hcd_port_speed_ExpectAndReturn(enum_connect.core_id, TUSB_SPEED_FULL);
+  hcd_pipe_addr0_open_ExpectAndReturn(enum_connect.core_id, TUSB_SPEED_FULL, 0, 0, pipe_addr0);
+
+  hcd_pipe_control_xfer_StubWithCallback(pipe_control_stub);
+//  hcd_pipe_control_open_ExpectAnd(1, );
 
   usbh_enumeration_task();
 }

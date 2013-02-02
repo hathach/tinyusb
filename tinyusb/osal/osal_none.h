@@ -79,18 +79,31 @@ uint32_t osal_tick_get(void);
 //--------------------------------------------------------------------+
 //#define osal_task_create(code, name, stack_depth, parameters, prio)
 
-#define OSAL_TASK_LOOP  \
+#define OSAL_TASK_LOOP_BEGIN \
   static uint32_t timeout = 0;\
   static uint16_t state = 0;\
-  switch(state)\
-
-#define OSAL_TASK_LOOP_BEGIN \
-  case 0:
+  switch(state) {\
+    case 0:\
 
 #define OSAL_TASK_LOOP_END \
   default:\
-    state = 0;
+    state = 0;\
+  }
 
+#define TASK_ASSERT_DEFINE(setup_statement, condition, error, format, ...) \
+  do{\
+    setup_statement;\
+	  if (!(condition)) {\
+	    ASSERT_MESSAGE(format, __VA_ARGS__);\
+	    state = 0; /* reset task loop */\
+	    break;\
+	  }\
+	}while(0)
+
+#define TASK_ASSERT(condition, error)  TASK_ASSERT_DEFINE( , (condition), error, "%s", "evaluated to false")
+#define TASK_ASSERT_STATUS(sts) \
+    TASK_ASSERT_DEFINE(tusb_error_t status = (tusb_error_t)(sts),\
+                  TUSB_ERROR_NONE == status, status, "%s", TUSB_ErrorStr[status])
 //--------------------------------------------------------------------+
 // Semaphore API
 //--------------------------------------------------------------------+

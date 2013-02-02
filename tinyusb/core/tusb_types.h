@@ -68,6 +68,11 @@ typedef enum {
   TUSB_XFER_INTERRUPT
 }tusb_transfer_type_t;
 
+typedef enum {
+  TUSB_DIR_HOST_TO_DEV = 0,
+  TUSB_DIR_DEV_TO_HOST = 1
+}tusb_direction_t;
+
 /// TBD
 typedef enum {
   TUSB_PID_SETUP,
@@ -105,6 +110,19 @@ typedef enum {
   TUSB_REQUEST_SET_INTERFACE     , ///< 11
   TUSB_REQUEST_SYNCH_FRAME         ///< 12
 }tusb_std_request_code_t;
+
+typedef enum {
+  TUSB_REQUEST_TYPE_STANDARD = 0,
+  TUSB_REQUEST_TYPE_CLASS,
+  TUSB_REQUEST_TYPE_VENDOR
+} tusb_std_request_type_t;
+
+typedef enum {
+  TUSB_REQUEST_RECIPIENT_DEVICE =0,
+  TUSB_REQUEST_RECIPIENT_INTERFACE,
+  TUSB_REQUEST_RECIPIENT_ENDPOINT,
+  TUSB_REQUEST_RECIPIENT_OTHER
+} tusb_std_request_recipient_t;
 
 typedef enum {
   TUSB_CLASS_UNSPECIFIED          = 0    , ///< 0
