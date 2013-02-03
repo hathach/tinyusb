@@ -68,23 +68,23 @@ extern "C"
 //--------------------------------------------------------------------+
 // Assert Helper
 //--------------------------------------------------------------------+
-#define ASSERT_FILENAME  __FILE__
-#define ASSERT_FUNCTION  __PRETTY_FUNCTION__
 #define ASSERT_MESSAGE(format, ...)\
-    _PRINTF("Assert at %s: %s:%d: " format "\n", ASSERT_FILENAME, ASSERT_FUNCTION, __LINE__, __VA_ARGS__)
+    _PRINTF("Assert at %s: %s:%d: " format "\n", __FILE__, __PRETTY_FUNCTION__, __LINE__, __VA_ARGS__)
 
 #ifndef _TEST_ASSERT_
-  #define ASSERT_ERROR_HANDLE(x)  return (x)
+  #define ASSERT_ERROR_HANDLER(x)  return (x)
 #else
-  #define ASSERT_ERROR_HANDLE(x)  Throw(x)
+  #define ASSERT_ERROR_HANDLER(x)  Throw(x)
 #endif
 
-#define ASSERT_DEFINE(setup_statement, condition, error, format, ...) \
+#define ASSERT_DEFINE(...) ASSERT_DEFINE_WITH_HANDLER(ASSERT_ERROR_HANDLER, __VA_ARGS__)
+
+#define ASSERT_DEFINE_WITH_HANDLER(error_handler, setup_statement, condition, error, format, ...) \
   do{\
     setup_statement;\
 	  if (!(condition)) {\
 	    ASSERT_MESSAGE(format, __VA_ARGS__);\
-	    ASSERT_ERROR_HANDLE(error);\
+	    error_handler(error);\
 	  }\
 	}while(0)
 

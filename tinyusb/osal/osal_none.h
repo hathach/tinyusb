@@ -90,19 +90,12 @@ uint32_t osal_tick_get(void);
     state = 0;\
   }
 
-#define TASK_ASSERT_DEFINE(setup_statement, condition, error, format, ...) \
-  do{\
-    setup_statement;\
-	  if (!(condition)) {\
-	    ASSERT_MESSAGE(format, __VA_ARGS__);\
-	    state = 0; /* reset task loop */\
-	    break;\
-	  }\
-	}while(0)
+#define TASK_ASSERT_ERROR_HANDLER \
+  state = 0; break;
 
-#define TASK_ASSERT(condition, error)  TASK_ASSERT_DEFINE( , (condition), error, "%s", "evaluated to false")
+#define TASK_ASSERT(condition)  ASSERT_DEFINE_WITH_HANDLER(TASK_ASSERT_ERROR_HANDLER, , (condition), (void) 0, "%s", "evaluated to false")
 #define TASK_ASSERT_STATUS(sts) \
-    TASK_ASSERT_DEFINE(tusb_error_t status = (tusb_error_t)(sts),\
+    ASSERT_DEFINE_WITH_HANDLER(TASK_ASSERT_ERROR_HANDLER, tusb_error_t status = (tusb_error_t)(sts),\
                   TUSB_ERROR_NONE == status, status, "%s", TUSB_ErrorStr[status])
 //--------------------------------------------------------------------+
 // Semaphore API

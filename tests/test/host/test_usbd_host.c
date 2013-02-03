@@ -121,7 +121,7 @@ extern osal_queue_handle_t enum_queue_hdl;
 usbh_enumerate_t enum_connect =
 {
     .core_id = 0,
-    .hub_address = 0,
+    .hub_addr = 0,
     .hub_port = 0,
     .connect_status = 1
 };

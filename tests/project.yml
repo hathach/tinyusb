@@ -34,6 +34,8 @@
     - -:../test_old
     #- ../../CMSISv2p10_LPC13Uxx/**
     - ../../CMSISv2p10_LPC43xx_DriverLib/inc
+#    - ../../../os/FreeRTOSV7.3.0/FreeRTOS/Source/**
+#    - -:../../../os/FreeRTOSV7.3.0/FreeRTOS/Source/portable/**
   :support:
     - test/support
 

@@ -1,7 +1,7 @@
 /*
- * tusb_config.h
+ * osal_freeRTOS.h
  *
- *  Created on: Jan 11, 2013
+ *  Created on: Feb 2, 2013
  *      Author: hathach
  */
 
@@ -48,53 +48,42 @@
  *  @{
  */
 
-#ifndef _TUSB_TUSB_CONFIG_H_
-#define _TUSB_TUSB_CONFIG_H_
+#ifndef _TUSB_OSAL_FREERTOS_H_
+#define _TUSB_OSAL_FREERTOS_H_
 
 #ifdef __cplusplus
  extern "C" {
 #endif
 
-//--------------------------------------------------------------------+
-// HOST CONFIGURATION
-//--------------------------------------------------------------------+
-#define TUSB_CFG_HOST
-
-//------------- CORE/CONTROLLER -------------//
-#define TUSB_CFG_HOST_CONTROLLER_NUM 2
-#define TUSB_CFG_HOST_DEVICE_MAX 2
-#define TUSB_CFG_CONFIGURATION_MAX 2
-
-//------------- CLASS -------------//
-#define TUSB_CFG_HOST_HID_KEYBOARD  1
-#define TUSB_CFG_HOST_HID_KEYBOARD_ENDPOINT_SIZE  64
+#include "osal_common.h"
+#include "FreeRTOS.h"
 
 //--------------------------------------------------------------------+
-// DEVICE CONFIGURATION
+// TICK API
 //--------------------------------------------------------------------+
-//#define TUSB_CFG_DEVICE
-
-//------------- CORE/CONTROLLER -------------//
-
-//------------- CLASS -------------//
-//#define TUSB_CFG_DEVICE_CDC
-#define TUSB_CFG_DEVICE_HID_KEYBOARD
-//#define TUSB_CFG_DEVICE_HID_MOUSE
+#define osal_tick_get xTaskGetTickCount
 
 //--------------------------------------------------------------------+
-// COMMON CONFIGURATION
+// TASK API
+//--------------------------------------------------------------------+
+#define OSAL_TASK_LOOP_BEGIN \
+  while(1) {
+
+#define OSAL_TASK_LOOP_END \
+  }
+
+#define TASK_ASSERT(condition)
+#define TASK_ASSERT_STATUS(sts)
+
+//--------------------------------------------------------------------+
+// Semaphore API
 //--------------------------------------------------------------------+
 
-#define TUSB_CFG_DEBUG 3
-
-#define TUSB_CFG_OS TUSB_OS_NONE
-#define TUSB_CFG_OS_TICKS_PER_SECOND 1000 // 1 ms tick
-#define TUSB_CFG_ATTR_USBRAM
 
 #ifdef __cplusplus
  }
 #endif
 
-#endif /* _TUSB_TUSB_CONFIG_H_ */
+#endif /* _TUSB_OSAL_FREERTOS_H_ */
 
 /** @} */

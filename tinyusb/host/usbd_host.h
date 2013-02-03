@@ -58,6 +58,7 @@
 //--------------------------------------------------------------------+
 // INCLUDE
 //--------------------------------------------------------------------+
+#include "common/common.h"
 #include "hcd.h"
 
 //--------------------------------------------------------------------+
@@ -143,10 +144,16 @@ typedef uint32_t tusb_handle_device_t;
 
 typedef struct ATTR_ALIGNED(4){
   uint8_t core_id;
-  uint8_t hub_address;
+  uint8_t hub_addr;
   uint8_t hub_port;
   uint8_t connect_status;
 } usbh_enumerate_t;
+
+typedef struct {
+  usbh_enumerate_t enum_entry;
+  tusb_speed_t speed;
+  tusb_std_request_t request_packet; // needed to be on USB RAM
+} usbh_device_addr0_t;
 
 //--------------------------------------------------------------------+
 // INTERNAL OBJECT & FUNCTION DECLARATION
@@ -159,6 +166,12 @@ void         tusbh_device_mounting_cb (tusb_error_t const error, tusb_handle_dev
 void         tusbh_device_mounted_cb (tusb_error_t const error, tusb_handle_device_t const device_hdl);
 tusb_error_t tusbh_configuration_set     (tusb_handle_device_t const device_hdl, uint8_t const configure_number) ATTR_WARN_UNUSED_RESULT;
 tusbh_device_status_t tusbh_device_status_get (tusb_handle_device_t const device_hdl) ATTR_WARN_UNUSED_RESULT;
+
+static inline void tusb_tick_tock(void) ATTR_ALWAYS_INLINE;
+static inline void tusb_tick_tock(void)
+{
+  osal_tick_tock();
+}
 
 
 //--------------------------------------------------------------------+
