@@ -39,7 +39,7 @@
 #include "errors.h"
 #include "hid_host.h"
 #include "mock_osal.h"
-#include "mock_usbd_host.h"
+#include "mock_usbh.h"
 
 extern class_hid_keyboard_info_t keyboard_info_pool[TUSB_CFG_HOST_DEVICE_MAX];
 

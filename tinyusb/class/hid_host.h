@@ -55,7 +55,7 @@
  extern "C" {
 #endif
 
-#include "host/usbd_host.h"
+#include "host/usbh.h"
 #include "hid.h"
 
 //--------------------------------------------------------------------+

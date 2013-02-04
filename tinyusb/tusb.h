@@ -51,7 +51,7 @@
 #include "common/common.h"
 
 #ifdef TUSB_CFG_HOST
-  #include "host/usbd_host.h"
+  #include "host/usbh.h"
 
   #ifdef HOST_CLASS_HID
     #include "class/hid_host.h"

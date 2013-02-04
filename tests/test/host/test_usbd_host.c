@@ -37,7 +37,7 @@
 
 #include "unity.h"
 #include "errors.h"
-#include "usbd_host.h"
+#include "usbh.h"
 #include "mock_osal.h"
 #include "mock_hcd.h"
 
