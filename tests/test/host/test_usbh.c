@@ -40,6 +40,7 @@
 #include "usbh.h"
 #include "mock_osal.h"
 #include "mock_hcd.h"
+#include "mock_usbh_hcd.h"
 
 extern usbh_device_info_t device_info_pool[TUSB_CFG_HOST_DEVICE_MAX];
 tusb_handle_device_t dev_hdl;
@@ -181,7 +182,7 @@ void test_enum_task_connect(void)
   osal_queue_receive_StubWithCallback(queue_recv_stub);
   hcd_port_connect_status_ExpectAndReturn(enum_connect.core_id, true);
   hcd_port_speed_ExpectAndReturn(enum_connect.core_id, TUSB_SPEED_FULL);
-  hcd_pipe_addr0_open_IgnoreAndReturn(pipe_addr0);
+  hcd_addr0_open_IgnoreAndReturn(pipe_addr0);
 
   hcd_pipe_control_xfer_StubWithCallback(pipe_control_stub);
 //  hcd_pipe_control_open_ExpectAnd(1, );

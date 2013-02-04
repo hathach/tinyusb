@@ -59,7 +59,6 @@
 // INCLUDE
 //--------------------------------------------------------------------+
 #include "common/common.h"
-#include "usbh_hcd.h"
 #include "hcd.h"
 
 //--------------------------------------------------------------------+
@@ -117,6 +116,7 @@ typedef enum {
 
 typedef uint32_t tusbh_flag_class_t;
 typedef uint32_t tusb_handle_device_t;
+typedef uint8_t  tusbh_device_status_t;
 
 //--------------------------------------------------------------------+
 // INTERNAL OBJECT & FUNCTION DECLARATION

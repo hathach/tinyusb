@@ -45,8 +45,8 @@
 // INCLUDE
 //--------------------------------------------------------------------+
 #include "common/common.h"
-#include "usbh.h"
 #include "osal/osal.h"
+#include "usbh_hcd.h"
 
 //--------------------------------------------------------------------+
 // MACRO CONSTANT TYPEDEF
@@ -105,9 +105,9 @@ void usbh_enumeration_task(void)
         .wLength  = 8
     };
     device_addr0.speed = hcd_port_speed(device_addr0.enum_entry.core_id);
-    pipe_handle_t pipe_addr0 = hcd_pipe_addr0_open(&device_addr0);
+    pipe_handle_t pipe_addr0 = hcd_addr0_open(&device_addr0);
 
-      //        hcd_pipe_control_xfer(pipe_addr0, &request_dev_desc)
+//    hcd_pipe_control_xfer(pipe_addr0, &request_dev_desc, )
   }else // device connect via a hub
   {
     ASSERT_MESSAGE("%s", "Hub is not supported yet");
