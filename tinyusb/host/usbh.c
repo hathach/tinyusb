@@ -74,10 +74,10 @@ tusbh_device_status_t tusbh_device_status_get (tusb_handle_device_t const device
 OSAL_TASK_DEF(enum_task, usbh_enumeration_task, 128, OSAL_PRIO_HIGH);
 
 #define ENUM_QUEUE_DEPTH  5
-OSAL_DEF_QUEUE(enum_queue, ENUM_QUEUE_DEPTH, uin32_t);
+OSAL_QUEUE_DEF(enum_queue, ENUM_QUEUE_DEPTH, uin32_t);
 osal_queue_handle_t enum_queue_hdl;
 usbh_device_addr0_t device_addr0 TUSB_CFG_ATTR_USBRAM;
-
+uint8_t enum_data_buffer[TUSB_CFG_HOST_ENUM_BUFFER_SIZE] TUSB_CFG_ATTR_USBRAM;
 void usbh_enumeration_task(void)
 {
   tusb_error_t error;
@@ -91,23 +91,29 @@ void usbh_enumeration_task(void)
   {
     TASK_ASSERT(device_addr0.enum_entry.connect_status == hcd_port_connect_status(device_addr0.enum_entry.core_id)); // there chances the event is out-dated
 
-    tusb_std_request_t request_dev_desc =
-    {
-        .bmRequestType =
-        {
-            .direction = TUSB_DIR_DEV_TO_HOST,
-            .type      = TUSB_REQUEST_TYPE_STANDARD,
-            .recipient = TUSB_REQUEST_RECIPIENT_DEVICE
-        },
-
-        .bRequest = TUSB_REQUEST_GET_DESCRIPTOR,
-        .wValue   = (TUSB_DESC_DEVICE << 8),
-        .wLength  = 8
-    };
     device_addr0.speed = hcd_port_speed(device_addr0.enum_entry.core_id);
-    pipe_handle_t pipe_addr0 = hcd_addr0_open(&device_addr0);
+    error = hcd_addr0_open(&device_addr0);
+    TASK_ASSERT_STATUS(error);
 
-//    hcd_pipe_control_xfer(pipe_addr0, &request_dev_desc, )
+    {
+      tusb_std_request_t request_device_desc =
+      {
+          .bmRequestType =
+          {
+              .direction = TUSB_DIR_DEV_TO_HOST,
+              .type      = TUSB_REQUEST_TYPE_STANDARD,
+              .recipient = TUSB_REQUEST_RECIPIENT_DEVICE
+          },
+
+          .bRequest = TUSB_REQUEST_GET_DESCRIPTOR,
+          .wValue   = (TUSB_DESC_DEVICE << 8),
+          .wLength  = 8
+      };
+      hcd_pipe_control_xfer(device_addr0.pipe_hdl, &request_device_desc, enum_data_buffer);
+//      osal_sem_wait();
+    }
+
+
   }else // device connect via a hub
   {
     ASSERT_MESSAGE("%s", "Hub is not supported yet");

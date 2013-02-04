@@ -94,8 +94,12 @@ typedef uint32_t osal_task_t;
 tusb_error_t osal_task_create(osal_task_t *task);
 
 //------------- Semaphore -------------//
-typedef uint32_t osal_semaphore_t;
+typedef volatile uint32_t osal_semaphore_t;
 typedef void* osal_semaphore_handle_t;
+
+#define OSAL_SEM_DEF(name)\
+  osal_semaphore_t name
+
 osal_semaphore_handle_t osal_semaphore_create(osal_semaphore_t * const sem);
 void osal_semaphore_wait(osal_semaphore_handle_t const sem_hdl, uint32_t msec, tusb_error_t *p_error);
 tusb_error_t osal_semaphore_post(osal_semaphore_handle_t const sem_hdl);
@@ -104,7 +108,7 @@ tusb_error_t osal_semaphore_post(osal_semaphore_handle_t const sem_hdl);
 typedef uint32_t osal_queue_t;
 typedef void* osal_queue_handle_t;
 
-#define OSAL_DEF_QUEUE(name, queue_depth, type) \
+#define OSAL_QUEUE_DEF(name, queue_depth, type) \
   osal_queue_t name
 
 osal_queue_handle_t  osal_queue_create  (osal_queue_t *p_queue);

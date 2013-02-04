@@ -59,6 +59,7 @@
 // INCLUDE
 //--------------------------------------------------------------------+
 #include "common/common.h"
+#include "osal/osal.h"
 #include "hcd.h"
 #include "usbh.h"
 
@@ -76,7 +77,9 @@ typedef struct {
   usbh_enumerate_t enum_entry;
   tusb_speed_t speed;
   tusb_std_request_t request_packet; // needed to be on USB RAM
-  uint8_t dev_desc[8];
+  pipe_handle_t pipe_hdl;
+  OSAL_SEM_DEF(semaphore);
+  osal_semaphore_handle_t sem_hdl;
 } usbh_device_addr0_t;
 
 typedef struct { // TODO internal structure, re-order members
@@ -106,9 +109,7 @@ typedef struct { // TODO internal structure, re-order members
 //--------------------------------------------------------------------+
 // ADDRESS 0 API
 //--------------------------------------------------------------------+
-pipe_handle_t hcd_addr0_open(usbh_device_addr0_t *dev_addr0);
-tusb_error_t  hcd_addr0_get_dev_desc(usbh_device_addr0_t *dev_addr0);
-tusb_error_t  hcd_addr0_set_addr(usbh_device_addr0_t *dev_addr0, uint8_t new_addr);
+tusb_error_t hcd_addr0_open(usbh_device_addr0_t *dev_addr0) ATTR_WARN_UNUSED_RESULT;
 
 #ifdef __cplusplus
  }

@@ -114,6 +114,11 @@
     #endif
   #endif // end TUSB_CFG_HOST_HID_KEYBOARD
 
+  #ifndef TUSB_CFG_HOST_ENUM_BUFFER_SIZE
+    #define TUSB_CFG_HOST_ENUM_BUFFER_SIZE 256
+    #warning TUSB_CFG_HOST_ENUM_BUFFER_SIZE is not defined, default value is 256
+  #endif
+
   #define HOST_CLASS_HID   ( (defined TUSB_CFG_HOST_HID_KEYBOARD) )
   #define HOST_EHCI
 #endif // end TUSB_CFG_HOST

@@ -46,16 +46,16 @@
 
 uint32_t statements[10];
 
-osal_semaphore_t sem;
+OSAL_SEM_DEF(sem);
 osal_semaphore_handle_t sem_hdl;
 
-OSAL_DEF_QUEUE(queue, QUEUE_DEPTH, uin32_t);
+OSAL_QUEUE_DEF(queue, QUEUE_DEPTH, uin32_t);
 osal_queue_handle_t queue_hdl;
 
 void setUp(void)
 {
   memset(statements, 0, sizeof(statements));
-  sem_hdl = osal_semaphore_create(&sem);
+  sem_hdl = osal_semaphore_create(OSAL_SEM_REF(sem));
   queue_hdl = osal_queue_create(&queue);
 }
 

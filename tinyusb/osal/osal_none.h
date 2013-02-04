@@ -103,6 +103,12 @@ uint32_t osal_tick_get(void);
 typedef volatile uint8_t osal_semaphore_t;
 typedef osal_semaphore_t * osal_semaphore_handle_t;
 
+#define OSAL_SEM_DEF(name)\
+  osal_semaphore_t name
+
+#define OSAL_SEM_REF(name)\
+  &name
+
 static inline osal_semaphore_handle_t osal_semaphore_create(osal_semaphore_t * const p_sem) ATTR_ALWAYS_INLINE;
 static inline osal_semaphore_handle_t osal_semaphore_create(osal_semaphore_t * const p_sem)
 {
@@ -145,7 +151,7 @@ typedef struct{
 typedef osal_queue_t * osal_queue_handle_t;
 
 // use to declare a queue, within the scope of tinyusb, should only use primitive type only
-#define OSAL_DEF_QUEUE(name, queue_depth, type)\
+#define OSAL_QUEUE_DEF(name, queue_depth, type)\
   uint32_t name##_buffer[queue_depth];\
   osal_queue_t name = {\
       .buffer = name##_buffer,\
