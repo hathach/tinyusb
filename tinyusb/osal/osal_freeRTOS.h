@@ -85,9 +85,22 @@
 #define OSAL_SEM_DEF(name)
 typedef xSemaphoreHandle osal_semaphore_handle_t;
 
-// create FreeRTOS binary semaphore with zero as init value
+// create FreeRTOS binary semaphore with zero as init value TODO: omit semaphore take from vSemaphoreCreateBinary API, should double checks this
 #define osal_semaphore_create(x) \
   xQueueGenericCreate( ( unsigned portBASE_TYPE ) 1, semSEMAPHORE_QUEUE_ITEM_LENGTH, queueQUEUE_TYPE_BINARY_SEMAPHORE )
+
+static inline  tusb_error_t osal_semaphore_post(osal_semaphore_handle_t const sem_hdl) ATTR_ALWAYS_INLINE;
+static inline  tusb_error_t osal_semaphore_post(osal_semaphore_handle_t const sem_hdl)
+{
+  portBASE_TYPE taskWaken;
+  return (xSemaphoreGiveFromISR(sem_hdl, &taskWaken) == pdTRUE) ? TUSB_ERROR_NONE : TUSB_ERROR_OSAL_SEMAPHORE_FAILED;
+}
+
+static inline void osal_semaphore_wait(osal_semaphore_handle_t const sem_hdl, uint32_t msec, tusb_error_t *p_error) ATTR_ALWAYS_INLINE;
+static inline void osal_semaphore_wait(osal_semaphore_handle_t const sem_hdl, uint32_t msec, tusb_error_t *p_error)
+{
+  (*p_error) = ( xSemaphoreTake(sem_hdl, osal_tick_from_msec(msec)) == pdPASS ) ? TUSB_ERROR_NONE : TUSB_ERROR_OSAL_TIMEOUT;
+}
 
 //--------------------------------------------------------------------+
 // QUEUE API
@@ -105,6 +118,19 @@ typedef xQueueHandle osal_queue_handle_t;
 
 #define osal_queue_create(p_queue) \
   xQueueCreate((p_queue)->depth, sizeof(uint32_t))
+
+static inline void osal_queue_receive (osal_queue_handle_t const queue_hdl, uint32_t *p_data, uint32_t msec, tusb_error_t *p_error) ATTR_ALWAYS_INLINE;
+static inline void osal_queue_receive (osal_queue_handle_t const queue_hdl, uint32_t *p_data, uint32_t msec, tusb_error_t *p_error)
+{
+  (*p_error) = ( xQueueReceive(queue_hdl, p_data, osal_tick_from_msec(msec)) == pdPASS ) ? TUSB_ERROR_NONE : TUSB_ERROR_OSAL_TIMEOUT;
+}
+
+static inline tusb_error_t osal_queue_send(osal_queue_handle_t const queue_hdl, uint32_t data) ATTR_ALWAYS_INLINE;
+static inline tusb_error_t osal_queue_send(osal_queue_handle_t const queue_hdl, uint32_t data)
+{
+  portBASE_TYPE taskWaken;
+  return ( xQueueSendFromISR(queue_hdl, &data, &taskWaken) == pdTRUE ) ? TUSB_ERROR_NONE : TUSB_ERROR_OSAL_QUEUE_FAILED;
+}
 
 #ifdef __cplusplus
  }

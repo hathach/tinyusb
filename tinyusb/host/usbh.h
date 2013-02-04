@@ -130,12 +130,13 @@ void         tusbh_device_mounted_cb (tusb_error_t const error, tusb_handle_devi
 tusb_error_t tusbh_configuration_set     (tusb_handle_device_t const device_hdl, uint8_t const configure_number) ATTR_WARN_UNUSED_RESULT;
 tusbh_device_status_t tusbh_device_status_get (tusb_handle_device_t const device_hdl) ATTR_WARN_UNUSED_RESULT;
 
+#if TUSB_CFG_OS == TUSB_OS_NONE // TODO move later
 static inline void tusb_tick_tock(void) ATTR_ALWAYS_INLINE;
 static inline void tusb_tick_tock(void)
 {
   osal_tick_tock();
 }
-
+#endif
 
 //--------------------------------------------------------------------+
 // CLASS-USBD API
