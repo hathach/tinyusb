@@ -126,11 +126,17 @@ usbh_enumerate_t enum_connect =
     .hub_port = 0,
     .connect_status = 1
 };
+extern usbh_device_addr0_t device_addr0;
 
 void queue_recv_stub (osal_queue_handle_t const queue_hdl, uint32_t *p_data, uint32_t msec, tusb_error_t *p_error, int num_call)
 {
   TEST_ASSERT_EQUAL_PTR(enum_queue_hdl, queue_hdl);
   (*p_data) = ( *((uint32_t*) &enum_connect) );
+  (*p_error) = TUSB_ERROR_NONE;
+}
+
+void semaphore_wait_stub(osal_semaphore_handle_t const sem_hdl, uint32_t msec, tusb_error_t *p_error, int num_call)
+{
   (*p_error) = TUSB_ERROR_NONE;
 }
 
@@ -158,18 +164,24 @@ tusb_error_t pipe_control_stub(pipe_handle_t pipe_hdl, const tusb_std_request_t 
       .bNumConfigurations = 0x02
   };
 
-  if (p_request->bRequest == TUSB_REQUEST_GET_DESCRIPTOR)
+  switch (p_request->bRequest)
   {
-    switch (p_request->wValue >> 8)
-    {
-      case TUSB_DESC_DEVICE:
-        memcpy(data, &dev_desc, p_request->wLength);
-      break;
+    case TUSB_REQUEST_GET_DESCRIPTOR:
+      switch (p_request->wValue >> 8)
+      {
+        case TUSB_DESC_DEVICE:
+          memcpy(data, &dev_desc, p_request->wLength);
+        break;
 
-      default:
-        TEST_FAIL();
-      break;
-    }
+        default:
+          TEST_FAIL();
+        break;
+      }
+    break;
+
+    case TUSB_REQUEST_SET_ADDRESS:
+      TEST_ASSERT_EQUAL(p_request->wValue, 1);
+    break;
   }
 
   return TUSB_ERROR_NONE;
@@ -185,7 +197,10 @@ void test_enum_task_connect(void)
   hcd_addr0_open_IgnoreAndReturn(TUSB_ERROR_NONE);
 
   hcd_pipe_control_xfer_StubWithCallback(pipe_control_stub);
-//  hcd_pipe_control_open_ExpectAnd(1, );
+  osal_semaphore_wait_StubWithCallback(semaphore_wait_stub);
+
+  hcd_pipe_control_xfer_StubWithCallback(pipe_control_stub);
+  osal_semaphore_wait_StubWithCallback(semaphore_wait_stub);
 
   usbh_enumeration_task();
 }

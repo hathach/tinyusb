@@ -98,19 +98,38 @@ void usbh_enumeration_task(void)
     {
       tusb_std_request_t request_device_desc =
       {
-          .bmRequestType =
-          {
-              .direction = TUSB_DIR_DEV_TO_HOST,
-              .type      = TUSB_REQUEST_TYPE_STANDARD,
-              .recipient = TUSB_REQUEST_RECIPIENT_DEVICE
-          },
-
+          .bmRequestType = { .direction = TUSB_DIR_DEV_TO_HOST, .type = TUSB_REQUEST_TYPE_STANDARD, .recipient = TUSB_REQUEST_RECIPIENT_DEVICE },
           .bRequest = TUSB_REQUEST_GET_DESCRIPTOR,
           .wValue   = (TUSB_DESC_DEVICE << 8),
           .wLength  = 8
       };
+
       hcd_pipe_control_xfer(device_addr0.pipe_hdl, &request_device_desc, enum_data_buffer);
-//      osal_sem_wait();
+      osal_semaphore_wait(device_addr0.sem_hdl, OSAL_TIMEOUT_NORMAL, &error); // careful of local variable without static
+      TASK_ASSERT_STATUS(error);
+    }
+
+    {
+      uint8_t new_addr = 0;
+      for (new_addr=0; new_addr<TUSB_CFG_HOST_DEVICE_MAX; new_addr++)
+      {
+        if (device_info_pool[new_addr].status == TUSB_DEVICE_STATUS_UNPLUG)
+          break;
+      }
+
+      TASK_ASSERT(new_addr < TUSB_CFG_HOST_DEVICE_MAX);
+
+      tusb_std_request_t request_set_address =
+      {
+          .bmRequestType = { .direction = TUSB_DIR_HOST_TO_DEV, .type = TUSB_REQUEST_TYPE_STANDARD, .recipient = TUSB_REQUEST_RECIPIENT_DEVICE },
+          .bRequest = TUSB_REQUEST_SET_ADDRESS,
+          .wValue   = (new_addr+1),
+          .wLength  = 8
+      };
+
+      hcd_pipe_control_xfer(device_addr0.pipe_hdl, &request_set_address, NULL);
+      osal_semaphore_wait(device_addr0.sem_hdl, OSAL_TIMEOUT_NORMAL, &error); // careful of local variable without static
+      TASK_ASSERT_STATUS(error);
     }
 
 

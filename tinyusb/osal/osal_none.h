@@ -133,8 +133,10 @@ static inline  tusb_error_t osal_semaphore_post(osal_semaphore_handle_t const se
         *(p_error) = TUSB_ERROR_OSAL_TIMEOUT;\
       else\
         return;\
-    } else\
+    } else{\
       (*(sem_hdl))--; /*TODO mutex hal_interrupt_disable consideration*/\
+      *(p_error) = TUSB_ERROR_NONE;\
+    }\
   }while(0)
 
 //--------------------------------------------------------------------+
@@ -202,6 +204,7 @@ static inline tusb_error_t osal_queue_send(osal_queue_handle_t const queue_hdl, 
       queue_hdl->rd_idx = (queue_hdl->rd_idx + 1) % queue_hdl->depth;\
       queue_hdl->count--;\
       /*TODO mutex unlock hal_interrupt_enable */\
+      *(p_error) = TUSB_ERROR_NONE;\
     }\
   }while(0)
 

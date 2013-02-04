@@ -57,8 +57,8 @@ osal_queue_handle_t queue_hdl;
 void setUp(void)
 {
   memset(statements, 0, sizeof(statements));
-  sem_hdl = osal_semaphore_create(OSAL_SEM_REF(sem));
-  queue_hdl = osal_queue_create(&queue);
+//  sem_hdl = osal_semaphore_create(OSAL_SEM_REF(sem));
+//  queue_hdl = osal_queue_create(&queue);
 }
 
 void tearDown(void)
