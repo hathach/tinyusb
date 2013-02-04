@@ -72,7 +72,6 @@
 #include "errors.h"
 
 //------------- TUSB Header -------------//
-//#include "hal/hal.h"
 #include "core/tusb_types.h"
 #include "core/std_descriptors.h"
 #include "core/std_request.h"

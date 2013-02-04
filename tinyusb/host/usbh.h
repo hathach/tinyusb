@@ -59,6 +59,7 @@
 // INCLUDE
 //--------------------------------------------------------------------+
 #include "common/common.h"
+#include "usbh_hcd.h"
 #include "hcd.h"
 
 //--------------------------------------------------------------------+
@@ -101,38 +102,12 @@ enum {
 
 /// Device Status
 enum {
-  TUSB_DEVICE_STATUS_UNPLUG = 0,
-  TUSB_DEVICE_STATUS_READY = BIT_(0),
+  TUSB_DEVICE_STATUS_UNPLUG      = 0,
+  TUSB_DEVICE_STATUS_READY       = BIT_(0),
 
-  TUSB_DEVICE_STATUS_REMOVING = BIT_(2),
+  TUSB_DEVICE_STATUS_REMOVING    = BIT_(2),
   TUSB_DEVICE_STATUS_SAFE_REMOVE = BIT_(3),
 };
-
-typedef uint8_t  tusbh_device_status_t;
-typedef uint32_t tusbh_flag_class_t;
-
-typedef struct { // TODO internal structure, re-order members
-  uint8_t core_id;
-  tusb_speed_t speed;
-  uint8_t hub_addr;
-  uint8_t hub_port;
-
-  uint16_t vendor_id;
-  uint16_t product_id;
-  uint8_t configure_count;
-
-  tusbh_device_status_t status;
-  pipe_handle_t pipe_control;
-  tusb_std_request_t request_control;
-
-#if 0 // TODO allow configure for vendor/product
-  struct {
-    uint8_t interface_count;
-    uint8_t attributes;
-  } configuration;
-#endif
-
-} usbh_device_info_t;
 
 typedef enum {
   PIPE_STATUS_AVAILABLE = 0,
@@ -140,20 +115,8 @@ typedef enum {
   PIPE_STATUS_COMPLETE
 } pipe_status_t;
 
+typedef uint32_t tusbh_flag_class_t;
 typedef uint32_t tusb_handle_device_t;
-
-typedef struct ATTR_ALIGNED(4){
-  uint8_t core_id;
-  uint8_t hub_addr;
-  uint8_t hub_port;
-  uint8_t connect_status;
-} usbh_enumerate_t;
-
-typedef struct {
-  usbh_enumerate_t enum_entry;
-  tusb_speed_t speed;
-  tusb_std_request_t request_packet; // needed to be on USB RAM
-} usbh_device_addr0_t;
 
 //--------------------------------------------------------------------+
 // INTERNAL OBJECT & FUNCTION DECLARATION

@@ -1,13 +1,13 @@
 /*
- * hid_host.h
+ * usbh_hcd.h
  *
- *  Created on: Jan 18, 2013
+ *  Created on: Feb 4, 2013
  *      Author: hathach
  */
 
 /*
  * Software License Agreement (BSD License)
- * Copyright (c) 2013, hathach (tinyusb.net)
+ * Copyright (c) 2012, hathach (tinyusb.net)
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without modification,
@@ -48,48 +48,72 @@
  *  @{
  */
 
-#ifndef _TUSB_HID_HOST_H_
-#define _TUSB_HID_HOST_H_
+#ifndef _TUSB_USBH_HCD_H_
+#define _TUSB_USBH_HCD_H_
 
 #ifdef __cplusplus
  extern "C" {
 #endif
 
+//--------------------------------------------------------------------+
+// INCLUDE
+//--------------------------------------------------------------------+
 #include "common/common.h"
-#include "host/usbh.h"
-#include "hid.h"
 
 //--------------------------------------------------------------------+
-// APPLICATION API
+// USBH
 //--------------------------------------------------------------------+
-uint8_t tusbh_hid_keyboard_no_instances(tusb_handle_device_t const device_hdl) ATTR_WARN_UNUSED_RESULT;
-tusb_error_t tusbh_hid_keyboard_get(tusb_handle_device_t const handle, uint8_t instance_num, tusb_keyboard_report_t * const report) ATTR_WARN_UNUSED_RESULT;
+typedef uint8_t  tusbh_device_status_t;
+typedef uint32_t pipe_handle_t;
 
-//--------------------------------------------------------------------+
-// INTERNAL API
-//--------------------------------------------------------------------+
-#ifdef _TINY_USB_SOURCE_FILE_
+typedef struct ATTR_ALIGNED(4){
+  uint8_t core_id;
+  uint8_t hub_addr;
+  uint8_t hub_port;
+  uint8_t connect_status;
+} usbh_enumerate_t;
 
 typedef struct {
-  pipe_handle_t pipe_in;
-  uint8_t report_size;
-  uint8_t buffer[TUSB_CFG_HOST_HID_KEYBOARD_ENDPOINT_SIZE];
-}keyboard_interface_t;
+  usbh_enumerate_t enum_entry;
+  tusb_speed_t speed;
+  tusb_std_request_t request_packet; // needed to be on USB RAM
+} usbh_device_addr0_t;
 
-typedef struct {
-  uint8_t instance_count;
-  keyboard_interface_t instance[TUSB_CFG_HOST_HID_KEYBOARD_NO_INSTANCES_PER_DEVICE];
-} class_hid_keyboard_info_t;
+typedef struct { // TODO internal structure, re-order members
+  uint8_t core_id;
+  tusb_speed_t speed;
+  uint8_t hub_addr;
+  uint8_t hub_port;
 
-void class_hid_keyboard_init(void);
-tusb_error_t class_hid_keyboard_install(uint8_t const dev_addr, uint8_t const *descriptor) ATTR_WARN_UNUSED_RESULT;
+  uint16_t vendor_id;
+  uint16_t product_id;
+  uint8_t configure_count;
 
+  tusbh_device_status_t status;
+  pipe_handle_t pipe_control;
+  tusb_std_request_t request_control;
+
+#if 0 // TODO allow configure for vendor/product
+  struct {
+    uint8_t interface_count;
+    uint8_t attributes;
+  } configuration;
 #endif
+
+} usbh_device_info_t;
+
+//--------------------------------------------------------------------+
+// HCD
+//--------------------------------------------------------------------+
+
+//--------------------------------------------------------------------+
+// IMPLEMENTATION
+//--------------------------------------------------------------------+
 
 #ifdef __cplusplus
-}
+ }
 #endif
 
-#endif /* _TUSB_HID_HOST_H_ */
+#endif /* _TUSB_USBH_HCD_H_ */
 
 /** @} */

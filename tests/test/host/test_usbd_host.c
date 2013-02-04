@@ -178,12 +178,10 @@ void test_enum_task_connect(void)
 {
   pipe_handle_t pipe_addr0 = 12;
 
-
-
   osal_queue_receive_StubWithCallback(queue_recv_stub);
   hcd_port_connect_status_ExpectAndReturn(enum_connect.core_id, true);
   hcd_port_speed_ExpectAndReturn(enum_connect.core_id, TUSB_SPEED_FULL);
-  hcd_pipe_addr0_open_ExpectAndReturn(enum_connect.core_id, TUSB_SPEED_FULL, 0, 0, pipe_addr0);
+  hcd_pipe_addr0_open_IgnoreAndReturn(pipe_addr0);
 
   hcd_pipe_control_xfer_StubWithCallback(pipe_control_stub);
 //  hcd_pipe_control_open_ExpectAnd(1, );
