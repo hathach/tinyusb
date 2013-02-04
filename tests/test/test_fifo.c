@@ -44,7 +44,7 @@ static uint8_t buffer[FIFO_SIZE];
 
 void setUp(void)
 {
-  fifo_init(&ff, buffer, FIFO_SIZE, 0, 0);
+  fifo_init(&ff, buffer, FIFO_SIZE, 0);
 }
 
 void tearDown(void)
@@ -54,8 +54,8 @@ void tearDown(void)
 void test_create_null(void)
 {
   memset(&ff, 0, sizeof(fifo_t)); // clear fifo to test null created
-  TEST_ASSERT_FALSE( fifo_init(&ff, buffer, 0, 0, 0) );
-  TEST_ASSERT_TRUE( fifo_init(&ff, buffer, 1, 0, 0) );
+  TEST_ASSERT_FALSE( fifo_init(&ff, buffer, 0, 0) );
+  TEST_ASSERT_TRUE( fifo_init(&ff, buffer, 1, 0) );
 }
 
 void test_normal(void)

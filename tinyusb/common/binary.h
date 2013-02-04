@@ -55,7 +55,7 @@
  extern "C" {
 #endif
 
-#include <stdint.h>
+#include "primitive_types.h"
 
 /// n-th Bit
 #define BIT_(n) (1 << (n))

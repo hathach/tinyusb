@@ -55,8 +55,8 @@
  extern "C" {
 #endif
 
+#include "tusb_option.h"
 #include "common/compiler/compiler.h"
-#include "common/errors.h"
 
 #define MCU_LPC13UXX 1
 #define MCU_LPC11UXX 2

@@ -56,18 +56,23 @@
  extern "C" {
 #endif
 
+//------------- Standard Header -------------//
 #include "primitive_types.h"
 #include <stddef.h>
 #include <string.h>
 #include <stdio.h>
 
+//------------- TUSB Option Header -------------//
+#include "tusb_option.h"
+
+//------------- General Header -------------//
 #include "compiler/compiler.h"
 #include "assertion.h"
 #include "binary.h"
 #include "errors.h"
 
-#include "tusb_option.h"
-#include "hal/hal.h"
+//------------- TUSB Header -------------//
+//#include "hal/hal.h"
 #include "core/tusb_types.h"
 #include "core/std_descriptors.h"
 #include "core/std_request.h"

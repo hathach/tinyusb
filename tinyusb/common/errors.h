@@ -49,7 +49,7 @@
 #ifndef _TUSB_ERRORS_H_
 #define _TUSB_ERRORS_H_
 
-#include <stdint.h>
+#include "primitive_types.h"
 #include "../tusb_option.h"
 
 #ifdef __cplusplus

@@ -48,8 +48,8 @@
 /**************************************************************************/
 static inline void mutex_lock (fifo_t* f)
 {
-  if (f->irq > 0)
-    NVIC_DisableIRQ(f->irq);
+//  if (f->irq > 0)
+//    NVIC_DisableIRQ(f->irq);
 }
 
 /**************************************************************************/
@@ -62,8 +62,8 @@ static inline void mutex_lock (fifo_t* f)
 /**************************************************************************/
 static inline void mutex_unlock (fifo_t* f)
 {
-  if (f->irq > 0)
-    NVIC_EnableIRQ(f->irq);
+//  if (f->irq > 0)
+//    NVIC_EnableIRQ(f->irq);
 }
 
 /**************************************************************************/
@@ -84,7 +84,7 @@ static inline void mutex_unlock (fifo_t* f)
                 Set the -1 if not required.
 */
 /**************************************************************************/
-bool fifo_init(fifo_t* f, uint8_t* buffer, uint16_t size, bool overwritable, IRQn_Type irq)
+bool fifo_init(fifo_t* f, uint8_t* buffer, uint16_t size, bool overwritable) //, IRQn_Type irq)
 {
   ASSERT(size > 0, false);
 
@@ -92,7 +92,7 @@ bool fifo_init(fifo_t* f, uint8_t* buffer, uint16_t size, bool overwritable, IRQ
   f->size = size;
   f->rd_ptr = f->wr_ptr = f->len = 0;
   f->overwritable = overwritable;
-  f->irq = irq;
+//  f->irq = irq;
 
   return true;
 }
