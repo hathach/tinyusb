@@ -69,10 +69,10 @@
 #ifndef TASK_H
 #define TASK_H
 
-#ifndef INC_FREERTOS_H
-	#error "include FreeRTOS.h must appear in source files before include task.h"
-#endif
-
+//#ifndef INC_FREERTOS_H
+//	#error "include FreeRTOS.h must appear in source files before include task.h"
+//#endif
+#include "FreeRTOS.h"
 #include "portable.h"
 #include "list.h"
 

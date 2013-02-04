@@ -56,7 +56,11 @@
 #endif
 
 #include "osal_common.h"
+
+//------------- FreeRTOS Headers -------------//
 #include "FreeRTOS.h"
+#include "semphr.h"
+#include "queue.h"
 
 //--------------------------------------------------------------------+
 // TICK API
@@ -78,7 +82,29 @@
 //--------------------------------------------------------------------+
 // Semaphore API
 //--------------------------------------------------------------------+
+#define OSAL_SEM_DEF(name)
+typedef xSemaphoreHandle osal_semaphore_handle_t;
 
+// create FreeRTOS binary semaphore with zero as init value
+#define osal_semaphore_create(x) \
+  xQueueGenericCreate( ( unsigned portBASE_TYPE ) 1, semSEMAPHORE_QUEUE_ITEM_LENGTH, queueQUEUE_TYPE_BINARY_SEMAPHORE )
+
+//--------------------------------------------------------------------+
+// QUEUE API
+//--------------------------------------------------------------------+
+typedef struct{
+  uint8_t const depth        ; ///< buffer size
+} osal_queue_t;
+
+typedef xQueueHandle osal_queue_handle_t;
+
+#define OSAL_QUEUE_DEF(name, queue_depth, type)\
+  osal_queue_t name = {\
+      .depth   = queue_depth\
+  }
+
+#define osal_queue_create(p_queue) \
+  xQueueCreate((p_queue)->depth, sizeof(uint32_t))
 
 #ifdef __cplusplus
  }

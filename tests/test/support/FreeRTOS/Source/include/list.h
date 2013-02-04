@@ -101,6 +101,9 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
+
+#include "portmacro.h"
+
 /*
  * Definition of the only type of object that a list can contain.
  */

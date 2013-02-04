@@ -74,6 +74,8 @@
 extern "C" {
 #endif
 
+#include "projdefs.h"
+
 /*-----------------------------------------------------------
  * Port specific definitions.
  *
@@ -110,16 +112,16 @@ extern "C" {
 
 
 /* Scheduler utilities. */
-extern void vPortYieldFromISR( void );
+/*extern*/ void vPortYieldFromISR( void );
 #define portYIELD()					vPortYieldFromISR()
 #define portEND_SWITCHING_ISR( xSwitchRequired ) if( xSwitchRequired ) vPortYieldFromISR()
 /*-----------------------------------------------------------*/
 
 /* Critical section management. */
-extern void vPortEnterCritical( void );
-extern void vPortExitCritical( void );
-extern unsigned long ulPortSetInterruptMask( void );
-extern void vPortClearInterruptMask( unsigned long ulNewMaskValue );
+/*extern*/ void vPortEnterCritical( void );
+/*extern*/ void vPortExitCritical( void );
+/*extern*/ unsigned long ulPortSetInterruptMask( void );
+/*extern*/ void vPortClearInterruptMask( unsigned long ulNewMaskValue );
 #define portSET_INTERRUPT_MASK_FROM_ISR()		ulPortSetInterruptMask()
 #define portCLEAR_INTERRUPT_MASK_FROM_ISR(x)	vPortClearInterruptMask(x)
 #define portDISABLE_INTERRUPTS()				ulPortSetInterruptMask()
