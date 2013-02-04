@@ -42,12 +42,12 @@
 #include "mock_hcd.h"
 #include "mock_usbh_hcd.h"
 
-extern usbh_device_info_t device_info_pool[TUSB_CFG_HOST_DEVICE_MAX];
+extern usbh_device_info_t usbh_device_info_pool[TUSB_CFG_HOST_DEVICE_MAX];
 tusb_handle_device_t dev_hdl;
 void setUp(void)
 {
   dev_hdl = 0;
-  memset(device_info_pool, 0, TUSB_CFG_HOST_DEVICE_MAX*sizeof(usbh_device_info_t));
+  memset(usbh_device_info_pool, 0, TUSB_CFG_HOST_DEVICE_MAX*sizeof(usbh_device_info_t));
 }
 
 void tearDown(void)
@@ -98,12 +98,12 @@ void test_usbh_init_ok(void)
 
   TEST_ASSERT_EQUAL(TUSB_ERROR_NONE, usbh_init());
 
-  TEST_ASSERT_EQUAL_MEMORY(device_info_zero, device_info_pool, sizeof(usbh_device_info_t)*TUSB_CFG_HOST_DEVICE_MAX);
+  TEST_ASSERT_EQUAL_MEMORY(device_info_zero, usbh_device_info_pool, sizeof(usbh_device_info_t)*TUSB_CFG_HOST_DEVICE_MAX);
 }
 
 void test_usbh_status_get_fail(void)
 {
-  device_info_pool[dev_hdl].status = 0;
+  usbh_device_info_pool[dev_hdl].status = 0;
 
   TEST_ASSERT_EQUAL( 0, tusbh_device_status_get(TUSB_CFG_HOST_DEVICE_MAX) );
   TEST_ASSERT_EQUAL( TUSB_DEVICE_STATUS_UNPLUG, tusbh_device_status_get(dev_hdl) );
@@ -111,7 +111,7 @@ void test_usbh_status_get_fail(void)
 
 void test_usbh_status_get_succeed(void)
 {
-  device_info_pool[dev_hdl].status = TUSB_DEVICE_STATUS_READY;
+  usbh_device_info_pool[dev_hdl].status = TUSB_DEVICE_STATUS_READY;
   TEST_ASSERT_EQUAL( TUSB_DEVICE_STATUS_READY, tusbh_device_status_get(dev_hdl) );
 }
 
@@ -194,15 +194,29 @@ void test_enum_task_connect(void)
   osal_queue_receive_StubWithCallback(queue_recv_stub);
   hcd_port_connect_status_ExpectAndReturn(enum_connect.core_id, true);
   hcd_port_speed_ExpectAndReturn(enum_connect.core_id, TUSB_SPEED_FULL);
-  hcd_addr0_open_IgnoreAndReturn(TUSB_ERROR_NONE);
 
-  hcd_pipe_control_xfer_StubWithCallback(pipe_control_stub);
-  osal_semaphore_wait_StubWithCallback(semaphore_wait_stub);
+  {
+    hcd_addr0_open_IgnoreAndReturn(TUSB_ERROR_NONE);
 
-  hcd_pipe_control_xfer_StubWithCallback(pipe_control_stub);
-  osal_semaphore_wait_StubWithCallback(semaphore_wait_stub);
+    // get 8-byte of device descriptor
+    hcd_pipe_control_xfer_StubWithCallback(pipe_control_stub);
+    osal_semaphore_wait_StubWithCallback(semaphore_wait_stub);
+    // set device address
+    hcd_pipe_control_xfer_StubWithCallback(pipe_control_stub);
+    osal_semaphore_wait_StubWithCallback(semaphore_wait_stub);
+
+    hcd_addr0_close_IgnoreAndReturn(TUSB_ERROR_NONE);
+  }
+
 
   usbh_enumeration_task();
+
+  TEST_ASSERT_EQUAL(TUSB_DEVICE_STATUS_ADDRESSED, usbh_device_info_pool[0].status);
+  TEST_ASSERT_EQUAL(TUSB_SPEED_FULL, usbh_device_info_pool[0].speed);
+  TEST_ASSERT_EQUAL(enum_connect.core_id, usbh_device_info_pool[0].core_id);
+  TEST_ASSERT_EQUAL(enum_connect.hub_addr, usbh_device_info_pool[0].hub_addr);
+  TEST_ASSERT_EQUAL(enum_connect.hub_port, usbh_device_info_pool[0].hub_port);
+
 }
 
 void test_enum_task_disconnect(void)
