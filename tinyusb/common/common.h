@@ -86,6 +86,18 @@
 #define STRING_(x)  #x  // stringify without expand
 #define XSTRING_(x) STRING_(x) // expand then stringify
 
+#define U16_HIGH_U8(u16) ((uint8_t) (((u16) > 8) & 0x00ff))
+#define U16_LOW_U8(u16)  ((uint8_t) ((u16)       & 0x00ff))
+#define U16_TO_U8S_BE(u16)  U16_HIGH_U8(u16), U16_LOW_U8(u16)
+#define U16_TO_U8S_LE(u16)  U16_LOW_U8(u16), U16_HIGH_U8(u16)
+
+#define U32_B1_U8(u32) ((uint8_t) (((u32) > 24) & 0x000000ff)) // MSB
+#define U32_B2_U8(u32) ((uint8_t) (((u32) > 16) & 0x000000ff))
+#define U32_B3_U8(u32) ((uint8_t) (((u32) >  8) & 0x000000ff))
+#define U32_B4_U8(u32) ((uint8_t) ((u32)        & 0x000000ff)) // LSB
+
+#define U32_TO_U8S_BE(u32) U32_B1_U8(u32), U32_B2_U8(u32), U32_B3_U8(u32), U32_B4_U8(u32)
+#define U32_TO_U8S_LE(u32) U32_B4_U8(u32), U32_B3_U8(u32), U32_B2_U8(u32), U32_B1_U8(u32)
 /// form an uint32_t from 4 x uint8_t
 static inline uint32_t u32_from_u8(uint8_t b1, uint8_t b2, uint8_t b3, uint8_t b4) ATTR_ALWAYS_INLINE ATTR_CONST;
 static inline uint32_t u32_from_u8(uint8_t b1, uint8_t b2, uint8_t b3, uint8_t b4)

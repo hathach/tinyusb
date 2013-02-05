@@ -161,6 +161,7 @@ enum {
   TUSB_DESC_CONFIG_ATT_REMOTE_WAKEUP = BIT_(5)
 };
 
+#define TUSB_DESC_CONFIG_POWER_MA(x)  ((x)/2)
 #ifdef __cplusplus
  }
 #endif

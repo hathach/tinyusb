@@ -38,6 +38,7 @@
 #include "unity.h"
 #include "errors.h"
 #include "usbh.h"
+#include "descriptor_test.h"
 #include "mock_osal.h"
 #include "mock_hcd.h"
 #include "mock_usbh_hcd.h"
@@ -128,6 +129,7 @@ usbh_enumerate_t enum_connect =
 };
 extern usbh_device_addr0_t device_addr0;
 
+
 void queue_recv_stub (osal_queue_handle_t const queue_hdl, uint32_t *p_data, uint32_t msec, tusb_error_t *p_error, int num_call)
 {
   TEST_ASSERT_EQUAL_PTR(enum_queue_hdl, queue_hdl);
@@ -140,49 +142,32 @@ void semaphore_wait_stub(osal_semaphore_handle_t const sem_hdl, uint32_t msec, t
   (*p_error) = TUSB_ERROR_NONE;
 }
 
-tusb_error_t pipe_control_stub(pipe_handle_t pipe_hdl, const tusb_std_request_t * const p_request, uint8_t data[], int num_call)
+tusb_error_t get_device_desc_stub(pipe_handle_t pipe_hdl, const tusb_std_request_t * const p_request, uint8_t data[], int num_call)
 {
-  tusb_descriptor_device_t dev_desc =
-  {
-      .bLength            = sizeof(tusb_descriptor_device_t),
-      .bDescriptorType    = TUSB_DESC_DEVICE,
-      .bcdUSB             = 0x0200,
-      .bDeviceClass       = 0x00,
-      .bDeviceSubClass    = 0x00,
-      .bDeviceProtocol    = 0x00,
+  TEST_ASSERT(num_call < 2);
+  TEST_ASSERT_EQUAL(TUSB_REQUEST_GET_DESCRIPTOR, p_request->bRequest);
+  TEST_ASSERT_EQUAL(TUSB_DESC_DEVICE, p_request->wValue >> 8);
 
-      .bMaxPacketSize0    = 64,
+  memcpy(data, &desc_device, p_request->wLength);
 
-      .idVendor           = 0x1FC9,
-      .idProduct          = 0x4000,
-      .bcdDevice          = 0x0100,
+  return TUSB_ERROR_NONE;
+}
 
-      .iManufacturer      = 0x01,
-      .iProduct           = 0x02,
-      .iSerialNumber      = 0x03,
+tusb_error_t set_device_addr_stub(pipe_handle_t pipe_hdl, const tusb_std_request_t * const p_request, uint8_t data[], int num_call)
+{
+  TEST_ASSERT_EQUAL(TUSB_REQUEST_SET_ADDRESS, p_request->bRequest);
+  TEST_ASSERT_EQUAL(p_request->wValue, 1);
+  return TUSB_ERROR_NONE;
+}
 
-      .bNumConfigurations = 0x02
-  };
+tusb_error_t get_configuration_desc_stub(pipe_handle_t pipe_hdl, const tusb_std_request_t * const p_request, uint8_t data[], int num_call)
+{
+  TEST_ASSERT(num_call < 2);
 
-  switch (p_request->bRequest)
-  {
-    case TUSB_REQUEST_GET_DESCRIPTOR:
-      switch (p_request->wValue >> 8)
-      {
-        case TUSB_DESC_DEVICE:
-          memcpy(data, &dev_desc, p_request->wLength);
-        break;
+  TEST_ASSERT_EQUAL(TUSB_REQUEST_GET_DESCRIPTOR, p_request->bRequest);
+  TEST_ASSERT_EQUAL(TUSB_DESC_CONFIGURATION, p_request->wValue >> 8);
 
-        default:
-          TEST_FAIL();
-        break;
-      }
-    break;
-
-    case TUSB_REQUEST_SET_ADDRESS:
-      TEST_ASSERT_EQUAL(p_request->wValue, 1);
-    break;
-  }
+  memcpy(data, &desc_device, p_request->wLength);
 
   return TUSB_ERROR_NONE;
 }
@@ -199,15 +184,14 @@ void test_enum_task_connect(void)
     hcd_addr0_open_IgnoreAndReturn(TUSB_ERROR_NONE);
 
     // get 8-byte of device descriptor
-    hcd_pipe_control_xfer_StubWithCallback(pipe_control_stub);
+    hcd_pipe_control_xfer_StubWithCallback(get_device_desc_stub);
     osal_semaphore_wait_StubWithCallback(semaphore_wait_stub);
     // set device address
-    hcd_pipe_control_xfer_StubWithCallback(pipe_control_stub);
+    hcd_pipe_control_xfer_StubWithCallback(set_device_addr_stub);
     osal_semaphore_wait_StubWithCallback(semaphore_wait_stub);
 
     hcd_addr0_close_IgnoreAndReturn(TUSB_ERROR_NONE);
   }
-
 
   usbh_enumeration_task();
 
@@ -217,6 +201,16 @@ void test_enum_task_connect(void)
   TEST_ASSERT_EQUAL(enum_connect.hub_addr, usbh_device_info_pool[0].hub_addr);
   TEST_ASSERT_EQUAL(enum_connect.hub_port, usbh_device_info_pool[0].hub_port);
 
+  hcd_pipe_control_open_ExpectAndReturn(1, desc_device.bMaxPacketSize0, TUSB_ERROR_NONE);
+
+  hcd_pipe_control_xfer_StubWithCallback(get_device_desc_stub); // get full device descriptor
+  osal_semaphore_wait_StubWithCallback(semaphore_wait_stub);
+
+  hcd_pipe_control_xfer_StubWithCallback(get_configuration_desc_stub); // get 9 bytes of configuration descriptor
+  osal_semaphore_wait_StubWithCallback(semaphore_wait_stub);
+
+  hcd_pipe_control_xfer_StubWithCallback(get_configuration_desc_stub); // get full-length configuration descriptor
+  osal_semaphore_wait_StubWithCallback(semaphore_wait_stub);
 }
 
 void test_enum_task_disconnect(void)

@@ -46,12 +46,12 @@ extern class_hid_keyboard_info_t keyboard_info_pool[TUSB_CFG_HOST_DEVICE_MAX];
 tusb_keyboard_report_t sample_key[2] =
 {
     {
-        .modifier = TUSB_KEYBOARD_MODIFIER_LEFTCTRL,
-        .keycode = {TUSB_KEYBOARD_KEYCODE_a}
+        .modifier = KEYBOARD_MODIFIER_LEFTCTRL,
+        .keycode = {KEYBOARD_KEYCODE_a}
     },
     {
-        .modifier = TUSB_KEYBOARD_MODIFIER_RIGHTALT,
-        .keycode = {TUSB_KEYBOARD_KEYCODE_z}
+        .modifier = KEYBOARD_MODIFIER_RIGHTALT,
+        .keycode = {KEYBOARD_KEYCODE_z}
     }
 };
 
@@ -78,8 +78,8 @@ void setUp(void)
         .bAlternateSetting  = 0,
         .bNumEndpoints      = 1,
         .bInterfaceClass    = TUSB_CLASS_HID,
-        .bInterfaceSubClass = TUSB_HID_SUBCLASS_BOOT,
-        .bInterfaceProtocol = TUSB_HID_PROTOCOL_KEYBOARD,
+        .bInterfaceSubClass = HID_SUBCLASS_BOOT,
+        .bInterfaceProtocol = HID_PROTOCOL_KEYBOARD,
         .iInterface         = 0
       });
 

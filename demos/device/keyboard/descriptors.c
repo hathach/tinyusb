@@ -157,24 +157,24 @@ TUSB_CFG_ATTR_USBRAM ATTR_ALIGNED(4) const USB_FS_CONFIGURATION_DESCRIPTOR USB_F
 {
     .Config =
     {
-        .bLength             = sizeof(USB_CONFIGURATION_DESCRIPTOR),
-        .bDescriptorType     = USB_CONFIGURATION_DESCRIPTOR_TYPE,
+        .bLength             = sizeof(tusb_descriptor_configuration_t),
+        .bDescriptorType     = TUSB_DESC_CONFIGURATION,
 
         .wTotalLength        = sizeof(USB_FS_CONFIGURATION_DESCRIPTOR) - 1, // exclude termination
         .bNumInterfaces      = TOTAL_INTEFACES,
 
         .bConfigurationValue = 1,
         .iConfiguration      = 0x00,
-        .bmAttributes        = USB_CONFIG_BUS_POWERED,
-        .bMaxPower           = USB_CONFIG_POWER_MA(100)
+        .bmAttributes        = TUSB_DESC_CONFIG_ATT_BUS_POWER,
+        .bMaxPower           = TUSB_DESC_CONFIG_POWER_MA(100)
     },
 
     #if IAD_DESC_REQUIRED
     // IAD points to CDC Interfaces
     .CDC_IAD =
     {
-        .bLength           = sizeof(USB_Descriptor_InterfaceAssociation_t),
-        .bDescriptorType   = USB_INTERFACE_ASSOCIATION_DESCRIPTOR_TYPE,
+        .bLength           = sizeof(tusb_descriptor_interface_association_t),
+        .bDescriptorType   = TUSB_DESC_INTERFACE_ASSOCIATION,
 
         .bFirstInterface   = 0,
         .bInterfaceCount   = 2,
@@ -192,8 +192,8 @@ TUSB_CFG_ATTR_USBRAM ATTR_ALIGNED(4) const USB_FS_CONFIGURATION_DESCRIPTOR USB_F
     // CDC Control Interface
     .CDC_CCI_Interface =
     {
-        .bLength            = sizeof(USB_INTERFACE_DESCRIPTOR),
-        .bDescriptorType    = USB_INTERFACE_DESCRIPTOR_TYPE,
+        .bLength            = sizeof(tusb_descriptor_interface_t),
+        .bDescriptorType    = TUSB_DESC_INTERFACE,
         .bInterfaceNumber   = INTERFACE_INDEX_CDC,
         .bAlternateSetting  = 0,
         .bNumEndpoints      = 1,
@@ -233,8 +233,8 @@ TUSB_CFG_ATTR_USBRAM ATTR_ALIGNED(4) const USB_FS_CONFIGURATION_DESCRIPTOR USB_F
 
     .CDC_NotificationEndpoint =
     {
-        .bLength          = sizeof(USB_ENDPOINT_DESCRIPTOR),
-        .bDescriptorType  = USB_ENDPOINT_DESCRIPTOR_TYPE,
+        .bLength          = sizeof(tusb_descriptor_endpoint_t),
+        .bDescriptorType  = TUSB_DESC_ENDPOINT,
         .bEndpointAddress = CDC_NOTIFICATION_EP,
         .bmAttributes     = USB_ENDPOINT_TYPE_INTERRUPT,
         .wMaxPacketSize   = CDC_NOTIFICATION_EP_MAXPACKETSIZE,
@@ -244,8 +244,8 @@ TUSB_CFG_ATTR_USBRAM ATTR_ALIGNED(4) const USB_FS_CONFIGURATION_DESCRIPTOR USB_F
     // CDC Data Interface
     .CDC_DCI_Interface =
     {
-        .bLength            = sizeof(USB_INTERFACE_DESCRIPTOR),
-        .bDescriptorType    = USB_INTERFACE_DESCRIPTOR_TYPE,
+        .bLength            = sizeof(tusb_descriptor_interface_t),
+        .bDescriptorType    = TUSB_DESC_INTERFACE,
         .bInterfaceNumber   = INTERFACE_INDEX_CDC+1,
         .bAlternateSetting  = 0x00,
         .bNumEndpoints      = 2,
@@ -257,8 +257,8 @@ TUSB_CFG_ATTR_USBRAM ATTR_ALIGNED(4) const USB_FS_CONFIGURATION_DESCRIPTOR USB_F
 
     .CDC_DataOutEndpoint =
     {
-        .bLength          = sizeof(USB_ENDPOINT_DESCRIPTOR),
-        .bDescriptorType  = USB_ENDPOINT_DESCRIPTOR_TYPE,
+        .bLength          = sizeof(tusb_descriptor_endpoint_t),
+        .bDescriptorType  = TUSB_DESC_ENDPOINT,
         .bEndpointAddress = CDC_DATA_EP_OUT,
         .bmAttributes     = USB_ENDPOINT_TYPE_BULK,
         .wMaxPacketSize   = CDC_DATA_EP_MAXPACKET_SIZE,
@@ -267,8 +267,8 @@ TUSB_CFG_ATTR_USBRAM ATTR_ALIGNED(4) const USB_FS_CONFIGURATION_DESCRIPTOR USB_F
 
     .CDC_DataInEndpoint =
     {
-        .bLength          = sizeof(USB_ENDPOINT_DESCRIPTOR),
-        .bDescriptorType  = USB_ENDPOINT_DESCRIPTOR_TYPE,
+        .bLength          = sizeof(tusb_descriptor_endpoint_t),
+        .bDescriptorType  = TUSB_DESC_ENDPOINT,
         .bEndpointAddress = CDC_DATA_EP_IN,
         .bmAttributes     = USB_ENDPOINT_TYPE_BULK,
         .wMaxPacketSize   = CDC_DATA_EP_MAXPACKET_SIZE,
@@ -280,14 +280,14 @@ TUSB_CFG_ATTR_USBRAM ATTR_ALIGNED(4) const USB_FS_CONFIGURATION_DESCRIPTOR USB_F
     ///// USB HID Keyboard interface
     .HID_KeyboardInterface =
     {
-        .bLength            = sizeof(USB_INTERFACE_DESCRIPTOR),
-        .bDescriptorType    = USB_INTERFACE_DESCRIPTOR_TYPE,
+        .bLength            = sizeof(tusb_descriptor_interface_t),
+        .bDescriptorType    = TUSB_DESC_INTERFACE,
         .bInterfaceNumber   = INTERFACE_INDEX_HID_KEYBOARD,
         .bAlternateSetting  = 0x00,
         .bNumEndpoints      = 1,
-        .bInterfaceClass    = USB_DEVICE_CLASS_HUMAN_INTERFACE,
-        .bInterfaceSubClass = HID_SUBCLASS_BOOT,
-        .bInterfaceProtocol = HID_PROTOCOL_KEYBOARD,
+        .bInterfaceClass    = TUSB_CLASS_HID,
+        .bInterfaceSubClass = TUSB_HID_SUBCLASS_BOOT,
+        .bInterfaceProtocol = TUSB_HID_PROTOCOL_KEYBOARD,
         .iInterface         = 0x00
     },
 
@@ -307,8 +307,8 @@ TUSB_CFG_ATTR_USBRAM ATTR_ALIGNED(4) const USB_FS_CONFIGURATION_DESCRIPTOR USB_F
 
     .HID_KeyboardEndpoint =
     {
-        .bLength          = sizeof(USB_ENDPOINT_DESCRIPTOR),
-        .bDescriptorType  = USB_ENDPOINT_DESCRIPTOR_TYPE,
+        .bLength          = sizeof(tusb_descriptor_endpoint_t),
+        .bDescriptorType  = TUSB_DESC_ENDPOINT,
         .bEndpointAddress = HID_KEYBOARD_EP_IN,
         .bmAttributes     = USB_ENDPOINT_TYPE_INTERRUPT,
         .wMaxPacketSize   = 0x08,
@@ -319,13 +319,13 @@ TUSB_CFG_ATTR_USBRAM ATTR_ALIGNED(4) const USB_FS_CONFIGURATION_DESCRIPTOR USB_F
     #ifdef TUSB_CFG_DEVICE_HID_MOUSE
     .HID_MouseInterface =
     {
-        .bLength            = sizeof(USB_INTERFACE_DESCRIPTOR),
-        .bDescriptorType    = USB_INTERFACE_DESCRIPTOR_TYPE,
+        .bLength            = sizeof(tusb_descriptor_interface_t),
+        .bDescriptorType    = TUSB_DESC_INTERFACE,
         .bInterfaceNumber   = INTERFACE_INDEX_HID_MOUSE,
         .bAlternateSetting  = 0x00,
         .bNumEndpoints      = 1,
-        .bInterfaceClass    = USB_DEVICE_CLASS_HUMAN_INTERFACE,
-        .bInterfaceSubClass = HID_SUBCLASS_BOOT,
+        .bInterfaceClass    = TUSB_CLASS_HID,
+        .bInterfaceSubClass = TUSB_HID_SUBCLASS_BOOT,
         .bInterfaceProtocol = HID_PROTOCOL_MOUSE,
         .iInterface         = 0x00
     },
@@ -346,8 +346,8 @@ TUSB_CFG_ATTR_USBRAM ATTR_ALIGNED(4) const USB_FS_CONFIGURATION_DESCRIPTOR USB_F
 
     .HID_MouseEndpoint =
     {
-        .bLength          = sizeof(USB_ENDPOINT_DESCRIPTOR),
-        .bDescriptorType  = USB_ENDPOINT_DESCRIPTOR_TYPE,
+        .bLength          = sizeof(tusb_descriptor_endpoint_t),
+        .bDescriptorType  = TUSB_DESC_ENDPOINT,
         .bEndpointAddress = HID_MOUSE_EP_IN,
         .bmAttributes     = USB_ENDPOINT_TYPE_INTERRUPT,
         .wMaxPacketSize   = 0x08,

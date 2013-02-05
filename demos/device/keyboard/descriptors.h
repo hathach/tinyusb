@@ -115,39 +115,39 @@ typedef ATTR_PREPACKED struct ATTR_PACKED _USB_STR_DESCRIPTOR
 ///////////////////////////////////////////////////////////////////////
 typedef struct
 {
-  USB_CONFIGURATION_DESCRIPTOR                Config;
+  tusb_descriptor_configuration_t                Config;
 
 #if IAD_DESC_REQUIRED
-  USB_Descriptor_InterfaceAssociation_t        CDC_IAD;
+  tusb_descriptor_interface_association_t        CDC_IAD;
 #endif
 
 #ifdef TUSB_CFG_DEVICE_CDC
   //CDC - Serial
   //CDC Control Interface
-  USB_INTERFACE_DESCRIPTOR                    CDC_CCI_Interface;
+  tusb_descriptor_interface_t                    CDC_CCI_Interface;
   CDC_HEADER_DESCRIPTOR                       CDC_Header;
   CDC_ABSTRACT_CONTROL_MANAGEMENT_DESCRIPTOR  CDC_ACM;
   CDC_UNION_1SLAVE_DESCRIPTOR                 CDC_Union;
-  USB_ENDPOINT_DESCRIPTOR                     CDC_NotificationEndpoint;
+  tusb_descriptor_endpoint_t                     CDC_NotificationEndpoint;
 
   //CDC Data Interface
-  USB_INTERFACE_DESCRIPTOR                    CDC_DCI_Interface;
-  USB_ENDPOINT_DESCRIPTOR                     CDC_DataOutEndpoint;
-  USB_ENDPOINT_DESCRIPTOR                     CDC_DataInEndpoint;
+  tusb_descriptor_interface_t                    CDC_DCI_Interface;
+  tusb_descriptor_endpoint_t                     CDC_DataOutEndpoint;
+  tusb_descriptor_endpoint_t                     CDC_DataInEndpoint;
 #endif
 
 #ifdef TUSB_CFG_DEVICE_HID_KEYBOARD
   //Keyboard HID Interface
-  USB_INTERFACE_DESCRIPTOR                    HID_KeyboardInterface;
+  tusb_descriptor_interface_t                    HID_KeyboardInterface;
   HID_DESCRIPTOR                              HID_KeyboardHID;
-  USB_ENDPOINT_DESCRIPTOR                     HID_KeyboardEndpoint;
+  tusb_descriptor_endpoint_t                     HID_KeyboardEndpoint;
 #endif
 
 #ifdef TUSB_CFG_DEVICE_HID_MOUSE
   //Mouse HID Interface
-  USB_INTERFACE_DESCRIPTOR                    HID_MouseInterface;
+  tusb_descriptor_interface_t                    HID_MouseInterface;
   HID_DESCRIPTOR                              HID_MouseHID;
-  USB_ENDPOINT_DESCRIPTOR                     HID_MouseEndpoint;
+  tusb_descriptor_endpoint_t                     HID_MouseEndpoint;
 #endif
 
   unsigned char                               ConfigDescTermination;

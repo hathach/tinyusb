@@ -1,7 +1,7 @@
 /*
- * std_request.h
+ * descriptor_test.h
  *
- *  Created on: Feb 1, 2013
+ *  Created on: Feb 5, 2013
  *      Author: hathach
  */
 
@@ -48,35 +48,62 @@
  *  @{
  */
 
-#ifndef _TUSB_STD_REQUEST_H_
-#define _TUSB_STD_REQUEST_H_
+#ifndef _TUSB_TEST_DESCRIPTOR_H_
+#define _TUSB_TEST_DESCRIPTOR_H_
 
 #ifdef __cplusplus
  extern "C" {
 #endif
 
-#include "tusb_option.h"
-#include "common/primitive_types.h"
-#include "common/compiler/compiler.h"
-#include "common/binary.h"
+#include "common/common.h"
+#include "class/hid.h"
 
-typedef ATTR_PREPACKED struct ATTR_PACKED {
-  ATTR_PREPACKED struct ATTR_PACKED {
-    uint8_t recipient :  5; /**< Recipient type. */
-    uint8_t type      :  2; /**< Request type.  */
-    uint8_t direction :  1; /**< Direction type. */
-  } bmRequestType;
+typedef struct
+{
+  tusb_descriptor_configuration_t                configuration;
 
-  uint8_t  bRequest;
-  uint16_t wValue;
-  uint16_t wIndex;
-  uint16_t wLength;
-} tusb_std_request_t;
+#if 0 //&& IAD_DESC_REQUIRED
+  tusb_descriptor_interface_association_t        CDC_IAD;
+#endif
+
+#if 0 //&& TUSB_CFG_DEVICE_CDC
+  //CDC - Serial
+  //CDC Control Interface
+  tusb_descriptor_interface_t                    CDC_CCI_Interface;
+  CDC_HEADER_DESCRIPTOR                       CDC_Header;
+  CDC_ABSTRACT_CONTROL_MANAGEMENT_DESCRIPTOR  CDC_ACM;
+  CDC_UNION_1SLAVE_DESCRIPTOR                 CDC_Union;
+  tusb_descriptor_endpoint_t                     CDC_NotificationEndpoint;
+
+  //CDC Data Interface
+  tusb_descriptor_interface_t                    CDC_DCI_Interface;
+  tusb_descriptor_endpoint_t                     CDC_DataOutEndpoint;
+  tusb_descriptor_endpoint_t                     CDC_DataInEndpoint;
+#endif
+
+#if 1 // || TUSB_CFG_DEVICE_HID_KEYBOARD
+  //Keyboard HID Interface
+  tusb_descriptor_interface_t                    keyboard_interface;
+  tusb_hid_descriptor_hid_t                      keyboard_hid;
+  tusb_descriptor_endpoint_t                     keyboard_endpoint;
+#endif
+
+#if 0 // && TUSB_CFG_DEVICE_HID_MOUSE
+  //Mouse HID Interface
+  tusb_descriptor_interface_t                    HID_MouseInterface;
+  HID_DESCRIPTOR                              HID_MouseHID;
+  tusb_descriptor_endpoint_t                     HID_MouseEndpoint;
+#endif
+
+  unsigned char                               ConfigDescTermination;
+} app_configuration_desc_t;
+
+extern tusb_descriptor_device_t desc_device;
 
 #ifdef __cplusplus
  }
 #endif
 
-#endif /* _TUSB_STD_REQUEST_H_ */
+#endif /* _TUSB_TEST_DESCRIPTOR_H_ */
 
 /** @} */
