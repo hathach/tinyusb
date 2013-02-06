@@ -91,7 +91,7 @@ uint32_t osal_tick_get(void);
   }
 
 #define TASK_ASSERT_ERROR_HANDLER(error, func_call) \
-  func_call; state = 0; break
+  func_call; state = 0; return
 
 #define TASK_ASSERT_STATUS_HANDLER(sts, func_call) \
     ASSERT_DEFINE_WITH_HANDLER(TASK_ASSERT_ERROR_HANDLER, func_call, tusb_error_t status = (tusb_error_t)(sts),\

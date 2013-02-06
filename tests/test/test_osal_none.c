@@ -40,6 +40,7 @@
 #endif
 
 #include "unity.h"
+#include "errors.h"
 #include "osal_none.h"
 
 #define QUEUE_DEPTH 10
@@ -103,7 +104,7 @@ void test_queue_send(void)
 // blocking service such as semaphore wait need to be invoked within a task's loop
 
 //--------------------------------------------------------------------+
-// TASK
+// TASK SEMAPHORE
 //--------------------------------------------------------------------+
 void sample_task_semaphore(void)
 {
@@ -161,6 +162,9 @@ void test_task_with_semaphore(void)
   TEST_ASSERT_EQUAL(2, statements[0]);
 }
 
+//--------------------------------------------------------------------+
+// TASK SEMAPHORE
+//--------------------------------------------------------------------+
 void sample_task_with_queue(void)
 {
   uint32_t data;
@@ -225,3 +229,66 @@ void test_task_with_queue(void)
   TEST_ASSERT_EQUAL(2, statements[0]);
 }
 
+//--------------------------------------------------------------------+
+// TASK FLOW CONTROL
+//--------------------------------------------------------------------+
+void flow_control_error_handler(void)
+{
+  statements[5]++;
+}
+
+void sample_task_flow_control(void)
+{
+  tusb_error_t error;
+
+  OSAL_TASK_LOOP_BEGIN
+
+  statements[0]++;
+
+  osal_semaphore_wait(sem_hdl, OSAL_TIMEOUT_NORMAL, &error);
+  TASK_ASSERT(TUSB_ERROR_NONE == error);
+  statements[1]++;
+
+  osal_semaphore_wait(sem_hdl, OSAL_TIMEOUT_NORMAL, &error);
+  TASK_ASSERT_STATUS(error);
+  statements[2]++;
+
+  osal_semaphore_wait(sem_hdl, OSAL_TIMEOUT_NORMAL, &error);
+  TASK_ASSERT_STATUS_HANDLER(error, flow_control_error_handler());
+  statements[3]++;
+
+  OSAL_TASK_LOOP_END
+}
+
+void test_task_flow_control_assert(void)
+{
+  sample_task_flow_control();
+  for(uint32_t i=0; i<(OSAL_TIMEOUT_NORMAL*TUSB_CFG_OS_TICKS_PER_SECOND)/1000 + 1; i++) osal_tick_tock();
+  sample_task_flow_control();
+  TEST_ASSERT_EQUAL(0, statements[1]);
+}
+
+void test_task_flow_control_assert_status(void)
+{
+  for (uint8_t i=0; i<1; i++) osal_semaphore_post(sem_hdl);
+
+  sample_task_flow_control();
+
+  for(uint32_t i=0; i<(OSAL_TIMEOUT_NORMAL*TUSB_CFG_OS_TICKS_PER_SECOND)/1000 + 1; i++) osal_tick_tock();
+  sample_task_flow_control();
+
+  TEST_ASSERT_EQUAL(0, statements[2]);
+}
+
+void test_task_flow_control_assert_status_hanlder(void)
+{
+  for (uint8_t i=0; i<2; i++) osal_semaphore_post(sem_hdl);
+
+  sample_task_flow_control();
+
+  for(uint32_t i=0; i<(OSAL_TIMEOUT_NORMAL*TUSB_CFG_OS_TICKS_PER_SECOND)/1000 + 1; i++) osal_tick_tock();
+  sample_task_flow_control();
+
+  TEST_ASSERT_EQUAL(0, statements[3]);
+  TEST_ASSERT_EQUAL(1, statements[5]);
+}

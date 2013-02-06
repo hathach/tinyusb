@@ -68,8 +68,13 @@ extern "C"
 //--------------------------------------------------------------------+
 // Assert Helper
 //--------------------------------------------------------------------+
-#define ASSERT_MESSAGE(format, ...)\
-    _PRINTF("Assert at %s %s %d: " format "\n", __BASE_FILE__, __PRETTY_FUNCTION__, __LINE__, __VA_ARGS__)
+#ifndef _TEST_
+  #define ASSERT_MESSAGE(format, ...)\
+    _PRINTF("Assert at %s: %s: %d: " format "\n", __BASE_FILE__, __PRETTY_FUNCTION__, __LINE__, __VA_ARGS__)
+#else
+  #define ASSERT_MESSAGE(format, ...)\
+    _PRINTF("%d:note: Assert " format "\n", __LINE__, __VA_ARGS__)
+#endif
 
 #ifndef _TEST_ASSERT_
   #define ASSERT_ERROR_HANDLER(x, para)  return (x)
