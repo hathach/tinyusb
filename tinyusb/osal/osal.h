@@ -85,10 +85,17 @@ typedef uint32_t osal_task_t;
 #define OSAL_TASK_LOOP_BEGIN
 #define OSAL_TASK_LOOP_END
 
+#define TASK_ASSERT_ERROR_HANDLER(error, func_call)\
+    func_call; return error
+
+#define TASK_ASSERT_STATUS_HANDLER(sts, func_call) \
+    ASSERT_DEFINE_WITH_HANDLER(TASK_ASSERT_ERROR_HANDLER, func_call, tusb_error_t status = (tusb_error_t)(sts),\
+                               TUSB_ERROR_NONE == status, status, "%s", TUSB_ErrorStr[status])
 
 #define TASK_ASSERT_STATUS(sts) \
     ASSERT_DEFINE(tusb_error_t status = (tusb_error_t)(sts),\
                   TUSB_ERROR_NONE == status, (void) 0, "%s", TUSB_ErrorStr[status])
+
 #define TASK_ASSERT(condition)  ASSERT(condition, (void) 0)
 
 tusb_error_t osal_task_create(osal_task_t *task);

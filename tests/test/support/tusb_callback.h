@@ -1,13 +1,13 @@
 /*
- * errors.h
+ * tusb_callback.h
  *
- *  Created on: Nov 27, 2012
+ *  Created on: Feb 5, 2013
  *      Author: hathach
  */
 
 /*
  * Software License Agreement (BSD License)
- * Copyright (c) 2013, hathach (tinyusb.net)
+ * Copyright (c) 2012, hathach (tinyusb.net)
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without modification,
@@ -32,65 +32,40 @@
  * IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY
  * OF SUCH DAMAGE.
  *
- * This file is part of the tinyUSB stack.
+ * This file is part of the tiny usb stack.
  */
 
 /** \file
- *  \brief Error Header
+ *  \brief TBD
  *
  *  \note TBD
  */
 
-/** \ingroup Group_Common
- *  \defgroup Group_Error Error Codes
+/** \ingroup TBD
+ *  \defgroup TBD
+ *  \brief TBD
+ *
  *  @{
  */
 
-#ifndef _TUSB_ERRORS_H_
-#define _TUSB_ERRORS_H_
-
-#include "primitive_types.h"
-#include "../tusb_option.h"
+#ifndef _TUSB_TUSB_CALLBACK_H_
+#define _TUSB_TUSB_CALLBACK_H_
 
 #ifdef __cplusplus
  extern "C" {
 #endif
 
-#define ERROR_ENUM(x) x,
-#define ERROR_STRING(x) #x,
+#include "common/common.h"
+#include "usbh.h"
 
-#define ERROR_TABLE(ENTRY) \
-    ENTRY(TUSB_ERROR_NONE)\
-    ENTRY(TUSB_ERROR_INVALID_PARA)\
-    ENTRY(TUSB_ERROR_DEVICE_NOT_READY)\
-    ENTRY(TUSB_ERROR_CLASS_DEVICE_DONT_SUPPORT)\
-    ENTRY(TUSB_ERROR_CLASS_DATA_NOT_AVAILABLE)\
-    ENTRY(TUSB_ERROR_HCD_FAILED)\
-    ENTRY(TUSB_ERROR_USBH_MOUNT_FAILED)\
-    ENTRY(TUSB_ERROR_OSAL_TIMEOUT)\
-    ENTRY(TUSB_ERROR_OSAL_TASK_FAILED)\
-    ENTRY(TUSB_ERROR_OSAL_QUEUE_FAILED)\
-    ENTRY(TUSB_ERROR_OSAL_SEMAPHORE_FAILED)\
-    ENTRY(TUSB_ERROR_FAILED)\
-
-
-/** \enum tusb_error_t
- *  \brief Error Code returned
- */
-typedef enum {
-  ERROR_TABLE(ERROR_ENUM)
-  TUSB_ERROR_COUNT
-}tusb_error_t;
-
-#if TUSB_CFG_DEBUG == 3
-/// Enum to String for debugging purposes. Only available if \ref TUSB_CFG_DEBUG > 0
-extern uint8_t const* const TUSB_ErrorStr[];
-#endif
+uint8_t      tusbh_device_attached_cb (tusb_descriptor_device_t const *p_desc_device) ATTR_WEAK ATTR_WARN_UNUSED_RESULT;
+void         tusbh_device_mounted_cb (tusb_handle_device_t device_hdl) ATTR_WEAK;
+void         tusbh_device_mount_failed_cb(tusb_error_t error, tusb_descriptor_device_t const *p_desc_device) ATTR_WEAK;
 
 #ifdef __cplusplus
  }
 #endif
 
-#endif /* _TUSB_ERRORS_H_ */
+#endif /* _TUSB_TUSB_CALLBACK_H_ */
 
- /**  @} */
+/** @} */

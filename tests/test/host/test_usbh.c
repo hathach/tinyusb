@@ -38,7 +38,6 @@
 #include "unity.h"
 #include "errors.h"
 #include "usbh.h"
-#include "descriptor_test.h"
 #include "mock_osal.h"
 #include "mock_hcd.h"
 #include "mock_usbh_hcd.h"
@@ -83,13 +82,12 @@ void test_usbh_init_queue_create_failed(void)
   TEST_ASSERT_EQUAL(TUSB_ERROR_OSAL_QUEUE_FAILED, usbh_init());
 }
 
-
 void test_usbh_init_ok(void)
 {
   uint32_t dummy;
 
   usbh_device_info_t device_info_zero[TUSB_CFG_HOST_DEVICE_MAX];
-  memset(device_info_zero, 0, sizeof(usbh_device_info_t)*TUSB_CFG_HOST_DEVICE_MAX);
+  memclr_(device_info_zero, sizeof(usbh_device_info_t)*TUSB_CFG_HOST_DEVICE_MAX);
 
   for(uint32_t i=0; i<TUSB_CFG_HOST_CONTROLLER_NUM; i++)
     hcd_init_ExpectAndReturn(i, TUSB_ERROR_NONE);
@@ -114,116 +112,4 @@ void test_usbh_status_get_succeed(void)
 {
   usbh_device_info_pool[dev_hdl].status = TUSB_DEVICE_STATUS_READY;
   TEST_ASSERT_EQUAL( TUSB_DEVICE_STATUS_READY, tusbh_device_status_get(dev_hdl) );
-}
-
-//--------------------------------------------------------------------+
-// enum task
-//--------------------------------------------------------------------+
-extern osal_queue_handle_t enum_queue_hdl;
-usbh_enumerate_t enum_connect =
-{
-    .core_id = 0,
-    .hub_addr = 0,
-    .hub_port = 0,
-    .connect_status = 1
-};
-extern usbh_device_addr0_t device_addr0;
-
-
-void queue_recv_stub (osal_queue_handle_t const queue_hdl, uint32_t *p_data, uint32_t msec, tusb_error_t *p_error, int num_call)
-{
-  TEST_ASSERT_EQUAL_PTR(enum_queue_hdl, queue_hdl);
-  (*p_data) = ( *((uint32_t*) &enum_connect) );
-  (*p_error) = TUSB_ERROR_NONE;
-}
-
-void semaphore_wait_stub(osal_semaphore_handle_t const sem_hdl, uint32_t msec, tusb_error_t *p_error, int num_call)
-{
-  (*p_error) = TUSB_ERROR_NONE;
-}
-
-tusb_error_t get_device_desc_stub(pipe_handle_t pipe_hdl, const tusb_std_request_t * const p_request, uint8_t data[], int num_call)
-{
-  TEST_ASSERT(num_call < 2);
-  TEST_ASSERT_EQUAL(TUSB_REQUEST_GET_DESCRIPTOR, p_request->bRequest);
-  TEST_ASSERT_EQUAL(TUSB_DESC_DEVICE, p_request->wValue >> 8);
-
-  memcpy(data, &desc_device, p_request->wLength);
-
-  return TUSB_ERROR_NONE;
-}
-
-tusb_error_t set_device_addr_stub(pipe_handle_t pipe_hdl, const tusb_std_request_t * const p_request, uint8_t data[], int num_call)
-{
-  TEST_ASSERT_EQUAL(TUSB_REQUEST_SET_ADDRESS, p_request->bRequest);
-  TEST_ASSERT_EQUAL(p_request->wValue, 1);
-  return TUSB_ERROR_NONE;
-}
-
-tusb_error_t get_configuration_desc_stub(pipe_handle_t pipe_hdl, const tusb_std_request_t * const p_request, uint8_t data[], int num_call)
-{
-  TEST_ASSERT(num_call < 2);
-
-  TEST_ASSERT_EQUAL(TUSB_REQUEST_GET_DESCRIPTOR, p_request->bRequest);
-  TEST_ASSERT_EQUAL(TUSB_DESC_CONFIGURATION, p_request->wValue >> 8);
-
-  memcpy(data, &desc_device, p_request->wLength);
-
-  return TUSB_ERROR_NONE;
-}
-
-void test_enum_task_connect(void)
-{
-  pipe_handle_t pipe_addr0 = 12;
-
-  osal_queue_receive_StubWithCallback(queue_recv_stub);
-  hcd_port_connect_status_ExpectAndReturn(enum_connect.core_id, true);
-  hcd_port_speed_ExpectAndReturn(enum_connect.core_id, TUSB_SPEED_FULL);
-
-  {
-    hcd_addr0_open_IgnoreAndReturn(TUSB_ERROR_NONE);
-
-    // get 8-byte of device descriptor
-    hcd_pipe_control_xfer_StubWithCallback(get_device_desc_stub);
-    osal_semaphore_wait_StubWithCallback(semaphore_wait_stub);
-    // set device address
-    hcd_pipe_control_xfer_StubWithCallback(set_device_addr_stub);
-    osal_semaphore_wait_StubWithCallback(semaphore_wait_stub);
-
-    hcd_addr0_close_IgnoreAndReturn(TUSB_ERROR_NONE);
-  }
-
-  usbh_enumeration_task();
-
-  TEST_ASSERT_EQUAL(TUSB_DEVICE_STATUS_ADDRESSED, usbh_device_info_pool[0].status);
-  TEST_ASSERT_EQUAL(TUSB_SPEED_FULL, usbh_device_info_pool[0].speed);
-  TEST_ASSERT_EQUAL(enum_connect.core_id, usbh_device_info_pool[0].core_id);
-  TEST_ASSERT_EQUAL(enum_connect.hub_addr, usbh_device_info_pool[0].hub_addr);
-  TEST_ASSERT_EQUAL(enum_connect.hub_port, usbh_device_info_pool[0].hub_port);
-
-  hcd_pipe_control_open_ExpectAndReturn(1, desc_device.bMaxPacketSize0, TUSB_ERROR_NONE);
-
-  hcd_pipe_control_xfer_StubWithCallback(get_device_desc_stub); // get full device descriptor
-  osal_semaphore_wait_StubWithCallback(semaphore_wait_stub);
-
-  hcd_pipe_control_xfer_StubWithCallback(get_configuration_desc_stub); // get 9 bytes of configuration descriptor
-  osal_semaphore_wait_StubWithCallback(semaphore_wait_stub);
-
-  hcd_pipe_control_xfer_StubWithCallback(get_configuration_desc_stub); // get full-length configuration descriptor
-  osal_semaphore_wait_StubWithCallback(semaphore_wait_stub);
-}
-
-void test_enum_task_disconnect(void)
-{
-  TEST_IGNORE();
-}
-
-void test_enum_task_connect_via_hub(void)
-{
-  TEST_IGNORE();
-}
-
-void test_enum_task_disconnect_via_hub(void)
-{
-  TEST_IGNORE();
 }

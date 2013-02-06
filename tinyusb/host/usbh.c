@@ -89,16 +89,14 @@ void usbh_enumeration_task(void)
 
   OSAL_TASK_LOOP_BEGIN
 
-  osal_queue_receive(enum_queue_hdl, (uint32_t*)(&device_addr0.enum_entry), OSAL_TIMEOUT_NORMAL, &error);
-  TASK_ASSERT_STATUS(error);
+  osal_queue_receive(enum_queue_hdl, (uint32_t*)(&device_addr0.enum_entry), OSAL_TIMEOUT_WAIT_FOREVER, &error);
 
   if (device_addr0.enum_entry.hub_addr == 0) // direct connection
   {
     TASK_ASSERT(device_addr0.enum_entry.connect_status == hcd_port_connect_status(device_addr0.enum_entry.core_id)); // there chances the event is out-dated
 
     device_addr0.speed = hcd_port_speed(device_addr0.enum_entry.core_id);
-    error = hcd_addr0_open(&device_addr0);
-    TASK_ASSERT_STATUS(error);
+    TASK_ASSERT_STATUS( hcd_addr0_open(&device_addr0) );
 
     { // Get first 8 bytes of device descriptor to get Control Endpoint Size
       tusb_std_request_t request_device_desc = {
@@ -110,7 +108,7 @@ void usbh_enumeration_task(void)
 
       hcd_pipe_control_xfer(device_addr0.pipe_hdl, &request_device_desc, enum_data_buffer);
       osal_semaphore_wait(device_addr0.sem_hdl, OSAL_TIMEOUT_NORMAL, &error); // careful of local variable without static
-      TASK_ASSERT_STATUS(error);
+      TASK_ASSERT_STATUS_HANDLER(error, tusbh_device_mount_failed_cb(TUSB_ERROR_USBH_MOUNT_FAILED, NULL));
     }
 
     new_addr = get_new_address();
@@ -158,7 +156,7 @@ tusb_error_t usbh_init(void)
 {
   uint32_t i;
 
-  memset(usbh_device_info_pool, 0, sizeof(usbh_device_info_t)*TUSB_CFG_HOST_DEVICE_MAX);
+  memclr_(usbh_device_info_pool, sizeof(usbh_device_info_t)*TUSB_CFG_HOST_DEVICE_MAX);
 
   for(i=0; i<TUSB_CFG_HOST_CONTROLLER_NUM; i++)
   {

@@ -90,12 +90,16 @@ uint32_t osal_tick_get(void);
     state = 0;\
   }
 
-#define TASK_ASSERT_ERROR_HANDLER \
-  state = 0; break;
+#define TASK_ASSERT_ERROR_HANDLER(error, func_call) \
+  func_call; state = 0; break
 
-#define TASK_ASSERT(condition)  ASSERT_DEFINE_WITH_HANDLER(TASK_ASSERT_ERROR_HANDLER, , (condition), (void) 0, "%s", "evaluated to false")
+#define TASK_ASSERT_STATUS_HANDLER(sts, func_call) \
+    ASSERT_DEFINE_WITH_HANDLER(TASK_ASSERT_ERROR_HANDLER, func_call, tusb_error_t status = (tusb_error_t)(sts),\
+                               TUSB_ERROR_NONE == status, status, "%s", TUSB_ErrorStr[status])
+
+#define TASK_ASSERT(condition)  ASSERT_DEFINE_WITH_HANDLER(TASK_ASSERT_ERROR_HANDLER, , , (condition), (void) 0, "%s", "evaluated to false")
 #define TASK_ASSERT_STATUS(sts) \
-    ASSERT_DEFINE_WITH_HANDLER(TASK_ASSERT_ERROR_HANDLER, tusb_error_t status = (tusb_error_t)(sts),\
+    ASSERT_DEFINE_WITH_HANDLER(TASK_ASSERT_ERROR_HANDLER, , tusb_error_t status = (tusb_error_t)(sts),\
                   TUSB_ERROR_NONE == status, status, "%s", TUSB_ErrorStr[status])
 //--------------------------------------------------------------------+
 // Semaphore API
@@ -129,7 +133,7 @@ static inline  tusb_error_t osal_semaphore_post(osal_semaphore_handle_t const se
     timeout = osal_tick_get();\
     state = __LINE__; case __LINE__:\
     if( *(sem_hdl) == 0 ) {\
-      if ( timeout + osal_tick_from_msec(msec) < osal_tick_get() ) /* time out */ \
+      if ( (msec != OSAL_TIMEOUT_WAIT_FOREVER) && (timeout + osal_tick_from_msec(msec) < osal_tick_get()) ) /* time out */ \
         *(p_error) = TUSB_ERROR_OSAL_TIMEOUT;\
       else\
         return;\
@@ -194,7 +198,7 @@ static inline tusb_error_t osal_queue_send(osal_queue_handle_t const queue_hdl, 
     timeout = osal_tick_get();\
     state = __LINE__; case __LINE__:\
     if( queue_hdl-> count == 0 ) {\
-      if ( timeout + osal_tick_from_msec(msec) < osal_tick_get() ) /* time out */ \
+      if ( (msec != OSAL_TIMEOUT_WAIT_FOREVER) && ( timeout + osal_tick_from_msec(msec) < osal_tick_get() )) /* time out */ \
         *(p_error) = TUSB_ERROR_OSAL_TIMEOUT;\
       else\
         return;\

@@ -39,7 +39,7 @@
 #include "descriptor_test.h"
 
 TUSB_CFG_ATTR_USBRAM ATTR_ALIGNED(4)
-tusb_descriptor_device_t desc_device =
+tusb_descriptor_device_t const desc_device =
 {
     .bLength            = sizeof(tusb_descriptor_device_t),
     .bDescriptorType    = TUSB_DESC_DEVICE,

@@ -127,9 +127,11 @@ typedef uint8_t  tusbh_device_status_t;
 //--------------------------------------------------------------------+
 // APPLICATION API
 //--------------------------------------------------------------------+
-void         tusbh_device_mounting_cb (tusb_error_t const error, tusb_handle_device_t const device_hdl);
-void         tusbh_device_mounted_cb (tusb_error_t const error, tusb_handle_device_t const device_hdl);
-tusb_error_t tusbh_configuration_set     (tusb_handle_device_t const device_hdl, uint8_t const configure_number) ATTR_WARN_UNUSED_RESULT;
+uint8_t      tusbh_device_attached_cb (tusb_descriptor_device_t const *p_desc_device) ATTR_WEAK ATTR_WARN_UNUSED_RESULT;
+void         tusbh_device_mounted_cb (tusb_handle_device_t device_hdl) ATTR_WEAK;
+void         tusbh_device_mount_failed_cb(tusb_error_t error, tusb_descriptor_device_t const *p_desc_device) ATTR_WEAK;
+
+tusb_error_t tusbh_configuration_set     (tusb_handle_device_t device_hdl, uint8_t configure_number) ATTR_WARN_UNUSED_RESULT;
 tusbh_device_status_t tusbh_device_status_get (tusb_handle_device_t const device_hdl) ATTR_WARN_UNUSED_RESULT;
 
 #if TUSB_CFG_OS == TUSB_OS_NONE // TODO move later
@@ -147,7 +149,7 @@ static inline void tusb_tick_tock(void)
 
 tusb_error_t usbh_init(void);
 pipe_status_t usbh_pipe_status_get(pipe_handle_t pipe_hdl) ATTR_WARN_UNUSED_RESULT;
-void usbh_enum_task(void);
+void usbh_enumeration_task(void);
 
 #endif
 

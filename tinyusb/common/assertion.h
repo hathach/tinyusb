@@ -69,24 +69,24 @@ extern "C"
 // Assert Helper
 //--------------------------------------------------------------------+
 #define ASSERT_MESSAGE(format, ...)\
-    _PRINTF("Assert at %s: %s:%d: " format "\n", __FILE__, __PRETTY_FUNCTION__, __LINE__, __VA_ARGS__)
+    _PRINTF("Assert at %s %s %d: " format "\n", __BASE_FILE__, __PRETTY_FUNCTION__, __LINE__, __VA_ARGS__)
 
 #ifndef _TEST_ASSERT_
-  #define ASSERT_ERROR_HANDLER(x)  return (x)
+  #define ASSERT_ERROR_HANDLER(x, para)  return (x)
 #else
-  #define ASSERT_ERROR_HANDLER(x)  Throw(x)
+  #define ASSERT_ERROR_HANDLER(x, para)  Throw(x)
 #endif
 
-#define ASSERT_DEFINE(...) ASSERT_DEFINE_WITH_HANDLER(ASSERT_ERROR_HANDLER, __VA_ARGS__)
-
-#define ASSERT_DEFINE_WITH_HANDLER(error_handler, setup_statement, condition, error, format, ...) \
+#define ASSERT_DEFINE_WITH_HANDLER(error_handler, handler_para, setup_statement, condition, error, format, ...) \
   do{\
     setup_statement;\
 	  if (!(condition)) {\
 	    ASSERT_MESSAGE(format, __VA_ARGS__);\
-	    error_handler(error);\
+	    error_handler(error, handler_para);\
 	  }\
 	}while(0)
+
+#define ASSERT_DEFINE(...) ASSERT_DEFINE_WITH_HANDLER(ASSERT_ERROR_HANDLER, NULL, __VA_ARGS__)
 
 //--------------------------------------------------------------------+
 // tusb_error_t Status Assert TODO use ASSERT_DEFINE

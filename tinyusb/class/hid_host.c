@@ -91,7 +91,7 @@ uint8_t tusbh_hid_keyboard_no_instances(tusb_handle_device_t const device_hdl)
 //--------------------------------------------------------------------+
 void class_hid_keyboard_init(void)
 {
-  memset(&keyboard_info_pool, 0, sizeof(class_hid_keyboard_info_t)*TUSB_CFG_HOST_DEVICE_MAX);
+  memclr_(&keyboard_info_pool, sizeof(class_hid_keyboard_info_t)*TUSB_CFG_HOST_DEVICE_MAX);
 }
 
 tusb_error_t class_hid_keyboard_install(uint8_t const dev_addr, uint8_t const *descriptor)
