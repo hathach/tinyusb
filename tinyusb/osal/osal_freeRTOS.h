@@ -76,6 +76,7 @@
 #define OSAL_TASK_LOOP_END \
   }
 
+// TODO FreeRTOS TASK_ASSERT need to omit do while to get continue statement works.
 #define TASK_ASSERT(condition)
 #define TASK_ASSERT_STATUS(sts)
 

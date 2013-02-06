@@ -110,7 +110,7 @@ typedef struct { // TODO internal structure, re-order members
 // ADDRESS 0 API
 //--------------------------------------------------------------------+
 tusb_error_t hcd_addr0_open(usbh_device_addr0_t *dev_addr0) ATTR_WARN_UNUSED_RESULT;
-tusb_error_t hcd_addr0_close(usbh_device_addr0_t *dev_addr0) ATTR_WARN_UNUSED_RESULT;
+//NOTE addr0 close is not needed tusb_error_t hcd_addr0_close(usbh_device_addr0_t *dev_addr0) ATTR_WARN_UNUSED_RESULT;
 
 #ifdef __cplusplus
  }

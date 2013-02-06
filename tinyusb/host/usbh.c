@@ -79,7 +79,7 @@ OSAL_QUEUE_DEF(enum_queue, ENUM_QUEUE_DEPTH, uin32_t);
 osal_queue_handle_t enum_queue_hdl;
 
 usbh_device_addr0_t device_addr0 TUSB_CFG_ATTR_USBRAM;
-uint8_t enum_data_buffer[TUSB_CFG_HOST_ENUM_BUFFER_SIZE] TUSB_CFG_ATTR_USBRAM;
+STATIC_ uint8_t enum_data_buffer[TUSB_CFG_HOST_ENUM_BUFFER_SIZE] TUSB_CFG_ATTR_USBRAM;
 
 
 void usbh_enumeration_task(void)
@@ -108,7 +108,7 @@ void usbh_enumeration_task(void)
 
       hcd_pipe_control_xfer(device_addr0.pipe_hdl, &request_device_desc, enum_data_buffer);
       osal_semaphore_wait(device_addr0.sem_hdl, OSAL_TIMEOUT_NORMAL, &error); // careful of local variable without static
-      TASK_ASSERT_STATUS_HANDLER(error, tusbh_device_mount_failed_cb(TUSB_ERROR_USBH_MOUNT_FAILED, NULL));
+      TASK_ASSERT_STATUS_HANDLER(error, tusbh_device_mount_failed_cb(TUSB_ERROR_USBH_MOUNT_DEVICE_NOT_RESPOND, NULL) );
     }
 
     new_addr = get_new_address();
@@ -123,7 +123,7 @@ void usbh_enumeration_task(void)
 
       hcd_pipe_control_xfer(device_addr0.pipe_hdl, &request_set_address, NULL);
       osal_semaphore_wait(device_addr0.sem_hdl, OSAL_TIMEOUT_NORMAL, &error); // careful of local variable without static
-      TASK_ASSERT_STATUS(error);
+      TASK_ASSERT_STATUS_HANDLER(error, tusbh_device_mount_failed_cb(TUSB_ERROR_USBH_MOUNT_DEVICE_NOT_RESPOND, NULL) );
     }
 
     // update data for the new device
@@ -132,9 +132,6 @@ void usbh_enumeration_task(void)
     usbh_device_info_pool[new_addr].hub_port = device_addr0.enum_entry.hub_port;
     usbh_device_info_pool[new_addr].speed    = device_addr0.speed;
     usbh_device_info_pool[new_addr].status   = TUSB_DEVICE_STATUS_ADDRESSED;
-
-    hcd_addr0_close(&device_addr0);
-
 
   }else // device connect via a hub
   {

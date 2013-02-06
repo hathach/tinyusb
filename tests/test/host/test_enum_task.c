@@ -46,6 +46,8 @@
 
 extern usbh_device_info_t usbh_device_info_pool[TUSB_CFG_HOST_DEVICE_MAX];
 extern usbh_device_addr0_t device_addr0;
+extern uint8_t enum_data_buffer[TUSB_CFG_HOST_ENUM_BUFFER_SIZE];
+
 tusb_handle_device_t dev_hdl;
 pipe_handle_t pipe_addr0 = 12;
 
@@ -72,7 +74,6 @@ void setUp(void)
   hcd_port_speed_ExpectAndReturn(enum_connect.core_id, TUSB_SPEED_FULL);
 
   hcd_addr0_open_IgnoreAndReturn(TUSB_ERROR_NONE);
-  hcd_addr0_close_IgnoreAndReturn(TUSB_ERROR_NONE);
 }
 
 void tearDown(void)
@@ -152,17 +153,26 @@ tusb_error_t control_xfer_stub(pipe_handle_t pipe_hdl, const tusb_std_request_t 
 //--------------------------------------------------------------------+
 // enum connect directed
 //--------------------------------------------------------------------+
-void test_failed_get_first_dev_desc(void)
+void test_addr0_failed_dev_desc(void)
 {
   osal_semaphore_wait_StubWithCallback(semaphore_wait_timeout_stub(0));
-  tusbh_device_mount_failed_cb_Expect(TUSB_ERROR_USBH_MOUNT_FAILED, NULL);
+  tusbh_device_mount_failed_cb_Expect(TUSB_ERROR_USBH_MOUNT_DEVICE_NOT_RESPOND, NULL);
 
   usbh_enumeration_task();
 }
 
+void test_addr0_failed_set_address(void)
+{
+  osal_semaphore_wait_StubWithCallback(semaphore_wait_timeout_stub(1));
+  tusbh_device_mount_failed_cb_Expect(TUSB_ERROR_USBH_MOUNT_DEVICE_NOT_RESPOND, NULL);
+
+  usbh_enumeration_task();
+
+  TEST_ASSERT_EQUAL_MEMORY(&desc_device, enum_data_buffer, 8);
+}
+
 void test_enum_task_connect(void)
 {
-
   usbh_enumeration_task();
 
   TEST_ASSERT_EQUAL(TUSB_DEVICE_STATUS_ADDRESSED, usbh_device_info_pool[0].status);
