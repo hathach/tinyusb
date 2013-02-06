@@ -84,7 +84,10 @@ void usbh_enumeration_task(void)
 {
   tusb_error_t error;
   usbh_enumerate_t enum_entry;
+  tusb_std_request_t request_packet;
+
   static uint8_t new_addr;
+  static uint8_t configure_selected = 1;
 
   OSAL_TASK_LOOP_BEGIN
 
@@ -98,95 +101,98 @@ void usbh_enumeration_task(void)
 
   TASK_ASSERT_STATUS( hcd_pipe_control_open(0, 8) );
 
-  { // Get first 8 bytes of device descriptor to get Control Endpoint Size
-    tusb_std_request_t request_8byte_device_desc = {
+  //------------- Get first 8 bytes of device descriptor to get Control Endpoint Size -------------//
+  request_packet = (tusb_std_request_t) {
         .bmRequestType = { .direction = TUSB_DIR_DEV_TO_HOST, .type = TUSB_REQUEST_TYPE_STANDARD, .recipient = TUSB_REQUEST_RECIPIENT_DEVICE },
         .bRequest = TUSB_REQUEST_GET_DESCRIPTOR,
         .wValue   = (TUSB_DESC_DEVICE << 8),
         .wLength  = 8
-    };
+  };
+  hcd_pipe_control_xfer(0, &request_packet, enum_data_buffer);
+  osal_semaphore_wait(usbh_device_info_pool[0].sem_hdl, OSAL_TIMEOUT_NORMAL, &error); // careful of local variable without static
+  TASK_ASSERT_STATUS_HANDLER(error, tusbh_device_mount_failed_cb(TUSB_ERROR_USBH_MOUNT_DEVICE_NOT_RESPOND, NULL) );
 
-    hcd_pipe_control_xfer(0, &request_8byte_device_desc, enum_data_buffer);
-    osal_semaphore_wait(usbh_device_info_pool[0].sem_hdl, OSAL_TIMEOUT_NORMAL, &error); // careful of local variable without static
-    TASK_ASSERT_STATUS_HANDLER(error, tusbh_device_mount_failed_cb(TUSB_ERROR_USBH_MOUNT_DEVICE_NOT_RESPOND, NULL) );
-  }
-
+  //------------- Set new address -------------//
   new_addr = get_new_address();
   TASK_ASSERT(new_addr <= TUSB_CFG_HOST_DEVICE_MAX);
 
-  { // Set new address
-    tusb_std_request_t request_set_address = {
+  request_packet = (tusb_std_request_t) {
         .bmRequestType = { .direction = TUSB_DIR_HOST_TO_DEV, .type = TUSB_REQUEST_TYPE_STANDARD, .recipient = TUSB_REQUEST_RECIPIENT_DEVICE },
         .bRequest = TUSB_REQUEST_SET_ADDRESS,
         .wValue   = new_addr
-    };
+  };
+  (void) hcd_pipe_control_xfer(0, &request_packet, NULL);
+  osal_semaphore_wait(usbh_device_info_pool[0].sem_hdl, OSAL_TIMEOUT_NORMAL, &error); // careful of local variable without static
+  TASK_ASSERT_STATUS_HANDLER(error, tusbh_device_mount_failed_cb(TUSB_ERROR_USBH_MOUNT_DEVICE_NOT_RESPOND, NULL) );
 
-    (void) hcd_pipe_control_xfer(0, &request_set_address, NULL);
-    osal_semaphore_wait(usbh_device_info_pool[0].sem_hdl, OSAL_TIMEOUT_NORMAL, &error); // careful of local variable without static
-    TASK_ASSERT_STATUS_HANDLER(error, tusbh_device_mount_failed_cb(TUSB_ERROR_USBH_MOUNT_DEVICE_NOT_RESPOND, NULL) );
-  }
-
-  // update device info & open control pipe for new address
+  //------------- update device info & open control pipe for new address -------------//
   usbh_device_info_pool[new_addr].core_id  = enum_entry.core_id;
   usbh_device_info_pool[new_addr].hub_addr = enum_entry.hub_addr;
   usbh_device_info_pool[new_addr].hub_port = enum_entry.hub_port;
   usbh_device_info_pool[new_addr].speed    = enum_entry.speed;
   usbh_device_info_pool[new_addr].status   = TUSB_DEVICE_STATUS_ADDRESSED;
-
   TASK_ASSERT_STATUS ( hcd_pipe_control_open(new_addr, ((tusb_descriptor_device_t*) enum_data_buffer)->bMaxPacketSize0 ) );
 
-  { // Get full device descriptor
-    tusb_std_request_t request_full_device_desc = {
-        .bmRequestType = { .direction = TUSB_DIR_DEV_TO_HOST, .type = TUSB_REQUEST_TYPE_STANDARD, .recipient = TUSB_REQUEST_RECIPIENT_DEVICE },
-        .bRequest = TUSB_REQUEST_GET_DESCRIPTOR,
-        .wValue   = (TUSB_DESC_DEVICE << 8),
-        .wLength  = 18
-    };
-
-    (void) hcd_pipe_control_xfer(new_addr, &request_full_device_desc, enum_data_buffer);
-    osal_semaphore_wait(usbh_device_info_pool[new_addr].sem_hdl, OSAL_TIMEOUT_NORMAL, &error); // careful of local variable without static
-    TASK_ASSERT_STATUS_HANDLER(error, tusbh_device_mount_failed_cb(TUSB_ERROR_USBH_MOUNT_DEVICE_NOT_RESPOND, NULL) );
-  }
+  //------------- Get full device descriptor -------------//
+  request_packet = (tusb_std_request_t) {
+      .bmRequestType = { .direction = TUSB_DIR_DEV_TO_HOST, .type = TUSB_REQUEST_TYPE_STANDARD, .recipient = TUSB_REQUEST_RECIPIENT_DEVICE },
+      .bRequest = TUSB_REQUEST_GET_DESCRIPTOR,
+      .wValue   = (TUSB_DESC_DEVICE << 8),
+      .wLength  = 18
+  };
+  (void) hcd_pipe_control_xfer(new_addr, &request_packet, enum_data_buffer);
+  osal_semaphore_wait(usbh_device_info_pool[new_addr].sem_hdl, OSAL_TIMEOUT_NORMAL, &error); // careful of local variable without static
+  TASK_ASSERT_STATUS_HANDLER(error, tusbh_device_mount_failed_cb(TUSB_ERROR_USBH_MOUNT_DEVICE_NOT_RESPOND, NULL) );
 
   usbh_device_info_pool[new_addr].vendor_id       = ((tusb_descriptor_device_t*) enum_data_buffer)->idVendor;
   usbh_device_info_pool[new_addr].product_id      = ((tusb_descriptor_device_t*) enum_data_buffer)->idProduct;
   usbh_device_info_pool[new_addr].configure_count = ((tusb_descriptor_device_t*) enum_data_buffer)->bNumConfigurations;
 
-  uint8_t configure_selected = 1;
+  //------------- update device info and invoke callback to ask user which configuration to select -------------//
   if (tusbh_device_attached_cb)
   {
     configure_selected = min8_of(1, tusbh_device_attached_cb( (tusb_descriptor_device_t*) enum_data_buffer) );
+  }else
+  {
+    configure_selected = 1;
   }
 
-  { // Get 9 bytes of configuration descriptor
-    tusb_std_request_t request_9byte_config_desc = {
-        .bmRequestType = { .direction = TUSB_DIR_DEV_TO_HOST, .type = TUSB_REQUEST_TYPE_STANDARD, .recipient = TUSB_REQUEST_RECIPIENT_DEVICE },
-        .bRequest = TUSB_REQUEST_GET_DESCRIPTOR,
-        .wValue   = (TUSB_DESC_CONFIGURATION << 8),
-        .wLength  = 9
-    };
-
-    (void) hcd_pipe_control_xfer(new_addr, &request_9byte_config_desc, enum_data_buffer);
-    osal_semaphore_wait(usbh_device_info_pool[new_addr].sem_hdl, OSAL_TIMEOUT_NORMAL, &error); // careful of local variable without static
-    TASK_ASSERT_STATUS_HANDLER(error, tusbh_device_mount_failed_cb(TUSB_ERROR_USBH_MOUNT_DEVICE_NOT_RESPOND, NULL) );
-  }
+  //------------- Get 9 bytes of configuration descriptor -------------//
+  request_packet = (tusb_std_request_t) {
+      .bmRequestType = { .direction = TUSB_DIR_DEV_TO_HOST, .type = TUSB_REQUEST_TYPE_STANDARD, .recipient = TUSB_REQUEST_RECIPIENT_DEVICE },
+      .bRequest = TUSB_REQUEST_GET_DESCRIPTOR,
+      .wValue   = (TUSB_DESC_CONFIGURATION << 8) | (configure_selected - 1),
+      .wLength  = 9
+  };
+  (void) hcd_pipe_control_xfer(new_addr, &request_packet, enum_data_buffer);
+  osal_semaphore_wait(usbh_device_info_pool[new_addr].sem_hdl, OSAL_TIMEOUT_NORMAL, &error); // careful of local variable without static
+  TASK_ASSERT_STATUS_HANDLER(error, tusbh_device_mount_failed_cb(TUSB_ERROR_USBH_MOUNT_DEVICE_NOT_RESPOND, NULL) );
 
   TASK_ASSERT_HANDLER( TUSB_CFG_HOST_ENUM_BUFFER_SIZE > ((tusb_descriptor_configuration_t*)enum_data_buffer)->wTotalLength,
                        tusbh_device_mount_failed_cb(TUSB_ERROR_USBH_MOUNT_CONFIG_DESC_TOO_LONG, NULL) );
 
-  { // Get 9 bytes of configuration descriptor
-    tusb_std_request_t request_9byte_config_desc = {
+  //------------- Get full configuration descriptor -------------//
+  request_packet = (tusb_std_request_t) {
         .bmRequestType = { .direction = TUSB_DIR_DEV_TO_HOST, .type = TUSB_REQUEST_TYPE_STANDARD, .recipient = TUSB_REQUEST_RECIPIENT_DEVICE },
         .bRequest = TUSB_REQUEST_GET_DESCRIPTOR,
-        .wValue   = (TUSB_DESC_CONFIGURATION << 8),
+        .wValue   = (TUSB_DESC_CONFIGURATION << 8) | (configure_selected - 1),
         .wLength  = ((tusb_descriptor_configuration_t*)enum_data_buffer)->wTotalLength
-    };
+  };
+  (void) hcd_pipe_control_xfer(new_addr, &request_packet, enum_data_buffer);
+  osal_semaphore_wait(usbh_device_info_pool[new_addr].sem_hdl, OSAL_TIMEOUT_NORMAL, &error); // careful of local variable without static
+  TASK_ASSERT_STATUS_HANDLER(error, tusbh_device_mount_failed_cb(TUSB_ERROR_USBH_MOUNT_DEVICE_NOT_RESPOND, NULL) );
 
-    (void) hcd_pipe_control_xfer(new_addr, &request_9byte_config_desc, enum_data_buffer);
-    osal_semaphore_wait(usbh_device_info_pool[new_addr].sem_hdl, OSAL_TIMEOUT_NORMAL, &error); // careful of local variable without static
-    TASK_ASSERT_STATUS_HANDLER(error, tusbh_device_mount_failed_cb(TUSB_ERROR_USBH_MOUNT_DEVICE_NOT_RESPOND, NULL) );
-  }
+  //------------- Set Configure -------------//
+  request_packet = (tusb_std_request_t) {
+        .bmRequestType = { .direction = TUSB_DIR_HOST_TO_DEV, .type = TUSB_REQUEST_TYPE_STANDARD, .recipient = TUSB_REQUEST_RECIPIENT_DEVICE },
+        .bRequest = TUSB_REQUEST_SET_CONFIGURATION,
+        .wValue   = configure_selected,
+  };
+  (void) hcd_pipe_control_xfer(new_addr, &request_packet, enum_data_buffer);
+  osal_semaphore_wait(usbh_device_info_pool[new_addr].sem_hdl, OSAL_TIMEOUT_NORMAL, &error); // careful of local variable without static
+  TASK_ASSERT_STATUS_HANDLER(error, tusbh_device_mount_failed_cb(TUSB_ERROR_USBH_MOUNT_DEVICE_NOT_RESPOND, NULL) );
 
+  // TODO invoke mounted callback
   OSAL_TASK_LOOP_END
 }
 
