@@ -109,15 +109,21 @@ static inline uint32_t u32_from_u8(uint8_t b1, uint8_t b2, uint8_t b3, uint8_t b
 }
 
 /// min value
-static inline uint32_t min_of(uint32_t x, uint32_t y) ATTR_ALWAYS_INLINE ATTR_CONST;
-static inline uint32_t min_of(uint32_t x, uint32_t y)
+static inline uint8_t min8_of(uint8_t x, uint8_t y) ATTR_ALWAYS_INLINE ATTR_CONST;
+static inline uint8_t min8_of(uint8_t x, uint8_t y)
+{
+  return (x < y) ? x : y;
+}
+
+static inline uint32_t min32_of(uint32_t x, uint32_t y) ATTR_ALWAYS_INLINE ATTR_CONST;
+static inline uint32_t min32_of(uint32_t x, uint32_t y)
 {
   return (x < y) ? x : y;
 }
 
 /// max value
-static inline uint32_t max_of(uint32_t x, uint32_t y) ATTR_ALWAYS_INLINE ATTR_CONST;
-static inline uint32_t max_of(uint32_t x, uint32_t y)
+static inline uint32_t max32_of(uint32_t x, uint32_t y) ATTR_ALWAYS_INLINE ATTR_CONST;
+static inline uint32_t max32_of(uint32_t x, uint32_t y)
 {
   return (x > y) ? x : y;
 }

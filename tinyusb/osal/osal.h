@@ -96,6 +96,10 @@ typedef uint32_t osal_task_t;
     ASSERT_DEFINE(tusb_error_t status = (tusb_error_t)(sts),\
                   TUSB_ERROR_NONE == status, (void) 0, "%s", TUSB_ErrorStr[status])
 
+#define TASK_ASSERT_HANDLER(condition, func_call) \
+    ASSERT_DEFINE_WITH_HANDLER(TASK_ASSERT_ERROR_HANDLER, func_call, ,\
+                               condition, (void) 0, "%s", "evaluated to false")
+
 #define TASK_ASSERT(condition)  ASSERT(condition, (void) 0)
 
 tusb_error_t osal_task_create(osal_task_t *task);

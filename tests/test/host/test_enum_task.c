@@ -103,6 +103,10 @@ semaphore_wait_timeout(1)
 semaphore_wait_timeout(2)
 semaphore_wait_timeout(3)
 semaphore_wait_timeout(4)
+semaphore_wait_timeout(5)
+semaphore_wait_timeout(6)
+semaphore_wait_timeout(7)
+semaphore_wait_timeout(8)
 
 tusb_error_t control_xfer_stub(uint8_t dev_addr, const tusb_std_request_t * const p_request, uint8_t data[], int num_call)
 {
@@ -146,7 +150,7 @@ tusb_error_t control_xfer_stub(uint8_t dev_addr, const tusb_std_request_t * cons
 }
 
 //--------------------------------------------------------------------+
-// enum connect directed
+// enumeration
 //--------------------------------------------------------------------+
 void test_addr0_failed_dev_desc(void)
 {
@@ -166,14 +170,11 @@ void test_addr0_failed_set_address(void)
   TEST_ASSERT_EQUAL_MEMORY(&desc_device, enum_data_buffer, 8);
 }
 
-
-
 void test_enum_failed_get_full_dev_desc(void)
 {
-  pipe_handle_t a_pipe = 0x1111;
   osal_semaphore_wait_StubWithCallback(semaphore_wait_timeout_stub(2));
 
-  hcd_pipe_control_open_ExpectAndReturn(1, desc_device.bMaxPacketSize0, a_pipe);
+  hcd_pipe_control_open_ExpectAndReturn(1, desc_device.bMaxPacketSize0, TUSB_ERROR_NONE);
   tusbh_device_mount_failed_cb_Expect(TUSB_ERROR_USBH_MOUNT_DEVICE_NOT_RESPOND, NULL);
 
   usbh_enumeration_task();
@@ -185,15 +186,27 @@ void test_enum_failed_get_full_dev_desc(void)
   TEST_ASSERT_EQUAL(enum_connect.hub_port, usbh_device_info_pool[1].hub_port);
 }
 
-void test_enum_update_new_device_info(void)
+void test_enum_failed_get_9byte_config_desc(void)
 {
-  TEST_IGNORE();
+  osal_semaphore_wait_StubWithCallback(semaphore_wait_timeout_stub(3));
 
-  osal_semaphore_wait_StubWithCallback(semaphore_wait_timeout_stub(2));
+  hcd_pipe_control_open_ExpectAndReturn(1, desc_device.bMaxPacketSize0, TUSB_ERROR_NONE);
+  tusbh_device_attached_cb_ExpectAndReturn((tusb_descriptor_device_t*) enum_data_buffer, 1);
+  tusbh_device_mount_failed_cb_Expect(TUSB_ERROR_USBH_MOUNT_DEVICE_NOT_RESPOND, NULL);
 
   usbh_enumeration_task();
 
+  TEST_ASSERT_EQUAL(desc_device.idVendor, usbh_device_info_pool[1].vendor_id);
+  TEST_ASSERT_EQUAL(desc_device.idProduct, usbh_device_info_pool[1].product_id);
+  TEST_ASSERT_EQUAL(desc_device.bNumConfigurations, usbh_device_info_pool[1].configure_count);
+}
 
-//  hcd_pipe_control_open_ExpectAndReturn(1, desc_device.bMaxPacketSize0, TUSB_ERROR_NONE);
+void test_enum_failed_get_full_config_desc(void)
+{
+  osal_semaphore_wait_StubWithCallback(semaphore_wait_timeout_stub(4));
+  hcd_pipe_control_open_ExpectAndReturn(1, desc_device.bMaxPacketSize0, TUSB_ERROR_NONE);
+  tusbh_device_attached_cb_ExpectAndReturn((tusb_descriptor_device_t*) enum_data_buffer, 1);
+  tusbh_device_mount_failed_cb_Expect(TUSB_ERROR_USBH_MOUNT_DEVICE_NOT_RESPOND, NULL);
 
+  usbh_enumeration_task();
 }
