@@ -42,12 +42,12 @@
 #include "mock_hcd.h"
 #include "mock_usbh_hcd.h"
 
-extern usbh_device_info_t usbh_device_info_pool[TUSB_CFG_HOST_DEVICE_MAX];
+extern usbh_device_info_t usbh_device_info_pool[TUSB_CFG_HOST_DEVICE_MAX+1];
 tusb_handle_device_t dev_hdl;
 void setUp(void)
 {
   dev_hdl = 0;
-  memset(usbh_device_info_pool, 0, TUSB_CFG_HOST_DEVICE_MAX*sizeof(usbh_device_info_t));
+  memset(usbh_device_info_pool, 0, (TUSB_CFG_HOST_DEVICE_MAX+1)*sizeof(usbh_device_info_t));
 }
 
 void tearDown(void)
@@ -86,8 +86,8 @@ void test_usbh_init_ok(void)
 {
   uint32_t dummy;
 
-  usbh_device_info_t device_info_zero[TUSB_CFG_HOST_DEVICE_MAX];
-  memclr_(device_info_zero, sizeof(usbh_device_info_t)*TUSB_CFG_HOST_DEVICE_MAX);
+  usbh_device_info_t device_info_zero[TUSB_CFG_HOST_DEVICE_MAX+1];
+  memclr_(device_info_zero, sizeof(usbh_device_info_t)*(TUSB_CFG_HOST_DEVICE_MAX+1));
 
   for(uint32_t i=0; i<TUSB_CFG_HOST_CONTROLLER_NUM; i++)
     hcd_init_ExpectAndReturn(i, TUSB_ERROR_NONE);
@@ -97,14 +97,14 @@ void test_usbh_init_ok(void)
 
   TEST_ASSERT_EQUAL(TUSB_ERROR_NONE, usbh_init());
 
-  TEST_ASSERT_EQUAL_MEMORY(device_info_zero, usbh_device_info_pool, sizeof(usbh_device_info_t)*TUSB_CFG_HOST_DEVICE_MAX);
+  TEST_ASSERT_EQUAL_MEMORY(device_info_zero, usbh_device_info_pool, sizeof(usbh_device_info_t)*(TUSB_CFG_HOST_DEVICE_MAX+1));
 }
 
 void test_usbh_status_get_fail(void)
 {
   usbh_device_info_pool[dev_hdl].status = 0;
 
-  TEST_ASSERT_EQUAL( 0, tusbh_device_status_get(TUSB_CFG_HOST_DEVICE_MAX) );
+  TEST_ASSERT_EQUAL( 0, tusbh_device_status_get(TUSB_CFG_HOST_DEVICE_MAX+1) );
   TEST_ASSERT_EQUAL( TUSB_DEVICE_STATUS_UNPLUG, tusbh_device_status_get(dev_hdl) );
 }
 

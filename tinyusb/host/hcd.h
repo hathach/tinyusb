@@ -71,8 +71,8 @@ tusb_error_t hcd_init(uint8_t hostid) ATTR_WARN_UNUSED_RESULT;
 //--------------------------------------------------------------------+
 // PIPE API
 //--------------------------------------------------------------------+
-pipe_handle_t hcd_pipe_control_open(uint8_t dev_addr, uint8_t max_packet_size) ATTR_WARN_UNUSED_RESULT;
-tusb_error_t  hcd_pipe_control_xfer(pipe_handle_t pipe_hdl, tusb_std_request_t const * p_request, uint8_t data[]) ATTR_WARN_UNUSED_RESULT;
+tusb_error_t  hcd_pipe_control_open(uint8_t dev_addr, uint8_t max_packet_size) ATTR_WARN_UNUSED_RESULT;
+tusb_error_t  hcd_pipe_control_xfer(uint8_t dev_addr, tusb_std_request_t const * p_request, uint8_t data[]) ATTR_WARN_UNUSED_RESULT;
 pipe_handle_t hcd_pipe_open(uint8_t dev_addr, tusb_descriptor_endpoint_t const * endpoint_desc) ATTR_WARN_UNUSED_RESULT;
 
 #if 0

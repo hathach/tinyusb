@@ -70,23 +70,14 @@ typedef struct ATTR_ALIGNED(4){
   uint8_t core_id;
   uint8_t hub_addr;
   uint8_t hub_port;
-  uint8_t connect_status;
+  uint8_t speed;
 } usbh_enumerate_t;
-
-typedef struct {
-  usbh_enumerate_t enum_entry;
-  tusb_speed_t speed;
-  tusb_std_request_t request_packet; // needed to be on USB RAM
-  pipe_handle_t pipe_hdl;
-  OSAL_SEM_DEF(semaphore);
-  osal_semaphore_handle_t sem_hdl;
-} usbh_device_addr0_t;
 
 typedef struct { // TODO internal structure, re-order members
   uint8_t core_id;
-  tusb_speed_t speed;
   uint8_t hub_addr;
   uint8_t hub_port;
+  uint8_t speed;
 
   uint16_t vendor_id;
   uint16_t product_id;
@@ -94,8 +85,10 @@ typedef struct { // TODO internal structure, re-order members
 
   tusbh_device_status_t status;
 
-  pipe_handle_t pipe_control;
+//  pipe_handle_t pipe_control; NOTE: use device address/handle instead
   tusb_std_request_t request_control;
+  OSAL_SEM_DEF(semaphore);
+  osal_semaphore_handle_t sem_hdl;
 
 #if 0 // TODO allow configure for vendor/product
   struct {
@@ -109,7 +102,7 @@ typedef struct { // TODO internal structure, re-order members
 //--------------------------------------------------------------------+
 // ADDRESS 0 API
 //--------------------------------------------------------------------+
-tusb_error_t hcd_addr0_open(usbh_device_addr0_t *dev_addr0) ATTR_WARN_UNUSED_RESULT;
+//tusb_error_t hcd_addr0_open(usbh_device_addr0_t *dev_addr0) ATTR_WARN_UNUSED_RESULT;
 //NOTE addr0 close is not needed tusb_error_t hcd_addr0_close(usbh_device_addr0_t *dev_addr0) ATTR_WARN_UNUSED_RESULT;
 
 #ifdef __cplusplus
