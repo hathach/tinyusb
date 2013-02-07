@@ -228,12 +228,12 @@ tusb_error_t usbh_init(void)
 //--------------------------------------------------------------------+
 static inline uint8_t get_new_address(void)
 {
-  uint8_t new_addr;
-  for (new_addr=1; new_addr <= TUSB_CFG_HOST_DEVICE_MAX; new_addr++)
+  uint8_t addr;
+  for (addr=1; addr <= TUSB_CFG_HOST_DEVICE_MAX; addr++)
   {
-    if (usbh_device_info_pool[new_addr].status == TUSB_DEVICE_STATUS_UNPLUG)
+    if (usbh_device_info_pool[addr].status == TUSB_DEVICE_STATUS_UNPLUG)
       break;
   }
-  return new_addr;
+  return addr;
 }
 
