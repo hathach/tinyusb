@@ -79,8 +79,10 @@
 // TODO try to manipulate gcc cmd option instead
 #ifndef _TEST_
   #define STATIC_ static
+  #define INLINE_ inline
 #else
   #define STATIC_
+  #define INLINE_
 #endif
 
 #define STRING_(x)  #x  // stringify without expand

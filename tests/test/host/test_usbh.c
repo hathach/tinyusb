@@ -41,6 +41,7 @@
 #include "mock_osal.h"
 #include "mock_hcd.h"
 #include "mock_usbh_hcd.h"
+#include "mock_tusb_callback.h"
 
 extern usbh_device_info_t usbh_device_info_pool[TUSB_CFG_HOST_DEVICE_MAX+1];
 tusb_handle_device_t dev_hdl;
@@ -111,18 +112,28 @@ void test_usbh_init_reporter_queue_create_failed(void)
   TEST_IGNORE();
 }
 
+void class_init_expect(void)
+{
+  hidh_init_Expect();
+
+  //TODO update more classes
+}
+
 void test_usbh_init_ok(void)
 {
-  uint32_t dummy;
+  osal_queue_handle_t dummy;
 
   usbh_device_info_t device_info_zero[TUSB_CFG_HOST_DEVICE_MAX+1];
   memclr_(device_info_zero, sizeof(usbh_device_info_t)*(TUSB_CFG_HOST_DEVICE_MAX+1));
 
   hcd_init_expect();
   osal_task_create_IgnoreAndReturn(TUSB_ERROR_NONE);
-  osal_queue_create_IgnoreAndReturn((osal_queue_handle_t)(&dummy));
+  osal_queue_create_IgnoreAndReturn(dummy);
+
+  class_init_expect();
 
   TEST_ASSERT_EQUAL(TUSB_ERROR_NONE, usbh_init());
 
   TEST_ASSERT_EQUAL_MEMORY(device_info_zero, usbh_device_info_pool, sizeof(usbh_device_info_t)*(TUSB_CFG_HOST_DEVICE_MAX+1));
+
 }

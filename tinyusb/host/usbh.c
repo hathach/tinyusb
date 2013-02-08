@@ -93,9 +93,15 @@ tusb_error_t usbh_init(void)
     ASSERT_STATUS( hcd_init(TUSB_CFG_HOST_CONTROLLER_START_INDEX+i) );
   }
 
+  //------------- Enumeration & Reporter Task init -------------//
   ASSERT_STATUS( osal_task_create(&enum_task) );
   enum_queue_hdl = osal_queue_create(&enum_queue);
   ASSERT_PTR(enum_queue_hdl, TUSB_ERROR_OSAL_QUEUE_FAILED);
+
+  //------------- class init -------------//
+#if HOST_CLASS_HID
+  hidh_init();
+#endif
 
   return TUSB_ERROR_NONE;
 }
@@ -109,7 +115,7 @@ void usbh_enumeration_task(void)
   usbh_enumerate_t enum_entry;
   tusb_std_request_t request_packet;
 
-  // for OSAL_NONE local variable wont retain value after blocking service sem_wait/queue_recv
+  // for OSAL_NONE local variable won't retain value after blocking service sem_wait/queue_recv
   static uint8_t new_addr;
   static uint8_t configure_selected = 1;
 

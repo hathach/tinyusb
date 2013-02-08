@@ -144,6 +144,9 @@ tusb_error_t control_xfer_stub(uint8_t dev_addr, const tusb_std_request_t * cons
       TEST_ASSERT_EQUAL(desc_configuration.configuration.wTotalLength, p_request->wLength);
       memcpy(data, &desc_configuration, p_request->wLength);
     break;
+
+    default:
+      return TUSB_ERROR_OSAL_TIMEOUT;
   }
 
   return TUSB_ERROR_NONE;
@@ -207,6 +210,17 @@ void test_enum_failed_get_full_config_desc(void)
   hcd_pipe_control_open_ExpectAndReturn(1, desc_device.bMaxPacketSize0, TUSB_ERROR_NONE);
   tusbh_device_attached_cb_ExpectAndReturn((tusb_descriptor_device_t*) enum_data_buffer, 1);
   tusbh_device_mount_failed_cb_Expect(TUSB_ERROR_USBH_MOUNT_DEVICE_NOT_RESPOND, NULL);
+
+  usbh_enumeration_task();
+}
+
+void test_enum_parse_config_desc(void)
+{
+  osal_semaphore_wait_StubWithCallback(semaphore_wait_timeout_stub(5));
+  hcd_pipe_control_open_ExpectAndReturn(1, desc_device.bMaxPacketSize0, TUSB_ERROR_NONE);
+  tusbh_device_attached_cb_ExpectAndReturn((tusb_descriptor_device_t*) enum_data_buffer, 1);
+
+//  hid_install
 
   usbh_enumeration_task();
 }

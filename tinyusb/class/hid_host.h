@@ -81,8 +81,16 @@ typedef struct {
   keyboard_interface_t instance[TUSB_CFG_HOST_HID_KEYBOARD_NO_INSTANCES_PER_DEVICE];
 } class_hid_keyboard_info_t;
 
-void class_hid_keyboard_init(void);
-tusb_error_t class_hid_keyboard_install(uint8_t const dev_addr, uint8_t const *descriptor) ATTR_WARN_UNUSED_RESULT;
+void hidh_keyboard_init(void);
+tusb_error_t hidh_keyboard_install(uint8_t const dev_addr, uint8_t const *descriptor) ATTR_WARN_UNUSED_RESULT;
+
+static inline void hidh_init(void) ATTR_ALWAYS_INLINE;
+static inline void hidh_init(void)
+{
+#if TUSB_CFG_HOST_HID_KEYBOARD
+  hidh_keyboard_init();
+#endif
+}
 
 #endif
 
