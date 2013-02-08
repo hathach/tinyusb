@@ -98,6 +98,10 @@
     #warning TUSB_CFG_HOST_CONTROLLER_NUM is not defined, default value is 1
   #endif
 
+  #ifndef TUSB_CFG_HOST_CONTROLLER_START_INDEX
+    #error TUSB_CFG_HOST_CONTROLLER_START_INDEX is not defined
+  #endif
+
   #ifndef TUSB_CFG_HOST_DEVICE_MAX
     #define TUSB_CFG_HOST_DEVICE_MAX 1
     #warning TUSB_CFG_HOST_DEVICE_MAX is not defined, default value is 1

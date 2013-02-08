@@ -51,14 +51,24 @@
 //--------------------------------------------------------------------+
 // MACRO CONSTANT TYPEDEF
 //--------------------------------------------------------------------+
+#define ENUM_QUEUE_DEPTH  5
 
 
 //--------------------------------------------------------------------+
 // INTERNAL OBJECT & FUNCTION DECLARATION
 //--------------------------------------------------------------------+
-static inline uint8_t get_new_address(void) ATTR_ALWAYS_INLINE;
-
 STATIC_ usbh_device_info_t usbh_device_info_pool[TUSB_CFG_HOST_DEVICE_MAX+1]; // including zero-address
+
+//------------- Enumeration Task Data -------------//
+OSAL_TASK_DEF(enum_task, usbh_enumeration_task, 128, OSAL_PRIO_HIGH);
+OSAL_QUEUE_DEF(enum_queue, ENUM_QUEUE_DEPTH, uin32_t);
+osal_queue_handle_t enum_queue_hdl;
+STATIC_ uint8_t enum_data_buffer[TUSB_CFG_HOST_ENUM_BUFFER_SIZE] TUSB_CFG_ATTR_USBRAM;
+
+//------------- Reporter Task Data -------------//
+
+//------------- Helper Function Prototypes -------------//
+static inline uint8_t get_new_address(void) ATTR_ALWAYS_INLINE;
 
 //--------------------------------------------------------------------+
 // PUBLIC API (Parameter Verification is required)
@@ -70,22 +80,36 @@ tusbh_device_status_t tusbh_device_status_get (tusb_handle_device_t const device
 }
 
 //--------------------------------------------------------------------+
-// ENUMERATION TASK & ITS DATA
+// CLASS-USBD API (don't require to verify parameters)
 //--------------------------------------------------------------------+
-OSAL_TASK_DEF(enum_task, usbh_enumeration_task, 128, OSAL_PRIO_HIGH);
+tusb_error_t usbh_init(void)
+{
+  uint32_t i;
 
-#define ENUM_QUEUE_DEPTH  5
-OSAL_QUEUE_DEF(enum_queue, ENUM_QUEUE_DEPTH, uin32_t);
-osal_queue_handle_t enum_queue_hdl;
-STATIC_ uint8_t enum_data_buffer[TUSB_CFG_HOST_ENUM_BUFFER_SIZE] TUSB_CFG_ATTR_USBRAM;
+  memclr_(usbh_device_info_pool, sizeof(usbh_device_info_t)*(TUSB_CFG_HOST_DEVICE_MAX+1));
 
+  for(i=0; i<TUSB_CFG_HOST_CONTROLLER_NUM; i++)
+  {
+    ASSERT_STATUS( hcd_init(TUSB_CFG_HOST_CONTROLLER_START_INDEX+i) );
+  }
 
+  ASSERT_STATUS( osal_task_create(&enum_task) );
+  enum_queue_hdl = osal_queue_create(&enum_queue);
+  ASSERT_PTR(enum_queue_hdl, TUSB_ERROR_OSAL_QUEUE_FAILED);
+
+  return TUSB_ERROR_NONE;
+}
+
+//--------------------------------------------------------------------+
+// ENUMERATION TASK
+//--------------------------------------------------------------------+
 void usbh_enumeration_task(void)
 {
   tusb_error_t error;
   usbh_enumerate_t enum_entry;
   tusb_std_request_t request_packet;
 
+  // for OSAL_NONE local variable wont retain value after blocking service sem_wait/queue_recv
   static uint8_t new_addr;
   static uint8_t configure_selected = 1;
 
@@ -201,26 +225,7 @@ void usbh_enumeration_task(void)
 //--------------------------------------------------------------------+
 
 
-//--------------------------------------------------------------------+
-// CLASS-USBD API (don't require to verify parameters)
-//--------------------------------------------------------------------+
-tusb_error_t usbh_init(void)
-{
-  uint32_t i;
 
-  memclr_(usbh_device_info_pool, sizeof(usbh_device_info_t)*(TUSB_CFG_HOST_DEVICE_MAX+1));
-
-  for(i=0; i<TUSB_CFG_HOST_CONTROLLER_NUM; i++)
-  {
-    ASSERT_STATUS( hcd_init(i) );
-  }
-
-  ASSERT_STATUS( osal_task_create(&enum_task) );
-  enum_queue_hdl = osal_queue_create(&enum_queue);
-  ASSERT_PTR(enum_queue_hdl, TUSB_ERROR_OSAL_QUEUE_FAILED);
-
-  return TUSB_ERROR_NONE;
-}
 #endif
 
 //--------------------------------------------------------------------+

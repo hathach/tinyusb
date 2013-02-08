@@ -51,16 +51,16 @@
 #ifndef _TUSB_OSAL_FREERTOS_H_
 #define _TUSB_OSAL_FREERTOS_H_
 
-#ifdef __cplusplus
- extern "C" {
-#endif
-
 #include "osal_common.h"
 
 //------------- FreeRTOS Headers -------------//
 #include "FreeRTOS.h"
 #include "semphr.h"
 #include "queue.h"
+
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 //--------------------------------------------------------------------+
 // TICK API

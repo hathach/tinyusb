@@ -55,51 +55,8 @@ void tearDown(void)
 }
 
 //--------------------------------------------------------------------+
-// init, get_status
+// get_status
 //--------------------------------------------------------------------+
-void test_usbh_init_hcd_failed(void)
-{
-  hcd_init_IgnoreAndReturn(TUSB_ERROR_HCD_FAILED);
-  TEST_ASSERT_EQUAL(TUSB_ERROR_HCD_FAILED, usbh_init());
-}
-
-void test_usbh_init_task_create_failed(void)
-{
-  for(uint32_t i=0; i<TUSB_CFG_HOST_CONTROLLER_NUM; i++)
-    hcd_init_ExpectAndReturn(i, TUSB_ERROR_NONE);
-
-  osal_task_create_IgnoreAndReturn(TUSB_ERROR_OSAL_TASK_FAILED);
-  TEST_ASSERT_EQUAL(TUSB_ERROR_OSAL_TASK_FAILED, usbh_init());
-}
-
-void test_usbh_init_queue_create_failed(void)
-{
-  for(uint32_t i=0; i<TUSB_CFG_HOST_CONTROLLER_NUM; i++)
-    hcd_init_ExpectAndReturn(i, TUSB_ERROR_NONE);
-
-  osal_task_create_IgnoreAndReturn(TUSB_ERROR_NONE);
-  osal_queue_create_IgnoreAndReturn(NULL);
-  TEST_ASSERT_EQUAL(TUSB_ERROR_OSAL_QUEUE_FAILED, usbh_init());
-}
-
-void test_usbh_init_ok(void)
-{
-  uint32_t dummy;
-
-  usbh_device_info_t device_info_zero[TUSB_CFG_HOST_DEVICE_MAX+1];
-  memclr_(device_info_zero, sizeof(usbh_device_info_t)*(TUSB_CFG_HOST_DEVICE_MAX+1));
-
-  for(uint32_t i=0; i<TUSB_CFG_HOST_CONTROLLER_NUM; i++)
-    hcd_init_ExpectAndReturn(i, TUSB_ERROR_NONE);
-
-  osal_task_create_IgnoreAndReturn(TUSB_ERROR_NONE);
-  osal_queue_create_IgnoreAndReturn((osal_queue_handle_t)(&dummy));
-
-  TEST_ASSERT_EQUAL(TUSB_ERROR_NONE, usbh_init());
-
-  TEST_ASSERT_EQUAL_MEMORY(device_info_zero, usbh_device_info_pool, sizeof(usbh_device_info_t)*(TUSB_CFG_HOST_DEVICE_MAX+1));
-}
-
 void test_usbh_status_get_fail(void)
 {
   usbh_device_info_pool[dev_hdl].status = 0;
@@ -112,4 +69,60 @@ void test_usbh_status_get_succeed(void)
 {
   usbh_device_info_pool[dev_hdl].status = TUSB_DEVICE_STATUS_READY;
   TEST_ASSERT_EQUAL( TUSB_DEVICE_STATUS_READY, tusbh_device_status_get(dev_hdl) );
+}
+
+//--------------------------------------------------------------------+
+// Init
+//--------------------------------------------------------------------+
+void hcd_init_expect(void)
+{
+  for(uint32_t i=0; i<TUSB_CFG_HOST_CONTROLLER_NUM; i++)
+    hcd_init_ExpectAndReturn(TUSB_CFG_HOST_CONTROLLER_START_INDEX+i, TUSB_ERROR_NONE);
+}
+
+void test_usbh_init_hcd_failed(void)
+{
+  hcd_init_IgnoreAndReturn(TUSB_ERROR_HCD_FAILED);
+  TEST_ASSERT_EQUAL(TUSB_ERROR_HCD_FAILED, usbh_init());
+}
+
+void test_usbh_init_enum_task_create_failed(void)
+{
+  hcd_init_expect();
+  osal_task_create_IgnoreAndReturn(TUSB_ERROR_OSAL_TASK_FAILED);
+  TEST_ASSERT_EQUAL(TUSB_ERROR_OSAL_TASK_FAILED, usbh_init());
+}
+
+void test_usbh_init_enum_queue_create_failed(void)
+{
+  hcd_init_expect();
+  osal_task_create_IgnoreAndReturn(TUSB_ERROR_NONE);
+  osal_queue_create_IgnoreAndReturn(NULL);
+  TEST_ASSERT_EQUAL(TUSB_ERROR_OSAL_QUEUE_FAILED, usbh_init());
+}
+
+void test_usbh_init_reporter_taks_create_failed(void)
+{
+  TEST_IGNORE();
+}
+
+void test_usbh_init_reporter_queue_create_failed(void)
+{
+  TEST_IGNORE();
+}
+
+void test_usbh_init_ok(void)
+{
+  uint32_t dummy;
+
+  usbh_device_info_t device_info_zero[TUSB_CFG_HOST_DEVICE_MAX+1];
+  memclr_(device_info_zero, sizeof(usbh_device_info_t)*(TUSB_CFG_HOST_DEVICE_MAX+1));
+
+  hcd_init_expect();
+  osal_task_create_IgnoreAndReturn(TUSB_ERROR_NONE);
+  osal_queue_create_IgnoreAndReturn((osal_queue_handle_t)(&dummy));
+
+  TEST_ASSERT_EQUAL(TUSB_ERROR_NONE, usbh_init());
+
+  TEST_ASSERT_EQUAL_MEMORY(device_info_zero, usbh_device_info_pool, sizeof(usbh_device_info_t)*(TUSB_CFG_HOST_DEVICE_MAX+1));
 }

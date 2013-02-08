@@ -51,10 +51,6 @@
 #ifndef _TUSB_HAL_H_
 #define _TUSB_HAL_H_
 
-#ifdef __cplusplus
- extern "C" {
-#endif
-
 #include "tusb_option.h"
 #include "common/compiler/compiler.h"
 
@@ -72,6 +68,9 @@
   #include "hal_lpc43xx.h"
 #endif
 
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 /** \brief USB hardware init
  *
