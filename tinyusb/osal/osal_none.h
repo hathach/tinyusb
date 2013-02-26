@@ -77,7 +77,13 @@ uint32_t osal_tick_get(void);
 //   OSAL_TASK_LOOP_ENG
 // }
 //--------------------------------------------------------------------+
-//#define osal_task_create(code, name, stack_depth, parameters, prio)
+#define OSAL_TASK_DEF(name, code, stack_depth, prio)
+#define osal_task_create(x) TUSB_ERROR_NONE
+
+#define OSAL_TASK_DECLARE(task_name) \
+  tusb_error_t task_name(void)
+
+#define TASK_RESTART state = 0
 
 #define OSAL_TASK_LOOP_BEGIN \
   static uint32_t timeout = 0;\
@@ -87,20 +93,53 @@ uint32_t osal_tick_get(void);
 
 #define OSAL_TASK_LOOP_END \
   default:\
-    state = 0;\
-  }
+    TASK_RESTART;\
+  }\
+  return TUSB_ERROR_NONE;
 
-#define TASK_ASSERT_ERROR_HANDLER(error, func_call) \
-  func_call; state = 0; return
+//------------- Sub Task -------------//
+#define OSAL_SUBTASK_INVOKED_AND_WAIT(subtask) \
+  do {\
+    state = __LINE__; case __LINE__:\
+    {\
+      tusb_error_t status = subtask; /* invoke sub task */\
+      if (TUSB_ERROR_OSAL_WAITING == status) /* sub task not finished -> continue waiting */\
+        return TUSB_ERROR_OSAL_WAITING;\
+      else if (TUSB_ERROR_NONE != status) { /* sub task failed -> restart task*/\
+        TASK_RESTART;\
+        return status;\
+      }/* sub task finished ok --> continue */\
+    }\
+  }while(1)
 
-#define TASK_ASSERT_STATUS_HANDLER(sts, func_call) \
-    ASSERT_DEFINE_WITH_HANDLER(TASK_ASSERT_ERROR_HANDLER, func_call, tusb_error_t status = (tusb_error_t)(sts),\
+#define OSAL_SUBTASK_BEGIN OSAL_TASK_LOOP_BEGIN
+#define OSAL_SUBTASK_END OSAL_TASK_LOOP_END
+
+//------------- Task Assert -------------//
+#define _TASK_ASSERT_ERROR_HANDLER(error, func_call) \
+  func_call; TASK_RESTART; return error
+
+#define TASK_ASSERT_STATUS(sts) \
+    ASSERT_DEFINE_WITH_HANDLER(_TASK_ASSERT_ERROR_HANDLER, , tusb_error_t status = (tusb_error_t)(sts),\
                                TUSB_ERROR_NONE == status, status, "%s", TUSB_ErrorStr[status])
 
-#define TASK_ASSERT(condition)  ASSERT_DEFINE_WITH_HANDLER(TASK_ASSERT_ERROR_HANDLER, , , (condition), (void) 0, "%s", "evaluated to false")
-#define TASK_ASSERT_STATUS(sts) \
-    ASSERT_DEFINE_WITH_HANDLER(TASK_ASSERT_ERROR_HANDLER, , tusb_error_t status = (tusb_error_t)(sts),\
-                  TUSB_ERROR_NONE == status, status, "%s", TUSB_ErrorStr[status])
+#define TASK_ASSERT_STATUS_WITH_HANDLER(sts, func_call) \
+    ASSERT_DEFINE_WITH_HANDLER(_TASK_ASSERT_ERROR_HANDLER, func_call, tusb_error_t status = (tusb_error_t)(sts),\
+                               TUSB_ERROR_NONE == status, status, "%s", TUSB_ErrorStr[status])
+
+#define TASK_ASSERT(condition)  \
+    ASSERT_DEFINE_WITH_HANDLER(_TASK_ASSERT_ERROR_HANDLER, , , \
+                               (condition), TUSB_ERROR_OSAL_TASK_FAILED, "%s", "evaluated to false")
+
+#define TASK_ASSERT_WITH_HANDLER(condition, func_call) \
+    ASSERT_DEFINE_WITH_HANDLER(_TASK_ASSERT_ERROR_HANDLER, func_call, ,\
+                               condition, TUSB_ERROR_OSAL_TASK_FAILED, "%s", "evaluated to false")
+
+//------------- Sub Task Assert -------------//
+#define SUBTASK_ASSERT_STATUS(...)               TASK_ASSERT_STATUS(__VA_ARGS__)
+#define SUBTASK_ASSERT_STATUS_WITH_HANDLER(...)  TASK_ASSERT_STATUS_WITH_HANDLER(__VA_ARGS__)
+#define SUBTASK_ASSERT(...)                      TASK_ASSERT(__VA_ARGS__)
+#define SUBTASK_ASSERT_WITH_HANDLER(...)         TASK_ASSERT_WITH_HANDLER(__VA_ARGS__)
 //--------------------------------------------------------------------+
 // Semaphore API
 //--------------------------------------------------------------------+
@@ -136,7 +175,7 @@ static inline  tusb_error_t osal_semaphore_post(osal_semaphore_handle_t const se
       if ( (msec != OSAL_TIMEOUT_WAIT_FOREVER) && (timeout + osal_tick_from_msec(msec) < osal_tick_get()) ) /* time out */ \
         *(p_error) = TUSB_ERROR_OSAL_TIMEOUT;\
       else\
-        return;\
+        return TUSB_ERROR_OSAL_WAITING;\
     } else{\
       (*(sem_hdl))--; /*TODO mutex hal_interrupt_disable consideration*/\
       *(p_error) = TUSB_ERROR_NONE;\
@@ -201,7 +240,7 @@ static inline tusb_error_t osal_queue_send(osal_queue_handle_t const queue_hdl, 
       if ( (msec != OSAL_TIMEOUT_WAIT_FOREVER) && ( timeout + osal_tick_from_msec(msec) < osal_tick_get() )) /* time out */ \
         *(p_error) = TUSB_ERROR_OSAL_TIMEOUT;\
       else\
-        return;\
+        return TUSB_ERROR_OSAL_WAITING;\
     } else{\
       /*TODO mutex lock hal_interrupt_disable */\
       *p_data = queue_hdl->buffer[queue_hdl->rd_idx];\

@@ -36,8 +36,11 @@
  */
 
 #include "common/common.h"
+#include "hal.h"
 
 #if MCU == MCU_LPC43XX
+
+#include "lpc43xx_cgu.h"
 
 tusb_error_t hal_init()
 {

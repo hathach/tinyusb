@@ -77,34 +77,70 @@
 //------------- Tick -------------//
 uint32_t osal_tick_get(void);
 
-//------------- Task -------------//
+//--------------------------------------------------------------------+
+// TASK API
+//--------------------------------------------------------------------+
 typedef uint32_t osal_task_t;
+tusb_error_t osal_task_create(osal_task_t *task);
+
 #define OSAL_TASK_DEF(name, code, stack_depth, prio) \
     osal_task_t name
+
+#define OSAL_TASK_DECLARE(task_name) \
+    void task_name(void)
 
 #define OSAL_TASK_LOOP_BEGIN
 #define OSAL_TASK_LOOP_END
 
-#define TASK_ASSERT_ERROR_HANDLER(error, func_call)\
-    func_call; return error
+//------------- Sub Task -------------//
+#define OSAL_SUBTASK_INVOKED_AND_WAIT(subtask) TASK_ASSERT_STATUS(subtask)
 
-#define TASK_ASSERT_STATUS_HANDLER(sts, func_call) \
-    ASSERT_DEFINE_WITH_HANDLER(TASK_ASSERT_ERROR_HANDLER, func_call, tusb_error_t status = (tusb_error_t)(sts),\
-                               TUSB_ERROR_NONE == status, (void) 0, "%s", TUSB_ErrorStr[status])
+#define TASK_RESTART
+
+#define OSAL_SUBTASK_BEGIN
+#define OSAL_SUBTASK_END \
+  return TUSB_ERROR_NONE;
+
+//------------- Task Assert -------------//
+#define _TASK_ASSERT_ERROR_HANDLER(error, func_call)\
+    func_call; TASK_RESTART; return error
 
 #define TASK_ASSERT_STATUS(sts) \
-    ASSERT_DEFINE(tusb_error_t status = (tusb_error_t)(sts),\
-                  TUSB_ERROR_NONE == status, (void) 0, "%s", TUSB_ErrorStr[status])
+    ASSERT_DEFINE_WITH_HANDLER(_TASK_ASSERT_ERROR_HANDLER, , tusb_error_t status = (tusb_error_t)(sts),\
+                               TUSB_ERROR_NONE == status, (void) 0, "%s", TUSB_ErrorStr[status])
 
-#define TASK_ASSERT_HANDLER(condition, func_call) \
-    ASSERT_DEFINE_WITH_HANDLER(TASK_ASSERT_ERROR_HANDLER, func_call, ,\
+#define TASK_ASSERT_STATUS_WITH_HANDLER(sts, func_call) \
+    ASSERT_DEFINE_WITH_HANDLER(_TASK_ASSERT_ERROR_HANDLER, func_call, tusb_error_t status = (tusb_error_t)(sts),\
+                               TUSB_ERROR_NONE == status, (void) 0, "%s", TUSB_ErrorStr[status])
+
+#define TASK_ASSERT(condition) \
+    ASSERT_DEFINE_WITH_HANDLER(_TASK_ASSERT_ERROR_HANDLER, , ,\
                                condition, (void) 0, "%s", "evaluated to false")
 
-#define TASK_ASSERT(condition)  ASSERT(condition, (void) 0)
+#define TASK_ASSERT_WITH_HANDLER(condition, func_call) \
+    ASSERT_DEFINE_WITH_HANDLER(_TASK_ASSERT_ERROR_HANDLER, func_call, ,\
+                               condition, (void) 0, "%s", "evaluated to false")
 
-tusb_error_t osal_task_create(osal_task_t *task);
+//------------- Sub Task Assert (like Task but return error) -------------//
+#define _SUBTASK_ASSERT_ERROR_HANDLER(error, func_call)\
+    func_call; return error
 
-//------------- Semaphore -------------//
+#define SUBTASK_ASSERT_STATUS(sts) ASSERT_STATUS(sts)
+
+#define SUBTASK_ASSERT_STATUS_WITH_HANDLER(sts, func_call) \
+    ASSERT_DEFINE_WITH_HANDLER(_SUBTASK_ASSERT_ERROR_HANDLER, func_call, tusb_error_t status = (tusb_error_t)(sts),\
+                               TUSB_ERROR_NONE == status, status, "%s", TUSB_ErrorStr[status])
+
+#define SUBTASK_ASSERT(condition)  ASSERT(condition, TUSB_ERROR_OSAL_TASK_FAILED)
+
+#define SUBTASK_ASSERT_WITH_HANDLER(condition, func_call) \
+    ASSERT_DEFINE_WITH_HANDLER(_SUBTASK_ASSERT_ERROR_HANDLER, func_call, ,\
+                               condition, TUSB_ERROR_OSAL_TASK_FAILED, "%s", "evaluated to false")
+
+
+//--------------------------------------------------------------------+
+// Semaphore API
+//--------------------------------------------------------------------+
 typedef volatile uint32_t osal_semaphore_t;
 typedef void* osal_semaphore_handle_t;
 
@@ -115,7 +151,9 @@ osal_semaphore_handle_t osal_semaphore_create(osal_semaphore_t * const sem);
 void osal_semaphore_wait(osal_semaphore_handle_t const sem_hdl, uint32_t msec, tusb_error_t *p_error);
 tusb_error_t osal_semaphore_post(osal_semaphore_handle_t const sem_hdl);
 
-//------------- Queue -------------//
+//--------------------------------------------------------------------+
+// QUEUE API
+//--------------------------------------------------------------------+
 typedef uint32_t osal_queue_t;
 typedef void* osal_queue_handle_t;
 

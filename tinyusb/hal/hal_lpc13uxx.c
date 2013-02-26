@@ -36,6 +36,7 @@
  */
 
 #include "common/common.h"
+#include "hal.h"
 
 #if MCU == MCU_LPC13UXX
 

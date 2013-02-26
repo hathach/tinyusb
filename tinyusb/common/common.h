@@ -85,8 +85,10 @@
   #define INLINE_
 #endif
 
-#define STRING_(x)  #x  // stringify without expand
-#define XSTRING_(x) STRING_(x) // expand then stringify
+#define STRING_(x)  #x                             // stringify without expand
+#define XSTRING_(x) STRING_(x)                     // expand then stringify
+#define STRING_CONCAT_(a, b) a##b                  // concat without expand
+#define XSTRING_CONCAT_(a, b) STRING_CONCAT_(a, b) // expand then concat
 
 #define U16_HIGH_U8(u16) ((uint8_t) (((u16) > 8) & 0x00ff))
 #define U16_LOW_U8(u16)  ((uint8_t) ((u16)       & 0x00ff))

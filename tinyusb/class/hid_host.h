@@ -82,8 +82,9 @@ typedef struct {
 } class_hid_keyboard_info_t;
 
 void hidh_keyboard_init(void);
-tusb_error_t hidh_keyboard_install(uint8_t const dev_addr, uint8_t const *descriptor) ATTR_WARN_UNUSED_RESULT;
+tusb_error_t hidh_keyboard_install(uint8_t dev_addr, uint8_t const *descriptor) ATTR_WARN_UNUSED_RESULT;
 
+#ifndef _TEST_
 static inline void hidh_init(void) ATTR_ALWAYS_INLINE;
 static inline void hidh_init(void)
 {
@@ -91,6 +92,11 @@ static inline void hidh_init(void)
   hidh_keyboard_init();
 #endif
 }
+#else
+void         hidh_init(void);
+#endif
+
+tusb_error_t hidh_install(uint8_t dev_addr, tusb_descriptor_interface_t const *descriptor) ATTR_WARN_UNUSED_RESULT;
 
 #endif
 

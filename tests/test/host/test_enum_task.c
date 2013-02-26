@@ -43,6 +43,7 @@
 #include "mock_hcd.h"
 #include "mock_usbh_hcd.h"
 #include "mock_tusb_callback.h"
+#include "mock_hid_host.h"
 
 extern usbh_device_info_t usbh_device_info_pool[TUSB_CFG_HOST_DEVICE_MAX+1];
 extern uint8_t enum_data_buffer[TUSB_CFG_HOST_ENUM_BUFFER_SIZE];
@@ -220,7 +221,7 @@ void test_enum_parse_config_desc(void)
   hcd_pipe_control_open_ExpectAndReturn(1, desc_device.bMaxPacketSize0, TUSB_ERROR_NONE);
   tusbh_device_attached_cb_ExpectAndReturn((tusb_descriptor_device_t*) enum_data_buffer, 1);
 
-//  hid_install
+  hidh_install_ExpectAndReturn(1, &desc_configuration.keyboard_interface, TUSB_ERROR_NONE);
 
   usbh_enumeration_task();
 }

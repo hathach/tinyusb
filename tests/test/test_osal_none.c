@@ -254,7 +254,7 @@ void sample_task_flow_control(void)
   statements[2]++;
 
   osal_semaphore_wait(sem_hdl, OSAL_TIMEOUT_NORMAL, &error);
-  TASK_ASSERT_STATUS_HANDLER(error, flow_control_error_handler());
+  TASK_ASSERT_STATUS_WITH_HANDLER(error, flow_control_error_handler());
   statements[3]++;
 
   OSAL_TASK_LOOP_END

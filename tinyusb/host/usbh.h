@@ -149,7 +149,6 @@ static inline void tusb_tick_tock(void)
 
 tusb_error_t usbh_init(void);
 pipe_status_t usbh_pipe_status_get(pipe_handle_t pipe_hdl) ATTR_WARN_UNUSED_RESULT;
-void usbh_enumeration_task(void);
 
 #endif
 

@@ -42,6 +42,7 @@
 #include "mock_hcd.h"
 #include "mock_usbh_hcd.h"
 #include "mock_tusb_callback.h"
+#include "mock_hid_host.h"
 
 extern usbh_device_info_t usbh_device_info_pool[TUSB_CFG_HOST_DEVICE_MAX+1];
 tusb_handle_device_t dev_hdl;

@@ -61,7 +61,6 @@
 uint8_t      tusbh_device_attached_cb (tusb_descriptor_device_t const *p_desc_device) ATTR_WEAK ATTR_WARN_UNUSED_RESULT;
 void         tusbh_device_mounted_cb (tusb_handle_device_t device_hdl) ATTR_WEAK;
 void         tusbh_device_mount_failed_cb(tusb_error_t error, tusb_descriptor_device_t const *p_desc_device) ATTR_WEAK;
-void         hidh_init(void);
 
 #ifdef __cplusplus
  }

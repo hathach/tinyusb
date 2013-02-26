@@ -52,7 +52,6 @@
 #define _TUSB_HAL_LPC43XX_H_
 
 #include "LPC43xx.h"
-//#include "lpc43xx_cgu.h"
 
 #ifdef __cplusplus
  extern "C" {

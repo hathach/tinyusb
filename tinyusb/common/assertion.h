@@ -58,6 +58,14 @@ extern "C"
 
 #include "tusb_option.h"
 
+//--------------------------------------------------------------------+
+// Compile-time Assert
+//--------------------------------------------------------------------+
+#ifdef __COUNTER__
+#define STATIC_ASSSERT(const_expr) enum { XSTRING_CONCAT(static_assert_, __COUNTER__) = 1/(!!(const_expr)) }
+#else
+#define STATIC_ASSSERT(const_expr) enum { XSTRING_CONCAT(static_assert_, __LINE__) = 1/(!!(const_expr)) }
+#endif
   //#if ( defined CFG_PRINTF_UART || defined CFG_PRINTF_USBCDC || defined CFG_PRINTF_DEBUG )
 #if TUSB_CFG_DEBUG
   #define _PRINTF(...)	printf(__VA_ARGS__)
