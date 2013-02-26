@@ -100,7 +100,7 @@ enum {
 };
 
 /// Device Status
-enum {
+enum tusbh_device_status_{
   TUSB_DEVICE_STATUS_UNPLUG      = 0,
   TUSB_DEVICE_STATUS_ADDRESSED,
 

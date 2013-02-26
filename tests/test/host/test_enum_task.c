@@ -221,7 +221,9 @@ void test_enum_parse_config_desc(void)
   hcd_pipe_control_open_ExpectAndReturn(1, desc_device.bMaxPacketSize0, TUSB_ERROR_NONE);
   tusbh_device_attached_cb_ExpectAndReturn((tusb_descriptor_device_t*) enum_data_buffer, 1);
 
-  hidh_install_ExpectAndReturn(1, &desc_configuration.keyboard_interface, TUSB_ERROR_NONE);
+  hidh_install_subtask_IgnoreAndReturn(TUSB_ERROR_NONE);
 
   usbh_enumeration_task();
+
+  TEST_ASSERT_EQUAL(desc_configuration.configuration.bNumInterfaces, usbh_device_info_pool[1].interface_count);
 }

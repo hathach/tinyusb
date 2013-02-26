@@ -74,14 +74,19 @@ typedef struct ATTR_ALIGNED(4){
 } usbh_enumerate_t;
 
 typedef struct { // TODO internal structure, re-order members
+  //------------- port info -------------//
   uint8_t core_id;
   uint8_t hub_addr;
   uint8_t hub_port;
   uint8_t speed;
 
+  //------------- device descriptor info -------------//
   uint16_t vendor_id;
   uint16_t product_id;
-  uint8_t configure_count;
+  uint8_t configure_count; // bNumConfigurations alias
+
+  //------------- configuration descriptor info -------------//
+  uint8_t interface_count; // bNumInterfaces alias
 
   tusbh_device_status_t status;
 

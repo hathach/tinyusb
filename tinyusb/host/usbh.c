@@ -132,6 +132,7 @@ OSAL_TASK_DECLARE(usbh_enumeration_task)
   // for OSAL_NONE local variable won't retain value after blocking service sem_wait/queue_recv
   static uint8_t new_addr;
   static uint8_t configure_selected = 1;
+  static uint8_t *p_desc = NULL;
 
   OSAL_TASK_LOOP_BEGIN
 
@@ -177,7 +178,7 @@ OSAL_TASK_DECLARE(usbh_enumeration_task)
     )
   );
 
-  //------------- update device info & open control pipe for new address -------------//
+  //------------- update port info & open control pipe for new address -------------//
   usbh_device_info_pool[new_addr].core_id  = usbh_device_info_pool[0].core_id;
   usbh_device_info_pool[new_addr].hub_addr = usbh_device_info_pool[0].hub_addr;
   usbh_device_info_pool[new_addr].hub_port = usbh_device_info_pool[0].hub_port;
@@ -200,14 +201,16 @@ OSAL_TASK_DECLARE(usbh_enumeration_task)
     )
   );
 
+  // update device info
   usbh_device_info_pool[new_addr].vendor_id       = ((tusb_descriptor_device_t*) enum_data_buffer)->idVendor;
   usbh_device_info_pool[new_addr].product_id      = ((tusb_descriptor_device_t*) enum_data_buffer)->idProduct;
   usbh_device_info_pool[new_addr].configure_count = ((tusb_descriptor_device_t*) enum_data_buffer)->bNumConfigurations;
 
-  //------------- update device info and invoke callback to ask user which configuration to select -------------//
+  //------------- invoke callback to ask user which configuration to select -------------//
   if (tusbh_device_attached_cb)
   {
-    configure_selected = min8_of(1, tusbh_device_attached_cb( (tusb_descriptor_device_t*) enum_data_buffer) );
+    configure_selected = min8_of(1,
+                                 tusbh_device_attached_cb( (tusb_descriptor_device_t*) enum_data_buffer) );
   }else
   {
     configure_selected = 1;
@@ -228,7 +231,7 @@ OSAL_TASK_DECLARE(usbh_enumeration_task)
     )
   );
   TASK_ASSERT_WITH_HANDLER( TUSB_CFG_HOST_ENUM_BUFFER_SIZE > ((tusb_descriptor_configuration_t*)enum_data_buffer)->wTotalLength,
-                       tusbh_device_mount_failed_cb(TUSB_ERROR_USBH_MOUNT_CONFIG_DESC_TOO_LONG, NULL) );
+                            tusbh_device_mount_failed_cb(TUSB_ERROR_USBH_MOUNT_CONFIG_DESC_TOO_LONG, NULL) );
 
   //------------- Get full configuration descriptor -------------//
   OSAL_SUBTASK_INVOKED_AND_WAIT(
@@ -239,13 +242,50 @@ OSAL_TASK_DECLARE(usbh_enumeration_task)
         .bmRequestType = { .direction = TUSB_DIR_DEV_TO_HOST, .type = TUSB_REQUEST_TYPE_STANDARD, .recipient = TUSB_REQUEST_RECIPIENT_DEVICE },
         .bRequest = TUSB_REQUEST_GET_DESCRIPTOR,
         .wValue   = (TUSB_DESC_CONFIGURATION << 8) | (configure_selected - 1),
-        .wLength  = ((tusb_descriptor_configuration_t*)enum_data_buffer)->wTotalLength
+        .wLength  = ((tusb_descriptor_configuration_t*) enum_data_buffer)->wTotalLength
       },
       enum_data_buffer
     )
   );
 
-  // TODO Configuration Parser & driver install
+  // update configuration info
+  usbh_device_info_pool[new_addr].interface_count = ((tusb_descriptor_configuration_t*) enum_data_buffer)->bNumInterfaces;
+
+  //------------- parse configuration -------------//
+  p_desc = enum_data_buffer + sizeof(tusb_descriptor_configuration_t);
+
+  // parse each interfaces
+  while( p_desc < enum_data_buffer + ((tusb_descriptor_configuration_t*)enum_data_buffer)->wTotalLength )
+  {
+    tusb_descriptor_interface_t *p_interface_desc = (tusb_descriptor_interface_t*) p_desc;
+
+    TASK_ASSERT( TUSB_DESC_INTERFACE == p_interface_desc->bDescriptorType ); // TODO should we skip this descriptor and advance
+
+    // NOTE: cannot use switch (conflicted with OSAL_NONE task)
+    if (TUSB_CLASS_UNSPECIFIED == p_interface_desc->bInterfaceClass)
+    {
+      TASK_ASSERT( false ); // corrupted data
+    }
+#if HOST_CLASS_HID
+    else if ( TUSB_CLASS_HID == p_interface_desc->bInterfaceClass)
+    {
+      uint16_t length;
+      OSAL_SUBTASK_INVOKED_AND_WAIT (
+          hidh_install_subtask(new_addr, p_interface_desc, &length)
+      );
+      p_desc += length;
+    }
+#endif
+    // unsupported class
+    else
+    {
+      do
+      {
+        p_desc += (*p_desc);
+      } while ( (p_desc < enum_data_buffer + ((tusb_descriptor_configuration_t*)enum_data_buffer)->wTotalLength)
+          && TUSB_DESC_INTERFACE != p_desc[1] );
+    }
+  }
 
   //------------- Set Configure -------------//
 //  (void) hcd_pipe_control_xfer(

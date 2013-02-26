@@ -96,7 +96,7 @@ static inline void hidh_init(void)
 void         hidh_init(void);
 #endif
 
-tusb_error_t hidh_install(uint8_t dev_addr, tusb_descriptor_interface_t const *descriptor) ATTR_WARN_UNUSED_RESULT;
+tusb_error_t hidh_install_subtask(uint8_t dev_addr, tusb_descriptor_interface_t const *descriptor, uint16_t *p_length) ATTR_WARN_UNUSED_RESULT;
 
 #endif
 
