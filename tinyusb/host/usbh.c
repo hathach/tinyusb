@@ -106,7 +106,7 @@ tusb_error_t usbh_init(void)
   return TUSB_ERROR_NONE;
 }
 
-// function called within a task, requesting os blocking services
+// function called within a task, requesting os blocking services, subtask input parameter must be static/global variables
 tusb_error_t usbh_control_xfer_subtask(uint8_t dev_addr, tusb_std_request_t const* p_request, uint8_t* data)
 {
   tusb_error_t error;
@@ -257,22 +257,18 @@ OSAL_TASK_DECLARE(usbh_enumeration_task)
   // parse each interfaces
   while( p_desc < enum_data_buffer + ((tusb_descriptor_configuration_t*)enum_data_buffer)->wTotalLength )
   {
-    tusb_descriptor_interface_t *p_interface_desc = (tusb_descriptor_interface_t*) p_desc;
-
-    TASK_ASSERT( TUSB_DESC_INTERFACE == p_interface_desc->bDescriptorType ); // TODO should we skip this descriptor and advance
+    TASK_ASSERT( TUSB_DESC_INTERFACE == ((tusb_descriptor_interface_t*) p_desc)->bDescriptorType ); // TODO should we skip this descriptor and advance
 
     // NOTE: cannot use switch (conflicted with OSAL_NONE task)
-    if (TUSB_CLASS_UNSPECIFIED == p_interface_desc->bInterfaceClass)
+    if (TUSB_CLASS_UNSPECIFIED == ((tusb_descriptor_interface_t*) p_desc)->bInterfaceClass)
     {
       TASK_ASSERT( false ); // corrupted data
     }
 #if HOST_CLASS_HID
-    else if ( TUSB_CLASS_HID == p_interface_desc->bInterfaceClass)
+    else if ( TUSB_CLASS_HID == ((tusb_descriptor_interface_t*) p_desc)->bInterfaceClass)
     {
       uint16_t length;
-      OSAL_SUBTASK_INVOKED_AND_WAIT (
-          hidh_install_subtask(new_addr, p_interface_desc, &length)
-      );
+      OSAL_SUBTASK_INVOKED_AND_WAIT ( hidh_install_subtask(new_addr, p_desc, &length) );
       p_desc += length;
     }
 #endif
