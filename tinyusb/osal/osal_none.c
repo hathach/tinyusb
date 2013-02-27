@@ -49,19 +49,11 @@
 //--------------------------------------------------------------------+
 // INTERNAL OBJECT & FUNCTION DECLARATION
 //--------------------------------------------------------------------+
-static volatile uint32_t osal_tick_current = 0;
+volatile uint32_t osal_tick_current = 0;
 
 //--------------------------------------------------------------------+
 // IMPLEMENTATION
 //--------------------------------------------------------------------+
-uint32_t osal_tick_get(void)
-{
-  return osal_tick_current;
-}
 
-void osal_tick_tock(void)
-{
-  osal_tick_current++;
-}
 
 #endif
