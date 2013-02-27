@@ -124,7 +124,7 @@ tusb_error_t usbh_control_xfer_subtask(uint8_t dev_addr, tusb_std_request_t cons
 //--------------------------------------------------------------------+
 // ENUMERATION TASK
 //--------------------------------------------------------------------+
-//void usbh_enumeration_task(void)
+//TODO reduce Cyclomatic Complexity
 OSAL_TASK_DECLARE(usbh_enumeration_task)
 {
   tusb_error_t error;
