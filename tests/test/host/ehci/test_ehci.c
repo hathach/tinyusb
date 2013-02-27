@@ -251,6 +251,30 @@ void test_register_usbsts(void)
   TEST_ASSERT_EQUAL( 19 , BITFIELD_OFFSET_OF_MEMBER(ehci_registers_t, usb_sts_bit, nxp_int_period));
 }
 
+void test_register_portsc(void)
+{
+  TEST_ASSERT_EQUAL( 0  , BITFIELD_OFFSET_OF_MEMBER(ehci_registers_t, portsc_bit, current_connect_status));
+  TEST_ASSERT_EQUAL( 1  , BITFIELD_OFFSET_OF_MEMBER(ehci_registers_t, portsc_bit, connect_status_change));
+  TEST_ASSERT_EQUAL( 2  , BITFIELD_OFFSET_OF_MEMBER(ehci_registers_t, portsc_bit, port_enable));
+  TEST_ASSERT_EQUAL( 3  , BITFIELD_OFFSET_OF_MEMBER(ehci_registers_t, portsc_bit, port_enable_change));
+  TEST_ASSERT_EQUAL( 4  , BITFIELD_OFFSET_OF_MEMBER(ehci_registers_t, portsc_bit, over_current_active));
+  TEST_ASSERT_EQUAL( 5  , BITFIELD_OFFSET_OF_MEMBER(ehci_registers_t, portsc_bit, over_current_change));
+  TEST_ASSERT_EQUAL( 6  , BITFIELD_OFFSET_OF_MEMBER(ehci_registers_t, portsc_bit, force_port_resume));
+  TEST_ASSERT_EQUAL( 7  , BITFIELD_OFFSET_OF_MEMBER(ehci_registers_t, portsc_bit, suspend));
+  TEST_ASSERT_EQUAL( 8  , BITFIELD_OFFSET_OF_MEMBER(ehci_registers_t, portsc_bit, port_reset));
+  TEST_ASSERT_EQUAL( 9  , BITFIELD_OFFSET_OF_MEMBER(ehci_registers_t, portsc_bit, nxp_highspeed_status));
+  TEST_ASSERT_EQUAL( 10 , BITFIELD_OFFSET_OF_MEMBER(ehci_registers_t, portsc_bit, line_status));
+  TEST_ASSERT_EQUAL( 12 , BITFIELD_OFFSET_OF_MEMBER(ehci_registers_t, portsc_bit, port_power));
+  TEST_ASSERT_EQUAL( 13 , BITFIELD_OFFSET_OF_MEMBER(ehci_registers_t, portsc_bit, port_owner));
+  TEST_ASSERT_EQUAL( 14 , BITFIELD_OFFSET_OF_MEMBER(ehci_registers_t, portsc_bit, port_indicator_control));
+  TEST_ASSERT_EQUAL( 16 , BITFIELD_OFFSET_OF_MEMBER(ehci_registers_t, portsc_bit, port_test_control));
+  TEST_ASSERT_EQUAL( 20 , BITFIELD_OFFSET_OF_MEMBER(ehci_registers_t, portsc_bit, wake_on_connect_enable));
+  TEST_ASSERT_EQUAL( 21 , BITFIELD_OFFSET_OF_MEMBER(ehci_registers_t, portsc_bit, wake_on_disconnect_enable));
+  TEST_ASSERT_EQUAL( 22 , BITFIELD_OFFSET_OF_MEMBER(ehci_registers_t, portsc_bit, wake_on_over_current_enable));
+  TEST_ASSERT_EQUAL( 23 , BITFIELD_OFFSET_OF_MEMBER(ehci_registers_t, portsc_bit, nxp_phy_clock_disable));
+  TEST_ASSERT_EQUAL( 24 , BITFIELD_OFFSET_OF_MEMBER(ehci_registers_t, portsc_bit, nxp_port_force_fullspeed));
+  TEST_ASSERT_EQUAL( 26 , BITFIELD_OFFSET_OF_MEMBER(ehci_registers_t, portsc_bit, nxp_port_speed));
+}
 
 //--------------------------------------------------------------------+
 // Helper
