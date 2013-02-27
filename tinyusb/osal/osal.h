@@ -164,6 +164,10 @@ osal_queue_handle_t  osal_queue_create  (osal_queue_t *p_queue);
 void                 osal_queue_receive (osal_queue_handle_t const queue_hdl, uint32_t *p_data, uint32_t msec, tusb_error_t *p_error);
 tusb_error_t         osal_queue_send    (osal_queue_handle_t const queue_hdl, uint32_t data);
 
+//--------------------------------------------------------------------+
+// TICK API
+//--------------------------------------------------------------------+
+uint32_t osal_tick_get(void);
 #endif
 
 #ifdef __cplusplus

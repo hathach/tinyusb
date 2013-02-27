@@ -39,7 +39,9 @@
 #include "tusb_option.h"
 #include "errors.h"
 #include "binary.h"
+#include "mock_osal.h"
 #include "ehci.h"
+
 
 //--------------------------------------------------------------------+
 // Setup/Teardown + helper declare

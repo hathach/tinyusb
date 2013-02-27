@@ -1,13 +1,13 @@
 /*
- * osal_common.h
+ * timeout_timer.h
  *
- *  Created on: Jan 30, 2013
+ *  Created on: Dec 7, 2012
  *      Author: hathach
  */
 
 /*
  * Software License Agreement (BSD License)
- * Copyright (c) 2012, hathach (tinyusb.net)
+ * Copyright (c) 2013, hathach (tinyusb.net)
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without modification,
@@ -48,38 +48,39 @@
  *  @{
  */
 
-#ifndef _TUSB_OSAL_COMMON_H_
-#define _TUSB_OSAL_COMMON_H_
+#ifndef _TUSB_TIMEOUT_TTIMER_H_
+#define _TUSB_TIMEOUT_TTIMER_H_
+
+#include "primitive_types.h"
+#include "compiler/compiler.h"
+#include "osal/osal.h"
 
 #ifdef __cplusplus
- extern "C" {
+extern "C" {
 #endif
 
-#include "common/common.h"
+typedef struct {
+  uint32_t start;
+  uint32_t interval;
+}timeout_timer_t;
 
-enum
+static inline void timeout_set(timeout_timer_t* tt, uint32_t msec) ATTR_ALWAYS_INLINE;
+static inline void timeout_set(timeout_timer_t* tt, uint32_t msec)
 {
-  OSAL_TIMEOUT_NOTIMEOUT = 0, // for use within ISR,  return immediately
-  OSAL_TIMEOUT_NORMAL = 10, // default is 10 msec
-  OSAL_TIMEOUT_WAIT_FOREVER = 0xFFFF0000
-};
+  tt->interval = osal_tick_from_msec(msec);
+  tt->start    = osal_tick_get();
+}
 
-typedef enum {
-  OSAL_PRIO_LOW,
-  OSAL_PRIO_NORMAL,
-  OSAL_PRIO_HIGH
-}osal_prio_t;
-
-static inline uint32_t osal_tick_from_msec(uint32_t msec) ATTR_CONST ATTR_ALWAYS_INLINE;
-static inline uint32_t osal_tick_from_msec(uint32_t msec)
+static inline bool timeout_expired(timeout_timer_t* tt) ATTR_ALWAYS_INLINE;
+static inline bool timeout_expired(timeout_timer_t* tt)
 {
-  return  (msec * TUSB_CFG_OS_TICKS_PER_SECOND)/1000;
+  return ( osal_tick_get() - tt->start ) >= tt->interval;
 }
 
 #ifdef __cplusplus
  }
 #endif
 
-#endif /* _TUSB_OSAL_COMMON_H_ */
+#endif /* _TUSB_TIMEOUT_TTIMER_H_ */
 
 /** @} */
