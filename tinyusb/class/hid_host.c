@@ -37,7 +37,7 @@
 
 #include "tusb_option.h"
 
-#if defined TUSB_CFG_HOST && defined DEVICE_CLASS_HID
+#if defined TUSB_CFG_HOST && defined HOST_CLASS_HID
 
 #define _TINY_USB_SOURCE_FILE_
 
@@ -47,6 +47,7 @@
 #include "common/common.h"
 #include "hid_host.h"
 
+#if TUSB_CFG_HOST_HID_KEYBOARD
 //--------------------------------------------------------------------+
 // MACRO CONSTANT TYPEDEF
 //--------------------------------------------------------------------+
@@ -89,16 +90,17 @@ uint8_t tusbh_hid_keyboard_no_instances(tusb_handle_device_t const device_hdl)
 //--------------------------------------------------------------------+
 // CLASS-USBD API (don't require to verify parameters)
 //--------------------------------------------------------------------+
-void class_hid_keyboard_init(void)
+void hidh_keyboard_init(void)
 {
   memclr_(&keyboard_info_pool, sizeof(class_hid_keyboard_info_t)*TUSB_CFG_HOST_DEVICE_MAX);
 }
 
-tusb_error_t class_hid_keyboard_install(uint8_t const dev_addr, uint8_t const *descriptor)
+tusb_error_t hidh_keyboard_install(uint8_t const dev_addr, uint8_t const *descriptor)
 {
   keyboard_info_pool[dev_addr].instance_count++;
 
   return TUSB_ERROR_NONE;
 }
+#endif
 
 #endif

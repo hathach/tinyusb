@@ -124,7 +124,6 @@
   #endif
 
   #define HOST_CLASS_HID   ( TUSB_CFG_HOST_HID_KEYBOARD )
-  #define HOST_EHCI
 #endif // end TUSB_CFG_HOST
 
 //--------------------------------------------------------------------+

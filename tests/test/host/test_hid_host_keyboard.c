@@ -103,7 +103,7 @@ void test_keyboard_install_ok(void)
   tusbh_device_status_get_IgnoreAndReturn(TUSB_DEVICE_STATUS_READY);
   TEST_ASSERT_EQUAL(0, tusbh_hid_keyboard_no_instances(device_hdl));
 
-  TEST_ASSERT_EQUAL(TUSB_ERROR_NONE, class_hid_keyboard_install(device_hdl, (uint8_t*) &kbd_descriptor));
+  TEST_ASSERT_EQUAL(TUSB_ERROR_NONE, hidh_keyboard_install(device_hdl, (uint8_t*) &kbd_descriptor));
   tusbh_device_status_get_IgnoreAndReturn(TUSB_DEVICE_STATUS_READY);
   TEST_ASSERT_EQUAL(1, tusbh_hid_keyboard_no_instances(device_hdl));
 }
@@ -113,7 +113,7 @@ void test_keyboard_init(void)
   class_hid_keyboard_info_t keyboard_info_zero[TUSB_CFG_HOST_DEVICE_MAX];
   memset(keyboard_info_zero, 0, sizeof(class_hid_keyboard_info_t)*TUSB_CFG_HOST_DEVICE_MAX);
 
-  class_hid_keyboard_init();
+  hidh_keyboard_init();
 
   TEST_ASSERT_EQUAL_MEMORY(keyboard_info_zero, keyboard_info_pool, sizeof(class_hid_keyboard_info_t)*TUSB_CFG_HOST_DEVICE_MAX);
 }

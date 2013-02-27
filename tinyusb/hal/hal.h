@@ -57,6 +57,7 @@
 #define MCU_LPC13UXX 1
 #define MCU_LPC11UXX 2
 #define MCU_LPC43XX  3
+#define MCU_LPC18XX  4
 
 #if MCU == 0
   #error MCU is not defined or supported

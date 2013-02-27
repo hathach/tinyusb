@@ -44,7 +44,7 @@ tusb_error_t tusb_init(void)
   ASSERT_STATUS( hal_init() ) ; /* HARDWARE INIT */
 
 #ifdef TUSB_CFG_HOST
-  ASSERT_STATUS( hcd_init(0) );
+  ASSERT_STATUS( usbh_init() );
 #endif
 
 #ifdef TUSB_CFG_DEVICE
