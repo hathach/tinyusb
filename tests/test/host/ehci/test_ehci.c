@@ -51,9 +51,9 @@ uint8_t number_of_high_bits(uint32_t value);
   ({\
     uint32_t value=0;\
     struct_type str;\
-    memclr_(&str, sizeof(struct_type));\
+    memclr_((void*)&str, sizeof(struct_type));\
     str.member.bitfield_member = 1;\
-    memcpy(&value, &str.member, sizeof(str.member));\
+    memcpy(&value, (void*)&str.member, sizeof(str.member));\
     first_pos_of_high_bit( value );\
   })
 
@@ -73,7 +73,9 @@ void tearDown(void)
 {
 }
 
-
+//--------------------------------------------------------------------+
+//
+//--------------------------------------------------------------------+
 void test_struct_alignment(void)
 {
   TEST_ASSERT_EQUAL( 32, __alignof__(ehci_qhd_t) );
@@ -95,6 +97,9 @@ void test_struct_size(void)
   TEST_ASSERT_EQUAL( 4, sizeof(ehci_link_t) );
 }
 
+//--------------------------------------------------------------------+
+// EHCI Data Structure
+//--------------------------------------------------------------------+
 void test_qtd_structure(void)
 {
   TEST_ASSERT_EQUAL( 0, offsetof(ehci_qtd_t, next));
@@ -195,6 +200,38 @@ void test_sitd_structure(void)
   TEST_ASSERT_EQUAL( 4*4, offsetof(ehci_sitd_t, buffer));
 
   TEST_ASSERT_EQUAL( 4*6, offsetof(ehci_sitd_t, back));
+}
+
+//--------------------------------------------------------------------+
+// EHCI Register Interface
+//--------------------------------------------------------------------+
+void test_register_offset(void)
+{
+  TEST_ASSERT_EQUAL( 0x00, offsetof(ehci_registers_t, usb_cmd));
+  TEST_ASSERT_EQUAL( 0x04, offsetof(ehci_registers_t, usb_sts));
+  TEST_ASSERT_EQUAL( 0x08, offsetof(ehci_registers_t, usb_int_enable));
+  TEST_ASSERT_EQUAL( 0x0C, offsetof(ehci_registers_t, frame_index));
+  TEST_ASSERT_EQUAL( 0x10, offsetof(ehci_registers_t, ctrl_ds_seg));
+  TEST_ASSERT_EQUAL( 0x14, offsetof(ehci_registers_t, periodic_list_base));
+  TEST_ASSERT_EQUAL( 0x18, offsetof(ehci_registers_t, async_list_base));
+  TEST_ASSERT_EQUAL( 0x1C, offsetof(ehci_registers_t, tt_control)); // NXP specific
+  TEST_ASSERT_EQUAL( 0x40, offsetof(ehci_registers_t, config_flag)); // NXP not used
+  TEST_ASSERT_EQUAL( 0x44, offsetof(ehci_registers_t, portsc));
+}
+
+void test_register_usbcmd(void)
+{
+  TEST_ASSERT_EQUAL( 0  , BITFIELD_OFFSET_OF_MEMBER(ehci_registers_t, usb_cmd_bit, run_stop) );
+  TEST_ASSERT_EQUAL( 1  , BITFIELD_OFFSET_OF_MEMBER(ehci_registers_t, usb_cmd_bit, reset) );
+  TEST_ASSERT_EQUAL( 2  , BITFIELD_OFFSET_OF_MEMBER(ehci_registers_t, usb_cmd_bit, framelist_size) );
+  TEST_ASSERT_EQUAL( 4  , BITFIELD_OFFSET_OF_MEMBER(ehci_registers_t, usb_cmd_bit, periodic_enable) );
+  TEST_ASSERT_EQUAL( 5  , BITFIELD_OFFSET_OF_MEMBER(ehci_registers_t, usb_cmd_bit, async_enable) );
+  TEST_ASSERT_EQUAL( 6  , BITFIELD_OFFSET_OF_MEMBER(ehci_registers_t, usb_cmd_bit, int_advacne_async) );
+  TEST_ASSERT_EQUAL( 7  , BITFIELD_OFFSET_OF_MEMBER(ehci_registers_t, usb_cmd_bit, light_reset) );
+  TEST_ASSERT_EQUAL( 8  , BITFIELD_OFFSET_OF_MEMBER(ehci_registers_t, usb_cmd_bit, async_park) );
+  TEST_ASSERT_EQUAL( 11 , BITFIELD_OFFSET_OF_MEMBER(ehci_registers_t, usb_cmd_bit, async_park_enable) );
+  TEST_ASSERT_EQUAL( 15 , BITFIELD_OFFSET_OF_MEMBER(ehci_registers_t, usb_cmd_bit, nxp_framelist_size_msb) );
+  TEST_ASSERT_EQUAL( 16 , BITFIELD_OFFSET_OF_MEMBER(ehci_registers_t, usb_cmd_bit, int_threshold) );
 }
 
 //--------------------------------------------------------------------+
