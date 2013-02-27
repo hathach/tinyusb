@@ -234,6 +234,24 @@ void test_register_usbcmd(void)
   TEST_ASSERT_EQUAL( 16 , BITFIELD_OFFSET_OF_MEMBER(ehci_registers_t, usb_cmd_bit, int_threshold) );
 }
 
+void test_register_usbsts(void)
+{
+  TEST_ASSERT_EQUAL( 0  , BITFIELD_OFFSET_OF_MEMBER(ehci_registers_t, usb_sts_bit, int_usb));
+  TEST_ASSERT_EQUAL( 1  , BITFIELD_OFFSET_OF_MEMBER(ehci_registers_t, usb_sts_bit, int_error));
+  TEST_ASSERT_EQUAL( 2  , BITFIELD_OFFSET_OF_MEMBER(ehci_registers_t, usb_sts_bit, port_change_detect));
+  TEST_ASSERT_EQUAL( 3  , BITFIELD_OFFSET_OF_MEMBER(ehci_registers_t, usb_sts_bit, framelist_rollover));
+  TEST_ASSERT_EQUAL( 4  , BITFIELD_OFFSET_OF_MEMBER(ehci_registers_t, usb_sts_bit, host_system_error));
+  TEST_ASSERT_EQUAL( 5  , BITFIELD_OFFSET_OF_MEMBER(ehci_registers_t, usb_sts_bit, int_async_advance));
+  TEST_ASSERT_EQUAL( 7  , BITFIELD_OFFSET_OF_MEMBER(ehci_registers_t, usb_sts_bit, nxp_sof_received));
+  TEST_ASSERT_EQUAL( 12 , BITFIELD_OFFSET_OF_MEMBER(ehci_registers_t, usb_sts_bit, hc_halted));
+  TEST_ASSERT_EQUAL( 13 , BITFIELD_OFFSET_OF_MEMBER(ehci_registers_t, usb_sts_bit, reclamation));
+  TEST_ASSERT_EQUAL( 14 , BITFIELD_OFFSET_OF_MEMBER(ehci_registers_t, usb_sts_bit, period_schedule_status));
+  TEST_ASSERT_EQUAL( 15 , BITFIELD_OFFSET_OF_MEMBER(ehci_registers_t, usb_sts_bit, async_schedule_status));
+  TEST_ASSERT_EQUAL( 18 , BITFIELD_OFFSET_OF_MEMBER(ehci_registers_t, usb_sts_bit, nxp_int_async));
+  TEST_ASSERT_EQUAL( 19 , BITFIELD_OFFSET_OF_MEMBER(ehci_registers_t, usb_sts_bit, nxp_int_period));
+}
+
+
 //--------------------------------------------------------------------+
 // Helper
 //--------------------------------------------------------------------+
