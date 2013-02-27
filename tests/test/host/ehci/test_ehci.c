@@ -49,10 +49,12 @@ uint8_t number_of_high_bits(uint32_t value);
 
 #define BITFIELD_OFFSET_OF_MEMBER(struct_type, member, bitfield_member) \
   ({\
+    uint32_t value=0;\
     struct_type str;\
     memclr_(&str, sizeof(struct_type));\
     str.member.bitfield_member = 1;\
-    first_pos_of_high_bit(str.member);\
+    memcpy(&value, &str.member, sizeof(str.member));\
+    first_pos_of_high_bit( value );\
   })
 
 #define BITFIELD_OFFSET_OF_UINT32(struct_type, offset, bitfield_member) \
@@ -141,6 +143,58 @@ void test_qhd_structure(void)
 
   TEST_ASSERT_EQUAL( 3*4, offsetof(ehci_qhd_t, qtd_addr));
   TEST_ASSERT_EQUAL( 4*4, offsetof(ehci_qhd_t, qtd_overlay));
+}
+
+void test_itd_structure(void)
+{
+  TEST_ASSERT_EQUAL( 0, offsetof(ehci_itd_t, next));
+
+  // Each Transaction Word
+  TEST_ASSERT_EQUAL( 0  , BITFIELD_OFFSET_OF_MEMBER(ehci_itd_t, xact[0], offset) );
+  TEST_ASSERT_EQUAL( 12 , BITFIELD_OFFSET_OF_MEMBER(ehci_itd_t, xact[0], page_select) );
+  TEST_ASSERT_EQUAL( 15 , BITFIELD_OFFSET_OF_MEMBER(ehci_itd_t, xact[0], int_on_complete) );
+  TEST_ASSERT_EQUAL( 16 , BITFIELD_OFFSET_OF_MEMBER(ehci_itd_t, xact[0], length) );
+  TEST_ASSERT_EQUAL( 28 , BITFIELD_OFFSET_OF_MEMBER(ehci_itd_t, xact[0], error) );
+  TEST_ASSERT_EQUAL( 29 , BITFIELD_OFFSET_OF_MEMBER(ehci_itd_t, xact[0], babble_err) );
+  TEST_ASSERT_EQUAL( 30 , BITFIELD_OFFSET_OF_MEMBER(ehci_itd_t, xact[0], buffer_err) );
+  TEST_ASSERT_EQUAL( 31 , BITFIELD_OFFSET_OF_MEMBER(ehci_itd_t, xact[0], active) );
+
+  TEST_ASSERT_EQUAL( 9*4, offsetof(ehci_itd_t, BufferPointer));
+}
+
+void test_sitd_structure(void)
+{
+  TEST_ASSERT_EQUAL( 0, offsetof(ehci_sitd_t, next));
+
+  //------------- Word 1 -------------//
+  TEST_ASSERT_EQUAL( 0, BITFIELD_OFFSET_OF_UINT32(ehci_sitd_t, 1, device_address) );
+  TEST_ASSERT_EQUAL( 8, BITFIELD_OFFSET_OF_UINT32(ehci_sitd_t, 1, endpoint_number) );
+  TEST_ASSERT_EQUAL( 16, BITFIELD_OFFSET_OF_UINT32(ehci_sitd_t, 1, hub_address) );
+  TEST_ASSERT_EQUAL( 24, BITFIELD_OFFSET_OF_UINT32(ehci_sitd_t, 1, port_number) );
+  TEST_ASSERT_EQUAL( 31, BITFIELD_OFFSET_OF_UINT32(ehci_sitd_t, 1, direction) );
+
+  //------------- Word 2 -------------//
+  TEST_ASSERT_EQUAL( 4*2, offsetof(ehci_sitd_t, smask));
+  TEST_ASSERT_EQUAL( 4*2+1, offsetof(ehci_sitd_t, cmask));
+
+  //------------- Word 3 -------------//
+  TEST_ASSERT_EQUAL( 1, BITFIELD_OFFSET_OF_UINT32(ehci_sitd_t, 3, split_state) );
+  TEST_ASSERT_EQUAL( 2, BITFIELD_OFFSET_OF_UINT32(ehci_sitd_t, 3, missed_uframe));
+  TEST_ASSERT_EQUAL( 3, BITFIELD_OFFSET_OF_UINT32(ehci_sitd_t, 3, xact_err) );
+  TEST_ASSERT_EQUAL( 4, BITFIELD_OFFSET_OF_UINT32(ehci_sitd_t, 3, babble_err) );
+  TEST_ASSERT_EQUAL( 5, BITFIELD_OFFSET_OF_UINT32(ehci_sitd_t, 3, buffer_err) );
+  TEST_ASSERT_EQUAL( 6, BITFIELD_OFFSET_OF_UINT32(ehci_sitd_t, 3, error) );
+  TEST_ASSERT_EQUAL( 7, BITFIELD_OFFSET_OF_UINT32(ehci_sitd_t, 3, active) );
+
+  TEST_ASSERT_EQUAL( 8, BITFIELD_OFFSET_OF_UINT32(ehci_sitd_t, 3, cmask_progress) );
+  TEST_ASSERT_EQUAL( 16, BITFIELD_OFFSET_OF_UINT32(ehci_sitd_t, 3, total_bytes) );
+  TEST_ASSERT_EQUAL( 30, BITFIELD_OFFSET_OF_UINT32(ehci_sitd_t, 3, page_select) );
+  TEST_ASSERT_EQUAL( 31, BITFIELD_OFFSET_OF_UINT32(ehci_sitd_t, 3, int_on_complete) );
+
+  //------------- Word 4 -------------//
+  TEST_ASSERT_EQUAL( 4*4, offsetof(ehci_sitd_t, buffer));
+
+  TEST_ASSERT_EQUAL( 4*6, offsetof(ehci_sitd_t, back));
 }
 
 //--------------------------------------------------------------------+
