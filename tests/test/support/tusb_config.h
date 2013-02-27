@@ -61,16 +61,16 @@
 #define TUSB_CFG_HOST
 
 //------------- CORE/CONTROLLER -------------//
-#define TUSB_CFG_HOST_CONTROLLER_NUM 2
-#define TUSB_CFG_HOST_CONTROLLER_START_INDEX 1
+#define TUSB_CFG_HOST_CONTROLLER_NUM             2
+#define TUSB_CFG_HOST_CONTROLLER_START_INDEX     1
 
-#define TUSB_CFG_HOST_DEVICE_MAX 2
-#define TUSB_CFG_CONFIGURATION_MAX 2
+#define TUSB_CFG_HOST_DEVICE_MAX                 2
+#define TUSB_CFG_CONFIGURATION_MAX               2
 
-#define TUSB_CFG_HOST_ENUM_BUFFER_SIZE  256
+#define TUSB_CFG_HOST_ENUM_BUFFER_SIZE           256
 //------------- CLASS -------------//
-#define TUSB_CFG_HOST_HID_KEYBOARD  1
-#define TUSB_CFG_HOST_HID_KEYBOARD_ENDPOINT_SIZE  64
+#define TUSB_CFG_HOST_HID_KEYBOARD               1
+#define TUSB_CFG_HOST_HID_KEYBOARD_ENDPOINT_SIZE 64
 
 //--------------------------------------------------------------------+
 // DEVICE CONFIGURATION

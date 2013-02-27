@@ -153,6 +153,12 @@ tusb_error_t control_xfer_stub(uint8_t dev_addr, const tusb_std_request_t * cons
   return TUSB_ERROR_NONE;
 }
 
+tusb_error_t hidh_install_stub(uint8_t dev_addr, uint8_t const *descriptor, uint16_t *p_length, int num_call)
+{
+  *p_length = sizeof(tusb_descriptor_interface_t) + sizeof(tusb_hid_descriptor_hid_t) + sizeof(tusb_descriptor_endpoint_t);
+  return TUSB_ERROR_NONE;
+}
+
 //--------------------------------------------------------------------+
 // enumeration
 //--------------------------------------------------------------------+
@@ -215,15 +221,33 @@ void test_enum_failed_get_full_config_desc(void)
   usbh_enumeration_task();
 }
 
+void class_install_expect(void)
+{
+  hidh_install_subtask_StubWithCallback(hidh_install_stub);
+}
+
 void test_enum_parse_config_desc(void)
 {
   osal_semaphore_wait_StubWithCallback(semaphore_wait_timeout_stub(5));
   hcd_pipe_control_open_ExpectAndReturn(1, desc_device.bMaxPacketSize0, TUSB_ERROR_NONE);
   tusbh_device_attached_cb_ExpectAndReturn((tusb_descriptor_device_t*) enum_data_buffer, 1);
 
-  hidh_install_subtask_IgnoreAndReturn(TUSB_ERROR_NONE);
+  class_install_expect();
+  tusbh_device_mount_failed_cb_Expect(TUSB_ERROR_USBH_MOUNT_DEVICE_NOT_RESPOND, NULL); // fail to set configure
 
   usbh_enumeration_task();
 
   TEST_ASSERT_EQUAL(desc_configuration.configuration.bNumInterfaces, usbh_device_info_pool[1].interface_count);
+}
+
+void test_enum_set_configure(void)
+{
+  osal_semaphore_wait_StubWithCallback(semaphore_wait_timeout_stub(6));
+  hcd_pipe_control_open_ExpectAndReturn(1, desc_device.bMaxPacketSize0, TUSB_ERROR_NONE);
+  tusbh_device_attached_cb_ExpectAndReturn((tusb_descriptor_device_t*) enum_data_buffer, 1);
+  class_install_expect();
+
+  tusbh_device_mount_succeed_cb_Expect(1);
+
+  usbh_enumeration_task();
 }

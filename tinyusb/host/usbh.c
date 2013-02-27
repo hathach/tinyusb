@@ -69,6 +69,7 @@ STATIC_ uint8_t enum_data_buffer[TUSB_CFG_HOST_ENUM_BUFFER_SIZE] TUSB_CFG_ATTR_U
 
 //------------- Helper Function Prototypes -------------//
 static inline uint8_t get_new_address(void) ATTR_ALWAYS_INLINE;
+static inline uint8_t get_configure_number_for_device(tusb_descriptor_device_t* dev_desc) ATTR_ALWAYS_INLINE;
 
 //--------------------------------------------------------------------+
 // PUBLIC API (Parameter Verification is required)
@@ -206,15 +207,8 @@ OSAL_TASK_DECLARE(usbh_enumeration_task)
   usbh_device_info_pool[new_addr].product_id      = ((tusb_descriptor_device_t*) enum_data_buffer)->idProduct;
   usbh_device_info_pool[new_addr].configure_count = ((tusb_descriptor_device_t*) enum_data_buffer)->bNumConfigurations;
 
-  //------------- invoke callback to ask user which configuration to select -------------//
-  if (tusbh_device_attached_cb)
-  {
-    configure_selected = min8_of(1,
-                                 tusbh_device_attached_cb( (tusb_descriptor_device_t*) enum_data_buffer) );
-  }else
-  {
-    configure_selected = 1;
-  }
+  configure_selected = get_configure_number_for_device((tusb_descriptor_device_t*) enum_data_buffer);
+  TASK_ASSERT(configure_selected <= usbh_device_info_pool[new_addr].configure_count);
 
   //------------- Get 9 bytes of configuration descriptor -------------//
   OSAL_SUBTASK_INVOKED_AND_WAIT(
@@ -284,18 +278,20 @@ OSAL_TASK_DECLARE(usbh_enumeration_task)
   }
 
   //------------- Set Configure -------------//
-//  (void) hcd_pipe_control_xfer(
-//      new_addr,
-//      &(tusb_std_request_t)
-//      {
-//        .bmRequestType = { .direction = TUSB_DIR_HOST_TO_DEV, .type = TUSB_REQUEST_TYPE_STANDARD, .recipient = TUSB_REQUEST_RECIPIENT_DEVICE },
-//        .bRequest = TUSB_REQUEST_SET_CONFIGURATION,
-//        .wValue   = configure_selected
-//      },
-//      NULL
-//  );
-//  osal_semaphore_wait(usbh_device_info_pool[new_addr].sem_hdl, OSAL_TIMEOUT_NORMAL, &error); // careful of local variable without static
-//  TASK_ASSERT_STATUS_WITH_HANDLER(error, tusbh_device_mount_failed_cb(TUSB_ERROR_USBH_MOUNT_DEVICE_NOT_RESPOND, NULL) );
+  OSAL_SUBTASK_INVOKED_AND_WAIT (
+    usbh_control_xfer_subtask(
+        new_addr,
+        &(tusb_std_request_t)
+        {
+          .bmRequestType = { .direction = TUSB_DIR_HOST_TO_DEV, .type = TUSB_REQUEST_TYPE_STANDARD, .recipient = TUSB_REQUEST_RECIPIENT_DEVICE },
+          .bRequest = TUSB_REQUEST_SET_CONFIGURATION,
+          .wValue   = configure_selected
+        },
+        NULL
+    )
+  );
+
+  tusbh_device_mount_succeed_cb(new_addr);
 
   // TODO invoke mounted callback
   OSAL_TASK_LOOP_END
@@ -323,3 +319,15 @@ static inline uint8_t get_new_address(void)
   return addr;
 }
 
+static inline uint8_t get_configure_number_for_device(tusb_descriptor_device_t* dev_desc)
+{
+  uint8_t config_num = 1;
+
+  // invoke callback to ask user which configuration to select
+  if (tusbh_device_attached_cb)
+  {
+    config_num = min8_of(1, tusbh_device_attached_cb(dev_desc) );
+  }
+
+  return config_num;
+}
