@@ -76,15 +76,6 @@
 #include "core/std_descriptors.h"
 #include "core/std_request.h"
 
-// TODO try to manipulate gcc cmd option instead
-#ifndef _TEST_
-  #define STATIC_ static
-  #define INLINE_ inline
-#else
-  #define STATIC_
-  #define INLINE_
-#endif
-
 #define STRING_(x)  #x                             // stringify without expand
 #define XSTRING_(x) STRING_(x)                     // expand then stringify
 #define STRING_CONCAT_(a, b) a##b                  // concat without expand

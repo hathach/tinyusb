@@ -51,6 +51,16 @@
 #ifndef _TUSB_COMPILER_H_
 #define _TUSB_COMPILER_H_
 
+#ifdef _TEST_
+  #define ATTR_ALWAYS_INLINE
+  #define STATIC_
+  #define INLINE_
+#else
+  #define STATIC_ static
+  #define INLINE_ inline
+#endif
+
+
 #if defined(__GNUC__)
   #include "compiler_gcc.h"
 #elif defined __ICCARM__ // IAR compiler

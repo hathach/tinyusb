@@ -66,7 +66,7 @@ typedef uint32_t pipe_handle_t;
 //--------------------------------------------------------------------+
 // USBH-HCD API
 //--------------------------------------------------------------------+
-tusb_error_t hcd_init(uint8_t hostid) ATTR_WARN_UNUSED_RESULT;
+tusb_error_t hcd_init() ATTR_WARN_UNUSED_RESULT;
 
 //--------------------------------------------------------------------+
 // PIPE API

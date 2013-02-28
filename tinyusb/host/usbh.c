@@ -88,10 +88,7 @@ tusb_error_t usbh_init(void)
 
   memclr_(usbh_device_info_pool, sizeof(usbh_device_info_t)*(TUSB_CFG_HOST_DEVICE_MAX+1));
 
-  for(i=0; i<TUSB_CFG_HOST_CONTROLLER_NUM; i++)
-  {
-    ASSERT_STATUS( hcd_init(TUSB_CFG_HOST_CONTROLLER_START_INDEX+i) );
-  }
+  ASSERT_STATUS( hcd_init() );
 
   //------------- Enumeration & Reporter Task init -------------//
   ASSERT_STATUS( osal_task_create(&enum_task) );

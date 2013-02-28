@@ -42,6 +42,9 @@
 #include "mock_osal.h"
 #include "ehci.h"
 
+extern ehci_data_t ehci_data;
+extern ehci_link_t period_frame_list0[EHCI_FRAMELIST_SIZE];
+extern ehci_link_t period_frame_list1[EHCI_FRAMELIST_SIZE];
 
 //--------------------------------------------------------------------+
 // Setup/Teardown + helper declare
@@ -281,9 +284,23 @@ void test_register_portsc(void)
 //--------------------------------------------------------------------+
 // EHCI Data Organization
 //--------------------------------------------------------------------+
-void test_(void)
+void test_ehci_data(void)
 {
+  // period fram list alignment
+  TEST_ASSERT_BITS_LOW(4096-1, (uint32_t)period_frame_list0 );
+  TEST_ASSERT_BITS_LOW(4096-1, (uint32_t)period_frame_list1 );
 
+  //
+}
+
+void test_hcd_init(void)
+{
+  hcd_init(0);
+
+  //------------- check memory data -------------//
+  ehci_data_t zeroes;
+  memclr_(&zeroes, sizeof(ehci_data_t));
+  TEST_ASSERT_EQUAL_MEMORY(&zeroes, &ehci_data, sizeof(ehci_data_t));
 }
 
 //--------------------------------------------------------------------+
