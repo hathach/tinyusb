@@ -35,7 +35,7 @@
  * This file is part of the tiny usb stack.
  */
 
-#include "tusb_option.h"
+#include "common/common.h"
 
 #ifdef TUSB_CFG_HOST
 

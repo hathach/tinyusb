@@ -37,11 +37,13 @@
 
 #include "unity.h"
 #include "errors.h"
-#include "usbh.h"
 #include "descriptor_test.h"
+
 #include "mock_osal.h"
+#include "usbh.h"
 #include "mock_hcd.h"
-#include "mock_usbh_hcd.h"
+#include "usbh_hcd.h"
+
 #include "mock_tusb_callback.h"
 #include "mock_hid_host.h"
 

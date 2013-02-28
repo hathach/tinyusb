@@ -50,6 +50,7 @@
 
 #include "common/common.h"
 #include "hal/hal.h"
+#include "osal/osal.h"
 
 #ifdef TUSB_CFG_HOST
   #include "host/usbh.h"
