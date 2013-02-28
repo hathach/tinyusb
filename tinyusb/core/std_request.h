@@ -55,11 +55,6 @@
  extern "C" {
 #endif
 
-#include "tusb_option.h"
-#include "common/primitive_types.h"
-#include "common/compiler/compiler.h"
-#include "common/binary.h"
-
 typedef ATTR_PREPACKED struct ATTR_PACKED {
   ATTR_PREPACKED struct ATTR_PACKED {
     uint8_t recipient :  5; /**< Recipient type. */

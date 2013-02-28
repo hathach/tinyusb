@@ -53,11 +53,6 @@
  extern "C" {
 #endif
 
-#include "tusb_option.h"
-#include "common/primitive_types.h"
-#include "common/compiler/compiler.h"
-#include "common/binary.h"
-
 /// defined base on EHCI specs value for Endpoint Speed
 typedef enum {
   TUSB_SPEED_FULL = 0,

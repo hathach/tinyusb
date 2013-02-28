@@ -52,11 +52,6 @@
  extern "C" {
 #endif
 
-#include "tusb_option.h"
-#include "common/primitive_types.h"
-#include "common/compiler/compiler.h"
-#include "common/binary.h"
-
 //--------------------------------------------------------------------+
 // STANDARD DESCRIPTORS
 //--------------------------------------------------------------------+

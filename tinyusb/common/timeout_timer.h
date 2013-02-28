@@ -51,9 +51,7 @@
 #ifndef _TUSB_TIMEOUT_TTIMER_H_
 #define _TUSB_TIMEOUT_TTIMER_H_
 
-#include "primitive_types.h"
 #include "compiler/compiler.h"
-#include "osal/osal.h"
 
 #ifdef __cplusplus
 extern "C" {
