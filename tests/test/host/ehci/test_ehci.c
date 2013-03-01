@@ -46,6 +46,8 @@ extern ehci_data_t ehci_data;
 extern ehci_link_t period_frame_list0[EHCI_FRAMELIST_SIZE];
 extern ehci_link_t period_frame_list1[EHCI_FRAMELIST_SIZE];
 
+//LPC_USB0_Type lpc_usb0;
+//LPC_USB1_Type lpc_usb1;
 //--------------------------------------------------------------------+
 // Setup/Teardown + helper declare
 //--------------------------------------------------------------------+
@@ -241,8 +243,8 @@ void test_register_usbcmd(void)
 
 void test_register_usbsts(void)
 {
-  TEST_ASSERT_EQUAL( 0  , BITFIELD_OFFSET_OF_MEMBER(ehci_registers_t, usb_sts_bit, int_usb));
-  TEST_ASSERT_EQUAL( 1  , BITFIELD_OFFSET_OF_MEMBER(ehci_registers_t, usb_sts_bit, int_error));
+  TEST_ASSERT_EQUAL( 0  , BITFIELD_OFFSET_OF_MEMBER(ehci_registers_t, usb_sts_bit, usb));
+  TEST_ASSERT_EQUAL( 1  , BITFIELD_OFFSET_OF_MEMBER(ehci_registers_t, usb_sts_bit, usb_error));
   TEST_ASSERT_EQUAL( 2  , BITFIELD_OFFSET_OF_MEMBER(ehci_registers_t, usb_sts_bit, port_change_detect));
   TEST_ASSERT_EQUAL( 3  , BITFIELD_OFFSET_OF_MEMBER(ehci_registers_t, usb_sts_bit, framelist_rollover));
   TEST_ASSERT_EQUAL( 4  , BITFIELD_OFFSET_OF_MEMBER(ehci_registers_t, usb_sts_bit, host_system_error));
@@ -293,14 +295,32 @@ void test_ehci_data(void)
   //
 }
 
-void test_hcd_init(void)
+void test_hcd_init_data(void)
 {
-  hcd_init(0);
+  uint32_t random_data = 0x1234;
+  memcpy(&ehci_data, &random_data, sizeof(random_data));
+
+  hcd_init();
 
   //------------- check memory data -------------//
   ehci_data_t zeroes;
   memclr_(&zeroes, sizeof(ehci_data_t));
   TEST_ASSERT_EQUAL_MEMORY(&zeroes, &ehci_data, sizeof(ehci_data_t));
+}
+
+void test_hcd_init(void)
+{
+  hcd_init();
+
+  for(uint32_t i=0; i<TUSB_CFG_HOST_CONTROLLER_NUM; i++)
+  {
+    ehci_registers_t* regs = get_operational_register(i);
+
+    //------------- USB INT Enable-------------//
+//    TEST_ASSERT(regs->usb_int_enable_bit.host_system_error);
+//    TEST_ASSERT(regs->usb_int_enable_bit.usb);
+//    TEST_ASSERT(regs->usb_int_enable_bit.usb_error);
+  }
 }
 
 //--------------------------------------------------------------------+

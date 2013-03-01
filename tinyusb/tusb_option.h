@@ -89,10 +89,17 @@
   #warning TUSB_CFG_CONFIGURATION_MAX is not defined, default value is 1
 #endif
 
+// TODO  may move to other places
+#define MCU_LPC13UXX 1
+#define MCU_LPC11UXX 2
+#define MCU_LPC43XX  3
+#define MCU_LPC18XX  4
+
 //--------------------------------------------------------------------+
 // HOST OPTIONS
 //--------------------------------------------------------------------+
 #ifdef TUSB_CFG_HOST
+  //------------- Controller -------------//
   #ifndef TUSB_CFG_HOST_CONTROLLER_NUM
     #define TUSB_CFG_HOST_CONTROLLER_NUM 1
     #warning TUSB_CFG_HOST_CONTROLLER_NUM is not defined, default value is 1
@@ -107,6 +114,8 @@
     #warning TUSB_CFG_HOST_DEVICE_MAX is not defined, default value is 1
   #endif
 
+  //------------- HID CLASS -------------//
+  #define HOST_CLASS_HID   ( TUSB_CFG_HOST_HID_KEYBOARD )
   #if TUSB_CFG_HOST_HID_KEYBOARD
     #if !defined(TUSB_CFG_HOST_HID_KEYBOARD_ENDPOINT_SIZE)
       #define TUSB_CFG_HOST_HID_KEYBOARD_ENDPOINT_SIZE 64
@@ -116,6 +125,8 @@
     #if !defined(TUSB_CFG_HOST_HID_KEYBOARD_NO_INSTANCES_PER_DEVICE)
       #define TUSB_CFG_HOST_HID_KEYBOARD_NO_INSTANCES_PER_DEVICE 1
     #endif
+
+    #define HOST_HCD_XFER_INTERRUPT
   #endif // end TUSB_CFG_HOST_HID_KEYBOARD
 
   #ifndef TUSB_CFG_HOST_ENUM_BUFFER_SIZE
@@ -123,7 +134,7 @@
     #warning TUSB_CFG_HOST_ENUM_BUFFER_SIZE is not defined, default value is 256
   #endif
 
-  #define HOST_CLASS_HID   ( TUSB_CFG_HOST_HID_KEYBOARD )
+  //------------- CLASS -------------//
 #endif // end TUSB_CFG_HOST
 
 //--------------------------------------------------------------------+
