@@ -39,6 +39,8 @@
 #include "tusb_option.h"
 #include "errors.h"
 #include "binary.h"
+
+#include "hal.h"
 #include "mock_osal.h"
 #include "ehci.h"
 
@@ -46,8 +48,9 @@ extern ehci_data_t ehci_data;
 extern ehci_link_t period_frame_list0[EHCI_FRAMELIST_SIZE];
 extern ehci_link_t period_frame_list1[EHCI_FRAMELIST_SIZE];
 
-//LPC_USB0_Type lpc_usb0;
-//LPC_USB1_Type lpc_usb1;
+LPC_USB0_Type lpc_usb0;
+LPC_USB1_Type lpc_usb1;
+
 //--------------------------------------------------------------------+
 // Setup/Teardown + helper declare
 //--------------------------------------------------------------------+
@@ -74,6 +77,8 @@ uint8_t number_of_high_bits(uint32_t value);
 
 void setUp(void)
 {
+  memclr_(&lpc_usb0, sizeof(LPC_USB0_Type));
+  memclr_(&lpc_usb1, sizeof(LPC_USB1_Type));
 }
 
 void tearDown(void)
@@ -233,7 +238,7 @@ void test_register_usbcmd(void)
   TEST_ASSERT_EQUAL( 2  , BITFIELD_OFFSET_OF_MEMBER(ehci_registers_t, usb_cmd_bit, framelist_size) );
   TEST_ASSERT_EQUAL( 4  , BITFIELD_OFFSET_OF_MEMBER(ehci_registers_t, usb_cmd_bit, periodic_enable) );
   TEST_ASSERT_EQUAL( 5  , BITFIELD_OFFSET_OF_MEMBER(ehci_registers_t, usb_cmd_bit, async_enable) );
-  TEST_ASSERT_EQUAL( 6  , BITFIELD_OFFSET_OF_MEMBER(ehci_registers_t, usb_cmd_bit, int_advacne_async) );
+  TEST_ASSERT_EQUAL( 6  , BITFIELD_OFFSET_OF_MEMBER(ehci_registers_t, usb_cmd_bit, advacne_async) );
   TEST_ASSERT_EQUAL( 7  , BITFIELD_OFFSET_OF_MEMBER(ehci_registers_t, usb_cmd_bit, light_reset) );
   TEST_ASSERT_EQUAL( 8  , BITFIELD_OFFSET_OF_MEMBER(ehci_registers_t, usb_cmd_bit, async_park) );
   TEST_ASSERT_EQUAL( 11 , BITFIELD_OFFSET_OF_MEMBER(ehci_registers_t, usb_cmd_bit, async_park_enable) );
@@ -247,8 +252,8 @@ void test_register_usbsts(void)
   TEST_ASSERT_EQUAL( 1  , BITFIELD_OFFSET_OF_MEMBER(ehci_registers_t, usb_sts_bit, usb_error));
   TEST_ASSERT_EQUAL( 2  , BITFIELD_OFFSET_OF_MEMBER(ehci_registers_t, usb_sts_bit, port_change_detect));
   TEST_ASSERT_EQUAL( 3  , BITFIELD_OFFSET_OF_MEMBER(ehci_registers_t, usb_sts_bit, framelist_rollover));
-  TEST_ASSERT_EQUAL( 4  , BITFIELD_OFFSET_OF_MEMBER(ehci_registers_t, usb_sts_bit, host_system_error));
-  TEST_ASSERT_EQUAL( 5  , BITFIELD_OFFSET_OF_MEMBER(ehci_registers_t, usb_sts_bit, int_async_advance));
+  TEST_ASSERT_EQUAL( 4  , BITFIELD_OFFSET_OF_MEMBER(ehci_registers_t, usb_sts_bit, pci_host_system_error));
+  TEST_ASSERT_EQUAL( 5  , BITFIELD_OFFSET_OF_MEMBER(ehci_registers_t, usb_sts_bit, async_advance));
   TEST_ASSERT_EQUAL( 7  , BITFIELD_OFFSET_OF_MEMBER(ehci_registers_t, usb_sts_bit, nxp_sof_received));
   TEST_ASSERT_EQUAL( 12 , BITFIELD_OFFSET_OF_MEMBER(ehci_registers_t, usb_sts_bit, hc_halted));
   TEST_ASSERT_EQUAL( 13 , BITFIELD_OFFSET_OF_MEMBER(ehci_registers_t, usb_sts_bit, reclamation));
@@ -256,6 +261,20 @@ void test_register_usbsts(void)
   TEST_ASSERT_EQUAL( 15 , BITFIELD_OFFSET_OF_MEMBER(ehci_registers_t, usb_sts_bit, async_schedule_status));
   TEST_ASSERT_EQUAL( 18 , BITFIELD_OFFSET_OF_MEMBER(ehci_registers_t, usb_sts_bit, nxp_int_async));
   TEST_ASSERT_EQUAL( 19 , BITFIELD_OFFSET_OF_MEMBER(ehci_registers_t, usb_sts_bit, nxp_int_period));
+}
+
+void test_register_usbint(void)
+{
+  TEST_ASSERT_EQUAL( 0  , BITFIELD_OFFSET_OF_MEMBER(ehci_registers_t, usb_int_enable_bit, usb));
+  TEST_ASSERT_EQUAL( 1  , BITFIELD_OFFSET_OF_MEMBER(ehci_registers_t, usb_int_enable_bit, usb_error));
+  TEST_ASSERT_EQUAL( 2  , BITFIELD_OFFSET_OF_MEMBER(ehci_registers_t, usb_int_enable_bit, port_change_detect));
+  TEST_ASSERT_EQUAL( 3  , BITFIELD_OFFSET_OF_MEMBER(ehci_registers_t, usb_int_enable_bit, framelist_rollover));
+  TEST_ASSERT_EQUAL( 4  , BITFIELD_OFFSET_OF_MEMBER(ehci_registers_t, usb_int_enable_bit, pci_host_system_error));
+  TEST_ASSERT_EQUAL( 5  , BITFIELD_OFFSET_OF_MEMBER(ehci_registers_t, usb_int_enable_bit, async_advance));
+  TEST_ASSERT_EQUAL( 7  , BITFIELD_OFFSET_OF_MEMBER(ehci_registers_t, usb_int_enable_bit, nxp_sof_received));
+  TEST_ASSERT_EQUAL( 18 , BITFIELD_OFFSET_OF_MEMBER(ehci_registers_t, usb_int_enable_bit, nxp_int_async));
+  TEST_ASSERT_EQUAL( 19 , BITFIELD_OFFSET_OF_MEMBER(ehci_registers_t, usb_int_enable_bit, nxp_int_period));
+
 }
 
 void test_register_portsc(void)
@@ -292,7 +311,7 @@ void test_ehci_data(void)
   TEST_ASSERT_BITS_LOW(4096-1, (uint32_t)period_frame_list0 );
   TEST_ASSERT_BITS_LOW(4096-1, (uint32_t)period_frame_list1 );
 
-  //
+  TEST_IGNORE();
 }
 
 void test_hcd_init_data(void)
@@ -308,7 +327,7 @@ void test_hcd_init_data(void)
   TEST_ASSERT_EQUAL_MEMORY(&zeroes, &ehci_data, sizeof(ehci_data_t));
 }
 
-void test_hcd_init(void)
+void test_hcd_init_usbint(void)
 {
   hcd_init();
 
@@ -317,9 +336,15 @@ void test_hcd_init(void)
     ehci_registers_t* regs = get_operational_register(i);
 
     //------------- USB INT Enable-------------//
-//    TEST_ASSERT(regs->usb_int_enable_bit.host_system_error);
-//    TEST_ASSERT(regs->usb_int_enable_bit.usb);
-//    TEST_ASSERT(regs->usb_int_enable_bit.usb_error);
+    TEST_ASSERT(regs->usb_int_enable_bit.usb);
+    TEST_ASSERT(regs->usb_int_enable_bit.usb_error);
+    TEST_ASSERT(regs->usb_int_enable_bit.port_change_detect);
+    TEST_ASSERT_FALSE(regs->usb_int_enable_bit.framelist_rollover);
+    TEST_ASSERT_FALSE(regs->usb_int_enable_bit.pci_host_system_error);
+    TEST_ASSERT_FALSE(regs->usb_int_enable_bit.async_advance);
+
+    TEST_ASSERT(regs->usb_int_enable_bit.nxp_int_async);
+    TEST_ASSERT(regs->usb_int_enable_bit.nxp_int_period);
   }
 }
 
