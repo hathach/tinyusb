@@ -104,7 +104,7 @@ tusb_error_t hcd_init(void)
 
   for(i=0; i<TUSB_CFG_HOST_CONTROLLER_NUM; i++)
   {
-    hcd_controller_init(TUSB_CFG_HOST_CONTROLLER_START_INDEX + i);
+    ASSERT_STATUS (hcd_controller_init(TUSB_CFG_HOST_CONTROLLER_START_INDEX + i));
   }
 
   return TUSB_ERROR_NONE;

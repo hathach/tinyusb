@@ -84,8 +84,6 @@ tusbh_device_status_t tusbh_device_status_get (tusb_handle_device_t const device
 //--------------------------------------------------------------------+
 tusb_error_t usbh_init(void)
 {
-  uint32_t i;
-
   memclr_(usbh_device_info_pool, sizeof(usbh_device_info_t)*(TUSB_CFG_HOST_DEVICE_MAX+1));
 
   ASSERT_STATUS( hcd_init() );
