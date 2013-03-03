@@ -45,8 +45,6 @@
 #include "ehci.h"
 
 extern ehci_data_t ehci_data;
-extern ehci_link_t period_frame_list0[EHCI_FRAMELIST_SIZE];
-extern ehci_link_t period_frame_list1[EHCI_FRAMELIST_SIZE];
 
 LPC_USB0_Type lpc_usb0;
 LPC_USB1_Type lpc_usb1;
@@ -307,9 +305,11 @@ void test_register_portsc(void)
 //--------------------------------------------------------------------+
 void test_ehci_data(void)
 {
-  // period fram list alignment
-  TEST_ASSERT_BITS_LOW(4096-1, (uint32_t)period_frame_list0 );
-  TEST_ASSERT_BITS_LOW(4096-1, (uint32_t)period_frame_list1 );
+  for(uint32_t i=0; i<TUSB_CFG_HOST_CONTROLLER_NUM; i++)
+  {
+    uint8_t hostid = i+TUSB_CFG_HOST_CONTROLLER_START_INDEX;
+    TEST_ASSERT_BITS_LOW(4096-1, (uint32_t)get_period_frame_list(hostid) );
+  }
 
   TEST_IGNORE();
 }
