@@ -61,11 +61,13 @@ extern "C"
 //--------------------------------------------------------------------+
 // Compile-time Assert
 //--------------------------------------------------------------------+
-#ifdef __COUNTER__
-  #define STATIC_ASSSERT(const_expr) enum { XSTRING_CONCAT(static_assert_, __COUNTER__) = 1/(!!(const_expr)) }
+#if defined __COUNTER__ && __COUNTER__ != __COUNTER__
+  #define _ASSERT_COUNTER __COUNTER__
 #else
-  #define STATIC_ASSSERT(const_expr) enum { XSTRING_CONCAT(static_assert_, __LINE__) = 1/(!!(const_expr)) }
+  #define _ASSERT_COUNTER __LINE__
 #endif
+
+#define STATIC_ASSSERT(const_expr) enum { XSTRING_CONCAT(static_assert_, _ASSERT_COUNTER) = 1/(!!(const_expr)) }
 
   //#if ( defined CFG_PRINTF_UART || defined CFG_PRINTF_USBCDC || defined CFG_PRINTF_DEBUG )
 #if TUSB_CFG_DEBUG == 3

@@ -123,7 +123,7 @@ tusb_error_t hcd_controller_init(uint8_t hostid)
   regs->usb_sts        = EHCI_INT_MASK_ALL; // 2. clear all status
   regs->usb_int_enable =
       /*EHCI_INT_MASK_USB |*/ EHCI_INT_MASK_ERROR | EHCI_INT_MASK_PORT_CHANGE | EHCI_INT_MASK_ASYNC_ADVANCE
-#if 1
+#if 1 // TODO enable usbint olny
       | EHCI_INT_MASK_NXP_ASYNC | EHCI_INT_MASK_NXP_PERIODIC
 #endif
       ;
@@ -164,7 +164,18 @@ tusb_error_t hcd_controller_init(uint8_t hostid)
 #else
   regs->periodic_list_base = 0;
 #endif
+
+  //------------- TT Control (NXP only) -------------//
+  regs->tt_control = 0;
+
   //------------- USB CMD Register -------------//
+
+  regs->usb_cmd = BIT_(EHCI_USBCMD_POS_ASYNC_ENABLE)
+#if EHCI_PERIODIC_LIST
+                  | BIT_(EHCI_USBCMD_POS_PERIOD_ENABLE)
+#endif
+                  | ((EHCI_CFG_FRAMELIST_SIZE_BITS & BIN8(011)) << EHCI_USBCMD_POS_FRAMELIST_SZIE)
+                  | ((EHCI_CFG_FRAMELIST_SIZE_BITS >> 2) << EHCI_USBCMD_POS_NXP_FRAMELIST_SIZE_MSB);
 
   //------------- ConfigFlag Register (skip) -------------//
 
