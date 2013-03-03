@@ -1,5 +1,5 @@
 /*
- * test_ehci.c
+ * test_ehci_structure.c
  *
  *  Created on: Feb 27, 2013
  *      Author: hathach
@@ -45,7 +45,6 @@
 #include "ehci.h"
 
 extern ehci_data_t ehci_data;
-
 LPC_USB0_Type lpc_usb0;
 LPC_USB1_Type lpc_usb1;
 
@@ -75,8 +74,7 @@ uint8_t number_of_high_bits(uint32_t value);
 
 void setUp(void)
 {
-  memclr_(&lpc_usb0, sizeof(LPC_USB0_Type));
-  memclr_(&lpc_usb1, sizeof(LPC_USB1_Type));
+
 }
 
 void tearDown(void)
@@ -314,134 +312,6 @@ void test_ehci_data(void)
   TEST_IGNORE();
 }
 
-//--------------------------------------------------------------------+
-// Initialization
-//--------------------------------------------------------------------+
-void test_hcd_init_data(void)
-{
-  uint32_t random_data = 0x1234;
-  memcpy(&ehci_data, &random_data, sizeof(random_data));
-
-  hcd_init();
-
-  //------------- check memory data -------------//
-  for(uint32_t i=0; i<sizeof(ehci_data.device); i++)
-    TEST_ASSERT_EQUAL_HEX8(0, ((uint8_t*) ehci_data.device)[i] );
-}
-
-void test_hcd_init_usbint(void)
-{
-  hcd_init();
-
-  for(uint32_t i=0; i<TUSB_CFG_HOST_CONTROLLER_NUM; i++)
-  {
-    ehci_registers_t* regs = get_operational_register(i+TUSB_CFG_HOST_CONTROLLER_START_INDEX);
-
-    //------------- USB INT Enable-------------//
-    TEST_ASSERT(regs->usb_int_enable_bit.usb_error);
-    TEST_ASSERT(regs->usb_int_enable_bit.port_change_detect);
-    TEST_ASSERT(regs->usb_int_enable_bit.async_advance);
-
-    TEST_ASSERT_FALSE(regs->usb_int_enable_bit.framelist_rollover);
-    TEST_ASSERT_FALSE(regs->usb_int_enable_bit.pci_host_system_error);
-
-    TEST_ASSERT_FALSE(regs->usb_int_enable_bit.usb);
-    TEST_ASSERT_TRUE(regs->usb_int_enable_bit.nxp_int_async);
-    TEST_ASSERT_TRUE(regs->usb_int_enable_bit.nxp_int_period);
-
-    TEST_IGNORE_MESSAGE("not use nxp int async/period, use usbint instead");
-  }
-}
-
-void test_hcd_init_async_list(void)
-{
-  hcd_init();
-
-  for(uint32_t i=0; i<TUSB_CFG_HOST_CONTROLLER_NUM; i++)
-  {
-    uint8_t hostid                = i+TUSB_CFG_HOST_CONTROLLER_START_INDEX;
-
-    ehci_registers_t * const regs = get_operational_register(hostid);
-    ehci_qhd_t * const async_head = get_async_head(hostid);
-
-    TEST_ASSERT_EQUAL_HEX(async_head, regs->async_list_base);
-
-    TEST_ASSERT_EQUAL_HEX(async_head, align32(async_head) );
-    TEST_ASSERT_EQUAL(EHCI_QUEUE_ELEMENT_QHD, async_head->next.type);
-    TEST_ASSERT_FALSE(async_head->next.terminate);
-
-    TEST_ASSERT(async_head->head_list_flag);
-    TEST_ASSERT(async_head->qtd_overlay.next.terminate);
-    TEST_ASSERT(async_head->qtd_overlay.alternate.terminate);
-    TEST_ASSERT(async_head->qtd_overlay.halted);
-  }
-}
-
-void test_hcd_init_period_list(void)
-{
-#if EHCI_PERIODIC_LIST
-  hcd_init();
-
-  for(uint32_t i=0; i<TUSB_CFG_HOST_CONTROLLER_NUM; i++)
-  {
-    uint8_t           const hostid      = i+TUSB_CFG_HOST_CONTROLLER_START_INDEX;
-    ehci_registers_t* const regs        = get_operational_register(hostid);
-    ehci_qhd_t *      const period_head = get_period_head(hostid);
-    ehci_link_t *     const framelist   = get_period_frame_list(hostid);
-
-    TEST_ASSERT_EQUAL_HEX( (uint32_t) framelist, regs->periodic_list_base);
-    for(uint32_t list_idx=0; list_idx < EHCI_FRAMELIST_SIZE; list_idx++)
-    {
-      TEST_ASSERT_EQUAL_HEX( (uint32_t) period_head, align32((uint32_t)framelist[list_idx].address) );
-      TEST_ASSERT_FALSE(framelist[list_idx].terminate);
-      TEST_ASSERT_EQUAL(EHCI_QUEUE_ELEMENT_QHD, framelist[list_idx].type);
-    }
-
-    TEST_ASSERT(period_head->smask)
-    TEST_ASSERT_TRUE(period_head->next.terminate);
-    TEST_ASSERT(period_head->qtd_overlay.next.terminate);
-    TEST_ASSERT(period_head->qtd_overlay.alternate.terminate);
-    TEST_ASSERT(period_head->qtd_overlay.halted);
-  }
-#endif
-}
-
-void test_hcd_init_tt_control(void)
-{
-  hcd_init();
-
-  for(uint32_t i=0; i<TUSB_CFG_HOST_CONTROLLER_NUM; i++)
-  {
-    uint8_t           const hostid      = i+TUSB_CFG_HOST_CONTROLLER_START_INDEX;
-    ehci_registers_t* const regs        = get_operational_register(hostid);
-
-    TEST_ASSERT_EQUAL(0, regs->tt_control);
-  }
-}
-
-void test_hcd_init_usbcmd(void)
-{
-  hcd_init();
-
-  for(uint32_t i=0; i<TUSB_CFG_HOST_CONTROLLER_NUM; i++)
-  {
-    uint8_t           const hostid      = i+TUSB_CFG_HOST_CONTROLLER_START_INDEX;
-    ehci_registers_t* const regs        = get_operational_register(hostid);
-
-    TEST_ASSERT(regs->usb_cmd_bit.async_enable);
-
-#if EHCI_PERIODIC_LIST
-    TEST_ASSERT(regs->usb_cmd_bit.periodic_enable);
-#else
-    TEST_ASSERT_FALSE(regs->usb_cmd_bit.periodic_enable);
-#endif
-
-    //------------- Framelist size (NXP specific) -------------//
-    TEST_ASSERT_BITS(BIN8(11), EHCI_CFG_FRAMELIST_SIZE_BITS, regs->usb_cmd_bit.framelist_size);
-    TEST_ASSERT_EQUAL(EHCI_CFG_FRAMELIST_SIZE_BITS >> 2, regs->usb_cmd_bit.nxp_framelist_size_msb);
-  }
-
-}
 //--------------------------------------------------------------------+
 // Helper
 //--------------------------------------------------------------------+
