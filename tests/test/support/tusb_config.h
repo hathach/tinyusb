@@ -62,7 +62,7 @@
 
 //------------- CORE/CONTROLLER -------------//
 #define TUSB_CFG_HOST_CONTROLLER_NUM             2
-#define TUSB_CFG_HOST_CONTROLLER_START_INDEX     1
+#define TUSB_CFG_HOST_CONTROLLER_START_INDEX     0
 
 #define TUSB_CFG_HOST_DEVICE_MAX                 2
 #define TUSB_CFG_CONFIGURATION_MAX               2

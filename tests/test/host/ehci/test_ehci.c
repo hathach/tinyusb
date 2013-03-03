@@ -148,7 +148,7 @@ void test_qhd_structure(void)
   TEST_ASSERT_EQUAL( 14, BITFIELD_OFFSET_OF_UINT32(ehci_qhd_t, 1, data_toggle_control) );
   TEST_ASSERT_EQUAL( 15, BITFIELD_OFFSET_OF_UINT32(ehci_qhd_t, 1, head_list_flag) );
   TEST_ASSERT_EQUAL( 16, BITFIELD_OFFSET_OF_UINT32(ehci_qhd_t, 1, max_package_size) );
-  TEST_ASSERT_EQUAL( 27, BITFIELD_OFFSET_OF_UINT32(ehci_qhd_t, 1, control_endpoint_flag) );
+  TEST_ASSERT_EQUAL( 27, BITFIELD_OFFSET_OF_UINT32(ehci_qhd_t, 1, non_hs_control_endpoint) );
   TEST_ASSERT_EQUAL( 28, BITFIELD_OFFSET_OF_UINT32(ehci_qhd_t, 1, nak_count_reload) );
 
   //------------- Word 2 -------------//
@@ -314,6 +314,9 @@ void test_ehci_data(void)
   TEST_IGNORE();
 }
 
+//--------------------------------------------------------------------+
+// Initalization
+//--------------------------------------------------------------------+
 void test_hcd_init_data(void)
 {
   uint32_t random_data = 0x1234;
@@ -322,9 +325,8 @@ void test_hcd_init_data(void)
   hcd_init();
 
   //------------- check memory data -------------//
-  ehci_data_t zeroes;
-  memclr_(&zeroes, sizeof(ehci_data_t));
-  TEST_ASSERT_EQUAL_MEMORY(&zeroes, &ehci_data, sizeof(ehci_data_t));
+  for(uint32_t i=0; i<sizeof(ehci_data.device); i++)
+    TEST_ASSERT_EQUAL_HEX8(0, ((uint8_t*) ehci_data.device)[i] );
 }
 
 void test_hcd_init_usbint(void)
@@ -333,19 +335,47 @@ void test_hcd_init_usbint(void)
 
   for(uint32_t i=0; i<TUSB_CFG_HOST_CONTROLLER_NUM; i++)
   {
-    ehci_registers_t* regs = get_operational_register(i);
+    ehci_registers_t* regs = get_operational_register(i+TUSB_CFG_HOST_CONTROLLER_START_INDEX);
 
     //------------- USB INT Enable-------------//
-    TEST_ASSERT(regs->usb_int_enable_bit.usb);
     TEST_ASSERT(regs->usb_int_enable_bit.usb_error);
     TEST_ASSERT(regs->usb_int_enable_bit.port_change_detect);
+    TEST_ASSERT(regs->usb_int_enable_bit.async_advance);
+
     TEST_ASSERT_FALSE(regs->usb_int_enable_bit.framelist_rollover);
     TEST_ASSERT_FALSE(regs->usb_int_enable_bit.pci_host_system_error);
-    TEST_ASSERT_FALSE(regs->usb_int_enable_bit.async_advance);
 
-    TEST_ASSERT(regs->usb_int_enable_bit.nxp_int_async);
-    TEST_ASSERT(regs->usb_int_enable_bit.nxp_int_period);
+    TEST_ASSERT_FALSE(regs->usb_int_enable_bit.usb);
+    TEST_ASSERT_TRUE(regs->usb_int_enable_bit.nxp_int_async);
+    TEST_ASSERT_TRUE(regs->usb_int_enable_bit.nxp_int_period);
+
+    TEST_IGNORE_MESSAGE("not use nxp int async/period, use usbint instead");
   }
+}
+
+void test_hcd_init_async_list(void)
+{
+  hcd_init();
+
+  for(uint32_t i=0; i<TUSB_CFG_HOST_CONTROLLER_NUM; i++)
+  {
+    uint8_t hostid = i+TUSB_CFG_HOST_CONTROLLER_START_INDEX;
+
+    ehci_registers_t* regs = get_operational_register(hostid);
+    ehci_qhd_t * async_head = get_async_head(hostid);
+
+    TEST_ASSERT_EQUAL_HEX(async_head, regs->async_list_base);
+
+    TEST_ASSERT_EQUAL_HEX(async_head, align32(async_head) );
+    TEST_ASSERT_EQUAL(EHCI_QUEUE_ELEMENT_QHD, async_head->next.type);
+    TEST_ASSERT_FALSE(async_head->next.terminate);
+
+    TEST_ASSERT(async_head->head_list_flag);
+    TEST_ASSERT(async_head->qtd_overlay.next.terminate);
+    TEST_ASSERT(async_head->qtd_overlay.alternate.terminate);
+    TEST_ASSERT(async_head->qtd_overlay.halted);
+  }
+
 }
 
 //--------------------------------------------------------------------+

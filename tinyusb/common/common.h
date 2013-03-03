@@ -56,6 +56,10 @@
  extern "C" {
 #endif
 
+//--------------------------------------------------------------------+
+// INCLUDES
+//--------------------------------------------------------------------+
+
 //------------- Standard Header -------------//
 #include "primitive_types.h"
 #include <stddef.h>
@@ -76,6 +80,9 @@
 #include "core/std_descriptors.h"
 #include "core/std_request.h"
 
+//--------------------------------------------------------------------+
+// MACROS
+//--------------------------------------------------------------------+
 #define STRING_(x)  #x                             // stringify without expand
 #define XSTRING_(x) STRING_(x)                     // expand then stringify
 #define STRING_CONCAT_(a, b) a##b                  // concat without expand
@@ -94,8 +101,12 @@
 #define U32_TO_U8S_BE(u32) U32_B1_U8(u32), U32_B2_U8(u32), U32_B3_U8(u32), U32_B4_U8(u32)
 #define U32_TO_U8S_LE(u32) U32_B4_U8(u32), U32_B3_U8(u32), U32_B2_U8(u32), U32_B1_U8(u32)
 
+//--------------------------------------------------------------------+
+// INLINE FUNCTION
+//--------------------------------------------------------------------+
 #define memclr_(buffer, size)  memset(buffer, 0, size)
 
+//------------- Conversion -------------//
 /// form an uint32_t from 4 x uint8_t
 static inline uint32_t u32_from_u8(uint8_t b1, uint8_t b2, uint8_t b3, uint8_t b4) ATTR_ALWAYS_INLINE ATTR_CONST;
 static inline uint32_t u32_from_u8(uint8_t b1, uint8_t b2, uint8_t b3, uint8_t b4)
@@ -103,7 +114,7 @@ static inline uint32_t u32_from_u8(uint8_t b1, uint8_t b2, uint8_t b3, uint8_t b
   return (b1 << 24) + (b2 << 16) + (b3 << 8) + b4;
 }
 
-/// min value
+//------------- Min -------------//
 static inline uint8_t min8_of(uint8_t x, uint8_t y) ATTR_ALWAYS_INLINE ATTR_CONST;
 static inline uint8_t min8_of(uint8_t x, uint8_t y)
 {
@@ -116,11 +127,42 @@ static inline uint32_t min32_of(uint32_t x, uint32_t y)
   return (x < y) ? x : y;
 }
 
-/// max value
+//------------- Max -------------//
 static inline uint32_t max32_of(uint32_t x, uint32_t y) ATTR_ALWAYS_INLINE ATTR_CONST;
 static inline uint32_t max32_of(uint32_t x, uint32_t y)
 {
   return (x > y) ? x : y;
+}
+
+//------------- Align -------------//
+static inline uint32_t align32 (uint32_t value) ATTR_ALWAYS_INLINE ATTR_CONST;
+static inline uint32_t align32 (uint32_t value)
+{
+	return (value & 0xFFFFFFE0UL);
+}
+
+static inline uint32_t align16 (uint32_t value) ATTR_ALWAYS_INLINE ATTR_CONST;
+static inline uint32_t align16 (uint32_t value)
+{
+	return (value & 0xFFFFFFF0UL);
+}
+
+static inline uint32_t align_n (uint32_t alignment, uint32_t value) ATTR_ALWAYS_INLINE ATTR_CONST;
+static inline uint32_t align_n (uint32_t alignment, uint32_t value)
+{
+	return value & (~(alignment-1));
+}
+
+static inline uint32_t align4k (uint32_t value) ATTR_ALWAYS_INLINE ATTR_CONST;
+static inline uint32_t align4k (uint32_t value)
+{
+	return (value & 0xFFFFF000UL);
+}
+
+static inline uint32_t offset4k(uint32_t value) ATTR_ALWAYS_INLINE ATTR_CONST;
+static inline uint32_t offset4k(uint32_t value)
+{
+	return (value & 0xFFFUL);
 }
 
 #ifdef __cplusplus
