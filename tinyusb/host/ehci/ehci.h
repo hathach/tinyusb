@@ -417,16 +417,16 @@ typedef struct {
 //  ehci_itd_t  itd[EHCI_MAX_ITD]   ; ///< Iso Transfer Pool
 
   struct {
-    ehci_qhd_t qhd[TUSB_CFG_HOST_CONTROLLER_NUM];
-    ehci_qtd_t qtd[3];
-  }addr0;
+    ehci_qhd_t async_head[TUSB_CFG_HOST_CONTROLLER_NUM]; /// head qhd of async list, also is used as control endpoint for address 0
+    ehci_qhd_t period_head[TUSB_CFG_HOST_CONTROLLER_NUM];
+    ehci_qtd_t addr0_qtd[3];
+  }controller; ///< Static Interrupt Queue Head
 
   struct {
     struct {
       ehci_qhd_t qhd;
       ehci_qtd_t qtd[3];
     }control;
-    ehci_qhd_t  int_head            ; ///< Static Interrupt Queue Head
     ehci_qhd_t  qhd[EHCI_MAX_QHD]   ; ///< Queue Head Pool
     ehci_qtd_t  qtd[EHCI_MAX_QTD]   ; ///< Queue Element Transfer Pool
 //  ehci_sitd_t sitd[EHCI_MAX_SITD] ; ///< Split (FS) Isochronous Transfer Pool

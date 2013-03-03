@@ -359,10 +359,10 @@ void test_hcd_init_async_list(void)
 
   for(uint32_t i=0; i<TUSB_CFG_HOST_CONTROLLER_NUM; i++)
   {
-    uint8_t hostid = i+TUSB_CFG_HOST_CONTROLLER_START_INDEX;
+    uint8_t hostid                = i+TUSB_CFG_HOST_CONTROLLER_START_INDEX;
 
-    ehci_registers_t* regs = get_operational_register(hostid);
-    ehci_qhd_t * async_head = get_async_head(hostid);
+    ehci_registers_t * const regs = get_operational_register(hostid);
+    ehci_qhd_t * const async_head = get_async_head(hostid);
 
     TEST_ASSERT_EQUAL_HEX(async_head, regs->async_list_base);
 
@@ -378,6 +378,34 @@ void test_hcd_init_async_list(void)
 
 }
 
+void test_hcd_init_period_list(void)
+{
+#if EHCI_PERIODIC_LIST
+  hcd_init();
+
+  for(uint32_t i=0; i<TUSB_CFG_HOST_CONTROLLER_NUM; i++)
+  {
+    uint8_t           const hostid      = i+TUSB_CFG_HOST_CONTROLLER_START_INDEX;
+    ehci_registers_t* const regs        = get_operational_register(hostid);
+    ehci_qhd_t *      const period_head = get_period_head(hostid);
+    ehci_link_t *     const framelist   = get_period_frame_list(hostid);
+
+    TEST_ASSERT_EQUAL_HEX( (uint32_t) framelist, regs->periodic_list_base);
+    for(uint32_t list_idx=0; list_idx < EHCI_FRAMELIST_SIZE; list_idx++)
+    {
+      TEST_ASSERT_EQUAL_HEX( (uint32_t) period_head, align32((uint32_t)framelist[list_idx].address) );
+      TEST_ASSERT_FALSE(framelist[list_idx].terminate);
+      TEST_ASSERT_EQUAL(EHCI_QUEUE_ELEMENT_QHD, framelist[list_idx].type);
+    }
+
+    TEST_ASSERT(period_head->smask)
+    TEST_ASSERT_TRUE(period_head->next.terminate);
+    TEST_ASSERT(period_head->qtd_overlay.next.terminate);
+    TEST_ASSERT(period_head->qtd_overlay.alternate.terminate);
+    TEST_ASSERT(period_head->qtd_overlay.halted);
+  }
+#endif
+}
 //--------------------------------------------------------------------+
 // Helper
 //--------------------------------------------------------------------+

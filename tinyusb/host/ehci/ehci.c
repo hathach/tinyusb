@@ -62,29 +62,33 @@ STATIC_ ehci_link_t period_frame_list1[EHCI_FRAMELIST_SIZE] ATTR_ALIGNED(4096) T
 //--------------------------------------------------------------------+
 // IMPLEMENTATION
 //--------------------------------------------------------------------+
-STATIC_ INLINE_ ehci_registers_t* get_operational_register(uint8_t hostid) ATTR_PURE ATTR_ALWAYS_INLINE ATTR_WARN_UNUSED_RESULT;
-STATIC_ INLINE_ ehci_registers_t* get_operational_register(uint8_t hostid)
+STATIC_ INLINE_ ehci_registers_t* const get_operational_register(uint8_t hostid) ATTR_PURE ATTR_ALWAYS_INLINE ATTR_WARN_UNUSED_RESULT;
+STATIC_ INLINE_ ehci_registers_t* const get_operational_register(uint8_t hostid)
 {
-  return (ehci_registers_t*) (hostid ? (&LPC_USB1->USBCMD_H) : (&LPC_USB0->USBCMD_H) );
+  return (ehci_registers_t* const) (hostid ? (&LPC_USB1->USBCMD_H) : (&LPC_USB0->USBCMD_H) );
 }
 
-STATIC_ INLINE_ ehci_link_t* get_period_frame_list(uint8_t list_idx) ATTR_PURE ATTR_ALWAYS_INLINE ATTR_WARN_UNUSED_RESULT;
-STATIC_ INLINE_ ehci_link_t* get_period_frame_list(uint8_t list_idx)
+STATIC_ INLINE_ ehci_link_t* const get_period_frame_list(uint8_t list_idx) ATTR_PURE ATTR_ALWAYS_INLINE ATTR_WARN_UNUSED_RESULT;
+STATIC_ INLINE_ ehci_link_t* const get_period_frame_list(uint8_t list_idx)
 {
 #if TUSB_CFG_HOST_CONTROLLER_NUM > 1
   return list_idx ? period_frame_list1 : period_frame_list0; // TODO more than 2 controller
 #else
   return period_frame_list0;
 #endif
-
 }
 
 STATIC_ INLINE_ ehci_qhd_t* const get_async_head(uint8_t hostid) ATTR_ALWAYS_INLINE ATTR_PURE ATTR_WARN_UNUSED_RESULT;
 STATIC_ INLINE_ ehci_qhd_t* const get_async_head(uint8_t hostid)
 {
-  return &ehci_data.addr0.qhd[hostid-TUSB_CFG_HOST_CONTROLLER_START_INDEX];
+  return &ehci_data.controller.async_head[hostid-TUSB_CFG_HOST_CONTROLLER_START_INDEX];
 }
 
+STATIC_ INLINE_ ehci_qhd_t* const get_period_head(uint8_t hostid) ATTR_ALWAYS_INLINE ATTR_PURE ATTR_WARN_UNUSED_RESULT;
+STATIC_ INLINE_ ehci_qhd_t* const get_period_head(uint8_t hostid)
+{
+  return &ehci_data.controller.period_head[hostid-TUSB_CFG_HOST_CONTROLLER_START_INDEX];
+}
 
 tusb_error_t hcd_controller_init(uint8_t hostid) ATTR_WARN_UNUSED_RESULT;
 
@@ -111,7 +115,7 @@ tusb_error_t hcd_init(void)
 //--------------------------------------------------------------------+
 tusb_error_t hcd_controller_init(uint8_t hostid)
 {
-  ehci_registers_t* regs = get_operational_register(hostid);
+  ehci_registers_t* const regs = get_operational_register(hostid);
 
   //------------- CTRLDSSEGMENT Register (skip) -------------//
   //------------- USB INT Register -------------//
@@ -139,7 +143,27 @@ tusb_error_t hcd_controller_init(uint8_t hostid)
   regs->async_list_base = (uint32_t) async_head;
 
   //------------- Periodic List -------------//
+#if EHCI_PERIODIC_LIST
+  ehci_link_t * const framelist  = get_period_frame_list(hostid);
+  ehci_qhd_t * const period_head = get_period_head(hostid);
 
+  uint32_t i;
+  for(i=0; i<EHCI_FRAMELIST_SIZE; i++)
+  {
+    framelist[i].address = (uint32_t) period_head;
+    framelist[i].type    = EHCI_QUEUE_ELEMENT_QHD;
+  }
+
+  period_head->smask                           = 1; // queue head in period list must have smask non-zero
+  period_head->next.terminate                  = 1;
+  period_head->qtd_overlay.next.terminate      = 1;
+  period_head->qtd_overlay.alternate.terminate = 1;
+  period_head->qtd_overlay.halted              = 1;
+
+  regs->periodic_list_base = (uint32_t) framelist;
+#else
+  regs->periodic_list_base = 0;
+#endif
   //------------- USB CMD Register -------------//
 
   //------------- ConfigFlag Register (skip) -------------//
@@ -150,7 +174,7 @@ tusb_error_t hcd_controller_init(uint8_t hostid)
 tusb_error_t hcd_controller_stop(uint8_t hostid) ATTR_WARN_UNUSED_RESULT;
 tusb_error_t hcd_controller_stop(uint8_t hostid)
 {
-  ehci_registers_t* regs = get_operational_register(hostid);
+  ehci_registers_t* const regs = get_operational_register(hostid);
   timeout_timer_t timeout;
 
   regs->usb_cmd_bit.run_stop = 0;
@@ -164,7 +188,7 @@ tusb_error_t hcd_controller_stop(uint8_t hostid)
 tusb_error_t hcd_controller_reset(uint8_t hostid) ATTR_WARN_UNUSED_RESULT;
 tusb_error_t hcd_controller_reset(uint8_t hostid)
 {
-  ehci_registers_t* regs = get_operational_register(hostid);
+  ehci_registers_t* const regs = get_operational_register(hostid);
   timeout_timer_t timeout;
 
   if (regs->usb_sts_bit.hc_halted == 0) // need to stop before reset
