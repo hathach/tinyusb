@@ -65,8 +65,6 @@
 // HOST CONFIGURATION
 //--------------------------------------------------------------------+
 //------------- CORE -------------//
-#define TUSB_CFG_HOST_CONTROLLER_START_INDEX     0
-
 #define TUSB_CFG_HOST_DEVICE_MAX                 2
 #define TUSB_CFG_CONFIGURATION_MAX               2
 
@@ -79,6 +77,8 @@
 #define HOST_HCD_XFER_BULK
 #define HOST_HCD_XFER_ISOCHRONOUS
 
+// Test support
+#define CONTROLLER_HOST_START_INDEX               ( ((CONTROLLER_HOST_NUMBER == 1) && (TUSB_CFG_CONTROLLER1_MODE & TUSB_MODE_HOST)) ? 1 : 0)
 //--------------------------------------------------------------------+
 // DEVICE CONFIGURATION
 //--------------------------------------------------------------------+

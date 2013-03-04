@@ -84,16 +84,27 @@ STATIC_ INLINE_ ehci_link_t* const get_period_frame_list(uint8_t list_idx)
 #endif
 }
 
+STATIC_ INLINE_ uint8_t hostid_to_data_idx(uint8_t hostid) ATTR_ALWAYS_INLINE ATTR_CONST ATTR_WARN_UNUSED_RESULT;
+STATIC_ INLINE_ uint8_t hostid_to_data_idx(uint8_t hostid)
+{
+  #if (CONTROLLER_HOST_NUMBER == 1) && (TUSB_CFG_CONTROLLER1_MODE & TUSB_MODE_HOST)
+    (void) hostid;
+    return 0;
+  #else
+    return hostid;
+  #endif
+}
+
 STATIC_ INLINE_ ehci_qhd_t* const get_async_head(uint8_t hostid) ATTR_ALWAYS_INLINE ATTR_PURE ATTR_WARN_UNUSED_RESULT;
 STATIC_ INLINE_ ehci_qhd_t* const get_async_head(uint8_t hostid)
 {
-  return &ehci_data.controller.async_head[hostid-TUSB_CFG_HOST_CONTROLLER_START_INDEX];
+  return &ehci_data.controller.async_head[hostid_to_data_idx(hostid)];
 }
 
 STATIC_ INLINE_ ehci_qhd_t* const get_period_head(uint8_t hostid) ATTR_ALWAYS_INLINE ATTR_PURE ATTR_WARN_UNUSED_RESULT;
 STATIC_ INLINE_ ehci_qhd_t* const get_period_head(uint8_t hostid)
 {
-  return &ehci_data.controller.period_head[hostid-TUSB_CFG_HOST_CONTROLLER_START_INDEX];
+  return &ehci_data.controller.period_head[hostid_to_data_idx(hostid)];
 }
 
 tusb_error_t hcd_controller_init(uint8_t hostid) ATTR_WARN_UNUSED_RESULT;
@@ -103,15 +114,16 @@ tusb_error_t hcd_controller_init(uint8_t hostid) ATTR_WARN_UNUSED_RESULT;
 //--------------------------------------------------------------------+
 tusb_error_t hcd_init(void)
 {
-  uint8_t i = 0;
-
   //------------- Data Structure init -------------//
   memclr_(&ehci_data, sizeof(ehci_data_t));
 
-  for(i=0; i<CONTROLLER_HOST_NUMBER; i++)
-  {
-    ASSERT_STATUS (hcd_controller_init(TUSB_CFG_HOST_CONTROLLER_START_INDEX + i));
-  }
+  #if (TUSB_CFG_CONTROLLER0_MODE & TUSB_MODE_HOST)
+    ASSERT_STATUS (hcd_controller_init(0));
+  #endif
+
+  #if (TUSB_CFG_CONTROLLER1_MODE & TUSB_MODE_HOST)
+    ASSERT_STATUS (hcd_controller_init(1));
+  #endif
 
   return TUSB_ERROR_NONE;
 }
