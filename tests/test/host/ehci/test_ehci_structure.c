@@ -303,7 +303,7 @@ void test_register_portsc(void)
 //--------------------------------------------------------------------+
 void test_ehci_data(void)
 {
-  for(uint32_t i=0; i<TUSB_CFG_HOST_CONTROLLER_NUM; i++)
+  for(uint32_t i=0; i<CONTROLLER_HOST_NUMBER; i++)
   {
     uint8_t hostid = i+TUSB_CFG_HOST_CONTROLLER_START_INDEX;
     TEST_ASSERT_BITS_LOW(4096-1, (uint32_t)get_period_frame_list(hostid) );

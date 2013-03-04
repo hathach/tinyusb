@@ -1,7 +1,7 @@
 /*
- * tusb_config.h
+ * mcu_capacity.h
  *
- *  Created on: Jan 11, 2013
+ *  Created on: Mar 4, 2013
  *      Author: hathach
  */
 
@@ -48,65 +48,58 @@
  *  @{
  */
 
-#ifndef _TUSB_TUSB_CONFIG_H_
-#define _TUSB_TUSB_CONFIG_H_
+#ifndef _TUSB_MCU_CAPACITY_H_
+#define _TUSB_MCU_CAPACITY_H_
+
+#define MCU_LPC13UXX    1
+#define MCU_LPC11UXX    2
+#define MCU_LPC43XX     3
+#define MCU_LPC18XX     4
+#define MCU_LPC175X_6X  5
+#define MCU_LPC177X_8X  6
 
 #ifdef __cplusplus
  extern "C" {
 #endif
 
-//--------------------------------------------------------------------+
-// CONTROLLER CONFIGURATION
-//--------------------------------------------------------------------+
-#define TUSB_CFG_CONTROLLER0_MODE  TUSB_MODE_HOST
-#define TUSB_CFG_CONTROLLER1_MODE  TUSB_MODE_HOST
+// CAP is abbreviation for Capacity
 
 //--------------------------------------------------------------------+
-// HOST CONFIGURATION
+// Controller
 //--------------------------------------------------------------------+
-#define TUSB_CFG_HOST
+#if MCU == MCU_LPC43XX || MCU == MCU_LPC18XX
+  #define CAP_CONTROLLER_NUMBER 2
+#else
+  #define CAP_CONTROLLER_NUMBER 1
+#endif
 
-//------------- CORE -------------//
-#define TUSB_CFG_HOST_CONTROLLER_START_INDEX     0
+#define CAP_MODE_DEVICE
+#if MCU == MCU_LPC43XX || MCU == MCU_LPC18XX || MCU == MCU_LPC175X_6X
+  #define CAP_MODE_HOST
+#endif
 
-#define TUSB_CFG_HOST_DEVICE_MAX                 2
-#define TUSB_CFG_CONFIGURATION_MAX               2
+#define CONTROLLER_HOST_NUMBER (\
+    (TUSB_CFG_CONTROLLER0_MODE & TUSB_MODE_HOST) ? 1 : 0\
+   +(TUSB_CFG_CONTROLLER1_MODE & TUSB_MODE_HOST) ? 1 : 0)
 
-#define TUSB_CFG_HOST_ENUM_BUFFER_SIZE           256
-//------------- CLASS -------------//
-#define TUSB_CFG_HOST_HID_KEYBOARD               1
-#define TUSB_CFG_HOST_HID_KEYBOARD_ENDPOINT_SIZE 64
+#define CONTROLLER_DEVICE_NUMBER (\
+    (TUSB_CFG_CONTROLLER0_MODE & TUSB_MODE_DEVICE) ? 1 : 0\
+   +(TUSB_CFG_CONTROLLER1_MODE & TUSB_MODE_DEVICE) ? 1 : 0)
 
-#define HOST_HCD_XFER_INTERRUPT
-#define HOST_HCD_XFER_BULK
-#define HOST_HCD_XFER_ISOCHRONOUS
-
-//--------------------------------------------------------------------+
-// DEVICE CONFIGURATION
-//--------------------------------------------------------------------+
-//#define TUSB_CFG_DEVICE
-
-//------------- CORE/CONTROLLER -------------//
-
-//------------- CLASS -------------//
-//#define TUSB_CFG_DEVICE_CDC
-#define TUSB_CFG_DEVICE_HID_KEYBOARD
-//#define TUSB_CFG_DEVICE_HID_MOUSE
+#define MODE_HOST   (CONTROLLER_HOST_NUMBER > 0)
+#define MODE_DEVICE (CONTROLLER_DEVICE_NUMBER > 0)
 
 //--------------------------------------------------------------------+
-// COMMON CONFIGURATION
+// Validation
 //--------------------------------------------------------------------+
-
-#define TUSB_CFG_DEBUG 3
-
-#define TUSB_CFG_OS TUSB_OS_NONE
-#define TUSB_CFG_OS_TICKS_PER_SECOND 1000 // 1 ms tick
-#define TUSB_CFG_ATTR_USBRAM
+#if (CAP_CONTROLLER_NUMBER == 1) && ( defined TUSB_CFG_CONTROLLER1_MODE)
+ #error current MCU does not have the required number of controllers
+#endif
 
 #ifdef __cplusplus
  }
 #endif
 
-#endif /* _TUSB_TUSB_CONFIG_H_ */
+#endif /* _TUSB_MCU_CAPACITY_H_ */
 
 /** @} */

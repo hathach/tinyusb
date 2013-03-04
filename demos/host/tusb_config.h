@@ -56,12 +56,17 @@
 #endif
 
 //--------------------------------------------------------------------+
+// CONTROLLER CONFIGURATION
+//--------------------------------------------------------------------+
+#define TUSB_CFG_CONTROLLER0_MODE  TUSB_MODE_HOST
+#define TUSB_CFG_CONTROLLER1_MODE  TUSB_MODE_HOST
+
+//--------------------------------------------------------------------+
 // HOST CONFIGURATION
 //--------------------------------------------------------------------+
 #define TUSB_CFG_HOST
 
 //------------- CONTROLLER -------------//
-#define TUSB_CFG_HOST_CONTROLLER_NUM 1
 #define TUSB_CFG_HOST_CONTROLLER_START_INDEX 0
 
 #define TUSB_CFG_HOST_DEVICE_MAX     1

@@ -50,11 +50,6 @@ void tearDown(void)
 {
 }
 
-void test_memory_usage(void)
-{
-  TEST_IGNORE_MESSAGE("Try to keep project total memory usage up-to-date");
-}
-
 void test_latest_version(void)
 {
   TEST_ASSERT_EQUAL_STRING(LATEST_VERSION, TUSB_VERSION);

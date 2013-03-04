@@ -81,7 +81,7 @@ void test_hcd_init_usbint(void)
 {
   hcd_init();
 
-  for(uint32_t i=0; i<TUSB_CFG_HOST_CONTROLLER_NUM; i++)
+  for(uint32_t i=0; i<CONTROLLER_HOST_NUMBER; i++)
   {
     ehci_registers_t* const regs = get_operational_register(i+TUSB_CFG_HOST_CONTROLLER_START_INDEX);
 
@@ -105,7 +105,7 @@ void test_hcd_init_async_list(void)
 {
   hcd_init();
 
-  for(uint32_t i=0; i<TUSB_CFG_HOST_CONTROLLER_NUM; i++)
+  for(uint32_t i=0; i<CONTROLLER_HOST_NUMBER; i++)
   {
     uint8_t hostid                = i+TUSB_CFG_HOST_CONTROLLER_START_INDEX;
 
@@ -130,7 +130,7 @@ void test_hcd_init_period_list(void)
 #if EHCI_PERIODIC_LIST
   hcd_init();
 
-  for(uint32_t i=0; i<TUSB_CFG_HOST_CONTROLLER_NUM; i++)
+  for(uint32_t i=0; i<CONTROLLER_HOST_NUMBER; i++)
   {
     uint8_t           const hostid      = i+TUSB_CFG_HOST_CONTROLLER_START_INDEX;
     ehci_registers_t* const regs        = get_operational_register(hostid);
@@ -158,7 +158,7 @@ void test_hcd_init_tt_control(void)
 {
   hcd_init();
 
-  for(uint32_t i=0; i<TUSB_CFG_HOST_CONTROLLER_NUM; i++)
+  for(uint32_t i=0; i<CONTROLLER_HOST_NUMBER; i++)
   {
     uint8_t           const hostid      = i+TUSB_CFG_HOST_CONTROLLER_START_INDEX;
     ehci_registers_t* const regs        = get_operational_register(hostid);
@@ -171,7 +171,7 @@ void test_hcd_init_usbcmd(void)
 {
   hcd_init();
 
-  for(uint32_t i=0; i<TUSB_CFG_HOST_CONTROLLER_NUM; i++)
+  for(uint32_t i=0; i<CONTROLLER_HOST_NUMBER; i++)
   {
     uint8_t           const hostid      = i+TUSB_CFG_HOST_CONTROLLER_START_INDEX;
     ehci_registers_t* const regs        = get_operational_register(hostid);

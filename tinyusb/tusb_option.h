@@ -61,10 +61,15 @@
 
 /// define this symbol will make tinyusb look for external configure file
 #include "tusb_config.h"
+#include "mcu_capacity.h"
 
 //--------------------------------------------------------------------+
 // COMMON OPTIONS
 //--------------------------------------------------------------------+
+#define TUSB_MODE_HOST    BIN8(10)
+#define TUSB_MODE_DEVICE  BIN8(01)
+#define TUSB_MODE_NONE    BIN8(00)
+
 /// 0: no debug information 3: most debug information provided
 #ifndef TUSB_CFG_DEBUG
   #define TUSB_CFG_DEBUG 3
@@ -89,21 +94,11 @@
   #warning TUSB_CFG_CONFIGURATION_MAX is not defined, default value is 1
 #endif
 
-// TODO  may move to other places
-#define MCU_LPC13UXX 1
-#define MCU_LPC11UXX 2
-#define MCU_LPC43XX  3
-#define MCU_LPC18XX  4
-
 //--------------------------------------------------------------------+
 // HOST OPTIONS
 //--------------------------------------------------------------------+
 #ifdef TUSB_CFG_HOST
   //------------- Controller -------------//
-  #ifndef TUSB_CFG_HOST_CONTROLLER_NUM
-    #define TUSB_CFG_HOST_CONTROLLER_NUM 1
-    #warning TUSB_CFG_HOST_CONTROLLER_NUM is not defined, default value is 1
-  #endif
 
   #ifndef TUSB_CFG_HOST_CONTROLLER_START_INDEX
     #error TUSB_CFG_HOST_CONTROLLER_START_INDEX is not defined

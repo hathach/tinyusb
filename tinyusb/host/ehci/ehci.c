@@ -55,13 +55,13 @@
 //--------------------------------------------------------------------+
 STATIC_ ehci_data_t ehci_data TUSB_CFG_ATTR_USBRAM;
 STATIC_ ehci_link_t period_frame_list0[EHCI_FRAMELIST_SIZE] ATTR_ALIGNED(4096) TUSB_CFG_ATTR_USBRAM;
-#if TUSB_CFG_HOST_CONTROLLER_NUM > 1
+#if CONTROLLER_HOST_NUMBER > 1
 STATIC_ ehci_link_t period_frame_list1[EHCI_FRAMELIST_SIZE] ATTR_ALIGNED(4096) TUSB_CFG_ATTR_USBRAM;
 #endif
 
 //------------- Validation -------------//
 STATIC_ASSERT( ALIGN_OF(period_frame_list0) == 4096, "Period Framelist must be 4k alginment");
-#if TUSB_CFG_HOST_CONTROLLER_NUM > 1
+#if CONTROLLER_HOST_NUMBER > 1
 STATIC_ASSERT( ALIGN_OF(period_frame_list1) == 4096, "Period Framelist must be 4k alginment");
 #endif
 
@@ -77,7 +77,7 @@ STATIC_ INLINE_ ehci_registers_t* const get_operational_register(uint8_t hostid)
 STATIC_ INLINE_ ehci_link_t* const get_period_frame_list(uint8_t list_idx) ATTR_PURE ATTR_ALWAYS_INLINE ATTR_WARN_UNUSED_RESULT;
 STATIC_ INLINE_ ehci_link_t* const get_period_frame_list(uint8_t list_idx)
 {
-#if TUSB_CFG_HOST_CONTROLLER_NUM > 1
+#if CONTROLLER_HOST_NUMBER > 1
   return list_idx ? period_frame_list1 : period_frame_list0; // TODO more than 2 controller
 #else
   return period_frame_list0;
@@ -108,7 +108,7 @@ tusb_error_t hcd_init(void)
   //------------- Data Structure init -------------//
   memclr_(&ehci_data, sizeof(ehci_data_t));
 
-  for(i=0; i<TUSB_CFG_HOST_CONTROLLER_NUM; i++)
+  for(i=0; i<CONTROLLER_HOST_NUMBER; i++)
   {
     ASSERT_STATUS (hcd_controller_init(TUSB_CFG_HOST_CONTROLLER_START_INDEX + i));
   }

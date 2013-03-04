@@ -435,8 +435,8 @@ typedef struct {
 //  ehci_itd_t  itd[EHCI_MAX_ITD]   ; ///< Iso Transfer Pool
 
   struct {
-    ehci_qhd_t async_head[TUSB_CFG_HOST_CONTROLLER_NUM]; /// head qhd of async list, also is used as control endpoint for address 0
-    ehci_qhd_t period_head[TUSB_CFG_HOST_CONTROLLER_NUM];
+    ehci_qhd_t async_head[CONTROLLER_HOST_NUMBER]; /// head qhd of async list, also is used as control endpoint for address 0
+    ehci_qhd_t period_head[CONTROLLER_HOST_NUMBER];
     ehci_qtd_t addr0_qtd[3];
   }controller; ///< Static Interrupt Queue Head
 
