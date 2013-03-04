@@ -51,6 +51,8 @@
  extern "C" {
 #endif
 
+#define ALIGN_OF(x) __alignof__(x)
+
 /// Normally, the compiler places the objects it generates in sections like data or bss & function in text. Sometimes, however, you need additional sections, or you need certain particular variables to appear in special sections, for example to map to special hardware. The section attribute specifies that a variable (or function) lives in a particular section
 #define ATTR_SECTION(section)      __attribute__ ((#section))
 

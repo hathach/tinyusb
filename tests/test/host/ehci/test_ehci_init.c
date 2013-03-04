@@ -83,7 +83,7 @@ void test_hcd_init_usbint(void)
 
   for(uint32_t i=0; i<TUSB_CFG_HOST_CONTROLLER_NUM; i++)
   {
-    ehci_registers_t* regs = get_operational_register(i+TUSB_CFG_HOST_CONTROLLER_START_INDEX);
+    ehci_registers_t* const regs = get_operational_register(i+TUSB_CFG_HOST_CONTROLLER_START_INDEX);
 
     //------------- USB INT Enable-------------//
     TEST_ASSERT(regs->usb_int_enable_bit.usb_error);
@@ -188,5 +188,9 @@ void test_hcd_init_usbcmd(void)
     TEST_ASSERT_BITS(BIN8(11), EHCI_CFG_FRAMELIST_SIZE_BITS, regs->usb_cmd_bit.framelist_size);
     TEST_ASSERT_EQUAL(EHCI_CFG_FRAMELIST_SIZE_BITS >> 2, regs->usb_cmd_bit.nxp_framelist_size_msb);
   }
+}
 
+void test_hcd_init_portsc(void)
+{
+  TEST_IGNORE_MESSAGE("more advance stuff need manipulate this register");
 }

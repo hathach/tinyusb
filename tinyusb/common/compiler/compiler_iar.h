@@ -51,6 +51,8 @@
  extern "C" {
 #endif
 
+#define ALIGN_OF(x) __ALIGNOF__(x)
+
 #define ATTR_PREPACKED  __packed
 #define ATTR_PACKED
 

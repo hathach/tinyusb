@@ -41,15 +41,16 @@
 
 tusb_error_t tusb_init(void)
 {
-  ASSERT_STATUS( hal_init() ) ; /* HARDWARE INIT */
+  ASSERT_STATUS( hal_init() ) ; // hardware init
 
 #ifdef TUSB_CFG_HOST
-  ASSERT_STATUS( usbh_init() );
+  ASSERT_STATUS( usbh_init() ); // host stack init
 #endif
 
 #ifdef TUSB_CFG_DEVICE
-  ASSERT_STATUS( dcd_init(0) );
+  ASSERT_STATUS( dcd_init(0) ); // device stack init
 #endif
 
   return TUSB_ERROR_NONE;
 }
+
