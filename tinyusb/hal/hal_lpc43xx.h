@@ -61,9 +61,6 @@
 #define DEVICE_ROM_REG_BASE LPC_USB0_BASE // TODO USB1
 #define DEVICE_ROM_DRIVER_ADDR     0x1040011C
 
-#define tusb_1st_isr USB0_IRQHandler
-#define tusb_2nd_isr
-
 static inline void hal_interrupt_enable()
 {
   NVIC_EnableIRQ(USB0_IRQn); // TODO USB1

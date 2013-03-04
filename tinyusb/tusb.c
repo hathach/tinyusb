@@ -54,3 +54,15 @@ tusb_error_t tusb_init(void)
   return TUSB_ERROR_NONE;
 }
 
+// called from hal layer
+void tusb_isr(uint8_t controller_id)
+{
+#if MODE_HOST_SUPPORTED
+  hcd_isr(controller_id);
+#endif
+
+#ifdef TUSB_CFG_DEVICE
+  dcd_isr(controller_id);
+#endif
+
+}

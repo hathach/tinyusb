@@ -54,4 +54,18 @@ tusb_error_t hal_init()
   return TUSB_ERROR_NONE;
 }
 
+void USB0_IRQHandler(void)
+{
+#if TUSB_CFG_CONTROLLER0_MODE
+  tusb_isr(0);
+#endif
+}
+
+void USB1_IRQHandler(void)
+{
+#if TUSB_CFG_CONTROLLER1_MODE
+  tusb_isr(1);
+#endif
+}
+
 #endif

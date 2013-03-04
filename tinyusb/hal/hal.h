@@ -68,6 +68,10 @@
 extern "C" {
 #endif
 
+// callback from tusb.h
+extern void tusb_isr(uint8_t controller_id);
+
+
 /** \brief USB hardware init
  *
  * \param[in]  para1
