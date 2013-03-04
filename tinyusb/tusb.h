@@ -52,7 +52,7 @@
 #include "hal/hal.h"
 #include "osal/osal.h"
 
-#ifdef TUSB_CFG_HOST
+#if MODE_HOST_SUPPORTED
   #include "host/usbh.h"
 
   #ifdef HOST_CLASS_HID
@@ -60,7 +60,7 @@
   #endif
 #endif
 
-#ifdef TUSB_CFG_DEVICE
+#if MODE_DEVICE_SUPPORTED
   #include "device/dcd.h"
 
   #if DEVICE_CLASS_HID
@@ -72,9 +72,7 @@
   #endif
 #endif
 
-#if !(defined TUSB_CFG_HOST) && !(defined TUSB_CFG_DEVICE)
- #error please enable either TUSB_CFG_HOST or TUSB_CFG_DEVICE
-#endif
+
 
 
 tusb_error_t tusb_init(void);

@@ -37,7 +37,7 @@
 
 #include "hcd.h"
 
-#ifdef TUSB_CFG_HOST
+#if MODE_HOST_SUPPORTED
 
 
 #endif

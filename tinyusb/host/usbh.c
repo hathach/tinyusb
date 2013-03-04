@@ -37,7 +37,7 @@
 
 #include "common/common.h"
 
-#ifdef TUSB_CFG_HOST
+#if MODE_HOST_SUPPORTED
 
 #define _TINY_USB_SOURCE_FILE_
 

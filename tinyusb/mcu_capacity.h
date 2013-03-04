@@ -78,17 +78,6 @@
   #define CAP_MODE_HOST
 #endif
 
-#define CONTROLLER_HOST_NUMBER (\
-    (TUSB_CFG_CONTROLLER0_MODE & TUSB_MODE_HOST) ? 1 : 0\
-   +(TUSB_CFG_CONTROLLER1_MODE & TUSB_MODE_HOST) ? 1 : 0)
-
-#define CONTROLLER_DEVICE_NUMBER (\
-    (TUSB_CFG_CONTROLLER0_MODE & TUSB_MODE_DEVICE) ? 1 : 0\
-   +(TUSB_CFG_CONTROLLER1_MODE & TUSB_MODE_DEVICE) ? 1 : 0)
-
-#define MODE_HOST   (CONTROLLER_HOST_NUMBER > 0)
-#define MODE_DEVICE (CONTROLLER_DEVICE_NUMBER > 0)
-
 //--------------------------------------------------------------------+
 // Validation
 //--------------------------------------------------------------------+

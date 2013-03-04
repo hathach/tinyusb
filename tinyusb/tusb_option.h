@@ -64,11 +64,30 @@
 #include "mcu_capacity.h"
 
 //--------------------------------------------------------------------+
+// CONTROLLER
+//--------------------------------------------------------------------+
+#define TUSB_MODE_HOST    0x02
+#define TUSB_MODE_DEVICE  0x01
+#define TUSB_MODE_NONE    0x00
+
+#define CONTROLLER_HOST_NUMBER (\
+    ((TUSB_CFG_CONTROLLER0_MODE & TUSB_MODE_HOST) ? 1 : 0) + \
+    ((TUSB_CFG_CONTROLLER1_MODE & TUSB_MODE_HOST) ? 1 : 0))
+
+#define CONTROLLER_DEVICE_NUMBER (\
+    ((TUSB_CFG_CONTROLLER0_MODE & TUSB_MODE_DEVICE) ? 1 : 0) + \
+    ((TUSB_CFG_CONTROLLER1_MODE & TUSB_MODE_DEVICE) ? 1 : 0))
+
+#define MODE_HOST_SUPPORTED   (CONTROLLER_HOST_NUMBER > 0)
+#define MODE_DEVICE_SUPPORTED (CONTROLLER_DEVICE_NUMBER > 0)
+
+#if !MODE_HOST_SUPPORTED && !MODE_DEVICE_SUPPORTED
+  #error please configure at least 1 TUSB_CFG_CONTROLLERn_MODE to TUSB_MODE_HOST and/or TUSB_MODE_DEVICE
+#endif
+
+//--------------------------------------------------------------------+
 // COMMON OPTIONS
 //--------------------------------------------------------------------+
-#define TUSB_MODE_HOST    BIN8(10)
-#define TUSB_MODE_DEVICE  BIN8(01)
-#define TUSB_MODE_NONE    BIN8(00)
 
 /// 0: no debug information 3: most debug information provided
 #ifndef TUSB_CFG_DEBUG
@@ -97,9 +116,7 @@
 //--------------------------------------------------------------------+
 // HOST OPTIONS
 //--------------------------------------------------------------------+
-#ifdef TUSB_CFG_HOST
-  //------------- Controller -------------//
-
+#if MODE_HOST_SUPPORTED
   #ifndef TUSB_CFG_HOST_CONTROLLER_START_INDEX
     #error TUSB_CFG_HOST_CONTROLLER_START_INDEX is not defined
   #endif
@@ -161,6 +178,8 @@
 
 #define  CDC_NOTIFICATION_EP_MAXPACKETSIZE  8
 #define  CDC_DATA_EP_MAXPACKET_SIZE         16
+
+
 
 #ifdef __cplusplus
  }

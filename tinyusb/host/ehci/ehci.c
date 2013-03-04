@@ -37,7 +37,7 @@
 
 #include "common/common.h"
 
-#if defined TUSB_CFG_HOST && (MCU == MCU_LPC43XX || MCU == MCU_LPC18XX)
+#if MODE_HOST_SUPPORTED && (MCU == MCU_LPC43XX || MCU == MCU_LPC18XX)
 //--------------------------------------------------------------------+
 // INCLUDE
 //--------------------------------------------------------------------+

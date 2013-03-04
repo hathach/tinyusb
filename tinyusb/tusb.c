@@ -43,7 +43,7 @@ tusb_error_t tusb_init(void)
 {
   ASSERT_STATUS( hal_init() ) ; // hardware init
 
-#ifdef TUSB_CFG_HOST
+#if MODE_HOST_SUPPORTED
   ASSERT_STATUS( usbh_init() ); // host stack init
 #endif
 
