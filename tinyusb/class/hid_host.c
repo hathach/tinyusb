@@ -71,7 +71,7 @@ tusb_error_t tusbh_hid_keyboard_get(tusb_handle_device_t const device_hdl, uint8
 
   p_kbd = &keyboard_info_pool[device_hdl].instance[instance_num];
 
-  ASSERT(0 != p_kbd->pipe_in, TUSB_ERROR_CLASS_DEVICE_DONT_SUPPORT);
+  ASSERT(0 != p_kbd->pipe_in.dev_addr, TUSB_ERROR_CLASS_DEVICE_DONT_SUPPORT);
 
   ASSERT_INT(PIPE_STATUS_COMPLETE, usbh_pipe_status_get(p_kbd->pipe_in), TUSB_ERROR_CLASS_DATA_NOT_AVAILABLE);
 

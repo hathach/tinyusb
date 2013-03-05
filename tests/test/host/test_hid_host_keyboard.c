@@ -67,7 +67,7 @@ void setUp(void)
   memset(&report, 0, sizeof(tusb_keyboard_report_t));
 
   keyboard_info_pool[0].instance_count = 0;
-  keyboard_info_pool[0].instance[0].pipe_in = 1;
+  keyboard_info_pool[0].instance[0].pipe_in = (pipe_handle_t) { .dev_addr = 1, .xfer_type = TUSB_XFER_INTERRUPT, .index = 1};
   keyboard_info_pool[0].instance[0].report_size = sizeof(tusb_keyboard_report_t);
 
   kbd_descriptor = ((tusb_descriptor_interface_t)
@@ -163,7 +163,7 @@ void test_keyboard_get_invalid_para()
 void test_keyboard_get_class_not_supported()
 {
   tusbh_device_status_get_IgnoreAndReturn(TUSB_DEVICE_STATUS_READY);
-  keyboard_info_pool[device_hdl].instance[0].pipe_in = 0;
+  keyboard_info_pool[device_hdl].instance[0].pipe_in = (pipe_handle_t) { 0 };
   TEST_ASSERT_EQUAL(TUSB_ERROR_CLASS_DEVICE_DONT_SUPPORT, tusbh_hid_keyboard_get(device_hdl, instance_num, &report));
 }
 

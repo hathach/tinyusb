@@ -73,13 +73,6 @@ typedef enum {
   TUSB_DIR_DEV_TO_HOST = 1
 }tusb_direction_t;
 
-/// TBD
-typedef enum {
-  TUSB_PID_SETUP,
-  TUSB_PID_IN,
-  TUSB_PID_OUT
-}tusb_pid_t;
-
 /// USB Descriptor Types (section 9.4 table 9-5)
 typedef enum {
   TUSB_DESC_DEVICE =1                 , ///< 1

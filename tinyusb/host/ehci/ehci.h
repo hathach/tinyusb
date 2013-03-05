@@ -101,6 +101,13 @@ enum ehci_queue_element_type_{
   EHCI_QUEUE_ELEMENT_FSTN      ///< 3
 };
 
+/// TBD
+enum tusb_pid_{
+  EHCI_PID_OUT = 0 ,
+  EHCI_PID_IN      ,
+  EHCI_PID_SETUP
+};
+
 /// Link pointer
 typedef union {
 	uint32_t address;
@@ -189,8 +196,9 @@ typedef struct {
 	/// Due to the fact QHD is 32 bytes aligned but occupies only 48 bytes
 	/// thus there are 16 bytes padding free that we can make use of.
 	uint8_t used;
+	uint8_t pid_non_control;
 	uint8_t list_index;
-	uint8_t reserved[2];
+	uint8_t reserved;
 
 	ehci_qtd_t *p_qtd_list;	/* used as TD head to clean up TD chain when transfer done */ // TODO consider using ehci_link_t (terminate bit)
 
@@ -427,7 +435,6 @@ typedef volatile struct {
 // EHCI Data Organization
 //--------------------------------------------------------------------+
 typedef struct {
-//  ehci_itd_t  itd[EHCI_MAX_ITD]   ; ///< Iso Transfer Pool
 
   struct {
     ehci_qhd_t async_head[CONTROLLER_HOST_NUMBER]; /// head qhd of async list, also is used as control endpoint for address 0
@@ -436,6 +443,7 @@ typedef struct {
   }controller; ///< Static Interrupt Queue Head
 
   struct {
+//  ehci_itd_t  itd[EHCI_MAX_ITD]   ; ///< Iso Transfer Pool
     struct {
       ehci_qhd_t qhd;
       ehci_qtd_t qtd[3];

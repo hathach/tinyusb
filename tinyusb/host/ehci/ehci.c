@@ -262,7 +262,7 @@ tusb_error_t  hcd_pipe_control_open(uint8_t dev_addr, uint8_t max_packet_size)
   }else
   {
     p_qhd = &ehci_data.device[dev_addr].control.qhd;
-    p_qhd->head_list_flag      = 0; // make sure it is still head of list
+    p_qhd->head_list_flag      = 0;
   }
 
   p_qhd->device_address      = dev_addr;
@@ -308,9 +308,60 @@ tusb_error_t  hcd_pipe_control_open(uint8_t dev_addr, uint8_t max_packet_size)
 //}
 //
 
-pipe_handle_t hcd_pipe_open(uint8_t dev_addr, tusb_descriptor_endpoint_t const * endpoint_desc)
+pipe_handle_t hcd_pipe_open(uint8_t dev_addr, tusb_descriptor_endpoint_t const * p_endpoint_desc)
 {
-  return TUSB_ERROR_NONE;
+  pipe_handle_t const null_handle = { .dev_addr = 0, .xfer_type = 0, .index = 0 };
+
+  if (p_endpoint_desc->bmAttributes.xfer == TUSB_XFER_BULK)
+  {
+    uint8_t index=0;
+    while( index<EHCI_MAX_QHD && ehci_data.device[dev_addr].qhd[index].used )
+    {
+      index++;
+    }
+
+    ASSERT( index < EHCI_MAX_QHD, null_handle);
+
+    ehci_qhd_t * const p_qhd = &ehci_data.device[dev_addr].qhd[index];
+    memclr_(p_qhd, sizeof(ehci_qhd_t));
+
+    p_qhd->device_address          = dev_addr;
+    p_qhd->inactive_next_xact      = 0;
+    p_qhd->endpoint_number         = p_endpoint_desc->bEndpointAddress & 0x0F;
+    p_qhd->endpoint_speed          = usbh_device_info_pool[dev_addr].speed;
+    p_qhd->data_toggle_control     = 0;
+    p_qhd->head_list_flag          = 0;
+    p_qhd->max_package_size        = p_endpoint_desc->wMaxPacketSize;
+    p_qhd->non_hs_control_endpoint = 0;
+    p_qhd->nak_count_reload        = 0;
+
+    p_qhd->smask                   = 0;
+    p_qhd->cmask                   = 0;
+    p_qhd->hub_address             = usbh_device_info_pool[dev_addr].hub_addr;
+    p_qhd->hub_port                = usbh_device_info_pool[dev_addr].hub_port;
+    p_qhd->mult                    = 1; // TODO not use high bandwidth/park mode yet
+
+    //------------- inactive when just opened -------------//
+    p_qhd->qtd_overlay.next.terminate      = 1;
+    p_qhd->qtd_overlay.alternate.terminate = 1;
+    p_qhd->qtd_overlay.halted              = 1;
+
+    //------------- HCD Management Data -------------//
+    p_qhd->used            = 1;
+    p_qhd->p_qtd_list      = NULL;
+    p_qhd->pid_non_control = (p_endpoint_desc->bEndpointAddress & 0x80) ? EHCI_PID_IN : EHCI_PID_OUT; // PID for TD under this endpoint
+
+    //------------- insert to async list -------------//
+    // TODO disable async list first if got error
+    ehci_qhd_t * const async_head = get_async_head(usbh_device_info_pool[dev_addr].core_id);
+    p_qhd->next = async_head->next;
+    async_head->next.address = (uint32_t) p_qhd;
+    async_head->next.type = EHCI_QUEUE_ELEMENT_QHD;
+
+    return (pipe_handle_t) { .dev_addr = dev_addr, .xfer_type = p_endpoint_desc->bmAttributes.xfer, .index = index};
+  }
+
+  return null_handle;
 }
 
 #endif
