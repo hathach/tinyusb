@@ -42,9 +42,12 @@
 
 #include "hal.h"
 #include "mock_osal.h"
+#include "hcd.h"
+#include "usbh_hcd.h"
 #include "ehci.h"
 
 extern ehci_data_t ehci_data;
+usbh_device_info_t usbh_device_info_pool[TUSB_CFG_HOST_DEVICE_MAX+1];
 
 LPC_USB0_Type lpc_usb0;
 LPC_USB1_Type lpc_usb1;
@@ -83,7 +86,7 @@ void test_hcd_init_usbint(void)
 
   for(uint32_t i=0; i<CONTROLLER_HOST_NUMBER; i++)
   {
-    ehci_registers_t* const regs = get_operational_register(i+CONTROLLER_HOST_START_INDEX);
+    ehci_registers_t* const regs = get_operational_register(i+TEST_CONTROLLER_HOST_START_INDEX);
 
     //------------- USB INT Enable-------------//
     TEST_ASSERT(regs->usb_int_enable_bit.usb_error);
@@ -107,7 +110,7 @@ void test_hcd_init_async_list(void)
 
   for(uint32_t i=0; i<CONTROLLER_HOST_NUMBER; i++)
   {
-    uint8_t hostid                = i+CONTROLLER_HOST_START_INDEX;
+    uint8_t hostid                = i+TEST_CONTROLLER_HOST_START_INDEX;
 
     ehci_registers_t * const regs = get_operational_register(hostid);
     ehci_qhd_t * const async_head = get_async_head(hostid);
@@ -132,7 +135,7 @@ void test_hcd_init_period_list(void)
 
   for(uint32_t i=0; i<CONTROLLER_HOST_NUMBER; i++)
   {
-    uint8_t           const hostid      = i+CONTROLLER_HOST_START_INDEX;
+    uint8_t           const hostid      = i+TEST_CONTROLLER_HOST_START_INDEX;
     ehci_registers_t* const regs        = get_operational_register(hostid);
     ehci_qhd_t *      const period_head = get_period_head(hostid);
     ehci_link_t *     const framelist   = get_period_frame_list(hostid);
@@ -160,7 +163,7 @@ void test_hcd_init_tt_control(void)
 
   for(uint32_t i=0; i<CONTROLLER_HOST_NUMBER; i++)
   {
-    uint8_t           const hostid      = i+CONTROLLER_HOST_START_INDEX;
+    uint8_t           const hostid      = i+TEST_CONTROLLER_HOST_START_INDEX;
     ehci_registers_t* const regs        = get_operational_register(hostid);
 
     TEST_ASSERT_EQUAL(0, regs->tt_control);
@@ -173,7 +176,7 @@ void test_hcd_init_usbcmd(void)
 
   for(uint32_t i=0; i<CONTROLLER_HOST_NUMBER; i++)
   {
-    uint8_t           const hostid      = i+CONTROLLER_HOST_START_INDEX;
+    uint8_t           const hostid      = i+TEST_CONTROLLER_HOST_START_INDEX;
     ehci_registers_t* const regs        = get_operational_register(hostid);
 
     TEST_ASSERT(regs->usb_cmd_bit.async_enable);

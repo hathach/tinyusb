@@ -85,7 +85,7 @@ typedef struct { // TODO internal structure, re-order members
   //------------- configuration descriptor info -------------//
   uint8_t interface_count; // bNumInterfaces alias
 
-  tusbh_device_status_t status;
+  uint8_t status; // value from enum tusbh_device_status_
 
 //  pipe_handle_t pipe_control; NOTE: use device address/handle instead
   tusb_std_request_t request_control;
@@ -101,6 +101,7 @@ typedef struct { // TODO internal structure, re-order members
 
 } usbh_device_info_t;
 
+extern usbh_device_info_t usbh_device_info_pool[TUSB_CFG_HOST_DEVICE_MAX+1]; // including zero-address
 //--------------------------------------------------------------------+
 // ADDRESS 0 API
 //--------------------------------------------------------------------+

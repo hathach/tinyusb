@@ -42,9 +42,13 @@
 
 #include "hal.h"
 #include "mock_osal.h"
+#include "hcd.h"
+#include "usbh_hcd.h"
 #include "ehci.h"
 
 extern ehci_data_t ehci_data;
+usbh_device_info_t usbh_device_info_pool[TUSB_CFG_HOST_DEVICE_MAX+1];
+
 LPC_USB0_Type lpc_usb0;
 LPC_USB1_Type lpc_usb1;
 
@@ -151,7 +155,7 @@ void test_qhd_structure(void)
   TEST_ASSERT_EQUAL( 0, BITFIELD_OFFSET_OF_UINT32(ehci_qhd_t, 2, smask) );
   TEST_ASSERT_EQUAL( 8, BITFIELD_OFFSET_OF_UINT32(ehci_qhd_t, 2, cmask) );
   TEST_ASSERT_EQUAL( 16, BITFIELD_OFFSET_OF_UINT32(ehci_qhd_t, 2, hub_address) );
-  TEST_ASSERT_EQUAL( 23, BITFIELD_OFFSET_OF_UINT32(ehci_qhd_t, 2, port_number) );
+  TEST_ASSERT_EQUAL( 23, BITFIELD_OFFSET_OF_UINT32(ehci_qhd_t, 2, hub_port) );
   TEST_ASSERT_EQUAL( 30, BITFIELD_OFFSET_OF_UINT32(ehci_qhd_t, 2, mult) );
 
   TEST_ASSERT_EQUAL( 3*4, offsetof(ehci_qhd_t, qtd_addr));
@@ -305,7 +309,7 @@ void test_ehci_data(void)
 {
   for(uint32_t i=0; i<CONTROLLER_HOST_NUMBER; i++)
   {
-    uint8_t hostid = i+CONTROLLER_HOST_START_INDEX;
+    uint8_t hostid = i+TEST_CONTROLLER_HOST_START_INDEX;
     TEST_ASSERT_BITS_LOW(4096-1, (uint32_t)get_period_frame_list(hostid) );
   }
 

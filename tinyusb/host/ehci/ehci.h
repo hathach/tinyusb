@@ -175,7 +175,7 @@ typedef struct {
 	uint32_t smask                   : 8  ; ///< This field is used for all endpoint speeds. Software should set this field to a zero when the queue head is on the asynchronous schedule. A non-zero value in this field indicates an interrupt endpoint
 	uint32_t cmask                   : 8  ; ///<  This field is ignored by the host controller unless the EPSfield indicates this device is a low- or full-speed device and this queue head is in the periodic list. This field (along with the Activeand SplitX-statefields) is used to determine during which micro-frames the host controller should execute a complete-split transaction
 	uint32_t hub_address             : 7  ; ///< This field is ignored by the host controller unless the EPSfield indicates a full- or low-speed device. The value is the USB device address of the USB 2.0 Hub below which the full- or low-speed device associated with this endpoint is attached. This field is used in the split-transaction protocol. See Section 4.12.
-	uint32_t port_number             : 7  ; ///<  This field is ignored by the host controller unless the EPSfield indicates a full- or low-speed device. The value is the port number identifier on the USB 2.0 Hub (for hub at device address Hub Addrbelow), below which the full- or low-speed device associated with this endpoint is attached. This information is used in the split-transaction protocol. See Section 4.12.
+	uint32_t hub_port                : 7  ; ///<  This field is ignored by the host controller unless the EPSfield indicates a full- or low-speed device. The value is the port number identifier on the USB 2.0 Hub (for hub at device address Hub Addrbelow), below which the full- or low-speed device associated with this endpoint is attached. This information is used in the split-transaction protocol. See Section 4.12.
 	uint32_t mult                    : 2  ; ///<  This field is a multiplier used to key the host controller as the number of successive packets the host controller may submit to the endpoint in the current execution. 00b=Reserved 01b,10b,11b= 1 (2, 3) Transaction for this endpoint/micro frame
 	uint32_t                         : 0  ; // padding to the end of current storage unit
 	// End of Word 2
@@ -186,15 +186,15 @@ typedef struct {
 	/// Word 4-11: Transfer Overlay
 	volatile ehci_qtd_t qtd_overlay;
 
-	/// Due to the fact QHD is 32 bytes algined but occupies 48 bytes thus there are 16 bytes padding free that we can make use of.
-	uint32_t used       : 1;
-	uint32_t direction  : 2;
-	uint32_t interval   : 5;
-	uint32_t list_index : 20; /* not support full period list */
-	uint32_t            : 0; /* Force next member on next storage unit */
+	/// Due to the fact QHD is 32 bytes aligned but occupies only 48 bytes
+	/// thus there are 16 bytes padding free that we can make use of.
+	uint8_t used;
+	uint8_t list_index;
+	uint8_t reserved[2];
+
+	ehci_qtd_t *p_qtd_list;	/* used as TD head to clean up TD chain when transfer done */ // TODO consider using ehci_link_t (terminate bit)
 
 	volatile uint32_t status; // TODO will remove volatile after remove all HcdQHD function
-	uint32_t FirstQtd;	/* used as TD head to clean up TD chain when transfer done */
 	uint16_t *pActualTransferCount; /* total transferred bytes of a usb request */
 }ATTR_ALIGNED(32) ehci_qhd_t;
 
