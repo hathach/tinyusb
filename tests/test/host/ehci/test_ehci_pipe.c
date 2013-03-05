@@ -104,9 +104,6 @@ void tearDown(void)
 {
 }
 
-//--------------------------------------------------------------------+
-// CONTROL PIPE
-//--------------------------------------------------------------------+
 void verify_open_qhd(ehci_qhd_t *p_qhd)
 {
   TEST_ASSERT_EQUAL(dev_addr, p_qhd->device_address);
@@ -117,36 +114,15 @@ void verify_open_qhd(ehci_qhd_t *p_qhd)
   TEST_ASSERT_EQUAL(1, p_qhd->mult);
   TEST_ASSERT(p_qhd->qtd_overlay.next.terminate);
   TEST_ASSERT(p_qhd->qtd_overlay.alternate.terminate);
-  TEST_ASSERT(p_qhd->qtd_overlay.halted);
 
   //------------- HCD -------------//
   TEST_ASSERT(p_qhd->used);
   TEST_ASSERT_NULL(p_qhd->p_qtd_list);
 }
 
-void verify_bulk_open_qhd(ehci_qhd_t *p_qhd, tusb_descriptor_endpoint_t const * desc_endpoint)
-{
-  verify_open_qhd(p_qhd);
-
-  TEST_ASSERT_FALSE(p_qhd->head_list_flag);
-  TEST_ASSERT_EQUAL(desc_endpoint->wMaxPacketSize, p_qhd->max_package_size);
-  TEST_ASSERT_EQUAL(desc_endpoint->bEndpointAddress & 0x0F, p_qhd->endpoint_number);
-  TEST_ASSERT_EQUAL(0, p_qhd->data_toggle_control);
-  TEST_ASSERT_EQUAL(0, p_qhd->smask);
-  TEST_ASSERT_EQUAL(0, p_qhd->cmask);
-  TEST_ASSERT_FALSE(p_qhd->non_hs_control_endpoint);
-  TEST_ASSERT_EQUAL(usbh_device_info_pool[dev_addr].speed, p_qhd->endpoint_speed);
-
-  //  TEST_ASSERT_EQUAL(desc_endpoint->bInterval); TEST highspeed bulk/control OUT
-
-  TEST_ASSERT_EQUAL(desc_endpoint->bEndpointAddress & 0x80 ? EHCI_PID_IN : EHCI_PID_OUT, p_qhd->pid_non_control);
-
-  //------------- async list check -------------//
-  TEST_ASSERT_EQUAL_HEX((uint32_t) p_qhd, align32(async_head->next.address));
-  TEST_ASSERT_FALSE(async_head->next.terminate);
-  TEST_ASSERT_EQUAL(EHCI_QUEUE_ELEMENT_QHD, async_head->next.type);
-}
-
+//--------------------------------------------------------------------+
+// CONTROL PIPE
+//--------------------------------------------------------------------+
 void verify_control_open_qhd(ehci_qhd_t *p_qhd)
 {
   verify_open_qhd(p_qhd);
@@ -212,6 +188,29 @@ void test_control_open_non_highspeed(void)
 //--------------------------------------------------------------------+
 // BULK PIPE
 //--------------------------------------------------------------------+
+void verify_bulk_open_qhd(ehci_qhd_t *p_qhd, tusb_descriptor_endpoint_t const * desc_endpoint)
+{
+  verify_open_qhd(p_qhd);
+
+  TEST_ASSERT_FALSE(p_qhd->head_list_flag);
+  TEST_ASSERT_EQUAL(desc_endpoint->wMaxPacketSize, p_qhd->max_package_size);
+  TEST_ASSERT_EQUAL(desc_endpoint->bEndpointAddress & 0x0F, p_qhd->endpoint_number);
+  TEST_ASSERT_EQUAL(0, p_qhd->data_toggle_control);
+  TEST_ASSERT_EQUAL(0, p_qhd->smask);
+  TEST_ASSERT_EQUAL(0, p_qhd->cmask);
+  TEST_ASSERT_FALSE(p_qhd->non_hs_control_endpoint);
+  TEST_ASSERT_EQUAL(usbh_device_info_pool[dev_addr].speed, p_qhd->endpoint_speed);
+
+  //  TEST_ASSERT_EQUAL(desc_endpoint->bInterval); TEST highspeed bulk/control OUT
+
+  TEST_ASSERT_EQUAL(desc_endpoint->bEndpointAddress & 0x80 ? EHCI_PID_IN : EHCI_PID_OUT, p_qhd->pid_non_control);
+
+  //------------- async list check -------------//
+  TEST_ASSERT_EQUAL_HEX((uint32_t) p_qhd, align32(async_head->next.address));
+  TEST_ASSERT_FALSE(async_head->next.terminate);
+  TEST_ASSERT_EQUAL(EHCI_QUEUE_ELEMENT_QHD, async_head->next.type);
+}
+
 void test_open_bulk_qhd_data(void)
 {
   ehci_qhd_t *p_qhd;
@@ -228,4 +227,13 @@ void test_open_bulk_qhd_data(void)
   TEST_ASSERT_FALSE(async_head->next.terminate);
   TEST_ASSERT_EQUAL(EHCI_QUEUE_ELEMENT_QHD, async_head->next.type);
 }
+
+//--------------------------------------------------------------------+
+// CONTROL TRANSFER
+//--------------------------------------------------------------------+
+void test_control_xfer(void)
+{
+
+}
+
 

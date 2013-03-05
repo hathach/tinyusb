@@ -259,7 +259,7 @@ static void queue_head_init(ehci_qhd_t *p_qhd, uint8_t dev_addr, uint16_t max_pa
   p_qhd->data_toggle_control = (xfer_type == TUSB_XFER_CONTROL) ? 1 : 0;
   p_qhd->head_list_flag      = (dev_addr == 0) ? 1 : 0; // addr0's endpoint is the static asyn list head
   p_qhd->max_package_size    = max_packet_size;
-  p_qhd->non_hs_control_endpoint = ((endpoint_addr == 0) && (usbh_device_info_pool[dev_addr].speed != TUSB_SPEED_HIGH) )  ? 1 : 0;
+  p_qhd->non_hs_control_endpoint = ((TUSB_XFER_CONTROL == xfer_type) && (usbh_device_info_pool[dev_addr].speed != TUSB_SPEED_HIGH) )  ? 1 : 0;
   p_qhd->nak_count_reload    = 0;
 
   p_qhd->smask               = 0;
@@ -271,7 +271,6 @@ static void queue_head_init(ehci_qhd_t *p_qhd, uint8_t dev_addr, uint16_t max_pa
   //------------- inactive when just opened -------------//
   p_qhd->qtd_overlay.next.terminate      = 1;
   p_qhd->qtd_overlay.alternate.terminate = 1;
-  p_qhd->qtd_overlay.halted              = 1;
 
   //------------- HCD Management Data -------------//
   p_qhd->used            = 1;
