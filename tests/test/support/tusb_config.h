@@ -103,6 +103,9 @@
  }
 #endif
 
+
+#define RANDOM(n) (rand()%(n))
+
 #endif /* _TUSB_TUSB_CONFIG_H_ */
 
 /** @} */

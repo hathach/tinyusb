@@ -307,9 +307,10 @@ tusb_error_t  hcd_pipe_control_open(uint8_t dev_addr, uint8_t max_packet_size)
 //  return TUSB_ERROR_NONE;
 //}
 //
-//pipe_handle_t hcd_pipe_open(uint8_t dev_addr, tusb_descriptor_endpoint_t const * endpoint_desc)
-//{
-//  return TUSB_ERROR_NONE;
-//}
+
+pipe_handle_t hcd_pipe_open(uint8_t dev_addr, tusb_descriptor_endpoint_t const * endpoint_desc)
+{
+  return TUSB_ERROR_NONE;
+}
 
 #endif

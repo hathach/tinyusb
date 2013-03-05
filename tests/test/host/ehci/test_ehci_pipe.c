@@ -45,6 +45,7 @@
 #include "hcd.h"
 #include "usbh_hcd.h"
 #include "ehci.h"
+#include "test_ehci.h"
 
 extern ehci_data_t ehci_data;
 usbh_device_info_t usbh_device_info_pool[TUSB_CFG_HOST_DEVICE_MAX+1];
@@ -53,9 +54,12 @@ LPC_USB0_Type lpc_usb0;
 LPC_USB1_Type lpc_usb1;
 
 uint8_t const max_packet_size = 64;
-uint8_t dev_addr = 0;
+uint8_t dev_addr;
 uint8_t hub_addr;
 uint8_t hub_port;
+uint8_t hostid;
+
+ehci_qhd_t *async_head;
 
 //--------------------------------------------------------------------+
 // Setup/Teardown + helper declare
@@ -67,9 +71,22 @@ void setUp(void)
 
   memclr_(usbh_device_info_pool, sizeof(usbh_device_info_t)*(TUSB_CFG_HOST_DEVICE_MAX+1));
 
-  dev_addr = 0;
+  hcd_init();
+
+  dev_addr = 1;
+
+  hostid = RANDOM(CONTROLLER_HOST_NUMBER) + TEST_CONTROLLER_HOST_START_INDEX;
   hub_addr = 2;
   hub_port = 2;
+
+  for (uint8_t i=0; i<TUSB_CFG_HOST_DEVICE_MAX; i++)
+  {
+    usbh_device_info_pool[i].core_id  = hostid;
+    usbh_device_info_pool[i].hub_addr = hub_addr;
+    usbh_device_info_pool[i].hub_port = hub_port;
+  }
+
+  async_head =  get_async_head( hostid );
 }
 
 void tearDown(void)
@@ -106,86 +123,79 @@ void verify_control_open_qhd(ehci_qhd_t *p_qhd)
 void test_control_open_addr0_qhd_data(void)
 {
   dev_addr = 0;
-  for (uint8_t i=0; i<CONTROLLER_HOST_NUMBER; i++)
-  {
-    uint8_t hostid = i + TEST_CONTROLLER_HOST_START_INDEX;
-    ehci_qhd_t * const p_qhd = get_async_head( hostid );
 
-    usbh_device_info_pool[dev_addr].core_id = hostid;
-    usbh_device_info_pool[dev_addr].hub_addr = hub_addr;
-    usbh_device_info_pool[dev_addr].hub_port = hub_port;
+  ehci_qhd_t * const p_qhd = async_head;
 
-    hcd_pipe_control_open(dev_addr, max_packet_size);
+  hcd_pipe_control_open(dev_addr, max_packet_size);
 
-    verify_control_open_qhd(p_qhd);
-    TEST_ASSERT(p_qhd->head_list_flag);
-  }
+  verify_control_open_qhd(p_qhd);
+  TEST_ASSERT(p_qhd->head_list_flag);
 }
 
 void test_control_open_qhd_data(void)
 {
-  dev_addr = 1;
-  for (uint8_t i=0; i<CONTROLLER_HOST_NUMBER; i++)
-  {
-    uint8_t hostid = i + TEST_CONTROLLER_HOST_START_INDEX;
-    ehci_qhd_t * const async_head =  get_async_head( hostid );
-    ehci_qhd_t * const p_qhd = &ehci_data.device[dev_addr].control.qhd;
+  ehci_qhd_t * const p_qhd = &ehci_data.device[dev_addr].control.qhd;
 
+  hcd_pipe_control_open(dev_addr, max_packet_size);
 
-    usbh_device_info_pool[dev_addr].core_id = hostid;
-    usbh_device_info_pool[dev_addr].hub_addr = hub_addr;
-    usbh_device_info_pool[dev_addr].hub_port = hub_port;
+  verify_control_open_qhd(p_qhd);
+  TEST_ASSERT_FALSE(p_qhd->head_list_flag);
 
-    hcd_pipe_control_open(dev_addr, max_packet_size);
-
-    verify_control_open_qhd(p_qhd);
-    TEST_ASSERT_FALSE(p_qhd->head_list_flag);
-
-    //------------- async list check -------------//
-    TEST_ASSERT_EQUAL_HEX((uint32_t) p_qhd, align32(async_head->next.address));
-    TEST_ASSERT_FALSE(async_head->next.terminate);
-    TEST_ASSERT_EQUAL(EHCI_QUEUE_ELEMENT_QHD, async_head->next.type);
-  }
+  //------------- async list check -------------//
+  TEST_ASSERT_EQUAL_HEX((uint32_t) p_qhd, align32(async_head->next.address));
+  TEST_ASSERT_FALSE(async_head->next.terminate);
+  TEST_ASSERT_EQUAL(EHCI_QUEUE_ELEMENT_QHD, async_head->next.type);
 }
 
 void test_control_open_highspeed(void)
 {
-  dev_addr = 1;
-  for (uint8_t i=0; i<CONTROLLER_HOST_NUMBER; i++)
-  {
-    uint8_t hostid = i + TEST_CONTROLLER_HOST_START_INDEX;
-    ehci_qhd_t * const p_qhd = &ehci_data.device[dev_addr].control.qhd;
+  ehci_qhd_t * const p_qhd = &ehci_data.device[dev_addr].control.qhd;
 
-    usbh_device_info_pool[dev_addr].core_id = hostid;
-    usbh_device_info_pool[dev_addr].speed = TUSB_SPEED_HIGH;
+  usbh_device_info_pool[dev_addr].speed   = TUSB_SPEED_HIGH;
 
-    hcd_pipe_control_open(dev_addr, max_packet_size);
+  hcd_pipe_control_open(dev_addr, max_packet_size);
 
-    TEST_ASSERT_EQUAL(TUSB_SPEED_HIGH, p_qhd->endpoint_speed);
-    TEST_ASSERT_FALSE(p_qhd->non_hs_control_endpoint);
-  }
+  TEST_ASSERT_EQUAL(TUSB_SPEED_HIGH, p_qhd->endpoint_speed);
+  TEST_ASSERT_FALSE(p_qhd->non_hs_control_endpoint);
 }
 
 void test_control_open_non_highspeed(void)
 {
-  dev_addr = 1;
-  for (uint8_t i=0; i<CONTROLLER_HOST_NUMBER; i++)
-  {
-    uint8_t hostid = i + TEST_CONTROLLER_HOST_START_INDEX;
-    ehci_qhd_t * const p_qhd = &ehci_data.device[dev_addr].control.qhd;
+  ehci_qhd_t * const p_qhd = &ehci_data.device[dev_addr].control.qhd;
 
-    usbh_device_info_pool[dev_addr].core_id = hostid;
-    usbh_device_info_pool[dev_addr].speed = TUSB_SPEED_FULL;
+  usbh_device_info_pool[dev_addr].speed   = TUSB_SPEED_FULL;
 
-    hcd_pipe_control_open(dev_addr, max_packet_size);
+  hcd_pipe_control_open(dev_addr, max_packet_size);
 
-    TEST_ASSERT_EQUAL(TUSB_SPEED_FULL, p_qhd->endpoint_speed);
-    TEST_ASSERT_TRUE(p_qhd->non_hs_control_endpoint);
-  }
+  TEST_ASSERT_EQUAL(TUSB_SPEED_FULL, p_qhd->endpoint_speed);
+  TEST_ASSERT_TRUE(p_qhd->non_hs_control_endpoint);
 }
 
-void test_control_open_device_not_connected(void)
+//--------------------------------------------------------------------+
+// BULK PIPE
+//--------------------------------------------------------------------+
+void test_open_bulk_qhd_data(void)
 {
-
+//  dev_addr = 1;
+//  for (uint8_t i=0; i<CONTROLLER_HOST_NUMBER; i++)
+//  {
+//    uint8_t hostid = i + TEST_CONTROLLER_HOST_START_INDEX;
+//    ehci_qhd_t * const async_head =  get_async_head( hostid );
+//    ehci_qhd_t * const p_qhd = &ehci_data.device[dev_addr].control.qhd;
+//
+//    usbh_device_info_pool[dev_addr].core_id  = hostid;
+//    usbh_device_info_pool[dev_addr].hub_addr = hub_addr;
+//    usbh_device_info_pool[dev_addr].hub_port = hub_port;
+//
+//    hcd_pipe_open(dev_addr, &desc_configuration.keyboard_endpoint);
+//
+//    verify_control_open_qhd(p_qhd);
+//    TEST_ASSERT_FALSE(p_qhd->head_list_flag);
+//
+//    //------------- async list check -------------//
+//    TEST_ASSERT_EQUAL_HEX((uint32_t) p_qhd, align32(async_head->next.address));
+//    TEST_ASSERT_FALSE(async_head->next.terminate);
+//    TEST_ASSERT_EQUAL(EHCI_QUEUE_ELEMENT_QHD, async_head->next.type);
+//  }
 }
 
