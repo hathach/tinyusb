@@ -67,7 +67,7 @@ tusb_descriptor_endpoint_t const desc_ept_bulk_in =
     .bDescriptorType  = TUSB_DESC_ENDPOINT,
     .bEndpointAddress = 0x81,
     .bmAttributes     = { .xfer = TUSB_XFER_BULK },
-    .wMaxPacketSize   = 64,
+    .wMaxPacketSize   = 512,
     .bInterval        = 0
 };
 
@@ -80,6 +80,7 @@ void setUp(void)
   memclr_(&lpc_usb1, sizeof(LPC_USB1_Type));
 
   memclr_(usbh_device_info_pool, sizeof(usbh_device_info_t)*(TUSB_CFG_HOST_DEVICE_MAX+1));
+  memclr_(&ehci_data, sizeof(ehci_data_t));
 
   hcd_init();
 
@@ -133,6 +134,9 @@ void verify_bulk_open_qhd(ehci_qhd_t *p_qhd, tusb_descriptor_endpoint_t const * 
   TEST_ASSERT_EQUAL(0, p_qhd->data_toggle_control);
   TEST_ASSERT_EQUAL(0, p_qhd->smask);
   TEST_ASSERT_EQUAL(0, p_qhd->cmask);
+  TEST_ASSERT_FALSE(p_qhd->non_hs_control_endpoint);
+  TEST_ASSERT_EQUAL(usbh_device_info_pool[dev_addr].speed, p_qhd->endpoint_speed);
+
   //  TEST_ASSERT_EQUAL(desc_endpoint->bInterval); TEST highspeed bulk/control OUT
 
   TEST_ASSERT_EQUAL(desc_endpoint->bEndpointAddress & 0x80 ? EHCI_PID_IN : EHCI_PID_OUT, p_qhd->pid_non_control);
@@ -208,11 +212,11 @@ void test_control_open_non_highspeed(void)
 //--------------------------------------------------------------------+
 // BULK PIPE
 //--------------------------------------------------------------------+
-void test_open_bulk_in_qhd_data(void)
+void test_open_bulk_qhd_data(void)
 {
   ehci_qhd_t *p_qhd;
-  tusb_descriptor_endpoint_t const * desc_endpoint = &desc_ept_bulk_in;
   pipe_handle_t pipe_hdl;
+  tusb_descriptor_endpoint_t const * desc_endpoint = &desc_ept_bulk_in;
 
   pipe_hdl = hcd_pipe_open(dev_addr, desc_endpoint);
 

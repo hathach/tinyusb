@@ -250,28 +250,16 @@ tusb_error_t hcd_controller_reset(uint8_t hostid)
 //--------------------------------------------------------------------+
 // PIPE API
 //--------------------------------------------------------------------+
-tusb_error_t  hcd_pipe_control_open(uint8_t dev_addr, uint8_t max_packet_size)
+static void queue_head_init(ehci_qhd_t *p_qhd, uint8_t dev_addr, uint16_t max_packet_size, uint8_t endpoint_addr, uint8_t xfer_type)
 {
-  ehci_qhd_t *p_qhd;
-
-  if (dev_addr == 0)
-  {
-    // async head of selected controller is used as Addr0 Endpoint --> horizontal link have to be preserved
-    p_qhd = get_async_head( usbh_device_info_pool[dev_addr].core_id );
-    p_qhd->head_list_flag      = 1; // make sure it is still head of list
-  }else
-  {
-    p_qhd = &ehci_data.device[dev_addr].control.qhd;
-    p_qhd->head_list_flag      = 0;
-  }
-
   p_qhd->device_address      = dev_addr;
   p_qhd->inactive_next_xact  = 0;
-  p_qhd->endpoint_number     = 0;
+  p_qhd->endpoint_number     = endpoint_addr & 0x0F;
   p_qhd->endpoint_speed      = usbh_device_info_pool[dev_addr].speed;
-  p_qhd->data_toggle_control = 1;
+  p_qhd->data_toggle_control = (xfer_type == TUSB_XFER_CONTROL) ? 1 : 0;
+  p_qhd->head_list_flag      = (dev_addr == 0) ? 1 : 0; // addr0's endpoint is the static asyn list head
   p_qhd->max_package_size    = max_packet_size;
-  p_qhd->non_hs_control_endpoint = (usbh_device_info_pool[dev_addr].speed != TUSB_SPEED_HIGH) ? 1 : 0;
+  p_qhd->non_hs_control_endpoint = ((endpoint_addr == 0) && (usbh_device_info_pool[dev_addr].speed != TUSB_SPEED_HIGH) )  ? 1 : 0;
   p_qhd->nak_count_reload    = 0;
 
   p_qhd->smask               = 0;
@@ -286,11 +274,21 @@ tusb_error_t  hcd_pipe_control_open(uint8_t dev_addr, uint8_t max_packet_size)
   p_qhd->qtd_overlay.halted              = 1;
 
   //------------- HCD Management Data -------------//
-  p_qhd->used       = 1;
-  p_qhd->p_qtd_list = NULL;
+  p_qhd->used            = 1;
+  p_qhd->p_qtd_list      = NULL;
+  p_qhd->pid_non_control = (endpoint_addr & 0x80) ? EHCI_PID_IN : EHCI_PID_OUT; // PID for TD under this endpoint
+
+}
+
+tusb_error_t  hcd_pipe_control_open(uint8_t dev_addr, uint8_t max_packet_size)
+{
+  ehci_qhd_t *p_qhd = (dev_addr == 0) ?
+      get_async_head( usbh_device_info_pool[dev_addr].core_id ) : &ehci_data.device[dev_addr].control.qhd;
+
+  queue_head_init(p_qhd, dev_addr, max_packet_size, 0, TUSB_XFER_CONTROL);
 
   //------------- insert to async list -------------//
-  // TODO disable async list first if got error
+  // TODO might need to to disable async list first
   if (dev_addr != 0)
   {
     ehci_qhd_t * const async_head = get_async_head(usbh_device_info_pool[dev_addr].core_id);
@@ -325,34 +323,10 @@ pipe_handle_t hcd_pipe_open(uint8_t dev_addr, tusb_descriptor_endpoint_t const *
     ehci_qhd_t * const p_qhd = &ehci_data.device[dev_addr].qhd[index];
     memclr_(p_qhd, sizeof(ehci_qhd_t));
 
-    p_qhd->device_address          = dev_addr;
-    p_qhd->inactive_next_xact      = 0;
-    p_qhd->endpoint_number         = p_endpoint_desc->bEndpointAddress & 0x0F;
-    p_qhd->endpoint_speed          = usbh_device_info_pool[dev_addr].speed;
-    p_qhd->data_toggle_control     = 0;
-    p_qhd->head_list_flag          = 0;
-    p_qhd->max_package_size        = p_endpoint_desc->wMaxPacketSize;
-    p_qhd->non_hs_control_endpoint = 0;
-    p_qhd->nak_count_reload        = 0;
-
-    p_qhd->smask                   = 0;
-    p_qhd->cmask                   = 0;
-    p_qhd->hub_address             = usbh_device_info_pool[dev_addr].hub_addr;
-    p_qhd->hub_port                = usbh_device_info_pool[dev_addr].hub_port;
-    p_qhd->mult                    = 1; // TODO not use high bandwidth/park mode yet
-
-    //------------- inactive when just opened -------------//
-    p_qhd->qtd_overlay.next.terminate      = 1;
-    p_qhd->qtd_overlay.alternate.terminate = 1;
-    p_qhd->qtd_overlay.halted              = 1;
-
-    //------------- HCD Management Data -------------//
-    p_qhd->used            = 1;
-    p_qhd->p_qtd_list      = NULL;
-    p_qhd->pid_non_control = (p_endpoint_desc->bEndpointAddress & 0x80) ? EHCI_PID_IN : EHCI_PID_OUT; // PID for TD under this endpoint
+    queue_head_init(p_qhd, dev_addr, p_endpoint_desc->wMaxPacketSize, p_endpoint_desc->bEndpointAddress, TUSB_XFER_BULK);
 
     //------------- insert to async list -------------//
-    // TODO disable async list first if got error
+    // TODO might need to to disable async list first
     ehci_qhd_t * const async_head = get_async_head(usbh_device_info_pool[dev_addr].core_id);
     p_qhd->next = async_head->next;
     async_head->next.address = (uint32_t) p_qhd;
