@@ -177,7 +177,7 @@ tusb_error_t hcd_controller_init(uint8_t hostid)
     framelist[i].type    = EHCI_QUEUE_ELEMENT_QHD;
   }
 
-  period_head->smask                           = 1; // queue head in period list must have smask non-zero
+  period_head->interrupt_smask                 = 1; // queue head in period list must have smask non-zero
   period_head->next.terminate                  = 1;
   period_head->qtd_overlay.halted              = 1; // dummy node, always inactive
 
@@ -354,8 +354,8 @@ static void queue_head_init(ehci_qhd_t *p_qhd, uint8_t dev_addr, uint16_t max_pa
   p_qhd->non_hs_control_endpoint = ((TUSB_XFER_CONTROL == xfer_type) && (usbh_device_info_pool[dev_addr].speed != TUSB_SPEED_HIGH) )  ? 1 : 0;
   p_qhd->nak_count_reload        = 0;
 
-  p_qhd->smask                   = 0;
-  p_qhd->cmask                   = 0;
+  p_qhd->interrupt_smask         = 0;
+  p_qhd->non_hs_cmask            = 0;
   p_qhd->hub_address             = usbh_device_info_pool[dev_addr].hub_addr;
   p_qhd->hub_port                = usbh_device_info_pool[dev_addr].hub_port;
   p_qhd->mult                    = 1; // TODO not use high bandwidth/park mode yet

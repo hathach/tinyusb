@@ -152,8 +152,8 @@ void test_qhd_structure(void)
   TEST_ASSERT_EQUAL( 28, BITFIELD_OFFSET_OF_UINT32(ehci_qhd_t, 1, nak_count_reload) );
 
   //------------- Word 2 -------------//
-  TEST_ASSERT_EQUAL( 0, BITFIELD_OFFSET_OF_UINT32(ehci_qhd_t, 2, smask) );
-  TEST_ASSERT_EQUAL( 8, BITFIELD_OFFSET_OF_UINT32(ehci_qhd_t, 2, cmask) );
+  TEST_ASSERT_EQUAL( 0, BITFIELD_OFFSET_OF_UINT32(ehci_qhd_t, 2, interrupt_smask) );
+  TEST_ASSERT_EQUAL( 8, BITFIELD_OFFSET_OF_UINT32(ehci_qhd_t, 2, non_hs_cmask) );
   TEST_ASSERT_EQUAL( 16, BITFIELD_OFFSET_OF_UINT32(ehci_qhd_t, 2, hub_address) );
   TEST_ASSERT_EQUAL( 23, BITFIELD_OFFSET_OF_UINT32(ehci_qhd_t, 2, hub_port) );
   TEST_ASSERT_EQUAL( 30, BITFIELD_OFFSET_OF_UINT32(ehci_qhd_t, 2, mult) );
@@ -191,8 +191,8 @@ void test_sitd_structure(void)
   TEST_ASSERT_EQUAL( 31, BITFIELD_OFFSET_OF_UINT32(ehci_sitd_t, 1, direction) );
 
   //------------- Word 2 -------------//
-  TEST_ASSERT_EQUAL( 4*2, offsetof(ehci_sitd_t, smask));
-  TEST_ASSERT_EQUAL( 4*2+1, offsetof(ehci_sitd_t, cmask));
+  TEST_ASSERT_EQUAL( 4*2, offsetof(ehci_sitd_t, interrupt_smask));
+  TEST_ASSERT_EQUAL( 4*2+1, offsetof(ehci_sitd_t, non_hs_cmask));
 
   //------------- Word 3 -------------//
   TEST_ASSERT_EQUAL( 1, BITFIELD_OFFSET_OF_UINT32(ehci_sitd_t, 3, split_state) );

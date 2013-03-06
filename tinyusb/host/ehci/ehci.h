@@ -179,8 +179,8 @@ typedef struct {
 	// End of Word 1
 
 	/// Word 2                       : Endpoint Capabilities
-	uint32_t smask                   : 8  ; ///< This field is used for all endpoint speeds. Software should set this field to a zero when the queue head is on the asynchronous schedule. A non-zero value in this field indicates an interrupt endpoint
-	uint32_t cmask                   : 8  ; ///<  This field is ignored by the host controller unless the EPSfield indicates this device is a low- or full-speed device and this queue head is in the periodic list. This field (along with the Activeand SplitX-statefields) is used to determine during which micro-frames the host controller should execute a complete-split transaction
+	uint32_t interrupt_smask         : 8  ; ///< This field is used for all endpoint speeds. Software should set this field to a zero when the queue head is on the asynchronous schedule. A non-zero value in this field indicates an interrupt endpoint
+	uint32_t non_hs_cmask            : 8  ; ///<  This field is ignored by the host controller unless the EPSfield indicates this device is a low- or full-speed device and this queue head is in the periodic list. This field (along with the Activeand SplitX-statefields) is used to determine during which micro-frames the host controller should execute a complete-split transaction
 	uint32_t hub_address             : 7  ; ///< This field is ignored by the host controller unless the EPSfield indicates a full- or low-speed device. The value is the USB device address of the USB 2.0 Hub below which the full- or low-speed device associated with this endpoint is attached. This field is used in the split-transaction protocol. See Section 4.12.
 	uint32_t hub_port                : 7  ; ///<  This field is ignored by the host controller unless the EPSfield indicates a full- or low-speed device. The value is the port number identifier on the USB 2.0 Hub (for hub at device address Hub Addrbelow), below which the full- or low-speed device associated with this endpoint is attached. This information is used in the split-transaction protocol. See Section 4.12.
 	uint32_t mult                    : 2  ; ///<  This field is a multiplier used to key the host controller as the number of successive packets the host controller may submit to the endpoint in the current execution. 00b=Reserved 01b,10b,11b= 1 (2, 3) Transaction for this endpoint/micro frame
@@ -254,8 +254,8 @@ typedef struct {
 	// End of Word 1
 
 	/// Word 2: Micro-frame Schedule Control
-	uint8_t smask     ; ///< This field (along with the Activeand SplitX-statefields in the Statusbyte) are used to determine during which micro-frames the host controller should execute complete-split transactions
-	uint8_t cmask     ; ///< This field (along with the Activeand SplitX-statefields in the Statusbyte) are used to determine during which micro-frames the host controller should execute start-split transactions.
+	uint8_t interrupt_smask     ; ///< This field (along with the Activeand SplitX-statefields in the Statusbyte) are used to determine during which micro-frames the host controller should execute complete-split transactions
+	uint8_t non_hs_cmask     ; ///< This field (along with the Activeand SplitX-statefields in the Statusbyte) are used to determine during which micro-frames the host controller should execute start-split transactions.
 	uint16_t reserved ; ///< reserved
 	// End of Word 2
 

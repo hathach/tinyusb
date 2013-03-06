@@ -101,11 +101,15 @@ void tearDown(void)
 {
 }
 
-void verify_open_qhd(ehci_qhd_t *p_qhd)
+void verify_open_qhd(ehci_qhd_t *p_qhd, uint8_t endpoint_addr, uint16_t max_packet_size)
 {
   TEST_ASSERT_EQUAL(dev_addr, p_qhd->device_address);
   TEST_ASSERT_FALSE(p_qhd->inactive_next_xact);
-  TEST_ASSERT_EQUAL(0, p_qhd->nak_count_reload); // TODO NAK Reload disable
+  TEST_ASSERT_EQUAL(endpoint_addr & 0x0F, p_qhd->endpoint_number);
+  TEST_ASSERT_EQUAL(usbh_device_info_pool[dev_addr].speed, p_qhd->endpoint_speed);
+  TEST_ASSERT_EQUAL(max_packet_size, p_qhd->max_package_size);
+  TEST_ASSERT_EQUAL(0, p_qhd->nak_count_reload); // TDD NAK Reload disable
+
   TEST_ASSERT_EQUAL(hub_addr, p_qhd->hub_address);
   TEST_ASSERT_EQUAL(hub_port, p_qhd->hub_port);
   TEST_ASSERT_EQUAL(1, p_qhd->mult);
@@ -124,13 +128,11 @@ void verify_open_qhd(ehci_qhd_t *p_qhd)
 //--------------------------------------------------------------------+
 void verify_control_open_qhd(ehci_qhd_t *p_qhd)
 {
-  verify_open_qhd(p_qhd);
+  verify_open_qhd(p_qhd, 0, control_max_packet_size);
 
-  TEST_ASSERT_EQUAL(control_max_packet_size, p_qhd->max_package_size);
-  TEST_ASSERT_EQUAL(0, p_qhd->endpoint_number);
   TEST_ASSERT_EQUAL(1, p_qhd->data_toggle_control);
-  TEST_ASSERT_EQUAL(0, p_qhd->smask);
-  TEST_ASSERT_EQUAL(0, p_qhd->cmask);
+  TEST_ASSERT_EQUAL(0, p_qhd->interrupt_smask);
+  TEST_ASSERT_EQUAL(0, p_qhd->non_hs_cmask);
 }
 
 void test_control_open_addr0_qhd_data(void)
@@ -139,6 +141,7 @@ void test_control_open_addr0_qhd_data(void)
 
   ehci_qhd_t * const p_qhd = async_head;
 
+  //------------- Code Under Test -------------//
   hcd_pipe_control_open(dev_addr, control_max_packet_size);
 
   verify_control_open_qhd(p_qhd);
@@ -149,6 +152,7 @@ void test_control_open_qhd_data(void)
 {
   ehci_qhd_t * const p_qhd = &ehci_data.device[dev_addr].control.qhd;
 
+  //------------- Code Under TEST -------------//
   hcd_pipe_control_open(dev_addr, control_max_packet_size);
 
   verify_control_open_qhd(p_qhd);
@@ -166,9 +170,9 @@ void test_control_open_highspeed(void)
 
   usbh_device_info_pool[dev_addr].speed   = TUSB_SPEED_HIGH;
 
+  //------------- Code Under TEST -------------//
   hcd_pipe_control_open(dev_addr, control_max_packet_size);
 
-  TEST_ASSERT_EQUAL(TUSB_SPEED_HIGH, p_qhd->endpoint_speed);
   TEST_ASSERT_FALSE(p_qhd->non_hs_control_endpoint);
 }
 
@@ -178,9 +182,9 @@ void test_control_open_non_highspeed(void)
 
   usbh_device_info_pool[dev_addr].speed   = TUSB_SPEED_FULL;
 
+  //------------- Code Under TEST -------------//
   hcd_pipe_control_open(dev_addr, control_max_packet_size);
 
-  TEST_ASSERT_EQUAL(TUSB_SPEED_FULL, p_qhd->endpoint_speed);
   TEST_ASSERT_TRUE(p_qhd->non_hs_control_endpoint);
 }
 
@@ -189,18 +193,15 @@ void test_control_open_non_highspeed(void)
 //--------------------------------------------------------------------+
 void verify_bulk_open_qhd(ehci_qhd_t *p_qhd, tusb_descriptor_endpoint_t const * desc_endpoint)
 {
-  verify_open_qhd(p_qhd);
+  verify_open_qhd(p_qhd, desc_endpoint->bEndpointAddress, desc_endpoint->wMaxPacketSize);
 
   TEST_ASSERT_FALSE(p_qhd->head_list_flag);
-  TEST_ASSERT_EQUAL(desc_endpoint->wMaxPacketSize, p_qhd->max_package_size);
-  TEST_ASSERT_EQUAL(desc_endpoint->bEndpointAddress & 0x0F, p_qhd->endpoint_number);
   TEST_ASSERT_EQUAL(0, p_qhd->data_toggle_control);
-  TEST_ASSERT_EQUAL(0, p_qhd->smask);
-  TEST_ASSERT_EQUAL(0, p_qhd->cmask);
+  TEST_ASSERT_EQUAL(0, p_qhd->interrupt_smask);
+  TEST_ASSERT_EQUAL(0, p_qhd->non_hs_cmask);
   TEST_ASSERT_FALSE(p_qhd->non_hs_control_endpoint);
-  TEST_ASSERT_EQUAL(usbh_device_info_pool[dev_addr].speed, p_qhd->endpoint_speed);
 
-  //  TEST_ASSERT_EQUAL(desc_endpoint->bInterval); TEST highspeed bulk/control OUT
+  //  TEST_ASSERT_EQUAL(desc_endpoint->bInterval); TDD highspeed bulk/control OUT
 
   TEST_ASSERT_EQUAL(desc_endpoint->bEndpointAddress & 0x80 ? EHCI_PID_IN : EHCI_PID_OUT, p_qhd->pid_non_control);
 
@@ -216,6 +217,7 @@ void test_open_bulk_qhd_data(void)
   pipe_handle_t pipe_hdl;
   tusb_descriptor_endpoint_t const * desc_endpoint = &desc_ept_bulk_in;
 
+  //------------- Code Under TEST -------------//
   pipe_hdl = hcd_pipe_open(dev_addr, desc_endpoint);
 
   p_qhd = &ehci_data.device[ pipe_hdl.dev_addr ].qhd[ pipe_hdl.index ];

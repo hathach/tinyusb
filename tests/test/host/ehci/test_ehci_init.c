@@ -146,7 +146,7 @@ void test_hcd_init_period_list(void)
       TEST_ASSERT_EQUAL(EHCI_QUEUE_ELEMENT_QHD, framelist[list_idx].type);
     }
 
-    TEST_ASSERT(period_head->smask)
+    TEST_ASSERT(period_head->interrupt_smask)
     TEST_ASSERT_TRUE(period_head->next.terminate);
     TEST_ASSERT(period_head->qtd_overlay.halted);
   }
