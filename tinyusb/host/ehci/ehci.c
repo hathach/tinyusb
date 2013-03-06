@@ -274,32 +274,38 @@ pipe_handle_t hcd_pipe_open(uint8_t dev_addr, tusb_descriptor_endpoint_t const *
 {
   pipe_handle_t const null_handle = { .dev_addr = 0, .xfer_type = 0, .index = 0 };
 
-  if (p_endpoint_desc->bmAttributes.xfer == TUSB_XFER_BULK)
+  uint8_t index=0;
+  while( index<EHCI_MAX_QHD && ehci_data.device[dev_addr].qhd[index].used )
   {
-    uint8_t index=0;
-    while( index<EHCI_MAX_QHD && ehci_data.device[dev_addr].qhd[index].used )
-    {
-      index++;
-    }
-
-    ASSERT( index < EHCI_MAX_QHD, null_handle);
-
-    ehci_qhd_t * const p_qhd = &ehci_data.device[dev_addr].qhd[index];
-    memclr_(p_qhd, sizeof(ehci_qhd_t));
-
-    queue_head_init(p_qhd, dev_addr, p_endpoint_desc->wMaxPacketSize, p_endpoint_desc->bEndpointAddress, TUSB_XFER_BULK);
-
-    //------------- insert to async list -------------//
-    // TODO might need to to disable async list first
-    ehci_qhd_t * const async_head = get_async_head(usbh_device_info_pool[dev_addr].core_id);
-    p_qhd->next = async_head->next;
-    async_head->next.address = (uint32_t) p_qhd;
-    async_head->next.type = EHCI_QUEUE_ELEMENT_QHD;
-
-    return (pipe_handle_t) { .dev_addr = dev_addr, .xfer_type = p_endpoint_desc->bmAttributes.xfer, .index = index};
+    index++;
   }
 
-  return null_handle;
+  ASSERT( index < EHCI_MAX_QHD, null_handle);
+
+  ehci_qhd_t * const p_qhd = &ehci_data.device[dev_addr].qhd[index];
+  queue_head_init(p_qhd, dev_addr, p_endpoint_desc->wMaxPacketSize, p_endpoint_desc->bEndpointAddress, p_endpoint_desc->bmAttributes.xfer);
+
+  ehci_qhd_t * list_head;
+
+  if (p_endpoint_desc->bmAttributes.xfer == TUSB_XFER_BULK)
+  {
+    //------------- insert to async list -------------//
+    // TODO might need to to disable async list first
+    list_head = get_async_head(usbh_device_info_pool[dev_addr].core_id);
+  }else if (p_endpoint_desc->bmAttributes.xfer == TUSB_XFER_INTERRUPT)
+  {
+    //------------- insert to period list -------------//
+    // TODO might need to to disable period list first
+    list_head = get_period_head(usbh_device_info_pool[dev_addr].core_id);
+  }
+
+  p_qhd->next = list_head->next;
+  list_head->next.address = (uint32_t) p_qhd;
+  list_head->next.type = EHCI_QUEUE_ELEMENT_QHD;
+
+  return (pipe_handle_t) { .dev_addr = dev_addr, .xfer_type = p_endpoint_desc->bmAttributes.xfer, .index = index};
+
+//  return null_handle;
 }
 
 static void queue_td_init(ehci_qtd_t* p_qtd, uint32_t data_ptr, uint16_t total_bytes)
@@ -307,12 +313,12 @@ static void queue_td_init(ehci_qtd_t* p_qtd, uint32_t data_ptr, uint16_t total_b
   memclr_(p_qtd, sizeof(ehci_qtd_t));
 
   p_qtd->alternate.terminate = 1; // not used, always set to terminated
-  p_qtd->active = 1;
-  p_qtd->cerr = 3; // TODO 3 consecutive errors tolerance
-  p_qtd->data_toggle = 0;
-  p_qtd->total_bytes = total_bytes;
+  p_qtd->active              = 1;
+  p_qtd->cerr                = 3; // TODO 3 consecutive errors tolerance
+  p_qtd->data_toggle         = 0;
+  p_qtd->total_bytes         = total_bytes;
 
-  p_qtd->buffer[0] = data_ptr;
+  p_qtd->buffer[0]           = data_ptr;
 
 }
 
@@ -384,6 +390,8 @@ static inline tusb_std_request_t* const get_control_request_ptr(uint8_t dev_addr
 
 static void queue_head_init(ehci_qhd_t *p_qhd, uint8_t dev_addr, uint16_t max_packet_size, uint8_t endpoint_addr, uint8_t xfer_type)
 {
+  memclr_(p_qhd, sizeof(ehci_qhd_t));
+
   p_qhd->device_address          = dev_addr;
   p_qhd->inactive_next_xact      = 0;
   p_qhd->endpoint_number         = endpoint_addr & 0x0F;
@@ -394,8 +402,15 @@ static void queue_head_init(ehci_qhd_t *p_qhd, uint8_t dev_addr, uint16_t max_pa
   p_qhd->non_hs_control_endpoint = ((TUSB_XFER_CONTROL == xfer_type) && (usbh_device_info_pool[dev_addr].speed != TUSB_SPEED_HIGH) )  ? 1 : 0;
   p_qhd->nak_count_reload        = 0;
 
-  p_qhd->interrupt_smask         = 0;
-  p_qhd->non_hs_cmask            = 0;
+  // Bulk/Control -> smask = cmask = 0
+  if (TUSB_XFER_INTERRUPT == xfer_type)
+  {
+    // Highspeed: schedule every uframe (1 us interval); Full/Low: schedule only 1st frame
+    p_qhd->interrupt_smask         = (TUSB_SPEED_HIGH == usbh_device_info_pool[dev_addr].speed) ? 0xFF : 0x01;
+    // Highspeed: ignored by Host Controller, Full/Low: 4.12.2.1 (EHCI) case 1 schedule complete split at 2,3,4 uframe
+    p_qhd->non_hs_interrupt_cmask  = BIN8(11100);
+  }
+
   p_qhd->hub_address             = usbh_device_info_pool[dev_addr].hub_addr;
   p_qhd->hub_port                = usbh_device_info_pool[dev_addr].hub_port;
   p_qhd->mult                    = 1; // TODO not use high bandwidth/park mode yet
