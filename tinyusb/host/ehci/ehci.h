@@ -435,21 +435,27 @@ typedef volatile struct {
 // EHCI Data Organization
 //--------------------------------------------------------------------+
 typedef struct {
+  //------------- Static Async/Period List Head, Each for one controller -------------//
+  ehci_qhd_t async_head[CONTROLLER_HOST_NUMBER]; /// head qhd of async list, also is used as control endpoint for address 0
+  ehci_qhd_t period_head[CONTROLLER_HOST_NUMBER];
+
+  //------------- Data for Address 0 -------------//
+  struct {
+    // qhd: addr0 use async head (dummy) as Queue Head
+    ehci_qtd_t qtd[3];
+    tusb_std_request_t request;
+  } addr0;
 
   struct {
-    ehci_qhd_t async_head[CONTROLLER_HOST_NUMBER]; /// head qhd of async list, also is used as control endpoint for address 0
-    ehci_qhd_t period_head[CONTROLLER_HOST_NUMBER];
-    ehci_qtd_t addr0_qtd[3];
-  }controller; ///< Static Interrupt Queue Head
-
-  struct {
-//  ehci_itd_t  itd[EHCI_MAX_ITD]   ; ///< Iso Transfer Pool
     struct {
       ehci_qhd_t qhd;
       ehci_qtd_t qtd[3];
+      tusb_std_request_t request;
     }control;
+
     ehci_qhd_t  qhd[EHCI_MAX_QHD]   ; ///< Queue Head Pool
     ehci_qtd_t  qtd[EHCI_MAX_QTD]   ; ///< Queue Element Transfer Pool
+//  ehci_itd_t  itd[EHCI_MAX_ITD]   ; ///< Iso Transfer Pool
 //  ehci_sitd_t sitd[EHCI_MAX_SITD] ; ///< Split (FS) Isochronous Transfer Pool
   }device[TUSB_CFG_HOST_DEVICE_MAX];
 

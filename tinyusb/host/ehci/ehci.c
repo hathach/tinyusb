@@ -101,13 +101,13 @@ STATIC_ INLINE_ uint8_t hostid_to_data_idx(uint8_t hostid)
 STATIC_ INLINE_ ehci_qhd_t* const get_async_head(uint8_t hostid) ATTR_ALWAYS_INLINE ATTR_PURE ATTR_WARN_UNUSED_RESULT;
 STATIC_ INLINE_ ehci_qhd_t* const get_async_head(uint8_t hostid)
 {
-  return &ehci_data.controller.async_head[hostid_to_data_idx(hostid)];
+  return &ehci_data.async_head[ hostid_to_data_idx(hostid) ];
 }
 
 STATIC_ INLINE_ ehci_qhd_t* const get_period_head(uint8_t hostid) ATTR_ALWAYS_INLINE ATTR_PURE ATTR_WARN_UNUSED_RESULT;
 STATIC_ INLINE_ ehci_qhd_t* const get_period_head(uint8_t hostid)
 {
-  return &ehci_data.controller.period_head[hostid_to_data_idx(hostid)];
+  return &ehci_data.period_head[ hostid_to_data_idx(hostid) ];
 }
 
 tusb_error_t hcd_controller_init(uint8_t hostid) ATTR_WARN_UNUSED_RESULT;
@@ -337,7 +337,7 @@ static inline ehci_qhd_t* const get_control_qhd(uint8_t dev_addr)
 static inline ehci_qtd_t* get_control_qtds(uint8_t dev_addr)
 {
   return (dev_addr == 0) ?
-      ehci_data.controller.addr0_qtd :
+      ehci_data.addr0.qtd :
       ehci_data.device[ dev_addr ].control.qtd;
 
 }
