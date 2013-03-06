@@ -137,23 +137,23 @@ typedef struct {
 	};
 
 	/// Word 2: qTQ Token
-	volatile uint32_t pingstate_err : 1  ; ///< If the QH.EPSfield indicates a High-speed device and the PID_Codeindicates an OUT endpoint, then this is the state bit for the Ping protocol. 0b=OUT 1b=PING
-	volatile uint32_t split_state   : 1  ; ///< This bit is ignored by the host controller unless the QH.EPSfield indicates a full- or low-speed endpoint. When a Full- or Low-speed device, the host controller uses this bit to track the state of the split-transaction. The functional requirements of the host controller for managing this state bit and the split transaction protocol depends on whether the endpoint is in the periodic or asynchronous schedule. 0b=Start Split 1b=Complete Split
-	volatile uint32_t missed_uframe : 1  ; ///< This bit is ignored unless the QH.EPSfield indicates a full- or low-speed endpoint and the queue head is in the periodic list. This bit is set when the host controller detected that a host-induced hold-off caused the host controller to miss a required complete-split transaction. If the host controller sets this bit to a one, then it remains a one for the duration of the transfer.
-	volatile uint32_t xact_err      : 1  ; ///< Set to a one by the Host Controller during status update in the case where the host did not receive a valid response from the device (Timeout, CRC, Bad PID, etc.)
-	volatile uint32_t babble_err    : 1  ; ///< Set to a 1 by the Host Controller during status update when a babble is detected during the transaction. In addition to setting this bit, the Host Controller also sets the Haltedbit to a 1
-	volatile uint32_t buffer_err    : 1  ; ///< Set to a 1 by the Host Controller during status update to indicate that the Host Controller is unable to keep up with the reception of incoming data (overrun) or is unable to supply data fast enough during transmission (underrun)
-	volatile uint32_t halted        : 1  ; ///< Set to a 1 by the Host Controller during status updates to indicate that a serious error has occurred at the device/endpoint addressed by this qTD. This can be caused by babble, the error counter counting down to zero, or reception of the STALL handshake from the device during a transaction. Any time that a transaction results in the Halted bit being set to a one, the Active bit is also set to 0
-	volatile uint32_t active        : 1  ; ///< Set to 1 by software to enable the execution of transactions by the Host Controller
+	volatile uint32_t pingstate_err               : 1  ; ///< If the QH.EPSfield indicates a High-speed device and the PID_Codeindicates an OUT endpoint, then this is the state bit for the Ping protocol. 0b=OUT 1b=PING
+	volatile uint32_t non_hs_split_state          : 1  ; ///< This bit is ignored by the host controller unless the QH.EPSfield indicates a full- or low-speed endpoint. When a Full- or Low-speed device, the host controller uses this bit to track the state of the split-transaction. The functional requirements of the host controller for managing this state bit and the split transaction protocol depends on whether the endpoint is in the periodic or asynchronous schedule. 0b=Start Split 1b=Complete Split
+	volatile uint32_t non_hs_period_missed_uframe : 1  ; ///< This bit is ignored unless the QH.EPSfield indicates a full- or low-speed endpoint and the queue head is in the periodic list. This bit is set when the host controller detected that a host-induced hold-off caused the host controller to miss a required complete-split transaction. If the host controller sets this bit to a one, then it remains a one for the duration of the transfer.
+	volatile uint32_t xact_err                    : 1  ; ///< Set to a one by the Host Controller during status update in the case where the host did not receive a valid response from the device (Timeout, CRC, Bad PID, etc.)
+	volatile uint32_t babble_err                  : 1  ; ///< Set to a 1 by the Host Controller during status update when a babble is detected during the transaction. In addition to setting this bit, the Host Controller also sets the Haltedbit to a 1
+	volatile uint32_t buffer_err                  : 1  ; ///< Set to a 1 by the Host Controller during status update to indicate that the Host Controller is unable to keep up with the reception of incoming data (overrun) or is unable to supply data fast enough during transmission (underrun)
+	volatile uint32_t halted                      : 1  ; ///< Set to a 1 by the Host Controller during status updates to indicate that a serious error has occurred at the device/endpoint addressed by this qTD. This can be caused by babble, the error counter counting down to zero, or reception of the STALL handshake from the device during a transaction. Any time that a transaction results in the Halted bit being set to a one, the Active bit is also set to 0
+	volatile uint32_t active                      : 1  ; ///< Set to 1 by software to enable the execution of transactions by the Host Controller
 
-	uint32_t pid                    : 2  ; ///< This field is an encoding of the token which should be used for transactions associated with this transfer descriptor. 00=OUT 01=IN 10=SETUP
-	volatile uint32_t cerr          : 2  ; ///< Error Counter, This field is a 2-bit down counter that keeps track of the number of consecutive Errors detected while executing this qTD
-	volatile uint32_t current_page  : 3  ; ///< This field is used as an index into the qTD buffer pointer list
-	uint32_t int_on_complete        : 1  ; ///<  If this bit is set to a one, it specifies that when this qTD is completed, the Host Controller should issue an interrupt at the next interrupt threshold
+	uint32_t pid                                  : 2  ; ///< This field is an encoding of the token which should be used for transactions associated with this transfer descriptor. 00=OUT 01=IN 10=SETUP
+	volatile uint32_t cerr                        : 2  ; ///< Error Counter, This field is a 2-bit down counter that keeps track of the number of consecutive Errors detected while executing this qTD
+	volatile uint32_t current_page                : 3  ; ///< This field is used as an index into the qTD buffer pointer list
+	uint32_t int_on_complete                      : 1  ; ///<  If this bit is set to a one, it specifies that when this qTD is completed, the Host Controller should issue an interrupt at the next interrupt threshold
 
-	volatile uint32_t total_bytes   : 15 ; ///< This field specifies the total number of bytes to be moved with this transfer descriptor
-	volatile uint32_t data_toggle   : 1  ; ///< This is the data toggle sequence bit
-	uint32_t                        : 0  ; // padding to the end of current storage unit
+	volatile uint32_t total_bytes                 : 15 ; ///< This field specifies the total number of bytes to be moved with this transfer descriptor
+	volatile uint32_t data_toggle                 : 1  ; ///< This is the data toggle sequence bit
+	uint32_t                                      : 0  ; // padding to the end of current storage unit
 	// End of Word 2
 
 	/// Buffer Page Pointer List, Each element in the list is a 4K page aligned, physical memory address. The lower 12 bits in each pointer are reserved (except for the first one) as each memory pointer must reference the start of a 4K page

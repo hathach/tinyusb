@@ -153,25 +153,27 @@ void test_control_xfer_get(void)
   TEST_ASSERT_EQUAL_HEX( p_status , p_data->next.address );
   TEST_ASSERT_TRUE( p_status->next.terminate );
 
-//  ehci_qtd_t *p_qtd = p_setup;
-//  TEST_ASSERT_TRUE(p_qtd->alternate.terminate); // not used, always invalid
-//  TEST_ASSERT_FALSE(p_qtd->pingstate_err);
-//  TEST_ASSERT_FALSE(p_qtd->split_state);
-//  TEST_ASSERT_FALSE(p_qtd->missed_uframe);
-//  TEST_ASSERT_FALSE(p_qtd->xact_err);
-//  TEST_ASSERT_FALSE(p_qtd->babble_err);
-//  TEST_ASSERT_FALSE(p_qtd->buffer_err);
-//  TEST_ASSERT_FALSE(p_qtd->halted);
-//  TEST_ASSERT_TRUE(p_qtd->active);
-//  // error count
-//  TEST_ASSERT_EQUAL(0, p_qtd->current_page);
-//  TEST_ASSERT_FALSE(p_qtd->int_on_complete);
-//  TEST_ASSERT_EQUAL(8, p_qtd->total_bytes);
-//  TEST_ASSERT_FALSE(p_qtd->data_toggle);
-//
-////  TEST_ASSERT_EQUAL_HEX(request)
-//
-//  TEST_ASSERT_EQUAL(EHCI_PID_SETUP, p_qtd->pid);
+  ehci_qtd_t *p_qtd = p_setup;
+  TEST_ASSERT_TRUE(p_qtd->alternate.terminate); // not used, always invalid
+
+  TEST_ASSERT_FALSE(p_qtd->pingstate_err);
+  TEST_ASSERT_FALSE(p_qtd->non_hs_split_state);
+  TEST_ASSERT_FALSE(p_qtd->non_hs_period_missed_uframe);
+  TEST_ASSERT_FALSE(p_qtd->xact_err);
+  TEST_ASSERT_FALSE(p_qtd->babble_err);
+  TEST_ASSERT_FALSE(p_qtd->buffer_err);
+  TEST_ASSERT_FALSE(p_qtd->halted);
+  TEST_ASSERT_TRUE(p_qtd->active);
+
+  TEST_ASSERT_EQUAL(3, p_qtd->cerr);
+  TEST_ASSERT_EQUAL(0, p_qtd->current_page);
+  TEST_ASSERT_FALSE(p_qtd->int_on_complete);
+  TEST_ASSERT_EQUAL(8, p_qtd->total_bytes);
+  TEST_ASSERT_FALSE(p_qtd->data_toggle);
+
+//  TEST_ASSERT_EQUAL_HEX(request)
+
+  TEST_ASSERT_EQUAL(EHCI_PID_SETUP, p_qtd->pid);
 }
 
 void test_control_xfer_set(void)

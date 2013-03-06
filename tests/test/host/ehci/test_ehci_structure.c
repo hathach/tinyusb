@@ -119,8 +119,8 @@ void test_qtd_structure(void)
 
   //------------- Word 2 -------------//
   TEST_ASSERT_EQUAL( 0, BITFIELD_OFFSET_OF_UINT32(ehci_qtd_t, 2, pingstate_err) );
-  TEST_ASSERT_EQUAL( 1, BITFIELD_OFFSET_OF_UINT32(ehci_qtd_t, 2, split_state) );
-  TEST_ASSERT_EQUAL( 2, BITFIELD_OFFSET_OF_UINT32(ehci_qtd_t, 2, missed_uframe));
+  TEST_ASSERT_EQUAL( 1, BITFIELD_OFFSET_OF_UINT32(ehci_qtd_t, 2, non_hs_split_state) );
+  TEST_ASSERT_EQUAL( 2, BITFIELD_OFFSET_OF_UINT32(ehci_qtd_t, 2, non_hs_period_missed_uframe));
   TEST_ASSERT_EQUAL( 3, BITFIELD_OFFSET_OF_UINT32(ehci_qtd_t, 2, xact_err) );
   TEST_ASSERT_EQUAL( 4, BITFIELD_OFFSET_OF_UINT32(ehci_qtd_t, 2, babble_err) );
   TEST_ASSERT_EQUAL( 5, BITFIELD_OFFSET_OF_UINT32(ehci_qtd_t, 2, buffer_err) );
