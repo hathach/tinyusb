@@ -122,8 +122,6 @@ void test_hcd_init_async_list(void)
     TEST_ASSERT_FALSE(async_head->next.terminate);
 
     TEST_ASSERT(async_head->head_list_flag);
-    TEST_ASSERT(async_head->qtd_overlay.next.terminate);
-    TEST_ASSERT(async_head->qtd_overlay.alternate.terminate);
     TEST_ASSERT(async_head->qtd_overlay.halted);
   }
 }
@@ -150,8 +148,6 @@ void test_hcd_init_period_list(void)
 
     TEST_ASSERT(period_head->smask)
     TEST_ASSERT_TRUE(period_head->next.terminate);
-    TEST_ASSERT(period_head->qtd_overlay.next.terminate);
-    TEST_ASSERT(period_head->qtd_overlay.alternate.terminate);
     TEST_ASSERT(period_head->qtd_overlay.halted);
   }
 #endif

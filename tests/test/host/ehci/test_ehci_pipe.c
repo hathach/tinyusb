@@ -114,6 +114,8 @@ void verify_open_qhd(ehci_qhd_t *p_qhd)
   TEST_ASSERT_EQUAL(hub_addr, p_qhd->hub_address);
   TEST_ASSERT_EQUAL(hub_port, p_qhd->hub_port);
   TEST_ASSERT_EQUAL(1, p_qhd->mult);
+
+  TEST_ASSERT_FALSE(p_qhd->qtd_overlay.halted);
   TEST_ASSERT(p_qhd->qtd_overlay.next.terminate);
   TEST_ASSERT(p_qhd->qtd_overlay.alternate.terminate);
 
