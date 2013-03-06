@@ -248,6 +248,7 @@ tusb_error_t hcd_controller_reset(uint8_t hostid)
 static void queue_head_init(ehci_qhd_t *p_qhd, uint8_t dev_addr, uint16_t max_packet_size, uint8_t endpoint_addr, uint8_t xfer_type);
 static inline ehci_qhd_t* const get_control_qhd(uint8_t dev_addr) ATTR_ALWAYS_INLINE ATTR_PURE ATTR_WARN_UNUSED_RESULT;
 static inline ehci_qtd_t* get_control_qtds(uint8_t dev_addr) ATTR_ALWAYS_INLINE ATTR_PURE ATTR_WARN_UNUSED_RESULT;
+static inline tusb_std_request_t* const get_control_request_ptr(uint8_t dev_addr) ATTR_ALWAYS_INLINE ATTR_PURE ATTR_WARN_UNUSED_RESULT;
 
 tusb_error_t  hcd_pipe_control_open(uint8_t dev_addr, uint8_t max_packet_size)
 {
@@ -308,8 +309,17 @@ tusb_error_t  hcd_pipe_control_xfer(uint8_t dev_addr, tusb_std_request_t const *
   ehci_qtd_t *p_data   = p_setup + 1;
   ehci_qtd_t *p_status = p_setup + 2;
 
-  p_qhd->p_qtd_list = p_setup;
+  memclr_(p_setup, sizeof(ehci_qtd_t));
   p_setup->next.address = (uint32_t) p_data;
+  p_setup->active = 1;
+  p_setup->cerr = 3; // TODO 3 consecutive errors tolerance
+  p_setup->data_toggle = 0;
+  p_setup->total_bytes = 8; // sizeof (tusb_std_request_t)
+
+  p_setup->buffer[0] = (uint32_t) get_control_request_ptr(dev_addr);
+  *(get_control_request_ptr(dev_addr)) = *p_request;
+
+  p_setup->pid = EHCI_PID_SETUP;
 
   if (p_request->wLength > 0)
   {
@@ -318,9 +328,19 @@ tusb_error_t  hcd_pipe_control_xfer(uint8_t dev_addr, tusb_std_request_t const *
   {
     p_data = p_setup;
   }
+
   p_data->next.address = (uint32_t) p_status;
+
   p_status->next.terminate = 1;
 
+  //------------- alternate link is not used -------------//
+  p_data->alternate.terminate = 1;
+  p_setup->alternate.terminate = 1;
+  p_data->alternate.terminate = 1;
+
+  //------------- hook TD List to Queue Head -------------//
+  p_qhd->p_qtd_list = p_setup;
+  p_qhd->qtd_overlay.next.address = (uint32_t) p_setup;
 
   return TUSB_ERROR_NONE;
 }
@@ -340,6 +360,13 @@ static inline ehci_qtd_t* get_control_qtds(uint8_t dev_addr)
       ehci_data.addr0.qtd :
       ehci_data.device[ dev_addr ].control.qtd;
 
+}
+
+static inline tusb_std_request_t* const get_control_request_ptr(uint8_t dev_addr)
+{
+  return (dev_addr == 0) ?
+      &ehci_data.addr0.request :
+      &ehci_data.device[ dev_addr ].control.request;
 }
 
 static void queue_head_init(ehci_qhd_t *p_qhd, uint8_t dev_addr, uint16_t max_packet_size, uint8_t endpoint_addr, uint8_t xfer_type)
