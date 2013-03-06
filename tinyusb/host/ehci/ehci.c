@@ -274,6 +274,7 @@ pipe_handle_t hcd_pipe_open(uint8_t dev_addr, tusb_descriptor_endpoint_t const *
 {
   pipe_handle_t const null_handle = { .dev_addr = 0, .xfer_type = 0, .index = 0 };
 
+  //------------- find a free queue head -------------//
   uint8_t index=0;
   while( index<EHCI_MAX_QHD && ehci_data.device[dev_addr].qhd[index].used )
   {
@@ -289,16 +290,15 @@ pipe_handle_t hcd_pipe_open(uint8_t dev_addr, tusb_descriptor_endpoint_t const *
 
   if (p_endpoint_desc->bmAttributes.xfer == TUSB_XFER_BULK)
   {
-    //------------- insert to async list -------------//
     // TODO might need to to disable async list first
     list_head = get_async_head(usbh_device_info_pool[dev_addr].core_id);
   }else if (p_endpoint_desc->bmAttributes.xfer == TUSB_XFER_INTERRUPT)
   {
-    //------------- insert to period list -------------//
     // TODO might need to to disable period list first
     list_head = get_period_head(usbh_device_info_pool[dev_addr].core_id);
   }
 
+  //------------- insert to async/period list -------------//
   p_qhd->next = list_head->next;
   list_head->next.address = (uint32_t) p_qhd;
   list_head->next.type = EHCI_QUEUE_ELEMENT_QHD;

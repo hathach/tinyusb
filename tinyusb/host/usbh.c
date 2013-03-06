@@ -173,12 +173,15 @@ OSAL_TASK_DECLARE(usbh_enumeration_task)
     )
   );
 
-  //------------- update port info & open control pipe for new address -------------//
+  //------------- update port info & close control pipe of addr0 -------------//
   usbh_device_info_pool[new_addr].core_id  = usbh_device_info_pool[0].core_id;
   usbh_device_info_pool[new_addr].hub_addr = usbh_device_info_pool[0].hub_addr;
   usbh_device_info_pool[new_addr].hub_port = usbh_device_info_pool[0].hub_port;
   usbh_device_info_pool[new_addr].speed    = usbh_device_info_pool[0].speed;
   usbh_device_info_pool[new_addr].status   = TUSB_DEVICE_STATUS_ADDRESSED;
+  hcd_pipe_control_close(0);
+
+  // open control pipe for new address
   TASK_ASSERT_STATUS ( hcd_pipe_control_open(new_addr, ((tusb_descriptor_device_t*) enum_data_buffer)->bMaxPacketSize0 ) );
 
   //------------- Get full device descriptor -------------//
