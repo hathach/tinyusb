@@ -117,6 +117,9 @@ tusb_error_t hcd_controller_init(uint8_t hostid) ATTR_WARN_UNUSED_RESULT;
 //--------------------------------------------------------------------+
 tusb_error_t hcd_init(void)
 {
+  // oops, ehci_qtd_t:used must be at Reserved places in EHCI specs
+  ASSERT(offsetof(ehci_qtd_t, used) == 16, TUSB_ERROR_HCD_FAILED); // TODO can be removed after an THOROUGH checked
+
   //------------- Data Structure init -------------//
   memclr_(&ehci_data, sizeof(ehci_data_t));
 
@@ -365,7 +368,6 @@ pipe_handle_t hcd_pipe_open(uint8_t dev_addr, tusb_descriptor_endpoint_t const *
   {
     index++;
   }
-
   ASSERT( index < EHCI_MAX_QHD, null_handle);
 
   ehci_qhd_t * const p_qhd = &ehci_data.device[dev_addr].qhd[index];
@@ -390,6 +392,18 @@ pipe_handle_t hcd_pipe_open(uint8_t dev_addr, tusb_descriptor_endpoint_t const *
   return (pipe_handle_t) { .dev_addr = dev_addr, .xfer_type = p_endpoint_desc->bmAttributes.xfer, .index = index};
 }
 
+tusb_error_t  hcd_pipe_xfer(pipe_handle_t pipe_hdl, uint8_t buffer[], uint16_t total_byte)
+{
+  //------------- find a free qtd -------------//
+//  uint8_t index=0;
+//  while( index<EHCI_MAX_QTD && ehci_data.device[dev_addr].qtd[index].used )
+//  {
+//    index++;
+//  }
+//  ASSERT( index < EHCI_MAX_QHD, TUSB_ERROR_EHCI_NOT_ENOUGH_QTD);
+
+  return TUSB_ERROR_NONE;
+}
 //--------------------------------------------------------------------+
 // HELPER
 //--------------------------------------------------------------------+

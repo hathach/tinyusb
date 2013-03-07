@@ -124,17 +124,7 @@ typedef struct {
 	ehci_link_t next;
 
 	/// Word 1: Alternate Next QTD Pointer (not used)
-	/// Used to store management information
-	union{
-		ehci_link_t alternate; ///< Alternate Next QTD Pointer (not used)
-		struct  {
-			uint32_t      : 5;        ///< reserved this for alternate
-
-			// HCD information
-			uint32_t used : 1;        ///< indicate this qTD is occupied
-			uint32_t      : 0;        // padding to the end of current storage unit
-		};
-	};
+	ehci_link_t alternate;
 
 	/// Word 2: qTQ Token
 	volatile uint32_t pingstate_err               : 1  ; ///< If the QH.EPSfield indicates a High-speed device and the PID_Codeindicates an OUT endpoint, then this is the state bit for the Ping protocol. 0b=OUT 1b=PING
@@ -157,8 +147,16 @@ typedef struct {
 	// End of Word 2
 
 	/// Buffer Page Pointer List, Each element in the list is a 4K page aligned, physical memory address. The lower 12 bits in each pointer are reserved (except for the first one) as each memory pointer must reference the start of a 4K page
-	uint32_t buffer[5];
-} ehci_qtd_t; // XXX qtd is used to declare overlay in ehci_qhd_t, we cannot put ATTR_ALIGNED(32) here
+	union {
+	  uint32_t buffer[5];
+	  struct {
+	    uint32_t reserve_1;
+	    uint8_t  used; // used is the LSB of buffer[1]
+	    uint8_t  reserved_2[3];
+	    uint32_t reserved_3[3];
+	  };
+	};
+} ehci_qtd_t; // XXX qtd is used to declare overlay in ehci_qhd_t -> cannot be declared with ATTR_ALIGNED(32)
 
 /// Queue Head (section 3.6)
 typedef struct {

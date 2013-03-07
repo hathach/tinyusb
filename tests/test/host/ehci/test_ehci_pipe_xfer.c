@@ -98,6 +98,7 @@ void setUp(void)
     usbh_device_info_pool[i].core_id  = hostid;
     usbh_device_info_pool[i].hub_addr = hub_addr;
     usbh_device_info_pool[i].hub_port = hub_port;
+    usbh_device_info_pool[i].speed    = TUSB_SPEED_HIGH;
   }
 
   async_head =  get_async_head( hostid );
@@ -228,5 +229,3 @@ void test_control_xfer_set(void)
   TEST_ASSERT_TRUE(p_status->data_toggle);
   TEST_ASSERT_EQUAL(EHCI_PID_IN, p_status->pid);
 }
-
-

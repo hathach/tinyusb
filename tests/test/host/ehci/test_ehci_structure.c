@@ -134,6 +134,7 @@ void test_qtd_structure(void)
   TEST_ASSERT_EQUAL( 31, BITFIELD_OFFSET_OF_UINT32(ehci_qtd_t, 2, data_toggle) );
 
   TEST_ASSERT_EQUAL( 12, offsetof(ehci_qtd_t, buffer));
+  TEST_ASSERT_EQUAL( 16, offsetof(ehci_qtd_t, used));
 }
 
 void test_qhd_structure(void)
