@@ -348,6 +348,9 @@ pipe_handle_t hcd_pipe_open(uint8_t dev_addr, tusb_descriptor_endpoint_t const *
 {
   pipe_handle_t const null_handle = { .dev_addr = 0, .xfer_type = 0, .index = 0 };
 
+  if (p_endpoint_desc->bmAttributes.xfer == TUSB_XFER_ISOCHRONOUS)
+    return null_handle; // TODO not support ISO yet
+
   //------------- find a free queue head -------------//
   uint8_t index=0;
   while( index<EHCI_MAX_QHD && ehci_data.device[dev_addr].qhd[index].used )
@@ -378,8 +381,6 @@ pipe_handle_t hcd_pipe_open(uint8_t dev_addr, tusb_descriptor_endpoint_t const *
   list_head->next.type = EHCI_QUEUE_ELEMENT_QHD;
 
   return (pipe_handle_t) { .dev_addr = dev_addr, .xfer_type = p_endpoint_desc->bmAttributes.xfer, .index = index};
-
-//  return null_handle;
 }
 
 //--------------------------------------------------------------------+

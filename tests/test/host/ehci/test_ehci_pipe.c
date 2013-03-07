@@ -314,7 +314,7 @@ tusb_descriptor_endpoint_t const desc_ept_iso_in =
     .bLength          = sizeof(tusb_descriptor_endpoint_t),
     .bDescriptorType  = TUSB_DESC_ENDPOINT,
     .bEndpointAddress = 0x83,
-    .bmAttributes     = { .xfer = TUSB_XFER_BULK },
+    .bmAttributes     = { .xfer = TUSB_XFER_ISOCHRONOUS },
     .wMaxPacketSize   = 1024,
     .bInterval        = 1
 };
