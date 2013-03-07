@@ -113,7 +113,7 @@ void verify_open_qhd(ehci_qhd_t *p_qhd, uint8_t endpoint_addr, uint16_t max_pack
 
   //------------- HCD -------------//
   TEST_ASSERT(p_qhd->used);
-  TEST_ASSERT_NULL(p_qhd->p_qtd_list);
+  TEST_ASSERT_NULL(p_qhd->p_qtd_list_head);
 }
 
 //--------------------------------------------------------------------+

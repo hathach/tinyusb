@@ -1,5 +1,5 @@
 /*
- * test_ehci_pipe_xfer.c
+ * test_ehci_pipe_bulk_xfer.c
  *
  *  Created on: Feb 27, 2013
  *      Author: hathach
@@ -58,13 +58,11 @@ uint8_t const hub_addr = 2;
 uint8_t const hub_port = 2;
 uint8_t dev_addr;
 uint8_t hostid;
-uint8_t xfer_data [100];
+uint8_t xfer_data [18000]; // 18K to test buffer pointer list
 
 ehci_qhd_t *async_head;
-
-ehci_qtd_t *p_setup;
-ehci_qtd_t *p_data;
-ehci_qtd_t *p_status;
+ehci_qhd_t *p_qhd_bulk;
+pipe_handle_t pipe_hdl_bulk;
 
 tusb_descriptor_endpoint_t const desc_ept_bulk_in =
 {
@@ -102,30 +100,25 @@ void setUp(void)
   }
 
   async_head =  get_async_head( hostid );
+  pipe_hdl_bulk = hcd_pipe_open(dev_addr, &desc_ept_bulk_in);
 
-  p_setup  = &ehci_data.device[dev_addr].control.qtd[0];
-  p_data   = &ehci_data.device[dev_addr].control.qtd[1];
-  p_status = &ehci_data.device[dev_addr].control.qtd[2];
+  TEST_ASSERT_EQUAL(dev_addr, pipe_hdl_bulk.dev_addr);
+  TEST_ASSERT_EQUAL(TUSB_XFER_BULK, pipe_hdl_bulk.xfer_type);
+
+  p_qhd_bulk = &ehci_data.device[ dev_addr ].qhd[ pipe_hdl_bulk.index ];
 }
 
 void tearDown(void)
 {
 }
 //--------------------------------------------------------------------+
-// CONTROL TRANSFER
+// BULK TRANSFER
 //--------------------------------------------------------------------+
-tusb_std_request_t request_get_dev_desc =
-{
-    .bmRequestType = { .direction = TUSB_DIR_DEV_TO_HOST, .type = TUSB_REQUEST_TYPE_STANDARD, .recipient = TUSB_REQUEST_RECIPIENT_DEVICE },
-    .bRequest = TUSB_REQUEST_GET_DESCRIPTOR,
-    .wValue   = (TUSB_DESC_DEVICE << 8),
-    .wLength  = 18
-};
-
 void verify_qtd(ehci_qtd_t *p_qtd, uint8_t p_data[], uint16_t length)
 {
   TEST_ASSERT_TRUE(p_qtd->alternate.terminate); // not used, always invalid
 
+  //------------- status -------------//
   TEST_ASSERT_FALSE(p_qtd->pingstate_err);
   TEST_ASSERT_FALSE(p_qtd->non_hs_split_state);
   TEST_ASSERT_FALSE(p_qtd->non_hs_period_missed_uframe);
@@ -139,95 +132,41 @@ void verify_qtd(ehci_qtd_t *p_qtd, uint8_t p_data[], uint16_t length)
   TEST_ASSERT_EQUAL(0, p_qtd->current_page);
   TEST_ASSERT_EQUAL(length, p_qtd->total_bytes);
 
-  TEST_ASSERT_EQUAL_HEX(p_data, p_qtd->buffer[0]);
-}
-
-void test_control_addr0_xfer_get_check_qhd_qtd_mapping(void)
-{
-  dev_addr = 0;
-  ehci_qhd_t * const p_qhd = async_head;
-
-  hcd_pipe_control_open(dev_addr, control_max_packet_size);
-
-  //------------- Code Under TEST -------------//
-  hcd_pipe_control_xfer(dev_addr, &request_get_dev_desc, xfer_data);
-
-  p_setup  = &ehci_data.addr0_qtd[0];
-  p_data   = &ehci_data.addr0_qtd[1];
-  p_status = &ehci_data.addr0_qtd[2];
-
-  TEST_ASSERT_EQUAL_HEX( p_setup, p_qhd->qtd_overlay.next.address );
-  TEST_ASSERT_EQUAL_HEX( p_setup  , p_qhd->p_qtd_list_head);
-  TEST_ASSERT_EQUAL_HEX( p_data   , p_setup->next.address);
-  TEST_ASSERT_EQUAL_HEX( p_status , p_data->next.address );
-  TEST_ASSERT_TRUE( p_status->next.terminate );
-
-  verify_qtd(p_setup, &ehci_data.control_request[0], 8);
-}
-
-
-void test_control_xfer_get(void)
-{
-  ehci_qhd_t * const p_qhd = &ehci_data.device[dev_addr].control.qhd;
-  hcd_pipe_control_open(dev_addr, control_max_packet_size);
-
-  //------------- Code Under TEST -------------//
-  hcd_pipe_control_xfer(dev_addr, &request_get_dev_desc, xfer_data);
-
-  TEST_ASSERT_EQUAL_HEX( p_setup, p_qhd->qtd_overlay.next.address );
-  TEST_ASSERT_EQUAL_HEX( p_setup  , p_qhd->p_qtd_list_head);
-  TEST_ASSERT_EQUAL_HEX( p_data   , p_setup->next.address);
-  TEST_ASSERT_EQUAL_HEX( p_status , p_data->next.address );
-  TEST_ASSERT_TRUE( p_status->next.terminate );
-
-  //------------- SETUP -------------//
-  uint8_t* p_request = (uint8_t *) &ehci_data.control_request[dev_addr];
-  verify_qtd(p_setup, p_request, 8);
-
-  TEST_ASSERT_EQUAL_MEMORY(&request_get_dev_desc, p_request, sizeof(tusb_std_request_t));
-
-  TEST_ASSERT_FALSE(p_setup->int_on_complete);
-  TEST_ASSERT_FALSE(p_setup->data_toggle);
-  TEST_ASSERT_EQUAL(EHCI_PID_SETUP, p_setup->pid);
-
-  //------------- DATA -------------//
-  verify_qtd(p_data, xfer_data, request_get_dev_desc.wLength);
-  TEST_ASSERT_FALSE(p_data->int_on_complete);
-  TEST_ASSERT_TRUE(p_data->data_toggle);
-  TEST_ASSERT_EQUAL(EHCI_PID_IN, p_data->pid);
-
-  //------------- STATUS -------------//
-  verify_qtd(p_status, NULL, 0);
-  TEST_ASSERT_TRUE(p_status->int_on_complete);
-  TEST_ASSERT_TRUE(p_status->data_toggle);
-  TEST_ASSERT_EQUAL(EHCI_PID_OUT, p_status->pid);
-  TEST_ASSERT_TRUE(p_status->next.terminate);
-}
-
-void test_control_xfer_set(void)
-{
-  tusb_std_request_t request_set_dev_addr =
+  TEST_ASSERT_EQUAL_HEX( p_data, p_qtd->buffer[0] );
+  for(uint8_t i=1; i<5; i++)
   {
-      .bmRequestType = { .direction = TUSB_DIR_HOST_TO_DEV, .type = TUSB_REQUEST_TYPE_STANDARD, .recipient = TUSB_REQUEST_RECIPIENT_DEVICE },
-      .bRequest = TUSB_REQUEST_SET_ADDRESS,
-      .wValue   = 3
-  };
+    TEST_ASSERT_EQUAL_HEX( align4k((uint32_t) (p_data+4096*i)), align4k(p_qtd->buffer[i]) );
+  }
+}
 
-  ehci_qhd_t * const p_qhd = &ehci_data.device[dev_addr].control.qhd;
-  hcd_pipe_control_open(dev_addr, control_max_packet_size);
+void test_bulk_xfer(void)
+{
 
-  //------------- Code Under TEST -------------//
-  hcd_pipe_control_xfer(dev_addr, &request_set_dev_addr, xfer_data);
+  //------------- Code Under Test -------------//
+  hcd_pipe_xfer(pipe_hdl_bulk, xfer_data, sizeof(xfer_data));
 
-  TEST_ASSERT_EQUAL_HEX( p_setup, p_qhd->qtd_overlay.next.address );
-  TEST_ASSERT_EQUAL_HEX( p_setup  , p_qhd->p_qtd_list_head);
-  TEST_ASSERT_EQUAL_HEX( p_status , p_setup->next.address );
-  TEST_ASSERT_TRUE( p_status->next.terminate );
+  ehci_qtd_t* p_qtd = p_qhd_bulk->p_qtd_list_head;
+  TEST_ASSERT_NOT_NULL(p_qtd);
 
-  //------------- STATUS -------------//
-  verify_qtd(p_status, NULL, 0);
-  TEST_ASSERT_TRUE(p_status->int_on_complete);
-  TEST_ASSERT_TRUE(p_status->data_toggle);
-  TEST_ASSERT_EQUAL(EHCI_PID_IN, p_status->pid);
-  TEST_ASSERT_TRUE(p_status->next.terminate);
+  verify_qtd( p_qtd, xfer_data, sizeof(xfer_data));
+  TEST_ASSERT_TRUE(p_qtd->used);
+  TEST_ASSERT_TRUE(p_qtd->next.terminate);
+  TEST_ASSERT_EQUAL(EHCI_PID_IN, p_qtd->pid);
+  TEST_ASSERT_TRUE(p_qtd->int_on_complete);
+  TEST_ASSERT_FALSE(p_qtd->data_toggle);
+}
+
+void test_bulk_xfer_double(void)
+{
+  uint8_t data2[100];
+
+  //------------- Code Under Test -------------//
+  hcd_pipe_xfer(pipe_hdl_bulk, xfer_data, sizeof(xfer_data));
+  hcd_pipe_xfer(pipe_hdl_bulk, data2, sizeof(data2));
+
+  ehci_qtd_t* p_qtd = p_qhd_bulk->p_qtd_list_head;
+  TEST_ASSERT_NOT_NULL(p_qtd);
+
+  TEST_ASSERT_FALSE(p_qtd->next.terminate);
+
 }

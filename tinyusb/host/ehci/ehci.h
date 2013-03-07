@@ -191,14 +191,17 @@ typedef struct {
 	/// Word 4-11: Transfer Overlay
 	volatile ehci_qtd_t qtd_overlay;
 
-	/// Due to the fact QHD is 32 bytes aligned but occupies only 48 bytes
+	//--------------------------------------------------------------------+
+  /// Due to the fact QHD is 32 bytes aligned but occupies only 48 bytes
 	/// thus there are 16 bytes padding free that we can make use of.
+  //--------------------------------------------------------------------+
 	uint8_t used;
 	uint8_t pid_non_control;
+
 	uint8_t list_index;
 	uint8_t reserved;
 
-	ehci_qtd_t *p_qtd_list;	/* used as TD head to clean up TD chain when transfer done */ // TODO consider using ehci_link_t (terminate bit)
+	ehci_qtd_t *p_qtd_list_head;	// head of the TD list scheduled
 
 	volatile uint32_t status; // TODO will remove volatile after remove all HcdQHD function
 	uint16_t *pActualTransferCount; /* total transferred bytes of a usb request */

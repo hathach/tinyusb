@@ -289,6 +289,9 @@ static void queue_td_init(ehci_qtd_t* p_qtd, uint32_t data_ptr, uint16_t total_b
 {
   memclr_(p_qtd, sizeof(ehci_qtd_t));
 
+  p_qtd->used = 1;
+
+  p_qtd->next.terminate = 1; // init to null
   p_qtd->alternate.terminate = 1; // not used, always set to terminated
   p_qtd->active              = 1;
   p_qtd->cerr                = 3; // TODO 3 consecutive errors tolerance
@@ -297,6 +300,11 @@ static void queue_td_init(ehci_qtd_t* p_qtd, uint32_t data_ptr, uint16_t total_b
 
   p_qtd->buffer[0]           = data_ptr;
 
+  uint8_t i;
+  for(i=1; i<5; i++)
+  {
+    p_qtd->buffer[i] |= align4k( p_qtd->buffer[i-1] ) + 4096;
+  }
 }
 
 tusb_error_t  hcd_pipe_control_xfer(uint8_t dev_addr, tusb_std_request_t const * p_request, uint8_t data[])
@@ -335,7 +343,7 @@ tusb_error_t  hcd_pipe_control_xfer(uint8_t dev_addr, tusb_std_request_t const *
   p_status->next.terminate  = 1;
 
   //------------- hook TD List to Queue Head -------------//
-  p_qhd->p_qtd_list               = p_setup;
+  p_qhd->p_qtd_list_head               = p_setup;
   p_qhd->qtd_overlay.next.address = (uint32_t) p_setup;
 
   return TUSB_ERROR_NONE;
@@ -392,15 +400,29 @@ pipe_handle_t hcd_pipe_open(uint8_t dev_addr, tusb_descriptor_endpoint_t const *
   return (pipe_handle_t) { .dev_addr = dev_addr, .xfer_type = p_endpoint_desc->bmAttributes.xfer, .index = index};
 }
 
-tusb_error_t  hcd_pipe_xfer(pipe_handle_t pipe_hdl, uint8_t buffer[], uint16_t total_byte)
+tusb_error_t  hcd_pipe_xfer(pipe_handle_t pipe_hdl, uint8_t buffer[], uint16_t total_bytes)
 {
+  //------------- pipe handle validate -------------//
+
   //------------- find a free qtd -------------//
-//  uint8_t index=0;
-//  while( index<EHCI_MAX_QTD && ehci_data.device[dev_addr].qtd[index].used )
-//  {
-//    index++;
-//  }
-//  ASSERT( index < EHCI_MAX_QHD, TUSB_ERROR_EHCI_NOT_ENOUGH_QTD);
+  uint8_t index=0;
+  while( index<EHCI_MAX_QTD && ehci_data.device[pipe_hdl.dev_addr].qtd[index].used )
+  {
+    index++;
+  }
+  ASSERT( index < EHCI_MAX_QTD, TUSB_ERROR_EHCI_NOT_ENOUGH_QTD);
+
+  //------------- set up QTD -------------//
+  ehci_qhd_t *p_qhd = &ehci_data.device[pipe_hdl.dev_addr].qhd[index];
+
+  ehci_qtd_t *p_qtd = &ehci_data.device[pipe_hdl.dev_addr].qtd[index];
+  queue_td_init(p_qtd, (uint32_t) buffer, total_bytes);
+  p_qtd->pid = p_qhd->pid_non_control;
+  p_qtd->int_on_complete = 1;
+
+
+  p_qhd->p_qtd_list_head = p_qtd;
+  p_qhd->qtd_overlay.next.address = (uint32_t) p_qtd;
 
   return TUSB_ERROR_NONE;
 }
@@ -461,7 +483,7 @@ static void queue_head_init(ehci_qhd_t *p_qhd, uint8_t dev_addr, uint16_t max_pa
 
   //------------- HCD Management Data -------------//
   p_qhd->used            = 1;
-  p_qhd->p_qtd_list      = NULL;
+  p_qhd->p_qtd_list_head      = NULL;
   p_qhd->pid_non_control = (endpoint_addr & 0x80) ? EHCI_PID_IN : EHCI_PID_OUT; // PID for TD under this endpoint
 
 }
