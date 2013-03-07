@@ -254,6 +254,16 @@ static inline tusb_std_request_t* const get_control_request_ptr(uint8_t dev_addr
 //--------------------------------------------------------------------+
 // CONTROL PIPE API
 //--------------------------------------------------------------------+
+
+
+static inline void list_insert(ehci_link_t *current, ehci_link_t *new, uint8_t new_type) ATTR_ALWAYS_INLINE;
+static inline void list_insert(ehci_link_t *current, ehci_link_t *new, uint8_t new_type)
+{
+  new->address = current->address;
+  current->address = (uint32_t) new;
+  current->type = new_type;
+}
+
 tusb_error_t  hcd_pipe_control_open(uint8_t dev_addr, uint8_t max_packet_size)
 {
   ehci_qhd_t * const p_qhd = get_control_qhd(dev_addr);
@@ -264,16 +274,14 @@ tusb_error_t  hcd_pipe_control_open(uint8_t dev_addr, uint8_t max_packet_size)
   // TODO might need to to disable async list first
   if (dev_addr != 0)
   {
-    ehci_qhd_t * const async_head = get_async_head(usbh_device_info_pool[dev_addr].core_id);
-    p_qhd->next = async_head->next;
-    async_head->next.address = (uint32_t) p_qhd;
-    async_head->next.type = EHCI_QUEUE_ELEMENT_QHD;
+    list_insert( (ehci_link_t*) get_async_head(usbh_device_info_pool[dev_addr].core_id),
+                 (ehci_link_t*) p_qhd, EHCI_QUEUE_ELEMENT_QHD);
   }
 
   return TUSB_ERROR_NONE;
 }
 
-
+// TODO subject to pure function
 static void queue_td_init(ehci_qtd_t* p_qtd, uint32_t data_ptr, uint16_t total_bytes)
 {
   memclr_(p_qtd, sizeof(ehci_qtd_t));
@@ -376,9 +384,8 @@ pipe_handle_t hcd_pipe_open(uint8_t dev_addr, tusb_descriptor_endpoint_t const *
   }
 
   //------------- insert to async/period list -------------//
-  p_qhd->next = list_head->next;
-  list_head->next.address = (uint32_t) p_qhd;
-  list_head->next.type = EHCI_QUEUE_ELEMENT_QHD;
+  list_insert( (ehci_link_t*) list_head,
+               (ehci_link_t*) p_qhd, EHCI_QUEUE_ELEMENT_QHD);
 
   return (pipe_handle_t) { .dev_addr = dev_addr, .xfer_type = p_endpoint_desc->bmAttributes.xfer, .index = index};
 }
@@ -405,6 +412,7 @@ static inline tusb_std_request_t* const get_control_request_ptr(uint8_t dev_addr
   return &ehci_data.control_request[dev_addr];
 }
 
+// TODO subject to pure function
 static void queue_head_init(ehci_qhd_t *p_qhd, uint8_t dev_addr, uint16_t max_packet_size, uint8_t endpoint_addr, uint8_t xfer_type)
 {
   memclr_(p_qhd, sizeof(ehci_qhd_t));
