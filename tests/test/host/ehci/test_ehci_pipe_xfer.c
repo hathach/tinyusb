@@ -151,9 +151,9 @@ void test_control_addr0_xfer_get_check_qhd_qtd_mapping(void)
   //------------- Code Under TEST -------------//
   hcd_pipe_control_xfer(dev_addr, &request_get_dev_desc, xfer_data);
 
-  p_setup  = &ehci_data.addr0.qtd[0];
-  p_data   = &ehci_data.addr0.qtd[1];
-  p_status = &ehci_data.addr0.qtd[2];
+  p_setup  = &ehci_data.addr0_qtd[0];
+  p_data   = &ehci_data.addr0_qtd[1];
+  p_status = &ehci_data.addr0_qtd[2];
 
   TEST_ASSERT_EQUAL_HEX( p_setup, p_qhd->qtd_overlay.next.address );
   TEST_ASSERT_EQUAL_HEX( p_setup  , p_qhd->p_qtd_list);
@@ -161,7 +161,7 @@ void test_control_addr0_xfer_get_check_qhd_qtd_mapping(void)
   TEST_ASSERT_EQUAL_HEX( p_status , p_data->next.address );
   TEST_ASSERT_TRUE( p_status->next.terminate );
 
-  verify_qtd(p_setup, &ehci_data.addr0.request, 8);
+  verify_qtd(p_setup, &ehci_data.control_request[0], 8);
 }
 
 
@@ -180,7 +180,7 @@ void test_control_xfer_get(void)
   TEST_ASSERT_TRUE( p_status->next.terminate );
 
   //------------- SETUP -------------//
-  uint8_t* p_request = (uint8_t *) &ehci_data.device[dev_addr].control.request;
+  uint8_t* p_request = (uint8_t *) &ehci_data.control_request[dev_addr];
   verify_qtd(p_setup, p_request, 8);
 
   TEST_ASSERT_EQUAL_MEMORY(&request_get_dev_desc, p_request, sizeof(tusb_std_request_t));

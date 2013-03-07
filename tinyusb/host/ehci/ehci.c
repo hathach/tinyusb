@@ -251,6 +251,9 @@ static inline ehci_qhd_t* const get_control_qhd(uint8_t dev_addr) ATTR_ALWAYS_IN
 static inline ehci_qtd_t* get_control_qtds(uint8_t dev_addr) ATTR_ALWAYS_INLINE ATTR_PURE ATTR_WARN_UNUSED_RESULT;
 static inline tusb_std_request_t* const get_control_request_ptr(uint8_t dev_addr) ATTR_ALWAYS_INLINE ATTR_PURE ATTR_WARN_UNUSED_RESULT;
 
+//--------------------------------------------------------------------+
+// CONTROL PIPE API
+//--------------------------------------------------------------------+
 tusb_error_t  hcd_pipe_control_open(uint8_t dev_addr, uint8_t max_packet_size)
 {
   ehci_qhd_t * const p_qhd = get_control_qhd(dev_addr);
@@ -270,43 +273,6 @@ tusb_error_t  hcd_pipe_control_open(uint8_t dev_addr, uint8_t max_packet_size)
   return TUSB_ERROR_NONE;
 }
 
-pipe_handle_t hcd_pipe_open(uint8_t dev_addr, tusb_descriptor_endpoint_t const * p_endpoint_desc)
-{
-  pipe_handle_t const null_handle = { .dev_addr = 0, .xfer_type = 0, .index = 0 };
-
-  //------------- find a free queue head -------------//
-  uint8_t index=0;
-  while( index<EHCI_MAX_QHD && ehci_data.device[dev_addr].qhd[index].used )
-  {
-    index++;
-  }
-
-  ASSERT( index < EHCI_MAX_QHD, null_handle);
-
-  ehci_qhd_t * const p_qhd = &ehci_data.device[dev_addr].qhd[index];
-  queue_head_init(p_qhd, dev_addr, p_endpoint_desc->wMaxPacketSize, p_endpoint_desc->bEndpointAddress, p_endpoint_desc->bmAttributes.xfer);
-
-  ehci_qhd_t * list_head;
-
-  if (p_endpoint_desc->bmAttributes.xfer == TUSB_XFER_BULK)
-  {
-    // TODO might need to to disable async list first
-    list_head = get_async_head(usbh_device_info_pool[dev_addr].core_id);
-  }else if (p_endpoint_desc->bmAttributes.xfer == TUSB_XFER_INTERRUPT)
-  {
-    // TODO might need to to disable period list first
-    list_head = get_period_head(usbh_device_info_pool[dev_addr].core_id);
-  }
-
-  //------------- insert to async/period list -------------//
-  p_qhd->next = list_head->next;
-  list_head->next.address = (uint32_t) p_qhd;
-  list_head->next.type = EHCI_QUEUE_ELEMENT_QHD;
-
-  return (pipe_handle_t) { .dev_addr = dev_addr, .xfer_type = p_endpoint_desc->bmAttributes.xfer, .index = index};
-
-//  return null_handle;
-}
 
 static void queue_td_init(ehci_qtd_t* p_qtd, uint32_t data_ptr, uint16_t total_bytes)
 {
@@ -364,6 +330,58 @@ tusb_error_t  hcd_pipe_control_xfer(uint8_t dev_addr, tusb_std_request_t const *
   return TUSB_ERROR_NONE;
 }
 
+tusb_error_t  hcd_pipe_control_close(uint8_t dev_addr)
+{
+  ehci_qhd_t * const p_qhd = get_control_qhd(dev_addr);
+
+  p_qhd->qtd_overlay.halted = 1;
+
+  // TODO remove from async list
+
+  return TUSB_ERROR_NONE;
+}
+
+//--------------------------------------------------------------------+
+// BULK/INT/ISO PIPE API
+//--------------------------------------------------------------------+
+pipe_handle_t hcd_pipe_open(uint8_t dev_addr, tusb_descriptor_endpoint_t const * p_endpoint_desc)
+{
+  pipe_handle_t const null_handle = { .dev_addr = 0, .xfer_type = 0, .index = 0 };
+
+  //------------- find a free queue head -------------//
+  uint8_t index=0;
+  while( index<EHCI_MAX_QHD && ehci_data.device[dev_addr].qhd[index].used )
+  {
+    index++;
+  }
+
+  ASSERT( index < EHCI_MAX_QHD, null_handle);
+
+  ehci_qhd_t * const p_qhd = &ehci_data.device[dev_addr].qhd[index];
+  queue_head_init(p_qhd, dev_addr, p_endpoint_desc->wMaxPacketSize, p_endpoint_desc->bEndpointAddress, p_endpoint_desc->bmAttributes.xfer);
+
+  ehci_qhd_t * list_head;
+
+  if (p_endpoint_desc->bmAttributes.xfer == TUSB_XFER_BULK)
+  {
+    // TODO might need to to disable async list first
+    list_head = get_async_head(usbh_device_info_pool[dev_addr].core_id);
+  }else if (p_endpoint_desc->bmAttributes.xfer == TUSB_XFER_INTERRUPT)
+  {
+    // TODO might need to to disable period list first
+    list_head = get_period_head(usbh_device_info_pool[dev_addr].core_id);
+  }
+
+  //------------- insert to async/period list -------------//
+  p_qhd->next = list_head->next;
+  list_head->next.address = (uint32_t) p_qhd;
+  list_head->next.type = EHCI_QUEUE_ELEMENT_QHD;
+
+  return (pipe_handle_t) { .dev_addr = dev_addr, .xfer_type = p_endpoint_desc->bmAttributes.xfer, .index = index};
+
+//  return null_handle;
+}
+
 //--------------------------------------------------------------------+
 // HELPER
 //--------------------------------------------------------------------+
@@ -376,16 +394,14 @@ static inline ehci_qhd_t* const get_control_qhd(uint8_t dev_addr)
 static inline ehci_qtd_t* get_control_qtds(uint8_t dev_addr)
 {
   return (dev_addr == 0) ?
-      ehci_data.addr0.qtd :
+      ehci_data.addr0_qtd :
       ehci_data.device[ dev_addr ].control.qtd;
 
 }
 
 static inline tusb_std_request_t* const get_control_request_ptr(uint8_t dev_addr)
 {
-  return (dev_addr == 0) ?
-      &ehci_data.addr0.request :
-      &ehci_data.device[ dev_addr ].control.request;
+  return &ehci_data.control_request[dev_addr];
 }
 
 static void queue_head_init(ehci_qhd_t *p_qhd, uint8_t dev_addr, uint16_t max_packet_size, uint8_t endpoint_addr, uint8_t xfer_type)

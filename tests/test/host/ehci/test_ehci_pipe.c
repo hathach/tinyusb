@@ -305,3 +305,22 @@ void test_open_interrupt_qhd_non_hs(void)
   TEST_ASSERT_EQUAL(0x1c, p_qhd->non_hs_interrupt_cmask);
 
 }
+
+//--------------------------------------------------------------------+
+// TODO ISOCRHONOUS PIPE
+//--------------------------------------------------------------------+
+tusb_descriptor_endpoint_t const desc_ept_iso_in =
+{
+    .bLength          = sizeof(tusb_descriptor_endpoint_t),
+    .bDescriptorType  = TUSB_DESC_ENDPOINT,
+    .bEndpointAddress = 0x83,
+    .bmAttributes     = { .xfer = TUSB_XFER_BULK },
+    .wMaxPacketSize   = 1024,
+    .bInterval        = 1
+};
+
+void test_open_isochronous(void)
+{
+  pipe_handle_t pipe_hdl = hcd_pipe_open(dev_addr, &desc_ept_iso_in);
+  TEST_ASSERT_EQUAL(0, pipe_hdl.dev_addr);
+}
