@@ -252,7 +252,6 @@ static void queue_head_init(ehci_qhd_t *p_qhd, uint8_t dev_addr, uint16_t max_pa
 
 static inline ehci_qhd_t* const get_control_qhd(uint8_t dev_addr) ATTR_ALWAYS_INLINE ATTR_PURE ATTR_WARN_UNUSED_RESULT;
 static inline ehci_qtd_t* get_control_qtds(uint8_t dev_addr) ATTR_ALWAYS_INLINE ATTR_PURE ATTR_WARN_UNUSED_RESULT;
-static inline tusb_std_request_t* const get_control_request_ptr(uint8_t dev_addr) ATTR_ALWAYS_INLINE ATTR_PURE ATTR_WARN_UNUSED_RESULT;
 
 //--------------------------------------------------------------------+
 // CONTROL PIPE API
@@ -316,10 +315,8 @@ tusb_error_t  hcd_pipe_control_xfer(uint8_t dev_addr, tusb_std_request_t const *
   ehci_qtd_t *p_status = p_setup + 2;
 
   //------------- SETUP Phase -------------//
-  *(get_control_request_ptr(dev_addr)) = *p_request; // copy request
-
-  queue_td_init(p_setup, (uint32_t) get_control_request_ptr(dev_addr), 8);
-  p_setup->pid = EHCI_PID_SETUP;
+  queue_td_init(p_setup, (uint32_t) p_request, 8);
+  p_setup->pid          = EHCI_PID_SETUP;
   p_setup->next.address = (uint32_t) p_data;
 
   //------------- DATA Phase -------------//
@@ -343,7 +340,7 @@ tusb_error_t  hcd_pipe_control_xfer(uint8_t dev_addr, tusb_std_request_t const *
   p_status->next.terminate  = 1;
 
   //------------- hook TD List to Queue Head -------------//
-  p_qhd->p_qtd_list_head               = p_setup;
+  p_qhd->p_qtd_list_head          = p_setup;
   p_qhd->qtd_overlay.next.address = (uint32_t) p_setup;
 
   return TUSB_ERROR_NONE;
@@ -416,7 +413,7 @@ static inline void insert_qtd_to_qhd(ehci_qhd_t *p_qhd, ehci_qtd_t *p_qtd_new)
 }
 
 
-tusb_error_t  hcd_pipe_xfer(pipe_handle_t pipe_hdl, uint8_t buffer[], uint16_t total_bytes)
+tusb_error_t  hcd_pipe_xfer(pipe_handle_t pipe_hdl, uint8_t buffer[], uint16_t total_bytes, bool int_on_complete)
 {
   //------------- TODO pipe handle validate -------------//
 
@@ -434,7 +431,7 @@ tusb_error_t  hcd_pipe_xfer(pipe_handle_t pipe_hdl, uint8_t buffer[], uint16_t t
 
   queue_td_init(p_qtd, (uint32_t) buffer, total_bytes);
   p_qtd->pid = p_qhd->pid_non_control;
-  p_qtd->int_on_complete = 1;
+  p_qtd->int_on_complete = int_on_complete ? 1 : 0;
 
   //------------- insert TD to TD list -------------//
   insert_qtd_to_qhd(p_qhd, p_qtd);
@@ -456,11 +453,6 @@ static inline ehci_qtd_t* get_control_qtds(uint8_t dev_addr)
       ehci_data.addr0_qtd :
       ehci_data.device[ dev_addr ].control.qtd;
 
-}
-
-static inline tusb_std_request_t* const get_control_request_ptr(uint8_t dev_addr)
-{
-  return &usbh_device_info_pool[dev_addr].control_request;
 }
 
 // TODO subject to pure function

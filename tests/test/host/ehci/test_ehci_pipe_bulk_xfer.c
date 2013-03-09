@@ -146,7 +146,7 @@ void test_bulk_xfer(void)
 {
 
   //------------- Code Under Test -------------//
-  hcd_pipe_xfer(pipe_hdl_bulk, xfer_data, sizeof(xfer_data));
+  hcd_pipe_xfer(pipe_hdl_bulk, xfer_data, sizeof(xfer_data), true);
 
   ehci_qtd_t* p_qtd = p_qhd_bulk->p_qtd_list_head;
   TEST_ASSERT_NOT_NULL(p_qtd);
@@ -162,8 +162,8 @@ void test_bulk_xfer_double(void)
 {
 
   //------------- Code Under Test -------------//
-  hcd_pipe_xfer(pipe_hdl_bulk, xfer_data, sizeof(xfer_data));
-  hcd_pipe_xfer(pipe_hdl_bulk, data2, sizeof(data2));
+  hcd_pipe_xfer(pipe_hdl_bulk, xfer_data, sizeof(xfer_data), false);
+  hcd_pipe_xfer(pipe_hdl_bulk, data2, sizeof(data2), true);
 
   ehci_qtd_t* p_head = p_qhd_bulk->p_qtd_list_head;
   ehci_qtd_t* p_tail = p_qhd_bulk->p_qtd_list_head;

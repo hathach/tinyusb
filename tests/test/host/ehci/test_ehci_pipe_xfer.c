@@ -162,7 +162,7 @@ void test_control_addr0_xfer_get_check_qhd_qtd_mapping(void)
   TEST_ASSERT_EQUAL_HEX( p_status , p_data->next.address );
   TEST_ASSERT_TRUE( p_status->next.terminate );
 
-  verify_qtd(p_setup, &usbh_device_info_pool[0].control_request, 8);
+  verify_qtd(p_setup, &request_get_dev_desc, 8);
 }
 
 
@@ -181,10 +181,7 @@ void test_control_xfer_get(void)
   TEST_ASSERT_TRUE( p_status->next.terminate );
 
   //------------- SETUP -------------//
-  uint8_t* p_request = (uint8_t *) &usbh_device_info_pool[dev_addr].control_request;
-  verify_qtd(p_setup, p_request, 8);
-
-  TEST_ASSERT_EQUAL_MEMORY(&request_get_dev_desc, p_request, sizeof(tusb_std_request_t));
+  verify_qtd(p_setup, &request_get_dev_desc, 8);
 
   TEST_ASSERT_FALSE(p_setup->int_on_complete);
   TEST_ASSERT_FALSE(p_setup->data_toggle);
