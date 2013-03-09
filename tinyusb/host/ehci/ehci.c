@@ -180,11 +180,11 @@ tusb_error_t hcd_controller_init(uint8_t hostid)
     framelist[i].type    = EHCI_QUEUE_ELEMENT_QHD;
   }
 
-  period_head->interrupt_smask                 = 1; // queue head in period list must have smask non-zero
-  period_head->next.terminate                  = 1;
-  period_head->qtd_overlay.halted              = 1; // dummy node, always inactive
+  period_head->interrupt_smask    = 1; // queue head in period list must have smask non-zero
+  period_head->next.terminate     = 1;
+  period_head->qtd_overlay.halted = 1; // dummy node, always inactive
 
-  regs->periodic_list_base = (uint32_t) framelist;
+  regs->periodic_list_base        = (uint32_t) framelist;
 #else
   regs->periodic_list_base = 0;
 #endif
@@ -288,9 +288,9 @@ static void queue_td_init(ehci_qtd_t* p_qtd, uint32_t data_ptr, uint16_t total_b
 {
   memclr_(p_qtd, sizeof(ehci_qtd_t));
 
-  p_qtd->used = 1;
+  p_qtd->used                = 1;
 
-  p_qtd->next.terminate = 1; // init to null
+  p_qtd->next.terminate      = 1; // init to null
   p_qtd->alternate.terminate = 1; // not used, always set to terminated
   p_qtd->active              = 1;
   p_qtd->cerr                = 3; // TODO 3 consecutive errors tolerance
@@ -299,8 +299,7 @@ static void queue_td_init(ehci_qtd_t* p_qtd, uint32_t data_ptr, uint16_t total_b
 
   p_qtd->buffer[0]           = data_ptr;
 
-  uint8_t i;
-  for(i=1; i<5; i++)
+  for(uint8_t i=1; i<5; i++)
   {
     p_qtd->buffer[i] |= align4k( p_qtd->buffer[i-1] ) + 4096;
   }
@@ -310,9 +309,9 @@ tusb_error_t  hcd_pipe_control_xfer(uint8_t dev_addr, tusb_std_request_t const *
 {
   ehci_qhd_t * const p_qhd = get_control_qhd(dev_addr);
 
-  ehci_qtd_t *p_setup  = get_control_qtds(dev_addr);
-  ehci_qtd_t *p_data   = p_setup + 1;
-  ehci_qtd_t *p_status = p_setup + 2;
+  ehci_qtd_t *p_setup      = get_control_qtds(dev_addr);
+  ehci_qtd_t *p_data       = p_setup + 1;
+  ehci_qtd_t *p_status     = p_setup + 2;
 
   //------------- SETUP Phase -------------//
   queue_td_init(p_setup, (uint32_t) p_request, 8);
@@ -403,12 +402,12 @@ static inline void insert_qtd_to_qhd(ehci_qhd_t *p_qhd, ehci_qtd_t *p_qtd_new)
 {
   if (p_qhd->p_qtd_list_head == NULL) // empty list
   {
-    p_qhd->p_qtd_list_head = p_qhd->p_qtd_list_tail = p_qtd_new;
-    p_qhd->qtd_overlay.next.address = (uint32_t) p_qhd->p_qtd_list_head;
+    p_qhd->p_qtd_list_head               = p_qhd->p_qtd_list_tail = p_qtd_new;
+    p_qhd->qtd_overlay.next.address      = (uint32_t) p_qhd->p_qtd_list_head;
   }else
   {
     p_qhd->p_qtd_list_tail->next.address = (uint32_t) p_qtd_new;
-    p_qhd->p_qtd_list_tail = p_qtd_new;
+    p_qhd->p_qtd_list_tail               = p_qtd_new;
   }
 }
 
