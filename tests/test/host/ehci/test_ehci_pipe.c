@@ -124,6 +124,7 @@ void verify_control_open_qhd(ehci_qhd_t *p_qhd)
 {
   verify_open_qhd(p_qhd, 0, control_max_packet_size);
 
+  TEST_ASSERT_EQUAL(0, p_qhd->class_code);
   TEST_ASSERT_EQUAL(1, p_qhd->data_toggle_control);
   TEST_ASSERT_EQUAL(0, p_qhd->interrupt_smask);
   TEST_ASSERT_EQUAL(0, p_qhd->non_hs_interrupt_cmask);
@@ -195,7 +196,7 @@ tusb_descriptor_endpoint_t const desc_ept_bulk_in =
     .bInterval        = 0
 };
 
-void verify_bulk_open_qhd(ehci_qhd_t *p_qhd, tusb_descriptor_endpoint_t const * desc_endpoint)
+void verify_bulk_open_qhd(ehci_qhd_t *p_qhd, tusb_descriptor_endpoint_t const * desc_endpoint, uint8_t class_code)
 {
   verify_open_qhd(p_qhd, desc_endpoint->bEndpointAddress, desc_endpoint->wMaxPacketSize);
 
@@ -209,6 +210,7 @@ void verify_bulk_open_qhd(ehci_qhd_t *p_qhd, tusb_descriptor_endpoint_t const * 
 
   TEST_ASSERT_EQUAL(desc_endpoint->bEndpointAddress & 0x80 ? EHCI_PID_IN : EHCI_PID_OUT, p_qhd->pid_non_control);
 
+  TEST_ASSERT_EQUAL(class_code, p_qhd->class_code);
   //------------- async list check -------------//
   TEST_ASSERT_EQUAL_HEX((uint32_t) p_qhd, align32(async_head->next.address));
   TEST_ASSERT_FALSE(async_head->next.terminate);
@@ -222,13 +224,13 @@ void test_open_bulk_qhd_data(void)
   tusb_descriptor_endpoint_t const * desc_endpoint = &desc_ept_bulk_in;
 
   //------------- Code Under TEST -------------//
-  pipe_hdl = hcd_pipe_open(dev_addr, desc_endpoint);
+  pipe_hdl = hcd_pipe_open(dev_addr, desc_endpoint, TUSB_CLASS_MSC);
 
   TEST_ASSERT_EQUAL(dev_addr, pipe_hdl.dev_addr);
   TEST_ASSERT_EQUAL(TUSB_XFER_BULK, pipe_hdl.xfer_type);
 
   p_qhd = &ehci_data.device[ pipe_hdl.dev_addr ].qhd[ pipe_hdl.index ];
-  verify_bulk_open_qhd(p_qhd, desc_endpoint);
+  verify_bulk_open_qhd(p_qhd, desc_endpoint, TUSB_CLASS_MSC);
 
   //------------- async list check -------------//
   TEST_ASSERT_EQUAL_HEX((uint32_t) p_qhd, align32(async_head->next.address));
@@ -248,7 +250,7 @@ tusb_descriptor_endpoint_t const desc_ept_interrupt_out =
     .wMaxPacketSize   = 16,
     .bInterval        = 1
 };
-void verify_int_qhd(ehci_qhd_t *p_qhd, tusb_descriptor_endpoint_t const * desc_endpoint)
+void verify_int_qhd(ehci_qhd_t *p_qhd, tusb_descriptor_endpoint_t const * desc_endpoint, uint8_t class_code)
 {
   verify_open_qhd(p_qhd, desc_endpoint->bEndpointAddress, desc_endpoint->wMaxPacketSize);
 
@@ -272,14 +274,14 @@ void test_open_interrupt_qhd_hs(void)
   pipe_handle_t pipe_hdl;
 
   //------------- Code Under TEST -------------//
-  pipe_hdl = hcd_pipe_open(dev_addr, &desc_ept_interrupt_out);
+  pipe_hdl = hcd_pipe_open(dev_addr, &desc_ept_interrupt_out, TUSB_CLASS_HID);
 
   TEST_ASSERT_EQUAL(dev_addr, pipe_hdl.dev_addr);
   TEST_ASSERT_EQUAL(TUSB_XFER_INTERRUPT, pipe_hdl.xfer_type);
 
   p_qhd = &ehci_data.device[ pipe_hdl.dev_addr ].qhd[ pipe_hdl.index ];
 
-  verify_int_qhd(p_qhd, &desc_ept_interrupt_out);
+  verify_int_qhd(p_qhd, &desc_ept_interrupt_out, TUSB_CLASS_HID);
 
   TEST_ASSERT_EQUAL(0xFF, p_qhd->interrupt_smask);
   //TEST_ASSERT_EQUAL(0, p_qhd->non_hs_interrupt_cmask); cmask in high speed is ignored
@@ -293,14 +295,14 @@ void test_open_interrupt_qhd_non_hs(void)
   usbh_device_info_pool[dev_addr].speed = TUSB_SPEED_FULL;
 
   //------------- Code Under TEST -------------//
-  pipe_hdl = hcd_pipe_open(dev_addr, &desc_ept_interrupt_out);
+  pipe_hdl = hcd_pipe_open(dev_addr, &desc_ept_interrupt_out, TUSB_CLASS_HID);
 
   TEST_ASSERT_EQUAL(dev_addr, pipe_hdl.dev_addr);
   TEST_ASSERT_EQUAL(TUSB_XFER_INTERRUPT, pipe_hdl.xfer_type);
 
   p_qhd = &ehci_data.device[ pipe_hdl.dev_addr ].qhd[ pipe_hdl.index ];
 
-  verify_int_qhd(p_qhd, &desc_ept_interrupt_out);
+  verify_int_qhd(p_qhd, &desc_ept_interrupt_out, TUSB_CLASS_HID);
 
   TEST_ASSERT_EQUAL(1, p_qhd->interrupt_smask);
   TEST_ASSERT_EQUAL(0x1c, p_qhd->non_hs_interrupt_cmask);
@@ -322,6 +324,6 @@ tusb_descriptor_endpoint_t const desc_ept_iso_in =
 
 void test_open_isochronous(void)
 {
-  pipe_handle_t pipe_hdl = hcd_pipe_open(dev_addr, &desc_ept_iso_in);
+  pipe_handle_t pipe_hdl = hcd_pipe_open(dev_addr, &desc_ept_iso_in, TUSB_CLASS_AUDIO);
   TEST_ASSERT_EQUAL(0, pipe_hdl.dev_addr);
 }

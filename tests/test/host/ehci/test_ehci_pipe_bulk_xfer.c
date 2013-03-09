@@ -101,7 +101,7 @@ void setUp(void)
   }
 
   async_head =  get_async_head( hostid );
-  pipe_hdl_bulk = hcd_pipe_open(dev_addr, &desc_ept_bulk_in);
+  pipe_hdl_bulk = hcd_pipe_open(dev_addr, &desc_ept_bulk_in, TUSB_CLASS_MSC);
 
   TEST_ASSERT_EQUAL(dev_addr, pipe_hdl_bulk.dev_addr);
   TEST_ASSERT_EQUAL(TUSB_XFER_BULK, pipe_hdl_bulk.xfer_type);

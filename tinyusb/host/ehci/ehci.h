@@ -195,14 +195,13 @@ typedef struct {
   //--------------------------------------------------------------------+
 	uint8_t used;
 	uint8_t pid_non_control;
+	uint8_t class_code;
 
 	uint8_t list_index;
-	uint8_t reserved;
 
 	ehci_qtd_t *p_qtd_list_head;	// head of the scheduled TD list
 	ehci_qtd_t *p_qtd_list_tail;	// tail of the scheduled TD list
 	uint32_t reserved_2;
-
 }ATTR_ALIGNED(32) ehci_qhd_t;
 
 /// Highspeed Isochronous Transfer Descriptor (section 3.3)

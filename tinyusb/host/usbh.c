@@ -53,7 +53,7 @@
 #define ENUM_QUEUE_DEPTH  5
 
 // TODO fix number of class driver
-class_driver_t const class_host_drivers[TUSB_CLASS_MAX_CONSEC_NUMBER] =
+class_driver_t const usbh_class_drivers[TUSB_CLASS_MAX_CONSEC_NUMBER] =
 {
     [TUSB_CLASS_HID] = {
         .init = hidh_init,
@@ -109,8 +109,8 @@ tusb_error_t usbh_init(void)
   //------------- class init -------------//
   for (uint8_t class_code = 1; class_code < TUSB_CLASS_MAX_CONSEC_NUMBER; class_code++)
   {
-    if (class_host_drivers[class_code].init)
-      class_host_drivers[class_code].init();
+    if (usbh_class_drivers[class_code].init)
+      usbh_class_drivers[class_code].init();
   }
 
   return TUSB_ERROR_NONE;
@@ -273,11 +273,11 @@ OSAL_TASK_DECLARE(usbh_enumeration_task)
       TASK_ASSERT( false ); // corrupted data, abort enumeration
     } else if ( class_code < TUSB_CLASS_MAX_CONSEC_NUMBER)
     {
-      if ( class_host_drivers[class_code].install_subtask )
+      if ( usbh_class_drivers[class_code].install_subtask )
       {
         uint16_t length;
         OSAL_SUBTASK_INVOKED_AND_WAIT ( // parameters in task/sub_task must be static storage (static or global)
-            class_host_drivers[ ((tusb_descriptor_interface_t*) p_desc)->bInterfaceClass ].install_subtask(new_addr, p_desc, &length) );
+            usbh_class_drivers[ ((tusb_descriptor_interface_t*) p_desc)->bInterfaceClass ].install_subtask(new_addr, p_desc, &length) );
         p_desc += length;
       }
     } else // unsupported class (not enable or yet implemented)
