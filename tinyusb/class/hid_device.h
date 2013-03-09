@@ -51,11 +51,11 @@
 #ifndef _TUSB_HID_DEVICE_H_
 #define _TUSB_HID_DEVICE_H_
 
+#include "hid.h"
+
 #ifdef __cplusplus
  extern "C" {
 #endif
-
-#include "hid.h"
 
 #ifdef DEVICE_ROMDRIVER
 /** \brief Initialize HID driver
