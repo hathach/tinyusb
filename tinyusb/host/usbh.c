@@ -52,11 +52,24 @@
 //--------------------------------------------------------------------+
 #define ENUM_QUEUE_DEPTH  5
 
+// TODO fix number of class driver
+class_driver_t const class_host_drivers[TUSB_CLASS_MAX_CONSEC_NUMBER] =
+{
+    [TUSB_CLASS_HID] = {
+        .init = hidh_init,
+        .install_subtask = hidh_install_subtask
+    },
+
+    [TUSB_CLASS_MSC] = {
+        .init = msch_init,
+        .install_subtask = msch_install_subtask
+    }
+};
 
 //--------------------------------------------------------------------+
 // INTERNAL OBJECT & FUNCTION DECLARATION
 //--------------------------------------------------------------------+
-usbh_device_info_t usbh_device_info_pool[TUSB_CFG_HOST_DEVICE_MAX+1]; // including zero-address
+usbh_device_info_t usbh_device_info_pool[TUSB_CFG_HOST_DEVICE_MAX+1] TUSB_CFG_ATTR_USBRAM; // including zero-address
 
 //------------- Enumeration Task Data -------------//
 OSAL_TASK_DEF(enum_task, usbh_enumeration_task, 128, OSAL_PRIO_HIGH);
@@ -94,9 +107,11 @@ tusb_error_t usbh_init(void)
   ASSERT_PTR(enum_queue_hdl, TUSB_ERROR_OSAL_QUEUE_FAILED);
 
   //------------- class init -------------//
-#if HOST_CLASS_HID
-  hidh_init();
-#endif
+  for (uint8_t class_code = 1; class_code < TUSB_CLASS_MAX_CONSEC_NUMBER; class_code++)
+  {
+    if (class_host_drivers[class_code].init)
+      class_host_drivers[class_code].init();
+  }
 
   return TUSB_ERROR_NONE;
 }
@@ -108,7 +123,9 @@ tusb_error_t usbh_control_xfer_subtask(uint8_t dev_addr, tusb_std_request_t cons
 
   OSAL_SUBTASK_BEGIN
 
+  usbh_device_info_pool[dev_addr].control_request = *p_request;
   (void) hcd_pipe_control_xfer(dev_addr, p_request, data);
+
   osal_semaphore_wait(usbh_device_info_pool[dev_addr].sem_hdl, OSAL_TIMEOUT_NORMAL, &error); // careful of local variable without static
   SUBTASK_ASSERT_STATUS_WITH_HANDLER(error, tusbh_device_mount_failed_cb(TUSB_ERROR_USBH_MOUNT_DEVICE_NOT_RESPOND, NULL) );
 
@@ -242,7 +259,7 @@ OSAL_TASK_DECLARE(usbh_enumeration_task)
   // update configuration info
   usbh_device_info_pool[new_addr].interface_count = ((tusb_descriptor_configuration_t*) enum_data_buffer)->bNumInterfaces;
 
-  //------------- parse configuration -------------//
+  //------------- parse configuration & install drivers -------------//
   p_desc = enum_data_buffer + sizeof(tusb_descriptor_configuration_t);
 
   // parse each interfaces
@@ -250,21 +267,20 @@ OSAL_TASK_DECLARE(usbh_enumeration_task)
   {
     TASK_ASSERT( TUSB_DESC_INTERFACE == ((tusb_descriptor_interface_t*) p_desc)->bDescriptorType ); // TODO should we skip this descriptor and advance
 
-    // NOTE: cannot use switch (conflicted with OSAL_NONE task)
-    if (TUSB_CLASS_UNSPECIFIED == ((tusb_descriptor_interface_t*) p_desc)->bInterfaceClass)
+    uint8_t class_code = ((tusb_descriptor_interface_t*) p_desc)->bInterfaceClass;
+    if (class_code == 0)
     {
-      TASK_ASSERT( false ); // corrupted data
-    }
-#if HOST_CLASS_HID
-    else if ( TUSB_CLASS_HID == ((tusb_descriptor_interface_t*) p_desc)->bInterfaceClass)
+      TASK_ASSERT( false ); // corrupted data, abort enumeration
+    } else if ( class_code < TUSB_CLASS_MAX_CONSEC_NUMBER)
     {
-      uint16_t length;
-      OSAL_SUBTASK_INVOKED_AND_WAIT ( hidh_install_subtask(new_addr, p_desc, &length) );
-      p_desc += length;
-    }
-#endif
-    // unsupported class
-    else
+      if ( class_host_drivers[class_code].install_subtask )
+      {
+        uint16_t length;
+        OSAL_SUBTASK_INVOKED_AND_WAIT ( // parameters in task/sub_task must be static storage (static or global)
+            class_host_drivers[ ((tusb_descriptor_interface_t*) p_desc)->bInterfaceClass ].install_subtask(new_addr, p_desc, &length) );
+        p_desc += length;
+      }
+    } else // unsupported class (not enable or yet implemented)
     {
       do
       {

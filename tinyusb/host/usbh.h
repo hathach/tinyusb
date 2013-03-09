@@ -63,6 +63,36 @@
 //--------------------------------------------------------------------+
 // MACRO CONSTANT TYPEDEF
 //--------------------------------------------------------------------+
+#define CLASS_TABLE(ENTRY_EXPANDER) \
+    ENTRY_EXPANDER(TUSB_CLASS_AUDIO)\
+    ENTRY_EXPANDER(TUSB_CLASS_CDC)\
+    ENTRY_EXPANDER(TUSB_CLASS_HID)\
+    ENTRY_EXPANDER(TUSB_CLASS_PHYSICAL)\
+    ENTRY_EXPANDER(TUSB_CLASS_IMAGE)\
+    ENTRY_EXPANDER(TUSB_CLASS_PRINTER)\
+    ENTRY_EXPANDER(TUSB_CLASS_MSC)\
+    ENTRY_EXPANDER(TUSB_CLASS_HUB)\
+    ENTRY_EXPANDER(TUSB_CLASS_CDC_DATA)\
+    ENTRY_EXPANDER(TUSB_CLASS_SMART_CARD)\
+    ENTRY_EXPANDER(TUSB_CLASS_CONTENT_SECURITY)\
+    ENTRY_EXPANDER(TUSB_CLASS_VIDEO)\
+    ENTRY_EXPANDER(TUSB_CLASS_PERSONAL_HEALTHCARE)\
+    ENTRY_EXPANDER(TUSB_CLASS_AUDIO_VIDEO)\
+
+#define CLASS_LOOKUP_EXPAND(class_code)
+
+#define CLASS_LOOKUP_INIT_FUNCTION(class_code)\
+
+#define CLASS_EXPANDER_INIT(class_code)\
+
+
+
+//  TUSB_CLASS_DIAGNOSTIC           = 0xDC ,
+//  TUSB_CLASS_WIRELESS_CONTROLLER  = 0xE0 ,
+//  TUSB_CLASS_MISC                 = 0xEF ,
+//  TUSB_CLASS_APPLICATION_SPECIFIC = 0xEF ,
+//  TUSB_CLASS_VENDOR_SPECIFIC      = 0xFF
+
 enum {
   TUSB_FLAGS_CLASS_UNSPECIFIED          = BIT_(0)    , ///< 0
   TUSB_FLAGS_CLASS_AUDIO                = BIT_(1)    , ///< 1
@@ -119,6 +149,10 @@ typedef uint32_t tusbh_flag_class_t;
 typedef uint32_t tusb_handle_device_t;
 typedef uint8_t  tusbh_device_status_t;
 
+typedef struct {
+  void (* const init) (void);
+  tusb_error_t (* const install_subtask)(uint8_t, uint8_t const *, uint16_t*);
+} class_driver_t;
 //--------------------------------------------------------------------+
 // INTERNAL OBJECT & FUNCTION DECLARATION
 //--------------------------------------------------------------------+

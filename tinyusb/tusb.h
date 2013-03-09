@@ -58,6 +58,12 @@
   #ifdef HOST_CLASS_HID
     #include "class/hid_host.h"
   #endif
+
+  #define HOST_CLASS_MSC
+  #ifdef HOST_CLASS_MSC
+    #include "class/msc_host.h"
+  #endif
+
 #endif
 
 #if MODE_DEVICE_SUPPORTED

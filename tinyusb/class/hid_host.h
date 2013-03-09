@@ -84,19 +84,11 @@ typedef struct {
 void hidh_keyboard_init(void);
 tusb_error_t hidh_keyboard_install(uint8_t dev_addr, uint8_t const *descriptor) ATTR_WARN_UNUSED_RESULT;
 
-#ifndef _TEST_
-static inline void hidh_init(void) ATTR_ALWAYS_INLINE;
-static inline void hidh_init(void)
-{
-#if TUSB_CFG_HOST_HID_KEYBOARD
-  hidh_keyboard_init();
-#endif
-}
-#else
-void         hidh_init(void);
-#endif
-
-tusb_error_t hidh_install_subtask(uint8_t dev_addr, uint8_t const *descriptor, uint16_t *p_length) ATTR_WARN_UNUSED_RESULT;
+//--------------------------------------------------------------------+
+// CLASS DRIVER FUNCTION (all declared with WEAK)
+//--------------------------------------------------------------------+
+void         hidh_init(void) ATTR_WEAK;
+tusb_error_t hidh_install_subtask(uint8_t dev_addr, uint8_t const *descriptor, uint16_t *p_length) ATTR_WEAK ATTR_WARN_UNUSED_RESULT;
 
 #endif
 

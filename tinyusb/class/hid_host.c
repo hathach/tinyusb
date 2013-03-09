@@ -90,6 +90,13 @@ uint8_t tusbh_hid_keyboard_no_instances(tusb_handle_device_t const device_hdl)
 //--------------------------------------------------------------------+
 // CLASS-USBD API (don't require to verify parameters)
 //--------------------------------------------------------------------+
+void hidh_init(void)
+{
+#if TUSB_CFG_HOST_HID_KEYBOARD
+  hidh_keyboard_init();
+#endif
+}
+
 void hidh_keyboard_init(void)
 {
   memclr_(&keyboard_info_pool, sizeof(class_hid_keyboard_info_t)*TUSB_CFG_HOST_DEVICE_MAX);

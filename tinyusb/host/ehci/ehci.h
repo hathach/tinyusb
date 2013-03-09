@@ -201,10 +201,10 @@ typedef struct {
 	uint8_t list_index;
 	uint8_t reserved;
 
-	ehci_qtd_t *p_qtd_list_head;	// head of the TD list scheduled
+	ehci_qtd_t *p_qtd_list_head;	// head of the scheduled TD list
+	ehci_qtd_t *p_qtd_list_tail;	// tail of the scheduled TD list
+	uint32_t reserved_2;
 
-	volatile uint32_t status; // TODO will remove volatile after remove all HcdQHD function
-	uint16_t *pActualTransferCount; /* total transferred bytes of a usb request */
 }ATTR_ALIGNED(32) ehci_qhd_t;
 
 /// Highspeed Isochronous Transfer Descriptor (section 3.3)
@@ -440,8 +440,7 @@ typedef struct {
   ehci_qhd_t async_head[CONTROLLER_HOST_NUMBER]; /// head qhd of async list, also is used as control endpoint for address 0
   ehci_qhd_t period_head[CONTROLLER_HOST_NUMBER];
 
-  //------------- Data for Address 0 -------------//
-  // qhd: addr0 use async head (dummy) as Queue Head
+  //------------- Data for Address 0 (use async head as its queue head) -------------//
   ehci_qtd_t addr0_qtd[3];
 
   struct {
@@ -450,13 +449,11 @@ typedef struct {
       ehci_qtd_t qtd[3];
     }control;
 
-    ehci_qhd_t  qhd[EHCI_MAX_QHD]   ; ///< Queue Head Pool
-    ehci_qtd_t  qtd[EHCI_MAX_QTD]   ; ///< Queue Element Transfer Pool
-//  ehci_itd_t  itd[EHCI_MAX_ITD]   ; ///< Iso Transfer Pool
-//  ehci_sitd_t sitd[EHCI_MAX_SITD] ; ///< Split (FS) Isochronous Transfer Pool
+    ehci_qhd_t  qhd[EHCI_MAX_QHD]                  ; ///< Queue Head Pool
+    ehci_qtd_t  qtd[EHCI_MAX_QTD] ATTR_ALIGNED(32) ; ///< Queue Element Transfer Pool
+//  ehci_itd_t  itd[EHCI_MAX_ITD]                  ; ///< Iso Transfer Pool
+//  ehci_sitd_t sitd[EHCI_MAX_SITD]                ; ///< Split (FS) Isochronous Transfer Pool
   }device[TUSB_CFG_HOST_DEVICE_MAX];
-
-  tusb_std_request_t control_request[TUSB_CFG_HOST_DEVICE_MAX+1]; // including address zero, 32-byte alignment breaker
 }ehci_data_t;
 
 #ifdef __cplusplus

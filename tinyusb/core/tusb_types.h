@@ -136,6 +136,8 @@ typedef enum {
   TUSB_CLASS_PERSONAL_HEALTHCARE  = 15   ,  ///< 15
   TUSB_CLASS_AUDIO_VIDEO          = 16   ,  ///< 16
 
+  TUSB_CLASS_MAX_CONSEC_NUMBER    = 17   , // TODO compact & minimize this number
+
   TUSB_CLASS_DIAGNOSTIC           = 0xDC ,
   TUSB_CLASS_WIRELESS_CONTROLLER  = 0xE0 ,
   TUSB_CLASS_MISC                 = 0xEF ,

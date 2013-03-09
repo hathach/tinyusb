@@ -80,7 +80,7 @@ typedef struct { // TODO internal structure, re-order members
   //------------- device descriptor info -------------//
   uint16_t vendor_id;
   uint16_t product_id;
-  uint8_t configure_count; // bNumConfigurations alias
+  uint8_t  configure_count; // bNumConfigurations alias
 
   //------------- configuration descriptor info -------------//
   uint8_t interface_count; // bNumInterfaces alias
@@ -88,7 +88,7 @@ typedef struct { // TODO internal structure, re-order members
   uint8_t status; // value from enum tusbh_device_status_
 
 //  pipe_handle_t pipe_control; NOTE: use device address/handle instead
-  tusb_std_request_t request_control;
+  tusb_std_request_t control_request;
   OSAL_SEM_DEF(semaphore);
   osal_semaphore_handle_t sem_hdl;
 

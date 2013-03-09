@@ -59,6 +59,7 @@ uint8_t const hub_port = 2;
 uint8_t dev_addr;
 uint8_t hostid;
 uint8_t xfer_data [18000]; // 18K to test buffer pointer list
+uint8_t data2[100];
 
 ehci_qhd_t *async_head;
 ehci_qhd_t *p_qhd_bulk;
@@ -128,9 +129,11 @@ void verify_qtd(ehci_qtd_t *p_qtd, uint8_t p_data[], uint16_t length)
   TEST_ASSERT_FALSE(p_qtd->halted);
   TEST_ASSERT_TRUE(p_qtd->active);
 
+  TEST_ASSERT_FALSE(p_qtd->data_toggle);
   TEST_ASSERT_EQUAL(3, p_qtd->cerr);
   TEST_ASSERT_EQUAL(0, p_qtd->current_page);
   TEST_ASSERT_EQUAL(length, p_qtd->total_bytes);
+  TEST_ASSERT_TRUE(p_qtd->used);
 
   TEST_ASSERT_EQUAL_HEX( p_data, p_qtd->buffer[0] );
   for(uint8_t i=1; i<5; i++)
@@ -149,24 +152,29 @@ void test_bulk_xfer(void)
   TEST_ASSERT_NOT_NULL(p_qtd);
 
   verify_qtd( p_qtd, xfer_data, sizeof(xfer_data));
-  TEST_ASSERT_TRUE(p_qtd->used);
+  TEST_ASSERT_EQUAL_HEX(p_qhd_bulk->qtd_overlay.next.address, p_qtd);
   TEST_ASSERT_TRUE(p_qtd->next.terminate);
   TEST_ASSERT_EQUAL(EHCI_PID_IN, p_qtd->pid);
   TEST_ASSERT_TRUE(p_qtd->int_on_complete);
-  TEST_ASSERT_FALSE(p_qtd->data_toggle);
 }
 
 void test_bulk_xfer_double(void)
 {
-  uint8_t data2[100];
 
   //------------- Code Under Test -------------//
   hcd_pipe_xfer(pipe_hdl_bulk, xfer_data, sizeof(xfer_data));
   hcd_pipe_xfer(pipe_hdl_bulk, data2, sizeof(data2));
 
-  ehci_qtd_t* p_qtd = p_qhd_bulk->p_qtd_list_head;
-  TEST_ASSERT_NOT_NULL(p_qtd);
+  ehci_qtd_t* p_head = p_qhd_bulk->p_qtd_list_head;
+  ehci_qtd_t* p_tail = p_qhd_bulk->p_qtd_list_head;
 
-  TEST_ASSERT_FALSE(p_qtd->next.terminate);
+  //------------- list head -------------//
+  TEST_ASSERT_NOT_NULL(p_head);
+  verify_qtd(p_head, xfer_data, sizeof(xfer_data));
+  TEST_ASSERT_EQUAL_HEX(p_qhd_bulk->qtd_overlay.next.address, p_head);
+  TEST_ASSERT_EQUAL(EHCI_PID_IN, p_head->pid);
+  TEST_ASSERT_FALSE(p_head->next.terminate);
+  TEST_ASSERT_FALSE(p_head->int_on_complete);
 
+  //------------- list tail -------------//
 }

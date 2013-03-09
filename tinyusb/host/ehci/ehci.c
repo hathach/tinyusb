@@ -273,10 +273,10 @@ tusb_error_t  hcd_pipe_control_open(uint8_t dev_addr, uint8_t max_packet_size)
 
   queue_head_init(p_qhd, dev_addr, max_packet_size, 0, TUSB_XFER_CONTROL);
 
-  //------------- insert to async list -------------//
-  // TODO might need to to disable async list first
   if (dev_addr != 0)
   {
+    //------------- insert to async list -------------//
+    // TODO might need to to disable async list first
     list_insert( (ehci_link_t*) get_async_head(usbh_device_info_pool[dev_addr].core_id),
                  (ehci_link_t*) p_qhd, EHCI_QUEUE_ELEMENT_QHD);
   }
@@ -351,6 +351,7 @@ tusb_error_t  hcd_pipe_control_xfer(uint8_t dev_addr, tusb_std_request_t const *
 
 tusb_error_t  hcd_pipe_control_close(uint8_t dev_addr)
 {
+  //------------- TODO pipe handle validate -------------//
   ehci_qhd_t * const p_qhd = get_control_qhd(dev_addr);
 
   p_qhd->qtd_overlay.halted = 1;
@@ -400,9 +401,24 @@ pipe_handle_t hcd_pipe_open(uint8_t dev_addr, tusb_descriptor_endpoint_t const *
   return (pipe_handle_t) { .dev_addr = dev_addr, .xfer_type = p_endpoint_desc->bmAttributes.xfer, .index = index};
 }
 
+static inline void insert_qtd_to_qhd(ehci_qhd_t *p_qhd, ehci_qtd_t *p_qtd_new) ATTR_ALWAYS_INLINE;
+static inline void insert_qtd_to_qhd(ehci_qhd_t *p_qhd, ehci_qtd_t *p_qtd_new)
+{
+  if (p_qhd->p_qtd_list_head == NULL) // empty list
+  {
+    p_qhd->p_qtd_list_head = p_qhd->p_qtd_list_tail = p_qtd_new;
+    p_qhd->qtd_overlay.next.address = (uint32_t) p_qhd->p_qtd_list_head;
+  }else
+  {
+    p_qhd->p_qtd_list_tail->next.address = (uint32_t) p_qtd_new;
+    p_qhd->p_qtd_list_tail = p_qtd_new;
+  }
+}
+
+
 tusb_error_t  hcd_pipe_xfer(pipe_handle_t pipe_hdl, uint8_t buffer[], uint16_t total_bytes)
 {
-  //------------- pipe handle validate -------------//
+  //------------- TODO pipe handle validate -------------//
 
   //------------- find a free qtd -------------//
   uint8_t index=0;
@@ -413,16 +429,15 @@ tusb_error_t  hcd_pipe_xfer(pipe_handle_t pipe_hdl, uint8_t buffer[], uint16_t t
   ASSERT( index < EHCI_MAX_QTD, TUSB_ERROR_EHCI_NOT_ENOUGH_QTD);
 
   //------------- set up QTD -------------//
-  ehci_qhd_t *p_qhd = &ehci_data.device[pipe_hdl.dev_addr].qhd[index];
-
+  ehci_qhd_t *p_qhd = &ehci_data.device[pipe_hdl.dev_addr].qhd[pipe_hdl.index];
   ehci_qtd_t *p_qtd = &ehci_data.device[pipe_hdl.dev_addr].qtd[index];
+
   queue_td_init(p_qtd, (uint32_t) buffer, total_bytes);
   p_qtd->pid = p_qhd->pid_non_control;
   p_qtd->int_on_complete = 1;
 
-
-  p_qhd->p_qtd_list_head = p_qtd;
-  p_qhd->qtd_overlay.next.address = (uint32_t) p_qtd;
+  //------------- insert TD to TD list -------------//
+  insert_qtd_to_qhd(p_qhd, p_qtd);
 
   return TUSB_ERROR_NONE;
 }
@@ -445,7 +460,7 @@ static inline ehci_qtd_t* get_control_qtds(uint8_t dev_addr)
 
 static inline tusb_std_request_t* const get_control_request_ptr(uint8_t dev_addr)
 {
-  return &ehci_data.control_request[dev_addr];
+  return &usbh_device_info_pool[dev_addr].control_request;
 }
 
 // TODO subject to pure function
@@ -483,7 +498,8 @@ static void queue_head_init(ehci_qhd_t *p_qhd, uint8_t dev_addr, uint16_t max_pa
 
   //------------- HCD Management Data -------------//
   p_qhd->used            = 1;
-  p_qhd->p_qtd_list_head      = NULL;
+  p_qhd->p_qtd_list_head = NULL;
+  p_qhd->p_qtd_list_tail = NULL;
   p_qhd->pid_non_control = (endpoint_addr & 0x80) ? EHCI_PID_IN : EHCI_PID_OUT; // PID for TD under this endpoint
 
 }
