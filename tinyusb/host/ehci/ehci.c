@@ -248,7 +248,7 @@ tusb_error_t hcd_controller_reset(uint8_t hostid)
 //--------------------------------------------------------------------+
 // PIPE API
 //--------------------------------------------------------------------+
-static void queue_head_init(ehci_qhd_t *p_qhd, uint8_t dev_addr, uint16_t max_packet_size, uint8_t endpoint_addr, uint8_t xfer_type);
+static void init_qhd(ehci_qhd_t *p_qhd, uint8_t dev_addr, uint16_t max_packet_size, uint8_t endpoint_addr, uint8_t xfer_type);
 
 static inline ehci_qhd_t* const get_control_qhd(uint8_t dev_addr) ATTR_ALWAYS_INLINE ATTR_PURE ATTR_WARN_UNUSED_RESULT;
 static inline ehci_qtd_t* get_control_qtds(uint8_t dev_addr) ATTR_ALWAYS_INLINE ATTR_PURE ATTR_WARN_UNUSED_RESULT;
@@ -270,7 +270,7 @@ tusb_error_t  hcd_pipe_control_open(uint8_t dev_addr, uint8_t max_packet_size)
 {
   ehci_qhd_t * const p_qhd = get_control_qhd(dev_addr);
 
-  queue_head_init(p_qhd, dev_addr, max_packet_size, 0, TUSB_XFER_CONTROL);
+  init_qhd(p_qhd, dev_addr, max_packet_size, 0, TUSB_XFER_CONTROL);
 
   if (dev_addr != 0)
   {
@@ -284,7 +284,7 @@ tusb_error_t  hcd_pipe_control_open(uint8_t dev_addr, uint8_t max_packet_size)
 }
 
 // TODO subject to pure function
-static void queue_td_init(ehci_qtd_t* p_qtd, uint32_t data_ptr, uint16_t total_bytes)
+static void init_qtd(ehci_qtd_t* p_qtd, uint32_t data_ptr, uint16_t total_bytes)
 {
   memclr_(p_qtd, sizeof(ehci_qtd_t));
 
@@ -314,14 +314,14 @@ tusb_error_t  hcd_pipe_control_xfer(uint8_t dev_addr, tusb_std_request_t const *
   ehci_qtd_t *p_status     = p_setup + 2;
 
   //------------- SETUP Phase -------------//
-  queue_td_init(p_setup, (uint32_t) p_request, 8);
+  init_qtd(p_setup, (uint32_t) p_request, 8);
   p_setup->pid          = EHCI_PID_SETUP;
   p_setup->next.address = (uint32_t) p_data;
 
   //------------- DATA Phase -------------//
   if (p_request->wLength > 0)
   {
-    queue_td_init(p_data, (uint32_t) data, p_request->wLength);
+    init_qtd(p_data, (uint32_t) data, p_request->wLength);
     p_data->data_toggle = 1;
     p_data->pid         = p_request->bmRequestType.direction ? EHCI_PID_IN : EHCI_PID_OUT;
   }else
@@ -332,7 +332,7 @@ tusb_error_t  hcd_pipe_control_xfer(uint8_t dev_addr, tusb_std_request_t const *
   p_data->next.address = (uint32_t) p_status;
 
   //------------- STATUS Phase -------------//
-  queue_td_init(p_status, 0, 0); // zero-length data
+  init_qtd(p_status, 0, 0); // zero-length data
   p_status->int_on_complete = 1;
   p_status->data_toggle     = 1;
   p_status->pid             = p_request->bmRequestType.direction ? EHCI_PID_OUT : EHCI_PID_IN; // reverse direction of data phase
@@ -376,7 +376,7 @@ pipe_handle_t hcd_pipe_open(uint8_t dev_addr, tusb_descriptor_endpoint_t const *
   ASSERT( index < EHCI_MAX_QHD, null_handle);
 
   ehci_qhd_t * const p_qhd = &ehci_data.device[dev_addr].qhd[index];
-  queue_head_init(p_qhd, dev_addr, p_endpoint_desc->wMaxPacketSize, p_endpoint_desc->bEndpointAddress, p_endpoint_desc->bmAttributes.xfer);
+  init_qhd(p_qhd, dev_addr, p_endpoint_desc->wMaxPacketSize, p_endpoint_desc->bEndpointAddress, p_endpoint_desc->bmAttributes.xfer);
 
   ehci_qhd_t * list_head;
 
@@ -428,7 +428,7 @@ tusb_error_t  hcd_pipe_xfer(pipe_handle_t pipe_hdl, uint8_t buffer[], uint16_t t
   ehci_qhd_t *p_qhd = &ehci_data.device[pipe_hdl.dev_addr].qhd[pipe_hdl.index];
   ehci_qtd_t *p_qtd = &ehci_data.device[pipe_hdl.dev_addr].qtd[index];
 
-  queue_td_init(p_qtd, (uint32_t) buffer, total_bytes);
+  init_qtd(p_qtd, (uint32_t) buffer, total_bytes);
   p_qtd->pid = p_qhd->pid_non_control;
   p_qtd->int_on_complete = int_on_complete ? 1 : 0;
 
@@ -455,7 +455,7 @@ static inline ehci_qtd_t* get_control_qtds(uint8_t dev_addr)
 }
 
 // TODO subject to pure function
-static void queue_head_init(ehci_qhd_t *p_qhd, uint8_t dev_addr, uint16_t max_packet_size, uint8_t endpoint_addr, uint8_t xfer_type)
+static void init_qhd(ehci_qhd_t *p_qhd, uint8_t dev_addr, uint16_t max_packet_size, uint8_t endpoint_addr, uint8_t xfer_type)
 {
   memclr_(p_qhd, sizeof(ehci_qhd_t));
 
