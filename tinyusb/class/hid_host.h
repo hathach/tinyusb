@@ -89,6 +89,7 @@ tusb_error_t hidh_keyboard_install(uint8_t dev_addr, uint8_t const *descriptor) 
 //--------------------------------------------------------------------+
 void         hidh_init(void) ATTR_WEAK;
 tusb_error_t hidh_install_subtask(uint8_t dev_addr, uint8_t const *descriptor, uint16_t *p_length) ATTR_WEAK ATTR_WARN_UNUSED_RESULT;
+void hidh_isr(pipe_handle_t pipe_hdl) ATTR_WEAK;
 
 #endif
 

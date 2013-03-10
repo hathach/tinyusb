@@ -152,6 +152,7 @@ typedef uint8_t  tusbh_device_status_t;
 typedef struct {
   void (* const init) (void);
   tusb_error_t (* const install_subtask)(uint8_t, uint8_t const *, uint16_t*);
+  void (* const isr) (pipe_handle_t);
 } class_driver_t;
 //--------------------------------------------------------------------+
 // INTERNAL OBJECT & FUNCTION DECLARATION

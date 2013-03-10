@@ -57,12 +57,14 @@ class_driver_t const usbh_class_drivers[TUSB_CLASS_MAX_CONSEC_NUMBER] =
 {
     [TUSB_CLASS_HID] = {
         .init = hidh_init,
-        .install_subtask = hidh_install_subtask
+        .install_subtask = hidh_install_subtask,
+        .isr = hidh_isr
     },
 
     [TUSB_CLASS_MSC] = {
         .init = msch_init,
-        .install_subtask = msch_install_subtask
+        .install_subtask = msch_install_subtask,
+        .isr = msch_isr
     }
 };
 
@@ -114,6 +116,11 @@ tusb_error_t usbh_init(void)
   }
 
   return TUSB_ERROR_NONE;
+}
+
+void usbh_isr(pipe_handle_t pipe_hdl, uint8_t class_code)
+{
+
 }
 
 // function called within a task, requesting os blocking services, subtask input parameter must be static/global variables
