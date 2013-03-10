@@ -106,7 +106,7 @@ void test_queue_send(void)
 //--------------------------------------------------------------------+
 // TASK SEMAPHORE
 //--------------------------------------------------------------------+
-void sample_task_semaphore(void)
+tusb_error_t sample_task_semaphore(void)
 {
   tusb_error_t error = TUSB_ERROR_NONE;
 
@@ -165,7 +165,7 @@ void test_task_with_semaphore(void)
 //--------------------------------------------------------------------+
 // TASK SEMAPHORE
 //--------------------------------------------------------------------+
-void sample_task_with_queue(void)
+tusb_error_t sample_task_with_queue(void)
 {
   uint32_t data;
   tusb_error_t error;
@@ -237,7 +237,7 @@ void flow_control_error_handler(void)
   statements[5]++;
 }
 
-void sample_task_flow_control(void)
+tusb_error_t sample_task_flow_control(void)
 {
   tusb_error_t error;
 

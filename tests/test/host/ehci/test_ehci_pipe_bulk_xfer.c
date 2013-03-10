@@ -46,6 +46,7 @@
 #include "mock_usbh_hcd.h"
 #include "ehci.h"
 #include "test_ehci.h"
+#include "ehci_controller.h"
 
 extern ehci_data_t ehci_data;
 usbh_device_info_t usbh_device_info_pool[TUSB_CFG_HOST_DEVICE_MAX+1];
@@ -166,7 +167,7 @@ void test_bulk_xfer_double(void)
   hcd_pipe_xfer(pipe_hdl_bulk, data2, sizeof(data2), true);
 
   ehci_qtd_t* p_head = p_qhd_bulk->p_qtd_list_head;
-  ehci_qtd_t* p_tail = p_qhd_bulk->p_qtd_list_head;
+  ehci_qtd_t* p_tail = p_qhd_bulk->p_qtd_list_tail;
 
   //------------- list head -------------//
   TEST_ASSERT_NOT_NULL(p_head);
@@ -177,9 +178,32 @@ void test_bulk_xfer_double(void)
   TEST_ASSERT_FALSE(p_head->int_on_complete);
 
   //------------- list tail -------------//
+  TEST_ASSERT_NOT_NULL(p_tail);
+  verify_qtd(p_tail, data2, sizeof(data2));
+  TEST_ASSERT_EQUAL_HEX( align32(p_head->next.address), p_tail);
+  TEST_ASSERT_EQUAL(EHCI_PID_IN, p_tail->pid);
+  TEST_ASSERT_TRUE(p_tail->next.terminate);
+  TEST_ASSERT_TRUE(p_tail->int_on_complete);
 }
 
-//void test_bulk_xfer_isr(void)
-//{
-//
-//}
+void test_bulk_xfer_isr(void)
+{
+  hcd_pipe_xfer(pipe_hdl_bulk, xfer_data, sizeof(xfer_data), false);
+  hcd_pipe_xfer(pipe_hdl_bulk, data2, sizeof(data2), true);
+
+  ehci_qtd_t* p_head = p_qhd_bulk->p_qtd_list_head;
+  ehci_qtd_t* p_tail = p_qhd_bulk->p_qtd_list_tail;
+
+  ehci_controller_run(hostid);
+
+  usbh_isr_Expect(pipe_hdl_bulk, TUSB_CLASS_MSC);
+
+  //------------- Code Under Test -------------//
+  hcd_isr(hostid);
+
+  TEST_ASSERT_TRUE(p_qhd_bulk->qtd_overlay.next.terminate);
+  TEST_ASSERT_FALSE(p_head->used);
+  TEST_ASSERT_FALSE(p_tail->used);
+  TEST_ASSERT_NULL(p_qhd_bulk->p_qtd_list_head);
+  TEST_ASSERT_NULL(p_qhd_bulk->p_qtd_list_tail);
+}
