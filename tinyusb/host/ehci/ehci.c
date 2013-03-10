@@ -134,9 +134,92 @@ tusb_error_t hcd_init(void)
   return TUSB_ERROR_NONE;
 }
 
+//--------------------------------------------------------------------+
+// EHCI Interrupt Handler
+//--------------------------------------------------------------------+
+static inline uint8_t get_qhd_index(ehci_qhd_t * p_qhd) ATTR_ALWAYS_INLINE ATTR_PURE;
+static inline uint8_t get_qhd_index(ehci_qhd_t * p_qhd)
+{
+  return p_qhd - ehci_data.device[p_qhd->device_address].qhd;
+}
+
+void async_list_process_isr(ehci_qhd_t * const async_head, ehci_registers_t * const regs)
+{
+  ehci_qhd_t *p_qhd = async_head;
+  do
+  {
+    if ( p_qhd->qtd_overlay.halted )
+    {
+      // TODO invoke some error callback if not async head
+    } else
+    {
+      // free all TDs from the head td to the first active TD
+      while(p_qhd->p_qtd_list_head != NULL && !p_qhd->p_qtd_list_head->active)
+      {
+        // TODO check halted TD
+        if (p_qhd->p_qtd_list_head->int_on_complete) // end of request
+        {
+          pipe_handle_t pipe_hdl = { .dev_addr = p_qhd->device_address };
+          if (p_qhd->endpoint_number) // if not Control, can only be Bulk
+          {
+            pipe_hdl.xfer_type = TUSB_XFER_BULK;
+            pipe_hdl.index = get_qhd_index(p_qhd);
+          }
+          usbh_isr( pipe_hdl, p_qhd->class_code); // call USBH call back
+        }
+        p_qhd->p_qtd_list_head->used = 0; // free QTD
+
+        if (p_qhd->p_qtd_list_head == p_qhd->p_qtd_list_tail) // last TD --> make it NULL
+        {
+          p_qhd->p_qtd_list_head = p_qhd->p_qtd_list_tail = NULL;
+        }else
+        {
+          p_qhd->p_qtd_list_head = (ehci_qtd_t*) align32(p_qhd->p_qtd_list_head->next.address);
+        }
+      }
+    }
+    p_qhd = (ehci_qhd_t*) align32(p_qhd->next.address);
+  }while(p_qhd != async_head); // stop if loop around
+}
+
+//------------- Host Controller Driver's Interrupt Handler -------------//
+// TODO this isr is not properly go through TDD
 void hcd_isr(uint8_t hostid)
 {
+  ehci_registers_t* const regs = get_operational_register(hostid);
 
+  uint32_t int_status = regs->usb_sts & regs->usb_int_enable;
+
+  if (int_status == 0)
+    return;
+
+  if (int_status & EHCI_INT_MASK_ERROR)
+  {
+    // TODO something going wrong
+  }
+
+  //------------- some QTD/SITD/ITD with IOC set is completed -------------//
+  if (int_status & EHCI_INT_MASK_NXP_ASYNC)
+  {
+    async_list_process_isr(get_async_head(hostid), regs);
+  }
+
+  if (int_status & EHCI_INT_MASK_NXP_PERIODIC)
+  {
+
+  }
+
+  if (int_status & EHCI_INT_MASK_PORT_CHANGE)
+  {
+
+  }
+
+  if (int_status & EHCI_INT_MASK_ASYNC_ADVANCE)
+  {
+
+  }
+
+  regs->usb_sts |= regs->usb_sts; // Acknowledge interrupt & clear it
 }
 
 //--------------------------------------------------------------------+
@@ -151,9 +234,10 @@ tusb_error_t hcd_controller_init(uint8_t hostid)
   regs->usb_int_enable = 0;                 // 1. disable all the interrupt
   regs->usb_sts        = EHCI_INT_MASK_ALL; // 2. clear all status
   regs->usb_int_enable =
-      /*EHCI_INT_MASK_USB |*/ EHCI_INT_MASK_ERROR | EHCI_INT_MASK_PORT_CHANGE | EHCI_INT_MASK_ASYNC_ADVANCE
-#if 1 // TODO enable usbint olny
-      | EHCI_INT_MASK_NXP_ASYNC | EHCI_INT_MASK_NXP_PERIODIC
+      EHCI_INT_MASK_ERROR | EHCI_INT_MASK_PORT_CHANGE
+      | EHCI_INT_MASK_ASYNC_ADVANCE | EHCI_INT_MASK_NXP_ASYNC
+#if EHCI_PERIODIC_LIST
+      | EHCI_INT_MASK_NXP_PERIODIC
 #endif
       ;
 
@@ -256,33 +340,6 @@ static inline ehci_qtd_t* get_control_qtds(uint8_t dev_addr) ATTR_ALWAYS_INLINE 
 //--------------------------------------------------------------------+
 // CONTROL PIPE API
 //--------------------------------------------------------------------+
-
-
-static inline void list_insert(ehci_link_t *current, ehci_link_t *new, uint8_t new_type) ATTR_ALWAYS_INLINE;
-static inline void list_insert(ehci_link_t *current, ehci_link_t *new, uint8_t new_type)
-{
-  new->address = current->address;
-  current->address = (uint32_t) new;
-  current->type = new_type;
-}
-
-tusb_error_t  hcd_pipe_control_open(uint8_t dev_addr, uint8_t max_packet_size)
-{
-  ehci_qhd_t * const p_qhd = get_control_qhd(dev_addr);
-
-  init_qhd(p_qhd, dev_addr, max_packet_size, 0, TUSB_XFER_CONTROL);
-
-  if (dev_addr != 0)
-  {
-    //------------- insert to async list -------------//
-    // TODO might need to to disable async list first
-    list_insert( (ehci_link_t*) get_async_head(usbh_device_info_pool[dev_addr].core_id),
-                 (ehci_link_t*) p_qhd, EHCI_QUEUE_ELEMENT_QHD);
-  }
-
-  return TUSB_ERROR_NONE;
-}
-
 // TODO subject to pure function
 static void init_qtd(ehci_qtd_t* p_qtd, uint32_t data_ptr, uint16_t total_bytes)
 {
@@ -305,6 +362,45 @@ static void init_qtd(ehci_qtd_t* p_qtd, uint32_t data_ptr, uint16_t total_bytes)
   }
 }
 
+static inline void list_insert(ehci_link_t *current, ehci_link_t *new, uint8_t new_type) ATTR_ALWAYS_INLINE;
+static inline void list_insert(ehci_link_t *current, ehci_link_t *new, uint8_t new_type)
+{
+  new->address = current->address;
+  current->address = (uint32_t) new;
+  current->type = new_type;
+}
+
+static inline void insert_qtd_to_qhd(ehci_qhd_t *p_qhd, ehci_qtd_t *p_qtd_new) ATTR_ALWAYS_INLINE;
+static inline void insert_qtd_to_qhd(ehci_qhd_t *p_qhd, ehci_qtd_t *p_qtd_new)
+{
+  if (p_qhd->p_qtd_list_head == NULL) // empty list
+  {
+    p_qhd->p_qtd_list_head               = p_qhd->p_qtd_list_tail = p_qtd_new;
+    p_qhd->qtd_overlay.next.address      = (uint32_t) p_qhd->p_qtd_list_head;
+  }else
+  {
+    p_qhd->p_qtd_list_tail->next.address = (uint32_t) p_qtd_new;
+    p_qhd->p_qtd_list_tail               = p_qtd_new;
+  }
+}
+
+tusb_error_t  hcd_pipe_control_open(uint8_t dev_addr, uint8_t max_packet_size)
+{
+  ehci_qhd_t * const p_qhd = get_control_qhd(dev_addr);
+
+  init_qhd(p_qhd, dev_addr, max_packet_size, 0, TUSB_XFER_CONTROL);
+
+  if (dev_addr != 0)
+  {
+    //------------- insert to async list -------------//
+    // TODO might need to to disable async list first
+    list_insert( (ehci_link_t*) get_async_head(usbh_device_info_pool[dev_addr].core_id),
+                 (ehci_link_t*) p_qhd, EHCI_QUEUE_ELEMENT_QHD);
+  }
+
+  return TUSB_ERROR_NONE;
+}
+
 tusb_error_t  hcd_pipe_control_xfer(uint8_t dev_addr, tusb_std_request_t const * p_request, uint8_t data[])
 {
   ehci_qhd_t * const p_qhd = get_control_qhd(dev_addr);
@@ -317,6 +413,7 @@ tusb_error_t  hcd_pipe_control_xfer(uint8_t dev_addr, tusb_std_request_t const *
   init_qtd(p_setup, (uint32_t) p_request, 8);
   p_setup->pid          = EHCI_PID_SETUP;
   p_setup->next.address = (uint32_t) p_data;
+  insert_qtd_to_qhd(p_qhd, p_setup);
 
   //------------- DATA Phase -------------//
   if (p_request->wLength > 0)
@@ -324,6 +421,7 @@ tusb_error_t  hcd_pipe_control_xfer(uint8_t dev_addr, tusb_std_request_t const *
     init_qtd(p_data, (uint32_t) data, p_request->wLength);
     p_data->data_toggle = 1;
     p_data->pid         = p_request->bmRequestType.direction ? EHCI_PID_IN : EHCI_PID_OUT;
+    insert_qtd_to_qhd(p_qhd, p_data);
   }else
   {
     p_data = p_setup;
@@ -337,10 +435,7 @@ tusb_error_t  hcd_pipe_control_xfer(uint8_t dev_addr, tusb_std_request_t const *
   p_status->data_toggle     = 1;
   p_status->pid             = p_request->bmRequestType.direction ? EHCI_PID_OUT : EHCI_PID_IN; // reverse direction of data phase
   p_status->next.terminate  = 1;
-
-  //------------- hook TD List to Queue Head -------------//
-  p_qhd->p_qtd_list_head          = p_setup;
-  p_qhd->qtd_overlay.next.address = (uint32_t) p_setup;
+  insert_qtd_to_qhd(p_qhd, p_status);
 
   return TUSB_ERROR_NONE;
 }
@@ -398,19 +493,6 @@ pipe_handle_t hcd_pipe_open(uint8_t dev_addr, tusb_descriptor_endpoint_t const *
   return (pipe_handle_t) { .dev_addr = dev_addr, .xfer_type = p_endpoint_desc->bmAttributes.xfer, .index = index};
 }
 
-static inline void insert_qtd_to_qhd(ehci_qhd_t *p_qhd, ehci_qtd_t *p_qtd_new) ATTR_ALWAYS_INLINE;
-static inline void insert_qtd_to_qhd(ehci_qhd_t *p_qhd, ehci_qtd_t *p_qtd_new)
-{
-  if (p_qhd->p_qtd_list_head == NULL) // empty list
-  {
-    p_qhd->p_qtd_list_head               = p_qhd->p_qtd_list_tail = p_qtd_new;
-    p_qhd->qtd_overlay.next.address      = (uint32_t) p_qhd->p_qtd_list_head;
-  }else
-  {
-    p_qhd->p_qtd_list_tail->next.address = (uint32_t) p_qtd_new;
-    p_qhd->p_qtd_list_tail               = p_qtd_new;
-  }
-}
 
 
 tusb_error_t  hcd_pipe_xfer(pipe_handle_t pipe_hdl, uint8_t buffer[], uint16_t total_bytes, bool int_on_complete)

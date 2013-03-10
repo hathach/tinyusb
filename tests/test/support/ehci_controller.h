@@ -1,7 +1,7 @@
 /*
- * usbh_hcd.h
+ * ehci_controller.h
  *
- *  Created on: Feb 4, 2013
+ *  Created on: Mar 10, 2013
  *      Author: hathach
  */
 
@@ -48,72 +48,19 @@
  *  @{
  */
 
-#ifndef _TUSB_USBH_HCD_H_
-#define _TUSB_USBH_HCD_H_
+#ifndef _TUSB_EHCI_CONTROLLER_H_
+#define _TUSB_EHCI_CONTROLLER_H_
 
 #ifdef __cplusplus
  extern "C" {
 #endif
 
-//--------------------------------------------------------------------+
-// INCLUDE
-//--------------------------------------------------------------------+
-#include "common/common.h"
-
-#ifdef _TEST_
-#include "hcd.h"
-#include "osal.h"
-#endif
-
-//--------------------------------------------------------------------+
-// USBH
-//--------------------------------------------------------------------+
-typedef struct ATTR_ALIGNED(4){
-  uint8_t core_id;
-  uint8_t hub_addr;
-  uint8_t hub_port;
-  uint8_t speed;
-} usbh_enumerate_t;
-
-typedef struct { // TODO internal structure, re-order members
-  //------------- port info -------------//
-  uint8_t core_id;
-  uint8_t hub_addr;
-  uint8_t hub_port;
-  uint8_t speed;
-
-  //------------- device descriptor info -------------//
-  uint16_t vendor_id;
-  uint16_t product_id;
-  uint8_t  configure_count; // bNumConfigurations alias
-
-  //------------- configuration descriptor info -------------//
-  uint8_t interface_count; // bNumInterfaces alias
-
-  uint8_t status; // value from enum tusbh_device_status_
-
-//  pipe_handle_t pipe_control; NOTE: use device address/handle instead
-  tusb_std_request_t control_request;
-  OSAL_SEM_DEF(semaphore);
-  osal_semaphore_handle_t sem_hdl;
-
-#if 0 // TODO allow configure for vendor/product
-  struct {
-    uint8_t interface_count;
-    uint8_t attributes;
-  } configuration;
-#endif
-
-} usbh_device_info_t;
-
-extern usbh_device_info_t usbh_device_info_pool[TUSB_CFG_HOST_DEVICE_MAX+1]; // including zero-address
-
-void usbh_isr(pipe_handle_t pipe_hdl, uint8_t class_code);
+void ehci_controller_run(uint8_t hostid);
 
 #ifdef __cplusplus
  }
 #endif
 
-#endif /* _TUSB_USBH_HCD_H_ */
+#endif /* _TUSB_EHCI_CONTROLLER_H_ */
 
 /** @} */

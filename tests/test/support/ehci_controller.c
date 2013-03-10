@@ -1,7 +1,7 @@
 /*
- * usbh_hcd.h
+ * ehci_controller.c
  *
- *  Created on: Feb 4, 2013
+ *  Created on: Mar 9, 2013
  *      Author: hathach
  */
 
@@ -35,85 +35,44 @@
  * This file is part of the tiny usb stack.
  */
 
-/** \file
- *  \brief TBD
- *
- *  \note TBD
- */
-
-/** \ingroup TBD
- *  \defgroup TBD
- *  \brief TBD
- *
- *  @{
- */
-
-#ifndef _TUSB_USBH_HCD_H_
-#define _TUSB_USBH_HCD_H_
-
-#ifdef __cplusplus
- extern "C" {
-#endif
-
 //--------------------------------------------------------------------+
 // INCLUDE
 //--------------------------------------------------------------------+
-#include "common/common.h"
-
-#ifdef _TEST_
-#include "hcd.h"
-#include "osal.h"
-#endif
+#include "unity.h"
+#include "tusb_option.h"
+#include "errors.h"
+#include "binary.h"
+#include "hal.h"
+#include "ehci.h"
 
 //--------------------------------------------------------------------+
-// USBH
+// MACRO CONSTANT TYPEDEF
 //--------------------------------------------------------------------+
-typedef struct ATTR_ALIGNED(4){
-  uint8_t core_id;
-  uint8_t hub_addr;
-  uint8_t hub_port;
-  uint8_t speed;
-} usbh_enumerate_t;
+extern ehci_data_t ehci_data;
 
-typedef struct { // TODO internal structure, re-order members
-  //------------- port info -------------//
-  uint8_t core_id;
-  uint8_t hub_addr;
-  uint8_t hub_port;
-  uint8_t speed;
+//--------------------------------------------------------------------+
+// IMPLEMENTATION
+//--------------------------------------------------------------------+
+void ehci_controller_run(uint8_t hostid)
+{
+  //------------- Async List -------------//
+  ehci_registers_t* const regs = get_operational_register(hostid);
 
-  //------------- device descriptor info -------------//
-  uint16_t vendor_id;
-  uint16_t product_id;
-  uint8_t  configure_count; // bNumConfigurations alias
+  ehci_qhd_t *p_qhd = (ehci_qhd_t*) regs->async_list_base;
+  do
+  {
+    if ( !p_qhd->qtd_overlay.halted )
+    {
+      while(!p_qhd->qtd_overlay.next.terminate)
+      {
+        ehci_qtd_t* p_qtd = (ehci_qtd_t*) align32(p_qhd->qtd_overlay.next.address);
+        p_qtd->active = 0;
+        p_qhd->qtd_overlay = *p_qtd;
+      }
+    }
+    p_qhd = (ehci_qhd_t*) align32(p_qhd->next.address);
+  }while(p_qhd != get_async_head(hostid)); // stop if loop around
+  //------------- Period List -------------//
 
-  //------------- configuration descriptor info -------------//
-  uint8_t interface_count; // bNumInterfaces alias
-
-  uint8_t status; // value from enum tusbh_device_status_
-
-//  pipe_handle_t pipe_control; NOTE: use device address/handle instead
-  tusb_std_request_t control_request;
-  OSAL_SEM_DEF(semaphore);
-  osal_semaphore_handle_t sem_hdl;
-
-#if 0 // TODO allow configure for vendor/product
-  struct {
-    uint8_t interface_count;
-    uint8_t attributes;
-  } configuration;
-#endif
-
-} usbh_device_info_t;
-
-extern usbh_device_info_t usbh_device_info_pool[TUSB_CFG_HOST_DEVICE_MAX+1]; // including zero-address
-
-void usbh_isr(pipe_handle_t pipe_hdl, uint8_t class_code);
-
-#ifdef __cplusplus
- }
-#endif
-
-#endif /* _TUSB_USBH_HCD_H_ */
-
-/** @} */
+  regs->usb_sts = EHCI_INT_MASK_NXP_ASYNC;
+}

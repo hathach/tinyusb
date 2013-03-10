@@ -43,7 +43,7 @@
 #include "hal.h"
 #include "mock_osal.h"
 #include "hcd.h"
-#include "usbh_hcd.h"
+#include "mock_usbh_hcd.h"
 #include "ehci.h"
 
 extern ehci_data_t ehci_data;

@@ -43,9 +43,10 @@
 #include "hal.h"
 #include "mock_osal.h"
 #include "hcd.h"
-#include "usbh_hcd.h"
+#include "mock_usbh_hcd.h"
 #include "ehci.h"
 #include "test_ehci.h"
+#include "ehci_controller.h"
 
 extern ehci_data_t ehci_data;
 usbh_device_info_t usbh_device_info_pool[TUSB_CFG_HOST_DEVICE_MAX+1];
@@ -199,6 +200,9 @@ void test_control_xfer_get(void)
   TEST_ASSERT_TRUE(p_status->data_toggle);
   TEST_ASSERT_EQUAL(EHCI_PID_OUT, p_status->pid);
   TEST_ASSERT_TRUE(p_status->next.terminate);
+
+  TEST_ASSERT_EQUAL_HEX(p_setup, p_qhd->p_qtd_list_head);
+  TEST_ASSERT_EQUAL_HEX(p_status, p_qhd->p_qtd_list_tail);
 }
 
 void test_control_xfer_set(void)
@@ -227,4 +231,32 @@ void test_control_xfer_set(void)
   TEST_ASSERT_TRUE(p_status->data_toggle);
   TEST_ASSERT_EQUAL(EHCI_PID_IN, p_status->pid);
   TEST_ASSERT_TRUE(p_status->next.terminate);
+
+  TEST_ASSERT_EQUAL_HEX(p_setup, p_qhd->p_qtd_list_head);
+  TEST_ASSERT_EQUAL_HEX(p_status, p_qhd->p_qtd_list_tail);
+}
+
+void test_control_xfer_isr(void)
+{
+  ehci_qhd_t * const p_qhd = &ehci_data.device[dev_addr].control.qhd;
+  hcd_pipe_control_open(dev_addr, control_max_packet_size);
+
+  hcd_pipe_control_xfer(dev_addr, &request_get_dev_desc, xfer_data);
+  ehci_controller_run(hostid);
+
+  TEST_ASSERT_EQUAL_HEX(async_head, get_operational_register(hostid)->async_list_base);
+  TEST_ASSERT_EQUAL_HEX((uint32_t) p_qhd, align32(async_head->next.address));
+  usbh_isr_Expect(((pipe_handle_t){.dev_addr = dev_addr}), 0);
+
+  //------------- Code Under TEST -------------//
+  printf("control head = %x\n", p_qhd);
+  hcd_isr(hostid);
+
+  TEST_ASSERT_NULL(p_qhd->p_qtd_list_head);
+  TEST_ASSERT_NULL(p_qhd->p_qtd_list_tail);
+
+  TEST_ASSERT_FALSE(p_setup->used);
+  TEST_ASSERT_FALSE(p_data->used);
+  TEST_ASSERT_FALSE(p_status->used);
+
 }
