@@ -156,6 +156,15 @@ tusb_error_t usbh_control_xfer_subtask(uint8_t dev_addr, tusb_std_request_t cons
   OSAL_SUBTASK_END
 }
 
+tusb_error_t usbh_pipe_control_open(uint8_t dev_addr, uint8_t max_packet_size)
+{
+  osal_semaphore_reset( usbh_device_info_pool[dev_addr].sem_hdl );
+
+  ASSERT_STATUS( hcd_pipe_control_open(dev_addr, max_packet_size) );
+
+  return TUSB_ERROR_NONE;
+}
+
 //--------------------------------------------------------------------+
 // ENUMERATION TASK
 //--------------------------------------------------------------------+
@@ -180,7 +189,7 @@ OSAL_TASK_DECLARE(usbh_enumeration_task)
   usbh_device_info_pool[0].hub_port = enum_entry.hub_port;
   usbh_device_info_pool[0].speed    = enum_entry.speed;
 
-  TASK_ASSERT_STATUS( hcd_pipe_control_open(0, 8) );
+  TASK_ASSERT_STATUS( usbh_pipe_control_open(0, 8) );
 
   //------------- Get first 8 bytes of device descriptor to get Control Endpoint Size -------------//
   OSAL_SUBTASK_INVOKED_AND_WAIT(
@@ -223,7 +232,7 @@ OSAL_TASK_DECLARE(usbh_enumeration_task)
   hcd_pipe_control_close(0);
 
   // open control pipe for new address
-  TASK_ASSERT_STATUS ( hcd_pipe_control_open(new_addr, ((tusb_descriptor_device_t*) enum_data_buffer)->bMaxPacketSize0 ) );
+  TASK_ASSERT_STATUS ( usbh_pipe_control_open(new_addr, ((tusb_descriptor_device_t*) enum_data_buffer)->bMaxPacketSize0 ) );
 
   //------------- Get full device descriptor -------------//
   OSAL_SUBTASK_INVOKED_AND_WAIT(

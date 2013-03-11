@@ -178,8 +178,8 @@ static inline  tusb_error_t osal_semaphore_post(osal_semaphore_handle_t const se
   return TUSB_ERROR_NONE;
 }
 
-static inline void osal_sempahore_reset(osal_semaphore_handle_t const sem_hdl) ATTR_ALWAYS_INLINE;
-static inline void osal_sempahore_reset(osal_semaphore_handle_t const sem_hdl)
+static inline void osal_semaphore_reset(osal_semaphore_handle_t const sem_hdl) ATTR_ALWAYS_INLINE;
+static inline void osal_semaphore_reset(osal_semaphore_handle_t const sem_hdl)
 {
   (*sem_hdl) = 0;
 }
