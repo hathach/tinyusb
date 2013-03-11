@@ -90,19 +90,11 @@ typedef struct { // TODO internal structure, re-order members
   //------------- configuration descriptor info -------------//
   uint8_t interface_count; // bNumInterfaces alias
 
-  uint8_t status; // value from enum tusbh_device_status_
+  uint8_t status;          // value from enum tusbh_device_status_
 
-//  pipe_handle_t pipe_control; NOTE: use device address/handle instead
   tusb_std_request_t control_request;
   OSAL_SEM_DEF(semaphore);
   osal_semaphore_handle_t sem_hdl;
-
-#if 0 // TODO allow configure for vendor/product
-  struct {
-    uint8_t interface_count;
-    uint8_t attributes;
-  } configuration;
-#endif
 
 } usbh_device_info_t;
 

@@ -147,6 +147,9 @@ typedef void* osal_semaphore_handle_t;
 #define OSAL_SEM_DEF(name)\
   osal_semaphore_t name
 
+#define OSAL_SEM_REF(name)\
+  &name
+
 osal_semaphore_handle_t osal_semaphore_create(osal_semaphore_t * const sem);
 void osal_semaphore_wait(osal_semaphore_handle_t const sem_hdl, uint32_t msec, tusb_error_t *p_error);
 tusb_error_t osal_semaphore_post(osal_semaphore_handle_t const sem_hdl);

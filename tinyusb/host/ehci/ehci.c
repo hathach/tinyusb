@@ -340,7 +340,6 @@ static inline ehci_qtd_t* get_control_qtds(uint8_t dev_addr) ATTR_ALWAYS_INLINE 
 //--------------------------------------------------------------------+
 // CONTROL PIPE API
 //--------------------------------------------------------------------+
-// TODO subject to pure function
 static void init_qtd(ehci_qtd_t* p_qtd, uint32_t data_ptr, uint16_t total_bytes)
 {
   memclr_(p_qtd, sizeof(ehci_qtd_t));
@@ -537,7 +536,6 @@ static inline ehci_qtd_t* get_control_qtds(uint8_t dev_addr)
 
 }
 
-// TODO subject to pure function
 static void init_qhd(ehci_qhd_t *p_qhd, uint8_t dev_addr, uint16_t max_packet_size, uint8_t endpoint_addr, uint8_t xfer_type)
 {
   memclr_(p_qhd, sizeof(ehci_qhd_t));

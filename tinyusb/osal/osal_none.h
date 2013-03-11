@@ -150,6 +150,7 @@ static inline uint32_t osal_tick_get(void)
 #define SUBTASK_ASSERT_STATUS_WITH_HANDLER(...)  TASK_ASSERT_STATUS_WITH_HANDLER(__VA_ARGS__)
 #define SUBTASK_ASSERT(...)                      TASK_ASSERT(__VA_ARGS__)
 #define SUBTASK_ASSERT_WITH_HANDLER(...)         TASK_ASSERT_WITH_HANDLER(__VA_ARGS__)
+
 //--------------------------------------------------------------------+
 // Semaphore API
 //--------------------------------------------------------------------+
@@ -175,6 +176,12 @@ static inline  tusb_error_t osal_semaphore_post(osal_semaphore_handle_t const se
   (*sem_hdl)++;
 
   return TUSB_ERROR_NONE;
+}
+
+static inline void osal_sempahore_reset(osal_semaphore_handle_t const sem_hdl) ATTR_ALWAYS_INLINE;
+static inline void osal_sempahore_reset(osal_semaphore_handle_t const sem_hdl)
+{
+  (*sem_hdl) = 0;
 }
 
 #define osal_semaphore_wait(sem_hdl, msec, p_error) \
@@ -240,6 +247,12 @@ static inline tusb_error_t osal_queue_send(osal_queue_handle_t const queue_hdl, 
   //TODO mutex unlock hal_interrupt_enable
 
   return TUSB_ERROR_NONE;
+}
+
+static inline void osal_queue_flush(osal_queue_handle_t const queue_hdl) ATTR_ALWAYS_INLINE;
+static inline void osal_queue_flush(osal_queue_handle_t const queue_hdl)
+{
+  queue_hdl->count = queue_hdl->rd_idx = queue_hdl->wr_idx = 0;
 }
 
 #define osal_queue_receive(queue_hdl, p_data, msec, p_error) \

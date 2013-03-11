@@ -87,6 +87,12 @@ void test_usbh_init_hcd_failed(void)
 void test_usbh_init_enum_task_create_failed(void)
 {
   hcd_init_ExpectAndReturn(TUSB_ERROR_NONE);
+  for (uint8_t i=0; i<TUSB_CFG_HOST_DEVICE_MAX; i++)
+  {
+    osal_semaphore_handle_t sem_hdl_dummy = 0x2233;
+    osal_semaphore_create_IgnoreAndReturn(sem_hdl_dummy);
+  }
+
   osal_task_create_IgnoreAndReturn(TUSB_ERROR_OSAL_TASK_FAILED);
   TEST_ASSERT_EQUAL(TUSB_ERROR_OSAL_TASK_FAILED, usbh_init());
 }
@@ -94,6 +100,13 @@ void test_usbh_init_enum_task_create_failed(void)
 void test_usbh_init_enum_queue_create_failed(void)
 {
   hcd_init_ExpectAndReturn(TUSB_ERROR_NONE);
+  for (uint8_t i=0; i<TUSB_CFG_HOST_DEVICE_MAX; i++)
+  {
+    osal_semaphore_handle_t sem_hdl_dummy = 0x2233;
+    osal_semaphore_create_IgnoreAndReturn(sem_hdl_dummy);
+  }
+
+
   osal_task_create_IgnoreAndReturn(TUSB_ERROR_NONE);
   osal_queue_create_IgnoreAndReturn(NULL);
   TEST_ASSERT_EQUAL(TUSB_ERROR_OSAL_QUEUE_FAILED, usbh_init());
@@ -118,12 +131,21 @@ void class_init_expect(void)
 
 void test_usbh_init_ok(void)
 {
-  osal_queue_handle_t dummy;
+  osal_queue_handle_t dummy = 0x1122;
+
 
   usbh_device_info_t device_info_zero[TUSB_CFG_HOST_DEVICE_MAX+1];
   memclr_(device_info_zero, sizeof(usbh_device_info_t)*(TUSB_CFG_HOST_DEVICE_MAX+1));
 
   hcd_init_ExpectAndReturn(TUSB_ERROR_NONE);
+
+  for (uint8_t i=0; i<TUSB_CFG_HOST_DEVICE_MAX; i++)
+  {
+    osal_semaphore_handle_t sem_hdl_dummy = 0x2233;
+    osal_semaphore_create_IgnoreAndReturn(sem_hdl_dummy);
+    device_info_zero[i].sem_hdl = sem_hdl_dummy;
+  }
+
   osal_task_create_IgnoreAndReturn(TUSB_ERROR_NONE);
   osal_queue_create_IgnoreAndReturn(dummy);
 

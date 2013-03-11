@@ -103,6 +103,13 @@ tusb_error_t usbh_init(void)
 
   ASSERT_STATUS( hcd_init() );
 
+  //------------- Semaphore for Control Pipe -------------//
+  for(uint8_t i=0; i<TUSB_CFG_HOST_DEVICE_MAX; i++)
+  {
+    usbh_device_info_pool[i].sem_hdl = osal_semaphore_create( OSAL_SEM_REF(usbh_device_info_pool[i].semaphore) );
+    ASSERT_PTR(usbh_device_info_pool[i].sem_hdl, TUSB_ERROR_OSAL_SEMAPHORE_FAILED);
+  }
+
   //------------- Enumeration & Reporter Task init -------------//
   ASSERT_STATUS( osal_task_create(&enum_task) );
   enum_queue_hdl = osal_queue_create(&enum_queue);
@@ -118,9 +125,19 @@ tusb_error_t usbh_init(void)
   return TUSB_ERROR_NONE;
 }
 
+// interrupt caused by a TD (with IOC=1) in pipe of class class_code
 void usbh_isr(pipe_handle_t pipe_hdl, uint8_t class_code)
 {
-
+  if (class_code == 0) // Control transfer
+  {
+    // TODO some semaphore posting
+  }else if (usbh_class_drivers[class_code].isr)
+  {
+    usbh_class_drivers[class_code].isr(pipe_hdl);
+  }else
+  {
+    ASSERT(false, (void) 0); // something wrong, no one claims the isr's source
+  }
 }
 
 // function called within a task, requesting os blocking services, subtask input parameter must be static/global variables
