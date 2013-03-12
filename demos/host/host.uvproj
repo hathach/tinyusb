@@ -50,7 +50,7 @@
           <CreateHexFile>0</CreateHexFile>
           <DebugInformation>1</DebugInformation>
           <BrowseInformation>1</BrowseInformation>
-          <ListingPath>.\</ListingPath>
+          <ListingPath>.\UV4Build\</ListingPath>
           <HexFormatSelection>1</HexFormatSelection>
           <Merge32K>0</Merge32K>
           <CreateBatchFile>0</CreateBatchFile>
@@ -139,7 +139,7 @@
             <RestoreTracepoints>1</RestoreTracepoints>
           </Target>
           <RunDebugAfterBuild>0</RunDebugAfterBuild>
-          <TargetSelection>1</TargetSelection>
+          <TargetSelection>7</TargetSelection>
           <SimDlls>
             <CpuDll></CpuDll>
             <CpuDllArguments></CpuDllArguments>
@@ -153,7 +153,7 @@
             <PeripheralDll></PeripheralDll>
             <PeripheralDllArguments></PeripheralDllArguments>
             <InitializationFile></InitializationFile>
-            <Driver>BIN\UL2CM3.DLL</Driver>
+            <Driver>Segger\JL2CM3.dll</Driver>
           </TargetDlls>
         </DebugOption>
         <Utilities>
@@ -162,11 +162,11 @@
             <UseExternalTool>0</UseExternalTool>
             <RunIndependent>0</RunIndependent>
             <UpdateFlashBeforeDebugging>1</UpdateFlashBeforeDebugging>
-            <Capability>0</Capability>
-            <DriverSelection>-1</DriverSelection>
+            <Capability>1</Capability>
+            <DriverSelection>4099</DriverSelection>
           </Flash1>
-          <Flash2>BIN\UL2CM3.DLL</Flash2>
-          <Flash3></Flash3>
+          <Flash2>Segger\JL2CM3.dll</Flash2>
+          <Flash3>"" ()</Flash3>
           <Flash4></Flash4>
         </Utilities>
         <TargetArmAds>
@@ -232,7 +232,7 @@
             <Ra2Chk>0</Ra2Chk>
             <Ra3Chk>0</Ra3Chk>
             <Im1Chk>1</Im1Chk>
-            <Im2Chk>0</Im2Chk>
+            <Im2Chk>1</Im2Chk>
             <OnChipMemories>
               <Ocm1>
                 <Type>0</Type>
@@ -280,17 +280,17 @@
                 <Size>0x0</Size>
               </XRAM>
               <OCR_RVCT1>
-                <Type>0</Type>
+                <Type>1</Type>
                 <StartAddress>0x0</StartAddress>
                 <Size>0x0</Size>
               </OCR_RVCT1>
               <OCR_RVCT2>
-                <Type>0</Type>
+                <Type>1</Type>
                 <StartAddress>0x0</StartAddress>
                 <Size>0x0</Size>
               </OCR_RVCT2>
               <OCR_RVCT3>
-                <Type>0</Type>
+                <Type>1</Type>
                 <StartAddress>0x0</StartAddress>
                 <Size>0x0</Size>
               </OCR_RVCT3>
@@ -347,10 +347,10 @@
             <uThumb>0</uThumb>
             <uSurpInc>0</uSurpInc>
             <VariousControls>
-              <MiscControls></MiscControls>
-              <Define></Define>
+              <MiscControls>--gnu --c99</MiscControls>
+              <Define>MCU=MCU_LPC43XX BOARD=BOARD_EA4357 CORE_M4</Define>
               <Undefine></Undefine>
-              <IncludePath>C:/Users/hathach/Dropbox/tinyusb/workspace/CMSISv2p10_LPC43xx_DriverLib/inc;C:/Users/hathach/Dropbox/tinyusb/workspace/tinyusb/demos/bsp;C:/Users/hathach/Dropbox/tinyusb/workspace/tinyusb/tinyusb</IncludePath>
+              <IncludePath>C:/Users/hathach/Dropbox/tinyusb/workspace/CMSISv2p10_LPC43xx_DriverLib/inc;C:/Users/hathach/Dropbox/tinyusb/workspace/tinyusb/demos/bsp;C:/Users/hathach/Dropbox/tinyusb/workspace/tinyusb/tinyusb;..\host</IncludePath>
             </VariousControls>
           </Cads>
           <Aads>
@@ -378,7 +378,7 @@
             <useFile>0</useFile>
             <TextAddressRange>0x1A000000</TextAddressRange>
             <DataAddressRange>0x10000000</DataAddressRange>
-            <ScatterFile></ScatterFile>
+            <ScatterFile>.\UV4Build\host.sct</ScatterFile>
             <IncludeLibs></IncludeLibs>
             <IncludeLibsPath></IncludeLibsPath>
             <Misc></Misc>
@@ -388,16 +388,6 @@
         </TargetArmAds>
       </TargetOption>
       <Groups>
-        <Group>
-          <GroupName>Startup</GroupName>
-          <Files>
-            <File>
-              <FileName>startup_LPC43xx_arm.s</FileName>
-              <FileType>2</FileType>
-              <FilePath>./Startup/startup_LPC43xx_arm.s</FilePath>
-            </File>
-          </Files>
-        </Group>
         <Group>
           <GroupName>bsp_boards</GroupName>
           <Files>
@@ -434,87 +424,17 @@
           </Files>
         </Group>
         <Group>
-          <GroupName>bsp_lpc11uxx</GroupName>
-          <Files>
-            <File>
-              <FileName>gpio.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>../bsp/lpc11uxx/gpio.c</FilePath>
-            </File>
-            <File>
-              <FileName>uart.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>../bsp/lpc11uxx/uart.c</FilePath>
-            </File>
-          </Files>
-        </Group>
-        <Group>
-          <GroupName>bsp_lpc11uxx_startup_xpresso</GroupName>
-          <Files>
-            <File>
-              <FileName>cr_startup_lpc11u.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>../bsp/lpc11uxx/startup_xpresso/cr_startup_lpc11u.c</FilePath>
-            </File>
-          </Files>
-        </Group>
-        <Group>
-          <GroupName>bsp_lpc13uxx</GroupName>
-          <Files>
-            <File>
-              <FileName>Serial.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>../bsp/lpc13uxx/Serial.c</FilePath>
-            </File>
-            <File>
-              <FileName>clkconfig.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>../bsp/lpc13uxx/clkconfig.c</FilePath>
-            </File>
-            <File>
-              <FileName>nmi.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>../bsp/lpc13uxx/nmi.c</FilePath>
-            </File>
-            <File>
-              <FileName>timer16.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>../bsp/lpc13uxx/timer16.c</FilePath>
-            </File>
-            <File>
-              <FileName>timer32.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>../bsp/lpc13uxx/timer32.c</FilePath>
-            </File>
-          </Files>
-        </Group>
-        <Group>
-          <GroupName>bsp_lpc13uxx_startup_xpresso</GroupName>
-          <Files>
-            <File>
-              <FileName>cr_startup_lpc13u.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>../bsp/lpc13uxx/startup_xpresso/cr_startup_lpc13u.c</FilePath>
-            </File>
-          </Files>
-        </Group>
-        <Group>
-          <GroupName>bsp_lpc43xx_startup_xpresso</GroupName>
-          <Files>
-            <File>
-              <FileName>cr_startup_lpc43xx.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>../bsp/lpc43xx/startup_xpresso/cr_startup_lpc43xx.c</FilePath>
-            </File>
-          </Files>
-        </Group>
-        <Group>
           <GroupName>host</GroupName>
           <Files>
             <File>
               <FileName>main.c</FileName>
               <FileType>1</FileType>
               <FilePath>./main.c</FilePath>
+            </File>
+            <File>
+              <FileName>tusb_config.h</FileName>
+              <FileType>5</FileType>
+              <FilePath>.\tusb_config.h</FilePath>
             </File>
           </Files>
         </Group>
@@ -531,16 +451,6 @@
         <Group>
           <GroupName>tinyusb_class</GroupName>
           <Files>
-            <File>
-              <FileName>cdc.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>../../tinyusb/class/cdc.c</FilePath>
-            </File>
-            <File>
-              <FileName>hid.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>../../tinyusb/class/hid.c</FilePath>
-            </File>
             <File>
               <FileName>hid_host.c</FileName>
               <FileType>1</FileType>
@@ -565,16 +475,6 @@
               <FileName>fifo.c</FileName>
               <FileType>1</FileType>
               <FilePath>../../tinyusb/common/fifo.c</FilePath>
-            </File>
-          </Files>
-        </Group>
-        <Group>
-          <GroupName>tinyusb_device</GroupName>
-          <Files>
-            <File>
-              <FileName>dcd.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>../../tinyusb/device/dcd.c</FilePath>
             </File>
           </Files>
         </Group>
@@ -630,6 +530,51 @@
               <FileName>osal_none.c</FileName>
               <FileType>1</FileType>
               <FilePath>../../tinyusb/osal/osal_none.c</FilePath>
+            </File>
+          </Files>
+        </Group>
+        <Group>
+          <GroupName>startup</GroupName>
+          <Files>
+            <File>
+              <FileName>startup_LPC43xx_arm.s</FileName>
+              <FileType>2</FileType>
+              <FilePath>..\bsp\lpc43xx\startup_keil\startup_LPC43xx_arm.s</FilePath>
+            </File>
+          </Files>
+        </Group>
+        <Group>
+          <GroupName>CMSISv2p10_LPC43xx_DriverLib</GroupName>
+          <Files>
+            <File>
+              <FileName>lpc43xx_uart.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\..\..\CMSISv2p10_LPC43xx_DriverLib\src\lpc43xx_uart.c</FilePath>
+            </File>
+            <File>
+              <FileName>lpc43xx_cgu.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\..\..\CMSISv2p10_LPC43xx_DriverLib\src\lpc43xx_cgu.c</FilePath>
+            </File>
+            <File>
+              <FileName>lpc43xx_gpio.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\..\..\CMSISv2p10_LPC43xx_DriverLib\src\lpc43xx_gpio.c</FilePath>
+            </File>
+            <File>
+              <FileName>lpc43xx_nvic.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\..\..\CMSISv2p10_LPC43xx_DriverLib\src\lpc43xx_nvic.c</FilePath>
+            </File>
+            <File>
+              <FileName>lpc43xx_scu.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\..\..\CMSISv2p10_LPC43xx_DriverLib\src\lpc43xx_scu.c</FilePath>
+            </File>
+            <File>
+              <FileName>system_LPC43xx.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\..\..\CMSISv2p10_LPC43xx_DriverLib\src\system_LPC43xx.c</FilePath>
             </File>
           </Files>
         </Group>
