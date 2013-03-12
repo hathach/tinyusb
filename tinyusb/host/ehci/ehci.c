@@ -413,7 +413,7 @@ static inline void insert_qtd_to_qhd(ehci_qhd_t *p_qhd, ehci_qtd_t *p_qtd_new)
   if (p_qhd->p_qtd_list_head == NULL) // empty list
   {
     p_qhd->p_qtd_list_head               = p_qhd->p_qtd_list_tail = p_qtd_new;
-    p_qhd->qtd_overlay.next.address      = (uint32_t) p_qhd->p_qtd_list_head;
+    p_qhd->qtd_overlay.next.address      = (uint32_t) p_qtd_new;
   }else
   {
     p_qhd->p_qtd_list_tail->next.address = (uint32_t) p_qtd_new;
@@ -450,7 +450,6 @@ tusb_error_t  hcd_pipe_control_xfer(uint8_t dev_addr, tusb_std_request_t const *
   init_qtd(p_setup, (uint32_t) p_request, 8);
   p_setup->pid          = EHCI_PID_SETUP;
   p_setup->next.address = (uint32_t) p_data;
-  insert_qtd_to_qhd(p_qhd, p_setup);
 
   //------------- DATA Phase -------------//
   if (p_request->wLength > 0)
@@ -458,12 +457,10 @@ tusb_error_t  hcd_pipe_control_xfer(uint8_t dev_addr, tusb_std_request_t const *
     init_qtd(p_data, (uint32_t) data, p_request->wLength);
     p_data->data_toggle = 1;
     p_data->pid         = p_request->bmRequestType.direction ? EHCI_PID_IN : EHCI_PID_OUT;
-    insert_qtd_to_qhd(p_qhd, p_data);
   }else
   {
     p_data = p_setup;
   }
-
   p_data->next.address = (uint32_t) p_status;
 
   //------------- STATUS Phase -------------//
@@ -472,7 +469,12 @@ tusb_error_t  hcd_pipe_control_xfer(uint8_t dev_addr, tusb_std_request_t const *
   p_status->data_toggle     = 1;
   p_status->pid             = p_request->bmRequestType.direction ? EHCI_PID_OUT : EHCI_PID_IN; // reverse direction of data phase
   p_status->next.terminate  = 1;
-  insert_qtd_to_qhd(p_qhd, p_status);
+
+  //------------- Attach TDs list to Control Endpoint -------------//
+  p_qhd->p_qtd_list_head = p_setup;
+  p_qhd->p_qtd_list_tail = p_status;
+
+  p_qhd->qtd_overlay.next.address = (uint32_t) p_setup;
 
   return TUSB_ERROR_NONE;
 }
@@ -576,7 +578,10 @@ static inline ehci_qtd_t* get_control_qtds(uint8_t dev_addr)
 
 static void init_qhd(ehci_qhd_t *p_qhd, uint8_t dev_addr, uint16_t max_packet_size, uint8_t endpoint_addr, uint8_t xfer_type)
 {
-  memclr_(p_qhd, sizeof(ehci_qhd_t));
+  if (dev_addr != 0)
+  {
+    memclr_(p_qhd, sizeof(ehci_qhd_t));
+  }
 
   p_qhd->device_address          = dev_addr;
   p_qhd->inactive_next_xact      = 0;
@@ -595,6 +600,9 @@ static void init_qhd(ehci_qhd_t *p_qhd, uint8_t dev_addr, uint16_t max_packet_si
     p_qhd->interrupt_smask         = (TUSB_SPEED_HIGH == usbh_device_info_pool[dev_addr].speed) ? 0xFF : 0x01;
     // Highspeed: ignored by Host Controller, Full/Low: 4.12.2.1 (EHCI) case 1 schedule complete split at 2,3,4 uframe
     p_qhd->non_hs_interrupt_cmask  = BIN8(11100);
+  }else
+  {
+    p_qhd->interrupt_smask = p_qhd->non_hs_interrupt_cmask = 0;
   }
 
   p_qhd->hub_address             = usbh_device_info_pool[dev_addr].hub_addr;

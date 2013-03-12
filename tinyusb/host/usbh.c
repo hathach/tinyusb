@@ -112,7 +112,7 @@ tusb_error_t usbh_init(void)
   ASSERT_STATUS( hcd_init() );
 
   //------------- Semaphore for Control Pipe -------------//
-  for(uint8_t i=0; i<TUSB_CFG_HOST_DEVICE_MAX; i++)
+  for(uint8_t i=0; i<TUSB_CFG_HOST_DEVICE_MAX+1; i++) // including address zero
   {
     usbh_device_info_pool[i].sem_hdl = osal_semaphore_create( OSAL_SEM_REF(usbh_device_info_pool[i].semaphore) );
     ASSERT_PTR(usbh_device_info_pool[i].sem_hdl, TUSB_ERROR_OSAL_SEMAPHORE_FAILED);

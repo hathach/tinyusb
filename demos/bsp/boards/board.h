@@ -63,20 +63,20 @@
 #define BOARD_NGX4330               3
 #define BOARD_EA4357                4
 
-#define PRINTF_TARGET_DEBUG_CONSOLE 0 // IDE semihosting console
-#define PRINTF_TARGET_UART          1
-#define PRINTF_TARGET_SWO           2 // aka SWV, ITM
+#define PRINTF_TARGET_DEBUG_CONSOLE 1 // IDE semihosting console
+#define PRINTF_TARGET_UART          2
+#define PRINTF_TARGET_SWO           3 // aka SWV, ITM
 
 #if BOARD == 0
- #error BOARD is not defined or supported yet
+  #error BOARD is not defined or supported yet
 #elif BOARD == BOARD_NGX4330
- #include "board_ngx4330.h"
+  #include "board_ngx4330.h"
 #elif BOARD == BOARD_LPCXPRESSO1347
- #include "board_lpcxpresso1347.h"
+  #include "board_lpcxpresso1347.h"
 #elif BOARD == BOARD_AT86RF2XX
- #include "board_at86rf2xx.h"
+  #include "board_at86rf2xx.h"
 #elif BOARD == BOARD_EA4357
- #include "board_ea4357.h"
+  #include "board_ea4357.h"
 #else
   #error BOARD is not defined or supported yet
 #endif

@@ -84,9 +84,6 @@ void board_init(void)
 #endif
 
 #if CFG_PRINTF_TARGET == PRINTF_TARGET_SWO
-	tttt
-//  LPC_IOCON->PIO0_9 &= ~0x07;    /*  UART I/O config */
-//  LPC_IOCON->PIO0_9 |= 0x03;     /* UART RXD */
 #endif
 }
 

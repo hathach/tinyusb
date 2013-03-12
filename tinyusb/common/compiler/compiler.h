@@ -58,6 +58,10 @@
 #else
   #define STATIC_ static
   #define INLINE_ inline
+
+  #if TUSB_CFG_DEBUG == 3
+    #define ATTR_ALWAYS_INLINE // no inline for debug = 3
+  #endif
 #endif
 
 
