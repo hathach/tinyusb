@@ -171,7 +171,7 @@ void usbh_isr(pipe_handle_t pipe_hdl, uint8_t class_code)
 {
   if (class_code == 0) // Control transfer
   {
-    // TODO some semaphore posting
+    osal_semaphore_post( usbh_device_info_pool[ pipe_hdl.dev_addr ].sem_hdl );
   }else if (usbh_class_drivers[class_code].isr)
   {
     usbh_class_drivers[class_code].isr(pipe_hdl);
@@ -183,7 +183,9 @@ void usbh_isr(pipe_handle_t pipe_hdl, uint8_t class_code)
 
 void usbh_device_plugged_isr(uint8_t hostid, tusb_speed_t speed)
 {
-
+  osal_queue_send(enum_queue_hdl,
+   *( (uint32_t*) ( &(usbh_enumerate_t){ .core_id = hostid, .speed = speed} ) )
+   );
 }
 
 void usbh_device_unplugged_isr(uint8_t hostid)

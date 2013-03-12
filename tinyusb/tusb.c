@@ -66,3 +66,13 @@ void tusb_isr(uint8_t controller_id)
 #endif
 
 }
+
+#if TUSB_CFG_OS == TUSB_OS_NONE
+// periodically/continuously called in the main loop
+void tusb_task_runner(void)
+{
+  #if MODE_HOST_SUPPORTED
+    usbh_enumeration_task(); // TODO prototype
+  #endif
+}
+#endif

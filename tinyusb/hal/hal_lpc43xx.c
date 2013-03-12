@@ -62,7 +62,7 @@ tusb_error_t hal_init()
   LPC_CREG->CREG0 &= ~(1<<5); /* Turn on the phy */
 
   //------------- reset controller & set role -------------//
-  hcd_controller_reset(0);
+  hcd_controller_reset(0); // TODO where to place prototype
   LPC_USB0->USBMODE_H = LPC43XX_USBMODE_HOST | (LPC43XX_USBMODE_VBUS_HIGH << 5);
 
   hal_interrupt_enable();

@@ -320,6 +320,7 @@ enum ehci_interrupt_mask_{
 };
 
 enum ehci_usbcmd_pos_ {
+  EHCI_USBCMD_POS_RUN_STOP               = 0,
   EHCI_USBCMD_POS_FRAMELIST_SZIE         = 2,
   EHCI_USBCMD_POS_PERIOD_ENABLE          = 4,
   EHCI_USBCMD_POS_ASYNC_ENABLE           = 5,

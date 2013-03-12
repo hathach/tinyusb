@@ -232,6 +232,7 @@ void hcd_isr(uint8_t hostid)
   if (int_status & EHCI_INT_MASK_ERROR)
   {
     // TODO something going wrong
+    ASM_BREAKPOINT;
   }
 
   //------------- some QTD/SITD/ITD with IOC set is completed -------------//
@@ -247,10 +248,8 @@ void hcd_isr(uint8_t hostid)
 
   if (int_status & EHCI_INT_MASK_PORT_CHANGE)
   {
-    printf("%s %d\n", __PRETTY_FUNCTION__, __LINE__);
     if (regs->portsc_bit.connect_status_change)
     {
-      printf("%s %d\n", __PRETTY_FUNCTION__, __LINE__);
       port_connect_status_isr(hostid);
     }
 
@@ -278,11 +277,10 @@ tusb_error_t hcd_controller_init(uint8_t hostid)
   regs->usb_sts        = EHCI_INT_MASK_ALL; // 2. clear all status
   regs->usb_int_enable =
       EHCI_INT_MASK_ERROR | EHCI_INT_MASK_PORT_CHANGE
-      | EHCI_INT_MASK_ASYNC_ADVANCE | EHCI_INT_MASK_NXP_ASYNC
 #if EHCI_PERIODIC_LIST
       | EHCI_INT_MASK_NXP_PERIODIC
 #endif
-      ;
+      | EHCI_INT_MASK_ASYNC_ADVANCE | EHCI_INT_MASK_NXP_ASYNC;
 
   //------------- Asynchronous List -------------//
   ehci_qhd_t * const async_head = get_async_head(hostid);
@@ -292,6 +290,7 @@ tusb_error_t hcd_controller_init(uint8_t hostid)
   async_head->next.type                       = EHCI_QUEUE_ELEMENT_QHD;
   async_head->head_list_flag                  = 1;
   async_head->qtd_overlay.halted              = 1; // inactive most of time
+  async_head->qtd_overlay.next.terminate      = 1; // TODO removed if verified
 
   regs->async_list_base = (uint32_t) async_head;
 
@@ -321,7 +320,7 @@ tusb_error_t hcd_controller_init(uint8_t hostid)
 
   //------------- USB CMD Register -------------//
 
-  regs->usb_cmd = BIT_(EHCI_USBCMD_POS_ASYNC_ENABLE)
+  regs->usb_cmd |= BIT_(EHCI_USBCMD_POS_RUN_STOP) | BIT_(EHCI_USBCMD_POS_ASYNC_ENABLE)
 #if EHCI_PERIODIC_LIST
                   | BIT_(EHCI_USBCMD_POS_PERIOD_ENABLE)
 #endif
@@ -329,6 +328,8 @@ tusb_error_t hcd_controller_init(uint8_t hostid)
                   | ((EHCI_CFG_FRAMELIST_SIZE_BITS >> 2) << EHCI_USBCMD_POS_NXP_FRAMELIST_SIZE_MSB);
 
   //------------- ConfigFlag Register (skip) -------------//
+
+  regs->portsc_bit.port_power = 1; // enable port power
 
   return TUSB_ERROR_NONE;
 }

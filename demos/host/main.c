@@ -24,6 +24,8 @@ int main(void)
   printf("reset\n");
   while (1)
   {
+    tusb_task_runner();
+
     if (current_tick + 30*1000 < system_ticks)
     {
       current_tick += 30*1000;

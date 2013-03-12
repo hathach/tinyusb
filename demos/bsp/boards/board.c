@@ -47,5 +47,6 @@ void SysTick_Handler (void)
 
 void check_failed(uint8_t *file, uint32_t line)
 {
-
+  (void) file;
+  (void) line;
 }
