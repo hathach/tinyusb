@@ -89,6 +89,7 @@
 // COMMON OPTIONS
 //--------------------------------------------------------------------+
 
+// level 3: ATTR_ALWAYS_INLINE is null,
 /// 0: no debug information 3: most debug information provided
 #ifndef TUSB_CFG_DEBUG
   #define TUSB_CFG_DEBUG 3
