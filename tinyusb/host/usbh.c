@@ -47,10 +47,14 @@
 #include "tusb.h"
 #include "usbh_hcd.h"
 
+//TODO temporarily
+#if TUSB_CFG_OS == TUSB_OS_NONE && !defined(_TEST_)
 void tusb_tick_tock(void)
 {
   osal_tick_tock();
 }
+#endif
+
 //--------------------------------------------------------------------+
 // MACRO CONSTANT TYPEDEF
 //--------------------------------------------------------------------+
@@ -129,21 +133,6 @@ tusb_error_t usbh_init(void)
   return TUSB_ERROR_NONE;
 }
 
-// interrupt caused by a TD (with IOC=1) in pipe of class class_code
-void usbh_isr(pipe_handle_t pipe_hdl, uint8_t class_code)
-{
-  if (class_code == 0) // Control transfer
-  {
-    // TODO some semaphore posting
-  }else if (usbh_class_drivers[class_code].isr)
-  {
-    usbh_class_drivers[class_code].isr(pipe_hdl);
-  }else
-  {
-    ASSERT(false, (void) 0); // something wrong, no one claims the isr's source
-  }
-}
-
 // function called within a task, requesting os blocking services, subtask input parameter must be static/global variables
 tusb_error_t usbh_control_xfer_subtask(uint8_t dev_addr, tusb_std_request_t const* p_request, uint8_t* data)
 {
@@ -173,6 +162,35 @@ pipe_status_t usbh_pipe_status_get(pipe_handle_t pipe_hdl)
 {
   return PIPE_STATUS_BUSY;
 }
+
+//--------------------------------------------------------------------+
+// USBH-HCD ISR/Callback API
+//--------------------------------------------------------------------+
+// interrupt caused by a TD (with IOC=1) in pipe of class class_code
+void usbh_isr(pipe_handle_t pipe_hdl, uint8_t class_code)
+{
+  if (class_code == 0) // Control transfer
+  {
+    // TODO some semaphore posting
+  }else if (usbh_class_drivers[class_code].isr)
+  {
+    usbh_class_drivers[class_code].isr(pipe_hdl);
+  }else
+  {
+    ASSERT(false, (void) 0); // something wrong, no one claims the isr's source
+  }
+}
+
+void usbh_device_plugged_isr(uint8_t hostid, tusb_speed_t speed)
+{
+
+}
+
+void usbh_device_unplugged_isr(uint8_t hostid)
+{
+
+}
+
 
 //--------------------------------------------------------------------+
 // ENUMERATION TASK

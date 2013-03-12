@@ -327,6 +327,17 @@ enum ehci_usbcmd_pos_ {
   EHCI_USBCMD_POS_INTERRUPT_THRESHOLD    = 16
 };
 
+enum ehci_portsc_change_mask_{
+  EHCI_PORTSC_MASK_CONNECT_STATUS_CHANGE = BIT_(1),
+  EHCI_PORTSC_MASK_PORT_ENABLE_CHAGNE = BIT_(3),
+  EHCI_PORTSC_MASK_OVER_CURRENT_CHANGE = BIT_(5),
+
+  EHCI_PORTSC_MASK_ALL =
+      EHCI_PORTSC_MASK_CONNECT_STATUS_CHANGE |
+      EHCI_PORTSC_MASK_PORT_ENABLE_CHAGNE |
+      EHCI_PORTSC_MASK_OVER_CURRENT_CHANGE
+};
+
 typedef volatile struct {
   union {
     uint32_t usb_cmd                  ; ///< The Command Register indicates the command to be executed by the serial bus host controller. Writing to the register causes a command to be executed

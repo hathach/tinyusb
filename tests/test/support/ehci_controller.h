@@ -56,6 +56,7 @@
 #endif
 
 void ehci_controller_run(uint8_t hostid);
+void ehci_controller_device_plug(uint8_t hostid, tusb_speed_t speed);
 
 #ifdef __cplusplus
  }

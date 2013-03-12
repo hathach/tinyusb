@@ -135,12 +135,54 @@ tusb_error_t hcd_init(void)
 }
 
 //--------------------------------------------------------------------+
+// PORT API
+//--------------------------------------------------------------------+
+void hcd_port_reset(uint8_t hostid)
+{
+  ehci_registers_t* const regs = get_operational_register(hostid);
+
+  regs->portsc_bit.port_enable = 0; // disable port before reset
+  regs->portsc_bit.port_reset = 1;
+
+#ifndef _TEST_
+  // NXP specific, port reset will automatically be 0 when reset sequence complete
+  while( regs->portsc_bit.port_reset || !regs->portsc_bit.port_enable){}
+#endif
+}
+
+bool hcd_port_connect_status(uint8_t hostid)
+{
+  return false;
+}
+
+tusb_speed_t hcd_port_speed(uint8_t hostid)
+{
+  return TUSB_SPEED_HIGH;
+}
+
+//--------------------------------------------------------------------+
 // EHCI Interrupt Handler
 //--------------------------------------------------------------------+
 static inline uint8_t get_qhd_index(ehci_qhd_t * p_qhd) ATTR_ALWAYS_INLINE ATTR_PURE;
 static inline uint8_t get_qhd_index(ehci_qhd_t * p_qhd)
 {
   return p_qhd - ehci_data.device[p_qhd->device_address].qhd;
+}
+
+
+void port_connect_status_isr(uint8_t hostid)
+{
+  ehci_registers_t* const regs = get_operational_register(hostid);
+
+  if (regs->portsc_bit.current_connect_status) // device plugged
+  {
+    hcd_port_reset(hostid);
+    usbh_device_plugged_isr(hostid, regs->portsc_bit.nxp_port_speed); // NXP specific port speed
+  }else // device unplugged
+  {
+//    usbh_device_
+  }
+
 }
 
 void async_list_process_isr(ehci_qhd_t * const async_head, ehci_registers_t * const regs)
@@ -183,7 +225,6 @@ void async_list_process_isr(ehci_qhd_t * const async_head, ehci_registers_t * co
 }
 
 //------------- Host Controller Driver's Interrupt Handler -------------//
-// TODO this isr is not properly go through TDD
 void hcd_isr(uint8_t hostid)
 {
   ehci_registers_t* const regs = get_operational_register(hostid);
@@ -211,7 +252,14 @@ void hcd_isr(uint8_t hostid)
 
   if (int_status & EHCI_INT_MASK_PORT_CHANGE)
   {
-//    port_status_change_isr(h)
+    printf("%s %d\n", __PRETTY_FUNCTION__, __LINE__);
+    if (regs->portsc_bit.connect_status_change)
+    {
+      printf("%s %d\n", __PRETTY_FUNCTION__, __LINE__);
+      port_connect_status_isr(hostid);
+    }
+
+    regs->portsc |= EHCI_PORTSC_MASK_ALL; // Acknowledge all the change bit in portsc
   }
 
   if (int_status & EHCI_INT_MASK_ASYNC_ADVANCE)
@@ -321,19 +369,6 @@ tusb_error_t hcd_controller_reset(uint8_t hostid)
   while( regs->usb_cmd_bit.reset && !timeout_expired(&timeout)) {}
 
   return timeout_expired(&timeout) ? TUSB_ERROR_OSAL_TIMEOUT : TUSB_ERROR_NONE;
-}
-
-//--------------------------------------------------------------------+
-// PORT API
-//--------------------------------------------------------------------+
-bool hcd_port_connect_status(uint8_t core_id)
-{
-  return false;
-}
-
-tusb_speed_t hcd_port_speed(uint8_t core_id)
-{
-  return TUSB_SPEED_HIGH;
 }
 
 //--------------------------------------------------------------------+
