@@ -125,7 +125,7 @@ enum {
   TUSB_FLAGS_CLASS_WIRELESS_CONTROLLER  = BIT_(28),
   TUSB_FLAGS_CLASS_MISC                 = BIT_(29),
   TUSB_FLAGS_CLASS_APPLICATION_SPECIFIC = BIT_(30),
-  TUSB_FLAGS_CLASS_VENDOR_SPECIFIC      = BIT_(31)
+  TUSB_FLAGS_CLASS_VENDOR_SPECIFIC      = BIT_(31) // TODO out of range for int type
 };
 
 /// Device Status
@@ -169,11 +169,11 @@ tusb_error_t tusbh_configuration_set     (tusb_handle_device_t device_hdl, uint8
 tusbh_device_status_t tusbh_device_status_get (tusb_handle_device_t const device_hdl) ATTR_WARN_UNUSED_RESULT;
 
 #if TUSB_CFG_OS == TUSB_OS_NONE // TODO move later
-static inline void tusb_tick_tock(void) ATTR_ALWAYS_INLINE;
-static inline void tusb_tick_tock(void)
-{
-  osal_tick_tock();
-}
+//static inline void tusb_tick_tock(void) ATTR_ALWAYS_INLINE;
+//static inline void tusb_tick_tock(void)
+//{
+//  osal_tick_tock();
+//}
 #endif
 
 //--------------------------------------------------------------------+

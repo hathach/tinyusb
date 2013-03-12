@@ -65,7 +65,7 @@
 #define BIT_CLR_(x, n) ( (x) & (~BIT_(n)) )
 
 
-#if defined(__GNUC__)
+#if defined(__GNUC__) && !defined(__CC_ARM)
 
 #define BIN8(x)               (0b##x)
 #define BIN16(b1, b2)         (0b##b1##b2)
@@ -74,16 +74,16 @@
 #else
 
 //  internal macro of B8, B16, B32
-#define _B8__(x) ((x&0x0000000FLU)?1:0) \
-                +((x&0x000000F0LU)?2:0) \
-                +((x&0x00000F00LU)?4:0) \
-                +((x&0x0000F000LU)?8:0) \
-                +((x&0x000F0000LU)?16:0) \
-                +((x&0x00F00000LU)?32:0) \
-                +((x&0x0F000000LU)?64:0) \
-                +((x&0xF0000000LU)?128:0)
+#define _B8__(x) (((x&0x0000000FUL)?1:0) \
+                +((x&0x000000F0UL)?2:0) \
+                +((x&0x00000F00UL)?4:0) \
+                +((x&0x0000F000UL)?8:0) \
+                +((x&0x000F0000UL)?16:0) \
+                +((x&0x00F00000UL)?32:0) \
+                +((x&0x0F000000UL)?64:0) \
+                +((x&0xF0000000UL)?128:0))
 
-#define BIN8(d) ((uint8_t)_B8__(0x##d##LU))
+#define BIN8(d) ((uint8_t) _B8__(0x##d##UL))
 #define BIN16(dmsb,dlsb) (((uint16_t)BIN8(dmsb)<<8) + BIN8(dlsb))
 #define BIN32(dmsb,db2,db3,dlsb) \
             (((uint32_t)BIN8(dmsb)<<24) \

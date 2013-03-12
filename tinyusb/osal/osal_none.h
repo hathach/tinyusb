@@ -120,7 +120,7 @@ static inline uint32_t osal_tick_get(void)
         return status;\
       }/* sub task finished ok --> continue */\
     }\
-  }while(1)
+  }while(0)
 
 #define OSAL_SUBTASK_BEGIN OSAL_TASK_LOOP_BEGIN
 #define OSAL_SUBTASK_END OSAL_TASK_LOOP_END

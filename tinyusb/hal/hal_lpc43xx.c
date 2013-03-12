@@ -42,6 +42,16 @@
 
 #include "lpc43xx_cgu.h"
 
+enum {
+  LPC43XX_USBMODE_DEVICE = 2,
+  LPC43XX_USBMODE_HOST   = 3
+};
+
+enum {
+  LPC43XX_USBMODE_VBUS_LOW  = 0,
+  LPC43XX_USBMODE_VBUS_HIGH = 1
+};
+
 tusb_error_t hal_init()
 {
   /* Set up USB0 clock */
@@ -50,6 +60,12 @@ tusb_error_t hal_init()
   CGU_EntityConnect(CGU_CLKSRC_XTAL_OSC, CGU_CLKSRC_PLL0);
   CGU_EnableEntity(CGU_CLKSRC_PLL0, ENABLE);   /* Enable PLL after all setting is done */
   LPC_CREG->CREG0 &= ~(1<<5); /* Turn on the phy */
+
+  //------------- reset controller & set role -------------//
+  hcd_controller_reset(0);
+  LPC_USB0->USBMODE_H = LPC43XX_USBMODE_HOST | (LPC43XX_USBMODE_VBUS_HIGH << 5);
+
+  hal_interrupt_enable();
 
   return TUSB_ERROR_NONE;
 }

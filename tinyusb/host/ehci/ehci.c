@@ -71,14 +71,14 @@ STATIC_ASSERT( ALIGN_OF(period_frame_list1) == 4096, "Period Framelist must be 4
 //--------------------------------------------------------------------+
 // IMPLEMENTATION
 //--------------------------------------------------------------------+
-STATIC_ INLINE_ ehci_registers_t* const get_operational_register(uint8_t hostid) ATTR_PURE ATTR_ALWAYS_INLINE ATTR_WARN_UNUSED_RESULT;
-STATIC_ INLINE_ ehci_registers_t* const get_operational_register(uint8_t hostid)
+STATIC_ INLINE_ ehci_registers_t* get_operational_register(uint8_t hostid) ATTR_PURE ATTR_ALWAYS_INLINE ATTR_WARN_UNUSED_RESULT;
+STATIC_ INLINE_ ehci_registers_t* get_operational_register(uint8_t hostid)
 {
-  return (ehci_registers_t* const) (hostid ? (&LPC_USB1->USBCMD_H) : (&LPC_USB0->USBCMD_H) );
+  return (ehci_registers_t*) (hostid ? (&LPC_USB1->USBCMD_H) : (&LPC_USB0->USBCMD_H) );
 }
 
-STATIC_ INLINE_ ehci_link_t* const get_period_frame_list(uint8_t list_idx) ATTR_PURE ATTR_ALWAYS_INLINE ATTR_WARN_UNUSED_RESULT;
-STATIC_ INLINE_ ehci_link_t* const get_period_frame_list(uint8_t list_idx)
+STATIC_ INLINE_ ehci_link_t* get_period_frame_list(uint8_t list_idx) ATTR_PURE ATTR_ALWAYS_INLINE ATTR_WARN_UNUSED_RESULT;
+STATIC_ INLINE_ ehci_link_t* get_period_frame_list(uint8_t list_idx)
 {
 #if CONTROLLER_HOST_NUMBER > 1
   return list_idx ? period_frame_list1 : period_frame_list0; // TODO more than 2 controller
@@ -98,14 +98,14 @@ STATIC_ INLINE_ uint8_t hostid_to_data_idx(uint8_t hostid)
   #endif
 }
 
-STATIC_ INLINE_ ehci_qhd_t* const get_async_head(uint8_t hostid) ATTR_ALWAYS_INLINE ATTR_PURE ATTR_WARN_UNUSED_RESULT;
-STATIC_ INLINE_ ehci_qhd_t* const get_async_head(uint8_t hostid)
+STATIC_ INLINE_ ehci_qhd_t* get_async_head(uint8_t hostid) ATTR_ALWAYS_INLINE ATTR_PURE ATTR_WARN_UNUSED_RESULT;
+STATIC_ INLINE_ ehci_qhd_t* get_async_head(uint8_t hostid)
 {
   return &ehci_data.async_head[ hostid_to_data_idx(hostid) ];
 }
 
-STATIC_ INLINE_ ehci_qhd_t* const get_period_head(uint8_t hostid) ATTR_ALWAYS_INLINE ATTR_PURE ATTR_WARN_UNUSED_RESULT;
-STATIC_ INLINE_ ehci_qhd_t* const get_period_head(uint8_t hostid)
+STATIC_ INLINE_ ehci_qhd_t* get_period_head(uint8_t hostid) ATTR_ALWAYS_INLINE ATTR_PURE ATTR_WARN_UNUSED_RESULT;
+STATIC_ INLINE_ ehci_qhd_t* get_period_head(uint8_t hostid)
 {
   return &ehci_data.period_head[ hostid_to_data_idx(hostid) ];
 }
@@ -211,7 +211,7 @@ void hcd_isr(uint8_t hostid)
 
   if (int_status & EHCI_INT_MASK_PORT_CHANGE)
   {
-
+//    port_status_change_isr(h)
   }
 
   if (int_status & EHCI_INT_MASK_ASYNC_ADVANCE)
@@ -304,17 +304,16 @@ tusb_error_t hcd_controller_stop(uint8_t hostid)
   return timeout_expired(&timeout) ? TUSB_ERROR_OSAL_TIMEOUT : TUSB_ERROR_NONE;
 }
 
-//TODO host/device mode must be set immediately after a reset
-tusb_error_t hcd_controller_reset(uint8_t hostid) ATTR_WARN_UNUSED_RESULT;
 tusb_error_t hcd_controller_reset(uint8_t hostid)
 {
   ehci_registers_t* const regs = get_operational_register(hostid);
   timeout_timer_t timeout;
 
-  if (regs->usb_sts_bit.hc_halted == 0) // need to stop before reset
-  {
-    ASSERT_STATUS( hcd_controller_stop(hostid) );
-  }
+// NXP chip powered with non-host mode --> sts bit is not correctly reflected
+//  if (regs->usb_sts_bit.hc_halted == 0) // need to stop before reset
+//  {
+//    ASSERT_STATUS( hcd_controller_stop(hostid) );
+//  }
 
   regs->usb_cmd_bit.reset = 1;
 
@@ -327,14 +326,22 @@ tusb_error_t hcd_controller_reset(uint8_t hostid)
 //--------------------------------------------------------------------+
 // PORT API
 //--------------------------------------------------------------------+
+bool hcd_port_connect_status(uint8_t core_id)
+{
+  return false;
+}
 
+tusb_speed_t hcd_port_speed(uint8_t core_id)
+{
+  return TUSB_SPEED_HIGH;
+}
 
 //--------------------------------------------------------------------+
 // PIPE API
 //--------------------------------------------------------------------+
 static void init_qhd(ehci_qhd_t *p_qhd, uint8_t dev_addr, uint16_t max_packet_size, uint8_t endpoint_addr, uint8_t xfer_type);
 
-static inline ehci_qhd_t* const get_control_qhd(uint8_t dev_addr) ATTR_ALWAYS_INLINE ATTR_PURE ATTR_WARN_UNUSED_RESULT;
+static inline ehci_qhd_t* get_control_qhd(uint8_t dev_addr) ATTR_ALWAYS_INLINE ATTR_PURE ATTR_WARN_UNUSED_RESULT;
 static inline ehci_qtd_t* get_control_qtds(uint8_t dev_addr) ATTR_ALWAYS_INLINE ATTR_PURE ATTR_WARN_UNUSED_RESULT;
 
 //--------------------------------------------------------------------+
@@ -522,7 +529,7 @@ tusb_error_t  hcd_pipe_xfer(pipe_handle_t pipe_hdl, uint8_t buffer[], uint16_t t
 //--------------------------------------------------------------------+
 // HELPER
 //--------------------------------------------------------------------+
-static inline ehci_qhd_t* const get_control_qhd(uint8_t dev_addr)
+static inline ehci_qhd_t* get_control_qhd(uint8_t dev_addr)
 {
   return (dev_addr == 0) ?
       get_async_head( usbh_device_info_pool[dev_addr].core_id ) :

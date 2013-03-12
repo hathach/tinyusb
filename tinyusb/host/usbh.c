@@ -47,6 +47,10 @@
 #include "tusb.h"
 #include "usbh_hcd.h"
 
+void tusb_tick_tock(void)
+{
+  osal_tick_tock();
+}
 //--------------------------------------------------------------------+
 // MACRO CONSTANT TYPEDEF
 //--------------------------------------------------------------------+
@@ -163,6 +167,11 @@ tusb_error_t usbh_pipe_control_open(uint8_t dev_addr, uint8_t max_packet_size)
   ASSERT_STATUS( hcd_pipe_control_open(dev_addr, max_packet_size) );
 
   return TUSB_ERROR_NONE;
+}
+
+pipe_status_t usbh_pipe_status_get(pipe_handle_t pipe_hdl)
+{
+  return PIPE_STATUS_BUSY;
 }
 
 //--------------------------------------------------------------------+

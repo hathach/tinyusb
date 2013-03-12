@@ -42,6 +42,7 @@ volatile uint32_t system_ticks = 0;
 void SysTick_Handler (void)
 {
   system_ticks++;
+  tusb_tick_tock(); // TODO temporarily
 }
 
 void check_failed(uint8_t *file, uint32_t line)
