@@ -152,12 +152,7 @@ void hcd_port_reset(uint8_t hostid)
 
 bool hcd_port_connect_status(uint8_t hostid)
 {
-  return false;
-}
-
-tusb_speed_t hcd_port_speed(uint8_t hostid)
-{
-  return TUSB_SPEED_HIGH;
+  return get_operational_register(hostid)->portsc_bit.current_connect_status;
 }
 
 //--------------------------------------------------------------------+
