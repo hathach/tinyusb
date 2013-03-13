@@ -55,9 +55,16 @@
  extern "C" {
 #endif
 
+extern ehci_data_t ehci_data;
+
 void ehci_controller_run(uint8_t hostid);
 void ehci_controller_device_plug(uint8_t hostid, tusb_speed_t speed);
 void ehci_controller_device_unplug(uint8_t hostid);
+
+ehci_registers_t* const get_operational_register(uint8_t hostid);
+ehci_link_t* const get_period_frame_list(uint8_t list_idx);
+ehci_qhd_t* const get_async_head(uint8_t hostid);
+ehci_qhd_t* const get_period_head(uint8_t hostid);
 
 #ifdef __cplusplus
  }

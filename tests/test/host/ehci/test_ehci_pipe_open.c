@@ -45,13 +45,9 @@
 #include "hcd.h"
 #include "mock_usbh_hcd.h"
 #include "ehci.h"
-#include "test_ehci.h"
+#include "ehci_controller.h"
 
-extern ehci_data_t ehci_data;
 usbh_device_info_t usbh_device_info_pool[TUSB_CFG_HOST_DEVICE_MAX+1];
-
-LPC_USB0_Type lpc_usb0;
-LPC_USB1_Type lpc_usb1;
 
 uint8_t const control_max_packet_size = 64;
 uint8_t const hub_addr = 2;

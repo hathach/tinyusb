@@ -165,8 +165,17 @@ static inline uint8_t get_qhd_index(ehci_qhd_t * p_qhd)
   return p_qhd - ehci_data.device[p_qhd->device_address].qhd;
 }
 
+void async_advance_isr(ehci_qhd_t * const async_head)
+{
+  ehci_qhd_t *p_qhd = async_head;
+  do
+  {
 
-void port_connect_status_isr(uint8_t hostid)
+    p_qhd = (ehci_qhd_t*) align32(p_qhd->next.address);
+  }while(p_qhd != async_head); // stop if loop around
+}
+
+void port_connect_status_change_isr(uint8_t hostid)
 {
   ehci_registers_t* const regs = get_operational_register(hostid);
 
@@ -177,6 +186,8 @@ void port_connect_status_isr(uint8_t hostid)
   }else // device unplugged
   {
     usbh_device_unplugged_isr(hostid);
+
+    regs->usb_cmd_bit.advacne_async = 1; // Async doorbell check EHCI 4.8.2 for operational details
   }
 
 }
@@ -186,10 +197,7 @@ void async_list_process_isr(ehci_qhd_t * const async_head, ehci_registers_t * co
   ehci_qhd_t *p_qhd = async_head;
   do
   {
-    if ( p_qhd->qtd_overlay.halted )
-    {
-      // TODO invoke some error callback if not async head
-    } else
+    if ( !p_qhd->qtd_overlay.halted )
     {
       // free all TDs from the head td to the first active TD
       while(p_qhd->p_qtd_list_head != NULL && !p_qhd->p_qtd_list_head->active)
@@ -217,7 +225,7 @@ void async_list_process_isr(ehci_qhd_t * const async_head, ehci_registers_t * co
       }
     }
     p_qhd = (ehci_qhd_t*) align32(p_qhd->next.address);
-  }while(p_qhd != async_head); // stop if loop around
+  }while(p_qhd != async_head); // async list traversal, stop if loop around
 }
 
 //------------- Host Controller Driver's Interrupt Handler -------------//
@@ -232,7 +240,8 @@ void hcd_isr(uint8_t hostid)
 
   if (int_status & EHCI_INT_MASK_ERROR)
   {
-    // TODO something going wrong
+    // TODO handle Queue Head halted
+    // TODO invoke some error callback if not async head
     ASM_BREAKPOINT;
   }
 
@@ -251,7 +260,7 @@ void hcd_isr(uint8_t hostid)
   {
     if (regs->portsc_bit.connect_status_change)
     {
-      port_connect_status_isr(hostid);
+      port_connect_status_change_isr(hostid);
     }
 
     regs->portsc |= EHCI_PORTSC_MASK_ALL; // Acknowledge all the change bit in portsc
@@ -259,7 +268,7 @@ void hcd_isr(uint8_t hostid)
 
   if (int_status & EHCI_INT_MASK_ASYNC_ADVANCE)
   {
-
+    async_advance_isr( get_async_head(hostid) );
   }
 
   regs->usb_sts |= regs->usb_sts; // Acknowledge interrupt & clear it
@@ -276,12 +285,11 @@ tusb_error_t hcd_controller_init(uint8_t hostid)
   //------------- USB INT Register -------------//
   regs->usb_int_enable = 0;                 // 1. disable all the interrupt
   regs->usb_sts        = EHCI_INT_MASK_ALL; // 2. clear all status
-  regs->usb_int_enable =
-      EHCI_INT_MASK_ERROR | EHCI_INT_MASK_PORT_CHANGE
+  regs->usb_int_enable = EHCI_INT_MASK_ERROR | EHCI_INT_MASK_PORT_CHANGE |
 #if EHCI_PERIODIC_LIST
-      | EHCI_INT_MASK_NXP_PERIODIC
+                         EHCI_INT_MASK_NXP_PERIODIC |
 #endif
-      | EHCI_INT_MASK_ASYNC_ADVANCE | EHCI_INT_MASK_NXP_ASYNC;
+                         EHCI_INT_MASK_ASYNC_ADVANCE | EHCI_INT_MASK_NXP_ASYNC;
 
   //------------- Asynchronous List -------------//
   ehci_qhd_t * const async_head = get_async_head(hostid);

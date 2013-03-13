@@ -47,9 +47,6 @@
 #include "ehci.h"
 #include "ehci_controller.h"
 
-LPC_USB0_Type lpc_usb0;
-LPC_USB1_Type lpc_usb1;
-
 usbh_device_info_t usbh_device_info_pool[TUSB_CFG_HOST_DEVICE_MAX+1];
 
 uint8_t hostid;
@@ -105,5 +102,45 @@ void test_isr_device_disconnect(void)
 
   //------------- Code Under Test -------------//
   hcd_isr(hostid);
+
+  ehci_registers_t * const regs = get_operational_register(hostid);
+  TEST_ASSERT(regs->usb_cmd_bit.advacne_async);
+}
+
+void test_isr_disconnect_then_async_advance(void)
+{
+  uint8_t dev_addr = 1;
+  uint8_t hostid = 0;
+  ehci_registers_t * const regs = get_operational_register(hostid);
+
+//  usbh_device_info_pool[dev_addr].status = TUSB_DEVICE_STATUS_READY;
+  usbh_device_info_pool[dev_addr].core_id = hostid;
+  usbh_device_info_pool[dev_addr].hub_addr = 0;
+  usbh_device_info_pool[dev_addr].hub_port = 0;
+
+  hcd_pipe_control_open(dev_addr, 64);
+  hcd_pipe_control_xfer(dev_addr,
+                        &(tusb_std_request_t) {
+                              .bmRequestType = { .direction = TUSB_DIR_HOST_TO_DEV, .type = TUSB_REQUEST_TYPE_STANDARD, .recipient = TUSB_REQUEST_RECIPIENT_DEVICE },
+                              .bRequest = TUSB_REQUEST_SET_ADDRESS,
+                              .wValue   = 3 },
+                        NULL);
+
+  ehci_qhd_t *p_qhd = &ehci_data.device[dev_addr].control.qhd;
+  ehci_qtd_t *p_qtd_head = p_qhd->p_qtd_list_head;
+  ehci_qtd_t *p_qtd_tail = p_qhd->p_qtd_list_tail;
+
+  ehci_controller_device_unplug(hostid);
+  usbh_device_unplugged_isr_Expect(hostid);
+
+  //------------- Code Under Test -------------//
+  hcd_isr(hostid); // port change detect
+  regs->usb_sts_bit.port_change_detect = 0; // clear port change detect
+  hcd_isr(hostid); // async advance
+
+  TEST_ASSERT( align32(get_async_head(hostid)->next.address) != (uint32_t) p_qhd );
+  TEST_ASSERT_FALSE(p_qhd->used);
+  TEST_ASSERT_FALSE(p_qtd_head->used);
+  TEST_ASSERT_FALSE(p_qtd_tail->used);
 
 }
