@@ -65,14 +65,16 @@ class_driver_t const usbh_class_drivers[TUSB_CLASS_MAX_CONSEC_NUMBER] =
 {
     [TUSB_CLASS_HID] = {
         .init = hidh_init,
-        .install_subtask = hidh_install_subtask,
-        .isr = hidh_isr
+        .open_subtask = hidh_open_subtask,
+        .isr = hidh_isr,
+        .close = hidh_close
     },
 
     [TUSB_CLASS_MSC] = {
         .init = msch_init,
-        .install_subtask = msch_install_subtask,
-        .isr = msch_isr
+        .open_subtask = msch_open_subtask,
+        .isr = msch_isr,
+        .close = msch_close
     }
 };
 
@@ -190,7 +192,23 @@ void usbh_device_plugged_isr(uint8_t hostid, tusb_speed_t speed)
 
 void usbh_device_unplugged_isr(uint8_t hostid)
 {
+  uint8_t dev_addr=1;
+  while ( dev_addr <= TUSB_CFG_HOST_DEVICE_MAX && ! (usbh_device_info_pool[dev_addr].core_id == hostid &&
+      usbh_device_info_pool[dev_addr].hub_addr == 0 &&
+      usbh_device_info_pool[dev_addr].hub_port ==0))
+  {
+    dev_addr++;
+  }
 
+  ASSERT(dev_addr <= TUSB_CFG_HOST_DEVICE_MAX, (void) 0 );
+
+  for (uint8_t class_code = 1; class_code < TUSB_CLASS_MAX_CONSEC_NUMBER; class_code++)
+  {
+    if (usbh_class_drivers[class_code].close)
+      usbh_class_drivers[class_code].close(dev_addr);
+  }
+
+  usbh_device_info_pool[dev_addr].status = TUSB_DEVICE_STATUS_REMOVING;
 }
 
 
@@ -259,6 +277,8 @@ OSAL_TASK_DECLARE(usbh_enumeration_task)
   usbh_device_info_pool[new_addr].speed    = usbh_device_info_pool[0].speed;
   usbh_device_info_pool[new_addr].status   = TUSB_DEVICE_STATUS_ADDRESSED;
   hcd_pipe_control_close(0);
+
+//  hcd_port_reset( usbh_device_info_pool[new_addr].core_id ); TODO verified
 
   // open control pipe for new address
   TASK_ASSERT_STATUS ( usbh_pipe_control_open(new_addr, ((tusb_descriptor_device_t*) enum_data_buffer)->bMaxPacketSize0 ) );
@@ -335,11 +355,11 @@ OSAL_TASK_DECLARE(usbh_enumeration_task)
       TASK_ASSERT( false ); // corrupted data, abort enumeration
     } else if ( class_code < TUSB_CLASS_MAX_CONSEC_NUMBER)
     {
-      if ( usbh_class_drivers[class_code].install_subtask )
+      if ( usbh_class_drivers[class_code].open_subtask )
       {
         uint16_t length;
         OSAL_SUBTASK_INVOKED_AND_WAIT ( // parameters in task/sub_task must be static storage (static or global)
-            usbh_class_drivers[ ((tusb_descriptor_interface_t*) p_desc)->bInterfaceClass ].install_subtask(new_addr, p_desc, &length) );
+            usbh_class_drivers[ ((tusb_descriptor_interface_t*) p_desc)->bInterfaceClass ].open_subtask(new_addr, p_desc, &length) );
         p_desc += length;
       }
     } else // unsupported class (not enable or yet implemented)
@@ -366,6 +386,7 @@ OSAL_TASK_DECLARE(usbh_enumeration_task)
     )
   );
 
+  usbh_device_info_pool[new_addr].status = TUSB_DEVICE_STATUS_READY;
   tusbh_device_mount_succeed_cb(new_addr);
 
   // TODO invoke mounted callback

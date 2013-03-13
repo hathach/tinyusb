@@ -232,7 +232,7 @@ void test_enum_failed_get_full_config_desc(void)
 
 void class_install_expect(void)
 {
-  hidh_install_subtask_StubWithCallback(hidh_install_stub);
+  hidh_open_subtask_StubWithCallback(hidh_install_stub);
 }
 
 void test_enum_parse_config_desc(void)

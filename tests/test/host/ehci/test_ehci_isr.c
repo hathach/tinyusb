@@ -97,3 +97,13 @@ void test_isr_device_connect_slowspeed(void)
   //------------- Code Under Test -------------//
   hcd_isr(hostid);
 }
+
+void test_isr_device_disconnect(void)
+{
+  ehci_controller_device_unplug(hostid);
+  usbh_device_unplugged_isr_Expect(hostid);
+
+  //------------- Code Under Test -------------//
+  hcd_isr(hostid);
+
+}

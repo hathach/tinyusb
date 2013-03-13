@@ -175,7 +175,7 @@ void port_connect_status_isr(uint8_t hostid)
     usbh_device_plugged_isr(hostid, regs->portsc_bit.nxp_port_speed); // NXP specific port speed
   }else // device unplugged
   {
-//    usbh_device_
+    usbh_device_unplugged_isr(hostid);
   }
 
 }
@@ -578,6 +578,7 @@ static inline ehci_qtd_t* get_control_qtds(uint8_t dev_addr)
 
 static void init_qhd(ehci_qhd_t *p_qhd, uint8_t dev_addr, uint16_t max_packet_size, uint8_t endpoint_addr, uint8_t xfer_type)
 {
+  // address 0 uses async head, which always on the list --> cannot be cleared (ehci halted otherwise)
   if (dev_addr != 0)
   {
     memclr_(p_qhd, sizeof(ehci_qhd_t));

@@ -156,3 +156,22 @@ void test_usbh_init_ok(void)
   TEST_ASSERT_EQUAL_MEMORY(device_info_zero, usbh_device_info_pool, sizeof(usbh_device_info_t)*(TUSB_CFG_HOST_DEVICE_MAX+1));
 
 }
+
+void class_close_expect(void)
+{
+  hidh_close_Expect(1);
+}
+
+void test_usbh_device_unplugged_isr(void)
+{
+  usbh_device_info_pool[1].status = TUSB_DEVICE_STATUS_READY;
+  usbh_device_info_pool[1].core_id = 0;
+  usbh_device_info_pool[1].hub_addr = 0;
+  usbh_device_info_pool[1].hub_port = 0;
+
+  class_close_expect();
+
+  usbh_device_unplugged_isr(0);
+
+  TEST_ASSERT_EQUAL(TUSB_DEVICE_STATUS_REMOVING, usbh_device_info_pool[1].status);
+}
