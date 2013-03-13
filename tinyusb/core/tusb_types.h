@@ -146,12 +146,13 @@ typedef enum {
 }tusb_std_class_code_t;
 
 enum {
-  TUSB_DESC_CONFIG_ATT_BUS_POWER = BIT_(7),
-  TUSB_DESC_CONFIG_ATT_SELF_POWER = BIT_(6),
-  TUSB_DESC_CONFIG_ATT_REMOTE_WAKEUP = BIT_(5)
+  TUSB_DESC_CONFIG_ATT_REMOTE_WAKEUP = BIT_(5),
+  TUSB_DESC_CONFIG_ATT_SELF_POWER    = BIT_(6),
+  TUSB_DESC_CONFIG_ATT_BUS_POWER     = BIT_(7)
 };
 
 #define TUSB_DESC_CONFIG_POWER_MA(x)  ((x)/2)
+
 #ifdef __cplusplus
  }
 #endif

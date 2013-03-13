@@ -164,14 +164,18 @@ void class_close_expect(void)
 
 void test_usbh_device_unplugged_isr(void)
 {
-  usbh_device_info_pool[1].status = TUSB_DEVICE_STATUS_READY;
-  usbh_device_info_pool[1].core_id = 0;
-  usbh_device_info_pool[1].hub_addr = 0;
-  usbh_device_info_pool[1].hub_port = 0;
+  uint8_t dev_addr = 1;
+
+  usbh_device_info_pool[dev_addr].status = TUSB_DEVICE_STATUS_READY;
+  usbh_device_info_pool[dev_addr].core_id = 0;
+  usbh_device_info_pool[dev_addr].hub_addr = 0;
+  usbh_device_info_pool[dev_addr].hub_port = 0;
 
   class_close_expect();
+  hcd_pipe_control_close_ExpectAndReturn(dev_addr, TUSB_ERROR_NONE);
 
+  //------------- Code Under Test -------------//
   usbh_device_unplugged_isr(0);
 
-  TEST_ASSERT_EQUAL(TUSB_DEVICE_STATUS_REMOVING, usbh_device_info_pool[1].status);
+  TEST_ASSERT_EQUAL(TUSB_DEVICE_STATUS_REMOVING, usbh_device_info_pool[dev_addr].status);
 }

@@ -67,6 +67,7 @@ STATIC_ASSERT( ALIGN_OF(period_frame_list0) == 4096, "Period Framelist must be 4
 #if CONTROLLER_HOST_NUMBER > 1
 STATIC_ASSERT( ALIGN_OF(period_frame_list1) == 4096, "Period Framelist must be 4k alginment");
 #endif
+// TODO static assert for memory placement on some known MCU such as lpc43xx
 
 //--------------------------------------------------------------------+
 // IMPLEMENTATION
