@@ -162,25 +162,25 @@ typedef struct {
 	ehci_link_t next;
 
 	/// Word 1										 : Endpoint Characteristics
-	uint32_t device_address          : 7  ; ///< This field selects the specific device serving as the data source or sink
-	uint32_t inactive_next_xact      : 1  ; ///< This bit is used by system software to request that the host controller set the Active bit to zero. See Section 4.12.2.5 for full operational details
-	uint32_t endpoint_number         : 4  ; ///< This 4-bit field selects the particular endpoint number on the device serving as the data source or sink.
-	uint32_t endpoint_speed          : 2  ; ///< This is the speed of the associated endpoint 00b=Full 01b=Low 10b=High 11b=Reserved
-	uint32_t data_toggle_control     : 1  ; ///< This bit specifies where the host controller should get the initial data toggle on an overlay transition. 0b=Ignore DT bit of qTD, 1b=Use DT bit of qTD
-	uint32_t head_list_flag          : 1  ; ///< This bit is set by System Software to mark a queue head as being the head of the reclamation list. See Section 4.8 for operational model
-	uint32_t max_package_size        : 11 ; ///< This directly corresponds to the maximum packet size of the associated endpoint (wMaxPacketSize)
-	uint32_t non_hs_control_endpoint : 1  ; ///< If the QH.EPSfield indicates the endpoint is not a high-speed device, and the endpoint is an control endpoint, then software must set this bit to a one. Otherwise it should always set this bit to a zero.
-	uint32_t nak_count_reload        : 4  ; ///< This field contains a value, which is used by the host controller to reload the Nak Counter field.
-	uint32_t                         : 0  ; // padding to the end of current storage unit
+	uint32_t device_address                   : 7  ; ///< This field selects the specific device serving as the data source or sink
+	uint32_t non_hs_period_inactive_next_xact : 1  ; ///< This bit is used by system software to request that the host controller set the Active bit to zero. See Section 4.12.2.5 for full operational details
+	uint32_t endpoint_number                  : 4  ; ///< This 4-bit field selects the particular endpoint number on the device serving as the data source or sink.
+	uint32_t endpoint_speed                   : 2  ; ///< This is the speed of the associated endpoint 00b=Full 01b=Low 10b=High 11b=Reserved
+	uint32_t data_toggle_control              : 1  ; ///< This bit specifies where the host controller should get the initial data toggle on an overlay transition. 0b=Ignore DT bit of qTD, 1b=Use DT bit of qTD
+	uint32_t head_list_flag                   : 1  ; ///< This bit is set by System Software to mark a queue head as being the head of the reclamation list. See Section 4.8 for operational model
+	uint32_t max_package_size                 : 11 ; ///< This directly corresponds to the maximum packet size of the associated endpoint (wMaxPacketSize)
+	uint32_t non_hs_control_endpoint          : 1  ; ///< If the QH.EPSfield indicates the endpoint is not a high-speed device, and the endpoint is an control endpoint, then software must set this bit to a one. Otherwise it should always set this bit to a zero.
+	uint32_t nak_count_reload                 : 4  ; ///< This field contains a value, which is used by the host controller to reload the Nak Counter field.
+	uint32_t                                  : 0  ; // padding to the end of current storage unit
 	// End of Word 1
 
-	/// Word 2                       : Endpoint Capabilities
-	uint32_t interrupt_smask         : 8  ; ///< This field is used for all endpoint speeds. Software should set this field to a zero when the queue head is on the asynchronous schedule. A non-zero value in this field indicates an interrupt endpoint
-	uint32_t non_hs_interrupt_cmask  : 8  ; ///<  This field is ignored by the host controller unless the EPSfield indicates this device is a low- or full-speed device and this queue head is in the periodic list. This field (along with the Activeand SplitX-statefields) is used to determine during which micro-frames the host controller should execute a complete-split transaction
-	uint32_t hub_address             : 7  ; ///< This field is ignored by the host controller unless the EPSfield indicates a full- or low-speed device. The value is the USB device address of the USB 2.0 Hub below which the full- or low-speed device associated with this endpoint is attached. This field is used in the split-transaction protocol. See Section 4.12.
-	uint32_t hub_port                : 7  ; ///<  This field is ignored by the host controller unless the EPSfield indicates a full- or low-speed device. The value is the port number identifier on the USB 2.0 Hub (for hub at device address Hub Addrbelow), below which the full- or low-speed device associated with this endpoint is attached. This information is used in the split-transaction protocol. See Section 4.12.
-	uint32_t mult                    : 2  ; ///<  This field is a multiplier used to key the host controller as the number of successive packets the host controller may submit to the endpoint in the current execution. 00b=Reserved 01b,10b,11b= 1 (2, 3) Transaction for this endpoint/micro frame
-	uint32_t                         : 0  ; // padding to the end of current storage unit
+	/// Word 2                                : Endpoint Capabilities
+	uint32_t interrupt_smask                  : 8  ; ///< This field is used for all endpoint speeds. Software should set this field to a zero when the queue head is on the asynchronous schedule. A non-zero value in this field indicates an interrupt endpoint
+	uint32_t non_hs_interrupt_cmask           : 8  ; ///<  This field is ignored by the host controller unless the EPSfield indicates this device is a low- or full-speed device and this queue head is in the periodic list. This field (along with the Activeand SplitX-statefields) is used to determine during which micro-frames the host controller should execute a complete-split transaction
+	uint32_t hub_address                      : 7  ; ///< This field is ignored by the host controller unless the EPSfield indicates a full- or low-speed device. The value is the USB device address of the USB 2.0 Hub below which the full- or low-speed device associated with this endpoint is attached. This field is used in the split-transaction protocol. See Section 4.12.
+	uint32_t hub_port                         : 7  ; ///<  This field is ignored by the host controller unless the EPSfield indicates a full- or low-speed device. The value is the port number identifier on the USB 2.0 Hub (for hub at device address Hub Addrbelow), below which the full- or low-speed device associated with this endpoint is attached. This information is used in the split-transaction protocol. See Section 4.12.
+	uint32_t mult                             : 2  ; ///<  This field is a multiplier used to key the host controller as the number of successive packets the host controller may submit to the endpoint in the current execution. 00b=Reserved 01b,10b,11b= 1 (2, 3) Transaction for this endpoint/micro frame
+	uint32_t                                  : 0  ; // padding to the end of current storage unit
 	// End of Word 2
 
 	/// Word 3: Current qTD Pointer

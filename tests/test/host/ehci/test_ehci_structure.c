@@ -140,7 +140,7 @@ void test_qhd_structure(void)
 
   //------------- Word 1 -------------//
   TEST_ASSERT_EQUAL( 0, BITFIELD_OFFSET_OF_UINT32(ehci_qhd_t, 1, device_address) );
-  TEST_ASSERT_EQUAL( 7, BITFIELD_OFFSET_OF_UINT32(ehci_qhd_t, 1, inactive_next_xact) );
+  TEST_ASSERT_EQUAL( 7, BITFIELD_OFFSET_OF_UINT32(ehci_qhd_t, 1, non_hs_period_inactive_next_xact) );
   TEST_ASSERT_EQUAL( 8, BITFIELD_OFFSET_OF_UINT32(ehci_qhd_t, 1, endpoint_number) );
   TEST_ASSERT_EQUAL( 12, BITFIELD_OFFSET_OF_UINT32(ehci_qhd_t, 1, endpoint_speed) );
   TEST_ASSERT_EQUAL( 14, BITFIELD_OFFSET_OF_UINT32(ehci_qhd_t, 1, data_toggle_control) );

@@ -593,15 +593,15 @@ static void init_qhd(ehci_qhd_t *p_qhd, uint8_t dev_addr, uint16_t max_packet_si
     memclr_(p_qhd, sizeof(ehci_qhd_t));
   }
 
-  p_qhd->device_address          = dev_addr;
-  p_qhd->inactive_next_xact      = 0;
-  p_qhd->endpoint_number         = endpoint_addr & 0x0F;
-  p_qhd->endpoint_speed          = usbh_device_info_pool[dev_addr].speed;
-  p_qhd->data_toggle_control     = (xfer_type == TUSB_XFER_CONTROL) ? 1 : 0;
-  p_qhd->head_list_flag          = (dev_addr == 0) ? 1 : 0; // addr0's endpoint is the static asyn list head
-  p_qhd->max_package_size        = max_packet_size;
-  p_qhd->non_hs_control_endpoint = ((TUSB_XFER_CONTROL == xfer_type) && (usbh_device_info_pool[dev_addr].speed != TUSB_SPEED_HIGH) )  ? 1 : 0;
-  p_qhd->nak_count_reload        = 0;
+  p_qhd->device_address                   = dev_addr;
+  p_qhd->non_hs_period_inactive_next_xact = 0;
+  p_qhd->endpoint_number                  = endpoint_addr & 0x0F;
+  p_qhd->endpoint_speed                   = usbh_device_info_pool[dev_addr].speed;
+  p_qhd->data_toggle_control              = (xfer_type == TUSB_XFER_CONTROL) ? 1 : 0;
+  p_qhd->head_list_flag                   = (dev_addr == 0) ? 1 : 0; // addr0's endpoint is the static asyn list head
+  p_qhd->max_package_size                 = max_packet_size;
+  p_qhd->non_hs_control_endpoint          = ((TUSB_XFER_CONTROL == xfer_type) && (usbh_device_info_pool[dev_addr].speed != TUSB_SPEED_HIGH) )  ? 1 : 0;
+  p_qhd->nak_count_reload                 = 0;
 
   // Bulk/Control -> smask = cmask = 0
   if (TUSB_XFER_INTERRUPT == xfer_type)

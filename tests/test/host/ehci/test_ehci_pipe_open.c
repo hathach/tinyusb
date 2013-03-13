@@ -93,7 +93,7 @@ void tearDown(void)
 void verify_open_qhd(ehci_qhd_t *p_qhd, uint8_t endpoint_addr, uint16_t max_packet_size)
 {
   TEST_ASSERT_EQUAL(dev_addr, p_qhd->device_address);
-  TEST_ASSERT_FALSE(p_qhd->inactive_next_xact);
+  TEST_ASSERT_FALSE(p_qhd->non_hs_period_inactive_next_xact);
   TEST_ASSERT_EQUAL(endpoint_addr & 0x0F, p_qhd->endpoint_number);
   TEST_ASSERT_EQUAL(usbh_device_info_pool[dev_addr].speed, p_qhd->endpoint_speed);
   TEST_ASSERT_EQUAL(max_packet_size, p_qhd->max_package_size);
