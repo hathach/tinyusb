@@ -167,12 +167,48 @@ static inline uint8_t get_qhd_index(ehci_qhd_t * p_qhd)
 
 void async_advance_isr(ehci_qhd_t * const async_head)
 {
-  ehci_qhd_t *p_qhd = async_head;
-  do
+  if(async_head->is_removing) // closing control pipe of addr0
   {
+    async_head->is_removing = 0;
+    async_head->p_qtd_list_head = async_head->p_qtd_list_tail = NULL;
+    async_head->qtd_overlay.halted = 1;
+  }
 
-    p_qhd = (ehci_qhd_t*) align32(p_qhd->next.address);
-  }while(p_qhd != async_head); // stop if loop around
+  for(uint8_t relative_dev_addr=0; relative_dev_addr < TUSB_CFG_HOST_DEVICE_MAX; relative_dev_addr++)
+  {
+    // check if control endpoint is removing
+    ehci_qhd_t *p_control_qhd = &ehci_data.device[relative_dev_addr].control.qhd;
+    if( p_control_qhd->is_removing )
+    {
+      p_control_qhd->is_removing     = 0;
+      p_control_qhd->used            = 0;
+      p_control_qhd->p_qtd_list_head = p_control_qhd->p_qtd_list_tail = NULL;
+    }
+
+    // check if any other endpoints in pool is removing
+    for (uint8_t i=0; i<EHCI_MAX_QHD; i++)
+    {
+      ehci_qhd_t *p_qhd = &ehci_data.device[relative_dev_addr].qhd[i];
+      if (p_qhd->is_removing)
+      {
+        p_qhd->used        = 0;
+        p_qhd->is_removing = 0;
+
+        while(p_qhd->p_qtd_list_head != NULL) // remove all TDs
+        {
+          p_qhd->p_qtd_list_head->used = 0; // free QTD
+
+          if (p_qhd->p_qtd_list_head == p_qhd->p_qtd_list_tail) // last TD --> make it NULL
+          {
+            p_qhd->p_qtd_list_head = p_qhd->p_qtd_list_tail = NULL;
+          }else
+          {
+            p_qhd->p_qtd_list_head = (ehci_qtd_t*) align32(p_qhd->p_qtd_list_head->next.address);
+          }
+        }
+      }
+    }
+  }
 }
 
 void port_connect_status_change_isr(uint8_t hostid)
@@ -185,6 +221,8 @@ void port_connect_status_change_isr(uint8_t hostid)
     usbh_device_plugged_isr(hostid, regs->portsc_bit.nxp_port_speed); // NXP specific port speed
   }else // device unplugged
   {
+    printf("%s %d\n", __FUNCTION__, __LINE__);
+
     usbh_device_unplugged_isr(hostid);
 
     regs->usb_cmd_bit.advacne_async = 1; // Async doorbell check EHCI 4.8.2 for operational details
@@ -266,7 +304,7 @@ void hcd_isr(uint8_t hostid)
     regs->portsc |= EHCI_PORTSC_MASK_ALL; // Acknowledge all the change bit in portsc
   }
 
-  if (int_status & EHCI_INT_MASK_ASYNC_ADVANCE)
+  if (int_status & EHCI_INT_MASK_ASYNC_ADVANCE) // need to place after EHCI_INT_MASK_NXP_ASYNC
   {
     async_advance_isr( get_async_head(hostid) );
   }
@@ -488,14 +526,42 @@ tusb_error_t  hcd_pipe_control_xfer(uint8_t dev_addr, tusb_std_request_t const *
   return TUSB_ERROR_NONE;
 }
 
+ehci_qhd_t* find_previous_qhd(ehci_qhd_t* p_head, ehci_qhd_t* p_qhd)
+{
+  ehci_qhd_t *p_prev_qhd = p_head;
+  while( (align32(p_prev_qhd->next.address) != (uint32_t) p_head) && (align32(p_prev_qhd->next.address) != (uint32_t) p_qhd) )
+  {
+    p_prev_qhd = (ehci_qhd_t*) align32(p_prev_qhd->next.address);
+  }
+
+  return  align32(p_prev_qhd->next.address) != (uint32_t) p_head ? p_prev_qhd : NULL;
+}
+
+tusb_error_t remove_qhd_from_async_list(ehci_qhd_t* p_head, ehci_qhd_t* p_qhd_remove)
+{
+  ehci_qhd_t *p_prev_qhd = find_previous_qhd(p_head, p_qhd_remove);
+
+  ASSERT_PTR(p_prev_qhd, TUSB_ERROR_INVALID_PARA);
+
+  p_prev_qhd->next.address   = p_qhd_remove->next.address;
+  // EHCI 4.8.2 link the removing queue head to async_head (which always on the async list)
+  p_qhd_remove->next.address = (uint32_t) p_head;
+  p_qhd_remove->next.type    = EHCI_QUEUE_ELEMENT_QHD;
+
+  return TUSB_ERROR_NONE;
+}
+
 tusb_error_t  hcd_pipe_control_close(uint8_t dev_addr)
 {
   //------------- TODO pipe handle validate -------------//
   ehci_qhd_t * const p_qhd = get_control_qhd(dev_addr);
 
-  p_qhd->qtd_overlay.halted = 1;
+  p_qhd->is_removing = 1;
 
-  // TODO remove from async list
+  if (dev_addr != 0)
+  {
+    ASSERT_STATUS( remove_qhd_from_async_list(get_async_head( usbh_device_info_pool[dev_addr].core_id ), p_qhd) );
+  }
 
   return TUSB_ERROR_NONE;
 }
@@ -541,8 +607,6 @@ pipe_handle_t hcd_pipe_open(uint8_t dev_addr, tusb_descriptor_endpoint_t const *
   return (pipe_handle_t) { .dev_addr = dev_addr, .xfer_type = p_endpoint_desc->bmAttributes.xfer, .index = index};
 }
 
-
-
 tusb_error_t  hcd_pipe_xfer(pipe_handle_t pipe_hdl, uint8_t buffer[], uint16_t total_bytes, bool int_on_complete)
 {
   //------------- TODO pipe handle validate -------------//
@@ -568,6 +632,33 @@ tusb_error_t  hcd_pipe_xfer(pipe_handle_t pipe_hdl, uint8_t buffer[], uint16_t t
 
   return TUSB_ERROR_NONE;
 }
+
+static inline ehci_qhd_t* get_qhd_from_pipe_handle(pipe_handle_t pipe_hdl) ATTR_PURE ATTR_ALWAYS_INLINE;
+static inline ehci_qhd_t* get_qhd_from_pipe_handle(pipe_handle_t pipe_hdl)
+{
+  return &ehci_data.device[ pipe_hdl.dev_addr ].qhd[ pipe_hdl.index ];
+}
+
+tusb_error_t  hcd_pipe_close(pipe_handle_t pipe_hdl)
+{
+  ASSERT(pipe_hdl.xfer_type != TUSB_XFER_ISOCHRONOUS, TUSB_ERROR_INVALID_PARA);
+
+  ehci_qhd_t *p_qhd = get_qhd_from_pipe_handle( pipe_hdl );
+  p_qhd->is_removing = 1;
+
+  if ( pipe_hdl.xfer_type == TUSB_XFER_BULK )
+  {
+    ASSERT_STATUS( remove_qhd_from_async_list(
+        get_async_head( usbh_device_info_pool[pipe_hdl.dev_addr].core_id ),
+        p_qhd) );
+  }else
+  {
+    ASSERT(false, TUSB_ERROR_INVALID_PARA);
+  }
+
+  return TUSB_ERROR_NONE;
+}
+
 //--------------------------------------------------------------------+
 // HELPER
 //--------------------------------------------------------------------+
@@ -626,6 +717,7 @@ static void init_qhd(ehci_qhd_t *p_qhd, uint8_t dev_addr, uint16_t max_packet_si
 
   //------------- HCD Management Data -------------//
   p_qhd->used            = 1;
+  p_qhd->is_removing     = 0;
   p_qhd->p_qtd_list_head = NULL;
   p_qhd->p_qtd_list_tail = NULL;
   p_qhd->pid_non_control = (endpoint_addr & 0x80) ? EHCI_PID_IN : EHCI_PID_OUT; // PID for TD under this endpoint

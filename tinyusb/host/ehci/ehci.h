@@ -194,10 +194,10 @@ typedef struct {
 	/// thus there are 16 bytes padding free that we can make use of.
   //--------------------------------------------------------------------+
 	uint8_t used;
+	uint8_t is_removing;
 	uint8_t pid_non_control;
 	uint8_t class_code;
 
-	uint8_t list_index;
 
 	ehci_qtd_t *p_qtd_list_head;	// head of the scheduled TD list
 	ehci_qtd_t *p_qtd_list_tail;	// tail of the scheduled TD list

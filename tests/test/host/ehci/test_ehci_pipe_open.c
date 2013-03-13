@@ -109,6 +109,7 @@ void verify_open_qhd(ehci_qhd_t *p_qhd, uint8_t endpoint_addr, uint16_t max_pack
 
   //------------- HCD -------------//
   TEST_ASSERT(p_qhd->used);
+  TEST_ASSERT_FALSE(p_qhd->is_removing);
   TEST_ASSERT_NULL(p_qhd->p_qtd_list_head);
   TEST_ASSERT_NULL(p_qhd->p_qtd_list_tail);
 }
@@ -179,6 +180,34 @@ void test_control_open_non_highspeed(void)
   TEST_ASSERT_TRUE(p_qhd->non_hs_control_endpoint);
 }
 
+void test_control_addr0_close(void)
+{
+  ehci_qhd_t * const p_qhd = async_head;
+  dev_addr = 0;
+  hcd_pipe_control_open(dev_addr, control_max_packet_size);
+
+  //------------- Code Under Test -------------//
+  hcd_pipe_control_close(dev_addr);
+
+  TEST_ASSERT(p_qhd->head_list_flag);
+  TEST_ASSERT(p_qhd->is_removing);
+}
+
+void test_control_close(void)
+{
+  ehci_qhd_t * const p_qhd = &ehci_data.device[dev_addr].control.qhd;
+
+  hcd_pipe_control_open(dev_addr, control_max_packet_size);
+
+  //------------- Code Under TEST -------------//
+  hcd_pipe_control_close(dev_addr);
+  TEST_ASSERT(p_qhd->is_removing);
+  TEST_ASSERT(p_qhd->used);
+
+  TEST_ASSERT( align32(get_async_head(hostid)->next.address) != (uint32_t) p_qhd );
+  TEST_ASSERT_EQUAL( get_async_head(hostid), align32(p_qhd->next.address));
+}
+
 //--------------------------------------------------------------------+
 // BULK PIPE
 //--------------------------------------------------------------------+
@@ -232,6 +261,20 @@ void test_open_bulk_qhd_data(void)
   TEST_ASSERT_EQUAL_HEX((uint32_t) p_qhd, align32(async_head->next.address));
   TEST_ASSERT_FALSE(async_head->next.terminate);
   TEST_ASSERT_EQUAL(EHCI_QUEUE_ELEMENT_QHD, async_head->next.type);
+}
+
+void test_bulk_close(void)
+{
+  tusb_descriptor_endpoint_t const * desc_endpoint = &desc_ept_bulk_in;
+  pipe_handle_t pipe_hdl = hcd_pipe_open(dev_addr, desc_endpoint, TUSB_CLASS_MSC);
+  ehci_qhd_t *p_qhd = &ehci_data.device[ pipe_hdl.dev_addr ].qhd[ pipe_hdl.index ];
+
+  //------------- Code Under TEST -------------//
+  hcd_pipe_close(pipe_hdl);
+
+  TEST_ASSERT(p_qhd->is_removing);
+  TEST_ASSERT( align32(get_async_head(hostid)->next.address) != (uint32_t) p_qhd );
+  TEST_ASSERT_EQUAL_HEX( (uint32_t) get_async_head(hostid), align32(p_qhd->next.address ) );
 }
 
 //--------------------------------------------------------------------+

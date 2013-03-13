@@ -64,7 +64,7 @@
   #endif
 #endif
 
-
+// TODO refractor ATTR_PACKED(x)
 #if defined(__GNUC__)
   #include "compiler_gcc.h"
 #elif defined __ICCARM__ // IAR compiler

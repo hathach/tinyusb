@@ -244,7 +244,6 @@ void test_control_xfer_isr(void)
   usbh_isr_Expect(((pipe_handle_t){.dev_addr = dev_addr}), 0);
 
   //------------- Code Under TEST -------------//
-  printf("control head = %x\n", p_qhd);
   hcd_isr(hostid);
 
   TEST_ASSERT_NULL(p_qhd->p_qtd_list_head);

@@ -201,6 +201,8 @@ void usbh_device_plugged_isr(uint8_t hostid, tusb_speed_t speed)
 
 void usbh_device_unplugged_isr(uint8_t hostid)
 {
+  printf("%s %d\n", __FUNCTION__, __LINE__);
+
   //------------- find the device address that is unplugged -------------//
   uint8_t dev_addr=1;
   while ( dev_addr <= TUSB_CFG_HOST_DEVICE_MAX && ! (usbh_device_info_pool[dev_addr].core_id == hostid &&
