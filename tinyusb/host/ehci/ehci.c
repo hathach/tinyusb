@@ -616,8 +616,8 @@ pipe_handle_t hcd_pipe_open(uint8_t dev_addr, tusb_descriptor_endpoint_t const *
   return (pipe_handle_t) { .dev_addr = dev_addr, .xfer_type = p_endpoint_desc->bmAttributes.xfer, .index = get_qhd_index(p_qhd) };
 }
 
-static inline ehci_qhd_t* get_qhd_from_pipe_handle(pipe_handle_t pipe_hdl) ATTR_PURE ATTR_ALWAYS_INLINE;
-static inline ehci_qhd_t* get_qhd_from_pipe_handle(pipe_handle_t pipe_hdl)
+STATIC_ INLINE_ ehci_qhd_t* get_qhd_from_pipe_handle(pipe_handle_t pipe_hdl) ATTR_PURE ATTR_ALWAYS_INLINE;
+STATIC_ INLINE_ ehci_qhd_t* get_qhd_from_pipe_handle(pipe_handle_t pipe_hdl)
 {
   return &ehci_data.device[ pipe_hdl.dev_addr-1 ].qhd[ pipe_hdl.index ];
 }
@@ -647,6 +647,11 @@ tusb_error_t  hcd_pipe_xfer(pipe_handle_t pipe_hdl, uint8_t buffer[], uint16_t t
   init_qtd(p_qtd, (uint32_t) buffer, total_bytes);
   p_qtd->pid = p_qhd->pid_non_control;
   p_qtd->int_on_complete = int_on_complete ? 1 : 0;
+  // do PING for Highspeed Bulk OUT, EHCI section 4.11
+  if (pipe_hdl.xfer_type == TUSB_XFER_BULK && p_qhd->endpoint_speed == TUSB_SPEED_HIGH && p_qtd->pid == EHCI_PID_OUT)
+  {
+    p_qtd->pingstate_err = 1;
+  }
 
   //------------- insert TD to TD list -------------//
   insert_qtd_to_qhd(p_qhd, p_qtd);
