@@ -101,7 +101,7 @@ void setUp(void)
   TEST_ASSERT_EQUAL(dev_addr, pipe_hdl_bulk.dev_addr);
   TEST_ASSERT_EQUAL(TUSB_XFER_BULK, pipe_hdl_bulk.xfer_type);
 
-  p_qhd_bulk = &ehci_data.device[ dev_addr ].qhd[ pipe_hdl_bulk.index ];
+  p_qhd_bulk = &ehci_data.device[ dev_addr -1].qhd[ pipe_hdl_bulk.index ];
 }
 
 void tearDown(void)

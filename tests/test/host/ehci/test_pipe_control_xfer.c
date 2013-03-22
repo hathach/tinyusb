@@ -98,9 +98,9 @@ void setUp(void)
 
   async_head =  get_async_head( hostid );
 
-  p_setup  = &ehci_data.device[dev_addr].control.qtd[0];
-  p_data   = &ehci_data.device[dev_addr].control.qtd[1];
-  p_status = &ehci_data.device[dev_addr].control.qtd[2];
+  p_setup  = &ehci_data.device[dev_addr-1].control.qtd[0];
+  p_data   = &ehci_data.device[dev_addr-1].control.qtd[1];
+  p_status = &ehci_data.device[dev_addr-1].control.qtd[2];
 }
 
 void tearDown(void)

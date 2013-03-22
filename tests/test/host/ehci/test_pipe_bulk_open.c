@@ -153,7 +153,7 @@ void test_open_bulk_qhd_data(void)
   TEST_ASSERT_EQUAL(dev_addr, pipe_hdl.dev_addr);
   TEST_ASSERT_EQUAL(TUSB_XFER_BULK, pipe_hdl.xfer_type);
 
-  p_qhd = &ehci_data.device[ pipe_hdl.dev_addr ].qhd[ pipe_hdl.index ];
+  p_qhd = &ehci_data.device[ pipe_hdl.dev_addr-1 ].qhd[ pipe_hdl.index ];
   verify_bulk_open_qhd(p_qhd, desc_endpoint, TUSB_CLASS_MSC);
 
   //------------- async list check -------------//
@@ -169,7 +169,7 @@ void test_bulk_close(void)
 {
   tusb_descriptor_endpoint_t const * desc_endpoint = &desc_ept_bulk_in;
   pipe_handle_t pipe_hdl = hcd_pipe_open(dev_addr, desc_endpoint, TUSB_CLASS_MSC);
-  ehci_qhd_t *p_qhd = &ehci_data.device[ pipe_hdl.dev_addr ].qhd[ pipe_hdl.index ];
+  ehci_qhd_t *p_qhd = &ehci_data.device[ pipe_hdl.dev_addr-1].qhd[ pipe_hdl.index ];
 
   //------------- Code Under TEST -------------//
   hcd_pipe_close(pipe_hdl);

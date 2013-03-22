@@ -148,7 +148,7 @@ void test_open_interrupt_qhd_hs(void)
   TEST_ASSERT_EQUAL(dev_addr, pipe_hdl.dev_addr);
   TEST_ASSERT_EQUAL(TUSB_XFER_INTERRUPT, pipe_hdl.xfer_type);
 
-  p_qhd = &ehci_data.device[ pipe_hdl.dev_addr ].qhd[ pipe_hdl.index ];
+  p_qhd = &ehci_data.device[ pipe_hdl.dev_addr-1].qhd[ pipe_hdl.index ];
 
   verify_int_qhd(p_qhd, &desc_ept_interrupt_out, TUSB_CLASS_HID);
 
@@ -169,7 +169,7 @@ void test_open_interrupt_qhd_non_hs(void)
   TEST_ASSERT_EQUAL(dev_addr, pipe_hdl.dev_addr);
   TEST_ASSERT_EQUAL(TUSB_XFER_INTERRUPT, pipe_hdl.xfer_type);
 
-  p_qhd = &ehci_data.device[ pipe_hdl.dev_addr ].qhd[ pipe_hdl.index ];
+  p_qhd = &ehci_data.device[ pipe_hdl.dev_addr-1].qhd[ pipe_hdl.index ];
 
   verify_int_qhd(p_qhd, &desc_ept_interrupt_out, TUSB_CLASS_HID);
 

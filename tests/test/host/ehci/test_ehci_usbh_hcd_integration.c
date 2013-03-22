@@ -127,7 +127,7 @@ void test_isr_disconnect_then_async_advance_control_pipe(void)
                               .wValue   = 3 },
                         NULL);
 
-  ehci_qhd_t *p_qhd = &ehci_data.device[dev_addr].control.qhd;
+  ehci_qhd_t *p_qhd = get_control_qhd(dev_addr);
   ehci_qtd_t *p_qtd_head = p_qhd->p_qtd_list_head;
   ehci_qtd_t *p_qtd_tail = p_qhd->p_qtd_list_tail;
 
@@ -162,7 +162,7 @@ void test_bulk_pipe_close(void)
   hcd_pipe_xfer(pipe_hdl, xfer_data, sizeof(xfer_data), 100);
   hcd_pipe_xfer(pipe_hdl, xfer_data, sizeof(xfer_data), 50);
 
-  ehci_qhd_t *p_qhd = &ehci_data.device[dev_addr].qhd[pipe_hdl.index];
+  ehci_qhd_t *p_qhd = &ehci_data.device[dev_addr-1].qhd[pipe_hdl.index];
   ehci_qtd_t *p_qtd_head = p_qhd->p_qtd_list_head;
   ehci_qtd_t *p_qtd_tail = p_qhd->p_qtd_list_tail;
 
