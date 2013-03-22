@@ -61,11 +61,7 @@ ehci_qhd_t *async_head;
 //--------------------------------------------------------------------+
 void setUp(void)
 {
-  memclr_(&lpc_usb0, sizeof(LPC_USB0_Type));
-  memclr_(&lpc_usb1, sizeof(LPC_USB1_Type));
-
   memclr_(usbh_device_info_pool, sizeof(usbh_device_info_t)*(TUSB_CFG_HOST_DEVICE_MAX+1));
-  memclr_(&ehci_data, sizeof(ehci_data_t));
 
   hcd_init();
 

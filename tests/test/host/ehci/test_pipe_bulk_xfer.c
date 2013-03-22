@@ -80,7 +80,6 @@ void setUp(void)
   memclr_(&lpc_usb1, sizeof(LPC_USB1_Type));
 
   memclr_(usbh_device_info_pool, sizeof(usbh_device_info_t)*(TUSB_CFG_HOST_DEVICE_MAX+1));
-  memclr_(&ehci_data, sizeof(ehci_data_t));
   memclr_(xfer_data, sizeof(xfer_data));
 
   hcd_init();
