@@ -184,12 +184,10 @@ void test_device_unplugged_status(void)
 {
   ehci_controller_device_unplug(hostid);
   hcd_isr(hostid);
+  TEST_ASSERT_EQUAL(TUSB_DEVICE_STATUS_REMOVING, usbh_device_info_pool[dev_addr].status);
 
   regs->usb_sts_bit.async_advance = 1;
   hcd_isr(hostid); // async advance
 
-  //------------- Code Under Test -------------//
-
-  TEST_ASSERT_EQUAL(TUSB_DEVICE_STATUS_REMOVING, usbh_device_info_pool[dev_addr].status);
-
+  TEST_ASSERT_EQUAL(TUSB_DEVICE_STATUS_UNPLUG, usbh_device_info_pool[dev_addr].status);
 }

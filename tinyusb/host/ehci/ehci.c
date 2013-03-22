@@ -183,6 +183,9 @@ void async_advance_isr(ehci_qhd_t * const async_head)
       p_control_qhd->is_removing     = 0;
       p_control_qhd->used            = 0;
       p_control_qhd->p_qtd_list_head = p_control_qhd->p_qtd_list_tail = NULL;
+
+      // TODO abstract: Host Controller has cleaned up its data for this device, notify usbh
+      usbh_device_hcd_data_cleaned_up_cb(relative_dev_addr+1);
     }
 
     // check if any other endpoints in pool is removing

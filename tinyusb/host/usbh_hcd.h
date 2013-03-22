@@ -103,7 +103,7 @@ extern usbh_device_info_t usbh_device_info_pool[TUSB_CFG_HOST_DEVICE_MAX+1]; // 
 void usbh_isr(pipe_handle_t pipe_hdl, uint8_t class_code);
 void usbh_device_plugged_isr(uint8_t hostid, tusb_speed_t speed);
 void usbh_device_unplugged_isr(uint8_t hostid);
-
+void usbh_device_hcd_data_cleaned_up_cb(uint8_t dev_addr); // hcd called this function when it cleaned all its cached data for this device
 
 #ifdef __cplusplus
  }

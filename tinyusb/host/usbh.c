@@ -225,11 +225,15 @@ void usbh_device_unplugged_isr(uint8_t hostid)
 
   usbh_pipe_control_close(dev_addr);
 
-  // set to REMOVING to prevent allocate to other new device
-  // need to set to UNPLUGGED by HCD after freeing all resources
+  // set to REMOVING to end wait for HCD to clean up its cached data for this device
   usbh_device_info_pool[dev_addr].status = TUSB_DEVICE_STATUS_REMOVING;
 }
 
+// HCD cleaned up cached data for this device
+void usbh_device_hcd_data_cleaned_up_cb(uint8_t dev_addr)
+{
+  usbh_device_info_pool[dev_addr].status = TUSB_DEVICE_STATUS_UNPLUG;
+}
 
 //--------------------------------------------------------------------+
 // ENUMERATION TASK
