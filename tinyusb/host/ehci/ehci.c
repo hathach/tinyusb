@@ -273,7 +273,8 @@ void hcd_isr(uint8_t hostid)
   ehci_registers_t* const regs = get_operational_register(hostid);
 
   uint32_t int_status = regs->usb_sts & regs->usb_int_enable;
-
+  regs->usb_sts |= int_status; // Acknowledge handled interrupt
+  
   if (int_status == 0)
     return;
 
@@ -309,8 +310,6 @@ void hcd_isr(uint8_t hostid)
   {
     async_advance_isr( get_async_head(hostid) );
   }
-
-  regs->usb_sts |= regs->usb_sts; // Acknowledge interrupt & clear it
 }
 
 //--------------------------------------------------------------------+
@@ -454,6 +453,18 @@ static inline void list_insert(ehci_link_t *current, ehci_link_t *new, uint8_t n
   current->address = (uint32_t) new;
   current->type = new_type;
 }
+
+//static inline void qtd_remove_1st_from_qhd(ehci_qhd_t *p_qhd) ATTR_ALWAYS_INLINE;
+//static inline void qtd_remove_1st_from_qhd(ehci_qhd_t *p_qhd)
+//{
+//  if (p_qhd->p_qtd_list_head == p_qhd->p_qtd_list_tail) // last TD --> make it NULL
+//  {
+//    p_qhd->p_qtd_list_head = p_qhd->p_qtd_list_tail = NULL;
+//  }else
+//  {
+//    p_qhd->p_qtd_list_head = (ehci_qtd_t*) align32(p_qhd->p_qtd_list_head->next.address);
+//  }
+//}
 
 static inline void insert_qtd_to_qhd(ehci_qhd_t *p_qhd, ehci_qtd_t *p_qtd_new) ATTR_ALWAYS_INLINE;
 static inline void insert_qtd_to_qhd(ehci_qhd_t *p_qhd, ehci_qtd_t *p_qtd_new)
