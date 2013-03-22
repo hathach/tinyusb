@@ -117,6 +117,32 @@ static inline uint8_t get_qhd_index(ehci_qhd_t * p_qhd)
   return p_qhd - ehci_data.device[p_qhd->device_address-1].qhd;
 }
 
+static inline void qtd_remove_1st_from_qhd(ehci_qhd_t *p_qhd) ATTR_ALWAYS_INLINE;
+static inline void qtd_remove_1st_from_qhd(ehci_qhd_t *p_qhd)
+{
+  if (p_qhd->p_qtd_list_head == p_qhd->p_qtd_list_tail) // last TD --> make it NULL
+  {
+    p_qhd->p_qtd_list_head = p_qhd->p_qtd_list_tail = NULL;
+  }else
+  {
+    p_qhd->p_qtd_list_head = (ehci_qtd_t*) align32(p_qhd->p_qtd_list_head->next.address);
+  }
+}
+
+static inline void insert_qtd_to_qhd(ehci_qhd_t *p_qhd, ehci_qtd_t *p_qtd_new) ATTR_ALWAYS_INLINE;
+static inline void insert_qtd_to_qhd(ehci_qhd_t *p_qhd, ehci_qtd_t *p_qtd_new)
+{
+  if (p_qhd->p_qtd_list_head == NULL) // empty list
+  {
+    p_qhd->p_qtd_list_head               = p_qhd->p_qtd_list_tail = p_qtd_new;
+    p_qhd->qtd_overlay.next.address      = (uint32_t) p_qtd_new;
+  }else
+  {
+    p_qhd->p_qtd_list_tail->next.address = (uint32_t) p_qtd_new;
+    p_qhd->p_qtd_list_tail               = p_qtd_new;
+  }
+}
+
 
 tusb_error_t hcd_controller_init(uint8_t hostid) ATTR_WARN_UNUSED_RESULT;
 
@@ -201,14 +227,7 @@ void async_advance_isr(ehci_qhd_t * const async_head)
         while(p_qhd->p_qtd_list_head != NULL) // remove all TDs
         {
           p_qhd->p_qtd_list_head->used = 0; // free QTD
-
-          if (p_qhd->p_qtd_list_head == p_qhd->p_qtd_list_tail) // last TD --> make it NULL
-          {
-            p_qhd->p_qtd_list_head = p_qhd->p_qtd_list_tail = NULL;
-          }else
-          {
-            p_qhd->p_qtd_list_head = (ehci_qtd_t*) align32(p_qhd->p_qtd_list_head->next.address);
-          }
+          qtd_remove_1st_from_qhd(p_qhd);
         }
       }
     }
@@ -252,15 +271,9 @@ void async_list_process_isr(ehci_qhd_t * const async_head, ehci_registers_t * co
           }
           usbh_isr( pipe_hdl, p_qhd->class_code); // call USBH call back
         }
-        p_qhd->p_qtd_list_head->used = 0; // free QTD
 
-        if (p_qhd->p_qtd_list_head == p_qhd->p_qtd_list_tail) // last TD --> make it NULL
-        {
-          p_qhd->p_qtd_list_head = p_qhd->p_qtd_list_tail = NULL;
-        }else
-        {
-          p_qhd->p_qtd_list_head = (ehci_qtd_t*) align32(p_qhd->p_qtd_list_head->next.address);
-        }
+        p_qhd->p_qtd_list_head->used = 0; // free QTD
+        qtd_remove_1st_from_qhd(p_qhd);
       }
     }
     p_qhd = (ehci_qhd_t*) align32(p_qhd->next.address);
@@ -452,32 +465,6 @@ static inline void list_insert(ehci_link_t *current, ehci_link_t *new, uint8_t n
   new->address = current->address;
   current->address = (uint32_t) new;
   current->type = new_type;
-}
-
-//static inline void qtd_remove_1st_from_qhd(ehci_qhd_t *p_qhd) ATTR_ALWAYS_INLINE;
-//static inline void qtd_remove_1st_from_qhd(ehci_qhd_t *p_qhd)
-//{
-//  if (p_qhd->p_qtd_list_head == p_qhd->p_qtd_list_tail) // last TD --> make it NULL
-//  {
-//    p_qhd->p_qtd_list_head = p_qhd->p_qtd_list_tail = NULL;
-//  }else
-//  {
-//    p_qhd->p_qtd_list_head = (ehci_qtd_t*) align32(p_qhd->p_qtd_list_head->next.address);
-//  }
-//}
-
-static inline void insert_qtd_to_qhd(ehci_qhd_t *p_qhd, ehci_qtd_t *p_qtd_new) ATTR_ALWAYS_INLINE;
-static inline void insert_qtd_to_qhd(ehci_qhd_t *p_qhd, ehci_qtd_t *p_qtd_new)
-{
-  if (p_qhd->p_qtd_list_head == NULL) // empty list
-  {
-    p_qhd->p_qtd_list_head               = p_qhd->p_qtd_list_tail = p_qtd_new;
-    p_qhd->qtd_overlay.next.address      = (uint32_t) p_qtd_new;
-  }else
-  {
-    p_qhd->p_qtd_list_tail->next.address = (uint32_t) p_qtd_new;
-    p_qhd->p_qtd_list_tail               = p_qtd_new;
-  }
 }
 
 tusb_error_t  hcd_pipe_control_open(uint8_t dev_addr, uint8_t max_packet_size)
