@@ -49,14 +49,12 @@
 
 usbh_device_info_t usbh_device_info_pool[TUSB_CFG_HOST_DEVICE_MAX+1];
 
-uint8_t const control_max_packet_size = 64;
 uint8_t const hub_addr = 2;
 uint8_t const hub_port = 2;
 uint8_t dev_addr;
 uint8_t hostid;
 
-ehci_qhd_t *async_head;
-ehci_qhd_t *p_control_qhd;
+ehci_qhd_t *period_head;
 
 //--------------------------------------------------------------------+
 // Setup/Teardown + helper declare
@@ -82,8 +80,7 @@ void setUp(void)
     usbh_device_info_pool[i].speed    = TUSB_SPEED_HIGH;
   }
 
-  async_head =  get_async_head( hostid );
-  p_control_qhd = &ehci_data.device[dev_addr-1].control.qhd;
+  period_head = get_period_head( hostid );
 }
 
 void tearDown(void)
@@ -115,86 +112,71 @@ void verify_open_qhd(ehci_qhd_t *p_qhd, uint8_t endpoint_addr, uint16_t max_pack
 }
 
 //--------------------------------------------------------------------+
-// PIPE OPEN
+// INTERRUPT PIPE
 //--------------------------------------------------------------------+
-void verify_control_open_qhd(ehci_qhd_t *p_qhd)
+tusb_descriptor_endpoint_t const desc_ept_interrupt_out =
 {
-  verify_open_qhd(p_qhd, 0, control_max_packet_size);
+    .bLength          = sizeof(tusb_descriptor_endpoint_t),
+    .bDescriptorType  = TUSB_DESC_ENDPOINT,
+    .bEndpointAddress = 0x02,
+    .bmAttributes     = { .xfer = TUSB_XFER_INTERRUPT },
+    .wMaxPacketSize   = 16,
+    .bInterval        = 1
+};
+void verify_int_qhd(ehci_qhd_t *p_qhd, tusb_descriptor_endpoint_t const * desc_endpoint, uint8_t class_code)
+{
+  verify_open_qhd(p_qhd, desc_endpoint->bEndpointAddress, desc_endpoint->wMaxPacketSize);
 
-  TEST_ASSERT_EQUAL(0, p_qhd->class_code);
-  TEST_ASSERT_EQUAL(1, p_qhd->data_toggle_control);
-  TEST_ASSERT_EQUAL(0, p_qhd->interrupt_smask);
-  TEST_ASSERT_EQUAL(0, p_qhd->non_hs_interrupt_cmask);
+  TEST_ASSERT_FALSE(p_qhd->head_list_flag);
+  TEST_ASSERT_EQUAL(0, p_qhd->data_toggle_control);
+  TEST_ASSERT_FALSE(p_qhd->non_hs_control_endpoint);
+
+  //  TEST_ASSERT_EQUAL(desc_endpoint->bInterval); TDD highspeed bulk/control OUT
+
+  TEST_ASSERT_EQUAL(desc_endpoint->bEndpointAddress & 0x80 ? EHCI_PID_IN : EHCI_PID_OUT, p_qhd->pid_non_control);
+
+  //------------- period list check -------------//
+  TEST_ASSERT_EQUAL_HEX((uint32_t) p_qhd, align32(period_head->next.address));
+  TEST_ASSERT_FALSE(period_head->next.terminate);
+  TEST_ASSERT_EQUAL(EHCI_QUEUE_ELEMENT_QHD, period_head->next.type);
 }
 
-void test_control_open_addr0_qhd_data(void)
+void test_open_interrupt_qhd_hs(void)
 {
-  dev_addr = 0;
-
-  //------------- Code Under Test -------------//
-  hcd_pipe_control_open(dev_addr, control_max_packet_size);
-
-  verify_control_open_qhd(async_head);
-  TEST_ASSERT(async_head->head_list_flag);
-}
-
-void test_control_open_qhd_data(void)
-{
-  //------------- Code Under TEST -------------//
-  hcd_pipe_control_open(dev_addr, control_max_packet_size);
-
-  verify_control_open_qhd(p_control_qhd);
-  TEST_ASSERT_FALSE(p_control_qhd->head_list_flag);
-
-  //------------- async list check -------------//
-  TEST_ASSERT_EQUAL_HEX((uint32_t) p_control_qhd, align32(async_head->next.address));
-  TEST_ASSERT_FALSE(async_head->next.terminate);
-  TEST_ASSERT_EQUAL(EHCI_QUEUE_ELEMENT_QHD, async_head->next.type);
-}
-
-void test_control_open_highspeed(void)
-{
-  usbh_device_info_pool[dev_addr].speed   = TUSB_SPEED_HIGH;
+  ehci_qhd_t *p_qhd;
+  pipe_handle_t pipe_hdl;
 
   //------------- Code Under TEST -------------//
-  hcd_pipe_control_open(dev_addr, control_max_packet_size);
-  TEST_ASSERT_FALSE(p_control_qhd->non_hs_control_endpoint);
+  pipe_hdl = hcd_pipe_open(dev_addr, &desc_ept_interrupt_out, TUSB_CLASS_HID);
+
+  TEST_ASSERT_EQUAL(dev_addr, pipe_hdl.dev_addr);
+  TEST_ASSERT_EQUAL(TUSB_XFER_INTERRUPT, pipe_hdl.xfer_type);
+
+  p_qhd = &ehci_data.device[ pipe_hdl.dev_addr ].qhd[ pipe_hdl.index ];
+
+  verify_int_qhd(p_qhd, &desc_ept_interrupt_out, TUSB_CLASS_HID);
+
+  TEST_ASSERT_EQUAL(0xFF, p_qhd->interrupt_smask);
+  //TEST_ASSERT_EQUAL(0, p_qhd->non_hs_interrupt_cmask); cmask in high speed is ignored
 }
 
-void test_control_open_non_highspeed(void)
+void test_open_interrupt_qhd_non_hs(void)
 {
-  usbh_device_info_pool[dev_addr].speed   = TUSB_SPEED_FULL;
+  ehci_qhd_t *p_qhd;
+  pipe_handle_t pipe_hdl;
+
+  usbh_device_info_pool[dev_addr].speed = TUSB_SPEED_FULL;
 
   //------------- Code Under TEST -------------//
-  hcd_pipe_control_open(dev_addr, control_max_packet_size);
+  pipe_hdl = hcd_pipe_open(dev_addr, &desc_ept_interrupt_out, TUSB_CLASS_HID);
 
-  TEST_ASSERT_TRUE(p_control_qhd->non_hs_control_endpoint);
-}
+  TEST_ASSERT_EQUAL(dev_addr, pipe_hdl.dev_addr);
+  TEST_ASSERT_EQUAL(TUSB_XFER_INTERRUPT, pipe_hdl.xfer_type);
 
-//--------------------------------------------------------------------+
-// PIPE CLOSE
-//--------------------------------------------------------------------+
-void test_control_addr0_close(void)
-{
-  dev_addr = 0;
-  hcd_pipe_control_open(dev_addr, control_max_packet_size);
+  p_qhd = &ehci_data.device[ pipe_hdl.dev_addr ].qhd[ pipe_hdl.index ];
 
-  //------------- Code Under Test -------------//
-  hcd_pipe_control_close(dev_addr);
+  verify_int_qhd(p_qhd, &desc_ept_interrupt_out, TUSB_CLASS_HID);
 
-  TEST_ASSERT(async_head->head_list_flag);
-  TEST_ASSERT(async_head->is_removing);
-}
-
-void test_control_close(void)
-{
-  hcd_pipe_control_open(dev_addr, control_max_packet_size);
-
-  //------------- Code Under TEST -------------//
-  hcd_pipe_control_close(dev_addr);
-  TEST_ASSERT(p_control_qhd->is_removing);
-  TEST_ASSERT(p_control_qhd->used);
-
-  TEST_ASSERT( align32(get_async_head(hostid)->next.address) != (uint32_t) p_control_qhd );
-  TEST_ASSERT_EQUAL( get_async_head(hostid), align32(p_control_qhd->next.address));
+  TEST_ASSERT_EQUAL(1, p_qhd->interrupt_smask);
+  TEST_ASSERT_EQUAL(0x1c, p_qhd->non_hs_interrupt_cmask);
 }
