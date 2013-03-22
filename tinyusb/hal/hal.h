@@ -52,6 +52,7 @@
 #define _TUSB_HAL_H_
 
 #include "tusb_option.h"
+#include "common/errors.h"
 #include "common/compiler/compiler.h"
 
 #if MCU == 0
@@ -90,6 +91,27 @@ static inline void hal_interrupt_enable() ATTR_ALWAYS_INLINE;
  * Disable USB Interrupt
  */
 static inline void hal_interrupt_disable() ATTR_ALWAYS_INLINE;
+
+static inline bool hal_debugger_is_attached() ATTR_PURE ATTR_ALWAYS_INLINE;
+static inline bool hal_debugger_is_attached()
+{
+#ifndef _TEST_
+  return (CoreDebug->DHCSR & CoreDebug_DHCSR_C_DEBUGEN_Msk) == CoreDebug_DHCSR_C_DEBUGEN_Msk;
+#else
+  return false;
+#endif
+}
+
+static inline void hal_debugger_breakpoint() ATTR_ALWAYS_INLINE;
+static inline void hal_debugger_breakpoint()
+{
+#ifndef _TEST_
+  if (hal_debugger_is_attached()) /* if there is debugger connected */
+  {
+    __asm("BKPT #0\n");
+  }
+#endif
+}
 
 #ifdef __cplusplus
  }

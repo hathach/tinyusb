@@ -83,12 +83,6 @@
 //--------------------------------------------------------------------+
 // MACROS
 //--------------------------------------------------------------------+
-#ifndef _TEST_
-  #define ASM_BREAKPOINT __asm("BKPT #0\n")          // Place breakpoint to stop the debugger at desire
-#else
-  #define ASM_BREAKPOINT
-#endif
-
 #define STRING_(x)  #x                             // stringify without expand
 #define XSTRING_(x) STRING_(x)                     // expand then stringify
 #define STRING_CONCAT_(a, b) a##b                  // concat without expand

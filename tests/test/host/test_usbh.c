@@ -162,6 +162,19 @@ void class_close_expect(void)
   hidh_close_Expect(1);
 }
 
+// device is not mounted before, even the control pipe is not open, do nothing
+void test_usbh_device_unplugged_isr_device_not_previously_mounted(void)
+{
+  uint8_t dev_addr = 1;
+
+  usbh_device_info_pool[dev_addr].status   = TUSB_DEVICE_STATUS_UNPLUG;
+  usbh_device_info_pool[dev_addr].core_id  = 0;
+  usbh_device_info_pool[dev_addr].hub_addr = 0;
+  usbh_device_info_pool[dev_addr].hub_port = 0;
+
+  usbh_device_unplugged_isr(0);
+}
+
 void test_usbh_device_unplugged_isr(void)
 {
   uint8_t dev_addr = 1;

@@ -134,5 +134,10 @@ void HardFault_HandlerC(unsigned long *hardfault_args){
   // Bus Fault Address Register
   _BFAR = (*((volatile unsigned long *)(0xE000ED38))) ;
 
-  __asm("BKPT #0\n") ; // Break into the debugger
+//  if ((CoreDebug->DHCSR & CoreDebug_DHCSR_C_DEBUGEN_Msk)==CoreDebug_DHCSR_C_DEBUGEN_Msk) /* if there is debugger connected */
+//  {
+//    __asm("BKPT #0\n");
+//  }
+
+  hal_debugger_breakpoint();
 }

@@ -164,7 +164,7 @@ void test_control_addr0_xfer_get_check_qhd_qtd_mapping(void)
 
 void test_control_xfer_get(void)
 {
-  ehci_qhd_t * const p_qhd = &ehci_data.device[dev_addr].control.qhd;
+  ehci_qhd_t * const p_qhd = &ehci_data.device[dev_addr-1].control.qhd;
   hcd_pipe_control_open(dev_addr, control_max_packet_size);
 
   //------------- Code Under TEST -------------//
@@ -209,7 +209,7 @@ void test_control_xfer_set(void)
       .wValue   = 3
   };
 
-  ehci_qhd_t * const p_qhd = &ehci_data.device[dev_addr].control.qhd;
+  ehci_qhd_t * const p_qhd = &ehci_data.device[dev_addr-1].control.qhd;
   hcd_pipe_control_open(dev_addr, control_max_packet_size);
 
   //------------- Code Under TEST -------------//
@@ -233,7 +233,7 @@ void test_control_xfer_set(void)
 
 void test_control_xfer_isr(void)
 {
-  ehci_qhd_t * const p_qhd = &ehci_data.device[dev_addr].control.qhd;
+  ehci_qhd_t * const p_qhd = &ehci_data.device[dev_addr-1].control.qhd;
   hcd_pipe_control_open(dev_addr, control_max_packet_size);
 
   hcd_pipe_control_xfer(dev_addr, &request_get_dev_desc, xfer_data);

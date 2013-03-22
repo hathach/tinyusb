@@ -201,13 +201,15 @@ void usbh_device_plugged_isr(uint8_t hostid, tusb_speed_t speed)
 
 void usbh_device_unplugged_isr(uint8_t hostid)
 {
-  printf("%s %d\n", __FUNCTION__, __LINE__);
-
   //------------- find the device address that is unplugged -------------//
   uint8_t dev_addr=1;
-  while ( dev_addr <= TUSB_CFG_HOST_DEVICE_MAX && ! (usbh_device_info_pool[dev_addr].core_id == hostid &&
-      usbh_device_info_pool[dev_addr].hub_addr == 0 &&
-      usbh_device_info_pool[dev_addr].hub_port ==0))
+  while ( dev_addr <= TUSB_CFG_HOST_DEVICE_MAX &&
+          !(usbh_device_info_pool[dev_addr].core_id  == hostid &&
+            usbh_device_info_pool[dev_addr].hub_addr == 0 &&
+            usbh_device_info_pool[dev_addr].hub_port == 0 &&
+            usbh_device_info_pool[dev_addr].status   != TUSB_DEVICE_STATUS_UNPLUG
+          )
+  )
   {
     dev_addr++;
   }
@@ -370,20 +372,19 @@ OSAL_TASK_DECLARE(usbh_enumeration_task)
     if (class_code == 0)
     {
       TASK_ASSERT( false ); // corrupted data, abort enumeration
-    } else if ( class_code < TUSB_CLASS_MAX_CONSEC_NUMBER)
+    }
+    // supported class
+    else if ( class_code < TUSB_CLASS_MAX_CONSEC_NUMBER && usbh_class_drivers[class_code].open_subtask)
     {
-      if ( usbh_class_drivers[class_code].open_subtask )
-      {
-        uint16_t length;
-        OSAL_SUBTASK_INVOKED_AND_WAIT ( // parameters in task/sub_task must be static storage (static or global)
-            usbh_class_drivers[ ((tusb_descriptor_interface_t*) p_desc)->bInterfaceClass ].open_subtask(new_addr, p_desc, &length) );
-        p_desc += length;
-      }
+      uint16_t length;
+      OSAL_SUBTASK_INVOKED_AND_WAIT ( // parameters in task/sub_task must be static storage (static or global)
+          usbh_class_drivers[ ((tusb_descriptor_interface_t*) p_desc)->bInterfaceClass ].open_subtask(new_addr, p_desc, &length) );
+      p_desc += length;
     } else // unsupported class (not enable or yet implemented)
     {
       do
       {
-        p_desc += (*p_desc);
+        p_desc += (*p_desc); // skip the descriptor, increase by the descriptor's length
       } while ( (p_desc < enum_data_buffer + ((tusb_descriptor_configuration_t*)enum_data_buffer)->wTotalLength)
           && TUSB_DESC_INTERFACE != p_desc[1] );
     }

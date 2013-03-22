@@ -57,6 +57,7 @@ extern "C"
 #endif
 
 #include "tusb_option.h"
+#include "hal/hal.h"
 
 //--------------------------------------------------------------------+
 // Compile-time Assert
@@ -92,7 +93,8 @@ extern "C"
 #endif
 
 #ifndef _TEST_ASSERT_
-  #define ASSERT_ERROR_HANDLER(x, para)  return (x)
+  #define ASSERT_ERROR_HANDLER(x, para)  \
+    return (x)
 #else
   #define ASSERT_ERROR_HANDLER(x, para)  Throw(x)
 #endif
@@ -101,7 +103,11 @@ extern "C"
   do{\
     setup_statement;\
 	  if (!(condition)) {\
-	    ASSERT_MESSAGE(format, __VA_ARGS__);\
+	    if (hal_debugger_is_attached()){\
+	      hal_debugger_breakpoint();\
+	    }else{\
+	      ASSERT_MESSAGE(format, __VA_ARGS__);\
+	    }\
 	    error_handler(error, handler_para);\
 	  }\
 	}while(0)

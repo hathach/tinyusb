@@ -78,6 +78,7 @@ void setUp(void)
     usbh_device_info_pool[i].hub_addr = hub_addr;
     usbh_device_info_pool[i].hub_port = hub_port;
     usbh_device_info_pool[i].speed    = TUSB_SPEED_HIGH;
+    usbh_device_info_pool[i].status   = TUSB_DEVICE_STATUS_READY;
   }
 
   regs = get_operational_register(hostid);
@@ -177,4 +178,18 @@ void test_bulk_pipe_close(void)
   TEST_ASSERT_NULL(p_qhd->p_qtd_list_tail);
   TEST_ASSERT_FALSE(p_qtd_head->used);
   TEST_ASSERT_FALSE(p_qtd_tail->used);
+}
+
+void test_device_unplugged_status(void)
+{
+  ehci_controller_device_unplug(hostid);
+  hcd_isr(hostid);
+
+  regs->usb_sts_bit.async_advance = 1;
+  hcd_isr(hostid); // async advance
+
+  //------------- Code Under Test -------------//
+
+  TEST_ASSERT_EQUAL(TUSB_DEVICE_STATUS_REMOVING, usbh_device_info_pool[dev_addr].status);
+
 }

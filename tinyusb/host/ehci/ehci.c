@@ -221,10 +221,7 @@ void port_connect_status_change_isr(uint8_t hostid)
     usbh_device_plugged_isr(hostid, regs->portsc_bit.nxp_port_speed); // NXP specific port speed
   }else // device unplugged
   {
-    printf("%s %d\n", __FUNCTION__, __LINE__);
-
     usbh_device_unplugged_isr(hostid);
-
     regs->usb_cmd_bit.advacne_async = 1; // Async doorbell check EHCI 4.8.2 for operational details
   }
 
@@ -280,7 +277,7 @@ void hcd_isr(uint8_t hostid)
   {
     // TODO handle Queue Head halted
     // TODO invoke some error callback if not async head
-    ASM_BREAKPOINT;
+    hal_debugger_breakpoint();
   }
 
   //------------- some QTD/SITD/ITD with IOC set is completed -------------//
@@ -666,7 +663,7 @@ static inline ehci_qhd_t* get_control_qhd(uint8_t dev_addr)
 {
   return (dev_addr == 0) ?
       get_async_head( usbh_device_info_pool[dev_addr].core_id ) :
-      &ehci_data.device[dev_addr].control.qhd;
+      &ehci_data.device[dev_addr-1].control.qhd;
 }
 static inline ehci_qtd_t* get_control_qtds(uint8_t dev_addr)
 {

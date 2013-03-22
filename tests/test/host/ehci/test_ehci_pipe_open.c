@@ -142,7 +142,7 @@ void test_control_open_addr0_qhd_data(void)
 
 void test_control_open_qhd_data(void)
 {
-  ehci_qhd_t * const p_qhd = &ehci_data.device[dev_addr].control.qhd;
+  ehci_qhd_t * const p_qhd = &ehci_data.device[dev_addr-1].control.qhd;
 
   //------------- Code Under TEST -------------//
   hcd_pipe_control_open(dev_addr, control_max_packet_size);
@@ -170,7 +170,7 @@ void test_control_open_highspeed(void)
 
 void test_control_open_non_highspeed(void)
 {
-  ehci_qhd_t * const p_qhd = &ehci_data.device[dev_addr].control.qhd;
+  ehci_qhd_t * const p_qhd = &ehci_data.device[dev_addr-1].control.qhd;
 
   usbh_device_info_pool[dev_addr].speed   = TUSB_SPEED_FULL;
 
@@ -195,7 +195,7 @@ void test_control_addr0_close(void)
 
 void test_control_close(void)
 {
-  ehci_qhd_t * const p_qhd = &ehci_data.device[dev_addr].control.qhd;
+  ehci_qhd_t * const p_qhd = &ehci_data.device[dev_addr-1].control.qhd;
 
   hcd_pipe_control_open(dev_addr, control_max_packet_size);
 
