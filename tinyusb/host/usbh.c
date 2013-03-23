@@ -143,11 +143,14 @@ tusb_error_t usbh_control_xfer_subtask(uint8_t dev_addr, tusb_std_request_t cons
 
   OSAL_SUBTASK_BEGIN
 
+  usbh_device_info_pool[dev_addr].control_pipe_status = PIPE_STATUS_BUSY;
   usbh_device_info_pool[dev_addr].control_request = *p_request;
   (void) hcd_pipe_control_xfer(dev_addr, &usbh_device_info_pool[dev_addr].control_request, data);
 
   osal_semaphore_wait(usbh_device_info_pool[dev_addr].sem_hdl, OSAL_TIMEOUT_NORMAL, &error); // careful of local variable without static
-  SUBTASK_ASSERT_STATUS_WITH_HANDLER(error, tusbh_device_mount_failed_cb(TUSB_ERROR_USBH_MOUNT_DEVICE_NOT_RESPOND, NULL) );
+  // TODO make handler for this function general purpose
+  SUBTASK_ASSERT_STATUS_WITH_HANDLER(error || usbh_device_info_pool[dev_addr].control_pipe_status == PIPE_STATUS_ERROR,
+                                     tusbh_device_mount_failed_cb(TUSB_ERROR_USBH_MOUNT_DEVICE_NOT_RESPOND, NULL) );
 
   OSAL_SUBTASK_END
 }
@@ -183,6 +186,7 @@ void usbh_isr(pipe_handle_t pipe_hdl, uint8_t class_code, tusb_bus_event_t event
 {
   if (class_code == 0) // Control transfer
   {
+    usbh_device_info_pool[ pipe_hdl.dev_addr ].control_pipe_status = (event == BUS_EVENT_XFER_COMPLETE) ? PIPE_STATUS_COMPLETE : PIPE_STATUS_ERROR;
     osal_semaphore_post( usbh_device_info_pool[ pipe_hdl.dev_addr ].sem_hdl );
   }else if (usbh_class_drivers[class_code].isr)
   {

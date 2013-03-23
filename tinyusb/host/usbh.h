@@ -93,10 +93,11 @@
 //  TUSB_CLASS_APPLICATION_SPECIFIC = 0xEF ,
 //  TUSB_CLASS_VENDOR_SPECIFIC      = 0xFF
 
-typedef enum {
-  PIPE_STATUS_AVAILABLE = 0,
+typedef enum pipe_status_{
+  PIPE_STATUS_READY = 0,
   PIPE_STATUS_BUSY,
-  PIPE_STATUS_COMPLETE
+  PIPE_STATUS_COMPLETE,
+  PIPE_STATUS_ERROR
 } pipe_status_t;
 
 typedef uint32_t tusbh_flag_class_t;

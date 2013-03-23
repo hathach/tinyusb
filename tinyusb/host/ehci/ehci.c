@@ -135,7 +135,8 @@ void hcd_port_reset(uint8_t hostid)
 
 #ifndef _TEST_
   // NXP specific, port reset will automatically be 0 when reset sequence complete
-  while( regs->portsc_bit.port_reset || !regs->portsc_bit.port_enable){} // FIXME trapped here once
+  // there is chance device is unplugged while reset sequence is not complete
+  while( regs->portsc_bit.port_reset /*&& regs->portsc_bit.current_connect_status*/ ) {}
 #endif
 }
 
@@ -385,7 +386,7 @@ static tusb_error_t hcd_controller_stop(uint8_t hostid)
 
   regs->usb_cmd_bit.run_stop = 0;
 
-  timeout_set(&timeout, 16); // USB Spec: controller has to stop within 16 uframe
+  timeout_set(&timeout, 2); // USB Spec: controller has to stop within 16 uframe = 2 frames
   while( regs->usb_sts_bit.hc_halted == 0 && !timeout_expired(&timeout)) {}
 
   return timeout_expired(&timeout) ? TUSB_ERROR_OSAL_TIMEOUT : TUSB_ERROR_NONE;
@@ -404,7 +405,7 @@ tusb_error_t hcd_controller_reset(uint8_t hostid)
 
   regs->usb_cmd_bit.reset = 1;
 
-  timeout_set(&timeout, 16); // should not take longer the time to stop controller
+  timeout_set(&timeout, 2); // should not take longer the time to stop controller
   while( regs->usb_cmd_bit.reset && !timeout_expired(&timeout)) {}
 
   return timeout_expired(&timeout) ? TUSB_ERROR_OSAL_TIMEOUT : TUSB_ERROR_NONE;

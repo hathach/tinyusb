@@ -90,11 +90,12 @@ typedef struct { // TODO internal structure, re-order members
   //------------- configuration descriptor info -------------//
   uint8_t interface_count; // bNumInterfaces alias
 
-  uint8_t state;          // value from enum tusbh_device_status_
+  volatile uint8_t state;          // device state, value from enum tusbh_device_state_t
 
   //------------- control pipe -------------//
+  volatile uint8_t control_pipe_status;
   tusb_std_request_t control_request;
-  OSAL_SEM_DEF(semaphore);
+  OSAL_SEM_DEF(semaphore); // TODO move to semaphore pool
   osal_semaphore_handle_t sem_hdl;
 
 } usbh_device_info_t;

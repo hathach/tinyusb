@@ -131,7 +131,7 @@ pipe_status_t pipe_status_get_stub(pipe_handle_t pipe_hdl, int num_call)
     break;
 
     case 1:
-      return PIPE_STATUS_AVAILABLE;
+      return PIPE_STATUS_READY;
     break;
 
     case 2:
@@ -144,7 +144,7 @@ pipe_status_t pipe_status_get_stub(pipe_handle_t pipe_hdl, int num_call)
     break;
 
     default:
-      return PIPE_STATUS_AVAILABLE;
+      return PIPE_STATUS_READY;
   }
 }
 
@@ -174,7 +174,7 @@ void test_keyboard_get_report_not_available()
   TEST_ASSERT_EQUAL(TUSB_ERROR_CLASS_DATA_NOT_AVAILABLE, tusbh_hid_keyboard_get(device_hdl, instance_num, &report));
 
   tusbh_device_status_get_IgnoreAndReturn(TUSB_DEVICE_STATE_CONFIGURED);
-  usbh_pipe_status_get_IgnoreAndReturn(PIPE_STATUS_AVAILABLE);
+  usbh_pipe_status_get_IgnoreAndReturn(PIPE_STATUS_READY);
   TEST_ASSERT_EQUAL(TUSB_ERROR_CLASS_DATA_NOT_AVAILABLE, tusbh_hid_keyboard_get(device_hdl, instance_num, &report));
 }
 
