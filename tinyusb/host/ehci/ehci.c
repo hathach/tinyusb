@@ -136,7 +136,7 @@ void hcd_port_reset(uint8_t hostid)
 #ifndef _TEST_
   // NXP specific, port reset will automatically be 0 when reset sequence complete
   // there is chance device is unplugged while reset sequence is not complete
-  while( regs->portsc_bit.port_reset /*&& regs->portsc_bit.current_connect_status*/ ) {}
+  while( regs->portsc_bit.port_reset) {}
 #endif
 }
 
