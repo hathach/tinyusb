@@ -63,16 +63,16 @@ void tearDown(void)
 //--------------------------------------------------------------------+
 void test_usbh_status_get_fail(void)
 {
-  usbh_device_info_pool[dev_hdl].status = 0;
+  usbh_device_info_pool[dev_hdl].state = 0;
 
   TEST_ASSERT_EQUAL( 0, tusbh_device_status_get(TUSB_CFG_HOST_DEVICE_MAX+1) );
-  TEST_ASSERT_EQUAL( TUSB_DEVICE_STATUS_UNPLUG, tusbh_device_status_get(dev_hdl) );
+  TEST_ASSERT_EQUAL( TUSB_DEVICE_STATE_UNPLUG, tusbh_device_status_get(dev_hdl) );
 }
 
 void test_usbh_status_get_succeed(void)
 {
-  usbh_device_info_pool[dev_hdl].status = TUSB_DEVICE_STATUS_READY;
-  TEST_ASSERT_EQUAL( TUSB_DEVICE_STATUS_READY, tusbh_device_status_get(dev_hdl) );
+  usbh_device_info_pool[dev_hdl].state = TUSB_DEVICE_STATE_READY;
+  TEST_ASSERT_EQUAL( TUSB_DEVICE_STATE_READY, tusbh_device_status_get(dev_hdl) );
 }
 
 //--------------------------------------------------------------------+
@@ -167,7 +167,7 @@ void test_usbh_device_unplugged_isr_device_not_previously_mounted(void)
 {
   uint8_t dev_addr = 1;
 
-  usbh_device_info_pool[dev_addr].status   = TUSB_DEVICE_STATUS_UNPLUG;
+  usbh_device_info_pool[dev_addr].state   = TUSB_DEVICE_STATE_UNPLUG;
   usbh_device_info_pool[dev_addr].core_id  = 0;
   usbh_device_info_pool[dev_addr].hub_addr = 0;
   usbh_device_info_pool[dev_addr].hub_port = 0;
@@ -179,7 +179,7 @@ void test_usbh_device_unplugged_isr(void)
 {
   uint8_t dev_addr = 1;
 
-  usbh_device_info_pool[dev_addr].status = TUSB_DEVICE_STATUS_READY;
+  usbh_device_info_pool[dev_addr].state = TUSB_DEVICE_STATE_READY;
   usbh_device_info_pool[dev_addr].core_id = 0;
   usbh_device_info_pool[dev_addr].hub_addr = 0;
   usbh_device_info_pool[dev_addr].hub_port = 0;
@@ -190,5 +190,5 @@ void test_usbh_device_unplugged_isr(void)
   //------------- Code Under Test -------------//
   usbh_device_unplugged_isr(0);
 
-  TEST_ASSERT_EQUAL(TUSB_DEVICE_STATUS_REMOVING, usbh_device_info_pool[dev_addr].status);
+  TEST_ASSERT_EQUAL(TUSB_DEVICE_STATE_REMOVING, usbh_device_info_pool[dev_addr].state);
 }

@@ -101,7 +101,7 @@ static inline uint8_t get_configure_number_for_device(tusb_descriptor_device_t* 
 tusbh_device_status_t tusbh_device_status_get (tusb_handle_device_t const device_hdl)
 {
   ASSERT(device_hdl <= TUSB_CFG_HOST_DEVICE_MAX, 0);
-  return usbh_device_info_pool[device_hdl].status;
+  return usbh_device_info_pool[device_hdl].state;
 }
 
 //--------------------------------------------------------------------+
@@ -135,6 +135,7 @@ tusb_error_t usbh_init(void)
   return TUSB_ERROR_NONE;
 }
 
+//------------- USBH control transfer -------------//
 // function called within a task, requesting os blocking services, subtask input parameter must be static/global variables
 tusb_error_t usbh_control_xfer_subtask(uint8_t dev_addr, tusb_std_request_t const* p_request, uint8_t* data)
 {
@@ -207,7 +208,7 @@ void usbh_device_unplugged_isr(uint8_t hostid)
           !(usbh_device_info_pool[dev_addr].core_id  == hostid &&
             usbh_device_info_pool[dev_addr].hub_addr == 0 &&
             usbh_device_info_pool[dev_addr].hub_port == 0 &&
-            usbh_device_info_pool[dev_addr].status   != TUSB_DEVICE_STATUS_UNPLUG
+            usbh_device_info_pool[dev_addr].state   != TUSB_DEVICE_STATE_UNPLUG
           )
   )
   {
@@ -226,13 +227,13 @@ void usbh_device_unplugged_isr(uint8_t hostid)
   usbh_pipe_control_close(dev_addr);
 
   // set to REMOVING to end wait for HCD to clean up its cached data for this device
-  usbh_device_info_pool[dev_addr].status = TUSB_DEVICE_STATUS_REMOVING;
+  usbh_device_info_pool[dev_addr].state = TUSB_DEVICE_STATE_REMOVING;
 }
 
 // HCD cleaned up cached data for this device
 void usbh_device_hcd_data_cleaned_up_cb(uint8_t dev_addr)
 {
-  usbh_device_info_pool[dev_addr].status = TUSB_DEVICE_STATUS_UNPLUG;
+  usbh_device_info_pool[dev_addr].state = TUSB_DEVICE_STATE_UNPLUG;
 }
 
 //--------------------------------------------------------------------+
@@ -298,7 +299,7 @@ OSAL_TASK_DECLARE(usbh_enumeration_task)
   usbh_device_info_pool[new_addr].hub_addr = usbh_device_info_pool[0].hub_addr;
   usbh_device_info_pool[new_addr].hub_port = usbh_device_info_pool[0].hub_port;
   usbh_device_info_pool[new_addr].speed    = usbh_device_info_pool[0].speed;
-  usbh_device_info_pool[new_addr].status   = TUSB_DEVICE_STATUS_ADDRESSED;
+  usbh_device_info_pool[new_addr].state   = TUSB_DEVICE_STATE_ADDRESSED;
   usbh_pipe_control_close(0);
 
 //  hcd_port_reset( usbh_device_info_pool[new_addr].core_id ); TODO verified
@@ -408,7 +409,7 @@ OSAL_TASK_DECLARE(usbh_enumeration_task)
     )
   );
 
-  usbh_device_info_pool[new_addr].status = TUSB_DEVICE_STATUS_READY;
+  usbh_device_info_pool[new_addr].state = TUSB_DEVICE_STATE_READY;
   tusbh_device_mount_succeed_cb(new_addr);
 
   // TODO invoke mounted callback
@@ -431,7 +432,7 @@ static inline uint8_t get_new_address(void)
   uint8_t addr;
   for (addr=1; addr <= TUSB_CFG_HOST_DEVICE_MAX; addr++)
   {
-    if (usbh_device_info_pool[addr].status == TUSB_DEVICE_STATUS_UNPLUG)
+    if (usbh_device_info_pool[addr].state == TUSB_DEVICE_STATE_UNPLUG)
       break;
   }
   return addr;

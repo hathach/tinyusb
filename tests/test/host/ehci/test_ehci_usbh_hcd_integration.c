@@ -78,7 +78,7 @@ void setUp(void)
     usbh_device_info_pool[i].hub_addr = hub_addr;
     usbh_device_info_pool[i].hub_port = hub_port;
     usbh_device_info_pool[i].speed    = TUSB_SPEED_HIGH;
-    usbh_device_info_pool[i].status   = TUSB_DEVICE_STATUS_READY;
+    usbh_device_info_pool[i].state   = TUSB_DEVICE_STATE_READY;
   }
 
   regs = get_operational_register(hostid);
@@ -184,10 +184,10 @@ void test_device_unplugged_status(void)
 {
   ehci_controller_device_unplug(hostid);
   hcd_isr(hostid);
-  TEST_ASSERT_EQUAL(TUSB_DEVICE_STATUS_REMOVING, usbh_device_info_pool[dev_addr].status);
+  TEST_ASSERT_EQUAL(TUSB_DEVICE_STATE_REMOVING, usbh_device_info_pool[dev_addr].state);
 
   regs->usb_sts_bit.async_advance = 1;
   hcd_isr(hostid); // async advance
 
-  TEST_ASSERT_EQUAL(TUSB_DEVICE_STATUS_UNPLUG, usbh_device_info_pool[dev_addr].status);
+  TEST_ASSERT_EQUAL(TUSB_DEVICE_STATE_UNPLUG, usbh_device_info_pool[dev_addr].state);
 }

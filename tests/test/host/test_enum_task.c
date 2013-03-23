@@ -194,7 +194,7 @@ void test_enum_failed_get_full_dev_desc(void)
 
   usbh_enumeration_task();
 
-  TEST_ASSERT_EQUAL(TUSB_DEVICE_STATUS_ADDRESSED, usbh_device_info_pool[1].status);
+  TEST_ASSERT_EQUAL(TUSB_DEVICE_STATE_ADDRESSED, usbh_device_info_pool[1].state);
   TEST_ASSERT_EQUAL(TUSB_SPEED_FULL, usbh_device_info_pool[1].speed);
   TEST_ASSERT_EQUAL(enum_connect.core_id, usbh_device_info_pool[1].core_id);
   TEST_ASSERT_EQUAL(enum_connect.hub_addr, usbh_device_info_pool[1].hub_addr);

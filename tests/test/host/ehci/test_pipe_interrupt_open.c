@@ -108,7 +108,7 @@ void verify_open_qhd(ehci_qhd_t *p_qhd, uint8_t endpoint_addr, uint16_t max_pack
 }
 
 //--------------------------------------------------------------------+
-// INTERRUPT PIPE
+// PIPE OPEN
 //--------------------------------------------------------------------+
 tusb_descriptor_endpoint_t const desc_ept_interrupt_out =
 {
@@ -175,4 +175,26 @@ void test_open_interrupt_qhd_non_hs(void)
 
   TEST_ASSERT_EQUAL(1, p_qhd->interrupt_smask);
   TEST_ASSERT_EQUAL(0x1c, p_qhd->non_hs_interrupt_cmask);
+}
+
+//--------------------------------------------------------------------+
+// PIPE CLOSE
+//--------------------------------------------------------------------+
+void test_interrupt_close(void)
+{
+  ehci_qhd_t *p_qhd;
+  pipe_handle_t pipe_hdl;
+
+  pipe_hdl = hcd_pipe_open(dev_addr, &desc_ept_interrupt_out, TUSB_CLASS_HID);
+  p_qhd = qhd_get_from_pipe_handle(pipe_hdl);
+
+  //------------- Code Under TEST -------------//
+  hcd_pipe_close(pipe_hdl);
+
+  TEST_IGNORE(); // check operation removing interrupt head
+
+//  TEST_ASSERT(p_qhd->is_removing);
+//  TEST_ASSERT( align32(period_head) != (uint32_t) p_qhd );
+//  TEST_ASSERT_EQUAL_HEX( (uint32_t) get_async_head(hostid), align32(p_qhd->next.address ) );
+
 }
