@@ -61,14 +61,14 @@
 #define DEVICE_ROM_REG_BASE LPC_USB0_BASE // TODO USB1
 #define DEVICE_ROM_DRIVER_ADDR     0x1040011C
 
-static inline void hal_interrupt_enable()
+static inline void hal_interrupt_enable(uint8_t controller_id)
 {
-  NVIC_EnableIRQ(USB0_IRQn); // TODO USB1
+  NVIC_EnableIRQ(controller_id ? USB1_IRQn : USB0_IRQn);
 }
 
-static inline void hal_interrupt_disable()
+static inline void hal_interrupt_disable(uint8_t controller_id)
 {
-  NVIC_DisableIRQ(USB0_IRQn); // TODO USB1
+  NVIC_DisableIRQ(controller_id ? USB1_IRQn : USB0_IRQn);
 }
 
 #ifdef __cplusplus

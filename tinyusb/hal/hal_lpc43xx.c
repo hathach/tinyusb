@@ -52,7 +52,7 @@ enum {
   LPC43XX_USBMODE_VBUS_HIGH = 1
 };
 
-tusb_error_t hal_init()
+tusb_error_t hal_init(void)
 {
   /* Set up USB0 clock */
   CGU_EnableEntity(CGU_CLKSRC_PLL0, DISABLE); /* Disable PLL first */
@@ -62,10 +62,10 @@ tusb_error_t hal_init()
   LPC_CREG->CREG0 &= ~(1<<5); /* Turn on the phy */
 
   //------------- reset controller & set role -------------//
-  hcd_controller_reset(0); // TODO where to place prototype
+  hcd_controller_reset(0); // TODO where to place prototype, USB1
   LPC_USB0->USBMODE_H = LPC43XX_USBMODE_HOST | (LPC43XX_USBMODE_VBUS_HIGH << 5);
 
-  hal_interrupt_enable();
+  hal_interrupt_enable(0); // TODO USB1
 
   return TUSB_ERROR_NONE;
 }

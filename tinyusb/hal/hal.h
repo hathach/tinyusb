@@ -72,28 +72,16 @@ extern "C" {
 // callback from tusb.h
 extern void tusb_isr(uint8_t controller_id);
 
+/// USB hardware init
+tusb_error_t hal_init(void);
 
-/** \brief USB hardware init
- *
- * \param[in]  para1
- * \param[out] para2
- * \return Error Code of the \ref TUSB_ERROR enum
- * \note
- */
-tusb_error_t hal_init();
+/// Enable USB Interrupt
+static inline void hal_interrupt_enable(uint8_t controller_id) ATTR_ALWAYS_INLINE;
+/// Disable USB Interrupt
+static inline void hal_interrupt_disable(uint8_t controller_id) ATTR_ALWAYS_INLINE;
 
-/**
- * Enable USB Interrupt
- */
-static inline void hal_interrupt_enable() ATTR_ALWAYS_INLINE;
-
-/**
- * Disable USB Interrupt
- */
-static inline void hal_interrupt_disable() ATTR_ALWAYS_INLINE;
-
-static inline bool hal_debugger_is_attached() ATTR_PURE ATTR_ALWAYS_INLINE;
-static inline bool hal_debugger_is_attached()
+static inline bool hal_debugger_is_attached(void) ATTR_PURE ATTR_ALWAYS_INLINE;
+static inline bool hal_debugger_is_attached(void)
 {
 #ifndef _TEST_
   return (CoreDebug->DHCSR & CoreDebug_DHCSR_C_DEBUGEN_Msk) == CoreDebug_DHCSR_C_DEBUGEN_Msk;
@@ -102,8 +90,8 @@ static inline bool hal_debugger_is_attached()
 #endif
 }
 
-static inline void hal_debugger_breakpoint() ATTR_ALWAYS_INLINE;
-static inline void hal_debugger_breakpoint()
+static inline void hal_debugger_breakpoint(void) ATTR_ALWAYS_INLINE;
+static inline void hal_debugger_breakpoint(void)
 {
 #ifndef _TEST_
   if (hal_debugger_is_attached()) /* if there is debugger connected */

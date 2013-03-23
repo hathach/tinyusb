@@ -61,7 +61,7 @@ void tusb_tick_tock(void)
 #define ENUM_QUEUE_DEPTH  5
 
 // TODO fix number of class driver
-class_driver_t const usbh_class_drivers[TUSB_CLASS_MAX_CONSEC_NUMBER] =
+static class_driver_t const usbh_class_drivers[TUSB_CLASS_MAX_CONSEC_NUMBER] =
 {
     [TUSB_CLASS_HID] = {
         .init = hidh_init,
