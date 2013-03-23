@@ -154,7 +154,7 @@ enum {
 #define TUSB_DESC_CONFIG_POWER_MA(x)  ((x)/2)
 
 /// Device State
-enum tusb_device_state_{
+typedef enum {
   TUSB_DEVICE_STATE_UNPLUG = 0  ,
   TUSB_DEVICE_STATE_ADDRESSED   ,
 
@@ -162,7 +162,7 @@ enum tusb_device_state_{
 
   TUSB_DEVICE_STATE_REMOVING    ,
   TUSB_DEVICE_STATE_SAFE_REMOVE ,
-};
+}tusb_device_state_t;
 
 typedef enum {
   BUS_EVENT_XFER_COMPLETE,

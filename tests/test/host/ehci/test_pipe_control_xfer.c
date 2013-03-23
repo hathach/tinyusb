@@ -79,7 +79,7 @@ void setUp(void)
   dev_addr = 1;
 
   hostid = RANDOM(CONTROLLER_HOST_NUMBER) + TEST_CONTROLLER_HOST_START_INDEX;
-  for (uint8_t i=0; i<TUSB_CFG_HOST_DEVICE_MAX; i++)
+  for (uint8_t i=0; i<TUSB_CFG_HOST_DEVICE_MAX+1; i++)
   {
     usbh_device_info_pool[i].core_id  = hostid;
     usbh_device_info_pool[i].hub_addr = hub_addr;
@@ -88,6 +88,8 @@ void setUp(void)
   }
 
   async_head =  get_async_head( hostid );
+
+  hcd_pipe_control_open(dev_addr, control_max_packet_size);
 
   p_control_qhd = &ehci_data.device[dev_addr-1].control.qhd;
 
@@ -168,8 +170,6 @@ void test_control_addr0_xfer_get_check_qhd_qtd_mapping(void)
 //--------------------------------------------------------------------+
 void test_control_xfer_get(void)
 {
-  hcd_pipe_control_open(dev_addr, control_max_packet_size);
-
   //------------- Code Under TEST -------------//
   hcd_pipe_control_xfer(dev_addr, &request_get_dev_desc, xfer_data);
 
@@ -205,8 +205,6 @@ void test_control_xfer_get(void)
 
 void test_control_xfer_set(void)
 {
-  hcd_pipe_control_open(dev_addr, control_max_packet_size);
-
   //------------- Code Under TEST -------------//
   hcd_pipe_control_xfer(dev_addr, &request_set_dev_addr, xfer_data);
 
@@ -228,17 +226,11 @@ void test_control_xfer_set(void)
 
 void test_control_xfer_complete_isr(void)
 {
-  hcd_pipe_control_open(dev_addr, control_max_packet_size);
-
   hcd_pipe_control_xfer(dev_addr, &request_get_dev_desc, xfer_data);
-  ehci_controller_run(hostid);
-
-  TEST_ASSERT_EQUAL_HEX(async_head, get_operational_register(hostid)->async_list_base);
-  TEST_ASSERT_EQUAL_HEX((uint32_t) p_control_qhd, align32(async_head->next.address));
   usbh_isr_Expect(((pipe_handle_t){.dev_addr = dev_addr}), 0, BUS_EVENT_XFER_COMPLETE);
 
   //------------- Code Under TEST -------------//
-  hcd_isr(hostid);
+  ehci_controller_run(hostid);
 
   TEST_ASSERT_NULL(p_control_qhd->p_qtd_list_head);
   TEST_ASSERT_NULL(p_control_qhd->p_qtd_list_tail);
@@ -247,4 +239,13 @@ void test_control_xfer_complete_isr(void)
   TEST_ASSERT_FALSE(p_data->used);
   TEST_ASSERT_FALSE(p_status->used);
 
+}
+
+void test_control_xfer_error_isr(void)
+{
+  hcd_pipe_control_xfer(dev_addr, &request_get_dev_desc, xfer_data);
+  usbh_isr_Expect(((pipe_handle_t){.dev_addr = dev_addr}), 0, BUS_EVENT_XFER_ERROR);
+
+  //------------- Code Under TEST -------------//
+  ehci_controller_run_error(hostid);
 }

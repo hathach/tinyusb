@@ -135,7 +135,7 @@ void hcd_port_reset(uint8_t hostid)
 
 #ifndef _TEST_
   // NXP specific, port reset will automatically be 0 when reset sequence complete
-  while( regs->portsc_bit.port_reset || !regs->portsc_bit.port_enable){}
+  while( regs->portsc_bit.port_reset || !regs->portsc_bit.port_enable){} // FIXME trapped here once
 #endif
 }
 
@@ -205,7 +205,7 @@ void port_connect_status_change_isr(uint8_t hostid)
 
 }
 
-void async_list_process_isr(ehci_qhd_t * const async_head, ehci_registers_t * const regs)
+void async_list_process_isr(ehci_qhd_t * const async_head)
 {
   ehci_qhd_t *p_qhd = async_head;
   do
@@ -235,6 +235,33 @@ void async_list_process_isr(ehci_qhd_t * const async_head, ehci_registers_t * co
   }while(p_qhd != async_head); // async list traversal, stop if loop around
 }
 
+void xfer_error_isr(uint8_t hostid)
+{
+  //------------- async list -------------//
+  ehci_qhd_t * const async_head = get_async_head(hostid);
+  ehci_qhd_t *p_qhd = async_head;
+  do
+  {
+    // current qhd has error in transaction
+    if (p_qhd->qtd_overlay.buffer_err || p_qhd->qtd_overlay.babble_err || p_qhd->qtd_overlay.xact_err ||
+        //p_qhd->qtd_overlay.non_hs_period_missed_uframe || p_qhd->qtd_overlay.pingstate_err TODO split transaction error
+        (p_qhd->device_address != 0 && p_qhd->qtd_overlay.halted) ) // addr0 cannot be protocol STALL
+    {
+      pipe_handle_t pipe_hdl = { .dev_addr = p_qhd->device_address };
+      if (p_qhd->endpoint_number) // if not Control, can only be Bulk
+      {
+        pipe_hdl.xfer_type = TUSB_XFER_BULK;
+        pipe_hdl.index = qhd_get_index(p_qhd);
+      }
+      usbh_isr( pipe_hdl, p_qhd->class_code, BUS_EVENT_XFER_ERROR); // call USBH callback
+    }
+
+    p_qhd = (ehci_qhd_t*) align32(p_qhd->next.address);
+  }while(p_qhd != async_head); // async list traversal, stop if loop around
+
+  //------------- TODO period list -------------//
+}
+
 //------------- Host Controller Driver's Interrupt Handler -------------//
 void hcd_isr(uint8_t hostid)
 {
@@ -249,14 +276,14 @@ void hcd_isr(uint8_t hostid)
   if (int_status & EHCI_INT_MASK_ERROR)
   {
     // TODO handle Queue Head halted
-    // TODO invoke some error callback if not async head
     hal_debugger_breakpoint();
+    xfer_error_isr(hostid);
   }
 
   //------------- some QTD/SITD/ITD with IOC set is completed -------------//
   if (int_status & EHCI_INT_MASK_NXP_ASYNC)
   {
-    async_list_process_isr(get_async_head(hostid), regs);
+    async_list_process_isr(get_async_head(hostid));
   }
 
   if (int_status & EHCI_INT_MASK_NXP_PERIODIC)

@@ -70,7 +70,7 @@ void setUp(void)
   dev_addr = 1;
 
   hostid = RANDOM(CONTROLLER_HOST_NUMBER) + TEST_CONTROLLER_HOST_START_INDEX;
-  for (uint8_t i=0; i<TUSB_CFG_HOST_DEVICE_MAX; i++)
+  for (uint8_t i=0; i<TUSB_CFG_HOST_DEVICE_MAX+1; i++)
   {
     usbh_device_info_pool[i].core_id  = hostid;
     usbh_device_info_pool[i].hub_addr = hub_addr;

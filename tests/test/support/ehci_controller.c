@@ -77,6 +77,34 @@ void ehci_controller_run(uint8_t hostid)
   //------------- Period List -------------//
 
   regs->usb_sts = EHCI_INT_MASK_NXP_ASYNC;
+  hcd_isr(hostid);
+}
+
+void ehci_controller_run_error(uint8_t hostid)
+{
+  //------------- Async List -------------//
+  ehci_registers_t* const regs = get_operational_register(hostid);
+
+  ehci_qhd_t *p_qhd = (ehci_qhd_t*) regs->async_list_base;
+  do
+  {
+    if ( !p_qhd->qtd_overlay.halted )
+    {
+      if(!p_qhd->qtd_overlay.next.terminate)
+      {
+        ehci_qtd_t* p_qtd = (ehci_qtd_t*) align32(p_qhd->qtd_overlay.next.address);
+        p_qtd->active = 0;
+        p_qtd->babble_err = p_qtd->buffer_err = p_qtd->xact_err = 1;
+        p_qhd->qtd_overlay = *p_qtd;
+      }
+    }
+    p_qhd = (ehci_qhd_t*) align32(p_qhd->next.address);
+  }while(p_qhd != get_async_head(hostid)); // stop if loop around
+  //------------- Period List -------------//
+
+  regs->usb_sts = EHCI_INT_MASK_ERROR;
+
+  hcd_isr(hostid);
 }
 
 void ehci_controller_device_plug(uint8_t hostid, tusb_speed_t speed)

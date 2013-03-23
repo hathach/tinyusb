@@ -171,6 +171,9 @@ void test_addr0_failed_dev_desc(void)
   tusbh_device_mount_failed_cb_Expect(TUSB_ERROR_USBH_MOUNT_DEVICE_NOT_RESPOND, NULL);
 
   usbh_enumeration_task();
+
+  TEST_ASSERT_EQUAL(TUSB_DEVICE_STATE_ADDRESSED, usbh_device_info_pool[0].state);
+
 }
 
 void test_addr0_failed_set_address(void)
@@ -180,6 +183,7 @@ void test_addr0_failed_set_address(void)
 
   usbh_enumeration_task();
 
+  TEST_ASSERT_EQUAL(TUSB_DEVICE_STATE_ADDRESSED, usbh_device_info_pool[0].state);
   TEST_ASSERT_EQUAL_MEMORY(&desc_device, enum_data_buffer, 8);
 }
 
@@ -188,11 +192,14 @@ void test_enum_failed_get_full_dev_desc(void)
   osal_semaphore_wait_StubWithCallback(semaphore_wait_timeout_stub(2));
 
   hcd_pipe_control_close_ExpectAndReturn(0, TUSB_ERROR_NONE);
+
   osal_semaphore_reset_Expect( usbh_device_info_pool[0].sem_hdl );
   hcd_pipe_control_open_ExpectAndReturn(1, desc_device.bMaxPacketSize0, TUSB_ERROR_NONE);
   tusbh_device_mount_failed_cb_Expect(TUSB_ERROR_USBH_MOUNT_DEVICE_NOT_RESPOND, NULL);
 
   usbh_enumeration_task();
+
+  TEST_ASSERT_EQUAL(TUSB_DEVICE_STATE_UNPLUG, usbh_device_info_pool[0].state);
 
   TEST_ASSERT_EQUAL(TUSB_DEVICE_STATE_ADDRESSED, usbh_device_info_pool[1].state);
   TEST_ASSERT_EQUAL(TUSB_SPEED_FULL, usbh_device_info_pool[1].speed);

@@ -203,25 +203,29 @@ void usbh_device_plugged_isr(uint8_t hostid, tusb_speed_t speed)
 void usbh_device_unplugged_isr(uint8_t hostid)
 {
   //------------- find the device address that is unplugged -------------//
-  uint8_t dev_addr=1;
+  uint8_t dev_addr = 0;
   while ( dev_addr <= TUSB_CFG_HOST_DEVICE_MAX &&
           !(usbh_device_info_pool[dev_addr].core_id  == hostid &&
             usbh_device_info_pool[dev_addr].hub_addr == 0 &&
             usbh_device_info_pool[dev_addr].hub_port == 0 &&
-            usbh_device_info_pool[dev_addr].state   != TUSB_DEVICE_STATE_UNPLUG
+            usbh_device_info_pool[dev_addr].state    != TUSB_DEVICE_STATE_UNPLUG
           )
   )
   {
     dev_addr++;
   }
 
+  // TODO close addr0 pipe (when get 8-byte desc, set addr failed)
   ASSERT(dev_addr <= TUSB_CFG_HOST_DEVICE_MAX, (void) 0 );
 
-  // if device unplugged is not a hub TODO handle hub unplugged
-  for (uint8_t class_code = 1; class_code < TUSB_CLASS_MAX_CONSEC_NUMBER; class_code++)
+  if (dev_addr > 0) // device can still be unplugged when not set new address
   {
-    if (usbh_class_drivers[class_code].close)
-      usbh_class_drivers[class_code].close(dev_addr);
+    // if device unplugged is not a hub TODO handle hub unplugged
+    for (uint8_t class_code = 1; class_code < TUSB_CLASS_MAX_CONSEC_NUMBER; class_code++)
+    {
+      if (usbh_class_drivers[class_code].close)
+        usbh_class_drivers[class_code].close(dev_addr);
+    }
   }
 
   usbh_pipe_control_close(dev_addr);
@@ -256,6 +260,7 @@ OSAL_TASK_DECLARE(usbh_enumeration_task)
   usbh_device_info_pool[0].speed    = enum_entry.speed;
 
   TASK_ASSERT_STATUS( usbh_pipe_control_open(0, 8) );
+  usbh_device_info_pool[0].state = TUSB_DEVICE_STATE_ADDRESSED;
 
   //------------- Get first 8 bytes of device descriptor to get Control Endpoint Size -------------//
   OSAL_SUBTASK_INVOKED_AND_WAIT(
@@ -295,7 +300,9 @@ OSAL_TASK_DECLARE(usbh_enumeration_task)
   usbh_device_info_pool[new_addr].hub_port = usbh_device_info_pool[0].hub_port;
   usbh_device_info_pool[new_addr].speed    = usbh_device_info_pool[0].speed;
   usbh_device_info_pool[new_addr].state   = TUSB_DEVICE_STATE_ADDRESSED;
+
   usbh_pipe_control_close(0);
+  usbh_device_info_pool[0].state = TUSB_DEVICE_STATE_UNPLUG;
 
 //  hcd_port_reset( usbh_device_info_pool[new_addr].core_id ); TODO verified
 

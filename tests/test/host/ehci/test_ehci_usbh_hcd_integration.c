@@ -72,13 +72,13 @@ void setUp(void)
 
   hcd_init();
 
-  for (uint8_t i=0; i<TUSB_CFG_HOST_DEVICE_MAX; i++)
+  for (uint8_t i=0; i<TUSB_CFG_HOST_DEVICE_MAX+1; i++)
   {
     usbh_device_info_pool[i].core_id  = hostid;
     usbh_device_info_pool[i].hub_addr = hub_addr;
     usbh_device_info_pool[i].hub_port = hub_port;
     usbh_device_info_pool[i].speed    = TUSB_SPEED_HIGH;
-    usbh_device_info_pool[i].state   = TUSB_DEVICE_STATE_CONFIGURED;
+    usbh_device_info_pool[i].state    = i ? TUSB_DEVICE_STATE_CONFIGURED : TUSB_DEVICE_STATE_UNPLUG;
   }
 
   regs = get_operational_register(hostid);

@@ -97,7 +97,7 @@ void setUp(void)
   dev_addr = 1;
 
   hostid = RANDOM(CONTROLLER_HOST_NUMBER) + TEST_CONTROLLER_HOST_START_INDEX;
-  for (uint8_t i=0; i<TUSB_CFG_HOST_DEVICE_MAX; i++)
+  for (uint8_t i=0; i<TUSB_CFG_HOST_DEVICE_MAX+1; i++)
   {
     usbh_device_info_pool[i].core_id  = hostid;
     usbh_device_info_pool[i].hub_addr = hub_addr;
@@ -210,12 +210,10 @@ void test_bulk_xfer_complete_isr(void)
   ehci_qtd_t* p_head = p_qhd_bulk->p_qtd_list_head;
   ehci_qtd_t* p_tail = p_qhd_bulk->p_qtd_list_tail;
 
-  ehci_controller_run(hostid);
-
   usbh_isr_Expect(pipe_hdl_bulk, TUSB_CLASS_MSC, BUS_EVENT_XFER_COMPLETE);
 
   //------------- Code Under Test -------------//
-  hcd_isr(hostid);
+  ehci_controller_run(hostid);
 
   TEST_ASSERT_TRUE(p_qhd_bulk->qtd_overlay.next.terminate);
   TEST_ASSERT_FALSE(p_head->used);
