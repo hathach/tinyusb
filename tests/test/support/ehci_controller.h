@@ -67,7 +67,7 @@ ehci_qhd_t* get_async_head(uint8_t hostid);
 ehci_qhd_t* get_period_head(uint8_t hostid);
 ehci_qhd_t* get_control_qhd(uint8_t dev_addr);
 ehci_qtd_t* get_control_qtds(uint8_t dev_addr);
-ehci_qhd_t* get_qhd_from_pipe_handle(pipe_handle_t pipe_hdl);
+ehci_qhd_t* qhd_get_from_pipe_handle(pipe_handle_t pipe_hdl);
 
 #ifdef __cplusplus
  }

@@ -151,7 +151,7 @@ void test_bulk_xfer_hs_ping_out(void)
   usbh_device_info_pool[dev_addr].speed    = TUSB_SPEED_HIGH;
 
   pipe_handle_t pipe_hdl = hcd_pipe_open(dev_addr, &desc_ept_bulk_out, TUSB_CLASS_MSC);
-  ehci_qhd_t *p_qhd = get_qhd_from_pipe_handle(pipe_hdl);
+  ehci_qhd_t *p_qhd = qhd_get_from_pipe_handle(pipe_hdl);
 
   //------------- Code Under Test -------------//
   hcd_pipe_xfer(pipe_hdl, xfer_data, sizeof(xfer_data), true);

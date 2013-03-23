@@ -73,28 +73,29 @@ STATIC_ASSERT( ALIGN_OF(period_frame_list1) == 4096, "Period Framelist must be 4
 //--------------------------------------------------------------------+
 // PROTOTYPE
 //--------------------------------------------------------------------+
-STATIC_ INLINE_ ehci_registers_t* get_operational_register(uint8_t hostid) ATTR_PURE ATTR_ALWAYS_INLINE ATTR_WARN_UNUSED_RESULT;
-STATIC_ INLINE_ ehci_link_t* get_period_frame_list(uint8_t list_idx) ATTR_PURE ATTR_ALWAYS_INLINE ATTR_WARN_UNUSED_RESULT;
-STATIC_ INLINE_ uint8_t hostid_to_data_idx(uint8_t hostid) ATTR_ALWAYS_INLINE ATTR_CONST ATTR_WARN_UNUSED_RESULT;
+STATIC_ INLINE_ ehci_registers_t*  get_operational_register(uint8_t hostid) ATTR_PURE ATTR_ALWAYS_INLINE ATTR_WARN_UNUSED_RESULT;
+STATIC_ INLINE_ ehci_link_t*       get_period_frame_list(uint8_t list_idx) ATTR_PURE ATTR_ALWAYS_INLINE ATTR_WARN_UNUSED_RESULT;
+STATIC_ INLINE_ uint8_t            hostid_to_data_idx(uint8_t hostid) ATTR_ALWAYS_INLINE ATTR_CONST ATTR_WARN_UNUSED_RESULT;
+
 STATIC_ INLINE_ ehci_qhd_t* get_async_head(uint8_t hostid) ATTR_ALWAYS_INLINE ATTR_PURE ATTR_WARN_UNUSED_RESULT;
 STATIC_ INLINE_ ehci_qhd_t* get_period_head(uint8_t hostid) ATTR_ALWAYS_INLINE ATTR_PURE ATTR_WARN_UNUSED_RESULT;
-static inline uint8_t qhd_get_index(ehci_qhd_t * p_qhd) ATTR_ALWAYS_INLINE ATTR_PURE;
-static inline ehci_qhd_t* find_free_qhd (uint8_t dev_addr) ATTR_PURE ATTR_ALWAYS_INLINE;
-
-static inline void qtd_remove_1st_from_qhd(ehci_qhd_t *p_qhd) ATTR_ALWAYS_INLINE;
-static inline void qtd_insert_to_qhd(ehci_qhd_t *p_qhd, ehci_qtd_t *p_qtd_new) ATTR_ALWAYS_INLINE;
-
-static void init_qhd(ehci_qhd_t *p_qhd, uint8_t dev_addr, uint16_t max_packet_size, uint8_t endpoint_addr, uint8_t xfer_type);
-static void init_qtd(ehci_qtd_t* p_qtd, uint32_t data_ptr, uint16_t total_bytes);
 
 STATIC_ INLINE_ ehci_qhd_t* get_control_qhd(uint8_t dev_addr) ATTR_ALWAYS_INLINE ATTR_PURE ATTR_WARN_UNUSED_RESULT;
 STATIC_ INLINE_ ehci_qtd_t* get_control_qtds(uint8_t dev_addr) ATTR_ALWAYS_INLINE ATTR_PURE ATTR_WARN_UNUSED_RESULT;
 
-static inline void list_insert(ehci_link_t *current, ehci_link_t *new, uint8_t new_type) ATTR_ALWAYS_INLINE;
-static ehci_qhd_t* find_previous_qhd(ehci_qhd_t* p_head, ehci_qhd_t* p_qhd);
-static tusb_error_t remove_qhd_from_async_list(ehci_qhd_t* p_head, ehci_qhd_t* p_qhd_remove);
-STATIC_ INLINE_ ehci_qhd_t* get_qhd_from_pipe_handle(pipe_handle_t pipe_hdl) ATTR_PURE ATTR_ALWAYS_INLINE;
-STATIC_ INLINE_ ehci_qtd_t* find_free_qtd(uint8_t dev_addr) ATTR_PURE ATTR_ALWAYS_INLINE;
+static inline uint8_t        qhd_get_index(ehci_qhd_t * p_qhd) ATTR_ALWAYS_INLINE ATTR_PURE;
+static inline ehci_qhd_t*    qhd_find_free (uint8_t dev_addr) ATTR_PURE ATTR_ALWAYS_INLINE;
+STATIC_ INLINE_ ehci_qhd_t*  qhd_get_from_pipe_handle(pipe_handle_t pipe_hdl) ATTR_PURE ATTR_ALWAYS_INLINE;
+static void qhd_init(ehci_qhd_t *p_qhd, uint8_t dev_addr, uint16_t max_packet_size, uint8_t endpoint_addr, uint8_t xfer_type);
+
+STATIC_ INLINE_ ehci_qtd_t*  qtd_find_free(uint8_t dev_addr) ATTR_PURE ATTR_ALWAYS_INLINE;
+static inline void           qtd_insert_to_qhd(ehci_qhd_t *p_qhd, ehci_qtd_t *p_qtd_new) ATTR_ALWAYS_INLINE;
+static inline void           qtd_remove_1st_from_qhd(ehci_qhd_t *p_qhd) ATTR_ALWAYS_INLINE;
+static void qtd_init(ehci_qtd_t* p_qtd, uint32_t data_ptr, uint16_t total_bytes);
+
+static inline void  list_insert(ehci_link_t *current, ehci_link_t *new, uint8_t new_type) ATTR_ALWAYS_INLINE;
+static ehci_qhd_t*  list_find_previous_qhd(ehci_qhd_t* p_head, ehci_qhd_t* p_qhd);
+static tusb_error_t list_remove_qhd_from_async(ehci_qhd_t* p_head, ehci_qhd_t* p_qhd_remove);
 
 
 static tusb_error_t hcd_controller_init(uint8_t hostid) ATTR_WARN_UNUSED_RESULT;
@@ -389,7 +390,7 @@ tusb_error_t  hcd_pipe_control_open(uint8_t dev_addr, uint8_t max_packet_size)
 {
   ehci_qhd_t * const p_qhd = get_control_qhd(dev_addr);
 
-  init_qhd(p_qhd, dev_addr, max_packet_size, 0, TUSB_XFER_CONTROL);
+  qhd_init(p_qhd, dev_addr, max_packet_size, 0, TUSB_XFER_CONTROL);
 
   if (dev_addr != 0)
   {
@@ -411,14 +412,14 @@ tusb_error_t  hcd_pipe_control_xfer(uint8_t dev_addr, tusb_std_request_t const *
   ehci_qtd_t *p_status     = p_setup + 2;
 
   //------------- SETUP Phase -------------//
-  init_qtd(p_setup, (uint32_t) p_request, 8);
+  qtd_init(p_setup, (uint32_t) p_request, 8);
   p_setup->pid          = EHCI_PID_SETUP;
   p_setup->next.address = (uint32_t) p_data;
 
   //------------- DATA Phase -------------//
   if (p_request->wLength > 0)
   {
-    init_qtd(p_data, (uint32_t) data, p_request->wLength);
+    qtd_init(p_data, (uint32_t) data, p_request->wLength);
     p_data->data_toggle = 1;
     p_data->pid         = p_request->bmRequestType.direction ? EHCI_PID_IN : EHCI_PID_OUT;
   }else
@@ -428,7 +429,7 @@ tusb_error_t  hcd_pipe_control_xfer(uint8_t dev_addr, tusb_std_request_t const *
   p_data->next.address = (uint32_t) p_status;
 
   //------------- STATUS Phase -------------//
-  init_qtd(p_status, 0, 0); // zero-length data
+  qtd_init(p_status, 0, 0); // zero-length data
   p_status->int_on_complete = 1;
   p_status->data_toggle     = 1;
   p_status->pid             = p_request->bmRequestType.direction ? EHCI_PID_OUT : EHCI_PID_IN; // reverse direction of data phase
@@ -452,7 +453,7 @@ tusb_error_t  hcd_pipe_control_close(uint8_t dev_addr)
 
   if (dev_addr != 0)
   {
-    ASSERT_STATUS( remove_qhd_from_async_list(get_async_head( usbh_device_info_pool[dev_addr].core_id ), p_qhd) );
+    ASSERT_STATUS( list_remove_qhd_from_async(get_async_head( usbh_device_info_pool[dev_addr].core_id ), p_qhd) );
   }
 
   return TUSB_ERROR_NONE;
@@ -470,10 +471,10 @@ pipe_handle_t hcd_pipe_open(uint8_t dev_addr, tusb_descriptor_endpoint_t const *
   if (p_endpoint_desc->bmAttributes.xfer == TUSB_XFER_ISOCHRONOUS)
     return null_handle; // TODO not support ISO yet
 
-  ehci_qhd_t * const p_qhd = find_free_qhd(dev_addr);
+  ehci_qhd_t * const p_qhd = qhd_find_free(dev_addr);
   ASSERT_PTR(p_qhd, null_handle);
 
-  init_qhd(p_qhd, dev_addr, p_endpoint_desc->wMaxPacketSize, p_endpoint_desc->bEndpointAddress, p_endpoint_desc->bmAttributes.xfer);
+  qhd_init(p_qhd, dev_addr, p_endpoint_desc->wMaxPacketSize, p_endpoint_desc->bEndpointAddress, p_endpoint_desc->bmAttributes.xfer);
   p_qhd->class_code = class_code;
 
   ehci_qhd_t * list_head;
@@ -500,12 +501,12 @@ tusb_error_t  hcd_pipe_xfer(pipe_handle_t pipe_hdl, uint8_t buffer[], uint16_t t
   //------------- TODO pipe handle validate -------------//
 
   //------------- set up QTD -------------//
-  ehci_qhd_t *p_qhd = get_qhd_from_pipe_handle(pipe_hdl);
-  ehci_qtd_t *p_qtd = find_free_qtd(pipe_hdl.dev_addr);
+  ehci_qhd_t *p_qhd = qhd_get_from_pipe_handle(pipe_hdl);
+  ehci_qtd_t *p_qtd = qtd_find_free(pipe_hdl.dev_addr);
 
   ASSERT_PTR(p_qtd, TUSB_ERROR_EHCI_NOT_ENOUGH_QTD);
 
-  init_qtd(p_qtd, (uint32_t) buffer, total_bytes);
+  qtd_init(p_qtd, (uint32_t) buffer, total_bytes);
   p_qtd->pid = p_qhd->pid_non_control;
   p_qtd->int_on_complete = int_on_complete ? 1 : 0;
   // do PING for Highspeed Bulk OUT, EHCI section 4.11
@@ -526,13 +527,13 @@ tusb_error_t  hcd_pipe_close(pipe_handle_t pipe_hdl)
 
   ASSERT(pipe_hdl.xfer_type != TUSB_XFER_ISOCHRONOUS, TUSB_ERROR_INVALID_PARA);
 
-  ehci_qhd_t *p_qhd = get_qhd_from_pipe_handle( pipe_hdl );
+  ehci_qhd_t *p_qhd = qhd_get_from_pipe_handle( pipe_hdl );
 
   p_qhd->is_removing = 1;
 
   if ( pipe_hdl.xfer_type == TUSB_XFER_BULK )
   {
-    ASSERT_STATUS( remove_qhd_from_async_list(
+    ASSERT_STATUS( list_remove_qhd_from_async(
         get_async_head( usbh_device_info_pool[pipe_hdl.dev_addr].core_id ),
         p_qhd) );
   }else
@@ -595,7 +596,7 @@ STATIC_ INLINE_ ehci_qtd_t* get_control_qtds(uint8_t dev_addr)
 
 }
 
-static inline ehci_qhd_t* find_free_qhd (uint8_t dev_addr)
+static inline ehci_qhd_t* qhd_find_free (uint8_t dev_addr)
 {
   uint8_t relative_address = dev_addr-1;
   uint8_t index=0;
@@ -611,14 +612,14 @@ static inline uint8_t qhd_get_index(ehci_qhd_t * p_qhd)
   return p_qhd - ehci_data.device[p_qhd->device_address-1].qhd;
 }
 
-STATIC_ INLINE_ ehci_qhd_t* get_qhd_from_pipe_handle(pipe_handle_t pipe_hdl)
+STATIC_ INLINE_ ehci_qhd_t* qhd_get_from_pipe_handle(pipe_handle_t pipe_hdl)
 {
   return &ehci_data.device[ pipe_hdl.dev_addr-1 ].qhd[ pipe_hdl.index ];
 }
 
 
 //------------- TD helper -------------//
-STATIC_ INLINE_ ehci_qtd_t* find_free_qtd(uint8_t dev_addr)
+STATIC_ INLINE_ ehci_qtd_t* qtd_find_free(uint8_t dev_addr)
 {
   uint8_t index=0;
   while( index<EHCI_MAX_QTD && ehci_data.device[dev_addr-1].qtd[index].used )
@@ -653,7 +654,7 @@ static inline void qtd_insert_to_qhd(ehci_qhd_t *p_qhd, ehci_qtd_t *p_qtd_new)
   }
 }
 
-static void init_qhd(ehci_qhd_t *p_qhd, uint8_t dev_addr, uint16_t max_packet_size, uint8_t endpoint_addr, uint8_t xfer_type)
+static void qhd_init(ehci_qhd_t *p_qhd, uint8_t dev_addr, uint16_t max_packet_size, uint8_t endpoint_addr, uint8_t xfer_type)
 {
   // address 0 uses async head, which always on the list --> cannot be cleared (ehci halted otherwise)
   if (dev_addr != 0)
@@ -701,7 +702,7 @@ static void init_qhd(ehci_qhd_t *p_qhd, uint8_t dev_addr, uint16_t max_packet_si
 
 }
 
-static void init_qtd(ehci_qtd_t* p_qtd, uint32_t data_ptr, uint16_t total_bytes)
+static void qtd_init(ehci_qtd_t* p_qtd, uint32_t data_ptr, uint16_t total_bytes)
 {
   memclr_(p_qtd, sizeof(ehci_qtd_t));
 
@@ -730,7 +731,7 @@ static inline void list_insert(ehci_link_t *current, ehci_link_t *new, uint8_t n
   current->type = new_type;
 }
 
-static ehci_qhd_t* find_previous_qhd(ehci_qhd_t* p_head, ehci_qhd_t* p_qhd)
+static ehci_qhd_t* list_find_previous_qhd(ehci_qhd_t* p_head, ehci_qhd_t* p_qhd)
 {
   ehci_qhd_t *p_prev_qhd = p_head;
   while( (align32(p_prev_qhd->next.address) != (uint32_t) p_head) && (align32(p_prev_qhd->next.address) != (uint32_t) p_qhd) )
@@ -741,9 +742,9 @@ static ehci_qhd_t* find_previous_qhd(ehci_qhd_t* p_head, ehci_qhd_t* p_qhd)
   return  align32(p_prev_qhd->next.address) != (uint32_t) p_head ? p_prev_qhd : NULL;
 }
 
-static tusb_error_t remove_qhd_from_async_list(ehci_qhd_t* p_head, ehci_qhd_t* p_qhd_remove)
+static tusb_error_t list_remove_qhd_from_async(ehci_qhd_t* p_head, ehci_qhd_t* p_qhd_remove)
 {
-  ehci_qhd_t *p_prev_qhd = find_previous_qhd(p_head, p_qhd_remove);
+  ehci_qhd_t *p_prev_qhd = list_find_previous_qhd(p_head, p_qhd_remove);
 
   ASSERT_PTR(p_prev_qhd, TUSB_ERROR_INVALID_PARA);
 
