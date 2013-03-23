@@ -71,6 +71,16 @@ tusb_descriptor_endpoint_t const desc_ept_bulk_in =
     .bInterval        = 0
 };
 
+tusb_descriptor_endpoint_t const desc_ept_bulk_out =
+{
+    .bLength          = sizeof(tusb_descriptor_endpoint_t),
+    .bDescriptorType  = TUSB_DESC_ENDPOINT,
+    .bEndpointAddress = 0x01,
+    .bmAttributes     = { .xfer = TUSB_XFER_BULK },
+    .wMaxPacketSize   = 512,
+    .bInterval        = 0
+};
+
 //--------------------------------------------------------------------+
 // Setup/Teardown + helper declare
 //--------------------------------------------------------------------+
@@ -139,15 +149,6 @@ void verify_qtd(ehci_qtd_t *p_qtd, uint8_t p_data[], uint16_t length)
 
 void test_bulk_xfer_hs_ping_out(void)
 {
-  tusb_descriptor_endpoint_t const desc_ept_bulk_out =
-  {
-      .bLength          = sizeof(tusb_descriptor_endpoint_t),
-      .bDescriptorType  = TUSB_DESC_ENDPOINT,
-      .bEndpointAddress = 0x01,
-      .bmAttributes     = { .xfer = TUSB_XFER_BULK },
-      .wMaxPacketSize   = 512,
-      .bInterval        = 0
-  };
   usbh_device_info_pool[dev_addr].speed    = TUSB_SPEED_HIGH;
 
   pipe_handle_t pipe_hdl = hcd_pipe_open(dev_addr, &desc_ept_bulk_out, TUSB_CLASS_MSC);
@@ -177,7 +178,6 @@ void test_bulk_xfer(void)
 
 void test_bulk_xfer_double(void)
 {
-
   //------------- Code Under Test -------------//
   hcd_pipe_xfer(pipe_hdl_bulk, xfer_data, sizeof(xfer_data), false);
   hcd_pipe_xfer(pipe_hdl_bulk, data2, sizeof(data2), true);

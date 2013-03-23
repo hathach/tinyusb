@@ -110,9 +110,6 @@ void verify_open_qhd(ehci_qhd_t *p_qhd, uint8_t endpoint_addr, uint16_t max_pack
   TEST_ASSERT_NULL(p_qhd->p_qtd_list_tail);
 }
 
-//--------------------------------------------------------------------+
-// PIPE OPEN
-//--------------------------------------------------------------------+
 void verify_control_open_qhd(ehci_qhd_t *p_qhd)
 {
   verify_open_qhd(p_qhd, 0, control_max_packet_size);
@@ -123,6 +120,9 @@ void verify_control_open_qhd(ehci_qhd_t *p_qhd)
   TEST_ASSERT_EQUAL(0, p_qhd->non_hs_interrupt_cmask);
 }
 
+//--------------------------------------------------------------------+
+// PIPE OPEN
+//--------------------------------------------------------------------+
 void test_control_open_addr0_qhd_data(void)
 {
   dev_addr = 0;

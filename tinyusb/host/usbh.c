@@ -407,7 +407,6 @@ OSAL_TASK_DECLARE(usbh_enumeration_task)
   usbh_device_info_pool[new_addr].state = TUSB_DEVICE_STATE_CONFIGURED;
   tusbh_device_mount_succeed_cb(new_addr);
 
-  // TODO invoke mounted callback
   OSAL_TASK_LOOP_END
 }
 
