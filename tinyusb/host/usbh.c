@@ -226,14 +226,9 @@ void usbh_device_unplugged_isr(uint8_t hostid)
 
   usbh_pipe_control_close(dev_addr);
 
-  // set to REMOVING to end wait for HCD to clean up its cached data for this device
+  // set to REMOVING to allow HCD to clean up its cached data for this device
+  // HCD must set this device's state to TUSB_DEVICE_STATE_UNPLUG when done
   usbh_device_info_pool[dev_addr].state = TUSB_DEVICE_STATE_REMOVING;
-}
-
-// HCD cleaned up cached data for this device
-void usbh_device_hcd_data_cleaned_up_cb(uint8_t dev_addr)
-{
-  usbh_device_info_pool[dev_addr].state = TUSB_DEVICE_STATE_UNPLUG;
 }
 
 //--------------------------------------------------------------------+
@@ -409,7 +404,7 @@ OSAL_TASK_DECLARE(usbh_enumeration_task)
     )
   );
 
-  usbh_device_info_pool[new_addr].state = TUSB_DEVICE_STATE_READY;
+  usbh_device_info_pool[new_addr].state = TUSB_DEVICE_STATE_CONFIGURED;
   tusbh_device_mount_succeed_cb(new_addr);
 
   // TODO invoke mounted callback

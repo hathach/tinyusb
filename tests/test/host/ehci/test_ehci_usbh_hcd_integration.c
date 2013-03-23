@@ -78,7 +78,7 @@ void setUp(void)
     usbh_device_info_pool[i].hub_addr = hub_addr;
     usbh_device_info_pool[i].hub_port = hub_port;
     usbh_device_info_pool[i].speed    = TUSB_SPEED_HIGH;
-    usbh_device_info_pool[i].state   = TUSB_DEVICE_STATE_READY;
+    usbh_device_info_pool[i].state   = TUSB_DEVICE_STATE_CONFIGURED;
   }
 
   regs = get_operational_register(hostid);

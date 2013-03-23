@@ -71,8 +71,8 @@ void test_usbh_status_get_fail(void)
 
 void test_usbh_status_get_succeed(void)
 {
-  usbh_device_info_pool[dev_hdl].state = TUSB_DEVICE_STATE_READY;
-  TEST_ASSERT_EQUAL( TUSB_DEVICE_STATE_READY, tusbh_device_status_get(dev_hdl) );
+  usbh_device_info_pool[dev_hdl].state = TUSB_DEVICE_STATE_CONFIGURED;
+  TEST_ASSERT_EQUAL( TUSB_DEVICE_STATE_CONFIGURED, tusbh_device_status_get(dev_hdl) );
 }
 
 //--------------------------------------------------------------------+
@@ -179,7 +179,7 @@ void test_usbh_device_unplugged_isr(void)
 {
   uint8_t dev_addr = 1;
 
-  usbh_device_info_pool[dev_addr].state = TUSB_DEVICE_STATE_READY;
+  usbh_device_info_pool[dev_addr].state = TUSB_DEVICE_STATE_CONFIGURED;
   usbh_device_info_pool[dev_addr].core_id = 0;
   usbh_device_info_pool[dev_addr].hub_addr = 0;
   usbh_device_info_pool[dev_addr].hub_port = 0;

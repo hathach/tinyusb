@@ -153,6 +153,17 @@ enum {
 
 #define TUSB_DESC_CONFIG_POWER_MA(x)  ((x)/2)
 
+/// Device State
+enum tusb_device_state_{
+  TUSB_DEVICE_STATE_UNPLUG = 0  ,
+  TUSB_DEVICE_STATE_ADDRESSED   ,
+
+  TUSB_DEVICE_STATE_CONFIGURED  ,
+
+  TUSB_DEVICE_STATE_REMOVING    ,
+  TUSB_DEVICE_STATE_SAFE_REMOVE ,
+};
+
 #ifdef __cplusplus
  }
 #endif
