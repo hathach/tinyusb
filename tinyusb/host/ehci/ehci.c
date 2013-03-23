@@ -57,6 +57,7 @@
 // INTERNAL OBJECT & FUNCTION DECLARATION
 //--------------------------------------------------------------------+
 STATIC_ ehci_data_t ehci_data TUSB_CFG_ATTR_USBRAM;
+//TODO removed if not use period list
 STATIC_ ehci_link_t period_frame_list0[EHCI_FRAMELIST_SIZE] ATTR_ALIGNED(4096) TUSB_CFG_ATTR_USBRAM;
 #if CONTROLLER_HOST_NUMBER > 1
 STATIC_ ehci_link_t period_frame_list1[EHCI_FRAMELIST_SIZE] ATTR_ALIGNED(4096) TUSB_CFG_ATTR_USBRAM;
@@ -111,8 +112,8 @@ STATIC_ INLINE_ ehci_qhd_t* get_period_head(uint8_t hostid)
   return &ehci_data.period_head[ hostid_to_data_idx(hostid) ];
 }
 
-static inline uint8_t get_qhd_index(ehci_qhd_t * p_qhd) ATTR_ALWAYS_INLINE ATTR_PURE;
-static inline uint8_t get_qhd_index(ehci_qhd_t * p_qhd)
+static inline uint8_t qhd_get_index(ehci_qhd_t * p_qhd) ATTR_ALWAYS_INLINE ATTR_PURE;
+static inline uint8_t qhd_get_index(ehci_qhd_t * p_qhd)
 {
   return p_qhd - ehci_data.device[p_qhd->device_address-1].qhd;
 }
@@ -129,8 +130,8 @@ static inline void qtd_remove_1st_from_qhd(ehci_qhd_t *p_qhd)
   }
 }
 
-static inline void insert_qtd_to_qhd(ehci_qhd_t *p_qhd, ehci_qtd_t *p_qtd_new) ATTR_ALWAYS_INLINE;
-static inline void insert_qtd_to_qhd(ehci_qhd_t *p_qhd, ehci_qtd_t *p_qtd_new)
+static inline void qtd_insert_to_qhd(ehci_qhd_t *p_qhd, ehci_qtd_t *p_qtd_new) ATTR_ALWAYS_INLINE;
+static inline void qtd_insert_to_qhd(ehci_qhd_t *p_qhd, ehci_qtd_t *p_qtd_new)
 {
   if (p_qhd->p_qtd_list_head == NULL) // empty list
   {
@@ -230,8 +231,8 @@ void async_advance_isr(ehci_qhd_t * const async_head)
           qtd_remove_1st_from_qhd(p_qhd);
         }
       }
-    }
-  }
+    }// end qhd list loop
+  } // end for device[] loop
 }
 
 void port_connect_status_change_isr(uint8_t hostid)
@@ -267,7 +268,7 @@ void async_list_process_isr(ehci_qhd_t * const async_head, ehci_registers_t * co
           if (p_qhd->endpoint_number) // if not Control, can only be Bulk
           {
             pipe_hdl.xfer_type = TUSB_XFER_BULK;
-            pipe_hdl.index = get_qhd_index(p_qhd);
+            pipe_hdl.index = qhd_get_index(p_qhd);
           }
           usbh_isr( pipe_hdl, p_qhd->class_code); // call USBH call back
         }
@@ -611,7 +612,7 @@ pipe_handle_t hcd_pipe_open(uint8_t dev_addr, tusb_descriptor_endpoint_t const *
   list_insert( (ehci_link_t*) list_head,
                (ehci_link_t*) p_qhd, EHCI_QUEUE_ELEMENT_QHD);
 
-  return (pipe_handle_t) { .dev_addr = dev_addr, .xfer_type = p_endpoint_desc->bmAttributes.xfer, .index = get_qhd_index(p_qhd) };
+  return (pipe_handle_t) { .dev_addr = dev_addr, .xfer_type = p_endpoint_desc->bmAttributes.xfer, .index = qhd_get_index(p_qhd) };
 }
 
 STATIC_ INLINE_ ehci_qhd_t* get_qhd_from_pipe_handle(pipe_handle_t pipe_hdl) ATTR_PURE ATTR_ALWAYS_INLINE;
@@ -652,7 +653,7 @@ tusb_error_t  hcd_pipe_xfer(pipe_handle_t pipe_hdl, uint8_t buffer[], uint16_t t
   }
 
   //------------- insert TD to TD list -------------//
-  insert_qtd_to_qhd(p_qhd, p_qtd);
+  qtd_insert_to_qhd(p_qhd, p_qtd);
 
   return TUSB_ERROR_NONE;
 }

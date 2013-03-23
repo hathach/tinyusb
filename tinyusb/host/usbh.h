@@ -93,41 +93,6 @@
 //  TUSB_CLASS_APPLICATION_SPECIFIC = 0xEF ,
 //  TUSB_CLASS_VENDOR_SPECIFIC      = 0xFF
 
-enum {
-  TUSB_FLAGS_CLASS_UNSPECIFIED          = BIT_(0)    , ///< 0
-  TUSB_FLAGS_CLASS_AUDIO                = BIT_(1)    , ///< 1
-  TUSB_FLAGS_CLASS_CDC                  = BIT_(2)    , ///< 2
-  TUSB_FLAGS_CLASS_HID_GENERIC          = BIT_(3)    , ///< 3
-  TUSB_FLAGS_CLASS_RESERVED_4           = BIT_(4)    , ///< 4
-  TUSB_FLAGS_CLASS_PHYSICAL             = BIT_(5)    , ///< 5
-  TUSB_FLAGS_CLASS_IMAGE                = BIT_(6)    , ///< 6
-  TUSB_FLAGS_CLASS_PRINTER              = BIT_(7)    ,  ///< 7
-  TUSB_FLAGS_CLASS_MSC                  = BIT_(8)    ,  ///< 8
-  TUSB_FLAGS_CLASS_HUB                  = BIT_(9)    ,  ///< 9
-  TUSB_FLAGS_CLASS_CDC_DATA             = BIT_(10)   ,  ///< 10
-  TUSB_FLAGS_CLASS_SMART_CARD           = BIT_(11)   ,  ///< 11
-  TUSB_FLAGS_CLASS_RESERVED_12          = BIT_(12)   , ///< 12
-  TUSB_FLAGS_CLASS_CONTENT_SECURITY     = BIT_(13)   ,  ///< 13
-  TUSB_FLAGS_CLASS_VIDEO                = BIT_(14)   ,  ///< 14
-  TUSB_FLAGS_CLASS_PERSONAL_HEALTHCARE  = BIT_(15)   ,  ///< 15
-  TUSB_FLAGS_CLASS_AUDIO_VIDEO          = BIT_(16)   ,  ///< 16
-  // reserved from 17 to 20
-  TUSB_FLAGS_CLASS_RESERVED_20          = BIT_(20)    , ///< 3
-
-  TUSB_FLAGS_CLASS_HID_KEYBOARD         = BIT_(21)    , ///< 3
-  TUSB_FLAGS_CLASS_HID_MOUSE            = BIT_(22)    , ///< 3
-
-  // reserved from 25 to 26
-  TUSB_FLAGS_CLASS_RESERVED_25          = BIT_(25)    , ///< 3
-  TUSB_FLAGS_CLASS_RESERVED_26          = BIT_(26)    , ///< 3
-
-  TUSB_FLAGS_CLASS_DIAGNOSTIC           = BIT_(27),
-  TUSB_FLAGS_CLASS_WIRELESS_CONTROLLER  = BIT_(28),
-  TUSB_FLAGS_CLASS_MISC                 = BIT_(29),
-  TUSB_FLAGS_CLASS_APPLICATION_SPECIFIC = BIT_(30),
-  TUSB_FLAGS_CLASS_VENDOR_SPECIFIC      = BIT_(31) // TODO out of range for int type
-};
-
 /// Device Status
 enum tusbh_device_status_{
   TUSB_DEVICE_STATUS_UNPLUG      = 0,
