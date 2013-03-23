@@ -66,11 +66,6 @@ typedef struct {
   uint8_t index;
 } pipe_handle_t;
 
-typedef enum {
-  BUS_XFER_COMPLETE,
-  BUS_XFER_ERROR
-}usb_bus_event_t;
-
 //--------------------------------------------------------------------+
 // USBH-HCD API
 //--------------------------------------------------------------------+

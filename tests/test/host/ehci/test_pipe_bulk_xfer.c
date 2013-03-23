@@ -202,7 +202,7 @@ void test_bulk_xfer_double(void)
   TEST_ASSERT_TRUE(p_tail->int_on_complete);
 }
 
-void test_bulk_xfer_isr(void)
+void test_bulk_xfer_complete_isr(void)
 {
   hcd_pipe_xfer(pipe_hdl_bulk, xfer_data, sizeof(xfer_data), false);
   hcd_pipe_xfer(pipe_hdl_bulk, data2, sizeof(data2), true);
@@ -212,7 +212,7 @@ void test_bulk_xfer_isr(void)
 
   ehci_controller_run(hostid);
 
-  usbh_isr_Expect(pipe_hdl_bulk, TUSB_CLASS_MSC);
+  usbh_isr_Expect(pipe_hdl_bulk, TUSB_CLASS_MSC, BUS_EVENT_XFER_COMPLETE);
 
   //------------- Code Under Test -------------//
   hcd_isr(hostid);

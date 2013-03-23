@@ -61,7 +61,7 @@ void tusb_tick_tock(void)
 #define ENUM_QUEUE_DEPTH  5
 
 // TODO fix number of class driver
-static class_driver_t const usbh_class_drivers[TUSB_CLASS_MAX_CONSEC_NUMBER] =
+static host_class_driver_t const usbh_class_drivers[TUSB_CLASS_MAX_CONSEC_NUMBER] =
 {
     [TUSB_CLASS_HID] = {
         .init = hidh_init,
@@ -179,14 +179,14 @@ pipe_status_t usbh_pipe_status_get(pipe_handle_t pipe_hdl)
 // USBH-HCD ISR/Callback API
 //--------------------------------------------------------------------+
 // interrupt caused by a TD (with IOC=1) in pipe of class class_code
-void usbh_isr(pipe_handle_t pipe_hdl, uint8_t class_code)
+void usbh_isr(pipe_handle_t pipe_hdl, uint8_t class_code, tusb_bus_event_t event)
 {
   if (class_code == 0) // Control transfer
   {
     osal_semaphore_post( usbh_device_info_pool[ pipe_hdl.dev_addr ].sem_hdl );
   }else if (usbh_class_drivers[class_code].isr)
   {
-    usbh_class_drivers[class_code].isr(pipe_hdl);
+    usbh_class_drivers[class_code].isr(pipe_hdl, event);
   }else
   {
     ASSERT(false, (void) 0); // something wrong, no one claims the isr's source

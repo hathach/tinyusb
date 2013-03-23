@@ -235,7 +235,7 @@ void test_control_xfer_complete_isr(void)
 
   TEST_ASSERT_EQUAL_HEX(async_head, get_operational_register(hostid)->async_list_base);
   TEST_ASSERT_EQUAL_HEX((uint32_t) p_control_qhd, align32(async_head->next.address));
-  usbh_isr_Expect(((pipe_handle_t){.dev_addr = dev_addr}), 0);
+  usbh_isr_Expect(((pipe_handle_t){.dev_addr = dev_addr}), 0, BUS_EVENT_XFER_COMPLETE);
 
   //------------- Code Under TEST -------------//
   hcd_isr(hostid);

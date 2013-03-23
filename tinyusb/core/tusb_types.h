@@ -164,6 +164,11 @@ enum tusb_device_state_{
   TUSB_DEVICE_STATE_SAFE_REMOVE ,
 };
 
+typedef enum {
+  BUS_EVENT_XFER_COMPLETE,
+  BUS_EVENT_XFER_ERROR
+}tusb_bus_event_t;
+
 #ifdef __cplusplus
  }
 #endif

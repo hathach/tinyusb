@@ -224,7 +224,7 @@ void async_list_process_isr(ehci_qhd_t * const async_head, ehci_registers_t * co
             pipe_hdl.xfer_type = TUSB_XFER_BULK;
             pipe_hdl.index = qhd_get_index(p_qhd);
           }
-          usbh_isr( pipe_hdl, p_qhd->class_code); // call USBH call back
+          usbh_isr( pipe_hdl, p_qhd->class_code, BUS_EVENT_XFER_COMPLETE); // call USBH callback
         }
 
         p_qhd->p_qtd_list_head->used = 0; // free QTD

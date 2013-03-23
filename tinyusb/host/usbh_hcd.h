@@ -101,7 +101,7 @@ typedef struct { // TODO internal structure, re-order members
 
 extern usbh_device_info_t usbh_device_info_pool[TUSB_CFG_HOST_DEVICE_MAX+1]; // including zero-address
 
-void usbh_isr(pipe_handle_t pipe_hdl, uint8_t class_code);
+void usbh_isr(pipe_handle_t pipe_hdl, uint8_t class_code, tusb_bus_event_t event);
 void usbh_device_plugged_isr(uint8_t hostid, tusb_speed_t speed);
 void usbh_device_unplugged_isr(uint8_t hostid);
 
