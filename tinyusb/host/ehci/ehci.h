@@ -252,7 +252,7 @@ typedef struct {
 	// End of Word 1
 
 	/// Word 2: Micro-frame Schedule Control
-	uint8_t interrupt_smask     ; ///< This field (along with the Activeand SplitX-statefields in the Statusbyte) are used to determine during which micro-frames the host controller should execute complete-split transactions
+	uint8_t interrupt_smask            ; ///< This field (along with the Activeand SplitX-statefields in the Statusbyte) are used to determine during which micro-frames the host controller should execute complete-split transactions
 	uint8_t non_hs_interrupt_cmask     ; ///< This field (along with the Activeand SplitX-statefields in the Statusbyte) are used to determine during which micro-frames the host controller should execute start-split transactions.
 	uint16_t reserved ; ///< reserved
 	// End of Word 2

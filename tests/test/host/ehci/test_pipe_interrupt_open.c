@@ -124,7 +124,7 @@ void verify_int_qhd(ehci_qhd_t *p_qhd, tusb_descriptor_endpoint_t const * desc_e
   verify_open_qhd(p_qhd, desc_endpoint->bEndpointAddress, desc_endpoint->wMaxPacketSize);
 
   TEST_ASSERT_FALSE(p_qhd->head_list_flag);
-  TEST_ASSERT_EQUAL(0, p_qhd->data_toggle_control);
+  TEST_ASSERT_FALSE(p_qhd->data_toggle_control);
   TEST_ASSERT_FALSE(p_qhd->non_hs_control_endpoint);
 
   //  TEST_ASSERT_EQUAL(desc_endpoint->bInterval); TDD highspeed bulk/control OUT
@@ -153,7 +153,7 @@ void test_open_interrupt_qhd_hs(void)
   verify_int_qhd(p_qhd, &desc_ept_interrupt_out, TUSB_CLASS_HID);
 
   TEST_ASSERT_EQUAL(0xFF, p_qhd->interrupt_smask);
-  //TEST_ASSERT_EQUAL(0, p_qhd->non_hs_interrupt_cmask); cmask in high speed is ignored
+//  TEST_ASSERT_EQUAL(0, p_qhd->non_hs_interrupt_cmask);
 }
 
 void test_open_interrupt_qhd_non_hs(void)

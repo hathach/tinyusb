@@ -755,8 +755,7 @@ static void qtd_init(ehci_qtd_t* p_qtd, uint32_t data_ptr, uint16_t total_bytes)
 static inline void list_insert(ehci_link_t *current, ehci_link_t *new, uint8_t new_type)
 {
   new->address = current->address;
-  current->address = (uint32_t) new;
-  current->type = new_type;
+  current->address = ((uint32_t) new) | (new_type << 1);
 }
 
 static ehci_qhd_t* list_find_previous_qhd(ehci_qhd_t* p_head, ehci_qhd_t* p_qhd)
