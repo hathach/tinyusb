@@ -162,6 +162,8 @@ typedef enum tusb_device_state_{
 
   TUSB_DEVICE_STATE_REMOVING    ,
   TUSB_DEVICE_STATE_SAFE_REMOVE ,
+
+  TUSB_DEVICE_STATE_INVALID_PARAMETER
 }tusb_device_state_t;
 
 typedef enum {
