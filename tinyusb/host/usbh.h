@@ -63,36 +63,6 @@
 //--------------------------------------------------------------------+
 // MACRO CONSTANT TYPEDEF
 //--------------------------------------------------------------------+
-#define CLASS_TABLE(ENTRY_EXPANDER) \
-    ENTRY_EXPANDER(TUSB_CLASS_AUDIO)\
-    ENTRY_EXPANDER(TUSB_CLASS_CDC)\
-    ENTRY_EXPANDER(TUSB_CLASS_HID)\
-    ENTRY_EXPANDER(TUSB_CLASS_PHYSICAL)\
-    ENTRY_EXPANDER(TUSB_CLASS_IMAGE)\
-    ENTRY_EXPANDER(TUSB_CLASS_PRINTER)\
-    ENTRY_EXPANDER(TUSB_CLASS_MSC)\
-    ENTRY_EXPANDER(TUSB_CLASS_HUB)\
-    ENTRY_EXPANDER(TUSB_CLASS_CDC_DATA)\
-    ENTRY_EXPANDER(TUSB_CLASS_SMART_CARD)\
-    ENTRY_EXPANDER(TUSB_CLASS_CONTENT_SECURITY)\
-    ENTRY_EXPANDER(TUSB_CLASS_VIDEO)\
-    ENTRY_EXPANDER(TUSB_CLASS_PERSONAL_HEALTHCARE)\
-    ENTRY_EXPANDER(TUSB_CLASS_AUDIO_VIDEO)\
-
-#define CLASS_LOOKUP_EXPAND(class_code)
-
-#define CLASS_LOOKUP_INIT_FUNCTION(class_code)\
-
-#define CLASS_EXPANDER_INIT(class_code)\
-
-
-
-//  TUSB_CLASS_DIAGNOSTIC           = 0xDC ,
-//  TUSB_CLASS_WIRELESS_CONTROLLER  = 0xE0 ,
-//  TUSB_CLASS_MISC                 = 0xEF ,
-//  TUSB_CLASS_APPLICATION_SPECIFIC = 0xEF ,
-//  TUSB_CLASS_VENDOR_SPECIFIC      = 0xFF
-
 typedef enum pipe_status_{
   PIPE_STATUS_READY = 0,
   PIPE_STATUS_BUSY,
@@ -101,7 +71,6 @@ typedef enum pipe_status_{
 } pipe_status_t;
 
 typedef uint32_t tusbh_flag_class_t;
-typedef uint32_t tusb_handle_device_t;
 typedef uint8_t  tusbh_device_status_t;
 
 typedef struct {
@@ -117,12 +86,17 @@ typedef struct {
 //--------------------------------------------------------------------+
 // APPLICATION API
 //--------------------------------------------------------------------+
+tusb_device_state_t tusbh_device_get_state(uint8_t dev_addr);
+
+//--------------------------------------------------------------------+
+// APPLICATION CALLBACK
+//--------------------------------------------------------------------+
 uint8_t      tusbh_device_attached_cb (tusb_descriptor_device_t const *p_desc_device) ATTR_WEAK ATTR_WARN_UNUSED_RESULT;
-void         tusbh_device_mount_succeed_cb (tusb_handle_device_t device_hdl) ATTR_WEAK;
+void         tusbh_device_mount_succeed_cb (uint8_t dev_addr) ATTR_WEAK;
 void         tusbh_device_mount_failed_cb(tusb_error_t error, tusb_descriptor_device_t const *p_desc_device) ATTR_WEAK; // TODO refractor remove desc_device
 
-tusb_error_t tusbh_configuration_set     (tusb_handle_device_t device_hdl, uint8_t configure_number) ATTR_WARN_UNUSED_RESULT;
-tusbh_device_status_t tusbh_device_status_get (tusb_handle_device_t const device_hdl) ATTR_WARN_UNUSED_RESULT;
+tusb_error_t tusbh_configuration_set     (uint8_t dev_addr, uint8_t configure_number) ATTR_WARN_UNUSED_RESULT;
+tusbh_device_status_t tusbh_device_status_get (uint8_t const dev_addr) ATTR_WARN_UNUSED_RESULT;
 
 #if TUSB_CFG_OS == TUSB_OS_NONE // TODO move later
 //static inline void tusb_tick_tock(void) ATTR_ALWAYS_INLINE;

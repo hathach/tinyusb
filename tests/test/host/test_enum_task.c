@@ -49,7 +49,7 @@
 
 extern usbh_device_info_t usbh_device_info_pool[TUSB_CFG_HOST_DEVICE_MAX+1];
 extern uint8_t enum_data_buffer[TUSB_CFG_HOST_ENUM_BUFFER_SIZE];
-tusb_handle_device_t dev_hdl;
+uint8_t dev_addr;
 
 usbh_enumerate_t const enum_connect = {
     .core_id  = 0,

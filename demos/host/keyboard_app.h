@@ -1,7 +1,7 @@
 /*
- * tusb_callback.h
+ * keyboard_app.h
  *
- *  Created on: Feb 5, 2013
+ *  Created on: Mar 24, 2013
  *      Author: hathach
  */
 
@@ -48,24 +48,19 @@
  *  @{
  */
 
-#ifndef _TUSB_TUSB_CALLBACK_H_
-#define _TUSB_TUSB_CALLBACK_H_
+#ifndef _TUSB_KEYBOARD_APP_H_
+#define _TUSB_KEYBOARD_APP_H_
 
 #ifdef __cplusplus
  extern "C" {
 #endif
 
-#include "common/common.h"
-#include "usbh.h"
 
-uint8_t      tusbh_device_attached_cb (tusb_descriptor_device_t const *p_desc_device) ATTR_WEAK ATTR_WARN_UNUSED_RESULT;
-void         tusbh_device_mount_succeed_cb (uint8_t dev_addr) ATTR_WEAK;
-void         tusbh_device_mount_failed_cb(tusb_error_t error, tusb_descriptor_device_t const *p_desc_device) ATTR_WEAK;
 
 #ifdef __cplusplus
  }
 #endif
 
-#endif /* _TUSB_TUSB_CALLBACK_H_ */
+#endif /* _TUSB_KEYBOARD_APP_H_ */
 
 /** @} */

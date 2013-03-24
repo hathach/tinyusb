@@ -47,10 +47,10 @@
 #include "mock_hid_host.h"
 
 extern usbh_device_info_t usbh_device_info_pool[TUSB_CFG_HOST_DEVICE_MAX+1];
-tusb_handle_device_t dev_hdl;
+uint8_t dev_addr;
 void setUp(void)
 {
-  dev_hdl = 0;
+  dev_addr = 0;
   memset(usbh_device_info_pool, 0, (TUSB_CFG_HOST_DEVICE_MAX+1)*sizeof(usbh_device_info_t));
 }
 
@@ -63,16 +63,16 @@ void tearDown(void)
 //--------------------------------------------------------------------+
 void test_usbh_status_get_fail(void)
 {
-  usbh_device_info_pool[dev_hdl].state = 0;
+  usbh_device_info_pool[dev_addr].state = 0;
 
   TEST_ASSERT_EQUAL( 0, tusbh_device_status_get(TUSB_CFG_HOST_DEVICE_MAX+1) );
-  TEST_ASSERT_EQUAL( TUSB_DEVICE_STATE_UNPLUG, tusbh_device_status_get(dev_hdl) );
+  TEST_ASSERT_EQUAL( TUSB_DEVICE_STATE_UNPLUG, tusbh_device_status_get(dev_addr) );
 }
 
 void test_usbh_status_get_succeed(void)
 {
-  usbh_device_info_pool[dev_hdl].state = TUSB_DEVICE_STATE_CONFIGURED;
-  TEST_ASSERT_EQUAL( TUSB_DEVICE_STATE_CONFIGURED, tusbh_device_status_get(dev_hdl) );
+  usbh_device_info_pool[dev_addr].state = TUSB_DEVICE_STATE_CONFIGURED;
+  TEST_ASSERT_EQUAL( TUSB_DEVICE_STATE_CONFIGURED, tusbh_device_status_get(dev_addr) );
 }
 
 //--------------------------------------------------------------------+

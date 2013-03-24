@@ -1,13 +1,13 @@
 /*
- * hid_host.c
+ * keyboard_app.c
  *
- *  Created on: Dec 20, 2012
+ *  Created on: Mar 24, 2013
  *      Author: hathach
  */
 
 /*
  * Software License Agreement (BSD License)
- * Copyright (c) 2013, hathach (tinyusb.net)
+ * Copyright (c) 2012, hathach (tinyusb.net)
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without modification,
@@ -35,19 +35,12 @@
  * This file is part of the tiny usb stack.
  */
 
-#include "tusb_option.h"
-
-#if (MODE_HOST_SUPPORTED && defined HOST_CLASS_HID)
-
-#define _TINY_USB_SOURCE_FILE_
-
 //--------------------------------------------------------------------+
 // INCLUDE
 //--------------------------------------------------------------------+
-#include "common/common.h"
-#include "hid_host.h"
+#include "tusb.h"
+#include "keyboard_app.h"
 
-#if TUSB_CFG_HOST_HID_KEYBOARD
 //--------------------------------------------------------------------+
 // MACRO CONSTANT TYPEDEF
 //--------------------------------------------------------------------+
@@ -55,59 +48,11 @@
 //--------------------------------------------------------------------+
 // INTERNAL OBJECT & FUNCTION DECLARATION
 //--------------------------------------------------------------------+
-STATIC_ class_hid_keyboard_info_t keyboard_info_pool[TUSB_CFG_HOST_DEVICE_MAX];
-
 
 //--------------------------------------------------------------------+
-// PUBLIC API (Parameter Verification is required)
+// IMPLEMENTATION
 //--------------------------------------------------------------------+
-tusb_error_t tusbh_hid_keyboard_get(uint8_t const dev_addr, uint8_t instance_num, tusb_keyboard_report_t * const report)
+void keyboard_app_task(void)
 {
-  keyboard_interface_t *p_kbd;
 
-  ASSERT_INT(TUSB_DEVICE_STATE_CONFIGURED, tusbh_device_status_get(dev_addr), TUSB_ERROR_DEVICE_NOT_READY);
-  ASSERT_PTR(report, TUSB_ERROR_INVALID_PARA);
-  ASSERT(instance_num < TUSB_CFG_HOST_HID_KEYBOARD_NO_INSTANCES_PER_DEVICE, TUSB_ERROR_INVALID_PARA);
-
-  p_kbd = &keyboard_info_pool[dev_addr].instance[instance_num];
-
-  ASSERT(0 != p_kbd->pipe_in.dev_addr, TUSB_ERROR_CLASS_DEVICE_DONT_SUPPORT);
-
-  ASSERT_INT(PIPE_STATUS_COMPLETE, usbh_pipe_status_get(p_kbd->pipe_in), TUSB_ERROR_CLASS_DATA_NOT_AVAILABLE);
-
-  memcpy(report, p_kbd->buffer, p_kbd->report_size);
-
-  return TUSB_ERROR_NONE;
 }
-
-uint8_t tusbh_hid_keyboard_no_instances(uint8_t const dev_addr)
-{
-  ASSERT_INT(TUSB_DEVICE_STATE_CONFIGURED, tusbh_device_status_get(dev_addr), 0);
-
-  return keyboard_info_pool[dev_addr].instance_count;
-}
-
-//--------------------------------------------------------------------+
-// CLASS-USBD API (don't require to verify parameters)
-//--------------------------------------------------------------------+
-void hidh_init(void)
-{
-#if TUSB_CFG_HOST_HID_KEYBOARD
-  hidh_keyboard_init();
-#endif
-}
-
-void hidh_keyboard_init(void)
-{
-  memclr_(&keyboard_info_pool, sizeof(class_hid_keyboard_info_t)*TUSB_CFG_HOST_DEVICE_MAX);
-}
-
-tusb_error_t hidh_keyboard_install(uint8_t const dev_addr, uint8_t const *descriptor)
-{
-  keyboard_info_pool[dev_addr].instance_count++;
-
-  return TUSB_ERROR_NONE;
-}
-#endif
-
-#endif
