@@ -54,10 +54,9 @@
 //--------------------------------------------------------------------+
 void keyboard_app_task(void)
 {
-
   for (uint8_t dev_addr = 1; dev_addr <= TUSB_CFG_HOST_DEVICE_MAX; dev_addr++)
   {
-    if ( tusbh_device_is_configured(dev_addr) )
+    if ( tusbh_hid_keyboard_is_supported(dev_addr) )
     {
 
     }

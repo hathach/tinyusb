@@ -55,7 +55,7 @@
 //--------------------------------------------------------------------+
 // INTERNAL OBJECT & FUNCTION DECLARATION
 //--------------------------------------------------------------------+
-STATIC_ class_hid_keyboard_info_t keyboard_data[TUSB_CFG_HOST_DEVICE_MAX];
+STATIC_ hidh_keyboard_info_t keyboard_data[TUSB_CFG_HOST_DEVICE_MAX]; // does not have addr0, index = dev_address-1
 
 
 //--------------------------------------------------------------------+
@@ -63,28 +63,28 @@ STATIC_ class_hid_keyboard_info_t keyboard_data[TUSB_CFG_HOST_DEVICE_MAX];
 //--------------------------------------------------------------------+
 tusb_error_t tusbh_hid_keyboard_get(uint8_t const dev_addr, uint8_t instance_num, tusb_keyboard_report_t * const report)
 {
-  keyboard_interface_t *p_kbd;
-
+  //------------- parameters validation -------------//
   ASSERT_INT(TUSB_DEVICE_STATE_CONFIGURED, tusbh_device_get_state(dev_addr), TUSB_ERROR_DEVICE_NOT_READY);
   ASSERT_PTR(report, TUSB_ERROR_INVALID_PARA);
   ASSERT(instance_num < TUSB_CFG_HOST_HID_KEYBOARD_NO_INSTANCES_PER_DEVICE, TUSB_ERROR_INVALID_PARA);
 
-  p_kbd = &keyboard_data[dev_addr].instance[instance_num];
+  keyboard_interface_t *p_kbd;
+  p_kbd = &keyboard_data[dev_addr-1].instance[instance_num];
 
+  // TODO abtract class support for device
   ASSERT(0 != p_kbd->pipe_in.dev_addr, TUSB_ERROR_CLASS_DEVICE_DONT_SUPPORT);
 
-  ASSERT_INT(PIPE_STATUS_COMPLETE, usbh_pipe_status_get(p_kbd->pipe_in), TUSB_ERROR_CLASS_DATA_NOT_AVAILABLE);
-
-  memcpy(report, p_kbd->buffer, p_kbd->report_size);
+  // TODO abtract to use hidh service
+  ASSERT_STATUS( hcd_pipe_xfer(p_kbd->pipe_in, report, p_kbd->report_size, 1) ) ;
 
   return TUSB_ERROR_NONE;
 }
 
 uint8_t tusbh_hid_keyboard_no_instances(uint8_t const dev_addr)
 {
-  ASSERT_INT(TUSB_DEVICE_STATE_CONFIGURED, tusbh_device_get_state(dev_addr), 0);
+  ASSERT(tusbh_device_is_configured(dev_addr), 0);
 
-  return keyboard_data[dev_addr].instance_count;
+  return keyboard_data[dev_addr-1].instance_count;
 }
 
 //--------------------------------------------------------------------+
@@ -99,12 +99,12 @@ void hidh_init(void)
 
 void hidh_keyboard_init(void)
 {
-  memclr_(&keyboard_data, sizeof(class_hid_keyboard_info_t)*TUSB_CFG_HOST_DEVICE_MAX);
+  memclr_(&keyboard_data, sizeof(hidh_keyboard_info_t)*TUSB_CFG_HOST_DEVICE_MAX);
 }
 
 tusb_error_t hidh_keyboard_install(uint8_t const dev_addr, uint8_t const *descriptor)
 {
-  keyboard_data[dev_addr].instance_count++;
+  keyboard_data[dev_addr-1].instance_count++;
 
   return TUSB_ERROR_NONE;
 }

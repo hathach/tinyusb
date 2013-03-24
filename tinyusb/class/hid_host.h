@@ -62,7 +62,13 @@
 //--------------------------------------------------------------------+
 // APPLICATION API
 //--------------------------------------------------------------------+
-uint8_t       tusbh_hid_keyboard_no_instances(uint8_t const dev_addr) ATTR_WARN_UNUSED_RESULT;
+uint8_t       tusbh_hid_keyboard_no_instances(uint8_t const dev_addr) ATTR_PURE ATTR_WARN_UNUSED_RESULT;
+static inline bool  tusbh_hid_keyboard_is_supported(uint8_t const dev_addr) ATTR_ALWAYS_INLINE ATTR_WARN_UNUSED_RESULT ATTR_PURE;
+static inline bool  tusbh_hid_keyboard_is_supported(uint8_t const dev_addr)
+{
+  return tusbh_hid_keyboard_no_instances(dev_addr) > 0;
+}
+
 tusb_error_t  tusbh_hid_keyboard_get(uint8_t const handle, uint8_t const instance_num, tusb_keyboard_report_t * const report) ATTR_WARN_UNUSED_RESULT;
 pipe_status_t tusbh_hid_keyboard_pipe_status(uint8_t const handle, uint8_t const instance_num) ATTR_WARN_UNUSED_RESULT;
 
@@ -80,7 +86,7 @@ typedef struct {
 typedef struct {
   uint8_t instance_count;
   keyboard_interface_t instance[TUSB_CFG_HOST_HID_KEYBOARD_NO_INSTANCES_PER_DEVICE];
-} class_hid_keyboard_info_t;
+} hidh_keyboard_info_t;
 
 void hidh_keyboard_init(void);
 tusb_error_t hidh_keyboard_install(uint8_t dev_addr, uint8_t const *descriptor) ATTR_WARN_UNUSED_RESULT;

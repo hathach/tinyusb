@@ -50,7 +50,7 @@ extern usbh_device_info_t usbh_devices[TUSB_CFG_HOST_DEVICE_MAX+1];
 uint8_t dev_addr;
 void setUp(void)
 {
-  dev_addr = 0;
+  dev_addr = RANDOM(TUSB_CFG_HOST_DEVICE_MAX)+1;
   memset(usbh_devices, 0, (TUSB_CFG_HOST_DEVICE_MAX+1)*sizeof(usbh_device_info_t));
 }
 
@@ -106,7 +106,6 @@ void test_usbh_init_enum_queue_create_failed(void)
     osal_semaphore_create_IgnoreAndReturn(sem_hdl_dummy);
   }
 
-
   osal_task_create_IgnoreAndReturn(TUSB_ERROR_NONE);
   osal_queue_create_IgnoreAndReturn(NULL);
   TEST_ASSERT_EQUAL(TUSB_ERROR_OSAL_QUEUE_FAILED, usbh_init());
@@ -132,7 +131,6 @@ void class_init_expect(void)
 void test_usbh_init_ok(void)
 {
   osal_queue_handle_t dummy = 0x1122;
-
 
   usbh_device_info_t device_info_zero[TUSB_CFG_HOST_DEVICE_MAX+1];
   memclr_(device_info_zero, sizeof(usbh_device_info_t)*(TUSB_CFG_HOST_DEVICE_MAX+1));

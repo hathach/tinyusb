@@ -113,7 +113,6 @@ void         tusbh_device_mount_failed_cb(tusb_error_t error, tusb_descriptor_de
 #ifdef _TINY_USB_SOURCE_FILE_
 
 tusb_error_t usbh_init(void);
-pipe_status_t usbh_pipe_status_get(pipe_handle_t pipe_hdl) ATTR_WARN_UNUSED_RESULT;
 
 #endif
 

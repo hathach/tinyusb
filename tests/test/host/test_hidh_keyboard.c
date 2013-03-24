@@ -35,13 +35,15 @@
  * This file is part of the tiny usb stack.
  */
 
+#include "stdlib.h"
 #include "unity.h"
 #include "errors.h"
 #include "hid_host.h"
 #include "mock_osal.h"
 #include "mock_usbh.h"
+#include "mock_hcd.h"
 
-extern class_hid_keyboard_info_t keyboard_data[TUSB_CFG_HOST_DEVICE_MAX];
+extern hidh_keyboard_info_t keyboard_data[TUSB_CFG_HOST_DEVICE_MAX];
 
 tusb_keyboard_report_t sample_key[2] =
 {
@@ -56,32 +58,42 @@ tusb_keyboard_report_t sample_key[2] =
 };
 
 uint8_t dev_addr;
-tusb_descriptor_interface_t kbd_descriptor;
 tusb_keyboard_report_t report;
 uint8_t instance_num;
+keyboard_interface_t* p_hidh_kbd_interface;
+
+tusb_descriptor_interface_t const kbd_descriptor =
+{
+  .bLength            = sizeof(tusb_descriptor_interface_t),
+  .bDescriptorType    = TUSB_DESC_INTERFACE,
+  .bInterfaceNumber   = 1,
+  .bAlternateSetting  = 0,
+  .bNumEndpoints      = 1,
+  .bInterfaceClass    = TUSB_CLASS_HID,
+  .bInterfaceSubClass = HID_SUBCLASS_BOOT,
+  .bInterfaceProtocol = HID_PROTOCOL_KEYBOARD,
+  .iInterface         = 0
+};
+
 
 void setUp(void)
 {
-  dev_addr = 0;
   instance_num = 0;
-  memset(&report, 0, sizeof(tusb_keyboard_report_t));
+  dev_addr = RANDOM(TUSB_CFG_HOST_DEVICE_MAX)+1;
 
-  keyboard_data[0].instance_count = 0;
-  keyboard_data[0].instance[0].pipe_in = (pipe_handle_t) { .dev_addr = 1, .xfer_type = TUSB_XFER_INTERRUPT, .index = 1};
-  keyboard_data[0].instance[0].report_size = sizeof(tusb_keyboard_report_t);
+  memclr_(&report, sizeof(tusb_keyboard_report_t));
 
-  kbd_descriptor = ((tusb_descriptor_interface_t)
-      {
-        .bLength            = sizeof(tusb_descriptor_interface_t),
-        .bDescriptorType    = TUSB_DESC_INTERFACE,
-        .bInterfaceNumber   = 1,
-        .bAlternateSetting  = 0,
-        .bNumEndpoints      = 1,
-        .bInterfaceClass    = TUSB_CLASS_HID,
-        .bInterfaceSubClass = HID_SUBCLASS_BOOT,
-        .bInterfaceProtocol = HID_PROTOCOL_KEYBOARD,
-        .iInterface         = 0
-      });
+  hidh_keyboard_init();
+
+  keyboard_data[dev_addr-1].instance_count = 0;
+  p_hidh_kbd_interface = &keyboard_data[dev_addr-1].instance[instance_num];
+
+  p_hidh_kbd_interface->report_size = sizeof(tusb_keyboard_report_t);
+  p_hidh_kbd_interface->pipe_in = (pipe_handle_t) {
+    .dev_addr = dev_addr,
+    .xfer_type = TUSB_XFER_INTERRUPT,
+    .index = 1
+  };
 
 }
 
@@ -94,8 +106,8 @@ void tearDown(void)
 //--------------------------------------------------------------------+
 void test_keyboard_no_instances_invalid_para(void)
 {
-  tusbh_device_get_state_IgnoreAndReturn(0);
-  TEST_ASSERT_EQUAL(0, tusbh_hid_keyboard_no_instances(TUSB_CFG_HOST_DEVICE_MAX));
+  tusbh_device_get_state_IgnoreAndReturn(TUSB_DEVICE_STATE_UNPLUG);
+  TEST_ASSERT_EQUAL(0, tusbh_hid_keyboard_no_instances(dev_addr));
 }
 
 void test_keyboard_install_ok(void)
@@ -110,89 +122,61 @@ void test_keyboard_install_ok(void)
 
 void test_keyboard_init(void)
 {
-  class_hid_keyboard_info_t keyboard_info_zero[TUSB_CFG_HOST_DEVICE_MAX];
-  memset(keyboard_info_zero, 0, sizeof(class_hid_keyboard_info_t)*TUSB_CFG_HOST_DEVICE_MAX);
-
   hidh_keyboard_init();
 
-  TEST_ASSERT_EQUAL_MEMORY(keyboard_info_zero, keyboard_data, sizeof(class_hid_keyboard_info_t)*TUSB_CFG_HOST_DEVICE_MAX);
+  for(uint32_t i=0; i < sizeof(hidh_keyboard_info_t)*TUSB_CFG_HOST_DEVICE_MAX; i++)
+    TEST_ASSERT_EQUAL(0, ((uint8_t*)keyboard_data) [i]);
 }
 
 //--------------------------------------------------------------------+
 // keyboard_get
 //--------------------------------------------------------------------+
-pipe_status_t pipe_status_get_stub(pipe_handle_t pipe_hdl, int num_call)
-{
-  switch (num_call)
-  {
-    case 0:
-      memcpy(keyboard_data[0].instance[0].buffer, &sample_key[0], sizeof(tusb_keyboard_report_t));
-      return PIPE_STATUS_COMPLETE;
-    break;
-
-    case 1:
-      return PIPE_STATUS_READY;
-    break;
-
-    case 2:
-      return PIPE_STATUS_BUSY;
-    break;
-
-    case 3:
-      memcpy(keyboard_data[0].instance[0].buffer, &sample_key[1], sizeof(tusb_keyboard_report_t));
-      return PIPE_STATUS_COMPLETE;
-    break;
-
-    default:
-      return PIPE_STATUS_READY;
-  }
-}
-
-void test_keyboard_get_invalid_para()
+void test_keyboard_get_invalid_address(void)
 {
   tusbh_device_get_state_IgnoreAndReturn(TUSB_DEVICE_STATE_CONFIGURED);
-  TEST_ASSERT_EQUAL(TUSB_ERROR_INVALID_PARA, tusbh_hid_keyboard_get(0, 0, NULL));
+  TEST_ASSERT_EQUAL(TUSB_ERROR_INVALID_PARA, tusbh_hid_keyboard_get(0, 0, NULL)); // invalid address
+}
 
-  tusbh_device_get_state_IgnoreAndReturn(0);
-  TEST_ASSERT_EQUAL(TUSB_ERROR_DEVICE_NOT_READY, tusbh_hid_keyboard_get(TUSB_CFG_HOST_DEVICE_MAX, 0, &report));
+void test_keyboard_get_invalid_instance(void)
+{
+  tusbh_device_get_state_IgnoreAndReturn(TUSB_DEVICE_STATE_CONFIGURED);
+  TEST_ASSERT_EQUAL(TUSB_ERROR_INVALID_PARA, tusbh_hid_keyboard_get(dev_addr, TUSB_CFG_HOST_HID_KEYBOARD_NO_INSTANCES_PER_DEVICE, &report)); // invalid instance
+}
 
-  tusbh_device_get_state_IgnoreAndReturn(0);
-  TEST_ASSERT_EQUAL(TUSB_ERROR_DEVICE_NOT_READY, tusbh_hid_keyboard_get(0, TUSB_CFG_HOST_HID_KEYBOARD_NO_INSTANCES_PER_DEVICE, &report));
+void test_keyboard_get_invalid_buffer(void)
+{
+  tusbh_device_get_state_IgnoreAndReturn(TUSB_DEVICE_STATE_CONFIGURED);
+  TEST_ASSERT_EQUAL(TUSB_ERROR_INVALID_PARA, tusbh_hid_keyboard_get(dev_addr, 0, NULL)); // invalid buffer
+}
+
+void test_keyboard_get_device_not_ready(void)
+{
+  tusbh_device_get_state_IgnoreAndReturn(TUSB_DEVICE_STATE_UNPLUG);
+  TEST_ASSERT_EQUAL(TUSB_ERROR_DEVICE_NOT_READY, tusbh_hid_keyboard_get(dev_addr, 0, &report)); // device not mounted
 }
 
 void test_keyboard_get_class_not_supported()
 {
   tusbh_device_get_state_IgnoreAndReturn(TUSB_DEVICE_STATE_CONFIGURED);
-  keyboard_data[dev_addr].instance[0].pipe_in = (pipe_handle_t) { 0 };
+  p_hidh_kbd_interface->pipe_in = (pipe_handle_t) { 0 };
   TEST_ASSERT_EQUAL(TUSB_ERROR_CLASS_DEVICE_DONT_SUPPORT, tusbh_hid_keyboard_get(dev_addr, instance_num, &report));
 }
 
-void test_keyboard_get_report_not_available()
+void test_keyboard_get_report_xfer_failed()
 {
   tusbh_device_get_state_IgnoreAndReturn(TUSB_DEVICE_STATE_CONFIGURED);
-  usbh_pipe_status_get_IgnoreAndReturn(PIPE_STATUS_BUSY);
-  TEST_ASSERT_EQUAL(TUSB_ERROR_CLASS_DATA_NOT_AVAILABLE, tusbh_hid_keyboard_get(dev_addr, instance_num, &report));
+  hcd_pipe_xfer_ExpectAndReturn(p_hidh_kbd_interface->pipe_in, &report, p_hidh_kbd_interface->report_size, true, TUSB_ERROR_INVALID_PARA);
 
-  tusbh_device_get_state_IgnoreAndReturn(TUSB_DEVICE_STATE_CONFIGURED);
-  usbh_pipe_status_get_IgnoreAndReturn(PIPE_STATUS_READY);
-  TEST_ASSERT_EQUAL(TUSB_ERROR_CLASS_DATA_NOT_AVAILABLE, tusbh_hid_keyboard_get(dev_addr, instance_num, &report));
+  //------------- Code Under TEST -------------//
+  TEST_ASSERT_EQUAL(TUSB_ERROR_INVALID_PARA, tusbh_hid_keyboard_get(dev_addr, instance_num, &report));
 }
 
 void test_keyboard_get_ok()
 {
-  usbh_pipe_status_get_StubWithCallback(pipe_status_get_stub);
-
   tusbh_device_get_state_IgnoreAndReturn(TUSB_DEVICE_STATE_CONFIGURED);
+  hcd_pipe_xfer_ExpectAndReturn(p_hidh_kbd_interface->pipe_in, &report, p_hidh_kbd_interface->report_size, true, TUSB_ERROR_NONE);
+
+  //------------- Code Under TEST -------------//
   TEST_ASSERT_EQUAL(TUSB_ERROR_NONE, tusbh_hid_keyboard_get(dev_addr, instance_num, &report));
-  TEST_ASSERT_EQUAL_MEMORY(&sample_key[0], &report, sizeof(tusb_keyboard_report_t));
-
-  tusbh_device_get_state_IgnoreAndReturn(TUSB_DEVICE_STATE_CONFIGURED);
-  TEST_ASSERT_EQUAL(TUSB_ERROR_CLASS_DATA_NOT_AVAILABLE, tusbh_hid_keyboard_get(dev_addr, instance_num, &report));
-  tusbh_device_get_state_IgnoreAndReturn(TUSB_DEVICE_STATE_CONFIGURED);
-  TEST_ASSERT_EQUAL(TUSB_ERROR_CLASS_DATA_NOT_AVAILABLE, tusbh_hid_keyboard_get(dev_addr, instance_num, &report));
-
-  tusbh_device_get_state_IgnoreAndReturn(TUSB_DEVICE_STATE_CONFIGURED);
-  TEST_ASSERT_EQUAL(TUSB_ERROR_NONE, tusbh_hid_keyboard_get(dev_addr, instance_num, &report));
-  TEST_ASSERT_EQUAL_MEMORY(&sample_key[1], &report, sizeof(tusb_keyboard_report_t));
 }
 

@@ -100,7 +100,7 @@ static inline uint8_t get_configure_number_for_device(tusb_descriptor_device_t* 
 //--------------------------------------------------------------------+
 tusb_device_state_t tusbh_device_get_state (uint8_t const dev_addr)
 {
-  ASSERT(dev_addr <= TUSB_CFG_HOST_DEVICE_MAX, TUSB_DEVICE_STATE_INVALID_PARAMETER);
+  ASSERT_INT_WITHIN(1, TUSB_CFG_HOST_DEVICE_MAX, dev_addr, TUSB_DEVICE_STATE_INVALID_PARAMETER);
   return usbh_devices[dev_addr].state;
 }
 
