@@ -57,17 +57,18 @@
 // INTERNAL OBJECT & FUNCTION DECLARATION
 //--------------------------------------------------------------------+
 STATIC_ ehci_data_t ehci_data TUSB_CFG_ATTR_USBRAM;
-//TODO removed if not use period list
-STATIC_ ehci_link_t period_frame_list0[EHCI_FRAMELIST_SIZE] ATTR_ALIGNED(4096) TUSB_CFG_ATTR_USBRAM;
-#if CONTROLLER_HOST_NUMBER > 1
-STATIC_ ehci_link_t period_frame_list1[EHCI_FRAMELIST_SIZE] ATTR_ALIGNED(4096) TUSB_CFG_ATTR_USBRAM;
+
+#if EHCI_PERIODIC_LIST
+  STATIC_ ehci_link_t period_frame_list0[EHCI_FRAMELIST_SIZE] ATTR_ALIGNED(4096) TUSB_CFG_ATTR_USBRAM;
+  STATIC_ASSERT( ALIGN_OF(period_frame_list0) == 4096, "Period Framelist must be 4k alginment"); // validation
+
+  #if CONTROLLER_HOST_NUMBER > 1
+  STATIC_ ehci_link_t period_frame_list1[EHCI_FRAMELIST_SIZE] ATTR_ALIGNED(4096) TUSB_CFG_ATTR_USBRAM;
+  STATIC_ASSERT( ALIGN_OF(period_frame_list1) == 4096, "Period Framelist must be 4k alginment"); // validation
+  #endif
 #endif
 
 //------------- Validation -------------//
-STATIC_ASSERT( ALIGN_OF(period_frame_list0) == 4096, "Period Framelist must be 4k alginment");
-#if CONTROLLER_HOST_NUMBER > 1
-STATIC_ASSERT( ALIGN_OF(period_frame_list1) == 4096, "Period Framelist must be 4k alginment");
-#endif
 // TODO static assert for memory placement on some known MCU such as lpc43xx
 
 //--------------------------------------------------------------------+
@@ -344,8 +345,7 @@ static tusb_error_t hcd_controller_init(uint8_t hostid)
   ehci_link_t * const framelist  = get_period_frame_list(hostid);
   ehci_qhd_t * const period_head = get_period_head(hostid);
 
-  uint32_t i;
-  for(i=0; i<EHCI_FRAMELIST_SIZE; i++)
+  for(uint32_t i=0; i<EHCI_FRAMELIST_SIZE; i++)
   {
     framelist[i].address = (uint32_t) period_head;
     framelist[i].type    = EHCI_QUEUE_ELEMENT_QHD;
