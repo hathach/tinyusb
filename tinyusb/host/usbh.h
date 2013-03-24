@@ -70,8 +70,6 @@ typedef enum pipe_status_{
   PIPE_STATUS_ERROR
 } pipe_status_t;
 
-typedef uint32_t tusbh_flag_class_t;
-
 typedef struct {
   void (* const init) (void);
   tusb_error_t (* const open_subtask)(uint8_t, uint8_t const *, uint16_t*);
@@ -86,7 +84,12 @@ typedef struct {
 // APPLICATION API
 //--------------------------------------------------------------------+
 tusb_error_t tusbh_configuration_set     (uint8_t dev_addr, uint8_t configure_number) ATTR_WARN_UNUSED_RESULT;
-tusb_device_state_t tusbh_device_get_state (uint8_t const dev_addr) ATTR_WARN_UNUSED_RESULT;
+tusb_device_state_t tusbh_device_get_state (uint8_t const dev_addr) ATTR_WARN_UNUSED_RESULT ATTR_PURE;
+static inline bool tusbh_device_is_configured(uint8_t const dev_addr) ATTR_ALWAYS_INLINE ATTR_WARN_UNUSED_RESULT ATTR_PURE;
+static inline bool tusbh_device_is_configured(uint8_t const dev_addr)
+{
+  return tusbh_device_get_state(dev_addr) == TUSB_DEVICE_STATE_CONFIGURED;
+}
 
 //--------------------------------------------------------------------+
 // APPLICATION CALLBACK

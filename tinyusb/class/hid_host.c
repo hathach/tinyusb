@@ -55,7 +55,7 @@
 //--------------------------------------------------------------------+
 // INTERNAL OBJECT & FUNCTION DECLARATION
 //--------------------------------------------------------------------+
-STATIC_ class_hid_keyboard_info_t keyboard_info_pool[TUSB_CFG_HOST_DEVICE_MAX];
+STATIC_ class_hid_keyboard_info_t keyboard_data[TUSB_CFG_HOST_DEVICE_MAX];
 
 
 //--------------------------------------------------------------------+
@@ -69,7 +69,7 @@ tusb_error_t tusbh_hid_keyboard_get(uint8_t const dev_addr, uint8_t instance_num
   ASSERT_PTR(report, TUSB_ERROR_INVALID_PARA);
   ASSERT(instance_num < TUSB_CFG_HOST_HID_KEYBOARD_NO_INSTANCES_PER_DEVICE, TUSB_ERROR_INVALID_PARA);
 
-  p_kbd = &keyboard_info_pool[dev_addr].instance[instance_num];
+  p_kbd = &keyboard_data[dev_addr].instance[instance_num];
 
   ASSERT(0 != p_kbd->pipe_in.dev_addr, TUSB_ERROR_CLASS_DEVICE_DONT_SUPPORT);
 
@@ -84,7 +84,7 @@ uint8_t tusbh_hid_keyboard_no_instances(uint8_t const dev_addr)
 {
   ASSERT_INT(TUSB_DEVICE_STATE_CONFIGURED, tusbh_device_get_state(dev_addr), 0);
 
-  return keyboard_info_pool[dev_addr].instance_count;
+  return keyboard_data[dev_addr].instance_count;
 }
 
 //--------------------------------------------------------------------+
@@ -99,12 +99,12 @@ void hidh_init(void)
 
 void hidh_keyboard_init(void)
 {
-  memclr_(&keyboard_info_pool, sizeof(class_hid_keyboard_info_t)*TUSB_CFG_HOST_DEVICE_MAX);
+  memclr_(&keyboard_data, sizeof(class_hid_keyboard_info_t)*TUSB_CFG_HOST_DEVICE_MAX);
 }
 
 tusb_error_t hidh_keyboard_install(uint8_t const dev_addr, uint8_t const *descriptor)
 {
-  keyboard_info_pool[dev_addr].instance_count++;
+  keyboard_data[dev_addr].instance_count++;
 
   return TUSB_ERROR_NONE;
 }

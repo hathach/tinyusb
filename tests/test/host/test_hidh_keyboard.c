@@ -41,7 +41,7 @@
 #include "mock_osal.h"
 #include "mock_usbh.h"
 
-extern class_hid_keyboard_info_t keyboard_info_pool[TUSB_CFG_HOST_DEVICE_MAX];
+extern class_hid_keyboard_info_t keyboard_data[TUSB_CFG_HOST_DEVICE_MAX];
 
 tusb_keyboard_report_t sample_key[2] =
 {
@@ -66,9 +66,9 @@ void setUp(void)
   instance_num = 0;
   memset(&report, 0, sizeof(tusb_keyboard_report_t));
 
-  keyboard_info_pool[0].instance_count = 0;
-  keyboard_info_pool[0].instance[0].pipe_in = (pipe_handle_t) { .dev_addr = 1, .xfer_type = TUSB_XFER_INTERRUPT, .index = 1};
-  keyboard_info_pool[0].instance[0].report_size = sizeof(tusb_keyboard_report_t);
+  keyboard_data[0].instance_count = 0;
+  keyboard_data[0].instance[0].pipe_in = (pipe_handle_t) { .dev_addr = 1, .xfer_type = TUSB_XFER_INTERRUPT, .index = 1};
+  keyboard_data[0].instance[0].report_size = sizeof(tusb_keyboard_report_t);
 
   kbd_descriptor = ((tusb_descriptor_interface_t)
       {
@@ -115,7 +115,7 @@ void test_keyboard_init(void)
 
   hidh_keyboard_init();
 
-  TEST_ASSERT_EQUAL_MEMORY(keyboard_info_zero, keyboard_info_pool, sizeof(class_hid_keyboard_info_t)*TUSB_CFG_HOST_DEVICE_MAX);
+  TEST_ASSERT_EQUAL_MEMORY(keyboard_info_zero, keyboard_data, sizeof(class_hid_keyboard_info_t)*TUSB_CFG_HOST_DEVICE_MAX);
 }
 
 //--------------------------------------------------------------------+
@@ -126,7 +126,7 @@ pipe_status_t pipe_status_get_stub(pipe_handle_t pipe_hdl, int num_call)
   switch (num_call)
   {
     case 0:
-      memcpy(keyboard_info_pool[0].instance[0].buffer, &sample_key[0], sizeof(tusb_keyboard_report_t));
+      memcpy(keyboard_data[0].instance[0].buffer, &sample_key[0], sizeof(tusb_keyboard_report_t));
       return PIPE_STATUS_COMPLETE;
     break;
 
@@ -139,7 +139,7 @@ pipe_status_t pipe_status_get_stub(pipe_handle_t pipe_hdl, int num_call)
     break;
 
     case 3:
-      memcpy(keyboard_info_pool[0].instance[0].buffer, &sample_key[1], sizeof(tusb_keyboard_report_t));
+      memcpy(keyboard_data[0].instance[0].buffer, &sample_key[1], sizeof(tusb_keyboard_report_t));
       return PIPE_STATUS_COMPLETE;
     break;
 
@@ -163,7 +163,7 @@ void test_keyboard_get_invalid_para()
 void test_keyboard_get_class_not_supported()
 {
   tusbh_device_get_state_IgnoreAndReturn(TUSB_DEVICE_STATE_CONFIGURED);
-  keyboard_info_pool[dev_addr].instance[0].pipe_in = (pipe_handle_t) { 0 };
+  keyboard_data[dev_addr].instance[0].pipe_in = (pipe_handle_t) { 0 };
   TEST_ASSERT_EQUAL(TUSB_ERROR_CLASS_DEVICE_DONT_SUPPORT, tusbh_hid_keyboard_get(dev_addr, instance_num, &report));
 }
 

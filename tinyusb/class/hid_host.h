@@ -62,9 +62,9 @@
 //--------------------------------------------------------------------+
 // APPLICATION API
 //--------------------------------------------------------------------+
-uint8_t tusbh_hid_keyboard_no_instances(uint8_t const dev_addr) ATTR_WARN_UNUSED_RESULT;
-tusb_error_t tusbh_hid_keyboard_get(uint8_t const handle, uint8_t const instance_num, tusb_keyboard_report_t * const report) ATTR_WARN_UNUSED_RESULT;
-pipe_status_t tusbh_hid_keyboard_pipe_status(uint8_t const handle, uint8_t const instance_num);
+uint8_t       tusbh_hid_keyboard_no_instances(uint8_t const dev_addr) ATTR_WARN_UNUSED_RESULT;
+tusb_error_t  tusbh_hid_keyboard_get(uint8_t const handle, uint8_t const instance_num, tusb_keyboard_report_t * const report) ATTR_WARN_UNUSED_RESULT;
+pipe_status_t tusbh_hid_keyboard_pipe_status(uint8_t const handle, uint8_t const instance_num) ATTR_WARN_UNUSED_RESULT;
 
 //--------------------------------------------------------------------+
 // INTERNAL API
