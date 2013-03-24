@@ -65,14 +65,14 @@ void test_usbh_status_get_fail(void)
 {
   usbh_device_info_pool[dev_addr].state = 0;
 
-  TEST_ASSERT_EQUAL( 0, tusbh_device_status_get(TUSB_CFG_HOST_DEVICE_MAX+1) );
-  TEST_ASSERT_EQUAL( TUSB_DEVICE_STATE_UNPLUG, tusbh_device_status_get(dev_addr) );
+  TEST_ASSERT_EQUAL( 0, tusbh_device_get_state(TUSB_CFG_HOST_DEVICE_MAX+1) );
+  TEST_ASSERT_EQUAL( TUSB_DEVICE_STATE_UNPLUG, tusbh_device_get_state(dev_addr) );
 }
 
 void test_usbh_status_get_succeed(void)
 {
   usbh_device_info_pool[dev_addr].state = TUSB_DEVICE_STATE_CONFIGURED;
-  TEST_ASSERT_EQUAL( TUSB_DEVICE_STATE_CONFIGURED, tusbh_device_status_get(dev_addr) );
+  TEST_ASSERT_EQUAL( TUSB_DEVICE_STATE_CONFIGURED, tusbh_device_get_state(dev_addr) );
 }
 
 //--------------------------------------------------------------------+

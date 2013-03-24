@@ -98,7 +98,7 @@ static inline uint8_t get_configure_number_for_device(tusb_descriptor_device_t* 
 //--------------------------------------------------------------------+
 // PUBLIC API (Parameter Verification is required)
 //--------------------------------------------------------------------+
-tusbh_device_status_t tusbh_device_status_get (uint8_t const dev_addr)
+tusb_device_state_t tusbh_device_get_state (uint8_t const dev_addr)
 {
   ASSERT(dev_addr <= TUSB_CFG_HOST_DEVICE_MAX, 0);
   return usbh_device_info_pool[dev_addr].state;
