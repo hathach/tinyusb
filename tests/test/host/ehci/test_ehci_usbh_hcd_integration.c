@@ -49,7 +49,7 @@
 #include "ehci_controller.h"
 
 #define _TINY_USB_SOURCE_FILE_
-usbh_device_info_t usbh_device_info_pool[TUSB_CFG_HOST_DEVICE_MAX+1];
+usbh_device_info_t usbh_devices[TUSB_CFG_HOST_DEVICE_MAX+1];
 uint8_t const control_max_packet_size = 64;
 uint8_t hub_addr;
 uint8_t hub_port;
@@ -63,7 +63,7 @@ void setUp(void)
 {
   memclr_(&lpc_usb0, sizeof(LPC_USB0_Type));
   memclr_(&lpc_usb1, sizeof(LPC_USB1_Type));
-  memclr_(usbh_device_info_pool, sizeof(usbh_device_info_t)*(TUSB_CFG_HOST_DEVICE_MAX+1));
+  memclr_(usbh_devices, sizeof(usbh_device_info_t)*(TUSB_CFG_HOST_DEVICE_MAX+1));
 
   hub_addr = hub_port = 0;
   dev_addr = 1;
@@ -74,11 +74,11 @@ void setUp(void)
 
   for (uint8_t i=0; i<TUSB_CFG_HOST_DEVICE_MAX+1; i++)
   {
-    usbh_device_info_pool[i].core_id  = hostid;
-    usbh_device_info_pool[i].hub_addr = hub_addr;
-    usbh_device_info_pool[i].hub_port = hub_port;
-    usbh_device_info_pool[i].speed    = TUSB_SPEED_HIGH;
-    usbh_device_info_pool[i].state    = i ? TUSB_DEVICE_STATE_CONFIGURED : TUSB_DEVICE_STATE_UNPLUG;
+    usbh_devices[i].core_id  = hostid;
+    usbh_devices[i].hub_addr = hub_addr;
+    usbh_devices[i].hub_port = hub_port;
+    usbh_devices[i].speed    = TUSB_SPEED_HIGH;
+    usbh_devices[i].state    = i ? TUSB_DEVICE_STATE_CONFIGURED : TUSB_DEVICE_STATE_UNPLUG;
   }
 
   regs = get_operational_register(hostid);
@@ -184,10 +184,10 @@ void test_device_unplugged_status(void)
 {
   ehci_controller_device_unplug(hostid);
   hcd_isr(hostid);
-  TEST_ASSERT_EQUAL(TUSB_DEVICE_STATE_REMOVING, usbh_device_info_pool[dev_addr].state);
+  TEST_ASSERT_EQUAL(TUSB_DEVICE_STATE_REMOVING, usbh_devices[dev_addr].state);
 
   regs->usb_sts_bit.async_advance = 1;
   hcd_isr(hostid); // async advance
 
-  TEST_ASSERT_EQUAL(TUSB_DEVICE_STATE_UNPLUG, usbh_device_info_pool[dev_addr].state);
+  TEST_ASSERT_EQUAL(TUSB_DEVICE_STATE_UNPLUG, usbh_devices[dev_addr].state);
 }

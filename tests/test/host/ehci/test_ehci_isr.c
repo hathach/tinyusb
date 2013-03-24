@@ -47,7 +47,7 @@
 #include "ehci.h"
 #include "ehci_controller.h"
 
-usbh_device_info_t usbh_device_info_pool[TUSB_CFG_HOST_DEVICE_MAX+1];
+usbh_device_info_t usbh_devices[TUSB_CFG_HOST_DEVICE_MAX+1];
 
 uint8_t hostid;
 ehci_registers_t * regs;

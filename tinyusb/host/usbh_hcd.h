@@ -93,14 +93,15 @@ typedef struct { // TODO internal structure, re-order members
   volatile uint8_t state;          // device state, value from enum tusbh_device_state_t
 
   //------------- control pipe -------------//
-  volatile uint8_t control_pipe_status;
-  tusb_std_request_t control_request;
-  OSAL_SEM_DEF(semaphore); // TODO move to semaphore pool
-  osal_semaphore_handle_t control_sem_hdl;
-
+  struct {
+    volatile uint8_t pipe_status;
+    tusb_std_request_t request;
+    OSAL_SEM_DEF(semaphore); // TODO move to semaphore pool
+    osal_semaphore_handle_t sem_hdl;
+  } control;
 } usbh_device_info_t;
 
-extern usbh_device_info_t usbh_device_info_pool[TUSB_CFG_HOST_DEVICE_MAX+1]; // including zero-address
+extern usbh_device_info_t usbh_devices[TUSB_CFG_HOST_DEVICE_MAX+1]; // including zero-address
 
 void usbh_isr(pipe_handle_t pipe_hdl, uint8_t class_code, tusb_bus_event_t event);
 void usbh_device_plugged_isr(uint8_t hostid, tusb_speed_t speed);

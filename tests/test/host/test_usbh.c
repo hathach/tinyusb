@@ -46,12 +46,12 @@
 #include "mock_tusb_callback.h"
 #include "mock_hid_host.h"
 
-extern usbh_device_info_t usbh_device_info_pool[TUSB_CFG_HOST_DEVICE_MAX+1];
+extern usbh_device_info_t usbh_devices[TUSB_CFG_HOST_DEVICE_MAX+1];
 uint8_t dev_addr;
 void setUp(void)
 {
   dev_addr = 0;
-  memset(usbh_device_info_pool, 0, (TUSB_CFG_HOST_DEVICE_MAX+1)*sizeof(usbh_device_info_t));
+  memset(usbh_devices, 0, (TUSB_CFG_HOST_DEVICE_MAX+1)*sizeof(usbh_device_info_t));
 }
 
 void tearDown(void)
@@ -63,7 +63,7 @@ void tearDown(void)
 //--------------------------------------------------------------------+
 void test_usbh_status_get_fail(void)
 {
-  usbh_device_info_pool[dev_addr].state = 0;
+  usbh_devices[dev_addr].state = 0;
 
   TEST_ASSERT_EQUAL( TUSB_DEVICE_STATE_INVALID_PARAMETER, tusbh_device_get_state(TUSB_CFG_HOST_DEVICE_MAX+1) );
   TEST_ASSERT_EQUAL( TUSB_DEVICE_STATE_UNPLUG, tusbh_device_get_state(dev_addr) );
@@ -71,7 +71,7 @@ void test_usbh_status_get_fail(void)
 
 void test_usbh_status_get_succeed(void)
 {
-  usbh_device_info_pool[dev_addr].state = TUSB_DEVICE_STATE_CONFIGURED;
+  usbh_devices[dev_addr].state = TUSB_DEVICE_STATE_CONFIGURED;
   TEST_ASSERT_EQUAL( TUSB_DEVICE_STATE_CONFIGURED, tusbh_device_get_state(dev_addr) );
 }
 
@@ -143,7 +143,7 @@ void test_usbh_init_ok(void)
   {
     osal_semaphore_handle_t sem_hdl_dummy = 0x2233;
     osal_semaphore_create_IgnoreAndReturn(sem_hdl_dummy);
-    device_info_zero[i].control_sem_hdl = sem_hdl_dummy;
+    device_info_zero[i].control.sem_hdl = sem_hdl_dummy;
   }
 
   osal_task_create_IgnoreAndReturn(TUSB_ERROR_NONE);
@@ -153,7 +153,7 @@ void test_usbh_init_ok(void)
 
   TEST_ASSERT_EQUAL(TUSB_ERROR_NONE, usbh_init());
 
-  TEST_ASSERT_EQUAL_MEMORY(device_info_zero, usbh_device_info_pool, sizeof(usbh_device_info_t)*(TUSB_CFG_HOST_DEVICE_MAX+1));
+  TEST_ASSERT_EQUAL_MEMORY(device_info_zero, usbh_devices, sizeof(usbh_device_info_t)*(TUSB_CFG_HOST_DEVICE_MAX+1));
 
 }
 
@@ -167,10 +167,10 @@ void test_usbh_device_unplugged_isr_device_not_previously_mounted(void)
 {
   uint8_t dev_addr = 1;
 
-  usbh_device_info_pool[dev_addr].state   = TUSB_DEVICE_STATE_UNPLUG;
-  usbh_device_info_pool[dev_addr].core_id  = 0;
-  usbh_device_info_pool[dev_addr].hub_addr = 0;
-  usbh_device_info_pool[dev_addr].hub_port = 0;
+  usbh_devices[dev_addr].state   = TUSB_DEVICE_STATE_UNPLUG;
+  usbh_devices[dev_addr].core_id  = 0;
+  usbh_devices[dev_addr].hub_addr = 0;
+  usbh_devices[dev_addr].hub_port = 0;
 
   usbh_device_unplugged_isr(0);
 }
@@ -179,10 +179,10 @@ void test_usbh_device_unplugged_isr(void)
 {
   uint8_t dev_addr = 1;
 
-  usbh_device_info_pool[dev_addr].state = TUSB_DEVICE_STATE_CONFIGURED;
-  usbh_device_info_pool[dev_addr].core_id = 0;
-  usbh_device_info_pool[dev_addr].hub_addr = 0;
-  usbh_device_info_pool[dev_addr].hub_port = 0;
+  usbh_devices[dev_addr].state = TUSB_DEVICE_STATE_CONFIGURED;
+  usbh_devices[dev_addr].core_id = 0;
+  usbh_devices[dev_addr].hub_addr = 0;
+  usbh_devices[dev_addr].hub_port = 0;
 
   class_close_expect();
   hcd_pipe_control_close_ExpectAndReturn(dev_addr, TUSB_ERROR_NONE);
@@ -190,5 +190,5 @@ void test_usbh_device_unplugged_isr(void)
   //------------- Code Under Test -------------//
   usbh_device_unplugged_isr(0);
 
-  TEST_ASSERT_EQUAL(TUSB_DEVICE_STATE_REMOVING, usbh_device_info_pool[dev_addr].state);
+  TEST_ASSERT_EQUAL(TUSB_DEVICE_STATE_REMOVING, usbh_devices[dev_addr].state);
 }

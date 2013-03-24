@@ -47,7 +47,7 @@
 #include "mock_tusb_callback.h"
 #include "mock_hid_host.h"
 
-extern usbh_device_info_t usbh_device_info_pool[TUSB_CFG_HOST_DEVICE_MAX+1];
+extern usbh_device_info_t usbh_devices[TUSB_CFG_HOST_DEVICE_MAX+1];
 extern uint8_t enum_data_buffer[TUSB_CFG_HOST_ENUM_BUFFER_SIZE];
 uint8_t dev_addr;
 
@@ -64,14 +64,14 @@ tusb_error_t control_xfer_stub(uint8_t dev_addr, const tusb_std_request_t * cons
 
 void setUp(void)
 {
-  memclr_(usbh_device_info_pool, sizeof(usbh_device_info_t)*(TUSB_CFG_HOST_DEVICE_MAX+1));
+  memclr_(usbh_devices, sizeof(usbh_device_info_t)*(TUSB_CFG_HOST_DEVICE_MAX+1));
 
   osal_queue_receive_StubWithCallback(queue_recv_stub);
   osal_semaphore_wait_StubWithCallback(semaphore_wait_success_stub);
   hcd_pipe_control_xfer_StubWithCallback(control_xfer_stub);
 
   hcd_port_connect_status_ExpectAndReturn(enum_connect.core_id, true);
-  osal_semaphore_reset_Expect( usbh_device_info_pool[0].control_sem_hdl );
+  osal_semaphore_reset_Expect( usbh_devices[0].control.sem_hdl );
   hcd_pipe_control_open_ExpectAndReturn(0, 8, TUSB_ERROR_NONE);
 }
 
@@ -172,7 +172,7 @@ void test_addr0_failed_dev_desc(void)
 
   usbh_enumeration_task();
 
-  TEST_ASSERT_EQUAL(TUSB_DEVICE_STATE_ADDRESSED, usbh_device_info_pool[0].state);
+  TEST_ASSERT_EQUAL(TUSB_DEVICE_STATE_ADDRESSED, usbh_devices[0].state);
 
 }
 
@@ -183,7 +183,7 @@ void test_addr0_failed_set_address(void)
 
   usbh_enumeration_task();
 
-  TEST_ASSERT_EQUAL(TUSB_DEVICE_STATE_ADDRESSED, usbh_device_info_pool[0].state);
+  TEST_ASSERT_EQUAL(TUSB_DEVICE_STATE_ADDRESSED, usbh_devices[0].state);
   TEST_ASSERT_EQUAL_MEMORY(&desc_device, enum_data_buffer, 8);
 }
 
@@ -193,19 +193,19 @@ void test_enum_failed_get_full_dev_desc(void)
 
   hcd_pipe_control_close_ExpectAndReturn(0, TUSB_ERROR_NONE);
 
-  osal_semaphore_reset_Expect( usbh_device_info_pool[0].control_sem_hdl );
+  osal_semaphore_reset_Expect( usbh_devices[0].control.sem_hdl );
   hcd_pipe_control_open_ExpectAndReturn(1, desc_device.bMaxPacketSize0, TUSB_ERROR_NONE);
   tusbh_device_mount_failed_cb_Expect(TUSB_ERROR_USBH_MOUNT_DEVICE_NOT_RESPOND, NULL);
 
   usbh_enumeration_task();
 
-  TEST_ASSERT_EQUAL(TUSB_DEVICE_STATE_UNPLUG, usbh_device_info_pool[0].state);
+  TEST_ASSERT_EQUAL(TUSB_DEVICE_STATE_UNPLUG, usbh_devices[0].state);
 
-  TEST_ASSERT_EQUAL(TUSB_DEVICE_STATE_ADDRESSED, usbh_device_info_pool[1].state);
-  TEST_ASSERT_EQUAL(TUSB_SPEED_FULL, usbh_device_info_pool[1].speed);
-  TEST_ASSERT_EQUAL(enum_connect.core_id, usbh_device_info_pool[1].core_id);
-  TEST_ASSERT_EQUAL(enum_connect.hub_addr, usbh_device_info_pool[1].hub_addr);
-  TEST_ASSERT_EQUAL(enum_connect.hub_port, usbh_device_info_pool[1].hub_port);
+  TEST_ASSERT_EQUAL(TUSB_DEVICE_STATE_ADDRESSED, usbh_devices[1].state);
+  TEST_ASSERT_EQUAL(TUSB_SPEED_FULL, usbh_devices[1].speed);
+  TEST_ASSERT_EQUAL(enum_connect.core_id, usbh_devices[1].core_id);
+  TEST_ASSERT_EQUAL(enum_connect.hub_addr, usbh_devices[1].hub_addr);
+  TEST_ASSERT_EQUAL(enum_connect.hub_port, usbh_devices[1].hub_port);
 }
 
 void test_enum_failed_get_9byte_config_desc(void)
@@ -213,23 +213,23 @@ void test_enum_failed_get_9byte_config_desc(void)
   osal_semaphore_wait_StubWithCallback(semaphore_wait_timeout_stub(3));
 
   hcd_pipe_control_close_ExpectAndReturn(0, TUSB_ERROR_NONE);
-  osal_semaphore_reset_Expect( usbh_device_info_pool[0].control_sem_hdl );
+  osal_semaphore_reset_Expect( usbh_devices[0].control.sem_hdl );
   hcd_pipe_control_open_ExpectAndReturn(1, desc_device.bMaxPacketSize0, TUSB_ERROR_NONE);
   tusbh_device_attached_cb_ExpectAndReturn((tusb_descriptor_device_t*) enum_data_buffer, 1);
   tusbh_device_mount_failed_cb_Expect(TUSB_ERROR_USBH_MOUNT_DEVICE_NOT_RESPOND, NULL);
 
   usbh_enumeration_task();
 
-  TEST_ASSERT_EQUAL(desc_device.idVendor, usbh_device_info_pool[1].vendor_id);
-  TEST_ASSERT_EQUAL(desc_device.idProduct, usbh_device_info_pool[1].product_id);
-  TEST_ASSERT_EQUAL(desc_device.bNumConfigurations, usbh_device_info_pool[1].configure_count);
+  TEST_ASSERT_EQUAL(desc_device.idVendor, usbh_devices[1].vendor_id);
+  TEST_ASSERT_EQUAL(desc_device.idProduct, usbh_devices[1].product_id);
+  TEST_ASSERT_EQUAL(desc_device.bNumConfigurations, usbh_devices[1].configure_count);
 }
 
 void test_enum_failed_get_full_config_desc(void)
 {
   osal_semaphore_wait_StubWithCallback(semaphore_wait_timeout_stub(4));
   hcd_pipe_control_close_ExpectAndReturn(0, TUSB_ERROR_NONE);
-  osal_semaphore_reset_Expect( usbh_device_info_pool[0].control_sem_hdl );
+  osal_semaphore_reset_Expect( usbh_devices[0].control.sem_hdl );
   hcd_pipe_control_open_ExpectAndReturn(1, desc_device.bMaxPacketSize0, TUSB_ERROR_NONE);
   tusbh_device_attached_cb_ExpectAndReturn((tusb_descriptor_device_t*) enum_data_buffer, 1);
   tusbh_device_mount_failed_cb_Expect(TUSB_ERROR_USBH_MOUNT_DEVICE_NOT_RESPOND, NULL);
@@ -246,7 +246,7 @@ void test_enum_parse_config_desc(void)
 {
   osal_semaphore_wait_StubWithCallback(semaphore_wait_timeout_stub(5));
   hcd_pipe_control_close_ExpectAndReturn(0, TUSB_ERROR_NONE);
-  osal_semaphore_reset_Expect( usbh_device_info_pool[0].control_sem_hdl );
+  osal_semaphore_reset_Expect( usbh_devices[0].control.sem_hdl );
   hcd_pipe_control_open_ExpectAndReturn(1, desc_device.bMaxPacketSize0, TUSB_ERROR_NONE);
   tusbh_device_attached_cb_ExpectAndReturn((tusb_descriptor_device_t*) enum_data_buffer, 1);
 
@@ -255,14 +255,14 @@ void test_enum_parse_config_desc(void)
 
   usbh_enumeration_task();
 
-  TEST_ASSERT_EQUAL(desc_configuration.configuration.bNumInterfaces, usbh_device_info_pool[1].interface_count);
+  TEST_ASSERT_EQUAL(desc_configuration.configuration.bNumInterfaces, usbh_devices[1].interface_count);
 }
 
 void test_enum_set_configure(void)
 {
   osal_semaphore_wait_StubWithCallback(semaphore_wait_timeout_stub(6));
   hcd_pipe_control_close_ExpectAndReturn(0, TUSB_ERROR_NONE);
-  osal_semaphore_reset_Expect( usbh_device_info_pool[0].control_sem_hdl );
+  osal_semaphore_reset_Expect( usbh_devices[0].control.sem_hdl );
   hcd_pipe_control_open_ExpectAndReturn(1, desc_device.bMaxPacketSize0, TUSB_ERROR_NONE);
   tusbh_device_attached_cb_ExpectAndReturn((tusb_descriptor_device_t*) enum_data_buffer, 1);
   class_install_expect();

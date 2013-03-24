@@ -81,7 +81,7 @@ static host_class_driver_t const usbh_class_drivers[TUSB_CLASS_MAX_CONSEC_NUMBER
 //--------------------------------------------------------------------+
 // INTERNAL OBJECT & FUNCTION DECLARATION
 //--------------------------------------------------------------------+
-usbh_device_info_t usbh_device_info_pool[TUSB_CFG_HOST_DEVICE_MAX+1] TUSB_CFG_ATTR_USBRAM; // including zero-address
+usbh_device_info_t usbh_devices[TUSB_CFG_HOST_DEVICE_MAX+1] TUSB_CFG_ATTR_USBRAM; // including zero-address
 
 //------------- Enumeration Task Data -------------//
 OSAL_TASK_DEF(enum_task, usbh_enumeration_task, 128, OSAL_PRIO_HIGH);
@@ -101,7 +101,7 @@ static inline uint8_t get_configure_number_for_device(tusb_descriptor_device_t* 
 tusb_device_state_t tusbh_device_get_state (uint8_t const dev_addr)
 {
   ASSERT(dev_addr <= TUSB_CFG_HOST_DEVICE_MAX, TUSB_DEVICE_STATE_INVALID_PARAMETER);
-  return usbh_device_info_pool[dev_addr].state;
+  return usbh_devices[dev_addr].state;
 }
 
 //--------------------------------------------------------------------+
@@ -109,15 +109,15 @@ tusb_device_state_t tusbh_device_get_state (uint8_t const dev_addr)
 //--------------------------------------------------------------------+
 tusb_error_t usbh_init(void)
 {
-  memclr_(usbh_device_info_pool, sizeof(usbh_device_info_t)*(TUSB_CFG_HOST_DEVICE_MAX+1));
+  memclr_(usbh_devices, sizeof(usbh_device_info_t)*(TUSB_CFG_HOST_DEVICE_MAX+1));
 
   ASSERT_STATUS( hcd_init() );
 
   //------------- Semaphore for Control Pipe -------------//
   for(uint8_t i=0; i<TUSB_CFG_HOST_DEVICE_MAX+1; i++) // including address zero
   {
-    usbh_device_info_pool[i].control_sem_hdl = osal_semaphore_create( OSAL_SEM_REF(usbh_device_info_pool[i].semaphore) );
-    ASSERT_PTR(usbh_device_info_pool[i].control_sem_hdl, TUSB_ERROR_OSAL_SEMAPHORE_FAILED);
+    usbh_devices[i].control.sem_hdl = osal_semaphore_create( OSAL_SEM_REF(usbh_devices[i].control.semaphore) );
+    ASSERT_PTR(usbh_devices[i].control.sem_hdl, TUSB_ERROR_OSAL_SEMAPHORE_FAILED);
   }
 
   //------------- Enumeration & Reporter Task init -------------//
@@ -143,13 +143,13 @@ tusb_error_t usbh_control_xfer_subtask(uint8_t dev_addr, tusb_std_request_t cons
 
   OSAL_SUBTASK_BEGIN
 
-  usbh_device_info_pool[dev_addr].control_pipe_status = PIPE_STATUS_BUSY;
-  usbh_device_info_pool[dev_addr].control_request = *p_request;
-  (void) hcd_pipe_control_xfer(dev_addr, &usbh_device_info_pool[dev_addr].control_request, data);
+  usbh_devices[dev_addr].control.pipe_status = PIPE_STATUS_BUSY;
+  usbh_devices[dev_addr].control.request = *p_request;
+  (void) hcd_pipe_control_xfer(dev_addr, &usbh_devices[dev_addr].control.request, data);
 
-  osal_semaphore_wait(usbh_device_info_pool[dev_addr].control_sem_hdl, OSAL_TIMEOUT_NORMAL, &error); // careful of local variable without static
+  osal_semaphore_wait(usbh_devices[dev_addr].control.sem_hdl, OSAL_TIMEOUT_NORMAL, &error); // careful of local variable without static
   // TODO make handler for this function general purpose
-  SUBTASK_ASSERT_STATUS_WITH_HANDLER(error || usbh_device_info_pool[dev_addr].control_pipe_status == PIPE_STATUS_ERROR,
+  SUBTASK_ASSERT_STATUS_WITH_HANDLER(error || usbh_devices[dev_addr].control.pipe_status == PIPE_STATUS_ERROR,
                                      tusbh_device_mount_failed_cb(TUSB_ERROR_USBH_MOUNT_DEVICE_NOT_RESPOND, NULL) );
 
   OSAL_SUBTASK_END
@@ -158,7 +158,7 @@ tusb_error_t usbh_control_xfer_subtask(uint8_t dev_addr, tusb_std_request_t cons
 tusb_error_t usbh_pipe_control_open(uint8_t dev_addr, uint8_t max_packet_size) ATTR_ALWAYS_INLINE;
 tusb_error_t usbh_pipe_control_open(uint8_t dev_addr, uint8_t max_packet_size)
 {
-  osal_semaphore_reset( usbh_device_info_pool[dev_addr].control_sem_hdl );
+  osal_semaphore_reset( usbh_devices[dev_addr].control.sem_hdl );
 
   ASSERT_STATUS( hcd_pipe_control_open(dev_addr, max_packet_size) );
 
@@ -186,8 +186,8 @@ void usbh_isr(pipe_handle_t pipe_hdl, uint8_t class_code, tusb_bus_event_t event
 {
   if (class_code == 0) // Control transfer
   {
-    usbh_device_info_pool[ pipe_hdl.dev_addr ].control_pipe_status = (event == BUS_EVENT_XFER_COMPLETE) ? PIPE_STATUS_COMPLETE : PIPE_STATUS_ERROR;
-    osal_semaphore_post( usbh_device_info_pool[ pipe_hdl.dev_addr ].control_sem_hdl );
+    usbh_devices[ pipe_hdl.dev_addr ].control.pipe_status = (event == BUS_EVENT_XFER_COMPLETE) ? PIPE_STATUS_COMPLETE : PIPE_STATUS_ERROR;
+    osal_semaphore_post( usbh_devices[ pipe_hdl.dev_addr ].control.sem_hdl );
   }else if (usbh_class_drivers[class_code].isr)
   {
     usbh_class_drivers[class_code].isr(pipe_hdl, event);
@@ -209,10 +209,10 @@ void usbh_device_unplugged_isr(uint8_t hostid)
   //------------- find the device address that is unplugged -------------//
   uint8_t dev_addr = 0;
   while ( dev_addr <= TUSB_CFG_HOST_DEVICE_MAX &&
-          !(usbh_device_info_pool[dev_addr].core_id  == hostid &&
-            usbh_device_info_pool[dev_addr].hub_addr == 0 &&
-            usbh_device_info_pool[dev_addr].hub_port == 0 &&
-            usbh_device_info_pool[dev_addr].state    != TUSB_DEVICE_STATE_UNPLUG
+          !(usbh_devices[dev_addr].core_id  == hostid &&
+            usbh_devices[dev_addr].hub_addr == 0 &&
+            usbh_devices[dev_addr].hub_port == 0 &&
+            usbh_devices[dev_addr].state    != TUSB_DEVICE_STATE_UNPLUG
           )
   )
   {
@@ -236,7 +236,7 @@ void usbh_device_unplugged_isr(uint8_t hostid)
 
   // set to REMOVING to allow HCD to clean up its cached data for this device
   // HCD must set this device's state to TUSB_DEVICE_STATE_UNPLUG when done
-  usbh_device_info_pool[dev_addr].state = TUSB_DEVICE_STATE_REMOVING;
+  usbh_devices[dev_addr].state = TUSB_DEVICE_STATE_REMOVING;
 }
 
 //--------------------------------------------------------------------+
@@ -258,13 +258,13 @@ OSAL_TASK_DECLARE(usbh_enumeration_task)
   osal_queue_receive(enum_queue_hdl, (uint32_t*)(&enum_entry), OSAL_TIMEOUT_WAIT_FOREVER, &error);
 
   TASK_ASSERT( hcd_port_connect_status(enum_entry.core_id) ); // device may be unplugged
-  usbh_device_info_pool[0].core_id  = enum_entry.core_id; // TODO refractor integrate to device_pool
-  usbh_device_info_pool[0].hub_addr = enum_entry.hub_addr;
-  usbh_device_info_pool[0].hub_port = enum_entry.hub_port;
-  usbh_device_info_pool[0].speed    = enum_entry.speed;
+  usbh_devices[0].core_id  = enum_entry.core_id; // TODO refractor integrate to device_pool
+  usbh_devices[0].hub_addr = enum_entry.hub_addr;
+  usbh_devices[0].hub_port = enum_entry.hub_port;
+  usbh_devices[0].speed    = enum_entry.speed;
 
   TASK_ASSERT_STATUS( usbh_pipe_control_open(0, 8) );
-  usbh_device_info_pool[0].state = TUSB_DEVICE_STATE_ADDRESSED;
+  usbh_devices[0].state = TUSB_DEVICE_STATE_ADDRESSED;
 
   //------------- Get first 8 bytes of device descriptor to get Control Endpoint Size -------------//
   OSAL_SUBTASK_INVOKED_AND_WAIT(
@@ -299,14 +299,14 @@ OSAL_TASK_DECLARE(usbh_enumeration_task)
   );
 
   //------------- update port info & close control pipe of addr0 -------------//
-  usbh_device_info_pool[new_addr].core_id  = usbh_device_info_pool[0].core_id;
-  usbh_device_info_pool[new_addr].hub_addr = usbh_device_info_pool[0].hub_addr;
-  usbh_device_info_pool[new_addr].hub_port = usbh_device_info_pool[0].hub_port;
-  usbh_device_info_pool[new_addr].speed    = usbh_device_info_pool[0].speed;
-  usbh_device_info_pool[new_addr].state   = TUSB_DEVICE_STATE_ADDRESSED;
+  usbh_devices[new_addr].core_id  = usbh_devices[0].core_id;
+  usbh_devices[new_addr].hub_addr = usbh_devices[0].hub_addr;
+  usbh_devices[new_addr].hub_port = usbh_devices[0].hub_port;
+  usbh_devices[new_addr].speed    = usbh_devices[0].speed;
+  usbh_devices[new_addr].state   = TUSB_DEVICE_STATE_ADDRESSED;
 
   usbh_pipe_control_close(0);
-  usbh_device_info_pool[0].state = TUSB_DEVICE_STATE_UNPLUG;
+  usbh_devices[0].state = TUSB_DEVICE_STATE_UNPLUG;
 
 //  hcd_port_reset( usbh_device_info_pool[new_addr].core_id ); TODO verified
 
@@ -329,12 +329,12 @@ OSAL_TASK_DECLARE(usbh_enumeration_task)
   );
 
   // update device info
-  usbh_device_info_pool[new_addr].vendor_id       = ((tusb_descriptor_device_t*) enum_data_buffer)->idVendor;
-  usbh_device_info_pool[new_addr].product_id      = ((tusb_descriptor_device_t*) enum_data_buffer)->idProduct;
-  usbh_device_info_pool[new_addr].configure_count = ((tusb_descriptor_device_t*) enum_data_buffer)->bNumConfigurations;
+  usbh_devices[new_addr].vendor_id       = ((tusb_descriptor_device_t*) enum_data_buffer)->idVendor;
+  usbh_devices[new_addr].product_id      = ((tusb_descriptor_device_t*) enum_data_buffer)->idProduct;
+  usbh_devices[new_addr].configure_count = ((tusb_descriptor_device_t*) enum_data_buffer)->bNumConfigurations;
 
   configure_selected = get_configure_number_for_device((tusb_descriptor_device_t*) enum_data_buffer);
-  TASK_ASSERT(configure_selected <= usbh_device_info_pool[new_addr].configure_count);
+  TASK_ASSERT(configure_selected <= usbh_devices[new_addr].configure_count);
 
   //------------- Get 9 bytes of configuration descriptor -------------//
   OSAL_SUBTASK_INVOKED_AND_WAIT(
@@ -369,7 +369,7 @@ OSAL_TASK_DECLARE(usbh_enumeration_task)
   );
 
   // update configuration info
-  usbh_device_info_pool[new_addr].interface_count = ((tusb_descriptor_configuration_t*) enum_data_buffer)->bNumInterfaces;
+  usbh_devices[new_addr].interface_count = ((tusb_descriptor_configuration_t*) enum_data_buffer)->bNumInterfaces;
 
   //------------- parse configuration & install drivers -------------//
   p_desc = enum_data_buffer + sizeof(tusb_descriptor_configuration_t);
@@ -415,7 +415,7 @@ OSAL_TASK_DECLARE(usbh_enumeration_task)
     )
   );
 
-  usbh_device_info_pool[new_addr].state = TUSB_DEVICE_STATE_CONFIGURED;
+  usbh_devices[new_addr].state = TUSB_DEVICE_STATE_CONFIGURED;
   tusbh_device_mount_succeed_cb(new_addr);
 
   OSAL_TASK_LOOP_END
@@ -437,7 +437,7 @@ static inline uint8_t get_new_address(void)
   uint8_t addr;
   for (addr=1; addr <= TUSB_CFG_HOST_DEVICE_MAX; addr++)
   {
-    if (usbh_device_info_pool[addr].state == TUSB_DEVICE_STATE_UNPLUG)
+    if (usbh_devices[addr].state == TUSB_DEVICE_STATE_UNPLUG)
       break;
   }
   return addr;

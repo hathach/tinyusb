@@ -47,7 +47,7 @@
 #include "ehci.h"
 #include "ehci_controller.h"
 
-usbh_device_info_t usbh_device_info_pool[TUSB_CFG_HOST_DEVICE_MAX+1];
+usbh_device_info_t usbh_devices[TUSB_CFG_HOST_DEVICE_MAX+1];
 
 uint8_t const control_max_packet_size = 64;
 uint8_t const hub_addr = 2;
@@ -71,7 +71,7 @@ void setUp(void)
   memclr_(&lpc_usb0, sizeof(LPC_USB0_Type));
   memclr_(&lpc_usb1, sizeof(LPC_USB1_Type));
 
-  memclr_(usbh_device_info_pool, sizeof(usbh_device_info_t)*(TUSB_CFG_HOST_DEVICE_MAX+1));
+  memclr_(usbh_devices, sizeof(usbh_device_info_t)*(TUSB_CFG_HOST_DEVICE_MAX+1));
   memclr_(xfer_data, sizeof(xfer_data));
 
   hcd_init();
@@ -81,10 +81,10 @@ void setUp(void)
   hostid = RANDOM(CONTROLLER_HOST_NUMBER) + TEST_CONTROLLER_HOST_START_INDEX;
   for (uint8_t i=0; i<TUSB_CFG_HOST_DEVICE_MAX+1; i++)
   {
-    usbh_device_info_pool[i].core_id  = hostid;
-    usbh_device_info_pool[i].hub_addr = hub_addr;
-    usbh_device_info_pool[i].hub_port = hub_port;
-    usbh_device_info_pool[i].speed    = TUSB_SPEED_HIGH;
+    usbh_devices[i].core_id  = hostid;
+    usbh_devices[i].hub_addr = hub_addr;
+    usbh_devices[i].hub_port = hub_port;
+    usbh_devices[i].speed    = TUSB_SPEED_HIGH;
   }
 
   async_head =  get_async_head( hostid );
