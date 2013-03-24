@@ -71,7 +71,7 @@ void setUp(void)
   hcd_pipe_control_xfer_StubWithCallback(control_xfer_stub);
 
   hcd_port_connect_status_ExpectAndReturn(enum_connect.core_id, true);
-  osal_semaphore_reset_Expect( usbh_device_info_pool[0].sem_hdl );
+  osal_semaphore_reset_Expect( usbh_device_info_pool[0].control_sem_hdl );
   hcd_pipe_control_open_ExpectAndReturn(0, 8, TUSB_ERROR_NONE);
 }
 
@@ -193,7 +193,7 @@ void test_enum_failed_get_full_dev_desc(void)
 
   hcd_pipe_control_close_ExpectAndReturn(0, TUSB_ERROR_NONE);
 
-  osal_semaphore_reset_Expect( usbh_device_info_pool[0].sem_hdl );
+  osal_semaphore_reset_Expect( usbh_device_info_pool[0].control_sem_hdl );
   hcd_pipe_control_open_ExpectAndReturn(1, desc_device.bMaxPacketSize0, TUSB_ERROR_NONE);
   tusbh_device_mount_failed_cb_Expect(TUSB_ERROR_USBH_MOUNT_DEVICE_NOT_RESPOND, NULL);
 
@@ -213,7 +213,7 @@ void test_enum_failed_get_9byte_config_desc(void)
   osal_semaphore_wait_StubWithCallback(semaphore_wait_timeout_stub(3));
 
   hcd_pipe_control_close_ExpectAndReturn(0, TUSB_ERROR_NONE);
-  osal_semaphore_reset_Expect( usbh_device_info_pool[0].sem_hdl );
+  osal_semaphore_reset_Expect( usbh_device_info_pool[0].control_sem_hdl );
   hcd_pipe_control_open_ExpectAndReturn(1, desc_device.bMaxPacketSize0, TUSB_ERROR_NONE);
   tusbh_device_attached_cb_ExpectAndReturn((tusb_descriptor_device_t*) enum_data_buffer, 1);
   tusbh_device_mount_failed_cb_Expect(TUSB_ERROR_USBH_MOUNT_DEVICE_NOT_RESPOND, NULL);
@@ -229,7 +229,7 @@ void test_enum_failed_get_full_config_desc(void)
 {
   osal_semaphore_wait_StubWithCallback(semaphore_wait_timeout_stub(4));
   hcd_pipe_control_close_ExpectAndReturn(0, TUSB_ERROR_NONE);
-  osal_semaphore_reset_Expect( usbh_device_info_pool[0].sem_hdl );
+  osal_semaphore_reset_Expect( usbh_device_info_pool[0].control_sem_hdl );
   hcd_pipe_control_open_ExpectAndReturn(1, desc_device.bMaxPacketSize0, TUSB_ERROR_NONE);
   tusbh_device_attached_cb_ExpectAndReturn((tusb_descriptor_device_t*) enum_data_buffer, 1);
   tusbh_device_mount_failed_cb_Expect(TUSB_ERROR_USBH_MOUNT_DEVICE_NOT_RESPOND, NULL);
@@ -246,7 +246,7 @@ void test_enum_parse_config_desc(void)
 {
   osal_semaphore_wait_StubWithCallback(semaphore_wait_timeout_stub(5));
   hcd_pipe_control_close_ExpectAndReturn(0, TUSB_ERROR_NONE);
-  osal_semaphore_reset_Expect( usbh_device_info_pool[0].sem_hdl );
+  osal_semaphore_reset_Expect( usbh_device_info_pool[0].control_sem_hdl );
   hcd_pipe_control_open_ExpectAndReturn(1, desc_device.bMaxPacketSize0, TUSB_ERROR_NONE);
   tusbh_device_attached_cb_ExpectAndReturn((tusb_descriptor_device_t*) enum_data_buffer, 1);
 
@@ -262,7 +262,7 @@ void test_enum_set_configure(void)
 {
   osal_semaphore_wait_StubWithCallback(semaphore_wait_timeout_stub(6));
   hcd_pipe_control_close_ExpectAndReturn(0, TUSB_ERROR_NONE);
-  osal_semaphore_reset_Expect( usbh_device_info_pool[0].sem_hdl );
+  osal_semaphore_reset_Expect( usbh_device_info_pool[0].control_sem_hdl );
   hcd_pipe_control_open_ExpectAndReturn(1, desc_device.bMaxPacketSize0, TUSB_ERROR_NONE);
   tusbh_device_attached_cb_ExpectAndReturn((tusb_descriptor_device_t*) enum_data_buffer, 1);
   class_install_expect();

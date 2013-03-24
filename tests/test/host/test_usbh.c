@@ -143,7 +143,7 @@ void test_usbh_init_ok(void)
   {
     osal_semaphore_handle_t sem_hdl_dummy = 0x2233;
     osal_semaphore_create_IgnoreAndReturn(sem_hdl_dummy);
-    device_info_zero[i].sem_hdl = sem_hdl_dummy;
+    device_info_zero[i].control_sem_hdl = sem_hdl_dummy;
   }
 
   osal_task_create_IgnoreAndReturn(TUSB_ERROR_NONE);

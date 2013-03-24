@@ -96,7 +96,7 @@ typedef struct { // TODO internal structure, re-order members
   volatile uint8_t control_pipe_status;
   tusb_std_request_t control_request;
   OSAL_SEM_DEF(semaphore); // TODO move to semaphore pool
-  osal_semaphore_handle_t sem_hdl;
+  osal_semaphore_handle_t control_sem_hdl;
 
 } usbh_device_info_t;
 

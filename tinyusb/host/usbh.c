@@ -60,7 +60,7 @@ void tusb_tick_tock(void)
 //--------------------------------------------------------------------+
 #define ENUM_QUEUE_DEPTH  5
 
-// TODO fix number of class driver
+// TODO fix/compress number of class driver
 static host_class_driver_t const usbh_class_drivers[TUSB_CLASS_MAX_CONSEC_NUMBER] =
 {
     [TUSB_CLASS_HID] = {
@@ -116,8 +116,8 @@ tusb_error_t usbh_init(void)
   //------------- Semaphore for Control Pipe -------------//
   for(uint8_t i=0; i<TUSB_CFG_HOST_DEVICE_MAX+1; i++) // including address zero
   {
-    usbh_device_info_pool[i].sem_hdl = osal_semaphore_create( OSAL_SEM_REF(usbh_device_info_pool[i].semaphore) );
-    ASSERT_PTR(usbh_device_info_pool[i].sem_hdl, TUSB_ERROR_OSAL_SEMAPHORE_FAILED);
+    usbh_device_info_pool[i].control_sem_hdl = osal_semaphore_create( OSAL_SEM_REF(usbh_device_info_pool[i].semaphore) );
+    ASSERT_PTR(usbh_device_info_pool[i].control_sem_hdl, TUSB_ERROR_OSAL_SEMAPHORE_FAILED);
   }
 
   //------------- Enumeration & Reporter Task init -------------//
@@ -147,7 +147,7 @@ tusb_error_t usbh_control_xfer_subtask(uint8_t dev_addr, tusb_std_request_t cons
   usbh_device_info_pool[dev_addr].control_request = *p_request;
   (void) hcd_pipe_control_xfer(dev_addr, &usbh_device_info_pool[dev_addr].control_request, data);
 
-  osal_semaphore_wait(usbh_device_info_pool[dev_addr].sem_hdl, OSAL_TIMEOUT_NORMAL, &error); // careful of local variable without static
+  osal_semaphore_wait(usbh_device_info_pool[dev_addr].control_sem_hdl, OSAL_TIMEOUT_NORMAL, &error); // careful of local variable without static
   // TODO make handler for this function general purpose
   SUBTASK_ASSERT_STATUS_WITH_HANDLER(error || usbh_device_info_pool[dev_addr].control_pipe_status == PIPE_STATUS_ERROR,
                                      tusbh_device_mount_failed_cb(TUSB_ERROR_USBH_MOUNT_DEVICE_NOT_RESPOND, NULL) );
@@ -158,7 +158,7 @@ tusb_error_t usbh_control_xfer_subtask(uint8_t dev_addr, tusb_std_request_t cons
 tusb_error_t usbh_pipe_control_open(uint8_t dev_addr, uint8_t max_packet_size) ATTR_ALWAYS_INLINE;
 tusb_error_t usbh_pipe_control_open(uint8_t dev_addr, uint8_t max_packet_size)
 {
-  osal_semaphore_reset( usbh_device_info_pool[dev_addr].sem_hdl );
+  osal_semaphore_reset( usbh_device_info_pool[dev_addr].control_sem_hdl );
 
   ASSERT_STATUS( hcd_pipe_control_open(dev_addr, max_packet_size) );
 
@@ -187,7 +187,7 @@ void usbh_isr(pipe_handle_t pipe_hdl, uint8_t class_code, tusb_bus_event_t event
   if (class_code == 0) // Control transfer
   {
     usbh_device_info_pool[ pipe_hdl.dev_addr ].control_pipe_status = (event == BUS_EVENT_XFER_COMPLETE) ? PIPE_STATUS_COMPLETE : PIPE_STATUS_ERROR;
-    osal_semaphore_post( usbh_device_info_pool[ pipe_hdl.dev_addr ].sem_hdl );
+    osal_semaphore_post( usbh_device_info_pool[ pipe_hdl.dev_addr ].control_sem_hdl );
   }else if (usbh_class_drivers[class_code].isr)
   {
     usbh_class_drivers[class_code].isr(pipe_hdl, event);
