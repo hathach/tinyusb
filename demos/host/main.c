@@ -26,11 +26,10 @@ int main(void)
   {
     tusb_task_runner();
 
-    if (current_tick + 30*1000 < system_ticks)
+    if (current_tick + 10*CFG_TICKS_PER_SECOND < system_ticks)
     {
-      current_tick += 30*1000;
-      board_leds(0x01, (current_tick/1000)%2); /* Toggle LED once per second */
-
+      current_tick = system_ticks;
+//      board_leds(0x01, (current_tick/CFG_TICKS_PER_SECOND)%2); /* Toggle LED once per second */
       printf("tinyusb: " __DATE__ "\t" __TIME__ "\n");
     }
   }
