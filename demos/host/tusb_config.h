@@ -72,7 +72,6 @@
 
 //------------- CLASS -------------//
 #define TUSB_CFG_HOST_HID_KEYBOARD  1
-#define TUSB_CFG_HOST_HID_KEYBOARD_ENDPOINT_SIZE  64
 
 //--------------------------------------------------------------------+
 // DEVICE CONFIGURATION

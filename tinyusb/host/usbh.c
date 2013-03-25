@@ -250,8 +250,8 @@ OSAL_TASK_DECLARE(usbh_enumeration_task)
 
   // for OSAL_NONE local variable won't retain value after blocking service sem_wait/queue_recv
   static uint8_t new_addr;
-  static uint8_t configure_selected = 1;
-  static uint8_t *p_desc = NULL;
+  static uint8_t configure_selected = 1; // TODO move
+  static uint8_t *p_desc = NULL; // TODO move
 
   OSAL_TASK_LOOP_BEGIN
 
@@ -385,9 +385,9 @@ OSAL_TASK_DECLARE(usbh_enumeration_task)
       TASK_ASSERT( false ); // corrupted data, abort enumeration
     }
     // supported class
-    else if ( class_code < TUSB_CLASS_MAX_CONSEC_NUMBER && usbh_class_drivers[class_code].open_subtask)
+    else if ( class_code < TUSB_CLASS_MAX_CONSEC_NUMBER && usbh_class_drivers[class_code].open_subtask) // TODO custom class
     {
-      uint16_t length;
+      uint16_t length=0;
       OSAL_SUBTASK_INVOKED_AND_WAIT ( // parameters in task/sub_task must be static storage (static or global)
           usbh_class_drivers[ ((tusb_descriptor_interface_t*) p_desc)->bInterfaceClass ].open_subtask(new_addr, p_desc, &length) );
       p_desc += length;

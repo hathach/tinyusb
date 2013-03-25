@@ -126,11 +126,6 @@
   //------------- HID CLASS -------------//
   #define HOST_CLASS_HID   ( TUSB_CFG_HOST_HID_KEYBOARD )
   #if TUSB_CFG_HOST_HID_KEYBOARD
-    #if !defined(TUSB_CFG_HOST_HID_KEYBOARD_ENDPOINT_SIZE)
-      #define TUSB_CFG_HOST_HID_KEYBOARD_ENDPOINT_SIZE 64
-      #warning TUSB_CFG_HOST_HID_KEYBOARD_ENDPOINT_SIZE is not defined, default value is 64
-    #endif
-
     #if !defined(TUSB_CFG_HOST_HID_KEYBOARD_NO_INSTANCES_PER_DEVICE)
       #define TUSB_CFG_HOST_HID_KEYBOARD_NO_INSTANCES_PER_DEVICE 1
     #endif

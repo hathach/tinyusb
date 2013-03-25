@@ -75,7 +75,33 @@ void hidh_init(void)
 
 tusb_error_t hidh_open_subtask(uint8_t dev_addr, uint8_t const *descriptor, uint16_t *p_length)
 {
-  return TUSB_ERROR_NONE;
+  tusb_descriptor_interface_t* p_interface = (tusb_descriptor_interface_t*) descriptor;
+  if (p_interface->bInterfaceSubClass == HID_SUBCLASS_BOOT)
+  {
+    switch(p_interface->bInterfaceProtocol)
+    {
+      #if TUSB_CFG_HOST_HID_KEYBOARD
+      case HID_PROTOCOL_KEYBOARD:
+        return hidh_keyboard_open_subtask(dev_addr, descriptor, p_length);
+      break;
+      #endif
+
+      #if TUSB_CFG_HOST_HID_MOUSE
+      case HID_PROTOCOL_MOUSE:
+        return hidh_keyboard_open_subtask(dev_addr, descriptor, p_length);
+      break;
+      #endif
+
+      default: // unknown protocol --> skip this interface
+        *p_length = p_interface->bLength;
+        return TUSB_ERROR_NONE;
+    }
+  }else
+  {
+    // open generic
+    *p_length = p_interface->bLength;
+    return TUSB_ERROR_NONE;
+  }
 }
 
 void hidh_isr(pipe_handle_t pipe_hdl, tusb_bus_event_t event)

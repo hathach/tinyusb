@@ -97,7 +97,7 @@ void hidh_keyboard_init(void)
   memclr_(&keyboard_data, sizeof(hidh_keyboard_info_t)*TUSB_CFG_HOST_DEVICE_MAX);
 }
 
-tusb_error_t hidh_keyboard_install(uint8_t const dev_addr, uint8_t const *descriptor)
+tusb_error_t hidh_keyboard_open_subtask(uint8_t dev_addr, uint8_t const *descriptor, uint16_t *p_length)
 {
   keyboard_data[dev_addr-1].instance_count++;
 

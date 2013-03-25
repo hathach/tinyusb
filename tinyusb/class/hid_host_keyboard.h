@@ -52,7 +52,7 @@
 #define _TUSB_HID_HOST_KEYBOARD_H_
 
 #include "common/common.h"
-#include "usbh.h" // TODO refractor
+#include "host/usbh.h" // TODO refractor
 #include "hid.h"
 
 #ifdef __cplusplus
@@ -87,8 +87,10 @@ typedef struct {
   keyboard_interface_t instance[TUSB_CFG_HOST_HID_KEYBOARD_NO_INSTANCES_PER_DEVICE];
 } hidh_keyboard_info_t;
 
-void hidh_keyboard_init(void);
+void         hidh_keyboard_init(void);
 tusb_error_t hidh_keyboard_install(uint8_t dev_addr, uint8_t const *descriptor) ATTR_WARN_UNUSED_RESULT;
+tusb_error_t hidh_keyboard_open_subtask(uint8_t dev_addr, uint8_t const *descriptor, uint16_t *p_length) ATTR_WARN_UNUSED_RESULT;
+void         hidh_keyboard_close(uint8_t dev_addr);
 
 #endif
 

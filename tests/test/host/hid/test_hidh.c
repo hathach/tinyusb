@@ -37,14 +37,16 @@
 
 #include "stdlib.h"
 #include "unity.h"
+#include "common/common.h"
 #include "errors.h"
+#include "hid_host.h"
 
 #include "mock_osal.h"
 #include "mock_hcd.h"
 #include "mock_usbh.h"
 #include "mock_hid_host_keyboard.h"
 
-#include "hid_host.h"
+
 
 uint8_t dev_addr;
 uint8_t instance_num;
@@ -52,17 +54,32 @@ uint8_t instance_num;
 void setUp(void)
 {
   instance_num = 0;
-  dev_addr = RANDOM(TUSB_CFG_HOST_DEVICE_MAX)+1;
+//  dev_addr = RANDOM(TUSB_CFG_HOST_DEVICE_MAX)+1;
 }
 
 void tearDown(void)
 {
 }
 
-void test_hidh_init()
+void test_hidh_init(void)
 {
-//  hidh_keyboard_init_Expect();
-//  //------------- Code Under TEST -------------//
-//  hidh_init();
-  TEST_FAIL();
+  hidh_keyboard_init_Expect();
+
+  //------------- Code Under TEST -------------//
+  if (!hidh_init)
+    TEST_IGNORE();
+
+}
+
+void test_hidh_close(void)
+{
+  if (!hidh_close)
+    TEST_IGNORE();
+}
+
+void test_hihd_isr(void)
+{
+  if (!hidh_isr)
+    TEST_IGNORE();
+
 }
