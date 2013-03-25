@@ -108,30 +108,37 @@ void test_keyboard_no_instances_invalid_para(void)
   TEST_ASSERT_EQUAL(0, tusbh_hid_keyboard_no_instances(dev_addr));
 }
 
-void test_keyboard_open_ok(void)
-{
-  uint16_t length=0;
-  pipe_handle_t pipe_hdl = {.dev_addr = dev_addr, .xfer_type = TUSB_XFER_INTERRUPT, .index = 1};
-
-  hcd_pipe_open_ExpectAndReturn(dev_addr, p_kdb_endpoint_desc, TUSB_CLASS_HID, pipe_hdl);
-
-  //------------- Code Under TEST -------------//
-  TEST_ASSERT_EQUAL(TUSB_ERROR_NONE, hidh_keyboard_open_subtask(dev_addr, (uint8_t*) p_kbd_interface_desc, &length));
-
-  tusbh_device_get_state_IgnoreAndReturn(TUSB_DEVICE_STATE_CONFIGURED);
-  TEST_ASSERT_EQUAL(2, tusbh_hid_keyboard_no_instances(dev_addr)); // init set instance number to 1
-  TEST_ASSERT_PIPE_HANDLE(pipe_hdl, p_hidh_kbd_interface->pipe_in);
-  TEST_ASSERT_EQUAL(8, p_hidh_kbd_interface->report_size);
-  TEST_ASSERT_EQUAL(sizeof(tusb_descriptor_interface_t) + sizeof(tusb_hid_descriptor_hid_t) + sizeof(tusb_descriptor_endpoint_t),
-                   length);
-}
-
 void test_keyboard_init(void)
 {
   hidh_keyboard_init();
 
   for(uint32_t i=0; i < sizeof(hidh_keyboard_info_t)*TUSB_CFG_HOST_DEVICE_MAX; i++)
     TEST_ASSERT_EQUAL(0, ((uint8_t*)keyboard_data) [i]);
+}
+
+void test_keyboard_open_ok(void)
+{
+  uint16_t length=0;
+  pipe_handle_t pipe_hdl = {.dev_addr = dev_addr, .xfer_type = TUSB_XFER_INTERRUPT, .index = 2};
+  keyboard_interface_t* p_new_instance = &keyboard_data[dev_addr-1].instance[instance_num+1];
+
+  hcd_pipe_open_ExpectAndReturn(dev_addr, p_kdb_endpoint_desc, TUSB_CLASS_HID, pipe_hdl);
+
+  //------------- Code Under TEST -------------//
+  TEST_ASSERT_EQUAL(TUSB_ERROR_NONE, hidh_keyboard_open_subtask(dev_addr, (uint8_t*) p_kbd_interface_desc, &length));
+
+  TEST_ASSERT_PIPE_HANDLE(pipe_hdl, p_new_instance->pipe_in);
+  TEST_ASSERT_EQUAL(8, p_new_instance->report_size);
+  TEST_ASSERT_EQUAL(sizeof(tusb_descriptor_interface_t) + sizeof(tusb_hid_descriptor_hid_t) + sizeof(tusb_descriptor_endpoint_t),
+                   length);
+
+  tusbh_device_get_state_IgnoreAndReturn(TUSB_DEVICE_STATE_CONFIGURED);
+  TEST_ASSERT_EQUAL(2, tusbh_hid_keyboard_no_instances(dev_addr)); // init set instance number to 1
+}
+
+void test_keyboard_close(void)
+{
+
 }
 
 //--------------------------------------------------------------------+

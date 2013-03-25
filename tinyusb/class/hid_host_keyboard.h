@@ -88,7 +88,6 @@ typedef struct {
 } hidh_keyboard_info_t;
 
 void         hidh_keyboard_init(void);
-tusb_error_t hidh_keyboard_install(uint8_t dev_addr, uint8_t const *descriptor) ATTR_WARN_UNUSED_RESULT;
 tusb_error_t hidh_keyboard_open_subtask(uint8_t dev_addr, uint8_t const *descriptor, uint16_t *p_length) ATTR_WARN_UNUSED_RESULT;
 void         hidh_keyboard_close(uint8_t dev_addr);
 

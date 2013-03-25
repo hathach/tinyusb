@@ -101,27 +101,39 @@ void hidh_keyboard_init(void)
 
 tusb_error_t hidh_keyboard_open_subtask(uint8_t dev_addr, uint8_t const *descriptor, uint16_t *p_length)
 {
+  keyboard_interface_t *p_keyboard = get_kbd_instance(dev_addr, keyboard_data[dev_addr-1].instance_count);
   uint8_t const *p_desc = descriptor;
 
   p_desc += p_desc[DESCRIPTOR_OFFSET_LENGTH]; // skip interface
-  p_desc += p_desc[DESCRIPTOR_OFFSET_LENGTH]; // TODO skip HID, only support std keyboard
+  (*p_length) = p_desc - descriptor; // set ASAP, in case of error, p_length has to be not zero to prevent infinite re-open
 
-  // set ASAP, in case of error, p_length has to be not zero to prevent infinite re-open
+  //------------- HID descriptor -------------//
+  tusb_hid_descriptor_hid_t* const p_desc_hid = (tusb_hid_descriptor_hid_t* const) p_desc;
+  ASSERT_INT(HID_DESC_HID, p_desc_hid->bDescriptorType, TUSB_ERROR_INVALID_PARA);
+
+  p_desc += p_desc[DESCRIPTOR_OFFSET_LENGTH]; // TODO skip HID, only support std keyboard
   (*p_length) = p_desc - descriptor;
 
-  keyboard_interface_t *p_kbd = get_kbd_instance(dev_addr, keyboard_data[dev_addr-1].instance_count);
-
+  //------------- Endpoint Descriptor -------------//
   ASSERT_INT(TUSB_DESC_ENDPOINT, p_desc[DESCRIPTOR_OFFSET_TYPE], TUSB_ERROR_INVALID_PARA);
 
-  p_kbd->pipe_in = hcd_pipe_open(dev_addr, (tusb_descriptor_endpoint_t*) p_desc, TUSB_CLASS_HID);
+  p_keyboard->pipe_in = hcd_pipe_open(dev_addr, (tusb_descriptor_endpoint_t*) p_desc, TUSB_CLASS_HID);
+
+  p_keyboard->report_size =  ( ((tusb_descriptor_endpoint_t*) p_desc)->wMaxPacketSize & (BIT_(12)-1) );
 
   p_desc += p_desc[DESCRIPTOR_OFFSET_LENGTH]; // advance endpoint descriptor
   (*p_length) = p_desc - descriptor;
 
-  ASSERT (pipehandle_is_valid(p_kbd->pipe_in), TUSB_ERROR_HCD_FAILED);
+  ASSERT (pipehandle_is_valid(p_keyboard->pipe_in), TUSB_ERROR_HCD_FAILED);
+
   keyboard_data[dev_addr-1].instance_count++;
 
   return TUSB_ERROR_NONE;
+}
+
+void hidh_keyboard_close(uint8_t dev_addr)
+{
+
 }
 
 #endif
