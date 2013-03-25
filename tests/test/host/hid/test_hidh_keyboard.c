@@ -126,7 +126,7 @@ void test_keyboard_open_ok(void)
   TEST_ASSERT_PIPE_HANDLE(pipe_hdl, p_hidh_kbd->pipe_hdl);
   TEST_ASSERT_EQUAL(8, p_hidh_kbd->report_size);
   TEST_ASSERT_EQUAL(sizeof(tusb_descriptor_interface_t) + sizeof(tusb_hid_descriptor_hid_t) + sizeof(tusb_descriptor_endpoint_t),
-                   length);
+                    length);
 
   tusbh_device_get_state_IgnoreAndReturn(TUSB_DEVICE_STATE_CONFIGURED);
   TEST_ASSERT_TRUE( tusbh_hid_keyboard_is_supported(dev_addr) );

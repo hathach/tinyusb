@@ -256,6 +256,7 @@ void test_enum_parse_config_desc(void)
   usbh_enumeration_task();
 
   TEST_ASSERT_EQUAL(desc_configuration.configuration.bNumInterfaces, usbh_devices[1].interface_count);
+  TEST_ASSERT_EQUAL(TUSB_CLASS_FLAG_HID, usbh_devices[1].flag_supported_class); // TODO change later
 }
 
 void test_enum_set_configure(void)

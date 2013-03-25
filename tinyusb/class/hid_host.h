@@ -72,14 +72,14 @@
 //--------------------------------------------------------------------+
 
 //--------------------------------------------------------------------+
-// CLASS DRIVER FUNCTION (all declared with WEAK)
+// CLASS DRIVER FUNCTION
 //--------------------------------------------------------------------+
 #ifdef _TINY_USB_SOURCE_FILE_
 
-void         hidh_init(void) ATTR_WEAK;
-tusb_error_t hidh_open_subtask(uint8_t dev_addr, uint8_t const *descriptor, uint16_t *p_length) ATTR_WEAK ATTR_WARN_UNUSED_RESULT;
-void         hidh_isr(pipe_handle_t pipe_hdl, tusb_bus_event_t event) ATTR_WEAK;
-void         hidh_close(uint8_t dev_addr) ATTR_WEAK;
+void         hidh_init(void);
+tusb_error_t hidh_open_subtask(uint8_t dev_addr, uint8_t const *descriptor, uint16_t *p_length) ATTR_WARN_UNUSED_RESULT;
+void         hidh_isr(pipe_handle_t pipe_hdl, tusb_bus_event_t event);
+void         hidh_close(uint8_t dev_addr);
 
 #endif
 

@@ -42,6 +42,8 @@
 
 #include "hal.h"
 #include "mock_osal.h"
+#include "mock_hid_host.h"
+
 #include "hcd.h"
 #include "usbh_hcd.h"
 #include "usbh.h"

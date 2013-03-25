@@ -63,19 +63,24 @@ void tusb_tick_tock(void)
 // TODO fix/compress number of class driver
 static host_class_driver_t const usbh_class_drivers[TUSB_CLASS_MAX_CONSEC_NUMBER] =
 {
+#if HOST_CLASS_HID
     [TUSB_CLASS_HID] = {
         .init = hidh_init,
         .open_subtask = hidh_open_subtask,
         .isr = hidh_isr,
         .close = hidh_close
     },
+#endif
 
+#if TUSB_CFG_HOST_CLASS_MSC
     [TUSB_CLASS_MSC] = {
         .init = msch_init,
         .open_subtask = msch_open_subtask,
         .isr = msch_isr,
         .close = msch_close
     }
+#endif
+
 };
 
 //--------------------------------------------------------------------+
@@ -237,6 +242,7 @@ void usbh_device_unplugged_isr(uint8_t hostid)
   // set to REMOVING to allow HCD to clean up its cached data for this device
   // HCD must set this device's state to TUSB_DEVICE_STATE_UNPLUG when done
   usbh_devices[dev_addr].state = TUSB_DEVICE_STATE_REMOVING;
+  usbh_devices[dev_addr].flag_supported_class = 0;
 }
 
 //--------------------------------------------------------------------+
@@ -384,12 +390,16 @@ OSAL_TASK_DECLARE(usbh_enumeration_task)
     {
       TASK_ASSERT( false ); // corrupted data, abort enumeration
     }
-    // supported class
-    else if ( class_code < TUSB_CLASS_MAX_CONSEC_NUMBER && usbh_class_drivers[class_code].open_subtask) // TODO custom class
+    // supported class TODO custom class
+    else if ( class_code < TUSB_CLASS_MAX_CONSEC_NUMBER && usbh_class_drivers[class_code].open_subtask)
     {
       uint16_t length=0;
       OSAL_SUBTASK_INVOKED_AND_WAIT ( // parameters in task/sub_task must be static storage (static or global)
           usbh_class_drivers[ ((tusb_descriptor_interface_t*) p_desc)->bInterfaceClass ].open_subtask(new_addr, p_desc, &length) );
+
+      // TODO check class_open_subtask status
+      usbh_devices[new_addr].flag_supported_class |= BIT_(((tusb_descriptor_interface_t*) p_desc)->bInterfaceClass);
+
       p_desc += length;
     } else // unsupported class (not enable or yet implemented)
     {

@@ -37,44 +37,62 @@
 
 #include "stdlib.h"
 #include "unity.h"
-#include "common/common.h"
+#include "tusb_option.h"
 #include "errors.h"
-#include "hid_host.h"
+#include "binary.h"
 
+#include "descriptor_test.h"
 #include "mock_osal.h"
 #include "mock_hcd.h"
 #include "mock_usbh.h"
 #include "mock_hid_host_keyboard.h"
 
-
+#include "hid_host.h"
 
 uint8_t dev_addr;
-uint8_t instance_num;
+
+tusb_descriptor_interface_t const *p_kbd_interface_desc = &desc_configuration.keyboard_interface;
+tusb_hid_descriptor_hid_t   const *p_kbh_hid_desc       = &desc_configuration.keyboard_hid;
+tusb_descriptor_endpoint_t  const *p_kdb_endpoint_desc  = &desc_configuration.keyboard_endpoint;
 
 void setUp(void)
 {
-  instance_num = 0;
-//  dev_addr = RANDOM(TUSB_CFG_HOST_DEVICE_MAX)+1;
+  dev_addr = RANDOM(TUSB_CFG_HOST_DEVICE_MAX)+1;
 }
 
 void tearDown(void)
 {
 }
 
-void test_hidh_init(void)
+void test_hidh_init_ok(void)
 {
-  hidh_keyboard_init_Expect();
+//  hidh_keyboard_init_Expect();
+  // TODO mouse, generic expect
 
   //------------- Code Under TEST -------------//
-  if (!hidh_init)
-    TEST_IGNORE();
+//  hidh_init();
+}
 
+void test_hidh_open_ok(void)
+{
+  uint16_t length=0;
+//
+//  hidh_keyboard_open_subtask_ExpectAndReturn(dev_addr, p_kbd_interface_desc, &length, TUSB_ERROR_NONE);
+//
+  //------------- Code Under TEST -------------//
+//  hidh_open_subtask(dev_addr, (uint8_t*) p_kbd_interface_desc, &length);
+
+//  TEST_ASSERT_EQUAL(sizeof(tusb_descriptor_interface_t) + sizeof(tusb_hid_descriptor_hid_t) + sizeof(tusb_descriptor_endpoint_t),
+//                    length);
 }
 
 void test_hidh_close(void)
 {
-  if (!hidh_close)
-    TEST_IGNORE();
+  hidh_keyboard_init_Ignore();
+  hidh_keyboard_close_Expect(dev_addr);
+
+  //------------- Code Under TEST -------------//
+//  hidh_close(dev_addr);
 }
 
 void test_hihd_isr(void)

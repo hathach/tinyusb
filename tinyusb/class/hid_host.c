@@ -111,7 +111,17 @@ void hidh_isr(pipe_handle_t pipe_hdl, tusb_bus_event_t event)
 
 void hidh_close(uint8_t dev_addr)
 {
+#if TUSB_CFG_HOST_HID_KEYBOARD
+  hidh_keyboard_close(dev_addr);
+#endif
 
+#if TUSB_CFG_HOST_HID_MOUSE
+  hidh_mouse_close(dev_addr);
+#endif
+
+#if TUSB_CFG_HOST_HID_GENERIC
+  hidh_generic_close(dev_addr);
+#endif
 }
 
 #endif
