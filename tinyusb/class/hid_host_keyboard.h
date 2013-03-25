@@ -52,6 +52,8 @@
 #define _TUSB_HID_HOST_KEYBOARD_H_
 
 #include "common/common.h"
+#include "usbh.h" // TODO refractor
+#include "hid.h"
 
 #ifdef __cplusplus
  extern "C" {

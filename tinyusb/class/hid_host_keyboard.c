@@ -60,7 +60,9 @@ STATIC_ hidh_keyboard_info_t keyboard_data[TUSB_CFG_HOST_DEVICE_MAX]; // does no
 // IMPLEMENTATION
 //--------------------------------------------------------------------+
 
-//------------- PUBLIC API (Parameter Verification is required) -------------//
+//--------------------------------------------------------------------+
+// PUBLIC API (parameter validation required)
+//--------------------------------------------------------------------+
 tusb_error_t tusbh_hid_keyboard_get(uint8_t const dev_addr, uint8_t instance_num, tusb_keyboard_report_t * const report)
 {
   //------------- parameters validation -------------//
@@ -87,6 +89,9 @@ uint8_t tusbh_hid_keyboard_no_instances(uint8_t const dev_addr)
   return keyboard_data[dev_addr-1].instance_count;
 }
 
+//--------------------------------------------------------------------+
+// INTERNAL API (no need for parameter validation)
+//--------------------------------------------------------------------+
 void hidh_keyboard_init(void)
 {
   memclr_(&keyboard_data, sizeof(hidh_keyboard_info_t)*TUSB_CFG_HOST_DEVICE_MAX);
