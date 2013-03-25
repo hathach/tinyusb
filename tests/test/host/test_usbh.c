@@ -181,6 +181,7 @@ void test_usbh_device_unplugged_isr(void)
   usbh_devices[dev_addr].core_id = 0;
   usbh_devices[dev_addr].hub_addr = 0;
   usbh_devices[dev_addr].hub_port = 0;
+  usbh_devices[dev_addr].flag_supported_class = TUSB_CLASS_FLAG_HID;
 
   class_close_expect();
   hcd_pipe_control_close_ExpectAndReturn(dev_addr, TUSB_ERROR_NONE);

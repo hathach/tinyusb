@@ -232,8 +232,11 @@ void usbh_device_unplugged_isr(uint8_t hostid)
     // if device unplugged is not a hub TODO handle hub unplugged
     for (uint8_t class_code = 1; class_code < TUSB_CLASS_MAX_CONSEC_NUMBER; class_code++)
     {
-      if (usbh_class_drivers[class_code].close)
+      if ((usbh_devices[dev_addr].flag_supported_class & BIT_(class_code)) &&
+          usbh_class_drivers[class_code].close)
+      {
         usbh_class_drivers[class_code].close(dev_addr);
+        }
     }
   }
 

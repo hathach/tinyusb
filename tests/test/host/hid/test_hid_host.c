@@ -88,11 +88,10 @@ void test_hidh_open_ok(void)
 
 void test_hidh_close(void)
 {
-  hidh_keyboard_init_Ignore();
   hidh_keyboard_close_Expect(dev_addr);
 
   //------------- Code Under TEST -------------//
-//  hidh_close(dev_addr);
+  hidh_close(dev_addr);
 }
 
 void test_hihd_isr(void)
