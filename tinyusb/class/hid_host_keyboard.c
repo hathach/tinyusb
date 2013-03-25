@@ -101,7 +101,7 @@ void hidh_keyboard_init(void)
 
 tusb_error_t hidh_keyboard_open_subtask(uint8_t dev_addr, uint8_t const *descriptor, uint16_t *p_length)
 {
-  uint8_t *p_desc = descriptor;
+  uint8_t const *p_desc = descriptor;
 
   p_desc += p_desc[DESCRIPTOR_OFFSET_LENGTH]; // skip interface
   p_desc += p_desc[DESCRIPTOR_OFFSET_LENGTH]; // TODO skip HID, only support std keyboard
