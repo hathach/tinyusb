@@ -96,7 +96,7 @@ static void qtd_init(ehci_qtd_t* p_qtd, uint32_t data_ptr, uint16_t total_bytes)
 
 static inline void  list_insert(ehci_link_t *current, ehci_link_t *new, uint8_t new_type) ATTR_ALWAYS_INLINE;
 static ehci_qhd_t*  list_find_previous_qhd(ehci_qhd_t* p_head, ehci_qhd_t* p_qhd);
-static tusb_error_t list_remove_qhd_from_async(ehci_qhd_t* p_head, ehci_qhd_t* p_qhd_remove);
+static tusb_error_t list_remove_qhd(ehci_qhd_t* p_head, ehci_qhd_t* p_qhd_remove);
 
 
 static tusb_error_t hcd_controller_init(uint8_t hostid) ATTR_WARN_UNUSED_RESULT;
@@ -151,6 +151,7 @@ bool hcd_port_connect_status(uint8_t hostid)
 //--------------------------------------------------------------------+
 void async_advance_isr(ehci_qhd_t * const async_head)
 {
+  // TODO do we need to close addr0
   if(async_head->is_removing) // closing control pipe of addr0
   {
     async_head->is_removing = 0;
@@ -166,28 +167,38 @@ void async_advance_isr(ehci_qhd_t * const async_head)
     {
       p_control_qhd->is_removing     = 0;
       p_control_qhd->used            = 0;
-      p_control_qhd->p_qtd_list_head = p_control_qhd->p_qtd_list_tail = NULL;
 
       // Host Controller has cleaned up its cached data for this device, set state to unplug
       usbh_devices[relative_dev_addr+1].state = TUSB_DEVICE_STATE_UNPLUG;
+
+      for (uint8_t i=0; i<EHCI_MAX_QHD; i++) // free all qhd
+      {
+        ehci_data.device[relative_dev_addr].qhd[i].used = 0;
+        ehci_data.device[relative_dev_addr].qhd[i].is_removing = 0;
+      }
+      for (uint8_t i=0; i<EHCI_MAX_QTD; i++) // free all qtd
+      {
+        ehci_data.device[relative_dev_addr].qtd[i].used = 0;
+      }
+      // TODO free all itd & sitd
     }
 
-    // check if any other endpoints in pool is removing
-    for (uint8_t i=0; i<EHCI_MAX_QHD; i++)
-    {
-      ehci_qhd_t *p_qhd = &ehci_data.device[relative_dev_addr].qhd[i];
-      if (p_qhd->is_removing)
-      {
-        p_qhd->used        = 0;
-        p_qhd->is_removing = 0;
-
-        while(p_qhd->p_qtd_list_head != NULL) // remove all TDs
-        {
-          p_qhd->p_qtd_list_head->used = 0; // free QTD
-          qtd_remove_1st_from_qhd(p_qhd);
-        }
-      }
-    }// end qhd list loop
+//    // check if any other endpoints in pool is removing
+//    for (uint8_t i=0; i<EHCI_MAX_QHD; i++)
+//    {
+//      ehci_qhd_t *p_qhd = &ehci_data.device[relative_dev_addr].qhd[i];
+//      if (p_qhd->is_removing)
+//      {
+//        p_qhd->used        = 0;
+//        p_qhd->is_removing = 0;
+//
+//        while(p_qhd->p_qtd_list_head != NULL) // remove all TDs
+//        {
+//          p_qhd->p_qtd_list_head->used = 0; // free QTD
+//          qtd_remove_1st_from_qhd(p_qhd);
+//        }
+//      }
+//    }// end qhd list loop
   } // end for device[] loop
 }
 
@@ -481,7 +492,7 @@ tusb_error_t  hcd_pipe_control_close(uint8_t dev_addr)
 
   if (dev_addr != 0)
   {
-    ASSERT_STATUS( list_remove_qhd_from_async(get_async_head( usbh_devices[dev_addr].core_id ), p_qhd) );
+    ASSERT_STATUS( list_remove_qhd(get_async_head( usbh_devices[dev_addr].core_id ), p_qhd) );
   }
 
   return TUSB_ERROR_NONE;
@@ -549,6 +560,7 @@ tusb_error_t  hcd_pipe_xfer(pipe_handle_t pipe_hdl, uint8_t buffer[], uint16_t t
   return TUSB_ERROR_NONE;
 }
 
+/// pipe_close should only be called as a part of unmount/safe-remove process
 tusb_error_t  hcd_pipe_close(pipe_handle_t pipe_hdl)
 {
   ASSERT(pipe_hdl.dev_addr > 0, TUSB_ERROR_INVALID_PARA);
@@ -557,16 +569,18 @@ tusb_error_t  hcd_pipe_close(pipe_handle_t pipe_hdl)
 
   ehci_qhd_t *p_qhd = qhd_get_from_pipe_handle( pipe_hdl );
 
+  // async list needs async advance handshake to make sure host controller has released cached data
+  // period list queue element is guarantee to be free in the next frame (1 ms)
   p_qhd->is_removing = 1;
 
   if ( pipe_hdl.xfer_type == TUSB_XFER_BULK )
   {
-    ASSERT_STATUS( list_remove_qhd_from_async(
-        get_async_head( usbh_devices[pipe_hdl.dev_addr].core_id ),
-        p_qhd) );
+    ASSERT_STATUS( list_remove_qhd(
+        get_async_head( usbh_devices[pipe_hdl.dev_addr].core_id ), p_qhd) );
   }else
   {
-    ASSERT(false, TUSB_ERROR_INVALID_PARA);
+    ASSERT_STATUS( list_remove_qhd(
+        get_period_head( usbh_devices[pipe_hdl.dev_addr].core_id ), p_qhd) );
   }
 
   return TUSB_ERROR_NONE;
@@ -769,7 +783,7 @@ static ehci_qhd_t* list_find_previous_qhd(ehci_qhd_t* p_head, ehci_qhd_t* p_qhd)
   return  align32(p_prev_qhd->next.address) != (uint32_t) p_head ? p_prev_qhd : NULL;
 }
 
-static tusb_error_t list_remove_qhd_from_async(ehci_qhd_t* p_head, ehci_qhd_t* p_qhd_remove)
+static tusb_error_t list_remove_qhd(ehci_qhd_t* p_head, ehci_qhd_t* p_qhd_remove)
 {
   ehci_qhd_t *p_prev_qhd = list_find_previous_qhd(p_head, p_qhd_remove);
 

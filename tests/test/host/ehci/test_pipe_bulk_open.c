@@ -175,6 +175,7 @@ void test_bulk_close(void)
   hcd_pipe_close(pipe_hdl);
 
   TEST_ASSERT(p_qhd->is_removing);
-  TEST_ASSERT( align32(get_async_head(hostid)->next.address) != (uint32_t) p_qhd );
-  TEST_ASSERT_EQUAL_HEX( (uint32_t) get_async_head(hostid), align32(p_qhd->next.address ) );
+  TEST_ASSERT( align32(async_head->next.address) != (uint32_t) p_qhd );
+  TEST_ASSERT_EQUAL_HEX( (uint32_t) async_head, align32(p_qhd->next.address) );
+  TEST_ASSERT_EQUAL(EHCI_QUEUE_ELEMENT_QHD, p_qhd->next.type);
 }

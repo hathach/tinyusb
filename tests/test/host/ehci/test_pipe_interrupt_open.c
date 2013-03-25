@@ -191,10 +191,8 @@ void test_interrupt_close(void)
   //------------- Code Under TEST -------------//
   hcd_pipe_close(pipe_hdl);
 
-  TEST_IGNORE(); // check operation removing interrupt head
-
-//  TEST_ASSERT(p_qhd->is_removing);
-//  TEST_ASSERT( align32(period_head) != (uint32_t) p_qhd );
-//  TEST_ASSERT_EQUAL_HEX( (uint32_t) get_async_head(hostid), align32(p_qhd->next.address ) );
-
+  TEST_ASSERT(p_qhd->is_removing);
+  TEST_ASSERT( align32(period_head->next.address) != (uint32_t) p_qhd );
+  TEST_ASSERT_EQUAL_HEX( (uint32_t) period_head, align32(p_qhd->next.address ) );
+  TEST_ASSERT_EQUAL(EHCI_QUEUE_ELEMENT_QHD, p_qhd->next.type);
 }
