@@ -66,6 +66,12 @@ typedef struct {
   uint8_t index;
 } pipe_handle_t;
 
+static inline bool pipehandle_is_valid(pipe_handle_t pipe_hdl) ATTR_CONST ATTR_ALWAYS_INLINE ATTR_WARN_UNUSED_RESULT;
+static inline bool pipehandle_is_valid(pipe_handle_t pipe_hdl)
+{
+  return pipe_hdl.dev_addr > 0;
+}
+
 //--------------------------------------------------------------------+
 // USBH-HCD API
 //--------------------------------------------------------------------+

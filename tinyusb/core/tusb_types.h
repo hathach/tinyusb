@@ -194,6 +194,11 @@ typedef enum {
   BUS_EVENT_XFER_ERROR
 }tusb_bus_event_t;
 
+enum {
+  DESCRIPTOR_OFFSET_LENGTH = 0,
+  DESCRIPTOR_OFFSET_TYPE = 1
+};
+
 #ifdef __cplusplus
  }
 #endif

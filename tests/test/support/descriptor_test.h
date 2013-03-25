@@ -100,6 +100,7 @@ typedef struct
 
 extern tusb_descriptor_device_t const desc_device;
 extern app_configuration_desc_t const desc_configuration;
+extern const uint8_t keyboard_report_descriptor[];
 
 #ifdef __cplusplus
  }

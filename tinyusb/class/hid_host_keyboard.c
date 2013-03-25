@@ -56,6 +56,12 @@
 //--------------------------------------------------------------------+
 STATIC_ hidh_keyboard_info_t keyboard_data[TUSB_CFG_HOST_DEVICE_MAX]; // does not have addr0, index = dev_address-1
 
+static inline keyboard_interface_t* get_kbd_instance(uint8_t dev_addr, uint8_t instance_num) ATTR_PURE ATTR_ALWAYS_INLINE ATTR_WARN_UNUSED_RESULT;
+static inline keyboard_interface_t* get_kbd_instance(uint8_t dev_addr, uint8_t instance_num)
+{
+  return &keyboard_data[dev_addr-1].instance[instance_num];
+}
+
 //--------------------------------------------------------------------+
 // IMPLEMENTATION
 //--------------------------------------------------------------------+
@@ -68,16 +74,12 @@ tusb_error_t tusbh_hid_keyboard_get(uint8_t const dev_addr, uint8_t instance_num
   //------------- parameters validation -------------//
   ASSERT_INT(TUSB_DEVICE_STATE_CONFIGURED, tusbh_device_get_state(dev_addr), TUSB_ERROR_DEVICE_NOT_READY);
   ASSERT_PTR(report, TUSB_ERROR_INVALID_PARA);
-  ASSERT(instance_num < TUSB_CFG_HOST_HID_KEYBOARD_NO_INSTANCES_PER_DEVICE, TUSB_ERROR_INVALID_PARA);
+  ASSERT(instance_num < keyboard_data[dev_addr-1].instance_count, TUSB_ERROR_INVALID_PARA);
 
-  keyboard_interface_t *p_kbd;
-  p_kbd = &keyboard_data[dev_addr-1].instance[instance_num];
-
-  // TODO abtract class support for device
-  ASSERT(0 != p_kbd->pipe_in.dev_addr, TUSB_ERROR_CLASS_DEVICE_DONT_SUPPORT);
+  keyboard_interface_t *p_kbd = get_kbd_instance(dev_addr, instance_num);
 
   // TODO abtract to use hidh service
-  ASSERT_STATUS( hcd_pipe_xfer(p_kbd->pipe_in, report, p_kbd->report_size, 1) ) ;
+  ASSERT_STATUS( hcd_pipe_xfer(p_kbd->pipe_in, (uint8_t*) report, p_kbd->report_size, true) ) ;
 
   return TUSB_ERROR_NONE;
 }
@@ -99,6 +101,17 @@ void hidh_keyboard_init(void)
 
 tusb_error_t hidh_keyboard_open_subtask(uint8_t dev_addr, uint8_t const *descriptor, uint16_t *p_length)
 {
+  descriptor += *descriptor; // skip interface
+  descriptor += *descriptor; // TODO skip HID, only support std keyboard
+
+  keyboard_interface_t *p_kbd = get_kbd_instance(dev_addr, keyboard_data[dev_addr-1].instance_count);
+
+  ASSERT_INT(TUSB_DESC_ENDPOINT, descriptor[DESCRIPTOR_OFFSET_TYPE], TUSB_ERROR_INVALID_PARA);
+
+  p_kbd->pipe_in = hcd_pipe_open(dev_addr, (tusb_descriptor_endpoint_t*) descriptor, TUSB_CLASS_HID);
+
+  ASSERT (pipehandle_is_valid(p_kbd->pipe_in), TUSB_ERROR_HCD_FAILED);
+
   keyboard_data[dev_addr-1].instance_count++;
 
   return TUSB_ERROR_NONE;

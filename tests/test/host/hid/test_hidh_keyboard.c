@@ -43,6 +43,7 @@
 #include "mock_osal.h"
 #include "mock_usbh.h"
 #include "mock_hcd.h"
+#include "descriptor_test.h"
 
 extern hidh_keyboard_info_t keyboard_data[TUSB_CFG_HOST_DEVICE_MAX];
 
@@ -63,19 +64,8 @@ tusb_keyboard_report_t report;
 uint8_t instance_num;
 keyboard_interface_t* p_hidh_kbd_interface;
 
-tusb_descriptor_interface_t const kbd_descriptor =
-{
-  .bLength            = sizeof(tusb_descriptor_interface_t),
-  .bDescriptorType    = TUSB_DESC_INTERFACE,
-  .bInterfaceNumber   = 1,
-  .bAlternateSetting  = 0,
-  .bNumEndpoints      = 1,
-  .bInterfaceClass    = TUSB_CLASS_HID,
-  .bInterfaceSubClass = HID_SUBCLASS_BOOT,
-  .bInterfaceProtocol = HID_PROTOCOL_KEYBOARD,
-  .iInterface         = 0
-};
-
+tusb_descriptor_interface_t const *p_kbd_interface_desc = &desc_configuration.keyboard_interface;
+tusb_descriptor_endpoint_t  const *p_kdb_endpoint_desc  = &desc_configuration.keyboard_endpoint;
 
 void setUp(void)
 {
@@ -86,7 +76,7 @@ void setUp(void)
 
   hidh_keyboard_init();
 
-  keyboard_data[dev_addr-1].instance_count = 0;
+  keyboard_data[dev_addr-1].instance_count = 1;
   p_hidh_kbd_interface = &keyboard_data[dev_addr-1].instance[instance_num];
 
   p_hidh_kbd_interface->report_size = sizeof(tusb_keyboard_report_t);
@@ -105,6 +95,13 @@ void tearDown(void)
 //--------------------------------------------------------------------+
 // keyboard_install, keyboard_no_instances, keybaord_init
 //--------------------------------------------------------------------+
+void TEST_ASSERT_PIPE_HANDLE(pipe_handle_t x, pipe_handle_t y)
+{
+  TEST_ASSERT_EQUAL(x.dev_addr  , y.dev_addr);
+  TEST_ASSERT_EQUAL(x.xfer_type , y.xfer_type);
+  TEST_ASSERT_EQUAL(x.index     , y.index);
+}
+
 void test_keyboard_no_instances_invalid_para(void)
 {
   tusbh_device_get_state_IgnoreAndReturn(TUSB_DEVICE_STATE_UNPLUG);
@@ -114,12 +111,17 @@ void test_keyboard_no_instances_invalid_para(void)
 void test_keyboard_open_ok(void)
 {
   uint16_t length=0;
-  tusbh_device_get_state_IgnoreAndReturn(TUSB_DEVICE_STATE_CONFIGURED);
-  TEST_ASSERT_EQUAL(0, tusbh_hid_keyboard_no_instances(dev_addr));
+  pipe_handle_t pipe_hdl = {.dev_addr = dev_addr, .xfer_type = TUSB_XFER_INTERRUPT, .index = 1};
 
-  TEST_ASSERT_EQUAL(TUSB_ERROR_NONE, hidh_keyboard_open_subtask(dev_addr, (uint8_t*) &kbd_descriptor, &length));
+  hcd_pipe_open_ExpectAndReturn(dev_addr, p_kdb_endpoint_desc, TUSB_CLASS_HID, pipe_hdl);
+
+  //------------- Code Under TEST -------------//
+  TEST_ASSERT_EQUAL(TUSB_ERROR_NONE, hidh_keyboard_open_subtask(dev_addr, (uint8_t*) p_kbd_interface_desc, &length));
+
   tusbh_device_get_state_IgnoreAndReturn(TUSB_DEVICE_STATE_CONFIGURED);
-  TEST_ASSERT_EQUAL(1, tusbh_hid_keyboard_no_instances(dev_addr));
+  TEST_ASSERT_EQUAL(2, tusbh_hid_keyboard_no_instances(dev_addr)); // init instance to 1
+  TEST_ASSERT_PIPE_HANDLE(pipe_hdl, p_hidh_kbd_interface->pipe_in);
+  TEST_ASSERT_EQUAL(8, p_hidh_kbd_interface->report_size);
 }
 
 void test_keyboard_init(void)
@@ -155,13 +157,6 @@ void test_keyboard_get_device_not_ready(void)
 {
   tusbh_device_get_state_IgnoreAndReturn(TUSB_DEVICE_STATE_UNPLUG);
   TEST_ASSERT_EQUAL(TUSB_ERROR_DEVICE_NOT_READY, tusbh_hid_keyboard_get(dev_addr, 0, &report)); // device not mounted
-}
-
-void test_keyboard_get_class_not_supported()
-{
-  tusbh_device_get_state_IgnoreAndReturn(TUSB_DEVICE_STATE_CONFIGURED);
-  p_hidh_kbd_interface->pipe_in = (pipe_handle_t) { 0 };
-  TEST_ASSERT_EQUAL(TUSB_ERROR_CLASS_DEVICE_DONT_SUPPORT, tusbh_hid_keyboard_get(dev_addr, instance_num, &report));
 }
 
 void test_keyboard_get_report_xfer_failed()
