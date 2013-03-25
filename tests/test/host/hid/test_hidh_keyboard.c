@@ -119,9 +119,11 @@ void test_keyboard_open_ok(void)
   TEST_ASSERT_EQUAL(TUSB_ERROR_NONE, hidh_keyboard_open_subtask(dev_addr, (uint8_t*) p_kbd_interface_desc, &length));
 
   tusbh_device_get_state_IgnoreAndReturn(TUSB_DEVICE_STATE_CONFIGURED);
-  TEST_ASSERT_EQUAL(2, tusbh_hid_keyboard_no_instances(dev_addr)); // init instance to 1
+  TEST_ASSERT_EQUAL(2, tusbh_hid_keyboard_no_instances(dev_addr)); // init set instance number to 1
   TEST_ASSERT_PIPE_HANDLE(pipe_hdl, p_hidh_kbd_interface->pipe_in);
   TEST_ASSERT_EQUAL(8, p_hidh_kbd_interface->report_size);
+  TEST_ASSERT_EQUAL(sizeof(tusb_descriptor_interface_t) + sizeof(tusb_hid_descriptor_hid_t) + sizeof(tusb_descriptor_endpoint_t),
+                   length);
 }
 
 void test_keyboard_init(void)
