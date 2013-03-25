@@ -45,7 +45,7 @@ void tearDown(void)
 {
 }
 
-void test_()
+void test_hidh()
 {
   TEST_IGNORE();
 }

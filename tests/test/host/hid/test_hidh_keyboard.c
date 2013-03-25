@@ -39,6 +39,7 @@
 #include "unity.h"
 #include "errors.h"
 #include "hid_host.h"
+#include "hid_host_keyboard.h"
 #include "mock_osal.h"
 #include "mock_usbh.h"
 #include "mock_hcd.h"

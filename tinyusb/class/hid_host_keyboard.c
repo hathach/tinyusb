@@ -1,13 +1,13 @@
 /*
- * hid_host.c
+ * hid_host_keyboard.c
  *
- *  Created on: Dec 20, 2012
+ *  Created on: Mar 25, 2013
  *      Author: hathach
  */
 
 /*
  * Software License Agreement (BSD License)
- * Copyright (c) 2013, hathach (tinyusb.org)
+ * Copyright (c) 2012, hathach (tinyusb.net)
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without modification,
@@ -37,7 +37,7 @@
 
 #include "tusb_option.h"
 
-#if (MODE_HOST_SUPPORTED && defined HOST_CLASS_HID)
+#if (MODE_HOST_SUPPORTED && TUSB_CFG_HOST_HID_KEYBOARD)
 
 #define _TINY_USB_SOURCE_FILE_
 
@@ -54,38 +54,49 @@
 //--------------------------------------------------------------------+
 // INTERNAL OBJECT & FUNCTION DECLARATION
 //--------------------------------------------------------------------+
+STATIC_ hidh_keyboard_info_t keyboard_data[TUSB_CFG_HOST_DEVICE_MAX]; // does not have addr0, index = dev_address-1
 
 //--------------------------------------------------------------------+
-// CLASS-USBD API (don't require to verify parameters)
+// IMPLEMENTATION
 //--------------------------------------------------------------------+
-void hidh_init(void)
+
+//------------- PUBLIC API (Parameter Verification is required) -------------//
+tusb_error_t tusbh_hid_keyboard_get(uint8_t const dev_addr, uint8_t instance_num, tusb_keyboard_report_t * const report)
 {
-#if TUSB_CFG_HOST_HID_KEYBOARD
-  hidh_keyboard_init();
-#endif
+  //------------- parameters validation -------------//
+  ASSERT_INT(TUSB_DEVICE_STATE_CONFIGURED, tusbh_device_get_state(dev_addr), TUSB_ERROR_DEVICE_NOT_READY);
+  ASSERT_PTR(report, TUSB_ERROR_INVALID_PARA);
+  ASSERT(instance_num < TUSB_CFG_HOST_HID_KEYBOARD_NO_INSTANCES_PER_DEVICE, TUSB_ERROR_INVALID_PARA);
 
-#if TUSB_CFG_HOST_HID_MOUSE
-  hidh_mouse_init();
-#endif
+  keyboard_interface_t *p_kbd;
+  p_kbd = &keyboard_data[dev_addr-1].instance[instance_num];
 
-#if TUSB_CFG_HOST_HID_GENERIC
-  hidh_generic_init();
-#endif
-}
+  // TODO abtract class support for device
+  ASSERT(0 != p_kbd->pipe_in.dev_addr, TUSB_ERROR_CLASS_DEVICE_DONT_SUPPORT);
 
-tusb_error_t hidh_open_subtask(uint8_t dev_addr, uint8_t const *descriptor, uint16_t *p_length)
-{
+  // TODO abtract to use hidh service
+  ASSERT_STATUS( hcd_pipe_xfer(p_kbd->pipe_in, report, p_kbd->report_size, 1) ) ;
+
   return TUSB_ERROR_NONE;
 }
 
-void hidh_isr(pipe_handle_t pipe_hdl, tusb_bus_event_t event)
+uint8_t tusbh_hid_keyboard_no_instances(uint8_t const dev_addr)
 {
+  ASSERT(tusbh_device_is_configured(dev_addr), 0);
 
+  return keyboard_data[dev_addr-1].instance_count;
 }
 
-void hidh_close(uint8_t dev_addr)
+void hidh_keyboard_init(void)
 {
+  memclr_(&keyboard_data, sizeof(hidh_keyboard_info_t)*TUSB_CFG_HOST_DEVICE_MAX);
+}
 
+tusb_error_t hidh_keyboard_install(uint8_t const dev_addr, uint8_t const *descriptor)
+{
+  keyboard_data[dev_addr-1].instance_count++;
+
+  return TUSB_ERROR_NONE;
 }
 
 #endif

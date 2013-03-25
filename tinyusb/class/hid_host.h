@@ -59,45 +59,27 @@
 #include "host/usbh.h"
 #include "hid.h"
 
+#if TUSB_CFG_HOST_HID_KEYBOARD
+  #include "hid_host_keyboard.h"
+#endif
+
+#if TUSB_CFG_HOST_HID_MOUSE
+  #include "hid_host_mouse.h"
+#endif
+
 //--------------------------------------------------------------------+
 // APPLICATION API
 //--------------------------------------------------------------------+
-uint8_t       tusbh_hid_keyboard_no_instances(uint8_t const dev_addr) ATTR_PURE ATTR_WARN_UNUSED_RESULT;
-static inline bool  tusbh_hid_keyboard_is_supported(uint8_t const dev_addr) ATTR_ALWAYS_INLINE ATTR_WARN_UNUSED_RESULT ATTR_PURE;
-static inline bool  tusbh_hid_keyboard_is_supported(uint8_t const dev_addr)
-{
-  return tusbh_hid_keyboard_no_instances(dev_addr) > 0;
-}
-
-tusb_error_t  tusbh_hid_keyboard_get(uint8_t const handle, uint8_t const instance_num, tusb_keyboard_report_t * const report) ATTR_WARN_UNUSED_RESULT;
-pipe_status_t tusbh_hid_keyboard_pipe_status(uint8_t const handle, uint8_t const instance_num) ATTR_WARN_UNUSED_RESULT;
-
-//--------------------------------------------------------------------+
-// INTERNAL API
-//--------------------------------------------------------------------+
-#ifdef _TINY_USB_SOURCE_FILE_
-
-typedef struct {
-  pipe_handle_t pipe_in;
-  uint8_t report_size;
-  uint8_t buffer[TUSB_CFG_HOST_HID_KEYBOARD_ENDPOINT_SIZE];
-}keyboard_interface_t;
-
-typedef struct {
-  uint8_t instance_count;
-  keyboard_interface_t instance[TUSB_CFG_HOST_HID_KEYBOARD_NO_INSTANCES_PER_DEVICE];
-} hidh_keyboard_info_t;
-
-void hidh_keyboard_init(void);
-tusb_error_t hidh_keyboard_install(uint8_t dev_addr, uint8_t const *descriptor) ATTR_WARN_UNUSED_RESULT;
 
 //--------------------------------------------------------------------+
 // CLASS DRIVER FUNCTION (all declared with WEAK)
 //--------------------------------------------------------------------+
+#ifdef _TINY_USB_SOURCE_FILE_
+
 void         hidh_init(void) ATTR_WEAK;
 tusb_error_t hidh_open_subtask(uint8_t dev_addr, uint8_t const *descriptor, uint16_t *p_length) ATTR_WEAK ATTR_WARN_UNUSED_RESULT;
-void hidh_isr(pipe_handle_t pipe_hdl, tusb_bus_event_t event) ATTR_WEAK;
-void hidh_close(uint8_t dev_addr) ATTR_WEAK;
+void         hidh_isr(pipe_handle_t pipe_hdl, tusb_bus_event_t event) ATTR_WEAK;
+void         hidh_close(uint8_t dev_addr) ATTR_WEAK;
 
 #endif
 

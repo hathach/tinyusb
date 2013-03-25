@@ -1,13 +1,13 @@
 /*
- * hid_host.c
+ * hid_host_keyboard.h
  *
- *  Created on: Dec 20, 2012
+ *  Created on: Mar 25, 2013
  *      Author: hathach
  */
 
 /*
  * Software License Agreement (BSD License)
- * Copyright (c) 2013, hathach (tinyusb.org)
+ * Copyright (c) 2012, hathach (tinyusb.net)
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without modification,
@@ -35,57 +35,65 @@
  * This file is part of the tiny usb stack.
  */
 
-#include "tusb_option.h"
+/** \file
+ *  \brief TBD
+ *
+ *  \note TBD
+ */
 
-#if (MODE_HOST_SUPPORTED && defined HOST_CLASS_HID)
+/** \ingroup TBD
+ *  \defgroup TBD
+ *  \brief TBD
+ *
+ *  @{
+ */
 
-#define _TINY_USB_SOURCE_FILE_
+#ifndef _TUSB_HID_HOST_KEYBOARD_H_
+#define _TUSB_HID_HOST_KEYBOARD_H_
 
-//--------------------------------------------------------------------+
-// INCLUDE
-//--------------------------------------------------------------------+
 #include "common/common.h"
-#include "hid_host.h"
 
-//--------------------------------------------------------------------+
-// MACRO CONSTANT TYPEDEF
-//--------------------------------------------------------------------+
-
-//--------------------------------------------------------------------+
-// INTERNAL OBJECT & FUNCTION DECLARATION
-//--------------------------------------------------------------------+
-
-//--------------------------------------------------------------------+
-// CLASS-USBD API (don't require to verify parameters)
-//--------------------------------------------------------------------+
-void hidh_init(void)
-{
-#if TUSB_CFG_HOST_HID_KEYBOARD
-  hidh_keyboard_init();
+#ifdef __cplusplus
+ extern "C" {
 #endif
 
-#if TUSB_CFG_HOST_HID_MOUSE
-  hidh_mouse_init();
+//--------------------------------------------------------------------+
+// PUBLIC API (parameter validation required)
+//--------------------------------------------------------------------+
+uint8_t       tusbh_hid_keyboard_no_instances(uint8_t const dev_addr) ATTR_PURE ATTR_WARN_UNUSED_RESULT;
+static inline bool  tusbh_hid_keyboard_is_supported(uint8_t const dev_addr) ATTR_ALWAYS_INLINE ATTR_WARN_UNUSED_RESULT ATTR_PURE;
+static inline bool  tusbh_hid_keyboard_is_supported(uint8_t const dev_addr)
+{
+  return tusbh_hid_keyboard_no_instances(dev_addr) > 0;
+}
+
+tusb_error_t  tusbh_hid_keyboard_get(uint8_t const dev_addr, uint8_t const instance_num, tusb_keyboard_report_t * const report) ATTR_WARN_UNUSED_RESULT;
+pipe_status_t tusbh_hid_keyboard_pipe_status(uint8_t const dev_addr, uint8_t const instance_num) ATTR_WARN_UNUSED_RESULT;
+
+//--------------------------------------------------------------------+
+// INTERNAL API (no need for parameter validation)
+//--------------------------------------------------------------------+
+#ifdef _TINY_USB_SOURCE_FILE_
+
+typedef struct {
+  pipe_handle_t pipe_in;
+  uint16_t report_size;
+}keyboard_interface_t;
+
+typedef struct {
+  uint8_t instance_count;
+  keyboard_interface_t instance[TUSB_CFG_HOST_HID_KEYBOARD_NO_INSTANCES_PER_DEVICE];
+} hidh_keyboard_info_t;
+
+void hidh_keyboard_init(void);
+tusb_error_t hidh_keyboard_install(uint8_t dev_addr, uint8_t const *descriptor) ATTR_WARN_UNUSED_RESULT;
+
 #endif
 
-#if TUSB_CFG_HOST_HID_GENERIC
-  hidh_generic_init();
+#ifdef __cplusplus
+ }
 #endif
-}
 
-tusb_error_t hidh_open_subtask(uint8_t dev_addr, uint8_t const *descriptor, uint16_t *p_length)
-{
-  return TUSB_ERROR_NONE;
-}
+#endif /* _TUSB_HID_HOST_KEYBOARD_H_ */
 
-void hidh_isr(pipe_handle_t pipe_hdl, tusb_bus_event_t event)
-{
-
-}
-
-void hidh_close(uint8_t dev_addr)
-{
-
-}
-
-#endif
+/** @} */
