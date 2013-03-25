@@ -3,7 +3,7 @@
  *
  *  Created on: Nov 26, 2012
  *      Author: hathachtware License Agreement (BSD License)
- * Copyright (c) 2012, hathach (tinyusb.net)All rights reserved.
+ * Copyright (c) 2012, hathach (tinyusb.org)All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without modification,
  * are permitted provided that the following conditions are met:

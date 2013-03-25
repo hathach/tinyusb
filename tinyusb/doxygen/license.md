@@ -1,7 +1,7 @@
 # License
 
 <pre>Software License Agreement (BSD License)
-Copyright (c) 2013, hathach (tinyusb.net)
+Copyright (c) 2013, hathach (tinyusb.org)
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without modification,
