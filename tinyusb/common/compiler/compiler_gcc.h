@@ -74,6 +74,8 @@
 #define ATTR_PACKED                __attribute__ ((packed))
 
 #define ATTR_PREPACKED
+
+#define ATTR_PACKED_STRUCT(x)     x __attribute__ ((packed))
 /** @} */
 
 /**

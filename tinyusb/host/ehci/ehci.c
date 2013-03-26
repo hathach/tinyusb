@@ -513,7 +513,7 @@ pipe_handle_t hcd_pipe_open(uint8_t dev_addr, tusb_descriptor_endpoint_t const *
   ehci_qhd_t * const p_qhd = qhd_find_free(dev_addr);
   ASSERT_PTR(p_qhd, null_handle);
 
-  qhd_init(p_qhd, dev_addr, p_endpoint_desc->wMaxPacketSize, p_endpoint_desc->bEndpointAddress, p_endpoint_desc->bmAttributes.xfer);
+  qhd_init(p_qhd, dev_addr, p_endpoint_desc->wMaxPacketSize.size, p_endpoint_desc->bEndpointAddress, p_endpoint_desc->bmAttributes.xfer);
   p_qhd->class_code = class_code;
 
   ehci_qhd_t * list_head;

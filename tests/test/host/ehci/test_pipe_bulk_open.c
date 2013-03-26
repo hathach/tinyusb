@@ -122,7 +122,7 @@ tusb_descriptor_endpoint_t const desc_ept_bulk_in =
 
 void verify_bulk_open_qhd(ehci_qhd_t *p_qhd, tusb_descriptor_endpoint_t const * desc_endpoint, uint8_t class_code)
 {
-  verify_open_qhd(p_qhd, desc_endpoint->bEndpointAddress, desc_endpoint->wMaxPacketSize);
+  verify_open_qhd(p_qhd, desc_endpoint->bEndpointAddress, desc_endpoint->wMaxPacketSize.size);
 
   TEST_ASSERT_FALSE(p_qhd->head_list_flag);
   TEST_ASSERT_EQUAL(0, p_qhd->data_toggle_control);
