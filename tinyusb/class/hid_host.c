@@ -95,10 +95,19 @@ tusb_error_t tusbh_hid_keyboard_get_report(uint8_t dev_addr, uint8_t instance_nu
 
   hidh_keyboard_info_t *p_keyboard = get_kbd_data(dev_addr);
 
+  ASSERT(TUSB_INTERFACE_STATUS_BUSY != p_keyboard->status, TUSB_ERROR_INTERFACE_IS_BUSY);
+
   // TODO abstract to use hidh service
   ASSERT_STATUS( hcd_pipe_xfer(p_keyboard->pipe_hdl, (uint8_t*) report, p_keyboard->report_size, true) ) ;
 
+  p_keyboard->status = TUSB_INTERFACE_STATUS_BUSY;
+
   return TUSB_ERROR_NONE;
+}
+
+tusb_interface_status_t tusbh_hid_keyboard_status(uint8_t dev_addr, uint8_t instance_num)
+{
+  return tusbh_device_get_state(dev_addr) ? keyboard_data[dev_addr-1].status : TUSB_INTERFACE_STATUS_INVALID_PARA;
 }
 
 void hidh_keyboard_close(uint8_t dev_addr)

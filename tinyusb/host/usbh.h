@@ -63,12 +63,13 @@
 //--------------------------------------------------------------------+
 // MACRO CONSTANT TYPEDEF
 //--------------------------------------------------------------------+
-typedef enum pipe_status_{
-  PIPE_STATUS_READY = 0,
-  PIPE_STATUS_BUSY,
-  PIPE_STATUS_COMPLETE,
-  PIPE_STATUS_ERROR
-} pipe_status_t;
+typedef enum tusb_interface_status_{
+  TUSB_INTERFACE_STATUS_READY = 0,
+  TUSB_INTERFACE_STATUS_BUSY,
+  TUSB_INTERFACE_STATUS_COMPLETE,
+  TUSB_INTERFACE_STATUS_ERROR,
+  TUSB_INTERFACE_STATUS_INVALID_PARA
+} tusb_interface_status_t;
 
 typedef struct {
   void (* const init) (void);
@@ -84,9 +85,9 @@ typedef struct {
 // APPLICATION API
 //--------------------------------------------------------------------+
 tusb_error_t tusbh_configuration_set     (uint8_t dev_addr, uint8_t configure_number) ATTR_WARN_UNUSED_RESULT;
-tusb_device_state_t tusbh_device_get_state (uint8_t const dev_addr) ATTR_WARN_UNUSED_RESULT ATTR_PURE;
-static inline bool tusbh_device_is_configured(uint8_t const dev_addr) ATTR_ALWAYS_INLINE ATTR_WARN_UNUSED_RESULT ATTR_PURE;
-static inline bool tusbh_device_is_configured(uint8_t const dev_addr)
+tusb_device_state_t tusbh_device_get_state (uint8_t dev_addr) ATTR_WARN_UNUSED_RESULT ATTR_PURE;
+static inline bool tusbh_device_is_configured(uint8_t dev_addr) ATTR_ALWAYS_INLINE ATTR_WARN_UNUSED_RESULT ATTR_PURE;
+static inline bool tusbh_device_is_configured(uint8_t dev_addr)
 {
   return tusbh_device_get_state(dev_addr) == TUSB_DEVICE_STATE_CONFIGURED;
 }
