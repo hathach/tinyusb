@@ -72,7 +72,6 @@ void test_hidh_open_ok(void)
 {
   uint16_t length=0;
 
-
   // TODO expect get HID report descriptor
   hcd_pipe_open_IgnoreAndReturn( pipe_hdl );
 
@@ -94,11 +93,4 @@ void test_hidh_close(void)
   hidh_close(dev_addr);
 
   TEST_ASSERT_MEM_ZERO(&keyboard_data[dev_addr-1], sizeof(hidh_keyboard_info_t));
-}
-
-void test_hihd_isr(void)
-{
-  TEST_IGNORE();
-  //------------- Code Under TEST -------------//
-//  hidh_isr()
 }

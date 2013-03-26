@@ -187,3 +187,12 @@ void test_keyboard_get_ok()
   tusbh_device_get_state_IgnoreAndReturn(TUSB_DEVICE_STATE_CONFIGURED);
   TEST_ASSERT_EQUAL(TUSB_INTERFACE_STATUS_BUSY, tusbh_hid_keyboard_status(dev_addr, 0));
 }
+
+void test_keyboard_isr_event_complete(void)
+{
+  //------------- Code Under TEST -------------//
+  hidh_isr(p_hidh_kbd->pipe_hdl, BUS_EVENT_XFER_COMPLETE);
+
+  tusbh_device_get_state_IgnoreAndReturn(TUSB_DEVICE_STATE_CONFIGURED);
+  TEST_ASSERT_EQUAL(TUSB_INTERFACE_STATUS_COMPLETE, tusbh_hid_keyboard_status(dev_addr, 0));
+}

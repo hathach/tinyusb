@@ -73,6 +73,12 @@ static inline bool pipehandle_is_valid(pipe_handle_t pipe_hdl)
   return pipe_hdl.dev_addr > 0;
 }
 
+static inline bool pipehandle_is_equal(pipe_handle_t x, pipe_handle_t y) ATTR_CONST ATTR_ALWAYS_INLINE ATTR_WARN_UNUSED_RESULT;
+static inline bool pipehandle_is_equal(pipe_handle_t x, pipe_handle_t y)
+{
+  return (x.dev_addr == y.dev_addr) && (x.xfer_type == y.xfer_type) && (x.index == y.index);
+}
+
 //--------------------------------------------------------------------+
 // USBH-HCD API
 //--------------------------------------------------------------------+
