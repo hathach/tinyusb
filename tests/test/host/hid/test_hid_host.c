@@ -40,6 +40,7 @@
 #include "tusb_option.h"
 #include "errors.h"
 #include "binary.h"
+#include "type_helper.h"
 
 #include "descriptor_test.h"
 #include "mock_osal.h"
@@ -49,6 +50,9 @@
 #include "hid_host.h"
 
 uint8_t dev_addr;
+pipe_handle_t pipe_hdl;
+
+extern hidh_keyboard_info_t keyboard_data[TUSB_CFG_HOST_DEVICE_MAX];
 
 tusb_descriptor_interface_t const *p_kbd_interface_desc = &desc_configuration.keyboard_interface;
 tusb_hid_descriptor_hid_t   const *p_kbh_hid_desc       = &desc_configuration.keyboard_hid;
@@ -57,6 +61,7 @@ tusb_descriptor_endpoint_t  const *p_kdb_endpoint_desc  = &desc_configuration.ke
 void setUp(void)
 {
   dev_addr = RANDOM(TUSB_CFG_HOST_DEVICE_MAX)+1;
+  pipe_hdl = (pipe_handle_t) {.dev_addr = dev_addr, .xfer_type = TUSB_XFER_INTERRUPT, .index = 2};
 }
 
 void tearDown(void)
@@ -66,7 +71,7 @@ void tearDown(void)
 void test_hidh_open_ok(void)
 {
   uint16_t length=0;
-  pipe_handle_t pipe_hdl = {.dev_addr = dev_addr, .xfer_type = TUSB_XFER_INTERRUPT, .index = 2};
+
 
   // TODO expect get HID report descriptor
   hcd_pipe_open_IgnoreAndReturn( pipe_hdl );
@@ -80,9 +85,15 @@ void test_hidh_open_ok(void)
 
 void test_hidh_close(void)
 {
-  TEST_IGNORE();
+  keyboard_data[dev_addr-1].pipe_hdl = pipe_hdl;
+  keyboard_data[dev_addr-1].report_size = 8;
+
+  hcd_pipe_close_ExpectAndReturn(pipe_hdl, TUSB_ERROR_NONE);
+
   //------------- Code Under TEST -------------//
   hidh_close(dev_addr);
+
+  TEST_ASSERT_MEM_ZERO(&keyboard_data[dev_addr-1], sizeof(hidh_keyboard_info_t));
 }
 
 void test_hihd_isr(void)

@@ -109,11 +109,18 @@ void test_keyboard_is_supported_fail_not_opened(void)
   TEST_ASSERT_FALSE( tusbh_hid_keyboard_is_supported(dev_addr) );
 }
 
+void test_keyboard_is_supported_ok(void)
+{
+  tusbh_device_get_state_IgnoreAndReturn(TUSB_DEVICE_STATE_CONFIGURED);
+  TEST_ASSERT_TRUE( tusbh_hid_keyboard_is_supported(dev_addr) );
+}
+
 void test_keyboard_open_ok(void)
 {
   uint16_t length=0;
   pipe_handle_t pipe_hdl = {.dev_addr = dev_addr, .xfer_type = TUSB_XFER_INTERRUPT, .index = 2};
-  memclr_(p_hidh_kbd, sizeof(hidh_keyboard_info_t));
+
+  hidh_init();
 
   hcd_pipe_open_ExpectAndReturn(dev_addr, p_kdb_endpoint_desc, TUSB_CLASS_HID, pipe_hdl);
 
@@ -127,11 +134,6 @@ void test_keyboard_open_ok(void)
 
   tusbh_device_get_state_IgnoreAndReturn(TUSB_DEVICE_STATE_CONFIGURED);
   TEST_ASSERT_TRUE( tusbh_hid_keyboard_is_supported(dev_addr) );
-}
-
-void test_keyboard_close(void)
-{
-
 }
 
 //--------------------------------------------------------------------+

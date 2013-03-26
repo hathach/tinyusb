@@ -386,32 +386,39 @@ OSAL_TASK_DECLARE(usbh_enumeration_task)
   // parse each interfaces
   while( p_desc < enum_data_buffer + ((tusb_descriptor_configuration_t*)enum_data_buffer)->wTotalLength )
   {
-    TASK_ASSERT( TUSB_DESC_INTERFACE == p_desc[DESCRIPTOR_OFFSET_TYPE] ); // TODO should we skip this descriptor and advance
-
-    uint8_t class_code = ((tusb_descriptor_interface_t*) p_desc)->bInterfaceClass;
-    if (class_code == 0)
+    // skip until we see interface descriptor
+    if ( TUSB_DESC_INTERFACE != p_desc[DESCRIPTOR_OFFSET_TYPE] )
     {
-      TASK_ASSERT( false ); // corrupted data, abort enumeration
-    }
-    // supported class TODO custom class
-    else if ( class_code < TUSB_CLASS_MAX_CONSEC_NUMBER && usbh_class_drivers[class_code].open_subtask)
+      p_desc += p_desc[DESCRIPTOR_OFFSET_LENGTH]; // skip the descriptor, increase by the descriptor's length
+    }else
     {
-      uint16_t length=0;
-      OSAL_SUBTASK_INVOKED_AND_WAIT ( // parameters in task/sub_task must be static storage (static or global)
-          usbh_class_drivers[ ((tusb_descriptor_interface_t*) p_desc)->bInterfaceClass ].open_subtask(
-              new_addr, (tusb_descriptor_interface_t*) p_desc, &length) );
-
-      // TODO check class_open_subtask status
-      usbh_devices[new_addr].flag_supported_class |= BIT_(((tusb_descriptor_interface_t*) p_desc)->bInterfaceClass);
-
-      p_desc += length;
-    } else // unsupported class (not enable or yet implemented)
-    {
-      do
+      uint8_t class_code = ((tusb_descriptor_interface_t*) p_desc)->bInterfaceClass;
+      if (class_code == 0)
       {
-        p_desc += (*p_desc); // skip the descriptor, increase by the descriptor's length
-      } while ( (p_desc < enum_data_buffer + ((tusb_descriptor_configuration_t*)enum_data_buffer)->wTotalLength)
-          && TUSB_DESC_INTERFACE != p_desc[1] );
+        TASK_ASSERT( false ); // corrupted data, abort enumeration
+      }
+      // supported class TODO custom class
+      else if ( class_code < TUSB_CLASS_MAX_CONSEC_NUMBER && usbh_class_drivers[class_code].open_subtask)
+      {
+        uint16_t length=0;
+        OSAL_SUBTASK_INVOKED_AND_WAIT ( // parameters in task/sub_task must be static storage (static or global)
+            usbh_class_drivers[ ((tusb_descriptor_interface_t*) p_desc)->bInterfaceClass ].open_subtask(
+                new_addr, (tusb_descriptor_interface_t*) p_desc, &length) );
+
+        // TODO check class_open_subtask status
+        if (length == 0) // Interface open failed, for example a subclass is not supported
+        {
+          p_desc += p_desc[DESCRIPTOR_OFFSET_TYPE]; // skip this interface, the rest will be skipped by the above loop
+          // TODO can optimize the length --> open_subtask return a OPEN FAILED status
+        }else
+        {
+          usbh_devices[new_addr].flag_supported_class |= BIT_(((tusb_descriptor_interface_t*) p_desc)->bInterfaceClass);
+          p_desc += length;
+        }
+      } else // unsupported class (not enable or yet implemented)
+      {
+        p_desc += p_desc[DESCRIPTOR_OFFSET_TYPE]; // skip this interface, the rest will be skipped by the above loop
+      }
     }
   }
 

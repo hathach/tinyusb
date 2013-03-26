@@ -73,6 +73,18 @@ bool  tusbh_hid_keyboard_is_supported(uint8_t dev_addr)
   return tusbh_device_is_configured(dev_addr) && pipehandle_is_valid(keyboard_data[dev_addr-1].pipe_hdl);
 }
 
+tusb_error_t hidh_keyboard_open(uint8_t dev_addr, tusb_descriptor_endpoint_t const *p_endpoint_desc)
+{
+  hidh_keyboard_info_t *p_keyboard = get_kbd_data(dev_addr);
+
+  p_keyboard->pipe_hdl    = hcd_pipe_open(dev_addr, p_endpoint_desc, TUSB_CLASS_HID);
+  p_keyboard->report_size = p_endpoint_desc->wMaxPacketSize.size; // TODO get size from report descriptor
+
+  ASSERT (pipehandle_is_valid(p_keyboard->pipe_hdl), TUSB_ERROR_HCD_FAILED);
+
+  return TUSB_ERROR_NONE;
+}
+
 tusb_error_t tusbh_hid_keyboard_get_report(uint8_t dev_addr, uint8_t instance_num, tusb_keyboard_report_t * const report)
 {
   //------------- parameters validation -------------//
@@ -87,6 +99,16 @@ tusb_error_t tusbh_hid_keyboard_get_report(uint8_t dev_addr, uint8_t instance_nu
   ASSERT_STATUS( hcd_pipe_xfer(p_keyboard->pipe_hdl, (uint8_t*) report, p_keyboard->report_size, true) ) ;
 
   return TUSB_ERROR_NONE;
+}
+
+void hidh_keyboard_close(uint8_t dev_addr)
+{
+  pipe_handle_t pipe_hdl = keyboard_data[dev_addr-1].pipe_hdl;
+  if ( pipehandle_is_valid(pipe_hdl) )
+  {
+    memclr_(&keyboard_data[dev_addr-1], sizeof(hidh_keyboard_info_t));
+    ASSERT_INT( TUSB_ERROR_NONE,  hcd_pipe_close(pipe_hdl), (void) 0 );
+  }
 }
 
 #endif
@@ -107,18 +129,6 @@ void hidh_init(void)
 #if TUSB_CFG_HOST_HID_GENERIC
   hidh_generic_init();
 #endif
-}
-
-tusb_error_t hidh_keyboard_open(uint8_t dev_addr, tusb_descriptor_endpoint_t const *p_endpoint_desc)
-{
-  hidh_keyboard_info_t *p_keyboard = get_kbd_data(dev_addr);
-
-  p_keyboard->pipe_hdl    = hcd_pipe_open(dev_addr, p_endpoint_desc, TUSB_CLASS_HID);
-  p_keyboard->report_size = p_endpoint_desc->wMaxPacketSize.size; // TODO get size from report descriptor
-
-  ASSERT (pipehandle_is_valid(p_keyboard->pipe_hdl), TUSB_ERROR_HCD_FAILED);
-
-  return TUSB_ERROR_NONE;
 }
 
 tusb_error_t hidh_open_subtask(uint8_t dev_addr, tusb_descriptor_interface_t const *p_interface_desc, uint16_t *p_length)
@@ -174,7 +184,7 @@ void hidh_isr(pipe_handle_t pipe_hdl, tusb_bus_event_t event)
 void hidh_close(uint8_t dev_addr)
 {
 #if TUSB_CFG_HOST_HID_KEYBOARD
-//  hidh_keyboard_close(dev_addr);
+  hidh_keyboard_close(dev_addr);
 #endif
 
 #if TUSB_CFG_HOST_HID_MOUSE
