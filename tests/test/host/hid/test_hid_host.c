@@ -45,7 +45,6 @@
 #include "mock_osal.h"
 #include "mock_hcd.h"
 #include "mock_usbh.h"
-#include "mock_hid_host_keyboard.h"
 
 #include "hid_host.h"
 
@@ -64,39 +63,31 @@ void tearDown(void)
 {
 }
 
-void test_hidh_init_ok(void)
-{
-//  hidh_keyboard_init_Expect();
-  // TODO mouse, generic expect
-
-  //------------- Code Under TEST -------------//
-//  hidh_init();
-}
-
 void test_hidh_open_ok(void)
 {
   uint16_t length=0;
-//
-//  hidh_keyboard_open_subtask_ExpectAndReturn(dev_addr, p_kbd_interface_desc, &length, TUSB_ERROR_NONE);
-//
-  //------------- Code Under TEST -------------//
-//  hidh_open_subtask(dev_addr, (uint8_t*) p_kbd_interface_desc, &length);
+  pipe_handle_t pipe_hdl = {.dev_addr = dev_addr, .xfer_type = TUSB_XFER_INTERRUPT, .index = 2};
 
-//  TEST_ASSERT_EQUAL(sizeof(tusb_descriptor_interface_t) + sizeof(tusb_hid_descriptor_hid_t) + sizeof(tusb_descriptor_endpoint_t),
-//                    length);
+  // TODO expect get HID report descriptor
+  hcd_pipe_open_IgnoreAndReturn( pipe_hdl );
+
+  //------------- Code Under TEST -------------//
+  TEST_ASSERT_EQUAL(TUSB_ERROR_NONE, hidh_open_subtask(dev_addr, (uint8_t*) p_kbd_interface_desc, &length) );
+
+  TEST_ASSERT_EQUAL(sizeof(tusb_descriptor_interface_t) + sizeof(tusb_hid_descriptor_hid_t) + sizeof(tusb_descriptor_endpoint_t),
+                    length);
 }
 
 void test_hidh_close(void)
 {
-  hidh_keyboard_close_Expect(dev_addr);
-
+  TEST_IGNORE();
   //------------- Code Under TEST -------------//
   hidh_close(dev_addr);
 }
 
 void test_hihd_isr(void)
 {
-  if (!hidh_isr)
-    TEST_IGNORE();
-
+  TEST_IGNORE();
+  //------------- Code Under TEST -------------//
+//  hidh_isr()
 }

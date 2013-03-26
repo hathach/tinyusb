@@ -37,9 +37,9 @@
 
 #include "stdlib.h"
 #include "unity.h"
+#include "type_helper.h"
 #include "errors.h"
 #include "hid_host.h"
-#include "hid_host_keyboard.h"
 #include "mock_osal.h"
 #include "mock_usbh.h"
 #include "mock_hcd.h"
@@ -71,7 +71,7 @@ void setUp(void)
   memclr_(&report, sizeof(tusb_keyboard_report_t));
   dev_addr = RANDOM(TUSB_CFG_HOST_DEVICE_MAX)+1;
 
-  hidh_keyboard_init();
+  hidh_init();
 
   p_hidh_kbd = &keyboard_data[dev_addr-1];
 
@@ -88,28 +88,25 @@ void tearDown(void)
 {
 }
 
-//--------------------------------------------------------------------+
-// keyboard_install, keyboard_no_instances, keybaord_init
-//--------------------------------------------------------------------+
-void TEST_ASSERT_PIPE_HANDLE(pipe_handle_t x, pipe_handle_t y)
+void test_keyboard_init(void)
 {
-  TEST_ASSERT_EQUAL(x.dev_addr  , y.dev_addr);
-  TEST_ASSERT_EQUAL(x.xfer_type , y.xfer_type);
-  TEST_ASSERT_EQUAL(x.index     , y.index);
+  hidh_init();
+
+  TEST_ASSERT_MEM_ZERO(keyboard_data, sizeof(hidh_keyboard_info_t)*TUSB_CFG_HOST_DEVICE_MAX);
 }
 
-void test_keyboard_is_supported_fail(void)
+void test_keyboard_is_supported_fail_unplug(void)
 {
+  hidh_init();
   tusbh_device_get_state_IgnoreAndReturn(TUSB_DEVICE_STATE_UNPLUG);
   TEST_ASSERT_FALSE( tusbh_hid_keyboard_is_supported(dev_addr) );
 }
 
-void test_keyboard_init(void)
+void test_keyboard_is_supported_fail_not_opened(void)
 {
-  hidh_keyboard_init();
-
-  for(uint32_t i=0; i < sizeof(hidh_keyboard_info_t)*TUSB_CFG_HOST_DEVICE_MAX; i++)
-    TEST_ASSERT_EQUAL(0, ((uint8_t*)keyboard_data) [i]);
+  hidh_init();
+  tusbh_device_get_state_IgnoreAndReturn(TUSB_DEVICE_STATE_CONFIGURED);
+  TEST_ASSERT_FALSE( tusbh_hid_keyboard_is_supported(dev_addr) );
 }
 
 void test_keyboard_open_ok(void)
@@ -121,7 +118,7 @@ void test_keyboard_open_ok(void)
   hcd_pipe_open_ExpectAndReturn(dev_addr, p_kdb_endpoint_desc, TUSB_CLASS_HID, pipe_hdl);
 
   //------------- Code Under TEST -------------//
-  TEST_ASSERT_EQUAL(TUSB_ERROR_NONE, hidh_keyboard_open_subtask(dev_addr, (uint8_t*) p_kbd_interface_desc, &length));
+  TEST_ASSERT_EQUAL(TUSB_ERROR_NONE, hidh_open_subtask(dev_addr, (uint8_t*) p_kbd_interface_desc, &length));
 
   TEST_ASSERT_PIPE_HANDLE(pipe_hdl, p_hidh_kbd->pipe_hdl);
   TEST_ASSERT_EQUAL(8, p_hidh_kbd->report_size);
@@ -143,19 +140,19 @@ void test_keyboard_close(void)
 void test_keyboard_get_invalid_address(void)
 {
   tusbh_device_get_state_IgnoreAndReturn(TUSB_DEVICE_STATE_CONFIGURED);
-  TEST_ASSERT_EQUAL(TUSB_ERROR_INVALID_PARA, tusbh_hid_keyboard_get(0, 0, NULL)); // invalid address
+  TEST_ASSERT_EQUAL(TUSB_ERROR_INVALID_PARA, tusbh_hid_keyboard_get_report(0, 0, NULL)); // invalid address
 }
 
 void test_keyboard_get_invalid_buffer(void)
 {
   tusbh_device_get_state_IgnoreAndReturn(TUSB_DEVICE_STATE_CONFIGURED);
-  TEST_ASSERT_EQUAL(TUSB_ERROR_INVALID_PARA, tusbh_hid_keyboard_get(dev_addr, 0, NULL)); // invalid buffer
+  TEST_ASSERT_EQUAL(TUSB_ERROR_INVALID_PARA, tusbh_hid_keyboard_get_report(dev_addr, 0, NULL)); // invalid buffer
 }
 
 void test_keyboard_get_device_not_ready(void)
 {
   tusbh_device_get_state_IgnoreAndReturn(TUSB_DEVICE_STATE_UNPLUG);
-  TEST_ASSERT_EQUAL(TUSB_ERROR_DEVICE_NOT_READY, tusbh_hid_keyboard_get(dev_addr, 0, &report)); // device not mounted
+  TEST_ASSERT_EQUAL(TUSB_ERROR_DEVICE_NOT_READY, tusbh_hid_keyboard_get_report(dev_addr, 0, &report)); // device not mounted
 }
 
 void test_keyboard_get_report_xfer_failed()
@@ -164,7 +161,7 @@ void test_keyboard_get_report_xfer_failed()
   hcd_pipe_xfer_ExpectAndReturn(p_hidh_kbd->pipe_hdl, (uint8_t*) &report, p_hidh_kbd->report_size, true, TUSB_ERROR_INVALID_PARA);
 
   //------------- Code Under TEST -------------//
-  TEST_ASSERT_EQUAL(TUSB_ERROR_INVALID_PARA, tusbh_hid_keyboard_get(dev_addr, 0, &report));
+  TEST_ASSERT_EQUAL(TUSB_ERROR_INVALID_PARA, tusbh_hid_keyboard_get_report(dev_addr, 0, &report));
 }
 
 void test_keyboard_get_ok()
@@ -173,6 +170,6 @@ void test_keyboard_get_ok()
   hcd_pipe_xfer_ExpectAndReturn(p_hidh_kbd->pipe_hdl, (uint8_t*) &report, p_hidh_kbd->report_size, true, TUSB_ERROR_NONE);
 
   //------------- Code Under TEST -------------//
-  TEST_ASSERT_EQUAL(TUSB_ERROR_NONE, tusbh_hid_keyboard_get(dev_addr, 0, &report));
+  TEST_ASSERT_EQUAL(TUSB_ERROR_NONE, tusbh_hid_keyboard_get_report(dev_addr, 0, &report));
 }
 

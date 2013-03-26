@@ -59,20 +59,28 @@
 #include "host/usbh.h"
 #include "hid.h"
 
-#if TUSB_CFG_HOST_HID_KEYBOARD
-  #include "hid_host_keyboard.h"
-#endif
+//--------------------------------------------------------------------+
+// KEYBOARD Public API
+//--------------------------------------------------------------------+
+typedef struct {
+  pipe_handle_t pipe_hdl;
+  uint16_t report_size;
+}hidh_keyboard_info_t;
 
-#if TUSB_CFG_HOST_HID_MOUSE
-  #include "hid_host_mouse.h"
-#endif
+bool  tusbh_hid_keyboard_is_supported(uint8_t dev_addr) ATTR_PURE ATTR_WARN_UNUSED_RESULT;
+tusb_error_t  tusbh_hid_keyboard_get_report(uint8_t dev_addr, uint8_t instance_num, tusb_keyboard_report_t * const report) ATTR_WARN_UNUSED_RESULT;
+pipe_status_t tusbh_hid_keyboard_status(uint8_t dev_addr, uint8_t instance_num) ATTR_WARN_UNUSED_RESULT;
 
 //--------------------------------------------------------------------+
-// APPLICATION API
+// MOUSE Public API
 //--------------------------------------------------------------------+
 
 //--------------------------------------------------------------------+
-// CLASS DRIVER FUNCTION
+// GENERIC Public API
+//--------------------------------------------------------------------+
+
+//--------------------------------------------------------------------+
+// USBH-CLASS DRIVER API
 //--------------------------------------------------------------------+
 #ifdef _TINY_USB_SOURCE_FILE_
 

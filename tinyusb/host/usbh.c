@@ -317,7 +317,7 @@ OSAL_TASK_DECLARE(usbh_enumeration_task)
   usbh_pipe_control_close(0);
   usbh_devices[0].state = TUSB_DEVICE_STATE_UNPLUG;
 
-//  hcd_port_reset( usbh_device_info_pool[new_addr].core_id ); TODO verified
+//  hcd_port_reset( usbh_device_info_pool[new_addr].core_id ); TODO may need to reset device after set address
 
   // open control pipe for new address
   TASK_ASSERT_STATUS ( usbh_pipe_control_open(new_addr, ((tusb_descriptor_device_t*) enum_data_buffer)->bMaxPacketSize0 ) );
