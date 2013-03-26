@@ -408,7 +408,7 @@ OSAL_TASK_DECLARE(usbh_enumeration_task)
         // TODO check class_open_subtask status
         if (length == 0) // Interface open failed, for example a subclass is not supported
         {
-          p_desc += p_desc[DESCRIPTOR_OFFSET_TYPE]; // skip this interface, the rest will be skipped by the above loop
+          p_desc += p_desc[DESCRIPTOR_OFFSET_LENGTH]; // skip this interface, the rest will be skipped by the above loop
           // TODO can optimize the length --> open_subtask return a OPEN FAILED status
         }else
         {
@@ -417,7 +417,7 @@ OSAL_TASK_DECLARE(usbh_enumeration_task)
         }
       } else // unsupported class (not enable or yet implemented)
       {
-        p_desc += p_desc[DESCRIPTOR_OFFSET_TYPE]; // skip this interface, the rest will be skipped by the above loop
+        p_desc += p_desc[DESCRIPTOR_OFFSET_LENGTH]; // skip this interface, the rest will be skipped by the above loop
       }
     }
   }
