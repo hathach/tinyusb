@@ -386,7 +386,7 @@ OSAL_TASK_DECLARE(usbh_enumeration_task)
   // parse each interfaces
   while( p_desc < enum_data_buffer + ((tusb_descriptor_configuration_t*)enum_data_buffer)->wTotalLength )
   {
-    TASK_ASSERT( TUSB_DESC_INTERFACE == ((tusb_descriptor_interface_t*) p_desc)->bDescriptorType ); // TODO should we skip this descriptor and advance
+    TASK_ASSERT( TUSB_DESC_INTERFACE == p_desc[DESCRIPTOR_OFFSET_TYPE] ); // TODO should we skip this descriptor and advance
 
     uint8_t class_code = ((tusb_descriptor_interface_t*) p_desc)->bInterfaceClass;
     if (class_code == 0)
@@ -398,7 +398,8 @@ OSAL_TASK_DECLARE(usbh_enumeration_task)
     {
       uint16_t length=0;
       OSAL_SUBTASK_INVOKED_AND_WAIT ( // parameters in task/sub_task must be static storage (static or global)
-          usbh_class_drivers[ ((tusb_descriptor_interface_t*) p_desc)->bInterfaceClass ].open_subtask(new_addr, p_desc, &length) );
+          usbh_class_drivers[ ((tusb_descriptor_interface_t*) p_desc)->bInterfaceClass ].open_subtask(
+              new_addr, (tusb_descriptor_interface_t*) p_desc, &length) );
 
       // TODO check class_open_subtask status
       usbh_devices[new_addr].flag_supported_class |= BIT_(((tusb_descriptor_interface_t*) p_desc)->bInterfaceClass);

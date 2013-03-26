@@ -90,20 +90,20 @@ void HardFault_HandlerAsm(void){
  * The function ends with a BKPT instruction to force control back into the debugger
  */
 void HardFault_HandlerC(unsigned long *hardfault_args){
-  volatile unsigned long stacked_r0 ;
-  volatile unsigned long stacked_r1 ;
-  volatile unsigned long stacked_r2 ;
-  volatile unsigned long stacked_r3 ;
-  volatile unsigned long stacked_r12 ;
-  volatile unsigned long stacked_lr ;
-  volatile unsigned long stacked_pc ;
-  volatile unsigned long stacked_psr ;
-  volatile unsigned long _CFSR ;
-  volatile unsigned long _HFSR ;
-  volatile unsigned long _DFSR ;
-  volatile unsigned long _AFSR ;
-  volatile unsigned long _BFAR ;
-  volatile unsigned long _MMAR ;
+  ATTR_UNUSED volatile unsigned long stacked_r0 ;
+  ATTR_UNUSED volatile unsigned long stacked_r1 ;
+  ATTR_UNUSED volatile unsigned long stacked_r2 ;
+  ATTR_UNUSED volatile unsigned long stacked_r3 ;
+  ATTR_UNUSED volatile unsigned long stacked_r12 ;
+  ATTR_UNUSED volatile unsigned long stacked_lr ;
+  ATTR_UNUSED volatile unsigned long stacked_pc ;
+  ATTR_UNUSED volatile unsigned long stacked_psr ;
+  ATTR_UNUSED volatile unsigned long _CFSR ;
+  ATTR_UNUSED volatile unsigned long _HFSR ;
+  ATTR_UNUSED volatile unsigned long _DFSR ;
+  ATTR_UNUSED volatile unsigned long _AFSR ;
+  ATTR_UNUSED volatile unsigned long _BFAR ;
+  ATTR_UNUSED volatile unsigned long _MMAR ;
 
   stacked_r0  = ((unsigned long)hardfault_args[0]) ;
   stacked_r1  = ((unsigned long)hardfault_args[1]) ;

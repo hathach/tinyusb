@@ -67,7 +67,7 @@ typedef struct {
   uint16_t report_size;
 }hidh_keyboard_info_t;
 
-bool  tusbh_hid_keyboard_is_supported(uint8_t dev_addr) ATTR_PURE ATTR_WARN_UNUSED_RESULT;
+bool          tusbh_hid_keyboard_is_supported(uint8_t dev_addr) ATTR_PURE ATTR_WARN_UNUSED_RESULT;
 tusb_error_t  tusbh_hid_keyboard_get_report(uint8_t dev_addr, uint8_t instance_num, tusb_keyboard_report_t * const report) ATTR_WARN_UNUSED_RESULT;
 pipe_status_t tusbh_hid_keyboard_status(uint8_t dev_addr, uint8_t instance_num) ATTR_WARN_UNUSED_RESULT;
 
@@ -85,7 +85,7 @@ pipe_status_t tusbh_hid_keyboard_status(uint8_t dev_addr, uint8_t instance_num) 
 #ifdef _TINY_USB_SOURCE_FILE_
 
 void         hidh_init(void);
-tusb_error_t hidh_open_subtask(uint8_t dev_addr, uint8_t const *descriptor, uint16_t *p_length) ATTR_WARN_UNUSED_RESULT;
+tusb_error_t hidh_open_subtask(uint8_t dev_addr, tusb_descriptor_interface_t const *p_interface_desc, uint16_t *p_length) ATTR_WARN_UNUSED_RESULT;
 void         hidh_isr(pipe_handle_t pipe_hdl, tusb_bus_event_t event);
 void         hidh_close(uint8_t dev_addr);
 

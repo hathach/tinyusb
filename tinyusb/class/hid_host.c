@@ -40,7 +40,6 @@
 #if (MODE_HOST_SUPPORTED && defined HOST_CLASS_HID)
 
 #define _TINY_USB_SOURCE_FILE_
-
 //--------------------------------------------------------------------+
 // INCLUDE
 //--------------------------------------------------------------------+
@@ -80,7 +79,6 @@ void hidh_init(void)
 #endif
 }
 
-
 tusb_error_t hidh_keyboard_open_subtask(uint8_t dev_addr, uint8_t const *descriptor, uint16_t *p_length)
 {
   hidh_keyboard_info_t *p_keyboard = get_kbd_data(dev_addr);
@@ -110,34 +108,33 @@ tusb_error_t hidh_keyboard_open_subtask(uint8_t dev_addr, uint8_t const *descrip
   return TUSB_ERROR_NONE;
 }
 
-tusb_error_t hidh_open_subtask(uint8_t dev_addr, uint8_t const *descriptor, uint16_t *p_length)
+tusb_error_t hidh_open_subtask(uint8_t dev_addr, tusb_descriptor_interface_t const *p_interface_desc, uint16_t *p_length)
 {
-  tusb_descriptor_interface_t* p_interface = (tusb_descriptor_interface_t*) descriptor;
-  if (p_interface->bInterfaceSubClass == HID_SUBCLASS_BOOT)
+  uint8_t const *p_desc = (uint8_t const *) p_interface_desc;
+  if (p_interface_desc->bInterfaceSubClass == HID_SUBCLASS_BOOT)
   {
-    switch(p_interface->bInterfaceProtocol)
+    switch(p_interface_desc->bInterfaceProtocol)
     {
       #if TUSB_CFG_HOST_HID_KEYBOARD
       case HID_PROTOCOL_KEYBOARD:
-
-        return hidh_keyboard_open_subtask(dev_addr, descriptor, p_length);
+        return hidh_keyboard_open_subtask(dev_addr, p_desc, p_length);
       break;
       #endif
 
       #if TUSB_CFG_HOST_HID_MOUSE
       case HID_PROTOCOL_MOUSE:
-        return hidh_keyboard_open_subtask(dev_addr, descriptor, p_length);
+        return hidh_keyboard_open_subtask(dev_addr, p_desc, p_length);
       break;
       #endif
 
       default: // unknown protocol --> skip this interface
-        *p_length = p_interface->bLength;
+        *p_length = p_interface_desc->bLength;
         return TUSB_ERROR_NONE;
     }
   }else
   {
     // open generic
-    *p_length = p_interface->bLength;
+    *p_length = p_interface_desc->bLength;
     return TUSB_ERROR_NONE;
   }
 }

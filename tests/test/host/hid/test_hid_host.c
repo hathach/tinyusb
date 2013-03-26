@@ -72,7 +72,7 @@ void test_hidh_open_ok(void)
   hcd_pipe_open_IgnoreAndReturn( pipe_hdl );
 
   //------------- Code Under TEST -------------//
-  TEST_ASSERT_EQUAL(TUSB_ERROR_NONE, hidh_open_subtask(dev_addr, (uint8_t*) p_kbd_interface_desc, &length) );
+  TEST_ASSERT_EQUAL(TUSB_ERROR_NONE, hidh_open_subtask(dev_addr, p_kbd_interface_desc, &length) );
 
   TEST_ASSERT_EQUAL(sizeof(tusb_descriptor_interface_t) + sizeof(tusb_hid_descriptor_hid_t) + sizeof(tusb_descriptor_endpoint_t),
                     length);

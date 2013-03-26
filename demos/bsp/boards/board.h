@@ -56,6 +56,7 @@
 #endif
 
 #include <stdint.h>
+#include "common/compiler/compiler.h"
 #include "common/binary.h" // This file is too good to not use
 
 #define BOARD_AT86RF2XX             1

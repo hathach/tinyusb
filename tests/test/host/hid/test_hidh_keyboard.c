@@ -118,7 +118,7 @@ void test_keyboard_open_ok(void)
   hcd_pipe_open_ExpectAndReturn(dev_addr, p_kdb_endpoint_desc, TUSB_CLASS_HID, pipe_hdl);
 
   //------------- Code Under TEST -------------//
-  TEST_ASSERT_EQUAL(TUSB_ERROR_NONE, hidh_open_subtask(dev_addr, (uint8_t*) p_kbd_interface_desc, &length));
+  TEST_ASSERT_EQUAL(TUSB_ERROR_NONE, hidh_open_subtask(dev_addr, p_kbd_interface_desc, &length));
 
   TEST_ASSERT_PIPE_HANDLE(pipe_hdl, p_hidh_kbd->pipe_hdl);
   TEST_ASSERT_EQUAL(8, p_hidh_kbd->report_size);
