@@ -55,12 +55,10 @@ LPC_USB1_Type lpc_usb1;
 //--------------------------------------------------------------------+
 // IMPLEMENTATION
 //--------------------------------------------------------------------+
-void ehci_controller_run(uint8_t hostid)
+bool complete_all_qtd_in_list(ehci_qhd_t *head)
 {
-  //------------- Async List -------------//
-  ehci_registers_t* const regs = get_operational_register(hostid);
+  ehci_qhd_t *p_qhd = head;
 
-  ehci_qhd_t *p_qhd = (ehci_qhd_t*) regs->async_list_base;
   do
   {
     if ( !p_qhd->qtd_overlay.halted )
@@ -72,11 +70,29 @@ void ehci_controller_run(uint8_t hostid)
         p_qhd->qtd_overlay = *p_qtd;
       }
     }
-    p_qhd = (ehci_qhd_t*) align32(p_qhd->next.address);
-  }while(p_qhd != get_async_head(hostid)); // stop if loop around
-  //------------- Period List -------------//
+    if (!p_qhd->next.terminate)
+    {
+      p_qhd = (ehci_qhd_t*) align32(p_qhd->next.address);
+    }
+    else
+    {
+      break;
+    }
+  }while(p_qhd != head); // stop if loop around
 
-  regs->usb_sts = EHCI_INT_MASK_NXP_ASYNC;
+  return true;
+}
+
+void ehci_controller_run(uint8_t hostid)
+{
+  //------------- Async List -------------//
+  ehci_registers_t* const regs = get_operational_register(hostid);
+  complete_all_qtd_in_list((ehci_qhd_t*) regs->async_list_base);
+
+  //------------- Period List -------------//
+ complete_all_qtd_in_list( get_period_head(hostid) );
+  regs->usb_sts = EHCI_INT_MASK_NXP_ASYNC | EHCI_INT_MASK_NXP_PERIODIC;
+
   hcd_isr(hostid);
 }
 

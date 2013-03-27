@@ -102,12 +102,12 @@ typedef ATTR_PREPACKED struct
  *
  *  Type define for a standard Boot Protocol Keyboard report
  */
-typedef ATTR_PREPACKED struct
+typedef ATTR_PACKED_STRUCT(struct)
 {
   uint8_t modifier; /**< Keyboard modifier byte, indicating pressed modifier keys (a combination of HID_KEYBOARD_MODIFER_* masks). */
   uint8_t reserved; /**< Reserved for OEM use, always set to 0. */
   uint8_t keycode[6]; /**< Key codes of the currently pressed keys. */
-} ATTR_PACKED tusb_keyboard_report_t;
+} tusb_keyboard_report_t;
 
 /**
  * \brief buttons codes for HID mouse

@@ -107,9 +107,6 @@ static tusb_error_t hcd_controller_stop(uint8_t hostid) ATTR_WARN_UNUSED_RESULT;
 //--------------------------------------------------------------------+
 tusb_error_t hcd_init(void)
 {
-  // oops, ehci_qtd_t:used must be at Reserved places in EHCI specs
-  ASSERT(offsetof(ehci_qtd_t, used) == 16, TUSB_ERROR_HCD_FAILED); // TODO can be removed after an THOROUGH checked
-
   //------------- Data Structure init -------------//
   memclr_(&ehci_data, sizeof(ehci_data_t));
 
@@ -144,182 +141,6 @@ void hcd_port_reset(uint8_t hostid)
 bool hcd_port_connect_status(uint8_t hostid)
 {
   return get_operational_register(hostid)->portsc_bit.current_connect_status;
-}
-
-//--------------------------------------------------------------------+
-// EHCI Interrupt Handler
-//--------------------------------------------------------------------+
-void async_advance_isr(ehci_qhd_t * const async_head)
-{
-  // TODO do we need to close addr0
-  if(async_head->is_removing) // closing control pipe of addr0
-  {
-    async_head->is_removing = 0;
-    async_head->p_qtd_list_head = async_head->p_qtd_list_tail = NULL;
-    async_head->qtd_overlay.halted = 1;
-  }
-
-  for(uint8_t relative_dev_addr=0; relative_dev_addr < TUSB_CFG_HOST_DEVICE_MAX; relative_dev_addr++)
-  {
-    // check if control endpoint is removing
-    ehci_qhd_t *p_control_qhd = &ehci_data.device[relative_dev_addr].control.qhd;
-    if( p_control_qhd->is_removing )
-    {
-      p_control_qhd->is_removing     = 0;
-      p_control_qhd->used            = 0;
-
-      // Host Controller has cleaned up its cached data for this device, set state to unplug
-      usbh_devices[relative_dev_addr+1].state = TUSB_DEVICE_STATE_UNPLUG;
-
-      for (uint8_t i=0; i<EHCI_MAX_QHD; i++) // free all qhd
-      {
-        ehci_data.device[relative_dev_addr].qhd[i].used = 0;
-        ehci_data.device[relative_dev_addr].qhd[i].is_removing = 0;
-      }
-      for (uint8_t i=0; i<EHCI_MAX_QTD; i++) // free all qtd
-      {
-        ehci_data.device[relative_dev_addr].qtd[i].used = 0;
-      }
-      // TODO free all itd & sitd
-    }
-
-//    // check if any other endpoints in pool is removing
-//    for (uint8_t i=0; i<EHCI_MAX_QHD; i++)
-//    {
-//      ehci_qhd_t *p_qhd = &ehci_data.device[relative_dev_addr].qhd[i];
-//      if (p_qhd->is_removing)
-//      {
-//        p_qhd->used        = 0;
-//        p_qhd->is_removing = 0;
-//
-//        while(p_qhd->p_qtd_list_head != NULL) // remove all TDs
-//        {
-//          p_qhd->p_qtd_list_head->used = 0; // free QTD
-//          qtd_remove_1st_from_qhd(p_qhd);
-//        }
-//      }
-//    }// end qhd list loop
-  } // end for device[] loop
-}
-
-void port_connect_status_change_isr(uint8_t hostid)
-{
-  ehci_registers_t* const regs = get_operational_register(hostid);
-
-  if (regs->portsc_bit.current_connect_status) // device plugged
-  {
-    hcd_port_reset(hostid);
-    usbh_device_plugged_isr(hostid, regs->portsc_bit.nxp_port_speed); // NXP specific port speed
-  }else // device unplugged
-  {
-    usbh_device_unplugged_isr(hostid);
-    regs->usb_cmd_bit.advacne_async = 1; // Async doorbell check EHCI 4.8.2 for operational details
-  }
-
-}
-
-void async_list_process_isr(ehci_qhd_t * const async_head)
-{
-  ehci_qhd_t *p_qhd = async_head;
-  do
-  {
-    if ( !p_qhd->qtd_overlay.halted )
-    {
-      // free all TDs from the head td to the first active TD
-      while(p_qhd->p_qtd_list_head != NULL && !p_qhd->p_qtd_list_head->active)
-      {
-        // TODO check halted TD
-        if (p_qhd->p_qtd_list_head->int_on_complete) // end of request
-        {
-          pipe_handle_t pipe_hdl = { .dev_addr = p_qhd->device_address };
-          if (p_qhd->endpoint_number) // if not Control, can only be Bulk
-          {
-            pipe_hdl.xfer_type = TUSB_XFER_BULK;
-            pipe_hdl.index = qhd_get_index(p_qhd);
-          }
-          usbh_isr( pipe_hdl, p_qhd->class_code, BUS_EVENT_XFER_COMPLETE); // call USBH callback
-        }
-
-        p_qhd->p_qtd_list_head->used = 0; // free QTD
-        qtd_remove_1st_from_qhd(p_qhd);
-      }
-    }
-    p_qhd = (ehci_qhd_t*) align32(p_qhd->next.address);
-  }while(p_qhd != async_head); // async list traversal, stop if loop around
-}
-
-void xfer_error_isr(uint8_t hostid)
-{
-  //------------- async list -------------//
-  ehci_qhd_t * const async_head = get_async_head(hostid);
-  ehci_qhd_t *p_qhd = async_head;
-  do
-  {
-    // current qhd has error in transaction
-    if (p_qhd->qtd_overlay.buffer_err || p_qhd->qtd_overlay.babble_err || p_qhd->qtd_overlay.xact_err ||
-        //p_qhd->qtd_overlay.non_hs_period_missed_uframe || p_qhd->qtd_overlay.pingstate_err TODO split transaction error
-        (p_qhd->device_address != 0 && p_qhd->qtd_overlay.halted) ) // addr0 cannot be protocol STALL
-    {
-      pipe_handle_t pipe_hdl = { .dev_addr = p_qhd->device_address };
-      if (p_qhd->endpoint_number) // if not Control, can only be Bulk
-      {
-        pipe_hdl.xfer_type = TUSB_XFER_BULK;
-        pipe_hdl.index = qhd_get_index(p_qhd);
-      }
-      usbh_isr( pipe_hdl, p_qhd->class_code, BUS_EVENT_XFER_ERROR); // call USBH callback
-    }
-
-    p_qhd = (ehci_qhd_t*) align32(p_qhd->next.address);
-  }while(p_qhd != async_head); // async list traversal, stop if loop around
-
-  //------------- TODO period list -------------//
-}
-
-//------------- Host Controller Driver's Interrupt Handler -------------//
-void hcd_isr(uint8_t hostid)
-{
-  ehci_registers_t* const regs = get_operational_register(hostid);
-
-  uint32_t int_status = regs->usb_sts & regs->usb_int_enable;
-  regs->usb_sts |= int_status; // Acknowledge handled interrupt
-  
-  if (int_status == 0)
-    return;
-
-  if (int_status & EHCI_INT_MASK_ERROR)
-  {
-    // TODO handle Queue Head halted
-    hal_debugger_breakpoint();
-    xfer_error_isr(hostid);
-  }
-
-  //------------- some QTD/SITD/ITD with IOC set is completed -------------//
-  if (int_status & EHCI_INT_MASK_NXP_ASYNC)
-  {
-    async_list_process_isr(get_async_head(hostid));
-  }
-
-  if (int_status & EHCI_INT_MASK_NXP_PERIODIC)
-  {
-
-  }
-
-  if (int_status & EHCI_INT_MASK_PORT_CHANGE)
-  {
-    uint32_t port_status = regs->portsc & EHCI_PORTSC_MASK_ALL;
-
-    if (regs->portsc_bit.connect_status_change)
-    {
-      port_connect_status_change_isr(hostid);
-    }
-
-    regs->portsc |= port_status; // Acknowledge change bits in portsc
-  }
-
-  if (int_status & EHCI_INT_MASK_ASYNC_ADVANCE) // need to place after EHCI_INT_MASK_NXP_ASYNC
-  {
-    async_advance_isr( get_async_head(hostid) );
-  }
 }
 
 //--------------------------------------------------------------------+
@@ -409,11 +230,6 @@ tusb_error_t hcd_controller_reset(uint8_t hostid)
   timeout_timer_t timeout;
 
 // NXP chip powered with non-host mode --> sts bit is not correctly reflected
-//  if (regs->usb_sts_bit.hc_halted == 0) // need to stop before reset
-//  {
-//    ASSERT_STATUS( hcd_controller_stop(hostid) );
-//  }
-
   regs->usb_cmd_bit.reset = 1;
 
   timeout_set(&timeout, 2); // should not take longer the time to stop controller
@@ -584,6 +400,235 @@ tusb_error_t  hcd_pipe_close(pipe_handle_t pipe_hdl)
   }
 
   return TUSB_ERROR_NONE;
+}
+
+
+//--------------------------------------------------------------------+
+// EHCI Interrupt Handler
+//--------------------------------------------------------------------+
+void async_advance_isr(ehci_qhd_t * const async_head)
+{
+  // TODO do we need to close addr0
+  if(async_head->is_removing) // closing control pipe of addr0
+  {
+    async_head->is_removing = 0;
+    async_head->p_qtd_list_head = async_head->p_qtd_list_tail = NULL;
+    async_head->qtd_overlay.halted = 1;
+  }
+
+  for(uint8_t relative_dev_addr=0; relative_dev_addr < TUSB_CFG_HOST_DEVICE_MAX; relative_dev_addr++)
+  {
+    // check if control endpoint is removing
+    ehci_qhd_t *p_control_qhd = &ehci_data.device[relative_dev_addr].control.qhd;
+    if( p_control_qhd->is_removing )
+    {
+      p_control_qhd->is_removing     = 0;
+      p_control_qhd->used            = 0;
+
+      // Host Controller has cleaned up its cached data for this device, set state to unplug
+      usbh_devices[relative_dev_addr+1].state = TUSB_DEVICE_STATE_UNPLUG;
+
+      for (uint8_t i=0; i<EHCI_MAX_QHD; i++) // free all qhd
+      {
+        ehci_data.device[relative_dev_addr].qhd[i].used = 0;
+        ehci_data.device[relative_dev_addr].qhd[i].is_removing = 0;
+      }
+      for (uint8_t i=0; i<EHCI_MAX_QTD; i++) // free all qtd
+      {
+        ehci_data.device[relative_dev_addr].qtd[i].used = 0;
+      }
+      // TODO free all itd & sitd
+    }
+
+//    // check if any other endpoints in pool is removing
+//    for (uint8_t i=0; i<EHCI_MAX_QHD; i++)
+//    {
+//      ehci_qhd_t *p_qhd = &ehci_data.device[relative_dev_addr].qhd[i];
+//      if (p_qhd->is_removing)
+//      {
+//        p_qhd->used        = 0;
+//        p_qhd->is_removing = 0;
+//
+//        while(p_qhd->p_qtd_list_head != NULL) // remove all TDs
+//        {
+//          p_qhd->p_qtd_list_head->used = 0; // free QTD
+//          qtd_remove_1st_from_qhd(p_qhd);
+//        }
+//      }
+//    }// end qhd list loop
+  } // end for device[] loop
+}
+
+void port_connect_status_change_isr(uint8_t hostid)
+{
+  ehci_registers_t* const regs = get_operational_register(hostid);
+
+  if (regs->portsc_bit.current_connect_status) // device plugged
+  {
+    hcd_port_reset(hostid);
+    usbh_device_plugged_isr(hostid, regs->portsc_bit.nxp_port_speed); // NXP specific port speed
+  }else // device unplugged
+  {
+    usbh_device_unplugged_isr(hostid);
+    regs->usb_cmd_bit.advacne_async = 1; // Async doorbell check EHCI 4.8.2 for operational details
+  }
+}
+
+void async_list_process_isr(ehci_qhd_t * const async_head)
+{
+  uint8_t max_loop = 0;
+  ehci_qhd_t *p_qhd = async_head;
+  do
+  {
+    if ( !p_qhd->qtd_overlay.halted )
+    {
+      // free all TDs from the head td to the first active TD
+      while(p_qhd->p_qtd_list_head != NULL && !p_qhd->p_qtd_list_head->active)
+      {
+        // TODO check halted TD
+        if (p_qhd->p_qtd_list_head->int_on_complete) // end of request
+        {
+          pipe_handle_t pipe_hdl = { .dev_addr = p_qhd->device_address };
+          if (p_qhd->endpoint_number) // if not Control, can only be Bulk
+          {
+            pipe_hdl.xfer_type = TUSB_XFER_BULK;
+            pipe_hdl.index = qhd_get_index(p_qhd);
+          }
+          usbh_isr( pipe_hdl, p_qhd->class_code, BUS_EVENT_XFER_COMPLETE); // call USBH callback
+        }
+
+        p_qhd->p_qtd_list_head->used = 0; // free QTD
+        qtd_remove_1st_from_qhd(p_qhd);
+      }
+    }
+    p_qhd = (ehci_qhd_t*) align32(p_qhd->next.address);
+    max_loop++;
+  }while(p_qhd != async_head && max_loop <= EHCI_MAX_QHD); // async list traversal, stop if loop around
+  // TODO abstract max loop guard for async
+}
+
+void period_list_process_isr(ehci_qhd_t const * const period_head)
+{
+  uint8_t max_loop = 0;
+  ehci_link_t next_item = period_head->next;
+
+  // TODO abstract max loop guard for period
+  while( !next_item.terminate && max_loop < (EHCI_MAX_QHD + EHCI_MAX_ITD + EHCI_MAX_SITD))
+  {
+    switch ( next_item.type )
+    {
+      case EHCI_QUEUE_ELEMENT_QHD:
+      {
+        ehci_qhd_t *p_qhd_int = (ehci_qhd_t *) align32(next_item.address);
+        if ( !p_qhd_int->qtd_overlay.halted )
+        {
+          // free all TDs from the head td to the first active TD
+          while(p_qhd_int->p_qtd_list_head != NULL && !p_qhd_int->p_qtd_list_head->active)
+          {
+            // TODO check halted TD
+            if (p_qhd_int->p_qtd_list_head->int_on_complete) // end of request
+            {
+              pipe_handle_t pipe_hdl = { .dev_addr = p_qhd_int->device_address };
+              if (p_qhd_int->endpoint_number) // if not Control, can only be Bulk
+              {
+                pipe_hdl.xfer_type = TUSB_XFER_INTERRUPT;
+                pipe_hdl.index = qhd_get_index(p_qhd_int);
+              }
+              usbh_isr( pipe_hdl, p_qhd_int->class_code, BUS_EVENT_XFER_COMPLETE); // call USBH callback
+            }
+
+            p_qhd_int->p_qtd_list_head->used = 0; // free QTD
+            qtd_remove_1st_from_qhd(p_qhd_int);
+          }
+        }
+        next_item = p_qhd_int->next;
+      }
+      break;
+
+      case EHCI_QUEUE_ELEMENT_ITD:
+      case EHCI_QUEUE_ELEMENT_SITD:
+      case EHCI_QUEUE_ELEMENT_FSTN:
+      default:
+        ASSERT (false, (void) 0); // TODO support hs/fs ISO
+      break;
+    }
+    max_loop++;
+  }
+
+}
+
+void xfer_error_isr(uint8_t hostid)
+{
+  //------------- async list -------------//
+  ehci_qhd_t * const async_head = get_async_head(hostid);
+  ehci_qhd_t *p_qhd = async_head;
+  do
+  {
+    // current qhd has error in transaction
+    if (p_qhd->qtd_overlay.buffer_err || p_qhd->qtd_overlay.babble_err || p_qhd->qtd_overlay.xact_err ||
+        //p_qhd->qtd_overlay.non_hs_period_missed_uframe || p_qhd->qtd_overlay.pingstate_err TODO split transaction error
+        (p_qhd->device_address != 0 && p_qhd->qtd_overlay.halted) ) // addr0 cannot be protocol STALL
+    {
+      pipe_handle_t pipe_hdl = { .dev_addr = p_qhd->device_address };
+      if (p_qhd->endpoint_number) // if not Control, can only be Bulk
+      {
+        pipe_hdl.xfer_type = TUSB_XFER_BULK;
+        pipe_hdl.index = qhd_get_index(p_qhd);
+      }
+      usbh_isr( pipe_hdl, p_qhd->class_code, BUS_EVENT_XFER_ERROR); // call USBH callback
+    }
+
+    p_qhd = (ehci_qhd_t*) align32(p_qhd->next.address);
+  }while(p_qhd != async_head); // async list traversal, stop if loop around
+
+  //------------- TODO period list -------------//
+}
+
+//------------- Host Controller Driver's Interrupt Handler -------------//
+void hcd_isr(uint8_t hostid)
+{
+  ehci_registers_t* const regs = get_operational_register(hostid);
+
+  uint32_t int_status = regs->usb_sts & regs->usb_int_enable;
+  regs->usb_sts |= int_status; // Acknowledge handled interrupt
+
+  if (int_status == 0)
+    return;
+
+  if (int_status & EHCI_INT_MASK_ERROR)
+  {
+    // TODO handle Queue Head halted
+    hal_debugger_breakpoint();
+    xfer_error_isr(hostid);
+  }
+
+  //------------- some QTD/SITD/ITD with IOC set is completed -------------//
+  if (int_status & EHCI_INT_MASK_NXP_ASYNC)
+  {
+    async_list_process_isr(get_async_head(hostid));
+  }
+
+  if (int_status & EHCI_INT_MASK_NXP_PERIODIC)
+  {
+    period_list_process_isr( get_period_head(hostid) );
+  }
+
+  if (int_status & EHCI_INT_MASK_PORT_CHANGE)
+  {
+    uint32_t port_status = regs->portsc & EHCI_PORTSC_MASK_ALL;
+
+    if (regs->portsc_bit.connect_status_change)
+    {
+      port_connect_status_change_isr(hostid);
+    }
+
+    regs->portsc |= port_status; // Acknowledge change bits in portsc
+  }
+
+  if (int_status & EHCI_INT_MASK_ASYNC_ADVANCE) // need to place after EHCI_INT_MASK_NXP_ASYNC
+  {
+    async_advance_isr( get_async_head(hostid) );
+  }
 }
 
 //--------------------------------------------------------------------+

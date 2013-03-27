@@ -25,6 +25,7 @@ int main(void)
   while (1)
   {
     tusb_task_runner();
+    keyboard_app_task();
 
     if (current_tick + 10*CFG_TICKS_PER_SECOND < system_ticks)
     {

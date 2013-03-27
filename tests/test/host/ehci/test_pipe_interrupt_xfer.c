@@ -53,30 +53,30 @@ uint8_t const hub_addr = 2;
 uint8_t const hub_port = 2;
 uint8_t dev_addr;
 uint8_t hostid;
-uint8_t xfer_data [18000]; // 18K to test buffer pointer list
+uint8_t xfer_data [100];
 uint8_t data2[100];
 
-ehci_qhd_t *async_head;
-ehci_qhd_t *p_qhd_bulk;
-pipe_handle_t pipe_hdl_bulk;
+ehci_qhd_t *period_head;
+ehci_qhd_t *p_qhd_interrupt;
+pipe_handle_t pipe_hdl_interrupt;
 
-tusb_descriptor_endpoint_t const desc_ept_bulk_in =
+tusb_descriptor_endpoint_t const desc_ept_interrupt_in =
 {
     .bLength          = sizeof(tusb_descriptor_endpoint_t),
     .bDescriptorType  = TUSB_DESC_ENDPOINT,
     .bEndpointAddress = 0x81,
-    .bmAttributes     = { .xfer = TUSB_XFER_BULK },
-    .wMaxPacketSize   = 512,
+    .bmAttributes     = { .xfer = TUSB_XFER_INTERRUPT },
+    .wMaxPacketSize   = 8,
     .bInterval        = 0
 };
 
-tusb_descriptor_endpoint_t const desc_ept_bulk_out =
+tusb_descriptor_endpoint_t const desc_ept_interupt_out =
 {
     .bLength          = sizeof(tusb_descriptor_endpoint_t),
     .bDescriptorType  = TUSB_DESC_ENDPOINT,
     .bEndpointAddress = 0x01,
-    .bmAttributes     = { .xfer = TUSB_XFER_BULK },
-    .wMaxPacketSize   = 512,
+    .bmAttributes     = { .xfer = TUSB_XFER_INTERRUPT },
+    .wMaxPacketSize   = 64,
     .bInterval        = 0
 };
 
@@ -104,13 +104,13 @@ void setUp(void)
     usbh_devices[i].speed    = TUSB_SPEED_HIGH;
   }
 
-  async_head =  get_async_head( hostid );
-  pipe_hdl_bulk = hcd_pipe_open(dev_addr, &desc_ept_bulk_in, TUSB_CLASS_MSC);
+  period_head =  get_period_head( hostid );
+  pipe_hdl_interrupt = hcd_pipe_open(dev_addr, &desc_ept_interrupt_in, TUSB_CLASS_HID);
 
-  TEST_ASSERT_EQUAL(dev_addr, pipe_hdl_bulk.dev_addr);
-  TEST_ASSERT_EQUAL(TUSB_XFER_BULK, pipe_hdl_bulk.xfer_type);
+  TEST_ASSERT_EQUAL(dev_addr, pipe_hdl_interrupt.dev_addr);
+  TEST_ASSERT_EQUAL(TUSB_XFER_INTERRUPT, pipe_hdl_interrupt.xfer_type);
 
-  p_qhd_bulk = &ehci_data.device[ dev_addr -1].qhd[ pipe_hdl_bulk.index ];
+  p_qhd_interrupt = &ehci_data.device[ dev_addr -1].qhd[ pipe_hdl_interrupt.index ];
 }
 
 void tearDown(void)
@@ -146,48 +146,34 @@ void verify_qtd(ehci_qtd_t *p_qtd, uint8_t p_data[], uint16_t length)
   }
 }
 
-void test_bulk_xfer_hs_ping_out(void)
-{
-  usbh_devices[dev_addr].speed    = TUSB_SPEED_HIGH;
-
-  pipe_handle_t pipe_hdl = hcd_pipe_open(dev_addr, &desc_ept_bulk_out, TUSB_CLASS_MSC);
-  ehci_qhd_t *p_qhd = qhd_get_from_pipe_handle(pipe_hdl);
-
-  //------------- Code Under Test -------------//
-  hcd_pipe_xfer(pipe_hdl, xfer_data, sizeof(xfer_data), true);
-
-  ehci_qtd_t* p_qtd = p_qhd->p_qtd_list_head;
-  TEST_ASSERT(p_qtd->pingstate_err);
-}
-
-void test_bulk_xfer(void)
+void test_interrupt_xfer(void)
 {
   //------------- Code Under Test -------------//
-  hcd_pipe_xfer(pipe_hdl_bulk, xfer_data, sizeof(xfer_data), true);
+  hcd_pipe_xfer(pipe_hdl_interrupt, xfer_data, sizeof(xfer_data), true);
 
-  ehci_qtd_t* p_qtd = p_qhd_bulk->p_qtd_list_head;
+  ehci_qtd_t* p_qtd = p_qhd_interrupt->p_qtd_list_head;
   TEST_ASSERT_NOT_NULL(p_qtd);
 
   verify_qtd( p_qtd, xfer_data, sizeof(xfer_data));
-  TEST_ASSERT_EQUAL_HEX(p_qhd_bulk->qtd_overlay.next.address, p_qtd);
+  TEST_ASSERT_EQUAL_HEX(p_qhd_interrupt->qtd_overlay.next.address, p_qtd);
   TEST_ASSERT_TRUE(p_qtd->next.terminate);
   TEST_ASSERT_EQUAL(EHCI_PID_IN, p_qtd->pid);
   TEST_ASSERT_TRUE(p_qtd->int_on_complete);
 }
 
-void test_bulk_xfer_double(void)
+void test_interrupt_xfer_double(void)
 {
   //------------- Code Under Test -------------//
-  hcd_pipe_xfer(pipe_hdl_bulk, xfer_data, sizeof(xfer_data), false);
-  hcd_pipe_xfer(pipe_hdl_bulk, data2, sizeof(data2), true);
+  hcd_pipe_xfer(pipe_hdl_interrupt, xfer_data, sizeof(xfer_data), false);
+  hcd_pipe_xfer(pipe_hdl_interrupt, data2, sizeof(data2), true);
 
-  ehci_qtd_t* p_head = p_qhd_bulk->p_qtd_list_head;
-  ehci_qtd_t* p_tail = p_qhd_bulk->p_qtd_list_tail;
+  ehci_qtd_t* p_head = p_qhd_interrupt->p_qtd_list_head;
+  ehci_qtd_t* p_tail = p_qhd_interrupt->p_qtd_list_tail;
 
   //------------- list head -------------//
   TEST_ASSERT_NOT_NULL(p_head);
   verify_qtd(p_head, xfer_data, sizeof(xfer_data));
-  TEST_ASSERT_EQUAL_HEX(p_qhd_bulk->qtd_overlay.next.address, p_head);
+  TEST_ASSERT_EQUAL_HEX(p_qhd_interrupt->qtd_overlay.next.address, p_head);
   TEST_ASSERT_EQUAL(EHCI_PID_IN, p_head->pid);
   TEST_ASSERT_FALSE(p_head->next.terminate);
   TEST_ASSERT_FALSE(p_head->int_on_complete);
@@ -201,22 +187,22 @@ void test_bulk_xfer_double(void)
   TEST_ASSERT_TRUE(p_tail->int_on_complete);
 }
 
-void test_bulk_xfer_complete_isr(void)
+void test_interrupt_xfer_complete_isr(void)
 {
-  hcd_pipe_xfer(pipe_hdl_bulk, xfer_data, sizeof(xfer_data), false);
-  hcd_pipe_xfer(pipe_hdl_bulk, data2, sizeof(data2), true);
+  hcd_pipe_xfer(pipe_hdl_interrupt, xfer_data, sizeof(xfer_data), false);
+  hcd_pipe_xfer(pipe_hdl_interrupt, data2, sizeof(data2), true);
 
-  ehci_qtd_t* p_head = p_qhd_bulk->p_qtd_list_head;
-  ehci_qtd_t* p_tail = p_qhd_bulk->p_qtd_list_tail;
+  ehci_qtd_t* p_head = p_qhd_interrupt->p_qtd_list_head;
+  ehci_qtd_t* p_tail = p_qhd_interrupt->p_qtd_list_tail;
 
-  usbh_isr_Expect(pipe_hdl_bulk, TUSB_CLASS_MSC, BUS_EVENT_XFER_COMPLETE);
+  usbh_isr_Expect(pipe_hdl_interrupt, TUSB_CLASS_HID, BUS_EVENT_XFER_COMPLETE);
 
   //------------- Code Under Test -------------//
   ehci_controller_run(hostid);
 
-  TEST_ASSERT_TRUE(p_qhd_bulk->qtd_overlay.next.terminate);
+  TEST_ASSERT_TRUE(p_qhd_interrupt->qtd_overlay.next.terminate);
   TEST_ASSERT_FALSE(p_head->used);
   TEST_ASSERT_FALSE(p_tail->used);
-  TEST_ASSERT_NULL(p_qhd_bulk->p_qtd_list_head);
-  TEST_ASSERT_NULL(p_qhd_bulk->p_qtd_list_tail);
+  TEST_ASSERT_NULL(p_qhd_interrupt->p_qtd_list_head);
+  TEST_ASSERT_NULL(p_qhd_interrupt->p_qtd_list_tail);
 }

@@ -55,7 +55,8 @@
  extern "C" {
 #endif
 
-
+#include "boards/board.h"
+#include "tusb.h"
 
 #ifdef __cplusplus
  }

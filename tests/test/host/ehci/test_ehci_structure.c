@@ -113,6 +113,7 @@ void test_qtd_structure(void)
 {
   TEST_ASSERT_EQUAL( 0, offsetof(ehci_qtd_t, next));
   TEST_ASSERT_EQUAL( 4, offsetof(ehci_qtd_t, alternate));
+  TEST_ASSERT_EQUAL( 5, BITFIELD_OFFSET_OF_UINT32(ehci_qtd_t, 1, used));
 
   //------------- Word 2 -------------//
   TEST_ASSERT_EQUAL( 0, BITFIELD_OFFSET_OF_UINT32(ehci_qtd_t, 2, pingstate_err) );
@@ -131,7 +132,6 @@ void test_qtd_structure(void)
   TEST_ASSERT_EQUAL( 31, BITFIELD_OFFSET_OF_UINT32(ehci_qtd_t, 2, data_toggle) );
 
   TEST_ASSERT_EQUAL( 12, offsetof(ehci_qtd_t, buffer));
-  TEST_ASSERT_EQUAL( 16, offsetof(ehci_qtd_t, used));
 }
 
 void test_qhd_structure(void)

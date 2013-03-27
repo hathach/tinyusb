@@ -72,7 +72,7 @@ bool  tusbh_hid_keyboard_is_supported(uint8_t dev_addr)
   return tusbh_device_is_configured(dev_addr) && pipehandle_is_valid(keyboard_data[dev_addr-1].pipe_hdl);
 }
 
-tusb_error_t tusbh_hid_keyboard_get_report(uint8_t dev_addr, uint8_t instance_num, tusb_keyboard_report_t * const report)
+tusb_error_t tusbh_hid_keyboard_get_report(uint8_t dev_addr, uint8_t instance_num, uint8_t * const report)
 {
   //------------- parameters validation -------------//
   ASSERT_INT(TUSB_DEVICE_STATE_CONFIGURED, tusbh_device_get_state(dev_addr), TUSB_ERROR_DEVICE_NOT_READY);
@@ -85,7 +85,7 @@ tusb_error_t tusbh_hid_keyboard_get_report(uint8_t dev_addr, uint8_t instance_nu
   ASSERT(TUSB_INTERFACE_STATUS_BUSY != p_keyboard->status, TUSB_ERROR_INTERFACE_IS_BUSY);
 
   // TODO abstract to use hidh service
-  ASSERT_STATUS( hcd_pipe_xfer(p_keyboard->pipe_hdl, (uint8_t*) report, p_keyboard->report_size, true) ) ;
+  ASSERT_STATUS( hcd_pipe_xfer(p_keyboard->pipe_hdl, report, p_keyboard->report_size, true) ) ;
 
   p_keyboard->status = TUSB_INTERFACE_STATUS_BUSY;
 

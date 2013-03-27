@@ -38,9 +38,7 @@
 //--------------------------------------------------------------------+
 // INCLUDE
 //--------------------------------------------------------------------+
-#include "tusb.h"
 #include "keyboard_app.h"
-
 //--------------------------------------------------------------------+
 // MACRO CONSTANT TYPEDEF
 //--------------------------------------------------------------------+
@@ -48,17 +46,51 @@
 //--------------------------------------------------------------------+
 // INTERNAL OBJECT & FUNCTION DECLARATION
 //--------------------------------------------------------------------+
+//TUSB_CFG_ATTR_USBRAM
+__attribute__ ((section(".data.$RAM3")))
+tusb_keyboard_report_t keyboard_report;
 
 //--------------------------------------------------------------------+
 // IMPLEMENTATION
 //--------------------------------------------------------------------+
+
+// only convert a-z (case insensitive) +  0-9
+static inline uint8_t keycode_to_ascii(uint8_t keycode) ATTR_CONST ATTR_ALWAYS_INLINE;
+static inline uint8_t keycode_to_ascii(uint8_t keycode)
+{
+  return
+      ( KEYBOARD_KEYCODE_a <= keycode && keycode <= KEYBOARD_KEYCODE_z) ? ( (keycode - KEYBOARD_KEYCODE_a) + 'a' ) :
+      ( KEYBOARD_KEYCODE_1 <= keycode && keycode < KEYBOARD_KEYCODE_0)  ? ( (keycode - KEYBOARD_KEYCODE_1) + '1' ) :
+      ( KEYBOARD_KEYCODE_0 == keycode)                                  ? '0' : 'x';
+}
+
+
 void keyboard_app_task(void)
 {
   for (uint8_t dev_addr = 1; dev_addr <= TUSB_CFG_HOST_DEVICE_MAX; dev_addr++)
   {
     if ( tusbh_hid_keyboard_is_supported(dev_addr) )
     {
+      switch (tusbh_hid_keyboard_status(dev_addr,0))
+      {
+        case TUSB_INTERFACE_STATUS_READY:
+        case TUSB_INTERFACE_STATUS_ERROR: // skip error, get next key
+          tusbh_hid_keyboard_get_report(dev_addr, 0, (uint8_t*) &keyboard_report);
+        break;
 
+        case TUSB_INTERFACE_STATUS_COMPLETE:
+          // TODO buffer in queue
+          for(uint8_t i=0; i<6; i++)
+          {
+            if ( keyboard_report.keycode[i] != 0 )
+              printf("%c", keycode_to_ascii(keyboard_report.keycode[i]));
+          }
+        break;
+
+        case TUSB_INTERFACE_STATUS_BUSY:
+        break;
+
+      }
     }
   }
 }

@@ -69,7 +69,7 @@ typedef struct {
 }hidh_keyboard_info_t;
 
 bool          tusbh_hid_keyboard_is_supported(uint8_t dev_addr) ATTR_PURE ATTR_WARN_UNUSED_RESULT;
-tusb_error_t  tusbh_hid_keyboard_get_report(uint8_t dev_addr, uint8_t instance_num, tusb_keyboard_report_t * const report) ATTR_WARN_UNUSED_RESULT;
+tusb_error_t  tusbh_hid_keyboard_get_report(uint8_t dev_addr, uint8_t instance_num, uint8_t * const report) ATTR_WARN_UNUSED_RESULT;
 tusb_interface_status_t tusbh_hid_keyboard_status(uint8_t dev_addr, uint8_t instance_num) ATTR_WARN_UNUSED_RESULT;
 
 //--------------------------------------------------------------------+
