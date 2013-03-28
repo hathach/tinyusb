@@ -57,6 +57,9 @@ void board_init(void)
 
   // USB Host Power Enable
   // USB0
+  // channel B U20 GPIO26 active low (base board), P2_3 on LPC4357
+  scu_pinmux(0x2, 3, MD_PUP | MD_EZI, FUNC7);		// USB0 VBus function
+  
   // TODO USB1
 
 #if 0

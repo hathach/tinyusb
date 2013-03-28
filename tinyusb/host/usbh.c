@@ -290,6 +290,8 @@ OSAL_TASK_DECLARE(usbh_enumeration_task)
     )
   );
 
+  hcd_port_reset( usbh_devices[0].core_id ); // reset port after 8 byte descriptor
+
   //------------- Set new address -------------//
   new_addr = get_new_address();
   TASK_ASSERT(new_addr <= TUSB_CFG_HOST_DEVICE_MAX);
@@ -316,8 +318,6 @@ OSAL_TASK_DECLARE(usbh_enumeration_task)
 
   usbh_pipe_control_close(0);
   usbh_devices[0].state = TUSB_DEVICE_STATE_UNPLUG;
-
-//  hcd_port_reset( usbh_device_info_pool[new_addr].core_id ); TODO may need to reset device after set address
 
   // open control pipe for new address
   TASK_ASSERT_STATUS ( usbh_pipe_control_open(new_addr, ((tusb_descriptor_device_t*) enum_data_buffer)->bMaxPacketSize0 ) );
@@ -380,6 +380,20 @@ OSAL_TASK_DECLARE(usbh_enumeration_task)
   // update configuration info
   usbh_devices[new_addr].interface_count = ((tusb_descriptor_configuration_t*) enum_data_buffer)->bNumInterfaces;
 
+  //------------- Set Configure -------------//
+  OSAL_SUBTASK_INVOKED_AND_WAIT (
+    usbh_control_xfer_subtask(
+        new_addr,
+        &(tusb_std_request_t)
+        {
+          .bmRequestType = { .direction = TUSB_DIR_HOST_TO_DEV, .type = TUSB_REQUEST_TYPE_STANDARD, .recipient = TUSB_REQUEST_RECIPIENT_DEVICE },
+          .bRequest = TUSB_REQUEST_SET_CONFIGURATION,
+          .wValue   = configure_selected
+        },
+        NULL
+    )
+  );
+
   //------------- parse configuration & install drivers -------------//
   p_desc = enum_data_buffer + sizeof(tusb_descriptor_configuration_t);
 
@@ -421,20 +435,6 @@ OSAL_TASK_DECLARE(usbh_enumeration_task)
       }
     }
   }
-
-  //------------- Set Configure -------------//
-  OSAL_SUBTASK_INVOKED_AND_WAIT (
-    usbh_control_xfer_subtask(
-        new_addr,
-        &(tusb_std_request_t)
-        {
-          .bmRequestType = { .direction = TUSB_DIR_HOST_TO_DEV, .type = TUSB_REQUEST_TYPE_STANDARD, .recipient = TUSB_REQUEST_RECIPIENT_DEVICE },
-          .bRequest = TUSB_REQUEST_SET_CONFIGURATION,
-          .wValue   = configure_selected
-        },
-        NULL
-    )
-  );
 
   usbh_devices[new_addr].state = TUSB_DEVICE_STATE_CONFIGURED;
   tusbh_device_mount_succeed_cb(new_addr);

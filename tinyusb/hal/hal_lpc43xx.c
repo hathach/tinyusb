@@ -41,6 +41,7 @@
 #if MCU == MCU_LPC43XX
 
 #include "lpc43xx_cgu.h"
+#include "lpc43xx_scu.h"
 
 enum {
   LPC43XX_USBMODE_DEVICE = 2,
@@ -63,6 +64,7 @@ tusb_error_t hal_init(void)
 
   //------------- reset controller & set role -------------//
   hcd_controller_reset(0); // TODO where to place prototype, USB1
+
   LPC_USB0->USBMODE_H = LPC43XX_USBMODE_HOST | (LPC43XX_USBMODE_VBUS_HIGH << 5);
 
   hal_interrupt_enable(0); // TODO USB1

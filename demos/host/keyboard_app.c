@@ -86,6 +86,7 @@ void keyboard_app_task(void)
               printf("%c", keycode_to_ascii(keyboard_report.keycode[i]));
           }
           memclr_(&keyboard_report, sizeof(tusb_keyboard_report_t)); // TODO use callback to synchronize
+          tusbh_hid_keyboard_get_report(dev_addr, 0, (uint8_t*) &keyboard_report);
         break;
 
         case TUSB_INTERFACE_STATUS_BUSY:
