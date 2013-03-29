@@ -414,6 +414,8 @@ void async_advance_isr(ehci_qhd_t * const async_head)
     async_head->is_removing = 0;
     async_head->p_qtd_list_head = async_head->p_qtd_list_tail = NULL;
     async_head->qtd_overlay.halted = 1;
+
+    usbh_devices[0].state = TUSB_DEVICE_STATE_UNPLUG;
   }
 
   for(uint8_t relative_dev_addr=0; relative_dev_addr < TUSB_CFG_HOST_DEVICE_MAX; relative_dev_addr++)
@@ -439,23 +441,6 @@ void async_advance_isr(ehci_qhd_t * const async_head)
       }
       // TODO free all itd & sitd
     }
-
-//    // check if any other endpoints in pool is removing
-//    for (uint8_t i=0; i<EHCI_MAX_QHD; i++)
-//    {
-//      ehci_qhd_t *p_qhd = &ehci_data.device[relative_dev_addr].qhd[i];
-//      if (p_qhd->is_removing)
-//      {
-//        p_qhd->used        = 0;
-//        p_qhd->is_removing = 0;
-//
-//        while(p_qhd->p_qtd_list_head != NULL) // remove all TDs
-//        {
-//          p_qhd->p_qtd_list_head->used = 0; // free QTD
-//          qtd_remove_1st_from_qhd(p_qhd);
-//        }
-//      }
-//    }// end qhd list loop
   } // end for device[] loop
 }
 

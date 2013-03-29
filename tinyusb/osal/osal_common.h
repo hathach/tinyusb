@@ -59,8 +59,8 @@
 
 enum
 {
-  OSAL_TIMEOUT_NOTIMEOUT = 0, // for use within ISR,  return immediately
-  OSAL_TIMEOUT_NORMAL = 10, // default is 10 msec
+  OSAL_TIMEOUT_NOTIMEOUT    = 0,  // for use within ISR,  return immediately
+  OSAL_TIMEOUT_NORMAL       = 10, // default is 10 msec
   OSAL_TIMEOUT_WAIT_FOREVER = 0x0EEEEEEE
 };
 

@@ -156,7 +156,7 @@ tusb_error_t control_xfer_stub(uint8_t dev_addr, const tusb_std_request_t * cons
   return TUSB_ERROR_NONE;
 }
 
-tusb_error_t hidh_install_stub(uint8_t dev_addr, uint8_t const *descriptor, uint16_t *p_length, int num_call)
+tusb_error_t hidh_install_stub(uint8_t dev_addr, tusb_descriptor_interface_t const *descriptor, uint16_t *p_length, int num_call)
 {
   *p_length = sizeof(tusb_descriptor_interface_t) + sizeof(tusb_hid_descriptor_hid_t) + sizeof(tusb_descriptor_endpoint_t);
   return TUSB_ERROR_NONE;
@@ -179,6 +179,7 @@ void test_addr0_failed_dev_desc(void)
 void test_addr0_failed_set_address(void)
 {
   osal_semaphore_wait_StubWithCallback(semaphore_wait_timeout_stub(1));
+  hcd_port_reset_Expect( usbh_devices[0].core_id );
   tusbh_device_mount_failed_cb_Expect(TUSB_ERROR_USBH_MOUNT_DEVICE_NOT_RESPOND, NULL);
 
   usbh_enumeration_task();
@@ -190,7 +191,7 @@ void test_addr0_failed_set_address(void)
 void test_enum_failed_get_full_dev_desc(void)
 {
   osal_semaphore_wait_StubWithCallback(semaphore_wait_timeout_stub(2));
-
+  hcd_port_reset_Expect( usbh_devices[0].core_id );
   hcd_pipe_control_close_ExpectAndReturn(0, TUSB_ERROR_NONE);
 
   osal_semaphore_reset_Expect( usbh_devices[0].control.sem_hdl );
@@ -198,8 +199,6 @@ void test_enum_failed_get_full_dev_desc(void)
   tusbh_device_mount_failed_cb_Expect(TUSB_ERROR_USBH_MOUNT_DEVICE_NOT_RESPOND, NULL);
 
   usbh_enumeration_task();
-
-  TEST_ASSERT_EQUAL(TUSB_DEVICE_STATE_UNPLUG, usbh_devices[0].state);
 
   TEST_ASSERT_EQUAL(TUSB_DEVICE_STATE_ADDRESSED, usbh_devices[1].state);
   TEST_ASSERT_EQUAL(TUSB_SPEED_FULL, usbh_devices[1].speed);
@@ -211,7 +210,7 @@ void test_enum_failed_get_full_dev_desc(void)
 void test_enum_failed_get_9byte_config_desc(void)
 {
   osal_semaphore_wait_StubWithCallback(semaphore_wait_timeout_stub(3));
-
+  hcd_port_reset_Expect( usbh_devices[0].core_id );
   hcd_pipe_control_close_ExpectAndReturn(0, TUSB_ERROR_NONE);
   osal_semaphore_reset_Expect( usbh_devices[0].control.sem_hdl );
   hcd_pipe_control_open_ExpectAndReturn(1, desc_device.bMaxPacketSize0, TUSB_ERROR_NONE);
@@ -228,6 +227,7 @@ void test_enum_failed_get_9byte_config_desc(void)
 void test_enum_failed_get_full_config_desc(void)
 {
   osal_semaphore_wait_StubWithCallback(semaphore_wait_timeout_stub(4));
+  hcd_port_reset_Expect( usbh_devices[0].core_id );
   hcd_pipe_control_close_ExpectAndReturn(0, TUSB_ERROR_NONE);
   osal_semaphore_reset_Expect( usbh_devices[0].control.sem_hdl );
   hcd_pipe_control_open_ExpectAndReturn(1, desc_device.bMaxPacketSize0, TUSB_ERROR_NONE);
@@ -245,23 +245,23 @@ void class_install_expect(void)
 void test_enum_parse_config_desc(void)
 {
   osal_semaphore_wait_StubWithCallback(semaphore_wait_timeout_stub(5));
+  hcd_port_reset_Expect( usbh_devices[0].core_id );
   hcd_pipe_control_close_ExpectAndReturn(0, TUSB_ERROR_NONE);
   osal_semaphore_reset_Expect( usbh_devices[0].control.sem_hdl );
   hcd_pipe_control_open_ExpectAndReturn(1, desc_device.bMaxPacketSize0, TUSB_ERROR_NONE);
   tusbh_device_attached_cb_ExpectAndReturn((tusb_descriptor_device_t*) enum_data_buffer, 1);
 
-  class_install_expect();
   tusbh_device_mount_failed_cb_Expect(TUSB_ERROR_USBH_MOUNT_DEVICE_NOT_RESPOND, NULL); // fail to set configure
 
   usbh_enumeration_task();
 
   TEST_ASSERT_EQUAL(desc_configuration.configuration.bNumInterfaces, usbh_devices[1].interface_count);
-  TEST_ASSERT_EQUAL(TUSB_CLASS_FLAG_HID, usbh_devices[1].flag_supported_class); // TODO change later
 }
 
 void test_enum_set_configure(void)
 {
   osal_semaphore_wait_StubWithCallback(semaphore_wait_timeout_stub(6));
+  hcd_port_reset_Expect( usbh_devices[0].core_id );
   hcd_pipe_control_close_ExpectAndReturn(0, TUSB_ERROR_NONE);
   osal_semaphore_reset_Expect( usbh_devices[0].control.sem_hdl );
   hcd_pipe_control_open_ExpectAndReturn(1, desc_device.bMaxPacketSize0, TUSB_ERROR_NONE);
@@ -271,4 +271,6 @@ void test_enum_set_configure(void)
   tusbh_device_mount_succeed_cb_Expect(1);
 
   usbh_enumeration_task();
+
+  TEST_ASSERT_EQUAL(TUSB_CLASS_FLAG_HID, usbh_devices[1].flag_supported_class); // TODO change later
 }

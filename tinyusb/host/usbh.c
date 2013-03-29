@@ -314,10 +314,9 @@ OSAL_TASK_DECLARE(usbh_enumeration_task)
   usbh_devices[new_addr].hub_addr = usbh_devices[0].hub_addr;
   usbh_devices[new_addr].hub_port = usbh_devices[0].hub_port;
   usbh_devices[new_addr].speed    = usbh_devices[0].speed;
-  usbh_devices[new_addr].state   = TUSB_DEVICE_STATE_ADDRESSED;
+  usbh_devices[new_addr].state    = TUSB_DEVICE_STATE_ADDRESSED;
 
   usbh_pipe_control_close(0);
-  usbh_devices[0].state = TUSB_DEVICE_STATE_UNPLUG;
 
   // open control pipe for new address
   TASK_ASSERT_STATUS ( usbh_pipe_control_open(new_addr, ((tusb_descriptor_device_t*) enum_data_buffer)->bMaxPacketSize0 ) );
