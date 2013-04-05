@@ -93,11 +93,10 @@ void test_isr_device_connect_slowspeed(void)
 
 void test_isr_device_disconnect(void)
 {
-  ehci_controller_device_unplug(hostid);
   usbh_device_unplugged_isr_Expect(hostid);
 
   //------------- Code Under Test -------------//
-  hcd_isr(hostid);
+  ehci_controller_device_unplug(hostid);
 
   TEST_ASSERT(regs->usb_cmd_bit.advacne_async);
 }

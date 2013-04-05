@@ -155,10 +155,10 @@ void ehci_controller_device_plug(uint8_t hostid, tusb_speed_t speed)
 {
   ehci_registers_t* const regs = get_operational_register(hostid);
 
-  regs->usb_sts_bit.port_change_detect = 1;
-  regs->portsc_bit.connect_status_change = 1;
+  regs->usb_sts_bit.port_change_detect    = 1;
+  regs->portsc_bit.connect_status_change  = 1;
   regs->portsc_bit.current_connect_status = 1;
-  regs->portsc_bit.nxp_port_speed = speed;
+  regs->portsc_bit.nxp_port_speed         = speed;
 
   hcd_isr(hostid);
 }
@@ -167,7 +167,9 @@ void ehci_controller_device_unplug(uint8_t hostid)
 {
   ehci_registers_t* const regs = get_operational_register(hostid);
 
-  regs->usb_sts_bit.port_change_detect = 1;
-  regs->portsc_bit.connect_status_change = 1;
+  regs->usb_sts_bit.port_change_detect    = 1;
+  regs->portsc_bit.connect_status_change  = 1;
   regs->portsc_bit.current_connect_status = 0;
+
+  hcd_isr(hostid);
 }
