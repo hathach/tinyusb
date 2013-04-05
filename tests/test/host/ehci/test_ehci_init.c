@@ -36,6 +36,7 @@
  */
 
 #include "unity.h"
+#include "type_helper.h"
 #include "tusb_option.h"
 #include "errors.h"
 #include "binary.h"
@@ -55,6 +56,7 @@ usbh_device_info_t usbh_devices[TUSB_CFG_HOST_DEVICE_MAX+1];
 void setUp(void)
 {
   ehci_controller_init();
+  hcd_init();
 }
 
 void tearDown(void)
@@ -66,20 +68,13 @@ void tearDown(void)
 //--------------------------------------------------------------------+
 void test_hcd_init_data(void)
 {
-  uint32_t random_data = 0x1234;
-  memcpy(&ehci_data, &random_data, sizeof(random_data));
-
-  hcd_init();
-
   //------------- check memory data -------------//
-  for(uint32_t i=0; i<sizeof(ehci_data.device); i++)
-    TEST_ASSERT_EQUAL_HEX8(0, ((uint8_t*) ehci_data.device)[i] );
+  TEST_ASSERT_MEM_ZERO(&ehci_data.device, sizeof(ehci_data.device));
+  TEST_ASSERT_MEM_ZERO(ehci_data.addr0_qtd, sizeof(ehci_qtd_t)*3);
 }
 
 void test_hcd_init_usbint(void)
 {
-  hcd_init();
-
   for(uint32_t i=0; i<CONTROLLER_HOST_NUMBER; i++)
   {
     ehci_registers_t* const regs = get_operational_register(i+TEST_CONTROLLER_HOST_START_INDEX);
@@ -102,8 +97,6 @@ void test_hcd_init_usbint(void)
 
 void test_hcd_init_async_list(void)
 {
-  hcd_init();
-
   for(uint32_t i=0; i<CONTROLLER_HOST_NUMBER; i++)
   {
     uint8_t hostid                = i+TEST_CONTROLLER_HOST_START_INDEX;
@@ -125,8 +118,6 @@ void test_hcd_init_async_list(void)
 void test_hcd_init_period_list(void)
 {
 #if EHCI_PERIODIC_LIST
-  hcd_init();
-
   for(uint32_t i=0; i<CONTROLLER_HOST_NUMBER; i++)
   {
     uint8_t           const hostid      = i+TEST_CONTROLLER_HOST_START_INDEX;
@@ -151,8 +142,6 @@ void test_hcd_init_period_list(void)
 
 void test_hcd_init_tt_control(void)
 {
-  hcd_init();
-
   for(uint32_t i=0; i<CONTROLLER_HOST_NUMBER; i++)
   {
     uint8_t           const hostid      = i+TEST_CONTROLLER_HOST_START_INDEX;
@@ -164,8 +153,6 @@ void test_hcd_init_tt_control(void)
 
 void test_hcd_init_usbcmd(void)
 {
-  hcd_init();
-
   for(uint32_t i=0; i<CONTROLLER_HOST_NUMBER; i++)
   {
     uint8_t           const hostid      = i+TEST_CONTROLLER_HOST_START_INDEX;
