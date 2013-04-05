@@ -1,13 +1,13 @@
 /*
- * std_request.h
+ * type_helper.h
  *
- *  Created on: Feb 1, 2013
+ *  Created on: Mar 25, 2013
  *      Author: hathach
  */
 
 /*
  * Software License Agreement (BSD License)
- * Copyright (c) 2012, hathach (tinyusb.org)
+ * Copyright (c) 2012, hathach (tinyusb.net)
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without modification,
@@ -48,30 +48,27 @@
  *  @{
  */
 
-#ifndef _TUSB_STD_REQUEST_H_
-#define _TUSB_STD_REQUEST_H_
+#ifndef _TUSB_TYPE_HELPER_H_
+#define _TUSB_TYPE_HELPER_H_
 
 #ifdef __cplusplus
  extern "C" {
 #endif
 
-typedef ATTR_PREPACKED struct ATTR_PACKED {
-  ATTR_PREPACKED struct ATTR_PACKED {
-    uint8_t recipient :  5; /**< Recipient type. */
-    uint8_t type      :  2; /**< Request type.  */
-    uint8_t direction :  1; /**< Direction type. tusb_direction_t */
-  } bmRequestType;
+#define TEST_ASSERT_PIPE_HANDLE(expected, actual)\
+    TEST_ASSERT_EQUAL(expected.dev_addr, actual.dev_addr);\
+    TEST_ASSERT_EQUAL(expected.xfer_type, actual.xfer_type);\
+    TEST_ASSERT_EQUAL(expected.index, actual.index);\
 
-  uint8_t  bRequest;
-  uint16_t wValue;
-  uint16_t wIndex;
-  uint16_t wLength;
-} tusb_std_request_t;
-
+#define TEST_ASSERT_MEM_ZERO(buffer, size)\
+  do{\
+    for (uint32_t i=0; i<size; i++)\
+      TEST_ASSERT_EQUAL_HEX8(0, ((uint8_t*)buffer)[i]);\
+  }while(0)
 #ifdef __cplusplus
  }
 #endif
 
-#endif /* _TUSB_STD_REQUEST_H_ */
+#endif /* _TUSB_TYPE_HELPER_H_ */
 
 /** @} */

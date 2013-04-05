@@ -1,7 +1,7 @@
 /*
- * test_ehci_isr.c
+ * test_hidh_keyboard.c
  *
- *  Created on: Mar 12, 2013
+ *  Created on: Apr 5, 2013
  *      Author: hathach
  */
 
@@ -34,70 +34,40 @@
  *
  * This file is part of the tiny usb stack.
  */
+#define _TINY_USB_SOURCE_FILE_
 
+#include "stdlib.h"
 #include "unity.h"
+#include "type_helper.h"
 #include "tusb_option.h"
 #include "errors.h"
-#include "binary.h"
 
-#include "hal.h"
-#include "mock_osal.h"
+#include "osal_none.h"
 #include "hcd.h"
-#include "mock_usbh_hcd.h"
-#include "ehci.h"
-#include "ehci_controller.h"
+#include "usbh.h"
+#include "tusb.h"
+#include "hid_host.h"
 
-usbh_device_info_t usbh_devices[TUSB_CFG_HOST_DEVICE_MAX+1];
+#include "descriptor_test.h"
 
+uint8_t dev_addr;
 uint8_t hostid;
-ehci_registers_t * regs;
+
 void setUp(void)
 {
-  memclr_(&lpc_usb0, sizeof(LPC_USB0_Type));
-  memclr_(&lpc_usb1, sizeof(LPC_USB1_Type));
-
+  dev_addr = RANDOM(TUSB_CFG_HOST_DEVICE_MAX)+1;
   hostid = RANDOM(CONTROLLER_HOST_NUMBER) + TEST_CONTROLLER_HOST_START_INDEX;
-  regs = get_operational_register(hostid);
 
-  hcd_init();
-  regs->usb_sts = 0; // hcd_init clear usb_sts by writing 1s
+  tusb_init();
 }
 
 void tearDown(void)
 {
 }
 
-void test_isr_device_connect_highspeed(void)
+void test_(void)
 {
-  usbh_device_plugged_isr_Expect(hostid, TUSB_SPEED_HIGH);
-
-  //------------- Code Under Test -------------//
   ehci_controller_device_plug(hostid, TUSB_SPEED_HIGH);
-}
 
-void test_isr_device_connect_fullspeed(void)
-{
-  usbh_device_plugged_isr_Expect(hostid, TUSB_SPEED_FULL);
 
-  //------------- Code Under Test -------------//
-  ehci_controller_device_plug(hostid, TUSB_SPEED_FULL);
-}
-
-void test_isr_device_connect_slowspeed(void)
-{
-  usbh_device_plugged_isr_Expect(hostid, TUSB_SPEED_LOW);
-
-  //------------- Code Under Test -------------//
-  ehci_controller_device_plug(hostid, TUSB_SPEED_LOW);
-}
-
-void test_isr_device_disconnect(void)
-{
-  ehci_controller_device_unplug(hostid);
-  usbh_device_unplugged_isr_Expect(hostid);
-
-  //------------- Code Under Test -------------//
-  hcd_isr(hostid);
-
-  TEST_ASSERT(regs->usb_cmd_bit.advacne_async);
 }

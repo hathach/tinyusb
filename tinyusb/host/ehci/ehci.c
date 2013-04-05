@@ -402,7 +402,6 @@ tusb_error_t  hcd_pipe_close(pipe_handle_t pipe_hdl)
   return TUSB_ERROR_NONE;
 }
 
-
 //--------------------------------------------------------------------+
 // EHCI Interrupt Handler
 //--------------------------------------------------------------------+
@@ -539,7 +538,6 @@ void period_list_process_isr(ehci_qhd_t const * const period_head)
     }
     max_loop++;
   }
-
 }
 
 void xfer_error_isr(uint8_t hostid)
@@ -788,7 +786,6 @@ static void qtd_init(ehci_qtd_t* p_qtd, uint32_t data_ptr, uint16_t total_bytes)
   p_qtd->total_bytes         = total_bytes;
 
   p_qtd->buffer[0]           = data_ptr;
-
   for(uint8_t i=1; i<5; i++)
   {
     p_qtd->buffer[i] |= align4k( p_qtd->buffer[i-1] ) + 4096;

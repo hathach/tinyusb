@@ -44,6 +44,8 @@
 #include "binary.h"
 #include "hal.h"
 #include "ehci.h"
+#include "usbh_hcd.h"
+
 
 //--------------------------------------------------------------------+
 // MACRO CONSTANT TYPEDEF
@@ -52,9 +54,35 @@ ehci_data_t ehci_data;
 LPC_USB0_Type lpc_usb0;
 LPC_USB1_Type lpc_usb1;
 
+extern usbh_device_info_t usbh_devices[TUSB_CFG_HOST_DEVICE_MAX+1];
+
 //--------------------------------------------------------------------+
 // IMPLEMENTATION
 //--------------------------------------------------------------------+
+void ehci_controller_control_xfer_proceed(uint8_t dev_addr, uint8_t p_data[])
+{
+  ehci_registers_t* const regs = get_operational_register( usbh_devices[dev_addr].core_id );
+  ehci_qhd_t * p_qhd = get_control_qhd(dev_addr);
+  ehci_qtd_t * p_qtd_setup = get_control_qtds(dev_addr);
+  ehci_qtd_t * p_qtd_data  = p_qtd_setup + 1;
+  ehci_qtd_t * p_qtd_status = p_qtd_setup + 2;
+
+  tusb_std_request_t const *p_request = (tusb_std_request_t *) p_qtd_setup->buffer[0];
+
+  if (p_request->wLength > 0 && p_request->bmRequestType.direction == TUSB_DIR_DEV_TO_HOST)
+  {
+    memcpy(p_qtd_data, p_data, p_request->wLength);
+  }
+
+  //------------- retire all QTDs -------------//
+  p_qtd_setup->active = p_qtd_data->active = p_qtd_status->active = 0;
+  p_qhd->qtd_overlay = *p_qtd_status;
+
+  regs->usb_sts = EHCI_INT_MASK_NXP_ASYNC | EHCI_INT_MASK_NXP_PERIODIC;
+
+  hcd_isr( usbh_devices[dev_addr].core_id );
+}
+
 bool complete_all_qtd_in_list(ehci_qhd_t *head)
 {
   ehci_qhd_t *p_qhd = head;
@@ -90,7 +118,7 @@ void ehci_controller_run(uint8_t hostid)
   complete_all_qtd_in_list((ehci_qhd_t*) regs->async_list_base);
 
   //------------- Period List -------------//
- complete_all_qtd_in_list( get_period_head(hostid) );
+  complete_all_qtd_in_list( get_period_head(hostid) );
   regs->usb_sts = EHCI_INT_MASK_NXP_ASYNC | EHCI_INT_MASK_NXP_PERIODIC;
 
   hcd_isr(hostid);
@@ -131,6 +159,8 @@ void ehci_controller_device_plug(uint8_t hostid, tusb_speed_t speed)
   regs->portsc_bit.connect_status_change = 1;
   regs->portsc_bit.current_connect_status = 1;
   regs->portsc_bit.nxp_port_speed = speed;
+
+  hcd_isr(hostid);
 }
 
 void ehci_controller_device_unplug(uint8_t hostid)
