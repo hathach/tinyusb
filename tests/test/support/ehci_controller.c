@@ -50,10 +50,10 @@
 //--------------------------------------------------------------------+
 // MACRO CONSTANT TYPEDEF
 //--------------------------------------------------------------------+
-ehci_data_t ehci_data;
 LPC_USB0_Type lpc_usb0;
 LPC_USB1_Type lpc_usb1;
 
+extern ehci_data_t ehci_data;
 extern usbh_device_info_t usbh_devices[TUSB_CFG_HOST_DEVICE_MAX+1];
 
 //--------------------------------------------------------------------+
