@@ -54,8 +54,7 @@ usbh_device_info_t usbh_devices[TUSB_CFG_HOST_DEVICE_MAX+1];
 //--------------------------------------------------------------------+
 void setUp(void)
 {
-  memclr_(&lpc_usb0, sizeof(LPC_USB0_Type));
-  memclr_(&lpc_usb1, sizeof(LPC_USB1_Type));
+  ehci_controller_init();
 }
 
 void tearDown(void)

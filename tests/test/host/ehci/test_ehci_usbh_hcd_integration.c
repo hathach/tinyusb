@@ -63,8 +63,7 @@ ehci_qhd_t *period_head;
 
 void setUp(void)
 {
-  memclr_(&lpc_usb0, sizeof(LPC_USB0_Type));
-  memclr_(&lpc_usb1, sizeof(LPC_USB1_Type));
+  ehci_controller_init();
   memclr_(usbh_devices, sizeof(usbh_device_info_t)*(TUSB_CFG_HOST_DEVICE_MAX+1));
 
   hub_addr = hub_port = 0;

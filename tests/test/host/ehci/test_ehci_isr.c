@@ -53,8 +53,7 @@ uint8_t hostid;
 ehci_registers_t * regs;
 void setUp(void)
 {
-  memclr_(&lpc_usb0, sizeof(LPC_USB0_Type));
-  memclr_(&lpc_usb1, sizeof(LPC_USB1_Type));
+  ehci_controller_init();
 
   hostid = RANDOM(CONTROLLER_HOST_NUMBER) + TEST_CONTROLLER_HOST_START_INDEX;
   regs = get_operational_register(hostid);

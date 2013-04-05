@@ -53,12 +53,17 @@
 LPC_USB0_Type lpc_usb0;
 LPC_USB1_Type lpc_usb1;
 
-extern ehci_data_t ehci_data;
 extern usbh_device_info_t usbh_devices[TUSB_CFG_HOST_DEVICE_MAX+1];
 
 //--------------------------------------------------------------------+
 // IMPLEMENTATION
 //--------------------------------------------------------------------+
+void ehci_controller_init(void)
+{
+  memclr_(&lpc_usb0, sizeof(LPC_USB0_Type));
+  memclr_(&lpc_usb1, sizeof(LPC_USB1_Type));
+}
+
 void ehci_controller_control_xfer_proceed(uint8_t dev_addr, uint8_t p_data[])
 {
   ehci_registers_t* const regs = get_operational_register( usbh_devices[dev_addr].core_id );
