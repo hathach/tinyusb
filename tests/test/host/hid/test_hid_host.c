@@ -52,7 +52,7 @@
 uint8_t dev_addr;
 pipe_handle_t pipe_hdl;
 
-extern hidh_keyboard_info_t keyboard_data[TUSB_CFG_HOST_DEVICE_MAX];
+extern hidh_interface_info_t keyboard_data[TUSB_CFG_HOST_DEVICE_MAX];
 
 tusb_descriptor_interface_t const *p_kbd_interface_desc = &desc_configuration.keyboard_interface;
 tusb_hid_descriptor_hid_t   const *p_kbh_hid_desc       = &desc_configuration.keyboard_hid;
@@ -92,5 +92,5 @@ void test_hidh_close(void)
   //------------- Code Under TEST -------------//
   hidh_close(dev_addr);
 
-  TEST_ASSERT_MEM_ZERO(&keyboard_data[dev_addr-1], sizeof(hidh_keyboard_info_t));
+  TEST_ASSERT_MEM_ZERO(&keyboard_data[dev_addr-1], sizeof(hidh_interface_info_t));
 }

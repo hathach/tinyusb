@@ -190,9 +190,11 @@ typedef enum tusb_device_state_{
 }tusb_device_state_t;
 
 typedef enum {
-  BUS_EVENT_XFER_COMPLETE,
-  BUS_EVENT_XFER_ERROR
-}tusb_bus_event_t;
+  TUSB_EVENT_XFER_COMPLETE,
+  TUSB_EVENT_XFER_ERROR,
+  TUSB_EVENT_INTERFACE_OPEN,
+  TUSB_EVENT_INTERFACE_CLOSE
+}tusb_event_t;
 
 enum {
   DESCRIPTOR_OFFSET_LENGTH = 0,

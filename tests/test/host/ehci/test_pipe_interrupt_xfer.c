@@ -194,7 +194,7 @@ void test_interrupt_xfer_complete_isr(void)
   ehci_qtd_t* p_head = p_qhd_interrupt->p_qtd_list_head;
   ehci_qtd_t* p_tail = p_qhd_interrupt->p_qtd_list_tail;
 
-  usbh_isr_Expect(pipe_hdl_interrupt, TUSB_CLASS_HID, BUS_EVENT_XFER_COMPLETE);
+  usbh_isr_Expect(pipe_hdl_interrupt, TUSB_CLASS_HID, TUSB_EVENT_XFER_COMPLETE);
 
   //------------- Code Under Test -------------//
   ehci_controller_run(hostid);

@@ -45,6 +45,8 @@
 #include "mock_hcd.h"
 #include "descriptor_test.h"
 
+extern hidh_interface_info_t mouse_data[TUSB_CFG_HOST_DEVICE_MAX];
+
 void setUp(void)
 {
 }
@@ -53,3 +55,18 @@ void tearDown(void)
 {
 
 }
+
+void test_mouse_init(void)
+{
+  hidh_init();
+
+  TEST_ASSERT_MEM_ZERO(mouse_data, sizeof(hidh_interface_info_t)*TUSB_CFG_HOST_DEVICE_MAX);
+}
+
+
+
+
+
+
+
+

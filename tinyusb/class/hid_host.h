@@ -62,12 +62,6 @@
 //--------------------------------------------------------------------+
 // KEYBOARD Public API
 //--------------------------------------------------------------------+
-typedef struct {
-  pipe_handle_t pipe_hdl;
-  uint16_t report_size;
-  volatile tusb_interface_status_t status;
-}hidh_keyboard_info_t;
-
 bool          tusbh_hid_keyboard_is_supported(uint8_t dev_addr) ATTR_PURE ATTR_WARN_UNUSED_RESULT;
 tusb_error_t  tusbh_hid_keyboard_get_report(uint8_t dev_addr, uint8_t instance_num, uint8_t * const report) ATTR_WARN_UNUSED_RESULT;
 tusb_interface_status_t tusbh_hid_keyboard_status(uint8_t dev_addr, uint8_t instance_num) ATTR_WARN_UNUSED_RESULT;
@@ -75,6 +69,9 @@ tusb_interface_status_t tusbh_hid_keyboard_status(uint8_t dev_addr, uint8_t inst
 //--------------------------------------------------------------------+
 // MOUSE Public API
 //--------------------------------------------------------------------+
+bool          tusbh_hid_mouse_is_supported(uint8_t dev_addr) ATTR_PURE ATTR_WARN_UNUSED_RESULT;
+tusb_error_t  tusbh_hid_mouse_get_report(uint8_t dev_addr, uint8_t instance_num, uint8_t * const report) ATTR_WARN_UNUSED_RESULT;
+tusb_interface_status_t tusbh_hid_mouse_status(uint8_t dev_addr, uint8_t instance_num) ATTR_WARN_UNUSED_RESULT;
 
 //--------------------------------------------------------------------+
 // GENERIC Public API
@@ -85,9 +82,15 @@ tusb_interface_status_t tusbh_hid_keyboard_status(uint8_t dev_addr, uint8_t inst
 //--------------------------------------------------------------------+
 #ifdef _TINY_USB_SOURCE_FILE_
 
+typedef struct {
+  pipe_handle_t pipe_hdl;
+  uint16_t report_size;
+  volatile tusb_interface_status_t status;
+}hidh_interface_info_t;
+
 void         hidh_init(void);
 tusb_error_t hidh_open_subtask(uint8_t dev_addr, tusb_descriptor_interface_t const *p_interface_desc, uint16_t *p_length) ATTR_WARN_UNUSED_RESULT;
-void         hidh_isr(pipe_handle_t pipe_hdl, tusb_bus_event_t event);
+void         hidh_isr(pipe_handle_t pipe_hdl, tusb_event_t event);
 void         hidh_close(uint8_t dev_addr);
 
 #endif

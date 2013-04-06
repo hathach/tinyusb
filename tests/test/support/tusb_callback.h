@@ -58,9 +58,13 @@
 #include "common/common.h"
 #include "usbh.h"
 
+//------------- core -------------//
 uint8_t      tusbh_device_attached_cb (tusb_descriptor_device_t const *p_desc_device) ATTR_WEAK ATTR_WARN_UNUSED_RESULT;
 void         tusbh_device_mount_succeed_cb (uint8_t dev_addr) ATTR_WEAK;
 void         tusbh_device_mount_failed_cb(tusb_error_t error, tusb_descriptor_device_t const *p_desc_device) ATTR_WEAK;
+
+//------------- hidh -------------//
+void tusbh_hid_keyboard_isr(uint8_t dev_addr, tusb_event_t event);
 
 #ifdef __cplusplus
  }

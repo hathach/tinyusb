@@ -187,11 +187,11 @@ tusb_interface_status_t usbh_pipe_status_get(pipe_handle_t pipe_hdl)
 // USBH-HCD ISR/Callback API
 //--------------------------------------------------------------------+
 // interrupt caused by a TD (with IOC=1) in pipe of class class_code
-void usbh_isr(pipe_handle_t pipe_hdl, uint8_t class_code, tusb_bus_event_t event)
+void usbh_isr(pipe_handle_t pipe_hdl, uint8_t class_code, tusb_event_t event)
 {
   if (class_code == 0) // Control transfer
   {
-    usbh_devices[ pipe_hdl.dev_addr ].control.pipe_status = (event == BUS_EVENT_XFER_COMPLETE) ? TUSB_INTERFACE_STATUS_COMPLETE : TUSB_INTERFACE_STATUS_ERROR;
+    usbh_devices[ pipe_hdl.dev_addr ].control.pipe_status = (event == TUSB_EVENT_XFER_COMPLETE) ? TUSB_INTERFACE_STATUS_COMPLETE : TUSB_INTERFACE_STATUS_ERROR;
     osal_semaphore_post( usbh_devices[ pipe_hdl.dev_addr ].control.sem_hdl );
   }else if (usbh_class_drivers[class_code].isr)
   {
@@ -217,9 +217,7 @@ void usbh_device_unplugged_isr(uint8_t hostid)
           !(usbh_devices[dev_addr].core_id  == hostid &&
             usbh_devices[dev_addr].hub_addr == 0 &&
             usbh_devices[dev_addr].hub_port == 0 &&
-            usbh_devices[dev_addr].state    != TUSB_DEVICE_STATE_UNPLUG
-          )
-  )
+            usbh_devices[dev_addr].state    != TUSB_DEVICE_STATE_UNPLUG ) )
   {
     dev_addr++;
   }
@@ -290,7 +288,7 @@ OSAL_TASK_DECLARE(usbh_enumeration_task)
     )
   );
 
-  hcd_port_reset( usbh_devices[0].core_id ); // reset port after 8 byte descriptor
+//  hcd_port_reset( usbh_devices[0].core_id ); // reset port after 8 byte descriptor
 
   //------------- Set new address -------------//
   new_addr = get_new_address();
@@ -317,6 +315,7 @@ OSAL_TASK_DECLARE(usbh_enumeration_task)
   usbh_devices[new_addr].state    = TUSB_DEVICE_STATE_ADDRESSED;
 
   usbh_pipe_control_close(0);
+  usbh_devices[0].state = TUSB_DEVICE_STATE_UNPLUG;
 
   // open control pipe for new address
   TASK_ASSERT_STATUS ( usbh_pipe_control_open(new_addr, ((tusb_descriptor_device_t*) enum_data_buffer)->bMaxPacketSize0 ) );

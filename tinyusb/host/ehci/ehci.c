@@ -135,11 +135,6 @@ void hcd_port_reset(uint8_t hostid)
   // NXP specific, port reset will automatically be 0 when reset sequence complete
   // there is chance device is unplugged while reset sequence is not complete
   while( regs->portsc_bit.port_reset) {}
-
-  // TODO finalize delay after reset, hack delay 100 ms, otherwise speed is detected as LOW in most cases
-  volatile uint32_t delay_us = 100000;
-  delay_us *= (SystemCoreClock / 1000000) / 3;
-  while(delay_us--);
 #endif
 }
 
@@ -457,6 +452,14 @@ void port_connect_status_change_isr(uint8_t hostid)
   if (regs->portsc_bit.current_connect_status) // device plugged
   {
     hcd_port_reset(hostid);
+
+    #ifndef _TEST_
+    // TODO finalize delay after reset, hack delay 100 ms, otherwise speed is detected as LOW in most cases
+    volatile uint32_t delay_us = 100000;
+    delay_us *= (SystemCoreClock / 1000000) / 3;
+    while(delay_us--);
+    #endif
+
     usbh_device_plugged_isr(hostid, regs->portsc_bit.nxp_port_speed); // NXP specific port speed
   }else // device unplugged
   {
@@ -485,7 +488,7 @@ void async_list_process_isr(ehci_qhd_t * const async_head)
             pipe_hdl.xfer_type = TUSB_XFER_BULK;
             pipe_hdl.index = qhd_get_index(p_qhd);
           }
-          usbh_isr( pipe_hdl, p_qhd->class_code, BUS_EVENT_XFER_COMPLETE); // call USBH callback
+          usbh_isr( pipe_hdl, p_qhd->class_code, TUSB_EVENT_XFER_COMPLETE); // call USBH callback
         }
 
         p_qhd->p_qtd_list_head->used = 0; // free QTD
@@ -525,7 +528,7 @@ void period_list_process_isr(ehci_qhd_t const * const period_head)
                 pipe_hdl.xfer_type = TUSB_XFER_INTERRUPT;
                 pipe_hdl.index = qhd_get_index(p_qhd_int);
               }
-              usbh_isr( pipe_hdl, p_qhd_int->class_code, BUS_EVENT_XFER_COMPLETE); // call USBH callback
+              usbh_isr( pipe_hdl, p_qhd_int->class_code, TUSB_EVENT_XFER_COMPLETE); // call USBH callback
             }
 
             p_qhd_int->p_qtd_list_head->used = 0; // free QTD
@@ -565,7 +568,8 @@ void xfer_error_isr(uint8_t hostid)
         pipe_hdl.xfer_type = TUSB_XFER_BULK;
         pipe_hdl.index = qhd_get_index(p_qhd);
       }
-      usbh_isr( pipe_hdl, p_qhd->class_code, BUS_EVENT_XFER_ERROR); // call USBH callback
+      hal_debugger_breakpoint();
+      usbh_isr( pipe_hdl, p_qhd->class_code, TUSB_EVENT_XFER_ERROR); // call USBH callback
     }
 
     p_qhd = (ehci_qhd_t*) align32(p_qhd->next.address);
@@ -585,10 +589,21 @@ void hcd_isr(uint8_t hostid)
   if (int_status == 0)
     return;
 
+  if (int_status & EHCI_INT_MASK_PORT_CHANGE)
+  {
+    uint32_t port_status = regs->portsc & EHCI_PORTSC_MASK_ALL;
+
+    if (regs->portsc_bit.connect_status_change)
+    {
+      port_connect_status_change_isr(hostid);
+    }
+
+    regs->portsc |= port_status; // Acknowledge change bits in portsc
+  }
+
   if (int_status & EHCI_INT_MASK_ERROR)
   {
     // TODO handle Queue Head halted
-    hal_debugger_breakpoint();
     xfer_error_isr(hostid);
   }
 
@@ -601,18 +616,6 @@ void hcd_isr(uint8_t hostid)
   if (int_status & EHCI_INT_MASK_NXP_PERIODIC)
   {
     period_list_process_isr( get_period_head(hostid) );
-  }
-
-  if (int_status & EHCI_INT_MASK_PORT_CHANGE)
-  {
-    uint32_t port_status = regs->portsc & EHCI_PORTSC_MASK_ALL;
-
-    if (regs->portsc_bit.connect_status_change)
-    {
-      port_connect_status_change_isr(hostid);
-    }
-
-    regs->portsc |= port_status; // Acknowledge change bits in portsc
   }
 
   if (int_status & EHCI_INT_MASK_ASYNC_ADVANCE) // need to place after EHCI_INT_MASK_NXP_ASYNC
