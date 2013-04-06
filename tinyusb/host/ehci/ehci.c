@@ -135,11 +135,12 @@ void hcd_port_reset(uint8_t hostid)
   // NXP specific, port reset will automatically be 0 when reset sequence complete
   // there is chance device is unplugged while reset sequence is not complete
   while( regs->portsc_bit.port_reset) {}
-#endif
+
   // TODO finalize delay after reset, hack delay 100 ms, otherwise speed is detected as LOW in most cases
   volatile uint32_t delay_us = 100000;
   delay_us *= (SystemCoreClock / 1000000) / 3;
   while(delay_us--);
+#endif
 }
 
 bool hcd_port_connect_status(uint8_t hostid)

@@ -124,6 +124,27 @@ static inline void hidh_keyboard_close(uint8_t dev_addr)
 #endif
 
 //--------------------------------------------------------------------+
+// MOUSE
+//--------------------------------------------------------------------+
+#if TUSB_CFG_HOST_HID_MOUSE
+
+//------------- Internal API -------------//
+static inline tusb_error_t hidh_mouse_open(uint8_t dev_addr, tusb_descriptor_endpoint_t const *p_endpoint_desc) ATTR_ALWAYS_INLINE;
+static inline tusb_error_t hidh_mouse_open(uint8_t dev_addr, tusb_descriptor_endpoint_t const *p_endpoint_desc)
+{
+
+  return TUSB_ERROR_NONE;
+}
+
+static inline void hidh_mouse_close(uint8_t dev_addr) ATTR_ALWAYS_INLINE;
+static inline void hidh_mouse_close(uint8_t dev_addr)
+{
+
+}
+
+#endif
+
+//--------------------------------------------------------------------+
 // CLASS-USBD API (don't require to verify parameters)
 //--------------------------------------------------------------------+
 void hidh_init(void)
@@ -133,7 +154,7 @@ void hidh_init(void)
 #endif
 
 #if TUSB_CFG_HOST_HID_MOUSE
-  hidh_mouse_init();
+//  hidh_mouse_init();
 #endif
 
 #if TUSB_CFG_HOST_HID_GENERIC
@@ -169,7 +190,7 @@ tusb_error_t hidh_open_subtask(uint8_t dev_addr, tusb_descriptor_interface_t con
 
       #if TUSB_CFG_HOST_HID_MOUSE
       case HID_PROTOCOL_MOUSE:
-        ASSERT_STATUS ( hidh_keyboard_open(dev_addr, p_desc, p_length) );
+        ASSERT_STATUS ( hidh_mouse_open(dev_addr, (tusb_descriptor_endpoint_t const *) p_desc) );
       break;
       #endif
 

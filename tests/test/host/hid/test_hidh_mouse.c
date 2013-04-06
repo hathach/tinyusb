@@ -45,4 +45,11 @@
 #include "mock_hcd.h"
 #include "descriptor_test.h"
 
+void setUp(void)
+{
+}
 
+void tearDown(void)
+{
+
+}
