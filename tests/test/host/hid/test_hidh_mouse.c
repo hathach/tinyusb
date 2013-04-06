@@ -1,7 +1,7 @@
 /*
- * test_ehci_isr.c
+ * test_hidh_mouse.c
  *
- *  Created on: Mar 12, 2013
+ *  Created on: Apr 6, 2013
  *      Author: hathach
  */
 
@@ -35,67 +35,14 @@
  * This file is part of the tiny usb stack.
  */
 
+#include "stdlib.h"
 #include "unity.h"
-#include "tusb_option.h"
+#include "type_helper.h"
 #include "errors.h"
-#include "binary.h"
-
-#include "hal.h"
+#include "hid_host.h"
 #include "mock_osal.h"
-#include "hcd.h"
-#include "mock_usbh_hcd.h"
-#include "ehci.h"
-#include "ehci_controller.h"
+#include "mock_usbh.h"
+#include "mock_hcd.h"
+#include "descriptor_test.h"
 
-usbh_device_info_t usbh_devices[TUSB_CFG_HOST_DEVICE_MAX+1];
 
-uint8_t hostid;
-ehci_registers_t * regs;
-
-void setUp(void)
-{
-  ehci_controller_init();
-
-  hostid = RANDOM(CONTROLLER_HOST_NUMBER) + TEST_CONTROLLER_HOST_START_INDEX;
-  regs = get_operational_register(hostid);
-
-  hcd_init();
-}
-
-void tearDown(void)
-{
-}
-
-void test_isr_device_connect_highspeed(void)
-{
-  usbh_device_plugged_isr_Expect(hostid, TUSB_SPEED_HIGH);
-
-  //------------- Code Under Test -------------//
-  ehci_controller_device_plug(hostid, TUSB_SPEED_HIGH);
-}
-
-void test_isr_device_connect_fullspeed(void)
-{
-  usbh_device_plugged_isr_Expect(hostid, TUSB_SPEED_FULL);
-
-  //------------- Code Under Test -------------//
-  ehci_controller_device_plug(hostid, TUSB_SPEED_FULL);
-}
-
-void test_isr_device_connect_slowspeed(void)
-{
-  usbh_device_plugged_isr_Expect(hostid, TUSB_SPEED_LOW);
-
-  //------------- Code Under Test -------------//
-  ehci_controller_device_plug(hostid, TUSB_SPEED_LOW);
-}
-
-void test_isr_device_disconnect(void)
-{
-  usbh_device_unplugged_isr_Expect(hostid);
-
-  //------------- Code Under Test -------------//
-  ehci_controller_device_unplug(hostid);
-
-  TEST_ASSERT(regs->usb_cmd_bit.advacne_async);
-}

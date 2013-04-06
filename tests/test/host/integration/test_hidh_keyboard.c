@@ -34,7 +34,6 @@
  *
  * This file is part of the tiny usb stack.
  */
-#define _TINY_USB_SOURCE_FILE_
 
 #include "stdlib.h"
 #include "unity.h"
@@ -42,7 +41,7 @@
 #include "tusb_option.h"
 #include "errors.h"
 
-#include "osal_none.h"
+#include "mock_osal.h"
 #include "hcd.h"
 #include "usbh.h"
 #include "tusb.h"
@@ -58,16 +57,74 @@ void setUp(void)
   dev_addr = RANDOM(TUSB_CFG_HOST_DEVICE_MAX)+1;
   hostid = RANDOM(CONTROLLER_HOST_NUMBER) + TEST_CONTROLLER_HOST_START_INDEX;
 
+  ehci_controller_init();
   tusb_init();
+
 }
 
 void tearDown(void)
 {
 }
-
-void test_(void)
-{
-  ehci_controller_device_plug(hostid, TUSB_SPEED_HIGH);
-
-
-}
+//
+//osal_semaphore_handle_t sem_create_stub(osal_semaphore_t * const sem, int num_call)
+//{
+//  (*p_sem) = 0;
+//  return (osal_semaphore_handle_t) p_sem;
+//}
+//void sem_wait_stub(osal_semaphore_handle_t const sem_hdl, uint32_t msec, tusb_error_t *p_error, int num_call)
+//{
+//
+//}
+//tusb_error_t sem_post_stub(osal_semaphore_handle_t const sem_hdl, int num_call)
+//{
+//  (*sem_hdl)++;
+//
+//  return TUSB_ERROR_NONE;
+//}
+//void sem_reset_stub(osal_semaphore_handle_t const sem_hdl, int num_call)
+//{
+//  (*sem_hdl) = 0;
+//}
+//
+//osal_queue_handle_t  queue_create_stub  (osal_queue_t *p_queue, int num_call)
+//{
+//  p_queue->count = p_queue->wr_idx = p_queue->rd_idx = 0;
+//  return (osal_queue_handle_t) p_queue;
+//}
+//void                 queue_receive_stub (osal_queue_handle_t const queue_hdl, uint32_t *p_data, uint32_t msec, tusb_error_t *p_error, int num_call)
+//{
+//
+//}
+//tusb_error_t         queue_send_stub    (osal_queue_handle_t const queue_hdl, uint32_t data, int num_call)
+//{
+//  //TODO mutex lock hal_interrupt_disable
+//
+//  queue_hdl->buffer[queue_hdl->wr_idx] = data;
+//  queue_hdl->wr_idx = (queue_hdl->wr_idx + 1) % queue_hdl->depth;
+//
+//  if (queue_hdl->depth == queue_hdl->count) // queue is full, 1st rd is overwritten
+//  {
+//    queue_hdl->rd_idx = queue_hdl->wr_idx; // keep full state
+//  }else
+//  {
+//    queue_hdl->count++;
+//  }
+//
+//  //TODO mutex unlock hal_interrupt_enable
+//
+//  return TUSB_ERROR_NONE;
+//}
+//void queue_flush_stub(osal_queue_handle_t const queue_hdl, int num_call)
+//{
+//  queue_hdl->count = queue_hdl->rd_idx = queue_hdl->wr_idx = 0;
+//}
+//
+//void test_(void)
+//{
+//  ehci_controller_device_plug(hostid, TUSB_SPEED_HIGH);
+//
+//  tusb_task_runner(); // get 8-byte descriptor
+//  ehci_controller_control_xfer_proceed(0, &desc_device);
+//
+//  tusb_task_runner(); // get 8-byte descriptor
+//}

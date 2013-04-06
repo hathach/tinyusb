@@ -136,6 +136,10 @@ void hcd_port_reset(uint8_t hostid)
   // there is chance device is unplugged while reset sequence is not complete
   while( regs->portsc_bit.port_reset) {}
 #endif
+  // TODO finalize delay after reset, hack delay 100 ms, otherwise speed is detected as LOW in most cases
+  volatile uint32_t delay_us = 100000;
+  delay_us *= (SystemCoreClock / 1000000) / 3;
+  while(delay_us--);
 }
 
 bool hcd_port_connect_status(uint8_t hostid)
@@ -153,7 +157,9 @@ static tusb_error_t hcd_controller_init(uint8_t hostid)
   //------------- CTRLDSSEGMENT Register (skip) -------------//
   //------------- USB INT Register -------------//
   regs->usb_int_enable = 0;                 // 1. disable all the interrupt
+#ifndef _TEST_ // the fake controller does not have write-to-clear behavior
   regs->usb_sts        = EHCI_INT_MASK_ALL; // 2. clear all status
+#endif
   regs->usb_int_enable = EHCI_INT_MASK_ERROR | EHCI_INT_MASK_PORT_CHANGE |
 #if EHCI_PERIODIC_LIST
                          EHCI_INT_MASK_NXP_PERIODIC |

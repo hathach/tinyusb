@@ -67,8 +67,8 @@ static inline void osal_tick_tock(void)
   osal_tick_current++;
 }
 
-static inline uint32_t osal_tick_get(void) ATTR_ALWAYS_INLINE;
-static inline uint32_t osal_tick_get(void)
+static inline volatile uint32_t osal_tick_get(void) ATTR_ALWAYS_INLINE;
+static inline volatile uint32_t osal_tick_get(void)
 {
   return osal_tick_current;
 }

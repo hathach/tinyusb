@@ -55,12 +55,10 @@ void board_init(void)
 
   SysTick_Config(CGU_GetPCLKFrequency(CGU_PERIPHERAL_M4CORE) / CFG_TICKS_PER_SECOND); // 1 msec tick timer
 
-  // USB Host Power Enable
-  // USB0
-  // channel B U20 GPIO26 active low (base board), P2_3 on LPC4357
-  scu_pinmux(0x2, 3, MD_PUP | MD_EZI, FUNC7);		// USB0 VBus function
+  // USB0 Power: EA4357 channel B U20 GPIO26 active low (base board), P2_3 on LPC4357
+  scu_pinmux(0x2, 3, MD_PUP | MD_EZI, FUNC7);		// USB0 VBus Power
   
-  // TODO USB1
+  // USB1 Power: EA4357 channel A U20 is enabled by SJ5 connected to pad 1-2, no more action required
 
 #if 0
   // Leds Init
