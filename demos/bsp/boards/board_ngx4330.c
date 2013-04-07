@@ -57,26 +57,26 @@ const static struct {
 
 void board_init(void)
 {
+  SystemInit();
   CGU_Init();
 	SysTick_Config( CGU_GetPCLKFrequency(CGU_PERIPHERAL_M4CORE)/CFG_TICKS_PER_SECOND );	/* 1 ms Timer */
 
-	// USB Pin init
-	/* Turn on 5V USB VBUS TODO Should be Host-only */
-	scu_pinmux(0x2, 6, MD_PUP | MD_EZI, FUNC4);				// P2_6 USB1_PWR_EN, USB1 VBus function
-	scu_pinmux(0x2, 5, MD_PLN | MD_EZI | MD_ZI, FUNC2);		// P2_5 USB1_VBUS, MUST CONFIGURE THIS SIGNAL FOR USB1 NORMAL OPERATION
+	//------------- USB Bus power HOST ONLY-------------//
+	scu_pinmux(0x1, 7, MD_PUP | MD_EZI, FUNC4);	// P1_7 USB0_PWR_EN, USB0 VBus function Xplorer
 
-	/* Turn on 5V USB VBUS TODO Should be Host-only */
-	scu_pinmux(0x1, 7, MD_PUP | MD_EZI, FUNC4);				// P1_7 USB0_PWR_EN, USB0 VBus function Xplorer
+	scu_pinmux(0x2, 6, MD_PUP | MD_EZI, FUNC4); // P2_6 is configured as GPIO5[6] for USB1_PWR_EN
+	GPIO_SetDir   (5, BIT_(6), 1);              // GPIO5[6] is output
+	GPIO_SetValue (5, BIT_(6));                 // GPIO5[6] output high
 
 	// Leds Init
-	uint8_t i;
-	for (i=0; i<BOARD_MAX_LEDS; i++)
+	for (uint8_t i=0; i<BOARD_MAX_LEDS; i++)
 	{
 	  scu_pinmux(leds[i].port, leds[i].pin, MD_PUP|MD_EZI|MD_ZI, FUNC0);
 	  GPIO_SetDir(leds[i].port, BIT_(leds[i].pin), 1); // output
 	}
 
-	// UART init
+#if CFG_UART_ENABLE
+	//------------- UART init -------------//
 	UART_CFG_Type UARTConfigStruct;
 
 	scu_pinmux(0x6 ,4, MD_PDN|MD_EZI, FUNC2); 	// UART0_TXD
@@ -87,12 +87,13 @@ void board_init(void)
 
 	UART_Init((LPC_USARTn_Type*) LPC_USART0, &UARTConfigStruct); // Initialize UART port
 	UART_TxCmd((LPC_USARTn_Type*) LPC_USART0, ENABLE);           // Enable UART
+#endif
+
 }
 
 void board_leds(uint32_t mask, uint32_t state)
 {
-  uint8_t i;
-  for(i=0; i<BOARD_MAX_LEDS; i++)
+  for(uint8_t i=0; i<BOARD_MAX_LEDS; i++)
   {
     if ( mask & BIT_(i) )
     {
@@ -103,12 +104,12 @@ void board_leds(uint32_t mask, uint32_t state)
 
 uint32_t board_uart_send(uint8_t *p_buffer, uint32_t length)
 {
-  return UART_Send((LPC_USARTn_Type*) LPC_UART1, p_buffer, length, BLOCKING);
+  return UART_Send((LPC_USARTn_Type*) LPC_USART0, p_buffer, length, BLOCKING);
 }
 
 uint32_t board_uart_recv(uint8_t *p_buffer, uint32_t length)
 {
-  return UART_Receive((LPC_USARTn_Type*) LPC_UART1, p_buffer, length, BLOCKING);
+  return UART_Receive((LPC_USARTn_Type*) LPC_USART0, p_buffer, length, BLOCKING);
 }
 
 #endif

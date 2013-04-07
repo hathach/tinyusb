@@ -62,8 +62,7 @@ void board_init(void)
 
 #if 0
   // Leds Init
-	uint8_t i;
-	for (i=0; i<CFG_LED_NUMBER; i++)
+	for (uint8_t i=0; i<CFG_LED_NUMBER; i++)
 	{
 	  scu_pinmux(leds[i].port, leds[i].pin, MD_PUP|MD_EZI|MD_ZI, 0); // MD_PDN
 	  GPIO_SetDir(leds[i].port, BIT_(leds[i].pin), 1); // output
@@ -71,7 +70,7 @@ void board_init(void)
 #endif
 
 #if CFG_UART_ENABLE
-  // pinsel for UART
+  //------------- UART init -------------//
 	scu_pinmux(0xF ,10 , MD_PDN, FUNC1); 	              // PF.10 : UART0_TXD
 	scu_pinmux(0xF ,11 , MD_PLN|MD_EZI|MD_ZI, FUNC1); 	// PF.11 : UART0_RXD
 

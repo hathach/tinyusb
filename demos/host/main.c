@@ -28,11 +28,17 @@ int main(void)
     keyboard_app_task();
     mouse_app_task();
 
-    if (current_tick + 10*CFG_TICKS_PER_SECOND < system_ticks)
+    if (current_tick + CFG_TICKS_PER_SECOND < system_ticks)
     {
-      current_tick = system_ticks;
-//      board_leds(0x01, (current_tick/CFG_TICKS_PER_SECOND)%2); /* Toggle LED once per second */
-      printf("tinyusb: " __DATE__ "\t" __TIME__ "\n"); // toggle leds on EA4357 is quite troublesome
+      static uint8_t timeout_10_ms = 0;
+      timeout_10_ms = (timeout_10_ms+1) % 10;
+      if (timeout_10_ms % 10 == 0)
+      {
+        printf("tinyusb: " __DATE__ "\t" __TIME__ "\n"); // toggle leds on EA4357 is quite troublesome
+      }
+
+      current_tick += CFG_TICKS_PER_SECOND;
+      board_leds(0x01, (current_tick/CFG_TICKS_PER_SECOND)%2); /* Toggle LED once per second */
     }
   }
 
