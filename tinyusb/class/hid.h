@@ -90,12 +90,12 @@ typedef ATTR_PREPACKED struct ATTR_PACKED {
  *
  *  Type define for a standard Boot Protocol Mouse report
  */
-typedef ATTR_PREPACKED struct
+typedef ATTR_PACKED_STRUCT(struct)
 {
   uint8_t buttons; /**< buttons mask for currently pressed buttons in the mouse. */
   int8_t  x; /**< Current delta x movement of the mouse. */
   int8_t  y; /**< Current delta y movement on the mouse. */
-} ATTR_PACKED tusb_mouse_report_t;
+} tusb_mouse_report_t;
 
 /**
  *  \brief Standard HID Boot Protocol Keyboard Report.

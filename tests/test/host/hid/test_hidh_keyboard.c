@@ -60,8 +60,9 @@ tusb_keyboard_report_t sample_key[2] =
 };
 
 uint8_t dev_addr;
-tusb_keyboard_report_t report;
 hidh_interface_info_t *p_hidh_kbd;
+
+tusb_keyboard_report_t report;
 
 tusb_descriptor_interface_t const *p_kbd_interface_desc = &desc_configuration.keyboard_interface;
 tusb_descriptor_endpoint_t  const *p_kdb_endpoint_desc  = &desc_configuration.keyboard_endpoint;

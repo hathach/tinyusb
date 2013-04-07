@@ -46,9 +46,23 @@
 #include "descriptor_test.h"
 
 extern hidh_interface_info_t mouse_data[TUSB_CFG_HOST_DEVICE_MAX];
+hidh_interface_info_t *p_hidh_mouse;
+uint8_t dev_addr;
 
 void setUp(void)
 {
+  hidh_init();
+
+  dev_addr = RANDOM(TUSB_CFG_HOST_DEVICE_MAX)+1;
+
+  p_hidh_mouse = &mouse_data[dev_addr-1];
+
+  p_hidh_mouse->report_size = sizeof(tusb_mouse_report_t);
+  p_hidh_mouse->pipe_hdl = (pipe_handle_t) {
+    .dev_addr  = dev_addr,
+    .xfer_type = TUSB_XFER_INTERRUPT,
+    .index     = 1
+  };
 }
 
 void tearDown(void)
@@ -63,7 +77,24 @@ void test_mouse_init(void)
   TEST_ASSERT_MEM_ZERO(mouse_data, sizeof(hidh_interface_info_t)*TUSB_CFG_HOST_DEVICE_MAX);
 }
 
+void test_mouse_is_supported_fail_unplug(void)
+{
+  tusbh_device_get_state_IgnoreAndReturn(TUSB_DEVICE_STATE_UNPLUG);
+  TEST_ASSERT_FALSE( tusbh_hid_mouse_is_supported(dev_addr) );
+}
 
+void test_mouse_is_supported_fail_not_opened(void)
+{
+  hidh_init();
+  tusbh_device_get_state_IgnoreAndReturn(TUSB_DEVICE_STATE_CONFIGURED);
+  TEST_ASSERT_FALSE( tusbh_hid_mouse_is_supported(dev_addr) );
+}
+
+void test_mouse_is_supported_ok(void)
+{
+  tusbh_device_get_state_IgnoreAndReturn(TUSB_DEVICE_STATE_CONFIGURED);
+  TEST_ASSERT_TRUE( tusbh_hid_mouse_is_supported(dev_addr) );
+}
 
 
 
