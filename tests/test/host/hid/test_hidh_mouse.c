@@ -47,6 +47,10 @@
 
 extern hidh_interface_info_t mouse_data[TUSB_CFG_HOST_DEVICE_MAX];
 hidh_interface_info_t *p_hidh_mouse;
+
+tusb_descriptor_interface_t const *p_mouse_interface_desc = &desc_configuration.mouse_interface;
+tusb_descriptor_endpoint_t  const *p_mouse_endpoint_desc  = &desc_configuration.mouse_endpoint;
+
 uint8_t dev_addr;
 
 void setUp(void)
@@ -77,6 +81,7 @@ void test_mouse_init(void)
   TEST_ASSERT_MEM_ZERO(mouse_data, sizeof(hidh_interface_info_t)*TUSB_CFG_HOST_DEVICE_MAX);
 }
 
+//------------- is supported -------------//
 void test_mouse_is_supported_fail_unplug(void)
 {
   tusbh_device_get_state_IgnoreAndReturn(TUSB_DEVICE_STATE_UNPLUG);
@@ -96,8 +101,28 @@ void test_mouse_is_supported_ok(void)
   TEST_ASSERT_TRUE( tusbh_hid_mouse_is_supported(dev_addr) );
 }
 
+void test_mouse_open_ok(void)
+{
+  uint16_t length=0;
+  pipe_handle_t pipe_hdl = {.dev_addr = dev_addr, .xfer_type = TUSB_XFER_INTERRUPT, .index = 2};
 
+  hidh_init();
 
+  hcd_pipe_open_ExpectAndReturn(dev_addr, p_mouse_endpoint_desc, TUSB_CLASS_HID, pipe_hdl);
+
+  //------------- Code Under TEST -------------//
+  TEST_ASSERT_EQUAL(TUSB_ERROR_NONE, hidh_open_subtask(dev_addr, p_mouse_interface_desc, &length));
+
+  TEST_ASSERT_PIPE_HANDLE(pipe_hdl, p_hidh_mouse->pipe_hdl);
+  TEST_ASSERT_EQUAL(8, p_hidh_mouse->report_size);
+  TEST_ASSERT_EQUAL(sizeof(tusb_descriptor_interface_t) + sizeof(tusb_hid_descriptor_hid_t) + sizeof(tusb_descriptor_endpoint_t),
+                    length);
+
+  tusbh_device_get_state_IgnoreAndReturn(TUSB_DEVICE_STATE_CONFIGURED);
+  TEST_ASSERT_TRUE( tusbh_hid_keyboard_is_supported(dev_addr) );
+  TEST_ASSERT_EQUAL(TUSB_INTERFACE_STATUS_READY, p_hidh_mouse->status);
+
+}
 
 
 

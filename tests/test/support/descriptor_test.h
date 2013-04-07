@@ -81,19 +81,15 @@ typedef struct
   tusb_descriptor_endpoint_t                     CDC_DataInEndpoint;
 #endif
 
-#if 1 // || TUSB_CFG_DEVICE_HID_KEYBOARD
-  //Keyboard HID Interface
+  //------------- HID Keyboard -------------//
   tusb_descriptor_interface_t                    keyboard_interface;
   tusb_hid_descriptor_hid_t                      keyboard_hid;
   tusb_descriptor_endpoint_t                     keyboard_endpoint;
-#endif
 
-#if 0 // && TUSB_CFG_DEVICE_HID_MOUSE
-  //Mouse HID Interface
-  tusb_descriptor_interface_t                    HID_MouseInterface;
-  HID_DESCRIPTOR                              HID_MouseHID;
-  tusb_descriptor_endpoint_t                     HID_MouseEndpoint;
-#endif
+  //------------- HID Mouse -------------//
+  tusb_descriptor_interface_t                    mouse_interface;
+  tusb_hid_descriptor_hid_t                      mouse_hid;
+  tusb_descriptor_endpoint_t                     mouse_endpoint;
 
   unsigned char                               ConfigDescTermination;
 } app_configuration_desc_t;

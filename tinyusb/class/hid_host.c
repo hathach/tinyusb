@@ -53,6 +53,19 @@
 //--------------------------------------------------------------------+
 // INTERNAL OBJECT & FUNCTION DECLARATION
 //--------------------------------------------------------------------+
+tusb_interface_status_t hidh_interface_status(uint8_t dev_addr, hidh_interface_info_t *p_hid) ATTR_PURE ATTR_ALWAYS_INLINE;
+tusb_interface_status_t hidh_interface_status(uint8_t dev_addr, hidh_interface_info_t *p_hid)
+{
+  switch( tusbh_device_get_state(dev_addr) )
+  {
+    case TUSB_DEVICE_STATE_UNPLUG:
+    case TUSB_DEVICE_STATE_INVALID_PARAMETER:
+      return TUSB_INTERFACE_STATUS_INVALID_PARA;
+
+    default:
+      return p_hid->status;
+  }
+}
 
 //--------------------------------------------------------------------+
 // KEYBOARD
@@ -94,15 +107,7 @@ tusb_error_t tusbh_hid_keyboard_get_report(uint8_t dev_addr, uint8_t instance_nu
 
 tusb_interface_status_t tusbh_hid_keyboard_status(uint8_t dev_addr, uint8_t instance_num)
 {
-  switch( tusbh_device_get_state(dev_addr) )
-  {
-    case TUSB_DEVICE_STATE_UNPLUG:
-    case TUSB_DEVICE_STATE_INVALID_PARAMETER:
-      return TUSB_INTERFACE_STATUS_INVALID_PARA;
-
-    default:
-      return keyboard_data[dev_addr-1].status;
-  }
+  return hidh_interface_status(dev_addr, &keyboard_data[dev_addr-1]);
 }
 //------------- Internal API -------------//
 static inline tusb_error_t hidh_keyboard_open(uint8_t dev_addr, tusb_descriptor_endpoint_t const *p_endpoint_desc) ATTR_ALWAYS_INLINE;
@@ -160,6 +165,8 @@ tusb_interface_status_t tusbh_hid_mouse_status(uint8_t dev_addr, uint8_t instanc
     default:
       return mouse_data[dev_addr-1].status;
   }*/
+
+  return TUSB_INTERFACE_STATUS_INVALID_PARA;
 }
 
 //------------- Internal API -------------//

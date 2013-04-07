@@ -192,12 +192,12 @@ enum USB_HID_LOCAL_CODE
 //--------------------------------------------------------------------+
 //------------- ITEM & TAG -------------//
 #define HID_REPORT_DATA_0(data)
-#define HID_REPORT_DATA_1(data) data
-#define HID_REPORT_DATA_2(data) U16_TO_U8S_LE(data)
-#define HID_REPORT_DATA_3(data) U32_TO_U8S_LE(data)
+#define HID_REPORT_DATA_1(data) , data
+#define HID_REPORT_DATA_2(data) , U16_TO_U8S_LE(data)
+#define HID_REPORT_DATA_3(data) , U32_TO_U8S_LE(data)
 
 #define HID_REPORT_ITEM(data, tag, type, size) \
-  ( (tag << 4) | (type << 2) | size), HID_REPORT_DATA_##size(data)
+  ((tag << 4) | (type << 2) | size) HID_REPORT_DATA_##size(data)
 
 #define RI_TYPE_MAIN   0
 #define RI_TYPE_GLOBAL 1
