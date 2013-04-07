@@ -51,7 +51,7 @@
 //--------------------------------------------------------------------+
 
 //--------------------------------------------------------------------+
-// INTERNAL OBJECT & FUNCTION DECLARATION
+// HID Interface common functions
 //--------------------------------------------------------------------+
 tusb_interface_status_t hidh_interface_status(uint8_t dev_addr, hidh_interface_info_t *p_hid) ATTR_PURE ATTR_ALWAYS_INLINE;
 tusb_interface_status_t hidh_interface_status(uint8_t dev_addr, hidh_interface_info_t *p_hid)
@@ -89,6 +89,23 @@ static inline void hidh_interface_close(uint8_t dev_addr, hidh_interface_info_t 
   }
 }
 
+// called from public API need to validate parameters
+tusb_error_t hidh_interface_get_report(uint8_t dev_addr, uint8_t * const report, hidh_interface_info_t *p_hid) ATTR_ALWAYS_INLINE;
+tusb_error_t hidh_interface_get_report(uint8_t dev_addr, uint8_t * const report, hidh_interface_info_t *p_hid)
+{
+  //------------- parameters validation -------------//
+  ASSERT_INT(TUSB_DEVICE_STATE_CONFIGURED, tusbh_device_get_state(dev_addr), TUSB_ERROR_DEVICE_NOT_READY);
+  ASSERT_PTR(report, TUSB_ERROR_INVALID_PARA);
+  ASSERT(TUSB_INTERFACE_STATUS_BUSY != p_hid->status, TUSB_ERROR_INTERFACE_IS_BUSY);
+
+  // TODO abstract to use hidh service
+  ASSERT_STATUS( hcd_pipe_xfer(p_hid->pipe_hdl, report, p_hid->report_size, true) ) ;
+
+  p_hid->status = TUSB_INTERFACE_STATUS_BUSY;
+
+  return TUSB_ERROR_NONE;
+}
+
 //--------------------------------------------------------------------+
 // KEYBOARD
 //--------------------------------------------------------------------+
@@ -96,11 +113,6 @@ static inline void hidh_interface_close(uint8_t dev_addr, hidh_interface_info_t 
 
 STATIC_ hidh_interface_info_t keyboard_data[TUSB_CFG_HOST_DEVICE_MAX]; // does not have addr0, index = dev_address-1
 
-static inline hidh_interface_info_t* get_kbd_data(uint8_t dev_addr) ATTR_PURE ATTR_ALWAYS_INLINE ATTR_WARN_UNUSED_RESULT;
-static inline hidh_interface_info_t* get_kbd_data(uint8_t dev_addr)
-{
-  return &keyboard_data[dev_addr-1];
-}
 //------------- KEYBOARD PUBLIC API (parameter validation required) -------------//
 bool  tusbh_hid_keyboard_is_supported(uint8_t dev_addr)
 {
@@ -109,22 +121,8 @@ bool  tusbh_hid_keyboard_is_supported(uint8_t dev_addr)
 
 tusb_error_t tusbh_hid_keyboard_get_report(uint8_t dev_addr, uint8_t instance_num, uint8_t * const report)
 {
-  //------------- parameters validation -------------//
-  ASSERT_INT(TUSB_DEVICE_STATE_CONFIGURED, tusbh_device_get_state(dev_addr), TUSB_ERROR_DEVICE_NOT_READY);
-  ASSERT_PTR(report, TUSB_ERROR_INVALID_PARA);
-
   (void) instance_num;
-
-  hidh_interface_info_t *p_keyboard = get_kbd_data(dev_addr);
-
-  ASSERT(TUSB_INTERFACE_STATUS_BUSY != p_keyboard->status, TUSB_ERROR_INTERFACE_IS_BUSY);
-
-  // TODO abstract to use hidh service
-  ASSERT_STATUS( hcd_pipe_xfer(p_keyboard->pipe_hdl, report, p_keyboard->report_size, true) ) ;
-
-  p_keyboard->status = TUSB_INTERFACE_STATUS_BUSY;
-
-  return TUSB_ERROR_NONE;
+  return hidh_interface_get_report(dev_addr, report, &keyboard_data[dev_addr-1]);
 }
 
 tusb_interface_status_t tusbh_hid_keyboard_status(uint8_t dev_addr, uint8_t instance_num)
@@ -149,22 +147,8 @@ bool tusbh_hid_mouse_is_supported(uint8_t dev_addr)
 
 tusb_error_t tusbh_hid_mouse_get_report(uint8_t dev_addr, uint8_t instance_num, uint8_t * const report)
 {
-  //------------- parameters validation -------------//
-  ASSERT_INT(TUSB_DEVICE_STATE_CONFIGURED, tusbh_device_get_state(dev_addr), TUSB_ERROR_DEVICE_NOT_READY);
-  ASSERT_PTR(report, TUSB_ERROR_INVALID_PARA);
-
   (void) instance_num;
-
-  hidh_interface_info_t *p_mouse = &mouse_data[dev_addr-1];
-
-  ASSERT(TUSB_INTERFACE_STATUS_BUSY != p_mouse->status, TUSB_ERROR_INTERFACE_IS_BUSY);
-
-  // TODO abstract to use hidh service
-  ASSERT_STATUS( hcd_pipe_xfer(p_mouse->pipe_hdl, report, p_mouse->report_size, true) ) ;
-
-  p_mouse->status = TUSB_INTERFACE_STATUS_BUSY;
-
-  return TUSB_ERROR_NONE;
+  return hidh_interface_get_report(dev_addr, report, &mouse_data[dev_addr-1]);
 }
 
 tusb_interface_status_t tusbh_hid_mouse_status(uint8_t dev_addr, uint8_t instance_num)
