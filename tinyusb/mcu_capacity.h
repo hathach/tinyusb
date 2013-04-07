@@ -51,13 +51,6 @@
 #ifndef _TUSB_MCU_CAPACITY_H_
 #define _TUSB_MCU_CAPACITY_H_
 
-#define MCU_LPC13UXX    1
-#define MCU_LPC11UXX    2
-#define MCU_LPC43XX     3
-#define MCU_LPC18XX     4
-#define MCU_LPC175X_6X  5
-#define MCU_LPC177X_8X  6
-
 #ifdef __cplusplus
  extern "C" {
 #endif

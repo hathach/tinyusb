@@ -273,6 +273,13 @@ OSAL_TASK_DECLARE(usbh_enumeration_task)
   TASK_ASSERT_STATUS( usbh_pipe_control_open(0, 8) );
   usbh_devices[0].state = TUSB_DEVICE_STATE_ADDRESSED;
 
+#ifndef _TEST_
+  // TODO finalize delay after reset, hack delay 100 ms, otherwise speed is detected as LOW in most cases
+  volatile uint32_t delay_us = 10000;
+  delay_us *= (SystemCoreClock / 1000000) / 3;
+  while(delay_us--);
+#endif
+
   //------------- Get first 8 bytes of device descriptor to get Control Endpoint Size -------------//
   OSAL_SUBTASK_INVOKED_AND_WAIT(
     usbh_control_xfer_subtask(

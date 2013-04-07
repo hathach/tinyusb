@@ -46,9 +46,7 @@
 //--------------------------------------------------------------------+
 // INTERNAL OBJECT & FUNCTION DECLARATION
 //--------------------------------------------------------------------+
-//TUSB_CFG_ATTR_USBRAM
-__attribute__ ((section(".data.$RAM3"))) // TODO hack for USB RAM
-tusb_keyboard_report_t keyboard_report;
+tusb_keyboard_report_t keyboard_report TUSB_CFG_ATTR_USBRAM;
 
 //--------------------------------------------------------------------+
 // IMPLEMENTATION

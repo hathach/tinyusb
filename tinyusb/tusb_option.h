@@ -59,9 +59,16 @@
 #define TUSB_VERSION_NAME   "alpha"
 #define TUSB_VERSION        XSTRING_(TUSB_VERSION_YEAR) "." XSTRING_(TUSB_VERSION_MONTH)
 
+#define MCU_LPC13UXX    1
+#define MCU_LPC11UXX    2
+#define MCU_LPC43XX     3
+#define MCU_LPC18XX     4
+#define MCU_LPC175X_6X  5
+#define MCU_LPC177X_8X  6
+
 /// define this symbol will make tinyusb look for external configure file
-#include "tusb_config.h"
 #include "mcu_capacity.h"
+#include "tusb_config.h"
 
 //--------------------------------------------------------------------+
 // CONTROLLER

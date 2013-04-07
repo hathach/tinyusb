@@ -3,7 +3,6 @@
 	<name>host</name>
 	<comment></comment>
 	<projects>
-		<project>tinyusb</project>
 	</projects>
 	<buildSpec>
 		<buildCommand>
