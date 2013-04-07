@@ -47,6 +47,7 @@
 
 extern hidh_interface_info_t mouse_data[TUSB_CFG_HOST_DEVICE_MAX];
 hidh_interface_info_t *p_hidh_mouse;
+tusb_mouse_report_t report;
 
 tusb_descriptor_interface_t const *p_mouse_interface_desc = &desc_configuration.mouse_interface;
 tusb_descriptor_endpoint_t  const *p_mouse_endpoint_desc  = &desc_configuration.mouse_endpoint;
@@ -57,6 +58,7 @@ void setUp(void)
 {
   hidh_init();
 
+  memclr_(&report, sizeof(tusb_mouse_report_t));
   dev_addr = RANDOM(TUSB_CFG_HOST_DEVICE_MAX)+1;
 
   p_hidh_mouse = &mouse_data[dev_addr-1];
@@ -119,10 +121,61 @@ void test_mouse_open_ok(void)
                     length);
 
   tusbh_device_get_state_IgnoreAndReturn(TUSB_DEVICE_STATE_CONFIGURED);
-  TEST_ASSERT_TRUE( tusbh_hid_keyboard_is_supported(dev_addr) );
+  TEST_ASSERT_TRUE( tusbh_hid_mouse_is_supported(dev_addr) );
   TEST_ASSERT_EQUAL(TUSB_INTERFACE_STATUS_READY, p_hidh_mouse->status);
 
 }
 
+//--------------------------------------------------------------------+
+// mouse_get
+//--------------------------------------------------------------------+
+void test_mouse_get_invalid_address(void)
+{
+  tusbh_device_get_state_IgnoreAndReturn(TUSB_DEVICE_STATE_CONFIGURED);
+  TEST_ASSERT_EQUAL(TUSB_ERROR_INVALID_PARA, tusbh_hid_mouse_get_report(0, 0, NULL)); // invalid address
+}
+
+void test_mouse_get_invalid_buffer(void)
+{
+  tusbh_device_get_state_IgnoreAndReturn(TUSB_DEVICE_STATE_CONFIGURED);
+  TEST_ASSERT_EQUAL(TUSB_ERROR_INVALID_PARA, tusbh_hid_mouse_get_report(dev_addr, 0, NULL)); // invalid buffer
+}
+
+void test_mouse_get_device_not_ready(void)
+{
+  tusbh_device_get_state_IgnoreAndReturn(TUSB_DEVICE_STATE_UNPLUG);
+  TEST_ASSERT_EQUAL(TUSB_ERROR_DEVICE_NOT_READY, tusbh_hid_mouse_get_report(dev_addr, 0, &report)); // device not mounted
+}
+
+void test_mouse_get_report_xfer_failed()
+{
+  tusbh_device_get_state_IgnoreAndReturn(TUSB_DEVICE_STATE_CONFIGURED);
+  hcd_pipe_xfer_ExpectAndReturn(p_hidh_mouse->pipe_hdl, (uint8_t*) &report, p_hidh_mouse->report_size, true, TUSB_ERROR_INVALID_PARA);
+
+  //------------- Code Under TEST -------------//
+  TEST_ASSERT_EQUAL(TUSB_ERROR_INVALID_PARA, tusbh_hid_mouse_get_report(dev_addr, 0, &report));
+}
+
+void test_mouse_get_report_xfer_failed_busy()
+{
+  tusbh_device_get_state_IgnoreAndReturn(TUSB_DEVICE_STATE_CONFIGURED);
+  p_hidh_mouse->status = TUSB_INTERFACE_STATUS_BUSY;
+  TEST_ASSERT_EQUAL(TUSB_ERROR_INTERFACE_IS_BUSY, tusbh_hid_mouse_get_report(dev_addr, 0, &report));
+}
+
+void test_mouse_get_ok()
+{
+  tusbh_device_get_state_IgnoreAndReturn(TUSB_DEVICE_STATE_CONFIGURED);
+  TEST_ASSERT_EQUAL(TUSB_INTERFACE_STATUS_READY, tusbh_hid_mouse_status(dev_addr, 0));
+
+  tusbh_device_get_state_IgnoreAndReturn(TUSB_DEVICE_STATE_CONFIGURED);
+  hcd_pipe_xfer_ExpectAndReturn(p_hidh_mouse->pipe_hdl, (uint8_t*) &report, p_hidh_mouse->report_size, true, TUSB_ERROR_NONE);
+
+  //------------- Code Under TEST -------------//
+  TEST_ASSERT_EQUAL(TUSB_ERROR_NONE, tusbh_hid_mouse_get_report(dev_addr, 0, &report));
+
+  tusbh_device_get_state_IgnoreAndReturn(TUSB_DEVICE_STATE_CONFIGURED);
+  TEST_ASSERT_EQUAL(TUSB_INTERFACE_STATUS_BUSY, tusbh_hid_mouse_status(dev_addr, 0));
+}
 
 

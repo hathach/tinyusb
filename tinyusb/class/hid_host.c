@@ -151,28 +151,39 @@ bool tusbh_hid_mouse_is_supported(uint8_t dev_addr)
 
 tusb_error_t tusbh_hid_mouse_get_report(uint8_t dev_addr, uint8_t instance_num, uint8_t * const report)
 {
+  //------------- parameters validation -------------//
+  ASSERT_INT(TUSB_DEVICE_STATE_CONFIGURED, tusbh_device_get_state(dev_addr), TUSB_ERROR_DEVICE_NOT_READY);
+  ASSERT_PTR(report, TUSB_ERROR_INVALID_PARA);
+
+  (void) instance_num;
+
+  hidh_interface_info_t *p_mouse = &mouse_data[dev_addr-1];
+
+  ASSERT(TUSB_INTERFACE_STATUS_BUSY != p_mouse->status, TUSB_ERROR_INTERFACE_IS_BUSY);
+
+  // TODO abstract to use hidh service
+  ASSERT_STATUS( hcd_pipe_xfer(p_mouse->pipe_hdl, report, p_mouse->report_size, true) ) ;
+
+  p_mouse->status = TUSB_INTERFACE_STATUS_BUSY;
+
   return TUSB_ERROR_NONE;
 }
 
 tusb_interface_status_t tusbh_hid_mouse_status(uint8_t dev_addr, uint8_t instance_num)
 {
- /* switch( tusbh_device_get_state(dev_addr) )
-  {
-    case TUSB_DEVICE_STATE_UNPLUG:
-    case TUSB_DEVICE_STATE_INVALID_PARAMETER:
-      return TUSB_INTERFACE_STATUS_INVALID_PARA;
-
-    default:
-      return mouse_data[dev_addr-1].status;
-  }*/
-
-  return TUSB_INTERFACE_STATUS_INVALID_PARA;
+  return hidh_interface_status(dev_addr, &mouse_data[dev_addr-1]);
 }
 
 //------------- Internal API -------------//
 static inline tusb_error_t hidh_mouse_open(uint8_t dev_addr, tusb_descriptor_endpoint_t const *p_endpoint_desc) ATTR_ALWAYS_INLINE;
 static inline tusb_error_t hidh_mouse_open(uint8_t dev_addr, tusb_descriptor_endpoint_t const *p_endpoint_desc)
 {
+  hidh_interface_info_t *p_mouse = &mouse_data[dev_addr-1];
+
+  p_mouse->pipe_hdl    = hcd_pipe_open(dev_addr, p_endpoint_desc, TUSB_CLASS_HID);
+  p_mouse->report_size = p_endpoint_desc->wMaxPacketSize.size; // TODO get size from report descriptor
+
+  ASSERT (pipehandle_is_valid(p_mouse->pipe_hdl), TUSB_ERROR_HCD_FAILED);
 
   return TUSB_ERROR_NONE;
 }
