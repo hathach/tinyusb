@@ -178,4 +178,13 @@ void test_mouse_get_ok()
   TEST_ASSERT_EQUAL(TUSB_INTERFACE_STATUS_BUSY, tusbh_hid_mouse_status(dev_addr, 0));
 }
 
+void test_mouse_isr_event_complete(void)
+{
+  //------------- Code Under TEST -------------//
+  hidh_isr(p_hidh_mouse->pipe_hdl, TUSB_EVENT_XFER_COMPLETE);
+
+  tusbh_device_get_state_IgnoreAndReturn(TUSB_DEVICE_STATE_CONFIGURED);
+  TEST_ASSERT_EQUAL(TUSB_INTERFACE_STATUS_COMPLETE, tusbh_hid_mouse_status(dev_addr, 0));
+}
+
 

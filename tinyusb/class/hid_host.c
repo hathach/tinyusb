@@ -67,6 +67,28 @@ tusb_interface_status_t hidh_interface_status(uint8_t dev_addr, hidh_interface_i
   }
 }
 
+static inline tusb_error_t hidh_interface_open(uint8_t dev_addr, tusb_descriptor_endpoint_t const *p_endpoint_desc, hidh_interface_info_t *p_hid) ATTR_ALWAYS_INLINE;
+static inline tusb_error_t hidh_interface_open(uint8_t dev_addr, tusb_descriptor_endpoint_t const *p_endpoint_desc, hidh_interface_info_t *p_hid)
+{
+  p_hid->pipe_hdl    = hcd_pipe_open(dev_addr, p_endpoint_desc, TUSB_CLASS_HID);
+  p_hid->report_size = p_endpoint_desc->wMaxPacketSize.size; // TODO get size from report descriptor
+
+  ASSERT (pipehandle_is_valid(p_hid->pipe_hdl), TUSB_ERROR_HCD_FAILED);
+
+  return TUSB_ERROR_NONE;
+}
+
+static inline void hidh_interface_close(uint8_t dev_addr, hidh_interface_info_t *p_hid) ATTR_ALWAYS_INLINE;
+static inline void hidh_interface_close(uint8_t dev_addr, hidh_interface_info_t *p_hid)
+{
+  pipe_handle_t pipe_hdl = p_hid->pipe_hdl;
+  if ( pipehandle_is_valid(pipe_hdl) )
+  {
+    memclr_(p_hid, sizeof(hidh_interface_info_t));
+    ASSERT_INT( TUSB_ERROR_NONE,  hcd_pipe_close(pipe_hdl), (void) 0 );
+  }
+}
+
 //--------------------------------------------------------------------+
 // KEYBOARD
 //--------------------------------------------------------------------+
@@ -109,30 +131,6 @@ tusb_interface_status_t tusbh_hid_keyboard_status(uint8_t dev_addr, uint8_t inst
 {
   return hidh_interface_status(dev_addr, &keyboard_data[dev_addr-1]);
 }
-//------------- Internal API -------------//
-static inline tusb_error_t hidh_keyboard_open(uint8_t dev_addr, tusb_descriptor_endpoint_t const *p_endpoint_desc) ATTR_ALWAYS_INLINE;
-static inline tusb_error_t hidh_keyboard_open(uint8_t dev_addr, tusb_descriptor_endpoint_t const *p_endpoint_desc)
-{
-  hidh_interface_info_t *p_keyboard = get_kbd_data(dev_addr);
-
-  p_keyboard->pipe_hdl    = hcd_pipe_open(dev_addr, p_endpoint_desc, TUSB_CLASS_HID);
-  p_keyboard->report_size = p_endpoint_desc->wMaxPacketSize.size; // TODO get size from report descriptor
-
-  ASSERT (pipehandle_is_valid(p_keyboard->pipe_hdl), TUSB_ERROR_HCD_FAILED);
-
-  return TUSB_ERROR_NONE;
-}
-
-static inline void hidh_keyboard_close(uint8_t dev_addr) ATTR_ALWAYS_INLINE;
-static inline void hidh_keyboard_close(uint8_t dev_addr)
-{
-  pipe_handle_t pipe_hdl = keyboard_data[dev_addr-1].pipe_hdl;
-  if ( pipehandle_is_valid(pipe_hdl) )
-  {
-    memclr_(&keyboard_data[dev_addr-1], sizeof(hidh_interface_info_t));
-    ASSERT_INT( TUSB_ERROR_NONE,  hcd_pipe_close(pipe_hdl), (void) 0 );
-  }
-}
 
 #endif
 
@@ -172,26 +170,6 @@ tusb_error_t tusbh_hid_mouse_get_report(uint8_t dev_addr, uint8_t instance_num, 
 tusb_interface_status_t tusbh_hid_mouse_status(uint8_t dev_addr, uint8_t instance_num)
 {
   return hidh_interface_status(dev_addr, &mouse_data[dev_addr-1]);
-}
-
-//------------- Internal API -------------//
-static inline tusb_error_t hidh_mouse_open(uint8_t dev_addr, tusb_descriptor_endpoint_t const *p_endpoint_desc) ATTR_ALWAYS_INLINE;
-static inline tusb_error_t hidh_mouse_open(uint8_t dev_addr, tusb_descriptor_endpoint_t const *p_endpoint_desc)
-{
-  hidh_interface_info_t *p_mouse = &mouse_data[dev_addr-1];
-
-  p_mouse->pipe_hdl    = hcd_pipe_open(dev_addr, p_endpoint_desc, TUSB_CLASS_HID);
-  p_mouse->report_size = p_endpoint_desc->wMaxPacketSize.size; // TODO get size from report descriptor
-
-  ASSERT (pipehandle_is_valid(p_mouse->pipe_hdl), TUSB_ERROR_HCD_FAILED);
-
-  return TUSB_ERROR_NONE;
-}
-
-static inline void hidh_mouse_close(uint8_t dev_addr) ATTR_ALWAYS_INLINE;
-static inline void hidh_mouse_close(uint8_t dev_addr)
-{
-
 }
 
 #endif
@@ -236,13 +214,13 @@ tusb_error_t hidh_open_subtask(uint8_t dev_addr, tusb_descriptor_interface_t con
     {
       #if TUSB_CFG_HOST_HID_KEYBOARD
       case HID_PROTOCOL_KEYBOARD:
-        ASSERT_STATUS ( hidh_keyboard_open(dev_addr, (tusb_descriptor_endpoint_t const *) p_desc) );
+        ASSERT_STATUS ( hidh_interface_open(dev_addr, (tusb_descriptor_endpoint_t const *) p_desc, &keyboard_data[dev_addr-1]) );
       break;
       #endif
 
       #if TUSB_CFG_HOST_HID_MOUSE
       case HID_PROTOCOL_MOUSE:
-        ASSERT_STATUS ( hidh_mouse_open(dev_addr, (tusb_descriptor_endpoint_t const *) p_desc) );
+        ASSERT_STATUS ( hidh_interface_open(dev_addr, (tusb_descriptor_endpoint_t const *) p_desc, &mouse_data[dev_addr-1]) );
       break;
       #endif
 
@@ -270,7 +248,11 @@ void hidh_isr(pipe_handle_t pipe_hdl, tusb_event_t event)
 #endif
 
 #if TUSB_CFG_HOST_HID_MOUSE
-
+  if ( pipehandle_is_equal(pipe_hdl, mouse_data[pipe_hdl.dev_addr-1].pipe_hdl) )
+  {
+    mouse_data[pipe_hdl.dev_addr-1].status = (event == TUSB_EVENT_XFER_COMPLETE) ? TUSB_INTERFACE_STATUS_COMPLETE : TUSB_INTERFACE_STATUS_ERROR;
+    return;
+  }
 #endif
 
 #if TUSB_CFG_HOST_HID_GENERIC
@@ -281,11 +263,11 @@ void hidh_isr(pipe_handle_t pipe_hdl, tusb_event_t event)
 void hidh_close(uint8_t dev_addr)
 {
 #if TUSB_CFG_HOST_HID_KEYBOARD
-  hidh_keyboard_close(dev_addr);
+  hidh_interface_close(dev_addr, &keyboard_data[dev_addr-1]);
 #endif
 
 #if TUSB_CFG_HOST_HID_MOUSE
-  hidh_mouse_close(dev_addr);
+  hidh_interface_close(dev_addr, &mouse_data[dev_addr-1]);
 #endif
 
 #if TUSB_CFG_HOST_HID_GENERIC
