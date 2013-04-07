@@ -1,5 +1,5 @@
 /*
- * keyboard_app.c
+ * mouse_app.c
  *
  *  Created on: Mar 24, 2013
  *      Author: hathach
@@ -38,7 +38,7 @@
 //--------------------------------------------------------------------+
 // INCLUDE
 //--------------------------------------------------------------------+
-#include "keyboard_app.h"
+#include "mouse_app.h"
 //--------------------------------------------------------------------+
 // MACRO CONSTANT TYPEDEF
 //--------------------------------------------------------------------+
@@ -48,45 +48,37 @@
 //--------------------------------------------------------------------+
 //TUSB_CFG_ATTR_USBRAM
 __attribute__ ((section(".data.$RAM3"))) // TODO hack for USB RAM
-tusb_keyboard_report_t keyboard_report;
+tusb_mouse_report_t mouse_report;
 
 //--------------------------------------------------------------------+
 // IMPLEMENTATION
 //--------------------------------------------------------------------+
-
-// only convert a-z (case insensitive) +  0-9
-static inline uint8_t keycode_to_ascii(uint8_t keycode) ATTR_CONST ATTR_ALWAYS_INLINE;
-static inline uint8_t keycode_to_ascii(uint8_t keycode)
-{
-  return
-      ( KEYBOARD_KEYCODE_a <= keycode && keycode <= KEYBOARD_KEYCODE_z) ? ( (keycode - KEYBOARD_KEYCODE_a) + 'a' ) :
-      ( KEYBOARD_KEYCODE_1 <= keycode && keycode < KEYBOARD_KEYCODE_0)  ? ( (keycode - KEYBOARD_KEYCODE_1) + '1' ) :
-      ( KEYBOARD_KEYCODE_0 == keycode)                                  ? '0' : 'x';
-}
-
-
-void keyboard_app_task(void)
+void mouse_app_task(void)
 {
   for (uint8_t dev_addr = 1; dev_addr <= TUSB_CFG_HOST_DEVICE_MAX; dev_addr++)
   {
-    if ( tusbh_hid_keyboard_is_supported(dev_addr) )
+    if ( tusbh_hid_mouse_is_supported(dev_addr) )
     {
-      switch (tusbh_hid_keyboard_status(dev_addr,0))
+      switch (tusbh_hid_mouse_status(dev_addr,0))
       {
         case TUSB_INTERFACE_STATUS_READY:
         case TUSB_INTERFACE_STATUS_ERROR: // skip error, get next key
-          tusbh_hid_keyboard_get_report(dev_addr, 0, (uint8_t*) &keyboard_report);
+          tusbh_hid_mouse_get_report(dev_addr, 0, (uint8_t*) &mouse_report);
         break;
 
         case TUSB_INTERFACE_STATUS_COMPLETE:
           // TODO buffer in queue
-          for(uint8_t i=0; i<6; i++)
+          if ( mouse_report.buttons || mouse_report.x || mouse_report.y)
           {
-            if ( keyboard_report.keycode[i] != 0 )
-              printf("%c", keycode_to_ascii(keyboard_report.keycode[i]));
+            printf("buttons: %c%c%c    (x, y) = (%d, %d)\n",
+                   mouse_report.buttons & HID_MOUSEBUTTON_LEFT   ? 'L' : '-',
+                   mouse_report.buttons & HID_MOUSEBUTTON_MIDDLE ? 'M' : '-',
+                   mouse_report.buttons & HID_MOUSEBUTTON_RIGHT  ? 'R' : '-',
+                   mouse_report.x, mouse_report.y);
           }
-          memclr_(&keyboard_report, sizeof(tusb_keyboard_report_t)); // TODO use callback to synchronize
-          tusbh_hid_keyboard_get_report(dev_addr, 0, (uint8_t*) &keyboard_report);
+
+          memclr_(&mouse_report, sizeof(tusb_mouse_report_t)); // TODO use callback to synchronize
+          tusbh_hid_mouse_get_report(dev_addr, 0, (uint8_t*) &mouse_report);
         break;
 
         case TUSB_INTERFACE_STATUS_BUSY:

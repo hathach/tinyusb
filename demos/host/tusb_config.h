@@ -72,6 +72,7 @@
 
 //------------- CLASS -------------//
 #define TUSB_CFG_HOST_HID_KEYBOARD  1
+#define TUSB_CFG_HOST_HID_MOUSE  1
 
 //--------------------------------------------------------------------+
 // DEVICE CONFIGURATION

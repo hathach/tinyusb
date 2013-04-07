@@ -26,12 +26,13 @@ int main(void)
   {
     tusb_task_runner();
     keyboard_app_task();
+    mouse_app_task();
 
     if (current_tick + 10*CFG_TICKS_PER_SECOND < system_ticks)
     {
       current_tick = system_ticks;
 //      board_leds(0x01, (current_tick/CFG_TICKS_PER_SECOND)%2); /* Toggle LED once per second */
-      printf("tinyusb: " __DATE__ "\t" __TIME__ "\n");
+      printf("tinyusb: " __DATE__ "\t" __TIME__ "\n"); // toggle leds on EA4357 is quite troublesome
     }
   }
 

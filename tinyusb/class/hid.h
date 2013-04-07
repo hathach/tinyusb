@@ -112,18 +112,16 @@ typedef ATTR_PACKED_STRUCT(struct)
 /**
  * \brief buttons codes for HID mouse
  */
-enum
-{
-	HID_MOUSEBUTTON_RIGHT = 0,
-	HID_MOUSEBUTTON_LEFT = 1,
-	HID_MOUSEBUTTON_MIDDLE = 2
+enum {
+	HID_MOUSEBUTTON_LEFT   = BIT_(0),
+	HID_MOUSEBUTTON_RIGHT  = BIT_(1),
+	HID_MOUSEBUTTON_MIDDLE = BIT_(2)
 };
 
 /**
  * \brief KB modifier codes for HID KB
  */
-enum
-{
+enum {
 	KEYBOARD_MODIFIER_LEFTCTRL   = BIT_(0),
 	KEYBOARD_MODIFIER_LEFTSHIFT  = BIT_(1),
 	KEYBOARD_MODIFIER_LEFTALT    = BIT_(2),
