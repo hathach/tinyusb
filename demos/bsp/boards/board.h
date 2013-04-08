@@ -89,7 +89,7 @@
 #define CFG_TICKS_PER_SECOND 1000
 
 #if CFG_PRINTF_TARGET == PRINTF_TARGET_UART
-  #define CFG_UART_ENABLE      0
+  #define CFG_UART_ENABLE      1
   #define CFG_UART_BAUDRATE    115200
 #endif
 
