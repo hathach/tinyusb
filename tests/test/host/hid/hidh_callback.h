@@ -1,5 +1,5 @@
 /*
- * hidh_callback.h
+ * tusb_callback.h
  *
  *  Created on: Feb 5, 2013
  *      Author: hathach
@@ -48,25 +48,23 @@
  *  @{
  */
 
-#ifndef _TUSB_TUSB_CALLBACK_H_
-#define _TUSB_TUSB_CALLBACK_H_
+#ifndef _TUSB_HIDH_CALLBACK_H_
+#define _TUSB_HIDH_CALLBACK_H_
 
 #ifdef __cplusplus
  extern "C" {
 #endif
 
 #include "common/common.h"
-#include "usbh.h"
 
-//------------- core -------------//
-uint8_t      tusbh_device_attached_cb (tusb_descriptor_device_t const *p_desc_device) ATTR_WEAK ATTR_WARN_UNUSED_RESULT;
-void         tusbh_device_mount_succeed_cb (uint8_t dev_addr) ATTR_WEAK;
-void         tusbh_device_mount_failed_cb(tusb_error_t error, tusb_descriptor_device_t const *p_desc_device) ATTR_WEAK;
+//------------- hidh -------------//
+void tusbh_hid_keyboard_isr(uint8_t dev_addr, uint8_t instance_num, tusb_event_t event) ATTR_WEAK;
+void tusbh_hid_mouse_isr(uint8_t dev_addr, uint8_t instance_num, tusb_event_t event) ATTR_WEAK;
 
 #ifdef __cplusplus
  }
 #endif
 
-#endif /* _TUSB_TUSB_CALLBACK_H_ */
+#endif /* _TUSB_HIDH_CALLBACK_H_ */
 
 /** @} */

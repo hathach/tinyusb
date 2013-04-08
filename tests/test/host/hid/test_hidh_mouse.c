@@ -39,10 +39,12 @@
 #include "unity.h"
 #include "type_helper.h"
 #include "errors.h"
+#include "common/common.h"
 #include "hid_host.h"
 #include "mock_osal.h"
 #include "mock_usbh.h"
 #include "mock_hcd.h"
+#include "mock_hidh_callback.h"
 #include "descriptor_test.h"
 
 extern hidh_interface_info_t mouse_data[TUSB_CFG_HOST_DEVICE_MAX];
@@ -180,6 +182,8 @@ void test_mouse_get_ok()
 
 void test_mouse_isr_event_complete(void)
 {
+  tusbh_hid_mouse_isr_Expect(dev_addr, 0, TUSB_EVENT_XFER_COMPLETE);
+
   //------------- Code Under TEST -------------//
   hidh_isr(p_hidh_mouse->pipe_hdl, TUSB_EVENT_XFER_COMPLETE);
 

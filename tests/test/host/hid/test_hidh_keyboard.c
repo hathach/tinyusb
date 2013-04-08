@@ -39,10 +39,12 @@
 #include "unity.h"
 #include "type_helper.h"
 #include "errors.h"
+#include "common/common.h"
 #include "hid_host.h"
 #include "mock_osal.h"
 #include "mock_usbh.h"
 #include "mock_hcd.h"
+#include "mock_hidh_callback.h"
 #include "descriptor_test.h"
 
 extern hidh_interface_info_t keyboard_data[TUSB_CFG_HOST_DEVICE_MAX];
@@ -69,10 +71,9 @@ tusb_descriptor_endpoint_t  const *p_kdb_endpoint_desc  = &desc_configuration.ke
 
 void setUp(void)
 {
+  hidh_init();
   memclr_(&report, sizeof(tusb_keyboard_report_t));
   dev_addr = RANDOM(TUSB_CFG_HOST_DEVICE_MAX)+1;
-
-  hidh_init();
 
   p_hidh_kbd = &keyboard_data[dev_addr-1];
 
@@ -96,6 +97,7 @@ void test_keyboard_init(void)
   TEST_ASSERT_MEM_ZERO(keyboard_data, sizeof(hidh_interface_info_t)*TUSB_CFG_HOST_DEVICE_MAX);
 }
 
+//------------- is supported -------------//
 void test_keyboard_is_supported_fail_unplug(void)
 {
   tusbh_device_get_state_IgnoreAndReturn(TUSB_DEVICE_STATE_UNPLUG);
@@ -191,9 +193,13 @@ void test_keyboard_get_ok()
 
 void test_keyboard_isr_event_complete(void)
 {
+  tusbh_hid_keyboard_isr_Expect(dev_addr, 0, TUSB_EVENT_XFER_COMPLETE);
+
   //------------- Code Under TEST -------------//
   hidh_isr(p_hidh_kbd->pipe_hdl, TUSB_EVENT_XFER_COMPLETE);
 
   tusbh_device_get_state_IgnoreAndReturn(TUSB_DEVICE_STATE_CONFIGURED);
   TEST_ASSERT_EQUAL(TUSB_INTERFACE_STATUS_COMPLETE, tusbh_hid_keyboard_status(dev_addr, 0));
 }
+
+

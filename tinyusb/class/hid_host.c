@@ -227,6 +227,10 @@ void hidh_isr(pipe_handle_t pipe_hdl, tusb_event_t event)
   if ( pipehandle_is_equal(pipe_hdl, keyboard_data[pipe_hdl.dev_addr-1].pipe_hdl) )
   {
     keyboard_data[pipe_hdl.dev_addr-1].status = (event == TUSB_EVENT_XFER_COMPLETE) ? TUSB_INTERFACE_STATUS_COMPLETE : TUSB_INTERFACE_STATUS_ERROR;
+    if (tusbh_hid_keyboard_isr)
+    {
+      tusbh_hid_keyboard_isr(pipe_hdl.dev_addr, 0, event);
+    }
     return;
   }
 #endif
@@ -235,6 +239,11 @@ void hidh_isr(pipe_handle_t pipe_hdl, tusb_event_t event)
   if ( pipehandle_is_equal(pipe_hdl, mouse_data[pipe_hdl.dev_addr-1].pipe_hdl) )
   {
     mouse_data[pipe_hdl.dev_addr-1].status = (event == TUSB_EVENT_XFER_COMPLETE) ? TUSB_INTERFACE_STATUS_COMPLETE : TUSB_INTERFACE_STATUS_ERROR;
+    if (tusbh_hid_mouse_isr)
+    {
+      tusbh_hid_mouse_isr(pipe_hdl.dev_addr, 0, event);
+    }
+
     return;
   }
 #endif
