@@ -67,6 +67,7 @@
 #define PRINTF_TARGET_DEBUG_CONSOLE 1 // IDE semihosting console
 #define PRINTF_TARGET_UART          2
 #define PRINTF_TARGET_SWO           3 // aka SWV, ITM
+#define PRINTF_TARGET_NONE          4
 
 #if BOARD == 0
   #error BOARD is not defined or supported yet
@@ -88,7 +89,7 @@
 #define CFG_TICKS_PER_SECOND 1000
 
 #if CFG_PRINTF_TARGET == PRINTF_TARGET_UART
-  #define CFG_UART_ENABLE      1
+  #define CFG_UART_ENABLE      0
   #define CFG_UART_BAUDRATE    115200
 #endif
 
