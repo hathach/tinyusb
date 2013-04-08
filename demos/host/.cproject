@@ -84,7 +84,7 @@
 						</toolChain>
 					</folderInfo>
 					<sourceEntries>
-						<entry excluding="NGX|bsp/lpc13uxx|bsp/lpc11uxx" flags="VALUE_WORKSPACE_PATH|RESOLVED" kind="sourcePath" name=""/>
+						<entry excluding="bsp/boards/EA4357|NGX|bsp/lpc13uxx|bsp/lpc11uxx" flags="VALUE_WORKSPACE_PATH|RESOLVED" kind="sourcePath" name=""/>
 					</sourceEntries>
 				</configuration>
 			</storageModule>
@@ -175,7 +175,7 @@
 						</toolChain>
 					</folderInfo>
 					<sourceEntries>
-						<entry excluding="NGX|bsp/lpc13uxx|bsp/lpc11uxx" flags="VALUE_WORKSPACE_PATH|RESOLVED" kind="sourcePath" name=""/>
+						<entry excluding="bsp/boards/EA4357|NGX|bsp/lpc13uxx|bsp/lpc11uxx" flags="VALUE_WORKSPACE_PATH|RESOLVED" kind="sourcePath" name=""/>
 					</sourceEntries>
 				</configuration>
 			</storageModule>
