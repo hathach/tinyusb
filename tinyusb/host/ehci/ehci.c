@@ -452,14 +452,6 @@ void port_connect_status_change_isr(uint8_t hostid)
   if (regs->portsc_bit.current_connect_status) // device plugged
   {
     hcd_port_reset(hostid);
-
-    #ifndef _TEST_
-    // TODO finalize delay after reset, hack delay 100 ms, otherwise speed is detected as LOW in most cases
-    volatile uint32_t delay_us = 100000;
-    delay_us *= (SystemCoreClock / 1000000) / 3;
-    while(delay_us--);
-    #endif
-
     usbh_device_plugged_isr(hostid, regs->portsc_bit.nxp_port_speed); // NXP specific port speed
   }else // device unplugged
   {

@@ -295,7 +295,7 @@ OSAL_TASK_DECLARE(usbh_enumeration_task)
     )
   );
 
-//  hcd_port_reset( usbh_devices[0].core_id ); // reset port after 8 byte descriptor
+  hcd_port_reset( usbh_devices[0].core_id ); // reset port after 8 byte descriptor
 
   //------------- Set new address -------------//
   new_addr = get_new_address();

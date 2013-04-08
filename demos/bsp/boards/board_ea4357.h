@@ -60,6 +60,7 @@
 #include "lpc43xx_cgu.h"
 #include "lpc43xx_gpio.h"
 #include "lpc43xx_uart.h"
+#include "lpc43xx_i2c.h"
 
 #define CFG_LED_NUMBER  0
 #define CFG_LED_ON               (1)

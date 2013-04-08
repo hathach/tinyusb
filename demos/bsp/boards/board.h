@@ -57,7 +57,7 @@
 
 #include <stdint.h>
 #include "common/compiler/compiler.h"
-#include "common/binary.h" // This file is too good to not use
+#include "common/binary.h"
 
 #define BOARD_AT86RF2XX             1
 #define BOARD_LPCXPRESSO1347        2

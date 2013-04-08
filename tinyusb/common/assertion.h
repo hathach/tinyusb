@@ -57,7 +57,7 @@ extern "C"
 #endif
 
 #include "tusb_option.h"
-#include "hal/hal.h"
+#include "hal/hal.h" // TODO find a way to break hal dependency
 
 //--------------------------------------------------------------------+
 // Compile-time Assert
