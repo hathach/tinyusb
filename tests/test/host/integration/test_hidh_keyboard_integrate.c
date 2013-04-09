@@ -35,33 +35,34 @@
  * This file is part of the tiny usb stack.
  */
 
-#include "stdlib.h"
-#include "unity.h"
-#include "type_helper.h"
-#include "tusb_option.h"
-#include "errors.h"
-
-#include "mock_osal.h"
-#include "hcd.h"
-#include "usbh.h"
-#include "tusb.h"
-#include "hid_host.h"
-
-#include "descriptor_test.h"
-
-uint8_t dev_addr;
-uint8_t hostid;
-
+//#include "stdlib.h"
+//#include "unity.h"
+//#include "type_helper.h"
+//#include "tusb_option.h"
+//#include "errors.h"
+//
+//#include "mock_osal.h"
+//#include "hcd.h"
+//#include "usbh.h"
+//#include "tusb.h"
+//#include "hid_host.h"
+////#include "ehci_controller.h"
+//
+//#include "descriptor_test.h"
+//
+//uint8_t dev_addr;
+//uint8_t hostid;
+//
 void setUp(void)
 {
-  dev_addr = RANDOM(TUSB_CFG_HOST_DEVICE_MAX)+1;
-  hostid = RANDOM(CONTROLLER_HOST_NUMBER) + TEST_CONTROLLER_HOST_START_INDEX;
-
-  ehci_controller_init();
-  tusb_init();
-
+//  dev_addr = RANDOM(TUSB_CFG_HOST_DEVICE_MAX)+1;
+//  hostid = RANDOM(CONTROLLER_HOST_NUMBER) + TEST_CONTROLLER_HOST_START_INDEX;
+//
+////  ehci_controller_init();
+//  tusb_init();
+//
 }
-
+//
 void tearDown(void)
 {
 }

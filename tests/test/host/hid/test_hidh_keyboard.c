@@ -125,6 +125,7 @@ void test_keyboard_open_ok(void)
   hidh_init();
 
   hcd_pipe_open_ExpectAndReturn(dev_addr, p_kdb_endpoint_desc, TUSB_CLASS_HID, pipe_hdl);
+  tusbh_hid_keyboard_isr_Expect(dev_addr, 0, TUSB_EVENT_INTERFACE_OPEN);
 
   //------------- Code Under TEST -------------//
   TEST_ASSERT_EQUAL(TUSB_ERROR_NONE, hidh_open_subtask(dev_addr, p_kbd_interface_desc, &length));

@@ -113,6 +113,7 @@ void test_mouse_open_ok(void)
   hidh_init();
 
   hcd_pipe_open_ExpectAndReturn(dev_addr, p_mouse_endpoint_desc, TUSB_CLASS_HID, pipe_hdl);
+  tusbh_hid_mouse_isr_Expect(dev_addr, 0, TUSB_EVENT_INTERFACE_OPEN);
 
   //------------- Code Under TEST -------------//
   TEST_ASSERT_EQUAL(TUSB_ERROR_NONE, hidh_open_subtask(dev_addr, p_mouse_interface_desc, &length));
@@ -180,7 +181,7 @@ void test_mouse_get_ok()
   TEST_ASSERT_EQUAL(TUSB_INTERFACE_STATUS_BUSY, tusbh_hid_mouse_status(dev_addr, 0));
 }
 
-void test_mouse_isr_event_complete(void)
+void test_mouse_isr_event_xfer_complete(void)
 {
   tusbh_hid_mouse_isr_Expect(dev_addr, 0, TUSB_EVENT_XFER_COMPLETE);
 
@@ -190,5 +191,17 @@ void test_mouse_isr_event_complete(void)
   tusbh_device_get_state_IgnoreAndReturn(TUSB_DEVICE_STATE_CONFIGURED);
   TEST_ASSERT_EQUAL(TUSB_INTERFACE_STATUS_COMPLETE, tusbh_hid_mouse_status(dev_addr, 0));
 }
+
+void test_mouse_isr_event_xfer_error(void)
+{
+  tusbh_hid_mouse_isr_Expect(dev_addr, 0, TUSB_EVENT_XFER_ERROR);
+
+  //------------- Code Under TEST -------------//
+  hidh_isr(p_hidh_mouse->pipe_hdl, TUSB_EVENT_XFER_ERROR);
+
+  tusbh_device_get_state_IgnoreAndReturn(TUSB_DEVICE_STATE_CONFIGURED);
+  TEST_ASSERT_EQUAL(TUSB_INTERFACE_STATUS_ERROR, tusbh_hid_mouse_status(dev_addr, 0));
+}
+
 
 

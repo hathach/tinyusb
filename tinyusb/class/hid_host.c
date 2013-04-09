@@ -199,12 +199,20 @@ tusb_error_t hidh_open_subtask(uint8_t dev_addr, tusb_descriptor_interface_t con
       #if TUSB_CFG_HOST_HID_KEYBOARD
       case HID_PROTOCOL_KEYBOARD:
         ASSERT_STATUS ( hidh_interface_open(dev_addr, (tusb_descriptor_endpoint_t const *) p_desc, &keyboard_data[dev_addr-1]) );
+        if ( tusbh_hid_keyboard_isr )
+        {
+          tusbh_hid_keyboard_isr(dev_addr, 0, TUSB_EVENT_INTERFACE_OPEN);
+        }
       break;
       #endif
 
       #if TUSB_CFG_HOST_HID_MOUSE
       case HID_PROTOCOL_MOUSE:
         ASSERT_STATUS ( hidh_interface_open(dev_addr, (tusb_descriptor_endpoint_t const *) p_desc, &mouse_data[dev_addr-1]) );
+        if (tusbh_hid_mouse_isr)
+        {
+          tusbh_hid_mouse_isr(dev_addr, 0, TUSB_EVENT_INTERFACE_OPEN);
+        }
       break;
       #endif
 
