@@ -561,13 +561,17 @@ void xfer_error_isr(uint8_t hostid)
         //p_qhd->qtd_overlay.non_hs_period_missed_uframe || p_qhd->qtd_overlay.pingstate_err TODO split transaction error
         (p_qhd->device_address != 0 && p_qhd->qtd_overlay.halted) ) // addr0 cannot be protocol STALL
     {
+      hal_debugger_breakpoint();
+
+      p_qhd->p_qtd_list_head->used = 0; // free QTD
+      qtd_remove_1st_from_qhd(p_qhd);
+
       pipe_handle_t pipe_hdl = { .dev_addr = p_qhd->device_address };
       if (p_qhd->endpoint_number) // if not Control, can only be Bulk
       {
         pipe_hdl.xfer_type = TUSB_XFER_BULK;
         pipe_hdl.index = qhd_get_index(p_qhd);
       }
-      hal_debugger_breakpoint();
       usbh_isr( pipe_hdl, p_qhd->class_code, TUSB_EVENT_XFER_ERROR); // call USBH callback
     }
 
