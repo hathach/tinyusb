@@ -471,8 +471,13 @@ void async_list_process_isr(ehci_qhd_t * const async_head)
       // free all TDs from the head td to the first active TD
       while(p_qhd->p_qtd_list_head != NULL && !p_qhd->p_qtd_list_head->active)
       {
-        // TODO check halted TD
-        if (p_qhd->p_qtd_list_head->int_on_complete) // end of request
+        // TD need to be freed and removed from qhd, before invoking callback
+        bool is_ioc = (p_qhd->p_qtd_list_head->int_on_complete != 0);
+
+        p_qhd->p_qtd_list_head->used = 0; // free QTD
+        qtd_remove_1st_from_qhd(p_qhd);
+
+        if (is_ioc) // end of request
         {
           pipe_handle_t pipe_hdl = { .dev_addr = p_qhd->device_address };
           if (p_qhd->endpoint_number) // if not Control, can only be Bulk
@@ -483,8 +488,6 @@ void async_list_process_isr(ehci_qhd_t * const async_head)
           usbh_isr( pipe_hdl, p_qhd->class_code, TUSB_EVENT_XFER_COMPLETE); // call USBH callback
         }
 
-        p_qhd->p_qtd_list_head->used = 0; // free QTD
-        qtd_remove_1st_from_qhd(p_qhd);
       }
     }
     p_qhd = (ehci_qhd_t*) align32(p_qhd->next.address);
@@ -511,20 +514,24 @@ void period_list_process_isr(ehci_qhd_t const * const period_head)
           // free all TDs from the head td to the first active TD
           while(p_qhd_int->p_qtd_list_head != NULL && !p_qhd_int->p_qtd_list_head->active)
           {
-            // TODO check halted TD
-            if (p_qhd_int->p_qtd_list_head->int_on_complete) // end of request
-            {
-              pipe_handle_t pipe_hdl = { .dev_addr = p_qhd_int->device_address };
-              if (p_qhd_int->endpoint_number) // if not Control, can only be Bulk
-              {
-                pipe_hdl.xfer_type = TUSB_XFER_INTERRUPT;
-                pipe_hdl.index = qhd_get_index(p_qhd_int);
-              }
-              usbh_isr( pipe_hdl, p_qhd_int->class_code, TUSB_EVENT_XFER_COMPLETE); // call USBH callback
-            }
+            // TD need to be freed and removed from qhd, before invoking callback
+            bool is_ioc = (p_qhd_int->p_qtd_list_head->int_on_complete != 0);
 
             p_qhd_int->p_qtd_list_head->used = 0; // free QTD
             qtd_remove_1st_from_qhd(p_qhd_int);
+
+            if (is_ioc) // end of request
+            {
+              usbh_isr( (pipe_handle_t)
+                        {
+                              .dev_addr = p_qhd_int->device_address,
+                              .xfer_type = TUSB_XFER_INTERRUPT,
+                              .index = qhd_get_index(p_qhd_int)
+                        },
+                        p_qhd_int->class_code,
+                        TUSB_EVENT_XFER_COMPLETE); // call USBH callback
+            }
+
           }
         }
         next_item = p_qhd_int->next;

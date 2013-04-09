@@ -248,7 +248,6 @@ void usbh_device_unplugged_isr(uint8_t hostid)
 //--------------------------------------------------------------------+
 // ENUMERATION TASK
 //--------------------------------------------------------------------+
-//TODO reduce Cyclomatic Complexity
 OSAL_TASK_DECLARE(usbh_enumeration_task)
 {
   tusb_error_t error;
@@ -398,6 +397,8 @@ OSAL_TASK_DECLARE(usbh_enumeration_task)
     )
   );
 
+  usbh_devices[new_addr].state = TUSB_DEVICE_STATE_CONFIGURED;
+
   //------------- parse configuration & install drivers -------------//
   p_desc = enum_data_buffer + sizeof(tusb_descriptor_configuration_t);
 
@@ -440,7 +441,6 @@ OSAL_TASK_DECLARE(usbh_enumeration_task)
     }
   }
 
-  usbh_devices[new_addr].state = TUSB_DEVICE_STATE_CONFIGURED;
   tusbh_device_mount_succeed_cb(new_addr);
 
   OSAL_TASK_LOOP_END

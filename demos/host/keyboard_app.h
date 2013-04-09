@@ -51,12 +51,16 @@
 #ifndef _TUSB_KEYBOARD_APP_H_
 #define _TUSB_KEYBOARD_APP_H_
 
+#include <stdint.h>
+#include <stdbool.h>
+
+#include "boards/board.h"
+#include "tusb.h"
+
 #ifdef __cplusplus
  extern "C" {
 #endif
 
-#include "boards/board.h"
-#include "tusb.h"
 
 #ifdef __cplusplus
  }

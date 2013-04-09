@@ -21,6 +21,10 @@ int main(void)
   board_init();
   tusb_init();
 
+  //------------- application task init -------------//
+  keyboard_app_init();
+  mouse_app_init();
+
   printf("reset\n");
   while (1)
   {

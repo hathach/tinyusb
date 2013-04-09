@@ -39,84 +39,89 @@
 // INCLUDE
 //--------------------------------------------------------------------+
 #include "keyboard_app.h"
+
 //--------------------------------------------------------------------+
 // MACRO CONSTANT TYPEDEF
 //--------------------------------------------------------------------+
+#define QUEUE_KEYBOARD_REPORT_DEPTH   5
 
 //--------------------------------------------------------------------+
 // INTERNAL OBJECT & FUNCTION DECLARATION
 //--------------------------------------------------------------------+
-tusb_keyboard_report_t keyboard_report TUSB_CFG_ATTR_USBRAM;
+static tusb_keyboard_report_t usb_keyboard_report TUSB_CFG_ATTR_USBRAM;
 
-//--------------------------------------------------------------------+
-// IMPLEMENTATION
-//--------------------------------------------------------------------+
+OSAL_QUEUE_DEF(queue_kbd_report, QUEUE_KEYBOARD_REPORT_DEPTH, tusb_keyboard_report_t);
+static osal_queue_handle_t q_kbd_report_hdl;
 
 // only convert a-z (case insensitive) +  0-9
 static inline uint8_t keycode_to_ascii(uint8_t keycode) ATTR_CONST ATTR_ALWAYS_INLINE;
+
+//--------------------------------------------------------------------+
+// tinyusb callback (ISR context)
+//--------------------------------------------------------------------+
+void tusbh_hid_keyboard_isr(uint8_t dev_addr, uint8_t instance_num, tusb_event_t event)
+{
+  switch(event)
+  {
+    case TUSB_EVENT_INTERFACE_OPEN: // application set-up
+      osal_queue_flush(q_kbd_report_hdl);
+      tusbh_hid_keyboard_get_report(dev_addr, instance_num, (uint8_t*) &usb_keyboard_report); // first report
+    break;
+
+    case TUSB_EVENT_INTERFACE_CLOSE: // application tear-down
+
+    break;
+
+    case TUSB_EVENT_XFER_COMPLETE:
+      osal_queue_send(q_kbd_report_hdl, &usb_keyboard_report);
+      tusbh_hid_keyboard_get_report(dev_addr, instance_num, (uint8_t*) &usb_keyboard_report);
+    break;
+
+    case TUSB_EVENT_XFER_ERROR:
+      tusbh_hid_keyboard_get_report(dev_addr, instance_num, (uint8_t*) &usb_keyboard_report); // ignore & continue
+    break;
+
+    default :
+    break;
+  }
+}
+
+//--------------------------------------------------------------------+
+// APPLICATION
+//--------------------------------------------------------------------+
+void keyboard_app_init(void)
+{
+  q_kbd_report_hdl = osal_queue_create(&queue_kbd_report);
+
+  // TODO keyboard_app_task create
+}
+
+//------------- main task -------------//
+OSAL_TASK_DECLARE( keyboard_app_task )
+{
+  tusb_error_t error;
+  tusb_keyboard_report_t kbd_report;
+
+  OSAL_TASK_LOOP_BEGIN
+
+  osal_queue_receive(q_kbd_report_hdl, &kbd_report, OSAL_TIMEOUT_WAIT_FOREVER, &error);
+
+  for(uint8_t i=0; i<6; i++)
+  {
+    if ( kbd_report.keycode[i] != 0 )
+      printf("%c", keycode_to_ascii(kbd_report.keycode[i]));
+  }
+
+  OSAL_TASK_LOOP_END
+}
+
+//--------------------------------------------------------------------+
+// HELPER
+//--------------------------------------------------------------------+
 static inline uint8_t keycode_to_ascii(uint8_t keycode)
 {
   return
       ( KEYBOARD_KEYCODE_a <= keycode && keycode <= KEYBOARD_KEYCODE_z) ? ( (keycode - KEYBOARD_KEYCODE_a) + 'a' ) :
       ( KEYBOARD_KEYCODE_1 <= keycode && keycode < KEYBOARD_KEYCODE_0)  ? ( (keycode - KEYBOARD_KEYCODE_1) + '1' ) :
       ( KEYBOARD_KEYCODE_0 == keycode)                                  ? '0' : 'x';
-}
-
-
-//--------------------------------------------------------------------+
-// tinyusb callback (ISR context)
-//--------------------------------------------------------------------+
-//void tusbh_hid_keyboard_isr(uint8_t dev_addr, uint8_t instance_num, tusb_event_t event)
-//{
-//  switch(event)
-//  {
-//    case TUSB_EVENT_INTERFACE_OPEN:
-//      tusbh_hid_keyboard_get_report(dev_addr, 0, (uint8_t*) &keyboard_report); // first report
-//    break;
-//
-//    case TUSB_EVENT_INTERFACE_CLOSE:
-//
-//    break;
-//
-//    case TUSB_EVENT_XFER_COMPLETE:
-//      tusbh_hid_keyboard_get_report(dev_addr, 0, (uint8_t*) &keyboard_report);
-//    break;
-//
-//    case TUSB_EVENT_XFER_ERROR:
-//    break;
-//
-//    default:
-//  }
-//}
-
-void keyboard_app_task(void)
-{
-  for (uint8_t dev_addr = 1; dev_addr <= TUSB_CFG_HOST_DEVICE_MAX; dev_addr++)
-  {
-    if ( tusbh_hid_keyboard_is_supported(dev_addr) )
-    {
-      switch (tusbh_hid_keyboard_status(dev_addr,0))
-      {
-        case TUSB_INTERFACE_STATUS_READY:
-        case TUSB_INTERFACE_STATUS_ERROR: // skip error, get next key
-          tusbh_hid_keyboard_get_report(dev_addr, 0, (uint8_t*) &keyboard_report);
-        break;
-
-        case TUSB_INTERFACE_STATUS_COMPLETE:
-          // TODO buffer in queue
-          for(uint8_t i=0; i<6; i++)
-          {
-            if ( keyboard_report.keycode[i] != 0 )
-              printf("%c", keycode_to_ascii(keyboard_report.keycode[i]));
-          }
-          memclr_(&keyboard_report, sizeof(tusb_keyboard_report_t)); // TODO use callback to synchronize
-          tusbh_hid_keyboard_get_report(dev_addr, 0, (uint8_t*) &keyboard_report);
-        break;
-
-        case TUSB_INTERFACE_STATUS_BUSY:
-        break;
-
-      }
-    }
-  }
 }

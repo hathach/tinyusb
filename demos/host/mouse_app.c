@@ -39,50 +39,80 @@
 // INCLUDE
 //--------------------------------------------------------------------+
 #include "mouse_app.h"
+
 //--------------------------------------------------------------------+
 // MACRO CONSTANT TYPEDEF
 //--------------------------------------------------------------------+
+#define QUEUE_MOUSE_REPORT_DEPTH   5
 
 //--------------------------------------------------------------------+
 // INTERNAL OBJECT & FUNCTION DECLARATION
 //--------------------------------------------------------------------+
-tusb_mouse_report_t mouse_report TUSB_CFG_ATTR_USBRAM;
+static tusb_mouse_report_t usb_mouse_report TUSB_CFG_ATTR_USBRAM;
+
+OSAL_QUEUE_DEF(queue_mouse_report, QUEUE_MOUSE_REPORT_DEPTH, tusb_mouse_report_t);
+static osal_queue_handle_t q_mouse_report_hdl;
 
 //--------------------------------------------------------------------+
-// IMPLEMENTATION
+// tinyusb callback (ISR context)
 //--------------------------------------------------------------------+
-void mouse_app_task(void)
+void tusbh_hid_mouse_isr(uint8_t dev_addr, uint8_t instance_num, tusb_event_t event)
 {
-  for (uint8_t dev_addr = 1; dev_addr <= TUSB_CFG_HOST_DEVICE_MAX; dev_addr++)
+  switch(event)
   {
-    if ( tusbh_hid_mouse_is_supported(dev_addr) )
-    {
-      switch (tusbh_hid_mouse_status(dev_addr,0))
-      {
-        case TUSB_INTERFACE_STATUS_READY:
-        case TUSB_INTERFACE_STATUS_ERROR: // skip error, get next key
-          tusbh_hid_mouse_get_report(dev_addr, 0, (uint8_t*) &mouse_report);
-        break;
+    case TUSB_EVENT_INTERFACE_OPEN: // application set-up
+      osal_queue_flush(q_mouse_report_hdl);
+      tusbh_hid_mouse_get_report(dev_addr, instance_num, (uint8_t*) &usb_mouse_report); // first report
+    break;
 
-        case TUSB_INTERFACE_STATUS_COMPLETE:
-          // TODO buffer in queue
-          if ( mouse_report.buttons || mouse_report.x || mouse_report.y)
-          {
-            printf("buttons: %c%c%c    (x, y) = (%d, %d)\n",
-                   mouse_report.buttons & HID_MOUSEBUTTON_LEFT   ? 'L' : '-',
-                   mouse_report.buttons & HID_MOUSEBUTTON_MIDDLE ? 'M' : '-',
-                   mouse_report.buttons & HID_MOUSEBUTTON_RIGHT  ? 'R' : '-',
-                   mouse_report.x, mouse_report.y);
-          }
+    case TUSB_EVENT_INTERFACE_CLOSE: // application tear-down
 
-          memclr_(&mouse_report, sizeof(tusb_mouse_report_t)); // TODO use callback to synchronize
-          tusbh_hid_mouse_get_report(dev_addr, 0, (uint8_t*) &mouse_report);
-        break;
+    break;
 
-        case TUSB_INTERFACE_STATUS_BUSY:
-        break;
+    case TUSB_EVENT_XFER_COMPLETE:
+      osal_queue_send(q_mouse_report_hdl, &usb_mouse_report);
+      tusbh_hid_mouse_get_report(dev_addr, instance_num, (uint8_t*) &usb_mouse_report);
+    break;
 
-      }
-    }
+    case TUSB_EVENT_XFER_ERROR:
+      tusbh_hid_mouse_get_report(dev_addr, instance_num, (uint8_t*) &usb_mouse_report); // ignore & continue
+    break;
+
+    default :
+    break;
   }
+}
+
+//--------------------------------------------------------------------+
+// APPLICATION
+// NOTICE: MOUSE REPORT IS NOT CORRECT UNTIL A DECENT HID PARSER IS
+// IMPLEMENTED, MEANWHILE IT CAN MISS DISPLAY BUTTONS OR X,Y etc
+//--------------------------------------------------------------------+
+void mouse_app_init(void)
+{
+  q_mouse_report_hdl = osal_queue_create(&queue_mouse_report);
+
+  // TODO mouse_app_task create
+}
+
+//------------- main task -------------//
+OSAL_TASK_DECLARE( mouse_app_task )
+{
+  tusb_error_t error;
+  tusb_mouse_report_t mouse_report;
+
+  OSAL_TASK_LOOP_BEGIN
+
+  osal_queue_receive(q_mouse_report_hdl, &mouse_report, OSAL_TIMEOUT_WAIT_FOREVER, &error);
+
+  if ( mouse_report.buttons || mouse_report.x || mouse_report.y)
+  {
+      printf("buttons: %c%c%c    (x, y) = (%d, %d)\n",
+             mouse_report.buttons & HID_MOUSEBUTTON_LEFT   ? 'L' : '-',
+             mouse_report.buttons & HID_MOUSEBUTTON_MIDDLE ? 'M' : '-',
+             mouse_report.buttons & HID_MOUSEBUTTON_RIGHT  ? 'R' : '-',
+             mouse_report.x, mouse_report.y);
+  }
+
+  OSAL_TASK_LOOP_END
 }

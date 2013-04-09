@@ -51,12 +51,15 @@
 #ifndef _TUSB_MOUSE_APP_H_
 #define _TUSB_MOUSE_APP_H_
 
-#ifdef __cplusplus
- extern "C" {
-#endif
+#include <stdint.h>
+#include <stdbool.h>
 
 #include "boards/board.h"
 #include "tusb.h"
+
+#ifdef __cplusplus
+ extern "C" {
+#endif
 
 #ifdef __cplusplus
  }
