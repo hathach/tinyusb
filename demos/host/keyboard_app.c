@@ -63,6 +63,32 @@ static inline uint8_t keycode_to_ascii(uint8_t keycode)
 }
 
 
+//--------------------------------------------------------------------+
+// tinyusb callback (ISR context)
+//--------------------------------------------------------------------+
+//void tusbh_hid_keyboard_isr(uint8_t dev_addr, uint8_t instance_num, tusb_event_t event)
+//{
+//  switch(event)
+//  {
+//    case TUSB_EVENT_INTERFACE_OPEN:
+//      tusbh_hid_keyboard_get_report(dev_addr, 0, (uint8_t*) &keyboard_report); // first report
+//    break;
+//
+//    case TUSB_EVENT_INTERFACE_CLOSE:
+//
+//    break;
+//
+//    case TUSB_EVENT_XFER_COMPLETE:
+//      tusbh_hid_keyboard_get_report(dev_addr, 0, (uint8_t*) &keyboard_report);
+//    break;
+//
+//    case TUSB_EVENT_XFER_ERROR:
+//    break;
+//
+//    default:
+//  }
+//}
+
 void keyboard_app_task(void)
 {
   for (uint8_t dev_addr = 1; dev_addr <= TUSB_CFG_HOST_DEVICE_MAX; dev_addr++)

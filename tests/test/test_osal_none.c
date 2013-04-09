@@ -50,7 +50,7 @@ uint32_t statements[10];
 OSAL_SEM_DEF(sem);
 osal_semaphore_handle_t sem_hdl;
 
-OSAL_QUEUE_DEF(queue, QUEUE_DEPTH, uin32_t);
+OSAL_QUEUE_DEF(queue, QUEUE_DEPTH, uint32_t);
 osal_queue_handle_t queue_hdl;
 
 void setUp(void)
@@ -97,9 +97,9 @@ void test_queue_create(void)
 void test_queue_send(void)
 {
   uint32_t const item = 0x1234;
-  osal_queue_send(queue_hdl, item);
+  osal_queue_send(queue_hdl, &item);
   TEST_ASSERT_EQUAL(1, queue_hdl->count);
-  TEST_ASSERT_EQUAL(item, queue_hdl->buffer[queue_hdl->rd_idx]);
+  TEST_ASSERT_EQUAL_MEMORY(&item, queue_hdl->buffer + (queue_hdl->rd_idx * queue_hdl->item_size), 4);
 }
 // blocking service such as semaphore wait need to be invoked within a task's loop
 
@@ -196,6 +196,7 @@ tusb_error_t sample_task_with_queue(void)
 void test_task_with_queue(void)
 {
   uint32_t i = 0;
+  uint32_t item;
 
   sample_task_with_queue();
   // several invoke before queue is available
@@ -204,14 +205,17 @@ void test_task_with_queue(void)
   TEST_ASSERT_EQUAL(1, statements[0]);
 
   // invoke after posting semaphore
-  osal_queue_send(queue_hdl, 0x1111);
+  item = 0x1111;
+  osal_queue_send(queue_hdl, &item);
   sample_task_with_queue();
   TEST_ASSERT_EQUAL(1, statements[1]);
   sample_task_with_queue();
   TEST_ASSERT_EQUAL(1, statements[1]);
 
-  osal_queue_send(queue_hdl, 0x2222);
-  osal_queue_send(queue_hdl, 0x3333);
+  item = 0x2222;
+  osal_queue_send(queue_hdl, &item);
+  item = 0x3333;
+  osal_queue_send(queue_hdl, &item);
   sample_task_with_queue();
   TEST_ASSERT_EQUAL(1, statements[2]);
   TEST_ASSERT_EQUAL(1, statements[3]);

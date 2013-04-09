@@ -78,7 +78,7 @@ tusb_error_t hal_init(void)
 #if TUSB_CFG_CONTROLLER1_MODE
   /* connect CLK_USB1 to 60 MHz clock */
   CGU_EntityConnect(CGU_CLKSRC_PLL1, CGU_BASE_USB1); /* FIXME Run base BASE_USB1_CLK clock from PLL1 (assume PLL1 is 60 MHz, no division required) */
-  LPC_CREG->CREG0 &= ~(1<<5); /* Turn on the phy */
+  //LPC_CREG->CREG0 &= ~(1<<5); /* Turn on the phy */
   LPC_SCU->SFSUSB = (TUSB_CFG_CONTROLLER1_MODE & TUSB_MODE_HOST) ? 0x16 : 0x12; // enable USB1 with on-chip FS PHY
 
   #if TUSB_CFG_CONTROLLER1_MODE & TUSB_MODE_HOST

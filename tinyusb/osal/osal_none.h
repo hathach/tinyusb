@@ -203,11 +203,12 @@ static inline void osal_semaphore_reset(osal_semaphore_handle_t const sem_hdl)
 // QUEUE API
 //--------------------------------------------------------------------+
 typedef struct{
-           uint32_t * const buffer     ; ///< buffer pointer
-           uint8_t const depth        ; ///< buffer size
-  volatile uint8_t count          ; ///< bytes in fifo
-  volatile uint8_t wr_idx       ; ///< write pointer
-  volatile uint8_t rd_idx       ; ///< read pointer
+           void *  const buffer    ; ///< buffer pointer
+           uint8_t const depth     ; ///< max items
+           uint8_t const item_size ; ///< size of each item
+  volatile uint8_t count           ; ///< number of items in queue
+  volatile uint8_t wr_idx          ; ///< write pointer
+  volatile uint8_t rd_idx          ; ///< read pointer
 } osal_queue_t;
 
 typedef osal_queue_t * osal_queue_handle_t;
@@ -216,8 +217,9 @@ typedef osal_queue_t * osal_queue_handle_t;
 #define OSAL_QUEUE_DEF(name, queue_depth, type)\
   uint32_t name##_buffer[queue_depth];\
   osal_queue_t name = {\
-      .buffer = name##_buffer,\
-      .depth   = queue_depth\
+      .buffer    = name##_buffer,\
+      .depth     = queue_depth,\
+      .item_size = sizeof(type)\
   }
 
 static inline osal_queue_handle_t osal_queue_create(osal_queue_t * const p_queue) ATTR_ALWAYS_INLINE;
@@ -228,12 +230,15 @@ static inline osal_queue_handle_t osal_queue_create(osal_queue_t * const p_queue
 }
 
 // when queue is full, it will overwrite the oldest data in the queue
-static inline tusb_error_t osal_queue_send(osal_queue_handle_t const queue_hdl, uint32_t data) ATTR_ALWAYS_INLINE;
-static inline tusb_error_t osal_queue_send(osal_queue_handle_t const queue_hdl, uint32_t data)
+static inline tusb_error_t osal_queue_send(osal_queue_handle_t const queue_hdl, const void * data) ATTR_ALWAYS_INLINE;
+static inline tusb_error_t osal_queue_send(osal_queue_handle_t const queue_hdl, const void * data)
 {
   //TODO mutex lock hal_interrupt_disable
 
-  queue_hdl->buffer[queue_hdl->wr_idx] = data;
+  memcpy( queue_hdl->buffer + (queue_hdl->wr_idx * queue_hdl->item_size),
+          data,
+          queue_hdl->item_size);
+
   queue_hdl->wr_idx = (queue_hdl->wr_idx + 1) % queue_hdl->depth;
 
   if (queue_hdl->depth == queue_hdl->count) // queue is full, 1st rd is overwritten
@@ -266,7 +271,7 @@ static inline void osal_queue_flush(osal_queue_handle_t const queue_hdl)
         return TUSB_ERROR_OSAL_WAITING;\
     } else{\
       /*TODO mutex lock hal_interrupt_disable */\
-      *p_data = queue_hdl->buffer[queue_hdl->rd_idx];\
+      memcpy(p_data, queue_hdl->buffer + (queue_hdl->rd_idx * queue_hdl->item_size), queue_hdl->item_size);\
       queue_hdl->rd_idx = (queue_hdl->rd_idx + 1) % queue_hdl->depth;\
       queue_hdl->count--;\
       /*TODO mutex unlock hal_interrupt_enable */\

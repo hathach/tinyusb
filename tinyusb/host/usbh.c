@@ -90,7 +90,7 @@ usbh_device_info_t usbh_devices[TUSB_CFG_HOST_DEVICE_MAX+1] TUSB_CFG_ATTR_USBRAM
 
 //------------- Enumeration Task Data -------------//
 OSAL_TASK_DEF(enum_task, usbh_enumeration_task, 128, OSAL_PRIO_HIGH);
-OSAL_QUEUE_DEF(enum_queue, ENUM_QUEUE_DEPTH, uin32_t);
+OSAL_QUEUE_DEF(enum_queue, ENUM_QUEUE_DEPTH, uint32_t);
 osal_queue_handle_t enum_queue_hdl;
 STATIC_ uint8_t enum_data_buffer[TUSB_CFG_HOST_ENUM_BUFFER_SIZE] TUSB_CFG_ATTR_USBRAM;
 
@@ -205,8 +205,7 @@ void usbh_isr(pipe_handle_t pipe_hdl, uint8_t class_code, tusb_event_t event)
 void usbh_device_plugged_isr(uint8_t hostid, tusb_speed_t speed)
 {
   osal_queue_send(enum_queue_hdl,
-   *( (uint32_t*) ( &(usbh_enumerate_t){ .core_id = hostid, .speed = speed} ) )
-   );
+                  &(usbh_enumerate_t){ .core_id = hostid, .speed = speed} );
 }
 
 void usbh_device_unplugged_isr(uint8_t hostid)
@@ -262,7 +261,7 @@ OSAL_TASK_DECLARE(usbh_enumeration_task)
 
   OSAL_TASK_LOOP_BEGIN
 
-  osal_queue_receive(enum_queue_hdl, (uint32_t*)(&enum_entry), OSAL_TIMEOUT_WAIT_FOREVER, &error);
+  osal_queue_receive(enum_queue_hdl, &enum_entry, OSAL_TIMEOUT_WAIT_FOREVER, &error);
 
   TASK_ASSERT( hcd_port_connect_status(enum_entry.core_id) ); // device may be unplugged
   usbh_devices[0].core_id  = enum_entry.core_id; // TODO refractor integrate to device_pool

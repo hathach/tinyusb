@@ -76,7 +76,8 @@ void test_(void)
   osal_semaphore_post(sem_hdl);
   osal_semaphore_wait(sem_hdl, OSAL_TIMEOUT_WAIT_FOREVER, &error);
 
-  osal_queue_send(queue_hdl, 0x1234);
+  uint32_t item = 0x1234;
+  osal_queue_send(queue_hdl, &item);
   osal_queue_receive(queue_hdl, &data, OSAL_TIMEOUT_NORMAL, &error);
 
 }
