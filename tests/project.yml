@@ -34,6 +34,8 @@
     - -:../test_old
     #- ../../CMSISv2p10_LPC13Uxx/**
     - ../../CMSISv2p10_LPC43xx_DriverLib/inc
+    #- ../vendor/freertos/freertos/Source/*
+    #- ../vendor/freertos/freertos/Source/portable/MSVC-MingW/*
     
   :support:
     - test/support
