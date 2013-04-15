@@ -46,7 +46,7 @@
 									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/CMSISv2p10_LPC43xx_DriverLib/inc}&quot;"/>
 									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/${ProjName}/bsp}&quot;"/>
 									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/${ProjName}/tinyusb}&quot;"/>
-									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/${ProjName}}&quot;"/>
+									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/${ProjName}/src}&quot;"/>
 								</option>
 								<option id="com.crt.advproject.c.misc.dialect.861665028" name="C Dialect" superClass="com.crt.advproject.c.misc.dialect" value="com.crt.advproject.misc.dialect.gnu99" valueType="enumerated"/>
 								<inputType id="com.crt.advproject.compiler.input.217124913" superClass="com.crt.advproject.compiler.input"/>
@@ -137,7 +137,7 @@
 									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/CMSISv2p10_LPC43xx_DriverLib/inc}&quot;"/>
 									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/${ProjName}/bsp}&quot;"/>
 									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/${ProjName}/tinyusb}&quot;"/>
-									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/${ProjName}}&quot;"/>
+									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/${ProjName}/src}&quot;"/>
 								</option>
 								<option id="com.crt.advproject.c.misc.dialect.785308269" name="C Dialect" superClass="com.crt.advproject.c.misc.dialect" value="com.crt.advproject.misc.dialect.gnu99" valueType="enumerated"/>
 								<inputType id="com.crt.advproject.compiler.input.772057054" superClass="com.crt.advproject.compiler.input"/>
