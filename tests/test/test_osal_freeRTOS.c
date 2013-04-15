@@ -36,27 +36,28 @@
  */
 
 #include "unity.h"
-#include "FreeRTOSConfig.h"
-#include "osal_freeRTOS.h"
-#include "mock_task.h"
-#include "queue.h"
-#include "mock_portmacro.h"
-#include "mock_portable.h"
-#include "mock_list.h"
-
-#define QUEUE_DEPTH 10
-
-uint32_t statements[10];
-
-OSAL_SEM_DEF(sem);
-osal_semaphore_handle_t sem_hdl;
-
-OSAL_QUEUE_DEF(queue, QUEUE_DEPTH, uin32_t);
-osal_queue_handle_t queue_hdl;
+#include "errors.h"
+#include "freeRTOS.h"
+//#include "osal_freeRTOS.h"
+//#include "mock_task.h"
+//#include "queue.h"
+//#include "mock_portmacro.h"
+//#include "mock_portable.h"
+//#include "mock_list.h"
+//
+//#define QUEUE_DEPTH 10
+//
+//uint32_t statements[10];
+//
+//OSAL_SEM_DEF(sem);
+//osal_semaphore_handle_t sem_hdl;
+//
+//OSAL_QUEUE_DEF(queue, QUEUE_DEPTH, uin32_t);
+//osal_queue_handle_t queue_hdl;
 
 void setUp(void)
 {
-  memset(statements, 0, sizeof(statements));
+//  memset(statements, 0, sizeof(statements));
 //  sem_hdl = osal_semaphore_create(OSAL_SEM_REF(sem));
 //  queue_hdl = osal_queue_create(&queue);
 }
@@ -71,13 +72,13 @@ void test_(void)
   tusb_error_t error = TUSB_ERROR_NONE;
   uint32_t data;
 
-  TEST_IGNORE();
-
-  osal_semaphore_post(sem_hdl);
-  osal_semaphore_wait(sem_hdl, OSAL_TIMEOUT_WAIT_FOREVER, &error);
-
-  uint32_t item = 0x1234;
-  osal_queue_send(queue_hdl, &item);
-  osal_queue_receive(queue_hdl, &data, OSAL_TIMEOUT_NORMAL, &error);
+//  TEST_IGNORE();
+//
+//  osal_semaphore_post(sem_hdl);
+//  osal_semaphore_wait(sem_hdl, OSAL_TIMEOUT_WAIT_FOREVER, &error);
+//
+//  uint32_t item = 0x1234;
+//  osal_queue_send(queue_hdl, &item);
+//  osal_queue_receive(queue_hdl, &data, OSAL_TIMEOUT_NORMAL, &error);
 
 }
