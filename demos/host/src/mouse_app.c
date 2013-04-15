@@ -114,5 +114,7 @@ OSAL_TASK_DECLARE( mouse_app_task )
              mouse_report.x, mouse_report.y);
   }
 
+  memclr_(&mouse_report, sizeof(tusb_mouse_report_t) );
+
   OSAL_TASK_LOOP_END
 }

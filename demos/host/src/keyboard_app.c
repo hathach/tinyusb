@@ -112,6 +112,8 @@ OSAL_TASK_DECLARE( keyboard_app_task )
       printf("%c", keycode_to_ascii(kbd_report.keycode[i]));
   }
 
+  memclr_(&kbd_report, sizeof(tusb_keyboard_report_t) );
+
   OSAL_TASK_LOOP_END
 }
 
