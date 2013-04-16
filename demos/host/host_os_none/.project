@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <projectDescription>
-	<name>host</name>
+	<name>host_os_none</name>
 	<comment></comment>
 	<projects>
 	</projects>
@@ -98,7 +98,7 @@
 	</linkedResources>
 	<filteredResources>
 		<filter>
-			<id>1366018873825</id>
+			<id>0</id>
 			<name></name>
 			<type>26</type>
 			<matcher>
@@ -107,4 +107,18 @@
 			</matcher>
 		</filter>
 	</filteredResources>
+	<variableList>
+		<variable>
+			<name>copy_PARENT</name>
+			<value>$%7BPARENT-1-PROJECT_LOC%7D/tinyusb/demos</value>
+		</variable>
+		<variable>
+			<name>copy_PARENT1</name>
+			<value>$%7Bcopy_PARENT%7D/host</value>
+		</variable>
+		<variable>
+			<name>copy_PARENT12</name>
+			<value>$%7BPARENT-1-copy_PARENT%7D</value>
+		</variable>
+	</variableList>
 </projectDescription>

@@ -62,7 +62,7 @@
 							<tool command="arm-none-eabi-gcc" commandLinePattern="${COMMAND} ${FLAGS} ${OUTPUT_FLAG}${OUTPUT_PREFIX}${OUTPUT} ${INPUTS}" errorParsers="org.eclipse.cdt.core.GLDErrorParser" id="com.crt.advproject.link.exe.debug.1137849179" name="MCU Linker" superClass="com.crt.advproject.link.exe.debug">
 								<option id="com.crt.advproject.link.arch.1187341700" name="Architecture" superClass="com.crt.advproject.link.arch" value="com.crt.advproject.link.target.cm4" valueType="enumerated"/>
 								<option id="com.crt.advproject.link.thumb.981715979" name="Thumb mode" superClass="com.crt.advproject.link.thumb" value="true" valueType="boolean"/>
-								<option id="com.crt.advproject.link.script.2116791390" name="Linker script" superClass="com.crt.advproject.link.script" value="&quot;host_Board_NGX4330.ld&quot;" valueType="string"/>
+								<option id="com.crt.advproject.link.script.2116791390" name="Linker script" superClass="com.crt.advproject.link.script" value="&quot;host_os_none_Board_NGX4330.ld&quot;" valueType="string"/>
 								<option id="com.crt.advproject.link.manage.1536072802" name="Manage linker script" superClass="com.crt.advproject.link.manage" value="true" valueType="boolean"/>
 								<option id="gnu.c.link.option.nostdlibs.837843167" name="No startup or default libs (-nostdlib)" superClass="gnu.c.link.option.nostdlibs" value="true" valueType="boolean"/>
 								<option id="gnu.c.link.option.other.908441611" name="Other options (-Xlinker [option])" superClass="gnu.c.link.option.other" valueType="stringList">
@@ -153,7 +153,7 @@
 							<tool command="arm-none-eabi-gcc" commandLinePattern="${COMMAND} ${FLAGS} ${OUTPUT_FLAG}${OUTPUT_PREFIX}${OUTPUT} ${INPUTS}" errorParsers="org.eclipse.cdt.core.GLDErrorParser" id="com.crt.advproject.link.exe.debug.1770663329" name="MCU Linker" superClass="com.crt.advproject.link.exe.debug">
 								<option id="com.crt.advproject.link.arch.1264750550" name="Architecture" superClass="com.crt.advproject.link.arch" value="com.crt.advproject.link.target.cm4" valueType="enumerated"/>
 								<option id="com.crt.advproject.link.thumb.1129500777" name="Thumb mode" superClass="com.crt.advproject.link.thumb" value="true" valueType="boolean"/>
-								<option id="com.crt.advproject.link.script.1484718299" name="Linker script" superClass="com.crt.advproject.link.script" value="&quot;host_Board_EA4357.ld&quot;" valueType="string"/>
+								<option id="com.crt.advproject.link.script.1484718299" name="Linker script" superClass="com.crt.advproject.link.script" value="&quot;host_os_none_Board_EA4357.ld&quot;" valueType="string"/>
 								<option id="com.crt.advproject.link.manage.887685321" name="Manage linker script" superClass="com.crt.advproject.link.manage" value="true" valueType="boolean"/>
 								<option id="gnu.c.link.option.nostdlibs.1623667904" name="No startup or default libs (-nostdlib)" superClass="gnu.c.link.option.nostdlibs" value="true" valueType="boolean"/>
 								<option id="gnu.c.link.option.other.510975547" name="Other options (-Xlinker [option])" superClass="gnu.c.link.option.other" valueType="stringList">
