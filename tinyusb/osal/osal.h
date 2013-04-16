@@ -58,14 +58,17 @@
 #include "tusb_option.h"
 
 #define TUSB_OS_NONE     1
-#define TUSB_OS_CMSIS    2
-#define TUSB_OS_FREERTOS 3
-#define TUSB_OS_UCOS     4
+#define TUSB_OS_FREERTOS 2
+#define TUSB_OS_CMSIS    3
+#define TUSB_OS_UCOS2    4
+#define TUSB_OS_UCOS3    5
 
 #ifndef _TEST_
 
 #if TUSB_CFG_OS == TUSB_OS_NONE
   #include "osal_none.h"
+#elif TUSB_CFG_OS == TUSB_OS_FREERTOS
+  #include "osal_freeRTOS.h"
 #else
   #error TUSB_CFG_OS is not defined or OS is not supported yet
 #endif

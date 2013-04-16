@@ -311,7 +311,22 @@
 #ifdef __IAR_78K0R_Kx3L__
 	#include "../../Source/portable/IAR/78K0R/portmacro.h"
 #endif
-	
+
+//--------------------------------------------------------------------+
+// TinyUSB modification
+//--------------------------------------------------------------------+
+#include "tusb_option.h"
+
+#ifdef __GNUC__
+  #if MCU==MCU_LPC43XX // TODO M0 M4
+    #include "../portable/GCC/ARM_CM4F/portmacro.h"
+  #else
+    #error portmacro.h for mcu is not supported yet
+  #endif
+#else
+  #error portmacro.h for mcu is not supported yet
+#endif
+
 /* Catch all to ensure portmacro.h is included in the build.  Newer demos
 have the path as part of the project options, rather than as relative from
 the project location.  If portENTER_CRITICAL() has not been defined then
