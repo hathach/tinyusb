@@ -38,6 +38,7 @@
 									<listOptionValue builtIn="false" value="CORE_M4"/>
 									<listOptionValue builtIn="false" value="MCU=MCU_LPC43XX"/>
 									<listOptionValue builtIn="false" value="BOARD=BOARD_NGX4330"/>
+									<listOptionValue builtIn="false" value="TUSB_CFG_OS=TUSB_OS_NONE"/>
 									<listOptionValue builtIn="false" value="DEBUG"/>
 									<listOptionValue builtIn="false" value="__CODE_RED"/>
 								</option>
@@ -129,6 +130,7 @@
 									<listOptionValue builtIn="false" value="CORE_M4"/>
 									<listOptionValue builtIn="false" value="MCU=MCU_LPC43XX"/>
 									<listOptionValue builtIn="false" value="BOARD=BOARD_EA4357"/>
+									<listOptionValue builtIn="false" value="TUSB_CFG_OS=TUSB_OS_NONE"/>
 									<listOptionValue builtIn="false" value="DEBUG"/>
 									<listOptionValue builtIn="false" value="__CODE_RED"/>
 								</option>

@@ -92,7 +92,8 @@
 
 #define TUSB_CFG_DEBUG                3
 
-#define TUSB_CFG_OS                   TUSB_OS_NONE
+//#define TUSB_CFG_OS                   TUSB_OS_NONE // defined using eclipse build
+
 #define TUSB_CFG_OS_TICKS_PER_SECOND  1000
 
 #ifdef __CODE_RED // make use of code red's support for ram region macros
