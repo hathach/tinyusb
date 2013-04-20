@@ -71,15 +71,54 @@ extern "C" {
 //--------------------------------------------------------------------+
 // TASK API
 //--------------------------------------------------------------------+
+#define OSAL_TASK_DECLARE(task_name) \
+  void task_name(void *p_task_para)
+
+typedef struct {
+  signed portCHAR const * name;
+  pdTASK_CODE code;
+  unsigned portSHORT stack_depth;
+  unsigned portBASE_TYPE prio;
+} osal_task_t;
+
+#define OSAL_TASK_DEF(task_name, task_code, task_stack_depth, task_prio) \
+  osal_task_t task_name = {\
+      .name        = #task_name       , \
+      .code        = task_code        , \
+      .stack_depth = task_stack_depth , \
+      .prio        = task_prio          \
+  };
+
 #define OSAL_TASK_LOOP_BEGIN \
   while(1) {
 
 #define OSAL_TASK_LOOP_END \
   }
 
+//------------- Sub Task -------------//
+#define OSAL_SUBTASK_BEGIN
+#define OSAL_SUBTASK_END
+
+//------------- Task Assert -------------//
+#define TASK_RESTART
+
 // TODO FreeRTOS TASK_ASSERT need to omit do while to get continue statement works.
+#define _TASK_ASSERT_ERROR_HANDLER(error, func_call) \
+  func_call; TASK_RESTART;
+
 #define TASK_ASSERT(condition)
 #define TASK_ASSERT_STATUS(sts)
+
+#define TASK_ASSERT_WITH_HANDLER(condition, func_call) \
+    ASSERT_DEFINE_WITH_HANDLER(_TASK_ASSERT_ERROR_HANDLER, func_call, ,\
+                               condition, TUSB_ERROR_OSAL_TASK_FAILED, "%s", "evaluated to false")
+
+
+//------------- Sub Task Assert -------------// TODO replace directly by TASK ASSERT
+#define SUBTASK_ASSERT_STATUS(...)               TASK_ASSERT_STATUS(__VA_ARGS__)
+#define SUBTASK_ASSERT_STATUS_WITH_HANDLER(...)  TASK_ASSERT_STATUS_WITH_HANDLER(__VA_ARGS__)
+#define SUBTASK_ASSERT(...)                      TASK_ASSERT(__VA_ARGS__)
+#define SUBTASK_ASSERT_WITH_HANDLER(...)         TASK_ASSERT_WITH_HANDLER(__VA_ARGS__)
 
 //--------------------------------------------------------------------+
 // Semaphore API

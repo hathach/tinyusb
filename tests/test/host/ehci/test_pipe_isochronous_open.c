@@ -54,7 +54,7 @@ uint8_t const hub_port = 2;
 uint8_t dev_addr;
 uint8_t hostid;
 
-ehci_qhd_t *period_head;
+ehci_qhd_t *period_head_arr;
 //--------------------------------------------------------------------+
 // Setup/Teardown + helper declare
 //--------------------------------------------------------------------+
@@ -75,7 +75,7 @@ void setUp(void)
     usbh_devices[i].speed    = TUSB_SPEED_HIGH;
   }
 
-  period_head = get_period_head( hostid );
+  period_head_arr = get_period_head( hostid, 1 );
 }
 
 void tearDown(void)

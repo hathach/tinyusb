@@ -123,7 +123,7 @@ void ehci_controller_run(uint8_t hostid)
   complete_all_qtd_in_list((ehci_qhd_t*) regs->async_list_base);
 
   //------------- Period List -------------//
-  complete_all_qtd_in_list( get_period_head(hostid) );
+  complete_all_qtd_in_list( get_period_head(hostid, 1) );
   regs->usb_sts = EHCI_INT_MASK_NXP_ASYNC | EHCI_INT_MASK_NXP_PERIODIC;
 
   hcd_isr(hostid);

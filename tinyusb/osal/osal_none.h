@@ -145,7 +145,7 @@ static inline volatile uint32_t osal_tick_get(void)
     ASSERT_DEFINE_WITH_HANDLER(_TASK_ASSERT_ERROR_HANDLER, func_call, ,\
                                condition, TUSB_ERROR_OSAL_TASK_FAILED, "%s", "evaluated to false")
 
-//------------- Sub Task Assert -------------//
+//------------- Sub Task Assert -------------// TODO replace directly by TASK ASSERT
 #define SUBTASK_ASSERT_STATUS(...)               TASK_ASSERT_STATUS(__VA_ARGS__)
 #define SUBTASK_ASSERT_STATUS_WITH_HANDLER(...)  TASK_ASSERT_STATUS_WITH_HANDLER(__VA_ARGS__)
 #define SUBTASK_ASSERT(...)                      TASK_ASSERT(__VA_ARGS__)

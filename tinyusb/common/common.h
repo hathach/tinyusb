@@ -121,6 +121,12 @@ static inline uint8_t min8_of(uint8_t x, uint8_t y)
   return (x < y) ? x : y;
 }
 
+static inline uint16_t min16_of(uint16_t x, uint16_t y) ATTR_ALWAYS_INLINE ATTR_CONST;
+static inline uint16_t min16_of(uint16_t x, uint16_t y)
+{
+  return (x < y) ? x : y;
+}
+
 static inline uint32_t min32_of(uint32_t x, uint32_t y) ATTR_ALWAYS_INLINE ATTR_CONST;
 static inline uint32_t min32_of(uint32_t x, uint32_t y)
 {

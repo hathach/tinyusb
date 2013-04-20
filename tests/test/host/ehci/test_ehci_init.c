@@ -87,11 +87,12 @@ void test_hcd_init_usbint(void)
     TEST_ASSERT_FALSE(regs->usb_int_enable_bit.framelist_rollover);
     TEST_ASSERT_FALSE(regs->usb_int_enable_bit.pci_host_system_error);
 
+    TEST_ASSERT_FALSE(regs->usb_int_enable_bit.nxp_int_sof);
     TEST_ASSERT_FALSE(regs->usb_int_enable_bit.usb);
     TEST_ASSERT_TRUE(regs->usb_int_enable_bit.nxp_int_async);
     TEST_ASSERT_TRUE(regs->usb_int_enable_bit.nxp_int_period);
 
-    TEST_IGNORE_MESSAGE("not use nxp int async/period, use usbint instead");
+    // TODO to be portable use usbint instead of nxp int async/period
   }
 }
 
@@ -115,27 +116,46 @@ void test_hcd_init_async_list(void)
   }
 }
 
+void check_qhd_endpoint_link(ehci_link_t *p_prev, ehci_qhd_t *p_qhd)
+{
+  //------------- period list check -------------//
+  TEST_ASSERT_EQUAL_HEX((uint32_t) p_qhd, align32(p_prev->address));
+  TEST_ASSERT_FALSE(p_prev->terminate);
+  TEST_ASSERT_EQUAL(EHCI_QUEUE_ELEMENT_QHD, p_prev->type);
+}
+
 void test_hcd_init_period_list(void)
 {
 #if EHCI_PERIODIC_LIST
   for(uint32_t i=0; i<CONTROLLER_HOST_NUMBER; i++)
   {
-    uint8_t           const hostid      = i+TEST_CONTROLLER_HOST_START_INDEX;
-    ehci_registers_t* const regs        = get_operational_register(hostid);
-    ehci_qhd_t *      const period_head = get_period_head(hostid);
-    ehci_link_t *     const framelist   = get_period_frame_list(hostid);
+    uint8_t           const hostid          = i+TEST_CONTROLLER_HOST_START_INDEX;
+    ehci_registers_t* const regs            = get_operational_register(hostid);
+    ehci_qhd_t *      const period_head_arr = get_period_head(hostid, 1);
+    ehci_link_t *     const framelist       = get_period_frame_list(hostid);
 
     TEST_ASSERT_EQUAL_HEX( (uint32_t) framelist, regs->periodic_list_base);
-    for(uint32_t list_idx=0; list_idx < EHCI_FRAMELIST_SIZE; list_idx++)
+
+    check_qhd_endpoint_link( framelist+1,  period_head_arr+1);
+    check_qhd_endpoint_link( framelist+3,  period_head_arr+1);
+    check_qhd_endpoint_link( framelist+5,  period_head_arr+1);
+    check_qhd_endpoint_link( framelist+7,  period_head_arr+1);
+
+    check_qhd_endpoint_link( framelist+2,  period_head_arr+2);
+    check_qhd_endpoint_link( framelist+6,  period_head_arr+2);
+
+    check_qhd_endpoint_link( framelist,  period_head_arr);
+    check_qhd_endpoint_link( framelist+4,  period_head_arr);
+    check_qhd_endpoint_link( (ehci_link_t*) (period_head_arr+1),  period_head_arr);
+    check_qhd_endpoint_link( (ehci_link_t*) (period_head_arr+2),  period_head_arr);
+
+    for(uint32_t i=0; i<3; i++)
     {
-      TEST_ASSERT_EQUAL_HEX( (uint32_t) period_head, align32((uint32_t)framelist[list_idx].address) );
-      TEST_ASSERT_FALSE(framelist[list_idx].terminate);
-      TEST_ASSERT_EQUAL(EHCI_QUEUE_ELEMENT_QHD, framelist[list_idx].type);
+      TEST_ASSERT(period_head_arr[i].interrupt_smask);
+      TEST_ASSERT(period_head_arr[i].qtd_overlay.halted);
     }
 
-    TEST_ASSERT(period_head->interrupt_smask)
-    TEST_ASSERT_TRUE(period_head->next.terminate);
-    TEST_ASSERT(period_head->qtd_overlay.halted);
+    TEST_ASSERT_TRUE(period_head_arr[0].next.terminate);
   }
 #endif
 }

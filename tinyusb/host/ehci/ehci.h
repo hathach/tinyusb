@@ -196,10 +196,11 @@ typedef struct {
 	uint8_t pid_non_control;
 	uint8_t class_code;
 
+	uint8_t interval_ms; // polling interval in frames (or milisecond)
+	uint8_t reserved[3];
 
 	ehci_qtd_t *p_qtd_list_head;	// head of the scheduled TD list
 	ehci_qtd_t *p_qtd_list_tail;	// tail of the scheduled TD list
-	uint32_t reserved_2;
 }ATTR_ALIGNED(32) ehci_qhd_t;
 
 /// Highspeed Isochronous Transfer Descriptor (section 3.3)
@@ -305,7 +306,7 @@ enum ehci_interrupt_mask_{
   EHCI_INT_MASK_FRAMELIST_ROLLOVER    = BIT_(3),
   EHCI_INT_MASK_PCI_HOST_SYSTEM_ERROR = BIT_(4),
   EHCI_INT_MASK_ASYNC_ADVANCE         = BIT_(5),
-  EHCI_INT_MASK_SOF_RECEIVED          = BIT_(7),
+  EHCI_INT_MASK_NXP_SOF               = BIT_(7),
 
   EHCI_INT_MASK_NXP_ASYNC             = BIT_(18),
   EHCI_INT_MASK_NXP_PERIODIC          = BIT_(19),
@@ -313,7 +314,7 @@ enum ehci_interrupt_mask_{
   EHCI_INT_MASK_ALL                   =
       EHCI_INT_MASK_USB | EHCI_INT_MASK_ERROR | EHCI_INT_MASK_PORT_CHANGE |
       EHCI_INT_MASK_FRAMELIST_ROLLOVER | EHCI_INT_MASK_PCI_HOST_SYSTEM_ERROR |
-      EHCI_INT_MASK_ASYNC_ADVANCE | EHCI_INT_MASK_SOF_RECEIVED |
+      EHCI_INT_MASK_ASYNC_ADVANCE | EHCI_INT_MASK_NXP_SOF |
       EHCI_INT_MASK_NXP_ASYNC | EHCI_INT_MASK_NXP_PERIODIC
 };
 
@@ -368,7 +369,7 @@ typedef volatile struct {
       uint32_t pci_host_system_error  : 1  ; ///< R/WC (not used by NXP) The Host Controller sets this bit to 1 when a serious error occurs during a host system access involving the Host Controller module. In a PCI system, conditions that set this bit to 1 include PCI Parity error, PCI Master Abort, and PCI Target Abort. When this error occurs, the Host Controller clears the Run/Stop bit in the Command register to prevent further execution of the scheduled TDs.
       uint32_t async_advance          : 1  ; ///< R/WC 0=Default. System software can force the host controller to issue an interrupt the next time the host controller advances the asynchronous schedule by writing a one to the Interrupt on Async Advance Doorbell bit in the USBCMD register. This status bit indicates the assertion of that interrupt source.
       uint32_t                        : 1  ; ///< These bits are reserved and should be set to zero.
-      uint32_t nxp_sof_received       : 1  ; ///< R/WC NXP customized:  this bit will be set every 125us and can be used by host controller driver as a time base.
+      uint32_t nxp_int_sof            : 1  ; ///< R/WC NXP customized:  this bit will be set every 125us and can be used by host controller driver as a time base.
       uint32_t                        : 4  ; ///< These bits are reserved and should be set to zero.
       uint32_t hc_halted              : 1  ; ///< Read-Only 1=Default. This bit is a zero whenever the Run/Stop bit is a one. The Host Controller sets this bit to one after it has stopped executing as a result of the Run/Stop bit being set to 0, either by software or by the Host Controller hardware (e.g. internal error).
       uint32_t reclamation            : 1  ; ///< Read-Only 0=Default. This is a read-only status bit, which is used to detect an empty asynchronous schedule. The operational model of empty schedule detection is described in Section 4.8.3. The valid transitions for this bit are described in Section 4.8.6.
@@ -392,7 +393,7 @@ typedef volatile struct {
       uint32_t pci_host_system_error : 1  ; ///< (not used by NXP) When this bit is a one, and the Host System Error Statusbit in the USBSTS register is a one, the host controller will issue an interrupt. The interrupt is acknowledged by software clearing the Host System Error bit.
       uint32_t async_advance         : 1  ; ///< When this bit is a one, and the Interrupt on Async Advancebit in the USBSTS register is a one, the host controller will issue an interrupt at the next interrupt threshold. The interrupt is acknowledged by software clearing the Interrupt on Async Advancebit.
       uint32_t                       : 1  ; ///< reserved
-      uint32_t nxp_sof_received      : 1  ; ///< NXP customized: if this bit is one and the SRI bit in the USBSTS register is one, the host controller will issue an interrupt. In host mode, the SRI bit will be set every 125 micro sec and can be used by the host controller as a time base. The interrupt is acknowledged by software clearing the SRI bit in the USBSTS register.
+      uint32_t nxp_int_sof           : 1  ; ///< NXP customized: if this bit is one and the SRI bit in the USBSTS register is one, the host controller will issue an interrupt. In host mode, the SRI bit will be set every 125 micro sec and can be used by the host controller as a time base. The interrupt is acknowledged by software clearing the SRI bit in the USBSTS register.
       uint32_t                       : 10 ; ///< reserved
       uint32_t nxp_int_async         : 1  ; ///< NXP customized: When this bit is a one, and the USBHSTASYNCINT bit in the USBSTS register is a one, the host controller will issue an interrupt at the next interrupt threshold. The interrupt is acknowledged by software clearing the USBHSTASYNCINT bit.
       uint32_t nxp_int_period        : 1  ; ///< NXP customized: When this bit is a one, and the USBHSTPERINT bit in the USBSTS register is a one, the host controller will issue an interrupt at the next interrupt threshold. The interrupt is acknowledged by software clearing the USBHSTPERINT bit.
@@ -445,7 +446,12 @@ typedef volatile struct {
 typedef struct {
   //------------- Static Async/Period List Head, Each for one controller -------------//
   ehci_qhd_t async_head[CONTROLLER_HOST_NUMBER]; /// head qhd of async list, also is used as control endpoint for address 0
-  ehci_qhd_t period_head[CONTROLLER_HOST_NUMBER];
+
+#if EHCI_PERIODIC_LIST
+  // for NXP ECHI, only implement 1 ms & 2 ms & 4 ms, 8 ms (framelist)
+  // [0] : 1ms, [1] : 2ms, [2] : 4ms
+  ehci_qhd_t period_head_arr[CONTROLLER_HOST_NUMBER][3];
+#endif
 
   //------------- Data for Address 0 (use async head as its queue head) -------------//
   ehci_qtd_t addr0_qtd[3];

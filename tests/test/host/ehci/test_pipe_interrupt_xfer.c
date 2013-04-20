@@ -56,7 +56,7 @@ uint8_t hostid;
 uint8_t xfer_data [100];
 uint8_t data2[100];
 
-ehci_qhd_t *period_head;
+ehci_qhd_t *period_head_arr;
 ehci_qhd_t *p_qhd_interrupt;
 pipe_handle_t pipe_hdl_interrupt;
 
@@ -67,7 +67,7 @@ tusb_descriptor_endpoint_t const desc_ept_interrupt_in =
     .bEndpointAddress = 0x81,
     .bmAttributes     = { .xfer = TUSB_XFER_INTERRUPT },
     .wMaxPacketSize   = 8,
-    .bInterval        = 0
+    .bInterval        = 2
 };
 
 tusb_descriptor_endpoint_t const desc_ept_interupt_out =
@@ -77,7 +77,7 @@ tusb_descriptor_endpoint_t const desc_ept_interupt_out =
     .bEndpointAddress = 0x01,
     .bmAttributes     = { .xfer = TUSB_XFER_INTERRUPT },
     .wMaxPacketSize   = 64,
-    .bInterval        = 0
+    .bInterval        = 3
 };
 
 //--------------------------------------------------------------------+
@@ -103,7 +103,7 @@ void setUp(void)
     usbh_devices[i].speed    = TUSB_SPEED_HIGH;
   }
 
-  period_head =  get_period_head( hostid );
+  period_head_arr =  get_period_head( hostid, 1 );
   pipe_hdl_interrupt = hcd_pipe_open(dev_addr, &desc_ept_interrupt_in, TUSB_CLASS_HID);
 
   TEST_ASSERT_EQUAL(dev_addr, pipe_hdl_interrupt.dev_addr);
@@ -186,22 +186,49 @@ void test_interrupt_xfer_double(void)
   TEST_ASSERT_TRUE(p_tail->int_on_complete);
 }
 
-void test_interrupt_xfer_complete_isr(void)
+void check_qhd_after_complete(ehci_qhd_t *p_qhd)
+{
+  TEST_ASSERT_TRUE(p_qhd->qtd_overlay.next.terminate);
+  TEST_ASSERT_NULL(p_qhd->p_qtd_list_head);
+  TEST_ASSERT_NULL(p_qhd->p_qtd_list_tail);
+}
+
+void test_interrupt_xfer_complete_isr_interval_less_than_1ms(void)
 {
   hcd_pipe_xfer(pipe_hdl_interrupt, xfer_data, sizeof(xfer_data), false);
   hcd_pipe_xfer(pipe_hdl_interrupt, data2, sizeof(data2), true);
 
+  usbh_isr_Expect(pipe_hdl_interrupt, TUSB_CLASS_HID, TUSB_EVENT_XFER_COMPLETE);
+
   ehci_qtd_t* p_head = p_qhd_interrupt->p_qtd_list_head;
   ehci_qtd_t* p_tail = p_qhd_interrupt->p_qtd_list_tail;
-
-  usbh_isr_Expect(pipe_hdl_interrupt, TUSB_CLASS_HID, TUSB_EVENT_XFER_COMPLETE);
 
   //------------- Code Under Test -------------//
   ehci_controller_run(hostid);
 
-  TEST_ASSERT_TRUE(p_qhd_interrupt->qtd_overlay.next.terminate);
+  check_qhd_after_complete(p_qhd_interrupt);
   TEST_ASSERT_FALSE(p_head->used);
   TEST_ASSERT_FALSE(p_tail->used);
-  TEST_ASSERT_NULL(p_qhd_interrupt->p_qtd_list_head);
-  TEST_ASSERT_NULL(p_qhd_interrupt->p_qtd_list_tail);
+}
+
+void test_interrupt_xfer_complete_isr_interval_2ms(void)
+{
+  tusb_descriptor_endpoint_t desc_endpoint_2ms = desc_ept_interrupt_in;
+  desc_endpoint_2ms.bInterval = 5;
+
+  pipe_handle_t pipe_hdl_2ms = hcd_pipe_open(dev_addr, &desc_endpoint_2ms, TUSB_CLASS_HID);
+  ehci_qhd_t * p_qhd_2ms = &ehci_data.device[ dev_addr -1].qhd[ pipe_hdl_2ms.index ];
+
+  hcd_pipe_xfer(pipe_hdl_2ms, xfer_data, sizeof(xfer_data), false);
+
+  ehci_qtd_t* p_head = p_qhd_2ms->p_qtd_list_head;
+  ehci_qtd_t* p_tail = p_qhd_2ms->p_qtd_list_tail;
+
+  //------------- Code Under Test -------------//
+  ehci_controller_run(hostid);
+
+  check_qhd_after_complete(p_qhd_2ms);
+  TEST_ASSERT_FALSE(p_head->used);
+  TEST_ASSERT_FALSE(p_tail->used);
+
 }

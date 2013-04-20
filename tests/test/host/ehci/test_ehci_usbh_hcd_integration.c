@@ -59,7 +59,7 @@ uint8_t dev_addr;
 uint8_t hostid;
 ehci_registers_t * regs;
 ehci_qhd_t *async_head;
-ehci_qhd_t *period_head;
+ehci_qhd_t *period_head_arr;
 
 void setUp(void)
 {
@@ -84,7 +84,7 @@ void setUp(void)
 
   regs = get_operational_register(hostid);
   async_head =  get_async_head( hostid );
-  period_head = get_period_head( hostid );
+  period_head_arr = get_period_head( hostid, 1 );
   regs->usb_sts = 0; // hcd_init clear usb_sts by writing 1s
 }
 
