@@ -53,55 +53,55 @@ static const struct {
 // MIC2555 1YML = 0101111, 0YML = 0101101
 #define MIC255_ADDR BIN8(0101111)
 
-static uint8_t mic255_regs_read(uint8_t regs_addr)
-{
-  uint8_t value;
+//static uint8_t mic255_regs_read(uint8_t regs_addr)
+//{
+//  uint8_t value;
+//
+//  ASSERT( SUCCESS == I2C_MasterTransferData(
+//      LPC_I2C0,
+//      & (I2C_M_SETUP_Type)
+//      {
+//        .sl_addr7bit         = MIC255_ADDR,
+//        .retransmissions_max = 3,
+//
+//        .tx_data             = &regs_addr,
+//        .tx_length           = 1,
+//
+//        .rx_data             = &value,
+//        .rx_length           = 1
+//      },
+//      I2C_TRANSFER_POLLING), 0xFF);
+//
+//  return value;
+//}
 
-  ASSERT( SUCCESS == I2C_MasterTransferData(
-      LPC_I2C0,
-      & (I2C_M_SETUP_Type)
-      {
-        .sl_addr7bit         = MIC255_ADDR,
-        .retransmissions_max = 3,
-
-        .tx_data             = &regs_addr,
-        .tx_length           = 1,
-
-        .rx_data             = &value,
-        .rx_length           = 1
-      },
-      I2C_TRANSFER_POLLING), 0xFF);
-
-  return value;
-}
-
-static bool mic255_regs_write(uint8_t regs_addr, uint8_t data)
-{
-  uint8_t xfer_data[2] = { regs_addr, data} ;
-
-  ASSERT( SUCCESS == I2C_MasterTransferData(
-      LPC_I2C0,
-      & (I2C_M_SETUP_Type)
-      {
-        .sl_addr7bit         = MIC255_ADDR,
-        .retransmissions_max = 3,
-
-        .tx_data             = xfer_data,
-        .tx_length           = 2,
-      },
-      I2C_TRANSFER_POLLING), false);
-
-  return true;
-}
+//static bool mic255_regs_write(uint8_t regs_addr, uint8_t data)
+//{
+//  uint8_t xfer_data[2] = { regs_addr, data} ;
+//
+//  ASSERT( SUCCESS == I2C_MasterTransferData(
+//      LPC_I2C0,
+//      & (I2C_M_SETUP_Type)
+//      {
+//        .sl_addr7bit         = MIC255_ADDR,
+//        .retransmissions_max = 3,
+//
+//        .tx_data             = xfer_data,
+//        .tx_length           = 2,
+//      },
+//      I2C_TRANSFER_POLLING), false);
+//
+//  return true;
+//}
 
 
-static uint16_t mic255_get_vendorid(void)
-{
-  uint8_t vendor_low  = mic255_regs_read(0);
-  uint8_t vendor_high = mic255_regs_read(1);
-
-  return (vendor_high << 8) | vendor_low;
-}
+//static uint16_t mic255_get_vendorid(void)
+//{
+//  uint8_t vendor_low  = mic255_regs_read(0);
+//  uint8_t vendor_high = mic255_regs_read(1);
+//
+//  return (vendor_high << 8) | vendor_low;
+//}
 
 void board_init(void)
 {

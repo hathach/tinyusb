@@ -449,8 +449,8 @@ typedef struct {
 
 #if EHCI_PERIODIC_LIST
   // for NXP ECHI, only implement 1 ms & 2 ms & 4 ms, 8 ms (framelist)
-  // [0] : 1ms, [1] : 2ms, [2] : 4ms
-  ehci_qhd_t period_head_arr[CONTROLLER_HOST_NUMBER][3];
+  // [0] : 1ms, [1] : 2ms, [2] : 4ms, [3] : 8 ms
+  ehci_qhd_t period_head_arr[CONTROLLER_HOST_NUMBER][4];
 #endif
 
   //------------- Data for Address 0 (use async head as its queue head) -------------//

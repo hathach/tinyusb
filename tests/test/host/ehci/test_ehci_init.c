@@ -107,7 +107,7 @@ void test_hcd_init_async_list(void)
 
     TEST_ASSERT_EQUAL_HEX(async_head, regs->async_list_base);
 
-    TEST_ASSERT_EQUAL_HEX(async_head, align32(async_head) );
+    TEST_ASSERT_EQUAL_HEX(async_head, align32( (uint32_t) async_head) );
     TEST_ASSERT_EQUAL(EHCI_QUEUE_ELEMENT_QHD, async_head->next.type);
     TEST_ASSERT_FALSE(async_head->next.terminate);
 
@@ -136,20 +136,21 @@ void test_hcd_init_period_list(void)
 
     TEST_ASSERT_EQUAL_HEX( (uint32_t) framelist, regs->periodic_list_base);
 
-    check_qhd_endpoint_link( framelist+1,  period_head_arr+1);
-    check_qhd_endpoint_link( framelist+3,  period_head_arr+1);
-    check_qhd_endpoint_link( framelist+5,  period_head_arr+1);
-    check_qhd_endpoint_link( framelist+7,  period_head_arr+1);
+    check_qhd_endpoint_link( framelist+0,  period_head_arr+1);
+    check_qhd_endpoint_link( framelist+2,  period_head_arr+1);
+    check_qhd_endpoint_link( framelist+4,  period_head_arr+1);
+    check_qhd_endpoint_link( framelist+6,  period_head_arr+1);
 
-    check_qhd_endpoint_link( framelist+2,  period_head_arr+2);
-    check_qhd_endpoint_link( framelist+6,  period_head_arr+2);
+    check_qhd_endpoint_link( framelist+1,  period_head_arr+2);
+    check_qhd_endpoint_link( framelist+5,  period_head_arr+2);
 
-    check_qhd_endpoint_link( framelist,  period_head_arr);
-    check_qhd_endpoint_link( framelist+4,  period_head_arr);
+    check_qhd_endpoint_link( framelist+3,  period_head_arr+3);
+    check_qhd_endpoint_link( framelist+7,  period_head_arr);
     check_qhd_endpoint_link( (ehci_link_t*) (period_head_arr+1),  period_head_arr);
     check_qhd_endpoint_link( (ehci_link_t*) (period_head_arr+2),  period_head_arr);
+    check_qhd_endpoint_link( (ehci_link_t*) (period_head_arr+3),  period_head_arr);
 
-    for(uint32_t i=0; i<3; i++)
+    for(uint32_t i=0; i<4; i++)
     {
       TEST_ASSERT(period_head_arr[i].interrupt_smask);
       TEST_ASSERT(period_head_arr[i].qtd_overlay.halted);

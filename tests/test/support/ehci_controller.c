@@ -88,31 +88,44 @@ void ehci_controller_control_xfer_proceed(uint8_t dev_addr, uint8_t p_data[])
   hcd_isr( usbh_devices[dev_addr].core_id );
 }
 
-bool complete_all_qtd_in_list(ehci_qhd_t *head)
+void complete_qtd_in_qhd(ehci_qhd_t *p_qhd)
+{
+  if ( !p_qhd->qtd_overlay.halted )
+  {
+    while(!p_qhd->qtd_overlay.next.terminate)
+    {
+      ehci_qtd_t* p_qtd = (ehci_qtd_t*) align32(p_qhd->qtd_overlay.next.address);
+      p_qtd->active = 0;
+      p_qhd->qtd_overlay = *p_qtd;
+    }
+  }
+}
+
+bool complete_all_qtd_in_async(ehci_qhd_t *head)
 {
   ehci_qhd_t *p_qhd = head;
 
   do
   {
-    if ( !p_qhd->qtd_overlay.halted )
-    {
-      while(!p_qhd->qtd_overlay.next.terminate)
-      {
-        ehci_qtd_t* p_qtd = (ehci_qtd_t*) align32(p_qhd->qtd_overlay.next.address);
-        p_qtd->active = 0;
-        p_qhd->qtd_overlay = *p_qtd;
-      }
-    }
-    if (!p_qhd->next.terminate)
-    {
-      p_qhd = (ehci_qhd_t*) align32(p_qhd->next.address);
-    }
-    else
-    {
-      break;
-    }
+    complete_qtd_in_qhd(p_qhd);
+    p_qhd = (ehci_qhd_t*) align32(p_qhd->next.address);
   }while(p_qhd != head); // stop if loop around
 
+  return true;
+}
+
+bool complete_all_qtd_in_period(ehci_link_t *head)
+{
+  while(!head->terminate)
+  {
+    uint32_t queue_type = head->type;
+    head = (ehci_link_t*) align32(head->address);
+
+    if ( queue_type == EHCI_QUEUE_ELEMENT_QHD)
+    {
+      complete_qtd_in_qhd( (ehci_qhd_t*) head );
+    }
+  }
   return true;
 }
 
@@ -120,10 +133,13 @@ void ehci_controller_run(uint8_t hostid)
 {
   //------------- Async List -------------//
   ehci_registers_t* const regs = get_operational_register(hostid);
-  complete_all_qtd_in_list((ehci_qhd_t*) regs->async_list_base);
+  complete_all_qtd_in_async((ehci_qhd_t*) regs->async_list_base);
 
   //------------- Period List -------------//
-  complete_all_qtd_in_list( get_period_head(hostid, 1) );
+  for(uint8_t i=1; i <= EHCI_FRAMELIST_SIZE; i *= 2)
+  {
+    complete_all_qtd_in_period( get_period_head(hostid, i) );
+  }
   regs->usb_sts = EHCI_INT_MASK_NXP_ASYNC | EHCI_INT_MASK_NXP_PERIODIC;
 
   hcd_isr(hostid);

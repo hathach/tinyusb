@@ -263,7 +263,7 @@ void test_open_interrupt_hs_interval_7(void)
 void test_open_interrupt_hs_interval_8(void)
 {
   tusb_descriptor_endpoint_t int_edp_interval = desc_ept_interrupt_out;
-  int_edp_interval.bInterval = 8;
+  int_edp_interval.bInterval = 16;
 
   //------------- Code Under TEST -------------//
   pipe_hdl = hcd_pipe_open(dev_addr, &int_edp_interval, TUSB_CLASS_HID);
@@ -324,6 +324,23 @@ void test_interrupt_close(void)
   TEST_ASSERT(p_int_qhd->is_removing);
   TEST_ASSERT( align32(period_head_arr->next.address) != (uint32_t) p_int_qhd );
   TEST_ASSERT_EQUAL_HEX( (uint32_t) period_head_arr, align32(p_int_qhd->next.address ) );
+  TEST_ASSERT_EQUAL(EHCI_QUEUE_ELEMENT_QHD, p_int_qhd->next.type);
+}
+
+void test_interrupt_256ms_close(void)
+{
+  tusb_descriptor_endpoint_t int_edp_interval = desc_ept_interrupt_out;
+  int_edp_interval.bInterval = 9;
+
+  pipe_hdl = hcd_pipe_open(dev_addr, &int_edp_interval, TUSB_CLASS_HID);
+  p_int_qhd = qhd_get_from_pipe_handle(pipe_hdl);
+
+  //------------- Code Under TEST -------------//
+  hcd_pipe_close(pipe_hdl);
+
+  TEST_ASSERT(p_int_qhd->is_removing);
+  TEST_ASSERT( align32(get_period_head(hostid, 8)->address) != (uint32_t) p_int_qhd );
+  TEST_ASSERT_EQUAL_HEX( (uint32_t) get_period_head(hostid, 8), align32(p_int_qhd->next.address ) );
   TEST_ASSERT_EQUAL(EHCI_QUEUE_ELEMENT_QHD, p_int_qhd->next.type);
 }
 

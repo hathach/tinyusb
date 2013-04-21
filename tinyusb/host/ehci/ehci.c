@@ -98,8 +98,8 @@ static inline void           qtd_remove_1st_from_qhd(ehci_qhd_t *p_qhd) ATTR_ALW
 static void qtd_init(ehci_qtd_t* p_qtd, uint32_t data_ptr, uint16_t total_bytes);
 
 static inline void  list_insert(ehci_link_t *current, ehci_link_t *new, uint8_t new_type) ATTR_ALWAYS_INLINE;
-static ehci_qhd_t*  list_find_previous_qhd(ehci_qhd_t* p_head, ehci_qhd_t* p_qhd);
-static tusb_error_t list_remove_qhd(ehci_qhd_t* p_head, ehci_qhd_t* p_qhd_remove);
+static ehci_link_t*  list_find_previous_item(ehci_link_t* p_head, ehci_link_t* p_current);
+static tusb_error_t list_remove_qhd(ehci_link_t* p_head, ehci_link_t* p_remove);
 
 
 static tusb_error_t hcd_controller_init(uint8_t hostid) ATTR_WARN_UNUSED_RESULT;
@@ -181,7 +181,7 @@ static tusb_error_t hcd_controller_init(uint8_t hostid)
   //------------- Periodic List -------------//
   // Build the polling interval tree with 1 ms, 2 ms, 4 ms and 8 ms (framesize) only
 
-  for(uint32_t i=0; i<3; i++)
+  for(uint32_t i=0; i<4; i++)
   {
     ehci_data.period_head_arr[ hostid_to_data_idx(hostid) ][i].interrupt_smask    = 1; // queue head in period list must have smask non-zero
     ehci_data.period_head_arr[ hostid_to_data_idx(hostid) ][i].qtd_overlay.halted = 1; // dummy node, always inactive
@@ -189,12 +189,10 @@ static tusb_error_t hcd_controller_init(uint8_t hostid)
 
   ehci_link_t * const framelist  = get_period_frame_list(hostid);
   ehci_link_t * const period_1ms = get_period_head(hostid, 1);
-  ehci_link_t * const period_2ms = get_period_head(hostid, 2);
-  ehci_link_t * const period_4ms = get_period_head(hostid, 4);
-
-  // 1, 3, 5, 7 etc --> period_head_arr[2] (4ms)
-  // 2, 6 --> period_head_arr[2]
-  // 0, 4, + period_head_arr[1] + period_head_arr[2] --> period_head_arr[0]
+  // all links --> period_head_arr[0] (1ms)
+  // 0, 2, 4, 6 etc --> period_head_arr[1] (2ms)
+  // 1, 5 --> period_head_arr[2] (4ms)
+  // 3 --> period_head_arr[3] (8ms)
 
   // TODO EHCI_FRAMELIST_SIZE with other size than 8
   for(uint32_t i=0; i<EHCI_FRAMELIST_SIZE; i++)
@@ -203,15 +201,17 @@ static tusb_error_t hcd_controller_init(uint8_t hostid)
     framelist[i].type    = EHCI_QUEUE_ELEMENT_QHD;
   }
 
-  for(uint32_t i=1; i<EHCI_FRAMELIST_SIZE; i+=2)
+  for(uint32_t i=0; i<EHCI_FRAMELIST_SIZE; i+=2)
   {
-    list_insert(framelist + i, period_2ms, EHCI_QUEUE_ELEMENT_QHD);
+    list_insert(framelist + i, get_period_head(hostid, 2), EHCI_QUEUE_ELEMENT_QHD);
   }
 
-  for(uint32_t i=2; i<EHCI_FRAMELIST_SIZE; i+=4)
+  for(uint32_t i=1; i<EHCI_FRAMELIST_SIZE; i+=4)
   {
-    list_insert(framelist + i, period_4ms, EHCI_QUEUE_ELEMENT_QHD);
+    list_insert(framelist + i, get_period_head(hostid, 4), EHCI_QUEUE_ELEMENT_QHD);
   }
+
+  list_insert(framelist+3, get_period_head(hostid, 8), EHCI_QUEUE_ELEMENT_QHD);
 
   period_1ms->terminate    = 1;
 
@@ -336,7 +336,8 @@ tusb_error_t  hcd_pipe_control_close(uint8_t dev_addr)
 
   if (dev_addr != 0)
   {
-    ASSERT_STATUS( list_remove_qhd(get_async_head( usbh_devices[dev_addr].core_id ), p_qhd) );
+    ASSERT_STATUS( list_remove_qhd( (ehci_link_t*) get_async_head( usbh_devices[dev_addr].core_id ),
+                                    (ehci_link_t*) p_qhd) );
   }
 
   return TUSB_ERROR_NONE;
@@ -419,11 +420,13 @@ tusb_error_t  hcd_pipe_close(pipe_handle_t pipe_hdl)
   if ( pipe_hdl.xfer_type == TUSB_XFER_BULK )
   {
     ASSERT_STATUS( list_remove_qhd(
-        get_async_head( usbh_devices[pipe_hdl.dev_addr].core_id ), p_qhd) );
+        (ehci_link_t*) get_async_head( usbh_devices[pipe_hdl.dev_addr].core_id ),
+        (ehci_link_t*) p_qhd) );
   }else
   {
     ASSERT_STATUS( list_remove_qhd(
-        get_period_head( usbh_devices[pipe_hdl.dev_addr].core_id, 1 ), p_qhd) );
+        get_period_head( usbh_devices[pipe_hdl.dev_addr].core_id, p_qhd->interval_ms ),
+        (ehci_link_t*) p_qhd) );
   }
 
   return TUSB_ERROR_NONE;
@@ -517,7 +520,7 @@ void async_list_process_isr(ehci_qhd_t * const async_head)
     }
     p_qhd = (ehci_qhd_t*) align32(p_qhd->next.address);
     max_loop++;
-  }while(p_qhd != async_head && max_loop <= EHCI_MAX_QHD); // async list traversal, stop if loop around
+  }while(p_qhd != async_head && max_loop < EHCI_MAX_QHD); // async list traversal, stop if loop around
   // TODO abstract max loop guard for async
 }
 
@@ -697,15 +700,10 @@ STATIC_ INLINE_ ehci_qhd_t* get_async_head(uint8_t hostid)
 
 STATIC_ INLINE_ ehci_link_t* get_period_head(uint8_t hostid, uint8_t interval_ms)
 {
-  if (interval_ms < 8)
-  {
-    return (ehci_link_t*) (ehci_data.period_head_arr[ hostid_to_data_idx(hostid) ] +
+  return (ehci_link_t*) (ehci_data.period_head_arr[ hostid_to_data_idx(hostid) ] +
                                 (interval_ms < 2 ? 0 :
-                                 interval_ms < 4 ? 1 : 2));
-  }else
-  {
-    return get_period_frame_list(hostid);
-  }
+                                 interval_ms < 4 ? 1 :
+                                 interval_ms < EHCI_FRAMELIST_SIZE ? 2 : 3));
 }
 
 STATIC_ INLINE_ ehci_qhd_t* get_control_qhd(uint8_t dev_addr)
@@ -811,7 +809,7 @@ static void qhd_init(ehci_qhd_t *p_qhd, uint8_t dev_addr, uint16_t max_packet_si
                                  (interval == 2) ? BIN8(10101010) : BIN8(01000100);
       }else
       {
-        p_qhd->interval_ms     = ( 1 << (interval-4) );
+        p_qhd->interval_ms     = (uint8_t) min16_of( 1 << (interval-4), 255 );
         p_qhd->interrupt_smask = BIT_(interval % 8);
       }
     }else
@@ -872,27 +870,31 @@ static inline void list_insert(ehci_link_t *current, ehci_link_t *new, uint8_t n
   current->address = ((uint32_t) new) | (new_type << 1);
 }
 
-static ehci_qhd_t* list_find_previous_qhd(ehci_qhd_t* p_head, ehci_qhd_t* p_qhd)
+static ehci_link_t* list_find_previous_item(ehci_link_t* p_head, ehci_link_t* p_current)
 {
-  ehci_qhd_t *p_prev_qhd = p_head;
-  while( (align32(p_prev_qhd->next.address) != (uint32_t) p_head) && (align32(p_prev_qhd->next.address) != (uint32_t) p_qhd) )
+  ehci_link_t *p_prev = p_head;
+  uint32_t max_loop = 0;
+  while( (align32(p_prev->address) != (uint32_t) p_head) &&
+         (align32(p_prev->address) != (uint32_t) p_current)  &&
+         !p_prev->terminate &&
+         max_loop < EHCI_MAX_QHD)
   {
-    p_prev_qhd = (ehci_qhd_t*) align32(p_prev_qhd->next.address);
+    p_prev = (ehci_link_t*) align32(p_prev->address);
+    max_loop++;
   }
 
-  return  align32(p_prev_qhd->next.address) != (uint32_t) p_head ? p_prev_qhd : NULL;
+  return  (align32(p_prev->address) != (uint32_t) p_head) ? p_prev : NULL;
 }
 
-static tusb_error_t list_remove_qhd(ehci_qhd_t* p_head, ehci_qhd_t* p_qhd_remove)
+static tusb_error_t list_remove_qhd(ehci_link_t* p_head, ehci_link_t* p_remove)
 {
-  ehci_qhd_t *p_prev_qhd = list_find_previous_qhd(p_head, p_qhd_remove);
+  ehci_link_t *p_prev = list_find_previous_item(p_head, p_remove);
 
-  ASSERT_PTR(p_prev_qhd, TUSB_ERROR_INVALID_PARA);
+  ASSERT_PTR(p_prev, TUSB_ERROR_INVALID_PARA);
 
-  p_prev_qhd->next.address   = p_qhd_remove->next.address;
+  p_prev->address   = p_remove->address;
   // EHCI 4.8.2 link the removing queue head to async/period head (which always reachable by Host Controller)
-  p_qhd_remove->next.address = (uint32_t) p_head;
-  p_qhd_remove->next.type    = EHCI_QUEUE_ELEMENT_QHD;
+  p_remove->address = ((uint32_t) p_head) | (EHCI_QUEUE_ELEMENT_QHD << 1);
 
   return TUSB_ERROR_NONE;
 }

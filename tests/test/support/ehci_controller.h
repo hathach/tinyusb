@@ -66,7 +66,7 @@ void ehci_controller_device_unplug(uint8_t hostid);
 ehci_registers_t* get_operational_register(uint8_t hostid);
 ehci_link_t* get_period_frame_list(uint8_t hostid);
 ehci_qhd_t* get_async_head(uint8_t hostid);
-ehci_qhd_t* get_period_head(uint8_t hostid, uint8_t interval_ms);
+ehci_link_t* get_period_head(uint8_t hostid, uint8_t interval_ms);
 ehci_qhd_t* get_control_qhd(uint8_t dev_addr);
 ehci_qtd_t* get_control_qtds(uint8_t dev_addr);
 ehci_qhd_t* qhd_get_from_pipe_handle(pipe_handle_t pipe_hdl);
