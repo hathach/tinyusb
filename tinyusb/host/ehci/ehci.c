@@ -524,13 +524,15 @@ void async_list_process_isr(ehci_qhd_t * const async_head)
   // TODO abstract max loop guard for async
 }
 
-void period_list_process_isr(ehci_qhd_t const * const period_head)
+void period_list_process_isr(uint8_t hostid, uint8_t interval_ms)
 {
   uint8_t max_loop = 0;
-  ehci_link_t next_item = period_head->next;
+  ehci_link_t next_item = * get_period_head(hostid, interval_ms);
 
   // TODO abstract max loop guard for period
-  while( !next_item.terminate && max_loop < (EHCI_MAX_QHD + EHCI_MAX_ITD + EHCI_MAX_SITD))
+  while( !next_item.terminate &&
+      !(interval_ms > 1 && align32(next_item.address) == get_period_head(hostid, 1)) &&
+      max_loop < (EHCI_MAX_QHD + EHCI_MAX_ITD + EHCI_MAX_SITD))
   {
     switch ( next_item.type )
     {
@@ -641,12 +643,15 @@ void hcd_isr(uint8_t hostid)
   //------------- some QTD/SITD/ITD with IOC set is completed -------------//
   if (int_status & EHCI_INT_MASK_NXP_ASYNC)
   {
-    async_list_process_isr(get_async_head(hostid));
+    async_list_process_isr( get_async_head(hostid) );
   }
 
   if (int_status & EHCI_INT_MASK_NXP_PERIODIC)
   {
-    period_list_process_isr( get_period_head(hostid, 1) );
+    for (uint8_t i=1; i <= EHCI_FRAMELIST_SIZE; i *= 2)
+    {
+      period_list_process_isr( hostid, i );
+    }
   }
 
   //------------- There is some removed async previously -------------//

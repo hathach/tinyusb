@@ -269,9 +269,9 @@ void test_open_interrupt_hs_interval_8(void)
   pipe_hdl = hcd_pipe_open(dev_addr, &int_edp_interval, TUSB_CLASS_HID);
   p_int_qhd = &ehci_data.device[ pipe_hdl.dev_addr-1].qhd[ pipe_hdl.index ];
 
-  TEST_ASSERT_EQUAL(16, p_int_qhd->interval_ms);
+  TEST_ASSERT_EQUAL(255, p_int_qhd->interval_ms);
   TEST_ASSERT_EQUAL(1, count_set_bits(p_int_qhd->interrupt_smask) );
-  check_int_endpoint_link( get_period_head(hostid, 16), p_int_qhd);
+  check_int_endpoint_link( get_period_head(hostid, 255), p_int_qhd);
   check_int_endpoint_link( get_period_head(hostid, 8) , p_int_qhd);
 }
 
