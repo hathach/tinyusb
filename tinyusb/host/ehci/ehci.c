@@ -531,7 +531,7 @@ void period_list_process_isr(uint8_t hostid, uint8_t interval_ms)
 
   // TODO abstract max loop guard for period
   while( !next_item.terminate &&
-      !(interval_ms > 1 && align32(next_item.address) == get_period_head(hostid, 1)) &&
+      !(interval_ms > 1 && align32(next_item.address) == (uint32_t) get_period_head(hostid, 1)) &&
       max_loop < (EHCI_MAX_QHD + EHCI_MAX_ITD + EHCI_MAX_SITD))
   {
     switch ( next_item.type )

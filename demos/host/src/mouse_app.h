@@ -61,6 +61,9 @@
  extern "C" {
 #endif
 
+void mouse_app_init(void);
+OSAL_TASK_DECLARE( mouse_app_task );
+
 #ifdef __cplusplus
  }
 #endif
