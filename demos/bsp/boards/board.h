@@ -98,7 +98,7 @@
 //--------------------------------------------------------------------+
 // Init board peripherals : Clock, UART, LEDs, Buttons
 void board_init(void);
-void board_leds(uint32_t mask, uint32_t state);
+void board_leds(uint32_t on_mask, uint32_t off_mask);
 uint32_t board_uart_send(uint8_t *buffer, uint32_t length);
 uint32_t board_uart_recv(uint8_t *buffer, uint32_t length);
 

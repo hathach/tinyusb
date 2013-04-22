@@ -60,11 +60,9 @@
 #include "lpc43xx_cgu.h"
 #include "lpc43xx_gpio.h"
 #include "lpc43xx_uart.h"
+#include "lpc43xx_i2c.h"
 
-#define EA_BASE_BOARD
-#ifdef EA_BASE_BOARD
-  #include "oem_base_board/pca9532.h"
-#endif
+#include "oem_base_board/pca9532.h" // LEDs
 
 #define CFG_LED_NUMBER  0
 #define CFG_LED_ON               (1)

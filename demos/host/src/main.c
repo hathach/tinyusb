@@ -17,18 +17,20 @@
   __CRP const unsigned int CRP_WORD = CRP_NO_CRP ;
 #endif
 
+void print_greeting(void);
 int main(void)
 {
   uint32_t current_tick = system_ticks;
 
   board_init();
+  print_greeting();
+
   tusb_init();
 
   //------------- application task init -------------//
   keyboard_app_init();
   mouse_app_init();
 
-  printf("reset\n");
   while (1)
   {
     tusb_task_runner();
@@ -37,17 +39,30 @@ int main(void)
 
     if (current_tick + CFG_TICKS_PER_SECOND < system_ticks)
     {
-      static uint8_t timeout_10_ms = 0;
-      timeout_10_ms = (timeout_10_ms+1) % 10;
-      if (timeout_10_ms % 10 == 0)
-      {
-        printf("tinyusb: " __DATE__ "\t" __TIME__ "\n"); // toggle leds on EA4357 is quite troublesome
-      }
-
       current_tick += CFG_TICKS_PER_SECOND;
-      board_leds(0x01, (current_tick/CFG_TICKS_PER_SECOND)%2); /* Toggle LED once per second */
+
+      /* Toggle LED once per second */
+      if ( (current_tick/CFG_TICKS_PER_SECOND) % 2)
+      {
+        board_leds(0x01, 0x00);
+      }
+      else
+      {
+        board_leds(0x00, 0x01);
+      }
     }
   }
 
   return 0;
+}
+
+void print_greeting(void)
+{
+  printf("\
+--------------------------------------------------------------------\
+-                     Host Demo (a tinyusb example)\r\n\
+- if you find any bugs or get any questions, feel free to file an\r\n\
+- issue at https://github.com/hathach/tinyusb\r\n\
+--------------------------------------------------------------------\r\n\r\n"
+  );
 }
