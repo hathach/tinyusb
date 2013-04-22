@@ -25,7 +25,7 @@
 #include "lpc_types.h"
 #include "lpc43xx_gpio.h"
 #include "lpc43xx_scu.h"
-#include "../inc/joystick.h"
+#include "joystick.h"
 
 /******************************************************************************
  * Defines and typedefs

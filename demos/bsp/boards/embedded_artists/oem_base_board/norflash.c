@@ -25,7 +25,7 @@
 #include "lpc_types.h"
 #include "lpc43xx_scu.h"
 #include "lpc43xx_timer.h"
-#include "../inc/norflash.h"
+#include "norflash.h"
 
 
 /******************************************************************************

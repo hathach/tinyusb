@@ -29,7 +29,7 @@
 #include <stdio.h>
 #include "lpc_types.h"
 #include "lpc43xx_i2c.h"
-#include "../inc/base_eeprom.h"
+#include "base_eeprom.h"
 
 /******************************************************************************
  * Defines and typedefs

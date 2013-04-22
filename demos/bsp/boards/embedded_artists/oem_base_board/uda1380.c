@@ -1,7 +1,7 @@
 
 #include "lpc43xx_i2c.h"
 #include "lpc43xx_scu.h"
-#include "../inc/uda1380.h"
+#include "uda1380.h"
 
 //Uda1380 link to I2C0 only
 #define UDA1380_I2C		LPC_I2C0

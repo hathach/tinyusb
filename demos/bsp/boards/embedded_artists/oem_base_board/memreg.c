@@ -25,7 +25,7 @@
 #include "lpc43xx.h"
 #include "lpc_types.h"
 #include "lpc43xx_scu.h"
-#include "../inc/memreg.h"
+#include "memreg.h"
 
 
 /******************************************************************************

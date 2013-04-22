@@ -25,7 +25,7 @@
 
 #include "lpc_types.h"
 #include "lpc43xx_i2c.h"
-#include "../inc/acc.h"
+#include "acc.h"
 
 /******************************************************************************
  * Defines and typedefs

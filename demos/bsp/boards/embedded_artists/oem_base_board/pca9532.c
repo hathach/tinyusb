@@ -28,7 +28,7 @@
 #include "lpc43xx_i2c.h"
 #include "lpc43xx_cgu.h"
 #include "lpc_types.h"
-#include "../inc/pca9532.h"
+#include "pca9532.h"
 
 /******************************************************************************
  * Defines and typedefs
