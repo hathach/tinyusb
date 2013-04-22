@@ -58,7 +58,7 @@ int main(void)
 
 void print_greeting(void)
 {
-  printf("\
+  printf("\r\n\
 --------------------------------------------------------------------\
 -                     Host Demo (a tinyusb example)\r\n\
 - if you find any bugs or get any questions, feel free to file an\r\n\
