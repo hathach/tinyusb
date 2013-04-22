@@ -35,7 +35,7 @@
  * This file is part of the tiny usb stack.
  */
 
-#include "board.h"
+#include "../board.h"
 
 #if BOARD == BOARD_EA4357
 

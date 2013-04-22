@@ -78,7 +78,7 @@
 #elif BOARD == BOARD_AT86RF2XX
   #include "board_at86rf2xx.h"
 #elif BOARD == BOARD_EA4357
-  #include "board_ea4357.h"
+  #include "embedded_artists\board_ea4357.h"
 #else
   #error BOARD is not defined or supported yet
 #endif
