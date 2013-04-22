@@ -678,7 +678,7 @@ STATIC_ INLINE_ ehci_link_t* get_period_frame_list(uint8_t hostid)
       return period_frame_list0;
 #endif
 
-#if (TUSB_CFG_CONTROLLER0_MODE & TUSB_MODE_HOST)
+#if (TUSB_CFG_CONTROLLER1_MODE & TUSB_MODE_HOST)
     case 1:
       return period_frame_list1;
 #endif
