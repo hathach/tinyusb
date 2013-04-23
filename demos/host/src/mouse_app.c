@@ -96,7 +96,7 @@ void mouse_app_init(void)
 }
 
 //------------- main task -------------//
-OSAL_TASK_DECLARE( mouse_app_task )
+OSAL_TASK_FUNCTION( mouse_app_task )
 {
   tusb_error_t error;
   tusb_mouse_report_t mouse_report;

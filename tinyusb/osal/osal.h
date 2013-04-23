@@ -89,7 +89,7 @@ tusb_error_t osal_task_create(osal_task_t *task);
 #define OSAL_TASK_DEF(name, code, stack_depth, prio) \
     osal_task_t name
 
-#define OSAL_TASK_DECLARE(task_name) \
+#define OSAL_TASK_FUNCTION(task_name) \
     void task_name(void)
 
 #define OSAL_TASK_LOOP_BEGIN

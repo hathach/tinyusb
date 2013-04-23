@@ -97,7 +97,7 @@ void keyboard_app_init(void)
 }
 
 //------------- main task -------------//
-OSAL_TASK_DECLARE( keyboard_app_task )
+OSAL_TASK_FUNCTION( keyboard_app_task )
 {
   tusb_error_t error;
   tusb_keyboard_report_t kbd_report;
@@ -106,11 +106,18 @@ OSAL_TASK_DECLARE( keyboard_app_task )
 
   osal_queue_receive(q_kbd_report_hdl, &kbd_report, OSAL_TIMEOUT_WAIT_FOREVER, &error);
 
+  bool has_key = false;
   for(uint8_t i=0; i<6; i++)
   {
     if ( kbd_report.keycode[i] != 0 )
+    {
       printf("%c", keycode_to_ascii(kbd_report.keycode[i]));
+      has_key = true;
+    }
   }
+
+  if (has_key)
+    printf("\n");
 
   memclr_(&kbd_report, sizeof(tusb_keyboard_report_t) );
 

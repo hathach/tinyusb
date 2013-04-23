@@ -51,11 +51,11 @@
 #ifndef _TUSB_OSAL_NONE_H_
 #define _TUSB_OSAL_NONE_H_
 
+#include "osal_common.h"
+
 #ifdef __cplusplus
  extern "C" {
 #endif
-
-#include "osal_common.h"
 
 //--------------------------------------------------------------------+
 // TICK API
@@ -90,7 +90,7 @@ static inline volatile uint32_t osal_tick_get(void)
 #define OSAL_TASK_DEF(name, code, stack_depth, prio)
 #define osal_task_create(x) TUSB_ERROR_NONE
 
-#define OSAL_TASK_DECLARE(task_name) \
+#define OSAL_TASK_FUNCTION(task_name) \
   tusb_error_t task_name(void)
 
 #define TASK_RESTART state = 0
@@ -145,11 +145,11 @@ static inline volatile uint32_t osal_tick_get(void)
     ASSERT_DEFINE_WITH_HANDLER(_TASK_ASSERT_ERROR_HANDLER, func_call, ,\
                                condition, TUSB_ERROR_OSAL_TASK_FAILED, "%s", "evaluated to false")
 
-//------------- Sub Task Assert -------------// TODO replace directly by TASK ASSERT
-#define SUBTASK_ASSERT_STATUS(...)               TASK_ASSERT_STATUS(__VA_ARGS__)
-#define SUBTASK_ASSERT_STATUS_WITH_HANDLER(...)  TASK_ASSERT_STATUS_WITH_HANDLER(__VA_ARGS__)
-#define SUBTASK_ASSERT(...)                      TASK_ASSERT(__VA_ARGS__)
-#define SUBTASK_ASSERT_WITH_HANDLER(...)         TASK_ASSERT_WITH_HANDLER(__VA_ARGS__)
+//------------- Sub Task Assert -------------//
+#define SUBTASK_ASSERT_STATUS               TASK_ASSERT_STATUS
+#define SUBTASK_ASSERT_STATUS_WITH_HANDLER  TASK_ASSERT_STATUS_WITH_HANDLER
+#define SUBTASK_ASSERT                      TASK_ASSERT
+#define SUBTASK_ASSERT_WITH_HANDLER         TASK_ASSERT_WITH_HANDLER
 
 //--------------------------------------------------------------------+
 // Semaphore API

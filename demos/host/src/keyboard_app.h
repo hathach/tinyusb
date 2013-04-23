@@ -63,7 +63,7 @@
 
 
 void keyboard_app_init(void);
-OSAL_TASK_DECLARE( keyboard_app_task );
+OSAL_TASK_FUNCTION( keyboard_app_task );
 
 #ifdef __cplusplus
  }

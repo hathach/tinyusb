@@ -71,9 +71,6 @@ extern "C" {
 //--------------------------------------------------------------------+
 // TASK API
 //--------------------------------------------------------------------+
-#define OSAL_TASK_DECLARE(task_name) \
-  void task_name(void *p_task_para)
-
 typedef struct {
   signed portCHAR const * name;
   pdTASK_CODE code;
@@ -89,6 +86,10 @@ typedef struct {
       .prio        = task_prio          \
   };
 
+#define OSAL_TASK_FUNCTION(task_name) \
+  void task_name(void *p_task_para)
+
+
 #define OSAL_TASK_LOOP_BEGIN \
   while(1) {
 
@@ -96,7 +97,7 @@ typedef struct {
   }
 
 //------------- Sub Task -------------//
-#define OSAL_SUBTASK_BEGIN
+#define OSAL_SUBTASK_BEGIN // TODO refractor move
 #define OSAL_SUBTASK_END
 
 //------------- Task Assert -------------//
@@ -114,11 +115,11 @@ typedef struct {
                                condition, TUSB_ERROR_OSAL_TASK_FAILED, "%s", "evaluated to false")
 
 
-//------------- Sub Task Assert -------------// TODO replace directly by TASK ASSERT
-#define SUBTASK_ASSERT_STATUS(...)               TASK_ASSERT_STATUS(__VA_ARGS__)
-#define SUBTASK_ASSERT_STATUS_WITH_HANDLER(...)  TASK_ASSERT_STATUS_WITH_HANDLER(__VA_ARGS__)
-#define SUBTASK_ASSERT(...)                      TASK_ASSERT(__VA_ARGS__)
-#define SUBTASK_ASSERT_WITH_HANDLER(...)         TASK_ASSERT_WITH_HANDLER(__VA_ARGS__)
+//------------- Sub Task Assert -------------//
+#define SUBTASK_ASSERT_STATUS               TASK_ASSERT_STATUS
+#define SUBTASK_ASSERT_STATUS_WITH_HANDLER  TASK_ASSERT_STATUS_WITH_HANDLER
+#define SUBTASK_ASSERT                      TASK_ASSERT
+#define SUBTASK_ASSERT_WITH_HANDLER         TASK_ASSERT_WITH_HANDLER
 
 //--------------------------------------------------------------------+
 // Semaphore API
