@@ -249,7 +249,21 @@ void usbh_device_unplugged_isr(uint8_t hostid)
 //--------------------------------------------------------------------+
 // ENUMERATION TASK
 //--------------------------------------------------------------------+
+tusb_error_t enumeration_body_subtask(void);
+
+// To enable the TASK_ASSERT style (quick return on false condition) in a real RTOS, a task must act as a wrapper
+// and is used mainly to call subtasks. Within a subtask return statement can be called freely, the task with
+// forever loop cannot have any return at all.
 OSAL_TASK_FUNCTION(usbh_enumeration_task)
+{
+  OSAL_TASK_LOOP_BEGIN
+
+  enumeration_body_subtask();
+
+  OSAL_TASK_LOOP_END
+}
+
+tusb_error_t enumeration_body_subtask(void)
 {
   tusb_error_t error;
   usbh_enumerate_t enum_entry;
@@ -259,7 +273,7 @@ OSAL_TASK_FUNCTION(usbh_enumeration_task)
   static uint8_t configure_selected = 1; // TODO move
   static uint8_t *p_desc = NULL; // TODO move
 
-  OSAL_TASK_LOOP_BEGIN
+  OSAL_SUBTASK_BEGIN
 
   osal_queue_receive(enum_queue_hdl, &enum_entry, OSAL_TIMEOUT_WAIT_FOREVER, &error);
 
@@ -444,7 +458,7 @@ OSAL_TASK_FUNCTION(usbh_enumeration_task)
 
   tusbh_device_mount_succeed_cb(new_addr);
 
-  OSAL_TASK_LOOP_END
+  OSAL_SUBTASK_END
 }
 
 //--------------------------------------------------------------------+

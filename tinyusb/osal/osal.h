@@ -96,33 +96,11 @@ tusb_error_t osal_task_create(osal_task_t *task);
 #define OSAL_TASK_LOOP_END
 
 //------------- Sub Task -------------//
-#define OSAL_SUBTASK_INVOKED_AND_WAIT(subtask) TASK_ASSERT_STATUS(subtask)
-
-#define TASK_RESTART
+#define OSAL_SUBTASK_INVOKED_AND_WAIT(subtask) SUBTASK_ASSERT_STATUS(subtask)
 
 #define OSAL_SUBTASK_BEGIN
 #define OSAL_SUBTASK_END \
   return TUSB_ERROR_NONE;
-
-//------------- Task Assert -------------//
-#define _TASK_ASSERT_ERROR_HANDLER(error, func_call)\
-    func_call; TASK_RESTART; return error
-
-#define TASK_ASSERT_STATUS(sts) \
-    ASSERT_DEFINE_WITH_HANDLER(_TASK_ASSERT_ERROR_HANDLER, , tusb_error_t status = (tusb_error_t)(sts),\
-                               TUSB_ERROR_NONE == status, (void) 0, "%s", TUSB_ErrorStr[status])
-
-#define TASK_ASSERT_STATUS_WITH_HANDLER(sts, func_call) \
-    ASSERT_DEFINE_WITH_HANDLER(_TASK_ASSERT_ERROR_HANDLER, func_call, tusb_error_t status = (tusb_error_t)(sts),\
-                               TUSB_ERROR_NONE == status, (void) 0, "%s", TUSB_ErrorStr[status])
-
-#define TASK_ASSERT(condition) \
-    ASSERT_DEFINE_WITH_HANDLER(_TASK_ASSERT_ERROR_HANDLER, , ,\
-                               condition, (void) 0, "%s", "evaluated to false")
-
-#define TASK_ASSERT_WITH_HANDLER(condition, func_call) \
-    ASSERT_DEFINE_WITH_HANDLER(_TASK_ASSERT_ERROR_HANDLER, func_call, ,\
-                               condition, (void) 0, "%s", "evaluated to false")
 
 //------------- Sub Task Assert (like Task but return error) -------------//
 #define _SUBTASK_ASSERT_ERROR_HANDLER(error, func_call)\
