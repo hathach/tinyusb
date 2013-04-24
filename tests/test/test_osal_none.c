@@ -241,25 +241,47 @@ void flow_control_error_handler(void)
   statements[5]++;
 }
 
+tusb_error_t sample_flow_control_subtask2(void)
+{
+  tusb_error_t error;
+
+  OSAL_SUBTASK_BEGIN
+
+  statements[0]++;
+
+  osal_semaphore_wait(sem_hdl, OSAL_TIMEOUT_NORMAL, &error);
+  SUBTASK_ASSERT(TUSB_ERROR_NONE == error);
+  statements[1]++;
+
+  osal_semaphore_wait(sem_hdl, OSAL_TIMEOUT_NORMAL, &error);
+  SUBTASK_ASSERT_STATUS(error);
+  statements[2]++;
+
+  osal_semaphore_wait(sem_hdl, OSAL_TIMEOUT_NORMAL, &error);
+  SUBTASK_ASSERT_STATUS_WITH_HANDLER(error, flow_control_error_handler());
+  statements[3]++;
+
+  OSAL_SUBTASK_END
+}
+
+tusb_error_t sample_flow_control_subtask(void)
+{
+  tusb_error_t error;
+
+  OSAL_SUBTASK_BEGIN
+
+  OSAL_SUBTASK_INVOKED_AND_WAIT (sample_flow_control_subtask2());
+
+  OSAL_SUBTASK_END
+}
+
 tusb_error_t sample_task_flow_control(void)
 {
   tusb_error_t error;
 
   OSAL_TASK_LOOP_BEGIN
 
-  statements[0]++;
-
-  osal_semaphore_wait(sem_hdl, OSAL_TIMEOUT_NORMAL, &error);
-  TASK_ASSERT(TUSB_ERROR_NONE == error);
-  statements[1]++;
-
-  osal_semaphore_wait(sem_hdl, OSAL_TIMEOUT_NORMAL, &error);
-  TASK_ASSERT_STATUS(error);
-  statements[2]++;
-
-  osal_semaphore_wait(sem_hdl, OSAL_TIMEOUT_NORMAL, &error);
-  TASK_ASSERT_STATUS_WITH_HANDLER(error, flow_control_error_handler());
-  statements[3]++;
+  OSAL_SUBTASK_INVOKED_AND_WAIT ( sample_flow_control_subtask() );
 
   OSAL_TASK_LOOP_END
 }

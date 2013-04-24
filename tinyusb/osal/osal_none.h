@@ -122,34 +122,28 @@ static inline volatile uint32_t osal_tick_get(void)
     }\
   }while(0)
 
-#define OSAL_SUBTASK_BEGIN OSAL_TASK_LOOP_BEGIN
-#define OSAL_SUBTASK_END OSAL_TASK_LOOP_END
+#define OSAL_SUBTASK_BEGIN  OSAL_TASK_LOOP_BEGIN
+#define OSAL_SUBTASK_END    OSAL_TASK_LOOP_END
 
 //------------- Task Assert -------------//
 #define _TASK_ASSERT_ERROR_HANDLER(error, func_call) \
   func_call; TASK_RESTART; return error
 
-#define TASK_ASSERT_STATUS(sts) \
+#define SUBTASK_ASSERT_STATUS(sts) \
     ASSERT_DEFINE_WITH_HANDLER(_TASK_ASSERT_ERROR_HANDLER, , tusb_error_t status = (tusb_error_t)(sts),\
                                TUSB_ERROR_NONE == status, status, "%s", TUSB_ErrorStr[status])
 
-#define TASK_ASSERT_STATUS_WITH_HANDLER(sts, func_call) \
+#define SUBTASK_ASSERT_STATUS_WITH_HANDLER(sts, func_call) \
     ASSERT_DEFINE_WITH_HANDLER(_TASK_ASSERT_ERROR_HANDLER, func_call, tusb_error_t status = (tusb_error_t)(sts),\
                                TUSB_ERROR_NONE == status, status, "%s", TUSB_ErrorStr[status])
 
-#define TASK_ASSERT(condition)  \
+#define SUBTASK_ASSERT(condition)  \
     ASSERT_DEFINE_WITH_HANDLER(_TASK_ASSERT_ERROR_HANDLER, , , \
                                (condition), TUSB_ERROR_OSAL_TASK_FAILED, "%s", "evaluated to false")
 
-#define TASK_ASSERT_WITH_HANDLER(condition, func_call) \
+#define SUBTASK_ASSERT_WITH_HANDLER(condition, func_call) \
     ASSERT_DEFINE_WITH_HANDLER(_TASK_ASSERT_ERROR_HANDLER, func_call, ,\
                                condition, TUSB_ERROR_OSAL_TASK_FAILED, "%s", "evaluated to false")
-
-//------------- Sub Task Assert -------------//
-#define SUBTASK_ASSERT_STATUS               TASK_ASSERT_STATUS
-#define SUBTASK_ASSERT_STATUS_WITH_HANDLER  TASK_ASSERT_STATUS_WITH_HANDLER
-#define SUBTASK_ASSERT                      TASK_ASSERT
-#define SUBTASK_ASSERT_WITH_HANDLER         TASK_ASSERT_WITH_HANDLER
 
 //--------------------------------------------------------------------+
 // Semaphore API
