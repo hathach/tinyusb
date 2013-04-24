@@ -87,7 +87,6 @@ static host_class_driver_t const usbh_class_drivers[TUSB_CLASS_MAX_CONSEC_NUMBER
 // INTERNAL OBJECT & FUNCTION DECLARATION
 //--------------------------------------------------------------------+
 usbh_device_info_t usbh_devices[TUSB_CFG_HOST_DEVICE_MAX+1] TUSB_CFG_ATTR_USBRAM; // including zero-address
-OSAL_TASK_FUNCTION(usbh_enumeration_task);
 
 //------------- Enumeration Task Data -------------//
 OSAL_TASK_DEF(enum_task, usbh_enumeration_task, 128, OSAL_PRIO_HIGH);
@@ -254,7 +253,7 @@ tusb_error_t enumeration_body_subtask(void);
 // To enable the TASK_ASSERT style (quick return on false condition) in a real RTOS, a task must act as a wrapper
 // and is used mainly to call subtasks. Within a subtask return statement can be called freely, the task with
 // forever loop cannot have any return at all.
-OSAL_TASK_FUNCTION(usbh_enumeration_task)
+OSAL_TASK_FUNCTION(usbh_enumeration_task) (void* p_task_para)
 {
   OSAL_TASK_LOOP_BEGIN
 
@@ -304,9 +303,10 @@ tusb_error_t enumeration_body_subtask(void)
         .wValue   = (TUSB_DESC_DEVICE << 8),
         .wLength  = 8
       },
-      enum_data_buffer
-    )
+      enum_data_buffer ),
+    error
   );
+  SUBTASK_ASSERT_STATUS(error); // TODO some slow device is observed to fail the very fist controler xfer, can try more times
 
   hcd_port_reset( usbh_devices[0].core_id ); // reset port after 8 byte descriptor
 
@@ -323,9 +323,10 @@ tusb_error_t enumeration_body_subtask(void)
         .bRequest = TUSB_REQUEST_SET_ADDRESS,
         .wValue   = new_addr
       },
-      NULL
-    )
+      NULL ),
+    error
   );
+  SUBTASK_ASSERT_STATUS(error);
 
   //------------- update port info & close control pipe of addr0 -------------//
   usbh_devices[new_addr].core_id  = usbh_devices[0].core_id;
@@ -351,9 +352,10 @@ tusb_error_t enumeration_body_subtask(void)
         .wValue   = (TUSB_DESC_DEVICE << 8),
         .wLength  = 18
       },
-      enum_data_buffer
-    )
+      enum_data_buffer ),
+    error
   );
+  SUBTASK_ASSERT_STATUS(error);
 
   // update device info  TODO alignment issue
   usbh_devices[new_addr].vendor_id       = ((tusb_descriptor_device_t*) enum_data_buffer)->idVendor;
@@ -374,9 +376,10 @@ tusb_error_t enumeration_body_subtask(void)
         .wValue   = (TUSB_DESC_CONFIGURATION << 8) | (configure_selected - 1),
         .wLength  = 9
       },
-      enum_data_buffer
-    )
+      enum_data_buffer ),
+    error
   );
+  SUBTASK_ASSERT_STATUS(error);
   SUBTASK_ASSERT_WITH_HANDLER( TUSB_CFG_HOST_ENUM_BUFFER_SIZE > ((tusb_descriptor_configuration_t*)enum_data_buffer)->wTotalLength,
                             tusbh_device_mount_failed_cb(TUSB_ERROR_USBH_MOUNT_CONFIG_DESC_TOO_LONG, NULL) );
 
@@ -391,9 +394,10 @@ tusb_error_t enumeration_body_subtask(void)
         .wValue   = (TUSB_DESC_CONFIGURATION << 8) | (configure_selected - 1),
         .wLength  = ((tusb_descriptor_configuration_t*) enum_data_buffer)->wTotalLength
       },
-      enum_data_buffer
-    )
+      enum_data_buffer ),
+    error
   );
+  SUBTASK_ASSERT_STATUS(error);
 
   // update configuration info
   usbh_devices[new_addr].interface_count = ((tusb_descriptor_configuration_t*) enum_data_buffer)->bNumInterfaces;
@@ -408,9 +412,10 @@ tusb_error_t enumeration_body_subtask(void)
           .bRequest = TUSB_REQUEST_SET_CONFIGURATION,
           .wValue   = configure_selected
         },
-        NULL
-    )
+        NULL ),
+    error
   );
+  SUBTASK_ASSERT_STATUS(error);
 
   usbh_devices[new_addr].state = TUSB_DEVICE_STATE_CONFIGURED;
 
@@ -437,10 +442,11 @@ tusb_error_t enumeration_body_subtask(void)
         uint16_t length=0;
         OSAL_SUBTASK_INVOKED_AND_WAIT ( // parameters in task/sub_task must be static storage (static or global)
             usbh_class_drivers[ ((tusb_descriptor_interface_t*) p_desc)->bInterfaceClass ].open_subtask(
-                new_addr, (tusb_descriptor_interface_t*) p_desc, &length) );
+                new_addr, (tusb_descriptor_interface_t*) p_desc, &length),
+            error
+        );
 
-        // TODO check class_open_subtask status
-        if (length == 0) // Interface open failed, for example a subclass is not supported
+        if (error != TUSB_ERROR_NONE || length == 0) // Interface open failed, for example a subclass is not supported
         {
           p_desc += p_desc[DESCRIPTOR_OFFSET_LENGTH]; // skip this interface, the rest will be skipped by the above loop
           // TODO can optimize the length --> open_subtask return a OPEN FAILED status

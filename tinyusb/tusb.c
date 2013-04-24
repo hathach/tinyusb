@@ -72,7 +72,7 @@ void tusb_isr(uint8_t controller_id)
 void tusb_task_runner(void)
 {
   #if MODE_HOST_SUPPORTED
-    usbh_enumeration_task(); // TODO prototype
+  usbh_enumeration_task(NULL);
   #endif
 }
 #endif

@@ -90,10 +90,10 @@ static inline volatile uint32_t osal_tick_get(void)
 #define OSAL_TASK_DEF(name, code, stack_depth, prio)
 #define osal_task_create(x) TUSB_ERROR_NONE
 
-#define OSAL_TASK_FUNCTION(task_name) \
-  tusb_error_t task_name(void)
-
-#define TASK_RESTART state = 0
+#define OSAL_TASK_FUNCTION(task_func) \
+  tusb_error_t task_func
+#define TASK_RESTART \
+  state = 0
 
 #define OSAL_TASK_LOOP_BEGIN \
   static uint32_t timeout = 0;\
@@ -108,41 +108,37 @@ static inline volatile uint32_t osal_tick_get(void)
   return TUSB_ERROR_NONE;
 
 //------------- Sub Task -------------//
-#define OSAL_SUBTASK_INVOKED_AND_WAIT(subtask) \
+#define OSAL_SUBTASK_INVOKED_AND_WAIT(subtask, status) \
   do {\
     state = __LINE__; case __LINE__:\
     {\
-      tusb_error_t status = subtask; /* invoke sub task */\
+      status = subtask; /* invoke sub task */\
       if (TUSB_ERROR_OSAL_WAITING == status) /* sub task not finished -> continue waiting */\
         return TUSB_ERROR_OSAL_WAITING;\
-      else if (TUSB_ERROR_NONE != status) { /* sub task failed -> restart task*/\
-        TASK_RESTART;\
-        return status;\
-      }/* sub task finished ok --> continue */\
     }\
   }while(0)
 
 #define OSAL_SUBTASK_BEGIN  OSAL_TASK_LOOP_BEGIN
 #define OSAL_SUBTASK_END    OSAL_TASK_LOOP_END
 
-//------------- Task Assert -------------//
-#define _TASK_ASSERT_ERROR_HANDLER(error, func_call) \
+//------------- Sub Task Assert -------------//
+#define _SUBTASK_ASSERT_ERROR_HANDLER(error, func_call) \
   func_call; TASK_RESTART; return error
 
 #define SUBTASK_ASSERT_STATUS(sts) \
-    ASSERT_DEFINE_WITH_HANDLER(_TASK_ASSERT_ERROR_HANDLER, , tusb_error_t status = (tusb_error_t)(sts),\
+    ASSERT_DEFINE_WITH_HANDLER(_SUBTASK_ASSERT_ERROR_HANDLER, , tusb_error_t status = (tusb_error_t)(sts),\
                                TUSB_ERROR_NONE == status, status, "%s", TUSB_ErrorStr[status])
 
 #define SUBTASK_ASSERT_STATUS_WITH_HANDLER(sts, func_call) \
-    ASSERT_DEFINE_WITH_HANDLER(_TASK_ASSERT_ERROR_HANDLER, func_call, tusb_error_t status = (tusb_error_t)(sts),\
+    ASSERT_DEFINE_WITH_HANDLER(_SUBTASK_ASSERT_ERROR_HANDLER, func_call, tusb_error_t status = (tusb_error_t)(sts),\
                                TUSB_ERROR_NONE == status, status, "%s", TUSB_ErrorStr[status])
 
 #define SUBTASK_ASSERT(condition)  \
-    ASSERT_DEFINE_WITH_HANDLER(_TASK_ASSERT_ERROR_HANDLER, , , \
+    ASSERT_DEFINE_WITH_HANDLER(_SUBTASK_ASSERT_ERROR_HANDLER, , , \
                                (condition), TUSB_ERROR_OSAL_TASK_FAILED, "%s", "evaluated to false")
 
 #define SUBTASK_ASSERT_WITH_HANDLER(condition, func_call) \
-    ASSERT_DEFINE_WITH_HANDLER(_TASK_ASSERT_ERROR_HANDLER, func_call, ,\
+    ASSERT_DEFINE_WITH_HANDLER(_SUBTASK_ASSERT_ERROR_HANDLER, func_call, ,\
                                condition, TUSB_ERROR_OSAL_TASK_FAILED, "%s", "evaluated to false")
 
 //--------------------------------------------------------------------+

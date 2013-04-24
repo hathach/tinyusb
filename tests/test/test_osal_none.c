@@ -268,7 +268,7 @@ tusb_error_t sample_flow_control_subtask(void)
 {
   OSAL_SUBTASK_BEGIN
 
-  OSAL_SUBTASK_INVOKED_AND_WAIT (sample_flow_control_subtask2());
+  sample_flow_control_subtask2();
 
   OSAL_SUBTASK_END
 }

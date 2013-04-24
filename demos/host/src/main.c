@@ -33,9 +33,12 @@ int main(void)
 
   while (1)
   {
+
+#if TUSB_CFG_OS == TUSB_OS_NONE
     tusb_task_runner();
-    keyboard_app_task();
-    mouse_app_task();
+    keyboard_app_task(NULL);
+    mouse_app_task(NULL);
+#endif
 
     if (current_tick + CFG_TICKS_PER_SECOND < system_ticks)
     {

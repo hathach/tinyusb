@@ -33,7 +33,7 @@
 #include "task.h"
 #include "FreeRTOSCommonHooks.h"
 
-#include "chip.h"
+//#include "hal/hal.h"
 
 /*****************************************************************************
  * Private types/enumerations/variables

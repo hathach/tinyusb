@@ -58,6 +58,7 @@
 //--------------------------------------------------------------------+
 // INCLUDE
 //--------------------------------------------------------------------+
+#include "osal/osal.h" // TODO refractor move to common.h ?
 #include "hcd.h"
 
 //--------------------------------------------------------------------+
@@ -108,10 +109,11 @@ void         tusbh_device_mount_failed_cb(tusb_error_t error, tusb_descriptor_de
 #endif
 
 //--------------------------------------------------------------------+
-// CLASS-USBD API
+// CLASS-USBD & INTERNAL API
 //--------------------------------------------------------------------+
 #ifdef _TINY_USB_SOURCE_FILE_
 
+OSAL_TASK_FUNCTION (usbh_enumeration_task) (void* p_task_para);
 tusb_error_t usbh_init(void);
 
 #endif

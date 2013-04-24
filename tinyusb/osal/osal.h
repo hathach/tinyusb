@@ -90,19 +90,20 @@ tusb_error_t osal_task_create(osal_task_t *task);
     osal_task_t name
 
 #define OSAL_TASK_FUNCTION(task_name) \
-    void task_name(void)
+    void task_name
 
 #define OSAL_TASK_LOOP_BEGIN
 #define OSAL_TASK_LOOP_END
 
 //------------- Sub Task -------------//
-#define OSAL_SUBTASK_INVOKED_AND_WAIT(subtask) SUBTASK_ASSERT_STATUS(subtask)
+#define OSAL_SUBTASK_INVOKED_AND_WAIT(subtask, status) \
+  status = subtask
 
 #define OSAL_SUBTASK_BEGIN
 #define OSAL_SUBTASK_END \
   return TUSB_ERROR_NONE;
 
-//------------- Sub Task Assert (like Task but return error) -------------//
+//------------- Sub Task Assert -------------//
 #define _SUBTASK_ASSERT_ERROR_HANDLER(error, func_call)\
     func_call; return error
 
@@ -153,7 +154,7 @@ typedef osal_queue_t * osal_queue_handle_t;
   osal_queue_t name
 
 osal_queue_handle_t  osal_queue_create  (osal_queue_t *p_queue);
-void                 osal_queue_receive (osal_queue_handle_t const queue_hdl, uint32_t *p_data, uint32_t msec, tusb_error_t *p_error);
+void                 osal_queue_receive (osal_queue_handle_t const queue_hdl, void *p_data, uint32_t msec, tusb_error_t *p_error);
 tusb_error_t         osal_queue_send    (osal_queue_handle_t const queue_hdl, const void * data);
 void osal_queue_flush(osal_queue_handle_t const queue_hdl);
 

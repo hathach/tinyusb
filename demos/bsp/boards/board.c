@@ -42,7 +42,9 @@ volatile uint32_t system_ticks = 0;
 void SysTick_Handler (void)
 {
   system_ticks++;
+#if TUSB_CFG_OS == TUSB_OS_NONE
   tusb_tick_tock(); // TODO temporarily
+#endif
 }
 
 void check_failed(uint8_t *file, uint32_t line)

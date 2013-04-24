@@ -62,7 +62,7 @@
 #endif
 
 void mouse_app_init(void);
-OSAL_TASK_FUNCTION( mouse_app_task );
+OSAL_TASK_FUNCTION( mouse_app_task ) (void* p_task_para);
 
 #ifdef __cplusplus
  }

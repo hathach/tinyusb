@@ -57,7 +57,7 @@
 #include "FreeRTOS.h"
 #include "semphr.h"
 #include "queue.h"
-//#include "task.h"
+#include "task.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -71,6 +71,9 @@ extern "C" {
 //--------------------------------------------------------------------+
 // TASK API
 //--------------------------------------------------------------------+
+#define OSAL_TASK_FUNCTION(task_func) \
+  void task_func
+
 typedef struct {
   signed portCHAR const * name;
   pdTASK_CODE code;
@@ -86,9 +89,12 @@ typedef struct {
       .prio        = task_prio          \
   };
 
-#define OSAL_TASK_FUNCTION(task_name) \
-  void task_name(void *p_task_para)
-
+static inline tusb_error_t osal_task_create(osal_task_t *task) ATTR_ALWAYS_INLINE;
+static inline tusb_error_t osal_task_create(osal_task_t *task)
+{
+  return pdPASS == xTaskCreate(task->code, task->name, task->stack_depth, NULL, task->prio, NULL) ?
+    TUSB_ERROR_NONE : TUSB_ERROR_OSAL_TASK_CREATE_FAILED;
+}
 
 #define OSAL_TASK_LOOP_BEGIN \
   while(1) {
@@ -100,26 +106,24 @@ typedef struct {
 #define OSAL_SUBTASK_BEGIN // TODO refractor move
 #define OSAL_SUBTASK_END
 
-//------------- Task Assert -------------//
-#define TASK_RESTART
-
-// TODO FreeRTOS TASK_ASSERT need to omit do while to get continue statement works.
-#define _TASK_ASSERT_ERROR_HANDLER(error, func_call) \
-  func_call; TASK_RESTART;
-
-#define TASK_ASSERT(condition)
-#define TASK_ASSERT_STATUS(sts)
-
-#define TASK_ASSERT_WITH_HANDLER(condition, func_call) \
-    ASSERT_DEFINE_WITH_HANDLER(_TASK_ASSERT_ERROR_HANDLER, func_call, ,\
-                               condition, TUSB_ERROR_OSAL_TASK_FAILED, "%s", "evaluated to false")
-
+#define OSAL_SUBTASK_INVOKED_AND_WAIT(subtask, status) \
+  status = subtask
 
 //------------- Sub Task Assert -------------//
-#define SUBTASK_ASSERT_STATUS               TASK_ASSERT_STATUS
-#define SUBTASK_ASSERT_STATUS_WITH_HANDLER  TASK_ASSERT_STATUS_WITH_HANDLER
-#define SUBTASK_ASSERT                      TASK_ASSERT
-#define SUBTASK_ASSERT_WITH_HANDLER         TASK_ASSERT_WITH_HANDLER
+
+#define SUBTASK_ASSERT_STATUS(sts) ASSERT_STATUS(sts)
+#define SUBTASK_ASSERT(condition)  ASSERT(condition, TUSB_ERROR_OSAL_TASK_FAILED)
+
+#define _SUBTASK_ASSERT_ERROR_HANDLER(error, func_call)\
+    func_call; return error
+
+#define SUBTASK_ASSERT_STATUS_WITH_HANDLER(sts, func_call) \
+    ASSERT_DEFINE_WITH_HANDLER(_SUBTASK_ASSERT_ERROR_HANDLER, func_call, tusb_error_t status = (tusb_error_t)(sts),\
+                               TUSB_ERROR_NONE == status, status, "%s", TUSB_ErrorStr[status])
+
+#define SUBTASK_ASSERT_WITH_HANDLER(condition, func_call) \
+    ASSERT_DEFINE_WITH_HANDLER(_SUBTASK_ASSERT_ERROR_HANDLER, func_call, ,\
+                               condition, TUSB_ERROR_OSAL_TASK_FAILED, "%s", "evaluated to false")
 
 //--------------------------------------------------------------------+
 // Semaphore API
@@ -131,17 +135,25 @@ typedef xSemaphoreHandle osal_semaphore_handle_t;
 #define osal_semaphore_create(x) \
   xQueueGenericCreate( ( unsigned portBASE_TYPE ) 1, semSEMAPHORE_QUEUE_ITEM_LENGTH, queueQUEUE_TYPE_BINARY_SEMAPHORE )
 
+// TODO add timeout (with instant return from ISR option) for semaphore post & queue send
 static inline  tusb_error_t osal_semaphore_post(osal_semaphore_handle_t const sem_hdl) ATTR_ALWAYS_INLINE;
 static inline  tusb_error_t osal_semaphore_post(osal_semaphore_handle_t const sem_hdl)
 {
-  portBASE_TYPE taskWaken;
-  return (xSemaphoreGiveFromISR(sem_hdl, &taskWaken) == pdTRUE) ? TUSB_ERROR_NONE : TUSB_ERROR_OSAL_SEMAPHORE_FAILED;
+  portBASE_TYPE task_waken;
+  return (xSemaphoreGiveFromISR(sem_hdl, &task_waken) == pdTRUE) ? TUSB_ERROR_NONE : TUSB_ERROR_OSAL_SEMAPHORE_FAILED;
 }
 
 static inline void osal_semaphore_wait(osal_semaphore_handle_t const sem_hdl, uint32_t msec, tusb_error_t *p_error) ATTR_ALWAYS_INLINE;
 static inline void osal_semaphore_wait(osal_semaphore_handle_t const sem_hdl, uint32_t msec, tusb_error_t *p_error)
 {
   (*p_error) = ( xSemaphoreTake(sem_hdl, osal_tick_from_msec(msec)) == pdPASS ) ? TUSB_ERROR_NONE : TUSB_ERROR_OSAL_TIMEOUT;
+}
+
+static inline void osal_semaphore_reset(osal_semaphore_handle_t const sem_hdl) ATTR_ALWAYS_INLINE;
+static inline void osal_semaphore_reset(osal_semaphore_handle_t const sem_hdl)
+{
+  portBASE_TYPE task_waken;
+  xSemaphoreTakeFromISR(sem_hdl, &task_waken);
 }
 
 //--------------------------------------------------------------------+
@@ -161,8 +173,8 @@ typedef xQueueHandle osal_queue_handle_t;
 #define osal_queue_create(p_queue) \
   xQueueCreate((p_queue)->depth, sizeof(uint32_t))
 
-static inline void osal_queue_receive (osal_queue_handle_t const queue_hdl, uint32_t *p_data, uint32_t msec, tusb_error_t *p_error) ATTR_ALWAYS_INLINE;
-static inline void osal_queue_receive (osal_queue_handle_t const queue_hdl, uint32_t *p_data, uint32_t msec, tusb_error_t *p_error)
+static inline void osal_queue_receive (osal_queue_handle_t const queue_hdl, void *p_data, uint32_t msec, tusb_error_t *p_error) ATTR_ALWAYS_INLINE;
+static inline void osal_queue_receive (osal_queue_handle_t const queue_hdl, void *p_data, uint32_t msec, tusb_error_t *p_error)
 {
   (*p_error) = ( xQueueReceive(queue_hdl, p_data, osal_tick_from_msec(msec)) == pdPASS ) ? TUSB_ERROR_NONE : TUSB_ERROR_OSAL_TIMEOUT;
 }
@@ -172,6 +184,12 @@ static inline tusb_error_t osal_queue_send(osal_queue_handle_t const queue_hdl, 
 {
   portBASE_TYPE taskWaken;
   return ( xQueueSendFromISR(queue_hdl, data, &taskWaken) == pdTRUE ) ? TUSB_ERROR_NONE : TUSB_ERROR_OSAL_QUEUE_FAILED;
+}
+
+static inline void osal_queue_flush(osal_queue_handle_t const queue_hdl) ATTR_ALWAYS_INLINE;
+static inline void osal_queue_flush(osal_queue_handle_t const queue_hdl)
+{
+  xQueueReset(queue_hdl);
 }
 
 #ifdef __cplusplus

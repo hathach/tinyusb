@@ -56,8 +56,7 @@
 #endif
 
 #include <stdint.h>
-#include "common/compiler/compiler.h"
-#include "common/binary.h"
+#include "tusb.h"
 
 #define BOARD_AT86RF2XX             1
 #define BOARD_LPCXPRESSO1347        2

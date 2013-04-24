@@ -170,7 +170,7 @@ void test_addr0_failed_dev_desc(void)
   osal_semaphore_wait_StubWithCallback(semaphore_wait_timeout_stub(0));
   tusbh_device_mount_failed_cb_Expect(TUSB_ERROR_USBH_MOUNT_DEVICE_NOT_RESPOND, NULL);
 
-  usbh_enumeration_task();
+  usbh_enumeration_task(NULL);
 
   TEST_ASSERT_EQUAL(TUSB_DEVICE_STATE_ADDRESSED, usbh_devices[0].state);
 
@@ -182,7 +182,7 @@ void test_addr0_failed_set_address(void)
   hcd_port_reset_Expect( usbh_devices[0].core_id );
   tusbh_device_mount_failed_cb_Expect(TUSB_ERROR_USBH_MOUNT_DEVICE_NOT_RESPOND, NULL);
 
-  usbh_enumeration_task();
+  usbh_enumeration_task(NULL);
 
   TEST_ASSERT_EQUAL(TUSB_DEVICE_STATE_ADDRESSED, usbh_devices[0].state);
   TEST_ASSERT_EQUAL_MEMORY(&desc_device, enum_data_buffer, 8);
@@ -198,7 +198,7 @@ void test_enum_failed_get_full_dev_desc(void)
   hcd_pipe_control_open_ExpectAndReturn(1, desc_device.bMaxPacketSize0, TUSB_ERROR_NONE);
   tusbh_device_mount_failed_cb_Expect(TUSB_ERROR_USBH_MOUNT_DEVICE_NOT_RESPOND, NULL);
 
-  usbh_enumeration_task();
+  usbh_enumeration_task(NULL);
 
   TEST_ASSERT_EQUAL(TUSB_DEVICE_STATE_UNPLUG, usbh_devices[0].state);
   TEST_ASSERT_EQUAL(TUSB_DEVICE_STATE_ADDRESSED, usbh_devices[1].state);
@@ -218,7 +218,7 @@ void test_enum_failed_get_9byte_config_desc(void)
   tusbh_device_attached_cb_ExpectAndReturn((tusb_descriptor_device_t*) enum_data_buffer, 1);
   tusbh_device_mount_failed_cb_Expect(TUSB_ERROR_USBH_MOUNT_DEVICE_NOT_RESPOND, NULL);
 
-  usbh_enumeration_task();
+  usbh_enumeration_task(NULL);
 
   TEST_ASSERT_EQUAL(desc_device.idVendor, usbh_devices[1].vendor_id);
   TEST_ASSERT_EQUAL(desc_device.idProduct, usbh_devices[1].product_id);
@@ -235,7 +235,7 @@ void test_enum_failed_get_full_config_desc(void)
   tusbh_device_attached_cb_ExpectAndReturn((tusb_descriptor_device_t*) enum_data_buffer, 1);
   tusbh_device_mount_failed_cb_Expect(TUSB_ERROR_USBH_MOUNT_DEVICE_NOT_RESPOND, NULL);
 
-  usbh_enumeration_task();
+  usbh_enumeration_task(NULL);
 }
 
 void class_install_expect(void)
@@ -254,7 +254,7 @@ void test_enum_parse_config_desc(void)
 
   tusbh_device_mount_failed_cb_Expect(TUSB_ERROR_USBH_MOUNT_DEVICE_NOT_RESPOND, NULL); // fail to set configure
 
-  usbh_enumeration_task();
+  usbh_enumeration_task(NULL);
 
   TEST_ASSERT_EQUAL(desc_configuration.configuration.bNumInterfaces, usbh_devices[1].interface_count);
 }
@@ -271,7 +271,7 @@ void test_enum_set_configure(void)
 
   tusbh_device_mount_succeed_cb_Expect(1);
 
-  usbh_enumeration_task();
+  usbh_enumeration_task(NULL);
 
   TEST_ASSERT_EQUAL(TUSB_CLASS_FLAG_HID, usbh_devices[1].flag_supported_class); // TODO change later
 }
