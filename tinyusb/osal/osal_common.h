@@ -64,12 +64,6 @@ enum
   OSAL_TIMEOUT_WAIT_FOREVER = 0x0EEEEEEE
 };
 
-typedef enum {
-  OSAL_PRIO_LOW,
-  OSAL_PRIO_NORMAL,
-  OSAL_PRIO_HIGH
-}osal_prio_t;
-
 static inline uint32_t osal_tick_from_msec(uint32_t msec) ATTR_CONST ATTR_ALWAYS_INLINE;
 static inline uint32_t osal_tick_from_msec(uint32_t msec)
 {

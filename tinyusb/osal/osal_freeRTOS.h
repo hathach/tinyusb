@@ -75,7 +75,7 @@ extern "C" {
   void task_func
 
 typedef struct {
-  signed portCHAR const * name;
+  char const * name;
   pdTASK_CODE code;
   unsigned portSHORT stack_depth;
   unsigned portBASE_TYPE prio;
@@ -92,7 +92,7 @@ typedef struct {
 static inline tusb_error_t osal_task_create(osal_task_t *task) ATTR_ALWAYS_INLINE;
 static inline tusb_error_t osal_task_create(osal_task_t *task)
 {
-  return pdPASS == xTaskCreate(task->code, task->name, task->stack_depth, NULL, task->prio, NULL) ?
+  return pdPASS == xTaskCreate(task->code, (signed portCHAR const *) task->name, task->stack_depth, NULL, task->prio, NULL) ?
     TUSB_ERROR_NONE : TUSB_ERROR_OSAL_TASK_CREATE_FAILED;
 }
 
@@ -104,7 +104,8 @@ static inline tusb_error_t osal_task_create(osal_task_t *task)
 
 //------------- Sub Task -------------//
 #define OSAL_SUBTASK_BEGIN // TODO refractor move
-#define OSAL_SUBTASK_END
+#define OSAL_SUBTASK_END \
+  return TUSB_ERROR_NONE;
 
 #define OSAL_SUBTASK_INVOKED_AND_WAIT(subtask, status) \
   status = subtask

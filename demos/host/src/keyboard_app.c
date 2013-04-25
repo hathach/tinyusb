@@ -40,6 +40,8 @@
 //--------------------------------------------------------------------+
 #include "keyboard_app.h"
 
+#if TUSB_CFG_HOST_HID_KEYBOARD
+
 //--------------------------------------------------------------------+
 // MACRO CONSTANT TYPEDEF
 //--------------------------------------------------------------------+
@@ -48,10 +50,11 @@
 //--------------------------------------------------------------------+
 // INTERNAL OBJECT & FUNCTION DECLARATION
 //--------------------------------------------------------------------+
-static tusb_keyboard_report_t usb_keyboard_report TUSB_CFG_ATTR_USBRAM;
-
+//OSAL_TASK_DEF(keyboard_task_def, keyboard_app_task, 128, )
 OSAL_QUEUE_DEF(queue_kbd_report, QUEUE_KEYBOARD_REPORT_DEPTH, tusb_keyboard_report_t);
 static osal_queue_handle_t q_kbd_report_hdl;
+
+static tusb_keyboard_report_t usb_keyboard_report TUSB_CFG_ATTR_USBRAM;
 
 // only convert a-z (case insensitive) +  0-9
 static inline uint8_t keycode_to_ascii(uint8_t keycode) ATTR_CONST ATTR_ALWAYS_INLINE;
@@ -91,6 +94,9 @@ void tusbh_hid_keyboard_isr(uint8_t dev_addr, uint8_t instance_num, tusb_event_t
 //--------------------------------------------------------------------+
 void keyboard_app_init(void)
 {
+  memclr_(&usb_keyboard_report, sizeof(tusb_keyboard_report_t));
+
+//  ASSERT( osal_task_create() )
   q_kbd_report_hdl = osal_queue_create(&queue_kbd_report);
 
   // TODO keyboard_app_task create
@@ -134,3 +140,5 @@ static inline uint8_t keycode_to_ascii(uint8_t keycode)
       ( KEYBOARD_KEYCODE_1 <= keycode && keycode < KEYBOARD_KEYCODE_0)  ? ( (keycode - KEYBOARD_KEYCODE_1) + '1' ) :
       ( KEYBOARD_KEYCODE_0 == keycode)                                  ? '0' : 'x';
 }
+
+#endif

@@ -35,12 +35,11 @@
  * This file is part of the tinyUSB stack.
  */
 
-#include "primitive_types.h"
 #include "errors.h"
 
 #if TUSB_CFG_DEBUG == 3
 
-uint8_t const* const TUSB_ErrorStr[] =
+char const* const TUSB_ErrorStr[] =
 {
  ERROR_TABLE(ERROR_STRING)
  0

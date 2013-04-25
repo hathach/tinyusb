@@ -68,7 +68,7 @@
 
 #define configUSE_PREEMPTION		1
 #define configUSE_IDLE_HOOK			1
-#define configMAX_PRIORITIES		( ( unsigned portBASE_TYPE ) 8 )
+#define configMAX_PRIORITIES		( ( unsigned portBASE_TYPE ) 16 )
 #define configUSE_TICK_HOOK			0
 #define configCPU_CLOCK_HZ			( ( unsigned long ) SystemCoreClock )
 #define configTICK_RATE_HZ			( ( portTickType ) 1000 )

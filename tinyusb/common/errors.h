@@ -49,7 +49,6 @@
 #ifndef _TUSB_ERRORS_H_
 #define _TUSB_ERRORS_H_
 
-#include "primitive_types.h"
 #include "tusb_option.h"
 
 #ifdef __cplusplus
@@ -87,7 +86,7 @@ typedef enum {
 
 #if TUSB_CFG_DEBUG == 3
 /// Enum to String for debugging purposes. Only available if \ref TUSB_CFG_DEBUG > 0
-extern uint8_t const* const TUSB_ErrorStr[];
+extern char const* const TUSB_ErrorStr[];
 #endif
 
 #ifdef __cplusplus

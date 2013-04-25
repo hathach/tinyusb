@@ -28,8 +28,13 @@ int main(void)
   tusb_init();
 
   //------------- application task init -------------//
+#if TUSB_CFG_HOST_HID_KEYBOARD
   keyboard_app_init();
+#endif
+
+#if TUSB_CFG_HOST_HID_MOUSE
   mouse_app_init();
+#endif
 
   while (1)
   {
