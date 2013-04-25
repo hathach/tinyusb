@@ -68,7 +68,7 @@ void tearDown(void)
 
 void test_isr_device_connect_highspeed(void)
 {
-  usbh_device_plugged_isr_Expect(hostid, TUSB_SPEED_HIGH);
+  usbh_device_plugged_isr_Expect(hostid);
 
   //------------- Code Under Test -------------//
   ehci_controller_device_plug(hostid, TUSB_SPEED_HIGH);
@@ -76,7 +76,7 @@ void test_isr_device_connect_highspeed(void)
 
 void test_isr_device_connect_fullspeed(void)
 {
-  usbh_device_plugged_isr_Expect(hostid, TUSB_SPEED_FULL);
+  usbh_device_plugged_isr_Expect(hostid);
 
   //------------- Code Under Test -------------//
   ehci_controller_device_plug(hostid, TUSB_SPEED_FULL);
@@ -84,7 +84,7 @@ void test_isr_device_connect_fullspeed(void)
 
 void test_isr_device_connect_slowspeed(void)
 {
-  usbh_device_plugged_isr_Expect(hostid, TUSB_SPEED_LOW);
+  usbh_device_plugged_isr_Expect(hostid);
 
   //------------- Code Under Test -------------//
   ehci_controller_device_plug(hostid, TUSB_SPEED_LOW);

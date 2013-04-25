@@ -202,10 +202,10 @@ void usbh_isr(pipe_handle_t pipe_hdl, uint8_t class_code, tusb_event_t event)
   }
 }
 
-void usbh_device_plugged_isr(uint8_t hostid, tusb_speed_t speed)
+void usbh_device_plugged_isr(uint8_t hostid)
 {
   osal_queue_send(enum_queue_hdl,
-                  &(usbh_enumerate_t){ .core_id = hostid, .speed = speed} );
+                  &(usbh_enumerate_t){ .core_id = hostid} );
 }
 
 void usbh_device_unplugged_isr(uint8_t hostid)
@@ -277,16 +277,19 @@ tusb_error_t enumeration_body_subtask(void)
   osal_queue_receive(enum_queue_hdl, &enum_entry, OSAL_TIMEOUT_WAIT_FOREVER, &error);
 
   SUBTASK_ASSERT( hcd_port_connect_status(enum_entry.core_id) ); // ensure device is still plugged
+
   usbh_devices[0].core_id  = enum_entry.core_id; // TODO refractor integrate to device_pool
   usbh_devices[0].hub_addr = enum_entry.hub_addr;
   usbh_devices[0].hub_port = enum_entry.hub_port;
-  usbh_devices[0].speed    = enum_entry.speed;
+
+  hcd_port_reset( usbh_devices[0].core_id ); // port must be reset to have correct speed operation
+  usbh_devices[0].speed    = hcd_port_speed_get( usbh_devices[0].core_id );
 
   SUBTASK_ASSERT_STATUS( usbh_pipe_control_open(0, 8) );
   usbh_devices[0].state = TUSB_DEVICE_STATE_ADDRESSED;
 
 #ifndef _TEST_
-  // TODO finalize delay after reset, hack delay 100 ms, otherwise speed is detected as LOW in most cases
+  // TODO hack delay 100 ms for slow device (use retry on the 1st xfer instead later)
   osal_task_delay(100);
 #endif
 

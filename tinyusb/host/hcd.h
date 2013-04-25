@@ -105,8 +105,9 @@ tusb_error_t hcd_pipe_cancel()ATTR_WARN_UNUSED_RESULT;
 // PORT API
 //--------------------------------------------------------------------+
 /// return the current connect status of roothub port
-bool hcd_port_connect_status(uint8_t core_id) ATTR_CONST ATTR_WARN_UNUSED_RESULT;
-void hcd_port_reset(uint8_t core_id);
+bool hcd_port_connect_status(uint8_t hostid) ATTR_PURE ATTR_WARN_UNUSED_RESULT; // TODO make inline if possible
+void hcd_port_reset(uint8_t hostid);
+tusb_speed_t hcd_port_speed_get(uint8_t hostid) ATTR_PURE ATTR_WARN_UNUSED_RESULT; // TODO make inline if possible
 
 #ifdef __cplusplus
  }

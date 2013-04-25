@@ -137,13 +137,18 @@ void hcd_port_reset(uint8_t hostid)
 #ifndef _TEST_
   // NXP specific, port reset will automatically be 0 when reset sequence complete
   // there is chance device is unplugged while reset sequence is not complete
-  while( regs->portsc_bit.port_reset) {}
+  while( regs->portsc_bit.port_reset) {} // TODO use task delay to remove blocking
 #endif
 }
 
 bool hcd_port_connect_status(uint8_t hostid)
 {
   return get_operational_register(hostid)->portsc_bit.current_connect_status;
+}
+
+tusb_speed_t hcd_port_speed_get(uint8_t hostid)
+{
+  return get_operational_register(hostid)->portsc_bit.nxp_port_speed; // NXP specific port speed
 }
 
 //--------------------------------------------------------------------+
@@ -479,8 +484,7 @@ void port_connect_status_change_isr(uint8_t hostid)
 
   if (regs->portsc_bit.current_connect_status) // device plugged
   {
-    hcd_port_reset(hostid);
-    usbh_device_plugged_isr(hostid, regs->portsc_bit.nxp_port_speed); // NXP specific port speed
+    usbh_device_plugged_isr(hostid);
   }else // device unplugged
   {
     usbh_device_unplugged_isr(hostid);

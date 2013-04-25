@@ -55,8 +55,9 @@ usbh_enumerate_t const enum_connect = {
     .core_id  = 0,
     .hub_addr = 0,
     .hub_port = 0,
-    .speed    = TUSB_SPEED_FULL
 };
+
+tusb_speed_t device_speed = TUSB_SPEED_FULL;
 
 void queue_recv_stub (osal_queue_handle_t const queue_hdl, uint32_t *p_data, uint32_t msec, tusb_error_t *p_error, int num_call);
 void semaphore_wait_success_stub(osal_semaphore_handle_t const sem_hdl, uint32_t msec, tusb_error_t *p_error, int num_call);
@@ -71,6 +72,8 @@ void setUp(void)
   hcd_pipe_control_xfer_StubWithCallback(control_xfer_stub);
 
   hcd_port_connect_status_ExpectAndReturn(enum_connect.core_id, true);
+  hcd_port_reset_Expect(enum_connect.core_id);
+  hcd_port_speed_get_ExpectAndReturn(enum_connect.core_id, device_speed);
   osal_semaphore_reset_Expect( usbh_devices[0].control.sem_hdl );
   hcd_pipe_control_open_ExpectAndReturn(0, 8, TUSB_ERROR_NONE);
 }

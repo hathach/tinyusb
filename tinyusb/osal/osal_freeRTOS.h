@@ -99,7 +99,7 @@ static inline tusb_error_t osal_task_create(osal_task_t *task)
 static inline void osal_task_delay(uint32_t msec) ATTR_ALWAYS_INLINE;
 static inline void osal_task_delay(uint32_t msec)
 {
-  vTaskDelay(TUSB_CFG_OS_TICKS_PER_SECOND * msec);
+  vTaskDelay( (TUSB_CFG_OS_TICKS_PER_SECOND * msec) / 1000 );
 }
 
 #define OSAL_TASK_LOOP_BEGIN \
