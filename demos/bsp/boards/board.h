@@ -68,6 +68,8 @@
 #define PRINTF_TARGET_SWO           3 // aka SWV, ITM
 #define PRINTF_TARGET_NONE          4
 
+#define PRINTF(...) printf(__VA_ARGS__)
+
 #if BOARD == 0
   #error BOARD is not defined or supported yet
 #elif BOARD == BOARD_NGX4330

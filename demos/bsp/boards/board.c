@@ -37,15 +37,22 @@
 
 #include "board.h"
 
+#if TUSB_CFG_OS == TUSB_OS_NONE
 volatile uint32_t system_ticks = 0;
 
 void SysTick_Handler (void)
 {
   system_ticks++;
-#if TUSB_CFG_OS == TUSB_OS_NONE
   tusb_tick_tock(); // TODO temporarily
-#endif
 }
+#endif
+
+//void board_delay_blocking(uint32_t ms)
+//{
+//  volatile uint32_t delay_us = 1000*ms;
+//  delay_us *= (SystemCoreClock / 1000000) / 3;
+//  while(delay_us--);
+//}
 
 void check_failed(uint8_t *file, uint32_t line)
 {

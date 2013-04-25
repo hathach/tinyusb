@@ -33,7 +33,7 @@
 #include "task.h"
 #include "FreeRTOSCommonHooks.h"
 
-//#include "hal/hal.h"
+#include "boards/board.h"
 
 /*****************************************************************************
  * Private types/enumerations/variables
@@ -81,7 +81,7 @@ void vApplicationStackOverflowHook(xTaskHandle pxTask, signed char *pcTaskName)
 	(void) pxTask;
 	(void) pcTaskName;
 
-	DEBUGOUT("DIE:ERROR:FreeRTOS: Stack overflow in task %s\r\n", pcTaskName);
+	PRINTF("DIE:ERROR:FreeRTOS: Stack overflow in task %s\r\n", pcTaskName);
 	/* Run time stack overflow checking is performed if
 	   configCHECK_FOR_STACK_OVERFLOW is defined to 1 or 2.  This hook
 	   function is called if a stack overflow is detected. */

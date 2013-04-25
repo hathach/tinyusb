@@ -76,7 +76,7 @@ extern "C"
 
   //#if ( defined CFG_PRINTF_UART || defined CFG_PRINTF_USBCDC || defined CFG_PRINTF_DEBUG )
 #if TUSB_CFG_DEBUG == 3
-  #define _PRINTF(...)	printf(__VA_ARGS__)
+  #define _PRINTF(...)	printf(__VA_ARGS__) // PRINTF
 #else
   #define _PRINTF(...)
 #endif

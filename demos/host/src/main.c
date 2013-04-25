@@ -76,8 +76,6 @@ OSAL_TASK_DEF(led_blinking_task_def, led_blinking_task, 128, LED_BLINKING_APP_TA
 int main(void)
 {
   board_init();
-  print_greeting();
-
   tusb_init();
 
   //------------- application task init -------------//
@@ -91,12 +89,12 @@ int main(void)
   mouse_app_init();
 #endif
 
-  //------------- start OS scheduler -------------//
+  //------------- start OS scheduler (never return) -------------//
 #if TUSB_CFG_OS == TUSB_OS_FREERTOS
   vTaskStartScheduler();
 
 #elif TUSB_CFG_OS == TUSB_OS_NONE
-
+  print_greeting();
   while (1)
   {
     tusb_task_runner();
@@ -134,25 +132,48 @@ void print_greeting(void)
 
 OSAL_TASK_FUNCTION( led_blinking_task ) (void* p_task_para)
 {
-  static uint32_t current_tick = 0;
+#if TUSB_CFG_OS != TUSB_OS_NONE // TODO abstract to approriate place
+  print_greeting();
+#endif
 
   OSAL_TASK_LOOP_BEGIN
 
-  if (current_tick + CFG_TICKS_PER_SECOND < system_ticks)
-  {
-    current_tick += CFG_TICKS_PER_SECOND;
+  vTaskDelay(CFG_TICKS_PER_SECOND);
 
-    /* Toggle LED once per second */
-    if ( (current_tick/CFG_TICKS_PER_SECOND) % 2)
-    {
-      board_leds(0x01, 0x00);
-    }
-    else
-    {
-      board_leds(0x00, 0x01);
-    }
+  /* Toggle LED once per second */
+  if ( (xTaskGetTickCount()/CFG_TICKS_PER_SECOND) % 2)
+  {
+    board_leds(0x01, 0x00);
+  }
+  else
+  {
+    board_leds(0x00, 0x01);
   }
 
   OSAL_TASK_LOOP_END
 }
+
+//OSAL_TASK_FUNCTION( led_blinking_task ) (void* p_task_para)
+//{
+//  static uint32_t current_tick = 0;
+//
+//  OSAL_TASK_LOOP_BEGIN
+//
+//  if (current_tick + CFG_TICKS_PER_SECOND < system_ticks)
+//  {
+//    current_tick += CFG_TICKS_PER_SECOND;
+//
+//    /* Toggle LED once per second */
+//    if ( (current_tick/CFG_TICKS_PER_SECOND) % 2)
+//    {
+//      board_leds(0x01, 0x00);
+//    }
+//    else
+//    {
+//      board_leds(0x00, 0x01);
+//    }
+//  }
+//
+//  OSAL_TASK_LOOP_END
+//}
 
