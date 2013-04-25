@@ -111,6 +111,16 @@ tusb_error_t hidh_interface_get_report(uint8_t dev_addr, uint8_t * const report,
 //--------------------------------------------------------------------+
 #if TUSB_CFG_HOST_HID_KEYBOARD
 
+#define EXPAND_KEYCODE_TO_ASCII(keycode, ascii, shift_modified)  \
+  [0][keycode] = ascii,\
+  [1][keycode] = shift_modified,\
+
+// TODO size of table should be a macro for application to check boundary
+uint8_t const hid_keycode_to_ascii_tbl[2][128] =
+{
+    HID_KEYCODE_TABLE(EXPAND_KEYCODE_TO_ASCII)
+};
+
 STATIC_ hidh_interface_info_t keyboard_data[TUSB_CFG_HOST_DEVICE_MAX]; // does not have addr0, index = dev_address-1
 
 //------------- KEYBOARD PUBLIC API (parameter validation required) -------------//

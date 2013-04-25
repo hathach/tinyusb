@@ -76,6 +76,10 @@ OSAL_TASK_DEF(led_blinking_task_def, "led blinking", led_blinking_task, 128, LED
 int main(void)
 {
   board_init();
+
+  // print_greeting(); TODO uart output before freeRTOS scheduler start will lead to hardfault
+  // find a way to fix this as tusb_init can output to uart when an error occurred
+
   tusb_init();
 
   //------------- application task init -------------//
@@ -95,6 +99,7 @@ int main(void)
 
 #elif TUSB_CFG_OS == TUSB_OS_NONE
   print_greeting();
+
   while (1)
   {
     tusb_task_runner();
@@ -122,7 +127,7 @@ int main(void)
 void print_greeting(void)
 {
   printf("\r\n\
---------------------------------------------------------------------\
+--------------------------------------------------------------------\r\n\
 -                     Host Demo (a tinyusb example)\r\n\
 - if you find any bugs or get any questions, feel free to file an\r\n\
 - issue at https://github.com/hathach/tinyusb\r\n\

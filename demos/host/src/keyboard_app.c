@@ -58,7 +58,7 @@ static osal_queue_handle_t q_kbd_report_hdl;
 static tusb_keyboard_report_t usb_keyboard_report TUSB_CFG_ATTR_USBRAM;
 
 // only convert a-z (case insensitive) +  0-9
-static inline uint8_t keycode_to_ascii(uint8_t keycode) ATTR_CONST ATTR_ALWAYS_INLINE;
+static inline uint8_t keycode_to_ascii(uint8_t modifier, uint8_t keycode) ATTR_CONST ATTR_ALWAYS_INLINE;
 
 //--------------------------------------------------------------------+
 // tinyusb callback (ISR context)
@@ -106,26 +106,28 @@ void keyboard_app_init(void)
 OSAL_TASK_FUNCTION( keyboard_app_task ) (void* p_task_para)
 {
   tusb_error_t error;
+  static tusb_keyboard_report_t prev_kbd_report = { 0 }; // previous report to check key released
   tusb_keyboard_report_t kbd_report;
 
   OSAL_TASK_LOOP_BEGIN
 
   osal_queue_receive(q_kbd_report_hdl, &kbd_report, OSAL_TIMEOUT_WAIT_FOREVER, &error);
 
-  bool has_key = false;
+  //------------- example code ignore modifier key -------------//
   for(uint8_t i=0; i<6; i++)
   {
-    if ( kbd_report.keycode[i] != 0 )
+    if ( kbd_report.keycode[i] != prev_kbd_report.keycode[i] )
     {
-      printf("%c", keycode_to_ascii(kbd_report.keycode[i]));
-      has_key = true;
+      if ( 0 != kbd_report.keycode[i]) // key pressed
+      {
+        printf("%c", keycode_to_ascii(kbd_report.modifier, kbd_report.keycode[i]) );
+      }else
+      {
+        // key released
+      }
     }
+    prev_kbd_report.keycode[i] = kbd_report.keycode[i];
   }
-
-  if (has_key)
-    printf("\n");
-
-  memclr_(&kbd_report, sizeof(tusb_keyboard_report_t) );
 
   OSAL_TASK_LOOP_END
 }
@@ -133,12 +135,11 @@ OSAL_TASK_FUNCTION( keyboard_app_task ) (void* p_task_para)
 //--------------------------------------------------------------------+
 // HELPER
 //--------------------------------------------------------------------+
-static inline uint8_t keycode_to_ascii(uint8_t keycode)
+static inline uint8_t keycode_to_ascii(uint8_t modifier, uint8_t keycode)
 {
-  return
-      ( KEYBOARD_KEYCODE_a <= keycode && keycode <= KEYBOARD_KEYCODE_z) ? ( (keycode - KEYBOARD_KEYCODE_a) + 'a' ) :
-      ( KEYBOARD_KEYCODE_1 <= keycode && keycode < KEYBOARD_KEYCODE_0)  ? ( (keycode - KEYBOARD_KEYCODE_1) + '1' ) :
-      ( KEYBOARD_KEYCODE_0 == keycode)                                  ? '0' : 'x';
+  // TODO max of keycode_ascii_tbl
+  return keycode > 128 ? 0 :
+    hid_keycode_to_ascii_tbl [modifier & (KEYBOARD_MODIFIER_LEFTSHIFT | KEYBOARD_MODIFIER_RIGHTSHIFT) ? 1 : 0] [keycode];
 }
 
 #endif
