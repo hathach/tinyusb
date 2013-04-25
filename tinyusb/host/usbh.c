@@ -89,7 +89,7 @@ static host_class_driver_t const usbh_class_drivers[TUSB_CLASS_MAX_CONSEC_NUMBER
 usbh_device_info_t usbh_devices[TUSB_CFG_HOST_DEVICE_MAX+1] TUSB_CFG_ATTR_USBRAM; // including zero-address
 
 //------------- Enumeration Task Data -------------//
-OSAL_TASK_DEF(enum_task_def, usbh_enumeration_task, 128, TUSB_CFG_OS_TASK_PRIO);
+OSAL_TASK_DEF(enum_task_def, "tinyusb host", usbh_enumeration_task, 128, TUSB_CFG_OS_TASK_PRIO);
 OSAL_QUEUE_DEF(enum_queue_def, ENUM_QUEUE_DEPTH, uint32_t);
 osal_queue_handle_t enum_queue_hdl;
 STATIC_ uint8_t enum_data_buffer[TUSB_CFG_HOST_ENUM_BUFFER_SIZE] TUSB_CFG_ATTR_USBRAM;
@@ -287,9 +287,7 @@ tusb_error_t enumeration_body_subtask(void)
 
 #ifndef _TEST_
   // TODO finalize delay after reset, hack delay 100 ms, otherwise speed is detected as LOW in most cases
-  volatile uint32_t delay_us = 10000;
-  delay_us *= (SystemCoreClock / 1000000) / 3;
-  while(delay_us--);
+  osal_task_delay(100);
 #endif
 
   //------------- Get first 8 bytes of device descriptor to get Control Endpoint Size -------------//

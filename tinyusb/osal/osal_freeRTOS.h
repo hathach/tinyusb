@@ -81,9 +81,9 @@ typedef struct {
   unsigned portBASE_TYPE prio;
 } osal_task_t;
 
-#define OSAL_TASK_DEF(task_name, task_code, task_stack_depth, task_prio) \
-  osal_task_t task_name = {\
-      .name        = #task_name       , \
+#define OSAL_TASK_DEF(task_variable, task_name, task_code, task_stack_depth, task_prio) \
+  osal_task_t task_variable = {\
+      .name        = task_name        , \
       .code        = task_code        , \
       .stack_depth = task_stack_depth , \
       .prio        = task_prio          \
@@ -94,6 +94,12 @@ static inline tusb_error_t osal_task_create(osal_task_t *task)
 {
   return pdPASS == xTaskCreate(task->code, (signed portCHAR const *) task->name, task->stack_depth, NULL, task->prio, NULL) ?
     TUSB_ERROR_NONE : TUSB_ERROR_OSAL_TASK_CREATE_FAILED;
+}
+
+static inline void osal_task_delay(uint32_t msec) ATTR_ALWAYS_INLINE;
+static inline void osal_task_delay(uint32_t msec)
+{
+  vTaskDelay(TUSB_CFG_OS_TICKS_PER_SECOND * msec);
 }
 
 #define OSAL_TASK_LOOP_BEGIN \

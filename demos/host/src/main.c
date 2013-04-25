@@ -67,7 +67,7 @@
 void print_greeting(void);
 
 OSAL_TASK_FUNCTION( led_blinking_task ) (void* p_task_para);
-OSAL_TASK_DEF(led_blinking_task_def, led_blinking_task, 128, LED_BLINKING_APP_TASK_PRIO);
+OSAL_TASK_DEF(led_blinking_task_def, "led blinking", led_blinking_task, 128, LED_BLINKING_APP_TASK_PRIO);
 
 //--------------------------------------------------------------------+
 // IMPLEMENTATION
@@ -132,48 +132,18 @@ void print_greeting(void)
 
 OSAL_TASK_FUNCTION( led_blinking_task ) (void* p_task_para)
 {
+  static uint32_t led_on_mask = 0;
+
 #if TUSB_CFG_OS != TUSB_OS_NONE // TODO abstract to approriate place
   print_greeting();
 #endif
 
   OSAL_TASK_LOOP_BEGIN
 
-  vTaskDelay(CFG_TICKS_PER_SECOND);
+  osal_task_delay(1000);
 
-  /* Toggle LED once per second */
-  if ( (xTaskGetTickCount()/CFG_TICKS_PER_SECOND) % 2)
-  {
-    board_leds(0x01, 0x00);
-  }
-  else
-  {
-    board_leds(0x00, 0x01);
-  }
+  board_leds(led_on_mask, 1 - led_on_mask);
+  led_on_mask = 1 - led_on_mask; // toggle
 
   OSAL_TASK_LOOP_END
 }
-
-//OSAL_TASK_FUNCTION( led_blinking_task ) (void* p_task_para)
-//{
-//  static uint32_t current_tick = 0;
-//
-//  OSAL_TASK_LOOP_BEGIN
-//
-//  if (current_tick + CFG_TICKS_PER_SECOND < system_ticks)
-//  {
-//    current_tick += CFG_TICKS_PER_SECOND;
-//
-//    /* Toggle LED once per second */
-//    if ( (current_tick/CFG_TICKS_PER_SECOND) % 2)
-//    {
-//      board_leds(0x01, 0x00);
-//    }
-//    else
-//    {
-//      board_leds(0x00, 0x01);
-//    }
-//  }
-//
-//  OSAL_TASK_LOOP_END
-//}
-

@@ -87,7 +87,7 @@ static inline volatile uint32_t osal_tick_get(void)
 //   OSAL_TASK_LOOP_ENG
 // }
 //--------------------------------------------------------------------+
-#define OSAL_TASK_DEF(name, code, stack_depth, prio)
+#define OSAL_TASK_DEF(variable, name, code, stack_depth, prio)
 #define osal_task_create(x) TUSB_ERROR_NONE
 
 #define OSAL_TASK_FUNCTION(task_func) \
@@ -106,6 +106,16 @@ static inline volatile uint32_t osal_tick_get(void)
     TASK_RESTART;\
   }\
   return TUSB_ERROR_NONE;
+
+
+#define osal_task_delay(msec) \
+  do {\
+    timeout = osal_tick_get();\
+    state = __LINE__; case __LINE__:\
+      if ( timeout + osal_tick_from_msec(msec) < osal_tick_get() ) /* time out */ \
+        return TUSB_ERROR_OSAL_WAITING;\
+  }while(0)
+
 
 //------------- Sub Task -------------//
 #define OSAL_SUBTASK_INVOKED_AND_WAIT(subtask, status) \

@@ -50,7 +50,7 @@
 //--------------------------------------------------------------------+
 // INTERNAL OBJECT & FUNCTION DECLARATION
 //--------------------------------------------------------------------+
-OSAL_TASK_DEF(keyboard_task_def, keyboard_app_task, 128, KEYBOARD_APP_TASK_PRIO);
+OSAL_TASK_DEF(keyboard_task_def, "keyboard app", keyboard_app_task, 128, KEYBOARD_APP_TASK_PRIO);
 
 OSAL_QUEUE_DEF(queue_kbd_report, QUEUE_KEYBOARD_REPORT_DEPTH, tusb_keyboard_report_t);
 static osal_queue_handle_t q_kbd_report_hdl;
