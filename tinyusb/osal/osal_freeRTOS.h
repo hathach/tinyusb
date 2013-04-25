@@ -87,9 +87,9 @@ typedef struct {
       .code        = task_code        , \
       .stack_depth = task_stack_depth , \
       .prio        = task_prio          \
-  };
+  }
 
-static inline tusb_error_t osal_task_create(osal_task_t *task) ATTR_ALWAYS_INLINE;
+static inline tusb_error_t osal_task_create(osal_task_t *task) ATTR_WARN_UNUSED_RESULT ATTR_ALWAYS_INLINE;
 static inline tusb_error_t osal_task_create(osal_task_t *task)
 {
   return pdPASS == xTaskCreate(task->code, (signed portCHAR const *) task->name, task->stack_depth, NULL, task->prio, NULL) ?

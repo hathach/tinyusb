@@ -96,7 +96,7 @@ static inline volatile uint32_t osal_tick_get(void)
   state = 0
 
 #define OSAL_TASK_LOOP_BEGIN \
-  static uint32_t timeout = 0;\
+  ATTR_UNUSED static uint32_t timeout = 0;\
   static uint16_t state = 0;\
   switch(state) {\
     case 0:\
@@ -153,7 +153,7 @@ typedef osal_semaphore_t * osal_semaphore_handle_t;
 #define OSAL_SEM_REF(name)\
   &name
 
-static inline osal_semaphore_handle_t osal_semaphore_create(osal_semaphore_t * const p_sem) ATTR_ALWAYS_INLINE;
+static inline osal_semaphore_handle_t osal_semaphore_create(osal_semaphore_t * const p_sem) ATTR_WARN_UNUSED_RESULT ATTR_ALWAYS_INLINE;
 static inline osal_semaphore_handle_t osal_semaphore_create(osal_semaphore_t * const p_sem)
 {
   (*p_sem) = 0;
@@ -212,7 +212,7 @@ typedef osal_queue_t * osal_queue_handle_t;
       .item_size = sizeof(type)\
   }
 
-static inline osal_queue_handle_t osal_queue_create(osal_queue_t * const p_queue) ATTR_ALWAYS_INLINE;
+static inline osal_queue_handle_t osal_queue_create(osal_queue_t * const p_queue) ATTR_WARN_UNUSED_RESULT ATTR_ALWAYS_INLINE;
 static inline osal_queue_handle_t osal_queue_create(osal_queue_t * const p_queue)
 {
   p_queue->count = p_queue->wr_idx = p_queue->rd_idx = 0;

@@ -89,8 +89,8 @@ static host_class_driver_t const usbh_class_drivers[TUSB_CLASS_MAX_CONSEC_NUMBER
 usbh_device_info_t usbh_devices[TUSB_CFG_HOST_DEVICE_MAX+1] TUSB_CFG_ATTR_USBRAM; // including zero-address
 
 //------------- Enumeration Task Data -------------//
-OSAL_TASK_DEF(enum_task, usbh_enumeration_task, 128, TUSB_CFG_OS_TASK_PRIO);
-OSAL_QUEUE_DEF(enum_queue, ENUM_QUEUE_DEPTH, uint32_t);
+OSAL_TASK_DEF(enum_task_def, usbh_enumeration_task, 128, TUSB_CFG_OS_TASK_PRIO);
+OSAL_QUEUE_DEF(enum_queue_def, ENUM_QUEUE_DEPTH, uint32_t);
 osal_queue_handle_t enum_queue_hdl;
 STATIC_ uint8_t enum_data_buffer[TUSB_CFG_HOST_ENUM_BUFFER_SIZE] TUSB_CFG_ATTR_USBRAM;
 
@@ -126,8 +126,8 @@ tusb_error_t usbh_init(void)
   }
 
   //------------- Enumeration & Reporter Task init -------------//
-  ASSERT_STATUS( osal_task_create(&enum_task) );
-  enum_queue_hdl = osal_queue_create(&enum_queue);
+  ASSERT_STATUS( osal_task_create(&enum_task_def) );
+  enum_queue_hdl = osal_queue_create(&enum_queue_def);
   ASSERT_PTR(enum_queue_hdl, TUSB_ERROR_OSAL_QUEUE_FAILED);
 
   //------------- class init -------------//

@@ -50,10 +50,12 @@
 //--------------------------------------------------------------------+
 // INTERNAL OBJECT & FUNCTION DECLARATION
 //--------------------------------------------------------------------+
-static tusb_mouse_report_t usb_mouse_report TUSB_CFG_ATTR_USBRAM;
+OSAL_TASK_DEF(mouse_task_def, mouse_app_task, 128, MOUSE_APP_TASK_PRIO);
 
 OSAL_QUEUE_DEF(queue_mouse_report, QUEUE_MOUSE_REPORT_DEPTH, tusb_mouse_report_t);
 static osal_queue_handle_t q_mouse_report_hdl;
+
+static tusb_mouse_report_t usb_mouse_report TUSB_CFG_ATTR_USBRAM;
 
 //--------------------------------------------------------------------+
 // tinyusb callback (ISR context)
@@ -92,9 +94,13 @@ void tusbh_hid_mouse_isr(uint8_t dev_addr, uint8_t instance_num, tusb_event_t ev
 //--------------------------------------------------------------------+
 void mouse_app_init(void)
 {
-  q_mouse_report_hdl = osal_queue_create(&queue_mouse_report);
+  memclr_(&usb_mouse_report, sizeof(tusb_mouse_report_t));
 
-  // TODO mouse_app_task create
+  ASSERT( TUSB_ERROR_NONE == osal_task_create(&mouse_task_def), (void) 0 );
+
+  q_mouse_report_hdl = osal_queue_create(&queue_mouse_report);
+  ASSERT_PTR( q_mouse_report_hdl, (void) 0 );
+
 }
 
 //------------- main task -------------//

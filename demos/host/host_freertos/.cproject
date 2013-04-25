@@ -465,12 +465,15 @@
 								<option id="com.crt.advproject.gcc.thumb.1149795974" name="Thumb mode" superClass="com.crt.advproject.gcc.thumb" value="true" valueType="boolean"/>
 								<option id="gnu.c.compiler.option.preprocessor.def.symbols.510918973" name="Defined symbols (-D)" superClass="gnu.c.compiler.option.preprocessor.def.symbols" valueType="definedSymbols">
 									<listOptionValue builtIn="false" value="__REDLIB__"/>
-									<listOptionValue builtIn="false" value="TUSB_CFG_OS_TASK_PRIO=(configMAX_PRIORITIES-5)"/>
 									<listOptionValue builtIn="false" value="__USE_CMSIS=CMSISv2p10_LPC43xx_DriverLib"/>
 									<listOptionValue builtIn="false" value="CORE_M4"/>
 									<listOptionValue builtIn="false" value="MCU=MCU_LPC43XX"/>
 									<listOptionValue builtIn="false" value="BOARD=BOARD_EA4357"/>
 									<listOptionValue builtIn="false" value="TUSB_CFG_OS=TUSB_OS_FREERTOS"/>
+									<listOptionValue builtIn="false" value="TUSB_CFG_OS_TASK_PRIO=(configMAX_PRIORITIES-5)"/>
+									<listOptionValue builtIn="false" value="KEYBOARD_APP_TASK_PRIO=(configMAX_PRIORITIES-6)"/>
+									<listOptionValue builtIn="false" value="MOUSE_APP_TASK_PRIO=(configMAX_PRIORITIES-7)"/>
+									<listOptionValue builtIn="false" value="LED_BLINKING_APP_TASK_PRIO=tskIDLE_PRIORITY+1"/>
 									<listOptionValue builtIn="false" value="DEBUG"/>
 									<listOptionValue builtIn="false" value="__CODE_RED"/>
 								</option>

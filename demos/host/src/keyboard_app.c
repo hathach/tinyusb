@@ -50,7 +50,8 @@
 //--------------------------------------------------------------------+
 // INTERNAL OBJECT & FUNCTION DECLARATION
 //--------------------------------------------------------------------+
-//OSAL_TASK_DEF(keyboard_task_def, keyboard_app_task, 128, )
+OSAL_TASK_DEF(keyboard_task_def, keyboard_app_task, 128, KEYBOARD_APP_TASK_PRIO);
+
 OSAL_QUEUE_DEF(queue_kbd_report, QUEUE_KEYBOARD_REPORT_DEPTH, tusb_keyboard_report_t);
 static osal_queue_handle_t q_kbd_report_hdl;
 
@@ -96,10 +97,9 @@ void keyboard_app_init(void)
 {
   memclr_(&usb_keyboard_report, sizeof(tusb_keyboard_report_t));
 
-//  ASSERT( osal_task_create() )
+  ASSERT( TUSB_ERROR_NONE == osal_task_create(&keyboard_task_def), (void) 0 );
   q_kbd_report_hdl = osal_queue_create(&queue_kbd_report);
-
-  // TODO keyboard_app_task create
+  ASSERT_PTR( q_kbd_report_hdl, (void) 0 );
 }
 
 //------------- main task -------------//
