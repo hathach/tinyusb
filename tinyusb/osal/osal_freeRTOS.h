@@ -186,8 +186,8 @@ static inline void osal_queue_receive (osal_queue_handle_t const queue_hdl, void
   (*p_error) = ( xQueueReceive(queue_hdl, p_data, osal_tick_from_msec(msec)) == pdPASS ) ? TUSB_ERROR_NONE : TUSB_ERROR_OSAL_TIMEOUT;
 }
 
-static inline tusb_error_t osal_queue_send(osal_queue_handle_t const queue_hdl, const void * data) ATTR_ALWAYS_INLINE;
-static inline tusb_error_t osal_queue_send(osal_queue_handle_t const queue_hdl, const void * data)
+static inline tusb_error_t osal_queue_send(osal_queue_handle_t const queue_hdl, void const * data) ATTR_ALWAYS_INLINE;
+static inline tusb_error_t osal_queue_send(osal_queue_handle_t const queue_hdl, void const * data)
 {
   portBASE_TYPE taskWaken;
   return ( xQueueSendFromISR(queue_hdl, data, &taskWaken) == pdTRUE ) ? TUSB_ERROR_NONE : TUSB_ERROR_OSAL_QUEUE_FAILED;

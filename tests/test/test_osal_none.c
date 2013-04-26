@@ -163,7 +163,7 @@ void test_task_with_semaphore(void)
 }
 
 //--------------------------------------------------------------------+
-// TASK SEMAPHORE
+// TASK QUEUE
 //--------------------------------------------------------------------+
 tusb_error_t sample_task_with_queue(void)
 {
@@ -231,6 +231,34 @@ void test_task_with_queue(void)
   // reach end of task loop, back to beginning
   sample_task_with_queue();
   TEST_ASSERT_EQUAL(2, statements[0]);
+}
+
+//--------------------------------------------------------------------+
+// TASK DELAY
+//--------------------------------------------------------------------+
+tusb_error_t sample_task_with_delay(void)
+{
+  tusb_error_t error;
+
+  OSAL_TASK_LOOP_BEGIN
+
+  osal_task_delay(1000);
+
+  statements[0]++;
+
+  OSAL_TASK_LOOP_END
+}
+
+void test_task_with_delay(void)
+{
+  sample_task_with_delay();
+  TEST_ASSERT_EQUAL(0, statements[0]);
+
+  for(uint32_t i=0; i<TUSB_CFG_OS_TICKS_PER_SECOND*1000; i++) // not enough time
+    osal_tick_tock();
+
+  sample_task_with_delay();
+  TEST_ASSERT_EQUAL(1, statements[0]);
 }
 
 //--------------------------------------------------------------------+

@@ -53,11 +53,11 @@ tusb_keyboard_report_t sample_key[2] =
 {
     {
         .modifier = KEYBOARD_MODIFIER_LEFTCTRL,
-        .keycode = {KEYBOARD_KEYCODE_a}
+        .keycode = {4}//{KEYBOARD_KEYCODE_a} TODO ascii to key code table
     },
     {
         .modifier = KEYBOARD_MODIFIER_RIGHTALT,
-        .keycode = {KEYBOARD_KEYCODE_z}
+        .keycode = {5}//{KEYBOARD_KEYCODE_z}
     }
 };
 

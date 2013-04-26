@@ -112,7 +112,7 @@ static inline volatile uint32_t osal_tick_get(void)
   do {\
     timeout = osal_tick_get();\
     state = __LINE__; case __LINE__:\
-      if ( timeout + osal_tick_from_msec(msec) < osal_tick_get() ) /* time out */ \
+      if ( timeout + osal_tick_from_msec(msec) > osal_tick_get() ) /* time out */ \
         return TUSB_ERROR_OSAL_WAITING;\
   }while(0)
 
@@ -230,8 +230,8 @@ static inline osal_queue_handle_t osal_queue_create(osal_queue_t * const p_queue
 }
 
 // when queue is full, it will overwrite the oldest data in the queue
-static inline tusb_error_t osal_queue_send(osal_queue_handle_t const queue_hdl, const void * data) ATTR_ALWAYS_INLINE;
-static inline tusb_error_t osal_queue_send(osal_queue_handle_t const queue_hdl, const void * data)
+static inline tusb_error_t osal_queue_send(osal_queue_handle_t const queue_hdl, void const * data) ATTR_ALWAYS_INLINE;
+static inline tusb_error_t osal_queue_send(osal_queue_handle_t const queue_hdl, void const * data)
 {
   //TODO mutex lock hal_interrupt_disable
 
