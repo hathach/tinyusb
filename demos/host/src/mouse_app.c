@@ -56,7 +56,7 @@ OSAL_QUEUE_DEF(queue_mouse_def, QUEUE_MOUSE_REPORT_DEPTH, tusb_mouse_report_t);
 static osal_queue_handle_t queue_mouse_hdl;
 static tusb_mouse_report_t usb_mouse_report TUSB_CFG_ATTR_USBRAM;
 
-static inline void process_mouse_report(tusb_mouse_report_t const * report);
+static inline void process_mouse_report(tusb_mouse_report_t const * p_report);
 
 //--------------------------------------------------------------------+
 // tinyusb callback (ISR context)
@@ -120,25 +120,25 @@ OSAL_TASK_FUNCTION( mouse_app_task ) (void* p_task_para)
 //--------------------------------------------------------------------+
 // HELPER
 //--------------------------------------------------------------------+
-static inline void process_mouse_report(tusb_mouse_report_t const * report)
+static inline void process_mouse_report(tusb_mouse_report_t const * p_report)
 {
   static tusb_mouse_report_t prev_report = { 0 };
 
   //------------- button state  -------------//
-  uint8_t button_changed_mask = report->buttons ^ prev_report.buttons;
-  if ( button_changed_mask & report->buttons)
+  uint8_t button_changed_mask = p_report->buttons ^ prev_report.buttons;
+  if ( button_changed_mask & p_report->buttons)
   {
      // example only display button pressed, ignore hold & dragging etc
     printf(" %c%c%c ",
-       report->buttons & HID_MOUSEBUTTON_LEFT   ? 'L' : '-',
-       report->buttons & HID_MOUSEBUTTON_MIDDLE ? 'M' : '-',
-       report->buttons & HID_MOUSEBUTTON_RIGHT  ? 'R' : '-');
+       p_report->buttons & HID_MOUSEBUTTON_LEFT   ? 'L' : '-',
+       p_report->buttons & HID_MOUSEBUTTON_MIDDLE ? 'M' : '-',
+       p_report->buttons & HID_MOUSEBUTTON_RIGHT  ? 'R' : '-');
   }
 
   //------------- coordinator -------------//
-  if ( report->x != 0 || report->y != 0 )
+  if ( p_report->x != 0 || p_report->y != 0 )
   {
-    printf(" (%d, %d) ", report->x, report->y);
+    printf(" (%d, %d) ", p_report->x, p_report->y);
   }
 
 }

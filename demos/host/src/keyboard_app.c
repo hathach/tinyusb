@@ -50,25 +50,14 @@
 //--------------------------------------------------------------------+
 // INTERNAL OBJECT & FUNCTION DECLARATION
 //--------------------------------------------------------------------+
-typedef enum {
-  KEY_STATE_PRESSED = 1,
-  KEY_STATE_HOLDING,
-  KEY_STATE_RELEASED
-}key_state_t;
-
-typedef struct {
-  tusb_keyboard_report_t report;
-  key_state_t state[6];
-} kbd_data_t;
-
 OSAL_TASK_DEF(keyboard_task_def, "keyboard app", keyboard_app_task, 128, KEYBOARD_APP_TASK_PRIO);
-OSAL_QUEUE_DEF(queue_kbd_def, QUEUE_KEYBOARD_REPORT_DEPTH, kbd_data_t);
+OSAL_QUEUE_DEF(queue_kbd_def, QUEUE_KEYBOARD_REPORT_DEPTH, tusb_keyboard_report_t);
 
 static osal_queue_handle_t queue_kbd_hdl;
 static tusb_keyboard_report_t usb_keyboard_report TUSB_CFG_ATTR_USBRAM;
 
 static inline uint8_t keycode_to_ascii(uint8_t modifier, uint8_t keycode) ATTR_CONST ATTR_ALWAYS_INLINE;
-static inline void process_kbd_report_isr(tusb_keyboard_report_t const * report);
+static inline void process_kbd_report(tusb_keyboard_report_t const * report);
 
 //--------------------------------------------------------------------+
 // tinyusb callback (ISR context)
@@ -87,7 +76,7 @@ void tusbh_hid_keyboard_isr(uint8_t dev_addr, uint8_t instance_num, tusb_event_t
     break;
 
     case TUSB_EVENT_XFER_COMPLETE:
-      process_kbd_report_isr(&usb_keyboard_report);
+      osal_queue_send(queue_kbd_hdl, &usb_keyboard_report);
       tusbh_hid_keyboard_get_report(dev_addr, instance_num, (uint8_t*) &usb_keyboard_report);
     break;
 
@@ -116,20 +105,13 @@ void keyboard_app_init(void)
 OSAL_TASK_FUNCTION( keyboard_app_task ) (void* p_task_para)
 {
   tusb_error_t error;
-  kbd_data_t kbd_data;
+  tusb_keyboard_report_t kbd_report;
 
   OSAL_TASK_LOOP_BEGIN
 
-  osal_queue_receive(queue_kbd_hdl, &kbd_data, OSAL_TIMEOUT_WAIT_FOREVER, &error);
+  osal_queue_receive(queue_kbd_hdl, &kbd_report, OSAL_TIMEOUT_WAIT_FOREVER, &error);
 
-  //------------- example code ignore control (non-printable) key affects -------------//
-  for(uint8_t i = 0; i < 6; i++)
-  {
-    if ( kbd_data.state[i] == KEY_STATE_PRESSED )
-    {
-      printf("%c", keycode_to_ascii(kbd_data.report.modifier, kbd_data.report.keycode[i]) );
-    }
-  }
+  process_kbd_report(&kbd_report);
 
   OSAL_TASK_LOOP_END
 }
@@ -139,7 +121,7 @@ OSAL_TASK_FUNCTION( keyboard_app_task ) (void* p_task_para)
 //--------------------------------------------------------------------+
 
 // look up new key in previous keys
-static inline bool is_key_in_report_isr(tusb_keyboard_report_t const *p_report, uint8_t keycode, uint8_t modifier)
+static inline bool is_key_in_report(tusb_keyboard_report_t const *p_report, uint8_t modifier, uint8_t keycode)
 {
   for(uint8_t i=0; i<6; i++)
   {
@@ -152,29 +134,28 @@ static inline bool is_key_in_report_isr(tusb_keyboard_report_t const *p_report, 
   return false;
 }
 
-static inline void process_kbd_report_isr(tusb_keyboard_report_t const *p_new_report)
+static inline void process_kbd_report(tusb_keyboard_report_t const *p_new_report)
 {
   static tusb_keyboard_report_t prev_report = { 0 }; // previous report to check key released
-  kbd_data_t kbd_data = { 0 };
 
+  //------------- example code ignore control (non-printable) key affects -------------//
   for(uint8_t i=0; i<6; i++)
   {
     if ( p_new_report->keycode[i] )
     {
-      if ( is_key_in_report_isr(&prev_report, p_new_report->keycode[i], p_new_report->modifier) )
+      if ( is_key_in_report(&prev_report, p_new_report->modifier, p_new_report->keycode[i]) )
       {
-        kbd_data.state[i] =  KEY_STATE_HOLDING; // previously existed means holding
+        // previously existed means holding
       }else
       {
-        kbd_data.state[i] = KEY_STATE_PRESSED;  // previously non-existed means released
+        // previously non-existed means key is pressed
+        printf("%c", keycode_to_ascii(p_new_report->modifier, p_new_report->keycode[i]) );
       }
     }
     // TODO example skips key released
   }
 
   prev_report = *p_new_report;
-  kbd_data.report = *p_new_report;
-  osal_queue_send(queue_kbd_hdl, &kbd_data);
 }
 
 static inline uint8_t keycode_to_ascii(uint8_t modifier, uint8_t keycode)
