@@ -45,17 +45,18 @@
 //--------------------------------------------------------------------+
 // MACRO CONSTANT TYPEDEF
 //--------------------------------------------------------------------+
-#define QUEUE_MOUSE_REPORT_DEPTH   5
+#define QUEUE_MOUSE_REPORT_DEPTH   4
 
 //--------------------------------------------------------------------+
 // INTERNAL OBJECT & FUNCTION DECLARATION
 //--------------------------------------------------------------------+
 OSAL_TASK_DEF(mouse_task_def, "mouse app", mouse_app_task, 128, MOUSE_APP_TASK_PRIO);
+OSAL_QUEUE_DEF(queue_mouse_def, QUEUE_MOUSE_REPORT_DEPTH, tusb_mouse_report_t);
 
-OSAL_QUEUE_DEF(queue_mouse_report, QUEUE_MOUSE_REPORT_DEPTH, tusb_mouse_report_t);
-static osal_queue_handle_t q_mouse_report_hdl;
-
+static osal_queue_handle_t queue_mouse_hdl;
 static tusb_mouse_report_t usb_mouse_report TUSB_CFG_ATTR_USBRAM;
+
+static inline void process_mouse_report(tusb_mouse_report_t const * report);
 
 //--------------------------------------------------------------------+
 // tinyusb callback (ISR context)
@@ -65,7 +66,7 @@ void tusbh_hid_mouse_isr(uint8_t dev_addr, uint8_t instance_num, tusb_event_t ev
   switch(event)
   {
     case TUSB_EVENT_INTERFACE_OPEN: // application set-up
-      osal_queue_flush(q_mouse_report_hdl);
+      osal_queue_flush(queue_mouse_hdl);
       tusbh_hid_mouse_get_report(dev_addr, instance_num, (uint8_t*) &usb_mouse_report); // first report
     break;
 
@@ -74,7 +75,7 @@ void tusbh_hid_mouse_isr(uint8_t dev_addr, uint8_t instance_num, tusb_event_t ev
     break;
 
     case TUSB_EVENT_XFER_COMPLETE:
-      osal_queue_send(q_mouse_report_hdl, &usb_mouse_report);
+      osal_queue_send(queue_mouse_hdl, &usb_mouse_report);
       tusbh_hid_mouse_get_report(dev_addr, instance_num, (uint8_t*) &usb_mouse_report);
     break;
 
@@ -98,9 +99,8 @@ void mouse_app_init(void)
 
   ASSERT( TUSB_ERROR_NONE == osal_task_create(&mouse_task_def), (void) 0 );
 
-  q_mouse_report_hdl = osal_queue_create(&queue_mouse_report);
-  ASSERT_PTR( q_mouse_report_hdl, (void) 0 );
-
+  queue_mouse_hdl = osal_queue_create(&queue_mouse_def);
+  ASSERT_PTR( queue_mouse_hdl, (void) 0 );
 }
 
 //------------- main task -------------//
@@ -111,20 +111,37 @@ OSAL_TASK_FUNCTION( mouse_app_task ) (void* p_task_para)
 
   OSAL_TASK_LOOP_BEGIN
 
-  osal_queue_receive(q_mouse_report_hdl, &mouse_report, OSAL_TIMEOUT_WAIT_FOREVER, &error);
-
-  if ( mouse_report.buttons || mouse_report.x || mouse_report.y)
-  {
-      printf("buttons: %c%c%c    (x, y) = (%d, %d)\n",
-             mouse_report.buttons & HID_MOUSEBUTTON_LEFT   ? 'L' : '-',
-             mouse_report.buttons & HID_MOUSEBUTTON_MIDDLE ? 'M' : '-',
-             mouse_report.buttons & HID_MOUSEBUTTON_RIGHT  ? 'R' : '-',
-             mouse_report.x, mouse_report.y);
-  }
-
-  memclr_(&mouse_report, sizeof(tusb_mouse_report_t) );
+  osal_queue_receive(queue_mouse_hdl, &mouse_report, OSAL_TIMEOUT_WAIT_FOREVER, &error);
+  process_mouse_report(&mouse_report);
 
   OSAL_TASK_LOOP_END
 }
+
+//--------------------------------------------------------------------+
+// HELPER
+//--------------------------------------------------------------------+
+static inline void process_mouse_report(tusb_mouse_report_t const * report)
+{
+  static tusb_mouse_report_t prev_report = { 0 };
+
+  //------------- button state  -------------//
+  uint8_t button_changed_mask = report->buttons ^ prev_report.buttons;
+  if ( button_changed_mask & report->buttons)
+  {
+     // example only display button pressed, ignore hold & dragging etc
+    printf(" %c%c%c ",
+       report->buttons & HID_MOUSEBUTTON_LEFT   ? 'L' : '-',
+       report->buttons & HID_MOUSEBUTTON_MIDDLE ? 'M' : '-',
+       report->buttons & HID_MOUSEBUTTON_RIGHT  ? 'R' : '-');
+  }
+
+  //------------- coordinator -------------//
+  if ( report->x != 0 || report->y != 0 )
+  {
+    printf(" (%d, %d) ", report->x, report->y);
+  }
+
+}
+
 
 #endif

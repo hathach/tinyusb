@@ -167,18 +167,20 @@ static inline void osal_semaphore_reset(osal_semaphore_handle_t const sem_hdl)
 // QUEUE API
 //--------------------------------------------------------------------+
 typedef struct{
-  uint8_t const depth        ; ///< buffer size
+  uint8_t const depth;     ///< buffer size
+  uint8_t const item_size; ///< size of each item
 } osal_queue_t;
 
 typedef xQueueHandle osal_queue_handle_t;
 
 #define OSAL_QUEUE_DEF(name, queue_depth, type)\
   osal_queue_t name = {\
-      .depth   = queue_depth\
+      .depth     = queue_depth,\
+      .item_size = sizeof(type)\
   }
 
 #define osal_queue_create(p_queue) \
-  xQueueCreate((p_queue)->depth, sizeof(uint32_t))
+  xQueueCreate((p_queue)->depth, (p_queue)->item_size)
 
 static inline void osal_queue_receive (osal_queue_handle_t const queue_hdl, void *p_data, uint32_t msec, tusb_error_t *p_error) ATTR_ALWAYS_INLINE;
 static inline void osal_queue_receive (osal_queue_handle_t const queue_hdl, void *p_data, uint32_t msec, tusb_error_t *p_error)
