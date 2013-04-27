@@ -111,16 +111,6 @@ void test_usbh_init_enum_queue_create_failed(void)
   TEST_ASSERT_EQUAL(TUSB_ERROR_OSAL_QUEUE_FAILED, usbh_init());
 }
 
-void test_usbh_init_reporter_taks_create_failed(void)
-{
-  TEST_IGNORE();
-}
-
-void test_usbh_init_reporter_queue_create_failed(void)
-{
-  TEST_IGNORE();
-}
-
 void class_init_expect(void)
 {
   hidh_init_Expect();

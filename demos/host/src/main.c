@@ -64,19 +64,38 @@
 //--------------------------------------------------------------------+
 // INTERNAL OBJECT & FUNCTION DECLARATION
 //--------------------------------------------------------------------+
-void print_greeting(void);
-
 OSAL_TASK_FUNCTION( led_blinking_task ) (void* p_task_para);
 OSAL_TASK_DEF(led_blinking_task_def, "led blinking", led_blinking_task, 128, LED_BLINKING_APP_TASK_PRIO);
+
+void print_greeting(void);
+static inline void wait_blocking_ms(uint32_t ms);
 
 //--------------------------------------------------------------------+
 // IMPLEMENTATION
 //--------------------------------------------------------------------+
 
+#if TUSB_CFG_OS == TUSB_OS_NONE
+// like a real RTOS, this function is a main loop invoking each task in application and never return
+void os_none_start_scheduler(void)
+{
+  while (1)
+  {
+    tusb_task_runner();
+    keyboard_app_task(NULL);
+    mouse_app_task(NULL);
+    led_blinking_task(NULL);
+  }
+}
+#endif
+
+
 int main(void)
 {
   board_init();
 
+  // TODO blocking wait --> systick handler -->  ...... freeRTOS hardfault
+  //wait_blocking_ms(1000); // wait a bit for power stable
+  
   // print_greeting(); TODO uart output before freeRTOS scheduler start will lead to hardfault
   // find a way to fix this as tusb_init can output to uart when an error occurred
 
@@ -98,15 +117,7 @@ int main(void)
   vTaskStartScheduler();
 
 #elif TUSB_CFG_OS == TUSB_OS_NONE
-  print_greeting();
-
-  while (1)
-  {
-    tusb_task_runner();
-    keyboard_app_task(NULL);
-    mouse_app_task(NULL);
-    led_blinking_task(NULL);
-  }
+  os_none_start_scheduler();
 #else
   #error need to start RTOS schduler
 #endif
@@ -119,6 +130,33 @@ int main(void)
   }
 
   return 0;
+}
+
+//--------------------------------------------------------------------+
+// BLINKING TASK
+//--------------------------------------------------------------------+
+OSAL_TASK_FUNCTION( led_blinking_task ) (void* p_task_para)
+{
+  // task init, only executed exactly one time, real RTOS does not need this but none OS does
+  {
+    static bool is_init = false;
+    if (!is_init)
+    {
+      is_init = true;
+      print_greeting();
+    }
+  }
+
+  static uint32_t led_on_mask = 0;
+
+  OSAL_TASK_LOOP_BEGIN
+
+  osal_task_delay(1000);
+
+  board_leds(led_on_mask, 1 - led_on_mask);
+  led_on_mask = 1 - led_on_mask; // toggle
+
+  OSAL_TASK_LOOP_END
 }
 
 //--------------------------------------------------------------------+
@@ -135,20 +173,14 @@ void print_greeting(void)
   );
 }
 
-OSAL_TASK_FUNCTION( led_blinking_task ) (void* p_task_para)
+static inline void wait_blocking_us(volatile uint32_t us)
 {
-  static uint32_t led_on_mask = 0;
-
-#if TUSB_CFG_OS != TUSB_OS_NONE // TODO abstract to approriate place
-  print_greeting();
-#endif
-
-  OSAL_TASK_LOOP_BEGIN
-
-  osal_task_delay(1000);
-
-  board_leds(led_on_mask, 1 - led_on_mask);
-  led_on_mask = 1 - led_on_mask; // toggle
-
-  OSAL_TASK_LOOP_END
+	us *= (SystemCoreClock / 1000000) / 3;
+	while(us--);
 }
+
+static inline void wait_blocking_ms(uint32_t ms)
+{
+	wait_blocking_us(ms * 1000);
+}
+

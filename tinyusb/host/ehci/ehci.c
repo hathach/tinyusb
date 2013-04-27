@@ -482,7 +482,8 @@ void port_connect_status_change_isr(uint8_t hostid)
 {
   ehci_registers_t* const regs = get_operational_register(hostid);
 
-  if (regs->portsc_bit.current_connect_status) // device plugged
+  // NOTE There is an sequence plug->unplug->…..-> plug if device is powering with pre-plugged device
+  if (regs->portsc_bit.current_connect_status)
   {
     usbh_device_plugged_isr(hostid);
   }else // device unplugged
