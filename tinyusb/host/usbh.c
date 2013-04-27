@@ -289,8 +289,8 @@ tusb_error_t enumeration_body_subtask(void)
   usbh_devices[0].state = TUSB_DEVICE_STATE_ADDRESSED;
 
 #ifndef _TEST_
-  // TODO hack delay 100 ms for slow device (use retry on the 1st xfer instead later)
-  osal_task_delay(100);
+  // TODO hack delay 20 ms for slow device (use retry on the 1st xfer instead later)
+  osal_task_delay(20);
 #endif
 
   //------------- Get first 8 bytes of device descriptor to get Control Endpoint Size -------------//

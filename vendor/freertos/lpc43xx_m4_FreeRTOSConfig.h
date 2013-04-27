@@ -55,9 +55,9 @@
 #ifndef FREERTOS_CONFIG_H
 #define FREERTOS_CONFIG_H
 
-//#include "hal/hal.h"
 #include "LPC43xx.h"
 #include "core_cm4.h"
+#include "lpc43xx_cgu.h"
 
 /*-----------------------------------------------------------
  * Application specific definitions.
@@ -74,7 +74,8 @@
 #define configUSE_PREEMPTION			1
 #define configUSE_IDLE_HOOK				1
 #define configUSE_TICK_HOOK				0
-#define configCPU_CLOCK_HZ				( SystemCoreClock )
+//#define configCPU_CLOCK_HZ				( SystemCoreClock )
+#define configCPU_CLOCK_HZ				( CGU_GetPCLKFrequency(CGU_PERIPHERAL_M4CORE))
 #define configTICK_RATE_HZ				( ( portTickType ) 1000 )
 #define configMAX_PRIORITIES			( ( unsigned portBASE_TYPE ) 16 )
 #define configMINIMAL_STACK_SIZE		( ( unsigned short ) 128 )
