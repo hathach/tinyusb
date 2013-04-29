@@ -85,7 +85,7 @@
 						</toolChain>
 					</folderInfo>
 					<sourceEntries>
-						<entry excluding="bsp/boards/embedded_artists|bsp/boards/embedded_artists/oem_base_board/uda1380.c|bsp/boards/embedded_artists/oem_base_board/norflash.c|bsp/boards/embedded_artists/oem_base_board/memreg.c|bsp/boards/embedded_artists/oem_base_board/lm75a.c|bsp/boards/embedded_artists/oem_base_board/joystick.c|bsp/boards/embedded_artists/oem_base_board/base_eeprom.c|bsp/boards/embedded_artists/oem_base_board/acc.c|bsp/lpc11uxx|NGX|bsp/lpc13uxx" flags="VALUE_WORKSPACE_PATH" kind="sourcePath" name=""/>
+						<entry excluding="bsp/boards/embedded_artists/oem_base_board/acc.c|bsp/boards/embedded_artists/oem_base_board/base_eeprom.c|ngx|bsp/boards/embedded_artists/oem_base_board/joystick.c|bsp/boards/embedded_artists|bsp/lpc11uxx|bsp/boards/embedded_artists/oem_base_board/lm75a.c|bsp/boards/embedded_artists/oem_base_board/uda1380.c|bsp/lpc13uxx|bsp/boards/embedded_artists/oem_base_board/memreg.c|bsp/boards/embedded_artists/oem_base_board/norflash.c" flags="VALUE_WORKSPACE_PATH" kind="sourcePath" name=""/>
 					</sourceEntries>
 				</configuration>
 			</storageModule>
@@ -1196,7 +1196,7 @@
 						</toolChain>
 					</folderInfo>
 					<sourceEntries>
-						<entry excluding="bsp/boards/embedded_artists/oem_base_board/uda1380.c|bsp/boards/embedded_artists/oem_base_board/norflash.c|bsp/boards/embedded_artists/oem_base_board/memreg.c|bsp/boards/embedded_artists/oem_base_board/lm75a.c|bsp/boards/embedded_artists/oem_base_board/joystick.c|bsp/boards/embedded_artists/oem_base_board/base_eeprom.c|bsp/boards/embedded_artists/oem_base_board/acc.c|bsp/lpc11uxx|NGX|bsp/lpc13uxx" flags="VALUE_WORKSPACE_PATH" kind="sourcePath" name=""/>
+						<entry excluding="bsp/boards/embedded_artists/oem_base_board/acc.c|bsp/boards/embedded_artists/oem_base_board/base_eeprom.c|ngx|bsp/boards/embedded_artists/oem_base_board/joystick.c|bsp/lpc11uxx|bsp/boards/embedded_artists/oem_base_board/lm75a.c|bsp/boards/embedded_artists/oem_base_board/uda1380.c|bsp/lpc13uxx|bsp/boards/embedded_artists/oem_base_board/memreg.c|bsp/boards/embedded_artists/oem_base_board/norflash.c" flags="VALUE_WORKSPACE_PATH" kind="sourcePath" name=""/>
 					</sourceEntries>
 				</configuration>
 			</storageModule>
