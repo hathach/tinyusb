@@ -91,8 +91,8 @@ static inline void hidh_interface_close(uint8_t dev_addr, hidh_interface_info_t 
 }
 
 // called from public API need to validate parameters
-tusb_error_t hidh_interface_get_report(uint8_t dev_addr, uint8_t * const report, hidh_interface_info_t *p_hid) ATTR_ALWAYS_INLINE;
-tusb_error_t hidh_interface_get_report(uint8_t dev_addr, uint8_t * const report, hidh_interface_info_t *p_hid)
+tusb_error_t hidh_interface_get_report(uint8_t dev_addr, void * report, hidh_interface_info_t *p_hid) ATTR_ALWAYS_INLINE;
+tusb_error_t hidh_interface_get_report(uint8_t dev_addr, void * report, hidh_interface_info_t *p_hid)
 {
   //------------- parameters validation -------------//
   ASSERT_INT(TUSB_DEVICE_STATE_CONFIGURED, tusbh_device_get_state(dev_addr), TUSB_ERROR_DEVICE_NOT_READY);
@@ -130,7 +130,7 @@ bool  tusbh_hid_keyboard_is_supported(uint8_t dev_addr)
   return tusbh_device_is_configured(dev_addr) && pipehandle_is_valid(keyboard_data[dev_addr-1].pipe_hdl);
 }
 
-tusb_error_t tusbh_hid_keyboard_get_report(uint8_t dev_addr, uint8_t instance_num, uint8_t * const report)
+tusb_error_t tusbh_hid_keyboard_get_report(uint8_t dev_addr, uint8_t instance_num, void* report)
 {
   (void) instance_num;
   return hidh_interface_get_report(dev_addr, report, &keyboard_data[dev_addr-1]);
@@ -156,7 +156,7 @@ bool tusbh_hid_mouse_is_supported(uint8_t dev_addr)
   return tusbh_device_is_configured(dev_addr) && pipehandle_is_valid(mouse_data[dev_addr-1].pipe_hdl);
 }
 
-tusb_error_t tusbh_hid_mouse_get_report(uint8_t dev_addr, uint8_t instance_num, uint8_t * const report)
+tusb_error_t tusbh_hid_mouse_get_report(uint8_t dev_addr, uint8_t instance_num, void * report)
 {
   (void) instance_num;
   return hidh_interface_get_report(dev_addr, report, &mouse_data[dev_addr-1]);

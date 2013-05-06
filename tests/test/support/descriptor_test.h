@@ -64,22 +64,22 @@ typedef struct
   tusb_descriptor_configuration_t                configuration;
 
 #if 0 //&& IAD_DESC_REQUIRED
-  tusb_descriptor_interface_association_t        CDC_IAD;
+  tusb_descriptor_interface_association_t     CDC_IAD;
 #endif
 
 #if 0 //&& TUSB_CFG_DEVICE_CDC
   //CDC - Serial
   //CDC Control Interface
-  tusb_descriptor_interface_t                    CDC_CCI_Interface;
+  tusb_descriptor_interface_t                 CDC_CCI_Interface;
   CDC_HEADER_DESCRIPTOR                       CDC_Header;
   CDC_ABSTRACT_CONTROL_MANAGEMENT_DESCRIPTOR  CDC_ACM;
   CDC_UNION_1SLAVE_DESCRIPTOR                 CDC_Union;
-  tusb_descriptor_endpoint_t                     CDC_NotificationEndpoint;
+  tusb_descriptor_endpoint_t                  CDC_NotificationEndpoint;
 
   //CDC Data Interface
-  tusb_descriptor_interface_t                    CDC_DCI_Interface;
-  tusb_descriptor_endpoint_t                     CDC_DataOutEndpoint;
-  tusb_descriptor_endpoint_t                     CDC_DataInEndpoint;
+  tusb_descriptor_interface_t                 CDC_DCI_Interface;
+  tusb_descriptor_endpoint_t                  CDC_DataOutEndpoint;
+  tusb_descriptor_endpoint_t                  CDC_DataInEndpoint;
 #endif
 
   //------------- HID Keyboard -------------//
