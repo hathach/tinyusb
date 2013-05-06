@@ -711,10 +711,8 @@ STATIC_ INLINE_ ehci_qhd_t* get_async_head(uint8_t hostid)
 
 STATIC_ INLINE_ ehci_link_t* get_period_head(uint8_t hostid, uint8_t interval_ms)
 {
-  return (ehci_link_t*) (ehci_data.period_head_arr[ hostid_to_data_idx(hostid) ] +
-                                (interval_ms < 2 ? 0 :
-                                 interval_ms < 4 ? 1 :
-                                 interval_ms < EHCI_FRAMELIST_SIZE ? 2 : 3));
+  return (ehci_link_t*) (&ehci_data.period_head_arr[ hostid_to_data_idx(hostid) ]
+                                                    [ log2_of( min8_of(EHCI_FRAMELIST_SIZE, interval_ms) ) ] );
 }
 
 STATIC_ INLINE_ ehci_qhd_t* get_control_qhd(uint8_t dev_addr)
