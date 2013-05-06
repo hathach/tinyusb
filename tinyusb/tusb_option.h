@@ -134,8 +134,13 @@
     #warning TUSB_CFG_HOST_DEVICE_MAX is not defined, default value is 1
   #endif
 
+  //------------- HUB CLASS -------------//
+  #if TUSB_CFG_HOST_HUB && (TUSB_CFG_HOST_DEVICE_MAX == 1)
+    #error there is no benefit enable hub with max device is 1. Please disable hub or increase TUSB_CFG_HOST_DEVICE_MAX
+  #endif
+
   //------------- HID CLASS -------------//
-  #define HOST_CLASS_HID   ( TUSB_CFG_HOST_HID_KEYBOARD )
+  #define HOST_CLASS_HID   ( TUSB_CFG_HOST_HID_KEYBOARD + TUSB_CFG_HOST_HID_MOUSE + TUSB_CFG_HOST_HID_GENERIC )
   #if HOST_CLASS_HID
     #define HOST_HCD_XFER_INTERRUPT
   #endif

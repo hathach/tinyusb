@@ -66,19 +66,28 @@ static host_class_driver_t const usbh_class_drivers[TUSB_CLASS_MAX_CONSEC_NUMBER
 {
 #if HOST_CLASS_HID
     [TUSB_CLASS_HID] = {
-        .init = hidh_init,
+        .init         = hidh_init,
         .open_subtask = hidh_open_subtask,
-        .isr = hidh_isr,
-        .close = hidh_close
+        .isr          = hidh_isr,
+        .close        = hidh_close
     },
 #endif
 
-#if TUSB_CFG_HOST_CLASS_MSC
+#if TUSB_CFG_HOST_MSC
     [TUSB_CLASS_MSC] = {
-        .init = msch_init,
+        .init         = msch_init,
         .open_subtask = msch_open_subtask,
-        .isr = msch_isr,
-        .close = msch_close
+        .isr          = msch_isr,
+        .close        = msch_close
+    }
+#endif
+
+#if TUSB_CFG_HOST_HUB
+    [TUSB_CLASS_HUB] = {
+        .init         = hub_init,
+        .open_subtask = hub_open_subtask,
+        .isr          = hub_isr,
+        .close        = hub_close
     }
 #endif
 
