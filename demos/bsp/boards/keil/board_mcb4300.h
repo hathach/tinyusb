@@ -1,6 +1,6 @@
 /**************************************************************************/
 /*!
-    @file     board_ea4357.h
+    @file     board_mcb4300.h
     @author   hathach (tinyusb.org)
 
     @section LICENSE
@@ -26,21 +26,15 @@
     WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
     DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER BE LIABLE FOR ANY
     DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
-    INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
-    LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION HOWEVER CAUSED AND
+    (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
+    LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND
     ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
-    INCLUDING NEGLIGENCE OR OTHERWISE ARISING IN ANY WAY OUT OF THE USE OF THIS
+    (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
     SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
     This file is part of the tinyusb stack.
 */
 /**************************************************************************/
-
-/** \file
- *  \brief TBD
- *
- *  \note TBD
- */
 
 /** \ingroup TBD
  *  \defgroup TBD
@@ -49,28 +43,26 @@
  *  @{
  */
 
-#ifndef _TUSB_BOARD_EA4357_H_
-#define _TUSB_BOARD_EA4357_H_
-
-#ifdef __cplusplus
- extern "C" {
-#endif
+#ifndef _TUSB_BOARD_MCB4300_H_
+#define _TUSB_BOARD_MCB4300_H_
 
 #include "LPC43xx.h"
 #include "lpc43xx_scu.h"
 #include "lpc43xx_cgu.h"
 #include "lpc43xx_gpio.h"
 #include "lpc43xx_uart.h"
-#include "lpc43xx_i2c.h"
 
-#include "oem_base_board/pca9532.h" // LEDs
+#ifdef __cplusplus
+ extern "C" {
+#endif
 
 #define CFG_PRINTF_TARGET       PRINTF_TARGET_UART
+
 
 #ifdef __cplusplus
  }
 #endif
 
-#endif /* _TUSB_BOARD_EA4357_H_ */
+#endif /* _TUSB_BOARD_MCB4300_H_ */
 
 /** @} */

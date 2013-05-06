@@ -52,19 +52,15 @@
 #ifndef _TUSB_BOARD_NGX4330_H_
 #define _TUSB_BOARD_NGX4330_H_
 
-#ifdef __cplusplus
- extern "C" {
-#endif
-
 #include "LPC43xx.h"
 #include "lpc43xx_scu.h"
 #include "lpc43xx_cgu.h"
 #include "lpc43xx_gpio.h"
 #include "lpc43xx_uart.h"
 
-#define CFG_LED_NUMBER  0
-#define CFG_LED_ON               (1)
-#define CFG_LED_OFF              (0)
+#ifdef __cplusplus
+ extern "C" {
+#endif
 
 #define CFG_PRINTF_TARGET       PRINTF_TARGET_DEBUG_CONSOLE
 

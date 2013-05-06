@@ -59,11 +59,19 @@
 #include <stdint.h>
 #include "tusb.h"
 
+//--------------------------------------------------------------------+
+// BOARD DEFINE
+//--------------------------------------------------------------------+
 #define BOARD_AT86RF2XX             1
 #define BOARD_LPCXPRESSO1347        2
+
 #define BOARD_NGX4330               3
 #define BOARD_EA4357                4
+#define BOARD_MCB4300               5
 
+//--------------------------------------------------------------------+
+// PRINTF TARGET DEFINE
+//--------------------------------------------------------------------+
 #define PRINTF_TARGET_DEBUG_CONSOLE 1 // IDE semihosting console
 #define PRINTF_TARGET_UART          2
 #define PRINTF_TARGET_SWO           3 // aka SWV, ITM
@@ -81,6 +89,8 @@
   #include "board_at86rf2xx.h"
 #elif BOARD == BOARD_EA4357
   #include "embedded_artists/board_ea4357.h"
+#elif BOARD == BOARD_MCB4300
+  #include "keil/board_mcb4300.h"
 #else
   #error BOARD is not defined or supported yet
 #endif

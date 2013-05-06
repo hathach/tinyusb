@@ -40,16 +40,6 @@
 
 #if BOARD == BOARD_NGX4330
 
-#include "lpc43xx_uart.h"
-#include "lpc43xx_scu.h"
-#include "lpc43xx_cgu.h"
-#include "lpc43xx_gpio.h"
-#include "lpc43xx_timer.h"
-#include "lpc43xx_i2c.h"
-#include "lpc43xx_gpdma.h"
-#include "lpc43xx_i2s.h"
-#include "lpc43xx_emc.h"
-
 #define BOARD_MAX_LEDS  2
 const static struct {
   uint8_t port;
@@ -93,17 +83,26 @@ void board_init(void)
 
 }
 
-void board_leds(uint32_t mask, uint32_t state)
+//--------------------------------------------------------------------+
+// LEDS
+//--------------------------------------------------------------------+
+void board_leds(uint32_t on_mask, uint32_t off_mask)
 {
-  for(uint8_t i=0; i<BOARD_MAX_LEDS; i++)
+  for (uint32_t i=0; i<BOARD_MAX_LEDS; i++)
   {
-    if ( mask & BIT_(i) )
+    if ( on_mask & BIT_(i))
     {
-      (mask & state) ? GPIO_SetValue(leds[i].port, BIT_(leds[i].pin)) : GPIO_ClearValue(leds[i].port, BIT_(leds[i].pin)) ;
+      GPIO_SetValue(leds[i].port, BIT_(leds[i].pin));
+    }else if ( off_mask & BIT_(i)) // on_mask take precedence over off_mask
+    {
+      GPIO_ClearValue(leds[i].port, BIT_(leds[i].pin));
     }
   }
 }
 
+//--------------------------------------------------------------------+
+// UART
+//--------------------------------------------------------------------+
 uint32_t board_uart_send(uint8_t *p_buffer, uint32_t length)
 {
   return UART_Send((LPC_USARTn_Type*) LPC_USART0, p_buffer, length, BLOCKING);
