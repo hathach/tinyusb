@@ -1,4 +1,4 @@
 language: c
 compiler:
   - gcc
-script: cd tests/ & test:all
+script: cd tests/ & rake test:all
