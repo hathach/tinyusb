@@ -98,9 +98,13 @@ void test_struct_alignment(void)
 
 void test_struct_size(void)
 {
-  TEST_ASSERT_EQUAL( 4, sizeof(void*));
-  TEST_ASSERT_EQUAL( 4, sizeof(ehci_qtd_t*));
-  TEST_ASSERT_EQUAL( 64, sizeof(ehci_qhd_t) );
+  if (4 < sizeof(void*)) // running tests in x64 environment
+  {
+    TEST_ASSERT_EQUAL( 64 - 2*sizeof(void*), offsetof(ehci_qhd_t, p_qtd_list_head) );
+  }else
+  {
+    TEST_ASSERT_EQUAL( 64, sizeof(ehci_qhd_t) );
+  }
   TEST_ASSERT_EQUAL( 32, sizeof(ehci_qtd_t) );
 
   TEST_ASSERT_EQUAL( 64, sizeof(ehci_itd_t) );
