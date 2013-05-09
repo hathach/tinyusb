@@ -41,21 +41,19 @@
   # in order to add common defines:
   #  1) remove the trailing [] from the :common: section
   #  2) add entries to the :common: section (e.g. :test: has TEST defined)
-  :commmon: &common_defines []
+  :commmon: &common_defines 
+    - MCU=MCU_LPC43XX -std=gnu99 -m32
+    - CORE_M4
+    - __CODE_RED
+    - _TINY_USB_SOURCE_FILE_
   :test:
     - *common_defines
-    - _TEST_ -std=gnu99
-    - MCU=MCU_LPC43XX
-    - CORE_M4
-    - __CODE_RED
-    - _TINY_USB_SOURCE_FILE_
+    - _TEST_ 
   :test_preprocess:
     - *common_defines
-    - _TEST_ -std=gnu99
-    - MCU=MCU_LPC43XX
-    - CORE_M4
-    - __CODE_RED
-    - _TINY_USB_SOURCE_FILE_
+    - _TEST_
+#  :release:
+#  :release_preprocess:
 
 #:flags:
 #  :test:
