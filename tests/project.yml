@@ -28,11 +28,9 @@
     - +:test/**
     - -:test/support
   :source:
-    - src/**
     - ../tinyusb/**
     - +:../demos/bsp/lpc43xx/**
     - -:../demos/
-    - -:../test_old
     - ../vendor/freertos/freertos/Source/*
     - ../vendor/freertos/freertos/Source/portable/MSVC-MingW/*
     
