@@ -136,11 +136,11 @@ static inline void process_mouse_report(tusb_mouse_report_t const * p_report)
        p_report->buttons & HID_MOUSEBUTTON_RIGHT  ? 'R' : '-');
   }
 
-  //------------- coordinator -------------//
-  if ( p_report->x != 0 || p_report->y != 0 )
-  {
-    printf(" (%d, %d) ", p_report->x, p_report->y);
-  }
+  //------------- movement (disabled for clearer demo) -------------//
+//  if ( p_report->x != 0 || p_report->y != 0 )
+//  {
+//    printf(" (%d, %d) ", p_report->x, p_report->y);
+//  }
 
 }
 

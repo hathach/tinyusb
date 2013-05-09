@@ -89,7 +89,7 @@ void os_none_start_scheduler(void)
 }
 #endif
 
-
+//TODO try to run with optimization Os
 int main(void)
 {
   board_init();
