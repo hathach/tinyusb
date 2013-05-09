@@ -67,7 +67,7 @@
 #endif
 
 //--------------------------------------------------------------------+
-// USBH
+// USBH-HCD common data structure
 //--------------------------------------------------------------------+
 typedef struct ATTR_ALIGNED(4){
   uint8_t core_id;
@@ -106,7 +106,9 @@ typedef struct { // TODO internal structure, re-order members
 
 extern usbh_device_info_t usbh_devices[TUSB_CFG_HOST_DEVICE_MAX+1]; // including zero-address
 
-//------------- callback from HCD ISR-------------//
+//--------------------------------------------------------------------+
+// callback from HCD ISR
+//--------------------------------------------------------------------+
 void usbh_isr(pipe_handle_t pipe_hdl, uint8_t class_code, tusb_event_t event);
 void usbh_device_plugged_isr(uint8_t hostid);
 void usbh_device_unplugged_isr(uint8_t hostid);
