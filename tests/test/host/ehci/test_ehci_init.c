@@ -47,7 +47,7 @@
 #include "hcd.h"
 #include "mock_usbh_hcd.h"
 #include "ehci.h"
-#include "ehci_controller.h"
+#include "ehci_controller_fake.h"
 
 usbh_device_info_t usbh_devices[TUSB_CFG_HOST_DEVICE_MAX+1];
 

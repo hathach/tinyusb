@@ -1,6 +1,6 @@
 /**************************************************************************/
 /*!
-    @file     ehci_controller.c
+    @file     ehci_controller_fake.c
     @author   hathach (tinyusb.org)
 
     @section LICENSE

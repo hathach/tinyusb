@@ -49,7 +49,7 @@
 #include "usbh_hcd.h"
 #include "usbh.h"
 #include "ehci.h"
-#include "ehci_controller.h"
+#include "ehci_controller_fake.h"
 
 #define _TINY_USB_SOURCE_FILE_
 usbh_device_info_t usbh_devices[TUSB_CFG_HOST_DEVICE_MAX+1];
