@@ -46,11 +46,11 @@
 #ifndef _TUSB_HID_H_
 #define _TUSB_HID_H_
 
+#include "common/common.h"
+
 #ifdef __cplusplus
  extern "C" {
 #endif
-
-#include "common/common.h"
 
 enum {
   HID_SUBCLASS_NONE = 0,

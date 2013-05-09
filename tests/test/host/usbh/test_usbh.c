@@ -121,7 +121,7 @@ void class_init_expect(void)
 
 void test_usbh_init_ok(void)
 {
-  osal_queue_handle_t dummy = 0x1122;
+  osal_queue_handle_t q_hdl_dummy = 0x1122;
 
   usbh_device_info_t device_info_zero[TUSB_CFG_HOST_DEVICE_MAX+1];
   memclr_(device_info_zero, sizeof(usbh_device_info_t)*(TUSB_CFG_HOST_DEVICE_MAX+1));
@@ -136,7 +136,7 @@ void test_usbh_init_ok(void)
   }
 
   osal_task_create_IgnoreAndReturn(TUSB_ERROR_NONE);
-  osal_queue_create_IgnoreAndReturn(dummy);
+  osal_queue_create_IgnoreAndReturn(q_hdl_dummy);
 
   class_init_expect();
 

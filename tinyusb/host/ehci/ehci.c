@@ -533,11 +533,12 @@ void async_list_process_isr(ehci_qhd_t * const async_head)
 void period_list_process_isr(uint8_t hostid, uint8_t interval_ms)
 {
   uint8_t max_loop = 0;
+  uint32_t const period_1ms_addr = (uint32_t) get_period_head(hostid, 1);
   ehci_link_t next_item = * get_period_head(hostid, interval_ms);
 
   // TODO abstract max loop guard for period
   while( !next_item.terminate &&
-      !(interval_ms > 1 && align32(next_item.address) == (uint32_t) get_period_head(hostid, 1)) &&
+      !(interval_ms > 1 && period_1ms_addr == align32(next_item.address)) &&
       max_loop < (EHCI_MAX_QHD + EHCI_MAX_ITD + EHCI_MAX_SITD))
   {
     switch ( next_item.type )

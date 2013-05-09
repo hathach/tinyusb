@@ -243,7 +243,7 @@ void usbh_device_unplugged_isr(uint8_t hostid)
           usbh_class_drivers[class_code].close)
       {
         usbh_class_drivers[class_code].close(dev_addr);
-        }
+      }
     }
   }
 

@@ -58,6 +58,7 @@
 
 #include "common/common.h"
 #include "class/hid.h"
+#include "class/msc.h"
 
 typedef struct
 {
@@ -91,6 +92,11 @@ typedef struct
   tusb_descriptor_interface_t                    mouse_interface;
   tusb_hid_descriptor_hid_t                      mouse_hid;
   tusb_descriptor_endpoint_t                     mouse_endpoint;
+
+  //------------- Mass Storage -------------//
+  tusb_descriptor_interface_t                    msc_interface;
+  tusb_descriptor_endpoint_t                     msc_endpoint_in;
+  tusb_descriptor_endpoint_t                     msc_endpoint_out;
 
   unsigned char                               ConfigDescTermination;
 } app_configuration_desc_t;

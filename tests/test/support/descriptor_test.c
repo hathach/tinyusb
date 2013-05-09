@@ -61,7 +61,7 @@ tusb_descriptor_device_t const desc_device =
 
     .bNumConfigurations = 0x02
 } ;
-//
+
 TUSB_CFG_ATTR_USBRAM ATTR_ALIGNED(4)
 const uint8_t keyboard_report_descriptor[] = {
   HID_USAGE_PAGE ( HID_USAGE_PAGE_DESKTOP     ),
@@ -227,6 +227,39 @@ const app_configuration_desc_t desc_configuration =
         .bInterval        = 0x0A
     },
 
+    //------------- Mass Storage -------------//
+    .msc_interface =
+    {
+        .bLength            = sizeof(tusb_descriptor_interface_t),
+        .bDescriptorType    = TUSB_DESC_INTERFACE,
+        .bInterfaceNumber   = 3,
+        .bAlternateSetting  = 0x00,
+        .bNumEndpoints      = 2,
+        .bInterfaceClass    = TUSB_CLASS_MSC,
+        .bInterfaceSubClass = MSC_SUBCLASS_SCSI,
+        .bInterfaceProtocol = MSC_PROTOCOL_BOT,
+        .iInterface         = 0x00
+    },
+
+    .msc_endpoint_in =
+    {
+        .bLength          = sizeof(tusb_descriptor_endpoint_t),
+        .bDescriptorType  = TUSB_DESC_ENDPOINT,
+        .bEndpointAddress = 0x83,
+        .bmAttributes     = { .xfer = TUSB_XFER_BULK },
+        .wMaxPacketSize   = 512,
+        .bInterval        = 1
+    },
+
+    .msc_endpoint_out =
+    {
+        .bLength          = sizeof(tusb_descriptor_endpoint_t),
+        .bDescriptorType  = TUSB_DESC_ENDPOINT,
+        .bEndpointAddress = 0x03,
+        .bmAttributes     = { .xfer = TUSB_XFER_BULK },
+        .wMaxPacketSize   = 512,
+        .bInterval        = 1
+    },
 
     .ConfigDescTermination = 0,
 };

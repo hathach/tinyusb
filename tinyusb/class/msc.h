@@ -53,6 +53,26 @@
 #endif
 
 //--------------------------------------------------------------------+
+// USB Class Constant
+//--------------------------------------------------------------------+
+enum {
+  MSC_SUBCLASS_RBC = 1 ,
+  MSC_SUBCLASS_SFF_MMC ,
+  MSC_SUBCLASS_QIC     ,
+  MSC_SUBCLASS_UFI     ,
+  MSC_SUBCLASS_SFF     ,
+  MSC_SUBCLASS_SCSI
+};
+
+// CBI only approved to use with full-speed floopy disk & should not used with highspeed or device other than floopy
+enum {
+  MSC_PROTOCOL_CBI              = 0,
+  MSC_PROTOCOL_CBI_NO_INTERRUPT = 1,
+  MSC_PROTOCOL_BOT              = 0x50
+};
+
+
+//--------------------------------------------------------------------+
 // SCSI Primary Command (SPC-4)
 //--------------------------------------------------------------------+
 typedef ATTR_PACKED_STRUCT(struct)

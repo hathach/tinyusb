@@ -147,7 +147,7 @@ static inline volatile uint32_t osal_tick_get(void)
 #define SUBTASK_ASSERT(condition)  \
     ASSERT_DEFINE_WITH_HANDLER(_SUBTASK_ASSERT_ERROR_HANDLER, , , \
                                (condition), TUSB_ERROR_OSAL_TASK_FAILED, "%s", "evaluated to false")
-
+// TODO remove assert with handler by catching error in enum main task
 #define SUBTASK_ASSERT_WITH_HANDLER(condition, func_call) \
     ASSERT_DEFINE_WITH_HANDLER(_SUBTASK_ASSERT_ERROR_HANDLER, func_call, ,\
                                condition, TUSB_ERROR_OSAL_TASK_FAILED, "%s", "evaluated to false")
