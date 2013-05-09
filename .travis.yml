@@ -1,4 +1,4 @@
 language: c
 compiler:
   - gcc
-script: cd tests/ && mkdir build && rake verbosity[4] test:all --trace
+script: cd tests/ && mkdir build && rake test:all
