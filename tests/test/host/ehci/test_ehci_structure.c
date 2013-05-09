@@ -98,6 +98,8 @@ void test_struct_alignment(void)
 
 void test_struct_size(void)
 {
+  TEST_ASSERT_EQUAL( 4, sizeof(void*));
+  TEST_ASSERT_EQUAL( 4, sizeof(ehci_qtd_t*));
   TEST_ASSERT_EQUAL( 64, sizeof(ehci_qhd_t) );
   TEST_ASSERT_EQUAL( 32, sizeof(ehci_qtd_t) );
 
