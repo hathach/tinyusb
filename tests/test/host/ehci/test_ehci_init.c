@@ -36,6 +36,7 @@
 */
 /**************************************************************************/
 
+#include <stdlib.h>
 #include "unity.h"
 #include "type_helper.h"
 #include "tusb_option.h"
@@ -60,7 +61,7 @@ uint8_t hostid;
 void setUp(void)
 {
   ehci_controller_init();
-  hcd_init();
+  TEST_ASSERT_EQUAL( TUSB_ERROR_NONE, hcd_init());
 
   dev_addr = 1;
   hostid = RANDOM(CONTROLLER_HOST_NUMBER) + TEST_CONTROLLER_HOST_START_INDEX;

@@ -47,12 +47,11 @@
     - CORE_M4
     - __CODE_RED
     - _TINY_USB_SOURCE_FILE_
+    - _TEST_ 
   :test:
     - *common_defines
-    - _TEST_ 
   :test_preprocess:
     - *common_defines
-    - _TEST_
 #  :release:
 #  :release_preprocess:
 
