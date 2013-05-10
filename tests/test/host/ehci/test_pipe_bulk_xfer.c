@@ -50,16 +50,16 @@
 
 usbh_device_info_t usbh_devices[TUSB_CFG_HOST_DEVICE_MAX+1];
 
-uint8_t const hub_addr = 2;
-uint8_t const hub_port = 2;
-uint8_t dev_addr;
-uint8_t hostid;
-uint8_t xfer_data [18000]; // 18K to test buffer pointer list
-uint8_t data2[100];
+static uint8_t const hub_addr = 2;
+static uint8_t const hub_port = 2;
+static uint8_t dev_addr;
+static uint8_t hostid;
+static uint8_t xfer_data [18000]; // 18K to test buffer pointer list
+static uint8_t data2[100];
 
-ehci_qhd_t *async_head;
-ehci_qhd_t *p_qhd_bulk;
-pipe_handle_t pipe_hdl_bulk;
+static ehci_qhd_t *async_head;
+static ehci_qhd_t *p_qhd_bulk;
+static pipe_handle_t pipe_hdl_bulk;
 
 tusb_descriptor_endpoint_t const desc_ept_bulk_in =
 {

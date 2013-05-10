@@ -36,31 +36,32 @@
 */
 /**************************************************************************/
 
+#include <stdlib.h>
 #include "unity.h"
 #include "tusb_option.h"
 #include "errors.h"
 #include "binary.h"
 
 #include "hal.h"
-#include "mock_osal.h"
 #include "hcd.h"
-#include "mock_usbh_hcd.h"
 #include "ehci.h"
+
 #include "ehci_controller_fake.h"
+#include "mock_osal.h"
+#include "mock_usbh_hcd.h"
 
 usbh_device_info_t usbh_devices[TUSB_CFG_HOST_DEVICE_MAX+1];
 
-uint8_t hostid;
-ehci_registers_t * regs;
+static uint8_t hostid;
+static ehci_registers_t * regs;
 
 void setUp(void)
 {
   ehci_controller_init();
+  TEST_ASSERT_EQUAL( TUSB_ERROR_NONE, hcd_init());
 
   hostid = RANDOM(CONTROLLER_HOST_NUMBER) + TEST_CONTROLLER_HOST_START_INDEX;
   regs = get_operational_register(hostid);
-
-  hcd_init();
 }
 
 void tearDown(void)

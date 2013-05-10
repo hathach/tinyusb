@@ -170,7 +170,7 @@ static inline uint32_t offset4k(uint32_t value)
 static inline uint8_t log2_of(uint32_t value) ATTR_ALWAYS_INLINE ATTR_CONST;
 static inline uint8_t log2_of(uint32_t value)
 {
-  uint8_t result = 0; // log2 of value is its MSB's position
+  uint8_t result = 0; // log2 of a value is its MSB's position
 
   while (value >>= 1)
   {
@@ -179,6 +179,24 @@ static inline uint8_t log2_of(uint32_t value)
   return result;
 }
 
+// return the number of set bits in value
+static inline uint8_t cardinality_of(uint32_t value) ATTR_ALWAYS_INLINE ATTR_CONST;
+static inline uint8_t cardinality_of(uint32_t value)
+{
+  // Brian Kernighan's method goes through as many iterations as there are set bits. So if we have a 32-bit word with only
+  // the high bit set, then it will only go once through the loop
+  // Published in 1988, the C Programming Language 2nd Ed. (by Brian W. Kernighan and Dennis M. Ritchie)
+  // mentions this in exercise 2-9. On April 19, 2006 Don Knuth pointed out to me that this method
+  // "was first published by Peter Wegner in CACM 3 (1960), 322. (Also discovered independently by Derrick Lehmer and
+  // published in 1964 in a book edited by Beckenbach.)"
+  uint8_t count;
+  for (count = 0; value; count++)
+  {
+    value &= value - 1; // clear the least significant bit set
+  }
+
+  return count;
+}
 
 #ifdef __cplusplus
  }

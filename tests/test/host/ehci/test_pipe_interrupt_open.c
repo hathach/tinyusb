@@ -50,15 +50,15 @@
 
 usbh_device_info_t usbh_devices[TUSB_CFG_HOST_DEVICE_MAX+1];
 
-uint8_t const hub_addr = 2;
-uint8_t const hub_port = 2;
-uint8_t dev_addr;
-uint8_t hostid;
+static uint8_t const hub_addr = 2;
+static uint8_t const hub_port = 2;
+static uint8_t dev_addr;
+static uint8_t hostid;
 
-ehci_qhd_t *period_head_arr;
+static ehci_qhd_t *period_head_arr;
 
-ehci_qhd_t *p_int_qhd;
-pipe_handle_t pipe_hdl;
+static ehci_qhd_t *p_int_qhd;
+static pipe_handle_t pipe_hdl;
 
 uint8_t count_set_bits(uint8_t x);
 

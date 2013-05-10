@@ -50,18 +50,18 @@
 
 usbh_device_info_t usbh_devices[TUSB_CFG_HOST_DEVICE_MAX+1];
 
-uint8_t const hub_addr = 2;
-uint8_t const hub_port = 2;
-uint8_t dev_addr;
-uint8_t hostid;
-uint8_t xfer_data [100];
-uint8_t data2[100];
+static uint8_t const hub_addr = 2;
+static uint8_t const hub_port = 2;
+static uint8_t dev_addr;
+static uint8_t hostid;
+static uint8_t xfer_data [100];
+static uint8_t data2[100];
 
-ehci_qhd_t *period_head_arr;
-ehci_qhd_t *p_qhd_interrupt;
-pipe_handle_t pipe_hdl_interrupt;
+static ehci_qhd_t *period_head_arr;
+static ehci_qhd_t *p_qhd_interrupt;
+static pipe_handle_t pipe_hdl_interrupt;
 
-tusb_descriptor_endpoint_t const desc_ept_interrupt_in =
+static tusb_descriptor_endpoint_t const desc_ept_interrupt_in =
 {
     .bLength          = sizeof(tusb_descriptor_endpoint_t),
     .bDescriptorType  = TUSB_DESC_ENDPOINT,
@@ -71,7 +71,7 @@ tusb_descriptor_endpoint_t const desc_ept_interrupt_in =
     .bInterval        = 2
 };
 
-tusb_descriptor_endpoint_t const desc_ept_interupt_out =
+static tusb_descriptor_endpoint_t const desc_ept_interupt_out =
 {
     .bLength          = sizeof(tusb_descriptor_endpoint_t),
     .bDescriptorType  = TUSB_DESC_ENDPOINT,

@@ -36,6 +36,7 @@
 */
 /**************************************************************************/
 
+#include <stdlib.h>
 #include "unity.h"
 #include "tusb_option.h"
 #include "errors.h"
@@ -51,16 +52,15 @@
 #include "ehci.h"
 #include "ehci_controller_fake.h"
 
-#define _TINY_USB_SOURCE_FILE_
 usbh_device_info_t usbh_devices[TUSB_CFG_HOST_DEVICE_MAX+1];
-uint8_t const control_max_packet_size = 64;
-uint8_t hub_addr;
-uint8_t hub_port;
-uint8_t dev_addr;
-uint8_t hostid;
-ehci_registers_t * regs;
-ehci_qhd_t *async_head;
-ehci_qhd_t *period_head_arr;
+static uint8_t const control_max_packet_size = 64;
+static uint8_t hub_addr;
+static uint8_t hub_port;
+static uint8_t dev_addr;
+static uint8_t hostid;
+static ehci_registers_t * regs;
+static ehci_qhd_t *async_head;
+static ehci_qhd_t *period_head_arr;
 
 void setUp(void)
 {

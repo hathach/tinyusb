@@ -50,12 +50,12 @@
 
 usbh_device_info_t usbh_devices[TUSB_CFG_HOST_DEVICE_MAX+1];
 
-uint8_t const hub_addr = 2;
-uint8_t const hub_port = 2;
-uint8_t dev_addr;
-uint8_t hostid;
+static uint8_t const hub_addr = 2;
+static uint8_t const hub_port = 2;
+static uint8_t dev_addr;
+static uint8_t hostid;
 
-ehci_qhd_t *async_head;
+static ehci_qhd_t *async_head;
 
 //--------------------------------------------------------------------+
 // Setup/Teardown + helper declare

@@ -44,16 +44,17 @@
 #include "binary.h"
 
 #include "hal.h"
-#include "mock_osal.h"
 #include "hcd.h"
-#include "mock_usbh_hcd.h"
 #include "ehci.h"
+
 #include "ehci_controller_fake.h"
+#include "mock_osal.h"
+#include "mock_usbh_hcd.h"
 
 usbh_device_info_t usbh_devices[TUSB_CFG_HOST_DEVICE_MAX+1];
 
-uint8_t dev_addr;
-uint8_t hostid;
+static uint8_t dev_addr;
+static uint8_t hostid;
 
 //--------------------------------------------------------------------+
 // Setup/Teardown + helper declare
