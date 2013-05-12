@@ -67,7 +67,8 @@ void setUp(void)
 {
   memclr_(usbh_devices, sizeof(usbh_device_info_t)*(TUSB_CFG_HOST_DEVICE_MAX+1));
 
-  hcd_init();
+  TEST_ASSERT_EQUAL( TUSB_ERROR_NONE,
+                     hcd_init() );
 
   dev_addr = 1;
 
