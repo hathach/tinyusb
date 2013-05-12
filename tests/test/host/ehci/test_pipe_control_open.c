@@ -36,6 +36,7 @@
 */
 /**************************************************************************/
 
+#include <stdlib.h>
 #include "unity.h"
 #include "tusb_option.h"
 #include "errors.h"
@@ -71,13 +72,16 @@ void setUp(void)
   dev_addr = 1;
 
   hostid = RANDOM(CONTROLLER_HOST_NUMBER) + TEST_CONTROLLER_HOST_START_INDEX;
-  for (uint8_t i=0; i<TUSB_CFG_HOST_DEVICE_MAX+1; i++)
-  {
-    usbh_devices[i].core_id  = hostid;
-    usbh_devices[i].hub_addr = hub_addr;
-    usbh_devices[i].hub_port = hub_port;
-    usbh_devices[i].speed    = TUSB_SPEED_HIGH;
-  }
+
+  usbh_devices[0].core_id  = hostid;
+  usbh_devices[0].hub_addr = hub_addr;
+  usbh_devices[0].hub_port = hub_port;
+  usbh_devices[0].speed    = TUSB_SPEED_HIGH;
+
+  usbh_devices[dev_addr].core_id  = hostid;
+  usbh_devices[dev_addr].hub_addr = hub_addr;
+  usbh_devices[dev_addr].hub_port = hub_port;
+  usbh_devices[dev_addr].speed    = TUSB_SPEED_HIGH;
 
   async_head =  get_async_head( hostid );
   p_control_qhd = &ehci_data.device[dev_addr-1].control.qhd;
@@ -129,7 +133,8 @@ void test_control_open_addr0_qhd_data(void)
   dev_addr = 0;
 
   //------------- Code Under Test -------------//
-  hcd_pipe_control_open(dev_addr, control_max_packet_size);
+  TEST_ASSERT_EQUAL( TUSB_ERROR_NONE,
+                     hcd_pipe_control_open(dev_addr, control_max_packet_size) );
 
   verify_control_open_qhd(async_head);
   TEST_ASSERT(async_head->head_list_flag);
@@ -138,7 +143,8 @@ void test_control_open_addr0_qhd_data(void)
 void test_control_open_qhd_data(void)
 {
   //------------- Code Under TEST -------------//
-  hcd_pipe_control_open(dev_addr, control_max_packet_size);
+  TEST_ASSERT_EQUAL( TUSB_ERROR_NONE,
+                     hcd_pipe_control_open(dev_addr, control_max_packet_size));
 
   verify_control_open_qhd(p_control_qhd);
   TEST_ASSERT_FALSE(p_control_qhd->head_list_flag);
@@ -154,7 +160,8 @@ void test_control_open_highspeed(void)
   usbh_devices[dev_addr].speed   = TUSB_SPEED_HIGH;
 
   //------------- Code Under TEST -------------//
-  hcd_pipe_control_open(dev_addr, control_max_packet_size);
+  TEST_ASSERT_EQUAL( TUSB_ERROR_NONE,
+                     hcd_pipe_control_open(dev_addr, control_max_packet_size) );
   TEST_ASSERT_FALSE(p_control_qhd->non_hs_control_endpoint);
 }
 
@@ -163,7 +170,8 @@ void test_control_open_non_highspeed(void)
   usbh_devices[dev_addr].speed   = TUSB_SPEED_FULL;
 
   //------------- Code Under TEST -------------//
-  hcd_pipe_control_open(dev_addr, control_max_packet_size);
+  TEST_ASSERT_EQUAL( TUSB_ERROR_NONE,
+                     hcd_pipe_control_open(dev_addr, control_max_packet_size) );
 
   TEST_ASSERT_TRUE(p_control_qhd->non_hs_control_endpoint);
 }
@@ -174,10 +182,12 @@ void test_control_open_non_highspeed(void)
 void test_control_addr0_close(void)
 {
   dev_addr = 0;
-  hcd_pipe_control_open(dev_addr, control_max_packet_size);
+  TEST_ASSERT_EQUAL( TUSB_ERROR_NONE,
+                     hcd_pipe_control_open(dev_addr, control_max_packet_size) );
 
   //------------- Code Under Test -------------//
-  hcd_pipe_control_close(dev_addr);
+  TEST_ASSERT_EQUAL( TUSB_ERROR_NONE,
+                     hcd_pipe_control_close(dev_addr) );
 
   TEST_ASSERT(async_head->head_list_flag);
   TEST_ASSERT(async_head->is_removing);
@@ -185,10 +195,13 @@ void test_control_addr0_close(void)
 
 void test_control_close(void)
 {
-  hcd_pipe_control_open(dev_addr, control_max_packet_size);
+  TEST_ASSERT_EQUAL( TUSB_ERROR_NONE,
+                     hcd_pipe_control_open(dev_addr, control_max_packet_size) );
 
   //------------- Code Under TEST -------------//
-  hcd_pipe_control_close(dev_addr);
+  TEST_ASSERT_EQUAL( TUSB_ERROR_NONE,
+                     hcd_pipe_control_close(dev_addr) );
+
   TEST_ASSERT(p_control_qhd->is_removing);
   TEST_ASSERT(p_control_qhd->used);
 
