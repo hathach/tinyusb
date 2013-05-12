@@ -62,6 +62,7 @@ extern ehci_data_t ehci_data;
 
 void ehci_controller_init(void);
 void ehci_controller_run(uint8_t hostid);
+void ehci_controller_run_error(uint8_t hostid);
 void ehci_controller_control_xfer_proceed(uint8_t dev_addr, uint8_t p_data[]);
 void ehci_controller_device_plug(uint8_t hostid, tusb_speed_t speed);
 void ehci_controller_device_unplug(uint8_t hostid);

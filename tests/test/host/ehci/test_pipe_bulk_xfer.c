@@ -36,6 +36,7 @@
 */
 /**************************************************************************/
 
+#include <stdlib.h>
 #include "unity.h"
 #include "tusb_option.h"
 #include "errors.h"
@@ -91,7 +92,8 @@ void setUp(void)
   memclr_(usbh_devices, sizeof(usbh_device_info_t)*(TUSB_CFG_HOST_DEVICE_MAX+1));
   memclr_(xfer_data, sizeof(xfer_data));
 
-  hcd_init();
+  TEST_ASSERT_EQUAL( TUSB_ERROR_NONE,
+                     hcd_init() );
 
   dev_addr = 1;
 
@@ -103,6 +105,8 @@ void setUp(void)
   usbh_devices[dev_addr].speed    = TUSB_SPEED_HIGH;
 
   async_head =  get_async_head( hostid );
+
+  //------------- pipe open -------------//
   pipe_hdl_bulk = hcd_pipe_open(dev_addr, &desc_ept_bulk_in, TUSB_CLASS_MSC);
 
   TEST_ASSERT_EQUAL(dev_addr, pipe_hdl_bulk.dev_addr);

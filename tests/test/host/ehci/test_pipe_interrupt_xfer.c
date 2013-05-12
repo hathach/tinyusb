@@ -36,6 +36,7 @@
 */
 /**************************************************************************/
 
+#include <stdlib.h>
 #include "unity.h"
 #include "tusb_option.h"
 #include "errors.h"
@@ -91,20 +92,21 @@ void setUp(void)
   memclr_(usbh_devices, sizeof(usbh_device_info_t)*(TUSB_CFG_HOST_DEVICE_MAX+1));
   memclr_(xfer_data, sizeof(xfer_data));
 
-  hcd_init();
+  TEST_ASSERT_EQUAL( TUSB_ERROR_NONE,
+                     hcd_init() );
 
   dev_addr = 1;
 
   hostid = RANDOM(CONTROLLER_HOST_NUMBER) + TEST_CONTROLLER_HOST_START_INDEX;
-  for (uint8_t i=0; i<TUSB_CFG_HOST_DEVICE_MAX+1; i++)
-  {
-    usbh_devices[i].core_id  = hostid;
-    usbh_devices[i].hub_addr = hub_addr;
-    usbh_devices[i].hub_port = hub_port;
-    usbh_devices[i].speed    = TUSB_SPEED_HIGH;
-  }
 
-  period_head_arr =  get_period_head( hostid, 1 );
+  usbh_devices[dev_addr].core_id  = hostid;
+  usbh_devices[dev_addr].hub_addr = hub_addr;
+  usbh_devices[dev_addr].hub_port = hub_port;
+  usbh_devices[dev_addr].speed    = TUSB_SPEED_HIGH;
+
+  period_head_arr = (ehci_qhd_t*) get_period_head( hostid, 1 );
+
+  //------------- pipe open -------------//
   pipe_hdl_interrupt = hcd_pipe_open(dev_addr, &desc_ept_interrupt_in, TUSB_CLASS_HID);
 
   TEST_ASSERT_EQUAL(dev_addr, pipe_hdl_interrupt.dev_addr);
@@ -149,7 +151,8 @@ void verify_qtd(ehci_qtd_t *p_qtd, uint8_t p_data[], uint16_t length)
 void test_interrupt_xfer(void)
 {
   //------------- Code Under Test -------------//
-  hcd_pipe_xfer(pipe_hdl_interrupt, xfer_data, sizeof(xfer_data), true);
+  TEST_ASSERT_EQUAL( TUSB_ERROR_NONE,
+                     hcd_pipe_xfer(pipe_hdl_interrupt, xfer_data, sizeof(xfer_data), true) );
 
   ehci_qtd_t* p_qtd = p_qhd_interrupt->p_qtd_list_head;
   TEST_ASSERT_NOT_NULL(p_qtd);
@@ -164,8 +167,11 @@ void test_interrupt_xfer(void)
 void test_interrupt_xfer_double(void)
 {
   //------------- Code Under Test -------------//
-  hcd_pipe_xfer(pipe_hdl_interrupt, xfer_data, sizeof(xfer_data), false);
-  hcd_pipe_xfer(pipe_hdl_interrupt, data2, sizeof(data2), true);
+  TEST_ASSERT_EQUAL( TUSB_ERROR_NONE,
+                     hcd_pipe_xfer(pipe_hdl_interrupt, xfer_data, sizeof(xfer_data), false) );
+
+  TEST_ASSERT_EQUAL( TUSB_ERROR_NONE,
+                     hcd_pipe_xfer(pipe_hdl_interrupt, data2, sizeof(data2), true) );
 
   ehci_qtd_t* p_head = p_qhd_interrupt->p_qtd_list_head;
   ehci_qtd_t* p_tail = p_qhd_interrupt->p_qtd_list_tail;
@@ -196,8 +202,11 @@ void check_qhd_after_complete(ehci_qhd_t *p_qhd)
 
 void test_interrupt_xfer_complete_isr_interval_less_than_1ms(void)
 {
-  hcd_pipe_xfer(pipe_hdl_interrupt, xfer_data, sizeof(xfer_data), false);
-  hcd_pipe_xfer(pipe_hdl_interrupt, data2, sizeof(data2), true);
+  TEST_ASSERT_EQUAL( TUSB_ERROR_NONE,
+                     hcd_pipe_xfer(pipe_hdl_interrupt, xfer_data, sizeof(xfer_data), false) );
+
+  TEST_ASSERT_EQUAL( TUSB_ERROR_NONE,
+                     hcd_pipe_xfer(pipe_hdl_interrupt, data2, sizeof(data2), true) );
 
   usbh_isr_Expect(pipe_hdl_interrupt, TUSB_CLASS_HID, TUSB_EVENT_XFER_COMPLETE);
 
@@ -220,7 +229,8 @@ void test_interrupt_xfer_complete_isr_interval_2ms(void)
   pipe_handle_t pipe_hdl_2ms = hcd_pipe_open(dev_addr, &desc_endpoint_2ms, TUSB_CLASS_HID);
   ehci_qhd_t * p_qhd_2ms = &ehci_data.device[ dev_addr -1].qhd[ pipe_hdl_2ms.index ];
 
-  hcd_pipe_xfer(pipe_hdl_2ms, xfer_data, sizeof(xfer_data), false);
+  TEST_ASSERT_EQUAL( TUSB_ERROR_NONE,
+                     hcd_pipe_xfer(pipe_hdl_2ms, xfer_data, sizeof(xfer_data), false) );
 
   ehci_qtd_t* p_head = p_qhd_2ms->p_qtd_list_head;
   ehci_qtd_t* p_tail = p_qhd_2ms->p_qtd_list_tail;
