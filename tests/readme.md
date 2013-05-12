@@ -13,3 +13,4 @@ More detail on TDD can be found at
 
 comming soon
 <!-- https://travis-ci.org/hathach/tinyusb --> 
+[![Build Status](https://travis-ci.org/hathach/tinyusb.png?branch=master)](https://travis-ci.org/hathach/tinyusb)

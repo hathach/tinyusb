@@ -83,14 +83,14 @@
 #define STRING_CONCAT_(a, b) a##b                  // concat without expand
 #define XSTRING_CONCAT_(a, b) STRING_CONCAT_(a, b) // expand then concat
 
-#define U16_HIGH_U8(u16) ((uint8_t) (((u16) > 8) & 0x00ff))
+#define U16_HIGH_U8(u16) ((uint8_t) (((u16) >> 8) & 0x00ff))
 #define U16_LOW_U8(u16)  ((uint8_t) ((u16)       & 0x00ff))
 #define U16_TO_U8S_BE(u16)  U16_HIGH_U8(u16), U16_LOW_U8(u16)
 #define U16_TO_U8S_LE(u16)  U16_LOW_U8(u16), U16_HIGH_U8(u16)
 
-#define U32_B1_U8(u32) ((uint8_t) (((u32) > 24) & 0x000000ff)) // MSB
-#define U32_B2_U8(u32) ((uint8_t) (((u32) > 16) & 0x000000ff))
-#define U32_B3_U8(u32) ((uint8_t) (((u32) >  8) & 0x000000ff))
+#define U32_B1_U8(u32) ((uint8_t) (((u32) >> 24) & 0x000000ff)) // MSB
+#define U32_B2_U8(u32) ((uint8_t) (((u32) >> 16) & 0x000000ff))
+#define U32_B3_U8(u32) ((uint8_t) (((u32) >>  8) & 0x000000ff))
 #define U32_B4_U8(u32) ((uint8_t) ((u32)        & 0x000000ff)) // LSB
 
 #define U32_TO_U8S_BE(u32) U32_B1_U8(u32), U32_B2_U8(u32), U32_B3_U8(u32), U32_B4_U8(u32)
@@ -107,6 +107,18 @@ static inline uint32_t u32_from_u8(uint8_t b1, uint8_t b2, uint8_t b3, uint8_t b
 static inline uint32_t u32_from_u8(uint8_t b1, uint8_t b2, uint8_t b3, uint8_t b4)
 {
   return (b1 << 24) + (b2 << 16) + (b3 << 8) + b4;
+}
+
+static inline uint8_t u16_high_u8(uint16_t u16) ATTR_CONST ATTR_ALWAYS_INLINE;
+static inline uint8_t u16_high_u8(uint16_t u16)
+{
+  return (uint8_t) ((u16 >> 8) & 0x00ff);
+}
+
+static inline uint8_t u16_low_u8(uint16_t u16) ATTR_CONST ATTR_ALWAYS_INLINE;
+static inline uint8_t u16_low_u8(uint16_t u16)
+{
+  return (uint8_t) (u16 & 0x00ff);
 }
 
 //------------- Min -------------//

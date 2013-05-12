@@ -55,9 +55,8 @@ usbh_device_info_t usbh_devices[TUSB_CFG_HOST_DEVICE_MAX+1];
 //--------------------------------------------------------------------+
 // Setup/Teardown + helper declare
 //--------------------------------------------------------------------+
-int8_t first_pos_of_high_bit(uint32_t value);
-uint8_t number_of_high_bits(uint32_t value);
 
+// log2_of a value is equivalent to its highest set bit's position
 #define BITFIELD_OFFSET_OF_MEMBER(struct_type, member, bitfield_member) \
   ({\
     uint32_t value=0;\
@@ -65,7 +64,7 @@ uint8_t number_of_high_bits(uint32_t value);
     memclr_((void*)&str, sizeof(struct_type));\
     str.member.bitfield_member = 1;\
     memcpy(&value, (void*)&str.member, sizeof(str.member));\
-    first_pos_of_high_bit( value );\
+    log2_of( value );\
   })
 
 #define BITFIELD_OFFSET_OF_UINT32(struct_type, offset, bitfield_member) \
@@ -73,7 +72,7 @@ uint8_t number_of_high_bits(uint32_t value);
     struct_type str;\
     memclr_(&str, sizeof(struct_type));\
     str.bitfield_member = 1;\
-    first_pos_of_high_bit( ((uint32_t*) &str)[offset] );\
+    log2_of( ((uint32_t*) &str)[offset] );\
   })
 
 void setUp(void)
@@ -321,28 +320,4 @@ void test_ehci_data(void)
   }
 
   // TODO more tests on ehci_data
-}
-
-//--------------------------------------------------------------------+
-// Helper
-//--------------------------------------------------------------------+
-int8_t first_pos_of_high_bit(uint32_t value)
-{
-  for (int8_t i=0; i<32; i++)
-  {
-    if (value & BIT_(i))
-      return i;
-  }
-  return (-1);
-}
-
-uint8_t number_of_high_bits(uint32_t value)
-{
-  uint8_t result=0;
-  for(uint8_t i=0; i<32; i++)
-  {
-    if (value & BIT_(i))
-      result++;
-  }
-  return result;
 }
