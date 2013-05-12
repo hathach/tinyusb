@@ -52,7 +52,6 @@
 #include "ehci.h"
 #include "ehci_controller_fake.h"
 
-usbh_device_info_t usbh_devices[TUSB_CFG_HOST_DEVICE_MAX+1];
 static uint8_t const control_max_packet_size = 64;
 static uint8_t hub_addr;
 static uint8_t hub_port;
@@ -62,17 +61,27 @@ static ehci_registers_t * regs;
 static ehci_qhd_t *async_head;
 static ehci_qhd_t *period_head_arr;
 
+void class_init_expect(void)
+{
+  hidh_init_Expect();
+
+  //TODO update more classes
+}
+
 void setUp(void)
 {
-  ehci_controller_init();
-  memclr_(usbh_devices, sizeof(usbh_device_info_t)*(TUSB_CFG_HOST_DEVICE_MAX+1));
-
   hub_addr = hub_port = 0;
   dev_addr = 1;
-
   hostid = RANDOM(CONTROLLER_HOST_NUMBER) + TEST_CONTROLLER_HOST_START_INDEX;
 
-  hcd_init();
+  ehci_controller_init();
+
+  osal_semaphore_create_IgnoreAndReturn( (osal_semaphore_handle_t) 0x1234);
+  osal_task_create_IgnoreAndReturn(TUSB_ERROR_NONE);
+  osal_queue_create_IgnoreAndReturn( (osal_queue_handle_t) 0x4566 );
+  class_init_expect();
+
+  usbh_init();
 
   for (uint8_t i=0; i<TUSB_CFG_HOST_DEVICE_MAX+1; i++)
   {
@@ -83,10 +92,10 @@ void setUp(void)
     usbh_devices[i].state    = i ? TUSB_DEVICE_STATE_CONFIGURED : TUSB_DEVICE_STATE_UNPLUG;
   }
 
-  regs = get_operational_register(hostid);
-  async_head =  get_async_head( hostid );
-  period_head_arr = get_period_head( hostid, 1 );
-  regs->usb_sts = 0; // hcd_init clear usb_sts by writing 1s
+  regs            = get_operational_register(hostid);
+  async_head      = get_async_head( hostid );
+  period_head_arr = (ehci_qhd_t*) get_period_head( hostid, 1 );
+  regs->usb_sts   = 0; // hcd_init clear usb_sts by writing 1s
 }
 
 void tearDown(void)
@@ -110,7 +119,7 @@ void test_addr0_control_close(void)
 
   //------------- Code Under Test -------------//
   regs->usb_sts_bit.port_change_detect = 0; // clear port change detect
-  regs->usb_sts_bit.async_advance = 1;
+  regs->usb_sts_bit.async_advance      = 1;
   hcd_isr(hostid); // async advance
 
   TEST_ASSERT( p_qhd->qtd_overlay.halted );

@@ -73,7 +73,7 @@
     - :ignore
     - :callback
     - :array
-  :ignore: :args_only
+  #:ignore: :args_only
 #  :unity_helper_path: test/support/type_helper.h
   :treat_as:
     uint8:    HEX8
