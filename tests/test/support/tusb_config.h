@@ -80,7 +80,8 @@
 //#define HOST_HCD_XFER_ISOCHRONOUS
 
 // Test support
-#define TEST_CONTROLLER_HOST_START_INDEX               ( ((CONTROLLER_HOST_NUMBER == 1) && (TUSB_CFG_CONTROLLER1_MODE & TUSB_MODE_HOST)) ? 1 : 0)
+#define TEST_CONTROLLER_HOST_START_INDEX \
+ ( ((CONTROLLER_HOST_NUMBER == 1) && (TUSB_CFG_CONTROLLER1_MODE & TUSB_MODE_HOST)) ? 1 : 0)
 
 //--------------------------------------------------------------------+
 // DEVICE CONFIGURATION

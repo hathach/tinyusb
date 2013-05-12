@@ -52,6 +52,8 @@
 #ifndef _TUSB_EHCI_CONTROLLER_H_
 #define _TUSB_EHCI_CONTROLLER_H_
 
+#include "host/hcd.h"
+
 #ifdef __cplusplus
  extern "C" {
 #endif

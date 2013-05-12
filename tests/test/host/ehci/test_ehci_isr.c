@@ -43,7 +43,6 @@
 #include "binary.h"
 
 #include "hal.h"
-#include "hcd.h"
 #include "ehci.h"
 
 #include "ehci_controller_fake.h"

@@ -36,6 +36,7 @@
 */
 /**************************************************************************/
 
+#include <stdlib.h>
 #include "unity.h"
 #include "tusb_option.h"
 #include "errors.h"
@@ -69,13 +70,10 @@ void setUp(void)
   dev_addr = 1;
 
   hostid = RANDOM(CONTROLLER_HOST_NUMBER) + TEST_CONTROLLER_HOST_START_INDEX;
-  for (uint8_t i=0; i<TUSB_CFG_HOST_DEVICE_MAX+1; i++)
-  {
-    usbh_devices[i].core_id  = hostid;
-    usbh_devices[i].hub_addr = hub_addr;
-    usbh_devices[i].hub_port = hub_port;
-    usbh_devices[i].speed    = TUSB_SPEED_HIGH;
-  }
+  usbh_devices[dev_addr].core_id  = hostid;
+  usbh_devices[dev_addr].hub_addr = hub_addr;
+  usbh_devices[dev_addr].hub_port = hub_port;
+  usbh_devices[dev_addr].speed    = TUSB_SPEED_HIGH;
 
   async_head =  get_async_head( hostid );
 }

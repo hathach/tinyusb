@@ -96,13 +96,11 @@ void setUp(void)
   dev_addr = 1;
 
   hostid = RANDOM(CONTROLLER_HOST_NUMBER) + TEST_CONTROLLER_HOST_START_INDEX;
-  for (uint8_t i=0; i<TUSB_CFG_HOST_DEVICE_MAX+1; i++)
-  {
-    usbh_devices[i].core_id  = hostid;
-    usbh_devices[i].hub_addr = hub_addr;
-    usbh_devices[i].hub_port = hub_port;
-    usbh_devices[i].speed    = TUSB_SPEED_HIGH;
-  }
+
+  usbh_devices[dev_addr].core_id  = hostid;
+  usbh_devices[dev_addr].hub_addr = hub_addr;
+  usbh_devices[dev_addr].hub_port = hub_port;
+  usbh_devices[dev_addr].speed    = TUSB_SPEED_HIGH;
 
   async_head =  get_async_head( hostid );
   pipe_hdl_bulk = hcd_pipe_open(dev_addr, &desc_ept_bulk_in, TUSB_CLASS_MSC);
@@ -154,7 +152,8 @@ void test_bulk_xfer_hs_ping_out(void)
   ehci_qhd_t *p_qhd = qhd_get_from_pipe_handle(pipe_hdl);
 
   //------------- Code Under Test -------------//
-  hcd_pipe_xfer(pipe_hdl, xfer_data, sizeof(xfer_data), true);
+  TEST_ASSERT_EQUAL( TUSB_ERROR_NONE,
+                     hcd_pipe_xfer(pipe_hdl, xfer_data, sizeof(xfer_data), true) );
 
   ehci_qtd_t* p_qtd = p_qhd->p_qtd_list_head;
   TEST_ASSERT(p_qtd->pingstate_err);
@@ -163,7 +162,8 @@ void test_bulk_xfer_hs_ping_out(void)
 void test_bulk_xfer(void)
 {
   //------------- Code Under Test -------------//
-  hcd_pipe_xfer(pipe_hdl_bulk, xfer_data, sizeof(xfer_data), true);
+  TEST_ASSERT_EQUAL( TUSB_ERROR_NONE,
+                     hcd_pipe_xfer(pipe_hdl_bulk, xfer_data, sizeof(xfer_data), true) );
 
   ehci_qtd_t* p_qtd = p_qhd_bulk->p_qtd_list_head;
   TEST_ASSERT_NOT_NULL(p_qtd);
@@ -178,8 +178,11 @@ void test_bulk_xfer(void)
 void test_bulk_xfer_double(void)
 {
   //------------- Code Under Test -------------//
-  hcd_pipe_xfer(pipe_hdl_bulk, xfer_data, sizeof(xfer_data), false);
-  hcd_pipe_xfer(pipe_hdl_bulk, data2, sizeof(data2), true);
+  TEST_ASSERT_EQUAL( TUSB_ERROR_NONE,
+                     hcd_pipe_xfer(pipe_hdl_bulk, xfer_data, sizeof(xfer_data), false) );
+
+  TEST_ASSERT_EQUAL( TUSB_ERROR_NONE,
+                     hcd_pipe_xfer(pipe_hdl_bulk, data2, sizeof(data2), true) );
 
   ehci_qtd_t* p_head = p_qhd_bulk->p_qtd_list_head;
   ehci_qtd_t* p_tail = p_qhd_bulk->p_qtd_list_tail;
@@ -203,8 +206,11 @@ void test_bulk_xfer_double(void)
 
 void test_bulk_xfer_complete_isr(void)
 {
-  hcd_pipe_xfer(pipe_hdl_bulk, xfer_data, sizeof(xfer_data), false);
-  hcd_pipe_xfer(pipe_hdl_bulk, data2, sizeof(data2), true);
+  TEST_ASSERT_EQUAL( TUSB_ERROR_NONE,
+                     hcd_pipe_xfer(pipe_hdl_bulk, xfer_data, sizeof(xfer_data), false) );
+
+  TEST_ASSERT_EQUAL( TUSB_ERROR_NONE,
+                     hcd_pipe_xfer(pipe_hdl_bulk, data2, sizeof(data2), true) );
 
   ehci_qtd_t* p_head = p_qhd_bulk->p_qtd_list_head;
   ehci_qtd_t* p_tail = p_qhd_bulk->p_qtd_list_tail;
