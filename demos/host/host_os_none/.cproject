@@ -70,8 +70,8 @@
 									<listOptionValue builtIn="false" value="-Map=&quot;${BuildArtifactFileBaseName}.map&quot;"/>
 									<listOptionValue builtIn="false" value="--gc-sections"/>
 								</option>
-								<option id="gnu.c.link.option.libs.1088600788" name="Libraries (-l)" superClass="gnu.c.link.option.libs" valueType="libs"/>
-								<option id="gnu.c.link.option.paths.1352371726" name="Library search path (-L)" superClass="gnu.c.link.option.paths" valueType="libPaths"/>
+								<option id="gnu.c.link.option.libs.1088600788" name="Libraries (-l)" superClass="gnu.c.link.option.libs"/>
+								<option id="gnu.c.link.option.paths.1352371726" name="Library search path (-L)" superClass="gnu.c.link.option.paths"/>
 								<option id="com.crt.advproject.link.gcc.hdrlib.1912639139" name="Use C library" superClass="com.crt.advproject.link.gcc.hdrlib" value="com.crt.advproject.gcc.link.hdrlib.codered.semihost" valueType="enumerated"/>
 								<inputType id="cdt.managedbuild.tool.gnu.c.linker.input.1768732506" superClass="cdt.managedbuild.tool.gnu.c.linker.input">
 									<additionalInput kind="additionalinputdependency" paths="$(USER_OBJS)"/>
@@ -81,7 +81,7 @@
 						</toolChain>
 					</folderInfo>
 					<sourceEntries>
-						<entry excluding="bsp/boards/embedded_artists/oem_base_board|bsp/boards/embedded_artists/oem_base_board/acc.c|bsp/boards/embedded_artists/oem_base_board/base_eeprom.c|ngx|bsp/boards/embedded_artists/oem_base_board/joystick.c|bsp/lpc11uxx|bsp/boards/embedded_artists/oem_base_board/lm75a.c|bsp/boards/embedded_artists/oem_base_board/uda1380.c|bsp/lpc13uxx|bsp/boards/embedded_artists/oem_base_board/memreg.c|bsp/boards/embedded_artists/oem_base_board/norflash.c" flags="VALUE_WORKSPACE_PATH" kind="sourcePath" name=""/>
+						<entry excluding="bsp/lpc43xx/CMSISv2p10_LPC43xx_DriverLib/src/lpc43xx_wwdt.c|bsp/lpc43xx/CMSISv2p10_LPC43xx_DriverLib/src/lpc43xx_i2s.c|bsp/lpc43xx/CMSISv2p10_LPC43xx_DriverLib/src/lpc43xx_sct.c|bsp/lpc43xx/CMSISv2p10_LPC43xx_DriverLib/src/lpc43xx_rit.c|bsp/lpc43xx/CMSISv2p10_LPC43xx_DriverLib/src/lpc43xx_rgu.c|bsp/lpc43xx/CMSISv2p10_LPC43xx_DriverLib/src/lpc43xx_qei.c|bsp/lpc43xx/CMSISv2p10_LPC43xx_DriverLib/src/lpc43xx_rtc.c|bsp/lpc43xx/CMSISv2p10_LPC43xx_DriverLib/src/lpc43xx_mcpwm.c|bsp/lpc43xx/CMSISv2p10_LPC43xx_DriverLib/src/lpc43xx_lcd.c|bsp/lpc43xx/CMSISv2p10_LPC43xx_DriverLib/src/lpc43xx_gpdma.c|bsp/lpc43xx/CMSISv2p10_LPC43xx_DriverLib/src/debug_frmwrk.c|bsp/lpc43xx/CMSISv2p10_LPC43xx_DriverLib/src/lpc43xx_evrt.c|bsp/lpc43xx/CMSISv2p10_LPC43xx_DriverLib/src/lpc43xx_emc.c|bsp/lpc43xx/CMSISv2p10_LPC43xx_DriverLib/src/lpc43xx_dac.c|bsp/lpc43xx/CMSISv2p10_LPC43xx_DriverLib/src/lpc43xx_can.c|bsp/lpc43xx/CMSISv2p10_LPC43xx_DriverLib/src/lpc43xx_atimer.c|bsp/lpc43xx/CMSISv2p10_LPC43xx_DriverLib/src/lpc43xx_adc.c|bsp/lpc43xx/CMSISv2p10_LPC43xx_DriverLib/src/LCDTerm.c|bsp/lpc43xx/CMSISv2p10_LPC43xx_DriverLib/src/Font5x7.c|bsp/boards/embedded_artists/oem_base_board|bsp/boards/embedded_artists/oem_base_board/acc.c|bsp/boards/embedded_artists/oem_base_board/base_eeprom.c|ngx|bsp/boards/embedded_artists/oem_base_board/joystick.c|bsp/lpc11uxx|bsp/boards/embedded_artists/oem_base_board/lm75a.c|bsp/boards/embedded_artists/oem_base_board/uda1380.c|bsp/lpc13uxx|bsp/boards/embedded_artists/oem_base_board/memreg.c|bsp/boards/embedded_artists/oem_base_board/norflash.c" flags="VALUE_WORKSPACE_PATH" kind="sourcePath" name=""/>
 					</sourceEntries>
 				</configuration>
 			</storageModule>
@@ -1176,8 +1176,8 @@
 									<listOptionValue builtIn="false" value="-Map=&quot;${BuildArtifactFileBaseName}.map&quot;"/>
 									<listOptionValue builtIn="false" value="--gc-sections"/>
 								</option>
-								<option id="gnu.c.link.option.libs.1825587478" name="Libraries (-l)" superClass="gnu.c.link.option.libs" valueType="libs"/>
-								<option id="gnu.c.link.option.paths.916077707" name="Library search path (-L)" superClass="gnu.c.link.option.paths" valueType="libPaths"/>
+								<option id="gnu.c.link.option.libs.1825587478" name="Libraries (-l)" superClass="gnu.c.link.option.libs"/>
+								<option id="gnu.c.link.option.paths.916077707" name="Library search path (-L)" superClass="gnu.c.link.option.paths"/>
 								<option id="com.crt.advproject.link.gcc.hdrlib.1015545513" name="Use C library" superClass="com.crt.advproject.link.gcc.hdrlib" value="com.crt.advproject.gcc.link.hdrlib.codered.nohost" valueType="enumerated"/>
 								<option id="com.crt.advproject.link.fpu.409118044" name="Floating point" superClass="com.crt.advproject.link.fpu" value="com.crt.advproject.link.fpu.fpv4" valueType="enumerated"/>
 								<inputType id="cdt.managedbuild.tool.gnu.c.linker.input.388300407" superClass="cdt.managedbuild.tool.gnu.c.linker.input">
@@ -1188,7 +1188,7 @@
 						</toolChain>
 					</folderInfo>
 					<sourceEntries>
-						<entry excluding="bsp/boards/embedded_artists/oem_base_board/acc.c|bsp/boards/embedded_artists/oem_base_board/base_eeprom.c|ngx|bsp/boards/embedded_artists/oem_base_board/joystick.c|bsp/lpc11uxx|bsp/boards/embedded_artists/oem_base_board/lm75a.c|bsp/boards/embedded_artists/oem_base_board/uda1380.c|bsp/lpc13uxx|bsp/boards/embedded_artists/oem_base_board/memreg.c|bsp/boards/embedded_artists/oem_base_board/norflash.c" flags="VALUE_WORKSPACE_PATH" kind="sourcePath" name=""/>
+						<entry excluding="bsp/lpc43xx/CMSISv2p10_LPC43xx_DriverLib/src/lpc43xx_wwdt.c|bsp/lpc43xx/CMSISv2p10_LPC43xx_DriverLib/src/lpc43xx_i2s.c|bsp/lpc43xx/CMSISv2p10_LPC43xx_DriverLib/src/lpc43xx_sct.c|bsp/lpc43xx/CMSISv2p10_LPC43xx_DriverLib/src/lpc43xx_rit.c|bsp/lpc43xx/CMSISv2p10_LPC43xx_DriverLib/src/lpc43xx_rgu.c|bsp/lpc43xx/CMSISv2p10_LPC43xx_DriverLib/src/lpc43xx_qei.c|bsp/lpc43xx/CMSISv2p10_LPC43xx_DriverLib/src/lpc43xx_rtc.c|bsp/lpc43xx/CMSISv2p10_LPC43xx_DriverLib/src/lpc43xx_mcpwm.c|bsp/lpc43xx/CMSISv2p10_LPC43xx_DriverLib/src/lpc43xx_lcd.c|bsp/lpc43xx/CMSISv2p10_LPC43xx_DriverLib/src/lpc43xx_gpdma.c|bsp/lpc43xx/CMSISv2p10_LPC43xx_DriverLib/src/debug_frmwrk.c|bsp/lpc43xx/CMSISv2p10_LPC43xx_DriverLib/src/lpc43xx_evrt.c|bsp/lpc43xx/CMSISv2p10_LPC43xx_DriverLib/src/lpc43xx_emc.c|bsp/lpc43xx/CMSISv2p10_LPC43xx_DriverLib/src/lpc43xx_dac.c|bsp/lpc43xx/CMSISv2p10_LPC43xx_DriverLib/src/lpc43xx_can.c|bsp/lpc43xx/CMSISv2p10_LPC43xx_DriverLib/src/lpc43xx_atimer.c|bsp/lpc43xx/CMSISv2p10_LPC43xx_DriverLib/src/lpc43xx_adc.c|bsp/lpc43xx/CMSISv2p10_LPC43xx_DriverLib/src/LCDTerm.c|bsp/lpc43xx/CMSISv2p10_LPC43xx_DriverLib/src/Font5x7.c|bsp/boards/embedded_artists/oem_base_board/acc.c|bsp/boards/embedded_artists/oem_base_board/base_eeprom.c|ngx|bsp/boards/embedded_artists/oem_base_board/joystick.c|bsp/lpc11uxx|bsp/boards/embedded_artists/oem_base_board/lm75a.c|bsp/boards/embedded_artists/oem_base_board/uda1380.c|bsp/lpc13uxx|bsp/boards/embedded_artists/oem_base_board/memreg.c|bsp/boards/embedded_artists/oem_base_board/norflash.c" flags="VALUE_WORKSPACE_PATH" kind="sourcePath" name=""/>
 					</sourceEntries>
 				</configuration>
 			</storageModule>
@@ -2283,8 +2283,8 @@
 									<listOptionValue builtIn="false" value="-Map=&quot;${BuildArtifactFileBaseName}.map&quot;"/>
 									<listOptionValue builtIn="false" value="--gc-sections"/>
 								</option>
-								<option id="gnu.c.link.option.libs.495921515" name="Libraries (-l)" superClass="gnu.c.link.option.libs" valueType="libs"/>
-								<option id="gnu.c.link.option.paths.692268551" name="Library search path (-L)" superClass="gnu.c.link.option.paths" valueType="libPaths"/>
+								<option id="gnu.c.link.option.libs.495921515" name="Libraries (-l)" superClass="gnu.c.link.option.libs"/>
+								<option id="gnu.c.link.option.paths.692268551" name="Library search path (-L)" superClass="gnu.c.link.option.paths"/>
 								<option id="com.crt.advproject.link.gcc.hdrlib.1209404346" name="Use C library" superClass="com.crt.advproject.link.gcc.hdrlib" value="com.crt.advproject.gcc.link.hdrlib.codered.nohost" valueType="enumerated"/>
 								<option id="com.crt.advproject.link.fpu.1664439954" name="Floating point" superClass="com.crt.advproject.link.fpu" value="com.crt.advproject.link.fpu.fpv4" valueType="enumerated"/>
 								<inputType id="cdt.managedbuild.tool.gnu.c.linker.input.1521825863" superClass="cdt.managedbuild.tool.gnu.c.linker.input">
@@ -2295,7 +2295,7 @@
 						</toolChain>
 					</folderInfo>
 					<sourceEntries>
-						<entry excluding="bsp/boards/embedded_artists/oem_base_board|bsp/boards/embedded_artists/oem_base_board/acc.c|bsp/boards/embedded_artists/oem_base_board/base_eeprom.c|ngx|bsp/boards/embedded_artists/oem_base_board/joystick.c|bsp/lpc11uxx|bsp/boards/embedded_artists/oem_base_board/lm75a.c|bsp/boards/embedded_artists/oem_base_board/uda1380.c|bsp/lpc13uxx|bsp/boards/embedded_artists/oem_base_board/memreg.c|bsp/boards/embedded_artists/oem_base_board/norflash.c" flags="VALUE_WORKSPACE_PATH" kind="sourcePath" name=""/>
+						<entry excluding="bsp/lpc43xx/CMSISv2p10_LPC43xx_DriverLib/src/lpc43xx_wwdt.c|bsp/lpc43xx/CMSISv2p10_LPC43xx_DriverLib/src/lpc43xx_i2s.c|bsp/lpc43xx/CMSISv2p10_LPC43xx_DriverLib/src/lpc43xx_sct.c|bsp/lpc43xx/CMSISv2p10_LPC43xx_DriverLib/src/lpc43xx_rit.c|bsp/lpc43xx/CMSISv2p10_LPC43xx_DriverLib/src/lpc43xx_rgu.c|bsp/lpc43xx/CMSISv2p10_LPC43xx_DriverLib/src/lpc43xx_qei.c|bsp/lpc43xx/CMSISv2p10_LPC43xx_DriverLib/src/lpc43xx_rtc.c|bsp/lpc43xx/CMSISv2p10_LPC43xx_DriverLib/src/lpc43xx_mcpwm.c|bsp/lpc43xx/CMSISv2p10_LPC43xx_DriverLib/src/lpc43xx_lcd.c|bsp/lpc43xx/CMSISv2p10_LPC43xx_DriverLib/src/lpc43xx_gpdma.c|bsp/lpc43xx/CMSISv2p10_LPC43xx_DriverLib/src/debug_frmwrk.c|bsp/lpc43xx/CMSISv2p10_LPC43xx_DriverLib/src/lpc43xx_evrt.c|bsp/lpc43xx/CMSISv2p10_LPC43xx_DriverLib/src/lpc43xx_emc.c|bsp/lpc43xx/CMSISv2p10_LPC43xx_DriverLib/src/lpc43xx_dac.c|bsp/lpc43xx/CMSISv2p10_LPC43xx_DriverLib/src/lpc43xx_can.c|bsp/lpc43xx/CMSISv2p10_LPC43xx_DriverLib/src/lpc43xx_atimer.c|bsp/lpc43xx/CMSISv2p10_LPC43xx_DriverLib/src/lpc43xx_adc.c|bsp/lpc43xx/CMSISv2p10_LPC43xx_DriverLib/src/LCDTerm.c|bsp/lpc43xx/CMSISv2p10_LPC43xx_DriverLib/src/Font5x7.c|bsp/boards/embedded_artists/oem_base_board|bsp/boards/embedded_artists/oem_base_board/acc.c|bsp/boards/embedded_artists/oem_base_board/base_eeprom.c|ngx|bsp/boards/embedded_artists/oem_base_board/joystick.c|bsp/lpc11uxx|bsp/boards/embedded_artists/oem_base_board/lm75a.c|bsp/boards/embedded_artists/oem_base_board/uda1380.c|bsp/lpc13uxx|bsp/boards/embedded_artists/oem_base_board/memreg.c|bsp/boards/embedded_artists/oem_base_board/norflash.c" flags="VALUE_WORKSPACE_PATH" kind="sourcePath" name=""/>
 					</sourceEntries>
 				</configuration>
 			</storageModule>
