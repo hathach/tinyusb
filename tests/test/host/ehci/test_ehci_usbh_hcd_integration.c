@@ -106,16 +106,20 @@ void test_addr0_control_close(void)
 {
   dev_addr = 0;
 
-  hcd_pipe_control_open(dev_addr, 64);
-  hcd_pipe_control_xfer(dev_addr,
+  TEST_ASSERT_EQUAL( TUSB_ERROR_NONE,
+                     hcd_pipe_control_open(dev_addr, control_max_packet_size) );
+
+  TEST_ASSERT_EQUAL( TUSB_ERROR_NONE,
+                     hcd_pipe_control_xfer(dev_addr,
                         &(tusb_std_request_t) {
                               .bmRequestType = { .direction = TUSB_DIR_HOST_TO_DEV, .type = TUSB_REQUEST_TYPE_STANDARD, .recipient = TUSB_REQUEST_RECIPIENT_DEVICE },
                               .bRequest = TUSB_REQUEST_SET_ADDRESS,
                               .wValue   = 3 },
-                        NULL);
+                        NULL) ) ;
 
   ehci_qhd_t *p_qhd = async_head;
-  hcd_pipe_control_close(dev_addr);
+  TEST_ASSERT_EQUAL( TUSB_ERROR_NONE,
+                     hcd_pipe_control_close(dev_addr) );
 
   //------------- Code Under Test -------------//
   regs->usb_sts_bit.port_change_detect = 0; // clear port change detect
@@ -130,13 +134,16 @@ void test_addr0_control_close(void)
 
 void test_isr_disconnect_then_async_advance_control_pipe(void)
 {
-  hcd_pipe_control_open(dev_addr, 64);
-  hcd_pipe_control_xfer(dev_addr,
+  TEST_ASSERT_EQUAL( TUSB_ERROR_NONE,
+                     hcd_pipe_control_open(dev_addr, control_max_packet_size) );
+
+  TEST_ASSERT_EQUAL( TUSB_ERROR_NONE,
+                     hcd_pipe_control_xfer(dev_addr,
                         &(tusb_std_request_t) {
                               .bmRequestType = { .direction = TUSB_DIR_HOST_TO_DEV, .type = TUSB_REQUEST_TYPE_STANDARD, .recipient = TUSB_REQUEST_RECIPIENT_DEVICE },
                               .bRequest = TUSB_REQUEST_SET_ADDRESS,
                               .wValue   = 3 },
-                        NULL);
+                        NULL) );
 
   ehci_qhd_t *p_qhd = get_control_qhd(dev_addr);
   ehci_qtd_t *p_qtd_head = p_qhd->p_qtd_list_head;
@@ -170,14 +177,18 @@ void test_bulk_pipe_close(void)
 
   uint8_t xfer_data[100];
   pipe_handle_t pipe_hdl = hcd_pipe_open(dev_addr, &desc_ept_bulk_in, TUSB_CLASS_MSC);
-  hcd_pipe_xfer(pipe_hdl, xfer_data, sizeof(xfer_data), 100);
-  hcd_pipe_xfer(pipe_hdl, xfer_data, sizeof(xfer_data), 50);
+
+  TEST_ASSERT_EQUAL( TUSB_ERROR_NONE,
+                     hcd_pipe_xfer(pipe_hdl, xfer_data, sizeof(xfer_data), 100) );
+  TEST_ASSERT_EQUAL( TUSB_ERROR_NONE,
+                     hcd_pipe_xfer(pipe_hdl, xfer_data, sizeof(xfer_data), 50) );
 
   ehci_qhd_t *p_qhd = &ehci_data.device[dev_addr-1].qhd[pipe_hdl.index];
   ehci_qtd_t *p_qtd_head = p_qhd->p_qtd_list_head;
   ehci_qtd_t *p_qtd_tail = p_qhd->p_qtd_list_tail;
 
-  hcd_pipe_close(pipe_hdl);
+  TEST_ASSERT_EQUAL( TUSB_ERROR_NONE,
+                     hcd_pipe_close(pipe_hdl) );
 
   //------------- Code Under Test -------------//
   regs->usb_sts_bit.async_advance = 1;

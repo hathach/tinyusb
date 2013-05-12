@@ -76,7 +76,7 @@ MISRA-C is well respected & a bar for industrial coding standard.
 
 ### Power of 10 ###
 
-is a small & easy to remember but yet powerful coding guideline. Most (if not all) of the rules here are included in JPL. Because it is very small, all the rules will be listed here, those with *italic* is compliant, **bold** is violated. 
+is a small & easy to remember but yet powerful coding guideline. Most (if not all) of the rules here are included in JPL. Because it is very small, all the rules will be listed here, those with *italic* are compliant, **bold** are violated. 
 
 1. *`Restrict to simple control flow constructs`* 
 yes, I hate goto statement, therefore there is none of those here
