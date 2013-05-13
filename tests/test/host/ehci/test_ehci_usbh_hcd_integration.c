@@ -51,22 +51,19 @@
 #include "usbh.h"
 #include "ehci.h"
 #include "ehci_controller_fake.h"
+#include "host_helper.h"
 
 static uint8_t const control_max_packet_size = 64;
 static uint8_t hub_addr;
 static uint8_t hub_port;
 static uint8_t dev_addr;
 static uint8_t hostid;
+
 static ehci_registers_t * regs;
 static ehci_qhd_t *async_head;
 static ehci_qhd_t *period_head_arr;
 
-void class_init_expect(void)
-{
-  hidh_init_Expect();
 
-  //TODO update more classes
-}
 
 void setUp(void)
 {
@@ -76,21 +73,8 @@ void setUp(void)
 
   ehci_controller_init();
 
-  osal_semaphore_create_IgnoreAndReturn( (osal_semaphore_handle_t) 0x1234);
-  osal_task_create_IgnoreAndReturn(TUSB_ERROR_NONE);
-  osal_queue_create_IgnoreAndReturn( (osal_queue_handle_t) 0x4566 );
-  class_init_expect();
-
-  usbh_init();
-
-  for (uint8_t i=0; i<TUSB_CFG_HOST_DEVICE_MAX+1; i++)
-  {
-    usbh_devices[i].core_id  = hostid;
-    usbh_devices[i].hub_addr = hub_addr;
-    usbh_devices[i].hub_port = hub_port;
-    usbh_devices[i].speed    = TUSB_SPEED_HIGH;
-    usbh_devices[i].state    = i ? TUSB_DEVICE_STATE_CONFIGURED : TUSB_DEVICE_STATE_UNPLUG;
-  }
+  helper_usbh_init();
+  helper_usbh_device_emulate(dev_addr, hub_addr, hub_port, hostid, TUSB_SPEED_HIGH);
 
   regs            = get_operational_register(hostid);
   async_head      = get_async_head( hostid );
@@ -105,6 +89,7 @@ void tearDown(void)
 void test_addr0_control_close(void)
 {
   dev_addr = 0;
+  helper_usbh_device_emulate(0, hub_addr, hub_port, hostid, TUSB_SPEED_HIGH);
 
   TEST_ASSERT_EQUAL( TUSB_ERROR_NONE,
                      hcd_pipe_control_open(dev_addr, control_max_packet_size) );
