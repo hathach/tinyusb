@@ -53,7 +53,6 @@
 
 usbh_device_info_t usbh_devices[TUSB_CFG_HOST_DEVICE_MAX+1];
 
-static uint8_t dev_addr;
 static uint8_t hostid;
 
 //--------------------------------------------------------------------+
@@ -64,15 +63,7 @@ void setUp(void)
   ehci_controller_init();
   TEST_ASSERT_EQUAL( TUSB_ERROR_NONE, hcd_init());
 
-  dev_addr = 1;
   hostid = RANDOM(CONTROLLER_HOST_NUMBER) + TEST_CONTROLLER_HOST_START_INDEX;
-  for (uint8_t i=0; i<TUSB_CFG_HOST_DEVICE_MAX+1; i++)
-  {
-    usbh_devices[i].core_id  = hostid;
-    usbh_devices[i].hub_addr = 0;
-    usbh_devices[i].hub_port = 0;
-    usbh_devices[i].speed    = TUSB_SPEED_HIGH;
-  }
 }
 
 void tearDown(void)

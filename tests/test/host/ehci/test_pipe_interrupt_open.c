@@ -47,6 +47,7 @@
 #include "mock_usbh_hcd.h"
 #include "ehci.h"
 #include "ehci_controller_fake.h"
+#include "host_helper.h"
 
 usbh_device_info_t usbh_devices[TUSB_CFG_HOST_DEVICE_MAX+1];
 
@@ -70,13 +71,9 @@ void setUp(void)
   hcd_init();
 
   dev_addr = 1;
-
   hostid = RANDOM(CONTROLLER_HOST_NUMBER) + TEST_CONTROLLER_HOST_START_INDEX;
 
-  usbh_devices[dev_addr].core_id  = hostid;
-  usbh_devices[dev_addr].hub_addr = hub_addr;
-  usbh_devices[dev_addr].hub_port = hub_port;
-  usbh_devices[dev_addr].speed    = TUSB_SPEED_HIGH;
+  helper_usbh_device_emulate(dev_addr , hub_addr, hub_port, hostid, TUSB_SPEED_HIGH);
 
   period_head_arr = get_period_head( hostid, 1 );
   p_int_qhd = NULL;

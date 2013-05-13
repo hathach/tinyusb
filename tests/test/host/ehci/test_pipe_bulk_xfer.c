@@ -48,11 +48,12 @@
 #include "mock_usbh_hcd.h"
 #include "ehci.h"
 #include "ehci_controller_fake.h"
+#include "host_helper.h"
 
 usbh_device_info_t usbh_devices[TUSB_CFG_HOST_DEVICE_MAX+1];
 
-static uint8_t const hub_addr = 2;
-static uint8_t const hub_port = 2;
+static uint8_t hub_addr = 2;
+static uint8_t hub_port = 2;
 static uint8_t dev_addr;
 static uint8_t hostid;
 static uint8_t xfer_data [18000]; // 18K to test buffer pointer list
@@ -88,21 +89,15 @@ tusb_descriptor_endpoint_t const desc_ept_bulk_out =
 void setUp(void)
 {
   ehci_controller_init();
-
-  memclr_(usbh_devices, sizeof(usbh_device_info_t)*(TUSB_CFG_HOST_DEVICE_MAX+1));
   memclr_(xfer_data, sizeof(xfer_data));
+  memclr_(usbh_devices, sizeof(usbh_device_info_t)*(TUSB_CFG_HOST_DEVICE_MAX+1));
 
   TEST_ASSERT_EQUAL( TUSB_ERROR_NONE,
                      hcd_init() );
 
   dev_addr = 1;
-
   hostid = RANDOM(CONTROLLER_HOST_NUMBER) + TEST_CONTROLLER_HOST_START_INDEX;
-
-  usbh_devices[dev_addr].core_id  = hostid;
-  usbh_devices[dev_addr].hub_addr = hub_addr;
-  usbh_devices[dev_addr].hub_port = hub_port;
-  usbh_devices[dev_addr].speed    = TUSB_SPEED_HIGH;
+  helper_usbh_device_emulate(dev_addr, hub_addr, hub_port, hostid, TUSB_SPEED_HIGH);
 
   async_head =  get_async_head( hostid );
 

@@ -48,6 +48,7 @@
 #include "mock_usbh_hcd.h"
 #include "ehci.h"
 #include "ehci_controller_fake.h"
+#include "host_helper.h"
 
 usbh_device_info_t usbh_devices[TUSB_CFG_HOST_DEVICE_MAX+1];
 
@@ -63,17 +64,14 @@ static ehci_qhd_t *async_head;
 //--------------------------------------------------------------------+
 void setUp(void)
 {
-  memclr_(usbh_devices, sizeof(usbh_device_info_t)*(TUSB_CFG_HOST_DEVICE_MAX+1));
-
-  hcd_init();
+  TEST_ASSERT_EQUAL( TUSB_ERROR_NONE,
+                     hcd_init() );
 
   dev_addr = 1;
-
   hostid = RANDOM(CONTROLLER_HOST_NUMBER) + TEST_CONTROLLER_HOST_START_INDEX;
-  usbh_devices[dev_addr].core_id  = hostid;
-  usbh_devices[dev_addr].hub_addr = hub_addr;
-  usbh_devices[dev_addr].hub_port = hub_port;
-  usbh_devices[dev_addr].speed    = TUSB_SPEED_HIGH;
+
+  memclr_(usbh_devices, sizeof(usbh_device_info_t)*(TUSB_CFG_HOST_DEVICE_MAX+1));
+  helper_usbh_device_emulate(dev_addr, hub_addr, hub_port, hostid, TUSB_SPEED_HIGH);
 
   async_head =  get_async_head( hostid );
 }

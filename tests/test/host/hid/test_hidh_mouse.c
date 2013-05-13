@@ -41,6 +41,7 @@
 #include "type_helper.h"
 #include "errors.h"
 #include "common/common.h"
+
 #include "hid_host.h"
 #include "mock_osal.h"
 #include "mock_usbh.h"
