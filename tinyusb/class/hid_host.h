@@ -57,19 +57,18 @@
 //--------------------------------------------------------------------+
 // KEYBOARD Application API
 //--------------------------------------------------------------------+
-bool          tusbh_hid_keyboard_is_supported(uint8_t dev_addr) ATTR_PURE ATTR_WARN_UNUSED_RESULT;
-tusb_error_t  tusbh_hid_keyboard_get_report(uint8_t dev_addr, uint8_t instance_num, void * report) ATTR_WARN_UNUSED_RESULT;
-tusb_interface_status_t tusbh_hid_keyboard_status(uint8_t dev_addr, uint8_t instance_num) ATTR_WARN_UNUSED_RESULT;
-
 extern uint8_t const hid_keycode_to_ascii_tbl[2][128]; // TODO used weak attr if build failed without KEYBOARD enabled
 
+bool          tusbh_hid_keyboard_is_mounted(uint8_t dev_addr) ATTR_PURE ATTR_WARN_UNUSED_RESULT;
+tusb_error_t  tusbh_hid_keyboard_get_report(uint8_t dev_addr, uint8_t instance_num, void * report) ATTR_WARN_UNUSED_RESULT;
+tusb_interface_status_t tusbh_hid_keyboard_status(uint8_t dev_addr, uint8_t instance_num) ATTR_WARN_UNUSED_RESULT;
 //------------- Application Callback -------------//
 void tusbh_hid_keyboard_isr(uint8_t dev_addr, uint8_t instance_num, tusb_event_t event) ATTR_WEAK;
 
 //--------------------------------------------------------------------+
 // MOUSE Application API
 //--------------------------------------------------------------------+
-bool          tusbh_hid_mouse_is_supported(uint8_t dev_addr) ATTR_PURE ATTR_WARN_UNUSED_RESULT;
+bool          tusbh_hid_mouse_is_mounted(uint8_t dev_addr) ATTR_PURE ATTR_WARN_UNUSED_RESULT;
 tusb_error_t  tusbh_hid_mouse_get_report(uint8_t dev_addr, uint8_t instance_num, void* report) ATTR_WARN_UNUSED_RESULT;
 tusb_interface_status_t tusbh_hid_mouse_status(uint8_t dev_addr, uint8_t instance_num) ATTR_WARN_UNUSED_RESULT;
 //------------- Application Callback -------------//
@@ -78,6 +77,12 @@ void tusbh_hid_mouse_isr(uint8_t dev_addr, uint8_t instance_num, tusb_event_t ev
 //--------------------------------------------------------------------+
 // GENERIC Application API
 //--------------------------------------------------------------------+
+bool          tusbh_hid_generic_is_mounted(uint8_t dev_addr) ATTR_PURE ATTR_WARN_UNUSED_RESULT;
+tusb_error_t  tusbh_hid_generic_get_report(uint8_t dev_addr, uint8_t instance_num, void* report) ATTR_WARN_UNUSED_RESULT;
+tusb_error_t  tusbh_hid_generic_set_report(uint8_t dev_addr, uint8_t instance_num, void* report) ATTR_WARN_UNUSED_RESULT;
+tusb_interface_status_t tusbh_hid_generic_status(uint8_t dev_addr, uint8_t instance_num) ATTR_WARN_UNUSED_RESULT;
+//------------- Application Callback -------------//
+void tusbh_hid_generic_isr(uint8_t dev_addr, uint8_t instance_num, tusb_event_t event) ATTR_WEAK;
 
 //--------------------------------------------------------------------+
 // USBH-CLASS DRIVER API

@@ -91,20 +91,20 @@ void test_mouse_init(void)
 void test_mouse_is_supported_fail_unplug(void)
 {
   tusbh_device_get_state_IgnoreAndReturn(TUSB_DEVICE_STATE_UNPLUG);
-  TEST_ASSERT_FALSE( tusbh_hid_mouse_is_supported(dev_addr) );
+  TEST_ASSERT_FALSE( tusbh_hid_mouse_is_mounted(dev_addr) );
 }
 
 void test_mouse_is_supported_fail_not_opened(void)
 {
   hidh_init();
   tusbh_device_get_state_IgnoreAndReturn(TUSB_DEVICE_STATE_CONFIGURED);
-  TEST_ASSERT_FALSE( tusbh_hid_mouse_is_supported(dev_addr) );
+  TEST_ASSERT_FALSE( tusbh_hid_mouse_is_mounted(dev_addr) );
 }
 
 void test_mouse_is_supported_ok(void)
 {
   tusbh_device_get_state_IgnoreAndReturn(TUSB_DEVICE_STATE_CONFIGURED);
-  TEST_ASSERT_TRUE( tusbh_hid_mouse_is_supported(dev_addr) );
+  TEST_ASSERT_TRUE( tusbh_hid_mouse_is_mounted(dev_addr) );
 }
 
 void test_mouse_open_ok(void)
@@ -118,7 +118,7 @@ void test_mouse_open_ok(void)
   tusbh_hid_mouse_isr_Expect(dev_addr, 0, TUSB_EVENT_INTERFACE_OPEN);
 
   //------------- Code Under TEST -------------//
-  TEST_ASSERT_EQUAL(TUSB_ERROR_NONE, hidh_open_subtask(dev_addr, p_mouse_interface_desc, &length));
+  TEST_ASSERT_STATUS( hidh_open_subtask(dev_addr, p_mouse_interface_desc, &length));
 
   TEST_ASSERT_PIPE_HANDLE(pipe_hdl, p_hidh_mouse->pipe_hdl);
   TEST_ASSERT_EQUAL(8, p_hidh_mouse->report_size);
@@ -126,7 +126,7 @@ void test_mouse_open_ok(void)
                     length);
 
   tusbh_device_get_state_IgnoreAndReturn(TUSB_DEVICE_STATE_CONFIGURED);
-  TEST_ASSERT_TRUE( tusbh_hid_mouse_is_supported(dev_addr) );
+  TEST_ASSERT_TRUE( tusbh_hid_mouse_is_mounted(dev_addr) );
   TEST_ASSERT_EQUAL(TUSB_INTERFACE_STATUS_READY, p_hidh_mouse->status);
 
 }
@@ -175,7 +175,7 @@ void test_mouse_get_ok()
   hcd_pipe_xfer_ExpectAndReturn(p_hidh_mouse->pipe_hdl, (uint8_t*) &report, p_hidh_mouse->report_size, true, TUSB_ERROR_NONE);
 
   //------------- Code Under TEST -------------//
-  TEST_ASSERT_EQUAL(TUSB_ERROR_NONE, tusbh_hid_mouse_get_report(dev_addr, 0, &report));
+  TEST_ASSERT_STATUS( tusbh_hid_mouse_get_report(dev_addr, 0, &report));
 
   TEST_ASSERT_EQUAL(TUSB_INTERFACE_STATUS_BUSY, tusbh_hid_mouse_status(dev_addr, 0));
 }

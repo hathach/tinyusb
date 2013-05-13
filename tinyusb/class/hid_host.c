@@ -125,7 +125,7 @@ uint8_t const hid_keycode_to_ascii_tbl[2][128] =
 STATIC_ hidh_interface_info_t keyboard_data[TUSB_CFG_HOST_DEVICE_MAX]; // does not have addr0, index = dev_address-1
 
 //------------- KEYBOARD PUBLIC API (parameter validation required) -------------//
-bool  tusbh_hid_keyboard_is_supported(uint8_t dev_addr)
+bool  tusbh_hid_keyboard_is_mounted(uint8_t dev_addr)
 {
   return tusbh_device_is_configured(dev_addr) && pipehandle_is_valid(keyboard_data[dev_addr-1].pipe_hdl);
 }
@@ -151,7 +151,7 @@ tusb_interface_status_t tusbh_hid_keyboard_status(uint8_t dev_addr, uint8_t inst
 STATIC_ hidh_interface_info_t mouse_data[TUSB_CFG_HOST_DEVICE_MAX]; // does not have addr0, index = dev_address-1
 
 //------------- Public API -------------//
-bool tusbh_hid_mouse_is_supported(uint8_t dev_addr)
+bool tusbh_hid_mouse_is_mounted(uint8_t dev_addr)
 {
   return tusbh_device_is_configured(dev_addr) && pipehandle_is_valid(mouse_data[dev_addr-1].pipe_hdl);
 }
