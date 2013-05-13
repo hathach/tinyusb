@@ -41,6 +41,7 @@
 #include "tusb_option.h"
 #include "errors.h"
 #include "binary.h"
+#include "type_helper.h"
 
 #include "hal.h"
 #include "mock_osal.h"
@@ -68,8 +69,7 @@ void setUp(void)
 {
   memclr_(usbh_devices, sizeof(usbh_device_info_t)*(TUSB_CFG_HOST_DEVICE_MAX+1));
 
-  TEST_ASSERT_EQUAL( TUSB_ERROR_NONE,
-                     hcd_init() );
+  TEST_ASSERT_STATUS( hcd_init() );
 
   dev_addr = 1;
   hostid = RANDOM(CONTROLLER_HOST_NUMBER) + TEST_CONTROLLER_HOST_START_INDEX;
@@ -127,8 +127,7 @@ void test_control_open_addr0_qhd_data(void)
   dev_addr = 0;
 
   //------------- Code Under Test -------------//
-  TEST_ASSERT_EQUAL( TUSB_ERROR_NONE,
-                     hcd_pipe_control_open(dev_addr, control_max_packet_size) );
+  TEST_ASSERT_STATUS( hcd_pipe_control_open(dev_addr, control_max_packet_size) );
 
   verify_control_open_qhd(async_head);
   TEST_ASSERT(async_head->head_list_flag);
@@ -137,8 +136,7 @@ void test_control_open_addr0_qhd_data(void)
 void test_control_open_qhd_data(void)
 {
   //------------- Code Under TEST -------------//
-  TEST_ASSERT_EQUAL( TUSB_ERROR_NONE,
-                     hcd_pipe_control_open(dev_addr, control_max_packet_size));
+  TEST_ASSERT_STATUS( hcd_pipe_control_open(dev_addr, control_max_packet_size));
 
   verify_control_open_qhd(p_control_qhd);
   TEST_ASSERT_FALSE(p_control_qhd->head_list_flag);
@@ -154,8 +152,7 @@ void test_control_open_highspeed(void)
   usbh_devices[dev_addr].speed   = TUSB_SPEED_HIGH;
 
   //------------- Code Under TEST -------------//
-  TEST_ASSERT_EQUAL( TUSB_ERROR_NONE,
-                     hcd_pipe_control_open(dev_addr, control_max_packet_size) );
+  TEST_ASSERT_STATUS( hcd_pipe_control_open(dev_addr, control_max_packet_size) );
   TEST_ASSERT_FALSE(p_control_qhd->non_hs_control_endpoint);
 }
 
@@ -164,8 +161,7 @@ void test_control_open_non_highspeed(void)
   usbh_devices[dev_addr].speed   = TUSB_SPEED_FULL;
 
   //------------- Code Under TEST -------------//
-  TEST_ASSERT_EQUAL( TUSB_ERROR_NONE,
-                     hcd_pipe_control_open(dev_addr, control_max_packet_size) );
+  TEST_ASSERT_STATUS( hcd_pipe_control_open(dev_addr, control_max_packet_size) );
 
   TEST_ASSERT_TRUE(p_control_qhd->non_hs_control_endpoint);
 }
@@ -176,12 +172,10 @@ void test_control_open_non_highspeed(void)
 void test_control_addr0_close(void)
 {
   dev_addr = 0;
-  TEST_ASSERT_EQUAL( TUSB_ERROR_NONE,
-                     hcd_pipe_control_open(dev_addr, control_max_packet_size) );
+  TEST_ASSERT_STATUS( hcd_pipe_control_open(dev_addr, control_max_packet_size) );
 
   //------------- Code Under Test -------------//
-  TEST_ASSERT_EQUAL( TUSB_ERROR_NONE,
-                     hcd_pipe_control_close(dev_addr) );
+  TEST_ASSERT_STATUS( hcd_pipe_control_close(dev_addr) );
 
   TEST_ASSERT(async_head->head_list_flag);
   TEST_ASSERT(async_head->is_removing);
@@ -189,12 +183,10 @@ void test_control_addr0_close(void)
 
 void test_control_close(void)
 {
-  TEST_ASSERT_EQUAL( TUSB_ERROR_NONE,
-                     hcd_pipe_control_open(dev_addr, control_max_packet_size) );
+  TEST_ASSERT_STATUS( hcd_pipe_control_open(dev_addr, control_max_packet_size) );
 
   //------------- Code Under TEST -------------//
-  TEST_ASSERT_EQUAL( TUSB_ERROR_NONE,
-                     hcd_pipe_control_close(dev_addr) );
+  TEST_ASSERT_STATUS( hcd_pipe_control_close(dev_addr) );
 
   TEST_ASSERT(p_control_qhd->is_removing);
   TEST_ASSERT(p_control_qhd->used);

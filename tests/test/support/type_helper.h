@@ -66,6 +66,9 @@
     for (uint32_t i=0; i<size; i++)\
       TEST_ASSERT_EQUAL_HEX8(0, ((uint8_t*)buffer)[i]);\
   }while(0)
+
+#define TEST_ASSERT_STATUS( actual )\
+  TEST_ASSERT_EQUAL( TUSB_ERROR_NONE, (actual) )
 #ifdef __cplusplus
  }
 #endif

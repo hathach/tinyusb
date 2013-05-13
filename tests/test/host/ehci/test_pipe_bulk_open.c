@@ -41,6 +41,7 @@
 #include "tusb_option.h"
 #include "errors.h"
 #include "binary.h"
+#include "type_helper.h"
 
 #include "hal.h"
 #include "mock_osal.h"
@@ -64,8 +65,7 @@ static ehci_qhd_t *async_head;
 //--------------------------------------------------------------------+
 void setUp(void)
 {
-  TEST_ASSERT_EQUAL( TUSB_ERROR_NONE,
-                     hcd_init() );
+  TEST_ASSERT_STATUS( hcd_init() );
 
   dev_addr = 1;
   hostid = RANDOM(CONTROLLER_HOST_NUMBER) + TEST_CONTROLLER_HOST_START_INDEX;

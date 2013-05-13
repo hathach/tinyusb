@@ -41,6 +41,7 @@
 #include "tusb_option.h"
 #include "errors.h"
 #include "binary.h"
+#include "type_helper.h"
 
 #include "hal.h"
 #include "mock_osal.h"
@@ -76,8 +77,7 @@ void setUp(void)
   memclr_(usbh_devices, sizeof(usbh_device_info_t)*(TUSB_CFG_HOST_DEVICE_MAX+1));
   memclr_(xfer_data, sizeof(xfer_data));
 
-  TEST_ASSERT_EQUAL( TUSB_ERROR_NONE,
-                     hcd_init() );
+  TEST_ASSERT_STATUS( hcd_init() );
 
   dev_addr = 1;
   hostid   = RANDOM(CONTROLLER_HOST_NUMBER) + TEST_CONTROLLER_HOST_START_INDEX;
@@ -88,8 +88,7 @@ void setUp(void)
   async_head =  get_async_head( hostid );
 
   //------------- pipe open -------------//
-  TEST_ASSERT_EQUAL( TUSB_ERROR_NONE,
-                     hcd_pipe_control_open(dev_addr, control_max_packet_size) );
+  TEST_ASSERT_STATUS( hcd_pipe_control_open(dev_addr, control_max_packet_size) );
 
   p_control_qhd = &ehci_data.device[dev_addr-1].control.qhd;
 
@@ -147,12 +146,10 @@ void test_control_addr0_xfer_get_check_qhd_qtd_mapping(void)
   dev_addr = 0;
   ehci_qhd_t * const p_qhd = async_head;
 
-  TEST_ASSERT_EQUAL( TUSB_ERROR_NONE,
-                     hcd_pipe_control_open(dev_addr, control_max_packet_size) );
+  TEST_ASSERT_STATUS( hcd_pipe_control_open(dev_addr, control_max_packet_size) );
 
   //------------- Code Under TEST -------------//
-  TEST_ASSERT_EQUAL( TUSB_ERROR_NONE,
-                     hcd_pipe_control_xfer(dev_addr, &request_get_dev_desc, xfer_data) );
+  TEST_ASSERT_STATUS( hcd_pipe_control_xfer(dev_addr, &request_get_dev_desc, xfer_data) );
 
   p_setup  = &ehci_data.addr0_qtd[0];
   p_data   = &ehci_data.addr0_qtd[1];
@@ -173,8 +170,7 @@ void test_control_addr0_xfer_get_check_qhd_qtd_mapping(void)
 void test_control_xfer_get(void)
 {
   //------------- Code Under TEST -------------//
-  TEST_ASSERT_EQUAL( TUSB_ERROR_NONE,
-                     hcd_pipe_control_xfer(dev_addr, &request_get_dev_desc, xfer_data) );
+  TEST_ASSERT_STATUS( hcd_pipe_control_xfer(dev_addr, &request_get_dev_desc, xfer_data) );
 
   TEST_ASSERT_EQUAL_HEX( p_setup, p_control_qhd->qtd_overlay.next.address );
   TEST_ASSERT_EQUAL_HEX( p_setup  , p_control_qhd->p_qtd_list_head);
@@ -209,8 +205,7 @@ void test_control_xfer_get(void)
 void test_control_xfer_set(void)
 {
   //------------- Code Under TEST -------------//
-  TEST_ASSERT_EQUAL( TUSB_ERROR_NONE,
-                     hcd_pipe_control_xfer(dev_addr, &request_set_dev_addr, xfer_data) );
+  TEST_ASSERT_STATUS( hcd_pipe_control_xfer(dev_addr, &request_set_dev_addr, xfer_data) );
 
   TEST_ASSERT_EQUAL_HEX( p_setup, p_control_qhd->qtd_overlay.next.address );
   TEST_ASSERT_EQUAL_HEX( p_setup  , p_control_qhd->p_qtd_list_head);
@@ -230,8 +225,7 @@ void test_control_xfer_set(void)
 
 void test_control_xfer_complete_isr(void)
 {
-  TEST_ASSERT_EQUAL( TUSB_ERROR_NONE,
-                     hcd_pipe_control_xfer(dev_addr, &request_get_dev_desc, xfer_data) );
+  TEST_ASSERT_STATUS( hcd_pipe_control_xfer(dev_addr, &request_get_dev_desc, xfer_data) );
 
   usbh_isr_Expect(((pipe_handle_t){.dev_addr = dev_addr}), 0, TUSB_EVENT_XFER_COMPLETE);
 
@@ -249,8 +243,7 @@ void test_control_xfer_complete_isr(void)
 
 void test_control_xfer_error_isr(void)
 {
-  TEST_ASSERT_EQUAL( TUSB_ERROR_NONE,
-                     hcd_pipe_control_xfer(dev_addr, &request_get_dev_desc, xfer_data) );
+  TEST_ASSERT_STATUS( hcd_pipe_control_xfer(dev_addr, &request_get_dev_desc, xfer_data) );
 
   usbh_isr_Expect(((pipe_handle_t){.dev_addr = dev_addr}), 0, TUSB_EVENT_XFER_ERROR);
 

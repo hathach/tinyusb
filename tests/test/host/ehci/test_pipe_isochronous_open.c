@@ -40,6 +40,7 @@
 #include "tusb_option.h"
 #include "errors.h"
 #include "binary.h"
+#include "type_helper.h"
 
 #include "hal.h"
 #include "mock_osal.h"

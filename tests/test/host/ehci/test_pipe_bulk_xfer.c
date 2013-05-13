@@ -41,6 +41,7 @@
 #include "tusb_option.h"
 #include "errors.h"
 #include "binary.h"
+#include "type_helper.h"
 
 #include "hal.h"
 #include "mock_osal.h"
@@ -92,8 +93,7 @@ void setUp(void)
   memclr_(xfer_data, sizeof(xfer_data));
   memclr_(usbh_devices, sizeof(usbh_device_info_t)*(TUSB_CFG_HOST_DEVICE_MAX+1));
 
-  TEST_ASSERT_EQUAL( TUSB_ERROR_NONE,
-                     hcd_init() );
+  TEST_ASSERT_STATUS( hcd_init() );
 
   dev_addr = 1;
   hostid = RANDOM(CONTROLLER_HOST_NUMBER) + TEST_CONTROLLER_HOST_START_INDEX;
@@ -151,8 +151,7 @@ void test_bulk_xfer_hs_ping_out(void)
   ehci_qhd_t *p_qhd = qhd_get_from_pipe_handle(pipe_hdl);
 
   //------------- Code Under Test -------------//
-  TEST_ASSERT_EQUAL( TUSB_ERROR_NONE,
-                     hcd_pipe_xfer(pipe_hdl, xfer_data, sizeof(xfer_data), true) );
+  TEST_ASSERT_STATUS( hcd_pipe_xfer(pipe_hdl, xfer_data, sizeof(xfer_data), true) );
 
   ehci_qtd_t* p_qtd = p_qhd->p_qtd_list_head;
   TEST_ASSERT(p_qtd->pingstate_err);
@@ -161,8 +160,7 @@ void test_bulk_xfer_hs_ping_out(void)
 void test_bulk_xfer(void)
 {
   //------------- Code Under Test -------------//
-  TEST_ASSERT_EQUAL( TUSB_ERROR_NONE,
-                     hcd_pipe_xfer(pipe_hdl_bulk, xfer_data, sizeof(xfer_data), true) );
+  TEST_ASSERT_STATUS( hcd_pipe_xfer(pipe_hdl_bulk, xfer_data, sizeof(xfer_data), true) );
 
   ehci_qtd_t* p_qtd = p_qhd_bulk->p_qtd_list_head;
   TEST_ASSERT_NOT_NULL(p_qtd);
@@ -177,11 +175,9 @@ void test_bulk_xfer(void)
 void test_bulk_xfer_double(void)
 {
   //------------- Code Under Test -------------//
-  TEST_ASSERT_EQUAL( TUSB_ERROR_NONE,
-                     hcd_pipe_xfer(pipe_hdl_bulk, xfer_data, sizeof(xfer_data), false) );
+  TEST_ASSERT_STATUS( hcd_pipe_xfer(pipe_hdl_bulk, xfer_data, sizeof(xfer_data), false) );
 
-  TEST_ASSERT_EQUAL( TUSB_ERROR_NONE,
-                     hcd_pipe_xfer(pipe_hdl_bulk, data2, sizeof(data2), true) );
+  TEST_ASSERT_STATUS( hcd_pipe_xfer(pipe_hdl_bulk, data2, sizeof(data2), true) );
 
   ehci_qtd_t* p_head = p_qhd_bulk->p_qtd_list_head;
   ehci_qtd_t* p_tail = p_qhd_bulk->p_qtd_list_tail;
@@ -205,11 +201,9 @@ void test_bulk_xfer_double(void)
 
 void test_bulk_xfer_complete_isr(void)
 {
-  TEST_ASSERT_EQUAL( TUSB_ERROR_NONE,
-                     hcd_pipe_xfer(pipe_hdl_bulk, xfer_data, sizeof(xfer_data), false) );
+  TEST_ASSERT_STATUS( hcd_pipe_xfer(pipe_hdl_bulk, xfer_data, sizeof(xfer_data), false) );
 
-  TEST_ASSERT_EQUAL( TUSB_ERROR_NONE,
-                     hcd_pipe_xfer(pipe_hdl_bulk, data2, sizeof(data2), true) );
+  TEST_ASSERT_STATUS( hcd_pipe_xfer(pipe_hdl_bulk, data2, sizeof(data2), true) );
 
   ehci_qtd_t* p_head = p_qhd_bulk->p_qtd_list_head;
   ehci_qtd_t* p_tail = p_qhd_bulk->p_qtd_list_tail;

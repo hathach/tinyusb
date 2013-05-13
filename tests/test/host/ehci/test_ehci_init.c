@@ -61,7 +61,7 @@ static uint8_t hostid;
 void setUp(void)
 {
   ehci_controller_init();
-  TEST_ASSERT_EQUAL( TUSB_ERROR_NONE, hcd_init());
+  TEST_ASSERT_STATUS( hcd_init() );
 
   hostid = RANDOM(CONTROLLER_HOST_NUMBER) + TEST_CONTROLLER_HOST_START_INDEX;
 }
