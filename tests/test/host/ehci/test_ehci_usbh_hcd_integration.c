@@ -75,7 +75,9 @@ void setUp(void)
   ehci_controller_init();
 
   helper_usbh_init_expect();
+  helper_class_init_expect();
   usbh_init();
+
   helper_usbh_device_emulate(dev_addr, hub_addr, hub_port, hostid, TUSB_SPEED_HIGH);
 
   regs            = get_operational_register(hostid);

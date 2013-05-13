@@ -49,6 +49,7 @@
 
 #include "mock_tusb_callback.h"
 #include "mock_hid_host.h"
+#include "host_helper.h"
 
 uint8_t dev_addr;
 void setUp(void)
@@ -103,22 +104,12 @@ void test_usbh_init_enum_queue_create_failed(void)
   TEST_ASSERT_EQUAL(TUSB_ERROR_OSAL_QUEUE_FAILED, usbh_init());
 }
 
-void class_init_expect(void)
-{
-  hidh_init_Expect();
-
-  //TODO update more classes
-}
-
 void test_usbh_init_ok(void)
 {
   hcd_init_ExpectAndReturn(TUSB_ERROR_NONE);
 
-  osal_semaphore_create_IgnoreAndReturn( (osal_semaphore_handle_t) 0x1234);
-  osal_task_create_IgnoreAndReturn(TUSB_ERROR_NONE);
-  osal_queue_create_IgnoreAndReturn( (osal_queue_handle_t) 0x4566 );
-
-  class_init_expect();
+  helper_usbh_init_expect();
+  helper_class_init_expect();
 
   //------------- code under test -------------//
   TEST_ASSERT_EQUAL(TUSB_ERROR_NONE, usbh_init());
@@ -127,11 +118,6 @@ void test_usbh_init_ok(void)
   {
     TEST_ASSERT_NOT_NULL(usbh_devices[i].control.sem_hdl);
   }
-}
-
-void class_close_expect(void)
-{
-  hidh_close_Expect(1);
 }
 
 // device is not mounted before, even the control pipe is not open, do nothing
@@ -157,7 +143,7 @@ void test_usbh_device_unplugged_isr(void)
   usbh_devices[dev_addr].hub_port             = 0;
   usbh_devices[dev_addr].flag_supported_class = TUSB_CLASS_FLAG_HID;
 
-  class_close_expect();
+  helper_class_close_expect(dev_addr);
   hcd_pipe_control_close_ExpectAndReturn(dev_addr, TUSB_ERROR_NONE);
 
   //------------- Code Under Test -------------//

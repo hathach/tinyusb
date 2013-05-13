@@ -39,18 +39,25 @@
 #include "host/usbh.h"
 #include "host/usbh_hcd.h"
 
-static inline void class_init_expect(void)
+static inline void helper_class_init_expect(void)
 {
   hidh_init_Expect();
   //TODO update more classes
 }
+
+static inline void helper_class_close_expect(uint8_t dev_addr)
+{
+  hidh_close_Expect(dev_addr);
+  //TODO update more classes
+}
+
+
 
 static inline void helper_usbh_init_expect(void)
 {
   osal_semaphore_create_IgnoreAndReturn( (osal_semaphore_handle_t) 0x1234);
   osal_task_create_IgnoreAndReturn(TUSB_ERROR_NONE);
   osal_queue_create_IgnoreAndReturn( (osal_queue_handle_t) 0x4566 );
-  class_init_expect();
 }
 
 static inline void helper_usbh_device_emulate(uint8_t dev_addr, uint8_t hub_addr, uint8_t hub_port, uint8_t hostid, tusb_speed_t speed)
