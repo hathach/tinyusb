@@ -170,6 +170,17 @@ tusb_interface_status_t tusbh_hid_mouse_status(uint8_t dev_addr, uint8_t instanc
 #endif
 
 //--------------------------------------------------------------------+
+// GENERIC
+//--------------------------------------------------------------------+
+#if TUSB_CFG_HOST_HID_GENERIC
+
+//STATIC_ struct {
+//  hidh_interface_info_t
+//} generic_data[TUSB_CFG_HOST_DEVICE_MAX];
+
+#endif
+
+//--------------------------------------------------------------------+
 // CLASS-USBD API (don't require to verify parameters)
 //--------------------------------------------------------------------+
 void hidh_init(void)

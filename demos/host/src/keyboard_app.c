@@ -40,6 +40,7 @@
 // INCLUDE
 //--------------------------------------------------------------------+
 #include "keyboard_app.h"
+#include "app_os_prio.h"
 
 #if TUSB_CFG_HOST_HID_KEYBOARD
 

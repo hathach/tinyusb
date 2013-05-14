@@ -78,9 +78,10 @@ void tusbh_hid_mouse_isr(uint8_t dev_addr, uint8_t instance_num, tusb_event_t ev
 // GENERIC Application API
 //--------------------------------------------------------------------+
 bool          tusbh_hid_generic_is_mounted(uint8_t dev_addr) ATTR_PURE ATTR_WARN_UNUSED_RESULT;
-tusb_error_t  tusbh_hid_generic_get_report(uint8_t dev_addr, uint8_t instance_num, void* report) ATTR_WARN_UNUSED_RESULT;
-tusb_error_t  tusbh_hid_generic_set_report(uint8_t dev_addr, uint8_t instance_num, void* report) ATTR_WARN_UNUSED_RESULT;
-tusb_interface_status_t tusbh_hid_generic_status(uint8_t dev_addr, uint8_t instance_num) ATTR_WARN_UNUSED_RESULT;
+tusb_error_t  tusbh_hid_generic_get_report(uint8_t dev_addr, uint8_t instance_num, void* report, bool int_on_complete) ATTR_WARN_UNUSED_RESULT;
+tusb_error_t  tusbh_hid_generic_set_report(uint8_t dev_addr, uint8_t instance_num, void* report, bool int_on_complete) ATTR_WARN_UNUSED_RESULT;
+tusb_interface_status_t tusbh_hid_generic_get_status(uint8_t dev_addr, uint8_t instance_num) ATTR_WARN_UNUSED_RESULT;
+tusb_interface_status_t tusbh_hid_generic_set_status(uint8_t dev_addr, uint8_t instance_num) ATTR_WARN_UNUSED_RESULT;
 //------------- Application Callback -------------//
 void tusbh_hid_generic_isr(uint8_t dev_addr, uint8_t instance_num, tusb_event_t event) ATTR_WEAK;
 

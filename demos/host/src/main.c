@@ -46,6 +46,8 @@
 #include "boards/board.h"
 #include "tusb.h"
 
+#include "app_os_prio.h"
+
 #include "mouse_app.h"
 #include "keyboard_app.h"
 
