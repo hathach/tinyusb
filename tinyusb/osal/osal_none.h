@@ -216,7 +216,7 @@ typedef osal_queue_t * osal_queue_handle_t;
 
 // use to declare a queue, within the scope of tinyusb, should only use primitive type only
 #define OSAL_QUEUE_DEF(name, queue_depth, type)\
-  uint32_t name##_buffer[queue_depth];\
+  type name##_buffer[queue_depth];\
   osal_queue_t name = {\
       .buffer    = name##_buffer,\
       .depth     = queue_depth,\
@@ -230,6 +230,7 @@ static inline osal_queue_handle_t osal_queue_create(osal_queue_t * const p_queue
   return (osal_queue_handle_t) p_queue;
 }
 
+// TODO move to osal_none.c
 // when queue is full, it will overwrite the oldest data in the queue
 static inline tusb_error_t osal_queue_send(osal_queue_handle_t const queue_hdl, void const * data) ATTR_ALWAYS_INLINE;
 static inline tusb_error_t osal_queue_send(osal_queue_handle_t const queue_hdl, void const * data)

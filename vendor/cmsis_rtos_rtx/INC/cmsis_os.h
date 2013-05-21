@@ -147,7 +147,7 @@ used throughout the whole project.
 #define osFeature_MessageQ     1       ///< Message Queues:  1=available, 0=not available
 #define osFeature_Signals      16      ///< maximum number of Signal Flags available per thread
 #define osFeature_Semaphore    65535   ///< maximum count for \ref osSemaphoreCreate function
-#define osFeature_Wait         0       ///< osWait function: 1=available, 0=not available
+#define osFeature_Wait         1       ///< osWait function: 1=available, 0=not available
 #define osFeature_SysTick      1       ///< osKernelSysTick functions: 1=available, 0=not available
 
 #if defined (__CC_ARM)
