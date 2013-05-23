@@ -101,16 +101,8 @@ uint8_t      tusbh_device_attached_cb (tusb_descriptor_device_t const *p_desc_de
 void         tusbh_device_mount_succeed_cb (uint8_t dev_addr) ATTR_WEAK;
 void         tusbh_device_mount_failed_cb(tusb_error_t error, tusb_descriptor_device_t const *p_desc_device) ATTR_WEAK; // TODO refractor remove desc_device
 
-#if TUSB_CFG_OS == TUSB_OS_NONE // TODO move later
-//static inline void tusb_tick_tock(void) ATTR_ALWAYS_INLINE;
-//static inline void tusb_tick_tock(void)
-//{
-//  osal_tick_tock();
-//}
-#endif
-
 //--------------------------------------------------------------------+
-// CLASS-USBD & INTERNAL API
+// CLASS-USBH & INTERNAL API
 //--------------------------------------------------------------------+
 #ifdef _TINY_USB_SOURCE_FILE_
 

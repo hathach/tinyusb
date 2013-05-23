@@ -56,22 +56,49 @@
  extern "C" {
 #endif
 
-#define TUSB_CFG_CONFIGURATION_MAX 1
+//--------------------------------------------------------------------+
+// CONTROLLER CONFIGURATION
+//--------------------------------------------------------------------+
+#define TUSB_CFG_CONTROLLER0_MODE  (TUSB_MODE_DEVICE)
+#define TUSB_CFG_CONTROLLER1_MODE  (TUSB_MODE_NONE)
 
-/// Enable Device Support
-#define TUSB_CFG_DEVICE
+//--------------------------------------------------------------------+
+// HOST CONFIGURATION
+//--------------------------------------------------------------------+
+#define TUSB_CFG_HOST_DEVICE_MAX     2
+#define TUSB_CFG_CONFIGURATION_MAX   1
 
-/// Enable CDC Support
+//------------- USBD -------------//
+#define TUSB_CFG_HOST_ENUM_BUFFER_SIZE 256
+
+//------------- CLASS -------------//
+#define TUSB_CFG_HOST_HUB           0
+#define TUSB_CFG_HOST_HID_KEYBOARD  1
+#define TUSB_CFG_HOST_HID_MOUSE     1
+#define TUSB_CFG_HOST_HID_GENERIC   0
+#define TUSB_CFG_HOST_MSC           0
+
+//--------------------------------------------------------------------+
+// DEVICE CONFIGURATION
+//--------------------------------------------------------------------+
+
+//------------- CORE/CONTROLLER -------------//
+
+//------------- CLASS -------------//
+#define TUSB_CFG_DEVICE_HID_KEYBOARD  1
+#define TUSB_CFG_DEVICE_HID_MOUSE     0
+#define TUSB_CFG_DEVICE_MSC           0
 //#define TUSB_CFG_DEVICE_CDC
 
-/// Enable HID Keyboard support
-#define TUSB_CFG_DEVICE_HID_KEYBOARD
+//--------------------------------------------------------------------+
+// COMMON CONFIGURATION
+//--------------------------------------------------------------------+
 
-/// Enable HID Mouse support
-//#define TUSB_CFG_DEVICE_HID_MOUSE
+#define TUSB_CFG_DEBUG                3
 
-#define TUSB_CFG_DEBUG 3
-#define TUSB_CFG_OS TUSB_OS_NONE
+#define TUSB_CFG_OS                   TUSB_OS_NONE // defined using eclipse build
+//#define TUSB_CFG_OS_TASK_PRIO
+#define TUSB_CFG_OS_TICKS_PER_SECOND  1000
 
 #ifdef __CODE_RED // make use of code red's support for ram region macros
   #if (MCU == MCU_LPC11UXX) || (MCU == MCU_LPC13UXX)
@@ -81,6 +108,10 @@
   #endif
 
   #define TUSB_CFG_ATTR_USBRAM   __attribute__ ((section(TUSB_RAM_SECTION)))
+#elif defined  __CC_ARM // Compiled with Keil armcc
+  #define TUSB_CFG_ATTR_USBRAM
+#else
+  #error compiler not specified
 #endif
 
 

@@ -1,6 +1,6 @@
 /**************************************************************************/
 /*!
-    @file     board.h
+    @file     usbd.c
     @author   hathach (tinyusb.org)
 
     @section LICENSE
@@ -26,100 +26,41 @@
     WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
     DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER BE LIABLE FOR ANY
     DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
-    INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
-    LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION HOWEVER CAUSED AND
+    (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
+    LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND
     ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
-    INCLUDING NEGLIGENCE OR OTHERWISE ARISING IN ANY WAY OUT OF THE USE OF THIS
+    (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
     SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
     This file is part of the tinyusb stack.
 */
 /**************************************************************************/
 
-/** \file
- *  \brief TBD
- *
- *  \note TBD
- */
+#include "tusb_option.h"
 
-/**
- *  \defgroup Group_Board Boards
- *  \brief TBD
- *
- *  @{
- */
+#if MODE_DEVICE_SUPPORTED
 
-#ifndef _TUSB_BOARD_H_
-#define _TUSB_BOARD_H_
+#define _TINY_USB_SOURCE_FILE_
 
-#ifdef __cplusplus
- extern "C" {
-#endif
-
-#include <stdint.h>
+//--------------------------------------------------------------------+
+// INCLUDE
+//--------------------------------------------------------------------+
 #include "tusb.h"
 
 //--------------------------------------------------------------------+
-// BOARD DEFINE
+// MACRO CONSTANT TYPEDEF
 //--------------------------------------------------------------------+
-#define BOARD_AT86RF2XX             1
-#define BOARD_LPCXPRESSO1347        2
-
-#define BOARD_NGX4330               3
-#define BOARD_EA4357                4
-#define BOARD_MCB4300               5
 
 //--------------------------------------------------------------------+
-// PRINTF TARGET DEFINE
+// INTERNAL OBJECT & FUNCTION DECLARATION
 //--------------------------------------------------------------------+
-#define PRINTF_TARGET_DEBUG_CONSOLE 1 // IDE semihosting console
-#define PRINTF_TARGET_UART          2
-#define PRINTF_TARGET_SWO           3 // aka SWV, ITM
-#define PRINTF_TARGET_NONE          4
 
-#define PRINTF(...) printf(__VA_ARGS__)
+//--------------------------------------------------------------------+
+// IMPLEMENTATION
+//--------------------------------------------------------------------+
+tusb_error_t usbd_init (void)
+{
+  return TUSB_ERROR_NONE;
+}
 
-#if BOARD == 0
-  #error BOARD is not defined or supported yet
-#elif BOARD == BOARD_NGX4330
-  #include "ngx/board_ngx4330.h"
-#elif BOARD == BOARD_LPCXPRESSO1347
-  #include "lpcxpresso/board_lpcxpresso1347.h"
-#elif BOARD == BOARD_AT86RF2XX
-  #include "board_at86rf2xx.h"
-#elif BOARD == BOARD_EA4357
-  #include "embedded_artists/board_ea4357.h"
-#elif BOARD == BOARD_MCB4300
-  #include "keil/board_mcb4300.h"
-#else
-  #error BOARD is not defined or supported yet
 #endif
-
-//--------------------------------------------------------------------+
-// Common Configuration
-//--------------------------------------------------------------------+
-#define CFG_TICKS_PER_SECOND 1000
-
-#if CFG_PRINTF_TARGET == PRINTF_TARGET_UART
-  #define CFG_UART_ENABLE      1
-  #define CFG_UART_BAUDRATE    115200
-#endif
-
-//--------------------------------------------------------------------+
-// Board Common API
-//--------------------------------------------------------------------+
-// Init board peripherals : Clock, UART, LEDs, Buttons
-void board_init(void);
-void board_leds(uint32_t on_mask, uint32_t off_mask);
-uint32_t board_uart_send(uint8_t *buffer, uint32_t length);
-uint32_t board_uart_recv(uint8_t *buffer, uint32_t length);
-
-extern volatile uint32_t system_ticks;
-
-#ifdef __cplusplus
- }
-#endif
-
-#endif /* _TUSB_BOARD_H_ */
-
-/** @} */

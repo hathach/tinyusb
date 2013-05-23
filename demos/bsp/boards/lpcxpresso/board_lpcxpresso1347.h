@@ -1,6 +1,6 @@
 /**************************************************************************/
 /*!
-    @file     board_lpcexpresso1347.c
+    @file     board_lpcxpresso1347.h
     @author   hathach (tinyusb.org)
 
     @section LICENSE
@@ -36,56 +36,41 @@
 */
 /**************************************************************************/
 
-#include "board.h"
+/** \file
+ *  \brief TBD
+ *
+ *  \note TBD
+ */
 
-#if BOARD == BOARD_LPCXPRESSO1347
+/** \ingroup TBD
+ *  \defgroup TBD
+ *  \brief TBD
+ *
+ *  @{
+ */
 
-void board_init(void)
-{
-  SystemInit();
-  SysTick_Config(SystemCoreClock / CFG_TICKS_PER_SECOND); // 1 msec tick timer
-  GPIOInit();
+#ifndef _TUSB_BOARD_LPCXPRESSO1347_H_
+#define _TUSB_BOARD_LPCXPRESSO1347_H_
 
-  // Leds Init
-  GPIOSetDir(CFG_LED_PORT, CFG_LED_PIN, 1);
-  LPC_GPIO->CLR[CFG_LED_PORT] = (1 << CFG_LED_PIN);
-
-#if CFG_UART_ENABLE
-  UARTInit(CFG_UART_BAUDRATE);
+#ifdef __cplusplus
+ extern "C" {
 #endif
 
-#if CFG_PRINTF_TARGET == PRINTF_TARGET_SWO
-  LPC_IOCON->PIO0_9 &= ~0x07;    /*  UART I/O config */
-  LPC_IOCON->PIO0_9 |= 0x03;     /* UART RXD */
-#endif
-}
+#include "LPC13Uxx.h"
+#include "lpc13uxx/LPC13Uxx_DriverLib/inc/gpio.h"
+#include "lpc13uxx/LPC13Uxx_DriverLib/inc/uart.h"
 
-//--------------------------------------------------------------------+
-// LEDS
-//--------------------------------------------------------------------+
-void board_leds(uint32_t mask, uint32_t state)
-{
-  if (mask)
-  {
-    GPIOSetBitValue(CFG_LED_PORT, CFG_LED_PIN, mask & state ? CFG_LED_ON : CFG_LED_OFF);
-  }
-}
+#define CFG_LED_PORT                  (0)
+#define CFG_LED_PIN                   (7)
+#define CFG_LED_ON                    (1)
+#define CFG_LED_OFF                   (0)
 
-//--------------------------------------------------------------------+
-// UART
-//--------------------------------------------------------------------+
-#if CFG_UART_ENABLE
-uint32_t board_uart_send(uint8_t *buffer, uint32_t length)
-{
-  UARTSend(buffer, length);
-  return length;
-}
+#define CFG_PRINTF_TARGET PRINTF_TARGET_UART
 
-uint32_t board_uart_recv(uint8_t *buffer, uint32_t length)
-{
-  *buffer = get_key();
-  return 1;
-}
+#ifdef __cplusplus
+ }
 #endif
 
-#endif
+#endif /* _TUSB_BOARD_LPCXPRESSO1347_H_ */
+
+/** @} */

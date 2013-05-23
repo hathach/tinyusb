@@ -115,13 +115,13 @@ typedef ATTR_PREPACKED struct ATTR_PACKED _USB_STR_DESCRIPTOR
 ///////////////////////////////////////////////////////////////////////
 typedef struct
 {
-  tusb_descriptor_configuration_t                Config;
+  tusb_descriptor_configuration_t                configuration;
 
 #if IAD_DESC_REQUIRED
   tusb_descriptor_interface_association_t        CDC_IAD;
 #endif
 
-#ifdef TUSB_CFG_DEVICE_CDC
+#if TUSB_CFG_DEVICE_CDC
   //CDC - Serial
   //CDC Control Interface
   tusb_descriptor_interface_t                    CDC_CCI_Interface;
@@ -136,28 +136,28 @@ typedef struct
   tusb_descriptor_endpoint_t                     CDC_DataInEndpoint;
 #endif
 
-#ifdef TUSB_CFG_DEVICE_HID_KEYBOARD
-  //Keyboard HID Interface
-  tusb_descriptor_interface_t                    HID_KeyboardInterface;
-  HID_DESCRIPTOR                              HID_KeyboardHID;
-  tusb_descriptor_endpoint_t                     HID_KeyboardEndpoint;
+  //------------- HID Keyboard -------------//
+#if TUSB_CFG_DEVICE_HID_KEYBOARD
+  tusb_descriptor_interface_t                    keyboard_interface;
+  tusb_hid_descriptor_hid_t                      keyboard_hid;
+  tusb_descriptor_endpoint_t                     keyboard_endpoint;
 #endif
 
-#ifdef TUSB_CFG_DEVICE_HID_MOUSE
-  //Mouse HID Interface
-  tusb_descriptor_interface_t                    HID_MouseInterface;
-  HID_DESCRIPTOR                              HID_MouseHID;
-  tusb_descriptor_endpoint_t                     HID_MouseEndpoint;
+//------------- HID Mouse -------------//
+#if TUSB_CFG_DEVICE_HID_MOUSE
+  tusb_descriptor_interface_t                    mouse_interface;
+  tusb_hid_descriptor_hid_t                      mouse_hid;
+  tusb_descriptor_endpoint_t                     mouse_endpoint;
 #endif
 
-  unsigned char                               ConfigDescTermination;
-} USB_FS_CONFIGURATION_DESCRIPTOR;
+  uint8_t                                        null_termination;
+} app_configuration_desc_t;
 
-extern const USB_DEVICE_DESCRIPTOR USB_DeviceDescriptor;
-extern const USB_FS_CONFIGURATION_DESCRIPTOR USB_FsConfigDescriptor;
+extern const tusb_descriptor_device_t desc_device;
+extern const app_configuration_desc_t desc_configuration;
 extern const USB_STR_DESCRIPTOR USB_StringDescriptor;
 
-extern const uint8_t HID_KeyboardReportDescriptor[];
+extern const uint8_t keyboard_report_descriptor[];
 extern const uint8_t HID_MouseReportDescriptor[];
 
 #endif

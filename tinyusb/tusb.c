@@ -47,8 +47,8 @@ tusb_error_t tusb_init(void)
   ASSERT_STATUS( usbh_init() ); // host stack init
 #endif
 
-#ifdef TUSB_CFG_DEVICE
-  ASSERT_STATUS( dcd_init(0) ); // device stack init
+#if MODE_DEVICE_SUPPORTED
+  ASSERT_STATUS ( usbd_init() ); // device stack init
 #endif
 
   return TUSB_ERROR_NONE;
@@ -61,7 +61,7 @@ void tusb_isr(uint8_t controller_id)
   hcd_isr(controller_id);
 #endif
 
-#ifdef TUSB_CFG_DEVICE
+#if MODE_DEVICE_SUPPORTED
   dcd_isr(controller_id);
 #endif
 

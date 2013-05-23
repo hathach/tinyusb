@@ -87,8 +87,8 @@
 
 //------------- CLASS -------------//
 //#define TUSB_CFG_DEVICE_CDC
-#define TUSB_CFG_DEVICE_HID_KEYBOARD
-//#define TUSB_CFG_DEVICE_HID_MOUSE
+//#define TUSB_CFG_DEVICE_HID_KEYBOARD  1
+//#define TUSB_CFG_DEVICE_HID_MOUSE     1
 
 //--------------------------------------------------------------------+
 // COMMON CONFIGURATION

@@ -48,10 +48,14 @@
  extern "C" {
 #endif
 
+//--------------------------------------------------------------------+
+// INCLUDE
+//--------------------------------------------------------------------+
 #include "common/common.h"
 #include "hal/hal.h"
 #include "osal/osal.h"
 
+//------------- HOST -------------//
 #if MODE_HOST_SUPPORTED
   #include "host/usbh.h"
 
@@ -66,25 +70,36 @@
 
 #endif
 
+//------------- DEVICE -------------//
 #if MODE_DEVICE_SUPPORTED
-  #include "device/dcd.h"
+  #include "device/usbd.h"
 
   #if DEVICE_CLASS_HID
     #include "class/hid_device.h"
   #endif
 
-  #ifdef TUSB_CFG_DEVICE_CDC
+  #if TUSB_CFG_DEVICE_CDC
     #include "class/cdc.h"
   #endif
 #endif
 
 
-
-
+//--------------------------------------------------------------------+
+// APPLICATION API
+//--------------------------------------------------------------------+
 tusb_error_t tusb_init(void);
 
+// TODO merge with tick_tock
 #if TUSB_CFG_OS == TUSB_OS_NONE
 void tusb_task_runner(void);
+#endif
+
+#if TUSB_CFG_OS == TUSB_OS_NONE && !defined(_TEST_)
+static inline void tusb_tick_tock(void) ATTR_ALWAYS_INLINE;
+static inline void tusb_tick_tock(void)
+{
+  osal_tick_tock();
+}
 #endif
 
 #ifdef __cplusplus

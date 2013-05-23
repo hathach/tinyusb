@@ -40,29 +40,6 @@
 #include "descriptor_test.h"
 
 TUSB_CFG_ATTR_USBRAM ATTR_ALIGNED(4)
-tusb_descriptor_device_t const desc_device =
-{
-    .bLength            = sizeof(tusb_descriptor_device_t),
-    .bDescriptorType    = TUSB_DESC_DEVICE,
-    .bcdUSB             = 0x0200,
-    .bDeviceClass       = 0x00,
-    .bDeviceSubClass    = 0x00,
-    .bDeviceProtocol    = 0x00,
-
-    .bMaxPacketSize0    = 64,
-
-    .idVendor           = 0x1FC9,
-    .idProduct          = 0x4000,
-    .bcdDevice          = 0x0100,
-
-    .iManufacturer      = 0x01,
-    .iProduct           = 0x02,
-    .iSerialNumber      = 0x03,
-
-    .bNumConfigurations = 0x02
-} ;
-
-TUSB_CFG_ATTR_USBRAM ATTR_ALIGNED(4)
 const uint8_t keyboard_report_descriptor[] = {
   HID_USAGE_PAGE ( HID_USAGE_PAGE_DESKTOP     ),
   HID_USAGE      ( HID_USAGE_DESKTOP_KEYBOARD ),
@@ -139,6 +116,31 @@ const uint8_t mouse_report_descriptor[] = {
 
   HID_COLLECTION_END
 };
+
+
+TUSB_CFG_ATTR_USBRAM ATTR_ALIGNED(4)
+tusb_descriptor_device_t const desc_device =
+{
+    .bLength            = sizeof(tusb_descriptor_device_t),
+    .bDescriptorType    = TUSB_DESC_DEVICE,
+    .bcdUSB             = 0x0200,
+    .bDeviceClass       = 0x00,
+    .bDeviceSubClass    = 0x00,
+    .bDeviceProtocol    = 0x00,
+
+    .bMaxPacketSize0    = 64,
+
+    .idVendor           = 0x1FC9,
+    .idProduct          = 0x4000,
+    .bcdDevice          = 0x0100,
+
+    .iManufacturer      = 0x01,
+    .iProduct           = 0x02,
+    .iSerialNumber      = 0x03,
+
+    .bNumConfigurations = 0x02
+} ;
+
 
 TUSB_CFG_ATTR_USBRAM ATTR_ALIGNED(4)
 const app_configuration_desc_t desc_configuration =

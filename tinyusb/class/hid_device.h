@@ -52,6 +52,7 @@
 #ifndef _TUSB_HID_DEVICE_H_
 #define _TUSB_HID_DEVICE_H_
 
+#include "common/common.h"
 #include "hid.h"
 
 #ifdef __cplusplus

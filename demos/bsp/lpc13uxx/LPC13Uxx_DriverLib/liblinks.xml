@@ -1,0 +1,32 @@
+<!-- liblinks.xml
+
+     Code Red Technologies "Smart update wizard" script file
+     When executed on a particular application project, will
+     add appropriate links to the specified library project.
+
+     Note that this script assumes that the application project
+     contains the standard 'Debug' and 'Release' build 
+     configurations.
+-->
+
+<project name="" update="true">
+	<setting id="all.compiler.inc">
+		<value>${workspace_loc:/LPC13Uxx_DriverLib/inc}</value>
+        </setting>
+	<setting id="all.compiler.def">
+		<value>__USE_LPC13Uxx_DriverLib</value>
+	</setting>
+	<setting id="linker.libs">
+		<value>LPC13Uxx_DriverLib</value>
+	</setting>
+	<setting id="linker.paths" buildType="Debug">
+		<value>${workspace_loc:/LPC13Uxx_DriverLib/Debug}</value>
+	</setting>
+	<setting id="linker.paths" buildType="Release">
+		<value>${workspace_loc:/LPC13Uxx_DriverLib/Release}</value>
+	</setting>
+	<requires msg="Library project `LPC13Uxx_DriverLib` not found">
+		<value>LPC13Uxx_DriverLib</value>
+	</requires>
+</project>
+

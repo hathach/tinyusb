@@ -48,14 +48,6 @@
 #include "tusb.h"
 #include "usbh_hcd.h"
 
-//TODO temporarily
-#if TUSB_CFG_OS == TUSB_OS_NONE && !defined(_TEST_)
-void tusb_tick_tock(void)
-{
-  osal_tick_tock();
-}
-#endif
-
 //--------------------------------------------------------------------+
 // MACRO CONSTANT TYPEDEF
 //--------------------------------------------------------------------+
@@ -300,7 +292,7 @@ tusb_error_t enumeration_body_subtask(void)
 
 #ifndef _TEST_
   // TODO hack delay 20 ms for slow device (use retry on the 1st xfer instead later)
-  osal_task_delay(20);
+  osal_task_delay(50);
 #endif
 
   //------------- Get first 8 bytes of device descriptor to get Control Endpoint Size -------------//
@@ -484,7 +476,7 @@ tusb_error_t enumeration_body_subtask(void)
 
 
 
-#endif
+
 
 //--------------------------------------------------------------------+
 // INTERNAL HELPER
@@ -512,3 +504,5 @@ static inline uint8_t get_configure_number_for_device(tusb_descriptor_device_t* 
 
   return config_num;
 }
+
+#endif

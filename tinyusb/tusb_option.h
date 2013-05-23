@@ -156,7 +156,7 @@
 //--------------------------------------------------------------------+
 // DEVICE OPTIONS
 //--------------------------------------------------------------------+
-//#define TUSB_CFG_DEVICE
+//#if MODE_DEVICE_SUPPORTED
 
 #define DEVICE_CLASS_HID ( (defined TUSB_CFG_DEVICE_HID_KEYBOARD) || (defined TUSB_CFG_DEVICE_HID_MOUSE) )
 
@@ -183,7 +183,7 @@
 #define  CDC_NOTIFICATION_EP_MAXPACKETSIZE  8
 #define  CDC_DATA_EP_MAXPACKET_SIZE         16
 
-
+//#endif
 
 #ifdef __cplusplus
  }

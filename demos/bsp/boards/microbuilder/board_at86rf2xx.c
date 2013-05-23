@@ -1,6 +1,6 @@
 /**************************************************************************/
 /*!
-    @file     board_lpcxpresso1347.h
+    @file     board_at86rf2xx.c
     @author   hathach (tinyusb.org)
 
     @section LICENSE
@@ -36,41 +36,48 @@
 */
 /**************************************************************************/
 
-/** \file
- *  \brief TBD
- *
- *  \note TBD
- */
+#include "../board.h"
 
-/** \ingroup TBD
- *  \defgroup TBD
- *  \brief TBD
- *
- *  @{
- */
+#if BOARD == BOARD_AT86RF2XX
 
-#ifndef _TUSB_BOARD_LPCXPRESSO1347_H_
-#define _TUSB_BOARD_LPCXPRESSO1347_H_
+void board_init(void)
+{
+  SystemInit();
+  SysTick_Config(SystemCoreClock / CFG_TICKS_PER_SECOND); // 1 msec tick timer
+  GPIOInit();
 
-#ifdef __cplusplus
- extern "C" {
+  GPIOSetDir(CFG_LED_PORT, CFG_LED_PIN, 1);
+  board_leds(0x01, 0); // turn off the led first
+
+#if CFG_UART_ENABLE
+  UARTInit(CFG_UART_BAUDRATE);
+#endif
+}
+
+//--------------------------------------------------------------------+
+// LEDS
+//--------------------------------------------------------------------+
+void board_leds(uint32_t mask, uint32_t state)
+{
+  if (mask)
+    GPIOSetBitValue(CFG_LED_PORT, CFG_LED_PIN, mask & state ? CFG_LED_ON : CFG_LED_OFF);
+}
+
+//--------------------------------------------------------------------+
+// UART
+//--------------------------------------------------------------------+
+#if CFG_UART_ENABLE
+uint32_t board_uart_send(uint8_t *buffer, uint32_t length)
+{
+  UARTSend(buffer, length);
+  return length;
+}
+
+uint32_t board_uart_recv(uint8_t *buffer, uint32_t length)
+{
+//  *buffer = get_key(); TODO cannot find available code for uart getchar
+  return 0;
+}
 #endif
 
-#include "LPC13Uxx.h"
-#include "lpc13uxx/gpio.h"
-#include "lpc13uxx/uart.h"
-
-#define CFG_LED_PORT                  (0)
-#define CFG_LED_PIN                   (7)
-#define CFG_LED_ON                    (1)
-#define CFG_LED_OFF                   (0)
-
-#define CFG_PRINTF_TARGET PRINTF_TARGET_UART
-
-#ifdef __cplusplus
- }
 #endif
-
-#endif /* _TUSB_BOARD_LPCXPRESSO1347_H_ */
-
-/** @} */
