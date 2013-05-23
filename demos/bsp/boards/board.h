@@ -68,6 +68,7 @@
 #define BOARD_NGX4330               3
 #define BOARD_EA4357                4
 #define BOARD_MCB4300               5
+#define BOARD_HITEX4350             6
 
 //--------------------------------------------------------------------+
 // PRINTF TARGET DEFINE
@@ -91,6 +92,8 @@
   #include "embedded_artists/board_ea4357.h"
 #elif BOARD == BOARD_MCB4300
   #include "keil/board_mcb4300.h"
+#elif BOARD == BOARD_HITEX4350
+  #include "hitex/board_hitex4350.h"
 #else
   #error BOARD is not defined or supported yet
 #endif
