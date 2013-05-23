@@ -80,20 +80,26 @@ void board_init(void)
   // Keil VBUS0 is P6_3
   scu_pinmux(0x6, 3, MD_PUP | MD_EZI, FUNC1);     		// P6_3 USB0_PWR_EN, USB0 VBus function
 
-  // TODO USB1 P2_5
-
   // Keil VBUS1 is P9_5
   scu_pinmux(0x9, 5, MD_PUP | MD_EZI, FUNC2);				// P9_5 USB1_PWR_EN, USB1 VBus function
 
   //------------- LEDs init, J21 must be installed -------------//
+  LPC_SCU->SFSPD_10  =  4;              // GPIO6[24]
+  LPC_SCU->SFSPD_11  =  4;              // GPIO6[25]
+  LPC_SCU->SFSPD_12  =  4;              // GPIO6[26]
+  LPC_SCU->SFSPD_13  =  4;              // GPIO6[27]
+  LPC_SCU->SFSPD_14  =  4;              // GPIO6[28]
+  LPC_SCU->SFSP9_0   =  0;              // GPIO4[12]
+  LPC_SCU->SFSP9_1   =  0;              // GPIO4[13]
+  LPC_SCU->SFSP9_2   =  0;              // GPIO4[14]
+
   for(uint32_t i=0; i<BOARD_MAX_LEDS; i++)
   {
-    // TODO consider as default pinmux is to GPIO --> no mux
     GPIO_SetDir(leds[i].port, BIT_(leds[i].pin), 1); // output
   }
 
-  #if CFG_UART_ENABLE
   //------------- UART init -------------//
+  #if CFG_UART_ENABLE
 	scu_pinmux(BOARD_UART_PIN_PORT, BOARD_UART_PIN_TX, MD_PDN             , FUNC1);
 	scu_pinmux(BOARD_UART_PIN_PORT, BOARD_UART_PIN_RX, MD_PLN|MD_EZI|MD_ZI, FUNC1);
 

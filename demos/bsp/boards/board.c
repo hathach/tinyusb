@@ -48,13 +48,6 @@ void SysTick_Handler (void)
 }
 #endif
 
-//void board_delay_blocking(uint32_t ms)
-//{
-//  volatile uint32_t delay_us = 1000*ms;
-//  delay_us *= (SystemCoreClock / 1000000) / 3;
-//  while(delay_us--);
-//}
-
 void check_failed(uint8_t *file, uint32_t line)
 {
   (void) file;
