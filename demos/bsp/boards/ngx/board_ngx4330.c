@@ -55,7 +55,6 @@ void board_init(void)
 	//------------- USB Bus power HOST ONLY-------------//
 	scu_pinmux(0x1, 7, MD_PUP | MD_EZI, FUNC4);	// P1_7 USB0_PWR_EN, USB0 VBus function Xplorer
 
-	scu_pinmux(0x2, 5, MD_PLN | MD_EZI | MD_ZI, FUNC2);	// USB1_VBUS monitor presence, must be high for bus reset occur
 	scu_pinmux(0x2, 6, MD_PUP | MD_EZI, FUNC4); // P2_6 is configured as GPIO5[6] for USB1_PWR_EN
 	GPIO_SetDir   (5, BIT_(6), 1);              // GPIO5[6] is output
 	GPIO_SetValue (5, BIT_(6));                 // GPIO5[6] output high

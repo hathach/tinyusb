@@ -77,14 +77,13 @@ void board_init(void)
   SysTick_Config(CGU_GetPCLKFrequency(CGU_PERIPHERAL_M4CORE) / CFG_TICKS_PER_SECOND); // 1 msec tick timer
 
   //------------- USB Bus power HOST ONLY-------------//
-  //scu_pinmux(0x6, 3, MD_PUP | MD_EZI, FUNC1);     		// P6_3 USB0_PWR_EN, USB0 VBus function
-  // Keil VBUS0 on schematic is F1
-
+  // Keil VBUS0 is P6_3
+  scu_pinmux(0x6, 3, MD_PUP | MD_EZI, FUNC1);     		// P6_3 USB0_PWR_EN, USB0 VBus function
 
   // TODO USB1 P2_5
-  scu_pinmux(0x2, 5, MD_PLN | MD_EZI | MD_ZI, FUNC2);	// USB1_VBUS monitor presence, must be high for bus reset occur
-  //scu_pinmux(0x9, 5, MD_PUP | MD_EZI, FUNC2);				// P9_5 USB1_PWR_EN, USB1 VBus function
-  // Keil VBUS1 on schematics is P2_5
+
+  // Keil VBUS1 is P9_5
+  scu_pinmux(0x9, 5, MD_PUP | MD_EZI, FUNC2);				// P9_5 USB1_PWR_EN, USB1 VBus function
 
   //------------- LEDs init, J21 must be installed -------------//
   for(uint32_t i=0; i<BOARD_MAX_LEDS; i++)

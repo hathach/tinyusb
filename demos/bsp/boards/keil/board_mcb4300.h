@@ -56,7 +56,7 @@
  extern "C" {
 #endif
 
-#define CFG_PRINTF_TARGET       PRINTF_TARGET_UART
+#define CFG_PRINTF_TARGET       PRINTF_TARGET_DEBUG_CONSOLE
 
 
 #ifdef __cplusplus

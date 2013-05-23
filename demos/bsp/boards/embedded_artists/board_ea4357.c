@@ -56,7 +56,6 @@ void board_init(void)
   scu_pinmux(0x2, 3, MD_PUP | MD_EZI, FUNC7);		// USB0 VBus Power
   
   // USB1 Power: EA4357 channel A U20 is enabled by SJ5 connected to pad 1-2, no more action required
-  scu_pinmux(0x2, 5, MD_PLN | MD_EZI | MD_ZI, FUNC2);	// USB1_VBUS monitor presence, must be high for bus reset occur
 
   // init I2C and set up MIC2555 to have 15k pull-down on USB1 D+ & D-
   I2C_Init(LPC_I2C0, 100000);

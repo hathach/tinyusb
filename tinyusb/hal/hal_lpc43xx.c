@@ -77,6 +77,8 @@ tusb_error_t hal_init(void)
 
   //------------- USB1 Clock, only use on-chip FS PHY -------------//
 #if TUSB_CFG_CONTROLLER1_MODE
+  scu_pinmux(0x2, 5, MD_PLN | MD_EZI | MD_ZI, FUNC2);	// USB1_VBUS monitor presence, must be high for bus reset occur
+
   /* connect CLK_USB1 to 60 MHz clock */
   CGU_EntityConnect(CGU_CLKSRC_PLL1, CGU_BASE_USB1); /* FIXME Run base BASE_USB1_CLK clock from PLL1 (assume PLL1 is 60 MHz, no division required) */
   //LPC_CREG->CREG0 &= ~(1<<5); /* Turn on the phy */
