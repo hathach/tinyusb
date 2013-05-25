@@ -107,7 +107,7 @@ tusb_std_request_t request_get_dev_desc =
 {
     .bmRequestType = { .direction = TUSB_DIR_DEV_TO_HOST, .type = TUSB_REQUEST_TYPE_STANDARD, .recipient = TUSB_REQUEST_RECIPIENT_DEVICE },
     .bRequest = TUSB_REQUEST_GET_DESCRIPTOR,
-    .wValue   = (TUSB_DESC_DEVICE << 8),
+    .wValue   = (TUSB_DESC_TYPE_DEVICE << 8),
     .wLength  = 18
 };
 

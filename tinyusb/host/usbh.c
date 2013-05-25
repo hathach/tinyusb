@@ -303,7 +303,7 @@ tusb_error_t enumeration_body_subtask(void)
       {
         .bmRequestType = { .direction = TUSB_DIR_DEV_TO_HOST, .type = TUSB_REQUEST_TYPE_STANDARD, .recipient = TUSB_REQUEST_RECIPIENT_DEVICE },
         .bRequest = TUSB_REQUEST_GET_DESCRIPTOR,
-        .wValue   = (TUSB_DESC_DEVICE << 8),
+        .wValue   = (TUSB_DESC_TYPE_DEVICE << 8),
         .wLength  = 8
       },
       enum_data_buffer ),
@@ -352,7 +352,7 @@ tusb_error_t enumeration_body_subtask(void)
       {
         .bmRequestType = { .direction = TUSB_DIR_DEV_TO_HOST, .type = TUSB_REQUEST_TYPE_STANDARD, .recipient = TUSB_REQUEST_RECIPIENT_DEVICE },
         .bRequest = TUSB_REQUEST_GET_DESCRIPTOR,
-        .wValue   = (TUSB_DESC_DEVICE << 8),
+        .wValue   = (TUSB_DESC_TYPE_DEVICE << 8),
         .wLength  = 18
       },
       enum_data_buffer ),
@@ -376,7 +376,7 @@ tusb_error_t enumeration_body_subtask(void)
       {
         .bmRequestType = { .direction = TUSB_DIR_DEV_TO_HOST, .type = TUSB_REQUEST_TYPE_STANDARD, .recipient = TUSB_REQUEST_RECIPIENT_DEVICE },
         .bRequest = TUSB_REQUEST_GET_DESCRIPTOR,
-        .wValue   = (TUSB_DESC_CONFIGURATION << 8) | (configure_selected - 1),
+        .wValue   = (TUSB_DESC_TYPE_CONFIGURATION << 8) | (configure_selected - 1),
         .wLength  = 9
       },
       enum_data_buffer ),
@@ -394,7 +394,7 @@ tusb_error_t enumeration_body_subtask(void)
       {
         .bmRequestType = { .direction = TUSB_DIR_DEV_TO_HOST, .type = TUSB_REQUEST_TYPE_STANDARD, .recipient = TUSB_REQUEST_RECIPIENT_DEVICE },
         .bRequest = TUSB_REQUEST_GET_DESCRIPTOR,
-        .wValue   = (TUSB_DESC_CONFIGURATION << 8) | (configure_selected - 1),
+        .wValue   = (TUSB_DESC_TYPE_CONFIGURATION << 8) | (configure_selected - 1),
         .wLength  = ((tusb_descriptor_configuration_t*) enum_data_buffer)->wTotalLength
       },
       enum_data_buffer ),
@@ -429,7 +429,7 @@ tusb_error_t enumeration_body_subtask(void)
   while( p_desc < enum_data_buffer + ((tusb_descriptor_configuration_t*)enum_data_buffer)->wTotalLength )
   {
     // skip until we see interface descriptor
-    if ( TUSB_DESC_INTERFACE != p_desc[DESCRIPTOR_OFFSET_TYPE] )
+    if ( TUSB_DESC_TYPE_INTERFACE != p_desc[DESCRIPTOR_OFFSET_TYPE] )
     {
       p_desc += p_desc[DESCRIPTOR_OFFSET_LENGTH]; // skip the descriptor, increase by the descriptor's length
     }else

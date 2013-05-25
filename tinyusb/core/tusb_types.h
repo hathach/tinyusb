@@ -76,17 +76,17 @@ typedef enum {
 
 /// USB Descriptor Types (section 9.4 table 9-5)
 typedef enum {
-  TUSB_DESC_DEVICE =1                 , ///< 1
-  TUSB_DESC_CONFIGURATION             , ///< 2
-  TUSB_DESC_STRING                    , ///< 3
-  TUSB_DESC_INTERFACE                 , ///< 4
-  TUSB_DESC_ENDPOINT                  , ///< 5
-  TUSB_DESC_DEVICE_QUALIFIER          , ///< 6
-  TUSB_DESC_OTHER_SPEED_CONFIGURATION , ///< 7
-  TUSB_DESC_INTERFACE_POWER           , ///< 8
-  TUSB_DESC_OTG                       , ///< 9
-  TUSB_DESC_DEBUGRIPTOR               , ///< 10
-  TUSB_DESC_INTERFACE_ASSOCIATION       ///< 11
+  TUSB_DESC_TYPE_DEVICE =1                 , ///< 1
+  TUSB_DESC_TYPE_CONFIGURATION             , ///< 2
+  TUSB_DESC_TYPE_STRING                    , ///< 3
+  TUSB_DESC_TYPE_INTERFACE                 , ///< 4
+  TUSB_DESC_TYPE_ENDPOINT                  , ///< 5
+  TUSB_DESC_TYPE_DEVICE_QUALIFIER          , ///< 6
+  TUSB_DESC_TYPE_OTHER_SPEED_CONFIGURATION , ///< 7
+  TUSB_DESC_TYPE_INTERFACE_POWER           , ///< 8
+  TUSB_DESC_TYPE_OTG                       , ///< 9
+  TUSB_DESC_TYPE_DEBUG                     , ///< 10
+  TUSB_DESC_TYPE_INTERFACE_ASSOCIATION       ///< 11
 }tusb_std_descriptor_type_t;
 
 typedef enum {

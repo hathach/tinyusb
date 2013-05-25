@@ -25,10 +25,12 @@ int main(void)
   {
     if (current_tick + 1000 < system_ticks)
     {
-      current_tick += 1000;
-      board_leds(0x01, (current_tick/1000)%2); /* Toggle LED once per second */
+      static uint32_t led_on_mask = 0;
 
-      printf("tinyusb: " __DATE__ "\t" __TIME__ "\n");
+      current_tick += 1000;
+
+      board_leds(led_on_mask, 1 - led_on_mask);
+      led_on_mask = 1 - led_on_mask; // toggle
 
       #if !(defined TUSB_CFG_DEVICE_CDC) && 0
       if (usb_isConfigured())

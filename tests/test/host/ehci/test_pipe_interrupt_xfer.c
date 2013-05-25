@@ -67,7 +67,7 @@ static pipe_handle_t pipe_hdl_interrupt;
 static tusb_descriptor_endpoint_t const desc_ept_interrupt_in =
 {
     .bLength          = sizeof(tusb_descriptor_endpoint_t),
-    .bDescriptorType  = TUSB_DESC_ENDPOINT,
+    .bDescriptorType  = TUSB_DESC_TYPE_ENDPOINT,
     .bEndpointAddress = 0x81,
     .bmAttributes     = { .xfer = TUSB_XFER_INTERRUPT },
     .wMaxPacketSize   = 8,
@@ -77,7 +77,7 @@ static tusb_descriptor_endpoint_t const desc_ept_interrupt_in =
 static tusb_descriptor_endpoint_t const desc_ept_interupt_out =
 {
     .bLength          = sizeof(tusb_descriptor_endpoint_t),
-    .bDescriptorType  = TUSB_DESC_ENDPOINT,
+    .bDescriptorType  = TUSB_DESC_TYPE_ENDPOINT,
     .bEndpointAddress = 0x01,
     .bmAttributes     = { .xfer = TUSB_XFER_INTERRUPT },
     .wMaxPacketSize   = 64,

@@ -205,14 +205,14 @@ tusb_error_t hidh_open_subtask(uint8_t dev_addr, tusb_descriptor_interface_t con
   //------------- HID descriptor -------------//
   p_desc += p_desc[DESCRIPTOR_OFFSET_LENGTH];
   tusb_hid_descriptor_hid_t const *p_desc_hid = (tusb_hid_descriptor_hid_t const *) p_desc;
-  ASSERT_INT(HID_DESC_HID, p_desc_hid->bDescriptorType, TUSB_ERROR_INVALID_PARA);
+  ASSERT_INT(HID_DESC_TYPE_HID, p_desc_hid->bDescriptorType, TUSB_ERROR_INVALID_PARA);
 
   //------------- TODO skip Get Report Descriptor -------------//
   uint8_t *p_report_desc = NULL; // report descriptor has to be global & in USB RAM
 
   //------------- Endpoint Descriptor -------------//
   p_desc += p_desc[DESCRIPTOR_OFFSET_LENGTH];
-  ASSERT_INT(TUSB_DESC_ENDPOINT, p_desc[DESCRIPTOR_OFFSET_TYPE], TUSB_ERROR_INVALID_PARA);
+  ASSERT_INT(TUSB_DESC_TYPE_ENDPOINT, p_desc[DESCRIPTOR_OFFSET_TYPE], TUSB_ERROR_INVALID_PARA);
 
   if (p_interface_desc->bInterfaceSubClass == HID_SUBCLASS_BOOT)
   {

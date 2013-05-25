@@ -116,7 +116,7 @@ void verify_open_qhd(ehci_qhd_t *p_qhd, uint8_t endpoint_addr, uint16_t max_pack
 tusb_descriptor_endpoint_t const desc_ept_interrupt_out =
 {
     .bLength          = sizeof(tusb_descriptor_endpoint_t),
-    .bDescriptorType  = TUSB_DESC_ENDPOINT,
+    .bDescriptorType  = TUSB_DESC_TYPE_ENDPOINT,
     .bEndpointAddress = 0x02,
     .bmAttributes     = { .xfer = TUSB_XFER_INTERRUPT },
     .wMaxPacketSize   = 16,

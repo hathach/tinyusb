@@ -123,7 +123,7 @@ TUSB_CFG_ATTR_USBRAM ATTR_ALIGNED(4)
 tusb_descriptor_device_t const desc_device =
 {
     .bLength            = sizeof(tusb_descriptor_device_t),
-    .bDescriptorType    = TUSB_DESC_DEVICE,
+    .bDescriptorType    = TUSB_DESC_TYPE_DEVICE,
     .bcdUSB             = 0x0200,
     .bDeviceClass       = 0x00,
     .bDeviceSubClass    = 0x00,
@@ -149,7 +149,7 @@ const app_configuration_desc_t desc_configuration =
     .configuration =
     {
         .bLength             = sizeof(tusb_descriptor_configuration_t),
-        .bDescriptorType     = TUSB_DESC_CONFIGURATION,
+        .bDescriptorType     = TUSB_DESC_TYPE_CONFIGURATION,
 
         .wTotalLength        = sizeof(app_configuration_desc_t) - 1, // exclude termination
         .bNumInterfaces      = TOTAL_INTEFACES,
@@ -165,7 +165,7 @@ const app_configuration_desc_t desc_configuration =
     .CDC_IAD =
     {
         .bLength           = sizeof(tusb_descriptor_interface_association_t),
-        .bDescriptorType   = TUSB_DESC_INTERFACE_ASSOCIATION,
+        .bDescriptorType   = TUSB_DESC_TYPE_INTERFACE_ASSOCIATION,
 
         .bFirstInterface   = 0,
         .bInterfaceCount   = 2,
@@ -184,7 +184,7 @@ const app_configuration_desc_t desc_configuration =
     .CDC_CCI_Interface =
     {
         .bLength            = sizeof(tusb_descriptor_interface_t),
-        .bDescriptorType    = TUSB_DESC_INTERFACE,
+        .bDescriptorType    = TUSB_DESC_TYPE_INTERFACE,
         .bInterfaceNumber   = INTERFACE_INDEX_CDC,
         .bAlternateSetting  = 0,
         .bNumEndpoints      = 1,
@@ -225,7 +225,7 @@ const app_configuration_desc_t desc_configuration =
     .CDC_NotificationEndpoint =
     {
         .bLength          = sizeof(tusb_descriptor_endpoint_t),
-        .bDescriptorType  = TUSB_DESC_ENDPOINT,
+        .bDescriptorType  = TUSB_DESC_TYPE_ENDPOINT,
         .bEndpointAddress = CDC_NOTIFICATION_EP,
         .bmAttributes     = USB_ENDPOINT_TYPE_INTERRUPT,
         .wMaxPacketSize   = CDC_NOTIFICATION_EP_MAXPACKETSIZE,
@@ -236,7 +236,7 @@ const app_configuration_desc_t desc_configuration =
     .CDC_DCI_Interface =
     {
         .bLength            = sizeof(tusb_descriptor_interface_t),
-        .bDescriptorType    = TUSB_DESC_INTERFACE,
+        .bDescriptorType    = TUSB_DESC_TYPE_INTERFACE,
         .bInterfaceNumber   = INTERFACE_INDEX_CDC+1,
         .bAlternateSetting  = 0x00,
         .bNumEndpoints      = 2,
@@ -249,7 +249,7 @@ const app_configuration_desc_t desc_configuration =
     .CDC_DataOutEndpoint =
     {
         .bLength          = sizeof(tusb_descriptor_endpoint_t),
-        .bDescriptorType  = TUSB_DESC_ENDPOINT,
+        .bDescriptorType  = TUSB_DESC_TYPE_ENDPOINT,
         .bEndpointAddress = CDC_DATA_EP_OUT,
         .bmAttributes     = USB_ENDPOINT_TYPE_BULK,
         .wMaxPacketSize   = CDC_DATA_EP_MAXPACKET_SIZE,
@@ -259,7 +259,7 @@ const app_configuration_desc_t desc_configuration =
     .CDC_DataInEndpoint =
     {
         .bLength          = sizeof(tusb_descriptor_endpoint_t),
-        .bDescriptorType  = TUSB_DESC_ENDPOINT,
+        .bDescriptorType  = TUSB_DESC_TYPE_ENDPOINT,
         .bEndpointAddress = CDC_DATA_EP_IN,
         .bmAttributes     = USB_ENDPOINT_TYPE_BULK,
         .wMaxPacketSize   = CDC_DATA_EP_MAXPACKET_SIZE,
@@ -272,7 +272,7 @@ const app_configuration_desc_t desc_configuration =
     .keyboard_interface =
     {
         .bLength            = sizeof(tusb_descriptor_interface_t),
-        .bDescriptorType    = TUSB_DESC_INTERFACE,
+        .bDescriptorType    = TUSB_DESC_TYPE_INTERFACE,
         .bInterfaceNumber   = 1,
         .bAlternateSetting  = 0x00,
         .bNumEndpoints      = 1,
@@ -285,18 +285,18 @@ const app_configuration_desc_t desc_configuration =
     .keyboard_hid =
     {
         .bLength           = sizeof(tusb_hid_descriptor_hid_t),
-        .bDescriptorType   = HID_DESC_HID,
+        .bDescriptorType   = HID_DESC_TYPE_HID,
         .bcdHID            = 0x0111,
         .bCountryCode      = HID_Local_NotSupported,
         .bNumDescriptors   = 1,
-        .bReportType       = HID_DESC_REPORT,
+        .bReportType       = HID_DESC_TYPE_REPORT,
         .wReportLength     = sizeof(keyboard_report_descriptor)
     },
 
     .keyboard_endpoint =
     {
         .bLength          = sizeof(tusb_descriptor_endpoint_t),
-        .bDescriptorType  = TUSB_DESC_ENDPOINT,
+        .bDescriptorType  = TUSB_DESC_TYPE_ENDPOINT,
         .bEndpointAddress = 0x81,
         .bmAttributes     = { .xfer = TUSB_XFER_INTERRUPT },
         .wMaxPacketSize   = { .size = 0x08 },
@@ -309,7 +309,7 @@ const app_configuration_desc_t desc_configuration =
     .HID_MouseInterface =
     {
         .bLength            = sizeof(tusb_descriptor_interface_t),
-        .bDescriptorType    = TUSB_DESC_INTERFACE,
+        .bDescriptorType    = TUSB_DESC_TYPE_INTERFACE,
         .bInterfaceNumber   = INTERFACE_INDEX_HID_MOUSE,
         .bAlternateSetting  = 0x00,
         .bNumEndpoints      = 1,
@@ -322,18 +322,18 @@ const app_configuration_desc_t desc_configuration =
     .mouse_hid =
     {
         .bLength           = sizeof(tusb_hid_descriptor_hid_t),
-        .bDescriptorType   = HID_DESC_HID,
+        .bDescriptorType   = HID_DESC_TYPE_HID,
         .bcdHID            = 0x0111,
         .bCountryCode      = HID_Local_NotSupported,
         .bNumDescriptors   = 1,
-        .bReportType       = HID_DESC_REPORT,
+        .bReportType       = HID_DESC_TYPE_REPORT,
         .wReportLength     = sizeof(mouse_report_descriptor)
     },
 
     .mouse_endpoint =
     {
         .bLength          = sizeof(tusb_descriptor_endpoint_t),
-        .bDescriptorType  = TUSB_DESC_ENDPOINT,
+        .bDescriptorType  = TUSB_DESC_TYPE_ENDPOINT,
         .bEndpointAddress = 0x82,
         .bmAttributes     = { .xfer = TUSB_XFER_INTERRUPT },
         .wMaxPacketSize   = 0x08,
@@ -346,7 +346,7 @@ const app_configuration_desc_t desc_configuration =
     .msc_interface =
     {
         .bLength            = sizeof(tusb_descriptor_interface_t),
-        .bDescriptorType    = TUSB_DESC_INTERFACE,
+        .bDescriptorType    = TUSB_DESC_TYPE_INTERFACE,
         .bInterfaceNumber   = 3,
         .bAlternateSetting  = 0x00,
         .bNumEndpoints      = 2,
@@ -359,7 +359,7 @@ const app_configuration_desc_t desc_configuration =
     .msc_endpoint_in =
     {
         .bLength          = sizeof(tusb_descriptor_endpoint_t),
-        .bDescriptorType  = TUSB_DESC_ENDPOINT,
+        .bDescriptorType  = TUSB_DESC_TYPE_ENDPOINT,
         .bEndpointAddress = 0x83,
         .bmAttributes     = { .xfer = TUSB_XFER_BULK },
         .wMaxPacketSize   = 512,
@@ -369,7 +369,7 @@ const app_configuration_desc_t desc_configuration =
     .msc_endpoint_out =
     {
         .bLength          = sizeof(tusb_descriptor_endpoint_t),
-        .bDescriptorType  = TUSB_DESC_ENDPOINT,
+        .bDescriptorType  = TUSB_DESC_TYPE_ENDPOINT,
         .bEndpointAddress = 0x03,
         .bmAttributes     = { .xfer = TUSB_XFER_BULK },
         .wMaxPacketSize   = 512,

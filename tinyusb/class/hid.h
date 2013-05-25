@@ -64,9 +64,9 @@
 //};
 
 enum {
-  HID_DESC_HID      = 0x21,
-  HID_DESC_REPORT   = 0x22,
-  HID_DESC_PHYSICAL = 0x23
+  HID_DESC_TYPE_HID      = 0x21,
+  HID_DESC_TYPE_REPORT   = 0x22,
+  HID_DESC_TYPE_PHYSICAL = 0x23
 };
 
 typedef ATTR_PREPACKED struct ATTR_PACKED {

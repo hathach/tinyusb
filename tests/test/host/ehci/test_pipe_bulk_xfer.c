@@ -67,7 +67,7 @@ static pipe_handle_t pipe_hdl_bulk;
 tusb_descriptor_endpoint_t const desc_ept_bulk_in =
 {
     .bLength          = sizeof(tusb_descriptor_endpoint_t),
-    .bDescriptorType  = TUSB_DESC_ENDPOINT,
+    .bDescriptorType  = TUSB_DESC_TYPE_ENDPOINT,
     .bEndpointAddress = 0x81,
     .bmAttributes     = { .xfer = TUSB_XFER_BULK },
     .wMaxPacketSize   = 512,
@@ -77,7 +77,7 @@ tusb_descriptor_endpoint_t const desc_ept_bulk_in =
 tusb_descriptor_endpoint_t const desc_ept_bulk_out =
 {
     .bLength          = sizeof(tusb_descriptor_endpoint_t),
-    .bDescriptorType  = TUSB_DESC_ENDPOINT,
+    .bDescriptorType  = TUSB_DESC_TYPE_ENDPOINT,
     .bEndpointAddress = 0x01,
     .bmAttributes     = { .xfer = TUSB_XFER_BULK },
     .wMaxPacketSize   = 512,
