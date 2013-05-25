@@ -66,10 +66,12 @@ tusb_error_t hal_init(void)
 
   // reset controller & set role
   #if TUSB_CFG_CONTROLLER0_MODE & TUSB_MODE_HOST
-  hcd_controller_reset(0); // TODO where to place prototype
-  LPC_USB0->USBMODE_H = LPC43XX_USBMODE_HOST | (LPC43XX_USBMODE_VBUS_HIGH << 5);
+    hcd_controller_reset(0); // TODO where to place prototype
+    LPC_USB0->USBMODE_H = LPC43XX_USBMODE_HOST | (LPC43XX_USBMODE_VBUS_HIGH << 5);
   #else // TODO OTG
-    #error device mode is not supported
+    dcd_controller_reset(0);
+    LPC_USB0->USBMODE_D = LPC43XX_USBMODE_DEVICE;
+    dcd_controller_connect(0);
   #endif
 
   hal_interrupt_enable(0);
@@ -77,6 +79,7 @@ tusb_error_t hal_init(void)
 
   //------------- USB1 Clock, only use on-chip FS PHY -------------//
 #if TUSB_CFG_CONTROLLER1_MODE
+  // TODO confirm whether device mode require P2_5 or not
   scu_pinmux(0x2, 5, MD_PLN | MD_EZI | MD_ZI, FUNC2);	// USB1_VBUS monitor presence, must be high for bus reset occur
 
   /* connect CLK_USB1 to 60 MHz clock */
@@ -85,10 +88,12 @@ tusb_error_t hal_init(void)
   LPC_SCU->SFSUSB = (TUSB_CFG_CONTROLLER1_MODE & TUSB_MODE_HOST) ? 0x16 : 0x12; // enable USB1 with on-chip FS PHY
 
   #if TUSB_CFG_CONTROLLER1_MODE & TUSB_MODE_HOST
-  hcd_controller_reset(1); // TODO where to place prototype
-  LPC_USB1->USBMODE_H = LPC43XX_USBMODE_HOST | (LPC43XX_USBMODE_VBUS_HIGH << 5);
-  #else
-
+    hcd_controller_reset(1); // TODO where to place prototype
+    LPC_USB1->USBMODE_H = LPC43XX_USBMODE_HOST | (LPC43XX_USBMODE_VBUS_HIGH << 5);
+  #else // TODO OTG
+    dcd_controller_reset(1);
+    LPC_USB0->USBMODE_D = LPC43XX_USBMODE_DEVICE;
+    dcd_controller_connect(1);
   #endif
 
   LPC_USB1->PORTSC1_D |= (1<<24); // TODO abtract, force port to fullspeed

@@ -58,13 +58,15 @@
 #include "common/compiler/compiler.h"
 
 #if MCU == 0
-  #error MCU is not defined or supported
+  #error MCU is not defined or supported yet
 #elif MCU == MCU_LPC11UXX
   #include "hal_lpc11uxx.h"
 #elif MCU == MCU_LPC13UXX
   #include "hal_lpc13uxx.h"
 #elif MCU == MCU_LPC43XX
   #include "hal_lpc43xx.h"
+#else
+  #error MCU is not defined or supported yet
 #endif
 
 #ifdef __cplusplus

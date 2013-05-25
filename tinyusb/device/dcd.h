@@ -73,6 +73,11 @@
 
 tusb_error_t dcd_init(uint8_t coreid) ATTR_WARN_UNUSED_RESULT;
 
+tusb_error_t dcd_controller_reset(uint8_t coreid) ATTR_WARN_UNUSED_RESULT;
+tusb_error_t dcd_controller_connect(uint8_t coreid) ATTR_WARN_UNUSED_RESULT;
+
+void dcd_isr(uint8_t hostid);
+
 #ifdef __cplusplus
  }
 #endif

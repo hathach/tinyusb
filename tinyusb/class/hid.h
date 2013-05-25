@@ -51,17 +51,17 @@
 #ifdef __cplusplus
  extern "C" {
 #endif
-
-enum {
-  HID_SUBCLASS_NONE = 0,
-  HID_SUBCLASS_BOOT = 1
-};
-
-enum {
-  HID_PROTOCOL_NONE     = 0,
-  HID_PROTOCOL_KEYBOARD = 1,
-  HID_PROTOCOL_MOUSE    = 2
-};
+//
+//enum {
+//  HID_SUBCLASS_NONE = 0,
+//  HID_SUBCLASS_BOOT = 1
+//};
+//
+//enum {
+//  HID_PROTOCOL_NONE     = 0,
+//  HID_PROTOCOL_KEYBOARD = 1,
+//  HID_PROTOCOL_MOUSE    = 2
+//};
 
 enum {
   HID_DESC_HID      = 0x21,
@@ -382,28 +382,28 @@ enum {
   HID_USAGE_PAGE_DESKTOP         = 0x01,
   HID_USAGE_PAGE_SIMULATE        = 0x02,
   HID_USAGE_PAGE_VIRTUAL_REALITY = 0x03,
-  HID_USAGE_PAGE_SPORT           = 0x04,
-  HID_USAGE_PAGE_GAME            = 0x05,
-  HID_USAGE_PAGE_GENERIC_DEVICE  = 0x06,
-  HID_USAGE_PAGE_KEYBOARD        = 0x07,
-  HID_USAGE_PAGE_LED             = 0x08,
-  HID_USAGE_PAGE_BUTTON          = 0x09,
-  HID_USAGE_PAGE_ORDINAL         = 0x0a,
-  HID_USAGE_PAGE_TELEPHONY       = 0x0b,
-  HID_USAGE_PAGE_CONSUMER        = 0x0c,
-  HID_USAGE_PAGE_DIGITIZER       = 0x0d,
-  HID_USAGE_PAGE_PID             = 0x0f,
-  HID_USAGE_PAGE_UNICODE         = 0x10,
-  HID_USAGE_PAGE_ALPHA_DISPLAY   = 0x14,
-  HID_USAGE_PAGE_MEDICAL         = 0x40,
-  HID_USAGE_PAGE_MONITOR         = 0x80, //0x80 - 0x83
-  HID_USAGE_PAGE_POWER           = 0x84, // 0x084 - 0x87
-  HID_USAGE_PAGE_BARCODE_SCANNER = 0x8c,
-  HID_USAGE_PAGE_SCALE           = 0x8d,
-  HID_USAGE_PAGE_MSR             = 0x8e,
-  HID_USAGE_PAGE_CAMERA          = 0x90,
-  HID_USAGE_PAGE_ARCADE          = 0x91,
-  HID_USAGE_PAGE_VENDOR          = 0xFFFF // 0xFF00 - 0xFFFF
+//  HID_USAGE_PAGE_SPORT           = 0x04,
+//  HID_USAGE_PAGE_GAME            = 0x05,
+//  HID_USAGE_PAGE_GENERIC_DEVICE  = 0x06,
+//  HID_USAGE_PAGE_KEYBOARD        = 0x07,
+//  HID_USAGE_PAGE_LED             = 0x08,
+//  HID_USAGE_PAGE_BUTTON          = 0x09,
+//  HID_USAGE_PAGE_ORDINAL         = 0x0a,
+//  HID_USAGE_PAGE_TELEPHONY       = 0x0b,
+//  HID_USAGE_PAGE_CONSUMER        = 0x0c,
+//  HID_USAGE_PAGE_DIGITIZER       = 0x0d,
+//  HID_USAGE_PAGE_PID             = 0x0f,
+//  HID_USAGE_PAGE_UNICODE         = 0x10,
+//  HID_USAGE_PAGE_ALPHA_DISPLAY   = 0x14,
+//  HID_USAGE_PAGE_MEDICAL         = 0x40,
+//  HID_USAGE_PAGE_MONITOR         = 0x80, //0x80 - 0x83
+//  HID_USAGE_PAGE_POWER           = 0x84, // 0x084 - 0x87
+//  HID_USAGE_PAGE_BARCODE_SCANNER = 0x8c,
+//  HID_USAGE_PAGE_SCALE           = 0x8d,
+//  HID_USAGE_PAGE_MSR             = 0x8e,
+//  HID_USAGE_PAGE_CAMERA          = 0x90,
+//  HID_USAGE_PAGE_ARCADE          = 0x91,
+//  HID_USAGE_PAGE_VENDOR          = 0xFFFF // 0xFF00 - 0xFFFF
 };
 
 /// HID Usage Table - Table 6: Generic Desktop Page

@@ -70,8 +70,8 @@
 									<listOptionValue builtIn="false" value="-Map=&quot;${BuildArtifactFileBaseName}.map&quot;"/>
 									<listOptionValue builtIn="false" value="--gc-sections"/>
 								</option>
-								<option id="gnu.c.link.option.paths.1465143173" name="Library search path (-L)" superClass="gnu.c.link.option.paths" valueType="libPaths"/>
-								<option id="gnu.c.link.option.libs.447978281" name="Libraries (-l)" superClass="gnu.c.link.option.libs" valueType="libs"/>
+								<option id="gnu.c.link.option.paths.1465143173" name="Library search path (-L)" superClass="gnu.c.link.option.paths"/>
+								<option id="gnu.c.link.option.libs.447978281" name="Libraries (-l)" superClass="gnu.c.link.option.libs"/>
 								<option id="com.crt.advproject.link.gcc.hdrlib.1111642583" name="Use C library" superClass="com.crt.advproject.link.gcc.hdrlib" value="com.crt.advproject.gcc.link.hdrlib.codered.nohost" valueType="enumerated"/>
 								<inputType id="cdt.managedbuild.tool.gnu.c.linker.input.1234316494" superClass="cdt.managedbuild.tool.gnu.c.linker.input">
 									<additionalInput kind="additionalinputdependency" paths="$(USER_OBJS)"/>
@@ -1350,7 +1350,7 @@
 								</option>
 								<option id="gnu.c.compiler.option.misc.other.2122594924" name="Other flags" superClass="gnu.c.compiler.option.misc.other" value="-c -fmessage-length=0 -fno-builtin -ffunction-sections -fdata-sections" valueType="string"/>
 								<option id="gnu.c.compiler.option.include.paths.1913705177" name="Include paths (-I)" superClass="gnu.c.compiler.option.include.paths" valueType="includePath">
-									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/CMSISv2p10_LPC43xx_DriverLib/inc}&quot;"/>
+									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/${ProjName}/bsp/lpc43xx/CMSISv2p10_LPC43xx_DriverLib/inc}&quot;"/>
 									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/${ProjName}/bsp}&quot;"/>
 									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/${ProjName}/tinyusb}&quot;"/>
 									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/${ProjName}}&quot;"/>
@@ -1378,12 +1378,8 @@
 									<listOptionValue builtIn="false" value="-Map=&quot;${BuildArtifactFileBaseName}.map&quot;"/>
 									<listOptionValue builtIn="false" value="--gc-sections"/>
 								</option>
-								<option id="gnu.c.link.option.paths.975811544" name="Library search path (-L)" superClass="gnu.c.link.option.paths" valueType="libPaths">
-									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/CMSISv2p10_LPC43xx_DriverLib/Debug}&quot;"/>
-								</option>
-								<option id="gnu.c.link.option.libs.1195892209" name="Libraries (-l)" superClass="gnu.c.link.option.libs" valueType="libs">
-									<listOptionValue builtIn="false" value="CMSISv2p10_LPC43xx_DriverLib"/>
-								</option>
+								<option id="gnu.c.link.option.paths.975811544" name="Library search path (-L)" superClass="gnu.c.link.option.paths"/>
+								<option id="gnu.c.link.option.libs.1195892209" name="Libraries (-l)" superClass="gnu.c.link.option.libs"/>
 								<option id="com.crt.advproject.link.gcc.hdrlib.2063456418" name="Use C library" superClass="com.crt.advproject.link.gcc.hdrlib" value="com.crt.advproject.gcc.link.hdrlib.codered.nohost" valueType="enumerated"/>
 								<inputType id="cdt.managedbuild.tool.gnu.c.linker.input.1656058909" superClass="cdt.managedbuild.tool.gnu.c.linker.input">
 									<additionalInput kind="additionalinputdependency" paths="$(USER_OBJS)"/>
@@ -1393,7 +1389,7 @@
 						</toolChain>
 					</folderInfo>
 					<sourceEntries>
-						<entry excluding="bsp/lpc13uxx|bsp/lpc11uxx" flags="VALUE_WORKSPACE_PATH|RESOLVED" kind="sourcePath" name=""/>
+						<entry excluding="bsp/lpc43xx/CMSISv2p10_LPC43xx_DriverLib/src/sdio.c|bsp/lpc43xx/CMSISv2p10_LPC43xx_DriverLib/src/lpc43xx_wwdt.c|bsp/lpc43xx/CMSISv2p10_LPC43xx_DriverLib/src/lpc43xx_timer.c|bsp/lpc43xx/CMSISv2p10_LPC43xx_DriverLib/src/lpc43xx_ssp.c|bsp/lpc43xx/CMSISv2p10_LPC43xx_DriverLib/src/lpc43xx_sct.c|bsp/lpc43xx/CMSISv2p10_LPC43xx_DriverLib/src/lpc43xx_rtc.c|bsp/lpc43xx/CMSISv2p10_LPC43xx_DriverLib/src/lpc43xx_rit.c|bsp/lpc43xx/CMSISv2p10_LPC43xx_DriverLib/src/lpc43xx_qei.c|bsp/lpc43xx/CMSISv2p10_LPC43xx_DriverLib/src/lpc43xx_mcpwm.c|bsp/lpc43xx/CMSISv2p10_LPC43xx_DriverLib/src/lpc43xx_lcd.c|bsp/lpc43xx/CMSISv2p10_LPC43xx_DriverLib/src/lpc43xx_i2s.c|bsp/lpc43xx/CMSISv2p10_LPC43xx_DriverLib/src/lpc43xx_gpdma.c|bsp/lpc43xx/CMSISv2p10_LPC43xx_DriverLib/src/lpc43xx_evrt.c|bsp/lpc43xx/CMSISv2p10_LPC43xx_DriverLib/src/lpc43xx_emc.c|bsp/lpc43xx/CMSISv2p10_LPC43xx_DriverLib/src/lpc43xx_dac.c|bsp/lpc43xx/CMSISv2p10_LPC43xx_DriverLib/src/lpc43xx_can.c|bsp/lpc43xx/CMSISv2p10_LPC43xx_DriverLib/src/lpc43xx_atimer.c|bsp/lpc43xx/CMSISv2p10_LPC43xx_DriverLib/src/lpc43xx_adc.c|bsp/lpc43xx/CMSISv2p10_LPC43xx_DriverLib/src/LCDTerm.c|bsp/lpc43xx/CMSISv2p10_LPC43xx_DriverLib/src/Font5x7.c|bsp/lpc43xx/CMSISv2p10_LPC43xx_DriverLib/src/debug_frmwrk.c|bsp/lpc13uxx|bsp/lpc11uxx" flags="VALUE_WORKSPACE_PATH|RESOLVED" kind="sourcePath" name=""/>
 					</sourceEntries>
 				</configuration>
 			</storageModule>
