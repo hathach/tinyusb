@@ -1,6 +1,6 @@
 /**************************************************************************/
 /*!
-    @file     board_ngx4330.h
+    @file     test_usbd.c
     @author   hathach (tinyusb.org)
 
     @section LICENSE
@@ -26,48 +26,47 @@
     WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
     DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER BE LIABLE FOR ANY
     DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
-    INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
-    LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION HOWEVER CAUSED AND
+    (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
+    LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND
     ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
-    INCLUDING NEGLIGENCE OR OTHERWISE ARISING IN ANY WAY OUT OF THE USE OF THIS
+    (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
     SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
     This file is part of the tinyusb stack.
 */
 /**************************************************************************/
 
-/** \file
- *  \brief TBD
- *
- *  \note TBD
- */
+#include <stdlib.h>
+#include "unity.h"
+#include "errors.h"
+#include "type_helper.h"
 
-/** \ingroup TBD
- *  \defgroup TBD
- *  \brief TBD
- *
- *  @{
- */
+#include "mock_dcd.h"
+#include "usbd.h"
 
-#ifndef _TUSB_BOARD_NGX4330_H_
-#define _TUSB_BOARD_NGX4330_H_
+void setUp(void)
+{
 
-#include "LPC43xx.h"
-#include "lpc43xx_scu.h"
-#include "lpc43xx_cgu.h"
-#include "lpc43xx_gpio.h"
-#include "lpc43xx_uart.h"
+}
 
-#ifdef __cplusplus
- extern "C" {
-#endif
+void tearDown(void)
+{
+}
 
-#define CFG_PRINTF_TARGET       PRINTF_TARGET_DEBUG_CONSOLE
+void test_dcd_init_failed(void)
+{
+  dcd_init_ExpectAndReturn(TUSB_ERROR_FAILED);
 
-#ifdef __cplusplus
- }
-#endif
+  //------------- Code Under Test -------------//
+  TEST_ASSERT_EQUAL( TUSB_ERROR_FAILED, usbd_init() );
+}
 
-#endif /* _TUSB_BOARD_NGX4330_H_ */
+void test_usbd_init_ok(void)
+{
+  dcd_init_ExpectAndReturn(TUSB_ERROR_NONE);
 
-/** @} */
+
+  //------------- Code Under Test -------------//
+  TEST_ASSERT_EQUAL( TUSB_ERROR_NONE, usbd_init() );
+
+}

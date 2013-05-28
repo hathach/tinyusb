@@ -122,7 +122,7 @@ tusb_error_t control_xfer_stub(uint8_t dev_addr, const tusb_std_request_t * cons
   {
     case 0: // get 8 bytes of device descriptor
       TEST_ASSERT_EQUAL(TUSB_REQUEST_GET_DESCRIPTOR, p_request->bRequest);
-      TEST_ASSERT_EQUAL(TUSB_DESC_DEVICE, p_request->wValue >> 8);
+      TEST_ASSERT_EQUAL(TUSB_DESC_TYPE_DEVICE, p_request->wValue >> 8);
       TEST_ASSERT_EQUAL(8, p_request->wLength);
       memcpy(data, &desc_device, p_request->wLength);
     break;
@@ -134,21 +134,21 @@ tusb_error_t control_xfer_stub(uint8_t dev_addr, const tusb_std_request_t * cons
 
     case 2: // get full device decriptor for new address
       TEST_ASSERT_EQUAL(TUSB_REQUEST_GET_DESCRIPTOR, p_request->bRequest);
-      TEST_ASSERT_EQUAL(TUSB_DESC_DEVICE, p_request->wValue >> 8);
+      TEST_ASSERT_EQUAL(TUSB_DESC_TYPE_DEVICE, p_request->wValue >> 8);
       TEST_ASSERT_EQUAL(18, p_request->wLength);
       memcpy(data, &desc_device, p_request->wLength);
     break;
 
     case 3: // get 9 bytes of configuration descriptor
       TEST_ASSERT_EQUAL(TUSB_REQUEST_GET_DESCRIPTOR, p_request->bRequest);
-      TEST_ASSERT_EQUAL(TUSB_DESC_CONFIGURATION, p_request->wValue >> 8);
+      TEST_ASSERT_EQUAL(TUSB_DESC_TYPE_CONFIGURATION, p_request->wValue >> 8);
       TEST_ASSERT_EQUAL(9, p_request->wLength);
       memcpy(data, &desc_configuration, p_request->wLength);
     break;
 
     case 4: // get full-length configuration descriptor
       TEST_ASSERT_EQUAL(TUSB_REQUEST_GET_DESCRIPTOR, p_request->bRequest);
-      TEST_ASSERT_EQUAL(TUSB_DESC_CONFIGURATION, p_request->wValue >> 8);
+      TEST_ASSERT_EQUAL(TUSB_DESC_TYPE_CONFIGURATION, p_request->wValue >> 8);
       TEST_ASSERT_EQUAL(desc_configuration.configuration.wTotalLength, p_request->wLength);
       memcpy(data, &desc_configuration, p_request->wLength);
     break;

@@ -58,9 +58,6 @@
  extern "C" {
 #endif
 
-#define DEVICE_ROMDRIVER
-#define DEVICE_ROM_REG_BASE LPC_USB0_BASE // TODO USB1
-#define DEVICE_ROM_DRIVER_ADDR     0x1040011C
 
 static inline void hal_interrupt_enable(uint8_t controller_id)
 {

@@ -1,6 +1,6 @@
 /**************************************************************************/
 /*!
-    @file     dcd_lpc43xx.c
+    @file     hid_device.c
     @author   hathach (tinyusb.org)
 
     @section LICENSE
@@ -38,14 +38,14 @@
 
 #include "tusb_option.h"
 
-#if MODE_DEVICE_SUPPORTED && (MCU == MCU_LPC43XX)
+#if (MODE_DEVICE_SUPPORTED && defined HOST_CLASS_HID)
 
 #define _TINY_USB_SOURCE_FILE_
-
 //--------------------------------------------------------------------+
 // INCLUDE
 //--------------------------------------------------------------------+
-#include "dcd_lpc43xx.h"
+#include "common/common.h"
+#include "hid_device.h"
 
 //--------------------------------------------------------------------+
 // MACRO CONSTANT TYPEDEF
@@ -58,21 +58,5 @@
 //--------------------------------------------------------------------+
 // IMPLEMENTATION
 //--------------------------------------------------------------------+
-tusb_error_t dcd_controller_reset(uint8_t hostid)
-{
-
-  return TUSB_ERROR_NONE;
-}
-
-tusb_error_t dcd_controller_connect(uint8_t coreid)
-{
-  return TUSB_ERROR_NONE;
-}
-
-void dcd_isr(uint8_t hostid)
-{
-
-}
 
 #endif
-

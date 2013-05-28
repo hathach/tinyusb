@@ -158,6 +158,10 @@
 //--------------------------------------------------------------------+
 //#if MODE_DEVICE_SUPPORTED
 
+#if !TUSB_CFG_DEVICE_USE_ROM_DRIVER
+  #error only rom driver is supported now
+#endif
+
 #define DEVICE_CLASS_HID ( (defined TUSB_CFG_DEVICE_HID_KEYBOARD) || (defined TUSB_CFG_DEVICE_HID_MOUSE) )
 
 // TODO Device APP

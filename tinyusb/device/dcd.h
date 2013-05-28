@@ -57,26 +57,10 @@
 
 #include "common/common.h"
 
-#ifdef DEVICE_ROMDRIVER
-  #include "romdriver/mw_usbd_rom_api.h"
-  #define USBD_API ((USBD_API_T*) DEVICE_ROM_DRIVER_ADDR)
-#endif
-
-
-/** \brief Initialize DCD
- *
- * \param[in]  para1
- * \param[out] para2
- * \return Error Code of the \ref TUSB_ERROR enum
- * \note
- */
-
-tusb_error_t dcd_init(uint8_t coreid) ATTR_WARN_UNUSED_RESULT;
-
+tusb_error_t dcd_init(void) ATTR_WARN_UNUSED_RESULT;
 tusb_error_t dcd_controller_reset(uint8_t coreid) ATTR_WARN_UNUSED_RESULT;
-tusb_error_t dcd_controller_connect(uint8_t coreid) ATTR_WARN_UNUSED_RESULT;
-
-void dcd_isr(uint8_t hostid);
+void dcd_controller_connect(uint8_t coreid);
+void dcd_isr(uint8_t coreid);
 
 #ifdef __cplusplus
  }

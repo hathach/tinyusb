@@ -1,5 +1,5 @@
 /*
- * descriptors.c
+ * tusb_descriptors.c
  *
  *  Created on: Nov 26, 2012
  *      Author: hathach
@@ -35,7 +35,7 @@
  * This file is part of the tinyUSB stack
  */
 
-#include "descriptors.h"
+#include "tusb_descriptors.h"
 
 #if TUSB_CFG_DEVICE_HID_KEYBOARD
 TUSB_CFG_ATTR_USBRAM ATTR_ALIGNED(4)
@@ -120,7 +120,7 @@ const uint8_t mouse_report_descriptor[] = {
 #endif
 
 TUSB_CFG_ATTR_USBRAM ATTR_ALIGNED(4)
-tusb_descriptor_device_t const desc_device =
+tusb_descriptor_device_t const app_desc_device =
 {
     .bLength            = sizeof(tusb_descriptor_device_t),
     .bDescriptorType    = TUSB_DESC_TYPE_DEVICE,
@@ -131,7 +131,7 @@ tusb_descriptor_device_t const desc_device =
 
     .bMaxPacketSize0    = USB_MAX_PACKET0,
 
-    .idVendor           = CFG_USB_VENDORID,
+    .idVendor           = TUSB_CFG_DEVICE_VENDORID,
     .idProduct          = USB_PRODUCT_ID,
     .bcdDevice          = 0x0100,
 
@@ -144,14 +144,14 @@ tusb_descriptor_device_t const desc_device =
 
 
 TUSB_CFG_ATTR_USBRAM ATTR_ALIGNED(4)
-const app_configuration_desc_t desc_configuration =
+const app_descriptor_configuration_t app_desc_configuration =
 {
     .configuration =
     {
         .bLength             = sizeof(tusb_descriptor_configuration_t),
         .bDescriptorType     = TUSB_DESC_TYPE_CONFIGURATION,
 
-        .wTotalLength        = sizeof(app_configuration_desc_t) - 1, // exclude termination
+        .wTotalLength        = sizeof(app_descriptor_configuration_t) - 1, // exclude termination
         .bNumInterfaces      = TOTAL_INTEFACES,
 
         .bConfigurationValue = 1,
@@ -380,17 +380,18 @@ const app_configuration_desc_t desc_configuration =
     .null_termination = 0,
 };
 
-TUSB_CFG_ATTR_USBRAM ATTR_ALIGNED(4) const USB_STR_DESCRIPTOR USB_StringDescriptor =
+TUSB_CFG_ATTR_USBRAM ATTR_ALIGNED(4)
+const app_descriptor_string_t app_desc_strings =
 {
-    .LangID = { .bLength = 0x04, .bDescriptorType = USB_STRING_DESCRIPTOR_TYPE },
+    .LangID = { .bLength = 0x04, .bDescriptorType = TUSB_DESC_TYPE_STRING },
     .strLangID= {0x0409}, // US English
 
-    .Manufacturer = { .bLength = USB_STRING_LEN(sizeof(CFG_USB_STRING_MANUFACTURER)-1), .bDescriptorType = USB_STRING_DESCRIPTOR_TYPE },
+    .Manufacturer = { .bLength = USB_STRING_LEN(sizeof(TUSB_CFG_DEVICE_STRING_MANUFACTURER)-1), .bDescriptorType = TUSB_DESC_TYPE_STRING },
     .strManufacturer = {'t', 'i', 'n', 'y', 'U', 'S', 'B'},
 
-    .Product = { .bLength = USB_STRING_LEN(sizeof(CFG_USB_STRING_PRODUCT)-1), .bDescriptorType = USB_STRING_DESCRIPTOR_TYPE },
+    .Product = { .bLength = USB_STRING_LEN(sizeof(TUSB_CFG_DEVICE_STRING_PRODUCT)-1), .bDescriptorType = TUSB_DESC_TYPE_STRING },
     .strProduct = {'D', 'e', 'v', 'i', 'c', 'e', ' ', 'K', 'e', 'y', 'b', 'o', 'a', 'r', 'd'},
 
-    .Serial = { .bLength = USB_STRING_LEN(sizeof(CFG_USB_STRING_SERIAL)-1), .bDescriptorType = USB_STRING_DESCRIPTOR_TYPE },
+    .Serial = { .bLength = USB_STRING_LEN(sizeof(TUSB_CFG_DEVICE_STRING_SERIAL)-1), .bDescriptorType = TUSB_DESC_TYPE_STRING },
     .strSerial = {'1', '2', '3', '4'}
 };

@@ -1,6 +1,6 @@
 /**************************************************************************/
 /*!
-    @file     board_ngx4330.h
+    @file     dcd_lpc13xx.h
     @author   hathach (tinyusb.org)
 
     @section LICENSE
@@ -26,21 +26,15 @@
     WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
     DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER BE LIABLE FOR ANY
     DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
-    INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
-    LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION HOWEVER CAUSED AND
+    (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
+    LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND
     ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
-    INCLUDING NEGLIGENCE OR OTHERWISE ARISING IN ANY WAY OUT OF THE USE OF THIS
+    (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
     SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
     This file is part of the tinyusb stack.
 */
 /**************************************************************************/
-
-/** \file
- *  \brief TBD
- *
- *  \note TBD
- */
 
 /** \ingroup TBD
  *  \defgroup TBD
@@ -49,25 +43,21 @@
  *  @{
  */
 
-#ifndef _TUSB_BOARD_NGX4330_H_
-#define _TUSB_BOARD_NGX4330_H_
+#ifndef _TUSB_DCD_LPC13XX_H_
+#define _TUSB_DCD_LPC13XX_H_
 
-#include "LPC43xx.h"
-#include "lpc43xx_scu.h"
-#include "lpc43xx_cgu.h"
-#include "lpc43xx_gpio.h"
-#include "lpc43xx_uart.h"
+#define DEVICE_ROM_REG_BASE        LPC_USB_BASE
+#define DEVICE_ROM_DRIVER_ADDR     0x1FFF1FF8
 
 #ifdef __cplusplus
  extern "C" {
 #endif
 
-#define CFG_PRINTF_TARGET       PRINTF_TARGET_DEBUG_CONSOLE
 
 #ifdef __cplusplus
  }
 #endif
 
-#endif /* _TUSB_BOARD_NGX4330_H_ */
+#endif /* _TUSB_DCD_LPC13XX_H_ */
 
 /** @} */

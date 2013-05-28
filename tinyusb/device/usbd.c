@@ -50,6 +50,22 @@
 //--------------------------------------------------------------------+
 // MACRO CONSTANT TYPEDEF
 //--------------------------------------------------------------------+
+//typedef struct {
+//  volatile uint8_t state;
+//
+//};
+typedef struct {
+  volatile uint8_t state;
+}usbd_info_t; // TODO rename
+
+usbd_info_t usbd_info; // TODO rename
+
+typedef struct {
+  void (* const init) (void);
+  void (* const configured) (void);
+  void (* const unmounted) (void);
+}device_class_driver_t;
+
 
 //--------------------------------------------------------------------+
 // INTERNAL OBJECT & FUNCTION DECLARATION
@@ -60,6 +76,8 @@
 //--------------------------------------------------------------------+
 tusb_error_t usbd_init (void)
 {
+  ASSERT_STATUS ( dcd_init() );
+
   return TUSB_ERROR_NONE;
 }
 

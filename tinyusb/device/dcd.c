@@ -151,14 +151,4 @@ bool usb_isConfigured(void)
   return isConfigured;
 }
 
-/**************************************************************************/
-/*!
-    @brief Redirect the USB IRQ handler to the ROM handler
-*/
-/**************************************************************************/
-void USB_IRQHandler(void)
-{
-  USBD_API->hw->ISR(g_hUsb);
-}
-
 #endif

@@ -1,5 +1,5 @@
 /*
- * descriptors.h
+ * tusb_descriptors.h
  *
  *  Created on: Nov 26, 2012
  *      Author: hathachtware License Agreement (BSD License)
@@ -35,30 +35,31 @@
 
 #include "tusb.h"
 
-#define CFG_USB_STRING_MANUFACTURER   "tinyUSB"
-#define CFG_USB_STRING_PRODUCT        "Device Keyboard"
-#define CFG_USB_STRING_SERIAL          "1234"
-#define CFG_USB_VENDORID              0x1FC9
+#define TUSB_CFG_DEVICE_STRING_MANUFACTURER   "tinyUSB"
+#define TUSB_CFG_DEVICE_STRING_PRODUCT        "Device Keyboard"
+#define TUSB_CFG_DEVICE_STRING_SERIAL         "1234"
+#define TUSB_CFG_DEVICE_VENDORID              0x1FC9
+//#define TUSB_CFG_DEVICE_PRODUCTID
 
 /* USB Serial uses the MCUs unique 128-bit chip ID via an IAP call = 32 hex chars */
 #define USB_STRING_SERIAL_LEN     32
 
 #define USB_STRING_LEN(n) (2 + ((n)<<1))
 
-typedef ATTR_PREPACKED struct ATTR_PACKED _USB_STR_DESCRIPTOR
+typedef ATTR_PACKED_STRUCT(struct)
 {
-  USB_COMMON_DESCRIPTOR LangID;
+  tusb_descriptor_header_t LangID;
   uint16_t strLangID[1];
 
-  USB_COMMON_DESCRIPTOR Manufacturer;
-  uint16_t strManufacturer[sizeof(CFG_USB_STRING_MANUFACTURER)-1]; // exclude null-character
+  tusb_descriptor_header_t Manufacturer;
+  uint16_t strManufacturer[sizeof(TUSB_CFG_DEVICE_STRING_MANUFACTURER)-1]; // exclude null-character
 
-  USB_COMMON_DESCRIPTOR Product;
-  uint16_t strProduct[sizeof(CFG_USB_STRING_PRODUCT)-1]; // exclude null-character
+  tusb_descriptor_header_t Product;
+  uint16_t strProduct[sizeof(TUSB_CFG_DEVICE_STRING_PRODUCT)-1]; // exclude null-character
 
-  USB_COMMON_DESCRIPTOR Serial;
-  uint16_t strSerial[sizeof(CFG_USB_STRING_SERIAL)-1];
-} USB_STR_DESCRIPTOR;
+  tusb_descriptor_header_t Serial;
+  uint16_t strSerial[sizeof(TUSB_CFG_DEVICE_STRING_SERIAL)-1];
+} app_descriptor_string_t;
 
 // USB Interface Assosication Descriptor
 #define  USB_DEVICE_CLASS_IAD        USB_DEVICE_CLASS_MISCELLANEOUS
@@ -113,7 +114,7 @@ typedef ATTR_PREPACKED struct ATTR_PACKED _USB_STR_DESCRIPTOR
                                                     PRODUCTID_BITMAP(HID_GENERIC, 3) | PRODUCTID_BITMAP(MASS_STORAGE, 4) ) )
 
 ///////////////////////////////////////////////////////////////////////
-typedef struct
+typedef ATTR_PACKED_STRUCT(struct)
 {
   tusb_descriptor_configuration_t                configuration;
 
@@ -150,14 +151,14 @@ typedef struct
   tusb_descriptor_endpoint_t                     mouse_endpoint;
 #endif
 
-  uint8_t                                        null_termination;
-} app_configuration_desc_t;
+  uint8_t                                        null_termination; // NXP rom driver requires this to work
+} app_descriptor_configuration_t;
 
-extern const tusb_descriptor_device_t desc_device;
-extern const app_configuration_desc_t desc_configuration;
-extern const USB_STR_DESCRIPTOR USB_StringDescriptor;
-
+extern const tusb_descriptor_device_t app_desc_device;
+extern const app_descriptor_configuration_t app_desc_configuration;
+extern const app_descriptor_string_t app_desc_strings;
 extern const uint8_t keyboard_report_descriptor[];
-extern const uint8_t HID_MouseReportDescriptor[];
+
+//extern const uint8_t HID_MouseReportDescriptor[];
 
 #endif

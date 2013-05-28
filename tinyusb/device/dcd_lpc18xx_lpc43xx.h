@@ -1,6 +1,6 @@
 /**************************************************************************/
 /*!
-    @file     hal_lpc13uxx.h
+    @file     dcd_lpc18xx_lpc43xx.h
     @author   hathach (tinyusb.org)
 
     @section LICENSE
@@ -26,21 +26,15 @@
     WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
     DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER BE LIABLE FOR ANY
     DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
-    INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
-    LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION HOWEVER CAUSED AND
+    (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
+    LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND
     ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
-    INCLUDING NEGLIGENCE OR OTHERWISE ARISING IN ANY WAY OUT OF THE USE OF THIS
+    (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
     SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
     This file is part of the tinyusb stack.
 */
 /**************************************************************************/
-
-/** \file
- *  \brief TBD
- *
- *  \note TBD
- */
 
 /** \ingroup TBD
  *  \defgroup TBD
@@ -49,31 +43,20 @@
  *  @{
  */
 
-#ifndef _TUSB_HAL_LPC13UXX_H_
-#define _TUSB_HAL_LPC13UXX_H_
-
-#include "LPC13Uxx.h"
+#ifndef _TUSB_DCD_LPC18XX_LPC43XX_H_
+#define _TUSB_DCD_LPC18XX_LPC43XX_H_
 
 #ifdef __cplusplus
  extern "C" {
 #endif
 
-static inline void hal_interrupt_enable(uint8_t controller_id)
-{
-  (void) controller_id; // discard compiler's warning
-  NVIC_EnableIRQ(USB_IRQ_IRQn);
-}
-
-static inline void hal_interrupt_disable(uint8_t controller_id)
-{
-  (void) controller_id; // discard compiler's warning
-  NVIC_DisableIRQ(USB_IRQ_IRQn);
-}
+#define DEVICE_ROM_REG_BASE        LPC_USB0_BASE // TODO USB1
+#define DEVICE_ROM_DRIVER_ADDR     0x1040011C
 
 #ifdef __cplusplus
  }
 #endif
 
-#endif /* _TUSB_HAL_LPC13UXX_H_ */
+#endif /* _TUSB_DCD_LPC18XX_LPC43XX_H_ */
 
 /** @} */

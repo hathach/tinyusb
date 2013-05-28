@@ -81,7 +81,7 @@
 						</toolChain>
 					</folderInfo>
 					<sourceEntries>
-						<entry excluding="bsp/boards/embedded_artists/oem_base_board|bsp/lpc43xx|bsp/lpc11uxx" flags="VALUE_WORKSPACE_PATH|RESOLVED" kind="sourcePath" name=""/>
+						<entry excluding="bsp/boards/embedded_artists/oem_base_board|bsp/lpc11uxx|bsp/lpc43xx" flags="VALUE_WORKSPACE_PATH|RESOLVED" kind="sourcePath" name=""/>
 					</sourceEntries>
 				</configuration>
 			</storageModule>
@@ -1389,7 +1389,7 @@
 						</toolChain>
 					</folderInfo>
 					<sourceEntries>
-						<entry excluding="bsp/lpc43xx/CMSISv2p10_LPC43xx_DriverLib/src/sdio.c|bsp/lpc43xx/CMSISv2p10_LPC43xx_DriverLib/src/lpc43xx_wwdt.c|bsp/lpc43xx/CMSISv2p10_LPC43xx_DriverLib/src/lpc43xx_timer.c|bsp/lpc43xx/CMSISv2p10_LPC43xx_DriverLib/src/lpc43xx_ssp.c|bsp/lpc43xx/CMSISv2p10_LPC43xx_DriverLib/src/lpc43xx_sct.c|bsp/lpc43xx/CMSISv2p10_LPC43xx_DriverLib/src/lpc43xx_rtc.c|bsp/lpc43xx/CMSISv2p10_LPC43xx_DriverLib/src/lpc43xx_rit.c|bsp/lpc43xx/CMSISv2p10_LPC43xx_DriverLib/src/lpc43xx_qei.c|bsp/lpc43xx/CMSISv2p10_LPC43xx_DriverLib/src/lpc43xx_mcpwm.c|bsp/lpc43xx/CMSISv2p10_LPC43xx_DriverLib/src/lpc43xx_lcd.c|bsp/lpc43xx/CMSISv2p10_LPC43xx_DriverLib/src/lpc43xx_i2s.c|bsp/lpc43xx/CMSISv2p10_LPC43xx_DriverLib/src/lpc43xx_gpdma.c|bsp/lpc43xx/CMSISv2p10_LPC43xx_DriverLib/src/lpc43xx_evrt.c|bsp/lpc43xx/CMSISv2p10_LPC43xx_DriverLib/src/lpc43xx_emc.c|bsp/lpc43xx/CMSISv2p10_LPC43xx_DriverLib/src/lpc43xx_dac.c|bsp/lpc43xx/CMSISv2p10_LPC43xx_DriverLib/src/lpc43xx_can.c|bsp/lpc43xx/CMSISv2p10_LPC43xx_DriverLib/src/lpc43xx_atimer.c|bsp/lpc43xx/CMSISv2p10_LPC43xx_DriverLib/src/lpc43xx_adc.c|bsp/lpc43xx/CMSISv2p10_LPC43xx_DriverLib/src/LCDTerm.c|bsp/lpc43xx/CMSISv2p10_LPC43xx_DriverLib/src/Font5x7.c|bsp/lpc43xx/CMSISv2p10_LPC43xx_DriverLib/src/debug_frmwrk.c|bsp/lpc13uxx|bsp/lpc11uxx" flags="VALUE_WORKSPACE_PATH|RESOLVED" kind="sourcePath" name=""/>
+						<entry excluding="bsp/lpc43xx/CMSISv2p10_LPC43xx_DriverLib/src/lpc43xx_can.c|bsp/lpc43xx/CMSISv2p10_LPC43xx_DriverLib/src/sdio.c|bsp/lpc43xx/CMSISv2p10_LPC43xx_DriverLib/src/LCDTerm.c|bsp/lpc43xx/CMSISv2p10_LPC43xx_DriverLib/src/lpc43xx_evrt.c|bsp/lpc11uxx|bsp/lpc43xx/CMSISv2p10_LPC43xx_DriverLib/src/lpc43xx_gpdma.c|bsp/lpc13uxx|bsp/lpc43xx/CMSISv2p10_LPC43xx_DriverLib/src/lpc43xx_lcd.c|bsp/lpc43xx/CMSISv2p10_LPC43xx_DriverLib/src/lpc43xx_ssp.c|bsp/lpc43xx/CMSISv2p10_LPC43xx_DriverLib/src/lpc43xx_rit.c|bsp/lpc43xx/CMSISv2p10_LPC43xx_DriverLib/src/lpc43xx_qei.c|bsp/lpc43xx/CMSISv2p10_LPC43xx_DriverLib/src/lpc43xx_atimer.c|bsp/lpc43xx/CMSISv2p10_LPC43xx_DriverLib/src/lpc43xx_wwdt.c|bsp/lpc43xx/CMSISv2p10_LPC43xx_DriverLib/src/lpc43xx_mcpwm.c|bsp/lpc43xx/CMSISv2p10_LPC43xx_DriverLib/src/debug_frmwrk.c|bsp/lpc43xx/CMSISv2p10_LPC43xx_DriverLib/src/lpc43xx_i2s.c|bsp/lpc43xx/CMSISv2p10_LPC43xx_DriverLib/src/lpc43xx_emc.c|bsp/lpc43xx/CMSISv2p10_LPC43xx_DriverLib/src/lpc43xx_sct.c|bsp/lpc43xx/CMSISv2p10_LPC43xx_DriverLib/src/lpc43xx_rtc.c|bsp/lpc43xx/CMSISv2p10_LPC43xx_DriverLib/src/lpc43xx_dac.c|bsp/lpc43xx/CMSISv2p10_LPC43xx_DriverLib/src/Font5x7.c|bsp/lpc43xx/CMSISv2p10_LPC43xx_DriverLib/src/lpc43xx_timer.c|bsp/lpc43xx/CMSISv2p10_LPC43xx_DriverLib/src/lpc43xx_adc.c" flags="VALUE_WORKSPACE_PATH|RESOLVED" kind="sourcePath" name=""/>
 					</sourceEntries>
 				</configuration>
 			</storageModule>

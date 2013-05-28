@@ -26,7 +26,7 @@
 #define __HIDUSER_H__
 
 #include "mw_usbd.h"
-#include "mw_usbd_hid.h"
+//#include "mw_usbd_hid.h"
 #include "mw_usbd_core.h"
 
 /** \file
