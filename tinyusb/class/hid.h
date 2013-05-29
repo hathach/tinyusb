@@ -69,6 +69,12 @@ enum {
   HID_DESC_TYPE_PHYSICAL = 0x23
 };
 
+enum {
+  HID_REQUEST_REPORT_INPUT = 1,
+  HID_REQUEST_REPORT_OUTPUT,
+  HID_REQUEST_REPORT_FEATURE
+};
+
 typedef ATTR_PREPACKED struct ATTR_PACKED {
   uint8_t  bLength;         /**< Numeric expression that is the total size of the HID descriptor */
   uint8_t  bDescriptorType; /**< Constant name specifying type of HID descriptor. */

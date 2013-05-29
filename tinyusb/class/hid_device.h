@@ -53,50 +53,29 @@
 #define _TUSB_HID_DEVICE_H_
 
 #include "common/common.h"
+#include "device/usbd.h"
 #include "hid.h"
 
 #ifdef __cplusplus
  extern "C" {
 #endif
 
-#ifdef DEVICE_ROMDRIVER
-/** \brief Initialize HID driver
- *
- * \param[in]  para1
- * \param[out] para2
- * \return Error Code of the \ref TUSB_ERROR enum
- * \note
- */
-tusb_error_t tusb_hid_init(USBD_HANDLE_T hUsb, USB_INTERFACE_DESCRIPTOR const *const pIntfDesc, uint8_t const * const pHIDReportDesc, uint32_t ReportDescLength, uint32_t* mem_base, uint32_t* mem_size);
-
-/** \brief Notify HID class that usb is configured
- *
- * \param[in]  para1
- * \param[out] para2
- * \return Error Code of the \ref TUSB_ERROR enum
- * \note
- */
-tusb_error_t tusb_hid_configured(USBD_HANDLE_T hUsb);
-
-/** \brief Used by Application to send Keycode to Host
- *
- * \param[in]  para1
- * \param[out] para2
- * \return Error Code of the \ref TUSB_ERROR enum
- * \note
- */
-tusb_error_t tusb_hid_keyboard_sendKeys(uint8_t modifier, uint8_t keycodes[], uint8_t numkey);
-
-/** \brief
- *
- * \param[in]  para1
- * \param[out] para2
- * \return Error Code of the \ref TUSB_ERROR enum
- * \note
- */
+//--------------------------------------------------------------------+
+// KEYBOARD Application API
+//--------------------------------------------------------------------+
+tusb_error_t tusbd_hid_keyboard_send_report(uint8_t modifier, uint8_t keycodes[], uint8_t numkey);
 tusb_error_t tusb_hid_mouse_send(uint8_t buttons, int8_t x, int8_t y);
 
-#endif /* ROM DRIVRER */
+//--------------------------------------------------------------------+
+// USBD-CLASS DRIVER API
+//--------------------------------------------------------------------+
+#ifdef _TINY_USB_SOURCE_FILE_
+#include "device/romdriver/mw_usbd_rom_api.h" // TODO remove rom driver dependency
+
+tusb_error_t hidd_init(USBD_HANDLE_T hUsb, tusb_descriptor_interface_t const *const pIntfDesc, uint8_t const * const pHIDReportDesc, uint32_t ReportDescLength, uint32_t* mem_base, uint32_t* mem_size);
+tusb_error_t hidd_configured(USBD_HANDLE_T hUsb);
+
+#endif
 
 #ifdef __cplusplus
  }

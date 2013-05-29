@@ -54,6 +54,8 @@
 
 #if (MCU == MCU_LPC18XX) || (MCU == MCU_LPC43XX)
   #include "dcd_lpc18xx_lpc43xx.h"
+#elif (MCU == MCU_LPC13UXX)
+  #include "dcd_lpc13xx.h"
 #else
   #error forgot something, thach ?
 #endif

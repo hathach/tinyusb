@@ -65,7 +65,7 @@
 #define CFG_LED_ON                    (1)
 #define CFG_LED_OFF                   (0)
 
-#define CFG_PRINTF_TARGET PRINTF_TARGET_UART
+#define CFG_PRINTF_TARGET PRINTF_TARGET_DEBUG_CONSOLE
 
 #ifdef __cplusplus
  }

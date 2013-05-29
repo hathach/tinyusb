@@ -233,7 +233,7 @@ ErrorCode_t CDC_BulkIn_Hdlr(USBD_HANDLE_T hUsb, void* data, uint32_t event)
     uint16_t count;
 
     count = fifo_read_n(&ffTX, buffer, CDC_DATA_EP_MAXPACKET_SIZE);
-    USBD_API->hw->WriteEP(hUsb, CDC_DATA_EP_IN, buffer, count); // write data to EP
+    ROM_API->hw->WriteEP(hUsb, CDC_DATA_EP_IN, buffer, count); // write data to EP
   }
 
   return LPC_OK;
@@ -251,7 +251,7 @@ ErrorCode_t CDC_BulkOut_Hdlr(USBD_HANDLE_T hUsb, void* data, uint32_t event)
     uint16_t count, i;
     uint8_t buffer[CDC_DATA_EP_MAXPACKET_SIZE];
 
-    count = USBD_API->hw->ReadEP(hUsb, CDC_DATA_EP_OUT, buffer);
+    count = ROM_API->hw->ReadEP(hUsb, CDC_DATA_EP_OUT, buffer);
     for (i=0; i<count; i++)
     {
       fifo_write(&ffRX, buffer[i]);
@@ -290,10 +290,10 @@ tusb_error_t tusb_cdc_init(USBD_HANDLE_T hUsb, USB_INTERFACE_DESCRIPTOR const *c
   ASSERT (pControlIntfDesc && pDataIntfDesc, ERR_FAILED);
 
   /* register Bulk IN & OUT endpoint interrupt handler */
-  ASSERT ( LPC_OK == USBD_API->core->RegisterEpHandler (hUsb , ((CDC_DATA_EP_IN & 0x0F) << 1) +1 , CDC_BulkIn_Hdlr  , NULL), TUSB_ERROR_FAILED );
-  ASSERT ( LPC_OK == USBD_API->core->RegisterEpHandler (hUsb , (CDC_DATA_EP_OUT & 0x0F) << 1     , CDC_BulkOut_Hdlr , NULL), TUSB_ERROR_FAILED );
+  ASSERT ( LPC_OK == ROM_API->core->RegisterEpHandler (hUsb , ((CDC_DATA_EP_IN & 0x0F) << 1) +1 , CDC_BulkIn_Hdlr  , NULL), TUSB_ERROR_FAILED );
+  ASSERT ( LPC_OK == ROM_API->core->RegisterEpHandler (hUsb , (CDC_DATA_EP_OUT & 0x0F) << 1     , CDC_BulkOut_Hdlr , NULL), TUSB_ERROR_FAILED );
 
-  ASSERT ( LPC_OK == USBD_API->cdc->init(hUsb, &cdc_param, &g_hCdc), TUSB_ERROR_FAILED);
+  ASSERT ( LPC_OK == ROM_API->cdc->init(hUsb, &cdc_param, &g_hCdc), TUSB_ERROR_FAILED);
 
   /* update memory variables */
   *mem_base = cdc_param.mem_base;
@@ -310,7 +310,7 @@ tusb_error_t tusb_cdc_init(USBD_HANDLE_T hUsb, USB_INTERFACE_DESCRIPTOR const *c
 tusb_error_t tusb_cdc_configured(USBD_HANDLE_T hUsb)
 {
   uint8_t dummy=0;
-  USBD_API->hw->WriteEP(hUsb, CDC_DATA_EP_IN, &dummy, 1); // initial packet for IN endpoint, will not work if omitted
+  ROM_API->hw->WriteEP(hUsb, CDC_DATA_EP_IN, &dummy, 1); // initial packet for IN endpoint, will not work if omitted
 
   // FIXME abstract to hal
   #if MCU == MCU_LPC11UXX

@@ -14,6 +14,8 @@
   __CRP const unsigned int CRP_WORD = CRP_NO_CRP ;
 #endif
 
+void print_greeting(void);
+
 int main(void)
 {
   uint32_t current_tick = system_ticks;
@@ -21,6 +23,7 @@ int main(void)
   board_init();
   tusb_init();
 
+  print_greeting();
   while (1)
   {
     if (current_tick + 1000 < system_ticks)
@@ -32,19 +35,17 @@ int main(void)
       board_leds(led_on_mask, 1 - led_on_mask);
       led_on_mask = 1 - led_on_mask; // toggle
 
-      #if !(defined TUSB_CFG_DEVICE_CDC) && 0
       if (usb_isConfigured())
       {
-        #ifdef TUSB_CFG_DEVICE_HID_KEYBOARD
-          uint8_t keys[6] = {HID_USAGE_KEYBOARD_aA};
-          tusb_hid_keyboard_sendKeys(0x00, keys, 1);
+        #if TUSB_CFG_DEVICE_HID_KEYBOARD
+          uint8_t keys[6] = {0x04}; // A character
+          tusbd_hid_keyboard_send_report(0x00, keys, 1);
         #endif
 
-        #ifdef TUSB_CFG_DEVICE_HID_MOUSE          
+        #if TUSB_CFG_DEVICE_HID_MOUSE
           tusb_hid_mouse_send(0, 10, 10);
         #endif
       }
-      #endif
     }
 
     #if defined TUSB_CFG_DEVICE_CDC && 0
@@ -59,7 +60,7 @@ int main(void)
           case '1' :
           {
             uint8_t keys[6] = {HID_USAGE_KEYBOARD_aA + 'e' - 'a'};
-            tusb_hid_keyboard_sendKeys(0x08, keys, 1); // windows + E --> open explorer
+            tusbd_hid_keyboard_send_report(0x08, keys, 1); // windows + E --> open explorer
           }
           break;
           #endif
@@ -82,4 +83,18 @@ int main(void)
   }
 
   return 0;
+}
+
+//--------------------------------------------------------------------+
+// HELPER FUNCTION
+//--------------------------------------------------------------------+
+void print_greeting(void)
+{
+  printf("\r\n\
+--------------------------------------------------------------------\r\n\
+-                     Device Demo (a tinyusb example)\r\n\
+- if you find any bugs or get any questions, feel free to file an\r\n\
+- issue at https://github.com/hathach/tinyusb\r\n\
+--------------------------------------------------------------------\r\n\r\n"
+  );
 }

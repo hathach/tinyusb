@@ -51,10 +51,22 @@
 
 #include "tusb_descriptors.h"
 
-#define USBD_API                   ((USBD_API_T*) DEVICE_ROM_DRIVER_ADDR)
+
 #define USB_ROM_SIZE (1024*2) // TODO dcd abstract later
 uint8_t usb_RomDriver_buffer[USB_ROM_SIZE] ATTR_ALIGNED(2048) TUSB_CFG_ATTR_USBRAM;
 USBD_HANDLE_T g_hUsb;
+
+typedef struct {
+  volatile uint8_t state;
+}usbd_info_t; // TODO rename
+
+usbd_info_t usbd_info; // TODO rename
+
+typedef struct {
+  void (* const init) (void);
+  void (* const configured) (void);
+  void (* const unmounted) (void);
+}device_class_driver_t;
 
 //--------------------------------------------------------------------+
 // MACRO CONSTANT TYPEDEF
@@ -74,10 +86,10 @@ ErrorCode_t USB_Configure_Event (USBD_HANDLE_T hUsb)
   USB_CORE_CTRL_T* pCtrl = (USB_CORE_CTRL_T*)hUsb;
   if (pCtrl->config_value)
   {
-//    usbd_info.state = TUSB_DEVICE_STATE_CONFIGURED;
+    usbd_info.state = TUSB_DEVICE_STATE_CONFIGURED;
 
     #if defined(DEVICE_CLASS_HID)
-//    ASSERT( TUSB_ERROR_NONE == tusb_hid_configured(hUsb), ERR_FAILED );
+    ASSERT( TUSB_ERROR_NONE == hidd_configured(hUsb), ERR_FAILED );
     #endif
 
     #ifdef TUSB_CFG_DEVICE_CDC
@@ -91,7 +103,7 @@ ErrorCode_t USB_Configure_Event (USBD_HANDLE_T hUsb)
 
 ErrorCode_t USB_Reset_Event (USBD_HANDLE_T hUsb)
 {
-//  usbd_info.state = TUSB_DEVICE_STATE_UNPLUG;
+  usbd_info.state = TUSB_DEVICE_STATE_UNPLUG;
   return LPC_OK;
 }
 
@@ -122,7 +134,7 @@ tusb_error_t dcd_init(void)
   };
 
   /* USB hardware core initialization */
-  ASSERT(LPC_OK == USBD_API->hw->Init(&g_hUsb, &desc_core, &usb_param), TUSB_ERROR_FAILED);
+  ASSERT_INT(LPC_OK, ROM_API->hw->Init(&g_hUsb, &desc_core, &usb_param), TUSB_ERROR_FAILED);
 
   // TODO need to confirm the mem_size is reduced by the number of byte used
   membase += (memsize - usb_param.mem_size);
@@ -130,7 +142,7 @@ tusb_error_t dcd_init(void)
 
 
   #if TUSB_CFG_DEVICE_HID_KEYBOARD
-  ASSERT_STATUS( tusb_hid_init(g_hUsb , &app_desc_configuration.keyboard_interface,
+  ASSERT_STATUS( hidd_init(g_hUsb , &app_desc_configuration.keyboard_interface,
             keyboard_report_descriptor, app_desc_configuration.keyboard_hid.wReportLength,
             &membase , &memsize) );
   #endif
@@ -141,8 +153,14 @@ tusb_error_t dcd_init(void)
             &membase , &memsize) );
   #endif
 
+  ROM_API->hw->Connect(g_hUsb, 1);
 
   return TUSB_ERROR_NONE;
+}
+
+bool usb_isConfigured(void)
+{
+  return usbd_info.state == TUSB_DEVICE_STATE_CONFIGURED;
 }
 
 tusb_error_t dcd_controller_reset(uint8_t coreid)
@@ -154,12 +172,12 @@ tusb_error_t dcd_controller_reset(uint8_t coreid)
 
 void dcd_controller_connect(uint8_t coreid)
 {
-//  USBD_API->hw->Connect(g_hUsb, 1);
+//  ROM_API->hw->Connect(g_hUsb, 1);
 }
 
 void dcd_isr(uint8_t coreid)
 {
-//  USBD_API->hw->ISR(g_hUsb);
+//  ROM_API->hw->ISR(g_hUsb);
 }
 
 #endif

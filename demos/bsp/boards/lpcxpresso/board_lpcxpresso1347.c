@@ -63,11 +63,14 @@ void board_init(void)
 //--------------------------------------------------------------------+
 // LEDS
 //--------------------------------------------------------------------+
-void board_leds(uint32_t mask, uint32_t state)
+void board_leds(uint32_t on_mask, uint32_t off_mask)
 {
-  if (mask)
+  if (on_mask & BIT_(0))
   {
-    GPIOSetBitValue(CFG_LED_PORT, CFG_LED_PIN, mask & state ? CFG_LED_ON : CFG_LED_OFF);
+    GPIOSetBitValue(CFG_LED_PORT, CFG_LED_PIN, CFG_LED_ON);
+  }else if (off_mask & BIT_(0))
+  {
+    GPIOSetBitValue(CFG_LED_PORT, CFG_LED_PIN, CFG_LED_OFF);
   }
 }
 

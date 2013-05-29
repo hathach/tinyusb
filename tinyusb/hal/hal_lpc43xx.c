@@ -70,7 +70,7 @@ tusb_error_t hal_init(void)
     LPC_USB0->USBMODE_H = LPC43XX_USBMODE_HOST | (LPC43XX_USBMODE_VBUS_HIGH << 5);
   #else // TODO OTG
 //    dcd_controller_reset(0);
-//    LPC_USB0->USBMODE_D = LPC43XX_USBMODE_DEVICE;
+    LPC_USB0->USBMODE_D = LPC43XX_USBMODE_DEVICE;
     dcd_controller_connect(0);
   #endif
 
@@ -92,7 +92,7 @@ tusb_error_t hal_init(void)
     LPC_USB1->USBMODE_H = LPC43XX_USBMODE_HOST | (LPC43XX_USBMODE_VBUS_HIGH << 5);
   #else // TODO OTG
 //    dcd_controller_reset(1);
-//    LPC_USB0->USBMODE_D = LPC43XX_USBMODE_DEVICE;
+    LPC_USB0->USBMODE_D = LPC43XX_USBMODE_DEVICE;
     dcd_controller_connect(1);
   #endif
 

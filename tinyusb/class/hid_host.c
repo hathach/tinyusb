@@ -181,7 +181,7 @@ tusb_interface_status_t tusbh_hid_mouse_status(uint8_t dev_addr, uint8_t instanc
 #endif
 
 //--------------------------------------------------------------------+
-// CLASS-USBD API (don't require to verify parameters)
+// CLASS-USBH API (don't require to verify parameters)
 //--------------------------------------------------------------------+
 void hidh_init(void)
 {

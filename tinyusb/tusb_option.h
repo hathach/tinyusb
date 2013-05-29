@@ -156,13 +156,16 @@
 //--------------------------------------------------------------------+
 // DEVICE OPTIONS
 //--------------------------------------------------------------------+
-//#if MODE_DEVICE_SUPPORTED
+#if MODE_DEVICE_SUPPORTED
 
 #if !TUSB_CFG_DEVICE_USE_ROM_DRIVER
   #error only rom driver is supported now
 #endif
 
-#define DEVICE_CLASS_HID ( (defined TUSB_CFG_DEVICE_HID_KEYBOARD) || (defined TUSB_CFG_DEVICE_HID_MOUSE) )
+#define DEVICE_CLASS_HID ( TUSB_CFG_DEVICE_HID_KEYBOARD + TUSB_CFG_DEVICE_HID_MOUSE + TUSB_CFG_DEVICE_HID_GENERIC )
+
+
+#endif
 
 // TODO Device APP
 #define USB_MAX_IF_NUM          8
@@ -187,7 +190,7 @@
 #define  CDC_NOTIFICATION_EP_MAXPACKETSIZE  8
 #define  CDC_DATA_EP_MAXPACKET_SIZE         16
 
-//#endif
+
 
 #ifdef __cplusplus
  }

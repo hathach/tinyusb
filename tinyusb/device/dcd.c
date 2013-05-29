@@ -37,7 +37,7 @@
 
 #include "dcd.h"
 
-#ifdef TUSB_CFG_DEVICE
+#if 0
 
 #include "descriptors.h" // TODO refractor later
 
@@ -109,7 +109,7 @@ tusb_error_t dcd_init(uint8_t coreid)
   };
 
   /* USB hardware core initialization */
-  ASSERT(LPC_OK == USBD_API->hw->Init(&g_hUsb, &DeviceDes, &usb_param), TUSB_ERROR_FAILED);
+  ASSERT(LPC_OK == ROM_API->hw->Init(&g_hUsb, &DeviceDes, &usb_param), TUSB_ERROR_FAILED);
 
   membase += (memsize - usb_param.mem_size);
   memsize = usb_param.mem_size;
@@ -135,7 +135,7 @@ tusb_error_t dcd_init(uint8_t coreid)
   hal_interrupt_enable(); /* Enable the USB interrupt */
 
   /* Perform USB soft connect */
-  USBD_API->hw->Connect(g_hUsb, 1);
+  ROM_API->hw->Connect(g_hUsb, 1);
 #endif
 
   return TUSB_ERROR_NONE;
