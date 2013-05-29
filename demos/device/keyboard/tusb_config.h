@@ -86,6 +86,7 @@
 //------------- CLASS -------------//
 #define TUSB_CFG_DEVICE_HID_KEYBOARD  1
 #define TUSB_CFG_DEVICE_HID_MOUSE     0
+#define TUSB_CFG_DEVICE_HID_GENERIC   0
 #define TUSB_CFG_DEVICE_MSC           0
 //#define TUSB_CFG_DEVICE_CDC
 
@@ -101,7 +102,7 @@
 
 #ifdef __CODE_RED // make use of code red's support for ram region macros
   #if (MCU == MCU_LPC11UXX) || (MCU == MCU_LPC13UXX)
-    #define TUSB_RAM_SECTION  ".data.$RAM2"
+    #define TUSB_RAM_SECTION  ".data.$RAM1"
   #elif  (MCU == MCU_LPC43XX)
     #define TUSB_RAM_SECTION  ".data.$RAM3"
   #endif

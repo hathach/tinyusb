@@ -54,7 +54,14 @@ tusb_error_t hal_init()
   LPC_IOCON->PIO0_6   &= ~0x07;
   LPC_IOCON->PIO0_6   |= (0x01<<0);            /* Secondary function SoftConn */
 
+  hal_interrupt_enable(0);
+
   return TUSB_ERROR_NONE;
+}
+
+void USB_IRQHandler(void)
+{
+  tusb_isr(0);
 }
 
 #endif

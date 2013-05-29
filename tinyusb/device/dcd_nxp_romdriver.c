@@ -172,12 +172,12 @@ tusb_error_t dcd_controller_reset(uint8_t coreid)
 
 void dcd_controller_connect(uint8_t coreid)
 {
-//  ROM_API->hw->Connect(g_hUsb, 1);
+  ROM_API->hw->Connect(g_hUsb, 1);
 }
 
 void dcd_isr(uint8_t coreid)
 {
-//  ROM_API->hw->ISR(g_hUsb);
+  ROM_API->hw->ISR(g_hUsb);
 }
 
 #endif
