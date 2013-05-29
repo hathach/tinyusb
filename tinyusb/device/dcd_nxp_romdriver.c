@@ -153,6 +153,7 @@ tusb_error_t dcd_init(void)
             &membase , &memsize) );
   #endif
 
+  hal_interrupt_enable(0);
   ROM_API->hw->Connect(g_hUsb, 1);
 
   return TUSB_ERROR_NONE;
@@ -172,7 +173,7 @@ tusb_error_t dcd_controller_reset(uint8_t coreid)
 
 void dcd_controller_connect(uint8_t coreid)
 {
-  ROM_API->hw->Connect(g_hUsb, 1);
+//  ROM_API->hw->Connect(g_hUsb, 1);
 }
 
 void dcd_isr(uint8_t coreid)

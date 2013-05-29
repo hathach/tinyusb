@@ -58,8 +58,6 @@
 #include "common/common.h"
 #include "dcd_nxp_romdriver.h"
 
-#define ROM_API                   ( * (*((USBD_API_T***) 0x1FFF1FF8)) ) // TODO remove rom API dependency
-
 tusb_error_t dcd_init(void) ATTR_WARN_UNUSED_RESULT;
 tusb_error_t dcd_controller_reset(uint8_t coreid) ATTR_WARN_UNUSED_RESULT;
 void dcd_controller_connect(uint8_t coreid);

@@ -57,6 +57,13 @@ void board_init(void)
   
   // USB1 Power: EA4357 channel A U20 is enabled by SJ5 connected to pad 1-2, no more action required
 
+  // TODO Device only USB0
+  // 1.5Kohm pull-up resistor is needed on the USB DP data signal. GPIO28 (base), P9_5 (LPC4357) controls
+  scu_pinmux(0x9, 5, MD_PUP|MD_EZI|MD_ZI, FUNC4);		// GPIO5[18]
+  GPIO_SetDir(5, BIT_(18), 1); // output
+  GPIO_ClearValue(5, BIT_(18));
+
+
   // init I2C and set up MIC2555 to have 15k pull-down on USB1 D+ & D-
   I2C_Init(LPC_I2C0, 100000);
   I2C_Cmd(LPC_I2C0, ENABLE);

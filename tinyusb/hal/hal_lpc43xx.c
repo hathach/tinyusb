@@ -70,8 +70,10 @@ tusb_error_t hal_init(void)
     LPC_USB0->USBMODE_H = LPC43XX_USBMODE_HOST | (LPC43XX_USBMODE_VBUS_HIGH << 5);
   #else // TODO OTG
 //    dcd_controller_reset(0);
-    LPC_USB0->USBMODE_D = LPC43XX_USBMODE_DEVICE;
-    dcd_controller_connect(0);
+//    LPC_USB0->USBMODE_D = LPC43XX_USBMODE_DEVICE;
+//    LPC_USB0->OTGSC = (1<<3) | (1<<0) /*| (1<<16)| (1<<24)| (1<<25)| (1<<26)| (1<<27)| (1<<28)| (1<<29)| (1<<30)*/;
+//    LPC_USB0->PORTSC1_D |= (1<<24); // force full speed
+//    dcd_controller_connect(0);
   #endif
 
   hal_interrupt_enable(0);
@@ -104,18 +106,18 @@ tusb_error_t hal_init(void)
   return TUSB_ERROR_NONE;
 }
 
+#if TUSB_CFG_CONTROLLER0_MODE
 void USB0_IRQHandler(void)
 {
-#if TUSB_CFG_CONTROLLER0_MODE
   tusb_isr(0);
-#endif
 }
+#endif
 
+#if TUSB_CFG_CONTROLLER1_MODE
 void USB1_IRQHandler(void)
 {
-#if TUSB_CFG_CONTROLLER1_MODE
   tusb_isr(1);
-#endif
 }
+#endif
 
 #endif
