@@ -48,17 +48,43 @@
 
 typedef ATTR_PACKED_STRUCT(struct)
 {
-  tusb_descriptor_header_t LangID;
-  uint16_t strLangID[1];
+  uint8_t  bLength         ; ///< Size of this descriptor in bytes
+  uint8_t  bDescriptorType ; ///< Descriptor Type
+  uint16_t unicode_string[];
+} tusb_descriptor_string_t;
 
-  tusb_descriptor_header_t Manufacturer;
-  uint16_t strManufacturer[sizeof(TUSB_CFG_DEVICE_STRING_MANUFACTURER)-1]; // exclude null-character
+typedef ATTR_PACKED_STRUCT(struct)
+{
+  //------------- index 0 -------------//
+  struct {
+    uint8_t const bLength;
+    uint8_t const bDescriptorType;
+    uint16_t id;
+  }language;
 
-  tusb_descriptor_header_t Product;
-  uint16_t strProduct[sizeof(TUSB_CFG_DEVICE_STRING_PRODUCT)-1]; // exclude null-character
+  //------------- index 1 -------------//
+  struct {
+    uint8_t const bLength;
+    uint8_t const bDescriptorType;
+    uint16_t unicode_string[sizeof(TUSB_CFG_DEVICE_STRING_MANUFACTURER)-1]; // exclude null-character
+  } manufacturer;
 
-  tusb_descriptor_header_t Serial;
-  uint16_t strSerial[sizeof(TUSB_CFG_DEVICE_STRING_SERIAL)-1];
+  //------------- index 2 -------------//
+  struct {
+    uint8_t const bLength;
+    uint8_t const bDescriptorType;
+    uint16_t unicode_string[sizeof(TUSB_CFG_DEVICE_STRING_PRODUCT)-1]; // exclude null-character
+  } product;
+
+  //------------- index 3 -------------//
+  struct {
+    uint8_t const bLength;
+    uint8_t const bDescriptorType;
+    uint16_t unicode_string[sizeof(TUSB_CFG_DEVICE_STRING_SERIAL)-1]; // exclude null-character
+  } serials;
+
+  //------------- more string index -------------//
+
 } app_descriptor_string_t;
 
 // USB Interface Assosication Descriptor

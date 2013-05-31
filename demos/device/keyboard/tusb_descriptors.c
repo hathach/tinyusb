@@ -381,15 +381,31 @@ const app_descriptor_configuration_t app_tusb_desc_configuration =
 TUSB_CFG_ATTR_USBRAM ATTR_ALIGNED(4)
 const app_descriptor_string_t app_tusb_desc_strings =
 {
-    .LangID = { .bLength = 0x04, .bDescriptorType = TUSB_DESC_TYPE_STRING },
-    .strLangID= {0x0409}, // US English
+    //------------- index 0 -------------//
+    .language = {
+        .bLength         = 0x04,
+        .bDescriptorType = TUSB_DESC_TYPE_STRING,
+        .id              = 0x0409, // US English
+    },
 
-    .Manufacturer = { .bLength = USB_STRING_LEN(sizeof(TUSB_CFG_DEVICE_STRING_MANUFACTURER)-1), .bDescriptorType = TUSB_DESC_TYPE_STRING },
-    .strManufacturer = {'t', 'i', 'n', 'y', 'U', 'S', 'B'},
+    //------------- index 1 -------------//
+    .manufacturer = {
+        .bLength         = USB_STRING_LEN(sizeof(TUSB_CFG_DEVICE_STRING_MANUFACTURER)-1),
+        .bDescriptorType = TUSB_DESC_TYPE_STRING,
+        .unicode_string  = {'t', 'i', 'n', 'y', 'U', 'S', 'B'}
+    },
 
-    .Product = { .bLength = USB_STRING_LEN(sizeof(TUSB_CFG_DEVICE_STRING_PRODUCT)-1), .bDescriptorType = TUSB_DESC_TYPE_STRING },
-    .strProduct = {'D', 'e', 'v', 'i', 'c', 'e', ' ', 'K', 'e', 'y', 'b', 'o', 'a', 'r', 'd'},
+    //------------- index 2 -------------//
+    .product = {
+        .bLength         = USB_STRING_LEN(sizeof(TUSB_CFG_DEVICE_STRING_PRODUCT)-1),
+        .bDescriptorType = TUSB_DESC_TYPE_STRING,
+        .unicode_string  = {'D', 'e', 'v', 'i', 'c', 'e', ' ', 'K', 'e', 'y', 'b', 'o', 'a', 'r', 'd'}
+    },
 
-    .Serial = { .bLength = USB_STRING_LEN(sizeof(TUSB_CFG_DEVICE_STRING_SERIAL)-1), .bDescriptorType = TUSB_DESC_TYPE_STRING },
-    .strSerial = {'1', '2', '3', '4'}
+    //------------- index 3 -------------//
+    .serials = {
+        .bLength         = USB_STRING_LEN(sizeof(TUSB_CFG_DEVICE_STRING_SERIAL)-1),
+        .bDescriptorType = TUSB_DESC_TYPE_STRING,
+        .unicode_string  = {'1', '2', '3', '4'}
+    }
 };
