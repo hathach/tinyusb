@@ -61,11 +61,34 @@
 //--------------------------------------------------------------------+
 // INTERNAL OBJECT & FUNCTION DECLARATION
 //--------------------------------------------------------------------+
+static tusb_error_t usbd_string_descriptor_init(void);
+
+//--------------------------------------------------------------------+
+// APPLICATION INTERFACE
+//--------------------------------------------------------------------+
+//bool tusbd_is_configured(uint8_t coreid)
+//{
+//
+//}
 
 //--------------------------------------------------------------------+
 // IMPLEMENTATION
 //--------------------------------------------------------------------+
 tusb_error_t usbd_init (void)
+{
+  ASSERT_STATUS ( usbd_string_descriptor_init() );
+
+  ASSERT_STATUS ( dcd_init() );
+
+  return TUSB_ERROR_NONE;
+}
+
+#endif
+
+//--------------------------------------------------------------------+
+// HELPER
+//--------------------------------------------------------------------+
+static tusb_error_t usbd_string_descriptor_init(void)
 {
   ASSERT_INT( USB_STRING_LEN(sizeof(TUSB_CFG_DEVICE_STRING_MANUFACTURER)-1),
              app_tusb_desc_strings.manufacturer.bLength, TUSB_ERROR_USBD_DESCRIPTOR_STRING);
@@ -78,22 +101,18 @@ tusb_error_t usbd_init (void)
 
   for(uint32_t i=0; i < sizeof(TUSB_CFG_DEVICE_STRING_MANUFACTURER)-1; i++)
   {
-    app_tusb_desc_strings.manufacturer.unicode_string[i] = TUSB_CFG_DEVICE_STRING_MANUFACTURER[i];
+    app_tusb_desc_strings.manufacturer.unicode_string[i] = (uint16_t) TUSB_CFG_DEVICE_STRING_MANUFACTURER[i];
   }
 
   for(uint32_t i=0; i < sizeof(TUSB_CFG_DEVICE_STRING_PRODUCT)-1; i++)
   {
-    app_tusb_desc_strings.product.unicode_string[i] = TUSB_CFG_DEVICE_STRING_PRODUCT[i];
+    app_tusb_desc_strings.product.unicode_string[i] = (uint16_t) TUSB_CFG_DEVICE_STRING_PRODUCT[i];
   }
 
   for(uint32_t i=0; i < sizeof(TUSB_CFG_DEVICE_STRING_SERIAL)-1; i++)
   {
-    app_tusb_desc_strings.serial.unicode_string[i] = TUSB_CFG_DEVICE_STRING_SERIAL[i];
+    app_tusb_desc_strings.serial.unicode_string[i] = (uint16_t) TUSB_CFG_DEVICE_STRING_SERIAL[i];
   }
-
-  ASSERT_STATUS ( dcd_init() );
 
   return TUSB_ERROR_NONE;
 }
-
-#endif

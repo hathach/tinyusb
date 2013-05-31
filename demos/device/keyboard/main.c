@@ -100,9 +100,12 @@ void keyboard_device_app_task(void * p_para)
     static uint32_t count =0;
     if (count < 4)
     {
-      uint8_t keys[6] = {0x04}; // A character
-      tusbd_hid_keyboard_send_report(0x00, keys, 1);
       count++;
+
+      tusbd_hid_keyboard_send_report(
+          &(tusb_keyboard_report_t) {
+              .keycode = { 0x04 } }
+      );
     }
   }
 }

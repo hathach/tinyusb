@@ -36,12 +36,6 @@
 */
 /**************************************************************************/
 
-/** \file
- *  \brief TBD
- *
- *  \note TBD
- */
-
 /** \ingroup TBD
  *  \defgroup TBD
  *  \brief TBD
@@ -63,8 +57,8 @@
 //--------------------------------------------------------------------+
 // KEYBOARD Application API
 //--------------------------------------------------------------------+
-tusb_error_t tusbd_hid_keyboard_send_report(uint8_t modifier, uint8_t keycodes[], uint8_t numkey);
-tusb_error_t tusb_hid_mouse_send(uint8_t buttons, int8_t x, int8_t y);
+tusb_error_t tusbd_hid_keyboard_send_report(tusb_keyboard_report_t *p_kbd_report);
+tusb_error_t tusbd_hid_mouse_send_report(uint8_t buttons, int8_t x, int8_t y);
 
 //--------------------------------------------------------------------+
 // USBD-CLASS DRIVER API

@@ -226,7 +226,7 @@ tusb_error_t hidd_configured(USBD_HANDLE_T hUsb)
 }
 
 #if TUSB_CFG_DEVICE_HID_KEYBOARD
-tusb_error_t tusbd_hid_keyboard_send_report(uint8_t modifier, uint8_t keycodes[], uint8_t numkey)
+tusb_error_t tusbd_hid_keyboard_send_report(tusb_keyboard_report_t *p_kbd_report)
 {
 //  uint32_t start_time = systickGetSecondsActive();
 //  while (bKeyChanged) // TODO blocking while previous key has yet sent - can use fifo to improve this
@@ -239,12 +239,9 @@ tusb_error_t tusbd_hid_keyboard_send_report(uint8_t modifier, uint8_t keycodes[]
     return TUSB_ERROR_FAILED;
   }
 
-  ASSERT(keycodes && numkey && numkey <=6, ERR_FAILED);
+  ASSERT_PTR(p_kbd_report, TUSB_ERROR_FAILED);
 
-  hid_keyboard_report.modifier = modifier;
-  memset(hid_keyboard_report.keycode, 0, 6);
-  memcpy(hid_keyboard_report.keycode, keycodes, numkey);
-
+  hid_keyboard_report = *p_kbd_report;
   bKeyChanged = true;
 
   return TUSB_ERROR_NONE;
