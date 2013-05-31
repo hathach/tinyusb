@@ -87,7 +87,7 @@ static inline void hal_interrupt_disable(uint8_t controller_id) ATTR_ALWAYS_INLI
 static inline bool hal_debugger_is_attached(void) ATTR_PURE ATTR_ALWAYS_INLINE;
 static inline bool hal_debugger_is_attached(void)
 {
-#ifndef _TEST_
+#if !defined(_TEST_) && !(MCU==MCU_LPC11UXX)
   return (CoreDebug->DHCSR & CoreDebug_DHCSR_C_DEBUGEN_Msk) == CoreDebug_DHCSR_C_DEBUGEN_Msk;
 #else
   return false;

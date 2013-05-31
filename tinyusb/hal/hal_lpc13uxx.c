@@ -43,7 +43,7 @@
 
 tusb_error_t hal_init()
 {
-	// TODO usb abstract later
+	// TODO remove magic number
   /* Enable AHB clock to the USB block and USB RAM. */
   LPC_SYSCON->SYSAHBCLKCTRL |= ((0x1<<14) | (0x1<<27));
 
@@ -53,8 +53,6 @@ tusb_error_t hal_init()
   LPC_IOCON->PIO0_3   |= (0x01<<0);            /* Secondary function VBUS */
   LPC_IOCON->PIO0_6   &= ~0x07;
   LPC_IOCON->PIO0_6   |= (0x01<<0);            /* Secondary function SoftConn */
-
-  hal_interrupt_enable(0);
 
   return TUSB_ERROR_NONE;
 }

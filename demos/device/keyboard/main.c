@@ -23,7 +23,7 @@ int main(void)
   board_init();
   tusb_init();
 
-  print_greeting();
+  //print_greeting();
   while (1)
   {
     if (current_tick + 1000 < system_ticks)
@@ -38,8 +38,13 @@ int main(void)
       if (usb_isConfigured())
       {
         #if TUSB_CFG_DEVICE_HID_KEYBOARD
+        static uint32_t count =0;
+        if (count < 4)
+        {
           uint8_t keys[6] = {0x04}; // A character
           tusbd_hid_keyboard_send_report(0x00, keys, 1);
+          count++;
+        }
         #endif
 
         #if TUSB_CFG_DEVICE_HID_MOUSE

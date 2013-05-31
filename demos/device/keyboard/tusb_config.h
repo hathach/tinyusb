@@ -102,7 +102,7 @@
 
 #ifdef __CODE_RED // make use of code red's support for ram region macros
   #if (MCU == MCU_LPC11UXX) || (MCU == MCU_LPC13UXX)
-    #define TUSB_RAM_SECTION  ".data.$RAM1"
+    #define TUSB_RAM_SECTION  ".data.$RAM1" // TODO overflow usb ram
   #elif  (MCU == MCU_LPC43XX)
     #define TUSB_RAM_SECTION  ".data.$RAM3"
   #endif

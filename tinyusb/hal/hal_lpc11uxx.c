@@ -57,4 +57,9 @@ tusb_error_t hal_init()
   return TUSB_ERROR_NONE;
 }
 
+void USB_IRQHandler(void)
+{
+  tusb_isr(0);
+}
+
 #endif

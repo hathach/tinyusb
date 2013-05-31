@@ -55,8 +55,8 @@
 #if (MCU == MCU_LPC18XX) || (MCU == MCU_LPC43XX)
   #include "dcd_lpc18xx_lpc43xx.h"
   #define ROM_API                   ( * ((USBD_API_T**) DEVICE_ROM_DRIVER_ADDR) )
-#elif (MCU == MCU_LPC13UXX)
-  #include "dcd_lpc13xx.h"
+#elif (MCU == MCU_LPC13UXX) || (MCU == MCU_LPC11UXX)
+  #include "dcd_lpc11uxx_lpc13xx.h"
   #define ROM_API                   ( * (*((USBD_API_T***) DEVICE_ROM_DRIVER_ADDR)) )
 #else
   #error forgot something, thach ?

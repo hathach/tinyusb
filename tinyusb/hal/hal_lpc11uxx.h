@@ -54,9 +54,6 @@
 
 #include "LPC11Uxx.h"
 
-#define DEVICE_ROM_REG_BASE        LPC_USB_BASE
-#define DEVICE_ROM_DRIVER_ADDR     0x1FFF1FF8
-
 #ifdef __cplusplus
  extern "C" {
 #endif

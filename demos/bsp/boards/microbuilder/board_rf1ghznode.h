@@ -1,6 +1,6 @@
 /**************************************************************************/
 /*!
-    @file     board_at86rf2xx.h
+    @file     board_rf1ghznode.h
     @author   hathach (tinyusb.org)
 
     @section LICENSE
@@ -49,8 +49,8 @@
  *  @{
  */
 
-#ifndef _TUSB_BOARD_AT86RF2XX_H_
-#define _TUSB_BOARD_AT86RF2XX_H_
+#ifndef _TUSB_BOARD_RF1GHZNODE_H_
+#define _TUSB_BOARD_RF1GHZNODE_H_
 
 #ifdef __cplusplus
  extern "C" {
@@ -60,19 +60,17 @@
 #include "lpc11uxx/gpio.h"
 #include "lpc11uxx/uart.h"
 
-#define CFG_PRINTF_TARGET PRINTF_TARGET_UART
+#define CFG_PRINTF_TARGET PRINTF_TARGET_DEBUG_CONSOLE
 
 #define CFG_LED_PORT                  (1)
 #define CFG_LED_PIN                   (31)
 #define CFG_LED_ON                    (0)
 #define CFG_LED_OFF                   (1)
 
-#define CFG_PRINTF_TARGET PRINTF_TARGET_UART
-
 #ifdef __cplusplus
  }
 #endif
 
-#endif /* _TUSB_BOARD_AT86RF2XX_H_ */
+#endif /* _TUSB_BOARD_RF1GHZNODE_H_ */
 
 /** @} */

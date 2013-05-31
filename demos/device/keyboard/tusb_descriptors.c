@@ -297,7 +297,7 @@ const app_descriptor_configuration_t app_desc_configuration =
     {
         .bLength          = sizeof(tusb_descriptor_endpoint_t),
         .bDescriptorType  = TUSB_DESC_TYPE_ENDPOINT,
-        .bEndpointAddress = 0x81,
+        .bEndpointAddress = 0x81, //HID_KEYBOARD_EP_IN,
         .bmAttributes     = { .xfer = TUSB_XFER_INTERRUPT },
         .wMaxPacketSize   = { .size = 0x08 },
         .bInterval        = 0x0A
@@ -376,8 +376,6 @@ const app_descriptor_configuration_t app_desc_configuration =
         .bInterval        = 1
     },
     #endif
-
-    .null_termination = 0,
 };
 
 TUSB_CFG_ATTR_USBRAM ATTR_ALIGNED(4)

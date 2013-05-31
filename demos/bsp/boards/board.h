@@ -62,7 +62,7 @@
 //--------------------------------------------------------------------+
 // BOARD DEFINE
 //--------------------------------------------------------------------+
-#define BOARD_AT86RF2XX             1
+#define BOARD_RF1GHZNODE            1
 #define BOARD_LPCXPRESSO1347        2
 
 #define BOARD_NGX4330               3
@@ -86,8 +86,8 @@
   #include "ngx/board_ngx4330.h"
 #elif BOARD == BOARD_LPCXPRESSO1347
   #include "lpcxpresso/board_lpcxpresso1347.h"
-#elif BOARD == BOARD_AT86RF2XX
-  #include "board_at86rf2xx.h"
+#elif BOARD == BOARD_RF1GHZNODE
+  #include "microbuilder/board_rf1ghznode.h"
 #elif BOARD == BOARD_EA4357
   #include "embedded_artists/board_ea4357.h"
 #elif BOARD == BOARD_MCB4300

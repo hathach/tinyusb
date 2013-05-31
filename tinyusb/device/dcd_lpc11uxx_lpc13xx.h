@@ -1,6 +1,6 @@
 /**************************************************************************/
 /*!
-    @file     board_at86rf2xx.c
+    @file     dcd_lpc11uxx_lpc13xx.h
     @author   hathach (tinyusb.org)
 
     @section LICENSE
@@ -26,58 +26,39 @@
     WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
     DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER BE LIABLE FOR ANY
     DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
-    INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
-    LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION HOWEVER CAUSED AND
+    (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
+    LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND
     ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
-    INCLUDING NEGLIGENCE OR OTHERWISE ARISING IN ANY WAY OUT OF THE USE OF THIS
+    (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
     SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
     This file is part of the tinyusb stack.
 */
 /**************************************************************************/
 
-#include "../board.h"
+/** \ingroup TBD
+ *  \defgroup TBD
+ *  \brief TBD
+ *
+ *  @{
+ */
 
-#if BOARD == BOARD_AT86RF2XX
+#ifndef _TUSB_DCD_LPC11UXX_LPC13XX_H_
+#define _TUSB_DCD_LPC11UXX_LPC13XX_H_
 
-void board_init(void)
-{
-  SystemInit();
-  SysTick_Config(SystemCoreClock / CFG_TICKS_PER_SECOND); // 1 msec tick timer
-  GPIOInit();
+#define DEVICE_ROM_REG_BASE        LPC_USB_BASE
+#define DEVICE_ROM_DRIVER_ADDR     0x1FFF1FF8
 
-  GPIOSetDir(CFG_LED_PORT, CFG_LED_PIN, 1);
-  board_leds(0x01, 0); // turn off the led first
-
-#if CFG_UART_ENABLE
-  UARTInit(CFG_UART_BAUDRATE);
-#endif
-}
-
-//--------------------------------------------------------------------+
-// LEDS
-//--------------------------------------------------------------------+
-void board_leds(uint32_t mask, uint32_t state)
-{
-  if (mask)
-    GPIOSetBitValue(CFG_LED_PORT, CFG_LED_PIN, mask & state ? CFG_LED_ON : CFG_LED_OFF);
-}
-
-//--------------------------------------------------------------------+
-// UART
-//--------------------------------------------------------------------+
-#if CFG_UART_ENABLE
-uint32_t board_uart_send(uint8_t *buffer, uint32_t length)
-{
-  UARTSend(buffer, length);
-  return length;
-}
-
-uint32_t board_uart_recv(uint8_t *buffer, uint32_t length)
-{
-//  *buffer = get_key(); TODO cannot find available code for uart getchar
-  return 0;
-}
+#ifdef __cplusplus
+ extern "C" {
 #endif
 
+
+
+#ifdef __cplusplus
+ }
 #endif
+
+#endif /* _TUSB_DCD_LPC11UXX_LPC13XX_H_ */
+
+/** @} */

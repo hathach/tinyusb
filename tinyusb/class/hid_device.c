@@ -59,12 +59,12 @@
 // IMPLEMENTATION
 //--------------------------------------------------------------------+
 #if TUSB_CFG_DEVICE_HID_KEYBOARD
-tusb_keyboard_report_t hid_keyboard_report;
+TUSB_CFG_ATTR_USBRAM tusb_keyboard_report_t hid_keyboard_report;
 static volatile bool bKeyChanged = false;
 #endif
 
 #if TUSB_CFG_DEVICE_HID_MOUSE
-tusb_mouse_report_t hid_mouse_report;
+TUSB_CFG_ATTR_USBRAM tusb_mouse_report_t hid_mouse_report;
 static volatile bool bMouseChanged = false;
 #endif
 
