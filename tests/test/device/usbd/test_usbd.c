@@ -41,6 +41,8 @@
 #include "errors.h"
 #include "type_helper.h"
 
+#include "tusb_descriptors.h"
+
 #include "mock_dcd.h"
 #include "usbd.h"
 
@@ -71,3 +73,37 @@ void test_usbd_init_ok(void)
   TEST_ASSERT_EQUAL( TUSB_ERROR_NONE, usbd_init() );
 
 }
+
+void test_usbd_string_descriptor(void)
+{
+  dcd_init_IgnoreAndReturn(TUSB_ERROR_FAILED);
+
+  //------------- Code Under Test -------------//
+  TEST_ASSERT_EQUAL( TUSB_ERROR_FAILED, usbd_init() );
+
+
+  //------------- manufacturer string descriptor -------------//
+  uint32_t const manufacturer_len = sizeof(TUSB_CFG_DEVICE_STRING_MANUFACTURER) - 1;
+  TEST_ASSERT_EQUAL(manufacturer_len*2 + 2, app_tusb_desc_strings.manufacturer.bLength);
+  for(uint32_t i=0; i<manufacturer_len; i++)
+  {
+    TEST_ASSERT_EQUAL(TUSB_CFG_DEVICE_STRING_MANUFACTURER[i], app_tusb_desc_strings.manufacturer.unicode_string[i]);
+  }
+
+  //------------- product string descriptor -------------//
+  uint32_t const product_len = sizeof(TUSB_CFG_DEVICE_STRING_PRODUCT) - 1;
+  TEST_ASSERT_EQUAL(product_len*2 + 2, app_tusb_desc_strings.product.bLength);
+  for(uint32_t i=0; i < product_len; i++)
+  {
+    TEST_ASSERT_EQUAL(TUSB_CFG_DEVICE_STRING_PRODUCT[i], app_tusb_desc_strings.product.unicode_string[i]);
+  }
+
+  //------------- serial string descriptor -------------//
+  uint32_t const serial_len = sizeof(TUSB_CFG_DEVICE_STRING_SERIAL) - 1;
+  TEST_ASSERT_EQUAL(serial_len*2 + 2, app_tusb_desc_strings.serial.bLength);
+  for(uint32_t i=0; i<serial_len; i++)
+  {
+    TEST_ASSERT_EQUAL(TUSB_CFG_DEVICE_STRING_SERIAL[i], app_tusb_desc_strings.serial.unicode_string[i]);
+  }
+}
+

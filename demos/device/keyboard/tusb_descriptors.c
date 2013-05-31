@@ -39,7 +39,7 @@
 
 #if TUSB_CFG_DEVICE_HID_KEYBOARD
 TUSB_CFG_ATTR_USBRAM ATTR_ALIGNED(4)
-const uint8_t app_tusb_keyboard_desc_report[] = {
+uint8_t app_tusb_keyboard_desc_report[] = {
   HID_USAGE_PAGE ( HID_USAGE_PAGE_DESKTOP     ),
   HID_USAGE      ( HID_USAGE_DESKTOP_KEYBOARD ),
   HID_COLLECTION ( HID_COLLECTION_APPLICATION ),
@@ -83,7 +83,7 @@ const uint8_t app_tusb_keyboard_desc_report[] = {
 
 #if TUSB_CFG_DEVICE_HID_MOUSE
 TUSB_CFG_ATTR_USBRAM ATTR_ALIGNED(4)
-const uint8_t mouse_report_descriptor[] = {
+uint8_t mouse_report_descriptor[] = {
   HID_USAGE_PAGE ( HID_USAGE_PAGE_DESKTOP     ),
   HID_USAGE      ( HID_USAGE_DESKTOP_MOUSE    ),
   HID_COLLECTION ( HID_COLLECTION_APPLICATION ),
@@ -120,7 +120,7 @@ const uint8_t mouse_report_descriptor[] = {
 #endif
 
 TUSB_CFG_ATTR_USBRAM ATTR_ALIGNED(4)
-tusb_descriptor_device_t const app_tusb_desc_device =
+tusb_descriptor_device_t app_tusb_desc_device =
 {
     .bLength            = sizeof(tusb_descriptor_device_t),
     .bDescriptorType    = TUSB_DESC_TYPE_DEVICE,
@@ -144,7 +144,7 @@ tusb_descriptor_device_t const app_tusb_desc_device =
 
 
 TUSB_CFG_ATTR_USBRAM ATTR_ALIGNED(4)
-const app_descriptor_configuration_t app_tusb_desc_configuration =
+app_descriptor_configuration_t app_tusb_desc_configuration =
 {
     .configuration =
     {
@@ -379,7 +379,7 @@ const app_descriptor_configuration_t app_tusb_desc_configuration =
 };
 
 TUSB_CFG_ATTR_USBRAM ATTR_ALIGNED(4)
-const app_descriptor_string_t app_tusb_desc_strings =
+app_descriptor_string_t app_tusb_desc_strings =
 {
     //------------- index 0 -------------//
     .language = {
@@ -392,20 +392,17 @@ const app_descriptor_string_t app_tusb_desc_strings =
     .manufacturer = {
         .bLength         = USB_STRING_LEN(sizeof(TUSB_CFG_DEVICE_STRING_MANUFACTURER)-1),
         .bDescriptorType = TUSB_DESC_TYPE_STRING,
-        .unicode_string  = {'t', 'i', 'n', 'y', 'U', 'S', 'B'}
     },
 
     //------------- index 2 -------------//
     .product = {
         .bLength         = USB_STRING_LEN(sizeof(TUSB_CFG_DEVICE_STRING_PRODUCT)-1),
         .bDescriptorType = TUSB_DESC_TYPE_STRING,
-        .unicode_string  = {'D', 'e', 'v', 'i', 'c', 'e', ' ', 'K', 'e', 'y', 'b', 'o', 'a', 'r', 'd'}
     },
 
     //------------- index 3 -------------//
-    .serials = {
+    .serial = {
         .bLength         = USB_STRING_LEN(sizeof(TUSB_CFG_DEVICE_STRING_SERIAL)-1),
         .bDescriptorType = TUSB_DESC_TYPE_STRING,
-        .unicode_string  = {'1', '2', '3', '4'}
     }
 };

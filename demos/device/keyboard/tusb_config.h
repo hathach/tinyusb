@@ -81,6 +81,13 @@
 //--------------------------------------------------------------------+
 // DEVICE CONFIGURATION
 //--------------------------------------------------------------------+
+#define TUSB_CFG_DEVICE_STRING_MANUFACTURER   "tinyusb.org"
+#define TUSB_CFG_DEVICE_STRING_PRODUCT        "Device Example"
+#define TUSB_CFG_DEVICE_STRING_SERIAL         "1234"
+#define TUSB_CFG_DEVICE_VENDORID              0x1FC9 // NXP
+//#define TUSB_CFG_DEVICE_PRODUCTID           0x4567
+
+
 #define TUSB_CFG_DEVICE_USE_ROM_DRIVER  1
 
 //------------- CLASS -------------//
