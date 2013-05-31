@@ -54,6 +54,7 @@
 
 #define USB_ROM_SIZE (1024*2) // TODO dcd abstract later
 uint8_t usb_RomDriver_buffer[USB_ROM_SIZE] ATTR_ALIGNED(2048) TUSB_CFG_ATTR_USBRAM;
+
 USBD_HANDLE_T g_hUsb;
 
 typedef struct {
@@ -84,11 +85,12 @@ typedef struct {
 ErrorCode_t USB_Configure_Event (USBD_HANDLE_T hUsb)
 {
   USB_CORE_CTRL_T* pCtrl = (USB_CORE_CTRL_T*)hUsb;
+
   if (pCtrl->config_value)
   {
     usbd_info.state = TUSB_DEVICE_STATE_CONFIGURED;
 
-    #if defined(DEVICE_CLASS_HID)
+    #if DEVICE_CLASS_HID
     ASSERT( TUSB_ERROR_NONE == hidd_configured(hUsb), ERR_FAILED );
     #endif
 
@@ -96,7 +98,6 @@ ErrorCode_t USB_Configure_Event (USBD_HANDLE_T hUsb)
     ASSERT( TUSB_ERROR_NONE == tusb_cdc_configured(hUsb), ERR_FAILED );
     #endif
   }
-
 
   return LPC_OK;
 }
@@ -107,6 +108,16 @@ ErrorCode_t USB_Reset_Event (USBD_HANDLE_T hUsb)
   return LPC_OK;
 }
 
+ErrorCode_t USB_Interface_Event (USBD_HANDLE_T hUsb)
+{
+  return LPC_OK;
+}
+
+ErrorCode_t USB_Error_Event (USBD_HANDLE_T hUsb, uint32_t param1)
+{
+  (void) param1;
+  return LPC_OK;
+}
 
 tusb_error_t dcd_init(void)
 {
@@ -121,15 +132,17 @@ tusb_error_t dcd_init(void)
     .mem_size            = memsize,
 
     .USB_Configure_Event = USB_Configure_Event,
-    .USB_Reset_Event     = USB_Reset_Event
+    .USB_Reset_Event     = USB_Reset_Event,
+    .USB_Error_Event     = USB_Error_Event,
+    .USB_Interface_Event = USB_Interface_Event
   };
 
   USB_CORE_DESCS_T desc_core =
   {
-    .device_desc      = (uint8_t*) &app_desc_device,
-    .string_desc      = (uint8_t*) &app_desc_strings,
-    .full_speed_desc  = (uint8_t*) &app_desc_configuration,
-    .high_speed_desc  = (uint8_t*) &app_desc_configuration,
+    .device_desc      = (uint8_t*) &app_tusb_desc_device,
+    .string_desc      = (uint8_t*) &app_tusb_desc_strings,
+    .full_speed_desc  = (uint8_t*) &app_tusb_desc_configuration,
+    .high_speed_desc  = (uint8_t*) &app_tusb_desc_configuration,
     .device_qualifier = NULL
   };
 
@@ -142,8 +155,8 @@ tusb_error_t dcd_init(void)
 
 
   #if TUSB_CFG_DEVICE_HID_KEYBOARD
-  ASSERT_STATUS( hidd_init(g_hUsb , &app_desc_configuration.keyboard_interface,
-            keyboard_report_descriptor, app_desc_configuration.keyboard_hid.wReportLength,
+  ASSERT_STATUS( hidd_init(g_hUsb , &app_tusb_desc_configuration.keyboard_interface,
+            app_tusb_keyboard_desc_report, app_tusb_desc_configuration.keyboard_hid.wReportLength,
             &membase , &memsize) );
   #endif
 
@@ -155,6 +168,7 @@ tusb_error_t dcd_init(void)
 
   hal_interrupt_enable(0);
   ROM_API->hw->Connect(g_hUsb, 1);
+  ROM_API->hw->ForceFullSpeed(g_hUsb, 1);
 
   return TUSB_ERROR_NONE;
 }

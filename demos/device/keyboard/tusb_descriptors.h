@@ -30,15 +30,15 @@
  * This file is part of the tinyUSB stack
  */
 
-#ifndef _DESCRIPTORS_H_
-#define _DESCRIPTORS_H_
+#ifndef _TUSB_DESCRIPTORS_H_
+#define _TUSB_DESCRIPTORS_H_
 
 #include "tusb.h"
 
 #define TUSB_CFG_DEVICE_STRING_MANUFACTURER   "tinyUSB"
 #define TUSB_CFG_DEVICE_STRING_PRODUCT        "Device Keyboard"
 #define TUSB_CFG_DEVICE_STRING_SERIAL         "1234"
-#define TUSB_CFG_DEVICE_VENDORID              0x1FC9
+#define TUSB_CFG_DEVICE_VENDORID              0x1FC9 // NXP
 //#define TUSB_CFG_DEVICE_PRODUCTID
 
 /* USB Serial uses the MCUs unique 128-bit chip ID via an IAP call = 32 hex chars */
@@ -154,10 +154,11 @@ typedef ATTR_PACKED_STRUCT(struct)
   uint8_t                                        null_termination; // NXP rom driver requires this to work
 } app_descriptor_configuration_t;
 
-extern const tusb_descriptor_device_t app_desc_device;
-extern const app_descriptor_configuration_t app_desc_configuration;
-extern const app_descriptor_string_t app_desc_strings;
-extern const uint8_t keyboard_report_descriptor[];
+extern const tusb_descriptor_device_t app_tusb_desc_device;
+extern const app_descriptor_configuration_t app_tusb_desc_configuration;
+extern const app_descriptor_string_t app_tusb_desc_strings;
+
+extern const uint8_t app_tusb_keyboard_desc_report[];
 
 //extern const uint8_t HID_MouseReportDescriptor[];
 

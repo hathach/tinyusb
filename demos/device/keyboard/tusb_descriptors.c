@@ -39,7 +39,7 @@
 
 #if TUSB_CFG_DEVICE_HID_KEYBOARD
 TUSB_CFG_ATTR_USBRAM ATTR_ALIGNED(4)
-const uint8_t keyboard_report_descriptor[] = {
+const uint8_t app_tusb_keyboard_desc_report[] = {
   HID_USAGE_PAGE ( HID_USAGE_PAGE_DESKTOP     ),
   HID_USAGE      ( HID_USAGE_DESKTOP_KEYBOARD ),
   HID_COLLECTION ( HID_COLLECTION_APPLICATION ),
@@ -120,7 +120,7 @@ const uint8_t mouse_report_descriptor[] = {
 #endif
 
 TUSB_CFG_ATTR_USBRAM ATTR_ALIGNED(4)
-tusb_descriptor_device_t const app_desc_device =
+tusb_descriptor_device_t const app_tusb_desc_device =
 {
     .bLength            = sizeof(tusb_descriptor_device_t),
     .bDescriptorType    = TUSB_DESC_TYPE_DEVICE,
@@ -144,7 +144,7 @@ tusb_descriptor_device_t const app_desc_device =
 
 
 TUSB_CFG_ATTR_USBRAM ATTR_ALIGNED(4)
-const app_descriptor_configuration_t app_desc_configuration =
+const app_descriptor_configuration_t app_tusb_desc_configuration =
 {
     .configuration =
     {
@@ -290,7 +290,7 @@ const app_descriptor_configuration_t app_desc_configuration =
         .bCountryCode      = HID_Local_NotSupported,
         .bNumDescriptors   = 1,
         .bReportType       = HID_DESC_TYPE_REPORT,
-        .wReportLength     = sizeof(keyboard_report_descriptor)
+        .wReportLength     = sizeof(app_tusb_keyboard_desc_report)
     },
 
     .keyboard_endpoint =
@@ -379,7 +379,7 @@ const app_descriptor_configuration_t app_desc_configuration =
 };
 
 TUSB_CFG_ATTR_USBRAM ATTR_ALIGNED(4)
-const app_descriptor_string_t app_desc_strings =
+const app_descriptor_string_t app_tusb_desc_strings =
 {
     .LangID = { .bLength = 0x04, .bDescriptorType = TUSB_DESC_TYPE_STRING },
     .strLangID= {0x0409}, // US English

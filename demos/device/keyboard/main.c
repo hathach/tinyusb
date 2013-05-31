@@ -23,7 +23,7 @@ int main(void)
   board_init();
   tusb_init();
 
-  //print_greeting();
+  print_greeting();
   while (1)
   {
     if (current_tick + 1000 < system_ticks)
