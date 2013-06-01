@@ -47,15 +47,12 @@
 //--------------------------------------------------------------------+
 #include "dcd.h"
 #include "dcd_nxp_romdriver.h"
-#include "romdriver/mw_usbd_rom_api.h"
-
 #include "tusb_descriptors.h"
-
 
 #define USB_ROM_SIZE (1024*2) // TODO dcd abstract later
 uint8_t usb_RomDriver_buffer[USB_ROM_SIZE] ATTR_ALIGNED(2048) TUSB_CFG_ATTR_USBRAM;
 
-USBD_HANDLE_T g_hUsb;
+USBD_HANDLE_T romdriver_hdl;
 
 typedef struct {
   volatile uint8_t state;
@@ -147,28 +144,17 @@ tusb_error_t dcd_init(void)
   };
 
   /* USB hardware core initialization */
-  ASSERT_INT(LPC_OK, ROM_API->hw->Init(&g_hUsb, &desc_core, &usb_param), TUSB_ERROR_FAILED);
+  ASSERT_INT(LPC_OK, ROM_API->hw->Init(&romdriver_hdl, &desc_core, &usb_param), TUSB_ERROR_FAILED);
 
   // TODO need to confirm the mem_size is reduced by the number of byte used
   membase += (memsize - usb_param.mem_size);
   memsize = usb_param.mem_size;
 
-
-  #if TUSB_CFG_DEVICE_HID_KEYBOARD
-  ASSERT_STATUS( hidd_init(g_hUsb , &app_tusb_desc_configuration.keyboard_interface,
-            app_tusb_keyboard_desc_report, app_tusb_desc_configuration.keyboard_hid.wReportLength,
-            &membase , &memsize) );
-  #endif
-
   #if TUSB_CFG_DEVICE_HID_MOUSE
-  ASSERT_STATUS( tusb_hid_init(g_hUsb , &USB_FsConfigDescriptor.HID_MouseInterface    ,
+  ASSERT_STATUS( tusb_hid_init(romdriver_hdl , &USB_FsConfigDescriptor.HID_MouseInterface    ,
             HID_MouseReportDescriptor, USB_FsConfigDescriptor.HID_MouseHID.DescriptorList[0].wDescriptorLength,
             &membase , &memsize) );
   #endif
-
-  hal_interrupt_enable(0);
-  ROM_API->hw->Connect(g_hUsb, 1);
-  ROM_API->hw->ForceFullSpeed(g_hUsb, 1);
 
   return TUSB_ERROR_NONE;
 }
@@ -187,12 +173,12 @@ tusb_error_t dcd_controller_reset(uint8_t coreid)
 
 void dcd_controller_connect(uint8_t coreid)
 {
-//  ROM_API->hw->Connect(g_hUsb, 1);
+  ROM_API->hw->Connect(romdriver_hdl, 1);
 }
 
 void dcd_isr(uint8_t coreid)
 {
-  ROM_API->hw->ISR(g_hUsb);
+  ROM_API->hw->ISR(romdriver_hdl);
 }
 
 #endif

@@ -43,7 +43,7 @@
 
 #define USB_ROM_SIZE (1024*2) // TODO dcd abstract later
 uint8_t usb_RomDriver_buffer[USB_ROM_SIZE] ATTR_ALIGNED(2048) TUSB_CFG_ATTR_USBRAM;
-USBD_HANDLE_T g_hUsb;
+USBD_HANDLE_T romdriver_hdl;
 static volatile bool isConfigured = false;
 
 /**************************************************************************/
@@ -109,25 +109,25 @@ tusb_error_t dcd_init(uint8_t coreid)
   };
 
   /* USB hardware core initialization */
-  ASSERT(LPC_OK == ROM_API->hw->Init(&g_hUsb, &DeviceDes, &usb_param), TUSB_ERROR_FAILED);
+  ASSERT(LPC_OK == ROM_API->hw->Init(&romdriver_hdl, &DeviceDes, &usb_param), TUSB_ERROR_FAILED);
 
   membase += (memsize - usb_param.mem_size);
   memsize = usb_param.mem_size;
 
   /* Initialise the class driver(s) */
   #ifdef TUSB_CFG_DEVICE_CDC
-  ASSERT_STATUS( tusb_cdc_init(g_hUsb, &USB_FsConfigDescriptor.CDC_CCI_Interface,
+  ASSERT_STATUS( tusb_cdc_init(romdriver_hdl, &USB_FsConfigDescriptor.CDC_CCI_Interface,
             &USB_FsConfigDescriptor.CDC_DCI_Interface, &membase, &memsize) );
   #endif
 
   #ifdef TUSB_CFG_DEVICE_HID_KEYBOARD
-  ASSERT_STATUS( tusb_hid_init(g_hUsb , &USB_FsConfigDescriptor.HID_KeyboardInterface ,
+  ASSERT_STATUS( tusb_hid_init(romdriver_hdl , &USB_FsConfigDescriptor.HID_KeyboardInterface ,
             HID_KeyboardReportDescriptor, USB_FsConfigDescriptor.HID_KeyboardHID.DescriptorList[0].wDescriptorLength,
             &membase , &memsize) );
   #endif
 
   #ifdef TUSB_CFG_DEVICE_HID_MOUSE
-  ASSERT_STATUS( tusb_hid_init(g_hUsb , &USB_FsConfigDescriptor.HID_MouseInterface    ,
+  ASSERT_STATUS( tusb_hid_init(romdriver_hdl , &USB_FsConfigDescriptor.HID_MouseInterface    ,
             HID_MouseReportDescriptor, USB_FsConfigDescriptor.HID_MouseHID.DescriptorList[0].wDescriptorLength,
             &membase , &memsize) );
   #endif
@@ -135,7 +135,7 @@ tusb_error_t dcd_init(uint8_t coreid)
   hal_interrupt_enable(); /* Enable the USB interrupt */
 
   /* Perform USB soft connect */
-  ROM_API->hw->Connect(g_hUsb, 1);
+  ROM_API->hw->Connect(romdriver_hdl, 1);
 #endif
 
   return TUSB_ERROR_NONE;

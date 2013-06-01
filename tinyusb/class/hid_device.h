@@ -66,7 +66,7 @@ tusb_error_t tusbd_hid_mouse_send_report(uint8_t buttons, int8_t x, int8_t y);
 #ifdef _TINY_USB_SOURCE_FILE_
 #include "device/romdriver/mw_usbd_rom_api.h" // TODO remove rom driver dependency
 
-tusb_error_t hidd_init(USBD_HANDLE_T hUsb, tusb_descriptor_interface_t const *const pIntfDesc, uint8_t const * const pHIDReportDesc, uint32_t ReportDescLength, uint32_t* mem_base, uint32_t* mem_size);
+tusb_error_t hidd_init(tusb_descriptor_interface_t const * p_interface_desc);
 tusb_error_t hidd_configured(USBD_HANDLE_T hUsb);
 
 #endif

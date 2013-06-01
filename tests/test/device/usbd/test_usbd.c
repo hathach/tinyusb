@@ -45,7 +45,7 @@
 
 #include "usbd.h"
 #include "mock_dcd.h"
-//#include "mock_"
+#include "mock_hid_device.h"
 
 void setUp(void)
 {
@@ -67,8 +67,9 @@ void test_dcd_init_failed(void)
 void test_usbd_init_ok(void)
 {
   dcd_init_ExpectAndReturn(TUSB_ERROR_NONE);
+  hidd_init_ExpectAndReturn(&app_tusb_desc_configuration.keyboard_interface, TUSB_ERROR_NONE);
 
-
+  dcd_controller_connect_Expect(0);
 
   //------------- Code Under Test -------------//
   TEST_ASSERT_EQUAL( TUSB_ERROR_NONE, usbd_init() );

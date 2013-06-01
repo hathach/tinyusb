@@ -80,6 +80,16 @@ tusb_error_t usbd_init (void)
 
   ASSERT_STATUS ( dcd_init() );
 
+  #if TUSB_CFG_DEVICE_HID_KEYBOARD
+  ASSERT_STATUS( hidd_init(&app_tusb_desc_configuration.keyboard_interface) );
+  #endif
+
+  #ifndef _TEST_
+  hal_interrupt_enable(0); // TODO USB1
+  #endif
+
+  dcd_controller_connect(0);  // TODO USB1
+
   return TUSB_ERROR_NONE;
 }
 

@@ -49,8 +49,10 @@
 //--------------------------------------------------------------------+
 // INCLUDE
 //--------------------------------------------------------------------+
+#include "common/common.h"
 #include "osal/osal.h" // TODO refractor move to common.h ?
-#include "dcd.h"
+#include "dcd.h" // TODO hide from application include
+//#include "tusb_descriptors.h"
 
 #ifdef __cplusplus
  extern "C" {

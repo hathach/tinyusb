@@ -47,6 +47,7 @@
 #define _TUSB_DCD_NXP_ROMDRIVER_H_
 
 #include "common/common.h"
+#include "romdriver/mw_usbd_rom_api.h"
 
 #ifdef __cplusplus
  extern "C" {
@@ -61,6 +62,8 @@
 #else
   #error forgot something, thach ?
 #endif
+
+extern USBD_HANDLE_T romdriver_hdl;
 
 #ifdef __cplusplus
  }
