@@ -47,21 +47,27 @@
 #define _TUSB_DCD_NXP_ROMDRIVER_H_
 
 #include "common/common.h"
-#include "romdriver/mw_usbd_rom_api.h"
 
 #ifdef __cplusplus
  extern "C" {
 #endif
 
+
+#define USB_MAX_IF_NUM          8 // maximum interface number supported, should be fixed to 8
+
 #if (MCU == MCU_LPC18XX) || (MCU == MCU_LPC43XX)
   #include "dcd_lpc18xx_lpc43xx.h"
-  #define ROM_API                   ( * ((USBD_API_T**) NXP_ROMDRIVER_FUNCTION_ADDR) )
+  #define ROM_API                 ( * ((USBD_API_T**) NXP_ROMDRIVER_FUNCTION_ADDR) )
+  #define USB_MAX_EP_NUM          6
 #elif (MCU == MCU_LPC13UXX) || (MCU == MCU_LPC11UXX)
   #include "dcd_lpc11uxx_lpc13xx.h"
-  #define ROM_API                   ( * (*((USBD_API_T***) NXP_ROMDRIVER_FUNCTION_ADDR)) )
+  #define ROM_API                 ( * (*((USBD_API_T***) NXP_ROMDRIVER_FUNCTION_ADDR)) )
+  #define USB_MAX_EP_NUM          5
 #else
   #error forgot something, thach ?
 #endif
+
+#include "romdriver/mw_usbd_rom_api.h"
 
 extern USBD_HANDLE_T romdriver_hdl;
 

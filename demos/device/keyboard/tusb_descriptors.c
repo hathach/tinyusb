@@ -132,14 +132,14 @@ tusb_descriptor_device_t app_tusb_desc_device =
     .bMaxPacketSize0    = USB_MAX_PACKET0,
 
     .idVendor           = TUSB_CFG_DEVICE_VENDORID,
-    .idProduct          = USB_PRODUCT_ID,
+    .idProduct          = TUSB_CFG_PRODUCT_ID,
     .bcdDevice          = 0x0100,
 
     .iManufacturer      = 0x01,
     .iProduct           = 0x02,
     .iSerialNumber      = 0x03,
 
-    .bNumConfigurations = 0x01 // TODO configuration number
+    .bNumConfigurations = 0x01 // TODO multiple configurations
 };
 
 

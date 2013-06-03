@@ -98,10 +98,15 @@ typedef ATTR_PACKED_STRUCT(struct)
 
 #define TOTAL_INTEFACES              (INTERFACES_OF_CDC + INTERFACES_OF_HID_KEYBOARD + INTERFACES_OF_HID_MOUSE + INTERFACES_OF_HID_GENERIC + INTERFACES_OF_MASS_STORAGE)
 
+
+// each combination of interfaces need to have different productid, as windows will bind & remember device driver after the
+// first plug.
+#ifndef TUSB_CFG_PRODUCT_ID
 // Bitmap: MassStorage | Generic | Mouse | Key | CDC
 #define PRODUCTID_BITMAP(interface, n)  ( (INTERFACES_OF_##interface ? 1 : 0) << (n) )
-#define USB_PRODUCT_ID                  (0x2000 | ( PRODUCTID_BITMAP(CDC, 0) | PRODUCTID_BITMAP(HID_KEYBOARD, 1) | PRODUCTID_BITMAP(HID_MOUSE, 2) | \
+#define TUSB_CFG_PRODUCT_ID                  (0x2000 | ( PRODUCTID_BITMAP(CDC, 0) | PRODUCTID_BITMAP(HID_KEYBOARD, 1) | PRODUCTID_BITMAP(HID_MOUSE, 2) | \
                                                     PRODUCTID_BITMAP(HID_GENERIC, 3) | PRODUCTID_BITMAP(MASS_STORAGE, 4) ) )
+#endif
 
 ///////////////////////////////////////////////////////////////////////
 typedef ATTR_PACKED_STRUCT(struct)

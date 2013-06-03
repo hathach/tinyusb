@@ -53,6 +53,8 @@
  extern "C" {
 #endif
 
+#define ENDPOINT_OUT_LOGICAL_TO_PHYSICAL(addr)      (addr)
+#define ENDPOINT_IN_LOGICAL_TO_PHYSICAL(addr)       ((addr) | 0x80)
 #define STRING_LEN_BYTE2UNICODE(n) (2 + ((n)<<1))
 
 //--------------------------------------------------------------------+

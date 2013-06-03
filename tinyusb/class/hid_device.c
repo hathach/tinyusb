@@ -74,14 +74,70 @@ ErrorCode_t HID_SetReport( USBD_HANDLE_T hHid, USB_SETUP_PACKET* pSetup, uint8_t
 ErrorCode_t HID_EpIn_Hdlr (USBD_HANDLE_T hUsb, void* data, uint32_t event);
 ErrorCode_t HID_EpOut_Hdlr (USBD_HANDLE_T hUsb, void* data, uint32_t event);
 
-//--------------------------------------------------------------------+
-// IMPLEMENTATION
-//--------------------------------------------------------------------+
 
+//--------------------------------------------------------------------+
+// APPLICATION API
+//--------------------------------------------------------------------+
+#if TUSB_CFG_DEVICE_HID_KEYBOARD
+tusb_error_t tusbd_hid_keyboard_send_report(tusb_keyboard_report_t *p_kbd_report)
+{
+//  uint32_t start_time = systickGetSecondsActive();
+//  while (bKeyChanged) // TODO blocking while previous key has yet sent - can use fifo to improve this
+//  {
+//    ASSERT_MESSAGE(systickGetSecondsActive() - start_time < 5, ERR_FAILED, "HID Keyboard Timeout");
+//  }
+
+  if (bKeyChanged)
+  {
+    return TUSB_ERROR_FAILED;
+  }
+
+  ASSERT_PTR(p_kbd_report, TUSB_ERROR_FAILED);
+
+  hid_keyboard_report = *p_kbd_report;
+  bKeyChanged = true;
+
+  return TUSB_ERROR_NONE;
+}
+#endif
+
+#if TUSB_CFG_DEVICE_HID_MOUSE
+tusb_error_t tusbd_hid_mouse_send_report(tusb_mouse_report_t *p_mouse_report)
+{
+//  uint32_t start_time = systickGetSecondsActive();
+//  while (bMouseChanged) // TODO Block while previous key hasn't been sent - can use fifo to improve this
+//  {
+//    ASSERT_MESSAGE(systickGetSecondsActive() - start_time < 5, ERR_FAILED, "HID Mouse Timeout");
+//  }
+
+  if (bMouseChanged)
+  {
+    return TUSB_ERROR_FAILED;
+  }
+
+  hid_mouse_report = *p_mouse_report;
+  bMouseChanged = true;
+
+  return TUSB_ERROR_NONE;
+}
+#endif
 
 //--------------------------------------------------------------------+
 // CLASS-USBH API (don't require to verify parameters)
 //--------------------------------------------------------------------+
+tusb_error_t hidd_configured(USBD_HANDLE_T hUsb)
+{
+  #if  TUSB_CFG_DEVICE_HID_KEYBOARD
+    ROM_API->hw->WriteEP(hUsb , HID_KEYBOARD_EP_IN , (uint8_t* ) &hid_keyboard_report , sizeof(tusb_keyboard_report_t) ); // initial packet for IN endpoint , will not work if omitted
+  #endif
+
+  #if  TUSB_CFG_DEVICE_HID_MOUSE
+    ROM_API->hw->WriteEP(hUsb , HID_MOUSE_EP_IN    , (uint8_t* ) &hid_mouse_report    , sizeof(tusb_mouse_report_t) ); // initial packet for IN endpoint, will not work if omitted
+  #endif
+
+  return TUSB_ERROR_NONE;
+}
+
 tusb_error_t hidd_init(tusb_descriptor_interface_t const * p_interface_desc, uint16_t *p_length)
 {
   uint8_t const *p_desc = (uint8_t const *) p_interface_desc;
@@ -153,73 +209,14 @@ tusb_error_t hidd_interface_init(tusb_descriptor_interface_t const *pIntfDesc, u
   };
 
   ASSERT( (pIntfDesc != NULL) && (pIntfDesc->bInterfaceClass == USB_DEVICE_CLASS_HUMAN_INTERFACE), ERR_FAILED);
-
   ASSERT( LPC_OK == ROM_API->hid->init(romdriver_hdl, &hid_param), TUSB_ERROR_FAILED );
 
-  /* update memory variables */
-//  *mem_base += (*mem_size - hid_param.mem_size);
-//  *mem_size = hid_param.mem_size;
-
   return TUSB_ERROR_NONE;
 }
 
-tusb_error_t hidd_configured(USBD_HANDLE_T hUsb)
-{
-  #if  TUSB_CFG_DEVICE_HID_KEYBOARD
-    ROM_API->hw->WriteEP(hUsb , HID_KEYBOARD_EP_IN , (uint8_t* ) &hid_keyboard_report , sizeof(tusb_keyboard_report_t) ); // initial packet for IN endpoint , will not work if omitted
-  #endif
-
-  #if  TUSB_CFG_DEVICE_HID_MOUSE
-    ROM_API->hw->WriteEP(hUsb , HID_MOUSE_EP_IN    , (uint8_t* ) &hid_mouse_report    , sizeof(tusb_mouse_report_t) ); // initial packet for IN endpoint, will not work if omitted
-  #endif
-
-  return TUSB_ERROR_NONE;
-}
-
-#if TUSB_CFG_DEVICE_HID_KEYBOARD
-tusb_error_t tusbd_hid_keyboard_send_report(tusb_keyboard_report_t *p_kbd_report)
-{
-//  uint32_t start_time = systickGetSecondsActive();
-//  while (bKeyChanged) // TODO blocking while previous key has yet sent - can use fifo to improve this
-//  {
-//    ASSERT_MESSAGE(systickGetSecondsActive() - start_time < 5, ERR_FAILED, "HID Keyboard Timeout");
-//  }
-
-  if (bKeyChanged)
-  {
-    return TUSB_ERROR_FAILED;
-  }
-
-  ASSERT_PTR(p_kbd_report, TUSB_ERROR_FAILED);
-
-  hid_keyboard_report = *p_kbd_report;
-  bKeyChanged = true;
-
-  return TUSB_ERROR_NONE;
-}
-#endif
-
-#if TUSB_CFG_DEVICE_HID_MOUSE
-tusb_error_t tusbd_hid_mouse_send_report(tusb_mouse_report_t *p_mouse_report)
-{
-//  uint32_t start_time = systickGetSecondsActive();
-//  while (bMouseChanged) // TODO Block while previous key hasn't been sent - can use fifo to improve this
-//  {
-//    ASSERT_MESSAGE(systickGetSecondsActive() - start_time < 5, ERR_FAILED, "HID Mouse Timeout");
-//  }
-
-  if (bMouseChanged)
-  {
-    return TUSB_ERROR_FAILED;
-  }
-
-  hid_mouse_report = *p_mouse_report;
-  bMouseChanged = true;
-
-  return TUSB_ERROR_NONE;
-}
-#endif
-
+//--------------------------------------------------------------------+
+// IMPLEMENTATION
+//--------------------------------------------------------------------+
 ErrorCode_t HID_GetReport( USBD_HANDLE_T hHid, USB_SETUP_PACKET* pSetup, uint8_t** pBuffer, uint16_t* plength)
 {
   USB_HID_CTRL_T* pHidCtrl = (USB_HID_CTRL_T*) hHid;
