@@ -42,12 +42,17 @@ int main(void)
       #if TUSB_CFG_DEVICE_HID_MOUSE
       if (usb_isConfigured())
       {
-          tusb_hid_mouse_send(0, 10, 10);
+        static uint32_t count =0;
+        if (count < 8)
+        {
+          count++;
+          tusb_hid_mouse_send(0, 20, 20);
+        }
       }
       #endif
     }
 
-    #if defined TUSB_CFG_DEVICE_CDC && 0
+    #if TUSB_CFG_DEVICE_CDC && 0
     if (usb_isConfigured())
     {
       uint8_t cdc_char;

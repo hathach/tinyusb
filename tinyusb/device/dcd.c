@@ -90,7 +90,7 @@ tusb_error_t dcd_init(uint8_t coreid)
 
   USBD_API_INIT_PARAM_T usb_param =
   {
-    .usb_reg_base        = DEVICE_ROM_REG_BASE,
+    .usb_reg_base        = NXP_ROMDRIVER_REG_BASE,
     .max_num_ep          = USB_MAX_EP_NUM,
     .mem_base            = membase,
     .mem_size            = memsize,

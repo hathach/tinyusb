@@ -56,7 +56,15 @@
 //
 //};
 
-
+// TODO fix/compress number of class driver
+static device_class_driver_t const usbh_class_drivers[TUSB_CLASS_MAX_CONSEC_NUMBER] =
+{
+#if DEVICE_CLASS_HID
+    [TUSB_CLASS_HID] = {
+        .init         = hidd_init,
+    },
+#endif
+};
 
 //--------------------------------------------------------------------+
 // INTERNAL OBJECT & FUNCTION DECLARATION
@@ -80,8 +88,14 @@ tusb_error_t usbd_init (void)
 
   ASSERT_STATUS ( dcd_init() );
 
+  uint16_t length = 0;
+
   #if TUSB_CFG_DEVICE_HID_KEYBOARD
-  ASSERT_STATUS( hidd_init(&app_tusb_desc_configuration.keyboard_interface) );
+  ASSERT_STATUS( hidd_init(&app_tusb_desc_configuration.keyboard_interface, &length) );
+  #endif
+
+  #if TUSB_CFG_DEVICE_HID_MOUSE
+  ASSERT_STATUS( hidd_init(&app_tusb_desc_configuration.mouse_interface, &length) );
   #endif
 
   #ifndef _TEST_
@@ -100,13 +114,13 @@ tusb_error_t usbd_init (void)
 //--------------------------------------------------------------------+
 static tusb_error_t usbd_string_descriptor_init(void)
 {
-  ASSERT_INT( USB_STRING_LEN(sizeof(TUSB_CFG_DEVICE_STRING_MANUFACTURER)-1),
+  ASSERT_INT( STRING_LEN_BYTE2UNICODE(sizeof(TUSB_CFG_DEVICE_STRING_MANUFACTURER)-1),
              app_tusb_desc_strings.manufacturer.bLength, TUSB_ERROR_USBD_DESCRIPTOR_STRING);
 
-  ASSERT_INT( USB_STRING_LEN(sizeof(TUSB_CFG_DEVICE_STRING_PRODUCT)-1)     ,
+  ASSERT_INT( STRING_LEN_BYTE2UNICODE(sizeof(TUSB_CFG_DEVICE_STRING_PRODUCT)-1)     ,
              app_tusb_desc_strings.product.bLength     , TUSB_ERROR_USBD_DESCRIPTOR_STRING);
 
-  ASSERT_INT( USB_STRING_LEN(sizeof(TUSB_CFG_DEVICE_STRING_SERIAL)-1)      ,
+  ASSERT_INT( STRING_LEN_BYTE2UNICODE(sizeof(TUSB_CFG_DEVICE_STRING_SERIAL)-1)      ,
               app_tusb_desc_strings.serial.bLength      , TUSB_ERROR_USBD_DESCRIPTOR_STRING);
 
   for(uint32_t i=0; i < sizeof(TUSB_CFG_DEVICE_STRING_MANUFACTURER)-1; i++)

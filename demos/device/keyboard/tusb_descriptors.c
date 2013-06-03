@@ -83,7 +83,7 @@ uint8_t app_tusb_keyboard_desc_report[] = {
 
 #if TUSB_CFG_DEVICE_HID_MOUSE
 TUSB_CFG_ATTR_USBRAM ATTR_ALIGNED(4)
-uint8_t mouse_report_descriptor[] = {
+uint8_t app_tusb_mouse_desc_report[] = {
   HID_USAGE_PAGE ( HID_USAGE_PAGE_DESKTOP     ),
   HID_USAGE      ( HID_USAGE_DESKTOP_MOUSE    ),
   HID_COLLECTION ( HID_COLLECTION_APPLICATION ),
@@ -178,7 +178,7 @@ app_descriptor_configuration_t app_tusb_desc_configuration =
     },
     #endif
 
-    #ifdef TUSB_CFG_DEVICE_CDC
+    #if TUSB_CFG_DEVICE_CDC
     // USB CDC Serial Interface
     // CDC Control Interface
     .CDC_CCI_Interface =
@@ -273,7 +273,7 @@ app_descriptor_configuration_t app_tusb_desc_configuration =
     {
         .bLength            = sizeof(tusb_descriptor_interface_t),
         .bDescriptorType    = TUSB_DESC_TYPE_INTERFACE,
-        .bInterfaceNumber   = 1,
+        .bInterfaceNumber   = INTERFACE_INDEX_HID_KEYBOARD,
         .bAlternateSetting  = 0x00,
         .bNumEndpoints      = 1,
         .bInterfaceClass    = TUSB_CLASS_HID,
@@ -297,7 +297,7 @@ app_descriptor_configuration_t app_tusb_desc_configuration =
     {
         .bLength          = sizeof(tusb_descriptor_endpoint_t),
         .bDescriptorType  = TUSB_DESC_TYPE_ENDPOINT,
-        .bEndpointAddress = 0x81, //HID_KEYBOARD_EP_IN,
+        .bEndpointAddress = HID_KEYBOARD_EP_IN, //todo HID_KEYBOARD_EP_IN,
         .bmAttributes     = { .xfer = TUSB_XFER_INTERRUPT },
         .wMaxPacketSize   = { .size = 0x08 },
         .bInterval        = 0x0A
@@ -306,7 +306,7 @@ app_descriptor_configuration_t app_tusb_desc_configuration =
 
     //------------- HID Mouse -------------//
     #if TUSB_CFG_DEVICE_HID_MOUSE
-    .HID_MouseInterface =
+    .mouse_interface =
     {
         .bLength            = sizeof(tusb_descriptor_interface_t),
         .bDescriptorType    = TUSB_DESC_TYPE_INTERFACE,
@@ -314,7 +314,7 @@ app_descriptor_configuration_t app_tusb_desc_configuration =
         .bAlternateSetting  = 0x00,
         .bNumEndpoints      = 1,
         .bInterfaceClass    = TUSB_CLASS_HID,
-        .bInterfaceSubClass = TUSB_HID_SUBCLASS_BOOT,
+        .bInterfaceSubClass = HID_SUBCLASS_BOOT,
         .bInterfaceProtocol = HID_PROTOCOL_MOUSE,
         .iInterface         = 0x00
     },
@@ -327,16 +327,16 @@ app_descriptor_configuration_t app_tusb_desc_configuration =
         .bCountryCode      = HID_Local_NotSupported,
         .bNumDescriptors   = 1,
         .bReportType       = HID_DESC_TYPE_REPORT,
-        .wReportLength     = sizeof(mouse_report_descriptor)
+        .wReportLength     = sizeof(app_tusb_mouse_desc_report)
     },
 
     .mouse_endpoint =
     {
         .bLength          = sizeof(tusb_descriptor_endpoint_t),
         .bDescriptorType  = TUSB_DESC_TYPE_ENDPOINT,
-        .bEndpointAddress = 0x82,
+        .bEndpointAddress = HID_MOUSE_EP_IN, // TODO
         .bmAttributes     = { .xfer = TUSB_XFER_INTERRUPT },
-        .wMaxPacketSize   = 0x08,
+        .wMaxPacketSize   = { .size = 0x08 },
         .bInterval        = 0x0A
     },
     #endif
@@ -390,19 +390,19 @@ app_descriptor_string_t app_tusb_desc_strings =
 
     //------------- index 1 -------------//
     .manufacturer = {
-        .bLength         = USB_STRING_LEN(sizeof(TUSB_CFG_DEVICE_STRING_MANUFACTURER)-1),
+        .bLength         = STRING_LEN_BYTE2UNICODE(sizeof(TUSB_CFG_DEVICE_STRING_MANUFACTURER)-1),
         .bDescriptorType = TUSB_DESC_TYPE_STRING,
     },
 
     //------------- index 2 -------------//
     .product = {
-        .bLength         = USB_STRING_LEN(sizeof(TUSB_CFG_DEVICE_STRING_PRODUCT)-1),
+        .bLength         = STRING_LEN_BYTE2UNICODE(sizeof(TUSB_CFG_DEVICE_STRING_PRODUCT)-1),
         .bDescriptorType = TUSB_DESC_TYPE_STRING,
     },
 
     //------------- index 3 -------------//
     .serial = {
-        .bLength         = USB_STRING_LEN(sizeof(TUSB_CFG_DEVICE_STRING_SERIAL)-1),
+        .bLength         = STRING_LEN_BYTE2UNICODE(sizeof(TUSB_CFG_DEVICE_STRING_SERIAL)-1),
         .bDescriptorType = TUSB_DESC_TYPE_STRING,
     }
 };

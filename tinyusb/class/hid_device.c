@@ -58,6 +58,7 @@ static volatile bool bKeyChanged = false;
 #endif
 
 #if TUSB_CFG_DEVICE_HID_MOUSE
+TUSB_CFG_ATTR_USBRAM uint8_t hidd_mouse_buffer[1024]; // TODO memory reduce
 TUSB_CFG_ATTR_USBRAM tusb_mouse_report_t hid_mouse_report;
 static volatile bool bMouseChanged = false;
 #endif
@@ -81,7 +82,7 @@ ErrorCode_t HID_EpOut_Hdlr (USBD_HANDLE_T hUsb, void* data, uint32_t event);
 //--------------------------------------------------------------------+
 // CLASS-USBH API (don't require to verify parameters)
 //--------------------------------------------------------------------+
-tusb_error_t hidd_init(tusb_descriptor_interface_t const * p_interface_desc)
+tusb_error_t hidd_init(tusb_descriptor_interface_t const * p_interface_desc, uint16_t *p_length)
 {
   uint8_t const *p_desc = (uint8_t const *) p_interface_desc;
 
@@ -90,9 +91,37 @@ tusb_error_t hidd_init(tusb_descriptor_interface_t const * p_interface_desc)
   tusb_hid_descriptor_hid_t const *p_desc_hid = (tusb_hid_descriptor_hid_t const *) p_desc;
   ASSERT_INT(HID_DESC_TYPE_HID, p_desc_hid->bDescriptorType, TUSB_ERROR_HIDD_DESCRIPTOR_INTERFACE);
 
-  ASSERT_STATUS( hidd_interface_init(p_interface_desc,
-                           app_tusb_keyboard_desc_report, p_desc_hid->wReportLength,
-                           hidd_keyboard_buffer , sizeof(hidd_keyboard_buffer)) );
+   if (p_interface_desc->bInterfaceSubClass == HID_SUBCLASS_BOOT)
+  {
+    switch(p_interface_desc->bInterfaceProtocol)
+    {
+      #if TUSB_CFG_DEVICE_HID_KEYBOARD
+      case HID_PROTOCOL_KEYBOARD:
+        ASSERT_STATUS( hidd_interface_init(p_interface_desc,
+                                           app_tusb_keyboard_desc_report, p_desc_hid->wReportLength,
+                                           hidd_keyboard_buffer , sizeof(hidd_keyboard_buffer)) );
+      break;
+      #endif
+
+      #if TUSB_CFG_DEVICE_HID_MOUSE
+      case HID_PROTOCOL_MOUSE:
+        ASSERT_STATUS( hidd_interface_init(p_interface_desc,
+                                           app_tusb_mouse_desc_report, p_desc_hid->wReportLength,
+                                           hidd_mouse_buffer , sizeof(hidd_mouse_buffer)) );
+      break;
+      #endif
+
+      default: // TODO unknown, unsupported protocol --> skip this interface
+        return TUSB_ERROR_HIDD_DESCRIPTOR_INTERFACE;
+    }
+    *p_length = sizeof(tusb_descriptor_interface_t) + sizeof(tusb_hid_descriptor_hid_t) + sizeof(tusb_descriptor_endpoint_t);
+  }else
+  {
+    // open generic
+    *p_length = 0;
+    return TUSB_ERROR_HIDD_DESCRIPTOR_INTERFACE;
+  }
+
 
   return TUSB_ERROR_NONE;
 }

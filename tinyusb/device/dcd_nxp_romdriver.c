@@ -60,12 +60,6 @@ typedef struct {
 
 usbd_info_t usbd_info; // TODO rename
 
-typedef struct {
-  void (* const init) (void);
-  void (* const configured) (void);
-  void (* const unmounted) (void);
-}device_class_driver_t;
-
 //--------------------------------------------------------------------+
 // MACRO CONSTANT TYPEDEF
 //--------------------------------------------------------------------+
@@ -91,7 +85,7 @@ ErrorCode_t USB_Configure_Event (USBD_HANDLE_T hUsb)
     ASSERT( TUSB_ERROR_NONE == hidd_configured(hUsb), ERR_FAILED );
     #endif
 
-    #ifdef TUSB_CFG_DEVICE_CDC
+    #if TUSB_CFG_DEVICE_CDC
     ASSERT( TUSB_ERROR_NONE == tusb_cdc_configured(hUsb), ERR_FAILED );
     #endif
   }
@@ -123,7 +117,7 @@ tusb_error_t dcd_init(void)
 
   USBD_API_INIT_PARAM_T usb_param =
   {
-    .usb_reg_base        = DEVICE_ROM_REG_BASE,
+    .usb_reg_base        = NXP_ROMDRIVER_REG_BASE,
     .max_num_ep          = USB_MAX_EP_NUM,
     .mem_base            = membase,
     .mem_size            = memsize,
@@ -149,12 +143,6 @@ tusb_error_t dcd_init(void)
   // TODO need to confirm the mem_size is reduced by the number of byte used
   membase += (memsize - usb_param.mem_size);
   memsize = usb_param.mem_size;
-
-  #if TUSB_CFG_DEVICE_HID_MOUSE
-  ASSERT_STATUS( tusb_hid_init(romdriver_hdl , &USB_FsConfigDescriptor.HID_MouseInterface    ,
-            HID_MouseReportDescriptor, USB_FsConfigDescriptor.HID_MouseHID.DescriptorList[0].wDescriptorLength,
-            &membase , &memsize) );
-  #endif
 
   return TUSB_ERROR_NONE;
 }

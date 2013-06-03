@@ -35,20 +35,6 @@
 
 #include "tusb.h"
 
-
-
-/* USB Serial uses the MCUs unique 128-bit chip ID via an IAP call = 32 hex chars */
-#define USB_STRING_SERIAL_LEN     32
-
-#define USB_STRING_LEN(n) (2 + ((n)<<1))
-
-typedef ATTR_PACKED_STRUCT(struct)
-{
-  uint8_t  bLength         ; ///< Size of this descriptor in bytes
-  uint8_t  bDescriptorType ; ///< Descriptor Type
-  uint16_t unicode_string[];
-} tusb_descriptor_string_t;
-
 typedef ATTR_PACKED_STRUCT(struct)
 {
   //------------- index 0 -------------//
@@ -90,31 +76,13 @@ typedef ATTR_PACKED_STRUCT(struct)
 
 ///////////////////////////////////////////////////////////////////////
 // Interface Assosication Descriptor if device is CDC + other class
-#define IAD_DESC_REQUIRED ( defined(TUSB_CFG_DEVICE_CDC) && (DEVICE_CLASS_HID) )
+#define IAD_DESC_REQUIRED ( TUSB_CFG_DEVICE_CDC && DEVICE_CLASS_HID )
 
-#ifdef TUSB_CFG_DEVICE_CDC
-  #define INTERFACES_OF_CDC           2
-#else
-  #define INTERFACES_OF_CDC           0
-#endif
+#define INTERFACES_OF_CDC           (TUSB_CFG_DEVICE_CDC ? 2 : 0)
 
-#if TUSB_CFG_DEVICE_HID_KEYBOARD
-  #define INTERFACES_OF_HID_KEYBOARD  1
-#else
-  #define INTERFACES_OF_HID_KEYBOARD  0
-#endif
-
-#if TUSB_CFG_DEVICE_HID_MOUSE
-  #define INTERFACES_OF_HID_MOUSE     1
-#else
-  #define INTERFACES_OF_HID_MOUSE     0
-#endif
-
-#if TUSB_CFG_HOST_HID_GENERIC
-  #define INTERFACES_OF_HID_GENERIC   1
-#else
-  #define INTERFACES_OF_HID_GENERIC   0
-#endif
+#define INTERFACES_OF_HID_KEYBOARD  (TUSB_CFG_DEVICE_HID_KEYBOARD ? 1 : 0)
+#define INTERFACES_OF_HID_MOUSE     (TUSB_CFG_DEVICE_HID_MOUSE ? 1 : 0)
+#define INTERFACES_OF_HID_GENERIC   (TUSB_CFG_DEVICE_HID_GENERIC ? 1 : 0)
 
 #if CFG_USB_MASS_STORAGE
   #define INTERFACES_OF_MASS_STORAGE  2
@@ -181,7 +149,6 @@ extern app_descriptor_configuration_t app_tusb_desc_configuration;
 extern app_descriptor_string_t app_tusb_desc_strings;
 
 extern uint8_t app_tusb_keyboard_desc_report[];
-
-//extern const uint8_t HID_MouseReportDescriptor[];
+extern uint8_t app_tusb_mouse_desc_report[];
 
 #endif

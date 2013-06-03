@@ -238,7 +238,7 @@ tusb_error_t hidh_open_subtask(uint8_t dev_addr, tusb_descriptor_interface_t con
       break;
       #endif
 
-      default: // unknown protocol --> skip this interface
+      default: // TODO unknown, unsupported protocol --> skip this interface
         return TUSB_ERROR_NONE;
     }
     *p_length = sizeof(tusb_descriptor_interface_t) + sizeof(tusb_hid_descriptor_hid_t) + sizeof(tusb_descriptor_endpoint_t);

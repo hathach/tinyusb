@@ -53,6 +53,8 @@
  extern "C" {
 #endif
 
+#define STRING_LEN_BYTE2UNICODE(n) (2 + ((n)<<1))
+
 //--------------------------------------------------------------------+
 // STANDARD DESCRIPTORS
 //--------------------------------------------------------------------+
@@ -177,6 +179,12 @@ typedef ATTR_PREPACKED struct ATTR_PACKED
   uint8_t  bDescriptorType ; ///< Descriptor Type
 } tusb_descriptor_header_t;
 
+//typedef ATTR_PACKED_STRUCT(struct)
+//{
+//  uint8_t  bLength         ; ///< Size of this descriptor in bytes
+//  uint8_t  bDescriptorType ; ///< Descriptor Type
+//  uint16_t unicode_string[];
+//} tusb_descriptor_string_t;
 
 #ifdef __cplusplus
  }

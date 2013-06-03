@@ -50,8 +50,8 @@
  extern "C" {
 #endif
 
-#define DEVICE_ROM_REG_BASE        LPC_USB0_BASE // TODO USB1
-#define DEVICE_ROM_DRIVER_ADDR     0x1040011C
+#define NXP_ROMDRIVER_REG_BASE        LPC_USB0_BASE // TODO USB1
+#define NXP_ROMDRIVER_FUNCTION_ADDR     0x1040011C
 
 #ifdef __cplusplus
  }

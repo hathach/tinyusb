@@ -64,10 +64,34 @@ void test_dcd_init_failed(void)
   TEST_ASSERT_EQUAL( TUSB_ERROR_FAILED, usbd_init() );
 }
 
+tusb_error_t stub_hidd_init(tusb_descriptor_interface_t const* p_interface_desc, uint16_t* p_length, int num_call)
+{
+  switch(num_call)
+  {
+    case 0:
+      TEST_ASSERT_EQUAL_HEX32(&app_tusb_desc_configuration.keyboard_interface, p_interface_desc);
+    break;
+
+    case 1:
+      TEST_ASSERT_EQUAL_HEX32(&app_tusb_desc_configuration.mouse_interface, p_interface_desc);
+    break;
+
+    case 2:
+    break;
+
+    default:
+      TEST_FAIL();
+      return TUSB_ERROR_HIDD_DESCRIPTOR_INTERFACE;
+  }
+
+  return TUSB_ERROR_NONE;
+}
+
 void test_usbd_init_ok(void)
 {
   dcd_init_ExpectAndReturn(TUSB_ERROR_NONE);
-  hidd_init_ExpectAndReturn(&app_tusb_desc_configuration.keyboard_interface, TUSB_ERROR_NONE);
+
+  hidd_init_StubWithCallback(stub_hidd_init);
 
   dcd_controller_connect_Expect(0);
 
