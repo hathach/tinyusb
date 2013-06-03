@@ -26,7 +26,6 @@
 
 #include "error.h"
 #include "mw_usbd.h"
-#include "../dcd_nxp_romdriver.h"
 
 /** \file
  *  \brief ROM API for USB device stack.
