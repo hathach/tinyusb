@@ -35,60 +35,11 @@
 
 #include "tusb.h"
 
-typedef ATTR_PACKED_STRUCT(struct)
-{
-  //------------- index 0 -------------//
-  struct {
-    uint8_t const bLength;
-    uint8_t const bDescriptorType;
-    uint16_t id;
-  }language;
-
-  //------------- index 1 -------------//
-  struct {
-    uint8_t const bLength;
-    uint8_t const bDescriptorType;
-    uint16_t unicode_string[sizeof(TUSB_CFG_DEVICE_STRING_MANUFACTURER)-1]; // exclude null-character
-  } manufacturer;
-
-  //------------- index 2 -------------//
-  struct {
-    uint8_t const bLength;
-    uint8_t const bDescriptorType;
-    uint16_t unicode_string[sizeof(TUSB_CFG_DEVICE_STRING_PRODUCT)-1]; // exclude null-character
-  } product;
-
-  //------------- index 3 -------------//
-  struct {
-    uint8_t const bLength;
-    uint8_t const bDescriptorType;
-    uint16_t unicode_string[sizeof(TUSB_CFG_DEVICE_STRING_SERIAL)-1]; // exclude null-character
-  } serial;
-
-  //------------- more string index -------------//
-
-} app_descriptor_string_t;
-
-// USB Interface Assosication Descriptor
-#define  USB_DEVICE_CLASS_IAD        USB_DEVICE_CLASS_MISCELLANEOUS
-#define  USB_DEVICE_SUBCLASS_IAD     0x02
-#define  USB_DEVICE_PROTOCOL_IAD     0x01
-
-///////////////////////////////////////////////////////////////////////
-// Interface Assosication Descriptor if device is CDC + other class
-#define IAD_DESC_REQUIRED ( TUSB_CFG_DEVICE_CDC && DEVICE_CLASS_HID )
-
 #define INTERFACES_OF_CDC           (TUSB_CFG_DEVICE_CDC ? 2 : 0)
-
 #define INTERFACES_OF_HID_KEYBOARD  (TUSB_CFG_DEVICE_HID_KEYBOARD ? 1 : 0)
 #define INTERFACES_OF_HID_MOUSE     (TUSB_CFG_DEVICE_HID_MOUSE ? 1 : 0)
 #define INTERFACES_OF_HID_GENERIC   (TUSB_CFG_DEVICE_HID_GENERIC ? 1 : 0)
-
-#if CFG_USB_MASS_STORAGE
-  #define INTERFACES_OF_MASS_STORAGE  2
-#else
-  #define INTERFACES_OF_MASS_STORAGE  0
-#endif
+#define INTERFACES_OF_MASS_STORAGE  (TUSB_CFG_DEVICE_MSC ? 1 : 0)
 
 #define INTERFACE_INDEX_CDC           0
 #define INTERFACE_INDEX_HID_KEYBOARD (INTERFACE_INDEX_CDC          + INTERFACES_OF_CDC          )
@@ -96,7 +47,16 @@ typedef ATTR_PACKED_STRUCT(struct)
 #define INTERFACE_INDEX_HID_GENERIC  (INTERFACE_INDEX_HID_MOUSE    + INTERFACES_OF_HID_MOUSE    )
 #define INTERFACE_INDEX_MASS_STORAGE (INTERFACE_INDEX_HID_GENERIC  + INTERFACES_OF_HID_GENERIC  )
 
-#define TOTAL_INTEFACES              (INTERFACES_OF_CDC + INTERFACES_OF_HID_KEYBOARD + INTERFACES_OF_HID_MOUSE + INTERFACES_OF_HID_GENERIC + INTERFACES_OF_MASS_STORAGE)
+#define TOTAL_INTEFACES              (INTERFACES_OF_CDC + INTERFACES_OF_HID_KEYBOARD + INTERFACES_OF_HID_MOUSE + \
+                                      INTERFACES_OF_HID_GENERIC + INTERFACES_OF_MASS_STORAGE)
+
+// USB Interface Assosication Descriptor
+#define  USB_DEVICE_CLASS_IAD        USB_DEVICE_CLASS_MISCELLANEOUS
+#define  USB_DEVICE_SUBCLASS_IAD     0x02
+#define  USB_DEVICE_PROTOCOL_IAD     0x01
+
+// Interface Assosication Descriptor if device is CDC + other class
+#define IAD_DESC_REQUIRED ( TUSB_CFG_DEVICE_CDC && (TOTAL_INTEFACES > 2) )
 
 
 // each combination of interfaces need to have different productid, as windows will bind & remember device driver after the
@@ -104,11 +64,14 @@ typedef ATTR_PACKED_STRUCT(struct)
 #ifndef TUSB_CFG_PRODUCT_ID
 // Bitmap: MassStorage | Generic | Mouse | Key | CDC
 #define PRODUCTID_BITMAP(interface, n)  ( (INTERFACES_OF_##interface ? 1 : 0) << (n) )
-#define TUSB_CFG_PRODUCT_ID                  (0x2000 | ( PRODUCTID_BITMAP(CDC, 0) | PRODUCTID_BITMAP(HID_KEYBOARD, 1) | PRODUCTID_BITMAP(HID_MOUSE, 2) | \
-                                                    PRODUCTID_BITMAP(HID_GENERIC, 3) | PRODUCTID_BITMAP(MASS_STORAGE, 4) ) )
+#define TUSB_CFG_PRODUCT_ID             (0x2000 | ( PRODUCTID_BITMAP(CDC, 0) | PRODUCTID_BITMAP(HID_KEYBOARD, 1) | \
+                                         PRODUCTID_BITMAP(HID_MOUSE, 2) | PRODUCTID_BITMAP(HID_GENERIC, 3) | \
+                                         PRODUCTID_BITMAP(MASS_STORAGE, 4) ) )
 #endif
 
-///////////////////////////////////////////////////////////////////////
+//--------------------------------------------------------------------+
+// CONFIGURATION DESCRIPTOR
+//--------------------------------------------------------------------+
 typedef ATTR_PACKED_STRUCT(struct)
 {
   tusb_descriptor_configuration_t                configuration;
@@ -149,6 +112,46 @@ typedef ATTR_PACKED_STRUCT(struct)
   uint8_t                                        null_termination; // NXP rom driver requires this to work
 } app_descriptor_configuration_t;
 
+//--------------------------------------------------------------------+
+// STRINGS DESCRIPTOR
+//--------------------------------------------------------------------+
+typedef ATTR_PACKED_STRUCT(struct)
+{
+  //------------- index 0 -------------//
+  struct {
+    uint8_t const bLength;
+    uint8_t const bDescriptorType;
+    uint16_t id;
+  }language;
+
+  //------------- index 1 -------------//
+  struct {
+    uint8_t const bLength;
+    uint8_t const bDescriptorType;
+    uint16_t unicode_string[sizeof(TUSB_CFG_DEVICE_STRING_MANUFACTURER)-1]; // exclude null-character
+  } manufacturer;
+
+  //------------- index 2 -------------//
+  struct {
+    uint8_t const bLength;
+    uint8_t const bDescriptorType;
+    uint16_t unicode_string[sizeof(TUSB_CFG_DEVICE_STRING_PRODUCT)-1]; // exclude null-character
+  } product;
+
+  //------------- index 3 -------------//
+  struct {
+    uint8_t const bLength;
+    uint8_t const bDescriptorType;
+    uint16_t unicode_string[sizeof(TUSB_CFG_DEVICE_STRING_SERIAL)-1]; // exclude null-character
+  } serial;
+
+  //------------- more string index -------------//
+
+} app_descriptor_string_t;
+
+//--------------------------------------------------------------------+
+// Export descriptors
+//--------------------------------------------------------------------+
 extern tusb_descriptor_device_t app_tusb_desc_device;
 extern app_descriptor_configuration_t app_tusb_desc_configuration;
 extern app_descriptor_string_t app_tusb_desc_strings;
