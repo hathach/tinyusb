@@ -200,7 +200,7 @@ tusb_error_t tusbd_hid_keyboard_send_report(tusb_keyboard_report_t *p_kbd_report
 #endif
 
 #if TUSB_CFG_DEVICE_HID_MOUSE
-tusb_error_t tusb_hid_mouse_send(uint8_t buttons, int8_t x, int8_t y)
+tusb_error_t tusbd_hid_mouse_send_report(tusb_mouse_report_t *p_mouse_report)
 {
 //  uint32_t start_time = systickGetSecondsActive();
 //  while (bMouseChanged) // TODO Block while previous key hasn't been sent - can use fifo to improve this
@@ -213,10 +213,7 @@ tusb_error_t tusb_hid_mouse_send(uint8_t buttons, int8_t x, int8_t y)
     return TUSB_ERROR_FAILED;
   }
 
-  hid_mouse_report.buttons = buttons;
-  hid_mouse_report.x = x;
-  hid_mouse_report.y = y;
-
+  hid_mouse_report = *p_mouse_report;
   bMouseChanged = true;
 
   return TUSB_ERROR_NONE;

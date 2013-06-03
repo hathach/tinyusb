@@ -18,6 +18,7 @@ void print_greeting(void);
 
 void led_blinking_task(void * p_para);
 void keyboard_device_app_task(void * p_para);
+void mouse_device_app_task(void * p_para);
 
 int main(void)
 {
@@ -40,15 +41,7 @@ int main(void)
       #endif
 
       #if TUSB_CFG_DEVICE_HID_MOUSE
-      if (usb_isConfigured())
-      {
-        static uint32_t count =0;
-        if (count < 8)
-        {
-          count++;
-          tusb_hid_mouse_send(0, 20, 20);
-        }
-      }
+      mouse_device_app_task(NULL);
       #endif
     }
 
@@ -111,6 +104,24 @@ void keyboard_device_app_task(void * p_para)
           &(tusb_keyboard_report_t) {
               .keycode = { 0x04 } }
       );
+    }
+  }
+}
+#endif
+
+#if TUSB_CFG_DEVICE_HID_MOUSE
+void mouse_device_app_task(void * p_para)
+{
+  if (usb_isConfigured())
+  {
+    static uint32_t count =0;
+    if (count < 8)
+    {
+      count++;
+      tusbd_hid_mouse_send_report(
+          &(tusb_mouse_report_t) {
+              .x = 20,
+              .y = 20 } );
     }
   }
 }
