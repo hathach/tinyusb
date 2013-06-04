@@ -91,8 +91,8 @@
 #define TUSB_CFG_DEVICE_USE_ROM_DRIVER  1
 
 //------------- CLASS -------------//
-#define TUSB_CFG_DEVICE_HID_KEYBOARD  1
-#define TUSB_CFG_DEVICE_HID_MOUSE     1
+#define TUSB_CFG_DEVICE_HID_KEYBOARD  0
+#define TUSB_CFG_DEVICE_HID_MOUSE     0
 #define TUSB_CFG_DEVICE_HID_GENERIC   0
 #define TUSB_CFG_DEVICE_MSC           0
 #define TUSB_CFG_DEVICE_CDC           0
@@ -112,6 +112,10 @@
     #define TUSB_RAM_SECTION  ".data.$RAM1" // TODO overflow usb ram
   #elif  (MCU == MCU_LPC43XX)
     #define TUSB_RAM_SECTION  ".data.$RAM3"
+  #elif (MCU == MCU_LPC175X_6X)
+    #define TUSB_RAM_SECTION  ".data.$RAM2"
+  #else
+    forgot something thach ?
   #endif
 
   #define TUSB_CFG_ATTR_USBRAM   __attribute__ ((section(TUSB_RAM_SECTION)))

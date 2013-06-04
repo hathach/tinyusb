@@ -72,6 +72,10 @@
   #define CAP_MODE_HOST
 #endif
 
+#if MCU == MCU_LPC43XX || MCU == MCU_LPC18XX || MCU == MCU_LPC11UXX || MCU == MCU_LPC13UXX
+  #define CAP_DEVICE_ROMDRIVER
+#endif
+
 //--------------------------------------------------------------------+
 // Validation
 //--------------------------------------------------------------------+

@@ -38,7 +38,7 @@
 
 #include "tusb_option.h"
 
-#if MODE_DEVICE_SUPPORTED && TUSB_CFG_DEVICE_USE_ROM_DRIVER
+#if MODE_DEVICE_SUPPORTED && (defined(CAP_DEVICE_ROMDRIVER) && TUSB_CFG_DEVICE_USE_ROM_DRIVER)
 
 #define _TINY_USB_SOURCE_FILE_
 
@@ -82,7 +82,7 @@ ErrorCode_t USB_Configure_Event (USBD_HANDLE_T hUsb)
     usbd_info.state = TUSB_DEVICE_STATE_CONFIGURED;
 
     #if DEVICE_CLASS_HID
-    ASSERT( TUSB_ERROR_NONE == hidd_configured(hUsb), ERR_FAILED );
+    ASSERT( TUSB_ERROR_NONE == hidd_configured(), ERR_FAILED );
     #endif
 
     #if TUSB_CFG_DEVICE_CDC

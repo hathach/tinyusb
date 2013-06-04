@@ -69,6 +69,7 @@
 #define BOARD_EA4357                4
 #define BOARD_MCB4300               5
 #define BOARD_HITEX4350             6
+#define BOARD_LPCXPRESSO1769        7
 
 //--------------------------------------------------------------------+
 // PRINTF TARGET DEFINE
@@ -83,7 +84,7 @@
 #if BOARD == 0
   #error BOARD is not defined or supported yet
 #elif BOARD == BOARD_NGX4330
-  #include "ngx/board_ngx4330.h"
+  #include "ngx/board_ngx4330.h"`
 #elif BOARD == BOARD_LPCXPRESSO1347
   #include "lpcxpresso/board_lpcxpresso1347.h"
 #elif BOARD == BOARD_RF1GHZNODE
@@ -94,6 +95,8 @@
   #include "keil/board_mcb4300.h"
 #elif BOARD == BOARD_HITEX4350
   #include "hitex/board_hitex4350.h"
+#elif BOARD == BOARD_LPCXPRESSO1769
+  #include "lpcxpresso/board_lpcxpresso1769.h"
 #else
   #error BOARD is not defined or supported yet
 #endif

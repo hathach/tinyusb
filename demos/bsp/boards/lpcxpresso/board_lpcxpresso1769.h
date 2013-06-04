@@ -1,6 +1,6 @@
 /**************************************************************************/
 /*!
-    @file     hal_lpc13uxx.c
+    @file     board_lpcxpresso1769.h
     @author   hathach (tinyusb.org)
 
     @section LICENSE
@@ -26,40 +26,43 @@
     WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
     DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER BE LIABLE FOR ANY
     DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
-    INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
-    LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION HOWEVER CAUSED AND
+    (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
+    LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND
     ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
-    INCLUDING NEGLIGENCE OR OTHERWISE ARISING IN ANY WAY OUT OF THE USE OF THIS
+    (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
     SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
     This file is part of the tinyusb stack.
 */
 /**************************************************************************/
 
-#include "common/common.h"
-#include "hal.h"
+/** \ingroup TBD
+ *  \defgroup TBD
+ *  \brief TBD
+ *
+ *  @{
+ */
 
-#if MCU == MCU_LPC13UXX
+#ifndef _TUSB_BOARD_LPCXPRESSO1769_H_
+#define _TUSB_BOARD_LPCXPRESSO1769_H_
 
-tusb_error_t hal_init(void)
-{
-	// TODO remove magic number
-  /* Enable AHB clock to the USB block and USB RAM. */
-  LPC_SYSCON->SYSAHBCLKCTRL |= ((0x1<<14) | (0x1<<27));
+#include "LPC17xx.h"
+#include "lpc175x_6x/LPC17xx_DriverLib/include/lpc17xx_gpio.h"
+#include "lpc175x_6x/LPC17xx_DriverLib/include/lpc17xx_uart.h"
 
-  /* Pull-down is needed, or internally, VBUS will be floating. This is to
-  address the wrong status in VBUSDebouncing bit in CmdStatus register.  */
-  LPC_IOCON->PIO0_3   &= ~0x1F;
-  LPC_IOCON->PIO0_3   |= (0x01<<0);            /* Secondary function VBUS */
-  LPC_IOCON->PIO0_6   &= ~0x07;
-  LPC_IOCON->PIO0_6   |= (0x01<<0);            /* Secondary function SoftConn */
-
-  return TUSB_ERROR_NONE;
-}
-
-void USB_IRQHandler(void)
-{
-  tusb_isr(0);
-}
-
+#ifdef __cplusplus
+ extern "C" {
 #endif
+
+#define CFG_LED_PORT                  (0)
+#define CFG_LED_PIN                   (22)
+
+#define CFG_PRINTF_TARGET             PRINTF_TARGET_DEBUG_CONSOLE
+
+#ifdef __cplusplus
+ }
+#endif
+
+#endif /* _TUSB_BOARD_LPCXPRESSO1769_H_ */
+
+/** @} */

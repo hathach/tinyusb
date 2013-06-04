@@ -1,6 +1,6 @@
 /**************************************************************************/
 /*!
-    @file     dcd_lpc175x_6x.c
+    @file     board_lpcxpresso1769.c
     @author   hathach (tinyusb.org)
 
     @section LICENSE
@@ -36,41 +36,79 @@
 */
 /**************************************************************************/
 
-#include "tusb_option.h"
+#include "../board.h"
 
-#if MODE_DEVICE_SUPPORTED && (MCU == MCU_LPC175X_6X)
+#if BOARD == BOARD_LPCXPRESSO1769
 
-#define _TINY_USB_SOURCE_FILE_
+#define BOARD_UART_PORT   LPC_UART3
 
-//--------------------------------------------------------------------+
-// INCLUDE
-//--------------------------------------------------------------------+
-#include "dcd.h"
-#include "dcd_lpc175x_6x.h"
-
-//--------------------------------------------------------------------+
-// MACRO CONSTANT TYPEDEF
-//--------------------------------------------------------------------+
-
-//--------------------------------------------------------------------+
-// INTERNAL OBJECT & FUNCTION DECLARATION
-//--------------------------------------------------------------------+
-
-//--------------------------------------------------------------------+
-// IMPLEMENTATION
-//--------------------------------------------------------------------+
-void dcd_isr(uint8_t coreid)
+void board_init(void)
 {
+  SystemInit();
+  SysTick_Config(SystemCoreClock / CFG_TICKS_PER_SECOND); // 1 msec tick timer
 
+  // Leds Init
+  GPIO_SetDir(CFG_LED_PORT, BIT_(CFG_LED_PIN), 1);
+
+#if CFG_UART_ENABLE
+  //------------- UART init -------------//
+
+  PINSEL_CFG_Type PinCfg =
+  {
+      .Portnum   = 0,
+      .Pinnum    = 0, // TXD is P0.0
+      .Funcnum   = 2,
+      .OpenDrain = 0,
+      .Pinmode   = 0
+  };
+	PINSEL_ConfigPin(&PinCfg);
+
+	PinCfg.Portnum = 0;
+	PinCfg.Pinnum  = 1; // RXD is P0.1
+	PINSEL_ConfigPin(&PinCfg);
+
+	UART_CFG_Type UARTConfigStruct;
+  UART_ConfigStructInit(&UARTConfigStruct);
+	UARTConfigStruct.Baud_rate = CFG_UART_BAUDRATE;
+	UARTConfigStruct.Clock_Speed = 0;
+
+	UART_Init(BOARD_UART_PORT, &UARTConfigStruct);
+	UART_TxCmd(BOARD_UART_PORT, ENABLE); // Enable UART Transmit
+#endif
+
+#if CFG_PRINTF_TARGET == PRINTF_TARGET_SWO
+  LPC_IOCON->PIO0_9 &= ~0x07;    /*  UART I/O config */
+  LPC_IOCON->PIO0_9 |= 0x03;     /* UART RXD */
+#endif
 }
 
-tusb_error_t dcd_init(void)
+//--------------------------------------------------------------------+
+// LEDS
+//--------------------------------------------------------------------+
+void board_leds(uint32_t on_mask, uint32_t off_mask)
 {
-  return TUSB_ERROR_NONE;
+  if (on_mask & BIT_(0))
+  {
+    GPIO_SetValue(CFG_LED_PORT, BIT_(CFG_LED_PIN));
+  }else if (off_mask & BIT_(0))
+  {
+    GPIO_ClearValue(CFG_LED_PORT, BIT_(CFG_LED_PIN));
+  }
 }
 
-void dcd_controller_connect(uint8_t coreid)
+//--------------------------------------------------------------------+
+// UART
+//--------------------------------------------------------------------+
+#if CFG_UART_ENABLE
+uint32_t board_uart_send(uint8_t *buffer, uint32_t length)
 {
-
+  return UART_Send(BOARD_UART_PORT, buffer, length, BLOCKING);
 }
+
+uint32_t board_uart_recv(uint8_t *buffer, uint32_t length)
+{
+  return UART_Receive(BOARD_UART_PORT, buffer, length, BLOCKING);
+}
+#endif
+
 #endif

@@ -41,7 +41,7 @@
 
 #if MCU == MCU_LPC11UXX
 
-tusb_error_t hal_init()
+tusb_error_t hal_init(void)
 {
 	// TODO remove magic number
   /* Enable AHB clock to the USB block and USB RAM. */

@@ -1,6 +1,6 @@
 /**************************************************************************/
 /*!
-    @file     hal_lpc13uxx.c
+    @file     hal_lpc175x_6x.c
     @author   hathach (tinyusb.org)
 
     @section LICENSE
@@ -26,35 +26,51 @@
     WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
     DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER BE LIABLE FOR ANY
     DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
-    INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
-    LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION HOWEVER CAUSED AND
+    (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
+    LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND
     ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
-    INCLUDING NEGLIGENCE OR OTHERWISE ARISING IN ANY WAY OUT OF THE USE OF THIS
+    (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
     SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
     This file is part of the tinyusb stack.
 */
 /**************************************************************************/
 
+#include "tusb_option.h"
+
+#if MCU == MCU_LPC175X_6X
+
+//--------------------------------------------------------------------+
+// INCLUDE
+//--------------------------------------------------------------------+
 #include "common/common.h"
 #include "hal.h"
 
-#if MCU == MCU_LPC13UXX
-
+//--------------------------------------------------------------------+
+// IMPLEMENTATION
+//--------------------------------------------------------------------+
 tusb_error_t hal_init(void)
 {
 	// TODO remove magic number
   /* Enable AHB clock to the USB block and USB RAM. */
-  LPC_SYSCON->SYSAHBCLKCTRL |= ((0x1<<14) | (0x1<<27));
+//  LPC_SYSCON->SYSAHBCLKCTRL |= ((0x1<<14) | (0x1<<27));
+
+  LPC_PINCON->PINSEL1 &= ~((3<<26)|(3<<28));  /* P0.29 D+, P0.30 D- */
+  LPC_PINCON->PINSEL1 |=  ((1<<26)|(1<<28));  /* PINSEL1 26.27, 28.29  = 01 */
+
+//  LPC_PINCON->PINSEL3 &= ~(3<<6); TODO HOST
+//  LPC_PINCON->PINSEL3 |= (2<<6);
+
+  LPC_SC->PCONP |= (1UL<<31);                	/* USB PCLK -> enable USB Per.*/
+
+  // DEVICE mode
+  LPC_USB->USBClkCtrl = 0x12;                 /* Dev, PortSel, AHB clock enable */
+  while ((LPC_USB->USBClkSt & 0x12) != 0x12);
 
   /* Pull-down is needed, or internally, VBUS will be floating. This is to
   address the wrong status in VBUSDebouncing bit in CmdStatus register.  */
-  LPC_IOCON->PIO0_3   &= ~0x1F;
-  LPC_IOCON->PIO0_3   |= (0x01<<0);            /* Secondary function VBUS */
-  LPC_IOCON->PIO0_6   &= ~0x07;
-  LPC_IOCON->PIO0_6   |= (0x01<<0);            /* Secondary function SoftConn */
 
-  return TUSB_ERROR_NONE;
+return TUSB_ERROR_NONE;
 }
 
 void USB_IRQHandler(void)

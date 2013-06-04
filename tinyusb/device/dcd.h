@@ -56,7 +56,6 @@
 #endif
 
 #include "common/common.h"
-#include "dcd_nxp_romdriver.h"
 
 tusb_error_t dcd_init(void) ATTR_WARN_UNUSED_RESULT;
 tusb_error_t dcd_controller_reset(uint8_t coreid) ATTR_WARN_UNUSED_RESULT;

@@ -64,10 +64,9 @@ tusb_error_t tusbd_hid_mouse_send_report(tusb_mouse_report_t *p_mouse_report);
 // USBD-CLASS DRIVER API
 //--------------------------------------------------------------------+
 #ifdef _TINY_USB_SOURCE_FILE_
-#include "device/romdriver/mw_usbd_rom_api.h" // TODO remove rom driver dependency
 
 tusb_error_t hidd_init(tusb_descriptor_interface_t const * p_interface_desc, uint16_t *p_length);
-tusb_error_t hidd_configured(USBD_HANDLE_T hUsb);
+tusb_error_t hidd_configured(void);
 
 #endif
 

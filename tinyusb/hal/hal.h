@@ -65,6 +65,8 @@
   #include "hal_lpc13uxx.h"
 #elif MCU == MCU_LPC43XX
   #include "hal_lpc43xx.h"
+#elif MCU == MCU_LPC175X_6X
+  #include "hal_lpc175x_6x.h"
 #else
   #error MCU is not defined or supported yet
 #endif
