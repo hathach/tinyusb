@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <projectDescription>
-	<name>tinyusb</name>
+	<name>tinyusb_tests</name>
 	<comment></comment>
 	<projects>
 	</projects>
@@ -81,7 +81,7 @@
 	</natures>
 	<filteredResources>
 		<filter>
-			<id>1358189266973</id>
+			<id>0</id>
 			<name></name>
 			<type>22</type>
 			<matcher>
@@ -90,7 +90,7 @@
 			</matcher>
 		</filter>
 		<filter>
-			<id>1358189266977</id>
+			<id>0</id>
 			<name></name>
 			<type>22</type>
 			<matcher>
@@ -99,7 +99,7 @@
 			</matcher>
 		</filter>
 		<filter>
-			<id>1358189266984</id>
+			<id>0</id>
 			<name></name>
 			<type>10</type>
 			<matcher>
