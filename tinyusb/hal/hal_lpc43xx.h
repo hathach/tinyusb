@@ -54,6 +54,9 @@
 
 #include "LPC43xx.h"
 
+#define NXP_ROMDRIVER_REG_BASE        LPC_USB0_BASE // TODO USB1
+#define NXP_ROMDRIVER_FUNCTION_ADDR     0x1040011C
+
 #ifdef __cplusplus
  extern "C" {
 #endif

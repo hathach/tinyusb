@@ -112,15 +112,12 @@ ErrorCode_t USB_Error_Event (USBD_HANDLE_T hUsb, uint32_t param1)
 
 tusb_error_t dcd_init(void)
 {
-  uint32_t membase = (uint32_t) usb_RomDriver_buffer;
-  uint32_t memsize = USB_ROM_SIZE;
-
   USBD_API_INIT_PARAM_T usb_param =
   {
     .usb_reg_base        = NXP_ROMDRIVER_REG_BASE,
     .max_num_ep          = USB_MAX_EP_NUM,
-    .mem_base            = membase,
-    .mem_size            = memsize,
+    .mem_base            = (uint32_t) usb_RomDriver_buffer,
+    .mem_size            = USB_ROM_SIZE,
 
     .USB_Configure_Event = USB_Configure_Event,
     .USB_Reset_Event     = USB_Reset_Event,
@@ -141,13 +138,13 @@ tusb_error_t dcd_init(void)
   ASSERT_INT(LPC_OK, ROM_API->hw->Init(&romdriver_hdl, &desc_core, &usb_param), TUSB_ERROR_FAILED);
 
   // TODO need to confirm the mem_size is reduced by the number of byte used
-  membase += (memsize - usb_param.mem_size);
-  memsize = usb_param.mem_size;
+//  membase += (memsize - usb_param.mem_size);
+//  memsize = usb_param.mem_size;
 
   return TUSB_ERROR_NONE;
 }
 
-bool usb_isConfigured(void)
+bool tusb_device_is_configured(void)
 {
   return usbd_info.state == TUSB_DEVICE_STATE_CONFIGURED;
 }

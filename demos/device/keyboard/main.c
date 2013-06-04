@@ -46,7 +46,7 @@ int main(void)
     }
 
     #if TUSB_CFG_DEVICE_CDC && 0
-    if (usb_isConfigured())
+    if (tusb_device_is_configured())
     {
       uint8_t cdc_char;
       if( tusb_cdc_getc(&cdc_char) )
@@ -93,7 +93,7 @@ void led_blinking_task(void * p_para)
 #if TUSB_CFG_DEVICE_HID_KEYBOARD
 void keyboard_device_app_task(void * p_para)
 {
-  if (usb_isConfigured())
+  if (tusb_device_is_configured())
   {
     static uint32_t count =0;
     if (count < 4)
@@ -112,7 +112,7 @@ void keyboard_device_app_task(void * p_para)
 #if TUSB_CFG_DEVICE_HID_MOUSE
 void mouse_device_app_task(void * p_para)
 {
-  if (usb_isConfigured())
+  if (tusb_device_is_configured())
   {
     static uint32_t count =0;
     if (count < 8)
