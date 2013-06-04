@@ -1,0 +1,12 @@
+History of updates to CMSISv2p00_LPC17xx
+========================================
+
+7 March 2011
+------------
+LPC17xx CMSIS 2.0 library project using ARM 
+Cortex-M3 CMSIS files as supplied in ARM's CMSIS 2.0
+December 2010 release, together with device/board 
+specific files from NXP (as previously supplied in
+CMSISv1p30_LPC17xx library project, dated 24 Aug 2010).
+
+Note files are built -Os for both Debug and Release
