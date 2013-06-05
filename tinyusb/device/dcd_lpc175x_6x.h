@@ -67,7 +67,7 @@ typedef struct
 	volatile uint16_t buffer_length;
 
 	//------------- Word 2 -------------//
-	volatile uint8_t* buffer_start_addr;
+	volatile uint32_t buffer_start_addr;
 
 	//------------- Word 3 -------------//
 	volatile uint16_t is_retired                   : 1; // initialized to zero
