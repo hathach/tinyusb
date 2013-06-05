@@ -54,7 +54,35 @@ void tearDown(void)
 {
 }
 
-void test_dd_structure(void)
+void test_dd_udca_align(void)
 {
   TEST_ASSERT_BITS_LOW(128-1, (uint32_t) dcd_udca);
 }
+
+void test_dd_structure(void)
+{
+  //------------- word 0 -------------//
+  TEST_ASSERT_EQUAL( 0, offsetof(dcd_dma_descriptor_t, next));
+
+  //------------- word 1 -------------//
+  TEST_ASSERT_EQUAL( 0, BITFIELD_OFFSET_OF_UINT32(dcd_dma_descriptor_t, 1, mode) );
+  TEST_ASSERT_EQUAL( 2, BITFIELD_OFFSET_OF_UINT32(dcd_dma_descriptor_t, 1, is_next_valid) );
+  TEST_ASSERT_EQUAL( 4, BITFIELD_OFFSET_OF_UINT32(dcd_dma_descriptor_t, 1, is_isochronous) );
+  TEST_ASSERT_EQUAL( 5, BITFIELD_OFFSET_OF_UINT32(dcd_dma_descriptor_t, 1, max_packet_size) );
+  TEST_ASSERT_EQUAL( 16, BITFIELD_OFFSET_OF_UINT32(dcd_dma_descriptor_t, 1, buffer_length) );
+
+  //------------- word 2 -------------//
+  TEST_ASSERT_EQUAL( 8, offsetof(dcd_dma_descriptor_t, buffer_start_addr) );
+
+  //------------- word 3 -------------//
+  TEST_ASSERT_EQUAL( 0, BITFIELD_OFFSET_OF_UINT32(dcd_dma_descriptor_t, 3, is_retired) );
+  TEST_ASSERT_EQUAL( 1, BITFIELD_OFFSET_OF_UINT32(dcd_dma_descriptor_t, 3, status) );
+  TEST_ASSERT_EQUAL( 5, BITFIELD_OFFSET_OF_UINT32(dcd_dma_descriptor_t, 3, iso_last_packet_valid) );
+  TEST_ASSERT_EQUAL( 6, BITFIELD_OFFSET_OF_UINT32(dcd_dma_descriptor_t, 3, atle_is_lsb_extracted) );
+  TEST_ASSERT_EQUAL( 7, BITFIELD_OFFSET_OF_UINT32(dcd_dma_descriptor_t, 3, atle_is_msb_extracted) );
+  TEST_ASSERT_EQUAL( 8, BITFIELD_OFFSET_OF_UINT32(dcd_dma_descriptor_t, 3, atle_message_length_position) );
+  TEST_ASSERT_EQUAL( 16, BITFIELD_OFFSET_OF_UINT32(dcd_dma_descriptor_t, 3, present_count) );
+
+  //------------- word 4 -------------//
+}
+
