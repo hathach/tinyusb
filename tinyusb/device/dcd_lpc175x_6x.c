@@ -51,6 +51,7 @@
 //--------------------------------------------------------------------+
 // MACRO CONSTANT TYPEDEF
 //--------------------------------------------------------------------+
+STATIC_ dcd_dma_descriptor_t* dcd_udca[32] ATTR_ALIGNED(128) TUSB_CFG_ATTR_USBRAM;
 
 //--------------------------------------------------------------------+
 // INTERNAL OBJECT & FUNCTION DECLARATION

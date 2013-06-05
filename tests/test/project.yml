@@ -26,17 +26,16 @@
 :paths:
   :test:
     - +:test/**
-    - -:test/support
   :source:
-    - ../tinyusb/**
-    - +:../demos/bsp/lpc43xx/**
-    - +:../demos/device/keyboard/*
-    - -:../demos/
-    - ../vendor/freertos/freertos/Source/*
-    - ../vendor/freertos/freertos/Source/portable/MSVC-MingW/*
+    - ../../tinyusb/**
+    - +:../../demos/bsp/lpc43xx/**
+    - +:../../demos/device/keyboard/*
+    - -:../../demos/
+    - ../../vendor/freertos/freertos/Source/*
+    - ../../vendor/freertos/freertos/Source/portable/MSVC-MingW/*
     
   :support:
-    - test/support
+    - ../support
 
 :defines:
   # in order to add common defines:
@@ -59,8 +58,8 @@
 #:flags:
 #  :test:
 #    :compile:
-#      :hid_host:
-#        - -Dstatic=
+#      :dcd_lpc175x_6x.c:
+#        - -DMCU=MCU_LPC175X_6X
           
 # Ceedling defaults to using gcc for compiling, linking, etc.
 # As [:tools] is blank, gcc will be used (so long as it's in your system path)
@@ -75,7 +74,6 @@
     - :callback
     - :array
   #:ignore: :args_only
-#  :unity_helper_path: test/support/type_helper.h
   :treat_as:
     uint8:    HEX8
     uint16:   HEX16
@@ -85,7 +83,7 @@
 
 :plugins:
   :load_paths:
-    - vendor/ceedling/plugins
+    - ../vendor/ceedling/plugins
   :enabled:
     #- stdout_pretty_tests_report
     - stdout_ide_tests_report
