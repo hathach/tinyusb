@@ -1,6 +1,6 @@
 /**************************************************************************/
 /*!
-    @file     binary.h
+    @file     usbd_dcd.h
     @author   hathach (tinyusb.org)
 
     @section LICENSE
@@ -26,21 +26,15 @@
     WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
     DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER BE LIABLE FOR ANY
     DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
-    INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
-    LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION HOWEVER CAUSED AND
+    (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
+    LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND
     ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
-    INCLUDING NEGLIGENCE OR OTHERWISE ARISING IN ANY WAY OUT OF THE USE OF THIS
+    (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
     SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
     This file is part of the tinyusb stack.
 */
 /**************************************************************************/
-
-/** \file
- *  \brief TBD
- *
- *  \note TBD
- */
 
 /** \ingroup TBD
  *  \defgroup TBD
@@ -49,56 +43,35 @@
  *  @{
  */
 
-#ifndef _TUSB_BINARY_H_
-#define _TUSB_BINARY_H_
+#ifndef _TUSB_USBD_DCD_H_
+#define _TUSB_USBD_DCD_H_
+
+//--------------------------------------------------------------------+
+// INCLUDE
+//--------------------------------------------------------------------+
+#include "common/common.h"
 
 #ifdef __cplusplus
  extern "C" {
 #endif
 
-/// n-th Bit
-#define BIT_(n) (1 << (n))
+typedef struct {
+  volatile uint8_t state;
+  uint8_t address;
+  tusb_std_request_t setup_packet;
 
-/// set n-th bit of x to 1
-#define BIT_SET_(x, n) ( (x) | BIT_(n) )
+}usbd_device_info_t;
 
-/// clear n-th bit of x
-#define BIT_CLR_(x, n) ( (x) & (~BIT_(n)) )
-
-/// test n-th bit of x
-#define BIT_TEST_(x, n) ( (x) & BIT_(n) )
-
-#if defined(__GNUC__) && !defined(__CC_ARM)
-
-#define BIN8(x)               ((uint8_t)  (0b##x))
-#define BIN16(b1, b2)         ((uint16_t) (0b##b1##b2))
-#define BIN32(b1, b2, b3, b4) ((uint32_t) (0b##b1##b2##b3##b4))
-
-#else
-
-//  internal macro of B8, B16, B32
-#define _B8__(x) (((x&0x0000000FUL)?1:0) \
-                +((x&0x000000F0UL)?2:0) \
-                +((x&0x00000F00UL)?4:0) \
-                +((x&0x0000F000UL)?8:0) \
-                +((x&0x000F0000UL)?16:0) \
-                +((x&0x00F00000UL)?32:0) \
-                +((x&0x0F000000UL)?64:0) \
-                +((x&0xF0000000UL)?128:0))
-
-#define BIN8(d) ((uint8_t) _B8__(0x##d##UL))
-#define BIN16(dmsb,dlsb) (((uint16_t)BIN8(dmsb)<<8) + BIN8(dlsb))
-#define BIN32(dmsb,db2,db3,dlsb) \
-            (((uint32_t)BIN8(dmsb)<<24) \
-            + ((uint32_t)BIN8(db2)<<16) \
-            + ((uint32_t)BIN8(db3)<<8) \
-            + BIN8(dlsb))
-#endif
+extern usbd_device_info_t usbd_devices[CONTROLLER_DEVICE_NUMBER];
+//--------------------------------------------------------------------+
+// callback from DCD ISR
+//--------------------------------------------------------------------+
+void usbd_isr(uint8_t coreid, tusb_event_t event);
 
 #ifdef __cplusplus
-}
+ }
 #endif
 
-#endif /* _TUSB_BINARY_H_ */
+#endif /* _TUSB_USBD_DCD_H_ */
 
 /** @} */

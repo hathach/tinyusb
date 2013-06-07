@@ -47,14 +47,12 @@
 //--------------------------------------------------------------------+
 #include "tusb.h"
 #include "tusb_descriptors.h" // TODO callback include
+#include "usbd_dcd.h"
 
 //--------------------------------------------------------------------+
 // MACRO CONSTANT TYPEDEF
 //--------------------------------------------------------------------+
-//typedef struct {
-//  volatile uint8_t state;
-//
-//};
+usbd_device_info_t usbd_devices[CONTROLLER_DEVICE_NUMBER];
 
 // TODO fix/compress number of class driver
 static device_class_driver_t const usbh_class_drivers[TUSB_CLASS_MAX_CONSEC_NUMBER] =
@@ -79,6 +77,47 @@ static tusb_error_t usbd_string_descriptor_init(void);
 //
 //}
 
+void usbd_bus_reset(uint32_t coreid)
+{
+  memclr_(usbd_devices, sizeof(usbd_device_info_t)*CONTROLLER_DEVICE_NUMBER);
+}
+
+void std_get_descriptor(uint8_t coreid)
+{
+  tusb_std_descriptor_type_t const desc_type = usbd_devices[coreid].setup_packet.wValue >> 8;
+  uint8_t const desc_index = u16_low_u8( usbd_devices[coreid].setup_packet.wValue );
+  switch ( desc_type )
+  {
+    case TUSB_DESC_TYPE_DEVICE:
+
+    break;
+
+    default:
+    return;
+  }
+}
+
+void usbd_setup_received(uint8_t coreid)
+{
+  usbd_device_info_t *p_device = &usbd_devices[coreid];
+  switch ( p_device->setup_packet.bRequest)
+  {
+    case TUSB_REQUEST_GET_DESCRIPTOR:
+      std_get_descriptor(coreid);
+    break;
+
+    case TUSB_REQUEST_SET_ADDRESS:
+      p_device->address = (uint8_t) p_device->setup_packet.wValue;
+      dcd_device_set_address(coreid, p_device->address);
+    break;
+
+    default:
+    return;
+  }
+
+//  dcd_pipe_control_write_zero_length(coreid);
+}
+
 //--------------------------------------------------------------------+
 // IMPLEMENTATION
 //--------------------------------------------------------------------+
@@ -89,7 +128,6 @@ tusb_error_t usbd_init (void)
   ASSERT_STATUS ( dcd_init() );
 
   uint16_t length = 0;
-
   #if TUSB_CFG_DEVICE_HID_KEYBOARD
   ASSERT_STATUS( hidd_init(&app_tusb_desc_configuration.keyboard_interface, &length) );
   #endif
@@ -97,6 +135,8 @@ tusb_error_t usbd_init (void)
   #if TUSB_CFG_DEVICE_HID_MOUSE
   ASSERT_STATUS( hidd_init(&app_tusb_desc_configuration.mouse_interface, &length) );
   #endif
+
+  usbd_bus_reset(0);
 
   #ifndef _TEST_
   hal_interrupt_enable(0); // TODO USB1
@@ -108,6 +148,28 @@ tusb_error_t usbd_init (void)
 }
 
 #endif
+
+
+//--------------------------------------------------------------------+
+// callback from DCD ISR
+//--------------------------------------------------------------------+
+void usbd_isr(uint8_t coreid, tusb_event_t event)
+{
+  switch(event)
+  {
+    case TUSB_EVENT_BUS_RESET:
+      usbd_bus_reset(coreid);
+    break;
+
+    case TUSB_EVENT_SETUP_RECEIVED:
+      usbd_setup_received(coreid);
+    break;
+
+    default:
+      ASSERT(false, (void) 0);
+    break;
+  }
+}
 
 //--------------------------------------------------------------------+
 // HELPER

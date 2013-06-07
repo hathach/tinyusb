@@ -129,7 +129,7 @@ tusb_descriptor_device_t app_tusb_desc_device =
     .bDeviceSubClass    = 0x00,
     .bDeviceProtocol    = 0x00,
 
-    .bMaxPacketSize0    = USB_MAX_PACKET0,
+    .bMaxPacketSize0    = TUSB_CFG_DEVICE_CONTROL_PACKET_SIZE,
 
     .idVendor           = TUSB_CFG_DEVICE_VENDORID,
     .idProduct          = TUSB_CFG_PRODUCT_ID,

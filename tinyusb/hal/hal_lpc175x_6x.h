@@ -52,6 +52,9 @@
 
 #include "LPC17xx.h"
 
+//--------------------------------------------------------------------+
+//
+//--------------------------------------------------------------------+
 static inline void hal_interrupt_enable(uint8_t controller_id)
 {
   (void) controller_id; // discard compiler's warning

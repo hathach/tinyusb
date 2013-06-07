@@ -172,9 +172,6 @@
 #define USB_FS_MAX_BULK_PACKET  64
 #define USB_HS_MAX_BULK_PACKET  USB_FS_MAX_BULK_PACKET /* Full speed device only */
 
-// Control Endpoint
-#define USB_MAX_PACKET0         64
-
 /* HID In/Out Endpoint Address */
 #define    HID_KEYBOARD_EP_IN       ENDPOINT_IN_LOGICAL_TO_PHYSICAL(1)
 #define    HID_MOUSE_EP_IN          ENDPOINT_IN_LOGICAL_TO_PHYSICAL(4)

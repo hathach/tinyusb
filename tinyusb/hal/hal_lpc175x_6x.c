@@ -46,11 +46,16 @@
 #include "common/common.h"
 #include "hal.h"
 
+enum {
+  PCONP_PCUSB = 31
+};
+
 //--------------------------------------------------------------------+
 // IMPLEMENTATION
 //--------------------------------------------------------------------+
 tusb_error_t hal_init(void)
 {
+  //------------- user manual 11.13 usb device controller initialization -------------//
 	// TODO remove magic number
   /* Enable AHB clock to the USB block and USB RAM. */
 //  LPC_SYSCON->SYSAHBCLKCTRL |= ((0x1<<14) | (0x1<<27));
@@ -61,7 +66,7 @@ tusb_error_t hal_init(void)
 //  LPC_PINCON->PINSEL3 &= ~(3<<6); TODO HOST
 //  LPC_PINCON->PINSEL3 |= (2<<6);
 
-  LPC_SC->PCONP |= (1UL<<31);                	/* USB PCLK -> enable USB Per.*/
+  LPC_SC->PCONP |= BIT_(PCONP_PCUSB);                	/* USB PCLK -> enable USB Per.*/
 
   // DEVICE mode
   LPC_USB->USBClkCtrl = 0x12;                 /* Dev, PortSel, AHB clock enable */
