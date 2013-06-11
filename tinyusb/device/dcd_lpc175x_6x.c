@@ -90,6 +90,7 @@ static inline uint32_t sie_command_read (uint8_t cmd_code, uint8_t data_len) ATT
 static inline uint32_t sie_command_read (uint8_t cmd_code, uint8_t data_len)
 {
   // TODO multiple read
+  sie_commamd_code(SIE_CMDPHASE_COMMAND, cmd_code);
   sie_commamd_code(SIE_CMDPHASE_READ, cmd_code);
   return LPC_USB->USBCmdData;
 }
@@ -97,6 +98,7 @@ static inline uint32_t sie_command_read (uint8_t cmd_code, uint8_t data_len)
 //--------------------------------------------------------------------+
 // IMPLEMENTATION
 //--------------------------------------------------------------------+
+
 void endpoint_control_isr(uint8_t coreid)
 {
   (void) coreid; // suppress compiler warning
@@ -124,16 +126,16 @@ void endpoint_control_isr(uint8_t coreid)
       usbd_isr(0, TUSB_EVENT_SETUP_RECEIVED);
     }else
     {
-//      ASSERT(false, (void) 0); // not current supported
+      //ASSERT(false, (void) 0); // not current supported
     }
-
+    sie_command_write(SIE_CMDCODE_ENDPOINT_SELECT+0, 0, 0);
     sie_command_write(SIE_CMDCODE_BUFFER_CLEAR, 0, 0);
   }
 
   // control IN
   if (endpoint_int_status & BIT_(1))
   {
-
+    (void) endpoint_int_status;
   }
 
   LPC_USB->USBEpIntClr = endpoint_int_status; // acknowledge interrupt
@@ -141,13 +143,13 @@ void endpoint_control_isr(uint8_t coreid)
 
 void dcd_isr(uint8_t coreid)
 {
-  uint32_t device_int_status = LPC_USB->USBDevIntSt & LPC_USB->USBDevIntEn & DEV_INT_ALL_MASK;
+  uint32_t const device_int_status = LPC_USB->USBDevIntSt & LPC_USB->USBDevIntEn & DEV_INT_ALL_MASK;
   LPC_USB->USBDevIntClr = device_int_status;// Acknowledge handled interrupt
 
   //------------- usb bus event -------------//
   if (device_int_status & DEV_INT_DEVICE_STATUS_MASK)
   {
-    uint32_t dev_status_reg = sie_command_read(SIE_CMDCODE_DEVICE_STATUS, 1);
+    uint32_t const dev_status_reg = sie_command_read(SIE_CMDCODE_DEVICE_STATUS, 1);
     if (dev_status_reg & SIE_DEV_STATUS_RESET_MASK)
     {
       usbd_isr(coreid, TUSB_EVENT_BUS_RESET);
@@ -173,7 +175,8 @@ void dcd_isr(uint8_t coreid)
 
   if (device_int_status & DEV_INT_ERROR_MASK)
   {
-    ASSERT(false, (void) 0);
+    uint32_t error_status = sie_command_read(SIE_CMDCODE_READ_ERROR_STATUS, 1);
+//    ASSERT(false, (void) 0);
   }
 
 }
@@ -213,8 +216,8 @@ tusb_error_t dcd_init(void)
 	LPC_USB->USBDMAIntEn = (DMA_INT_END_OF_XFER_MASK | DMA_INT_NEW_DD_REQUEST_MASK | DMA_INT_ERROR_MASK );
 
 	// clear all stall on control endpoint IN & OUT if any
-	sie_command_write(SIE_CMDCODE_ENDPOINT_SET_STATUS    , 0, 0);
-  sie_command_write(SIE_CMDCODE_ENDPOINT_SET_STATUS + 1, 0, 0);
+	sie_command_write(SIE_CMDCODE_ENDPOINT_SET_STATUS    , 1, 0);
+  sie_command_write(SIE_CMDCODE_ENDPOINT_SET_STATUS + 1, 1, 0);
 
   return TUSB_ERROR_NONE;
 }
@@ -232,6 +235,30 @@ void dcd_controller_connect(uint8_t coreid)
 void dcd_device_set_address(uint8_t coreid, uint8_t dev_addr)
 {
   sie_command_write(SIE_CMDCODE_SET_ADDRESS, 1, 0x80 | dev_addr); // 7th bit is : device_enable
+}
+
+tusb_error_t dcd_pipe_control_write(uint8_t coreid, void const * buffer, uint16_t length)
+{
+  LPC_USB->USBCtrl   = SLAVE_CONTROL_WRITE_ENABLE_MASK; // logical endpoint = 0
+	LPC_USB->USBTxPLen = length;
+
+	for (uint16_t count = 0; count < (length + 3) / 4; count++)
+	{
+		LPC_USB->USBTxData = *((uint32_t *)buffer); // NOTE: cortex M3 have no problem with alignment
+		buffer += 4;
+	}
+
+	LPC_USB->USBCtrl   = 0;
+
+	sie_command_write(SIE_CMDCODE_ENDPOINT_SELECT+1, 0, 0); // select control IN endpoint
+	sie_command_write(SIE_CMDCODE_BUFFER_VALIDATE, 0, 0);
+
+  return TUSB_ERROR_NONE;
+}
+
+tusb_error_t dcd_pipe_control_read(uint8_t coreid)
+{
+  return TUSB_ERROR_NONE;
 }
 
 void dcd_pipe_control_write_zero_length(uint8_t coreid)
