@@ -92,6 +92,9 @@ void std_get_descriptor(uint8_t coreid)
       dcd_pipe_control_write(coreid, &app_tusb_desc_device, sizeof(tusb_descriptor_device_t));
     break;
 
+    case TUSB_DESC_TYPE_CONFIGURATION:
+    break;
+
     default:
     return;
   }

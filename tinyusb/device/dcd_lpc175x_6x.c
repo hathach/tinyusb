@@ -177,6 +177,7 @@ void dcd_isr(uint8_t coreid)
   if (device_int_status & DEV_INT_ERROR_MASK)
   {
     uint32_t error_status = sie_command_read(SIE_CMDCODE_READ_ERROR_STATUS, 1);
+    (void) error_status;
 //    ASSERT(false, (void) 0);
   }
 
@@ -240,6 +241,10 @@ void dcd_device_set_address(uint8_t coreid, uint8_t dev_addr)
 
 tusb_error_t dcd_pipe_control_write(uint8_t coreid, void const * buffer, uint16_t length)
 {
+  (void) coreid; // suppress compiler warning
+
+  ASSERT( length !=0 || buffer == NULL, TUSB_ERROR_INVALID_PARA);
+
   LPC_USB->USBCtrl   = SLAVE_CONTROL_WRITE_ENABLE_MASK; // logical endpoint = 0
 	LPC_USB->USBTxPLen = length;
 
@@ -264,13 +269,7 @@ tusb_error_t dcd_pipe_control_read(uint8_t coreid)
 
 void dcd_pipe_control_write_zero_length(uint8_t coreid)
 {
-  LPC_USB->USBCtrl   = SLAVE_CONTROL_WRITE_ENABLE_MASK; // logical endpoint = 0
-	LPC_USB->USBTxPLen = 0;
-
-	LPC_USB->USBCtrl   = 0;
-
-	sie_command_write(SIE_CMDCODE_ENDPOINT_SELECT+1, 0, 0); // select control IN endpoint
-	sie_command_write(SIE_CMDCODE_BUFFER_VALIDATE, 0, 0);
+  dcd_pipe_control_write(coreid, NULL, 0);
 }
 
 #endif
