@@ -126,7 +126,8 @@ void endpoint_control_isr(uint8_t coreid)
       usbd_isr(0, TUSB_EVENT_SETUP_RECEIVED);
     }else
     {
-      //ASSERT(false, (void) 0); // not current supported
+       // RxPLen should be zero for zero-length status phase. Current not support any out control with data yet
+      ASSERT(LPC_USB->USBRxPLen == 0, (void) 0);
     }
     sie_command_write(SIE_CMDCODE_ENDPOINT_SELECT+0, 0, 0);
     sie_command_write(SIE_CMDCODE_BUFFER_CLEAR, 0, 0);

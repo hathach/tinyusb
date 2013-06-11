@@ -109,13 +109,13 @@ void usbd_setup_received(uint8_t coreid)
     case TUSB_REQUEST_SET_ADDRESS:
       p_device->address = (uint8_t) p_device->setup_packet.wValue;
       dcd_device_set_address(coreid, p_device->address);
+      dcd_pipe_control_write_zero_length(coreid);
     break;
 
     default:
     return;
   }
 
-//  dcd_pipe_control_write_zero_length(coreid);
 }
 
 //--------------------------------------------------------------------+
