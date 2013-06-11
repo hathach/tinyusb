@@ -93,6 +93,24 @@ void std_get_descriptor(uint8_t coreid)
     break;
 
     case TUSB_DESC_TYPE_CONFIGURATION:
+    {
+      uint16_t const requested_length = min16_of(usbd_devices[coreid].setup_packet.wLength, sizeof(app_tusb_desc_configuration)-1);
+      for(uint16_t i=0; i<requested_length; i += 64)
+      {
+        dcd_pipe_control_write(coreid, ((uint8_t*)&app_tusb_desc_configuration) + i, min16_of(64, requested_length - i));
+      }
+    }
+    break;
+
+    case TUSB_DESC_TYPE_STRING:
+    {
+      uint8_t *p_string = (uint8_t*) &app_tusb_desc_strings;
+      for(uint8_t index =0; index < desc_index; index++)
+      {
+        p_string += (*p_string);
+      }
+      dcd_pipe_control_write(coreid, p_string, *p_string);
+    }
     break;
 
     default:
@@ -131,7 +149,7 @@ tusb_error_t usbd_init (void)
   ASSERT_STATUS ( dcd_init() );
 
   uint16_t length = 0;
-  #if TUSB_CFG_DEVICE_HID_KEYBOARD
+  #if TUSB_CFG_DEVICE_HID_KEYBOARD && 0
   ASSERT_STATUS( hidd_init(&app_tusb_desc_configuration.keyboard_interface, &length) );
   #endif
 
