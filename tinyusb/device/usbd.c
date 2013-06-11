@@ -114,6 +114,7 @@ void std_get_descriptor(uint8_t coreid)
     break;
 
     default:
+//      ASSERT(false, (void) 0); // descriptors that is not supported yet
     return;
   }
 }
@@ -131,6 +132,13 @@ void usbd_setup_received(uint8_t coreid)
       p_device->address = (uint8_t) p_device->setup_packet.wValue;
       dcd_device_set_address(coreid, p_device->address);
       dcd_pipe_control_write_zero_length(coreid);
+      usbd_devices[coreid].state = TUSB_DEVICE_STATE_ADDRESSED;
+    break;
+
+    case TUSB_REQUEST_SET_CONFIGURATION:
+      dcd_device_set_configuration(coreid, (uint8_t) p_device->setup_packet.wValue);
+      dcd_pipe_control_write_zero_length(coreid);
+      usbd_devices[coreid].state = TUSB_DEVICE_STATE_CONFIGURED;
     break;
 
     default:

@@ -242,6 +242,12 @@ void dcd_device_set_address(uint8_t coreid, uint8_t dev_addr)
   sie_command_write(SIE_CMDCODE_SET_ADDRESS, 1, 0x80 | dev_addr); // 7th bit is : device_enable
 }
 
+void dcd_device_set_configuration(uint8_t coreid, uint8_t config_num)
+{
+  (void) config_num; // supress compiler's warnings
+  sie_command_write(SIE_CMDCODE_CONFIGURE_DEVICE, 1, 1);
+}
+
 tusb_error_t dcd_pipe_control_write(uint8_t coreid, void const * buffer, uint16_t length)
 {
   (void) coreid; // suppress compiler warning
