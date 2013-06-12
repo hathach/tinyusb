@@ -50,7 +50,7 @@
 
 #if defined(CAP_DEVICE_ROMDRIVER) && TUSB_CFG_DEVICE_USE_ROM_DRIVER
 #include "device/dcd_nxp_romdriver.h" // TODO remove rom driver dependency
-#endif
+
 
 //--------------------------------------------------------------------+
 // MACRO CONSTANT TYPEDEF
@@ -325,5 +325,6 @@ ErrorCode_t HID_EpOut_Hdlr (USBD_HANDLE_T hUsb, void* data, uint32_t event)
   }
   return LPC_OK;
 }
+#endif
 
 #endif

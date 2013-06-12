@@ -93,6 +93,7 @@ void led_blinking_task(void * p_para)
 #if TUSB_CFG_DEVICE_HID_KEYBOARD
 void keyboard_device_app_task(void * p_para)
 {
+#if 1
   if (tusb_device_is_configured())
   {
     static uint32_t count =0;
@@ -106,12 +107,14 @@ void keyboard_device_app_task(void * p_para)
       );
     }
   }
+#endif
 }
 #endif
 
 #if TUSB_CFG_DEVICE_HID_MOUSE
 void mouse_device_app_task(void * p_para)
 {
+#if 1
   if (tusb_device_is_configured())
   {
     static uint32_t count =0;
@@ -124,6 +127,7 @@ void mouse_device_app_task(void * p_para)
               .y = 20 } );
     }
   }
+#endif
 }
 #endif
 

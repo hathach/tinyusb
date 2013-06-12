@@ -1,6 +1,6 @@
 /**************************************************************************/
 /*!
-    @file     test_dcd.c
+    @file     test_usbd.c
     @author   hathach (tinyusb.org)
 
     @section LICENSE
@@ -41,11 +41,12 @@
 #include "errors.h"
 #include "type_helper.h"
 
-#include "mock_usbd_dcd.h"
-#include "dcd_lpc175x_6x.h"
+#include "tusb_descriptors.h"
 
-usbd_device_info_t usbd_devices[CONTROLLER_DEVICE_NUMBER];
-extern dcd_dma_descriptor_t* dcd_udca[32];
+#include "mock_hid_device.h"
+#include "mock_dcd.h"
+
+#include "usbd.h"
 
 void setUp(void)
 {
@@ -56,35 +57,45 @@ void tearDown(void)
 {
 }
 
-void test_dd_udca_align(void)
+void test_dcd_init_failed(void)
 {
-  TEST_ASSERT_BITS_LOW(128-1, (uint32_t) dcd_udca);
+  dcd_init_ExpectAndReturn(TUSB_ERROR_FAILED);
+
+  //------------- Code Under Test -------------//
+  TEST_ASSERT_EQUAL(TUSB_ERROR_FAILED, usbd_init() );
 }
 
-void test_dd_structure(void)
+tusb_error_t stub_hidd_init(tusb_descriptor_interface_t const* p_interface_desc, uint16_t* p_length, int num_call)
 {
-  //------------- word 0 -------------//
-  TEST_ASSERT_EQUAL( 0, offsetof(dcd_dma_descriptor_t, next));
+  switch(num_call)
+  {
+    case 0:
+      TEST_ASSERT_EQUAL_HEX(&app_tusb_desc_configuration.keyboard_interface, p_interface_desc);
+    break;
 
-  //------------- word 1 -------------//
-  TEST_ASSERT_EQUAL( 0, BITFIELD_OFFSET_OF_UINT32(dcd_dma_descriptor_t, 1, mode) );
-  TEST_ASSERT_EQUAL( 2, BITFIELD_OFFSET_OF_UINT32(dcd_dma_descriptor_t, 1, is_next_valid) );
-  TEST_ASSERT_EQUAL( 4, BITFIELD_OFFSET_OF_UINT32(dcd_dma_descriptor_t, 1, is_isochronous) );
-  TEST_ASSERT_EQUAL( 5, BITFIELD_OFFSET_OF_UINT32(dcd_dma_descriptor_t, 1, max_packet_size) );
-  TEST_ASSERT_EQUAL( 16, BITFIELD_OFFSET_OF_UINT32(dcd_dma_descriptor_t, 1, buffer_length) );
+    default:
+      TEST_FAIL();
+      return TUSB_ERROR_FAILED;
+  }
 
-  //------------- word 2 -------------//
-  TEST_ASSERT_EQUAL( 8, offsetof(dcd_dma_descriptor_t, buffer_start_addr) );
-
-  //------------- word 3 -------------//
-  TEST_ASSERT_EQUAL( 0, BITFIELD_OFFSET_OF_UINT32(dcd_dma_descriptor_t, 3, is_retired) );
-  TEST_ASSERT_EQUAL( 1, BITFIELD_OFFSET_OF_UINT32(dcd_dma_descriptor_t, 3, status) );
-  TEST_ASSERT_EQUAL( 5, BITFIELD_OFFSET_OF_UINT32(dcd_dma_descriptor_t, 3, iso_last_packet_valid) );
-  TEST_ASSERT_EQUAL( 6, BITFIELD_OFFSET_OF_UINT32(dcd_dma_descriptor_t, 3, atle_is_lsb_extracted) );
-  TEST_ASSERT_EQUAL( 7, BITFIELD_OFFSET_OF_UINT32(dcd_dma_descriptor_t, 3, atle_is_msb_extracted) );
-  TEST_ASSERT_EQUAL( 8, BITFIELD_OFFSET_OF_UINT32(dcd_dma_descriptor_t, 3, atle_message_length_position) );
-  TEST_ASSERT_EQUAL( 16, BITFIELD_OFFSET_OF_UINT32(dcd_dma_descriptor_t, 3, present_count) );
-
-  //------------- word 4 -------------//
+  return TUSB_ERROR_NONE;
 }
 
+void class_init_epxect(void)
+{
+#if DEVICE_CLASS_HID
+  hidd_init_StubWithCallback(stub_hidd_init);
+#endif
+}
+
+void test_usbd_init(void)
+{
+  dcd_init_ExpectAndReturn(TUSB_ERROR_NONE);
+
+  class_init_epxect();
+  dcd_controller_connect_Expect(0);
+
+
+  //------------- Code Under Test -------------//
+  TEST_ASSERT_STATUS( usbd_init() );
+}

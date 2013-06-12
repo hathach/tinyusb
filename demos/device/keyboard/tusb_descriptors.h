@@ -109,6 +109,13 @@ typedef ATTR_PACKED_STRUCT(struct)
   tusb_descriptor_endpoint_t                     mouse_endpoint;
 #endif
 
+//------------- Mass Storage -------------//
+#if TUSB_CFG_DEVICE_MSC
+  tusb_descriptor_interface_t                    msc_interface;
+  tusb_descriptor_endpoint_t                     msc_endpoint_in;
+  tusb_descriptor_endpoint_t                     msc_endpoint_out;
+#endif
+
   uint8_t                                        null_termination; // NXP rom driver requires this to work
 } app_descriptor_configuration_t;
 

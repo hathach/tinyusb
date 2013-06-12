@@ -95,10 +95,10 @@ void std_get_descriptor(uint8_t coreid)
     case TUSB_DESC_TYPE_CONFIGURATION:
     {
       uint16_t const requested_length = min16_of(usbd_devices[coreid].setup_packet.wLength, sizeof(app_tusb_desc_configuration)-1);
-      for(uint16_t i=0; i<requested_length; i += 64)
-      {
-        dcd_pipe_control_write(coreid, ((uint8_t*)&app_tusb_desc_configuration) + i, min16_of(64, requested_length - i));
-      }
+      ASSERT(requested_length <= TUSB_CFG_DEVICE_CONTROL_PACKET_SIZE, (void)0 ); // multiple packets requires a task a-like
+
+      dcd_pipe_control_write(coreid, ((uint8_t*)&app_tusb_desc_configuration),
+                             requested_length);
     }
     break;
 
@@ -157,7 +157,7 @@ tusb_error_t usbd_init (void)
   ASSERT_STATUS ( dcd_init() );
 
   uint16_t length = 0;
-  #if TUSB_CFG_DEVICE_HID_KEYBOARD && 0
+  #if TUSB_CFG_DEVICE_HID_KEYBOARD
   ASSERT_STATUS( hidd_init(&app_tusb_desc_configuration.keyboard_interface, &length) );
   #endif
 
