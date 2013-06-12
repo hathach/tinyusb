@@ -158,11 +158,11 @@ tusb_error_t usbd_init (void)
 
   uint16_t length = 0;
   #if TUSB_CFG_DEVICE_HID_KEYBOARD
-  ASSERT_STATUS( hidd_init(&app_tusb_desc_configuration.keyboard_interface, &length) );
+  ASSERT_STATUS( hidd_init(0, &app_tusb_desc_configuration.keyboard_interface, &length) );
   #endif
 
-  #if TUSB_CFG_DEVICE_HID_MOUSE
-  ASSERT_STATUS( hidd_init(&app_tusb_desc_configuration.mouse_interface, &length) );
+  #if TUSB_CFG_DEVICE_HID_MOUSE && 0
+  ASSERT_STATUS( hidd_init(0, &app_tusb_desc_configuration.mouse_interface, &length) );
   #endif
 
   usbd_bus_reset(0);

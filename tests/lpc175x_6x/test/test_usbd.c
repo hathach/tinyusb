@@ -84,7 +84,7 @@ tusb_error_t stub_hidd_init(tusb_descriptor_interface_t const* p_interface_desc,
 void class_init_epxect(void)
 {
 #if DEVICE_CLASS_HID
-  hidd_init_StubWithCallback(stub_hidd_init);
+//  hidd_init_StubWithCallback(stub_hidd_init);
 #endif
 }
 

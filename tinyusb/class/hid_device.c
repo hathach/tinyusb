@@ -48,6 +48,55 @@
 #include "hid_device.h"
 #include "tusb_descriptors.h"
 
+
+
+tusb_error_t hidd_init(uint8_t coreid, tusb_descriptor_interface_t const * p_interface_desc, uint16_t *p_length)
+{
+  uint8_t const *p_desc = (uint8_t const *) p_interface_desc;
+
+  //------------- HID descriptor -------------//
+  p_desc += p_desc[DESCRIPTOR_OFFSET_LENGTH];
+  tusb_hid_descriptor_hid_t const *p_desc_hid = (tusb_hid_descriptor_hid_t const *) p_desc;
+  ASSERT_INT(HID_DESC_TYPE_HID, p_desc_hid->bDescriptorType, TUSB_ERROR_HIDD_DESCRIPTOR_INTERFACE);
+
+  //------------- Endpoint Descriptor -------------//
+  p_desc += p_desc[DESCRIPTOR_OFFSET_LENGTH];
+  tusb_descriptor_endpoint_t const *p_desc_endpoint = (tusb_descriptor_endpoint_t const *) p_desc;
+  ASSERT_INT(TUSB_DESC_TYPE_ENDPOINT, p_desc_endpoint->bDescriptorType, TUSB_ERROR_HIDD_DESCRIPTOR_INTERFACE);
+
+   if (p_interface_desc->bInterfaceSubClass == HID_SUBCLASS_BOOT)
+  {
+    switch(p_interface_desc->bInterfaceProtocol)
+    {
+      #if TUSB_CFG_DEVICE_HID_KEYBOARD
+      case HID_PROTOCOL_KEYBOARD:
+        ASSERT_STATUS( dcd_endpoint_configure(coreid, p_desc_endpoint) );
+      break;
+      #endif
+
+      #if TUSB_CFG_DEVICE_HID_MOUSE
+      case HID_PROTOCOL_MOUSE:
+        ASSERT_STATUS( hidd_interface_init(p_interface_desc,
+                                           app_tusb_mouse_desc_report, p_desc_hid->wReportLength,
+                                           hidd_mouse_buffer , sizeof(hidd_mouse_buffer)) );
+      break;
+      #endif
+
+      default: // TODO unknown, unsupported protocol --> skip this interface
+        return TUSB_ERROR_HIDD_DESCRIPTOR_INTERFACE;
+    }
+    *p_length = sizeof(tusb_descriptor_interface_t) + sizeof(tusb_hid_descriptor_hid_t) + sizeof(tusb_descriptor_endpoint_t);
+  }else
+  {
+    // open generic
+    *p_length = 0;
+    return TUSB_ERROR_HIDD_DESCRIPTOR_INTERFACE;
+  }
+
+
+  return TUSB_ERROR_NONE;
+}
+
 #if defined(CAP_DEVICE_ROMDRIVER) && TUSB_CFG_DEVICE_USE_ROM_DRIVER
 #include "device/dcd_nxp_romdriver.h" // TODO remove rom driver dependency
 
@@ -70,8 +119,8 @@ static volatile bool bMouseChanged = false;
 //--------------------------------------------------------------------+
 // INTERNAL OBJECT & FUNCTION DECLARATION
 //--------------------------------------------------------------------+
-static tusb_error_t hidd_interface_init(tusb_descriptor_interface_t const *pIntfDesc, uint8_t const * const pHIDReportDesc,
-                                 uint32_t ReportDescLength, uint8_t* mem_base, uint32_t mem_size);
+static tusb_error_t hidd_interface_init(tusb_descriptor_interface_t const *p_interface_desc, uint8_t const * const p_report_desc,
+                                 uint32_t report_length, uint8_t* mem_base, uint32_t mem_size);
 
 ErrorCode_t HID_GetReport( USBD_HANDLE_T hHid, USB_SETUP_PACKET* pSetup, uint8_t** pBuffer, uint16_t* plength);
 ErrorCode_t HID_SetReport( USBD_HANDLE_T hHid, USB_SETUP_PACKET* pSetup, uint8_t** pBuffer, uint16_t length);
@@ -186,13 +235,13 @@ tusb_error_t hidd_init(tusb_descriptor_interface_t const * p_interface_desc, uin
   return TUSB_ERROR_NONE;
 }
 
-tusb_error_t hidd_interface_init(tusb_descriptor_interface_t const *pIntfDesc, uint8_t const * const pHIDReportDesc,
-                                 uint32_t ReportDescLength, uint8_t* mem_base, uint32_t mem_size)
+tusb_error_t hidd_interface_init(tusb_descriptor_interface_t const *p_interface_desc, uint8_t const * const p_report_desc,
+                                 uint32_t report_length, uint8_t* mem_base, uint32_t mem_size)
 {
   USB_HID_REPORT_T reports_data =
   {
-      .desc      = (uint8_t*) pHIDReportDesc,
-      .len       = ReportDescLength,
+      .desc      = (uint8_t*) p_report_desc,
+      .len       = report_length,
       .idle_time = 0,
   };
 
@@ -201,7 +250,7 @@ tusb_error_t hidd_interface_init(tusb_descriptor_interface_t const *pIntfDesc, u
       .mem_base       = (uint32_t) mem_base,
       .mem_size       = mem_size,
 
-      .intf_desc      = (uint8_t*)pIntfDesc,
+      .intf_desc      = (uint8_t*)p_interface_desc,
       .report_data    = &reports_data,
       .max_reports    = 1,
 
@@ -212,7 +261,6 @@ tusb_error_t hidd_interface_init(tusb_descriptor_interface_t const *pIntfDesc, u
       .HID_EpOut_Hdlr = HID_EpOut_Hdlr
   };
 
-  ASSERT( (pIntfDesc != NULL) && (pIntfDesc->bInterfaceClass == USB_DEVICE_CLASS_HUMAN_INTERFACE), ERR_FAILED);
   ASSERT( LPC_OK == ROM_API->hid->init(romdriver_hdl, &hid_param), TUSB_ERROR_FAILED );
 
   return TUSB_ERROR_NONE;

@@ -93,7 +93,7 @@ void led_blinking_task(void * p_para)
 #if TUSB_CFG_DEVICE_HID_KEYBOARD
 void keyboard_device_app_task(void * p_para)
 {
-#if 1
+#if 0
   if (tusb_device_is_configured())
   {
     static uint32_t count =0;

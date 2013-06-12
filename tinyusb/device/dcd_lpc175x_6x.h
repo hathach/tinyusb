@@ -59,7 +59,7 @@ typedef struct
 	uint32_t next;
 
 	//------------- Word 1 -------------//
-	uint16_t mode            : 2; // either normal or ATLE(auto length extraction)
+	uint16_t mode            : 2; // either 00 normal or 01 ATLE(auto length extraction)
 	uint16_t is_next_valid   : 1;
 	uint16_t                 : 1;
 	uint16_t is_isochronous  : 1; // is an iso endpoint
@@ -83,11 +83,12 @@ typedef struct
 //	uint32_t iso_packet_size_addr;		// iso only, can be omitted for non-iso
 } ATTR_ALIGNED(4) dcd_dma_descriptor_t;
 
-#define DCD_MAX_DD 10 // TODO scale with configure
-typedef struct {
-  dcd_dma_descriptor_t dd[DCD_MAX_DD];
+#define DCD_MAX_DD 32 // TODO scale with configure
 
-}dcd_data_t;
+//typedef struct {
+//  dcd_dma_descriptor_t dd[DCD_MAX_DD];
+//
+//}dcd_data_t;
 
 //--------------------------------------------------------------------+
 // Register Interface
@@ -186,6 +187,16 @@ enum {
   SIE_ENDPOINT_STATUS_NAK_MASK                = BIT_(4), // last packet response is NAK (auto clear by an ACK)
   SIE_ENDPOINT_STATUS_BUFFER1_FULL_MASK       = BIT_(5),
   SIE_ENDPOINT_STATUS_BUFFER2_FULL_MASK       = BIT_(6)
+};
+
+//------------- DMA Descriptor Status -------------//
+enum {
+  DD_STATUS_NOT_SERVICED = 0,
+  DD_STATUS_BEING_SERVICED,
+  DD_STATUS_NORMAL,
+  DD_STATUS_DATA_UNDERUN, // short packet
+  DD_STATUS_DATA_OVERRUN,
+  DD_STATUS_SYSTEM_ERROR
 };
 
 #ifdef __cplusplus

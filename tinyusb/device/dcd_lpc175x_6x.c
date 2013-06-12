@@ -53,6 +53,7 @@
 // MACRO CONSTANT TYPEDEF
 //--------------------------------------------------------------------+
 STATIC_ dcd_dma_descriptor_t* dcd_udca[32] ATTR_ALIGNED(128) TUSB_CFG_ATTR_USBRAM;
+STATIC_ dcd_dma_descriptor_t  dcd_dd[DCD_MAX_DD];
 
 //--------------------------------------------------------------------+
 // INTERNAL OBJECT & FUNCTION DECLARATION
@@ -71,7 +72,9 @@ static inline void sie_commamd_code (uint8_t phase, uint8_t code_data)
   LPC_USB->USBCmdCode = (phase << 8) | (code_data << 16);
 
   uint32_t const wait_flag = (phase == SIE_CMDPHASE_READ) ? DEV_INT_COMMAND_DATA_FULL_MASK : DEV_INT_COMMAND_CODE_EMPTY_MASK;
+#ifndef _TEST_
   while ((LPC_USB->USBDevIntSt & wait_flag) == 0); // TODO blocking forever potential
+#endif
   LPC_USB->USBDevIntClr = wait_flag;
 }
 
@@ -195,7 +198,10 @@ tusb_error_t dcd_init(void)
   // step 6 : set up control endpoint
   endpoint_set_max_packet_size(0, TUSB_CFG_DEVICE_CONTROL_PACKET_SIZE);
   endpoint_set_max_packet_size(1, TUSB_CFG_DEVICE_CONTROL_PACKET_SIZE);
+
+#ifndef _TEST_
 	while ((LPC_USB->USBDevIntSt & DEV_INT_ENDPOINT_REALIZED_MASK) == 0);
+#endif
 
 	// step 7 : slave mode set up
 	LPC_USB->USBEpIntEn   = (uint32_t) BIN8(11); // control endpoint cannot use DMA, non-control all use DMA
@@ -215,7 +221,7 @@ tusb_error_t dcd_init(void)
 
 	for (uint8_t index = 0; index < DCD_MAX_DD; index++)
 	{
-		dcd_udca[index] = 0;
+		dcd_udca[index] = dcd_dd + index;
 	}
 	LPC_USB->USBUDCAH    = (uint32_t) dcd_udca;
 	LPC_USB->USBDMAIntEn = (DMA_INT_END_OF_XFER_MASK | DMA_INT_NEW_DD_REQUEST_MASK | DMA_INT_ERROR_MASK );
@@ -227,8 +233,35 @@ tusb_error_t dcd_init(void)
   return TUSB_ERROR_NONE;
 }
 
+static inline uint8_t endpoint_address_to_physical_index(uint8_t ep_address) ATTR_ALWAYS_INLINE ATTR_CONST;
+static inline uint8_t endpoint_address_to_physical_index(uint8_t ep_address)
+{
+  return (ep_address << 1) + (ep_address & 0x80 ? 1 : 0 );
+}
+
 tusb_error_t dcd_endpoint_configure(uint8_t coreid, tusb_descriptor_endpoint_t const * p_endpoint_desc)
 {
+  uint8_t phy_ep = endpoint_address_to_physical_index( p_endpoint_desc->bEndpointAddress );
+
+  //------------- Realize Endpoint with Max Packet Size -------------//
+  LPC_USB->USBReEp |= BIT_(phy_ep);
+  endpoint_set_max_packet_size(phy_ep, p_endpoint_desc->wMaxPacketSize.size);
+
+#ifndef _TEST_
+	while ((LPC_USB->USBDevIntSt & DEV_INT_ENDPOINT_REALIZED_MASK) == 0) {} // TODO can be omitted
+#endif
+	LPC_USB->USBDevIntClr = DEV_INT_ENDPOINT_REALIZED_MASK;
+
+	//------------- DMA set up -------------//
+	memclr_(dcd_dd + phy_ep, sizeof(dcd_dma_descriptor_t));
+	dcd_dd[phy_ep].is_isochronous  = (p_endpoint_desc->bmAttributes.xfer == TUSB_XFER_ISOCHRONOUS) ? 1 : 0;
+	dcd_dd[phy_ep].max_packet_size = p_endpoint_desc->wMaxPacketSize.size;
+	dcd_dd[phy_ep].is_retired      = 1; // dd is not active at first
+
+	LPC_USB->USBEpDMAEn = BIT_(phy_ep);
+
+	sie_command_write(SIE_CMDCODE_ENDPOINT_SET_STATUS+phy_ep, 1, 0); // clear all endpoint status
+
   return TUSB_ERROR_NONE;
 }
 
@@ -276,6 +309,7 @@ tusb_error_t dcd_pipe_control_read(uint8_t coreid)
   return TUSB_ERROR_NONE;
 }
 
+// TODO inline function
 void dcd_pipe_control_write_zero_length(uint8_t coreid)
 {
   dcd_pipe_control_write(coreid, NULL, 0);
