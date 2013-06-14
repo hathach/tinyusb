@@ -101,7 +101,6 @@ static inline uint32_t sie_command_read (uint8_t cmd_code, uint8_t data_len)
 //--------------------------------------------------------------------+
 // IMPLEMENTATION
 //--------------------------------------------------------------------+
-
 void endpoint_control_isr(uint8_t coreid)
 {
   (void) coreid; // suppress compiler warning
@@ -248,9 +247,9 @@ tusb_error_t dcd_endpoint_configure(uint8_t coreid, tusb_descriptor_endpoint_t c
   endpoint_set_max_packet_size(phy_ep, p_endpoint_desc->wMaxPacketSize.size);
 
 #ifndef _TEST_
-	while ((LPC_USB->USBDevIntSt & DEV_INT_ENDPOINT_REALIZED_MASK) == 0) {} // TODO can be omitted
-#endif
+	while ((LPC_USB->USBDevIntSt & DEV_INT_ENDPOINT_REALIZED_MASK) == 0) {} // TODO can be omitted, or move to set max packet size
 	LPC_USB->USBDevIntClr = DEV_INT_ENDPOINT_REALIZED_MASK;
+#endif
 
 	//------------- DMA set up -------------//
 	memclr_(dcd_dd + phy_ep, sizeof(dcd_dma_descriptor_t));
@@ -281,6 +280,12 @@ void dcd_device_set_configuration(uint8_t coreid, uint8_t config_num)
   sie_command_write(SIE_CMDCODE_CONFIGURE_DEVICE, 1, 1);
 }
 
+static inline uint16_t length_unit_byte2dword(uint16_t length_in_bytes) ATTR_ALWAYS_INLINE ATTR_CONST;
+static inline uint16_t length_unit_byte2dword(uint16_t length_in_bytes)
+{
+  return (length_in_bytes + 3) / 4; // length_in_dword
+}
+
 tusb_error_t dcd_pipe_control_write(uint8_t coreid, void const * buffer, uint16_t length)
 {
   (void) coreid; // suppress compiler warning
@@ -290,7 +295,7 @@ tusb_error_t dcd_pipe_control_write(uint8_t coreid, void const * buffer, uint16_
   LPC_USB->USBCtrl   = SLAVE_CONTROL_WRITE_ENABLE_MASK; // logical endpoint = 0
 	LPC_USB->USBTxPLen = length;
 
-	for (uint16_t count = 0; count < (length + 3) / 4; count++)
+	for (uint16_t count = 0; count < length_unit_byte2dword(length); count++)
 	{
 		LPC_USB->USBTxData = *((uint32_t *)buffer); // NOTE: cortex M3 have no problem with alignment
 		buffer += 4;
@@ -304,8 +309,20 @@ tusb_error_t dcd_pipe_control_write(uint8_t coreid, void const * buffer, uint16_
   return TUSB_ERROR_NONE;
 }
 
-tusb_error_t dcd_pipe_control_read(uint8_t coreid, void const * buffer, uint16_t length)
+tusb_error_t dcd_pipe_control_read(uint8_t coreid, void * buffer, uint16_t length)
 {
+  LPC_USB->USBCtrl = SLAVE_CONTROL_READ_ENABLE_MASK; // logical endpoint = 0
+  while ((LPC_USB->USBRxPLen & SLAVE_RXPLEN_PACKET_READY_MASK) == 0) {}
+
+  uint16_t actual_length = min16_of(length, (uint16_t) (LPC_USB->USBRxPLen & SLAVE_RXPLEN_PACKET_LENGTH_MASK) );
+  uint32_t *p_read_data = (uint32_t*) buffer;
+  for( uint16_t count=0; count < length_unit_byte2dword(actual_length); count++)
+  {
+    *p_read_data = LPC_USB->USBRxData;
+    p_read_data++; // increase by 4 ( sizeof(uint32_t) )
+  }
+  LPC_USB->USBCtrl = 0;
+
   return TUSB_ERROR_NONE;
 }
 

@@ -94,7 +94,9 @@ tusb_error_t hidd_control_request(uint8_t coreid, tusb_std_request_t const * p_r
 
       case HID_REQUEST_CONTROL_SET_REPORT:
         // TODO hidd set report, has data phase
-//        dcd_pipe_control_read(coreid, .....
+// TODO verify data read from control pipe
+//        ; uint8_t hehe[10]= { 0 };
+//        dcd_pipe_control_read(coreid, hehe, p_request->wLength);
       break;
 
       case HID_REQUEST_CONTROL_GET_REPORT:

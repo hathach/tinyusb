@@ -72,10 +72,10 @@ static tusb_error_t usbd_string_descriptor_init(void);
 //--------------------------------------------------------------------+
 // APPLICATION INTERFACE
 //--------------------------------------------------------------------+
-//bool tusbd_is_configured(uint8_t coreid)
-//{
-//
-//}
+bool tusbd_is_configured(uint8_t coreid)
+{
+  return usbd_devices[coreid].state == TUSB_DEVICE_STATE_CONFIGURED;
+}
 
 void usbd_bus_reset(uint32_t coreid)
 {
