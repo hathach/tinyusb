@@ -75,6 +75,15 @@ enum {
   HID_REQUEST_REPORT_FEATURE
 };
 
+enum {
+  HID_REQUEST_CONTROL_GET_REPORT   = 0x01,
+  HID_REQUEST_CONTROL_GET_IDLE     = 0x02,
+  HID_REQUEST_CONTROL_GET_PROTOCOL = 0x03,
+  HID_REQUEST_CONTROL_SET_REPORT   = 0x09,
+  HID_REQUEST_CONTROL_SET_IDLE     = 0x0a,
+  HID_REQUEST_CONTROL_SET_PROTOCOL = 0x0b
+};
+
 typedef ATTR_PREPACKED struct ATTR_PACKED {
   uint8_t  bLength;         /**< Numeric expression that is the total size of the HID descriptor */
   uint8_t  bDescriptorType; /**< Constant name specifying type of HID descriptor. */

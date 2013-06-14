@@ -63,6 +63,8 @@ void dcd_controller_connect(uint8_t coreid);
 void dcd_isr(uint8_t coreid);
 
 tusb_error_t dcd_pipe_control_write(uint8_t coreid, void const * buffer, uint16_t length);
+tusb_error_t dcd_pipe_control_read(uint8_t coreid, void const * buffer, uint16_t length);
+
 void dcd_pipe_control_write_zero_length(uint8_t coreid);
 tusb_error_t dcd_endpoint_configure(uint8_t coreid, tusb_descriptor_endpoint_t const * p_endpoint_desc) ATTR_WARN_UNUSED_RESULT;
 void dcd_device_set_address(uint8_t coreid, uint8_t dev_addr);

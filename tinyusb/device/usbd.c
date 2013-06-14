@@ -97,7 +97,7 @@ void std_get_descriptor(uint8_t coreid)
       uint16_t const requested_length = min16_of(usbd_devices[coreid].setup_packet.wLength, sizeof(app_tusb_desc_configuration)-1);
       ASSERT(requested_length <= TUSB_CFG_DEVICE_CONTROL_PACKET_SIZE, (void)0 ); // multiple packets requires a task a-like
 
-      dcd_pipe_control_write(coreid, ((uint8_t*)&app_tusb_desc_configuration),
+      dcd_pipe_control_write(coreid, &app_tusb_desc_configuration,
                              requested_length);
     }
     break;
@@ -122,29 +122,40 @@ void std_get_descriptor(uint8_t coreid)
 void usbd_setup_received(uint8_t coreid)
 {
   usbd_device_info_t *p_device = &usbd_devices[coreid];
-  switch ( p_device->setup_packet.bRequest)
+
+  // check device configured TODO
+  if ( p_device->setup_packet.bmRequestType.recipient == TUSB_REQUEST_RECIPIENT_INTERFACE)
   {
-    case TUSB_REQUEST_GET_DESCRIPTOR:
-      std_get_descriptor(coreid);
-    break;
+    // TODO detect which class
+    hidd_control_request(coreid, &p_device->setup_packet);
+  }else
+  {
+    switch ( p_device->setup_packet.bRequest )
+    {
+      case TUSB_REQUEST_GET_DESCRIPTOR:
+        std_get_descriptor(coreid);
+      break;
 
-    case TUSB_REQUEST_SET_ADDRESS:
-      p_device->address = (uint8_t) p_device->setup_packet.wValue;
-      dcd_device_set_address(coreid, p_device->address);
-      dcd_pipe_control_write_zero_length(coreid);
-      usbd_devices[coreid].state = TUSB_DEVICE_STATE_ADDRESSED;
-    break;
+      case TUSB_REQUEST_SET_ADDRESS:
+        p_device->address = (uint8_t) p_device->setup_packet.wValue;
+        dcd_device_set_address(coreid, p_device->address);
+        usbd_devices[coreid].state = TUSB_DEVICE_STATE_ADDRESSED;
+      break;
 
-    case TUSB_REQUEST_SET_CONFIGURATION:
-      dcd_device_set_configuration(coreid, (uint8_t) p_device->setup_packet.wValue);
-      dcd_pipe_control_write_zero_length(coreid);
-      usbd_devices[coreid].state = TUSB_DEVICE_STATE_CONFIGURED;
-    break;
+      case TUSB_REQUEST_SET_CONFIGURATION:
+        dcd_device_set_configuration(coreid, (uint8_t) p_device->setup_packet.wValue);
+        usbd_devices[coreid].state = TUSB_DEVICE_STATE_CONFIGURED;
+      break;
 
-    default:
-    return;
+      default:
+        return;
+    }
   }
 
+  if (p_device->setup_packet.bmRequestType.direction == TUSB_DIR_HOST_TO_DEV)
+  {
+    dcd_pipe_control_write_zero_length(coreid);
+  }
 }
 
 //--------------------------------------------------------------------+

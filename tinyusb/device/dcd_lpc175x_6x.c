@@ -304,7 +304,7 @@ tusb_error_t dcd_pipe_control_write(uint8_t coreid, void const * buffer, uint16_
   return TUSB_ERROR_NONE;
 }
 
-tusb_error_t dcd_pipe_control_read(uint8_t coreid)
+tusb_error_t dcd_pipe_control_read(uint8_t coreid, void const * buffer, uint16_t length)
 {
   return TUSB_ERROR_NONE;
 }

@@ -48,7 +48,71 @@
 #include "hid_device.h"
 #include "tusb_descriptors.h"
 
+//--------------------------------------------------------------------+
+// MACRO CONSTANT TYPEDEF
+//--------------------------------------------------------------------+
+typedef struct {
+  tusb_descriptor_interface_t const * p_interface_desc;
+  tusb_hid_descriptor_hid_t const * p_hid_desc;
+  uint8_t const * p_report_desc;
+//  volatile tusb_interface_status_t status;
+}hidd_interface_t;
 
+#if TUSB_CFG_DEVICE_HID_KEYBOARD
+STATIC_ hidd_interface_t keyboard_intf =
+{
+    .p_interface_desc = &app_tusb_desc_configuration.keyboard_interface,
+    .p_hid_desc       = &app_tusb_desc_configuration.keyboard_hid,
+    .p_report_desc    = app_tusb_keyboard_desc_report
+};
+#endif
+
+tusb_error_t hidd_control_request(uint8_t coreid, tusb_std_request_t const * p_request)
+{
+#if TUSB_CFG_DEVICE_HID_KEYBOARD
+  if (p_request->bmRequestType.type == TUSB_REQUEST_TYPE_STANDARD) // standard request to hid
+  {
+    uint8_t const desc_type  = u16_high_u8(p_request->wValue);
+    uint8_t const desc_index = u16_low_u8 (p_request->wValue);
+
+    if ( p_request->bRequest == TUSB_REQUEST_GET_DESCRIPTOR &&
+        desc_type == HID_DESC_TYPE_REPORT)
+    {
+      dcd_pipe_control_write(coreid, keyboard_intf.p_report_desc,
+                             keyboard_intf.p_hid_desc->wReportLength);
+    }else
+    {
+      ASSERT_STATUS(TUSB_ERROR_FAILED);
+    }
+  }else if ( p_request->wIndex == keyboard_intf.p_interface_desc->bInterfaceNumber) // class request
+  {
+    switch(p_request->bRequest)
+    {
+      case HID_REQUEST_CONTROL_SET_IDLE:
+        // TODO hidd idle rate, no data phase
+      break;
+
+      case HID_REQUEST_CONTROL_SET_REPORT:
+        // TODO hidd set report, has data phase
+//        dcd_pipe_control_read(coreid, .....
+      break;
+
+      case HID_REQUEST_CONTROL_GET_REPORT:
+      case HID_REQUEST_CONTROL_GET_IDLE:
+      case HID_REQUEST_CONTROL_GET_PROTOCOL:
+      case HID_REQUEST_CONTROL_SET_PROTOCOL:
+      default:
+        ASSERT_STATUS(TUSB_ERROR_NOT_SUPPORTED_YET);
+        return TUSB_ERROR_NOT_SUPPORTED_YET;
+    }
+  }else
+  {
+    ASSERT_STATUS(TUSB_ERROR_FAILED);
+  }
+#endif
+
+  return TUSB_ERROR_NONE;
+}
 
 tusb_error_t hidd_init(uint8_t coreid, tusb_descriptor_interface_t const * p_interface_desc, uint16_t *p_length)
 {
