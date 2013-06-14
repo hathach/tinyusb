@@ -114,20 +114,7 @@ void endpoint_control_isr(uint8_t coreid)
     {
       (void) sie_command_read(SIE_CMDCODE_ENDPOINT_SELECT_CLEAR_INTERRUPT+0, 1); // clear setup bit
 
-      // read endpoint
-      LPC_USB->USBCtrl = SLAVE_CONTROL_READ_ENABLE_MASK; // logical endpoint = 0
-      while ((LPC_USB->USBRxPLen & SLAVE_RXPLEN_PACKET_READY_MASK) == 0) {}
-
-      ASSERT_INT(8, LPC_USB->USBRxPLen & SLAVE_RXPLEN_PACKET_LENGTH_MASK, (void) 0);
-
-      uint32_t *p_setup = (uint32_t*) &usbd_devices[0].setup_packet;
-      *p_setup = LPC_USB->USBRxData;
-      p_setup++; // increase by 4 ( sizeof(uint32_t) )
-      *p_setup = LPC_USB->USBRxData;
-
-      LPC_USB->USBCtrl = 0;
-
-      // TODO setup received callback
+      dcd_pipe_control_read(0, &usbd_devices[0].setup_packet, 8);
       usbd_isr(0, TUSB_EVENT_SETUP_RECEIVED);
     }else
     {
