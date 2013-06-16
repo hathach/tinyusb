@@ -62,7 +62,6 @@ static inline void endpoint_set_max_packet_size(uint8_t endpoint_idx, uint16_t m
 static inline void endpoint_set_max_packet_size(uint8_t endpoint_idx, uint16_t max_packet_size)
 {
   LPC_USB->USBReEp    |= BIT_(endpoint_idx);
-
   LPC_USB->USBEpInd    = endpoint_idx; // select index before setting packet size
   LPC_USB->USBMaxPSize = max_packet_size;
 
@@ -80,7 +79,7 @@ static inline void sie_commamd_code (uint8_t phase, uint8_t code_data) ATTR_ALWA
 static inline void sie_commamd_code (uint8_t phase, uint8_t code_data)
 {
   LPC_USB->USBDevIntClr = (DEV_INT_COMMAND_CODE_EMPTY_MASK | DEV_INT_COMMAND_DATA_FULL_MASK);
-  LPC_USB->USBCmdCode = (phase << 8) | (code_data << 16);
+  LPC_USB->USBCmdCode   = (phase << 8) | (code_data << 16);
 
   uint32_t const wait_flag = (phase == SIE_CMDPHASE_READ) ? DEV_INT_COMMAND_DATA_FULL_MASK : DEV_INT_COMMAND_CODE_EMPTY_MASK;
 #ifndef _TEST_
@@ -104,8 +103,8 @@ static inline uint32_t sie_command_read (uint8_t cmd_code, uint8_t data_len) ATT
 static inline uint32_t sie_command_read (uint8_t cmd_code, uint8_t data_len)
 {
   // TODO multiple read
-  sie_commamd_code(SIE_CMDPHASE_COMMAND, cmd_code);
-  sie_commamd_code(SIE_CMDPHASE_READ, cmd_code);
+  sie_commamd_code(SIE_CMDPHASE_COMMAND , cmd_code);
+  sie_commamd_code(SIE_CMDPHASE_READ    , cmd_code);
   return LPC_USB->USBCmdData;
 }
 
@@ -133,7 +132,7 @@ void endpoint_control_isr(uint8_t coreid)
 //      dcd_pipe_control_read(0,..
     }
     sie_command_write(SIE_CMDCODE_ENDPOINT_SELECT+0, 0, 0);
-    sie_command_write(SIE_CMDCODE_BUFFER_CLEAR, 0, 0);
+    sie_command_write(SIE_CMDCODE_BUFFER_CLEAR     , 0, 0);
   }
 
   //------------- control IN -------------//
@@ -192,13 +191,13 @@ tusb_error_t dcd_init(void)
   endpoint_set_max_packet_size(1, TUSB_CFG_DEVICE_CONTROL_PACKET_SIZE);
 
 	// step 7 : slave mode set up
-	LPC_USB->USBEpIntEn   = (uint32_t) BIN8(11); // control endpoint cannot use DMA, non-control all use DMA
+	LPC_USB->USBEpIntEn      = (uint32_t) BIN8(11); // control endpoint cannot use DMA, non-control all use DMA
 
-	LPC_USB->USBDevIntEn	= (DEV_INT_DEVICE_STATUS_MASK | DEV_INT_ENDPOINT_SLOW_MASK | DEV_INT_ERROR_MASK);
-	LPC_USB->USBDevIntClr	= 0xFFFFFFFF; // clear all pending interrupt
+	LPC_USB->USBDevIntEn     = (DEV_INT_DEVICE_STATUS_MASK | DEV_INT_ENDPOINT_SLOW_MASK | DEV_INT_ERROR_MASK);
+	LPC_USB->USBDevIntClr    = 0xFFFFFFFF; // clear all pending interrupt
 
-	LPC_USB->USBEpIntClr	= 0xFFFFFFFF; // clear all pending interrupt
-	LPC_USB->USBEpIntPri	= 0; // same priority for all endpoint
+	LPC_USB->USBEpIntClr     = 0xFFFFFFFF; // clear all pending interrupt
+	LPC_USB->USBEpIntPri     = 0;          // same priority for all endpoint
 
 	// step 8 : DMA set up
 	LPC_USB->USBEpDMADis     = 0xFFFFFFFF; // firstly disable all dma
@@ -264,7 +263,7 @@ tusb_error_t dcd_pipe_control_write(uint8_t coreid, void const * buffer, uint16_
 	LPC_USB->USBCtrl   = 0;
 
 	sie_command_write(SIE_CMDCODE_ENDPOINT_SELECT+1, 0, 0); // select control IN endpoint
-	sie_command_write(SIE_CMDCODE_BUFFER_VALIDATE, 0, 0);
+	sie_command_write(SIE_CMDCODE_BUFFER_VALIDATE  , 0, 0);
 
   return TUSB_ERROR_NONE;
 }
