@@ -65,7 +65,8 @@
 // MACRO CONSTANT TYPEDEF
 //--------------------------------------------------------------------+
 typedef struct {
-  tusb_error_t (* const init)(tusb_descriptor_interface_t const *, uint16_t*);
+  tusb_error_t (* const init)(uint8_t, tusb_descriptor_interface_t const *, uint16_t*);
+  tusb_error_t (* const control_request) (uint8_t, tusb_std_request_t const *);
 //  void (* const isr) (pipe_handle_t, tusb_event_t);
 //  void (* const close) (uint8_t);
 } device_class_driver_t;

@@ -106,7 +106,7 @@ void endpoint_control_isr(uint8_t coreid)
   (void) coreid; // suppress compiler warning
   uint32_t const endpoint_int_status = LPC_USB->USBEpIntSt & LPC_USB->USBEpIntEn;
 
-  // control OUT
+  //------------- control OUT -------------//
   if (endpoint_int_status & BIT_(0))
   {
     uint32_t const endpoint_status = sie_command_read(SIE_CMDCODE_ENDPOINT_SELECT+0, 1);
@@ -118,14 +118,14 @@ void endpoint_control_isr(uint8_t coreid)
       usbd_isr(0, TUSB_EVENT_SETUP_RECEIVED);
     }else
     {
-       // RxPLen should be zero for zero-length status phase. Current not support any out control with data yet
-      ASSERT(LPC_USB->USBRxPLen == 0, (void) 0);
+      // Current not support any out control with data yet
+//      dcd_pipe_control_read(0,..
     }
     sie_command_write(SIE_CMDCODE_ENDPOINT_SELECT+0, 0, 0);
     sie_command_write(SIE_CMDCODE_BUFFER_CLEAR, 0, 0);
   }
 
-  // control IN
+  //------------- control IN -------------//
   if (endpoint_int_status & BIT_(1))
   {
     (void) endpoint_int_status;
@@ -149,13 +149,8 @@ void dcd_isr(uint8_t coreid)
     }
 
     // TODO invoke some callbacks
-    if (dev_status_reg & SIE_DEV_STATUS_CONNECT_CHANGE_MASK)
-    {
-
-    }
-    if (dev_status_reg & SIE_DEV_STATUS_SUSPEND_CHANGE_MASK)
-    {
-
+    if (dev_status_reg & SIE_DEV_STATUS_CONNECT_CHANGE_MASK) { }
+    if (dev_status_reg & SIE_DEV_STATUS_SUSPEND_CHANGE_MASK) {
     }
   }
 
@@ -219,38 +214,6 @@ tusb_error_t dcd_init(void)
   return TUSB_ERROR_NONE;
 }
 
-static inline uint8_t endpoint_address_to_physical_index(uint8_t ep_address) ATTR_ALWAYS_INLINE ATTR_CONST;
-static inline uint8_t endpoint_address_to_physical_index(uint8_t ep_address)
-{
-  return (ep_address << 1) + (ep_address & 0x80 ? 1 : 0 );
-}
-
-tusb_error_t dcd_endpoint_configure(uint8_t coreid, tusb_descriptor_endpoint_t const * p_endpoint_desc)
-{
-  uint8_t phy_ep = endpoint_address_to_physical_index( p_endpoint_desc->bEndpointAddress );
-
-  //------------- Realize Endpoint with Max Packet Size -------------//
-  LPC_USB->USBReEp |= BIT_(phy_ep);
-  endpoint_set_max_packet_size(phy_ep, p_endpoint_desc->wMaxPacketSize.size);
-
-#ifndef _TEST_
-	while ((LPC_USB->USBDevIntSt & DEV_INT_ENDPOINT_REALIZED_MASK) == 0) {} // TODO can be omitted, or move to set max packet size
-	LPC_USB->USBDevIntClr = DEV_INT_ENDPOINT_REALIZED_MASK;
-#endif
-
-	//------------- DMA set up -------------//
-	memclr_(dcd_dd + phy_ep, sizeof(dcd_dma_descriptor_t));
-	dcd_dd[phy_ep].is_isochronous  = (p_endpoint_desc->bmAttributes.xfer == TUSB_XFER_ISOCHRONOUS) ? 1 : 0;
-	dcd_dd[phy_ep].max_packet_size = p_endpoint_desc->wMaxPacketSize.size;
-	dcd_dd[phy_ep].is_retired      = 1; // dd is not active at first
-
-	LPC_USB->USBEpDMAEn = BIT_(phy_ep);
-
-	sie_command_write(SIE_CMDCODE_ENDPOINT_SET_STATUS+phy_ep, 1, 0); // clear all endpoint status
-
-  return TUSB_ERROR_NONE;
-}
-
 void dcd_controller_connect(uint8_t coreid)
 {
   sie_command_write(SIE_CMDCODE_DEVICE_STATUS, 1, 1);
@@ -267,6 +230,9 @@ void dcd_device_set_configuration(uint8_t coreid, uint8_t config_num)
   sie_command_write(SIE_CMDCODE_CONFIGURE_DEVICE, 1, 1);
 }
 
+//--------------------------------------------------------------------+
+// PIPE API
+//--------------------------------------------------------------------+
 static inline uint16_t length_unit_byte2dword(uint16_t length_in_bytes) ATTR_ALWAYS_INLINE ATTR_CONST;
 static inline uint16_t length_unit_byte2dword(uint16_t length_in_bytes)
 {
@@ -318,5 +284,39 @@ void dcd_pipe_control_write_zero_length(uint8_t coreid)
 {
   dcd_pipe_control_write(coreid, NULL, 0);
 }
+
+static inline uint8_t endpoint_address_to_physical_index(uint8_t ep_address) ATTR_ALWAYS_INLINE ATTR_CONST;
+static inline uint8_t endpoint_address_to_physical_index(uint8_t ep_address)
+{
+  return (ep_address << 1) + (ep_address & 0x80 ? 1 : 0 );
+}
+
+tusb_error_t dcd_endpoint_configure(uint8_t coreid, tusb_descriptor_endpoint_t const * p_endpoint_desc)
+{
+  uint8_t phy_ep = endpoint_address_to_physical_index( p_endpoint_desc->bEndpointAddress );
+
+  //------------- Realize Endpoint with Max Packet Size -------------//
+  LPC_USB->USBReEp |= BIT_(phy_ep);
+  endpoint_set_max_packet_size(phy_ep, p_endpoint_desc->wMaxPacketSize.size);
+
+#ifndef _TEST_
+	while ((LPC_USB->USBDevIntSt & DEV_INT_ENDPOINT_REALIZED_MASK) == 0) {} // TODO can be omitted, or move to set max packet size
+	LPC_USB->USBDevIntClr = DEV_INT_ENDPOINT_REALIZED_MASK;
+#endif
+
+	//------------- DMA set up -------------//
+	memclr_(dcd_dd + phy_ep, sizeof(dcd_dma_descriptor_t));
+	dcd_dd[phy_ep].is_isochronous  = (p_endpoint_desc->bmAttributes.xfer == TUSB_XFER_ISOCHRONOUS) ? 1 : 0;
+	dcd_dd[phy_ep].max_packet_size = p_endpoint_desc->wMaxPacketSize.size;
+	dcd_dd[phy_ep].is_retired      = 1; // dd is not active at first
+
+	LPC_USB->USBEpDMAEn = BIT_(phy_ep);
+
+	sie_command_write(SIE_CMDCODE_ENDPOINT_SET_STATUS+phy_ep, 1, 0); // clear all endpoint status
+
+  return TUSB_ERROR_NONE;
+}
+
+//tusb_error_t dcd_pipe_xfer()
 
 #endif

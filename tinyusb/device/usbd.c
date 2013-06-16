@@ -55,11 +55,12 @@
 usbd_device_info_t usbd_devices[CONTROLLER_DEVICE_NUMBER];
 
 // TODO fix/compress number of class driver
-static device_class_driver_t const usbh_class_drivers[TUSB_CLASS_MAX_CONSEC_NUMBER] =
+static device_class_driver_t const usbd_class_drivers[TUSB_CLASS_MAX_CONSEC_NUMBER] =
 {
 #if DEVICE_CLASS_HID
     [TUSB_CLASS_HID] = {
-        .init         = hidd_init,
+        .init            = hidd_init,
+        .control_request = hidd_control_request,
     },
 #endif
 };
@@ -127,6 +128,13 @@ void usbd_setup_received(uint8_t coreid)
   if ( p_device->setup_packet.bmRequestType.recipient == TUSB_REQUEST_RECIPIENT_INTERFACE)
   {
     // TODO detect which class
+//    ASSERT( p_device->setup_packet.wIndex < USBD_MAX_INTERFACE, (void) 0);
+//    tusb_std_class_code_t const class_code = usbd_devices[coreid].interface2class[ p_device->setup_packet.wIndex ];
+//    if ( usbd_class_drivers[class_code].control_request != NULL )
+//    {
+//      usbd_class_drivers[class_code].control_request(coreid, &p_device->setup_packet);
+//
+//    }
     hidd_control_request(coreid, &p_device->setup_packet);
   }else
   {
@@ -169,7 +177,9 @@ tusb_error_t usbd_init (void)
 
   uint16_t length = 0;
   #if TUSB_CFG_DEVICE_HID_KEYBOARD
-  ASSERT_STATUS( hidd_init(0, &app_tusb_desc_configuration.keyboard_interface, &length) );
+  tusb_descriptor_interface_t const * p_interface = &app_tusb_desc_configuration.keyboard_interface;
+  ASSERT_STATUS( hidd_init(0, p_interface, &length) );
+  usbd_devices[0].interface2class[p_interface->bInterfaceNumber] = p_interface->bInterfaceClass;
   #endif
 
   #if TUSB_CFG_DEVICE_HID_MOUSE && 0
