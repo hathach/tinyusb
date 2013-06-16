@@ -61,8 +61,19 @@ STATIC_ dcd_dma_descriptor_t  dcd_dd[DCD_MAX_DD];
 static inline void endpoint_set_max_packet_size(uint8_t endpoint_idx, uint16_t max_packet_size) ATTR_ALWAYS_INLINE;
 static inline void endpoint_set_max_packet_size(uint8_t endpoint_idx, uint16_t max_packet_size)
 {
+  LPC_USB->USBReEp    |= BIT_(endpoint_idx);
+
   LPC_USB->USBEpInd    = endpoint_idx; // select index before setting packet size
   LPC_USB->USBMaxPSize = max_packet_size;
+
+#ifndef _TEST_
+  if( endpoint_idx > 2) // endpoint control is always realized
+	{
+    while ((LPC_USB->USBDevIntSt & DEV_INT_ENDPOINT_REALIZED_MASK) == 0) {} // TODO can be omitted, or move to set max packet size
+    LPC_USB->USBDevIntClr = DEV_INT_ENDPOINT_REALIZED_MASK;
+	}
+#endif
+
 }
 
 static inline void sie_commamd_code (uint8_t phase, uint8_t code_data) ATTR_ALWAYS_INLINE;
@@ -180,10 +191,6 @@ tusb_error_t dcd_init(void)
   endpoint_set_max_packet_size(0, TUSB_CFG_DEVICE_CONTROL_PACKET_SIZE);
   endpoint_set_max_packet_size(1, TUSB_CFG_DEVICE_CONTROL_PACKET_SIZE);
 
-#ifndef _TEST_
-	while ((LPC_USB->USBDevIntSt & DEV_INT_ENDPOINT_REALIZED_MASK) == 0);
-#endif
-
 	// step 7 : slave mode set up
 	LPC_USB->USBEpIntEn   = (uint32_t) BIN8(11); // control endpoint cannot use DMA, non-control all use DMA
 
@@ -296,13 +303,7 @@ tusb_error_t dcd_endpoint_configure(uint8_t coreid, tusb_descriptor_endpoint_t c
   uint8_t phy_ep = endpoint_address_to_physical_index( p_endpoint_desc->bEndpointAddress );
 
   //------------- Realize Endpoint with Max Packet Size -------------//
-  LPC_USB->USBReEp |= BIT_(phy_ep);
   endpoint_set_max_packet_size(phy_ep, p_endpoint_desc->wMaxPacketSize.size);
-
-#ifndef _TEST_
-	while ((LPC_USB->USBDevIntSt & DEV_INT_ENDPOINT_REALIZED_MASK) == 0) {} // TODO can be omitted, or move to set max packet size
-	LPC_USB->USBDevIntClr = DEV_INT_ENDPOINT_REALIZED_MASK;
-#endif
 
 	//------------- DMA set up -------------//
 	memclr_(dcd_dd + phy_ep, sizeof(dcd_dma_descriptor_t));
