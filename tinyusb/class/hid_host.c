@@ -38,7 +38,7 @@
 
 #include "tusb_option.h"
 
-#if (MODE_HOST_SUPPORTED && defined HOST_CLASS_HID)
+#if (MODE_HOST_SUPPORTED && HOST_CLASS_HID)
 
 #define _TINY_USB_SOURCE_FILE_
 //--------------------------------------------------------------------+
@@ -214,40 +214,33 @@ tusb_error_t hidh_open_subtask(uint8_t dev_addr, tusb_descriptor_interface_t con
   p_desc += p_desc[DESCRIPTOR_OFFSET_LENGTH];
   ASSERT_INT(TUSB_DESC_TYPE_ENDPOINT, p_desc[DESCRIPTOR_OFFSET_TYPE], TUSB_ERROR_INVALID_PARA);
 
-  if (p_interface_desc->bInterfaceSubClass == HID_SUBCLASS_BOOT)
+  switch(p_interface_desc->bInterfaceProtocol)
   {
-    switch(p_interface_desc->bInterfaceProtocol)
-    {
-      #if TUSB_CFG_HOST_HID_KEYBOARD
-      case HID_PROTOCOL_KEYBOARD:
-        ASSERT_STATUS ( hidh_interface_open(dev_addr, (tusb_descriptor_endpoint_t const *) p_desc, &keyboard_data[dev_addr-1]) );
-        if ( tusbh_hid_keyboard_isr )
-        {
-          tusbh_hid_keyboard_isr(dev_addr, 0, TUSB_EVENT_INTERFACE_OPEN);
-        }
-      break;
-      #endif
+    #if TUSB_CFG_HOST_HID_KEYBOARD
+    case HID_PROTOCOL_KEYBOARD:
+      ASSERT_STATUS ( hidh_interface_open(dev_addr, (tusb_descriptor_endpoint_t const *) p_desc, &keyboard_data[dev_addr-1]) );
+      if ( tusbh_hid_keyboard_isr )
+      {
+        tusbh_hid_keyboard_isr(dev_addr, 0, TUSB_EVENT_INTERFACE_OPEN);
+      }
+    break;
+    #endif
 
-      #if TUSB_CFG_HOST_HID_MOUSE
-      case HID_PROTOCOL_MOUSE:
-        ASSERT_STATUS ( hidh_interface_open(dev_addr, (tusb_descriptor_endpoint_t const *) p_desc, &mouse_data[dev_addr-1]) );
-        if (tusbh_hid_mouse_isr)
-        {
-          tusbh_hid_mouse_isr(dev_addr, 0, TUSB_EVENT_INTERFACE_OPEN);
-        }
-      break;
-      #endif
+    #if TUSB_CFG_HOST_HID_MOUSE
+    case HID_PROTOCOL_MOUSE:
+      ASSERT_STATUS ( hidh_interface_open(dev_addr, (tusb_descriptor_endpoint_t const *) p_desc, &mouse_data[dev_addr-1]) );
+      if (tusbh_hid_mouse_isr)
+      {
+        tusbh_hid_mouse_isr(dev_addr, 0, TUSB_EVENT_INTERFACE_OPEN);
+      }
+    break;
+    #endif
 
-      default: // TODO unknown, unsupported protocol --> skip this interface
-        return TUSB_ERROR_NONE;
-    }
-    *p_length = sizeof(tusb_descriptor_interface_t) + sizeof(tusb_hid_descriptor_hid_t) + sizeof(tusb_descriptor_endpoint_t);
-  }else
-  {
-    // open generic
-    *p_length = 0;
+    default: // TODO unknown, unsupported protocol --> skip this interface
+      return TUSB_ERROR_NONE;
   }
 
+  *p_length = sizeof(tusb_descriptor_interface_t) + sizeof(tusb_hid_descriptor_hid_t) + sizeof(tusb_descriptor_endpoint_t);
   return TUSB_ERROR_NONE;
 }
 

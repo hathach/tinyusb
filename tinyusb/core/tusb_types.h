@@ -70,9 +70,12 @@ typedef enum {
 }tusb_transfer_type_t;
 
 typedef enum {
-  TUSB_DIR_HOST_TO_DEV = 0,
-  TUSB_DIR_DEV_TO_HOST = 1
+  TUSB_DIR_HOST_TO_DEV      = 0,
+  TUSB_DIR_DEV_TO_HOST      = 1,
+
+  TUSB_DIR_DEV_TO_HOST_MASK = 0x80
 }tusb_direction_t;
+
 
 /// USB Descriptor Types (section 9.4 table 9-5)
 typedef enum {
@@ -137,7 +140,8 @@ typedef enum {
   TUSB_CLASS_PERSONAL_HEALTHCARE  = 15   , ///< 15
   TUSB_CLASS_AUDIO_VIDEO          = 16   , ///< 16
 
-  TUSB_CLASS_MAX_CONSEC_NUMBER    = 17   , // TODO compact & minimize this number
+  TUSB_CLASS_MAPPED_INDEX_START   = 17   , // TODO compact & minimize this number
+  TUSB_CLASS_MAPPED_INDEX_END     = TUSB_CLASS_MAPPED_INDEX_START + 5,
 
   TUSB_CLASS_DIAGNOSTIC           = 0xDC ,
   TUSB_CLASS_WIRELESS_CONTROLLER  = 0xE0 ,

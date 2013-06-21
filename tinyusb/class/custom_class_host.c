@@ -1,6 +1,6 @@
 /**************************************************************************/
 /*!
-    @file     usbd.h
+    @file     custom_class_host.c
     @author   hathach (tinyusb.org)
 
     @section LICENSE
@@ -36,64 +36,80 @@
 */
 /**************************************************************************/
 
-/** \ingroup TBD
- *  \defgroup TBD
- *  \brief TBD
- *
- *  @{
- */
+#include "tusb_option.h"
 
-#ifndef _TUSB_USBD_H_
-#define _TUSB_USBD_H_
+#if (MODE_HOST_SUPPORTED && TUSB_CFG_HOST_CUSTOM_CLASS)
+
+#define _TINY_USB_SOURCE_FILE_
 
 //--------------------------------------------------------------------+
 // INCLUDE
 //--------------------------------------------------------------------+
 #include "common/common.h"
-#include "osal/osal.h" // TODO refractor move to common.h ?
-
-#ifdef _TINY_USB_SOURCE_FILE_
-#include "dcd.h" // TODO hide from application include
-#endif
-//#include "tusb_descriptors.h"
-
-#ifdef __cplusplus
- extern "C" {
-#endif
+#include "custom_class.h"
 
 //--------------------------------------------------------------------+
 // MACRO CONSTANT TYPEDEF
 //--------------------------------------------------------------------+
-typedef struct {
-  tusb_error_t (* const init)(uint8_t, tusb_descriptor_interface_t const *, uint16_t*);
-  tusb_error_t (* const control_request) (uint8_t, tusb_std_request_t const *);
-//  void (* const isr) (pipe_handle_t, tusb_event_t);
-//  void (* const close) (uint8_t);
-} device_class_driver_t;
 
 //--------------------------------------------------------------------+
 // INTERNAL OBJECT & FUNCTION DECLARATION
 //--------------------------------------------------------------------+
+custom_interface_info_t custom_interface[TUSB_CFG_HOST_DEVICE_MAX];
+//--------------------------------------------------------------------+
+// IMPLEMENTATION
+//--------------------------------------------------------------------+
+void cush_init(void)
+{
+  memclr_(&custom_interface, sizeof(custom_interface_info_t) * TUSB_CFG_HOST_DEVICE_MAX);
+}
 
-//--------------------------------------------------------------------+
-// APPLICATION API
-//--------------------------------------------------------------------+
-bool tusbd_is_configured(uint8_t coreid) ATTR_WARN_UNUSED_RESULT;
+tusb_error_t cush_open_subtask(uint8_t dev_addr, tusb_descriptor_interface_t const *p_interface_desc, uint16_t *p_length)
+{
+  // FIXME quick hack to test lpc1k custom class with 2 bulk endpoints
+  uint8_t const *p_desc = (uint8_t const *) p_interface_desc;
 
-//--------------------------------------------------------------------+
-// CLASS-USBD & INTERNAL API
-//--------------------------------------------------------------------+
-#ifdef _TINY_USB_SOURCE_FILE_
+  //------------- 1st Bulk Endpiont Descriptor -------------//
+  for(uint32_t i=0; i<2; i++)
+  {
+    p_desc += p_desc[DESCRIPTOR_OFFSET_LENGTH];
+    tusb_descriptor_endpoint_t const *p_endpoint = (tusb_descriptor_endpoint_t const *) p_desc;
+    ASSERT_INT(TUSB_DESC_TYPE_ENDPOINT, p_endpoint->bDescriptorType, TUSB_ERROR_INVALID_PARA);
 
-tusb_error_t usbd_init(void);
-tusb_error_t usbd_pipe_open(uint8_t coreid, tusb_descriptor_interface_t const * p_interfacae, tusb_descriptor_endpoint_t const * p_endpoint_desc);
+    pipe_handle_t * pipe_hdl =  ( p_endpoint->bEndpointAddress &  TUSB_DIR_DEV_TO_HOST_MASK ) ?
+                         &custom_interface[dev_addr-1].pipe_in : &custom_interface[dev_addr-1].pipe_out;
+    *pipe_hdl = hcd_pipe_open(dev_addr, p_endpoint, TUSB_CLASS_VENDOR_SPECIFIC);
+    ASSERT ( pipehandle_is_valid(*pipe_hdl), TUSB_ERROR_HCD_OPEN_PIPE_FAILED );
+  }
+
+  (*p_length) = sizeof(tusb_descriptor_interface_t) + 2*sizeof(tusb_descriptor_endpoint_t);
+  return TUSB_ERROR_NONE;
+}
+
+void cush_isr(pipe_handle_t pipe_hdl, tusb_event_t event)
+{
+
+}
+
+void cush_close(uint8_t dev_addr)
+{
+  tusb_error_t err1, err2;
+  custom_interface_info_t * p_interface = &custom_interface[dev_addr-1];
+
+  // TODO re-consider to check pipe valid before calling pipe_close
+  if( pipehandle_is_valid( p_interface->pipe_in ) )
+  {
+    err1 = hcd_pipe_close( p_interface->pipe_in );
+  }
+
+  if ( pipehandle_is_valid( p_interface->pipe_out ) )
+  {
+    err2 = hcd_pipe_close( p_interface->pipe_out );
+  }
+
+  memclr_(p_interface, sizeof(custom_interface_info_t));
+
+  ASSERT(err1 == TUSB_ERROR_NONE && err2 == TUSB_ERROR_NONE, (void) 0 );
+}
 
 #endif
-
-#ifdef __cplusplus
- }
-#endif
-
-#endif /* _TUSB_USBD_H_ */
-
-/** @} */

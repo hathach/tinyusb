@@ -373,10 +373,13 @@ pipe_handle_t hcd_pipe_open(uint8_t dev_addr, tusb_descriptor_endpoint_t const *
   if (p_endpoint_desc->bmAttributes.xfer == TUSB_XFER_BULK)
   {
     list_head = (ehci_link_t*) get_async_head(usbh_devices[dev_addr].core_id);
-  }else if (p_endpoint_desc->bmAttributes.xfer == TUSB_XFER_INTERRUPT)
+  }
+  #if EHCI_PERIODIC_LIST // TODO refractor/group this together
+  else if (p_endpoint_desc->bmAttributes.xfer == TUSB_XFER_INTERRUPT)
   {
     list_head = get_period_head(usbh_devices[dev_addr].core_id, p_qhd->interval_ms);
   }
+  #endif
 
   //------------- insert to async/period list TODO might need to disable async/period list -------------//
   list_insert( list_head,
@@ -428,12 +431,15 @@ tusb_error_t  hcd_pipe_close(pipe_handle_t pipe_hdl)
     ASSERT_STATUS( list_remove_qhd(
         (ehci_link_t*) get_async_head( usbh_devices[pipe_hdl.dev_addr].core_id ),
         (ehci_link_t*) p_qhd) );
-  }else
+  }
+  #if EHCI_PERIODIC_LIST // TODO refractor/group this together
+  else
   {
     ASSERT_STATUS( list_remove_qhd(
         get_period_head( usbh_devices[pipe_hdl.dev_addr].core_id, p_qhd->interval_ms ),
         (ehci_link_t*) p_qhd) );
   }
+  #endif
 
   return TUSB_ERROR_NONE;
 }
@@ -530,6 +536,7 @@ void async_list_process_isr(ehci_qhd_t * const async_head)
   // TODO abstract max loop guard for async
 }
 
+#if EHCI_PERIODIC_LIST // TODO refractor/group this together
 void period_list_process_isr(uint8_t hostid, uint8_t interval_ms)
 {
   uint8_t max_loop = 0;
@@ -585,6 +592,7 @@ void period_list_process_isr(uint8_t hostid, uint8_t interval_ms)
     max_loop++;
   }
 }
+#endif
 
 void xfer_error_isr(uint8_t hostid)
 {
@@ -653,6 +661,7 @@ void hcd_isr(uint8_t hostid)
     async_list_process_isr( get_async_head(hostid) );
   }
 
+#if EHCI_PERIODIC_LIST // TODO refractor/group this together
   if (int_status & EHCI_INT_MASK_NXP_PERIODIC)
   {
     for (uint8_t i=1; i <= EHCI_FRAMELIST_SIZE; i *= 2)
@@ -660,6 +669,7 @@ void hcd_isr(uint8_t hostid)
       period_list_process_isr( hostid, i );
     }
   }
+#endif
 
   //------------- There is some removed async previously -------------//
   if (int_status & EHCI_INT_MASK_ASYNC_ADVANCE) // need to place after EHCI_INT_MASK_NXP_ASYNC
@@ -676,6 +686,7 @@ STATIC_ INLINE_ ehci_registers_t* get_operational_register(uint8_t hostid)
   return (ehci_registers_t*) (hostid ? (&LPC_USB1->USBCMD_H) : (&LPC_USB0->USBCMD_H) );
 }
 
+#if EHCI_PERIODIC_LIST // TODO refractor/group this together
 STATIC_ INLINE_ ehci_link_t* get_period_frame_list(uint8_t hostid)
 {
   switch(hostid)
@@ -693,6 +704,7 @@ STATIC_ INLINE_ ehci_link_t* get_period_frame_list(uint8_t hostid)
 
   return NULL;
 }
+#endif
 
 STATIC_ INLINE_ uint8_t hostid_to_data_idx(uint8_t hostid)
 {
@@ -710,11 +722,13 @@ STATIC_ INLINE_ ehci_qhd_t* get_async_head(uint8_t hostid)
   return &ehci_data.async_head[ hostid_to_data_idx(hostid) ];
 }
 
+#if EHCI_PERIODIC_LIST // TODO refractor/group this together
 STATIC_ INLINE_ ehci_link_t* get_period_head(uint8_t hostid, uint8_t interval_ms)
 {
   return (ehci_link_t*) (&ehci_data.period_head_arr[ hostid_to_data_idx(hostid) ]
                                                     [ log2_of( min8_of(EHCI_FRAMELIST_SIZE, interval_ms) ) ] );
 }
+#endif
 
 STATIC_ INLINE_ ehci_qhd_t* get_control_qhd(uint8_t dev_addr)
 {

@@ -55,7 +55,7 @@
 usbd_device_info_t usbd_devices[CONTROLLER_DEVICE_NUMBER];
 
 // TODO fix/compress number of class driver
-static device_class_driver_t const usbd_class_drivers[TUSB_CLASS_MAX_CONSEC_NUMBER] =
+static device_class_driver_t const usbd_class_drivers[TUSB_CLASS_MAPPED_INDEX_START] =
 {
 #if DEVICE_CLASS_HID
     [TUSB_CLASS_HID] = {
@@ -78,6 +78,9 @@ bool tusbd_is_configured(uint8_t coreid)
   return usbd_devices[coreid].state == TUSB_DEVICE_STATE_CONFIGURED;
 }
 
+//--------------------------------------------------------------------+
+// IMPLEMENTATION
+//--------------------------------------------------------------------+
 void usbd_bus_reset(uint32_t coreid)
 {
   memclr_(usbd_devices, sizeof(usbd_device_info_t)*CONTROLLER_DEVICE_NUMBER);
@@ -166,9 +169,6 @@ void usbd_setup_received(uint8_t coreid)
   }
 }
 
-//--------------------------------------------------------------------+
-// IMPLEMENTATION
-//--------------------------------------------------------------------+
 tusb_error_t usbd_init (void)
 {
   ASSERT_STATUS ( usbd_string_descriptor_init() );
@@ -197,8 +197,15 @@ tusb_error_t usbd_init (void)
   return TUSB_ERROR_NONE;
 }
 
-#endif
 
+
+//--------------------------------------------------------------------+
+// USBD-CLASS API
+//--------------------------------------------------------------------+
+tusb_error_t usbd_pipe_open(uint8_t coreid, tusb_descriptor_interface_t const * p_interfacae, tusb_descriptor_endpoint_t const * p_endpoint_desc)
+{
+  return TUSB_ERROR_NONE;
+}
 
 //--------------------------------------------------------------------+
 // callback from DCD ISR
@@ -252,3 +259,5 @@ static tusb_error_t usbd_string_descriptor_init(void)
 
   return TUSB_ERROR_NONE;
 }
+
+#endif

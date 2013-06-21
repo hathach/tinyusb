@@ -59,13 +59,17 @@
 #if MODE_HOST_SUPPORTED
   #include "host/usbh.h"
 
-  #ifdef HOST_CLASS_HID
+  #if HOST_CLASS_HID
     #include "class/hid_host.h"
   #endif
 
-  #define HOST_CLASS_MSC
+//  #define HOST_CLASS_MSC // FIXME hack to test massstorage class
   #ifdef HOST_CLASS_MSC
     #include "class/msc_host.h"
+  #endif
+
+  #if TUSB_CFG_HOST_CUSTOM_CLASS
+    #include "class/custom_class.h"
   #endif
 
 #endif

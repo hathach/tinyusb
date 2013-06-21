@@ -1,6 +1,6 @@
 /**************************************************************************/
 /*!
-    @file     usbd.h
+    @file     custom_class.h
     @author   hathach (tinyusb.org)
 
     @section LICENSE
@@ -43,50 +43,30 @@
  *  @{
  */
 
-#ifndef _TUSB_USBD_H_
-#define _TUSB_USBD_H_
+#ifndef _TUSB_CUSTOM_CLASS_H_
+#define _TUSB_CUSTOM_CLASS_H_
 
-//--------------------------------------------------------------------+
-// INCLUDE
-//--------------------------------------------------------------------+
 #include "common/common.h"
-#include "osal/osal.h" // TODO refractor move to common.h ?
-
-#ifdef _TINY_USB_SOURCE_FILE_
-#include "dcd.h" // TODO hide from application include
-#endif
-//#include "tusb_descriptors.h"
+#include "host/usbh.h"
 
 #ifdef __cplusplus
  extern "C" {
 #endif
 
-//--------------------------------------------------------------------+
-// MACRO CONSTANT TYPEDEF
-//--------------------------------------------------------------------+
 typedef struct {
-  tusb_error_t (* const init)(uint8_t, tusb_descriptor_interface_t const *, uint16_t*);
-  tusb_error_t (* const control_request) (uint8_t, tusb_std_request_t const *);
-//  void (* const isr) (pipe_handle_t, tusb_event_t);
-//  void (* const close) (uint8_t);
-} device_class_driver_t;
+  pipe_handle_t pipe_in;
+  pipe_handle_t pipe_out;
+}custom_interface_info_t;
 
 //--------------------------------------------------------------------+
-// INTERNAL OBJECT & FUNCTION DECLARATION
-//--------------------------------------------------------------------+
-
-//--------------------------------------------------------------------+
-// APPLICATION API
-//--------------------------------------------------------------------+
-bool tusbd_is_configured(uint8_t coreid) ATTR_WARN_UNUSED_RESULT;
-
-//--------------------------------------------------------------------+
-// CLASS-USBD & INTERNAL API
+// USBH-CLASS DRIVER API
 //--------------------------------------------------------------------+
 #ifdef _TINY_USB_SOURCE_FILE_
 
-tusb_error_t usbd_init(void);
-tusb_error_t usbd_pipe_open(uint8_t coreid, tusb_descriptor_interface_t const * p_interfacae, tusb_descriptor_endpoint_t const * p_endpoint_desc);
+void         cush_init(void);
+tusb_error_t cush_open_subtask(uint8_t dev_addr, tusb_descriptor_interface_t const *p_interface_desc, uint16_t *p_length) ATTR_WARN_UNUSED_RESULT;
+void         cush_isr(pipe_handle_t pipe_hdl, tusb_event_t event);
+void         cush_close(uint8_t dev_addr);
 
 #endif
 
@@ -94,6 +74,6 @@ tusb_error_t usbd_pipe_open(uint8_t coreid, tusb_descriptor_interface_t const * 
  }
 #endif
 
-#endif /* _TUSB_USBD_H_ */
+#endif /* _TUSB_CUSTOM_CLASS_H_ */
 
 /** @} */

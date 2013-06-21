@@ -54,7 +54,7 @@
 #define ENUM_QUEUE_DEPTH  5
 
 // TODO fix/compress number of class driver
-static host_class_driver_t const usbh_class_drivers[TUSB_CLASS_MAX_CONSEC_NUMBER] =
+static host_class_driver_t const usbh_class_drivers[TUSB_CLASS_MAPPED_INDEX_END] =
 {
 #if HOST_CLASS_HID
     [TUSB_CLASS_HID] = {
@@ -83,6 +83,14 @@ static host_class_driver_t const usbh_class_drivers[TUSB_CLASS_MAX_CONSEC_NUMBER
     }
 #endif
 
+#if TUSB_CFG_HOST_CUSTOM_CLASS
+    [TUSB_CLASS_MAPPED_INDEX_END-1] = {
+        .init         = cush_init,
+        .open_subtask = cush_open_subtask,
+        .isr          = cush_isr,
+        .close        = cush_close
+    }
+#endif
 };
 
 //--------------------------------------------------------------------+
@@ -101,6 +109,17 @@ STATIC_ uint8_t enum_data_buffer[TUSB_CFG_HOST_ENUM_BUFFER_SIZE] TUSB_CFG_ATTR_U
 //------------- Helper Function Prototypes -------------//
 static inline uint8_t get_new_address(void) ATTR_ALWAYS_INLINE;
 static inline uint8_t get_configure_number_for_device(tusb_descriptor_device_t* dev_desc) ATTR_ALWAYS_INLINE;
+
+static inline uint8_t std_class_code_to_index(uint8_t std_class_code) ATTR_CONST ATTR_ALWAYS_INLINE;
+static inline uint8_t std_class_code_to_index(uint8_t std_class_code)
+{
+  return  (std_class_code <= TUSB_CLASS_AUDIO_VIDEO          ) ? std_class_code                   :
+          (std_class_code == TUSB_CLASS_DIAGNOSTIC           ) ? TUSB_CLASS_MAPPED_INDEX_START     :
+          (std_class_code == TUSB_CLASS_WIRELESS_CONTROLLER  ) ? TUSB_CLASS_MAPPED_INDEX_START + 1 :
+          (std_class_code == TUSB_CLASS_MISC                 ) ? TUSB_CLASS_MAPPED_INDEX_START + 2 :
+          (std_class_code == TUSB_CLASS_APPLICATION_SPECIFIC ) ? TUSB_CLASS_MAPPED_INDEX_START + 3 :
+          (std_class_code == TUSB_CLASS_VENDOR_SPECIFIC      ) ? TUSB_CLASS_MAPPED_INDEX_START + 4 : 0;
+}
 
 //--------------------------------------------------------------------+
 // PUBLIC API (Parameter Verification is required)
@@ -133,7 +152,7 @@ tusb_error_t usbh_init(void)
   ASSERT_PTR(enum_queue_hdl, TUSB_ERROR_OSAL_QUEUE_FAILED);
 
   //------------- class init -------------//
-  for (uint8_t class_code = 1; class_code < TUSB_CLASS_MAX_CONSEC_NUMBER; class_code++)
+  for (uint8_t class_code = 1; class_code < TUSB_CLASS_MAPPED_INDEX_END; class_code++)
   {
     if (usbh_class_drivers[class_code].init)
       usbh_class_drivers[class_code].init();
@@ -229,12 +248,12 @@ void usbh_device_unplugged_isr(uint8_t hostid)
   if (dev_addr > 0) // device can still be unplugged when not set new address
   {
     // if device unplugged is not a hub TODO handle hub unplugged
-    for (uint8_t class_code = 1; class_code < TUSB_CLASS_MAX_CONSEC_NUMBER; class_code++)
+    for (uint8_t class_index = 1; class_index < TUSB_CLASS_MAPPED_INDEX_END; class_index++)
     {
-      if ((usbh_devices[dev_addr].flag_supported_class & BIT_(class_code)) &&
-          usbh_class_drivers[class_code].close)
+      if ((usbh_devices[dev_addr].flag_supported_class & BIT_(class_index)) &&
+          usbh_class_drivers[class_index].close)
       {
-        usbh_class_drivers[class_code].close(dev_addr);
+        usbh_class_drivers[class_index].close(dev_addr);
       }
     }
   }
@@ -434,29 +453,27 @@ tusb_error_t enumeration_body_subtask(void)
       p_desc += p_desc[DESCRIPTOR_OFFSET_LENGTH]; // skip the descriptor, increase by the descriptor's length
     }else
     {
-      uint8_t class_code = ((tusb_descriptor_interface_t*) p_desc)->bInterfaceClass;
-      if (class_code == 0)
-      {
-        SUBTASK_ASSERT( false ); // corrupted data, abort enumeration
-      }
-      // supported class TODO custom class
-      else if ( class_code < TUSB_CLASS_MAX_CONSEC_NUMBER && usbh_class_drivers[class_code].open_subtask)
+      static uint8_t class_index; // has to be static as it is used to call class's open_subtask
+
+      class_index = std_class_code_to_index( ((tusb_descriptor_interface_t*) p_desc)->bInterfaceClass );
+      SUBTASK_ASSERT( class_index != 0); // class_code == 0 means corrupted data, abort enumeration
+
+      if (usbh_class_drivers[class_index].open_subtask)      // supported class
       {
         uint16_t length=0;
         OSAL_SUBTASK_INVOKED_AND_WAIT ( // parameters in task/sub_task must be static storage (static or global)
-            usbh_class_drivers[ ((tusb_descriptor_interface_t*) p_desc)->bInterfaceClass ].open_subtask(
-                new_addr, (tusb_descriptor_interface_t*) p_desc, &length),
+            usbh_class_drivers[class_index].open_subtask( new_addr, (tusb_descriptor_interface_t*) p_desc, &length ),
             error
         );
 
-        if (error != TUSB_ERROR_NONE || length == 0) // Interface open failed, for example a subclass is not supported
+        if (error == TUSB_ERROR_NONE) // Interface open failed, for example a subclass is not supported
         {
-          p_desc += p_desc[DESCRIPTOR_OFFSET_LENGTH]; // skip this interface, the rest will be skipped by the above loop
-          // TODO can optimize the length --> open_subtask return a OPEN FAILED status
+          SUBTASK_ASSERT( length >= sizeof(tusb_descriptor_interface_t) );
+          usbh_devices[new_addr].flag_supported_class |= BIT_(class_index);
+          p_desc += length;
         }else
         {
-          usbh_devices[new_addr].flag_supported_class |= BIT_(((tusb_descriptor_interface_t*) p_desc)->bInterfaceClass);
-          p_desc += length;
+          p_desc += p_desc[DESCRIPTOR_OFFSET_LENGTH]; // skip this interface, the rest will be skipped by the above loop
         }
       } else // unsupported class (not enable or yet implemented)
       {

@@ -297,7 +297,7 @@ static inline uint8_t endpoint_address_to_physical_index(uint8_t ep_address)
   return (ep_address << 1) + (ep_address & 0x80 ? 1 : 0 );
 }
 
-tusb_error_t dcd_endpoint_configure(uint8_t coreid, tusb_descriptor_endpoint_t const * p_endpoint_desc)
+tusb_error_t dcd_pipe_open(uint8_t coreid, tusb_descriptor_endpoint_t const * p_endpoint_desc)
 {
   uint8_t phy_ep = endpoint_address_to_physical_index( p_endpoint_desc->bEndpointAddress );
 

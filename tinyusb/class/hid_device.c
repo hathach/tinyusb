@@ -136,7 +136,7 @@ tusb_error_t hidd_init(uint8_t coreid, tusb_descriptor_interface_t const * p_int
     {
       #if TUSB_CFG_DEVICE_HID_KEYBOARD
       case HID_PROTOCOL_KEYBOARD:
-        ASSERT_STATUS( dcd_endpoint_configure(coreid, p_desc_endpoint) );
+        ASSERT_STATUS( dcd_pipe_open(coreid, p_desc_endpoint) );
       break;
       #endif
 

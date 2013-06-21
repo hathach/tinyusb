@@ -94,7 +94,7 @@ void led_blinking_task(void * p_para)
 void keyboard_device_app_task(void * p_para)
 {
 #if 0
-  if (tusb_device_is_configured())
+  if (tusbd_is_configured())
   {
     static uint32_t count =0;
     if (count < 4)
