@@ -68,7 +68,7 @@ tusb_error_t tusbh_custom_read(uint8_t dev_addr, uint16_t vendor_id, uint16_t pr
   }
 
   ASSERT( p_buffer != NULL && length != 0, TUSB_ERROR_INVALID_PARA);
-  if ( hcd_pipe_is_idle(custom_interface[dev_addr-1].pipe_in) )
+  if ( !hcd_pipe_is_idle(custom_interface[dev_addr-1].pipe_in) )
   {
     return TUSB_ERROR_INTERFACE_IS_BUSY;
   }
