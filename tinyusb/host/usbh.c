@@ -130,6 +130,11 @@ tusb_device_state_t tusbh_device_get_state (uint8_t const dev_addr)
   return usbh_devices[dev_addr].state;
 }
 
+uint32_t tusbh_device_get_mounted_class_flag(uint8_t dev_addr)
+{
+  return tusbh_device_is_configured(dev_addr) ? usbh_devices[dev_addr].flag_supported_class : 0;
+}
+
 //--------------------------------------------------------------------+
 // CLASS-USBD API (don't require to verify parameters)
 //--------------------------------------------------------------------+

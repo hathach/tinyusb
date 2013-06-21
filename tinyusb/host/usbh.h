@@ -86,13 +86,14 @@ typedef struct {
 //--------------------------------------------------------------------+
 // APPLICATION API
 //--------------------------------------------------------------------+
-tusb_error_t tusbh_configuration_set     (uint8_t dev_addr, uint8_t configure_number) ATTR_WARN_UNUSED_RESULT;
+//tusb_error_t tusbh_configuration_set     (uint8_t dev_addr, uint8_t configure_number) ATTR_WARN_UNUSED_RESULT;
 tusb_device_state_t tusbh_device_get_state (uint8_t dev_addr) ATTR_WARN_UNUSED_RESULT ATTR_PURE;
 static inline bool tusbh_device_is_configured(uint8_t dev_addr) ATTR_ALWAYS_INLINE ATTR_WARN_UNUSED_RESULT ATTR_PURE;
 static inline bool tusbh_device_is_configured(uint8_t dev_addr)
 {
   return tusbh_device_get_state(dev_addr) == TUSB_DEVICE_STATE_CONFIGURED;
 }
+uint32_t tusbh_device_get_mounted_class_flag(uint8_t dev_addr);
 
 //--------------------------------------------------------------------+
 // APPLICATION CALLBACK
@@ -105,6 +106,7 @@ void         tusbh_device_mount_failed_cb(tusb_error_t error, tusb_descriptor_de
 // CLASS-USBH & INTERNAL API
 //--------------------------------------------------------------------+
 #ifdef _TINY_USB_SOURCE_FILE_
+
 
 OSAL_TASK_FUNCTION (usbh_enumeration_task) (void* p_task_para);
 tusb_error_t usbh_init(void);

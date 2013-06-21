@@ -56,8 +56,35 @@
 // INTERNAL OBJECT & FUNCTION DECLARATION
 //--------------------------------------------------------------------+
 custom_interface_info_t custom_interface[TUSB_CFG_HOST_DEVICE_MAX];
+
 //--------------------------------------------------------------------+
-// IMPLEMENTATION
+// APPLICATION API
+//--------------------------------------------------------------------+
+tusb_error_t tusbh_custom_read(uint8_t dev_addr, uint16_t vendor_id, uint16_t product_id, void * p_buffer, uint16_t length)
+{
+  if ( !tusbh_custom_is_mounted(dev_addr, vendor_id, product_id) )
+  {
+    return TUSB_ERROR_DEVICE_NOT_READY;
+  }
+
+  ASSERT( p_buffer != NULL && length != 0, TUSB_ERROR_INVALID_PARA);
+  if ( hcd_pipe_is_idle(custom_interface[dev_addr-1].pipe_in) )
+  {
+    return TUSB_ERROR_INTERFACE_IS_BUSY;
+  }
+
+  (void) hcd_pipe_xfer( custom_interface[dev_addr-1].pipe_in, p_buffer, length, false);
+
+  return TUSB_ERROR_NONE;
+}
+
+tusb_error_t tusbh_custom_write(uint8_t dev_addr, uint16_t vendor_id, uint16_t product_id, void const * p_data, uint16_t length)
+{
+  return TUSB_ERROR_NONE;
+}
+
+//--------------------------------------------------------------------+
+// USBH-CLASS API
 //--------------------------------------------------------------------+
 void cush_init(void)
 {

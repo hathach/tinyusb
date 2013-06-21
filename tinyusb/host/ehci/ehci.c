@@ -444,6 +444,12 @@ tusb_error_t  hcd_pipe_close(pipe_handle_t pipe_hdl)
   return TUSB_ERROR_NONE;
 }
 
+bool hcd_pipe_is_idle(pipe_handle_t pipe_hdl)
+{
+  ehci_qhd_t *p_qhd = qhd_get_from_pipe_handle( pipe_hdl );
+  return (p_qhd->p_qtd_list_head == NULL);
+}
+
 //--------------------------------------------------------------------+
 // EHCI Interrupt Handler
 //--------------------------------------------------------------------+

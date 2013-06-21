@@ -95,11 +95,11 @@ tusb_error_t hidh_interface_get_report(uint8_t dev_addr, void * report, hidh_int
 tusb_error_t hidh_interface_get_report(uint8_t dev_addr, void * report, hidh_interface_info_t *p_hid)
 {
   //------------- parameters validation -------------//
+  // TODO change to use is configured function
   ASSERT_INT(TUSB_DEVICE_STATE_CONFIGURED, tusbh_device_get_state(dev_addr), TUSB_ERROR_DEVICE_NOT_READY);
   ASSERT_PTR(report, TUSB_ERROR_INVALID_PARA);
   ASSERT(TUSB_INTERFACE_STATUS_BUSY != p_hid->status, TUSB_ERROR_INTERFACE_IS_BUSY);
 
-  // TODO abstract to use hidh service
   ASSERT_STATUS( hcd_pipe_xfer(p_hid->pipe_hdl, report, p_hid->report_size, true) ) ;
 
   p_hid->status = TUSB_INTERFACE_STATUS_BUSY;

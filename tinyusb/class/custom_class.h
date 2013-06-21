@@ -61,6 +61,17 @@ typedef struct {
 //--------------------------------------------------------------------+
 // USBH-CLASS DRIVER API
 //--------------------------------------------------------------------+
+STATIC_ INLINE_ bool tusbh_custom_is_mounted(uint8_t dev_addr, uint16_t vendor_id, uint16_t product_id);
+STATIC_ INLINE_ bool tusbh_custom_is_mounted(uint8_t dev_addr, uint16_t vendor_id, uint16_t product_id)
+{
+  (void) vendor_id; // TODO check this later
+  (void) product_id;
+  return (tusbh_device_get_mounted_class_flag(dev_addr) & BIT_(TUSB_CLASS_MAPPED_INDEX_END-1) ) != 0;
+}
+
+tusb_error_t tusbh_custom_read(uint8_t dev_addr, uint16_t vendor_id, uint16_t product_id, void * p_buffer, uint16_t length);
+tusb_error_t tusbh_custom_write(uint8_t dev_addr, uint16_t vendor_id, uint16_t product_id, void const * p_data, uint16_t length);
+
 #ifdef _TINY_USB_SOURCE_FILE_
 
 void         cush_init(void);
