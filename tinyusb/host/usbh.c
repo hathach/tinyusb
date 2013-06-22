@@ -157,10 +157,10 @@ tusb_error_t usbh_init(void)
   ASSERT_PTR(enum_queue_hdl, TUSB_ERROR_OSAL_QUEUE_FAILED);
 
   //------------- class init -------------//
-  for (uint8_t class_code = 1; class_code < TUSB_CLASS_MAPPED_INDEX_END; class_code++)
+  for (uint8_t class_index = 1; class_index < TUSB_CLASS_MAPPED_INDEX_END; class_index++)
   {
-    if (usbh_class_drivers[class_code].init)
-      usbh_class_drivers[class_code].init();
+    if (usbh_class_drivers[class_index].init)
+      usbh_class_drivers[class_index].init();
   }
 
   return TUSB_ERROR_NONE;
@@ -215,13 +215,14 @@ tusb_interface_status_t usbh_pipe_status_get(pipe_handle_t pipe_hdl)
 // interrupt caused by a TD (with IOC=1) in pipe of class class_code
 void usbh_isr(pipe_handle_t pipe_hdl, uint8_t class_code, tusb_event_t event)
 {
-  if (class_code == 0) // Control transfer
+  uint8_t class_index = std_class_code_to_index(class_code);
+  if (class_index == 0) // Control transfer
   {
     usbh_devices[ pipe_hdl.dev_addr ].control.pipe_status = (event == TUSB_EVENT_XFER_COMPLETE) ? TUSB_INTERFACE_STATUS_COMPLETE : TUSB_INTERFACE_STATUS_ERROR;
     osal_semaphore_post( usbh_devices[ pipe_hdl.dev_addr ].control.sem_hdl );
-  }else if (usbh_class_drivers[class_code].isr)
+  }else if (usbh_class_drivers[class_index].isr)
   {
-    usbh_class_drivers[class_code].isr(pipe_hdl, event);
+    usbh_class_drivers[class_index].isr(pipe_hdl, event);
   }else
   {
     ASSERT(false, (void) 0); // something wrong, no one claims the isr's source
@@ -461,7 +462,7 @@ tusb_error_t enumeration_body_subtask(void)
       static uint8_t class_index; // has to be static as it is used to call class's open_subtask
 
       class_index = std_class_code_to_index( ((tusb_descriptor_interface_t*) p_desc)->bInterfaceClass );
-      SUBTASK_ASSERT( class_index != 0); // class_code == 0 means corrupted data, abort enumeration
+      SUBTASK_ASSERT( class_index != 0); // class_index == 0 means corrupted data, abort enumeration
 
       if (usbh_class_drivers[class_index].open_subtask)      // supported class
       {

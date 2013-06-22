@@ -458,11 +458,11 @@ void async_advance_isr(ehci_qhd_t * const async_head)
   // TODO do we need to close addr0
   if(async_head->is_removing) // closing control pipe of addr0
   {
-    async_head->is_removing = 0;
-    async_head->p_qtd_list_head = async_head->p_qtd_list_tail = NULL;
+    async_head->is_removing        = 0;
+    async_head->p_qtd_list_head    = async_head->p_qtd_list_tail = NULL;
     async_head->qtd_overlay.halted = 1;
 
-    usbh_devices[0].state = TUSB_DEVICE_STATE_UNPLUG;
+    usbh_devices[0].state          = TUSB_DEVICE_STATE_UNPLUG;
   }
 
   for(uint8_t relative_dev_addr=0; relative_dev_addr < TUSB_CFG_HOST_DEVICE_MAX; relative_dev_addr++)

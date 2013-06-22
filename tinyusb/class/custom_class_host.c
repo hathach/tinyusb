@@ -73,7 +73,7 @@ tusb_error_t tusbh_custom_read(uint8_t dev_addr, uint16_t vendor_id, uint16_t pr
     return TUSB_ERROR_INTERFACE_IS_BUSY;
   }
 
-  (void) hcd_pipe_xfer( custom_interface[dev_addr-1].pipe_in, p_buffer, length, false);
+  (void) hcd_pipe_xfer( custom_interface[dev_addr-1].pipe_in, p_buffer, length, true);
 
   return TUSB_ERROR_NONE;
 }
