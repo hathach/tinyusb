@@ -456,7 +456,7 @@ bool hcd_pipe_is_idle(pipe_handle_t pipe_hdl)
 void async_advance_isr(ehci_qhd_t * const async_head)
 {
   // TODO do we need to close addr0
-  if(async_head->is_removing) // closing control pipe of addr0
+  if (async_head->is_removing) // closing control pipe of addr0
   {
     async_head->is_removing        = 0;
     async_head->p_qtd_list_head    = async_head->p_qtd_list_tail = NULL;
@@ -469,17 +469,17 @@ void async_advance_isr(ehci_qhd_t * const async_head)
   {
     // check if control endpoint is removing
     ehci_qhd_t *p_control_qhd = &ehci_data.device[relative_dev_addr].control.qhd;
-    if( p_control_qhd->is_removing )
+    if ( p_control_qhd->is_removing )
     {
-      p_control_qhd->is_removing     = 0;
-      p_control_qhd->used            = 0;
+      p_control_qhd->is_removing = 0;
+      p_control_qhd->used        = 0;
 
       // Host Controller has cleaned up its cached data for this device, set state to unplug
       usbh_devices[relative_dev_addr+1].state = TUSB_DEVICE_STATE_UNPLUG;
 
       for (uint8_t i=0; i<EHCI_MAX_QHD; i++) // free all qhd
       {
-        ehci_data.device[relative_dev_addr].qhd[i].used = 0;
+        ehci_data.device[relative_dev_addr].qhd[i].used        = 0;
         ehci_data.device[relative_dev_addr].qhd[i].is_removing = 0;
       }
       for (uint8_t i=0; i<EHCI_MAX_QTD; i++) // free all qtd

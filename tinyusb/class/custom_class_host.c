@@ -57,10 +57,7 @@
 //--------------------------------------------------------------------+
 custom_interface_info_t custom_interface[TUSB_CFG_HOST_DEVICE_MAX];
 
-//--------------------------------------------------------------------+
-// APPLICATION API
-//--------------------------------------------------------------------+
-tusb_error_t tusbh_custom_read(uint8_t dev_addr, uint16_t vendor_id, uint16_t product_id, void * p_buffer, uint16_t length)
+static tusb_error_t cush_validate_paras(uint8_t dev_addr, uint16_t vendor_id, uint16_t product_id, void * p_buffer, uint16_t length)
 {
   if ( !tusbh_custom_is_mounted(dev_addr, vendor_id, product_id) )
   {
@@ -68,6 +65,16 @@ tusb_error_t tusbh_custom_read(uint8_t dev_addr, uint16_t vendor_id, uint16_t pr
   }
 
   ASSERT( p_buffer != NULL && length != 0, TUSB_ERROR_INVALID_PARA);
+
+  return TUSB_ERROR_NONE;
+}
+//--------------------------------------------------------------------+
+// APPLICATION API (need to check parameters)
+//--------------------------------------------------------------------+
+tusb_error_t tusbh_custom_read(uint8_t dev_addr, uint16_t vendor_id, uint16_t product_id, void * p_buffer, uint16_t length)
+{
+  ASSERT_STATUS( cush_validate_paras(dev_addr, vendor_id, product_id, p_buffer, length) );
+
   if ( !hcd_pipe_is_idle(custom_interface[dev_addr-1].pipe_in) )
   {
     return TUSB_ERROR_INTERFACE_IS_BUSY;
@@ -80,6 +87,15 @@ tusb_error_t tusbh_custom_read(uint8_t dev_addr, uint16_t vendor_id, uint16_t pr
 
 tusb_error_t tusbh_custom_write(uint8_t dev_addr, uint16_t vendor_id, uint16_t product_id, void const * p_data, uint16_t length)
 {
+  ASSERT_STATUS( cush_validate_paras(dev_addr, vendor_id, product_id, p_data, length) );
+
+  if ( !hcd_pipe_is_idle(custom_interface[dev_addr-1].pipe_out) )
+  {
+    return TUSB_ERROR_INTERFACE_IS_BUSY;
+  }
+
+  (void) hcd_pipe_xfer( custom_interface[dev_addr-1].pipe_out, p_data, length, true);
+
   return TUSB_ERROR_NONE;
 }
 
