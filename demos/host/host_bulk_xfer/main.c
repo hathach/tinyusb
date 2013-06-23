@@ -119,11 +119,12 @@ void custom_class_loopback_task (void* p_task_para)
   {
     tusbh_custom_read(1, 0, 0, custom_read_buffer, sizeof(custom_read_buffer));
 
-    static uint32_t magic_number = 1;
-    custom_write_buffer[0] = magic_number;
-    tusbh_custom_write(1, 0, 0, custom_write_buffer, sizeof(custom_write_buffer));
-
-    magic_number += 2;
+    if (TUSB_ERROR_NONE == tusbh_custom_write(1, 0, 0, custom_write_buffer, sizeof(custom_write_buffer)))
+    {
+      static uint32_t magic_number = 1;
+      custom_write_buffer[0] = magic_number;
+      magic_number += 2;
+    }
   }
 }
 
