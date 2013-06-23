@@ -112,18 +112,22 @@ int main(void)
 // BLINKING TASK
 //--------------------------------------------------------------------+
 uint8_t custom_read_buffer[4*1024] TUSB_CFG_ATTR_USBRAM;
-uint32_t custom_write_buffer[1024] TUSB_CFG_ATTR_USBRAM;
+uint32_t custom_write_buffer[64][64] TUSB_CFG_ATTR_USBRAM; // still 4k
 void custom_class_loopback_task (void* p_task_para)
 {
   if( tusbh_custom_is_mounted(1, 0, 0) ) // hardcode addr = 1, ignore vendor/product ID
   {
     tusbh_custom_read(1, 0, 0, custom_read_buffer, sizeof(custom_read_buffer));
 
+
     if (TUSB_ERROR_NONE == tusbh_custom_write(1, 0, 0, custom_write_buffer, sizeof(custom_write_buffer)))
     {
       static uint32_t magic_number = 1;
-      custom_write_buffer[0] = magic_number;
-      magic_number += 2;
+      for(uint32_t i = 0; i < 64; i++)
+      {
+        custom_write_buffer[i][0] = magic_number;
+        magic_number += 2;
+      }
     }
   }
 }
