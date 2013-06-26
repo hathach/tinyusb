@@ -60,7 +60,7 @@
 // CONTROLLER CONFIGURATION
 //--------------------------------------------------------------------+
 #define TUSB_CFG_CONTROLLER0_MODE  (TUSB_MODE_HOST | TUSB_MODE_DEVICE)
-#define TUSB_CFG_CONTROLLER1_MODE  TUSB_MODE_HOST
+#define TUSB_CFG_CONTROLLER1_MODE  (TUSB_MODE_NONE)
 
 //--------------------------------------------------------------------+
 // HOST CONFIGURATION

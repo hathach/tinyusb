@@ -130,13 +130,12 @@ bool  tusbh_hid_keyboard_is_mounted(uint8_t dev_addr)
   return tusbh_device_is_configured(dev_addr) && pipehandle_is_valid(keyboard_data[dev_addr-1].pipe_hdl);
 }
 
-tusb_error_t tusbh_hid_keyboard_get_report(uint8_t dev_addr, uint8_t instance_num, void* report)
+tusb_error_t tusbh_hid_keyboard_get_report(uint8_t dev_addr, void* report)
 {
-  (void) instance_num;
   return hidh_interface_get_report(dev_addr, report, &keyboard_data[dev_addr-1]);
 }
 
-tusb_interface_status_t tusbh_hid_keyboard_status(uint8_t dev_addr, uint8_t instance_num)
+tusb_interface_status_t tusbh_hid_keyboard_status(uint8_t dev_addr)
 {
   return hidh_interface_status(dev_addr, &keyboard_data[dev_addr-1]);
 }
@@ -156,13 +155,12 @@ bool tusbh_hid_mouse_is_mounted(uint8_t dev_addr)
   return tusbh_device_is_configured(dev_addr) && pipehandle_is_valid(mouse_data[dev_addr-1].pipe_hdl);
 }
 
-tusb_error_t tusbh_hid_mouse_get_report(uint8_t dev_addr, uint8_t instance_num, void * report)
+tusb_error_t tusbh_hid_mouse_get_report(uint8_t dev_addr, void * report)
 {
-  (void) instance_num;
   return hidh_interface_get_report(dev_addr, report, &mouse_data[dev_addr-1]);
 }
 
-tusb_interface_status_t tusbh_hid_mouse_status(uint8_t dev_addr, uint8_t instance_num)
+tusb_interface_status_t tusbh_hid_mouse_status(uint8_t dev_addr)
 {
   return hidh_interface_status(dev_addr, &mouse_data[dev_addr-1]);
 }
@@ -221,7 +219,7 @@ tusb_error_t hidh_open_subtask(uint8_t dev_addr, tusb_descriptor_interface_t con
       ASSERT_STATUS ( hidh_interface_open(dev_addr, (tusb_descriptor_endpoint_t const *) p_desc, &keyboard_data[dev_addr-1]) );
       if ( tusbh_hid_keyboard_isr )
       {
-        tusbh_hid_keyboard_isr(dev_addr, 0, TUSB_EVENT_INTERFACE_OPEN);
+        tusbh_hid_keyboard_isr(dev_addr, TUSB_EVENT_INTERFACE_OPEN);
       }
     break;
     #endif
@@ -231,7 +229,7 @@ tusb_error_t hidh_open_subtask(uint8_t dev_addr, tusb_descriptor_interface_t con
       ASSERT_STATUS ( hidh_interface_open(dev_addr, (tusb_descriptor_endpoint_t const *) p_desc, &mouse_data[dev_addr-1]) );
       if (tusbh_hid_mouse_isr)
       {
-        tusbh_hid_mouse_isr(dev_addr, 0, TUSB_EVENT_INTERFACE_OPEN);
+        tusbh_hid_mouse_isr(dev_addr, TUSB_EVENT_INTERFACE_OPEN);
       }
     break;
     #endif
@@ -252,7 +250,7 @@ void hidh_isr(pipe_handle_t pipe_hdl, tusb_event_t event)
     keyboard_data[pipe_hdl.dev_addr-1].status = (event == TUSB_EVENT_XFER_COMPLETE) ? TUSB_INTERFACE_STATUS_COMPLETE : TUSB_INTERFACE_STATUS_ERROR;
     if (tusbh_hid_keyboard_isr)
     {
-      tusbh_hid_keyboard_isr(pipe_hdl.dev_addr, 0, event);
+      tusbh_hid_keyboard_isr(pipe_hdl.dev_addr, event);
     }
     return;
   }
@@ -264,7 +262,7 @@ void hidh_isr(pipe_handle_t pipe_hdl, tusb_event_t event)
     mouse_data[pipe_hdl.dev_addr-1].status = (event == TUSB_EVENT_XFER_COMPLETE) ? TUSB_INTERFACE_STATUS_COMPLETE : TUSB_INTERFACE_STATUS_ERROR;
     if (tusbh_hid_mouse_isr)
     {
-      tusbh_hid_mouse_isr(pipe_hdl.dev_addr, 0, event);
+      tusbh_hid_mouse_isr(pipe_hdl.dev_addr, event);
     }
 
     return;

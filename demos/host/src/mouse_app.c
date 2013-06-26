@@ -40,7 +40,11 @@
 // INCLUDE
 //--------------------------------------------------------------------+
 #include "mouse_app.h"
+
+#if TUSB_CFG_OS != TUSB_OS_NONE
 #include "app_os_prio.h"
+#endif
+
 
 #if TUSB_CFG_HOST_HID_MOUSE
 
@@ -63,13 +67,13 @@ static inline void process_mouse_report(tusb_mouse_report_t const * p_report);
 //--------------------------------------------------------------------+
 // tinyusb callback (ISR context)
 //--------------------------------------------------------------------+
-void tusbh_hid_mouse_isr(uint8_t dev_addr, uint8_t instance_num, tusb_event_t event)
+void tusbh_hid_mouse_isr(uint8_t dev_addr, tusb_event_t event)
 {
   switch(event)
   {
     case TUSB_EVENT_INTERFACE_OPEN: // application set-up
       osal_queue_flush(queue_mouse_hdl);
-      tusbh_hid_mouse_get_report(dev_addr, instance_num, (uint8_t*) &usb_mouse_report); // first report
+      tusbh_hid_mouse_get_report(dev_addr, (uint8_t*) &usb_mouse_report); // first report
     break;
 
     case TUSB_EVENT_INTERFACE_CLOSE: // application tear-down
@@ -78,11 +82,11 @@ void tusbh_hid_mouse_isr(uint8_t dev_addr, uint8_t instance_num, tusb_event_t ev
 
     case TUSB_EVENT_XFER_COMPLETE:
       osal_queue_send(queue_mouse_hdl, &usb_mouse_report);
-      tusbh_hid_mouse_get_report(dev_addr, instance_num, (uint8_t*) &usb_mouse_report);
+      tusbh_hid_mouse_get_report(dev_addr, (uint8_t*) &usb_mouse_report);
     break;
 
     case TUSB_EVENT_XFER_ERROR:
-      tusbh_hid_mouse_get_report(dev_addr, instance_num, (uint8_t*) &usb_mouse_report); // ignore & continue
+      tusbh_hid_mouse_get_report(dev_addr, (uint8_t*) &usb_mouse_report); // ignore & continue
     break;
 
     default :

@@ -176,13 +176,14 @@ tusb_error_t usbd_init (void)
   ASSERT_STATUS ( dcd_init() );
 
   uint16_t length = 0;
+
   #if TUSB_CFG_DEVICE_HID_KEYBOARD
   tusb_descriptor_interface_t const * p_interface = &app_tusb_desc_configuration.keyboard_interface;
   ASSERT_STATUS( hidd_init(0, p_interface, &length) );
   usbd_devices[0].interface2class[p_interface->bInterfaceNumber] = p_interface->bInterfaceClass;
   #endif
 
-  #if TUSB_CFG_DEVICE_HID_MOUSE && 0
+  #if TUSB_CFG_DEVICE_HID_MOUSE
   ASSERT_STATUS( hidd_init(0, &app_tusb_desc_configuration.mouse_interface, &length) );
   #endif
 

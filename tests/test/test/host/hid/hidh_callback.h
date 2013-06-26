@@ -59,8 +59,8 @@
 #include "common/common.h"
 
 //------------- hidh -------------//
-void tusbh_hid_keyboard_isr(uint8_t dev_addr, uint8_t instance_num, tusb_event_t event) ATTR_WEAK;
-void tusbh_hid_mouse_isr(uint8_t dev_addr, uint8_t instance_num, tusb_event_t event) ATTR_WEAK;
+void tusbh_hid_keyboard_isr(uint8_t dev_addr, tusb_event_t event) ATTR_WEAK;
+void tusbh_hid_mouse_isr(uint8_t dev_addr, tusb_event_t event) ATTR_WEAK;
 
 #ifdef __cplusplus
  }

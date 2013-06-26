@@ -132,7 +132,7 @@ void test_dcd_configure_endpoint_in(void)
   memclr_(&lpc_usb, sizeof(LPC_USB_TypeDef)); // clear to examine register after CUT
 
   //------------- Code Under Test -------------//
-  dcd_endpoint_configure(0, &desc_endpoint);
+  dcd_pipe_open(0, &desc_endpoint);
 
   uint8_t const phy_ep = 2*3 + 1;
   TEST_ASSERT_EQUAL_HEX( BIT_(phy_ep), LPC_USB->USBReEp);
