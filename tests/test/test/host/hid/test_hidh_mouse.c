@@ -107,6 +107,24 @@ void test_mouse_is_supported_ok(void)
   TEST_ASSERT_TRUE( tusbh_hid_mouse_is_mounted(dev_addr) );
 }
 
+static tusb_error_t stub_set_idle_request(uint8_t address, tusb_std_request_t const* p_request, uint8_t* data, int num_call)
+{
+  TEST_ASSERT_EQUAL( dev_addr, address);
+
+  //------------- expecting Set Idle with value = 0 -------------//
+  TEST_ASSERT_NOT_NULL( p_request );
+  TEST_ASSERT_EQUAL(TUSB_DIR_HOST_TO_DEV                   , p_request->bmRequestType.direction);
+  TEST_ASSERT_EQUAL(TUSB_REQUEST_TYPE_CLASS                , p_request->bmRequestType.type);
+  TEST_ASSERT_EQUAL(TUSB_REQUEST_RECIPIENT_INTERFACE       , p_request->bmRequestType.recipient);
+  TEST_ASSERT_EQUAL(HID_REQUEST_CONTROL_SET_IDLE           , p_request->bRequest);
+  TEST_ASSERT_EQUAL(0                                      , p_request->wValue);
+  TEST_ASSERT_EQUAL(p_mouse_interface_desc->bInterfaceNumber , p_request->wIndex);
+
+  TEST_ASSERT_NULL(data);
+
+  return TUSB_ERROR_NONE;
+}
+
 void test_mouse_open_ok(void)
 {
   uint16_t length=0;
@@ -114,6 +132,7 @@ void test_mouse_open_ok(void)
 
   hidh_init();
 
+  usbh_control_xfer_subtask_StubWithCallback(stub_set_idle_request);
   hcd_pipe_open_ExpectAndReturn(dev_addr, p_mouse_endpoint_desc, TUSB_CLASS_HID, pipe_hdl);
   tusbh_hid_mouse_isr_Expect(dev_addr, TUSB_EVENT_INTERFACE_OPEN);
 
@@ -124,6 +143,7 @@ void test_mouse_open_ok(void)
   TEST_ASSERT_EQUAL(8, p_hidh_mouse->report_size);
   TEST_ASSERT_EQUAL(sizeof(tusb_descriptor_interface_t) + sizeof(tusb_hid_descriptor_hid_t) + sizeof(tusb_descriptor_endpoint_t),
                     length);
+  TEST_ASSERT_EQUAL(p_mouse_interface_desc->bInterfaceNumber, p_hidh_mouse->interface_number);
 
   tusbh_device_get_state_IgnoreAndReturn(TUSB_DEVICE_STATE_CONFIGURED);
   TEST_ASSERT_TRUE( tusbh_hid_mouse_is_mounted(dev_addr) );

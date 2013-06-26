@@ -176,7 +176,7 @@ tusb_error_t usbh_control_xfer_subtask(uint8_t dev_addr, tusb_std_request_t cons
 
   usbh_devices[dev_addr].control.pipe_status = TUSB_INTERFACE_STATUS_BUSY;
   usbh_devices[dev_addr].control.request = *p_request;
-  (void) hcd_pipe_control_xfer(dev_addr, &usbh_devices[dev_addr].control.request, data);
+  SUBTASK_ASSERT_STATUS( hcd_pipe_control_xfer(dev_addr, &usbh_devices[dev_addr].control.request, data) );
 
   osal_semaphore_wait(usbh_devices[dev_addr].control.sem_hdl, OSAL_TIMEOUT_NORMAL, &error); // careful of local variable without static
   // TODO make handler for this function general purpose
@@ -447,6 +447,9 @@ tusb_error_t enumeration_body_subtask(void)
 
   usbh_devices[new_addr].state = TUSB_DEVICE_STATE_CONFIGURED;
 
+  //------------- TODO Get String Descriptors -------------//
+
+
   //------------- parse configuration & install drivers -------------//
   p_desc = enum_data_buffer + sizeof(tusb_descriptor_configuration_t);
 
@@ -472,12 +475,12 @@ tusb_error_t enumeration_body_subtask(void)
             error
         );
 
-        if (error == TUSB_ERROR_NONE) // Interface open failed, for example a subclass is not supported
+        if (error == TUSB_ERROR_NONE)
         {
           SUBTASK_ASSERT( length >= sizeof(tusb_descriptor_interface_t) );
           usbh_devices[new_addr].flag_supported_class |= BIT_(class_index);
           p_desc += length;
-        }else
+        }else  // Interface open failed, for example a subclass is not supported
         {
           p_desc += p_desc[DESCRIPTOR_OFFSET_LENGTH]; // skip this interface, the rest will be skipped by the above loop
         }

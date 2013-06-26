@@ -93,6 +93,7 @@ void tusbh_hid_generic_isr(uint8_t dev_addr, tusb_event_t event) ATTR_WEAK;
 typedef struct {
   pipe_handle_t pipe_hdl;
   uint16_t report_size;
+  uint8_t interface_number;
   volatile tusb_interface_status_t status;
 }hidh_interface_info_t;
 

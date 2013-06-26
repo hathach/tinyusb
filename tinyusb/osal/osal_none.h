@@ -93,6 +93,7 @@ static inline volatile uint32_t osal_tick_get(void)
 
 #define OSAL_TASK_FUNCTION(task_func) \
   tusb_error_t task_func
+
 #define TASK_RESTART \
   state = 0
 
@@ -144,6 +145,7 @@ static inline volatile uint32_t osal_tick_get(void)
     ASSERT_DEFINE_WITH_HANDLER(_SUBTASK_ASSERT_ERROR_HANDLER, func_call, tusb_error_t status = (tusb_error_t)(sts),\
                                TUSB_ERROR_NONE == status, status, "%s", TUSB_ErrorStr[status])
 
+// TODO allow to specify error return
 #define SUBTASK_ASSERT(condition)  \
     ASSERT_DEFINE_WITH_HANDLER(_SUBTASK_ASSERT_ERROR_HANDLER, , , \
                                (condition), TUSB_ERROR_OSAL_TASK_FAILED, "%s", "evaluated to false")

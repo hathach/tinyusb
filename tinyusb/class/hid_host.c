@@ -68,11 +68,12 @@ tusb_interface_status_t hidh_interface_status(uint8_t dev_addr, hidh_interface_i
   }
 }
 
-static inline tusb_error_t hidh_interface_open(uint8_t dev_addr, tusb_descriptor_endpoint_t const *p_endpoint_desc, hidh_interface_info_t *p_hid) ATTR_ALWAYS_INLINE;
-static inline tusb_error_t hidh_interface_open(uint8_t dev_addr, tusb_descriptor_endpoint_t const *p_endpoint_desc, hidh_interface_info_t *p_hid)
+static inline tusb_error_t hidh_interface_open(uint8_t dev_addr, uint8_t interface_number, tusb_descriptor_endpoint_t const *p_endpoint_desc, hidh_interface_info_t *p_hid) ATTR_ALWAYS_INLINE;
+static inline tusb_error_t hidh_interface_open(uint8_t dev_addr, uint8_t interface_number, tusb_descriptor_endpoint_t const *p_endpoint_desc, hidh_interface_info_t *p_hid)
 {
-  p_hid->pipe_hdl    = hcd_pipe_open(dev_addr, p_endpoint_desc, TUSB_CLASS_HID);
-  p_hid->report_size = p_endpoint_desc->wMaxPacketSize.size; // TODO get size from report descriptor
+  p_hid->pipe_hdl         = hcd_pipe_open(dev_addr, p_endpoint_desc, TUSB_CLASS_HID);
+  p_hid->report_size      = p_endpoint_desc->wMaxPacketSize.size; // TODO get size from report descriptor
+  p_hid->interface_number = interface_number;
 
   ASSERT (pipehandle_is_valid(p_hid->pipe_hdl), TUSB_ERROR_HCD_FAILED);
 
@@ -198,6 +199,7 @@ void hidh_init(void)
 
 tusb_error_t hidh_open_subtask(uint8_t dev_addr, tusb_descriptor_interface_t const *p_interface_desc, uint16_t *p_length)
 {
+  tusb_error_t error;
   uint8_t const *p_desc = (uint8_t const *) p_interface_desc;
 
   //------------- HID descriptor -------------//
@@ -205,41 +207,68 @@ tusb_error_t hidh_open_subtask(uint8_t dev_addr, tusb_descriptor_interface_t con
   tusb_hid_descriptor_hid_t const *p_desc_hid = (tusb_hid_descriptor_hid_t const *) p_desc;
   ASSERT_INT(HID_DESC_TYPE_HID, p_desc_hid->bDescriptorType, TUSB_ERROR_INVALID_PARA);
 
-  //------------- TODO skip Get Report Descriptor -------------//
-  uint8_t *p_report_desc = NULL; // report descriptor has to be global & in USB RAM
-
   //------------- Endpoint Descriptor -------------//
   p_desc += p_desc[DESCRIPTOR_OFFSET_LENGTH];
-  ASSERT_INT(TUSB_DESC_TYPE_ENDPOINT, p_desc[DESCRIPTOR_OFFSET_TYPE], TUSB_ERROR_INVALID_PARA);
+  tusb_descriptor_endpoint_t const * p_endpoint_desc = (tusb_descriptor_endpoint_t const *) p_desc;
+  ASSERT_INT(TUSB_DESC_TYPE_ENDPOINT, p_endpoint_desc->bDescriptorType, TUSB_ERROR_INVALID_PARA);
 
-  switch(p_interface_desc->bInterfaceProtocol)
+  OSAL_SUBTASK_BEGIN
+
+  //------------- SET IDLE request -------------//
+//  OSAL_SUBTASK_INVOKED_AND_WAIT(
+//    usbh_control_xfer_subtask(
+//      dev_addr,
+//      &(tusb_std_request_t)
+//      {
+//        .bmRequestType = { .direction = TUSB_DIR_HOST_TO_DEV, .type = TUSB_REQUEST_TYPE_CLASS, .recipient = TUSB_REQUEST_RECIPIENT_INTERFACE },
+//        .bRequest = HID_REQUEST_CONTROL_SET_IDLE,
+//        .wValue   = 0,
+//        .wIndex   = p_interface_desc->bInterfaceNumber
+//      },
+//      NULL ),
+//    error
+//  );
+
+  //------------- TODO skip Get Report Descriptor -------------//
+//  uint8_t *p_report_desc = NULL; // report descriptor has to be global & in USB RAM
+
+  if ( HID_SUBCLASS_BOOT == p_interface_desc->bInterfaceSubClass )
   {
     #if TUSB_CFG_HOST_HID_KEYBOARD
-    case HID_PROTOCOL_KEYBOARD:
-      ASSERT_STATUS ( hidh_interface_open(dev_addr, (tusb_descriptor_endpoint_t const *) p_desc, &keyboard_data[dev_addr-1]) );
+    if ( HID_PROTOCOL_KEYBOARD == p_interface_desc->bInterfaceProtocol)
+    {
+      SUBTASK_ASSERT_STATUS ( hidh_interface_open(dev_addr, p_interface_desc->bInterfaceNumber, p_endpoint_desc, &keyboard_data[dev_addr-1]) );
       if ( tusbh_hid_keyboard_isr )
       {
         tusbh_hid_keyboard_isr(dev_addr, TUSB_EVENT_INTERFACE_OPEN);
       }
-    break;
+    } else
     #endif
 
     #if TUSB_CFG_HOST_HID_MOUSE
-    case HID_PROTOCOL_MOUSE:
-      ASSERT_STATUS ( hidh_interface_open(dev_addr, (tusb_descriptor_endpoint_t const *) p_desc, &mouse_data[dev_addr-1]) );
+    if ( HID_PROTOCOL_MOUSE == p_interface_desc->bInterfaceProtocol)
+    {
+      SUBTASK_ASSERT_STATUS ( hidh_interface_open(dev_addr, p_interface_desc->bInterfaceNumber, p_endpoint_desc, &mouse_data[dev_addr-1]) );
       if (tusbh_hid_mouse_isr)
       {
         tusbh_hid_mouse_isr(dev_addr, TUSB_EVENT_INTERFACE_OPEN);
       }
-    break;
+    } else
     #endif
 
-    default: // TODO unknown, unsupported protocol --> skip this interface
-      return TUSB_ERROR_NONE;
+    {
+      // TODO assert without breaking into debugger
+      SUBTASK_ASSERT_STATUS(TUSB_ERROR_HIDH_NOT_SUPPORTED_PROTOCOL);
+    }
+  }else
+  {
+    // TODO assert without breaking into debugger
+    SUBTASK_ASSERT_STATUS(TUSB_ERROR_HIDH_NOT_SUPPORTED_SUBCLASS);
   }
 
   *p_length = sizeof(tusb_descriptor_interface_t) + sizeof(tusb_hid_descriptor_hid_t) + sizeof(tusb_descriptor_endpoint_t);
-  return TUSB_ERROR_NONE;
+
+  OSAL_SUBTASK_END
 }
 
 void hidh_isr(pipe_handle_t pipe_hdl, tusb_event_t event)
