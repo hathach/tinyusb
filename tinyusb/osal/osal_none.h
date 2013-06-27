@@ -166,23 +166,23 @@ typedef osal_semaphore_t * osal_semaphore_handle_t;
 #define OSAL_SEM_REF(name)\
   &name
 
-static inline osal_semaphore_handle_t osal_semaphore_create(osal_semaphore_t * const p_sem) ATTR_WARN_UNUSED_RESULT ATTR_ALWAYS_INLINE;
-static inline osal_semaphore_handle_t osal_semaphore_create(osal_semaphore_t * const p_sem)
+static inline osal_semaphore_handle_t osal_semaphore_create(osal_semaphore_t * p_sem) ATTR_WARN_UNUSED_RESULT ATTR_ALWAYS_INLINE;
+static inline osal_semaphore_handle_t osal_semaphore_create(osal_semaphore_t * p_sem)
 {
-  (*p_sem) = 0;
+  (*p_sem) = 0; // TODO consider to have initial count parameter
   return (osal_semaphore_handle_t) p_sem;
 }
 
-static inline  tusb_error_t osal_semaphore_post(osal_semaphore_handle_t const sem_hdl) ATTR_ALWAYS_INLINE;
-static inline  tusb_error_t osal_semaphore_post(osal_semaphore_handle_t const sem_hdl)
+static inline  tusb_error_t osal_semaphore_post(osal_semaphore_handle_t sem_hdl) ATTR_ALWAYS_INLINE;
+static inline  tusb_error_t osal_semaphore_post(osal_semaphore_handle_t sem_hdl)
 {
   (*sem_hdl)++;
 
   return TUSB_ERROR_NONE;
 }
 
-static inline void osal_semaphore_reset(osal_semaphore_handle_t const sem_hdl) ATTR_ALWAYS_INLINE;
-static inline void osal_semaphore_reset(osal_semaphore_handle_t const sem_hdl)
+static inline void osal_semaphore_reset(osal_semaphore_handle_t sem_hdl) ATTR_ALWAYS_INLINE;
+static inline void osal_semaphore_reset(osal_semaphore_handle_t sem_hdl)
 {
   (*sem_hdl) = 0;
 }
@@ -201,6 +201,41 @@ static inline void osal_semaphore_reset(osal_semaphore_handle_t const sem_hdl)
       *(p_error) = TUSB_ERROR_NONE;\
     }\
   }while(0)
+
+//--------------------------------------------------------------------+
+// MUTEX API (priority inheritance)
+//--------------------------------------------------------------------+
+typedef osal_semaphore_t        osal_mutex_t;
+typedef osal_semaphore_handle_t osal_mutex_handle_t;
+
+#define OSAL_MUTEX_DEF(name)\
+  osal_mutex_t name
+
+#define OSAL_MUTEX_REF(name)\
+  &name
+
+static inline osal_mutex_handle_t osal_mutex_create(osal_mutex_t * p_mutex) ATTR_WARN_UNUSED_RESULT ATTR_ALWAYS_INLINE;
+static inline osal_mutex_handle_t osal_mutex_create(osal_mutex_t * p_mutex)
+{
+  (*p_mutex) = 1;
+  return (osal_mutex_handle_t) p_mutex;
+}
+
+static inline  tusb_error_t osal_mutex_release(osal_mutex_handle_t mutex_hdl) ATTR_ALWAYS_INLINE;
+static inline  tusb_error_t osal_mutex_release(osal_mutex_handle_t mutex_hdl)
+{
+  (*mutex_hdl) = 1; // mutex is a binary semaphore
+
+  return TUSB_ERROR_NONE;
+}
+
+static inline void osal_mutex_reset(osal_mutex_handle_t mutex_hdl) ATTR_ALWAYS_INLINE;
+static inline void osal_mutex_reset(osal_mutex_handle_t mutex_hdl)
+{
+  (*mutex_hdl) = 1;
+}
+
+#define osal_mutex_wait osal_semaphore_wait
 
 //--------------------------------------------------------------------+
 // QUEUE API

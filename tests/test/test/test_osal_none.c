@@ -54,11 +54,15 @@ osal_semaphore_handle_t sem_hdl;
 OSAL_QUEUE_DEF(queue, QUEUE_DEPTH, uint32_t);
 osal_queue_handle_t queue_hdl;
 
+OSAL_MUTEX_DEF(mutex);
+osal_mutex_handle_t mutex_hdl;
+
 void setUp(void)
 {
   memset(statements, 0, sizeof(statements));
   sem_hdl = osal_semaphore_create(OSAL_SEM_REF(sem));
   queue_hdl = osal_queue_create(&queue);
+  mutex_hdl = osal_mutex_create(OSAL_MUTEX_REF(mutex));
 }
 
 void tearDown(void)
@@ -81,6 +85,21 @@ void test_semaphore_post(void)
   TEST_ASSERT_EQUAL(1, sem);
 }
 // blocking service such as semaphore wait need to be invoked within a task's loop
+
+//--------------------------------------------------------------------+
+// Mutex
+//--------------------------------------------------------------------+
+void test_mutex_create(void)
+{
+  TEST_ASSERT_EQUAL_PTR(&mutex, mutex_hdl);
+  TEST_ASSERT_EQUAL(1, mutex);
+}
+
+void test_mutex_release(void)
+{
+  osal_mutex_release(mutex_hdl);
+  TEST_ASSERT_EQUAL(1, mutex);
+}
 
 //--------------------------------------------------------------------+
 // Queue
@@ -164,6 +183,76 @@ void test_task_with_semaphore(void)
 }
 
 //--------------------------------------------------------------------+
+// TASK MUTEX
+//--------------------------------------------------------------------+
+tusb_error_t mutex_sample_task1(void) // occupy mutex and not release it
+{
+  tusb_error_t error = TUSB_ERROR_NONE;
+
+  OSAL_TASK_LOOP_BEGIN
+
+  statements[0]++;
+
+  osal_mutex_wait(mutex_hdl, OSAL_TIMEOUT_WAIT_FOREVER, &error);
+  statements[2]++;
+
+  OSAL_TASK_LOOP_END
+}
+
+tusb_error_t mutex_sample_task2(void)
+{
+  tusb_error_t error = TUSB_ERROR_NONE;
+
+  OSAL_TASK_LOOP_BEGIN
+
+  statements[1]++;
+
+  osal_mutex_wait(mutex_hdl, OSAL_TIMEOUT_WAIT_FOREVER, &error);
+  statements[3]++;
+
+  osal_mutex_wait(mutex_hdl, OSAL_TIMEOUT_NORMAL, &error);
+  statements[5]++;
+
+  TEST_ASSERT_EQUAL(TUSB_ERROR_OSAL_TIMEOUT, error);
+
+  OSAL_TASK_LOOP_END
+}
+
+void test_task_with_mutex(void)
+{
+  // several invoke before mutex is available
+  mutex_sample_task1();
+  for(uint32_t i=0; i<10; i++) {
+    mutex_sample_task2();
+  }
+
+  TEST_ASSERT_EQUAL(1, statements[0]);
+  TEST_ASSERT_EQUAL(1, statements[2]);
+
+  TEST_ASSERT_EQUAL(1, statements[1]);
+  TEST_ASSERT_EQUAL(0, statements[3]);
+
+  // invoke after posting mutex
+  osal_mutex_release(mutex_hdl);
+  for(uint32_t i=0; i<10; i++) {
+    mutex_sample_task2();
+  }
+  TEST_ASSERT_EQUAL(1, statements[3]);
+  TEST_ASSERT_EQUAL(0, statements[5]);
+
+  // timeout
+  for(uint32_t i=0; i<(OSAL_TIMEOUT_NORMAL*TUSB_CFG_OS_TICKS_PER_SECOND)/1000 ; i++){ // one tick less
+    osal_tick_tock();
+  }
+  mutex_sample_task2();
+  TEST_ASSERT_EQUAL(0, statements[5]);
+  osal_tick_tock();
+
+  mutex_sample_task2();
+  TEST_ASSERT_EQUAL(1, statements[5]);
+}
+
+//--------------------------------------------------------------------+
 // TASK QUEUE
 //--------------------------------------------------------------------+
 tusb_error_t sample_task_with_queue(void)
@@ -205,7 +294,7 @@ void test_task_with_queue(void)
     sample_task_with_queue();
   TEST_ASSERT_EQUAL(1, statements[0]);
 
-  // invoke after posting semaphore
+  // invoke after sending to queue
   item = 0x1111;
   osal_queue_send(queue_hdl, &item);
   sample_task_with_queue();

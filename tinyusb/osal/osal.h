@@ -133,11 +133,27 @@ typedef osal_semaphore_t * osal_semaphore_handle_t;
 #define OSAL_SEM_REF(name)\
   &name
 
-osal_semaphore_handle_t osal_semaphore_create(osal_semaphore_t * const sem);
-void osal_semaphore_wait(osal_semaphore_handle_t const sem_hdl, uint32_t msec, tusb_error_t *p_error);
-tusb_error_t osal_semaphore_post(osal_semaphore_handle_t const sem_hdl);
-void osal_semaphore_reset(osal_semaphore_handle_t const sem_hdl);
+osal_semaphore_handle_t osal_semaphore_create(osal_semaphore_t * p_sem);
+void osal_semaphore_wait(osal_semaphore_handle_t sem_hdl, uint32_t msec, tusb_error_t *p_error);
+tusb_error_t osal_semaphore_post(osal_semaphore_handle_t sem_hdl);
+void osal_semaphore_reset(osal_semaphore_handle_t sem_hdl);
 
+//--------------------------------------------------------------------+
+// MUTEX API (priority inheritance)
+//--------------------------------------------------------------------+
+#define OSAL_MUTEX_DEF(name)\
+  osal_mutex_t name
+
+#define OSAL_MUTEX_REF(name)\
+  &name
+
+typedef osal_semaphore_t        osal_mutex_t;
+typedef osal_semaphore_handle_t osal_mutex_handle_t;
+
+osal_mutex_handle_t osal_mutex_create(osal_mutex_t * p_mutex);
+void osal_mutex_wait(osal_mutex_handle_t mutex_hdl, uint32_t msec, tusb_error_t *p_error);
+tusb_error_t osal_mutex_release(osal_mutex_handle_t mutex_hdl);
+void osal_mutex_reset(osal_mutex_handle_t mutex_hdl);
 //--------------------------------------------------------------------+
 // QUEUE API
 //--------------------------------------------------------------------+

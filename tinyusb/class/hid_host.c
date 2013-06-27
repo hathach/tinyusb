@@ -197,6 +197,7 @@ void hidh_init(void)
 #endif
 }
 
+//uint8_t report_descriptor[256] TUSB_CFG_ATTR_USBRAM;
 tusb_error_t hidh_open_subtask(uint8_t dev_addr, tusb_descriptor_interface_t const *p_interface_desc, uint16_t *p_length)
 {
   tusb_error_t error;
@@ -215,6 +216,8 @@ tusb_error_t hidh_open_subtask(uint8_t dev_addr, tusb_descriptor_interface_t con
   OSAL_SUBTASK_BEGIN
 
   //------------- SET IDLE request -------------//
+  // TODO this request can be stalled by device (indicate not supported),
+  // until we have clear stall handler, temporarily disable it.
 //  OSAL_SUBTASK_INVOKED_AND_WAIT(
 //    usbh_control_xfer_subtask(
 //      dev_addr,
@@ -230,6 +233,22 @@ tusb_error_t hidh_open_subtask(uint8_t dev_addr, tusb_descriptor_interface_t con
 //  );
 
   //------------- TODO skip Get Report Descriptor -------------//
+//  memclr_(report_descriptor, 256);
+
+//  OSAL_SUBTASK_INVOKED_AND_WAIT(
+//    usbh_control_xfer_subtask(
+//      dev_addr,
+//      &(tusb_std_request_t)
+//      {
+//        .bmRequestType = { .direction = TUSB_DIR_DEV_TO_HOST, .type = TUSB_REQUEST_TYPE_STANDARD, .recipient = TUSB_REQUEST_RECIPIENT_INTERFACE },
+//        .bRequest      = TUSB_REQUEST_GET_DESCRIPTOR,
+//        .wValue        = HID_DESC_TYPE_REPORT,
+//        .wIndex        = p_interface_desc->bInterfaceNumber,
+//        .wLength       = p_desc_hid->wReportLength,
+//      },
+//      report_descriptor ),
+//    error
+//  );
 //  uint8_t *p_report_desc = NULL; // report descriptor has to be global & in USB RAM
 
   if ( HID_SUBCLASS_BOOT == p_interface_desc->bInterfaceSubClass )

@@ -92,15 +92,19 @@ typedef struct { // TODO internal structure, re-order members
   uint8_t interface_count; // bNumInterfaces alias
 
   //------------- device -------------//
-  volatile uint8_t state;          // device state, value from enum tusbh_device_state_t
-  uint32_t flag_supported_class; // a bitmap of supported class
+  volatile uint8_t state;             // device state, value from enum tusbh_device_state_t
+  uint32_t flag_supported_class;      // a bitmap of supported class
 
   //------------- control pipe -------------//
   struct {
     volatile uint8_t pipe_status;
     tusb_std_request_t request;
-    OSAL_SEM_DEF(semaphore); // TODO move to semaphore pool
-    osal_semaphore_handle_t sem_hdl;
+
+    OSAL_SEM_DEF(semaphore);          // TODO move to semaphore pool ?
+    osal_semaphore_handle_t sem_hdl;  // used to synchronize with HCD when control xfer complete
+
+    OSAL_MUTEX_DEF(mutex);            // TODO move to mutex pool ?
+    osal_mutex_handle_t mutex_hdl;    // used to exclusively occupy control pipe
   } control;
 } usbh_device_info_t;
 

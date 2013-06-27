@@ -90,7 +90,6 @@ void test_usbh_init_hcd_failed(void)
 void test_usbh_init_enum_task_create_failed(void)
 {
   hcd_init_ExpectAndReturn(TUSB_ERROR_NONE);
-  osal_semaphore_create_IgnoreAndReturn( (osal_semaphore_handle_t) 0x1234);
   osal_task_create_IgnoreAndReturn(TUSB_ERROR_OSAL_TASK_FAILED);
   TEST_ASSERT_EQUAL(TUSB_ERROR_OSAL_TASK_FAILED, usbh_init());
 }
@@ -98,10 +97,28 @@ void test_usbh_init_enum_task_create_failed(void)
 void test_usbh_init_enum_queue_create_failed(void)
 {
   hcd_init_ExpectAndReturn(TUSB_ERROR_NONE);
-  osal_semaphore_create_IgnoreAndReturn( (osal_semaphore_handle_t) 0x1234);
   osal_task_create_IgnoreAndReturn(TUSB_ERROR_NONE);
   osal_queue_create_IgnoreAndReturn(NULL);
   TEST_ASSERT_EQUAL(TUSB_ERROR_OSAL_QUEUE_FAILED, usbh_init());
+}
+
+void test_usbh_init_semaphore_create_failed(void)
+{
+  hcd_init_ExpectAndReturn(TUSB_ERROR_NONE);
+  osal_task_create_IgnoreAndReturn(TUSB_ERROR_NONE);
+  osal_queue_create_IgnoreAndReturn((osal_queue_handle_t) 0x1234);
+  osal_semaphore_create_IgnoreAndReturn(NULL);
+  TEST_ASSERT_EQUAL(TUSB_ERROR_OSAL_SEMAPHORE_FAILED, usbh_init());
+}
+
+void test_usbh_init_mutex_create_failed(void)
+{
+  hcd_init_ExpectAndReturn(TUSB_ERROR_NONE);
+  osal_task_create_IgnoreAndReturn(TUSB_ERROR_NONE);
+  osal_queue_create_IgnoreAndReturn((osal_queue_handle_t) 0x1234);
+  osal_semaphore_create_IgnoreAndReturn((osal_semaphore_handle_t) 0x1234);
+  osal_mutex_create_IgnoreAndReturn(NULL);
+  TEST_ASSERT_EQUAL(TUSB_ERROR_OSAL_MUTEX_FAILED, usbh_init());
 }
 
 void test_usbh_init_ok(void)
@@ -150,4 +167,40 @@ void test_usbh_device_unplugged_isr(void)
   usbh_device_unplugged_isr(0);
 
   TEST_ASSERT_EQUAL(TUSB_DEVICE_STATE_REMOVING, usbh_devices[dev_addr].state);
+}
+
+void semaphore_wait_success_stub(osal_mutex_handle_t const sem_hdl, uint32_t msec, tusb_error_t *p_error, int num_call)
+{
+  (*p_error) = TUSB_ERROR_NONE;
+}
+
+static void mutex_wait_failed_stub(osal_mutex_handle_t const sem_hdl, uint32_t msec, tusb_error_t *p_error, int num_call)
+{
+  (*p_error) = TUSB_ERROR_OSAL_TIMEOUT;
+}
+
+void test_usbh_control_xfer_mutex_failed(void)
+{
+  tusb_std_request_t a_request;
+
+  osal_mutex_wait_StubWithCallback(mutex_wait_failed_stub);
+  osal_mutex_release_ExpectAndReturn(usbh_devices[dev_addr].control.mutex_hdl, TUSB_ERROR_NONE);
+
+  //------------- Code Under Test -------------//
+  usbh_control_xfer_subtask(dev_addr, &a_request, NULL);
+}
+
+void test_usbh_control_xfer_ok(void)
+{
+  tusb_std_request_t a_request;
+
+  osal_mutex_wait_StubWithCallback(semaphore_wait_success_stub);
+
+  hcd_pipe_control_xfer_ExpectAndReturn(dev_addr, &a_request, NULL, TUSB_ERROR_NONE);
+  osal_semaphore_wait_StubWithCallback(semaphore_wait_success_stub);
+
+  osal_mutex_release_ExpectAndReturn(usbh_devices[dev_addr].control.mutex_hdl, TUSB_ERROR_NONE);
+
+  //------------- Code Under Test -------------//
+  usbh_control_xfer_subtask(dev_addr, &a_request, NULL);
 }

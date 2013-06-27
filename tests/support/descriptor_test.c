@@ -151,7 +151,7 @@ const app_configuration_desc_t desc_configuration =
         .bDescriptorType     = TUSB_DESC_TYPE_CONFIGURATION,
 
         .wTotalLength        = sizeof(app_configuration_desc_t) - 1, // exclude termination
-        .bNumInterfaces      = 1,
+        .bNumInterfaces      = 3,
 
         .bConfigurationValue = 1,
         .iConfiguration      = 0x00,

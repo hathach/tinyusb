@@ -144,23 +144,30 @@ tusb_error_t usbh_init(void)
 
   ASSERT_STATUS( hcd_init() );
 
-  //------------- Semaphore for Control Pipe -------------//
-  for(uint8_t i=0; i<TUSB_CFG_HOST_DEVICE_MAX+1; i++) // including address zero
-  {
-    usbh_devices[i].control.sem_hdl = osal_semaphore_create( OSAL_SEM_REF(usbh_devices[i].control.semaphore) );
-    ASSERT_PTR(usbh_devices[i].control.sem_hdl, TUSB_ERROR_OSAL_SEMAPHORE_FAILED);
-  }
-
   //------------- Enumeration & Reporter Task init -------------//
   ASSERT_STATUS( osal_task_create(&enum_task_def) );
   enum_queue_hdl = osal_queue_create(&enum_queue_def);
   ASSERT_PTR(enum_queue_hdl, TUSB_ERROR_OSAL_QUEUE_FAILED);
 
+  //------------- Semaphore, Mutex for Control Pipe -------------//
+  for(uint8_t i=0; i<TUSB_CFG_HOST_DEVICE_MAX+1; i++) // including address zero
+  {
+    usbh_device_info_t * const p_device = &usbh_devices[i];
+
+    p_device->control.sem_hdl = osal_semaphore_create( OSAL_SEM_REF(p_device->control.semaphore) );
+    ASSERT_PTR(p_device->control.sem_hdl, TUSB_ERROR_OSAL_SEMAPHORE_FAILED);
+
+    p_device->control.mutex_hdl = osal_mutex_create ( OSAL_SEM_REF(p_device->control.mutex) );
+    ASSERT_PTR(p_device->control.mutex_hdl, TUSB_ERROR_OSAL_MUTEX_FAILED);
+  }
+
   //------------- class init -------------//
   for (uint8_t class_index = 1; class_index < TUSB_CLASS_MAPPED_INDEX_END; class_index++)
   {
     if (usbh_class_drivers[class_index].init)
+    {
       usbh_class_drivers[class_index].init();
+    }
   }
 
   return TUSB_ERROR_NONE;
@@ -174,11 +181,17 @@ tusb_error_t usbh_control_xfer_subtask(uint8_t dev_addr, tusb_std_request_t cons
 
   OSAL_SUBTASK_BEGIN
 
-  usbh_devices[dev_addr].control.pipe_status = TUSB_INTERFACE_STATUS_BUSY;
+  osal_mutex_wait(usbh_devices[dev_addr].control.mutex_hdl, OSAL_TIMEOUT_NORMAL, &error);
+  SUBTASK_ASSERT_STATUS_WITH_HANDLER(error, osal_mutex_release(usbh_devices[dev_addr].control.mutex_hdl));
+
   usbh_devices[dev_addr].control.request = *p_request;
-  SUBTASK_ASSERT_STATUS( hcd_pipe_control_xfer(dev_addr, &usbh_devices[dev_addr].control.request, data) );
+  /*SUBTASK_ASSERT_STATUS*/ (void) ( hcd_pipe_control_xfer(dev_addr, &usbh_devices[dev_addr].control.request, data) );
+  usbh_devices[dev_addr].control.pipe_status = TUSB_INTERFACE_STATUS_BUSY;
 
   osal_semaphore_wait(usbh_devices[dev_addr].control.sem_hdl, OSAL_TIMEOUT_NORMAL, &error); // careful of local variable without static
+
+  osal_mutex_release(usbh_devices[dev_addr].control.mutex_hdl);
+
   // TODO make handler for this function general purpose
   SUBTASK_ASSERT_WITH_HANDLER(TUSB_ERROR_NONE == error && usbh_devices[dev_addr].control.pipe_status != TUSB_INTERFACE_STATUS_ERROR,
                                      tusbh_device_mount_failed_cb(TUSB_ERROR_USBH_MOUNT_DEVICE_NOT_RESPOND, NULL) );
@@ -190,6 +203,7 @@ tusb_error_t usbh_pipe_control_open(uint8_t dev_addr, uint8_t max_packet_size) A
 tusb_error_t usbh_pipe_control_open(uint8_t dev_addr, uint8_t max_packet_size)
 {
   osal_semaphore_reset( usbh_devices[dev_addr].control.sem_hdl );
+  osal_mutex_reset( usbh_devices[dev_addr].control.mutex_hdl );
 
   ASSERT_STATUS( hcd_pipe_control_open(dev_addr, max_packet_size) );
 
