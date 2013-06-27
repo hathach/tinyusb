@@ -118,7 +118,9 @@ static inline volatile uint32_t osal_tick_get(void)
         return TUSB_ERROR_OSAL_WAITING;\
   }while(0)
 
-
+//--------------------------------------------------------------------+
+// SUBTASK (a sub function that uses OS blocking services & called by a task
+//--------------------------------------------------------------------+
 //------------- Sub Task -------------//
 #define OSAL_SUBTASK_INVOKED_AND_WAIT(subtask, status) \
   do {\
@@ -134,6 +136,9 @@ static inline volatile uint32_t osal_tick_get(void)
 #define OSAL_SUBTASK_END    OSAL_TASK_LOOP_END
 
 //------------- Sub Task Assert -------------//
+#define SUBTASK_EXIT(error)  \
+    TASK_RESTART; return error
+
 #define _SUBTASK_ASSERT_ERROR_HANDLER(error, func_call) \
   func_call; TASK_RESTART; return error
 

@@ -276,13 +276,11 @@ tusb_error_t hidh_open_subtask(uint8_t dev_addr, tusb_descriptor_interface_t con
     #endif
 
     {
-      // TODO assert without breaking into debugger
-      SUBTASK_ASSERT_STATUS(TUSB_ERROR_HIDH_NOT_SUPPORTED_PROTOCOL);
+      SUBTASK_EXIT(TUSB_ERROR_HIDH_NOT_SUPPORTED_PROTOCOL); // exit & restart task
     }
   }else
   {
-    // TODO assert without breaking into debugger
-    SUBTASK_ASSERT_STATUS(TUSB_ERROR_HIDH_NOT_SUPPORTED_SUBCLASS);
+    SUBTASK_EXIT(TUSB_ERROR_HIDH_NOT_SUPPORTED_SUBCLASS); // exit & restart task
   }
 
   *p_length = sizeof(tusb_descriptor_interface_t) + sizeof(tusb_hid_descriptor_hid_t) + sizeof(tusb_descriptor_endpoint_t);
