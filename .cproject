@@ -45,7 +45,7 @@
 						</toolChain>
 					</folderInfo>
 					<sourceEntries>
-						<entry excluding="tests/build/test/runners|tests/build/test/results|tests/build/test/preprocess|tests/build/test/out|tests/build/test/dependencies|tests/build/test/cache" flags="VALUE_WORKSPACE_PATH|RESOLVED" kind="sourcePath" name=""/>
+						<entry excluding="tests/build/test/cache|tests/build/test/dependencies|tests/build/test/runners|tests/build/test/out|tests/build/test/preprocess|tests/build/test/results" flags="VALUE_WORKSPACE_PATH|RESOLVED" kind="sourcePath" name=""/>
 					</sourceEntries>
 				</configuration>
 			</storageModule>
@@ -365,7 +365,7 @@
 	<storageModule moduleId="org.eclipse.cdt.internal.ui.text.commentOwnerProjectMappings"/>
 	<storageModule moduleId="org.eclipse.cdt.make.core.buildtargets">
 		<buildTargets>
-			<target name="clean" path="tests/test" targetID="org.eclipse.cdt.build.MakeTargetBuilder">
+			<target name="clean" path="tests/lpc18xx_43xx" targetID="org.eclipse.cdt.build.MakeTargetBuilder">
 				<buildCommand>rake.bat</buildCommand>
 				<buildArguments/>
 				<buildTarget>clean</buildTarget>
@@ -373,7 +373,7 @@
 				<useDefaultCommand>false</useDefaultCommand>
 				<runAllBuilders>true</runAllBuilders>
 			</target>
-			<target name="clobber" path="tests/test" targetID="org.eclipse.cdt.build.MakeTargetBuilder">
+			<target name="clobber" path="tests/lpc18xx_43xx" targetID="org.eclipse.cdt.build.MakeTargetBuilder">
 				<buildCommand>rake.bat</buildCommand>
 				<buildArguments/>
 				<buildTarget>clobber</buildTarget>
@@ -381,7 +381,7 @@
 				<useDefaultCommand>false</useDefaultCommand>
 				<runAllBuilders>true</runAllBuilders>
 			</target>
-			<target name="release" path="tests/test" targetID="org.eclipse.cdt.build.MakeTargetBuilder">
+			<target name="release" path="tests/lpc18xx_43xx" targetID="org.eclipse.cdt.build.MakeTargetBuilder">
 				<buildCommand>rake.bat</buildCommand>
 				<buildArguments/>
 				<buildTarget>release</buildTarget>
@@ -389,7 +389,7 @@
 				<useDefaultCommand>false</useDefaultCommand>
 				<runAllBuilders>true</runAllBuilders>
 			</target>
-			<target name="test" path="tests/test" targetID="org.eclipse.cdt.build.MakeTargetBuilder">
+			<target name="test" path="tests/lpc18xx_43xx" targetID="org.eclipse.cdt.build.MakeTargetBuilder">
 				<buildCommand>rake.bat</buildCommand>
 				<buildArguments/>
 				<buildTarget>test:all</buildTarget>
@@ -397,7 +397,7 @@
 				<useDefaultCommand>false</useDefaultCommand>
 				<runAllBuilders>true</runAllBuilders>
 			</target>
-			<target name="test delta" path="tests/test" targetID="org.eclipse.cdt.build.MakeTargetBuilder">
+			<target name="test delta" path="tests/lpc18xx_43xx" targetID="org.eclipse.cdt.build.MakeTargetBuilder">
 				<buildCommand>rake.bat</buildCommand>
 				<buildArguments/>
 				<buildTarget>test:delta</buildTarget>
@@ -405,7 +405,7 @@
 				<useDefaultCommand>false</useDefaultCommand>
 				<runAllBuilders>true</runAllBuilders>
 			</target>
-			<target name="test verbose" path="tests/test" targetID="org.eclipse.cdt.build.MakeTargetBuilder">
+			<target name="test verbose" path="tests/lpc18xx_43xx" targetID="org.eclipse.cdt.build.MakeTargetBuilder">
 				<buildCommand>rake.bat</buildCommand>
 				<buildArguments/>
 				<buildTarget>verbosity[4] test:all</buildTarget>
@@ -413,7 +413,7 @@
 				<useDefaultCommand>false</useDefaultCommand>
 				<runAllBuilders>true</runAllBuilders>
 			</target>
-			<target name="test verbose delta" path="tests/test" targetID="org.eclipse.cdt.build.MakeTargetBuilder">
+			<target name="test verbose delta" path="tests/lpc18xx_43xx" targetID="org.eclipse.cdt.build.MakeTargetBuilder">
 				<buildCommand>rake.bat</buildCommand>
 				<buildArguments/>
 				<buildTarget>verbosity[4] test:delta</buildTarget>
@@ -423,7 +423,6 @@
 			</target>
 			<target name="clean" path="tests/lpc175x_6x" targetID="org.eclipse.cdt.build.MakeTargetBuilder">
 				<buildCommand>rake.bat</buildCommand>
-				<buildArguments/>
 				<buildTarget>clean</buildTarget>
 				<stopOnError>true</stopOnError>
 				<useDefaultCommand>false</useDefaultCommand>
@@ -431,7 +430,6 @@
 			</target>
 			<target name="clobber" path="tests/lpc175x_6x" targetID="org.eclipse.cdt.build.MakeTargetBuilder">
 				<buildCommand>rake.bat</buildCommand>
-				<buildArguments/>
 				<buildTarget>clobber</buildTarget>
 				<stopOnError>true</stopOnError>
 				<useDefaultCommand>false</useDefaultCommand>
@@ -439,7 +437,6 @@
 			</target>
 			<target name="release" path="tests/lpc175x_6x" targetID="org.eclipse.cdt.build.MakeTargetBuilder">
 				<buildCommand>rake.bat</buildCommand>
-				<buildArguments/>
 				<buildTarget>release</buildTarget>
 				<stopOnError>true</stopOnError>
 				<useDefaultCommand>false</useDefaultCommand>
@@ -447,7 +444,6 @@
 			</target>
 			<target name="test" path="tests/lpc175x_6x" targetID="org.eclipse.cdt.build.MakeTargetBuilder">
 				<buildCommand>rake.bat</buildCommand>
-				<buildArguments/>
 				<buildTarget>test:all</buildTarget>
 				<stopOnError>true</stopOnError>
 				<useDefaultCommand>false</useDefaultCommand>
@@ -455,7 +451,6 @@
 			</target>
 			<target name="test delta" path="tests/lpc175x_6x" targetID="org.eclipse.cdt.build.MakeTargetBuilder">
 				<buildCommand>rake.bat</buildCommand>
-				<buildArguments/>
 				<buildTarget>test:delta</buildTarget>
 				<stopOnError>true</stopOnError>
 				<useDefaultCommand>false</useDefaultCommand>
@@ -463,7 +458,6 @@
 			</target>
 			<target name="test verbose" path="tests/lpc175x_6x" targetID="org.eclipse.cdt.build.MakeTargetBuilder">
 				<buildCommand>rake.bat</buildCommand>
-				<buildArguments/>
 				<buildTarget>verbosity[4] test:all</buildTarget>
 				<stopOnError>true</stopOnError>
 				<useDefaultCommand>false</useDefaultCommand>
@@ -471,7 +465,6 @@
 			</target>
 			<target name="test verbose delta" path="tests/lpc175x_6x" targetID="org.eclipse.cdt.build.MakeTargetBuilder">
 				<buildCommand>rake.bat</buildCommand>
-				<buildArguments/>
 				<buildTarget>verbosity[4] test:delta</buildTarget>
 				<stopOnError>true</stopOnError>
 				<useDefaultCommand>false</useDefaultCommand>
