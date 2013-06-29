@@ -26,6 +26,10 @@
 :paths:
   :test:
     - +:test/**
+    
+  :support:
+    - ../support
+    
   :source:
     - ../../tinyusb/**
     - +:../../demos/bsp/lpc43xx/**
@@ -33,9 +37,6 @@
     - -:../../demos/
     - ../../vendor/freertos/freertos/Source/*
     - ../../vendor/freertos/freertos/Source/portable/MSVC-MingW/*
-    
-  :support:
-    - ../support
 
 :defines:
   # in order to add common defines:

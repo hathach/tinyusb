@@ -77,7 +77,7 @@ enum {
 };
 
 enum {
-  CDC_COMM_PROTOCOL_ATCOMMAND_ITU_V250     = 0x01 , // ITU-T V2.50
+  CDC_COMM_PROTOCOL_ATCOMMAND              = 0x01 , // ITU-T V2.50
   CDC_COMM_PROTOCOL_ATCOMMAND_PCCA_101            ,
   CDC_COMM_PROTOCOL_ATCOMMAND_PCCA_101_AND_ANNEXO ,
   CDC_COMM_PROTOCOL_ATCOMMAND_GSM_707             ,
@@ -217,8 +217,8 @@ typedef ATTR_PACKED_STRUCT(struct) {
   uint8_t bLength                  ; ///< Size of this descriptor in bytes.
   uint8_t bDescriptorType          ; ///< Descriptor Type, must be Class-Specific
   uint8_t bDescriptorSubType       ; ///< Descriptor SubType one of above CDC_FUCN_DESC_
-  uint8_t bControlInterface        ; ///< Interface number of Data Interface (zero-based)
-  uint8_t bSubordinateInterface[0] ; ///< Variable length array
+  uint8_t bControlInterface        ; ///< Interface number of Communication Interface
+  uint8_t bSubordinateInterface[0] ; ///< Interface number of Data Interface
 }tusb_cdc_func_union_t;
 
 typedef ATTR_PACKED_STRUCT(struct) {

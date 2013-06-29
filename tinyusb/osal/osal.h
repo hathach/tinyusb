@@ -160,11 +160,11 @@ void osal_mutex_reset(osal_mutex_handle_t mutex_hdl);
 // QUEUE API
 //--------------------------------------------------------------------+
 typedef struct{
-           uint32_t * const buffer     ; ///< buffer pointer
-           uint8_t const depth        ; ///< buffer size
-  volatile uint8_t count          ; ///< bytes in fifo
-  volatile uint8_t wr_idx       ; ///< write pointer
-  volatile uint8_t rd_idx       ; ///< read pointer
+           uint32_t * const buffer ; ///< buffer pointer
+           uint8_t const depth     ; ///< buffer size
+  volatile uint8_t count           ; ///< bytes in fifo
+  volatile uint8_t wr_idx          ; ///< write pointer
+  volatile uint8_t rd_idx          ; ///< read pointer
 } osal_queue_t;
 
 typedef osal_queue_t * osal_queue_handle_t;

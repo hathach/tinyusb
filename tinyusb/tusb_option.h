@@ -68,7 +68,12 @@
 
 /// define this symbol will make tinyusb look for external configure file
 #include "mcu_capacity.h"
-#include "tusb_config.h"
+
+#ifdef TUSB_CFG_CONFIG_FILE
+  #include TUSB_CFG_CONFIG_FILE
+#else
+  #include "tusb_config.h"
+#endif
 
 //--------------------------------------------------------------------+
 // CONTROLLER

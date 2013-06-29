@@ -45,10 +45,10 @@
 #include "usbh.h"
 #include "usbh_hcd.h"
 #include "mock_hcd.h"
-#include "usbh_hcd.h"
 
 #include "mock_tusb_callback.h"
 #include "mock_hid_host.h"
+#include "mock_cdc_host.h"
 #include "host_helper.h"
 
 uint8_t dev_addr;
