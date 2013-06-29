@@ -65,6 +65,15 @@ static host_class_driver_t const usbh_class_drivers[TUSB_CLASS_MAPPED_INDEX_END]
     },
 #endif
 
+#if TUSB_CFG_HOST_CDC
+    [TUSB_CLASS_CDC] = {
+        .init         = cdch_init,
+        .open_subtask = cdch_open_subtask,
+        .isr          = cdch_isr,
+        .close        = cdch_close
+    },
+#endif
+
 #if TUSB_CFG_HOST_MSC
     [TUSB_CLASS_MSC] = {
         .init         = msch_init,

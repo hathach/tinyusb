@@ -63,9 +63,12 @@
     #include "class/hid_host.h"
   #endif
 
-//  #define HOST_CLASS_MSC // FIXME hack to test massstorage class
-  #ifdef HOST_CLASS_MSC
+  #if TUSB_CFG_HOST_MSC
     #include "class/msc_host.h"
+  #endif
+
+  #if TUSB_CFG_HOST_CDC
+    #include "class/cdc_host.h"
   #endif
 
   #if TUSB_CFG_HOST_CUSTOM_CLASS
