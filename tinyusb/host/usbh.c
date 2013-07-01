@@ -271,8 +271,8 @@ void usbh_device_unplugged_isr(uint8_t hostid)
     dev_addr++;
   }
 
-  // TODO close addr0 pipe (when get 8-byte desc, set addr failed)
-  ASSERT(dev_addr <= TUSB_CFG_HOST_DEVICE_MAX, (void) 0 );
+  if (dev_addr > TUSB_CFG_HOST_DEVICE_MAX) // unplug unmounted device
+    return;
 
   if (dev_addr > 0) // device can still be unplugged when not set new address
   {
