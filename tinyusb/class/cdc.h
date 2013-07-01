@@ -264,17 +264,21 @@ typedef ATTR_PACKED_STRUCT(struct) {
   uint8_t bDataInterface;
 }tusb_cdc_func_call_management_t;
 
+typedef struct {
+  uint8_t support_comm_request                    : 1; ///< Device supports the request combination of Set_Comm_Feature, Clear_Comm_Feature, and Get_Comm_Feature.
+  uint8_t support_line_request                    : 1; ///< Device supports the request combination of Set_Line_Coding, Set_Control_Line_State, Get_Line_Coding, and the notification Serial_State.
+  uint8_t support_send_break                      : 1; ///< Device supports the request Send_Break
+  uint8_t support_notification_network_connection : 1; ///< Device supports the notification Network_Connection.
+  uint8_t : 0;
+}cdc_fun_acm_capability_t;
+
+STATIC_ASSERT(sizeof(cdc_fun_acm_capability_t) == 1, "mostly problem with compiler");
+
 typedef ATTR_PACKED_STRUCT(struct) {
-  uint8_t bLength            ; ///< Size of this descriptor in bytes.
-  uint8_t bDescriptorType    ; ///< Descriptor Type, must be Class-Specific
-  uint8_t bDescriptorSubType ; ///< Descriptor SubType one of above CDC_FUCN_DESC_
-  struct {
-    uint8_t support_comm_request                    : 1; ///< Device supports the request combination of Set_Comm_Feature, Clear_Comm_Feature, and Get_Comm_Feature.
-    uint8_t support_line_request                    : 1; ///< Device supports the request combination of Set_Line_Coding, Set_Control_Line_State, Get_Line_Coding, and the notification Serial_State.
-    uint8_t support_send_break                      : 1; ///< Device supports the request Send_Break
-    uint8_t support_notification_network_connection : 1; ///< Device supports the notification Network_Connection.
-    uint8_t : 0;
-  } bmCapabilities;
+  uint8_t bLength                  ; ///< Size of this descriptor in bytes.
+  uint8_t bDescriptorType          ; ///< Descriptor Type, must be Class-Specific
+  uint8_t bDescriptorSubType       ; ///< Descriptor SubType one of above CDC_FUCN_DESC_
+  cdc_fun_acm_capability_t bmCapabilities ;
 }tusb_cdc_func_abstract_control_management_t;
 
 typedef ATTR_PACKED_STRUCT(struct) {
@@ -314,15 +318,21 @@ typedef ATTR_PACKED_STRUCT(struct) {
   uint8_t bDescriptorType    ; ///< Descriptor Type, must be Class-Specific
   uint8_t bDescriptorSubType ; ///< Descriptor SubType one of above CDC_FUCN_DESC_
   struct {
-    uint32_t interrupted_dialtone   : 1; ///< 0 – Reports only dialtone (does not differentiate between normal and interrupted dialtone). 1 – Reports interrupted dialtone in addition to normal dialtone
-    uint32_t ringback_busy_fastbusy : 1; ///< 0 – Reports only dialing state. 1 – Reports ringback, busy, and fast busy states.
-    uint32_t caller_id              : 1; ///< 0 – Does not report caller ID. 1 – Reports caller ID information.
-    uint32_t incoming_distinctive   : 1; ///< 0 – Reports only incoming ringing. 1 – Reports incoming distinctive ringing patterns.
-    uint32_t dual_tone_multi_freq   : 1; ///< 0 – Cannot report dual tone multi-frequency (DTMF) digits input remotely over the telephone line. 1 – Can report DTMF digits input remotely over the telephone line.
-    uint32_t line_state_change      : 1; ///< 0 – Does not support line state change notification. 1 – Does support line state change notificatio
+    uint32_t interrupted_dialtone   : 1; ///< 0 : Reports only dialtone (does not differentiate between normal and interrupted dialtone). 1 : Reports interrupted dialtone in addition to normal dialtone
+    uint32_t ringback_busy_fastbusy : 1; ///< 0 : Reports only dialing state. 1 : Reports ringback, busy, and fast busy states.
+    uint32_t caller_id              : 1; ///< 0 : Does not report caller ID. 1 : Reports caller ID information.
+    uint32_t incoming_distinctive   : 1; ///< 0 : Reports only incoming ringing. 1 : Reports incoming distinctive ringing patterns.
+    uint32_t dual_tone_multi_freq   : 1; ///< 0 : Cannot report dual tone multi-frequency (DTMF) digits input remotely over the telephone line. 1 : Can report DTMF digits input remotely over the telephone line.
+    uint32_t line_state_change      : 1; ///< 0 : Does not support line state change notification. 1 : Does support line state change notification
     uint32_t : 0;
   } bmCapabilities;
 }tusb_cdc_func_telephone_call_state_reporting_capabilities_t;
+
+static inline uint8_t functional_desc_typeof(uint8_t const * p_desc) ATTR_PURE ATTR_ALWAYS_INLINE;
+static inline uint8_t functional_desc_typeof(uint8_t const * p_desc)
+{
+  return p_desc[2];
+}
 
 
 #ifdef __cplusplus

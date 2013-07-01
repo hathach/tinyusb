@@ -144,6 +144,17 @@ void test_cdch_open_interface_number_check(void)
 
 }
 
+void test_cdch_open_acm_capacity_check(void)
+{
+  pipe_handle_t dummy_hld = { .dev_addr = 1 };
+  hcd_pipe_open_IgnoreAndReturn(dummy_hld);
+
+  //------------- CUT -------------//
+  TEST_ASSERT_EQUAL( TUSB_ERROR_NONE, cdch_open_subtask(dev_addr, p_comm_interface, &length) );
+
+  TEST_ASSERT_EQUAL_MEMORY(&cdc_config_descriptor.cdc_acm.bmCapabilities, &p_cdc->acm_capability, 1);
+}
+
 
 
 

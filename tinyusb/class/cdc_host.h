@@ -66,6 +66,8 @@
 typedef struct {
   uint8_t interface_number;
   uint8_t interface_protocol;
+  cdc_fun_acm_capability_t acm_capability;
+
   pipe_handle_t pipe_notification, pipe_out, pipe_in;
 
 } cdch_data_t;

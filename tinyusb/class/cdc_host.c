@@ -89,6 +89,11 @@ tusb_error_t cdch_open_subtask(uint8_t dev_addr, tusb_descriptor_interface_t con
 
   while( TUSB_DESC_TYPE_INTERFACE_CLASS_SPECIFIC == p_desc[DESCRIPTOR_OFFSET_TYPE] )
   { // Communication Functional Descriptors
+    if ( CDC_FUNC_DESC_ABSTRACT_CONTROL_MANAGEMENT == functional_desc_typeof(p_desc) )
+    { // save ACM bmCapabilities
+      p_cdc->acm_capability = ((tusb_cdc_func_abstract_control_management_t const *) p_desc)->bmCapabilities;
+    }
+
     (*p_length) += p_desc[DESCRIPTOR_OFFSET_LENGTH];
     p_desc = descriptor_next(p_desc);
   }
