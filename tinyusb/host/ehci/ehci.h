@@ -128,6 +128,8 @@ typedef struct {
 	  struct {
 	    uint32_t      : 5;
 	    uint32_t used : 1;
+	    uint32_t : 10;
+	    uint32_t expected_bytes : 16;
 	  };
 	};
 

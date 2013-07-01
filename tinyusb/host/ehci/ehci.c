@@ -519,19 +519,24 @@ void async_list_process_isr(ehci_qhd_t * const async_head)
       {
         // TD need to be freed and removed from qhd, before invoking callback
         bool is_ioc = (p_qhd->p_qtd_list_head->int_on_complete != 0);
+        uint16_t actual_bytes_xferred = p_qhd->p_qtd_list_head->expected_bytes - p_qhd->p_qtd_list_head->total_bytes;
 
         p_qhd->p_qtd_list_head->used = 0; // free QTD
         qtd_remove_1st_from_qhd(p_qhd);
 
         if (is_ioc) // end of request
         {
-          pipe_handle_t pipe_hdl = { .dev_addr = p_qhd->device_address };
+          pipe_handle_t pipe_hdl = {
+              .dev_addr  = p_qhd->device_address,
+              .xfer_type = TUSB_XFER_CONTROL
+          };
+
           if (p_qhd->endpoint_number) // if not Control, can only be Bulk
           {
             pipe_hdl.xfer_type = TUSB_XFER_BULK;
             pipe_hdl.index = qhd_get_index(p_qhd);
           }
-          usbh_isr( pipe_hdl, p_qhd->class_code, TUSB_EVENT_XFER_COMPLETE); // call USBH callback
+          usbh_xfer_isr( pipe_hdl, p_qhd->class_code, TUSB_EVENT_XFER_COMPLETE); // call USBH callback
         }
 
       }
@@ -572,7 +577,7 @@ void period_list_process_isr(uint8_t hostid, uint8_t interval_ms)
 
             if (is_ioc) // end of request
             {
-              usbh_isr( (pipe_handle_t)
+              usbh_xfer_isr( (pipe_handle_t)
                         {
                               .dev_addr = p_qhd_int->device_address,
                               .xfer_type = TUSB_XFER_INTERRUPT,
@@ -617,13 +622,17 @@ void xfer_error_isr(uint8_t hostid)
       p_qhd->p_qtd_list_head->used = 0; // free QTD
       qtd_remove_1st_from_qhd(p_qhd);
 
-      pipe_handle_t pipe_hdl = { .dev_addr = p_qhd->device_address };
+      pipe_handle_t pipe_hdl = {
+          .dev_addr  = p_qhd->device_address,
+          .xfer_type = TUSB_XFER_CONTROL
+      };
+
       if (p_qhd->endpoint_number) // if not Control, can only be Bulk
       {
         pipe_hdl.xfer_type = TUSB_XFER_BULK;
-        pipe_hdl.index = qhd_get_index(p_qhd);
+        pipe_hdl.index     = qhd_get_index(p_qhd);
       }
-      usbh_isr( pipe_hdl, p_qhd->class_code, TUSB_EVENT_XFER_ERROR); // call USBH callback
+      usbh_xfer_isr( pipe_hdl, p_qhd->class_code, TUSB_EVENT_XFER_ERROR); // call USBH callback
     }
 
     p_qhd = (ehci_qhd_t*) align32(p_qhd->next.address);

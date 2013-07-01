@@ -236,7 +236,7 @@ tusb_interface_status_t usbh_pipe_status_get(pipe_handle_t pipe_hdl)
 // USBH-HCD ISR/Callback API
 //--------------------------------------------------------------------+
 // interrupt caused by a TD (with IOC=1) in pipe of class class_code
-void usbh_isr(pipe_handle_t pipe_hdl, uint8_t class_code, tusb_event_t event)
+void usbh_xfer_isr(pipe_handle_t pipe_hdl, uint8_t class_code, tusb_event_t event)
 {
   uint8_t class_index = std_class_code_to_index(class_code);
   if (class_index == 0) // Control transfer
