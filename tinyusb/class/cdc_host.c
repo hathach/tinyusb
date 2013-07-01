@@ -142,7 +142,30 @@ void cdch_isr(pipe_handle_t pipe_hdl, tusb_event_t event)
 
 void cdch_close(uint8_t dev_addr)
 {
+  tusb_error_t err1, err2, err3;
+  cdch_data_t * p_cdc = &cdch_data[dev_addr-1];
 
+
+  if ( pipehandle_is_valid(p_cdc->pipe_notification) )
+  {
+    err1 = hcd_pipe_close(p_cdc->pipe_notification);
+  }
+
+  if ( pipehandle_is_valid(p_cdc->pipe_in) )
+  {
+    err2 = hcd_pipe_close(p_cdc->pipe_in);
+  }
+
+  if ( pipehandle_is_valid(p_cdc->pipe_out) )
+  {
+    err3 = hcd_pipe_close(p_cdc->pipe_out);
+  }
+
+  memclr_(p_cdc, sizeof(cdch_data_t));
+
+  ASSERT(err1 == TUSB_ERROR_NONE &&
+         err2 == TUSB_ERROR_NONE &&
+         err3 == TUSB_ERROR_NONE, (void) 0 );
 }
 
 #endif

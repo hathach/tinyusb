@@ -67,7 +67,7 @@ typedef enum {
   TUSB_XFER_ISOCHRONOUS ,
   TUSB_XFER_BULK        ,
   TUSB_XFER_INTERRUPT
-}tusb_transfer_type_t;
+}tusb_xfer_type_t;
 
 typedef enum {
   TUSB_DIR_HOST_TO_DEV      = 0,
@@ -198,6 +198,8 @@ typedef enum tusb_device_state_{
 typedef enum {
   TUSB_EVENT_XFER_COMPLETE,
   TUSB_EVENT_XFER_ERROR,
+  TUSB_EVENT_XFER_STALLED,
+
   TUSB_EVENT_INTERFACE_OPEN,
   TUSB_EVENT_INTERFACE_CLOSE,
 
