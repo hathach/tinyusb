@@ -207,7 +207,7 @@ typedef enum {
 
 enum {
   DESCRIPTOR_OFFSET_LENGTH = 0,
-  DESCRIPTOR_OFFSET_TYPE = 1
+  DESCRIPTOR_OFFSET_TYPE   = 1
 };
 
 #ifdef __cplusplus

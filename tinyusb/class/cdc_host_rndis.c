@@ -1,6 +1,6 @@
 /**************************************************************************/
 /*!
-    @file     cdc_host.h
+    @file     cdc_host_rndis.c
     @author   hathach (tinyusb.org)
 
     @section LICENSE
@@ -36,53 +36,55 @@
 */
 /**************************************************************************/
 
-/** \ingroup TBD
- *  \defgroup TBD
- *  \brief TBD
- *
- *  @{
- */
+#include "tusb_option.h"
 
-#ifndef _TUSB_CDC_HOST_H_
-#define _TUSB_CDC_HOST_H_
+#if (MODE_HOST_SUPPORTED && TUSB_CFG_HOST_CDC && TUSB_CFG_HOST_CDC_RNDIS)
 
+#define _TINY_USB_SOURCE_FILE_
+
+//--------------------------------------------------------------------+
+// INCLUDE
+//--------------------------------------------------------------------+
 #include "common/common.h"
-#include "host/usbh.h"
-#include "cdc.h"
-
-#ifdef __cplusplus
- extern "C" {
-#endif
+#include "cdc_host.h"
 
 //--------------------------------------------------------------------+
-// APPLICATION PUBLIC API
+// MACRO CONSTANT TYPEDEF
 //--------------------------------------------------------------------+
 
 //--------------------------------------------------------------------+
-// USBH-CLASS API
+// INTERNAL OBJECT & FUNCTION DECLARATION
 //--------------------------------------------------------------------+
-#ifdef _TINY_USB_SOURCE_FILE_
+static tusb_error_t rndis_body_subtask(void);
 
-typedef struct {
-  uint8_t interface_number;
-  uint8_t interface_protocol;
-  pipe_handle_t pipe_notification, pipe_out, pipe_in;
+//--------------------------------------------------------------------+
+// IMPLEMENTATION
+//--------------------------------------------------------------------+
 
-} cdch_data_t;
+// To enable the TASK_ASSERT style (quick return on false condition) in a real RTOS, a task must act as a wrapper
+// and is used mainly to call subtasks. Within a subtask return statement can be called freely, the task with
+// forever loop cannot have any return at all.
+OSAL_TASK_FUNCTION(cdch_rndis_task) (void* p_task_para)
+{
+  OSAL_TASK_LOOP_BEGIN
 
-extern cdch_data_t cdch_data[TUSB_CFG_HOST_DEVICE_MAX]; // TODO consider to move to cdch internal header file
+  rndis_body_subtask();
 
-void         cdch_init(void);
-tusb_error_t cdch_open_subtask(uint8_t dev_addr, tusb_descriptor_interface_t const *p_interface_desc, uint16_t *p_length) ATTR_WARN_UNUSED_RESULT;
-void         cdch_isr(pipe_handle_t pipe_hdl, tusb_event_t event);
-void         cdch_close(uint8_t dev_addr);
+  OSAL_TASK_LOOP_END
+}
 
-#endif
+static tusb_error_t rndis_body_subtask(void)
+{
+  static uint8_t relative_addr;
 
-#ifdef __cplusplus
- }
-#endif
+  OSAL_SUBTASK_BEGIN
 
-#endif /* _TUSB_CDC_HOST_H_ */
+  for (relative_addr = 0; relative_addr < TUSB_CFG_HOST_DEVICE_MAX; relative_addr++)
+  {
 
-/** @} */
+  }
+
+  osal_task_delay(100);
+
+  OSAL_SUBTASK_END
+}

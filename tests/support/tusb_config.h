@@ -74,6 +74,7 @@
 //------------- CLASS -------------//
 #define TUSB_CFG_HOST_HID_KEYBOARD               1
 #define TUSB_CFG_HOST_HID_MOUSE                  1
+#define TUSB_CFG_HOST_CDC                        1
 
 #define HOST_HCD_XFER_INTERRUPT
 #define HOST_HCD_XFER_BULK

@@ -210,7 +210,7 @@ typedef ATTR_PACKED_STRUCT(struct) {
   uint8_t bLength            ; ///< Size of this descriptor in bytes.
   uint8_t bDescriptorType    ; ///< Descriptor Type, must be Class-Specific
   uint8_t bDescriptorSubType ; ///< Descriptor SubType one of above CDC_FUCN_DESC_
-  uint8_t bcdCDC             ; ///< CDC release number in Binary-Coded Decimal
+  uint16_t bcdCDC             ; ///< CDC release number in Binary-Coded Decimal
 }tusb_cdc_func_header_t;
 
 typedef ATTR_PACKED_STRUCT(struct) {
@@ -218,16 +218,34 @@ typedef ATTR_PACKED_STRUCT(struct) {
   uint8_t bDescriptorType          ; ///< Descriptor Type, must be Class-Specific
   uint8_t bDescriptorSubType       ; ///< Descriptor SubType one of above CDC_FUCN_DESC_
   uint8_t bControlInterface        ; ///< Interface number of Communication Interface
-  uint8_t bSubordinateInterface[0] ; ///< Interface number of Data Interface
+  uint8_t bSubordinateInterface    ; ///< Array of Interface number of Data Interface
 }tusb_cdc_func_union_t;
+
+#define tusb_cdc_func_union_n_t(no_slave)\
+ ATTR_PACKED_STRUCT(struct) { \
+  uint8_t bLength                         ;\
+  uint8_t bDescriptorType                 ;\
+  uint8_t bDescriptorSubType              ;\
+  uint8_t bControlInterface               ;\
+  uint8_t bSubordinateInterface[no_slave] ;\
+}
 
 typedef ATTR_PACKED_STRUCT(struct) {
   uint8_t bLength             ; ///< Size of this descriptor in bytes.
   uint8_t bDescriptorType     ; ///< Descriptor Type, must be Class-Specific
   uint8_t bDescriptorSubType  ; ///< Descriptor SubType one of above CDC_FUCN_DESC_
   uint8_t iCountryCodeRelDate ; ///< Index of a string giving the release date for the implemented ISO 3166 Country Codes.
-  uint16_t wCountryCode[0]    ; ///< Country code in the format as defined in [ISO3166], release date as specified inoffset 3 for the first supported country.
+  uint16_t wCountryCode[]     ; ///< Country code in the format as defined in [ISO3166], release date as specified inoffset 3 for the first supported country.
 }tusb_cdc_func_country_selection_t;
+
+#define tusb_cdc_func_country_selection_n_t(no_country) \
+  ATTR_PACKED_STRUCT(struct) {\
+  uint8_t bLength                   ;\
+  uint8_t bDescriptorType           ;\
+  uint8_t bDescriptorSubType        ;\
+  uint8_t iCountryCodeRelDate       ;\
+  uint16_t wCountryCode[no_country] ;\
+}
 
 //--------------------------------------------------------------------+
 // PUBLIC SWITCHED TELEPHONE NETWORK (PSTN) SUBCLASS

@@ -47,6 +47,7 @@
 
 #include "mock_tusb_callback.h"
 #include "mock_hid_host.h"
+#include "mock_cdc_host.h"
 
 extern usbh_device_info_t usbh_devices[TUSB_CFG_HOST_DEVICE_MAX+1];
 extern uint8_t enum_data_buffer[TUSB_CFG_HOST_ENUM_BUFFER_SIZE];

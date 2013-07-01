@@ -101,6 +101,19 @@
 //--------------------------------------------------------------------+
 #define memclr_(buffer, size)  memset(buffer, 0, size)
 
+
+static inline uint8_t const * descriptor_next(uint8_t const * p_desc) ATTR_ALWAYS_INLINE ATTR_PURE;
+static inline uint8_t const * descriptor_next(uint8_t const * p_desc)
+{
+  return p_desc + p_desc[DESCRIPTOR_OFFSET_LENGTH];
+}
+
+static inline uint8_t descriptor_typeof(uint8_t const * p_desc) ATTR_ALWAYS_INLINE ATTR_PURE;
+static inline uint8_t descriptor_typeof(uint8_t const * p_desc)
+{
+  return p_desc[DESCRIPTOR_OFFSET_TYPE];
+}
+
 //------------- Conversion -------------//
 /// form an uint32_t from 4 x uint8_t
 static inline uint32_t u32_from_u8(uint8_t b1, uint8_t b2, uint8_t b3, uint8_t b4) ATTR_ALWAYS_INLINE ATTR_CONST;

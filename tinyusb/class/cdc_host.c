@@ -55,17 +55,78 @@
 //--------------------------------------------------------------------+
 // INTERNAL OBJECT & FUNCTION DECLARATION
 //--------------------------------------------------------------------+
+STATIC_ cdch_data_t cdch_data[TUSB_CFG_HOST_DEVICE_MAX];
 
 //--------------------------------------------------------------------+
-// IMPLEMENTATION
+// USBH-CLASS DRIVER API
 //--------------------------------------------------------------------+
 void cdch_init(void)
 {
-
+  memclr_(cdch_data, sizeof(cdch_data_t)*TUSB_CFG_HOST_DEVICE_MAX);
 }
 
 tusb_error_t cdch_open_subtask(uint8_t dev_addr, tusb_descriptor_interface_t const *p_interface_desc, uint16_t *p_length)
 {
+
+  if ( CDC_COMM_SUBCLASS_ABSTRACT_CONTROL_MODEL != p_interface_desc->bInterfaceSubClass)
+  {
+    return TUSB_ERROR_CDCH_UNSUPPORTED_SUBCLASS;
+  }
+
+  if (CDC_COMM_PROTOCOL_ATCOMMAND != p_interface_desc->bInterfaceProtocol)
+  {
+    return TUSB_ERROR_CDCH_UNSUPPORTED_PROTOCOL;
+  }
+
+  uint8_t const * p_desc = descriptor_next ( (uint8_t const *) p_interface_desc );
+  cdch_data_t * p_cdc = &cdch_data[dev_addr-1];
+
+  p_cdc->interface_number   = p_interface_desc->bInterfaceNumber;
+  p_cdc->interface_protocol = p_interface_desc->bInterfaceProtocol; // TODO 0xff is consider as rndis candidate, other is virtual Com
+
+  //------------- Communication Interface -------------//
+  (*p_length) = sizeof(tusb_descriptor_interface_t);
+
+  while( TUSB_DESC_TYPE_INTERFACE_CLASS_SPECIFIC == p_desc[DESCRIPTOR_OFFSET_TYPE] )
+  { // Communication Functional Descriptors
+    (*p_length) += p_desc[DESCRIPTOR_OFFSET_LENGTH];
+    p_desc = descriptor_next(p_desc);
+  }
+
+  if ( TUSB_DESC_TYPE_ENDPOINT == p_desc[DESCRIPTOR_OFFSET_TYPE])
+  { // notification endpoint if any
+    p_cdc->pipe_notification = hcd_pipe_open(dev_addr, (tusb_descriptor_endpoint_t const *) p_desc, TUSB_CLASS_CDC);
+
+    (*p_length) += p_desc[DESCRIPTOR_OFFSET_LENGTH];
+    p_desc = descriptor_next(p_desc);
+
+    ASSERT(pipehandle_is_valid(p_cdc->pipe_notification), TUSB_ERROR_HCD_OPEN_PIPE_FAILED);
+  }
+
+  //------------- Data Interface (if any) -------------//
+  if ( (TUSB_DESC_TYPE_INTERFACE == p_desc[DESCRIPTOR_OFFSET_TYPE]) &&
+       (TUSB_CLASS_CDC_DATA      == ((tusb_descriptor_interface_t const *) p_desc)->bInterfaceClass) )
+  {
+    (*p_length) += p_desc[DESCRIPTOR_OFFSET_LENGTH];
+    p_desc = descriptor_next(p_desc);
+
+    // data endpoints expected to be in pairs
+    for(uint32_t i=0; i<2; i++)
+    {
+      tusb_descriptor_endpoint_t const *p_endpoint = (tusb_descriptor_endpoint_t const *) p_desc;
+      ASSERT_INT(TUSB_DESC_TYPE_ENDPOINT, p_endpoint->bDescriptorType, TUSB_ERROR_CDCH_DESCRIPTOR_CORRUPTED);
+
+      pipe_handle_t * p_pipe_hdl =  ( p_endpoint->bEndpointAddress &  TUSB_DIR_DEV_TO_HOST_MASK ) ?
+          &p_cdc->pipe_in : &p_cdc->pipe_out;
+
+      (*p_pipe_hdl) = hcd_pipe_open(dev_addr, p_endpoint, TUSB_CLASS_CDC);
+      ASSERT ( pipehandle_is_valid(*p_pipe_hdl), TUSB_ERROR_HCD_OPEN_PIPE_FAILED );
+
+      (*p_length) += p_desc[DESCRIPTOR_OFFSET_LENGTH];
+      p_desc = descriptor_next( p_desc );
+    }
+  }
+
   return TUSB_ERROR_NONE;
 }
 

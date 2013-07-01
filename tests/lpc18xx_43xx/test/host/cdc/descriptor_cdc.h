@@ -1,6 +1,6 @@
 /**************************************************************************/
 /*!
-    @file     cdc_host.h
+    @file     descriptor_cdc.h
     @author   hathach (tinyusb.org)
 
     @section LICENSE
@@ -43,46 +43,42 @@
  *  @{
  */
 
-#ifndef _TUSB_CDC_HOST_H_
-#define _TUSB_CDC_HOST_H_
+#ifndef _TUSB_DESCRIPTOR_CDC_H_
+#define _TUSB_DESCRIPTOR_CDC_H_
 
-#include "common/common.h"
-#include "host/usbh.h"
-#include "cdc.h"
+#include "tusb.h"
+#include "class/cdc.h"
 
 #ifdef __cplusplus
  extern "C" {
 #endif
 
-//--------------------------------------------------------------------+
-// APPLICATION PUBLIC API
-//--------------------------------------------------------------------+
+typedef struct
+{
+  tusb_descriptor_configuration_t              configuration;
 
-//--------------------------------------------------------------------+
-// USBH-CLASS API
-//--------------------------------------------------------------------+
-#ifdef _TINY_USB_SOURCE_FILE_
+  tusb_descriptor_interface_association_t      cdc_iad;
 
-typedef struct {
-  uint8_t interface_number;
-  uint8_t interface_protocol;
-  pipe_handle_t pipe_notification, pipe_out, pipe_in;
+  //CDC Control Interface
+  tusb_descriptor_interface_t                  cdc_comm_interface;
+  tusb_cdc_func_header_t                       cdc_header;
+  tusb_cdc_func_abstract_control_management_t  cdc_acm;
+  tusb_cdc_func_union_t                        cdc_union;
+  tusb_descriptor_endpoint_t                   cdc_endpoint_notification;
 
-} cdch_data_t;
+  //CDC Data Interface
+  tusb_descriptor_interface_t                  cdc_data_interface;
+  tusb_descriptor_endpoint_t                   cdc_endpoint_out;
+  tusb_descriptor_endpoint_t                   cdc_endpoint_in;
 
-extern cdch_data_t cdch_data[TUSB_CFG_HOST_DEVICE_MAX]; // TODO consider to move to cdch internal header file
+} cdc_configuration_desc_t;
 
-void         cdch_init(void);
-tusb_error_t cdch_open_subtask(uint8_t dev_addr, tusb_descriptor_interface_t const *p_interface_desc, uint16_t *p_length) ATTR_WARN_UNUSED_RESULT;
-void         cdch_isr(pipe_handle_t pipe_hdl, tusb_event_t event);
-void         cdch_close(uint8_t dev_addr);
-
-#endif
+extern const cdc_configuration_desc_t cdc_config_descriptor;
 
 #ifdef __cplusplus
  }
 #endif
 
-#endif /* _TUSB_CDC_HOST_H_ */
+#endif /* _TUSB_DESCRIPTOR_CDC_H_ */
 
 /** @} */

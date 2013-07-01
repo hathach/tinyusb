@@ -298,7 +298,7 @@ void usbh_device_unplugged_isr(uint8_t hostid)
 //--------------------------------------------------------------------+
 // ENUMERATION TASK
 //--------------------------------------------------------------------+
-tusb_error_t enumeration_body_subtask(void);
+static tusb_error_t enumeration_body_subtask(void);
 
 // To enable the TASK_ASSERT style (quick return on false condition) in a real RTOS, a task must act as a wrapper
 // and is used mainly to call subtasks. Within a subtask return statement can be called freely, the task with
