@@ -55,7 +55,7 @@
 //--------------------------------------------------------------------+
 // INTERNAL OBJECT & FUNCTION DECLARATION
 //--------------------------------------------------------------------+
-STATIC_ cdch_data_t cdch_data[TUSB_CFG_HOST_DEVICE_MAX];
+/*STATIC_*/ cdch_data_t cdch_data[TUSB_CFG_HOST_DEVICE_MAX];
 
 //--------------------------------------------------------------------+
 // USBH-CLASS DRIVER API

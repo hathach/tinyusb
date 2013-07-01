@@ -88,3 +88,5 @@ static tusb_error_t rndis_body_subtask(void)
 
   OSAL_SUBTASK_END
 }
+
+#endif
