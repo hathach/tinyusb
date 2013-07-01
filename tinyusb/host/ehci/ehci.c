@@ -614,17 +614,10 @@ void xfer_error_isr(uint8_t hostid)
       p_qhd->p_qtd_list_head->used = 0; // free QTD
       qtd_remove_1st_from_qhd(p_qhd);
 
-      pipe_handle_t pipe_hdl = {
-          .dev_addr  = p_qhd->device_address,
-          .xfer_type = TUSB_XFER_CONTROL
-      };
+      tusb_xfer_type_t xfer_type = p_qhd->endpoint_number != 0 ? TUSB_XFER_BULK : TUSB_XFER_CONTROL;
 
-      if (p_qhd->endpoint_number) // if not Control, can only be Bulk
-      {
-        pipe_hdl.xfer_type = TUSB_XFER_BULK;
-        pipe_hdl.index     = qhd_get_index(p_qhd);
-      }
-      usbh_xfer_isr( pipe_hdl, p_qhd->class_code, TUSB_EVENT_XFER_ERROR); // call USBH callback
+      usbh_xfer_isr( qhd_create_pipe_handle(p_qhd, xfer_type),
+                     p_qhd->class_code, TUSB_EVENT_XFER_ERROR); // call USBH callback
     }
 
     p_qhd = qhd_next(p_qhd);
