@@ -239,7 +239,7 @@ tusb_interface_status_t usbh_pipe_status_get(pipe_handle_t pipe_hdl)
 void usbh_xfer_isr(pipe_handle_t pipe_hdl, uint8_t class_code, tusb_event_t event)
 {
   uint8_t class_index = std_class_code_to_index(class_code);
-  if (class_index == 0) // Control transfer
+  if (TUSB_XFER_CONTROL == pipe_hdl.xfer_type)
   {
     usbh_devices[ pipe_hdl.dev_addr ].control.pipe_status = (event == TUSB_EVENT_XFER_COMPLETE) ? TUSB_INTERFACE_STATUS_COMPLETE : TUSB_INTERFACE_STATUS_ERROR;
     osal_semaphore_post( usbh_devices[ pipe_hdl.dev_addr ].control.sem_hdl );
@@ -488,7 +488,7 @@ tusb_error_t enumeration_body_subtask(void)
       static uint8_t class_index; // has to be static as it is used to call class's open_subtask
 
       class_index = std_class_code_to_index( ((tusb_descriptor_interface_t*) p_desc)->bInterfaceClass );
-      SUBTASK_ASSERT( class_index != 0); // class_index == 0 means corrupted data, abort enumeration
+      SUBTASK_ASSERT( class_index != 0 ); // class_index == 0 means corrupted data, abort enumeration
 
       if (usbh_class_drivers[class_index].open_subtask)      // supported class
       {

@@ -506,40 +506,44 @@ void port_connect_status_change_isr(uint8_t hostid)
   }
 }
 
-void async_list_process_isr(ehci_qhd_t * const async_head)
+void qhd_xfer_complete_isr(ehci_qhd_t * p_qhd, tusb_transfer_type_t xfer_type)
+{
+  // free all TDs from the head td to the first active TD
+  while(p_qhd->p_qtd_list_head != NULL && !p_qhd->p_qtd_list_head->active)
+  {
+    // TD need to be freed and removed from qhd, before invoking callback
+    bool is_ioc = (p_qhd->p_qtd_list_head->int_on_complete != 0);
+    uint16_t actual_bytes_xferred = p_qhd->p_qtd_list_head->expected_bytes - p_qhd->p_qtd_list_head->total_bytes;
+
+    p_qhd->p_qtd_list_head->used = 0; // free QTD
+    qtd_remove_1st_from_qhd(p_qhd);
+
+    if (is_ioc) // end of request
+    {
+      pipe_handle_t pipe_hdl = {
+          .dev_addr  = p_qhd->device_address,
+          .xfer_type = xfer_type
+      };
+      if (TUSB_XFER_CONTROL != xfer_type) // qhd index for control is meaningless
+      {
+        pipe_hdl.index = qhd_get_index(p_qhd);
+      }
+
+      usbh_xfer_isr( pipe_hdl, p_qhd->class_code, TUSB_EVENT_XFER_COMPLETE); // call USBH callback
+    }
+  }
+}
+
+void async_list_xfer_complete_isr(ehci_qhd_t * const async_head)
 {
   uint8_t max_loop = 0;
   ehci_qhd_t *p_qhd = async_head;
   do
   {
-    if ( !p_qhd->qtd_overlay.halted )
+    if ( !p_qhd->qtd_overlay.halted ) // halted or error is processed in error isr
     {
-      // free all TDs from the head td to the first active TD
-      while(p_qhd->p_qtd_list_head != NULL && !p_qhd->p_qtd_list_head->active)
-      {
-        // TD need to be freed and removed from qhd, before invoking callback
-        bool is_ioc = (p_qhd->p_qtd_list_head->int_on_complete != 0);
-        uint16_t actual_bytes_xferred = p_qhd->p_qtd_list_head->expected_bytes - p_qhd->p_qtd_list_head->total_bytes;
-
-        p_qhd->p_qtd_list_head->used = 0; // free QTD
-        qtd_remove_1st_from_qhd(p_qhd);
-
-        if (is_ioc) // end of request
-        {
-          pipe_handle_t pipe_hdl = {
-              .dev_addr  = p_qhd->device_address,
-              .xfer_type = TUSB_XFER_CONTROL
-          };
-
-          if (p_qhd->endpoint_number) // if not Control, can only be Bulk
-          {
-            pipe_hdl.xfer_type = TUSB_XFER_BULK;
-            pipe_hdl.index = qhd_get_index(p_qhd);
-          }
-          usbh_xfer_isr( pipe_hdl, p_qhd->class_code, TUSB_EVENT_XFER_COMPLETE); // call USBH callback
-        }
-
-      }
+      qhd_xfer_complete_isr(p_qhd,
+                            p_qhd->endpoint_number != 0 ? TUSB_XFER_BULK : TUSB_XFER_CONTROL);
     }
     p_qhd = (ehci_qhd_t*) align32(p_qhd->next.address);
     max_loop++;
@@ -548,7 +552,7 @@ void async_list_process_isr(ehci_qhd_t * const async_head)
 }
 
 #if EHCI_PERIODIC_LIST // TODO refractor/group this together
-void period_list_process_isr(uint8_t hostid, uint8_t interval_ms)
+void period_list_xfer_complete_isr(uint8_t hostid, uint8_t interval_ms)
 {
   uint8_t max_loop = 0;
   uint32_t const period_1ms_addr = (uint32_t) get_period_head(hostid, 1);
@@ -566,28 +570,7 @@ void period_list_process_isr(uint8_t hostid, uint8_t interval_ms)
         ehci_qhd_t *p_qhd_int = (ehci_qhd_t *) align32(next_item.address);
         if ( !p_qhd_int->qtd_overlay.halted )
         {
-          // free all TDs from the head td to the first active TD
-          while(p_qhd_int->p_qtd_list_head != NULL && !p_qhd_int->p_qtd_list_head->active)
-          {
-            // TD need to be freed and removed from qhd, before invoking callback
-            bool is_ioc = (p_qhd_int->p_qtd_list_head->int_on_complete != 0);
-
-            p_qhd_int->p_qtd_list_head->used = 0; // free QTD
-            qtd_remove_1st_from_qhd(p_qhd_int);
-
-            if (is_ioc) // end of request
-            {
-              usbh_xfer_isr( (pipe_handle_t)
-                        {
-                              .dev_addr = p_qhd_int->device_address,
-                              .xfer_type = TUSB_XFER_INTERRUPT,
-                              .index = qhd_get_index(p_qhd_int)
-                        },
-                        p_qhd_int->class_code,
-                        TUSB_EVENT_XFER_COMPLETE); // call USBH callback
-            }
-
-          }
+          qhd_xfer_complete_isr(p_qhd_int, TUSB_XFER_INTERRUPT);
         }
         next_item = p_qhd_int->next;
       }
@@ -673,7 +656,7 @@ void hcd_isr(uint8_t hostid)
   //------------- some QTD/SITD/ITD with IOC set is completed -------------//
   if (int_status & EHCI_INT_MASK_NXP_ASYNC)
   {
-    async_list_process_isr( get_async_head(hostid) );
+    async_list_xfer_complete_isr( get_async_head(hostid) );
   }
 
 #if EHCI_PERIODIC_LIST // TODO refractor/group this together
@@ -681,7 +664,7 @@ void hcd_isr(uint8_t hostid)
   {
     for (uint8_t i=1; i <= EHCI_FRAMELIST_SIZE; i *= 2)
     {
-      period_list_process_isr( hostid, i );
+      period_list_xfer_complete_isr( hostid, i );
     }
   }
 #endif
