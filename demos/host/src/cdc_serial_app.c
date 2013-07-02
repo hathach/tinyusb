@@ -58,6 +58,32 @@ static uint8_t buffer_in[64] TUSB_CFG_ATTR_USBRAM;
 //--------------------------------------------------------------------+
 // INTERNAL OBJECT & FUNCTION DECLARATION
 //--------------------------------------------------------------------+
+void tusbh_cdc_isr(uint8_t dev_addr, tusb_event_t event)
+{
+  switch(event)
+  {
+    case TUSB_EVENT_INTERFACE_OPEN: // application set-up
+      osal_queue_flush(queue_hdl);
+      tusbh_cdc_receive(dev_addr, buffer_in, sizeof(buffer_in), true); // first report
+    break;
+
+    case TUSB_EVENT_INTERFACE_CLOSE: // application tear-down
+
+    break;
+
+    case TUSB_EVENT_XFER_COMPLETE:
+//      osal_queue_send(queue_hdl, &usb_keyboard_report);
+      tusbh_cdc_receive(dev_addr, buffer_in, sizeof(buffer_in), true);
+    break;
+
+    case TUSB_EVENT_XFER_ERROR:
+      tusbh_cdc_receive(dev_addr, buffer_in, sizeof(buffer_in), true); // ignore & continue
+    break;
+
+    default :
+    break;
+  }
+}
 
 //--------------------------------------------------------------------+
 // APPLICATION
@@ -75,13 +101,14 @@ void cdc_serial_app_init(void)
 OSAL_TASK_FUNCTION( cdc_serial_app_task ) (void* p_task_para)
 {
   tusb_error_t error;
-  uint8_t c;
+  uint8_t c = 0;
 
   OSAL_TASK_LOOP_BEGIN
 
   osal_queue_receive(queue_hdl, &c, OSAL_TIMEOUT_WAIT_FOREVER, &error);
 
-  printf("%c", c);
+  if (c)
+    printf("%c", c);
 
   OSAL_TASK_LOOP_END
 }

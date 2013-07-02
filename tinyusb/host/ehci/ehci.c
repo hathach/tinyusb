@@ -938,6 +938,7 @@ static void qtd_init(ehci_qtd_t* p_qtd, uint32_t data_ptr, uint16_t total_bytes)
   p_qtd->cerr                = 3; // TODO 3 consecutive errors tolerance
   p_qtd->data_toggle         = 0;
   p_qtd->total_bytes         = total_bytes;
+  p_qtd->expected_bytes      = total_bytes;
 
   p_qtd->buffer[0]           = data_ptr;
   for(uint8_t i=1; i<5; i++)

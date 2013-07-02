@@ -136,6 +136,7 @@ void verify_qtd(ehci_qtd_t *p_qtd, uint8_t p_data[], uint16_t length)
   TEST_ASSERT_EQUAL(3, p_qtd->cerr);
   TEST_ASSERT_EQUAL(0, p_qtd->current_page);
   TEST_ASSERT_EQUAL(length, p_qtd->total_bytes);
+  TEST_ASSERT_EQUAL(length, p_qtd->expected_bytes);
   TEST_ASSERT_TRUE(p_qtd->used);
 
   TEST_ASSERT_EQUAL_HEX( p_data, p_qtd->buffer[0] );

@@ -76,7 +76,7 @@ bool tusbh_cdc_serial_is_mounted(uint8_t dev_addr)
 
 tusb_error_t tusbh_cdc_send(uint8_t dev_addr, void const * p_data, uint32_t length, bool is_notify)
 {
-  ASSERT( tusbh_cdc_is_mounted(dev_addr),  TUSB_ERROR_CDCH_DEVICE_NOT_MOUNTED);
+// FIXME disable temp  ASSERT( tusbh_cdc_is_mounted(dev_addr),  TUSB_ERROR_CDCH_DEVICE_NOT_MOUNTED);
   ASSERT( p_data != NULL && length, TUSB_ERROR_INVALID_PARA);
 
   pipe_handle_t pipe_out = cdch_data[dev_addr-1].pipe_out;
@@ -90,7 +90,7 @@ tusb_error_t tusbh_cdc_send(uint8_t dev_addr, void const * p_data, uint32_t leng
 
 tusb_error_t tusbh_cdc_receive(uint8_t dev_addr, void * p_buffer, uint32_t length, bool is_notify)
 {
-  ASSERT( tusbh_cdc_is_mounted(dev_addr),  TUSB_ERROR_CDCH_DEVICE_NOT_MOUNTED);
+// FIXME disable temp  ASSERT( tusbh_cdc_is_mounted(dev_addr),  TUSB_ERROR_CDCH_DEVICE_NOT_MOUNTED);
   ASSERT( p_buffer != NULL && length, TUSB_ERROR_INVALID_PARA);
 
   pipe_handle_t pipe_in = cdch_data[dev_addr-1].pipe_in;
@@ -177,12 +177,21 @@ tusb_error_t cdch_open_subtask(uint8_t dev_addr, tusb_descriptor_interface_t con
     }
   }
 
+  // FIXME mounted class flag is not set yet
+  if (tusbh_cdc_isr)
+  {
+    tusbh_cdc_isr(dev_addr, TUSB_EVENT_INTERFACE_OPEN);
+  }
+
   return TUSB_ERROR_NONE;
 }
 
 void cdch_isr(pipe_handle_t pipe_hdl, tusb_event_t event)
 {
-
+  if (tusbh_cdc_isr)
+  {
+    tusbh_cdc_isr(pipe_hdl.dev_addr, event);
+  }
 }
 
 void cdch_close(uint8_t dev_addr)
@@ -208,9 +217,15 @@ void cdch_close(uint8_t dev_addr)
 
   memclr_(p_cdc, sizeof(cdch_data_t));
 
+  if (tusbh_cdc_isr)
+  {
+    tusbh_cdc_isr(dev_addr, TUSB_EVENT_INTERFACE_CLOSE);
+  }
+
   ASSERT(err1 == TUSB_ERROR_NONE &&
          err2 == TUSB_ERROR_NONE &&
          err3 == TUSB_ERROR_NONE, (void) 0 );
+
 }
 
 #endif
