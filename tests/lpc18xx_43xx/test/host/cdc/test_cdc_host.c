@@ -188,6 +188,35 @@ void test_cdch_close_device(void)
   cdch_close(dev_addr);
 }
 
+void test_cdc_serial_is_mounted_not_configured(void)
+{
+  tusbh_device_get_mounted_class_flag_ExpectAndReturn(dev_addr, 0);
 
+  TEST_ASSERT_FALSE( tusbh_cdc_serial_is_mounted(dev_addr) );
+}
+
+void test_cdc_serial_is_mounted_protocol_zero(void)
+{
+  tusbh_device_get_mounted_class_flag_ExpectAndReturn(dev_addr, BIT_(TUSB_CLASS_CDC) );
+  cdch_data[0].interface_protocol = 0;
+
+  TEST_ASSERT_FALSE( tusbh_cdc_serial_is_mounted(dev_addr) );
+}
+
+void test_cdc_serial_is_mounted_protocol_is_vendor(void)
+{
+  tusbh_device_get_mounted_class_flag_ExpectAndReturn(dev_addr, BIT_(TUSB_CLASS_CDC) );
+  cdch_data[0].interface_protocol = 0xff;
+
+  TEST_ASSERT_FALSE( tusbh_cdc_serial_is_mounted(dev_addr) );
+}
+
+void test_cdc_serial_is_mounted_protocol_is_at_command(void)
+{
+  tusbh_device_get_mounted_class_flag_ExpectAndReturn(dev_addr, BIT_(TUSB_CLASS_CDC) );
+  cdch_data[0].interface_protocol = CDC_COMM_PROTOCOL_ATCOMMAND;
+
+  TEST_ASSERT( tusbh_cdc_serial_is_mounted(dev_addr) );
+}
 
 
