@@ -529,7 +529,7 @@ void qhd_xfer_complete_isr(ehci_qhd_t * p_qhd, tusb_xfer_type_t xfer_type)
     if (is_ioc) // end of request
     {
       usbh_xfer_isr( qhd_create_pipe_handle(p_qhd, xfer_type),
-                     p_qhd->class_code, TUSB_EVENT_XFER_COMPLETE); // call USBH callback
+                     p_qhd->class_code, TUSB_EVENT_XFER_COMPLETE, actual_bytes_xferred); // call USBH callback
     }
   }
 }
@@ -602,13 +602,15 @@ void qhd_xfer_error_isr(ehci_qhd_t * p_qhd, tusb_xfer_type_t xfer_type)
     error_event = ( !(p_qhd->qtd_overlay.buffer_err || p_qhd->qtd_overlay.babble_err ||
         p_qhd->qtd_overlay.xact_err) ) ? TUSB_EVENT_XFER_STALLED : TUSB_EVENT_XFER_ERROR;
 
+    uint16_t actual_bytes_xferred = p_qhd->p_qtd_list_head->expected_bytes - p_qhd->p_qtd_list_head->total_bytes;
+
     hal_debugger_breakpoint();
 
     p_qhd->p_qtd_list_head->used = 0; // free QTD
     qtd_remove_1st_from_qhd(p_qhd);
 
     usbh_xfer_isr( qhd_create_pipe_handle(p_qhd, xfer_type),
-                   p_qhd->class_code, error_event); // call USBH callback
+                   p_qhd->class_code, error_event, actual_bytes_xferred); // call USBH callback
   }
 }
 

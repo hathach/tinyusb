@@ -227,7 +227,7 @@ void test_control_xfer_complete_isr(void)
 {
   TEST_ASSERT_STATUS( hcd_pipe_control_xfer(dev_addr, &request_get_dev_desc, xfer_data) );
 
-  usbh_xfer_isr_Expect(((pipe_handle_t){.dev_addr = dev_addr}), 0, TUSB_EVENT_XFER_COMPLETE);
+  usbh_xfer_isr_Expect(((pipe_handle_t){.dev_addr = dev_addr}), 0, TUSB_EVENT_XFER_COMPLETE, 0);
 
   //------------- Code Under TEST -------------//
   ehci_controller_run(hostid);
@@ -245,7 +245,7 @@ void test_control_xfer_error_isr(void)
 {
   TEST_ASSERT_STATUS( hcd_pipe_control_xfer(dev_addr, &request_get_dev_desc, xfer_data) );
 
-  usbh_xfer_isr_Expect(((pipe_handle_t){.dev_addr = dev_addr}), 0, TUSB_EVENT_XFER_ERROR);
+  usbh_xfer_isr_Expect(((pipe_handle_t){.dev_addr = dev_addr}), 0, TUSB_EVENT_XFER_ERROR, 0);
 
   //------------- Code Under TEST -------------//
   ehci_controller_run_error(hostid);
@@ -255,7 +255,7 @@ void test_control_xfer_error_stall(void)
 {
   TEST_ASSERT_STATUS( hcd_pipe_control_xfer(dev_addr, &request_get_dev_desc, xfer_data) );
 
-  usbh_xfer_isr_Expect(((pipe_handle_t){.dev_addr = dev_addr}), 0, TUSB_EVENT_XFER_STALLED);
+  usbh_xfer_isr_Expect(((pipe_handle_t){.dev_addr = dev_addr}), 0, TUSB_EVENT_XFER_STALLED, 0);
 
   //------------- Code Under TEST -------------//
   ehci_controller_run_stall(hostid);

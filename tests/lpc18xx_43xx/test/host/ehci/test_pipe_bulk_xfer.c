@@ -209,7 +209,7 @@ void test_bulk_xfer_complete_isr(void)
   ehci_qtd_t* p_head = p_qhd_bulk->p_qtd_list_head;
   ehci_qtd_t* p_tail = p_qhd_bulk->p_qtd_list_tail;
 
-  usbh_xfer_isr_Expect(pipe_hdl_bulk, TUSB_CLASS_MSC, TUSB_EVENT_XFER_COMPLETE);
+  usbh_xfer_isr_Expect(pipe_hdl_bulk, TUSB_CLASS_MSC, TUSB_EVENT_XFER_COMPLETE, sizeof(data2));
 
   //------------- Code Under Test -------------//
   ehci_controller_run(hostid);

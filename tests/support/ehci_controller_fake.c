@@ -95,6 +95,7 @@ void complete_qtd_in_qhd(ehci_qhd_t *p_qhd)
     {
       ehci_qtd_t* p_qtd = (ehci_qtd_t*) align32(p_qhd->qtd_overlay.next.address);
       p_qtd->active = 0;
+      p_qtd->total_bytes = 0;
       p_qhd->qtd_overlay = *p_qtd;
     }
   }
