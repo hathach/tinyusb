@@ -1,6 +1,6 @@
 /**************************************************************************/
 /*!
-    @file     custom_class.h
+    @file     cdc_serial_app.c
     @author   hathach (tinyusb.org)
 
     @section LICENSE
@@ -36,55 +36,54 @@
 */
 /**************************************************************************/
 
-/** \ingroup TBD
- *  \defgroup TBD
- *  \brief TBD
- *
- *  @{
- */
+#include "cdc_serial_app.h"
 
-#ifndef _TUSB_CUSTOM_CLASS_H_
-#define _TUSB_CUSTOM_CLASS_H_
-
-#include "common/common.h"
-#include "host/usbh.h"
-
-#ifdef __cplusplus
- extern "C" {
+#if TUSB_CFG_OS != TUSB_OS_NONE
+#include "app_os_prio.h"
 #endif
 
-typedef struct {
-  pipe_handle_t pipe_in;
-  pipe_handle_t pipe_out;
-}custom_interface_info_t;
+#if TUSB_CFG_HOST_CDC
+
+#define QUEUE_SERIAL_DEPTH   100
 
 //--------------------------------------------------------------------+
-// USBH-CLASS DRIVER API
+// MACRO CONSTANT TYPEDEF
 //--------------------------------------------------------------------+
-STATIC_ INLINE_ bool tusbh_custom_is_mounted(uint8_t dev_addr, uint16_t vendor_id, uint16_t product_id) ATTR_PURE ATTR_ALWAYS_INLINE ATTR_WARN_UNUSED_RESULT;
-STATIC_ INLINE_ bool tusbh_custom_is_mounted(uint8_t dev_addr, uint16_t vendor_id, uint16_t product_id)
+OSAL_TASK_DEF(cdc_serial_task_def, "cdc serial app", cdc_serial_app_task, 128, CDC_SERIAL_APP_TASK_PRIO);
+OSAL_QUEUE_DEF(queue_def, QUEUE_SERIAL_DEPTH, uint8_t);
+
+static osal_queue_handle_t queue_hdl;
+static uint8_t buffer_in[64] TUSB_CFG_ATTR_USBRAM;
+
+//--------------------------------------------------------------------+
+// INTERNAL OBJECT & FUNCTION DECLARATION
+//--------------------------------------------------------------------+
+
+//--------------------------------------------------------------------+
+// APPLICATION
+//--------------------------------------------------------------------+
+void cdc_serial_app_init(void)
 {
-  (void) vendor_id; // TODO check this later
-  (void) product_id;
-  return (tusbh_device_get_mounted_class_flag(dev_addr) & BIT_(TUSB_CLASS_MAPPED_INDEX_END-1) ) != 0;
+  memclr_(buffer_in, sizeof(buffer_in));
+
+  ASSERT( TUSB_ERROR_NONE == osal_task_create(&cdc_serial_task_def), (void) 0 );
+  queue_hdl = osal_queue_create(&queue_def);
+  ASSERT_PTR( queue_hdl, (void) 0 );
 }
 
-tusb_error_t tusbh_custom_read(uint8_t dev_addr, uint16_t vendor_id, uint16_t product_id, void * p_buffer, uint16_t length);
-tusb_error_t tusbh_custom_write(uint8_t dev_addr, uint16_t vendor_id, uint16_t product_id, void const * p_data, uint16_t length);
+//------------- main task -------------//
+OSAL_TASK_FUNCTION( cdc_serial_app_task ) (void* p_task_para)
+{
+  tusb_error_t error;
+  uint8_t c;
 
-#ifdef _TINY_USB_SOURCE_FILE_
+  OSAL_TASK_LOOP_BEGIN
 
-void         cush_init(void);
-tusb_error_t cush_open_subtask(uint8_t dev_addr, tusb_descriptor_interface_t const *p_interface_desc, uint16_t *p_length) ATTR_WARN_UNUSED_RESULT;
-void         cush_isr(pipe_handle_t pipe_hdl, tusb_event_t event);
-void         cush_close(uint8_t dev_addr);
+  osal_queue_receive(queue_hdl, &c, OSAL_TIMEOUT_WAIT_FOREVER, &error);
+
+  printf("%c", c);
+
+  OSAL_TASK_LOOP_END
+}
 
 #endif
-
-#ifdef __cplusplus
- }
-#endif
-
-#endif /* _TUSB_CUSTOM_CLASS_H_ */
-
-/** @} */

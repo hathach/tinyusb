@@ -57,12 +57,12 @@
 //--------------------------------------------------------------------+
 // APPLICATION PUBLIC API
 //--------------------------------------------------------------------+
-//bool tusbh_cdc_acm_is_mounted(uint8_t dev_addr) ATTR_PURE ATTR_WARN_UNUSED_RESULT;
 bool tusbh_cdc_serial_is_mounted(uint8_t dev_addr) ATTR_PURE ATTR_WARN_UNUSED_RESULT;
 bool tusbh_cdc_rndis_is_mounted(uint8_t dev_addr) ATTR_PURE ATTR_WARN_UNUSED_RESULT;
 
-tusb_interface_status_t tusbh_cdc_send(void const * p_data, uint32_t length, bool is_notify);
-
+void tusbh_cdc_isr(uint8_t dev_addr, tusb_event_t event) ATTR_WEAK;
+tusb_error_t tusbh_cdc_send(uint8_t dev_addr, void const * p_data, uint32_t length, bool is_notify);
+tusb_error_t tusbh_cdc_receive(uint8_t dev_addr, void * p_buffer, uint32_t length, bool is_notify);
 //--------------------------------------------------------------------+
 // USBH-CLASS API
 //--------------------------------------------------------------------+

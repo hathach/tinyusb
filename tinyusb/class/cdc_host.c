@@ -57,16 +57,49 @@
 //--------------------------------------------------------------------+
 /*STATIC_*/ cdch_data_t cdch_data[TUSB_CFG_HOST_DEVICE_MAX];
 
+STATIC_ INLINE_ bool tusbh_cdc_is_mounted(uint8_t dev_addr) ATTR_PURE ATTR_ALWAYS_INLINE ATTR_WARN_UNUSED_RESULT;
+STATIC_ INLINE_ bool tusbh_cdc_is_mounted(uint8_t dev_addr)
+{
+  return (tusbh_device_get_mounted_class_flag(dev_addr) & BIT_(TUSB_CLASS_CDC)) != 0;
+}
+
 //--------------------------------------------------------------------+
 // APPLICATION API (parameter validation needed)
 //--------------------------------------------------------------------+
 bool tusbh_cdc_serial_is_mounted(uint8_t dev_addr)
 {
   // TODO consider all AT Command as serial candidate
-  return
-      (tusbh_device_get_mounted_class_flag(dev_addr) & BIT_(TUSB_CLASS_CDC) )   &&
+  return tusbh_cdc_is_mounted(dev_addr)                                         &&
       (CDC_COMM_PROTOCOL_ATCOMMAND <= cdch_data[dev_addr-1].interface_protocol) &&
       (cdch_data[dev_addr-1].interface_protocol <= CDC_COMM_PROTOCOL_ATCOMMAND_CDMA);
+}
+
+tusb_error_t tusbh_cdc_send(uint8_t dev_addr, void const * p_data, uint32_t length, bool is_notify)
+{
+  ASSERT( tusbh_cdc_is_mounted(dev_addr),  TUSB_ERROR_CDCH_DEVICE_NOT_MOUNTED);
+  ASSERT( p_data != NULL && length, TUSB_ERROR_INVALID_PARA);
+
+  pipe_handle_t pipe_out = cdch_data[dev_addr-1].pipe_out;
+  if ( !hcd_pipe_is_idle(pipe_out) )
+  {
+    return TUSB_ERROR_INTERFACE_IS_BUSY;
+  }
+
+  return hcd_pipe_xfer( pipe_out, (void *) p_data, length, is_notify);
+}
+
+tusb_error_t tusbh_cdc_receive(uint8_t dev_addr, void * p_buffer, uint32_t length, bool is_notify)
+{
+  ASSERT( tusbh_cdc_is_mounted(dev_addr),  TUSB_ERROR_CDCH_DEVICE_NOT_MOUNTED);
+  ASSERT( p_buffer != NULL && length, TUSB_ERROR_INVALID_PARA);
+
+  pipe_handle_t pipe_in = cdch_data[dev_addr-1].pipe_in;
+  if ( !hcd_pipe_is_idle(pipe_in) )
+  {
+    return TUSB_ERROR_INTERFACE_IS_BUSY;
+  }
+
+  return hcd_pipe_xfer( pipe_in, p_buffer, length, is_notify);
 }
 
 //--------------------------------------------------------------------+

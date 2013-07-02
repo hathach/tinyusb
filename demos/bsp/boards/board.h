@@ -57,6 +57,8 @@
 #endif
 
 #include <stdint.h>
+#include <stdbool.h>
+
 #include "tusb.h"
 
 //--------------------------------------------------------------------+

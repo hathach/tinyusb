@@ -88,6 +88,7 @@ void os_none_start_scheduler(void)
     tusb_task_runner();
     keyboard_app_task(NULL);
     mouse_app_task(NULL);
+    cdc_serial_app_task(NULL);
     led_blinking_task(NULL);
   }
 }
@@ -117,6 +118,10 @@ int main(void)
   mouse_app_init();
 #endif
 
+#if TUSB_CFG_HOST_CDC
+  cdc_serial_app_init();
+#endif
+
   //------------- start OS scheduler (never return) -------------//
 #if TUSB_CFG_OS == TUSB_OS_FREERTOS
   vTaskStartScheduler();
@@ -142,8 +147,7 @@ int main(void)
 //--------------------------------------------------------------------+
 OSAL_TASK_FUNCTION( led_blinking_task ) (void* p_task_para)
 {
-  // task init, only executed exactly one time, real RTOS does not need this but none OS does
-  {
+  {// task init, only executed exactly one time, real RTOS does not need this but none OS does
     static bool is_init = false;
     if (!is_init)
     {

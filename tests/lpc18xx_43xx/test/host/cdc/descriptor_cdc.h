@@ -46,7 +46,7 @@
 #ifndef _TUSB_DESCRIPTOR_CDC_H_
 #define _TUSB_DESCRIPTOR_CDC_H_
 
-#include "tusb.h"
+#include "common/common.h"
 #include "class/cdc.h"
 
 #ifdef __cplusplus

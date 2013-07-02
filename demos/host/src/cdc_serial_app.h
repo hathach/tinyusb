@@ -1,6 +1,6 @@
 /**************************************************************************/
 /*!
-    @file     keyboard_app.h
+    @file     cdc_serial_app.h
     @author   hathach (tinyusb.org)
 
     @section LICENSE
@@ -26,21 +26,15 @@
     WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
     DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER BE LIABLE FOR ANY
     DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
-    INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
-    LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION HOWEVER CAUSED AND
+    (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
+    LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND
     ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
-    INCLUDING NEGLIGENCE OR OTHERWISE ARISING IN ANY WAY OUT OF THE USE OF THIS
+    (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
     SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
     This file is part of the tinyusb stack.
 */
 /**************************************************************************/
-
-/** \file
- *  \brief TBD
- *
- *  \note TBD
- */
 
 /** \ingroup TBD
  *  \defgroup TBD
@@ -49,8 +43,8 @@
  *  @{
  */
 
-#ifndef _TUSB_KEYBOARD_APP_H_
-#define _TUSB_KEYBOARD_APP_H_
+#ifndef _TUSB_CDC_SERIAL_APP_H_
+#define _TUSB_CDC_SERIAL_APP_H_
 
 #include "boards/board.h"
 #include "tusb.h"
@@ -59,14 +53,14 @@
  extern "C" {
 #endif
 
+void cdc_serial_app_init(void);
+OSAL_TASK_FUNCTION( cdc_serial_app_task ) (void* p_task_para);
 
-void keyboard_app_init(void);
-OSAL_TASK_FUNCTION( keyboard_app_task ) (void* p_task_para);
 
 #ifdef __cplusplus
  }
 #endif
 
-#endif /* _TUSB_KEYBOARD_APP_H_ */
+#endif /* _TUSB_CDC_SERIAL_APP_H_ */
 
 /** @} */
