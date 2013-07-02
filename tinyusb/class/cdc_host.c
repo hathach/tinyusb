@@ -58,6 +58,18 @@
 /*STATIC_*/ cdch_data_t cdch_data[TUSB_CFG_HOST_DEVICE_MAX];
 
 //--------------------------------------------------------------------+
+// APPLICATION API (parameter validation needed)
+//--------------------------------------------------------------------+
+bool tusbh_cdc_serial_is_mounted(uint8_t dev_addr)
+{
+  // TODO consider all AT Command as serial candidate
+  return
+      (tusbh_device_get_mounted_class_flag(dev_addr) & BIT_(TUSB_CLASS_CDC) )   &&
+      (CDC_COMM_PROTOCOL_ATCOMMAND <= cdch_data[dev_addr-1].interface_protocol) &&
+      (cdch_data[dev_addr-1].interface_protocol <= CDC_COMM_PROTOCOL_ATCOMMAND_CDMA);
+}
+
+//--------------------------------------------------------------------+
 // USBH-CLASS DRIVER API
 //--------------------------------------------------------------------+
 void cdch_init(void)

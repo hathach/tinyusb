@@ -964,7 +964,7 @@ static ehci_link_t* list_find_previous_item(ehci_link_t* p_head, ehci_link_t* p_
   uint32_t max_loop = 0;
   while( (align32(p_prev->address) != (uint32_t) p_head)    && // not loop around
          (align32(p_prev->address) != (uint32_t) p_current) && // not found yet
-         !p_prev->terminate                                 && // not advancable
+         !p_prev->terminate                                 && // not advanceable
          max_loop < EHCI_MAX_QHD)
   {
     p_prev = list_next(p_prev);

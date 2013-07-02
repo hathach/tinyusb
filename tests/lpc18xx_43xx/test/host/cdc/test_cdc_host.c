@@ -155,6 +155,39 @@ void test_cdch_open_acm_capacity_check(void)
   TEST_ASSERT_EQUAL_MEMORY(&cdc_config_descriptor.cdc_acm.bmCapabilities, &p_cdc->acm_capability, 1);
 }
 
+void test_cdch_close_device(void)
+{
+  pipe_handle_t pipe_notification = {
+      .dev_addr = 1,
+      .xfer_type = TUSB_XFER_INTERRUPT
+  };
+
+  pipe_handle_t pipe_out = {
+      .dev_addr  = 1,
+      .xfer_type = TUSB_XFER_BULK,
+      .index = 0
+  };
+
+  pipe_handle_t pipe_int = {
+      .dev_addr  = 1,
+      .xfer_type = TUSB_XFER_BULK,
+      .index = 1
+  };
+
+  hcd_pipe_open_ExpectAndReturn(dev_addr, p_endpoint_notification, TUSB_CLASS_CDC, pipe_notification);
+  hcd_pipe_open_ExpectAndReturn(dev_addr, p_endpoint_out, TUSB_CLASS_CDC, pipe_out);
+  hcd_pipe_open_ExpectAndReturn(dev_addr, p_endpoint_in, TUSB_CLASS_CDC, pipe_int);
+
+  TEST_ASSERT_EQUAL( TUSB_ERROR_NONE, cdch_open_subtask(dev_addr, p_comm_interface, &length) );
+
+  hcd_pipe_close_ExpectAndReturn(pipe_notification , TUSB_ERROR_NONE);
+  hcd_pipe_close_ExpectAndReturn(pipe_int          , TUSB_ERROR_NONE);
+  hcd_pipe_close_ExpectAndReturn(pipe_out          , TUSB_ERROR_NONE);
+
+  //------------- CUT -------------//
+  cdch_close(dev_addr);
+}
+
 
 
 
