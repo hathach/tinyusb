@@ -514,7 +514,6 @@ void port_connect_status_change_isr(uint8_t hostid)
   }
 }
 
-//void qtd_xfer_process_isr(ehci_qtd_t * p_qtd, )
 void qhd_xfer_complete_isr(ehci_qhd_t * p_qhd, tusb_xfer_type_t xfer_type)
 {
   // free all TDs from the head td to the first active TD
@@ -590,6 +589,29 @@ void period_list_xfer_complete_isr(uint8_t hostid, uint8_t interval_ms)
 }
 #endif
 
+void qhd_xfer_error_isr(ehci_qhd_t * p_qhd, tusb_xfer_type_t xfer_type)
+{
+  if (  (p_qhd->device_address != 0 && p_qhd->qtd_overlay.halted)   || // addr0 cannot be protocol STALL
+      p_qhd->qtd_overlay.buffer_err ||p_qhd->qtd_overlay.babble_err || p_qhd->qtd_overlay.xact_err )
+    //p_qhd->qtd_overlay.non_hs_period_missed_uframe || p_qhd->qtd_overlay.pingstate_err TODO split transaction error
+  {
+    // current qhd has error in transaction
+    tusb_event_t error_event;
+
+    // no error bits are set, endpoint is halted due to STALL
+    error_event = ( !(p_qhd->qtd_overlay.buffer_err || p_qhd->qtd_overlay.babble_err ||
+        p_qhd->qtd_overlay.xact_err) ) ? TUSB_EVENT_XFER_STALLED : TUSB_EVENT_XFER_ERROR;
+
+    hal_debugger_breakpoint();
+
+    p_qhd->p_qtd_list_head->used = 0; // free QTD
+    qtd_remove_1st_from_qhd(p_qhd);
+
+    usbh_xfer_isr( qhd_create_pipe_handle(p_qhd, xfer_type),
+                   p_qhd->class_code, error_event); // call USBH callback
+  }
+}
+
 void xfer_error_isr(uint8_t hostid)
 {
   //------------- async list -------------//
@@ -598,33 +620,45 @@ void xfer_error_isr(uint8_t hostid)
   ehci_qhd_t *p_qhd = async_head;
   do
   {
-    // current qhd has error in transaction
-    if (  (p_qhd->device_address != 0 && p_qhd->qtd_overlay.halted)   || // addr0 cannot be protocol STALL
-        p_qhd->qtd_overlay.buffer_err ||p_qhd->qtd_overlay.babble_err || p_qhd->qtd_overlay.xact_err )
-      //p_qhd->qtd_overlay.non_hs_period_missed_uframe || p_qhd->qtd_overlay.pingstate_err TODO split transaction error
-    {
-      tusb_event_t error_event;
-
-      // no error bits are set, endpoint is halted due to STALL
-      error_event = ( !(p_qhd->qtd_overlay.buffer_err || p_qhd->qtd_overlay.babble_err ||
-          p_qhd->qtd_overlay.xact_err) ) ? TUSB_EVENT_XFER_STALLED : TUSB_EVENT_XFER_ERROR;
-
-      hal_debugger_breakpoint();
-
-      p_qhd->p_qtd_list_head->used = 0; // free QTD
-      qtd_remove_1st_from_qhd(p_qhd);
-
-      tusb_xfer_type_t xfer_type = p_qhd->endpoint_number != 0 ? TUSB_XFER_BULK : TUSB_XFER_CONTROL;
-
-      usbh_xfer_isr( qhd_create_pipe_handle(p_qhd, xfer_type),
-                     p_qhd->class_code, error_event); // call USBH callback
-    }
-
+    qhd_xfer_error_isr( p_qhd,
+                        p_qhd->endpoint_number != 0 ? TUSB_XFER_BULK : TUSB_XFER_CONTROL);
     p_qhd = qhd_next(p_qhd);
     max_loop++;
   }while(p_qhd != async_head && max_loop < EHCI_MAX_QHD); // async list traversal, stop if loop around
 
-  //------------- TODO period list -------------//
+  //------------- TODO refractor period list -------------//
+  uint32_t const period_1ms_addr = (uint32_t) get_period_head(hostid, 1);
+  for (uint8_t interval_ms=1; interval_ms <= EHCI_FRAMELIST_SIZE; interval_ms *= 2)
+  {
+    uint8_t period_max_loop = 0;
+    ehci_link_t next_item = * get_period_head(hostid, interval_ms);
+
+    // TODO abstract max loop guard for period
+    while( !next_item.terminate &&
+        !(interval_ms > 1 && period_1ms_addr == align32(next_item.address)) &&
+        period_max_loop < (EHCI_MAX_QHD + EHCI_MAX_ITD + EHCI_MAX_SITD))
+    {
+      switch ( next_item.type )
+      {
+        case EHCI_QUEUE_ELEMENT_QHD:
+        {
+          ehci_qhd_t *p_qhd_int = (ehci_qhd_t *) align32(next_item.address);
+          qhd_xfer_error_isr(p_qhd_int, TUSB_XFER_INTERRUPT);
+        }
+        break;
+
+        case EHCI_QUEUE_ELEMENT_ITD:
+        case EHCI_QUEUE_ELEMENT_SITD:
+        case EHCI_QUEUE_ELEMENT_FSTN:
+        default:
+          ASSERT (false, (void) 0); // TODO support hs/fs ISO
+        break;
+      }
+
+      next_item = *list_next(&next_item);
+      period_max_loop++;
+    }
+  }
 }
 
 //------------- Host Controller Driver's Interrupt Handler -------------//
