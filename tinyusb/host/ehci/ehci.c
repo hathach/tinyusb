@@ -104,9 +104,9 @@ static inline void           qtd_remove_1st_from_qhd(ehci_qhd_t *p_qhd) ATTR_ALW
 static void qtd_init(ehci_qtd_t* p_qtd, uint32_t data_ptr, uint16_t total_bytes);
 
 static inline void  list_insert(ehci_link_t *current, ehci_link_t *new, uint8_t new_type) ATTR_ALWAYS_INLINE;
+static inline ehci_link_t* list_next(ehci_link_t *p_link_pointer) ATTR_PURE ATTR_ALWAYS_INLINE;
 static ehci_link_t*  list_find_previous_item(ehci_link_t* p_head, ehci_link_t* p_current);
 static tusb_error_t list_remove_qhd(ehci_link_t* p_head, ehci_link_t* p_remove);
-
 
 static tusb_error_t hcd_controller_init(uint8_t hostid) ATTR_WARN_UNUSED_RESULT;
 static tusb_error_t hcd_controller_stop(uint8_t hostid) ATTR_WARN_UNUSED_RESULT;
@@ -573,7 +573,6 @@ void period_list_xfer_complete_isr(uint8_t hostid, uint8_t interval_ms)
         {
           qhd_xfer_complete_isr(p_qhd_int, TUSB_XFER_INTERRUPT);
         }
-        next_item = p_qhd_int->next;
       }
       break;
 
@@ -584,6 +583,8 @@ void period_list_xfer_complete_isr(uint8_t hostid, uint8_t interval_ms)
         ASSERT (false, (void) 0); // TODO support hs/fs ISO
       break;
     }
+
+    next_item = *list_next(&next_item);
     max_loop++;
   }
 }
@@ -599,15 +600,14 @@ void xfer_error_isr(uint8_t hostid)
   {
     // current qhd has error in transaction
     if (  (p_qhd->device_address != 0 && p_qhd->qtd_overlay.halted)   || // addr0 cannot be protocol STALL
-        p_qhd->qtd_overlay.buffer_err ||p_qhd->qtd_overlay.babble_err || p_qhd->qtd_overlay.xact_err
-        //p_qhd->qtd_overlay.non_hs_period_missed_uframe || p_qhd->qtd_overlay.pingstate_err TODO split transaction error
-    )
+        p_qhd->qtd_overlay.buffer_err ||p_qhd->qtd_overlay.babble_err || p_qhd->qtd_overlay.xact_err )
+      //p_qhd->qtd_overlay.non_hs_period_missed_uframe || p_qhd->qtd_overlay.pingstate_err TODO split transaction error
     {
+      tusb_event_t error_event;
 
-      if ( !p_qhd->qtd_overlay.buffer_err && !p_qhd->qtd_overlay.babble_err &&  !p_qhd->qtd_overlay.xact_err)
-      { // no error bits are set, endpoint is halted due to STALL handshake
-        
-      }
+      // no error bits are set, endpoint is halted due to STALL
+      error_event = ( !(p_qhd->qtd_overlay.buffer_err || p_qhd->qtd_overlay.babble_err ||
+          p_qhd->qtd_overlay.xact_err) ) ? TUSB_EVENT_XFER_STALLED : TUSB_EVENT_XFER_ERROR;
 
       hal_debugger_breakpoint();
 
@@ -617,7 +617,7 @@ void xfer_error_isr(uint8_t hostid)
       tusb_xfer_type_t xfer_type = p_qhd->endpoint_number != 0 ? TUSB_XFER_BULK : TUSB_XFER_CONTROL;
 
       usbh_xfer_isr( qhd_create_pipe_handle(p_qhd, xfer_type),
-                     p_qhd->class_code, TUSB_EVENT_XFER_ERROR); // call USBH callback
+                     p_qhd->class_code, error_event); // call USBH callback
     }
 
     p_qhd = qhd_next(p_qhd);
@@ -652,7 +652,6 @@ void hcd_isr(uint8_t hostid)
 
   if (int_status & EHCI_INT_MASK_ERROR)
   {
-    // TODO handle Queue Head halted
     xfer_error_isr(hostid);
   }
 
@@ -920,16 +919,21 @@ static inline void list_insert(ehci_link_t *current, ehci_link_t *new, uint8_t n
   current->address = ((uint32_t) new) | (new_type << 1);
 }
 
+static inline ehci_link_t* list_next(ehci_link_t *p_link_pointer)
+{
+  return (ehci_link_t*) align32(p_link_pointer->address);
+}
+
 static ehci_link_t* list_find_previous_item(ehci_link_t* p_head, ehci_link_t* p_current)
 {
   ehci_link_t *p_prev = p_head;
   uint32_t max_loop = 0;
-  while( (align32(p_prev->address) != (uint32_t) p_head)    &&
-         (align32(p_prev->address) != (uint32_t) p_current) &&
-         !p_prev->terminate                                 &&
+  while( (align32(p_prev->address) != (uint32_t) p_head)    && // not loop around
+         (align32(p_prev->address) != (uint32_t) p_current) && // not found yet
+         !p_prev->terminate                                 && // not advancable
          max_loop < EHCI_MAX_QHD)
   {
-    p_prev = (ehci_link_t*) align32(p_prev->address);
+    p_prev = list_next(p_prev);
     max_loop++;
   }
 

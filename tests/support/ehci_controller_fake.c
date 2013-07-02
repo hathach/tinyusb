@@ -144,7 +144,23 @@ void ehci_controller_run(uint8_t hostid)
   hcd_isr(hostid);
 }
 
-void ehci_controller_run_error(uint8_t hostid)
+void complete_1st_qtd_with_error(ehci_qhd_t* p_qhd, bool halted, bool xact_err)
+{
+  if ( !p_qhd->qtd_overlay.halted )
+  {
+    if(!p_qhd->qtd_overlay.next.terminate) // TODO add active check
+    {
+      ehci_qtd_t* p_qtd = (ehci_qtd_t*) align32(p_qhd->qtd_overlay.next.address);
+      p_qtd->active   = 0;
+      p_qtd->halted   = halted ? 1 : 0;
+      p_qtd->xact_err = xact_err ? 1 : 0;
+
+      p_qhd->qtd_overlay = *p_qtd;
+    }
+  }
+}
+
+void complete_list_with_error(uint8_t hostid, bool halted, bool xact_err)
 {
   //------------- Async List -------------//
   ehci_registers_t* const regs = get_operational_register(hostid);
@@ -152,23 +168,40 @@ void ehci_controller_run_error(uint8_t hostid)
   ehci_qhd_t *p_qhd = (ehci_qhd_t*) regs->async_list_base;
   do
   {
-    if ( !p_qhd->qtd_overlay.halted )
-    {
-      if(!p_qhd->qtd_overlay.next.terminate)
-      {
-        ehci_qtd_t* p_qtd = (ehci_qtd_t*) align32(p_qhd->qtd_overlay.next.address);
-        p_qtd->active = 0;
-        p_qtd->babble_err = p_qtd->buffer_err = p_qtd->xact_err = 1;
-        p_qhd->qtd_overlay = *p_qtd;
-      }
-    }
+    complete_1st_qtd_with_error(p_qhd, halted, xact_err);
     p_qhd = (ehci_qhd_t*) align32(p_qhd->next.address);
   }while(p_qhd != get_async_head(hostid)); // stop if loop around
+
   //------------- Period List -------------//
+  for(uint8_t i=1; i <= EHCI_FRAMELIST_SIZE; i *= 2)
+  {
+    ehci_link_t *head = get_period_head(hostid, i);
+
+    while(!head->terminate)
+    {
+      uint32_t queue_type = head->type;
+      head = (ehci_link_t*) align32(head->address);
+
+      if ( queue_type == EHCI_QUEUE_ELEMENT_QHD)
+      {
+        complete_1st_qtd_with_error((ehci_qhd_t*) head, halted, xact_err);
+      }
+    }
+  }
 
   regs->usb_sts = EHCI_INT_MASK_ERROR;
 
   hcd_isr(hostid);
+}
+
+void ehci_controller_run_stall(uint8_t hostid)
+{
+  complete_list_with_error(hostid, true, false);
+}
+
+void ehci_controller_run_error(uint8_t hostid)
+{
+  complete_list_with_error(hostid, true, true);
 }
 
 void ehci_controller_device_plug(uint8_t hostid, tusb_speed_t speed)
