@@ -1,6 +1,6 @@
 /**************************************************************************/
 /*!
-    @file     cdc_host_rndis.c
+    @file     cdc_rndis_host.c
     @author   hathach (tinyusb.org)
 
     @section LICENSE
@@ -47,6 +47,7 @@
 //--------------------------------------------------------------------+
 #include "common/common.h"
 #include "cdc_host.h"
+#include "cdc_rndis_host.h"
 
 //--------------------------------------------------------------------+
 // MACRO CONSTANT TYPEDEF

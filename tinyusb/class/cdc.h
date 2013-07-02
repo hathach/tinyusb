@@ -143,6 +143,7 @@ enum{
 typedef enum {
   SEND_ENCAPSULATED_COMMAND                    = 0x00,
   GET_ENCAPSULATED_RESPONSE                    = 0x01,
+
   SET_COMM_FEATURE                             = 0x02,
   GET_COMM_FEATURE                             = 0x03,
   CLEAR_COMM_FEATURE                           = 0x04,
