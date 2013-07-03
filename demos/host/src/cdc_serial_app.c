@@ -75,7 +75,10 @@ void tusbh_cdc_xfer_isr(uint8_t dev_addr, tusb_event_t event, cdc_pipeid_t pipe_
   switch(event)
   {
     case TUSB_EVENT_XFER_COMPLETE:
-//      osal_queue_send(queue_hdl, &usb_keyboard_report);
+      for(uint32_t i=0; i<xferred_bytes; i++)
+      {
+        osal_queue_send(queue_hdl, buffer_in+i);
+      }
       tusbh_cdc_receive(dev_addr, buffer_in, sizeof(buffer_in), true);
     break;
 
