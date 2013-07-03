@@ -205,7 +205,7 @@ void test_mouse_isr_event_xfer_complete(void)
   tusbh_hid_mouse_isr_Expect(dev_addr, TUSB_EVENT_XFER_COMPLETE);
 
   //------------- Code Under TEST -------------//
-  hidh_isr(p_hidh_mouse->pipe_hdl, TUSB_EVENT_XFER_COMPLETE);
+  hidh_isr(p_hidh_mouse->pipe_hdl, TUSB_EVENT_XFER_COMPLETE, 8);
 
   tusbh_device_get_state_IgnoreAndReturn(TUSB_DEVICE_STATE_CONFIGURED);
   TEST_ASSERT_EQUAL(TUSB_INTERFACE_STATUS_COMPLETE, tusbh_hid_mouse_status(dev_addr));
@@ -216,7 +216,7 @@ void test_mouse_isr_event_xfer_error(void)
   tusbh_hid_mouse_isr_Expect(dev_addr, TUSB_EVENT_XFER_ERROR);
 
   //------------- Code Under TEST -------------//
-  hidh_isr(p_hidh_mouse->pipe_hdl, TUSB_EVENT_XFER_ERROR);
+  hidh_isr(p_hidh_mouse->pipe_hdl, TUSB_EVENT_XFER_ERROR, 0);
 
   tusbh_device_get_state_IgnoreAndReturn(TUSB_DEVICE_STATE_CONFIGURED);
   TEST_ASSERT_EQUAL(TUSB_INTERFACE_STATUS_ERROR, tusbh_hid_mouse_status(dev_addr));

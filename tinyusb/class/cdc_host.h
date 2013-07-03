@@ -72,7 +72,7 @@ tusb_error_t tusbh_cdc_receive(uint8_t dev_addr, void * p_buffer, uint32_t lengt
 void tusbh_cdc_mounted_isr(uint8_t dev_addr) ATTR_WEAK;
 void tusbh_cdc_unmounted_isr(uint8_t dev_addr) ATTR_WEAK;
 void tusbh_cdc_isr(uint8_t dev_addr, tusb_event_t event) ATTR_WEAK;
-void tusbh_cdc_xfer_isr(uint8_t dev_addr, tusb_event_t event) ATTR_WEAK;
+void tusbh_cdc_xfer_isr(uint8_t dev_addr, tusb_event_t event, cdc_pipeid_t pipe_id, uint32_t xferred_bytes) ATTR_WEAK;
 //--------------------------------------------------------------------+
 // USBH-CLASS API
 //--------------------------------------------------------------------+
@@ -91,7 +91,7 @@ extern cdch_data_t cdch_data[TUSB_CFG_HOST_DEVICE_MAX]; // TODO consider to move
 
 void         cdch_init(void);
 tusb_error_t cdch_open_subtask(uint8_t dev_addr, tusb_descriptor_interface_t const *p_interface_desc, uint16_t *p_length) ATTR_WARN_UNUSED_RESULT;
-void         cdch_isr(pipe_handle_t pipe_hdl, tusb_event_t event);
+void         cdch_isr(pipe_handle_t pipe_hdl, tusb_event_t event, uint32_t xferred_bytes);
 void         cdch_close(uint8_t dev_addr);
 
 #endif

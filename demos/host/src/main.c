@@ -52,6 +52,7 @@
 
 #include "mouse_app.h"
 #include "keyboard_app.h"
+#include "cdc_serial_app.h"
 
 #if defined(__CODE_RED)
   #include <cr_section_macros.h>

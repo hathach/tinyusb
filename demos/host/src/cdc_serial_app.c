@@ -70,7 +70,7 @@ void tusbh_cdc_unmounted_isr(uint8_t dev_addr)
   // application tear-down
 }
 
-void tusbh_cdc_isr(uint8_t dev_addr, tusb_event_t event)
+void tusbh_cdc_xfer_isr(uint8_t dev_addr, tusb_event_t event, cdc_pipeid_t pipe_id, uint32_t xferred_bytes)
 {
   switch(event)
   {
@@ -83,7 +83,9 @@ void tusbh_cdc_isr(uint8_t dev_addr, tusb_event_t event)
       tusbh_cdc_receive(dev_addr, buffer_in, sizeof(buffer_in), true); // ignore & continue
     break;
 
+    case TUSB_EVENT_XFER_STALLED:
     default :
+      ASSERT(false, (void) 0); // error
     break;
   }
 }

@@ -288,7 +288,7 @@ tusb_error_t hidh_open_subtask(uint8_t dev_addr, tusb_descriptor_interface_t con
   OSAL_SUBTASK_END
 }
 
-void hidh_isr(pipe_handle_t pipe_hdl, tusb_event_t event)
+void hidh_isr(pipe_handle_t pipe_hdl, tusb_event_t event, uint32_t xferred_bytes)
 {
 #if TUSB_CFG_HOST_HID_KEYBOARD
   if ( pipehandle_is_equal(pipe_hdl, keyboard_data[pipe_hdl.dev_addr-1].pipe_hdl) )

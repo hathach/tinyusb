@@ -63,6 +63,16 @@ STATIC_ INLINE_ bool tusbh_cdc_is_mounted(uint8_t dev_addr)
   return (tusbh_device_get_mounted_class_flag(dev_addr) & BIT_(TUSB_CLASS_CDC)) != 0;
 }
 
+static inline cdc_pipeid_t get_app_pipeid(pipe_handle_t pipe_hdl) ATTR_PURE  ATTR_ALWAYS_INLINE;
+static inline cdc_pipeid_t get_app_pipeid(pipe_handle_t pipe_hdl)
+{
+  cdch_data_t const * p_cdc = cdch_data + (pipe_hdl.dev_addr-1);
+
+  return pipehandle_is_equal( pipe_hdl, p_cdc->pipe_notification ) ? CDC_PIPE_NOTIFICATION :
+         pipehandle_is_equal( pipe_hdl, p_cdc->pipe_in           ) ? CDC_PIPE_DATA_IN :
+         pipehandle_is_equal( pipe_hdl, p_cdc->pipe_out          ) ? CDC_PIPE_DATA_OUT : 0;
+}
+
 //--------------------------------------------------------------------+
 // APPLICATION API (parameter validation needed)
 //--------------------------------------------------------------------+
@@ -186,11 +196,11 @@ tusb_error_t cdch_open_subtask(uint8_t dev_addr, tusb_descriptor_interface_t con
   return TUSB_ERROR_NONE;
 }
 
-void cdch_isr(pipe_handle_t pipe_hdl, tusb_event_t event)
+void cdch_isr(pipe_handle_t pipe_hdl, tusb_event_t event, uint32_t xferred_bytes)
 {
-  if (tusbh_cdc_isr)
+  if (tusbh_cdc_xfer_isr)
   {
-    tusbh_cdc_isr(pipe_hdl.dev_addr, event);
+    tusbh_cdc_xfer_isr( pipe_hdl.dev_addr, event, get_app_pipeid(pipe_hdl), xferred_bytes );
   }
 }
 
