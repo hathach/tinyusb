@@ -46,6 +46,7 @@
 #include "mock_osal.h"
 #include "mock_hcd.h"
 #include "mock_usbh.h"
+#include "mock_cdc_callback.h"
 
 #include "descriptor_cdc.h"
 #include "cdc_host.h"
@@ -74,7 +75,9 @@ void tearDown(void)
 
 }
 
-
+//--------------------------------------------------------------------+
+// OPEN
+//--------------------------------------------------------------------+
 void test_cdch_open_failed_to_open_notification_endpoint(void)
 {
   pipe_handle_t null_hdl = {0};
@@ -125,6 +128,7 @@ void test_cdch_open_length_check(void)
 
   pipe_handle_t dummy_hld = { .dev_addr = 1 };
   hcd_pipe_open_IgnoreAndReturn(dummy_hld);
+  tusbh_cdc_mounted_isr_Expect(dev_addr);
 
   //------------- CUT -------------//
   TEST_ASSERT_EQUAL( TUSB_ERROR_NONE, cdch_open_subtask(dev_addr, p_comm_interface, &length) );
@@ -136,6 +140,7 @@ void test_cdch_open_interface_number_check(void)
 {
   pipe_handle_t dummy_hld = { .dev_addr = 1 };
   hcd_pipe_open_IgnoreAndReturn(dummy_hld);
+  tusbh_cdc_mounted_isr_Expect(dev_addr);
 
   //------------- CUT -------------//
   TEST_ASSERT_EQUAL( TUSB_ERROR_NONE, cdch_open_subtask(dev_addr, p_comm_interface, &length) );
@@ -148,6 +153,7 @@ void test_cdch_open_acm_capacity_check(void)
 {
   pipe_handle_t dummy_hld = { .dev_addr = 1 };
   hcd_pipe_open_IgnoreAndReturn(dummy_hld);
+  tusbh_cdc_mounted_isr_Expect(dev_addr);
 
   //------------- CUT -------------//
   TEST_ASSERT_EQUAL( TUSB_ERROR_NONE, cdch_open_subtask(dev_addr, p_comm_interface, &length) );
@@ -155,28 +161,19 @@ void test_cdch_open_acm_capacity_check(void)
   TEST_ASSERT_EQUAL_MEMORY(&cdc_config_descriptor.cdc_acm.bmCapabilities, &p_cdc->acm_capability, 1);
 }
 
+//--------------------------------------------------------------------+
+// CLOSE
+//--------------------------------------------------------------------+
 void test_cdch_close_device(void)
 {
-  pipe_handle_t pipe_notification = {
-      .dev_addr = 1,
-      .xfer_type = TUSB_XFER_INTERRUPT
-  };
-
-  pipe_handle_t pipe_out = {
-      .dev_addr  = 1,
-      .xfer_type = TUSB_XFER_BULK,
-      .index = 0
-  };
-
-  pipe_handle_t pipe_int = {
-      .dev_addr  = 1,
-      .xfer_type = TUSB_XFER_BULK,
-      .index = 1
-  };
+  pipe_handle_t pipe_notification = { .dev_addr = 1, .xfer_type = TUSB_XFER_INTERRUPT };
+  pipe_handle_t pipe_out          = { .dev_addr  = 1, .xfer_type = TUSB_XFER_BULK, .index = 0 };
+  pipe_handle_t pipe_int          = { .dev_addr  = 1, .xfer_type = TUSB_XFER_BULK, .index = 1 };
 
   hcd_pipe_open_ExpectAndReturn(dev_addr, p_endpoint_notification, TUSB_CLASS_CDC, pipe_notification);
   hcd_pipe_open_ExpectAndReturn(dev_addr, p_endpoint_out, TUSB_CLASS_CDC, pipe_out);
   hcd_pipe_open_ExpectAndReturn(dev_addr, p_endpoint_in, TUSB_CLASS_CDC, pipe_int);
+  tusbh_cdc_mounted_isr_Expect(dev_addr);
 
   TEST_ASSERT_EQUAL( TUSB_ERROR_NONE, cdch_open_subtask(dev_addr, p_comm_interface, &length) );
 
@@ -184,10 +181,15 @@ void test_cdch_close_device(void)
   hcd_pipe_close_ExpectAndReturn(pipe_int          , TUSB_ERROR_NONE);
   hcd_pipe_close_ExpectAndReturn(pipe_out          , TUSB_ERROR_NONE);
 
+  tusbh_cdc_unmounted_isr_Expect(dev_addr);
+
   //------------- CUT -------------//
   cdch_close(dev_addr);
 }
 
+//--------------------------------------------------------------------+
+// CHECKING API
+//--------------------------------------------------------------------+
 void test_cdc_serial_is_mounted_not_configured(void)
 {
   tusbh_device_get_mounted_class_flag_ExpectAndReturn(dev_addr, 0);
@@ -219,4 +221,53 @@ void test_cdc_serial_is_mounted_protocol_is_at_command(void)
   TEST_ASSERT( tusbh_cdc_serial_is_mounted(dev_addr) );
 }
 
+//--------------------------------------------------------------------+
+// TRANSFER API
+//--------------------------------------------------------------------+
+void test_cdc_xfer_notification_pipe(void)
+{
+  pipe_handle_t pipe_notification = { .dev_addr = 1, .xfer_type = TUSB_XFER_INTERRUPT };
+  pipe_handle_t pipe_out          = { .dev_addr  = 1, .xfer_type = TUSB_XFER_BULK, .index = 0 };
+  pipe_handle_t pipe_in           = { .dev_addr  = 1, .xfer_type = TUSB_XFER_BULK, .index = 1 };
 
+  cdch_data[dev_addr-1].pipe_notification = pipe_notification;
+  cdch_data[dev_addr-1].pipe_out          = pipe_out;
+  cdch_data[dev_addr-1].pipe_in           = pipe_in;
+
+  tusbh_cdc_xfer_isr_Expect(dev_addr, TUSB_EVENT_XFER_COMPLETE, CDC_PIPE_NOTIFICATION, 10);
+
+  //------------- CUT -------------//
+  cdch_isr(pipe_notification, TUSB_EVENT_XFER_COMPLETE, 10);
+}
+
+void test_cdc_xfer_pipe_out(void)
+{
+  pipe_handle_t pipe_notification = { .dev_addr = 1, .xfer_type = TUSB_XFER_INTERRUPT };
+  pipe_handle_t pipe_out          = { .dev_addr  = 1, .xfer_type = TUSB_XFER_BULK, .index = 0 };
+  pipe_handle_t pipe_in          = { .dev_addr  = 1, .xfer_type = TUSB_XFER_BULK, .index = 1 };
+
+  cdch_data[dev_addr-1].pipe_notification = pipe_notification;
+  cdch_data[dev_addr-1].pipe_out          = pipe_out;
+  cdch_data[dev_addr-1].pipe_in           = pipe_in;
+
+  tusbh_cdc_xfer_isr_Expect(dev_addr, TUSB_EVENT_XFER_ERROR, CDC_PIPE_DATA_OUT, 20);
+
+  //------------- CUT -------------//
+  cdch_isr(pipe_out, TUSB_EVENT_XFER_ERROR, 20);
+}
+
+void test_cdc_xfer_pipe_in(void)
+{
+  pipe_handle_t pipe_notification = { .dev_addr = 1, .xfer_type = TUSB_XFER_INTERRUPT };
+  pipe_handle_t pipe_out          = { .dev_addr  = 1, .xfer_type = TUSB_XFER_BULK, .index = 0 };
+  pipe_handle_t pipe_in          = { .dev_addr  = 1, .xfer_type = TUSB_XFER_BULK, .index = 1 };
+
+  cdch_data[dev_addr-1].pipe_notification = pipe_notification;
+  cdch_data[dev_addr-1].pipe_out          = pipe_out;
+  cdch_data[dev_addr-1].pipe_in           = pipe_in;
+
+  tusbh_cdc_xfer_isr_Expect(dev_addr, TUSB_EVENT_XFER_STALLED, CDC_PIPE_DATA_IN, 0);
+
+  //------------- CUT -------------//
+  cdch_isr(pipe_in, TUSB_EVENT_XFER_STALLED, 0);
+}

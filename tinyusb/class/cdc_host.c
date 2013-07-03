@@ -60,7 +60,13 @@
 STATIC_ INLINE_ bool tusbh_cdc_is_mounted(uint8_t dev_addr) ATTR_PURE ATTR_ALWAYS_INLINE ATTR_WARN_UNUSED_RESULT;
 STATIC_ INLINE_ bool tusbh_cdc_is_mounted(uint8_t dev_addr)
 {
-  return (tusbh_device_get_mounted_class_flag(dev_addr) & BIT_(TUSB_CLASS_CDC)) != 0;
+// FIXME cannot use mounted class flag as at the point _open_sublass is called, the flag is not set yet
+#ifdef _TEST_
+ return (tusbh_device_get_mounted_class_flag(dev_addr) & BIT_(TUSB_CLASS_CDC)) != 0;
+#else
+  return pipehandle_is_valid(cdch_data[dev_addr-1].pipe_in) &&
+      pipehandle_is_valid(cdch_data[dev_addr-1].pipe_out);
+#endif
 }
 
 static inline cdc_pipeid_t get_app_pipeid(pipe_handle_t pipe_hdl) ATTR_PURE  ATTR_ALWAYS_INLINE;
@@ -86,7 +92,7 @@ bool tusbh_cdc_serial_is_mounted(uint8_t dev_addr)
 
 tusb_error_t tusbh_cdc_send(uint8_t dev_addr, void const * p_data, uint32_t length, bool is_notify)
 {
-// FIXME disable temp  ASSERT( tusbh_cdc_is_mounted(dev_addr),  TUSB_ERROR_CDCH_DEVICE_NOT_MOUNTED);
+  ASSERT( tusbh_cdc_is_mounted(dev_addr),  TUSB_ERROR_CDCH_DEVICE_NOT_MOUNTED);
   ASSERT( p_data != NULL && length, TUSB_ERROR_INVALID_PARA);
 
   pipe_handle_t pipe_out = cdch_data[dev_addr-1].pipe_out;
@@ -100,7 +106,7 @@ tusb_error_t tusbh_cdc_send(uint8_t dev_addr, void const * p_data, uint32_t leng
 
 tusb_error_t tusbh_cdc_receive(uint8_t dev_addr, void * p_buffer, uint32_t length, bool is_notify)
 {
-// FIXME disable temp  ASSERT( tusbh_cdc_is_mounted(dev_addr),  TUSB_ERROR_CDCH_DEVICE_NOT_MOUNTED);
+  ASSERT( tusbh_cdc_is_mounted(dev_addr),  TUSB_ERROR_CDCH_DEVICE_NOT_MOUNTED);
   ASSERT( p_buffer != NULL && length, TUSB_ERROR_INVALID_PARA);
 
   pipe_handle_t pipe_in = cdch_data[dev_addr-1].pipe_in;

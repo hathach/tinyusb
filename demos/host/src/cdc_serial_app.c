@@ -116,7 +116,9 @@ OSAL_TASK_FUNCTION( cdc_serial_app_task ) (void* p_task_para)
   osal_queue_receive(queue_hdl, &c, OSAL_TIMEOUT_WAIT_FOREVER, &error);
 
   if (c)
+  {
     printf("%c", c);
+  }
 
   OSAL_TASK_LOOP_END
 }
