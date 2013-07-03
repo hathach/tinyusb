@@ -134,9 +134,9 @@ tusb_error_t cdch_open_subtask(uint8_t dev_addr, tusb_descriptor_interface_t con
 
   while( TUSB_DESC_TYPE_INTERFACE_CLASS_SPECIFIC == p_desc[DESCRIPTOR_OFFSET_TYPE] )
   { // Communication Functional Descriptors
-    if ( CDC_FUNC_DESC_ABSTRACT_CONTROL_MANAGEMENT == functional_desc_typeof(p_desc) )
+    if ( CDC_FUNC_DESC_ABSTRACT_CONTROL_MANAGEMENT == cdc_functional_desc_typeof(p_desc) )
     { // save ACM bmCapabilities
-      p_cdc->acm_capability = ((tusb_cdc_func_abstract_control_management_t const *) p_desc)->bmCapabilities;
+      p_cdc->acm_capability = ((cdc_desc_func_abstract_control_management_t const *) p_desc)->bmCapabilities;
     }
 
     (*p_length) += p_desc[DESCRIPTOR_OFFSET_LENGTH];
@@ -178,9 +178,9 @@ tusb_error_t cdch_open_subtask(uint8_t dev_addr, tusb_descriptor_interface_t con
   }
 
   // FIXME mounted class flag is not set yet
-  if (tusbh_cdc_isr)
+  if (tusbh_cdc_mounted_isr)
   {
-    tusbh_cdc_isr(dev_addr, TUSB_EVENT_INTERFACE_OPEN);
+    tusbh_cdc_mounted_isr(dev_addr);
   }
 
   return TUSB_ERROR_NONE;
@@ -217,9 +217,9 @@ void cdch_close(uint8_t dev_addr)
 
   memclr_(p_cdc, sizeof(cdch_data_t));
 
-  if (tusbh_cdc_isr)
+  if (tusbh_cdc_unmounted_isr)
   {
-    tusbh_cdc_isr(dev_addr, TUSB_EVENT_INTERFACE_CLOSE);
+    tusbh_cdc_unmounted_isr(dev_addr);
   }
 
   ASSERT(err1 == TUSB_ERROR_NONE &&

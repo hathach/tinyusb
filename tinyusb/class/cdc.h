@@ -184,7 +184,7 @@ typedef enum {
   GET_ATM_VC_STATISTICS                        = 0x53,
 
   MDLM_SEMANTIC_MODEL                          = 0x60,
-}tusb_cdc_management_request_t;
+}cdc_management_request_t;
 
 //--------------------------------------------------------------------+
 // MANAGEMENT ELEMENENT NOTIFICATION (NOTIFICATION ENDPOINT)
@@ -202,7 +202,7 @@ typedef enum {
   LINE_STATE_CHANGE                = 0x29,
   CONNECTION_SPEED_CHANGE          = 0x2A,
   MDLM_SEMANTIC_MODEL_NOTIFICATION = 0x40,
-}tusb_cdc_notification_t;
+}cdc_notification_request_t;
 
 //--------------------------------------------------------------------+
 // FUNCTIONAL DESCRIPTOR
@@ -211,8 +211,8 @@ typedef ATTR_PACKED_STRUCT(struct) {
   uint8_t bLength            ; ///< Size of this descriptor in bytes.
   uint8_t bDescriptorType    ; ///< Descriptor Type, must be Class-Specific
   uint8_t bDescriptorSubType ; ///< Descriptor SubType one of above CDC_FUCN_DESC_
-  uint16_t bcdCDC             ; ///< CDC release number in Binary-Coded Decimal
-}tusb_cdc_func_header_t;
+  uint16_t bcdCDC            ; ///< CDC release number in Binary-Coded Decimal
+}cdc_desc_func_header_t;
 
 typedef ATTR_PACKED_STRUCT(struct) {
   uint8_t bLength                  ; ///< Size of this descriptor in bytes.
@@ -220,9 +220,9 @@ typedef ATTR_PACKED_STRUCT(struct) {
   uint8_t bDescriptorSubType       ; ///< Descriptor SubType one of above CDC_FUCN_DESC_
   uint8_t bControlInterface        ; ///< Interface number of Communication Interface
   uint8_t bSubordinateInterface    ; ///< Array of Interface number of Data Interface
-}tusb_cdc_func_union_t;
+}cdc_desc_func_union_t;
 
-#define tusb_cdc_func_union_n_t(no_slave)\
+#define cdc_desc_func_union_n_t(no_slave)\
  ATTR_PACKED_STRUCT(struct) { \
   uint8_t bLength                         ;\
   uint8_t bDescriptorType                 ;\
@@ -237,9 +237,9 @@ typedef ATTR_PACKED_STRUCT(struct) {
   uint8_t bDescriptorSubType  ; ///< Descriptor SubType one of above CDC_FUCN_DESC_
   uint8_t iCountryCodeRelDate ; ///< Index of a string giving the release date for the implemented ISO 3166 Country Codes.
   uint16_t wCountryCode[]     ; ///< Country code in the format as defined in [ISO3166], release date as specified inoffset 3 for the first supported country.
-}tusb_cdc_func_country_selection_t;
+}cdc_desc_func_country_selection_t;
 
-#define tusb_cdc_func_country_selection_n_t(no_country) \
+#define cdc_desc_func_country_selection_n_t(no_country) \
   ATTR_PACKED_STRUCT(struct) {\
   uint8_t bLength                   ;\
   uint8_t bDescriptorType           ;\
@@ -263,7 +263,7 @@ typedef ATTR_PACKED_STRUCT(struct) {
   } bmCapabilities;
 
   uint8_t bDataInterface;
-}tusb_cdc_func_call_management_t;
+}cdc_desc_func_call_management_t;
 
 typedef struct {
   uint8_t support_comm_request                    : 1; ///< Device supports the request combination of Set_Comm_Feature, Clear_Comm_Feature, and Get_Comm_Feature.
@@ -271,16 +271,16 @@ typedef struct {
   uint8_t support_send_break                      : 1; ///< Device supports the request Send_Break
   uint8_t support_notification_network_connection : 1; ///< Device supports the notification Network_Connection.
   uint8_t : 0;
-}cdc_fun_acm_capability_t;
+}cdc_acm_capability_t;
 
-STATIC_ASSERT(sizeof(cdc_fun_acm_capability_t) == 1, "mostly problem with compiler");
+STATIC_ASSERT(sizeof(cdc_acm_capability_t) == 1, "mostly problem with compiler");
 
 typedef ATTR_PACKED_STRUCT(struct) {
   uint8_t bLength                  ; ///< Size of this descriptor in bytes.
   uint8_t bDescriptorType          ; ///< Descriptor Type, must be Class-Specific
   uint8_t bDescriptorSubType       ; ///< Descriptor SubType one of above CDC_FUCN_DESC_
-  cdc_fun_acm_capability_t bmCapabilities ;
-}tusb_cdc_func_abstract_control_management_t;
+  cdc_acm_capability_t bmCapabilities ;
+}cdc_desc_func_abstract_control_management_t;
 
 typedef ATTR_PACKED_STRUCT(struct) {
   uint8_t bLength            ; ///< Size of this descriptor in bytes.
@@ -292,7 +292,7 @@ typedef ATTR_PACKED_STRUCT(struct) {
     uint8_t support_pulse_request : 1; ///< Device supports the request combination of Pulse_Setup, Send_Pulse, and Set_Pulse_Time.
     uint8_t : 0;
   } bmCapabilities;
-}tusb_cdc_func_direct_line_management_t;
+}cdc_desc_func_direct_line_management_t;
 
 typedef ATTR_PACKED_STRUCT(struct) {
   uint8_t bLength            ; ///< Size of this descriptor in bytes.
@@ -300,7 +300,7 @@ typedef ATTR_PACKED_STRUCT(struct) {
   uint8_t bDescriptorSubType ; ///< Descriptor SubType one of above CDC_FUCN_DESC_
   uint8_t bRingerVolSteps    ;
   uint8_t bNumRingerPatterns ;
-}tusb_cdc_func_telephone_ringer_t;
+}cdc_desc_func_telephone_ringer_t;
 
 typedef ATTR_PACKED_STRUCT(struct) {
   uint8_t bLength            ; ///< Size of this descriptor in bytes.
@@ -312,7 +312,7 @@ typedef ATTR_PACKED_STRUCT(struct) {
     uint8_t computer_centric_mode : 1;
     uint8_t : 0;
   } bmCapabilities;
-}tusb_cdc_func_telephone_operational_modes_t;
+}cdc_desc_func_telephone_operational_modes_t;
 
 typedef ATTR_PACKED_STRUCT(struct) {
   uint8_t bLength            ; ///< Size of this descriptor in bytes.
@@ -327,10 +327,10 @@ typedef ATTR_PACKED_STRUCT(struct) {
     uint32_t line_state_change      : 1; ///< 0 : Does not support line state change notification. 1 : Does support line state change notification
     uint32_t : 0;
   } bmCapabilities;
-}tusb_cdc_func_telephone_call_state_reporting_capabilities_t;
+}cdc_desc_func_telephone_call_state_reporting_capabilities_t;
 
-static inline uint8_t functional_desc_typeof(uint8_t const * p_desc) ATTR_PURE ATTR_ALWAYS_INLINE;
-static inline uint8_t functional_desc_typeof(uint8_t const * p_desc)
+static inline uint8_t cdc_functional_desc_typeof(uint8_t const * p_desc) ATTR_PURE ATTR_ALWAYS_INLINE;
+static inline uint8_t cdc_functional_desc_typeof(uint8_t const * p_desc)
 {
   return p_desc[2];
 }

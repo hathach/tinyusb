@@ -90,7 +90,7 @@ const cdc_configuration_desc_t cdc_config_descriptor =
 
     .cdc_header =
     {
-        .bLength            = sizeof(tusb_cdc_func_header_t),
+        .bLength            = sizeof(cdc_desc_func_header_t),
         .bDescriptorType    = TUSB_DESC_TYPE_INTERFACE_CLASS_SPECIFIC,
         .bDescriptorSubType = CDC_FUNC_DESC_HEADER,
         .bcdCDC             = 0x0120
@@ -98,7 +98,7 @@ const cdc_configuration_desc_t cdc_config_descriptor =
 
     .cdc_acm =
     {
-        .bLength            = sizeof(tusb_cdc_func_abstract_control_management_t),
+        .bLength            = sizeof(cdc_desc_func_abstract_control_management_t),
         .bDescriptorType    = TUSB_DESC_TYPE_INTERFACE_CLASS_SPECIFIC,
         .bDescriptorSubType = CDC_FUNC_DESC_ABSTRACT_CONTROL_MANAGEMENT,
         .bmCapabilities     = { // 0x06
@@ -109,7 +109,7 @@ const cdc_configuration_desc_t cdc_config_descriptor =
 
     .cdc_union =
     {
-        .bLength                  = sizeof(tusb_cdc_func_union_t), // plus number of
+        .bLength                  = sizeof(cdc_desc_func_union_t), // plus number of
         .bDescriptorType          = TUSB_DESC_TYPE_INTERFACE_CLASS_SPECIFIC,
         .bDescriptorSubType       = CDC_FUNC_DESC_UNION,
         .bControlInterface        = 1,

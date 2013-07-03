@@ -61,9 +61,9 @@ typedef struct
 
   //CDC Control Interface
   tusb_descriptor_interface_t                  cdc_comm_interface;
-  tusb_cdc_func_header_t                       cdc_header;
-  tusb_cdc_func_abstract_control_management_t  cdc_acm;
-  tusb_cdc_func_union_t                        cdc_union;
+  cdc_desc_func_header_t                       cdc_header;
+  cdc_desc_func_abstract_control_management_t  cdc_acm;
+  cdc_desc_func_union_t                        cdc_union;
   tusb_descriptor_endpoint_t                   cdc_endpoint_notification;
 
   //CDC Data Interface

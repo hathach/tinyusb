@@ -54,15 +54,25 @@
  extern "C" {
 #endif
 
+typedef enum {
+  CDC_PIPE_NOTIFICATION = 1,
+  CDC_PIPE_DATA_IN,
+  CDC_PIPE_DATA_OUT
+}cdc_pipeid_t;
+
 //--------------------------------------------------------------------+
 // APPLICATION PUBLIC API
 //--------------------------------------------------------------------+
 bool tusbh_cdc_serial_is_mounted(uint8_t dev_addr) ATTR_PURE ATTR_WARN_UNUSED_RESULT;
 bool tusbh_cdc_rndis_is_mounted(uint8_t dev_addr) ATTR_PURE ATTR_WARN_UNUSED_RESULT;
-
-void tusbh_cdc_isr(uint8_t dev_addr, tusb_event_t event) ATTR_WEAK;
 tusb_error_t tusbh_cdc_send(uint8_t dev_addr, void const * p_data, uint32_t length, bool is_notify);
 tusb_error_t tusbh_cdc_receive(uint8_t dev_addr, void * p_buffer, uint32_t length, bool is_notify);
+
+//------------- Application Callback -------------//
+void tusbh_cdc_mounted_isr(uint8_t dev_addr) ATTR_WEAK;
+void tusbh_cdc_unmounted_isr(uint8_t dev_addr) ATTR_WEAK;
+void tusbh_cdc_isr(uint8_t dev_addr, tusb_event_t event) ATTR_WEAK;
+void tusbh_cdc_xfer_isr(uint8_t dev_addr, tusb_event_t event) ATTR_WEAK;
 //--------------------------------------------------------------------+
 // USBH-CLASS API
 //--------------------------------------------------------------------+
@@ -71,7 +81,7 @@ tusb_error_t tusbh_cdc_receive(uint8_t dev_addr, void * p_buffer, uint32_t lengt
 typedef struct {
   uint8_t interface_number;
   uint8_t interface_protocol;
-  cdc_fun_acm_capability_t acm_capability;
+  cdc_acm_capability_t acm_capability;
 
   pipe_handle_t pipe_notification, pipe_out, pipe_in;
 
