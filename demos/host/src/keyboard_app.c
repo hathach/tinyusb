@@ -67,19 +67,22 @@ static inline void process_kbd_report(tusb_keyboard_report_t const * report);
 //--------------------------------------------------------------------+
 // tinyusb callback (ISR context)
 //--------------------------------------------------------------------+
+void tusbh_hid_keyboard_mounted_isr(uint8_t dev_addr)
+{
+  // application set-up
+  osal_queue_flush(queue_kbd_hdl);
+  tusbh_hid_keyboard_get_report(dev_addr, (uint8_t*) &usb_keyboard_report); // first report
+}
+
+void tusbh_hid_keyboard_unmounted_isr(uint8_t dev_addr)
+{
+  // application tear-down
+}
+
 void tusbh_hid_keyboard_isr(uint8_t dev_addr, tusb_event_t event)
 {
   switch(event)
   {
-    case TUSB_EVENT_INTERFACE_OPEN: // application set-up
-      osal_queue_flush(queue_kbd_hdl);
-      tusbh_hid_keyboard_get_report(dev_addr, (uint8_t*) &usb_keyboard_report); // first report
-    break;
-
-    case TUSB_EVENT_INTERFACE_CLOSE: // application tear-down
-
-    break;
-
     case TUSB_EVENT_XFER_COMPLETE:
       osal_queue_send(queue_kbd_hdl, &usb_keyboard_report);
       tusbh_hid_keyboard_get_report(dev_addr, (uint8_t*) &usb_keyboard_report);

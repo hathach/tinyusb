@@ -134,7 +134,7 @@ void test_mouse_open_ok(void)
 
   usbh_control_xfer_subtask_StubWithCallback(stub_set_idle_request);
   hcd_pipe_open_ExpectAndReturn(dev_addr, p_mouse_endpoint_desc, TUSB_CLASS_HID, pipe_hdl);
-  tusbh_hid_mouse_isr_Expect(dev_addr, TUSB_EVENT_INTERFACE_OPEN);
+  tusbh_hid_mouse_mounted_isr_Expect(dev_addr);
 
   //------------- Code Under TEST -------------//
   TEST_ASSERT_STATUS( hidh_open_subtask(dev_addr, p_mouse_interface_desc, &length));

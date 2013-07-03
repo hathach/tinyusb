@@ -67,19 +67,22 @@ static inline void process_mouse_report(tusb_mouse_report_t const * p_report);
 //--------------------------------------------------------------------+
 // tinyusb callback (ISR context)
 //--------------------------------------------------------------------+
+void tusbh_hid_mouse_mounted_isr(uint8_t dev_addr)
+{
+  // application set-up
+  osal_queue_flush(queue_mouse_hdl);
+  tusbh_hid_mouse_get_report(dev_addr, (uint8_t*) &usb_mouse_report); // first report
+}
+
+void tusbh_hid_mouse_unmounted_isr(uint8_t dev_addr)
+{
+  // application tear-down
+}
+
 void tusbh_hid_mouse_isr(uint8_t dev_addr, tusb_event_t event)
 {
   switch(event)
   {
-    case TUSB_EVENT_INTERFACE_OPEN: // application set-up
-      osal_queue_flush(queue_mouse_hdl);
-      tusbh_hid_mouse_get_report(dev_addr, (uint8_t*) &usb_mouse_report); // first report
-    break;
-
-    case TUSB_EVENT_INTERFACE_CLOSE: // application tear-down
-
-    break;
-
     case TUSB_EVENT_XFER_COMPLETE:
       osal_queue_send(queue_mouse_hdl, &usb_mouse_report);
       tusbh_hid_mouse_get_report(dev_addr, (uint8_t*) &usb_mouse_report);

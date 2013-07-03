@@ -244,7 +244,7 @@ void test_cdc_xfer_pipe_out(void)
 {
   pipe_handle_t pipe_notification = { .dev_addr = 1, .xfer_type = TUSB_XFER_INTERRUPT };
   pipe_handle_t pipe_out          = { .dev_addr  = 1, .xfer_type = TUSB_XFER_BULK, .index = 0 };
-  pipe_handle_t pipe_in          = { .dev_addr  = 1, .xfer_type = TUSB_XFER_BULK, .index = 1 };
+  pipe_handle_t pipe_in           = { .dev_addr  = 1, .xfer_type = TUSB_XFER_BULK, .index = 1 };
 
   cdch_data[dev_addr-1].pipe_notification = pipe_notification;
   cdch_data[dev_addr-1].pipe_out          = pipe_out;
@@ -260,7 +260,7 @@ void test_cdc_xfer_pipe_in(void)
 {
   pipe_handle_t pipe_notification = { .dev_addr = 1, .xfer_type = TUSB_XFER_INTERRUPT };
   pipe_handle_t pipe_out          = { .dev_addr  = 1, .xfer_type = TUSB_XFER_BULK, .index = 0 };
-  pipe_handle_t pipe_in          = { .dev_addr  = 1, .xfer_type = TUSB_XFER_BULK, .index = 1 };
+  pipe_handle_t pipe_in           = { .dev_addr  = 1, .xfer_type = TUSB_XFER_BULK, .index = 1 };
 
   cdch_data[dev_addr-1].pipe_notification = pipe_notification;
   cdch_data[dev_addr-1].pipe_out          = pipe_out;
