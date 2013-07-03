@@ -54,6 +54,8 @@ void check_failed(uint8_t *file, uint32_t line)
   (void) line;
 }
 
+#if 0
+
 /**
  * HardFault_HandlerAsm:
  * Alternative Hard Fault handler to help debug the reason for a fault.
@@ -144,3 +146,4 @@ void HardFault_HandlerC(unsigned long *hardfault_args){
 
   hal_debugger_breakpoint();
 }
+#endif
