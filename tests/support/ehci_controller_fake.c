@@ -71,7 +71,7 @@ void ehci_controller_control_xfer_proceed(uint8_t dev_addr, uint8_t p_data[])
   ehci_qtd_t * p_qtd_data  = p_qtd_setup + 1;
   ehci_qtd_t * p_qtd_status = p_qtd_setup + 2;
 
-  tusb_std_request_t const *p_request = (tusb_std_request_t *) p_qtd_setup->buffer[0];
+  tusb_control_request_t const *p_request = (tusb_control_request_t *) p_qtd_setup->buffer[0];
 
   if (p_request->wLength > 0 && p_request->bmRequestType.direction == TUSB_DIR_DEV_TO_HOST)
   {

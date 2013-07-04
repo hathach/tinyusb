@@ -59,7 +59,7 @@
 typedef ATTR_PACKED_STRUCT(struct){
   ATTR_PACKED_STRUCT(struct) {
     uint8_t recipient :  5; /**< Recipient type tusb_std_request_recipient_t. */
-    uint8_t type      :  2; /**< Request type tusb_std_request_type_t.  */
+    uint8_t type      :  2; /**< Request type tusb_control_request_type_t.  */
     uint8_t direction :  1; /**< Direction type. tusb_direction_t */
   } bmRequestType;
 
@@ -67,7 +67,7 @@ typedef ATTR_PACKED_STRUCT(struct){
   uint16_t wValue;
   uint16_t wIndex;
   uint16_t wLength;
-} tusb_std_request_t;
+} tusb_control_request_t;
 
 #ifdef __cplusplus
  }

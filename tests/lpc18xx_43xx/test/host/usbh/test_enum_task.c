@@ -62,7 +62,7 @@ tusb_speed_t device_speed = TUSB_SPEED_FULL;
 
 void queue_recv_stub (osal_queue_handle_t const queue_hdl, uint32_t *p_data, uint32_t msec, tusb_error_t *p_error, int num_call);
 void semaphore_wait_success_stub(osal_semaphore_handle_t const sem_hdl, uint32_t msec, tusb_error_t *p_error, int num_call);
-tusb_error_t control_xfer_stub(uint8_t dev_addr, const tusb_std_request_t * const p_request, uint8_t data[], int num_call);
+tusb_error_t control_xfer_stub(uint8_t dev_addr, const tusb_control_request_t * const p_request, uint8_t data[], int num_call);
 
 void setUp(void)
 {
@@ -119,7 +119,7 @@ semaphore_wait_timeout(6)
 semaphore_wait_timeout(7)
 semaphore_wait_timeout(8)
 
-tusb_error_t control_xfer_stub(uint8_t dev_addr, const tusb_std_request_t * const p_request, uint8_t data[], int num_call)
+tusb_error_t control_xfer_stub(uint8_t dev_addr, const tusb_control_request_t * const p_request, uint8_t data[], int num_call)
 {
   switch (num_call)
   {

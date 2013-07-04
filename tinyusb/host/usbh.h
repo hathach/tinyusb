@@ -111,7 +111,7 @@ void         tusbh_device_mount_failed_cb(tusb_error_t error, tusb_descriptor_de
 OSAL_TASK_FUNCTION (usbh_enumeration_task) (void* p_task_para);
 tusb_error_t usbh_init(void);
 
-tusb_error_t usbh_control_xfer_subtask(uint8_t dev_addr, tusb_std_request_t const* p_request, uint8_t* data);
+tusb_error_t usbh_control_xfer_subtask(uint8_t dev_addr, tusb_control_request_t const* p_request, uint8_t* data);
 
 #endif
 

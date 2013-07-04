@@ -113,7 +113,7 @@ typedef enum {
   TUSB_REQUEST_TYPE_STANDARD = 0,
   TUSB_REQUEST_TYPE_CLASS,
   TUSB_REQUEST_TYPE_VENDOR
-} tusb_std_request_type_t;
+} tusb_control_request_type_t;
 
 typedef enum {
   TUSB_REQUEST_RECIPIENT_DEVICE =0,

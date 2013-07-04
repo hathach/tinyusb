@@ -107,7 +107,7 @@ void test_mouse_is_supported_ok(void)
   TEST_ASSERT_TRUE( tusbh_hid_mouse_is_mounted(dev_addr) );
 }
 
-static tusb_error_t stub_set_idle_request(uint8_t address, tusb_std_request_t const* p_request, uint8_t* data, int num_call)
+static tusb_error_t stub_set_idle_request(uint8_t address, tusb_control_request_t const* p_request, uint8_t* data, int num_call)
 {
   TEST_ASSERT_EQUAL( dev_addr, address);
 

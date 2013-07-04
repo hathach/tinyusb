@@ -184,7 +184,7 @@ tusb_error_t usbh_init(void)
 
 //------------- USBH control transfer -------------//
 // function called within a task, requesting os blocking services, subtask input parameter must be static/global variables
-tusb_error_t usbh_control_xfer_subtask(uint8_t dev_addr, tusb_std_request_t const* p_request, uint8_t* data)
+tusb_error_t usbh_control_xfer_subtask(uint8_t dev_addr, tusb_control_request_t const* p_request, uint8_t* data)
 {
   tusb_error_t error;
 
@@ -347,7 +347,7 @@ tusb_error_t enumeration_body_subtask(void)
   OSAL_SUBTASK_INVOKED_AND_WAIT(
     usbh_control_xfer_subtask(
       0,
-      &(tusb_std_request_t)
+      &(tusb_control_request_t)
       {
         .bmRequestType = { .direction = TUSB_DIR_DEV_TO_HOST, .type = TUSB_REQUEST_TYPE_STANDARD, .recipient = TUSB_REQUEST_RECIPIENT_DEVICE },
         .bRequest = TUSB_REQUEST_GET_DESCRIPTOR,
@@ -368,7 +368,7 @@ tusb_error_t enumeration_body_subtask(void)
   OSAL_SUBTASK_INVOKED_AND_WAIT(
     usbh_control_xfer_subtask(
       0,
-      &(tusb_std_request_t)
+      &(tusb_control_request_t)
       {
         .bmRequestType = { .direction = TUSB_DIR_HOST_TO_DEV, .type = TUSB_REQUEST_TYPE_STANDARD, .recipient = TUSB_REQUEST_RECIPIENT_DEVICE },
         .bRequest = TUSB_REQUEST_SET_ADDRESS,
@@ -396,7 +396,7 @@ tusb_error_t enumeration_body_subtask(void)
   OSAL_SUBTASK_INVOKED_AND_WAIT(
     usbh_control_xfer_subtask(
       new_addr,
-      &(tusb_std_request_t)
+      &(tusb_control_request_t)
       {
         .bmRequestType = { .direction = TUSB_DIR_DEV_TO_HOST, .type = TUSB_REQUEST_TYPE_STANDARD, .recipient = TUSB_REQUEST_RECIPIENT_DEVICE },
         .bRequest = TUSB_REQUEST_GET_DESCRIPTOR,
@@ -420,7 +420,7 @@ tusb_error_t enumeration_body_subtask(void)
   OSAL_SUBTASK_INVOKED_AND_WAIT(
     usbh_control_xfer_subtask(
       new_addr,
-      &(tusb_std_request_t)
+      &(tusb_control_request_t)
       {
         .bmRequestType = { .direction = TUSB_DIR_DEV_TO_HOST, .type = TUSB_REQUEST_TYPE_STANDARD, .recipient = TUSB_REQUEST_RECIPIENT_DEVICE },
         .bRequest = TUSB_REQUEST_GET_DESCRIPTOR,
@@ -438,7 +438,7 @@ tusb_error_t enumeration_body_subtask(void)
   OSAL_SUBTASK_INVOKED_AND_WAIT(
     usbh_control_xfer_subtask(
       new_addr,
-      &(tusb_std_request_t)
+      &(tusb_control_request_t)
       {
         .bmRequestType = { .direction = TUSB_DIR_DEV_TO_HOST, .type = TUSB_REQUEST_TYPE_STANDARD, .recipient = TUSB_REQUEST_RECIPIENT_DEVICE },
         .bRequest = TUSB_REQUEST_GET_DESCRIPTOR,
@@ -457,7 +457,7 @@ tusb_error_t enumeration_body_subtask(void)
   OSAL_SUBTASK_INVOKED_AND_WAIT (
     usbh_control_xfer_subtask(
         new_addr,
-        &(tusb_std_request_t)
+        &(tusb_control_request_t)
         {
           .bmRequestType = { .direction = TUSB_DIR_HOST_TO_DEV, .type = TUSB_REQUEST_TYPE_STANDARD, .recipient = TUSB_REQUEST_RECIPIENT_DEVICE },
           .bRequest = TUSB_REQUEST_SET_CONFIGURATION,

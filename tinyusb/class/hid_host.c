@@ -221,7 +221,7 @@ tusb_error_t hidh_open_subtask(uint8_t dev_addr, tusb_descriptor_interface_t con
 //  OSAL_SUBTASK_INVOKED_AND_WAIT(
 //    usbh_control_xfer_subtask(
 //      dev_addr,
-//      &(tusb_std_request_t)
+//      &(tusb_control_request_t)
 //      {
 //        .bmRequestType = { .direction = TUSB_DIR_HOST_TO_DEV, .type = TUSB_REQUEST_TYPE_CLASS, .recipient = TUSB_REQUEST_RECIPIENT_INTERFACE },
 //        .bRequest = HID_REQUEST_CONTROL_SET_IDLE,
@@ -238,7 +238,7 @@ tusb_error_t hidh_open_subtask(uint8_t dev_addr, tusb_descriptor_interface_t con
 //  OSAL_SUBTASK_INVOKED_AND_WAIT(
 //    usbh_control_xfer_subtask(
 //      dev_addr,
-//      &(tusb_std_request_t)
+//      &(tusb_control_request_t)
 //      {
 //        .bmRequestType = { .direction = TUSB_DIR_DEV_TO_HOST, .type = TUSB_REQUEST_TYPE_STANDARD, .recipient = TUSB_REQUEST_RECIPIENT_INTERFACE },
 //        .bRequest      = TUSB_REQUEST_GET_DESCRIPTOR,

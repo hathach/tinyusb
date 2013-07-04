@@ -98,7 +98,7 @@ typedef struct { // TODO internal structure, re-order members
   //------------- control pipe -------------//
   struct {
     volatile uint8_t pipe_status;
-    tusb_std_request_t request;
+    tusb_control_request_t request;
 
     OSAL_SEM_DEF(semaphore);          // TODO move to semaphore pool ?
     osal_semaphore_handle_t sem_hdl;  // used to synchronize with HCD when control xfer complete

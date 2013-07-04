@@ -103,7 +103,7 @@ void tearDown(void)
 //--------------------------------------------------------------------+
 // CONTROL TRANSFER
 //--------------------------------------------------------------------+
-tusb_std_request_t request_get_dev_desc =
+tusb_control_request_t request_get_dev_desc =
 {
     .bmRequestType = { .direction = TUSB_DIR_DEV_TO_HOST, .type = TUSB_REQUEST_TYPE_STANDARD, .recipient = TUSB_REQUEST_RECIPIENT_DEVICE },
     .bRequest = TUSB_REQUEST_GET_DESCRIPTOR,
@@ -111,7 +111,7 @@ tusb_std_request_t request_get_dev_desc =
     .wLength  = 18
 };
 
-tusb_std_request_t request_set_dev_addr =
+tusb_control_request_t request_set_dev_addr =
 {
     .bmRequestType = { .direction = TUSB_DIR_HOST_TO_DEV, .type = TUSB_REQUEST_TYPE_STANDARD, .recipient = TUSB_REQUEST_RECIPIENT_DEVICE },
     .bRequest = TUSB_REQUEST_SET_ADDRESS,

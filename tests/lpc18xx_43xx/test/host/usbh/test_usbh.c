@@ -181,7 +181,7 @@ static void mutex_wait_failed_stub(osal_mutex_handle_t const sem_hdl, uint32_t m
 
 void test_usbh_control_xfer_mutex_failed(void)
 {
-  tusb_std_request_t a_request;
+  tusb_control_request_t a_request;
 
   osal_mutex_wait_StubWithCallback(mutex_wait_failed_stub);
   osal_mutex_release_ExpectAndReturn(usbh_devices[dev_addr].control.mutex_hdl, TUSB_ERROR_NONE);
@@ -192,7 +192,7 @@ void test_usbh_control_xfer_mutex_failed(void)
 
 void test_usbh_control_xfer_ok(void)
 {
-  tusb_std_request_t a_request;
+  tusb_control_request_t a_request;
 
   osal_mutex_wait_StubWithCallback(semaphore_wait_success_stub);
 

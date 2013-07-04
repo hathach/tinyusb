@@ -67,7 +67,7 @@ STATIC_ hidd_interface_t keyboard_intf =
 };
 #endif
 
-tusb_error_t hidd_control_request(uint8_t coreid, tusb_std_request_t const * p_request)
+tusb_error_t hidd_control_request(uint8_t coreid, tusb_control_request_t const * p_request)
 {
 #if TUSB_CFG_DEVICE_HID_KEYBOARD
   if (p_request->bmRequestType.type == TUSB_REQUEST_TYPE_STANDARD) // standard request to hid

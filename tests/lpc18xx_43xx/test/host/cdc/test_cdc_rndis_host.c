@@ -77,9 +77,6 @@ void setUp(void)
   hcd_pipe_open_ExpectAndReturn(dev_addr, p_endpoint_notification, TUSB_CLASS_CDC, pipe_notification);
   hcd_pipe_open_ExpectAndReturn(dev_addr, p_endpoint_out, TUSB_CLASS_CDC, pipe_out);
   hcd_pipe_open_ExpectAndReturn(dev_addr, p_endpoint_in, TUSB_CLASS_CDC, pipe_int);
-  tusbh_cdc_mounted_cb_Expect(dev_addr);
-
-  TEST_ASSERT_EQUAL( TUSB_ERROR_NONE, cdch_open_subtask(dev_addr, p_comm_interface, &length) );
 }
 
 void tearDown(void)
@@ -87,7 +84,11 @@ void tearDown(void)
 
 }
 
-void test_(void)
+//tusb_
+void test_rndis_send_initalize(void)
 {
+//  usbh_control_xfer_subtask_ExpectAndReturn(dev_addr, )
 
+  //------------- Code Under Test -------------//
+  TEST_ASSERT_EQUAL( TUSB_ERROR_NONE, cdch_open_subtask(dev_addr, p_comm_interface, &length) );
 }

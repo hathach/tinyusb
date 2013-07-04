@@ -66,7 +66,7 @@ tusb_error_t tusbd_hid_mouse_send_report(tusb_mouse_report_t *p_mouse_report);
 #ifdef _TINY_USB_SOURCE_FILE_
 
 tusb_error_t hidd_init(uint8_t coreid, tusb_descriptor_interface_t const * p_interface_desc, uint16_t *p_length);
-tusb_error_t hidd_control_request(uint8_t coreid, tusb_std_request_t const * p_request);
+tusb_error_t hidd_control_request(uint8_t coreid, tusb_control_request_t const * p_request);
 tusb_error_t hidd_configured(void);
 
 #endif
