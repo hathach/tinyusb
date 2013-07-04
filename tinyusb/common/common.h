@@ -192,6 +192,21 @@ static inline uint32_t offset4k(uint32_t value)
 }
 
 //------------- Mathematics -------------//
+/// inclusive range checking
+static inline bool is_in_range(uint32_t lower, uint32_t value, uint32_t upper) ATTR_ALWAYS_INLINE ATTR_CONST;
+static inline bool is_in_range(uint32_t lower, uint32_t value, uint32_t upper)
+{
+  return (lower <= value) && (value <= upper);
+}
+
+/// exclusive range checking
+static inline bool is_in_range_exclusive(uint32_t lower, uint32_t value, uint32_t upper) ATTR_ALWAYS_INLINE ATTR_CONST;
+static inline bool is_in_range_exclusive(uint32_t lower, uint32_t value, uint32_t upper)
+{
+  return (lower < value) && (value < upper);
+}
+
+
 static inline uint8_t log2_of(uint32_t value) ATTR_ALWAYS_INLINE ATTR_CONST;
 static inline uint8_t log2_of(uint32_t value)
 {

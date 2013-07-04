@@ -51,16 +51,16 @@
 #include "descriptor_cdc.h"
 #include "cdc_host.h"
 
-uint8_t dev_addr;
-uint16_t length;
+static uint8_t dev_addr;
+static uint16_t length;
 
-tusb_descriptor_interface_t const * p_comm_interface = &cdc_config_descriptor.cdc_comm_interface;
-tusb_descriptor_endpoint_t const * p_endpoint_notification = &cdc_config_descriptor.cdc_endpoint_notification;
-tusb_descriptor_endpoint_t const * p_endpoint_out = &cdc_config_descriptor.cdc_endpoint_out;
-tusb_descriptor_endpoint_t const * p_endpoint_in = &cdc_config_descriptor.cdc_endpoint_in;
+static tusb_descriptor_interface_t const * p_comm_interface = &cdc_config_descriptor.cdc_comm_interface;
+static tusb_descriptor_endpoint_t const * p_endpoint_notification = &cdc_config_descriptor.cdc_endpoint_notification;
+static tusb_descriptor_endpoint_t const * p_endpoint_out = &cdc_config_descriptor.cdc_endpoint_out;
+static tusb_descriptor_endpoint_t const * p_endpoint_in = &cdc_config_descriptor.cdc_endpoint_in;
 
 extern cdch_data_t cdch_data[TUSB_CFG_HOST_DEVICE_MAX];
-cdch_data_t * p_cdc = &cdch_data[0];
+static cdch_data_t * p_cdc = &cdch_data[0];
 
 void setUp(void)
 {
@@ -146,6 +146,19 @@ void test_cdch_open_interface_number_check(void)
   TEST_ASSERT_EQUAL( TUSB_ERROR_NONE, cdch_open_subtask(dev_addr, p_comm_interface, &length) );
 
   TEST_ASSERT_EQUAL(1, p_cdc->interface_number);
+
+}
+
+void test_cdch_open_protocol_check(void)
+{
+  pipe_handle_t dummy_hld = { .dev_addr = 1 };
+  hcd_pipe_open_IgnoreAndReturn(dummy_hld);
+  tusbh_cdc_mounted_cb_Expect(dev_addr);
+
+  //------------- CUT -------------//
+  TEST_ASSERT_EQUAL( TUSB_ERROR_NONE, cdch_open_subtask(dev_addr, p_comm_interface, &length) );
+
+  TEST_ASSERT_EQUAL(p_comm_interface->bInterfaceProtocol, p_cdc->interface_protocol);
 
 }
 

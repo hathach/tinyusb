@@ -61,6 +61,9 @@ static uint8_t buffer_in[64] TUSB_CFG_ATTR_USBRAM;
 void tusbh_cdc_mounted_cb(uint8_t dev_addr)
 {
   // application set-up
+
+  printf("a CDC device is mounted\n");
+
   osal_queue_flush(queue_hdl);
   tusbh_cdc_receive(dev_addr, buffer_in, sizeof(buffer_in), true); // first report
 }

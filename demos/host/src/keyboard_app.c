@@ -70,6 +70,9 @@ static inline void process_kbd_report(tusb_keyboard_report_t const * report);
 void tusbh_hid_keyboard_mounted_cb(uint8_t dev_addr)
 {
   // application set-up
+
+  printf("a keyboard device is mounted\n");
+
   osal_queue_flush(queue_kbd_hdl);
   tusbh_hid_keyboard_get_report(dev_addr, (uint8_t*) &usb_keyboard_report); // first report
 }

@@ -1,6 +1,6 @@
 /**************************************************************************/
 /*!
-    @file     descriptor_cdc.h
+    @file     test_cdc_rndis_host.c
     @author   hathach (tinyusb.org)
 
     @section LICENSE
@@ -36,50 +36,58 @@
 */
 /**************************************************************************/
 
-/** \ingroup TBD
- *  \defgroup TBD
- *  \brief TBD
- *
- *  @{
- */
+#include "stdlib.h"
+#include "unity.h"
+#include "tusb_option.h"
+#include "errors.h"
+#include "binary.h"
+#include "type_helper.h"
 
-#ifndef _TUSB_DESCRIPTOR_CDC_H_
-#define _TUSB_DESCRIPTOR_CDC_H_
+#include "mock_osal.h"
+#include "mock_hcd.h"
+#include "mock_usbh.h"
+#include "mock_cdc_callback.h"
 
-#include "common/common.h"
-#include "class/cdc.h"
+#include "descriptor_cdc.h"
+#include "cdc_host.h"
 
-#ifdef __cplusplus
- extern "C" {
-#endif
+static uint8_t dev_addr;
+static uint16_t length;
 
-typedef struct
+static tusb_descriptor_interface_t const * p_comm_interface = &rndis_config_descriptor.cdc_comm_interface;
+static tusb_descriptor_endpoint_t const * p_endpoint_notification = &rndis_config_descriptor.cdc_endpoint_notification;
+static tusb_descriptor_endpoint_t const * p_endpoint_out = &rndis_config_descriptor.cdc_endpoint_out;
+static tusb_descriptor_endpoint_t const * p_endpoint_in = &rndis_config_descriptor.cdc_endpoint_in;
+
+static pipe_handle_t pipe_notification = { .dev_addr = 1, .xfer_type = TUSB_XFER_INTERRUPT };
+static pipe_handle_t pipe_out          = { .dev_addr  = 1, .xfer_type = TUSB_XFER_BULK, .index = 0 };
+static pipe_handle_t pipe_int          = { .dev_addr  = 1, .xfer_type = TUSB_XFER_BULK, .index = 1 };
+
+extern cdch_data_t cdch_data[TUSB_CFG_HOST_DEVICE_MAX];
+static cdch_data_t * p_cdc = &cdch_data[0];
+
+
+void setUp(void)
 {
-  tusb_descriptor_configuration_t              configuration;
+  length = 0;
+  dev_addr = 1;
 
-  tusb_descriptor_interface_association_t      cdc_iad;
+  cdch_init();
 
-  //CDC Control Interface
-  tusb_descriptor_interface_t                  cdc_comm_interface;
-  cdc_desc_func_header_t                       cdc_header;
-  cdc_desc_func_abstract_control_management_t  cdc_acm;
-  cdc_desc_func_union_t                        cdc_union;
-  tusb_descriptor_endpoint_t                   cdc_endpoint_notification;
+  hcd_pipe_open_ExpectAndReturn(dev_addr, p_endpoint_notification, TUSB_CLASS_CDC, pipe_notification);
+  hcd_pipe_open_ExpectAndReturn(dev_addr, p_endpoint_out, TUSB_CLASS_CDC, pipe_out);
+  hcd_pipe_open_ExpectAndReturn(dev_addr, p_endpoint_in, TUSB_CLASS_CDC, pipe_int);
+  tusbh_cdc_mounted_cb_Expect(dev_addr);
 
-  //CDC Data Interface
-  tusb_descriptor_interface_t                  cdc_data_interface;
-  tusb_descriptor_endpoint_t                   cdc_endpoint_out;
-  tusb_descriptor_endpoint_t                   cdc_endpoint_in;
+  TEST_ASSERT_EQUAL( TUSB_ERROR_NONE, cdch_open_subtask(dev_addr, p_comm_interface, &length) );
+}
 
-} cdc_configuration_desc_t;
+void tearDown(void)
+{
 
-extern const cdc_configuration_desc_t cdc_config_descriptor;
-extern const cdc_configuration_desc_t rndis_config_descriptor;
+}
 
-#ifdef __cplusplus
- }
-#endif
+void test_(void)
+{
 
-#endif /* _TUSB_DESCRIPTOR_CDC_H_ */
-
-/** @} */
+}

@@ -70,6 +70,9 @@ static inline void process_mouse_report(tusb_mouse_report_t const * p_report);
 void tusbh_hid_mouse_mounted_cb(uint8_t dev_addr)
 {
   // application set-up
+
+  printf("a mouse device is mounted\n");
+
   osal_queue_flush(queue_mouse_hdl);
   tusbh_hid_mouse_get_report(dev_addr, (uint8_t*) &usb_mouse_report); // first report
 }
