@@ -69,7 +69,7 @@ tusb_error_t tusbh_cdc_send(uint8_t dev_addr, void const * p_data, uint32_t leng
 tusb_error_t tusbh_cdc_receive(uint8_t dev_addr, void * p_buffer, uint32_t length, bool is_notify);
 
 //------------- Application Callback -------------//
-void tusbh_cdc_mounted_isr(uint8_t dev_addr) ATTR_WEAK;
+void tusbh_cdc_mounted_cb(uint8_t dev_addr) ATTR_WEAK;
 void tusbh_cdc_unmounted_isr(uint8_t dev_addr) ATTR_WEAK;
 void tusbh_cdc_isr(uint8_t dev_addr, tusb_event_t event) ATTR_WEAK;
 void tusbh_cdc_xfer_isr(uint8_t dev_addr, tusb_event_t event, cdc_pipeid_t pipe_id, uint32_t xferred_bytes) ATTR_WEAK;

@@ -58,7 +58,7 @@ static uint8_t buffer_in[64] TUSB_CFG_ATTR_USBRAM;
 //--------------------------------------------------------------------+
 // INTERNAL OBJECT & FUNCTION DECLARATION
 //--------------------------------------------------------------------+
-void tusbh_cdc_mounted_isr(uint8_t dev_addr)
+void tusbh_cdc_mounted_cb(uint8_t dev_addr)
 {
   // application set-up
   osal_queue_flush(queue_hdl);

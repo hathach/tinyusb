@@ -194,9 +194,9 @@ tusb_error_t cdch_open_subtask(uint8_t dev_addr, tusb_descriptor_interface_t con
   }
 
   // FIXME mounted class flag is not set yet
-  if (tusbh_cdc_mounted_isr)
+  if (tusbh_cdc_mounted_cb)
   {
-    tusbh_cdc_mounted_isr(dev_addr);
+    tusbh_cdc_mounted_cb(dev_addr);
   }
 
   return TUSB_ERROR_NONE;

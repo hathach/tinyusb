@@ -86,7 +86,7 @@
 #if BOARD == 0
   #error BOARD is not defined or supported yet
 #elif BOARD == BOARD_NGX4330
-  #include "ngx/board_ngx4330.h"`
+  #include "ngx/board_ngx4330.h"
 #elif BOARD == BOARD_LPCXPRESSO1347
   #include "lpcxpresso/board_lpcxpresso1347.h"
 #elif BOARD == BOARD_RF1GHZNODE

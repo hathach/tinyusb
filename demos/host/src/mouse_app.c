@@ -67,7 +67,7 @@ static inline void process_mouse_report(tusb_mouse_report_t const * p_report);
 //--------------------------------------------------------------------+
 // tinyusb callback (ISR context)
 //--------------------------------------------------------------------+
-void tusbh_hid_mouse_mounted_isr(uint8_t dev_addr)
+void tusbh_hid_mouse_mounted_cb(uint8_t dev_addr)
 {
   // application set-up
   osal_queue_flush(queue_mouse_hdl);

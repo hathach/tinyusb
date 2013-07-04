@@ -145,7 +145,7 @@ void test_keyboard_open_ok(void)
 
   usbh_control_xfer_subtask_StubWithCallback(stub_set_idle_request);
   hcd_pipe_open_ExpectAndReturn(dev_addr, p_kdb_endpoint_desc, TUSB_CLASS_HID, pipe_hdl);
-  tusbh_hid_keyboard_mounted_isr_Expect(dev_addr);
+  tusbh_hid_keyboard_mounted_cb_Expect(dev_addr);
 
   //------------- Code Under TEST -------------//
   TEST_ASSERT_EQUAL(TUSB_ERROR_NONE, hidh_open_subtask(dev_addr, p_kbd_interface_desc, &length));

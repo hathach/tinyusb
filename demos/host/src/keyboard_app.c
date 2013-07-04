@@ -67,7 +67,7 @@ static inline void process_kbd_report(tusb_keyboard_report_t const * report);
 //--------------------------------------------------------------------+
 // tinyusb callback (ISR context)
 //--------------------------------------------------------------------+
-void tusbh_hid_keyboard_mounted_isr(uint8_t dev_addr)
+void tusbh_hid_keyboard_mounted_cb(uint8_t dev_addr)
 {
   // application set-up
   osal_queue_flush(queue_kbd_hdl);
