@@ -14,6 +14,7 @@ designed to be simple and run out-of-the-box provided the configuration is corre
 
 - HID Mouse
 - HID Keyboard
+- Communication Class (CDC)
 - Mass-Storage (MSC) coming soon...
 - Hub coming soon...
 - Multiple host controllers
@@ -53,6 +54,7 @@ this code base can run out of the box with the following boards
 
 - [Embedded Artists LPC4357 OEM & Base board](http://www.embeddedartists.com/products/kits/lpc4357_kit.php)
 - [NGX Technologies LPC4330 Explorer](http://shop.ngxtechnologies.com/product_info.php?products_id=104)
+- [Keil MCB4357 Evaluation Board](http://www.keil.com/mcb4300)
 
 ## Coding Standards ##
 
