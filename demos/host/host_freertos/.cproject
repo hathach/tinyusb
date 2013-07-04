@@ -90,7 +90,7 @@
 					<sourceEntries>
 						<entry flags="VALUE_WORKSPACE_PATH|RESOLVED" kind="sourcePath" name="freertos/freertos/Source/portable/GCC/ARM_CM4F"/>
 						<entry excluding="heap_2.c|heap_3.c|heap_4.c" flags="VALUE_WORKSPACE_PATH" kind="sourcePath" name="freertos/freertos/Source/portable/MemMang"/>
-						<entry excluding="bsp/boards/embedded_artists/oem_base_board|freertos/freertoslpc/FreeRTOS_lpc43xx_m0_Tick.c|freertos/freertos/Source/portable|bsp/boards/EA4357|NGX|bsp/lpc13uxx|bsp/lpc11uxx" flags="VALUE_WORKSPACE_PATH|RESOLVED" kind="sourcePath" name=""/>
+						<entry excluding="bsp/lpc175x_6x|bsp/boards/embedded_artists/oem_base_board|freertos/freertoslpc/FreeRTOS_lpc43xx_m0_Tick.c|freertos/freertos/Source/portable|bsp/boards/EA4357|NGX|bsp/lpc13uxx|bsp/lpc11uxx" flags="VALUE_WORKSPACE_PATH|RESOLVED" kind="sourcePath" name=""/>
 					</sourceEntries>
 				</configuration>
 			</storageModule>
@@ -750,8 +750,8 @@
 					</folderInfo>
 					<sourceEntries>
 						<entry flags="VALUE_WORKSPACE_PATH|RESOLVED" kind="sourcePath" name="freertos/freertos/Source/portable/GCC/ARM_CM4F"/>
-						<entry excluding="freertos/freertoslpc/FreeRTOS_lpc43xx_m0_Tick.c|freertos/freertos/Source/portable|bsp/boards/EA4357|NGX|bsp/lpc13uxx|bsp/lpc11uxx" flags="VALUE_WORKSPACE_PATH|RESOLVED" kind="sourcePath" name=""/>
 						<entry excluding="heap_2.c|heap_3.c|heap_4.c" flags="VALUE_WORKSPACE_PATH" kind="sourcePath" name="freertos/freertos/Source/portable/MemMang"/>
+						<entry excluding="bsp/lpc175x_6x|freertos/freertoslpc/FreeRTOS_lpc43xx_m0_Tick.c|freertos/freertos/Source/portable|bsp/boards/EA4357|NGX|bsp/lpc13uxx|bsp/lpc11uxx" flags="VALUE_WORKSPACE_PATH|RESOLVED" kind="sourcePath" name=""/>
 					</sourceEntries>
 				</configuration>
 			</storageModule>

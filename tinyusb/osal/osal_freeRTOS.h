@@ -114,6 +114,8 @@ static inline void osal_task_delay(uint32_t msec)
 #define OSAL_SUBTASK_END \
   return TUSB_ERROR_NONE;
 
+#define SUBTASK_EXIT(error)   return error;
+
 #define OSAL_SUBTASK_INVOKED_AND_WAIT(subtask, status) \
   status = subtask
 
@@ -162,6 +164,33 @@ static inline void osal_semaphore_reset(osal_semaphore_handle_t const sem_hdl)
 {
   portBASE_TYPE task_waken;
   xSemaphoreTakeFromISR(sem_hdl, &task_waken);
+}
+
+//--------------------------------------------------------------------+
+// MUTEX API (priority inheritance)
+//--------------------------------------------------------------------+
+#define OSAL_MUTEX_DEF  OSAL_SEM_DEF
+typedef xSemaphoreHandle osal_mutex_handle_t;
+
+#define osal_mutex_create(x) \
+  xSemaphoreCreateMutex()
+
+static inline  tusb_error_t osal_mutex_release(osal_mutex_handle_t const mutex_hdl) ATTR_ALWAYS_INLINE;
+static inline  tusb_error_t osal_mutex_release(osal_mutex_handle_t const mutex_hdl)
+{
+  return (xSemaphoreGive(mutex_hdl) == pdPASS) ? TUSB_ERROR_NONE : TUSB_ERROR_OSAL_SEMAPHORE_FAILED;
+}
+
+static inline void osal_mutex_wait(osal_mutex_handle_t const mutex_hdl, uint32_t msec, tusb_error_t *p_error) ATTR_ALWAYS_INLINE;
+static inline void osal_mutex_wait(osal_mutex_handle_t const mutex_hdl, uint32_t msec, tusb_error_t *p_error)
+{
+  (*p_error) = ( xSemaphoreTake(mutex_hdl, osal_tick_from_msec(msec)) == pdPASS ) ? TUSB_ERROR_NONE : TUSB_ERROR_OSAL_TIMEOUT;
+}
+
+static inline void osal_mutex_reset(osal_mutex_handle_t const mutex_hdl) ATTR_ALWAYS_INLINE;
+static inline void osal_mutex_reset(osal_mutex_handle_t const mutex_hdl)
+{
+  xSemaphoreGive(mutex_hdl);
 }
 
 //--------------------------------------------------------------------+
