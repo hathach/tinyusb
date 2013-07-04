@@ -75,24 +75,33 @@ void tusbh_cdc_unmounted_isr(uint8_t dev_addr)
 
 void tusbh_cdc_xfer_isr(uint8_t dev_addr, tusb_event_t event, cdc_pipeid_t pipe_id, uint32_t xferred_bytes)
 {
-  switch(event)
+  if ( pipe_id == CDC_PIPE_DATA_IN )
   {
-    case TUSB_EVENT_XFER_COMPLETE:
-      for(uint32_t i=0; i<xferred_bytes; i++)
-      {
-        osal_queue_send(queue_hdl, buffer_in+i);
-      }
-      tusbh_cdc_receive(dev_addr, buffer_in, sizeof(buffer_in), true);
-    break;
+    switch(event)
+    {
+      case TUSB_EVENT_XFER_COMPLETE:
+        for(uint32_t i=0; i<xferred_bytes; i++)
+        {
+          osal_queue_send(queue_hdl, buffer_in+i);
+        }
+        tusbh_cdc_receive(dev_addr, buffer_in, sizeof(buffer_in), true);
+        break;
 
-    case TUSB_EVENT_XFER_ERROR:
-      tusbh_cdc_receive(dev_addr, buffer_in, sizeof(buffer_in), true); // ignore & continue
-    break;
+      case TUSB_EVENT_XFER_ERROR:
+        tusbh_cdc_receive(dev_addr, buffer_in, sizeof(buffer_in), true); // ignore & continue
+        break;
 
-    case TUSB_EVENT_XFER_STALLED:
-    default :
-      ASSERT(false, (void) 0); // error
-    break;
+      case TUSB_EVENT_XFER_STALLED:
+      default :
+        ASSERT(false, (void) 0); // error
+        break;
+    }
+  }else if (pipe_id == CDC_PIPE_DATA_OUT)
+  {
+
+  }else if (pipe_id == CDC_PIPE_NOTIFICATION)
+  {
+
   }
 }
 
