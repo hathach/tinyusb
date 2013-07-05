@@ -116,6 +116,11 @@ tusb_error_t rndish_open_subtask(uint8_t dev_addr, cdch_data_t *p_cdc)
     error
   );
 
+  if ( TUSB_ERROR_NONE != error)
+  {
+    SUBTASK_EXIT(error);
+  }
+
   if ( tusbh_cdc_rndis_mounted_cb )
   {
     tusbh_cdc_rndis_mounted_cb(dev_addr);

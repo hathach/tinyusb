@@ -104,16 +104,23 @@ rndis_msg_initialize_t msg_init =
     .max_xfer_size = 0x4000 // TODO mimic windows
 };
 
-//void test_rndis_send_initalize_failed(void)
-//{
-//
-//}
+void test_rndis_send_initalize_failed(void)
+{
+  usbh_control_xfer_subtask_ExpectWithArrayAndReturn(
+      dev_addr, 0x21, SEND_ENCAPSULATED_COMMAND, 0, p_comm_interface->bInterfaceNumber,
+      sizeof(rndis_msg_initialize_t), (uint8_t*)&msg_init, sizeof(rndis_msg_initialize_t), TUSB_ERROR_OSAL_TIMEOUT);
+
+  tusbh_cdc_mounted_cb_Expect(dev_addr);
+
+  //------------- Code Under Test -------------//
+  TEST_ASSERT_EQUAL( TUSB_ERROR_NONE, cdch_open_subtask(dev_addr, p_comm_interface, &length) );
+}
 
 void test_rndis_send_initalize_ok(void)
 {
   usbh_control_xfer_subtask_ExpectWithArrayAndReturn(
       dev_addr, 0x21, SEND_ENCAPSULATED_COMMAND, 0, p_comm_interface->bInterfaceNumber,
-      sizeof(rndis_msg_initialize_t), (uint8_t*)&msg_init, sizeof(rndis_msg_initialize_t), TUSB_ERROR_OSAL_TIMEOUT);
+      sizeof(rndis_msg_initialize_t), (uint8_t*)&msg_init, sizeof(rndis_msg_initialize_t), TUSB_ERROR_NONE);
 
 
   tusbh_cdc_rndis_mounted_cb_Expect(dev_addr);
