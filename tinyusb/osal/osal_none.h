@@ -123,21 +123,23 @@ static inline volatile uint32_t osal_tick_get(void)
 //--------------------------------------------------------------------+
 //------------- Sub Task -------------//
 #define OSAL_SUBTASK_INVOKED_AND_WAIT(subtask, status) \
-  do {\
-    state = __LINE__; case __LINE__:\
-    {\
-      status = subtask; /* invoke sub task */\
-      if (TUSB_ERROR_OSAL_WAITING == status) /* sub task not finished -> continue waiting */\
-        return TUSB_ERROR_OSAL_WAITING;\
-    }\
-  }while(0)
+    do {\
+      state = __LINE__; case __LINE__:\
+      {\
+        status = subtask; /* invoke sub task */\
+        if (TUSB_ERROR_OSAL_WAITING == status) /* sub task not finished -> continue waiting */\
+          return TUSB_ERROR_OSAL_WAITING;\
+      }\
+    }while(0)
 
 #define OSAL_SUBTASK_BEGIN  OSAL_TASK_LOOP_BEGIN
 #define OSAL_SUBTASK_END    OSAL_TASK_LOOP_END
 
 //------------- Sub Task Assert -------------//
 #define SUBTASK_EXIT(error)  \
-    TASK_RESTART; return error
+    do {\
+      TASK_RESTART; return error;\
+    }while(0)
 
 #define _SUBTASK_ASSERT_ERROR_HANDLER(error, func_call) \
   func_call; TASK_RESTART; return error

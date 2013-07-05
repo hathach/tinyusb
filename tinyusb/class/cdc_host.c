@@ -73,7 +73,7 @@ STATIC_ INLINE_ bool tusbh_cdc_is_mounted(uint8_t dev_addr)
 static inline cdc_pipeid_t get_app_pipeid(pipe_handle_t pipe_hdl) ATTR_PURE  ATTR_ALWAYS_INLINE;
 static inline cdc_pipeid_t get_app_pipeid(pipe_handle_t pipe_hdl)
 {
-  cdch_data_t const * p_cdc = cdch_data + (pipe_hdl.dev_addr-1);
+  cdch_data_t const * p_cdc = &cdch_data[pipe_hdl.dev_addr-1];
 
   return pipehandle_is_equal( pipe_hdl, p_cdc->pipe_notification ) ? CDC_PIPE_NOTIFICATION :
          pipehandle_is_equal( pipe_hdl, p_cdc->pipe_in           ) ? CDC_PIPE_DATA_IN :
@@ -148,7 +148,7 @@ tusb_error_t cdch_open_subtask(uint8_t dev_addr, tusb_descriptor_interface_t con
   }
 
   uint8_t const * p_desc = descriptor_next ( (uint8_t const *) p_interface_desc );
-  cdch_data_t * p_cdc = &cdch_data[dev_addr-1];
+  cdch_data_t * p_cdc = &cdch_data[dev_addr-1]; // non-static variable cannot be used after OS service call
 
   p_cdc->interface_number   = p_interface_desc->bInterfaceNumber;
   p_cdc->interface_protocol = p_interface_desc->bInterfaceProtocol; // TODO 0xff is consider as rndis candidate, other is virtual Com
@@ -203,25 +203,26 @@ tusb_error_t cdch_open_subtask(uint8_t dev_addr, tusb_descriptor_interface_t con
 
 #if TUSB_CFG_HOST_CDC_RNDIS // TODO move to rndis_host.c
   //------------- RNDIS -------------//
-  if ( 0xff == p_cdc->interface_protocol && pipehandle_is_valid(p_cdc->pipe_notification) )
+  if ( 0xff == cdch_data[dev_addr-1].interface_protocol && pipehandle_is_valid(cdch_data[dev_addr-1].pipe_notification) )
   {
-    p_cdc->is_rndis = true; // set as true at first
+    cdch_data[dev_addr-1].is_rndis = true; // set as true at first
 
-    OSAL_SUBTASK_INVOKED_AND_WAIT( rndish_open_subtask(dev_addr, p_cdc), error );
+    OSAL_SUBTASK_INVOKED_AND_WAIT( rndish_open_subtask(dev_addr, &cdch_data[dev_addr-1]), error );
 
     if (TUSB_ERROR_NONE != error)
     {
-      p_cdc->is_rndis = false;
+      cdch_data[dev_addr-1].is_rndis = false;
     }
   }
 
-  if ( !p_cdc->is_rndis ) // device is not an rndis
+  if ( !cdch_data[dev_addr-1].is_rndis ) // device is not an rndis
 #endif
-
-  // FIXME mounted class flag is not set yet
-  if (tusbh_cdc_mounted_cb)
   {
-    tusbh_cdc_mounted_cb(dev_addr);
+    // FIXME mounted class flag is not set yet
+    if (tusbh_cdc_mounted_cb)
+    {
+      tusbh_cdc_mounted_cb(dev_addr);
+    }
   }
 
   OSAL_SUBTASK_END
@@ -229,7 +230,7 @@ tusb_error_t cdch_open_subtask(uint8_t dev_addr, tusb_descriptor_interface_t con
 
 void cdch_isr(pipe_handle_t pipe_hdl, tusb_event_t event, uint32_t xferred_bytes)
 {
-  cdch_data_t *p_cdc = cdch_data + (pipe_hdl.dev_addr - 1);
+  cdch_data_t *p_cdc = &cdch_data[pipe_hdl.dev_addr - 1];
 
 #if TUSB_CFG_HOST_CDC_RNDIS
   if ( p_cdc->is_rndis )

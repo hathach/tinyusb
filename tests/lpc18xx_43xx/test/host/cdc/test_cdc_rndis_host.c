@@ -112,6 +112,21 @@ rndis_msg_initialize_t msg_init =
     .max_xfer_size = 0x4000 // TODO mimic windows
 };
 
+rndis_msg_initialize_cmplt_t msg_init_cmplt =
+{
+    .type                    = RNDIS_MSG_INITIALIZE_CMPLT,
+    .length                  = sizeof(rndis_msg_initialize_cmplt_t),
+    .request_id              = 1,
+    .status                  = RNDIS_STATUS_SUCCESS,
+    .major_version           = 1,
+    .minor_version           = 0,
+    .device_flags            = 0x10,
+    .medium                  = 0, // TODO cannot find info on this
+    .max_packet_per_xfer     = 1,
+    .max_xfer_size           = 0x4000, // TODO change later
+    .packet_alignment_factor = 5 // aligment of each RNDIS message (payload) = 2^factor
+};
+
 void test_rndis_send_initalize_failed(void)
 {
   usbh_control_xfer_subtask_ExpectWithArrayAndReturn(
@@ -164,12 +179,41 @@ void test_rndis_initialization_notification_timeout(void)
   TEST_ASSERT_FALSE(p_cdc->is_rndis);
 }
 
+tusb_error_t stub_control_xfer(uint8_t addr, uint8_t bmRequestType, uint8_t bRequest,
+                               uint16_t wValue, uint16_t wIndex, uint16_t wLength, uint8_t* data, int num_call )
+{
+  TEST_ASSERT_EQUAL(p_comm_interface->bInterfaceNumber, wIndex);
+  TEST_ASSERT_EQUAL(0, wValue);
+  TEST_ASSERT_EQUAL(dev_addr, addr);
+
+  switch(num_call)
+  {
+    case 0:
+      TEST_ASSERT_EQUAL(0x21, bmRequestType);
+      TEST_ASSERT_EQUAL(SEND_ENCAPSULATED_COMMAND, bRequest);
+      TEST_ASSERT_EQUAL(0x18, wLength);
+      TEST_ASSERT_EQUAL_HEX8_ARRAY(&msg_init, data, wLength);
+    break;
+
+    case 1:
+      TEST_ASSERT_EQUAL(0xA1, bmRequestType);
+      TEST_ASSERT_EQUAL(GET_ENCAPSULATED_RESPONSE, bRequest);
+      TEST_ASSERT( wLength >= 0x0400 ); // Microsoft Specs
+      memcpy(data, &msg_init_cmplt, 0x30);
+    break;
+
+    default:
+    return TUSB_ERROR_OSAL_TIMEOUT;
+  }
+
+  return TUSB_ERROR_NONE;
+}
+
 void test_rndis_initialization_sequence_ok(void)
 {
-  usbh_control_xfer_subtask_ExpectWithArrayAndReturn(
-      dev_addr, 0x21, SEND_ENCAPSULATED_COMMAND, 0, p_comm_interface->bInterfaceNumber,
-      sizeof(rndis_msg_initialize_t), (uint8_t*)&msg_init, sizeof(rndis_msg_initialize_t), TUSB_ERROR_NONE);
-
+  // send initialize msg
+  usbh_control_xfer_subtask_StubWithCallback(stub_control_xfer);
+  // notification waiting
   hcd_pipe_xfer_StubWithCallback(stub_pipe_notification_xfer);
   osal_semaphore_wait_StubWithCallback(stub_sem_wait_success);
   osal_semaphore_post_ExpectAndReturn(p_rndis->sem_notification_hdl, TUSB_ERROR_NONE);
