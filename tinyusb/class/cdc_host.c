@@ -125,6 +125,9 @@ tusb_error_t tusbh_cdc_receive(uint8_t dev_addr, void * p_buffer, uint32_t lengt
 void cdch_init(void)
 {
   memclr_(cdch_data, sizeof(cdch_data_t)*TUSB_CFG_HOST_DEVICE_MAX);
+#if TUSB_CFG_HOST_CDC_RNDIS
+  rndish_init();
+#endif
 }
 
 tusb_error_t cdch_open_subtask(uint8_t dev_addr, tusb_descriptor_interface_t const *p_interface_desc, uint16_t *p_length)
@@ -200,12 +203,19 @@ tusb_error_t cdch_open_subtask(uint8_t dev_addr, tusb_descriptor_interface_t con
 
 #if TUSB_CFG_HOST_CDC_RNDIS // TODO move to rndis_host.c
   //------------- RNDIS -------------//
-  if ( 0xff == p_cdc->interface_protocol )
+  if ( 0xff == p_cdc->interface_protocol && pipehandle_is_valid(p_cdc->pipe_notification) )
   {
+    p_cdc->is_rndis = true; // set as true at first
+
     OSAL_SUBTASK_INVOKED_AND_WAIT( rndish_open_subtask(dev_addr, p_cdc), error );
+
+    if (TUSB_ERROR_NONE != error)
+    {
+      p_cdc->is_rndis = false;
+    }
   }
 
-  if ( !(0xff == p_cdc->interface_protocol && TUSB_ERROR_NONE == error) ) // device is not an rndis
+  if ( !p_cdc->is_rndis ) // device is not an rndis
 #endif
 
   // FIXME mounted class flag is not set yet
@@ -219,6 +229,14 @@ tusb_error_t cdch_open_subtask(uint8_t dev_addr, tusb_descriptor_interface_t con
 
 void cdch_isr(pipe_handle_t pipe_hdl, tusb_event_t event, uint32_t xferred_bytes)
 {
+  cdch_data_t *p_cdc = cdch_data + (pipe_hdl.dev_addr - 1);
+
+#if TUSB_CFG_HOST_CDC_RNDIS
+  if ( p_cdc->is_rndis )
+  {
+    rndish_xfer_isr(p_cdc, pipe_hdl, event, xferred_bytes);
+  } else
+#endif
   if (tusbh_cdc_xfer_isr)
   {
     tusbh_cdc_xfer_isr( pipe_hdl.dev_addr, event, get_app_pipeid(pipe_hdl), xferred_bytes );
@@ -230,6 +248,12 @@ void cdch_close(uint8_t dev_addr)
   tusb_error_t err1, err2, err3;
   cdch_data_t * p_cdc = &cdch_data[dev_addr-1];
 
+#if TUSB_CFG_HOST_CDC_RNDIS
+  if (p_cdc->is_rndis)
+  {
+    rndish_close(dev_addr);
+  }
+#endif
 
   if ( pipehandle_is_valid(p_cdc->pipe_notification) )
   {

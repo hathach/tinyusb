@@ -265,7 +265,7 @@ typedef ATTR_PACKED_STRUCT(struct) {
   uint8_t bDataInterface;
 }cdc_desc_func_call_management_t;
 
-typedef struct {
+typedef ATTR_PACKED_STRUCT(struct) {
   uint8_t support_comm_request                    : 1; ///< Device supports the request combination of Set_Comm_Feature, Clear_Comm_Feature, and Get_Comm_Feature.
   uint8_t support_line_request                    : 1; ///< Device supports the request combination of Set_Line_Coding, Set_Control_Line_State, Get_Line_Coding, and the notification Serial_State.
   uint8_t support_send_break                      : 1; ///< Device supports the request Send_Break

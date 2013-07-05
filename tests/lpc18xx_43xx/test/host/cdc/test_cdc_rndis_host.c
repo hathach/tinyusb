@@ -62,10 +62,13 @@ static tusb_descriptor_endpoint_t const * p_endpoint_in = &rndis_config_descript
 
 static pipe_handle_t pipe_notification = { .dev_addr = 1, .xfer_type = TUSB_XFER_INTERRUPT };
 static pipe_handle_t pipe_out          = { .dev_addr  = 1, .xfer_type = TUSB_XFER_BULK, .index = 0 };
-static pipe_handle_t pipe_int          = { .dev_addr  = 1, .xfer_type = TUSB_XFER_BULK, .index = 1 };
+static pipe_handle_t pipe_in          = { .dev_addr  = 1, .xfer_type = TUSB_XFER_BULK, .index = 1 };
 
 extern cdch_data_t cdch_data[TUSB_CFG_HOST_DEVICE_MAX];
+extern rndish_data_t rndish_data[TUSB_CFG_HOST_DEVICE_MAX];
+
 static cdch_data_t * p_cdc = &cdch_data[0];
+static rndish_data_t * p_rndis = &rndish_data[0];
 
 
 void stub_mutex_wait(osal_mutex_handle_t mutex_hdl, uint32_t msec, tusb_error_t *p_error, int num_call)
@@ -78,6 +81,11 @@ void setUp(void)
   length = 0;
   dev_addr = 1;
 
+  for (uint8_t i=0; i<TUSB_CFG_HOST_DEVICE_MAX; i++)
+  {
+    osal_semaphore_create_ExpectAndReturn( &rndish_data[i].semaphore_notification, &rndish_data[i].semaphore_notification);
+  }
+
   cdch_init();
 
   osal_mutex_wait_StubWithCallback(stub_mutex_wait);
@@ -85,7 +93,7 @@ void setUp(void)
 
   hcd_pipe_open_ExpectAndReturn(dev_addr, p_endpoint_notification, TUSB_CLASS_CDC, pipe_notification);
   hcd_pipe_open_ExpectAndReturn(dev_addr, p_endpoint_out, TUSB_CLASS_CDC, pipe_out);
-  hcd_pipe_open_ExpectAndReturn(dev_addr, p_endpoint_in, TUSB_CLASS_CDC, pipe_int);
+  hcd_pipe_open_ExpectAndReturn(dev_addr, p_endpoint_in, TUSB_CLASS_CDC, pipe_in);
 }
 
 void tearDown(void)
@@ -116,15 +124,59 @@ void test_rndis_send_initalize_failed(void)
   TEST_ASSERT_EQUAL( TUSB_ERROR_NONE, cdch_open_subtask(dev_addr, p_comm_interface, &length) );
 }
 
-void test_rndis_send_initalize_ok(void)
+static tusb_error_t  stub_pipe_notification_xfer(pipe_handle_t pipe_hdl, uint8_t buffer[], uint16_t total_bytes, bool int_on_complete, int num_call)
+{
+  TEST_ASSERT( pipehandle_is_equal(pipe_notification, pipe_hdl) );
+  TEST_ASSERT_EQUAL( 8, total_bytes );
+  TEST_ASSERT( int_on_complete );
+
+  buffer[0] = 1; // response available
+
+  cdch_isr(pipe_hdl, TUSB_EVENT_XFER_COMPLETE, 8);
+
+  return TUSB_ERROR_NONE;
+}
+
+void stub_sem_wait_success(osal_semaphore_handle_t const sem_hdl, uint32_t msec, tusb_error_t *p_error, int num_call)
+{
+  TEST_ASSERT_EQUAL_HEX(p_rndis->sem_notification_hdl, sem_hdl);
+  (*p_error) = TUSB_ERROR_NONE;
+}
+
+void stub_sem_wait_timeout(osal_semaphore_handle_t const sem_hdl, uint32_t msec, tusb_error_t *p_error, int num_call)
+{
+  (*p_error) = TUSB_ERROR_OSAL_TIMEOUT;
+}
+
+void test_rndis_initialization_notification_timeout(void)
 {
   usbh_control_xfer_subtask_ExpectWithArrayAndReturn(
       dev_addr, 0x21, SEND_ENCAPSULATED_COMMAND, 0, p_comm_interface->bInterfaceNumber,
       sizeof(rndis_msg_initialize_t), (uint8_t*)&msg_init, sizeof(rndis_msg_initialize_t), TUSB_ERROR_NONE);
 
+  hcd_pipe_xfer_IgnoreAndReturn(TUSB_ERROR_NONE);
+  osal_semaphore_wait_StubWithCallback(stub_sem_wait_timeout);
+
+  tusbh_cdc_mounted_cb_Expect(dev_addr);
+
+  //------------- Code Under Test -------------//
+  TEST_ASSERT_STATUS( cdch_open_subtask(dev_addr, p_comm_interface, &length) );
+  TEST_ASSERT_FALSE(p_cdc->is_rndis);
+}
+
+void test_rndis_initialization_sequence_ok(void)
+{
+  usbh_control_xfer_subtask_ExpectWithArrayAndReturn(
+      dev_addr, 0x21, SEND_ENCAPSULATED_COMMAND, 0, p_comm_interface->bInterfaceNumber,
+      sizeof(rndis_msg_initialize_t), (uint8_t*)&msg_init, sizeof(rndis_msg_initialize_t), TUSB_ERROR_NONE);
+
+  hcd_pipe_xfer_StubWithCallback(stub_pipe_notification_xfer);
+  osal_semaphore_wait_StubWithCallback(stub_sem_wait_success);
+  osal_semaphore_post_ExpectAndReturn(p_rndis->sem_notification_hdl, TUSB_ERROR_NONE);
 
   tusbh_cdc_rndis_mounted_cb_Expect(dev_addr);
 
   //------------- Code Under Test -------------//
-  TEST_ASSERT_EQUAL( TUSB_ERROR_NONE, cdch_open_subtask(dev_addr, p_comm_interface, &length) );
+  TEST_ASSERT_STATUS( cdch_open_subtask(dev_addr, p_comm_interface, &length) );
+  TEST_ASSERT(p_cdc->is_rndis);
 }

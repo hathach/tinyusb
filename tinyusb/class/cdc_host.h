@@ -71,7 +71,6 @@ tusb_error_t tusbh_cdc_receive(uint8_t dev_addr, void * p_buffer, uint32_t lengt
 //------------- CDC Application Callback -------------//
 void tusbh_cdc_mounted_cb(uint8_t dev_addr) ATTR_WEAK;
 void tusbh_cdc_unmounted_isr(uint8_t dev_addr) ATTR_WEAK;
-void tusbh_cdc_isr(uint8_t dev_addr, tusb_event_t event) ATTR_WEAK;
 void tusbh_cdc_xfer_isr(uint8_t dev_addr, tusb_event_t event, cdc_pipeid_t pipe_id, uint32_t xferred_bytes) ATTR_WEAK;
 
 //------------- RNDIS Application Callback (overshadow CDC callbacks) -------------//
@@ -79,7 +78,7 @@ void tusbh_cdc_xfer_isr(uint8_t dev_addr, tusb_event_t event, cdc_pipeid_t pipe_
 
 void tusbh_cdc_rndis_mounted_cb(uint8_t dev_addr) ATTR_WEAK;
 void tusbh_cdc_rndis_unmounted_isr(uint8_t dev_addr) ATTR_WEAK;
-
+void tusbh_cdc_rndis_xfer_isr(uint8_t dev_addr, tusb_event_t event, cdc_pipeid_t pipe_id, uint32_t xferred_bytes) ATTR_WEAK;
 
 #endif
 
@@ -91,6 +90,7 @@ void tusbh_cdc_rndis_unmounted_isr(uint8_t dev_addr) ATTR_WEAK;
 typedef struct {
   uint8_t interface_number;
   uint8_t interface_protocol;
+  bool is_rndis;
   cdc_acm_capability_t acm_capability;
 
   pipe_handle_t pipe_notification, pipe_out, pipe_in;

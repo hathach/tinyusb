@@ -53,6 +53,7 @@
 // MACRO CONSTANT TYPEDEF
 //--------------------------------------------------------------------+
 static uint8_t msg_notification[TUSB_CFG_HOST_DEVICE_MAX][8] TUSB_CFG_ATTR_USBRAM;
+STATIC_ rndish_data_t rndish_data[TUSB_CFG_HOST_DEVICE_MAX];
 
 //--------------------------------------------------------------------+
 // INTERNAL OBJECT & FUNCTION DECLARATION
@@ -91,7 +92,26 @@ static tusb_error_t rndis_body_subtask(void)
   OSAL_SUBTASK_END
 }
 
+//--------------------------------------------------------------------+
+// RNDIS-CDC Driver API
+//--------------------------------------------------------------------+
+void rndish_init(void)
+{
+  memclr_(rndish_data, sizeof(rndish_data_t)*TUSB_CFG_HOST_DEVICE_MAX);
 
+  //------------- Task creation -------------//
+
+  //------------- semaphore creation for notificaiton pipe -------------//
+  for(uint8_t i=0; i<TUSB_CFG_HOST_DEVICE_MAX; i++)
+  {
+    rndish_data[i].sem_notification_hdl = osal_semaphore_create( OSAL_SEM_REF(rndish_data[i].semaphore_notification) );
+  }
+}
+
+void rndish_close(uint8_t dev_addr)
+{
+  osal_semaphore_reset( rndish_data[dev_addr-1].sem_notification_hdl );
+}
 
 tusb_error_t rndish_open_subtask(uint8_t dev_addr, cdch_data_t *p_cdc)
 {
@@ -109,6 +129,7 @@ tusb_error_t rndish_open_subtask(uint8_t dev_addr, cdch_data_t *p_cdc)
 
   OSAL_SUBTASK_BEGIN
 
+  //------------- Send & Receive Initialize -------------//
   OSAL_SUBTASK_INVOKED_AND_WAIT(
     usbh_control_xfer_subtask( dev_addr, bm_request_type(TUSB_DIR_HOST_TO_DEV, TUSB_REQUEST_TYPE_CLASS, TUSB_REQUEST_RECIPIENT_INTERFACE),
                                SEND_ENCAPSULATED_COMMAND, 0, p_cdc->interface_number,
@@ -116,10 +137,15 @@ tusb_error_t rndish_open_subtask(uint8_t dev_addr, cdch_data_t *p_cdc)
     error
   );
 
-  if ( TUSB_ERROR_NONE != error)
-  {
+  if ( TUSB_ERROR_NONE != error )
     SUBTASK_EXIT(error);
-  }
+
+  //------------- waiting for Response Available notification -------------//
+  (void) hcd_pipe_xfer(p_cdc->pipe_notification, msg_notification[dev_addr], 8, true);
+  osal_semaphore_wait(rndish_data[dev_addr-1].sem_notification_hdl, OSAL_TIMEOUT_NORMAL, &error);
+
+  if ( TUSB_ERROR_NONE != error )
+    SUBTASK_EXIT(error);
 
   if ( tusbh_cdc_rndis_mounted_cb )
   {
@@ -127,6 +153,14 @@ tusb_error_t rndish_open_subtask(uint8_t dev_addr, cdch_data_t *p_cdc)
   }
 
   OSAL_SUBTASK_END
+}
+
+void rndish_xfer_isr(cdch_data_t *p_cdc, pipe_handle_t pipe_hdl, tusb_event_t event, uint32_t xferred_bytes)
+{
+  if ( pipehandle_is_equal(pipe_hdl, p_cdc->pipe_notification) )
+  {
+    osal_semaphore_post( rndish_data[pipe_hdl.dev_addr-1].sem_notification_hdl );
+  }
 }
 
 #endif
