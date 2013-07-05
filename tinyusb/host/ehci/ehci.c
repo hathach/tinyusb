@@ -315,7 +315,7 @@ tusb_error_t  hcd_pipe_control_xfer(uint8_t dev_addr, tusb_control_request_t con
   {
     qtd_init(p_data, (uint32_t) data, p_request->wLength);
     p_data->data_toggle = 1;
-    p_data->pid         = p_request->bmRequestType.direction ? EHCI_PID_IN : EHCI_PID_OUT;
+    p_data->pid         = p_request->bmRequestType_bit.direction ? EHCI_PID_IN : EHCI_PID_OUT;
   }else
   {
     p_data = p_setup;
@@ -326,7 +326,7 @@ tusb_error_t  hcd_pipe_control_xfer(uint8_t dev_addr, tusb_control_request_t con
   qtd_init(p_status, 0, 0); // zero-length data
   p_status->int_on_complete = 1;
   p_status->data_toggle     = 1;
-  p_status->pid             = p_request->bmRequestType.direction ? EHCI_PID_OUT : EHCI_PID_IN; // reverse direction of data phase
+  p_status->pid             = p_request->bmRequestType_bit.direction ? EHCI_PID_OUT : EHCI_PID_IN; // reverse direction of data phase
   p_status->next.terminate  = 1;
 
   //------------- Attach TDs list to Control Endpoint -------------//

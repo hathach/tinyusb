@@ -181,18 +181,32 @@ static void mutex_wait_failed_stub(osal_mutex_handle_t const sem_hdl, uint32_t m
 
 void test_usbh_control_xfer_mutex_failed(void)
 {
-  tusb_control_request_t a_request;
+  tusb_control_request_t a_request =
+  {
+      .bmRequestType = 1,
+      .bRequest = 2,
+      .wValue = 3,
+      .wIndex = 4,
+      .wLength = 0
+  };
 
   osal_mutex_wait_StubWithCallback(mutex_wait_failed_stub);
   osal_mutex_release_ExpectAndReturn(usbh_devices[dev_addr].control.mutex_hdl, TUSB_ERROR_NONE);
 
   //------------- Code Under Test -------------//
-  usbh_control_xfer_subtask(dev_addr, &a_request, NULL);
+  usbh_control_xfer_subtask(dev_addr, 1, 2, 3, 4, 0, NULL);
 }
 
 void test_usbh_control_xfer_ok(void)
 {
-  tusb_control_request_t a_request;
+  tusb_control_request_t a_request =
+  {
+      .bmRequestType = 1,
+      .bRequest = 2,
+      .wValue = 3,
+      .wIndex = 4,
+      .wLength = 0
+  };
 
   osal_mutex_wait_StubWithCallback(semaphore_wait_success_stub);
 
@@ -202,5 +216,5 @@ void test_usbh_control_xfer_ok(void)
   osal_mutex_release_ExpectAndReturn(usbh_devices[dev_addr].control.mutex_hdl, TUSB_ERROR_NONE);
 
   //------------- Code Under Test -------------//
-  usbh_control_xfer_subtask(dev_addr, &a_request, NULL);
+  usbh_control_xfer_subtask(dev_addr, 1, 2, 3, 4, 0, NULL);
 }

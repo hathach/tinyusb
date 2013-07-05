@@ -183,10 +183,9 @@ tusb_error_t usbh_init(void)
 }
 
 //------------- USBH control transfer -------------//
-// function called within a task, requesting os blocking services, subtask input parameter must be static/global variables
-//tusb_error_t usbh_control_xfer_subtask(uint8_t dev_addr, uint8_t bmRequestType, uint8_t bRequest,
-//                                       uint16_t wValue, uint16_t wIndex, uint16_t wLength, uint8_t* data )
-tusb_error_t usbh_control_xfer_subtask(uint8_t dev_addr, tusb_control_request_t const* p_request, uint8_t* data)
+// function called within a task, requesting os blocking services, subtask input parameter must be static/global variables or constant
+tusb_error_t usbh_control_xfer_subtask(uint8_t dev_addr, uint8_t bmRequestType, uint8_t bRequest,
+                                       uint16_t wValue, uint16_t wIndex, uint16_t wLength, uint8_t* data )
 {
   tusb_error_t error;
 
@@ -195,9 +194,20 @@ tusb_error_t usbh_control_xfer_subtask(uint8_t dev_addr, tusb_control_request_t 
   osal_mutex_wait(usbh_devices[dev_addr].control.mutex_hdl, OSAL_TIMEOUT_NORMAL, &error);
   SUBTASK_ASSERT_STATUS_WITH_HANDLER(error, osal_mutex_release(usbh_devices[dev_addr].control.mutex_hdl));
 
-  usbh_devices[dev_addr].control.request = *p_request;
-  /*SUBTASK_ASSERT_STATUS*/ (void) ( hcd_pipe_control_xfer(dev_addr, &usbh_devices[dev_addr].control.request, data) );
+  usbh_devices[dev_addr].control.request = (tusb_control_request_t) {
+                                                  {.bmRequestType = bmRequestType},
+                                                  .bRequest      = bRequest,
+                                                  .wValue        = wValue,
+                                                  .wIndex        = wIndex,
+                                                  .wLength       = wLength
+                                           };
+
+#ifndef _TEST_
   usbh_devices[dev_addr].control.pipe_status = 0;
+#else
+  usbh_devices[dev_addr].control.pipe_status = TUSB_EVENT_XFER_COMPLETE; // in Test project, mark as complete to imm pass
+#endif
+  /*SUBTASK_ASSERT_STATUS*/ (void) ( hcd_pipe_control_xfer(dev_addr, &usbh_devices[dev_addr].control.request, data) );
 
   osal_semaphore_wait(usbh_devices[dev_addr].control.sem_hdl, OSAL_TIMEOUT_NORMAL, &error); // careful of local variable without static
 
@@ -324,12 +334,6 @@ tusb_error_t enumeration_body_subtask(void)
   static uint8_t new_addr;
   static uint8_t configure_selected = 1; // TODO move
   static uint8_t *p_desc = NULL; // TODO move
-  static tusb_control_request_t control_request = {
-      .bmRequestType = {
-          .type      = TUSB_REQUEST_TYPE_STANDARD,
-          .recipient = TUSB_REQUEST_RECIPIENT_DEVICE
-      }
-  };
 
   OSAL_SUBTASK_BEGIN
 
@@ -353,12 +357,13 @@ tusb_error_t enumeration_body_subtask(void)
 #endif
 
   //------------- Get first 8 bytes of device descriptor to get Control Endpoint Size -------------//
-  control_request.bmRequestType.direction = TUSB_DIR_DEV_TO_HOST;
-  control_request.bRequest = TUSB_REQUEST_GET_DESCRIPTOR;
-  control_request.wValue   = (TUSB_DESC_TYPE_DEVICE << 8);
-  control_request.wLength  = 8;
+  OSAL_SUBTASK_INVOKED_AND_WAIT(
+      usbh_control_xfer_subtask( 0, bm_request_type(TUSB_DIR_DEV_TO_HOST, TUSB_REQUEST_TYPE_STANDARD, TUSB_REQUEST_RECIPIENT_DEVICE),
+                                 TUSB_REQUEST_GET_DESCRIPTOR, (TUSB_DESC_TYPE_DEVICE << 8), 0,
+                                 8, enum_data_buffer ),
+      error
+  );
 
-  OSAL_SUBTASK_INVOKED_AND_WAIT( usbh_control_xfer_subtask( 0, &control_request, enum_data_buffer ), error );
   SUBTASK_ASSERT_STATUS(error); // TODO some slow device is observed to fail the very fist controler xfer, can try more times
 
   hcd_port_reset( usbh_devices[0].core_id ); // reset port after 8 byte descriptor
@@ -367,12 +372,12 @@ tusb_error_t enumeration_body_subtask(void)
   new_addr = get_new_address();
   SUBTASK_ASSERT(new_addr <= TUSB_CFG_HOST_DEVICE_MAX); // TODO notify application we reach max devices
 
-  control_request.bmRequestType.direction = TUSB_DIR_HOST_TO_DEV;
-  control_request.bRequest = TUSB_REQUEST_SET_ADDRESS;
-  control_request.wValue   = new_addr;
-  control_request.wLength  = 0;
-
-  OSAL_SUBTASK_INVOKED_AND_WAIT( usbh_control_xfer_subtask( 0, &control_request, NULL ), error );
+  OSAL_SUBTASK_INVOKED_AND_WAIT(
+    usbh_control_xfer_subtask( 0, bm_request_type(TUSB_DIR_HOST_TO_DEV, TUSB_REQUEST_TYPE_STANDARD, TUSB_REQUEST_RECIPIENT_DEVICE),
+                               TUSB_REQUEST_SET_ADDRESS, new_addr, 0,
+                               0, NULL ),
+    error
+  );
   SUBTASK_ASSERT_STATUS(error);
 
   //------------- update port info & close control pipe of addr0 -------------//
@@ -389,12 +394,12 @@ tusb_error_t enumeration_body_subtask(void)
   SUBTASK_ASSERT_STATUS ( usbh_pipe_control_open(new_addr, ((tusb_descriptor_device_t*) enum_data_buffer)->bMaxPacketSize0 ) );
 
   //------------- Get full device descriptor -------------//
-  control_request.bmRequestType.direction = TUSB_DIR_DEV_TO_HOST;
-  control_request.bRequest = TUSB_REQUEST_GET_DESCRIPTOR;
-  control_request.wValue   = (TUSB_DESC_TYPE_DEVICE << 8);
-  control_request.wLength  = 18;
-
-  OSAL_SUBTASK_INVOKED_AND_WAIT( usbh_control_xfer_subtask( new_addr, &control_request, enum_data_buffer ), error );
+  OSAL_SUBTASK_INVOKED_AND_WAIT(
+      usbh_control_xfer_subtask( new_addr, bm_request_type(TUSB_DIR_DEV_TO_HOST, TUSB_REQUEST_TYPE_STANDARD, TUSB_REQUEST_RECIPIENT_DEVICE),
+                                 TUSB_REQUEST_GET_DESCRIPTOR, (TUSB_DESC_TYPE_DEVICE << 8), 0,
+                                 18, enum_data_buffer ),
+      error
+  );
   SUBTASK_ASSERT_STATUS(error);
 
   // update device info  TODO alignment issue
@@ -406,29 +411,35 @@ tusb_error_t enumeration_body_subtask(void)
   SUBTASK_ASSERT(configure_selected <= usbh_devices[new_addr].configure_count); // TODO notify application when invalid configuration
 
   //------------- Get 9 bytes of configuration descriptor -------------//
-  control_request.wValue   = (TUSB_DESC_TYPE_CONFIGURATION << 8) | (configure_selected - 1);
-  control_request.wLength  = 9;
-
-  OSAL_SUBTASK_INVOKED_AND_WAIT( usbh_control_xfer_subtask( new_addr, &control_request, enum_data_buffer ), error );
+  OSAL_SUBTASK_INVOKED_AND_WAIT(
+      usbh_control_xfer_subtask( new_addr, bm_request_type(TUSB_DIR_DEV_TO_HOST, TUSB_REQUEST_TYPE_STANDARD, TUSB_REQUEST_RECIPIENT_DEVICE),
+                                 TUSB_REQUEST_GET_DESCRIPTOR, (TUSB_DESC_TYPE_CONFIGURATION << 8) | (configure_selected - 1), 0,
+                                 9, enum_data_buffer ),
+      error
+  );
   SUBTASK_ASSERT_STATUS(error);
   SUBTASK_ASSERT_WITH_HANDLER( TUSB_CFG_HOST_ENUM_BUFFER_SIZE > ((tusb_descriptor_configuration_t*)enum_data_buffer)->wTotalLength,
                             tusbh_device_mount_failed_cb(TUSB_ERROR_USBH_MOUNT_CONFIG_DESC_TOO_LONG, NULL) );
 
   //------------- Get full configuration descriptor -------------//
-  control_request.wLength  = ((tusb_descriptor_configuration_t*) enum_data_buffer)->wTotalLength;
-  OSAL_SUBTASK_INVOKED_AND_WAIT( usbh_control_xfer_subtask( new_addr, &control_request, enum_data_buffer ), error );
+  OSAL_SUBTASK_INVOKED_AND_WAIT(
+      usbh_control_xfer_subtask( new_addr, bm_request_type(TUSB_DIR_DEV_TO_HOST, TUSB_REQUEST_TYPE_STANDARD, TUSB_REQUEST_RECIPIENT_DEVICE),
+                                 TUSB_REQUEST_GET_DESCRIPTOR, (TUSB_DESC_TYPE_CONFIGURATION << 8) | (configure_selected - 1), 0,
+                                 ((tusb_descriptor_configuration_t*) enum_data_buffer)->wTotalLength, enum_data_buffer ),
+      error
+  );
   SUBTASK_ASSERT_STATUS(error);
 
   // update configuration info
   usbh_devices[new_addr].interface_count = ((tusb_descriptor_configuration_t*) enum_data_buffer)->bNumInterfaces;
 
   //------------- Set Configure -------------//
-  control_request.bmRequestType.direction = TUSB_DIR_HOST_TO_DEV;
-  control_request.bRequest = TUSB_REQUEST_SET_CONFIGURATION;
-  control_request.wValue   = configure_selected;
-  control_request.wLength  = 0;
-
-  OSAL_SUBTASK_INVOKED_AND_WAIT ( usbh_control_xfer_subtask( new_addr, &control_request, NULL ), error );
+  OSAL_SUBTASK_INVOKED_AND_WAIT(
+    usbh_control_xfer_subtask( new_addr, bm_request_type(TUSB_DIR_HOST_TO_DEV, TUSB_REQUEST_TYPE_STANDARD, TUSB_REQUEST_RECIPIENT_DEVICE),
+                               TUSB_REQUEST_SET_CONFIGURATION, configure_selected, 0,
+                               0, NULL ),
+    error
+  );
   SUBTASK_ASSERT_STATUS(error);
 
   usbh_devices[new_addr].state = TUSB_DEVICE_STATE_CONFIGURED;

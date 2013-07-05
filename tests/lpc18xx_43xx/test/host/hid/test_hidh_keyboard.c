@@ -124,9 +124,9 @@ static tusb_error_t stub_set_idle_request(uint8_t address, tusb_control_request_
 
   //------------- expecting Set Idle with value = 0 -------------//
   TEST_ASSERT_NOT_NULL( p_request );
-  TEST_ASSERT_EQUAL(TUSB_DIR_HOST_TO_DEV                   , p_request->bmRequestType.direction);
-  TEST_ASSERT_EQUAL(TUSB_REQUEST_TYPE_CLASS                , p_request->bmRequestType.type);
-  TEST_ASSERT_EQUAL(TUSB_REQUEST_RECIPIENT_INTERFACE       , p_request->bmRequestType.recipient);
+  TEST_ASSERT_EQUAL(TUSB_DIR_HOST_TO_DEV                   , p_request->bmRequestType_bit.direction);
+  TEST_ASSERT_EQUAL(TUSB_REQUEST_TYPE_CLASS                , p_request->bmRequestType_bit.type);
+  TEST_ASSERT_EQUAL(TUSB_REQUEST_RECIPIENT_INTERFACE       , p_request->bmRequestType_bit.recipient);
   TEST_ASSERT_EQUAL(HID_REQUEST_CONTROL_SET_IDLE           , p_request->bRequest);
   TEST_ASSERT_EQUAL(0                                      , p_request->wValue);
   TEST_ASSERT_EQUAL(p_kbd_interface_desc->bInterfaceNumber , p_request->wIndex);

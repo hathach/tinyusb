@@ -107,23 +107,14 @@ tusb_error_t rndish_open_subtask(uint8_t dev_addr, cdch_data_t *p_cdc)
       .max_xfer_size = 0x4000 // TODO mimic windows
   };
 
-  static tusb_control_request_t control_request =
-  {
-      .bmRequestType = {
-          .direction = TUSB_DIR_HOST_TO_DEV,
-          .type      = TUSB_REQUEST_TYPE_CLASS,
-          .recipient = TUSB_REQUEST_RECIPIENT_INTERFACE
-      },
-      .bRequest = SEND_ENCAPSULATED_COMMAND,
-      .wLength   = sizeof(rndis_msg_initialize_t)
-//      .wIndex   = p_cdc->interface_number,
-  };
-
   OSAL_SUBTASK_BEGIN
 
-  control_request.wIndex   = p_cdc->interface_number;
-
-  OSAL_SUBTASK_INVOKED_AND_WAIT ( usbh_control_xfer_subtask(dev_addr, &control_request, (uint8_t*)&msg_init), error ) ;
+  OSAL_SUBTASK_INVOKED_AND_WAIT(
+    usbh_control_xfer_subtask( dev_addr, bm_request_type(TUSB_DIR_HOST_TO_DEV, TUSB_REQUEST_TYPE_CLASS, TUSB_REQUEST_RECIPIENT_INTERFACE),
+                               SEND_ENCAPSULATED_COMMAND, 0, p_cdc->interface_number,
+                               sizeof(rndis_msg_initialize_t), (uint8_t*)&msg_init ),
+    error
+  );
 
   if ( tusbh_cdc_rndis_mounted_cb )
   {

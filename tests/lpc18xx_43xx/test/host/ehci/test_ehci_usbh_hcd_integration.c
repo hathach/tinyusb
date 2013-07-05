@@ -100,7 +100,7 @@ void test_addr0_control_close(void)
 
   TEST_ASSERT_STATUS( hcd_pipe_control_xfer(dev_addr,
                         &(tusb_control_request_t) {
-                              .bmRequestType = { .direction = TUSB_DIR_HOST_TO_DEV, .type = TUSB_REQUEST_TYPE_STANDARD, .recipient = TUSB_REQUEST_RECIPIENT_DEVICE },
+                              .bmRequestType_bit = { .direction = TUSB_DIR_HOST_TO_DEV, .type = TUSB_REQUEST_TYPE_STANDARD, .recipient = TUSB_REQUEST_RECIPIENT_DEVICE },
                               .bRequest = TUSB_REQUEST_SET_ADDRESS,
                               .wValue   = 3 },
                         NULL) ) ;
@@ -125,7 +125,7 @@ void test_isr_disconnect_then_async_advance_control_pipe(void)
 
   TEST_ASSERT_STATUS( hcd_pipe_control_xfer(dev_addr,
                         &(tusb_control_request_t) {
-                              .bmRequestType = { .direction = TUSB_DIR_HOST_TO_DEV, .type = TUSB_REQUEST_TYPE_STANDARD, .recipient = TUSB_REQUEST_RECIPIENT_DEVICE },
+                              .bmRequestType_bit = { .direction = TUSB_DIR_HOST_TO_DEV, .type = TUSB_REQUEST_TYPE_STANDARD, .recipient = TUSB_REQUEST_RECIPIENT_DEVICE },
                               .bRequest = TUSB_REQUEST_SET_ADDRESS,
                               .wValue   = 3 },
                         NULL) );

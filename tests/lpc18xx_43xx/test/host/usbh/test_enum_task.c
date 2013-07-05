@@ -70,6 +70,7 @@ void setUp(void)
 
   osal_queue_receive_StubWithCallback(queue_recv_stub);
   osal_semaphore_wait_StubWithCallback(semaphore_wait_success_stub);
+  osal_semaphore_post_IgnoreAndReturn(TUSB_ERROR_NONE);
   osal_mutex_wait_StubWithCallback(semaphore_wait_success_stub);
   osal_mutex_release_IgnoreAndReturn(TUSB_ERROR_NONE);
   hcd_pipe_control_xfer_StubWithCallback(control_xfer_stub);
@@ -159,6 +160,10 @@ tusb_error_t control_xfer_stub(uint8_t dev_addr, const tusb_control_request_t * 
     default:
       return TUSB_ERROR_OSAL_TIMEOUT;
   }
+
+  usbh_xfer_isr(
+      (pipe_handle_t) { .dev_addr = (num_call > 1 ? 1 : 0), .xfer_type = TUSB_XFER_CONTROL },
+      0, TUSB_EVENT_XFER_COMPLETE, 0);
 
   return TUSB_ERROR_NONE;
 }

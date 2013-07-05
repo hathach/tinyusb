@@ -57,17 +57,29 @@
 #endif
 
 typedef ATTR_PACKED_STRUCT(struct){
-  ATTR_PACKED_STRUCT(struct) {
-    uint8_t recipient :  5; /**< Recipient type tusb_std_request_recipient_t. */
-    uint8_t type      :  2; /**< Request type tusb_control_request_type_t.  */
-    uint8_t direction :  1; /**< Direction type. tusb_direction_t */
-  } bmRequestType;
+  union {
+    ATTR_PACKED_STRUCT(struct) {
+      uint8_t recipient :  5; /**< Recipient type tusb_std_request_recipient_t. */
+      uint8_t type      :  2; /**< Request type tusb_control_request_type_t.  */
+      uint8_t direction :  1; /**< Direction type. tusb_direction_t */
+    } bmRequestType_bit;
+    uint8_t bmRequestType;
+  };
 
   uint8_t  bRequest;
   uint16_t wValue;
   uint16_t wIndex;
   uint16_t wLength;
 } tusb_control_request_t;
+
+//STATIC_ASSERT(sizeof(tusb_control_request_t) == 8, "mostly compiler option issue");
+
+// TODO move to somewhere suitable
+static inline uint8_t bm_request_type(uint8_t direction, uint8_t type, uint8_t recipient) ATTR_CONST ATTR_ALWAYS_INLINE;
+static inline uint8_t bm_request_type(uint8_t direction, uint8_t type, uint8_t recipient)
+{
+  return (direction << 7) | (type << 5) | recipient;
+}
 
 #ifdef __cplusplus
  }

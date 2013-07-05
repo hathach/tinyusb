@@ -204,8 +204,8 @@ tusb_error_t cdch_open_subtask(uint8_t dev_addr, tusb_descriptor_interface_t con
   {
     OSAL_SUBTASK_INVOKED_AND_WAIT( rndish_open_subtask(dev_addr, p_cdc), error );
   }
-
-  if ( TUSB_ERROR_NONE != error ) // device is not an rndis
+  else
+//  if ( TUSB_ERROR_NONE != error ) // device is not an rndis
 #endif
 
   // FIXME mounted class flag is not set yet
