@@ -128,7 +128,7 @@ void usbd_setup_received(uint8_t coreid)
   usbd_device_info_t *p_device = &usbd_devices[coreid];
 
   // check device configured TODO
-  if ( p_device->setup_packet.bmRequestType.recipient == TUSB_REQUEST_RECIPIENT_INTERFACE)
+  if ( p_device->setup_packet.bmRequestType_bit.recipient == TUSB_REQUEST_RECIPIENT_INTERFACE)
   {
     // TODO detect which class
 //    ASSERT( p_device->setup_packet.wIndex < USBD_MAX_INTERFACE, (void) 0);
@@ -163,7 +163,7 @@ void usbd_setup_received(uint8_t coreid)
     }
   }
 
-  if (p_device->setup_packet.bmRequestType.direction == TUSB_DIR_HOST_TO_DEV)
+  if (p_device->setup_packet.bmRequestType_bit.direction == TUSB_DIR_HOST_TO_DEV)
   {
     dcd_pipe_control_write_zero_length(coreid);
   }
