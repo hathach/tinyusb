@@ -93,6 +93,8 @@ tusb_error_t osal_task_create(osal_task_t *task);
 #define OSAL_TASK_FUNCTION(task_name) \
     void task_name
 
+void osal_task_delay(uint32_t msec);
+
 #define OSAL_TASK_LOOP_BEGIN
 #define OSAL_TASK_LOOP_END
 

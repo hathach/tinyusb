@@ -184,6 +184,8 @@ tusb_error_t usbh_init(void)
 
 //------------- USBH control transfer -------------//
 // function called within a task, requesting os blocking services, subtask input parameter must be static/global variables
+//tusb_error_t usbh_control_xfer_subtask(uint8_t dev_addr, uint8_t bmRequestType, uint8_t bRequest,
+//                                       uint16_t wValue, uint16_t wIndex, uint16_t wLength, uint8_t* data )
 tusb_error_t usbh_control_xfer_subtask(uint8_t dev_addr, tusb_control_request_t const* p_request, uint8_t* data)
 {
   tusb_error_t error;
@@ -195,15 +197,16 @@ tusb_error_t usbh_control_xfer_subtask(uint8_t dev_addr, tusb_control_request_t 
 
   usbh_devices[dev_addr].control.request = *p_request;
   /*SUBTASK_ASSERT_STATUS*/ (void) ( hcd_pipe_control_xfer(dev_addr, &usbh_devices[dev_addr].control.request, data) );
-  usbh_devices[dev_addr].control.pipe_status = TUSB_INTERFACE_STATUS_BUSY;
+  usbh_devices[dev_addr].control.pipe_status = 0;
 
   osal_semaphore_wait(usbh_devices[dev_addr].control.sem_hdl, OSAL_TIMEOUT_NORMAL, &error); // careful of local variable without static
 
   osal_mutex_release(usbh_devices[dev_addr].control.mutex_hdl);
 
   // TODO make handler for this function general purpose
-  SUBTASK_ASSERT_WITH_HANDLER(TUSB_ERROR_NONE == error && usbh_devices[dev_addr].control.pipe_status != TUSB_INTERFACE_STATUS_ERROR,
-                                     tusbh_device_mount_failed_cb(TUSB_ERROR_USBH_MOUNT_DEVICE_NOT_RESPOND, NULL) );
+  SUBTASK_ASSERT_WITH_HANDLER(TUSB_ERROR_NONE == error &&
+                              TUSB_EVENT_XFER_COMPLETE == usbh_devices[dev_addr].control.pipe_status,
+                              tusbh_device_mount_failed_cb(TUSB_ERROR_USBH_MOUNT_DEVICE_NOT_RESPOND, NULL) );
 
   OSAL_SUBTASK_END
 }
@@ -241,7 +244,7 @@ void usbh_xfer_isr(pipe_handle_t pipe_hdl, uint8_t class_code, tusb_event_t even
   uint8_t class_index = std_class_code_to_index(class_code);
   if (TUSB_XFER_CONTROL == pipe_hdl.xfer_type)
   {
-    usbh_devices[ pipe_hdl.dev_addr ].control.pipe_status = (event == TUSB_EVENT_XFER_COMPLETE) ? TUSB_INTERFACE_STATUS_COMPLETE : TUSB_INTERFACE_STATUS_ERROR;
+    usbh_devices[ pipe_hdl.dev_addr ].control.pipe_status = event;
     osal_semaphore_post( usbh_devices[ pipe_hdl.dev_addr ].control.sem_hdl );
   }else if (usbh_class_drivers[class_index].isr)
   {
@@ -451,7 +454,9 @@ tusb_error_t enumeration_body_subtask(void)
 
       if (usbh_class_drivers[class_index].open_subtask)      // supported class
       {
-        uint16_t length=0;
+        static uint16_t length;
+        length = 0;
+
         OSAL_SUBTASK_INVOKED_AND_WAIT ( // parameters in task/sub_task must be static storage (static or global)
             usbh_class_drivers[class_index].open_subtask( new_addr, (tusb_descriptor_interface_t*) p_desc, &length ),
             error

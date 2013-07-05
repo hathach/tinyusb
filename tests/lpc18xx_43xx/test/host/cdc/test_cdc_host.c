@@ -50,6 +50,7 @@
 
 #include "descriptor_cdc.h"
 #include "cdc_host.h"
+#include "cdc_rndis_host.h"
 
 static uint8_t dev_addr;
 static uint16_t length;

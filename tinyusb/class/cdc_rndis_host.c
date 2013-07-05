@@ -52,6 +52,7 @@
 //--------------------------------------------------------------------+
 // MACRO CONSTANT TYPEDEF
 //--------------------------------------------------------------------+
+static uint8_t msg_notification[TUSB_CFG_HOST_DEVICE_MAX][8] TUSB_CFG_ATTR_USBRAM;
 
 //--------------------------------------------------------------------+
 // INTERNAL OBJECT & FUNCTION DECLARATION
@@ -86,6 +87,48 @@ static tusb_error_t rndis_body_subtask(void)
   }
 
   osal_task_delay(100);
+
+  OSAL_SUBTASK_END
+}
+
+
+
+tusb_error_t rndish_open_subtask(uint8_t dev_addr, cdch_data_t *p_cdc)
+{
+  tusb_error_t error;
+
+  static rndis_msg_initialize_t msg_init =
+  {
+      .type          = RNDIS_MSG_INITIALIZE,
+      .length        = sizeof(rndis_msg_initialize_t),
+      .request_id    = 1, // TODO should use some magic number
+      .major_version = 1,
+      .minor_version = 0,
+      .max_xfer_size = 0x4000 // TODO mimic windows
+  };
+
+  static tusb_control_request_t control_request =
+  {
+      .bmRequestType = {
+          .direction = TUSB_DIR_HOST_TO_DEV,
+          .type      = TUSB_REQUEST_TYPE_CLASS,
+          .recipient = TUSB_REQUEST_RECIPIENT_INTERFACE
+      },
+      .bRequest = SEND_ENCAPSULATED_COMMAND,
+      .wLength   = sizeof(rndis_msg_initialize_t)
+//      .wIndex   = p_cdc->interface_number,
+  };
+
+  OSAL_SUBTASK_BEGIN
+
+  control_request.wIndex   = p_cdc->interface_number;
+
+  OSAL_SUBTASK_INVOKED_AND_WAIT ( usbh_control_xfer_subtask(dev_addr, &control_request, (uint8_t*)&msg_init), error ) ;
+
+  if ( tusbh_cdc_rndis_mounted_cb )
+  {
+    tusbh_cdc_rndis_mounted_cb(dev_addr);
+  }
 
   OSAL_SUBTASK_END
 }

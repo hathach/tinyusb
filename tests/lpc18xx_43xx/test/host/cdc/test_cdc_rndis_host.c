@@ -50,6 +50,7 @@
 
 #include "descriptor_cdc.h"
 #include "cdc_host.h"
+#include "cdc_rndis_host.h"
 
 static uint8_t dev_addr;
 static uint16_t length;
@@ -66,13 +67,32 @@ static pipe_handle_t pipe_int          = { .dev_addr  = 1, .xfer_type = TUSB_XFE
 extern cdch_data_t cdch_data[TUSB_CFG_HOST_DEVICE_MAX];
 static cdch_data_t * p_cdc = &cdch_data[0];
 
+tusb_control_request_t req_send_cmd =
+{
+    .bmRequestType = {
+        .direction = TUSB_DIR_HOST_TO_DEV,
+        .type      = TUSB_REQUEST_TYPE_CLASS,
+        .recipient = TUSB_REQUEST_RECIPIENT_INTERFACE
+    },
+    .bRequest = SEND_ENCAPSULATED_COMMAND,
+};
+
+
+void stub_mutex_wait(osal_mutex_handle_t mutex_hdl, uint32_t msec, tusb_error_t *p_error, int num_call)
+{
+  *p_error = TUSB_ERROR_NONE;
+}
 
 void setUp(void)
 {
   length = 0;
   dev_addr = 1;
+  req_send_cmd.wIndex = p_comm_interface->bInterfaceNumber;
 
   cdch_init();
+
+  osal_mutex_wait_StubWithCallback(stub_mutex_wait);
+  osal_mutex_release_IgnoreAndReturn(TUSB_ERROR_NONE);
 
   hcd_pipe_open_ExpectAndReturn(dev_addr, p_endpoint_notification, TUSB_CLASS_CDC, pipe_notification);
   hcd_pipe_open_ExpectAndReturn(dev_addr, p_endpoint_out, TUSB_CLASS_CDC, pipe_out);
@@ -84,10 +104,38 @@ void tearDown(void)
 
 }
 
-//tusb_
-void test_rndis_send_initalize(void)
+
+rndis_msg_initialize_t msg_init =
 {
-//  usbh_control_xfer_subtask_ExpectAndReturn(dev_addr, )
+    .type          = RNDIS_MSG_INITIALIZE,
+    .length        = sizeof(rndis_msg_initialize_t),
+    .request_id    = 1, // TODO should use some magic number
+    .major_version = 1,
+    .minor_version = 0,
+    .max_xfer_size = 0x4000 // TODO mimic windows
+};
+
+void test_rndis_send_initalize_failed(void)
+{
+  req_send_cmd.wLength = sizeof(rndis_msg_initialize_t);
+  usbh_control_xfer_subtask_ExpectWithArrayAndReturn(dev_addr,
+    &req_send_cmd, 1,
+    (uint8_t*)&msg_init, sizeof(rndis_msg_initialize_t), TUSB_ERROR_OSAL_TIMEOUT);
+
+  tusbh_cdc_rndis_mounted_cb_Expect(dev_addr);
+
+  //------------- Code Under Test -------------//
+  TEST_ASSERT_EQUAL( TUSB_ERROR_NONE, cdch_open_subtask(dev_addr, p_comm_interface, &length) );
+}
+
+void test_rndis_send_initalize_ok(void)
+{
+  req_send_cmd.wLength = sizeof(rndis_msg_initialize_t);
+  usbh_control_xfer_subtask_ExpectWithArrayAndReturn(dev_addr,
+    &req_send_cmd, 1,
+    (uint8_t*)&msg_init, sizeof(rndis_msg_initialize_t), TUSB_ERROR_OSAL_TIMEOUT);
+
+  tusbh_cdc_rndis_mounted_cb_Expect(dev_addr);
 
   //------------- Code Under Test -------------//
   TEST_ASSERT_EQUAL( TUSB_ERROR_NONE, cdch_open_subtask(dev_addr, p_comm_interface, &length) );

@@ -47,6 +47,7 @@
 //--------------------------------------------------------------------+
 #include "common/common.h"
 #include "cdc_host.h"
+#include "cdc_rndis_host.h"
 
 //--------------------------------------------------------------------+
 // MACRO CONSTANT TYPEDEF
@@ -128,6 +129,9 @@ void cdch_init(void)
 
 tusb_error_t cdch_open_subtask(uint8_t dev_addr, tusb_descriptor_interface_t const *p_interface_desc, uint16_t *p_length)
 {
+  tusb_error_t error;
+
+  OSAL_SUBTASK_BEGIN
 
   if ( CDC_COMM_SUBCLASS_ABSTRACT_CONTROL_MODEL != p_interface_desc->bInterfaceSubClass)
   {
@@ -194,13 +198,23 @@ tusb_error_t cdch_open_subtask(uint8_t dev_addr, tusb_descriptor_interface_t con
     }
   }
 
+#if TUSB_CFG_HOST_CDC_RNDIS // TODO move to rndis_host.c
+  //------------- RNDIS -------------//
+  if ( 0xff == p_cdc->interface_protocol )
+  {
+    OSAL_SUBTASK_INVOKED_AND_WAIT( rndish_open_subtask(dev_addr, p_cdc), error );
+  }
+
+  if ( TUSB_ERROR_NONE != error ) // device is not an rndis
+#endif
+
   // FIXME mounted class flag is not set yet
   if (tusbh_cdc_mounted_cb)
   {
     tusbh_cdc_mounted_cb(dev_addr);
   }
 
-  return TUSB_ERROR_NONE;
+  OSAL_SUBTASK_END
 }
 
 void cdch_isr(pipe_handle_t pipe_hdl, tusb_event_t event, uint32_t xferred_bytes)
@@ -231,6 +245,10 @@ void cdch_close(uint8_t dev_addr)
   {
     err3 = hcd_pipe_close(p_cdc->pipe_out);
   }
+
+#if TUSB_CFG_HOST_CDC_RNDIS
+
+#endif
 
   memclr_(p_cdc, sizeof(cdch_data_t));
 

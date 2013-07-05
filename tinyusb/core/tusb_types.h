@@ -196,6 +196,7 @@ typedef enum tusb_device_state_{
 }tusb_device_state_t;
 
 typedef enum {
+  TUSB_EVENT_NONE = 0,
   TUSB_EVENT_XFER_COMPLETE,
   TUSB_EVENT_XFER_ERROR,
   TUSB_EVENT_XFER_STALLED,

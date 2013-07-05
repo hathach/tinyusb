@@ -54,6 +54,7 @@
  extern "C" {
 #endif
 
+tusb_error_t rndish_open_subtask(uint8_t dev_addr, cdch_data_t *p_cdc) ATTR_WARN_UNUSED_RESULT;
 
 #ifdef __cplusplus
  }
