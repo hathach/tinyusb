@@ -91,6 +91,7 @@ STATIC_ INLINE_ ehci_qtd_t* get_control_qtds(uint8_t dev_addr) ATTR_ALWAYS_INLIN
 static inline uint8_t        qhd_get_index(ehci_qhd_t const * p_qhd) ATTR_ALWAYS_INLINE ATTR_PURE;
 static inline ehci_qhd_t*    qhd_next(ehci_qhd_t const * p_qhd) ATTR_ALWAYS_INLINE ATTR_PURE;
 static inline ehci_qhd_t*    qhd_find_free (uint8_t dev_addr) ATTR_PURE ATTR_ALWAYS_INLINE;
+static inline tusb_xfer_type_t qhd_get_xfer_type(ehci_qhd_t const * p_qhd) ATTR_ALWAYS_INLINE ATTR_PURE;
 STATIC_ INLINE_ ehci_qhd_t*  qhd_get_from_pipe_handle(pipe_handle_t pipe_hdl) ATTR_PURE ATTR_ALWAYS_INLINE;
 static inline pipe_handle_t  qhd_create_pipe_handle(ehci_qhd_t const * p_qhd, tusb_xfer_type_t xfer_type) ATTR_PURE ATTR_ALWAYS_INLINE;
 
@@ -461,7 +462,7 @@ bool hcd_pipe_is_idle(pipe_handle_t pipe_hdl)
 
 // async_advance is handshake between sw stack & ehci controller where ehci free all memory from an deleted queue head.
 // In tinyusb, queue head is only removed when device is unplugged. So only control queue head is checked if removing
-void async_advance_isr(ehci_qhd_t * const async_head)
+static void async_advance_isr(ehci_qhd_t * const async_head)
 {
   // TODO do we need to close addr0
   if (async_head->is_removing) // closing control pipe of addr0
@@ -499,7 +500,7 @@ void async_advance_isr(ehci_qhd_t * const async_head)
   } // end for device[] loop
 }
 
-void port_connect_status_change_isr(uint8_t hostid)
+static void port_connect_status_change_isr(uint8_t hostid)
 {
   ehci_registers_t* const regs = get_operational_register(hostid);
 
@@ -514,8 +515,10 @@ void port_connect_status_change_isr(uint8_t hostid)
   }
 }
 
-void qhd_xfer_complete_isr(ehci_qhd_t * p_qhd, tusb_xfer_type_t xfer_type)
+static void qhd_xfer_complete_isr(ehci_qhd_t * p_qhd)
 {
+  tusb_xfer_type_t const xfer_type = qhd_get_xfer_type(p_qhd);
+
   // free all TDs from the head td to the first active TD
   while(p_qhd->p_qtd_list_head != NULL && !p_qhd->p_qtd_list_head->active)
   {
@@ -534,7 +537,7 @@ void qhd_xfer_complete_isr(ehci_qhd_t * p_qhd, tusb_xfer_type_t xfer_type)
   }
 }
 
-void async_list_xfer_complete_isr(ehci_qhd_t * const async_head)
+static void async_list_xfer_complete_isr(ehci_qhd_t * const async_head)
 {
   uint8_t max_loop = 0;
   ehci_qhd_t *p_qhd = async_head;
@@ -542,8 +545,7 @@ void async_list_xfer_complete_isr(ehci_qhd_t * const async_head)
   {
     if ( !p_qhd->qtd_overlay.halted ) // halted or error is processed in error isr
     {
-      qhd_xfer_complete_isr(p_qhd,
-                            p_qhd->endpoint_number != 0 ? TUSB_XFER_BULK : TUSB_XFER_CONTROL);
+      qhd_xfer_complete_isr(p_qhd);
     }
     p_qhd = qhd_next(p_qhd);
     max_loop++;
@@ -552,7 +554,7 @@ void async_list_xfer_complete_isr(ehci_qhd_t * const async_head)
 }
 
 #if EHCI_PERIODIC_LIST // TODO refractor/group this together
-void period_list_xfer_complete_isr(uint8_t hostid, uint8_t interval_ms)
+static void period_list_xfer_complete_isr(uint8_t hostid, uint8_t interval_ms)
 {
   uint8_t max_loop = 0;
   uint32_t const period_1ms_addr = (uint32_t) get_period_head(hostid, 1);
@@ -570,7 +572,7 @@ void period_list_xfer_complete_isr(uint8_t hostid, uint8_t interval_ms)
         ehci_qhd_t *p_qhd_int = (ehci_qhd_t *) align32(next_item.address);
         if ( !p_qhd_int->qtd_overlay.halted )
         {
-          qhd_xfer_complete_isr(p_qhd_int, TUSB_XFER_INTERRUPT);
+          qhd_xfer_complete_isr(p_qhd_int);
         }
       }
       break;
@@ -589,7 +591,7 @@ void period_list_xfer_complete_isr(uint8_t hostid, uint8_t interval_ms)
 }
 #endif
 
-void qhd_xfer_error_isr(ehci_qhd_t * p_qhd, tusb_xfer_type_t xfer_type)
+static void qhd_xfer_error_isr(ehci_qhd_t * p_qhd, tusb_xfer_type_t xfer_type)
 {
   if (  (p_qhd->device_address != 0 && p_qhd->qtd_overlay.halted)   || // addr0 cannot be protocol STALL
       p_qhd->qtd_overlay.buffer_err ||p_qhd->qtd_overlay.babble_err || p_qhd->qtd_overlay.xact_err )
@@ -614,7 +616,7 @@ void qhd_xfer_error_isr(ehci_qhd_t * p_qhd, tusb_xfer_type_t xfer_type)
   }
 }
 
-void xfer_error_isr(uint8_t hostid)
+static void xfer_error_isr(uint8_t hostid)
 {
   //------------- async list -------------//
   uint8_t max_loop = 0;
@@ -794,6 +796,11 @@ static inline ehci_qhd_t* qhd_find_free (uint8_t dev_addr)
 static inline uint8_t qhd_get_index(ehci_qhd_t const * p_qhd)
 {
   return p_qhd - ehci_data.device[p_qhd->device_address-1].qhd;
+}
+static inline tusb_xfer_type_t qhd_get_xfer_type(ehci_qhd_t const * p_qhd)
+{
+  return  ( p_qhd->endpoint_number == 0 ) ? TUSB_XFER_CONTROL :
+          ( p_qhd->interrupt_smask != 0 ) ? TUSB_XFER_INTERRUPT : TUSB_XFER_BULK;
 }
 
 static inline ehci_qhd_t* qhd_next(ehci_qhd_t const * p_qhd)
