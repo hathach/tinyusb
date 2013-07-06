@@ -199,8 +199,9 @@ typedef struct {
 	uint8_t pid_non_control;
 	uint8_t class_code;
 
+	uint16_t total_xferred_bytes; // number of bytes xferred until a qtd with ioc bit set
 	uint8_t interval_ms; // polling interval in frames (or milisecond)
-	uint8_t reserved[3];
+	uint8_t reserved;
 
 	ehci_qtd_t *p_qtd_list_head;	// head of the scheduled TD list
 	ehci_qtd_t *p_qtd_list_tail;	// tail of the scheduled TD list

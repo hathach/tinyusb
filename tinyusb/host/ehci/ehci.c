@@ -517,23 +517,29 @@ static void port_connect_status_change_isr(uint8_t hostid)
 
 static void qhd_xfer_complete_isr(ehci_qhd_t * p_qhd)
 {
+  uint8_t max_loop = 0;
   tusb_xfer_type_t const xfer_type = qhd_get_xfer_type(p_qhd);
 
   // free all TDs from the head td to the first active TD
-  while(p_qhd->p_qtd_list_head != NULL && !p_qhd->p_qtd_list_head->active)
+  while(p_qhd->p_qtd_list_head != NULL && !p_qhd->p_qtd_list_head->active
+      && max_loop < EHCI_MAX_QTD)
   {
     // TD need to be freed and removed from qhd, before invoking callback
     bool is_ioc = (p_qhd->p_qtd_list_head->int_on_complete != 0);
-    uint16_t actual_bytes_xferred = p_qhd->p_qtd_list_head->expected_bytes - p_qhd->p_qtd_list_head->total_bytes;
+    p_qhd->total_xferred_bytes += p_qhd->p_qtd_list_head->expected_bytes - p_qhd->p_qtd_list_head->total_bytes;
 
     p_qhd->p_qtd_list_head->used = 0; // free QTD
     qtd_remove_1st_from_qhd(p_qhd);
 
     if (is_ioc) // end of request
-    {
+    { // call USBH callback
       usbh_xfer_isr( qhd_create_pipe_handle(p_qhd, xfer_type),
-                     p_qhd->class_code, TUSB_EVENT_XFER_COMPLETE, actual_bytes_xferred); // call USBH callback
+                     p_qhd->class_code, TUSB_EVENT_XFER_COMPLETE,
+                     p_qhd->total_xferred_bytes - (xfer_type == TUSB_XFER_CONTROL ? 8 : 0) ); // subtract setup packet size if control,
+      p_qhd->total_xferred_bytes = 0;
     }
+
+    max_loop++;
   }
 }
 
@@ -591,28 +597,35 @@ static void period_list_xfer_complete_isr(uint8_t hostid, uint8_t interval_ms)
 }
 #endif
 
-static void qhd_xfer_error_isr(ehci_qhd_t * p_qhd, tusb_xfer_type_t xfer_type)
+static void qhd_xfer_error_isr(ehci_qhd_t * p_qhd)
 {
   if (  (p_qhd->device_address != 0 && p_qhd->qtd_overlay.halted)   || // addr0 cannot be protocol STALL
       p_qhd->qtd_overlay.buffer_err ||p_qhd->qtd_overlay.babble_err || p_qhd->qtd_overlay.xact_err )
     //p_qhd->qtd_overlay.non_hs_period_missed_uframe || p_qhd->qtd_overlay.pingstate_err TODO split transaction error
-  {
-    // current qhd has error in transaction
+  { // current qhd has error in transaction
+    uint16_t total_xferred_bytes;
+    tusb_xfer_type_t const xfer_type = qhd_get_xfer_type(p_qhd);
     tusb_event_t error_event;
 
     // no error bits are set, endpoint is halted due to STALL
     error_event = ( !(p_qhd->qtd_overlay.buffer_err || p_qhd->qtd_overlay.babble_err ||
         p_qhd->qtd_overlay.xact_err) ) ? TUSB_EVENT_XFER_STALLED : TUSB_EVENT_XFER_ERROR;
 
-    uint16_t actual_bytes_xferred = p_qhd->p_qtd_list_head->expected_bytes - p_qhd->p_qtd_list_head->total_bytes;
+    p_qhd->total_xferred_bytes += p_qhd->p_qtd_list_head->expected_bytes - p_qhd->p_qtd_list_head->total_bytes;
 
     hal_debugger_breakpoint();
 
     p_qhd->p_qtd_list_head->used = 0; // free QTD
     qtd_remove_1st_from_qhd(p_qhd);
 
+    // subtract setup size if it is control xfer
+    total_xferred_bytes = p_qhd->total_xferred_bytes - (xfer_type == TUSB_XFER_CONTROL ? min8_of(8, p_qhd->total_xferred_bytes) : 0);
+
+    // call USBH callback
     usbh_xfer_isr( qhd_create_pipe_handle(p_qhd, xfer_type),
-                   p_qhd->class_code, error_event, actual_bytes_xferred); // call USBH callback
+                   p_qhd->class_code, error_event,
+                   total_xferred_bytes);
+    p_qhd->total_xferred_bytes = 0;
   }
 }
 
@@ -624,8 +637,7 @@ static void xfer_error_isr(uint8_t hostid)
   ehci_qhd_t *p_qhd = async_head;
   do
   {
-    qhd_xfer_error_isr( p_qhd,
-                        p_qhd->endpoint_number != 0 ? TUSB_XFER_BULK : TUSB_XFER_CONTROL);
+    qhd_xfer_error_isr( p_qhd );
     p_qhd = qhd_next(p_qhd);
     max_loop++;
   }while(p_qhd != async_head && max_loop < EHCI_MAX_QHD); // async list traversal, stop if loop around
@@ -647,7 +659,7 @@ static void xfer_error_isr(uint8_t hostid)
         case EHCI_QUEUE_ELEMENT_QHD:
         {
           ehci_qhd_t *p_qhd_int = (ehci_qhd_t *) align32(next_item.address);
-          qhd_xfer_error_isr(p_qhd_int, TUSB_XFER_INTERRUPT);
+          qhd_xfer_error_isr(p_qhd_int);
         }
         break;
 

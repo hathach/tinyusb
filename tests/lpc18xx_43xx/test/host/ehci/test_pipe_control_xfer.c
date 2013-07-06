@@ -155,6 +155,7 @@ void test_control_addr0_xfer_get_check_qhd_qtd_mapping(void)
   p_data   = &ehci_data.addr0_qtd[1];
   p_status = &ehci_data.addr0_qtd[2];
 
+  TEST_ASSERT_EQUAL(0 , p_qhd->total_xferred_bytes);
   TEST_ASSERT_EQUAL_HEX( p_setup, p_qhd->qtd_overlay.next.address );
   TEST_ASSERT_EQUAL_HEX( p_setup  , p_qhd->p_qtd_list_head);
   TEST_ASSERT_EQUAL_HEX( p_data   , p_setup->next.address);
@@ -227,11 +228,12 @@ void test_control_xfer_complete_isr(void)
 {
   TEST_ASSERT_STATUS( hcd_pipe_control_xfer(dev_addr, &request_get_dev_desc, xfer_data) );
 
-  usbh_xfer_isr_Expect(((pipe_handle_t){.dev_addr = dev_addr}), 0, TUSB_EVENT_XFER_COMPLETE, 0);
+  usbh_xfer_isr_Expect(((pipe_handle_t){.dev_addr = dev_addr}), 0, TUSB_EVENT_XFER_COMPLETE, 18);
 
   //------------- Code Under TEST -------------//
   ehci_controller_run(hostid);
 
+  TEST_ASSERT_EQUAL(0, p_control_qhd->total_xferred_bytes);
   TEST_ASSERT_NULL(p_control_qhd->p_qtd_list_head);
   TEST_ASSERT_NULL(p_control_qhd->p_qtd_list_tail);
 
@@ -249,6 +251,8 @@ void test_control_xfer_error_isr(void)
 
   //------------- Code Under TEST -------------//
   ehci_controller_run_error(hostid);
+
+  TEST_ASSERT_EQUAL(0, p_control_qhd->total_xferred_bytes);
 }
 
 void test_control_xfer_error_stall(void)
@@ -259,4 +263,6 @@ void test_control_xfer_error_stall(void)
 
   //------------- Code Under TEST -------------//
   ehci_controller_run_stall(hostid);
+
+  TEST_ASSERT_EQUAL(0, p_control_qhd->total_xferred_bytes);
 }

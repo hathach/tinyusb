@@ -201,7 +201,7 @@ void test_interrupt_xfer_complete_isr_interval_less_than_1ms(void)
 
   TEST_ASSERT_STATUS( hcd_pipe_xfer(pipe_hdl_interrupt, data2, sizeof(data2), true) );
 
-  usbh_xfer_isr_Expect(pipe_hdl_interrupt, TUSB_CLASS_HID, TUSB_EVENT_XFER_COMPLETE, sizeof(data2));
+  usbh_xfer_isr_Expect(pipe_hdl_interrupt, TUSB_CLASS_HID, TUSB_EVENT_XFER_COMPLETE, sizeof(xfer_data)+sizeof(data2));
 
   ehci_qtd_t* p_head = p_qhd_interrupt->p_qtd_list_head;
   ehci_qtd_t* p_tail = p_qhd_interrupt->p_qtd_list_tail;
@@ -209,6 +209,7 @@ void test_interrupt_xfer_complete_isr_interval_less_than_1ms(void)
   //------------- Code Under Test -------------//
   ehci_controller_run(hostid);
 
+  TEST_ASSERT_EQUAL(0, p_qhd_interrupt->total_xferred_bytes);
   check_qhd_after_complete(p_qhd_interrupt);
   TEST_ASSERT_FALSE(p_head->used);
   TEST_ASSERT_FALSE(p_tail->used);
@@ -230,6 +231,7 @@ void test_interrupt_xfer_complete_isr_interval_2ms(void)
   //------------- Code Under Test -------------//
   ehci_controller_run(hostid);
 
+  TEST_ASSERT_EQUAL(0, p_qhd_interrupt->total_xferred_bytes);
   check_qhd_after_complete(p_qhd_2ms);
   TEST_ASSERT_FALSE(p_head->used);
   TEST_ASSERT_FALSE(p_tail->used);
@@ -244,6 +246,8 @@ void test_interrupt_xfer_error_isr(void)
 
   //------------- Code Under TEST -------------//
   ehci_controller_run_error(hostid);
+
+  TEST_ASSERT_EQUAL(0, p_qhd_interrupt->total_xferred_bytes);
 }
 
 void test_interrupt_xfer_error_stall(void)
@@ -254,5 +258,7 @@ void test_interrupt_xfer_error_stall(void)
 
   //------------- Code Under TEST -------------//
   ehci_controller_run_stall(hostid);
+
+  TEST_ASSERT_EQUAL(0, p_qhd_interrupt->total_xferred_bytes);
 }
 
