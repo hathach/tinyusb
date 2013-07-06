@@ -62,6 +62,7 @@
 typedef struct {
   OSAL_SEM_DEF(semaphore_notification);
   osal_semaphore_handle_t sem_notification_hdl;  // used to wait on notification pipe
+  uint32_t max_xfer_size; // got from device's msg initialize complete
 }rndish_data_t;
 
 void rndish_init(void);

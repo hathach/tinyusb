@@ -123,7 +123,7 @@ rndis_msg_initialize_cmplt_t msg_init_cmplt =
     .device_flags            = 0x10,
     .medium                  = 0, // TODO cannot find info on this
     .max_packet_per_xfer     = 1,
-    .max_xfer_size           = 0x4000, // TODO change later
+    .max_xfer_size           = 0x100, // TODO change later
     .packet_alignment_factor = 5 // aligment of each RNDIS message (payload) = 2^factor
 };
 
@@ -222,5 +222,7 @@ void test_rndis_initialization_sequence_ok(void)
 
   //------------- Code Under Test -------------//
   TEST_ASSERT_STATUS( cdch_open_subtask(dev_addr, p_comm_interface, &length) );
+
   TEST_ASSERT(p_cdc->is_rndis);
+  TEST_ASSERT_EQUAL(msg_init_cmplt.max_xfer_size, p_rndis->max_xfer_size);
 }

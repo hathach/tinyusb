@@ -137,7 +137,7 @@ typedef struct {
   uint32_t major_version;
   uint32_t minor_version;
   uint32_t device_flags;
-  uint32_t medium;
+  uint32_t medium; // medium type, is 0x00 for RNDIS_MEDIUM_802_3
   uint32_t max_packet_per_xfer;
   uint32_t max_xfer_size;
   uint32_t packet_alignment_factor;
