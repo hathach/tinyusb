@@ -1,5 +1,7 @@
 <?xml version="1.0" encoding="UTF-8" standalone="no"?>
-<?fileVersion 4.0.0?><cproject storage_type_id="org.eclipse.cdt.core.XmlProjectDescriptionStorage">
+<?fileVersion 4.0.0?>
+
+<cproject storage_type_id="org.eclipse.cdt.core.XmlProjectDescriptionStorage">
 	<storageModule moduleId="org.eclipse.cdt.core.settings">
 		<cconfiguration id="com.crt.advproject.toolchain.exe.debug.1281391870">
 			<storageModule buildSystemId="org.eclipse.cdt.managedbuilder.core.configurationDataProvider" id="com.crt.advproject.toolchain.exe.debug.1281391870" moduleId="org.eclipse.cdt.core.settings" name="Debug">
@@ -20,7 +22,7 @@
 					<folderInfo id="com.crt.advproject.toolchain.exe.debug.1281391870.1757637439" name="/" resourcePath="">
 						<toolChain errorParsers="" id="cdt.managedbuild.toolchain.gnu.mingw.base.760207820" name="MinGW GCC" superClass="cdt.managedbuild.toolchain.gnu.mingw.base">
 							<targetPlatform archList="all" binaryParser="org.eclipse.cdt.core.PE" id="cdt.managedbuild.target.gnu.platform.mingw.base.1767850371" name="Debug Platform" osList="win32" superClass="cdt.managedbuild.target.gnu.platform.mingw.base"/>
-							<builder buildPath="${workspace_loc:/tinyusb/Debug}" errorParsers="org.eclipse.cdt.core.GmakeErrorParser;org.eclipse.cdt.core.CWDLocator" id="cdt.managedbuild.builder.gnu.cross.972264119" keepEnvironmentInBuildfile="false" managedBuildOn="false" name="Gnu Make Builder" superClass="cdt.managedbuild.builder.gnu.cross"/>
+							<builder buildPath="${workspace_loc:/tinyusb/Debug}" errorParsers="org.eclipse.cdt.core.GmakeErrorParser;org.eclipse.cdt.core.CWDLocator" id="cdt.managedbuild.builder.gnu.cross.972264119" keepEnvironmentInBuildfile="false" managedBuildOn="false" name="Gnu Make Builder"/>
 							<tool errorParsers="org.eclipse.cdt.core.GASErrorParser" id="cdt.managedbuild.tool.gnu.assembler.mingw.base.232020028" name="GCC Assembler" superClass="cdt.managedbuild.tool.gnu.assembler.mingw.base">
 								<option id="gnu.both.asm.option.include.paths.186595949" name="Include paths (-I)" superClass="gnu.both.asm.option.include.paths" valueType="includePath">
 									<listOptionValue builtIn="false" value="&quot;C:\nxp\LPCXpresso_4.3.0_1023\lpcxpresso\Tools\lib\gcc\arm-none-eabi\4.5.1\include&quot;"/>
@@ -35,7 +37,7 @@
 								<option id="gnu.c.compiler.option.preprocessor.def.symbols.1484610767" name="Defined symbols (-D)" superClass="gnu.c.compiler.option.preprocessor.def.symbols" valueType="definedSymbols">
 									<listOptionValue builtIn="false" value="MCU=MCU_LPC43XX"/>
 								</option>
-								<option id="gnu.c.compiler.option.preprocessor.undef.symbol.1508960620" superClass="gnu.c.compiler.option.preprocessor.undef.symbol" valueType="undefDefinedSymbols"/>
+								<option id="gnu.c.compiler.option.preprocessor.undef.symbol.1508960620" superClass="gnu.c.compiler.option.preprocessor.undef.symbol"/>
 								<inputType id="cdt.managedbuild.tool.gnu.c.compiler.input.451457393" superClass="cdt.managedbuild.tool.gnu.c.compiler.input"/>
 							</tool>
 							<tool errorParsers="org.eclipse.cdt.core.GLDErrorParser" id="cdt.managedbuild.tool.gnu.c.linker.mingw.base.1896871485" name="MinGW C Linker" superClass="cdt.managedbuild.tool.gnu.c.linker.mingw.base">
@@ -55,6 +57,123 @@
 			<storageModule moduleId="org.eclipse.cdt.core.externalSettings"/>
 			<storageModule moduleId="org.eclipse.cdt.core.language.mapping"/>
 			<storageModule moduleId="org.eclipse.cdt.internal.ui.text.commentOwnerProjectMappings"/>
+			<storageModule moduleId="scannerConfiguration"/>
+			<storageModule moduleId="org.eclipse.cdt.make.core.buildtargets">
+				<buildTargets>
+					<target name="clean" path="tests/lpc18xx_43xx" targetID="org.eclipse.cdt.build.MakeTargetBuilder">
+						<buildCommand>rake.bat</buildCommand>
+						<buildArguments/>
+						<buildTarget>clean</buildTarget>
+						<stopOnError>true</stopOnError>
+						<useDefaultCommand>false</useDefaultCommand>
+						<runAllBuilders>true</runAllBuilders>
+					</target>
+					<target name="clobber" path="tests/lpc18xx_43xx" targetID="org.eclipse.cdt.build.MakeTargetBuilder">
+						<buildCommand>rake.bat</buildCommand>
+						<buildArguments/>
+						<buildTarget>clobber</buildTarget>
+						<stopOnError>true</stopOnError>
+						<useDefaultCommand>false</useDefaultCommand>
+						<runAllBuilders>true</runAllBuilders>
+					</target>
+					<target name="release" path="tests/lpc18xx_43xx" targetID="org.eclipse.cdt.build.MakeTargetBuilder">
+						<buildCommand>rake.bat</buildCommand>
+						<buildArguments/>
+						<buildTarget>release</buildTarget>
+						<stopOnError>true</stopOnError>
+						<useDefaultCommand>false</useDefaultCommand>
+						<runAllBuilders>true</runAllBuilders>
+					</target>
+					<target name="test" path="tests/lpc18xx_43xx" targetID="org.eclipse.cdt.build.MakeTargetBuilder">
+						<buildCommand>rake.bat</buildCommand>
+						<buildArguments/>
+						<buildTarget>test:all</buildTarget>
+						<stopOnError>true</stopOnError>
+						<useDefaultCommand>false</useDefaultCommand>
+						<runAllBuilders>true</runAllBuilders>
+					</target>
+					<target name="test delta" path="tests/lpc18xx_43xx" targetID="org.eclipse.cdt.build.MakeTargetBuilder">
+						<buildCommand>rake.bat</buildCommand>
+						<buildArguments/>
+						<buildTarget>test:delta</buildTarget>
+						<stopOnError>true</stopOnError>
+						<useDefaultCommand>false</useDefaultCommand>
+						<runAllBuilders>true</runAllBuilders>
+					</target>
+					<target name="test verbose" path="tests/lpc18xx_43xx" targetID="org.eclipse.cdt.build.MakeTargetBuilder">
+						<buildCommand>rake.bat</buildCommand>
+						<buildArguments/>
+						<buildTarget>verbosity[4] test:all</buildTarget>
+						<stopOnError>true</stopOnError>
+						<useDefaultCommand>false</useDefaultCommand>
+						<runAllBuilders>true</runAllBuilders>
+					</target>
+					<target name="test verbose delta" path="tests/lpc18xx_43xx" targetID="org.eclipse.cdt.build.MakeTargetBuilder">
+						<buildCommand>rake.bat</buildCommand>
+						<buildArguments/>
+						<buildTarget>verbosity[4] test:delta</buildTarget>
+						<stopOnError>true</stopOnError>
+						<useDefaultCommand>false</useDefaultCommand>
+						<runAllBuilders>true</runAllBuilders>
+					</target>
+					<target name="clean" path="tests/lpc175x_6x" targetID="org.eclipse.cdt.build.MakeTargetBuilder">
+						<buildCommand>rake.bat</buildCommand>
+						<buildArguments/>
+						<buildTarget>clean</buildTarget>
+						<stopOnError>true</stopOnError>
+						<useDefaultCommand>false</useDefaultCommand>
+						<runAllBuilders>true</runAllBuilders>
+					</target>
+					<target name="clobber" path="tests/lpc175x_6x" targetID="org.eclipse.cdt.build.MakeTargetBuilder">
+						<buildCommand>rake.bat</buildCommand>
+						<buildArguments/>
+						<buildTarget>clobber</buildTarget>
+						<stopOnError>true</stopOnError>
+						<useDefaultCommand>false</useDefaultCommand>
+						<runAllBuilders>true</runAllBuilders>
+					</target>
+					<target name="release" path="tests/lpc175x_6x" targetID="org.eclipse.cdt.build.MakeTargetBuilder">
+						<buildCommand>rake.bat</buildCommand>
+						<buildArguments/>
+						<buildTarget>release</buildTarget>
+						<stopOnError>true</stopOnError>
+						<useDefaultCommand>false</useDefaultCommand>
+						<runAllBuilders>true</runAllBuilders>
+					</target>
+					<target name="test" path="tests/lpc175x_6x" targetID="org.eclipse.cdt.build.MakeTargetBuilder">
+						<buildCommand>rake.bat</buildCommand>
+						<buildArguments/>
+						<buildTarget>test:all</buildTarget>
+						<stopOnError>true</stopOnError>
+						<useDefaultCommand>false</useDefaultCommand>
+						<runAllBuilders>true</runAllBuilders>
+					</target>
+					<target name="test delta" path="tests/lpc175x_6x" targetID="org.eclipse.cdt.build.MakeTargetBuilder">
+						<buildCommand>rake.bat</buildCommand>
+						<buildArguments/>
+						<buildTarget>test:delta</buildTarget>
+						<stopOnError>true</stopOnError>
+						<useDefaultCommand>false</useDefaultCommand>
+						<runAllBuilders>true</runAllBuilders>
+					</target>
+					<target name="test verbose" path="tests/lpc175x_6x" targetID="org.eclipse.cdt.build.MakeTargetBuilder">
+						<buildCommand>rake.bat</buildCommand>
+						<buildArguments/>
+						<buildTarget>verbosity[4] test:all</buildTarget>
+						<stopOnError>true</stopOnError>
+						<useDefaultCommand>false</useDefaultCommand>
+						<runAllBuilders>true</runAllBuilders>
+					</target>
+					<target name="test verbose delta" path="tests/lpc175x_6x" targetID="org.eclipse.cdt.build.MakeTargetBuilder">
+						<buildCommand>rake.bat</buildCommand>
+						<buildArguments/>
+						<buildTarget>verbosity[4] test:delta</buildTarget>
+						<stopOnError>true</stopOnError>
+						<useDefaultCommand>false</useDefaultCommand>
+						<runAllBuilders>true</runAllBuilders>
+					</target>
+				</buildTargets>
+			</storageModule>
 		</cconfiguration>
 	</storageModule>
 	<storageModule moduleId="cdtBuildSystem" version="4.0.0">

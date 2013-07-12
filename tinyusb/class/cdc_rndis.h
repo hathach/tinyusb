@@ -198,6 +198,48 @@ typedef struct {
   uint32_t data[0];
 } rndis_msg_out_of_band_data_t, rndis_msg_per_packet_info_t;
 
+//--------------------------------------------------------------------+
+// NDIS Object ID
+//--------------------------------------------------------------------+
+
+//------------- General Required OIDs -------------//
+#define OID_GEN_SUPPORTED_LIST                  0x00010101
+#define OID_GEN_HARDWARE_STATUS                 0x00010102
+#define OID_GEN_MEDIA_SUPPORTED                 0x00010103
+#define OID_GEN_MEDIA_IN_USE                    0x00010104
+#define OID_GEN_MAXIMUM_LOOKAHEAD               0x00010105
+#define OID_GEN_MAXIMUM_FRAME_SIZE              0x00010106
+#define OID_GEN_LINK_SPEED                      0x00010107
+#define OID_GEN_TRANSMIT_BUFFER_SPACE           0x00010108
+#define OID_GEN_RECEIVE_BUFFER_SPACE            0x00010109
+#define OID_GEN_TRANSMIT_BLOCK_SIZE             0x0001010A
+#define OID_GEN_RECEIVE_BLOCK_SIZE              0x0001010B
+#define OID_GEN_VENDOR_ID                       0x0001010C
+#define OID_GEN_VENDOR_DESCRIPTION              0x0001010D
+#define OID_GEN_CURRENT_PACKET_FILTER           0x0001010E
+#define OID_GEN_CURRENT_LOOKAHEAD               0x0001010F
+#define OID_GEN_DRIVER_VERSION                  0x00010110
+#define OID_GEN_MAXIMUM_TOTAL_SIZE              0x00010111
+#define OID_GEN_PROTOCOL_OPTIONS                0x00010112
+#define OID_GEN_MAC_OPTIONS                     0x00010113
+#define OID_GEN_MEDIA_CONNECT_STATUS            0x00010114
+#define OID_GEN_MAXIMUM_SEND_PACKETS            0x00010115
+
+//------------- General Optional OIDs -------------//
+#define OID_GEN_VENDOR_DRIVER_VERSION           0x00010116
+#define OID_GEN_SUPPORTED_GUIDS                 0x00010117
+#define OID_GEN_NETWORK_LAYER_ADDRESSES         0x00010118  // Set only
+#define OID_GEN_TRANSPORT_HEADER_OFFSET         0x00010119  // Set only
+#define OID_GEN_MEDIA_CAPABILITIES              0x00010201
+#define OID_GEN_PHYSICAL_MEDIUM                 0x00010202
+
+//------------- 802.3 Objects (Ethernet) -------------//
+#define OID_802_3_PERMANENT_ADDRESS             0x01010101
+#define OID_802_3_CURRENT_ADDRESS               0x01010102
+#define OID_802_3_MULTICAST_LIST                0x01010103
+#define OID_802_3_MAXIMUM_LIST_SIZE             0x01010104
+
+
 #ifdef __cplusplus
  }
 #endif
