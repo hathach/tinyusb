@@ -210,7 +210,6 @@ tusb_error_t usbh_control_xfer_subtask(uint8_t dev_addr, uint8_t bmRequestType, 
   /*SUBTASK_ASSERT_STATUS*/ (void) ( hcd_pipe_control_xfer(dev_addr, &usbh_devices[dev_addr].control.request, data) );
 
   osal_semaphore_wait(usbh_devices[dev_addr].control.sem_hdl, OSAL_TIMEOUT_NORMAL, &error); // careful of local variable without static
-
   osal_mutex_release(usbh_devices[dev_addr].control.mutex_hdl);
 
   // TODO make handler for this function general purpose

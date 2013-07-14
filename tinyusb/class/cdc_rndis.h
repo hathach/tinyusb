@@ -239,6 +239,22 @@ typedef struct {
 #define OID_802_3_MULTICAST_LIST                0x01010103
 #define OID_802_3_MAXIMUM_LIST_SIZE             0x01010104
 
+//
+// Ndis Packet Filter Bits (OID_GEN_CURRENT_PACKET_FILTER).
+//
+#define NDIS_PACKET_TYPE_DIRECTED               0x00000001
+#define NDIS_PACKET_TYPE_MULTICAST              0x00000002
+#define NDIS_PACKET_TYPE_ALL_MULTICAST          0x00000004
+#define NDIS_PACKET_TYPE_BROADCAST              0x00000008
+#define NDIS_PACKET_TYPE_SOURCE_ROUTING         0x00000010
+#define NDIS_PACKET_TYPE_PROMISCUOUS            0x00000020
+#define NDIS_PACKET_TYPE_SMT                    0x00000040
+#define NDIS_PACKET_TYPE_ALL_LOCAL              0x00000080
+#define NDIS_PACKET_TYPE_GROUP                  0x00001000
+#define NDIS_PACKET_TYPE_ALL_FUNCTIONAL         0x00002000
+#define NDIS_PACKET_TYPE_FUNCTIONAL             0x00004000
+#define NDIS_PACKET_TYPE_MAC_FRAME              0x00008000
+#define NDIS_PACKET_TYPE_NO_LOCAL               0x00010000
 
 #ifdef __cplusplus
  }
