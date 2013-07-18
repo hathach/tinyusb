@@ -98,6 +98,7 @@ typedef struct { // TODO internal structure, re-order members
   //------------- control pipe -------------//
   struct {
     volatile uint8_t pipe_status;
+//    uint8_t xferred_bytes; TODO not yet necessary
     tusb_control_request_t request;
 
     OSAL_SEM_DEF(semaphore);          // TODO move to semaphore pool ?

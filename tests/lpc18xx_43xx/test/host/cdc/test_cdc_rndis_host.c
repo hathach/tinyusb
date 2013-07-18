@@ -127,6 +127,28 @@ rndis_msg_initialize_cmplt_t msg_init_cmplt =
     .packet_alignment_factor = 5 // aligment of each RNDIS message (payload) = 2^factor
 };
 
+rndis_msg_query_t msg_query_permanent_addr =
+{
+    .type          = RNDIS_MSG_QUERY,
+    .length        = sizeof(rndis_msg_query_t)+6,
+    .request_id    = 1,
+    .oid           = OID_802_3_PERMANENT_ADDRESS,
+    .buffer_length = 6,
+    .buffer_offset = 20,
+    .oid_buffer    = {0, 0, 0, 0, 0, 0}
+};
+
+rndis_msg_query_cmplt_t msg_query_permanent_addr_cmplt =
+{
+    .type          = RNDIS_MSG_QUERY_CMPLT,
+    .length        = sizeof(rndis_msg_query_cmplt_t)+6,
+    .request_id    = 1,
+    .status        = RNDIS_STATUS_SUCCESS,
+    .buffer_length = 6,
+    .buffer_offset = 16,
+    .oid_buffer    = "CAFEBB"
+};
+
 void test_rndis_send_initalize_failed(void)
 {
   usbh_control_xfer_subtask_ExpectWithArrayAndReturn(
@@ -188,18 +210,32 @@ tusb_error_t stub_control_xfer(uint8_t addr, uint8_t bmRequestType, uint8_t bReq
 
   switch(num_call)
   {
-    case 0:
+    case 0: //  initialize
       TEST_ASSERT_EQUAL(0x21, bmRequestType);
       TEST_ASSERT_EQUAL(SEND_ENCAPSULATED_COMMAND, bRequest);
       TEST_ASSERT_EQUAL(0x18, wLength);
       TEST_ASSERT_EQUAL_HEX8_ARRAY(&msg_init, data, wLength);
     break;
 
-    case 1:
+    case 1: // initialize complete
       TEST_ASSERT_EQUAL(0xA1, bmRequestType);
       TEST_ASSERT_EQUAL(GET_ENCAPSULATED_RESPONSE, bRequest);
       TEST_ASSERT( wLength >= 0x0400 ); // Microsoft Specs
       memcpy(data, &msg_init_cmplt, 0x30);
+    break;
+
+    case 2: // query for OID_802_3_PERMANENT_ADDRESS
+      TEST_ASSERT_EQUAL(0x21, bmRequestType);
+      TEST_ASSERT_EQUAL(SEND_ENCAPSULATED_COMMAND, bRequest);
+      TEST_ASSERT_EQUAL(34, wLength); // sizeof(rndis_msg_query_t) + 6 MAC address
+      TEST_ASSERT_EQUAL_HEX8_ARRAY(&msg_query_permanent_addr, data, wLength);
+    break;
+
+    case 3: // query complete for OID_802_3_PERMANENT_ADDRESS
+      TEST_ASSERT_EQUAL(0xA1, bmRequestType);
+      TEST_ASSERT_EQUAL(GET_ENCAPSULATED_RESPONSE, bRequest);
+      TEST_ASSERT( wLength >= 0x0400 ); // Microsoft Specs
+      memcpy(data, &msg_query_permanent_addr_cmplt, 30);
     break;
 
     default:
@@ -211,11 +247,11 @@ tusb_error_t stub_control_xfer(uint8_t addr, uint8_t bmRequestType, uint8_t bReq
 
 void test_rndis_initialization_sequence_ok(void)
 {
-  // send initialize msg
   usbh_control_xfer_subtask_StubWithCallback(stub_control_xfer);
-  // notification waiting
   hcd_pipe_xfer_StubWithCallback(stub_pipe_notification_xfer);
   osal_semaphore_wait_StubWithCallback(stub_sem_wait_success);
+
+  osal_semaphore_post_ExpectAndReturn(p_rndis->sem_notification_hdl, TUSB_ERROR_NONE);
   osal_semaphore_post_ExpectAndReturn(p_rndis->sem_notification_hdl, TUSB_ERROR_NONE);
 
   tusbh_cdc_rndis_mounted_cb_Expect(dev_addr);
@@ -225,4 +261,5 @@ void test_rndis_initialization_sequence_ok(void)
 
   TEST_ASSERT(p_cdc->is_rndis);
   TEST_ASSERT_EQUAL(msg_init_cmplt.max_xfer_size, p_rndis->max_xfer_size);
+  TEST_ASSERT_EQUAL_HEX8_ARRAY("CAFEBB", p_rndis->mac_address, 6);
 }

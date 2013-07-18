@@ -55,7 +55,7 @@
 #define RNDIS_MSG_PAYLOAD_MAX   (1024*4)
 
 static uint8_t msg_notification[TUSB_CFG_HOST_DEVICE_MAX][8] TUSB_CFG_ATTR_USBRAM;
-static uint32_t msg_payload[RNDIS_MSG_PAYLOAD_MAX/4]  TUSB_CFG_ATTR_USBRAM;
+static uint8_t msg_payload[RNDIS_MSG_PAYLOAD_MAX]  TUSB_CFG_ATTR_USBRAM ATTR_ALIGNED(4);
 
 STATIC_ rndish_data_t rndish_data[TUSB_CFG_HOST_DEVICE_MAX];
 
@@ -67,7 +67,7 @@ STATIC_ rndish_data_t rndish_data[TUSB_CFG_HOST_DEVICE_MAX];
 static tusb_error_t rndis_body_subtask(void);
 static tusb_error_t send_message_get_response_subtask( uint8_t dev_addr, cdch_data_t *p_cdc,
                                                        uint8_t const * p_mess, uint32_t mess_length,
-                                                       uint8_t *p_response   , uint32_t* response_length );
+                                                       uint8_t *p_response );
 
 //--------------------------------------------------------------------+
 // IMPLEMENTATION
@@ -139,24 +139,44 @@ tusb_error_t rndish_open_subtask(uint8_t dev_addr, cdch_data_t *p_cdc)
                                                   .max_xfer_size = 0x4000 // TODO mimic windows
                                               };
 
-  uint32_t response_length;
   OSAL_SUBTASK_INVOKED_AND_WAIT(
       send_message_get_response_subtask( dev_addr, p_cdc,
-                                         (uint8_t*) msg_payload, sizeof(rndis_msg_initialize_t),
-                                         (uint8_t*) msg_payload, &response_length),
+                                         msg_payload, sizeof(rndis_msg_initialize_t),
+                                         msg_payload),
       error
   );
   if ( TUSB_ERROR_NONE != error )   SUBTASK_EXIT(error);
 
   rndis_msg_initialize_cmplt_t * const p_init_cmpt = (rndis_msg_initialize_cmplt_t *) msg_payload;
 
+
    // TODO currently not support multiple data packets per xfer
   SUBTASK_ASSERT(p_init_cmpt->type == RNDIS_MSG_INITIALIZE_CMPLT && p_init_cmpt->status == RNDIS_STATUS_SUCCESS &&
                  p_init_cmpt->max_packet_per_xfer == 1 && p_init_cmpt->max_xfer_size <= RNDIS_MSG_PAYLOAD_MAX);
   rndish_data[dev_addr-1].max_xfer_size = p_init_cmpt->max_xfer_size;
 
-  //------------- Message Initialize -------------//
+  //------------- Message Query 802.3 Permanent Address -------------//
+  *((rndis_msg_query_t*) msg_payload) = (rndis_msg_query_t)
+                                        {
+                                            .type          = RNDIS_MSG_QUERY,
+                                            .length        = sizeof(rndis_msg_query_t) + 6, // size message and MAC address
+                                            .request_id    = 1, // TODO should use some magic number
+                                            .oid           = OID_802_3_PERMANENT_ADDRESS,
+                                            .buffer_length = 6, // sizeof MAC address
+                                            .buffer_offset = 20, // offset(rndis_msg_query_t, oid_buffer) - offset(rndis_msg_query_t, request_id)
+                                        };
+  memclr_( ((rndis_msg_query_t*) msg_payload)->oid_buffer, 6);
 
+  OSAL_SUBTASK_INVOKED_AND_WAIT(
+      send_message_get_response_subtask( dev_addr, p_cdc,
+                                         msg_payload, sizeof(rndis_msg_query_t) + 6,
+                                         msg_payload),
+      error
+  );
+  if ( TUSB_ERROR_NONE != error )   SUBTASK_EXIT(error);
+
+  rndis_msg_query_cmplt_t * const p_query_cmpt = (rndis_msg_query_cmplt_t *) msg_payload;
+  memcpy(rndish_data[dev_addr-1].mac_address, msg_payload + 8 + p_query_cmpt->buffer_offset, 6);
 
   if ( tusbh_cdc_rndis_mounted_cb )
   {
@@ -200,7 +220,7 @@ void rndish_xfer_isr(cdch_data_t *p_cdc, pipe_handle_t pipe_hdl, tusb_event_t ev
 
 static tusb_error_t send_message_get_response_subtask( uint8_t dev_addr, cdch_data_t *p_cdc,
                                                        uint8_t const * p_mess, uint32_t mess_length,
-                                                       uint8_t *p_response   , uint32_t* response_length )
+                                                       uint8_t *p_response)
 {
   tusb_error_t error;
 
@@ -209,8 +229,8 @@ static tusb_error_t send_message_get_response_subtask( uint8_t dev_addr, cdch_da
   //------------- Send RNDIS Control Message -------------//
   OSAL_SUBTASK_INVOKED_AND_WAIT(
       usbh_control_xfer_subtask( dev_addr, bm_request_type(TUSB_DIR_HOST_TO_DEV, TUSB_REQUEST_TYPE_CLASS, TUSB_REQUEST_RECIPIENT_INTERFACE),
-                               SEND_ENCAPSULATED_COMMAND, 0, p_cdc->interface_number,
-                               mess_length, p_mess),
+                                 SEND_ENCAPSULATED_COMMAND, 0, p_cdc->interface_number,
+                                 mess_length, p_mess),
       error
   );
   if ( TUSB_ERROR_NONE != error )   SUBTASK_EXIT(error);
@@ -229,7 +249,6 @@ static tusb_error_t send_message_get_response_subtask( uint8_t dev_addr, cdch_da
     error
   );
   if ( TUSB_ERROR_NONE != error )   SUBTASK_EXIT(error);
-
 
   OSAL_SUBTASK_END
 }

@@ -185,7 +185,7 @@ tusb_error_t usbh_init(void)
 //------------- USBH control transfer -------------//
 // function called within a task, requesting os blocking services, subtask input parameter must be static/global variables or constant
 tusb_error_t usbh_control_xfer_subtask(uint8_t dev_addr, uint8_t bmRequestType, uint8_t bRequest,
-                                       uint16_t wValue, uint16_t wIndex, uint16_t wLength, uint8_t* data )
+                                       uint16_t wValue, uint16_t wIndex, uint16_t wLength, uint8_t* data)
 {
   tusb_error_t error;
 
@@ -253,7 +253,8 @@ void usbh_xfer_isr(pipe_handle_t pipe_hdl, uint8_t class_code, tusb_event_t even
   uint8_t class_index = std_class_code_to_index(class_code);
   if (TUSB_XFER_CONTROL == pipe_hdl.xfer_type)
   {
-    usbh_devices[ pipe_hdl.dev_addr ].control.pipe_status = event;
+    usbh_devices[ pipe_hdl.dev_addr ].control.pipe_status   = event;
+//    usbh_devices[ pipe_hdl.dev_addr ].control.xferred_bytes = xferred_bytes; not yet neccessary
     osal_semaphore_post( usbh_devices[ pipe_hdl.dev_addr ].control.sem_hdl );
   }else if (usbh_class_drivers[class_index].isr)
   {

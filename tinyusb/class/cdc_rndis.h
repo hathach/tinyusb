@@ -86,6 +86,8 @@ typedef enum {
 //--------------------------------------------------------------------+
 // MESSAGE STRUCTURE
 //--------------------------------------------------------------------+
+
+//------------- Initialize -------------//
 typedef struct {
   uint32_t type;
   uint32_t length;
@@ -99,18 +101,56 @@ typedef struct {
   uint32_t type;
   uint32_t length;
   uint32_t request_id;
+  uint32_t status;
+  uint32_t major_version;
+  uint32_t minor_version;
+  uint32_t device_flags;
+  uint32_t medium; // medium type, is 0x00 for RNDIS_MEDIUM_802_3
+  uint32_t max_packet_per_xfer;
+  uint32_t max_xfer_size;
+  uint32_t packet_alignment_factor;
+  uint32_t reserved[2];
+} rndis_msg_initialize_cmplt_t;
+
+//------------- Query -------------//
+typedef struct {
+  uint32_t type;
+  uint32_t length;
+  uint32_t request_id;
   uint32_t oid;
   uint32_t buffer_length;
-  uint32_t buffer_offset;
+  uint32_t buffer_offset; // from beginning of request_id field
   uint32_t reserved;
-  uint32_t oid_buffer[0];
+  uint8_t  oid_buffer[]; // flexible array member
 } rndis_msg_query_t, rndis_msg_set_t;
 
+STATIC_ASSERT(sizeof(rndis_msg_query_t) == 28, "Make sure flexible array member does not affect layout");
+
+typedef struct {
+  uint32_t type;
+  uint32_t length;
+  uint32_t request_id;
+  uint32_t status;
+  uint32_t buffer_length;
+  uint32_t buffer_offset;
+  uint8_t  oid_buffer[]; // flexible array member
+} rndis_msg_query_cmplt_t;
+
+STATIC_ASSERT(sizeof(rndis_msg_query_cmplt_t) == 24, "Make sure flexible array member does not affect layout");
+
+//------------- Reset -------------//
 typedef struct {
   uint32_t type;
   uint32_t length;
   uint32_t reserved;
 } rndis_msg_reset_t;
+
+typedef struct {
+  uint32_t type;
+  uint32_t length;
+  uint32_t status;
+  uint32_t addressing_reset;
+} rndis_msg_reset_cmplt_t;
 
 //typedef struct {
 //  uint32_t type;
@@ -134,39 +174,7 @@ typedef struct {
   uint32_t length;
   uint32_t request_id;
   uint32_t status;
-  uint32_t major_version;
-  uint32_t minor_version;
-  uint32_t device_flags;
-  uint32_t medium; // medium type, is 0x00 for RNDIS_MEDIUM_802_3
-  uint32_t max_packet_per_xfer;
-  uint32_t max_xfer_size;
-  uint32_t packet_alignment_factor;
-  uint32_t reserved[2];
-} rndis_msg_initialize_cmplt_t;
-
-typedef struct {
-  uint32_t type;
-  uint32_t length;
-  uint32_t request_id;
-  uint32_t status;
-  uint32_t buffer_length;
-  uint32_t buffer_offset;
-  uint32_t oid_buffer[0];
-} rndis_msg_query_cmplt_t;
-
-typedef struct {
-  uint32_t type;
-  uint32_t length;
-  uint32_t request_id;
-  uint32_t status;
 } rndis_msg_set_cmplt_t, rndis_msg_keep_alive_cmplt_t;
-
-typedef struct {
-  uint32_t type;
-  uint32_t length;
-  uint32_t status;
-  uint32_t addressing_reset;
-} rndis_msg_reset_cmplt_t;
 
 typedef struct {
   uint32_t type;
