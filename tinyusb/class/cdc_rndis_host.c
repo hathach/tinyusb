@@ -59,15 +59,28 @@ static uint8_t msg_payload[RNDIS_MSG_PAYLOAD_MAX]  TUSB_CFG_ATTR_USBRAM ATTR_ALI
 
 STATIC_ rndish_data_t rndish_data[TUSB_CFG_HOST_DEVICE_MAX];
 
-// TODO Microsoft requires message length for any get command must be at least 0x400 bytes
+// TODO Microsoft requires message length for any get command must be at least 4096 bytes
 
 //--------------------------------------------------------------------+
 // INTERNAL OBJECT & FUNCTION DECLARATION
 //--------------------------------------------------------------------+
 static tusb_error_t rndis_body_subtask(void);
 static tusb_error_t send_message_get_response_subtask( uint8_t dev_addr, cdch_data_t *p_cdc,
-                                                       uint8_t const * p_mess, uint32_t mess_length,
+                                                       uint8_t * p_mess, uint32_t mess_length,
                                                        uint8_t *p_response );
+
+//--------------------------------------------------------------------+
+// APPLICATION API
+//--------------------------------------------------------------------+
+tusb_error_t tusbh_cdc_rndis_get_mac_addr(uint8_t dev_addr, uint8_t mac_address[6])
+{
+  ASSERT( tusbh_cdc_rndis_is_mounted(dev_addr),  TUSB_ERROR_CDCH_DEVICE_NOT_MOUNTED);
+  ASSERT_PTR( mac_address,  TUSB_ERROR_INVALID_PARA);
+
+  memcpy(mac_address, rndish_data[dev_addr-1].mac_address, 6);
+
+  return TUSB_ERROR_NONE;
+}
 
 //--------------------------------------------------------------------+
 // IMPLEMENTATION
@@ -219,7 +232,7 @@ void rndish_xfer_isr(cdch_data_t *p_cdc, pipe_handle_t pipe_hdl, tusb_event_t ev
 //}
 
 static tusb_error_t send_message_get_response_subtask( uint8_t dev_addr, cdch_data_t *p_cdc,
-                                                       uint8_t const * p_mess, uint32_t mess_length,
+                                                       uint8_t * p_mess, uint32_t mess_length,
                                                        uint8_t *p_response)
 {
   tusb_error_t error;

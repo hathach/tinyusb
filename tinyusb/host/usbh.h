@@ -112,7 +112,7 @@ OSAL_TASK_FUNCTION (usbh_enumeration_task) (void* p_task_para);
 tusb_error_t usbh_init(void);
 
 tusb_error_t usbh_control_xfer_subtask(uint8_t dev_addr, uint8_t bmRequestType, uint8_t bRequest,
-                                       uint16_t wValue, uint16_t wIndex, uint16_t wLength, uint8_t* data );
+                                       uint16_t wValue, uint16_t wIndex, uint16_t wLength, uint8_t* data);
 
 
 #endif

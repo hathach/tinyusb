@@ -91,6 +91,11 @@ bool tusbh_cdc_serial_is_mounted(uint8_t dev_addr)
       (cdch_data[dev_addr-1].interface_protocol <= CDC_COMM_PROTOCOL_ATCOMMAND_CDMA);
 }
 
+bool tusbh_cdc_rndis_is_mounted(uint8_t dev_addr)
+{
+  return tusbh_cdc_is_mounted(dev_addr) && cdch_data[dev_addr-1].is_rndis;
+}
+
 tusb_error_t tusbh_cdc_send(uint8_t dev_addr, void const * p_data, uint32_t length, bool is_notify)
 {
   ASSERT( tusbh_cdc_is_mounted(dev_addr),  TUSB_ERROR_CDCH_DEVICE_NOT_MOUNTED);
