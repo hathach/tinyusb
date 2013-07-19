@@ -48,10 +48,15 @@
 // MACRO CONSTANT TYPEDEF
 //--------------------------------------------------------------------+
 void tusbh_cdc_rndis_mounted_cb(uint8_t dev_addr)
-{
-  // application set-up
+{ // application set-up
+  uint8_t mac_address[6];
 
   printf("a RNDIS device is mounted\n");
+  tusbh_cdc_rndis_get_mac_addr(dev_addr, mac_address);
+
+  printf("MAC Address ");
+  for(uint8_t i=0; i<6; i++)  printf("%X ", mac_address[i]);
+  printf("\n");
 }
 
 void tusbh_cdc_rndis_unmounted_isr(uint8_t dev_addr)

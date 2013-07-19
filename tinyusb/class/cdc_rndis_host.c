@@ -189,6 +189,7 @@ tusb_error_t rndish_open_subtask(uint8_t dev_addr, cdch_data_t *p_cdc)
   if ( TUSB_ERROR_NONE != error )   SUBTASK_EXIT(error);
 
   rndis_msg_query_cmplt_t * const p_query_cmpt = (rndis_msg_query_cmplt_t *) msg_payload;
+  SUBTASK_ASSERT(p_query_cmpt->type == RNDIS_MSG_QUERY_CMPLT && p_query_cmpt->status == RNDIS_STATUS_SUCCESS);
   memcpy(rndish_data[dev_addr-1].mac_address, msg_payload + 8 + p_query_cmpt->buffer_offset, 6);
 
   if ( tusbh_cdc_rndis_mounted_cb )
