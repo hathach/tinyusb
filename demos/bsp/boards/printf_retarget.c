@@ -51,7 +51,26 @@ int __sys_write (int iFileHandle, char *pcBuffer, int iLength)
   (void) iFileHandle;
 
 #if CFG_PRINTF_TARGET == PRINTF_TARGET_UART
-	return board_uart_send((uint8_t*)pcBuffer, iLength);
+  // following code to make \n --> \r\n
+  int length = iLength;
+  char* p_newline_pos = memchr(pcBuffer, '\n', length);
+
+  while(p_newline_pos != NULL)
+  {
+    uint32_t chunk_len = p_newline_pos - pcBuffer;
+
+    board_uart_send((uint8_t*)pcBuffer, chunk_len);
+    board_uart_send(&"\r\n", 2);
+
+    pcBuffer += (chunk_len + 1);
+    length   -= (chunk_len + 1);
+    p_newline_pos = memchr(pcBuffer, '\n', length);
+  }
+
+  board_uart_send((uint8_t*)pcBuffer, length);
+
+  return iLength;
+
 #elif CFG_PRINTF_TARGET == PRINTF_TARGET_SWO
 	uint32_t i;
 	for (i = 0; i<iLength; i++)

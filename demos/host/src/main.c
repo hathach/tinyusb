@@ -174,12 +174,12 @@ OSAL_TASK_FUNCTION( led_blinking_task ) (void* p_task_para)
 //--------------------------------------------------------------------+
 void print_greeting(void)
 {
-  printf("\r\n\
---------------------------------------------------------------------\r\n\
--                     Host Demo (a tinyusb example)\r\n\
-- if you find any bugs or get any questions, feel free to file an\r\n\
-- issue at https://github.com/hathach/tinyusb\r\n\
---------------------------------------------------------------------\r\n\r\n"
+  printf("\n\
+--------------------------------------------------------------------\n\
+-                     Host Demo (a tinyusb example)\n\
+- if you find any bugs or get any questions, feel free to file an\n\
+- issue at https://github.com/hathach/tinyusb\n\
+--------------------------------------------------------------------\n\n"
   );
 }
 
