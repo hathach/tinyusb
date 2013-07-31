@@ -62,6 +62,13 @@ void board_init(void)
   /* Configure LED0 as GPIO */
   scu_pinmux(BOARD_LED0_PORT, BOARD_LED0_PIN, MD_PDN, BOARD_LED0_FUNCTION);
   GPIO_SetDir(BOARD_LED0_GPIO_PORT, (1 << BOARD_LED0_GPIO_PIN), 1);
+  
+  /* Configure TRACE pins */
+  scu_pinmux(0xF, 4, MD_PDN, 0x2); /* PF_4 = TRACECLK */
+  scu_pinmux(0x7, 4, MD_PDN, 0x5); /* P7_4 = TRACEDATA[0] */
+  scu_pinmux(0x7, 5, MD_PDN, 0x5); /* P7_5 = TRACEDATA[1] */
+  scu_pinmux(0x7, 6, MD_PDN, 0x5); /* P7_6 = TRACEDATA[2] */
+  scu_pinmux(0x7, 7, MD_PDN, 0x5); /* P7_7 = TRACEDATA[3] */
 
   /* Init I2C @ 400kHz */
   I2C_Init(LPC_I2C0, 400000);
