@@ -42,9 +42,9 @@
 
 
 #define BOARD_UART_PORT           LPC_USART0
-#define BOARD_UART_PIN_PORT 0x0f
-#define BOARD_UART_PIN_TX   10 // PF.10 : UART0_TXD
-#define BOARD_UART_PIN_RX   11 // PF.11 : UART0_RXD
+#define BOARD_UART_PIN_PORT       0x0f
+#define BOARD_UART_PIN_TX         10 // PF.10 : UART0_TXD
+#define BOARD_UART_PIN_RX         11 // PF.11 : UART0_RXD
 
 void board_init(void)
 {

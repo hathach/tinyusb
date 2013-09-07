@@ -73,6 +73,8 @@
 #define BOARD_HITEX4350             6
 #define BOARD_LPCXPRESSO1769        7
 
+#define BOARD_LPC4357USB            8
+
 //--------------------------------------------------------------------+
 // PRINTF TARGET DEFINE
 //--------------------------------------------------------------------+
@@ -99,6 +101,8 @@
   #include "hitex/board_hitex4350.h"
 #elif BOARD == BOARD_LPCXPRESSO1769
   #include "lpcxpresso/board_lpcxpresso1769.h"
+#elif BOARD == BOARD_LPC4357USB
+  #include "microbuilder/board_lpc4357usb.h"
 #else
   #error BOARD is not defined or supported yet
 #endif
