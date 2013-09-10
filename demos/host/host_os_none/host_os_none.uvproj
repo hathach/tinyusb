@@ -211,7 +211,7 @@
             <hadIRAM2>1</hadIRAM2>
             <hadIROM2>1</hadIROM2>
             <StupSel>8</StupSel>
-            <useUlib>0</useUlib>
+            <useUlib>1</useUlib>
             <EndSel>0</EndSel>
             <uLtcg>0</uLtcg>
             <RoSelD>3</RoSelD>
@@ -402,7 +402,7 @@
                   <RVCTZI>0</RVCTZI>
                   <RVCTOtherData>0</RVCTOtherData>
                   <ModuleSelection>0</ModuleSelection>
-                  <IncludeInBuild>0</IncludeInBuild>
+                  <IncludeInBuild>1</IncludeInBuild>
                   <AlwaysBuild>2</AlwaysBuild>
                   <GenerateAssemblyFile>2</GenerateAssemblyFile>
                   <AssembleAssemblyFile>2</AssembleAssemblyFile>
@@ -436,11 +436,6 @@
                 </FileArmAds>
               </FileOption>
             </File>
-            <File>
-              <FileName>main2.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>..\src\main2.c</FilePath>
-            </File>
           </Files>
         </Group>
         <Group>
@@ -449,12 +444,7 @@
             <File>
               <FileName>startup_LPC43xx.s</FileName>
               <FileType>2</FileType>
-              <FilePath>.\startup_LPC43xx.s</FilePath>
-            </File>
-            <File>
-              <FileName>system_LPC43xx.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>.\system_LPC43xx.c</FilePath>
+              <FilePath>..\..\bsp\lpc43xx\startup_keil\startup_LPC43xx.s</FilePath>
             </File>
           </Files>
         </Group>
@@ -481,6 +471,16 @@
               <FileType>1</FileType>
               <FilePath>..\..\bsp\lpc43xx\CMSISv2p10_LPC43xx_DriverLib\src\lpc43xx_cgu.c</FilePath>
             </File>
+            <File>
+              <FileName>system_LPC43xx.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\..\bsp\lpc43xx\CMSISv2p10_LPC43xx_DriverLib\src\system_LPC43xx.c</FilePath>
+            </File>
+            <File>
+              <FileName>lpc43xx_i2c.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\..\bsp\lpc43xx\CMSISv2p10_LPC43xx_DriverLib\src\lpc43xx_i2c.c</FilePath>
+            </File>
           </Files>
         </Group>
         <Group>
@@ -490,6 +490,31 @@
               <FileName>board.c</FileName>
               <FileType>1</FileType>
               <FilePath>..\..\bsp\boards\board.c</FilePath>
+            </File>
+            <File>
+              <FileName>board_ea4357.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\..\bsp\boards\embedded_artists\board_ea4357.c</FilePath>
+            </File>
+            <File>
+              <FileName>printf_retarget.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\..\bsp\boards\printf_retarget.c</FilePath>
+            </File>
+            <File>
+              <FileName>pca9532.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\..\bsp\boards\embedded_artists\oem_base_board\pca9532.c</FilePath>
+            </File>
+          </Files>
+        </Group>
+        <Group>
+          <GroupName>tinyusb</GroupName>
+          <Files>
+            <File>
+              <FileName>tusb.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\..\..\tinyusb\tusb.c</FilePath>
               <FileOption>
                 <CommonProperty>
                   <UseCPPCompiler>2</UseCPPCompiler>
@@ -532,9 +557,9 @@
               </FileOption>
             </File>
             <File>
-              <FileName>board_ea4357.c</FileName>
+              <FileName>osal_none.c</FileName>
               <FileType>1</FileType>
-              <FilePath>..\..\bsp\boards\embedded_artists\board_ea4357.c</FilePath>
+              <FilePath>..\..\..\tinyusb\osal\osal_none.c</FilePath>
             </File>
           </Files>
         </Group>

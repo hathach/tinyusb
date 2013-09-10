@@ -23,7 +23,7 @@
 * warranty that such application will be suitable for the specified
 * use without further testing or modification.
 * Permission to use, copy, modify, and distribute this software and its
-* documentation is hereby granted, under NXP Semiconductorsï¿½
+* documentation is hereby granted, under NXP Semiconductors’
 * relevant copyright in the software, without fee, provided that it
 * is used in conjunction with NXP Semiconductors microcontrollers.  This
 * copyright, permission, and disclaimer notice must appear in all copies of
@@ -179,11 +179,11 @@ uint32_t CGU_ClockSourceFrequency[CGU_CLKSRC_NUM] = {0,12000000,0,0,0,0, 0, 4800
 #define CGU_CGU_ADDR	((uint32_t)LPC_CGU)
 #define CGU_REG_BASE_CTRL(x) (*(uint32_t*)(CGU_CGU_ADDR+CGU_Entity_ControlReg_Offset[CGU_PERIPHERAL_Info[x].RegBaseEntity]))
 #define CGU_REG_BRANCH_CTRL(x) (*(uint32_t*)(CGU_CGU_ADDR+CGU_PERIPHERAL_Info[x].RegBranchOffset))
-#define CGU_REG_BRANCH_STATUS(x) (*(uint32_t*)(CGU_CGU_ADDR+CGU_PERIPHERAL_Info[x].RegBranchOffset+4))
+#define CGU_REG_BRANCH_STATUS(x) (*(volatile uint32_t*)(CGU_CGU_ADDR+CGU_PERIPHERAL_Info[x].RegBranchOffset+4))
 
 #define CGU_PER_BASE_CTRL(x) (*(uint32_t*)(CGU_CGU_ADDR+CGU_Entity_ControlReg_Offset[CGU_PERIPHERAL_Info[x].PerBaseEntity]))
 #define CGU_PER_BRANCH_CTRL(x) (*(uint32_t*)(CGU_CGU_ADDR+CGU_PERIPHERAL_Info[x].PerBranchOffset))
-#define CGU_PER_BRANCH_STATUS(x) (*(uint32_t*)(CGU_CGU_ADDR+CGU_PERIPHERAL_Info[x].PerBranchOffset+4))
+#define CGU_PER_BRANCH_STATUS(x) (*(volatile uint32_t*)(CGU_CGU_ADDR+CGU_PERIPHERAL_Info[x].PerBranchOffset+4))
 
 
 /*********************************************************************//**
@@ -199,10 +199,11 @@ uint32_t	CGU_Init(void){
 	CGU_EntityConnect(CGU_CLKSRC_XTAL_OSC, CGU_CLKSRC_PLL1);
 	// Disable PLL1 CPU hang???
 	//CGU_EnableEntity(CGU_CLKSRC_PLL1, DISABLE);
-	CGU_SetPLL1(5);
+	CGU_SetPLL1(6);
 	CGU_EnableEntity(CGU_CLKSRC_PLL1, ENABLE);
 	CGU_EntityConnect(CGU_CLKSRC_PLL1, CGU_BASE_M4);
 	CGU_UpdateClock();
+  SystemCoreClock = 6*12000000;
 	return 0;
 }
 
@@ -400,7 +401,7 @@ void CGU_UpdateClock(void){
 		CGU_ClockSourceFrequency[CGU_CLKSRC_32KHZ_OSC] = 0;
 	/*PLL0*/
 	/* PLL1 */
-	if(ISBITCLR(LPC_CGU->PLL1_CTRL,1) /* Enabled */
+	if(ISBITCLR(LPC_CGU->PLL1_CTRL,0) /* Enabled */   /* EA ANDLI: Original code tested bit 1 which is BYPASS, not PD */
 			&& (LPC_CGU->PLL1_STAT&1)){ /* Locked? */
 		ClkSrc = (LPC_CGU->PLL1_CTRL & CGU_CTRL_SRC_MASK)>>24;
 		CGU_ClockSourceFrequency[CGU_CLKSRC_PLL1] = CGU_ClockSourceFrequency[ClkSrc] *

@@ -41,7 +41,9 @@
 //-------------------------------------------------------------------- +
 //                    LPCXpresso printf redirection                    +
 //-------------------------------------------------------------------- +
-#if (defined __CODE_RED) && (CFG_PRINTF_TARGET != PRINTF_TARGET_DEBUG_CONSOLE)
+#if CFG_PRINTF_TARGET != PRINTF_TARGET_DEBUG_CONSOLE
+
+#if defined __CODE_RED
 // Called by bottom level of printf routine within RedLib C library to write
 // a character. With the default semihosting stub, this would write the character
 // to the debugger console window . But this version writes
@@ -67,7 +69,7 @@ int __sys_write (int iFileHandle, char *pcBuffer, int iLength)
     p_newline_pos = memchr(pcBuffer, '\n', length);
   }
 
-  board_uart_send((uint8_t*)pcBuffer, length);
+   board_uart_send((uint8_t*)pcBuffer, length);
 
   return iLength;
 
@@ -103,4 +105,44 @@ int __sys_readc (void)
 	return (int)c;
 }
 
+#elif defined __CC_ARM // keil
+
+struct __FILE {
+  uint32_t handle;
+};
+
+int fputc(int ch, FILE *f)
+{
+  if (//CFG_PRINTF_NEWLINE[0] == '\r' &&
+      ch == '\n')
+  {
+    const uint8_t carry = '\r';
+    board_uart_send(&carry, 1);
+  }
+
+  //board_uart_send( (uint8_t*) &ch, 1);
+  
+  uint8_t c = (uint8_t) ch;
+  board_uart_send( (uint8_t*) &c, 1);
+  
+  return ch;
+}
+
+void _ttywrch(int ch)
+{
+  if (//CFG_PRINTF_NEWLINE[0] == '\r' &&
+      ch == '\n')
+  {
+    const uint8_t carry = '\r';
+    board_uart_send(&carry, 1);
+  }
+
+  //board_uart_send( (uint8_t*) &ch, 1);
+  
+  uint8_t c = (uint8_t) ch;
+  board_uart_send( (uint8_t*) &c, 1);
+}
+
 #endif
+
+#endif // CFG_PRINTF_TARGET != PRINTF_TARGET_DEBUG_CONSOLE
