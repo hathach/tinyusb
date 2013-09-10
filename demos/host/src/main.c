@@ -53,6 +53,7 @@
 #include "mouse_app.h"
 #include "keyboard_app.h"
 #include "cdc_serial_app.h"
+#include "rndis_app.h"
 
 #if defined(__CODE_RED)
   #include <cr_section_macros.h>
@@ -121,6 +122,10 @@ int main(void)
 
 #if TUSB_CFG_HOST_CDC
   cdc_serial_app_init();
+
+  #if TUSB_CFG_HOST_CDC_RNDIS
+  rndis_app_init();
+  #endif
 #endif
 
   //------------- start OS scheduler (never return) -------------//

@@ -521,11 +521,6 @@
               <FileType>1</FileType>
               <FilePath>..\..\..\tinyusb\class\hid_host.c</FilePath>
             </File>
-            <File>
-              <FileName>msc_host.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>..\..\..\tinyusb\class\msc_host.c</FilePath>
-            </File>
           </Files>
         </Group>
         <Group>

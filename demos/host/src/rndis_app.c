@@ -64,5 +64,10 @@ void tusbh_cdc_rndis_unmounted_isr(uint8_t dev_addr)
   // application tear-down
 }
 
+void rndis_app_init(void)
+{
+
+}
+
 
 #endif
