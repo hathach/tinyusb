@@ -86,9 +86,6 @@ void board_init(void)
 	UART_Init(BOARD_UART_PORT, &UARTConfigStruct);
 	UART_TxCmd(BOARD_UART_PORT, ENABLE); // Enable UART Transmit
 #endif
-
-#if CFG_PRINTF_TARGET == PRINTF_TARGET_SWO
-#endif
 }
 
 //--------------------------------------------------------------------+

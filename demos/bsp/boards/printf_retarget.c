@@ -120,10 +120,7 @@ int fputc(int ch, FILE *f)
     board_uart_send(&carry, 1);
   }
 
-  //board_uart_send( (uint8_t*) &ch, 1);
-  
-  uint8_t c = (uint8_t) ch;
-  board_uart_send( (uint8_t*) &c, 1);
+  board_uart_send( (uint8_t*) &ch, 1);
   
   return ch;
 }
@@ -137,10 +134,7 @@ void _ttywrch(int ch)
     board_uart_send(&carry, 1);
   }
 
-  //board_uart_send( (uint8_t*) &ch, 1);
-  
-  uint8_t c = (uint8_t) ch;
-  board_uart_send( (uint8_t*) &c, 1);
+  board_uart_send( (uint8_t*) &ch, 1);
 }
 
 #endif
