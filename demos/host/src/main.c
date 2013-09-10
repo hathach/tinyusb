@@ -135,10 +135,7 @@ int main(void)
 
   //------------- this part of code should not be reached -------------//
   hal_debugger_breakpoint();
-  while(1)
-  {
-
-  }
+  while(1) { }
 
   return 0;
 }
