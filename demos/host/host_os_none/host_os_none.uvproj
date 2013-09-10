@@ -7,7 +7,7 @@
 
   <Targets>
     <Target>
-      <TargetName>LPC4357</TargetName>
+      <TargetName>Board EA4357</TargetName>
       <ToolsetNumber>0x4</ToolsetNumber>
       <ToolsetName>ARM-ADS</ToolsetName>
       <TargetOption>
@@ -44,7 +44,7 @@
             <InvalidFlash>1</InvalidFlash>
           </TargetStatus>
           <OutputDirectory>.\UV4Build\</OutputDirectory>
-          <OutputName>host</OutputName>
+          <OutputName>host_os_none</OutputName>
           <CreateExecutable>1</CreateExecutable>
           <CreateLib>0</CreateLib>
           <CreateHexFile>0</CreateHexFile>
@@ -73,9 +73,9 @@
             <UserProg2Dos16Mode>0</UserProg2Dos16Mode>
           </BeforeMake>
           <AfterMake>
-            <RunUserProg1>0</RunUserProg1>
+            <RunUserProg1>1</RunUserProg1>
             <RunUserProg2>0</RunUserProg2>
-            <UserProg1Name></UserProg1Name>
+            <UserProg1Name>$K\ARM\BIN\ELFDWT.EXE !L BASEADDRESS(0x1A000000)</UserProg1Name>
             <UserProg2Name></UserProg2Name>
             <UserProg1Dos16Mode>0</UserProg1Dos16Mode>
             <UserProg2Dos16Mode>0</UserProg2Dos16Mode>
@@ -129,7 +129,7 @@
           </Simulator>
           <Target>
             <UseTarget>1</UseTarget>
-            <LoadApplicationAtStartup>1</LoadApplicationAtStartup>
+            <LoadApplicationAtStartup>0</LoadApplicationAtStartup>
             <RunToMain>0</RunToMain>
             <RestoreBreakpoints>1</RestoreBreakpoints>
             <RestoreWatchpoints>1</RestoreWatchpoints>
@@ -152,7 +152,7 @@
             <CpuDllArguments></CpuDllArguments>
             <PeripheralDll></PeripheralDll>
             <PeripheralDllArguments></PeripheralDllArguments>
-            <InitializationFile></InitializationFile>
+            <InitializationFile>..\src\Internal FLASH.ini</InitializationFile>
             <Driver>Segger\JL2CM3.dll</Driver>
           </TargetDlls>
         </DebugOption>
@@ -207,11 +207,11 @@
             <hadIRAM>1</hadIRAM>
             <hadXRAM>0</hadXRAM>
             <uocXRam>0</uocXRam>
-            <RvdsVP>2</RvdsVP>
+            <RvdsVP>1</RvdsVP>
             <hadIRAM2>1</hadIRAM2>
             <hadIROM2>1</hadIROM2>
             <StupSel>8</StupSel>
-            <useUlib>1</useUlib>
+            <useUlib>0</useUlib>
             <EndSel>0</EndSel>
             <uLtcg>0</uLtcg>
             <RoSelD>3</RoSelD>
@@ -232,7 +232,7 @@
             <Ra2Chk>0</Ra2Chk>
             <Ra3Chk>0</Ra3Chk>
             <Im1Chk>1</Im1Chk>
-            <Im2Chk>1</Im2Chk>
+            <Im2Chk>0</Im2Chk>
             <OnChipMemories>
               <Ocm1>
                 <Type>0</Type>
@@ -348,9 +348,9 @@
             <uSurpInc>0</uSurpInc>
             <VariousControls>
               <MiscControls>--gnu --c99</MiscControls>
-              <Define>MCU=MCU_LPC43XX BOARD=BOARD_EA4357 CORE_M4</Define>
+              <Define>CORE_M4 MCU=MCU_LPC43XX BOARD=BOARD_EA4357 TUSB_CFG_OS=TUSB_OS_NONE</Define>
               <Undefine></Undefine>
-              <IncludePath>C:/Users/hathach/Dropbox/tinyusb/workspace/CMSISv2p10_LPC43xx_DriverLib/inc;C:/Users/hathach/Dropbox/tinyusb/workspace/tinyusb/demos/bsp;C:/Users/hathach/Dropbox/tinyusb/workspace/tinyusb/tinyusb;..\host</IncludePath>
+              <IncludePath>..\src;..\..\bsp\lpc43xx\CMSISv2p10_LPC43xx_DriverLib\inc;..\..\bsp;..\..\..\tinyusb</IncludePath>
             </VariousControls>
           </Cads>
           <Aads>
@@ -364,9 +364,9 @@
             <uSurpInc>0</uSurpInc>
             <VariousControls>
               <MiscControls></MiscControls>
-              <Define></Define>
+              <Define>NO_CRP</Define>
               <Undefine></Undefine>
-              <IncludePath>C:/Users/hathach/Dropbox/tinyusb/workspace/CMSISv2p10_LPC43xx_DriverLib/inc;C:/Users/hathach/Dropbox/tinyusb/workspace/tinyusb/demos/bsp;C:/Users/hathach/Dropbox/tinyusb/workspace/tinyusb/tinyusb</IncludePath>
+              <IncludePath></IncludePath>
             </VariousControls>
           </Aads>
           <LDads>
@@ -378,7 +378,7 @@
             <useFile>0</useFile>
             <TextAddressRange>0x1A000000</TextAddressRange>
             <DataAddressRange>0x10000000</DataAddressRange>
-            <ScatterFile>.\UV4Build\host.sct</ScatterFile>
+            <ScatterFile></ScatterFile>
             <IncludeLibs></IncludeLibs>
             <IncludeLibsPath></IncludeLibsPath>
             <Misc></Misc>
@@ -389,152 +389,152 @@
       </TargetOption>
       <Groups>
         <Group>
-          <GroupName>bsp_boards</GroupName>
-          <Files>
-            <File>
-              <FileName>board.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>../bsp/boards/board.c</FilePath>
-            </File>
-            <File>
-              <FileName>board_at86rf2xx.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>../bsp/boards/board_at86rf2xx.c</FilePath>
-            </File>
-            <File>
-              <FileName>board_ea4357.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>../bsp/boards/board_ea4357.c</FilePath>
-            </File>
-            <File>
-              <FileName>board_lpcxpresso1347.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>../bsp/boards/board_lpcxpresso1347.c</FilePath>
-            </File>
-            <File>
-              <FileName>board_ngx4330.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>../bsp/boards/board_ngx4330.c</FilePath>
-            </File>
-            <File>
-              <FileName>printf_retarget.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>../bsp/boards/printf_retarget.c</FilePath>
-            </File>
-          </Files>
-        </Group>
-        <Group>
-          <GroupName>host</GroupName>
+          <GroupName>app</GroupName>
           <Files>
             <File>
               <FileName>main.c</FileName>
               <FileType>1</FileType>
-              <FilePath>./main.c</FilePath>
+              <FilePath>..\src\main.c</FilePath>
+              <FileOption>
+                <CommonProperty>
+                  <UseCPPCompiler>2</UseCPPCompiler>
+                  <RVCTCodeConst>0</RVCTCodeConst>
+                  <RVCTZI>0</RVCTZI>
+                  <RVCTOtherData>0</RVCTOtherData>
+                  <ModuleSelection>0</ModuleSelection>
+                  <IncludeInBuild>0</IncludeInBuild>
+                  <AlwaysBuild>2</AlwaysBuild>
+                  <GenerateAssemblyFile>2</GenerateAssemblyFile>
+                  <AssembleAssemblyFile>2</AssembleAssemblyFile>
+                  <PublicsOnly>2</PublicsOnly>
+                  <StopOnExitCode>11</StopOnExitCode>
+                  <CustomArgument></CustomArgument>
+                  <IncludeLibraryModules></IncludeLibraryModules>
+                </CommonProperty>
+                <FileArmAds>
+                  <Cads>
+                    <interw>2</interw>
+                    <Optim>0</Optim>
+                    <oTime>2</oTime>
+                    <SplitLS>2</SplitLS>
+                    <OneElfS>2</OneElfS>
+                    <Strict>2</Strict>
+                    <EnumInt>2</EnumInt>
+                    <PlainCh>2</PlainCh>
+                    <Ropi>2</Ropi>
+                    <Rwpi>2</Rwpi>
+                    <wLevel>0</wLevel>
+                    <uThumb>2</uThumb>
+                    <uSurpInc>2</uSurpInc>
+                    <VariousControls>
+                      <MiscControls></MiscControls>
+                      <Define></Define>
+                      <Undefine></Undefine>
+                      <IncludePath></IncludePath>
+                    </VariousControls>
+                  </Cads>
+                </FileArmAds>
+              </FileOption>
             </File>
             <File>
-              <FileName>keyboard_app.c</FileName>
+              <FileName>main2.c</FileName>
               <FileType>1</FileType>
-              <FilePath>./keyboard_app.c</FilePath>
+              <FilePath>..\src\main2.c</FilePath>
             </File>
           </Files>
         </Group>
         <Group>
-          <GroupName>tinyusb</GroupName>
+          <GroupName>startup</GroupName>
           <Files>
             <File>
-              <FileName>tusb.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>../../tinyusb/tusb.c</FilePath>
-            </File>
-          </Files>
-        </Group>
-        <Group>
-          <GroupName>tinyusb_class</GroupName>
-          <Files>
-            <File>
-              <FileName>hid_host.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>../../tinyusb/class/hid_host.c</FilePath>
-            </File>
-          </Files>
-        </Group>
-        <Group>
-          <GroupName>tinyusb_common</GroupName>
-          <Files>
-            <File>
-              <FileName>errors.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>../../tinyusb/common/errors.c</FilePath>
-            </File>
-            <File>
-              <FileName>fifo.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>../../tinyusb/common/fifo.c</FilePath>
-            </File>
-          </Files>
-        </Group>
-        <Group>
-          <GroupName>tinyusb_hal</GroupName>
-          <Files>
-            <File>
-              <FileName>hal_lpc11uxx.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>../../tinyusb/hal/hal_lpc11uxx.c</FilePath>
-            </File>
-            <File>
-              <FileName>hal_lpc13uxx.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>../../tinyusb/hal/hal_lpc13uxx.c</FilePath>
-            </File>
-            <File>
-              <FileName>hal_lpc43xx.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>../../tinyusb/hal/hal_lpc43xx.c</FilePath>
-            </File>
-          </Files>
-        </Group>
-        <Group>
-          <GroupName>tinyusb_host</GroupName>
-          <Files>
-            <File>
-              <FileName>hcd.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>../../tinyusb/host/hcd.c</FilePath>
-            </File>
-            <File>
-              <FileName>usbh.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>../../tinyusb/host/usbh.c</FilePath>
-            </File>
-          </Files>
-        </Group>
-        <Group>
-          <GroupName>tinyusb_host_ehci</GroupName>
-          <Files>
-            <File>
-              <FileName>ehci.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>../../tinyusb/host/ehci/ehci.c</FilePath>
-            </File>
-          </Files>
-        </Group>
-        <Group>
-          <GroupName>tinyusb_osal</GroupName>
-          <Files>
-            <File>
-              <FileName>osal_none.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>../../tinyusb/osal/osal_none.c</FilePath>
-            </File>
-          </Files>
-        </Group>
-        <Group>
-          <GroupName>Startup</GroupName>
-          <Files>
-            <File>
-              <FileName>startup_LPC43xx_arm.s</FileName>
+              <FileName>startup_LPC43xx.s</FileName>
               <FileType>2</FileType>
-              <FilePath>..\bsp\lpc43xx\startup_keil\startup_LPC43xx_arm.s</FilePath>
+              <FilePath>.\startup_LPC43xx.s</FilePath>
+            </File>
+            <File>
+              <FileName>system_LPC43xx.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>.\system_LPC43xx.c</FilePath>
+            </File>
+          </Files>
+        </Group>
+        <Group>
+          <GroupName>cmsis</GroupName>
+          <Files>
+            <File>
+              <FileName>lpc43xx_uart.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\..\bsp\lpc43xx\CMSISv2p10_LPC43xx_DriverLib\src\lpc43xx_uart.c</FilePath>
+            </File>
+            <File>
+              <FileName>lpc43xx_scu.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\..\bsp\lpc43xx\CMSISv2p10_LPC43xx_DriverLib\src\lpc43xx_scu.c</FilePath>
+            </File>
+            <File>
+              <FileName>lpc43xx_gpio.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\..\bsp\lpc43xx\CMSISv2p10_LPC43xx_DriverLib\src\lpc43xx_gpio.c</FilePath>
+            </File>
+            <File>
+              <FileName>lpc43xx_cgu.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\..\bsp\lpc43xx\CMSISv2p10_LPC43xx_DriverLib\src\lpc43xx_cgu.c</FilePath>
+            </File>
+          </Files>
+        </Group>
+        <Group>
+          <GroupName>boards</GroupName>
+          <Files>
+            <File>
+              <FileName>board.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\..\bsp\boards\board.c</FilePath>
+              <FileOption>
+                <CommonProperty>
+                  <UseCPPCompiler>2</UseCPPCompiler>
+                  <RVCTCodeConst>0</RVCTCodeConst>
+                  <RVCTZI>0</RVCTZI>
+                  <RVCTOtherData>0</RVCTOtherData>
+                  <ModuleSelection>0</ModuleSelection>
+                  <IncludeInBuild>0</IncludeInBuild>
+                  <AlwaysBuild>2</AlwaysBuild>
+                  <GenerateAssemblyFile>2</GenerateAssemblyFile>
+                  <AssembleAssemblyFile>2</AssembleAssemblyFile>
+                  <PublicsOnly>2</PublicsOnly>
+                  <StopOnExitCode>11</StopOnExitCode>
+                  <CustomArgument></CustomArgument>
+                  <IncludeLibraryModules></IncludeLibraryModules>
+                </CommonProperty>
+                <FileArmAds>
+                  <Cads>
+                    <interw>2</interw>
+                    <Optim>0</Optim>
+                    <oTime>2</oTime>
+                    <SplitLS>2</SplitLS>
+                    <OneElfS>2</OneElfS>
+                    <Strict>2</Strict>
+                    <EnumInt>2</EnumInt>
+                    <PlainCh>2</PlainCh>
+                    <Ropi>2</Ropi>
+                    <Rwpi>2</Rwpi>
+                    <wLevel>0</wLevel>
+                    <uThumb>2</uThumb>
+                    <uSurpInc>2</uSurpInc>
+                    <VariousControls>
+                      <MiscControls></MiscControls>
+                      <Define></Define>
+                      <Undefine></Undefine>
+                      <IncludePath></IncludePath>
+                    </VariousControls>
+                  </Cads>
+                </FileArmAds>
+              </FileOption>
+            </File>
+            <File>
+              <FileName>board_ea4357.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\..\bsp\boards\embedded_artists\board_ea4357.c</FilePath>
             </File>
           </Files>
         </Group>
