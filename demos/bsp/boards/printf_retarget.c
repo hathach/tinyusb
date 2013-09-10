@@ -107,6 +107,16 @@ int __sys_readc (void)
 
 #elif defined __CC_ARM // keil
 
+#if CFG_PRINTF_TARGET == PRINTF_TARGET_UART
+  #define retarget_putc(c)  board_uart_send(&c, 1);
+#elif CFG_PRINTF_TARGET == PRINTF_TARGET_SWO
+	#define retarget_putc(c)  ITM_SendChar(c)
+#else
+	#error Thach, did you forget something
+#endif
+
+
+
 struct __FILE {
   uint32_t handle;
 };
@@ -117,10 +127,10 @@ int fputc(int ch, FILE *f)
       ch == '\n')
   {
     const uint8_t carry = '\r';
-    board_uart_send(&carry, 1);
+    retarget_putc(carry);
   }
 
-  board_uart_send( (uint8_t*) &ch, 1);
+  retarget_putc(ch);
   
   return ch;
 }
@@ -131,10 +141,10 @@ void _ttywrch(int ch)
       ch == '\n')
   {
     const uint8_t carry = '\r';
-    board_uart_send(&carry, 1);
+    retarget_putc(carry);
   }
 
-  board_uart_send( (uint8_t*) &ch, 1);
+  retarget_putc(ch);
 }
 
 #endif
