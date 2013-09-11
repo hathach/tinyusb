@@ -70,6 +70,10 @@ extern rndish_data_t rndish_data[TUSB_CFG_HOST_DEVICE_MAX];
 static cdch_data_t * p_cdc = &cdch_data[0];
 static rndish_data_t * p_rndis = &rndish_data[0];
 
+enum {
+  bmrequest_send = 0x21,
+  bmrequest_get  = 0xA1
+};
 
 void stub_mutex_wait(osal_mutex_handle_t mutex_hdl, uint32_t msec, tusb_error_t *p_error, int num_call)
 {
@@ -102,7 +106,7 @@ void tearDown(void)
 }
 
 
-rndis_msg_initialize_t msg_init =
+static rndis_msg_initialize_t msg_init =
 {
     .type          = RNDIS_MSG_INITIALIZE,
     .length        = sizeof(rndis_msg_initialize_t),
@@ -112,7 +116,7 @@ rndis_msg_initialize_t msg_init =
     .max_xfer_size = 0x4000 // TODO mimic windows
 };
 
-rndis_msg_initialize_cmplt_t msg_init_cmplt =
+static rndis_msg_initialize_cmplt_t msg_init_cmplt =
 {
     .type                    = RNDIS_MSG_INITIALIZE_CMPLT,
     .length                  = sizeof(rndis_msg_initialize_cmplt_t),
@@ -127,7 +131,7 @@ rndis_msg_initialize_cmplt_t msg_init_cmplt =
     .packet_alignment_factor = 5 // aligment of each RNDIS message (payload) = 2^factor
 };
 
-rndis_msg_query_t msg_query_permanent_addr =
+static rndis_msg_query_t msg_query_permanent_addr =
 {
     .type          = RNDIS_MSG_QUERY,
     .length        = sizeof(rndis_msg_query_t)+6,
@@ -138,7 +142,7 @@ rndis_msg_query_t msg_query_permanent_addr =
     .oid_buffer    = {0, 0, 0, 0, 0, 0}
 };
 
-rndis_msg_query_cmplt_t msg_query_permanent_addr_cmplt =
+static rndis_msg_query_cmplt_t msg_query_permanent_addr_cmplt =
 {
     .type          = RNDIS_MSG_QUERY_CMPLT,
     .length        = sizeof(rndis_msg_query_cmplt_t)+6,
@@ -149,17 +153,24 @@ rndis_msg_query_cmplt_t msg_query_permanent_addr_cmplt =
     .oid_buffer    = "CAFEBB"
 };
 
-void test_rndis_send_initalize_failed(void)
+static rndis_msg_set_t msg_set_packet_filter =
 {
-  usbh_control_xfer_subtask_ExpectWithArrayAndReturn(
-      dev_addr, 0x21, SEND_ENCAPSULATED_COMMAND, 0, p_comm_interface->bInterfaceNumber,
-      sizeof(rndis_msg_initialize_t), (uint8_t*)&msg_init, sizeof(rndis_msg_initialize_t), TUSB_ERROR_OSAL_TIMEOUT);
+    .type          = RNDIS_MSG_SET,
+    .length        = sizeof(rndis_msg_set_t)+4,
+    .request_id    = 1,
+    .oid           = OID_GEN_CURRENT_PACKET_FILTER,
+    .buffer_length = 4,
+    .buffer_offset = 20,
+    .oid_buffer    = {NDIS_PACKET_TYPE_DIRECTED | NDIS_PACKET_TYPE_MULTICAST | NDIS_PACKET_TYPE_BROADCAST, 0, 0, 0}
+};
 
-  tusbh_cdc_mounted_cb_Expect(dev_addr);
-
-  //------------- Code Under Test -------------//
-  TEST_ASSERT_EQUAL( TUSB_ERROR_NONE, cdch_open_subtask(dev_addr, p_comm_interface, &length) );
-}
+static rndis_msg_set_cmplt_t msg_set_packet_filter_cmplt =
+{
+    .type          = RNDIS_MSG_SET_CMPLT,
+    .length        = sizeof(rndis_msg_set_cmplt_t),
+    .request_id    = 1,
+    .status        = RNDIS_STATUS_SUCCESS
+};
 
 static tusb_error_t  stub_pipe_notification_xfer(pipe_handle_t pipe_hdl, uint8_t buffer[], uint16_t total_bytes, bool int_on_complete, int num_call)
 {
@@ -185,10 +196,23 @@ void stub_sem_wait_timeout(osal_semaphore_handle_t const sem_hdl, uint32_t msec,
   (*p_error) = TUSB_ERROR_OSAL_TIMEOUT;
 }
 
+//------------- Test Code -------------//
+void test_rndis_send_initalize_failed(void)
+{
+  usbh_control_xfer_subtask_ExpectWithArrayAndReturn(
+      dev_addr, bmrequest_send, SEND_ENCAPSULATED_COMMAND, 0, p_comm_interface->bInterfaceNumber,
+      sizeof(rndis_msg_initialize_t), (uint8_t*)&msg_init, sizeof(rndis_msg_initialize_t), TUSB_ERROR_OSAL_TIMEOUT);
+
+  tusbh_cdc_mounted_cb_Expect(dev_addr);
+
+  //------------- Code Under Test -------------//
+  TEST_ASSERT_EQUAL( TUSB_ERROR_NONE, cdch_open_subtask(dev_addr, p_comm_interface, &length) );
+}
+
 void test_rndis_initialization_notification_timeout(void)
 {
   usbh_control_xfer_subtask_ExpectWithArrayAndReturn(
-      dev_addr, 0x21, SEND_ENCAPSULATED_COMMAND, 0, p_comm_interface->bInterfaceNumber,
+      dev_addr, bmrequest_send, SEND_ENCAPSULATED_COMMAND, 0, p_comm_interface->bInterfaceNumber,
       sizeof(rndis_msg_initialize_t), (uint8_t*)&msg_init, sizeof(rndis_msg_initialize_t), TUSB_ERROR_NONE);
 
   hcd_pipe_xfer_IgnoreAndReturn(TUSB_ERROR_NONE);
@@ -210,32 +234,49 @@ tusb_error_t stub_control_xfer(uint8_t addr, uint8_t bmRequestType, uint8_t bReq
 
   switch(num_call)
   {
-    case 0: //  initialize
-      TEST_ASSERT_EQUAL(0x21, bmRequestType);
+    //------------- Initialize -------------//
+    case 0*2+0: //  initialize
+      TEST_ASSERT_EQUAL(bmrequest_send, bmRequestType);
       TEST_ASSERT_EQUAL(SEND_ENCAPSULATED_COMMAND, bRequest);
-      TEST_ASSERT_EQUAL(0x18, wLength);
+      TEST_ASSERT_EQUAL(sizeof(rndis_msg_initialize_t), wLength);
       TEST_ASSERT_EQUAL_HEX8_ARRAY(&msg_init, data, wLength);
     break;
 
-    case 1: // initialize complete
-      TEST_ASSERT_EQUAL(0xA1, bmRequestType);
+    case 0*2+1: // initialize complete
+      TEST_ASSERT_EQUAL(bmrequest_get, bmRequestType);
       TEST_ASSERT_EQUAL(GET_ENCAPSULATED_RESPONSE, bRequest);
       TEST_ASSERT( wLength >= 0x0400 ); // Microsoft Specs
-      memcpy(data, &msg_init_cmplt, 0x30);
+      memcpy(data, &msg_init_cmplt, sizeof(rndis_msg_initialize_cmplt_t));
     break;
 
-    case 2: // query for OID_802_3_PERMANENT_ADDRESS
-      TEST_ASSERT_EQUAL(0x21, bmRequestType);
+    // query for OID_802_3_PERMANENT_ADDRESS
+    case 1*2+0:
+      TEST_ASSERT_EQUAL(bmrequest_send, bmRequestType);
       TEST_ASSERT_EQUAL(SEND_ENCAPSULATED_COMMAND, bRequest);
-      TEST_ASSERT_EQUAL(34, wLength); // sizeof(rndis_msg_query_t) + 6 MAC address
+      TEST_ASSERT_EQUAL(sizeof(rndis_msg_query_t) + 6, wLength); // 6 bytes for MAC address
       TEST_ASSERT_EQUAL_HEX8_ARRAY(&msg_query_permanent_addr, data, wLength);
     break;
 
-    case 3: // query complete for OID_802_3_PERMANENT_ADDRESS
-      TEST_ASSERT_EQUAL(0xA1, bmRequestType);
+    case 1*2+1: // query complete for OID_802_3_PERMANENT_ADDRESS
+      TEST_ASSERT_EQUAL(bmrequest_get, bmRequestType);
       TEST_ASSERT_EQUAL(GET_ENCAPSULATED_RESPONSE, bRequest);
       TEST_ASSERT( wLength >= 0x0400 ); // Microsoft Specs
-      memcpy(data, &msg_query_permanent_addr_cmplt, 30);
+      memcpy(data, &msg_query_permanent_addr_cmplt, sizeof(rndis_msg_query_cmplt_t) + 6);
+    break;
+
+    // set OID_GEN_CURRENT_PACKET_FILTER to DIRECTED | MULTICAST | BROADCAST
+    case 2*2+0:
+      TEST_ASSERT_EQUAL(bmrequest_send, bmRequestType);
+      TEST_ASSERT_EQUAL(SEND_ENCAPSULATED_COMMAND, bRequest);
+      TEST_ASSERT_EQUAL(sizeof(rndis_msg_set_t)+4, wLength);
+      TEST_ASSERT_EQUAL_HEX8_ARRAY(&msg_set_packet_filter, data, wLength);
+    break;
+
+    case 2*2+1: // query complete for OID_802_3_PERMANENT_ADDRESS
+      TEST_ASSERT_EQUAL(bmrequest_get, bmRequestType);
+      TEST_ASSERT_EQUAL(GET_ENCAPSULATED_RESPONSE, bRequest);
+      TEST_ASSERT( wLength >= 0x0400 ); // Microsoft Specs
+      memcpy(data, &msg_set_packet_filter_cmplt, sizeof(rndis_msg_set_cmplt_t) );
     break;
 
     default:
@@ -251,6 +292,7 @@ void test_rndis_initialization_sequence_ok(void)
   hcd_pipe_xfer_StubWithCallback(stub_pipe_notification_xfer);
   osal_semaphore_wait_StubWithCallback(stub_sem_wait_success);
 
+  osal_semaphore_post_ExpectAndReturn(p_rndis->sem_notification_hdl, TUSB_ERROR_NONE);
   osal_semaphore_post_ExpectAndReturn(p_rndis->sem_notification_hdl, TUSB_ERROR_NONE);
   osal_semaphore_post_ExpectAndReturn(p_rndis->sem_notification_hdl, TUSB_ERROR_NONE);
 
