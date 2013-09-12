@@ -63,7 +63,8 @@
 #include "lpc43xx_uart.h"
 #include "lpc43xx_i2c.h"
 
-#define CFG_PRINTF_TARGET       PRINTF_TARGET_UART
+#define CFG_PRINTF_TARGET       PRINTF_TARGET_SWO
+//#define CFG_PRINTF_TARGET       PRINTF_TARGET_UART
 
 #ifdef __cplusplus
  }

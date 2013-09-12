@@ -69,7 +69,15 @@ void board_init(void)
   scu_pinmux(0x7, 5, MD_PDN, 0x5); /* P7_5 = TRACEDATA[1] */
   scu_pinmux(0x7, 6, MD_PDN, 0x5); /* P7_6 = TRACEDATA[2] */
   scu_pinmux(0x7, 7, MD_PDN, 0x5); /* P7_7 = TRACEDATA[3] */
+  
+  // USB0 Power: EA4357 channel B U20 GPIO26 active low (base board), P2_3 on LPC4357
+  scu_pinmux(0x2, 3, MD_PUP | MD_EZI, FUNC7);		// USB0 VBus Power  
 
+  // 1.5Kohm pull-up resistor is needed on the USB DP data signal. GPIO28 (base), P9_5 (LPC4357) controls
+  //scu_pinmux(0x9, 5, MD_PUP|MD_EZI|MD_ZI, FUNC4);		// GPIO5[18]
+  //GPIO_SetDir(5, BIT_(18), 1); // output
+  //GPIO_ClearValue(5, BIT_(18));
+  
   /* Init I2C @ 400kHz */
   I2C_Init(LPC_I2C0, 400000);
   I2C_Cmd(LPC_I2C0, ENABLE);
