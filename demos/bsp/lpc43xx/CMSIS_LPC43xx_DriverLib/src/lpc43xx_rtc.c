@@ -209,7 +209,7 @@ void RTC_CntIncrIntConfig (LPC_RTC_Type *RTCx, uint32_t CntIncrIntType, \
 		{
 			RTCx->CIIR |= tem;
 		}
-		//while((RTCx->CIIR & tem)== 0);
+		while((RTCx->CIIR & tem)== 0);
 	}
 	else
 	{
@@ -217,7 +217,7 @@ void RTC_CntIncrIntConfig (LPC_RTC_Type *RTCx, uint32_t CntIncrIntType, \
 		{
 			RTCx->CIIR &= (~tem) & RTC_CIIR_BITMASK;
 		}
-		//while(RTCx->CIIR & tem);
+		while(RTCx->CIIR & tem);
 	}
 }
 
@@ -284,7 +284,7 @@ void RTC_AlarmIntConfig (LPC_RTC_Type *RTCx, uint32_t AlarmTimeType, \
 		{
 			RTCx->AMR &= (~tem) & RTC_AMR_BITMASK;
 		}
-		//while(RTCx->AMR & tem);
+		while(RTCx->AMR & tem);
 	}
 	else
 	{
@@ -292,7 +292,7 @@ void RTC_AlarmIntConfig (LPC_RTC_Type *RTCx, uint32_t AlarmTimeType, \
 		{
 			RTCx->AMR |= (tem);
 		}
-		//while((RTCx->AMR & tem)== 0);
+		while((RTCx->AMR & tem)== 0);
 	}
 }
 
@@ -699,7 +699,7 @@ void RTC_CalibConfig(LPC_RTC_Type *RTCx, uint32_t CalibValue, uint8_t CalibDir)
 	CHECK_PARAM(PARAM_RTC_CALIB_DIR(CalibDir));
 	CHECK_PARAM(CalibValue < RTC_CALIBRATION_MAX);
 
-	RTCx->CALIBRATION = ((CalibValue - 1) & RTC_CALIBRATION_CALVAL_MASK) \
+	RTCx->CALIBRATION = (CalibValue & RTC_CALIBRATION_CALVAL_MASK) \
 			| ((CalibDir == RTC_CALIB_DIR_BACKWARD) ? RTC_CALIBRATION_LIBDIR : 0);
 }
 

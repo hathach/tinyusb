@@ -203,7 +203,6 @@ uint32_t	CGU_Init(void){
 	CGU_EnableEntity(CGU_CLKSRC_PLL1, ENABLE);
 	CGU_EntityConnect(CGU_CLKSRC_PLL1, CGU_BASE_M4);
 	CGU_UpdateClock();
-  SystemCoreClock = 6*12000000;
 	return 0;
 }
 
@@ -401,7 +400,7 @@ void CGU_UpdateClock(void){
 		CGU_ClockSourceFrequency[CGU_CLKSRC_32KHZ_OSC] = 0;
 	/*PLL0*/
 	/* PLL1 */
-	if(ISBITCLR(LPC_CGU->PLL1_CTRL,0) /* Enabled */   /* EA ANDLI: Original code tested bit 1 which is BYPASS, not PD */
+	if(ISBITCLR(LPC_CGU->PLL1_CTRL,1) /* Enabled */
 			&& (LPC_CGU->PLL1_STAT&1)){ /* Locked? */
 		ClkSrc = (LPC_CGU->PLL1_CTRL & CGU_CTRL_SRC_MASK)>>24;
 		CGU_ClockSourceFrequency[CGU_CLKSRC_PLL1] = CGU_ClockSourceFrequency[ClkSrc] *

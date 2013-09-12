@@ -341,7 +341,7 @@ int32_t SSP_ReadWrite (LPC_SSPn_Type *SSPx, SSP_DATA_SETUP_Type *dataCfg, \
 
 	// Clear status
 	SSPx->ICR = SSP_ICR_BITMASK;
-	if(SSP_GetDataSize(SSPx)>8)
+	if(SSP_GetDataSize(SSPx) > SSP_DATABIT_8)
 		dataword = 1;
 	else dataword = 0;
 

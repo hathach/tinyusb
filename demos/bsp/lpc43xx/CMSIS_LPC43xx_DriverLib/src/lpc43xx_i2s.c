@@ -377,7 +377,7 @@ Status I2S_FreqConfig(LPC_I2Sn_Type *I2Sx, uint32_t Freq, uint8_t TRMode) {
 	divider = ((uint64_t)(Freq *( bitrate+1) * 2)<<16) / i2sPclk;
 
 	/* find N that make x/y <= 1 -> divider <= 2^16 */
-	for(N=64;N>=0;N--){
+	for(N=64;N>0;N--){
 		if((divider*N) < (1<<16)) break;
 	}
 
@@ -407,11 +407,11 @@ Status I2S_FreqConfig(LPC_I2Sn_Type *I2Sx, uint32_t Freq, uint8_t TRMode) {
 	if(x_divide == 0) x_divide = 1;
 	if (TRMode == I2S_TX_MODE)// Transmitter
 	{
-		I2Sx->TXBITRATE = N;
+		I2Sx->TXBITRATE = N - 1;
 		I2Sx->TXRATE = y_divide | (x_divide << 8);
 	} else //Receiver
 	{
-		I2Sx->RXBITRATE = N;
+		I2Sx->RXBITRATE = N - 1;
 		I2Sx->RXRATE = y_divide | (x_divide << 8);
 	}
 	return SUCCESS;

@@ -292,6 +292,7 @@ void QEI_SetTimerReload(uint8_t qeiId, QEI_RELOADCFG_Type *QEIReloadStruct)
 #if 1
 //		pclk = CGU_GetPCLKFrequency(CGU_PERIPHERAL_M3CORE);
 		pclk = CGU_GetPCLKFrequency(CGU_PERIPHERAL_M4CORE);
+
 		pclk = (pclk /(1000000/QEIReloadStruct->ReloadValue)) - 1;
 
 		pQei->LOAD = (uint32_t)pclk;

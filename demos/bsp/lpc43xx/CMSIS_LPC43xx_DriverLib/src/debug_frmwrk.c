@@ -280,6 +280,13 @@ void debug_frmwrk_init_clk(uint32_t Clock_Speed)
 	 */
 	scu_pinmux(0xC ,13 , MD_PDN, FUNC2); 	// PC.13 : UART1_TXD
 	scu_pinmux(0xC ,14 , MD_PLN|MD_EZI|MD_ZI, FUNC2); 	// PC.14 : UART1_RXD
+#elif (USED_UART_DEBUG_PORT==3)
+	/*
+	 * Initialize UART3 pin connect
+	 */
+	scu_pinmux(0x2 ,3 , MD_PUP, FUNC2); 				// P2.3 : UART3_TXD
+	scu_pinmux(0x2 ,4 , MD_PLN|MD_EZI|MD_ZI, FUNC2); 	// P2.4 : UART3_RXD
+
 #endif
 
 	/* Initialize UART Configuration parameter structure to default state:

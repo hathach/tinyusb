@@ -190,7 +190,7 @@ void data_out(unsigned char i, SSP_DATA_SETUP_Type *xferConfig) //Data Output Se
    //CS = 0;               //Chip Select = Active
    GPIO_ClearValue(3,(1<<12));
    //A0 = 1 = Data
-   GPIO_SetValue(4,(1<<10));
+   //GPIO_SetValue(4,(1<<10));
    //delay(1);   
 
    Tx_Buf[0] = i;
@@ -206,7 +206,7 @@ void comm_out(unsigned char j, SSP_DATA_SETUP_Type *xferConfig) //Command Output
 {
    //unsigned int n;
    //CS = 0;			   //Chip Select = Active
-   GPIO_ClearValue(3,(1<<12));
+   //GPIO_ClearValue(3,(1<<12));
    //A0 = 0;
    GPIO_ClearValue(4,(1<<10));
    //delay(1);

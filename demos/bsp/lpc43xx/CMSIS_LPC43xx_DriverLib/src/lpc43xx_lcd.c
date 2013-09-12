@@ -109,11 +109,11 @@ void LCD_Init(LPC_LCD_Type *LCDx, LCD_CFG_Type *LCD_ConfigStruct){
 		break;
 	  case LCD_TFT:
 	  default:
-		regValue |= 1<<26 | (((LCD_ConfigStruct->screen_width-1) & 0x3FF) << 16);
+		regValue |= /* 1<<26 |*/ (((LCD_ConfigStruct->screen_width-1) & 0x3FF) << 16);
 	}
 
 	/* panel clock divisor */
-	pcd = 0;   // TODO: should be calculated from LCDDCLK
+	pcd = 6;   // TODO: should be calculated from LCDDCLK
 	pcd &= 0x3FF;
 	regValue |=  ((pcd>>5)<<27) | ((pcd)&0x1F);
 
