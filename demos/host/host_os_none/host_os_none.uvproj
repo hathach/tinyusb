@@ -350,7 +350,7 @@
               <MiscControls>--gnu --c99</MiscControls>
               <Define>CORE_M4 MCU=MCU_LPC43XX BOARD=BOARD_EA4357 TUSB_CFG_OS=TUSB_OS_NONE</Define>
               <Undefine></Undefine>
-              <IncludePath>..\src;..\..\bsp\lpc43xx\CMSISv2p10_LPC43xx_DriverLib\inc;..\..\bsp;..\..\..\tinyusb</IncludePath>
+              <IncludePath>..\src;..\..\bsp\lpc43xx\CMSIS_LPC43xx_DriverLib\inc;..\..\bsp;..\..\..\tinyusb</IncludePath>
             </VariousControls>
           </Cads>
           <Aads>
@@ -559,32 +559,32 @@
             <File>
               <FileName>lpc43xx_uart.c</FileName>
               <FileType>1</FileType>
-              <FilePath>..\..\bsp\lpc43xx\CMSISv2p10_LPC43xx_DriverLib\src\lpc43xx_uart.c</FilePath>
+              <FilePath>..\..\bsp\lpc43xx\CMSIS_LPC43xx_DriverLib\src\lpc43xx_uart.c</FilePath>
             </File>
             <File>
               <FileName>lpc43xx_scu.c</FileName>
               <FileType>1</FileType>
-              <FilePath>..\..\bsp\lpc43xx\CMSISv2p10_LPC43xx_DriverLib\src\lpc43xx_scu.c</FilePath>
+              <FilePath>..\..\bsp\lpc43xx\CMSIS_LPC43xx_DriverLib\src\lpc43xx_scu.c</FilePath>
             </File>
             <File>
               <FileName>lpc43xx_gpio.c</FileName>
               <FileType>1</FileType>
-              <FilePath>..\..\bsp\lpc43xx\CMSISv2p10_LPC43xx_DriverLib\src\lpc43xx_gpio.c</FilePath>
+              <FilePath>..\..\bsp\lpc43xx\CMSIS_LPC43xx_DriverLib\src\lpc43xx_gpio.c</FilePath>
             </File>
             <File>
               <FileName>lpc43xx_cgu.c</FileName>
               <FileType>1</FileType>
-              <FilePath>..\..\bsp\lpc43xx\CMSISv2p10_LPC43xx_DriverLib\src\lpc43xx_cgu.c</FilePath>
+              <FilePath>..\..\bsp\lpc43xx\CMSIS_LPC43xx_DriverLib\src\lpc43xx_cgu.c</FilePath>
             </File>
             <File>
               <FileName>system_LPC43xx.c</FileName>
               <FileType>1</FileType>
-              <FilePath>..\..\bsp\lpc43xx\CMSISv2p10_LPC43xx_DriverLib\src\system_LPC43xx.c</FilePath>
+              <FilePath>..\..\bsp\lpc43xx\CMSIS_LPC43xx_DriverLib\src\system_LPC43xx.c</FilePath>
             </File>
             <File>
               <FileName>lpc43xx_i2c.c</FileName>
               <FileType>1</FileType>
-              <FilePath>..\..\bsp\lpc43xx\CMSISv2p10_LPC43xx_DriverLib\src\lpc43xx_i2c.c</FilePath>
+              <FilePath>..\..\bsp\lpc43xx\CMSIS_LPC43xx_DriverLib\src\lpc43xx_i2c.c</FilePath>
             </File>
           </Files>
         </Group>
@@ -944,7 +944,7 @@
               <MiscControls>--gnu --c99</MiscControls>
               <Define>CORE_M4 MCU=MCU_LPC43XX BOARD=BOARD_LPC4357USB TUSB_CFG_OS=TUSB_OS_NONE</Define>
               <Undefine></Undefine>
-              <IncludePath>..\src;..\..\bsp\lpc43xx\CMSISv2p10_LPC43xx_DriverLib\inc;..\..\bsp;..\..\..\tinyusb</IncludePath>
+              <IncludePath>..\src;..\..\bsp\lpc43xx\CMSIS_LPC43xx_DriverLib\inc;..\..\bsp;..\..\..\tinyusb</IncludePath>
             </VariousControls>
           </Cads>
           <Aads>
@@ -1193,32 +1193,32 @@
             <File>
               <FileName>lpc43xx_uart.c</FileName>
               <FileType>1</FileType>
-              <FilePath>..\..\bsp\lpc43xx\CMSISv2p10_LPC43xx_DriverLib\src\lpc43xx_uart.c</FilePath>
+              <FilePath>..\..\bsp\lpc43xx\CMSIS_LPC43xx_DriverLib\src\lpc43xx_uart.c</FilePath>
             </File>
             <File>
               <FileName>lpc43xx_scu.c</FileName>
               <FileType>1</FileType>
-              <FilePath>..\..\bsp\lpc43xx\CMSISv2p10_LPC43xx_DriverLib\src\lpc43xx_scu.c</FilePath>
+              <FilePath>..\..\bsp\lpc43xx\CMSIS_LPC43xx_DriverLib\src\lpc43xx_scu.c</FilePath>
             </File>
             <File>
               <FileName>lpc43xx_gpio.c</FileName>
               <FileType>1</FileType>
-              <FilePath>..\..\bsp\lpc43xx\CMSISv2p10_LPC43xx_DriverLib\src\lpc43xx_gpio.c</FilePath>
+              <FilePath>..\..\bsp\lpc43xx\CMSIS_LPC43xx_DriverLib\src\lpc43xx_gpio.c</FilePath>
             </File>
             <File>
               <FileName>lpc43xx_cgu.c</FileName>
               <FileType>1</FileType>
-              <FilePath>..\..\bsp\lpc43xx\CMSISv2p10_LPC43xx_DriverLib\src\lpc43xx_cgu.c</FilePath>
+              <FilePath>..\..\bsp\lpc43xx\CMSIS_LPC43xx_DriverLib\src\lpc43xx_cgu.c</FilePath>
             </File>
             <File>
               <FileName>system_LPC43xx.c</FileName>
               <FileType>1</FileType>
-              <FilePath>..\..\bsp\lpc43xx\CMSISv2p10_LPC43xx_DriverLib\src\system_LPC43xx.c</FilePath>
+              <FilePath>..\..\bsp\lpc43xx\CMSIS_LPC43xx_DriverLib\src\system_LPC43xx.c</FilePath>
             </File>
             <File>
               <FileName>lpc43xx_i2c.c</FileName>
               <FileType>1</FileType>
-              <FilePath>..\..\bsp\lpc43xx\CMSISv2p10_LPC43xx_DriverLib\src\lpc43xx_i2c.c</FilePath>
+              <FilePath>..\..\bsp\lpc43xx\CMSIS_LPC43xx_DriverLib\src\lpc43xx_i2c.c</FilePath>
             </File>
           </Files>
         </Group>
