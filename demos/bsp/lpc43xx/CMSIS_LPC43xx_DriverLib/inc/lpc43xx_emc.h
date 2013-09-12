@@ -71,12 +71,29 @@ void EMCFlashInit(void);
 #define EMC_NOP 						(3)
 
 /* The Hitex LPC18xx Evaluation board contains a 64Mb SDRAM with a 16-bit data bus */
+#if(PLATFORM == HITEX_BOARD)
+
 #define SDRAM_SIZE_BYTES		(1024UL * 1024UL * 8UL)
 #define SDRAM_WIDTH				EMC_SDRAM_WIDTH_16_BITS
 #define SDRAM_SIZE_MBITS		EMC_SDRAM_SIZE_64_MBITS
 #define SDRAM_DATA_BUS_BITS		EMC_SDRAM_DATA_BUS_16_BITS			
 #define SDRAM_COL_ADDR_BITS		8		
-#define CLK0_DELAY     6
+
+#endif
+
+#if(PLATFORM == KEIL_BOARD)
+// TODO adapt these for the MCB4357 !!!!
+#define SDRAM_SIZE_BYTES		(1024UL * 1024UL * 8UL)
+#define SDRAM_WIDTH				EMC_SDRAM_WIDTH_16_BITS
+#define SDRAM_SIZE_MBITS		EMC_SDRAM_SIZE_64_MBITS
+#define SDRAM_DATA_BUS_BITS		EMC_SDRAM_DATA_BUS_16_BITS			
+#define SDRAM_COL_ADDR_BITS		8		
+
+#endif
+
+// CLK0_DELAY needs to be tuned depending on the external memory bus speed.
+// For operation at 102 MHz it should be 6 or 7
+#define CLK0_DELAY     7
 
 void vEMC_InitSRDRAM(uint32_t u32BaseAddr, uint32_t u32Width, uint32_t u32Size, uint32_t u32DataBus, uint32_t u32ColAddrBits);
 void emc_WaitUS(volatile uint32_t us);

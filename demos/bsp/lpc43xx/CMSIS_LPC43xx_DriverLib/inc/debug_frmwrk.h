@@ -22,7 +22,7 @@
 * warranty that such application will be suitable for the specified
 * use without further testing or modification.
 * Permission to use, copy, modify, and distribute this software and its
-* documentation is hereby granted, under NXP Semiconductors’
+* documentation is hereby granted, under NXP Semiconductorsï¿½
 * relevant copyright in the software, without fee, provided that it
 * is used in conjunction with NXP Semiconductors microcontrollers.  This
 * copyright, permission, and disclaimer notice must appear in all copies of
@@ -41,14 +41,28 @@
 /* Includes ------------------------------------------------------------------- */
 #include "lpc43xx_uart.h"
 
+#define KEIL_BOARD 1
+#define HITEX_BOARD 2
 
+#ifndef PLATFORM
+#define PLATFORM KEIL_BOARD
+#endif
 
-#define USED_UART_DEBUG_PORT	1
+#if (PLATFORM == HITEX_BOARD)
+#define USED_UART_DEBUG_PORT	0
+#endif
+
+#if (PLATFORM == KEIL_BOARD)
+#define USED_UART_DEBUG_PORT	3
+#endif
+
 
 #if (USED_UART_DEBUG_PORT==0)
-#define DEBUG_UART_PORT	LPC_UART0
+#define DEBUG_UART_PORT	LPC_USART0
 #elif (USED_UART_DEBUG_PORT==1)
 #define DEBUG_UART_PORT	LPC_UART1
+#elif  (USED_UART_DEBUG_PORT==3)
+#define DEBUG_UART_PORT	LPC_USART3
 #endif
 
 #define _DBG(x)	 	_db_msg((LPC_USARTn_Type*)DEBUG_UART_PORT, x)

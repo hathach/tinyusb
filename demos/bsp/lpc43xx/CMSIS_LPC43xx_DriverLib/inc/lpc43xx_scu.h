@@ -54,18 +54,48 @@ extern "C"
 /** Pin offset definition */
 #define PIN_OFFSET  	0x04
 
-/* Pin modes */
-#define MD_PUP  (0x0<<3)
-#define MD_BUK  (0x1<<3)
-#define MD_PLN  (0x2<<3)
-#define MD_PDN  (0x3<<3)
-#define MD_EHS  (0x1<<5)
-#define MD_EZI  (0x1<<6)
-#define MD_ZI   (0x1<<7)
-#define MD_EHD0 (0x1<<8)
-#define MD_EHD1 (0x1<<8)
+/* Pin mode defines, following partly a definition from older chip architectures */
+#define MD_PUP  (0x0 << 3)
+#define MD_BUK  (0x1 << 3)
+#define MD_PLN  (0x2 << 3)
+#define MD_PDN  (0x3 << 3)
+#define MD_EHS  (0x1 << 5)
+#define MD_EZI  (0x1 << 6)
+#define MD_ZI   (0x1 << 7)
+#define MD_EHD0 (0x1 << 8)
+#define MD_EHD1 (0x1 << 9)
+#define MD_EHD2 (0x3 << 8)
 #define MD_PLN_FAST (MD_PLN | MD_EZI | MD_ZI | MD_EHS)
-// 0xF0
+
+
+/* Pin mode defines, more in line with the definitions in the LPC1800/4300 user manual */
+/* Defines for SFSPx_y pin configuration registers                                     */
+#define PDN_ENABLE        (1 << 3)	// Pull-down enable
+#define PDN_DISABLE       (0 << 3)      // Pull-down disable
+#define PUP_ENABLE        (0 << 4)      // Pull-up enable
+#define PUP_DISABLE       (1 << 4)	// Pull-up disable
+#define SLEWRATE_SLOW	  (0 << 5)	// Slew rate for low noise with medium speed
+#define SLEWRATE_FAST	  (1 << 5)	// Slew rate for medium noise with fast speed
+#define INBUF_ENABLE	  (1 << 6)	// Input buffer
+#define INBUF_DISABLE	  (0 << 6)	// Input buffer
+#define FILTER_ENABLE	  (0 << 7)	// Glitch filter (for signals below 30MHz)
+#define FILTER_DISABLE	  (1 << 7)	// No glitch filter (for signals above 30MHz)
+#define DRIVE_8MA         (1 << 8)	// Drive strength of 8mA
+#define DRIVE_14MA        (1 << 9)	// Drive strength of 14mA
+#define DRIVE_20MA        (3 << 8)	// Drive strength of 20mA
+
+
+/* Configuration examples for various I/O pins */
+#define EMC_IO	        (PUP_ENABLE  | PDN_ENABLE  | SLEWRATE_FAST | INBUF_ENABLE  | FILTER_DISABLE)
+#define LCD_PINCONFIG   (PUP_DISABLE | PDN_DISABLE | SLEWRATE_FAST | INBUF_ENABLE  | FILTER_DISABLE) 
+#define CLK_IN	        (PUP_ENABLE  | PDN_ENABLE  | SLEWRATE_FAST | INBUF_ENABLE  | FILTER_DISABLE)
+#define CLK_OUT	        (PUP_ENABLE  | PDN_ENABLE  | SLEWRATE_FAST | INBUF_ENABLE  | FILTER_DISABLE)
+#define GPIO_PUP	(PUP_ENABLE  | PDN_DISABLE | SLEWRATE_SLOW | INBUF_ENABLE  | FILTER_ENABLE ) 
+#define GPIO_PDN	(PUP_DISABLE | PDN_ENABLE  | SLEWRATE_SLOW | INBUF_ENABLE  | FILTER_ENABLE ) 
+#define GPIO_NOPULL	(PUP_DISABLE | PDN_DISABLE | SLEWRATE_SLOW | INBUF_ENABLE  | FILTER_ENABLE ) 
+#define UART_RX_TX	(PUP_DISABLE | PDN_ENABLE  | SLEWRATE_SLOW | INBUF_ENABLE  | FILTER_ENABLE )
+#define SSP_IO	        (PUP_ENABLE  | PDN_ENABLE  | SLEWRATE_FAST | INBUF_ENABLE  | FILTER_DISABLE)
+
 
 /* Pin function */
 #define FUNC0 			0x0				/** Function 0 	*/

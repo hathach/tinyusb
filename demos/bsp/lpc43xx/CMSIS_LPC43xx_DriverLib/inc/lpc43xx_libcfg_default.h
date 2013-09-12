@@ -117,6 +117,10 @@
 /* I2S ------------------------------- */
 #define _I2S
 
+/* SDIO ------------------------------ */
+#define _SDIF
+#define _SDMMC
+
 /* USB device ------------------------------- */
 #define _USBDEV
 #define _USB_DMA
