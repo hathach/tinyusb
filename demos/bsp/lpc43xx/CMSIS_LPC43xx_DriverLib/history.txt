@@ -1,5 +1,5 @@
-History of updates to CMSISv2p10_LPC43xx_DriverLib
-==================================================
+History of updates to CMSIS_LPC43xx_DriverLib
+=============================================
 
 Important - the code in this project is targeted at the 
 LPC43xx "Rev A" parts. It is not suitable for use with LPC43xx 
@@ -8,6 +8,29 @@ LPC43xx "Rev A" parts. It is not suitable for use with LPC43xx
 Note that this project provides both the basic CMSIS
 headers, as well as NXP's LPC43xx peripheral driver 
 code which sit on top of CMSIS.
+
+
+12 March 2013
+-------------
+Renamed from CMSISv2p10_LPC43xx_DriverLib
+
+Updated to use code/headers from ARM's CMSIS 3.0.1 release
+
+Updated to use code/headers from the LPC43xx CMSIS-Compliant 
+Standard Peripheral Firmware Driver Library released by NXP 
+through lpcware.com on 2012-12-12. Modifications made to
+this project applied as per previous versions (below).
+
+Commented out include of fpu_enable.h and call to fpuEnable()
+in system_LPC43xx.c as FPU initialisation done in Code Red 
+init code.
+
+Fixed debug_framework.h to correctly define PLATFORM macro so
+as to prevent redefinition.
+
+Fixed up __CODE_RED specific section of system_LPC43xx.c to take
+address of g_pfnVectors. Also modified SystemInit() to invoke
+CGU_Init() by default.
 
 1 February 2012
 ---------------
