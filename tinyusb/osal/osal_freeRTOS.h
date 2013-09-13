@@ -82,13 +82,15 @@ typedef struct {
   unsigned portBASE_TYPE prio;
 } osal_task_t;
 
-#define OSAL_TASK_DEF(task_variable, task_name, task_code, task_stack_depth, task_prio) \
-  osal_task_t task_variable = {\
-      .name        = task_name        , \
+#define OSAL_TASK_DEF(task_code, task_stack_depth, task_prio) \
+  osal_task_t osal_task_def_##task_code = {\
+      .name        = #task_code       , \
       .code        = task_code        , \
       .stack_depth = task_stack_depth , \
       .prio        = task_prio          \
   }
+
+#define OSAL_TASK_REF(name)   (&osal_task_def_##name)
 
 static inline tusb_error_t osal_task_create(osal_task_t *task) ATTR_WARN_UNUSED_RESULT ATTR_ALWAYS_INLINE;
 static inline tusb_error_t osal_task_create(osal_task_t *task)
@@ -207,6 +209,8 @@ typedef xQueueHandle osal_queue_handle_t;
       .depth     = queue_depth,\
       .item_size = sizeof(type)\
   }
+
+#define OSAL_QUEUE_REF(name)    (&name)
 
 #define osal_queue_create(p_queue) \
   xQueueCreate((p_queue)->depth, (p_queue)->item_size)

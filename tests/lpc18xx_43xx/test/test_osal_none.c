@@ -60,9 +60,9 @@ osal_mutex_handle_t mutex_hdl;
 void setUp(void)
 {
   memset(statements, 0, sizeof(statements));
-  sem_hdl = osal_semaphore_create(OSAL_SEM_REF(sem));
-  queue_hdl = osal_queue_create(&queue);
-  mutex_hdl = osal_mutex_create(OSAL_MUTEX_REF(mutex));
+  sem_hdl   = osal_semaphore_create (OSAL_SEM_REF(sem));
+  queue_hdl = osal_queue_create     (OSAL_QUEUE_REF(queue));
+  mutex_hdl = osal_mutex_create     (OSAL_MUTEX_REF(mutex));
 }
 
 void tearDown(void)

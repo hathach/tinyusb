@@ -29,6 +29,7 @@ tinyusb is designed to be OS-ware and run across OS vendors, thanks to its OS Ab
 
 - **None OS**
 - **FreeRTOS**
+- **CMSIS RTX**
 
 ## Is It Ready ##
 
@@ -44,7 +45,10 @@ coming soon ...
 
 ## Supported Toolchains ##
 
-currently only lpcxpresso/redsuite is supported. However Keil & IAR are always on top of the list.
+The following toolchain is supported
+
+- lpcxpresso/redsuite
+- Keil
 
 ## Supported Boards ##
 

@@ -88,7 +88,7 @@ static inline uint32_t osal_tick_get(void)
 //   OSAL_TASK_LOOP_ENG
 // }
 //--------------------------------------------------------------------+
-#define OSAL_TASK_DEF(variable, name, code, stack_depth, prio)
+#define OSAL_TASK_DEF(code, stack_depth, prio)
 #define osal_task_create(x) TUSB_ERROR_NONE
 
 #define OSAL_TASK_FUNCTION(task_func) \
@@ -266,6 +266,8 @@ typedef osal_queue_t * osal_queue_handle_t;
       .depth     = queue_depth,\
       .item_size = sizeof(type)\
   }
+
+#define OSAL_QUEUE_REF(name)  (&name)
 
 static inline osal_queue_handle_t osal_queue_create(osal_queue_t * const p_queue) ATTR_WARN_UNUSED_RESULT ATTR_ALWAYS_INLINE;
 static inline osal_queue_handle_t osal_queue_create(osal_queue_t * const p_queue)

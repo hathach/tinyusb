@@ -49,7 +49,7 @@
 //--------------------------------------------------------------------+
 // MACRO CONSTANT TYPEDEF
 //--------------------------------------------------------------------+
-OSAL_TASK_DEF("cdc serial app", cdc_serial_app_task, 128, CDC_SERIAL_APP_TASK_PRIO);
+OSAL_TASK_DEF(cdc_serial_app_task, 128, CDC_SERIAL_APP_TASK_PRIO);
 OSAL_QUEUE_DEF(queue_def, QUEUE_SERIAL_DEPTH, uint8_t);
 
 static osal_queue_handle_t queue_hdl;

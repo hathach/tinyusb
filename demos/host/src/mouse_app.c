@@ -56,7 +56,7 @@
 //--------------------------------------------------------------------+
 // INTERNAL OBJECT & FUNCTION DECLARATION
 //--------------------------------------------------------------------+
-OSAL_TASK_DEF("mouse app", mouse_app_task, 128, MOUSE_APP_TASK_PRIO);
+OSAL_TASK_DEF(mouse_app_task, 128, MOUSE_APP_TASK_PRIO);
 OSAL_QUEUE_DEF(queue_mouse_def, QUEUE_MOUSE_REPORT_DEPTH, tusb_mouse_report_t);
 
 static osal_queue_handle_t queue_mouse_hdl;

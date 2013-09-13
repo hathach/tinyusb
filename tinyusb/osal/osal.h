@@ -89,8 +89,10 @@ uint32_t osal_tick_get(void);
 typedef uint32_t osal_task_t;
 tusb_error_t osal_task_create(osal_task_t *task);
 
-#define OSAL_TASK_DEF(variable, name, code, stack_depth, prio) \
+#define OSAL_TASK_DEF(code, stack_depth, prio) \
     osal_task_t variable
+
+#define OSAL_TASK_REF(name) (&name)
 
 #define OSAL_TASK_FUNCTION(task_name) \
     void task_name
@@ -175,6 +177,8 @@ typedef osal_queue_t * osal_queue_handle_t;
 
 #define OSAL_QUEUE_DEF(name, queue_depth, type) \
   osal_queue_t name
+
+#define OSAL_QUEUE_REF(name)  (&name)
 
 osal_queue_handle_t  osal_queue_create  (osal_queue_t *p_queue);
 void                 osal_queue_receive (osal_queue_handle_t const queue_hdl, void *p_data, uint32_t msec, tusb_error_t *p_error);
