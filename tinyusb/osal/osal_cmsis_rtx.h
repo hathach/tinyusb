@@ -66,7 +66,7 @@
 
 typedef osThreadDef_t osal_task_t;
 
-#define OSAL_TASK_DEF(task_name, task_code, task_stack_depth, task_prio) \
+#define OSAL_TASK_DEF(task_code, task_stack_depth, task_prio) \
   osThreadDef(task_code, task_prio, 1, task_stack_depth*4) // stack depth is in bytes
 
 #define OSAL_TASK_REF(task_name)    osThread(task_name)

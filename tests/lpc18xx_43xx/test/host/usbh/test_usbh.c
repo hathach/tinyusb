@@ -87,26 +87,27 @@ void test_usbh_init_hcd_failed(void)
   TEST_ASSERT_EQUAL(TUSB_ERROR_HCD_FAILED, usbh_init());
 }
 
-void test_usbh_init_enum_task_create_failed(void)
-{
-  hcd_init_ExpectAndReturn(TUSB_ERROR_NONE);
-  osal_task_create_IgnoreAndReturn(TUSB_ERROR_OSAL_TASK_FAILED);
-  TEST_ASSERT_EQUAL(TUSB_ERROR_OSAL_TASK_FAILED, usbh_init());
-}
-
 void test_usbh_init_enum_queue_create_failed(void)
 {
   hcd_init_ExpectAndReturn(TUSB_ERROR_NONE);
-  osal_task_create_IgnoreAndReturn(TUSB_ERROR_NONE);
   osal_queue_create_IgnoreAndReturn(NULL);
   TEST_ASSERT_EQUAL(TUSB_ERROR_OSAL_QUEUE_FAILED, usbh_init());
 }
 
+void test_usbh_init_enum_task_create_failed(void)
+{
+  hcd_init_ExpectAndReturn(TUSB_ERROR_NONE);
+  osal_queue_create_IgnoreAndReturn((osal_queue_handle_t) 0x1234);
+  osal_task_create_IgnoreAndReturn(TUSB_ERROR_OSAL_TASK_FAILED);
+  TEST_ASSERT_EQUAL(TUSB_ERROR_OSAL_TASK_FAILED, usbh_init());
+}
+
+
 void test_usbh_init_semaphore_create_failed(void)
 {
   hcd_init_ExpectAndReturn(TUSB_ERROR_NONE);
-  osal_task_create_IgnoreAndReturn(TUSB_ERROR_NONE);
   osal_queue_create_IgnoreAndReturn((osal_queue_handle_t) 0x1234);
+  osal_task_create_IgnoreAndReturn(TUSB_ERROR_NONE);
   osal_semaphore_create_IgnoreAndReturn(NULL);
   TEST_ASSERT_EQUAL(TUSB_ERROR_OSAL_SEMAPHORE_FAILED, usbh_init());
 }
@@ -114,8 +115,8 @@ void test_usbh_init_semaphore_create_failed(void)
 void test_usbh_init_mutex_create_failed(void)
 {
   hcd_init_ExpectAndReturn(TUSB_ERROR_NONE);
-  osal_task_create_IgnoreAndReturn(TUSB_ERROR_NONE);
   osal_queue_create_IgnoreAndReturn((osal_queue_handle_t) 0x1234);
+  osal_task_create_IgnoreAndReturn(TUSB_ERROR_NONE);
   osal_semaphore_create_IgnoreAndReturn((osal_semaphore_handle_t) 0x1234);
   osal_mutex_create_IgnoreAndReturn(NULL);
   TEST_ASSERT_EQUAL(TUSB_ERROR_OSAL_MUTEX_FAILED, usbh_init());
