@@ -115,7 +115,7 @@
 //   <i> Defines the timer tick value.
 //   <i> Default: 1000  (1ms)
 #ifndef OS_TICK
- #define OS_TICK        10000
+ #define OS_TICK        1000
 #endif
 
 // </h>

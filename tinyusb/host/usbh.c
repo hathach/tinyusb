@@ -108,7 +108,7 @@ static host_class_driver_t const usbh_class_drivers[TUSB_CLASS_MAPPED_INDEX_END]
 usbh_device_info_t usbh_devices[TUSB_CFG_HOST_DEVICE_MAX+1] TUSB_CFG_ATTR_USBRAM; // including zero-address
 
 //------------- Enumeration Task Data -------------//
-OSAL_TASK_DEF(enum_task_def, "tinyusb host", usbh_enumeration_task, 150, TUSB_CFG_OS_TASK_PRIO);
+OSAL_TASK_DEF(usbh_enumeration_task, 150, TUSB_CFG_OS_TASK_PRIO);
 OSAL_QUEUE_DEF(enum_queue_def, ENUM_QUEUE_DEPTH, uint32_t);
 osal_queue_handle_t enum_queue_hdl;
 STATIC_ uint8_t enum_data_buffer[TUSB_CFG_HOST_ENUM_BUFFER_SIZE] TUSB_CFG_ATTR_USBRAM;
@@ -136,7 +136,7 @@ static inline uint8_t std_class_code_to_index(uint8_t std_class_code)
 tusb_device_state_t tusbh_device_get_state (uint8_t const dev_addr)
 {
   ASSERT_INT_WITHIN(1, TUSB_CFG_HOST_DEVICE_MAX, dev_addr, TUSB_DEVICE_STATE_INVALID_PARAMETER);
-  return usbh_devices[dev_addr].state;
+  return (tusb_device_state_t) usbh_devices[dev_addr].state;
 }
 
 uint32_t tusbh_device_get_mounted_class_flag(uint8_t dev_addr)
@@ -154,9 +154,9 @@ tusb_error_t usbh_init(void)
   ASSERT_STATUS( hcd_init() );
 
   //------------- Enumeration & Reporter Task init -------------//
-  ASSERT_STATUS( osal_task_create(&enum_task_def) );
-  enum_queue_hdl = osal_queue_create(&enum_queue_def);
+  enum_queue_hdl = osal_queue_create( OSAL_QUEUE_REF(enum_queue_def) );
   ASSERT_PTR(enum_queue_hdl, TUSB_ERROR_OSAL_QUEUE_FAILED);
+  ASSERT_STATUS( osal_task_create( OSAL_TASK_REF(usbh_enumeration_task) ));
 
   //------------- Semaphore, Mutex for Control Pipe -------------//
   for(uint8_t i=0; i<TUSB_CFG_HOST_DEVICE_MAX+1; i++) // including address zero
@@ -166,7 +166,7 @@ tusb_error_t usbh_init(void)
     p_device->control.sem_hdl = osal_semaphore_create( OSAL_SEM_REF(p_device->control.semaphore) );
     ASSERT_PTR(p_device->control.sem_hdl, TUSB_ERROR_OSAL_SEMAPHORE_FAILED);
 
-    p_device->control.mutex_hdl = osal_mutex_create ( OSAL_SEM_REF(p_device->control.mutex) );
+    p_device->control.mutex_hdl = osal_mutex_create ( OSAL_MUTEX_REF(p_device->control.mutex) );
     ASSERT_PTR(p_device->control.mutex_hdl, TUSB_ERROR_OSAL_MUTEX_FAILED);
   }
 
@@ -187,7 +187,7 @@ tusb_error_t usbh_init(void)
 tusb_error_t usbh_control_xfer_subtask(uint8_t dev_addr, uint8_t bmRequestType, uint8_t bRequest,
                                        uint16_t wValue, uint16_t wIndex, uint16_t wLength, uint8_t* data)
 {
-  tusb_error_t error;
+  static tusb_error_t error; // FIXME cmsis-rtx use svc for OS API, error value changed after mutex release at the end of function
 
   OSAL_SUBTASK_BEGIN
 

@@ -53,7 +53,6 @@
 
 void board_init(void)
 {
-  SystemInit();
   CGU_Init();
   
   /* Setup the systick time for 1ms ticks */

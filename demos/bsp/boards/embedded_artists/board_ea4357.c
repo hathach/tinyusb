@@ -48,9 +48,11 @@
 
 void board_init(void)
 {
-  SystemInit();
   CGU_Init();
+
+//#if TUSB_CFG_OS != TUSB_OS_CMSIS_RTX // TODO may move to main.c
   SysTick_Config(CGU_GetPCLKFrequency(CGU_PERIPHERAL_M4CORE) / CFG_TICKS_PER_SECOND); // 1 msec tick timer
+//#endif
 
   // USB0 Power: EA4357 channel B U20 GPIO26 active low (base board), P2_3 on LPC4357
   scu_pinmux(0x2, 3, MD_PUP | MD_EZI, FUNC7);		// USB0 VBus Power

@@ -72,7 +72,6 @@ const static struct {
 //--------------------------------------------------------------------+
 void board_init(void)
 {
-  SystemInit();
   CGU_Init();
   SysTick_Config(CGU_GetPCLKFrequency(CGU_PERIPHERAL_M4CORE) / CFG_TICKS_PER_SECOND); // 1 msec tick timer
 
