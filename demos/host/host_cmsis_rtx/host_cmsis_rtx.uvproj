@@ -653,7 +653,7 @@
             <InvalidFlash>1</InvalidFlash>
           </TargetStatus>
           <OutputDirectory>.\UV4Build\</OutputDirectory>
-          <OutputName>host_os_none</OutputName>
+          <OutputName>host_cmsis_rtx</OutputName>
           <CreateExecutable>1</CreateExecutable>
           <CreateLib>0</CreateLib>
           <CreateHexFile>0</CreateHexFile>
@@ -809,14 +809,14 @@
             <GenPPlst>0</GenPPlst>
             <AdsCpuType>"Cortex-M4"</AdsCpuType>
             <RvctDeviceName></RvctDeviceName>
-            <mOS>0</mOS>
+            <mOS>1</mOS>
             <uocRom>0</uocRom>
             <uocRam>0</uocRam>
             <hadIROM>1</hadIROM>
             <hadIRAM>1</hadIRAM>
             <hadXRAM>0</hadXRAM>
             <uocXRam>0</uocXRam>
-            <RvdsVP>1</RvdsVP>
+            <RvdsVP>2</RvdsVP>
             <hadIRAM2>1</hadIRAM2>
             <hadIROM2>1</hadIROM2>
             <StupSel>8</StupSel>
@@ -956,10 +956,10 @@
             <uThumb>0</uThumb>
             <uSurpInc>0</uSurpInc>
             <VariousControls>
-              <MiscControls>--gnu --c99</MiscControls>
-              <Define>CORE_M4 MCU=MCU_LPC43XX BOARD=BOARD_LPC4357USB TUSB_CFG_OS=TUSB_OS_NONE</Define>
+              <MiscControls>--gnu --c99 --diag_suppress=66 --no_inline</MiscControls>
+              <Define>CORE_M4 MCU=MCU_LPC43XX BOARD=BOARD_LPC4357USB TUSB_CFG_OS=TUSB_OS_CMSIS_RTX TUSB_CFG_OS_TASK_PRIO=osPriorityRealtime</Define>
               <Undefine></Undefine>
-              <IncludePath>..\src;..\..\bsp\lpc43xx\CMSIS_LPC43xx_DriverLib\inc;..\..\bsp;..\..\..\tinyusb</IncludePath>
+              <IncludePath>..\src;..\..\bsp\lpc43xx\CMSIS_LPC43xx_DriverLib\inc;..\..\bsp;..\..\..\tinyusb;..\..\..\vendor\cmsis_rtos_rtx\INC;..\host_cmsis_rtx</IncludePath>
             </VariousControls>
           </Cads>
           <Aads>
