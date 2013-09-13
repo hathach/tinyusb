@@ -57,7 +57,7 @@
 #endif
 
 /// n-th Bit
-#define BIT_(n) (1 << (n))
+#define BIT_(n) (1U << (n))
 
 /// set n-th bit of x to 1
 #define BIT_SET_(x, n) ( (x) | BIT_(n) )

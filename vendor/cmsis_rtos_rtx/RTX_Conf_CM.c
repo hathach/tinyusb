@@ -76,7 +76,7 @@
 //   <i> Defines the combined stack size for threads with user-provided stack size.
 //   <i> Default: 0
 #ifndef OS_PRIVSTKSIZE
- #define OS_PRIVSTKSIZE 0
+ #define OS_PRIVSTKSIZE 1024
 #endif
 
 // <q>Check for stack overflow
@@ -91,7 +91,7 @@
 //   <1=> Privileged mode
 // <i> Default: Privileged mode
 #ifndef OS_RUNPRIV
- #define OS_RUNPRIV     0
+ #define OS_RUNPRIV     1
 #endif
 
 // </h>
@@ -108,7 +108,7 @@
 //   <i> Defines the timer clock value.
 //   <i> Default: 12000000  (12MHz)
 #ifndef OS_CLOCK
- #define OS_CLOCK       100000000
+ #define OS_CLOCK       72000000
 #endif
 
 //   <o>Timer tick value [us] <1-1000000>

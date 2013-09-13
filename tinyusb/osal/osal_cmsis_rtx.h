@@ -1,6 +1,6 @@
 /**************************************************************************/
 /*!
-    @file     osal_freeRTOS.h
+    @file     osal_cmsis_rtx.h
     @author   hathach (tinyusb.org)
 
     @section LICENSE
@@ -26,21 +26,15 @@
     WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
     DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER BE LIABLE FOR ANY
     DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
-    INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
-    LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION HOWEVER CAUSED AND
+    (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
+    LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND
     ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
-    INCLUDING NEGLIGENCE OR OTHERWISE ARISING IN ANY WAY OUT OF THE USE OF THIS
+    (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
     SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
     This file is part of the tinyusb stack.
 */
 /**************************************************************************/
-
-/** \file
- *  \brief TBD
- *
- *  \note TBD
- */
 
 /** \ingroup TBD
  *  \defgroup TBD
@@ -49,25 +43,20 @@
  *  @{
  */
 
-#ifndef _TUSB_OSAL_FREERTOS_H_
-#define _TUSB_OSAL_FREERTOS_H_
+#ifndef _TUSB_OSAL_CMSIS_RTX_H_
+#define _TUSB_OSAL_CMSIS_RTX_H_
 
 #include "osal_common.h"
-
-//------------- FreeRTOS Headers -------------//
-#include "FreeRTOS.h"
-#include "semphr.h"
-#include "queue.h"
-#include "task.h"
+#include "cmsis_os.h"
 
 #ifdef __cplusplus
-extern "C" {
+ extern "C" {
 #endif
 
 //--------------------------------------------------------------------+
 // TICK API
 //--------------------------------------------------------------------+
-#define osal_tick_get xTaskGetTickCount
+#define osal_tick_get osKernelSysTick
 
 //--------------------------------------------------------------------+
 // TASK API
@@ -75,33 +64,20 @@ extern "C" {
 #define OSAL_TASK_FUNCTION(task_func) \
   void task_func
 
-typedef struct {
-  char const * name;
-  pdTASK_CODE code;
-  unsigned portSHORT stack_depth;
-  unsigned portBASE_TYPE prio;
-} osal_task_t;
+typedef osThreadDef_t osal_task_t;
 
-#define OSAL_TASK_DEF(task_variable, task_name, task_code, task_stack_depth, task_prio) \
-  osal_task_t task_variable = {\
-      .name        = task_name        , \
-      .code        = task_code        , \
-      .stack_depth = task_stack_depth , \
-      .prio        = task_prio          \
-  }
+#define OSAL_TASK_DEF(task_name, task_code, task_stack_depth, task_prio) \
+  osThreadDef(task_code, task_prio, 1, task_stack_depth*4) // stack depth is in bytes
 
-static inline tusb_error_t osal_task_create(osal_task_t *task) ATTR_WARN_UNUSED_RESULT ATTR_ALWAYS_INLINE;
-static inline tusb_error_t osal_task_create(osal_task_t *task)
+#define OSAL_TASK_REF(task_name)    osThread(task_name)
+
+static inline tusb_error_t osal_task_create(const osal_task_t *task) ATTR_WARN_UNUSED_RESULT ATTR_ALWAYS_INLINE;
+static inline tusb_error_t osal_task_create(const osal_task_t *task)
 {
-  return pdPASS == xTaskCreate(task->code, (signed portCHAR const *) task->name, task->stack_depth, NULL, task->prio, NULL) ?
-    TUSB_ERROR_NONE : TUSB_ERROR_OSAL_TASK_CREATE_FAILED;
+  return ( osThreadCreate(task, NULL) != NULL ) ? TUSB_ERROR_NONE : TUSB_ERROR_OSAL_TASK_CREATE_FAILED;
 }
 
-static inline void osal_task_delay(uint32_t msec) ATTR_ALWAYS_INLINE;
-static inline void osal_task_delay(uint32_t msec)
-{
-  vTaskDelay( (TUSB_CFG_OS_TICKS_PER_SECOND * msec) / 1000 );
-}
+#define osal_task_delay(msec)   osDelay(msec)
 
 #define OSAL_TASK_LOOP_BEGIN \
   while(1) {
@@ -134,106 +110,139 @@ static inline void osal_task_delay(uint32_t msec)
     ASSERT_DEFINE_WITH_HANDLER(_SUBTASK_ASSERT_ERROR_HANDLER, func_call, ,\
                                condition, TUSB_ERROR_OSAL_TASK_FAILED, "%s", "evaluated to false")
 
+
 //--------------------------------------------------------------------+
 // Semaphore API
 //--------------------------------------------------------------------+
-#define OSAL_SEM_DEF(name)
-typedef xSemaphoreHandle osal_semaphore_handle_t;
+typedef struct {
+  uint32_t sem_cb[2];
+}osal_semaphore_t;
 
-// create FreeRTOS binary semaphore with zero as init value TODO: omit semaphore take from vSemaphoreCreateBinary API, should double checks this
-#define osal_semaphore_create(x) \
-  xQueueGenericCreate( ( unsigned portBASE_TYPE ) 1, semSEMAPHORE_QUEUE_ITEM_LENGTH, queueQUEUE_TYPE_BINARY_SEMAPHORE )
+typedef osSemaphoreId osal_semaphore_handle_t;
+
+#define OSAL_SEM_DEF(name)  osal_semaphore_t name
+#define OSAL_SEM_REF(name)  (&name)
+
+static inline osal_semaphore_handle_t osal_semaphore_create(osal_semaphore_t * p_sem) ATTR_WARN_UNUSED_RESULT ATTR_ALWAYS_INLINE;
+static inline osal_semaphore_handle_t osal_semaphore_create(osal_semaphore_t * p_sem)
+{
+  return osSemaphoreCreate( &(osSemaphoreDef_t) { p_sem }, 0 );
+}
 
 // TODO add timeout (with instant return from ISR option) for semaphore post & queue send
 static inline  tusb_error_t osal_semaphore_post(osal_semaphore_handle_t const sem_hdl) ATTR_ALWAYS_INLINE;
 static inline  tusb_error_t osal_semaphore_post(osal_semaphore_handle_t const sem_hdl)
 {
-  portBASE_TYPE task_waken;
-  return (xSemaphoreGiveFromISR(sem_hdl, &task_waken) == pdTRUE) ? TUSB_ERROR_NONE : TUSB_ERROR_OSAL_SEMAPHORE_FAILED;
+  return (osSemaphoreRelease(sem_hdl) == osOK) ? TUSB_ERROR_NONE : TUSB_ERROR_OSAL_SEMAPHORE_FAILED;
 }
 
 static inline void osal_semaphore_wait(osal_semaphore_handle_t const sem_hdl, uint32_t msec, tusb_error_t *p_error) ATTR_ALWAYS_INLINE;
 static inline void osal_semaphore_wait(osal_semaphore_handle_t const sem_hdl, uint32_t msec, tusb_error_t *p_error)
 {
-  (*p_error) = ( xSemaphoreTake(sem_hdl, osal_tick_from_msec(msec)) == pdPASS ) ? TUSB_ERROR_NONE : TUSB_ERROR_OSAL_TIMEOUT;
+  (*p_error) = ( osSemaphoreWait(sem_hdl, msec) > 0 ) ? TUSB_ERROR_NONE : TUSB_ERROR_OSAL_TIMEOUT;
 }
 
 static inline void osal_semaphore_reset(osal_semaphore_handle_t const sem_hdl) ATTR_ALWAYS_INLINE;
 static inline void osal_semaphore_reset(osal_semaphore_handle_t const sem_hdl)
 {
-  portBASE_TYPE task_waken;
-  xSemaphoreTakeFromISR(sem_hdl, &task_waken);
+  osSemaphoreWait(sem_hdl, 0); // instant return without putting caller to suspend
 }
 
 //--------------------------------------------------------------------+
 // MUTEX API (priority inheritance)
 //--------------------------------------------------------------------+
-#define OSAL_MUTEX_DEF  OSAL_SEM_DEF
-typedef xSemaphoreHandle osal_mutex_handle_t;
+typedef struct {
+  uint32_t mutex_cb[3];
+}osal_mutex_t;
 
-#define osal_mutex_create(x) \
-  xSemaphoreCreateMutex()
+typedef osMutexId osal_mutex_handle_t;
+
+#define OSAL_MUTEX_DEF(name)  osal_mutex_t name
+#define OSAL_MUTEX_REF(name)  (&name)
+
+static inline osal_mutex_handle_t osal_mutex_create(osal_mutex_t * p_mutex) ATTR_WARN_UNUSED_RESULT ATTR_ALWAYS_INLINE;
+static inline osal_mutex_handle_t osal_mutex_create(osal_mutex_t * p_mutex)
+{
+  return osMutexCreate( &(osMutexDef_t) {p_mutex} );
+}
 
 static inline  tusb_error_t osal_mutex_release(osal_mutex_handle_t const mutex_hdl) ATTR_ALWAYS_INLINE;
 static inline  tusb_error_t osal_mutex_release(osal_mutex_handle_t const mutex_hdl)
 {
-  return (xSemaphoreGive(mutex_hdl) == pdPASS) ? TUSB_ERROR_NONE : TUSB_ERROR_OSAL_MUTEX_FAILED;
+  return (osMutexRelease(mutex_hdl) == osOK) ? TUSB_ERROR_NONE : TUSB_ERROR_OSAL_MUTEX_FAILED;
 }
 
 static inline void osal_mutex_wait(osal_mutex_handle_t const mutex_hdl, uint32_t msec, tusb_error_t *p_error) ATTR_ALWAYS_INLINE;
 static inline void osal_mutex_wait(osal_mutex_handle_t const mutex_hdl, uint32_t msec, tusb_error_t *p_error)
 {
-  (*p_error) = ( xSemaphoreTake(mutex_hdl, osal_tick_from_msec(msec)) == pdPASS ) ? TUSB_ERROR_NONE : TUSB_ERROR_OSAL_TIMEOUT;
+  (*p_error) = ( osMutexWait(mutex_hdl, msec) == osOK ) ? TUSB_ERROR_NONE : TUSB_ERROR_OSAL_TIMEOUT;
 }
 
 static inline void osal_mutex_reset(osal_mutex_handle_t const mutex_hdl) ATTR_ALWAYS_INLINE;
 static inline void osal_mutex_reset(osal_mutex_handle_t const mutex_hdl)
 {
-  xSemaphoreGive(mutex_hdl);
+  osMutexRelease(mutex_hdl);
 }
 
 //--------------------------------------------------------------------+
-// QUEUE API
+// QUEUE API (for RTX: osMailQId is osMessageQDef_t.pool)
 //--------------------------------------------------------------------+
-typedef struct{
-  uint8_t const depth;     ///< buffer size
-  uint8_t const item_size; ///< size of each item
-} osal_queue_t;
-
-typedef xQueueHandle osal_queue_handle_t;
+typedef osMailQDef_t osal_queue_t;
+typedef osal_queue_t * osal_queue_handle_t;
 
 #define OSAL_QUEUE_DEF(name, queue_depth, type)\
-  osal_queue_t name = {\
-      .depth     = queue_depth,\
-      .item_size = sizeof(type)\
-  }
+  osMailQDef(name, queue_depth, type);
 
-#define osal_queue_create(p_queue) \
-  xQueueCreate((p_queue)->depth, (p_queue)->item_size)
+#define OSAL_QUEUE_REF(name)  osMailQ(name)
+
+static inline osal_queue_handle_t osal_queue_create(osal_queue_t * const p_queue) ATTR_WARN_UNUSED_RESULT ATTR_ALWAYS_INLINE;
+static inline osal_queue_handle_t osal_queue_create(osal_queue_t * const p_queue)
+{
+  return (NULL != osMailCreate(p_queue, NULL)) ?  p_queue : NULL;
+}
 
 static inline void osal_queue_receive (osal_queue_handle_t const queue_hdl, void *p_data, uint32_t msec, tusb_error_t *p_error) ATTR_ALWAYS_INLINE;
 static inline void osal_queue_receive (osal_queue_handle_t const queue_hdl, void *p_data, uint32_t msec, tusb_error_t *p_error)
 {
-  (*p_error) = ( xQueueReceive(queue_hdl, p_data, osal_tick_from_msec(msec)) == pdPASS ) ? TUSB_ERROR_NONE : TUSB_ERROR_OSAL_TIMEOUT;
+  osEvent evt = osMailGet(queue_hdl->pool, msec);
+
+  if (evt.status != osEventMail)
+  {
+    (*p_error) = TUSB_ERROR_OSAL_TIMEOUT;
+  }else
+  {
+    memcpy(p_data, evt.value.p, queue_hdl->item_sz);
+    osMailFree(queue_hdl->pool, evt.value.p);
+    (*p_error) = TUSB_ERROR_NONE;
+  }
 }
 
 static inline tusb_error_t osal_queue_send(osal_queue_handle_t const queue_hdl, void const * data) ATTR_ALWAYS_INLINE;
 static inline tusb_error_t osal_queue_send(osal_queue_handle_t const queue_hdl, void const * data)
 {
-  portBASE_TYPE taskWaken;
-  return ( xQueueSendFromISR(queue_hdl, data, &taskWaken) == pdTRUE ) ? TUSB_ERROR_NONE : TUSB_ERROR_OSAL_QUEUE_FAILED;
+  void *p_buf = osMailAlloc(queue_hdl->pool, 0); // instantly return in case of sending within ISR (mostly used)
+  if (p_buf == NULL) return TUSB_ERROR_OSAL_QUEUE_FAILED;
+
+  memcpy(p_buf, data, queue_hdl->item_sz);
+  osMailPut(queue_hdl->pool, p_buf);
+  return TUSB_ERROR_NONE;
 }
 
 static inline void osal_queue_flush(osal_queue_handle_t const queue_hdl) ATTR_ALWAYS_INLINE;
 static inline void osal_queue_flush(osal_queue_handle_t const queue_hdl)
 {
-  xQueueReset(queue_hdl);
+  osEvent  evt;
+
+  while( (evt = osMailGet(queue_hdl->pool, 0) ).status == osEventMail )
+  {
+    osMailFree(queue_hdl->pool, evt.value.p);
+  }
 }
 
 #ifdef __cplusplus
  }
 #endif
 
-#endif /* _TUSB_OSAL_FREERTOS_H_ */
+#endif /* _TUSB_OSAL_CMSIS_RTX_H_ */
 
 /** @} */

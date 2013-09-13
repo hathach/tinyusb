@@ -56,7 +56,7 @@
 //--------------------------------------------------------------------+
 // INTERNAL OBJECT & FUNCTION DECLARATION
 //--------------------------------------------------------------------+
-OSAL_TASK_DEF(mouse_task_def, "mouse app", mouse_app_task, 128, MOUSE_APP_TASK_PRIO);
+OSAL_TASK_DEF("mouse app", mouse_app_task, 128, MOUSE_APP_TASK_PRIO);
 OSAL_QUEUE_DEF(queue_mouse_def, QUEUE_MOUSE_REPORT_DEPTH, tusb_mouse_report_t);
 
 static osal_queue_handle_t queue_mouse_hdl;
@@ -109,10 +109,11 @@ void mouse_app_init(void)
 {
   memclr_(&usb_mouse_report, sizeof(tusb_mouse_report_t));
 
-  ASSERT( TUSB_ERROR_NONE == osal_task_create(&mouse_task_def), (void) 0 );
-
-  queue_mouse_hdl = osal_queue_create(&queue_mouse_def);
+  queue_mouse_hdl = osal_queue_create( OSAL_QUEUE_REF(queue_mouse_def) );
   ASSERT_PTR( queue_mouse_hdl, (void) 0 );
+
+  ASSERT( TUSB_ERROR_NONE == osal_task_create( OSAL_TASK_REF(mouse_app_task) ),
+          (void) 0 );
 }
 
 //------------- main task -------------//

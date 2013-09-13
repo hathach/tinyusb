@@ -155,7 +155,7 @@ bool hcd_port_connect_status(uint8_t hostid)
 
 tusb_speed_t hcd_port_speed_get(uint8_t hostid)
 {
-  return get_operational_register(hostid)->portsc_bit.nxp_port_speed; // NXP specific port speed
+  return (tusb_speed_t) get_operational_register(hostid)->portsc_bit.nxp_port_speed; // NXP specific port speed
 }
 
 //--------------------------------------------------------------------+

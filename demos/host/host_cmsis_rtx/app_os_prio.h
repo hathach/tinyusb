@@ -57,9 +57,10 @@
  extern "C" {
 #endif
 
-#define KEYBOARD_APP_TASK_PRIO     (TUSB_CFG_OS_TASK_PRIO-1)
-#define MOUSE_APP_TASK_PRIO        (KEYBOARD_APP_TASK_PRIO-1)
-#define LED_BLINKING_APP_TASK_PRIO (tskIDLE_PRIORITY+1)
+#define KEYBOARD_APP_TASK_PRIO     osPriorityNormal
+#define MOUSE_APP_TASK_PRIO        osPriorityNormal
+#define LED_BLINKING_APP_TASK_PRIO osPriorityNormal
+#define CDC_SERIAL_APP_TASK_PRIO   osPriorityNormal
 
 #ifdef __cplusplus
  }

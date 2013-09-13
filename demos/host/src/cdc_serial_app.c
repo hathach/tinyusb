@@ -49,7 +49,7 @@
 //--------------------------------------------------------------------+
 // MACRO CONSTANT TYPEDEF
 //--------------------------------------------------------------------+
-OSAL_TASK_DEF(cdc_serial_task_def, "cdc serial app", cdc_serial_app_task, 128, CDC_SERIAL_APP_TASK_PRIO);
+OSAL_TASK_DEF("cdc serial app", cdc_serial_app_task, 128, CDC_SERIAL_APP_TASK_PRIO);
 OSAL_QUEUE_DEF(queue_def, QUEUE_SERIAL_DEPTH, uint8_t);
 
 static osal_queue_handle_t queue_hdl;
@@ -112,9 +112,10 @@ void cdc_serial_app_init(void)
 {
   memclr_(buffer_in, sizeof(buffer_in));
 
-  ASSERT( TUSB_ERROR_NONE == osal_task_create(&cdc_serial_task_def), (void) 0 );
-  queue_hdl = osal_queue_create(&queue_def);
+  queue_hdl = osal_queue_create( OSAL_QUEUE_REF(queue_def) );
   ASSERT_PTR( queue_hdl, (void) 0 );
+
+  ASSERT( TUSB_ERROR_NONE == osal_task_create(OSAL_TASK_REF(cdc_serial_app_task)), (void) 0 );
 }
 
 //------------- main task -------------//

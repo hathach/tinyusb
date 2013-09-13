@@ -72,7 +72,7 @@
 // INTERNAL OBJECT & FUNCTION DECLARATION
 //--------------------------------------------------------------------+
 OSAL_TASK_FUNCTION( led_blinking_task ) (void* p_task_para);
-OSAL_TASK_DEF(led_blinking_task_def, "led blinking", led_blinking_task, 128, LED_BLINKING_APP_TASK_PRIO);
+OSAL_TASK_DEF("led blinking", led_blinking_task, 128, LED_BLINKING_APP_TASK_PRIO);
 
 void print_greeting(void);
 static inline void wait_blocking_ms(uint32_t ms);
@@ -110,7 +110,7 @@ int main(void)
   tusb_init();
 
   //------------- application task init -------------//
-  (void) osal_task_create(&led_blinking_task_def);
+  (void) osal_task_create( OSAL_TASK_REF(led_blinking_task) );
 
 #if TUSB_CFG_HOST_HID_KEYBOARD
   keyboard_app_init();
@@ -131,9 +131,13 @@ int main(void)
   //------------- start OS scheduler (never return) -------------//
 #if TUSB_CFG_OS == TUSB_OS_FREERTOS
   vTaskStartScheduler();
-
 #elif TUSB_CFG_OS == TUSB_OS_NONE
   os_none_start_scheduler();
+#elif TUSB_CFG_OS == TUSB_OS_CMSIS_RTX
+  while(1)
+  {
+    osDelay(osWaitForever); // CMSIS RTX osKernelStart already started, main() is a task
+  }
 #else
   #error need to start RTOS schduler
 #endif
