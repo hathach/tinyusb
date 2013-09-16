@@ -1,36 +1,30 @@
-/*
- * @brief Architecture specific functions used with the LWIP examples
- *
- * @note
- * Copyright(C) NXP Semiconductors, 2012
- * All rights reserved.
- *
- * @par
- * Software that is described herein is for illustrative purposes only
- * which provides customers with programming information regarding the
- * LPC products.  This software is supplied "AS IS" without any warranties of
- * any kind, and NXP Semiconductors and its licensor disclaim any and
- * all warranties, express or implied, including all implied warranties of
- * merchantability, fitness for a particular purpose and non-infringement of
- * intellectual property rights.  NXP Semiconductors assumes no responsibility
- * or liability for the use of the software, conveys no license or rights under any
- * patent, copyright, mask work right, or any other intellectual property rights in
- * or to any products. NXP Semiconductors reserves the right to make changes
- * in the software without notification. NXP Semiconductors also makes no
- * representation or warranty that such application will be suitable for the
- * specified use without further testing or modification.
- *
- * @par
- * Permission to use, copy, modify, and distribute this software and its
- * documentation is hereby granted, under NXP Semiconductors' and its
- * licensor's relevant copyrights in the software, without fee, provided that it
- * is used in conjunction with NXP Semiconductors microcontrollers.  This
- * copyright, permission, and disclaimer notice must appear in all copies of
- * this code.
- */
+/**********************************************************************
+* $Id$		lpc_arch.h			2011-11-20
+*//**
+* @file		lpc_arch.h
+* @brief	Architecture specific functions used with the LWIP examples
+* @version	1.0
+* @date		20. Nov. 2011
+* @author	NXP MCU SW Application Team
+* 
+* Copyright(C) 2011, NXP Semiconductor
+* All rights reserved.
+*
+***********************************************************************
+* Software that is described herein is for illustrative purposes only
+* which provides customers with programming information regarding the
+* products. This software is supplied "AS IS" without any warranties.
+* NXP Semiconductors assumes no responsibility or liability for the
+* use of the software, conveys no license or title under any patent,
+* copyright, or mask work right to the product. NXP Semiconductors
+* reserves the right to make changes in the software without
+* notification. NXP Semiconductors also make no representation or
+* warranty that such application will be suitable for the specified
+* use without further testing or modification.
+**********************************************************************/
 
-#ifndef __LPC_ARCH_H_
-#define __LPC_ARCH_H_
+#ifndef __LPC_ARCH_H
+#define __LPC_ARCH_H
 
 #include "lwip/opt.h"
 
@@ -39,50 +33,47 @@ extern "C"
 {
 #endif
 
-/** @defgroup NET_LWIP_ARCH Architecture specific functions used with the LWIP examples
- * @ingroup NET_LWIP
- * @{
+/** @ingroup lpc_arch
  */
 
 #if NO_SYS == 1
-/**
- * @brief	Enable LWIP tick and interrupt
- * @param	period	: Period of the systick clock
- * @return	Nothing
- * @note	This enables the systick interrupt and sets up the systick rate. This
- * function is only used in standalone systems.
+/** \brief  Enable systick rate and interrupt
+ *
+ *  This enables the systick interrupt and sets up the systick rate. This
+ *  function is only used in standalone systems.
+ *
+ *  \param[in]   period   Period of the systick clock
  */
 void SysTick_Enable(uint32_t period);
 
-/**
- * @brief	Disable LWIP tick
- * @return	Nothing
- * This disables the systick interrupt. This function is only used in
- * standalone systems.
+/** \brief  Disable systick
+ *
+ *  This disables the systick interrupt. This function is only used in
+ *  standalone systems.
  */
 void SysTick_Disable(void);
 
-/**
- * @brief	Get the current systick time in milliSeconds
- * @return	current systick time in milliSeconds
- * @note	Returns the current systick time in milliSeconds. This function is only
- * used in standalone systems.
+/** \brief  Get the current systick time in milliSeconds
+ *
+ *  Returns the current systick time in milliSeconds. This function is only
+ *  used in standalone systems.
+ *
+ *  /returns current systick time in milliSeconds
  */
 uint32_t SysTick_GetMS(void);
-
 #endif
 
-/**
- * @brief	Delay for the specified number of milliSeconds
- * @param	ms	: Time in milliSeconds to delay
- * @return	Nothing
- * @note	For standalone systems. This function will block for the specified
- * number of milliSconds. For RTOS based systems, this function will delay
- * the task by the specified number of milliSeconds.
+/** \brief  Delay for the specified number of milliSeconds
+ *
+ *  For standalone systems. This function will block for the specified
+ *  number of milliSconds. For RTOS based systems, this function will delay
+ *  the task by the specified number of milliSeconds.
+ *
+ *  \param[in]  ms Time in milliSeconds to delay
  */
 void msDelay(uint32_t ms);
 
-/**
+/**		  
  * @}
  */
 
@@ -90,4 +81,6 @@ void msDelay(uint32_t ms);
 }
 #endif
 
-#endif /* __LPC_ARCH_H_ */
+#endif /* __LPC_ARCH_H */
+
+/* --------------------------------- End Of File ------------------------------ */

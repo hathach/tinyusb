@@ -1,78 +1,63 @@
-/*
- * @brief LWIP debug re-direction
- *
- * @note
- * Copyright(C) NXP Semiconductors, 2012
- * All rights reserved.
- *
- * @par
- * Software that is described herein is for illustrative purposes only
- * which provides customers with programming information regarding the
- * LPC products.  This software is supplied "AS IS" without any warranties of
- * any kind, and NXP Semiconductors and its licensor disclaim any and
- * all warranties, express or implied, including all implied warranties of
- * merchantability, fitness for a particular purpose and non-infringement of
- * intellectual property rights.  NXP Semiconductors assumes no responsibility
- * or liability for the use of the software, conveys no license or rights under any
- * patent, copyright, mask work right, or any other intellectual property rights in
- * or to any products. NXP Semiconductors reserves the right to make changes
- * in the software without notification. NXP Semiconductors also makes no
- * representation or warranty that such application will be suitable for the
- * specified use without further testing or modification.
- *
- * @par
- * Permission to use, copy, modify, and distribute this software and its
- * documentation is hereby granted, under NXP Semiconductors' and its
- * licensor's relevant copyrights in the software, without fee, provided that it
- * is used in conjunction with NXP Semiconductors microcontrollers.  This
- * copyright, permission, and disclaimer notice must appear in all copies of
- * this code.
- */
+/**********************************************************************
+* $Id$		lpc_debug.c			2011-11-20
+*//**
+* @file		lpc_debug.c
+* @brief	LWIP debug re-direction
+* @version	1.0
+* @date		20. Nov. 2011
+* @author	NXP MCU SW Application Team
+* 
+* Copyright(C) 2011, NXP Semiconductor
+* All rights reserved.
+*
+***********************************************************************
+* Software that is described herein is for illustrative purposes only
+* which provides customers with programming information regarding the
+* products. This software is supplied "AS IS" without any warranties.
+* NXP Semiconductors assumes no responsibility or liability for the
+* use of the software, conveys no license or title under any patent,
+* copyright, or mask work right to the product. NXP Semiconductors
+* reserves the right to make changes in the software without
+* notification. NXP Semiconductors also make no representation or
+* warranty that such application will be suitable for the specified
+* use without further testing or modification.
+**********************************************************************/
 
 #include "lwip/opt.h"
 
-/** @defgroup NET_LWIP_DEBUG LWIP debug re-direction
- * @ingroup NET_LWIP
- * Support functions for debug output for LWIP
+/** @ingroup lwip_lpc_debug
  * @{
  */
 
-#ifdef LWIP_DEBUG
+#ifdef LWIP_DEBUG 
 
-/*****************************************************************************
- * Private types/enumerations/variables
- ****************************************************************************/
+/** \brief  Displays an error message on assertion
 
-/*****************************************************************************
- * Public types/enumerations/variables
- ****************************************************************************/
+    This function will display an error message on an assertion
+	to the debug output.
 
-/*****************************************************************************
- * Private functions
- ****************************************************************************/
-
-/*****************************************************************************
- * Public functions
- ****************************************************************************/
-
-/* Displays an error message on assertion */
+	\param[in]    msg   Error message to display
+	\param[in]    line  Line number in file with error
+	\param[in]    file  Filename with error
+ */
 void assert_printf(char *msg, int line, char *file)
 {
 	if (msg) {
 		LWIP_DEBUGF(LWIP_DBG_ON, ("%s:%d in file %s\n", msg, line, file));
+		while (1) {
+			/* Fast LED flash */
+			led_set(0);
+			msDelay(100);
+			led_set(1);
+			msDelay(100);
+		}
 	}
-	while (1) {}
 }
 
-#else
-/* LWIP optimized assertion loop (no LWIP_DEBUG) */
-void assert_loop(void)
-{
-	while (1) {}
-}
-
- #endif /* LWIP_DEBUG */
+#endif /* LWIP_DEBUG */
 
 /**
  * @}
  */
+
+/* --------------------------------- End Of File ------------------------------ */

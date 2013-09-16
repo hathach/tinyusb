@@ -38,7 +38,14 @@
 #include "lpc_arch.h"
 #include <stdio.h>
 
- #if NO_SYS==0
+ #if NO_SYS==1
+/* Returns the current time in mS. This is needed for the LWIP timers */
+//u32_t sys_now(void)
+//{
+//  return (u32_t) SysTick_GetMS();
+//}
+
+#else
 /* ------------------------ System architecture includes ----------------------------- */
 #include "arch/sys_arch.h"
 

@@ -33,11 +33,6 @@
 #define __CC_H__ 
 
 #include <stdint.h>
-#include <stdio.h>
-
-/** @ingroup NET_LWIP_ARCH
- * @{
- */
 
 /* Types based on stdint.h */
 typedef uint8_t            u8_t; 
@@ -77,9 +72,7 @@ typedef uintptr_t          mem_ptr_t;
     #define PACK_STRUCT_END
     #define PACK_STRUCT_FIELD(fld) fld
 //    #define PACK_STRUCT_USE_INCLUDES
-	#define ALIGNEDX(x)      _Pragma(#x)
-	#define ALIGNEDXX(x)     ALIGNEDX(data_alignment=x)
-	#define ALIGNED(x)       ALIGNEDXX(x)
+	#error NEEDS ALIGNED // FIXME TBD
 #else 
 	/* GCC tools (CodeSourcery) */
     #define PACK_STRUCT_BEGIN
@@ -87,40 +80,20 @@ typedef uintptr_t          mem_ptr_t;
     #define PACK_STRUCT_END
     #define PACK_STRUCT_FIELD(fld) fld
 	#define ALIGNED(n)  __attribute__((aligned (n)))
-//	#define ALIGNED(n)  __align(n)
 #endif 
 
 /* Used with IP headers only */
 #define LWIP_CHKSUM_ALGORITHM 1
 
-#ifdef LWIP_DEBUG
-/**
- * @brief	Displays an error message on assertion
- * @param	msg		: Error message to display
- * @param	line	: Line number in file with error
- * @param	file	: Filename with error
- * @return	Nothing
- * @note	This function will display an error message on an assertion
- * to the debug output.
- */
+#ifdef LWIP_DEBUG 
 void assert_printf(char *msg, int line, char *file);
 
 /* Plaform specific diagnostic output */
 #define LWIP_PLATFORM_DIAG(vars) printf vars
 #define LWIP_PLATFORM_ASSERT(flag) { assert_printf((flag), __LINE__, __FILE__); }
 #else
-
-/**
- * @brief	LWIP optimized assertion loop (no LWIP_DEBUG)
- * @return	DoesnNothing, function doesn't return
- */
-void assert_loop(void);
 #define LWIP_PLATFORM_DIAG(msg) { ; }
-#define LWIP_PLATFORM_ASSERT(flag) { assert_loop(); }
+#define LWIP_PLATFORM_ASSERT(flag) { while (1); }
 #endif 
-
-/**		  
- * @}
- */
 
 #endif /* __CC_H__ */ 
