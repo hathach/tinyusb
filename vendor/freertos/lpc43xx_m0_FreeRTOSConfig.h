@@ -108,13 +108,13 @@ test tasks that check their own execution times. */
 
 /* Set the following definitions to 1 to include the API function, or zero
 to exclude the API function. */
-#define INCLUDE_vTaskPrioritySet		1
-#define INCLUDE_uxTaskPriorityGet		1
-#define INCLUDE_vTaskDelete				1
-#define INCLUDE_vTaskCleanUpResources	1
-#define INCLUDE_vTaskSuspend			1
-#define INCLUDE_vTaskDelayUntil			1
-#define INCLUDE_vTaskDelay				1
+#define INCLUDE_vTaskPrioritySet          1
+#define INCLUDE_uxTaskPriorityGet         1
+#define INCLUDE_vTaskDelete               1
+#define INCLUDE_vTaskCleanUpResources     1
+#define INCLUDE_vTaskSuspend              1
+#define INCLUDE_vTaskDelayUntil           1
+#define INCLUDE_vTaskDelay                1
 #define INCLUDE_xTaskGetCurrentTaskHandle 1
 
 /* Cortex-M specific definitions. */
@@ -142,7 +142,7 @@ to all Cortex-M ports, and do not rely on any particular library functions. */
 	
 /* Normal assert() semantics without relying on the provision of an assert.h
 header file. */
-#define configASSERT( x ) if( ( x ) == 0 ) { taskDISABLE_INTERRUPTS(); for( ;; ); }	
+#define configASSERT( x ) if( ( x ) == 0 ) { taskDISABLE_INTERRUPTS(); hal_debugger_breakpoint(); }
 
 #define configUSE_CUSTOM_TICK 1
 

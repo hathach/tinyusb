@@ -50,6 +50,16 @@
 /*****************************************************************************
  * Public functions
  ****************************************************************************/
+// FIXME ethernet
+#if 0
+void msDelay(uint32_t ms)
+{
+	portTickType xDelayTime;
+
+	xDelayTime = xTaskGetTickCount();
+	vTaskDelayUntil( &xDelayTime, ms );
+}
+#endif
 
 /* Delay for the specified number of milliSeconds */
 void FreeRTOSDelay(uint32_t ms)
