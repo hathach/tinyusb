@@ -58,6 +58,7 @@
 #include "LPC43xx.h"
 #include "core_cm4.h"
 #include "lpc43xx_cgu.h"
+#include "hal/hal.h"
 
 /*-----------------------------------------------------------
  * Application specific definitions.

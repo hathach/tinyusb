@@ -64,6 +64,22 @@
   __CRP const unsigned int CRP_WORD = CRP_NO_CRP ;
 #endif
 
+#if 0
+#include "lwip/opt.h"
+#include "lwip/sys.h"
+#include "lwip/memp.h"
+#include "lwip/tcpip.h"
+#include "lwip/ip_addr.h"
+#include "lwip/netif.h"
+#include "lwip/timers.h"
+#include "netif/etharp.h"
+#if LWIP_DHCP
+#include "lwip/dhcp.h"
+#endif
+#include "../contrib/apps/httpserver/httpserver-netconn.h"
+#include "arch/lpc18xx_43xx_emac.h"
+#endif
+
 //--------------------------------------------------------------------+
 // MACRO CONSTANT TYPEDEF
 //--------------------------------------------------------------------+
@@ -75,7 +91,7 @@ OSAL_TASK_FUNCTION( led_blinking_task ) (void* p_task_para);
 OSAL_TASK_DEF(led_blinking_task, 128, LED_BLINKING_APP_TASK_PRIO);
 
 void print_greeting(void);
-static inline void wait_blocking_ms(uint32_t ms);
+//static inline void wait_blocking_ms(uint32_t ms);
 
 //--------------------------------------------------------------------+
 // IMPLEMENTATION
@@ -96,16 +112,11 @@ void os_none_start_scheduler(void)
 }
 #endif
 
-//TODO try to run with optimization Os
+
 int main(void)
 {
   board_init();
-
-  // TODO blocking wait --> systick handler -->  ...... freeRTOS hardfault
-  //wait_blocking_ms(1000); // wait a bit for power stable
-  
-  // print_greeting(); TODO uart output before freeRTOS scheduler start will lead to hardfault
-  // find a way to fix this as tusb_init can output to uart when an error occurred
+  print_greeting();
 
   tusb_init();
 
@@ -142,9 +153,7 @@ int main(void)
   #error need to start RTOS schduler
 #endif
 
-  //------------- this part of code should not be reached -------------//
-  hal_debugger_breakpoint();
-  while(1) { }
+  while(1) { } // should not be reached here
 
   return 0;
 }
@@ -154,17 +163,14 @@ int main(void)
 //--------------------------------------------------------------------+
 OSAL_TASK_FUNCTION( led_blinking_task ) (void* p_task_para)
 {
-  {// task init, only executed exactly one time, real RTOS does not need this but none OS does
-    static bool is_init = false;
-    if (!is_init)
-    {
-      is_init = true;
-      print_greeting();
-    }
-  }
-
   static uint32_t led_on_mask = 0;
 
+  #if 0
+  // FIXME OSAL NONE problem, invoke only 1
+  network_init();
+  http_server_netconn_init();
+  #endif
+  
   OSAL_TASK_LOOP_BEGIN
 
   osal_task_delay(1000);
@@ -189,14 +195,68 @@ void print_greeting(void)
   );
 }
 
-static inline void wait_blocking_us(volatile uint32_t us)
+//static inline void wait_blocking_us(volatile uint32_t us)
+//{
+//	us *= (SystemCoreClock / 1000000) / 3;
+//	while(us--);
+//}
+//
+//static inline void wait_blocking_ms(uint32_t ms)
+//{
+//	wait_blocking_us(ms * 1000);
+//}
+
+#if 0
+static struct netif lpc_netif;
+
+/* Callback for TCPIP thread to indicate TCPIP init is done */
+static void tcpip_init_done_signal(void *arg)
 {
-	us *= (SystemCoreClock / 1000000) / 3;
-	while(us--);
+	/* Tell main thread TCP/IP init is done */
+	*(uint32_t *) arg = 1;
 }
 
-static inline void wait_blocking_ms(uint32_t ms)
+void network_init(void)
 {
-	wait_blocking_us(ms * 1000);
-}
+	ip_addr_t ipaddr, netmask, gw;
+	volatile uint32_t tcpip_init_done = 0;
 
+#if NO_SYS
+	lwip_init();
+#else
+	/* Wait until the TCP/IP thread is finished before
+	   continuing or weird things may happen */
+	LWIP_DEBUGF(LWIP_DBG_ON, ("Waiting for TCPIP thread to initialize...\n"));
+	tcpip_init(tcpip_init_done_signal, (void*)&tcpip_init_done);
+	while (!tcpip_init_done);
+//	tcpip_init(NULL, NULL);
+#endif
+
+	/* Static IP assignment */
+#if LWIP_DHCP
+	IP4_ADDR(&gw, 0, 0, 0, 0);
+	IP4_ADDR(&ipaddr, 0, 0, 0, 0);
+	IP4_ADDR(&netmask, 0, 0, 0, 0);
+#else
+	IP4_ADDR(&gw, 192, 168, 1, 1);
+	IP4_ADDR(&ipaddr, 192, 168, 1, 57);
+	IP4_ADDR(&netmask, 255, 255, 255, 0);
+#endif
+
+	/* Add netif interface for lpc18xx_43xx */
+	if (!netif_add(&lpc_netif, &ipaddr, &netmask, &gw, NULL, lpc_enetif_init,
+		tcpip_input))
+		LWIP_ASSERT("Net interface failed to initialize\r\n", 0);
+
+	netif_set_default(&lpc_netif);
+	netif_set_up(&lpc_netif);
+
+	/* Enable MAC interrupts only after LWIP is ready */
+	NVIC_SetPriority(ETHERNET_IRQn, ((0x01<<3)|0x01));
+	NVIC_EnableIRQ(ETHERNET_IRQn);
+
+#if LWIP_DHCP
+	dhcp_start(&lpc_netif);
+#endif
+}
+#endif

@@ -50,10 +50,11 @@ void board_init(void)
 {
   CGU_Init();
 
-//#if TUSB_CFG_OS != TUSB_OS_CMSIS_RTX // TODO may move to main.c
+#if TUSB_CFG_OS == TUSB_OS_NONE // TODO may move to main.c
   SysTick_Config(CGU_GetPCLKFrequency(CGU_PERIPHERAL_M4CORE) / CFG_TICKS_PER_SECOND); // 1 msec tick timer
-//#endif
+#endif
 
+  //------------- USB -------------//
   // USB0 Power: EA4357 channel B U20 GPIO26 active low (base board), P2_3 on LPC4357
   scu_pinmux(0x2, 3, MD_PUP | MD_EZI, FUNC7);		// USB0 VBus Power
   
@@ -66,28 +67,51 @@ void board_init(void)
   GPIO_ClearValue(5, BIT_(18));
 
 
+  //------------- I2C (required by LED) -------------//
   // init I2C and set up MIC2555 to have 15k pull-down on USB1 D+ & D-
   I2C_Init(LPC_I2C0, 100000);
   I2C_Cmd(LPC_I2C0, ENABLE);
 
-  pca9532_init(); // Leds Init
+  //------------- LED -------------//
+  pca9532_init();
 
 //  ASSERT_INT(0x058d, mic255_get_vendorid(), (void) 0); // verify vendor id
 //  ASSERT( mic255_regs_write(6, BIN8(1100)), (void) 0); // pull down D+/D- for host
 
 #if CFG_UART_ENABLE
-  //------------- UART init -------------//
-	scu_pinmux(BOARD_UART_PIN_PORT, BOARD_UART_PIN_TX, MD_PDN             , FUNC1);
-	scu_pinmux(BOARD_UART_PIN_PORT, BOARD_UART_PIN_RX, MD_PLN|MD_EZI|MD_ZI, FUNC1);
+  //------------- UART -------------//
+  scu_pinmux(BOARD_UART_PIN_PORT, BOARD_UART_PIN_TX, MD_PDN, FUNC1);
+  scu_pinmux(BOARD_UART_PIN_PORT, BOARD_UART_PIN_RX, MD_PLN | MD_EZI | MD_ZI, FUNC1);
 
-	UART_CFG_Type UARTConfigStruct;
+  UART_CFG_Type UARTConfigStruct;
   UART_ConfigStructInit(&UARTConfigStruct);
-	UARTConfigStruct.Baud_rate = CFG_UART_BAUDRATE;
-	UARTConfigStruct.Clock_Speed = 0;
+  UARTConfigStruct.Baud_rate = CFG_UART_BAUDRATE;
+  UARTConfigStruct.Clock_Speed = 0;
 
-	UART_Init(BOARD_UART_PORT, &UARTConfigStruct);
-	UART_TxCmd(BOARD_UART_PORT, ENABLE); // Enable UART Transmit
+  UART_Init(BOARD_UART_PORT, &UARTConfigStruct);
+  UART_TxCmd(BOARD_UART_PORT, ENABLE); // Enable UART Transmit
 #endif
+
+#if 0
+	//------------- Ethernet -------------//
+	LPC_CREG->CREG6 &= ~0x7;
+
+	/* RMII mode setup only */
+	LPC_CREG->CREG6 |= 0x4;
+
+	scu_pinmux(0x1, 18, (MD_EHS | MD_PLN | MD_ZI)         , FUNC3); // ENET TXD0
+	scu_pinmux(0x1, 20, (MD_EHS | MD_PLN | MD_ZI)         , FUNC3); // ENET TXD1
+	scu_pinmux(0x0, 1 , (MD_EHS | MD_PLN | MD_ZI)         , FUNC6); // ENET TX Enable
+
+	scu_pinmux(0x1, 15, (MD_EHS | MD_PLN | MD_EZI | MD_ZI), FUNC3); // ENET RXD0
+	scu_pinmux(0x0, 0 , (MD_EHS | MD_PLN | MD_EZI | MD_ZI), FUNC2); // ENET RXD1
+	scu_pinmux(0x1, 16, (MD_EHS | MD_PLN | MD_EZI | MD_ZI), FUNC7); // ENET RX Data Valid
+
+	scu_pinmux(0x1, 19, (MD_EHS | MD_PLN | MD_EZI | MD_ZI), FUNC0); // ENET REF CLK
+	scu_pinmux(0x1, 17, (MD_EHS | MD_PLN | MD_EZI | MD_ZI), FUNC3); // ENET MDIO
+	scu_pinmux(0xC,	1 , (MD_EHS | MD_PLN | MD_ZI)         , FUNC3); // ENET MDC
+#endif
+
 }
 
 //--------------------------------------------------------------------+
