@@ -248,12 +248,12 @@ static inline void osal_mutex_reset(osal_mutex_handle_t mutex_hdl)
 // QUEUE API
 //--------------------------------------------------------------------+
 typedef struct{
-           void *  const buffer    ; ///< buffer pointer
-           uint8_t const depth     ; ///< max items
-           uint8_t const item_size ; ///< size of each item
-  volatile uint8_t count           ; ///< number of items in queue
-  volatile uint8_t wr_idx          ; ///< write pointer
-  volatile uint8_t rd_idx          ; ///< read pointer
+           uint8_t* const buffer    ; ///< buffer pointer
+           uint8_t  const depth     ; ///< max items
+           uint8_t  const item_size ; ///< size of each item
+  volatile uint8_t count            ; ///< number of items in queue
+  volatile uint8_t wr_idx           ; ///< write pointer
+  volatile uint8_t rd_idx           ; ///< read pointer
 } osal_queue_t;
 
 typedef osal_queue_t * osal_queue_handle_t;
@@ -262,7 +262,7 @@ typedef osal_queue_t * osal_queue_handle_t;
 #define OSAL_QUEUE_DEF(name, queue_depth, type)\
   type name##_buffer[queue_depth];\
   osal_queue_t name = {\
-      .buffer    = name##_buffer,\
+      .buffer    = (uint8_t*) name##_buffer,\
       .depth     = queue_depth,\
       .item_size = sizeof(type)\
   }

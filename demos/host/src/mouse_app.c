@@ -74,7 +74,7 @@ void tusbh_hid_mouse_mounted_cb(uint8_t dev_addr)
   printf("a mouse device is mounted\n");
 
   osal_queue_flush(queue_mouse_hdl);
-  tusbh_hid_mouse_get_report(dev_addr, (uint8_t*) &usb_mouse_report); // first report
+  (void) tusbh_hid_mouse_get_report(dev_addr, (uint8_t*) &usb_mouse_report); // first report
 }
 
 void tusbh_hid_mouse_unmounted_isr(uint8_t dev_addr)
@@ -88,11 +88,11 @@ void tusbh_hid_mouse_isr(uint8_t dev_addr, tusb_event_t event)
   {
     case TUSB_EVENT_XFER_COMPLETE:
       osal_queue_send(queue_mouse_hdl, &usb_mouse_report);
-      tusbh_hid_mouse_get_report(dev_addr, (uint8_t*) &usb_mouse_report);
+      (void) tusbh_hid_mouse_get_report(dev_addr, (uint8_t*) &usb_mouse_report);
     break;
 
     case TUSB_EVENT_XFER_ERROR:
-      tusbh_hid_mouse_get_report(dev_addr, (uint8_t*) &usb_mouse_report); // ignore & continue
+      (void) tusbh_hid_mouse_get_report(dev_addr, (uint8_t*) &usb_mouse_report); // ignore & continue
     break;
 
     default :

@@ -108,7 +108,7 @@ int __sys_readc (void)
 #elif defined __CC_ARM // keil
 
 #if CFG_PRINTF_TARGET == PRINTF_TARGET_UART
-  #define retarget_putc(c)  board_uart_send(&c, 1);
+  #define retarget_putc(c)  board_uart_send( (uint8_t*) &c, 1);
 #elif CFG_PRINTF_TARGET == PRINTF_TARGET_SWO
 	#define retarget_putc(c)  ITM_SendChar(c)
 #else
@@ -126,7 +126,7 @@ int fputc(int ch, FILE *f)
   if (//CFG_PRINTF_NEWLINE[0] == '\r' &&
       ch == '\n')
   {
-    const uint8_t carry = '\r';
+    uint8_t carry = '\r';
     retarget_putc(carry);
   }
 
@@ -140,7 +140,7 @@ void _ttywrch(int ch)
   if (//CFG_PRINTF_NEWLINE[0] == '\r' &&
       ch == '\n')
   {
-    const uint8_t carry = '\r';
+    uint8_t carry = '\r';
     retarget_putc(carry);
   }
 

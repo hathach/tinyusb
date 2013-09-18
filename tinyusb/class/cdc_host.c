@@ -76,8 +76,8 @@ static inline cdc_pipeid_t get_app_pipeid(pipe_handle_t pipe_hdl)
   cdch_data_t const * p_cdc = &cdch_data[pipe_hdl.dev_addr-1];
 
   return pipehandle_is_equal( pipe_hdl, p_cdc->pipe_notification ) ? CDC_PIPE_NOTIFICATION :
-         pipehandle_is_equal( pipe_hdl, p_cdc->pipe_in           ) ? CDC_PIPE_DATA_IN :
-         pipehandle_is_equal( pipe_hdl, p_cdc->pipe_out          ) ? CDC_PIPE_DATA_OUT : 0;
+         pipehandle_is_equal( pipe_hdl, p_cdc->pipe_in           ) ? CDC_PIPE_DATA_IN      :
+         pipehandle_is_equal( pipe_hdl, p_cdc->pipe_out          ) ? CDC_PIPE_DATA_OUT     : CDC_PIPE_ERROR;
 }
 
 //--------------------------------------------------------------------+

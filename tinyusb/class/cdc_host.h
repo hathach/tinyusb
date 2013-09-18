@@ -55,6 +55,7 @@
 #endif
 
 typedef enum {
+  CDC_PIPE_ERROR,
   CDC_PIPE_NOTIFICATION = 1,
   CDC_PIPE_DATA_IN,
   CDC_PIPE_DATA_OUT
