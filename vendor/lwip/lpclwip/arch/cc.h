@@ -33,6 +33,7 @@
 #define __CC_H__ 
 
 #include <stdint.h>
+#include "common/assertion.h"
 
 /* Types based on stdint.h */
 typedef uint8_t            u8_t; 
@@ -86,14 +87,13 @@ typedef uintptr_t          mem_ptr_t;
 #define LWIP_CHKSUM_ALGORITHM 1
 
 #ifdef LWIP_DEBUG 
-void assert_printf(char *msg, int line, char *file);
 
 /* Plaform specific diagnostic output */
-#define LWIP_PLATFORM_DIAG(vars) printf vars
-#define LWIP_PLATFORM_ASSERT(flag) { assert_printf((flag), __LINE__, __FILE__); }
+#define LWIP_PLATFORM_DIAG(vars)    printf(vars)
+#define LWIP_PLATFORM_ASSERT(flag)  hal_debugger_breakpoint()
 #else
 #define LWIP_PLATFORM_DIAG(msg) { ; }
-#define LWIP_PLATFORM_ASSERT(flag) { while (1); }
+#define LWIP_PLATFORM_ASSERT(flag)    hal_debugger_breakpoint()
 #endif 
 
 #endif /* __CC_H__ */ 

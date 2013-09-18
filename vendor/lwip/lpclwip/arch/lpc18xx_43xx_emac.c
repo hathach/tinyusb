@@ -891,13 +891,13 @@ static err_t low_level_init(struct netif *netif)
 
 	/* Reset MAC Subsystem internal registers and logic */
 	LPC_ETHERNET->DMA_BUS_MODE |= DMA_BM_SWR;
-	timeout = 3;
-	while (LPC_ETHERNET->DMA_BUS_MODE & DMA_BM_SWR) {
-		msDelay(1);
-		timeout--;
-		if (timeout == 0)
-			return ERR_TIMEOUT;
-	}
+//	timeout = 3;
+//	while (LPC_ETHERNET->DMA_BUS_MODE & DMA_BM_SWR) {
+//		msDelay(1);
+//		timeout--;
+//		if (timeout == 0)
+//			return ERR_TIMEOUT;
+//	}
 	LPC_ETHERNET->DMA_BUS_MODE = DMA_BM_ATDS | DMA_BM_PBL(1) | DMA_BM_RPBL(1);
 
 	/* Save MAC address */
@@ -1020,6 +1020,7 @@ err_t lpc_etharp_output(struct netif *netif, struct pbuf *q,
  *         ERR_MEM if private data couldn't be allocated
  *         any other err_t on error
  */
+void boardGetMACaddr(uint8_t *macaddr); // FIXME ethernet
 err_t lpc_enetif_init(struct netif *netif)
 {
 	err_t err;

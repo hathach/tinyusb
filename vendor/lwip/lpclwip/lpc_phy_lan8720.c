@@ -29,6 +29,7 @@
 #include "lwip/snmp.h"
 
 #include "boards/board.h"
+#include "arch/lpc_arch.h" // FIXME Ethernet
 #include "lpc_phy.h"
 
 /** @defgroup lan8720_phy	PHY status and control for the LAN8720.
