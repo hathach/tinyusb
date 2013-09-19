@@ -108,10 +108,10 @@ void keyboard_app_init(void)
   memclr_(&usb_keyboard_report, sizeof(tusb_keyboard_report_t));
 
   queue_kbd_hdl = osal_queue_create( OSAL_QUEUE_REF(queue_kbd_def) );
-  ASSERT_PTR( queue_kbd_hdl, (void) 0 );
+  ASSERT_PTR( queue_kbd_hdl, VOID_RETURN );
 
   ASSERT( TUSB_ERROR_NONE == osal_task_create( OSAL_TASK_REF(keyboard_app_task) ) ,
-          (void) 0 );
+          VOID_RETURN);
 }
 
 //------------- main task -------------//

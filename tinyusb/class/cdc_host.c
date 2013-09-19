@@ -289,7 +289,7 @@ void cdch_close(uint8_t dev_addr)
 
   ASSERT(err1 == TUSB_ERROR_NONE &&
          err2 == TUSB_ERROR_NONE &&
-         err3 == TUSB_ERROR_NONE, (void) 0 );
+         err3 == TUSB_ERROR_NONE, VOID_RETURN );
 
 }
 

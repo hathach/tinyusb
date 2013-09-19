@@ -113,6 +113,8 @@
   #define TUSB_CFG_ATTR_USBRAM   __attribute__ ((section(TUSB_RAM_SECTION)))
 #elif defined  __CC_ARM // Compiled with Keil armcc
   #define TUSB_CFG_ATTR_USBRAM
+#elif __ICCARM__ // compiled with IAR
+  #define TUSB_CFG_ATTR_USBRAM
 #else
   #error compiler not specified
 #endif

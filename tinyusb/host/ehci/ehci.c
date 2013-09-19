@@ -62,13 +62,19 @@ STATIC_ ehci_data_t ehci_data TUSB_CFG_ATTR_USBRAM;
 #if EHCI_PERIODIC_LIST
 
   #if (TUSB_CFG_CONTROLLER0_MODE & TUSB_MODE_HOST)
-  STATIC_ ehci_link_t period_frame_list0[EHCI_FRAMELIST_SIZE] ATTR_ALIGNED(4096) TUSB_CFG_ATTR_USBRAM;
-  STATIC_ASSERT( ALIGN_OF(period_frame_list0) == 4096, "Period Framelist must be 4k alginment"); // validation
+  ATTR_ALIGNED(4096) STATIC_ ehci_link_t period_frame_list0[EHCI_FRAMELIST_SIZE] TUSB_CFG_ATTR_USBRAM;
+
+    #ifndef __ICCARM__ // IAR cannot able to determine the alignment with dataalignment pragma
+    STATIC_ASSERT( ALIGN_OF(period_frame_list0) == 4096, "Period Framelist must be 4k alginment"); // validation
+    #endif
   #endif
 
   #if (TUSB_CFG_CONTROLLER1_MODE & TUSB_MODE_HOST)
   STATIC_ ehci_link_t period_frame_list1[EHCI_FRAMELIST_SIZE] ATTR_ALIGNED(4096) TUSB_CFG_ATTR_USBRAM;
-  STATIC_ASSERT( ALIGN_OF(period_frame_list1) == 4096, "Period Framelist must be 4k alginment"); // validation
+
+    #ifndef __ICCARM__ // IAR cannot able to determine the alignment with dataalignment pragma
+    STATIC_ASSERT( ALIGN_OF(period_frame_list1) == 4096, "Period Framelist must be 4k alginment"); // validation
+    #endif
   #endif
 #endif
 
@@ -587,7 +593,7 @@ static void period_list_xfer_complete_isr(uint8_t hostid, uint8_t interval_ms)
       case EHCI_QUEUE_ELEMENT_SITD:
       case EHCI_QUEUE_ELEMENT_FSTN:
       default:
-        ASSERT (false, (void) 0); // TODO support hs/fs ISO
+        ASSERT (false, VOID_RETURN); // TODO support hs/fs ISO
       break;
     }
 
@@ -667,7 +673,7 @@ static void xfer_error_isr(uint8_t hostid)
         case EHCI_QUEUE_ELEMENT_SITD:
         case EHCI_QUEUE_ELEMENT_FSTN:
         default:
-          ASSERT (false, (void) 0); // TODO support hs/fs ISO
+          ASSERT (false, VOID_RETURN); // TODO support hs/fs ISO
         break;
       }
 
@@ -905,7 +911,7 @@ static void qhd_init(ehci_qhd_t *p_qhd, uint8_t dev_addr, uint16_t max_packet_si
   {
     if (TUSB_SPEED_HIGH == p_qhd->endpoint_speed)
     {
-      ASSERT_INT_WITHIN(1, 16, interval, (void) 0);
+      ASSERT_INT_WITHIN(1, 16, interval, VOID_RETURN);
       if ( interval < 4) // sub milisecond interval
       {
         p_qhd->interval_ms     = 0;
@@ -918,7 +924,7 @@ static void qhd_init(ehci_qhd_t *p_qhd, uint8_t dev_addr, uint16_t max_packet_si
       }
     }else
     {
-      ASSERT( 0 != interval, (void) 0);
+      ASSERT( 0 != interval, VOID_RETURN);
       // Full/Low: 4.12.2.1 (EHCI) case 1 schedule start split at 1 us & complete split at 2,3,4 uframes
       p_qhd->interrupt_smask        = 0x01;
       p_qhd->non_hs_interrupt_cmask = BIN8(11100);

@@ -60,6 +60,8 @@ extern "C"
 #include "tusb_option.h"
 #include "hal/hal.h" // TODO find a way to break hal dependency
 
+#define VOID_RETURN
+
 //--------------------------------------------------------------------+
 // Compile-time Assert
 //--------------------------------------------------------------------+
@@ -95,7 +97,7 @@ extern "C"
 
 #ifndef _TEST_ASSERT_
   #define ASSERT_ERROR_HANDLER(x, para)  \
-    return (x)
+    return x
 #else
   #define ASSERT_ERROR_HANDLER(x, para)  Throw(x)
 #endif

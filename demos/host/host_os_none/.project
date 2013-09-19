@@ -103,7 +103,16 @@
 	</linkedResources>
 	<filteredResources>
 		<filter>
-			<id>1379174455764</id>
+			<id>1379572492985</id>
+			<name></name>
+			<type>26</type>
+			<matcher>
+				<id>org.eclipse.ui.ide.multiFilter</id>
+				<arguments>1.0-name-matches-false-false-startup_iar</arguments>
+			</matcher>
+		</filter>
+		<filter>
+			<id>1379572492997</id>
 			<name></name>
 			<type>26</type>
 			<matcher>

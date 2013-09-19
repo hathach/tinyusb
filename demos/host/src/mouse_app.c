@@ -110,10 +110,10 @@ void mouse_app_init(void)
   memclr_(&usb_mouse_report, sizeof(tusb_mouse_report_t));
 
   queue_mouse_hdl = osal_queue_create( OSAL_QUEUE_REF(queue_mouse_def) );
-  ASSERT_PTR( queue_mouse_hdl, (void) 0 );
+  ASSERT_PTR( queue_mouse_hdl, VOID_RETURN);
 
   ASSERT( TUSB_ERROR_NONE == osal_task_create( OSAL_TASK_REF(mouse_app_task) ),
-          (void) 0 );
+          VOID_RETURN );
 }
 
 //------------- main task -------------//

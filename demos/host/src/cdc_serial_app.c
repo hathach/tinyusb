@@ -93,7 +93,7 @@ void tusbh_cdc_xfer_isr(uint8_t dev_addr, tusb_event_t event, cdc_pipeid_t pipe_
 
       case TUSB_EVENT_XFER_STALLED:
       default :
-        ASSERT(false, (void) 0); // error
+        ASSERT(false, VOID_RETURN); // error
         break;
     }
   }else if (pipe_id == CDC_PIPE_DATA_OUT)
@@ -113,9 +113,9 @@ void cdc_serial_app_init(void)
   memclr_(buffer_in, sizeof(buffer_in));
 
   queue_hdl = osal_queue_create( OSAL_QUEUE_REF(queue_def) );
-  ASSERT_PTR( queue_hdl, (void) 0 );
+  ASSERT_PTR( queue_hdl, VOID_RETURN);
 
-  ASSERT( TUSB_ERROR_NONE == osal_task_create(OSAL_TASK_REF(cdc_serial_app_task)), (void) 0 );
+  ASSERT( TUSB_ERROR_NONE == osal_task_create(OSAL_TASK_REF(cdc_serial_app_task)), VOID_RETURN);
 }
 
 //------------- main task -------------//

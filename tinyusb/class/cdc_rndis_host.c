@@ -55,7 +55,7 @@
 #define RNDIS_MSG_PAYLOAD_MAX   (1024*4)
 
 static uint8_t msg_notification[TUSB_CFG_HOST_DEVICE_MAX][8] TUSB_CFG_ATTR_USBRAM;
-static uint8_t msg_payload[RNDIS_MSG_PAYLOAD_MAX]  TUSB_CFG_ATTR_USBRAM ATTR_ALIGNED(4);
+ATTR_ALIGNED(4) static uint8_t msg_payload[RNDIS_MSG_PAYLOAD_MAX]  TUSB_CFG_ATTR_USBRAM;
 
 STATIC_ rndish_data_t rndish_data[TUSB_CFG_HOST_DEVICE_MAX];
 
@@ -154,7 +154,6 @@ static rndis_msg_query_t const msg_query_permanent_addr =
     .oid           = OID_802_3_PERMANENT_ADDRESS,
     .buffer_length = 6,
     .buffer_offset = 20,
-    .oid_buffer    = {0, 0, 0, 0, 0, 0}
 };
 
 static rndis_msg_set_t const msg_set_packet_filter =
@@ -165,7 +164,6 @@ static rndis_msg_set_t const msg_set_packet_filter =
     .oid           = OID_GEN_CURRENT_PACKET_FILTER,
     .buffer_length = 4,
     .buffer_offset = 20,
-    .oid_buffer    = { (uint8_t) (NDIS_PACKET_TYPE_DIRECTED | NDIS_PACKET_TYPE_MULTICAST | NDIS_PACKET_TYPE_BROADCAST), 0, 0, 0}
 };
 
 tusb_error_t rndish_open_subtask(uint8_t dev_addr, cdch_data_t *p_cdc)
@@ -191,7 +189,8 @@ tusb_error_t rndish_open_subtask(uint8_t dev_addr, cdch_data_t *p_cdc)
   rndish_data[dev_addr-1].max_xfer_size = p_init_cmpt->max_xfer_size;
 
   //------------- Message Query 802.3 Permanent Address -------------//
-  memcpy(msg_payload, &msg_query_permanent_addr, sizeof(rndis_msg_query_t) + 6); // 6 bytes for MAC address
+  memcpy(msg_payload, &msg_query_permanent_addr, sizeof(rndis_msg_query_t));
+  memclr_(msg_payload + sizeof(rndis_msg_query_t), 6); // 6 bytes for MAC address
 
   OSAL_SUBTASK_INVOKED_AND_WAIT(
       send_message_get_response_subtask( dev_addr, p_cdc,
@@ -206,7 +205,9 @@ tusb_error_t rndish_open_subtask(uint8_t dev_addr, cdch_data_t *p_cdc)
   memcpy(rndish_data[dev_addr-1].mac_address, msg_payload + 8 + p_query_cmpt->buffer_offset, 6);
 
   //------------- Set OID_GEN_CURRENT_PACKET_FILTER to (DIRECTED | MULTICAST | BROADCAST) -------------//
-  memcpy(msg_payload, &msg_set_packet_filter, sizeof(rndis_msg_set_t) + 4); // 4 bytes for filter flags
+  memcpy(msg_payload, &msg_set_packet_filter, sizeof(rndis_msg_set_t));
+  memclr_(msg_payload + sizeof(rndis_msg_set_t), 4); // 4 bytes for filter flags
+  ((rndis_msg_set_t*) msg_payload)->oid_buffer[0] = (NDIS_PACKET_TYPE_DIRECTED | NDIS_PACKET_TYPE_MULTICAST | NDIS_PACKET_TYPE_BROADCAST);
 
   OSAL_SUBTASK_INVOKED_AND_WAIT(
       send_message_get_response_subtask( dev_addr, p_cdc,

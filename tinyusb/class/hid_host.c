@@ -87,7 +87,7 @@ static inline void hidh_interface_close(uint8_t dev_addr, hidh_interface_info_t 
   if ( pipehandle_is_valid(pipe_hdl) )
   {
     memclr_(p_hid, sizeof(hidh_interface_info_t));
-    ASSERT_INT( TUSB_ERROR_NONE,  hcd_pipe_close(pipe_hdl), (void) 0 );
+    ASSERT_INT( TUSB_ERROR_NONE,  hcd_pipe_close(pipe_hdl), VOID_RETURN );
   }
 }
 
