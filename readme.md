@@ -47,8 +47,9 @@ coming soon ...
 
 The following toolchain is supported
 
-- lpcxpresso/redsuite
-- Keil
+- *lpcxpresso/redsuite*
+- *Keil MDK*
+- *IAR Workbench*
 
 ## Supported Boards ##
 

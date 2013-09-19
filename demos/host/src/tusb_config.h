@@ -114,7 +114,7 @@
 #elif defined  __CC_ARM // Compiled with Keil armcc
   #define TUSB_CFG_ATTR_USBRAM
 #elif __ICCARM__ // compiled with IAR
-  #define TUSB_CFG_ATTR_USBRAM
+  #define TUSB_CFG_ATTR_USBRAM  @ ".ahb_sram1"
 #else
   #error compiler not specified
 #endif

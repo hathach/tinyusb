@@ -774,7 +774,7 @@
         </option>
         <option>
           <name>CCJLinkInterfaceRadio</name>
-          <state>0</state>
+          <state>1</state>
         </option>
         <option>
           <name>OCJLinkAttachSlave</name>
@@ -848,7 +848,7 @@
         </option>
         <option>
           <name>CCSwoClockAuto</name>
-          <state>0</state>
+          <state>1</state>
         </option>
         <option>
           <name>CCSwoClockEdit</name>
@@ -856,7 +856,7 @@
         </option>
         <option>
           <name>OCJLinkTraceSource</name>
-          <state>0</state>
+          <state>1</state>
         </option>
         <option>
           <name>OCJLinkTraceSourceDummy</name>
