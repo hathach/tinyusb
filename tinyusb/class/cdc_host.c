@@ -56,7 +56,7 @@
 //--------------------------------------------------------------------+
 // INTERNAL OBJECT & FUNCTION DECLARATION
 //--------------------------------------------------------------------+
-/*STATIC_*/ cdch_data_t cdch_data[TUSB_CFG_HOST_DEVICE_MAX];
+/*STATIC_*/ cdch_data_t cdch_data[TUSB_CFG_HOST_DEVICE_MAX]; // TODO to be static
 
 STATIC_ INLINE_ bool tusbh_cdc_is_mounted(uint8_t dev_addr) ATTR_PURE ATTR_ALWAYS_INLINE ATTR_WARN_UNUSED_RESULT;
 STATIC_ INLINE_ bool tusbh_cdc_is_mounted(uint8_t dev_addr)
@@ -193,7 +193,7 @@ tusb_error_t cdch_open_subtask(uint8_t dev_addr, tusb_descriptor_interface_t con
     for(uint32_t i=0; i<2; i++)
     {
       tusb_descriptor_endpoint_t const *p_endpoint = (tusb_descriptor_endpoint_t const *) p_desc;
-      ASSERT_INT(TUSB_DESC_TYPE_ENDPOINT, p_endpoint->bDescriptorType, TUSB_ERROR_CDCH_DESCRIPTOR_CORRUPTED);
+      ASSERT_INT(TUSB_DESC_TYPE_ENDPOINT, p_endpoint->bDescriptorType, TUSB_ERROR_USBH_DESCRIPTOR_CORRUPTED);
 
       pipe_handle_t * p_pipe_hdl =  ( p_endpoint->bEndpointAddress &  TUSB_DIR_DEV_TO_HOST_MASK ) ?
           &p_cdc->pipe_in : &p_cdc->pipe_out;

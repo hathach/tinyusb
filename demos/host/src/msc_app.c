@@ -1,6 +1,6 @@
 /**************************************************************************/
 /*!
-    @file     tusb_config.h
+    @file     msc_app.c
     @author   hathach (tinyusb.org)
 
     @section LICENSE
@@ -26,104 +26,65 @@
     WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
     DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER BE LIABLE FOR ANY
     DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
-    INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
-    LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION HOWEVER CAUSED AND
+    (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
+    LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND
     ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
-    INCLUDING NEGLIGENCE OR OTHERWISE ARISING IN ANY WAY OUT OF THE USE OF THIS
+    (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
     SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
     This file is part of the tinyusb stack.
 */
 /**************************************************************************/
 
-/** \file
- *  \brief TBD
- *
- *  \note TBD
- */
+//--------------------------------------------------------------------+
+// INCLUDE
+//--------------------------------------------------------------------+
+#include "mouse_app.h"
 
-/** \ingroup TBD
- *  \defgroup TBD
- *  \brief TBD
- *
- *  @{
- */
-
-#ifndef _TUSB_TUSB_CONFIG_H_
-#define _TUSB_TUSB_CONFIG_H_
-
-#ifdef __cplusplus
- extern "C" {
+#if TUSB_CFG_OS != TUSB_OS_NONE
+#include "app_os_prio.h"
 #endif
 
-//--------------------------------------------------------------------+
-// CONTROLLER CONFIGURATION
-//--------------------------------------------------------------------+
-#define TUSB_CFG_CONTROLLER0_MODE  (TUSB_MODE_HOST)
-#define TUSB_CFG_CONTROLLER1_MODE  (TUSB_MODE_NONE)
+#if TUSB_CFG_HOST_MSC
 
 //--------------------------------------------------------------------+
-// HOST CONFIGURATION
-//--------------------------------------------------------------------+
-#define TUSB_CFG_HOST_DEVICE_MAX     1
-#define TUSB_CFG_CONFIGURATION_MAX   1
-
-//------------- USBD -------------//
-#define TUSB_CFG_HOST_ENUM_BUFFER_SIZE 255
-
-//------------- CLASS -------------//
-#define TUSB_CFG_HOST_HUB           0
-#define TUSB_CFG_HOST_HID_KEYBOARD  1
-#define TUSB_CFG_HOST_HID_MOUSE     1
-#define TUSB_CFG_HOST_HID_GENERIC   0
-#define TUSB_CFG_HOST_MSC           1
-#define TUSB_CFG_HOST_CDC           1
-#define TUSB_CFG_HOST_CDC_RNDIS     1
-
-//--------------------------------------------------------------------+
-// DEVICE CONFIGURATION
-//--------------------------------------------------------------------+
-//#define TUSB_CFG_DEVICE
-
-//------------- CORE/CONTROLLER -------------//
-
-//------------- CLASS -------------//
-//#define TUSB_CFG_DEVICE_CDC
-//#define TUSB_CFG_DEVICE_HID_KEYBOARD  1
-//#define TUSB_CFG_DEVICE_HID_MOUSE     1
-
-//--------------------------------------------------------------------+
-// COMMON CONFIGURATION
+// MACRO CONSTANT TYPEDEF
 //--------------------------------------------------------------------+
 
-#define TUSB_CFG_DEBUG                3
+//--------------------------------------------------------------------+
+// INTERNAL OBJECT & FUNCTION DECLARATION
+//--------------------------------------------------------------------+
 
-//#define TUSB_CFG_OS                   TUSB_OS_NONE // defined using eclipse build
-//#define TUSB_CFG_OS_TASK_PRIO
+//--------------------------------------------------------------------+
+// tinyusb callback (ISR context)
+//--------------------------------------------------------------------+
+void tusbh_msc_mounted_cb(uint8_t dev_addr)
+{
+  printf("an msc device is mounted\n");
+}
 
-#define TUSB_CFG_OS_TICKS_PER_SECOND  1000
+//--------------------------------------------------------------------+
+// IMPLEMENTATION
+//--------------------------------------------------------------------+
+void msc_app_init(void)
+{
 
-#ifdef __CODE_RED // make use of code red's support for ram region macros
-  #if (MCU == MCU_LPC11UXX) || (MCU == MCU_LPC13UXX)
-    #define TUSB_RAM_SECTION  ".data.$RAM2"
-  #elif  (MCU == MCU_LPC43XX)
-    #define TUSB_RAM_SECTION  ".data.$RAM3"
-  #endif
+}
 
-  #define TUSB_CFG_ATTR_USBRAM   __attribute__ ((section(TUSB_RAM_SECTION)))
-#elif defined  __CC_ARM // Compiled with Keil armcc
-  #define TUSB_CFG_ATTR_USBRAM
-#elif __ICCARM__ // compiled with IAR
-  #define TUSB_CFG_ATTR_USBRAM  @ ".ahb_sram1"
+//------------- main task -------------//
+OSAL_TASK_FUNCTION( msc_app_task ) (void* p_task_para)
+{
+
+}
+
 #else
-  #error compiler not specified
+// dummy implementation to remove #ifdef in main.c
+void msc_app_init(void) { }
+OSAL_TASK_FUNCTION( msc_app_task ) (void* p_task_para)
+{
+  OSAL_TASK_LOOP_BEGIN
+  OSAL_TASK_LOOP_END
+}
+
+
 #endif
-
-
-#ifdef __cplusplus
- }
-#endif
-
-#endif /* _TUSB_TUSB_CONFIG_H_ */
-
-/** @} */

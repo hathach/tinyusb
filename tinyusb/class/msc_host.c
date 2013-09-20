@@ -51,6 +51,16 @@
 //--------------------------------------------------------------------+
 // MACRO CONSTANT TYPEDEF
 //--------------------------------------------------------------------+
+typedef struct {
+  pipe_handle_t bulk_in, bulk_out;
+  uint8_t interface_number;
+  uint8_t max_lun;
+}msch_interface_t;
+
+/*STATIC_*/ msch_interface_t msch_data[TUSB_CFG_HOST_DEVICE_MAX]; // TODO to be static
+
+// TODO rename this
+STATIC_ uint8_t msch_buffer[10] TUSB_CFG_ATTR_USBRAM;
 
 //--------------------------------------------------------------------+
 // INTERNAL OBJECT & FUNCTION DECLARATION
@@ -59,13 +69,61 @@
 //--------------------------------------------------------------------+
 // IMPLEMENTATION
 //--------------------------------------------------------------------+
+
+//--------------------------------------------------------------------+
+// CLASS-USBH API (don't require to verify parameters)
+//--------------------------------------------------------------------+
 void msch_init(void)
 {
-
+  memclr_(msch_data, sizeof(msch_interface_t)*TUSB_CFG_HOST_DEVICE_MAX);
 }
 
-tusb_error_t msch_open_subtask(uint8_t dev_addr, tusb_descriptor_interface_t const *descriptor, uint16_t *p_length)
+tusb_error_t msch_open_subtask(uint8_t dev_addr, tusb_descriptor_interface_t const *p_interface_desc, uint16_t *p_length)
 {
+  tusb_error_t error;
+
+  OSAL_SUBTASK_BEGIN
+
+  if (! ( MSC_SUBCLASS_SCSI == p_interface_desc->bInterfaceSubClass &&
+          MSC_PROTOCOL_BOT  == p_interface_desc->bInterfaceProtocol ) )
+  {
+    return TUSB_ERROR_MSCH_UNSUPPORTED_PROTOCOL;
+  }
+
+  //------------- Open Data Pipe -------------//
+  tusb_descriptor_endpoint_t const *p_endpoint = (tusb_descriptor_endpoint_t const *) descriptor_next( p_interface_desc );
+  for(uint32_t i=0; i<2; i++)
+  {
+    ASSERT_INT(TUSB_DESC_TYPE_ENDPOINT, p_endpoint->bDescriptorType, TUSB_ERROR_USBH_DESCRIPTOR_CORRUPTED);
+
+    pipe_handle_t * p_pipe_hdl =  ( p_endpoint->bEndpointAddress &  TUSB_DIR_DEV_TO_HOST_MASK ) ?
+        &msch_data[dev_addr-1].bulk_in : &msch_data[dev_addr-1].bulk_out;
+
+    (*p_pipe_hdl) = hcd_pipe_open(dev_addr, p_endpoint, TUSB_CLASS_MSC);
+    ASSERT ( pipehandle_is_valid(*p_pipe_hdl), TUSB_ERROR_HCD_OPEN_PIPE_FAILED );
+
+    p_endpoint = (tusb_descriptor_endpoint_t const *) descriptor_next( p_endpoint );
+  }
+
+  msch_data[dev_addr-1].interface_number = p_interface_desc->bInterfaceNumber;
+  (*p_length) += sizeof(tusb_descriptor_interface_t) + 2*sizeof(tusb_descriptor_endpoint_t);
+
+  OSAL_SUBTASK_INVOKED_AND_WAIT(
+    usbh_control_xfer_subtask( dev_addr, bm_request_type(TUSB_DIR_DEV_TO_HOST, TUSB_REQUEST_TYPE_CLASS, TUSB_REQUEST_RECIPIENT_INTERFACE),
+                               MSC_REQUEST_GET_MAX_LUN, 0, msch_data[dev_addr-1].interface_number,
+                               1, msch_buffer ),
+    error
+  );
+
+  if(TUSB_ERROR_NONE == error /* TODO STALL means zero */)
+  {
+    msch_data[dev_addr-1].max_lun = msch_buffer[0];
+
+    tusbh_msc_mounted_cb(dev_addr);
+  }
+
+  OSAL_SUBTASK_END
+
   return TUSB_ERROR_NONE;
 }
 
@@ -76,7 +134,10 @@ void msch_isr(pipe_handle_t pipe_hdl, tusb_event_t event)
 
 void msch_close(uint8_t dev_addr)
 {
+  (void) hcd_pipe_close(msch_data[dev_addr-1].bulk_in);
+  (void) hcd_pipe_close(msch_data[dev_addr-1].bulk_out);
 
+  memclr_(&msch_data[dev_addr-1], sizeof(msch_interface_t));
 }
 
 

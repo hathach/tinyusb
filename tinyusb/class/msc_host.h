@@ -58,14 +58,17 @@
 //--------------------------------------------------------------------+
 // MASS STORAGE Application API
 //--------------------------------------------------------------------+
-bool          tusbh_msc_scsi_is_supported(uint8_t dev_addr) ATTR_PURE ATTR_WARN_UNUSED_RESULT;
-tusb_interface_status_t tusbh_msc_scsi_status(uint8_t dev_addr, uint8_t instance_num) ATTR_WARN_UNUSED_RESULT;
+bool          tusbh_msc_is_supported(uint8_t dev_addr) ATTR_PURE ATTR_WARN_UNUSED_RESULT;
+tusb_interface_status_t tusbh_msc_status(uint8_t dev_addr, uint8_t instance_num) ATTR_WARN_UNUSED_RESULT;
 
-tusb_error_t  tusbh_msc_scsi_inquiry(uint8_t dev_addr, uint8_t instance_num, msc_scsi_inquiry_t * p_inquiry_data) ATTR_WARN_UNUSED_RESULT;
-tusb_error_t  tusbh_msc_scsi_test_unit_ready(uint8_t dev_addr, uint8_t instance_num) ATTR_WARN_UNUSED_RESULT;
-tusb_error_t  tusbh_msc_scsi_read_capacity10(uint8_t dev_addr, uint8_t instance_num, msc_scsi_read_capacity10_t * p_buffer) ATTR_WARN_UNUSED_RESULT;
-tusb_error_t  tusbh_msc_scsi_read10(uint8_t dev_addr, uint8_t instance_num, void * p_buffer, uint32_t length) ATTR_WARN_UNUSED_RESULT;
-tusb_error_t  tusbh_msc_scsi_write10(uint8_t dev_addr, uint8_t instance_num, void const * p_data, uint32_t length) ATTR_WARN_UNUSED_RESULT;
+tusb_error_t  tusbh_msc_inquiry(uint8_t dev_addr, uint8_t instance_num, msc_scsi_inquiry_t * p_inquiry_data) ATTR_WARN_UNUSED_RESULT;
+tusb_error_t  tusbh_msc_test_unit_ready(uint8_t dev_addr, uint8_t instance_num) ATTR_WARN_UNUSED_RESULT;
+tusb_error_t  tusbh_msc_read_capacity10(uint8_t dev_addr, uint8_t instance_num, msc_scsi_read_capacity10_t * p_buffer) ATTR_WARN_UNUSED_RESULT;
+tusb_error_t  tusbh_msc_read10(uint8_t dev_addr, uint8_t instance_num, void * p_buffer, uint32_t length) ATTR_WARN_UNUSED_RESULT;
+tusb_error_t  tusbh_msc_write10(uint8_t dev_addr, uint8_t instance_num, void const * p_data, uint32_t length) ATTR_WARN_UNUSED_RESULT;
+//------------- Application Callback -------------//
+void tusbh_msc_mounted_cb(uint8_t dev_addr);
+
 
 //--------------------------------------------------------------------+
 // USBH-CLASS DRIVER API
@@ -73,7 +76,7 @@ tusb_error_t  tusbh_msc_scsi_write10(uint8_t dev_addr, uint8_t instance_num, voi
 #ifdef _TINY_USB_SOURCE_FILE_
 
 void         msch_init(void);
-tusb_error_t msch_open_subtask(uint8_t dev_addr, tusb_descriptor_interface_t const *descriptor, uint16_t *p_length) ATTR_WARN_UNUSED_RESULT;
+tusb_error_t msch_open_subtask(uint8_t dev_addr, tusb_descriptor_interface_t const *p_interface_desc, uint16_t *p_length) ATTR_WARN_UNUSED_RESULT;
 void         msch_isr(pipe_handle_t pipe_hdl, tusb_event_t event);
 void         msch_close(uint8_t dev_addr);
 #endif

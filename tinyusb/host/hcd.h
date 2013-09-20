@@ -96,7 +96,7 @@ tusb_error_t  hcd_pipe_control_close(uint8_t dev_addr) ATTR_WARN_UNUSED_RESULT;
 
 pipe_handle_t hcd_pipe_open(uint8_t dev_addr, tusb_descriptor_endpoint_t const * endpoint_desc, uint8_t class_code) ATTR_WARN_UNUSED_RESULT;
 tusb_error_t  hcd_pipe_xfer(pipe_handle_t pipe_hdl, uint8_t buffer[], uint16_t total_bytes, bool int_on_complete)  ATTR_WARN_UNUSED_RESULT;
-tusb_error_t  hcd_pipe_close(pipe_handle_t pipe_hdl) ATTR_WARN_UNUSED_RESULT;
+tusb_error_t  hcd_pipe_close(pipe_handle_t pipe_hdl) /*ATTR_WARN_UNUSED_RESULT*/;
 bool hcd_pipe_is_idle(pipe_handle_t pipe_hdl);
 
 #if 0

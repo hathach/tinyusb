@@ -55,7 +55,7 @@
 #include "cdc_serial_app.h"
 #include "rndis_app.h"
 
-#if defined(__CODE_RED)
+#if defined(__CODE_RED) // TODO to be removed
   #include <cr_section_macros.h>
   #include <NXP/crp.h>
   // Variable to store CRP value in. Will be placed automatically
@@ -104,10 +104,13 @@ void os_none_start_scheduler(void)
   while (1)
   {
     tusb_task_runner();
+    led_blinking_task(NULL);
+
     keyboard_app_task(NULL);
     mouse_app_task(NULL);
+    msc_app_task(NULL);
     cdc_serial_app_task(NULL);
-    led_blinking_task(NULL);
+    rndis_app_task(NULL);
   }
 }
 #endif
@@ -123,21 +126,11 @@ int main(void)
   //------------- application task init -------------//
   (void) osal_task_create( OSAL_TASK_REF(led_blinking_task) );
 
-#if TUSB_CFG_HOST_HID_KEYBOARD
   keyboard_app_init();
-#endif
-
-#if TUSB_CFG_HOST_HID_MOUSE
   mouse_app_init();
-#endif
-
-#if TUSB_CFG_HOST_CDC
+  msc_app_init();
   cdc_serial_app_init();
-
-  #if TUSB_CFG_HOST_CDC_RNDIS
   rndis_app_init();
-  #endif
-#endif
 
   //------------- start OS scheduler (never return) -------------//
 #if TUSB_CFG_OS == TUSB_OS_FREERTOS

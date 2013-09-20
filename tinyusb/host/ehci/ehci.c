@@ -613,6 +613,7 @@ static void qhd_xfer_error_isr(ehci_qhd_t * p_qhd)
     tusb_xfer_type_t const xfer_type = qhd_get_xfer_type(p_qhd);
     tusb_event_t error_event;
 
+    // TODO allow stall with control pipe
     // no error bits are set, endpoint is halted due to STALL
     error_event = ( !(p_qhd->qtd_overlay.buffer_err || p_qhd->qtd_overlay.babble_err ||
         p_qhd->qtd_overlay.xact_err) ) ? TUSB_EVENT_XFER_STALLED : TUSB_EVENT_XFER_ERROR;

@@ -62,9 +62,9 @@ void board_init(void)
 
   // TODO Device only USB0
   // 1.5Kohm pull-up resistor is needed on the USB DP data signal. GPIO28 (base), P9_5 (LPC4357) controls
-  scu_pinmux(0x9, 5, MD_PUP|MD_EZI|MD_ZI, FUNC4);		// GPIO5[18]
-  GPIO_SetDir(5, BIT_(18), 1); // output
-  GPIO_ClearValue(5, BIT_(18));
+//  scu_pinmux(0x9, 5, MD_PUP|MD_EZI|MD_ZI, FUNC4);		// GPIO5[18]
+//  GPIO_SetDir(5, BIT_(18), 1); // output
+//  GPIO_ClearValue(5, BIT_(18));
 
 
   //------------- I2C (required by LED) -------------//

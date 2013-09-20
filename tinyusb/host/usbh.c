@@ -345,16 +345,14 @@ tusb_error_t enumeration_body_subtask(void)
   usbh_devices[0].hub_addr = enum_entry.hub_addr;
   usbh_devices[0].hub_port = enum_entry.hub_port;
 
+  osal_task_delay(200); // wait for device is stable
+
   hcd_port_reset( usbh_devices[0].core_id ); // port must be reset to have correct speed operation
+  osal_task_delay(50); // reset is recommended to last 50 ms
   usbh_devices[0].speed    = hcd_port_speed_get( usbh_devices[0].core_id );
 
   SUBTASK_ASSERT_STATUS( usbh_pipe_control_open(0, 8) );
   usbh_devices[0].state = TUSB_DEVICE_STATE_ADDRESSED;
-
-#ifndef _TEST_
-  // TODO hack delay 20 ms for slow device (use retry on the 1st xfer instead later)
-  osal_task_delay(50);
-#endif
 
   //------------- Get first 8 bytes of device descriptor to get Control Endpoint Size -------------//
   OSAL_SUBTASK_INVOKED_AND_WAIT(
@@ -363,10 +361,10 @@ tusb_error_t enumeration_body_subtask(void)
                                  8, enum_data_buffer ),
       error
   );
-
-  SUBTASK_ASSERT_STATUS(error); // TODO some slow device is observed to fail the very fist controler xfer, can try more times
+  SUBTASK_ASSERT_STATUS(error); // TODO some slow device is observed to fail the very fist controller xfer, can try more times
 
   hcd_port_reset( usbh_devices[0].core_id ); // reset port after 8 byte descriptor
+  osal_task_delay(50); // reset is recommended to last 50 ms
 
   //------------- Set new address -------------//
   new_addr = get_new_address();

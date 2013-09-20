@@ -71,6 +71,11 @@ enum {
   MSC_PROTOCOL_BOT              = 0x50
 };
 
+enum {
+  MSC_REQUEST_GET_MAX_LUN = 254,
+  MSC_REQUEST_RESET       = 255
+};
+
 
 //--------------------------------------------------------------------+
 // SCSI Primary Command (SPC-4)

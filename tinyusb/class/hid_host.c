@@ -83,12 +83,8 @@ static inline tusb_error_t hidh_interface_open(uint8_t dev_addr, uint8_t interfa
 static inline void hidh_interface_close(uint8_t dev_addr, hidh_interface_info_t *p_hid) ATTR_ALWAYS_INLINE;
 static inline void hidh_interface_close(uint8_t dev_addr, hidh_interface_info_t *p_hid)
 {
-  pipe_handle_t pipe_hdl = p_hid->pipe_hdl;
-  if ( pipehandle_is_valid(pipe_hdl) )
-  {
-    memclr_(p_hid, sizeof(hidh_interface_info_t));
-    ASSERT_INT( TUSB_ERROR_NONE,  hcd_pipe_close(pipe_hdl), VOID_RETURN );
-  }
+  (void) hcd_pipe_close(p_hid->pipe_hdl);
+  memclr_(p_hid, sizeof(hidh_interface_info_t));
 }
 
 // called from public API need to validate parameters
