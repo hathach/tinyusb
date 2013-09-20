@@ -66,8 +66,8 @@
 
 #include "oem_base_board/pca9532.h" // LEDs
 
-//#define CFG_PRINTF_TARGET       PRINTF_TARGET_SWO
-#define CFG_PRINTF_TARGET       PRINTF_TARGET_UART
+#define CFG_PRINTF_TARGET       PRINTF_TARGET_SWO
+//#define CFG_PRINTF_TARGET       PRINTF_TARGET_UART
 
 /*=========================================================================
     HARDWARE MAC ADDRESS

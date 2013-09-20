@@ -416,6 +416,11 @@
               <FileType>1</FileType>
               <FilePath>..\src\rndis_app.c</FilePath>
             </File>
+            <File>
+              <FileName>msc_app.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\src\msc_app.c</FilePath>
+            </File>
           </Files>
         </Group>
         <Group>
@@ -550,6 +555,11 @@
               <FileName>hid_host.c</FileName>
               <FileType>1</FileType>
               <FilePath>..\..\..\tinyusb\class\hid_host.c</FilePath>
+            </File>
+            <File>
+              <FileName>msc_host.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\..\..\tinyusb\class\msc_host.c</FilePath>
             </File>
           </Files>
         </Group>
@@ -1025,6 +1035,11 @@
               <FileType>1</FileType>
               <FilePath>..\src\rndis_app.c</FilePath>
             </File>
+            <File>
+              <FileName>msc_app.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\src\msc_app.c</FilePath>
+            </File>
           </Files>
         </Group>
         <Group>
@@ -1199,6 +1214,11 @@
               <FileName>hid_host.c</FileName>
               <FileType>1</FileType>
               <FilePath>..\..\..\tinyusb\class\hid_host.c</FilePath>
+            </File>
+            <File>
+              <FileName>msc_host.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\..\..\tinyusb\class\msc_host.c</FilePath>
             </File>
           </Files>
         </Group>
