@@ -69,7 +69,7 @@
 #define TUSB_CFG_HOST_DEVICE_MAX                 2
 #define TUSB_CFG_CONFIGURATION_MAX               2
 
-#define TUSB_CFG_HOST_ENUM_BUFFER_SIZE           256
+#define TUSB_CFG_HOST_ENUM_BUFFER_SIZE           255
 
 //------------- CLASS -------------//
 #define TUSB_CFG_HOST_HID_KEYBOARD               1

@@ -69,7 +69,7 @@
 #define TUSB_CFG_CONFIGURATION_MAX   1
 
 //------------- USBD -------------//
-#define TUSB_CFG_HOST_ENUM_BUFFER_SIZE 256
+#define TUSB_CFG_HOST_ENUM_BUFFER_SIZE 255
 
 //------------- CLASS -------------//
 #define TUSB_CFG_HOST_HUB           0

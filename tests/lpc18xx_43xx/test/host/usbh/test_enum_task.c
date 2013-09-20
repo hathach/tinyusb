@@ -153,7 +153,7 @@ tusb_error_t control_xfer_stub(uint8_t dev_addr, const tusb_control_request_t * 
     case 4: // get full-length configuration descriptor
       TEST_ASSERT_EQUAL(TUSB_REQUEST_GET_DESCRIPTOR, p_request->bRequest);
       TEST_ASSERT_EQUAL(TUSB_DESC_TYPE_CONFIGURATION, p_request->wValue >> 8);
-      TEST_ASSERT_EQUAL(desc_configuration.configuration.wTotalLength, p_request->wLength);
+      TEST_ASSERT_EQUAL(TUSB_CFG_HOST_ENUM_BUFFER_SIZE, p_request->wLength);
       memcpy(data, &desc_configuration, p_request->wLength);
     break;
 

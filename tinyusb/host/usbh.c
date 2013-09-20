@@ -418,14 +418,14 @@ tusb_error_t enumeration_body_subtask(void)
       error
   );
   SUBTASK_ASSERT_STATUS(error);
-  SUBTASK_ASSERT_WITH_HANDLER( TUSB_CFG_HOST_ENUM_BUFFER_SIZE > ((tusb_descriptor_configuration_t*)enum_data_buffer)->wTotalLength,
+  SUBTASK_ASSERT_WITH_HANDLER( TUSB_CFG_HOST_ENUM_BUFFER_SIZE >= ((tusb_descriptor_configuration_t*)enum_data_buffer)->wTotalLength,
                             tusbh_device_mount_failed_cb(TUSB_ERROR_USBH_MOUNT_CONFIG_DESC_TOO_LONG, NULL) );
 
   //------------- Get full configuration descriptor -------------//
   OSAL_SUBTASK_INVOKED_AND_WAIT(
       usbh_control_xfer_subtask( new_addr, bm_request_type(TUSB_DIR_DEV_TO_HOST, TUSB_REQUEST_TYPE_STANDARD, TUSB_REQUEST_RECIPIENT_DEVICE),
                                  TUSB_REQUEST_GET_DESCRIPTOR, (TUSB_DESC_TYPE_CONFIGURATION << 8) | (configure_selected - 1), 0,
-                                 ((tusb_descriptor_configuration_t*) enum_data_buffer)->wTotalLength, enum_data_buffer ),
+                                 TUSB_CFG_HOST_ENUM_BUFFER_SIZE, enum_data_buffer ),
       error
   );
   SUBTASK_ASSERT_STATUS(error);

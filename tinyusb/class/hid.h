@@ -104,8 +104,9 @@ typedef ATTR_PREPACKED struct ATTR_PACKED {
 typedef ATTR_PACKED_STRUCT(struct)
 {
   uint8_t buttons; /**< buttons mask for currently pressed buttons in the mouse. */
-  int8_t  x; /**< Current delta x movement of the mouse. */
-  int8_t  y; /**< Current delta y movement on the mouse. */
+  int8_t  x;       /**< Current delta x movement of the mouse. */
+  int8_t  y;       /**< Current delta y movement on the mouse. */
+  int8_t  wheel;   /**< Current delta wheel movement on the mouse. */
 } tusb_mouse_report_t;
 
 /**
