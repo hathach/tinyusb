@@ -310,17 +310,17 @@ void hidh_isr(pipe_handle_t pipe_hdl, tusb_event_t event, uint32_t xferred_bytes
 void hidh_close(uint8_t dev_addr)
 {
 #if TUSB_CFG_HOST_HID_KEYBOARD
-  hidh_interface_close(dev_addr, &keyboard_data[dev_addr-1]);
-  if (tusbh_hid_keyboard_unmounted_isr)
+  if ( pipehandle_is_valid( keyboard_data[dev_addr-1].pipe_hdl ) )
   {
+    hidh_interface_close(dev_addr, &keyboard_data[dev_addr-1]);
     tusbh_hid_keyboard_unmounted_isr(dev_addr);
   }
 #endif
 
 #if TUSB_CFG_HOST_HID_MOUSE
-  hidh_interface_close(dev_addr, &mouse_data[dev_addr-1]);
-  if( tusbh_hid_mouse_unmounted_isr )
+  if( pipehandle_is_valid( mouse_data[dev_addr-1].pipe_hdl ) )
   {
+    hidh_interface_close(dev_addr, &mouse_data[dev_addr-1]);
     tusbh_hid_mouse_unmounted_isr( dev_addr );
   }
 #endif

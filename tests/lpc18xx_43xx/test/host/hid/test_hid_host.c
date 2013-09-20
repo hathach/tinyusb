@@ -47,8 +47,8 @@
 #include "mock_osal.h"
 #include "mock_hcd.h"
 #include "mock_usbh.h"
-
 #include "hid_host.h"
+#include "mock_hidh_callback.h"
 
 uint8_t dev_addr;
 pipe_handle_t pipe_hdl;
@@ -89,6 +89,7 @@ void test_hidh_close(void)
   keyboard_data[dev_addr-1].report_size = 8;
 
   hcd_pipe_close_ExpectAndReturn(pipe_hdl, TUSB_ERROR_NONE);
+  tusbh_hid_keyboard_unmounted_isr_Expect(dev_addr);
 
   //------------- Code Under TEST -------------//
   hidh_close(dev_addr);

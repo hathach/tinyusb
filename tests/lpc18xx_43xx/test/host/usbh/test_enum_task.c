@@ -76,8 +76,10 @@ void setUp(void)
   hcd_pipe_control_xfer_StubWithCallback(control_xfer_stub);
 
   hcd_port_connect_status_ExpectAndReturn(enum_connect.core_id, true);
+  osal_task_delay_Expect(200);
   hcd_port_reset_Expect(enum_connect.core_id);
   hcd_port_speed_get_ExpectAndReturn(enum_connect.core_id, device_speed);
+
   osal_semaphore_reset_Expect( usbh_devices[0].control.sem_hdl );
   osal_mutex_reset_Expect( usbh_devices[0].control.mutex_hdl );
   hcd_pipe_control_open_ExpectAndReturn(0, 8, TUSB_ERROR_NONE);

@@ -63,9 +63,9 @@ bool          tusbh_hid_keyboard_is_mounted(uint8_t dev_addr) ATTR_PURE ATTR_WAR
 tusb_error_t  tusbh_hid_keyboard_get_report(uint8_t dev_addr, void * report) /*ATTR_WARN_UNUSED_RESULT*/;
 tusb_interface_status_t tusbh_hid_keyboard_status(uint8_t dev_addr) ATTR_WARN_UNUSED_RESULT;
 //------------- Application Callback -------------//
-ATTR_WEAK void tusbh_hid_keyboard_isr(uint8_t dev_addr, tusb_event_t event);
-ATTR_WEAK void tusbh_hid_keyboard_mounted_cb(uint8_t dev_addr);
-ATTR_WEAK void tusbh_hid_keyboard_unmounted_isr(uint8_t dev_addr);
+void tusbh_hid_keyboard_isr(uint8_t dev_addr, tusb_event_t event);
+void tusbh_hid_keyboard_mounted_cb(uint8_t dev_addr);
+void tusbh_hid_keyboard_unmounted_isr(uint8_t dev_addr);
 
 //--------------------------------------------------------------------+
 // MOUSE Application API
@@ -74,9 +74,9 @@ bool          tusbh_hid_mouse_is_mounted(uint8_t dev_addr) ATTR_PURE ATTR_WARN_U
 tusb_error_t  tusbh_hid_mouse_get_report(uint8_t dev_addr, void* report) /*ATTR_WARN_UNUSED_RESULT*/;
 tusb_interface_status_t tusbh_hid_mouse_status(uint8_t dev_addr) ATTR_WARN_UNUSED_RESULT;
 //------------- Application Callback -------------//
-ATTR_WEAK void tusbh_hid_mouse_isr(uint8_t dev_addr, tusb_event_t event);
-ATTR_WEAK void tusbh_hid_mouse_mounted_cb(uint8_t dev_addr);
-ATTR_WEAK void tusbh_hid_mouse_unmounted_isr(uint8_t dev_addr);
+void tusbh_hid_mouse_isr(uint8_t dev_addr, tusb_event_t event);
+void tusbh_hid_mouse_mounted_cb(uint8_t dev_addr);
+void tusbh_hid_mouse_unmounted_isr(uint8_t dev_addr);
 
 //--------------------------------------------------------------------+
 // GENERIC Application API
@@ -87,7 +87,7 @@ tusb_error_t  tusbh_hid_generic_set_report(uint8_t dev_addr, void* report, bool 
 tusb_interface_status_t tusbh_hid_generic_get_status(uint8_t dev_addr) ATTR_WARN_UNUSED_RESULT;
 tusb_interface_status_t tusbh_hid_generic_set_status(uint8_t dev_addr) ATTR_WARN_UNUSED_RESULT;
 //------------- Application Callback -------------//
-ATTR_WEAK void tusbh_hid_generic_isr(uint8_t dev_addr, tusb_event_t event);
+void tusbh_hid_generic_isr(uint8_t dev_addr, tusb_event_t event);
 
 //--------------------------------------------------------------------+
 // USBH-CLASS DRIVER API

@@ -133,6 +133,7 @@ void rndish_init(void)
 void rndish_close(uint8_t dev_addr)
 {
   osal_semaphore_reset( rndish_data[dev_addr-1].sem_notification_hdl );
+//  memclr_(&rndish_data[dev_addr-1], sizeof(rndish_data_t)); TODO need to move semaphore & its handle out before memclr
 }
 
 
@@ -220,12 +221,7 @@ tusb_error_t rndish_open_subtask(uint8_t dev_addr, cdch_data_t *p_cdc)
   rndis_msg_set_cmplt_t * const p_set_cmpt = (rndis_msg_set_cmplt_t *) msg_payload;
   SUBTASK_ASSERT(p_set_cmpt->type == RNDIS_MSG_SET_CMPLT && p_set_cmpt->status == RNDIS_STATUS_SUCCESS);
 
-
-  //
-  if ( tusbh_cdc_rndis_mounted_cb )
-  {
-    tusbh_cdc_rndis_mounted_cb(dev_addr);
-  }
+  tusbh_cdc_rndis_mounted_cb(dev_addr);
 
   OSAL_SUBTASK_END
 }
