@@ -55,12 +55,15 @@ typedef struct {
   pipe_handle_t bulk_in, bulk_out;
   uint8_t interface_number;
   uint8_t max_lun;
+
+  msc_cmd_block_wrapper_t cbw;
+  msc_cmd_status_wrapper_t csw;
 }msch_interface_t;
 
-/*STATIC_*/ msch_interface_t msch_data[TUSB_CFG_HOST_DEVICE_MAX]; // TODO to be static
+STATIC_VAR msch_interface_t msch_data[TUSB_CFG_HOST_DEVICE_MAX] TUSB_CFG_ATTR_USBRAM; // TODO to be static
 
 // TODO rename this
-STATIC_ uint8_t msch_buffer[10] TUSB_CFG_ATTR_USBRAM;
+STATIC_VAR uint8_t msch_buffer[10] TUSB_CFG_ATTR_USBRAM;
 
 //--------------------------------------------------------------------+
 // INTERNAL OBJECT & FUNCTION DECLARATION
@@ -108,6 +111,7 @@ tusb_error_t msch_open_subtask(uint8_t dev_addr, tusb_descriptor_interface_t con
   msch_data[dev_addr-1].interface_number = p_interface_desc->bInterfaceNumber;
   (*p_length) += sizeof(tusb_descriptor_interface_t) + 2*sizeof(tusb_descriptor_endpoint_t);
 
+  //------------- Get Max Lun -------------//
   OSAL_SUBTASK_INVOKED_AND_WAIT(
     usbh_control_xfer_subtask( dev_addr, bm_request_type(TUSB_DIR_DEV_TO_HOST, TUSB_REQUEST_TYPE_CLASS, TUSB_REQUEST_RECIPIENT_INTERFACE),
                                MSC_REQUEST_GET_MAX_LUN, 0, msch_data[dev_addr-1].interface_number,
@@ -115,12 +119,14 @@ tusb_error_t msch_open_subtask(uint8_t dev_addr, tusb_descriptor_interface_t con
     error
   );
 
-  if(TUSB_ERROR_NONE == error /* TODO STALL means zero */)
-  {
-    msch_data[dev_addr-1].max_lun = msch_buffer[0];
+  SUBTASK_ASSERT( TUSB_ERROR_NONE != error /* && TODO STALL means zero */);
 
-    tusbh_msc_mounted_cb(dev_addr);
-  }
+  msch_data[dev_addr-1].max_lun = msch_buffer[0];
+
+  //------------- SCSI Inquiry -------------//
+
+
+  tusbh_msc_mounted_cb(dev_addr);
 
   OSAL_SUBTASK_END
 

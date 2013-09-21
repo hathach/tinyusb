@@ -102,11 +102,11 @@
 // COMMON OPTIONS
 //--------------------------------------------------------------------+
 
-// level 3: ATTR_ALWAYS_INLINE is null, ASSERT has text, Error has its String
+// level 3: ATTR_ALWAYS_INLINE is null, ASSERT has text, Error has its String, STATIC_VAR is NULL
 // level 2: ATTR_ALWAYS_INLINE is attribute, ASSERT has no text, Error has no strings
 /// 0: no debug information 3: most debug information provided
 #ifndef TUSB_CFG_DEBUG
-  #define TUSB_CFG_DEBUG 3
+  #define TUSB_CFG_DEBUG 2
   #warning TUSB_CFG_DEBUG is not defined, default value is 3
 #endif
 

@@ -51,7 +51,7 @@
 #include "host_helper.h"
 
 
-extern hidh_interface_info_t mouse_data[TUSB_CFG_HOST_DEVICE_MAX];
+extern hidh_interface_info_t mouseh_data[TUSB_CFG_HOST_DEVICE_MAX];
 hidh_interface_info_t *p_hidh_mouse;
 tusb_mouse_report_t report;
 

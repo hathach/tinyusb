@@ -55,13 +55,17 @@
 #ifdef _TEST_
   #define ATTR_ALWAYS_INLINE
   #define STATIC_
+  #define STATIC_VAR
   #define INLINE_
 #else
-  #define STATIC_ static
-  #define INLINE_ inline
+  #define STATIC_     static
+  #define INLINE_     inline
 
   #if TUSB_CFG_DEBUG == 3
     #define ATTR_ALWAYS_INLINE // no inline for debug = 3
+    #define STATIC_VAR
+  #else
+    #define STATIC_VAR static
   #endif
 #endif
 

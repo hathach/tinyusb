@@ -49,7 +49,7 @@
 #include "mock_hidh_callback.h"
 #include "descriptor_test.h"
 
-extern hidh_interface_info_t mouse_data[TUSB_CFG_HOST_DEVICE_MAX];
+extern hidh_interface_info_t mouseh_data[TUSB_CFG_HOST_DEVICE_MAX];
 hidh_interface_info_t *p_hidh_mouse;
 tusb_mouse_report_t report;
 
@@ -65,7 +65,7 @@ void setUp(void)
   memclr_(&report, sizeof(tusb_mouse_report_t));
   dev_addr = RANDOM(TUSB_CFG_HOST_DEVICE_MAX)+1;
 
-  p_hidh_mouse = &mouse_data[dev_addr-1];
+  p_hidh_mouse = &mouseh_data[dev_addr-1];
 
   p_hidh_mouse->report_size = sizeof(tusb_mouse_report_t);
   p_hidh_mouse->pipe_hdl = (pipe_handle_t) {
@@ -84,7 +84,7 @@ void test_mouse_init(void)
 {
   hidh_init();
 
-  TEST_ASSERT_MEM_ZERO(mouse_data, sizeof(hidh_interface_info_t)*TUSB_CFG_HOST_DEVICE_MAX);
+  TEST_ASSERT_MEM_ZERO(mouseh_data, sizeof(hidh_interface_info_t)*TUSB_CFG_HOST_DEVICE_MAX);
 }
 
 //------------- is supported -------------//

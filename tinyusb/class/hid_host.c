@@ -119,22 +119,22 @@ uint8_t const hid_keycode_to_ascii_tbl[2][128] =
     HID_KEYCODE_TABLE(EXPAND_KEYCODE_TO_ASCII)
 };
 
-STATIC_ hidh_interface_info_t keyboard_data[TUSB_CFG_HOST_DEVICE_MAX]; // does not have addr0, index = dev_address-1
+STATIC_VAR hidh_interface_info_t keyboardh_data[TUSB_CFG_HOST_DEVICE_MAX]; // does not have addr0, index = dev_address-1
 
 //------------- KEYBOARD PUBLIC API (parameter validation required) -------------//
 bool  tusbh_hid_keyboard_is_mounted(uint8_t dev_addr)
 {
-  return tusbh_device_is_configured(dev_addr) && pipehandle_is_valid(keyboard_data[dev_addr-1].pipe_hdl);
+  return tusbh_device_is_configured(dev_addr) && pipehandle_is_valid(keyboardh_data[dev_addr-1].pipe_hdl);
 }
 
 tusb_error_t tusbh_hid_keyboard_get_report(uint8_t dev_addr, void* report)
 {
-  return hidh_interface_get_report(dev_addr, report, &keyboard_data[dev_addr-1]);
+  return hidh_interface_get_report(dev_addr, report, &keyboardh_data[dev_addr-1]);
 }
 
 tusb_interface_status_t tusbh_hid_keyboard_status(uint8_t dev_addr)
 {
-  return hidh_interface_status(dev_addr, &keyboard_data[dev_addr-1]);
+  return hidh_interface_status(dev_addr, &keyboardh_data[dev_addr-1]);
 }
 
 #endif
@@ -144,22 +144,22 @@ tusb_interface_status_t tusbh_hid_keyboard_status(uint8_t dev_addr)
 //--------------------------------------------------------------------+
 #if TUSB_CFG_HOST_HID_MOUSE
 
-STATIC_ hidh_interface_info_t mouse_data[TUSB_CFG_HOST_DEVICE_MAX]; // does not have addr0, index = dev_address-1
+STATIC_VAR hidh_interface_info_t mouseh_data[TUSB_CFG_HOST_DEVICE_MAX]; // does not have addr0, index = dev_address-1
 
 //------------- Public API -------------//
 bool tusbh_hid_mouse_is_mounted(uint8_t dev_addr)
 {
-  return tusbh_device_is_configured(dev_addr) && pipehandle_is_valid(mouse_data[dev_addr-1].pipe_hdl);
+  return tusbh_device_is_configured(dev_addr) && pipehandle_is_valid(mouseh_data[dev_addr-1].pipe_hdl);
 }
 
 tusb_error_t tusbh_hid_mouse_get_report(uint8_t dev_addr, void * report)
 {
-  return hidh_interface_get_report(dev_addr, report, &mouse_data[dev_addr-1]);
+  return hidh_interface_get_report(dev_addr, report, &mouseh_data[dev_addr-1]);
 }
 
 tusb_interface_status_t tusbh_hid_mouse_status(uint8_t dev_addr)
 {
-  return hidh_interface_status(dev_addr, &mouse_data[dev_addr-1]);
+  return hidh_interface_status(dev_addr, &mouseh_data[dev_addr-1]);
 }
 
 #endif
@@ -181,11 +181,11 @@ tusb_interface_status_t tusbh_hid_mouse_status(uint8_t dev_addr)
 void hidh_init(void)
 {
 #if TUSB_CFG_HOST_HID_KEYBOARD
-  memclr_(&keyboard_data, sizeof(hidh_interface_info_t)*TUSB_CFG_HOST_DEVICE_MAX);
+  memclr_(&keyboardh_data, sizeof(hidh_interface_info_t)*TUSB_CFG_HOST_DEVICE_MAX);
 #endif
 
 #if TUSB_CFG_HOST_HID_MOUSE
-  memclr_(&mouse_data, sizeof(hidh_interface_info_t)*TUSB_CFG_HOST_DEVICE_MAX);
+  memclr_(&mouseh_data, sizeof(hidh_interface_info_t)*TUSB_CFG_HOST_DEVICE_MAX);
 #endif
 
 #if TUSB_CFG_HOST_HID_GENERIC
@@ -243,7 +243,7 @@ tusb_error_t hidh_open_subtask(uint8_t dev_addr, tusb_descriptor_interface_t con
     #if TUSB_CFG_HOST_HID_KEYBOARD
     if ( HID_PROTOCOL_KEYBOARD == p_interface_desc->bInterfaceProtocol)
     {
-      SUBTASK_ASSERT_STATUS ( hidh_interface_open(dev_addr, p_interface_desc->bInterfaceNumber, p_endpoint_desc, &keyboard_data[dev_addr-1]) );
+      SUBTASK_ASSERT_STATUS ( hidh_interface_open(dev_addr, p_interface_desc->bInterfaceNumber, p_endpoint_desc, &keyboardh_data[dev_addr-1]) );
       if ( tusbh_hid_keyboard_mounted_cb )
       {
         tusbh_hid_keyboard_mounted_cb(dev_addr);
@@ -254,7 +254,7 @@ tusb_error_t hidh_open_subtask(uint8_t dev_addr, tusb_descriptor_interface_t con
     #if TUSB_CFG_HOST_HID_MOUSE
     if ( HID_PROTOCOL_MOUSE == p_interface_desc->bInterfaceProtocol)
     {
-      SUBTASK_ASSERT_STATUS ( hidh_interface_open(dev_addr, p_interface_desc->bInterfaceNumber, p_endpoint_desc, &mouse_data[dev_addr-1]) );
+      SUBTASK_ASSERT_STATUS ( hidh_interface_open(dev_addr, p_interface_desc->bInterfaceNumber, p_endpoint_desc, &mouseh_data[dev_addr-1]) );
       if (tusbh_hid_mouse_mounted_cb)
       {
         tusbh_hid_mouse_mounted_cb(dev_addr);
@@ -278,9 +278,9 @@ tusb_error_t hidh_open_subtask(uint8_t dev_addr, tusb_descriptor_interface_t con
 void hidh_isr(pipe_handle_t pipe_hdl, tusb_event_t event, uint32_t xferred_bytes)
 {
 #if TUSB_CFG_HOST_HID_KEYBOARD
-  if ( pipehandle_is_equal(pipe_hdl, keyboard_data[pipe_hdl.dev_addr-1].pipe_hdl) )
+  if ( pipehandle_is_equal(pipe_hdl, keyboardh_data[pipe_hdl.dev_addr-1].pipe_hdl) )
   {
-    keyboard_data[pipe_hdl.dev_addr-1].status = (event == TUSB_EVENT_XFER_COMPLETE) ? TUSB_INTERFACE_STATUS_COMPLETE : TUSB_INTERFACE_STATUS_ERROR;
+    keyboardh_data[pipe_hdl.dev_addr-1].status = (event == TUSB_EVENT_XFER_COMPLETE) ? TUSB_INTERFACE_STATUS_COMPLETE : TUSB_INTERFACE_STATUS_ERROR;
     if (tusbh_hid_keyboard_isr)
     {
       tusbh_hid_keyboard_isr(pipe_hdl.dev_addr, event);
@@ -290,9 +290,9 @@ void hidh_isr(pipe_handle_t pipe_hdl, tusb_event_t event, uint32_t xferred_bytes
 #endif
 
 #if TUSB_CFG_HOST_HID_MOUSE
-  if ( pipehandle_is_equal(pipe_hdl, mouse_data[pipe_hdl.dev_addr-1].pipe_hdl) )
+  if ( pipehandle_is_equal(pipe_hdl, mouseh_data[pipe_hdl.dev_addr-1].pipe_hdl) )
   {
-    mouse_data[pipe_hdl.dev_addr-1].status = (event == TUSB_EVENT_XFER_COMPLETE) ? TUSB_INTERFACE_STATUS_COMPLETE : TUSB_INTERFACE_STATUS_ERROR;
+    mouseh_data[pipe_hdl.dev_addr-1].status = (event == TUSB_EVENT_XFER_COMPLETE) ? TUSB_INTERFACE_STATUS_COMPLETE : TUSB_INTERFACE_STATUS_ERROR;
     if (tusbh_hid_mouse_isr)
     {
       tusbh_hid_mouse_isr(pipe_hdl.dev_addr, event);
@@ -310,17 +310,17 @@ void hidh_isr(pipe_handle_t pipe_hdl, tusb_event_t event, uint32_t xferred_bytes
 void hidh_close(uint8_t dev_addr)
 {
 #if TUSB_CFG_HOST_HID_KEYBOARD
-  if ( pipehandle_is_valid( keyboard_data[dev_addr-1].pipe_hdl ) )
+  if ( pipehandle_is_valid( keyboardh_data[dev_addr-1].pipe_hdl ) )
   {
-    hidh_interface_close(dev_addr, &keyboard_data[dev_addr-1]);
+    hidh_interface_close(dev_addr, &keyboardh_data[dev_addr-1]);
     tusbh_hid_keyboard_unmounted_isr(dev_addr);
   }
 #endif
 
 #if TUSB_CFG_HOST_HID_MOUSE
-  if( pipehandle_is_valid( mouse_data[dev_addr-1].pipe_hdl ) )
+  if( pipehandle_is_valid( mouseh_data[dev_addr-1].pipe_hdl ) )
   {
-    hidh_interface_close(dev_addr, &mouse_data[dev_addr-1]);
+    hidh_interface_close(dev_addr, &mouseh_data[dev_addr-1]);
     tusbh_hid_mouse_unmounted_isr( dev_addr );
   }
 #endif

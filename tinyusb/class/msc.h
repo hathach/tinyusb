@@ -76,6 +76,26 @@ enum {
   MSC_REQUEST_RESET       = 255
 };
 
+typedef ATTR_PACKED_STRUCT(struct) {
+  uint32_t signature; // const 0x43425355
+  uint32_t tag;
+  uint32_t xfer_bytes;
+  uint8_t  flags; // bit7 : direction
+  uint8_t  lun;
+  uint8_t  cmd_len;
+  uint8_t  command[16];
+}msc_cmd_block_wrapper_t;
+
+STATIC_ASSERT(sizeof(msc_cmd_block_wrapper_t) == 31, "size is not correct");
+
+typedef ATTR_PACKED_STRUCT(struct) {
+  uint32_t signature; // const 0x53425355
+  uint32_t tag;
+  uint32_t data_residue;
+  uint8_t  status;
+}msc_cmd_status_wrapper_t;
+
+STATIC_ASSERT(sizeof(msc_cmd_status_wrapper_t) == 13, "size is not correct");
 
 //--------------------------------------------------------------------+
 // SCSI Primary Command (SPC-4)
@@ -95,7 +115,7 @@ typedef ATTR_PACKED_STRUCT(struct)
   uint8_t normal_aca                 : 1;
   uint8_t                            : 2;
 
-  uint8_t  additional_length;
+  uint8_t additional_length;
 
   uint8_t protect                    : 1;
   uint8_t                            : 2;
@@ -118,10 +138,12 @@ typedef ATTR_PACKED_STRUCT(struct)
   uint8_t wbus16                     : 1;
   uint8_t                            : 2;
 
-  uint8_t  vendor_id[8];
-  uint8_t  product_id[16];
-  uint8_t  product_revision[4];
+  uint8_t vendor_id[8];
+  uint8_t product_id[16];
+  uint8_t product_revision[4];
 } msc_scsi_inquiry_t;
+
+STATIC_ASSERT(sizeof(msc_scsi_inquiry_t) == 36, "size is not correct");
 
 //--------------------------------------------------------------------+
 // SCSI Block Command (SBC-3)
