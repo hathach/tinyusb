@@ -224,10 +224,7 @@ tusb_error_t cdch_open_subtask(uint8_t dev_addr, tusb_descriptor_interface_t con
 #endif
   {
     // FIXME mounted class flag is not set yet
-    if (tusbh_cdc_mounted_cb)
-    {
-      tusbh_cdc_mounted_cb(dev_addr);
-    }
+    tusbh_cdc_mounted_cb(dev_addr);
   }
 
   OSAL_SUBTASK_END
@@ -243,15 +240,12 @@ void cdch_isr(pipe_handle_t pipe_hdl, tusb_event_t event, uint32_t xferred_bytes
     rndish_xfer_isr(p_cdc, pipe_hdl, event, xferred_bytes);
   } else
 #endif
-  if (tusbh_cdc_xfer_isr)
-  {
-    tusbh_cdc_xfer_isr( pipe_hdl.dev_addr, event, get_app_pipeid(pipe_hdl), xferred_bytes );
-  }
+  
+  tusbh_cdc_xfer_isr( pipe_hdl.dev_addr, event, get_app_pipeid(pipe_hdl), xferred_bytes );
 }
 
 void cdch_close(uint8_t dev_addr)
 {
-  tusb_error_t err1, err2, err3;
   cdch_data_t * p_cdc = &cdch_data[dev_addr-1];
 
 #if TUSB_CFG_HOST_CDC_RNDIS
@@ -261,20 +255,9 @@ void cdch_close(uint8_t dev_addr)
   }
 #endif
 
-  if ( pipehandle_is_valid(p_cdc->pipe_notification) )
-  {
-    err1 = hcd_pipe_close(p_cdc->pipe_notification);
-  }
-
-  if ( pipehandle_is_valid(p_cdc->pipe_in) )
-  {
-    err2 = hcd_pipe_close(p_cdc->pipe_in);
-  }
-
-  if ( pipehandle_is_valid(p_cdc->pipe_out) )
-  {
-    err3 = hcd_pipe_close(p_cdc->pipe_out);
-  }
+  (void) hcd_pipe_close(p_cdc->pipe_notification);
+  (void) hcd_pipe_close(p_cdc->pipe_in);
+  (void) hcd_pipe_close(p_cdc->pipe_out);
 
 #if TUSB_CFG_HOST_CDC_RNDIS
 
@@ -282,14 +265,7 @@ void cdch_close(uint8_t dev_addr)
 
   memclr_(p_cdc, sizeof(cdch_data_t));
 
-  if (tusbh_cdc_unmounted_isr)
-  {
-    tusbh_cdc_unmounted_isr(dev_addr);
-  }
-
-  ASSERT(err1 == TUSB_ERROR_NONE &&
-         err2 == TUSB_ERROR_NONE &&
-         err3 == TUSB_ERROR_NONE, VOID_RETURN );
+  tusbh_cdc_unmounted_isr(dev_addr);
 
 }
 

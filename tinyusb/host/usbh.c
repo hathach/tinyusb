@@ -206,9 +206,11 @@ tusb_error_t usbh_control_xfer_subtask(uint8_t dev_addr, uint8_t bmRequestType, 
 #ifndef _TEST_
   usbh_devices[dev_addr].control.pipe_status = 0;
 #else
-  usbh_devices[dev_addr].control.pipe_status = TUSB_EVENT_XFER_COMPLETE; // in Test project, mark as complete to imm pass
+  usbh_devices[dev_addr].control.pipe_status = TUSB_EVENT_XFER_COMPLETE; // in Test project, mark as complete immediately
 #endif
-  /*SUBTASK_ASSERT_STATUS*/ (void) ( hcd_pipe_control_xfer(dev_addr, &usbh_devices[dev_addr].control.request, data) );
+
+  SUBTASK_ASSERT_STATUS_WITH_HANDLER( hcd_pipe_control_xfer(dev_addr, &usbh_devices[dev_addr].control.request, data),
+                                      osal_mutex_release(usbh_devices[dev_addr].control.mutex_hdl) );
 
   osal_semaphore_wait(usbh_devices[dev_addr].control.sem_hdl, OSAL_TIMEOUT_NORMAL, &error); // careful of local variable without static
   osal_mutex_release(usbh_devices[dev_addr].control.mutex_hdl);

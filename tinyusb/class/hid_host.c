@@ -244,10 +244,7 @@ tusb_error_t hidh_open_subtask(uint8_t dev_addr, tusb_descriptor_interface_t con
     if ( HID_PROTOCOL_KEYBOARD == p_interface_desc->bInterfaceProtocol)
     {
       SUBTASK_ASSERT_STATUS ( hidh_interface_open(dev_addr, p_interface_desc->bInterfaceNumber, p_endpoint_desc, &keyboardh_data[dev_addr-1]) );
-      if ( tusbh_hid_keyboard_mounted_cb )
-      {
-        tusbh_hid_keyboard_mounted_cb(dev_addr);
-      }
+      tusbh_hid_keyboard_mounted_cb(dev_addr);
     } else
     #endif
 
@@ -255,10 +252,7 @@ tusb_error_t hidh_open_subtask(uint8_t dev_addr, tusb_descriptor_interface_t con
     if ( HID_PROTOCOL_MOUSE == p_interface_desc->bInterfaceProtocol)
     {
       SUBTASK_ASSERT_STATUS ( hidh_interface_open(dev_addr, p_interface_desc->bInterfaceNumber, p_endpoint_desc, &mouseh_data[dev_addr-1]) );
-      if (tusbh_hid_mouse_mounted_cb)
-      {
-        tusbh_hid_mouse_mounted_cb(dev_addr);
-      }
+      tusbh_hid_mouse_mounted_cb(dev_addr);
     } else
     #endif
 
@@ -281,10 +275,7 @@ void hidh_isr(pipe_handle_t pipe_hdl, tusb_event_t event, uint32_t xferred_bytes
   if ( pipehandle_is_equal(pipe_hdl, keyboardh_data[pipe_hdl.dev_addr-1].pipe_hdl) )
   {
     keyboardh_data[pipe_hdl.dev_addr-1].status = (event == TUSB_EVENT_XFER_COMPLETE) ? TUSB_INTERFACE_STATUS_COMPLETE : TUSB_INTERFACE_STATUS_ERROR;
-    if (tusbh_hid_keyboard_isr)
-    {
-      tusbh_hid_keyboard_isr(pipe_hdl.dev_addr, event);
-    }
+    tusbh_hid_keyboard_isr(pipe_hdl.dev_addr, event);
     return;
   }
 #endif
@@ -293,11 +284,7 @@ void hidh_isr(pipe_handle_t pipe_hdl, tusb_event_t event, uint32_t xferred_bytes
   if ( pipehandle_is_equal(pipe_hdl, mouseh_data[pipe_hdl.dev_addr-1].pipe_hdl) )
   {
     mouseh_data[pipe_hdl.dev_addr-1].status = (event == TUSB_EVENT_XFER_COMPLETE) ? TUSB_INTERFACE_STATUS_COMPLETE : TUSB_INTERFACE_STATUS_ERROR;
-    if (tusbh_hid_mouse_isr)
-    {
-      tusbh_hid_mouse_isr(pipe_hdl.dev_addr, event);
-    }
-
+    tusbh_hid_mouse_isr(pipe_hdl.dev_addr, event);
     return;
   }
 #endif

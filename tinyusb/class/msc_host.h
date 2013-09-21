@@ -77,7 +77,7 @@ void tusbh_msc_mounted_cb(uint8_t dev_addr);
 
 void         msch_init(void);
 tusb_error_t msch_open_subtask(uint8_t dev_addr, tusb_descriptor_interface_t const *p_interface_desc, uint16_t *p_length) ATTR_WARN_UNUSED_RESULT;
-void         msch_isr(pipe_handle_t pipe_hdl, tusb_event_t event);
+void         msch_isr(pipe_handle_t pipe_hdl, tusb_event_t event, uint32_t xferred_bytes);
 void         msch_close(uint8_t dev_addr);
 #endif
 

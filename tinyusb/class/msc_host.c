@@ -94,7 +94,7 @@ tusb_error_t msch_open_subtask(uint8_t dev_addr, tusb_descriptor_interface_t con
   }
 
   //------------- Open Data Pipe -------------//
-  tusb_descriptor_endpoint_t const *p_endpoint = (tusb_descriptor_endpoint_t const *) descriptor_next( p_interface_desc );
+  tusb_descriptor_endpoint_t const *p_endpoint = (tusb_descriptor_endpoint_t const *) descriptor_next( (uint8_t const*) p_interface_desc );
   for(uint32_t i=0; i<2; i++)
   {
     ASSERT_INT(TUSB_DESC_TYPE_ENDPOINT, p_endpoint->bDescriptorType, TUSB_ERROR_USBH_DESCRIPTOR_CORRUPTED);
@@ -105,7 +105,7 @@ tusb_error_t msch_open_subtask(uint8_t dev_addr, tusb_descriptor_interface_t con
     (*p_pipe_hdl) = hcd_pipe_open(dev_addr, p_endpoint, TUSB_CLASS_MSC);
     ASSERT ( pipehandle_is_valid(*p_pipe_hdl), TUSB_ERROR_HCD_OPEN_PIPE_FAILED );
 
-    p_endpoint = (tusb_descriptor_endpoint_t const *) descriptor_next( p_endpoint );
+    p_endpoint = (tusb_descriptor_endpoint_t const *) descriptor_next( (uint8_t const*)  p_endpoint );
   }
 
   msch_data[dev_addr-1].interface_number = p_interface_desc->bInterfaceNumber;
@@ -119,8 +119,7 @@ tusb_error_t msch_open_subtask(uint8_t dev_addr, tusb_descriptor_interface_t con
     error
   );
 
-  SUBTASK_ASSERT( TUSB_ERROR_NONE != error /* && TODO STALL means zero */);
-
+  SUBTASK_ASSERT( TUSB_ERROR_NONE == error /* && TODO STALL means zero */);
   msch_data[dev_addr-1].max_lun = msch_buffer[0];
 
   //------------- SCSI Inquiry -------------//
@@ -133,7 +132,7 @@ tusb_error_t msch_open_subtask(uint8_t dev_addr, tusb_descriptor_interface_t con
   return TUSB_ERROR_NONE;
 }
 
-void msch_isr(pipe_handle_t pipe_hdl, tusb_event_t event)
+void msch_isr(pipe_handle_t pipe_hdl, tusb_event_t event, uint32_t xferred_bytes)
 {
 
 }

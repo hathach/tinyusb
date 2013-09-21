@@ -689,7 +689,9 @@ void hcd_isr(uint8_t hostid)
 {
   ehci_registers_t* const regs = get_operational_register(hostid);
 
-  uint32_t int_status = regs->usb_sts & regs->usb_int_enable;
+  uint32_t int_status = regs->usb_sts;
+  int_status &= regs->usb_int_enable;
+  
   regs->usb_sts |= int_status; // Acknowledge handled interrupt
 
   if (int_status == 0)

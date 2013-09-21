@@ -52,6 +52,7 @@
 
 #include "mouse_app.h"
 #include "keyboard_app.h"
+#include "msc_app.h"
 #include "cdc_serial_app.h"
 #include "rndis_app.h"
 

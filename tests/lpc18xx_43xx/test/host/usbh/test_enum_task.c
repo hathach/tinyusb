@@ -159,6 +159,13 @@ tusb_error_t control_xfer_stub(uint8_t dev_addr, const tusb_control_request_t * 
       memcpy(data, &desc_configuration, p_request->wLength);
     break;
 
+    case 5: // set configure
+      TEST_ASSERT_EQUAL(TUSB_REQUEST_SET_CONFIGURATION, p_request->bRequest);
+      TEST_ASSERT_EQUAL(1, p_request->wValue);
+      TEST_ASSERT_EQUAL(0, p_request->wIndex);
+      TEST_ASSERT_EQUAL(0, p_request->wLength);
+    break;
+
     default:
       return TUSB_ERROR_OSAL_TIMEOUT;
   }
