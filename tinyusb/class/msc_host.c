@@ -175,8 +175,8 @@ static tusb_error_t scsi_command_send(msch_interface_t * p_msch, scsi_cmd_type_t
   }
 
   ASSERT_STATUS( hcd_pipe_xfer(p_msch->bulk_out, (uint8_t*) &p_msch->cbw, sizeof(msc_cmd_block_wrapper_t), false) );
-  ASSERT_STATUS( hcd_pipe_xfer(p_msch->bulk_in , p_msch->buffer, p_msch->cbw.xfer_bytes, false) );
-  //ASSERT_STATUS( hcd_pipe_xfer(p_msch->bulk_in , &p_msch->csw, sizeof(msc_cmd_status_wrapper_t), true) );
+  ASSERT_STATUS( hcd_pipe_queue_xfer(p_msch->bulk_in , p_msch->buffer, p_msch->cbw.xfer_bytes) );
+  ASSERT_STATUS( hcd_pipe_xfer(p_msch->bulk_in , &p_msch->csw, sizeof(msc_cmd_status_wrapper_t), true) );
 }
 
 void msch_init(void)
@@ -241,10 +241,7 @@ tusb_error_t msch_open_subtask(uint8_t dev_addr, tusb_descriptor_interface_t con
 
   //------------- SCSI Inquiry -------------//
   scsi_command_send(&msch_data[dev_addr-1], SCSI_CMD_INQUIRY, 0);
-  osal_task_delay(5);
-  ASSERT_STATUS( hcd_pipe_xfer(msch_data[dev_addr-1].bulk_in , (uint8_t*) &msch_data[dev_addr-1].csw, sizeof(msc_cmd_status_wrapper_t), true) );
-  osal_task_delay(5);
-  // check csw
+  osal_task_delay(2);
 
   memcpy(msch_data[dev_addr-1].vendor_id,
          ((scsi_inquiry_data_t*)msch_data[dev_addr-1].buffer)->vendor_id,
@@ -256,17 +253,12 @@ tusb_error_t msch_open_subtask(uint8_t dev_addr, tusb_descriptor_interface_t con
 #if 0
   //------------- SCSI Request Sense -------------//
   scsi_command_send(&msch_data[dev_addr-1], SCSI_CMD_REQUEST_SENSE, 0);
-  osal_task_delay(5);
-  ASSERT_STATUS( hcd_pipe_xfer(msch_data[dev_addr-1].bulk_in , (uint8_t*) &msch_data[dev_addr-1].csw, sizeof(msc_cmd_status_wrapper_t), true) );
-  osal_task_delay(5);
+  osal_task_delay(2);
 #endif
 
   //------------- SCSI Read Capacity 10 -------------//
   scsi_command_send(&msch_data[dev_addr-1], SCSI_CMD_READ_CAPACITY_10, 0);
-  osal_task_delay(5);
-  ASSERT_STATUS( hcd_pipe_xfer(msch_data[dev_addr-1].bulk_in , (uint8_t*) &msch_data[dev_addr-1].csw, sizeof(msc_cmd_status_wrapper_t), true) );
-  osal_task_delay(5);
-  // check csw
+  osal_task_delay(2);
 
   msch_data[dev_addr-1].last_lba   = __be2le( ((scsi_read_capacity10_data_t*)msch_data[dev_addr-1].buffer)->last_lba );
   msch_data[dev_addr-1].block_size = (uint16_t) __be2le( ((scsi_read_capacity10_data_t*)msch_data[dev_addr-1].buffer)->block_size );

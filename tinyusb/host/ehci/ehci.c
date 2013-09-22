@@ -402,7 +402,7 @@ pipe_handle_t hcd_pipe_open(uint8_t dev_addr, tusb_descriptor_endpoint_t const *
   return (pipe_handle_t) { .dev_addr = dev_addr, .xfer_type = p_endpoint_desc->bmAttributes.xfer, .index = qhd_get_index(p_qhd) };
 }
 
-tusb_error_t  hcd_pipe_xfer(pipe_handle_t pipe_hdl, uint8_t buffer[], uint16_t total_bytes, bool int_on_complete)
+tusb_error_t  hcd_pipe_queue_xfer(pipe_handle_t pipe_hdl, uint8_t buffer[], uint16_t total_bytes)
 {
   //------------- TODO pipe handle validate -------------//
 
@@ -414,10 +414,24 @@ tusb_error_t  hcd_pipe_xfer(pipe_handle_t pipe_hdl, uint8_t buffer[], uint16_t t
 
   qtd_init(p_qtd, (uint32_t) buffer, total_bytes);
   p_qtd->pid = p_qhd->pid_non_control;
-  p_qtd->int_on_complete = int_on_complete ? 1 : 0;
 
   //------------- insert TD to TD list -------------//
   qtd_insert_to_qhd(p_qhd, p_qtd);
+
+  return TUSB_ERROR_NONE;
+}
+
+tusb_error_t  hcd_pipe_xfer(pipe_handle_t pipe_hdl, uint8_t buffer[], uint16_t total_bytes, bool int_on_complete)
+{
+  hcd_pipe_queue_xfer(pipe_hdl, buffer, total_bytes);
+
+  ehci_qhd_t *p_qhd = qhd_get_from_pipe_handle(pipe_hdl);
+
+  if ( int_on_complete )
+  { // the just added qtd is pointed by list_tail
+    p_qhd->p_qtd_list_tail->int_on_complete = 1;
+  }
+  p_qhd->qtd_overlay.next.address = (uint32_t) p_qhd->p_qtd_list_head; // attach to queue head to start transferring
 
   return TUSB_ERROR_NONE;
 }
@@ -882,7 +896,6 @@ static inline void qtd_insert_to_qhd(ehci_qhd_t *p_qhd, ehci_qtd_t *p_qtd_new)
   if (p_qhd->p_qtd_list_head == NULL) // empty list
   {
     p_qhd->p_qtd_list_head               = p_qhd->p_qtd_list_tail = p_qtd_new;
-    p_qhd->qtd_overlay.next.address      = (uint32_t) p_qtd_new;
   }else
   {
     p_qhd->p_qtd_list_tail->next.address = (uint32_t) p_qtd_new;
