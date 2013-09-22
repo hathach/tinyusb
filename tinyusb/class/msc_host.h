@@ -60,14 +60,20 @@
 //--------------------------------------------------------------------+
 bool          tusbh_msc_is_mounted(uint8_t dev_addr) ATTR_PURE ATTR_WARN_UNUSED_RESULT;
 tusb_interface_status_t tusbh_msc_status(uint8_t dev_addr) ATTR_WARN_UNUSED_RESULT;
-uint8_t const *      tusbh_msc_get_vendor_name(uint8_t dev_addr);
-uint8_t const *      tusbh_msc_get_product_name(uint8_t dev_addr);
+uint8_t const* tusbh_msc_get_vendor_name(uint8_t dev_addr);
+uint8_t const* tusbh_msc_get_product_name(uint8_t dev_addr);
+tusb_error_t tusbh_msc_get_capacity(uint8_t dev_addr, uint32_t* p_last_lba, uint32_t* p_block_size);
 
-tusb_error_t  tusbh_msc_inquiry(uint8_t dev_addr, uint8_t instance_num, scsi_inquiry_data_t * p_inquiry_data) ATTR_WARN_UNUSED_RESULT;
-tusb_error_t  tusbh_msc_test_unit_ready(uint8_t dev_addr, uint8_t instance_num) ATTR_WARN_UNUSED_RESULT;
-tusb_error_t  tusbh_msc_read_capacity10(uint8_t dev_addr, uint8_t instance_num, msc_scsi_read_capacity10_t * p_buffer) ATTR_WARN_UNUSED_RESULT;
-tusb_error_t  tusbh_msc_read10(uint8_t dev_addr, uint8_t instance_num, void * p_buffer, uint32_t length) ATTR_WARN_UNUSED_RESULT;
-tusb_error_t  tusbh_msc_write10(uint8_t dev_addr, uint8_t instance_num, void const * p_data, uint32_t length) ATTR_WARN_UNUSED_RESULT;
+tusb_error_t  tusbh_msc_inquiry(uint8_t dev_addr, scsi_inquiry_data_t * p_inquiry_data) ATTR_WARN_UNUSED_RESULT;
+tusb_error_t  tusbh_msc_test_unit_ready(uint8_t dev_addr) ATTR_WARN_UNUSED_RESULT;
+tusb_error_t  tusbh_msc_read_capacity10(uint8_t dev_addr, scsi_read_capacity10_t * p_buffer) ATTR_WARN_UNUSED_RESULT;
+tusb_error_t  tusbh_msc_read10(uint8_t dev_addr, void * p_buffer, uint32_t length) ATTR_WARN_UNUSED_RESULT;
+tusb_error_t  tusbh_msc_write10(uint8_t dev_addr, void const * p_data, uint32_t length) ATTR_WARN_UNUSED_RESULT;
+
+//tusb_error_t  tusbh_msc_scsi_send(uint8_t dev_addr, uint8_t lun, bool is_direction_in,
+//                                  uint8_t const * p_command, uint8_t cmd_len,
+//                                  uint8_t * p_response, uint32_t resp_len) ATTR_WARN_UNUSED_RESULT;
+
 //------------- Application Callback -------------//
 void tusbh_msc_mounted_cb(uint8_t dev_addr);
 

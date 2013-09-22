@@ -78,7 +78,7 @@
 
 // TODO allow user to configure
 #define EHCI_MAX_QHD  8
-#define EHCI_MAX_QTD  12
+#define EHCI_MAX_QTD  20
 #define EHCI_MAX_ITD  4
 #define EHCI_MAX_SITD 16
 

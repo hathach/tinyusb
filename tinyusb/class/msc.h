@@ -80,6 +80,7 @@ typedef enum {
   SCSI_CMD_TEST_UNIT_READY  = 0x00,
   SCSI_CMD_INQUIRY          = 0x12,
   SCSI_CMD_READ_CAPACITY_10 = 0x25,
+  SCSI_CMD_REQUEST_SENSE    = 0x03,
   SCSI_CMD_READ_10          = 0x28,
   SCSI_CMD_WRITE_10         = 0x2A,
 }scsi_cmd_type_t;
@@ -115,12 +116,13 @@ STATIC_ASSERT(sizeof(msc_cmd_status_wrapper_t) == 13, "size is not correct");
 // SCSI Primary Command (SPC-4)
 //--------------------------------------------------------------------+
 typedef ATTR_PACKED_STRUCT(struct) {
-  uint8_t  operation_code;
-  uint8_t  reserve;
-  uint8_t  page_code;
-  uint16_t alloc_length;
-  uint8_t  control;
-} scsi_inquiry_t;
+  uint8_t cmd_code;
+  uint8_t reserved1;
+  uint8_t page_code;
+  uint8_t reserved2;
+  uint8_t alloc_length;
+  uint8_t control;
+} scsi_inquiry_t, scsi_request_sense_t;
 
 STATIC_ASSERT(sizeof(scsi_inquiry_t) == 6, "size is not correct");
 
@@ -172,12 +174,23 @@ STATIC_ASSERT(sizeof(scsi_inquiry_data_t) == 36, "size is not correct");
 //--------------------------------------------------------------------+
 // SCSI Block Command (SBC-3)
 //--------------------------------------------------------------------+
+typedef ATTR_PACKED_STRUCT(struct) {
+  uint8_t  cmd_code;
+  uint8_t  reserved1;
+  uint32_t logical_block_addr;
+  uint16_t reserved2;
+  uint8_t  partial_medium_indicator;
+  uint8_t  control;
+} scsi_read_capacity10_t;
+
+STATIC_ASSERT(sizeof(scsi_read_capacity10_t) == 10, "size is not correct");
+
 typedef struct {
-  uint8_t logical_block_addr[4];
-  uint8_t block_length[4];
-} msc_scsi_read_capacity10_t;
+  uint32_t last_lba;
+  uint32_t block_size;
+} scsi_read_capacity10_data_t;
 
-
+STATIC_ASSERT(sizeof(scsi_read_capacity10_data_t) == 8, "size is not correct");
 
 #ifdef __cplusplus
  }

@@ -83,6 +83,9 @@
 #define ATTR_USED
 #define ATTR_UNUSED
 
+// built-in function to convert 32-bit Big-Endian to Little-Endian
+#define __be2le   __REV
+
 #if 0
 
 				/** Indicates to the compiler that the function can not ever return, so that any stack restoring or

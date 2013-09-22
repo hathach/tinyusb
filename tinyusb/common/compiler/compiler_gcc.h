@@ -130,6 +130,10 @@
 *  @{
 */
 
+// built-in function to convert 32-bit Big-Endian to Little-Endian
+#define __be2le   __builtin_bswap32
+
+
 /** You can use the built-in function \b __builtin_constant_p to determine if a value is known to be constant at compile time and hence that GCC can perform constant-folding on expressions involving that value. The argument of the function is the value to test. The function returns the integer 1 if the argument is known to be a compile-time constant and 0 if it is not known to be a compile-time constant. A return of 0 does not indicate that the value is not a constant, but merely that GCC cannot prove it is a constant with the specified value of the -O option.
  You typically use this function in an embedded application where memory is a critical resource. If you have some complex calculation, you may want it to be folded if it involves constants, but need to call a function if it does not. For example:
  \code
