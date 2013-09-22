@@ -125,9 +125,9 @@ typedef ATTR_PACKED_STRUCT(struct)
  * \brief buttons codes for HID mouse
  */
 enum {
-	HID_MOUSEBUTTON_LEFT   = BIT_(0),
-	HID_MOUSEBUTTON_RIGHT  = BIT_(1),
-	HID_MOUSEBUTTON_MIDDLE = BIT_(2)
+	MOUSE_BUTTON_LEFT   = BIT_(0),
+	MOUSE_BUTTON_RIGHT  = BIT_(1),
+	MOUSE_BUTTON_MIDDLE = BIT_(2)
 };
 
 /**

@@ -66,18 +66,17 @@ void tusbh_msc_mounted_cb(uint8_t dev_addr)
   uint8_t const* p_vendor  = tusbh_msc_get_vendor_name(dev_addr);
   uint8_t const* p_product = tusbh_msc_get_product_name(dev_addr);
 
-  printf("Vendor  Name: ");
+  printf("Name: ");
   for(uint8_t i=0; i<8; i++) putchar(p_vendor[i]);
-  putchar('\n');
 
-  printf("Product Name: ");
+  printf(" ");
   for(uint8_t i=0; i<16; i++) putchar(p_product[i]);
   putchar('\n');
 
   uint32_t last_lba, block_size;
   tusbh_msc_get_capacity(dev_addr, &last_lba, &block_size);
   printf("Disk Size: %d MB\n", (last_lba+1)/ ((1024*1024)/block_size) );
-  printf("LBA 0-0x%X, Block Size: %d\n", last_lba, block_size);
+  printf("LBA 0-0x%X  Block Size: %d\n", last_lba, block_size);
 }
 
 //--------------------------------------------------------------------+

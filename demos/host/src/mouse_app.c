@@ -143,12 +143,17 @@ static inline void process_mouse_report(tusb_mouse_report_t const * p_report)
   {
      // example only display button pressed, ignore hold & dragging etc
     printf(" %c%c%c ",
-       p_report->buttons & HID_MOUSEBUTTON_LEFT   ? 'L' : '-',
-       p_report->buttons & HID_MOUSEBUTTON_MIDDLE ? 'M' : '-',
-       p_report->buttons & HID_MOUSEBUTTON_RIGHT  ? 'R' : '-');
+       p_report->buttons & MOUSE_BUTTON_LEFT   ? 'L' : '-',
+       p_report->buttons & MOUSE_BUTTON_MIDDLE ? 'M' : '-',
+       p_report->buttons & MOUSE_BUTTON_RIGHT  ? 'R' : '-');
   }
 
   //------------- movement (disabled for clearer demo) -------------//
+  if ( p_report->wheel != 0 )
+  {
+    printf(" %c ", p_report->wheel > 0 ? 'U' : 'D');
+  }
+
 //  if ( p_report->x != 0 || p_report->y != 0 )
 //  {
 //    printf(" (%d, %d) ", p_report->x, p_report->y);
