@@ -74,12 +74,7 @@ int __sys_write (int iFileHandle, char *pcBuffer, int iLength)
   return iLength;
 
 #elif CFG_PRINTF_TARGET == PRINTF_TARGET_SWO
-	uint32_t i;
-	for (i = 0; i<iLength; i++)
-	{
-		ITM_SendChar(pcBuffer[i]); // print each character
-	}
-	return iLength;
+  #error author does not know how to retarget SWO with lpcxpresso/red-suite
 #else
 	#error Thach, did you forget something
 #endif

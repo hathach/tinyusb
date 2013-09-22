@@ -155,7 +155,6 @@ void test_bulk_xfer_hs_ping_out(void)
   TEST_ASSERT_STATUS( hcd_pipe_xfer(pipe_hdl, xfer_data, sizeof(xfer_data), true) );
 
   ehci_qtd_t* p_qtd = p_qhd->p_qtd_list_head;
-  TEST_ASSERT(p_qtd->pingstate_err);
 }
 
 void test_bulk_xfer(void)

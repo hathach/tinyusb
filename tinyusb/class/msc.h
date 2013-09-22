@@ -76,6 +76,20 @@ enum {
   MSC_REQUEST_RESET       = 255
 };
 
+typedef enum {
+  SCSI_CMD_TEST_UNIT_READY  = 0x00,
+  SCSI_CMD_INQUIRY          = 0x12,
+  SCSI_CMD_READ_CAPACITY_10 = 0x25,
+  SCSI_CMD_READ_10          = 0x28,
+  SCSI_CMD_WRITE_10         = 0x2A,
+}scsi_cmd_type_t;
+
+typedef enum {
+  MSC_CSW_STATUS_PASSED = 0,
+  MSC_CSW_STATUS_FAILED,
+  MSC_CSW_STATUS_PHASE_ERROR
+}msc_csw_status_t;
+
 typedef ATTR_PACKED_STRUCT(struct) {
   uint32_t signature; // const 0x43425355
   uint32_t tag;
@@ -100,6 +114,16 @@ STATIC_ASSERT(sizeof(msc_cmd_status_wrapper_t) == 13, "size is not correct");
 //--------------------------------------------------------------------+
 // SCSI Primary Command (SPC-4)
 //--------------------------------------------------------------------+
+typedef ATTR_PACKED_STRUCT(struct) {
+  uint8_t  operation_code;
+  uint8_t  reserve;
+  uint8_t  page_code;
+  uint16_t alloc_length;
+  uint8_t  control;
+} scsi_inquiry_t;
+
+STATIC_ASSERT(sizeof(scsi_inquiry_t) == 6, "size is not correct");
+
 typedef ATTR_PACKED_STRUCT(struct)
 {
   uint8_t peripheral_device_type     : 5;
@@ -141,9 +165,9 @@ typedef ATTR_PACKED_STRUCT(struct)
   uint8_t vendor_id[8];
   uint8_t product_id[16];
   uint8_t product_revision[4];
-} msc_scsi_inquiry_t;
+} scsi_inquiry_data_t;
 
-STATIC_ASSERT(sizeof(msc_scsi_inquiry_t) == 36, "size is not correct");
+STATIC_ASSERT(sizeof(scsi_inquiry_data_t) == 36, "size is not correct");
 
 //--------------------------------------------------------------------+
 // SCSI Block Command (SBC-3)
@@ -152,6 +176,8 @@ typedef struct {
   uint8_t logical_block_addr[4];
   uint8_t block_length[4];
 } msc_scsi_read_capacity10_t;
+
+
 
 #ifdef __cplusplus
  }

@@ -56,8 +56,12 @@ typedef struct {
   uint8_t interface_number;
   uint8_t max_lun;
 
+  uint8_t vendor_id[8];
+  uint8_t product_id[16];
+
   msc_cmd_block_wrapper_t cbw;
   msc_cmd_status_wrapper_t csw;
+  uint8_t buffer[100];
 }msch_interface_t;
 
 STATIC_VAR msch_interface_t msch_data[TUSB_CFG_HOST_DEVICE_MAX] TUSB_CFG_ATTR_USBRAM; // TODO to be static
@@ -70,8 +74,24 @@ STATIC_VAR uint8_t msch_buffer[10] TUSB_CFG_ATTR_USBRAM;
 //--------------------------------------------------------------------+
 
 //--------------------------------------------------------------------+
-// IMPLEMENTATION
+// PUBLIC API
 //--------------------------------------------------------------------+
+bool          tusbh_msc_is_mounted(uint8_t dev_addr)
+{
+  return  tusbh_device_is_configured(dev_addr) &&
+          pipehandle_is_valid(msch_data[dev_addr-1].bulk_in) &&
+          pipehandle_is_valid(msch_data[dev_addr-1].bulk_out);
+}
+
+uint8_t const *      tusbh_msc_get_vendor_name(uint8_t dev_addr)
+{
+  return tusbh_msc_is_mounted(dev_addr) ? msch_data[dev_addr-1].vendor_id : NULL;
+}
+
+uint8_t const *      tusbh_msc_get_product_name(uint8_t dev_addr)
+{
+  return tusbh_msc_is_mounted(dev_addr) ? msch_data[dev_addr-1].product_id : NULL;
+}
 
 //--------------------------------------------------------------------+
 // CLASS-USBH API (don't require to verify parameters)
@@ -123,7 +143,37 @@ tusb_error_t msch_open_subtask(uint8_t dev_addr, tusb_descriptor_interface_t con
   msch_data[dev_addr-1].max_lun = msch_buffer[0];
 
   //------------- SCSI Inquiry -------------//
+  msch_data[dev_addr-1].cbw = (msc_cmd_block_wrapper_t) {
+                                  .signature = 0x43425355,
+                                  .tag = 0xCAFECAFE,
+                                  .xfer_bytes = sizeof(scsi_inquiry_data_t),
+                                  .flags = TUSB_DIR_DEV_TO_HOST_MASK,
+                                  .lun = 0,
+                                  .cmd_len = sizeof(scsi_inquiry_t),
+                              };
+  scsi_inquiry_t cmd_inquiry =
+  {
+      .operation_code = SCSI_CMD_INQUIRY,
+      .alloc_length = sizeof(scsi_inquiry_data_t)
+  };
+  memcpy(msch_data[dev_addr-1].cbw.command, &cmd_inquiry, sizeof(scsi_inquiry_t));
 
+  hcd_pipe_xfer(msch_data[dev_addr-1].bulk_out, &msch_data[dev_addr-1].cbw, sizeof(msc_cmd_block_wrapper_t), false);
+  hcd_pipe_xfer(msch_data[dev_addr-1].bulk_in , msch_data[dev_addr-1].buffer, sizeof(scsi_inquiry_data_t), false);
+  hcd_pipe_xfer(msch_data[dev_addr-1].bulk_in , &msch_data[dev_addr-1].csw, sizeof(msc_cmd_status_wrapper_t), true);
+
+  // TODO timeout required, a proper synchronization
+//  while( !hcd_pipe_is_idle(msch_data[dev_addr-1].bulk_in) )
+  {
+    osal_task_delay(2);
+  }
+
+  memcpy(msch_data[dev_addr-1].vendor_id,
+         ((scsi_inquiry_data_t*)msch_data[dev_addr-1].buffer)->vendor_id,
+         8);
+  memcpy(msch_data[dev_addr-1].product_id,
+         ((scsi_inquiry_data_t*)msch_data[dev_addr-1].buffer)->product_id,
+         16);
 
   tusbh_msc_mounted_cb(dev_addr);
 
@@ -144,6 +194,20 @@ void msch_close(uint8_t dev_addr)
 
   memclr_(&msch_data[dev_addr-1], sizeof(msch_interface_t));
 }
+
+//--------------------------------------------------------------------+
+// INTERNAL & HELPER
+//--------------------------------------------------------------------+
+//static tusb_error_t scsi_command_send(msc_cmd_block_wrapper_t const * cbw, uint8_t * buffer, msc_cmd_status_wrapper_t const * csw)
+//{
+//  tusb_error_t error;
+//
+//  OSAL_SUBTASK_BEGIN
+//
+//  hcd_pipe_xfer()
+//
+//  OSAL_SUBTASK_END
+//}
 
 
 #endif

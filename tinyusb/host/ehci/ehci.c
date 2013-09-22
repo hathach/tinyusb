@@ -373,6 +373,7 @@ pipe_handle_t hcd_pipe_open(uint8_t dev_addr, tusb_descriptor_endpoint_t const *
   if (p_endpoint_desc->bmAttributes.xfer == TUSB_XFER_ISOCHRONOUS)
     return null_handle; // TODO not support ISO yet
 
+  //------------- Prepare Queue Head -------------//
   ehci_qhd_t * const p_qhd = qhd_find_free(dev_addr);
   ASSERT_PTR(p_qhd, null_handle);
 
@@ -380,6 +381,7 @@ pipe_handle_t hcd_pipe_open(uint8_t dev_addr, tusb_descriptor_endpoint_t const *
             p_endpoint_desc->bmAttributes.xfer, p_endpoint_desc->bInterval );
   p_qhd->class_code = class_code;
 
+  //------------- Insert to Async List -------------//
   ehci_link_t * list_head;
 
   if (p_endpoint_desc->bmAttributes.xfer == TUSB_XFER_BULK)
@@ -413,11 +415,6 @@ tusb_error_t  hcd_pipe_xfer(pipe_handle_t pipe_hdl, uint8_t buffer[], uint16_t t
   qtd_init(p_qtd, (uint32_t) buffer, total_bytes);
   p_qtd->pid = p_qhd->pid_non_control;
   p_qtd->int_on_complete = int_on_complete ? 1 : 0;
-  // do PING for Highspeed Bulk OUT, EHCI section 4.11
-  if (pipe_hdl.xfer_type == TUSB_XFER_BULK && p_qhd->endpoint_speed == TUSB_SPEED_HIGH && p_qtd->pid == EHCI_PID_OUT)
-  {
-    p_qtd->pingstate_err = 1;
-  }
 
   //------------- insert TD to TD list -------------//
   qtd_insert_to_qhd(p_qhd, p_qtd);
@@ -649,6 +646,7 @@ static void xfer_error_isr(uint8_t hostid)
     max_loop++;
   }while(p_qhd != async_head && max_loop < EHCI_MAX_QHD); // async list traversal, stop if loop around
 
+  #if EHCI_PERIODIC_LIST
   //------------- TODO refractor period list -------------//
   uint32_t const period_1ms_addr = (uint32_t) get_period_head(hostid, 1);
   for (uint8_t interval_ms=1; interval_ms <= EHCI_FRAMELIST_SIZE; interval_ms *= 2)
@@ -682,6 +680,7 @@ static void xfer_error_isr(uint8_t hostid)
       period_max_loop++;
     }
   }
+  #endif
 }
 
 //------------- Host Controller Driver's Interrupt Handler -------------//
@@ -910,6 +909,7 @@ static void qhd_init(ehci_qhd_t *p_qhd, uint8_t dev_addr, uint16_t max_packet_si
   p_qhd->nak_count_reload                 = 0;
 
   // Bulk/Control -> smask = cmask = 0
+  // TODO Isochronous
   if (TUSB_XFER_INTERRUPT == xfer_type)
   {
     if (TUSB_SPEED_HIGH == p_qhd->endpoint_speed)
@@ -942,11 +942,6 @@ static void qhd_init(ehci_qhd_t *p_qhd, uint8_t dev_addr, uint16_t max_packet_si
   p_qhd->hub_port                = usbh_devices[dev_addr].hub_port;
   p_qhd->mult                    = 1; // TODO not use high bandwidth/park mode yet
 
-  //------------- active, but no TD list -------------//
-  p_qhd->qtd_overlay.halted              = 0;
-  p_qhd->qtd_overlay.next.terminate      = 1;
-  p_qhd->qtd_overlay.alternate.terminate = 1;
-
   //------------- HCD Management Data -------------//
   p_qhd->used            = 1;
   p_qhd->is_removing     = 0;
@@ -954,6 +949,14 @@ static void qhd_init(ehci_qhd_t *p_qhd, uint8_t dev_addr, uint16_t max_packet_si
   p_qhd->p_qtd_list_tail = NULL;
   p_qhd->pid_non_control = (endpoint_addr & 0x80) ? EHCI_PID_IN : EHCI_PID_OUT; // PID for TD under this endpoint
 
+  //------------- active, but no TD list -------------//
+  p_qhd->qtd_overlay.halted              = 0;
+  p_qhd->qtd_overlay.next.terminate      = 1;
+  p_qhd->qtd_overlay.alternate.terminate = 1;
+  if (TUSB_XFER_BULK == xfer_type && p_qhd->endpoint_speed == TUSB_SPEED_HIGH && p_qhd->pid_non_control == EHCI_PID_OUT)
+  {
+    p_qhd->qtd_overlay.pingstate_err = 1; // do PING for Highspeed Bulk OUT, EHCI section 4.11
+  }
 }
 
 static void qtd_init(ehci_qtd_t* p_qtd, uint32_t data_ptr, uint16_t total_bytes)

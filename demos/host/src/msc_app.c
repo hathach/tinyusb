@@ -61,6 +61,18 @@
 void tusbh_msc_mounted_cb(uint8_t dev_addr)
 {
   printf("an msc device is mounted\n");
+
+  // SCSI VendorID[8] & ProductID[16] from Inquiry Command
+  uint8_t const* p_vendor  = tusbh_msc_get_vendor_name(dev_addr);
+  uint8_t const* p_product = tusbh_msc_get_product_name(dev_addr);
+
+  printf("Vendor  Id: ");
+  for(uint8_t i=0; i<8; i++) putchar(p_vendor[i]);
+
+  printf("\nProduct Id: ");
+  for(uint8_t i=0; i<16; i++) putchar(p_product[i]);
+
+  putchar('\n');
 }
 
 //--------------------------------------------------------------------+

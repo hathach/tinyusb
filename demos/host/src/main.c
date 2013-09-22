@@ -112,10 +112,16 @@ void os_none_start_scheduler(void)
     msc_app_task(NULL);
     cdc_serial_app_task(NULL);
     rndis_app_task(NULL);
+
+//    int ch = ITM_ReceiveChar();
+//    if ( ch > 0 )
+//    {
+//      printf("%c", ch);
+//    }
   }
 }
 #endif
-
+volatile int32_t ITM_RxBuffer;
 
 int main(void)
 {
