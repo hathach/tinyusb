@@ -100,6 +100,13 @@ static inline ehci_qhd_t*    qhd_find_free (uint8_t dev_addr) ATTR_PURE ATTR_ALW
 static inline tusb_xfer_type_t qhd_get_xfer_type(ehci_qhd_t const * p_qhd) ATTR_ALWAYS_INLINE ATTR_PURE;
 STATIC_ INLINE_ ehci_qhd_t*  qhd_get_from_pipe_handle(pipe_handle_t pipe_hdl) ATTR_PURE ATTR_ALWAYS_INLINE;
 static inline pipe_handle_t  qhd_create_pipe_handle(ehci_qhd_t const * p_qhd, tusb_xfer_type_t xfer_type) ATTR_PURE ATTR_ALWAYS_INLINE;
+// determine if a queue head has bus-related error
+static inline bool qhd_has_xact_error(ehci_qhd_t * p_qhd) ATTR_ALWAYS_INLINE ATTR_PURE;
+static inline bool qhd_has_xact_error(ehci_qhd_t * p_qhd)
+{
+  return ( p_qhd->qtd_overlay.buffer_err ||p_qhd->qtd_overlay.babble_err || p_qhd->qtd_overlay.xact_err );
+  //p_qhd->qtd_overlay.non_hs_period_missed_uframe || p_qhd->qtd_overlay.pingstate_err TODO split transaction error
+}
 
 static void qhd_init(ehci_qhd_t *p_qhd, uint8_t dev_addr, uint16_t max_packet_size, uint8_t endpoint_addr, uint8_t xfer_type, uint8_t interval);
 
@@ -468,10 +475,36 @@ tusb_error_t  hcd_pipe_close(pipe_handle_t pipe_hdl)
   return TUSB_ERROR_NONE;
 }
 
+bool hcd_pipe_is_busy(pipe_handle_t pipe_hdl)
+{
+  ehci_qhd_t *p_qhd = qhd_get_from_pipe_handle( pipe_hdl );
+  return !p_qhd->qtd_overlay.halted && (p_qhd->p_qtd_list_head != NULL);
+}
+
 bool hcd_pipe_is_idle(pipe_handle_t pipe_hdl)
 {
   ehci_qhd_t *p_qhd = qhd_get_from_pipe_handle( pipe_hdl );
   return (p_qhd->p_qtd_list_head == NULL);
+}
+
+bool hcd_pipe_is_stalled(pipe_handle_t pipe_hdl)
+{
+  ehci_qhd_t *p_qhd = qhd_get_from_pipe_handle( pipe_hdl );
+  return p_qhd->qtd_overlay.halted && !qhd_has_xact_error(p_qhd);
+}
+
+uint8_t hcd_pipe_get_endpoint_addr(pipe_handle_t pipe_hdl)
+{
+  ehci_qhd_t *p_qhd = qhd_get_from_pipe_handle( pipe_hdl );
+  return p_qhd->endpoint_number + ( (p_qhd->pid_non_control == EHCI_PID_IN) ? 0x80 : 0);
+}
+
+tusb_error_t hcd_pipe_clear_stall(pipe_handle_t pipe_hdl)
+{
+  ehci_qhd_t *p_qhd = qhd_get_from_pipe_handle( pipe_hdl );
+  p_qhd->qtd_overlay.halted = 0;
+
+  return TUSB_ERROR_NONE;
 }
 
 //--------------------------------------------------------------------+
@@ -617,16 +650,14 @@ static void period_list_xfer_complete_isr(uint8_t hostid, uint8_t interval_ms)
 
 static void qhd_xfer_error_isr(ehci_qhd_t * p_qhd)
 {
-  if (  (p_qhd->device_address != 0 && p_qhd->qtd_overlay.halted)   || // addr0 cannot be protocol STALL
-      p_qhd->qtd_overlay.buffer_err ||p_qhd->qtd_overlay.babble_err || p_qhd->qtd_overlay.xact_err )
-    //p_qhd->qtd_overlay.non_hs_period_missed_uframe || p_qhd->qtd_overlay.pingstate_err TODO split transaction error
+  if ( (p_qhd->device_address != 0 && p_qhd->qtd_overlay.halted) || // addr0 cannot be protocol STALL
+        qhd_has_xact_error(p_qhd) )
   { // current qhd has error in transaction
     tusb_xfer_type_t const xfer_type = qhd_get_xfer_type(p_qhd);
     tusb_event_t error_event;
 
     // no error bits are set, endpoint is halted due to STALL
-    error_event = ( !(p_qhd->qtd_overlay.buffer_err || p_qhd->qtd_overlay.babble_err ||
-        p_qhd->qtd_overlay.xact_err) ) ? TUSB_EVENT_XFER_STALLED : TUSB_EVENT_XFER_ERROR;
+    error_event = qhd_has_xact_error(p_qhd) ? TUSB_EVENT_XFER_ERROR : TUSB_EVENT_XFER_STALLED;
 
     p_qhd->total_xferred_bytes += p_qhd->p_qtd_list_head->expected_bytes - p_qhd->p_qtd_list_head->total_bytes;
 

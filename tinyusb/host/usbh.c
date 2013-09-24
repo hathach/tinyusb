@@ -216,9 +216,13 @@ tusb_error_t usbh_control_xfer_subtask(uint8_t dev_addr, uint8_t bmRequestType, 
   osal_mutex_release(usbh_devices[dev_addr].control.mutex_hdl);
 
   // TODO make handler for this function general purpose
-  SUBTASK_ASSERT_WITH_HANDLER(TUSB_ERROR_NONE == error &&
-                              TUSB_EVENT_XFER_COMPLETE == usbh_devices[dev_addr].control.pipe_status,
-                              tusbh_device_mount_failed_cb(TUSB_ERROR_USBH_MOUNT_DEVICE_NOT_RESPOND, NULL) );
+  if (TUSB_ERROR_NONE != error)   SUBTASK_EXIT(error);
+  if (TUSB_EVENT_XFER_STALLED == usbh_devices[dev_addr].control.pipe_status) SUBTASK_EXIT(TUSB_ERROR_USBH_XFER_STALLED);
+  if (TUSB_EVENT_XFER_ERROR   == usbh_devices[dev_addr].control.pipe_status) SUBTASK_EXIT(TUSB_ERROR_USBH_XFER_FAILED);
+
+//  SUBTASK_ASSERT_WITH_HANDLER(TUSB_ERROR_NONE == error &&
+//                              TUSB_EVENT_XFER_COMPLETE == usbh_devices[dev_addr].control.pipe_status,
+//                              tusbh_device_mount_failed_cb(TUSB_ERROR_USBH_MOUNT_DEVICE_NOT_RESPOND, NULL) );
 
   OSAL_SUBTASK_END
 }

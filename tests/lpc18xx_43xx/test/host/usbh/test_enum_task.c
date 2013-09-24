@@ -210,7 +210,7 @@ void test_addr0_failed_dev_desc(void)
 {
   osal_semaphore_wait_StubWithCallback(semaphore_wait_timeout_stub(0));
 
-  tusbh_device_mount_failed_cb_Expect(TUSB_ERROR_USBH_MOUNT_DEVICE_NOT_RESPOND, NULL);
+//  tusbh_device_mount_failed_cb_Expect(TUSB_ERROR_USBH_MOUNT_DEVICE_NOT_RESPOND, NULL);
 
   usbh_enumeration_task(NULL);
 
@@ -222,7 +222,7 @@ void test_addr0_failed_set_address(void)
 {
   osal_semaphore_wait_StubWithCallback(semaphore_wait_timeout_stub(1));
   hcd_port_reset_Expect( usbh_devices[0].core_id );
-  tusbh_device_mount_failed_cb_Expect(TUSB_ERROR_USBH_MOUNT_DEVICE_NOT_RESPOND, NULL);
+//  tusbh_device_mount_failed_cb_Expect(TUSB_ERROR_USBH_MOUNT_DEVICE_NOT_RESPOND, NULL);
 
   usbh_enumeration_task(NULL);
 
@@ -239,7 +239,7 @@ void test_enum_failed_get_full_dev_desc(void)
   osal_semaphore_reset_Expect( usbh_devices[0].control.sem_hdl );
   osal_mutex_reset_Expect( usbh_devices[0].control.mutex_hdl );
   hcd_pipe_control_open_ExpectAndReturn(1, desc_device.bMaxPacketSize0, TUSB_ERROR_NONE);
-  tusbh_device_mount_failed_cb_Expect(TUSB_ERROR_USBH_MOUNT_DEVICE_NOT_RESPOND, NULL);
+//  tusbh_device_mount_failed_cb_Expect(TUSB_ERROR_USBH_MOUNT_DEVICE_NOT_RESPOND, NULL);
 
   usbh_enumeration_task(NULL);
 
@@ -261,7 +261,7 @@ void test_enum_failed_get_9byte_config_desc(void)
 
   hcd_pipe_control_open_ExpectAndReturn(1, desc_device.bMaxPacketSize0, TUSB_ERROR_NONE);
   tusbh_device_attached_cb_ExpectAndReturn((tusb_descriptor_device_t*) enum_data_buffer, 1);
-  tusbh_device_mount_failed_cb_Expect(TUSB_ERROR_USBH_MOUNT_DEVICE_NOT_RESPOND, NULL);
+//  tusbh_device_mount_failed_cb_Expect(TUSB_ERROR_USBH_MOUNT_DEVICE_NOT_RESPOND, NULL);
 
   usbh_enumeration_task(NULL);
 
@@ -279,7 +279,7 @@ void test_enum_failed_get_full_config_desc(void)
   osal_mutex_reset_Expect( usbh_devices[0].control.mutex_hdl );
   hcd_pipe_control_open_ExpectAndReturn(1, desc_device.bMaxPacketSize0, TUSB_ERROR_NONE);
   tusbh_device_attached_cb_ExpectAndReturn((tusb_descriptor_device_t*) enum_data_buffer, 1);
-  tusbh_device_mount_failed_cb_Expect(TUSB_ERROR_USBH_MOUNT_DEVICE_NOT_RESPOND, NULL);
+//  tusbh_device_mount_failed_cb_Expect(TUSB_ERROR_USBH_MOUNT_DEVICE_NOT_RESPOND, NULL);
 
   usbh_enumeration_task(NULL);
 }
@@ -294,7 +294,7 @@ void test_enum_parse_config_desc(void)
   hcd_pipe_control_open_ExpectAndReturn(1, desc_device.bMaxPacketSize0, TUSB_ERROR_NONE);
   tusbh_device_attached_cb_ExpectAndReturn((tusb_descriptor_device_t*) enum_data_buffer, 1);
 
-  tusbh_device_mount_failed_cb_Expect(TUSB_ERROR_USBH_MOUNT_DEVICE_NOT_RESPOND, NULL); // fail to set configure
+//  tusbh_device_mount_failed_cb_Expect(TUSB_ERROR_USBH_MOUNT_DEVICE_NOT_RESPOND, NULL); // fail to set configure
 
   usbh_enumeration_task(NULL);
 

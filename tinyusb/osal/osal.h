@@ -68,16 +68,20 @@
 
 #if TUSB_CFG_OS == TUSB_OS_NONE
   #include "osal_none.h"
-#elif TUSB_CFG_OS == TUSB_OS_FREERTOS
-  #include "osal_freeRTOS.h"
-#elif TUSB_CFG_OS == TUSB_OS_CMSIS_RTX
-  #include "osal_cmsis_rtx.h"
 #else
-  #error TUSB_CFG_OS is not defined or OS is not supported yet
+  #define OSAL_VAR
+  #if TUSB_CFG_OS == TUSB_OS_FREERTOS
+    #include "osal_freeRTOS.h"
+  #elif TUSB_CFG_OS == TUSB_OS_CMSIS_RTX
+    #include "osal_cmsis_rtx.h"
+  #else
+    #error TUSB_CFG_OS is not defined or OS is not supported yet
+  #endif
 #endif
 
 #else // OSAL API for cmock
 
+#define OSAL_VAR
 #include "osal_common.h"
 
 //------------- Tick -------------//

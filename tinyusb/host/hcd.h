@@ -98,7 +98,12 @@ pipe_handle_t hcd_pipe_open(uint8_t dev_addr, tusb_descriptor_endpoint_t const *
 tusb_error_t  hcd_pipe_queue_xfer(pipe_handle_t pipe_hdl, uint8_t buffer[], uint16_t total_bytes) ATTR_WARN_UNUSED_RESULT; // only queue, not transferring yet
 tusb_error_t  hcd_pipe_xfer(pipe_handle_t pipe_hdl, uint8_t buffer[], uint16_t total_bytes, bool int_on_complete)  ATTR_WARN_UNUSED_RESULT;
 tusb_error_t  hcd_pipe_close(pipe_handle_t pipe_hdl) /*ATTR_WARN_UNUSED_RESULT*/;
+
+bool hcd_pipe_is_busy(pipe_handle_t pipe_hdl);
+bool hcd_pipe_is_stalled(pipe_handle_t pipe_hdl);
 bool hcd_pipe_is_idle(pipe_handle_t pipe_hdl);
+uint8_t hcd_pipe_get_endpoint_addr(pipe_handle_t pipe_hdl);
+tusb_error_t hcd_pipe_clear_stall(pipe_handle_t pipe_hdl);
 
 #if 0
 tusb_error_t hcd_pipe_cancel()ATTR_WARN_UNUSED_RESULT;

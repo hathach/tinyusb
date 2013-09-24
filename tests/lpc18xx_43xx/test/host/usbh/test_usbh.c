@@ -49,6 +49,7 @@
 #include "mock_tusb_callback.h"
 #include "mock_hid_host.h"
 #include "mock_cdc_host.h"
+#include "mock_msc_host.h"
 #include "host_helper.h"
 
 uint8_t dev_addr;
@@ -161,13 +162,36 @@ void test_usbh_device_unplugged_isr(void)
   usbh_devices[dev_addr].hub_port             = 0;
   usbh_devices[dev_addr].flag_supported_class = TUSB_CLASS_FLAG_HID;
 
-  helper_class_close_expect(dev_addr);
+  hidh_close_Expect(dev_addr);
   hcd_pipe_control_close_ExpectAndReturn(dev_addr, TUSB_ERROR_NONE);
 
   //------------- Code Under Test -------------//
   usbh_device_unplugged_isr(0);
 
   TEST_ASSERT_EQUAL(TUSB_DEVICE_STATE_REMOVING, usbh_devices[dev_addr].state);
+}
+
+void test_usbh_device_unplugged_multple_class(void)
+{
+  uint8_t dev_addr = 1;
+
+  usbh_devices[dev_addr].state                = TUSB_DEVICE_STATE_CONFIGURED;
+  usbh_devices[dev_addr].core_id              = 0;
+  usbh_devices[dev_addr].hub_addr             = 0;
+  usbh_devices[dev_addr].hub_port             = 0;
+  usbh_devices[dev_addr].flag_supported_class = TUSB_CLASS_FLAG_HID | TUSB_CLASS_FLAG_MSC | TUSB_CLASS_FLAG_CDC;
+
+  cdch_close_Expect(dev_addr);
+  hidh_close_Expect(dev_addr);
+  msch_close_Expect(dev_addr);
+
+  hcd_pipe_control_close_ExpectAndReturn(dev_addr, TUSB_ERROR_NONE);
+
+  //------------- Code Under Test -------------//
+  usbh_device_unplugged_isr(0);
+
+  TEST_ASSERT_EQUAL(TUSB_DEVICE_STATE_REMOVING, usbh_devices[dev_addr].state);
+
 }
 
 void semaphore_wait_success_stub(osal_mutex_handle_t const sem_hdl, uint32_t msec, tusb_error_t *p_error, int num_call)
@@ -219,3 +243,8 @@ void test_usbh_control_xfer_ok(void)
   //------------- Code Under Test -------------//
   usbh_control_xfer_subtask(dev_addr, 1, 2, 3, 4, 0, NULL);
 }
+
+//void test_usbh_xfer_isr_non_control_stalled(void) // do nothing for stall on control
+//{
+//
+//}

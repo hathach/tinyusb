@@ -194,6 +194,7 @@ tusb_error_t cdch_open_subtask(uint8_t dev_addr, tusb_descriptor_interface_t con
     {
       tusb_descriptor_endpoint_t const *p_endpoint = (tusb_descriptor_endpoint_t const *) p_desc;
       ASSERT_INT(TUSB_DESC_TYPE_ENDPOINT, p_endpoint->bDescriptorType, TUSB_ERROR_USBH_DESCRIPTOR_CORRUPTED);
+      ASSERT_INT(TUSB_XFER_BULK, p_endpoint->bmAttributes.xfer, TUSB_ERROR_USBH_DESCRIPTOR_CORRUPTED);
 
       pipe_handle_t * p_pipe_hdl =  ( p_endpoint->bEndpointAddress &  TUSB_DIR_DEV_TO_HOST_MASK ) ?
           &p_cdc->pipe_in : &p_cdc->pipe_out;
