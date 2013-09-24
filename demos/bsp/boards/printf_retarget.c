@@ -103,9 +103,11 @@ int __sys_readc (void)
 #elif defined __CC_ARM // keil
 
 #if CFG_PRINTF_TARGET == PRINTF_TARGET_UART
-  #define retarget_putc(c)  board_uart_send( (uint8_t*) &c, 1);
+  #define retarget_putc(c)    board_uart_send( (uint8_t*) &c, 1);
+  #define retarget_getchar()  board_uart_getchar()
 #elif CFG_PRINTF_TARGET == PRINTF_TARGET_SWO
-	#define retarget_putc(c)  ITM_SendChar(c)
+	#define retarget_putc(c)    ITM_SendChar(c)
+	#define retarget_getchar()  ITM_ReceiveChar()
 #else
 	#error Thach, did you forget something
 #endif
@@ -115,6 +117,11 @@ int __sys_readc (void)
 struct __FILE {
   uint32_t handle;
 };
+
+int fgetc(FILE *f)
+{
+  return retarget_getchar();
+}
 
 int fputc(int ch, FILE *f)
 {

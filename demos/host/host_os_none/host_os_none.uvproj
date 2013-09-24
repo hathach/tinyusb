@@ -421,6 +421,11 @@
               <FileType>1</FileType>
               <FilePath>..\src\msc_app.c</FilePath>
             </File>
+            <File>
+              <FileName>cli.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\src\cli.c</FilePath>
+            </File>
           </Files>
         </Group>
         <Group>
@@ -1024,6 +1029,11 @@
               <FileName>msc_app.c</FileName>
               <FileType>1</FileType>
               <FilePath>..\src\msc_app.c</FilePath>
+            </File>
+            <File>
+              <FileName>cli.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\src\cli.c</FilePath>
             </File>
           </Files>
         </Group>
