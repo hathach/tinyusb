@@ -1,6 +1,6 @@
 /**************************************************************************/
 /*!
-    @file     compiler.h
+    @file     msch_callback.h
     @author   hathach (tinyusb.org)
 
     @section LICENSE
@@ -26,55 +26,41 @@
     WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
     DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER BE LIABLE FOR ANY
     DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
-    INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
-    LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION HOWEVER CAUSED AND
+    (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
+    LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND
     ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
-    INCLUDING NEGLIGENCE OR OTHERWISE ARISING IN ANY WAY OUT OF THE USE OF THIS
+    (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
     SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-	  This file is part of the tinyusb stack.
+    This file is part of the tinyusb stack.
 */
 /**************************************************************************/
 
-/** \file
- *  \brief Compiler Header
- *
- *  \note TBD
- */
-
-/** \ingroup Group_Common
- *  \defgroup Group_Compiler Compiler
- *  \brief Group_Compiler brief
+/** \ingroup TBD
+ *  \defgroup TBD
+ *  \brief TBD
  *
  *  @{
  */
 
-#ifndef _TUSB_COMPILER_H_
-#define _TUSB_COMPILER_H_
+#ifndef _TUSB_MSCH_CALLBACK_H_
+#define _TUSB_MSCH_CALLBACK_H_
 
-#ifndef _TEST_
-  #define STATIC_     static
-  #define INLINE_     inline
-
-  #if TUSB_CFG_DEBUG == 3
-    #define ATTR_ALWAYS_INLINE // no inline for debug = 3
-    #define STATIC_VAR
-  #else
-    #define STATIC_VAR static
-  #endif
-  #define ATTR_TEST_WEAK
-#else
-  #define ATTR_ALWAYS_INLINE
-  #define STATIC_
-  #define STATIC_VAR
-  #define INLINE_
+#ifdef __cplusplus
+ extern "C" {
 #endif
 
-#if defined(__GNUC__)
-  #include "compiler_gcc.h"
-#elif defined __ICCARM__ // IAR compiler
-  #include "compiler_iar.h"
+#include "common/common.h"
+
+void tusbh_msc_mounted_cb(uint8_t dev_addr);
+void tusbh_msc_unmounted_isr(uint8_t dev_addr);
+void tusbh_msc_isr(uint8_t dev_addr, tusb_event_t event);
+
+
+#ifdef __cplusplus
+ }
 #endif
 
-#endif /* _TUSB_COMPILER_H_ */
-/// @}
+#endif /* _TUSB_MSCH_CALLBACK_H_ */
+
+/** @} */

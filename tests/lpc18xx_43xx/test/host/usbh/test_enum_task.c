@@ -48,6 +48,7 @@
 #include "mock_tusb_callback.h"
 #include "mock_hid_host.h"
 #include "mock_cdc_host.h"
+#include "mock_msc_host.h"
 
 extern usbh_device_info_t usbh_devices[TUSB_CFG_HOST_DEVICE_MAX+1];
 extern uint8_t enum_data_buffer[TUSB_CFG_HOST_ENUM_BUFFER_SIZE];
@@ -177,9 +178,28 @@ tusb_error_t control_xfer_stub(uint8_t dev_addr, const tusb_control_request_t * 
   return TUSB_ERROR_NONE;
 }
 
-tusb_error_t hidh_install_stub(uint8_t dev_addr, tusb_descriptor_interface_t const *descriptor, uint16_t *p_length, int num_call)
+tusb_error_t stub_hidh_open(uint8_t dev_addr, tusb_descriptor_interface_t const *descriptor, uint16_t *p_length, int num_call)
 {
   *p_length = sizeof(tusb_descriptor_interface_t) + sizeof(tusb_hid_descriptor_hid_t) + sizeof(tusb_descriptor_endpoint_t);
+  return TUSB_ERROR_NONE;
+}
+
+tusb_error_t stub_msch_open(uint8_t dev_addr, tusb_descriptor_interface_t const *descriptor, uint16_t *p_length, int num_call)
+{
+  *p_length = sizeof(tusb_descriptor_interface_t) + 2*sizeof(tusb_descriptor_endpoint_t);
+  return TUSB_ERROR_NONE;
+}
+
+tusb_error_t stub_cdch_open(uint8_t dev_addr, tusb_descriptor_interface_t const *descriptor, uint16_t *p_length, int num_call)
+{
+  *p_length =
+      //------------- Comm Interface -------------//
+      sizeof(tusb_descriptor_interface_t) + sizeof(cdc_desc_func_header_t) +
+      sizeof(cdc_desc_func_abstract_control_management_t) + sizeof(cdc_desc_func_union_t) +
+      sizeof(tusb_descriptor_endpoint_t) +
+      //------------- Data Interface -------------//
+      sizeof(tusb_descriptor_interface_t) + 2*sizeof(tusb_descriptor_endpoint_t);
+
   return TUSB_ERROR_NONE;
 }
 
@@ -264,11 +284,6 @@ void test_enum_failed_get_full_config_desc(void)
   usbh_enumeration_task(NULL);
 }
 
-void class_install_expect(void)
-{
-  hidh_open_subtask_StubWithCallback(hidh_install_stub);
-}
-
 void test_enum_parse_config_desc(void)
 {
   osal_semaphore_wait_StubWithCallback(semaphore_wait_timeout_stub(5));
@@ -295,11 +310,16 @@ void test_enum_set_configure(void)
   osal_mutex_reset_Expect( usbh_devices[0].control.mutex_hdl );
   hcd_pipe_control_open_ExpectAndReturn(1, desc_device.bMaxPacketSize0, TUSB_ERROR_NONE);
   tusbh_device_attached_cb_ExpectAndReturn((tusb_descriptor_device_t*) enum_data_buffer, 1);
-  class_install_expect();
+
+  // class open TODO  more class expect
+  hidh_open_subtask_StubWithCallback(stub_hidh_open);
+  msch_open_subtask_StubWithCallback(stub_msch_open);
+  cdch_open_subtask_StubWithCallback(stub_cdch_open);
 
   tusbh_device_mount_succeed_cb_Expect(1);
 
   usbh_enumeration_task(NULL);
 
-  TEST_ASSERT_EQUAL(TUSB_CLASS_FLAG_HID, usbh_devices[1].flag_supported_class); // TODO change later
+  TEST_ASSERT_EQUAL(TUSB_CLASS_FLAG_HID | TUSB_CLASS_FLAG_MSC | TUSB_CLASS_FLAG_CDC,
+                    usbh_devices[1].flag_supported_class); // TODO change later
 }

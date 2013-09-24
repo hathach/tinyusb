@@ -41,7 +41,7 @@
 #include "host/usbh_hcd.h"
 
 static inline void helper_class_init_expect(void)
-{
+{ // class code number order
 #if TUSB_CFG_HOST_CDC
   cdch_init_Expect();
 #endif
@@ -50,22 +50,20 @@ static inline void helper_class_init_expect(void)
   hidh_init_Expect();
 #endif
 
+#if TUSB_CFG_HOST_MSC
+  msch_init_Expect();
+#endif
+
   //TODO update more classes
 }
-
-static inline void helper_class_close_expect(uint8_t dev_addr)
-{
-  hidh_close_Expect(dev_addr);
-  //TODO update more classes
-}
-
 
 
 static inline void helper_usbh_init_expect(void)
 {
-  osal_semaphore_create_IgnoreAndReturn( (osal_semaphore_handle_t) 0x1234);
   osal_queue_create_IgnoreAndReturn( (osal_queue_handle_t) 0x4566 );
   osal_task_create_IgnoreAndReturn(TUSB_ERROR_NONE);
+
+  osal_semaphore_create_IgnoreAndReturn( (osal_semaphore_handle_t) 0x1234);
   osal_mutex_create_IgnoreAndReturn((osal_mutex_handle_t) 0x789a);
 }
 

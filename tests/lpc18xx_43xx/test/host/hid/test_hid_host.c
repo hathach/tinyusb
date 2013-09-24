@@ -42,6 +42,7 @@
 #include "errors.h"
 #include "binary.h"
 #include "type_helper.h"
+#include "common/common.h"
 
 #include "descriptor_test.h"
 #include "mock_osal.h"

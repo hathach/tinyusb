@@ -76,12 +76,29 @@ tusb_error_t  tusbh_msc_write10(uint8_t dev_addr, void const * p_data, uint32_t 
 
 //------------- Application Callback -------------//
 void tusbh_msc_mounted_cb(uint8_t dev_addr);
+void tusbh_msc_unmounted_isr(uint8_t dev_addr);
+void tusbh_msc_isr(uint8_t dev_addr, tusb_event_t event);
 
 
 //--------------------------------------------------------------------+
 // USBH-CLASS DRIVER API
 //--------------------------------------------------------------------+
 #ifdef _TINY_USB_SOURCE_FILE_
+
+typedef struct {
+  pipe_handle_t bulk_in, bulk_out;
+  uint8_t  interface_number;
+
+  uint8_t  max_lun;
+  uint16_t block_size;
+  uint32_t last_lba; // last logical block address
+
+  uint8_t vendor_id[8];
+  uint8_t product_id[16];
+
+  msc_cmd_block_wrapper_t cbw;
+  msc_cmd_status_wrapper_t csw;
+}msch_interface_t;
 
 void         msch_init(void);
 tusb_error_t msch_open_subtask(uint8_t dev_addr, tusb_descriptor_interface_t const *p_interface_desc, uint16_t *p_length) ATTR_WARN_UNUSED_RESULT;

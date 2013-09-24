@@ -151,7 +151,7 @@ const app_configuration_desc_t desc_configuration =
         .bDescriptorType     = TUSB_DESC_TYPE_CONFIGURATION,
 
         .wTotalLength        = sizeof(app_configuration_desc_t) - 1, // exclude termination
-        .bNumInterfaces      = 3,
+        .bNumInterfaces      = 5,
 
         .bConfigurationValue = 1,
         .iConfiguration      = 0x00,
@@ -263,5 +263,92 @@ const app_configuration_desc_t desc_configuration =
         .bInterval        = 1
     },
 
+    //------------- CDC Serial -------------//
+    .cdc_comm_interface =
+    {
+        .bLength            = sizeof(tusb_descriptor_interface_t),
+        .bDescriptorType    = TUSB_DESC_TYPE_INTERFACE,
+        .bInterfaceNumber   = 4,
+        .bAlternateSetting  = 0,
+        .bNumEndpoints      = 1,
+        .bInterfaceClass    = TUSB_CLASS_CDC,
+        .bInterfaceSubClass = CDC_COMM_SUBCLASS_ABSTRACT_CONTROL_MODEL,
+        .bInterfaceProtocol = CDC_COMM_PROTOCOL_ATCOMMAND,
+        .iInterface         = 0x00
+    },
+
+    .cdc_header =
+    {
+        .bLength            = sizeof(cdc_desc_func_header_t),
+        .bDescriptorType    = TUSB_DESC_TYPE_INTERFACE_CLASS_SPECIFIC,
+        .bDescriptorSubType = CDC_FUNC_DESC_HEADER,
+        .bcdCDC             = 0x0120
+    },
+
+    .cdc_acm =
+    {
+        .bLength            = sizeof(cdc_desc_func_abstract_control_management_t),
+        .bDescriptorType    = TUSB_DESC_TYPE_INTERFACE_CLASS_SPECIFIC,
+        .bDescriptorSubType = CDC_FUNC_DESC_ABSTRACT_CONTROL_MANAGEMENT,
+        .bmCapabilities     = { // 0x06
+            .support_line_request = 1,
+            .support_send_break   = 1
+        }
+    },
+
+    .cdc_union =
+    {
+        .bLength                  = sizeof(cdc_desc_func_union_t), // plus number of
+        .bDescriptorType          = TUSB_DESC_TYPE_INTERFACE_CLASS_SPECIFIC,
+        .bDescriptorSubType       = CDC_FUNC_DESC_UNION,
+        .bControlInterface        = 1,
+        .bSubordinateInterface    = 2,
+    },
+
+    .cdc_endpoint_notification =
+    {
+        .bLength          = sizeof(tusb_descriptor_endpoint_t),
+        .bDescriptorType  = TUSB_DESC_TYPE_ENDPOINT,
+        .bEndpointAddress = 0x84,
+        .bmAttributes     = { .xfer = TUSB_XFER_INTERRUPT },
+        .wMaxPacketSize   = 8,
+        .bInterval        = 0x0a // lowest polling rate
+    },
+
+    //------------- CDC Data Interface -------------//
+    .cdc_data_interface =
+    {
+        .bLength            = sizeof(tusb_descriptor_interface_t),
+        .bDescriptorType    = TUSB_DESC_TYPE_INTERFACE,
+        .bInterfaceNumber   = 5,
+        .bAlternateSetting  = 0x00,
+        .bNumEndpoints      = 2,
+        .bInterfaceClass    = TUSB_CLASS_CDC_DATA,
+        .bInterfaceSubClass = 0,
+        .bInterfaceProtocol = 0,
+        .iInterface         = 0x00
+    },
+
+    .cdc_endpoint_out =
+    {
+        .bLength          = sizeof(tusb_descriptor_endpoint_t),
+        .bDescriptorType  = TUSB_DESC_TYPE_ENDPOINT,
+        .bEndpointAddress = 5,
+        .bmAttributes     = { .xfer = TUSB_XFER_BULK },
+        .wMaxPacketSize   = 64,
+        .bInterval        = 0
+    },
+
+    .cdc_endpoint_in =
+    {
+        .bLength          = sizeof(tusb_descriptor_endpoint_t),
+        .bDescriptorType  = TUSB_DESC_TYPE_ENDPOINT,
+        .bEndpointAddress = 0x85,
+        .bmAttributes     = { .xfer = TUSB_XFER_BULK },
+        .wMaxPacketSize   = 64,
+        .bInterval        = 0
+    },
+
+    // TODO CDC & RNDIS
     .ConfigDescTermination = 0,
 };

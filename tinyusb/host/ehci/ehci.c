@@ -446,6 +446,7 @@ tusb_error_t  hcd_pipe_close(pipe_handle_t pipe_hdl)
   ehci_qhd_t *p_qhd = qhd_get_from_pipe_handle( pipe_hdl );
 
   // async list needs async advance handshake to make sure host controller has released cached data
+  // non-control does not use async advance, it will eventually free by control pipe close
   // period list queue element is guarantee to be free in the next frame (1 ms)
   p_qhd->is_removing = 1; // TODO redundant, only apply to control queue head
 
@@ -620,29 +621,47 @@ static void qhd_xfer_error_isr(ehci_qhd_t * p_qhd)
       p_qhd->qtd_overlay.buffer_err ||p_qhd->qtd_overlay.babble_err || p_qhd->qtd_overlay.xact_err )
     //p_qhd->qtd_overlay.non_hs_period_missed_uframe || p_qhd->qtd_overlay.pingstate_err TODO split transaction error
   { // current qhd has error in transaction
-    uint16_t total_xferred_bytes;
     tusb_xfer_type_t const xfer_type = qhd_get_xfer_type(p_qhd);
     tusb_event_t error_event;
 
-    // TODO allow stall with control pipe
     // no error bits are set, endpoint is halted due to STALL
     error_event = ( !(p_qhd->qtd_overlay.buffer_err || p_qhd->qtd_overlay.babble_err ||
         p_qhd->qtd_overlay.xact_err) ) ? TUSB_EVENT_XFER_STALLED : TUSB_EVENT_XFER_ERROR;
 
     p_qhd->total_xferred_bytes += p_qhd->p_qtd_list_head->expected_bytes - p_qhd->p_qtd_list_head->total_bytes;
 
-    hal_debugger_breakpoint();
+    // TODO skip unplugged device
+    if ( TUSB_EVENT_XFER_ERROR == error_event )    hal_debugger_breakpoint();
 
     p_qhd->p_qtd_list_head->used = 0; // free QTD
     qtd_remove_1st_from_qhd(p_qhd);
 
-    // subtract setup size if it is control xfer
-    total_xferred_bytes = p_qhd->total_xferred_bytes - (xfer_type == TUSB_XFER_CONTROL ? min8_of(8, p_qhd->total_xferred_bytes) : 0);
+    if ( TUSB_XFER_CONTROL == xfer_type )
+    {
+      p_qhd->total_xferred_bytes -= min8_of(8, p_qhd->total_xferred_bytes); // subtract setup size
+
+      // control cannot be halted --> clear all qtd list
+      p_qhd->p_qtd_list_head = NULL;
+      p_qhd->p_qtd_list_tail = NULL;
+
+      p_qhd->qtd_overlay.next.terminate      = 1;
+      p_qhd->qtd_overlay.alternate.terminate = 1;
+      p_qhd->qtd_overlay.halted              = 0;
+
+      #if 0 // no need to mark control qtds as not used
+      ehci_qtd_t *p_setup  = get_control_qtds(dev_addr);
+      ehci_qtd_t *p_data   = p_setup + 1;
+      ehci_qtd_t *p_status = p_setup + 2;
+
+      p_setup->used = p_data->used = p_status = 0;
+      #endif
+    }
 
     // call USBH callback
     usbh_xfer_isr( qhd_create_pipe_handle(p_qhd, xfer_type),
                    p_qhd->class_code, error_event,
-                   total_xferred_bytes);
+                   p_qhd->total_xferred_bytes);
+
     p_qhd->total_xferred_bytes = 0;
   }
 }

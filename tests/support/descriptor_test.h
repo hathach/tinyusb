@@ -59,6 +59,7 @@
 #include "common/common.h"
 #include "class/hid.h"
 #include "class/msc.h"
+#include "class/cdc.h"
 
 typedef struct
 {
@@ -97,6 +98,20 @@ typedef struct
   tusb_descriptor_interface_t                    msc_interface;
   tusb_descriptor_endpoint_t                     msc_endpoint_in;
   tusb_descriptor_endpoint_t                     msc_endpoint_out;
+
+  //------------- CDC Serial -------------//
+  //CDC Control Interface
+  tusb_descriptor_interface_t                  cdc_comm_interface;
+  cdc_desc_func_header_t                       cdc_header;
+  cdc_desc_func_abstract_control_management_t  cdc_acm;
+  cdc_desc_func_union_t                        cdc_union;
+  tusb_descriptor_endpoint_t                   cdc_endpoint_notification;
+
+  //CDC Data Interface
+  tusb_descriptor_interface_t                  cdc_data_interface;
+  tusb_descriptor_endpoint_t                   cdc_endpoint_out;
+  tusb_descriptor_endpoint_t                   cdc_endpoint_in;
+
 
   unsigned char                               ConfigDescTermination;
 } app_configuration_desc_t;

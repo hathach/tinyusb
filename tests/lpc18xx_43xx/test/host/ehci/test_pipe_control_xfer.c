@@ -253,6 +253,13 @@ void test_control_xfer_error_isr(void)
   ehci_controller_run_error(hostid);
 
   TEST_ASSERT_EQUAL(0, p_control_qhd->total_xferred_bytes);
+
+  TEST_ASSERT_NULL( p_control_qhd->p_qtd_list_head );
+  TEST_ASSERT_NULL( p_control_qhd->p_qtd_list_tail );
+
+  TEST_ASSERT_TRUE( p_control_qhd->qtd_overlay.next.terminate);
+  TEST_ASSERT_TRUE( p_control_qhd->qtd_overlay.alternate.terminate);
+  TEST_ASSERT_FALSE( p_control_qhd->qtd_overlay.halted);
 }
 
 void test_control_xfer_error_stall(void)
@@ -265,4 +272,18 @@ void test_control_xfer_error_stall(void)
   ehci_controller_run_stall(hostid);
 
   TEST_ASSERT_EQUAL(0, p_control_qhd->total_xferred_bytes);
+
+  TEST_ASSERT_NULL( p_control_qhd->p_qtd_list_head );
+  TEST_ASSERT_NULL( p_control_qhd->p_qtd_list_tail );
+
+  TEST_ASSERT_TRUE( p_control_qhd->qtd_overlay.next.terminate);
+  TEST_ASSERT_TRUE( p_control_qhd->qtd_overlay.alternate.terminate);
+  TEST_ASSERT_FALSE( p_control_qhd->qtd_overlay.halted);
+
+  #if 0 // no neeed
+  TEST_ASSERT_FALSE( p_setup->used );
+  TEST_ASSERT_FALSE( p_data->used );
+  TEST_ASSERT_FALSE( p_status->used );
+  #endif
 }
+

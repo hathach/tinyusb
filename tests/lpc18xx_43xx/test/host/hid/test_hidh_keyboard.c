@@ -118,7 +118,7 @@ void test_keyboard_is_supported_ok(void)
   TEST_ASSERT_TRUE( tusbh_hid_keyboard_is_mounted(dev_addr) );
 }
 
-static tusb_error_t stub_set_idle_request(uint8_t address, tusb_control_request_t const* p_request, uint8_t* data, int num_call)
+tusb_error_t stub_set_idle_request(uint8_t address, tusb_control_request_t const* p_request, uint8_t* data, int num_call)
 {
   TEST_ASSERT_EQUAL( dev_addr, address);
 
@@ -143,7 +143,9 @@ void test_keyboard_open_ok(void)
 
   hidh_init();
 
-  usbh_control_xfer_subtask_StubWithCallback(stub_set_idle_request);
+  usbh_control_xfer_subtask_ExpectAndReturn(dev_addr, bm_request_type(TUSB_DIR_HOST_TO_DEV, TUSB_REQUEST_TYPE_CLASS, TUSB_REQUEST_RECIPIENT_INTERFACE),
+                                            HID_REQUEST_CONTROL_SET_IDLE, 0, p_kbd_interface_desc->bInterfaceNumber, 0, NULL,
+                                            TUSB_ERROR_NONE);
   hcd_pipe_open_ExpectAndReturn(dev_addr, p_kdb_endpoint_desc, TUSB_CLASS_HID, pipe_hdl);
   tusbh_hid_keyboard_mounted_cb_Expect(dev_addr);
 

@@ -44,8 +44,10 @@
 #include "hid_host.h"
 #include "mock_osal.h"
 #include "mock_cdc_host.h"
-#include "usbh.h"
+#include "mock_msc_host.h"
+
 #include "mock_hcd.h"
+#include "usbh.h"
 #include "mock_hidh_callback.h"
 #include "descriptor_test.h"
 #include "host_helper.h"

@@ -214,7 +214,7 @@ tusb_error_t hidh_open_subtask(uint8_t dev_addr, tusb_descriptor_interface_t con
 
   OSAL_SUBTASK_BEGIN
 
-#if 0
+#if 1
   //------------- SET IDLE request -------------//
   // TODO this request can be stalled by device (indicate not supported),
   // until we have clear stall handler, temporarily disable it.
@@ -224,7 +224,9 @@ tusb_error_t hidh_open_subtask(uint8_t dev_addr, tusb_descriptor_interface_t con
                                  0, NULL ),
       error
     );
+#endif
 
+#if 0
   //------------- Get Report Descriptor TODO HID parser -------------//
   if ( p_desc_hid->bNumDescriptors )
   {

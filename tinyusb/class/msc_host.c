@@ -51,26 +51,10 @@
 //--------------------------------------------------------------------+
 // MACRO CONSTANT TYPEDEF
 //--------------------------------------------------------------------+
-typedef struct {
-  pipe_handle_t bulk_in, bulk_out;
-  uint8_t  interface_number;
+STATIC_VAR msch_interface_t msch_data[TUSB_CFG_HOST_DEVICE_MAX] TUSB_CFG_ATTR_USBRAM;
 
-  uint8_t  max_lun;
-  uint16_t block_size;
-  uint32_t last_lba; // last logical block address
-
-  uint8_t vendor_id[8];
-  uint8_t product_id[16];
-
-  msc_cmd_block_wrapper_t cbw;
-  msc_cmd_status_wrapper_t csw;
-  ATTR_ALIGNED(4) uint8_t buffer[100];
-}msch_interface_t;
-
-STATIC_VAR msch_interface_t msch_data[TUSB_CFG_HOST_DEVICE_MAX] TUSB_CFG_ATTR_USBRAM; // TODO to be static
-
-// TODO rename this
-STATIC_VAR uint8_t msch_buffer[10] TUSB_CFG_ATTR_USBRAM;
+// buffer used to read scsi information when mounted, largest reponse data currently is inquiry
+ATTR_ALIGNED(4) STATIC_VAR uint8_t msch_buffer[sizeof(scsi_inquiry_data_t)] TUSB_CFG_ATTR_USBRAM;
 
 //--------------------------------------------------------------------+
 // INTERNAL OBJECT & FUNCTION DECLARATION
@@ -110,7 +94,7 @@ tusb_error_t tusbh_msc_get_capacity(uint8_t dev_addr, uint32_t* p_last_lba, uint
 //--------------------------------------------------------------------+
 // CLASS-USBH API (don't require to verify parameters)
 //--------------------------------------------------------------------+
-static tusb_error_t scsi_command_send(msch_interface_t * p_msch, scsi_cmd_type_t cmd_code, uint8_t lun)
+static tusb_error_t scsi_command_send(msch_interface_t * p_msch, scsi_cmd_type_t cmd_code, uint8_t lun, uint8_t* p_data)
 {
   p_msch->cbw.signature = 0x43425355;
   p_msch->cbw.tag       = 0xCAFECAFE;
@@ -175,7 +159,7 @@ static tusb_error_t scsi_command_send(msch_interface_t * p_msch, scsi_cmd_type_t
   }
 
   ASSERT_STATUS( hcd_pipe_xfer(p_msch->bulk_out, (uint8_t*) &p_msch->cbw, sizeof(msc_cmd_block_wrapper_t), false) );
-  ASSERT_STATUS( hcd_pipe_queue_xfer(p_msch->bulk_in , p_msch->buffer, p_msch->cbw.xfer_bytes) );
+  ASSERT_STATUS( hcd_pipe_queue_xfer(p_msch->bulk_in , p_data, p_msch->cbw.xfer_bytes) );
   ASSERT_STATUS( hcd_pipe_xfer(p_msch->bulk_in , &p_msch->csw, sizeof(msc_cmd_status_wrapper_t), true) );
 }
 
@@ -240,28 +224,24 @@ tusb_error_t msch_open_subtask(uint8_t dev_addr, tusb_descriptor_interface_t con
 //  while( !hcd_pipe_is_idle(msch_data[dev_addr-1].bulk_in) )
 
   //------------- SCSI Inquiry -------------//
-  scsi_command_send(&msch_data[dev_addr-1], SCSI_CMD_INQUIRY, 0);
+  scsi_command_send(&msch_data[dev_addr-1], SCSI_CMD_INQUIRY, 0, msch_buffer);
   osal_task_delay(2);
 
-  memcpy(msch_data[dev_addr-1].vendor_id,
-         ((scsi_inquiry_data_t*)msch_data[dev_addr-1].buffer)->vendor_id,
-         8);
-  memcpy(msch_data[dev_addr-1].product_id,
-         ((scsi_inquiry_data_t*)msch_data[dev_addr-1].buffer)->product_id,
-         16);
+  memcpy(msch_data[dev_addr-1].vendor_id , ((scsi_inquiry_data_t*) msch_buffer)->vendor_id , 8);
+  memcpy(msch_data[dev_addr-1].product_id, ((scsi_inquiry_data_t*) msch_buffer)->product_id, 16);
 
 #if 0
   //------------- SCSI Request Sense -------------//
-  scsi_command_send(&msch_data[dev_addr-1], SCSI_CMD_REQUEST_SENSE, 0);
+  scsi_command_send(&msch_data[dev_addr-1], SCSI_CMD_REQUEST_SENSE, 0, msch_buffer);
   osal_task_delay(2);
 #endif
 
   //------------- SCSI Read Capacity 10 -------------//
-  scsi_command_send(&msch_data[dev_addr-1], SCSI_CMD_READ_CAPACITY_10, 0);
+  scsi_command_send(&msch_data[dev_addr-1], SCSI_CMD_READ_CAPACITY_10, 0, msch_buffer);
   osal_task_delay(2);
 
-  msch_data[dev_addr-1].last_lba   = __be2le( ((scsi_read_capacity10_data_t*)msch_data[dev_addr-1].buffer)->last_lba );
-  msch_data[dev_addr-1].block_size = (uint16_t) __be2le( ((scsi_read_capacity10_data_t*)msch_data[dev_addr-1].buffer)->block_size );
+  msch_data[dev_addr-1].last_lba   = __be2le( ((scsi_read_capacity10_data_t*)msch_buffer)->last_lba );
+  msch_data[dev_addr-1].block_size = (uint16_t) __be2le( ((scsi_read_capacity10_data_t*)msch_buffer)->block_size );
 
   tusbh_msc_mounted_cb(dev_addr);
 
