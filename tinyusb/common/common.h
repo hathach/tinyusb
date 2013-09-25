@@ -134,6 +134,12 @@ static inline uint8_t u16_low_u8(uint16_t u16)
   return (uint8_t) (u16 & 0x00ff);
 }
 
+static inline uint16_t u16_le2be(uint16_t u16) ATTR_CONST ATTR_ALWAYS_INLINE;
+static inline uint16_t u16_le2be(uint16_t u16)
+{
+  return (u16_low_u8(u16) << 8) | u16_high_u8(u16);
+}
+
 //------------- Min -------------//
 static inline uint8_t min8_of(uint8_t x, uint8_t y) ATTR_ALWAYS_INLINE ATTR_CONST;
 static inline uint8_t min8_of(uint8_t x, uint8_t y)

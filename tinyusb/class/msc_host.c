@@ -105,9 +105,14 @@ tusb_interface_status_t tusbh_msc_status(uint8_t dev_addr)
   return TUSB_INTERFACE_STATUS_READY;
 }
 
-//--------------------------------------------------------------------+
-// CLASS-USBH API (don't require to verify parameters)
-//--------------------------------------------------------------------+
+static inline void msc_cbw_add_signature(msc_cmd_block_wrapper_t *p_cbw, uint8_t lun) ATTR_ALWAYS_INLINE;
+static inline void msc_cbw_add_signature(msc_cmd_block_wrapper_t *p_cbw, uint8_t lun)
+{
+  p_cbw->signature  = MSC_CBW_SIGNATURE;
+  p_cbw->tag        = 0xCAFECAFE;
+  p_cbw->lun        = lun;
+}
+
 static tusb_error_t msch_command_xfer(msch_interface_t * p_msch, void* p_buffer) ATTR_WARN_UNUSED_RESULT;
 static tusb_error_t msch_command_xfer(msch_interface_t * p_msch, void* p_buffer)
 {
@@ -118,84 +123,88 @@ static tusb_error_t msch_command_xfer(msch_interface_t * p_msch, void* p_buffer)
   return TUSB_ERROR_NONE;
 }
 
-static tusb_error_t scsi_command_send(msch_interface_t * p_msch, scsi_cmd_type_t cmd_code, uint8_t lun, uint8_t* p_data)
-{
-  p_msch->cbw.signature = MSC_CBW_SIGNATURE;
-  p_msch->cbw.tag       = 0xCAFECAFE;
-  p_msch->cbw.lun       = lun;
-
-  switch ( cmd_code )
-  {
-    case SCSI_CMD_INQUIRY:
-      p_msch->cbw.xfer_bytes = sizeof(scsi_inquiry_data_t);
-      p_msch->cbw.flags      = TUSB_DIR_DEV_TO_HOST_MASK;
-      p_msch->cbw.cmd_len    = sizeof(scsi_inquiry_t);
-
-      scsi_inquiry_t cmd_inquiry =
-      {
-          .cmd_code     = cmd_code,
-          .alloc_length = sizeof(scsi_inquiry_data_t)
-      };
-
-      memcpy(p_msch->cbw.command, &cmd_inquiry, sizeof(scsi_inquiry_t));
-    break;
-
-    case SCSI_CMD_READ_CAPACITY_10:
-      p_msch->cbw.xfer_bytes = sizeof(scsi_read_capacity10_data_t);
-      p_msch->cbw.flags      = TUSB_DIR_DEV_TO_HOST_MASK;
-      p_msch->cbw.cmd_len    = sizeof(scsi_read_capacity10_t);
-
-      scsi_read_capacity10_t cmd_read_capacity10 =
-      {
-          .cmd_code                 = cmd_code,
-          .lba                      = 0,
-          .partial_medium_indicator = 0
-      };
-
-      memcpy(p_msch->cbw.command, &cmd_read_capacity10, sizeof(scsi_read_capacity10_t));
-    break;
-
-    case SCSI_CMD_TEST_UNIT_READY:
-    break;
-
-    case SCSI_CMD_READ_10:
-
-    break;
-
-    case SCSI_CMD_WRITE_10:
-    break;
-
-    case SCSI_CMD_REQUEST_SENSE:
-      p_msch->cbw.xfer_bytes = 18;
-      p_msch->cbw.flags      = TUSB_DIR_DEV_TO_HOST_MASK;
-      p_msch->cbw.cmd_len    = sizeof(scsi_request_sense_t);
-
-      scsi_request_sense_t cmd_request_sense =
-      {
-          .cmd_code     = cmd_code,
-          .alloc_length = 18
-      };
-
-      memcpy(p_msch->cbw.command, &cmd_request_sense, sizeof(scsi_request_sense_t));
-    break;
-
-    default:
-      return TUSB_ERROR_MSCH_UNKNOWN_SCSI_COMMAND;
-  }
-
-  ASSERT_STATUS( msch_command_xfer(p_msch, p_data) );
-
-  return TUSB_ERROR_NONE;
-}
-
-tusb_error_t  tusbh_msc_read10(uint8_t dev_addr, uint8_t lun, void * p_buffer, uint32_t lba, uint32_t block_count)
+//--------------------------------------------------------------------+
+// PUBLIC API: SCSI COMMAND
+//--------------------------------------------------------------------+
+tusb_error_t tusbh_msc_inquiry(uint8_t dev_addr, uint8_t lun, uint8_t *p_data)
 {
   msch_interface_t* p_msch = &msch_data[dev_addr-1];
 
   //------------- Command Block Wrapper -------------//
-  p_msch->cbw.signature  = MSC_CBW_SIGNATURE;
-  p_msch->cbw.tag        = 0xCAFECAFE;
-  p_msch->cbw.lun        = lun;
+  msc_cbw_add_signature(&p_msch->cbw, lun);
+  p_msch->cbw.xfer_bytes = sizeof(scsi_inquiry_data_t);
+  p_msch->cbw.flags      = TUSB_DIR_DEV_TO_HOST_MASK;
+  p_msch->cbw.cmd_len    = sizeof(scsi_inquiry_t);
+
+  //------------- SCSI command -------------//
+  scsi_inquiry_t cmd_inquiry =
+  {
+      .cmd_code     = SCSI_CMD_INQUIRY,
+      .alloc_length = sizeof(scsi_inquiry_data_t)
+  };
+
+  memcpy(p_msch->cbw.command, &cmd_inquiry, p_msch->cbw.cmd_len);
+
+  ASSERT_STATUS ( msch_command_xfer(p_msch, p_data) );
+
+  return TUSB_ERROR_NONE;
+}
+
+tusb_error_t tusbh_msc_read_capacity10(uint8_t dev_addr, uint8_t lun, uint8_t *p_data)
+{
+  msch_interface_t* p_msch = &msch_data[dev_addr-1];
+
+  //------------- Command Block Wrapper -------------//
+  msc_cbw_add_signature(&p_msch->cbw, lun);
+  p_msch->cbw.xfer_bytes = sizeof(scsi_read_capacity10_data_t);
+  p_msch->cbw.flags      = TUSB_DIR_DEV_TO_HOST_MASK;
+  p_msch->cbw.cmd_len    = sizeof(scsi_read_capacity10_t);
+
+  //------------- SCSI command -------------//
+  scsi_read_capacity10_t cmd_read_capacity10 =
+  {
+      .cmd_code                 = SCSI_CMD_READ_CAPACITY_10,
+      .lba                      = 0,
+      .partial_medium_indicator = 0
+  };
+
+  memcpy(p_msch->cbw.command, &cmd_read_capacity10, p_msch->cbw.cmd_len);
+
+  ASSERT_STATUS ( msch_command_xfer(p_msch, p_data) );
+
+  return TUSB_ERROR_NONE;
+}
+
+tusb_error_t tusbh_msc_request_sense(uint8_t dev_addr, uint8_t lun, uint8_t *p_data)
+{
+  msch_interface_t* p_msch = &msch_data[dev_addr-1];
+
+  //------------- Command Block Wrapper -------------//
+  p_msch->cbw.xfer_bytes = 18;
+  p_msch->cbw.flags      = TUSB_DIR_DEV_TO_HOST_MASK;
+  p_msch->cbw.cmd_len    = sizeof(scsi_request_sense_t);
+
+  //------------- SCSI command -------------//
+  scsi_request_sense_t cmd_request_sense =
+  {
+      .cmd_code     = SCSI_CMD_REQUEST_SENSE,
+      .alloc_length = 18
+  };
+
+  memcpy(p_msch->cbw.command, &cmd_request_sense, p_msch->cbw.cmd_len);
+
+  ASSERT_STATUS ( msch_command_xfer(p_msch, p_data) );
+
+  return TUSB_ERROR_NONE;
+}
+
+tusb_error_t  tusbh_msc_read10(uint8_t dev_addr, uint8_t lun, void * p_buffer, uint32_t lba, uint16_t block_count)
+{
+  msch_interface_t* p_msch = &msch_data[dev_addr-1];
+
+  //------------- Command Block Wrapper -------------//
+  msc_cbw_add_signature(&p_msch->cbw, lun);
+
   p_msch->cbw.xfer_bytes = p_msch->block_size*block_count; // Number of bytes
   p_msch->cbw.flags      = TUSB_DIR_DEV_TO_HOST_MASK;
   p_msch->cbw.cmd_len    = sizeof(scsi_read10_t);
@@ -205,7 +214,7 @@ tusb_error_t  tusbh_msc_read10(uint8_t dev_addr, uint8_t lun, void * p_buffer, u
   {
       .cmd_code    = SCSI_CMD_READ_10,
       .lba         = __le2be(lba),
-      .block_count = ((uint8_t)block_count) << 8 // TODO a proper le to be for uint16_t
+      .block_count = u16_le2be(block_count)
   };
 
   memcpy(p_msch->cbw.command, &cmd_read10, p_msch->cbw.cmd_len);
@@ -215,6 +224,35 @@ tusb_error_t  tusbh_msc_read10(uint8_t dev_addr, uint8_t lun, void * p_buffer, u
   return TUSB_ERROR_NONE;
 }
 
+tusb_error_t tusbh_msc_write10(uint8_t dev_addr, uint8_t lun, void * p_buffer, uint32_t lba, uint16_t block_count)
+{
+  msch_interface_t* p_msch = &msch_data[dev_addr-1];
+
+  //------------- Command Block Wrapper -------------//
+  msc_cbw_add_signature(&p_msch->cbw, lun);
+
+  p_msch->cbw.xfer_bytes = p_msch->block_size*block_count; // Number of bytes
+  p_msch->cbw.flags      = TUSB_DIR_DEV_TO_HOST_MASK;
+  p_msch->cbw.cmd_len    = sizeof(scsi_write10_t);
+
+  //------------- SCSI command -------------//
+  scsi_write10_t cmd_write10 =
+  {
+      .cmd_code    = SCSI_CMD_WRITE_10,
+      .lba         = __le2be(lba),
+      .block_count = u16_le2be(block_count)
+  };
+
+  memcpy(p_msch->cbw.command, &cmd_write10, p_msch->cbw.cmd_len);
+
+  ASSERT_STATUS ( msch_command_xfer(p_msch, p_buffer));
+
+  return TUSB_ERROR_NONE;
+}
+
+//--------------------------------------------------------------------+
+// CLASS-USBH API (don't require to verify parameters)
+//--------------------------------------------------------------------+
 void msch_init(void)
 {
   memclr_(msch_data, sizeof(msch_interface_t)*TUSB_CFG_HOST_DEVICE_MAX);
@@ -276,7 +314,7 @@ tusb_error_t msch_open_subtask(uint8_t dev_addr, tusb_descriptor_interface_t con
 
   enum { SCSI_XFER_TIMEOUT = 1000 };
   //------------- SCSI Inquiry -------------//
-  scsi_command_send(&msch_data[dev_addr-1], SCSI_CMD_INQUIRY, 0, msch_buffer);
+  tusbh_msc_inquiry(dev_addr, 0, msch_buffer);
   osal_semaphore_wait(msch_sem_hdl, SCSI_XFER_TIMEOUT, &error);
   SUBTASK_ASSERT_STATUS(error);
 
@@ -284,7 +322,7 @@ tusb_error_t msch_open_subtask(uint8_t dev_addr, tusb_descriptor_interface_t con
   memcpy(msch_data[dev_addr-1].product_id, ((scsi_inquiry_data_t*) msch_buffer)->product_id, 16);
 
   //------------- SCSI Read Capacity 10 -------------//
-  scsi_command_send(&msch_data[dev_addr-1], SCSI_CMD_READ_CAPACITY_10, 0, msch_buffer);
+  tusbh_msc_read_capacity10(dev_addr, 0, msch_buffer);
   osal_semaphore_wait(msch_sem_hdl, SCSI_XFER_TIMEOUT, &error);
   SUBTASK_ASSERT_STATUS(error);
 
@@ -304,12 +342,12 @@ tusb_error_t msch_open_subtask(uint8_t dev_addr, tusb_descriptor_interface_t con
     SUBTASK_ASSERT_STATUS(error);
 
     //------------- SCSI Request Sense -------------//
-    scsi_command_send(&msch_data[dev_addr-1], SCSI_CMD_REQUEST_SENSE, 0, msch_buffer);
+    tusbh_msc_request_sense(dev_addr, 0, msch_buffer);
     osal_semaphore_wait(msch_sem_hdl, SCSI_XFER_TIMEOUT, &error);
     SUBTASK_ASSERT_STATUS(error);
 
     //------------- Re-read SCSI Read Capactity -------------//
-    scsi_command_send(&msch_data[dev_addr-1], SCSI_CMD_READ_CAPACITY_10, 0, msch_buffer);
+    tusbh_msc_read_capacity10(dev_addr, 0, msch_buffer);
     osal_semaphore_wait(msch_sem_hdl, SCSI_XFER_TIMEOUT, &error);
     SUBTASK_ASSERT_STATUS(error);
   }

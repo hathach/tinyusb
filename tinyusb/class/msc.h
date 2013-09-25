@@ -206,11 +206,10 @@ typedef ATTR_PACKED_STRUCT(struct) {
   uint8_t  reserved2;
   uint16_t block_count;
   uint8_t  control;
-} scsi_read10_t;
+} scsi_read10_t, scsi_write10_t;
 
 STATIC_ASSERT(sizeof(scsi_read10_t) == 10, "size is not correct");
-
-
+STATIC_ASSERT(sizeof(scsi_write10_t) == 10, "size is not correct");
 
 #ifdef __cplusplus
  }
