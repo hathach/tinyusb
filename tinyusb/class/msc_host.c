@@ -312,7 +312,7 @@ tusb_error_t msch_open_subtask(uint8_t dev_addr, tusb_descriptor_interface_t con
   );
 #endif
 
-  enum { SCSI_XFER_TIMEOUT = 1000 };
+  enum { SCSI_XFER_TIMEOUT = 2000 };
   //------------- SCSI Inquiry -------------//
   tusbh_msc_inquiry(dev_addr, 0, msch_buffer);
   osal_semaphore_wait(msch_sem_hdl, SCSI_XFER_TIMEOUT, &error);

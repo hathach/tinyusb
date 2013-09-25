@@ -49,6 +49,7 @@
     ENTRY(help  , cli_cmd_help     , NULL)                              \
     ENTRY(ls    , cli_cmd_list     , "list items in current directory") \
     ENTRY(cd    , cli_cmd_changedir, "change current directory")        \
+    ENTRY(cat   , cli_cmd_cat      , "display contents of a text file") \
 
 //--------------------------------------------------------------------+
 // Expands the function to have the standard function signature
@@ -103,12 +104,16 @@ static cli_cmdfunc_t cli_command_tbl[] =
 //--------------------------------------------------------------------+
 // INTERNAL OBJECT & FUNCTION DECLARATION
 //--------------------------------------------------------------------+
+#define CLI_MAX_BUFFER        256
+#define CLI_FILE_READ_BUFFER  (4*1024)
+
 enum {
   ASCII_BACKSPACE = 8,
 };
 
-#define CLI_MAX_BUFFER   256
 static char cli_buffer[CLI_MAX_BUFFER];
+
+uint8_t fileread_buffer[CLI_FILE_READ_BUFFER] TUSB_CFG_ATTR_USBRAM;
 
 
 //--------------------------------------------------------------------+
@@ -238,6 +243,52 @@ tusb_error_t cli_cmd_changedir(const char * p_para)
   {
     printf("%s : No such file or directory\n", p_para);
     return TUSB_ERROR_INVALID_PARA;
+  }
+
+  return TUSB_ERROR_NONE;
+}
+
+//--------------------------------------------------------------------+
+// CAT Command
+//--------------------------------------------------------------------+
+tusb_error_t cli_cmd_cat(const char *p_para)
+{
+  if ( (p_para == NULL) ||  (strlen(p_para) == 0) ) return TUSB_ERROR_INVALID_PARA;
+
+  FIL file;
+
+  switch( f_open(&file, p_para, FA_READ) )
+  {
+    case FR_OK:
+    {
+      uint32_t bytes_read = 0;
+      if ( (FR_OK == f_read(&file, fileread_buffer, CLI_FILE_READ_BUFFER, &bytes_read)) && (bytes_read > 0) )
+      {
+        if ( isprint( fileread_buffer[0] ) )
+        {
+          putchar('\n');
+          for(uint32_t i=0; i<bytes_read; i++)
+          {
+            putchar( fileread_buffer[i] );
+          }
+        }else
+        {
+          printf("%s 's contents is not printable\n", p_para);
+        }
+      }
+      f_close(&file);
+    }
+    break;
+
+    case FR_INVALID_NAME:
+      printf("%s : No such file or directory\n", p_para);
+      return TUSB_ERROR_INVALID_PARA;
+    break;
+
+    default :
+      printf("failed to open %s\n", p_para);
+      return TUSB_ERROR_FAILED;
+    break;
   }
 
   return TUSB_ERROR_NONE;
