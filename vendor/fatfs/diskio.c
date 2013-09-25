@@ -1,6 +1,6 @@
 /**************************************************************************/
 /*!
-    @file     msc_app.c
+    @file     diskio.c
     @author   hathach (tinyusb.org)
 
     @section LICENSE
@@ -36,84 +36,81 @@
 */
 /**************************************************************************/
 
+#include "boards/board.h"
+#include "tusb.h"
+
+#include "diskio.h"
+
 //--------------------------------------------------------------------+
 // INCLUDE
 //--------------------------------------------------------------------+
-#include "mouse_app.h"
-
-#if TUSB_CFG_OS != TUSB_OS_NONE
-#include "app_os_prio.h"
-#endif
-
-#if TUSB_CFG_HOST_MSC
-
-#include "ff.h"
-#include "diskio.h"
 
 //--------------------------------------------------------------------+
 // MACRO CONSTANT TYPEDEF
 //--------------------------------------------------------------------+
+static volatile DSTATUS disk_state = STA_NOINIT;
 
 //--------------------------------------------------------------------+
 // INTERNAL OBJECT & FUNCTION DECLARATION
 //--------------------------------------------------------------------+
-static FATFS fatfs[TUSB_CFG_HOST_DEVICE_MAX] TUSB_CFG_ATTR_USBRAM;
-
-//--------------------------------------------------------------------+
-// tinyusb callback (ISR context)
-//--------------------------------------------------------------------+
-void tusbh_msc_mounted_cb(uint8_t dev_addr)
-{
-  printf("an msc device is mounted\n");
-
-  //------------- Disk Information -------------//
-  // SCSI VendorID[8] & ProductID[16] from Inquiry Command
-  uint8_t const* p_vendor  = tusbh_msc_get_vendor_name(dev_addr);
-  uint8_t const* p_product = tusbh_msc_get_product_name(dev_addr);
-
-  printf("Name: ");
-  for(uint8_t i=0; i<8; i++) putchar(p_vendor[i]);
-
-  printf(" ");
-  for(uint8_t i=0; i<16; i++) putchar(p_product[i]);
-  putchar('\n');
-
-  uint32_t last_lba, block_size;
-  tusbh_msc_get_capacity(dev_addr, &last_lba, &block_size);
-  printf("Disk Size: %d MB\n", (last_lba+1)/ ((1024*1024)/block_size) );
-  printf("LBA 0-0x%X  Block Size: %d\n", last_lba, block_size);
-
-  //------------- file system (only 1 LUN support) -------------//
-  DSTATUS stat = disk_initialize(0);
-
-  if ( disk_is_ready(0) )
-  {
-    f_mount(0, &fatfs[dev_addr-1]);
-  }
-}
 
 //--------------------------------------------------------------------+
 // IMPLEMENTATION
 //--------------------------------------------------------------------+
-void msc_app_init(void)
+
+//pdrv Specifies the physical drive number.
+DSTATUS disk_initialize ( BYTE pdrv )
+{
+  return disk_state;
+}
+
+DSTATUS disk_status (BYTE pdrv)
+{
+  return disk_state;
+}
+
+//pdrv
+//    Specifies the physical drive number.
+//buff
+//    Pointer to the byte array to store the read data. The size of buffer must be in sector size * sector count.
+//sector
+//    Specifies the start sector number in logical block address (LBA).
+//count
+//    Specifies number of sectors to read. The value can be 1 to 128. Generally, a multiple sector transfer request
+//    must not be split into single sector transactions to the device, or you may not get good read performance.
+DRESULT disk_read (BYTE pdrv, BYTE*buff, DWORD sector, BYTE count)
 {
 
 }
 
-//------------- main task -------------//
-OSAL_TASK_FUNCTION( msc_app_task ) (void* p_task_para)
+
+DRESULT disk_write (BYTE pdrv, const BYTE* buff, DWORD sector, BYTE count)
 {
 
 }
 
-#else
-// dummy implementation to remove #ifdef in main.c
-void msc_app_init(void) { }
-OSAL_TASK_FUNCTION( msc_app_task ) (void* p_task_para)
+DRESULT disk_ioctl (BYTE pdrv, BYTE cmd, void* buff)
 {
-  OSAL_TASK_LOOP_BEGIN
-  OSAL_TASK_LOOP_END
+
 }
 
-
-#endif
+//DWORD get_fattime (void)
+//{
+//  union {
+//    struct {
+//      DWORD second       : 5;
+//      DWORD minute       : 6;
+//      DWORD hour         : 5;
+//      DWORD day_in_month : 5;
+//      DWORD month        : 4;
+//      DWORD year         : 7;
+//    };
+//
+//    DWORD value
+//  } timestamp =
+//  {
+//      .year = (2013-1980),
+//      .month = 10,
+//      .day_in_month = 21,
+//  };
+//}

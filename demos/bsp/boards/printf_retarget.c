@@ -38,11 +38,19 @@
 
 #include "board.h"
 
-//-------------------------------------------------------------------- +
-//                    LPCXpresso printf redirection                    +
-//-------------------------------------------------------------------- +
 #if CFG_PRINTF_TARGET != PRINTF_TARGET_DEBUG_CONSOLE
 
+#if CFG_PRINTF_TARGET == PRINTF_TARGET_UART
+  #define retarget_getchar()  board_uart_getchar()
+#elif CFG_PRINTF_TARGET == PRINTF_TARGET_SWO
+	#define retarget_getchar()  ITM_ReceiveChar()
+#else
+	#error Target is not implemented yet
+#endif
+
+//--------------------------------------------------------------------+
+// LPCXPRESSO / RED SUITE
+//--------------------------------------------------------------------+
 #if defined __CODE_RED
 // Called by bottom level of printf routine within RedLib C library to write
 // a character. With the default semihosting stub, this would write the character
@@ -87,32 +95,19 @@ int __sys_write (int iFileHandle, char *pcBuffer, int iLength)
 // the character from the UART.
 int __sys_readc (void)
 {
-	uint8_t c;
-
-#if CFG_PRINTF_TARGET == PRINTF_TARGET_UART
-	board_uart_recv(&c, 1);
-#elif CFG_PRINTF_TARGET == PRINTF_TARGET_SWO
-	c = ITM_ReceiveChar();
-#else
-	#error Thach, did you forget something
-#endif
-
-	return (int)c;
+	return (int) retarget_getchar();
 }
 
+//--------------------------------------------------------------------+
+// KEIL
+//--------------------------------------------------------------------+
 #elif defined __CC_ARM // keil
 
 #if CFG_PRINTF_TARGET == PRINTF_TARGET_UART
   #define retarget_putc(c)    board_uart_send( (uint8_t*) &c, 1);
-  #define retarget_getchar()  board_uart_getchar()
 #elif CFG_PRINTF_TARGET == PRINTF_TARGET_SWO
 	#define retarget_putc(c)    ITM_SendChar(c)
-	#define retarget_getchar()  ITM_ReceiveChar()
-#else
-	#error Thach, did you forget something
 #endif
-
-
 
 struct __FILE {
   uint32_t handle;

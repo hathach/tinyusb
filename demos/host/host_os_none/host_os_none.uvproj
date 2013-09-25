@@ -350,7 +350,7 @@
               <MiscControls>--gnu --c99 --diag_suppress=66</MiscControls>
               <Define>CORE_M4 MCU=MCU_LPC43XX BOARD=BOARD_EA4357 TUSB_CFG_OS=TUSB_OS_NONE</Define>
               <Undefine></Undefine>
-              <IncludePath>..\src;..\..\bsp\lpc43xx\CMSIS_LPC43xx_DriverLib\inc;..\..\bsp;..\..\..\tinyusb</IncludePath>
+              <IncludePath>..\src;..\..\bsp\lpc43xx\CMSIS_LPC43xx_DriverLib\inc;..\..\bsp;..\..\..\tinyusb;..\..\..\vendor\fatfs</IncludePath>
             </VariousControls>
           </Cads>
           <Aads>
@@ -610,6 +610,21 @@
               <FileName>startup_LPC43xx.s</FileName>
               <FileType>2</FileType>
               <FilePath>..\..\bsp\lpc43xx\startup_keil\startup_LPC43xx.s</FilePath>
+            </File>
+          </Files>
+        </Group>
+        <Group>
+          <GroupName>fatfs</GroupName>
+          <Files>
+            <File>
+              <FileName>diskio.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\..\..\vendor\fatfs\diskio.c</FilePath>
+            </File>
+            <File>
+              <FileName>ff.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\..\..\vendor\fatfs\ff.c</FilePath>
             </File>
           </Files>
         </Group>
@@ -1259,6 +1274,21 @@
               <FileName>startup_LPC43xx.s</FileName>
               <FileType>2</FileType>
               <FilePath>..\..\bsp\lpc43xx\startup_keil\startup_LPC43xx.s</FilePath>
+            </File>
+          </Files>
+        </Group>
+        <Group>
+          <GroupName>fatfs</GroupName>
+          <Files>
+            <File>
+              <FileName>diskio.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\..\..\vendor\fatfs\diskio.c</FilePath>
+            </File>
+            <File>
+              <FileName>ff.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\..\..\vendor\fatfs\ff.c</FilePath>
             </File>
           </Files>
         </Group>

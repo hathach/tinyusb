@@ -13,7 +13,7 @@ extern "C" {
 #define _USE_IOCTL	1	/* 1: Enable disk_ioctl fucntion */
 
 #include "integer.h"
-
+#include <stdbool.h>
 
 /* Status of Disk Functions */
 typedef BYTE	DSTATUS;
@@ -26,17 +26,6 @@ typedef enum {
 	RES_NOTRDY,		/* 3: Not Ready */
 	RES_PARERR		/* 4: Invalid Parameter */
 } DRESULT;
-
-
-/*---------------------------------------*/
-/* Prototypes for disk control functions */
-
-
-DSTATUS disk_initialize (BYTE pdrv);
-DSTATUS disk_status (BYTE pdrv);
-DRESULT disk_read (BYTE pdrv, BYTE*buff, DWORD sector, BYTE count);
-DRESULT disk_write (BYTE pdrv, const BYTE* buff, DWORD sector, BYTE count);
-DRESULT disk_ioctl (BYTE pdrv, BYTE cmd, void* buff);
 
 
 /* Disk Status Bits (DSTATUS) */
@@ -79,6 +68,22 @@ DRESULT disk_ioctl (BYTE pdrv, BYTE cmd, void* buff);
 #define CT_SD2		0x04		/* SD ver 2 */
 #define CT_SDC		(CT_SD1|CT_SD2)	/* SD */
 #define CT_BLOCK	0x08		/* Block addressing */
+
+/*---------------------------------------*/
+/* Prototypes for disk control functions */
+
+
+DSTATUS disk_initialize (BYTE pdrv);
+DSTATUS disk_status (BYTE pdrv);
+DRESULT disk_read (BYTE pdrv, BYTE*buff, DWORD sector, BYTE count);
+DRESULT disk_write (BYTE pdrv, const BYTE* buff, DWORD sector, BYTE count);
+DRESULT disk_ioctl (BYTE pdrv, BYTE cmd, void* buff);
+
+static inline bool disk_is_ready(BYTE pdrv);
+static inline bool disk_is_ready(BYTE pdrv)
+{
+  return (disk_status(pdrv) & (STA_NOINIT | STA_NODISK)) == 0;
+}
 
 
 #ifdef __cplusplus

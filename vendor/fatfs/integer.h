@@ -17,7 +17,10 @@ typedef int				INT;
 typedef unsigned int	UINT;
 
 /* These types must be 8-bit integer */
+#ifndef LPC_TYPES_H // avoid typedef redefinition in lpc_types.h
 typedef char			CHAR;
+#endif
+
 typedef unsigned char	UCHAR;
 typedef unsigned char	BYTE;
 
