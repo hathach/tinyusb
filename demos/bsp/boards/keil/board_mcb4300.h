@@ -56,7 +56,7 @@
  extern "C" {
 #endif
 
-#define CFG_PRINTF_TARGET       PRINTF_TARGET_DEBUG_CONSOLE
+#define CFG_PRINTF_TARGET       PRINTF_TARGET_SEMIHOST
 
 
 #ifdef __cplusplus

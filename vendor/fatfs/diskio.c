@@ -36,19 +36,18 @@
 */
 /**************************************************************************/
 
-#include "boards/board.h"
 #include "tusb.h"
 
-#include "diskio.h"
-
+#if TUSB_CFG_HOST_MSC
 //--------------------------------------------------------------------+
 // INCLUDE
 //--------------------------------------------------------------------+
+#include "diskio.h"
 
 //--------------------------------------------------------------------+
 // MACRO CONSTANT TYPEDEF
 //--------------------------------------------------------------------+
-static volatile DSTATUS disk_state = STA_NOINIT;
+ volatile DSTATUS disk_state = STA_NOINIT;
 
 //--------------------------------------------------------------------+
 // INTERNAL OBJECT & FUNCTION DECLARATION
@@ -70,7 +69,7 @@ DSTATUS disk_status (BYTE pdrv)
 }
 
 //pdrv
-//    Specifies the physical drive number.
+//    Specifies the physical drive number -->  == dev_addr-1
 //buff
 //    Pointer to the byte array to store the read data. The size of buffer must be in sector size * sector count.
 //sector
@@ -80,7 +79,20 @@ DSTATUS disk_status (BYTE pdrv)
 //    must not be split into single sector transactions to the device, or you may not get good read performance.
 DRESULT disk_read (BYTE pdrv, BYTE*buff, DWORD sector, BYTE count)
 {
+  uint8_t usb_addr = pdrv+1;
+  tusbh_msc_read10(usb_addr, 0, buff, sector, count);
 
+#if TUSB_CFG_OS == TUSB_OS_NONE
+  while ( tusbh_msc_status(usb_addr) == TUSB_INTERFACE_STATUS_BUSY )
+  {
+    // timeout here
+  }
+  return tusbh_msc_status(usb_addr) == TUSB_INTERFACE_STATUS_READY ? RES_OK : RES_ERROR;
+#else
+  #error semaphore instead of blocking
+#endif
+
+  return RES_ERROR;
 }
 
 
@@ -114,3 +126,5 @@ DRESULT disk_ioctl (BYTE pdrv, BYTE cmd, void* buff)
 //      .day_in_month = 21,
 //  };
 //}
+
+#endif

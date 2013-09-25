@@ -84,12 +84,35 @@ void tusbh_msc_mounted_cb(uint8_t dev_addr)
   printf("LBA 0-0x%X  Block Size: %d\n", last_lba, block_size);
 
   //------------- file system (only 1 LUN support) -------------//
-  DSTATUS stat = disk_initialize(0);
+  //  DSTATUS stat = disk_initialize(0);
+  disk_state = 0;
 
   if ( disk_is_ready(0) )
   {
-    f_mount(0, &fatfs[dev_addr-1]);
+    if ( f_mount(0, &fatfs[dev_addr-1]) != FR_OK )
+    {
+      puts("mount failed");
+      return;
+    }
+
+    DIR root_dir;
+    if ( f_opendir(&root_dir, "/") != FR_OK )
+    {
+      puts("open root dir failed");
+      return;
+    }
   }
+}
+
+void tusbh_msc_unmounted_isr(uint8_t dev_addr)
+{
+  disk_state = STA_NOINIT;
+  puts("--");
+}
+
+void tusbh_msc_isr(uint8_t dev_addr, tusb_event_t event, uint32_t xferred_bytes)
+{
+  putchar('x');
 }
 
 //--------------------------------------------------------------------+

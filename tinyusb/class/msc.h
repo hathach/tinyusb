@@ -64,6 +64,10 @@ enum {
   MSC_SUBCLASS_SCSI
 };
 
+enum {
+  MSC_CBW_SIGNATURE = 0x43425355,
+};
+
 // CBI only approved to use with full-speed floopy disk & should not used with highspeed or device other than floopy
 enum {
   MSC_PROTOCOL_CBI              = 0,
@@ -171,13 +175,16 @@ typedef ATTR_PACKED_STRUCT(struct)
 
 STATIC_ASSERT(sizeof(scsi_inquiry_data_t) == 36, "size is not correct");
 
+// test unit ready
+
 //--------------------------------------------------------------------+
 // SCSI Block Command (SBC-3)
+// NOTE: All data in SCSI command are in Big Endian
 //--------------------------------------------------------------------+
 typedef ATTR_PACKED_STRUCT(struct) {
   uint8_t  cmd_code;
   uint8_t  reserved1;
-  uint32_t logical_block_addr;
+  uint32_t lba;
   uint16_t reserved2;
   uint8_t  partial_medium_indicator;
   uint8_t  control;
@@ -191,6 +198,19 @@ typedef struct {
 } scsi_read_capacity10_data_t;
 
 STATIC_ASSERT(sizeof(scsi_read_capacity10_data_t) == 8, "size is not correct");
+
+typedef ATTR_PACKED_STRUCT(struct) {
+  uint8_t  cmd_code;
+  uint8_t  reserved; // has LUN according to wiki
+  uint32_t lba;
+  uint8_t  reserved2;
+  uint16_t block_count;
+  uint8_t  control;
+} scsi_read10_t;
+
+STATIC_ASSERT(sizeof(scsi_read10_t) == 10, "size is not correct");
+
+
 
 #ifdef __cplusplus
  }

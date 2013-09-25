@@ -57,7 +57,7 @@
 #define CFG_LED_PORT                  (0)
 #define CFG_LED_PIN                   (22)
 
-#define CFG_PRINTF_TARGET             PRINTF_TARGET_DEBUG_CONSOLE
+#define CFG_PRINTF_TARGET             PRINTF_TARGET_SEMIHOST
 
 #ifdef __cplusplus
  }

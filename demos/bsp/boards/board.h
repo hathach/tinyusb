@@ -78,7 +78,7 @@
 //--------------------------------------------------------------------+
 // PRINTF TARGET DEFINE
 //--------------------------------------------------------------------+
-#define PRINTF_TARGET_DEBUG_CONSOLE 1 // IDE semihosting console
+#define PRINTF_TARGET_SEMIHOST      1
 #define PRINTF_TARGET_UART          2
 #define PRINTF_TARGET_SWO           3 // aka SWV, ITM
 #define PRINTF_TARGET_NONE          4

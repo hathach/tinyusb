@@ -85,6 +85,7 @@
 
 // built-in function to convert 32-bit Big-Endian to Little-Endian
 #define __be2le   __REV
+#define __le2be   __be2le
 
 #if 0
 

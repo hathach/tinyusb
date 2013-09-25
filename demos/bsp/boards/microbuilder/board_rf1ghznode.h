@@ -60,7 +60,7 @@
 #include "lpc11uxx/gpio.h"
 #include "lpc11uxx/uart.h"
 
-#define CFG_PRINTF_TARGET PRINTF_TARGET_DEBUG_CONSOLE
+#define CFG_PRINTF_TARGET PRINTF_TARGET_SEMIHOST
 
 #define CFG_LED_PORT                  (1)
 #define CFG_LED_PIN                   (31)

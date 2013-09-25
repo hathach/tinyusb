@@ -53,6 +53,7 @@
 //--------------------------------------------------------------------+
 STATIC_VAR msch_interface_t msch_data[TUSB_CFG_HOST_DEVICE_MAX] TUSB_CFG_ATTR_USBRAM;
 
+
 //------------- Initalization Data -------------//
 OSAL_SEM_DEF(msch_semaphore);
 static osal_semaphore_handle_t msch_sem_hdl;
@@ -69,9 +70,8 @@ ATTR_ALIGNED(4) STATIC_VAR uint8_t msch_buffer[sizeof(scsi_inquiry_data_t)] TUSB
 //--------------------------------------------------------------------+
 bool tusbh_msc_is_mounted(uint8_t dev_addr)
 {
-  return  tusbh_device_is_configured(dev_addr) &&
-          pipehandle_is_valid(msch_data[dev_addr-1].bulk_in) &&
-          pipehandle_is_valid(msch_data[dev_addr-1].bulk_out);
+  return  tusbh_device_is_configured(dev_addr) && // is configured can be omitted
+          msch_data[dev_addr-1].is_initialized;
 }
 
 uint8_t const* tusbh_msc_get_vendor_name(uint8_t dev_addr)
@@ -95,12 +95,32 @@ tusb_error_t tusbh_msc_get_capacity(uint8_t dev_addr, uint32_t* p_last_lba, uint
   return TUSB_ERROR_NONE;
 }
 
+tusb_interface_status_t tusbh_msc_status(uint8_t dev_addr)
+{
+  if ( !tusbh_msc_is_mounted(dev_addr) )   return TUSB_INTERFACE_STATUS_INVALID_PARA;
+
+  if ( hcd_pipe_is_busy(msch_data[dev_addr-1].bulk_in) )  return TUSB_INTERFACE_STATUS_BUSY;
+  if ( hcd_pipe_is_stalled(msch_data[dev_addr-1].bulk_in) )  return TUSB_INTERFACE_STATUS_ERROR;
+
+  return TUSB_INTERFACE_STATUS_READY;
+}
+
 //--------------------------------------------------------------------+
 // CLASS-USBH API (don't require to verify parameters)
 //--------------------------------------------------------------------+
+static tusb_error_t msch_command_xfer(msch_interface_t * p_msch, void* p_buffer) ATTR_WARN_UNUSED_RESULT;
+static tusb_error_t msch_command_xfer(msch_interface_t * p_msch, void* p_buffer)
+{
+  ASSERT_STATUS( hcd_pipe_xfer(p_msch->bulk_out, &p_msch->cbw, sizeof(msc_cmd_block_wrapper_t), false) );
+  ASSERT_STATUS( hcd_pipe_queue_xfer(p_msch->bulk_in , p_buffer, p_msch->cbw.xfer_bytes) );
+  ASSERT_STATUS( hcd_pipe_xfer(p_msch->bulk_in , &p_msch->csw, sizeof(msc_cmd_status_wrapper_t), true) );
+
+  return TUSB_ERROR_NONE;
+}
+
 static tusb_error_t scsi_command_send(msch_interface_t * p_msch, scsi_cmd_type_t cmd_code, uint8_t lun, uint8_t* p_data)
 {
-  p_msch->cbw.signature = 0x43425355;
+  p_msch->cbw.signature = MSC_CBW_SIGNATURE;
   p_msch->cbw.tag       = 0xCAFECAFE;
   p_msch->cbw.lun       = lun;
 
@@ -113,7 +133,7 @@ static tusb_error_t scsi_command_send(msch_interface_t * p_msch, scsi_cmd_type_t
 
       scsi_inquiry_t cmd_inquiry =
       {
-          .cmd_code     = SCSI_CMD_INQUIRY,
+          .cmd_code     = cmd_code,
           .alloc_length = sizeof(scsi_inquiry_data_t)
       };
 
@@ -127,8 +147,8 @@ static tusb_error_t scsi_command_send(msch_interface_t * p_msch, scsi_cmd_type_t
 
       scsi_read_capacity10_t cmd_read_capacity10 =
       {
-          .cmd_code                 = SCSI_CMD_READ_CAPACITY_10,
-          .logical_block_addr       = 0,
+          .cmd_code                 = cmd_code,
+          .lba                      = 0,
           .partial_medium_indicator = 0
       };
 
@@ -139,6 +159,7 @@ static tusb_error_t scsi_command_send(msch_interface_t * p_msch, scsi_cmd_type_t
     break;
 
     case SCSI_CMD_READ_10:
+
     break;
 
     case SCSI_CMD_WRITE_10:
@@ -151,7 +172,7 @@ static tusb_error_t scsi_command_send(msch_interface_t * p_msch, scsi_cmd_type_t
 
       scsi_request_sense_t cmd_request_sense =
       {
-          .cmd_code     = SCSI_CMD_REQUEST_SENSE,
+          .cmd_code     = cmd_code,
           .alloc_length = 18
       };
 
@@ -162,9 +183,36 @@ static tusb_error_t scsi_command_send(msch_interface_t * p_msch, scsi_cmd_type_t
       return TUSB_ERROR_MSCH_UNKNOWN_SCSI_COMMAND;
   }
 
-  ASSERT_STATUS( hcd_pipe_xfer(p_msch->bulk_out, (uint8_t*) &p_msch->cbw, sizeof(msc_cmd_block_wrapper_t), false) );
-  ASSERT_STATUS( hcd_pipe_queue_xfer(p_msch->bulk_in , p_data, p_msch->cbw.xfer_bytes) );
-  ASSERT_STATUS( hcd_pipe_xfer(p_msch->bulk_in , &p_msch->csw, sizeof(msc_cmd_status_wrapper_t), true) );
+  ASSERT_STATUS( msch_command_xfer(p_msch, p_data) );
+
+  return TUSB_ERROR_NONE;
+}
+
+tusb_error_t  tusbh_msc_read10(uint8_t dev_addr, uint8_t lun, void * p_buffer, uint32_t lba, uint32_t block_count)
+{
+  msch_interface_t* p_msch = &msch_data[dev_addr-1];
+
+  //------------- Command Block Wrapper -------------//
+  p_msch->cbw.signature  = MSC_CBW_SIGNATURE;
+  p_msch->cbw.tag        = 0xCAFECAFE;
+  p_msch->cbw.lun        = lun;
+  p_msch->cbw.xfer_bytes = p_msch->block_size*block_count; // Number of bytes
+  p_msch->cbw.flags      = TUSB_DIR_DEV_TO_HOST_MASK;
+  p_msch->cbw.cmd_len    = sizeof(scsi_read10_t);
+
+  //------------- SCSI command -------------//
+  scsi_read10_t cmd_read10 =
+  {
+      .cmd_code    = SCSI_CMD_READ_10,
+      .lba         = __le2be(lba),
+      .block_count = ((uint8_t)block_count) << 8 // TODO a proper le to be for uint16_t
+  };
+
+  memcpy(p_msch->cbw.command, &cmd_read10, p_msch->cbw.cmd_len);
+
+  ASSERT_STATUS ( msch_command_xfer(p_msch, p_buffer));
+
+  return TUSB_ERROR_NONE;
 }
 
 void msch_init(void)
@@ -269,6 +317,7 @@ tusb_error_t msch_open_subtask(uint8_t dev_addr, tusb_descriptor_interface_t con
   msch_data[dev_addr-1].last_lba   = __be2le( ((scsi_read_capacity10_data_t*)msch_buffer)->last_lba );
   msch_data[dev_addr-1].block_size = (uint16_t) __be2le( ((scsi_read_capacity10_data_t*)msch_buffer)->block_size );
 
+  msch_data[dev_addr-1].is_initialized = true;
   tusbh_msc_mounted_cb(dev_addr);
 
   OSAL_SUBTASK_END
@@ -280,7 +329,13 @@ void msch_isr(pipe_handle_t pipe_hdl, tusb_event_t event, uint32_t xferred_bytes
 {
   if ( pipehandle_is_equal(pipe_hdl, msch_data[pipe_hdl.dev_addr-1].bulk_in) )
   {
-    osal_semaphore_post(msch_sem_hdl);
+    if (msch_data[pipe_hdl.dev_addr-1].is_initialized)
+    {
+      tusbh_msc_isr(pipe_hdl.dev_addr, event, xferred_bytes);
+    }else
+    { // still initializing under open subtask
+      osal_semaphore_post(msch_sem_hdl);
+    }
   }
 }
 
@@ -291,6 +346,8 @@ void msch_close(uint8_t dev_addr)
 
   memclr_(&msch_data[dev_addr-1], sizeof(msch_interface_t));
   osal_semaphore_reset(msch_sem_hdl);
+
+  tusbh_msc_unmounted_isr(dev_addr); // invoke Application Callback
 }
 
 //--------------------------------------------------------------------+

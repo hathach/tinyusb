@@ -18,6 +18,8 @@ extern "C" {
 /* Status of Disk Functions */
 typedef BYTE	DSTATUS;
 
+extern volatile DSTATUS disk_state;
+
 /* Results of Disk Functions */
 typedef enum {
 	RES_OK = 0,		/* 0: Successful */

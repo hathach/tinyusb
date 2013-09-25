@@ -38,7 +38,7 @@
 
 #include "board.h"
 
-#if CFG_PRINTF_TARGET != PRINTF_TARGET_DEBUG_CONSOLE
+#if CFG_PRINTF_TARGET != PRINTF_TARGET_SEMIHOST
 
 #if CFG_PRINTF_TARGET == PRINTF_TARGET_UART
   #define retarget_getchar()  board_uart_getchar()
@@ -146,4 +146,4 @@ void _ttywrch(int ch)
 
 #endif
 
-#endif // CFG_PRINTF_TARGET != PRINTF_TARGET_DEBUG_CONSOLE
+#endif // CFG_PRINTF_TARGET != PRINTF_TARGET_SEMIHOST
