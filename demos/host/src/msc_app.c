@@ -47,6 +47,7 @@
 
 #if TUSB_CFG_HOST_MSC
 
+#include "cli.h"
 #include "ff.h"
 #include "diskio.h"
 
@@ -71,7 +72,6 @@ void tusbh_msc_mounted_cb(uint8_t dev_addr)
   uint8_t const* p_vendor  = tusbh_msc_get_vendor_name(dev_addr);
   uint8_t const* p_product = tusbh_msc_get_product_name(dev_addr);
 
-  printf("Name: ");
   for(uint8_t i=0; i<8; i++) putchar(p_vendor[i]);
 
   printf(" ");
@@ -95,12 +95,13 @@ void tusbh_msc_mounted_cb(uint8_t dev_addr)
       return;
     }
 
-    DIR root_dir;
-    if ( f_opendir(&root_dir, "/") != FR_OK )
-    {
-      puts("open root dir failed");
-      return;
-    }
+    char volume_label[20] = {0};
+    f_getlabel(NULL, volume_label, NULL);
+    printf("Label: %s\n\n", volume_label);
+
+    f_chdrive(dev_addr-1); // change to newly mounted drive
+    f_chdir("/"); // root as current dir
+    printf("MSC %c:/\n$ ", 'E'+dev_addr-1);
   }
 }
 
@@ -112,7 +113,7 @@ void tusbh_msc_unmounted_isr(uint8_t dev_addr)
 
 void tusbh_msc_isr(uint8_t dev_addr, tusb_event_t event, uint32_t xferred_bytes)
 {
-  putchar('x');
+
 }
 
 //--------------------------------------------------------------------+
@@ -126,7 +127,20 @@ void msc_app_init(void)
 //------------- main task -------------//
 OSAL_TASK_FUNCTION( msc_app_task ) (void* p_task_para)
 {
+  OSAL_TASK_LOOP_BEGIN
 
+  osal_task_delay(10);
+
+  if ( disk_is_ready(0) )
+  {
+    int ch = getchar();
+    if ( ch > 0 )
+    {
+      cli_poll( (char) ch);
+    }
+  }
+
+  OSAL_TASK_LOOP_END
 }
 
 #else

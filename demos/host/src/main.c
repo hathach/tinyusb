@@ -50,8 +50,6 @@
 #include "app_os_prio.h"
 #endif
 
-#include "cli.h"
-
 #include "mouse_app.h"
 #include "keyboard_app.h"
 #include "msc_app.h"
@@ -115,11 +113,6 @@ void os_none_start_scheduler(void)
     cdc_serial_app_task(NULL);
     rndis_app_task(NULL);
 
-    int ch = getchar();
-    if ( ch > 0 )
-    {
-      cli_poll( (char) ch);
-    }
   }
 }
 #endif

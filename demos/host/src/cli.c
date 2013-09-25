@@ -39,10 +39,15 @@
 
 #if TUSB_CFG_HOST_MSC
 
+#include "ff.h"
+#include "diskio.h"
+
 // command, function, description
 #define CLI_COMMAND_TABLE(ENTRY)   \
-    ENTRY(unknow , cli_cmd_unknow, NULL) \
-    ENTRY(help   , cli_cmd_help, NULL)   \
+    ENTRY(unknow, cli_cmd_unknow   , NULL)                              \
+    ENTRY(help  , cli_cmd_help     , NULL)                              \
+    ENTRY(ls    , cli_cmd_list     , "list items in current directory") \
+    ENTRY(cd    , cli_cmd_changedir, "change current directory")        \
 
 //--------------------------------------------------------------------+
 // Expands the function to have the standard function signature
@@ -95,26 +100,19 @@ static cli_cmdfunc_t cli_command_tbl[] =
 };
 
 //--------------------------------------------------------------------+
+// INTERNAL OBJECT & FUNCTION DECLARATION
+//--------------------------------------------------------------------+
+enum {
+  ASCII_BACKSPACE = 8,
+};
+
+#define CLI_MAX_BUFFER   256
+static char cli_buffer[CLI_MAX_BUFFER];
+
+
+//--------------------------------------------------------------------+
 // IMPLEMENTATION
 //--------------------------------------------------------------------+
-tusb_error_t cli_cmd_unknow(char const * para)
-{
-  puts("unknown command, please type \"help\"");
-  return TUSB_ERROR_NONE;
-}
-
-tusb_error_t cli_cmd_help(char const * para)
-{
-  puts("current supported commands are:");
-  puts("cd\tchange directory");
-  puts("ls\tlist directory");
-
-  return TUSB_ERROR_NONE;
-}
-
-
-#define CLI_MAX_BUFFER   50
-static char cli_buffer[CLI_MAX_BUFFER];
 
 void cli_init(void)
 {
@@ -124,7 +122,7 @@ void cli_init(void)
 void cli_poll(char ch)
 {
   if ( isprint(ch) )
-  {
+  { // accumulate & echo
     if (strlen(cli_buffer) < CLI_MAX_BUFFER)
     {
       cli_buffer[ strlen(cli_buffer) ] = ch;
@@ -135,26 +133,108 @@ void cli_poll(char ch)
       memclr_(cli_buffer, CLI_MAX_BUFFER);
     }
   }
-  else if ( ch == '\r')
+  else if ( ch == ASCII_BACKSPACE && strlen(cli_buffer))
   {
+    printf("\33[1D"); // move curback
+    printf("\33[0K"); // clear to the end of line
+    cli_buffer[ strlen(cli_buffer)-1 ] = 0;
+  }
+  else if ( ch == '\r')
+  { // execute command
     putchar('\n');
-    for(cli_cmdtype_t cmd_id = CLI_CMDTYPE_help; cmd_id < CLI_CMDTYPE_COUNT; cmd_id++)
+    char* p_space = strchr(cli_buffer, ' ');
+    uint32_t command_len = (p_space == NULL) ? strlen(cli_buffer) : (p_space - cli_buffer);
+    char* p_para = (p_space == NULL) ? NULL : (p_space+1);
+
+    cli_cmdtype_t cmd_id;
+    for(cmd_id = CLI_CMDTYPE_COUNT - 1; cmd_id > 0; cmd_id--)
     {
-      if( 0 == strncmp(cli_buffer, cli_string_tbl[cmd_id], CLI_MAX_BUFFER) )
+      if( 0 == strncmp(cli_buffer, cli_string_tbl[cmd_id], command_len) )
       {
-        cli_command_tbl[cmd_id](NULL);
-        memclr_(cli_buffer, CLI_MAX_BUFFER);
-        return;
+        break;
       }
     }
 
-    cli_cmd_unknow(NULL);
+    cli_command_tbl[cmd_id]( p_para );
+
+    f_getcwd(cli_buffer, CLI_MAX_BUFFER);
+    printf("\nMSC %c%s\n$ ",
+           'E'+cli_buffer[0]-'0',
+           cli_buffer+1);
     memclr_(cli_buffer, CLI_MAX_BUFFER);
   }
   else if (ch=='\t') // \t may be used for auto-complete later
   {
 
   }
+}
+
+//--------------------------------------------------------------------+
+// UNKNOWN Command
+//--------------------------------------------------------------------+
+tusb_error_t cli_cmd_unknow(char const * para)
+{
+  puts("unknown command, please type \"help\"");
+  return TUSB_ERROR_NONE;
+}
+
+//--------------------------------------------------------------------+
+// HELP command
+//--------------------------------------------------------------------+
+tusb_error_t cli_cmd_help(char const * para)
+{
+  puts("current supported commands are:");
+  for(cli_cmdtype_t cmd_id = CLI_CMDTYPE_help+1; cmd_id < CLI_CMDTYPE_COUNT; cmd_id++)
+  {
+    printf("%s\t%s\n", cli_string_tbl[cmd_id], cli_description_tbl[cmd_id]);
+  }
+
+  return TUSB_ERROR_NONE;
+}
+
+//--------------------------------------------------------------------+
+// LS Command
+//--------------------------------------------------------------------+
+tusb_error_t cli_cmd_list(const char * p_para)
+{
+  DIR target_dir;
+
+  if ( (p_para == NULL) ||  (strlen(p_para) == 0) ) // list current directory
+  {
+    ASSERT_INT( FR_OK, f_opendir(&target_dir, "."), TUSB_ERROR_FAILED) ;
+
+    FILINFO dir_entry;
+    while( (f_readdir(&target_dir, &dir_entry) == FR_OK)  && dir_entry.fname[0] != 0)
+    {
+      if ( dir_entry.fname[0] != '.' ) // ignore . and .. entry
+      {
+        printf("%s%c\n", dir_entry.fname,
+                         dir_entry.fattrib & AM_DIR ? '/' : ' ');
+      }
+    }
+  }
+  else
+  {
+    puts("ls only supports list current directory only, try to cd to that folder first");
+  }
+
+  return TUSB_ERROR_NONE;
+}
+
+//--------------------------------------------------------------------+
+// CD Command
+//--------------------------------------------------------------------+
+tusb_error_t cli_cmd_changedir(const char * p_para)
+{
+  if ( (p_para == NULL) ||  (strlen(p_para) == 0) ) return TUSB_ERROR_INVALID_PARA;
+
+  if ( FR_OK != f_chdir(p_para) )
+  {
+    printf("%s : No such file or directory\n", p_para);
+    return TUSB_ERROR_INVALID_PARA;
+  }
+
+  return TUSB_ERROR_NONE;
 }
 
 #endif
