@@ -41,6 +41,7 @@
 
 #include "ff.h"
 #include "diskio.h"
+#include "boards/ansi_escape.h"
 
 // command, function, description
 #define CLI_COMMAND_TABLE(ENTRY)   \
@@ -135,8 +136,7 @@ void cli_poll(char ch)
   }
   else if ( ch == ASCII_BACKSPACE && strlen(cli_buffer))
   {
-    printf("\33[1D"); // move curback
-    printf("\33[0K"); // clear to the end of line
+    printf(ANSI_CURSOR_BACKWARD(1) ANSI_ERASE_LINE(0) ); // move cursor back & clear to the end of line
     cli_buffer[ strlen(cli_buffer)-1 ] = 0;
   }
   else if ( ch == '\r')
@@ -203,13 +203,19 @@ tusb_error_t cli_cmd_list(const char * p_para)
   {
     ASSERT_INT( FR_OK, f_opendir(&target_dir, "."), TUSB_ERROR_FAILED) ;
 
-    FILINFO dir_entry;
+    TCHAR long_filename[_MAX_LFN];
+    FILINFO dir_entry =
+    {
+        .lfname = long_filename,
+        .lfsize = _MAX_LFN
+    };
     while( (f_readdir(&target_dir, &dir_entry) == FR_OK)  && dir_entry.fname[0] != 0)
     {
       if ( dir_entry.fname[0] != '.' ) // ignore . and .. entry
       {
-        printf("%s%c\n", dir_entry.fname,
-                         dir_entry.fattrib & AM_DIR ? '/' : ' ');
+        printf("%s%c\n",
+               (dir_entry.lfname[0] != 0) ? dir_entry.lfname : dir_entry.fname,
+               dir_entry.fattrib & AM_DIR ? '/' : ' ');
       }
     }
   }
