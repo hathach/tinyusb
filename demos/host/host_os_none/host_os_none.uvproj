@@ -979,7 +979,7 @@
               <MiscControls>--gnu --c99</MiscControls>
               <Define>CORE_M4 MCU=MCU_LPC43XX BOARD=BOARD_LPC4357USB TUSB_CFG_OS=TUSB_OS_NONE</Define>
               <Undefine></Undefine>
-              <IncludePath>..\src;..\..\bsp\lpc43xx\CMSIS_LPC43xx_DriverLib\inc;..\..\bsp;..\..\..\tinyusb</IncludePath>
+              <IncludePath>..\src;..\..\bsp\lpc43xx\CMSIS_LPC43xx_DriverLib\inc;..\..\bsp;..\..\..\tinyusb;..\..\..\vendor\fatfs</IncludePath>
             </VariousControls>
           </Cads>
           <Aads>

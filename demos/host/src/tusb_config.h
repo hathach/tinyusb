@@ -74,9 +74,9 @@
 //------------- CLASS -------------//
 #define TUSB_CFG_HOST_HUB           0
 #define TUSB_CFG_HOST_HID_KEYBOARD  0
-#define TUSB_CFG_HOST_HID_MOUSE     1
+#define TUSB_CFG_HOST_HID_MOUSE     0
 #define TUSB_CFG_HOST_HID_GENERIC   0
-#define TUSB_CFG_HOST_MSC           0
+#define TUSB_CFG_HOST_MSC           1
 #define TUSB_CFG_HOST_CDC           0
 #define TUSB_CFG_HOST_CDC_RNDIS     0
 
@@ -96,7 +96,7 @@
 // COMMON CONFIGURATION
 //--------------------------------------------------------------------+
 
-#define TUSB_CFG_DEBUG                3
+#define TUSB_CFG_DEBUG                2
 
 //#define TUSB_CFG_OS                   TUSB_OS_NONE // defined using eclipse build
 //#define TUSB_CFG_OS_TASK_PRIO
