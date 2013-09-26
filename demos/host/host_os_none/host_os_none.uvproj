@@ -626,6 +626,11 @@
               <FileType>1</FileType>
               <FilePath>..\..\..\vendor\fatfs\ff.c</FilePath>
             </File>
+            <File>
+              <FileName>ccsbcs.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\..\..\vendor\fatfs\ccsbcs.c</FilePath>
+            </File>
           </Files>
         </Group>
       </Groups>
@@ -1289,6 +1294,11 @@
               <FileName>ff.c</FileName>
               <FileType>1</FileType>
               <FilePath>..\..\..\vendor\fatfs\ff.c</FilePath>
+            </File>
+            <File>
+              <FileName>ccsbcs.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\..\..\vendor\fatfs\ccsbcs.c</FilePath>
             </File>
           </Files>
         </Group>

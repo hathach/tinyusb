@@ -43,19 +43,40 @@
 #include "diskio.h"
 #include "boards/ansi_escape.h"
 
+//--------------------------------------------------------------------+
+// MACRO CONSTANT TYPEDEF
+//--------------------------------------------------------------------+
+#define CLI_MAX_BUFFER        256
+#define CLI_FILE_READ_BUFFER  (4*1024)
+
+enum {
+  ASCII_BACKSPACE = 8,
+};
+
+typedef enum {
+  CLI_ERROR_NONE = 0,
+  CLI_ERROR_INVALID_PARA,
+  CLI_ERROR_INVALID_PATH,
+  CLI_ERROR_FAILED
+}cli_error_t;
+
+//--------------------------------------------------------------------+
+// CLI Database definition
+//--------------------------------------------------------------------+
+
 // command, function, description
 #define CLI_COMMAND_TABLE(ENTRY)   \
-    ENTRY(unknow, cli_cmd_unknow   , NULL)                              \
-    ENTRY(help  , cli_cmd_help     , NULL)                              \
-    ENTRY(ls    , cli_cmd_list     , "list items in current directory") \
-    ENTRY(cd    , cli_cmd_changedir, "change current directory")        \
-    ENTRY(cat   , cli_cmd_cat      , "display contents of a text file") \
+    ENTRY(unknown , cli_cmd_unknown  , NULL)                              \
+    ENTRY(help    , cli_cmd_help     , NULL)                              \
+    ENTRY(ls      , cli_cmd_list     , "list items in current directory") \
+    ENTRY(cd      , cli_cmd_changedir, "change current directory")        \
+    ENTRY(cat     , cli_cmd_cat      , "display contents of a text file") \
 
 //--------------------------------------------------------------------+
 // Expands the function to have the standard function signature
 //--------------------------------------------------------------------+
 #define CLI_PROTOTYPE_EXPAND(command, function, description) \
-    tusb_error_t function(char const *);\
+    cli_error_t function(char const *);
 
 CLI_COMMAND_TABLE(CLI_PROTOTYPE_EXPAND);
 
@@ -95,21 +116,25 @@ char const* const cli_description_tbl[] =
 #define CMD_LOOKUP_EXPAND(command, function, description)\
   [CLI_CMDTYPE_##command] = function,\
 
-typedef tusb_error_t (* const cli_cmdfunc_t)(char const *);
+typedef cli_error_t (* const cli_cmdfunc_t)(char const *);
 static cli_cmdfunc_t cli_command_tbl[] =
 {
   CLI_COMMAND_TABLE(CMD_LOOKUP_EXPAND)
 };
 
+
+
+static char const * const cli_error_message[] =
+{
+  [CLI_ERROR_NONE         ] = 0,
+  [CLI_ERROR_INVALID_PARA ] = "Invalid parameter(s)",
+  [CLI_ERROR_INVALID_PATH ] = "No such file or directory",
+  [CLI_ERROR_FAILED       ] = "failed to execute"
+};
+
 //--------------------------------------------------------------------+
 // INTERNAL OBJECT & FUNCTION DECLARATION
 //--------------------------------------------------------------------+
-#define CLI_MAX_BUFFER        256
-#define CLI_FILE_READ_BUFFER  (4*1024)
-
-enum {
-  ASCII_BACKSPACE = 8,
-};
 
 static char cli_buffer[CLI_MAX_BUFFER];
 
@@ -146,13 +171,15 @@ void cli_poll(char ch)
   }
   else if ( ch == '\r')
   { // execute command
+    //------------- Separate Command & Parameter -------------//
     putchar('\n');
     char* p_space = strchr(cli_buffer, ' ');
     uint32_t command_len = (p_space == NULL) ? strlen(cli_buffer) : (p_space - cli_buffer);
-    char* p_para = (p_space == NULL) ? NULL : (p_space+1);
+    char* p_para = (p_space == NULL) ? (cli_buffer+command_len) : (p_space+1); // point to NULL-character or after space
 
+    //------------- Find entered command in lookup table & execute it -------------//
     cli_cmdtype_t cmd_id;
-    for(cmd_id = CLI_CMDTYPE_COUNT - 1; cmd_id > 0; cmd_id--)
+    for(cmd_id = CLI_CMDTYPE_COUNT - 1; cmd_id > CLI_CMDTYPE_unknown; cmd_id--)
     {
       if( 0 == strncmp(cli_buffer, cli_string_tbl[cmd_id], command_len) )
       {
@@ -160,8 +187,11 @@ void cli_poll(char ch)
       }
     }
 
-    cli_command_tbl[cmd_id]( p_para );
+    cli_error_t error = cli_command_tbl[cmd_id]( p_para ); // command execution, (unknown command if cannot find)
 
+    if (CLI_ERROR_NONE != error)  puts(cli_error_message[error]); // error message output if any
+
+    //------------- print out current path -------------//
     f_getcwd(cli_buffer, CLI_MAX_BUFFER);
     printf("\nMSC %c%s\n$ ",
            'E'+cli_buffer[0]-'0',
@@ -177,16 +207,16 @@ void cli_poll(char ch)
 //--------------------------------------------------------------------+
 // UNKNOWN Command
 //--------------------------------------------------------------------+
-tusb_error_t cli_cmd_unknow(char const * para)
+cli_error_t cli_cmd_unknown(char const * para)
 {
-  puts("unknown command, please type \"help\"");
-  return TUSB_ERROR_NONE;
+  puts("unknown command, please type \"help\" for list of supported commands");
+  return CLI_ERROR_NONE;
 }
 
 //--------------------------------------------------------------------+
 // HELP command
 //--------------------------------------------------------------------+
-tusb_error_t cli_cmd_help(char const * para)
+cli_error_t cli_cmd_help(char const * para)
 {
   puts("current supported commands are:");
   for(cli_cmdtype_t cmd_id = CLI_CMDTYPE_help+1; cmd_id < CLI_CMDTYPE_COUNT; cmd_id++)
@@ -194,19 +224,18 @@ tusb_error_t cli_cmd_help(char const * para)
     printf("%s\t%s\n", cli_string_tbl[cmd_id], cli_description_tbl[cmd_id]);
   }
 
-  return TUSB_ERROR_NONE;
+  return CLI_ERROR_NONE;
 }
 
 //--------------------------------------------------------------------+
 // LS Command
 //--------------------------------------------------------------------+
-tusb_error_t cli_cmd_list(const char * p_para)
+cli_error_t cli_cmd_list(const char * p_para)
 {
-  DIR target_dir;
-
-  if ( (p_para == NULL) ||  (strlen(p_para) == 0) ) // list current directory
+  if ( strlen(p_para) == 0 ) // list current directory
   {
-    ASSERT_INT( FR_OK, f_opendir(&target_dir, "."), TUSB_ERROR_FAILED) ;
+    DIR target_dir;
+    if ( FR_OK != f_opendir(&target_dir, ".") ) return CLI_ERROR_FAILED;
 
     TCHAR long_filename[_MAX_LFN];
     FILINFO dir_entry =
@@ -218,42 +247,48 @@ tusb_error_t cli_cmd_list(const char * p_para)
     {
       if ( dir_entry.fname[0] != '.' ) // ignore . and .. entry
       {
-        printf("%s%c\n",
-               (dir_entry.lfname[0] != 0) ? dir_entry.lfname : dir_entry.fname,
-               dir_entry.fattrib & AM_DIR ? '/' : ' ');
+        TCHAR const * const p_name = (dir_entry.lfname[0] != 0) ? dir_entry.lfname : dir_entry.fname;
+        if ( dir_entry.fattrib & AM_DIR ) // directory
+        {
+          printf("/%s", p_name);
+        }else
+        {
+          printf("%-50s%d KB", p_name, dir_entry.fsize / 1000);
+        }
+        putchar('\n');
       }
     }
   }
   else
   {
     puts("ls only supports list current directory only, try to cd to that folder first");
+    return CLI_ERROR_INVALID_PARA;
   }
 
-  return TUSB_ERROR_NONE;
+  return CLI_ERROR_NONE;
 }
 
 //--------------------------------------------------------------------+
 // CD Command
 //--------------------------------------------------------------------+
-tusb_error_t cli_cmd_changedir(const char * p_para)
+cli_error_t cli_cmd_changedir(const char * p_para)
 {
-  if ( (p_para == NULL) ||  (strlen(p_para) == 0) ) return TUSB_ERROR_INVALID_PARA;
+  if ( strlen(p_para) == 0 ) return CLI_ERROR_INVALID_PARA;
 
   if ( FR_OK != f_chdir(p_para) )
   {
-    printf("%s : No such file or directory\n", p_para);
-    return TUSB_ERROR_INVALID_PARA;
+    return CLI_ERROR_INVALID_PATH;
   }
 
-  return TUSB_ERROR_NONE;
+  return CLI_ERROR_NONE;
 }
 
 //--------------------------------------------------------------------+
 // CAT Command
 //--------------------------------------------------------------------+
-tusb_error_t cli_cmd_cat(const char *p_para)
+cli_error_t cli_cmd_cat(const char *p_para)
 {
-  if ( (p_para == NULL) ||  (strlen(p_para) == 0) ) return TUSB_ERROR_INVALID_PARA;
+  if ( strlen(p_para) == 0 ) return CLI_ERROR_INVALID_PARA;
 
   FIL file;
 
@@ -262,18 +297,18 @@ tusb_error_t cli_cmd_cat(const char *p_para)
     case FR_OK:
     {
       uint32_t bytes_read = 0;
+
       if ( (FR_OK == f_read(&file, fileread_buffer, CLI_FILE_READ_BUFFER, &bytes_read)) && (bytes_read > 0) )
       {
-        if ( isprint( fileread_buffer[0] ) )
+        if ( file.fsize < 0x80000 ) // ~ 500KB
         {
           putchar('\n');
-          for(uint32_t i=0; i<bytes_read; i++)
-          {
-            putchar( fileread_buffer[i] );
-          }
+          do {
+            for(uint32_t i=0; i<bytes_read; i++) putchar( fileread_buffer[i] );
+          }while( (FR_OK == f_read(&file, fileread_buffer, CLI_FILE_READ_BUFFER, &bytes_read)) && (bytes_read > 0) );
         }else
-        {
-          printf("%s 's contents is not printable\n", p_para);
+        { // not display file contents if first character is not printable (high chance of binary file)
+          printf("%s 's contents is too large\n", p_para);
         }
       }
       f_close(&file);
@@ -281,17 +316,13 @@ tusb_error_t cli_cmd_cat(const char *p_para)
     break;
 
     case FR_INVALID_NAME:
-      printf("%s : No such file or directory\n", p_para);
-      return TUSB_ERROR_INVALID_PARA;
-    break;
+      return CLI_ERROR_INVALID_PATH;
 
     default :
-      printf("failed to open %s\n", p_para);
-      return TUSB_ERROR_FAILED;
-    break;
+      return CLI_ERROR_FAILED;
   }
 
-  return TUSB_ERROR_NONE;
+  return CLI_ERROR_NONE;
 }
 
 #endif
