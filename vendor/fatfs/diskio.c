@@ -202,4 +202,4 @@ DWORD get_fattime (void)
   return timestamp.value;
 }
 
-#endif
+#endif // TUSB_CFG_HOST_MSC

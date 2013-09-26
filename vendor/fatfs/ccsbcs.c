@@ -27,6 +27,7 @@
 
 #include "ff.h"
 
+#if TUSB_CFG_HOST_MSC
 
 #if _CODE_PAGE == 437
 #define _TBLDEF 1
@@ -538,3 +539,5 @@ WCHAR ff_wtoupper (	/* Upper converted character */
 
 	return tbl_lower[i] ? tbl_upper[i] : chr;
 }
+
+#endif // TUSB_CFG_HOST_MSC

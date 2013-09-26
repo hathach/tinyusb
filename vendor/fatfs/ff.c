@@ -99,7 +99,7 @@
 #include "ff.h"			/* FatFs configurations and declarations */
 #include "diskio.h"		/* Declarations of low level disk I/O functions */
 
-
+#if TUSB_CFG_HOST_MSC
 /*--------------------------------------------------------------------------
 
    Module Private Definitions
@@ -4323,3 +4323,5 @@ int f_printf (
 
 #endif /* !_FS_READONLY */
 #endif /* _USE_STRFUNC */
+
+#endif // TUSB_CFG_HOST_MSC
