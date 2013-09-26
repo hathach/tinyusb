@@ -67,6 +67,7 @@
 #define ANSI_CURSOR_BACKWARD(n)  CSI_CODE(#n "D")
 #define ANSI_CURSOR_LINE_DOWN(n) CSI_CODE(#n "E")
 #define ANSI_CURSOR_LINE_UP(n)   CSI_CODE(#n "F")
+#define ANSI_CURSOR_POSITION(n, m) CSI_CODE(#n ";" #m "H")
 
 #define ANSI_ERASE_SCREEN(n)     CSI_CODE(#n "J")
 #define ANSI_ERASE_LINE(n)       CSI_CODE(#n "K")

@@ -81,7 +81,7 @@ static char const * const cli_error_message[] =
     ENTRY(cls     , cli_cmd_clear    , "Clear the screen."                                                   ) \
     ENTRY(ls      , cli_cmd_list     , "List information about the FILEs (the current directory by default).") \
     ENTRY(cd      , cli_cmd_changedir, "change the current directory."                                       ) \
-    ENTRY(cat     , cli_cmd_cat      , "display contents of a text file."                                    ) \
+    ENTRY(cat     , cli_cmd_cat      , "display contents of a file."                                         ) \
     ENTRY(cp      , cli_cmd_copy     , "Copies one or more files to another location."                       ) \
     ENTRY(mkdir   , cli_cmd_mkdir    , "Create a DIRECTORY, if it does not already exist."                   ) \
 
@@ -241,7 +241,8 @@ cli_error_t cli_cmd_help(char * para)
 //--------------------------------------------------------------------+
 cli_error_t cli_cmd_clear(char* p_para)
 {
-  printf(ANSI_ERASE_SCREEN(2));
+  printf(ANSI_ERASE_SCREEN(2) ANSI_CURSOR_POSITION(1,1) );
+  return CLI_ERROR_NONE;
 }
 
 //--------------------------------------------------------------------+
@@ -345,6 +346,13 @@ cli_error_t cli_cmd_cat(char *p_para)
 //--------------------------------------------------------------------+
 // Make Directory command
 //--------------------------------------------------------------------+
+cli_error_t cli_cmd_mkdir(char *p_para)
+{
+  puts("executing mkdir");
+
+  return CLI_ERROR_NONE;
+}
+
 //--------------------------------------------------------------------+
 // COPY command
 //--------------------------------------------------------------------+
