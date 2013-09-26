@@ -54,7 +54,7 @@
 
 void tusbh_msc_mounted_cb(uint8_t dev_addr);
 void tusbh_msc_unmounted_isr(uint8_t dev_addr);
-void tusbh_msc_isr(uint8_t dev_addr, tusb_event_t event);
+void tusbh_msc_isr(uint8_t dev_addr, tusb_event_t event, uint32_t xferred_bytes);
 
 
 #ifdef __cplusplus

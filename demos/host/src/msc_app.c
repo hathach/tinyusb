@@ -89,24 +89,23 @@ void tusbh_msc_mounted_cb(uint8_t dev_addr)
 
   if ( disk_is_ready(0) )
   {
-    if ( f_mount(0, &fatfs[dev_addr-1]) != FR_OK )
+    if ( f_mount(0, &fatfs[dev_addr-1]) != FR_OK ) // TODO multiple volume
     {
       puts("mount failed");
       return;
     }
 
-    char volume_label[20] = {0};
-    f_getlabel(NULL, volume_label, NULL);
-    printf("Label: %s\n\n", volume_label);
-
     f_chdrive(dev_addr-1); // change to newly mounted drive
     f_chdir("/"); // root as current dir
-    printf("MSC %c:/\n$ ", 'E'+dev_addr-1);
+
+    cli_init();
+    cli_command_prompt();
   }
 }
 
 void tusbh_msc_unmounted_isr(uint8_t dev_addr)
 {
+  // unmount disk
   disk_state = STA_NOINIT;
   puts("--");
 }

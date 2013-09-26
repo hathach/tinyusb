@@ -125,8 +125,6 @@ int main(void)
 
   tusb_init();
 
-  cli_init();
-
   //------------- application task init -------------//
   (void) osal_task_create( OSAL_TASK_REF(led_blinking_task) );
 

@@ -121,6 +121,15 @@ STATIC_ASSERT(sizeof(msc_cmd_status_wrapper_t) == 13, "size is not correct");
 //--------------------------------------------------------------------+
 typedef ATTR_PACKED_STRUCT(struct) {
   uint8_t cmd_code;
+  uint8_t lun;
+  uint8_t reserved[3];
+  uint8_t control;
+} scsi_test_unit_ready_t;
+
+STATIC_ASSERT(sizeof(scsi_test_unit_ready_t) == 6, "size is not correct");
+
+typedef ATTR_PACKED_STRUCT(struct) {
+  uint8_t cmd_code;
   uint8_t reserved1;
   uint8_t page_code;
   uint8_t reserved2;

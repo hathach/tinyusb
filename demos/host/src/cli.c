@@ -57,8 +57,18 @@ typedef enum {
   CLI_ERROR_NONE = 0,
   CLI_ERROR_INVALID_PARA,
   CLI_ERROR_INVALID_PATH,
+  CLI_ERROR_FILE_EXISTED,
   CLI_ERROR_FAILED
 }cli_error_t;
+
+static char const * const cli_error_message[] =
+{
+  [CLI_ERROR_NONE         ] = 0,
+  [CLI_ERROR_INVALID_PARA ] = "Invalid parameter(s)",
+  [CLI_ERROR_INVALID_PATH ] = "No such file or directory",
+  [CLI_ERROR_FILE_EXISTED ] = "file or directory already exists",
+  [CLI_ERROR_FAILED       ] = "failed to execute"
+};
 
 //--------------------------------------------------------------------+
 // CLI Database definition
@@ -66,17 +76,20 @@ typedef enum {
 
 // command, function, description
 #define CLI_COMMAND_TABLE(ENTRY)   \
-    ENTRY(unknown , cli_cmd_unknown  , NULL)                              \
-    ENTRY(help    , cli_cmd_help     , NULL)                              \
-    ENTRY(ls      , cli_cmd_list     , "list items in current directory") \
-    ENTRY(cd      , cli_cmd_changedir, "change current directory")        \
-    ENTRY(cat     , cli_cmd_cat      , "display contents of a text file") \
+    ENTRY(unknown , cli_cmd_unknown  , NULL                                                                  ) \
+    ENTRY(help    , cli_cmd_help     , NULL                                                                  ) \
+    ENTRY(cls     , cli_cmd_clear    , "Clear the screen."                                                   ) \
+    ENTRY(ls      , cli_cmd_list     , "List information about the FILEs (the current directory by default).") \
+    ENTRY(cd      , cli_cmd_changedir, "change the current directory."                                       ) \
+    ENTRY(cat     , cli_cmd_cat      , "display contents of a text file."                                    ) \
+    ENTRY(cp      , cli_cmd_copy     , "Copies one or more files to another location."                       ) \
+    ENTRY(mkdir   , cli_cmd_mkdir    , "Create a DIRECTORY, if it does not already exist."                   ) \
 
 //--------------------------------------------------------------------+
 // Expands the function to have the standard function signature
 //--------------------------------------------------------------------+
 #define CLI_PROTOTYPE_EXPAND(command, function, description) \
-    cli_error_t function(char const *);
+    cli_error_t function(char *);
 
 CLI_COMMAND_TABLE(CLI_PROTOTYPE_EXPAND);
 
@@ -116,38 +129,38 @@ char const* const cli_description_tbl[] =
 #define CMD_LOOKUP_EXPAND(command, function, description)\
   [CLI_CMDTYPE_##command] = function,\
 
-typedef cli_error_t (* const cli_cmdfunc_t)(char const *);
+typedef cli_error_t (* const cli_cmdfunc_t)(char *);
 static cli_cmdfunc_t cli_command_tbl[] =
 {
   CLI_COMMAND_TABLE(CMD_LOOKUP_EXPAND)
 };
 
-
-
-static char const * const cli_error_message[] =
-{
-  [CLI_ERROR_NONE         ] = 0,
-  [CLI_ERROR_INVALID_PARA ] = "Invalid parameter(s)",
-  [CLI_ERROR_INVALID_PATH ] = "No such file or directory",
-  [CLI_ERROR_FAILED       ] = "failed to execute"
-};
-
 //--------------------------------------------------------------------+
 // INTERNAL OBJECT & FUNCTION DECLARATION
 //--------------------------------------------------------------------+
-
 static char cli_buffer[CLI_MAX_BUFFER];
-
 uint8_t fileread_buffer[CLI_FILE_READ_BUFFER] TUSB_CFG_ATTR_USBRAM;
-
+static char volume_label[20];
 
 //--------------------------------------------------------------------+
 // IMPLEMENTATION
 //--------------------------------------------------------------------+
+// NOTES: prompt re-use cli_buffer --> should not be called when cli_buffer has contents
+void cli_command_prompt(void)
+{
+  f_getcwd(cli_buffer, CLI_MAX_BUFFER);
+  printf("\n%s %c%s\n$ ",
+         (volume_label[0] !=0) ? volume_label : "No Label",
+         'E'+cli_buffer[0]-'0',
+         cli_buffer+1);
+
+  memclr_(cli_buffer, CLI_MAX_BUFFER);
+}
 
 void cli_init(void)
 {
   memclr_(cli_buffer, CLI_MAX_BUFFER);
+  f_getlabel(NULL, volume_label, NULL);
 }
 
 void cli_poll(char ch)
@@ -192,11 +205,7 @@ void cli_poll(char ch)
     if (CLI_ERROR_NONE != error)  puts(cli_error_message[error]); // error message output if any
 
     //------------- print out current path -------------//
-    f_getcwd(cli_buffer, CLI_MAX_BUFFER);
-    printf("\nMSC %c%s\n$ ",
-           'E'+cli_buffer[0]-'0',
-           cli_buffer+1);
-    memclr_(cli_buffer, CLI_MAX_BUFFER);
+    cli_command_prompt();
   }
   else if (ch=='\t') // \t may be used for auto-complete later
   {
@@ -207,7 +216,7 @@ void cli_poll(char ch)
 //--------------------------------------------------------------------+
 // UNKNOWN Command
 //--------------------------------------------------------------------+
-cli_error_t cli_cmd_unknown(char const * para)
+cli_error_t cli_cmd_unknown(char * para)
 {
   puts("unknown command, please type \"help\" for list of supported commands");
   return CLI_ERROR_NONE;
@@ -216,7 +225,7 @@ cli_error_t cli_cmd_unknown(char const * para)
 //--------------------------------------------------------------------+
 // HELP command
 //--------------------------------------------------------------------+
-cli_error_t cli_cmd_help(char const * para)
+cli_error_t cli_cmd_help(char * para)
 {
   puts("current supported commands are:");
   for(cli_cmdtype_t cmd_id = CLI_CMDTYPE_help+1; cmd_id < CLI_CMDTYPE_COUNT; cmd_id++)
@@ -228,9 +237,17 @@ cli_error_t cli_cmd_help(char const * para)
 }
 
 //--------------------------------------------------------------------+
+// Clear Screen Command
+//--------------------------------------------------------------------+
+cli_error_t cli_cmd_clear(char* p_para)
+{
+  printf(ANSI_ERASE_SCREEN(2));
+}
+
+//--------------------------------------------------------------------+
 // LS Command
 //--------------------------------------------------------------------+
-cli_error_t cli_cmd_list(const char * p_para)
+cli_error_t cli_cmd_list(char * p_para)
 {
   if ( strlen(p_para) == 0 ) // list current directory
   {
@@ -253,7 +270,7 @@ cli_error_t cli_cmd_list(const char * p_para)
           printf("/%s", p_name);
         }else
         {
-          printf("%-50s%d KB", p_name, dir_entry.fsize / 1000);
+          printf("%-40s%d KB", p_name, dir_entry.fsize / 1000);
         }
         putchar('\n');
       }
@@ -271,7 +288,7 @@ cli_error_t cli_cmd_list(const char * p_para)
 //--------------------------------------------------------------------+
 // CD Command
 //--------------------------------------------------------------------+
-cli_error_t cli_cmd_changedir(const char * p_para)
+cli_error_t cli_cmd_changedir(char * p_para)
 {
   if ( strlen(p_para) == 0 ) return CLI_ERROR_INVALID_PARA;
 
@@ -286,7 +303,7 @@ cli_error_t cli_cmd_changedir(const char * p_para)
 //--------------------------------------------------------------------+
 // CAT Command
 //--------------------------------------------------------------------+
-cli_error_t cli_cmd_cat(const char *p_para)
+cli_error_t cli_cmd_cat(char *p_para)
 {
   if ( strlen(p_para) == 0 ) return CLI_ERROR_INVALID_PARA;
 
@@ -325,4 +342,57 @@ cli_error_t cli_cmd_cat(const char *p_para)
   return CLI_ERROR_NONE;
 }
 
+//--------------------------------------------------------------------+
+// Make Directory command
+//--------------------------------------------------------------------+
+//--------------------------------------------------------------------+
+// COPY command
+//--------------------------------------------------------------------+
+cli_error_t cli_cmd_copy(char *p_para)
+{
+  char* p_space = strchr(p_para, ' ');
+  if ( p_space == NULL ) return CLI_ERROR_INVALID_PARA;
+
+  *p_space = 0; // replace space by NULL-character
+  char* p_dest = p_space+1;
+
+  if ( strlen(p_dest) == 0 ) return CLI_ERROR_INVALID_PARA;
+
+  //------------- Check Existence of source & dest file -------------//
+  cli_error_t error = CLI_ERROR_NONE;
+  FIL src_file, dest_file;
+
+  if ( FR_OK != f_open(&src_file , p_para, FA_READ) )  return CLI_ERROR_INVALID_PATH;
+  switch ( f_open(&dest_file, p_dest, FA_WRITE | FA_CREATE_NEW) )
+  {
+    case FR_EXIST:
+      error = CLI_ERROR_FILE_EXISTED;
+    break;\
+
+    case FR_OK:
+      while(1)
+      {
+        uint32_t bytes_read = 0;
+        uint32_t bytes_write = 0;
+        FRESULT res;
+
+        res = f_read(&src_file, fileread_buffer, CLI_FILE_READ_BUFFER, &bytes_read);     /* Read a chunk of src file */
+        if ( (res != FR_OK) || (bytes_read == 0) ) break; /* error or eof */
+
+        res = f_write(&dest_file, fileread_buffer, bytes_read, &bytes_write);               /* Write it to the dst file */
+        if ( (res != FR_OK) || (bytes_write < bytes_read) ) break; /* error or disk full */
+      }
+
+      f_close(&dest_file);
+    break;
+
+    default:
+      error = CLI_ERROR_FAILED;
+    break;
+  }
+
+  f_close(&src_file);
+
+  return error;
+}
 #endif

@@ -116,8 +116,19 @@ static inline void msc_cbw_add_signature(msc_cmd_block_wrapper_t *p_cbw, uint8_t
 static tusb_error_t msch_command_xfer(msch_interface_t * p_msch, void* p_buffer) ATTR_WARN_UNUSED_RESULT;
 static tusb_error_t msch_command_xfer(msch_interface_t * p_msch, void* p_buffer)
 {
-  ASSERT_STATUS( hcd_pipe_xfer(p_msch->bulk_out, &p_msch->cbw, sizeof(msc_cmd_block_wrapper_t), false) );
-  ASSERT_STATUS( hcd_pipe_queue_xfer(p_msch->bulk_in , p_buffer, p_msch->cbw.xfer_bytes) );
+  if ( NULL != p_buffer)
+  { // there is data phase
+    if (p_msch->cbw.flags & TUSB_DIR_DEV_TO_HOST_MASK)
+    {
+      ASSERT_STATUS( hcd_pipe_xfer(p_msch->bulk_out, &p_msch->cbw, sizeof(msc_cmd_block_wrapper_t), false) );
+      ASSERT_STATUS( hcd_pipe_queue_xfer(p_msch->bulk_in , p_buffer, p_msch->cbw.xfer_bytes) );
+    }else
+    {
+      ASSERT_STATUS( hcd_pipe_queue_xfer(p_msch->bulk_out, &p_msch->cbw, sizeof(msc_cmd_block_wrapper_t)) );
+      ASSERT_STATUS( hcd_pipe_xfer(p_msch->bulk_out , p_buffer, p_msch->cbw.xfer_bytes, false) );
+    }
+  }
+
   ASSERT_STATUS( hcd_pipe_xfer(p_msch->bulk_in , &p_msch->csw, sizeof(msc_cmd_status_wrapper_t), true) );
 
   return TUSB_ERROR_NONE;
@@ -198,6 +209,33 @@ tusb_error_t tusbh_msc_request_sense(uint8_t dev_addr, uint8_t lun, uint8_t *p_d
   return TUSB_ERROR_NONE;
 }
 
+tusb_error_t tusbh_msc_test_unit_ready(uint8_t dev_addr, uint8_t lun,  msc_cmd_status_wrapper_t * p_csw)
+{
+  msch_interface_t* p_msch = &msch_data[dev_addr-1];
+
+  //------------- Command Block Wrapper -------------//
+  msc_cbw_add_signature(&p_msch->cbw, lun);
+
+  p_msch->cbw.xfer_bytes = 0; // Number of bytes
+  p_msch->cbw.flags      = TUSB_DIR_HOST_TO_DEV;
+  p_msch->cbw.cmd_len    = sizeof(scsi_test_unit_ready_t);
+
+  //------------- SCSI command -------------//
+  scsi_test_unit_ready_t cmd_test_unit_ready =
+  {
+      .cmd_code = SCSI_CMD_TEST_UNIT_READY,
+      .lun      = lun // according to wiki
+  };
+
+  memcpy(p_msch->cbw.command, &cmd_test_unit_ready, p_msch->cbw.cmd_len);
+
+  // TODO MSCH refractor test uinit ready
+  ASSERT_STATUS( hcd_pipe_xfer(p_msch->bulk_out, &p_msch->cbw, sizeof(msc_cmd_block_wrapper_t), false) );
+  ASSERT_STATUS( hcd_pipe_xfer(p_msch->bulk_in , p_csw, sizeof(msc_cmd_status_wrapper_t), true) );
+
+  return TUSB_ERROR_NONE;
+}
+
 tusb_error_t  tusbh_msc_read10(uint8_t dev_addr, uint8_t lun, void * p_buffer, uint32_t lba, uint16_t block_count)
 {
   msch_interface_t* p_msch = &msch_data[dev_addr-1];
@@ -232,7 +270,7 @@ tusb_error_t tusbh_msc_write10(uint8_t dev_addr, uint8_t lun, void * p_buffer, u
   msc_cbw_add_signature(&p_msch->cbw, lun);
 
   p_msch->cbw.xfer_bytes = p_msch->block_size*block_count; // Number of bytes
-  p_msch->cbw.flags      = TUSB_DIR_DEV_TO_HOST_MASK;
+  p_msch->cbw.flags      = TUSB_DIR_HOST_TO_DEV;
   p_msch->cbw.cmd_len    = sizeof(scsi_write10_t);
 
   //------------- SCSI command -------------//
@@ -354,6 +392,8 @@ tusb_error_t msch_open_subtask(uint8_t dev_addr, tusb_descriptor_interface_t con
 
   msch_data[dev_addr-1].last_lba   = __be2le( ((scsi_read_capacity10_data_t*)msch_buffer)->last_lba );
   msch_data[dev_addr-1].block_size = (uint16_t) __be2le( ((scsi_read_capacity10_data_t*)msch_buffer)->block_size );
+
+  osal_semaphore_wait(msch_sem_hdl, SCSI_XFER_TIMEOUT, &error);
 
   msch_data[dev_addr-1].is_initialized = true;
   tusbh_msc_mounted_cb(dev_addr);
