@@ -348,9 +348,9 @@ cli_error_t cli_cmd_cat(char *p_para)
 //--------------------------------------------------------------------+
 cli_error_t cli_cmd_mkdir(char *p_para)
 {
-  puts("executing mkdir");
+  if ( strlen(p_para) == 0 ) return CLI_ERROR_INVALID_PARA;
 
-  return CLI_ERROR_NONE;
+  return (f_mkdir(p_para) == FR_OK) ? CLI_ERROR_NONE : CLI_ERROR_FAILED;
 }
 
 //--------------------------------------------------------------------+
