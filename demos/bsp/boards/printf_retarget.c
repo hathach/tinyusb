@@ -106,6 +106,7 @@ int __sys_readc (void)
 #if CFG_PRINTF_TARGET == PRINTF_TARGET_UART
   #define retarget_putc(c)    board_uart_send( (uint8_t*) &c, 1);
 #elif CFG_PRINTF_TARGET == PRINTF_TARGET_SWO
+  volatile int32_t ITM_RxBuffer;
 	#define retarget_putc(c)    ITM_SendChar(c)
 #endif
 

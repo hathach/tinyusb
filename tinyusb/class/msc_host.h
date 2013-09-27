@@ -59,7 +59,9 @@
 // MASS STORAGE Application API
 //--------------------------------------------------------------------+
 bool          tusbh_msc_is_mounted(uint8_t dev_addr) ATTR_PURE ATTR_WARN_UNUSED_RESULT;
-tusb_interface_status_t tusbh_msc_status(uint8_t dev_addr) ATTR_WARN_UNUSED_RESULT;
+bool          tusbh_msc_is_busy(uint8_t dev_addr) ATTR_PURE ATTR_WARN_UNUSED_RESULT;
+bool          tusbh_msc_is_failed(uint8_t dev_addr) ATTR_PURE ATTR_WARN_UNUSED_RESULT;
+
 uint8_t const* tusbh_msc_get_vendor_name(uint8_t dev_addr);
 uint8_t const* tusbh_msc_get_product_name(uint8_t dev_addr);
 tusb_error_t tusbh_msc_get_capacity(uint8_t dev_addr, uint32_t* p_last_lba, uint32_t* p_block_size);
@@ -95,7 +97,7 @@ typedef struct {
   uint16_t block_size;
   uint32_t last_lba; // last logical block address
 
-  bool    is_initialized;
+  volatile bool is_initialized;
   uint8_t vendor_id[8];
   uint8_t product_id[16];
 

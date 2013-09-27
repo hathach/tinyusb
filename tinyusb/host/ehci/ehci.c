@@ -430,7 +430,7 @@ tusb_error_t  hcd_pipe_queue_xfer(pipe_handle_t pipe_hdl, uint8_t buffer[], uint
 
 tusb_error_t  hcd_pipe_xfer(pipe_handle_t pipe_hdl, uint8_t buffer[], uint16_t total_bytes, bool int_on_complete)
 {
-  hcd_pipe_queue_xfer(pipe_hdl, buffer, total_bytes);
+  ASSERT_STATUS ( hcd_pipe_queue_xfer(pipe_hdl, buffer, total_bytes) );
 
   ehci_qhd_t *p_qhd = qhd_get_from_pipe_handle(pipe_hdl);
 
@@ -481,8 +481,14 @@ bool hcd_pipe_is_busy(pipe_handle_t pipe_hdl)
   return !p_qhd->qtd_overlay.halted && (p_qhd->p_qtd_list_head != NULL);
 }
 
-bool hcd_pipe_is_idle(pipe_handle_t pipe_hdl)
+bool hcd_pipe_is_error(pipe_handle_t pipe_hdl)
 {
+  ehci_qhd_t *p_qhd = qhd_get_from_pipe_handle( pipe_hdl );
+  return p_qhd->qtd_overlay.halted;
+}
+
+bool hcd_pipe_is_idle(pipe_handle_t pipe_hdl)
+{ // TODO to be remove
   ehci_qhd_t *p_qhd = qhd_get_from_pipe_handle( pipe_hdl );
   return (p_qhd->p_qtd_list_head == NULL);
 }
@@ -679,13 +685,11 @@ static void qhd_xfer_error_isr(ehci_qhd_t * p_qhd)
       p_qhd->qtd_overlay.alternate.terminate = 1;
       p_qhd->qtd_overlay.halted              = 0;
 
-      #if 0 // no need to mark control qtds as not used
-      ehci_qtd_t *p_setup  = get_control_qtds(dev_addr);
+      ehci_qtd_t *p_setup  = get_control_qtds(p_qhd->device_address);
       ehci_qtd_t *p_data   = p_setup + 1;
       ehci_qtd_t *p_status = p_setup + 2;
 
-      p_setup->used = p_data->used = p_status = 0;
-      #endif
+      p_setup->used = p_data->used = p_status->used = 0;
     }
 
     // call USBH callback

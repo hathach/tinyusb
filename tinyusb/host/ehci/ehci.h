@@ -126,9 +126,9 @@ typedef struct {
 	union{
 	  ehci_link_t alternate;
 	  struct {
-	    uint32_t      : 5;
-	    uint32_t used : 1;
-	    uint32_t : 10;
+	    uint32_t                : 5;
+	    uint32_t used           : 1;
+	    uint32_t                : 10;
 	    uint32_t expected_bytes : 16;
 	  };
 	};
@@ -203,8 +203,8 @@ typedef struct {
 	uint8_t interval_ms; // polling interval in frames (or milisecond)
 	uint8_t reserved;
 
-	ehci_qtd_t *p_qtd_list_head;	// head of the scheduled TD list
-	ehci_qtd_t *p_qtd_list_tail;	// tail of the scheduled TD list
+	ehci_qtd_t * volatile p_qtd_list_head;	// head of the scheduled TD list
+	ehci_qtd_t * volatile p_qtd_list_tail;	// tail of the scheduled TD list
 }ATTR_ALIGNED(32) ehci_qhd_t;
 
 /// Highspeed Isochronous Transfer Descriptor (section 3.3)

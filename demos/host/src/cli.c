@@ -161,6 +161,7 @@ void cli_init(void)
 {
   memclr_(cli_buffer, CLI_MAX_BUFFER);
   f_getlabel(NULL, volume_label, NULL);
+  cli_command_prompt();
 }
 
 void cli_poll(char ch)

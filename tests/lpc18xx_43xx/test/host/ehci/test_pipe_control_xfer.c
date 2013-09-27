@@ -280,10 +280,8 @@ void test_control_xfer_error_stall(void)
   TEST_ASSERT_TRUE( p_control_qhd->qtd_overlay.alternate.terminate);
   TEST_ASSERT_FALSE( p_control_qhd->qtd_overlay.halted);
 
-  #if 0 // no neeed
   TEST_ASSERT_FALSE( p_setup->used );
   TEST_ASSERT_FALSE( p_data->used );
   TEST_ASSERT_FALSE( p_status->used );
-  #endif
 }
 

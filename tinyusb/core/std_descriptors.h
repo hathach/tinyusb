@@ -61,7 +61,7 @@
 // STANDARD DESCRIPTORS
 //--------------------------------------------------------------------+
 /// USB Standard Device Descriptor (section 9.6.1, table 9-8)
-typedef ATTR_PREPACKED struct ATTR_PACKED {
+typedef ATTR_PACKED_STRUCT(struct) {
   uint8_t  bLength            ; ///< Size of this descriptor in bytes.
   uint8_t  bDescriptorType    ; ///< DEVICE Descriptor Type.
   uint16_t bcdUSB             ; ///< BUSB Specification Release Number in Binary-Coded Decimal (i.e., 2.10 is 210H). This field identifies the release of the USB Specification with which the device and its descriptors are compliant.
@@ -82,7 +82,7 @@ typedef ATTR_PREPACKED struct ATTR_PACKED {
 } tusb_descriptor_device_t;
 
 /// USB Standard Configuration Descriptor (section 9.6.1 table 9-10) */
-typedef ATTR_PREPACKED struct ATTR_PACKED {
+typedef ATTR_PACKED_STRUCT(struct) {
   uint8_t  bLength             ; ///< Size of this descriptor in bytes
   uint8_t  bDescriptorType     ; ///< CONFIGURATION Descriptor Type
   uint16_t wTotalLength        ; ///< Total length of data returned for this configuration. Includes the combined length of all descriptors (configuration, interface, endpoint, and class- or vendor-specific) returned for this configuration.
@@ -95,7 +95,7 @@ typedef ATTR_PREPACKED struct ATTR_PACKED {
 } tusb_descriptor_configuration_t;
 
 /// USB Standard Interface Descriptor (section 9.6.1 table 9-12)
-typedef ATTR_PREPACKED struct ATTR_PACKED {
+typedef ATTR_PACKED_STRUCT(struct) {
   uint8_t  bLength            ; ///< Size of this descriptor in bytes
   uint8_t  bDescriptorType    ; ///< INTERFACE Descriptor Type
 
@@ -109,13 +109,13 @@ typedef ATTR_PREPACKED struct ATTR_PACKED {
 } tusb_descriptor_interface_t;
 
 /// USB Standard Endpoint Descriptor (section 9.6.1 table 9-13)
-typedef ATTR_PREPACKED struct ATTR_PACKED {
+typedef ATTR_PACKED_STRUCT(struct) {
   uint8_t  bLength          ; ///< Size of this descriptor in bytes
   uint8_t  bDescriptorType  ; ///< ENDPOINT Descriptor Type
 
   uint8_t  bEndpointAddress ; ///< The address of the endpoint on the USB device described by this descriptor. The address is encoded as follows: \n Bit 3...0: The endpoint number \n Bit 6...4: Reserved, reset to zero \n Bit 7: Direction, ignored for control endpoints 0 = OUT endpoint 1 = IN endpoint.
 
-  ATTR_PREPACKED struct ATTR_PACKED {
+  ATTR_PACKED_STRUCT(struct) {
     uint8_t xfer  : 2;
     uint8_t sync  : 2;
     uint8_t usage : 2;
@@ -132,7 +132,7 @@ typedef ATTR_PREPACKED struct ATTR_PACKED {
 } tusb_descriptor_endpoint_t;
 
 /// USB Other Speed Configuration Descriptor (section 9.6.1 table 9-11)
-typedef ATTR_PREPACKED struct ATTR_PACKED {
+typedef ATTR_PACKED_STRUCT(struct) {
   uint8_t  bLength             ; ///< Size of descriptor
   uint8_t  bDescriptorType     ; ///< Other_speed_Configuration Type
   uint16_t wTotalLength        ; ///< Total length of data returned
@@ -145,7 +145,7 @@ typedef ATTR_PREPACKED struct ATTR_PACKED {
 } tusb_descriptor_other_speed_t;
 
 /// USB Device Qualifier Descriptor (section 9.6.1 table 9-9)
-typedef ATTR_PREPACKED struct ATTR_PACKED {
+typedef ATTR_PACKED_STRUCT(struct) {
   uint8_t  bLength            ; ///< Size of descriptor
   uint8_t  bDescriptorType    ; ///< Device Qualifier Type
   uint16_t bcdUSB             ; ///< USB specification version number (e.g., 0200H for V2.00)
@@ -159,7 +159,7 @@ typedef ATTR_PREPACKED struct ATTR_PACKED {
 } tusb_descriptor_device_qualifier_t;
 
 /// USB Interface Association Descriptor (IAD ECN)
-typedef ATTR_PREPACKED struct ATTR_PACKED
+typedef ATTR_PACKED_STRUCT(struct)
 {
   uint8_t bLength           ; ///< Size of descriptor
   uint8_t bDescriptorType   ; ///< Other_speed_Configuration Type
@@ -175,7 +175,7 @@ typedef ATTR_PREPACKED struct ATTR_PACKED
 } tusb_descriptor_interface_association_t;
 
 /// USB Header Descriptor
-typedef ATTR_PREPACKED struct ATTR_PACKED
+typedef ATTR_PACKED_STRUCT(struct)
 {
   uint8_t  bLength         ; ///< Size of this descriptor in bytes
   uint8_t  bDescriptorType ; ///< Descriptor Type

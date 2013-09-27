@@ -116,7 +116,6 @@ void os_none_start_scheduler(void)
   }
 }
 #endif
-volatile int32_t ITM_RxBuffer;
 
 int main(void)
 {

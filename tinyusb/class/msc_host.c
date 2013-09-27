@@ -74,35 +74,39 @@ bool tusbh_msc_is_mounted(uint8_t dev_addr)
           msch_data[dev_addr-1].is_initialized;
 }
 
+bool tusbh_msc_is_busy(uint8_t dev_addr)
+{
+  return  msch_data[dev_addr-1].is_initialized &&
+          hcd_pipe_is_busy(msch_data[dev_addr-1].bulk_in);
+}
+
+bool tusbh_msc_is_failed(uint8_t dev_addr)
+{
+  return  msch_data[dev_addr-1].is_initialized &&
+          hcd_pipe_is_error(msch_data[dev_addr-1].bulk_in);
+}
+
+// TODO tusbh_msc_is_stalled
+
 uint8_t const* tusbh_msc_get_vendor_name(uint8_t dev_addr)
 {
-  return tusbh_msc_is_mounted(dev_addr) ? msch_data[dev_addr-1].vendor_id : NULL;
+  return msch_data[dev_addr-1].is_initialized ? msch_data[dev_addr-1].vendor_id : NULL;
 }
 
 uint8_t const* tusbh_msc_get_product_name(uint8_t dev_addr)
 {
-  return tusbh_msc_is_mounted(dev_addr) ? msch_data[dev_addr-1].product_id : NULL;
+  return msch_data[dev_addr-1].is_initialized ? msch_data[dev_addr-1].product_id : NULL;
 }
 
 tusb_error_t tusbh_msc_get_capacity(uint8_t dev_addr, uint32_t* p_last_lba, uint32_t* p_block_size)
 {
-  if ( !tusbh_msc_is_mounted(dev_addr) )   return TUSB_ERROR_MSCH_DEVICE_NOT_MOUNTED;
+  if ( !msch_data[dev_addr-1].is_initialized )   return TUSB_ERROR_MSCH_DEVICE_NOT_MOUNTED;
   ASSERT(p_last_lba != NULL && p_block_size != NULL, TUSB_ERROR_INVALID_PARA);
 
   (*p_last_lba)   = msch_data[dev_addr-1].last_lba;
   (*p_block_size) = (uint32_t) msch_data[dev_addr-1].block_size;
   
   return TUSB_ERROR_NONE;
-}
-
-tusb_interface_status_t tusbh_msc_status(uint8_t dev_addr)
-{
-  if ( !tusbh_msc_is_mounted(dev_addr) )   return TUSB_INTERFACE_STATUS_INVALID_PARA;
-
-  if ( hcd_pipe_is_busy(msch_data[dev_addr-1].bulk_in) )  return TUSB_INTERFACE_STATUS_BUSY;
-  if ( hcd_pipe_is_stalled(msch_data[dev_addr-1].bulk_in) )  return TUSB_INTERFACE_STATUS_ERROR;
-
-  return TUSB_INTERFACE_STATUS_READY;
 }
 
 static inline void msc_cbw_add_signature(msc_cmd_block_wrapper_t *p_cbw, uint8_t lun) ATTR_ALWAYS_INLINE;

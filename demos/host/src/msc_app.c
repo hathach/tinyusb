@@ -106,7 +106,6 @@ void tusbh_msc_mounted_cb(uint8_t dev_addr)
     f_chdir("/"); // root as current dir
 
     cli_init();
-    cli_command_prompt();
   }
 }
 

@@ -56,14 +56,14 @@
 //--------------------------------------------------------------------+
 // IMPLEMENTATION
 //--------------------------------------------------------------------+
-static tusb_error_t wait_for_io_complete(uint8_t usb_addr)
+static DRESULT wait_for_io_complete(uint8_t usb_addr)
 {
   #if TUSB_CFG_OS == TUSB_OS_NONE
-  while ( tusbh_msc_status(usb_addr) == TUSB_INTERFACE_STATUS_BUSY )
+  while ( tusbh_msc_is_busy(usb_addr) )
   {
     // timeout here
   }
-  return tusbh_msc_status(usb_addr) == TUSB_INTERFACE_STATUS_READY ? RES_OK : RES_ERROR;
+  return tusbh_msc_is_failed(usb_addr) ? RES_ERROR : RES_OK;
 #else
   #error semaphore instead of blocking
 #endif

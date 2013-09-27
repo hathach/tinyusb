@@ -59,6 +59,7 @@ void board_init(void)
   scu_pinmux(0x2, 3, MD_PUP | MD_EZI, FUNC7);		// USB0 VBus Power
   
   // USB1 Power: EA4357 channel A U20 is enabled by SJ5 connected to pad 1-2, no more action required
+  // TODO Remove R170, R171, solder a pair of 15K to USB1 D+/D- to test with USB1 Host
 
   // TODO Device only USB0
   // 1.5Kohm pull-up resistor is needed on the USB DP data signal. GPIO28 (base), P9_5 (LPC4357) controls
@@ -66,17 +67,10 @@ void board_init(void)
 //  GPIO_SetDir(5, BIT_(18), 1); // output
 //  GPIO_ClearValue(5, BIT_(18));
 
-
-  //------------- I2C (required by LED) -------------//
-  // init I2C and set up MIC2555 to have 15k pull-down on USB1 D+ & D-
+  //------------- LED -------------//
   I2C_Init(LPC_I2C0, 100000);
   I2C_Cmd(LPC_I2C0, ENABLE);
-
-  //------------- LED -------------//
   pca9532_init();
-
-//  ASSERT_INT(0x058d, mic255_get_vendorid(), (void) 0); // verify vendor id
-//  ASSERT( mic255_regs_write(6, BIN8(1100)), (void) 0); // pull down D+/D- for host
 
 #if CFG_UART_ENABLE
   //------------- UART -------------//
@@ -160,61 +154,6 @@ uint8_t  board_uart_getchar(void)
 //
 //	ADC_IntConfig(LPC_ADC0, ADC_ADINTEN2, DISABLE);
 //	ADC_ChannelCmd(LPC_ADC0, ADC_CH_TRIMPOT, ENABLE);
-//}
-
-//------------- MIC2555 external OTG transceiver on USB1 -------------//
-
-// MIC2555 1YML = 0101111, 0YML = 0101101
-//#define MIC255_ADDR BIN8(0101111)
-
-//static uint8_t mic255_regs_read(uint8_t regs_addr)
-//{
-//  uint8_t value;
-//
-//  ASSERT( SUCCESS == I2C_MasterTransferData(
-//      LPC_I2C0,
-//      & (I2C_M_SETUP_Type)
-//      {
-//        .sl_addr7bit         = MIC255_ADDR,
-//        .retransmissions_max = 3,
-//
-//        .tx_data             = &regs_addr,
-//        .tx_length           = 1,
-//
-//        .rx_data             = &value,
-//        .rx_length           = 1
-//      },
-//      I2C_TRANSFER_POLLING), 0xFF);
-//
-//  return value;
-//}
-
-//static bool mic255_regs_write(uint8_t regs_addr, uint8_t data)
-//{
-//  uint8_t xfer_data[2] = { regs_addr, data} ;
-//
-//  ASSERT( SUCCESS == I2C_MasterTransferData(
-//      LPC_I2C0,
-//      & (I2C_M_SETUP_Type)
-//      {
-//        .sl_addr7bit         = MIC255_ADDR,
-//        .retransmissions_max = 3,
-//
-//        .tx_data             = xfer_data,
-//        .tx_length           = 2,
-//      },
-//      I2C_TRANSFER_POLLING), false);
-//
-//  return true;
-//}
-
-
-//static uint16_t mic255_get_vendorid(void)
-//{
-//  uint8_t vendor_low  = mic255_regs_read(0);
-//  uint8_t vendor_high = mic255_regs_read(1);
-//
-//  return (vendor_high << 8) | vendor_low;
 //}
 
 #endif

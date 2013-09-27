@@ -84,7 +84,7 @@ enum {
   HID_REQUEST_CONTROL_SET_PROTOCOL = 0x0b
 };
 
-typedef ATTR_PREPACKED struct ATTR_PACKED {
+typedef ATTR_PACKED_STRUCT(struct) {
   uint8_t  bLength;         /**< Numeric expression that is the total size of the HID descriptor */
   uint8_t  bDescriptorType; /**< Constant name specifying type of HID descriptor. */
 
