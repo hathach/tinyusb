@@ -54,20 +54,6 @@
 //--------------------------------------------------------------------+
 // HID Interface common functions
 //--------------------------------------------------------------------+
-tusb_interface_status_t hidh_interface_status(uint8_t dev_addr, hidh_interface_info_t *p_hid) ATTR_PURE ATTR_ALWAYS_INLINE;
-tusb_interface_status_t hidh_interface_status(uint8_t dev_addr, hidh_interface_info_t *p_hid)
-{
-  switch( tusbh_device_get_state(dev_addr) )
-  {
-    case TUSB_DEVICE_STATE_UNPLUG:
-    case TUSB_DEVICE_STATE_INVALID_PARAMETER:
-      return TUSB_INTERFACE_STATUS_INVALID_PARA;
-
-    default:
-      return p_hid->status;
-  }
-}
-
 static inline tusb_error_t hidh_interface_open(uint8_t dev_addr, uint8_t interface_number, tusb_descriptor_endpoint_t const *p_endpoint_desc, hidh_interface_info_t *p_hid) ATTR_ALWAYS_INLINE;
 static inline tusb_error_t hidh_interface_open(uint8_t dev_addr, uint8_t interface_number, tusb_descriptor_endpoint_t const *p_endpoint_desc, hidh_interface_info_t *p_hid)
 {
@@ -93,13 +79,11 @@ tusb_error_t hidh_interface_get_report(uint8_t dev_addr, void * report, hidh_int
 {
   //------------- parameters validation -------------//
   // TODO change to use is configured function
-  ASSERT_INT(TUSB_DEVICE_STATE_CONFIGURED, tusbh_device_get_state(dev_addr), TUSB_ERROR_DEVICE_NOT_READY);
-  ASSERT_PTR(report, TUSB_ERROR_INVALID_PARA);
-  ASSERT(TUSB_INTERFACE_STATUS_BUSY != p_hid->status, TUSB_ERROR_INTERFACE_IS_BUSY);
+  ASSERT_INT  (TUSB_DEVICE_STATE_CONFIGURED, tusbh_device_get_state(dev_addr), TUSB_ERROR_DEVICE_NOT_READY);
+  ASSERT_PTR  (report, TUSB_ERROR_INVALID_PARA);
+  ASSERT_FALSE(hcd_pipe_is_busy(p_hid->pipe_hdl), TUSB_ERROR_INTERFACE_IS_BUSY);
 
   ASSERT_STATUS( hcd_pipe_xfer(p_hid->pipe_hdl, report, p_hid->report_size, true) ) ;
-
-  p_hid->status = TUSB_INTERFACE_STATUS_BUSY;
 
   return TUSB_ERROR_NONE;
 }
@@ -132,9 +116,10 @@ tusb_error_t tusbh_hid_keyboard_get_report(uint8_t dev_addr, void* report)
   return hidh_interface_get_report(dev_addr, report, &keyboardh_data[dev_addr-1]);
 }
 
-tusb_interface_status_t tusbh_hid_keyboard_status(uint8_t dev_addr)
+bool tusbh_hid_keyboard_is_busy(uint8_t dev_addr)
 {
-  return hidh_interface_status(dev_addr, &keyboardh_data[dev_addr-1]);
+  return  tusbh_hid_keyboard_is_mounted(dev_addr) &&
+          hcd_pipe_is_busy( keyboardh_data[dev_addr-1].pipe_hdl );
 }
 
 #endif
@@ -152,14 +137,15 @@ bool tusbh_hid_mouse_is_mounted(uint8_t dev_addr)
   return tusbh_device_is_configured(dev_addr) && pipehandle_is_valid(mouseh_data[dev_addr-1].pipe_hdl);
 }
 
+bool tusbh_hid_mouse_is_busy(uint8_t dev_addr)
+{
+  return  tusbh_hid_mouse_is_mounted(dev_addr) &&
+          hcd_pipe_is_busy( mouseh_data[dev_addr-1].pipe_hdl );
+}
+
 tusb_error_t tusbh_hid_mouse_get_report(uint8_t dev_addr, void * report)
 {
   return hidh_interface_get_report(dev_addr, report, &mouseh_data[dev_addr-1]);
-}
-
-tusb_interface_status_t tusbh_hid_mouse_status(uint8_t dev_addr)
-{
-  return hidh_interface_status(dev_addr, &mouseh_data[dev_addr-1]);
 }
 
 #endif
@@ -214,17 +200,13 @@ tusb_error_t hidh_open_subtask(uint8_t dev_addr, tusb_descriptor_interface_t con
 
   OSAL_SUBTASK_BEGIN
 
-#if 1
-  //------------- SET IDLE request -------------//
-  // TODO this request can be stalled by device (indicate not supported),
-  // until we have clear stall handler, temporarily disable it.
-    OSAL_SUBTASK_INVOKED_AND_WAIT(
-      usbh_control_xfer_subtask( dev_addr, bm_request_type(TUSB_DIR_HOST_TO_DEV, TUSB_REQUEST_TYPE_CLASS, TUSB_REQUEST_RECIPIENT_INTERFACE),
-                                 HID_REQUEST_CONTROL_SET_IDLE, 0, p_interface_desc->bInterfaceNumber,
-                                 0, NULL ),
-      error
-    );
-#endif
+  //------------- SET IDLE (0) request -------------//
+  OSAL_SUBTASK_INVOKED_AND_WAIT(
+    usbh_control_xfer_subtask( dev_addr, bm_request_type(TUSB_DIR_HOST_TO_DEV, TUSB_REQUEST_TYPE_CLASS, TUSB_REQUEST_RECIPIENT_INTERFACE),
+                               HID_REQUEST_CONTROL_SET_IDLE, 0, p_interface_desc->bInterfaceNumber,
+                               0, NULL ),
+    error
+  );
 
 #if 0
   //------------- Get Report Descriptor TODO HID parser -------------//
@@ -276,7 +258,6 @@ void hidh_isr(pipe_handle_t pipe_hdl, tusb_event_t event, uint32_t xferred_bytes
 #if TUSB_CFG_HOST_HID_KEYBOARD
   if ( pipehandle_is_equal(pipe_hdl, keyboardh_data[pipe_hdl.dev_addr-1].pipe_hdl) )
   {
-    keyboardh_data[pipe_hdl.dev_addr-1].status = (event == TUSB_EVENT_XFER_COMPLETE) ? TUSB_INTERFACE_STATUS_COMPLETE : TUSB_INTERFACE_STATUS_ERROR;
     tusbh_hid_keyboard_isr(pipe_hdl.dev_addr, event);
     return;
   }
@@ -285,7 +266,6 @@ void hidh_isr(pipe_handle_t pipe_hdl, tusb_event_t event, uint32_t xferred_bytes
 #if TUSB_CFG_HOST_HID_MOUSE
   if ( pipehandle_is_equal(pipe_hdl, mouseh_data[pipe_hdl.dev_addr-1].pipe_hdl) )
   {
-    mouseh_data[pipe_hdl.dev_addr-1].status = (event == TUSB_EVENT_XFER_COMPLETE) ? TUSB_INTERFACE_STATUS_COMPLETE : TUSB_INTERFACE_STATUS_ERROR;
     tusbh_hid_mouse_isr(pipe_hdl.dev_addr, event);
     return;
   }

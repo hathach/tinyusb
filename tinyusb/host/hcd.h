@@ -100,7 +100,8 @@ tusb_error_t  hcd_pipe_xfer(pipe_handle_t pipe_hdl, uint8_t buffer[], uint16_t t
 tusb_error_t  hcd_pipe_close(pipe_handle_t pipe_hdl) /*ATTR_WARN_UNUSED_RESULT*/;
 
 bool hcd_pipe_is_busy(pipe_handle_t pipe_hdl);
-bool hcd_pipe_is_stalled(pipe_handle_t pipe_hdl);
+bool hcd_pipe_is_error(pipe_handle_t pipe_hdl);
+bool hcd_pipe_is_stalled(pipe_handle_t pipe_hdl); // stalled also counted as error
 bool hcd_pipe_is_idle(pipe_handle_t pipe_hdl);
 uint8_t hcd_pipe_get_endpoint_addr(pipe_handle_t pipe_hdl);
 tusb_error_t hcd_pipe_clear_stall(pipe_handle_t pipe_hdl);
