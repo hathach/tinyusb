@@ -380,7 +380,7 @@ tusb_error_t msch_open_subtask(uint8_t dev_addr, tusb_descriptor_interface_t con
     );
 
     hcd_pipe_clear_stall(msch_data[dev_addr-1].bulk_in);
-    osal_semaphore_wait(msch_sem_hdl, SCSI_XFER_TIMEOUT, &error);
+    osal_semaphore_wait(msch_sem_hdl, SCSI_XFER_TIMEOUT, &error); // wait for SCSI status
     SUBTASK_ASSERT_STATUS(error);
 
     //------------- SCSI Request Sense -------------//
@@ -396,8 +396,6 @@ tusb_error_t msch_open_subtask(uint8_t dev_addr, tusb_descriptor_interface_t con
 
   msch_data[dev_addr-1].last_lba   = __be2le( ((scsi_read_capacity10_data_t*)msch_buffer)->last_lba );
   msch_data[dev_addr-1].block_size = (uint16_t) __be2le( ((scsi_read_capacity10_data_t*)msch_buffer)->block_size );
-
-  osal_semaphore_wait(msch_sem_hdl, SCSI_XFER_TIMEOUT, &error);
 
   msch_data[dev_addr-1].is_initialized = true;
   tusbh_msc_mounted_cb(dev_addr);

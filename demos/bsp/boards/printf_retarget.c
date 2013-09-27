@@ -83,8 +83,6 @@ int __sys_write (int iFileHandle, char *pcBuffer, int iLength)
 
 #elif CFG_PRINTF_TARGET == PRINTF_TARGET_SWO
   #error author does not know how to retarget SWO with lpcxpresso/red-suite
-#else
-	#error Thach, did you forget something
 #endif
 
 }
