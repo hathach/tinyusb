@@ -109,6 +109,9 @@ tusb_error_t tusbh_msc_get_capacity(uint8_t dev_addr, uint32_t* p_last_lba, uint
   return TUSB_ERROR_NONE;
 }
 
+//--------------------------------------------------------------------+
+// PUBLIC API: SCSI COMMAND
+//--------------------------------------------------------------------+
 static inline void msc_cbw_add_signature(msc_cmd_block_wrapper_t *p_cbw, uint8_t lun) ATTR_ALWAYS_INLINE;
 static inline void msc_cbw_add_signature(msc_cmd_block_wrapper_t *p_cbw, uint8_t lun)
 {
@@ -138,9 +141,6 @@ static tusb_error_t msch_command_xfer(msch_interface_t * p_msch, void* p_buffer)
   return TUSB_ERROR_NONE;
 }
 
-//--------------------------------------------------------------------+
-// PUBLIC API: SCSI COMMAND
-//--------------------------------------------------------------------+
 tusb_error_t tusbh_msc_inquiry(uint8_t dev_addr, uint8_t lun, uint8_t *p_data)
 {
   msch_interface_t* p_msch = &msch_data[dev_addr-1];
@@ -317,14 +317,14 @@ tusb_error_t msch_open_subtask(uint8_t dev_addr, tusb_descriptor_interface_t con
   tusb_descriptor_endpoint_t const *p_endpoint = (tusb_descriptor_endpoint_t const *) descriptor_next( (uint8_t const*) p_interface_desc );
   for(uint32_t i=0; i<2; i++)
   {
-    ASSERT_INT(TUSB_DESC_TYPE_ENDPOINT, p_endpoint->bDescriptorType, TUSB_ERROR_USBH_DESCRIPTOR_CORRUPTED);
-    ASSERT_INT(TUSB_XFER_BULK, p_endpoint->bmAttributes.xfer, TUSB_ERROR_USBH_DESCRIPTOR_CORRUPTED);
+    SUBTASK_ASSERT(TUSB_DESC_TYPE_ENDPOINT == p_endpoint->bDescriptorType);
+    SUBTASK_ASSERT(TUSB_XFER_BULK == p_endpoint->bmAttributes.xfer);
 
     pipe_handle_t * p_pipe_hdl =  ( p_endpoint->bEndpointAddress &  TUSB_DIR_DEV_TO_HOST_MASK ) ?
         &msch_data[dev_addr-1].bulk_in : &msch_data[dev_addr-1].bulk_out;
 
     (*p_pipe_hdl) = hcd_pipe_open(dev_addr, p_endpoint, TUSB_CLASS_MSC);
-    ASSERT ( pipehandle_is_valid(*p_pipe_hdl), TUSB_ERROR_HCD_OPEN_PIPE_FAILED );
+    SUBTASK_ASSERT( pipehandle_is_valid(*p_pipe_hdl) );
 
     p_endpoint = (tusb_descriptor_endpoint_t const *) descriptor_next( (uint8_t const*)  p_endpoint );
   }

@@ -67,8 +67,8 @@
 #include "oem_base_board/pca9532.h" // LEDs
 
 
-//#define CFG_PRINTF_TARGET       PRINTF_TARGET_SWO
-#define CFG_PRINTF_TARGET       PRINTF_TARGET_UART // FIXME keil's cmsis rtx does not work with UART (work with SWO)
+#define CFG_PRINTF_TARGET       PRINTF_TARGET_SWO
+//#define CFG_PRINTF_TARGET       PRINTF_TARGET_UART // FIXME keil's cmsis rtx does not work with UART (work with SWO)
 
 /*=========================================================================
     HARDWARE MAC ADDRESS

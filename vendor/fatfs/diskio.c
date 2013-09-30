@@ -47,7 +47,8 @@
 //--------------------------------------------------------------------+
 // MACRO CONSTANT TYPEDEF
 //--------------------------------------------------------------------+
- volatile DSTATUS disk_state = STA_NOINIT;
+// TODO change it to portable init
+volatile DSTATUS disk_state[TUSB_CFG_HOST_DEVICE_MAX] = { [0 ... TUSB_CFG_HOST_DEVICE_MAX-1] = STA_NOINIT };
 
 //--------------------------------------------------------------------+
 // INTERNAL OBJECT & FUNCTION DECLARATION
@@ -73,12 +74,12 @@ static DRESULT wait_for_io_complete(uint8_t usb_addr)
 //pdrv Specifies the physical drive number.
 DSTATUS disk_initialize ( BYTE pdrv )
 {
-  return disk_state;
+  return disk_state[pdrv];
 }
 
 DSTATUS disk_status (BYTE pdrv)
 {
-  return disk_state;
+  return disk_state[pdrv];
 }
 
 //pdrv

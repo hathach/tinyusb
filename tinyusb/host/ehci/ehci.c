@@ -564,7 +564,7 @@ static void port_connect_status_change_isr(uint8_t hostid)
   // NOTE There is an sequence plug->unplug->…..-> plug if device is powering with pre-plugged device
   if (regs->portsc_bit.current_connect_status)
   {
-    usbh_device_plugged_isr(hostid);
+    usbh_device_plugged_isr(hostid, 0, 0);
   }else // device unplugged
   {
     usbh_device_unplugged_isr(hostid);

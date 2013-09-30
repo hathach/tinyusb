@@ -85,11 +85,12 @@ void tusbh_msc_mounted_cb(uint8_t dev_addr)
 
   //------------- file system (only 1 LUN support) -------------//
   //  DSTATUS stat = disk_initialize(0);
-  disk_state = 0;
+  uint8_t phy_disk = dev_addr-1;
+  disk_state[phy_disk] = 0;
 
-  if ( disk_is_ready(0) )
+  if ( disk_is_ready(phy_disk) )
   {
-    if ( f_mount(0, &fatfs[dev_addr-1]) != FR_OK ) // TODO multiple volume
+    if ( f_mount(phy_disk, &fatfs[phy_disk]) != FR_OK ) // TODO multiple volume
     {
       puts("mount failed");
       return;
@@ -102,7 +103,7 @@ void tusbh_msc_mounted_cb(uint8_t dev_addr)
     puts("- THE AUTHOR HAS NO RESPONSIBILITY WITH YOUR DEVICE NOR ITS DATA  -");
     puts("---------------------------------------------------------------------");
 
-    f_chdrive(dev_addr-1); // change to newly mounted drive
+    f_chdrive(phy_disk); // change to newly mounted drive
     f_chdir("/"); // root as current dir
 
     cli_init();
@@ -112,7 +113,7 @@ void tusbh_msc_mounted_cb(uint8_t dev_addr)
 void tusbh_msc_unmounted_isr(uint8_t dev_addr)
 {
   // unmount disk
-  disk_state = STA_NOINIT;
+  disk_state[dev_addr-1] = STA_NOINIT;
   puts("--");
 }
 
@@ -136,7 +137,17 @@ OSAL_TASK_FUNCTION( msc_app_task ) (void* p_task_para)
 
   osal_task_delay(10);
 
-  if ( disk_is_ready(0) )
+  bool is_any_disk_mounted = false;
+  for(uint8_t phy_disk=0; phy_disk < TUSB_CFG_HOST_DEVICE_MAX; phy_disk++)
+  {
+    if ( disk_is_ready(phy_disk) )
+    {
+      is_any_disk_mounted = true;
+      break;
+    }
+  }
+
+  if ( is_any_disk_mounted )
   {
     int ch = getchar();
     if ( ch > 0 )

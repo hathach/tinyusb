@@ -15,13 +15,13 @@ designed to be simple and run out-of-the-box provided the configuration is corre
 - HID Mouse
 - HID Keyboard
 - Communication Class (CDC)
-- Mass-Storage (MSC) coming soon...
+- Mass-Storage (MSC)
 - Hub coming soon...
 - Multiple host controllers
 
 ### Device ###
 
-coming soon ...
+coming not so soon ...
 
 ### RTOS ###
 

@@ -46,6 +46,7 @@
 // INCLUDE
 //--------------------------------------------------------------------+
 #include "tusb.h"
+#include "hub.h"
 #include "usbh_hcd.h"
 
 //--------------------------------------------------------------------+
@@ -80,7 +81,7 @@ static host_class_driver_t const usbh_class_drivers[TUSB_CLASS_MAPPED_INDEX_END]
         .open_subtask = msch_open_subtask,
         .isr          = msch_isr,
         .close        = msch_close
-    }
+    },
 #endif
 
 #if TUSB_CFG_HOST_HUB
@@ -89,7 +90,7 @@ static host_class_driver_t const usbh_class_drivers[TUSB_CLASS_MAPPED_INDEX_END]
         .open_subtask = hub_open_subtask,
         .isr          = hub_isr,
         .close        = hub_close
-    }
+    },
 #endif
 
 #if TUSB_CFG_HOST_CUSTOM_CLASS
@@ -112,7 +113,7 @@ OSAL_TASK_DEF(usbh_enumeration_task, 150, TUSB_CFG_OS_TASK_PRIO);
 OSAL_QUEUE_DEF(enum_queue_def, ENUM_QUEUE_DEPTH, uint32_t);
 
 static osal_queue_handle_t enum_queue_hdl;
-STATIC_VAR uint8_t enum_data_buffer[TUSB_CFG_HOST_ENUM_BUFFER_SIZE] TUSB_CFG_ATTR_USBRAM;
+ATTR_ALIGNED(4) STATIC_VAR uint8_t enum_data_buffer[TUSB_CFG_HOST_ENUM_BUFFER_SIZE] TUSB_CFG_ATTR_USBRAM;
 
 //------------- Reporter Task Data -------------//
 
@@ -272,11 +273,12 @@ void usbh_xfer_isr(pipe_handle_t pipe_hdl, uint8_t class_code, tusb_event_t even
   }
 }
 
-void usbh_device_plugged_isr(uint8_t hostid)
+void usbh_device_plugged_isr(uint8_t hostid, uint8_t hub_addr, uint8_t hub_port)
 {
   osal_queue_send(enum_queue_hdl,
-                  &(usbh_enumerate_t){ .core_id = hostid} );
+                  &(usbh_enumerate_t){ .core_id = hostid, .hub_addr = hub_addr, .hub_port = hub_port} );
 }
+
 
 void usbh_device_unplugged_isr(uint8_t hostid)
 {
@@ -346,17 +348,100 @@ tusb_error_t enumeration_body_subtask(void)
 
   osal_queue_receive(enum_queue_hdl, &enum_entry, OSAL_TIMEOUT_WAIT_FOREVER, &error);
 
-  SUBTASK_ASSERT( hcd_port_connect_status(enum_entry.core_id) ); // ensure device is still plugged
-
   usbh_devices[0].core_id  = enum_entry.core_id; // TODO refractor integrate to device_pool
   usbh_devices[0].hub_addr = enum_entry.hub_addr;
   usbh_devices[0].hub_port = enum_entry.hub_port;
 
-  osal_task_delay(200); // wait for device is stable
+  if ( usbh_devices[0].hub_addr != 0) // connected/disconnected via hub
+  {
+    hub_port_status_response_t * p_port_status;
 
-  hcd_port_reset( usbh_devices[0].core_id ); // port must be reset to have correct speed operation
-//  osal_task_delay(50); // TODO reset is recommended to last 50 ms (NXP EHCI passes this)
-  usbh_devices[0].speed    = hcd_port_speed_get( usbh_devices[0].core_id );
+    //------------- Get Port Status -------------//
+    OSAL_SUBTASK_INVOKED_AND_WAIT(
+        usbh_control_xfer_subtask( usbh_devices[0].hub_addr, bm_request_type(TUSB_DIR_DEV_TO_HOST, TUSB_REQUEST_TYPE_CLASS, TUSB_REQUEST_RECIPIENT_OTHER),
+                                   HUB_REQUEST_GET_STATUS, 0, usbh_devices[0].hub_port,
+                                   4, enum_data_buffer ),
+        error
+    );
+    SUBTASK_ASSERT_STATUS( error );
+
+    p_port_status = (hub_port_status_response_t *) enum_data_buffer;
+    if ( !p_port_status->status_change.connect_status )   SUBTASK_EXIT(TUSB_ERROR_NONE); // only handle connection change
+
+    if ( !p_port_status->status_current.connect_status )
+    { // TODO HUB Disconnection
+
+      SUBTASK_EXIT(TUSB_ERROR_NONE);
+    }
+
+    // Hub connection
+    //------------- Clear Hub Port Connect Status Change -------------//
+    OSAL_SUBTASK_INVOKED_AND_WAIT(
+        usbh_control_xfer_subtask( usbh_devices[0].hub_addr, bm_request_type(TUSB_DIR_HOST_TO_DEV, TUSB_REQUEST_TYPE_CLASS, TUSB_REQUEST_RECIPIENT_OTHER),
+                                   HUB_REQUEST_CLEAR_FEATURE, HUB_FEATURE_PORT_CONNECTION_CHANGE, usbh_devices[0].hub_port,
+                                   0, NULL ),
+        error
+    );
+    SUBTASK_ASSERT_STATUS( error );
+
+    //------------- Get Port Status again to make sure Connect Change is cleared -------------//
+    OSAL_SUBTASK_INVOKED_AND_WAIT(
+        usbh_control_xfer_subtask( usbh_devices[0].hub_addr, bm_request_type(TUSB_DIR_DEV_TO_HOST, TUSB_REQUEST_TYPE_CLASS, TUSB_REQUEST_RECIPIENT_OTHER),
+                                   HUB_REQUEST_GET_STATUS, 0, usbh_devices[0].hub_port,
+                                   4, enum_data_buffer ),
+        error
+    );
+    SUBTASK_ASSERT_STATUS( error );
+
+    p_port_status = (hub_port_status_response_t *) enum_data_buffer;
+    SUBTASK_ASSERT( !p_port_status->status_change.connect_status); // this has to be cleared
+
+    //--------------------------------------------------------------------+
+    // PORT RESET & WAIT FOR STATUS ENDPOINT & GET STATUS & CLEAR RESET CHANGE
+    //--------------------------------------------------------------------+
+    //------------- Set Port Reset -------------//
+    OSAL_SUBTASK_INVOKED_AND_WAIT(
+        usbh_control_xfer_subtask( usbh_devices[0].hub_addr, bm_request_type(TUSB_DIR_HOST_TO_DEV, TUSB_REQUEST_TYPE_CLASS, TUSB_REQUEST_RECIPIENT_OTHER),
+                                   HUB_REQUEST_SET_FEATURE, HUB_FEATURE_PORT_RESET, usbh_devices[0].hub_port,
+                                   0, NULL ),
+        error
+    );
+    SUBTASK_ASSERT_STATUS( error );
+
+    osal_task_delay(200); // TODO Hub wait for Status Endpoint on Reset Change
+
+    //------------- Get Port Status to check if port is enabled, powered and reset_change -------------//
+    OSAL_SUBTASK_INVOKED_AND_WAIT(
+        usbh_control_xfer_subtask( usbh_devices[0].hub_addr, bm_request_type(TUSB_DIR_DEV_TO_HOST, TUSB_REQUEST_TYPE_CLASS, TUSB_REQUEST_RECIPIENT_OTHER),
+                                   HUB_REQUEST_GET_STATUS, 0, usbh_devices[0].hub_port,
+                                   4, enum_data_buffer ),
+        error
+    );
+    SUBTASK_ASSERT_STATUS( error );
+
+    p_port_status = (hub_port_status_response_t *) enum_data_buffer;
+    SUBTASK_ASSERT ( p_port_status->status_change.reset && p_port_status->status_current.connect_status &&
+                     p_port_status->status_current.port_power && p_port_status->status_current.port_enable);
+
+    usbh_devices[0].speed = (p_port_status->status_current.high_speed_device_attached) ? TUSB_SPEED_HIGH :
+                            (p_port_status->status_current.low_speed_device_attached ) ? TUSB_SPEED_LOW  : TUSB_SPEED_FULL;
+
+    OSAL_SUBTASK_INVOKED_AND_WAIT(
+        usbh_control_xfer_subtask( usbh_devices[0].hub_addr, bm_request_type(TUSB_DIR_HOST_TO_DEV, TUSB_REQUEST_TYPE_CLASS, TUSB_REQUEST_RECIPIENT_OTHER),
+                                   HUB_REQUEST_CLEAR_FEATURE, HUB_FEATURE_PORT_RESET_CHANGE, usbh_devices[0].hub_port,
+                                   0, NULL ),
+        error
+    );
+    SUBTASK_ASSERT_STATUS( error );
+  }
+  else
+  {
+    SUBTASK_ASSERT( hcd_port_connect_status(usbh_devices[0].core_id) ); // ensure device is still plugged
+    osal_task_delay(200); // wait for device is stable
+    hcd_port_reset( usbh_devices[0].core_id ); // port must be reset to have correct speed operation
+    //  osal_task_delay(50); // TODO reset is recommended to last 50 ms (NXP EHCI passes this)
+    usbh_devices[0].speed    = hcd_port_speed_get( usbh_devices[0].core_id );
+  }
 
   SUBTASK_ASSERT_STATUS( usbh_pipe_control_open(0, 8) );
   usbh_devices[0].state = TUSB_DEVICE_STATE_ADDRESSED;
@@ -370,8 +455,49 @@ tusb_error_t enumeration_body_subtask(void)
   );
   SUBTASK_ASSERT_STATUS(error); // TODO some slow device is observed to fail the very fist controller xfer, can try more times
 
-  hcd_port_reset( usbh_devices[0].core_id ); // reset port after 8 byte descriptor
+  if (usbh_devices[0].hub_addr == 0)
+  { // mount direct to root hub
+    hcd_port_reset( usbh_devices[0].core_id ); // reset port after 8 byte descriptor
 //  osal_task_delay(50); // TODO reset is recommended to last 50 ms (NXP EHCI passes this)
+  }else
+  {
+    hub_port_status_response_t * p_port_status;
+
+    //--------------------------------------------------------------------+
+    // PORT RESET & WAIT FOR STATUS ENDPOINT & GET STATUS & CLEAR RESET CHANGE
+    //--------------------------------------------------------------------+
+    //------------- Set Port Reset -------------//
+    OSAL_SUBTASK_INVOKED_AND_WAIT(
+        usbh_control_xfer_subtask( usbh_devices[0].hub_addr, bm_request_type(TUSB_DIR_HOST_TO_DEV, TUSB_REQUEST_TYPE_CLASS, TUSB_REQUEST_RECIPIENT_OTHER),
+                                   HUB_REQUEST_SET_FEATURE, HUB_FEATURE_PORT_RESET, usbh_devices[0].hub_port,
+                                   0, NULL ),
+        error
+    );
+    SUBTASK_ASSERT_STATUS( error );
+
+    osal_task_delay(200); // TODO Hub wait for Status Endpoint on Reset Change
+
+    //------------- Get Port Status to check if port is enabled, powered and reset_change -------------//
+    OSAL_SUBTASK_INVOKED_AND_WAIT(
+        usbh_control_xfer_subtask( usbh_devices[0].hub_addr, bm_request_type(TUSB_DIR_DEV_TO_HOST, TUSB_REQUEST_TYPE_CLASS, TUSB_REQUEST_RECIPIENT_OTHER),
+                                   HUB_REQUEST_GET_STATUS, 0, usbh_devices[0].hub_port,
+                                   4, enum_data_buffer ),
+        error
+    );
+    SUBTASK_ASSERT_STATUS( error );
+
+    p_port_status = (hub_port_status_response_t *) enum_data_buffer;
+    SUBTASK_ASSERT ( p_port_status->status_change.reset && p_port_status->status_current.connect_status &&
+                     p_port_status->status_current.port_power && p_port_status->status_current.port_enable);
+
+    OSAL_SUBTASK_INVOKED_AND_WAIT(
+        usbh_control_xfer_subtask( usbh_devices[0].hub_addr, bm_request_type(TUSB_DIR_HOST_TO_DEV, TUSB_REQUEST_TYPE_CLASS, TUSB_REQUEST_RECIPIENT_OTHER),
+                                   HUB_REQUEST_CLEAR_FEATURE, HUB_FEATURE_PORT_RESET_CHANGE, usbh_devices[0].hub_port,
+                                   0, NULL ),
+        error
+    );
+    SUBTASK_ASSERT_STATUS( error );
+  }
 
   //------------- Set new address -------------//
   new_addr = get_new_address();

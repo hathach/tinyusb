@@ -46,17 +46,104 @@
 // INCLUDE
 //--------------------------------------------------------------------+
 #include "hub.h"
+#include "usbh_hcd.h"
 
 //--------------------------------------------------------------------+
 // MACRO CONSTANT TYPEDEF
 //--------------------------------------------------------------------+
+typedef struct {
+  pipe_handle_t pipe_status;
+  uint8_t interface_number;
+  uint8_t port_number;
+  uint8_t status_change; // data from status change interrupt endpoint
+}usbh_hub_t;
+
+usbh_hub_t hub_data[TUSB_CFG_HOST_DEVICE_MAX] TUSB_CFG_ATTR_USBRAM;
+descriptor_hub_desc_t hub_descriptor TUSB_CFG_ATTR_USBRAM;
 
 //--------------------------------------------------------------------+
 // INTERNAL OBJECT & FUNCTION DECLARATION
 //--------------------------------------------------------------------+
 
 //--------------------------------------------------------------------+
-// IMPLEMENTATION
+// CLASS-USBH API (don't require to verify parameters)
 //--------------------------------------------------------------------+
+void hub_init(void)
+{
+  memclr_(hub_data, TUSB_CFG_HOST_DEVICE_MAX*sizeof(usbh_hub_t));
+}
+
+tusb_error_t hub_open_subtask(uint8_t dev_addr, tusb_descriptor_interface_t const *p_interface_desc, uint16_t *p_length)
+{
+  tusb_error_t error;
+
+  OSAL_SUBTASK_BEGIN
+
+  // not support multiple TT yet
+  if ( p_interface_desc->bInterfaceProtocol > 1 ) return TUSB_ERROR_HUB_FEATURE_NOT_SUPPORTED;
+
+  //------------- Open Interrupt Status Pipe -------------//
+  tusb_descriptor_endpoint_t const *p_endpoint = (tusb_descriptor_endpoint_t const *) descriptor_next( (uint8_t const*) p_interface_desc );
+  SUBTASK_ASSERT(TUSB_DESC_TYPE_ENDPOINT == p_endpoint->bDescriptorType);
+  SUBTASK_ASSERT(TUSB_XFER_INTERRUPT == p_endpoint->bmAttributes.xfer);
+
+  hub_data[dev_addr-1].pipe_status = hcd_pipe_open(dev_addr, p_endpoint, TUSB_CLASS_HUB);
+  SUBTASK_ASSERT( pipehandle_is_valid(hub_data[dev_addr-1].pipe_status) );
+  hub_data[dev_addr-1].interface_number = p_interface_desc->bInterfaceNumber;
+
+  (*p_length) = sizeof(tusb_descriptor_interface_t) + sizeof(tusb_descriptor_endpoint_t);
+
+  //------------- Get Hub Descriptor -------------//
+  OSAL_SUBTASK_INVOKED_AND_WAIT(
+    usbh_control_xfer_subtask( dev_addr, bm_request_type(TUSB_DIR_DEV_TO_HOST, TUSB_REQUEST_TYPE_CLASS, TUSB_REQUEST_RECIPIENT_DEVICE),
+                               HUB_REQUEST_GET_DESCRIPTOR, 0, 0,
+                               9, &hub_descriptor ),
+    error
+  );
+  SUBTASK_ASSERT_STATUS(error);
+
+  hub_data[dev_addr-1].port_number = hub_descriptor.bNbrPorts; // only care about this field in hub descriptor
+
+  //------------- Set Port_Power on all ports -------------//
+  static uint8_t i;
+  for(i=1; i <= hub_data[dev_addr-1].port_number; i++)
+  {
+    OSAL_SUBTASK_INVOKED_AND_WAIT(
+      usbh_control_xfer_subtask( dev_addr, bm_request_type(TUSB_DIR_HOST_TO_DEV, TUSB_REQUEST_TYPE_CLASS, TUSB_REQUEST_RECIPIENT_OTHER),
+                                 HUB_REQUEST_SET_FEATURE, HUB_FEATURE_PORT_POWER, i,
+                                 0, NULL ),
+      error
+    );
+  }
+
+  //------------- Queue the initial Status endpoint transfer -------------//
+  SUBTASK_ASSERT_STATUS ( hcd_pipe_xfer(hub_data[dev_addr-1].pipe_status, &hub_data[dev_addr-1].status_change, 1, true) );
+
+  OSAL_SUBTASK_END
+}
+
+void hub_isr(pipe_handle_t pipe_hdl, tusb_event_t event, uint32_t xferred_bytes)
+{
+  usbh_hub_t * p_hub = &hub_data[pipe_hdl.dev_addr-1];
+
+  for (uint8_t port=1; port <= p_hub->port_number; port++)
+  { // TODO HUB ignore bit0 hub_status_change
+    if ( BIT_TEST_(p_hub->status_change, port) )
+    {
+      // TODO HUB connection/disconnection will be determined in enum task --> connect change
+      usbh_device_plugged_isr(usbh_devices[pipe_hdl.dev_addr].core_id, pipe_hdl.dev_addr, port);
+    }
+  }
+
+  // TODO queue next transfer
+}
+
+void hub_close(uint8_t dev_addr)
+{
+  (void) hcd_pipe_close(hub_data[dev_addr-1].pipe_status);
+  memclr_(&hub_data[dev_addr-1], sizeof(usbh_hub_t));
+}
+
+
 
 #endif

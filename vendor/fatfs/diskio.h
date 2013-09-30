@@ -18,7 +18,7 @@ extern "C" {
 /* Status of Disk Functions */
 typedef BYTE	DSTATUS;
 
-extern volatile DSTATUS disk_state;
+extern volatile DSTATUS disk_state[TUSB_CFG_HOST_DEVICE_MAX];
 
 /* Results of Disk Functions */
 typedef enum {

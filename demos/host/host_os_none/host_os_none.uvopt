@@ -135,7 +135,7 @@
         <SetRegEntry>
           <Number>0</Number>
           <Key>DLGUARM</Key>
-          <Name>(106=-1,-1,-1,-1,0)(107=-1,-1,-1,-1,0)</Name>
+          <Name></Name>
         </SetRegEntry>
         <SetRegEntry>
           <Number>0</Number>
@@ -168,27 +168,27 @@
         <Ww>
           <count>1</count>
           <WinNumber>1</WinNumber>
-          <ItemText>msch_data</ItemText>
+          <ItemText>ehci_data</ItemText>
         </Ww>
         <Ww>
           <count>2</count>
           <WinNumber>1</WinNumber>
-          <ItemText>mouse_data</ItemText>
+          <ItemText>ehci_data.device[1]</ItemText>
         </Ww>
         <Ww>
           <count>3</count>
           <WinNumber>1</WinNumber>
-          <ItemText>keyboard_data</ItemText>
+          <ItemText>ehci_data.device[0]</ItemText>
         </Ww>
         <Ww>
           <count>4</count>
           <WinNumber>1</WinNumber>
-          <ItemText>ehci_data</ItemText>
+          <ItemText>hub_data</ItemText>
         </Ww>
         <Ww>
           <count>5</count>
           <WinNumber>1</WinNumber>
-          <ItemText>msch_semaphore</ItemText>
+          <ItemText>disk_state</ItemText>
         </Ww>
       </WatchWindow1>
       <MemoryWindow1>
@@ -424,10 +424,10 @@
       <FileType>1</FileType>
       <tvExp>0</tvExp>
       <Focus>0</Focus>
-      <ColumnNumber>0</ColumnNumber>
+      <ColumnNumber>25</ColumnNumber>
       <tvExpOptDlg>0</tvExpOptDlg>
-      <TopLine>147</TopLine>
-      <CurrentLine>159</CurrentLine>
+      <TopLine>151</TopLine>
+      <CurrentLine>160</CurrentLine>
       <bDave2>0</bDave2>
       <PathWithFileName>..\src\main.c</PathWithFileName>
       <FilenameWithoutPath>main.c</FilenameWithoutPath>
@@ -442,8 +442,8 @@
       <Focus>0</Focus>
       <ColumnNumber>0</ColumnNumber>
       <tvExpOptDlg>0</tvExpOptDlg>
-      <TopLine>59</TopLine>
-      <CurrentLine>75</CurrentLine>
+      <TopLine>126</TopLine>
+      <CurrentLine>149</CurrentLine>
       <bDave2>0</bDave2>
       <PathWithFileName>..\src\cdc_serial_app.c</PathWithFileName>
       <FilenameWithoutPath>cdc_serial_app.c</FilenameWithoutPath>
@@ -458,7 +458,7 @@
       <Focus>0</Focus>
       <ColumnNumber>0</ColumnNumber>
       <tvExpOptDlg>0</tvExpOptDlg>
-      <TopLine>112</TopLine>
+      <TopLine>127</TopLine>
       <CurrentLine>135</CurrentLine>
       <bDave2>0</bDave2>
       <PathWithFileName>..\src\keyboard_app.c</PathWithFileName>
@@ -474,8 +474,8 @@
       <Focus>0</Focus>
       <ColumnNumber>44</ColumnNumber>
       <tvExpOptDlg>0</tvExpOptDlg>
-      <TopLine>118</TopLine>
-      <CurrentLine>127</CurrentLine>
+      <TopLine>0</TopLine>
+      <CurrentLine>0</CurrentLine>
       <bDave2>0</bDave2>
       <PathWithFileName>..\src\mouse_app.c</PathWithFileName>
       <FilenameWithoutPath>mouse_app.c</FilenameWithoutPath>
@@ -490,8 +490,8 @@
       <Focus>0</Focus>
       <ColumnNumber>1</ColumnNumber>
       <tvExpOptDlg>0</tvExpOptDlg>
-      <TopLine>47</TopLine>
-      <CurrentLine>65</CurrentLine>
+      <TopLine>53</TopLine>
+      <CurrentLine>86</CurrentLine>
       <bDave2>0</bDave2>
       <PathWithFileName>..\src\rndis_app.c</PathWithFileName>
       <FilenameWithoutPath>rndis_app.c</FilenameWithoutPath>
@@ -520,10 +520,10 @@
       <FileType>1</FileType>
       <tvExp>0</tvExp>
       <Focus>0</Focus>
-      <ColumnNumber>18</ColumnNumber>
+      <ColumnNumber>33</ColumnNumber>
       <tvExpOptDlg>0</tvExpOptDlg>
-      <TopLine>8</TopLine>
-      <CurrentLine>11</CurrentLine>
+      <TopLine>73</TopLine>
+      <CurrentLine>77</CurrentLine>
       <bDave2>0</bDave2>
       <PathWithFileName>..\src\cli.c</PathWithFileName>
       <FilenameWithoutPath>cli.c</FilenameWithoutPath>
@@ -562,8 +562,8 @@
       <Focus>0</Focus>
       <ColumnNumber>78</ColumnNumber>
       <tvExpOptDlg>0</tvExpOptDlg>
-      <TopLine>27</TopLine>
-      <CurrentLine>31</CurrentLine>
+      <TopLine>0</TopLine>
+      <CurrentLine>0</CurrentLine>
       <bDave2>0</bDave2>
       <PathWithFileName>..\..\bsp\boards\embedded_artists\board_ea4357.c</PathWithFileName>
       <FilenameWithoutPath>board_ea4357.c</FilenameWithoutPath>
@@ -578,7 +578,7 @@
       <Focus>0</Focus>
       <ColumnNumber>44</ColumnNumber>
       <tvExpOptDlg>0</tvExpOptDlg>
-      <TopLine>64</TopLine>
+      <TopLine>82</TopLine>
       <CurrentLine>106</CurrentLine>
       <bDave2>0</bDave2>
       <PathWithFileName>..\..\bsp\boards\printf_retarget.c</PathWithFileName>
@@ -714,8 +714,8 @@
       <Focus>0</Focus>
       <ColumnNumber>64</ColumnNumber>
       <tvExpOptDlg>0</tvExpOptDlg>
-      <TopLine>23</TopLine>
-      <CurrentLine>33</CurrentLine>
+      <TopLine>0</TopLine>
+      <CurrentLine>0</CurrentLine>
       <bDave2>0</bDave2>
       <PathWithFileName>..\..\..\tinyusb\tusb.c</PathWithFileName>
       <FilenameWithoutPath>tusb.c</FilenameWithoutPath>
@@ -760,10 +760,10 @@
       <FileType>1</FileType>
       <tvExp>0</tvExp>
       <Focus>0</Focus>
-      <ColumnNumber>0</ColumnNumber>
+      <ColumnNumber>1</ColumnNumber>
       <tvExpOptDlg>0</tvExpOptDlg>
-      <TopLine>0</TopLine>
-      <CurrentLine>0</CurrentLine>
+      <TopLine>114</TopLine>
+      <CurrentLine>123</CurrentLine>
       <bDave2>0</bDave2>
       <PathWithFileName>..\..\..\tinyusb\host\hub.c</PathWithFileName>
       <FilenameWithoutPath>hub.c</FilenameWithoutPath>
@@ -776,10 +776,10 @@
       <FileType>1</FileType>
       <tvExp>0</tvExp>
       <Focus>0</Focus>
-      <ColumnNumber>61</ColumnNumber>
+      <ColumnNumber>0</ColumnNumber>
       <tvExpOptDlg>0</tvExpOptDlg>
-      <TopLine>430</TopLine>
-      <CurrentLine>518</CurrentLine>
+      <TopLine>337</TopLine>
+      <CurrentLine>338</CurrentLine>
       <bDave2>0</bDave2>
       <PathWithFileName>..\..\..\tinyusb\host\usbh.c</PathWithFileName>
       <FilenameWithoutPath>usbh.c</FilenameWithoutPath>
@@ -794,8 +794,8 @@
       <Focus>0</Focus>
       <ColumnNumber>0</ColumnNumber>
       <tvExpOptDlg>0</tvExpOptDlg>
-      <TopLine>2</TopLine>
-      <CurrentLine>5</CurrentLine>
+      <TopLine>411</TopLine>
+      <CurrentLine>419</CurrentLine>
       <bDave2>0</bDave2>
       <PathWithFileName>..\..\..\tinyusb\host\ehci\ehci.c</PathWithFileName>
       <FilenameWithoutPath>ehci.c</FilenameWithoutPath>
@@ -938,8 +938,8 @@
       <Focus>0</Focus>
       <ColumnNumber>0</ColumnNumber>
       <tvExpOptDlg>0</tvExpOptDlg>
-      <TopLine>1</TopLine>
-      <CurrentLine>12</CurrentLine>
+      <TopLine>0</TopLine>
+      <CurrentLine>0</CurrentLine>
       <bDave2>0</bDave2>
       <PathWithFileName>..\..\..\tinyusb\class\hid_host.c</PathWithFileName>
       <FilenameWithoutPath>hid_host.c</FilenameWithoutPath>
@@ -952,10 +952,10 @@
       <FileType>1</FileType>
       <tvExp>0</tvExp>
       <Focus>0</Focus>
-      <ColumnNumber>79</ColumnNumber>
+      <ColumnNumber>0</ColumnNumber>
       <tvExpOptDlg>0</tvExpOptDlg>
-      <TopLine>1</TopLine>
-      <CurrentLine>14</CurrentLine>
+      <TopLine>240</TopLine>
+      <CurrentLine>249</CurrentLine>
       <bDave2>0</bDave2>
       <PathWithFileName>..\..\..\tinyusb\class\msc_host.c</PathWithFileName>
       <FilenameWithoutPath>msc_host.c</FilenameWithoutPath>
@@ -978,8 +978,8 @@
       <Focus>0</Focus>
       <ColumnNumber>0</ColumnNumber>
       <tvExpOptDlg>0</tvExpOptDlg>
-      <TopLine>552</TopLine>
-      <CurrentLine>553</CurrentLine>
+      <TopLine>0</TopLine>
+      <CurrentLine>0</CurrentLine>
       <bDave2>0</bDave2>
       <PathWithFileName>..\..\bsp\lpc43xx\CMSIS_LPC43xx_DriverLib\src\lpc43xx_uart.c</PathWithFileName>
       <FilenameWithoutPath>lpc43xx_uart.c</FilenameWithoutPath>
@@ -1024,10 +1024,10 @@
       <FileType>1</FileType>
       <tvExp>0</tvExp>
       <Focus>0</Focus>
-      <ColumnNumber>64</ColumnNumber>
+      <ColumnNumber>3</ColumnNumber>
       <tvExpOptDlg>0</tvExpOptDlg>
-      <TopLine>553</TopLine>
-      <CurrentLine>579</CurrentLine>
+      <TopLine>572</TopLine>
+      <CurrentLine>580</CurrentLine>
       <bDave2>0</bDave2>
       <PathWithFileName>..\..\bsp\lpc43xx\CMSIS_LPC43xx_DriverLib\src\lpc43xx_cgu.c</PathWithFileName>
       <FilenameWithoutPath>lpc43xx_cgu.c</FilenameWithoutPath>
@@ -1058,8 +1058,8 @@
       <Focus>0</Focus>
       <ColumnNumber>7</ColumnNumber>
       <tvExpOptDlg>0</tvExpOptDlg>
-      <TopLine>777</TopLine>
-      <CurrentLine>782</CurrentLine>
+      <TopLine>0</TopLine>
+      <CurrentLine>0</CurrentLine>
       <bDave2>0</bDave2>
       <PathWithFileName>..\..\bsp\lpc43xx\CMSIS_LPC43xx_DriverLib\src\lpc43xx_i2c.c</PathWithFileName>
       <FilenameWithoutPath>lpc43xx_i2c.c</FilenameWithoutPath>
@@ -1080,10 +1080,10 @@
       <FileType>2</FileType>
       <tvExp>0</tvExp>
       <Focus>0</Focus>
-      <ColumnNumber>0</ColumnNumber>
+      <ColumnNumber>26</ColumnNumber>
       <tvExpOptDlg>0</tvExpOptDlg>
-      <TopLine>139</TopLine>
-      <CurrentLine>151</CurrentLine>
+      <TopLine>145</TopLine>
+      <CurrentLine>154</CurrentLine>
       <bDave2>0</bDave2>
       <PathWithFileName>..\..\bsp\lpc43xx\startup_keil\startup_LPC43xx.s</PathWithFileName>
       <FilenameWithoutPath>startup_LPC43xx.s</FilenameWithoutPath>
@@ -1104,10 +1104,10 @@
       <FileType>1</FileType>
       <tvExp>0</tvExp>
       <Focus>0</Focus>
-      <ColumnNumber>20</ColumnNumber>
+      <ColumnNumber>51</ColumnNumber>
       <tvExpOptDlg>0</tvExpOptDlg>
-      <TopLine>50</TopLine>
-      <CurrentLine>62</CurrentLine>
+      <TopLine>111</TopLine>
+      <CurrentLine>108</CurrentLine>
       <bDave2>0</bDave2>
       <PathWithFileName>..\..\..\vendor\fatfs\diskio.c</PathWithFileName>
       <FilenameWithoutPath>diskio.c</FilenameWithoutPath>
@@ -1122,8 +1122,8 @@
       <Focus>0</Focus>
       <ColumnNumber>0</ColumnNumber>
       <tvExpOptDlg>0</tvExpOptDlg>
-      <TopLine>1</TopLine>
-      <CurrentLine>1</CurrentLine>
+      <TopLine>0</TopLine>
+      <CurrentLine>0</CurrentLine>
       <bDave2>0</bDave2>
       <PathWithFileName>..\..\..\vendor\fatfs\ff.c</PathWithFileName>
       <FilenameWithoutPath>ff.c</FilenameWithoutPath>
