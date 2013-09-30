@@ -760,10 +760,10 @@
       <FileType>1</FileType>
       <tvExp>0</tvExp>
       <Focus>0</Focus>
-      <ColumnNumber>1</ColumnNumber>
+      <ColumnNumber>0</ColumnNumber>
       <tvExpOptDlg>0</tvExpOptDlg>
-      <TopLine>114</TopLine>
-      <CurrentLine>123</CurrentLine>
+      <TopLine>1</TopLine>
+      <CurrentLine>1</CurrentLine>
       <bDave2>0</bDave2>
       <PathWithFileName>..\..\..\tinyusb\host\hub.c</PathWithFileName>
       <FilenameWithoutPath>hub.c</FilenameWithoutPath>
@@ -778,8 +778,8 @@
       <Focus>0</Focus>
       <ColumnNumber>0</ColumnNumber>
       <tvExpOptDlg>0</tvExpOptDlg>
-      <TopLine>337</TopLine>
-      <CurrentLine>338</CurrentLine>
+      <TopLine>1</TopLine>
+      <CurrentLine>1</CurrentLine>
       <bDave2>0</bDave2>
       <PathWithFileName>..\..\..\tinyusb\host\usbh.c</PathWithFileName>
       <FilenameWithoutPath>usbh.c</FilenameWithoutPath>
@@ -1080,10 +1080,10 @@
       <FileType>2</FileType>
       <tvExp>0</tvExp>
       <Focus>0</Focus>
-      <ColumnNumber>26</ColumnNumber>
+      <ColumnNumber>18</ColumnNumber>
       <tvExpOptDlg>0</tvExpOptDlg>
       <TopLine>145</TopLine>
-      <CurrentLine>154</CurrentLine>
+      <CurrentLine>147</CurrentLine>
       <bDave2>0</bDave2>
       <PathWithFileName>..\..\bsp\lpc43xx\startup_keil\startup_LPC43xx.s</PathWithFileName>
       <FilenameWithoutPath>startup_LPC43xx.s</FilenameWithoutPath>
