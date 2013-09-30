@@ -384,41 +384,11 @@ tusb_error_t enumeration_body_subtask(void)
 //  osal_task_delay(50); // TODO reset is recommended to last 50 ms (NXP EHCI passes this)
   }else
   {
-    hub_port_status_response_t * p_port_status;
-
-    //--------------------------------------------------------------------+
-    // PORT RESET & WAIT FOR STATUS ENDPOINT & GET STATUS & CLEAR RESET CHANGE
-    //--------------------------------------------------------------------+
-    //------------- Set Port Reset -------------//
-    OSAL_SUBTASK_INVOKED_AND_WAIT(
-        usbh_control_xfer_subtask( usbh_devices[0].hub_addr, bm_request_type(TUSB_DIR_HOST_TO_DEV, TUSB_REQUEST_TYPE_CLASS, TUSB_REQUEST_RECIPIENT_OTHER),
-                                   HUB_REQUEST_SET_FEATURE, HUB_FEATURE_PORT_RESET, usbh_devices[0].hub_port,
-                                   0, NULL ),
-        error
-    );
+    OSAL_SUBTASK_INVOKED_AND_WAIT ( hub_port_reset_subtask(), error );
     SUBTASK_ASSERT_STATUS( error );
 
-    osal_task_delay(200); // TODO Hub wait for Status Endpoint on Reset Change
-
-    //------------- Get Port Status to check if port is enabled, powered and reset_change -------------//
-    OSAL_SUBTASK_INVOKED_AND_WAIT(
-        usbh_control_xfer_subtask( usbh_devices[0].hub_addr, bm_request_type(TUSB_DIR_DEV_TO_HOST, TUSB_REQUEST_TYPE_CLASS, TUSB_REQUEST_RECIPIENT_OTHER),
-                                   HUB_REQUEST_GET_STATUS, 0, usbh_devices[0].hub_port,
-                                   4, enum_data_buffer ),
-        error
-    );
-    SUBTASK_ASSERT_STATUS( error );
-
-    p_port_status = (hub_port_status_response_t *) enum_data_buffer;
-    SUBTASK_ASSERT ( p_port_status->status_change.reset && p_port_status->status_current.connect_status &&
-                     p_port_status->status_current.port_power && p_port_status->status_current.port_enable);
-
-    OSAL_SUBTASK_INVOKED_AND_WAIT(
-        usbh_control_xfer_subtask( usbh_devices[0].hub_addr, bm_request_type(TUSB_DIR_HOST_TO_DEV, TUSB_REQUEST_TYPE_CLASS, TUSB_REQUEST_RECIPIENT_OTHER),
-                                   HUB_REQUEST_CLEAR_FEATURE, HUB_FEATURE_PORT_RESET_CHANGE, usbh_devices[0].hub_port,
-                                   0, NULL ),
-        error
-    );
+    // Acknowledge Port Reset Change
+    OSAL_SUBTASK_INVOKED_AND_WAIT( hub_port_clear_feature_subtask(HUB_FEATURE_PORT_RESET_CHANGE), error );
     SUBTASK_ASSERT_STATUS( error );
   }
 

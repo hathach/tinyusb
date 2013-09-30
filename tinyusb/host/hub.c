@@ -161,12 +161,11 @@ tusb_error_t hub_enumerate_subtask(void)
   OSAL_SUBTASK_INVOKED_AND_WAIT( hub_port_clear_feature_subtask(HUB_FEATURE_PORT_CONNECTION_CHANGE), error );
   SUBTASK_ASSERT_STATUS( error );
 
-  //--------------------------------------------------------------------+
-  // PORT RESET & WAIT FOR STATUS ENDPOINT & GET STATUS & CLEAR RESET CHANGE
-  //--------------------------------------------------------------------+
+  //------------- Port Reset & Get Port Speed -------------//
   OSAL_SUBTASK_INVOKED_AND_WAIT ( hub_port_reset_subtask(), error );
   SUBTASK_ASSERT_STATUS( error );
 
+  // TODO get port speed
   p_port_status = (hub_port_status_response_t *) hub_enum_buffer;
   usbh_devices[0].speed = (p_port_status->status_current.high_speed_device_attached) ? TUSB_SPEED_HIGH :
                           (p_port_status->status_current.low_speed_device_attached ) ? TUSB_SPEED_LOW  : TUSB_SPEED_FULL;
