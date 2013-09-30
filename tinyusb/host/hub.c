@@ -158,12 +158,8 @@ tusb_error_t hub_enumerate_subtask(void)
   usbh_devices[0].speed = (p_port_status->status_current.high_speed_device_attached) ? TUSB_SPEED_HIGH :
                           (p_port_status->status_current.low_speed_device_attached ) ? TUSB_SPEED_LOW  : TUSB_SPEED_FULL;
 
-  OSAL_SUBTASK_INVOKED_AND_WAIT(
-      usbh_control_xfer_subtask( usbh_devices[0].hub_addr, bm_request_type(TUSB_DIR_HOST_TO_DEV, TUSB_REQUEST_TYPE_CLASS, TUSB_REQUEST_RECIPIENT_OTHER),
-                                 HUB_REQUEST_CLEAR_FEATURE, HUB_FEATURE_PORT_RESET_CHANGE, usbh_devices[0].hub_port,
-                                 0, NULL ),
-      error
-  );
+  // Acknowledge Port Reset Change
+  OSAL_SUBTASK_INVOKED_AND_WAIT( hub_port_clear_feature_subtask(HUB_FEATURE_PORT_RESET_CHANGE), error );
   SUBTASK_ASSERT_STATUS( error );
 
   OSAL_SUBTASK_END
