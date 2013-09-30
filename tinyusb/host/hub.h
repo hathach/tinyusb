@@ -144,32 +144,40 @@ enum{
 
 // data in response of HUB_REQUEST_GET_STATUS, wIndex = 0 (hub)
 typedef struct {
-  ATTR_PACKED_STRUCT(struct) {
-    uint16_t local_power_source : 1;
-    uint16_t over_current       : 1;
-    uint16_t : 14;
-  }status, status_change;
+  union{
+    ATTR_PACKED_STRUCT(struct) {
+      uint16_t local_power_source : 1;
+      uint16_t over_current       : 1;
+      uint16_t : 14;
+    };
+
+    uint16_t value;
+  } status, status_change;
 } hub_status_response_t;
 
 STATIC_ASSERT( sizeof(hub_status_response_t) == 4, "size is not correct");
 
 // data in response of HUB_REQUEST_GET_STATUS, wIndex = Port num
 typedef struct {
-  ATTR_PACKED_STRUCT(struct) {
-    uint16_t connect_status             : 1;
-    uint16_t port_enable                : 1;
-    uint16_t suspend                    : 1;
-    uint16_t over_current               : 1;
-    uint16_t reset                      : 1;
+  union {
+    ATTR_PACKED_STRUCT(struct) {
+      uint16_t connect_status             : 1;
+      uint16_t port_enable                : 1;
+      uint16_t suspend                    : 1;
+      uint16_t over_current               : 1;
+      uint16_t reset                      : 1;
 
-    uint16_t                            : 3;
-    uint16_t port_power                 : 1;
-    uint16_t low_speed_device_attached  : 1;
-    uint16_t high_speed_device_attached : 1;
-    uint16_t port_test_mode             : 1;
-    uint16_t port_indicator_control     : 1;
-    uint16_t : 0;
-  }status_current, status_change;
+      uint16_t                            : 3;
+      uint16_t port_power                 : 1;
+      uint16_t low_speed_device_attached  : 1;
+      uint16_t high_speed_device_attached : 1;
+      uint16_t port_test_mode             : 1;
+      uint16_t port_indicator_control     : 1;
+      uint16_t : 0;
+    };
+
+    uint16_t value;
+  } status_current, status_change;
 } hub_port_status_response_t;
 
 STATIC_ASSERT( sizeof(hub_port_status_response_t) == 4, "size is not correct");
