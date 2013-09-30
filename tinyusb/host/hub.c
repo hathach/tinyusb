@@ -61,6 +61,9 @@ typedef struct {
 usbh_hub_t hub_data[TUSB_CFG_HOST_DEVICE_MAX] TUSB_CFG_ATTR_USBRAM;
 uint8_t hub_enum_buffer[sizeof(descriptor_hub_desc_t)] TUSB_CFG_ATTR_USBRAM;
 
+//OSAL_SEM_DEF(hub_enum_semaphore);
+//static osal_semaphore_handle_t hub_enum_sem_hdl;
+
 //--------------------------------------------------------------------+
 // HUB
 //--------------------------------------------------------------------+
@@ -113,7 +116,7 @@ tusb_error_t hub_port_reset_subtask()
   );
   SUBTASK_ASSERT_STATUS( error );
 
-  osal_task_delay(200); // TODO Hub wait for Status Endpoint on Reset Change
+  osal_task_delay(50); // TODO Hub wait for Status Endpoint on Reset Change
 
   //------------- Get Port Status to check if port is enabled, powered and reset_change -------------//
   OSAL_SUBTASK_INVOKED_AND_WAIT(
@@ -134,32 +137,9 @@ tusb_error_t hub_port_reset_subtask()
 tusb_error_t hub_enumerate_subtask(void)
 {
   tusb_error_t error;
-
-  OSAL_SUBTASK_BEGIN
-
   hub_port_status_response_t * p_port_status;
 
-  //------------- Get Port Status -------------//
-  OSAL_SUBTASK_INVOKED_AND_WAIT(
-      usbh_control_xfer_subtask( usbh_devices[0].hub_addr, bm_request_type(TUSB_DIR_DEV_TO_HOST, TUSB_REQUEST_TYPE_CLASS, TUSB_REQUEST_RECIPIENT_OTHER),
-                                 HUB_REQUEST_GET_STATUS, 0, usbh_devices[0].hub_port,
-                                 4, hub_enum_buffer ),
-      error
-  );
-  SUBTASK_ASSERT_STATUS( error );
-
-  p_port_status = (hub_port_status_response_t *) hub_enum_buffer;
-  if ( !p_port_status->status_change.connect_status )   SUBTASK_EXIT(TUSB_ERROR_NONE); // only handle connection change
-
-  if ( !p_port_status->status_current.connect_status )
-  { // TODO HUB Disconnection
-
-    SUBTASK_EXIT(TUSB_ERROR_NONE);
-  }
-
-  // Acknowledge Port Connection Change
-  OSAL_SUBTASK_INVOKED_AND_WAIT( hub_port_clear_feature_subtask(HUB_FEATURE_PORT_CONNECTION_CHANGE), error );
-  SUBTASK_ASSERT_STATUS( error );
+  OSAL_SUBTASK_BEGIN
 
   //------------- Port Reset & Get Port Speed -------------//
   OSAL_SUBTASK_INVOKED_AND_WAIT ( hub_port_reset_subtask(), error );
@@ -183,6 +163,7 @@ tusb_error_t hub_enumerate_subtask(void)
 void hub_init(void)
 {
   memclr_(hub_data, TUSB_CFG_HOST_DEVICE_MAX*sizeof(usbh_hub_t));
+//  hub_enum_sem_hdl = osal_semaphore_create( OSAL_SEM_REF(hub_enum_semaphore) );
 }
 
 tusb_error_t hub_open_subtask(uint8_t dev_addr, tusb_descriptor_interface_t const *p_interface_desc, uint16_t *p_length)
@@ -248,15 +229,21 @@ void hub_isr(pipe_handle_t pipe_hdl, tusb_event_t event, uint32_t xferred_bytes)
     }
   }
 
-  // TODO queue next transfer
+  // NOTE: next status transfer is queued by usbh.c after handling this request
 }
 
 void hub_close(uint8_t dev_addr)
 {
   (void) hcd_pipe_close(hub_data[dev_addr-1].pipe_status);
   memclr_(&hub_data[dev_addr-1], sizeof(usbh_hub_t));
+
+//  osal_semaphore_reset(hub_enum_sem_hdl);
 }
 
+tusb_error_t hub_status_pipe_queue(uint8_t dev_addr)
+{
+  return hcd_pipe_xfer(hub_data[dev_addr-1].pipe_status, &hub_data[dev_addr-1].status_change, 1, true);
+}
 
 
 #endif

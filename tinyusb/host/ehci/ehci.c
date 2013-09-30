@@ -572,6 +572,13 @@ static void port_connect_status_change_isr(uint8_t hostid)
   }
 }
 
+// TODO refractor abtract later
+void hcd_hub_advance_asyn(uint8_t hostid)
+{
+	ehci_registers_t* const regs = get_operational_register(hostid);
+  regs->usb_cmd_bit.advacne_async = 1; // Async doorbell check EHCI 4.8.2 for operational details
+}
+
 static void qhd_xfer_complete_isr(ehci_qhd_t * p_qhd)
 {
   uint8_t max_loop = 0;

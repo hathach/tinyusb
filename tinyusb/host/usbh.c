@@ -354,8 +354,64 @@ tusb_error_t enumeration_body_subtask(void)
 
   if ( usbh_devices[0].hub_addr != 0) // connected/disconnected via hub
   {
-    OSAL_SUBTASK_INVOKED_AND_WAIT( hub_enumerate_subtask(), error );
+    //------------- Get Port Status -------------//
+    OSAL_SUBTASK_INVOKED_AND_WAIT(
+        usbh_control_xfer_subtask( usbh_devices[0].hub_addr, bm_request_type(TUSB_DIR_DEV_TO_HOST, TUSB_REQUEST_TYPE_CLASS, TUSB_REQUEST_RECIPIENT_OTHER),
+                                   HUB_REQUEST_GET_STATUS, 0, usbh_devices[0].hub_port,
+                                   4, enum_data_buffer ),
+        error
+    );
     SUBTASK_ASSERT_STATUS( error );
+
+    if ( ! ((hub_port_status_response_t *) enum_data_buffer)->status_change.connect_status )   SUBTASK_EXIT(TUSB_ERROR_NONE); // only handle connection change
+
+    // Acknowledge Port Connection Change
+    OSAL_SUBTASK_INVOKED_AND_WAIT( hub_port_clear_feature_subtask(HUB_FEATURE_PORT_CONNECTION_CHANGE), error );
+    SUBTASK_ASSERT_STATUS( error );
+
+    if ( ! ((hub_port_status_response_t *) enum_data_buffer)->status_current.connect_status )
+    { // Device is disconnected via Hub
+      uint8_t dev_addr = 1;
+      while ( dev_addr <= TUSB_CFG_HOST_DEVICE_MAX &&
+              !(usbh_devices[dev_addr].core_id  == usbh_devices[0].core_id &&
+                usbh_devices[dev_addr].hub_addr == usbh_devices[0].hub_addr &&
+                usbh_devices[dev_addr].hub_port == usbh_devices[0].hub_port &&
+                usbh_devices[dev_addr].state    != TUSB_DEVICE_STATE_UNPLUG ) )
+      {
+        dev_addr++;
+      }
+
+      if (dev_addr > TUSB_CFG_HOST_DEVICE_MAX) // unplug unmounted device
+      {
+        SUBTASK_EXIT(TUSB_ERROR_NONE);
+      }
+
+      // if device unplugged is not a hub TODO handle hub unplugged
+      for (uint8_t class_index = 1; class_index < TUSB_CLASS_MAPPED_INDEX_END; class_index++)
+      {
+        if ((usbh_devices[dev_addr].flag_supported_class & BIT_(class_index)) &&
+            usbh_class_drivers[class_index].close)
+        {
+          usbh_class_drivers[class_index].close(dev_addr);
+        }
+      }
+      usbh_pipe_control_close(dev_addr);
+
+      // set to REMOVING to allow HCD to clean up its cached data for this device
+      // HCD must set this device's state to TUSB_DEVICE_STATE_UNPLUG when done
+      usbh_devices[dev_addr].state = TUSB_DEVICE_STATE_REMOVING;
+      usbh_devices[dev_addr].flag_supported_class = 0;
+
+      hcd_hub_advance_asyn(usbh_devices[0].core_id); // TODO hack
+
+      (void) hub_status_pipe_queue( usbh_devices[0].hub_addr ); // done with hub, waiting for next data on status pipe
+      SUBTASK_EXIT(TUSB_ERROR_NONE); // restart task
+    }
+    else
+    { // Device is connected via Hub
+      OSAL_SUBTASK_INVOKED_AND_WAIT( hub_enumerate_subtask(), error );
+      SUBTASK_ASSERT_STATUS( error );
+    }
   }
   else
   {
@@ -390,6 +446,8 @@ tusb_error_t enumeration_body_subtask(void)
     // Acknowledge Port Reset Change
     OSAL_SUBTASK_INVOKED_AND_WAIT( hub_port_clear_feature_subtask(HUB_FEATURE_PORT_RESET_CHANGE), error );
     SUBTASK_ASSERT_STATUS( error );
+
+    (void) hub_status_pipe_queue( usbh_devices[0].hub_addr ); // done with hub, waiting for next data on status pipe
   }
 
   //------------- Set new address -------------//
