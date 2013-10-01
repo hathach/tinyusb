@@ -567,7 +567,7 @@ static void port_connect_status_change_isr(uint8_t hostid)
     usbh_device_plugged_isr(hostid, 0, 0);
   }else // device unplugged
   {
-    usbh_device_unplugged_isr(hostid);
+    usbh_hcd_rhport_unplugged_isr(hostid);
     regs->usb_cmd_bit.advacne_async = 1; // Async doorbell check EHCI 4.8.2 for operational details
   }
 }
