@@ -523,8 +523,9 @@ tusb_error_t enumeration_body_subtask(void)
       class_index = std_class_code_to_index( ((tusb_descriptor_interface_t*) p_desc)->bInterfaceClass );
       SUBTASK_ASSERT( class_index != 0 ); // class_index == 0 means corrupted data, abort enumeration
 
-      if (usbh_class_drivers[class_index].open_subtask)      // supported class
-      {
+      if (usbh_class_drivers[class_index].open_subtask &&
+          !(class_index == TUSB_CLASS_HUB && usbh_devices[new_addr].hub_addr != 0))
+      { // supported class, TODO Hub disable multiple level
         static uint16_t length;
         length = 0;
 

@@ -16,7 +16,8 @@ designed to be simple and run out-of-the-box provided the configuration is corre
 - HID Keyboard
 - Communication Class (CDC)
 - Mass-Storage (MSC)
-- Hub coming soon...
+- Hub
+    - Only support 1 level of hub (due to my laziness)
 - Multiple host controllers
 
 ### Device ###
