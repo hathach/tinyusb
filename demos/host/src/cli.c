@@ -394,6 +394,9 @@ cli_error_t cli_cmd_copy(char *p_para)
 
   if ( strlen(p_dest) == 0 ) return CLI_ERROR_INVALID_PARA;
 
+  drive_letter2number(p_para);
+  drive_letter2number(p_dest);
+
   //------------- Check Existence of source & dest file -------------//
   cli_error_t error = CLI_ERROR_NONE;
   FIL src_file, dest_file;
