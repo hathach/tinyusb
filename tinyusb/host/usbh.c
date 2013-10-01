@@ -370,11 +370,10 @@ tusb_error_t enumeration_body_subtask(void)
     );
     SUBTASK_ASSERT_STATUS( error );
 
-    if ( ! ((hub_port_status_response_t *) enum_data_buffer)->status_change.connect_status )   SUBTASK_EXIT(TUSB_ERROR_NONE); // only handle connection change
-
     // Acknowledge Port Connection Change
-    OSAL_SUBTASK_INVOKED_AND_WAIT( hub_port_clear_feature_subtask(HUB_FEATURE_PORT_CONNECTION_CHANGE), error );
-    SUBTASK_ASSERT_STATUS( error );
+    OSAL_SUBTASK_INVOKED_AND_WAIT( hub_port_clear_feature_subtask(usbh_devices[0].hub_addr, usbh_devices[0].hub_port, HUB_FEATURE_PORT_CONNECTION_CHANGE), error );
+
+    if ( ! ((hub_port_status_response_t *) enum_data_buffer)->status_change.connect_status )   SUBTASK_EXIT(TUSB_ERROR_NONE); // only handle connection change
 
     if ( ! ((hub_port_status_response_t *) enum_data_buffer)->status_current.connect_status )
     { // Device is disconnected via Hub
@@ -388,8 +387,13 @@ tusb_error_t enumeration_body_subtask(void)
     }
     else
     { // Device is connected via Hub
-      OSAL_SUBTASK_INVOKED_AND_WAIT( hub_enumerate_subtask(), error );
+      OSAL_SUBTASK_INVOKED_AND_WAIT ( hub_port_reset_subtask(usbh_devices[0].hub_addr, usbh_devices[0].hub_port), error );
       SUBTASK_ASSERT_STATUS( error );
+
+      usbh_devices[0].speed = hub_port_get_speed();
+
+      // Acknowledge Port Reset Change
+      OSAL_SUBTASK_INVOKED_AND_WAIT( hub_port_clear_feature_subtask(usbh_devices[0].hub_addr, usbh_devices[0].hub_port, HUB_FEATURE_PORT_RESET_CHANGE), error );
     }
   }
   else
@@ -413,18 +417,18 @@ tusb_error_t enumeration_body_subtask(void)
   );
   SUBTASK_ASSERT_STATUS(error); // TODO some slow device is observed to fail the very fist controller xfer, can try more times
 
+  //------------- Reset device again before Set Address -------------//
   if (usbh_devices[0].hub_addr == 0)
   { // mount direct to root hub
     hcd_port_reset( usbh_devices[0].core_id ); // reset port after 8 byte descriptor
 //  osal_task_delay(50); // TODO reset is recommended to last 50 ms (NXP EHCI passes this)
   }else
   {
-    OSAL_SUBTASK_INVOKED_AND_WAIT ( hub_port_reset_subtask(), error );
+    OSAL_SUBTASK_INVOKED_AND_WAIT ( hub_port_reset_subtask(usbh_devices[0].hub_addr, usbh_devices[0].hub_port), error );
     SUBTASK_ASSERT_STATUS( error );
 
     // Acknowledge Port Reset Change
-    OSAL_SUBTASK_INVOKED_AND_WAIT( hub_port_clear_feature_subtask(HUB_FEATURE_PORT_RESET_CHANGE), error );
-    SUBTASK_ASSERT_STATUS( error );
+    OSAL_SUBTASK_INVOKED_AND_WAIT( hub_port_clear_feature_subtask(usbh_devices[0].hub_addr, usbh_devices[0].hub_port, HUB_FEATURE_PORT_RESET_CHANGE), error );
 
     (void) hub_status_pipe_queue( usbh_devices[0].hub_addr ); // done with hub, waiting for next data on status pipe
   }

@@ -67,7 +67,7 @@ uint8_t hub_enum_buffer[sizeof(descriptor_hub_desc_t)] TUSB_CFG_ATTR_USBRAM;
 //--------------------------------------------------------------------+
 // HUB
 //--------------------------------------------------------------------+
-tusb_error_t hub_port_clear_feature_subtask(uint8_t feature)
+tusb_error_t hub_port_clear_feature_subtask(uint8_t hub_addr, uint8_t hub_port, uint8_t feature)
 {
   tusb_error_t error;
 
@@ -78,8 +78,8 @@ tusb_error_t hub_port_clear_feature_subtask(uint8_t feature)
 
   //------------- Clear Port Feature request -------------//
   OSAL_SUBTASK_INVOKED_AND_WAIT(
-      usbh_control_xfer_subtask( usbh_devices[0].hub_addr, bm_request_type(TUSB_DIR_HOST_TO_DEV, TUSB_REQUEST_TYPE_CLASS, TUSB_REQUEST_RECIPIENT_OTHER),
-                                 HUB_REQUEST_CLEAR_FEATURE, feature, usbh_devices[0].hub_port,
+      usbh_control_xfer_subtask( hub_addr, bm_request_type(TUSB_DIR_HOST_TO_DEV, TUSB_REQUEST_TYPE_CLASS, TUSB_REQUEST_RECIPIENT_OTHER),
+                                 HUB_REQUEST_CLEAR_FEATURE, feature, hub_port,
                                  0, NULL ),
       error
   );
@@ -87,8 +87,8 @@ tusb_error_t hub_port_clear_feature_subtask(uint8_t feature)
 
   //------------- Get Port Status to check if feature is cleared -------------//
   OSAL_SUBTASK_INVOKED_AND_WAIT(
-      usbh_control_xfer_subtask( usbh_devices[0].hub_addr, bm_request_type(TUSB_DIR_DEV_TO_HOST, TUSB_REQUEST_TYPE_CLASS, TUSB_REQUEST_RECIPIENT_OTHER),
-                                 HUB_REQUEST_GET_STATUS, 0, usbh_devices[0].hub_port,
+      usbh_control_xfer_subtask( hub_addr, bm_request_type(TUSB_DIR_DEV_TO_HOST, TUSB_REQUEST_TYPE_CLASS, TUSB_REQUEST_RECIPIENT_OTHER),
+                                 HUB_REQUEST_GET_STATUS, 0, hub_port,
                                  4, hub_enum_buffer ),
       error
   );
@@ -101,7 +101,7 @@ tusb_error_t hub_port_clear_feature_subtask(uint8_t feature)
   OSAL_SUBTASK_END
 }
 
-tusb_error_t hub_port_reset_subtask()
+tusb_error_t hub_port_reset_subtask(uint8_t hub_addr, uint8_t hub_port)
 {
   tusb_error_t error;
 
@@ -109,8 +109,8 @@ tusb_error_t hub_port_reset_subtask()
 
   //------------- Set Port Reset -------------//
   OSAL_SUBTASK_INVOKED_AND_WAIT(
-      usbh_control_xfer_subtask( usbh_devices[0].hub_addr, bm_request_type(TUSB_DIR_HOST_TO_DEV, TUSB_REQUEST_TYPE_CLASS, TUSB_REQUEST_RECIPIENT_OTHER),
-                                 HUB_REQUEST_SET_FEATURE, HUB_FEATURE_PORT_RESET, usbh_devices[0].hub_port,
+      usbh_control_xfer_subtask( hub_addr, bm_request_type(TUSB_DIR_HOST_TO_DEV, TUSB_REQUEST_TYPE_CLASS, TUSB_REQUEST_RECIPIENT_OTHER),
+                                 HUB_REQUEST_SET_FEATURE, HUB_FEATURE_PORT_RESET, hub_port,
                                  0, NULL ),
       error
   );
@@ -120,8 +120,8 @@ tusb_error_t hub_port_reset_subtask()
 
   //------------- Get Port Status to check if port is enabled, powered and reset_change -------------//
   OSAL_SUBTASK_INVOKED_AND_WAIT(
-      usbh_control_xfer_subtask( usbh_devices[0].hub_addr, bm_request_type(TUSB_DIR_DEV_TO_HOST, TUSB_REQUEST_TYPE_CLASS, TUSB_REQUEST_RECIPIENT_OTHER),
-                                 HUB_REQUEST_GET_STATUS, 0, usbh_devices[0].hub_port,
+      usbh_control_xfer_subtask( hub_addr, bm_request_type(TUSB_DIR_DEV_TO_HOST, TUSB_REQUEST_TYPE_CLASS, TUSB_REQUEST_RECIPIENT_OTHER),
+                                 HUB_REQUEST_GET_STATUS, 0, hub_port,
                                  4, hub_enum_buffer ),
       error
   );
@@ -134,27 +134,12 @@ tusb_error_t hub_port_reset_subtask()
   OSAL_SUBTASK_END
 }
 
-tusb_error_t hub_enumerate_subtask(void)
+// can only get the speed RIGHT AFTER hub_port_reset_subtask call
+tusb_speed_t hub_port_get_speed(void)
 {
-  tusb_error_t error;
-  hub_port_status_response_t * p_port_status;
-
-  OSAL_SUBTASK_BEGIN
-
-  //------------- Port Reset & Get Port Speed -------------//
-  OSAL_SUBTASK_INVOKED_AND_WAIT ( hub_port_reset_subtask(), error );
-  SUBTASK_ASSERT_STATUS( error );
-
-  // TODO get port speed
-  p_port_status = (hub_port_status_response_t *) hub_enum_buffer;
-  usbh_devices[0].speed = (p_port_status->status_current.high_speed_device_attached) ? TUSB_SPEED_HIGH :
-                          (p_port_status->status_current.low_speed_device_attached ) ? TUSB_SPEED_LOW  : TUSB_SPEED_FULL;
-
-  // Acknowledge Port Reset Change
-  OSAL_SUBTASK_INVOKED_AND_WAIT( hub_port_clear_feature_subtask(HUB_FEATURE_PORT_RESET_CHANGE), error );
-  SUBTASK_ASSERT_STATUS( error );
-
-  OSAL_SUBTASK_END
+  hub_port_status_response_t * p_port_status = (hub_port_status_response_t *) hub_enum_buffer;
+  return (p_port_status->status_current.high_speed_device_attached) ? TUSB_SPEED_HIGH :
+         (p_port_status->status_current.low_speed_device_attached ) ? TUSB_SPEED_LOW  : TUSB_SPEED_FULL;
 }
 
 //--------------------------------------------------------------------+
