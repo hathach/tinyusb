@@ -142,6 +142,25 @@ static char cli_buffer[CLI_MAX_BUFFER];
 uint8_t fileread_buffer[CLI_FILE_READ_BUFFER] TUSB_CFG_ATTR_USBRAM;
 static char volume_label[20];
 
+static inline void drive_number2letter(char * p_path) ATTR_ALWAYS_INLINE;
+static inline void drive_number2letter(char * p_path)
+{
+  if (p_path[1] == ':')
+  {
+    p_path[0] = 'E' + p_path[0] - '0' ;
+  }
+}
+
+static inline void drive_letter2number(char * p_path) ATTR_ALWAYS_INLINE;
+static inline void drive_letter2number(char * p_path)
+{
+  if (p_path[1] == ':')
+  {
+    p_path[0] = p_path[0] - 'E' + '0';
+  }
+}
+
+
 //--------------------------------------------------------------------+
 // IMPLEMENTATION
 //--------------------------------------------------------------------+
@@ -149,10 +168,10 @@ static char volume_label[20];
 void cli_command_prompt(void)
 {
   f_getcwd(cli_buffer, CLI_MAX_BUFFER);
-  printf("\n%s %c%s\n$ ",
+  drive_number2letter(cli_buffer);
+  printf("\n%s %s\n$ ",
          (volume_label[0] !=0) ? volume_label : "No Label",
-         'E'+cli_buffer[0]-'0',
-         cli_buffer+1);
+         cli_buffer);
 
   memclr_(cli_buffer, CLI_MAX_BUFFER);
 }
@@ -294,9 +313,17 @@ cli_error_t cli_cmd_changedir(char * p_para)
 {
   if ( strlen(p_para) == 0 ) return CLI_ERROR_INVALID_PARA;
 
-  if ( FR_OK != f_chdir(p_para) )
+  if ( (p_para[1] == ':') && (strlen(p_para) == 2) )
+  { // change drive
+    p_para[0] -= 'E';
+    if ( ! ( disk_is_ready(p_para[0]) && FR_OK == f_chdrive(p_para[0]) ))  return CLI_ERROR_INVALID_PARA;
+    f_getlabel(NULL, volume_label, NULL);
+  }else
   {
-    return CLI_ERROR_INVALID_PATH;
+    if ( FR_OK != f_chdir(p_para) )
+    {
+      return CLI_ERROR_INVALID_PATH;
+    }
   }
 
   return CLI_ERROR_NONE;

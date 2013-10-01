@@ -9,6 +9,7 @@
 #ifndef _FFCONF
 #define _FFCONF 82786	/* Revision ID */
 
+#include "tusb_config.h"
 
 /*---------------------------------------------------------------------------/
 / Functions and Buffer Configurations
@@ -127,7 +128,7 @@
 / Physical Drive Configurations
 /----------------------------------------------------------------------------*/
 
-#define _VOLUMES	1
+#define _VOLUMES	TUSB_CFG_HOST_DEVICE_MAX
 /* Number of volumes (logical drives) to be used. */
 
 

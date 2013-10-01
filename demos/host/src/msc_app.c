@@ -84,13 +84,14 @@ void tusbh_msc_mounted_cb(uint8_t dev_addr)
   printf("LBA 0-0x%X  Block Size: %d\n", last_lba, block_size);
 
   //------------- file system (only 1 LUN support) -------------//
+  // TODO MSC refractor this hack
   //  DSTATUS stat = disk_initialize(0);
   uint8_t phy_disk = dev_addr-1;
   disk_state[phy_disk] = 0;
 
   if ( disk_is_ready(phy_disk) )
   {
-    if ( f_mount(phy_disk, &fatfs[phy_disk]) != FR_OK ) // TODO multiple volume
+    if ( f_mount(phy_disk, &fatfs[phy_disk]) != FR_OK )
     {
       puts("mount failed");
       return;
@@ -112,9 +113,12 @@ void tusbh_msc_mounted_cb(uint8_t dev_addr)
 
 void tusbh_msc_unmounted_cb(uint8_t dev_addr)
 {
-  // unmount disk
-  disk_state[dev_addr-1] = STA_NOINIT;
   puts("\na MassStorage device is unmounted");
+
+  uint8_t phy_disk = dev_addr-1;
+
+  f_mount(phy_disk, NULL); // unmount disk
+  disk_state[phy_disk] = STA_NOINIT;
 }
 
 void tusbh_msc_isr(uint8_t dev_addr, tusb_event_t event, uint32_t xferred_bytes)

@@ -84,7 +84,8 @@ DRESULT disk_ioctl (BYTE pdrv, BYTE cmd, void* buff);
 static inline bool disk_is_ready(BYTE pdrv);
 static inline bool disk_is_ready(BYTE pdrv)
 {
-  return (disk_status(pdrv) & (STA_NOINIT | STA_NODISK)) == 0;
+  return (pdrv < TUSB_CFG_HOST_DEVICE_MAX) &&
+         ( (disk_status(pdrv) & (STA_NOINIT | STA_NODISK)) == 0 );
 }
 
 
