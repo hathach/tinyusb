@@ -313,17 +313,17 @@ cli_error_t cli_cmd_changedir(char * p_para)
 {
   if ( strlen(p_para) == 0 ) return CLI_ERROR_INVALID_PARA;
 
-  if ( (p_para[1] == ':') && (strlen(p_para) == 2) )
-  { // change drive
-    p_para[0] -= 'E';
-    if ( ! ( disk_is_ready(p_para[0]) && FR_OK == f_chdrive(p_para[0]) ))  return CLI_ERROR_INVALID_PARA;
-    f_getlabel(NULL, volume_label, NULL);
-  }else
+  drive_letter2number(p_para);
+
+  if ( FR_OK != f_chdir(p_para) )
   {
-    if ( FR_OK != f_chdir(p_para) )
-    {
-      return CLI_ERROR_INVALID_PATH;
-    }
+    return CLI_ERROR_INVALID_PATH;
+  }
+
+  if ( p_para[1] == ':')
+  { // path has drive letter --> change drive, update volume label
+    f_chdrive(p_para[0] - '0');
+    f_getlabel(NULL, volume_label, NULL);
   }
 
   return CLI_ERROR_NONE;
