@@ -76,7 +76,7 @@ typedef struct ATTR_ALIGNED(4){
   uint8_t reserve;
 } usbh_enumerate_t;
 
-typedef struct { // TODO internal structure, re-order members
+typedef struct {
   //------------- port -------------//
   uint8_t core_id;
   uint8_t hub_addr;

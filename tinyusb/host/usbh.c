@@ -283,37 +283,31 @@ void usbh_device_plugged_isr(uint8_t hostid, uint8_t hub_addr, uint8_t hub_port)
 // return true if found and unmounted device, false if cannot find
 bool usbh_device_unplugged(uint8_t hostid, uint8_t hub_addr, uint8_t hub_port)
 {
-  //------------- find the device address that is unplugged -------------//
-  uint8_t dev_addr = 0;
-  while ( dev_addr <= TUSB_CFG_HOST_DEVICE_MAX &&
-          !(usbh_devices[dev_addr].core_id  == hostid   &&
-            usbh_devices[dev_addr].hub_addr == hub_addr &&
-            usbh_devices[dev_addr].hub_port == hub_port &&
-            usbh_devices[dev_addr].state    != TUSB_DEVICE_STATE_UNPLUG ) )
+  //------------- find the all devices (star-network) under port that is unplugged -------------//
+  for (uint8_t dev_addr = 0; dev_addr <= TUSB_CFG_HOST_DEVICE_MAX; dev_addr ++)
   {
-    dev_addr++;
-  }
-
-  if (dev_addr > TUSB_CFG_HOST_DEVICE_MAX) // unplug unmounted device
-  {
-    return false;
-  }
-
-  // if device unplugged is not a hub TODO handle hub unplugged
-  for (uint8_t class_index = 1; class_index < TUSB_CLASS_MAPPED_INDEX_END; class_index++)
-  {
-    if ((usbh_devices[dev_addr].flag_supported_class & BIT_(class_index)) &&
-        usbh_class_drivers[class_index].close)
+    if (usbh_devices[dev_addr].core_id  == hostid   &&
+        (hub_addr == 0 || usbh_devices[dev_addr].hub_addr == hub_addr) && // hub_addr == 0 & hub_port == 0 means roothub
+        (hub_port == 0 || usbh_devices[dev_addr].hub_port == hub_port) &&
+        usbh_devices[dev_addr].state    != TUSB_DEVICE_STATE_UNPLUG)
     {
-      usbh_class_drivers[class_index].close(dev_addr);
+      // TODO Hub multiple level
+      for (uint8_t class_index = 1; class_index < TUSB_CLASS_MAPPED_INDEX_END; class_index++)
+      {
+        if ((usbh_devices[dev_addr].flag_supported_class & BIT_(class_index)) &&
+            usbh_class_drivers[class_index].close)
+        {
+          usbh_class_drivers[class_index].close(dev_addr);
+        }
+      }
+      usbh_pipe_control_close(dev_addr);
+
+      // set to REMOVING to allow HCD to clean up its cached data for this device
+      // HCD must set this device's state to TUSB_DEVICE_STATE_UNPLUG when done
+      usbh_devices[dev_addr].state = TUSB_DEVICE_STATE_REMOVING;
+      usbh_devices[dev_addr].flag_supported_class = 0;
     }
   }
-  usbh_pipe_control_close(dev_addr);
-
-  // set to REMOVING to allow HCD to clean up its cached data for this device
-  // HCD must set this device's state to TUSB_DEVICE_STATE_UNPLUG when done
-  usbh_devices[dev_addr].state = TUSB_DEVICE_STATE_REMOVING;
-  usbh_devices[dev_addr].flag_supported_class = 0;
 
   return true;
 }
@@ -419,16 +413,17 @@ tusb_error_t enumeration_body_subtask(void)
 
   //------------- Reset device again before Set Address -------------//
   if (usbh_devices[0].hub_addr == 0)
-  { // mount direct to root hub
+  { // connected directly to roothub
     hcd_port_reset( usbh_devices[0].core_id ); // reset port after 8 byte descriptor
 //  osal_task_delay(50); // TODO reset is recommended to last 50 ms (NXP EHCI passes this)
   }else
-  {
+  { // connected via a hub
     OSAL_SUBTASK_INVOKED_AND_WAIT ( hub_port_reset_subtask(usbh_devices[0].hub_addr, usbh_devices[0].hub_port), error );
-    SUBTASK_ASSERT_STATUS( error );
 
-    // Acknowledge Port Reset Change
-    OSAL_SUBTASK_INVOKED_AND_WAIT( hub_port_clear_feature_subtask(usbh_devices[0].hub_addr, usbh_devices[0].hub_port, HUB_FEATURE_PORT_RESET_CHANGE), error );
+    if ( TUSB_ERROR_NONE == error )
+    { // Acknowledge Port Reset Change if Reset Successful
+      OSAL_SUBTASK_INVOKED_AND_WAIT( hub_port_clear_feature_subtask(usbh_devices[0].hub_addr, usbh_devices[0].hub_port, HUB_FEATURE_PORT_RESET_CHANGE), error );
+    }
 
     (void) hub_status_pipe_queue( usbh_devices[0].hub_addr ); // done with hub, waiting for next data on status pipe
   }
