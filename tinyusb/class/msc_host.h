@@ -80,7 +80,7 @@ tusb_error_t tusbh_msc_test_unit_ready(uint8_t dev_addr, uint8_t lun, msc_cmd_st
 
 //------------- Application Callback -------------//
 void tusbh_msc_mounted_cb(uint8_t dev_addr);
-void tusbh_msc_unmounted_isr(uint8_t dev_addr);
+void tusbh_msc_unmounted_cb(uint8_t dev_addr);
 void tusbh_msc_isr(uint8_t dev_addr, tusb_event_t event, uint32_t xferred_bytes);
 
 

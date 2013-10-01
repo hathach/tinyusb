@@ -65,7 +65,7 @@ static FATFS fatfs[TUSB_CFG_HOST_DEVICE_MAX] TUSB_CFG_ATTR_USBRAM;
 //--------------------------------------------------------------------+
 void tusbh_msc_mounted_cb(uint8_t dev_addr)
 {
-  printf("an msc device is mounted\n");
+  puts("\na MassStorage device is mounted");
 
   //------------- Disk Information -------------//
   // SCSI VendorID[8] & ProductID[16] from Inquiry Command
@@ -110,11 +110,11 @@ void tusbh_msc_mounted_cb(uint8_t dev_addr)
   }
 }
 
-void tusbh_msc_unmounted_isr(uint8_t dev_addr)
+void tusbh_msc_unmounted_cb(uint8_t dev_addr)
 {
   // unmount disk
   disk_state[dev_addr-1] = STA_NOINIT;
-  puts("--");
+  puts("\na MassStorage device is unmounted");
 }
 
 void tusbh_msc_isr(uint8_t dev_addr, tusb_event_t event, uint32_t xferred_bytes)

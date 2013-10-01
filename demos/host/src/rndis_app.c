@@ -51,7 +51,7 @@ void tusbh_cdc_rndis_mounted_cb(uint8_t dev_addr)
 { // application set-up
   uint8_t mac_address[6];
 
-  printf("a RNDIS device is mounted\n");
+  printf("\nan RNDIS device is mounted\n");
   tusbh_cdc_rndis_get_mac_addr(dev_addr, mac_address);
 
   printf("MAC Address ");
@@ -59,9 +59,10 @@ void tusbh_cdc_rndis_mounted_cb(uint8_t dev_addr)
   printf("\n");
 }
 
-void tusbh_cdc_rndis_unmounted_isr(uint8_t dev_addr)
+void tusbh_cdc_rndis_unmounted_cb(uint8_t dev_addr)
 {
   // application tear-down
+  printf("\nan RNDIS device is unmounted\n");
 }
 
 void rndis_app_init(void)

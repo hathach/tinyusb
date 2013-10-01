@@ -149,7 +149,7 @@ void test_usbh_device_unplugged_isr_device_not_previously_mounted(void)
   usbh_devices[dev_addr].hub_addr = 0;
   usbh_devices[dev_addr].hub_port = 0;
 
-  usbh_device_unplugged_isr(0);
+  usbh_hcd_rhport_unplugged_isr(0);
 }
 
 void test_usbh_device_unplugged_isr(void)
@@ -166,7 +166,7 @@ void test_usbh_device_unplugged_isr(void)
   hcd_pipe_control_close_ExpectAndReturn(dev_addr, TUSB_ERROR_NONE);
 
   //------------- Code Under Test -------------//
-  usbh_device_unplugged_isr(0);
+  usbh_hcd_rhport_unplugged_isr(0);
 
   TEST_ASSERT_EQUAL(TUSB_DEVICE_STATE_REMOVING, usbh_devices[dev_addr].state);
 }
@@ -188,7 +188,7 @@ void test_usbh_device_unplugged_multple_class(void)
   hcd_pipe_control_close_ExpectAndReturn(dev_addr, TUSB_ERROR_NONE);
 
   //------------- Code Under Test -------------//
-  usbh_device_unplugged_isr(0);
+  usbh_hcd_rhport_unplugged_isr(0);
 
   TEST_ASSERT_EQUAL(TUSB_DEVICE_STATE_REMOVING, usbh_devices[dev_addr].state);
 

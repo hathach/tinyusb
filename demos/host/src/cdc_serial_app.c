@@ -62,15 +62,16 @@ void tusbh_cdc_mounted_cb(uint8_t dev_addr)
 {
   // application set-up
 
-  printf("a CDC device is mounted\n");
+  printf("\na CDC device is mounted\n");
 
   osal_queue_flush(queue_hdl);
   tusbh_cdc_receive(dev_addr, buffer_in, sizeof(buffer_in), true); // first report
 }
 
-void tusbh_cdc_unmounted_isr(uint8_t dev_addr)
+void tusbh_cdc_unmounted_cb(uint8_t dev_addr)
 {
   // application tear-down
+  printf("\na CDC device is unmounted\n");
 }
 
 void tusbh_cdc_xfer_isr(uint8_t dev_addr, tusb_event_t event, cdc_pipeid_t pipe_id, uint32_t xferred_bytes)

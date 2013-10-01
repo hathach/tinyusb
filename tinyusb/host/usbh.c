@@ -273,16 +273,21 @@ void usbh_xfer_isr(pipe_handle_t pipe_hdl, uint8_t class_code, tusb_event_t even
   }
 }
 
-void usbh_device_plugged_isr(uint8_t hostid, uint8_t hub_addr, uint8_t hub_port)
+void usbh_hcd_rhport_plugged_isr(uint8_t hostid, uint8_t hub_addr, uint8_t hub_port)
 {
   osal_queue_send(enum_queue_hdl,
-                  &(usbh_enumerate_t){ .core_id = hostid, .hub_addr = hub_addr, .hub_port = hub_port} );
+                  &(usbh_enumerate_t){
+                    .core_id = hostid,
+                    .hub_addr = hub_addr,
+                    .hub_port = hub_port}
+                  );
 }
 
 // a device unplugged on hostid, hub_addr, hub_port
 // return true if found and unmounted device, false if cannot find
-bool usbh_device_unplugged(uint8_t hostid, uint8_t hub_addr, uint8_t hub_port)
+void usbh_device_unplugged(uint8_t hostid, uint8_t hub_addr, uint8_t hub_port)
 {
+  bool is_found = false;
   //------------- find the all devices (star-network) under port that is unplugged -------------//
   for (uint8_t dev_addr = 0; dev_addr <= TUSB_CFG_HOST_DEVICE_MAX; dev_addr ++)
   {
@@ -306,15 +311,24 @@ bool usbh_device_unplugged(uint8_t hostid, uint8_t hub_addr, uint8_t hub_port)
       // HCD must set this device's state to TUSB_DEVICE_STATE_UNPLUG when done
       usbh_devices[dev_addr].state = TUSB_DEVICE_STATE_REMOVING;
       usbh_devices[dev_addr].flag_supported_class = 0;
+
+      is_found = true;
     }
   }
 
-  return true;
+  if (is_found) hcd_hub_advance_asyn(usbh_devices[0].core_id); // TODO hack
+
 }
 
 void usbh_hcd_rhport_unplugged_isr(uint8_t hostid)
 {
-  (void) usbh_device_unplugged(hostid, 0, 0);
+  osal_queue_send(enum_queue_hdl,
+                  &(usbh_enumerate_t)
+                  {
+                    .core_id = hostid,
+                    .hub_addr = 0,
+                    .hub_port = 0
+                  } );
 }
 
 //--------------------------------------------------------------------+
@@ -353,8 +367,23 @@ tusb_error_t enumeration_body_subtask(void)
   usbh_devices[0].hub_port = enum_entry.hub_port;
   usbh_devices[0].state    = TUSB_DEVICE_STATE_UNPLUG;
 
-  if ( usbh_devices[0].hub_addr != 0) // connected/disconnected via hub
-  {
+  if ( usbh_devices[0].hub_addr == 0)
+  { // connected/disconnected directly with roothub
+    if( hcd_port_connect_status(usbh_devices[0].core_id) )
+    { // connection event
+      osal_task_delay(200); // wait for device is stable
+      hcd_port_reset( usbh_devices[0].core_id ); // port must be reset to have correct speed operation
+      //  osal_task_delay(50); // TODO reset is recommended to last 50 ms (NXP EHCI passes this)
+      usbh_devices[0].speed    = hcd_port_speed_get( usbh_devices[0].core_id );
+    }
+    else
+    { // disconnection event
+      usbh_device_unplugged(usbh_devices[0].core_id, 0, 0);
+      SUBTASK_EXIT(TUSB_ERROR_NONE); // restart task
+    }
+  }
+  else
+  { // connected/disconnected via hub
     //------------- Get Port Status -------------//
     OSAL_SUBTASK_INVOKED_AND_WAIT(
         usbh_control_xfer_subtask( usbh_devices[0].hub_addr, bm_request_type(TUSB_DIR_DEV_TO_HOST, TUSB_REQUEST_TYPE_CLASS, TUSB_REQUEST_RECIPIENT_OTHER),
@@ -370,17 +399,14 @@ tusb_error_t enumeration_body_subtask(void)
     if ( ! ((hub_port_status_response_t *) enum_data_buffer)->status_change.connect_status )   SUBTASK_EXIT(TUSB_ERROR_NONE); // only handle connection change
 
     if ( ! ((hub_port_status_response_t *) enum_data_buffer)->status_current.connect_status )
-    { // Device is disconnected via Hub
-      if ( usbh_device_unplugged(usbh_devices[0].core_id, usbh_devices[0].hub_addr, usbh_devices[0].hub_port) )
-      {
-        hcd_hub_advance_asyn(usbh_devices[0].core_id); // TODO hack
-      }
+    { // Disconnection event
+      usbh_device_unplugged(usbh_devices[0].core_id, usbh_devices[0].hub_addr, usbh_devices[0].hub_port);
 
       (void) hub_status_pipe_queue( usbh_devices[0].hub_addr ); // done with hub, waiting for next data on status pipe
       SUBTASK_EXIT(TUSB_ERROR_NONE); // restart task
     }
     else
-    { // Device is connected via Hub
+    { // Connection Event
       OSAL_SUBTASK_INVOKED_AND_WAIT ( hub_port_reset_subtask(usbh_devices[0].hub_addr, usbh_devices[0].hub_port), error );
       SUBTASK_ASSERT_STATUS( error );
 
@@ -389,14 +415,6 @@ tusb_error_t enumeration_body_subtask(void)
       // Acknowledge Port Reset Change
       OSAL_SUBTASK_INVOKED_AND_WAIT( hub_port_clear_feature_subtask(usbh_devices[0].hub_addr, usbh_devices[0].hub_port, HUB_FEATURE_PORT_RESET_CHANGE), error );
     }
-  }
-  else
-  {
-    SUBTASK_ASSERT( hcd_port_connect_status(usbh_devices[0].core_id) ); // ensure device is still plugged
-    osal_task_delay(200); // wait for device is stable
-    hcd_port_reset( usbh_devices[0].core_id ); // port must be reset to have correct speed operation
-    //  osal_task_delay(50); // TODO reset is recommended to last 50 ms (NXP EHCI passes this)
-    usbh_devices[0].speed    = hcd_port_speed_get( usbh_devices[0].core_id );
   }
 
   SUBTASK_ASSERT_STATUS( usbh_pipe_control_open(0, 8) );

@@ -564,11 +564,11 @@ static void port_connect_status_change_isr(uint8_t hostid)
   // NOTE There is an sequence plug->unplug->…..-> plug if device is powering with pre-plugged device
   if (regs->portsc_bit.current_connect_status)
   {
-    usbh_device_plugged_isr(hostid, 0, 0);
+    usbh_hcd_rhport_plugged_isr(hostid, 0, 0);
   }else // device unplugged
   {
     usbh_hcd_rhport_unplugged_isr(hostid);
-    regs->usb_cmd_bit.advacne_async = 1; // Async doorbell check EHCI 4.8.2 for operational details
+//    regs->usb_cmd_bit.advacne_async = 1; // Async doorbell check EHCI 4.8.2 for operational details
   }
 }
 

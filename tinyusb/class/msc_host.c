@@ -427,7 +427,7 @@ void msch_close(uint8_t dev_addr)
   memclr_(&msch_data[dev_addr-1], sizeof(msch_interface_t));
   osal_semaphore_reset(msch_sem_hdl);
 
-  tusbh_msc_unmounted_isr(dev_addr); // invoke Application Callback
+  tusbh_msc_unmounted_cb(dev_addr); // invoke Application Callback
 }
 
 //--------------------------------------------------------------------+

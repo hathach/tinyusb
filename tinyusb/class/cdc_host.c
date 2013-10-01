@@ -266,7 +266,7 @@ void cdch_close(uint8_t dev_addr)
 
   memclr_(p_cdc, sizeof(cdch_data_t));
 
-  tusbh_cdc_unmounted_isr(dev_addr);
+  tusbh_cdc_unmounted_cb(dev_addr);
 
 }
 

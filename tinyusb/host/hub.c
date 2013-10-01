@@ -210,7 +210,7 @@ void hub_isr(pipe_handle_t pipe_hdl, tusb_event_t event, uint32_t xferred_bytes)
     if ( BIT_TEST_(p_hub->status_change, port) )
     {
       // TODO HUB connection/disconnection will be determined in enum task --> connect change
-      usbh_device_plugged_isr(usbh_devices[pipe_hdl.dev_addr].core_id, pipe_hdl.dev_addr, port);
+      usbh_hcd_rhport_plugged_isr(usbh_devices[pipe_hdl.dev_addr].core_id, pipe_hdl.dev_addr, port);
     }
   }
 

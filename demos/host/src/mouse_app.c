@@ -71,15 +71,16 @@ void tusbh_hid_mouse_mounted_cb(uint8_t dev_addr)
 {
   // application set-up
 
-  printf("a mouse device is mounted\n");
+  puts("\na Mouse device is mounted");
 
   osal_queue_flush(queue_mouse_hdl);
   (void) tusbh_hid_mouse_get_report(dev_addr, (uint8_t*) &usb_mouse_report); // first report
 }
 
-void tusbh_hid_mouse_unmounted_isr(uint8_t dev_addr)
+void tusbh_hid_mouse_unmounted_cb(uint8_t dev_addr)
 {
   // application tear-down
+  puts("\na Mouse device is unmounted\n");
 }
 
 void tusbh_hid_mouse_isr(uint8_t dev_addr, tusb_event_t event)
