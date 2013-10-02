@@ -391,7 +391,8 @@ tusb_error_t enumeration_body_subtask(void)
                                    4, enum_data_buffer ),
         error
     );
-    SUBTASK_ASSERT_STATUS( error );
+//    SUBTASK_ASSERT_STATUS( error );
+    SUBTASK_ASSERT_STATUS_WITH_HANDLER(error, hub_status_pipe_queue( usbh_devices[0].hub_addr) ); // TODO hub refractor
 
     // Acknowledge Port Connection Change
     OSAL_SUBTASK_INVOKED_AND_WAIT( hub_port_clear_feature_subtask(usbh_devices[0].hub_addr, usbh_devices[0].hub_port, HUB_FEATURE_PORT_CONNECTION_CHANGE), error );
@@ -408,7 +409,8 @@ tusb_error_t enumeration_body_subtask(void)
     else
     { // Connection Event
       OSAL_SUBTASK_INVOKED_AND_WAIT ( hub_port_reset_subtask(usbh_devices[0].hub_addr, usbh_devices[0].hub_port), error );
-      SUBTASK_ASSERT_STATUS( error );
+//      SUBTASK_ASSERT_STATUS( error );
+      SUBTASK_ASSERT_STATUS_WITH_HANDLER(error, hub_status_pipe_queue( usbh_devices[0].hub_addr) ); // TODO hub refractor
 
       usbh_devices[0].speed = hub_port_get_speed();
 
@@ -427,15 +429,16 @@ tusb_error_t enumeration_body_subtask(void)
                                  8, enum_data_buffer ),
       error
   );
-  SUBTASK_ASSERT_STATUS(error); // TODO some slow device is observed to fail the very fist controller xfer, can try more times
 
   //------------- Reset device again before Set Address -------------//
   if (usbh_devices[0].hub_addr == 0)
   { // connected directly to roothub
+    SUBTASK_ASSERT_STATUS(error); // TODO some slow device is observed to fail the very fist controller xfer, can try more times
     hcd_port_reset( usbh_devices[0].core_id ); // reset port after 8 byte descriptor
 //  osal_task_delay(50); // TODO reset is recommended to last 50 ms (NXP EHCI passes this)
   }else
   { // connected via a hub
+    SUBTASK_ASSERT_STATUS_WITH_HANDLER(error, hub_status_pipe_queue( usbh_devices[0].hub_addr) ); // TODO hub refractor
     OSAL_SUBTASK_INVOKED_AND_WAIT ( hub_port_reset_subtask(usbh_devices[0].hub_addr, usbh_devices[0].hub_port), error );
 
     if ( TUSB_ERROR_NONE == error )

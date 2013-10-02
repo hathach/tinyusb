@@ -44,7 +44,7 @@
             <InvalidFlash>1</InvalidFlash>
           </TargetStatus>
           <OutputDirectory>.\UV4Build\</OutputDirectory>
-          <OutputName>host_os_none</OutputName>
+          <OutputName>host_freertos</OutputName>
           <CreateExecutable>1</CreateExecutable>
           <CreateLib>0</CreateLib>
           <CreateHexFile>0</CreateHexFile>
@@ -350,7 +350,7 @@
               <MiscControls>--gnu --c99 --diag_suppress=66</MiscControls>
               <Define>CORE_M4 MCU=MCU_LPC43XX BOARD=BOARD_EA4357 TUSB_CFG_OS=TUSB_OS_FREERTOS TUSB_CFG_OS_TASK_PRIO=configMAX_PRIORITIES-5</Define>
               <Undefine></Undefine>
-              <IncludePath>..\src;..\..\bsp\lpc43xx\CMSIS_LPC43xx_DriverLib\inc;..\..\bsp;..\..\..\tinyusb;..\..\..\vendor\freertos;..\..\..\vendor\freertos\freertos\Source\include;..\host_freertos</IncludePath>
+              <IncludePath>..\src;..\..\bsp\lpc43xx\CMSIS_LPC43xx_DriverLib\inc;..\..\bsp;..\..\..\tinyusb;..\..\..\vendor\freertos;..\..\..\vendor\freertos\freertos\Source\include;..\host_freertos;..\..\..\vendor\fatfs</IncludePath>
             </VariousControls>
           </Cads>
           <Aads>
@@ -650,6 +650,26 @@
               <FileName>port.c</FileName>
               <FileType>1</FileType>
               <FilePath>..\..\..\vendor\freertos\freertos\Source\portable\RVDS\ARM_CM4F\port.c</FilePath>
+            </File>
+          </Files>
+        </Group>
+        <Group>
+          <GroupName>fatfs</GroupName>
+          <Files>
+            <File>
+              <FileName>ccsbcs.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\..\..\vendor\fatfs\ccsbcs.c</FilePath>
+            </File>
+            <File>
+              <FileName>diskio.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\..\..\vendor\fatfs\diskio.c</FilePath>
+            </File>
+            <File>
+              <FileName>ff.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\..\..\vendor\fatfs\ff.c</FilePath>
             </File>
           </Files>
         </Group>
@@ -1339,6 +1359,26 @@
               <FileName>port.c</FileName>
               <FileType>1</FileType>
               <FilePath>..\..\..\vendor\freertos\freertos\Source\portable\RVDS\ARM_CM4F\port.c</FilePath>
+            </File>
+          </Files>
+        </Group>
+        <Group>
+          <GroupName>fatfs</GroupName>
+          <Files>
+            <File>
+              <FileName>ccsbcs.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\..\..\vendor\fatfs\ccsbcs.c</FilePath>
+            </File>
+            <File>
+              <FileName>diskio.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\..\..\vendor\fatfs\diskio.c</FilePath>
+            </File>
+            <File>
+              <FileName>ff.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\..\..\vendor\fatfs\ff.c</FilePath>
             </File>
           </Files>
         </Group>
