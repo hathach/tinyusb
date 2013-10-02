@@ -67,7 +67,7 @@ uint8_t const* tusbh_msc_get_product_name(uint8_t dev_addr);
 tusb_error_t tusbh_msc_get_capacity(uint8_t dev_addr, uint32_t* p_last_lba, uint32_t* p_block_size);
 
 tusb_error_t tusbh_msc_read10 (uint8_t dev_addr, uint8_t lun, void * p_buffer, uint32_t lba, uint16_t block_count) ATTR_WARN_UNUSED_RESULT;
-tusb_error_t tusbh_msc_write10(uint8_t dev_addr, uint8_t lun, void * p_buffer, uint32_t lba, uint16_t block_count) ATTR_WARN_UNUSED_RESULT;
+tusb_error_t tusbh_msc_write10(uint8_t dev_addr, uint8_t lun, void const * p_buffer, uint32_t lba, uint16_t block_count) ATTR_WARN_UNUSED_RESULT;
 tusb_error_t tusbh_msc_request_sense(uint8_t dev_addr, uint8_t lun, uint8_t *p_data) ATTR_WARN_UNUSED_RESULT;
 tusb_error_t tusbh_msc_test_unit_ready(uint8_t dev_addr, uint8_t lun, msc_cmd_status_wrapper_t * p_csw) ATTR_WARN_UNUSED_RESULT; // TODO to be refractor
 

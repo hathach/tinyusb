@@ -18,8 +18,6 @@ extern "C" {
 /* Status of Disk Functions */
 typedef BYTE	DSTATUS;
 
-extern volatile DSTATUS disk_state[TUSB_CFG_HOST_DEVICE_MAX];
-
 /* Results of Disk Functions */
 typedef enum {
 	RES_OK = 0,		/* 0: Successful */
@@ -74,7 +72,8 @@ typedef enum {
 /*---------------------------------------*/
 /* Prototypes for disk control functions */
 
-
+void diskio_init(void);
+void disk_deinitialize ( BYTE pdrv );
 DSTATUS disk_initialize (BYTE pdrv);
 DSTATUS disk_status (BYTE pdrv);
 DRESULT disk_read (BYTE pdrv, BYTE*buff, DWORD sector, BYTE count);

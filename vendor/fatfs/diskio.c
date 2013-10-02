@@ -48,7 +48,7 @@
 // MACRO CONSTANT TYPEDEF
 //--------------------------------------------------------------------+
 // TODO change it to portable init
-volatile DSTATUS disk_state[TUSB_CFG_HOST_DEVICE_MAX] = { [0 ... TUSB_CFG_HOST_DEVICE_MAX-1] = STA_NOINIT };
+static DSTATUS disk_state[TUSB_CFG_HOST_DEVICE_MAX];
 
 //--------------------------------------------------------------------+
 // INTERNAL OBJECT & FUNCTION DECLARATION
@@ -71,10 +71,21 @@ static DRESULT wait_for_io_complete(uint8_t usb_addr)
 
 }
 
+void diskio_init(void)
+{
+  memset(disk_state, STA_NOINIT, TUSB_CFG_HOST_DEVICE_MAX);
+}
+
 //pdrv Specifies the physical drive number.
 DSTATUS disk_initialize ( BYTE pdrv )
 {
+  disk_state[pdrv] &= (~STA_NOINIT); // clear NOINIT bit
   return disk_state[pdrv];
+}
+
+void disk_deinitialize ( BYTE pdrv )
+{
+  disk_state[pdrv] |= STA_NOINIT; // set NOINIT bit
 }
 
 DSTATUS disk_status (BYTE pdrv)
@@ -134,7 +145,7 @@ DRESULT disk_ioctl (BYTE pdrv, BYTE cmd, void* buff)
 static inline uint8_t month2number(char* p_ch) ATTR_PURE ATTR_ALWAYS_INLINE;
 static inline uint8_t month2number(char* p_ch)
 {
-  uint8_t const * const month_str[] = { "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec" };
+  char const * const month_str[] = { "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec" };
 
   for(uint8_t i=0; i<12; i++)
   {

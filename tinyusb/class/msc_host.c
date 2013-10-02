@@ -105,7 +105,7 @@ tusb_error_t tusbh_msc_get_capacity(uint8_t dev_addr, uint32_t* p_last_lba, uint
 
   (*p_last_lba)   = msch_data[dev_addr-1].last_lba;
   (*p_block_size) = (uint32_t) msch_data[dev_addr-1].block_size;
-  
+
   return TUSB_ERROR_NONE;
 }
 
@@ -127,16 +127,16 @@ static tusb_error_t msch_command_xfer(msch_interface_t * p_msch, void* p_buffer)
   { // there is data phase
     if (p_msch->cbw.flags & TUSB_DIR_DEV_TO_HOST_MASK)
     {
-      ASSERT_STATUS( hcd_pipe_xfer(p_msch->bulk_out, &p_msch->cbw, sizeof(msc_cmd_block_wrapper_t), false) );
+      ASSERT_STATUS( hcd_pipe_xfer(p_msch->bulk_out, (uint8_t*) &p_msch->cbw, sizeof(msc_cmd_block_wrapper_t), false) );
       ASSERT_STATUS( hcd_pipe_queue_xfer(p_msch->bulk_in , p_buffer, p_msch->cbw.xfer_bytes) );
     }else
     {
-      ASSERT_STATUS( hcd_pipe_queue_xfer(p_msch->bulk_out, &p_msch->cbw, sizeof(msc_cmd_block_wrapper_t)) );
+      ASSERT_STATUS( hcd_pipe_queue_xfer(p_msch->bulk_out, (uint8_t*) &p_msch->cbw, sizeof(msc_cmd_block_wrapper_t)) );
       ASSERT_STATUS( hcd_pipe_xfer(p_msch->bulk_out , p_buffer, p_msch->cbw.xfer_bytes, false) );
     }
   }
 
-  ASSERT_STATUS( hcd_pipe_xfer(p_msch->bulk_in , &p_msch->csw, sizeof(msc_cmd_status_wrapper_t), true) );
+  ASSERT_STATUS( hcd_pipe_xfer(p_msch->bulk_in , (uint8_t*) &p_msch->csw, sizeof(msc_cmd_status_wrapper_t), true) );
 
   return TUSB_ERROR_NONE;
 }
@@ -234,8 +234,8 @@ tusb_error_t tusbh_msc_test_unit_ready(uint8_t dev_addr, uint8_t lun,  msc_cmd_s
   memcpy(p_msch->cbw.command, &cmd_test_unit_ready, p_msch->cbw.cmd_len);
 
   // TODO MSCH refractor test uinit ready
-  ASSERT_STATUS( hcd_pipe_xfer(p_msch->bulk_out, &p_msch->cbw, sizeof(msc_cmd_block_wrapper_t), false) );
-  ASSERT_STATUS( hcd_pipe_xfer(p_msch->bulk_in , p_csw, sizeof(msc_cmd_status_wrapper_t), true) );
+  ASSERT_STATUS( hcd_pipe_xfer(p_msch->bulk_out, (uint8_t*) &p_msch->cbw, sizeof(msc_cmd_block_wrapper_t), false) );
+  ASSERT_STATUS( hcd_pipe_xfer(p_msch->bulk_in , (uint8_t*) p_csw, sizeof(msc_cmd_status_wrapper_t), true) );
 
   return TUSB_ERROR_NONE;
 }
@@ -266,7 +266,7 @@ tusb_error_t  tusbh_msc_read10(uint8_t dev_addr, uint8_t lun, void * p_buffer, u
   return TUSB_ERROR_NONE;
 }
 
-tusb_error_t tusbh_msc_write10(uint8_t dev_addr, uint8_t lun, void * p_buffer, uint32_t lba, uint16_t block_count)
+tusb_error_t tusbh_msc_write10(uint8_t dev_addr, uint8_t lun, void const * p_buffer, uint32_t lba, uint16_t block_count)
 {
   msch_interface_t* p_msch = &msch_data[dev_addr-1];
 
@@ -287,7 +287,7 @@ tusb_error_t tusbh_msc_write10(uint8_t dev_addr, uint8_t lun, void * p_buffer, u
 
   memcpy(p_msch->cbw.command, &cmd_write10, p_msch->cbw.cmd_len);
 
-  ASSERT_STATUS ( msch_command_xfer(p_msch, p_buffer));
+  ASSERT_STATUS ( msch_command_xfer(p_msch, (void*) p_buffer));
 
   return TUSB_ERROR_NONE;
 }

@@ -300,6 +300,7 @@
           <state>$PROJ_DIR$\..\..\bsp\lpc43xx\CMSIS_LPC43xx_DriverLib\inc</state>
           <state>$PROJ_DIR$\..\..\bsp</state>
           <state>$PROJ_DIR$\..\..\..\tinyusb</state>
+          <state>$PROJ_DIR$\..\..\..\vendor\fatfs</state>
         </option>
         <option>
           <name>CCStdIncCheck</name>
@@ -930,6 +931,9 @@
       <name>$PROJ_DIR$\..\src\cdc_serial_app.c</name>
     </file>
     <file>
+      <name>$PROJ_DIR$\..\src\cli.c</name>
+    </file>
+    <file>
       <name>$PROJ_DIR$\..\src\keyboard_app.c</name>
     </file>
     <file>
@@ -992,6 +996,18 @@
         <name>$PROJ_DIR$\..\..\bsp\lpc43xx\CMSIS_LPC43xx_DriverLib\src\system_LPC43xx.c</name>
       </file>
     </group>
+  </group>
+  <group>
+    <name>fatfs</name>
+    <file>
+      <name>$PROJ_DIR$\..\..\..\vendor\fatfs\ccsbcs.c</name>
+    </file>
+    <file>
+      <name>$PROJ_DIR$\..\..\..\vendor\fatfs\diskio.c</name>
+    </file>
+    <file>
+      <name>$PROJ_DIR$\..\..\..\vendor\fatfs\ff.c</name>
+    </file>
   </group>
   <group>
     <name>tinyusb</name>

@@ -296,6 +296,8 @@ cli_error_t cli_cmd_list(char * p_para)
         putchar('\n');
       }
     }
+
+//    (void) f_closedir(&target_dir);
   }
   else
   {

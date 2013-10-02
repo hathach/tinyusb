@@ -222,6 +222,7 @@ FRESULT f_chmod (const TCHAR* path, BYTE value, BYTE mask);			/* Change attribut
 FRESULT f_utime (const TCHAR* path, const FILINFO* fno);			/* Change times-tamp of the file/dir */
 FRESULT f_rename (const TCHAR* path_old, const TCHAR* path_new);	/* Rename/Move a file or directory */
 FRESULT f_chdrive (BYTE drv);										/* Change current drive */
+BYTE    f_get_current_drive(void);
 FRESULT f_chdir (const TCHAR* path);								/* Change current directory */
 FRESULT f_getcwd (TCHAR* buff, UINT len);							/* Get current directory */
 FRESULT	f_getlabel (const TCHAR* path, TCHAR* label, DWORD* sn);	/* Get volume label */

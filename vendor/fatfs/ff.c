@@ -2762,7 +2762,10 @@ FRESULT f_chdrive (
 	return FR_OK;
 }
 
-
+BYTE f_get_current_drive(void)
+{
+  return CurrVol;
+}
 
 FRESULT f_chdir (
 	const TCHAR *path	/* Pointer to the directory path */

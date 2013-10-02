@@ -84,10 +84,8 @@ void tusbh_msc_mounted_cb(uint8_t dev_addr)
   printf("LBA 0-0x%X  Block Size: %d\n", last_lba, block_size);
 
   //------------- file system (only 1 LUN support) -------------//
-  // TODO MSC refractor this hack
-  //  DSTATUS stat = disk_initialize(0);
   uint8_t phy_disk = dev_addr-1;
-  disk_state[phy_disk] = 0;
+  disk_initialize(phy_disk);
 
   if ( disk_is_ready(phy_disk) )
   {
@@ -118,7 +116,19 @@ void tusbh_msc_unmounted_cb(uint8_t dev_addr)
   uint8_t phy_disk = dev_addr-1;
 
   f_mount(phy_disk, NULL); // unmount disk
-  disk_state[phy_disk] = STA_NOINIT;
+  disk_deinitialize(phy_disk);
+
+  if ( phy_disk == f_get_current_drive() )
+  { // active drive is unplugged --> change to other drive
+    for(uint8_t i=0; i<TUSB_CFG_HOST_DEVICE_MAX; i++)
+    {
+      if ( disk_is_ready(i) )
+      {
+        f_chdrive(i);
+        cli_init(); // refractor, rename
+      }
+    }
+  }
 }
 
 void tusbh_msc_isr(uint8_t dev_addr, tusb_event_t event, uint32_t xferred_bytes)
@@ -131,7 +141,7 @@ void tusbh_msc_isr(uint8_t dev_addr, tusb_event_t event, uint32_t xferred_bytes)
 //--------------------------------------------------------------------+
 void msc_app_init(void)
 {
-
+  diskio_init();
 }
 
 //------------- main task -------------//
