@@ -42,7 +42,7 @@
  *  \note TBD
  */
 
-/** 
+/**
  *  \defgroup Group_HAL Hardware Abtract Layer
  *  \brief Hardware dependent layer
  *
@@ -52,11 +52,31 @@
 #ifndef _TUSB_HAL_H_
 #define _TUSB_HAL_H_
 
+//--------------------------------------------------------------------+
+// INCLUDES
+//--------------------------------------------------------------------+
 #include "tusb_option.h"
 #include "common/primitive_types.h"
 #include "common/errors.h"
 #include "common/compiler/compiler.h"
 
+//--------------------------------------------------------------------+
+// HAL API
+//--------------------------------------------------------------------+
+// callback from tusb.h
+extern void tusb_isr(uint8_t controller_id);
+
+/// USB hardware init
+tusb_error_t hal_init(void);
+
+/// Enable USB Interrupt
+static inline void hal_interrupt_enable(uint8_t controller_id) ATTR_ALWAYS_INLINE;
+/// Disable USB Interrupt
+static inline void hal_interrupt_disable(uint8_t controller_id) ATTR_ALWAYS_INLINE;
+
+//--------------------------------------------------------------------+
+// INCLUDE DRIVEN
+//--------------------------------------------------------------------+
 #if MCU == 0
   #error MCU is not defined or supported yet
 #elif MCU == MCU_LPC11UXX
@@ -75,22 +95,12 @@
 extern "C" {
 #endif
 
-// callback from tusb.h
-extern void tusb_isr(uint8_t controller_id);
-
-/// USB hardware init
-tusb_error_t hal_init(void);
-
-/// Enable USB Interrupt
-static inline void hal_interrupt_enable(uint8_t controller_id) ATTR_ALWAYS_INLINE;
-/// Disable USB Interrupt
-static inline void hal_interrupt_disable(uint8_t controller_id) ATTR_ALWAYS_INLINE;
 
 static inline bool hal_debugger_is_attached(void) ATTR_PURE ATTR_ALWAYS_INLINE;
 static inline bool hal_debugger_is_attached(void)
 {
 #if !defined(_TEST_) && !(MCU==MCU_LPC11UXX)
-  return (CoreDebug->DHCSR & CoreDebug_DHCSR_C_DEBUGEN_Msk) == CoreDebug_DHCSR_C_DEBUGEN_Msk;
+  return ( (CoreDebug->DHCSR & CoreDebug_DHCSR_C_DEBUGEN_Msk) == CoreDebug_DHCSR_C_DEBUGEN_Msk );
 #else
   return false;
 #endif

@@ -99,17 +99,17 @@
 //--------------------------------------------------------------------+
 // INLINE FUNCTION
 //--------------------------------------------------------------------+
-#define memclr_(buffer, size)  memset(buffer, 0, size)
+#define memclr_(buffer, size)  memset((buffer), 0, (size))
 
 
-static inline uint8_t const * descriptor_next(uint8_t const * p_desc) ATTR_ALWAYS_INLINE ATTR_PURE;
-static inline uint8_t const * descriptor_next(uint8_t const * p_desc)
+static inline uint8_t const * descriptor_next(uint8_t const p_desc[]) ATTR_ALWAYS_INLINE ATTR_PURE;
+static inline uint8_t const * descriptor_next(uint8_t const p_desc[])
 {
   return p_desc + p_desc[DESCRIPTOR_OFFSET_LENGTH];
 }
 
-static inline uint8_t descriptor_typeof(uint8_t const * p_desc) ATTR_ALWAYS_INLINE ATTR_PURE;
-static inline uint8_t descriptor_typeof(uint8_t const * p_desc)
+static inline uint8_t descriptor_typeof(uint8_t const p_desc[]) ATTR_ALWAYS_INLINE ATTR_PURE;
+static inline uint8_t descriptor_typeof(uint8_t const p_desc[])
 {
   return p_desc[DESCRIPTOR_OFFSET_TYPE];
 }
@@ -119,13 +119,13 @@ static inline uint8_t descriptor_typeof(uint8_t const * p_desc)
 static inline uint32_t u32_from_u8(uint8_t b1, uint8_t b2, uint8_t b3, uint8_t b4) ATTR_ALWAYS_INLINE ATTR_CONST;
 static inline uint32_t u32_from_u8(uint8_t b1, uint8_t b2, uint8_t b3, uint8_t b4)
 {
-  return (b1 << 24) + (b2 << 16) + (b3 << 8) + b4;
+  return ( ((uint32_t) b1) << 24) + ( ((uint32_t) b2) << 16) + ( ((uint32_t) b3) << 8) + b4;
 }
 
 static inline uint8_t u16_high_u8(uint16_t u16) ATTR_CONST ATTR_ALWAYS_INLINE;
 static inline uint8_t u16_high_u8(uint16_t u16)
 {
-  return (uint8_t) ((u16 >> 8) & 0x00ff);
+  return (uint8_t) ( ((uint16_t) (u16 >> 8)) & 0x00ff);
 }
 
 static inline uint8_t u16_low_u8(uint16_t u16) ATTR_CONST ATTR_ALWAYS_INLINE;
@@ -137,7 +137,7 @@ static inline uint8_t u16_low_u8(uint16_t u16)
 static inline uint16_t u16_le2be(uint16_t u16) ATTR_CONST ATTR_ALWAYS_INLINE;
 static inline uint16_t u16_le2be(uint16_t u16)
 {
-  return (u16_low_u8(u16) << 8) | u16_high_u8(u16);
+  return ((uint16_t)(u16_low_u8(u16) << 8)) | u16_high_u8(u16);
 }
 
 //------------- Min -------------//
@@ -182,7 +182,7 @@ static inline uint32_t align16 (uint32_t value)
 static inline uint32_t align_n (uint32_t alignment, uint32_t value) ATTR_ALWAYS_INLINE ATTR_CONST;
 static inline uint32_t align_n (uint32_t alignment, uint32_t value)
 {
-	return value & (~(alignment-1));
+	return value & ((uint32_t) ~(alignment-1));
 }
 
 static inline uint32_t align4k (uint32_t value) ATTR_ALWAYS_INLINE ATTR_CONST;
@@ -212,7 +212,7 @@ static inline bool is_in_range_exclusive(uint32_t lower, uint32_t value, uint32_
   return (lower < value) && (value < upper);
 }
 
-
+// TODO use clz
 static inline uint8_t log2_of(uint32_t value) ATTR_ALWAYS_INLINE ATTR_CONST;
 static inline uint8_t log2_of(uint32_t value)
 {

@@ -460,7 +460,7 @@
       <Focus>0</Focus>
       <ColumnNumber>25</ColumnNumber>
       <tvExpOptDlg>0</tvExpOptDlg>
-      <TopLine>155</TopLine>
+      <TopLine>156</TopLine>
       <CurrentLine>160</CurrentLine>
       <bDave2>0</bDave2>
       <PathWithFileName>..\src\main.c</PathWithFileName>
@@ -554,10 +554,10 @@
       <FileType>1</FileType>
       <tvExp>0</tvExp>
       <Focus>0</Focus>
-      <ColumnNumber>35</ColumnNumber>
+      <ColumnNumber>18</ColumnNumber>
       <tvExpOptDlg>0</tvExpOptDlg>
-      <TopLine>399</TopLine>
-      <CurrentLine>405</CurrentLine>
+      <TopLine>226</TopLine>
+      <CurrentLine>237</CurrentLine>
       <bDave2>0</bDave2>
       <PathWithFileName>..\src\cli.c</PathWithFileName>
       <FilenameWithoutPath>cli.c</FilenameWithoutPath>
@@ -610,10 +610,10 @@
       <FileType>1</FileType>
       <tvExp>0</tvExp>
       <Focus>0</Focus>
-      <ColumnNumber>1</ColumnNumber>
+      <ColumnNumber>3</ColumnNumber>
       <tvExpOptDlg>0</tvExpOptDlg>
       <TopLine>95</TopLine>
-      <CurrentLine>132</CurrentLine>
+      <CurrentLine>138</CurrentLine>
       <bDave2>0</bDave2>
       <PathWithFileName>..\..\bsp\boards\printf_retarget.c</PathWithFileName>
       <FilenameWithoutPath>printf_retarget.c</FilenameWithoutPath>
@@ -812,7 +812,7 @@
       <Focus>0</Focus>
       <ColumnNumber>0</ColumnNumber>
       <tvExpOptDlg>0</tvExpOptDlg>
-      <TopLine>356</TopLine>
+      <TopLine>357</TopLine>
       <CurrentLine>362</CurrentLine>
       <bDave2>0</bDave2>
       <PathWithFileName>..\..\..\tinyusb\host\usbh.c</PathWithFileName>
@@ -1060,7 +1060,7 @@
       <Focus>0</Focus>
       <ColumnNumber>3</ColumnNumber>
       <tvExpOptDlg>0</tvExpOptDlg>
-      <TopLine>576</TopLine>
+      <TopLine>577</TopLine>
       <CurrentLine>580</CurrentLine>
       <bDave2>0</bDave2>
       <PathWithFileName>..\..\bsp\lpc43xx\CMSIS_LPC43xx_DriverLib\src\lpc43xx_cgu.c</PathWithFileName>
@@ -1116,7 +1116,7 @@
       <Focus>0</Focus>
       <ColumnNumber>19</ColumnNumber>
       <tvExpOptDlg>0</tvExpOptDlg>
-      <TopLine>146</TopLine>
+      <TopLine>147</TopLine>
       <CurrentLine>152</CurrentLine>
       <bDave2>0</bDave2>
       <PathWithFileName>..\..\bsp\lpc43xx\startup_keil\startup_LPC43xx.s</PathWithFileName>
@@ -1138,10 +1138,10 @@
       <FileType>1</FileType>
       <tvExp>0</tvExp>
       <Focus>0</Focus>
-      <ColumnNumber>23</ColumnNumber>
+      <ColumnNumber>47</ColumnNumber>
       <tvExpOptDlg>0</tvExpOptDlg>
-      <TopLine>109</TopLine>
-      <CurrentLine>113</CurrentLine>
+      <TopLine>50</TopLine>
+      <CurrentLine>59</CurrentLine>
       <bDave2>0</bDave2>
       <PathWithFileName>..\..\..\vendor\fatfs\diskio.c</PathWithFileName>
       <FilenameWithoutPath>diskio.c</FilenameWithoutPath>

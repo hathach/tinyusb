@@ -833,9 +833,9 @@ STATIC_ INLINE_ ehci_link_t* get_period_frame_list(uint8_t hostid)
     case 1:
       return period_frame_list1;
 #endif
+	 
+    default: return NULL;
   }
-
-  return NULL;
 }
 #endif
 

@@ -401,8 +401,6 @@ tusb_error_t msch_open_subtask(uint8_t dev_addr, tusb_descriptor_interface_t con
   tusbh_msc_mounted_cb(dev_addr);
 
   OSAL_SUBTASK_END
-
-  return TUSB_ERROR_NONE;
 }
 
 void msch_isr(pipe_handle_t pipe_hdl, tusb_event_t event, uint32_t xferred_bytes)

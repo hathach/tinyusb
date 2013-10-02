@@ -46,11 +46,11 @@
 #ifndef _TUSB_HAL_LPC175X_6X_H_
 #define _TUSB_HAL_LPC175X_6X_H_
 
+#include "LPC17xx.h"
+
 #ifdef __cplusplus
  extern "C" {
 #endif
-
-#include "LPC17xx.h"
 
 //--------------------------------------------------------------------+
 //

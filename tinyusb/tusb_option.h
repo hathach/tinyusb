@@ -50,10 +50,6 @@
 #ifndef _TUSB_TUSB_OPTION_H_
 #define _TUSB_TUSB_OPTION_H_
 
-#ifdef __cplusplus
- extern "C" {
-#endif
-
 #define TUSB_VERSION_YEAR   00
 #define TUSB_VERSION_MONTH  00
 #define TUSB_VERSION_WEEK   0
@@ -190,12 +186,6 @@
 
 #define  CDC_NOTIFICATION_EP_MAXPACKETSIZE  8
 #define  CDC_DATA_EP_MAXPACKET_SIZE         16
-
-
-
-#ifdef __cplusplus
- }
-#endif
 
 #endif /* _TUSB_TUSB_OPTION_H_ */
 

@@ -78,7 +78,7 @@ typedef ATTR_PACKED_STRUCT(struct){
 static inline uint8_t bm_request_type(uint8_t direction, uint8_t type, uint8_t recipient) ATTR_CONST ATTR_ALWAYS_INLINE;
 static inline uint8_t bm_request_type(uint8_t direction, uint8_t type, uint8_t recipient)
 {
-  return (direction << 7) | (type << 5) | recipient;
+  return ((uint8_t) (direction << 7)) | ((uint8_t) (type << 5)) | (recipient);
 }
 
 #ifdef __cplusplus

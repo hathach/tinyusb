@@ -40,7 +40,7 @@
 
 #if TUSB_CFG_DEBUG == 3
 
-char const* const TUSB_ErrorStr[] =
+char const* const TUSB_ErrorStr[TUSB_ERROR_COUNT] =
 {
  ERROR_TABLE(ERROR_STRING)
  0
