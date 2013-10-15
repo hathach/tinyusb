@@ -19,6 +19,10 @@ designed to be simple and run out-of-the-box provided the configuration is corre
 - Hub
     - Only support 1 level of hub (due to my laziness)
 - Multiple host controllers
+- Android Accessory Open (comming soon)
+- FTDI (coming soon)
+- Audio (coming soon)
+
 
 ### Device ###
 
