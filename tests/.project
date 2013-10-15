@@ -67,9 +67,26 @@
 		<nature>org.eclipse.cdt.managedbuilder.core.managedBuildNature</nature>
 		<nature>org.eclipse.cdt.managedbuilder.core.ScannerConfigNature</nature>
 	</natures>
+	<linkedResources>
+		<link>
+			<name>demo_vendor</name>
+			<type>2</type>
+			<location>C:/Users/hathach/Dropbox/tinyusb/workspace/tinyusb/vendor</location>
+		</link>
+		<link>
+			<name>demos</name>
+			<type>2</type>
+			<location>C:/Users/hathach/Dropbox/tinyusb/workspace/tinyusb/demos</location>
+		</link>
+		<link>
+			<name>tinyusb</name>
+			<type>2</type>
+			<location>C:/Users/hathach/Dropbox/tinyusb/workspace/tinyusb/tinyusb</location>
+		</link>
+	</linkedResources>
 	<filteredResources>
 		<filter>
-			<id>1380304047311</id>
+			<id>1381816373996</id>
 			<name></name>
 			<type>22</type>
 			<matcher>
@@ -78,7 +95,7 @@
 			</matcher>
 		</filter>
 		<filter>
-			<id>1380304047319</id>
+			<id>1381816374006</id>
 			<name></name>
 			<type>22</type>
 			<matcher>
@@ -87,16 +104,7 @@
 			</matcher>
 		</filter>
 		<filter>
-			<id>1380304047327</id>
-			<name></name>
-			<type>10</type>
-			<matcher>
-				<id>org.eclipse.ui.ide.multiFilter</id>
-				<arguments>1.0-name-matches-false-false-docs</arguments>
-			</matcher>
-		</filter>
-		<filter>
-			<id>1380304047336</id>
+			<id>1381816374017</id>
 			<name></name>
 			<type>26</type>
 			<matcher>
