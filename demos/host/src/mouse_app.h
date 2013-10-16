@@ -62,8 +62,17 @@
  extern "C" {
 #endif
 
+#if TUSB_CFG_HOST_HID_MOUSE
+
 void mouse_app_init(void);
 OSAL_TASK_FUNCTION( mouse_app_task ) (void* p_task_para);
+
+#else
+
+#define mouse_app_init()
+#define mouse_app_task(x)
+
+#endif
 
 #ifdef __cplusplus
  }

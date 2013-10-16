@@ -53,8 +53,18 @@
  extern "C" {
 #endif
 
+#if TUSB_CFG_HOST_CDC && TUSB_CFG_HOST_CDC_RNDIS
+
 void rndis_app_init(void);
 OSAL_TASK_FUNCTION( rndis_app_task ) (void* p_task_para);
+
+#else
+
+#define rndis_app_init()
+#define rndis_app_task(x)
+
+#endif
+
 
 #ifdef __cplusplus
  }

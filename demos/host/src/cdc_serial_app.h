@@ -53,9 +53,17 @@
  extern "C" {
 #endif
 
+#if TUSB_CFG_HOST_CDC
+
 void cdc_serial_app_init(void);
 OSAL_TASK_FUNCTION( cdc_serial_app_task ) (void* p_task_para);
 
+#else
+
+#define cdc_serial_app_init()
+#define cdc_serial_app_task(x)
+
+#endif
 
 #ifdef __cplusplus
  }

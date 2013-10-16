@@ -179,13 +179,4 @@ static inline uint8_t keycode_to_ascii(uint8_t modifier, uint8_t keycode)
     hid_keycode_to_ascii_tbl [modifier & (KEYBOARD_MODIFIER_LEFTSHIFT | KEYBOARD_MODIFIER_RIGHTSHIFT) ? 1 : 0] [keycode];
 }
 
-#else
-
-// dummy implementation to remove #ifdef in main.c
-void keyboard_app_init(void) { }
-OSAL_TASK_FUNCTION( keyboard_app_task ) (void* p_task_para)
-{
-  OSAL_TASK_LOOP_BEGIN
-  OSAL_TASK_LOOP_END
-}
 #endif

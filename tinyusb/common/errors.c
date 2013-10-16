@@ -43,7 +43,6 @@
 char const* const TUSB_ErrorStr[TUSB_ERROR_COUNT] =
 {
  ERROR_TABLE(ERROR_STRING)
- 0
 };
 
 #endif

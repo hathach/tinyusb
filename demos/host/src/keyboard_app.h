@@ -59,9 +59,17 @@
  extern "C" {
 #endif
 
+#if TUSB_CFG_HOST_HID_KEYBOARD
 
 void keyboard_app_init(void);
 OSAL_TASK_FUNCTION( keyboard_app_task ) (void* p_task_para);
+
+#else
+
+#define keyboard_app_init()
+#define keyboard_app_task(x)
+
+#endif
 
 #ifdef __cplusplus
  }

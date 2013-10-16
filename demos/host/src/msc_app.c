@@ -173,14 +173,4 @@ OSAL_TASK_FUNCTION( msc_app_task ) (void* p_task_para)
   OSAL_TASK_LOOP_END
 }
 
-#else
-// dummy implementation to remove #ifdef in main.c
-void msc_app_init(void) { }
-OSAL_TASK_FUNCTION( msc_app_task ) (void* p_task_para)
-{
-  OSAL_TASK_LOOP_BEGIN
-  OSAL_TASK_LOOP_END
-}
-
-
 #endif

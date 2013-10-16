@@ -57,10 +57,17 @@
  extern "C" {
 #endif
 
+#if TUSB_CFG_HOST_MSC
 
 void msc_app_init(void);
 OSAL_TASK_FUNCTION( msc_app_task ) (void* p_task_para);
 
+#else
+
+#define msc_app_init()
+#define msc_app_task(x)
+
+#endif
 
 #ifdef __cplusplus
  }

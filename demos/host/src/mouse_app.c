@@ -182,14 +182,4 @@ static inline void process_mouse_report(tusb_mouse_report_t const * p_report)
   cursor_movement(p_report->x, p_report->y, p_report->wheel);
 }
 
-#else
-
-// dummy implementation to remove #ifdef in main.c
-void mouse_app_init(void) { }
-OSAL_TASK_FUNCTION( mouse_app_task ) (void* p_task_para)
-{
-  OSAL_TASK_LOOP_BEGIN
-  OSAL_TASK_LOOP_END
-}
-
 #endif
