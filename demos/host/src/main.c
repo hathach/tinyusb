@@ -189,7 +189,7 @@ void print_greeting(void)
   );
 
   puts("This demo support the following classes");
-  if (TUSB_CFG_HOST_HUB          ) puts("  - Hub");
+  if (TUSB_CFG_HOST_HUB          ) puts("  - Hub (1 level only)");
   if (TUSB_CFG_HOST_HID_MOUSE    ) puts("  - HID Mouse");
   if (TUSB_CFG_HOST_HID_KEYBOARD ) puts("  - HID Keyboard");
   if (TUSB_CFG_HOST_MSC          ) puts("  - Mass Storage");

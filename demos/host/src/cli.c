@@ -41,7 +41,6 @@
 
 #include "ff.h"
 #include "diskio.h"
-#include "boards/ansi_escape.h"
 
 //--------------------------------------------------------------------+
 // MACRO CONSTANT TYPEDEF

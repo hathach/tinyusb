@@ -59,6 +59,7 @@
 #include <stdint.h>
 #include <stdbool.h>
 
+#include "ansi_escape.h"
 #include "tusb.h"
 
 //--------------------------------------------------------------------+

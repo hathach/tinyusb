@@ -134,6 +134,36 @@ OSAL_TASK_FUNCTION( mouse_app_task ) (void* p_task_para)
 //--------------------------------------------------------------------+
 // HELPER
 //--------------------------------------------------------------------+
+void cursor_movement(int8_t x, int8_t y, int8_t wheel)
+{
+  //------------- X -------------//
+  if ( x < 0)
+  { // move left
+    printf(ANSI_CURSOR_BACKWARD(%d), (-x));
+  }else if ( x > 0)
+  { // move right
+    printf(ANSI_CURSOR_FORWARD(%d), x);
+  }else { }
+
+  //------------- Y -------------//
+  if ( y < 0)
+  { // move up
+    printf(ANSI_CURSOR_UP(%d), (-y));
+  }else if ( y > 0)
+  { // move down
+    printf(ANSI_CURSOR_DOWN(%d), y);
+  }else { }
+
+  //------------- wheel -------------//
+  if (wheel < 0)
+  { // scroll up
+    printf(ANSI_SCROLL_UP(%d), (-wheel));
+  }else if (wheel > 0)
+  { // scroll down
+    printf(ANSI_SCROLL_DOWN(%d), wheel);
+  }else { }
+}
+
 static inline void process_mouse_report(tusb_mouse_report_t const * p_report)
 {
   static tusb_mouse_report_t prev_report = { 0 };
@@ -142,24 +172,14 @@ static inline void process_mouse_report(tusb_mouse_report_t const * p_report)
   uint8_t button_changed_mask = p_report->buttons ^ prev_report.buttons;
   if ( button_changed_mask & p_report->buttons)
   {
-     // example only display button pressed, ignore hold & dragging etc
     printf(" %c%c%c ",
        p_report->buttons & MOUSE_BUTTON_LEFT   ? 'L' : '-',
        p_report->buttons & MOUSE_BUTTON_MIDDLE ? 'M' : '-',
        p_report->buttons & MOUSE_BUTTON_RIGHT  ? 'R' : '-');
   }
 
-  //------------- movement (disabled for clearer demo) -------------//
-  if ( p_report->wheel != 0 )
-  {
-    printf(" %c ", p_report->wheel > 0 ? 'U' : 'D');
-  }
-
-//  if ( p_report->x != 0 || p_report->y != 0 )
-//  {
-//    printf(" (%d, %d) ", p_report->x, p_report->y);
-//  }
-
+  //------------- cursor movement -------------//
+  cursor_movement(p_report->x, p_report->y, p_report->wheel);
 }
 
 #else

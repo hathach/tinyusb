@@ -72,6 +72,9 @@
 #define ANSI_ERASE_SCREEN(n)     CSI_CODE(#n "J")
 #define ANSI_ERASE_LINE(n)       CSI_CODE(#n "K")
 
+#define ANSI_SCROLL_UP(n)        CSI_CODE(#n "S")
+#define ANSI_SCROLL_DOWN(n)      CSI_CODE(#n "T")
+
 /** text color */
 #define ANSI_TEXT_BLACK          CSI_SGR(30)
 #define ANSI_TEXT_RED            CSI_SGR(31)
