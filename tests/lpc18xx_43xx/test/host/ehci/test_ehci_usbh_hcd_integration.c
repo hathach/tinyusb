@@ -51,6 +51,7 @@
 
 #include "hcd.h"
 #include "usbh_hcd.h"
+#include "hub.h"
 #include "usbh.h"
 #include "ehci.h"
 #include "ehci_controller_fake.h"

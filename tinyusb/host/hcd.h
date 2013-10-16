@@ -99,11 +99,11 @@ tusb_error_t  hcd_pipe_queue_xfer(pipe_handle_t pipe_hdl, uint8_t buffer[], uint
 tusb_error_t  hcd_pipe_xfer(pipe_handle_t pipe_hdl, uint8_t buffer[], uint16_t total_bytes, bool int_on_complete)  ATTR_WARN_UNUSED_RESULT;
 tusb_error_t  hcd_pipe_close(pipe_handle_t pipe_hdl) /*ATTR_WARN_UNUSED_RESULT*/;
 
-bool hcd_pipe_is_busy(pipe_handle_t pipe_hdl);
-bool hcd_pipe_is_error(pipe_handle_t pipe_hdl);
-bool hcd_pipe_is_stalled(pipe_handle_t pipe_hdl); // stalled also counted as error
-bool hcd_pipe_is_idle(pipe_handle_t pipe_hdl);
-uint8_t hcd_pipe_get_endpoint_addr(pipe_handle_t pipe_hdl);
+bool hcd_pipe_is_busy(pipe_handle_t pipe_hdl) ATTR_PURE;
+bool hcd_pipe_is_error(pipe_handle_t pipe_hdl) ATTR_PURE;
+bool hcd_pipe_is_stalled(pipe_handle_t pipe_hdl) ATTR_PURE; // stalled also counted as error
+bool hcd_pipe_is_idle(pipe_handle_t pipe_hdl) ATTR_PURE;
+uint8_t hcd_pipe_get_endpoint_addr(pipe_handle_t pipe_hdl) ATTR_PURE;
 tusb_error_t hcd_pipe_clear_stall(pipe_handle_t pipe_hdl);
 
 #if 0
@@ -117,6 +117,7 @@ tusb_error_t hcd_pipe_cancel()ATTR_WARN_UNUSED_RESULT;
 bool hcd_port_connect_status(uint8_t hostid) ATTR_PURE ATTR_WARN_UNUSED_RESULT; // TODO make inline if possible
 void hcd_port_reset(uint8_t hostid);
 tusb_speed_t hcd_port_speed_get(uint8_t hostid) ATTR_PURE ATTR_WARN_UNUSED_RESULT; // TODO make inline if possible
+void hcd_port_unplug(uint8_t hostid); // called by usbh to instruct hcd that it can execute unplug procedure
 
 #ifdef __cplusplus
  }

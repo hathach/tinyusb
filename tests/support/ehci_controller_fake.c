@@ -45,6 +45,8 @@
 #include "usbh_hcd.h"
 #include "ehci.h"
 
+#include "ehci_controller_fake.h"
+
 
 //--------------------------------------------------------------------+
 // MACRO CONSTANT TYPEDEF

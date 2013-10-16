@@ -90,7 +90,7 @@ void test_hidh_close(void)
   keyboardh_data[dev_addr-1].report_size = 8;
 
   hcd_pipe_close_ExpectAndReturn(pipe_hdl, TUSB_ERROR_NONE);
-  tusbh_hid_keyboard_unmounted_isr_Expect(dev_addr);
+  tusbh_hid_keyboard_unmounted_cb_Expect(dev_addr);
 
   //------------- Code Under TEST -------------//
   hidh_close(dev_addr);

@@ -1,6 +1,6 @@
 /**************************************************************************/
 /*!
-    @file     msch_callback.h
+    @file     usbh_hub.h
     @author   hathach (tinyusb.org)
 
     @section LICENSE
@@ -43,24 +43,26 @@
  *  @{
  */
 
-#ifndef _TUSB_MSCH_CALLBACK_H_
-#define _TUSB_MSCH_CALLBACK_H_
+#ifndef _TUSB_USBH_HUB_H_
+#define _TUSB_USBH_HUB_H_
+
+//--------------------------------------------------------------------+
+// INCLUDE
+//--------------------------------------------------------------------+
+#include "common/common.h"
 
 #ifdef __cplusplus
  extern "C" {
 #endif
 
-#include "common/common.h"
 
-void tusbh_msc_mounted_cb(uint8_t dev_addr);
-void tusbh_msc_unmounted_cb(uint8_t dev_addr);
-void tusbh_msc_isr(uint8_t dev_addr, tusb_event_t event, uint32_t xferred_bytes);
+void usbh_hub_port_plugged_isr(uint8_t hub_addr, uint8_t hub_port);
 
 
 #ifdef __cplusplus
  }
 #endif
 
-#endif /* _TUSB_MSCH_CALLBACK_H_ */
+#endif /* _TUSB_USBH_HUB_H_ */
 
 /** @} */

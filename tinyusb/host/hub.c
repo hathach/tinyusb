@@ -46,7 +46,7 @@
 // INCLUDE
 //--------------------------------------------------------------------+
 #include "hub.h"
-#include "usbh_hcd.h"
+#include "usbh_hub.h"
 
 //--------------------------------------------------------------------+
 // MACRO CONSTANT TYPEDEF
@@ -209,8 +209,7 @@ void hub_isr(pipe_handle_t pipe_hdl, tusb_event_t event, uint32_t xferred_bytes)
   { // TODO HUB ignore bit0 hub_status_change
     if ( BIT_TEST_(p_hub->status_change, port) )
     {
-      // TODO HUB connection/disconnection will be determined in enum task --> connect change
-      usbh_hcd_rhport_plugged_isr(usbh_devices[pipe_hdl.dev_addr].core_id, pipe_hdl.dev_addr, port);
+      usbh_hub_port_plugged_isr(pipe_hdl.dev_addr, port);
     }
   }
 

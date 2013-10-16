@@ -182,6 +182,11 @@ typedef struct {
 
 STATIC_ASSERT( sizeof(hub_port_status_response_t) == 4, "size is not correct");
 
+tusb_error_t hub_port_reset_subtask(uint8_t hub_addr, uint8_t hub_port);
+tusb_error_t hub_port_clear_feature_subtask(uint8_t hub_addr, uint8_t hub_port, uint8_t feature);
+tusb_speed_t hub_port_get_speed(void);
+tusb_error_t hub_status_pipe_queue(uint8_t dev_addr);
+
 //--------------------------------------------------------------------+
 // USBH-CLASS DRIVER API
 //--------------------------------------------------------------------+

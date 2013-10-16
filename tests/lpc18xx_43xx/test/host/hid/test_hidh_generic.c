@@ -45,6 +45,7 @@
 #include "mock_osal.h"
 #include "mock_cdc_host.h"
 #include "mock_msc_host.h"
+#include "mock_hub.h"
 
 #include "mock_hcd.h"
 #include "usbh.h"

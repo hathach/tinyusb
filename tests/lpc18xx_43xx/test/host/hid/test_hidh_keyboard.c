@@ -160,7 +160,7 @@ void test_keyboard_open_ok(void)
 
   tusbh_device_get_state_IgnoreAndReturn(TUSB_DEVICE_STATE_CONFIGURED);
   TEST_ASSERT_TRUE( tusbh_hid_keyboard_is_mounted(dev_addr) );
-  TEST_ASSERT_EQUAL(TUSB_INTERFACE_STATUS_READY, p_hidh_kbd->status);
+  TEST_ASSERT_FALSE( tusbh_hid_keyboard_is_busy(dev_addr) );
 }
 
 //--------------------------------------------------------------------+
@@ -196,7 +196,8 @@ void test_keyboard_get_report_xfer_failed()
 void test_keyboard_get_report_xfer_failed_busy()
 {
   tusbh_device_get_state_IgnoreAndReturn(TUSB_DEVICE_STATE_CONFIGURED);
-  p_hidh_kbd->status = TUSB_INTERFACE_STATUS_BUSY;
+  hcd_pipe_is_busy_ExpectAndReturn(p_hidh_kbd->pipe_hdl, true);
+
   TEST_ASSERT_EQUAL(TUSB_ERROR_INTERFACE_IS_BUSY, tusbh_hid_keyboard_get_report(dev_addr, &report));
 }
 

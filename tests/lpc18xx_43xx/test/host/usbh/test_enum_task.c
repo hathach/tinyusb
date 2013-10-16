@@ -43,6 +43,7 @@
 #include "mock_osal.h"
 #include "usbh.h"
 #include "mock_hcd.h"
+#include "mock_hub.h"
 #include "usbh_hcd.h"
 
 #include "mock_tusb_callback.h"

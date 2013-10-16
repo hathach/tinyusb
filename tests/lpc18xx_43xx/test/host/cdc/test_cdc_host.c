@@ -195,7 +195,7 @@ void test_cdch_close_device(void)
   hcd_pipe_close_ExpectAndReturn(pipe_int          , TUSB_ERROR_NONE);
   hcd_pipe_close_ExpectAndReturn(pipe_out          , TUSB_ERROR_NONE);
 
-  tusbh_cdc_unmounted_isr_Expect(dev_addr);
+  tusbh_cdc_unmounted_cb_Expect(dev_addr);
 
   //------------- CUT -------------//
   cdch_close(dev_addr);

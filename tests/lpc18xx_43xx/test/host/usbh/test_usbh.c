@@ -43,6 +43,7 @@
 
 #include "mock_osal.h"
 #include "usbh.h"
+#include "mock_hub.h"
 #include "usbh_hcd.h"
 #include "mock_hcd.h"
 
@@ -140,7 +141,7 @@ void test_usbh_init_ok(void)
 }
 
 // device is not mounted before, even the control pipe is not open, do nothing
-void test_usbh_device_unplugged_isr_device_not_previously_mounted(void)
+void test_usbh_hcd_rhport_unplugged_isr_device_not_previously_mounted(void)
 {
   uint8_t dev_addr = 1;
 
@@ -152,7 +153,7 @@ void test_usbh_device_unplugged_isr_device_not_previously_mounted(void)
   usbh_hcd_rhport_unplugged_isr(0);
 }
 
-void test_usbh_device_unplugged_isr(void)
+void test_usbh_hcd_rhport_unplugged_isr(void)
 {
   uint8_t dev_addr = 1;
 
