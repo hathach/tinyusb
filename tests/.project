@@ -71,22 +71,27 @@
 		<link>
 			<name>demo_vendor</name>
 			<type>2</type>
-			<location>C:/Users/hathach/Dropbox/tinyusb/workspace/tinyusb/vendor</location>
+			<locationURI>PARENT-1-PROJECT_LOC/vendor</locationURI>
 		</link>
 		<link>
 			<name>demos</name>
 			<type>2</type>
-			<location>C:/Users/hathach/Dropbox/tinyusb/workspace/tinyusb/demos</location>
+			<locationURI>PARENT-1-PROJECT_LOC/demos</locationURI>
+		</link>
+		<link>
+			<name>doxygen.Doxyfile</name>
+			<type>1</type>
+			<locationURI>PARENT-1-PROJECT_LOC/doxygen.Doxyfile</locationURI>
 		</link>
 		<link>
 			<name>tinyusb</name>
 			<type>2</type>
-			<location>C:/Users/hathach/Dropbox/tinyusb/workspace/tinyusb/tinyusb</location>
+			<locationURI>PARENT-1-PROJECT_LOC/tinyusb</locationURI>
 		</link>
 	</linkedResources>
 	<filteredResources>
 		<filter>
-			<id>1381816373996</id>
+			<id>1382413628300</id>
 			<name></name>
 			<type>22</type>
 			<matcher>
@@ -95,7 +100,7 @@
 			</matcher>
 		</filter>
 		<filter>
-			<id>1381816374006</id>
+			<id>1382413628332</id>
 			<name></name>
 			<type>22</type>
 			<matcher>
@@ -104,7 +109,7 @@
 			</matcher>
 		</filter>
 		<filter>
-			<id>1381816374017</id>
+			<id>1382413628348</id>
 			<name></name>
 			<type>26</type>
 			<matcher>
