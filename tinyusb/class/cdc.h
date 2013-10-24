@@ -36,16 +36,11 @@
 */
 /**************************************************************************/
 
-/** \file
- *  \brief CDC Class Driver
- *
- *  \note TBD
- */
-
 /** 
  *  \addtogroup ClassDriver Class Driver
  *  @{
- *  \defgroup ClassDriver_CDC Communication Device Class
+ *  \defgroup ClassDriver_CDC Communication Device Class (CDC)
+ *            Currently only Abstract Control Model subclass is supported
  *  @{
  */
 
