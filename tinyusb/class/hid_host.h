@@ -173,7 +173,7 @@ void tusbh_hid_mouse_isr(uint8_t dev_addr, tusb_event_t event);
  */
 void tusbh_hid_mouse_mounted_cb(uint8_t dev_addr);
 
-/** \brief 			Callback function that will be invoked when a device with Mouse  interface is unmounted
+/** \brief 			Callback function that will be invoked when a device with Mouse interface is unmounted
  * \param[in] 	dev_addr Address of newly unmounted device
  * \note        This callback should be used by Application to tear-down interface-related data
  */

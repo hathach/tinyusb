@@ -36,10 +36,10 @@
 */
 /**************************************************************************/
 
-/** \ingroup TBD
- *  \defgroup TBD
- *  \brief TBD
- *
+/**
+ *  \addtogroup ClassDriver Class Driver
+ *  @{
+ *  \defgroup ClassDriver_MSC MassStorage (MSC)
  *  @{
  */
 
@@ -226,4 +226,5 @@ STATIC_ASSERT(sizeof(scsi_write10_t) == 10, "size is not correct");
 
 #endif /* _TUSB_MSC_H_ */
 
-/** @} */
+/// @}
+/// @}
