@@ -36,10 +36,13 @@
 */
 /**************************************************************************/
 
-/** \ingroup TBD
- *  \defgroup TBD
- *  \brief TBD
- *
+/** \addtogroup ClassDriver
+ *  @{
+ *  \defgroup ClassDriver_Hub Hub (Host)
+ *  \details  Like most PC's OS, Hub support is completely hidden from Application. In fact, application cannot determine whether
+ *            a device is mounted directly via roothub or via a hub's port. All Hub-related procedures are performed and managed
+ *            by tinyusb stack. Unless you are trying to develop the stack itself, there are nothing else can be used by Application.
+ *  \note     Due to my laziness, only 1-level of Hub is supported. In other way, the stack cannot mount a hub via another hub.
  *  @{
  */
 
