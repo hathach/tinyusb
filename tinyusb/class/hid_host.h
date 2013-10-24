@@ -50,12 +50,16 @@
  extern "C" {
 #endif
 
-/** \defgroup hid_keyboard Keyboard
- *  The interface API includes status checking function, data transferring function and callback functions
- *  @{ */
 //--------------------------------------------------------------------+
 // KEYBOARD Application API
 //--------------------------------------------------------------------+
+/** \addtogroup ClassDriver_HID_Keyboard Keyboard
+ *  @{ */
+
+/** \defgroup Keyboard_Host Host
+ *  The interface API includes status checking function, data transferring function and callback functions
+ *  @{ */
+
 extern uint8_t const hid_keycode_to_ascii_tbl[2][128]; // TODO used weak attr if build failed without KEYBOARD enabled
 
 /** \brief      Check if device supports Keyboard interface or not
@@ -109,14 +113,20 @@ void tusbh_hid_keyboard_mounted_cb(uint8_t dev_addr);
  * \note        This callback should be used by Application to tear-down interface-related data
  */
 void tusbh_hid_keyboard_unmounted_cb(uint8_t dev_addr);
-/** @} */
 
-/** \defgroup hid_mouse Mouse
- *  The interface API includes status checking function, data transferring function and callback functions
- *  @{ */
+/** @} */ // Keyboard_Host
+/** @} */ // ClassDriver_HID_Keyboard
+
 //--------------------------------------------------------------------+
 // MOUSE Application API
 //--------------------------------------------------------------------+
+/** \addtogroup ClassDriver_HID_Mouse Mouse
+ *  @{ */
+
+/** \defgroup Mouse_Host Host
+ *  The interface API includes status checking function, data transferring function and callback functions
+ *  @{ */
+
 /** \brief      Check if device supports Mouse interface or not
  * \param[in]   dev_addr    device address
  * \retval      true if device supports Mouse interface
@@ -168,14 +178,20 @@ void tusbh_hid_mouse_mounted_cb(uint8_t dev_addr);
  * \note        This callback should be used by Application to tear-down interface-related data
  */
 void tusbh_hid_mouse_unmounted_cb(uint8_t dev_addr);
-/** @} */
 
-/** \defgroup hid_generic Generic (not supported yet)
- * The interface API includes status checking function, data transferring function and callback functions
- *  @{ */
+/** @} */ // Mouse_Host
+/** @} */ // ClassDriver_HID_Mouse
+
 //--------------------------------------------------------------------+
 // GENERIC Application API
 //--------------------------------------------------------------------+
+/** \addtogroup ClassDriver_HID_Generic Generic
+ *  @{ */
+
+/** \defgroup Generic_Host Host
+ *  The interface API includes status checking function, data transferring function and callback functions
+ *  @{ */
+
 bool          tusbh_hid_generic_is_mounted(uint8_t dev_addr) ATTR_PURE ATTR_WARN_UNUSED_RESULT;
 tusb_error_t  tusbh_hid_generic_get_report(uint8_t dev_addr, void* p_report, bool int_on_complete) ATTR_WARN_UNUSED_RESULT;
 tusb_error_t  tusbh_hid_generic_set_report(uint8_t dev_addr, void* p_report, bool int_on_complete) ATTR_WARN_UNUSED_RESULT;
@@ -184,7 +200,9 @@ tusb_interface_status_t tusbh_hid_generic_set_status(uint8_t dev_addr) ATTR_WARN
 
 //------------- Application Callback -------------//
 void tusbh_hid_generic_isr(uint8_t dev_addr, tusb_event_t event);
-/** @} */
+
+/** @} */ // Generic_Host
+/** @} */ // ClassDriver_HID_Generic
 
 //--------------------------------------------------------------------+
 // USBH-CLASS DRIVER API
@@ -210,4 +228,4 @@ void         hidh_close(uint8_t dev_addr);
 
 #endif /* _TUSB_HID_HOST_H_ */
 
-/** @} */
+/** @} */ // ClassDriver_HID
