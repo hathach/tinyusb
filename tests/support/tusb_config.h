@@ -59,8 +59,8 @@
 //--------------------------------------------------------------------+
 // CONTROLLER CONFIGURATION
 //--------------------------------------------------------------------+
-#define TUSB_CFG_CONTROLLER0_MODE  (TUSB_MODE_HOST | TUSB_MODE_DEVICE)
-#define TUSB_CFG_CONTROLLER1_MODE  (TUSB_MODE_NONE)
+#define TUSB_CFG_CONTROLLER_0_MODE  (TUSB_MODE_HOST | TUSB_MODE_DEVICE)
+#define TUSB_CFG_CONTROLLER_1_MODE  (TUSB_MODE_NONE)
 
 //--------------------------------------------------------------------+
 // HOST CONFIGURATION
@@ -85,7 +85,7 @@
 
 // Test support
 #define TEST_CONTROLLER_HOST_START_INDEX \
- ( ((CONTROLLER_HOST_NUMBER == 1) && (TUSB_CFG_CONTROLLER1_MODE & TUSB_MODE_HOST)) ? 1 : 0)
+ ( ((CONTROLLER_HOST_NUMBER == 1) && (TUSB_CFG_CONTROLLER_1_MODE & TUSB_MODE_HOST)) ? 1 : 0)
 
 //--------------------------------------------------------------------+
 // DEVICE CONFIGURATION

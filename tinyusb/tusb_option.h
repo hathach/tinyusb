@@ -36,19 +36,11 @@
 */
 /**************************************************************************/
 
-/** \file
- *  \brief Configure File
- *
- *  \note TBD
- */
-
-/** 
- *  \defgroup Group_TinyUSB_Configure Configuration tusb_option.h
- *  @{
- */
-
 #ifndef _TUSB_TUSB_OPTION_H_
 #define _TUSB_TUSB_OPTION_H_
+
+/** \defgroup group_configuration Configuration tusb_config.h
+ *  @{ */
 
 #define TUSB_VERSION_YEAR   00
 #define TUSB_VERSION_MONTH  00
@@ -56,14 +48,18 @@
 #define TUSB_VERSION_NAME   "alpha"
 #define TUSB_VERSION        XSTRING_(TUSB_VERSION_YEAR) "." XSTRING_(TUSB_VERSION_MONTH)
 
-#define MCU_LPC13UXX    1
-#define MCU_LPC11UXX    2
-#define MCU_LPC43XX     3
-#define MCU_LPC18XX     4
-#define MCU_LPC175X_6X  5
-#define MCU_LPC177X_8X  6
+/** \defgroup MCU_ MCU Selection
+ * \brief TUSB_CFG_MCU must be defined to one of these
+ *  @{ */
+#define MCU_LPC13XX_12ADC  1 ///< NXP LPC13xx 12 bit ADC family with USB on-chip Rom Driver (not supported yet)
+#define MCU_LPC13XX_10ADC  2 ///< NXP LPC13xx 10 bit ADC family (not supported yet)
+#define MCU_LPC11UXX       3 ///< NXP LPC11Uxx family (not supported yet)
+#define MCU_LPC43XX        4 ///< NXP LPC43xx family
+#define MCU_LPC18XX        5 ///< NXP LPC18xx family (not supported yet)
+#define MCU_LPC175X_6X     6 ///< NXP LPC175x, LPC176x family (not supported yet)
+#define MCU_LPC177X_8X     7 ///< NXP LPC177x, LPC178x family (not supported yet)
+/** @} */
 
-/// define this symbol will make tinyusb look for external configure file
 #include "mcu_capacity.h"
 
 #ifdef TUSB_CFG_CONFIG_FILE
@@ -75,40 +71,44 @@
 //--------------------------------------------------------------------+
 // CONTROLLER
 //--------------------------------------------------------------------+
-#define TUSB_MODE_HOST    0x02
-#define TUSB_MODE_DEVICE  0x01
-#define TUSB_MODE_NONE    0x00
+/** \defgroup TUSB_MODE Host/Device Mode Selection
+ * \brief TUSB_CFG_CONTROLLER_N_MODE must be defined with these
+ *  @{ */
+#define TUSB_MODE_HOST    0x02 ///< Host Mode
+#define TUSB_MODE_DEVICE  0x01 ///< Device Mode
+#define TUSB_MODE_NONE    0x00 ///< Disabled
+/** @} */
 
 #define CONTROLLER_HOST_NUMBER (\
-    ((TUSB_CFG_CONTROLLER0_MODE & TUSB_MODE_HOST) ? 1 : 0) + \
-    ((TUSB_CFG_CONTROLLER1_MODE & TUSB_MODE_HOST) ? 1 : 0))
+    ((TUSB_CFG_CONTROLLER_0_MODE & TUSB_MODE_HOST) ? 1 : 0) + \
+    ((TUSB_CFG_CONTROLLER_1_MODE & TUSB_MODE_HOST) ? 1 : 0))
 
 #define CONTROLLER_DEVICE_NUMBER (\
-    ((TUSB_CFG_CONTROLLER0_MODE & TUSB_MODE_DEVICE) ? 1 : 0) + \
-    ((TUSB_CFG_CONTROLLER1_MODE & TUSB_MODE_DEVICE) ? 1 : 0))
+    ((TUSB_CFG_CONTROLLER_0_MODE & TUSB_MODE_DEVICE) ? 1 : 0) + \
+    ((TUSB_CFG_CONTROLLER_1_MODE & TUSB_MODE_DEVICE) ? 1 : 0))
 
 #define MODE_HOST_SUPPORTED   (CONTROLLER_HOST_NUMBER > 0)
 #define MODE_DEVICE_SUPPORTED (CONTROLLER_DEVICE_NUMBER > 0)
 
 #if !MODE_HOST_SUPPORTED && !MODE_DEVICE_SUPPORTED
-  #error please configure at least 1 TUSB_CFG_CONTROLLERn_MODE to TUSB_MODE_HOST and/or TUSB_MODE_DEVICE
+  #error please configure at least 1 TUSB_CFG_CONTROLLER_N_MODE to TUSB_MODE_HOST and/or TUSB_MODE_DEVICE
 #endif
 
 //--------------------------------------------------------------------+
 // COMMON OPTIONS
 //--------------------------------------------------------------------+
-
-// level 3: ATTR_ALWAYS_INLINE is null, ASSERT has text, Error has its String, STATIC_VAR is NULL
-// level 2: ATTR_ALWAYS_INLINE is attribute, ASSERT has no text, Error has no strings
-/// 0: no debug information 3: most debug information provided
+/**
+  determines the debug level for the stack
+  - Level 3: ATTR_ALWAYS_INLINE is null, ASSERT has text, Error has its String, STATIC_VAR is NULL
+  - Level 2: ATTR_ALWAYS_INLINE is attribute, ASSERT has no text, Error has no strings
+  - Level 1: TBD
+  - Level 0: no debug information is generated
+*/
 #ifndef TUSB_CFG_DEBUG
   #define TUSB_CFG_DEBUG 2
   #warning TUSB_CFG_DEBUG is not defined, default value is 3
 #endif
 
-/// USB RAM Section Placement, MCU's usb controller often has limited access to specific RAM region. This will be used to declare internal variables as follow:
-/// uint8_t tinyusb_data[10] TUSB_CFG_ATTR_USBRAM;
-/// if your mcu's usb controller has no such limit, define TUSB_CFG_ATTR_USBRAM as empty macro.
 #ifndef TUSB_CFG_ATTR_USBRAM
  #error TUSB_CFG_ATTR_USBRAM is not defined, please help me know how to place data in accessible RAM for usb controller
 #endif
@@ -123,6 +123,9 @@
   #endif
 #endif
 
+/**
+ * Maximum number of supported USB's configuration (currently only support only 1)
+ */
 #ifndef TUSB_CFG_CONFIGURATION_MAX
   #define TUSB_CFG_CONFIGURATION_MAX 1
   #warning TUSB_CFG_CONFIGURATION_MAX is not defined, default value is 1
@@ -154,7 +157,7 @@
   #endif
 
   //------------- CLASS -------------//
-#endif // end TUSB_CFG_HOST
+#endif // MODE_HOST_SUPPORTED
 
 //--------------------------------------------------------------------+
 // DEVICE OPTIONS
@@ -168,7 +171,7 @@
 #define DEVICE_CLASS_HID ( TUSB_CFG_DEVICE_HID_KEYBOARD + TUSB_CFG_DEVICE_HID_MOUSE + TUSB_CFG_DEVICE_HID_GENERIC )
 
 
-#endif
+#endif // MODE_DEVICE_SUPPORTED
 
 
 

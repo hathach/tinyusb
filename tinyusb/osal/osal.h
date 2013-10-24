@@ -58,11 +58,16 @@
 
 #include "tusb_option.h"
 
-#define TUSB_OS_NONE       1
-#define TUSB_OS_FREERTOS   2
-#define TUSB_OS_CMSIS_RTX  3
-#define TUSB_OS_UCOS2      4
-#define TUSB_OS_UCOS3      5
+/** \ingroup group_configuration
+ *  \defgroup TUSB_OS RTOS Integration Selection
+ * \brief TUSB_CFG_OS must be defined to one of these
+ *  @{ */
+#define TUSB_OS_NONE       1 ///< No RTOS is used
+#define TUSB_OS_FREERTOS   2 ///< FreeRTOS is used
+#define TUSB_OS_CMSIS_RTX  3 ///< CMSIS RTX is used
+#define TUSB_OS_UCOS2      4 ///< MicroC OS II is used (not supported yet)
+#define TUSB_OS_UCOS3      5 ///< MicroC OS III is used (not supported yet)
+/** @} */
 
 #ifndef _TEST_
 

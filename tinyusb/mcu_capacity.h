@@ -85,7 +85,7 @@
 //--------------------------------------------------------------------+
 // Validation
 //--------------------------------------------------------------------+
-#if (CAP_CONTROLLER_NUMBER == 1) && ( defined TUSB_CFG_CONTROLLER1_MODE)
+#if (CAP_CONTROLLER_NUMBER == 1) && ( defined TUSB_CFG_CONTROLLER_1_MODE)
  #error current MCU does not have the required number of controllers
 #endif
 

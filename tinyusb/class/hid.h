@@ -37,9 +37,9 @@
 /**************************************************************************/
 
 /**
- *  \addtogroup Group_ClassDriver Class Driver
+ *  \addtogroup ClassDriver Class Driver
  *  @{
- *  \defgroup Group_HID Human Interface Device
+ *  \defgroup ClassDriver_HID Human Interface Device (HID)
  *  @{
  */
 

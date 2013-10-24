@@ -57,7 +57,7 @@ enum {
 tusb_error_t hal_init(void)
 {
   //------------- USB0 Clock -------------//
-#if TUSB_CFG_CONTROLLER0_MODE
+#if TUSB_CFG_CONTROLLER_0_MODE
   CGU_EnableEntity(CGU_CLKSRC_PLL0, DISABLE); /* Disable PLL first */
   ASSERT_INT( CGU_ERROR_SUCCESS, CGU_SetPLL0(), TUSB_ERROR_FAILED); /* the usb core require output clock = 480MHz */
   CGU_EntityConnect(CGU_CLKSRC_XTAL_OSC, CGU_CLKSRC_PLL0);
@@ -65,7 +65,7 @@ tusb_error_t hal_init(void)
   LPC_CREG->CREG0 &= ~(1<<5); /* Turn on the phy */
 
   // reset controller & set role
-  #if TUSB_CFG_CONTROLLER0_MODE & TUSB_MODE_HOST
+  #if TUSB_CFG_CONTROLLER_0_MODE & TUSB_MODE_HOST
     hcd_controller_reset(0); // TODO where to place prototype
     LPC_USB0->USBMODE_H = LPC43XX_USBMODE_HOST | (LPC43XX_USBMODE_VBUS_HIGH << 5);
   #else // TODO OTG
@@ -80,16 +80,16 @@ tusb_error_t hal_init(void)
 #endif
 
   //------------- USB1 Clock, only use on-chip FS PHY -------------//
-#if TUSB_CFG_CONTROLLER1_MODE
+#if TUSB_CFG_CONTROLLER_1_MODE
   // TODO confirm whether device mode require P2_5 or not
   scu_pinmux(0x2, 5, MD_PLN | MD_EZI | MD_ZI, FUNC2);	// USB1_VBUS monitor presence, must be high for bus reset occur
 
   /* connect CLK_USB1 to 60 MHz clock */
   CGU_EntityConnect(CGU_CLKSRC_PLL1, CGU_BASE_USB1); /* FIXME Run base BASE_USB1_CLK clock from PLL1 (assume PLL1 is 60 MHz, no division required) */
   //LPC_CREG->CREG0 &= ~(1<<5); /* Turn on the phy */
-  LPC_SCU->SFSUSB = (TUSB_CFG_CONTROLLER1_MODE & TUSB_MODE_HOST) ? 0x16 : 0x12; // enable USB1 with on-chip FS PHY
+  LPC_SCU->SFSUSB = (TUSB_CFG_CONTROLLER_1_MODE & TUSB_MODE_HOST) ? 0x16 : 0x12; // enable USB1 with on-chip FS PHY
 
-  #if TUSB_CFG_CONTROLLER1_MODE & TUSB_MODE_HOST
+  #if TUSB_CFG_CONTROLLER_1_MODE & TUSB_MODE_HOST
     hcd_controller_reset(1); // TODO where to place prototype
     LPC_USB1->USBMODE_H = LPC43XX_USBMODE_HOST | (LPC43XX_USBMODE_VBUS_HIGH << 5);
   #else // TODO OTG
@@ -106,14 +106,14 @@ tusb_error_t hal_init(void)
   return TUSB_ERROR_NONE;
 }
 
-#if TUSB_CFG_CONTROLLER0_MODE
+#if TUSB_CFG_CONTROLLER_0_MODE
 void USB0_IRQHandler(void)
 {
   tusb_isr(0);
 }
 #endif
 
-#if TUSB_CFG_CONTROLLER1_MODE
+#if TUSB_CFG_CONTROLLER_1_MODE
 void USB1_IRQHandler(void)
 {
   tusb_isr(1);

@@ -111,9 +111,9 @@ bool  tusbh_hid_keyboard_is_mounted(uint8_t dev_addr)
   return tusbh_device_is_configured(dev_addr) && pipehandle_is_valid(keyboardh_data[dev_addr-1].pipe_hdl);
 }
 
-tusb_error_t tusbh_hid_keyboard_get_report(uint8_t dev_addr, void* report)
+tusb_error_t tusbh_hid_keyboard_get_report(uint8_t dev_addr, void* p_report)
 {
-  return hidh_interface_get_report(dev_addr, report, &keyboardh_data[dev_addr-1]);
+  return hidh_interface_get_report(dev_addr, p_report, &keyboardh_data[dev_addr-1]);
 }
 
 bool tusbh_hid_keyboard_is_busy(uint8_t dev_addr)

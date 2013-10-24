@@ -43,9 +43,9 @@
  */
 
 /** 
- *  \addtogroup Group_ClassDriver Class Driver
+ *  \addtogroup ClassDriver Class Driver
  *  @{
- *  \defgroup Group_CDC Communication Device Class
+ *  \defgroup ClassDriver_CDC Communication Device Class
  *  @{
  */
 
