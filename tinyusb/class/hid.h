@@ -96,8 +96,10 @@ typedef ATTR_PACKED_STRUCT(struct) {
   uint16_t wReportLength;   /**< the total size of the Report descriptor. */
 } tusb_hid_descriptor_hid_t;
 
-/**
- *  \brief Standard HID Boot Protocol Mouse Report.
+/** \addtogroup ClassDriver_HID_Mouse Mouse
+ *  @{ */
+
+/**  \brief Standard HID Boot Protocol Mouse Report.
  *
  *  Type define for a standard Boot Protocol Mouse report
  */
@@ -107,7 +109,11 @@ typedef ATTR_PACKED_STRUCT(struct)
   int8_t  x;       /**< Current delta x movement of the mouse. */
   int8_t  y;       /**< Current delta y movement on the mouse. */
   int8_t  wheel;   /**< Current delta wheel movement on the mouse. */
-} tusb_mouse_report_t;
+} hid_mouse_report_t;
+/// @}
+
+/** \addtogroup ClassDriver_HID_Keyboard Keyboard
+ *  @{ */
 
 /**
  *  \brief Standard HID Boot Protocol Keyboard Report.
@@ -119,7 +125,9 @@ typedef ATTR_PACKED_STRUCT(struct)
   uint8_t modifier; /**< Keyboard modifier byte, indicating pressed modifier keys (a combination of HID_KEYBOARD_MODIFER_* masks). */
   uint8_t reserved; /**< Reserved for OEM use, always set to 0. */
   uint8_t keycode[6]; /**< Key codes of the currently pressed keys. */
-} tusb_keyboard_report_t;
+} hid_keyboard_report_t;
+
+/// @}
 
 /**
  * \brief buttons codes for HID mouse

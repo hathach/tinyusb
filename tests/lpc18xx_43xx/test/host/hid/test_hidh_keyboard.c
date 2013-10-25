@@ -50,7 +50,7 @@
 
 extern hidh_interface_info_t keyboardh_data[TUSB_CFG_HOST_DEVICE_MAX];
 
-tusb_keyboard_report_t sample_key[2] =
+hid_keyboard_report_t sample_key[2] =
 {
     {
         .modifier = KEYBOARD_MODIFIER_LEFTCTRL,
@@ -65,7 +65,7 @@ tusb_keyboard_report_t sample_key[2] =
 uint8_t dev_addr;
 hidh_interface_info_t *p_hidh_kbd;
 
-tusb_keyboard_report_t report;
+hid_keyboard_report_t report;
 
 tusb_descriptor_interface_t const *p_kbd_interface_desc = &desc_configuration.keyboard_interface;
 tusb_descriptor_endpoint_t  const *p_kdb_endpoint_desc  = &desc_configuration.keyboard_endpoint;
@@ -73,12 +73,12 @@ tusb_descriptor_endpoint_t  const *p_kdb_endpoint_desc  = &desc_configuration.ke
 void setUp(void)
 {
   hidh_init();
-  memclr_(&report, sizeof(tusb_keyboard_report_t));
+  memclr_(&report, sizeof(hid_keyboard_report_t));
   dev_addr = RANDOM(TUSB_CFG_HOST_DEVICE_MAX)+1;
 
   p_hidh_kbd = &keyboardh_data[dev_addr-1];
 
-  p_hidh_kbd->report_size = sizeof(tusb_keyboard_report_t);
+  p_hidh_kbd->report_size = sizeof(hid_keyboard_report_t);
   p_hidh_kbd->pipe_hdl = (pipe_handle_t) {
     .dev_addr  = dev_addr,
     .xfer_type = TUSB_XFER_INTERRUPT,

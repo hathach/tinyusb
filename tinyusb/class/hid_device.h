@@ -57,8 +57,8 @@
 //--------------------------------------------------------------------+
 // KEYBOARD Application API
 //--------------------------------------------------------------------+
-tusb_error_t tusbd_hid_keyboard_send_report(tusb_keyboard_report_t *p_kbd_report);
-tusb_error_t tusbd_hid_mouse_send_report(tusb_mouse_report_t *p_mouse_report);
+tusb_error_t tusbd_hid_keyboard_send_report(hid_keyboard_report_t *p_kbd_report);
+tusb_error_t tusbd_hid_mouse_send_report(hid_mouse_report_t *p_mouse_report);
 
 //--------------------------------------------------------------------+
 // USBD-CLASS DRIVER API

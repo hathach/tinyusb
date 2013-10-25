@@ -56,13 +56,13 @@
 // INTERNAL OBJECT & FUNCTION DECLARATION
 //--------------------------------------------------------------------+
 OSAL_TASK_DEF(keyboard_app_task, 128, KEYBOARD_APP_TASK_PRIO);
-OSAL_QUEUE_DEF(queue_kbd_def, QUEUE_KEYBOARD_REPORT_DEPTH, tusb_keyboard_report_t);
+OSAL_QUEUE_DEF(queue_kbd_def, QUEUE_KEYBOARD_REPORT_DEPTH, hid_keyboard_report_t);
 
 static osal_queue_handle_t queue_kbd_hdl;
-static tusb_keyboard_report_t usb_keyboard_report TUSB_CFG_ATTR_USBRAM;
+static hid_keyboard_report_t usb_keyboard_report TUSB_CFG_ATTR_USBRAM;
 
 static inline uint8_t keycode_to_ascii(uint8_t modifier, uint8_t keycode) ATTR_CONST ATTR_ALWAYS_INLINE;
-static inline void process_kbd_report(tusb_keyboard_report_t const * report);
+static inline void process_kbd_report(hid_keyboard_report_t const * report);
 
 //--------------------------------------------------------------------+
 // tinyusb callback (ISR context)
@@ -106,7 +106,7 @@ void tusbh_hid_keyboard_isr(uint8_t dev_addr, tusb_event_t event)
 //--------------------------------------------------------------------+
 void keyboard_app_init(void)
 {
-  memclr_(&usb_keyboard_report, sizeof(tusb_keyboard_report_t));
+  memclr_(&usb_keyboard_report, sizeof(hid_keyboard_report_t));
 
   queue_kbd_hdl = osal_queue_create( OSAL_QUEUE_REF(queue_kbd_def) );
   ASSERT_PTR( queue_kbd_hdl, VOID_RETURN );
@@ -119,7 +119,7 @@ void keyboard_app_init(void)
 OSAL_TASK_FUNCTION( keyboard_app_task ) (void* p_task_para)
 {
   tusb_error_t error;
-  tusb_keyboard_report_t kbd_report;
+  hid_keyboard_report_t kbd_report;
 
   OSAL_TASK_LOOP_BEGIN
 
@@ -135,7 +135,7 @@ OSAL_TASK_FUNCTION( keyboard_app_task ) (void* p_task_para)
 //--------------------------------------------------------------------+
 
 // look up new key in previous keys
-static inline bool is_key_in_report(tusb_keyboard_report_t const *p_report, uint8_t modifier, uint8_t keycode)
+static inline bool is_key_in_report(hid_keyboard_report_t const *p_report, uint8_t modifier, uint8_t keycode)
 {
   for(uint8_t i=0; i<6; i++)
   {
@@ -148,9 +148,9 @@ static inline bool is_key_in_report(tusb_keyboard_report_t const *p_report, uint
   return false;
 }
 
-static inline void process_kbd_report(tusb_keyboard_report_t const *p_new_report)
+static inline void process_kbd_report(hid_keyboard_report_t const *p_new_report)
 {
-  static tusb_keyboard_report_t prev_report = { 0 }; // previous report to check key released
+  static hid_keyboard_report_t prev_report = { 0 }; // previous report to check key released
 
   //------------- example code ignore control (non-printable) key affects -------------//
   for(uint8_t i=0; i<6; i++)

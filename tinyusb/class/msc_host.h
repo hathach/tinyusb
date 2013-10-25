@@ -112,7 +112,7 @@ tusb_error_t tusbh_msc_get_capacity(uint8_t dev_addr, uint32_t* p_last_lba, uint
  * \retval      TUSB_ERROR_NONE on success
  * \retval      TUSB_ERROR_INTERFACE_IS_BUSY if the interface is already transferring data with device
  * \retval      TUSB_ERROR_DEVICE_NOT_READY if device is not yet configured (by SET CONFIGURED request)
- * \retval      TUSB_ERROR_INVALID_PARA if inputs parameter are not correct
+ * \retval      TUSB_ERROR_INVALID_PARA if input parameters are not correct
  * \note        This function is non-blocking and returns immediately. The result of USB transfer will be reported by the interface's callback function
  */
 tusb_error_t tusbh_msc_read10 (uint8_t dev_addr, uint8_t lun, void * p_buffer, uint32_t lba, uint16_t block_count) ATTR_WARN_UNUSED_RESULT;
@@ -126,7 +126,7 @@ tusb_error_t tusbh_msc_read10 (uint8_t dev_addr, uint8_t lun, void * p_buffer, u
  * \retval      TUSB_ERROR_NONE on success
  * \retval      TUSB_ERROR_INTERFACE_IS_BUSY if the interface is already transferring data with device
  * \retval      TUSB_ERROR_DEVICE_NOT_READY if device is not yet configured (by SET CONFIGURED request)
- * \retval      TUSB_ERROR_INVALID_PARA if inputs parameter are not correct
+ * \retval      TUSB_ERROR_INVALID_PARA if input parameters are not correct
  * \note        This function is non-blocking and returns immediately. The result of USB transfer will be reported by the interface's callback function
  */
 tusb_error_t tusbh_msc_write10(uint8_t dev_addr, uint8_t lun, void const * p_buffer, uint32_t lba, uint16_t block_count) ATTR_WARN_UNUSED_RESULT;
@@ -138,7 +138,7 @@ tusb_error_t tusbh_msc_write10(uint8_t dev_addr, uint8_t lun, void const * p_buf
  * \retval      TUSB_ERROR_NONE on success
  * \retval      TUSB_ERROR_INTERFACE_IS_BUSY if the interface is already transferring data with device
  * \retval      TUSB_ERROR_DEVICE_NOT_READY if device is not yet configured (by SET CONFIGURED request)
- * \retval      TUSB_ERROR_INVALID_PARA if inputs parameter are not correct
+ * \retval      TUSB_ERROR_INVALID_PARA if input parameters are not correct
  * \note        This function is non-blocking and returns immediately. The result of USB transfer will be reported by the interface's callback function
  */
 tusb_error_t tusbh_msc_request_sense(uint8_t dev_addr, uint8_t lun, uint8_t *p_data) ATTR_WARN_UNUSED_RESULT;
@@ -149,7 +149,7 @@ tusb_error_t tusbh_msc_request_sense(uint8_t dev_addr, uint8_t lun, uint8_t *p_d
  * \retval      TUSB_ERROR_NONE on success
  * \retval      TUSB_ERROR_INTERFACE_IS_BUSY if the interface is already transferring data with device
  * \retval      TUSB_ERROR_DEVICE_NOT_READY if device is not yet configured (by SET CONFIGURED request)
- * \retval      TUSB_ERROR_INVALID_PARA if inputs parameter are not correct
+ * \retval      TUSB_ERROR_INVALID_PARA if input parameters are not correct
  * \note        This function is non-blocking and returns immediately. The result of USB transfer will be reported by the interface's callback function
  */
 tusb_error_t tusbh_msc_test_unit_ready(uint8_t dev_addr, uint8_t lun, msc_cmd_status_wrapper_t * p_csw) ATTR_WARN_UNUSED_RESULT; // TODO to be refractor

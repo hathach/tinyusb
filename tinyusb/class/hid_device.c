@@ -172,13 +172,13 @@ tusb_error_t hidd_init(uint8_t coreid, tusb_descriptor_interface_t const * p_int
 //--------------------------------------------------------------------+
 #if TUSB_CFG_DEVICE_HID_KEYBOARD
 TUSB_CFG_ATTR_USBRAM uint8_t hidd_keyboard_buffer[1024]; // TODO memory reduce
-TUSB_CFG_ATTR_USBRAM tusb_keyboard_report_t hid_keyboard_report;
+TUSB_CFG_ATTR_USBRAM hid_keyboard_report_t hid_keyboard_report;
 static volatile bool bKeyChanged = false;
 #endif
 
 #if TUSB_CFG_DEVICE_HID_MOUSE
 TUSB_CFG_ATTR_USBRAM uint8_t hidd_mouse_buffer[1024]; // TODO memory reduce
-TUSB_CFG_ATTR_USBRAM tusb_mouse_report_t hid_mouse_report;
+TUSB_CFG_ATTR_USBRAM hid_mouse_report_t hid_mouse_report;
 static volatile bool bMouseChanged = false;
 #endif
 
@@ -198,7 +198,7 @@ ErrorCode_t HID_EpOut_Hdlr (USBD_HANDLE_T hUsb, void* data, uint32_t event);
 // APPLICATION API
 //--------------------------------------------------------------------+
 #if TUSB_CFG_DEVICE_HID_KEYBOARD
-tusb_error_t tusbd_hid_keyboard_send_report(tusb_keyboard_report_t *p_kbd_report)
+tusb_error_t tusbd_hid_keyboard_send_report(hid_keyboard_report_t *p_kbd_report)
 {
 //  uint32_t start_time = systickGetSecondsActive();
 //  while (bKeyChanged) // TODO blocking while previous key has yet sent - can use fifo to improve this
@@ -221,7 +221,7 @@ tusb_error_t tusbd_hid_keyboard_send_report(tusb_keyboard_report_t *p_kbd_report
 #endif
 
 #if TUSB_CFG_DEVICE_HID_MOUSE
-tusb_error_t tusbd_hid_mouse_send_report(tusb_mouse_report_t *p_mouse_report)
+tusb_error_t tusbd_hid_mouse_send_report(hid_mouse_report_t *p_mouse_report)
 {
 //  uint32_t start_time = systickGetSecondsActive();
 //  while (bMouseChanged) // TODO Block while previous key hasn't been sent - can use fifo to improve this
@@ -247,11 +247,11 @@ tusb_error_t tusbd_hid_mouse_send_report(tusb_mouse_report_t *p_mouse_report)
 tusb_error_t hidd_configured(void)
 {
   #if  TUSB_CFG_DEVICE_HID_KEYBOARD
-    ROM_API->hw->WriteEP(romdriver_hdl , HID_KEYBOARD_EP_IN , (uint8_t* ) &hid_keyboard_report , sizeof(tusb_keyboard_report_t) ); // initial packet for IN endpoint , will not work if omitted
+    ROM_API->hw->WriteEP(romdriver_hdl , HID_KEYBOARD_EP_IN , (uint8_t* ) &hid_keyboard_report , sizeof(hid_keyboard_report_t) ); // initial packet for IN endpoint , will not work if omitted
   #endif
 
   #if  TUSB_CFG_DEVICE_HID_MOUSE
-    ROM_API->hw->WriteEP(romdriver_hdl , HID_MOUSE_EP_IN    , (uint8_t* ) &hid_mouse_report    , sizeof(tusb_mouse_report_t) ); // initial packet for IN endpoint, will not work if omitted
+    ROM_API->hw->WriteEP(romdriver_hdl , HID_MOUSE_EP_IN    , (uint8_t* ) &hid_mouse_report    , sizeof(hid_mouse_report_t) ); // initial packet for IN endpoint, will not work if omitted
   #endif
 
   return TUSB_ERROR_NONE;
@@ -348,7 +348,7 @@ ErrorCode_t HID_GetReport( USBD_HANDLE_T hHid, USB_SETUP_PACKET* pSetup, uint8_t
     #if TUSB_CFG_DEVICE_HID_KEYBOARD
       case HID_PROTOCOL_KEYBOARD:
         *pBuffer = (uint8_t*) &hid_keyboard_report;
-        *plength = sizeof(tusb_keyboard_report_t);
+        *plength = sizeof(hid_keyboard_report_t);
 
         if (!bKeyChanged)
         {
@@ -361,7 +361,7 @@ ErrorCode_t HID_GetReport( USBD_HANDLE_T hHid, USB_SETUP_PACKET* pSetup, uint8_t
     #if TUSB_CFG_DEVICE_HID_MOUSE
       case HID_PROTOCOL_MOUSE:
         *pBuffer = (uint8_t*) &hid_mouse_report;
-        *plength = sizeof(tusb_mouse_report_t);
+        *plength = sizeof(hid_mouse_report_t);
 
         if (!bMouseChanged)
         {
@@ -402,9 +402,9 @@ ErrorCode_t HID_EpIn_Hdlr (USBD_HANDLE_T hUsb, void* data, uint32_t event)
         case HID_PROTOCOL_KEYBOARD:
           if (!bKeyChanged)
           {
-            memset(&hid_keyboard_report, 0, sizeof(tusb_keyboard_report_t));
+            memset(&hid_keyboard_report, 0, sizeof(hid_keyboard_report_t));
           }
-          ROM_API->hw->WriteEP(hUsb, pHidCtrl->epin_adr, (uint8_t*) &hid_keyboard_report, sizeof(tusb_keyboard_report_t));
+          ROM_API->hw->WriteEP(hUsb, pHidCtrl->epin_adr, (uint8_t*) &hid_keyboard_report, sizeof(hid_keyboard_report_t));
           bKeyChanged = false;
         break;
       #endif
@@ -413,9 +413,9 @@ ErrorCode_t HID_EpIn_Hdlr (USBD_HANDLE_T hUsb, void* data, uint32_t event)
         case HID_PROTOCOL_MOUSE:
           if (!bMouseChanged)
           {
-            memset(&hid_mouse_report, 0, sizeof(tusb_mouse_report_t));
+            memset(&hid_mouse_report, 0, sizeof(hid_mouse_report_t));
           }
-          ROM_API->hw->WriteEP(hUsb, pHidCtrl->epin_adr, (uint8_t*) &hid_mouse_report, sizeof(tusb_mouse_report_t));
+          ROM_API->hw->WriteEP(hUsb, pHidCtrl->epin_adr, (uint8_t*) &hid_mouse_report, sizeof(hid_mouse_report_t));
           bMouseChanged = false;
         break;
       #endif

@@ -85,7 +85,7 @@ bool          tusbh_hid_keyboard_is_busy(uint8_t dev_addr) ATTR_PURE ATTR_WARN_U
  * \retval        TUSB_ERROR_NONE on success
  * \retval        TUSB_ERROR_INTERFACE_IS_BUSY if the interface is already transferring data with device
  * \retval        TUSB_ERROR_DEVICE_NOT_READY if device is not yet configured (by SET CONFIGURED request)
- * \retval        TUSB_ERROR_INVALID_PARA if inputs parameter are not correct
+ * \retval        TUSB_ERROR_INVALID_PARA if input parameters are not correct
  * \note          This function is non-blocking and returns immediately. The result of usb transfer will be reported by the interface's callback function
  */
 tusb_error_t  tusbh_hid_keyboard_get_report(uint8_t dev_addr, void * p_report) /*ATTR_WARN_UNUSED_RESULT*/;
@@ -150,7 +150,7 @@ bool          tusbh_hid_mouse_is_busy(uint8_t dev_addr) ATTR_PURE ATTR_WARN_UNUS
  * \retval        TUSB_ERROR_NONE on success
  * \retval        TUSB_ERROR_INTERFACE_IS_BUSY if the interface is already transferring data with device
  * \retval        TUSB_ERROR_DEVICE_NOT_READY if device is not yet configured (by SET CONFIGURED request)
- * \retval        TUSB_ERROR_INVALID_PARA if inputs parameter are not correct
+ * \retval        TUSB_ERROR_INVALID_PARA if input parameters are not correct
  * \note          This function is non-blocking and returns immediately. The result of usb transfer will be reported by the interface's callback function
  */
 tusb_error_t  tusbh_hid_mouse_get_report(uint8_t dev_addr, void* p_report) /*ATTR_WARN_UNUSED_RESULT*/;

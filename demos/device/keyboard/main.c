@@ -102,7 +102,7 @@ void keyboard_device_app_task(void * p_para)
       count++;
 
       tusbd_hid_keyboard_send_report(
-          &(tusb_keyboard_report_t) {
+          &(hid_keyboard_report_t) {
               .keycode = { 0x04 } }
       );
     }
@@ -122,7 +122,7 @@ void mouse_device_app_task(void * p_para)
     {
       count++;
       tusbd_hid_mouse_send_report(
-          &(tusb_mouse_report_t) {
+          &(hid_mouse_report_t) {
               .x = 20,
               .y = 20 } );
     }

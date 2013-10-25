@@ -41,8 +41,11 @@
 
 /** \addtogroup Port Port
  * @{
- *  \defgroup Port_Hal Hardware Abtract Layer (HAL)
- *  \brief Hardware Dependent Layer
+ * \defgroup Port_Hal Hardware Abtract Layer (HAL)
+ * Hardware Abstraction Layer (HAL) is an abstraction layer, between the physical hardware and the tinyusb stack.
+ * Its function is to hide differences in hardware from most of MCUs, so that most of the stack code does not need to be changed to
+ * run on systems with a different MCU.
+ * HAL are sets of routines that emulate some platform-specific details, giving programs direct access to the hardware resources.
  *  @{
  */
 
@@ -60,12 +63,24 @@
 // callback from tusb.h
 extern void tusb_isr(uint8_t controller_id);
 
-/// USB hardware init
+/** \brief    Initialize USB controller hardware
+ * \returns   \ref tusb_error_t type to indicate success or error condition.
+ * \note      This function is invoked by \ref tusb_init as part of the initialization.
+ */
 tusb_error_t hal_init(void);
 
-/// Enable USB Interrupt
+/** \brief 			Enable USB Interrupt on a specific USB Controller
+ * \param[in]		controller_id	is a zero-based index to identify USB controller's ID
+ * \note        Some MCUs such as NXP LPC43xx has multiple USB controllers. It is necessary to know which USB controller for
+ *              those MCUs.
+ */
 static inline void hal_interrupt_enable(uint8_t controller_id) ATTR_ALWAYS_INLINE;
-/// Disable USB Interrupt
+
+/** \brief 			Disable USB Interrupt on a specific USB Controller
+ * \param[in]		controller_id	is a zero-based index to identify USB controller's ID
+ * \note        Some MCUs such as NXP LPC43xx has multiple USB controllers. It is necessary to know which USB controller for
+ *              those MCUs.
+ */
 static inline void hal_interrupt_disable(uint8_t controller_id) ATTR_ALWAYS_INLINE;
 
 //--------------------------------------------------------------------+
@@ -93,6 +108,7 @@ extern "C" {
 static inline bool hal_debugger_is_attached(void) ATTR_PURE ATTR_ALWAYS_INLINE;
 static inline bool hal_debugger_is_attached(void)
 {
+// TODO check core M3/M4 defined instead
 #if !defined(_TEST_) && !(MCU==MCU_LPC11UXX)
   return ( (CoreDebug->DHCSR & CoreDebug_DHCSR_C_DEBUGEN_Msk) == CoreDebug_DHCSR_C_DEBUGEN_Msk );
 #else

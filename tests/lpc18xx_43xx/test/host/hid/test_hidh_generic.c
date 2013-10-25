@@ -56,7 +56,7 @@
 
 extern hidh_interface_info_t mouseh_data[TUSB_CFG_HOST_DEVICE_MAX];
 hidh_interface_info_t *p_hidh_mouse;
-tusb_mouse_report_t report;
+hid_mouse_report_t report;
 
 tusb_descriptor_interface_t const *p_mouse_interface_desc = &desc_configuration.mouse_interface;
 tusb_descriptor_endpoint_t  const *p_mouse_endpoint_desc  = &desc_configuration.mouse_endpoint;
@@ -75,7 +75,7 @@ void setUp(void)
 //
 //  p_hidh_mouse = &mouse_data[dev_addr-1];
 //
-//  p_hidh_mouse->report_size = sizeof(tusb_mouse_report_t);
+//  p_hidh_mouse->report_size = sizeof(hid_mouse_report_t);
 //  p_hidh_mouse->pipe_hdl = (pipe_handle_t) {
 //    .dev_addr  = dev_addr,
 //    .xfer_type = TUSB_XFER_INTERRUPT,
