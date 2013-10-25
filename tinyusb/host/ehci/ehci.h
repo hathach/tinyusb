@@ -36,13 +36,8 @@
 */
 /**************************************************************************/
 
-/** \file
- *  \brief EHCI
- *
- *  \note TBD
- */
-
-/** \ingroup Group_HCD
+/** \ingroup Port_HCD
+ * @{
  *  \defgroup EHCI
  *  \brief EHCI driver. All documents sources mentioned here (eg section 3.5) is referring to EHCI Specs unless state otherwise
  *
@@ -482,5 +477,6 @@ tusb_error_t hcd_controller_reset(uint8_t hostid) ATTR_WARN_UNUSED_RESULT;
 
 #endif /* _TUSB_EHCI_H_ */
 
+/** @} */
 /** @} */
 

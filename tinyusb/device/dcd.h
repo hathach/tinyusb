@@ -36,27 +36,20 @@
 */
 /**************************************************************************/
 
-/** \file
- *  \brief Device Controller Driver
- *
- *  \note TBD
- */
-
-/** 
- *  \defgroup Group_DCD Device Controller Driver
- *  \brief Device Controller Driver
- *
+/** \addtogroup Port Port
+ *  @{
+ *  \defgroup Port_DCD Device Controller Driver (DCD)
  *  @{
  */
 
 #ifndef _TUSB_DCD_H_
 #define _TUSB_DCD_H_
 
+#include "common/common.h"
+
 #ifdef __cplusplus
  extern "C" {
 #endif
-
-#include "common/common.h"
 
 tusb_error_t dcd_init(void) ATTR_WARN_UNUSED_RESULT;
 tusb_error_t dcd_controller_reset(uint8_t coreid) ATTR_WARN_UNUSED_RESULT;
@@ -77,4 +70,5 @@ void dcd_device_set_configuration(uint8_t coreid, uint8_t config_num);
 
 #endif /* _TUSB_DCD_H_ */
 
+/// @}
 /// @}

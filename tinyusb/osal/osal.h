@@ -36,27 +36,8 @@
 */
 /**************************************************************************/
 
-/** \file
- *  \brief TBD
- *
- *  \note TBD
- */
-
-/** \ingroup TBD
- *  \defgroup TBD
- *  \brief TBD
- *
- *  @{
- */
-
 #ifndef _TUSB_OSAL_H_
 #define _TUSB_OSAL_H_
-
-#ifdef __cplusplus
- extern "C" {
-#endif
-
-#include "tusb_option.h"
 
 /** \ingroup group_configuration
  *  \defgroup TUSB_OS RTOS Integration Selection
@@ -68,6 +49,20 @@
 #define TUSB_OS_UCOS2      4 ///< MicroC OS II is used (not supported yet)
 #define TUSB_OS_UCOS3      5 ///< MicroC OS III is used (not supported yet)
 /** @} */
+
+
+/** \addtogroup Port Port
+ * @{
+ *  \defgroup Port_OSAL  OS Abstraction Layer (OSAL)
+ *  @{
+ */
+
+
+#ifdef __cplusplus
+ extern "C" {
+#endif
+
+#include "tusb_option.h"
 
 #ifndef _TEST_
 
@@ -204,6 +199,7 @@ uint32_t osal_tick_get(void);
  }
 #endif
 
-#endif /* _TUSB_OSAL_H_ */
-
 /** @} */
+/** @} */
+
+#endif /* _TUSB_OSAL_H_ */

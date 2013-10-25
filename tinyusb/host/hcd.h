@@ -36,27 +36,20 @@
 */
 /**************************************************************************/
 
-/** \file
- *  \brief Host Controller Driver
- *
- *  \note TBD
- */
-
-/** 
- *  \defgroup Group_HCD Host Controller Driver
- *  \brief Host Controller Driver
- *
+/** \addtogroup Port Port
+ *  @{
+ *  \defgroup Port_HCD Host Controller Driver (HCD)
  *  @{
  */
 
 #ifndef _TUSB_HCD_H_
 #define _TUSB_HCD_H_
 
+#include "common/common.h"
+
 #ifdef __cplusplus
  extern "C" {
 #endif
-
-#include "common/common.h"
 
 //--------------------------------------------------------------------+
 // MACRO CONSTANT TYPEDEF
@@ -125,4 +118,5 @@ void hcd_port_unplug(uint8_t hostid); // called by usbh to instruct hcd that it 
 
  #endif /* _TUSB_HCD_H_ */
 
+/// @}
 /// @}

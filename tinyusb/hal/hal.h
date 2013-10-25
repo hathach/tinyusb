@@ -36,21 +36,15 @@
 */
 /**************************************************************************/
 
-/** \file
- *  \brief TBD
- *
- *  \note TBD
- */
-
-/**
- *  \defgroup Group_HAL Hardware Abtract Layer
- *  \brief Hardware dependent layer
- *
- *  @{
- */
-
 #ifndef _TUSB_HAL_H_
 #define _TUSB_HAL_H_
+
+/** \addtogroup Port Port
+ * @{
+ *  \defgroup Port_Hal Hardware Abtract Layer (HAL)
+ *  \brief Hardware Dependent Layer
+ *  @{
+ */
 
 //--------------------------------------------------------------------+
 // INCLUDES
@@ -123,4 +117,5 @@ static inline void hal_debugger_breakpoint(void)
 
 #endif /* _TUSB_HAL_H_ */
 
+/** @} */
 /** @} */
