@@ -36,10 +36,9 @@
 */
 /**************************************************************************/
 
-/** \ingroup TBD
- *  \defgroup TBD
- *  \brief TBD
- *
+/** \addtogroup CDC_RNDIS Remote Network Driver Interface Specification (RNDIS)
+ *  @{
+ *  \defgroup CDC_RNDIS_Common Common Definitions
  *  @{
  */
 
@@ -271,4 +270,5 @@ typedef struct {
 
 #endif /* _TUSB_CDC_RNDIS_H_ */
 
+/** @} */
 /** @} */
