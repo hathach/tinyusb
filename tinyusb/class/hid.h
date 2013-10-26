@@ -36,12 +36,10 @@
 */
 /**************************************************************************/
 
-/**
- *  \addtogroup ClassDriver Class Driver
+/** \addtogroup ClassDriver Class Driver
  *  @{
  *  \defgroup ClassDriver_HID Human Interface Device (HID)
- *  @{
- */
+ *  @{ */
 
 #ifndef _TUSB_HID_H_
 #define _TUSB_HID_H_
@@ -52,38 +50,50 @@
  extern "C" {
 #endif
 
-enum {
-  HID_SUBCLASS_NONE = 0,
-  HID_SUBCLASS_BOOT = 1
-};
+//--------------------------------------------------------------------+
+// Common Definitions
+//--------------------------------------------------------------------+
+/** \defgroup ClassDriver_HID_Common Common
+ *  @{ */
 
-enum {
-  HID_PROTOCOL_NONE     = 0,
-  HID_PROTOCOL_KEYBOARD = 1,
-  HID_PROTOCOL_MOUSE    = 2
-};
+/// HID Subclass
+typedef enum {
+  HID_SUBCLASS_NONE = 0, ///< No Subclass
+  HID_SUBCLASS_BOOT = 1  ///< Boot Interface Subclass
+}hid_subclass_type_t;
 
-enum {
-  HID_DESC_TYPE_HID      = 0x21,
-  HID_DESC_TYPE_REPORT   = 0x22,
-  HID_DESC_TYPE_PHYSICAL = 0x23
-};
+/// HID Protocol
+typedef enum {
+  HID_PROTOCOL_NONE     = 0, ///< None
+  HID_PROTOCOL_KEYBOARD = 1, ///< Keyboard
+  HID_PROTOCOL_MOUSE    = 2  ///< Mouse
+}hid_protocol_type_t;
 
-enum {
-  HID_REQUEST_REPORT_INPUT = 1,
-  HID_REQUEST_REPORT_OUTPUT,
-  HID_REQUEST_REPORT_FEATURE
-};
+/// HID Descriptor Type
+typedef enum {
+  HID_DESC_TYPE_HID      = 0x21, ///< HID Descriptor
+  HID_DESC_TYPE_REPORT   = 0x22, ///< Report Descriptor
+  HID_DESC_TYPE_PHYSICAL = 0x23  ///< Physical Descriptor
+}hid_descriptor_type_t;
 
-enum {
-  HID_REQUEST_CONTROL_GET_REPORT   = 0x01,
-  HID_REQUEST_CONTROL_GET_IDLE     = 0x02,
-  HID_REQUEST_CONTROL_GET_PROTOCOL = 0x03,
-  HID_REQUEST_CONTROL_SET_REPORT   = 0x09,
-  HID_REQUEST_CONTROL_SET_IDLE     = 0x0a,
-  HID_REQUEST_CONTROL_SET_PROTOCOL = 0x0b
-};
+/// HID Request Report Type
+typedef enum {
+  HID_REQUEST_REPORT_INPUT = 1, ///< Input
+  HID_REQUEST_REPORT_OUTPUT,    ///< Output
+  HID_REQUEST_REPORT_FEATURE    ///< Feature
+}hid_request_report_type_t;
 
+/// HID Class Specific Control Request
+typedef enum {
+  HID_REQUEST_CONTROL_GET_REPORT   = 0x01, ///< Get Report
+  HID_REQUEST_CONTROL_GET_IDLE     = 0x02, ///< Get Idle
+  HID_REQUEST_CONTROL_GET_PROTOCOL = 0x03, ///< Get Protocol
+  HID_REQUEST_CONTROL_SET_REPORT   = 0x09, ///< Set Report
+  HID_REQUEST_CONTROL_SET_IDLE     = 0x0a, ///< Set Idle
+  HID_REQUEST_CONTROL_SET_PROTOCOL = 0x0b  ///< Set Protocol
+}hid_request_type_t;
+
+/// USB HID Descriptor
 typedef ATTR_PACKED_STRUCT(struct) {
   uint8_t  bLength;         /**< Numeric expression that is the total size of the HID descriptor */
   uint8_t  bDescriptorType; /**< Constant name specifying type of HID descriptor. */
@@ -96,13 +106,56 @@ typedef ATTR_PACKED_STRUCT(struct) {
   uint16_t wReportLength;   /**< the total size of the Report descriptor. */
 } tusb_hid_descriptor_hid_t;
 
+/// HID Country Code
+typedef enum
+{
+  HID_Local_NotSupported = 0   , ///< NotSupported
+  HID_Local_Arabic             , ///< Arabic
+  HID_Local_Belgian            , ///< Belgian
+  HID_Local_Canadian_Bilingual , ///< Canadian_Bilingual
+  HID_Local_Canadian_French    , ///< Canadian_French
+  HID_Local_Czech_Republic     , ///< Czech_Republic
+  HID_Local_Danish             , ///< Danish
+  HID_Local_Finnish            , ///< Finnish
+  HID_Local_French             , ///< French
+  HID_Local_German             , ///< German
+  HID_Local_Greek              , ///< Greek
+  HID_Local_Hebrew             , ///< Hebrew
+  HID_Local_Hungary            , ///< Hungary
+  HID_Local_International      , ///< International
+  HID_Local_Italian            , ///< Italian
+  HID_Local_Japan_Katakana     , ///< Japan_Katakana
+  HID_Local_Korean             , ///< Korean
+  HID_Local_Latin_American     , ///< Latin_American
+  HID_Local_Netherlands_Dutch  , ///< Netherlands/Dutch
+  HID_Local_Norwegian          , ///< Norwegian
+  HID_Local_Persian_Farsi      , ///< Persian (Farsi)
+  HID_Local_Poland             , ///< Poland
+  HID_Local_Portuguese         , ///< Portuguese
+  HID_Local_Russia             , ///< Russia
+  HID_Local_Slovakia           , ///< Slovakia
+  HID_Local_Spanish            , ///< Spanish
+  HID_Local_Swedish            , ///< Swedish
+  HID_Local_Swiss_French       , ///< Swiss/French
+  HID_Local_Swiss_German       , ///< Swiss/German
+  HID_Local_Switzerland        , ///< Switzerland
+  HID_Local_Taiwan             , ///< Taiwan
+  HID_Local_Turkish_Q          , ///< Turkish-Q
+  HID_Local_UK                 , ///< UK
+  HID_Local_US                 , ///< US
+  HID_Local_Yugoslavia         , ///< Yugoslavia
+  HID_Local_Turkish_F            ///< Turkish-F
+} hid_country_code_t;
+
+/** @} */
+
+//--------------------------------------------------------------------+
+// MOUSE
+//--------------------------------------------------------------------+
 /** \addtogroup ClassDriver_HID_Mouse Mouse
  *  @{ */
 
-/**  \brief Standard HID Boot Protocol Mouse Report.
- *
- *  Type define for a standard Boot Protocol Mouse report
- */
+/// Standard HID Boot Protocol Mouse Report.
 typedef ATTR_PACKED_STRUCT(struct)
 {
   uint8_t buttons; /**< buttons mask for currently pressed buttons in the mouse. */
@@ -110,47 +163,43 @@ typedef ATTR_PACKED_STRUCT(struct)
   int8_t  y;       /**< Current delta y movement on the mouse. */
   int8_t  wheel;   /**< Current delta wheel movement on the mouse. */
 } hid_mouse_report_t;
+
+/// Standard Mouse Buttons Bitmap
+typedef enum {
+	MOUSE_BUTTON_LEFT   = BIT_(0), ///< Left button
+	MOUSE_BUTTON_RIGHT  = BIT_(1), ///< Right button
+	MOUSE_BUTTON_MIDDLE = BIT_(2)  ///< Middle button
+}hid_mouse_button_bm_t;
+
 /// @}
 
+//--------------------------------------------------------------------+
+// Keyboard
+//--------------------------------------------------------------------+
 /** \addtogroup ClassDriver_HID_Keyboard Keyboard
  *  @{ */
 
-/**
- *  \brief Standard HID Boot Protocol Keyboard Report.
- *
- *  Type define for a standard Boot Protocol Keyboard report
- */
+/// Standard HID Boot Protocol Keyboard Report.
 typedef ATTR_PACKED_STRUCT(struct)
 {
-  uint8_t modifier; /**< Keyboard modifier byte, indicating pressed modifier keys (a combination of HID_KEYBOARD_MODIFER_* masks). */
-  uint8_t reserved; /**< Reserved for OEM use, always set to 0. */
+  uint8_t modifier;   /**< Keyboard modifier byte, indicating pressed modifier keys (a combination of HID_KEYBOARD_MODIFER_* masks). */
+  uint8_t reserved;   /**< Reserved for OEM use, always set to 0. */
   uint8_t keycode[6]; /**< Key codes of the currently pressed keys. */
 } hid_keyboard_report_t;
 
+/// Keyboard modifier codes bitmap
+typedef enum {
+	KEYBOARD_MODIFIER_LEFTCTRL   = BIT_(0), ///< Left Control
+	KEYBOARD_MODIFIER_LEFTSHIFT  = BIT_(1), ///< Left Shift
+	KEYBOARD_MODIFIER_LEFTALT    = BIT_(2), ///< Left Alt
+	KEYBOARD_MODIFIER_LEFTGUI    = BIT_(3), ///< Left Window
+	KEYBOARD_MODIFIER_RIGHTCTRL  = BIT_(4), ///< Right Control
+	KEYBOARD_MODIFIER_RIGHTSHIFT = BIT_(5), ///< Right Shift
+	KEYBOARD_MODIFIER_RIGHTALT   = BIT_(6), ///< Right Alt
+	KEYBOARD_MODIFIER_RIGHTGUI   = BIT_(7)  ///< Right Window
+}hid_keyboard_modifier_bm_t;
+
 /// @}
-
-/**
- * \brief buttons codes for HID mouse
- */
-enum {
-	MOUSE_BUTTON_LEFT   = BIT_(0),
-	MOUSE_BUTTON_RIGHT  = BIT_(1),
-	MOUSE_BUTTON_MIDDLE = BIT_(2)
-};
-
-/**
- * \brief KB modifier codes for HID KB
- */
-enum {
-	KEYBOARD_MODIFIER_LEFTCTRL   = BIT_(0),
-	KEYBOARD_MODIFIER_LEFTSHIFT  = BIT_(1),
-	KEYBOARD_MODIFIER_LEFTALT    = BIT_(2),
-	KEYBOARD_MODIFIER_LEFTGUI    = BIT_(3),
-	KEYBOARD_MODIFIER_RIGHTCTRL  = BIT_(4),
-	KEYBOARD_MODIFIER_RIGHTSHIFT = BIT_(5),
-	KEYBOARD_MODIFIER_RIGHTALT   = BIT_(6),
-	KEYBOARD_MODIFIER_RIGHTGUI   = BIT_(7)
-};
 
 #define HID_KEYCODE_TABLE(ENTRY) \
     ENTRY( 0x04, 'a', 'A' )\
@@ -247,49 +296,6 @@ enum {
 //  KEYBOARD_KEYCODE_SPACEBAR = 0x2c,
 //
 //};
-
-/**
- * \brief Local Country code for HID
- */
-enum USB_HID_LOCAL_CODE
-{
-  HID_Local_NotSupported = 0,
-  HID_Local_Arabic,
-  HID_Local_Belgian,
-  HID_Local_Canadian_Bilingual,
-  HID_Local_Canadian_French,
-  HID_Local_Czech_Republic,
-  HID_Local_Danish,
-  HID_Local_Finnish,
-  HID_Local_French,
-  HID_Local_German,
-  HID_Local_Greek,
-  HID_Local_Hebrew,
-  HID_Local_Hungary,
-  HID_Local_International,
-  HID_Local_Italian,
-  HID_Local_Japan_Katakana,
-  HID_Local_Korean,
-  HID_Local_Latin_American,
-  HID_Local_Netherlands_Dutch,
-  HID_Local_Norwegian,
-  HID_Local_Persian_Farsi,
-  HID_Local_Poland,
-  HID_Local_Portuguese,
-  HID_Local_Russia,
-  HID_Local_Slovakia,
-  HID_Local_Spanish,
-  HID_Local_Swedish,
-  HID_Local_Swiss_French,
-  HID_Local_Swiss_German,
-  HID_Local_Switzerland,
-  HID_Local_Taiwan,
-  HID_Local_Turkish_Q,
-  HID_Local_UK,
-  HID_Local_US,
-  HID_Local_Yugoslavia,
-  HID_Local_Turkish_F
-};
 
 //--------------------------------------------------------------------+
 // REPORT DESCRIPTOR
