@@ -210,3 +210,4 @@ tusb_error_t hub_status_pipe_queue(uint8_t dev_addr);
 #endif /* _TUSB_HUB_H_ */
 
 /** @} */
+/** @} */
