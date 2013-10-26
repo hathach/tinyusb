@@ -143,17 +143,19 @@ typedef ATTR_PACKED_STRUCT(struct) {
 
 STATIC_ASSERT(sizeof(scsi_test_unit_ready_t) == 6, "size is not correct");
 
+/// SCSI Inquiry Command
 typedef ATTR_PACKED_STRUCT(struct) {
-  uint8_t cmd_code     ;
+  uint8_t cmd_code     ; ///< SCSI OpCode for \ref SCSI_CMD_INQUIRY
   uint8_t reserved1    ;
   uint8_t page_code    ;
   uint8_t reserved2    ;
-  uint8_t alloc_length ;
+  uint8_t alloc_length ; ///< specifies the maximum number of bytes that USB host has allocated in the Data-In Buffer. An allocation length of zero specifies that no data shall be transferred.
   uint8_t control      ;
 } scsi_inquiry_t, scsi_request_sense_t;
 
 STATIC_ASSERT(sizeof(scsi_inquiry_t) == 6, "size is not correct");
 
+/// SCSI Inquiry Response Data
 typedef ATTR_PACKED_STRUCT(struct)
 {
   uint8_t peripheral_device_type     : 5;
@@ -192,23 +194,23 @@ typedef ATTR_PACKED_STRUCT(struct)
   uint8_t wbus16                     : 1;
   uint8_t                            : 2;
 
-  uint8_t vendor_id[8];
-  uint8_t product_id[16];
-  uint8_t product_revision[4];
+  uint8_t vendor_id[8]        ; ///< 8 bytes of ASCII data identifying the vendor of the product. The T10 vendor identification shall be one assigned by INCITS. A list of assigned T10 vendor identifications is in Annex E and on the T10 web site (http://www.t10.org).
+  uint8_t product_id[16]      ; ///< 16 bytes of ASCII data defined by the vendor.
+  uint8_t product_revision[4] ; ///< 4 bytes of ASCII data defined by the vendor.
 } scsi_inquiry_data_t;
 
 STATIC_ASSERT(sizeof(scsi_inquiry_data_t) == 36, "size is not correct");
-
-// test unit ready
 
 //--------------------------------------------------------------------+
 // SCSI Block Command (SBC-3)
 // NOTE: All data in SCSI command are in Big Endian
 //--------------------------------------------------------------------+
+
+/// SCSI Read Capacity 10 Command
 typedef ATTR_PACKED_STRUCT(struct) {
-  uint8_t  cmd_code                 ;
+  uint8_t  cmd_code                 ; ///< SCSI OpCode for \ref SCSI_CMD_READ_CAPACITY_10
   uint8_t  reserved1                ;
-  uint32_t lba                      ;
+  uint32_t lba                      ; ///< The first Logical Block Address (LBA) accessed by this command
   uint16_t reserved2                ;
   uint8_t  partial_medium_indicator ;
   uint8_t  control                  ;
@@ -216,19 +218,21 @@ typedef ATTR_PACKED_STRUCT(struct) {
 
 STATIC_ASSERT(sizeof(scsi_read_capacity10_t) == 10, "size is not correct");
 
+/// SCSI Read Capacity 10 Response Data
 typedef struct {
-  uint32_t last_lba   ;
-  uint32_t block_size ;
+  uint32_t last_lba   ; ///< The last Logical Block Address of the device
+  uint32_t block_size ; ///< Block size in bytes
 } scsi_read_capacity10_data_t;
 
 STATIC_ASSERT(sizeof(scsi_read_capacity10_data_t) == 8, "size is not correct");
 
+/// SCSI Read 10 Command
 typedef ATTR_PACKED_STRUCT(struct) {
-  uint8_t  cmd_code    ;
+  uint8_t  cmd_code    ; ///< SCSI OpCode
   uint8_t  reserved    ; // has LUN according to wiki
-  uint32_t lba         ;
+  uint32_t lba         ; ///< The first Logical Block Address (LBA) accessed by this command
   uint8_t  reserved2   ;
-  uint16_t block_count ;
+  uint16_t block_count ; ///< Number of Blocks used by this command
   uint8_t  control     ;
 } scsi_read10_t, scsi_write10_t;
 
