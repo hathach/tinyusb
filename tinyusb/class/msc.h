@@ -40,8 +40,10 @@
  *  \addtogroup ClassDriver Class Driver
  *  @{
  *  \defgroup ClassDriver_MSC MassStorage (MSC)
- *  @{
- */
+ *  @{ */
+
+/**  \defgroup ClassDriver_MSC_Common Common Definitions
+ *  @{ */
 
 #ifndef _TUSB_MSC_H_
 #define _TUSB_MSC_H_
@@ -55,86 +57,99 @@
 //--------------------------------------------------------------------+
 // USB Class Constant
 //--------------------------------------------------------------------+
-enum {
-  MSC_SUBCLASS_RBC = 1 ,
-  MSC_SUBCLASS_SFF_MMC ,
-  MSC_SUBCLASS_QIC     ,
-  MSC_SUBCLASS_UFI     ,
-  MSC_SUBCLASS_SFF     ,
-  MSC_SUBCLASS_SCSI
-};
 
-enum {
-  MSC_CBW_SIGNATURE = 0x43425355,
-};
-
-// CBI only approved to use with full-speed floopy disk & should not used with highspeed or device other than floopy
-enum {
-  MSC_PROTOCOL_CBI              = 0,
-  MSC_PROTOCOL_CBI_NO_INTERRUPT = 1,
-  MSC_PROTOCOL_BOT              = 0x50
-};
-
-enum {
-  MSC_REQUEST_GET_MAX_LUN = 254,
-  MSC_REQUEST_RESET       = 255
-};
-
+/// MassStorage Subclass
 typedef enum {
-  SCSI_CMD_TEST_UNIT_READY  = 0x00,
-  SCSI_CMD_INQUIRY          = 0x12,
-  SCSI_CMD_READ_CAPACITY_10 = 0x25,
-  SCSI_CMD_REQUEST_SENSE    = 0x03,
-  SCSI_CMD_READ_10          = 0x28,
-  SCSI_CMD_WRITE_10         = 0x2A,
-}scsi_cmd_type_t;
+  MSC_SUBCLASS_RBC = 1 , ///< Reduced Block Commands (RBC) T10 Project 1240-D
+  MSC_SUBCLASS_SFF_MMC , ///< SFF-8020i, MMC-2 (ATAPI). Typically used by a CD/DVD device
+  MSC_SUBCLASS_QIC     , ///< QIC-157. Typically used by a tape device
+  MSC_SUBCLASS_UFI     , ///< UFI. Typically used by Floppy Disk Drive (FDD) device
+  MSC_SUBCLASS_SFF     , ///< SFF-8070i. Can be used by Floppy Disk Drive (FDD) device
+  MSC_SUBCLASS_SCSI      ///< SCSI transparent command set
+}msc_subclass_type_t;
 
+enum {
+  MSC_CBW_SIGNATURE = 0x43425355, ///< Constant value of 43425355h (little endian)
+  MSC_CSW_SIGNATURE = 0x53425355  ///< Constant value of 53425355h (little endian)
+};
+
+/// \brief MassStorage Protocol.
+/// \details CBI only approved to use with full-speed floopy disk & should not used with highspeed or device other than floopy
 typedef enum {
-  MSC_CSW_STATUS_PASSED = 0,
-  MSC_CSW_STATUS_FAILED,
-  MSC_CSW_STATUS_PHASE_ERROR
+  MSC_PROTOCOL_CBI              = 0 ,  ///< Control/Bulk/Interrupt protocol (with command completion interrupt)
+  MSC_PROTOCOL_CBI_NO_INTERRUPT = 1 ,  ///< Control/Bulk/Interrupt protocol (without command completion interrupt)
+  MSC_PROTOCOL_BOT              = 0x50 ///< Bulk-Only Transport
+}msc_protocol_type_t;
+
+/// MassStorage Class-Specific Control Request
+typedef enum {
+  MSC_REQUEST_GET_MAX_LUN = 254, ///< The Get Max LUN device request is used to determine the number of logical units supported by the device. Logical Unit Numbers on the device shall be numbered contiguously starting from LUN 0 to a maximum LUN of 15
+  MSC_REQUEST_RESET       = 255  ///< This request is used to reset the mass storage device and its associated interface. This class-specific request shall ready the device for the next CBW from the host.
+}msc_request_type_t;
+
+/// \brief Command Block Status Values
+/// \details Indicates the success or failure of the command. The device shall set this byte to zero if the command completed
+/// successfully. A non-zero value shall indicate a failure during command execution according to the following
+typedef enum {
+  MSC_CSW_STATUS_PASSED = 0 , ///< MSC_CSW_STATUS_PASSED
+  MSC_CSW_STATUS_FAILED     , ///< MSC_CSW_STATUS_FAILED
+  MSC_CSW_STATUS_PHASE_ERROR  ///< MSC_CSW_STATUS_PHASE_ERROR
 }msc_csw_status_t;
 
+/// Command Block Wrapper
 typedef ATTR_PACKED_STRUCT(struct) {
-  uint32_t signature; // const 0x43425355
-  uint32_t tag;
-  uint32_t xfer_bytes;
-  uint8_t  flags; // bit7 : direction
-  uint8_t  lun;
-  uint8_t  cmd_len;
-  uint8_t  command[16];
+  uint32_t signature   ; ///< Signature that helps identify this data packet as a CBW. The signature field shall contain the value 43425355h (little endian), indicating a CBW.
+  uint32_t tag         ; ///< Tag sent by the host. The device shall echo the contents of this field back to the host in the dCSWTagfield of the associated CSW. The dCSWTagpositively associates a CSW with the corresponding CBW.
+  uint32_t xfer_bytes  ; ///< The number of bytes of data that the host expects to transfer on the Bulk-In or Bulk-Out endpoint (as indicated by the Directionbit) during the execution of this command. If this field is zero, the device and the host shall transfer no data between the CBW and the associated CSW, and the device shall ignore the value of the Directionbit in bmCBWFlags.
+  uint8_t  flags       ; ///< Bit 7 of this field define transfer direction \n - 0 : Data-Out from host to the device. \n - 1 : Data-In from the device to the host.
+  uint8_t  lun         ; ///< The device Logical Unit Number (LUN) to which the command block is being sent. For devices that support multiple LUNs, the host shall place into this field the LUN to which this command block is addressed. Otherwise, the host shall set this field to zero.
+  uint8_t  cmd_len     ; ///< The valid length of the CBWCBin bytes. This defines the valid length of the command block. The only legal values are 1 through 16
+  uint8_t  command[16] ; ///< The command block to be executed by the device. The device shall interpret the first cmd_len bytes in this field as a command block
 }msc_cmd_block_wrapper_t;
 
 STATIC_ASSERT(sizeof(msc_cmd_block_wrapper_t) == 31, "size is not correct");
 
+/// Command Status Wrapper
 typedef ATTR_PACKED_STRUCT(struct) {
-  uint32_t signature; // const 0x53425355
-  uint32_t tag;
-  uint32_t data_residue;
-  uint8_t  status;
+  uint32_t signature    ; ///< Signature that helps identify this data packet as a CSW. The signature field shall contain the value 53425355h (little endian), indicating CSW.
+  uint32_t tag          ; ///< The device shall set this field to the value received in the dCBWTag of the associated CBW.
+  uint32_t data_residue ; ///< For Data-Out the device shall report in the dCSWDataResiduethe difference between the amount of data expected as stated in the dCBWDataTransferLength, and the actual amount of data processed by the device. For Data-In the device shall report in the dCSWDataResiduethe difference between the amount of data expected as stated in the dCBWDataTransferLengthand the actual amount of relevant data sent by the device
+  uint8_t  status       ; ///< indicates the success or failure of the command. Values from \ref msc_csw_status_t
 }msc_cmd_status_wrapper_t;
 
 STATIC_ASSERT(sizeof(msc_cmd_status_wrapper_t) == 13, "size is not correct");
 
+/// SCSI Command Operation Code
+typedef enum {
+  SCSI_CMD_TEST_UNIT_READY  = 0x00, ///< The SCSI Test Unit Ready command is used to determine if a device is ready to transfer data (read/write), i.e. if a disk has spun up, if a tape is loaded and ready etc. The device does not perform a self-test operation.
+  SCSI_CMD_INQUIRY          = 0x12, ///< The SCSI Inquiry command is used to obtain basic information from a target device.
+  SCSI_CMD_READ_CAPACITY_10 = 0x25, ///< The SCSI Read Capacity command is used to obtain data capacity information from a target device.
+  SCSI_CMD_REQUEST_SENSE    = 0x03, ///< The SCSI Request Sense command is part of the SCSI computer protocol standard. This command is used to obtain sense data -- status/error information -- from a target device.
+  SCSI_CMD_READ_10          = 0x28, ///< The READ (10) command requests that the device server read the specified logical block(s) and transfer them to the data-in buffer.
+  SCSI_CMD_WRITE_10         = 0x2A, ///< The WRITE (10) command requests thatthe device server transfer the specified logical block(s) from the data-out buffer and write them.
+}scsi_cmd_type_t;
+
 //--------------------------------------------------------------------+
 // SCSI Primary Command (SPC-4)
 //--------------------------------------------------------------------+
+
+/// SCSI Test Unit Ready Command
 typedef ATTR_PACKED_STRUCT(struct) {
-  uint8_t cmd_code;
-  uint8_t lun;
-  uint8_t reserved[3];
-  uint8_t control;
+  uint8_t cmd_code    ; ///< SCSI OpCode for \ref SCSI_CMD_TEST_UNIT_READY
+  uint8_t lun         ; ///< Logical Unit
+  uint8_t reserved[3] ;
+  uint8_t control     ;
 } scsi_test_unit_ready_t;
 
 STATIC_ASSERT(sizeof(scsi_test_unit_ready_t) == 6, "size is not correct");
 
 typedef ATTR_PACKED_STRUCT(struct) {
-  uint8_t cmd_code;
-  uint8_t reserved1;
-  uint8_t page_code;
-  uint8_t reserved2;
-  uint8_t alloc_length;
-  uint8_t control;
+  uint8_t cmd_code     ;
+  uint8_t reserved1    ;
+  uint8_t page_code    ;
+  uint8_t reserved2    ;
+  uint8_t alloc_length ;
+  uint8_t control      ;
 } scsi_inquiry_t, scsi_request_sense_t;
 
 STATIC_ASSERT(sizeof(scsi_inquiry_t) == 6, "size is not correct");
@@ -191,30 +206,30 @@ STATIC_ASSERT(sizeof(scsi_inquiry_data_t) == 36, "size is not correct");
 // NOTE: All data in SCSI command are in Big Endian
 //--------------------------------------------------------------------+
 typedef ATTR_PACKED_STRUCT(struct) {
-  uint8_t  cmd_code;
-  uint8_t  reserved1;
-  uint32_t lba;
-  uint16_t reserved2;
-  uint8_t  partial_medium_indicator;
-  uint8_t  control;
+  uint8_t  cmd_code                 ;
+  uint8_t  reserved1                ;
+  uint32_t lba                      ;
+  uint16_t reserved2                ;
+  uint8_t  partial_medium_indicator ;
+  uint8_t  control                  ;
 } scsi_read_capacity10_t;
 
 STATIC_ASSERT(sizeof(scsi_read_capacity10_t) == 10, "size is not correct");
 
 typedef struct {
-  uint32_t last_lba;
-  uint32_t block_size;
+  uint32_t last_lba   ;
+  uint32_t block_size ;
 } scsi_read_capacity10_data_t;
 
 STATIC_ASSERT(sizeof(scsi_read_capacity10_data_t) == 8, "size is not correct");
 
 typedef ATTR_PACKED_STRUCT(struct) {
-  uint8_t  cmd_code;
-  uint8_t  reserved; // has LUN according to wiki
-  uint32_t lba;
-  uint8_t  reserved2;
-  uint16_t block_count;
-  uint8_t  control;
+  uint8_t  cmd_code    ;
+  uint8_t  reserved    ; // has LUN according to wiki
+  uint32_t lba         ;
+  uint8_t  reserved2   ;
+  uint16_t block_count ;
+  uint8_t  control     ;
 } scsi_read10_t, scsi_write10_t;
 
 STATIC_ASSERT(sizeof(scsi_read10_t) == 10, "size is not correct");
@@ -226,5 +241,6 @@ STATIC_ASSERT(sizeof(scsi_write10_t) == 10, "size is not correct");
 
 #endif /* _TUSB_MSC_H_ */
 
+/// @}
 /// @}
 /// @}

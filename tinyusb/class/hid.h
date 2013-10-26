@@ -53,7 +53,7 @@
 //--------------------------------------------------------------------+
 // Common Definitions
 //--------------------------------------------------------------------+
-/** \defgroup ClassDriver_HID_Common Common
+/** \defgroup ClassDriver_HID_Common Common Definitions
  *  @{ */
 
 /// HID Subclass
