@@ -53,91 +53,98 @@
  extern "C" {
 #endif
 
+/** \defgroup ClassDriver_CDC_Common Common Definitions
+ *  @{ */
+
 //--------------------------------------------------------------------+
 // CDC COMMUNICATION INTERFACE CLASS
 //--------------------------------------------------------------------+
-enum {
-  CDC_COMM_SUBCLASS_DIRECT_LINE_CONTROL_MODEL = 0x01  ,
-  CDC_COMM_SUBCLASS_ABSTRACT_CONTROL_MODEL            ,
-  CDC_COMM_SUBCLASS_TELEPHONE_CONTROL_MODEL           ,
-  CDC_COMM_SUBCLASS_MULTICHANNEL_CONTROL_MODEL        ,
-  CDC_COMM_SUBCLASS_CAPI_CONTROL_MODEL                ,
-  CDC_COMM_SUBCLASS_ETHERNET_NETWORKING_CONTROL_MODEL ,
-  CDC_COMM_SUBCLASS_ATM_NETWORKING_CONTROL_MODEL      ,
-  CDC_COMM_SUBCLASS_WIRELESS_HANDSET_CONTROL_MODEL    ,
-  CDC_COMM_SUBCLASS_DEVICE_MANAGEMENT                 ,
-  CDC_COMM_SUBCLASS_MOBILE_DIRECT_LINE_MODEL          ,
-  CDC_COMM_SUBCLASS_OBEX                              ,
-  CDC_COMM_SUBCLASS_ETHERNET_EMULATION_MODEL
-};
+/// Communication Interface Subclass Codes
+typedef enum {
+  CDC_COMM_SUBCLASS_DIRECT_LINE_CONTROL_MODEL = 0x01  , ///< Direct Line Control Model  [USBPSTN1.2]
+  CDC_COMM_SUBCLASS_ABSTRACT_CONTROL_MODEL            , ///< Abstract Control Model  [USBPSTN1.2]
+  CDC_COMM_SUBCLASS_TELEPHONE_CONTROL_MODEL           , ///< Telephone Control Model  [USBPSTN1.2]
+  CDC_COMM_SUBCLASS_MULTICHANNEL_CONTROL_MODEL        , ///< Multi-Channel Control Model  [USBISDN1.2]
+  CDC_COMM_SUBCLASS_CAPI_CONTROL_MODEL                , ///< CAPI Control Model  [USBISDN1.2]
+  CDC_COMM_SUBCLASS_ETHERNET_NETWORKING_CONTROL_MODEL , ///< Ethernet Networking Control Model  [USBECM1.2]
+  CDC_COMM_SUBCLASS_ATM_NETWORKING_CONTROL_MODEL      , ///< ATM Networking Control Model  [USBATM1.2]
+  CDC_COMM_SUBCLASS_WIRELESS_HANDSET_CONTROL_MODEL    , ///< Wireless Handset Control Model  [USBWMC1.1]
+  CDC_COMM_SUBCLASS_DEVICE_MANAGEMENT                 , ///< Device Management  [USBWMC1.1]
+  CDC_COMM_SUBCLASS_MOBILE_DIRECT_LINE_MODEL          , ///< Mobile Direct Line Model  [USBWMC1.1]
+  CDC_COMM_SUBCLASS_OBEX                              , ///< OBEX  [USBWMC1.1]
+  CDC_COMM_SUBCLASS_ETHERNET_EMULATION_MODEL            ///< Ethernet Emulation Model  [USBEEM1.0]
+} cdc_comm_sublcass_type_t;
 
-enum {
-  CDC_COMM_PROTOCOL_ATCOMMAND              = 0x01 , // ITU-T V2.50
-  CDC_COMM_PROTOCOL_ATCOMMAND_PCCA_101            ,
-  CDC_COMM_PROTOCOL_ATCOMMAND_PCCA_101_AND_ANNEXO ,
-  CDC_COMM_PROTOCOL_ATCOMMAND_GSM_707             ,
-  CDC_COMM_PROTOCOL_ATCOMMAND_3GPP_27007          ,
-  CDC_COMM_PROTOCOL_ATCOMMAND_CDMA                , // defined by TIA
-  CDC_COMM_PROTOCOL_ETHERNET_EMULATION_MODEL
-};
+/// Communication Interface Protocol Codes
+typedef enum {
+  CDC_COMM_PROTOCOL_ATCOMMAND              = 0x01 , ///< AT Commands: V.250 etc
+  CDC_COMM_PROTOCOL_ATCOMMAND_PCCA_101            , ///< AT Commands defined by PCCA-101
+  CDC_COMM_PROTOCOL_ATCOMMAND_PCCA_101_AND_ANNEXO , ///< AT Commands defined by PCCA-101 & Annex O
+  CDC_COMM_PROTOCOL_ATCOMMAND_GSM_707             , ///< AT Commands defined by GSM 07.07
+  CDC_COMM_PROTOCOL_ATCOMMAND_3GPP_27007          , ///< AT Commands defined by 3GPP 27.007
+  CDC_COMM_PROTOCOL_ATCOMMAND_CDMA                , ///< AT Commands defined by TIA for CDMA
+  CDC_COMM_PROTOCOL_ETHERNET_EMULATION_MODEL        ///< Ethernet Emulation Model
+} cdc_comm_protocol_type_t;
 
 //------------- SubType Descriptor in COMM Functional Descriptor -------------//
-enum {
-  CDC_FUNC_DESC_HEADER                                           = 0x00 ,
-  CDC_FUNC_DESC_CALL_MANAGEMENT                                  = 0x01 ,
-  CDC_FUNC_DESC_ABSTRACT_CONTROL_MANAGEMENT                      = 0x02 ,
-  CDC_FUNC_DESC_DIRECT_LINE_MANAGEMENT                           = 0x03 ,
-  CDC_FUNC_DESC_TELEPHONE_RINGER                                 = 0x04 ,
-  CDC_FUNC_DESC_TELEPHONE_CALL_AND_LINE_STATE_REPORTING_CAPACITY = 0x05 ,
-  CDC_FUNC_DESC_UNION                                            = 0x06 ,
-  CDC_FUNC_DESC_COUNTRY_SELECTION                                = 0x07 ,
-  CDC_FUNC_DESC_TELEPHONE_OPERATIONAL_MODES                      = 0x08 ,
-  CDC_FUNC_DESC_USB_TERMINAL                                     = 0x09 ,
-  CDC_FUNC_DESC_NETWORK_CHANNEL_TERMINAL                         = 0x0A ,
-  CDC_FUNC_DESC_PROTOCOL_UNIT                                    = 0x0B ,
-  CDC_FUNC_DESC_EXTENSION_UNIT                                   = 0x0C ,
-  CDC_FUNC_DESC_MULTICHANEL_MANAGEMENT                           = 0x0D ,
-  CDC_FUNC_DESC_CAPI_CONTROL_MANAGEMENT                          = 0x0E ,
-  CDC_FUNC_DESC_ETHERNET_NETWORKING                              = 0x0F ,
-  CDC_FUNC_DESC_ATM_NETWORKING                                   = 0x10 ,
-  CDC_FUNC_DESC_WIRELESS_HANDSET_CONTROL_MODEL                   = 0x11 ,
-  CDC_FUNC_DESC_MOBILE_DIRECT_LINE_MODEL                         = 0x12 ,
-  CDC_FUNC_DESC_MOBILE_DIRECT_LINE_MODEL_DETAIL                  = 0x13 ,
-  CDC_FUNC_DESC_DEVICE_MANAGEMENT_MODEL                          = 0x14 ,
-  CDC_FUNC_DESC_OBEX                                             = 0x15 ,
-  CDC_FUNC_DESC_COMMAND_SET                                      = 0x16 ,
-  CDC_FUNC_DESC_COMMAND_SET_DETAIL                               = 0x17 ,
-  CDC_FUNC_DESC_TELEPHONE_CONTROL_MODEL                          = 0x18 ,
-  CDC_FUNC_DESC_OBEX_SERVICE_IDENTIFIER                          = 0x19
-};
+/// Communication Interface SubType Descriptor
+typedef enum {
+  CDC_FUNC_DESC_HEADER                                           = 0x00 , ///< Header Functional Descriptor, which marks the beginning of the concatenated set of functional descriptors for the interface.
+  CDC_FUNC_DESC_CALL_MANAGEMENT                                  = 0x01 , ///< Call Management Functional Descriptor.
+  CDC_FUNC_DESC_ABSTRACT_CONTROL_MANAGEMENT                      = 0x02 , ///< Abstract Control Management Functional Descriptor.
+  CDC_FUNC_DESC_DIRECT_LINE_MANAGEMENT                           = 0x03 , ///< Direct Line Management Functional Descriptor.
+  CDC_FUNC_DESC_TELEPHONE_RINGER                                 = 0x04 , ///< Telephone Ringer Functional Descriptor.
+  CDC_FUNC_DESC_TELEPHONE_CALL_AND_LINE_STATE_REPORTING_CAPACITY = 0x05 , ///< Telephone Call and Line State Reporting Capabilities Functional Descriptor.
+  CDC_FUNC_DESC_UNION                                            = 0x06 , ///< Union Functional Descriptor
+  CDC_FUNC_DESC_COUNTRY_SELECTION                                = 0x07 , ///< Country Selection Functional Descriptor
+  CDC_FUNC_DESC_TELEPHONE_OPERATIONAL_MODES                      = 0x08 , ///< Telephone Operational ModesFunctional Descriptor
+  CDC_FUNC_DESC_USB_TERMINAL                                     = 0x09 , ///< USB Terminal Functional Descriptor
+  CDC_FUNC_DESC_NETWORK_CHANNEL_TERMINAL                         = 0x0A , ///< Network Channel Terminal Descriptor
+  CDC_FUNC_DESC_PROTOCOL_UNIT                                    = 0x0B , ///< Protocol Unit Functional Descriptor
+  CDC_FUNC_DESC_EXTENSION_UNIT                                   = 0x0C , ///< Extension Unit Functional Descriptor
+  CDC_FUNC_DESC_MULTICHANEL_MANAGEMENT                           = 0x0D , ///< Multi-Channel Management Functional Descriptor
+  CDC_FUNC_DESC_CAPI_CONTROL_MANAGEMENT                          = 0x0E , ///< CAPI Control Management Functional Descriptor
+  CDC_FUNC_DESC_ETHERNET_NETWORKING                              = 0x0F , ///< Ethernet Networking Functional Descriptor
+  CDC_FUNC_DESC_ATM_NETWORKING                                   = 0x10 , ///< ATM Networking Functional Descriptor
+  CDC_FUNC_DESC_WIRELESS_HANDSET_CONTROL_MODEL                   = 0x11 , ///< Wireless Handset Control Model Functional Descriptor
+  CDC_FUNC_DESC_MOBILE_DIRECT_LINE_MODEL                         = 0x12 , ///< Mobile Direct Line Model Functional Descriptor
+  CDC_FUNC_DESC_MOBILE_DIRECT_LINE_MODEL_DETAIL                  = 0x13 , ///< MDLM Detail Functional Descriptor
+  CDC_FUNC_DESC_DEVICE_MANAGEMENT_MODEL                          = 0x14 , ///< Device Management Model Functional Descriptor
+  CDC_FUNC_DESC_OBEX                                             = 0x15 , ///< OBEX Functional Descriptor
+  CDC_FUNC_DESC_COMMAND_SET                                      = 0x16 , ///< Command Set Functional Descriptor
+  CDC_FUNC_DESC_COMMAND_SET_DETAIL                               = 0x17 , ///< Command Set Detail Functional Descriptor
+  CDC_FUNC_DESC_TELEPHONE_CONTROL_MODEL                          = 0x18 , ///< Telephone Control Model Functional Descriptor
+  CDC_FUNC_DESC_OBEX_SERVICE_IDENTIFIER                          = 0x19   ///< OBEX Service Identifier Functional Descriptor
+}cdc_func_desc_type_t;
 
 //--------------------------------------------------------------------+
 // CDC DATA INTERFACE CLASS
 //--------------------------------------------------------------------+
 
 // SUBCLASS code of Data Interface is not used and should/must be zero
-
-enum{
-  CDC_DATA_PROTOCOL_ISDN_BRI                               = 0x30,
-  CDC_DATA_PROTOCOL_HDLC                                   = 0x31,
-  CDC_DATA_PROTOCOL_TRANSPARENT                            = 0x32,
-  CDC_DATA_PROTOCOL_Q921_MANAGEMENT                        = 0x50,
-  CDC_DATA_PROTOCOL_Q921_DATA_LINK                         = 0x51,
-  CDC_DATA_PROTOCOL_Q921_TEI_MULTIPLEXOR                   = 0x52,
-  CDC_DATA_PROTOCOL_V42BIS_DATA_COMPRESSION                = 0x90,
-  CDC_DATA_PROTOCOL_EURO_ISDN                              = 0x91,
-  CDC_DATA_PROTOCOL_V24_RATE_ADAPTION_TO_ISDN              = 0x92,
-  CDC_DATA_PROTOCOL_CAPI_COMMAND                           = 0x93,
-  CDC_DATA_PROTOCOL_HOST_BASED_DRIVER                      = 0xFD,
-  CDC_DATA_PROTOCOL_IN_PROTOCOL_UNIT_FUNCTIONAL_DESCRIPTOR = 0xFE
-};
+/// Data Interface Protocol Codes
+typedef enum{
+  CDC_DATA_PROTOCOL_ISDN_BRI                               = 0x30, ///< Physical interface protocol for ISDN BRI
+  CDC_DATA_PROTOCOL_HDLC                                   = 0x31, ///< HDLC
+  CDC_DATA_PROTOCOL_TRANSPARENT                            = 0x32, ///< Transparent
+  CDC_DATA_PROTOCOL_Q921_MANAGEMENT                        = 0x50, ///< Management protocol for Q.921 data link protocol
+  CDC_DATA_PROTOCOL_Q921_DATA_LINK                         = 0x51, ///< Data link protocol for Q.931
+  CDC_DATA_PROTOCOL_Q921_TEI_MULTIPLEXOR                   = 0x52, ///< TEI-multiplexor for Q.921 data link protocol
+  CDC_DATA_PROTOCOL_V42BIS_DATA_COMPRESSION                = 0x90, ///< Data compression procedures
+  CDC_DATA_PROTOCOL_EURO_ISDN                              = 0x91, ///< Euro-ISDN protocol control
+  CDC_DATA_PROTOCOL_V24_RATE_ADAPTION_TO_ISDN              = 0x92, ///< V.24 rate adaptation to ISDN
+  CDC_DATA_PROTOCOL_CAPI_COMMAND                           = 0x93, ///< CAPI Commands
+  CDC_DATA_PROTOCOL_HOST_BASED_DRIVER                      = 0xFD, ///< Host based driver. Note: This protocol code should only be used in messages between host and device to identify the host driver portion of a protocol stack.
+  CDC_DATA_PROTOCOL_IN_PROTOCOL_UNIT_FUNCTIONAL_DESCRIPTOR = 0xFE  ///< The protocol(s) are described using a ProtocolUnit Functional Descriptors on Communications Class Interface
+}cdc_data_protocol_type_t;
 
 //--------------------------------------------------------------------+
 // MANAGEMENT ELEMENT REQUEST (CONTROL ENDPOINT)
 //--------------------------------------------------------------------+
+/// Communication Interface Management Element Request Codes
 typedef enum {
-  SEND_ENCAPSULATED_COMMAND                    = 0x00,
-  GET_ENCAPSULATED_RESPONSE                    = 0x01,
+  SEND_ENCAPSULATED_COMMAND                    = 0x00, ///< is used to issue a command in the format of the supported control protocol of the Communications Class interface
+  GET_ENCAPSULATED_RESPONSE                    = 0x01, ///< is used to request a response in the format of the supported control protocol of the Communications Class interface.
 
   SET_COMM_FEATURE                             = 0x02,
   GET_COMM_FEATURE                             = 0x03,
@@ -184,9 +191,10 @@ typedef enum {
 //--------------------------------------------------------------------+
 // MANAGEMENT ELEMENENT NOTIFICATION (NOTIFICATION ENDPOINT)
 //--------------------------------------------------------------------+
+/// Communication Interface Management Element Notification Codes
 typedef enum {
-  NETWORK_CONNECTION               = 0x00,
-  RESPONSE_AVAILABLE               = 0x01,
+  NETWORK_CONNECTION               = 0x00, ///< This notification allows the device to notify the host about network connection status.
+  RESPONSE_AVAILABLE               = 0x01, ///< This notification allows the device to notify the hostthat a response is available. This response can be retrieved with a subsequent \ref GET_ENCAPSULATED_RESPONSE request.
 
   AUX_JACK_HOOK_STATE              = 0x08,
   RING_DETECT                      = 0x09,
@@ -195,13 +203,14 @@ typedef enum {
 
   CALL_STATE_CHANGE                = 0x28,
   LINE_STATE_CHANGE                = 0x29,
-  CONNECTION_SPEED_CHANGE          = 0x2A,
+  CONNECTION_SPEED_CHANGE          = 0x2A, ///< This notification allows the device to inform the host-networking driver that a change in either the upstream or the downstream bit rate of the connection has occurred
   MDLM_SEMANTIC_MODEL_NOTIFICATION = 0x40,
 }cdc_notification_request_t;
 
 //--------------------------------------------------------------------+
-// FUNCTIONAL DESCRIPTOR
+// FUNCTIONAL DESCRIPTOR (COMMUNICATION INTERFACE)
 //--------------------------------------------------------------------+
+/// Header Functional Descriptor (Communication Interface)
 typedef ATTR_PACKED_STRUCT(struct) {
   uint8_t bLength            ; ///< Size of this descriptor in bytes.
   uint8_t bDescriptorType    ; ///< Descriptor Type, must be Class-Specific
@@ -209,6 +218,7 @@ typedef ATTR_PACKED_STRUCT(struct) {
   uint16_t bcdCDC            ; ///< CDC release number in Binary-Coded Decimal
 }cdc_desc_func_header_t;
 
+/// Union Functional Descriptor (Communication Interface)
 typedef ATTR_PACKED_STRUCT(struct) {
   uint8_t bLength                  ; ///< Size of this descriptor in bytes.
   uint8_t bDescriptorType          ; ///< Descriptor Type, must be Class-Specific
@@ -226,6 +236,7 @@ typedef ATTR_PACKED_STRUCT(struct) {
   uint8_t bSubordinateInterface[no_slave] ;\
 }
 
+/// Country Selection Functional Descriptor (Communication Interface)
 typedef ATTR_PACKED_STRUCT(struct) {
   uint8_t bLength             ; ///< Size of this descriptor in bytes.
   uint8_t bDescriptorType     ; ///< Descriptor Type, must be Class-Specific
@@ -246,6 +257,9 @@ typedef ATTR_PACKED_STRUCT(struct) {
 //--------------------------------------------------------------------+
 // PUBLIC SWITCHED TELEPHONE NETWORK (PSTN) SUBCLASS
 //--------------------------------------------------------------------+
+
+/// \brief Call Management Functional Descriptor
+/// \details This functional descriptor describes the processing of calls for the Communications Class interface.
 typedef ATTR_PACKED_STRUCT(struct) {
   uint8_t bLength            ; ///< Size of this descriptor in bytes.
   uint8_t bDescriptorType    ; ///< Descriptor Type, must be Class-Specific
@@ -260,6 +274,7 @@ typedef ATTR_PACKED_STRUCT(struct) {
   uint8_t bDataInterface;
 }cdc_desc_func_call_management_t;
 
+
 typedef ATTR_PACKED_STRUCT(struct) {
   uint8_t support_comm_request                    : 1; ///< Device supports the request combination of Set_Comm_Feature, Clear_Comm_Feature, and Get_Comm_Feature.
   uint8_t support_line_request                    : 1; ///< Device supports the request combination of Set_Line_Coding, Set_Control_Line_State, Get_Line_Coding, and the notification Serial_State.
@@ -270,6 +285,8 @@ typedef ATTR_PACKED_STRUCT(struct) {
 
 STATIC_ASSERT(sizeof(cdc_acm_capability_t) == 1, "mostly problem with compiler");
 
+/// \brief Abstract Control Management Functional Descriptor
+/// \details This functional descriptor describes the commands supported by by the Communications Class interface with SubClass code of \ref CDC_COMM_SUBCLASS_ABSTRACT_CONTROL_MODEL
 typedef ATTR_PACKED_STRUCT(struct) {
   uint8_t bLength                  ; ///< Size of this descriptor in bytes.
   uint8_t bDescriptorType          ; ///< Descriptor Type, must be Class-Specific
@@ -277,6 +294,8 @@ typedef ATTR_PACKED_STRUCT(struct) {
   cdc_acm_capability_t bmCapabilities ;
 }cdc_desc_func_abstract_control_management_t;
 
+/// \brief Direct Line Management Functional Descriptor
+/// \details This functional descriptor describes the commands supported by the Communications Class interface with SubClass code of \ref CDC_FUNC_DESC_DIRECT_LINE_MANAGEMENT
 typedef ATTR_PACKED_STRUCT(struct) {
   uint8_t bLength            ; ///< Size of this descriptor in bytes.
   uint8_t bDescriptorType    ; ///< Descriptor Type, must be Class-Specific
@@ -289,6 +308,9 @@ typedef ATTR_PACKED_STRUCT(struct) {
   } bmCapabilities;
 }cdc_desc_func_direct_line_management_t;
 
+/// \brief Telephone Ringer Functional Descriptor
+/// \details The Telephone Ringer functional descriptor describes the ringer capabilities supported by the Communications Class interface,
+/// with the SubClass code of \ref CDC_COMM_SUBCLASS_TELEPHONE_CONTROL_MODEL
 typedef ATTR_PACKED_STRUCT(struct) {
   uint8_t bLength            ; ///< Size of this descriptor in bytes.
   uint8_t bDescriptorType    ; ///< Descriptor Type, must be Class-Specific
@@ -297,6 +319,9 @@ typedef ATTR_PACKED_STRUCT(struct) {
   uint8_t bNumRingerPatterns ;
 }cdc_desc_func_telephone_ringer_t;
 
+/// \brief Telephone Operational Modes Functional Descriptor
+/// \details The Telephone Operational Modes functional descriptor describes the operational modes supported by
+/// the Communications Class interface, with the SubClass code of \ref CDC_COMM_SUBCLASS_TELEPHONE_CONTROL_MODEL
 typedef ATTR_PACKED_STRUCT(struct) {
   uint8_t bLength            ; ///< Size of this descriptor in bytes.
   uint8_t bDescriptorType    ; ///< Descriptor Type, must be Class-Specific
@@ -309,6 +334,9 @@ typedef ATTR_PACKED_STRUCT(struct) {
   } bmCapabilities;
 }cdc_desc_func_telephone_operational_modes_t;
 
+/// \brief Telephone Call and Line State Reporting Capabilities Descriptor
+/// \details The Telephone Call and Line State Reporting Capabilities functional descriptor describes the abilities of a
+/// telephone device to report optional call and line states.
 typedef ATTR_PACKED_STRUCT(struct) {
   uint8_t bLength            ; ///< Size of this descriptor in bytes.
   uint8_t bDescriptorType    ; ///< Descriptor Type, must be Class-Specific
@@ -330,9 +358,13 @@ static inline uint8_t cdc_functional_desc_typeof(uint8_t const * p_desc)
   return p_desc[2];
 }
 
+/** @} */
 
 #ifdef __cplusplus
  }
 #endif
 
 #endif
+
+/** @} */
+/** @} */
