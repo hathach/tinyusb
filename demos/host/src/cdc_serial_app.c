@@ -118,15 +118,14 @@ void cdc_serial_app_init(void)
 //------------- main task -------------//
 OSAL_TASK_FUNCTION( cdc_serial_app_task ) (void* p_task_para)
 {
-  static uint8_t dev_addr;
-
+  // This task can be separated into 2 Task : sending & receiving.
   OSAL_TASK_LOOP_BEGIN
 
-  for(dev_addr=1; dev_addr <= TUSB_CFG_HOST_DEVICE_MAX; dev_addr++)
+  //------------- send characters got from uart terminal to the first CDC device -------------//
+  for(uint8_t dev_addr=1; dev_addr <= TUSB_CFG_HOST_DEVICE_MAX; dev_addr++)
   {
     if ( tusbh_cdc_serial_is_mounted(dev_addr) )
     {
-      //------------- send characters got from uart terminal -------------//
       int ch_tx = getchar();
       if ( ch_tx > 0 )
       { // USB is much faster than serial, here we assume usb is always complete. There could be some characters missing
@@ -137,27 +136,30 @@ OSAL_TASK_FUNCTION( cdc_serial_app_task ) (void* p_task_para)
           tusbh_cdc_send(dev_addr, serial_out_buffer, 1, false); // no need for interrupt on serial out pipe
         }
       }
-
-      //------------- print out received characters -------------//
-      tusb_error_t error;
-      osal_semaphore_wait(sem_hdl, 100, &error);
-
-      if ( TUSB_ERROR_NONE == error)
-      {
-        for(uint8_t i=0; i<received_bytes; i++)
-        {
-          printf("%c", serial_in_buffer[i]);
-        }
-        tusbh_cdc_receive(dev_addr, serial_in_buffer, sizeof(serial_in_buffer), true);
-      }
-
       break; // demo app only communicate with the first CDC-capable device
     }
   }
 
-  if (dev_addr > TUSB_CFG_HOST_DEVICE_MAX)
-  { // there is no CDC device connected
-    osal_task_delay(1000);
+  //------------- print out received characters -------------//
+  tusb_error_t error;
+  osal_semaphore_wait(sem_hdl, 100, &error); // timeout to allow getchar from uart terminal can be executed
+
+  if ( TUSB_ERROR_NONE == error)
+  {
+    for(uint8_t i=0; i<received_bytes; i++)
+    {
+      printf("%c", serial_in_buffer[i]);
+    }
+
+    for(uint8_t dev_addr=1; dev_addr <= TUSB_CFG_HOST_DEVICE_MAX; dev_addr++)
+    {
+      if ( tusbh_cdc_serial_is_mounted(dev_addr) )
+      {
+        tusbh_cdc_receive(dev_addr, serial_in_buffer, sizeof(serial_in_buffer), true);
+
+        break; // demo app only communicate with the first CDC-capable device
+      }
+    }
   }
 
   OSAL_TASK_LOOP_END
