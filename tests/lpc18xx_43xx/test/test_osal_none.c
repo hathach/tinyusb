@@ -170,7 +170,7 @@ void test_task_with_semaphore(void)
   TEST_ASSERT_EQUAL(1, statements[3]);
 
   // timeout
-  for(uint32_t i=0; i<(OSAL_TIMEOUT_NORMAL*TUSB_CFG_OS_TICKS_PER_SECOND)/1000 ; i++) // not enough time
+  for(uint32_t i=0; i<(OSAL_TIMEOUT_NORMAL*TUSB_CFG_OS_TICKS_PER_SECOND)/1000 - 1  ; i++) // not enough time
     osal_tick_tock();
   sample_task_semaphore();
   TEST_ASSERT_EQUAL(0, statements[4]);
@@ -241,7 +241,7 @@ void test_task_with_mutex(void)
   TEST_ASSERT_EQUAL(0, statements[5]);
 
   // timeout
-  for(uint32_t i=0; i<(OSAL_TIMEOUT_NORMAL*TUSB_CFG_OS_TICKS_PER_SECOND)/1000 ; i++){ // one tick less
+  for(uint32_t i=0; i<(OSAL_TIMEOUT_NORMAL*TUSB_CFG_OS_TICKS_PER_SECOND)/1000 - 1 ; i++){ // one tick less
     osal_tick_tock();
   }
   mutex_sample_task2();
@@ -311,7 +311,7 @@ void test_task_with_queue(void)
   TEST_ASSERT_EQUAL(1, statements[3]);
 
   // timeout
-  for(uint32_t i=0; i<(OSAL_TIMEOUT_NORMAL*TUSB_CFG_OS_TICKS_PER_SECOND)/1000 ; i++) // not enough time
+  for(uint32_t i=0; i<(OSAL_TIMEOUT_NORMAL*TUSB_CFG_OS_TICKS_PER_SECOND)/1000 - 1 ; i++) // not enough time
     osal_tick_tock();
   sample_task_with_queue();
   TEST_ASSERT_EQUAL(0, statements[4]);

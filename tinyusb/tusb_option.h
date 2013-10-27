@@ -147,9 +147,9 @@
 
   //------------- HID CLASS -------------//
   #define HOST_CLASS_HID   ( TUSB_CFG_HOST_HID_KEYBOARD + TUSB_CFG_HOST_HID_MOUSE + TUSB_CFG_HOST_HID_GENERIC )
-  #if HOST_CLASS_HID
-    #define HOST_HCD_XFER_INTERRUPT
-  #endif
+//  #if HOST_CLASS_HID
+//    #define HOST_HCD_XFER_INTERRUPT
+//  #endif
 
   #ifndef TUSB_CFG_HOST_ENUM_BUFFER_SIZE
     #define TUSB_CFG_HOST_ENUM_BUFFER_SIZE 256

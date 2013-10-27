@@ -263,6 +263,7 @@ typedef osal_queue_t * osal_queue_handle_t;
 
 // use to declare a queue, within the scope of tinyusb, should only use primitive type only
 #define OSAL_QUEUE_DEF(name, queue_depth, type)\
+  STATIC_ASSERT(queue_depth < 256, "OSAL Queue only support up to 255 depth");\
   type name##_buffer[queue_depth];\
   osal_queue_t name = {\
       .buffer    = (uint8_t*) name##_buffer,\

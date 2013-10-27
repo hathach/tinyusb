@@ -58,6 +58,17 @@
 //--------------------------------------------------------------------+
 /*STATIC_*/ cdch_data_t cdch_data[TUSB_CFG_HOST_DEVICE_MAX]; // TODO to be static
 
+static inline cdc_pipeid_t get_app_pipeid(pipe_handle_t pipe_hdl) ATTR_PURE  ATTR_ALWAYS_INLINE;
+static inline cdc_pipeid_t get_app_pipeid(pipe_handle_t pipe_hdl)
+{
+  cdch_data_t const * p_cdc = &cdch_data[pipe_hdl.dev_addr-1];
+
+  return pipehandle_is_equal( pipe_hdl, p_cdc->pipe_notification ) ? CDC_PIPE_NOTIFICATION :
+         pipehandle_is_equal( pipe_hdl, p_cdc->pipe_in           ) ? CDC_PIPE_DATA_IN      :
+         pipehandle_is_equal( pipe_hdl, p_cdc->pipe_out          ) ? CDC_PIPE_DATA_OUT     : CDC_PIPE_ERROR;
+}
+
+
 STATIC_ INLINE_ bool tusbh_cdc_is_mounted(uint8_t dev_addr) ATTR_PURE ATTR_ALWAYS_INLINE ATTR_WARN_UNUSED_RESULT;
 STATIC_ INLINE_ bool tusbh_cdc_is_mounted(uint8_t dev_addr)
 {
@@ -70,15 +81,28 @@ STATIC_ INLINE_ bool tusbh_cdc_is_mounted(uint8_t dev_addr)
 #endif
 }
 
-static inline cdc_pipeid_t get_app_pipeid(pipe_handle_t pipe_hdl) ATTR_PURE  ATTR_ALWAYS_INLINE;
-static inline cdc_pipeid_t get_app_pipeid(pipe_handle_t pipe_hdl)
+bool tusbh_cdc_is_busy(uint8_t dev_addr, cdc_pipeid_t pipeid)
 {
-  cdch_data_t const * p_cdc = &cdch_data[pipe_hdl.dev_addr-1];
+  if ( !tusbh_cdc_is_mounted(dev_addr) ) return false;
 
-  return pipehandle_is_equal( pipe_hdl, p_cdc->pipe_notification ) ? CDC_PIPE_NOTIFICATION :
-         pipehandle_is_equal( pipe_hdl, p_cdc->pipe_in           ) ? CDC_PIPE_DATA_IN      :
-         pipehandle_is_equal( pipe_hdl, p_cdc->pipe_out          ) ? CDC_PIPE_DATA_OUT     : CDC_PIPE_ERROR;
+  cdch_data_t const * p_cdc = &cdch_data[dev_addr-1];
+
+  switch (pipeid)
+  {
+    case CDC_PIPE_NOTIFICATION:
+      return hcd_pipe_is_busy( p_cdc->pipe_notification );
+
+    case CDC_PIPE_DATA_IN:
+      return hcd_pipe_is_busy( p_cdc->pipe_in );
+
+    case CDC_PIPE_DATA_OUT:
+      return hcd_pipe_is_busy( p_cdc->pipe_out );
+
+    default:
+      return false;
+  }
 }
+
 
 //--------------------------------------------------------------------+
 // APPLICATION API (parameter validation needed)

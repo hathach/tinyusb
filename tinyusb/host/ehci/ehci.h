@@ -69,6 +69,7 @@
 //--------------------------------------------------------------------+
 // EHCI CONFIGURATION & CONSTANTS
 //--------------------------------------------------------------------+
+#define HOST_HCD_XFER_INTERRUPT // TODO interrupt is used widely, should always be enalbed
 #define EHCI_PERIODIC_LIST (defined HOST_HCD_XFER_INTERRUPT || defined HOST_HCD_XFER_ISOCHRONOUS)
 
 // TODO allow user to configure
