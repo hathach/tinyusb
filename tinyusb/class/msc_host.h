@@ -67,8 +67,9 @@ bool          tusbh_msc_is_mounted(uint8_t dev_addr) ATTR_PURE ATTR_WARN_UNUSED_
  * \param[in]   dev_addr device address
  * \retval      true if the interface is busy meaning the stack is still transferring/waiting data from/to device
  * \retval      false if the interface is not busy meaning the stack successfully transferred data from/to device
- * \note        This function is primarily used for polling/waiting result after transferring API.
- *              Alternatively, asynchronous event API can be used
+ * \note        This function is used to check if previous transfer is complete (success or error), so that the next transfer
+ *              can be scheduled. User needs to make sure the corresponding interface is mounted (by \ref tusbh_msc_is_mounted)
+ *              before calling this function
  */
 bool          tusbh_msc_is_busy(uint8_t dev_addr) ATTR_PURE ATTR_WARN_UNUSED_RESULT;
 
@@ -174,6 +175,7 @@ void tusbh_msc_unmounted_cb(uint8_t dev_addr);
 /** \brief      Callback function that is invoked when an transferring event occurred
  * \param[in]		dev_addr	Address of device
  * \param[in]   event an value from \ref tusb_event_t
+ * \param[in]   xferred_bytes Number of bytes transferred via USB bus
  * \note        event can be one of following
  *              - TUSB_EVENT_XFER_COMPLETE : previously scheduled transfer completes successfully.
  *              - TUSB_EVENT_XFER_ERROR   : previously scheduled transfer encountered a transaction error.
