@@ -93,12 +93,21 @@
 	</linkedResources>
 	<filteredResources>
 		<filter>
-			<id>1369631005268</id>
+			<id>1382883671880</id>
 			<name></name>
 			<type>26</type>
 			<matcher>
 				<id>org.eclipse.ui.ide.multiFilter</id>
 				<arguments>1.0-name-matches-false-false-startup_keil</arguments>
+			</matcher>
+		</filter>
+		<filter>
+			<id>1382883671891</id>
+			<name></name>
+			<type>26</type>
+			<matcher>
+				<id>org.eclipse.ui.ide.multiFilter</id>
+				<arguments>1.0-name-matches-false-false-startup_iar</arguments>
 			</matcher>
 		</filter>
 	</filteredResources>
