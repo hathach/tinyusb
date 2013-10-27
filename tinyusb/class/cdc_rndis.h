@@ -234,59 +234,62 @@ typedef struct {
 // NDIS Object ID
 //--------------------------------------------------------------------+
 
-//------------- General Required OIDs -------------//
-#define OID_GEN_SUPPORTED_LIST                  0x00010101
-#define OID_GEN_HARDWARE_STATUS                 0x00010102
-#define OID_GEN_MEDIA_SUPPORTED                 0x00010103
-#define OID_GEN_MEDIA_IN_USE                    0x00010104
-#define OID_GEN_MAXIMUM_LOOKAHEAD               0x00010105
-#define OID_GEN_MAXIMUM_FRAME_SIZE              0x00010106
-#define OID_GEN_LINK_SPEED                      0x00010107
-#define OID_GEN_TRANSMIT_BUFFER_SPACE           0x00010108
-#define OID_GEN_RECEIVE_BUFFER_SPACE            0x00010109
-#define OID_GEN_TRANSMIT_BLOCK_SIZE             0x0001010A
-#define OID_GEN_RECEIVE_BLOCK_SIZE              0x0001010B
-#define OID_GEN_VENDOR_ID                       0x0001010C
-#define OID_GEN_VENDOR_DESCRIPTION              0x0001010D
-#define OID_GEN_CURRENT_PACKET_FILTER           0x0001010E
-#define OID_GEN_CURRENT_LOOKAHEAD               0x0001010F
-#define OID_GEN_DRIVER_VERSION                  0x00010110
-#define OID_GEN_MAXIMUM_TOTAL_SIZE              0x00010111
-#define OID_GEN_PROTOCOL_OPTIONS                0x00010112
-#define OID_GEN_MAC_OPTIONS                     0x00010113
-#define OID_GEN_MEDIA_CONNECT_STATUS            0x00010114
-#define OID_GEN_MAXIMUM_SEND_PACKETS            0x00010115
+/// NDIS Object ID
+typedef enum {
+  //------------- General Required OIDs -------------//
+  RNDIS_OID_GEN_SUPPORTED_LIST          = 0x00010101, ///< List of supported OIDs
+  RNDIS_OID_GEN_HARDWARE_STATUS         = 0x00010102, ///< Hardware status
+  RNDIS_OID_GEN_MEDIA_SUPPORTED         = 0x00010103, ///< Media types supported (encoded)
+  RNDIS_OID_GEN_MEDIA_IN_USE            = 0x00010104, ///< Media types in use (encoded)
+  RNDIS_OID_GEN_MAXIMUM_LOOKAHEAD       = 0x00010105, ///<
+  RNDIS_OID_GEN_MAXIMUM_FRAME_SIZE      = 0x00010106, ///< Maximum frame size in bytes
+  RNDIS_OID_GEN_LINK_SPEED              = 0x00010107, ///< Link speed in units of 100 bps
+  RNDIS_OID_GEN_TRANSMIT_BUFFER_SPACE   = 0x00010108, ///< Transmit buffer space
+  RNDIS_OID_GEN_RECEIVE_BUFFER_SPACE    = 0x00010109, ///< Receive buffer space
+  RNDIS_OID_GEN_TRANSMIT_BLOCK_SIZE     = 0x0001010A, ///< Minimum amount of storage, in bytes, that a single packet occupies in the transmit buffer space of the NIC
+  RNDIS_OID_GEN_RECEIVE_BLOCK_SIZE      = 0x0001010B, ///< Amount of storage, in bytes, that a single packet occupies in the receive buffer space of the NIC
+  RNDIS_OID_GEN_VENDOR_ID               = 0x0001010C, ///< Vendor NIC code
+  RNDIS_OID_GEN_VENDOR_DESCRIPTION      = 0x0001010D, ///< Vendor network card description
+  RNDIS_OID_GEN_CURRENT_PACKET_FILTER   = 0x0001010E, ///< Current packet filter (encoded)
+  RNDIS_OID_GEN_CURRENT_LOOKAHEAD       = 0x0001010F, ///< Current lookahead size in bytes
+  RNDIS_OID_GEN_DRIVER_VERSION          = 0x00010110, ///< NDIS version number used by the driver
+  RNDIS_OID_GEN_MAXIMUM_TOTAL_SIZE      = 0x00010111, ///< Maximum total packet length in bytes
+  RNDIS_OID_GEN_PROTOCOL_OPTIONS        = 0x00010112, ///< Optional protocol flags (encoded)
+  RNDIS_OID_GEN_MAC_OPTIONS             = 0x00010113, ///< Optional NIC flags (encoded)
+  RNDIS_OID_GEN_MEDIA_CONNECT_STATUS    = 0x00010114, ///< Whether the NIC is connected to the network
+  RNDIS_OID_GEN_MAXIMUM_SEND_PACKETS    = 0x00010115, ///< The maximum number of send packets the driver can accept per call to its MiniportSendPacketsfunction
 
-//------------- General Optional OIDs -------------//
-#define OID_GEN_VENDOR_DRIVER_VERSION           0x00010116
-#define OID_GEN_SUPPORTED_GUIDS                 0x00010117
-#define OID_GEN_NETWORK_LAYER_ADDRESSES         0x00010118  // Set only
-#define OID_GEN_TRANSPORT_HEADER_OFFSET         0x00010119  // Set only
-#define OID_GEN_MEDIA_CAPABILITIES              0x00010201
-#define OID_GEN_PHYSICAL_MEDIUM                 0x00010202
+  //------------- General Optional OIDs -------------//
+  RNDIS_OID_GEN_VENDOR_DRIVER_VERSION   = 0x00010116, ///< Vendor-assigned version number of the driver
+  RNDIS_OID_GEN_SUPPORTED_GUIDS         = 0x00010117, ///< The custom GUIDs (Globally Unique Identifier) supported by the miniport driver
+  RNDIS_OID_GEN_NETWORK_LAYER_ADDRESSES = 0x00010118, ///< List of network-layer addresses associated with the binding between a transport and the driver
+  RNDIS_OID_GEN_TRANSPORT_HEADER_OFFSET = 0x00010119, ///< Size of packets' additional headers
+  RNDIS_OID_GEN_MEDIA_CAPABILITIES      = 0x00010201, ///<
+  RNDIS_OID_GEN_PHYSICAL_MEDIUM         = 0x00010202, ///< Physical media supported by the miniport driver (encoded)
 
-//------------- 802.3 Objects (Ethernet) -------------//
-#define OID_802_3_PERMANENT_ADDRESS             0x01010101
-#define OID_802_3_CURRENT_ADDRESS               0x01010102
-#define OID_802_3_MULTICAST_LIST                0x01010103
-#define OID_802_3_MAXIMUM_LIST_SIZE             0x01010104
+  //------------- 802.3 Objects (Ethernet) -------------//
+  RNDIS_OID_802_3_PERMANENT_ADDRESS     = 0x01010101, ///< Permanent station address
+  RNDIS_OID_802_3_CURRENT_ADDRESS       = 0x01010102, ///< Current station address
+  RNDIS_OID_802_3_MULTICAST_LIST        = 0x01010103, ///< Current multicast address list
+  RNDIS_OID_802_3_MAXIMUM_LIST_SIZE     = 0x01010104, ///< Maximum size of multicast address list
+} rndis_oid_type_t;
 
-//
-// Ndis Packet Filter Bits (OID_GEN_CURRENT_PACKET_FILTER).
-//
-#define NDIS_PACKET_TYPE_DIRECTED               0x00000001
-#define NDIS_PACKET_TYPE_MULTICAST              0x00000002
-#define NDIS_PACKET_TYPE_ALL_MULTICAST          0x00000004
-#define NDIS_PACKET_TYPE_BROADCAST              0x00000008
-#define NDIS_PACKET_TYPE_SOURCE_ROUTING         0x00000010
-#define NDIS_PACKET_TYPE_PROMISCUOUS            0x00000020
-#define NDIS_PACKET_TYPE_SMT                    0x00000040
-#define NDIS_PACKET_TYPE_ALL_LOCAL              0x00000080
-#define NDIS_PACKET_TYPE_GROUP                  0x00001000
-#define NDIS_PACKET_TYPE_ALL_FUNCTIONAL         0x00002000
-#define NDIS_PACKET_TYPE_FUNCTIONAL             0x00004000
-#define NDIS_PACKET_TYPE_MAC_FRAME              0x00008000
-#define NDIS_PACKET_TYPE_NO_LOCAL               0x00010000
+/// RNDIS Packet Filter Bits \ref RNDIS_OID_GEN_CURRENT_PACKET_FILTER.
+typedef enum {
+  RNDIS_PACKET_TYPE_DIRECTED              = 0x00000001, ///< Directed packets. Directed packets contain a destination address equal to the station address of the NIC.
+  RNDIS_PACKET_TYPE_MULTICAST             = 0x00000002, ///< Multicast address packets sent to addresses in the multicast address list.
+  RNDIS_PACKET_TYPE_ALL_MULTICAST         = 0x00000004, ///< All multicast address packets, not just the ones enumerated in the multicast address list.
+  RNDIS_PACKET_TYPE_BROADCAST             = 0x00000008, ///< Broadcast packets.
+  RNDIS_PACKET_TYPE_SOURCE_ROUTING        = 0x00000010, ///< All source routing packets. If the protocol driver sets this bit, the NDIS library attempts to act as a source routing bridge.
+  RNDIS_PACKET_TYPE_PROMISCUOUS           = 0x00000020, ///< Specifies all packets regardless of whether VLAN filtering is enabled or not and whether the VLAN identifier matches or not.
+  RNDIS_PACKET_TYPE_SMT                   = 0x00000040, ///< SMT packets that an FDDI NIC receives.
+  RNDIS_PACKET_TYPE_ALL_LOCAL             = 0x00000080, ///< All packets sent by installed protocols and all packets indicated by the NIC that is identified by a given NdisBindingHandle.
+  RNDIS_PACKET_TYPE_GROUP                 = 0x00001000, ///< Packets sent to the current group address.
+  RNDIS_PACKET_TYPE_ALL_FUNCTIONAL        = 0x00002000, ///< All functional address packets, not just the ones in the current functional address.
+  RNDIS_PACKET_TYPE_FUNCTIONAL            = 0x00004000, ///< Functional address packets sent to addresses included in the current functional address.
+  RNDIS_PACKET_TYPE_MAC_FRAME             = 0x00008000, ///< NIC driver frames that a Token Ring NIC receives.
+  RNDIS_PACKET_TYPE_NO_LOCAL              = 0x00010000,
+} rndis_packet_filter_type_t;
 
 #ifdef __cplusplus
  }

@@ -136,7 +136,7 @@ static rndis_msg_query_t msg_query_permanent_addr =
     .type          = RNDIS_MSG_QUERY,
     .length        = sizeof(rndis_msg_query_t)+6,
     .request_id    = 1,
-    .oid           = OID_802_3_PERMANENT_ADDRESS,
+    .oid           = RNDIS_OID_802_3_PERMANENT_ADDRESS,
     .buffer_length = 6,
     .buffer_offset = 20,
     .oid_buffer    = {0, 0, 0, 0, 0, 0}
@@ -158,10 +158,10 @@ static rndis_msg_set_t msg_set_packet_filter =
     .type          = RNDIS_MSG_SET,
     .length        = sizeof(rndis_msg_set_t)+4,
     .request_id    = 1,
-    .oid           = OID_GEN_CURRENT_PACKET_FILTER,
+    .oid           = RNDIS_OID_GEN_CURRENT_PACKET_FILTER,
     .buffer_length = 4,
     .buffer_offset = 20,
-    .oid_buffer    = {NDIS_PACKET_TYPE_DIRECTED | NDIS_PACKET_TYPE_MULTICAST | NDIS_PACKET_TYPE_BROADCAST, 0, 0, 0}
+    .oid_buffer    = {RNDIS_PACKET_TYPE_DIRECTED | RNDIS_PACKET_TYPE_MULTICAST | RNDIS_PACKET_TYPE_BROADCAST, 0, 0, 0}
 };
 
 static rndis_msg_set_cmplt_t msg_set_packet_filter_cmplt =
@@ -249,7 +249,7 @@ tusb_error_t stub_control_xfer(uint8_t addr, uint8_t bmRequestType, uint8_t bReq
       memcpy(data, &msg_init_cmplt, sizeof(rndis_msg_initialize_cmplt_t));
     break;
 
-    // query for OID_802_3_PERMANENT_ADDRESS
+    // query for RNDIS_OID_802_3_PERMANENT_ADDRESS
     case 1*2+0:
       TEST_ASSERT_EQUAL(bmrequest_send, bmRequestType);
       TEST_ASSERT_EQUAL(SEND_ENCAPSULATED_COMMAND, bRequest);
@@ -257,14 +257,14 @@ tusb_error_t stub_control_xfer(uint8_t addr, uint8_t bmRequestType, uint8_t bReq
       TEST_ASSERT_EQUAL_HEX8_ARRAY(&msg_query_permanent_addr, data, wLength);
     break;
 
-    case 1*2+1: // query complete for OID_802_3_PERMANENT_ADDRESS
+    case 1*2+1: // query complete for RNDIS_OID_802_3_PERMANENT_ADDRESS
       TEST_ASSERT_EQUAL(bmrequest_get, bmRequestType);
       TEST_ASSERT_EQUAL(GET_ENCAPSULATED_RESPONSE, bRequest);
       TEST_ASSERT( wLength >= 0x0400 ); // Microsoft Specs
       memcpy(data, &msg_query_permanent_addr_cmplt, sizeof(rndis_msg_query_cmplt_t) + 6);
     break;
 
-    // set OID_GEN_CURRENT_PACKET_FILTER to DIRECTED | MULTICAST | BROADCAST
+    // set RNDIS_OID_GEN_CURRENT_PACKET_FILTER to DIRECTED | MULTICAST | BROADCAST
     case 2*2+0:
       TEST_ASSERT_EQUAL(bmrequest_send, bmRequestType);
       TEST_ASSERT_EQUAL(SEND_ENCAPSULATED_COMMAND, bRequest);
@@ -272,7 +272,7 @@ tusb_error_t stub_control_xfer(uint8_t addr, uint8_t bmRequestType, uint8_t bReq
       TEST_ASSERT_EQUAL_HEX8_ARRAY(&msg_set_packet_filter, data, wLength);
     break;
 
-    case 2*2+1: // query complete for OID_802_3_PERMANENT_ADDRESS
+    case 2*2+1: // query complete for RNDIS_OID_802_3_PERMANENT_ADDRESS
       TEST_ASSERT_EQUAL(bmrequest_get, bmRequestType);
       TEST_ASSERT_EQUAL(GET_ENCAPSULATED_RESPONSE, bRequest);
       TEST_ASSERT( wLength >= 0x0400 ); // Microsoft Specs

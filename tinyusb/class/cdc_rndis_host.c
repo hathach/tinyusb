@@ -152,7 +152,7 @@ static rndis_msg_query_t const msg_query_permanent_addr =
     .type          = RNDIS_MSG_QUERY,
     .length        = sizeof(rndis_msg_query_t)+6,
     .request_id    = 1,
-    .oid           = OID_802_3_PERMANENT_ADDRESS,
+    .oid           = RNDIS_OID_802_3_PERMANENT_ADDRESS,
     .buffer_length = 6,
     .buffer_offset = 20,
 };
@@ -162,7 +162,7 @@ static rndis_msg_set_t const msg_set_packet_filter =
     .type          = RNDIS_MSG_SET,
     .length        = sizeof(rndis_msg_set_t)+4,
     .request_id    = 1,
-    .oid           = OID_GEN_CURRENT_PACKET_FILTER,
+    .oid           = RNDIS_OID_GEN_CURRENT_PACKET_FILTER,
     .buffer_length = 4,
     .buffer_offset = 20,
 };
@@ -208,7 +208,7 @@ tusb_error_t rndish_open_subtask(uint8_t dev_addr, cdch_data_t *p_cdc)
   //------------- Set OID_GEN_CURRENT_PACKET_FILTER to (DIRECTED | MULTICAST | BROADCAST) -------------//
   memcpy(msg_payload, &msg_set_packet_filter, sizeof(rndis_msg_set_t));
   memclr_(msg_payload + sizeof(rndis_msg_set_t), 4); // 4 bytes for filter flags
-  ((rndis_msg_set_t*) msg_payload)->oid_buffer[0] = (NDIS_PACKET_TYPE_DIRECTED | NDIS_PACKET_TYPE_MULTICAST | NDIS_PACKET_TYPE_BROADCAST);
+  ((rndis_msg_set_t*) msg_payload)->oid_buffer[0] = (RNDIS_PACKET_TYPE_DIRECTED | RNDIS_PACKET_TYPE_MULTICAST | RNDIS_PACKET_TYPE_BROADCAST);
 
   OSAL_SUBTASK_INVOKED_AND_WAIT(
       send_message_get_response_subtask( dev_addr, p_cdc,
