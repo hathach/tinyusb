@@ -50,12 +50,14 @@
 // MACRO CONSTANT TYPEDEF
 //--------------------------------------------------------------------+
 OSAL_TASK_DEF(cdc_serial_app_task, 128, CDC_SERIAL_APP_TASK_PRIO);
-OSAL_QUEUE_DEF(queue_def, QUEUE_SERIAL_DEPTH, uint8_t);
+OSAL_SEM_DEF(serial_semaphore);
 
-static osal_queue_handle_t queue_hdl;
+static osal_semaphore_handle_t sem_hdl;
 
 static uint8_t serial_in_buffer[32] TUSB_CFG_ATTR_USBRAM;
 static uint8_t serial_out_buffer[32] TUSB_CFG_ATTR_USBRAM;
+
+static uint8_t received_bytes; // set by transfer complete callback
 
 //--------------------------------------------------------------------+
 // tinyusb Callbacks
@@ -64,7 +66,12 @@ void tusbh_cdc_mounted_cb(uint8_t dev_addr)
 { // application set-up
   printf("\na CDC device is mounted\n");
 
-  osal_queue_flush(queue_hdl);
+  memclr_(serial_in_buffer, sizeof(serial_in_buffer));
+  memclr_(serial_out_buffer, sizeof(serial_out_buffer));
+  received_bytes = 0;
+
+  osal_semaphore_reset(sem_hdl);
+  tusbh_cdc_receive(dev_addr, serial_in_buffer, sizeof(serial_in_buffer), true); // schedule first transfer
 }
 
 void tusbh_cdc_unmounted_cb(uint8_t dev_addr)
@@ -79,13 +86,13 @@ void tusbh_cdc_xfer_isr(uint8_t dev_addr, tusb_event_t event, cdc_pipeid_t pipe_
     switch(event)
     {
       case TUSB_EVENT_XFER_COMPLETE:
-        for(uint32_t i=0; i<xferred_bytes; i++)
-        {
-          osal_queue_send(queue_hdl, serial_in_buffer+i);
-        }
+        received_bytes = xferred_bytes;
+        osal_semaphore_post(sem_hdl);  // notify main task
       break;
 
-      case TUSB_EVENT_XFER_ERROR: break; // ignore
+      case TUSB_EVENT_XFER_ERROR:
+        xferred_bytes = 0; // ignore
+      break;
 
       case TUSB_EVENT_XFER_STALLED:
       default :
@@ -102,10 +109,8 @@ void tusbh_cdc_xfer_isr(uint8_t dev_addr, tusb_event_t event, cdc_pipeid_t pipe_
 //--------------------------------------------------------------------+
 void cdc_serial_app_init(void)
 {
-  memclr_(serial_in_buffer, sizeof(serial_in_buffer));
-
-  queue_hdl = osal_queue_create( OSAL_QUEUE_REF(queue_def) );
-  ASSERT_PTR( queue_hdl, VOID_RETURN);
+  sem_hdl = osal_semaphore_create( OSAL_SEM_REF(serial_semaphore) );
+  ASSERT_PTR( sem_hdl, VOID_RETURN);
 
   ASSERT( TUSB_ERROR_NONE == osal_task_create(OSAL_TASK_REF(cdc_serial_app_task)), VOID_RETURN);
 }
@@ -113,9 +118,11 @@ void cdc_serial_app_init(void)
 //------------- main task -------------//
 OSAL_TASK_FUNCTION( cdc_serial_app_task ) (void* p_task_para)
 {
+  static uint8_t dev_addr;
+
   OSAL_TASK_LOOP_BEGIN
 
-  for(uint8_t dev_addr=0; dev_addr< TUSB_CFG_HOST_DEVICE_MAX; dev_addr++)
+  for(dev_addr=1; dev_addr <= TUSB_CFG_HOST_DEVICE_MAX; dev_addr++)
   {
     if ( tusbh_cdc_serial_is_mounted(dev_addr) )
     {
@@ -133,19 +140,24 @@ OSAL_TASK_FUNCTION( cdc_serial_app_task ) (void* p_task_para)
 
       //------------- print out received characters -------------//
       tusb_error_t error;
-      do{
-        uint8_t ch_rx = 0;
-        osal_queue_receive(queue_hdl, &ch_rx, OSAL_TIMEOUT_NOTIMEOUT, &error); // instant return
-        if (error == TUSB_ERROR_NONE && ch_rx) printf("%c", ch_rx);
-      }while (error == TUSB_ERROR_NONE);
+      osal_semaphore_wait(sem_hdl, 100, &error);
 
-      if ( !tusbh_cdc_is_busy(dev_addr, CDC_PIPE_DATA_IN) )
+      if ( TUSB_ERROR_NONE == error)
       {
+        for(uint8_t i=0; i<received_bytes; i++)
+        {
+          printf("%c", serial_in_buffer[i]);
+        }
         tusbh_cdc_receive(dev_addr, serial_in_buffer, sizeof(serial_in_buffer), true);
       }
 
       break; // demo app only communicate with the first CDC-capable device
     }
+  }
+
+  if (dev_addr > TUSB_CFG_HOST_DEVICE_MAX)
+  { // there is no CDC device connected
+    osal_task_delay(1000);
   }
 
   OSAL_TASK_LOOP_END
