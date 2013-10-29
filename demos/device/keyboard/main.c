@@ -85,17 +85,18 @@ void led_blinking_task(void * p_para)
 hid_keyboard_report_t keyboard_report TUSB_CFG_ATTR_USBRAM;
 void keyboard_device_app_task(void * p_para)
 {
-//  if (tusbd_is_configured(0))
-//  {
-//    static uint32_t count =0;
-//    if (count < 10)
-//    {
-//      count++;
-//
-//      keyboard_report.keycode[0] = 0x04;
-//      tusbd_hid_keyboard_send(0, &keyboard_report );
-//    }
-//  }
+  if (tusbd_is_configured(0))
+  {
+    static uint32_t count =0;
+    if (count++ < 10)
+    {
+      keyboard_report.keycode[0] = (count%2) ? 0x04 : 0x00;
+      if (!tusbd_hid_keyboard_is_busy(0))
+      {
+        tusbd_hid_keyboard_send(0, &keyboard_report );
+      }
+    }
+  }
 }
 #endif
 

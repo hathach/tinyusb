@@ -351,6 +351,11 @@ ErrorCode_t HID_EpOut_Hdlr (USBD_HANDLE_T hUsb, void* data, uint32_t event)
 //--------------------------------------------------------------------+
 // APPLICATION API
 //--------------------------------------------------------------------+
+bool tusbd_hid_keyboard_is_busy(uint8_t coreid)
+{
+  return dcd_pipe_is_busy(keyboardd_data.ept_handle);
+}
+
 tusb_error_t tusbd_hid_keyboard_send(uint8_t coreid, hid_keyboard_report_t const *p_kbd_report)
 {
   //------------- verify data -------------//

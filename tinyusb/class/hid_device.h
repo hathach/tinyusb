@@ -47,21 +47,35 @@
  extern "C" {
 #endif
 
+
 //--------------------------------------------------------------------+
 // KEYBOARD Application API
 //--------------------------------------------------------------------+
 /** \addtogroup ClassDriver_HID_Keyboard Keyboard
  *  @{ */
-
 /** \defgroup Keyboard_Device Device
- *  The interface API includes status checking function, data transferring function and callback functions
  *  @{ */
 
+bool tusbd_hid_keyboard_is_busy(uint8_t coreid);
 tusb_error_t tusbd_hid_keyboard_send(uint8_t coreid, hid_keyboard_report_t const *p_kbd_report);
+
+/** @} */
+/** @} */
+
+//--------------------------------------------------------------------+
+// MOUSE APPLICATION API
+//--------------------------------------------------------------------+
+/** \addtogroup ClassDriver_HID_Mouse Mouse
+ *  @{ */
+/** \defgroup Mouse_Device Device
+ *  @{ */
+
 tusb_error_t tusbd_hid_mouse_send(uint8_t coreid, hid_mouse_report_t const *p_mouse_report);
 
 /** @} */
 /** @} */
+
+
 
 //--------------------------------------------------------------------+
 // USBD-CLASS DRIVER API

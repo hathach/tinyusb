@@ -247,6 +247,12 @@ static inline uint8_t endpoint_to_pos(uint8_t logical_endpoint, tusb_direction_t
   return logical_endpoint + (dir == TUSB_DIR_HOST_TO_DEV ? 0 : 16);
 }
 
+static inline uint8_t endpoint_phy2pos(uint8_t physical_endpoint) ATTR_CONST ATTR_ALWAYS_INLINE;
+static inline uint8_t endpoint_phy2pos(uint8_t physical_endpoint)
+{
+  return physical_endpoint/2 + ( (physical_endpoint%2) ? 16 : 0);
+}
+
 static inline uint8_t endpoint_log2phy(uint8_t logical_endpoint, tusb_direction_t dir) ATTR_CONST ATTR_ALWAYS_INLINE;
 static inline uint8_t endpoint_log2phy(uint8_t logical_endpoint, tusb_direction_t dir)
 {
@@ -288,7 +294,7 @@ tusb_error_t dcd_pipe_control_xfer(uint8_t coreid, tusb_direction_t dir, void * 
     qtd_init(p_data, buffer, length);
     dcd_data.qhd[endpoint_data].qtd_overlay.next = (uint32_t) p_data;
 
-    LPC_USB0->ENDPTPRIME |= BIT_(endpoint_to_pos(0, dir));
+    LPC_USB0->ENDPTPRIME |= BIT_( endpoint_phy2pos(endpoint_data) );
   }
 
   //------------- Status Phase (other endpoint, opposite direction) -------------//
@@ -296,7 +302,7 @@ tusb_error_t dcd_pipe_control_xfer(uint8_t coreid, tusb_direction_t dir, void * 
   qtd_init(p_status, NULL, 0); // zero length xfer
   dcd_data.qhd[1 - endpoint_data].qtd_overlay.next = (uint32_t) p_status;
 
-  LPC_USB0->ENDPTPRIME |= BIT_(endpoint_to_pos(0, 1-dir));
+  LPC_USB0->ENDPTPRIME |= BIT_( endpoint_phy2pos(1 - endpoint_data) );
 
   return TUSB_ERROR_NONE;
 }
@@ -332,6 +338,14 @@ STATIC_ INLINE_ dcd_qhd_t*  qhd_get_from_endpoint_handle(endpoint_handle_t edpt_
   return &dcd_data.qhd[edpt_hdl.index];
 }
 
+bool dcd_pipe_is_busy(endpoint_handle_t edpt_hdl)
+{
+  dcd_qhd_t* p_qhd = qhd_get_from_endpoint_handle(edpt_hdl);
+
+  // LPC_USB0->ENDPTSTAT & endpoint_phy2pos(edpt_hdl.index)
+  return !p_qhd->qtd_overlay.halted && p_qhd->qtd_overlay.active;
+}
+
 tusb_error_t  dcd_pipe_xfer(endpoint_handle_t edpt_hdl, uint8_t buffer[], uint16_t total_bytes, bool int_on_complete)
 {
   dcd_qhd_t* p_qhd = qhd_get_from_endpoint_handle(edpt_hdl);
@@ -339,21 +353,13 @@ tusb_error_t  dcd_pipe_xfer(endpoint_handle_t edpt_hdl, uint8_t buffer[], uint16
 
   ASSERT(edpt_hdl.xfer_type != TUSB_XFER_ISOCHRONOUS, TUSB_ERROR_NOT_SUPPORTED_YET);
 
-  // TODO pipe is busy
-//	DeviceTransferDescriptor*  pDTD = (DeviceTransferDescriptor*) &dTransferDescriptor[PhyEP];
-//	while ( lpc_usb->ENDPTSTAT & _BIT( EP_Physical2BitPosition(PhyEP) ) )	/* Endpoint is already primed */
-//	{
-//	}
-
   //------------- Prepare qtd -------------//
   qtd_init(p_qtd, buffer, total_bytes);
   p_qtd->int_on_complete = int_on_complete;
 
   p_qhd->qtd_overlay.next = (uint32_t) p_qtd;
 
-#define EP_Physical2Pos(n) ( (n)/2 + ((n)%2 ? 16 : 0 ) )
-
-	LPC_USB0->ENDPTPRIME |= BIT_( EP_Physical2Pos(edpt_hdl.index) ) ;
+	LPC_USB0->ENDPTPRIME |= BIT_( endpoint_phy2pos(edpt_hdl.index) ) ;
 
 	return TUSB_ERROR_NONE;
 }
