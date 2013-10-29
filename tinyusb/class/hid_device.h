@@ -36,13 +36,6 @@
 */
 /**************************************************************************/
 
-/** \ingroup TBD
- *  \defgroup TBD
- *  \brief TBD
- *
- *  @{
- */
-
 #ifndef _TUSB_HID_DEVICE_H_
 #define _TUSB_HID_DEVICE_H_
 
@@ -57,8 +50,18 @@
 //--------------------------------------------------------------------+
 // KEYBOARD Application API
 //--------------------------------------------------------------------+
-tusb_error_t tusbd_hid_keyboard_send_report(hid_keyboard_report_t *p_kbd_report);
-tusb_error_t tusbd_hid_mouse_send_report(hid_mouse_report_t *p_mouse_report);
+/** \addtogroup ClassDriver_HID_Keyboard Keyboard
+ *  @{ */
+
+/** \defgroup Keyboard_Device Device
+ *  The interface API includes status checking function, data transferring function and callback functions
+ *  @{ */
+
+tusb_error_t tusbd_hid_keyboard_send(uint8_t coreid, hid_keyboard_report_t const *p_kbd_report);
+tusb_error_t tusbd_hid_mouse_send(uint8_t coreid, hid_mouse_report_t const *p_mouse_report);
+
+/** @} */
+/** @} */
 
 //--------------------------------------------------------------------+
 // USBD-CLASS DRIVER API
@@ -77,4 +80,4 @@ tusb_error_t hidd_configured(void);
 
 #endif /* _TUSB_HID_DEVICE_H_ */
 
-/** @} */
+

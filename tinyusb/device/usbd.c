@@ -83,7 +83,7 @@ bool tusbd_is_configured(uint8_t coreid)
 //--------------------------------------------------------------------+
 void usbd_bus_reset(uint32_t coreid)
 {
-  memclr_(usbd_devices, sizeof(usbd_device_info_t)*CONTROLLER_DEVICE_NUMBER);
+  memclr_(&usbd_devices[coreid], sizeof(usbd_device_info_t));
 }
 
 void std_get_descriptor(uint8_t coreid, tusb_control_request_t * p_request)
@@ -119,6 +119,25 @@ void std_get_descriptor(uint8_t coreid, tusb_control_request_t * p_request)
   }
 }
 
+tusb_error_t usbh_set_configure_received(uint8_t coreid, uint8_t config_number)
+{
+  dcd_controller_set_configuration(coreid, config_number);
+  usbd_devices[coreid].state = TUSB_DEVICE_STATE_CONFIGURED;
+
+  uint16_t length = 0;
+
+  #if TUSB_CFG_DEVICE_HID_KEYBOARD
+  tusb_descriptor_interface_t const * p_interface = &app_tusb_desc_configuration.keyboard_interface;
+  ASSERT_STATUS( hidd_init(0, p_interface, &length) );
+  usbd_devices[0].interface2class[p_interface->bInterfaceNumber] = p_interface->bInterfaceClass;
+  #endif
+
+  #if TUSB_CFG_DEVICE_HID_MOUSE
+  ASSERT_STATUS( hidd_init(0, &app_tusb_desc_configuration.mouse_interface, &length) );
+  #endif
+
+}
+
 void usbd_setup_received_isr(uint8_t coreid, tusb_control_request_t * p_request)
 {
   usbd_device_info_t *p_device = &usbd_devices[coreid];
@@ -141,9 +160,7 @@ void usbd_setup_received_isr(uint8_t coreid, tusb_control_request_t * p_request)
         break;
 
         case TUSB_REQUEST_SET_CONFIGURATION:
-          dcd_controller_set_configuration(coreid, (uint8_t) p_request->wValue);
-          usbd_devices[coreid].state = TUSB_DEVICE_STATE_CONFIGURED;
-
+          usbh_set_configure_received(coreid, (uint8_t) p_request->wValue);
           dcd_pipe_control_xfer(coreid, TUSB_DIR_HOST_TO_DEV, NULL, 0); // zero length
         break;
 
@@ -165,18 +182,6 @@ tusb_error_t usbd_init (void)
   ASSERT_STATUS ( usbd_string_descriptor_init() );
 
   ASSERT_STATUS ( dcd_init() );
-
-  uint16_t length = 0;
-
-  #if TUSB_CFG_DEVICE_HID_KEYBOARD
-  tusb_descriptor_interface_t const * p_interface = &app_tusb_desc_configuration.keyboard_interface;
-  ASSERT_STATUS( hidd_init(0, p_interface, &length) );
-  usbd_devices[0].interface2class[p_interface->bInterfaceNumber] = p_interface->bInterfaceClass;
-  #endif
-
-  #if TUSB_CFG_DEVICE_HID_MOUSE
-  ASSERT_STATUS( hidd_init(0, &app_tusb_desc_configuration.mouse_interface, &length) );
-  #endif
 
   dcd_controller_connect(0);  // TODO USB1
 

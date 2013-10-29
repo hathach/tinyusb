@@ -89,6 +89,7 @@ tusb_error_t dcd_pipe_control_xfer(uint8_t coreid, tusb_direction_t dir, void * 
 //void dcd_pipe_control_write_zero_length(uint8_t coreid);
 
 endpoint_handle_t dcd_pipe_open(uint8_t coreid, tusb_descriptor_endpoint_t const * p_endpoint_desc) ATTR_WARN_UNUSED_RESULT;
+tusb_error_t  dcd_pipe_xfer(endpoint_handle_t pipe_hdl, uint8_t buffer[], uint16_t total_bytes, bool int_on_complete)  ATTR_WARN_UNUSED_RESULT;
 
 #ifdef __cplusplus
  }
