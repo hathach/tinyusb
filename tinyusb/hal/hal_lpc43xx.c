@@ -69,9 +69,9 @@ tusb_error_t hal_init(void)
     hcd_controller_reset(0); // TODO where to place prototype
     LPC_USB0->USBMODE_H = LPC43XX_USBMODE_HOST | (LPC43XX_USBMODE_VBUS_HIGH << 5);
   #else // TODO OTG
-//    dcd_controller_reset(0);
-//    LPC_USB0->USBMODE_D = LPC43XX_USBMODE_DEVICE;
-//    LPC_USB0->OTGSC = (1<<3) | (1<<0) /*| (1<<16)| (1<<24)| (1<<25)| (1<<26)| (1<<27)| (1<<28)| (1<<29)| (1<<30)*/;
+    dcd_controller_reset(0);
+    LPC_USB0->USBMODE_D = LPC43XX_USBMODE_DEVICE;
+    LPC_USB0->OTGSC = (1<<3) | (1<<0) /*| (1<<16)| (1<<24)| (1<<25)| (1<<26)| (1<<27)| (1<<28)| (1<<29)| (1<<30)*/;
 //    LPC_USB0->PORTSC1_D |= (1<<24); // force full speed
 //    dcd_controller_connect(0);
   #endif

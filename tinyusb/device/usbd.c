@@ -86,24 +86,20 @@ void usbd_bus_reset(uint32_t coreid)
   memclr_(usbd_devices, sizeof(usbd_device_info_t)*CONTROLLER_DEVICE_NUMBER);
 }
 
-void std_get_descriptor(uint8_t coreid)
+void std_get_descriptor(uint8_t coreid, tusb_control_request_t * p_request)
 {
-  tusb_std_descriptor_type_t const desc_type = usbd_devices[coreid].setup_packet.wValue >> 8;
-  uint8_t const desc_index = u16_low_u8( usbd_devices[coreid].setup_packet.wValue );
+  tusb_std_descriptor_type_t const desc_type = p_request->wValue >> 8;
+  uint8_t const desc_index = u16_low_u8( p_request->wValue );
   switch ( desc_type )
   {
     case TUSB_DESC_TYPE_DEVICE:
-      dcd_pipe_control_write(coreid, &app_tusb_desc_device, sizeof(tusb_descriptor_device_t));
+      dcd_pipe_control_xfer(coreid, TUSB_DIR_DEV_TO_HOST, &app_tusb_desc_device,
+                            min16_of( p_request->wLength, sizeof(tusb_descriptor_device_t)) );
     break;
 
     case TUSB_DESC_TYPE_CONFIGURATION:
-    {
-      uint16_t const requested_length = min16_of(usbd_devices[coreid].setup_packet.wLength, sizeof(app_tusb_desc_configuration)-1);
-      ASSERT(requested_length <= TUSB_CFG_DEVICE_CONTROL_PACKET_SIZE, (void)0 ); // multiple packets requires a task a-like
-
-      dcd_pipe_control_write(coreid, &app_tusb_desc_configuration,
-                             requested_length);
-    }
+      dcd_pipe_control_xfer(coreid, TUSB_DIR_DEV_TO_HOST, &app_tusb_desc_configuration,
+                            min16_of( p_request->wLength, sizeof(app_tusb_desc_configuration)-1) );
     break;
 
     case TUSB_DESC_TYPE_STRING:
@@ -113,7 +109,7 @@ void std_get_descriptor(uint8_t coreid)
       {
         p_string += (*p_string);
       }
-      dcd_pipe_control_write(coreid, p_string, *p_string);
+      dcd_pipe_control_xfer(coreid, TUSB_DIR_DEV_TO_HOST, p_string, *p_string);
     }
     break;
 
@@ -123,49 +119,44 @@ void std_get_descriptor(uint8_t coreid)
   }
 }
 
-void usbd_setup_received(uint8_t coreid)
+void usbd_setup_received_isr(uint8_t coreid, tusb_control_request_t * p_request)
 {
   usbd_device_info_t *p_device = &usbd_devices[coreid];
-
-  // check device configured TODO
-  if ( p_device->setup_packet.bmRequestType_bit.recipient == TUSB_REQUEST_RECIPIENT_INTERFACE)
+  switch(p_request->bmRequestType_bit.recipient)
   {
-    // TODO detect which class
-//    ASSERT( p_device->setup_packet.wIndex < USBD_MAX_INTERFACE, (void) 0);
-//    tusb_std_class_code_t const class_code = usbd_devices[coreid].interface2class[ p_device->setup_packet.wIndex ];
-//    if ( usbd_class_drivers[class_code].control_request != NULL )
-//    {
-//      usbd_class_drivers[class_code].control_request(coreid, &p_device->setup_packet);
-//
-//    }
-    hidd_control_request(coreid, &p_device->setup_packet);
-  }else
-  {
-    switch ( p_device->setup_packet.bRequest )
-    {
-      case TUSB_REQUEST_GET_DESCRIPTOR:
-        std_get_descriptor(coreid);
-      break;
+    //------------- Standard Control such as those in enumeration -------------//
+    case TUSB_REQUEST_RECIPIENT_DEVICE:
+      switch ( p_request->bRequest )
+      {
+        case TUSB_REQUEST_GET_DESCRIPTOR:
+          std_get_descriptor(coreid, p_request);
+        break;
 
-      case TUSB_REQUEST_SET_ADDRESS:
-        p_device->address = (uint8_t) p_device->setup_packet.wValue;
-        dcd_device_set_address(coreid, p_device->address);
-        usbd_devices[coreid].state = TUSB_DEVICE_STATE_ADDRESSED;
-      break;
+        case TUSB_REQUEST_SET_ADDRESS:
+          p_device->address = (uint8_t) p_request->wValue;
+          dcd_controller_set_address(coreid, p_device->address);
+          usbd_devices[coreid].state = TUSB_DEVICE_STATE_ADDRESSED;
 
-      case TUSB_REQUEST_SET_CONFIGURATION:
-        dcd_device_set_configuration(coreid, (uint8_t) p_device->setup_packet.wValue);
-        usbd_devices[coreid].state = TUSB_DEVICE_STATE_CONFIGURED;
-      break;
+          dcd_pipe_control_xfer(coreid, TUSB_DIR_HOST_TO_DEV, NULL, 0); // zero length
+        break;
 
-      default:
-        return;
-    }
-  }
+        case TUSB_REQUEST_SET_CONFIGURATION:
+          dcd_controller_set_configuration(coreid, (uint8_t) p_request->wValue);
+          usbd_devices[coreid].state = TUSB_DEVICE_STATE_CONFIGURED;
 
-  if (p_device->setup_packet.bmRequestType_bit.direction == TUSB_DIR_HOST_TO_DEV)
-  {
-    dcd_pipe_control_write_zero_length(coreid);
+          dcd_pipe_control_xfer(coreid, TUSB_DIR_HOST_TO_DEV, NULL, 0); // zero length
+        break;
+
+        default: ASSERT(false, VOID_RETURN); break;
+      }
+    break;
+
+    //------------- Class/Interface Specific Reqequest -------------//
+    case TUSB_REQUEST_RECIPIENT_INTERFACE:
+      hidd_control_request(coreid, p_request);
+    break;
+
+    default: ASSERT(false, VOID_RETURN); break;
   }
 }
 
@@ -187,12 +178,6 @@ tusb_error_t usbd_init (void)
   ASSERT_STATUS( hidd_init(0, &app_tusb_desc_configuration.mouse_interface, &length) );
   #endif
 
-  usbd_bus_reset(0);
-
-  #ifndef _TEST_
-  hal_interrupt_enable(0); // TODO USB1
-  #endif
-
   dcd_controller_connect(0);  // TODO USB1
 
   return TUSB_ERROR_NONE;
@@ -211,23 +196,23 @@ tusb_error_t usbd_pipe_open(uint8_t coreid, tusb_descriptor_interface_t const * 
 //--------------------------------------------------------------------+
 // callback from DCD ISR
 //--------------------------------------------------------------------+
-void usbd_isr(uint8_t coreid, tusb_event_t event)
-{
-  switch(event)
-  {
-    case TUSB_EVENT_BUS_RESET:
-      usbd_bus_reset(coreid);
-    break;
-
-    case TUSB_EVENT_SETUP_RECEIVED:
-      usbd_setup_received(coreid);
-    break;
-
-    default:
-      ASSERT(false, (void) 0);
-    break;
-  }
-}
+//void usbd_isr(uint8_t coreid, tusb_event_t event)
+//{
+//  switch(event)
+//  {
+//    case TUSB_EVENT_BUS_RESET:
+//      usbd_bus_reset(coreid);
+//    break;
+//
+//    case TUSB_EVENT_SETUP_RECEIVED:
+//      usbd_setup_received(coreid);
+//    break;
+//
+//    default:
+//      ASSERT(false, (void) 0);
+//    break;
+//  }
+//}
 
 //--------------------------------------------------------------------+
 // HELPER

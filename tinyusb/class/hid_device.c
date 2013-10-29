@@ -56,6 +56,9 @@ typedef struct {
   tusb_hid_descriptor_hid_t const * p_hid_desc;
   uint8_t const * p_report_desc;
 //  volatile tusb_interface_status_t status;
+
+  endpoint_handle_t ept_handle;
+  uint8_t interface_number;
 }hidd_interface_t;
 
 #if TUSB_CFG_DEVICE_HID_KEYBOARD
@@ -343,7 +346,7 @@ ErrorCode_t HID_EpOut_Hdlr (USBD_HANDLE_T hUsb, void* data, uint32_t event)
   return LPC_OK;
 }
 
-#else // not use the rom driver
+#elif 1 // not use the rom driver
 
 tusb_error_t hidd_control_request(uint8_t coreid, tusb_control_request_t const * p_request)
 {
@@ -356,8 +359,8 @@ tusb_error_t hidd_control_request(uint8_t coreid, tusb_control_request_t const *
     if ( p_request->bRequest == TUSB_REQUEST_GET_DESCRIPTOR &&
         desc_type == HID_DESC_TYPE_REPORT)
     {
-      dcd_pipe_control_write(coreid, keyboard_intf.p_report_desc,
-                             keyboard_intf.p_hid_desc->wReportLength);
+      dcd_pipe_control_xfer(coreid, TUSB_DIR_DEV_TO_HOST,
+                            keyboard_intf.p_report_desc, keyboard_intf.p_hid_desc->wReportLength);
     }else
     {
       ASSERT_STATUS(TUSB_ERROR_FAILED);
@@ -385,6 +388,8 @@ tusb_error_t hidd_control_request(uint8_t coreid, tusb_control_request_t const *
         ASSERT_STATUS(TUSB_ERROR_NOT_SUPPORTED_YET);
         return TUSB_ERROR_NOT_SUPPORTED_YET;
     }
+
+    dcd_pipe_control_xfer(coreid, TUSB_DIR_HOST_TO_DEV, NULL, 0); // treat all class request as non-data control
   }else
   {
     ASSERT_STATUS(TUSB_ERROR_FAILED);
@@ -414,7 +419,8 @@ tusb_error_t hidd_init(uint8_t coreid, tusb_descriptor_interface_t const * p_int
     {
       #if TUSB_CFG_DEVICE_HID_KEYBOARD
       case HID_PROTOCOL_KEYBOARD:
-        ASSERT_STATUS( dcd_pipe_open(coreid, p_desc_endpoint) );
+        keyboard_intf.ept_handle = dcd_pipe_open(coreid, p_desc_endpoint);
+        ASSERT( endpointhandle_is_valid(keyboard_intf.ept_handle), TUSB_ERROR_DCD_FAILED);
       break;
       #endif
 

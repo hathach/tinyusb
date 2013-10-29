@@ -225,12 +225,12 @@ void dcd_controller_connect(uint8_t coreid)
   sie_command_write(SIE_CMDCODE_DEVICE_STATUS, 1, 1);
 }
 
-void dcd_device_set_address(uint8_t coreid, uint8_t dev_addr)
+void dcd_controller_set_address(uint8_t coreid, uint8_t dev_addr)
 {
   sie_command_write(SIE_CMDCODE_SET_ADDRESS, 1, 0x80 | dev_addr); // 7th bit is : device_enable
 }
 
-void dcd_device_set_configuration(uint8_t coreid, uint8_t config_num)
+void dcd_controller_set_configuration(uint8_t coreid, uint8_t config_num)
 {
   (void) config_num; // supress compiler's warnings
   sie_command_write(SIE_CMDCODE_CONFIGURE_DEVICE, 1, 1);

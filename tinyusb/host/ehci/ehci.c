@@ -768,8 +768,7 @@ void hcd_isr(uint8_t hostid)
   
   regs->usb_sts |= int_status; // Acknowledge handled interrupt
 
-  if (int_status == 0)
-    return;
+  if (int_status == 0) return;
 
   if (int_status & EHCI_INT_MASK_PORT_CHANGE)
   {

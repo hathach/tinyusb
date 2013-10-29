@@ -60,7 +60,6 @@
 typedef struct {
   volatile uint8_t state;
   uint8_t address;
-  tusb_control_request_t setup_packet;
   uint8_t interface2class[USBD_MAX_INTERFACE]; // determine interface number belongs to which class
   uint8_t endpoint_idx2class[USBD_MAX_ENDPOINT]; // determine endpoint index belongs to which class
 }usbd_device_info_t;

@@ -51,18 +51,44 @@
  extern "C" {
 #endif
 
+typedef struct {
+  uint8_t coreid;
+  uint8_t xfer_type; // cannot be control as control uses separated API
+  uint8_t index;
+  uint8_t reserved;
+} endpoint_handle_t;
+
+static inline bool endpointhandle_is_valid(endpoint_handle_t endpoint_handle) ATTR_CONST ATTR_ALWAYS_INLINE ATTR_WARN_UNUSED_RESULT;
+static inline bool endpointhandle_is_valid(endpoint_handle_t endpoint_handle)
+{
+  return endpoint_handle.xfer_type != TUSB_XFER_CONTROL;
+}
+
+static inline bool endpointhandle_is_equal(endpoint_handle_t x, endpoint_handle_t y) ATTR_CONST ATTR_ALWAYS_INLINE ATTR_WARN_UNUSED_RESULT;
+static inline bool endpointhandle_is_equal(endpoint_handle_t x, endpoint_handle_t y)
+{
+  return (x.coreid == y.coreid) && (x.xfer_type == y.xfer_type) && (x.index == y.index);
+}
+
 tusb_error_t dcd_init(void) ATTR_WARN_UNUSED_RESULT;
-tusb_error_t dcd_controller_reset(uint8_t coreid) ATTR_WARN_UNUSED_RESULT;
-void dcd_controller_connect(uint8_t coreid);
+
 void dcd_isr(uint8_t coreid);
 
-tusb_error_t dcd_pipe_control_write(uint8_t coreid, void const * buffer, uint16_t length);
-tusb_error_t dcd_pipe_control_read(uint8_t coreid, void * buffer, uint16_t length);
+//------------- Controller API -------------//
+tusb_error_t dcd_controller_reset(uint8_t coreid) ATTR_WARN_UNUSED_RESULT;
+void dcd_controller_connect(uint8_t coreid);
+void dcd_controller_disconnect(uint8_t coreid);
+void dcd_controller_set_address(uint8_t coreid, uint8_t dev_addr);
+void dcd_controller_set_configuration(uint8_t coreid, uint8_t config_num);
 
-void dcd_pipe_control_write_zero_length(uint8_t coreid);
-tusb_error_t dcd_pipe_open(uint8_t coreid, tusb_descriptor_endpoint_t const * p_endpoint_desc) ATTR_WARN_UNUSED_RESULT;
-void dcd_device_set_address(uint8_t coreid, uint8_t dev_addr);
-void dcd_device_set_configuration(uint8_t coreid, uint8_t config_num);
+//------------- PIPE API -------------//
+tusb_error_t dcd_pipe_control_xfer(uint8_t coreid, tusb_direction_t dir, void * buffer, uint16_t length);
+
+//tusb_error_t dcd_pipe_control_write(uint8_t coreid, void const * buffer, uint16_t length);
+//tusb_error_t dcd_pipe_control_read(uint8_t coreid, void * buffer, uint16_t length);
+//void dcd_pipe_control_write_zero_length(uint8_t coreid);
+
+endpoint_handle_t dcd_pipe_open(uint8_t coreid, tusb_descriptor_endpoint_t const * p_endpoint_desc) ATTR_WARN_UNUSED_RESULT;
 
 #ifdef __cplusplus
  }

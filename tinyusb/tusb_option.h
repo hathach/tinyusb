@@ -164,9 +164,10 @@
 //--------------------------------------------------------------------+
 #if MODE_DEVICE_SUPPORTED
 
-#if defined(CAP_DEVICE_ROMDRIVER) && !TUSB_CFG_DEVICE_USE_ROM_DRIVER
-  #error only rom driver for these mcu are supported now
-#endif
+// TODO only support non rom driver
+//#if defined(CAP_DEVICE_ROMDRIVER) && !TUSB_CFG_DEVICE_USE_ROM_DRIVER
+//  #error only rom driver for these mcu are supported now
+//#endif
 
 #define DEVICE_CLASS_HID ( TUSB_CFG_DEVICE_HID_KEYBOARD + TUSB_CFG_DEVICE_HID_MOUSE + TUSB_CFG_DEVICE_HID_GENERIC )
 

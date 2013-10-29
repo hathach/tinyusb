@@ -81,7 +81,7 @@
 //--------------------------------------------------------------------+
 // DEVICE CONFIGURATION
 //--------------------------------------------------------------------+
-#define TUSB_CFG_DEVICE_USE_ROM_DRIVER  1
+#define TUSB_CFG_DEVICE_USE_ROM_DRIVER  0
 
 //------------- descriptors -------------//
 #define TUSB_CFG_DEVICE_STRING_MANUFACTURER   "tinyusb.org"
