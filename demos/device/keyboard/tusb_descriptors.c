@@ -151,7 +151,7 @@ app_descriptor_configuration_t app_tusb_desc_configuration =
         .bLength             = sizeof(tusb_descriptor_configuration_t),
         .bDescriptorType     = TUSB_DESC_TYPE_CONFIGURATION,
 
-        .wTotalLength        = sizeof(app_descriptor_configuration_t) - 1, // exclude termination
+        .wTotalLength        = sizeof(app_descriptor_configuration_t),
         .bNumInterfaces      = TOTAL_INTEFACES,
 
         .bConfigurationValue = 1,

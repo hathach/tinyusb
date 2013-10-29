@@ -59,6 +59,8 @@ typedef struct {
   endpoint_handle_t ept_handle;
   uint8_t interface_number;
   uint8_t idle_rate;  // need to be in usb ram
+
+  hid_keyboard_report_t report;
 }hidd_interface_t;
 
 #if TUSB_CFG_DEVICE_HID_KEYBOARD
@@ -163,7 +165,7 @@ tusb_error_t hidd_configured(void)
 
   return TUSB_ERROR_NONE;
 }
-tusb_error_t hidd_init(uint8_t coreid, tusb_descriptor_interface_t const * p_interface_desc, uint16_t *p_length)
+tusb_error_t hidd_open(uint8_t coreid, tusb_descriptor_interface_t const * p_interface_desc, uint16_t *p_length)
 {
   uint8_t const *p_desc = (uint8_t const *) p_interface_desc;
 
@@ -400,17 +402,16 @@ tusb_error_t hidd_control_request(uint8_t coreid, tusb_control_request_t const *
           dcd_pipe_control_xfer(coreid, TUSB_DIR_HOST_TO_DEV, NULL, 0);
         break;
 
-        case HID_REQUEST_CONTROL_GET_IDLE:
-          dcd_pipe_control_xfer(coreid, TUSB_DIR_DEV_TO_HOST, &p_kbd->idle_rate, 1); // idle_rate need to be in usb ram
-        break;
-
         case HID_REQUEST_CONTROL_SET_REPORT:
-          // TODO hidd set report, has data phase
-          // TODO verify data read from control pipe
-          //        ; uint8_t hehe[10]= { 0 };
-          //        dcd_pipe_control_read(coreid, hehe, p_request->wLength);
+        {
+          hid_request_report_type_t report_type = u16_high_u8(p_request->wValue);
+          uint8_t report_id = u16_low_u8(p_request->wValue);
+
+          dcd_pipe_control_xfer(coreid, TUSB_DIR_HOST_TO_DEV, &p_kbd->report, p_request->wLength);
+        }
         break;
 
+        case HID_REQUEST_CONTROL_GET_IDLE:
         case HID_REQUEST_CONTROL_GET_REPORT:
         case HID_REQUEST_CONTROL_GET_PROTOCOL:
         case HID_REQUEST_CONTROL_SET_PROTOCOL:
@@ -428,7 +429,7 @@ tusb_error_t hidd_control_request(uint8_t coreid, tusb_control_request_t const *
   return TUSB_ERROR_NONE;
 }
 
-tusb_error_t hidd_init(uint8_t coreid, tusb_descriptor_interface_t const * p_interface_desc, uint16_t *p_length)
+tusb_error_t hidd_open(uint8_t coreid, tusb_descriptor_interface_t const * p_interface_desc, uint16_t *p_length)
 {
   uint8_t const *p_desc = (uint8_t const *) p_interface_desc;
 
@@ -448,6 +449,9 @@ tusb_error_t hidd_init(uint8_t coreid, tusb_descriptor_interface_t const * p_int
     {
       #if TUSB_CFG_DEVICE_HID_KEYBOARD
       case HID_PROTOCOL_KEYBOARD:
+//        memclr_(&keyboardd_data, sizeof(hidd_interface_t));
+
+        keyboardd_data.interface_number = p_interface_desc->bInterfaceNumber;
         keyboardd_data.ept_handle = dcd_pipe_open(coreid, p_desc_endpoint);
         ASSERT( endpointhandle_is_valid(keyboardd_data.ept_handle), TUSB_ERROR_DCD_FAILED);
       break;

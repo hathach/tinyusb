@@ -97,7 +97,6 @@ typedef ATTR_PACKED_STRUCT(struct)
   tusb_descriptor_endpoint_t                     msc_endpoint_out;
 #endif
 
-  uint8_t                                        null_termination; // NXP rom driver requires this to work
 } app_descriptor_configuration_t;
 
 //--------------------------------------------------------------------+

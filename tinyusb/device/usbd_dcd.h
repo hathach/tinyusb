@@ -68,7 +68,7 @@ extern usbd_device_info_t usbd_devices[CONTROLLER_DEVICE_NUMBER];
 //--------------------------------------------------------------------+
 // callback from DCD ISR
 //--------------------------------------------------------------------+
-void usbd_isr(uint8_t coreid, tusb_event_t event);
+void usbd_xfer_isr(endpoint_handle_t pipe_hdl, tusb_event_t event, uint32_t xferred_bytes);
 
 #ifdef __cplusplus
  }

@@ -59,7 +59,7 @@ static device_class_driver_t const usbd_class_drivers[TUSB_CLASS_MAPPED_INDEX_ST
 {
 #if DEVICE_CLASS_HID
     [TUSB_CLASS_HID] = {
-        .init            = hidd_init,
+        .open            = hidd_open,
         .control_request = hidd_control_request,
     },
 #endif
@@ -99,7 +99,7 @@ void std_get_descriptor(uint8_t coreid, tusb_control_request_t * p_request)
 
     case TUSB_DESC_TYPE_CONFIGURATION:
       dcd_pipe_control_xfer(coreid, TUSB_DIR_DEV_TO_HOST, &app_tusb_desc_configuration,
-                            min16_of( p_request->wLength, sizeof(app_tusb_desc_configuration)-1) );
+                            min16_of( p_request->wLength, sizeof(app_tusb_desc_configuration)) );
     break;
 
     case TUSB_DESC_TYPE_STRING:
@@ -128,12 +128,16 @@ tusb_error_t usbh_set_configure_received(uint8_t coreid, uint8_t config_number)
 
   #if TUSB_CFG_DEVICE_HID_KEYBOARD
   tusb_descriptor_interface_t const * p_interface = &app_tusb_desc_configuration.keyboard_interface;
-  ASSERT_STATUS( hidd_init(0, p_interface, &length) );
-  usbd_devices[0].interface2class[p_interface->bInterfaceNumber] = p_interface->bInterfaceClass;
+  usbd_devices[coreid].interface2class[p_interface->bInterfaceNumber] = p_interface->bInterfaceClass;
+
+  if (usbd_class_drivers[p_interface->bInterfaceClass].open )
+  {
+    usbd_class_drivers[p_interface->bInterfaceClass].open(coreid, p_interface, &length);
+  }
   #endif
 
   #if TUSB_CFG_DEVICE_HID_MOUSE
-  ASSERT_STATUS( hidd_init(0, &app_tusb_desc_configuration.mouse_interface, &length) );
+  ASSERT_STATUS( hidd_open(0, &app_tusb_desc_configuration.mouse_interface, &length) );
   #endif
 
 }
@@ -170,7 +174,15 @@ void usbd_setup_received_isr(uint8_t coreid, tusb_control_request_t * p_request)
 
     //------------- Class/Interface Specific Reqequest -------------//
     case TUSB_REQUEST_RECIPIENT_INTERFACE:
-      hidd_control_request(coreid, p_request);
+    {
+      tusb_std_class_code_t class_code = p_device->interface2class[ u16_low_u8(p_request->wIndex) ];
+      ASSERT_INT_WITHIN(TUSB_CLASS_AUDIO, TUSB_CLASS_AUDIO_VIDEO, class_code, VOID_RETURN);
+
+      if ( usbd_class_drivers[class_code].control_request )
+      {
+        usbd_class_drivers[class_code].control_request(coreid, p_request);
+      }
+    }
     break;
 
     default: ASSERT(false, VOID_RETURN); break;
@@ -188,8 +200,6 @@ tusb_error_t usbd_init (void)
   return TUSB_ERROR_NONE;
 }
 
-
-
 //--------------------------------------------------------------------+
 // USBD-CLASS API
 //--------------------------------------------------------------------+
@@ -199,8 +209,13 @@ tusb_error_t usbd_pipe_open(uint8_t coreid, tusb_descriptor_interface_t const * 
 }
 
 //--------------------------------------------------------------------+
-// callback from DCD ISR
+// USBD-DCD API
 //--------------------------------------------------------------------+
+void usbd_xfer_isr(endpoint_handle_t edpt_hdl, tusb_event_t event, uint32_t xferred_bytes)
+{
+  usbd_device_info_t *p_device = &usbd_devices[edpt_hdl.coreid];
+
+}
 //void usbd_isr(uint8_t coreid, tusb_event_t event)
 //{
 //  switch(event)
