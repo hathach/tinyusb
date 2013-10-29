@@ -127,17 +127,23 @@ tusb_error_t usbh_set_configure_received(uint8_t coreid, uint8_t config_number)
   uint16_t length = 0;
 
   #if TUSB_CFG_DEVICE_HID_KEYBOARD
-  tusb_descriptor_interface_t const * p_interface = &app_tusb_desc_configuration.keyboard_interface;
-  usbd_devices[coreid].interface2class[p_interface->bInterfaceNumber] = p_interface->bInterfaceClass;
+  tusb_descriptor_interface_t const * p_kbd_interface = &app_tusb_desc_configuration.keyboard_interface;
+  usbd_devices[coreid].interface2class[p_kbd_interface->bInterfaceNumber] = p_kbd_interface->bInterfaceClass;
 
-  if (usbd_class_drivers[p_interface->bInterfaceClass].open )
+  if (usbd_class_drivers[p_kbd_interface->bInterfaceClass].open )
   {
-    usbd_class_drivers[p_interface->bInterfaceClass].open(coreid, p_interface, &length);
+    usbd_class_drivers[p_kbd_interface->bInterfaceClass].open(coreid, p_kbd_interface, &length);
   }
   #endif
 
   #if TUSB_CFG_DEVICE_HID_MOUSE
-  ASSERT_STATUS( hidd_open(0, &app_tusb_desc_configuration.mouse_interface, &length) );
+  tusb_descriptor_interface_t const * p_mouse_interface = &app_tusb_desc_configuration.mouse_interface;
+  usbd_devices[coreid].interface2class[p_mouse_interface->bInterfaceNumber] = p_mouse_interface->bInterfaceClass;
+
+  if (usbd_class_drivers[p_mouse_interface->bInterfaceClass].open )
+  {
+    usbd_class_drivers[p_mouse_interface->bInterfaceClass].open(coreid, p_mouse_interface, &length);
+  }
   #endif
 
 }

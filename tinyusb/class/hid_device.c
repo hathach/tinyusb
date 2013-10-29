@@ -52,9 +52,8 @@
 // MACRO CONSTANT TYPEDEF
 //--------------------------------------------------------------------+
 typedef struct {
-  tusb_descriptor_interface_t const * p_interface_desc;
-  tusb_hid_descriptor_hid_t const * p_hid_desc;
   uint8_t const * p_report_desc;
+  uint16_t report_length;
 
   endpoint_handle_t ept_handle;
   uint8_t interface_number;
@@ -66,11 +65,152 @@ typedef struct {
 #if TUSB_CFG_DEVICE_HID_KEYBOARD
 STATIC_VAR TUSB_CFG_ATTR_USBRAM hidd_interface_t keyboardd_data =
 {
-    .p_interface_desc = &app_tusb_desc_configuration.keyboard_interface,
-    .p_hid_desc       = &app_tusb_desc_configuration.keyboard_hid,
     .p_report_desc    = app_tusb_keyboard_desc_report
 };
 #endif
+
+#if TUSB_CFG_DEVICE_HID_MOUSE
+STATIC_VAR TUSB_CFG_ATTR_USBRAM hidd_interface_t moused_data =
+{
+    .p_report_desc    = app_tusb_mouse_desc_report
+};
+#endif
+
+
+//--------------------------------------------------------------------+
+// APPLICATION API
+//--------------------------------------------------------------------+
+bool tusbd_hid_keyboard_is_busy(uint8_t coreid)
+{
+  return dcd_pipe_is_busy(keyboardd_data.ept_handle);
+}
+
+tusb_error_t tusbd_hid_keyboard_send(uint8_t coreid, hid_keyboard_report_t const *p_kbd_report)
+{
+  //------------- verify data -------------//
+
+  hidd_interface_t * p_kbd = &keyboardd_data; // TODO &keyboardd_data[coreid];
+
+  ASSERT_STATUS( dcd_pipe_xfer(p_kbd->ept_handle, p_kbd_report, sizeof(hid_keyboard_report_t), false) ) ;
+
+  return TUSB_ERROR_NONE;
+}
+
+//--------------------------------------------------------------------+
+// USBD-CLASS API
+//--------------------------------------------------------------------+
+tusb_error_t hidd_control_request(uint8_t coreid, tusb_control_request_t const * p_request)
+{
+  hidd_interface_t* p_hid =
+    #if TUSB_CFG_DEVICE_HID_KEYBOARD
+      (p_request->wIndex == keyboardd_data.interface_number) ? &keyboardd_data :
+    #endif
+    #if TUSB_CFG_DEVICE_HID_KEYBOARD
+      (p_request->wIndex == moused_data.interface_number) ? &moused_data :
+    #endif
+      NULL;
+
+  ASSERT_PTR(p_hid, TUSB_ERROR_FAILED);
+
+  if (p_request->bmRequestType_bit.type == TUSB_REQUEST_TYPE_STANDARD) // standard request to hid
+  {
+    uint8_t const desc_type  = u16_high_u8(p_request->wValue);
+    uint8_t const desc_index = u16_low_u8 (p_request->wValue);
+
+    if ( p_request->bRequest == TUSB_REQUEST_GET_DESCRIPTOR && desc_type == HID_DESC_TYPE_REPORT)
+    {
+      dcd_pipe_control_xfer(coreid, TUSB_DIR_DEV_TO_HOST, p_hid->p_report_desc, p_hid->report_length);
+    }else
+    {
+      ASSERT_STATUS(TUSB_ERROR_FAILED);
+    }
+  }
+  //------------- Class Specific Request -------------//
+  else if (p_request->bmRequestType_bit.type == TUSB_REQUEST_TYPE_CLASS)
+  {
+    switch(p_request->bRequest)
+    {
+      case HID_REQUEST_CONTROL_SET_IDLE:
+        p_hid->idle_rate = u16_high_u8(p_request->wValue);
+        dcd_pipe_control_xfer(coreid, TUSB_DIR_HOST_TO_DEV, NULL, 0);
+        break;
+
+      case HID_REQUEST_CONTROL_SET_REPORT:
+      {
+        hid_request_report_type_t report_type = u16_high_u8(p_request->wValue);
+        uint8_t report_id = u16_low_u8(p_request->wValue);
+
+        dcd_pipe_control_xfer(coreid, TUSB_DIR_HOST_TO_DEV, &p_hid->report, p_request->wLength);
+      }
+      break;
+
+      case HID_REQUEST_CONTROL_GET_IDLE:
+      case HID_REQUEST_CONTROL_GET_REPORT:
+      case HID_REQUEST_CONTROL_GET_PROTOCOL:
+      case HID_REQUEST_CONTROL_SET_PROTOCOL:
+      default:
+        ASSERT_STATUS(TUSB_ERROR_NOT_SUPPORTED_YET);
+        return TUSB_ERROR_NOT_SUPPORTED_YET;
+    }
+  }else
+  {
+    ASSERT_STATUS(TUSB_ERROR_FAILED);
+  }
+
+  return TUSB_ERROR_NONE;
+}
+
+tusb_error_t hidd_open(uint8_t coreid, tusb_descriptor_interface_t const * p_interface_desc, uint16_t *p_length)
+{
+  uint8_t const *p_desc = (uint8_t const *) p_interface_desc;
+
+  //------------- HID descriptor -------------//
+  p_desc += p_desc[DESCRIPTOR_OFFSET_LENGTH];
+  tusb_hid_descriptor_hid_t const *p_desc_hid = (tusb_hid_descriptor_hid_t const *) p_desc;
+  ASSERT_INT(HID_DESC_TYPE_HID, p_desc_hid->bDescriptorType, TUSB_ERROR_HIDD_DESCRIPTOR_INTERFACE);
+
+  //------------- Endpoint Descriptor -------------//
+  p_desc += p_desc[DESCRIPTOR_OFFSET_LENGTH];
+  tusb_descriptor_endpoint_t const *p_desc_endpoint = (tusb_descriptor_endpoint_t const *) p_desc;
+  ASSERT_INT(TUSB_DESC_TYPE_ENDPOINT, p_desc_endpoint->bDescriptorType, TUSB_ERROR_HIDD_DESCRIPTOR_INTERFACE);
+
+  if (p_interface_desc->bInterfaceSubClass == HID_SUBCLASS_BOOT)
+  {
+    switch(p_interface_desc->bInterfaceProtocol)
+    {
+      #if TUSB_CFG_DEVICE_HID_KEYBOARD
+      case HID_PROTOCOL_KEYBOARD:
+//        memclr_(&keyboardd_data, sizeof(hidd_interface_t));
+
+        keyboardd_data.interface_number = p_interface_desc->bInterfaceNumber;
+        keyboardd_data.report_length = p_desc_hid->wReportLength;
+        keyboardd_data.ept_handle = dcd_pipe_open(coreid, p_desc_endpoint);
+        ASSERT( endpointhandle_is_valid(keyboardd_data.ept_handle), TUSB_ERROR_DCD_FAILED);
+      break;
+      #endif
+
+      #if TUSB_CFG_DEVICE_HID_MOUSE
+      case HID_PROTOCOL_MOUSE:
+        moused_data.interface_number = p_interface_desc->bInterfaceNumber;
+        moused_data.report_length = p_desc_hid->wReportLength;
+        moused_data.ept_handle = dcd_pipe_open(coreid, p_desc_endpoint);
+        ASSERT( endpointhandle_is_valid(moused_data.ept_handle), TUSB_ERROR_DCD_FAILED);
+      break;
+      #endif
+
+      default: // TODO unknown, unsupported protocol --> skip this interface
+        return TUSB_ERROR_HIDD_DESCRIPTOR_INTERFACE;
+    }
+    *p_length = sizeof(tusb_descriptor_interface_t) + sizeof(tusb_hid_descriptor_hid_t) + sizeof(tusb_descriptor_endpoint_t);
+  }else
+  {
+    // open generic
+    *p_length = 0;
+    return TUSB_ERROR_HIDD_DESCRIPTOR_INTERFACE;
+  }
+  return TUSB_ERROR_NONE;
+}
+
 
 #if defined(CAP_DEVICE_ROMDRIVER) && TUSB_CFG_DEVICE_USE_ROM_DRIVER
 #include "device/dcd_nxp_romdriver.h" // TODO remove rom driver dependency
@@ -348,135 +488,6 @@ ErrorCode_t HID_EpOut_Hdlr (USBD_HANDLE_T hUsb, void* data, uint32_t event)
   return LPC_OK;
 }
 
-#elif 1 // not use the rom driver
-
-//--------------------------------------------------------------------+
-// APPLICATION API
-//--------------------------------------------------------------------+
-bool tusbd_hid_keyboard_is_busy(uint8_t coreid)
-{
-  return dcd_pipe_is_busy(keyboardd_data.ept_handle);
-}
-
-tusb_error_t tusbd_hid_keyboard_send(uint8_t coreid, hid_keyboard_report_t const *p_kbd_report)
-{
-  //------------- verify data -------------//
-
-  hidd_interface_t * p_kbd = &keyboardd_data; // TODO &keyboardd_data[coreid];
-
-  ASSERT_STATUS( dcd_pipe_xfer(p_kbd->ept_handle, p_kbd_report, sizeof(hid_keyboard_report_t), false) ) ;
-
-  return TUSB_ERROR_NONE;
-}
-
-//--------------------------------------------------------------------+
-// USBD-CLASS API
-//--------------------------------------------------------------------+
-tusb_error_t hidd_control_request(uint8_t coreid, tusb_control_request_t const * p_request)
-{
-#if TUSB_CFG_DEVICE_HID_KEYBOARD
-  hidd_interface_t* p_kbd = &keyboardd_data;
-  if (p_request->bmRequestType_bit.type == TUSB_REQUEST_TYPE_STANDARD) // standard request to hid
-  {
-    uint8_t const desc_type  = u16_high_u8(p_request->wValue);
-    uint8_t const desc_index = u16_low_u8 (p_request->wValue);
-
-    if ( p_request->bRequest == TUSB_REQUEST_GET_DESCRIPTOR &&
-        desc_type == HID_DESC_TYPE_REPORT)
-    {
-      dcd_pipe_control_xfer(coreid, TUSB_DIR_DEV_TO_HOST,
-                            p_kbd->p_report_desc, p_kbd->p_hid_desc->wReportLength);
-    }else
-    {
-      ASSERT_STATUS(TUSB_ERROR_FAILED);
-    }
-  }
-  else if (p_request->bmRequestType_bit.type == TUSB_REQUEST_TYPE_CLASS)
-  {
-    if ( p_request->wIndex == p_kbd->p_interface_desc->bInterfaceNumber) // class request
-    {
-      switch(p_request->bRequest)
-      {
-        case HID_REQUEST_CONTROL_SET_IDLE:
-          p_kbd->idle_rate = u16_high_u8(p_request->wValue);
-          dcd_pipe_control_xfer(coreid, TUSB_DIR_HOST_TO_DEV, NULL, 0);
-        break;
-
-        case HID_REQUEST_CONTROL_SET_REPORT:
-        {
-          hid_request_report_type_t report_type = u16_high_u8(p_request->wValue);
-          uint8_t report_id = u16_low_u8(p_request->wValue);
-
-          dcd_pipe_control_xfer(coreid, TUSB_DIR_HOST_TO_DEV, &p_kbd->report, p_request->wLength);
-        }
-        break;
-
-        case HID_REQUEST_CONTROL_GET_IDLE:
-        case HID_REQUEST_CONTROL_GET_REPORT:
-        case HID_REQUEST_CONTROL_GET_PROTOCOL:
-        case HID_REQUEST_CONTROL_SET_PROTOCOL:
-        default:
-          ASSERT_STATUS(TUSB_ERROR_NOT_SUPPORTED_YET);
-          return TUSB_ERROR_NOT_SUPPORTED_YET;
-      }
-    }
-  }else
-  {
-    ASSERT_STATUS(TUSB_ERROR_FAILED);
-  }
-#endif
-
-  return TUSB_ERROR_NONE;
-}
-
-tusb_error_t hidd_open(uint8_t coreid, tusb_descriptor_interface_t const * p_interface_desc, uint16_t *p_length)
-{
-  uint8_t const *p_desc = (uint8_t const *) p_interface_desc;
-
-  //------------- HID descriptor -------------//
-  p_desc += p_desc[DESCRIPTOR_OFFSET_LENGTH];
-  tusb_hid_descriptor_hid_t const *p_desc_hid = (tusb_hid_descriptor_hid_t const *) p_desc;
-  ASSERT_INT(HID_DESC_TYPE_HID, p_desc_hid->bDescriptorType, TUSB_ERROR_HIDD_DESCRIPTOR_INTERFACE);
-
-  //------------- Endpoint Descriptor -------------//
-  p_desc += p_desc[DESCRIPTOR_OFFSET_LENGTH];
-  tusb_descriptor_endpoint_t const *p_desc_endpoint = (tusb_descriptor_endpoint_t const *) p_desc;
-  ASSERT_INT(TUSB_DESC_TYPE_ENDPOINT, p_desc_endpoint->bDescriptorType, TUSB_ERROR_HIDD_DESCRIPTOR_INTERFACE);
-
-  if (p_interface_desc->bInterfaceSubClass == HID_SUBCLASS_BOOT)
-  {
-    switch(p_interface_desc->bInterfaceProtocol)
-    {
-      #if TUSB_CFG_DEVICE_HID_KEYBOARD
-      case HID_PROTOCOL_KEYBOARD:
-//        memclr_(&keyboardd_data, sizeof(hidd_interface_t));
-
-        keyboardd_data.interface_number = p_interface_desc->bInterfaceNumber;
-        keyboardd_data.ept_handle = dcd_pipe_open(coreid, p_desc_endpoint);
-        ASSERT( endpointhandle_is_valid(keyboardd_data.ept_handle), TUSB_ERROR_DCD_FAILED);
-      break;
-      #endif
-
-      #if TUSB_CFG_DEVICE_HID_MOUSE
-      case HID_PROTOCOL_MOUSE:
-        ASSERT_STATUS( hidd_interface_init(p_interface_desc,
-                                           app_tusb_mouse_desc_report, p_desc_hid->wReportLength,
-                                           hidd_mouse_buffer , sizeof(hidd_mouse_buffer)) );
-      break;
-      #endif
-
-      default: // TODO unknown, unsupported protocol --> skip this interface
-        return TUSB_ERROR_HIDD_DESCRIPTOR_INTERFACE;
-    }
-    *p_length = sizeof(tusb_descriptor_interface_t) + sizeof(tusb_hid_descriptor_hid_t) + sizeof(tusb_descriptor_endpoint_t);
-  }else
-  {
-    // open generic
-    *p_length = 0;
-    return TUSB_ERROR_HIDD_DESCRIPTOR_INTERFACE;
-  }
-  return TUSB_ERROR_NONE;
-}
 #endif
 
 #endif

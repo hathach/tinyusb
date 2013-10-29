@@ -101,22 +101,18 @@ void keyboard_device_app_task(void * p_para)
 #endif
 
 #if TUSB_CFG_DEVICE_HID_MOUSE
+hid_mouse_report_t mouse_report TUSB_CFG_ATTR_USBRAM;
 void mouse_device_app_task(void * p_para)
 {
-#if 1
-  if (tusb_device_is_configured())
-  {
-    static uint32_t count =0;
-    if (count < 8)
-    {
-      count++;
-      tusbd_hid_mouse_send_report(
-          &(hid_mouse_report_t) {
-              .x = 20,
-              .y = 20 } );
-    }
-  }
-#endif
+//  if (tusbd_is_configured(0))
+//  {
+//    static uint32_t count =0;
+//    if (count++ < 10)
+//    {
+//      mouse_report.x = mouse_report.y = 20;
+//      tusbd_hid_mouse_send( &mouse_report );
+//    }
+//  }
 }
 #endif
 
