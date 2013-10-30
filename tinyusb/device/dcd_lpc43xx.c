@@ -72,7 +72,7 @@ typedef struct {
   volatile uint32_t halted      : 1  ;
   volatile uint32_t active      : 1  ;
   uint32_t                      : 2  ;
-  uint32_t mult_override        : 2  ; ///< This field can be used for transmit ISOs to override the MULT field in the dQH. This field must be zero for all packet types that are not transmit-ISO.
+  uint32_t iso_mult_override    : 2  ; ///< This field can be used for transmit ISOs to override the MULT field in the dQH. This field must be zero for all packet types that are not transmit-ISO.
   uint32_t                      : 3  ;
   uint32_t int_on_complete      : 1  ;
   volatile uint32_t total_bytes : 15 ;
@@ -94,7 +94,7 @@ typedef struct {
   uint32_t max_package_size        : 11 ; ///< This directly corresponds to the maximum packet size of the associated endpoint (wMaxPacketSize)
   uint32_t                         : 2  ;
   uint32_t zero_length_termination : 1  ; ///< This bit is used for non-isochronous endpoints to indicate when a zero-length packet is received to terminate transfers in case the total transfer length is “multiple”. 0 - Enable zero-length packet to terminate transfers equal to a multiple of Max_packet_length (default). 1 - Disable zero-length packet on transfers that are equal in length to a multiple Max_packet_length.
-  uint32_t mult                    : 2  ; ///<
+  uint32_t iso_mult                : 2  ; ///<
   uint32_t                         : 0  ;
 
   // Word 1: Current qTD Pointer
@@ -289,6 +289,11 @@ static void qtd_init(dcd_qtd_t* p_qtd, void * data_ptr, uint16_t total_bytes)
       p_qtd->buffer[i] |= align4k( p_qtd->buffer[i-1] ) + 4096;
     }
   }
+}
+
+void dcd_pipe_control_stall(uint8_t coreid)
+{
+  LPC_USB0->ENDPTCTRL0 |= (ENDPTCTRL_MASK_STALL << 16); // stall Control IN
 }
 
 tusb_error_t dcd_pipe_control_xfer(uint8_t coreid, tusb_direction_t dir, void * buffer, uint16_t length)

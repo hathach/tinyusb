@@ -100,9 +100,28 @@ void tusbd_hid_keyboard_isr(uint8_t coreid, tusb_event_t event);
 /** \defgroup Mouse_Device Device
  *  @{ */
 
+/** \brief      Check if the interface is currently busy or not
+ * \param[in]   coreid USB Controller ID
+ * \retval      true if the interface is busy meaning the stack is still transferring/waiting data from/to host
+ * \retval      false if the interface is not busy meaning the stack successfully transferred data from/to host
+ * \note        This function is primarily used for polling/waiting result after \ref tusbd_hid_mouse_send.
+ */
 bool tusbd_hid_mouse_is_busy(uint8_t coreid);
 
+/** \brief        Perform transfer queuing
+ * \param[in]		  coreid USB Controller ID
+ * \param[in,out] p_report address that is used to store data from device. Must be accessible by usb controller (see \ref TUSB_CFG_ATTR_USBRAM)
+ * \returns       \ref tusb_error_t type to indicate success or error condition.
+ * \retval        TUSB_ERROR_NONE on success
+ * \retval        TUSB_ERROR_INTERFACE_IS_BUSY if the interface is already transferring data with device
+ * \retval        TUSB_ERROR_DEVICE_NOT_READY if device is not yet configured (by SET CONFIGURED request)
+ * \retval        TUSB_ERROR_INVALID_PARA if input parameters are not correct
+ * \note          This function is non-blocking and returns immediately. Data will be transferred when USB Host work with this interface.
+ *                The result of usb transfer will be reported by the interface's callback function
+ */
 tusb_error_t tusbd_hid_mouse_send(uint8_t coreid, hid_mouse_report_t const *p_report);
+
+void tusbd_hid_mouse_isr(uint8_t coreid, tusb_event_t event);
 
 /** @} */
 /** @} */
