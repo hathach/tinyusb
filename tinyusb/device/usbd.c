@@ -168,8 +168,7 @@ void usbd_setup_received_isr(uint8_t coreid, tusb_control_request_t * p_request)
         break;
 
         case TUSB_REQUEST_SET_ADDRESS:
-          p_device->address = (uint8_t) p_request->wValue;
-          dcd_controller_set_address(coreid, p_device->address);
+          dcd_controller_set_address(coreid, (uint8_t) p_request->wValue);
           usbd_devices[coreid].state = TUSB_DEVICE_STATE_ADDRESSED;
 
           dcd_pipe_control_xfer(coreid, TUSB_DIR_HOST_TO_DEV, NULL, 0); // zero length

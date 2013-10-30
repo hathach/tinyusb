@@ -55,13 +55,11 @@
  extern "C" {
 #endif
 
-#define USBD_MAX_INTERFACE  10 // TODO refractor later
+#define USBD_MAX_INTERFACE  16 // TODO refractor later
 #define USBD_MAX_ENDPOINT   32 // TODO refractor later
 typedef struct {
   volatile uint8_t state;
-  uint8_t address;
   uint8_t interface2class[USBD_MAX_INTERFACE]; // determine interface number belongs to which class
-  uint8_t endpoint_idx2class[USBD_MAX_ENDPOINT]; // determine endpoint index belongs to which class
 }usbd_device_info_t;
 
 extern usbd_device_info_t usbd_devices[CONTROLLER_DEVICE_NUMBER];
