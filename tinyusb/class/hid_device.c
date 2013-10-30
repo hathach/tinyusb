@@ -57,7 +57,6 @@ typedef struct {
 
   endpoint_handle_t ept_handle;
   uint8_t interface_number;
-  uint8_t idle_rate;  // need to be in usb ram
 
   hid_keyboard_report_t report;  // need to be in usb ram
 }hidd_interface_t;
@@ -103,7 +102,6 @@ bool tusbd_hid_mouse_is_busy(uint8_t coreid)
   return dcd_pipe_is_busy(moused_data.ept_handle);
 }
 
-
 tusb_error_t tusbd_hid_mouse_send(uint8_t coreid, hid_mouse_report_t const *p_report)
 {
   //------------- verify data -------------//
@@ -134,7 +132,8 @@ tusb_error_t hidd_control_request(uint8_t coreid, tusb_control_request_t const *
 
   ASSERT_PTR(p_hid, TUSB_ERROR_FAILED);
 
-  if (p_request->bmRequestType_bit.type == TUSB_REQUEST_TYPE_STANDARD) // standard request to hid
+  //------------- STD Request -------------//
+  if (p_request->bmRequestType_bit.type == TUSB_REQUEST_TYPE_STANDARD)
   {
     uint8_t const desc_type  = u16_high_u8(p_request->wValue);
     uint8_t const desc_index = u16_low_u8 (p_request->wValue);
@@ -144,7 +143,7 @@ tusb_error_t hidd_control_request(uint8_t coreid, tusb_control_request_t const *
       dcd_pipe_control_xfer(coreid, TUSB_DIR_DEV_TO_HOST, p_hid->p_report_desc, p_hid->report_length);
     }else
     {
-      ASSERT_STATUS(TUSB_ERROR_FAILED);
+      dcd_pipe_control_stall(coreid);
     }
   }
   //------------- Class Specific Request -------------//
@@ -153,9 +152,9 @@ tusb_error_t hidd_control_request(uint8_t coreid, tusb_control_request_t const *
     switch(p_request->bRequest)
     {
       case HID_REQUEST_CONTROL_SET_IDLE:
-        p_hid->idle_rate = u16_high_u8(p_request->wValue);
+        // idle_rate = u16_high_u8(p_request->wValue);
         dcd_pipe_control_xfer(coreid, TUSB_DIR_HOST_TO_DEV, NULL, 0);
-        break;
+      break;
 
       case HID_REQUEST_CONTROL_SET_REPORT:
       {
@@ -171,12 +170,12 @@ tusb_error_t hidd_control_request(uint8_t coreid, tusb_control_request_t const *
       case HID_REQUEST_CONTROL_GET_PROTOCOL:
       case HID_REQUEST_CONTROL_SET_PROTOCOL:
       default:
-        ASSERT_STATUS(TUSB_ERROR_NOT_SUPPORTED_YET);
+        dcd_pipe_control_stall(coreid);
         return TUSB_ERROR_NOT_SUPPORTED_YET;
     }
   }else
   {
-    ASSERT_STATUS(TUSB_ERROR_FAILED);
+    dcd_pipe_control_stall(coreid);
   }
 
   return TUSB_ERROR_NONE;
@@ -200,25 +199,26 @@ tusb_error_t hidd_open(uint8_t coreid, tusb_descriptor_interface_t const * p_int
   {
     switch(p_interface_desc->bInterfaceProtocol)
     {
-      #if TUSB_CFG_DEVICE_HID_KEYBOARD
       case HID_PROTOCOL_KEYBOARD:
-//        memclr_(&keyboardd_data, sizeof(hidd_interface_t));
-
-        keyboardd_data.interface_number = p_interface_desc->bInterfaceNumber;
-        keyboardd_data.report_length    = p_desc_hid->wReportLength;
-        keyboardd_data.ept_handle       = dcd_pipe_open(coreid, p_desc_endpoint);
-        ASSERT( endpointhandle_is_valid(keyboardd_data.ept_handle), TUSB_ERROR_DCD_FAILED);
-      break;
-      #endif
-
-      #if TUSB_CFG_DEVICE_HID_MOUSE
       case HID_PROTOCOL_MOUSE:
-        moused_data.interface_number = p_interface_desc->bInterfaceNumber;
-        moused_data.report_length    = p_desc_hid->wReportLength;
-        moused_data.ept_handle       = dcd_pipe_open(coreid, p_desc_endpoint);
-        ASSERT( endpointhandle_is_valid(moused_data.ept_handle), TUSB_ERROR_DCD_FAILED);
+      {
+        hidd_interface_t* p_hid =
+            #if TUSB_CFG_DEVICE_HID_KEYBOARD
+              (p_interface_desc->bInterfaceProtocol == HID_PROTOCOL_KEYBOARD) ? &keyboardd_data :
+            #endif
+            #if TUSB_CFG_DEVICE_HID_MOUSE
+              (p_interface_desc->bInterfaceProtocol == HID_PROTOCOL_MOUSE) ? &moused_data :
+            #endif
+              NULL;
+
+        ASSERT_PTR(p_hid, TUSB_ERROR_FAILED);
+
+        p_hid->interface_number = p_interface_desc->bInterfaceNumber;
+        p_hid->report_length    = p_desc_hid->wReportLength;
+        p_hid->ept_handle       = dcd_pipe_open(coreid, p_desc_endpoint);
+        ASSERT( endpointhandle_is_valid(p_hid->ept_handle), TUSB_ERROR_DCD_FAILED);
+      }
       break;
-      #endif
 
       default: // TODO unknown, unsupported protocol --> skip this interface
         return TUSB_ERROR_HIDD_DESCRIPTOR_INTERFACE;
@@ -327,49 +327,7 @@ tusb_error_t hidd_configured(void)
 
   return TUSB_ERROR_NONE;
 }
-tusb_error_t hidd_open(uint8_t coreid, tusb_descriptor_interface_t const * p_interface_desc, uint16_t *p_length)
-{
-  uint8_t const *p_desc = (uint8_t const *) p_interface_desc;
 
-  //------------- HID descriptor -------------//
-  p_desc += p_desc[DESCRIPTOR_OFFSET_LENGTH];
-  tusb_hid_descriptor_hid_t const *p_desc_hid = (tusb_hid_descriptor_hid_t const *) p_desc;
-  ASSERT_INT(HID_DESC_TYPE_HID, p_desc_hid->bDescriptorType, TUSB_ERROR_HIDD_DESCRIPTOR_INTERFACE);
-
-  if (p_interface_desc->bInterfaceSubClass == HID_SUBCLASS_BOOT)
-  {
-    switch(p_interface_desc->bInterfaceProtocol)
-    {
-      #if TUSB_CFG_DEVICE_HID_KEYBOARD
-      case HID_PROTOCOL_KEYBOARD:
-        ASSERT_STATUS( hidd_interface_init(p_interface_desc,
-                                           app_tusb_keyboard_desc_report, p_desc_hid->wReportLength,
-                                           hidd_keyboard_buffer , sizeof(hidd_keyboard_buffer)) );
-      break;
-      #endif
-
-      #if TUSB_CFG_DEVICE_HID_MOUSE
-      case HID_PROTOCOL_MOUSE:
-        ASSERT_STATUS( hidd_interface_init(p_interface_desc,
-                                           app_tusb_mouse_desc_report, p_desc_hid->wReportLength,
-                                           hidd_mouse_buffer , sizeof(hidd_mouse_buffer)) );
-      break;
-      #endif
-
-      default: // TODO unknown, unsupported protocol --> skip this interface
-        return TUSB_ERROR_HIDD_DESCRIPTOR_INTERFACE;
-    }
-    *p_length = sizeof(tusb_descriptor_interface_t) + sizeof(tusb_hid_descriptor_hid_t) + sizeof(tusb_descriptor_endpoint_t);
-  }else
-  {
-    // open generic
-    *p_length = 0;
-    return TUSB_ERROR_HIDD_DESCRIPTOR_INTERFACE;
-  }
-
-
-  return TUSB_ERROR_NONE;
-}
 
 tusb_error_t hidd_interface_init(tusb_descriptor_interface_t const *p_interface_desc, uint8_t const * const p_report_desc,
                                  uint32_t report_length, uint8_t* mem_base, uint32_t mem_size)

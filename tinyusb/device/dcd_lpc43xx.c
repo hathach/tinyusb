@@ -328,6 +328,13 @@ endpoint_handle_t dcd_pipe_open(uint8_t coreid, tusb_descriptor_endpoint_t const
   if (p_endpoint_desc->bmAttributes.xfer == TUSB_XFER_ISOCHRONOUS)
     return null_handle; // TODO not support ISO yet
 
+  tusb_direction_t dir =  (p_endpoint_desc->bEndpointAddress & TUSB_DIR_DEV_TO_HOST_MASK) ? TUSB_DIR_DEV_TO_HOST : TUSB_DIR_HOST_TO_DEV;
+
+  //------------- Endpoint Control Register -------------//
+  volatile uint32_t * reg_control = (&LPC_USB0->ENDPTCTRL0) + (p_endpoint_desc->bEndpointAddress & 0x0f);
+
+  ASSERT_FALSE( (*reg_control) &  (ENDPTCTRL_MASK_ENABLE << (dir ? 16 : 0)), null_handle ); // endpoint must not be already enabled
+
   //------------- Prepare Queue Head -------------//
   uint8_t ep_idx = endpoint_addr2phy(p_endpoint_desc->bEndpointAddress);
   dcd_qhd_t * p_qhd = &dcd_data.qhd[ep_idx];
@@ -338,9 +345,7 @@ endpoint_handle_t dcd_pipe_open(uint8_t coreid, tusb_descriptor_endpoint_t const
   p_qhd->max_package_size = p_endpoint_desc->wMaxPacketSize.size;
   p_qhd->qtd_overlay.next = QTD_INVALID;
 
-  //------------- Endpoint Control Register -------------//
-  volatile uint32_t * reg_control = (&LPC_USB0->ENDPTCTRL0) + (p_endpoint_desc->bEndpointAddress & 0x0f);
-  (*reg_control) |= ((p_endpoint_desc->bmAttributes.xfer << 2) | ENDPTCTRL_MASK_ENABLE | ENDPTCTRL_MASK_TOGGLE_RESET) << ((p_endpoint_desc->bEndpointAddress & TUSB_DIR_DEV_TO_HOST_MASK) ? 16 : 0);
+  (*reg_control) |= ((p_endpoint_desc->bmAttributes.xfer << 2) | ENDPTCTRL_MASK_ENABLE | ENDPTCTRL_MASK_TOGGLE_RESET) << (dir ? 16 : 0);
 
   return (endpoint_handle_t) { .coreid = coreid, .xfer_type = p_endpoint_desc->bmAttributes.xfer, .index = ep_idx };
 }

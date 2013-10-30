@@ -124,27 +124,32 @@ tusb_error_t usbh_set_configure_received(uint8_t coreid, uint8_t config_number)
   dcd_controller_set_configuration(coreid, config_number);
   usbd_devices[coreid].state = TUSB_DEVICE_STATE_CONFIGURED;
 
-  uint16_t length = 0;
+  //------------- parse configuration & open drivers -------------//
+  uint8_t* p_desc_configure = (uint8_t*) &app_tusb_desc_configuration;
+  uint8_t* p_desc = p_desc_configure + sizeof(tusb_descriptor_configuration_t);
 
-  #if TUSB_CFG_DEVICE_HID_KEYBOARD
-  tusb_descriptor_interface_t const * p_kbd_interface = &app_tusb_desc_configuration.keyboard_interface;
-  usbd_devices[coreid].interface2class[p_kbd_interface->bInterfaceNumber] = p_kbd_interface->bInterfaceClass;
-
-  if (usbd_class_drivers[p_kbd_interface->bInterfaceClass].open )
+  while( p_desc < p_desc_configure + ((tusb_descriptor_configuration_t*)p_desc_configure)->wTotalLength )
   {
-    usbd_class_drivers[p_kbd_interface->bInterfaceClass].open(coreid, p_kbd_interface, &length);
-  }
-  #endif
+    ASSERT( TUSB_DESC_TYPE_INTERFACE == p_desc[DESCRIPTOR_OFFSET_TYPE], TUSB_ERROR_NOT_SUPPORTED_YET );
 
-  #if TUSB_CFG_DEVICE_HID_MOUSE
-  tusb_descriptor_interface_t const * p_mouse_interface = &app_tusb_desc_configuration.mouse_interface;
-  usbd_devices[coreid].interface2class[p_mouse_interface->bInterfaceNumber] = p_mouse_interface->bInterfaceClass;
+    uint8_t class_index;
+    tusb_descriptor_interface_t* p_desc_interface = (tusb_descriptor_interface_t*) p_desc;
 
-  if (usbd_class_drivers[p_mouse_interface->bInterfaceClass].open )
-  {
-    usbd_class_drivers[p_mouse_interface->bInterfaceClass].open(coreid, p_mouse_interface, &length);
+    class_index = p_desc_interface->bInterfaceClass;
+
+    ASSERT( class_index != 0 && usbd_class_drivers[class_index].open != NULL, TUSB_ERROR_NOT_SUPPORTED_YET );
+    ASSERT( 0 == usbd_devices[coreid].interface2class[p_desc_interface->bInterfaceNumber], TUSB_ERROR_FAILED); // duplicate interface number TODO alternate setting
+
+    usbd_devices[coreid].interface2class[p_desc_interface->bInterfaceNumber] = class_index;
+
+    uint16_t length=0;
+    ASSERT_STATUS( usbd_class_drivers[class_index].open( coreid, p_desc_interface, &length ) );
+
+    ASSERT( length >= sizeof(tusb_descriptor_interface_t), TUSB_ERROR_FAILED );
+
+    //      usbh_devices[new_addr].flag_supported_class |= BIT_(class_index);
+    p_desc += length;
   }
-  #endif
 
   return TUSB_ERROR_NONE;
 }
