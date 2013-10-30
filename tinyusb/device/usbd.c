@@ -146,6 +146,7 @@ tusb_error_t usbh_set_configure_received(uint8_t coreid, uint8_t config_number)
   }
   #endif
 
+  return TUSB_ERROR_NONE;
 }
 
 void usbd_setup_received_isr(uint8_t coreid, tusb_control_request_t * p_request)

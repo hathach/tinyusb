@@ -1,39 +1,40 @@
-/*
- * tusb_descriptors.c
- *
- *  Created on: Nov 26, 2012
- *      Author: hathach
- */
+/**************************************************************************/
+/*!
+    @file     tusb_descriptors.c
+    @author   hathach (tinyusb.org)
 
-/*
- * Software License Agreement (BSD License)
- * Copyright (c) 2012, hathach (tinyusb.org)
- * All rights reserved.
- *
- * Redistribution and use in source and binary forms, with or without modification,
- * are permitted provided that the following conditions are met:
- *
- * 1. Redistributions of source code must retain the above copyright notice,
- *    this list of conditions and the following disclaimer.
- * 2. Redistributions in binary form must reproduce the above copyright notice,
- *    this list of conditions and the following disclaimer in the documentation
- *    and/or other materials provided with the distribution.
- * 3. The name of the author may not be used to endorse or promote products
- *    derived from this software without specific prior written permission.
- *
- * THIS SOFTWARE IS PROVIDED BY THE AUTHOR ``AS IS'' AND ANY EXPRESS OR IMPLIED
- * WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF
- * MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT
- * SHALL THE AUTHOR BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL,
- * EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT
- * OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
- * INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
- * CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING
- * IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY
- * OF SUCH DAMAGE.
- *
- * This file is part of the tinyUSB stack
- */
+    @section LICENSE
+
+    Software License Agreement (BSD License)
+
+    Copyright (c) 2013, hathach (tinyusb.org)
+    All rights reserved.
+
+    Redistribution and use in source and binary forms, with or without
+    modification, are permitted provided that the following conditions are met:
+    1. Redistributions of source code must retain the above copyright
+    notice, this list of conditions and the following disclaimer.
+    2. Redistributions in binary form must reproduce the above copyright
+    notice, this list of conditions and the following disclaimer in the
+    documentation and/or other materials provided with the distribution.
+    3. Neither the name of the copyright holders nor the
+    names of its contributors may be used to endorse or promote products
+    derived from this software without specific prior written permission.
+
+    THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS ''AS IS'' AND ANY
+    EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
+    WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+    DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER BE LIABLE FOR ANY
+    DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
+    INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
+    LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION HOWEVER CAUSED AND
+    ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+    INCLUDING NEGLIGENCE OR OTHERWISE ARISING IN ANY WAY OUT OF THE USE OF THIS
+    SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
+    This file is part of the tinyusb stack.
+*/
+/**************************************************************************/
 
 #include "tusb_descriptors.h"
 
@@ -49,12 +50,12 @@ uint8_t app_tusb_keyboard_desc_report[] = {
       HID_LOGICAL_MIN  ( 0                                      ),
       HID_LOGICAL_MAX  ( 1                                      ),
 
-      HID_REPORT_COUNT ( 8                                      ), /* 8 bits */
       HID_REPORT_SIZE  ( 1                                      ),
+      HID_REPORT_COUNT ( 8                                      ), /* 8 bits */
       HID_INPUT        ( HID_DATA | HID_VARIABLE | HID_ABSOLUTE ), /* maskable modifier key */
 
-      HID_REPORT_COUNT ( 1                                      ),
       HID_REPORT_SIZE  ( 8                                      ),
+      HID_REPORT_COUNT ( 1                                      ),
       HID_INPUT        ( HID_CONSTANT                           ), /* reserved */
 
     HID_USAGE_PAGE  ( HID_USAGE_PAGE_LED                   ),
@@ -64,8 +65,8 @@ uint8_t app_tusb_keyboard_desc_report[] = {
       HID_REPORT_SIZE  ( 1                                       ),
       HID_OUTPUT       ( HID_DATA | HID_VARIABLE | HID_ABSOLUTE  ), /* 5-bit Led report */
 
-      HID_REPORT_COUNT ( 1                                       ),
       HID_REPORT_SIZE  ( 3                                       ), /* led padding */
+      HID_REPORT_COUNT ( 1                                       ),
       HID_OUTPUT       ( HID_CONSTANT                            ),
 
     HID_USAGE_PAGE (HID_USAGE_PAGE_KEYBOARD),
@@ -74,8 +75,8 @@ uint8_t app_tusb_keyboard_desc_report[] = {
       HID_LOGICAL_MIN  ( 0                                   ),
       HID_LOGICAL_MAX  ( 101                                 ),
 
-      HID_REPORT_COUNT ( 6                                   ),
       HID_REPORT_SIZE  ( 8                                   ),
+      HID_REPORT_COUNT ( 6                                   ),
       HID_INPUT        ( HID_DATA | HID_ARRAY | HID_ABSOLUTE ), /* keycodes array 6 items */
   HID_COLLECTION_END
 };
@@ -96,13 +97,13 @@ uint8_t app_tusb_mouse_desc_report[] = {
         HID_LOGICAL_MIN  ( 0                                      ),
         HID_LOGICAL_MAX  ( 1                                      ),
 
-        HID_REPORT_COUNT ( 3                                      ), /* Left, Right and Middle mouse*/
         HID_REPORT_SIZE  ( 1                                      ),
+        HID_REPORT_COUNT ( 3                                      ), /* Left, Right and Middle mouse*/
         HID_INPUT        ( HID_DATA | HID_VARIABLE | HID_ABSOLUTE ),
 
-        HID_REPORT_COUNT ( 1                                      ),
         HID_REPORT_SIZE  ( 5                                      ),
-        HID_INPUT        ( HID_CONSTANT                           ), /* reserved */
+        HID_REPORT_COUNT ( 1                                      ),
+        HID_INPUT        ( HID_CONSTANT                           ), /* 5 bit padding followed 3 bit buttons */
 
       HID_USAGE_PAGE  ( HID_USAGE_PAGE_DESKTOP ),
         HID_USAGE        ( HID_USAGE_DESKTOP_X                    ),
@@ -110,9 +111,17 @@ uint8_t app_tusb_mouse_desc_report[] = {
         HID_LOGICAL_MIN  ( 0x81                                   ), /* -127 */
         HID_LOGICAL_MAX  ( 0x7f                                   ), /* 127  */
 
-        HID_REPORT_COUNT ( 2                                      ), /* X, Y position */
         HID_REPORT_SIZE  ( 8                                      ),
+        HID_REPORT_COUNT ( 2                                      ), /* X, Y position */
         HID_INPUT        ( HID_DATA | HID_VARIABLE | HID_RELATIVE ), /* relative values */
+
+        HID_USAGE       ( HID_USAGE_DESKTOP_WHEEL                ), /* mouse scroll */
+        HID_LOGICAL_MIN ( 0x81                                   ), /* -127 */
+        HID_LOGICAL_MAX ( 0x7f                                   ), /* 127  */
+        HID_REPORT_COUNT( 1                                      ),
+        HID_REPORT_SIZE ( 8                                      ), /* 8-bit value */
+        HID_INPUT       ( HID_DATA | HID_VARIABLE | HID_RELATIVE ), /* relative values */
+
     HID_COLLECTION_END,
 
   HID_COLLECTION_END

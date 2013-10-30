@@ -100,7 +100,9 @@ void tusbd_hid_keyboard_isr(uint8_t coreid, tusb_event_t event);
 /** \defgroup Mouse_Device Device
  *  @{ */
 
-tusb_error_t tusbd_hid_mouse_send(uint8_t coreid, hid_mouse_report_t const *p_mouse_report);
+bool tusbd_hid_mouse_is_busy(uint8_t coreid);
+
+tusb_error_t tusbd_hid_mouse_send(uint8_t coreid, hid_mouse_report_t const *p_report);
 
 /** @} */
 /** @} */

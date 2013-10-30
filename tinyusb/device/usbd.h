@@ -50,11 +50,9 @@
 // INCLUDE
 //--------------------------------------------------------------------+
 #include "common/common.h"
-#include "osal/osal.h" // TODO refractor move to common.h ?
+#include "osal/osal.h"
+#include "dcd.h"
 
-#ifdef _TINY_USB_SOURCE_FILE_
-#include "dcd.h" // TODO hide from application include
-#endif
 //#include "tusb_descriptors.h"
 
 #ifdef __cplusplus

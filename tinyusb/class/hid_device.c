@@ -59,42 +59,64 @@ typedef struct {
   uint8_t interface_number;
   uint8_t idle_rate;  // need to be in usb ram
 
-  hid_keyboard_report_t report;
+  hid_keyboard_report_t report;  // need to be in usb ram
 }hidd_interface_t;
 
+
+//--------------------------------------------------------------------+
+// KEYBOARD APPLICATION API
+//--------------------------------------------------------------------+
 #if TUSB_CFG_DEVICE_HID_KEYBOARD
 STATIC_VAR TUSB_CFG_ATTR_USBRAM hidd_interface_t keyboardd_data =
 {
     .p_report_desc    = app_tusb_keyboard_desc_report
 };
-#endif
 
-#if TUSB_CFG_DEVICE_HID_MOUSE
-STATIC_VAR TUSB_CFG_ATTR_USBRAM hidd_interface_t moused_data =
-{
-    .p_report_desc    = app_tusb_mouse_desc_report
-};
-#endif
-
-
-//--------------------------------------------------------------------+
-// APPLICATION API
-//--------------------------------------------------------------------+
 bool tusbd_hid_keyboard_is_busy(uint8_t coreid)
 {
   return dcd_pipe_is_busy(keyboardd_data.ept_handle);
 }
 
-tusb_error_t tusbd_hid_keyboard_send(uint8_t coreid, hid_keyboard_report_t const *p_kbd_report)
+tusb_error_t tusbd_hid_keyboard_send(uint8_t coreid, hid_keyboard_report_t const *p_report)
 {
   //------------- verify data -------------//
 
   hidd_interface_t * p_kbd = &keyboardd_data; // TODO &keyboardd_data[coreid];
 
-  ASSERT_STATUS( dcd_pipe_xfer(p_kbd->ept_handle, p_kbd_report, sizeof(hid_keyboard_report_t), false) ) ;
+  ASSERT_STATUS( dcd_pipe_xfer(p_kbd->ept_handle, p_report, sizeof(hid_keyboard_report_t), false) ) ;
 
   return TUSB_ERROR_NONE;
 }
+#endif
+
+//--------------------------------------------------------------------+
+// MOUSE APPLICATION API
+//--------------------------------------------------------------------+
+#if TUSB_CFG_DEVICE_HID_MOUSE
+STATIC_VAR TUSB_CFG_ATTR_USBRAM hidd_interface_t moused_data =
+{
+    .p_report_desc    = app_tusb_mouse_desc_report
+};
+
+bool tusbd_hid_mouse_is_busy(uint8_t coreid)
+{
+  return dcd_pipe_is_busy(moused_data.ept_handle);
+}
+
+
+tusb_error_t tusbd_hid_mouse_send(uint8_t coreid, hid_mouse_report_t const *p_report)
+{
+  //------------- verify data -------------//
+
+  hidd_interface_t * p_mouse = &moused_data; // TODO &keyboardd_data[coreid];
+
+  ASSERT_STATUS( dcd_pipe_xfer(p_mouse->ept_handle, p_report, sizeof(hid_mouse_report_t), false) ) ;
+
+  return TUSB_ERROR_NONE;
+}
+
+#endif
+
 
 //--------------------------------------------------------------------+
 // USBD-CLASS API
@@ -105,7 +127,7 @@ tusb_error_t hidd_control_request(uint8_t coreid, tusb_control_request_t const *
     #if TUSB_CFG_DEVICE_HID_KEYBOARD
       (p_request->wIndex == keyboardd_data.interface_number) ? &keyboardd_data :
     #endif
-    #if TUSB_CFG_DEVICE_HID_KEYBOARD
+    #if TUSB_CFG_DEVICE_HID_MOUSE
       (p_request->wIndex == moused_data.interface_number) ? &moused_data :
     #endif
       NULL;
@@ -183,8 +205,8 @@ tusb_error_t hidd_open(uint8_t coreid, tusb_descriptor_interface_t const * p_int
 //        memclr_(&keyboardd_data, sizeof(hidd_interface_t));
 
         keyboardd_data.interface_number = p_interface_desc->bInterfaceNumber;
-        keyboardd_data.report_length = p_desc_hid->wReportLength;
-        keyboardd_data.ept_handle = dcd_pipe_open(coreid, p_desc_endpoint);
+        keyboardd_data.report_length    = p_desc_hid->wReportLength;
+        keyboardd_data.ept_handle       = dcd_pipe_open(coreid, p_desc_endpoint);
         ASSERT( endpointhandle_is_valid(keyboardd_data.ept_handle), TUSB_ERROR_DCD_FAILED);
       break;
       #endif
@@ -192,8 +214,8 @@ tusb_error_t hidd_open(uint8_t coreid, tusb_descriptor_interface_t const * p_int
       #if TUSB_CFG_DEVICE_HID_MOUSE
       case HID_PROTOCOL_MOUSE:
         moused_data.interface_number = p_interface_desc->bInterfaceNumber;
-        moused_data.report_length = p_desc_hid->wReportLength;
-        moused_data.ept_handle = dcd_pipe_open(coreid, p_desc_endpoint);
+        moused_data.report_length    = p_desc_hid->wReportLength;
+        moused_data.ept_handle       = dcd_pipe_open(coreid, p_desc_endpoint);
         ASSERT( endpointhandle_is_valid(moused_data.ept_handle), TUSB_ERROR_DCD_FAILED);
       break;
       #endif

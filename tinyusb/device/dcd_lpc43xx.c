@@ -122,7 +122,7 @@ typedef struct {
 
 }dcd_data_t;
 
-ATTR_ALIGNED(2048) dcd_data_t dcd_data;
+ATTR_ALIGNED(2048) dcd_data_t dcd_data TUSB_CFG_ATTR_USBRAM;
 
 //--------------------------------------------------------------------+
 // INTERNAL OBJECT & FUNCTION DECLARATION
@@ -199,6 +199,14 @@ void dcd_controller_set_configuration(uint8_t coreid, uint8_t config_num)
 void bus_reset(uint8_t coreid)
 {
   // TODO mutliple core id support
+
+  // The reset value for all endpoint types is the control endpoint. If one endpoint
+  //direction is enabled and the paired endpoint of opposite direction is disabled, then the
+  //endpoint type of the unused direction must bechanged from the control type to any other
+  //type (e.g. bulk). Leaving an unconfigured endpoint control will cause undefined behavior
+  //for the data PID tracking on the active endpoint.
+  LPC_USB0->ENDPTCTRL1 = LPC_USB0->ENDPTCTRL2 = LPC_USB0->ENDPTCTRL3 = LPC_USB0->ENDPTCTRL4 = LPC_USB0->ENDPTCTRL5 =
+      (TUSB_XFER_BULK << 2) | (TUSB_XFER_BULK << 18);
 
   //------------- Clear All Registers -------------//
   LPC_USB0->ENDPTNAK       = LPC_USB0->ENDPTNAK;
@@ -327,7 +335,7 @@ endpoint_handle_t dcd_pipe_open(uint8_t coreid, tusb_descriptor_endpoint_t const
 
   //------------- Endpoint Control Register -------------//
   volatile uint32_t * reg_control = (&LPC_USB0->ENDPTCTRL0) + (p_endpoint_desc->bEndpointAddress & 0x0f);
-  (*reg_control) = ((p_endpoint_desc->bmAttributes.xfer << 2) | ENDPTCTRL_MASK_ENABLE | ENDPTCTRL_MASK_TOGGLE_RESET) << ((p_endpoint_desc->bEndpointAddress & TUSB_DIR_DEV_TO_HOST_MASK) ? 16 : 0);
+  (*reg_control) |= ((p_endpoint_desc->bmAttributes.xfer << 2) | ENDPTCTRL_MASK_ENABLE | ENDPTCTRL_MASK_TOGGLE_RESET) << ((p_endpoint_desc->bEndpointAddress & TUSB_DIR_DEV_TO_HOST_MASK) ? 16 : 0);
 
   return (endpoint_handle_t) { .coreid = coreid, .xfer_type = p_endpoint_desc->bmAttributes.xfer, .index = ep_idx };
 }
@@ -383,7 +391,7 @@ void dcd_isr(uint8_t coreid)
 	if (int_status & INT_MASK_USB)
 	{
 		if (LPC_USB0->ENDPTSETUPSTAT)
-		{
+		{ // 23.10.10.2 Operational model for setup transfers
 		  tusb_control_request_t control_request = dcd_data.qhd[0].setup_request;
 
 		  LPC_USB0->ENDPTSETUPSTAT = LPC_USB0->ENDPTSETUPSTAT;
@@ -392,7 +400,8 @@ void dcd_isr(uint8_t coreid)
 
 		if (LPC_USB0->ENDPTCOMPLETE)
 		{
-//			TransferCompleteISR(DeviceID);
+//		  hal_debugger_breakpoint();
+		  LPC_USB0->ENDPTCOMPLETE = LPC_USB0->ENDPTCOMPLETE;
 		}
 	}
 

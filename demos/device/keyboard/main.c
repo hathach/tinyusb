@@ -90,9 +90,9 @@ void keyboard_device_app_task(void * p_para)
     static uint32_t count =0;
     if (count++ < 10)
     {
-      keyboard_report.keycode[0] = (count%2) ? 0x04 : 0x00;
       if (!tusbd_hid_keyboard_is_busy(0))
       {
+        keyboard_report.keycode[0] = (count%2) ? 0x04 : 0x00;
         tusbd_hid_keyboard_send(0, &keyboard_report );
       }
     }
@@ -104,15 +104,18 @@ void keyboard_device_app_task(void * p_para)
 hid_mouse_report_t mouse_report TUSB_CFG_ATTR_USBRAM;
 void mouse_device_app_task(void * p_para)
 {
-//  if (tusbd_is_configured(0))
-//  {
-//    static uint32_t count =0;
-//    if (count++ < 10)
-//    {
-//      mouse_report.x = mouse_report.y = 20;
-//      tusbd_hid_mouse_send( &mouse_report );
-//    }
-//  }
+  if (tusbd_is_configured(0))
+  {
+    static uint32_t count =0;
+    if (count++ < 10)
+    {
+      if ( !tusbd_hid_mouse_is_busy(0) )
+      {
+        mouse_report.x = mouse_report.y = 20;
+        tusbd_hid_mouse_send(0, &mouse_report );
+      }
+    }
+  }
 }
 #endif
 
