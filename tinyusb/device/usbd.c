@@ -96,6 +96,20 @@ void usbd_bus_reset(uint32_t coreid)
   memclr_(&usbd_devices[coreid], sizeof(usbd_device_info_t));
 }
 
+tusb_error_t usbd_init (void)
+{
+  ASSERT_STATUS ( usbd_string_descriptor_init() );
+
+  ASSERT_STATUS ( dcd_init() );
+
+  dcd_controller_connect(0);  // TODO USB1
+
+  return TUSB_ERROR_NONE;
+}
+
+//--------------------------------------------------------------------+
+// CONTROL REQUEST
+//--------------------------------------------------------------------+
 tusb_error_t usbh_set_configure_received(uint8_t coreid, uint8_t config_number)
 {
   dcd_controller_set_configuration(coreid, config_number);
@@ -174,6 +188,12 @@ void usbd_setup_received_isr(uint8_t coreid, tusb_control_request_t * p_request)
   {
     //------------- Standard Control such as those in enumeration -------------//
     case TUSB_REQUEST_RECIPIENT_DEVICE:
+      if (p_request->bmRequestType_bit.type != TUSB_REQUEST_TYPE_STANDARD)
+      {
+        error = TUSB_ERROR_DCD_CONTROL_REQUEST_NOT_SUPPORT;
+        break;
+      }
+
       switch ( p_request->bRequest )
       {
         case TUSB_REQUEST_GET_DESCRIPTOR:
@@ -210,6 +230,25 @@ void usbd_setup_received_isr(uint8_t coreid, tusb_control_request_t * p_request)
     }
     break;
 
+    //------------- Endpoint Request -------------//
+    case TUSB_REQUEST_RECIPIENT_ENDPOINT:
+      if (p_request->bmRequestType_bit.type != TUSB_REQUEST_TYPE_STANDARD)
+      {
+        error = TUSB_ERROR_DCD_CONTROL_REQUEST_NOT_SUPPORT;
+        break;
+      }
+
+      switch ( p_request->bRequest )
+      {
+        case TUSB_REQUEST_CLEAR_FEATURE:
+          dcd_pipe_clear_stall(coreid, u16_low_u8(p_request->wIndex) );
+          dcd_pipe_control_xfer(coreid, TUSB_DIR_HOST_TO_DEV, NULL, 0); // zero length
+        break;
+
+        default: error = TUSB_ERROR_DCD_CONTROL_REQUEST_NOT_SUPPORT; break;
+      }
+    break;
+
     default: error = TUSB_ERROR_DCD_CONTROL_REQUEST_NOT_SUPPORT; break;
   }
 
@@ -220,16 +259,6 @@ void usbd_setup_received_isr(uint8_t coreid, tusb_control_request_t * p_request)
   }
 }
 
-tusb_error_t usbd_init (void)
-{
-  ASSERT_STATUS ( usbd_string_descriptor_init() );
-
-  ASSERT_STATUS ( dcd_init() );
-
-  dcd_controller_connect(0);  // TODO USB1
-
-  return TUSB_ERROR_NONE;
-}
 
 //--------------------------------------------------------------------+
 // USBD-CLASS API

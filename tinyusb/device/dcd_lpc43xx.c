@@ -356,6 +356,15 @@ tusb_error_t dcd_pipe_stall(endpoint_handle_t edpt_hdl)
   return TUSB_ERROR_NONE;
 }
 
+tusb_error_t dcd_pipe_clear_stall(uint8_t coreid, uint8_t edpt_addr)
+{
+  volatile uint32_t * reg_control = (&LPC_USB0->ENDPTCTRL0) + edpt_phy2log( edpt_addr2phy(edpt_addr) );
+
+  (*reg_control) &= ~(ENDPTCTRL_MASK_STALL << ((edpt_addr & TUSB_DIR_DEV_TO_HOST_MASK) ? 16 : 0));
+
+  return TUSB_ERROR_NONE;
+}
+
 endpoint_handle_t dcd_pipe_open(uint8_t coreid, tusb_descriptor_endpoint_t const * p_endpoint_desc, uint8_t class_code)
 {
   // TODO USB1 only has 4 non-control enpoint (USB0 has 5)
@@ -446,13 +455,8 @@ tusb_error_t  dcd_pipe_xfer(endpoint_handle_t edpt_hdl, void* buffer, uint16_t t
 }
 
 //------------- Device Controller Driver's Interrupt Handler -------------//
-void xfer_complete_isr(uint8_t coreid, uint8_t reg_complete)
+void xfer_complete_isr(uint8_t coreid, uint32_t reg_complete)
 {
-  if (reg_complete & BIT_(3+16))
-  {
-    hal_debugger_breakpoint();
-  }
-
   // TODO currently exclude control
   for(uint8_t ep_idx = 2; ep_idx < DCD_QHD_MAX; ep_idx++)
   {
@@ -506,6 +510,7 @@ void dcd_isr(uint8_t coreid)
 
 	if (int_status & INT_MASK_USB)
 	{
+	  //------------- Set up Received -------------//
 		if (LPC_USB0->ENDPTSETUPSTAT)
 		{ // 23.10.10.2 Operational model for setup transfers
 		  tusb_control_request_t control_request = dcd_data.qhd[0].setup_request;
@@ -527,11 +532,12 @@ void dcd_isr(uint8_t coreid)
 		  usbd_setup_received_isr(coreid, &control_request);
 		}
 
-		if (LPC_USB0->ENDPTCOMPLETE)
-		{
-		  uint32_t edpt_complete = LPC_USB0->ENDPTCOMPLETE;
-		  LPC_USB0->ENDPTCOMPLETE = edpt_complete; // acknowledge
+		//------------- Transfer Complete -------------//
+		uint32_t edpt_complete = LPC_USB0->ENDPTCOMPLETE;
+		LPC_USB0->ENDPTCOMPLETE = edpt_complete; // acknowledge
 
+		if (edpt_complete)
+		{
 		  xfer_complete_isr(coreid, edpt_complete);
 		}
 	}

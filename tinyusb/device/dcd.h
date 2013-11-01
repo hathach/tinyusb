@@ -93,6 +93,7 @@ endpoint_handle_t dcd_pipe_open(uint8_t coreid, tusb_descriptor_endpoint_t const
 tusb_error_t dcd_pipe_queue_xfer(endpoint_handle_t edpt_hdl, void * buffer, uint16_t total_bytes) ATTR_WARN_UNUSED_RESULT; // only queue, not transferring yet
 tusb_error_t dcd_pipe_xfer(endpoint_handle_t edpt_hdl, void * buffer, uint16_t total_bytes, bool int_on_complete)  ATTR_WARN_UNUSED_RESULT;
 tusb_error_t dcd_pipe_stall(endpoint_handle_t edpt_hdl) ATTR_WARN_UNUSED_RESULT;
+tusb_error_t dcd_pipe_clear_stall(uint8_t coreid, uint8_t edpt_addr); // TODO coreid + endpoint address are part of endpoint handle, not endpoint handle
 
 #ifdef __cplusplus
  }

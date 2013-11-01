@@ -149,24 +149,21 @@ void mscd_isr(endpoint_handle_t edpt_hdl, tusb_event_t event, uint32_t xferred_b
   p_msc->csw.data_residue = 0; // TODO expected length, response length
 
   //------------- Data Phase -------------//
-  if ( (p_msc->cbw.dir & BIT_(7)) && p_buffer == NULL )
+  if ( BIT_TEST_(p_msc->cbw.dir, 7) && p_buffer == NULL )
   { // application does not provide data to response --> possibly unsupported SCSI command
     ASSERT( TUSB_ERROR_NONE == dcd_pipe_stall(p_msc->edpt_in), VOID_RETURN );
-  }
-
-  if ( p_msc->cbw.dir & BIT_(7) )
+    p_msc->csw.status = MSC_CSW_STATUS_FAILED;
+  }else
   {
-    ASSERT( dcd_pipe_queue_xfer(p_msc->edpt_in, p_buffer, p_msc->cbw.xfer_bytes) == TUSB_ERROR_NONE, VOID_RETURN);
-  } else
-  {
-    ASSERT( dcd_pipe_queue_xfer(p_msc->edpt_out, p_buffer, p_msc->cbw.xfer_bytes) == TUSB_ERROR_NONE, VOID_RETURN);
+    ASSERT( dcd_pipe_queue_xfer( BIT_TEST_(p_msc->cbw.dir, 7) ? p_msc->edpt_in : p_msc->edpt_out,
+                                 p_buffer, p_msc->cbw.xfer_bytes) == TUSB_ERROR_NONE, VOID_RETURN);
   }
 
   //------------- Status Phase -------------//
   ASSERT( dcd_pipe_xfer( p_msc->edpt_in , &p_msc->csw, sizeof(msc_cmd_status_wrapper_t), true) == TUSB_ERROR_NONE, VOID_RETURN );
 
   //------------- Queue the next CBW -------------//
-//  ASSERT( dcd_pipe_xfer( p_msc->edpt_out, &p_msc->cbw, sizeof(msc_cmd_block_wrapper_t), true) == TUSB_ERROR_NONE, VOID_RETURN );
+  ASSERT( dcd_pipe_xfer( p_msc->edpt_out, &p_msc->cbw, sizeof(msc_cmd_block_wrapper_t), true) == TUSB_ERROR_NONE, VOID_RETURN );
 
 }
 
