@@ -121,12 +121,13 @@ STATIC_ASSERT(sizeof(msc_cmd_status_wrapper_t) == 13, "size is not correct");
 
 /// SCSI Command Operation Code
 typedef enum {
-  SCSI_CMD_TEST_UNIT_READY  = 0x00, ///< The SCSI Test Unit Ready command is used to determine if a device is ready to transfer data (read/write), i.e. if a disk has spun up, if a tape is loaded and ready etc. The device does not perform a self-test operation.
-  SCSI_CMD_INQUIRY          = 0x12, ///< The SCSI Inquiry command is used to obtain basic information from a target device.
-  SCSI_CMD_READ_CAPACITY_10 = 0x25, ///< The SCSI Read Capacity command is used to obtain data capacity information from a target device.
-  SCSI_CMD_REQUEST_SENSE    = 0x03, ///< The SCSI Request Sense command is part of the SCSI computer protocol standard. This command is used to obtain sense data -- status/error information -- from a target device.
-  SCSI_CMD_READ_10          = 0x28, ///< The READ (10) command requests that the device server read the specified logical block(s) and transfer them to the data-in buffer.
-  SCSI_CMD_WRITE_10         = 0x2A, ///< The WRITE (10) command requests thatthe device server transfer the specified logical block(s) from the data-out buffer and write them.
+  SCSI_CMD_TEST_UNIT_READY      = 0x00, ///< The SCSI Test Unit Ready command is used to determine if a device is ready to transfer data (read/write), i.e. if a disk has spun up, if a tape is loaded and ready etc. The device does not perform a self-test operation.
+  SCSI_CMD_INQUIRY              = 0x12, ///< The SCSI Inquiry command is used to obtain basic information from a target device.
+  SCSI_CMD_READ_CAPACITY_10     = 0x25, ///< The SCSI Read Capacity command is used to obtain data capacity information from a target device.
+  SCSI_CMD_REQUEST_SENSE        = 0x03, ///< The SCSI Request Sense command is part of the SCSI computer protocol standard. This command is used to obtain sense data -- status/error information -- from a target device.
+  SCSI_CMD_READ_FORMAT_CAPACITY = 0x23, ///< The command allows the Host to request a list of the possible format capacities for an installed writable media. This command also has the capability to report the writable capacity for a media when it is installed
+  SCSI_CMD_READ_10              = 0x28, ///< The READ (10) command requests that the device server read the specified logical block(s) and transfer them to the data-in buffer.
+  SCSI_CMD_WRITE_10             = 0x2A, ///< The WRITE (10) command requests thatthe device server transfer the specified logical block(s) from the data-out buffer and write them.
 }scsi_cmd_type_t;
 
 //--------------------------------------------------------------------+
@@ -201,12 +202,65 @@ typedef ATTR_PACKED_STRUCT(struct)
 
 STATIC_ASSERT(sizeof(scsi_inquiry_data_t) == 36, "size is not correct");
 
+
+typedef ATTR_PACKED_STRUCT(struct) {
+  uint8_t response_code           : 7; ///< 70h - current errors, Fixed Format 71h - deferred errors, Fixed Format
+  uint8_t valid                   : 1;
+
+  uint8_t reserved; ///< Obsolete
+
+  uint8_t sense_key               : 4;
+  uint8_t                         : 1;
+  uint8_t incorrect_len_idicatior : 1;
+  uint8_t end_of_medium           : 1;
+  uint8_t filemark                : 1;
+
+  uint32_t information;
+  uint8_t  additional_sense_len;
+  uint32_t command_specific_info;
+  uint8_t additional_sense_code;
+  uint8_t additional_sense_qualifier;
+  uint8_t field_replaceable_unit_code;
+
+  uint8_t sense_key_specific[3]; ///< sense key specific valid bit is bit 7 of key[0], aka MSB in Big Endian layout
+
+} scsi_sense_fixed_data_t;
+
+STATIC_ASSERT(sizeof(scsi_sense_fixed_data_t) == 18, "size is not correct");
+
+//--------------------------------------------------------------------+
+// SCSI MMC
+//--------------------------------------------------------------------+
+/// SCSI Read Format Capacity: Write Capacity
+typedef ATTR_PACKED_STRUCT(struct) {
+  uint8_t cmd_code;
+  uint8_t reserved[6];
+  uint16_t alloc_length;
+  uint8_t control;
+} scsi_read_format_capacity_t;
+
+STATIC_ASSERT( sizeof(scsi_read_format_capacity_t) == 10, "size is not correct");
+
+typedef ATTR_PACKED_STRUCT(struct){
+  uint8_t reserved[3];
+  uint8_t list_length; /// must be 8*n, length in bytes of formattable capacity descriptor followed it.
+
+  uint32_t block_num; /// Number of Logical Blocks
+  uint8_t  descriptor_type; // 00: reserved, 01 unformatted media , 10 Formatted media, 11 No media present
+
+  uint8_t  reserved2;
+  uint16_t block_size;
+
+} scsi_read_format_capacity_data_t;
+
+STATIC_ASSERT( sizeof(scsi_read_format_capacity_data_t) == 12, "size is not correct");
+
 //--------------------------------------------------------------------+
 // SCSI Block Command (SBC-3)
 // NOTE: All data in SCSI command are in Big Endian
 //--------------------------------------------------------------------+
 
-/// SCSI Read Capacity 10 Command
+/// SCSI Read Capacity 10 Command: Read Capacity
 typedef ATTR_PACKED_STRUCT(struct) {
   uint8_t  cmd_code                 ; ///< SCSI OpCode for \ref SCSI_CMD_READ_CAPACITY_10
   uint8_t  reserved1                ;

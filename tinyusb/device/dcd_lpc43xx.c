@@ -360,6 +360,8 @@ tusb_error_t dcd_pipe_clear_stall(uint8_t coreid, uint8_t edpt_addr)
 {
   volatile uint32_t * reg_control = (&LPC_USB0->ENDPTCTRL0) + edpt_phy2log( edpt_addr2phy(edpt_addr) );
 
+  // data toggle also need to be reset
+  (*reg_control) |= ENDPTCTRL_MASK_TOGGLE_RESET << ((edpt_addr & TUSB_DIR_DEV_TO_HOST_MASK) ? 16 : 0);
   (*reg_control) &= ~(ENDPTCTRL_MASK_STALL << ((edpt_addr & TUSB_DIR_DEV_TO_HOST_MASK) ? 16 : 0));
 
   return TUSB_ERROR_NONE;
@@ -482,6 +484,7 @@ void xfer_complete_isr(uint8_t coreid, uint32_t reg_complete)
         //------------- Free QTD and shift array list -------------//
         p_qtd->used = 0; // free QTD
         memmove(p_qhd->list_qtd_idx, p_qhd->list_qtd_idx+1, DCD_QTD_PER_QHD_MAX-1);
+        p_qhd->list_qtd_idx[DCD_QTD_PER_QHD_MAX-1]=0;
 
         if (p_qtd->int_on_complete)
         {

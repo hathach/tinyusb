@@ -141,12 +141,14 @@ void mscd_isr(endpoint_handle_t edpt_hdl, tusb_event_t event, uint32_t xferred_b
           p_msc->cbw.signature == MSC_CBW_SIGNATURE, VOID_RETURN );
 
   void *p_buffer = NULL;
+  uint16_t actual_length = p_msc->cbw.xfer_bytes;
 
-  p_msc->csw.signature = MSC_CSW_SIGNATURE;
-  p_msc->csw.tag = p_msc->cbw.tag;
-
-  p_msc->csw.status = tusbd_msc_scsi_received_isr(edpt_hdl.coreid, p_msc->cbw.lun, p_msc->cbw.command, &p_buffer, p_msc->cbw.xfer_bytes);
+  p_msc->csw.signature    = MSC_CSW_SIGNATURE;
+  p_msc->csw.tag          = p_msc->cbw.tag;
+  p_msc->csw.status       = tusbd_msc_scsi_received_isr(edpt_hdl.coreid, p_msc->cbw.lun, p_msc->cbw.command, &p_buffer, &actual_length);
   p_msc->csw.data_residue = 0; // TODO expected length, response length
+
+  ASSERT( p_msc->cbw.xfer_bytes >= actual_length, VOID_RETURN );
 
   //------------- Data Phase -------------//
   if ( BIT_TEST_(p_msc->cbw.dir, 7) && p_buffer == NULL )
@@ -156,7 +158,7 @@ void mscd_isr(endpoint_handle_t edpt_hdl, tusb_event_t event, uint32_t xferred_b
   }else
   {
     ASSERT( dcd_pipe_queue_xfer( BIT_TEST_(p_msc->cbw.dir, 7) ? p_msc->edpt_in : p_msc->edpt_out,
-                                 p_buffer, p_msc->cbw.xfer_bytes) == TUSB_ERROR_NONE, VOID_RETURN);
+                                 p_buffer, actual_length) == TUSB_ERROR_NONE, VOID_RETURN);
   }
 
   //------------- Status Phase -------------//

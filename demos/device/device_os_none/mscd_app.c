@@ -46,6 +46,12 @@
 //--------------------------------------------------------------------+
 // MACRO CONSTANT TYPEDEF
 //--------------------------------------------------------------------+
+enum
+{
+  DISK_CAPACITY   = 16 * 1024 * 1024,
+  DISK_BLOCK_SIZE = 512
+};
+
 static scsi_inquiry_data_t mscd_inquiry_data TUSB_CFG_ATTR_USBRAM =
 {
     .is_removable         = 1,
@@ -54,12 +60,27 @@ static scsi_inquiry_data_t mscd_inquiry_data TUSB_CFG_ATTR_USBRAM =
     .vendor_id            = "tinyusb",
     .product_id           = "MSC Example",
     .product_revision     = "0.01"
-} ;
+};
 
 static scsi_read_capacity10_data_t mscd_read_capacity10_data TUSB_CFG_ATTR_USBRAM =
 {
-    .last_lba   = (16*1024*1024)/512,
-    .block_size = 512
+    .last_lba   = DISK_CAPACITY / DISK_BLOCK_SIZE, // read capacity
+    .block_size = DISK_BLOCK_SIZE
+};
+
+static scsi_sense_fixed_data_t mscd_sense_data TUSB_CFG_ATTR_USBRAM =
+{
+    .response_code        = 0x70,
+    .sense_key            = 0, // no errors
+    .additional_sense_len = sizeof(scsi_sense_fixed_data_t) - 8
+};
+
+static scsi_read_format_capacity_data_t mscd_format_capacity_data TUSB_CFG_ATTR_USBRAM =
+{
+    .list_length     = 8,
+    .block_num       = DISK_CAPACITY / DISK_BLOCK_SIZE, // write capacity
+    .descriptor_type = 2, // TODO formatted media, refractor to const
+    .block_size      = DISK_BLOCK_SIZE
 };
 
 //--------------------------------------------------------------------+
@@ -69,16 +90,28 @@ static scsi_read_capacity10_data_t mscd_read_capacity10_data TUSB_CFG_ATTR_USBRA
 //--------------------------------------------------------------------+
 // tinyusb callback (ISR context)
 //--------------------------------------------------------------------+
-msc_csw_status_t tusbd_msc_scsi_received_isr(uint8_t coreid, uint8_t lun, uint8_t scsi_cmd[16], void ** pp_buffer, uint16_t expected_length)
+msc_csw_status_t tusbd_msc_scsi_received_isr (uint8_t coreid, uint8_t lun, uint8_t scsi_cmd[16], void ** pp_buffer, uint16_t* p_length)
 {
-  switch(scsi_cmd[0])
+  switch (scsi_cmd[0])
   {
     case SCSI_CMD_INQUIRY:
       (*pp_buffer) = &mscd_inquiry_data;
+      (*p_length)  = sizeof(scsi_inquiry_data_t);
     break;
 
     case SCSI_CMD_READ_CAPACITY_10:
       (*pp_buffer) = &mscd_read_capacity10_data;
+      (*p_length)  = sizeof(scsi_read_capacity10_data_t);
+    break;
+
+    case SCSI_CMD_REQUEST_SENSE:
+      (*pp_buffer) = &mscd_sense_data;
+      (*p_length)  = sizeof(scsi_sense_fixed_data_t);
+    break;
+
+    case  SCSI_CMD_READ_FORMAT_CAPACITY:
+      (*pp_buffer) = &mscd_format_capacity_data;
+      (*p_length)  = sizeof(scsi_read_format_capacity_data_t);
     break;
 
     default: return MSC_CSW_STATUS_FAILED;

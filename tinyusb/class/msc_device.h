@@ -50,7 +50,8 @@
 //--------------------------------------------------------------------+
 // APPLICATION API
 //--------------------------------------------------------------------+
-msc_csw_status_t tusbd_msc_scsi_received_isr(uint8_t coreid, uint8_t lun, uint8_t scsi_cmd[16], void ** pp_buffer, uint16_t expected_length);
+// p_length [in,out] allocated/maximum length, application update with actual length
+msc_csw_status_t tusbd_msc_scsi_received_isr (uint8_t coreid, uint8_t lun, uint8_t scsi_cmd[16], void ** pp_buffer, uint16_t* p_length);
 
 //--------------------------------------------------------------------+
 // USBD-CLASS DRIVER API
