@@ -1,6 +1,6 @@
 /**************************************************************************/
 /*!
-    @file     msc_app.h
+    @file     msc_device.h
     @author   hathach (tinyusb.org)
 
     @section LICENSE
@@ -36,33 +36,30 @@
 */
 /**************************************************************************/
 
-/** \ingroup TBD
- *  \defgroup TBD
- *  \brief TBD
- *
- *  @{
- */
+#ifndef _TUSB_MSC_DEVICE_H_
+#define _TUSB_MSC_DEVICE_H_
 
-#ifndef _TUSB_MSC_APP_H_
-#define _TUSB_MSC_APP_H_
-
-#include "boards/board.h"
-#include "tusb.h"
-
+#include "common/common.h"
+#include "device/usbd.h"
+#include "msc.h"
 
 #ifdef __cplusplus
  extern "C" {
 #endif
 
-#if TUSB_CFG_HOST_MSC
+//--------------------------------------------------------------------+
+// APPLICATION API
+//--------------------------------------------------------------------+
+msc_csw_status_t tusbd_msc_scsi_received_isr(uint8_t coreid, uint8_t lun, uint8_t scsi_cmd[16], void ** pp_buffer, uint16_t expected_length);
 
-void msc_app_init(void);
-OSAL_TASK_FUNCTION( msc_app_task ) (void* p_task_para);
+//--------------------------------------------------------------------+
+// USBD-CLASS DRIVER API
+//--------------------------------------------------------------------+
+#ifdef _TINY_USB_SOURCE_FILE_
 
-#else
-
-#define msc_app_init()
-#define msc_app_task(x)
+tusb_error_t mscd_open(uint8_t coreid, tusb_descriptor_interface_t const * p_interface_desc, uint16_t *p_length);
+tusb_error_t mscd_control_request(uint8_t coreid, tusb_control_request_t const * p_request);
+void mscd_isr(endpoint_handle_t edpt_hdl, tusb_event_t event, uint32_t xferred_bytes);
 
 #endif
 
@@ -70,6 +67,6 @@ OSAL_TASK_FUNCTION( msc_app_task ) (void* p_task_para);
  }
 #endif
 
-#endif /* _TUSB_MSC_APP_H_ */
+#endif /* _TUSB_MSC_DEVICE_H_ */
 
 /** @} */

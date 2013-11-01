@@ -138,13 +138,10 @@ tusb_error_t hidd_control_request(uint8_t coreid, tusb_control_request_t const *
     uint8_t const desc_type  = u16_high_u8(p_request->wValue);
     uint8_t const desc_index = u16_low_u8 (p_request->wValue);
 
-    if ( p_request->bRequest == TUSB_REQUEST_GET_DESCRIPTOR && desc_type == HID_DESC_TYPE_REPORT)
-    {
-      dcd_pipe_control_xfer(coreid, TUSB_DIR_DEV_TO_HOST, p_hid->p_report_desc, p_hid->report_length);
-    }else
-    {
-      dcd_pipe_control_stall(coreid);
-    }
+    ASSERT ( p_request->bRequest == TUSB_REQUEST_GET_DESCRIPTOR && desc_type == HID_DESC_TYPE_REPORT,
+             TUSB_ERROR_DCD_CONTROL_REQUEST_NOT_SUPPORT);
+
+    dcd_pipe_control_xfer(coreid, TUSB_DIR_DEV_TO_HOST, p_hid->p_report_desc, p_hid->report_length);
   }
   //------------- Class Specific Request -------------//
   else if (p_request->bmRequestType_bit.type == TUSB_REQUEST_TYPE_CLASS)
@@ -170,12 +167,11 @@ tusb_error_t hidd_control_request(uint8_t coreid, tusb_control_request_t const *
       case HID_REQUEST_CONTROL_GET_PROTOCOL:
       case HID_REQUEST_CONTROL_SET_PROTOCOL:
       default:
-        dcd_pipe_control_stall(coreid);
-        return TUSB_ERROR_NOT_SUPPORTED_YET;
+        return TUSB_ERROR_DCD_CONTROL_REQUEST_NOT_SUPPORT;
     }
   }else
   {
-    dcd_pipe_control_stall(coreid);
+    return TUSB_ERROR_DCD_CONTROL_REQUEST_NOT_SUPPORT;
   }
 
   return TUSB_ERROR_NONE;
@@ -215,7 +211,7 @@ tusb_error_t hidd_open(uint8_t coreid, tusb_descriptor_interface_t const * p_int
 
         p_hid->interface_number = p_interface_desc->bInterfaceNumber;
         p_hid->report_length    = p_desc_hid->wReportLength;
-        p_hid->ept_handle       = dcd_pipe_open(coreid, p_desc_endpoint);
+        p_hid->ept_handle       = dcd_pipe_open(coreid, p_desc_endpoint, p_interface_desc->bInterfaceClass);
         ASSERT( endpointhandle_is_valid(p_hid->ept_handle), TUSB_ERROR_DCD_FAILED);
       }
       break;
@@ -233,6 +229,7 @@ tusb_error_t hidd_open(uint8_t coreid, tusb_descriptor_interface_t const * p_int
   return TUSB_ERROR_NONE;
 }
 
+void hidd_isr(endpoint_handle_t edpt_hdl, tusb_event_t event, uint32_t xferred_bytes);
 
 #if defined(CAP_DEVICE_ROMDRIVER) && TUSB_CFG_DEVICE_USE_ROM_DRIVER
 #include "device/dcd_nxp_romdriver.h" // TODO remove rom driver dependency

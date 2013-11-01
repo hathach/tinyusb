@@ -187,8 +187,8 @@ tusb_error_t dcd_init(void)
 {
   //------------- user manual 11.13 usb device controller initialization -------------//  LPC_USB->USBEpInd = 0;
   // step 6 : set up control endpoint
-  endpoint_set_max_packet_size(0, TUSB_CFG_DEVICE_CONTROL_PACKET_SIZE);
-  endpoint_set_max_packet_size(1, TUSB_CFG_DEVICE_CONTROL_PACKET_SIZE);
+  endpoint_set_max_packet_size(0, TUSB_CFG_DEVICE_CONTROL_ENDOINT_SIZE);
+  endpoint_set_max_packet_size(1, TUSB_CFG_DEVICE_CONTROL_ENDOINT_SIZE);
 
 	// step 7 : slave mode set up
 	LPC_USB->USBEpIntEn      = (uint32_t) BIN8(11); // control endpoint cannot use DMA, non-control all use DMA

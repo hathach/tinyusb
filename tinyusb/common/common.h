@@ -52,6 +52,14 @@
 #endif
 
 //--------------------------------------------------------------------+
+// MACROS
+//--------------------------------------------------------------------+
+#define STRING_(x)  #x                             // stringify without expand
+#define XSTRING_(x) STRING_(x)                     // expand then stringify
+#define STRING_CONCAT_(a, b) a##b                  // concat without expand
+#define XSTRING_CONCAT_(a, b) STRING_CONCAT_(a, b) // expand then concat
+
+//--------------------------------------------------------------------+
 // INCLUDES
 //--------------------------------------------------------------------+
 
@@ -74,6 +82,7 @@
 #include "tusb_types.h"
 #include "std_descriptors.h"
 #include "std_request.h"
+
 
 //--------------------------------------------------------------------+
 // MACROS

@@ -89,6 +89,10 @@
   #if TUSB_CFG_DEVICE_CDC
     #include "class/cdc.h"
   #endif
+
+  #if TUSB_CFG_DEVICE_MSC
+    #include "class/msc_device.h"
+  #endif
 #endif
 
 

@@ -1,6 +1,6 @@
 /**************************************************************************/
 /*!
-    @file     msc_app.h
+    @file     mscd_app.c
     @author   hathach (tinyusb.org)
 
     @section LICENSE
@@ -36,40 +36,60 @@
 */
 /**************************************************************************/
 
-/** \ingroup TBD
- *  \defgroup TBD
- *  \brief TBD
- *
- *  @{
- */
+#include "mscd_app.h"
 
-#ifndef _TUSB_MSC_APP_H_
-#define _TUSB_MSC_APP_H_
+#if TUSB_CFG_DEVICE_MSC
+//--------------------------------------------------------------------+
+// INCLUDE
+//--------------------------------------------------------------------+
 
-#include "boards/board.h"
-#include "tusb.h"
+//--------------------------------------------------------------------+
+// MACRO CONSTANT TYPEDEF
+//--------------------------------------------------------------------+
+static scsi_inquiry_data_t mscd_inquiry_data TUSB_CFG_ATTR_USBRAM =
+{
+    .is_removable         = 1,
+    .version              = 2,
+    .response_data_format = 2,
+    .vendor_id            = "tinyusb",
+    .product_id           = "MSC Example",
+    .product_revision     = "0.01"
+} ;
+
+static scsi_read_capacity10_data_t mscd_read_capacity10_data TUSB_CFG_ATTR_USBRAM =
+{
+    .last_lba   = (16*1024*1024)/512,
+    .block_size = 512
+};
+
+//--------------------------------------------------------------------+
+// INTERNAL OBJECT & FUNCTION DECLARATION
+//--------------------------------------------------------------------+
+
+//--------------------------------------------------------------------+
+// tinyusb callback (ISR context)
+//--------------------------------------------------------------------+
+msc_csw_status_t tusbd_msc_scsi_received_isr(uint8_t coreid, uint8_t lun, uint8_t scsi_cmd[16], void ** pp_buffer, uint16_t expected_length)
+{
+  switch(scsi_cmd[0])
+  {
+    case SCSI_CMD_INQUIRY:
+      (*pp_buffer) = &mscd_inquiry_data;
+    break;
+
+    case SCSI_CMD_READ_CAPACITY_10:
+
+    break;
+
+    default: return MSC_CSW_STATUS_FAILED;
+  }
+
+  return MSC_CSW_STATUS_PASSED;
+}
+
+//--------------------------------------------------------------------+
+// IMPLEMENTATION
+//--------------------------------------------------------------------+
 
 
-#ifdef __cplusplus
- extern "C" {
 #endif
-
-#if TUSB_CFG_HOST_MSC
-
-void msc_app_init(void);
-OSAL_TASK_FUNCTION( msc_app_task ) (void* p_task_para);
-
-#else
-
-#define msc_app_init()
-#define msc_app_task(x)
-
-#endif
-
-#ifdef __cplusplus
- }
-#endif
-
-#endif /* _TUSB_MSC_APP_H_ */
-
-/** @} */

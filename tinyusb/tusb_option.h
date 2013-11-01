@@ -171,6 +171,9 @@
 
 #define DEVICE_CLASS_HID ( TUSB_CFG_DEVICE_HID_KEYBOARD + TUSB_CFG_DEVICE_HID_MOUSE + TUSB_CFG_DEVICE_HID_GENERIC )
 
+#if TUSB_CFG_DEVICE_CONTROL_ENDOINT_SIZE > 64
+  #error Control Endpoint Max Package Size cannot larger than 64
+#endif
 
 #endif // MODE_DEVICE_SUPPORTED
 

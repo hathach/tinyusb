@@ -291,7 +291,7 @@ typedef struct {
 
 	/// SITD is 32-byte aligned but occupies only 28 --> 6 bytes for storing extra data
 	uint8_t used;
-	uint8_t IhdIdx;
+	uint8_t ihd_idx;
 	uint8_t reserved2[2];
 }ATTR_ALIGNED(32) ehci_sitd_t;
 

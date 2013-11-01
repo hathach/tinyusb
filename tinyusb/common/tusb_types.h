@@ -210,6 +210,18 @@ enum {
   DESCRIPTOR_OFFSET_TYPE   = 1
 };
 
+static inline uint8_t std_class_code_to_index(uint8_t std_class_code) ATTR_CONST ATTR_ALWAYS_INLINE;
+static inline uint8_t std_class_code_to_index(uint8_t std_class_code)
+{
+  return  (std_class_code <= TUSB_CLASS_AUDIO_VIDEO          ) ? std_class_code                   :
+          (std_class_code == TUSB_CLASS_DIAGNOSTIC           ) ? TUSB_CLASS_MAPPED_INDEX_START     :
+          (std_class_code == TUSB_CLASS_WIRELESS_CONTROLLER  ) ? TUSB_CLASS_MAPPED_INDEX_START + 1 :
+          (std_class_code == TUSB_CLASS_MISC                 ) ? TUSB_CLASS_MAPPED_INDEX_START + 2 :
+          (std_class_code == TUSB_CLASS_APPLICATION_SPECIFIC ) ? TUSB_CLASS_MAPPED_INDEX_START + 3 :
+          (std_class_code == TUSB_CLASS_VENDOR_SPECIFIC      ) ? TUSB_CLASS_MAPPED_INDEX_START + 4 : 0;
+}
+
+
 #ifdef __cplusplus
  }
 #endif

@@ -58,7 +58,7 @@ STATIC_VAR msch_interface_t msch_data[TUSB_CFG_HOST_DEVICE_MAX] TUSB_CFG_ATTR_US
 OSAL_SEM_DEF(msch_semaphore);
 static osal_semaphore_handle_t msch_sem_hdl;
 
-// buffer used to read scsi information when mounted, largest reponse data currently is inquiry
+// buffer used to read scsi information when mounted, largest response data currently is inquiry
 ATTR_ALIGNED(4) STATIC_VAR uint8_t msch_buffer[sizeof(scsi_inquiry_data_t)] TUSB_CFG_ATTR_USBRAM;
 
 //--------------------------------------------------------------------+
@@ -125,7 +125,7 @@ static tusb_error_t msch_command_xfer(msch_interface_t * p_msch, void* p_buffer)
 {
   if ( NULL != p_buffer)
   { // there is data phase
-    if (p_msch->cbw.flags & TUSB_DIR_DEV_TO_HOST_MASK)
+    if (p_msch->cbw.dir & TUSB_DIR_DEV_TO_HOST_MASK)
     {
       ASSERT_STATUS( hcd_pipe_xfer(p_msch->bulk_out, (uint8_t*) &p_msch->cbw, sizeof(msc_cmd_block_wrapper_t), false) );
       ASSERT_STATUS( hcd_pipe_queue_xfer(p_msch->bulk_in , p_buffer, p_msch->cbw.xfer_bytes) );
@@ -148,7 +148,7 @@ tusb_error_t tusbh_msc_inquiry(uint8_t dev_addr, uint8_t lun, uint8_t *p_data)
   //------------- Command Block Wrapper -------------//
   msc_cbw_add_signature(&p_msch->cbw, lun);
   p_msch->cbw.xfer_bytes = sizeof(scsi_inquiry_data_t);
-  p_msch->cbw.flags      = TUSB_DIR_DEV_TO_HOST_MASK;
+  p_msch->cbw.dir        = TUSB_DIR_DEV_TO_HOST_MASK;
   p_msch->cbw.cmd_len    = sizeof(scsi_inquiry_t);
 
   //------------- SCSI command -------------//
@@ -172,7 +172,7 @@ tusb_error_t tusbh_msc_read_capacity10(uint8_t dev_addr, uint8_t lun, uint8_t *p
   //------------- Command Block Wrapper -------------//
   msc_cbw_add_signature(&p_msch->cbw, lun);
   p_msch->cbw.xfer_bytes = sizeof(scsi_read_capacity10_data_t);
-  p_msch->cbw.flags      = TUSB_DIR_DEV_TO_HOST_MASK;
+  p_msch->cbw.dir        = TUSB_DIR_DEV_TO_HOST_MASK;
   p_msch->cbw.cmd_len    = sizeof(scsi_read_capacity10_t);
 
   //------------- SCSI command -------------//
@@ -196,7 +196,7 @@ tusb_error_t tusbh_msc_request_sense(uint8_t dev_addr, uint8_t lun, uint8_t *p_d
 
   //------------- Command Block Wrapper -------------//
   p_msch->cbw.xfer_bytes = 18;
-  p_msch->cbw.flags      = TUSB_DIR_DEV_TO_HOST_MASK;
+  p_msch->cbw.dir        = TUSB_DIR_DEV_TO_HOST_MASK;
   p_msch->cbw.cmd_len    = sizeof(scsi_request_sense_t);
 
   //------------- SCSI command -------------//
@@ -221,7 +221,7 @@ tusb_error_t tusbh_msc_test_unit_ready(uint8_t dev_addr, uint8_t lun,  msc_cmd_s
   msc_cbw_add_signature(&p_msch->cbw, lun);
 
   p_msch->cbw.xfer_bytes = 0; // Number of bytes
-  p_msch->cbw.flags      = TUSB_DIR_HOST_TO_DEV;
+  p_msch->cbw.dir        = TUSB_DIR_HOST_TO_DEV;
   p_msch->cbw.cmd_len    = sizeof(scsi_test_unit_ready_t);
 
   //------------- SCSI command -------------//
@@ -248,7 +248,7 @@ tusb_error_t  tusbh_msc_read10(uint8_t dev_addr, uint8_t lun, void * p_buffer, u
   msc_cbw_add_signature(&p_msch->cbw, lun);
 
   p_msch->cbw.xfer_bytes = p_msch->block_size*block_count; // Number of bytes
-  p_msch->cbw.flags      = TUSB_DIR_DEV_TO_HOST_MASK;
+  p_msch->cbw.dir        = TUSB_DIR_DEV_TO_HOST_MASK;
   p_msch->cbw.cmd_len    = sizeof(scsi_read10_t);
 
   //------------- SCSI command -------------//
@@ -274,7 +274,7 @@ tusb_error_t tusbh_msc_write10(uint8_t dev_addr, uint8_t lun, void const * p_buf
   msc_cbw_add_signature(&p_msch->cbw, lun);
 
   p_msch->cbw.xfer_bytes = p_msch->block_size*block_count; // Number of bytes
-  p_msch->cbw.flags      = TUSB_DIR_HOST_TO_DEV;
+  p_msch->cbw.dir        = TUSB_DIR_HOST_TO_DEV;
   p_msch->cbw.cmd_len    = sizeof(scsi_write10_t);
 
   //------------- SCSI command -------------//
@@ -310,7 +310,7 @@ tusb_error_t msch_open_subtask(uint8_t dev_addr, tusb_descriptor_interface_t con
   if (! ( MSC_SUBCLASS_SCSI == p_interface_desc->bInterfaceSubClass &&
           MSC_PROTOCOL_BOT  == p_interface_desc->bInterfaceProtocol ) )
   {
-    return TUSB_ERROR_MSCH_UNSUPPORTED_PROTOCOL;
+    return TUSB_ERROR_MSC_UNSUPPORTED_PROTOCOL;
   }
 
   //------------- Open Data Pipe -------------//

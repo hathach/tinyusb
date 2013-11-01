@@ -81,6 +81,8 @@
 //--------------------------------------------------------------------+
 // DEVICE CONFIGURATION
 //--------------------------------------------------------------------+
+#define TUSB_CFG_DEVICE_FULLSPEED 1 // TODO refractor
+
 #define TUSB_CFG_DEVICE_USE_ROM_DRIVER  0
 
 //------------- descriptors -------------//
@@ -90,13 +92,13 @@
 #define TUSB_CFG_DEVICE_VENDORID              0x1FC9 // NXP
 //#define TUSB_CFG_DEVICE_PRODUCTID           0x4567
 
-#define TUSB_CFG_DEVICE_CONTROL_PACKET_SIZE   64
+#define TUSB_CFG_DEVICE_CONTROL_ENDOINT_SIZE   64
 
 //------------- CLASS -------------//
-#define TUSB_CFG_DEVICE_HID_KEYBOARD  1
-#define TUSB_CFG_DEVICE_HID_MOUSE     1
+#define TUSB_CFG_DEVICE_HID_KEYBOARD  0
+#define TUSB_CFG_DEVICE_HID_MOUSE     0
 #define TUSB_CFG_DEVICE_HID_GENERIC   0
-#define TUSB_CFG_DEVICE_MSC           0
+#define TUSB_CFG_DEVICE_MSC           1
 #define TUSB_CFG_DEVICE_CDC           0
 
 //--------------------------------------------------------------------+

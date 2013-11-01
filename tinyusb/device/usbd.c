@@ -61,8 +61,18 @@ static device_class_driver_t const usbd_class_drivers[TUSB_CLASS_MAPPED_INDEX_ST
     [TUSB_CLASS_HID] = {
         .open            = hidd_open,
         .control_request = hidd_control_request,
+        .isr             = hidd_isr
     },
 #endif
+
+#if TUSB_CFG_DEVICE_MSC
+    [TUSB_CLASS_MSC] = {
+        .open            = mscd_open,
+        .control_request = mscd_control_request,
+        .isr             = mscd_isr
+    },
+#endif
+
 };
 
 //--------------------------------------------------------------------+
@@ -84,39 +94,6 @@ bool tusbd_is_configured(uint8_t coreid)
 void usbd_bus_reset(uint32_t coreid)
 {
   memclr_(&usbd_devices[coreid], sizeof(usbd_device_info_t));
-}
-
-void std_get_descriptor(uint8_t coreid, tusb_control_request_t * p_request)
-{
-  tusb_std_descriptor_type_t const desc_type = p_request->wValue >> 8;
-  uint8_t const desc_index = u16_low_u8( p_request->wValue );
-  switch ( desc_type )
-  {
-    case TUSB_DESC_TYPE_DEVICE:
-      dcd_pipe_control_xfer(coreid, TUSB_DIR_DEV_TO_HOST, &app_tusb_desc_device,
-                            min16_of( p_request->wLength, sizeof(tusb_descriptor_device_t)) );
-    break;
-
-    case TUSB_DESC_TYPE_CONFIGURATION:
-      dcd_pipe_control_xfer(coreid, TUSB_DIR_DEV_TO_HOST, &app_tusb_desc_configuration,
-                            min16_of( p_request->wLength, sizeof(app_tusb_desc_configuration)) );
-    break;
-
-    case TUSB_DESC_TYPE_STRING:
-    {
-      uint8_t *p_string = (uint8_t*) &app_tusb_desc_strings;
-      for(uint8_t index =0; index < desc_index; index++)
-      {
-        p_string += (*p_string);
-      }
-      dcd_pipe_control_xfer(coreid, TUSB_DIR_DEV_TO_HOST, p_string, *p_string);
-    }
-    break;
-
-    default:
-//      ASSERT(false, (void) 0); // descriptors that is not supported yet
-    return;
-  }
 }
 
 tusb_error_t usbh_set_configure_received(uint8_t coreid, uint8_t config_number)
@@ -154,9 +131,45 @@ tusb_error_t usbh_set_configure_received(uint8_t coreid, uint8_t config_number)
   return TUSB_ERROR_NONE;
 }
 
+tusb_error_t std_get_descriptor(uint8_t coreid, tusb_control_request_t * p_request)
+{
+  tusb_std_descriptor_type_t const desc_type = p_request->wValue >> 8;
+  uint8_t const desc_index = u16_low_u8( p_request->wValue );
+  switch ( desc_type )
+  {
+    case TUSB_DESC_TYPE_DEVICE:
+      dcd_pipe_control_xfer(coreid, TUSB_DIR_DEV_TO_HOST, &app_tusb_desc_device,
+                            min16_of( p_request->wLength, sizeof(tusb_descriptor_device_t)) );
+    break;
+
+    case TUSB_DESC_TYPE_CONFIGURATION:
+      dcd_pipe_control_xfer(coreid, TUSB_DIR_DEV_TO_HOST, &app_tusb_desc_configuration,
+                            min16_of( p_request->wLength, sizeof(app_tusb_desc_configuration)) );
+    break;
+
+    case TUSB_DESC_TYPE_STRING:
+    {
+      uint8_t *p_string = (uint8_t*) &app_tusb_desc_strings;
+      for(uint8_t index =0; index < desc_index; index++)
+      {
+        p_string += (*p_string);
+      }
+      dcd_pipe_control_xfer(coreid, TUSB_DIR_DEV_TO_HOST, p_string, *p_string);
+    }
+    break;
+
+    default:
+      return TUSB_ERROR_DCD_CONTROL_REQUEST_NOT_SUPPORT;
+  }
+
+  return TUSB_ERROR_NONE;
+}
+
 void usbd_setup_received_isr(uint8_t coreid, tusb_control_request_t * p_request)
 {
   usbd_device_info_t *p_device = &usbd_devices[coreid];
+  tusb_error_t error = TUSB_ERROR_NONE;
+
   switch(p_request->bmRequestType_bit.recipient)
   {
     //------------- Standard Control such as those in enumeration -------------//
@@ -164,7 +177,7 @@ void usbd_setup_received_isr(uint8_t coreid, tusb_control_request_t * p_request)
       switch ( p_request->bRequest )
       {
         case TUSB_REQUEST_GET_DESCRIPTOR:
-          std_get_descriptor(coreid, p_request);
+          error = std_get_descriptor(coreid, p_request);
         break;
 
         case TUSB_REQUEST_SET_ADDRESS:
@@ -176,10 +189,11 @@ void usbd_setup_received_isr(uint8_t coreid, tusb_control_request_t * p_request)
 
         case TUSB_REQUEST_SET_CONFIGURATION:
           usbh_set_configure_received(coreid, (uint8_t) p_request->wValue);
+
           dcd_pipe_control_xfer(coreid, TUSB_DIR_HOST_TO_DEV, NULL, 0); // zero length
         break;
 
-        default: ASSERT(false, VOID_RETURN); break;
+        default: error = TUSB_ERROR_DCD_CONTROL_REQUEST_NOT_SUPPORT; break;
       }
     break;
 
@@ -191,12 +205,18 @@ void usbd_setup_received_isr(uint8_t coreid, tusb_control_request_t * p_request)
 
       if ( usbd_class_drivers[class_code].control_request )
       {
-        usbd_class_drivers[class_code].control_request(coreid, p_request);
+        error = usbd_class_drivers[class_code].control_request(coreid, p_request);
       }
     }
     break;
 
-    default: ASSERT(false, VOID_RETURN); break;
+    default: error = TUSB_ERROR_DCD_CONTROL_REQUEST_NOT_SUPPORT; break;
+  }
+
+  if(TUSB_ERROR_NONE != error)
+  { // Response with Protocol Stall if request is not supported
+    dcd_pipe_control_stall(coreid);
+    ASSERT(error == TUSB_ERROR_NONE, VOID_RETURN);
   }
 }
 
@@ -224,7 +244,19 @@ tusb_error_t usbd_pipe_open(uint8_t coreid, tusb_descriptor_interface_t const * 
 //--------------------------------------------------------------------+
 void usbd_xfer_isr(endpoint_handle_t edpt_hdl, tusb_event_t event, uint32_t xferred_bytes)
 {
-  usbd_device_info_t *p_device = &usbd_devices[edpt_hdl.coreid];
+//  usbd_device_info_t *p_device = &usbd_devices[edpt_hdl.coreid];
+  uint8_t class_index = std_class_code_to_index(edpt_hdl.class_code);
+
+  if (class_index == 0) // Control Transfer
+  {
+
+  }else if (usbd_class_drivers[class_index].isr)
+  {
+    usbd_class_drivers[class_index].isr(edpt_hdl, event, xferred_bytes);
+  }else
+  {
+    ASSERT(false, VOID_RETURN); // something wrong, no one claims the isr's source
+  }
 
 }
 //void usbd_isr(uint8_t coreid, tusb_event_t event)

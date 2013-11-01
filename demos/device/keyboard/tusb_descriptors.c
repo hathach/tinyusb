@@ -138,7 +138,7 @@ tusb_descriptor_device_t app_tusb_desc_device =
     .bDeviceSubClass    = 0x00,
     .bDeviceProtocol    = 0x00,
 
-    .bMaxPacketSize0    = TUSB_CFG_DEVICE_CONTROL_PACKET_SIZE,
+    .bMaxPacketSize0    = TUSB_CFG_DEVICE_CONTROL_ENDOINT_SIZE,
 
     .idVendor           = TUSB_CFG_DEVICE_VENDORID,
     .idProduct          = TUSB_CFG_PRODUCT_ID,
@@ -356,7 +356,7 @@ app_descriptor_configuration_t app_tusb_desc_configuration =
     {
         .bLength            = sizeof(tusb_descriptor_interface_t),
         .bDescriptorType    = TUSB_DESC_TYPE_INTERFACE,
-        .bInterfaceNumber   = 3,
+        .bInterfaceNumber   = INTERFACE_INDEX_MASS_STORAGE,
         .bAlternateSetting  = 0x00,
         .bNumEndpoints      = 2,
         .bInterfaceClass    = TUSB_CLASS_MSC,
@@ -371,7 +371,7 @@ app_descriptor_configuration_t app_tusb_desc_configuration =
         .bDescriptorType  = TUSB_DESC_TYPE_ENDPOINT,
         .bEndpointAddress = 0x83,
         .bmAttributes     = { .xfer = TUSB_XFER_BULK },
-        .wMaxPacketSize   = 512,
+        .wMaxPacketSize   = { .size = 64 /*512*/ },
         .bInterval        = 1
     },
 
@@ -381,7 +381,7 @@ app_descriptor_configuration_t app_tusb_desc_configuration =
         .bDescriptorType  = TUSB_DESC_TYPE_ENDPOINT,
         .bEndpointAddress = 0x03,
         .bmAttributes     = { .xfer = TUSB_XFER_BULK },
-        .wMaxPacketSize   = 512,
+        .wMaxPacketSize   = { .size = 64 /*512*/ },
         .bInterval        = 1
     },
     #endif

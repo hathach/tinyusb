@@ -1,6 +1,6 @@
 /**************************************************************************/
 /*!
-    @file     msc_app.h
+    @file     mscd_app.h
     @author   hathach (tinyusb.org)
 
     @section LICENSE
@@ -43,26 +43,17 @@
  *  @{
  */
 
-#ifndef _TUSB_MSC_APP_H_
-#define _TUSB_MSC_APP_H_
+#ifndef _TUSB_MSCD_APP_H_
+#define _TUSB_MSCD_APP_H_
 
 #include "boards/board.h"
 #include "tusb.h"
-
 
 #ifdef __cplusplus
  extern "C" {
 #endif
 
-#if TUSB_CFG_HOST_MSC
-
-void msc_app_init(void);
-OSAL_TASK_FUNCTION( msc_app_task ) (void* p_task_para);
-
-#else
-
-#define msc_app_init()
-#define msc_app_task(x)
+#if TUSB_CFG_DEVICE_MSC
 
 #endif
 
@@ -70,6 +61,6 @@ OSAL_TASK_FUNCTION( msc_app_task ) (void* p_task_para);
  }
 #endif
 
-#endif /* _TUSB_MSC_APP_H_ */
+#endif /* _TUSB_MSCD_APP_H_ */
 
 /** @} */

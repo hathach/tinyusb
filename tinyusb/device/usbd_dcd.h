@@ -57,6 +57,8 @@
 
 #define USBD_MAX_INTERFACE  16 // TODO refractor later
 #define USBD_MAX_ENDPOINT   32 // TODO refractor later
+
+
 typedef struct {
   volatile uint8_t state;
   uint8_t interface2class[USBD_MAX_INTERFACE]; // determine interface number belongs to which class
@@ -66,7 +68,9 @@ extern usbd_device_info_t usbd_devices[CONTROLLER_DEVICE_NUMBER];
 //--------------------------------------------------------------------+
 // callback from DCD ISR
 //--------------------------------------------------------------------+
-void usbd_xfer_isr(endpoint_handle_t pipe_hdl, tusb_event_t event, uint32_t xferred_bytes);
+void usbd_xfer_isr(endpoint_handle_t edpt_hdl, tusb_event_t event, uint32_t xferred_bytes);
+void usbd_bus_reset(uint32_t coreid);
+void usbd_setup_received_isr(uint8_t coreid, tusb_control_request_t * p_request);
 
 #ifdef __cplusplus
  }

@@ -53,21 +53,21 @@
 
 typedef struct {
   uint8_t coreid;
-  uint8_t xfer_type; // cannot be control as control uses separated API
+  uint8_t xfer_type; // TODO redundant, cannot be control as control uses separated API
   uint8_t index;
-  uint8_t reserved;
+  uint8_t class_code;
 } endpoint_handle_t;
 
-static inline bool endpointhandle_is_valid(endpoint_handle_t endpoint_handle) ATTR_CONST ATTR_ALWAYS_INLINE ATTR_WARN_UNUSED_RESULT;
-static inline bool endpointhandle_is_valid(endpoint_handle_t endpoint_handle)
+static inline bool endpointhandle_is_valid(endpoint_handle_t edpt_hdl) ATTR_CONST ATTR_ALWAYS_INLINE ATTR_WARN_UNUSED_RESULT;
+static inline bool endpointhandle_is_valid(endpoint_handle_t edpt_hdl)
 {
-  return endpoint_handle.xfer_type != TUSB_XFER_CONTROL;
+  return (edpt_hdl.xfer_type != TUSB_XFER_CONTROL) && (edpt_hdl.class_code != 0);
 }
 
 static inline bool endpointhandle_is_equal(endpoint_handle_t x, endpoint_handle_t y) ATTR_CONST ATTR_ALWAYS_INLINE ATTR_WARN_UNUSED_RESULT;
 static inline bool endpointhandle_is_equal(endpoint_handle_t x, endpoint_handle_t y)
 {
-  return (x.coreid == y.coreid) && (x.xfer_type == y.xfer_type) && (x.index == y.index);
+  return (x.coreid == y.coreid) && (x.xfer_type == y.xfer_type) && (x.index == y.index) && (x.class_code == y.class_code);
 }
 
 tusb_error_t dcd_init(void) ATTR_WARN_UNUSED_RESULT;
@@ -89,8 +89,10 @@ void dcd_pipe_control_stall(uint8_t coreid);
 //tusb_error_t dcd_pipe_control_read(uint8_t coreid, void * buffer, uint16_t length);
 //void dcd_pipe_control_write_zero_length(uint8_t coreid);
 
-endpoint_handle_t dcd_pipe_open(uint8_t coreid, tusb_descriptor_endpoint_t const * p_endpoint_desc) ATTR_WARN_UNUSED_RESULT;
-tusb_error_t dcd_pipe_xfer(endpoint_handle_t pipe_hdl, uint8_t buffer[], uint16_t total_bytes, bool int_on_complete)  ATTR_WARN_UNUSED_RESULT;
+endpoint_handle_t dcd_pipe_open(uint8_t coreid, tusb_descriptor_endpoint_t const * p_endpoint_desc, uint8_t class_code) ATTR_WARN_UNUSED_RESULT;
+tusb_error_t dcd_pipe_queue_xfer(endpoint_handle_t edpt_hdl, void * buffer, uint16_t total_bytes) ATTR_WARN_UNUSED_RESULT; // only queue, not transferring yet
+tusb_error_t dcd_pipe_xfer(endpoint_handle_t edpt_hdl, void * buffer, uint16_t total_bytes, bool int_on_complete)  ATTR_WARN_UNUSED_RESULT;
+tusb_error_t dcd_pipe_stall(endpoint_handle_t edpt_hdl) ATTR_WARN_UNUSED_RESULT;
 
 #ifdef __cplusplus
  }

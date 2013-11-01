@@ -438,7 +438,7 @@ tusb_error_t  hcd_pipe_xfer(pipe_handle_t pipe_hdl, uint8_t buffer[], uint16_t t
   { // the just added qtd is pointed by list_tail
     p_qhd->p_qtd_list_tail->int_on_complete = 1;
   }
-  p_qhd->qtd_overlay.next.address = (uint32_t) p_qhd->p_qtd_list_head; // attach to queue head to start transferring
+  p_qhd->qtd_overlay.next.address = (uint32_t) p_qhd->p_qtd_list_head; // attach head QTD to QHD start transferring
 
   return TUSB_ERROR_NONE;
 }
