@@ -61,12 +61,6 @@ void board_init(void)
   // USB1 Power: EA4357 channel A U20 is enabled by SJ5 connected to pad 1-2, no more action required
   // TODO Remove R170, R171, solder a pair of 15K to USB1 D+/D- to test with USB1 Host
 
-  // TODO Device only USB0
-  // 1.5Kohm pull-up resistor is needed on the USB DP data signal. GPIO28 (base), P9_5 (LPC4357) controls
-//  scu_pinmux(0x9, 5, MD_PUP|MD_EZI|MD_ZI, FUNC4);		// GPIO5[18]
-//  GPIO_SetDir(5, BIT_(18), 1); // output
-//  GPIO_ClearValue(5, BIT_(18));
-
   //------------- LED -------------//
   I2C_Init(LPC_I2C0, 100000);
   I2C_Cmd(LPC_I2C0, ENABLE);
@@ -85,6 +79,10 @@ void board_init(void)
   UART_Init(BOARD_UART_PORT, &UARTConfigStruct);
   UART_TxCmd(BOARD_UART_PORT, ENABLE); // Enable UART Transmit
 #endif
+
+  //------------- NAND Flash (K9FXX) Size = 128M, Page Size = 2K, Block Size = 128K, Number of Block = 1024 -------------//
+//  nand_init();
+
 
 #if 0
 	//------------- Ethernet -------------//

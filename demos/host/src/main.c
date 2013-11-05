@@ -56,14 +56,14 @@
 #include "cdc_serial_app.h"
 #include "rndis_app.h"
 
-#if defined(__CODE_RED) // TODO to be removed
-  #include <cr_section_macros.h>
-  #include <NXP/crp.h>
-  // Variable to store CRP value in. Will be placed automatically
-  // by the linker when "Enable Code Read Protect" selected.
-  // See crp.h header for more information
-  __CRP const unsigned int CRP_WORD = CRP_NO_CRP ;
-#endif
+//#if defined(__CODE_RED) // TODO to be removed
+//  #include <cr_section_macros.h>
+//  #include <NXP/crp.h>
+//  // Variable to store CRP value in. Will be placed automatically
+//  // by the linker when "Enable Code Read Protect" selected.
+//  // See crp.h header for more information
+//  __CRP const unsigned int CRP_WORD = CRP_NO_CRP ;
+//#endif
 
 #if 0
 #include "lwip/opt.h"
@@ -188,7 +188,7 @@ void print_greeting(void)
 --------------------------------------------------------------------\n\n"
   );
 
-  puts("This demo support the following classes");
+  puts("This demo supports the following classes");
   if (TUSB_CFG_HOST_HUB          ) puts("  - Hub (1 level only)");
   if (TUSB_CFG_HOST_HID_MOUSE    ) puts("  - HID Mouse");
   if (TUSB_CFG_HOST_HID_KEYBOARD ) puts("  - HID Keyboard");

@@ -55,6 +55,14 @@
 
 #if TUSB_CFG_DEVICE_MSC
 
+void msc_dev_app_init(void);
+OSAL_TASK_FUNCTION( msc_dev_app_task ) (void* p_task_para);
+
+#else
+
+#define msc_dev_app_init()
+#define msc_dev_app_task(x)
+
 #endif
 
 #ifdef __cplusplus
