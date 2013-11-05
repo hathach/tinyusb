@@ -48,7 +48,7 @@
 //--------------------------------------------------------------------+
 enum
 {
-  DISK_BLOCK_NUM  = 16,
+  DISK_BLOCK_NUM  = 16, // 8KB is the smallest size that windows allow to mount
   DISK_BLOCK_SIZE = 512
 };
 
@@ -78,9 +78,35 @@ typedef ATTR_PACKED_STRUCT(struct) {
   uint8_t  filesystem_type[8]      ; ///< File system type label in ASCII, padded with blank (0x20). Standard values include "FAT," "FAT12," and "FAT16," but nothing is required.
   uint8_t  reserved2[448]          ;
   uint16_t fat_signature           ; ///< Signature value (0xAA55).
-}fat16_boot_sector_t;
+}fat12_boot_sector_t;
 
-STATIC_ASSERT(sizeof(fat16_boot_sector_t) == 512, "size is not correct");
+STATIC_ASSERT(sizeof(fat12_boot_sector_t) == 512, "size is not correct");
+
+typedef ATTR_PACKED_STRUCT(struct) {
+  uint8_t name[11];
+
+  ATTR_PACKED_STRUCT(struct){
+    uint8_t readonly       : 1;
+    uint8_t hidden         : 1;
+    uint8_t system         : 1;
+    uint8_t volume_label   : 1;
+    uint8_t directory      : 1;
+    uint8_t archive        : 1;
+  } attr; // Long File Name = 0x0f
+
+  uint8_t reserved;
+  uint8_t created_time_tenths_of_seconds;
+  uint16_t created_time;
+  uint16_t created_date;
+  uint16_t accessed_date;
+  uint16_t cluster_high;
+  uint16_t written_time;
+  uint16_t written_date;
+  uint16_t cluster_low;
+  uint32_t file_size;
+}fat_directory_t;
+
+STATIC_ASSERT(sizeof(fat_directory_t) == 32, "size is not correct");
 
 static scsi_inquiry_data_t mscd_inquiry_data TUSB_CFG_ATTR_USBRAM =
 {
@@ -133,7 +159,15 @@ static uint16_t read10(uint8_t coreid, uint8_t lun, scsi_read10_t* p_read10, voi
 {
   uint8_t block_count = __be2h_16(p_read10->block_count);
 
-  (*pp_buffer) = &mscd_app_ramdisk[ __be2le(p_read10->lba)];
+  (*pp_buffer) = mscd_app_ramdisk[ __be2le(p_read10->lba)];
+
+  return block_count*DISK_BLOCK_SIZE;
+}
+
+static uint16_t write10(uint8_t coreid, uint8_t lun, scsi_read10_t* p_read10, void** pp_buffer)
+{
+  uint8_t block_count = __be2h_16(p_read10->block_count);
+  (*pp_buffer) = mscd_app_ramdisk[ __be2le(p_read10->lba)];
 
   return block_count*DISK_BLOCK_SIZE;
 }
@@ -182,6 +216,7 @@ msc_csw_status_t tusbd_msc_scsi_received_isr (uint8_t coreid, uint8_t lun, uint8
     break;
 
     case SCSI_CMD_WRITE_10:
+      (*p_length)  = write10(coreid, lun, (scsi_read10_t*) scsi_cmd, pp_buffer);
     break;
 
     default: return MSC_CSW_STATUS_FAILED;
@@ -193,10 +228,26 @@ msc_csw_status_t tusbd_msc_scsi_received_isr (uint8_t coreid, uint8_t lun, uint8
 //--------------------------------------------------------------------+
 // IMPLEMENTATION
 //--------------------------------------------------------------------+
+void fat12_fs_init(uint8_t mscd_app_ramdisk[DISK_BLOCK_NUM][DISK_BLOCK_SIZE]);
+
 void msc_dev_app_init (void)
 {
-  fat16_boot_sector_t* p_boot_fat = (fat16_boot_sector_t* ) &mscd_app_ramdisk[0];
-  memclr_(p_boot_fat, sizeof(fat16_boot_sector_t));
+  fat12_fs_init(mscd_app_ramdisk);
+}
+
+//--------------------------------------------------------------------+
+// HELPER
+//--------------------------------------------------------------------+
+void fat12_fs_init(uint8_t mscd_app_ramdisk[DISK_BLOCK_NUM][DISK_BLOCK_SIZE])
+{
+  uint8_t const readme_contents[] =
+"This is tinyusb's MassStorage Class demo.\r\n\r\n\
+If you find any bugs or get any questions, feel free to file an\r\n\
+issue at https://github.com/hathach/tinyusb";
+
+  //------------- Boot Sector -------------//
+  fat12_boot_sector_t* p_boot_fat = (fat12_boot_sector_t* ) mscd_app_ramdisk[0];
+  memclr_(p_boot_fat, sizeof(fat12_boot_sector_t));
 
   memcpy(p_boot_fat->jump_code, "\xEB\x3C\x90", 3);
   memcpy(p_boot_fat->oem_name, "MSDOS5.0", 8);
@@ -218,5 +269,40 @@ void msc_dev_app_init (void)
   memcpy(p_boot_fat->volume_label   , "tinyusb msc", 11);
   memcpy(p_boot_fat->filesystem_type,  "FAT12   ", 8);
   p_boot_fat->fat_signature           = 0xAA55;
+
+  //------------- FAT12 Table (first 2 entries are F8FF, third entry is cluster end of readme file-------------//
+  memcpy(mscd_app_ramdisk[1], "\xF8\xFF\xFF\xFF\x0F", 5);
+
+  //------------- Root Directory -------------//
+  fat_directory_t* p_entry = (fat_directory_t*) mscd_app_ramdisk[2];
+
+  // first entry is volume label
+  (*p_entry) = (fat_directory_t)
+  {
+    .name = "TINYUSB MSC",
+    .attr.volume_label = 1,
+  };
+
+  p_entry += 1; // advance to second entry, second entry is readme file
+  (*p_entry) = (fat_directory_t)
+  {
+    .name = "README  TXT",
+
+    .created_time = 0x6D52,
+    .written_time = 0x6D52,
+
+    .created_date = 0x4365,
+    .accessed_date = 0x4365,
+    .written_date = 0x4365,
+
+    .cluster_high = 0,
+    .cluster_low = 2,
+    .file_size = sizeof(readme_contents)-1 // exculde NULL
+  }; // first entry is volume label
+
+  //------------- Readme Content -------------//
+  memcpy(mscd_app_ramdisk[3], readme_contents, sizeof(readme_contents)-1);
+
 }
+
 #endif
