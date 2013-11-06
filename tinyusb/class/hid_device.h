@@ -87,7 +87,7 @@ tusb_error_t tusbd_hid_keyboard_send(uint8_t coreid, hid_keyboard_report_t const
  *              - TUSB_EVENT_XFER_STALLED : previously scheduled transfer is stalled by device.
  * \note        Application should schedule the next report by calling \ref tusbh_hid_keyboard_get_report within this callback
  */
-void tusbd_hid_keyboard_isr(uint8_t coreid, tusb_event_t event);
+void tusbd_hid_keyboard_isr(uint8_t coreid, tusb_event_t event, uint32_t xferred_bytes);
 
 /** @} */
 /** @} */
@@ -121,7 +121,7 @@ bool tusbd_hid_mouse_is_busy(uint8_t coreid);
  */
 tusb_error_t tusbd_hid_mouse_send(uint8_t coreid, hid_mouse_report_t const *p_report);
 
-void tusbd_hid_mouse_isr(uint8_t coreid, tusb_event_t event);
+void tusbd_hid_mouse_isr(uint8_t coreid, tusb_event_t event, uint32_t xferred_bytes);
 
 /** @} */
 /** @} */

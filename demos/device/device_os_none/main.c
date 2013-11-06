@@ -47,6 +47,7 @@
 #include "tusb.h"
 
 #include "mscd_app.h"
+#include "keyboardd_app.h"
 
 //--------------------------------------------------------------------+
 // MACRO CONSTANT TYPEDEF
@@ -75,7 +76,7 @@ void os_none_start_scheduler(void)
     led_blinking_task(NULL);
 
     #if TUSB_CFG_DEVICE_HID_KEYBOARD
-    keyboard_device_app_task(NULL);
+    keyboardd_app_task(NULL);
     #endif
 
     #if TUSB_CFG_DEVICE_HID_MOUSE
@@ -96,7 +97,7 @@ int main(void)
   (void) osal_task_create( OSAL_TASK_REF(led_blinking_task) );
 
   msc_dev_app_init();
-
+  keyboardd_app_init();
 
   //------------- start OS scheduler (never return) -------------//
 #if TUSB_CFG_OS == TUSB_OS_FREERTOS
@@ -149,25 +150,6 @@ int main(void)
 
   return 0;
 }
-
-#if TUSB_CFG_DEVICE_HID_KEYBOARD
-hid_keyboard_report_t keyboard_report TUSB_CFG_ATTR_USBRAM;
-void keyboard_device_app_task(void * p_para)
-{
-  if (tusbd_is_configured(0))
-  {
-    static uint32_t count =0;
-    if (count++ < 10)
-    {
-      if (!tusbd_hid_keyboard_is_busy(0))
-      {
-        keyboard_report.keycode[0] = (count%2) ? 0x04 : 0x00;
-        tusbd_hid_keyboard_send(0, &keyboard_report );
-      }
-    }
-  }
-}
-#endif
 
 #if TUSB_CFG_DEVICE_HID_MOUSE
 hid_mouse_report_t mouse_report TUSB_CFG_ATTR_USBRAM;

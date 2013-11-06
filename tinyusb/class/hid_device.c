@@ -229,7 +229,24 @@ tusb_error_t hidd_open(uint8_t coreid, tusb_descriptor_interface_t const * p_int
   return TUSB_ERROR_NONE;
 }
 
-void hidd_isr(endpoint_handle_t edpt_hdl, tusb_event_t event, uint32_t xferred_bytes);
+void hidd_isr(endpoint_handle_t edpt_hdl, tusb_event_t event, uint32_t xferred_bytes)
+{
+#if TUSB_CFG_DEVICE_HID_KEYBOARD
+  if ( endpointhandle_is_equal(edpt_hdl, keyboardd_data.ept_handle) )
+  {
+    tusbd_hid_keyboard_isr(edpt_hdl.coreid, event, xferred_bytes);
+    return;
+  }
+#endif
+
+#if TUSB_CFG_DEVICE_HID_MOUSE
+  if ( endpointhandle_is_equal(edpt_hdl, moused_data.ept_handle) )
+  {
+    tusbd_hid_mouse_isr(edpt_hdl.coreid, event, xferred_bytes);
+    return;
+  }
+#endif
+}
 
 #if defined(CAP_DEVICE_ROMDRIVER) && TUSB_CFG_DEVICE_USE_ROM_DRIVER
 #include "device/dcd_nxp_romdriver.h" // TODO remove rom driver dependency

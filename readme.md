@@ -26,7 +26,10 @@ designed to be simple and run out-of-the-box provided the configuration is corre
 
 ### Device ###
 
-coming not so soon ...
+- HID Mouse
+- HID Keyboard
+- Mass-Storage (MSC)
+- Communication Class (CDC) ... coming soon
 
 ### RTOS ###
 
@@ -46,7 +49,7 @@ coming soon ...
 
 ## Supported MCUs ##
 
-- NXP LPC18xx/LPC43xx family
+- NXP LPC43xx family
 
 ## Supported Toolchains ##
 
@@ -60,7 +63,7 @@ The following toolchain is supported
 
 this code base can run out of the box with the following boards
 
-### NXP LPC18xx/LPC43xx ###
+### NXP LPC43xx ###
 
 - [Embedded Artists LPC4357 OEM & Base board](http://www.embeddedartists.com/products/kits/lpc4357_kit.php)
 - [NGX Technologies LPC4330 Explorer](http://shop.ngxtechnologies.com/product_info.php?products_id=104)
