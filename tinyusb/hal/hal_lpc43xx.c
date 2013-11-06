@@ -81,7 +81,8 @@ tusb_error_t hal_init(void)
   LPC_CREG->CREG0 &= ~(1<<5); /* Turn on the phy */
 
   // reset controller & set role
-  hal_controller_reset(0);
+  ASSERT_STATUS( hal_controller_reset(0) );
+
   #if TUSB_CFG_CONTROLLER_0_MODE & TUSB_MODE_HOST
     LPC_USB0->USBMODE_H = LPC43XX_USBMODE_HOST | (LPC43XX_USBMODE_VBUS_HIGH << 5);
   #else // TODO OTG
@@ -106,7 +107,7 @@ tusb_error_t hal_init(void)
   //LPC_CREG->CREG0 &= ~(1<<5); /* Turn on the phy */
   LPC_SCU->SFSUSB = (TUSB_CFG_CONTROLLER_1_MODE & TUSB_MODE_HOST) ? 0x16 : 0x12; // enable USB1 with on-chip FS PHY
 
-  hal_controller_reset(1);
+  ASSERT_STATUS( hal_controller_reset(1) );
 
   #if TUSB_CFG_CONTROLLER_1_MODE & TUSB_MODE_HOST
     LPC_USB1->USBMODE_H = LPC43XX_USBMODE_HOST | (LPC43XX_USBMODE_VBUS_HIGH << 5);
@@ -116,7 +117,6 @@ tusb_error_t hal_init(void)
   #endif
 
   LPC_USB1->PORTSC1_D |= (1<<24); // TODO abtract, force port to fullspeed
-
   hal_interrupt_enable(1);
 #endif
 

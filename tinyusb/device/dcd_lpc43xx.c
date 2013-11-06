@@ -151,47 +151,50 @@ typedef struct {
 
 STATIC_ASSERT( sizeof(dcd_qhd_t) == 64, "size is not correct");
 
+//--------------------------------------------------------------------+
+// INTERNAL OBJECT & FUNCTION DECLARATION
+//--------------------------------------------------------------------+
 typedef struct {
   dcd_qhd_t qhd[DCD_QHD_MAX]; ///< Must be at 2K alignment
   dcd_qtd_t qtd[DCD_QTD_MAX] ATTR_ALIGNED(32);
 
 }dcd_data_t;
 
-ATTR_ALIGNED(2048) dcd_data_t dcd_data TUSB_CFG_ATTR_USBRAM;
+#if (TUSB_CFG_CONTROLLER_0_MODE & TUSB_MODE_DEVICE)
+ATTR_ALIGNED(2048) dcd_data_t dcd_data0 TUSB_CFG_ATTR_USBRAM;
+#endif
 
-//--------------------------------------------------------------------+
-// INTERNAL OBJECT & FUNCTION DECLARATION
-//--------------------------------------------------------------------+
+#if (TUSB_CFG_CONTROLLER_1_MODE & TUSB_MODE_DEVICE)
+ATTR_ALIGNED(2048) dcd_data_t dcd_data1 TUSB_CFG_ATTR_USBRAM;
+#endif
+
+static LPC_USB0_Type * const LPC_USB[2] = { LPC_USB0, ((LPC_USB0_Type*) LPC_USB1_BASE) };
+static dcd_data_t* const dcd_data_ptr[2] =
+{
+  #if (TUSB_CFG_CONTROLLER_0_MODE & TUSB_MODE_DEVICE)
+    &dcd_data0,
+  #else
+    NULL,
+  #endif
+
+  #if (TUSB_CFG_CONTROLLER_1_MODE & TUSB_MODE_DEVICE)
+    &dcd_data1
+  #else
+    NULL
+  #endif
+};
 
 //--------------------------------------------------------------------+
 // CONTROLLER API
 //--------------------------------------------------------------------+
-//tusb_error_t dcd_controller_reset(uint8_t coreid)
-//{
-//  volatile uint32_t * p_reg_usbcmd;
-//
-//  p_reg_usbcmd = (coreid ? &LPC_USB1->USBCMD_D : &LPC_USB0->USBCMD_D);
-//// NXP chip powered with non-host mode --> sts bit is not correctly reflected
-//  (*p_reg_usbcmd) |= BIT_(1); // TODO refractor reset controller
-//
-////  timeout_timer_t timeout;
-////  timeout_set(&timeout, 2); // should not take longer the time to stop controller
-//  while( ((*p_reg_usbcmd) & BIT_(1)) /*&& !timeout_expired(&timeout)*/) {}
-////
-////  return timeout_expired(&timeout) ? TUSB_ERROR_OSAL_TIMEOUT : TUSB_ERROR_NONE;
-//  return TUSB_ERROR_NONE;
-//}
-
 void dcd_controller_connect(uint8_t coreid)
 {
-  volatile uint32_t * p_reg_usbcmd = (coreid ? &LPC_USB1->USBCMD_D : &LPC_USB0->USBCMD_D);
-
-  (*p_reg_usbcmd) |= BIT_(0);
+  LPC_USB[coreid]->USBCMD_D |= BIT_(0);
 }
 
 void dcd_controller_set_address(uint8_t coreid, uint8_t dev_addr)
 {
-  LPC_USB0->DEVICEADDR = (dev_addr << 25) | BIT_(24);
+  LPC_USB[coreid]->DEVICEADDR = (dev_addr << 25) | BIT_(24);
 }
 
 void dcd_controller_set_configuration(uint8_t coreid, uint8_t config_num)
@@ -202,50 +205,69 @@ void dcd_controller_set_configuration(uint8_t coreid, uint8_t config_num)
 /// follows LPC43xx User Manual 23.10.3
 void bus_reset(uint8_t coreid)
 {
-  // TODO mutliple core id support
+  LPC_USB0_Type* const lpc_usb = LPC_USB[coreid];
 
   // The reset value for all endpoint types is the control endpoint. If one endpoint
   //direction is enabled and the paired endpoint of opposite direction is disabled, then the
   //endpoint type of the unused direction must bechanged from the control type to any other
   //type (e.g. bulk). Leaving an unconfigured endpoint control will cause undefined behavior
   //for the data PID tracking on the active endpoint.
-  LPC_USB0->ENDPTCTRL1 = LPC_USB0->ENDPTCTRL2 = LPC_USB0->ENDPTCTRL3 = LPC_USB0->ENDPTCTRL4 = LPC_USB0->ENDPTCTRL5 =
+  lpc_usb->ENDPTCTRL1 = lpc_usb->ENDPTCTRL2 = lpc_usb->ENDPTCTRL3 =
       (TUSB_XFER_BULK << 2) | (TUSB_XFER_BULK << 18);
 
-  //------------- Clear All Registers -------------//
-  LPC_USB0->ENDPTNAK       = LPC_USB0->ENDPTNAK;
-  LPC_USB0->ENDPTNAKEN     = 0;
-  LPC_USB0->USBSTS_D       = LPC_USB0->USBSTS_D;
-  LPC_USB0->ENDPTSETUPSTAT = LPC_USB0->ENDPTSETUPSTAT;
-  LPC_USB0->ENDPTCOMPLETE  = LPC_USB0->ENDPTCOMPLETE;
+  // USB1 only has 3 non-control endpoints
+  if ( coreid == 0)
+  {
+    lpc_usb->ENDPTCTRL4 = lpc_usb->ENDPTCTRL5 = (TUSB_XFER_BULK << 2) | (TUSB_XFER_BULK << 18);
+  }
 
-  while (LPC_USB0->ENDPTPRIME);
-  LPC_USB0->ENDPTFLUSH = 0xFFFFFFFF;
-  while (LPC_USB0->ENDPTFLUSH);
+  //------------- Clear All Registers -------------//
+  lpc_usb->ENDPTNAK       = lpc_usb->ENDPTNAK;
+  lpc_usb->ENDPTNAKEN     = 0;
+  lpc_usb->USBSTS_D       = lpc_usb->USBSTS_D;
+  lpc_usb->ENDPTSETUPSTAT = lpc_usb->ENDPTSETUPSTAT;
+  lpc_usb->ENDPTCOMPLETE  = lpc_usb->ENDPTCOMPLETE;
+
+  while (lpc_usb->ENDPTPRIME);
+  lpc_usb->ENDPTFLUSH = 0xFFFFFFFF;
+  while (lpc_usb->ENDPTFLUSH);
 
   // read reset bit in portsc
 
   //------------- Queue Head & Queue TD -------------//
-  memclr_(&dcd_data, sizeof(dcd_data_t));
+  dcd_data_t* p_dcd = dcd_data_ptr[coreid];
+
+  memclr_(p_dcd, sizeof(dcd_data_t));
 
   //------------- Set up Control Endpoints (0 OUT, 1 IN) -------------//
-	dcd_data.qhd[0].zero_length_termination = dcd_data.qhd[1].zero_length_termination = 1;
-	dcd_data.qhd[0].max_package_size = dcd_data.qhd[1].max_package_size = TUSB_CFG_DEVICE_CONTROL_ENDOINT_SIZE;
-	dcd_data.qhd[0].qtd_overlay.next = dcd_data.qhd[1].qtd_overlay.next = QTD_NEXT_INVALID;
+	p_dcd->qhd[0].zero_length_termination = p_dcd->qhd[1].zero_length_termination = 1;
+	p_dcd->qhd[0].max_package_size = p_dcd->qhd[1].max_package_size = TUSB_CFG_DEVICE_CONTROL_ENDOINT_SIZE;
+	p_dcd->qhd[0].qtd_overlay.next = p_dcd->qhd[1].qtd_overlay.next = QTD_NEXT_INVALID;
 
-	dcd_data.qhd[0].int_on_setup = 1; // OUT only
+	p_dcd->qhd[0].int_on_setup = 1; // OUT only
+}
+
+static void lpc43xx_controller_init(uint8_t coreid)
+{
+  LPC_USB0_Type* const lpc_usb = LPC_USB[coreid];
+  dcd_data_t* p_dcd = dcd_data_ptr[coreid];
+
+  memclr_(p_dcd, sizeof(dcd_data_t));
+
+  lpc_usb->USBCMD_D &= ~0x00FF0000; // Interrupt Threshold Interval = 0
+  lpc_usb->ENDPOINTLISTADDR = (uint32_t) p_dcd->qhd; // Endpoint List Address has to be 2K alignment
+  lpc_usb->USBINTR_D =  INT_MASK_USB | INT_MASK_ERROR | INT_MASK_PORT_CHANGE | INT_MASK_RESET | INT_MASK_SUSPEND; // | INT_MASK_SOF| INT_MASK_NAK;
 }
 
 tusb_error_t dcd_init(void)
 {
-	/* Set the interrupt Threshold control interval to 0 */
-	LPC_USB0->USBCMD_D &= ~0x00FF0000;
+  #if (TUSB_CFG_CONTROLLER_0_MODE & TUSB_MODE_DEVICE)
+  lpc43xx_controller_init(0);
+  #endif
 
-	/* Configure the Endpoint List Address */ /* make sure it in on 2K boundary !!! */
-	LPC_USB0->ENDPOINTLISTADDR = (uint32_t) dcd_data.qhd;
-
-	/* Enable interrupts: USB interrupt, error, port change, reset, suspend, NAK interrupt */
-	LPC_USB0->USBINTR_D =  INT_MASK_USB | INT_MASK_ERROR | INT_MASK_PORT_CHANGE | INT_MASK_RESET | INT_MASK_SUSPEND; // | INT_MASK_SOF| INT_MASK_NAK;
+  #if (TUSB_CFG_CONTROLLER_1_MODE & TUSB_MODE_DEVICE)
+  lpc43xx_controller_init(1);
+  #endif
 
   return TUSB_ERROR_NONE;
 }
@@ -303,7 +325,7 @@ static inline uint8_t qtd_find_free(uint8_t coreid)
 {
   for(uint8_t i=2; i<DCD_QTD_MAX; i++)
   { // exclude control's qtd
-    if ( dcd_data.qtd[i].used == 0) return i;
+    if ( dcd_data_ptr[coreid]->qtd[i].used == 0) return i;
   }
 
   return 0;
@@ -314,32 +336,37 @@ static inline uint8_t qtd_find_free(uint8_t coreid)
 //--------------------------------------------------------------------+
 void dcd_pipe_control_stall(uint8_t coreid)
 {
-  LPC_USB0->ENDPTCTRL0 |= (ENDPTCTRL_MASK_STALL << 16); // stall Control IN
+  LPC_USB[coreid]->ENDPTCTRL0 |= (ENDPTCTRL_MASK_STALL << 16); // stall Control IN
 }
 
 // control transfer does not need to use qtd find function
 tusb_error_t dcd_pipe_control_xfer(uint8_t coreid, tusb_direction_t dir, void * buffer, uint16_t length)
 {
-  uint8_t const endpoint_data = (dir == TUSB_DIR_DEV_TO_HOST) ? 1 : 0; // IN xfer --> data phase on Control IN, other Control OUT
+  LPC_USB0_Type* const lpc_usb = LPC_USB[coreid];
+  dcd_data_t* p_dcd = dcd_data_ptr[coreid];
 
-  ASSERT_FALSE(dcd_data.qhd[0].qtd_overlay.active || dcd_data.qhd[1].qtd_overlay.active, TUSB_ERROR_FAILED);
+  // determine Endpoint where Data & Status phase occurred (IN or OUT)
+  uint8_t const endpoint_data   = (dir == TUSB_DIR_DEV_TO_HOST) ? 1 : 0;
+  uint8_t const endpoint_status = 1 - endpoint_data;
+
+  ASSERT_FALSE(p_dcd->qhd[0].qtd_overlay.active || p_dcd->qhd[1].qtd_overlay.active, TUSB_ERROR_FAILED);
 
   //------------- Data Phase -------------//
   if (length)
   {
-    dcd_qtd_t* p_data = &dcd_data.qtd[0];
-    qtd_init(p_data, buffer, length);
-    dcd_data.qhd[endpoint_data].qtd_overlay.next = (uint32_t) p_data;
+    dcd_qtd_t* p_qtd_data = &p_dcd->qtd[0];
+    qtd_init(p_qtd_data, buffer, length);
+    p_dcd->qhd[endpoint_data].qtd_overlay.next = (uint32_t) p_qtd_data;
+
+    lpc_usb->ENDPTPRIME = BIT_( edpt_phy2pos(endpoint_data) );
   }
 
-  //------------- Status Phase (other endpoint, opposite direction) -------------//
-  dcd_qtd_t* p_status = &dcd_data.qtd[1];
-  qtd_init(p_status, NULL, 0); // zero length xfer
-  dcd_data.qhd[1 - endpoint_data].qtd_overlay.next = (uint32_t) p_status;
+  //------------- Status Phase -------------//
+  dcd_qtd_t* p_qtd_status = &p_dcd->qtd[1];
+  qtd_init(p_qtd_status, NULL, 0); // zero length xfer
+  p_dcd->qhd[endpoint_status].qtd_overlay.next = (uint32_t) p_qtd_status;
 
-  //------------- Prime Endpoint -------------//
-  LPC_USB0->ENDPTPRIME |= BIT_( edpt_phy2pos(1 - endpoint_data) ) |
-                          (length ? BIT_( edpt_phy2pos(endpoint_data) ) : 0) ;
+  LPC_USB0->ENDPTPRIME |= BIT_( edpt_phy2pos(endpoint_status) );
 
   return TUSB_ERROR_NONE;
 }
@@ -347,9 +374,15 @@ tusb_error_t dcd_pipe_control_xfer(uint8_t coreid, tusb_direction_t dir, void * 
 //--------------------------------------------------------------------+
 // BULK/INTERRUPT/ISOCHRONOUS PIPE API
 //--------------------------------------------------------------------+
+static inline volatile uint32_t * get_reg_control_addr(uint8_t coreid, uint8_t physical_endpoint) ATTR_PURE ATTR_ALWAYS_INLINE;
+static inline volatile uint32_t * get_reg_control_addr(uint8_t coreid, uint8_t physical_endpoint)
+{
+ return &(LPC_USB[coreid]->ENDPTCTRL0) + edpt_phy2log(physical_endpoint);
+}
+
 tusb_error_t dcd_pipe_stall(endpoint_handle_t edpt_hdl)
 {
-  volatile uint32_t * reg_control = (&LPC_USB0->ENDPTCTRL0) + edpt_phy2log(edpt_hdl.index);
+  volatile uint32_t * reg_control = get_reg_control_addr(edpt_hdl.coreid, edpt_hdl.index);
 
   (*reg_control) |= ENDPTCTRL_MASK_STALL << (edpt_hdl.index & 0x01 ? 16 : 0);
 
@@ -358,7 +391,7 @@ tusb_error_t dcd_pipe_stall(endpoint_handle_t edpt_hdl)
 
 tusb_error_t dcd_pipe_clear_stall(uint8_t coreid, uint8_t edpt_addr)
 {
-  volatile uint32_t * reg_control = (&LPC_USB0->ENDPTCTRL0) + edpt_phy2log( edpt_addr2phy(edpt_addr) );
+  volatile uint32_t * reg_control = get_reg_control_addr(coreid, edpt_addr2phy(edpt_addr));
 
   // data toggle also need to be reset
   (*reg_control) |= ENDPTCTRL_MASK_TOGGLE_RESET << ((edpt_addr & TUSB_DIR_DEV_TO_HOST_MASK) ? 16 : 0);
@@ -375,16 +408,11 @@ endpoint_handle_t dcd_pipe_open(uint8_t coreid, tusb_descriptor_endpoint_t const
   if (p_endpoint_desc->bmAttributes.xfer == TUSB_XFER_ISOCHRONOUS)
     return null_handle; // TODO not support ISO yet
 
-  tusb_direction_t dir =  (p_endpoint_desc->bEndpointAddress & TUSB_DIR_DEV_TO_HOST_MASK) ? TUSB_DIR_DEV_TO_HOST : TUSB_DIR_HOST_TO_DEV;
-
-  //------------- Endpoint Control Register -------------//
-  volatile uint32_t * reg_control = (&LPC_USB0->ENDPTCTRL0) + (p_endpoint_desc->bEndpointAddress & 0x0f);
-
-  ASSERT_FALSE( (*reg_control) &  (ENDPTCTRL_MASK_ENABLE << (dir ? 16 : 0)), null_handle ); // endpoint must not be already enabled
+  tusb_direction_t dir = (p_endpoint_desc->bEndpointAddress & TUSB_DIR_DEV_TO_HOST_MASK) ? TUSB_DIR_DEV_TO_HOST : TUSB_DIR_HOST_TO_DEV;
 
   //------------- Prepare Queue Head -------------//
-  uint8_t ep_idx = edpt_addr2phy(p_endpoint_desc->bEndpointAddress);
-  dcd_qhd_t * p_qhd = &dcd_data.qhd[ep_idx];
+  uint8_t ep_idx    = edpt_addr2phy(p_endpoint_desc->bEndpointAddress);
+  dcd_qhd_t * p_qhd = &dcd_data_ptr[coreid]->qhd[ep_idx];
 
   memclr_(p_qhd, sizeof(dcd_qhd_t));
 
@@ -394,14 +422,24 @@ endpoint_handle_t dcd_pipe_open(uint8_t coreid, tusb_descriptor_endpoint_t const
   p_qhd->max_package_size        = p_endpoint_desc->wMaxPacketSize.size;
   p_qhd->qtd_overlay.next        = QTD_NEXT_INVALID;
 
+  //------------- Endpoint Control Register -------------//
+  volatile uint32_t * reg_control = get_reg_control_addr(coreid, ep_idx);
+
+  ASSERT_FALSE( (*reg_control) &  (ENDPTCTRL_MASK_ENABLE << (dir ? 16 : 0)), null_handle ); // endpoint must not be already enabled
   (*reg_control) |= ((p_endpoint_desc->bmAttributes.xfer << 2) | ENDPTCTRL_MASK_ENABLE | ENDPTCTRL_MASK_TOGGLE_RESET) << (dir ? 16 : 0);
 
-  return (endpoint_handle_t) { .coreid = coreid, .xfer_type = p_endpoint_desc->bmAttributes.xfer, .index = ep_idx, .class_code =  class_code};
+  return (endpoint_handle_t)
+      {
+          .coreid     = coreid,
+          .xfer_type  = p_endpoint_desc->bmAttributes.xfer,
+          .index      = ep_idx,
+          .class_code = class_code
+      };
 }
 
 bool dcd_pipe_is_busy(endpoint_handle_t edpt_hdl)
 {
-  dcd_qhd_t* p_qhd = &dcd_data.qhd[edpt_hdl.index];
+  dcd_qhd_t* p_qhd = &dcd_data_ptr[edpt_hdl.coreid]->qhd[edpt_hdl.index];
 
   // LPC_USB0->ENDPTSTAT & endpoint_phy2pos(edpt_hdl.index)
   return !p_qhd->qtd_overlay.halted && p_qhd->qtd_overlay.active;
@@ -415,8 +453,9 @@ static tusb_error_t pipe_add_xfer(endpoint_handle_t edpt_hdl, void * buffer, uin
   uint8_t qtd_idx  = qtd_find_free(edpt_hdl.coreid);
   ASSERT(qtd_idx != 0, TUSB_ERROR_DCD_NOT_ENOUGH_QTD);
 
-  dcd_qhd_t* p_qhd = &dcd_data.qhd[edpt_hdl.index];
-  dcd_qtd_t* p_qtd = &dcd_data.qtd[qtd_idx];
+  dcd_data_t* p_dcd = dcd_data_ptr[edpt_hdl.coreid];
+  dcd_qhd_t * p_qhd = &p_dcd->qhd[edpt_hdl.index];
+  dcd_qtd_t * p_qtd = &p_dcd->qtd[qtd_idx];
 
   //------------- Find free slot in qhd's array list -------------//
   uint8_t free_slot;
@@ -432,7 +471,7 @@ static tusb_error_t pipe_add_xfer(endpoint_handle_t edpt_hdl, void * buffer, uin
   qtd_init(p_qtd, buffer, total_bytes);
   p_qtd->int_on_complete = int_on_complete;
 
-  if ( free_slot > 0 ) dcd_data.qtd[ p_qhd->list_qtd_idx[free_slot-1] ].next = (uint32_t) p_qtd;
+  if ( free_slot > 0 ) p_dcd->qtd[ p_qhd->list_qtd_idx[free_slot-1] ].next = (uint32_t) p_qtd;
 
   return TUSB_ERROR_NONE;
 }
@@ -446,12 +485,12 @@ tusb_error_t  dcd_pipe_xfer(endpoint_handle_t edpt_hdl, void* buffer, uint16_t t
 {
   ASSERT_STATUS ( pipe_add_xfer(edpt_hdl, buffer, total_bytes, int_on_complete) );
 
-  dcd_qhd_t* p_qhd = &dcd_data.qhd[ edpt_hdl.index ];
-  dcd_qtd_t* p_qtd = &dcd_data.qtd[ p_qhd->list_qtd_idx[0] ];
+  dcd_qhd_t* p_qhd = &dcd_data_ptr[edpt_hdl.coreid]->qhd[ edpt_hdl.index ];
+  dcd_qtd_t* p_qtd = &dcd_data_ptr[edpt_hdl.coreid]->qtd[ p_qhd->list_qtd_idx[0] ];
 
   p_qhd->qtd_overlay.next = (uint32_t) p_qtd; // attach head QTD to QHD start transferring
 
-	LPC_USB0->ENDPTPRIME |= BIT_( edpt_phy2pos(edpt_hdl.index) ) ;
+	LPC_USB[edpt_hdl.coreid]->ENDPTPRIME |= BIT_( edpt_phy2pos(edpt_hdl.index) ) ;
 
 	return TUSB_ERROR_NONE;
 }
@@ -464,7 +503,7 @@ void xfer_complete_isr(uint8_t coreid, uint32_t reg_complete)
   {
     if ( BIT_TEST_(reg_complete, edpt_phy2pos(ep_idx)) )
     { // 23.10.12.3 Failed QTD also get ENDPTCOMPLETE set
-      dcd_qhd_t * p_qhd = &dcd_data.qhd[ep_idx];
+      dcd_qhd_t * p_qhd = &dcd_data_ptr[coreid]->qhd[ep_idx];
 
       endpoint_handle_t edpt_hdl =
       {
@@ -477,7 +516,7 @@ void xfer_complete_isr(uint8_t coreid, uint32_t reg_complete)
       // retire all QTDs in array list, up to 1st still-active QTD
       while( p_qhd->list_qtd_idx[0] != 0 )
       {
-        dcd_qtd_t * p_qtd = &dcd_data.qtd[ p_qhd->list_qtd_idx[0] ];
+        dcd_qtd_t * p_qtd = &dcd_data_ptr[coreid]->qtd[ p_qhd->list_qtd_idx[0] ];
 
         if (p_qtd->active)  break; // stop immediately if found still-active QTD and shift array list
 
@@ -498,10 +537,12 @@ void xfer_complete_isr(uint8_t coreid, uint32_t reg_complete)
 
 void dcd_isr(uint8_t coreid)
 {
-	uint32_t int_status = LPC_USB0->USBSTS_D;
-	int_status &= LPC_USB0->USBINTR_D;
+  LPC_USB0_Type* const lpc_usb = LPC_USB[coreid];
 
-	LPC_USB0->USBSTS_D = int_status; // Acknowledge handled interrupt
+	uint32_t int_status = lpc_usb->USBSTS_D;
+	int_status &= lpc_usb->USBINTR_D;
+
+	lpc_usb->USBSTS_D = int_status; // Acknowledge handled interrupt
 
 	if (int_status == 0) return;
 
@@ -514,30 +555,31 @@ void dcd_isr(uint8_t coreid)
 	if (int_status & INT_MASK_USB)
 	{
 	  //------------- Set up Received -------------//
-		if (LPC_USB0->ENDPTSETUPSTAT)
+		if (lpc_usb->ENDPTSETUPSTAT)
 		{ // 23.10.10.2 Operational model for setup transfers
-		  tusb_control_request_t control_request = dcd_data.qhd[0].setup_request;
+		  dcd_data_t* p_dcd = dcd_data_ptr[coreid];
+		  tusb_control_request_t control_request = p_dcd->qhd[0].setup_request;
 
-		  LPC_USB0->ENDPTSETUPSTAT = LPC_USB0->ENDPTSETUPSTAT;
+		  lpc_usb->ENDPTSETUPSTAT = lpc_usb->ENDPTSETUPSTAT;
 
 		  //------------- Flush if previous transfer is not done -------------//
-		  if (dcd_data.qhd[0].qtd_overlay.active || dcd_data.qhd[1].qtd_overlay.active)
+		  if (p_dcd->qhd[0].qtd_overlay.active || p_dcd->qhd[1].qtd_overlay.active)
 		  {
 		    do
 		    {
-		      LPC_USB0->ENDPTFLUSH = BIT_(0) | BIT_(16);
-		      while(LPC_USB0->ENDPTFLUSH) {} // TODO refractor later
-		    }while( LPC_USB0->ENDPTSTAT & (BIT_(0) | BIT_(16)) );
+		      lpc_usb->ENDPTFLUSH = BIT_(0) | BIT_(16);
+		      while(lpc_usb->ENDPTFLUSH) {} // TODO refractor later
+		    }while( lpc_usb->ENDPTSTAT & (BIT_(0) | BIT_(16)) );
 
-		    dcd_data.qhd[0].qtd_overlay.active = dcd_data.qhd[1].qtd_overlay.active = 0;
+		    p_dcd->qhd[0].qtd_overlay.active = p_dcd->qhd[1].qtd_overlay.active = 0;
 		  }
 
 		  usbd_setup_received_isr(coreid, &control_request);
 		}
 
 		//------------- Transfer Complete -------------//
-		uint32_t edpt_complete = LPC_USB0->ENDPTCOMPLETE;
-		LPC_USB0->ENDPTCOMPLETE = edpt_complete; // acknowledge
+		uint32_t edpt_complete = lpc_usb->ENDPTCOMPLETE;
+		lpc_usb->ENDPTCOMPLETE = edpt_complete; // acknowledge
 
 		if (edpt_complete)
 		{

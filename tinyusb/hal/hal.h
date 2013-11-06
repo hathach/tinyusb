@@ -61,7 +61,7 @@
 // HAL API
 //--------------------------------------------------------------------+
 // callback from tusb.h
-extern void tusb_isr(uint8_t controller_id);
+extern void tusb_isr(uint8_t coreid);
 
 /** \brief    Initialize USB controller hardware
  * \returns   \ref tusb_error_t type to indicate success or error condition.
@@ -70,18 +70,18 @@ extern void tusb_isr(uint8_t controller_id);
 tusb_error_t hal_init(void);
 
 /** \brief 			Enable USB Interrupt on a specific USB Controller
- * \param[in]		controller_id	is a zero-based index to identify USB controller's ID
+ * \param[in]		coreid	is a zero-based index to identify USB controller's ID
  * \note        Some MCUs such as NXP LPC43xx has multiple USB controllers. It is necessary to know which USB controller for
  *              those MCUs.
  */
-static inline void hal_interrupt_enable(uint8_t controller_id) ATTR_ALWAYS_INLINE;
+static inline void hal_interrupt_enable(uint8_t coreid) ATTR_ALWAYS_INLINE;
 
 /** \brief 			Disable USB Interrupt on a specific USB Controller
- * \param[in]		controller_id	is a zero-based index to identify USB controller's ID
+ * \param[in]		coreid	is a zero-based index to identify USB controller's ID
  * \note        Some MCUs such as NXP LPC43xx has multiple USB controllers. It is necessary to know which USB controller for
  *              those MCUs.
  */
-static inline void hal_interrupt_disable(uint8_t controller_id) ATTR_ALWAYS_INLINE;
+static inline void hal_interrupt_disable(uint8_t coreid) ATTR_ALWAYS_INLINE;
 
 //--------------------------------------------------------------------+
 // INCLUDE DRIVEN

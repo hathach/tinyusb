@@ -134,24 +134,4 @@ uint8_t  board_uart_getchar(void)
 }
 #endif
 
-
-/******************************************************************************
- *
- * Description:
- *   Initialize the trim potentiometer, i.e. ADC connected to TrimPot on
- *   Base Board.
- *
- *****************************************************************************/
-//void trimpot_init(void)
-//{
-//  // pinsel for AD0.3 on p7.5
-//	scu_pinmux(	7	,	5	,	PDN_DISABLE | PUP_DISABLE	| INBUF_DISABLE,	0	);
-//  LPC_SCU->ENAIO0 |= (1<<3);
-//
-//  ADC_Init(LPC_ADC0, 400000, 10);
-//
-//	ADC_IntConfig(LPC_ADC0, ADC_ADINTEN2, DISABLE);
-//	ADC_ChannelCmd(LPC_ADC0, ADC_CH_TRIMPOT, ENABLE);
-//}
-
 #endif

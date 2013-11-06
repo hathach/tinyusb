@@ -54,9 +54,6 @@
 
 #include "LPC13Uxx.h"
 
-#define NXP_ROMDRIVER_REG_BASE          LPC_USB_BASE
-#define NXP_ROMDRIVER_FUNCTION_ADDR     0x1FFF1FF8
-
 #ifdef __cplusplus
  extern "C" {
 #endif
