@@ -469,9 +469,6 @@ typedef struct {
   }device[TUSB_CFG_HOST_DEVICE_MAX];
 }ehci_data_t;
 
-//For NXP's MCU, host/device mode must be set immediately after a reset
-tusb_error_t hcd_controller_reset(uint8_t hostid) ATTR_WARN_UNUSED_RESULT;
-
 #ifdef __cplusplus
  }
 #endif

@@ -60,7 +60,7 @@
 // CONTROLLER CONFIGURATION
 //--------------------------------------------------------------------+
 #define TUSB_CFG_CONTROLLER_0_MODE  (TUSB_MODE_DEVICE)
-#define TUSB_CFG_CONTROLLER_1_MODE  (TUSB_MODE_NONE)
+#define TUSB_CFG_CONTROLLER_1_MODE  (TUSB_MODE_DEVICE)
 
 //--------------------------------------------------------------------+
 // HOST CONFIGURATION
@@ -81,7 +81,7 @@
 //--------------------------------------------------------------------+
 // DEVICE CONFIGURATION
 //--------------------------------------------------------------------+
-#define TUSB_CFG_DEVICE_FULLSPEED 1 // TODO refractor
+#define TUSB_CFG_DEVICE_FULLSPEED       0 // TODO refractor
 
 #define TUSB_CFG_DEVICE_USE_ROM_DRIVER  0
 

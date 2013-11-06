@@ -166,21 +166,21 @@ ATTR_ALIGNED(2048) dcd_data_t dcd_data TUSB_CFG_ATTR_USBRAM;
 //--------------------------------------------------------------------+
 // CONTROLLER API
 //--------------------------------------------------------------------+
-tusb_error_t dcd_controller_reset(uint8_t coreid)
-{
-  volatile uint32_t * p_reg_usbcmd;
-
-  p_reg_usbcmd = (coreid ? &LPC_USB1->USBCMD_D : &LPC_USB0->USBCMD_D);
-// NXP chip powered with non-host mode --> sts bit is not correctly reflected
-  (*p_reg_usbcmd) |= BIT_(1); // TODO refractor reset controller
-
-//  timeout_timer_t timeout;
-//  timeout_set(&timeout, 2); // should not take longer the time to stop controller
-  while( ((*p_reg_usbcmd) & BIT_(1)) /*&& !timeout_expired(&timeout)*/) {}
+//tusb_error_t dcd_controller_reset(uint8_t coreid)
+//{
+//  volatile uint32_t * p_reg_usbcmd;
 //
-//  return timeout_expired(&timeout) ? TUSB_ERROR_OSAL_TIMEOUT : TUSB_ERROR_NONE;
-  return TUSB_ERROR_NONE;
-}
+//  p_reg_usbcmd = (coreid ? &LPC_USB1->USBCMD_D : &LPC_USB0->USBCMD_D);
+//// NXP chip powered with non-host mode --> sts bit is not correctly reflected
+//  (*p_reg_usbcmd) |= BIT_(1); // TODO refractor reset controller
+//
+////  timeout_timer_t timeout;
+////  timeout_set(&timeout, 2); // should not take longer the time to stop controller
+//  while( ((*p_reg_usbcmd) & BIT_(1)) /*&& !timeout_expired(&timeout)*/) {}
+////
+////  return timeout_expired(&timeout) ? TUSB_ERROR_OSAL_TIMEOUT : TUSB_ERROR_NONE;
+//  return TUSB_ERROR_NONE;
+//}
 
 void dcd_controller_connect(uint8_t coreid)
 {

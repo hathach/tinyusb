@@ -102,8 +102,6 @@ tusb_error_t usbd_init (void)
 
   ASSERT_STATUS ( dcd_init() );
 
-  dcd_controller_connect(0);  // TODO USB1
-
   return TUSB_ERROR_NONE;
 }
 

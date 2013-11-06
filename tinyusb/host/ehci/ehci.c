@@ -277,19 +277,19 @@ static tusb_error_t hcd_controller_stop(uint8_t hostid)
   return timeout_expired(&timeout) ? TUSB_ERROR_OSAL_TIMEOUT : TUSB_ERROR_NONE;
 }
 
-tusb_error_t hcd_controller_reset(uint8_t hostid)
-{
-  ehci_registers_t* const regs = get_operational_register(hostid);
-  timeout_timer_t timeout;
-
-// NXP chip powered with non-host mode --> sts bit is not correctly reflected
-  regs->usb_cmd_bit.reset = 1;
-
-  timeout_set(&timeout, 2); // should not take longer the time to stop controller
-  while( regs->usb_cmd_bit.reset && !timeout_expired(&timeout)) {}
-
-  return timeout_expired(&timeout) ? TUSB_ERROR_OSAL_TIMEOUT : TUSB_ERROR_NONE;
-}
+//tusb_error_t hcd_controller_reset(uint8_t hostid)
+//{
+//  ehci_registers_t* const regs = get_operational_register(hostid);
+//  timeout_timer_t timeout;
+//
+//// NXP chip powered with non-host mode --> sts bit is not correctly reflected
+//  regs->usb_cmd_bit.reset = 1;
+//
+//  timeout_set(&timeout, 2); // should not take longer the time to stop controller
+//  while( regs->usb_cmd_bit.reset && !timeout_expired(&timeout)) {}
+//
+//  return timeout_expired(&timeout) ? TUSB_ERROR_OSAL_TIMEOUT : TUSB_ERROR_NONE;
+//}
 
 //--------------------------------------------------------------------+
 // CONTROL PIPE API

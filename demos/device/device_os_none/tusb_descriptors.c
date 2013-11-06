@@ -371,7 +371,7 @@ app_descriptor_configuration_t app_tusb_desc_configuration =
         .bDescriptorType  = TUSB_DESC_TYPE_ENDPOINT,
         .bEndpointAddress = 0x83,
         .bmAttributes     = { .xfer = TUSB_XFER_BULK },
-        .wMaxPacketSize   = { .size = 64 /*512*/ },
+        .wMaxPacketSize   = { .size = TUSB_CFG_DEVICE_FULLSPEED ? 64 : 512 },
         .bInterval        = 1
     },
 
@@ -381,7 +381,7 @@ app_descriptor_configuration_t app_tusb_desc_configuration =
         .bDescriptorType  = TUSB_DESC_TYPE_ENDPOINT,
         .bEndpointAddress = 0x03,
         .bmAttributes     = { .xfer = TUSB_XFER_BULK },
-        .wMaxPacketSize   = { .size = 64 /*512*/ },
+        .wMaxPacketSize   = { .size = TUSB_CFG_DEVICE_FULLSPEED ? 64 : 512 },
         .bInterval        = 1
     },
     #endif

@@ -75,7 +75,6 @@ tusb_error_t dcd_init(void) ATTR_WARN_UNUSED_RESULT;
 void dcd_isr(uint8_t coreid);
 
 //------------- Controller API -------------//
-tusb_error_t dcd_controller_reset(uint8_t coreid) ATTR_WARN_UNUSED_RESULT;
 void dcd_controller_connect(uint8_t coreid);
 void dcd_controller_disconnect(uint8_t coreid);
 void dcd_controller_set_address(uint8_t coreid, uint8_t dev_addr);
