@@ -256,7 +256,8 @@ static void lpc43xx_controller_init(uint8_t coreid)
 
   lpc_usb->USBCMD_D &= ~0x00FF0000; // Interrupt Threshold Interval = 0
   lpc_usb->ENDPOINTLISTADDR = (uint32_t) p_dcd->qhd; // Endpoint List Address has to be 2K alignment
-  lpc_usb->USBINTR_D =  INT_MASK_USB | INT_MASK_ERROR | INT_MASK_PORT_CHANGE | INT_MASK_RESET | INT_MASK_SUSPEND; // | INT_MASK_SOF| INT_MASK_NAK;
+  lpc_usb->USBSTS_D  = lpc_usb->USBSTS_D;
+  lpc_usb->USBINTR_D = INT_MASK_USB | INT_MASK_ERROR | INT_MASK_PORT_CHANGE | INT_MASK_RESET | INT_MASK_SUSPEND; // | INT_MASK_SOF| INT_MASK_NAK;
 }
 
 tusb_error_t dcd_init(void)

@@ -23,7 +23,7 @@
 * warranty that such application will be suitable for the specified
 * use without further testing or modification.
 * Permission to use, copy, modify, and distribute this software and its
-* documentation is hereby granted, under NXP Semiconductors’
+* documentation is hereby granted, under NXP Semiconductorsï¿½
 * relevant copyright in the software, without fee, provided that it
 * is used in conjunction with NXP Semiconductors microcontrollers.  This
 * copyright, permission, and disclaimer notice must appear in all copies of
@@ -200,6 +200,7 @@ uint32_t	CGU_Init(void){
 	// Disable PLL1 CPU hang???
 	//CGU_EnableEntity(CGU_CLKSRC_PLL1, DISABLE);
 	CGU_SetPLL1(6);
+//	CGU_SetPLL1(5);
 	CGU_EnableEntity(CGU_CLKSRC_PLL1, ENABLE);
 	CGU_EntityConnect(CGU_CLKSRC_PLL1, CGU_BASE_M4);
 	CGU_UpdateClock();
