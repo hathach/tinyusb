@@ -48,6 +48,7 @@
 
 #include "mscd_app.h"
 #include "keyboardd_app.h"
+#include "moused_app.h"
 
 //--------------------------------------------------------------------+
 // MACRO CONSTANT TYPEDEF
@@ -60,11 +61,6 @@ OSAL_TASK_FUNCTION( led_blinking_task ) (void* p_task_para);
 OSAL_TASK_DEF(led_blinking_task, 128, LED_BLINKING_APP_TASK_PRIO);
 
 void print_greeting(void);
-
-
-void keyboard_device_app_task(void * p_para);
-void mouse_device_app_task(void * p_para);
-
 
 #if TUSB_CFG_OS == TUSB_OS_NONE
 // like a real RTOS, this function is a main loop invoking each task in application and never return
@@ -80,7 +76,7 @@ void os_none_start_scheduler(void)
     #endif
 
     #if TUSB_CFG_DEVICE_HID_MOUSE
-    mouse_device_app_task(NULL);
+    moused_app_task(NULL);
     #endif
   }
 }
@@ -98,6 +94,7 @@ int main(void)
 
   msc_dev_app_init();
   keyboardd_app_init();
+  moused_app_init();
 
   //------------- start OS scheduler (never return) -------------//
 #if TUSB_CFG_OS == TUSB_OS_FREERTOS
@@ -150,25 +147,6 @@ int main(void)
 
   return 0;
 }
-
-#if TUSB_CFG_DEVICE_HID_MOUSE
-hid_mouse_report_t mouse_report TUSB_CFG_ATTR_USBRAM;
-void mouse_device_app_task(void * p_para)
-{
-  if (tusbd_is_configured(0))
-  {
-    static uint32_t count =0;
-    if (count++ < 10)
-    {
-      if ( !tusbd_hid_mouse_is_busy(0) )
-      {
-        mouse_report.x = mouse_report.y = 20;
-        tusbd_hid_mouse_send(0, &mouse_report );
-      }
-    }
-  }
-}
-#endif
 
 //--------------------------------------------------------------------+
 // BLINKING TASK
