@@ -76,6 +76,25 @@ typedef ATTR_PACKED_STRUCT(struct)
 {
   tusb_descriptor_configuration_t                configuration;
 
+  //------------- CDC -------------//
+#if TUSB_CFG_DEVICE_CDC
+  #if IAD_DESC_REQUIRED
+  tusb_descriptor_interface_association_t      cdc_iad;
+  #endif
+
+  //CDC Control Interface
+  tusb_descriptor_interface_t                  cdc_comm_interface;
+  cdc_desc_func_header_t                       cdc_header;
+  cdc_desc_func_abstract_control_management_t  cdc_acm;
+  cdc_desc_func_union_t                        cdc_union;
+  tusb_descriptor_endpoint_t                   cdc_endpoint_notification;
+
+  //CDC Data Interface
+  tusb_descriptor_interface_t                  cdc_data_interface;
+  tusb_descriptor_endpoint_t                   cdc_endpoint_out;
+  tusb_descriptor_endpoint_t                   cdc_endpoint_in;
+#endif
+
   //------------- HID Keyboard -------------//
 #if TUSB_CFG_DEVICE_HID_KEYBOARD
   tusb_descriptor_interface_t                    keyboard_interface;
