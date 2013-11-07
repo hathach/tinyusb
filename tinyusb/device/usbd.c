@@ -253,7 +253,7 @@ void usbd_setup_received_isr(uint8_t coreid, tusb_control_request_t * p_request)
   if(TUSB_ERROR_NONE != error)
   { // Response with Protocol Stall if request is not supported
     dcd_pipe_control_stall(coreid);
-    ASSERT(error == TUSB_ERROR_NONE, VOID_RETURN);
+//    ASSERT(error == TUSB_ERROR_NONE, VOID_RETURN);
   }
 }
 

@@ -39,7 +39,7 @@
 #include "tusb_descriptors.h"
 
 #if TUSB_CFG_DEVICE_HID_KEYBOARD
-TUSB_CFG_ATTR_USBRAM ATTR_ALIGNED(4)
+TUSB_CFG_ATTR_USBRAM
 uint8_t app_tusb_keyboard_desc_report[] = {
   HID_USAGE_PAGE ( HID_USAGE_PAGE_DESKTOP     ),
   HID_USAGE      ( HID_USAGE_DESKTOP_KEYBOARD ),
@@ -83,7 +83,7 @@ uint8_t app_tusb_keyboard_desc_report[] = {
 #endif
 
 #if TUSB_CFG_DEVICE_HID_MOUSE
-TUSB_CFG_ATTR_USBRAM ATTR_ALIGNED(4)
+TUSB_CFG_ATTR_USBRAM
 uint8_t app_tusb_mouse_desc_report[] = {
   HID_USAGE_PAGE ( HID_USAGE_PAGE_DESKTOP     ),
   HID_USAGE      ( HID_USAGE_DESKTOP_MOUSE    ),
@@ -128,7 +128,7 @@ uint8_t app_tusb_mouse_desc_report[] = {
 };
 #endif
 
-TUSB_CFG_ATTR_USBRAM ATTR_ALIGNED(4)
+TUSB_CFG_ATTR_USBRAM
 tusb_descriptor_device_t app_tusb_desc_device =
 {
     .bLength            = sizeof(tusb_descriptor_device_t),
@@ -151,8 +151,7 @@ tusb_descriptor_device_t app_tusb_desc_device =
     .bNumConfigurations = 0x01 // TODO multiple configurations
 };
 
-
-TUSB_CFG_ATTR_USBRAM ATTR_ALIGNED(4)
+TUSB_CFG_ATTR_USBRAM
 app_descriptor_configuration_t app_tusb_desc_configuration =
 {
     .configuration =
@@ -387,7 +386,7 @@ app_descriptor_configuration_t app_tusb_desc_configuration =
     #endif
 };
 
-TUSB_CFG_ATTR_USBRAM ATTR_ALIGNED(4)
+TUSB_CFG_ATTR_USBRAM
 app_descriptor_string_t app_tusb_desc_strings =
 {
     //------------- index 0 -------------//
