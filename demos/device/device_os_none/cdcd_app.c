@@ -39,6 +39,9 @@
 #include "cdcd_app.h"
 
 #if TUSB_CFG_DEVICE_CDC
+
+#include "common/fifo.h" // TODO refractor
+
 //--------------------------------------------------------------------+
 // INCLUDE
 //--------------------------------------------------------------------+
@@ -54,18 +57,16 @@ OSAL_SEM_DEF(cdcd_semaphore);
 
 static osal_semaphore_handle_t sem_hdl;
 
-static uint8_t cdcd_app_recv_buffer[CDCD_APP_BUFFER_SIZE] TUSB_CFG_ATTR_USBRAM;
-static uint8_t cdcd_app_send_buffer[CDCD_APP_BUFFER_SIZE] TUSB_CFG_ATTR_USBRAM;
-
-static uint16_t received_bytes; // set by transfer complete callback
+static uint8_t serial_rx_buffer[CDCD_APP_BUFFER_SIZE] TUSB_CFG_ATTR_USBRAM;
+static uint8_t serial_tx_buffer[CDCD_APP_BUFFER_SIZE] TUSB_CFG_ATTR_USBRAM;
 
 //--------------------------------------------------------------------+
 // INTERNAL OBJECT & FUNCTION DECLARATION
 //--------------------------------------------------------------------+
+FIFO_DEF(fifo_serial, CDCD_APP_BUFFER_SIZE, uint8_t, true);
 
 //--------------------------------------------------------------------+
 // IMPLEMENTATION
-//--------------------------------------------------------------------+
 void cdcd_serial_app_init(void)
 {
   sem_hdl = osal_semaphore_create( OSAL_SEM_REF(cdcd_semaphore) );
@@ -78,8 +79,7 @@ void tusbd_cdc_mounted_cb(uint8_t coreid)
 {
   osal_semaphore_reset(sem_hdl);
 
-  received_bytes = 0;
-  tusbd_cdc_receive(coreid, cdcd_app_recv_buffer, CDCD_APP_BUFFER_SIZE, true);
+  tusbd_cdc_receive(coreid, serial_rx_buffer, CDCD_APP_BUFFER_SIZE, true);
 }
 
 void tusbd_cdc_xfer_isr(uint8_t coreid, tusb_event_t event, cdc_pipeid_t pipe_id, uint32_t xferred_bytes)
@@ -90,9 +90,12 @@ void tusbd_cdc_xfer_isr(uint8_t coreid, tusb_event_t event, cdc_pipeid_t pipe_id
       switch(event)
       {
         case TUSB_EVENT_XFER_COMPLETE:
-          received_bytes = min16_of(xferred_bytes, CDCD_APP_BUFFER_SIZE); // discard overflow bytes
+          for(uint8_t i=0; i<xferred_bytes; i++)
+          {
+            fifo_write(&fifo_serial, serial_rx_buffer+i);
+          }
           osal_semaphore_post(sem_hdl);  // notify main task
-          break;
+        break;
 
         case TUSB_EVENT_XFER_ERROR:
           xferred_bytes = 0; // ignore
@@ -122,14 +125,23 @@ OSAL_TASK_FUNCTION( cdcd_serial_app_task ) (void* p_task_para)
 
   if ( tusbd_cdc_is_configured(0) )
   {
-    if ( received_bytes )
-    { // echo back
-      memcpy(cdcd_app_send_buffer, cdcd_app_recv_buffer, received_bytes);
-      tusbd_cdc_send(0, cdcd_app_send_buffer, received_bytes, false);
-      received_bytes = 0;
+    // echo back data in the fifo
+    if ( !tusbd_cdc_is_busy(0, CDC_PIPE_DATA_IN) )
+    {
+      uint16_t count=0;
+      while( fifo_read(&fifo_serial, &serial_tx_buffer[count]) )
+      {
+        count++;
+      }
+
+      if (count)
+      {
+        tusbd_cdc_send(0, serial_tx_buffer, count, false);
+      }
     }
 
-    tusbd_cdc_receive(0, cdcd_app_recv_buffer, CDCD_APP_BUFFER_SIZE, true);
+    // getting next data from host
+    tusbd_cdc_receive(0, serial_rx_buffer, CDCD_APP_BUFFER_SIZE, true);
   }
 
   OSAL_TASK_LOOP_END

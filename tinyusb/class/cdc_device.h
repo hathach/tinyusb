@@ -58,6 +58,7 @@
 // APPLICATION API
 //--------------------------------------------------------------------+
 bool tusbd_cdc_is_configured(uint8_t coreid);
+bool tusbd_cdc_is_busy(uint8_t coreid, cdc_pipeid_t pipeid)  ATTR_PURE ATTR_WARN_UNUSED_RESULT;
 
 tusb_error_t tusbd_cdc_send(uint8_t coreid, void * p_data, uint32_t length, bool is_notify);
 tusb_error_t tusbd_cdc_receive(uint8_t coreid, void * p_buffer, uint32_t length, bool is_notify);
@@ -66,6 +67,7 @@ tusb_error_t tusbd_cdc_receive(uint8_t coreid, void * p_buffer, uint32_t length,
 void tusbd_cdc_mounted_cb(uint8_t coreid);
 void tusbd_cdc_unmounted_cb(uint8_t coreid);
 void tusbd_cdc_xfer_isr(uint8_t coreid, tusb_event_t event, cdc_pipeid_t pipe_id, uint32_t xferred_bytes);
+void tusbd_cdc_line_coding_changed_cb(uint8_t coreid, cdc_line_coding_t* p_line_coding);
 
 //--------------------------------------------------------------------+
 // USBD-CLASS DRIVER API

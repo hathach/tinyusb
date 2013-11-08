@@ -92,7 +92,7 @@ void tusbh_cdc_xfer_isr(uint8_t dev_addr, tusb_event_t event, cdc_pipeid_t pipe_
           break;
 
         case TUSB_EVENT_XFER_ERROR:
-          xferred_bytes = 0; // ignore
+          received_bytes = 0; // ignore
           break;
 
         case TUSB_EVENT_XFER_STALLED:

@@ -35,68 +35,13 @@
 	This file is part of the tinyusb stack.
 */
 /**************************************************************************/
-
+#include <string.h>
 #include "fifo.h"
 
-/**************************************************************************/
-/*!
-    @brief Disables the IRQ specified in the FIFO's 'irq' field
-           to prevent reads/write issues with interrupts
+static inline void mutex_lock   (fifo_t* f) ATTR_ALWAYS_INLINE;
+static inline void mutex_unlock (fifo_t* f) ATTR_ALWAYS_INLINE;
+static inline bool is_fifo_initalized(fifo_t* f) ATTR_ALWAYS_INLINE;
 
-    @param[in]  f
-                Pointer to the FIFO that should be protected
-*/
-/**************************************************************************/
-static inline void mutex_lock (fifo_t* f)
-{
-//  if (f->irq > 0)
-//    NVIC_DisableIRQ(f->irq);
-}
-
-/**************************************************************************/
-/*!
-    @brief Re-enables the IRQ specified in the FIFO's 'irq' field
-
-    @param[in]  f
-                Pointer to the FIFO that should be protected
-*/
-/**************************************************************************/
-static inline void mutex_unlock (fifo_t* f)
-{
-//  if (f->irq > 0)
-//    NVIC_EnableIRQ(f->irq);
-}
-
-/**************************************************************************/
-/*!
-    @brief Initialises the FIFO buffer
-
-    @param[in]  f
-                Pointer to the fifo_t object to intiialize
-    @param[in]  buffer
-                Pointer to the buffer's location in memory
-    @param[in]  size
-                The buffer size in bytes
-    @param[in]  overwritable
-                Set to TRUE is the FIFO is overwritable when the FIFO
-                is full (the first element will be overwritten)
-    @param[in]  irq
-                The IRQ number to disable for MUTEX protection.
-                Set the -1 if not required.
-*/
-/**************************************************************************/
-bool fifo_init(fifo_t* f, uint8_t* buffer, uint16_t size, bool overwritable) //, IRQn_Type irq)
-{
-  ASSERT(size > 0, false);
-
-  f->buf = buffer;
-  f->size = size;
-  f->rd_ptr = f->wr_ptr = f->len = 0;
-  f->overwritable = overwritable;
-//  f->irq = irq;
-
-  return true;
-}
 
 /**************************************************************************/
 /*!
@@ -114,47 +59,24 @@ bool fifo_init(fifo_t* f, uint8_t* buffer, uint16_t size, bool overwritable) //,
     @returns TRUE if the queue is not empty
 */
 /**************************************************************************/
-bool fifo_read(fifo_t* f, uint8_t *data)
+bool fifo_read(fifo_t* f, void * p_buffer)
 {
-  if (fifo_is_empty(f))
+  if( !is_fifo_initalized(f) || fifo_is_empty(f) )
+  {
     return false;
+  }
 
   mutex_lock(f);
 
-  *data = f->buf[f->rd_ptr];
-  f->rd_ptr = (f->rd_ptr + 1) % f->size;
-  f->len--;
+  memcpy(p_buffer,
+         f->buffer + (f->rd_idx * f->item_size),
+         f->item_size);
+  f->rd_idx = (f->rd_idx + 1) % f->depth;
+  f->count--;
 
   mutex_unlock(f);
 
   return true;
-}
-
-/**************************************************************************/
-/*!
-    @brief Read a byte array from FIFO
-
-    @param[in]  f
-                Pointer to the FIFO buffer to manipulate
-    @param[in]  rx
-                Pointer to the place holder for data read from the buffer
-    @param[in]  maxlen
-                The maximum number of bytes to read from the FIFO
-
-    @returns The actual number of bytes read from the FIFO
- */
-/**************************************************************************/
-uint16_t fifo_read_n(fifo_t* f, uint8_t* rx, uint16_t maxlen)
-{
-  uint16_t len = 0;
-  
-  while ( len < maxlen && fifo_read(f, rx) )
-  {
-    len++;
-    rx++;
-  }
-  
-  return len;
 }
 
 /**************************************************************************/
@@ -174,22 +96,27 @@ uint16_t fifo_read_n(fifo_t* f, uint8_t* rx, uint16_t maxlen)
              FIFO will always return TRUE)
 */
 /**************************************************************************/
-bool fifo_write(fifo_t* f, uint8_t data)
+bool fifo_write(fifo_t* f, void const * p_data)
 {
-  if ( fifo_is_full(f) && f->overwritable == false)
-      return false;
+  if ( !is_fifo_initalized(f) || (fifo_is_full(f) && !f->overwritable) )
+  {
+    return false;
+  }
 
   mutex_lock(f);
 
-  f->buf[f->wr_ptr] = data;
-  f->wr_ptr = (f->wr_ptr + 1) % f->size;
+  memcpy( f->buffer + (f->wr_idx * f->item_size),
+          p_data,
+          f->item_size);
+
+  f->wr_idx = (f->wr_idx + 1) % f->depth;
 
   if (fifo_is_full(f))
   {
-    f->rd_ptr = f->wr_ptr; // keep the full state (rd == wr && len = size)
+    f->rd_idx = f->wr_idx; // keep the full state (rd == wr && len = size)
   }else
   {
-    f->len++;
+    f->count++;
   }
 
   mutex_unlock(f);
@@ -209,9 +136,53 @@ void fifo_clear(fifo_t *f)
 {
   mutex_lock(f);
 
-  f->rd_ptr = 0;
-  f->wr_ptr = 0;
-  f->len = 0;
+  f->rd_idx = f->wr_idx = f->count = 0;
 
   mutex_unlock(f);
+}
+
+//--------------------------------------------------------------------+
+// HELPER FUNCTIONS
+//--------------------------------------------------------------------+
+
+/**************************************************************************/
+/*!
+    @brief Disables the IRQ specified in the FIFO's 'irq' field
+           to prevent reads/write issues with interrupts
+
+    @param[in]  f
+                Pointer to the FIFO that should be protected
+*/
+/**************************************************************************/
+static inline void mutex_lock (fifo_t* f)
+{
+//  if (f->irq > 0)
+//  {
+//    #if !defined (_TEST_)
+//    NVIC_DisableIRQ(f->irq);
+//    #endif
+//  }
+}
+
+/**************************************************************************/
+/*!
+    @brief Re-enables the IRQ specified in the FIFO's 'irq' field
+
+    @param[in]  f
+                Pointer to the FIFO that should be protected
+*/
+/**************************************************************************/
+static inline void mutex_unlock (fifo_t* f)
+{
+//  if (f->irq > 0)
+//  {
+//    #if !defined (_TEST_)
+//    NVIC_EnableIRQ(f->irq);
+//    #endif
+//  }
+}
+
+static inline bool is_fifo_initalized(fifo_t* f)
+{
+  return !( f->buffer == NULL || f->depth == 0 || f->item_size == 0);
 }

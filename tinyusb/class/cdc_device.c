@@ -74,7 +74,7 @@ static inline bool cdcd_is_configured(uint8_t coreid)
   return cdcd_data[coreid].interface_number != INTERFACE_INVALID_NUMBER;
 }
 
-tusb_error_t cdcd_xfer(uint8_t coreid,  cdc_pipeid_t pipeid, void * p_buffer, uint32_t length, bool is_notify)
+static tusb_error_t cdcd_xfer(uint8_t coreid,  cdc_pipeid_t pipeid, void * p_buffer, uint32_t length, bool is_notify)
 {
   ASSERT(cdcd_is_configured(coreid), TUSB_ERROR_USBD_INTERFACE_NOT_CONFIGURED);
 
@@ -88,11 +88,18 @@ tusb_error_t cdcd_xfer(uint8_t coreid,  cdc_pipeid_t pipeid, void * p_buffer, ui
 }
 
 //--------------------------------------------------------------------+
-// APPLICATION API
+// APPLICATION API (Parameters requires validation)
 //--------------------------------------------------------------------+
 bool tusbd_cdc_is_configured(uint8_t coreid)
 {
   return cdcd_is_configured(coreid);
+}
+
+bool tusbd_cdc_is_busy(uint8_t coreid, cdc_pipeid_t pipeid)
+{
+  ASSERT(cdcd_is_configured(coreid) && (pipeid < CDC_PIPE_ERROR), false);
+
+  return dcd_pipe_is_busy( cdcd_data[coreid].edpt_hdl[pipeid] );
 }
 
 tusb_error_t tusbd_cdc_receive(uint8_t coreid, void * p_buffer, uint32_t length, bool is_notify)
@@ -208,7 +215,7 @@ tusb_error_t cdcd_control_request(uint8_t coreid, tusb_control_request_t const *
     case CDC_REQUEST_SET_LINE_CODING:
       dcd_pipe_control_xfer(coreid, p_request->bmRequestType_bit.direction,
                             &cdcd_line_coding[coreid], min16_of(sizeof(cdc_line_coding_t), p_request->wLength) );
-      // TODO notify application
+      // TODO notify application on xfer complete
     break;
 
     case CDC_REQUEST_SET_CONTROL_LINE_STATE: // TODO extract DTE present
