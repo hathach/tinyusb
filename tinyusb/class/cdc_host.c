@@ -165,15 +165,12 @@ tusb_error_t cdch_open_subtask(uint8_t dev_addr, tusb_descriptor_interface_t con
 
   OSAL_SUBTASK_BEGIN
 
-  if ( CDC_COMM_SUBCLASS_ABSTRACT_CONTROL_MODEL != p_interface_desc->bInterfaceSubClass)
-  {
-    return TUSB_ERROR_CDCH_UNSUPPORTED_SUBCLASS;
-  }
+  if ( CDC_COMM_SUBCLASS_ABSTRACT_CONTROL_MODEL != p_interface_desc->bInterfaceSubClass) return TUSB_ERROR_CDC_UNSUPPORTED_SUBCLASS;
 
   if ( !(is_in_range(CDC_COMM_PROTOCOL_ATCOMMAND, p_interface_desc->bInterfaceProtocol, CDC_COMM_PROTOCOL_ATCOMMAND_CDMA) ||
          0xff == p_interface_desc->bInterfaceProtocol) )
   {
-    return TUSB_ERROR_CDCH_UNSUPPORTED_PROTOCOL;
+    return TUSB_ERROR_CDC_UNSUPPORTED_PROTOCOL;
   }
 
   uint8_t const * p_desc = descriptor_next ( (uint8_t const *) p_interface_desc );

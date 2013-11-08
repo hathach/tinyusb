@@ -56,6 +56,15 @@
 /** \defgroup ClassDriver_CDC_Common Common Definitions
  *  @{ */
 
+
+/// CDC Pipe ID, used to indicate which pipe the API is addressing to (Notification, Out, In)
+typedef enum {
+  CDC_PIPE_NOTIFICATION , ///< Notification pipe
+  CDC_PIPE_DATA_IN      , ///< Data in pipe
+  CDC_PIPE_DATA_OUT     , ///< Data out pipe
+  CDC_PIPE_ERROR        , ///< Invalid Pipe ID
+}cdc_pipeid_t;
+
 //--------------------------------------------------------------------+
 // CDC COMMUNICATION INTERFACE CLASS
 //--------------------------------------------------------------------+
@@ -143,49 +152,49 @@ typedef enum{
 //--------------------------------------------------------------------+
 /// Communication Interface Management Element Request Codes
 typedef enum {
-  SEND_ENCAPSULATED_COMMAND                    = 0x00, ///< is used to issue a command in the format of the supported control protocol of the Communications Class interface
-  GET_ENCAPSULATED_RESPONSE                    = 0x01, ///< is used to request a response in the format of the supported control protocol of the Communications Class interface.
+  CDC_REQUEST_SEND_ENCAPSULATED_COMMAND                    = 0x00, ///< is used to issue a command in the format of the supported control protocol of the Communications Class interface
+  CDC_REQUEST_GET_ENCAPSULATED_RESPONSE                    = 0x01, ///< is used to request a response in the format of the supported control protocol of the Communications Class interface.
 
-  SET_COMM_FEATURE                             = 0x02,
-  GET_COMM_FEATURE                             = 0x03,
-  CLEAR_COMM_FEATURE                           = 0x04,
+  CDC_REQUEST_SET_COMM_FEATURE                             = 0x02,
+  CDC_REQUEST_GET_COMM_FEATURE                             = 0x03,
+  CDC_REQUEST_CLEAR_COMM_FEATURE                           = 0x04,
 
-  SET_AUX_LINE_STATE                           = 0x10,
-  SET_HOOK_STATE                               = 0x11,
-  PULSE_SETUP                                  = 0x12,
-  SEND_PULSE                                   = 0x13,
-  SET_PULSE_TIME                               = 0x14,
-  RING_AUX_JACK                                = 0x15,
+  CDC_REQUEST_SET_AUX_LINE_STATE                           = 0x10,
+  CDC_REQUEST_SET_HOOK_STATE                               = 0x11,
+  CDC_REQUEST_PULSE_SETUP                                  = 0x12,
+  CDC_REQUEST_SEND_PULSE                                   = 0x13,
+  CDC_REQUEST_SET_PULSE_TIME                               = 0x14,
+  CDC_REQUEST_RING_AUX_JACK                                = 0x15,
 
-  SET_LINE_CODING                              = 0x20,
-  GET_LINE_CODING                              = 0x21,
-  SET_CONTROL_LINE_STATE                       = 0x22,
-  SEND_BREAK                                   = 0x23,
+  CDC_REQUEST_SET_LINE_CODING                              = 0x20,
+  CDC_REQUEST_GET_LINE_CODING                              = 0x21,
+  CDC_REQUEST_SET_CONTROL_LINE_STATE                       = 0x22,
+  CDC_REQUEST_SEND_BREAK                                   = 0x23,
 
-  SET_RINGER_PARMS                             = 0x30,
-  GET_RINGER_PARMS                             = 0x31,
-  SET_OPERATION_PARMS                          = 0x32,
-  GET_OPERATION_PARMS                          = 0x33,
-  SET_LINE_PARMS                               = 0x34,
-  GET_LINE_PARMS                               = 0x35,
-  DIAL_DIGITS                                  = 0x36,
-  SET_UNIT_PARAMETER                           = 0x37,
-  GET_UNIT_PARAMETER                           = 0x38,
-  CLEAR_UNIT_PARAMETER                         = 0x39,
-  GET_PROFILE                                  = 0x3A,
+  CDC_REQUEST_SET_RINGER_PARMS                             = 0x30,
+  CDC_REQUEST_GET_RINGER_PARMS                             = 0x31,
+  CDC_REQUEST_SET_OPERATION_PARMS                          = 0x32,
+  CDC_REQUEST_GET_OPERATION_PARMS                          = 0x33,
+  CDC_REQUEST_SET_LINE_PARMS                               = 0x34,
+  CDC_REQUEST_GET_LINE_PARMS                               = 0x35,
+  CDC_REQUEST_DIAL_DIGITS                                  = 0x36,
+  CDC_REQUEST_SET_UNIT_PARAMETER                           = 0x37,
+  CDC_REQUEST_GET_UNIT_PARAMETER                           = 0x38,
+  CDC_REQUEST_CLEAR_UNIT_PARAMETER                         = 0x39,
+  CDC_REQUEST_GET_PROFILE                                  = 0x3A,
 
-  SET_ETHERNET_MULTICAST_FILTERS               = 0x40,
-  SET_ETHERNET_POWER_MANAGEMENT_PATTERN_FILTER = 0x41,
-  GET_ETHERNET_POWER_MANAGEMENT_PATTERN_FILTER = 0x42,
-  SET_ETHERNET_PACKET_FILTER                   = 0x43,
-  GET_ETHERNET_STATISTIC                       = 0x44,
+  CDC_REQUEST_SET_ETHERNET_MULTICAST_FILTERS               = 0x40,
+  CDC_REQUEST_SET_ETHERNET_POWER_MANAGEMENT_PATTERN_FILTER = 0x41,
+  CDC_REQUEST_GET_ETHERNET_POWER_MANAGEMENT_PATTERN_FILTER = 0x42,
+  CDC_REQUEST_SET_ETHERNET_PACKET_FILTER                   = 0x43,
+  CDC_REQUEST_GET_ETHERNET_STATISTIC                       = 0x44,
 
-  SET_ATM_DATA_FORMAT                          = 0x50,
-  GET_ATM_DEVICE_STATISTICS                    = 0x51,
-  SET_ATM_DEFAULT_VC                           = 0x52,
-  GET_ATM_VC_STATISTICS                        = 0x53,
+  CDC_REQUEST_SET_ATM_DATA_FORMAT                          = 0x50,
+  CDC_REQUEST_GET_ATM_DEVICE_STATISTICS                    = 0x51,
+  CDC_REQUEST_SET_ATM_DEFAULT_VC                           = 0x52,
+  CDC_REQUEST_GET_ATM_VC_STATISTICS                        = 0x53,
 
-  MDLM_SEMANTIC_MODEL                          = 0x60,
+  CDC_REQUEST_MDLM_SEMANTIC_MODEL                          = 0x60,
 }cdc_management_request_t;
 
 //--------------------------------------------------------------------+
@@ -194,7 +203,7 @@ typedef enum {
 /// Communication Interface Management Element Notification Codes
 typedef enum {
   NETWORK_CONNECTION               = 0x00, ///< This notification allows the device to notify the host about network connection status.
-  RESPONSE_AVAILABLE               = 0x01, ///< This notification allows the device to notify the hostthat a response is available. This response can be retrieved with a subsequent \ref GET_ENCAPSULATED_RESPONSE request.
+  RESPONSE_AVAILABLE               = 0x01, ///< This notification allows the device to notify the hostthat a response is available. This response can be retrieved with a subsequent \ref CDC_REQUEST_GET_ENCAPSULATED_RESPONSE request.
 
   AUX_JACK_HOOK_STATE              = 0x08,
   RING_DETECT                      = 0x09,
@@ -357,6 +366,26 @@ static inline uint8_t cdc_functional_desc_typeof(uint8_t const * p_desc)
 {
   return p_desc[2];
 }
+
+//--------------------------------------------------------------------+
+// Requests
+//--------------------------------------------------------------------+
+typedef ATTR_PACKED_STRUCT(struct) {
+  uint32_t bit_rate;
+  uint8_t  stop_bits; ///< 0: 1 stop bit - 1: 1.5 stop bits - 2: 2 stop bits
+  uint8_t  parity; ///< 0: None - 1: Odd - 2: Even - 3: Mark - 4: Space
+  uint8_t  data_bits; ///< can be 5, 6, 7, 8 or 16
+} cdc_line_coding_t;
+
+STATIC_ASSERT(sizeof(cdc_line_coding_t) == 7, "size is not correct");
+
+typedef ATTR_PACKED_STRUCT(struct) {
+  uint16_t dte_is_present : 1; ///< Indicates to DCE if DTE is presentor not. This signal corresponds to V.24 signal 108/2 and RS-232 signal DTR.
+  uint16_t half_duplex_carrier_control : 1;
+  uint16_t : 14;
+} cdc_line_control_state_t;
+
+STATIC_ASSERT(sizeof(cdc_line_control_state_t) == 2, "size is not correct");
 
 /** @} */
 

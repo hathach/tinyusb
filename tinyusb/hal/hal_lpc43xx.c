@@ -72,12 +72,15 @@ static tusb_error_t hal_controller_reset(uint8_t coreid)
 
 tusb_error_t hal_init(void)
 {
+  LPC_CREG->CREG0 &= ~(1<<5); /* Turn on the phy */
+
   //------------- USB0 -------------//
 #if TUSB_CFG_CONTROLLER_0_MODE
   CGU_EnableEntity(CGU_CLKSRC_PLL0, DISABLE); /* Disable PLL first */
   ASSERT_INT( CGU_ERROR_SUCCESS, CGU_SetPLL0(), TUSB_ERROR_FAILED); /* the usb core require output clock = 480MHz */
   CGU_EntityConnect(CGU_CLKSRC_XTAL_OSC, CGU_CLKSRC_PLL0);
   CGU_EnableEntity(CGU_CLKSRC_PLL0, ENABLE);   /* Enable PLL after all setting is done */
+
 
   // reset controller & set role
   ASSERT_STATUS( hal_controller_reset(0) );
@@ -117,8 +120,6 @@ tusb_error_t hal_init(void)
   LPC_USB1->PORTSC1_D |= (1<<24); // TODO abtract, force port to fullspeed
   hal_interrupt_enable(1);
 #endif
-
-  LPC_CREG->CREG0 &= ~(1<<5); /* Turn on the phy */
 
   return TUSB_ERROR_NONE;
 }

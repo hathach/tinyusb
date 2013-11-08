@@ -41,6 +41,9 @@
 
 #include "tusb.h"
 
+#define ENDPOINT_OUT_LOGICAL_TO_PHYSICAL(addr)      (addr)
+#define ENDPOINT_IN_LOGICAL_TO_PHYSICAL(addr)       ((addr) | 0x80)
+
 #define INTERFACE_INDEX_CDC           0
 #define INTERFACE_INDEX_HID_KEYBOARD (INTERFACE_INDEX_CDC          + 2*TUSB_CFG_DEVICE_CDC        )
 #define INTERFACE_INDEX_HID_MOUSE    (INTERFACE_INDEX_HID_KEYBOARD + TUSB_CFG_DEVICE_HID_KEYBOARD )
@@ -50,10 +53,20 @@
 #define TOTAL_INTEFACES              (2*TUSB_CFG_DEVICE_CDC + TUSB_CFG_DEVICE_HID_KEYBOARD + TUSB_CFG_DEVICE_HID_MOUSE + \
                                       TUSB_CFG_DEVICE_HID_GENERIC + TUSB_CFG_DEVICE_MSC)
 
-// USB Interface Assosication Descriptor
-#define  USB_DEVICE_CLASS_IAD        USB_DEVICE_CLASS_MISCELLANEOUS
-#define  USB_DEVICE_SUBCLASS_IAD     0x02
-#define  USB_DEVICE_PROTOCOL_IAD     0x01
+/* HID In/Out Endpoint Address */
+#define    HID_KEYBOARD_EP_IN       ENDPOINT_IN_LOGICAL_TO_PHYSICAL(1)
+#define    HID_MOUSE_EP_IN          ENDPOINT_IN_LOGICAL_TO_PHYSICAL(4)
+
+/* CDC Endpoint Address */
+#define  CDC_NOTIFICATION_EP                ENDPOINT_IN_LOGICAL_TO_PHYSICAL(2)
+#define  CDC_DATA_EP_OUT                    ENDPOINT_OUT_LOGICAL_TO_PHYSICAL(3)
+#define  CDC_DATA_EP_IN                     ENDPOINT_IN_LOGICAL_TO_PHYSICAL(3)
+
+#define  CDC_NOTIFICATION_EP_MAXPACKETSIZE  8
+#define  CDC_DATA_EP_MAXPACKET_SIZE         16
+
+#define MSC_EDPT_IN   ENDPOINT_IN_LOGICAL_TO_PHYSICAL(3)
+#define MSC_EDPT_OUT  ENDPOINT_OUT_LOGICAL_TO_PHYSICAL(3)
 
 // Interface Assosication Descriptor if device is CDC + other class
 #define IAD_DESC_REQUIRED ( TUSB_CFG_DEVICE_CDC && (TOTAL_INTEFACES > 2) )
@@ -64,7 +77,7 @@
 #ifndef TUSB_CFG_PRODUCT_ID
 // Bitmap: MassStorage | Generic | Mouse | Key | CDC
 #define PRODUCTID_BITMAP(interface, n)  ( (TUSB_CFG_DEVICE_##interface) << (n) )
-#define TUSB_CFG_PRODUCT_ID             (0x2000 | ( PRODUCTID_BITMAP(CDC, 0) | PRODUCTID_BITMAP(HID_KEYBOARD, 1) | \
+#define TUSB_CFG_PRODUCT_ID             (0x4000 | ( PRODUCTID_BITMAP(CDC, 0) | PRODUCTID_BITMAP(HID_KEYBOARD, 1) | \
                                          PRODUCTID_BITMAP(HID_MOUSE, 2) | PRODUCTID_BITMAP(HID_GENERIC, 3) | \
                                          PRODUCTID_BITMAP(MSC, 4) ) )
 #endif

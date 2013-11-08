@@ -139,8 +139,8 @@ tusb_descriptor_device_t app_tusb_desc_device =
   .bDeviceClass       = USB_DEVICE_CLASS_IAD,
   .bDeviceSubClass    = USB_DEVICE_SUBCLASS_IAD,
   .bDeviceProtocol    = USB_DEVICE_PROTOCOL_IAD,
-  #elif defined CFG_USB_CDC
-  .bDeviceClass       = CDC_COMMUNICATION_INTERFACE_CLASS,
+  #elif TUSB_CFG_DEVICE_CDC
+  .bDeviceClass       = TUSB_CLASS_CDC,
   .bDeviceSubClass    = 0x00,
   .bDeviceProtocol    = 0x00,
   #else
@@ -379,7 +379,7 @@ app_descriptor_configuration_t app_tusb_desc_configuration =
     {
         .bLength          = sizeof(tusb_descriptor_endpoint_t),
         .bDescriptorType  = TUSB_DESC_TYPE_ENDPOINT,
-        .bEndpointAddress = 0x83,
+        .bEndpointAddress = MSC_EDPT_IN,
         .bmAttributes     = { .xfer = TUSB_XFER_BULK },
         .wMaxPacketSize   = { .size = TUSB_CFG_DEVICE_FULLSPEED ? 64 : 512 },
         .bInterval        = 1
@@ -389,7 +389,7 @@ app_descriptor_configuration_t app_tusb_desc_configuration =
     {
         .bLength          = sizeof(tusb_descriptor_endpoint_t),
         .bDescriptorType  = TUSB_DESC_TYPE_ENDPOINT,
-        .bEndpointAddress = 0x03,
+        .bEndpointAddress = MSC_EDPT_OUT,
         .bmAttributes     = { .xfer = TUSB_XFER_BULK },
         .wMaxPacketSize   = { .size = TUSB_CFG_DEVICE_FULLSPEED ? 64 : 512 },
         .bInterval        = 1

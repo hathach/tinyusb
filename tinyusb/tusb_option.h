@@ -177,23 +177,6 @@
 
 #endif // MODE_DEVICE_SUPPORTED
 
-
-
-#define USB_FS_MAX_BULK_PACKET  64
-#define USB_HS_MAX_BULK_PACKET  USB_FS_MAX_BULK_PACKET /* Full speed device only */
-
-/* HID In/Out Endpoint Address */
-#define    HID_KEYBOARD_EP_IN       ENDPOINT_IN_LOGICAL_TO_PHYSICAL(1)
-#define    HID_MOUSE_EP_IN          ENDPOINT_IN_LOGICAL_TO_PHYSICAL(4)
-
-/* CDC Endpoint Address */
-#define  CDC_NOTIFICATION_EP                ENDPOINT_IN_LOGICAL_TO_PHYSICAL(2)
-#define  CDC_DATA_EP_OUT                    ENDPOINT_OUT_LOGICAL_TO_PHYSICAL(3)
-#define  CDC_DATA_EP_IN                     ENDPOINT_IN_LOGICAL_TO_PHYSICAL(3)
-
-#define  CDC_NOTIFICATION_EP_MAXPACKETSIZE  8
-#define  CDC_DATA_EP_MAXPACKET_SIZE         16
-
 #endif /* _TUSB_TUSB_OPTION_H_ */
 
 /** @} */

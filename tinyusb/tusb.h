@@ -87,7 +87,7 @@
   #endif
 
   #if TUSB_CFG_DEVICE_CDC
-    #include "class/cdc.h"
+    #include "class/cdc_device.h"
   #endif
 
   #if TUSB_CFG_DEVICE_MSC

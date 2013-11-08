@@ -50,13 +50,6 @@
  extern "C" {
 #endif
 
-/// CDC Pipe ID, used to indicate which pipe the API is addressing to (Notification, Out, In)
-typedef enum {
-  CDC_PIPE_ERROR = 0    , ///< Invalid Pipe ID
-  CDC_PIPE_NOTIFICATION , ///< Notificaiton pipe
-  CDC_PIPE_DATA_IN      , ///< Data in pipe
-  CDC_PIPE_DATA_OUT       ///< Data out pipe
-}cdc_pipeid_t;
 
 //--------------------------------------------------------------------+
 // APPLICATION PUBLIC API

@@ -49,6 +49,7 @@
 #include "mscd_app.h"
 #include "keyboardd_app.h"
 #include "moused_app.h"
+#include "cdcd_app.h"
 
 //--------------------------------------------------------------------+
 // MACRO CONSTANT TYPEDEF
@@ -68,16 +69,12 @@ void os_none_start_scheduler(void)
 {
   while (1)
   {
-//    tusb_task_runner();
+    tusb_task_runner();
     led_blinking_task(NULL);
 
-    #if TUSB_CFG_DEVICE_HID_KEYBOARD
     keyboardd_app_task(NULL);
-    #endif
-
-    #if TUSB_CFG_DEVICE_HID_MOUSE
     moused_app_task(NULL);
-    #endif
+    cdcd_serial_app_task(NULL);
   }
 }
 #endif
@@ -95,6 +92,7 @@ int main(void)
   msc_dev_app_init();
   keyboardd_app_init();
   moused_app_init();
+  cdcd_serial_app_init();
 
   //------------- start OS scheduler (never return) -------------//
 #if TUSB_CFG_OS == TUSB_OS_FREERTOS
@@ -111,39 +109,6 @@ int main(void)
 #endif
 
   while(1) { } // should not be reached here
-
-  #if TUSB_CFG_DEVICE_CDC && 0
-  if (tusb_device_is_configured())
-  {
-    uint8_t cdc_char;
-    if( tusb_cdc_getc(&cdc_char) )
-    {
-      switch (cdc_char)
-      {
-        #ifdef TUSB_CFG_DEVICE_HID_KEYBOARD
-        case '1' :
-        {
-          uint8_t keys[6] = {HID_USAGE_KEYBOARD_aA + 'e' - 'a'};
-          tusbd_hid_keyboard_send_report(0x08, keys, 1); // windows + E --> open explorer
-        }
-        break;
-        #endif
-
-        #ifdef TUSB_CFG_DEVICE_HID_MOUSE
-        case '2' :
-          tusb_hid_mouse_send(0, 10, 10);
-        break;
-        #endif
-
-        default :
-          cdc_char = toupper(cdc_char);
-          tusb_cdc_putc(cdc_char);
-        break;
-
-      }
-    }
-  }
-  #endif
 
   return 0;
 }

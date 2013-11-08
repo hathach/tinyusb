@@ -75,5 +75,9 @@ void tusb_task_runner(void)
   #if MODE_HOST_SUPPORTED
   usbh_enumeration_task(NULL);
   #endif
+
+  #if MODE_DEVICE_SUPPORTED
+
+  #endif
 }
 #endif

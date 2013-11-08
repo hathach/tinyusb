@@ -81,27 +81,32 @@ void tusbh_cdc_unmounted_cb(uint8_t dev_addr)
 
 void tusbh_cdc_xfer_isr(uint8_t dev_addr, tusb_event_t event, cdc_pipeid_t pipe_id, uint32_t xferred_bytes)
 {
-  if ( pipe_id == CDC_PIPE_DATA_IN )
+  switch ( pipe_id )
   {
-    switch(event)
-    {
-      case TUSB_EVENT_XFER_COMPLETE:
-        received_bytes = xferred_bytes;
-        osal_semaphore_post(sem_hdl);  // notify main task
-      break;
+    case CDC_PIPE_DATA_IN:
+      switch(event)
+      {
+        case TUSB_EVENT_XFER_COMPLETE:
+          received_bytes = xferred_bytes;
+          osal_semaphore_post(sem_hdl);  // notify main task
+          break;
 
-      case TUSB_EVENT_XFER_ERROR:
-        xferred_bytes = 0; // ignore
-      break;
+        case TUSB_EVENT_XFER_ERROR:
+          xferred_bytes = 0; // ignore
+          break;
 
-      case TUSB_EVENT_XFER_STALLED:
-      default :
-        ASSERT(false, VOID_RETURN);
-      break;
-    }
+        case TUSB_EVENT_XFER_STALLED:
+        default :
+          ASSERT(false, VOID_RETURN);
+          break;
+      }
+    break;
+
+    case CDC_PIPE_DATA_OUT:
+    case CDC_PIPE_NOTIFICATION:
+    default:
+    break;
   }
-  else if (pipe_id == CDC_PIPE_DATA_OUT) { }
-  else if (pipe_id == CDC_PIPE_NOTIFICATION) { }
 }
 
 //--------------------------------------------------------------------+
