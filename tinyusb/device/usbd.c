@@ -95,7 +95,6 @@ static usbd_class_driver_t const usbd_class_drivers[TUSB_CLASS_MAPPED_INDEX_STAR
 //--------------------------------------------------------------------+
 // INTERNAL OBJECT & FUNCTION DECLARATION
 //--------------------------------------------------------------------+
-static tusb_error_t usbd_string_descriptor_init(void);
 
 //--------------------------------------------------------------------+
 // APPLICATION INTERFACE
@@ -123,8 +122,6 @@ void usbd_bus_reset(uint32_t coreid)
 
 tusb_error_t usbd_init (void)
 {
-  ASSERT_STATUS ( usbd_string_descriptor_init() );
-
   ASSERT_STATUS ( dcd_init() );
 
   for (tusb_std_class_code_t class_code = TUSB_CLASS_AUDIO; class_code <= TUSB_CLASS_AUDIO_VIDEO; class_code++)
@@ -180,6 +177,7 @@ tusb_error_t std_get_descriptor(uint8_t coreid, tusb_control_request_t * p_reque
 {
   tusb_std_descriptor_type_t const desc_type = p_request->wValue >> 8;
   uint8_t const desc_index = u16_low_u8( p_request->wValue );
+
   switch ( desc_type )
   {
     case TUSB_DESC_TYPE_DEVICE:
@@ -193,14 +191,7 @@ tusb_error_t std_get_descriptor(uint8_t coreid, tusb_control_request_t * p_reque
     break;
 
     case TUSB_DESC_TYPE_STRING:
-    {
-      uint8_t *p_string = (uint8_t*) &app_tusb_desc_strings;
-      for(uint8_t index =0; index < desc_index; index++)
-      {
-        p_string += (*p_string);
-      }
-      dcd_pipe_control_xfer(coreid, TUSB_DIR_DEV_TO_HOST, p_string, *p_string);
-    }
+      dcd_pipe_control_xfer(coreid, TUSB_DIR_DEV_TO_HOST, desc_str_table[desc_index], desc_str_table[desc_index]->bLength);
     break;
 
     default:
@@ -294,10 +285,6 @@ void usbd_setup_received_isr(uint8_t coreid, tusb_control_request_t * p_request)
 //--------------------------------------------------------------------+
 // USBD-CLASS API
 //--------------------------------------------------------------------+
-tusb_error_t usbd_pipe_open(uint8_t coreid, tusb_descriptor_interface_t const * p_interfacae, tusb_descriptor_endpoint_t const * p_endpoint_desc)
-{
-  return TUSB_ERROR_NONE;
-}
 
 //--------------------------------------------------------------------+
 // USBD-DCD API
@@ -323,33 +310,5 @@ void usbd_xfer_isr(endpoint_handle_t edpt_hdl, tusb_event_t event, uint32_t xfer
 //--------------------------------------------------------------------+
 // HELPER
 //--------------------------------------------------------------------+
-static tusb_error_t usbd_string_descriptor_init(void)
-{
-  ASSERT_INT( STRING_LEN_BYTE2UNICODE(sizeof(TUSB_CFG_DEVICE_STRING_MANUFACTURER)-1),
-             app_tusb_desc_strings.manufacturer.bLength, TUSB_ERROR_USBD_DESCRIPTOR_STRING);
-
-  ASSERT_INT( STRING_LEN_BYTE2UNICODE(sizeof(TUSB_CFG_DEVICE_STRING_PRODUCT)-1)     ,
-             app_tusb_desc_strings.product.bLength     , TUSB_ERROR_USBD_DESCRIPTOR_STRING);
-
-  ASSERT_INT( STRING_LEN_BYTE2UNICODE(sizeof(TUSB_CFG_DEVICE_STRING_SERIAL)-1)      ,
-              app_tusb_desc_strings.serial.bLength      , TUSB_ERROR_USBD_DESCRIPTOR_STRING);
-
-  for(uint32_t i=0; i < sizeof(TUSB_CFG_DEVICE_STRING_MANUFACTURER)-1; i++)
-  {
-    app_tusb_desc_strings.manufacturer.unicode_string[i] = (uint16_t) TUSB_CFG_DEVICE_STRING_MANUFACTURER[i];
-  }
-
-  for(uint32_t i=0; i < sizeof(TUSB_CFG_DEVICE_STRING_PRODUCT)-1; i++)
-  {
-    app_tusb_desc_strings.product.unicode_string[i] = (uint16_t) TUSB_CFG_DEVICE_STRING_PRODUCT[i];
-  }
-
-  for(uint32_t i=0; i < sizeof(TUSB_CFG_DEVICE_STRING_SERIAL)-1; i++)
-  {
-    app_tusb_desc_strings.serial.unicode_string[i] = (uint16_t) TUSB_CFG_DEVICE_STRING_SERIAL[i];
-  }
-
-  return TUSB_ERROR_NONE;
-}
 
 #endif

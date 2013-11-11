@@ -58,15 +58,15 @@
  extern "C" {
 #endif
 
-static inline void hal_interrupt_enable(uint8_t controller_id)
+static inline void hal_interrupt_enable(uint8_t coreid)
 {
-  (void) controller_id; // discard compiler's warning
+  (void) coreid; // discard compiler's warning
   NVIC_EnableIRQ(USB_IRQ_IRQn);
 }
 
-static inline void hal_interrupt_disable(uint8_t controller_id)
+static inline void hal_interrupt_disable(uint8_t coreid)
 {
-  (void) controller_id; // discard compiler's warning
+  (void) coreid; // discard compiler's warning
   NVIC_DisableIRQ(USB_IRQ_IRQn);
 }
 

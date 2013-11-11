@@ -86,9 +86,7 @@ static inline void hal_interrupt_disable(uint8_t coreid) ATTR_ALWAYS_INLINE;
 //--------------------------------------------------------------------+
 // INCLUDE DRIVEN
 //--------------------------------------------------------------------+
-#if MCU == 0
-  #error MCU is not defined or supported yet
-#elif MCU == MCU_LPC11UXX
+#if MCU == MCU_LPC11UXX
   #include "hal_lpc11uxx.h"
 #elif MCU == MCU_LPC13UXX
   #include "hal_lpc13uxx.h"

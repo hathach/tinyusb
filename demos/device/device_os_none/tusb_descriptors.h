@@ -69,7 +69,7 @@
 #define MSC_EDPT_OUT  ENDPOINT_OUT_LOGICAL_TO_PHYSICAL(3)
 
 // Interface Assosication Descriptor if device is CDC + other class
-#define IAD_DESC_REQUIRED ( TUSB_CFG_DEVICE_CDC && (TOTAL_INTEFACES > 2) )
+#define IAD_DESC_REQUIRED ( 0 && TUSB_CFG_DEVICE_CDC && (TOTAL_INTEFACES > 2) )
 
 
 // each combination of interfaces need to have different productid, as windows will bind & remember device driver after the
@@ -134,46 +134,13 @@ typedef ATTR_PACKED_STRUCT(struct)
 //--------------------------------------------------------------------+
 // STRINGS DESCRIPTOR
 //--------------------------------------------------------------------+
-typedef ATTR_PACKED_STRUCT(struct)
-{
-  //------------- index 0 -------------//
-  struct {
-    uint8_t const bLength;
-    uint8_t const bDescriptorType;
-    uint16_t id;
-  }language;
-
-  //------------- index 1 -------------//
-  struct {
-    uint8_t const bLength;
-    uint8_t const bDescriptorType;
-    uint16_t unicode_string[sizeof(TUSB_CFG_DEVICE_STRING_MANUFACTURER)-1]; // exclude null-character
-  } manufacturer;
-
-  //------------- index 2 -------------//
-  struct {
-    uint8_t const bLength;
-    uint8_t const bDescriptorType;
-    uint16_t unicode_string[sizeof(TUSB_CFG_DEVICE_STRING_PRODUCT)-1]; // exclude null-character
-  } product;
-
-  //------------- index 3 -------------//
-  struct {
-    uint8_t const bLength;
-    uint8_t const bDescriptorType;
-    uint16_t unicode_string[sizeof(TUSB_CFG_DEVICE_STRING_SERIAL)-1]; // exclude null-character
-  } serial;
-
-  //------------- more string index -------------//
-
-} app_descriptor_string_t;
+tusb_descriptor_string_t * const desc_str_table [];
 
 //--------------------------------------------------------------------+
 // Export descriptors
 //--------------------------------------------------------------------+
 extern tusb_descriptor_device_t app_tusb_desc_device;
 extern app_descriptor_configuration_t app_tusb_desc_configuration;
-extern app_descriptor_string_t app_tusb_desc_strings;
 
 extern uint8_t app_tusb_keyboard_desc_report[];
 extern uint8_t app_tusb_mouse_desc_report[];

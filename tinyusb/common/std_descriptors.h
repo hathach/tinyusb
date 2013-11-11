@@ -179,12 +179,12 @@ typedef ATTR_PACKED_STRUCT(struct)
   uint8_t  bDescriptorType ; ///< Descriptor Type
 } tusb_descriptor_header_t;
 
-//typedef ATTR_PACKED_STRUCT(struct)
-//{
-//  uint8_t  bLength         ; ///< Size of this descriptor in bytes
-//  uint8_t  bDescriptorType ; ///< Descriptor Type
-//  uint16_t unicode_string[];
-//} tusb_descriptor_string_t;
+typedef ATTR_PACKED_STRUCT(struct)
+{
+  uint8_t  bLength         ; ///< Size of this descriptor in bytes
+  uint8_t  bDescriptorType ; ///< Descriptor Type
+  uint16_t unicode_string[];
+} tusb_descriptor_string_t;
 
 #ifdef __cplusplus
  }

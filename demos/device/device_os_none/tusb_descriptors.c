@@ -39,7 +39,7 @@
 #include "tusb_descriptors.h"
 
 #if TUSB_CFG_DEVICE_HID_KEYBOARD
-TUSB_CFG_ATTR_USBRAM
+ATTR_USB_MIN_ALIGNMENT TUSB_CFG_ATTR_USBRAM
 uint8_t app_tusb_keyboard_desc_report[] = {
   HID_USAGE_PAGE ( HID_USAGE_PAGE_DESKTOP     ),
   HID_USAGE      ( HID_USAGE_DESKTOP_KEYBOARD ),
@@ -83,7 +83,7 @@ uint8_t app_tusb_keyboard_desc_report[] = {
 #endif
 
 #if TUSB_CFG_DEVICE_HID_MOUSE
-TUSB_CFG_ATTR_USBRAM
+ATTR_USB_MIN_ALIGNMENT TUSB_CFG_ATTR_USBRAM
 uint8_t app_tusb_mouse_desc_report[] = {
   HID_USAGE_PAGE ( HID_USAGE_PAGE_DESKTOP     ),
   HID_USAGE      ( HID_USAGE_DESKTOP_MOUSE    ),
@@ -128,7 +128,7 @@ uint8_t app_tusb_mouse_desc_report[] = {
 };
 #endif
 
-TUSB_CFG_ATTR_USBRAM
+ATTR_USB_MIN_ALIGNMENT TUSB_CFG_ATTR_USBRAM
 tusb_descriptor_device_t app_tusb_desc_device =
 {
     .bLength            = sizeof(tusb_descriptor_device_t),
@@ -136,9 +136,9 @@ tusb_descriptor_device_t app_tusb_desc_device =
     .bcdUSB             = 0x0200,
   #if IAD_DESC_REQUIRED
   /* Multiple Interfaces Using Interface Association Descriptor (IAD) */
-  .bDeviceClass       = USB_DEVICE_CLASS_IAD,
-  .bDeviceSubClass    = USB_DEVICE_SUBCLASS_IAD,
-  .bDeviceProtocol    = USB_DEVICE_PROTOCOL_IAD,
+  .bDeviceClass       = TUSB_CLASS_MISC,
+  .bDeviceSubClass    = TUSB_CLASS_CDC,
+  .bDeviceProtocol    = 1,
   #elif TUSB_CFG_DEVICE_CDC
   .bDeviceClass       = TUSB_CLASS_CDC,
   .bDeviceSubClass    = 0x00,
@@ -162,7 +162,7 @@ tusb_descriptor_device_t app_tusb_desc_device =
     .bNumConfigurations = 0x01 // TODO multiple configurations
 };
 
-TUSB_CFG_ATTR_USBRAM
+ATTR_USB_MIN_ALIGNMENT TUSB_CFG_ATTR_USBRAM
 app_descriptor_configuration_t app_tusb_desc_configuration =
 {
     .configuration =
@@ -397,31 +397,45 @@ app_descriptor_configuration_t app_tusb_desc_configuration =
     #endif
 };
 
-TUSB_CFG_ATTR_USBRAM
-app_descriptor_string_t app_tusb_desc_strings =
+//--------------------------------------------------------------------+
+// STRING DESCRIPTORS
+//--------------------------------------------------------------------+
+ATTR_USB_MIN_ALIGNMENT TUSB_CFG_ATTR_USBRAM
+tusb_descriptor_string_t desc_str_language =
 {
-    //------------- index 0 -------------//
-    .language = {
-        .bLength         = 0x04,
-        .bDescriptorType = TUSB_DESC_TYPE_STRING,
-        .id              = 0x0409, // US English
-    },
+    .bLength         = 2 + 1*2,
+    .bDescriptorType = TUSB_DESC_TYPE_STRING,
+    .unicode_string  = { 0x0409 }
+};
 
-    //------------- index 1 -------------//
-    .manufacturer = {
-        .bLength         = STRING_LEN_BYTE2UNICODE(sizeof(TUSB_CFG_DEVICE_STRING_MANUFACTURER)-1),
-        .bDescriptorType = TUSB_DESC_TYPE_STRING,
-    },
+ATTR_USB_MIN_ALIGNMENT TUSB_CFG_ATTR_USBRAM
+tusb_descriptor_string_t desc_str_manufacturer =
+{
+    .bLength         = 2 + 11*2,
+    .bDescriptorType = TUSB_DESC_TYPE_STRING,
+    .unicode_string  = { 't', 'i', 'n', 'y', 'u', 's', 'b', '.', 'o', 'r', 'g' } // len = 11
+};
 
-    //------------- index 2 -------------//
-    .product = {
-        .bLength         = STRING_LEN_BYTE2UNICODE(sizeof(TUSB_CFG_DEVICE_STRING_PRODUCT)-1),
-        .bDescriptorType = TUSB_DESC_TYPE_STRING,
-    },
+ATTR_USB_MIN_ALIGNMENT TUSB_CFG_ATTR_USBRAM
+tusb_descriptor_string_t desc_str_product =
+{
+    .bLength         = 2 + 14*2,
+    .bDescriptorType = TUSB_DESC_TYPE_STRING,
+    .unicode_string  = { 'D', 'e', 'v', 'i', 'c', 'e', ' ', 'E', 'x', 'a', 'm', 'p', 'l', 'e' } // len = 14
+};
 
-    //------------- index 3 -------------//
-    .serial = {
-        .bLength         = STRING_LEN_BYTE2UNICODE(sizeof(TUSB_CFG_DEVICE_STRING_SERIAL)-1),
-        .bDescriptorType = TUSB_DESC_TYPE_STRING,
-    }
+ATTR_USB_MIN_ALIGNMENT TUSB_CFG_ATTR_USBRAM
+tusb_descriptor_string_t desc_str_serial =
+{
+    .bLength         = 2 + 4*2,
+    .bDescriptorType = TUSB_DESC_TYPE_STRING,
+    .unicode_string  = { '1', '2', '3', '4' } // len = 4
+};
+
+tusb_descriptor_string_t * const desc_str_table [] =
+{
+    &desc_str_language,
+    &desc_str_manufacturer,
+    &desc_str_product,
+    &desc_str_serial
 };

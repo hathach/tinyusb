@@ -119,6 +119,16 @@ tusb_error_t tusbd_hid_mouse_send(uint8_t coreid, hid_mouse_report_t const *p_re
 //--------------------------------------------------------------------+
 // USBD-CLASS API
 //--------------------------------------------------------------------+
+void hidd_init(void)
+{
+
+}
+
+void hidd_bus_reset(uint8_t coreid)
+{
+
+}
+
 tusb_error_t hidd_control_request(uint8_t coreid, tusb_control_request_t const * p_request)
 {
   hidd_interface_t* p_hid =

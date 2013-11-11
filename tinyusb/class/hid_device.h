@@ -133,6 +133,8 @@ void tusbd_hid_mouse_isr(uint8_t coreid, tusb_event_t event, uint32_t xferred_by
 //--------------------------------------------------------------------+
 #ifdef _TINY_USB_SOURCE_FILE_
 
+void hidd_init(void);
+void hidd_bus_reset(uint8_t coreid);
 tusb_error_t hidd_open(uint8_t coreid, tusb_descriptor_interface_t const * p_interface_desc, uint16_t *p_length);
 tusb_error_t hidd_control_request(uint8_t coreid, tusb_control_request_t const * p_request);
 void hidd_isr(endpoint_handle_t edpt_hdl, tusb_event_t event, uint32_t xferred_bytes);

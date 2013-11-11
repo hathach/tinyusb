@@ -53,10 +53,15 @@
 #include "osal/osal.h"
 #include "dcd.h"
 
-//#include "tusb_descriptors.h"
-
 #ifdef __cplusplus
  extern "C" {
+#endif
+
+// LPC11uxx and LPC13uxx requires each buffer has to be 64-byte alignment
+#if MCU == MCU_LPC11UXX || MCU == MCU_LPC13UXX
+ #define ATTR_USB_MIN_ALIGNMENT   ATTR_ALIGNED(64)
+#else
+ #define ATTR_USB_MIN_ALIGNMENT
 #endif
 
 //--------------------------------------------------------------------+
@@ -85,7 +90,6 @@ bool tusbd_is_configured(uint8_t coreid) ATTR_WARN_UNUSED_RESULT;
 #ifdef _TINY_USB_SOURCE_FILE_
 
 tusb_error_t usbd_init(void);
-tusb_error_t usbd_pipe_open(uint8_t coreid, tusb_descriptor_interface_t const * p_interfacae, tusb_descriptor_endpoint_t const * p_endpoint_desc);
 
 #endif
 

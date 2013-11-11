@@ -203,7 +203,7 @@ void dcd_controller_set_configuration(uint8_t coreid, uint8_t config_num)
 }
 
 /// follows LPC43xx User Manual 23.10.3
-void bus_reset(uint8_t coreid)
+static void bus_reset(uint8_t coreid)
 {
   LPC_USB0_Type* const lpc_usb = LPC_USB[coreid];
 

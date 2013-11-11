@@ -1,6 +1,6 @@
 /**************************************************************************/
 /*!
-    @file     mcu_capacity.h
+    @file     dcd_lpc13xx_12adc.h
     @author   hathach (tinyusb.org)
 
     @section LICENSE
@@ -26,21 +26,15 @@
     WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
     DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER BE LIABLE FOR ANY
     DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
-    INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
-    LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION HOWEVER CAUSED AND
+    (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
+    LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND
     ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
-    INCLUDING NEGLIGENCE OR OTHERWISE ARISING IN ANY WAY OUT OF THE USE OF THIS
+    (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
     SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
     This file is part of the tinyusb stack.
 */
 /**************************************************************************/
-
-/** \file
- *  \brief TBD
- *
- *  \note TBD
- */
 
 /** \ingroup TBD
  *  \defgroup TBD
@@ -49,50 +43,18 @@
  *  @{
  */
 
-#ifndef _TUSB_MCU_CAPACITY_H_
-#define _TUSB_MCU_CAPACITY_H_
+#ifndef _TUSB_DCD_LPC13XX_12ADC_H_
+#define _TUSB_DCD_LPC13XX_12ADC_H_
 
 #ifdef __cplusplus
  extern "C" {
 #endif
 
-// CAP is abbreviation for Capacity
-
-//--------------------------------------------------------------------+
-// ARCHTECTURE
-//--------------------------------------------------------------------+
-
-
-
-//--------------------------------------------------------------------+
-// Controller
-//--------------------------------------------------------------------+
-#if MCU == MCU_LPC43XX || MCU == MCU_LPC18XX
-  #define CAP_CONTROLLER_NUMBER 2
-#else
-  #define CAP_CONTROLLER_NUMBER 1
-#endif
-
-#define CAP_MODE_DEVICE
-#if MCU == MCU_LPC43XX || MCU == MCU_LPC18XX || MCU == MCU_LPC175X_6X
-  #define CAP_MODE_HOST
-#endif
-
-#if MCU == MCU_LPC43XX || MCU == MCU_LPC18XX || MCU == MCU_LPC11UXX || MCU == MCU_LPC13UXX
-  #define CAP_DEVICE_ROMDRIVER
-#endif
-
-//--------------------------------------------------------------------+
-// Validation
-//--------------------------------------------------------------------+
-#if (CAP_CONTROLLER_NUMBER == 1) && ( defined TUSB_CFG_CONTROLLER_1_MODE)
- #error current MCU does not have the required number of controllers
-#endif
 
 #ifdef __cplusplus
  }
 #endif
 
-#endif /* _TUSB_MCU_CAPACITY_H_ */
+#endif /* _TUSB_DCD_LPC13XX_12ADC_H_ */
 
 /** @} */
