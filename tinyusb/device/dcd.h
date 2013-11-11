@@ -53,7 +53,7 @@
 
 typedef struct {
   uint8_t coreid;
-  uint8_t xfer_type; // TODO redundant, cannot be control as control uses separated API
+  uint8_t reserved; // TODO redundant, cannot be control as control uses separated API
   uint8_t index;
   uint8_t class_code;
 } endpoint_handle_t;
@@ -61,13 +61,13 @@ typedef struct {
 static inline bool endpointhandle_is_valid(endpoint_handle_t edpt_hdl) ATTR_CONST ATTR_ALWAYS_INLINE ATTR_WARN_UNUSED_RESULT;
 static inline bool endpointhandle_is_valid(endpoint_handle_t edpt_hdl)
 {
-  return (edpt_hdl.xfer_type != TUSB_XFER_CONTROL) && (edpt_hdl.class_code != 0);
+  return (edpt_hdl.class_code != 0);
 }
 
 static inline bool endpointhandle_is_equal(endpoint_handle_t x, endpoint_handle_t y) ATTR_CONST ATTR_ALWAYS_INLINE ATTR_WARN_UNUSED_RESULT;
 static inline bool endpointhandle_is_equal(endpoint_handle_t x, endpoint_handle_t y)
 {
-  return (x.coreid == y.coreid) && (x.xfer_type == y.xfer_type) && (x.index == y.index) && (x.class_code == y.class_code);
+  return (x.coreid == y.coreid) && (x.index == y.index) && (x.class_code == y.class_code);
 }
 
 tusb_error_t dcd_init(void) ATTR_WARN_UNUSED_RESULT;

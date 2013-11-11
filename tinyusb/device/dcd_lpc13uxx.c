@@ -121,6 +121,8 @@ STATIC_ASSERT( sizeof(dcd_lpc13xx_qhd_t) == 4, "size is not correct" );
 typedef struct {
   dcd_lpc13xx_qhd_t qhd[DCD_LPC13XX_QHD][2]; ///< must be 256 byte alignment, 2 for double buffer
 
+  uint16_t expected_bytes[DCD_LPC13XX_QHD]; ///< expected bytes of the queued transfer
+  uint8_t  class_code[DCD_LPC13XX_QHD]; // class where the endpoints belongs to TODO no need for control endpoints
   // there is padding from 80 --> 128 = 48 bytes
 
   // should start from 128
@@ -179,6 +181,10 @@ tusb_error_t dcd_init(void)
 static void bus_reset(void)
 {
   memclr_(&dcd_data, sizeof(dcd_lpc13xx_data_t));
+  for(uint8_t ep_id = 2; ep_id < DCD_LPC13XX_QHD; ep_id++)
+  {
+    dcd_data.qhd[ep_id][0].disable = dcd_data.qhd[ep_id][1].disable = 1;
+  }
 
   dcd_data.qhd[0][1].buff_addr_offset = addr_offset(&dcd_data.setup_request);
 
@@ -223,17 +229,32 @@ void dcd_isr(uint8_t coreid)
     LPC_USB->DEVCMDSTAT |= CMDSTAT_MASK_RESET_CHANGE | CMDSTAT_MASK_SUSPEND_CHANGE | CMDSTAT_MASK_CONNECT_CHANGE;
   }
 
-  //------------- Endpoint Interrupt -------------//
-  if ( int_status & BIT_(0) )
-  {
-    if ( dev_cmd_stat & CMDSTAT_MASK_SETUP_RECEIVED )
-    { // received control request from host
-      // copy setup request & acknowledge so that the next setup can be received by hw
-      tusb_control_request_t control_request =  dcd_data.setup_request;
-      LPC_USB->DEVCMDSTAT |= CMDSTAT_MASK_SETUP_RECEIVED;
-      dcd_data.qhd[0][1].buff_addr_offset = addr_offset(&dcd_data.setup_request);
+  //------------- Control Endpoint -------------//
+  if ( BIT_TEST_(int_status, 0) && (dev_cmd_stat & CMDSTAT_MASK_SETUP_RECEIVED) )
+  { // received control request from host
+    // copy setup request & acknowledge so that the next setup can be received by hw
+    tusb_control_request_t control_request =  dcd_data.setup_request;
+    LPC_USB->DEVCMDSTAT |= CMDSTAT_MASK_SETUP_RECEIVED;
+    dcd_data.qhd[0][1].buff_addr_offset = addr_offset(&dcd_data.setup_request);
 
-      usbd_setup_received_isr(coreid, &control_request);
+    usbd_setup_received_isr(coreid, &control_request);
+  }
+
+  //------------- Non-Control Endpoints -------------//
+  for(uint8_t ep_id = 2; ep_id < DCD_LPC13XX_QHD; ep_id++ )
+  {
+    if ( BIT_TEST_(int_status, ep_id) )
+    {
+      endpoint_handle_t edpt_hdl =
+      {
+          .coreid     = coreid,
+          .index      = ep_id,
+          .class_code = dcd_data.class_code[ep_id]
+      };
+
+      // TODO no way determine if the transfer is failed or not
+      usbd_xfer_isr(edpt_hdl, TUSB_EVENT_XFER_COMPLETE,
+                    dcd_data.expected_bytes[ep_id] - dcd_data.qhd[ep_id][0].total_bytes); // only number of bytes in the IOC qtd
     }
   }
 
@@ -313,24 +334,26 @@ endpoint_handle_t dcd_pipe_open(uint8_t coreid, tusb_descriptor_endpoint_t const
 {
   (void) coreid;
 
-  endpoint_handle_t const null_handle = { .coreid = 0, .xfer_type = 0, .index = 0 };
+  endpoint_handle_t const null_handle = { 0 };
 
   if (p_endpoint_desc->bmAttributes.xfer == TUSB_XFER_ISOCHRONOUS)
     return null_handle; // TODO not support ISO yet
 
   //------------- Prepare Queue Head -------------//
-  uint8_t ep_idx = edpt_addr2phy(p_endpoint_desc->bEndpointAddress);
+  uint8_t ep_id = edpt_addr2phy(p_endpoint_desc->bEndpointAddress);
 
-  memclr_(dcd_data.qhd[ep_idx], 2*sizeof(dcd_lpc13xx_qhd_t));
-  dcd_data.qhd[ep_idx][0].is_isochronous = (p_endpoint_desc->bmAttributes.xfer == TUSB_XFER_ISOCHRONOUS);
+  ASSERT( dcd_data.qhd[ep_id][0].disable, null_handle ); // endpoint must not previously opened
 
-  LPC_USB->INTEN |= BIT_(ep_idx);
+  memclr_(dcd_data.qhd[ep_id], 2*sizeof(dcd_lpc13xx_qhd_t));
+  dcd_data.qhd[ep_id][0].is_isochronous = (p_endpoint_desc->bmAttributes.xfer == TUSB_XFER_ISOCHRONOUS);
+  dcd_data.class_code[ep_id] = class_code;
+
+  dcd_data.qhd[ep_id][0].disable = dcd_data.qhd[ep_id][1].disable = 0;
 
   return (endpoint_handle_t)
       {
           .coreid     = 0,
-          .xfer_type  = p_endpoint_desc->bmAttributes.xfer,
-          .index      = ep_idx,
+          .index      = ep_id,
           .class_code = class_code
       };
 }
@@ -340,13 +363,13 @@ bool dcd_pipe_is_busy(endpoint_handle_t edpt_hdl)
   return dcd_data.qhd[edpt_hdl.index][0].active;
 }
 
-// add only, controller virtually cannot know
-static tusb_error_t pipe_add_xfer(endpoint_handle_t edpt_hdl, void * buffer, uint16_t total_bytes, bool int_on_complete)
-{
-
-
-  return TUSB_ERROR_NONE;
-}
+//// add only, controller virtually cannot know
+//static tusb_error_t pipe_add_xfer(endpoint_handle_t edpt_hdl, void * buffer, uint16_t total_bytes, bool int_on_complete)
+//{
+//
+//
+//  return TUSB_ERROR_NONE;
+//}
 
 tusb_error_t dcd_pipe_queue_xfer(endpoint_handle_t edpt_hdl, void * buffer, uint16_t total_bytes)
 {
@@ -355,7 +378,21 @@ tusb_error_t dcd_pipe_queue_xfer(endpoint_handle_t edpt_hdl, void * buffer, uint
 
 tusb_error_t  dcd_pipe_xfer(endpoint_handle_t edpt_hdl, void* buffer, uint16_t total_bytes, bool int_on_complete)
 {
+  ASSERT( !dcd_pipe_is_busy(edpt_hdl), TUSB_ERROR_INTERFACE_IS_BUSY); // endpoint must not in transferring
 
+  if (int_on_complete)
+  {
+    LPC_USB->INTEN = BIT_SET_(LPC_USB->INTEN, edpt_hdl.index);
+  }else
+  {
+    LPC_USB->INTEN = BIT_CLR_(LPC_USB->INTEN, edpt_hdl.index);
+  }
+
+  dcd_data.qhd[edpt_hdl.index][0].buff_addr_offset = addr_offset(buffer);
+  dcd_data.qhd[edpt_hdl.index][0].total_bytes      = total_bytes;
+  dcd_data.expected_bytes[edpt_hdl.index]          = total_bytes;
+
+  dcd_data.qhd[edpt_hdl.index][0].active           = 1;
 
 	return TUSB_ERROR_NONE;
 }

@@ -54,6 +54,7 @@ enum {
   INTERFACE_INVALID_NUMBER = UINT8_MAX
 };
 
+ATTR_USB_MIN_ALIGNMENT
 static cdc_line_coding_t cdcd_line_coding[CONTROLLER_DEVICE_NUMBER] TUSB_CFG_ATTR_USBRAM;
 
 typedef struct {
