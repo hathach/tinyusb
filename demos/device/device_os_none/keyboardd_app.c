@@ -46,7 +46,7 @@
 //--------------------------------------------------------------------+
 // MACRO CONSTANT TYPEDEF
 //--------------------------------------------------------------------+
-hid_keyboard_report_t keyboard_report TUSB_CFG_ATTR_USBRAM;
+ATTR_USB_MIN_ALIGNMENT hid_keyboard_report_t keyboard_report TUSB_CFG_ATTR_USBRAM;
 
 //--------------------------------------------------------------------+
 // INTERNAL OBJECT & FUNCTION DECLARATION

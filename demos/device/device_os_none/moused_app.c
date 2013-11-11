@@ -50,7 +50,7 @@
 //--------------------------------------------------------------------+
 // INTERNAL OBJECT & FUNCTION DECLARATION
 //--------------------------------------------------------------------+
-hid_mouse_report_t mouse_report TUSB_CFG_ATTR_USBRAM;
+ATTR_USB_MIN_ALIGNMENT hid_mouse_report_t mouse_report TUSB_CFG_ATTR_USBRAM;
 
 //--------------------------------------------------------------------+
 // IMPLEMENTATION

@@ -89,11 +89,11 @@
 #define TUSB_CFG_DEVICE_CONTROL_ENDOINT_SIZE   64
 
 //------------- CLASS -------------//
-#define TUSB_CFG_DEVICE_HID_KEYBOARD  0
-#define TUSB_CFG_DEVICE_HID_MOUSE     0
+#define TUSB_CFG_DEVICE_HID_KEYBOARD  1
+#define TUSB_CFG_DEVICE_HID_MOUSE     1
 #define TUSB_CFG_DEVICE_HID_GENERIC   0
 #define TUSB_CFG_DEVICE_MSC           0
-#define TUSB_CFG_DEVICE_CDC           1
+#define TUSB_CFG_DEVICE_CDC           0
 
 //--------------------------------------------------------------------+
 // COMMON CONFIGURATION

@@ -182,7 +182,7 @@ static void bus_reset(void)
 {
   memclr_(&dcd_data, sizeof(dcd_lpc13xx_data_t));
   for(uint8_t ep_id = 2; ep_id < DCD_LPC13XX_QHD; ep_id++)
-  {
+  { // disable all non-control endpoints on bus reset
     dcd_data.qhd[ep_id][0].disable = dcd_data.qhd[ep_id][1].disable = 1;
   }
 
