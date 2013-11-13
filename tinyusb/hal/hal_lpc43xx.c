@@ -81,7 +81,6 @@ tusb_error_t hal_init(void)
   CGU_EntityConnect(CGU_CLKSRC_XTAL_OSC, CGU_CLKSRC_PLL0);
   CGU_EnableEntity(CGU_CLKSRC_PLL0, ENABLE);   /* Enable PLL after all setting is done */
 
-
   // reset controller & set role
   ASSERT_STATUS( hal_controller_reset(0) );
 
@@ -93,10 +92,7 @@ tusb_error_t hal_init(void)
     #if TUSB_CFG_DEVICE_FULLSPEED // TODO for easy testing
       LPC_USB0->PORTSC1_D |= (1<<24); // force full speed
     #endif
-    dcd_controller_connect(0);
   #endif
-
-  hal_interrupt_enable(0);
 #endif
 
   //------------- USB1 -------------//
@@ -114,11 +110,9 @@ tusb_error_t hal_init(void)
     LPC_USB1->USBMODE_H = LPC43XX_USBMODE_HOST | (LPC43XX_USBMODE_VBUS_HIGH << 5);
   #else // TODO OTG
     LPC_USB1->USBMODE_D = LPC43XX_USBMODE_DEVICE;
-    dcd_controller_connect(1);
   #endif
 
   LPC_USB1->PORTSC1_D |= (1<<24); // TODO abtract, force port to fullspeed
-  hal_interrupt_enable(1);
 #endif
 
   return TUSB_ERROR_NONE;

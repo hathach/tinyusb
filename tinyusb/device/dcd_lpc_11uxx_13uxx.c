@@ -1,6 +1,6 @@
 /**************************************************************************/
 /*!
-    @file     dcd_lpc13xx_12adc.c
+    @file     dcd_lpc_11uxx_13uxx.c
     @author   hathach (tinyusb.org)
 
     @section LICENSE
@@ -38,7 +38,7 @@
 
 #include "tusb_option.h"
 
-#if MODE_DEVICE_SUPPORTED && MCU == MCU_LPC13UXX
+#if MODE_DEVICE_SUPPORTED && (MCU == MCU_LPC11UXX || MCU == MCU_LPC13UXX)
 
 #define _TINY_USB_SOURCE_FILE_
 //--------------------------------------------------------------------+
@@ -51,7 +51,7 @@
 
 #include "dcd.h"
 #include "usbd_dcd.h"
-#include "dcd_lpc13uxx.h"
+#include "dcd_lpc_11uxx_13uxx.h"
 
 //--------------------------------------------------------------------+
 // MACRO CONSTANT TYPEDEF
@@ -164,7 +164,6 @@ void dcd_controller_set_address(uint8_t coreid, uint8_t dev_addr)
   LPC_USB->DEVCMDSTAT |= dev_addr;
 }
 
-
 tusb_error_t dcd_init(void)
 {
   LPC_USB->EPLISTSTART  = (uint32_t) dcd_data.qhd;
@@ -226,7 +225,8 @@ void dcd_isr(uint8_t coreid)
 
     }
 
-    LPC_USB->DEVCMDSTAT |= CMDSTAT_MASK_RESET_CHANGE | CMDSTAT_MASK_SUSPEND_CHANGE | CMDSTAT_MASK_CONNECT_CHANGE;
+    LPC_USB->DEVCMDSTAT |= CMDSTAT_MASK_RESET_CHANGE | CMDSTAT_MASK_CONNECT_CHANGE
+        /* CMDSTAT_MASK_SUSPEND_CHANGE | */;
   }
 
   //------------- Control Endpoint -------------//
@@ -325,8 +325,22 @@ static inline uint8_t edpt_phy2log(uint8_t physical_endpoint)
 //--------------------------------------------------------------------+
 // BULK/INTERRUPT/ISOCHRONOUS PIPE API
 //--------------------------------------------------------------------+
+tusb_error_t dcd_pipe_stall(endpoint_handle_t edpt_hdl)
+{
+  ASSERT( !dcd_pipe_is_busy(edpt_hdl), TUSB_ERROR_INTERFACE_IS_BUSY); // endpoint must not in transferring
+
+  dcd_data.qhd[edpt_hdl.index][0].stall = 1;
+
+  return TUSB_ERROR_NONE;
+}
+
 tusb_error_t dcd_pipe_clear_stall(uint8_t coreid, uint8_t edpt_addr)
 {
+  uint8_t ep_id = edpt_addr2phy(edpt_addr);
+
+  dcd_data.qhd[ep_id][0].stall        = 0;
+  dcd_data.qhd[ep_id][0].toggle_reset = 1;
+
   return TUSB_ERROR_NONE;
 }
 
@@ -371,10 +385,10 @@ bool dcd_pipe_is_busy(endpoint_handle_t edpt_hdl)
 //  return TUSB_ERROR_NONE;
 //}
 
-tusb_error_t dcd_pipe_queue_xfer(endpoint_handle_t edpt_hdl, void * buffer, uint16_t total_bytes)
-{
-
-}
+//tusb_error_t dcd_pipe_queue_xfer(endpoint_handle_t edpt_hdl, void * buffer, uint16_t total_bytes)
+//{
+//
+//}
 
 tusb_error_t  dcd_pipe_xfer(endpoint_handle_t edpt_hdl, void* buffer, uint16_t total_bytes, bool int_on_complete)
 {

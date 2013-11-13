@@ -124,6 +124,14 @@ tusb_error_t usbd_init (void)
 {
   ASSERT_STATUS ( dcd_init() );
 
+#if (TUSB_CFG_CONTROLLER_0_MODE & TUSB_MODE_DEVICE)
+  dcd_controller_connect(0);
+#endif
+
+#if (TUSB_CFG_CONTROLLER_1_MODE & TUSB_MODE_DEVICE)
+  dcd_controller_connect(1);
+#endif
+
   for (tusb_std_class_code_t class_code = TUSB_CLASS_AUDIO; class_code <= TUSB_CLASS_AUDIO_VIDEO; class_code++)
   {
     if ( usbd_class_drivers[class_code].init )

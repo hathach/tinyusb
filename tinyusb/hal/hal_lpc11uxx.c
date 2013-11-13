@@ -51,6 +51,7 @@ tusb_error_t hal_init(void)
   address the wrong status in VBUSDebouncing bit in CmdStatus register.  */
   LPC_IOCON->PIO0_3   &= ~0x1F;
   LPC_IOCON->PIO0_3   |= (0x01<<0);            /* Secondary function VBUS */
+
   LPC_IOCON->PIO0_6   &= ~0x07;
   LPC_IOCON->PIO0_6   |= (0x01<<0);            /* Secondary function SoftConn */
 

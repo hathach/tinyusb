@@ -51,8 +51,8 @@
 /** \defgroup MCU_ MCU Selection
  * \brief TUSB_CFG_MCU must be defined to one of these
  *  @{ */
-#define MCU_LPC13UXX  1 ///< NXP LPC13xx 12 bit ADC family with USB on-chip Rom Driver (not supported yet)
-#define MCU_LPC13XX_10ADC  2 ///< NXP LPC13xx 10 bit ADC family (not supported yet)
+#define MCU_LPC13UXX       1 ///< NXP LPC13xx 12 bit ADC family with USB on-chip Rom Driver (not supported yet)
+#define MCU_LPC13XX        2 ///< NXP LPC13xx 10 bit ADC family (not supported yet)
 #define MCU_LPC11UXX       3 ///< NXP LPC11Uxx family (not supported yet)
 #define MCU_LPC43XX        4 ///< NXP LPC43xx family
 #define MCU_LPC18XX        5 ///< NXP LPC18xx family (not supported yet)

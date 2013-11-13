@@ -57,9 +57,6 @@ tusb_error_t hal_init(void)
   LPC_IOCON->PIO0_6   &= ~0x07;
   LPC_IOCON->PIO0_6   |= (0x01<<0);            /* Secondary function SoftConn */
 
-  dcd_controller_connect(0);
-  hal_interrupt_enable(0);
-
   return TUSB_ERROR_NONE;
 }
 

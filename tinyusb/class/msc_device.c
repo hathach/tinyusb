@@ -56,9 +56,10 @@ typedef struct {
   endpoint_handle_t edpt_in, edpt_out;
 
   // must be in USB ram
-  uint8_t max_lun;
-  msc_cmd_block_wrapper_t  cbw;
-  msc_cmd_status_wrapper_t csw;
+  ATTR_USB_MIN_ALIGNMENT uint8_t max_lun;
+
+  ATTR_USB_MIN_ALIGNMENT msc_cmd_block_wrapper_t  cbw;
+  ATTR_USB_MIN_ALIGNMENT msc_cmd_status_wrapper_t csw;
 }mscd_interface_t;
 
 STATIC_VAR mscd_interface_t mscd_data TUSB_CFG_ATTR_USBRAM;
@@ -69,6 +70,16 @@ STATIC_VAR mscd_interface_t mscd_data TUSB_CFG_ATTR_USBRAM;
 //--------------------------------------------------------------------+
 // USBD-CLASS API
 //--------------------------------------------------------------------+
+void mscd_init(void)
+{
+  // TODO not implemented
+}
+
+void mscd_bus_reset(uint8_t coreid)
+{
+  // TODO not implemented yet
+}
+
 tusb_error_t mscd_open(uint8_t coreid, tusb_descriptor_interface_t const * p_interface_desc, uint16_t *p_length)
 {
   ASSERT( ( MSC_SUBCLASS_SCSI == p_interface_desc->bInterfaceSubClass &&
