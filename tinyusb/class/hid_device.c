@@ -51,14 +51,14 @@
 //--------------------------------------------------------------------+
 // MACRO CONSTANT TYPEDEF
 //--------------------------------------------------------------------+
+ATTR_USB_MIN_ALIGNMENT uint8_t set_report[ MAX_OF(sizeof(hid_keyboard_report_t), sizeof(hid_mouse_report_t)) ];
+
 typedef struct {
   uint8_t const * p_report_desc;
   uint16_t report_length;
 
   endpoint_handle_t ept_handle;
   uint8_t interface_number;
-
-  hid_keyboard_report_t report;  // need to be in usb ram
 }hidd_interface_t;
 
 
@@ -170,7 +170,7 @@ tusb_error_t hidd_control_request(uint8_t coreid, tusb_control_request_t const *
         hid_request_report_type_t report_type = u16_high_u8(p_request->wValue);
         uint8_t report_id = u16_low_u8(p_request->wValue);
 
-        dcd_pipe_control_xfer(coreid, TUSB_DIR_HOST_TO_DEV, &p_hid->report, p_request->wLength);
+        dcd_pipe_control_xfer(coreid, TUSB_DIR_HOST_TO_DEV, &set_report, p_request->wLength);
       }
       break;
 
@@ -260,9 +260,7 @@ void hidd_isr(endpoint_handle_t edpt_hdl, tusb_event_t event, uint32_t xferred_b
 #endif
 }
 
-#if defined(CAP_DEVICE_ROMDRIVER) && TUSB_CFG_DEVICE_USE_ROM_DRIVER
-#include "device/dcd_nxp_romdriver.h" // TODO remove rom driver dependency
-
+#if defined(CAP_DEVICE_ROMDRIVER)
 
 //--------------------------------------------------------------------+
 // MACRO CONSTANT TYPEDEF
@@ -278,18 +276,6 @@ TUSB_CFG_ATTR_USBRAM uint8_t hidd_mouse_buffer[1024]; // TODO memory reduce
 TUSB_CFG_ATTR_USBRAM hid_mouse_report_t hid_mouse_report;
 static volatile bool bMouseChanged = false;
 #endif
-
-//--------------------------------------------------------------------+
-// INTERNAL OBJECT & FUNCTION DECLARATION
-//--------------------------------------------------------------------+
-static tusb_error_t hidd_interface_init(tusb_descriptor_interface_t const *p_interface_desc, uint8_t const * const p_report_desc,
-                                 uint32_t report_length, uint8_t* mem_base, uint32_t mem_size);
-
-ErrorCode_t HID_GetReport( USBD_HANDLE_T hHid, USB_SETUP_PACKET* pSetup, uint8_t** pBuffer, uint16_t* plength);
-ErrorCode_t HID_SetReport( USBD_HANDLE_T hHid, USB_SETUP_PACKET* pSetup, uint8_t** pBuffer, uint16_t length);
-ErrorCode_t HID_EpIn_Hdlr (USBD_HANDLE_T hUsb, void* data, uint32_t event);
-ErrorCode_t HID_EpOut_Hdlr (USBD_HANDLE_T hUsb, void* data, uint32_t event);
-
 
 //--------------------------------------------------------------------+
 // APPLICATION API
@@ -337,54 +323,6 @@ tusb_error_t tusbd_hid_mouse_send_report(hid_mouse_report_t *p_mouse_report)
   return TUSB_ERROR_NONE;
 }
 #endif
-
-//--------------------------------------------------------------------+
-// CLASS-USBH API (don't require to verify parameters)
-//--------------------------------------------------------------------+
-tusb_error_t hidd_configured(void)
-{
-  #if  TUSB_CFG_DEVICE_HID_KEYBOARD
-    ROM_API->hw->WriteEP(romdriver_hdl , HID_KEYBOARD_EP_IN , (uint8_t* ) &hid_keyboard_report , sizeof(hid_keyboard_report_t) ); // initial packet for IN endpoint , will not work if omitted
-  #endif
-
-  #if  TUSB_CFG_DEVICE_HID_MOUSE
-    ROM_API->hw->WriteEP(romdriver_hdl , HID_MOUSE_EP_IN    , (uint8_t* ) &hid_mouse_report    , sizeof(hid_mouse_report_t) ); // initial packet for IN endpoint, will not work if omitted
-  #endif
-
-  return TUSB_ERROR_NONE;
-}
-
-
-tusb_error_t hidd_interface_init(tusb_descriptor_interface_t const *p_interface_desc, uint8_t const * const p_report_desc,
-                                 uint32_t report_length, uint8_t* mem_base, uint32_t mem_size)
-{
-  USB_HID_REPORT_T reports_data =
-  {
-      .desc      = (uint8_t*) p_report_desc,
-      .len       = report_length,
-      .idle_time = 0,
-  };
-
-  USBD_HID_INIT_PARAM_T hid_param =
-  {
-      .mem_base       = (uint32_t) mem_base,
-      .mem_size       = mem_size,
-
-      .intf_desc      = (uint8_t*)p_interface_desc,
-      .report_data    = &reports_data,
-      .max_reports    = 1,
-
-      /* user defined functions */
-      .HID_GetReport  = HID_GetReport,
-      .HID_SetReport  = HID_SetReport,
-      .HID_EpIn_Hdlr  = HID_EpIn_Hdlr,
-      .HID_EpOut_Hdlr = HID_EpOut_Hdlr
-  };
-
-  ASSERT( LPC_OK == ROM_API->hid->init(romdriver_hdl, &hid_param), TUSB_ERROR_FAILED );
-
-  return TUSB_ERROR_NONE;
-}
 
 //--------------------------------------------------------------------+
 // IMPLEMENTATION

@@ -92,6 +92,8 @@
 #define STRING_CONCAT_(a, b) a##b                  // concat without expand
 #define XSTRING_CONCAT_(a, b) STRING_CONCAT_(a, b) // expand then concat
 
+#define MAX_OF(a, b)  ( (a) > (b) ? (a) : (b) )
+
 #define U16_HIGH_U8(u16) ((uint8_t) (((u16) >> 8) & 0x00ff))
 #define U16_LOW_U8(u16)  ((uint8_t) ((u16)       & 0x00ff))
 #define U16_TO_U8S_BE(u16)  U16_HIGH_U8(u16), U16_LOW_U8(u16)

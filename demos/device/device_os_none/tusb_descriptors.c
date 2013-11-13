@@ -151,8 +151,8 @@ tusb_descriptor_device_t app_tusb_desc_device =
 
     .bMaxPacketSize0    = TUSB_CFG_DEVICE_CONTROL_ENDOINT_SIZE,
 
-    .idVendor           = TUSB_CFG_DEVICE_VENDORID,
-    .idProduct          = TUSB_CFG_PRODUCT_ID,
+    .idVendor           = CFG_VENDORID,
+    .idProduct          = CFG_PRODUCTID,
     .bcdDevice          = 0x0100,
 
     .iManufacturer      = 0x01,
@@ -432,7 +432,7 @@ tusb_descriptor_string_t desc_str_serial =
     .unicode_string  = { '1', '2', '3', '4' } // len = 4
 };
 
-tusb_descriptor_string_t * const desc_str_table [] =
+tusb_descriptor_string_t * const desc_str_table [TUSB_CFG_DEVICE_STRING_DESCRIPTOR_COUNT] =
 {
     &desc_str_language,
     &desc_str_manufacturer,

@@ -41,6 +41,10 @@
 
 #include "tusb.h"
 
+#define CFG_VENDORID            0x1FC9 // NXP
+//#define CFG_PRODUCTID           0x4567 // use auto product id to prevent conflict with pc's driver
+
+
 #define ENDPOINT_OUT_LOGICAL_TO_PHYSICAL(addr)      (addr)
 #define ENDPOINT_IN_LOGICAL_TO_PHYSICAL(addr)       ((addr) | 0x80)
 
@@ -74,10 +78,10 @@
 
 // each combination of interfaces need to have different productid, as windows will bind & remember device driver after the
 // first plug.
-#ifndef TUSB_CFG_PRODUCT_ID
+#ifndef CFG_PRODUCTID
 // Bitmap: MassStorage | Generic | Mouse | Key | CDC
 #define PRODUCTID_BITMAP(interface, n)  ( (TUSB_CFG_DEVICE_##interface) << (n) )
-#define TUSB_CFG_PRODUCT_ID             (0x4000 | ( PRODUCTID_BITMAP(CDC, 0) | PRODUCTID_BITMAP(HID_KEYBOARD, 1) | \
+#define CFG_PRODUCTID                   (0x4000 | ( PRODUCTID_BITMAP(CDC, 0) | PRODUCTID_BITMAP(HID_KEYBOARD, 1) | \
                                          PRODUCTID_BITMAP(HID_MOUSE, 2) | PRODUCTID_BITMAP(HID_GENERIC, 3) | \
                                          PRODUCTID_BITMAP(MSC, 4) ) )
 #endif
@@ -134,7 +138,7 @@ typedef ATTR_PACKED_STRUCT(struct)
 //--------------------------------------------------------------------+
 // STRINGS DESCRIPTOR
 //--------------------------------------------------------------------+
-tusb_descriptor_string_t * const desc_str_table [];
+tusb_descriptor_string_t * const desc_str_table[TUSB_CFG_DEVICE_STRING_DESCRIPTOR_COUNT];
 
 //--------------------------------------------------------------------+
 // Export descriptors

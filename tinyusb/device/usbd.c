@@ -199,6 +199,8 @@ tusb_error_t std_get_descriptor(uint8_t coreid, tusb_control_request_t * p_reque
     break;
 
     case TUSB_DESC_TYPE_STRING:
+      if ( ! (desc_index < TUSB_CFG_DEVICE_STRING_DESCRIPTOR_COUNT) ) return TUSB_ERROR_DCD_CONTROL_REQUEST_NOT_SUPPORT;
+
       dcd_pipe_control_xfer(coreid, TUSB_DIR_DEV_TO_HOST, desc_str_table[desc_index], desc_str_table[desc_index]->bLength);
     break;
 

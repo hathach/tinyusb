@@ -75,25 +75,16 @@
 //--------------------------------------------------------------------+
 // DEVICE CONFIGURATION
 //--------------------------------------------------------------------+
-#define TUSB_CFG_DEVICE_FULLSPEED       1 // TODO refractor
-
-#define TUSB_CFG_DEVICE_USE_ROM_DRIVER  0
-
-//------------- descriptors -------------//
-#define TUSB_CFG_DEVICE_STRING_MANUFACTURER   "tinyusb.org"
-#define TUSB_CFG_DEVICE_STRING_PRODUCT        "Device Example"
-#define TUSB_CFG_DEVICE_STRING_SERIAL         "1234"
-#define TUSB_CFG_DEVICE_VENDORID              0x1FC9 // NXP
-//#define TUSB_CFG_DEVICE_PRODUCTID           0x4567
-
-#define TUSB_CFG_DEVICE_CONTROL_ENDOINT_SIZE   64
+#define TUSB_CFG_DEVICE_CONTROL_ENDOINT_SIZE    64
+#define TUSB_CFG_DEVICE_STRING_DESCRIPTOR_COUNT 4
+#define TUSB_CFG_DEVICE_FULLSPEED       1 // TODO refractor, remove
 
 //------------- CLASS -------------//
-#define TUSB_CFG_DEVICE_HID_KEYBOARD  0
+#define TUSB_CFG_DEVICE_HID_KEYBOARD  1
 #define TUSB_CFG_DEVICE_HID_MOUSE     0
 #define TUSB_CFG_DEVICE_HID_GENERIC   0
 #define TUSB_CFG_DEVICE_MSC           0
-#define TUSB_CFG_DEVICE_CDC           1
+#define TUSB_CFG_DEVICE_CDC           0
 
 //--------------------------------------------------------------------+
 // COMMON CONFIGURATION

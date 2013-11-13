@@ -234,6 +234,10 @@ void dcd_isr(uint8_t coreid)
   { // received control request from host
     // copy setup request & acknowledge so that the next setup can be received by hw
     tusb_control_request_t control_request =  dcd_data.setup_request;
+
+    // NXP control flowchart clear Active & Stall on both Control IN/OUT endpoints
+    dcd_data.qhd[0][0].stall = dcd_data.qhd[1][0].stall = 0;
+
     LPC_USB->DEVCMDSTAT |= CMDSTAT_MASK_SETUP_RECEIVED;
     dcd_data.qhd[0][1].buff_addr_offset = addr_offset(&dcd_data.setup_request);
 
@@ -264,9 +268,10 @@ void dcd_isr(uint8_t coreid)
 // CONTROL PIPE API
 //--------------------------------------------------------------------+
 void dcd_pipe_control_stall(uint8_t coreid)
-{ // only need to stall IN Control endpoint
+{ // TODO cannot able to STALL Control OUT endpoint !!!!!
   (void) coreid;
-  dcd_data.qhd[1][0].stall = 1;
+
+  dcd_data.qhd[0][0].stall = dcd_data.qhd[1][0].stall = 1;
 }
 
 // control transfer does not need to use qtd find function
@@ -338,8 +343,9 @@ tusb_error_t dcd_pipe_clear_stall(uint8_t coreid, uint8_t edpt_addr)
 {
   uint8_t ep_id = edpt_addr2phy(edpt_addr);
 
-  dcd_data.qhd[ep_id][0].stall        = 0;
-  dcd_data.qhd[ep_id][0].toggle_reset = 1;
+  dcd_data.qhd[ep_id][0].stall           = 0;
+  dcd_data.qhd[ep_id][0].toggle_reset    = 1;
+  dcd_data.qhd[ep_id][0].feedback_toggle = 0;
 
   return TUSB_ERROR_NONE;
 }
