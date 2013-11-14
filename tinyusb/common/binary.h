@@ -66,7 +66,7 @@
 #define BIT_CLR_(x, n) ( (x) & (~BIT_(n)) )
 
 /// test n-th bit of x
-#define BIT_TEST_(x, n) ( (x) & BIT_(n) )
+#define BIT_TEST_(x, n) ( ((x) & BIT_(n)) ? true : false )
 
 #if defined(__GNUC__) && !defined(__CC_ARM)
 

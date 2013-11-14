@@ -165,7 +165,8 @@ tusb_error_t hidd_control_request(uint8_t coreid, tusb_control_request_t const *
 
       case HID_REQUEST_CONTROL_SET_REPORT:
       {
-        return TUSB_ERROR_DCD_CONTROL_REQUEST_NOT_SUPPORT;
+        return TUSB_ERROR_DCD_CONTROL_REQUEST_NOT_SUPPORT; // TODO test STALL control out endpoint (with mouse+keyboard)
+
         // TODO HIDD set report support
         hid_request_report_type_t report_type = u16_high_u8(p_request->wValue);
         uint8_t report_id = u16_low_u8(p_request->wValue);

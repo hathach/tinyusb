@@ -78,7 +78,7 @@ void dcd_isr(uint8_t coreid);
 void dcd_controller_connect(uint8_t coreid);
 void dcd_controller_disconnect(uint8_t coreid);
 void dcd_controller_set_address(uint8_t coreid, uint8_t dev_addr);
-void dcd_controller_set_configuration(uint8_t coreid, uint8_t config_num);
+void dcd_controller_set_configuration(uint8_t coreid);
 
 //------------- PIPE API -------------//
 tusb_error_t dcd_pipe_control_xfer(uint8_t coreid, tusb_direction_t dir, void * buffer, uint16_t length);

@@ -56,7 +56,7 @@
 //--------------------------------------------------------------------+
 // MACRO CONSTANT TYPEDEF
 //--------------------------------------------------------------------+
-#define DCD_LPC13XX_QHD 10
+#define DCD_11U_13U_QHD_COUNT 10
 
 enum {
   INT_MASK_SOF           = BIT_(30),
@@ -98,9 +98,9 @@ typedef struct {
     }bits;
     uint32_t value;
   };
-} lpc13xx_dev_cmd_stat;
+} reg_dev_cmd_stat_t;
 
-STATIC_ASSERT( sizeof(lpc13xx_dev_cmd_stat) == 4, "size is not correct" );
+STATIC_ASSERT( sizeof(reg_dev_cmd_stat_t) == 4, "size is not correct" );
 
 
 // buffer input must be 64 byte alignment
@@ -114,26 +114,26 @@ typedef struct {
   uint16_t stall                : 1  ; ///< 0: The selected endpoint is not stalled 1: The selected endpoint is stalled The Active bit has always higher priority than the Stall bit. This means that a Stall handshake is only sent when the active bit is zero and the stall bit is one. Software can only modify this bit when the active bit is zero.
   uint16_t disable              : 1  ; ///< 0: The selected endpoint is enabled. 1: The selected endpoint is disabled. If a USB token is received for an endpoint that has the disabled bit set, hardware will ignore the token and not return any data or handshake. When a bus reset is received, software must set the disable bit of all endpoints to 1. Software can only modify this bit when the active bit is zero.
   volatile uint16_t active      : 1  ; ///< The buffer is enabled. HW can use the buffer to store received OUT data or to transmit data on the IN endpoint. Software can only set this bit to ‘1’. As long as this bit is set to one, software is not allowed to update any of the values in this 32-bit word. In case software wants to deactivate the buffer, it must write a one to the corresponding “skip” bit in the USB Endpoint skip register. Hardware can only write this bit to zero. It will do this when it receives a short packet or when the NBytes field transitions to zero or when software has written a one to the “skip” bit.
-}dcd_lpc13xx_qhd_t;
+}dcd_11u_13u_qhd_t;
 
-STATIC_ASSERT( sizeof(dcd_lpc13xx_qhd_t) == 4, "size is not correct" );
+STATIC_ASSERT( sizeof(dcd_11u_13u_qhd_t) == 4, "size is not correct" );
 
 typedef struct {
-  dcd_lpc13xx_qhd_t qhd[DCD_LPC13XX_QHD][2]; ///< must be 256 byte alignment, 2 for double buffer
+  dcd_11u_13u_qhd_t qhd[DCD_11U_13U_QHD_COUNT][2]; ///< must be 256 byte alignment, 2 for double buffer
 
-  uint16_t expected_bytes[DCD_LPC13XX_QHD]; ///< expected bytes of the queued transfer
-  uint8_t  class_code[DCD_LPC13XX_QHD]; // class where the endpoints belongs to TODO no need for control endpoints
+  uint16_t expected_bytes[DCD_11U_13U_QHD_COUNT]; ///< expected bytes of the queued transfer
+  uint8_t  class_code[DCD_11U_13U_QHD_COUNT]; // class where the endpoints belongs to TODO no need for control endpoints
   // there is padding from 80 --> 128 = 48 bytes
 
   // should start from 128
   ATTR_ALIGNED(64) tusb_control_request_t setup_request;
 
-}dcd_lpc13xx_data_t;
+}dcd_11u_13u_data_t;
 
 //--------------------------------------------------------------------+
 // INTERNAL OBJECT & FUNCTION DECLARATION
 //--------------------------------------------------------------------+
-ATTR_ALIGNED(256) static dcd_lpc13xx_data_t dcd_data TUSB_CFG_ATTR_USBRAM;
+ATTR_ALIGNED(256) static dcd_11u_13u_data_t dcd_data TUSB_CFG_ATTR_USBRAM;
 
 static inline uint16_t addr_offset(void const * p_buffer) ATTR_CONST ATTR_ALWAYS_INLINE;
 static inline uint16_t addr_offset(void const * p_buffer)
@@ -151,7 +151,7 @@ void dcd_controller_connect(uint8_t coreid)
   LPC_USB->DEVCMDSTAT |= CMDSTAT_MASK_CMD_CONNECT;
 }
 
-void dcd_controller_set_configuration(uint8_t coreid, uint8_t config_num)
+void dcd_controller_set_configuration(uint8_t coreid)
 {
 
 }
@@ -168,7 +168,6 @@ tusb_error_t dcd_init(void)
 {
   LPC_USB->EPLISTSTART  = (uint32_t) dcd_data.qhd;
   LPC_USB->DATABUFSTART = 0x20000000; // only SRAM1 & USB RAM can be used for transfer
-  LPC_USB->EPBUFCFG     = 0; // TODO double buffering
 
   LPC_USB->INTSTAT      = LPC_USB->INTSTAT; // clear all pending interrupt
   LPC_USB->INTEN        = INT_MASK_DEVICE_STATUS;
@@ -179,8 +178,8 @@ tusb_error_t dcd_init(void)
 
 static void bus_reset(void)
 {
-  memclr_(&dcd_data, sizeof(dcd_lpc13xx_data_t));
-  for(uint8_t ep_id = 2; ep_id < DCD_LPC13XX_QHD; ep_id++)
+  memclr_(&dcd_data, sizeof(dcd_11u_13u_data_t));
+  for(uint8_t ep_id = 2; ep_id < DCD_11U_13U_QHD_COUNT; ep_id++)
   { // disable all non-control endpoints on bus reset
     dcd_data.qhd[ep_id][0].disable = dcd_data.qhd[ep_id][1].disable = 1;
   }
@@ -188,6 +187,7 @@ static void bus_reset(void)
   dcd_data.qhd[0][1].buff_addr_offset = addr_offset(&dcd_data.setup_request);
 
   LPC_USB->EPINUSE      = 0;
+  LPC_USB->EPBUFCFG     = 0; // all start with single buffer
   LPC_USB->EPSKIP       = 0xFFFFFFFF;
 
   LPC_USB->INTSTAT      = LPC_USB->INTSTAT; // clear all pending interrupt
@@ -245,20 +245,29 @@ void dcd_isr(uint8_t coreid)
   }
 
   //------------- Non-Control Endpoints -------------//
-  for(uint8_t ep_id = 2; ep_id < DCD_LPC13XX_QHD; ep_id++ )
+  for(uint8_t ep_id = 2; ep_id < DCD_11U_13U_QHD_COUNT; ep_id++ )
   {
     if ( BIT_TEST_(int_status, ep_id) )
     {
-      endpoint_handle_t edpt_hdl =
+      // Ignore if interrupt caused by buffer0 while we only have "Interrupt On Complete" with buffer1
+      // usbd/class driver under no situations to set "Interrupt On Complete" on both buffers
+      // Single Buffering and (Double with completed on buffer1) is valid
+      if ( !BIT_TEST_(LPC_USB->EPBUFCFG, ep_id) || !BIT_TEST_(LPC_USB->EPINUSE, ep_id) )
       {
-          .coreid     = coreid,
-          .index      = ep_id,
-          .class_code = dcd_data.class_code[ep_id]
-      };
+        endpoint_handle_t edpt_hdl =
+        {
+            .coreid     = coreid,
+            .index      = ep_id,
+            .class_code = dcd_data.class_code[ep_id]
+        };
 
-      // TODO no way determine if the transfer is failed or not
-      usbd_xfer_isr(edpt_hdl, TUSB_EVENT_XFER_COMPLETE,
-                    dcd_data.expected_bytes[ep_id] - dcd_data.qhd[ep_id][0].total_bytes); // only number of bytes in the IOC qtd
+        LPC_USB->INTEN    = BIT_CLR_(LPC_USB->INTEN    , ep_id); // clear interrupt on completion
+        LPC_USB->EPBUFCFG = BIT_CLR_(LPC_USB->EPBUFCFG , ep_id); // clear double buffering
+
+        // TODO no way determine if the transfer is failed or not
+        usbd_xfer_isr(edpt_hdl, TUSB_EVENT_XFER_COMPLETE,
+                      dcd_data.expected_bytes[ep_id] - dcd_data.qhd[ep_id][0].total_bytes); // only number of bytes in the IOC qtd
+      }
     }
   }
 
@@ -309,11 +318,11 @@ tusb_error_t dcd_pipe_control_xfer(uint8_t coreid, tusb_direction_t dir, void * 
 //  return (pos < DCD_QHD_MAX/2) ? (2*pos) : (2*(pos-16)+1);
 //}
 
-static inline uint8_t edpt_phy2pos(uint8_t physical_endpoint) ATTR_CONST ATTR_ALWAYS_INLINE;
-static inline uint8_t edpt_phy2pos(uint8_t physical_endpoint)
-{
-  return physical_endpoint/2 + ( (physical_endpoint%2) ? 16 : 0);
-}
+//static inline uint8_t edpt_phy2pos(uint8_t physical_endpoint) ATTR_CONST ATTR_ALWAYS_INLINE;
+//static inline uint8_t edpt_phy2pos(uint8_t physical_endpoint)
+//{
+//  return physical_endpoint/2 + ( (physical_endpoint%2) ? 16 : 0);
+//}
 
 static inline uint8_t edpt_addr2phy(uint8_t endpoint_addr) ATTR_CONST ATTR_ALWAYS_INLINE;
 static inline uint8_t edpt_addr2phy(uint8_t endpoint_addr)
@@ -334,7 +343,7 @@ tusb_error_t dcd_pipe_stall(endpoint_handle_t edpt_hdl)
 {
   ASSERT( !dcd_pipe_is_busy(edpt_hdl), TUSB_ERROR_INTERFACE_IS_BUSY); // endpoint must not in transferring
 
-  dcd_data.qhd[edpt_hdl.index][0].stall = 1;
+  dcd_data.qhd[edpt_hdl.index][0].stall = dcd_data.qhd[edpt_hdl.index][1].stall = 1;
 
   return TUSB_ERROR_NONE;
 }
@@ -342,10 +351,12 @@ tusb_error_t dcd_pipe_stall(endpoint_handle_t edpt_hdl)
 tusb_error_t dcd_pipe_clear_stall(uint8_t coreid, uint8_t edpt_addr)
 {
   uint8_t ep_id = edpt_addr2phy(edpt_addr);
+  uint8_t active_buffer = BIT_TEST_(LPC_USB->EPINUSE, ep_id) ? 1 : 0;
 
-  dcd_data.qhd[ep_id][0].stall           = 0;
-  dcd_data.qhd[ep_id][0].toggle_reset    = 1;
-  dcd_data.qhd[ep_id][0].feedback_toggle = 0;
+  dcd_data.qhd[ep_id][0].stall = dcd_data.qhd[ep_id][1].stall = 0;
+
+  dcd_data.qhd[ep_id][active_buffer].toggle_reset    = 1;
+  dcd_data.qhd[ep_id][active_buffer].feedback_toggle = 0;
 
   return TUSB_ERROR_NONE;
 }
@@ -362,10 +373,10 @@ endpoint_handle_t dcd_pipe_open(uint8_t coreid, tusb_descriptor_endpoint_t const
   //------------- Prepare Queue Head -------------//
   uint8_t ep_id = edpt_addr2phy(p_endpoint_desc->bEndpointAddress);
 
-  ASSERT( dcd_data.qhd[ep_id][0].disable, null_handle ); // endpoint must not previously opened
+  ASSERT( dcd_data.qhd[ep_id][0].disable && dcd_data.qhd[ep_id][1].disable, null_handle ); // endpoint must not previously opened
 
-  memclr_(dcd_data.qhd[ep_id], 2*sizeof(dcd_lpc13xx_qhd_t));
-  dcd_data.qhd[ep_id][0].is_isochronous = (p_endpoint_desc->bmAttributes.xfer == TUSB_XFER_ISOCHRONOUS);
+  memclr_(dcd_data.qhd[ep_id], 2*sizeof(dcd_11u_13u_qhd_t));
+  dcd_data.qhd[ep_id][0].is_isochronous = dcd_data.qhd[ep_id][1].is_isochronous = (p_endpoint_desc->bmAttributes.xfer == TUSB_XFER_ISOCHRONOUS);
   dcd_data.class_code[ep_id] = class_code;
 
   dcd_data.qhd[ep_id][0].disable = dcd_data.qhd[ep_id][1].disable = 0;
@@ -380,7 +391,7 @@ endpoint_handle_t dcd_pipe_open(uint8_t coreid, tusb_descriptor_endpoint_t const
 
 bool dcd_pipe_is_busy(endpoint_handle_t edpt_hdl)
 {
-  return dcd_data.qhd[edpt_hdl.index][0].active;
+  return dcd_data.qhd[edpt_hdl.index][0].active || dcd_data.qhd[edpt_hdl.index][1].active;
 }
 
 //// add only, controller virtually cannot know
@@ -391,28 +402,43 @@ bool dcd_pipe_is_busy(endpoint_handle_t edpt_hdl)
 //  return TUSB_ERROR_NONE;
 //}
 
-//tusb_error_t dcd_pipe_queue_xfer(endpoint_handle_t edpt_hdl, void * buffer, uint16_t total_bytes)
-//{
-//
-//}
-
-tusb_error_t  dcd_pipe_xfer(endpoint_handle_t edpt_hdl, void* buffer, uint16_t total_bytes, bool int_on_complete)
+tusb_error_t dcd_pipe_queue_xfer(endpoint_handle_t edpt_hdl, void * buffer, uint16_t total_bytes)
 {
   ASSERT( !dcd_pipe_is_busy(edpt_hdl), TUSB_ERROR_INTERFACE_IS_BUSY); // endpoint must not in transferring
-
-  if (int_on_complete)
-  {
-    LPC_USB->INTEN = BIT_SET_(LPC_USB->INTEN, edpt_hdl.index);
-  }else
-  {
-    LPC_USB->INTEN = BIT_CLR_(LPC_USB->INTEN, edpt_hdl.index);
-  }
 
   dcd_data.qhd[edpt_hdl.index][0].buff_addr_offset = addr_offset(buffer);
   dcd_data.qhd[edpt_hdl.index][0].total_bytes      = total_bytes;
   dcd_data.expected_bytes[edpt_hdl.index]          = total_bytes;
 
-  dcd_data.qhd[edpt_hdl.index][0].active           = 1;
+  LPC_USB->EPBUFCFG = BIT_SET_(LPC_USB->EPBUFCFG, edpt_hdl.index); // queue xfer requires double buffering
+
+  return TUSB_ERROR_NONE;
+}
+
+tusb_error_t  dcd_pipe_xfer(endpoint_handle_t edpt_hdl, void* buffer, uint16_t total_bytes, bool int_on_complete)
+{
+  ASSERT( !dcd_pipe_is_busy(edpt_hdl), TUSB_ERROR_INTERFACE_IS_BUSY); // endpoint must not in transferring
+
+
+  // In case both Buffers (0 & 1) have xfer and only buffer1 has int_on_complete, enable interrupt will also cause buffer0's
+  // xfer completion assert interrupt. This is unintentional side effect, and only can be handled in dcd_isr
+  LPC_USB->INTEN   = int_on_complete ? BIT_SET_(LPC_USB->INTEN, edpt_hdl.index) : BIT_CLR_(LPC_USB->INTEN, edpt_hdl.index);
+
+  // double buffering means there is another xfer has been queued in buffer0
+  uint8_t buff_idx = BIT_TEST_(LPC_USB->EPBUFCFG, edpt_hdl.index) ? 1 : 0;
+
+  dcd_data.qhd[edpt_hdl.index][buff_idx].buff_addr_offset = addr_offset(buffer);
+  dcd_data.qhd[edpt_hdl.index][buff_idx].total_bytes      = total_bytes;
+  dcd_data.expected_bytes[edpt_hdl.index]                 = total_bytes; // TODO currently only calculate xferred bytes on IOC one
+
+  if (buff_idx)
+  {
+    LPC_USB->EPINUSE = BIT_CLR_(LPC_USB->EPINUSE, edpt_hdl.index); // force HW to use buffer0
+    dcd_data.qhd[edpt_hdl.index][1].active = 1;
+  }
+
+  dcd_data.qhd[edpt_hdl.index][0].active = 1; // buffer0 always has queued xfer
+
 
 	return TUSB_ERROR_NONE;
 }

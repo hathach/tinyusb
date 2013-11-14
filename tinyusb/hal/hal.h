@@ -110,7 +110,7 @@ static inline bool hal_debugger_is_attached(void)
 #if !defined(_TEST_) && !(MCU==MCU_LPC11UXX)
   return ( (CoreDebug->DHCSR & CoreDebug_DHCSR_C_DEBUGEN_Msk) == CoreDebug_DHCSR_C_DEBUGEN_Msk );
 #else
-  return false;
+  return true; // force to break into breakpoint
 #endif
 }
 

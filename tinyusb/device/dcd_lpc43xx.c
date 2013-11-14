@@ -197,7 +197,7 @@ void dcd_controller_set_address(uint8_t coreid, uint8_t dev_addr)
   LPC_USB[coreid]->DEVICEADDR = (dev_addr << 25) | BIT_(24);
 }
 
-void dcd_controller_set_configuration(uint8_t coreid, uint8_t config_num)
+void dcd_controller_set_configuration(uint8_t coreid)
 {
 
 }

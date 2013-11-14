@@ -146,9 +146,11 @@ tusb_error_t usbd_init (void)
 //--------------------------------------------------------------------+
 // CONTROL REQUEST
 //--------------------------------------------------------------------+
+// TODO Host (windows) can get HID report descriptor before set configured
+// need to open interface before set configured
 tusb_error_t usbh_set_configure_received(uint8_t coreid, uint8_t config_number)
 {
-  dcd_controller_set_configuration(coreid, config_number);
+  dcd_controller_set_configuration(coreid);
   usbd_devices[coreid].state = TUSB_DEVICE_STATE_CONFIGURED;
 
   //------------- parse configuration & open drivers -------------//
@@ -287,7 +289,7 @@ void usbd_setup_received_isr(uint8_t coreid, tusb_control_request_t * p_request)
   if(TUSB_ERROR_NONE != error)
   { // Response with Protocol Stall if request is not supported
     dcd_pipe_control_stall(coreid);
-    ASSERT(error == TUSB_ERROR_NONE, VOID_RETURN);
+//    ASSERT(error == TUSB_ERROR_NONE, VOID_RETURN);
   }
 }
 

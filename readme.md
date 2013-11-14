@@ -49,7 +49,10 @@ coming soon ...
 
 ## Supported MCUs ##
 
-- NXP LPC43xx family
+- NXP 
+  - LPC43xx
+  - LPC13uxx (12 bit ADC)
+  - LPC11uxx
 
 ## Supported Toolchains ##
 
@@ -68,6 +71,10 @@ this code base can run out of the box with the following boards
 - [Embedded Artists LPC4357 OEM & Base board](http://www.embeddedartists.com/products/kits/lpc4357_kit.php)
 - [NGX Technologies LPC4330 Explorer](http://shop.ngxtechnologies.com/product_info.php?products_id=104)
 - [Keil MCB4357 Evaluation Board](http://www.keil.com/mcb4300)
+
+## Known Issues ##
+
+- LPC11uxx & LPC13uxx cannot able to STALL Control OUT endpoint !!! --> unsupported with data out request may cause host stuck with control transfer forever. (reproduce: enable keyboard + mouse, return error in set report of hid_device)
 
 ## Coding Standards ##
 

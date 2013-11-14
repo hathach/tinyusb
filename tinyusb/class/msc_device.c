@@ -56,7 +56,7 @@ typedef struct {
   endpoint_handle_t edpt_in, edpt_out;
 
   // must be in USB ram
-  ATTR_USB_MIN_ALIGNMENT uint8_t max_lun;
+  ATTR_USB_MIN_ALIGNMENT uint8_t max_lun; // can STALL for one LUN
 
   ATTR_USB_MIN_ALIGNMENT msc_cmd_block_wrapper_t  cbw;
   ATTR_USB_MIN_ALIGNMENT msc_cmd_status_wrapper_t csw;
@@ -176,6 +176,7 @@ void mscd_isr(endpoint_handle_t edpt_hdl, tusb_event_t event, uint32_t xferred_b
   }
 
   //------------- Status Phase -------------//
+  // TODO need to be true for dcd_lpc43xx to clean up qtd !!!
   ASSERT( dcd_pipe_xfer( p_msc->edpt_in , &p_msc->csw, sizeof(msc_cmd_status_wrapper_t), true) == TUSB_ERROR_NONE, VOID_RETURN );
 
   //------------- Queue the next CBW -------------//
