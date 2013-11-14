@@ -95,7 +95,7 @@
 #elif BOARD == BOARD_RF1GHZNODE
   #include "microbuilder/board_rf1ghznode.h"
 #elif BOARD == BOARD_EA4357
-  #include "embedded_artists/board_ea4357.h"
+  #include "embedded_artists/ea4357/board_ea4357.h"
 #elif BOARD == BOARD_MCB4300
   #include "keil/board_mcb4300.h"
 #elif BOARD == BOARD_HITEX4350

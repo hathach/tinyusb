@@ -176,8 +176,7 @@ void mscd_isr(endpoint_handle_t edpt_hdl, tusb_event_t event, uint32_t xferred_b
   }
 
   //------------- Status Phase -------------//
-  // TODO need to be true for dcd_lpc43xx to clean up qtd !!!
-  ASSERT( dcd_pipe_xfer( p_msc->edpt_in , &p_msc->csw, sizeof(msc_cmd_status_wrapper_t), true) == TUSB_ERROR_NONE, VOID_RETURN );
+  ASSERT( dcd_pipe_xfer( p_msc->edpt_in , &p_msc->csw, sizeof(msc_cmd_status_wrapper_t), true) == TUSB_ERROR_NONE, VOID_RETURN ); // need to be true for dcd to clean up qtd !!
 
   //------------- Queue the next CBW -------------//
   ASSERT( dcd_pipe_xfer( p_msc->edpt_out, &p_msc->cbw, sizeof(msc_cmd_block_wrapper_t), true) == TUSB_ERROR_NONE, VOID_RETURN );

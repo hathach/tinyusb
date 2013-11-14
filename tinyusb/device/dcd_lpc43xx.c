@@ -143,10 +143,9 @@ typedef struct {
 	/// thus there are 16 bytes padding free that we can make use of.
   //--------------------------------------------------------------------+
   uint8_t class_code; // Class code that endpoint belongs to
-  uint8_t xfer_type;
   uint8_t list_qtd_idx[DCD_QTD_PER_QHD_MAX];
 
-	uint8_t reserved[14-DCD_QTD_PER_QHD_MAX];
+	uint8_t reserved[15-DCD_QTD_PER_QHD_MAX];
 } ATTR_ALIGNED(64) dcd_qhd_t;
 
 STATIC_ASSERT( sizeof(dcd_qhd_t) == 64, "size is not correct");
@@ -404,7 +403,7 @@ tusb_error_t dcd_pipe_clear_stall(uint8_t coreid, uint8_t edpt_addr)
 endpoint_handle_t dcd_pipe_open(uint8_t coreid, tusb_descriptor_endpoint_t const * p_endpoint_desc, uint8_t class_code)
 {
   // TODO USB1 only has 4 non-control enpoint (USB0 has 5)
-  endpoint_handle_t const null_handle = { .coreid = 0, .xfer_type = 0, .index = 0 };
+  endpoint_handle_t const null_handle = { 0 };
 
   if (p_endpoint_desc->bmAttributes.xfer == TUSB_XFER_ISOCHRONOUS)
     return null_handle; // TODO not support ISO yet
@@ -418,7 +417,6 @@ endpoint_handle_t dcd_pipe_open(uint8_t coreid, tusb_descriptor_endpoint_t const
   memclr_(p_qhd, sizeof(dcd_qhd_t));
 
   p_qhd->class_code              = class_code;
-  p_qhd->xfer_type               = p_endpoint_desc->bmAttributes.xfer;
   p_qhd->zero_length_termination = 1;
   p_qhd->max_package_size        = p_endpoint_desc->wMaxPacketSize.size;
   p_qhd->qtd_overlay.next        = QTD_NEXT_INVALID;
@@ -432,7 +430,6 @@ endpoint_handle_t dcd_pipe_open(uint8_t coreid, tusb_descriptor_endpoint_t const
   return (endpoint_handle_t)
       {
           .coreid     = coreid,
-          .xfer_type  = p_endpoint_desc->bmAttributes.xfer,
           .index      = ep_idx,
           .class_code = class_code
       };
@@ -449,8 +446,6 @@ bool dcd_pipe_is_busy(endpoint_handle_t edpt_hdl)
 // add only, controller virtually cannot know
 static tusb_error_t pipe_add_xfer(endpoint_handle_t edpt_hdl, void * buffer, uint16_t total_bytes, bool int_on_complete)
 {
-  ASSERT(edpt_hdl.xfer_type != TUSB_XFER_ISOCHRONOUS, TUSB_ERROR_NOT_SUPPORTED_YET);
-
   uint8_t qtd_idx  = qtd_find_free(edpt_hdl.coreid);
   ASSERT(qtd_idx != 0, TUSB_ERROR_DCD_NOT_ENOUGH_QTD);
 
@@ -509,7 +504,6 @@ void xfer_complete_isr(uint8_t coreid, uint32_t reg_complete)
       endpoint_handle_t edpt_hdl =
       {
           .coreid     = coreid,
-          .xfer_type  = p_qhd->xfer_type,
           .index      = ep_idx,
           .class_code = p_qhd->class_code
       };

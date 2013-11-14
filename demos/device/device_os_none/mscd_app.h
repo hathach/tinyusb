@@ -55,6 +55,18 @@
 
 #if TUSB_CFG_DEVICE_MSC
 
+enum
+{
+  DISK_BLOCK_NUM  = 16, // 8KB is the smallest size that windows allow to mount
+  DISK_BLOCK_SIZE = 512
+};
+
+#if MCU==MCU_LPC43XX
+  #define MSCD_APP_RAMDISK
+#else // defaults is rom disk
+  #define MSCD_APP_ROMDISK
+#endif
+
 void msc_dev_app_init(void);
 OSAL_TASK_FUNCTION( msc_dev_app_task ) (void* p_task_para);
 

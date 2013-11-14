@@ -64,8 +64,8 @@
 #include "lpc43xx_i2c.h"
 
 
-#include "oem_base_board/pca9532.h" // LEDs
-#include "oem_board/nand.h"
+#include "../oem_base_board/pca9532.h" // LEDs
+//#include "../oem_board/nand.h"
 
 
 //#define CFG_PRINTF_TARGET       PRINTF_TARGET_SWO
