@@ -160,7 +160,6 @@ tusb_error_t hidd_control_request(uint8_t coreid, tusb_control_request_t const *
     {
       case HID_REQUEST_CONTROL_SET_IDLE:
         // idle_rate = u16_high_u8(p_request->wValue);
-        dcd_pipe_control_xfer(coreid, TUSB_DIR_HOST_TO_DEV, NULL, 0);
       break;
 
       case HID_REQUEST_CONTROL_SET_REPORT:

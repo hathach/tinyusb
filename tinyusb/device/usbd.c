@@ -157,12 +157,10 @@ tusb_error_t usbd_body_subtask(void)
       {
         dcd_controller_set_address(event.coreid, (uint8_t) p_request->wValue);
         p_device->state = TUSB_DEVICE_STATE_ADDRESSED;
-        dcd_pipe_control_xfer(event.coreid, TUSB_DIR_HOST_TO_DEV, NULL, 0); // zero length
       }
       else if ( TUSB_REQUEST_SET_CONFIGURATION == p_request->bRequest )
       {
         usbd_set_configure_received(event.coreid, (uint8_t) p_request->wValue);
-        dcd_pipe_control_xfer(event.coreid, TUSB_DIR_HOST_TO_DEV, NULL, 0); // zero length
       }else
       {
         error = TUSB_ERROR_DCD_CONTROL_REQUEST_NOT_SUPPORT;
@@ -189,7 +187,6 @@ tusb_error_t usbd_body_subtask(void)
       if ( TUSB_REQUEST_CLEAR_FEATURE == p_request->bRequest )
       {
         dcd_pipe_clear_stall(event.coreid, u16_low_u8(p_request->wIndex) );
-        dcd_pipe_control_xfer(event.coreid, TUSB_DIR_HOST_TO_DEV, NULL, 0); // zero length
       } else
       {
         error = TUSB_ERROR_DCD_CONTROL_REQUEST_NOT_SUPPORT;
@@ -203,6 +200,9 @@ tusb_error_t usbd_body_subtask(void)
     { // Response with Protocol Stall if request is not supported
       dcd_pipe_control_stall(event.coreid);
       //    ASSERT(error == TUSB_ERROR_NONE, VOID_RETURN);
+    }else
+    { // status phase
+      dcd_pipe_control_xfer(event.coreid, 1-p_request->bmRequestType_bit.direction, NULL, 0); // zero length
     }
   }
 

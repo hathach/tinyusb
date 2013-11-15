@@ -283,28 +283,28 @@ void dcd_pipe_control_stall(uint8_t coreid)
   dcd_data.qhd[0][0].stall = dcd_data.qhd[1][0].stall = 1;
 }
 
-// control transfer does not need to use qtd find function
-tusb_error_t dcd_pipe_control_xfer(uint8_t coreid, tusb_direction_t dir, void * buffer, uint16_t length)
+// used for data phase only
+//tusb_error_t dcd_pipe_control_queue_xfer(uint8_t coreid, tusb_direction_t dir, void * p_buffer, uint16_t length)
+//{
+//  (void) coreid;
+//
+//  uint8_t const ep_id = dir; // IN : 1, OUT = 0
+//
+//  dcd_data.qhd[ep_id][0].buff_addr_offset = (length ? addr_offset(p_buffer) : 0 );
+//  dcd_data.qhd[ep_id][0].total_bytes      = length;
+//
+//}
+
+// can be data phase (long data) or status phase
+tusb_error_t dcd_pipe_control_xfer(uint8_t coreid, tusb_direction_t dir, void * p_buffer, uint16_t length)
 {
   (void) coreid;
 
-  // determine Endpoint where Data & Status phase occurred (IN or OUT)
-  uint8_t const endpoint_data   = (dir == TUSB_DIR_DEV_TO_HOST) ? 1 : 0;
-  uint8_t const endpoint_status = 1 - endpoint_data;
+  uint8_t const ep_id = dir; // IN : 1, OUT = 0
 
-  //------------- Data Phase -------------//
-  if (length)
-  {
-    dcd_data.qhd[endpoint_data][0].buff_addr_offset = addr_offset(buffer);
-    dcd_data.qhd[endpoint_data][0].total_bytes      = length;
-    dcd_data.qhd[endpoint_data][0].active           = 1 ;
-  }
-
-  //------------- Status Phase -------------//
-  dcd_data.qhd[endpoint_status][0].buff_addr_offset = 0;
-  dcd_data.qhd[endpoint_status][0].total_bytes      = 0;
-  dcd_data.qhd[endpoint_status][0].active           = 1 ;
-
+  dcd_data.qhd[ep_id][0].buff_addr_offset = (length ? addr_offset(p_buffer) : 0 );
+  dcd_data.qhd[ep_id][0].total_bytes      = length;
+  dcd_data.qhd[ep_id][0].active           = 1 ;
 
   return TUSB_ERROR_NONE;
 }
