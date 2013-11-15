@@ -105,12 +105,12 @@ static inline uint32_t osal_tick_get(void)
   ATTR_UNUSED static uint32_t timeout = 0;\
   static uint16_t state = 0;\
   switch(state) {\
-    case 0:\
+    case 0:{\
 
 #define OSAL_TASK_LOOP_END \
   default:\
     TASK_RESTART;\
-  }\
+  }}\
   return TUSB_ERROR_NONE;
 
 

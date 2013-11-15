@@ -244,6 +244,7 @@ static void bus_reset(uint8_t coreid)
 	p_dcd->qhd[0].qtd_overlay.next = p_dcd->qhd[1].qtd_overlay.next = QTD_NEXT_INVALID;
 
 	p_dcd->qhd[0].int_on_setup = 1; // OUT only
+
 }
 
 static void lpc43xx_controller_init(uint8_t coreid)
@@ -253,10 +254,12 @@ static void lpc43xx_controller_init(uint8_t coreid)
 
   memclr_(p_dcd, sizeof(dcd_data_t));
 
-  lpc_usb->USBCMD_D &= ~0x00FF0000; // Interrupt Threshold Interval = 0
   lpc_usb->ENDPOINTLISTADDR = (uint32_t) p_dcd->qhd; // Endpoint List Address has to be 2K alignment
   lpc_usb->USBSTS_D  = lpc_usb->USBSTS_D;
   lpc_usb->USBINTR_D = INT_MASK_USB | INT_MASK_ERROR | INT_MASK_PORT_CHANGE | INT_MASK_RESET | INT_MASK_SUSPEND; // | INT_MASK_SOF| INT_MASK_NAK;
+
+  lpc_usb->USBCMD_D &= ~0x00FF0000; // Interrupt Threshold Interval = 0
+  lpc_usb->USBCMD_D |= BIT_(0); // connect
 }
 
 tusb_error_t dcd_init(void)

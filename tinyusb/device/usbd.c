@@ -96,7 +96,7 @@ static usbd_class_driver_t const usbd_class_drivers[TUSB_CLASS_MAPPED_INDEX_STAR
 // INTERNAL OBJECT & FUNCTION DECLARATION
 //--------------------------------------------------------------------+
 tusb_error_t usbd_set_configure_received(uint8_t coreid, uint8_t config_number);
-tusb_error_t std_get_descriptor(uint8_t coreid, tusb_control_request_t * p_request);
+tusb_error_t get_descriptor_subtask(uint8_t coreid, tusb_control_request_t * p_request);
 
 //--------------------------------------------------------------------+
 // APPLICATION INTERFACE
@@ -117,7 +117,7 @@ enum {
 
 typedef enum {
   USBD_EVENTID_SETUP_RECEIVED = 1
-};
+}usbd_eventid_t;
 
 typedef struct {
   uint8_t coreid;
@@ -132,12 +132,13 @@ static osal_queue_handle_t usbd_queue_hdl;
 
 tusb_error_t usbd_body_subtask(void)
 {
+  OSAL_SUBTASK_BEGIN
+
   tusb_error_t error = TUSB_ERROR_NONE;
   usbd_task_event_t event;
 
-  OSAL_SUBTASK_BEGIN
-
   osal_queue_receive(usbd_queue_hdl, &event, OSAL_TIMEOUT_WAIT_FOREVER, &error);
+  SUBTASK_ASSERT_STATUS(error);
 
   if ( USBD_EVENTID_SETUP_RECEIVED == event.event_id )
   {
@@ -150,7 +151,7 @@ tusb_error_t usbd_body_subtask(void)
     {
       if ( TUSB_REQUEST_GET_DESCRIPTOR == p_request->bRequest )
       {
-        error = std_get_descriptor(event.coreid, p_request);
+        error = get_descriptor_subtask(event.coreid, p_request);
       }
       else if ( TUSB_REQUEST_SET_ADDRESS == p_request->bRequest )
       {
@@ -171,9 +172,9 @@ tusb_error_t usbd_body_subtask(void)
     else if ( TUSB_REQUEST_RECIPIENT_INTERFACE == p_request->bmRequestType_bit.recipient)
     {
       tusb_std_class_code_t class_code = p_device->interface2class[ u16_low_u8(p_request->wIndex) ];
-      ASSERT_INT_WITHIN(TUSB_CLASS_AUDIO, TUSB_CLASS_AUDIO_VIDEO, class_code, VOID_RETURN);
 
-      if ( usbd_class_drivers[class_code].control_request )
+      if ( (TUSB_CLASS_AUDIO <= class_code) && (class_code <= TUSB_CLASS_AUDIO_VIDEO) &&
+           usbd_class_drivers[class_code].control_request )
       {
         error = usbd_class_drivers[class_code].control_request(event.coreid, p_request);
       }else
@@ -207,6 +208,7 @@ tusb_error_t usbd_body_subtask(void)
 
   OSAL_SUBTASK_END
 }
+
 // To enable the TASK_ASSERT style (quick return on false condition) in a real RTOS, a task must act as a wrapper
 // and is used mainly to call subtasks. Within a subtask return statement can be called freely, the task with
 // forever loop cannot have any return at all.
@@ -218,7 +220,6 @@ OSAL_TASK_FUNCTION(usbd_task) (void* p_task_para)
 
   OSAL_TASK_LOOP_END
 }
-
 
 void usbd_bus_reset(uint32_t coreid)
 {
@@ -241,14 +242,6 @@ tusb_error_t usbd_init (void)
   usbd_queue_hdl = osal_queue_create( OSAL_QUEUE_REF(usbd_queue_def) );
   ASSERT_PTR(usbd_queue_hdl, TUSB_ERROR_OSAL_QUEUE_FAILED);
   ASSERT_STATUS( osal_task_create( OSAL_TASK_REF(usbd_task) ));
-
-#if (TUSB_CFG_CONTROLLER_0_MODE & TUSB_MODE_DEVICE)
-  dcd_controller_connect(0);
-#endif
-
-#if (TUSB_CFG_CONTROLLER_1_MODE & TUSB_MODE_DEVICE)
-  dcd_controller_connect(1);
-#endif
 
   //------------- class init -------------//
   for (tusb_std_class_code_t class_code = TUSB_CLASS_AUDIO; class_code <= TUSB_CLASS_AUDIO_VIDEO; class_code++)
@@ -294,43 +287,50 @@ tusb_error_t usbd_set_configure_received(uint8_t coreid, uint8_t config_number)
     ASSERT_STATUS( usbd_class_drivers[class_index].open( coreid, p_desc_interface, &length ) );
 
     ASSERT( length >= sizeof(tusb_descriptor_interface_t), TUSB_ERROR_FAILED );
-
-    //      usbh_devices[new_addr].flag_supported_class |= BIT_(class_index);
     p_desc += length;
   }
 
   return TUSB_ERROR_NONE;
 }
 
-tusb_error_t std_get_descriptor(uint8_t coreid, tusb_control_request_t * p_request)
+tusb_error_t get_descriptor_subtask(uint8_t coreid, tusb_control_request_t * p_request)
 {
+  OSAL_SUBTASK_BEGIN
+
+  static uint8_t const * p_data;
+  static uint16_t length;
+
   tusb_std_descriptor_type_t const desc_type = p_request->wValue >> 8;
   uint8_t const desc_index = u16_low_u8( p_request->wValue );
 
-  switch ( desc_type )
+  if ( TUSB_DESC_TYPE_DEVICE == desc_type )
   {
-    case TUSB_DESC_TYPE_DEVICE:
-      dcd_pipe_control_xfer(coreid, TUSB_DIR_DEV_TO_HOST, &app_tusb_desc_device,
-                            min16_of( p_request->wLength, sizeof(tusb_descriptor_device_t)) );
-    break;
+    p_data = (uint8_t const *) &app_tusb_desc_device;
+    length = min16_of( p_request->wLength, sizeof(tusb_descriptor_device_t)) ;
+  }
+  else if ( TUSB_DESC_TYPE_CONFIGURATION == desc_type )
+  {
+    p_data = (uint8_t const *) &app_tusb_desc_configuration;
+    length = min16_of( p_request->wLength, sizeof(app_tusb_desc_configuration)) ;
+  }
+  else if ( TUSB_DESC_TYPE_STRING == desc_type )
+  {
+    if ( ! (desc_index < TUSB_CFG_DEVICE_STRING_DESCRIPTOR_COUNT) ) SUBTASK_EXIT (TUSB_ERROR_DCD_CONTROL_REQUEST_NOT_SUPPORT);
 
-    case TUSB_DESC_TYPE_CONFIGURATION:
-      dcd_pipe_control_xfer(coreid, TUSB_DIR_DEV_TO_HOST, &app_tusb_desc_configuration,
-                            min16_of( p_request->wLength, sizeof(app_tusb_desc_configuration)) );
-    break;
-
-    case TUSB_DESC_TYPE_STRING:
-      if ( ! (desc_index < TUSB_CFG_DEVICE_STRING_DESCRIPTOR_COUNT) ) return TUSB_ERROR_DCD_CONTROL_REQUEST_NOT_SUPPORT;
-
-      dcd_pipe_control_xfer(coreid, TUSB_DIR_DEV_TO_HOST, desc_str_table[desc_index], desc_str_table[desc_index]->bLength);
-    break;
-
-    default:
-      return TUSB_ERROR_DCD_CONTROL_REQUEST_NOT_SUPPORT;
+    p_data = (uint8_t const *) desc_str_table[desc_index];
+    length = min16_of( p_request->wLength, desc_str_table[desc_index]->bLength) ;
+  }else
+  {
+    SUBTASK_EXIT (TUSB_ERROR_DCD_CONTROL_REQUEST_NOT_SUPPORT);
   }
 
-  return TUSB_ERROR_NONE;
+  dcd_pipe_control_xfer(coreid, p_request->bmRequestType_bit.direction, p_data, length);
+
+  OSAL_SUBTASK_END
 }
+//--------------------------------------------------------------------+
+// USBD-CLASS API
+//--------------------------------------------------------------------+
 
 //--------------------------------------------------------------------+
 // DCD Callback API
@@ -346,14 +346,6 @@ void usbd_setup_received_isr(uint8_t coreid, tusb_control_request_t * p_request)
                   );
 }
 
-
-//--------------------------------------------------------------------+
-// USBD-CLASS API
-//--------------------------------------------------------------------+
-
-//--------------------------------------------------------------------+
-// USBD-DCD API
-//--------------------------------------------------------------------+
 void usbd_xfer_isr(endpoint_handle_t edpt_hdl, tusb_event_t event, uint32_t xferred_bytes)
 {
 //  usbd_device_info_t *p_device = &usbd_devices[edpt_hdl.coreid];

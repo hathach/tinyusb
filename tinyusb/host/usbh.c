@@ -360,6 +360,7 @@ tusb_error_t enumeration_body_subtask(void)
   OSAL_SUBTASK_BEGIN
 
   osal_queue_receive(enum_queue_hdl, &enum_entry, OSAL_TIMEOUT_WAIT_FOREVER, &error);
+  SUBTASK_ASSERT_STATUS(error);
 
   usbh_devices[0].core_id  = enum_entry.core_id; // TODO refractor integrate to device_pool
   usbh_devices[0].hub_addr = enum_entry.hub_addr;
