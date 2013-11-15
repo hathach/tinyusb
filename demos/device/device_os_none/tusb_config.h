@@ -85,9 +85,8 @@
 #define TUSB_CFG_DEVICE_HID_MOUSE     1
 #define TUSB_CFG_DEVICE_HID_GENERIC   0
 #define TUSB_CFG_DEVICE_MSC           0
-#define TUSB_CFG_DEVICE_CDC           0
+#define TUSB_CFG_DEVICE_CDC           1
 
-// TODO LPC11UXX seems not able to DMA > 64 bytes control transfer while LPC13uxx has no problem with that
 
 //--------------------------------------------------------------------+
 // COMMON CONFIGURATION

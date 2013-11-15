@@ -61,6 +61,7 @@
 
 typedef struct {
   volatile uint8_t state;
+  uint8_t is_waiting_control_xfer;             // set if task is waiting for control xfer to complete to proceed
   tusb_control_request_t control_request;
   uint8_t interface2class[USBD_MAX_INTERFACE]; // determine interface number belongs to which class
 }usbd_device_info_t;

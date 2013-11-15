@@ -241,7 +241,17 @@ void dcd_isr(uint8_t coreid)
 
     LPC_USB->DEVCMDSTAT |= CMDSTAT_MASK_SETUP_RECEIVED;
     dcd_data.qhd[0][1].buff_addr_offset = addr_offset(&dcd_data.setup_request);
+  }
+  else if ( int_status & 0x03 )
+  { // either control endpoints
+    endpoint_handle_t edpt_hdl =
+    {
+        .coreid     = coreid,
+        .index      = BIT_TEST_(int_status, 1) ? 1 : 0
+    };
 
+    // FIXME xferred_byte for control xfer is not needed now !!!
+    usbd_xfer_isr(edpt_hdl, TUSB_EVENT_XFER_COMPLETE, 0);
   }
 
   //------------- Non-Control Endpoints -------------//
@@ -265,6 +275,7 @@ void dcd_isr(uint8_t coreid)
         LPC_USB->EPBUFCFG = BIT_CLR_(LPC_USB->EPBUFCFG , ep_id); // clear double buffering
 
         // TODO no way determine if the transfer is failed or not
+        // FIXME xferred_byte is not correct
         usbd_xfer_isr(edpt_hdl, TUSB_EVENT_XFER_COMPLETE,
                       dcd_data.expected_bytes[ep_id] - dcd_data.qhd[ep_id][0].total_bytes); // only number of bytes in the IOC qtd
       }
@@ -283,19 +294,6 @@ void dcd_pipe_control_stall(uint8_t coreid)
   dcd_data.qhd[0][0].stall = dcd_data.qhd[1][0].stall = 1;
 }
 
-// used for data phase only
-//tusb_error_t dcd_pipe_control_queue_xfer(uint8_t coreid, tusb_direction_t dir, void * p_buffer, uint16_t length)
-//{
-//  (void) coreid;
-//
-//  uint8_t const ep_id = dir; // IN : 1, OUT = 0
-//
-//  dcd_data.qhd[ep_id][0].buff_addr_offset = (length ? addr_offset(p_buffer) : 0 );
-//  dcd_data.qhd[ep_id][0].total_bytes      = length;
-//
-//}
-
-// can be data phase (long data) or status phase
 tusb_error_t dcd_pipe_control_xfer(uint8_t coreid, tusb_direction_t dir, void * p_buffer, uint16_t length)
 {
   (void) coreid;
