@@ -73,7 +73,7 @@
 #define MSC_EDPT_OUT  ENDPOINT_OUT_LOGICAL_TO_PHYSICAL(3)
 
 // Interface Assosication Descriptor if device is CDC + other class
-#define IAD_DESC_REQUIRED ( 0 && TUSB_CFG_DEVICE_CDC && (TOTAL_INTEFACES > 2) )
+#define IAD_DESC_REQUIRED ( TUSB_CFG_DEVICE_CDC && (TOTAL_INTEFACES > 2) )
 
 
 // each combination of interfaces need to have different productid, as windows will bind & remember device driver after the

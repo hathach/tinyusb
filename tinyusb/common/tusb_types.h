@@ -151,6 +151,14 @@ typedef enum {
   TUSB_CLASS_VENDOR_SPECIFIC      = 0xFF
 }tusb_std_class_code_t;
 
+typedef enum {
+  MISC_SUBCLASS_COMMON = 2
+}misc_subclass_type_t;
+
+typedef enum {
+  MISC_PROTOCOL_IAD = 1
+}misc_protocol_type_t;
+
 typedef enum tusb_std_class_flag_{
   TUSB_CLASS_FLAG_AUDIO                = BIT_(TUSB_CLASS_AUDIO)               , ///< 1
   TUSB_CLASS_FLAG_CDC                  = BIT_(TUSB_CLASS_CDC)                 , ///< 2

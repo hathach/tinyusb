@@ -135,18 +135,19 @@ tusb_descriptor_device_t app_tusb_desc_device =
     .bDescriptorType    = TUSB_DESC_TYPE_DEVICE,
     .bcdUSB             = 0x0200,
   #if IAD_DESC_REQUIRED
-  /* Multiple Interfaces Using Interface Association Descriptor (IAD) */
-  .bDeviceClass       = TUSB_CLASS_MISC,
-  .bDeviceSubClass    = TUSB_CLASS_CDC,
-  .bDeviceProtocol    = 1,
+    // Multiple Interfaces Using Interface Association Descriptor (IAD)
+    // As required by USB Specs IAD's subclass must be common class (2) and protocol must be IAD (1)
+    .bDeviceClass       = TUSB_CLASS_MISC,
+    .bDeviceSubClass    = MISC_SUBCLASS_COMMON,
+    .bDeviceProtocol    = MISC_PROTOCOL_IAD,
   #elif TUSB_CFG_DEVICE_CDC
-  .bDeviceClass       = TUSB_CLASS_CDC,
-  .bDeviceSubClass    = 0x00,
-  .bDeviceProtocol    = 0x00,
+    .bDeviceClass       = TUSB_CLASS_CDC,
+    .bDeviceSubClass    = 0x00,
+    .bDeviceProtocol    = 0x00,
   #else
-  .bDeviceClass       = 0x00,
-  .bDeviceSubClass    = 0x00,
-  .bDeviceProtocol    = 0x00,
+    .bDeviceClass       = 0x00,
+    .bDeviceSubClass    = 0x00,
+    .bDeviceProtocol    = 0x00,
   #endif
 
     .bMaxPacketSize0    = TUSB_CFG_DEVICE_CONTROL_ENDOINT_SIZE,
@@ -186,13 +187,12 @@ app_descriptor_configuration_t app_tusb_desc_configuration =
         .bLength           = sizeof(tusb_descriptor_interface_association_t),
         .bDescriptorType   = TUSB_DESC_TYPE_INTERFACE_ASSOCIATION,
 
-        .bFirstInterface   = 1,
+        .bFirstInterface   = INTERFACE_INDEX_CDC,
         .bInterfaceCount   = 2,
 
         .bFunctionClass    = TUSB_CLASS_CDC,
         .bFunctionSubClass = CDC_COMM_SUBCLASS_ABSTRACT_CONTROL_MODEL,
         .bFunctionProtocol = CDC_COMM_PROTOCOL_ATCOMMAND,
-
         .iFunction         = 0
     },
     #endif

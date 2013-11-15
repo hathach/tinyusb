@@ -392,14 +392,7 @@ bool dcd_pipe_is_busy(endpoint_handle_t edpt_hdl)
   return dcd_data.qhd[edpt_hdl.index][0].active || dcd_data.qhd[edpt_hdl.index][1].active;
 }
 
-//// add only, controller virtually cannot know
-//static tusb_error_t pipe_add_xfer(endpoint_handle_t edpt_hdl, void * buffer, uint16_t total_bytes, bool int_on_complete)
-//{
-//
-//
-//  return TUSB_ERROR_NONE;
-//}
-
+// add only, not actually xfer data yet
 tusb_error_t dcd_pipe_queue_xfer(endpoint_handle_t edpt_hdl, void * buffer, uint16_t total_bytes)
 {
   ASSERT( !dcd_pipe_is_busy(edpt_hdl), TUSB_ERROR_INTERFACE_IS_BUSY); // endpoint must not in transferring
@@ -416,7 +409,6 @@ tusb_error_t dcd_pipe_queue_xfer(endpoint_handle_t edpt_hdl, void * buffer, uint
 tusb_error_t  dcd_pipe_xfer(endpoint_handle_t edpt_hdl, void* buffer, uint16_t total_bytes, bool int_on_complete)
 {
   ASSERT( !dcd_pipe_is_busy(edpt_hdl), TUSB_ERROR_INTERFACE_IS_BUSY); // endpoint must not in transferring
-
 
   // In case both Buffers (0 & 1) have xfer and only buffer1 has int_on_complete, enable interrupt will also cause buffer0's
   // xfer completion assert interrupt. This is unintentional side effect, and only can be handled in dcd_isr
