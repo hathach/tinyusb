@@ -96,7 +96,7 @@ static usbd_class_driver_t const usbd_class_drivers[TUSB_CLASS_MAPPED_INDEX_STAR
 // INTERNAL OBJECT & FUNCTION DECLARATION
 //--------------------------------------------------------------------+
 tusb_error_t usbd_set_configure_received(uint8_t coreid, uint8_t config_number);
-tusb_error_t get_descriptor_subtask(uint8_t coreid, tusb_control_request_t * p_request);
+tusb_error_t get_descriptor_subtask(uint8_t coreid, tusb_control_request_t * p_request, uint8_t const ** pp_buffer, uint16_t * p_length);
 
 //--------------------------------------------------------------------+
 // APPLICATION INTERFACE
@@ -151,7 +151,12 @@ tusb_error_t usbd_body_subtask(void)
     {
       if ( TUSB_REQUEST_GET_DESCRIPTOR == p_request->bRequest )
       {
-        error = get_descriptor_subtask(event.coreid, p_request);
+        static uint8_t const * p_buffer = NULL;
+        static uint16_t length = 0;
+
+        error = get_descriptor_subtask(event.coreid, p_request, &p_buffer, &length);
+
+        dcd_pipe_control_xfer(event.coreid, p_request->bmRequestType_bit.direction, p_buffer, length); // zero length
       }
       else if ( TUSB_REQUEST_SET_ADDRESS == p_request->bRequest )
       {
@@ -293,40 +298,35 @@ tusb_error_t usbd_set_configure_received(uint8_t coreid, uint8_t config_number)
   return TUSB_ERROR_NONE;
 }
 
-tusb_error_t get_descriptor_subtask(uint8_t coreid, tusb_control_request_t * p_request)
+tusb_error_t get_descriptor_subtask(uint8_t coreid, tusb_control_request_t * p_request, uint8_t const ** pp_buffer, uint16_t * p_length)
 {
-  OSAL_SUBTASK_BEGIN
-
-  static uint8_t const * p_data;
-  static uint16_t length;
-
-  tusb_std_descriptor_type_t const desc_type = p_request->wValue >> 8;
+  tusb_std_descriptor_type_t const desc_type = u16_high_u8(p_request->wValue);
   uint8_t const desc_index = u16_low_u8( p_request->wValue );
 
   if ( TUSB_DESC_TYPE_DEVICE == desc_type )
   {
-    p_data = (uint8_t const *) &app_tusb_desc_device;
-    length = min16_of( p_request->wLength, sizeof(tusb_descriptor_device_t)) ;
+    (*pp_buffer) = (uint8_t const *) &app_tusb_desc_device;
+    (*p_length)  = sizeof(tusb_descriptor_device_t);
   }
   else if ( TUSB_DESC_TYPE_CONFIGURATION == desc_type )
   {
-    p_data = (uint8_t const *) &app_tusb_desc_configuration;
-    length = min16_of( p_request->wLength, sizeof(app_tusb_desc_configuration)) ;
+    (*pp_buffer) = (uint8_t const *) &app_tusb_desc_configuration;
+    (*p_length)  = sizeof(app_tusb_desc_configuration);
   }
   else if ( TUSB_DESC_TYPE_STRING == desc_type )
   {
-    if ( ! (desc_index < TUSB_CFG_DEVICE_STRING_DESCRIPTOR_COUNT) ) SUBTASK_EXIT (TUSB_ERROR_DCD_CONTROL_REQUEST_NOT_SUPPORT);
+    if ( ! (desc_index < TUSB_CFG_DEVICE_STRING_DESCRIPTOR_COUNT) ) return TUSB_ERROR_DCD_CONTROL_REQUEST_NOT_SUPPORT;
 
-    p_data = (uint8_t const *) desc_str_table[desc_index];
-    length = min16_of( p_request->wLength, desc_str_table[desc_index]->bLength) ;
+    (*pp_buffer) = (uint8_t const*) desc_str_table[desc_index];
+    (*p_length)  = desc_str_table[desc_index]->bLength;
   }else
   {
-    SUBTASK_EXIT (TUSB_ERROR_DCD_CONTROL_REQUEST_NOT_SUPPORT);
+    return TUSB_ERROR_DCD_CONTROL_REQUEST_NOT_SUPPORT;
   }
 
-  dcd_pipe_control_xfer(coreid, p_request->bmRequestType_bit.direction, p_data, length);
+  (*p_length) = min16_of(p_request->wLength, (*p_length) ); // cannot return more than hosts requires
 
-  OSAL_SUBTASK_END
+  return TUSB_ERROR_NONE;
 }
 //--------------------------------------------------------------------+
 // USBD-CLASS API
