@@ -266,7 +266,7 @@ void usbh_hub_port_plugged_isr(uint8_t hub_addr, uint8_t hub_port)
 {
   osal_queue_send(enum_queue_hdl,
                   &(usbh_enumerate_t){
-                    .core_id = usbh_devices[hub_addr].core_id,
+                    .core_id  = usbh_devices[hub_addr].core_id,
                     .hub_addr = hub_addr,
                     .hub_port = hub_port}
                   );
@@ -276,7 +276,7 @@ void usbh_hcd_rhport_plugged_isr(uint8_t hostid)
 {
   osal_queue_send(enum_queue_hdl,
                   &(usbh_enumerate_t){
-                    .core_id = hostid,
+                    .core_id  = hostid,
                     .hub_addr = 0,
                     .hub_port = 0}
                   );

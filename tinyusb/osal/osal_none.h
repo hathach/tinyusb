@@ -92,6 +92,7 @@ static inline uint32_t osal_tick_get(void)
 // }
 //--------------------------------------------------------------------+
 #define OSAL_TASK_DEF(code, stack_depth, prio)
+#define OSAL_TASK_REF
 #define osal_task_create(x) TUSB_ERROR_NONE
 
 #define OSAL_TASK_FUNCTION(task_func) \

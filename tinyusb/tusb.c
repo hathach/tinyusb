@@ -85,7 +85,7 @@ void tusb_task_runner(void)
   #endif
 
   #if MODE_DEVICE_SUPPORTED
-
+  usbd_task(NULL);
   #endif
 }
 #endif

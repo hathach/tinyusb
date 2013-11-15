@@ -73,6 +73,7 @@ enum {
   CMDSTAT_MASK_RESET_CHANGE   = BIT_(26),
 };
 
+#if 0
 typedef struct {
   union {
     struct {
@@ -101,7 +102,7 @@ typedef struct {
 } reg_dev_cmd_stat_t;
 
 STATIC_ASSERT( sizeof(reg_dev_cmd_stat_t) == 4, "size is not correct" );
-
+#endif
 
 // buffer input must be 64 byte alignment
 typedef struct {
@@ -233,7 +234,7 @@ void dcd_isr(uint8_t coreid)
   if ( BIT_TEST_(int_status, 0) && (dev_cmd_stat & CMDSTAT_MASK_SETUP_RECEIVED) )
   { // received control request from host
     // copy setup request & acknowledge so that the next setup can be received by hw
-    tusb_control_request_t control_request =  dcd_data.setup_request;
+    usbd_setup_received_isr(coreid, &dcd_data.setup_request);
 
     // NXP control flowchart clear Active & Stall on both Control IN/OUT endpoints
     dcd_data.qhd[0][0].stall = dcd_data.qhd[1][0].stall = 0;
@@ -241,7 +242,6 @@ void dcd_isr(uint8_t coreid)
     LPC_USB->DEVCMDSTAT |= CMDSTAT_MASK_SETUP_RECEIVED;
     dcd_data.qhd[0][1].buff_addr_offset = addr_offset(&dcd_data.setup_request);
 
-    usbd_setup_received_isr(coreid, &control_request);
   }
 
   //------------- Non-Control Endpoints -------------//
