@@ -362,11 +362,11 @@ tusb_error_t dcd_pipe_clear_stall(uint8_t coreid, uint8_t edpt_addr)
 endpoint_handle_t dcd_pipe_open(uint8_t coreid, tusb_descriptor_endpoint_t const * p_endpoint_desc, uint8_t class_code)
 {
   (void) coreid;
-
   endpoint_handle_t const null_handle = { 0 };
 
-  if (p_endpoint_desc->bmAttributes.xfer == TUSB_XFER_ISOCHRONOUS)
-    return null_handle; // TODO not support ISO yet
+  if (p_endpoint_desc->bmAttributes.xfer == TUSB_XFER_ISOCHRONOUS) return null_handle; // TODO not support ISO yet
+
+  ASSERT (p_endpoint_desc->wMaxPacketSize.size <= 64, null_handle); // TODO ISO can be 1023, but ISO not supported now
 
   //------------- Prepare Queue Head -------------//
   uint8_t ep_id = edpt_addr2phy(p_endpoint_desc->bEndpointAddress);

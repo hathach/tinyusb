@@ -348,28 +348,15 @@ tusb_error_t dcd_pipe_control_xfer(uint8_t coreid, tusb_direction_t dir, void * 
   LPC_USB0_Type* const lpc_usb = LPC_USB[coreid];
   dcd_data_t* p_dcd = dcd_data_ptr[coreid];
 
-  // determine Endpoint where Data & Status phase occurred (IN or OUT)
-  uint8_t const endpoint_data   = (dir == TUSB_DIR_DEV_TO_HOST) ? 1 : 0;
-  uint8_t const endpoint_status = 1 - endpoint_data;
+  uint8_t const ep_id = dir; // IN : 1, OUT = 0
 
-  ASSERT_FALSE(p_dcd->qhd[0].qtd_overlay.active || p_dcd->qhd[1].qtd_overlay.active, TUSB_ERROR_FAILED);
+  ASSERT_FALSE(p_dcd->qhd[ep_id].qtd_overlay.active, TUSB_ERROR_FAILED);
 
-  //------------- Data Phase -------------//
-  if (length)
-  {
-    dcd_qtd_t* p_qtd_data = &p_dcd->qtd[0];
-    qtd_init(p_qtd_data, buffer, length);
-    p_dcd->qhd[endpoint_data].qtd_overlay.next = (uint32_t) p_qtd_data;
+  dcd_qtd_t* p_qtd = &p_dcd->qtd[ep_id];
+  qtd_init(p_qtd, buffer, length);
+  p_dcd->qhd[ep_id].qtd_overlay.next = (uint32_t) p_qtd;
 
-    lpc_usb->ENDPTPRIME = BIT_( edpt_phy2pos(endpoint_data) );
-  }
-
-  //------------- Status Phase -------------//
-  dcd_qtd_t* p_qtd_status = &p_dcd->qtd[1];
-  qtd_init(p_qtd_status, NULL, 0); // zero length xfer
-  p_dcd->qhd[endpoint_status].qtd_overlay.next = (uint32_t) p_qtd_status;
-
-  LPC_USB0->ENDPTPRIME |= BIT_( edpt_phy2pos(endpoint_status) );
+  lpc_usb->ENDPTPRIME = BIT_( edpt_phy2pos(ep_id) );
 
   return TUSB_ERROR_NONE;
 }

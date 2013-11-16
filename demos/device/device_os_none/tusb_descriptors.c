@@ -245,7 +245,7 @@ app_descriptor_configuration_t app_tusb_desc_configuration =
     {
         .bLength          = sizeof(tusb_descriptor_endpoint_t),
         .bDescriptorType  = TUSB_DESC_TYPE_ENDPOINT,
-        .bEndpointAddress = CDC_NOTIFICATION_EP,
+        .bEndpointAddress = CDC_EDPT_NOTIFICATION_ADDR,
         .bmAttributes     = { .xfer = TUSB_XFER_INTERRUPT },
         .wMaxPacketSize   = { .size = 0x08 },
         .bInterval        = 0x0a
@@ -269,9 +269,9 @@ app_descriptor_configuration_t app_tusb_desc_configuration =
     {
         .bLength          = sizeof(tusb_descriptor_endpoint_t),
         .bDescriptorType  = TUSB_DESC_TYPE_ENDPOINT,
-        .bEndpointAddress = CDC_DATA_EP_OUT,
+        .bEndpointAddress = CDC_EDPT_DATA_OUT,
         .bmAttributes     = { .xfer = TUSB_XFER_BULK },
-        .wMaxPacketSize   = { .size = CDC_DATA_EP_MAXPACKET_SIZE },
+        .wMaxPacketSize   = { .size = CDC_EDPT_DATA_PACKETSIZE },
         .bInterval        = 0
     },
 
@@ -279,9 +279,9 @@ app_descriptor_configuration_t app_tusb_desc_configuration =
     {
         .bLength          = sizeof(tusb_descriptor_endpoint_t),
         .bDescriptorType  = TUSB_DESC_TYPE_ENDPOINT,
-        .bEndpointAddress = CDC_DATA_EP_IN,
+        .bEndpointAddress = CDC_EDPT_DATA_IN,
         .bmAttributes     = { .xfer = TUSB_XFER_BULK },
-        .wMaxPacketSize   = { .size = CDC_DATA_EP_MAXPACKET_SIZE },
+        .wMaxPacketSize   = { .size = CDC_EDPT_DATA_PACKETSIZE },
         .bInterval        = 0
     },
     #endif
@@ -316,7 +316,7 @@ app_descriptor_configuration_t app_tusb_desc_configuration =
     {
         .bLength          = sizeof(tusb_descriptor_endpoint_t),
         .bDescriptorType  = TUSB_DESC_TYPE_ENDPOINT,
-        .bEndpointAddress = HID_KEYBOARD_EP_IN, //TODO HID_KEYBOARD_EP_IN,
+        .bEndpointAddress = HID_EDPT_KEYBOARD_ADDR,
         .bmAttributes     = { .xfer = TUSB_XFER_INTERRUPT },
         .wMaxPacketSize   = { .size = 0x08 },
         .bInterval        = 0x0A

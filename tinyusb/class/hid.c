@@ -224,7 +224,7 @@ tusb_error_t tusb_hid_init(USBD_HANDLE_T hUsb, USB_INTERFACE_DESCRIPTOR const *c
 tusb_error_t tusb_hid_configured(USBD_HANDLE_T hUsb)
 {
   #ifdef  TUSB_CFG_DEVICE_HID_KEYBOARD
-    ROM_API->hw->WriteEP(hUsb , HID_KEYBOARD_EP_IN , (uint8_t* ) &hid_keyboard_report , sizeof(hid_keyboard_report_t) ); // initial packet for IN endpoint , will not work if omitted
+    ROM_API->hw->WriteEP(hUsb , HID_EDPT_KEYBOARD_ADDR , (uint8_t* ) &hid_keyboard_report , sizeof(hid_keyboard_report_t) ); // initial packet for IN endpoint , will not work if omitted
   #endif
 
   #ifdef  TUSB_CFG_DEVICE_HID_MOUSE

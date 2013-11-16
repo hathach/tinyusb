@@ -41,9 +41,44 @@
 
 #include "tusb.h"
 
+//--------------------------------------------------------------------+
+// Endpoints Address & Max Packet Size
+//--------------------------------------------------------------------+
+//------------- CDC -------------//
+#define  CDC_EDPT_NOTIFICATION_ADDR           ENDPOINT_IN_LOGICAL_TO_PHYSICAL(2)
+#define  CDC_EDPT_NOTIFICATION_PACKETSIZE     64
+
+#define  CDC_EDPT_DATA_OUT                    ENDPOINT_OUT_LOGICAL_TO_PHYSICAL(3)
+#define  CDC_EDPT_DATA_IN                     ENDPOINT_IN_LOGICAL_TO_PHYSICAL(3)
+#define  CDC_EDPT_DATA_PACKETSIZE             64
+
+//------------- HID Keyboard -------------//
+#define  HID_EDPT_KEYBOARD_ADDR       ENDPOINT_IN_LOGICAL_TO_PHYSICAL(1)
+
+//------------- HID Mouse -------------//
+#define  HID_MOUSE_EP_IN          ENDPOINT_IN_LOGICAL_TO_PHYSICAL(4)
+
+//------------- HID Generic -------------//
+
+//------------- Mass Storage -------------//
+#define MSC_EDPT_IN   ENDPOINT_IN_LOGICAL_TO_PHYSICAL(3)
+#define MSC_EDPT_OUT  ENDPOINT_OUT_LOGICAL_TO_PHYSICAL(3)
+
+
+//--------------------------------------------------------------------+
+// Descriptors Value (calculated by enabled Classes)
+//--------------------------------------------------------------------+
 #define CFG_VENDORID            0x1FC9 // NXP
 //#define CFG_PRODUCTID           0x4567 // use auto product id to prevent conflict with pc's driver
 
+// each combination of interfaces need to have a unique productid, as windows will bind & remember device driver after the first plug.
+#ifndef CFG_PRODUCTID // Auto ProductID layout's Bitmap: MassStorage | Generic | Mouse | Key | CDC
+
+#define PRODUCTID_BITMAP(interface, n)  ( (TUSB_CFG_DEVICE_##interface) << (n) )
+#define CFG_PRODUCTID                   (0x4000 | ( PRODUCTID_BITMAP(CDC, 0) | PRODUCTID_BITMAP(HID_KEYBOARD, 1) | \
+                                         PRODUCTID_BITMAP(HID_MOUSE, 2) | PRODUCTID_BITMAP(HID_GENERIC, 3) | \
+                                         PRODUCTID_BITMAP(MSC, 4) ) )
+#endif
 
 #define ENDPOINT_OUT_LOGICAL_TO_PHYSICAL(addr)      (addr)
 #define ENDPOINT_IN_LOGICAL_TO_PHYSICAL(addr)       ((addr) | 0x80)
@@ -57,34 +92,9 @@
 #define TOTAL_INTEFACES              (2*TUSB_CFG_DEVICE_CDC + TUSB_CFG_DEVICE_HID_KEYBOARD + TUSB_CFG_DEVICE_HID_MOUSE + \
                                       TUSB_CFG_DEVICE_HID_GENERIC + TUSB_CFG_DEVICE_MSC)
 
-/* HID In/Out Endpoint Address */
-#define    HID_KEYBOARD_EP_IN       ENDPOINT_IN_LOGICAL_TO_PHYSICAL(1)
-#define    HID_MOUSE_EP_IN          ENDPOINT_IN_LOGICAL_TO_PHYSICAL(4)
-
-/* CDC Endpoint Address */
-#define  CDC_NOTIFICATION_EP                ENDPOINT_IN_LOGICAL_TO_PHYSICAL(2)
-#define  CDC_DATA_EP_OUT                    ENDPOINT_OUT_LOGICAL_TO_PHYSICAL(3)
-#define  CDC_DATA_EP_IN                     ENDPOINT_IN_LOGICAL_TO_PHYSICAL(3)
-
-#define  CDC_NOTIFICATION_EP_MAXPACKETSIZE  8
-#define  CDC_DATA_EP_MAXPACKET_SIZE         16
-
-#define MSC_EDPT_IN   ENDPOINT_IN_LOGICAL_TO_PHYSICAL(3)
-#define MSC_EDPT_OUT  ENDPOINT_OUT_LOGICAL_TO_PHYSICAL(3)
-
-// Interface Assosication Descriptor if device is CDC + other class
+// Interface Assosication Descriptor is required when enable CDC with any other class
 #define IAD_DESC_REQUIRED ( TUSB_CFG_DEVICE_CDC && (TOTAL_INTEFACES > 2) )
 
-
-// each combination of interfaces need to have different productid, as windows will bind & remember device driver after the
-// first plug.
-#ifndef CFG_PRODUCTID
-// Bitmap: MassStorage | Generic | Mouse | Key | CDC
-#define PRODUCTID_BITMAP(interface, n)  ( (TUSB_CFG_DEVICE_##interface) << (n) )
-#define CFG_PRODUCTID                   (0x4000 | ( PRODUCTID_BITMAP(CDC, 0) | PRODUCTID_BITMAP(HID_KEYBOARD, 1) | \
-                                         PRODUCTID_BITMAP(HID_MOUSE, 2) | PRODUCTID_BITMAP(HID_GENERIC, 3) | \
-                                         PRODUCTID_BITMAP(MSC, 4) ) )
-#endif
 
 //--------------------------------------------------------------------+
 // CONFIGURATION DESCRIPTOR
