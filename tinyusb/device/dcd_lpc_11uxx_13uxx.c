@@ -310,18 +310,6 @@ tusb_error_t dcd_pipe_control_xfer(uint8_t coreid, tusb_direction_t dir, void * 
 //--------------------------------------------------------------------+
 // PIPE HELPER
 //--------------------------------------------------------------------+
-//static inline uint8_t edpt_pos2phy(uint8_t pos) ATTR_CONST ATTR_ALWAYS_INLINE;
-//static inline uint8_t edpt_pos2phy(uint8_t pos)
-//{ // 0-5 --> OUT, 16-21 IN
-//  return (pos < DCD_QHD_MAX/2) ? (2*pos) : (2*(pos-16)+1);
-//}
-
-//static inline uint8_t edpt_phy2pos(uint8_t physical_endpoint) ATTR_CONST ATTR_ALWAYS_INLINE;
-//static inline uint8_t edpt_phy2pos(uint8_t physical_endpoint)
-//{
-//  return physical_endpoint/2 + ( (physical_endpoint%2) ? 16 : 0);
-//}
-
 static inline uint8_t edpt_addr2phy(uint8_t endpoint_addr) ATTR_CONST ATTR_ALWAYS_INLINE;
 static inline uint8_t edpt_addr2phy(uint8_t endpoint_addr)
 {

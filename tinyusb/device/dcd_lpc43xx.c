@@ -339,7 +339,7 @@ static inline uint8_t qtd_find_free(uint8_t coreid)
 //--------------------------------------------------------------------+
 void dcd_pipe_control_stall(uint8_t coreid)
 {
-  LPC_USB[coreid]->ENDPTCTRL0 |= (ENDPTCTRL_MASK_STALL << 16); // stall Control IN
+  LPC_USB[coreid]->ENDPTCTRL0 |= (ENDPTCTRL_MASK_STALL << 16); // stall Control IN TODO stall control OUT as well
 }
 
 // control transfer does not need to use qtd find function

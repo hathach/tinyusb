@@ -47,6 +47,9 @@
 #define _TUSB_BOARD_LPCXPRESSO1769_H_
 
 #include "LPC17xx.h"
+
+#include "lpc175x_6x/LPC17xx_DriverLib/include/lpc17xx_clkpwr.h"
+#include "lpc175x_6x/LPC17xx_DriverLib/include/lpc17xx_pinsel.h"
 #include "lpc175x_6x/LPC17xx_DriverLib/include/lpc17xx_gpio.h"
 #include "lpc175x_6x/LPC17xx_DriverLib/include/lpc17xx_uart.h"
 
@@ -57,7 +60,7 @@
 #define CFG_LED_PORT                  (0)
 #define CFG_LED_PIN                   (22)
 
-#define CFG_PRINTF_TARGET             PRINTF_TARGET_SEMIHOST
+#define CFG_PRINTF_TARGET             PRINTF_TARGET_UART
 
 #ifdef __cplusplus
  }

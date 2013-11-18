@@ -144,11 +144,11 @@ enum {
 };
 
 //------------- SIE Command Code -------------//
-enum {
+typedef enum {
   SIE_CMDPHASE_WRITE   = 1,
   SIE_CMDPHASE_READ    = 2,
   SIE_CMDPHASE_COMMAND = 5
-};
+} sie_cmdphase_t;
 
 enum {
   // device commands

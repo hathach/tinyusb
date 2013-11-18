@@ -46,10 +46,6 @@
 #include "common/common.h"
 #include "hal.h"
 
-enum {
-  PCONP_PCUSB = 31
-};
-
 //--------------------------------------------------------------------+
 // IMPLEMENTATION
 //--------------------------------------------------------------------+
@@ -66,7 +62,7 @@ tusb_error_t hal_init(void)
 //  LPC_PINCON->PINSEL3 &= ~(3<<6); TODO HOST
 //  LPC_PINCON->PINSEL3 |= (2<<6);
 
-  LPC_SC->PCONP |= BIT_(PCONP_PCUSB);                	/* USB PCLK -> enable USB Per.*/
+  LPC_SC->PCONP |= CLKPWR_PCONP_PCUSB;                	/* USB PCLK -> enable USB Per.*/
 
   // DEVICE mode
   LPC_USB->USBClkCtrl = 0x12;                 /* Dev, PortSel, AHB clock enable */

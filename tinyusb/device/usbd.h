@@ -90,7 +90,7 @@ bool tusbd_is_configured(uint8_t coreid) ATTR_WARN_UNUSED_RESULT;
 #ifdef _TINY_USB_SOURCE_FILE_
 
 tusb_error_t usbd_init(void);
-
+OSAL_TASK_FUNCTION (usbd_task) (void* p_task_para);
 #endif
 
 #ifdef __cplusplus

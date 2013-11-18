@@ -50,6 +50,11 @@ void board_init(void)
   // Leds Init
   GPIO_SetDir(CFG_LED_PORT, BIT_(CFG_LED_PIN), 1);
 
+
+  // lpcxpresso base board USB device : if base board J14 is inserted at 1-2, 1k5 resistor is controlled by P0_21 (active low)
+  GPIO_SetDir(0, BIT_(21), 1);
+  GPIO_ClearValue(0, BIT_(21));
+
 #if CFG_UART_ENABLE
   //------------- UART init -------------//
 
@@ -70,7 +75,6 @@ void board_init(void)
 	UART_CFG_Type UARTConfigStruct;
   UART_ConfigStructInit(&UARTConfigStruct);
 	UARTConfigStruct.Baud_rate = CFG_UART_BAUDRATE;
-	UARTConfigStruct.Clock_Speed = 0;
 
 	UART_Init(BOARD_UART_PORT, &UARTConfigStruct);
 	UART_TxCmd(BOARD_UART_PORT, ENABLE); // Enable UART Transmit

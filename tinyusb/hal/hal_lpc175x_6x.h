@@ -47,6 +47,7 @@
 #define _TUSB_HAL_LPC175X_6X_H_
 
 #include "LPC17xx.h"
+#include "lpc17xx_clkpwr.h"
 
 #ifdef __cplusplus
  extern "C" {

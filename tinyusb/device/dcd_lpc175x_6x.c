@@ -52,12 +52,14 @@
 //--------------------------------------------------------------------+
 // MACRO CONSTANT TYPEDEF
 //--------------------------------------------------------------------+
-STATIC_ dcd_dma_descriptor_t* dcd_udca[32] ATTR_ALIGNED(128) TUSB_CFG_ATTR_USBRAM;
+STATIC_ ATTR_ALIGNED(128) dcd_dma_descriptor_t* dcd_udca[32] TUSB_CFG_ATTR_USBRAM;
 STATIC_ dcd_dma_descriptor_t  dcd_dd[DCD_MAX_DD];
 
 //--------------------------------------------------------------------+
 // INTERNAL OBJECT & FUNCTION DECLARATION
 //--------------------------------------------------------------------+
+static void bus_reset(void);
+
 static inline void endpoint_set_max_packet_size(uint8_t endpoint_idx, uint16_t max_packet_size) ATTR_ALWAYS_INLINE;
 static inline void endpoint_set_max_packet_size(uint8_t endpoint_idx, uint16_t max_packet_size)
 {
@@ -75,8 +77,8 @@ static inline void endpoint_set_max_packet_size(uint8_t endpoint_idx, uint16_t m
 
 }
 
-static inline void sie_commamd_code (uint8_t phase, uint8_t code_data) ATTR_ALWAYS_INLINE;
-static inline void sie_commamd_code (uint8_t phase, uint8_t code_data)
+static inline void sie_cmd_code (sie_cmdphase_t phase, uint8_t code_data) ATTR_ALWAYS_INLINE;
+static inline void sie_cmd_code (sie_cmdphase_t phase, uint8_t code_data)
 {
   LPC_USB->USBDevIntClr = (DEV_INT_COMMAND_CODE_EMPTY_MASK | DEV_INT_COMMAND_DATA_FULL_MASK);
   LPC_USB->USBCmdCode   = (phase << 8) | (code_data << 16);
@@ -88,25 +90,28 @@ static inline void sie_commamd_code (uint8_t phase, uint8_t code_data)
   LPC_USB->USBDevIntClr = wait_flag;
 }
 
-static inline void sie_command_write (uint8_t cmd_code, uint8_t data_len, uint8_t data) ATTR_ALWAYS_INLINE;
-static inline void sie_command_write (uint8_t cmd_code, uint8_t data_len, uint8_t data)
+static inline void sie_write (uint8_t cmd_code, uint8_t data_len, uint8_t data) ATTR_ALWAYS_INLINE;
+static inline void sie_write (uint8_t cmd_code, uint8_t data_len, uint8_t data)
 {
-  sie_commamd_code(SIE_CMDPHASE_COMMAND, cmd_code);
+  sie_cmd_code(SIE_CMDPHASE_COMMAND, cmd_code);
 
   if (data_len)
   {
-    sie_commamd_code(SIE_CMDPHASE_WRITE, data);
+    sie_cmd_code(SIE_CMDPHASE_WRITE, data);
   }
 }
 
-static inline uint32_t sie_command_read (uint8_t cmd_code, uint8_t data_len) ATTR_ALWAYS_INLINE;
-static inline uint32_t sie_command_read (uint8_t cmd_code, uint8_t data_len)
+static inline uint32_t sie_read (uint8_t cmd_code, uint8_t data_len) ATTR_ALWAYS_INLINE;
+static inline uint32_t sie_read (uint8_t cmd_code, uint8_t data_len)
 {
   // TODO multiple read
-  sie_commamd_code(SIE_CMDPHASE_COMMAND , cmd_code);
-  sie_commamd_code(SIE_CMDPHASE_READ    , cmd_code);
+  sie_cmd_code(SIE_CMDPHASE_COMMAND , cmd_code);
+  sie_cmd_code(SIE_CMDPHASE_READ    , cmd_code);
   return LPC_USB->USBCmdData;
 }
+
+static tusb_error_t pipe_control_write(void const * buffer, uint16_t length);
+static tusb_error_t pipe_control_read(void * buffer, uint16_t length);
 
 //--------------------------------------------------------------------+
 // IMPLEMENTATION
@@ -119,20 +124,23 @@ void endpoint_control_isr(uint8_t coreid)
   //------------- control OUT -------------//
   if (endpoint_int_status & BIT_(0))
   {
-    uint32_t const endpoint_status = sie_command_read(SIE_CMDCODE_ENDPOINT_SELECT+0, 1);
+    uint32_t const endpoint_status = sie_read(SIE_CMDCODE_ENDPOINT_SELECT+0, 1);
     if (endpoint_status & SIE_ENDPOINT_STATUS_SETUP_RECEIVED_MASK)
     {
-      (void) sie_command_read(SIE_CMDCODE_ENDPOINT_SELECT_CLEAR_INTERRUPT+0, 1); // clear setup bit
+      tusb_control_request_t control_request;
 
-      dcd_pipe_control_read(0, &usbd_devices[0].setup_packet, 8);
-      usbd_isr(0, TUSB_EVENT_SETUP_RECEIVED);
+      (void) sie_read(SIE_CMDCODE_ENDPOINT_SELECT_CLEAR_INTERRUPT+0, 1); // clear setup bit, can be omitted ???
+
+      pipe_control_read(&control_request, 8);
+
+      usbd_setup_received_isr(0, &control_request);
     }else
     {
       // Current not support any out control with data yet
-//      dcd_pipe_control_read(0,..
+//      pipe_control_read(0,..
     }
-    sie_command_write(SIE_CMDCODE_ENDPOINT_SELECT+0, 0, 0);
-    sie_command_write(SIE_CMDCODE_BUFFER_CLEAR     , 0, 0);
+    sie_write(SIE_CMDCODE_ENDPOINT_SELECT+0, 0, 0);
+    sie_write(SIE_CMDCODE_BUFFER_CLEAR     , 0, 0);
   }
 
   //------------- control IN -------------//
@@ -152,10 +160,11 @@ void dcd_isr(uint8_t coreid)
   //------------- usb bus event -------------//
   if (device_int_status & DEV_INT_DEVICE_STATUS_MASK)
   {
-    uint32_t const dev_status_reg = sie_command_read(SIE_CMDCODE_DEVICE_STATUS, 1);
+    uint32_t const dev_status_reg = sie_read(SIE_CMDCODE_DEVICE_STATUS, 1);
     if (dev_status_reg & SIE_DEV_STATUS_RESET_MASK)
     {
-      usbd_isr(coreid, TUSB_EVENT_BUS_RESET);
+      bus_reset();
+      usbd_bus_reset(coreid);
     }
 
     // TODO invoke some callbacks
@@ -173,7 +182,7 @@ void dcd_isr(uint8_t coreid)
 
   if (device_int_status & DEV_INT_ERROR_MASK)
   {
-    uint32_t error_status = sie_command_read(SIE_CMDCODE_READ_ERROR_STATUS, 1);
+    uint32_t error_status = sie_read(SIE_CMDCODE_READ_ERROR_STATUS, 1);
     (void) error_status;
 //    ASSERT(false, (void) 0);
   }
@@ -183,21 +192,14 @@ void dcd_isr(uint8_t coreid)
 //--------------------------------------------------------------------+
 // USBD-DCD API
 //--------------------------------------------------------------------+
-tusb_error_t dcd_init(void)
+static void bus_reset(void)
 {
-  //------------- user manual 11.13 usb device controller initialization -------------//  LPC_USB->USBEpInd = 0;
-  // step 6 : set up control endpoint
-  endpoint_set_max_packet_size(0, TUSB_CFG_DEVICE_CONTROL_ENDOINT_SIZE);
-  endpoint_set_max_packet_size(1, TUSB_CFG_DEVICE_CONTROL_ENDOINT_SIZE);
-
-	// step 7 : slave mode set up
+  // step 7 : slave mode set up
+  LPC_USB->USBEpIntClr     = 0xFFFFFFFF;          // clear all pending interrupt
+	LPC_USB->USBDevIntClr    = 0xFFFFFFFF;          // clear all pending interrupt
 	LPC_USB->USBEpIntEn      = (uint32_t) BIN8(11); // control endpoint cannot use DMA, non-control all use DMA
+	LPC_USB->USBEpIntPri     = 0;                   // same priority for all endpoint
 
-	LPC_USB->USBDevIntEn     = (DEV_INT_DEVICE_STATUS_MASK | DEV_INT_ENDPOINT_SLOW_MASK | DEV_INT_ERROR_MASK);
-	LPC_USB->USBDevIntClr    = 0xFFFFFFFF; // clear all pending interrupt
-
-	LPC_USB->USBEpIntClr     = 0xFFFFFFFF; // clear all pending interrupt
-	LPC_USB->USBEpIntPri     = 0;          // same priority for all endpoint
 
 	// step 8 : DMA set up
 	LPC_USB->USBEpDMADis     = 0xFFFFFFFF; // firstly disable all dma
@@ -205,6 +207,18 @@ tusb_error_t dcd_init(void)
 	LPC_USB->USBEoTIntClr    = 0xFFFFFFFF;
 	LPC_USB->USBNDDRIntClr   = 0xFFFFFFFF;
 	LPC_USB->USBSysErrIntClr = 0xFFFFFFFF;
+}
+
+tusb_error_t dcd_init(void)
+{
+  //------------- user manual 11.13 usb device controller initialization -------------//  LPC_USB->USBEpInd = 0;
+  // step 6 : set up control endpoint
+  endpoint_set_max_packet_size(0, TUSB_CFG_DEVICE_CONTROL_ENDOINT_SIZE);
+  endpoint_set_max_packet_size(1, TUSB_CFG_DEVICE_CONTROL_ENDOINT_SIZE);
+
+  bus_reset();
+
+  LPC_USB->USBDevIntEn     = (DEV_INT_DEVICE_STATUS_MASK | DEV_INT_ENDPOINT_SLOW_MASK | DEV_INT_ERROR_MASK);
 
 	for (uint8_t index = 0; index < DCD_MAX_DD; index++)
 	{
@@ -214,26 +228,27 @@ tusb_error_t dcd_init(void)
 	LPC_USB->USBDMAIntEn = (DMA_INT_END_OF_XFER_MASK | DMA_INT_NEW_DD_REQUEST_MASK | DMA_INT_ERROR_MASK );
 
 	// clear all stall on control endpoint IN & OUT if any
-	sie_command_write(SIE_CMDCODE_ENDPOINT_SET_STATUS    , 1, 0);
-  sie_command_write(SIE_CMDCODE_ENDPOINT_SET_STATUS + 1, 1, 0);
+	sie_write(SIE_CMDCODE_ENDPOINT_SET_STATUS    , 1, 0);
+	sie_write(SIE_CMDCODE_ENDPOINT_SET_STATUS + 1, 1, 0);
+
+	sie_write(SIE_CMDCODE_DEVICE_STATUS, 1, 1); // connect
 
   return TUSB_ERROR_NONE;
 }
 
 void dcd_controller_connect(uint8_t coreid)
 {
-  sie_command_write(SIE_CMDCODE_DEVICE_STATUS, 1, 1);
+  sie_write(SIE_CMDCODE_DEVICE_STATUS, 1, 1);
 }
 
 void dcd_controller_set_address(uint8_t coreid, uint8_t dev_addr)
 {
-  sie_command_write(SIE_CMDCODE_SET_ADDRESS, 1, 0x80 | dev_addr); // 7th bit is : device_enable
+  sie_write(SIE_CMDCODE_SET_ADDRESS, 1, 0x80 | dev_addr); // 7th bit is : device_enable
 }
 
-void dcd_controller_set_configuration(uint8_t coreid, uint8_t config_num)
+void dcd_controller_set_configuration(uint8_t coreid)
 {
-  (void) config_num; // supress compiler's warnings
-  sie_command_write(SIE_CMDCODE_CONFIGURE_DEVICE, 1, 1);
+  sie_write(SIE_CMDCODE_CONFIGURE_DEVICE, 1, 1);
 }
 
 //--------------------------------------------------------------------+
@@ -245,10 +260,8 @@ static inline uint16_t length_unit_byte2dword(uint16_t length_in_bytes)
   return (length_in_bytes + 3) / 4; // length_in_dword
 }
 
-tusb_error_t dcd_pipe_control_write(uint8_t coreid, void const * buffer, uint16_t length)
+static tusb_error_t pipe_control_write(void const * buffer, uint16_t length)
 {
-  (void) coreid; // suppress compiler warning
-
   ASSERT( length !=0 || buffer == NULL, TUSB_ERROR_INVALID_PARA);
 
   LPC_USB->USBCtrl   = SLAVE_CONTROL_WRITE_ENABLE_MASK; // logical endpoint = 0
@@ -262,16 +275,16 @@ tusb_error_t dcd_pipe_control_write(uint8_t coreid, void const * buffer, uint16_
 
 	LPC_USB->USBCtrl   = 0;
 
-	sie_command_write(SIE_CMDCODE_ENDPOINT_SELECT+1, 0, 0); // select control IN endpoint
-	sie_command_write(SIE_CMDCODE_BUFFER_VALIDATE  , 0, 0);
+	sie_write(SIE_CMDCODE_ENDPOINT_SELECT+1, 0, 0); // select control IN endpoint
+	sie_write(SIE_CMDCODE_BUFFER_VALIDATE  , 0, 0);
 
   return TUSB_ERROR_NONE;
 }
 
-tusb_error_t dcd_pipe_control_read(uint8_t coreid, void * buffer, uint16_t length)
+static tusb_error_t pipe_control_read(void * buffer, uint16_t length)
 {
   LPC_USB->USBCtrl = SLAVE_CONTROL_READ_ENABLE_MASK; // logical endpoint = 0
-  while ((LPC_USB->USBRxPLen & SLAVE_RXPLEN_PACKET_READY_MASK) == 0) {}
+  while ((LPC_USB->USBRxPLen & SLAVE_RXPLEN_PACKET_READY_MASK) == 0) {} // TODO blocking, should have timeout
 
   uint16_t actual_length = min16_of(length, (uint16_t) (LPC_USB->USBRxPLen & SLAVE_RXPLEN_PACKET_LENGTH_MASK) );
   uint32_t *p_read_data = (uint32_t*) buffer;
@@ -280,15 +293,9 @@ tusb_error_t dcd_pipe_control_read(uint8_t coreid, void * buffer, uint16_t lengt
     *p_read_data = LPC_USB->USBRxData;
     p_read_data++; // increase by 4 ( sizeof(uint32_t) )
   }
-  LPC_USB->USBCtrl = 0;
+  LPC_USB->USBCtrl = 0; // TODO not needed ?
 
   return TUSB_ERROR_NONE;
-}
-
-// TODO inline function
-void dcd_pipe_control_write_zero_length(uint8_t coreid)
-{
-  dcd_pipe_control_write(coreid, NULL, 0);
 }
 
 static inline uint8_t endpoint_address_to_physical_index(uint8_t ep_address) ATTR_ALWAYS_INLINE ATTR_CONST;
@@ -297,8 +304,38 @@ static inline uint8_t endpoint_address_to_physical_index(uint8_t ep_address)
   return (ep_address << 1) + (ep_address & 0x80 ? 1 : 0 );
 }
 
-tusb_error_t dcd_pipe_open(uint8_t coreid, tusb_descriptor_endpoint_t const * p_endpoint_desc)
+//--------------------------------------------------------------------+
+// CONTROL PIPE API
+//--------------------------------------------------------------------+
+void dcd_pipe_control_stall(uint8_t coreid)
 {
+  ASSERT(false, VOID_RETURN);
+}
+
+tusb_error_t dcd_pipe_control_xfer(uint8_t coreid, tusb_direction_t dir, void * p_buffer, uint16_t length)
+{
+  (void) coreid;
+
+  if ( dir )
+  {
+    ASSERT_STATUS ( pipe_control_write(p_buffer, length) );
+  }else
+  {
+    ASSERT_STATUS ( pipe_control_read(p_buffer, length) );
+  }
+
+  return TUSB_ERROR_NONE;
+}
+
+//--------------------------------------------------------------------+
+// BULK/INTERRUPT/ISO PIPE API
+//--------------------------------------------------------------------+
+endpoint_handle_t dcd_pipe_open(uint8_t coreid, tusb_descriptor_endpoint_t const * p_endpoint_desc, uint8_t class_code)
+{
+  (void) coreid;
+
+  return (endpoint_handle_t) { 0 };
+
   uint8_t phy_ep = endpoint_address_to_physical_index( p_endpoint_desc->bEndpointAddress );
 
   //------------- Realize Endpoint with Max Packet Size -------------//
@@ -312,11 +349,25 @@ tusb_error_t dcd_pipe_open(uint8_t coreid, tusb_descriptor_endpoint_t const * p_
 
 	LPC_USB->USBEpDMAEn = BIT_(phy_ep);
 
-	sie_command_write(SIE_CMDCODE_ENDPOINT_SET_STATUS+phy_ep, 1, 0); // clear all endpoint status
+	sie_write(SIE_CMDCODE_ENDPOINT_SET_STATUS+phy_ep, 1, 0); // clear all endpoint status
+
+}
+
+bool dcd_pipe_is_busy(endpoint_handle_t edpt_hdl)
+{
+  ASSERT(false, false);
+}
+
+tusb_error_t dcd_pipe_clear_stall(uint8_t coreid, uint8_t edpt_addr)
+{
+  return TUSB_ERROR_FAILED;
+}
+
+tusb_error_t dcd_pipe_xfer(endpoint_handle_t edpt_hdl, void * buffer, uint16_t total_bytes, bool int_on_complete)
+{
+  ASSERT_STATUS(TUSB_ERROR_FAILED);
 
   return TUSB_ERROR_NONE;
 }
-
-//tusb_error_t dcd_pipe_xfer()
 
 #endif
