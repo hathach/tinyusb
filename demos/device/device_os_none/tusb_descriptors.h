@@ -44,25 +44,28 @@
 //--------------------------------------------------------------------+
 // Endpoints Address & Max Packet Size
 //--------------------------------------------------------------------+
-//------------- CDC -------------//
-#define  CDC_EDPT_NOTIFICATION_ADDR           ENDPOINT_IN_LOGICAL_TO_PHYSICAL(2)
-#define  CDC_EDPT_NOTIFICATION_PACKETSIZE     64
+#define EDPT_IN(x)    (0x80 | x)
+#define EDPT_OUT(x)   (x)
 
-#define  CDC_EDPT_DATA_OUT                    ENDPOINT_OUT_LOGICAL_TO_PHYSICAL(3)
-#define  CDC_EDPT_DATA_IN                     ENDPOINT_IN_LOGICAL_TO_PHYSICAL(3)
-#define  CDC_EDPT_DATA_PACKETSIZE             64
+//------------- CDC -------------//
+#define CDC_EDPT_NOTIFICATION_ADDR            EDPT_IN(1)
+#define CDC_EDPT_NOTIFICATION_PACKETSIZE      64
+
+#define CDC_EDPT_DATA_OUT                     EDPT_OUT(2)
+#define CDC_EDPT_DATA_IN                      EDPT_IN(2)
+#define CDC_EDPT_DATA_PACKETSIZE              64
 
 //------------- HID Keyboard -------------//
-#define  HID_EDPT_KEYBOARD_ADDR       ENDPOINT_IN_LOGICAL_TO_PHYSICAL(1)
+#define HID_EDPT_KEYBOARD_ADDR                EDPT_IN(3)
 
 //------------- HID Mouse -------------//
-#define  HID_MOUSE_EP_IN          ENDPOINT_IN_LOGICAL_TO_PHYSICAL(4)
+#define HID_MOUSE_EP_IN                       EDPT_IN(4)
 
 //------------- HID Generic -------------//
 
 //------------- Mass Storage -------------//
-#define MSC_EDPT_IN   ENDPOINT_IN_LOGICAL_TO_PHYSICAL(3)
-#define MSC_EDPT_OUT  ENDPOINT_OUT_LOGICAL_TO_PHYSICAL(3)
+#define MSC_EDPT_IN                           EDPT_IN(3)
+#define MSC_EDPT_OUT                          EDPT_OUT(3)
 
 
 //--------------------------------------------------------------------+

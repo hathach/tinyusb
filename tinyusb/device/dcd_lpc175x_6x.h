@@ -61,13 +61,13 @@ typedef struct
 	//------------- Word 1 -------------//
 	uint16_t mode            : 2; // either 00 normal or 01 ATLE(auto length extraction)
 	uint16_t is_next_valid   : 1;
-	uint16_t                 : 1;
+	uint16_t used            : 1; ///< make use of reserved bit
 	uint16_t is_isochronous  : 1; // is an iso endpoint
 	uint16_t max_packet_size : 11;
 	volatile uint16_t buffer_length;
 
 	//------------- Word 2 -------------//
-	volatile uint32_t buffer_start_addr;
+	volatile uint32_t buffer_addr;
 
 	//------------- Word 3 -------------//
 	volatile uint16_t is_retired                   : 1; // initialized to zero
@@ -77,18 +77,15 @@ typedef struct
 	volatile uint16_t atle_is_msb_extracted        : 1;	// used in ATLE mode
 	volatile uint16_t atle_message_length_position : 6; // used in ATLE mode
 	uint16_t                                       : 2;
+//	         uint16_t int_on_complete              : 1; ///< make use of reserved bit
 	volatile uint16_t present_count; // The number of bytes transferred by the DMA engine. The DMA engine updates this field after completing each packet transfer.
 
 	//------------- Word 4 -------------//
 //	uint32_t iso_packet_size_addr;		// iso only, can be omitted for non-iso
 } ATTR_ALIGNED(4) dcd_dma_descriptor_t;
 
-#define DCD_MAX_DD 32 // TODO scale with configure
+STATIC_ASSERT( sizeof(dcd_dma_descriptor_t) == 16, "size is not correct"); // TODO not support ISO for now
 
-//typedef struct {
-//  dcd_dma_descriptor_t dd[DCD_MAX_DD];
-//
-//}dcd_data_t;
 
 //--------------------------------------------------------------------+
 // Register Interface
@@ -178,16 +175,23 @@ enum {
   SIE_DEV_STATUS_RESET_MASK          = BIT_(4)
 };
 
-//------------- SIE Endpoint Status -------------//
+//------------- SIE Select Endpoint Command -------------//
 enum {
-  SIE_ENDPOINT_STATUS_FULL_EMPTY_MASK         = BIT_(0), // 0: empty, 1 full. IN endpoint checks empty, OUT endpoint check full
-  SIE_ENDPOINT_STATUS_STALL_MASK              = BIT_(1),
-  SIE_ENDPOINT_STATUS_SETUP_RECEIVED_MASK     = BIT_(2), // clear by SIE_CMDCODE_ENDPOINT_SELECT_CLEAR_INTERRUPT
-  SIE_ENDPOINT_STATUS_PACKET_OVERWRITTEN_MASK = BIT_(3), // previous packet is overwritten by a SETUP packet
-  SIE_ENDPOINT_STATUS_NAK_MASK                = BIT_(4), // last packet response is NAK (auto clear by an ACK)
-  SIE_ENDPOINT_STATUS_BUFFER1_FULL_MASK       = BIT_(5),
-  SIE_ENDPOINT_STATUS_BUFFER2_FULL_MASK       = BIT_(6)
+  SIE_SELECT_ENDPOINT_FULL_EMPTY_MASK         = BIT_(0), // 0: empty, 1 full. IN endpoint checks empty, OUT endpoint check full
+  SIE_SELECT_ENDPOINT_STALL_MASK              = BIT_(1),
+  SIE_SELECT_ENDPOINT_SETUP_RECEIVED_MASK     = BIT_(2), // clear by SIE_CMDCODE_ENDPOINT_SELECT_CLEAR_INTERRUPT
+  SIE_SELECT_ENDPOINT_PACKET_OVERWRITTEN_MASK = BIT_(3), // previous packet is overwritten by a SETUP packet
+  SIE_SELECT_ENDPOINT_NAK_MASK                = BIT_(4), // last packet response is NAK (auto clear by an ACK)
+  SIE_SELECT_ENDPOINT_BUFFER1_FULL_MASK       = BIT_(5),
+  SIE_SELECT_ENDPOINT_BUFFER2_FULL_MASK       = BIT_(6)
 };
+
+typedef enum {
+  SIE_SET_ENDPOINT_STALLED_MASK           = BIT_(0),
+  SIE_SET_ENDPOINT_DISABLED_MASK          = BIT_(5),
+  SIE_SET_ENDPOINT_RATE_FEEDBACK_MASK     = BIT_(6),
+  SIE_SET_ENDPOINT_CONDITION_STALLED_MASK = BIT_(7),
+}sie_endpoint_set_status_mask_t;
 
 //------------- DMA Descriptor Status -------------//
 enum {
