@@ -347,7 +347,7 @@ static tusb_error_t pipe_control_write(void const * buffer, uint16_t length)
 {
   ASSERT( length !=0 || buffer == NULL, TUSB_ERROR_INVALID_PARA);
 
-  LPC_USB->USBCtrl   = SLAVE_CONTROL_WRITE_ENABLE_MASK; // logical endpoint = 0
+  LPC_USB->USBCtrl   = USBCTRL_WRITE_ENABLE_MASK; // logical endpoint = 0
 	LPC_USB->USBTxPLen = length;
 
 	for (uint16_t count = 0; count < length_byte2dword(length); count++)
@@ -356,9 +356,10 @@ static tusb_error_t pipe_control_write(void const * buffer, uint16_t length)
 		buffer += 4;
 	}
 
-	LPC_USB->USBCtrl   = 0;
+    LPC_USB->USBCtrl   = 0;
 
-	sie_write(SIE_CMDCODE_ENDPOINT_SELECT+1, 0, 0); // select control IN endpoint
+	// select control IN & validate the endpoint
+	sie_write(SIE_CMDCODE_ENDPOINT_SELECT+1, 0, 0);
 	sie_write(SIE_CMDCODE_BUFFER_VALIDATE  , 0, 0);
 
   return TUSB_ERROR_NONE;
@@ -366,18 +367,20 @@ static tusb_error_t pipe_control_write(void const * buffer, uint16_t length)
 
 static tusb_error_t pipe_control_read(void * buffer, uint16_t length)
 {
-  LPC_USB->USBCtrl = SLAVE_CONTROL_READ_ENABLE_MASK; // logical endpoint = 0
-  while ((LPC_USB->USBRxPLen & SLAVE_RXPLEN_PACKET_READY_MASK) == 0) {} // TODO blocking, should have timeout
+  LPC_USB->USBCtrl = USBCTRL_READ_ENABLE_MASK; // logical endpoint = 0
+  while ((LPC_USB->USBRxPLen & USBRXPLEN_PACKET_READY_MASK) == 0) {} // TODO blocking, should have timeout
 
-  uint16_t actual_length = min16_of(length, (uint16_t) (LPC_USB->USBRxPLen & SLAVE_RXPLEN_PACKET_LENGTH_MASK) );
+  uint16_t actual_length = min16_of(length, (uint16_t) (LPC_USB->USBRxPLen & USBRXPLEN_PACKET_LENGTH_MASK) );
   uint32_t *p_read_data = (uint32_t*) buffer;
   for( uint16_t count=0; count < length_byte2dword(actual_length); count++)
   {
     *p_read_data = LPC_USB->USBRxData;
     p_read_data++; // increase by 4 ( sizeof(uint32_t) )
   }
-  LPC_USB->USBCtrl = 0; // TODO not needed ?
+  
+  LPC_USB->USBCtrl = 0;
 
+  // select control OUT & clear the endpoint
   sie_write(SIE_CMDCODE_ENDPOINT_SELECT+0, 0, 0);
   sie_write(SIE_CMDCODE_BUFFER_CLEAR     , 0, 0);
 

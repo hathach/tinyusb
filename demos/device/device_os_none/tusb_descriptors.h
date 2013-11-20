@@ -42,69 +42,67 @@
 #include "tusb.h"
 
 //--------------------------------------------------------------------+
-// Endpoints Address & Max Packet Size
-//--------------------------------------------------------------------+
-#define EDPT_IN(x)    (0x80 | x)
-#define EDPT_OUT(x)   (x)
-
-//------------- CDC -------------//
-#define CDC_EDPT_NOTIFICATION_ADDR            EDPT_IN(1)
-#define CDC_EDPT_NOTIFICATION_PACKETSIZE      64
-
-#define CDC_EDPT_DATA_OUT                     EDPT_OUT(2)
-#define CDC_EDPT_DATA_IN                      EDPT_IN(2)
-#define CDC_EDPT_DATA_PACKETSIZE              64
-
-//------------- HID Keyboard -------------//
-#define HID_EDPT_KEYBOARD_ADDR                EDPT_IN(3)
-
-//------------- HID Mouse -------------//
-#define HID_MOUSE_EP_IN                       EDPT_IN(4)
-
-//------------- HID Generic -------------//
-
-//------------- Mass Storage -------------//
-#define MSC_EDPT_IN                           EDPT_IN(3)
-#define MSC_EDPT_OUT                          EDPT_OUT(3)
-
-
-//--------------------------------------------------------------------+
 // Descriptors Value (calculated by enabled Classes)
 //--------------------------------------------------------------------+
 #define CFG_VENDORID            0x1FC9 // NXP
 //#define CFG_PRODUCTID           0x4567 // use auto product id to prevent conflict with pc's driver
 
 // each combination of interfaces need to have a unique productid, as windows will bind & remember device driver after the first plug.
-#ifndef CFG_PRODUCTID // Auto ProductID layout's Bitmap: MassStorage | Generic | Mouse | Key | CDC
-
-#define PRODUCTID_BITMAP(interface, n)  ( (TUSB_CFG_DEVICE_##interface) << (n) )
-#define CFG_PRODUCTID                   (0x4000 | ( PRODUCTID_BITMAP(CDC, 0) | PRODUCTID_BITMAP(HID_KEYBOARD, 1) | \
-                                         PRODUCTID_BITMAP(HID_MOUSE, 2) | PRODUCTID_BITMAP(HID_GENERIC, 3) | \
-                                         PRODUCTID_BITMAP(MSC, 4) ) )
+#ifndef CFG_PRODUCTID // Auto ProductID layout's Bitmap: (MSB) MassStorage | Generic | Mouse | Key | CDC (LSB)
+  #define PRODUCTID_BITMAP(interface, n)  ( (TUSB_CFG_DEVICE_##interface) << (n) )
+  #define CFG_PRODUCTID                   (0x4000 | ( PRODUCTID_BITMAP(CDC, 0) | PRODUCTID_BITMAP(HID_KEYBOARD, 1) | \
+                                           PRODUCTID_BITMAP(HID_MOUSE, 2) | PRODUCTID_BITMAP(HID_GENERIC, 3) | \
+                                           PRODUCTID_BITMAP(MSC, 4) ) )
 #endif
 
-#define ENDPOINT_OUT_LOGICAL_TO_PHYSICAL(addr)      (addr)
-#define ENDPOINT_IN_LOGICAL_TO_PHYSICAL(addr)       ((addr) | 0x80)
 
-#define INTERFACE_INDEX_CDC           0
-#define INTERFACE_INDEX_HID_KEYBOARD (INTERFACE_INDEX_CDC          + 2*TUSB_CFG_DEVICE_CDC        )
-#define INTERFACE_INDEX_HID_MOUSE    (INTERFACE_INDEX_HID_KEYBOARD + TUSB_CFG_DEVICE_HID_KEYBOARD )
-#define INTERFACE_INDEX_HID_GENERIC  (INTERFACE_INDEX_HID_MOUSE    + TUSB_CFG_DEVICE_HID_MOUSE    )
-#define INTERFACE_INDEX_MASS_STORAGE (INTERFACE_INDEX_HID_GENERIC  + TUSB_CFG_DEVICE_HID_GENERIC  )
+#define INTERFACE_NUM_CDC           0
+#define INTERFACE_NUM_HID_KEYBOARD (INTERFACE_NUM_CDC          + 2*TUSB_CFG_DEVICE_CDC        )
+#define INTERFACE_NUM_HID_MOUSE    (INTERFACE_NUM_HID_KEYBOARD + TUSB_CFG_DEVICE_HID_KEYBOARD )
+#define INTERFACE_NUM_HID_GENERIC  (INTERFACE_NUM_HID_MOUSE    + TUSB_CFG_DEVICE_HID_MOUSE    )
+#define INTERFACE_NUM_MSC          (INTERFACE_NUM_HID_GENERIC  + TUSB_CFG_DEVICE_HID_GENERIC  )
 
-#define TOTAL_INTEFACES              (2*TUSB_CFG_DEVICE_CDC + TUSB_CFG_DEVICE_HID_KEYBOARD + TUSB_CFG_DEVICE_HID_MOUSE + \
-                                      TUSB_CFG_DEVICE_HID_GENERIC + TUSB_CFG_DEVICE_MSC)
+#define TOTAL_INTEFACES            (2*TUSB_CFG_DEVICE_CDC + TUSB_CFG_DEVICE_HID_KEYBOARD + TUSB_CFG_DEVICE_HID_MOUSE + \
+                                    TUSB_CFG_DEVICE_HID_GENERIC + TUSB_CFG_DEVICE_MSC)
 
 // Interface Assosication Descriptor is required when enable CDC with any other class
 #define IAD_DESC_REQUIRED ( TUSB_CFG_DEVICE_CDC && (TOTAL_INTEFACES > 2) )
 
+//--------------------------------------------------------------------+
+// Endpoints Address & Max Packet Size
+//--------------------------------------------------------------------+
+#define EDPT_IN(x)    (0x80 | (x))
+#define EDPT_OUT(x)   (x)
+
+//------------- CDC -------------//
+#define CDC_EDPT_NOTIFICATION_ADDR            EDPT_IN (INTERFACE_NUM_CDC+1)
+#define CDC_EDPT_NOTIFICATION_PACKETSIZE      64
+
+#define CDC_EDPT_DATA_OUT_ADDR                EDPT_OUT(INTERFACE_NUM_CDC+2)
+#define CDC_EDPT_DATA_IN_ADDR                 EDPT_IN (INTERFACE_NUM_CDC+2)
+#define CDC_EDPT_DATA_PACKETSIZE              64
+
+//------------- HID Keyboard -------------//
+#define HID_KEYBOARD_EDPT_ADDR                EDPT_IN (INTERFACE_NUM_HID_KEYBOARD+1)
+#define HID_KEYBOARD_EDPT_PACKETSIZE          8
+
+//------------- HID Mouse -------------//
+#define HID_MOUSE_EDPT_ADDR                   EDPT_IN (INTERFACE_NUM_HID_MOUSE+1)
+#define HID_MOUSE_EDPT_PACKETSIZE             8
+
+//------------- HID Generic -------------//
+
+//------------- Mass Storage -------------//
+#define MSC_EDPT_OUT_ADDR                     EDPT_OUT(INTERFACE_NUM_MSC+1)
+#define MSC_EDPT_IN_ADDR                      EDPT_IN (INTERFACE_NUM_MSC+1)
+#define MSC_EDPT_PACKETSIZE                   (TUSB_CFG_DEVICE_FULLSPEED ? 64 : 512)
 
 //--------------------------------------------------------------------+
 // CONFIGURATION DESCRIPTOR
 //--------------------------------------------------------------------+
 typedef ATTR_PACKED_STRUCT(struct)
 {
-  tusb_descriptor_configuration_t                configuration;
+  tusb_descriptor_configuration_t              configuration;
 
   //------------- CDC -------------//
 #if TUSB_CFG_DEVICE_CDC

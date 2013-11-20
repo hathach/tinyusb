@@ -187,7 +187,7 @@ app_descriptor_configuration_t app_tusb_desc_configuration =
         .bLength           = sizeof(tusb_descriptor_interface_association_t),
         .bDescriptorType   = TUSB_DESC_TYPE_INTERFACE_ASSOCIATION,
 
-        .bFirstInterface   = INTERFACE_INDEX_CDC,
+        .bFirstInterface   = INTERFACE_NUM_CDC,
         .bInterfaceCount   = 2,
 
         .bFunctionClass    = TUSB_CLASS_CDC,
@@ -204,7 +204,7 @@ app_descriptor_configuration_t app_tusb_desc_configuration =
     {
         .bLength            = sizeof(tusb_descriptor_interface_t),
         .bDescriptorType    = TUSB_DESC_TYPE_INTERFACE,
-        .bInterfaceNumber   = INTERFACE_INDEX_CDC,
+        .bInterfaceNumber   = INTERFACE_NUM_CDC,
         .bAlternateSetting  = 0,
         .bNumEndpoints      = 1,
         .bInterfaceClass    = TUSB_CLASS_CDC,
@@ -256,7 +256,7 @@ app_descriptor_configuration_t app_tusb_desc_configuration =
     {
         .bLength            = sizeof(tusb_descriptor_interface_t),
         .bDescriptorType    = TUSB_DESC_TYPE_INTERFACE,
-        .bInterfaceNumber   = INTERFACE_INDEX_CDC+1,
+        .bInterfaceNumber   = INTERFACE_NUM_CDC+1,
         .bAlternateSetting  = 0x00,
         .bNumEndpoints      = 2,
         .bInterfaceClass    = TUSB_CLASS_CDC_DATA,
@@ -269,7 +269,7 @@ app_descriptor_configuration_t app_tusb_desc_configuration =
     {
         .bLength          = sizeof(tusb_descriptor_endpoint_t),
         .bDescriptorType  = TUSB_DESC_TYPE_ENDPOINT,
-        .bEndpointAddress = CDC_EDPT_DATA_OUT,
+        .bEndpointAddress = CDC_EDPT_DATA_OUT_ADDR,
         .bmAttributes     = { .xfer = TUSB_XFER_BULK },
         .wMaxPacketSize   = { .size = CDC_EDPT_DATA_PACKETSIZE },
         .bInterval        = 0
@@ -279,7 +279,7 @@ app_descriptor_configuration_t app_tusb_desc_configuration =
     {
         .bLength          = sizeof(tusb_descriptor_endpoint_t),
         .bDescriptorType  = TUSB_DESC_TYPE_ENDPOINT,
-        .bEndpointAddress = CDC_EDPT_DATA_IN,
+        .bEndpointAddress = CDC_EDPT_DATA_IN_ADDR,
         .bmAttributes     = { .xfer = TUSB_XFER_BULK },
         .wMaxPacketSize   = { .size = CDC_EDPT_DATA_PACKETSIZE },
         .bInterval        = 0
@@ -292,7 +292,7 @@ app_descriptor_configuration_t app_tusb_desc_configuration =
     {
         .bLength            = sizeof(tusb_descriptor_interface_t),
         .bDescriptorType    = TUSB_DESC_TYPE_INTERFACE,
-        .bInterfaceNumber   = INTERFACE_INDEX_HID_KEYBOARD,
+        .bInterfaceNumber   = INTERFACE_NUM_HID_KEYBOARD,
         .bAlternateSetting  = 0x00,
         .bNumEndpoints      = 1,
         .bInterfaceClass    = TUSB_CLASS_HID,
@@ -316,9 +316,9 @@ app_descriptor_configuration_t app_tusb_desc_configuration =
     {
         .bLength          = sizeof(tusb_descriptor_endpoint_t),
         .bDescriptorType  = TUSB_DESC_TYPE_ENDPOINT,
-        .bEndpointAddress = HID_EDPT_KEYBOARD_ADDR,
+        .bEndpointAddress = HID_KEYBOARD_EDPT_ADDR,
         .bmAttributes     = { .xfer = TUSB_XFER_INTERRUPT },
-        .wMaxPacketSize   = { .size = 0x08 },
+        .wMaxPacketSize   = { .size = HID_KEYBOARD_EDPT_PACKETSIZE },
         .bInterval        = 0x0A
     },
     #endif
@@ -329,7 +329,7 @@ app_descriptor_configuration_t app_tusb_desc_configuration =
     {
         .bLength            = sizeof(tusb_descriptor_interface_t),
         .bDescriptorType    = TUSB_DESC_TYPE_INTERFACE,
-        .bInterfaceNumber   = INTERFACE_INDEX_HID_MOUSE,
+        .bInterfaceNumber   = INTERFACE_NUM_HID_MOUSE,
         .bAlternateSetting  = 0x00,
         .bNumEndpoints      = 1,
         .bInterfaceClass    = TUSB_CLASS_HID,
@@ -353,9 +353,9 @@ app_descriptor_configuration_t app_tusb_desc_configuration =
     {
         .bLength          = sizeof(tusb_descriptor_endpoint_t),
         .bDescriptorType  = TUSB_DESC_TYPE_ENDPOINT,
-        .bEndpointAddress = HID_MOUSE_EP_IN, // TODO
+        .bEndpointAddress = HID_MOUSE_EDPT_ADDR, // TODO
         .bmAttributes     = { .xfer = TUSB_XFER_INTERRUPT },
-        .wMaxPacketSize   = { .size = 0x08 },
+        .wMaxPacketSize   = { .size = HID_MOUSE_EDPT_PACKETSIZE },
         .bInterval        = 0x0A
     },
     #endif
@@ -366,7 +366,7 @@ app_descriptor_configuration_t app_tusb_desc_configuration =
     {
         .bLength            = sizeof(tusb_descriptor_interface_t),
         .bDescriptorType    = TUSB_DESC_TYPE_INTERFACE,
-        .bInterfaceNumber   = INTERFACE_INDEX_MASS_STORAGE,
+        .bInterfaceNumber   = INTERFACE_NUM_MSC,
         .bAlternateSetting  = 0x00,
         .bNumEndpoints      = 2,
         .bInterfaceClass    = TUSB_CLASS_MSC,
@@ -379,9 +379,9 @@ app_descriptor_configuration_t app_tusb_desc_configuration =
     {
         .bLength          = sizeof(tusb_descriptor_endpoint_t),
         .bDescriptorType  = TUSB_DESC_TYPE_ENDPOINT,
-        .bEndpointAddress = MSC_EDPT_IN,
+        .bEndpointAddress = MSC_EDPT_IN_ADDR,
         .bmAttributes     = { .xfer = TUSB_XFER_BULK },
-        .wMaxPacketSize   = { .size = TUSB_CFG_DEVICE_FULLSPEED ? 64 : 512 },
+        .wMaxPacketSize   = { .size = MSC_EDPT_PACKETSIZE },
         .bInterval        = 1
     },
 
@@ -389,9 +389,9 @@ app_descriptor_configuration_t app_tusb_desc_configuration =
     {
         .bLength          = sizeof(tusb_descriptor_endpoint_t),
         .bDescriptorType  = TUSB_DESC_TYPE_ENDPOINT,
-        .bEndpointAddress = MSC_EDPT_OUT,
+        .bEndpointAddress = MSC_EDPT_OUT_ADDR,
         .bmAttributes     = { .xfer = TUSB_XFER_BULK },
-        .wMaxPacketSize   = { .size = TUSB_CFG_DEVICE_FULLSPEED ? 64 : 512 },
+        .wMaxPacketSize   = { .size = MSC_EDPT_PACKETSIZE },
         .bInterval        = 1
     },
     #endif
