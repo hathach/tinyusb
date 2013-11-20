@@ -77,7 +77,6 @@ typedef struct
 	volatile uint16_t atle_is_msb_extracted        : 1;	// used in ATLE mode
 	volatile uint16_t atle_message_length_position : 6; // used in ATLE mode
 	uint16_t                                       : 2;
-//	         uint16_t int_on_complete              : 1; ///< make use of reserved bit
 	volatile uint16_t present_count; // The number of bytes transferred by the DMA engine. The DMA engine updates this field after completing each packet transfer.
 
 	//------------- Word 4 -------------//

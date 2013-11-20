@@ -41,7 +41,6 @@
 #if MODE_DEVICE_SUPPORTED && (MCU == MCU_LPC175X_6X)
 
 #define _TINY_USB_SOURCE_FILE_
-
 //--------------------------------------------------------------------+
 // INCLUDE
 //--------------------------------------------------------------------+
@@ -62,6 +61,8 @@ typedef struct {
   uint8_t ddat[DCD_QHD_MAX]; ///< DMA Descriptor Allocation Table. A fixed DD will be allocated for a UDCA pointer up on endpoint open
   uint8_t class_code[DCD_QHD_MAX];
 
+  volatile uint32_t ioc_dd; ///< each bit for each DD
+
 }dcd_data_t;
 
 STATIC_ dcd_data_t dcd_data TUSB_CFG_ATTR_USBRAM;
@@ -70,6 +71,7 @@ STATIC_ dcd_data_t dcd_data TUSB_CFG_ATTR_USBRAM;
 // INTERNAL OBJECT & FUNCTION DECLARATION
 //--------------------------------------------------------------------+
 static void bus_reset(void);
+static tusb_error_t pipe_control_read(void * buffer, uint16_t length);
 
 //--------------------------------------------------------------------+
 // SIE Command
@@ -107,6 +109,15 @@ static inline uint32_t sie_read (uint8_t cmd_code, uint8_t data_len)
   return LPC_USB->USBCmdData;
 }
 
+//--------------------------------------------------------------------+
+// PIPE HELPER
+//--------------------------------------------------------------------+
+static inline uint8_t edpt_addr2phy(uint8_t endpoint_addr) ATTR_CONST ATTR_ALWAYS_INLINE;
+static inline uint8_t edpt_addr2phy(uint8_t endpoint_addr)
+{
+  return 2*(endpoint_addr & 0x0F) + ((endpoint_addr & TUSB_DIR_DEV_TO_HOST_MASK) ? 1 : 0);
+}
+
 static inline void edpt_set_max_packet_size(uint8_t ep_id, uint16_t max_packet_size) ATTR_ALWAYS_INLINE;
 static inline void edpt_set_max_packet_size(uint8_t ep_id, uint16_t max_packet_size)
 { // follows example in 11.10.4.2
@@ -121,7 +132,24 @@ static inline void edpt_set_max_packet_size(uint8_t ep_id, uint16_t max_packet_s
     LPC_USB->USBDevIntClr = DEV_INT_ENDPOINT_REALIZED_MASK;
 	}
 #endif
+}
 
+// retval UINT8_MAX: invalid
+static inline uint8_t dd_find_free(void) ATTR_PURE ATTR_ALWAYS_INLINE;
+static inline uint8_t dd_find_free(void)
+{
+  for(uint8_t i=0; i<DCD_QTD_MAX; i++)
+  {
+    if (dcd_data.dd[i].used == 0) return i;
+  }
+
+  return UINT8_MAX;
+}
+
+static inline uint8_t dd_get_index(dcd_dma_descriptor_t const * const p_dd) ATTR_PURE ATTR_ALWAYS_INLINE;
+static inline uint8_t dd_get_index(dcd_dma_descriptor_t const * const p_dd)
+{
+  return (p_dd - dcd_data.dd);
 }
 
 static inline dcd_dma_descriptor_t* qhd_get_fixed_dd(uint8_t ep_id) ATTR_PURE ATTR_ALWAYS_INLINE;
@@ -130,12 +158,49 @@ static inline dcd_dma_descriptor_t* qhd_get_fixed_dd(uint8_t ep_id)
   return &dcd_data.dd[ dcd_data.ddat[ep_id] ];
 }
 
-static tusb_error_t pipe_control_write(void const * buffer, uint16_t length);
-static tusb_error_t pipe_control_read(void * buffer, uint16_t length);
+//--------------------------------------------------------------------+
+// USBD-DCD API
+//--------------------------------------------------------------------+
+static void bus_reset(void)
+{
+  // step 7 : slave mode set up
+  LPC_USB->USBEpIntClr     = 0xFFFFFFFF;          // clear all pending interrupt
+	LPC_USB->USBDevIntClr    = 0xFFFFFFFF;          // clear all pending interrupt
+	LPC_USB->USBEpIntEn      = (uint32_t) BIN8(11); // control endpoint cannot use DMA, non-control all use DMA
+	LPC_USB->USBEpIntPri     = 0;                   // same priority for all endpoint
 
-//--------------------------------------------------------------------+
-// IMPLEMENTATION
-//--------------------------------------------------------------------+
+	// step 8 : DMA set up
+	LPC_USB->USBEpDMADis     = 0xFFFFFFFF; // firstly disable all dma
+	LPC_USB->USBDMARClr      = 0xFFFFFFFF; // clear all pending interrupt
+	LPC_USB->USBEoTIntClr    = 0xFFFFFFFF;
+	LPC_USB->USBNDDRIntClr   = 0xFFFFFFFF;
+	LPC_USB->USBSysErrIntClr = 0xFFFFFFFF;
+
+	memclr_(&dcd_data, sizeof(dcd_data_t));
+}
+
+tusb_error_t dcd_init(void)
+{
+  //------------- user manual 11.13 usb device controller initialization -------------//  LPC_USB->USBEpInd = 0;
+  // step 6 : set up control endpoint
+  edpt_set_max_packet_size(0, TUSB_CFG_DEVICE_CONTROL_ENDOINT_SIZE);
+  edpt_set_max_packet_size(1, TUSB_CFG_DEVICE_CONTROL_ENDOINT_SIZE);
+
+  bus_reset();
+
+  LPC_USB->USBDevIntEn = (DEV_INT_DEVICE_STATUS_MASK | DEV_INT_ENDPOINT_SLOW_MASK | DEV_INT_ERROR_MASK);
+	LPC_USB->USBUDCAH    = (uint32_t) dcd_data.udca;
+	LPC_USB->USBDMAIntEn = (DMA_INT_END_OF_XFER_MASK | DMA_INT_ERROR_MASK );
+
+	// clear all stall on control endpoint IN & OUT if any
+	sie_write(SIE_CMDCODE_ENDPOINT_SET_STATUS  , 1, 0);
+	sie_write(SIE_CMDCODE_ENDPOINT_SET_STATUS+1, 1, 0);
+
+	sie_write(SIE_CMDCODE_DEVICE_STATUS, 1, 1); // connect
+
+  return TUSB_ERROR_NONE;
+}
+
 void endpoint_control_isr(void)
 {
   uint32_t const endpoint_int_status = LPC_USB->USBEpIntSt & LPC_USB->USBEpIntEn;
@@ -231,15 +296,20 @@ void dcd_isr(uint8_t coreid)
           p_dd = p_fixed_dd;
         }
 
-        endpoint_handle_t edpt_hdl =
+        if ( BIT_TEST_(dcd_data.ioc_dd, dd_get_index(p_dd) ) )
         {
-            .coreid     = 0,
-            .index      = ep_id,
-            .class_code = dcd_data.class_code[ep_id]
-        };
-        tusb_event_t event = (p_dd->status == DD_STATUS_NORMAL || p_dd->status == DD_STATUS_DATA_UNDERUN) ? TUSB_EVENT_XFER_COMPLETE : TUSB_EVENT_XFER_ERROR;
+          dcd_data.ioc_dd = BIT_CLR_(dcd_data.ioc_dd, dd_get_index(p_dd) );
 
-        usbd_xfer_isr(edpt_hdl, event, p_dd->present_count); // only number of bytes in the IOC qtd
+          endpoint_handle_t edpt_hdl =
+          {
+              .coreid     = 0,
+              .index      = ep_id,
+              .class_code = dcd_data.class_code[ep_id]
+          };
+          tusb_event_t event = (p_dd->status == DD_STATUS_NORMAL || p_dd->status == DD_STATUS_DATA_UNDERUN) ? TUSB_EVENT_XFER_COMPLETE : TUSB_EVENT_XFER_ERROR;
+
+          usbd_xfer_isr(edpt_hdl, event, p_dd->present_count); // only number of bytes in the IOC qtd
+        }
       }
     }
   }
@@ -253,48 +323,8 @@ void dcd_isr(uint8_t coreid)
 }
 
 //--------------------------------------------------------------------+
-// USBD-DCD API
+// USBD API - CONTROLLER
 //--------------------------------------------------------------------+
-static void bus_reset(void)
-{
-  // step 7 : slave mode set up
-  LPC_USB->USBEpIntClr     = 0xFFFFFFFF;          // clear all pending interrupt
-	LPC_USB->USBDevIntClr    = 0xFFFFFFFF;          // clear all pending interrupt
-	LPC_USB->USBEpIntEn      = (uint32_t) BIN8(11); // control endpoint cannot use DMA, non-control all use DMA
-	LPC_USB->USBEpIntPri     = 0;                   // same priority for all endpoint
-
-	// step 8 : DMA set up
-	LPC_USB->USBEpDMADis     = 0xFFFFFFFF; // firstly disable all dma
-	LPC_USB->USBDMARClr      = 0xFFFFFFFF; // clear all pending interrupt
-	LPC_USB->USBEoTIntClr    = 0xFFFFFFFF;
-	LPC_USB->USBNDDRIntClr   = 0xFFFFFFFF;
-	LPC_USB->USBSysErrIntClr = 0xFFFFFFFF;
-
-	memclr_(&dcd_data, sizeof(dcd_data_t));
-}
-
-tusb_error_t dcd_init(void)
-{
-  //------------- user manual 11.13 usb device controller initialization -------------//  LPC_USB->USBEpInd = 0;
-  // step 6 : set up control endpoint
-  edpt_set_max_packet_size(0, TUSB_CFG_DEVICE_CONTROL_ENDOINT_SIZE);
-  edpt_set_max_packet_size(1, TUSB_CFG_DEVICE_CONTROL_ENDOINT_SIZE);
-
-  bus_reset();
-
-  LPC_USB->USBDevIntEn = (DEV_INT_DEVICE_STATUS_MASK | DEV_INT_ENDPOINT_SLOW_MASK | DEV_INT_ERROR_MASK);
-	LPC_USB->USBUDCAH    = (uint32_t) dcd_data.udca;
-	LPC_USB->USBDMAIntEn = (DMA_INT_END_OF_XFER_MASK | DMA_INT_ERROR_MASK );
-
-	// clear all stall on control endpoint IN & OUT if any
-	sie_write(SIE_CMDCODE_ENDPOINT_SET_STATUS    , 1, 0);
-	sie_write(SIE_CMDCODE_ENDPOINT_SET_STATUS + 1, 1, 0);
-
-	sie_write(SIE_CMDCODE_DEVICE_STATUS, 1, 1); // connect
-
-  return TUSB_ERROR_NONE;
-}
-
 void dcd_controller_connect(uint8_t coreid)
 {
   sie_write(SIE_CMDCODE_DEVICE_STATUS, 1, 1);
@@ -381,27 +411,6 @@ tusb_error_t dcd_pipe_control_xfer(uint8_t coreid, tusb_direction_t dir, void * 
 }
 
 //--------------------------------------------------------------------+
-// PIPE HELPER
-//--------------------------------------------------------------------+
-static inline uint8_t edpt_addr2phy(uint8_t endpoint_addr) ATTR_CONST ATTR_ALWAYS_INLINE;
-static inline uint8_t edpt_addr2phy(uint8_t endpoint_addr)
-{
-  return 2*(endpoint_addr & 0x0F) + ((endpoint_addr & TUSB_DIR_DEV_TO_HOST_MASK) ? 1 : 0);
-}
-
-// retval UINT8_MAX: invalid
-static inline uint8_t dd_find_free(void) ATTR_PURE ATTR_ALWAYS_INLINE;
-static inline uint8_t dd_find_free(void)
-{
-  for(uint8_t i=0; i<DCD_QTD_MAX; i++)
-  {
-    if (dcd_data.dd[i].used == 0) return i;
-  }
-
-  return UINT8_MAX;
-}
-
-//--------------------------------------------------------------------+
 // BULK/INTERRUPT/ISO PIPE API
 //--------------------------------------------------------------------+
 endpoint_handle_t dcd_pipe_open(uint8_t coreid, tusb_descriptor_endpoint_t const * p_endpoint_desc, uint8_t class_code)
@@ -477,21 +486,18 @@ void dd_xfer_init(dcd_dma_descriptor_t* p_dd, void* buffer, uint16_t total_bytes
 
 tusb_error_t dcd_pipe_queue_xfer(endpoint_handle_t edpt_hdl, void * buffer, uint16_t total_bytes)
 { // NOTE for sure the qhd has no dds
-  ASSERT( !dcd_pipe_is_busy(edpt_hdl), TUSB_ERROR_INTERFACE_IS_BUSY); // endpoint must not in transferring
+  dcd_dma_descriptor_t* const p_fixed_dd = qhd_get_fixed_dd(edpt_hdl.index); // always queue with the fixed DD
 
-  dcd_dma_descriptor_t* const p_dd = qhd_get_fixed_dd(edpt_hdl.index); // always queue with the fixed DD
+  dd_xfer_init(p_fixed_dd, buffer, total_bytes);
+  p_fixed_dd->is_retired  = 1;
 
-  dd_xfer_init(p_dd, buffer, total_bytes);
-//  p_dd->int_on_complete = 0;
-  p_dd->is_retired      = 1;
+  dcd_data.ioc_dd = BIT_CLR_(dcd_data.ioc_dd, dcd_data.ddat[edpt_hdl.index] ); // fixed index is stored in ddat
 
   return TUSB_ERROR_NONE;
 }
 
 tusb_error_t dcd_pipe_xfer(endpoint_handle_t edpt_hdl, void * buffer, uint16_t total_bytes, bool int_on_complete)
 {
-  ASSERT( !dcd_pipe_is_busy(edpt_hdl), TUSB_ERROR_INTERFACE_IS_BUSY); // endpoint must not in transferring
-
   dcd_dma_descriptor_t* const p_fixed_dd = qhd_get_fixed_dd(edpt_hdl.index);
 
   if ( p_fixed_dd->buffer_length )
@@ -508,7 +514,7 @@ tusb_error_t dcd_pipe_xfer(endpoint_handle_t edpt_hdl, void * buffer, uint16_t t
     p_dd->used            = 1;
     p_dd->max_packet_size = p_fixed_dd->max_packet_size;
     p_dd->is_isochronous  = p_fixed_dd->is_isochronous;
-//    p_dd->int_on_complete = int_on_complete;
+    dcd_data.ioc_dd     = int_on_complete ? BIT_SET_(dcd_data.ioc_dd, dd_idx) : BIT_CLR_(dcd_data.ioc_dd, dd_idx);
 
     //------------- hook to fixed dd -------------//
     p_fixed_dd->next          = (uint32_t) p_dd;
@@ -516,7 +522,8 @@ tusb_error_t dcd_pipe_xfer(endpoint_handle_t edpt_hdl, void * buffer, uint16_t t
   } else
   { // fixed DD is free
     dd_xfer_init(p_fixed_dd, buffer, total_bytes);
-//    p_fixed_dd->int_on_complete = int_on_complete;
+    dcd_data.ioc_dd     = int_on_complete ? BIT_SET_(dcd_data.ioc_dd, dcd_data.ddat[edpt_hdl.index]) :
+                                              BIT_CLR_(dcd_data.ioc_dd, dcd_data.ddat[edpt_hdl.index]);
   }
 
   p_fixed_dd->is_retired = 0;
@@ -526,7 +533,7 @@ tusb_error_t dcd_pipe_xfer(endpoint_handle_t edpt_hdl, void * buffer, uint16_t t
   LPC_USB->USBEpDMAEn = BIT_(edpt_hdl.index);
 
   if ( edpt_hdl.index % 2 )
-  { // endpoint IN
+  { // endpoint IN need to actively raise DMA request
     LPC_USB->USBDMARSet = BIT_(edpt_hdl.index);
   }
 
