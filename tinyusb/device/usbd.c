@@ -178,8 +178,9 @@ tusb_error_t usbd_body_subtask(void)
 
           length   -= USBD_COTNROL_MAX_LENGTH_EACH_XFER;
           p_buffer += USBD_COTNROL_MAX_LENGTH_EACH_XFER;
+
+          usbd_devices[coreid].is_waiting_control_xfer = false;
         }
-        usbd_devices[coreid].is_waiting_control_xfer = false;
 #endif
 
         if ( TUSB_ERROR_NONE == error )

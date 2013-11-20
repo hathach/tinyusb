@@ -61,10 +61,10 @@ enum
   DISK_BLOCK_SIZE = 512
 };
 
-#if MCU==MCU_LPC43XX
-  #define MSCD_APP_RAMDISK
-#else // defaults is rom disk
+#if MCU==MCU_LPC11UXX || MCU==MCU_LPC13UXX
   #define MSCD_APP_ROMDISK
+#else // defaults is ram disk
+  #define MSCD_APP_RAMDISK
 #endif
 
 void msc_dev_app_init(void);

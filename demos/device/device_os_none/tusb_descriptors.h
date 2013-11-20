@@ -74,6 +74,34 @@
 #define EDPT_IN(x)    (0x80 | (x))
 #define EDPT_OUT(x)   (x)
 
+#if MCU == MCU_LPC175X_6X
+//------------- These MCUs's endpoint number has a fixed type -------------//
+//------------- CDC -------------//
+#define CDC_EDPT_NOTIFICATION_ADDR            EDPT_IN (1)
+#define CDC_EDPT_NOTIFICATION_PACKETSIZE      64
+
+#define CDC_EDPT_DATA_OUT_ADDR                EDPT_OUT(2)
+#define CDC_EDPT_DATA_IN_ADDR                 EDPT_IN (2)
+#define CDC_EDPT_DATA_PACKETSIZE              64
+
+//------------- HID Keyboard -------------//
+#define HID_KEYBOARD_EDPT_ADDR                EDPT_IN (4)
+#define HID_KEYBOARD_EDPT_PACKETSIZE          8
+
+//------------- HID Mouse -------------//
+#define HID_MOUSE_EDPT_ADDR                   EDPT_IN (7)
+#define HID_MOUSE_EDPT_PACKETSIZE             8
+
+//------------- HID Generic -------------//
+
+//------------- Mass Storage -------------//
+#define MSC_EDPT_OUT_ADDR                     EDPT_OUT(5)
+#define MSC_EDPT_IN_ADDR                      EDPT_IN (5)
+#define MSC_EDPT_PACKETSIZE                   (TUSB_CFG_DEVICE_FULLSPEED ? 64 : 512)
+
+
+#else
+
 //------------- CDC -------------//
 #define CDC_EDPT_NOTIFICATION_ADDR            EDPT_IN (INTERFACE_NUM_CDC+1)
 #define CDC_EDPT_NOTIFICATION_PACKETSIZE      64
@@ -96,6 +124,8 @@
 #define MSC_EDPT_OUT_ADDR                     EDPT_OUT(INTERFACE_NUM_MSC+1)
 #define MSC_EDPT_IN_ADDR                      EDPT_IN (INTERFACE_NUM_MSC+1)
 #define MSC_EDPT_PACKETSIZE                   (TUSB_CFG_DEVICE_FULLSPEED ? 64 : 512)
+
+#endif
 
 //--------------------------------------------------------------------+
 // CONFIGURATION DESCRIPTOR

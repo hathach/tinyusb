@@ -53,6 +53,7 @@ coming soon ...
   - LPC43xx
   - LPC13uxx (12 bit ADC)
   - LPC11uxx
+  - LPC175x_6x
 
 ## Supported Toolchains ##
 

@@ -275,34 +275,36 @@ void dcd_isr(uint8_t coreid)
     {
       if ( BIT_TEST_(eot_int, ep_id) )
       {
-        dcd_dma_descriptor_t* p_dd;
         dcd_dma_descriptor_t* const p_fixed_dd = qhd_get_fixed_dd(ep_id);
-
-        p_fixed_dd->buffer_length = 0; // buffer length is used to determined if fixed dd is queued in pipe xfer function
-
         // Maximum is 2 QTD are queued in an endpoint
-        if (p_fixed_dd->is_next_valid)
-        {
-          p_dd = (dcd_dma_descriptor_t*) p_fixed_dd->next;
-          p_dd->used = 0; // free non-fixed dd
-        }else
-        {
-          p_dd = p_fixed_dd;
-        }
+        dcd_dma_descriptor_t* const p_last_dd = (p_fixed_dd->is_next_valid) ? ((dcd_dma_descriptor_t*) p_fixed_dd->next) : p_fixed_dd;
 
-        if ( BIT_TEST_(dcd_data.ioc_dd, dd_get_index(p_dd) ) )
-        {
-          dcd_data.ioc_dd = BIT_CLR_(dcd_data.ioc_dd, dd_get_index(p_dd) );
 
-          endpoint_handle_t edpt_hdl =
+        // only handle when Controller already finished the last DD
+        if ( dcd_data.udca[ep_id] == p_last_dd )
+        {
+          dcd_data.udca[ep_id] = p_fixed_dd; // UDCA currently points to the last DD, change to the fixed DD
+          p_fixed_dd->buffer_length = 0; // buffer length is used to determined if fixed dd is queued in pipe xfer function
+
+          if (p_fixed_dd->is_next_valid)
+          { // last_dd is not fixed_dd --> need to free
+            p_last_dd->used = 0;
+          }
+
+          if ( BIT_TEST_(dcd_data.ioc_dd, dd_get_index(p_last_dd) ) )
           {
-              .coreid     = 0,
-              .index      = ep_id,
-              .class_code = dcd_data.class_code[ep_id]
-          };
-          tusb_event_t event = (p_dd->status == DD_STATUS_NORMAL || p_dd->status == DD_STATUS_DATA_UNDERUN) ? TUSB_EVENT_XFER_COMPLETE : TUSB_EVENT_XFER_ERROR;
+            dcd_data.ioc_dd = BIT_CLR_(dcd_data.ioc_dd, dd_get_index(p_last_dd) );
 
-          usbd_xfer_isr(edpt_hdl, event, p_dd->present_count); // only number of bytes in the IOC qtd
+            endpoint_handle_t edpt_hdl =
+            {
+                .coreid     = 0,
+                .index      = ep_id,
+                .class_code = dcd_data.class_code[ep_id]
+            };
+            tusb_event_t event = (p_last_dd->status == DD_STATUS_NORMAL || p_last_dd->status == DD_STATUS_DATA_UNDERUN) ? TUSB_EVENT_XFER_COMPLETE : TUSB_EVENT_XFER_ERROR;
+
+            usbd_xfer_isr(edpt_hdl, event, p_last_dd->present_count); // only number of bytes in the IOC qtd
+          }
         }
       }
     }
@@ -477,11 +479,13 @@ tusb_error_t dcd_pipe_clear_stall(uint8_t coreid, uint8_t edpt_addr)
 
 void dd_xfer_init(dcd_dma_descriptor_t* p_dd, void* buffer, uint16_t total_bytes)
 {
-  p_dd->next            = 0;
-  p_dd->is_next_valid   = 0;
-  p_dd->buffer_addr     = (uint32_t) buffer;
-  p_dd->buffer_length   = total_bytes;
-  p_dd->status          = DD_STATUS_NOT_SERVICED;
+  p_dd->next                  = 0;
+  p_dd->is_next_valid         = 0;
+  p_dd->buffer_addr           = (uint32_t) buffer;
+  p_dd->buffer_length         = total_bytes;
+  p_dd->status                = DD_STATUS_NOT_SERVICED;
+  p_dd->iso_last_packet_valid = 0;
+  p_dd->present_count         = 0;
 }
 
 tusb_error_t dcd_pipe_queue_xfer(endpoint_handle_t edpt_hdl, void * buffer, uint16_t total_bytes)
@@ -514,7 +518,7 @@ tusb_error_t dcd_pipe_xfer(endpoint_handle_t edpt_hdl, void * buffer, uint16_t t
     p_dd->used            = 1;
     p_dd->max_packet_size = p_fixed_dd->max_packet_size;
     p_dd->is_isochronous  = p_fixed_dd->is_isochronous;
-    dcd_data.ioc_dd     = int_on_complete ? BIT_SET_(dcd_data.ioc_dd, dd_idx) : BIT_CLR_(dcd_data.ioc_dd, dd_idx);
+    dcd_data.ioc_dd       = int_on_complete ? BIT_SET_(dcd_data.ioc_dd, dd_idx) : BIT_CLR_(dcd_data.ioc_dd, dd_idx);
 
     //------------- hook to fixed dd -------------//
     p_fixed_dd->next          = (uint32_t) p_dd;
