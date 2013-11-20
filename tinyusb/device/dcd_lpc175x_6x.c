@@ -126,12 +126,10 @@ static inline void edpt_set_max_packet_size(uint8_t ep_id, uint16_t max_packet_s
   LPC_USB->USBMaxPSize = max_packet_size;
 
 #ifndef _TEST_
-  if( ep_id > 2) // endpoint control is always realized
-	{
-    while ((LPC_USB->USBDevIntSt & DEV_INT_ENDPOINT_REALIZED_MASK) == 0) {} // TODO can be omitted, or move to set max packet size
-    LPC_USB->USBDevIntClr = DEV_INT_ENDPOINT_REALIZED_MASK;
-	}
+  while ((LPC_USB->USBDevIntSt & DEV_INT_ENDPOINT_REALIZED_MASK) == 0) {} // TODO can be omitted
+  LPC_USB->USBDevIntClr = DEV_INT_ENDPOINT_REALIZED_MASK;
 #endif
+
 }
 
 // retval UINT8_MAX: invalid
@@ -193,8 +191,8 @@ tusb_error_t dcd_init(void)
 	LPC_USB->USBDMAIntEn = (DMA_INT_END_OF_XFER_MASK | DMA_INT_ERROR_MASK );
 
 	// clear all stall on control endpoint IN & OUT if any
-	sie_write(SIE_CMDCODE_ENDPOINT_SET_STATUS  , 1, 0);
-	sie_write(SIE_CMDCODE_ENDPOINT_SET_STATUS+1, 1, 0);
+//	sie_write(SIE_CMDCODE_ENDPOINT_SET_STATUS  , 1, 0);
+//	sie_write(SIE_CMDCODE_ENDPOINT_SET_STATUS+1, 1, 0);
 
 	sie_write(SIE_CMDCODE_DEVICE_STATUS, 1, 1); // connect
 
@@ -222,8 +220,6 @@ void endpoint_control_isr(void)
     {
       // Current not support any out control with data yet
     }
-    sie_write(SIE_CMDCODE_ENDPOINT_SELECT+0, 0, 0);
-    sie_write(SIE_CMDCODE_BUFFER_CLEAR     , 0, 0);
   }
 
   //------------- control IN -------------//
@@ -243,7 +239,7 @@ void endpoint_control_isr(void)
 
 void dcd_isr(uint8_t coreid)
 {
-  uint32_t const device_int_status = LPC_USB->USBDevIntSt & LPC_USB->USBDevIntEn & DEV_INT_ALL_MASK;
+  uint32_t const device_int_status = LPC_USB->USBDevIntSt & LPC_USB->USBDevIntEn;
   LPC_USB->USBDevIntClr = device_int_status;// Acknowledge handled interrupt
 
   //------------- usb bus event -------------//
@@ -258,14 +254,12 @@ void dcd_isr(uint8_t coreid)
 
     // TODO invoke some callbacks
     if (dev_status_reg & SIE_DEV_STATUS_CONNECT_CHANGE_MASK) { }
-    if (dev_status_reg & SIE_DEV_STATUS_SUSPEND_CHANGE_MASK) {
-    }
+    if (dev_status_reg & SIE_DEV_STATUS_SUSPEND_CHANGE_MASK) { }
   }
 
   //------------- Control Endpoint (Slave Mode) -------------//
   if (device_int_status & DEV_INT_ENDPOINT_SLOW_MASK)
   {
-    // only occur on control endpoint, all other use DMA
     endpoint_control_isr();
   }
 
@@ -383,6 +377,9 @@ static tusb_error_t pipe_control_read(void * buffer, uint16_t length)
     p_read_data++; // increase by 4 ( sizeof(uint32_t) )
   }
   LPC_USB->USBCtrl = 0; // TODO not needed ?
+
+  sie_write(SIE_CMDCODE_ENDPOINT_SELECT+0, 0, 0);
+  sie_write(SIE_CMDCODE_BUFFER_CLEAR     , 0, 0);
 
   return TUSB_ERROR_NONE;
 }
@@ -523,7 +520,7 @@ tusb_error_t dcd_pipe_xfer(endpoint_handle_t edpt_hdl, void * buffer, uint16_t t
   { // fixed DD is free
     dd_xfer_init(p_fixed_dd, buffer, total_bytes);
     dcd_data.ioc_dd     = int_on_complete ? BIT_SET_(dcd_data.ioc_dd, dcd_data.ddat[edpt_hdl.index]) :
-                                              BIT_CLR_(dcd_data.ioc_dd, dcd_data.ddat[edpt_hdl.index]);
+                                            BIT_CLR_(dcd_data.ioc_dd, dcd_data.ddat[edpt_hdl.index]);
   }
 
   p_fixed_dd->is_retired = 0;
