@@ -64,45 +64,15 @@ enum {
 };
 
 enum {
-  CMDSTAT_MASK_DEVICE_ENABLE  = BIT_(7 ),
-  CMDSTAT_MASK_SETUP_RECEIVED = BIT_(8 ),
-  CMDSTAT_MASK_CMD_CONNECT    = BIT_(16),
-  CMDSTAT_MASK_CMD_SUSPEND    = BIT_(17),
-  CMDSTAT_MASK_CONNECT_CHANGE = BIT_(24),
-  CMDSTAT_MASK_SUSPEND_CHANGE = BIT_(25),
-  CMDSTAT_MASK_RESET_CHANGE   = BIT_(26),
+  CMDSTAT_DEVICE_ENABLE_MASK  = BIT_(7 ),
+  CMDSTAT_SETUP_RECEIVED_MASK = BIT_(8 ),
+  CMDSTAT_DEVICE_CONNECT_MASK = BIT_(16),
+  CMDSTAT_DEVICE_SUSPEND_MASK = BIT_(17),
+  CMDSTAT_CONNECT_CHANGE_MASK = BIT_(24),
+  CMDSTAT_SUSPEND_CHANGE_MASK = BIT_(25),
+  CMDSTAT_RESET_CHANGE_MASK   = BIT_(26),
+  CMDSTAT_VBUS_DEBOUNCED_MASK = BIT_(28),
 };
-
-#if 0
-typedef struct {
-  union {
-    struct {
-      uint32_t dev_addr           : 7;
-      uint32_t dev_enable         : 1;
-      uint32_t setup_received     : 1;
-      uint32_t pll_on             : 1;
-      uint32_t                    : 1;
-      uint32_t lpm_support        : 1;
-      uint32_t                    : 4; // not use interrupt on NAK
-      uint32_t dev_connect        : 1;
-      uint32_t dev_suspend        : 1;
-      uint32_t                    : 1;
-      uint32_t lpm_suspend        : 1;
-      uint32_t lpm_remote_wakeup  : 1;
-      uint32_t                    : 3;
-      uint32_t dev_connect_change : 1;
-      uint32_t dev_suspend_change : 1;
-      uint32_t dev_reset_change   : 1;
-      uint32_t                    : 1;
-      uint32_t vbus_debounced     : 1;
-      uint32_t                    : 3;
-    }bits;
-    uint32_t value;
-  };
-} reg_dev_cmd_stat_t;
-
-STATIC_ASSERT( sizeof(reg_dev_cmd_stat_t) == 4, "size is not correct" );
-#endif
 
 // buffer input must be 64 byte alignment
 typedef struct {
@@ -149,7 +119,7 @@ static inline uint16_t addr_offset(void const * p_buffer)
 void dcd_controller_connect(uint8_t coreid)
 {
   (void) coreid;
-  LPC_USB->DEVCMDSTAT |= CMDSTAT_MASK_CMD_CONNECT;
+  LPC_USB->DEVCMDSTAT |= CMDSTAT_DEVICE_CONNECT_MASK;
 }
 
 void dcd_controller_set_configuration(uint8_t coreid)
@@ -172,7 +142,7 @@ tusb_error_t dcd_init(void)
 
   LPC_USB->INTSTAT      = LPC_USB->INTSTAT; // clear all pending interrupt
   LPC_USB->INTEN        = INT_MASK_DEVICE_STATUS;
-  LPC_USB->DEVCMDSTAT  |= CMDSTAT_MASK_DEVICE_ENABLE | CMDSTAT_MASK_CMD_CONNECT;
+  LPC_USB->DEVCMDSTAT  |= CMDSTAT_DEVICE_ENABLE_MASK | CMDSTAT_DEVICE_CONNECT_MASK;
 
   return TUSB_ERROR_NONE;
 }
@@ -192,7 +162,7 @@ static void bus_reset(void)
   LPC_USB->EPSKIP       = 0xFFFFFFFF;
 
   LPC_USB->INTSTAT      = LPC_USB->INTSTAT; // clear all pending interrupt
-  LPC_USB->DEVCMDSTAT  |= CMDSTAT_MASK_SETUP_RECEIVED; // clear setup received interrupt
+  LPC_USB->DEVCMDSTAT  |= CMDSTAT_SETUP_RECEIVED_MASK; // clear setup received interrupt
   LPC_USB->INTEN        = INT_MASK_DEVICE_STATUS | BIT_(0) | BIT_(1); // enable device status & control endpoints
 }
 
@@ -207,31 +177,33 @@ void dcd_isr(uint8_t coreid)
 
   if (int_status == 0) return;
 
-  uint32_t dev_cmd_stat = LPC_USB->DEVCMDSTAT;
+  uint32_t const dev_cmd_stat = LPC_USB->DEVCMDSTAT;
 
   //------------- Device Status -------------//
   if ( int_status & INT_MASK_DEVICE_STATUS )
   {
-    if ( dev_cmd_stat & CMDSTAT_MASK_RESET_CHANGE)
-    { // bus reset
+    LPC_USB->DEVCMDSTAT |= CMDSTAT_RESET_CHANGE_MASK | CMDSTAT_CONNECT_CHANGE_MASK /* CMDSTAT_SUSPEND_CHANGE_MASK */;
+    if ( dev_cmd_stat & CMDSTAT_RESET_CHANGE_MASK) // bus reset
+    {
       bus_reset();
-      usbd_bus_reset(0);
+      usbd_dcd_bus_event_isr(0, USBD_BUS_EVENT_RESET);
     }
 
-    // TODO not support suspend yet
-    if ( dev_cmd_stat & CMDSTAT_MASK_SUSPEND_CHANGE) { }
+//    if ( (dev_cmd_stat & CMDSTAT_SUSPEND_CHANGE_MASK) && (dev_cmd_stat & CMDSTAT_DEVICE_SUSPEND_MASK) )
+//    { // find a way to distinct bus suspend vs unplug/plug
+//      usbd_dcd_bus_event_isr(0, USBD_BUS_EVENT_SUSPENDED);
+//    }
 
-    if ( dev_cmd_stat & CMDSTAT_MASK_CONNECT_CHANGE)
-    { // device disconnect ?
-
+    if ( (dev_cmd_stat & CMDSTAT_CONNECT_CHANGE_MASK) && !(dev_cmd_stat & CMDSTAT_VBUS_DEBOUNCED_MASK) )
+    { // device disconnect
+      usbd_dcd_bus_event_isr(0, 0);
     }
 
-    LPC_USB->DEVCMDSTAT |= CMDSTAT_MASK_RESET_CHANGE | CMDSTAT_MASK_CONNECT_CHANGE
-        /* CMDSTAT_MASK_SUSPEND_CHANGE | */;
+
   }
 
   //------------- Control Endpoint -------------//
-  if ( BIT_TEST_(int_status, 0) && (dev_cmd_stat & CMDSTAT_MASK_SETUP_RECEIVED) )
+  if ( BIT_TEST_(int_status, 0) && (dev_cmd_stat & CMDSTAT_SETUP_RECEIVED_MASK) )
   { // received control request from host
     // copy setup request & acknowledge so that the next setup can be received by hw
     usbd_setup_received_isr(coreid, &dcd_data.setup_request);
@@ -239,7 +211,7 @@ void dcd_isr(uint8_t coreid)
     // NXP control flowchart clear Active & Stall on both Control IN/OUT endpoints
     dcd_data.qhd[0][0].stall = dcd_data.qhd[1][0].stall = 0;
 
-    LPC_USB->DEVCMDSTAT |= CMDSTAT_MASK_SETUP_RECEIVED;
+    LPC_USB->DEVCMDSTAT |= CMDSTAT_SETUP_RECEIVED_MASK;
     dcd_data.qhd[0][1].buff_addr_offset = addr_offset(&dcd_data.setup_request);
   }
   else if ( int_status & 0x03 )

@@ -218,7 +218,7 @@ void dcd_isr(uint8_t coreid)
     }
 
     if ( (dev_status_reg & SIE_DEV_STATUS_CONNECT_CHANGE_MASK) && !(dev_status_reg & SIE_DEV_STATUS_CONNECT_STATUS_MASK))
-    { // device is disconnected, require using VBUS (P1_30)
+    { // TODO device is disconnected, require using VBUS (P1_30), cannot use CONNECT_STATUS as connection status
       usbd_dcd_bus_event_isr(0, USBD_BUS_EVENT_UNPLUGGED);
     }
 

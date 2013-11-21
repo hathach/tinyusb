@@ -49,9 +49,11 @@ tusb_error_t hal_init(void)
 
   /* Pull-down is needed, or internally, VBUS will be floating. This is to
   address the wrong status in VBUSDebouncing bit in CmdStatus register.  */
+  // set PIO0_3 as USB_VBUS
   LPC_IOCON->PIO0_3   &= ~0x1F;
-  LPC_IOCON->PIO0_3   |= (0x01<<0);            /* Secondary function VBUS */
+  LPC_IOCON->PIO0_3   |= (0x01<<0)  | (1 << 3);            /* Secondary function VBUS */
 
+  // set PIO0_6 as usb connect
   LPC_IOCON->PIO0_6   &= ~0x07;
   LPC_IOCON->PIO0_6   |= (0x01<<0);            /* Secondary function SoftConn */
 
