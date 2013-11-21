@@ -54,14 +54,24 @@ OSAL_TASK_DEF(moused_app_task, 128, MOUSED_APP_TASK_PRIO);
 
 ATTR_USB_MIN_ALIGNMENT hid_mouse_report_t mouse_report TUSB_CFG_ATTR_USBRAM;
 
+static uint8_t moused_report_count; // number of reports sent each mounted
+
 //--------------------------------------------------------------------+
-// IMPLEMENTATION
+// tinyusb Callbacks
 //--------------------------------------------------------------------+
 void tusbd_hid_mouse_isr(uint8_t coreid, tusb_event_t event, uint32_t xferred_bytes)
 {
 
 }
 
+void tusbd_hid_mouse_mounted_cb(uint8_t coreid)
+{
+  moused_report_count = 0;
+}
+
+//--------------------------------------------------------------------+
+// APPLICATION CODE
+//--------------------------------------------------------------------+
 void moused_app_init(void)
 {
   ASSERT( TUSB_ERROR_NONE == osal_task_create( OSAL_TASK_REF(moused_app_task) ), VOID_RETURN);
@@ -71,16 +81,13 @@ OSAL_TASK_FUNCTION( moused_app_task ) (void* p_task_para)
 {
   OSAL_TASK_LOOP_BEGIN
 
-  if (tusbd_is_configured(0))
+  // only send 5 reports
+  if (tusbd_is_configured(0) && (moused_report_count++ < 5) )
   {
-    static uint32_t count =0;
-    if (count++ < 10)
+    if ( !tusbd_hid_mouse_is_busy(0) )
     {
-      if ( !tusbd_hid_mouse_is_busy(0) )
-      {
-        mouse_report.x = mouse_report.y = 20;
-        tusbd_hid_mouse_send(0, &mouse_report );
-      }
+      mouse_report.x = mouse_report.y = 20;
+      tusbd_hid_mouse_send(0, &mouse_report );
     }
   }
 

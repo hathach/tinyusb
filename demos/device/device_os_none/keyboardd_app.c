@@ -46,22 +46,32 @@
 //--------------------------------------------------------------------+
 // MACRO CONSTANT TYPEDEF
 //--------------------------------------------------------------------+
-OSAL_TASK_DEF(keyboardd_app_task, 128, KEYBOARDD_APP_TASK_PRIO);
-
-ATTR_USB_MIN_ALIGNMENT hid_keyboard_report_t keyboard_report TUSB_CFG_ATTR_USBRAM;
 
 //--------------------------------------------------------------------+
 // INTERNAL OBJECT & FUNCTION DECLARATION
 //--------------------------------------------------------------------+
+OSAL_TASK_DEF(keyboardd_app_task, 128, KEYBOARDD_APP_TASK_PRIO);
+
+ATTR_USB_MIN_ALIGNMENT hid_keyboard_report_t keyboard_report TUSB_CFG_ATTR_USBRAM;
+
+static uint8_t keyboardd_report_count; // number of reports sent each mounted
 
 //--------------------------------------------------------------------+
-// IMPLEMENTATION
+// tinyusb Callbacks
 //--------------------------------------------------------------------+
 void tusbd_hid_keyboard_isr(uint8_t coreid, tusb_event_t event, uint32_t xferred_bytes)
 {
 
 }
 
+void tusbd_hid_keyboard_mounted_cb(uint8_t coreid)
+{
+  keyboardd_report_count = 0;
+}
+
+//--------------------------------------------------------------------+
+// APPLICATION CODE
+//--------------------------------------------------------------------+
 void keyboardd_app_init(void)
 {
   ASSERT( TUSB_ERROR_NONE == osal_task_create( OSAL_TASK_REF(keyboardd_app_task) ), VOID_RETURN);
@@ -71,14 +81,23 @@ OSAL_TASK_FUNCTION( keyboardd_app_task ) (void* p_task_para)
 {
   OSAL_TASK_LOOP_BEGIN
 
-  if (tusbd_is_configured(0))
+  if (tusbd_is_configured(0) && (keyboardd_report_count++ < 5) )
   {
-    static uint32_t count =0;
-    if (count++ < 10)
+    if (!tusbd_hid_keyboard_is_busy(0))
     {
+      //------------- Key pressed -------------//
+      keyboard_report.keycode[0] = 0x04;
+      tusbd_hid_keyboard_send(0, &keyboard_report );
+
+      while( tusbd_hid_keyboard_is_busy(0) )
+      { // delay for transfer complete
+        osal_task_delay(10);
+      }
+
+      //------------- Key released -------------//
       if (!tusbd_hid_keyboard_is_busy(0))
       {
-        keyboard_report.keycode[0] = (count%2) ? 0x04 : 0x00;
+        keyboard_report.keycode[0] = 0x00;
         tusbd_hid_keyboard_send(0, &keyboard_report );
       }
     }

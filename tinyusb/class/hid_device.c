@@ -78,7 +78,7 @@ bool tusbd_hid_keyboard_is_busy(uint8_t coreid)
 
 tusb_error_t tusbd_hid_keyboard_send(uint8_t coreid, hid_keyboard_report_t const *p_report)
 {
-  //------------- verify data -------------//
+  ASSERT(tusbd_is_configured(coreid), TUSB_ERROR_USBD_DEVICE_NOT_CONFIGURED);
 
   hidd_interface_t * p_kbd = &keyboardd_data; // TODO &keyboardd_data[coreid];
 
@@ -104,7 +104,7 @@ bool tusbd_hid_mouse_is_busy(uint8_t coreid)
 
 tusb_error_t tusbd_hid_mouse_send(uint8_t coreid, hid_mouse_report_t const *p_report)
 {
-  //------------- verify data -------------//
+  ASSERT(tusbd_is_configured(coreid), TUSB_ERROR_USBD_DEVICE_NOT_CONFIGURED);
 
   hidd_interface_t * p_mouse = &moused_data; // TODO &keyboardd_data[coreid];
 
@@ -226,10 +226,19 @@ tusb_error_t hidd_open(uint8_t coreid, tusb_descriptor_interface_t const * p_int
 
         ASSERT_PTR(p_hid, TUSB_ERROR_FAILED);
 
-        p_hid->interface_number = p_interface_desc->bInterfaceNumber;
-        p_hid->report_length    = p_desc_hid->wReportLength;
         p_hid->ept_handle       = dcd_pipe_open(coreid, p_desc_endpoint, p_interface_desc->bInterfaceClass);
         ASSERT( endpointhandle_is_valid(p_hid->ept_handle), TUSB_ERROR_DCD_FAILED);
+
+        p_hid->interface_number = p_interface_desc->bInterfaceNumber;
+        p_hid->report_length    = p_desc_hid->wReportLength;
+
+        if (p_interface_desc->bInterfaceProtocol == HID_PROTOCOL_KEYBOARD)
+        {
+          tusbd_hid_keyboard_mounted_cb(coreid);
+        }else
+        {
+          tusbd_hid_mouse_mounted_cb(coreid);
+        }
       }
       break;
 

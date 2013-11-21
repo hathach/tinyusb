@@ -140,7 +140,7 @@ OSAL_TASK_FUNCTION( cdcd_serial_app_task ) (void* p_task_para)
       }
     }
 
-    // getting next data from host
+    // getting more data from host
     tusbd_cdc_receive(0, serial_rx_buffer, CDCD_APP_BUFFER_SIZE, true);
   }
 

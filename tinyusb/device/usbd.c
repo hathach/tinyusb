@@ -163,7 +163,7 @@ tusb_error_t usbd_body_subtask(void)
     {
       if ( TUSB_REQUEST_GET_DESCRIPTOR == control_request.bRequest )
       {
-        static uint8_t const * p_buffer = NULL;
+        static uint8_t* p_buffer = NULL;
         static uint16_t length = 0;
 
         error = get_descriptor_subtask(coreid, &control_request, &p_buffer, &length);
