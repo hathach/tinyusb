@@ -50,13 +50,7 @@
 //--------------------------------------------------------------------+
 // APPLICATION API
 //--------------------------------------------------------------------+
-/** \brief      Check if the interface is configured and ready to use
- * \param[in]   coreid USB Controller ID
- * \retval      true if the interface is configured
- * \retval      false if the interface is not configured (e.g device is not attached)
- * \note        This function should be call frequently or before any xfer attempt to check if device is still attached
- */
-bool tusbd_msc_is_configured(uint8_t coreid);
+//bool tusbd_msc_is_configured(uint8_t coreid);
 
 //--------------------------------------------------------------------+
 // APPLICATION CALLBACK API

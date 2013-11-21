@@ -123,7 +123,7 @@ OSAL_TASK_FUNCTION( cdcd_serial_app_task ) (void* p_task_para)
 
   osal_semaphore_wait(sem_hdl, OSAL_TIMEOUT_WAIT_FOREVER, &error);
 
-  if ( tusbd_cdc_is_configured(0) )
+  if ( tusbd_is_configured(0) )
   {
     // echo back data in the fifo
     if ( !tusbd_cdc_is_busy(0, CDC_PIPE_DATA_IN) )

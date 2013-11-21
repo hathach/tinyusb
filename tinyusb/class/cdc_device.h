@@ -57,7 +57,7 @@
 //--------------------------------------------------------------------+
 // APPLICATION API
 //--------------------------------------------------------------------+
-bool tusbd_cdc_is_configured(uint8_t coreid);
+//bool tusbd_cdc_is_configured(uint8_t coreid);
 bool tusbd_cdc_is_busy(uint8_t coreid, cdc_pipeid_t pipeid)  ATTR_PURE ATTR_WARN_UNUSED_RESULT;
 
 tusb_error_t tusbd_cdc_send(uint8_t coreid, void * p_data, uint32_t length, bool is_notify);

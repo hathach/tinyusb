@@ -50,10 +50,6 @@
 //--------------------------------------------------------------------+
 // MACRO CONSTANT TYPEDEF
 //--------------------------------------------------------------------+
-enum {
-  INTERFACE_INVALID_NUMBER = UINT8_MAX
-};
-
 ATTR_USB_MIN_ALIGNMENT
 static cdc_line_coding_t cdcd_line_coding[CONTROLLER_DEVICE_NUMBER] TUSB_CFG_ATTR_USBRAM;
 
@@ -69,20 +65,13 @@ typedef struct {
 //--------------------------------------------------------------------+
 cdcd_data_t cdcd_data[CONTROLLER_DEVICE_NUMBER];
 
-static inline bool cdcd_is_configured(uint8_t coreid) ATTR_PURE ATTR_ALWAYS_INLINE;
-static inline bool cdcd_is_configured(uint8_t coreid)
-{
-  return cdcd_data[coreid].interface_number != INTERFACE_INVALID_NUMBER;
-}
-
 static tusb_error_t cdcd_xfer(uint8_t coreid,  cdc_pipeid_t pipeid, void * p_buffer, uint32_t length, bool is_notify)
 {
-  ASSERT(cdcd_is_configured(coreid), TUSB_ERROR_USBD_INTERFACE_NOT_CONFIGURED);
+  ASSERT(tusbd_is_configured(coreid), TUSB_ERROR_USBD_DEVICE_NOT_CONFIGURED);
 
   cdcd_data_t* p_cdc = &cdcd_data[coreid];
 
-  ASSERT_FALSE( dcd_pipe_is_busy(p_cdc->edpt_hdl[pipeid]), TUSB_ERROR_INTERFACE_IS_BUSY);
-
+  ASSERT_FALSE ( dcd_pipe_is_busy(p_cdc->edpt_hdl[pipeid]), TUSB_ERROR_INTERFACE_IS_BUSY);
   ASSERT_STATUS( dcd_pipe_xfer(p_cdc->edpt_hdl[pipeid], p_buffer, length, is_notify) );
 
   return TUSB_ERROR_NONE;
@@ -91,15 +80,8 @@ static tusb_error_t cdcd_xfer(uint8_t coreid,  cdc_pipeid_t pipeid, void * p_buf
 //--------------------------------------------------------------------+
 // APPLICATION API (Parameters requires validation)
 //--------------------------------------------------------------------+
-bool tusbd_cdc_is_configured(uint8_t coreid)
-{
-  return cdcd_is_configured(coreid);
-}
-
 bool tusbd_cdc_is_busy(uint8_t coreid, cdc_pipeid_t pipeid)
 {
-  ASSERT(cdcd_is_configured(coreid) && (pipeid < CDC_PIPE_ERROR), false);
-
   return dcd_pipe_is_busy( cdcd_data[coreid].edpt_hdl[pipeid] );
 }
 
@@ -198,7 +180,6 @@ void cdcd_close(uint8_t coreid)
 {
   // no need to close opened pipe, dcd bus reset will put controller's endpoints to default state
   memclr_(&cdcd_data[coreid], sizeof(cdcd_data_t));
-  cdcd_data[coreid].interface_number = INTERFACE_INVALID_NUMBER;
 }
 
 tusb_error_t cdcd_control_request(uint8_t coreid, tusb_control_request_t const * p_request)

@@ -50,6 +50,8 @@ void board_init(void)
   // Leds Init
   GPIO_SetDir(CFG_LED_PORT, BIT_(CFG_LED_PIN), 1);
 
+  //------------- USB -------------//
+  PINSEL_ConfigPin( &(PINSEL_CFG_Type) { .Portnum = 2, .Pinnum = 9, .Funcnum = 1 } );
 
   // lpcxpresso base board USB device : if base board J14 is inserted at 1-2, 1k5 resistor is controlled by P0_21 (active low)
   GPIO_SetDir(0, BIT_(21), 1);
