@@ -46,6 +46,8 @@
 //--------------------------------------------------------------------+
 // MACRO CONSTANT TYPEDEF
 //--------------------------------------------------------------------+
+OSAL_TASK_DEF(keyboardd_app_task, 128, KEYBOARDD_APP_TASK_PRIO);
+
 ATTR_USB_MIN_ALIGNMENT hid_keyboard_report_t keyboard_report TUSB_CFG_ATTR_USBRAM;
 
 //--------------------------------------------------------------------+
@@ -62,11 +64,13 @@ void tusbd_hid_keyboard_isr(uint8_t coreid, tusb_event_t event, uint32_t xferred
 
 void keyboardd_app_init(void)
 {
-
+  ASSERT( TUSB_ERROR_NONE == osal_task_create( OSAL_TASK_REF(keyboardd_app_task) ), VOID_RETURN);
 }
 
 OSAL_TASK_FUNCTION( keyboardd_app_task ) (void* p_task_para)
 {
+  OSAL_TASK_LOOP_BEGIN
+
   if (tusbd_is_configured(0))
   {
     static uint32_t count =0;
@@ -79,6 +83,10 @@ OSAL_TASK_FUNCTION( keyboardd_app_task ) (void* p_task_para)
       }
     }
   }
+
+  osal_task_delay(1000);
+
+  OSAL_TASK_LOOP_END
 }
 
 #endif

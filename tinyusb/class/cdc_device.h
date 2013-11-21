@@ -63,11 +63,13 @@ bool tusbd_cdc_is_busy(uint8_t coreid, cdc_pipeid_t pipeid)  ATTR_PURE ATTR_WARN
 tusb_error_t tusbd_cdc_send(uint8_t coreid, void * p_data, uint32_t length, bool is_notify);
 tusb_error_t tusbd_cdc_receive(uint8_t coreid, void * p_buffer, uint32_t length, bool is_notify);
 
-//------------- Callback -------------//
+//--------------------------------------------------------------------+
+// APPLICATION CALLBACK API
+//--------------------------------------------------------------------+
 void tusbd_cdc_mounted_cb(uint8_t coreid);
 void tusbd_cdc_unmounted_cb(uint8_t coreid);
 void tusbd_cdc_xfer_isr(uint8_t coreid, tusb_event_t event, cdc_pipeid_t pipe_id, uint32_t xferred_bytes);
-void tusbd_cdc_line_coding_changed_cb(uint8_t coreid, cdc_line_coding_t* p_line_coding);
+//void tusbd_cdc_line_coding_changed_cb(uint8_t coreid, cdc_line_coding_t* p_line_coding);
 
 //--------------------------------------------------------------------+
 // USBD-CLASS DRIVER API
@@ -76,9 +78,9 @@ void tusbd_cdc_line_coding_changed_cb(uint8_t coreid, cdc_line_coding_t* p_line_
 
 void cdcd_init(void);
 tusb_error_t cdcd_open(uint8_t coreid, tusb_descriptor_interface_t const * p_interface_desc, uint16_t *p_length);
-void cdcd_bus_reset(uint8_t coreid);
 tusb_error_t cdcd_control_request(uint8_t coreid, tusb_control_request_t const * p_request);
 void cdcd_isr(endpoint_handle_t edpt_hdl, tusb_event_t event, uint32_t xferred_bytes);
+void cdcd_close(uint8_t coreid);
 
 #endif
 

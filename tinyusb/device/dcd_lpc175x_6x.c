@@ -74,42 +74,6 @@ static void bus_reset(void);
 static tusb_error_t pipe_control_read(void * buffer, uint16_t length);
 
 //--------------------------------------------------------------------+
-// SIE Command
-//--------------------------------------------------------------------+
-static inline void sie_cmd_code (sie_cmdphase_t phase, uint8_t code_data) ATTR_ALWAYS_INLINE;
-static inline void sie_cmd_code (sie_cmdphase_t phase, uint8_t code_data)
-{
-  LPC_USB->USBDevIntClr = (DEV_INT_COMMAND_CODE_EMPTY_MASK | DEV_INT_COMMAND_DATA_FULL_MASK);
-  LPC_USB->USBCmdCode   = (phase << 8) | (code_data << 16);
-
-  uint32_t const wait_flag = (phase == SIE_CMDPHASE_READ) ? DEV_INT_COMMAND_DATA_FULL_MASK : DEV_INT_COMMAND_CODE_EMPTY_MASK;
-#ifndef _TEST_
-  while ((LPC_USB->USBDevIntSt & wait_flag) == 0); // TODO blocking forever potential
-#endif
-  LPC_USB->USBDevIntClr = wait_flag;
-}
-
-static inline void sie_write (uint8_t cmd_code, uint8_t data_len, uint8_t data) ATTR_ALWAYS_INLINE;
-static inline void sie_write (uint8_t cmd_code, uint8_t data_len, uint8_t data)
-{
-  sie_cmd_code(SIE_CMDPHASE_COMMAND, cmd_code);
-
-  if (data_len)
-  {
-    sie_cmd_code(SIE_CMDPHASE_WRITE, data);
-  }
-}
-
-static inline uint32_t sie_read (uint8_t cmd_code, uint8_t data_len) ATTR_ALWAYS_INLINE;
-static inline uint32_t sie_read (uint8_t cmd_code, uint8_t data_len)
-{
-  // TODO multiple read
-  sie_cmd_code(SIE_CMDPHASE_COMMAND , cmd_code);
-  sie_cmd_code(SIE_CMDPHASE_READ    , cmd_code);
-  return LPC_USB->USBCmdData;
-}
-
-//--------------------------------------------------------------------+
 // PIPE HELPER
 //--------------------------------------------------------------------+
 static inline uint8_t edpt_addr2phy(uint8_t endpoint_addr) ATTR_CONST ATTR_ALWAYS_INLINE;
@@ -239,22 +203,29 @@ void endpoint_control_isr(void)
 
 void dcd_isr(uint8_t coreid)
 {
+  (void) coreid;
   uint32_t const device_int_status = LPC_USB->USBDevIntSt & LPC_USB->USBDevIntEn;
   LPC_USB->USBDevIntClr = device_int_status;// Acknowledge handled interrupt
 
   //------------- usb bus event -------------//
   if (device_int_status & DEV_INT_DEVICE_STATUS_MASK)
   {
-    uint32_t const dev_status_reg = sie_read(SIE_CMDCODE_DEVICE_STATUS, 1);
+    uint8_t const dev_status_reg = sie_read(SIE_CMDCODE_DEVICE_STATUS, 1);
     if (dev_status_reg & SIE_DEV_STATUS_RESET_MASK)
     {
       bus_reset();
-      usbd_bus_reset(coreid);
+      usbd_dcd_bus_event_isr(0, USBD_BUS_EVENT_RESET);
     }
 
-    // TODO invoke some callbacks
-    if (dev_status_reg & SIE_DEV_STATUS_CONNECT_CHANGE_MASK) { }
-    if (dev_status_reg & SIE_DEV_STATUS_SUSPEND_CHANGE_MASK) { }
+    if ( (dev_status_reg & SIE_DEV_STATUS_CONNECT_CHANGE_MASK) && !(dev_status_reg & SIE_DEV_STATUS_CONNECT_STATUS_MASK))
+    { // device is disconnected, require using VBUS (P1_30)
+      usbd_dcd_bus_event_isr(0, USBD_BUS_EVENT_UNPLUGGED);
+    }
+
+    if ( (dev_status_reg & SIE_DEV_STATUS_SUSPEND_CHANGE_MASK) && (dev_status_reg & SIE_DEV_STATUS_SUSPEND_MASK) )
+    {
+      usbd_dcd_bus_event_isr(0, USBD_BUS_EVENT_SUSPENDED);
+    }
   }
 
   //------------- Control Endpoint (Slave Mode) -------------//
@@ -323,16 +294,19 @@ void dcd_isr(uint8_t coreid)
 //--------------------------------------------------------------------+
 void dcd_controller_connect(uint8_t coreid)
 {
+  (void) coreid;
   sie_write(SIE_CMDCODE_DEVICE_STATUS, 1, 1);
 }
 
 void dcd_controller_set_address(uint8_t coreid, uint8_t dev_addr)
 {
+  (void) coreid;
   sie_write(SIE_CMDCODE_SET_ADDRESS, 1, 0x80 | dev_addr); // 7th bit is : device_enable
 }
 
 void dcd_controller_set_configuration(uint8_t coreid)
 {
+  (void) coreid;
   sie_write(SIE_CMDCODE_CONFIGURE_DEVICE, 1, 1);
 }
 

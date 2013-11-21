@@ -75,7 +75,7 @@ void mscd_init(void)
   // TODO not implemented
 }
 
-void mscd_bus_reset(uint8_t coreid)
+void mscd_close(uint8_t coreid)
 {
   // TODO not implemented yet
 }

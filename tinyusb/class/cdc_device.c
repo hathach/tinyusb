@@ -194,7 +194,7 @@ tusb_error_t cdcd_open(uint8_t coreid, tusb_descriptor_interface_t const * p_int
   return TUSB_ERROR_NONE;
 }
 
-void cdcd_bus_reset(uint8_t coreid)
+void cdcd_close(uint8_t coreid)
 {
   // no need to close opened pipe, dcd bus reset will put controller's endpoints to default state
   memclr_(&cdcd_data[coreid], sizeof(cdcd_data_t));

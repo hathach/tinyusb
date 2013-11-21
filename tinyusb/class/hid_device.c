@@ -124,7 +124,7 @@ void hidd_init(void)
   // TODO not implemented yet
 }
 
-void hidd_bus_reset(uint8_t coreid)
+void hidd_close(uint8_t coreid)
 {
   // TODO not implemented yet
 }
@@ -148,6 +148,8 @@ tusb_error_t hidd_control_request(uint8_t coreid, tusb_control_request_t const *
     uint8_t const desc_type  = u16_high_u8(p_request->wValue);
     uint8_t const desc_index = u16_low_u8 (p_request->wValue);
 
+    (void) desc_index;
+
     ASSERT ( p_request->bRequest == TUSB_REQUEST_GET_DESCRIPTOR && desc_type == HID_DESC_TYPE_REPORT,
              TUSB_ERROR_DCD_CONTROL_REQUEST_NOT_SUPPORT);
 
@@ -169,6 +171,9 @@ tusb_error_t hidd_control_request(uint8_t coreid, tusb_control_request_t const *
         // TODO HIDD set report support
         hid_request_report_type_t report_type = u16_high_u8(p_request->wValue);
         uint8_t report_id = u16_low_u8(p_request->wValue);
+
+        (void) report_id;
+        (void) report_type;
 
         dcd_pipe_control_xfer(coreid, TUSB_DIR_HOST_TO_DEV, &set_report, p_request->wLength);
       }

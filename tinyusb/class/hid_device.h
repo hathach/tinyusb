@@ -49,12 +49,20 @@
 
 
 //--------------------------------------------------------------------+
-// KEYBOARD Application API
+// KEYBOARD APPLICATION API
 //--------------------------------------------------------------------+
 /** \addtogroup ClassDriver_HID_Keyboard Keyboard
  *  @{ */
 /** \defgroup Keyboard_Device Device
  *  @{ */
+
+/** \brief      Check if the interface is configured and ready to use
+ * \param[in]   coreid USB Controller ID
+ * \retval      true if the interface is configured
+ * \retval      false if the interface is not configured (e.g device is not attached)
+ * \note        This function should be call frequently or before any xfer attempt to check if device is still attached
+ */
+bool tusbd_hid_keyboard_is_configured(uint8_t coreid);
 
 /** \brief      Check if the interface is currently busy or not
  * \param[in]   coreid USB Controller ID
@@ -77,7 +85,9 @@ bool tusbd_hid_keyboard_is_busy(uint8_t coreid);
  */
 tusb_error_t tusbd_hid_keyboard_send(uint8_t coreid, hid_keyboard_report_t const *p_report);
 
-//------------- Application Callback -------------//
+//--------------------------------------------------------------------+
+// APPLICATION CALLBACK API
+//--------------------------------------------------------------------+
 /** \brief      Callback function that is invoked when an transferring event occurred
  * \param[in]		coreid	USB Controller ID
  * \param[in]   event an value from \ref tusb_event_t
@@ -88,6 +98,8 @@ tusb_error_t tusbd_hid_keyboard_send(uint8_t coreid, hid_keyboard_report_t const
  * \note        Application should schedule the next report by calling \ref tusbh_hid_keyboard_get_report within this callback
  */
 void tusbd_hid_keyboard_isr(uint8_t coreid, tusb_event_t event, uint32_t xferred_bytes);
+void tusbd_hid_keyboard_mounted_cb(uint8_t coreid);
+void tusbd_hid_keyboard_unmounted_cb(uint8_t coreid);
 
 /** @} */
 /** @} */
@@ -99,6 +111,14 @@ void tusbd_hid_keyboard_isr(uint8_t coreid, tusb_event_t event, uint32_t xferred
  *  @{ */
 /** \defgroup Mouse_Device Device
  *  @{ */
+
+/** \brief      Check if the interface is configured and ready to use
+ * \param[in]   coreid USB Controller ID
+ * \retval      true if the interface is configured
+ * \retval      false if the interface is not configured (e.g device is not attached)
+ * \note        This function should be call frequently or before any xfer attempt to check if device is still attached
+ */
+bool tusbd_hid_mouse_is_configured(uint8_t coreid);
 
 /** \brief      Check if the interface is currently busy or not
  * \param[in]   coreid USB Controller ID
@@ -121,7 +141,12 @@ bool tusbd_hid_mouse_is_busy(uint8_t coreid);
  */
 tusb_error_t tusbd_hid_mouse_send(uint8_t coreid, hid_mouse_report_t const *p_report);
 
+//--------------------------------------------------------------------+
+// APPLICATION CALLBACK API
+//--------------------------------------------------------------------+
 void tusbd_hid_mouse_isr(uint8_t coreid, tusb_event_t event, uint32_t xferred_bytes);
+void tusbd_hid_mouse_mounted_cb(uint8_t coreid);
+void tusbd_hid_mouse_unmounted_cb(uint8_t coreid);
 
 /** @} */
 /** @} */
@@ -134,10 +159,10 @@ void tusbd_hid_mouse_isr(uint8_t coreid, tusb_event_t event, uint32_t xferred_by
 #ifdef _TINY_USB_SOURCE_FILE_
 
 void hidd_init(void);
-void hidd_bus_reset(uint8_t coreid);
 tusb_error_t hidd_open(uint8_t coreid, tusb_descriptor_interface_t const * p_interface_desc, uint16_t *p_length);
 tusb_error_t hidd_control_request(uint8_t coreid, tusb_control_request_t const * p_request);
 void hidd_isr(endpoint_handle_t edpt_hdl, tusb_event_t event, uint32_t xferred_bytes);
+void hidd_close(uint8_t coreid);
 
 #endif
 

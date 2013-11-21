@@ -161,7 +161,7 @@ enum {
 
 //------------- SIE Device Status (get/set from SIE_CMDCODE_DEVICE_STATUS) -------------//
 enum {
-  SIE_DEV_STATUS_CONNECT_MASK        = BIT_(0),
+  SIE_DEV_STATUS_CONNECT_STATUS_MASK = BIT_(0),
   SIE_DEV_STATUS_CONNECT_CHANGE_MASK = BIT_(1),
   SIE_DEV_STATUS_SUSPEND_MASK        = BIT_(2),
   SIE_DEV_STATUS_SUSPEND_CHANGE_MASK = BIT_(3),
@@ -195,6 +195,42 @@ enum {
   DD_STATUS_DATA_OVERRUN,
   DD_STATUS_SYSTEM_ERROR
 };
+
+//--------------------------------------------------------------------+
+// SIE Command
+//--------------------------------------------------------------------+
+static inline void sie_cmd_code (sie_cmdphase_t phase, uint8_t code_data) ATTR_ALWAYS_INLINE;
+static inline void sie_cmd_code (sie_cmdphase_t phase, uint8_t code_data)
+{
+  LPC_USB->USBDevIntClr = (DEV_INT_COMMAND_CODE_EMPTY_MASK | DEV_INT_COMMAND_DATA_FULL_MASK);
+  LPC_USB->USBCmdCode   = (phase << 8) | (code_data << 16);
+
+  uint32_t const wait_flag = (phase == SIE_CMDPHASE_READ) ? DEV_INT_COMMAND_DATA_FULL_MASK : DEV_INT_COMMAND_CODE_EMPTY_MASK;
+#ifndef _TEST_
+  while ((LPC_USB->USBDevIntSt & wait_flag) == 0); // TODO blocking forever potential
+#endif
+  LPC_USB->USBDevIntClr = wait_flag;
+}
+
+static inline void sie_write (uint8_t cmd_code, uint8_t data_len, uint8_t data) ATTR_ALWAYS_INLINE;
+static inline void sie_write (uint8_t cmd_code, uint8_t data_len, uint8_t data)
+{
+  sie_cmd_code(SIE_CMDPHASE_COMMAND, cmd_code);
+
+  if (data_len)
+  {
+    sie_cmd_code(SIE_CMDPHASE_WRITE, data);
+  }
+}
+
+static inline uint32_t sie_read (uint8_t cmd_code, uint8_t data_len) ATTR_ALWAYS_INLINE;
+static inline uint32_t sie_read (uint8_t cmd_code, uint8_t data_len)
+{
+  // TODO multiple read
+  sie_cmd_code(SIE_CMDPHASE_COMMAND , cmd_code);
+  sie_cmd_code(SIE_CMDPHASE_READ    , cmd_code);
+  return LPC_USB->USBCmdData;
+}
 
 #ifdef __cplusplus
  }

@@ -71,7 +71,7 @@ static usbd_class_driver_t const usbd_class_drivers[TUSB_CLASS_MAPPED_INDEX_STAR
         .open            = hidd_open,
         .control_request = hidd_control_request,
         .isr             = hidd_isr,
-        .bus_reset       = hidd_bus_reset
+        .close           = hidd_close
     },
 #endif
 
@@ -82,7 +82,7 @@ static usbd_class_driver_t const usbd_class_drivers[TUSB_CLASS_MAPPED_INDEX_STAR
         .open            = mscd_open,
         .control_request = mscd_control_request,
         .isr             = mscd_isr,
-        .bus_reset       = mscd_bus_reset
+        .close           = mscd_close
     },
 #endif
 
@@ -93,7 +93,7 @@ static usbd_class_driver_t const usbd_class_drivers[TUSB_CLASS_MAPPED_INDEX_STAR
         .open            = cdcd_open,
         .control_request = cdcd_control_request,
         .isr             = cdcd_isr,
-        .bus_reset       = cdcd_bus_reset
+        .close           = cdcd_close
     },
 #endif
 
@@ -251,19 +251,6 @@ OSAL_TASK_FUNCTION(usbd_task) (void* p_task_para)
   OSAL_TASK_LOOP_END
 }
 
-void usbd_bus_reset(uint32_t coreid)
-{
-  memclr_(&usbd_devices[coreid], sizeof(usbd_device_info_t));
-
-  for (tusb_std_class_code_t class_code = TUSB_CLASS_AUDIO; class_code <= TUSB_CLASS_AUDIO_VIDEO; class_code++)
-  {
-    if ( usbd_class_drivers[class_code].bus_reset )
-    {
-      usbd_class_drivers[class_code].bus_reset( coreid );
-    }
-  }
-}
-
 tusb_error_t usbd_init (void)
 {
   ASSERT_STATUS ( dcd_init() );
@@ -368,8 +355,29 @@ tusb_error_t get_descriptor_subtask(uint8_t coreid, tusb_control_request_t * p_r
 //--------------------------------------------------------------------+
 
 //--------------------------------------------------------------------+
-// DCD Callback API
+// USBD-DCD Callback API
 //--------------------------------------------------------------------+
+void usbd_dcd_bus_event_isr(uint8_t coreid, usbd_bus_event_type_t bus_event)
+{
+  switch(bus_event)
+  {
+    case USBD_BUS_EVENT_RESET     :
+    case USBD_BUS_EVENT_UNPLUGGED :
+      memclr_(&usbd_devices[coreid], sizeof(usbd_device_info_t));
+      for (tusb_std_class_code_t class_code = TUSB_CLASS_AUDIO; class_code <= TUSB_CLASS_AUDIO_VIDEO; class_code++)
+      {
+        if ( usbd_class_drivers[class_code].close ) usbd_class_drivers[class_code].close( coreid );
+      }
+    break;
+
+    case USBD_BUS_EVENT_SUSPENDED:
+      usbd_devices[coreid].state = TUSB_DEVICE_STATE_SUSPENDED;
+    break;
+
+    default: break;
+  }
+}
+
 void usbd_setup_received_isr(uint8_t coreid, tusb_control_request_t * p_request)
 {
   usbd_devices[coreid].control_request = (*p_request);

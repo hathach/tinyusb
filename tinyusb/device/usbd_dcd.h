@@ -55,24 +55,31 @@
  extern "C" {
 #endif
 
-#define USBD_MAX_INTERFACE  16 // TODO refractor later
-#define USBD_MAX_ENDPOINT   32 // TODO refractor later
+enum {
+  USBD_INTERFACE_NUM_MAX = 16 // USB specs specify up to 16 endpoints per device
+};
 
+typedef enum {
+  USBD_BUS_EVENT_RESET = 1,
+  USBD_BUS_EVENT_UNPLUGGED,
+  USBD_BUS_EVENT_SUSPENDED
+}usbd_bus_event_type_t;
 
 typedef struct {
   volatile uint8_t state;
   uint8_t is_waiting_control_xfer;             // set if task is waiting for control xfer to complete to proceed
   tusb_control_request_t control_request;
-  uint8_t interface2class[USBD_MAX_INTERFACE]; // determine interface number belongs to which class
+  uint8_t interface2class[USBD_INTERFACE_NUM_MAX]; // determine interface number belongs to which class
 }usbd_device_info_t;
 
 extern usbd_device_info_t usbd_devices[CONTROLLER_DEVICE_NUMBER];
 //--------------------------------------------------------------------+
 // callback from DCD ISR
 //--------------------------------------------------------------------+
-void usbd_xfer_isr(endpoint_handle_t edpt_hdl, tusb_event_t event, uint32_t xferred_bytes);
-void usbd_bus_reset(uint32_t coreid);
+void usbd_dcd_bus_event_isr(uint8_t coreid, usbd_bus_event_type_t bus_event);
 void usbd_setup_received_isr(uint8_t coreid, tusb_control_request_t * p_request);
+void usbd_xfer_isr(endpoint_handle_t edpt_hdl, tusb_event_t event, uint32_t xferred_bytes);
+
 
 #ifdef __cplusplus
  }
