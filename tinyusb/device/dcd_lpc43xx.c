@@ -127,7 +127,7 @@ typedef struct {
 
 STATIC_ASSERT( sizeof(dcd_qtd_t) == 32, "size is not correct");
 
-typedef struct {
+typedef struct ATTR_ALIGNED(64) {
   // Word 0: Capabilities and Characteristics
   uint32_t                         : 15 ; ///< Number of packets executed per transaction descriptor 00 - Execute N transactions as demonstrated by the USB variable length protocol where N is computed using Max_packet_length and the Total_bytes field in the dTD. 01 - Execute one transaction 10 - Execute two transactions 11 - Execute three transactions Remark: Non-isochronous endpoints must set MULT = 00. Remark: Isochronous endpoints must set MULT = 01, 10, or 11 as needed.
   uint32_t int_on_setup            : 1  ; ///< Interrupt on setup This bit is used on control type endpoints to indicate if USBINT is set in response to a setup being received.
@@ -154,7 +154,7 @@ typedef struct {
   uint8_t list_qtd_idx[DCD_QTD_PER_QHD_MAX];
 
 	uint8_t reserved[15-DCD_QTD_PER_QHD_MAX];
-} ATTR_ALIGNED(64) dcd_qhd_t;
+} dcd_qhd_t;
 
 STATIC_ASSERT( sizeof(dcd_qhd_t) == 64, "size is not correct");
 
@@ -543,13 +543,23 @@ void dcd_isr(uint8_t coreid)
 	  usbd_dcd_bus_event_isr(0, USBD_BUS_EVENT_RESET);
 	}
 
-//	if (int_status & INT_MASK_SUSPEND)
+	if (int_status & INT_MASK_SUSPEND)
+	{
+	  if (lpc_usb->PORTSC1_D & PORTSC_SUSPEND_MASK)
+	  { // Note: Host may delay more than 3 ms before and/or after bus reset before doing enumeration.
+	    if ((lpc_usb->DEVICEADDR >> 25) & 0x0f)
+	    {
+	      usbd_dcd_bus_event_isr(0, USBD_BUS_EVENT_SUSPENDED);
+	    }
+	  }
+	}
+
+	// TODO disconnection does not generate interrupt !!!!!!
+//	if (int_status & INT_MASK_PORT_CHANGE)
 //	{
-//	  uint32_t portsc = lpc_usb->PORTSC1_D;
-//
-//	  if (portsc & PORTSC_SUSPEND_MASK)
+//	  if ( !(lpc_usb->PORTSC1_D & PORTSC_CURRENT_CONNECT_STATUS_MASK) )
 //	  {
-//	    tusbd_device_suspended_cb(coreid);
+//	    usbd_dcd_bus_event_isr(0, USBD_BUS_EVENT_UNPLUGGED);
 //	  }
 //	}
 
@@ -589,8 +599,6 @@ void dcd_isr(uint8_t coreid)
 	}
 
 	if (int_status & INT_MASK_SOF) { }
-	if (int_status & INT_MASK_SUSPEND) { }
-	if (int_status & INT_MASK_PORT_CHANGE) { }
 	if (int_status & INT_MASK_NAK) { }
 	if (int_status & INT_MASK_ERROR) ASSERT(false, VOID_RETURN);
 }

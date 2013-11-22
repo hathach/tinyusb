@@ -1999,8 +1999,9 @@ INCLUDE_FILE_PATTERNS  =
 PREDEFINED             = TUSB_CFG_CONTROLLER_0_MODE=TUSB_MODE_HOST \
                          TUSB_CFG_CONTROLLER_1_MODE=TUSB_MODE_HOST \
                          TUSB_CFG_HOST_HID_KEYBOARD=1 \
+                         ATTR_PACKED_STRUCT(x)=x \
                          TUSB_CFG_HOST_CDC_RNDIS=1 \
-                         ATTR_PACKED_STRUCT(x)=x
+                         ATTR_ALIGNED(x)=
 
 # If the MACRO_EXPANSION and EXPAND_ONLY_PREDEF tags are set to YES then this
 # tag can be used to specify a list of macro names that should be expanded. The
