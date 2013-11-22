@@ -400,10 +400,12 @@ app_descriptor_configuration_t app_tusb_desc_configuration =
 //--------------------------------------------------------------------+
 // STRING DESCRIPTORS
 //--------------------------------------------------------------------+
+#define STRING_LEN_UNICODE(n) (2 + (2*(n))) // also includes 2 byte header
+
 ATTR_USB_MIN_ALIGNMENT TUSB_CFG_ATTR_USBRAM
 tusb_descriptor_string_t desc_str_language =
 {
-    .bLength         = 2 + 1*2,
+    .bLength         = STRING_LEN_UNICODE(1),
     .bDescriptorType = TUSB_DESC_TYPE_STRING,
     .unicode_string  = { 0x0409 }
 };
@@ -411,7 +413,7 @@ tusb_descriptor_string_t desc_str_language =
 ATTR_USB_MIN_ALIGNMENT TUSB_CFG_ATTR_USBRAM
 tusb_descriptor_string_t desc_str_manufacturer =
 {
-    .bLength         = 2 + 11*2,
+    .bLength         = STRING_LEN_UNICODE(11),
     .bDescriptorType = TUSB_DESC_TYPE_STRING,
     .unicode_string  = { 't', 'i', 'n', 'y', 'u', 's', 'b', '.', 'o', 'r', 'g' } // len = 11
 };
@@ -419,7 +421,7 @@ tusb_descriptor_string_t desc_str_manufacturer =
 ATTR_USB_MIN_ALIGNMENT TUSB_CFG_ATTR_USBRAM
 tusb_descriptor_string_t desc_str_product =
 {
-    .bLength         = 2 + 14*2,
+    .bLength         = STRING_LEN_UNICODE(14),
     .bDescriptorType = TUSB_DESC_TYPE_STRING,
     .unicode_string  = { 'D', 'e', 'v', 'i', 'c', 'e', ' ', 'E', 'x', 'a', 'm', 'p', 'l', 'e' } // len = 14
 };
@@ -427,7 +429,7 @@ tusb_descriptor_string_t desc_str_product =
 ATTR_USB_MIN_ALIGNMENT TUSB_CFG_ATTR_USBRAM
 tusb_descriptor_string_t desc_str_serial =
 {
-    .bLength         = 2 + 4*2,
+    .bLength         = STRING_LEN_UNICODE(4),
     .bDescriptorType = TUSB_DESC_TYPE_STRING,
     .unicode_string  = { '1', '2', '3', '4' } // len = 4
 };

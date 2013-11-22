@@ -53,11 +53,6 @@ void board_init(void)
 #if CFG_UART_ENABLE
   UARTInit(CFG_UART_BAUDRATE);
 #endif
-
-#if CFG_PRINTF_TARGET == PRINTF_TARGET_SWO
-  LPC_IOCON->PIO0_9 &= ~0x07;    /*  UART I/O config */
-  LPC_IOCON->PIO0_9 |= 0x03;     /* UART RXD */
-#endif
 }
 
 //--------------------------------------------------------------------+

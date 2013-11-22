@@ -36,13 +36,6 @@
 */
 /**************************************************************************/
 
-/** \ingroup TBD
- *  \defgroup TBD
- *  \brief TBD
- *
- *  @{
- */
-
 #ifndef _TUSB_CDC_DEVICE_H_
 #define _TUSB_CDC_DEVICE_H_
 
@@ -53,6 +46,11 @@
 #ifdef __cplusplus
  extern "C" {
 #endif
+
+/** \addtogroup CDC_Serial Serial
+ *  @{
+ *  \defgroup   CDC_Serial_Device Device
+ *  @{ */
 
 //--------------------------------------------------------------------+
 // APPLICATION API
@@ -90,4 +88,5 @@ void cdcd_close(uint8_t coreid);
 
 #endif /* _TUSB_CDC_DEVICE_H_ */
 
+/** @} */
 /** @} */

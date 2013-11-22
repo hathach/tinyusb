@@ -47,6 +47,11 @@
  extern "C" {
 #endif
 
+/** \addtogroup ClassDriver_MSC
+ *  @{
+ * \defgroup MSC_Device Device
+  *  @{ */
+
 //--------------------------------------------------------------------+
 // APPLICATION API
 //--------------------------------------------------------------------+
@@ -63,6 +68,9 @@ msc_csw_status_t tusbd_msc_scsi_received_isr (uint8_t coreid, uint8_t lun, uint8
 
 tusb_error_t tusbd_msc_read10 (uint8_t dev_addr, uint8_t lun, void * p_buffer, uint32_t lba, uint16_t block_count) ATTR_WARN_UNUSED_RESULT;
 tusb_error_t tusbh_msc_write10(uint8_t dev_addr, uint8_t lun, void const * p_buffer, uint32_t lba, uint16_t block_count) ATTR_WARN_UNUSED_RESULT;
+
+/** @} */
+/** @} */
 
 //--------------------------------------------------------------------+
 // USBD-CLASS DRIVER API
@@ -83,4 +91,3 @@ void mscd_close(uint8_t coreid);
 
 #endif /* _TUSB_MSC_DEVICE_H_ */
 
-/** @} */

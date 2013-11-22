@@ -51,27 +51,33 @@
 //--------------------------------------------------------------------+
 tusb_error_t hal_init(void)
 {
-  //------------- user manual 11.13 usb device controller initialization -------------//
-	// TODO remove magic number
-  /* Enable AHB clock to the USB block and USB RAM. */
-//  LPC_SYSCON->SYSAHBCLKCTRL |= ((0x1<<14) | (0x1<<27));
+  LPC_SC->PCONP |= CLKPWR_PCONP_PCUSB;                	/* USB PCLK -> enable USB Per.*/
 
+  //------------- user manual 11.13 usb device controller initialization -------------//
   LPC_PINCON->PINSEL1 &= ~((3<<26)|(3<<28));  /* P0.29 D+, P0.30 D- */
   LPC_PINCON->PINSEL1 |=  ((1<<26)|(1<<28));  /* PINSEL1 26.27, 28.29  = 01 */
 
 //  LPC_PINCON->PINSEL3 &= ~(3<<6); TODO HOST
 //  LPC_PINCON->PINSEL3 |= (2<<6);
 
-  LPC_SC->PCONP |= CLKPWR_PCONP_PCUSB;                	/* USB PCLK -> enable USB Per.*/
+  //------------- Device -------------//
+  LPC_PINCON->PINSEL4 &= ~(3 << 18);
+  LPC_PINCON->PINSEL4 |= (1 << 18); // P2_9 as USB Connect
 
-  // DEVICE mode
+  // P1_30 as VBUS, ignore if it is already in VBUS mode
+  if ( !(!BIT_TEST_(LPC_PINCON->PINSEL3, 28) && BIT_TEST_(LPC_PINCON->PINSEL3, 29)) )
+  {
+    // some board like lpcxpresso1769 does not connect VBUS signal to pin P1_30, this allow those board to overwrite
+    // by always pulling P1_30 to high
+    PINSEL_ConfigPin( &(PINSEL_CFG_Type) {
+      .Portnum = 1, .Pinnum = 30,
+      .Funcnum = 2, .Pinmode = PINSEL_PINMODE_PULLDOWN} );
+  }
+
   LPC_USB->USBClkCtrl = 0x12;                 /* Dev, PortSel, AHB clock enable */
   while ((LPC_USB->USBClkSt & 0x12) != 0x12);
 
-  /* Pull-down is needed, or internally, VBUS will be floating. This is to
-  address the wrong status in VBUSDebouncing bit in CmdStatus register.  */
-
-return TUSB_ERROR_NONE;
+  return TUSB_ERROR_NONE;
 }
 
 void USB_IRQHandler(void)

@@ -48,6 +48,7 @@
 
 #include "LPC17xx.h"
 #include "lpc17xx_clkpwr.h"
+#include "lpc17xx_pinsel.h"
 
 #ifdef __cplusplus
  extern "C" {

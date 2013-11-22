@@ -83,13 +83,13 @@ tusb_error_t tusbd_hid_keyboard_send(uint8_t coreid, hid_keyboard_report_t const
 // APPLICATION CALLBACK API
 //--------------------------------------------------------------------+
 /** \brief      Callback function that is invoked when an transferring event occurred
+ *              after invoking \ref tusbd_hid_keyboard_send
  * \param[in]		coreid	USB Controller ID
  * \param[in]   event an value from \ref tusb_event_t
  * \note        event can be one of following
  *              - TUSB_EVENT_XFER_COMPLETE : previously scheduled transfer completes successfully.
  *              - TUSB_EVENT_XFER_ERROR   : previously scheduled transfer encountered a transaction error.
  *              - TUSB_EVENT_XFER_STALLED : previously scheduled transfer is stalled by device.
- * \note        Application should schedule the next report by calling \ref tusbh_hid_keyboard_get_report within this callback
  */
 void tusbd_hid_keyboard_isr(uint8_t coreid, tusb_event_t event, uint32_t xferred_bytes);
 void tusbd_hid_keyboard_mounted_cb(uint8_t coreid);
@@ -132,6 +132,15 @@ tusb_error_t tusbd_hid_mouse_send(uint8_t coreid, hid_mouse_report_t const *p_re
 //--------------------------------------------------------------------+
 // APPLICATION CALLBACK API
 //--------------------------------------------------------------------+
+/** \brief      Callback function that is invoked when an transferring event occurred
+ *              after invoking \ref tusbd_hid_mouse_send
+ * \param[in]		coreid	USB Controller ID
+ * \param[in]   event an value from \ref tusb_event_t
+ * \note        event can be one of following
+ *              - TUSB_EVENT_XFER_COMPLETE : previously scheduled transfer completes successfully.
+ *              - TUSB_EVENT_XFER_ERROR   : previously scheduled transfer encountered a transaction error.
+ *              - TUSB_EVENT_XFER_STALLED : previously scheduled transfer is stalled by device.
+ */
 void tusbd_hid_mouse_isr(uint8_t coreid, tusb_event_t event, uint32_t xferred_bytes);
 void tusbd_hid_mouse_mounted_cb(uint8_t coreid);
 void tusbd_hid_mouse_unmounted_cb(uint8_t coreid);

@@ -83,6 +83,7 @@ typedef struct {
 // APPLICATION API
 //--------------------------------------------------------------------+
 bool tusbd_is_configured(uint8_t coreid) ATTR_WARN_UNUSED_RESULT;
+//void tusbd_device_suspended_cb(uint8_t coreid);
 
 //--------------------------------------------------------------------+
 // CLASS-USBD & INTERNAL API

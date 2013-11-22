@@ -36,14 +36,8 @@
 */
 /**************************************************************************/
 
-/** \file
- *  \brief TBD
- */
-
-/** \ingroup Group_Core
- *  \defgroup Group_USBTypes USB Types
- *  \brief TBD
- *
+/** \ingroup group_usb_definitions
+ *  \defgroup USBDef_Type USB Types
  *  @{
  */
 

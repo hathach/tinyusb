@@ -36,9 +36,6 @@
 */
 /**************************************************************************/
 
-/** \addtogroup ClassDriver_MSC
- *  @{ */
-
 #ifndef _TUSB_MSC_HOST_H_
 #define _TUSB_MSC_HOST_H_
 
@@ -50,7 +47,9 @@
  extern "C" {
 #endif
 
-/** \defgroup MSC_Host Host
+/** \addtogroup ClassDriver_MSC
+ *  @{
+ * \defgroup MSC_Host Host
  *  The interface API includes status checking function, data transferring function and callback functions
  *  @{ */
 //--------------------------------------------------------------------+

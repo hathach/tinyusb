@@ -36,11 +36,10 @@
 */
 /**************************************************************************/
 
-/** \file
- *  \brief Types & Declaration by USB Specs. All documents sources mentioned here (eg section 3.5) is referring to USB 2.0 Specs unless state otherwise
+/** \brief Types & Declaration by USB Specs. All documents sources mentioned here (eg section 3.5) is referring to USB 2.0 Specs unless state otherwise
  */
 
-/** \defgroup Group_Core Core
+/** \addtogroup group_usb_definitions USB Definitions
  * @{
  *  \defgroup Group_StdDescriptor Standard Descriptors
  *  @{
@@ -52,8 +51,6 @@
 #ifdef __cplusplus
  extern "C" {
 #endif
-
-#define STRING_LEN_BYTE2UNICODE(n) (2 + ((n)<<1))
 
 //--------------------------------------------------------------------+
 // STANDARD DESCRIPTORS

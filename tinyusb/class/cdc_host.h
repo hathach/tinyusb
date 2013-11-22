@@ -36,8 +36,6 @@
 */
 /**************************************************************************/
 
-/** \addtogroup ClassDriver_CDC Communication Device Class (CDC)
- *  @{ */
 
 #ifndef _TUSB_CDC_HOST_H_
 #define _TUSB_CDC_HOST_H_
@@ -50,6 +48,8 @@
  extern "C" {
 #endif
 
+/** \addtogroup ClassDriver_CDC Communication Device Class (CDC)
+ *  @{ */
 
 //--------------------------------------------------------------------+
 // APPLICATION PUBLIC API
@@ -57,8 +57,7 @@
 /** \addtogroup CDC_Serial Serial
  *  @{
  *  \defgroup   CDC_Serial_Host Host
- *  @{
- *  */
+ *  @{ */
 
 /** \brief 			Check if device support CDC Serial interface or not
  * \param[in]		dev_addr	device address
@@ -104,7 +103,9 @@ tusb_error_t tusbh_cdc_send(uint8_t dev_addr, void const * p_data, uint32_t leng
  */
 tusb_error_t tusbh_cdc_receive(uint8_t dev_addr, void * p_buffer, uint32_t length, bool is_notify);
 
-//------------- CDC Application Callback -------------//
+//--------------------------------------------------------------------+
+// CDC APPLICATION CALLBACKS
+//--------------------------------------------------------------------+
 /** \brief 			Callback function that will be invoked when a device with CDC Abstract Control Model interface is mounted
  * \param[in]	  dev_addr Address of newly mounted device
  * \note        This callback should be used by Application to set-up interface-related data
@@ -144,7 +145,9 @@ void tusbh_cdc_xfer_isr(uint8_t dev_addr, tusb_event_t event, cdc_pipeid_t pipe_
 bool tusbh_cdc_rndis_is_mounted(uint8_t dev_addr) ATTR_PURE ATTR_WARN_UNUSED_RESULT;
 tusb_error_t tusbh_cdc_rndis_get_mac_addr(uint8_t dev_addr, uint8_t mac_address[6]);
 
-//------------- RNDIS Application Callback (overshadow CDC callbacks) -------------//
+//--------------------------------------------------------------------+
+// RNDIS Application Callback (overshadow CDC callbacks)
+//--------------------------------------------------------------------+
 /** \brief 			Callback function that will be invoked when a device with RNDIS interface is mounted
  * \param[in]	  dev_addr Address of newly mounted device
  * \note        This callback should be used by Application to set-up interface-related data

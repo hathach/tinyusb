@@ -217,14 +217,21 @@ void dcd_isr(uint8_t coreid)
       usbd_dcd_bus_event_isr(0, USBD_BUS_EVENT_RESET);
     }
 
-    if ( (dev_status_reg & SIE_DEV_STATUS_CONNECT_CHANGE_MASK) && !(dev_status_reg & SIE_DEV_STATUS_CONNECT_STATUS_MASK))
-    { // TODO device is disconnected, require using VBUS (P1_30), cannot use CONNECT_STATUS as connection status
+    if (dev_status_reg & SIE_DEV_STATUS_CONNECT_CHANGE_MASK)
+    { // device is disconnected, require using VBUS (P1_30)
       usbd_dcd_bus_event_isr(0, USBD_BUS_EVENT_UNPLUGGED);
     }
 
-    if ( (dev_status_reg & SIE_DEV_STATUS_SUSPEND_CHANGE_MASK) && (dev_status_reg & SIE_DEV_STATUS_SUSPEND_MASK) )
+    if (dev_status_reg & SIE_DEV_STATUS_SUSPEND_CHANGE_MASK)
     {
-      usbd_dcd_bus_event_isr(0, USBD_BUS_EVENT_SUSPENDED);
+      if (dev_status_reg & SIE_DEV_STATUS_SUSPEND_MASK)
+      {
+        usbd_dcd_bus_event_isr(0, USBD_BUS_EVENT_SUSPENDED);
+      }
+//      else
+//      {
+//        usbd_dcd_bus_event_isr(0, USBD_BUS_EVENT_RESUME);
+//      }
     }
   }
 

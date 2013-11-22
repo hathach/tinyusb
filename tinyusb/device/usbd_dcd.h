@@ -62,7 +62,8 @@ enum {
 typedef enum {
   USBD_BUS_EVENT_RESET = 1,
   USBD_BUS_EVENT_UNPLUGGED,
-  USBD_BUS_EVENT_SUSPENDED
+  USBD_BUS_EVENT_SUSPENDED,
+  USBD_BUS_EVENT_RESUME
 }usbd_bus_event_type_t;
 
 typedef struct {

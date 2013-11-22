@@ -64,9 +64,10 @@ enum {
 };
 
 enum {
+  CMDSTAT_DEVICE_ADDR_MASK    = BIT_(7 )-1,
   CMDSTAT_DEVICE_ENABLE_MASK  = BIT_(7 ),
   CMDSTAT_SETUP_RECEIVED_MASK = BIT_(8 ),
-  CMDSTAT_DEVICE_CONNECT_MASK = BIT_(16),
+  CMDSTAT_DEVICE_CONNECT_MASK = BIT_(16), ///< reflect the softconnect only, does not reflect the actual attached state
   CMDSTAT_DEVICE_SUSPEND_MASK = BIT_(17),
   CMDSTAT_CONNECT_CHANGE_MASK = BIT_(24),
   CMDSTAT_SUSPEND_CHANGE_MASK = BIT_(25),
@@ -131,7 +132,7 @@ void dcd_controller_set_address(uint8_t coreid, uint8_t dev_addr)
 {
   (void) coreid;
 
-  LPC_USB->DEVCMDSTAT &= ~0x7F;
+  LPC_USB->DEVCMDSTAT &= ~CMDSTAT_DEVICE_ADDR_MASK;
   LPC_USB->DEVCMDSTAT |= dev_addr;
 }
 
@@ -142,7 +143,8 @@ tusb_error_t dcd_init(void)
 
   LPC_USB->INTSTAT      = LPC_USB->INTSTAT; // clear all pending interrupt
   LPC_USB->INTEN        = INT_MASK_DEVICE_STATUS;
-  LPC_USB->DEVCMDSTAT  |= CMDSTAT_DEVICE_ENABLE_MASK | CMDSTAT_DEVICE_CONNECT_MASK;
+  LPC_USB->DEVCMDSTAT  |= CMDSTAT_DEVICE_ENABLE_MASK | CMDSTAT_DEVICE_CONNECT_MASK |
+                          CMDSTAT_RESET_CHANGE_MASK | CMDSTAT_CONNECT_CHANGE_MASK | CMDSTAT_SUSPEND_CHANGE_MASK;
 
   return TUSB_ERROR_NONE;
 }
@@ -170,9 +172,7 @@ void dcd_isr(uint8_t coreid)
 {
   (void) coreid;
 
-  uint32_t int_status = LPC_USB->INTSTAT;
-  int_status &= LPC_USB->INTEN;
-
+  uint32_t const int_status = LPC_USB->INTSTAT & LPC_USB->INTEN;
   LPC_USB->INTSTAT = int_status; // Acknowledge handled interrupt
 
   if (int_status == 0) return;
@@ -182,24 +182,38 @@ void dcd_isr(uint8_t coreid)
   //------------- Device Status -------------//
   if ( int_status & INT_MASK_DEVICE_STATUS )
   {
-    LPC_USB->DEVCMDSTAT |= CMDSTAT_RESET_CHANGE_MASK | CMDSTAT_CONNECT_CHANGE_MASK /* CMDSTAT_SUSPEND_CHANGE_MASK */;
+    LPC_USB->DEVCMDSTAT |= CMDSTAT_RESET_CHANGE_MASK | CMDSTAT_CONNECT_CHANGE_MASK | CMDSTAT_SUSPEND_CHANGE_MASK;
     if ( dev_cmd_stat & CMDSTAT_RESET_CHANGE_MASK) // bus reset
     {
       bus_reset();
       usbd_dcd_bus_event_isr(0, USBD_BUS_EVENT_RESET);
     }
 
-//    if ( (dev_cmd_stat & CMDSTAT_SUSPEND_CHANGE_MASK) && (dev_cmd_stat & CMDSTAT_DEVICE_SUSPEND_MASK) )
-//    { // find a way to distinct bus suspend vs unplug/plug
-//      usbd_dcd_bus_event_isr(0, USBD_BUS_EVENT_SUSPENDED);
-//    }
-
-    if ( (dev_cmd_stat & CMDSTAT_CONNECT_CHANGE_MASK) && !(dev_cmd_stat & CMDSTAT_VBUS_DEBOUNCED_MASK) )
+    if (dev_cmd_stat & CMDSTAT_CONNECT_CHANGE_MASK)
     { // device disconnect
-      usbd_dcd_bus_event_isr(0, 0);
+      if (dev_cmd_stat & CMDSTAT_DEVICE_ADDR_MASK)
+      { // debouncing as this can be set when device is powering
+        usbd_dcd_bus_event_isr(0, USBD_BUS_EVENT_UNPLUGGED);
+      }
     }
 
-
+    // TODO support suspend & resume
+    if (dev_cmd_stat & CMDSTAT_SUSPEND_CHANGE_MASK)
+    {
+      if (dev_cmd_stat & CMDSTAT_DEVICE_SUSPEND_MASK)
+      { // suspend signal, bus idle for more than 3ms
+        // Note: Host may delay more than 3 ms before and/or after bus reset before doing enumeration.
+        if (dev_cmd_stat & CMDSTAT_DEVICE_ADDR_MASK)
+        {
+          usbd_dcd_bus_event_isr(0, USBD_BUS_EVENT_SUSPENDED);
+        }
+      }
+    }
+//        else
+//      { // resume signal
+//        usbd_dcd_bus_event_isr(0, USBD_BUS_EVENT_RESUME);
+//      }
+//    }
   }
 
   //------------- Control Endpoint -------------//

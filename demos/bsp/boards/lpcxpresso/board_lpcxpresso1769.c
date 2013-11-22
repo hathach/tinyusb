@@ -50,12 +50,13 @@ void board_init(void)
   // Leds Init
   GPIO_SetDir(CFG_LED_PORT, BIT_(CFG_LED_PIN), 1);
 
-  //------------- USB -------------//
-  PINSEL_ConfigPin( &(PINSEL_CFG_Type) { .Portnum = 2, .Pinnum = 9, .Funcnum = 1 } );
-
-  // lpcxpresso base board USB device : if base board J14 is inserted at 1-2, 1k5 resistor is controlled by P0_21 (active low)
-  GPIO_SetDir(0, BIT_(21), 1);
-  GPIO_ClearValue(0, BIT_(21));
+  //------------- USB Device -------------//
+  // VBUS sense is wrongly connected to P0_5 (instead of P1_30). So we need to always pull P1_30 to high
+  // so that USB device block can work. However, Device Controller (thus tinyusb) cannot able to determine
+  // if device is disconnected or not
+  PINSEL_ConfigPin( &(PINSEL_CFG_Type) {
+      .Portnum = 1, .Pinnum = 30,
+      .Funcnum = 2, .Pinmode = PINSEL_PINMODE_PULLUP} );
 
 #if CFG_UART_ENABLE
   //------------- UART init -------------//
@@ -80,11 +81,6 @@ void board_init(void)
 
 	UART_Init(BOARD_UART_PORT, &UARTConfigStruct);
 	UART_TxCmd(BOARD_UART_PORT, ENABLE); // Enable UART Transmit
-#endif
-
-#if CFG_PRINTF_TARGET == PRINTF_TARGET_SWO
-  LPC_IOCON->PIO0_9 &= ~0x07;    /*  UART I/O config */
-  LPC_IOCON->PIO0_9 |= 0x03;     /* UART RXD */
 #endif
 }
 

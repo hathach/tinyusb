@@ -40,7 +40,6 @@
  * @{
  *  \defgroup EHCI
  *  \brief EHCI driver. All documents sources mentioned here (eg section 3.5) is referring to EHCI Specs unless state otherwise
- *
  *  @{
  */
 
@@ -201,10 +200,10 @@ typedef struct {
 
 	ehci_qtd_t * volatile p_qtd_list_head;	// head of the scheduled TD list
 	ehci_qtd_t * volatile p_qtd_list_tail;	// tail of the scheduled TD list
-}ATTR_ALIGNED(32) ehci_qhd_t;
+} ehci_qhd_t;
 
 /// Highspeed Isochronous Transfer Descriptor (section 3.3)
-typedef struct {
+typedef struct ATTR_ALIGNED(32) {
 	/// Word 0: Next Link Pointer
 	ehci_link_t next;
 
@@ -231,10 +230,10 @@ typedef struct {
 //	uint32_t used;
 //	uint32_t IhdIdx;
 //	uint32_t reserved[6];
-}ATTR_ALIGNED(32) ehci_itd_t;
+} ehci_itd_t;
 
 /// Split (Full-Speed) Isochronous Transfer Descriptor
-typedef struct {
+typedef struct ATTR_ALIGNED(32) {
   /// Word 0: Next Link Pointer
 	ehci_link_t next;
 
@@ -293,7 +292,7 @@ typedef struct {
 	uint8_t used;
 	uint8_t ihd_idx;
 	uint8_t reserved2[2];
-}ATTR_ALIGNED(32) ehci_sitd_t;
+} ehci_sitd_t;
 
 //--------------------------------------------------------------------+
 // EHCI Operational Register

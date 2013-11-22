@@ -36,12 +36,12 @@
 */
 /**************************************************************************/
 
-/** \ingroup TBD
- *  \defgroup TBD
- *  \brief TBD
- *
+/** \ingroup Port_DCD
+ * @{
+ *  \defgroup LPC175x_6x
  *  @{
  */
+
 
 #ifndef _TUSB_DCD_LPC175X_6X_H_
 #define _TUSB_DCD_LPC175X_6X_H_
@@ -53,7 +53,7 @@
 #endif
 
 
-typedef struct
+typedef struct ATTR_ALIGNED(4)
 {
 	//------------- Word 0 -------------//
 	uint32_t next;
@@ -81,7 +81,7 @@ typedef struct
 
 	//------------- Word 4 -------------//
 //	uint32_t iso_packet_size_addr;		// iso only, can be omitted for non-iso
-} ATTR_ALIGNED(4) dcd_dma_descriptor_t;
+}dcd_dma_descriptor_t;
 
 STATIC_ASSERT( sizeof(dcd_dma_descriptor_t) == 16, "size is not correct"); // TODO not support ISO for now
 
@@ -239,3 +239,5 @@ static inline uint32_t sie_read (uint8_t cmd_code, uint8_t data_len)
 #endif /* _TUSB_DCD_LPC175X_6X_H_ */
 
 /** @} */
+/** @} */
+

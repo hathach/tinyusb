@@ -90,6 +90,14 @@ enum {
   INT_MASK_NAK         = BIT_(16)
 };
 
+//------------- PORTSC -------------//
+enum {
+  PORTSC_CURRENT_CONNECT_STATUS_MASK = BIT_(0),
+  PORTSC_FORCE_PORT_RESUME_MASK      = BIT_(6),
+  PORTSC_SUSPEND_MASK                = BIT_(7)
+
+};
+
 typedef struct {
   // Word 0: Next QTD Pointer
   uint32_t next; ///< Next link pointer This field contains the physical memory address of the next dTD to be processed
@@ -256,7 +264,7 @@ static void lpc43xx_controller_init(uint8_t coreid)
 
   lpc_usb->ENDPOINTLISTADDR = (uint32_t) p_dcd->qhd; // Endpoint List Address has to be 2K alignment
   lpc_usb->USBSTS_D  = lpc_usb->USBSTS_D;
-  lpc_usb->USBINTR_D = INT_MASK_USB | INT_MASK_ERROR | INT_MASK_PORT_CHANGE | INT_MASK_RESET | INT_MASK_SUSPEND; // | INT_MASK_SOF| INT_MASK_NAK;
+  lpc_usb->USBINTR_D = INT_MASK_USB | INT_MASK_ERROR | INT_MASK_PORT_CHANGE | INT_MASK_RESET | INT_MASK_SUSPEND; // | INT_MASK_SOF;
 
   lpc_usb->USBCMD_D &= ~0x00FF0000; // Interrupt Threshold Interval = 0
   lpc_usb->USBCMD_D |= BIT_(0); // connect
@@ -524,18 +532,26 @@ void dcd_isr(uint8_t coreid)
 {
   LPC_USB0_Type* const lpc_usb = LPC_USB[coreid];
 
-	uint32_t int_status = lpc_usb->USBSTS_D;
-	int_status &= lpc_usb->USBINTR_D;
-
+	uint32_t const int_status = lpc_usb->USBSTS_D & lpc_usb->USBINTR_D;
 	lpc_usb->USBSTS_D = int_status; // Acknowledge handled interrupt
 
-	if (int_status == 0) return;
+	if (int_status == 0) return; // disabled interrupt sources
 
 	if (int_status & INT_MASK_RESET)
 	{
 	  bus_reset(coreid);
-	  usbd_bus_reset(coreid);
+	  usbd_dcd_bus_event_isr(0, USBD_BUS_EVENT_RESET);
 	}
+
+//	if (int_status & INT_MASK_SUSPEND)
+//	{
+//	  uint32_t portsc = lpc_usb->PORTSC1_D;
+//
+//	  if (portsc & PORTSC_SUSPEND_MASK)
+//	  {
+//	    tusbd_device_suspended_cb(coreid);
+//	  }
+//	}
 
 	if (int_status & INT_MASK_USB)
 	{
