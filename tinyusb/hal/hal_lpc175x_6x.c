@@ -38,7 +38,7 @@
 
 #include "tusb_option.h"
 
-#if MCU == MCU_LPC175X_6X
+#if TUSB_CFG_MCU == MCU_LPC175X_6X
 
 //--------------------------------------------------------------------+
 // INCLUDE

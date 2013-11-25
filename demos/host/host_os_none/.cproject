@@ -36,7 +36,7 @@
 									<listOptionValue builtIn="false" value="__REDLIB__"/>
 									<listOptionValue builtIn="false" value="__USE_CMSIS=CMSIS_LPC43xx_DriverLib"/>
 									<listOptionValue builtIn="false" value="CORE_M4"/>
-									<listOptionValue builtIn="false" value="MCU=MCU_LPC43XX"/>
+									<listOptionValue builtIn="false" value="TUSB_CFG_MCU=MCU_LPC43XX"/>
 									<listOptionValue builtIn="false" value="BOARD=BOARD_NGX4330"/>
 									<listOptionValue builtIn="false" value="TUSB_CFG_OS=TUSB_OS_NONE"/>
 									<listOptionValue builtIn="false" value="DEBUG"/>
@@ -125,7 +125,7 @@
 									<listOptionValue builtIn="false" value="__REDLIB__"/>
 									<listOptionValue builtIn="false" value="__USE_CMSIS=CMSIS_LPC43xx_DriverLib"/>
 									<listOptionValue builtIn="false" value="CORE_M4"/>
-									<listOptionValue builtIn="false" value="MCU=MCU_LPC43XX"/>
+									<listOptionValue builtIn="false" value="TUSB_CFG_MCU=MCU_LPC43XX"/>
 									<listOptionValue builtIn="false" value="BOARD=BOARD_EA4357"/>
 									<listOptionValue builtIn="false" value="TUSB_CFG_OS=TUSB_OS_NONE"/>
 									<listOptionValue builtIn="false" value="DEBUG"/>
@@ -221,7 +221,7 @@
 									<listOptionValue builtIn="false" value="__REDLIB__"/>
 									<listOptionValue builtIn="false" value="__USE_CMSIS=CMSIS_LPC43xx_DriverLib"/>
 									<listOptionValue builtIn="false" value="CORE_M4"/>
-									<listOptionValue builtIn="false" value="MCU=MCU_LPC43XX"/>
+									<listOptionValue builtIn="false" value="TUSB_CFG_MCU=MCU_LPC43XX"/>
 									<listOptionValue builtIn="false" value="BOARD=BOARD_MCB4300"/>
 									<listOptionValue builtIn="false" value="TUSB_CFG_OS=TUSB_OS_NONE"/>
 									<listOptionValue builtIn="false" value="DEBUG"/>
@@ -313,7 +313,7 @@
 									<listOptionValue builtIn="false" value="__REDLIB__"/>
 									<listOptionValue builtIn="false" value="__USE_CMSIS=CMSIS_LPC43xx_DriverLib"/>
 									<listOptionValue builtIn="false" value="CORE_M4"/>
-									<listOptionValue builtIn="false" value="MCU=MCU_LPC43XX"/>
+									<listOptionValue builtIn="false" value="TUSB_CFG_MCU=MCU_LPC43XX"/>
 									<listOptionValue builtIn="false" value="BOARD=BOARD_HITEX4350"/>
 									<listOptionValue builtIn="false" value="TUSB_CFG_OS=TUSB_OS_NONE"/>
 									<listOptionValue builtIn="false" value="DEBUG"/>
@@ -405,7 +405,7 @@
 									<listOptionValue builtIn="false" value="__REDLIB__"/>
 									<listOptionValue builtIn="false" value="__USE_CMSIS=CMSIS_LPC43xx_DriverLib"/>
 									<listOptionValue builtIn="false" value="CORE_M4"/>
-									<listOptionValue builtIn="false" value="MCU=MCU_LPC43XX"/>
+									<listOptionValue builtIn="false" value="TUSB_CFG_MCU=MCU_LPC43XX"/>
 									<listOptionValue builtIn="false" value="BOARD=BOARD_LPC4357USB"/>
 									<listOptionValue builtIn="false" value="TUSB_CFG_OS=TUSB_OS_NONE"/>
 									<listOptionValue builtIn="false" value="DEBUG"/>

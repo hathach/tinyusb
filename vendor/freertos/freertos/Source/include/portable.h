@@ -318,7 +318,7 @@
 #include "tusb_option.h"
 
 #ifdef __GNUC__
-  #if MCU==MCU_LPC43XX // TODO M0 M4
+  #if TUSB_CFG_MCU==MCU_LPC43XX // TODO M0 M4
     #include "../portable/GCC/ARM_CM4F/portmacro.h"
   #else
     #error portmacro.h for mcu is not supported yet

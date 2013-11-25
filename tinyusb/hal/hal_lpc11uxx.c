@@ -39,7 +39,7 @@
 #include "common/common.h"
 #include "hal.h"
 
-#if MCU == MCU_LPC11UXX
+#if TUSB_CFG_MCU == MCU_LPC11UXX
 
 tusb_error_t hal_init(void)
 {

@@ -67,14 +67,14 @@
 //--------------------------------------------------------------------+
 // Controller
 //--------------------------------------------------------------------+
-#if MCU == MCU_LPC43XX || MCU == MCU_LPC18XX
+#if TUSB_CFG_MCU == MCU_LPC43XX || TUSB_CFG_MCU == MCU_LPC18XX
   #define CAP_CONTROLLER_NUMBER 2
 #else
   #define CAP_CONTROLLER_NUMBER 1
 #endif
 
 #define CAP_MODE_DEVICE
-#if MCU == MCU_LPC43XX || MCU == MCU_LPC18XX || MCU == MCU_LPC175X_6X
+#if TUSB_CFG_MCU == MCU_LPC43XX || TUSB_CFG_MCU == MCU_LPC18XX || TUSB_CFG_MCU == MCU_LPC175X_6X
   #define CAP_MODE_HOST
 #endif
 

@@ -58,7 +58,7 @@
 #endif
 
 // LPC11uxx and LPC13uxx requires each buffer has to be 64-byte alignment
-#if MCU == MCU_LPC11UXX || MCU == MCU_LPC13UXX
+#if TUSB_CFG_MCU == MCU_LPC11UXX || TUSB_CFG_MCU == MCU_LPC13UXX
  #define ATTR_USB_MIN_ALIGNMENT   ATTR_ALIGNED(64)
 #else
  #define ATTR_USB_MIN_ALIGNMENT

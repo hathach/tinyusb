@@ -50,7 +50,7 @@
 #include "usbd_dcd.h"
 
 // Some MCUs cannot transfer more than 64 bytes each queue, thus require special task-alike treatment
-#if MCU == MCU_LPC11UXX || MCU == MCU_LPC175X_6X
+#if TUSB_CFG_MCU == MCU_LPC11UXX || TUSB_CFG_MCU == MCU_LPC175X_6X
   #define USBD_CONTROL_ONE_PACKET_EACH_XFER // for each Transfer, cannot queue more than packet size
   enum {
     USBD_COTNROL_MAX_LENGTH_EACH_XFER = 64

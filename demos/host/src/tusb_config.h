@@ -101,9 +101,9 @@
 #define TUSB_CFG_OS_TICKS_PER_SECOND  1000
 
 #ifdef __CODE_RED // make use of code red's support for ram region macros
-  #if (MCU == MCU_LPC11UXX) || (MCU == MCU_LPC13UXX)
+  #if (TUSB_CFG_MCU == MCU_LPC11UXX) || (TUSB_CFG_MCU == MCU_LPC13UXX)
     #define TUSB_RAM_SECTION  ".data.$RAM2"
-  #elif  (MCU == MCU_LPC43XX)
+  #elif  (TUSB_CFG_MCU == MCU_LPC43XX)
     #define TUSB_RAM_SECTION  ".data.$RAM3"
   #endif
 

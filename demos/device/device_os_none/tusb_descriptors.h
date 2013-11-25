@@ -74,7 +74,7 @@
 #define EDPT_IN(x)    (0x80 | (x))
 #define EDPT_OUT(x)   (x)
 
-#if MCU == MCU_LPC175X_6X
+#if TUSB_CFG_MCU == MCU_LPC175X_6X
 //------------- These MCUs's endpoint number has a fixed type -------------//
 //------------- CDC -------------//
 #define CDC_EDPT_NOTIFICATION_ADDR            EDPT_IN (1)

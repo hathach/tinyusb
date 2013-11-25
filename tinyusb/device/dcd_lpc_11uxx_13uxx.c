@@ -38,7 +38,7 @@
 
 #include "tusb_option.h"
 
-#if MODE_DEVICE_SUPPORTED && (MCU == MCU_LPC11UXX || MCU == MCU_LPC13UXX)
+#if MODE_DEVICE_SUPPORTED && (TUSB_CFG_MCU == MCU_LPC11UXX || TUSB_CFG_MCU == MCU_LPC13UXX)
 
 #define _TINY_USB_SOURCE_FILE_
 //--------------------------------------------------------------------+

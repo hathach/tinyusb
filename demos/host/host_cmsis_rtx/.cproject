@@ -36,7 +36,7 @@
 									<listOptionValue builtIn="false" value="__REDLIB__"/>
 									<listOptionValue builtIn="false" value="__USE_CMSIS=CMSIS_LPC43xx_DriverLib"/>
 									<listOptionValue builtIn="false" value="CORE_M4"/>
-									<listOptionValue builtIn="false" value="MCU=MCU_LPC43XX"/>
+									<listOptionValue builtIn="false" value="TUSB_CFG_MCU=MCU_LPC43XX"/>
 									<listOptionValue builtIn="false" value="BOARD=BOARD_NGX4330"/>
 									<listOptionValue builtIn="false" value="TUSB_CFG_OS=TUSB_OS_FREERTOS"/>
 									<listOptionValue builtIn="false" value="TUSB_CFG_OS_TASK_PRIO=(configMAX_PRIORITIES-5)"/>
@@ -698,7 +698,7 @@
 									<listOptionValue builtIn="false" value="__FPU_PRESENT"/>
 									<listOptionValue builtIn="false" value="__USE_CMSIS=CMSIS_LPC43xx_DriverLib"/>
 									<listOptionValue builtIn="false" value="CORE_M4"/>
-									<listOptionValue builtIn="false" value="MCU=MCU_LPC43XX"/>
+									<listOptionValue builtIn="false" value="TUSB_CFG_MCU=MCU_LPC43XX"/>
 									<listOptionValue builtIn="false" value="BOARD=BOARD_EA4357"/>
 									<listOptionValue builtIn="false" value="TUSB_CFG_OS=TUSB_OS_CMSIS_RTX"/>
 									<listOptionValue builtIn="false" value="TUSB_CFG_OS_TASK_PRIO=osPriorityRealtime"/>

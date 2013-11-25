@@ -39,7 +39,7 @@
 #include "common/common.h"
 #include "hal.h"
 
-#if MCU == MCU_LPC43XX
+#if TUSB_CFG_MCU == MCU_LPC43XX
 
 #include "lpc43xx_cgu.h"
 #include "lpc43xx_scu.h"

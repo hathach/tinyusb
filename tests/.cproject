@@ -33,7 +33,7 @@
 							<tool id="cdt.managedbuild.tool.gnu.cpp.compiler.mingw.base.694786126" name="GCC C++ Compiler" superClass="cdt.managedbuild.tool.gnu.cpp.compiler.mingw.base"/>
 							<tool errorParsers="org.eclipse.cdt.core.GCCErrorParser" id="cdt.managedbuild.tool.gnu.c.compiler.mingw.base.1588045403" name="GCC C Compiler" superClass="cdt.managedbuild.tool.gnu.c.compiler.mingw.base">
 								<option id="gnu.c.compiler.option.preprocessor.def.symbols.1484610767" name="Defined symbols (-D)" superClass="gnu.c.compiler.option.preprocessor.def.symbols" valueType="definedSymbols">
-									<listOptionValue builtIn="false" value="MCU=MCU_LPC43XX"/>
+									<listOptionValue builtIn="false" value="TUSB_CFG_MCU=MCU_LPC43XX"/>
 								</option>
 								<option id="gnu.c.compiler.option.preprocessor.undef.symbol.1508960620" superClass="gnu.c.compiler.option.preprocessor.undef.symbol"/>
 								<inputType id="cdt.managedbuild.tool.gnu.c.compiler.input.451457393" superClass="cdt.managedbuild.tool.gnu.c.compiler.input"/>
