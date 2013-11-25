@@ -89,21 +89,17 @@ uint8_t mscd_app_ramdisk[DISK_BLOCK_NUM][DISK_BLOCK_SIZE] TUSB_CFG_ATTR_USBRAM =
 //--------------------------------------------------------------------+
 // IMPLEMENTATION
 //--------------------------------------------------------------------+
-uint16_t read10(uint8_t coreid, uint8_t lun, scsi_read10_t* p_read10, void** pp_buffer)
+uint16_t tusbd_msc_read10_cb (uint8_t coreid, uint8_t lun, void** pp_buffer, uint32_t lba, uint16_t block_count)
 {
-  uint8_t block_count = __be2h_16(p_read10->block_count);
+  (*pp_buffer) = mscd_app_ramdisk[lba];
 
-  (*pp_buffer) = mscd_app_ramdisk[ __be2le(p_read10->lba)];
-
-  return block_count*DISK_BLOCK_SIZE;
+  return min16_of(block_count, DISK_BLOCK_NUM);
 }
-
-uint16_t write10(uint8_t coreid, uint8_t lun, scsi_read10_t* p_read10, void** pp_buffer)
+uint16_t tusbh_msc_write10_cb(uint8_t coreid, uint8_t lun, void** pp_buffer, uint32_t lba, uint16_t block_count)
 {
-  uint8_t block_count = __be2h_16(p_read10->block_count);
-  (*pp_buffer) = mscd_app_ramdisk[ __be2le(p_read10->lba)];
+  (*pp_buffer) = mscd_app_ramdisk[lba];
 
-  return block_count*DISK_BLOCK_SIZE;
+  return min16_of(block_count, DISK_BLOCK_NUM);
 }
 
 //--------------------------------------------------------------------+

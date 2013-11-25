@@ -175,9 +175,9 @@ void endpoint_control_isr(void)
     {
       tusb_control_request_t control_request;
 
-      (void) sie_read(SIE_CMDCODE_ENDPOINT_SELECT_CLEAR_INTERRUPT+0, 1); // clear setup bit, can be omitted ???
+      (void) sie_read(SIE_CMDCODE_ENDPOINT_SELECT_CLEAR_INTERRUPT+0, 1); // clear setup bit
 
-      pipe_control_read(&control_request, 8);
+      pipe_control_read(&control_request, 8); // TODO read before clear setup above
 
       usbd_setup_received_isr(0, &control_request);
     }else

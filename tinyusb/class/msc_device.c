@@ -139,7 +139,9 @@ tusb_error_t mscd_control_request(uint8_t coreid, tusb_control_request_t const *
 void mscd_isr(endpoint_handle_t edpt_hdl, tusb_event_t event, uint32_t xferred_bytes)
 {
   // TODO failed --> STALL pipe, on clear STALL --> queue endpoint OUT
-  mscd_interface_t * p_msc = &mscd_data;
+  mscd_interface_t *         const p_msc = &mscd_data;
+  msc_cmd_block_wrapper_t *  const p_cbw = &p_msc->cbw;
+  msc_cmd_status_wrapper_t * const p_csw = &p_msc->csw;
 
   if ( endpointhandle_is_equal(p_msc->edpt_in, edpt_hdl) )
   {
@@ -149,37 +151,75 @@ void mscd_isr(endpoint_handle_t edpt_hdl, tusb_event_t event, uint32_t xferred_b
   ASSERT( endpointhandle_is_equal(p_msc->edpt_out, edpt_hdl) &&
           xferred_bytes == sizeof(msc_cmd_block_wrapper_t) &&
           event == TUSB_EVENT_XFER_COMPLETE &&
-          p_msc->cbw.signature == MSC_CBW_SIGNATURE, VOID_RETURN );
+          p_cbw->signature == MSC_CBW_SIGNATURE, VOID_RETURN );
 
   void *p_buffer = NULL;
-  uint16_t actual_length = p_msc->cbw.xfer_bytes;
+  uint16_t actual_length = p_cbw->xfer_bytes;
 
-  p_msc->csw.signature    = MSC_CSW_SIGNATURE;
-  p_msc->csw.tag          = p_msc->cbw.tag;
-  p_msc->csw.status       = tusbd_msc_scsi_received_isr(edpt_hdl.coreid, p_msc->cbw.lun, p_msc->cbw.command, &p_buffer, &actual_length);
-  p_msc->csw.data_residue = 0; // TODO expected length, response length
+  p_csw->signature    = MSC_CSW_SIGNATURE;
+  p_csw->tag          = p_cbw->tag;
+  p_csw->data_residue = 0;
 
-  ASSERT( p_msc->cbw.xfer_bytes >= actual_length, VOID_RETURN );
+  switch(p_cbw->command[0])
+  {
+    case SCSI_CMD_READ_10:
+    case SCSI_CMD_WRITE_10:
+    {
+      scsi_read10_t const * const p_read10 = &p_cbw->command; // read10 & write10 has the same data structure
+      uint32_t const lba                   = __be2le(p_read10->lba);
+      uint16_t const block_count           = __be2h_16(p_read10->block_count);
+
+      uint16_t actual_block_count;
+
+      if (SCSI_CMD_READ_10 == p_cbw->command[0])
+      {
+        actual_block_count = tusbd_msc_read10_cb (edpt_hdl.coreid, p_cbw->lun, &p_buffer, lba, block_count);
+      }else
+      {
+        actual_block_count = tusbh_msc_write10_cb(edpt_hdl.coreid, p_cbw->lun, &p_buffer, lba, block_count);
+      }
+
+      ASSERT( actual_block_count <= block_count, VOID_RETURN);
+
+      if ( actual_block_count < block_count )
+      {
+        uint32_t const block_size = p_cbw->xfer_bytes / block_count;
+        actual_length       = block_size * actual_block_count;
+        p_csw->data_residue = p_cbw->xfer_bytes - actual_length;
+        p_csw->status       = MSC_CSW_STATUS_FAILED;
+      }else
+      {
+        p_csw->status       = MSC_CSW_STATUS_PASSED;
+      }
+    }
+    break;
+
+    default:
+      p_csw->status = tusbd_msc_scsi_received_isr(edpt_hdl.coreid, p_cbw->lun, p_cbw->command, &p_buffer, &actual_length);
+    break;
+  }
+
+  ASSERT( p_cbw->xfer_bytes >= actual_length, VOID_RETURN );
 
   //------------- Data Phase -------------//
-  if ( p_msc->cbw.xfer_bytes )
+  if ( p_cbw->xfer_bytes )
   {
     if ( p_buffer == NULL || actual_length == 0 )
     { // application does not provide data to response --> possibly unsupported SCSI command
       ASSERT( TUSB_ERROR_NONE == dcd_pipe_stall(p_msc->edpt_in), VOID_RETURN );
-      p_msc->csw.status = MSC_CSW_STATUS_FAILED;
+      p_csw->status = MSC_CSW_STATUS_FAILED;
     }else
     {
-      ASSERT( dcd_pipe_queue_xfer( BIT_TEST_(p_msc->cbw.dir, 7) ? p_msc->edpt_in : p_msc->edpt_out,
+      ASSERT( dcd_pipe_queue_xfer( BIT_TEST_(p_cbw->dir, 7) ? p_msc->edpt_in : p_msc->edpt_out,
                                                                 p_buffer, actual_length) == TUSB_ERROR_NONE, VOID_RETURN);
     }
   }
 
   //------------- Status Phase -------------//
-  ASSERT( dcd_pipe_xfer( p_msc->edpt_in , &p_msc->csw, sizeof(msc_cmd_status_wrapper_t), true) == TUSB_ERROR_NONE, VOID_RETURN ); // need to be true for dcd to clean up qtd !!
+  ASSERT( dcd_pipe_xfer( p_msc->edpt_in , p_csw, sizeof(msc_cmd_status_wrapper_t), true) == TUSB_ERROR_NONE, VOID_RETURN ); // need to be true for dcd to clean up qtd !!
 
   //------------- Queue the next CBW -------------//
-  ASSERT( dcd_pipe_xfer( p_msc->edpt_out, &p_msc->cbw, sizeof(msc_cmd_block_wrapper_t), true) == TUSB_ERROR_NONE, VOID_RETURN );
+  ASSERT( dcd_pipe_xfer( p_msc->edpt_out, p_cbw, sizeof(msc_cmd_block_wrapper_t), true) == TUSB_ERROR_NONE, VOID_RETURN );
 
 }
 

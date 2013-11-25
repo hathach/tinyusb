@@ -103,7 +103,7 @@ static usbd_class_driver_t const usbd_class_drivers[TUSB_CLASS_MAPPED_INDEX_STAR
 // INTERNAL OBJECT & FUNCTION DECLARATION
 //--------------------------------------------------------------------+
 tusb_error_t usbd_set_configure_received(uint8_t coreid, uint8_t config_number);
-tusb_error_t get_descriptor_subtask(uint8_t coreid, tusb_control_request_t * p_request, uint8_t const ** pp_buffer, uint16_t * p_length);
+tusb_error_t get_descriptor_subtask(uint8_t coreid, tusb_control_request_t const * const p_request, uint8_t const ** pp_buffer, uint16_t * p_length);
 
 //--------------------------------------------------------------------+
 // APPLICATION INTERFACE
@@ -126,10 +126,11 @@ typedef enum {
   USBD_EVENTID_SETUP_RECEIVED = 1
 }usbd_eventid_t;
 
-typedef struct {
+typedef struct ATTR_ALIGNED(2)
+{
   uint8_t coreid;
   uint8_t event_id;
-  uint8_t reserved[2];
+  uint8_t data[ MAX_OF(sizeof(tusb_control_request_t), sizeof(endpoint_handle_t)) ]; // hold control request or endpoint handle
 }usbd_task_event_t;
 
 OSAL_TASK_DEF(usbd_task, 150, TUSB_CFG_OS_TASK_PRIO);
@@ -139,101 +140,88 @@ OSAL_SEM_DEF(usbd_control_xfer_semaphore_def);
 static osal_queue_handle_t usbd_queue_hdl;
 static osal_semaphore_handle_t usbd_control_xfer_sem_hdl;
 
-tusb_error_t usbd_body_subtask(void)
+tusb_error_t usbd_control_request_subtask(uint8_t coreid, tusb_control_request_t const * const p_request)
 {
   OSAL_SUBTASK_BEGIN
 
-  static uint8_t coreid;
   tusb_error_t error = TUSB_ERROR_NONE;
-  usbd_task_event_t event;
 
-  osal_queue_receive(usbd_queue_hdl, &event, OSAL_TIMEOUT_WAIT_FOREVER, &error);
-  SUBTASK_ASSERT_STATUS(error);
-
-  coreid = event.coreid;
-
-  if ( USBD_EVENTID_SETUP_RECEIVED == event.event_id )
-  { // should copy to setup packet to local variable as the new one may overwrite while we processing here
-    static tusb_control_request_t control_request;
-    control_request = usbd_devices[coreid].control_request;
-
-    //------------- Standard Control such as those in enumeration -------------//
-    if( TUSB_REQUEST_RECIPIENT_DEVICE == control_request.bmRequestType_bit.recipient &&
-        TUSB_REQUEST_TYPE_STANDARD    == control_request.bmRequestType_bit.type )
+  //------------- Standard Control such as those in enumeration -------------//
+  if( TUSB_REQUEST_RECIPIENT_DEVICE == p_request->bmRequestType_bit.recipient &&
+      TUSB_REQUEST_TYPE_STANDARD    == p_request->bmRequestType_bit.type )
+  {
+    if ( TUSB_REQUEST_GET_DESCRIPTOR == p_request->bRequest )
     {
-      if ( TUSB_REQUEST_GET_DESCRIPTOR == control_request.bRequest )
-      {
-        static uint8_t* p_buffer = NULL;
-        static uint16_t length = 0;
+      OSAL_VAR uint8_t* p_buffer = NULL;
+      OSAL_VAR uint16_t length = 0;
 
-        error = get_descriptor_subtask(coreid, &control_request, &p_buffer, &length);
+      error = get_descriptor_subtask(coreid, p_request, &p_buffer, &length);
 
 #ifdef USBD_CONTROL_ONE_PACKET_EACH_XFER
-        while ( length > USBD_COTNROL_MAX_LENGTH_EACH_XFER && error == TUSB_ERROR_NONE )
-        {
-          usbd_devices[coreid].is_waiting_control_xfer = true;
+      while ( length > USBD_COTNROL_MAX_LENGTH_EACH_XFER && error == TUSB_ERROR_NONE )
+      {
+        usbd_devices[coreid].is_waiting_control_xfer = true;
 
-          dcd_pipe_control_xfer(coreid, control_request.bmRequestType_bit.direction, p_buffer, USBD_COTNROL_MAX_LENGTH_EACH_XFER); // zero length
-          osal_semaphore_wait(usbd_control_xfer_sem_hdl, OSAL_TIMEOUT_NORMAL, &error);
+        dcd_pipe_control_xfer(coreid, p_request->bmRequestType_bit.direction, p_buffer, USBD_COTNROL_MAX_LENGTH_EACH_XFER); // zero length
+        osal_semaphore_wait(usbd_control_xfer_sem_hdl, OSAL_TIMEOUT_NORMAL, &error);
 
-          length   -= USBD_COTNROL_MAX_LENGTH_EACH_XFER;
-          p_buffer += USBD_COTNROL_MAX_LENGTH_EACH_XFER;
+        length   -= USBD_COTNROL_MAX_LENGTH_EACH_XFER;
+        p_buffer += USBD_COTNROL_MAX_LENGTH_EACH_XFER;
 
-          usbd_devices[coreid].is_waiting_control_xfer = false;
-        }
+        usbd_devices[coreid].is_waiting_control_xfer = false;
+      }
 #endif
 
-        if ( TUSB_ERROR_NONE == error )
-        {
-          dcd_pipe_control_xfer(coreid, control_request.bmRequestType_bit.direction, p_buffer, length);
-        }
-      }
-      else if ( TUSB_REQUEST_SET_ADDRESS == control_request.bRequest )
+      if ( TUSB_ERROR_NONE == error )
       {
-        dcd_controller_set_address(coreid, (uint8_t) control_request.wValue);
-        usbd_devices[coreid].state = TUSB_DEVICE_STATE_ADDRESSED;
-      }
-      else if ( TUSB_REQUEST_SET_CONFIGURATION == control_request.bRequest )
-      {
-        usbd_set_configure_received(coreid, (uint8_t) control_request.wValue);
-      }else
-      {
-        error = TUSB_ERROR_DCD_CONTROL_REQUEST_NOT_SUPPORT;
+        dcd_pipe_control_xfer(coreid, p_request->bmRequestType_bit.direction, p_buffer, length);
       }
     }
-    //------------- Class/Interface Specific Request -------------//
-    else if ( TUSB_REQUEST_RECIPIENT_INTERFACE == control_request.bmRequestType_bit.recipient)
+    else if ( TUSB_REQUEST_SET_ADDRESS == p_request->bRequest )
     {
-      tusb_std_class_code_t class_code = usbd_devices[coreid].interface2class[ u16_low_u8(control_request.wIndex) ];
-
-      if ( (TUSB_CLASS_AUDIO <= class_code) && (class_code <= TUSB_CLASS_AUDIO_VIDEO) &&
-           usbd_class_drivers[class_code].control_request )
-      {
-        error = usbd_class_drivers[class_code].control_request(coreid, &control_request);
-      }else
-      {
-        error = TUSB_ERROR_DCD_CONTROL_REQUEST_NOT_SUPPORT;
-      }
+      dcd_controller_set_address(coreid, (uint8_t) p_request->wValue);
+      usbd_devices[coreid].state = TUSB_DEVICE_STATE_ADDRESSED;
     }
-    //------------- Endpoint Request -------------//
-    else if ( TUSB_REQUEST_RECIPIENT_ENDPOINT == control_request.bmRequestType_bit.recipient &&
-              TUSB_REQUEST_TYPE_STANDARD      == control_request.bmRequestType_bit.type &&
-              TUSB_REQUEST_CLEAR_FEATURE      == control_request.bRequest )
+    else if ( TUSB_REQUEST_SET_CONFIGURATION == p_request->bRequest )
     {
-      dcd_pipe_clear_stall(coreid, u16_low_u8(control_request.wIndex) );
-    } else
+      usbd_set_configure_received(coreid, (uint8_t) p_request->wValue);
+    }else
     {
       error = TUSB_ERROR_DCD_CONTROL_REQUEST_NOT_SUPPORT;
     }
+  }
+  //------------- Class/Interface Specific Request -------------//
+  else if ( TUSB_REQUEST_RECIPIENT_INTERFACE == p_request->bmRequestType_bit.recipient)
+  {
+    tusb_std_class_code_t class_code = usbd_devices[coreid].interface2class[ u16_low_u8(p_request->wIndex) ];
 
-    if(TUSB_ERROR_NONE != error)
-    { // Response with Protocol Stall if request is not supported
-      dcd_pipe_control_stall(coreid);
-      //    ASSERT(error == TUSB_ERROR_NONE, VOID_RETURN);
+    if ( (TUSB_CLASS_AUDIO <= class_code) && (class_code <= TUSB_CLASS_AUDIO_VIDEO) &&
+         usbd_class_drivers[class_code].control_request )
+    {
+      error = usbd_class_drivers[class_code].control_request(coreid, p_request);
     }else
-    { // status phase
-      dcd_pipe_control_xfer(coreid, 1-control_request.bmRequestType_bit.direction, NULL, 0); // zero length
+    {
+      error = TUSB_ERROR_DCD_CONTROL_REQUEST_NOT_SUPPORT;
     }
+  }
+  //------------- Endpoint Request -------------//
+  else if ( TUSB_REQUEST_RECIPIENT_ENDPOINT == p_request->bmRequestType_bit.recipient &&
+            TUSB_REQUEST_TYPE_STANDARD      == p_request->bmRequestType_bit.type &&
+            TUSB_REQUEST_CLEAR_FEATURE      == p_request->bRequest )
+  {
+    dcd_pipe_clear_stall(coreid, u16_low_u8(p_request->wIndex) );
+  } else
+  {
+    error = TUSB_ERROR_DCD_CONTROL_REQUEST_NOT_SUPPORT;
+  }
+
+  if(TUSB_ERROR_NONE != error)
+  { // Response with Protocol Stall if request is not supported
+    dcd_pipe_control_stall(coreid);
+    //    ASSERT(error == TUSB_ERROR_NONE, VOID_RETURN);
+  }else
+  { // status phase
+    dcd_pipe_control_xfer(coreid, 1-p_request->bmRequestType_bit.direction, NULL, 0); // zero length
   }
 
   OSAL_SUBTASK_END
@@ -246,7 +234,20 @@ OSAL_TASK_FUNCTION(usbd_task) (void* p_task_para)
 {
   OSAL_TASK_LOOP_BEGIN
 
-  usbd_body_subtask();
+  OSAL_VAR usbd_task_event_t event;
+  tusb_error_t error = TUSB_ERROR_NONE;
+
+  osal_queue_receive(usbd_queue_hdl, &event, OSAL_TIMEOUT_WAIT_FOREVER, &error);
+  SUBTASK_ASSERT_STATUS(error);
+
+  if ( USBD_EVENTID_SETUP_RECEIVED == event.event_id )
+  {
+    OSAL_SUBTASK_INVOKED_AND_WAIT( usbd_control_request_subtask(event.coreid, (tusb_control_request_t*) event.data), error );
+  }else
+  {
+
+  }
+  //else {}
 
   OSAL_TASK_LOOP_END
 }
@@ -320,7 +321,7 @@ tusb_error_t usbd_set_configure_received(uint8_t coreid, uint8_t config_number)
   return TUSB_ERROR_NONE;
 }
 
-tusb_error_t get_descriptor_subtask(uint8_t coreid, tusb_control_request_t * p_request, uint8_t const ** pp_buffer, uint16_t * p_length)
+tusb_error_t get_descriptor_subtask(uint8_t coreid, tusb_control_request_t const * const p_request, uint8_t const ** pp_buffer, uint16_t * p_length)
 {
   tusb_std_descriptor_type_t const desc_type = u16_high_u8(p_request->wValue);
   uint8_t const desc_index = u16_low_u8( p_request->wValue );
@@ -380,13 +381,15 @@ void usbd_dcd_bus_event_isr(uint8_t coreid, usbd_bus_event_type_t bus_event)
 
 void usbd_setup_received_isr(uint8_t coreid, tusb_control_request_t * p_request)
 {
-  usbd_devices[coreid].control_request = (*p_request);
+  usbd_task_event_t event =
+  {
+      .coreid   = coreid,
+      .event_id = USBD_EVENTID_SETUP_RECEIVED
+  };
 
-  osal_queue_send(usbd_queue_hdl,
-                  &(usbd_task_event_t){
-                    .coreid = coreid,
-                    .event_id = USBD_EVENTID_SETUP_RECEIVED}
-                  );
+  memcpy(event.data, p_request, sizeof(tusb_control_request_t));
+
+  osal_queue_send(usbd_queue_hdl, &event);
 }
 
 void usbd_xfer_isr(endpoint_handle_t edpt_hdl, tusb_event_t event, uint32_t xferred_bytes)

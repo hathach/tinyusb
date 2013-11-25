@@ -95,22 +95,18 @@ static uint8_t ramdisk_buffer[DISK_BLOCK_SIZE] TUSB_CFG_ATTR_USBRAM;
 //--------------------------------------------------------------------+
 // IMPLEMENTATION
 //--------------------------------------------------------------------+
-uint16_t read10(uint8_t coreid, uint8_t lun, scsi_read10_t* p_read10, void** pp_buffer)
+uint16_t tusbd_msc_read10_cb (uint8_t coreid, uint8_t lun, void** pp_buffer, uint32_t lba, uint16_t block_count)
 {
-  uint8_t block_count = __be2h_16(p_read10->block_count);
-
-  memcpy(ramdisk_buffer, mscd_app_rommdisk[ __be2le(p_read10->lba)], DISK_BLOCK_SIZE);
-
+  memcpy(ramdisk_buffer, mscd_app_rommdisk[lba], DISK_BLOCK_SIZE);
   (*pp_buffer) = ramdisk_buffer;
 
-  return block_count*DISK_BLOCK_SIZE;
+  return 1;
 }
 
 // Stall write10 as this is readonly disk
-uint16_t write10(uint8_t coreid, uint8_t lun, scsi_read10_t* p_read10, void** pp_buffer)
+uint16_t tusbh_msc_write10_cb(uint8_t coreid, uint8_t lun, void** pp_buffer, uint32_t lba, uint16_t block_count)
 {
   (*pp_buffer) = NULL;
-
   return 0;
 }
 
