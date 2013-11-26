@@ -255,7 +255,7 @@ tusb_error_t  tusbh_msc_read10(uint8_t dev_addr, uint8_t lun, void * p_buffer, u
   scsi_read10_t cmd_read10 =
   {
       .cmd_code    = SCSI_CMD_READ_10,
-      .lba         = __le2be(lba),
+      .lba         = __n2be(lba),
       .block_count = u16_le2be(block_count)
   };
 
@@ -281,7 +281,7 @@ tusb_error_t tusbh_msc_write10(uint8_t dev_addr, uint8_t lun, void const * p_buf
   scsi_write10_t cmd_write10 =
   {
       .cmd_code    = SCSI_CMD_WRITE_10,
-      .lba         = __le2be(lba),
+      .lba         = __n2be(lba),
       .block_count = u16_le2be(block_count)
   };
 
@@ -394,8 +394,8 @@ tusb_error_t msch_open_subtask(uint8_t dev_addr, tusb_descriptor_interface_t con
     SUBTASK_ASSERT_STATUS(error);
   }
 
-  msch_data[dev_addr-1].last_lba   = __be2le( ((scsi_read_capacity10_data_t*)msch_buffer)->last_lba );
-  msch_data[dev_addr-1].block_size = (uint16_t) __be2le( ((scsi_read_capacity10_data_t*)msch_buffer)->block_size );
+  msch_data[dev_addr-1].last_lba   = __be2n( ((scsi_read_capacity10_data_t*)msch_buffer)->last_lba );
+  msch_data[dev_addr-1].block_size = (uint16_t) __be2n( ((scsi_read_capacity10_data_t*)msch_buffer)->block_size );
 
   msch_data[dev_addr-1].is_initialized = true;
   tusbh_msc_mounted_cb(dev_addr);

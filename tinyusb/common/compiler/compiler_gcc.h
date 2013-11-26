@@ -130,9 +130,9 @@
 *  @{
 */
 
-// built-in function to convert 32-bit Big-Endian to Little-Endian
-#define __be2le   __builtin_bswap32
-#define __le2be   __be2le
+// built-in function to convert 32-bit from native to Big Endian
+#define __be2n   __builtin_bswap32
+#define __n2be   __be2n
 
 //#define __le2be_16   __builtin_bswap16
 

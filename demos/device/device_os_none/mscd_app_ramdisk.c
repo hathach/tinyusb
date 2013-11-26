@@ -43,10 +43,6 @@
 //--------------------------------------------------------------------+
 // MACRO CONSTANT TYPEDEF
 //--------------------------------------------------------------------+
-#define README_CONTENTS \
-"This is tinyusb's MassStorage Class demo.\r\n\r\n\
-If you find any bugs or get any questions, feel free to file an\r\n\
-issue at github.com/hathach/tinyusb"
 
 //--------------------------------------------------------------------+
 // INTERNAL OBJECT & FUNCTION DECLARATION
@@ -64,10 +60,10 @@ uint8_t mscd_app_ramdisk[DISK_BLOCK_NUM][DISK_BLOCK_SIZE] TUSB_CFG_ATTR_USBRAM =
       [510] = 0x55, [511] = 0xAA // FAT magic code
   },
 
-  //------------- FAT12 Table (first 2 entries are F8FF, third entry is cluster end of readme file-------------//
+  //------------- FAT12 Table -------------//
   [1] =
   {
-      0xF8, 0xFF, 0xFF, 0xFF, 0x0F
+      0xF8, 0xFF, 0xFF, 0xFF, 0x0F // // first 2 entries must be F8FF, third entry is cluster end of readme file
   },
 
   //------------- Root Directory -------------//
@@ -95,7 +91,7 @@ uint16_t tusbd_msc_read10_cb (uint8_t coreid, uint8_t lun, void** pp_buffer, uin
 
   return min16_of(block_count, DISK_BLOCK_NUM);
 }
-uint16_t tusbh_msc_write10_cb(uint8_t coreid, uint8_t lun, void** pp_buffer, uint32_t lba, uint16_t block_count)
+uint16_t tusbd_msc_write10_cb(uint8_t coreid, uint8_t lun, void** pp_buffer, uint32_t lba, uint16_t block_count)
 {
   (*pp_buffer) = mscd_app_ramdisk[lba];
 

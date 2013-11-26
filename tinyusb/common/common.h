@@ -107,8 +107,8 @@
 #define U32_TO_U8S_BE(u32) U32_B1_U8(u32), U32_B2_U8(u32), U32_B3_U8(u32), U32_B4_U8(u32)
 #define U32_TO_U8S_LE(u32) U32_B4_U8(u32), U32_B3_U8(u32), U32_B2_U8(u32), U32_B1_U8(u32)
 
-#define __h2be_16(u16)  ((uint16_t) ((U16_LOW_U8(u16) << 8) | U16_HIGH_U8(u16)) ) // TODO refractor later
-#define __be2h_16(u16)  __h2be_16(u16)
+#define __n2be_16(u16)  ((uint16_t) ((U16_LOW_U8(u16) << 8) | U16_HIGH_U8(u16)) ) // TODO refractor later
+#define __be2n_16(u16)  __n2be_16(u16)
 
 //--------------------------------------------------------------------+
 // INLINE FUNCTION
@@ -176,6 +176,12 @@ static inline uint32_t min32_of(uint32_t x, uint32_t y)
 //------------- Max -------------//
 static inline uint32_t max32_of(uint32_t x, uint32_t y) ATTR_ALWAYS_INLINE ATTR_CONST;
 static inline uint32_t max32_of(uint32_t x, uint32_t y)
+{
+  return (x > y) ? x : y;
+}
+
+static inline uint16_t max16_of(uint16_t x, uint16_t y) ATTR_ALWAYS_INLINE ATTR_CONST;
+static inline uint16_t max16_of(uint16_t x, uint16_t y)
 {
   return (x > y) ? x : y;
 }

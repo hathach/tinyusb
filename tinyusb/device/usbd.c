@@ -70,7 +70,7 @@ static usbd_class_driver_t const usbd_class_drivers[TUSB_CLASS_MAPPED_INDEX_STAR
         .init            = hidd_init,
         .open            = hidd_open,
         .control_request = hidd_control_request,
-        .isr             = hidd_isr,
+        .xfer_cb    = hidd_isr,
         .close           = hidd_close
     },
 #endif
@@ -81,7 +81,7 @@ static usbd_class_driver_t const usbd_class_drivers[TUSB_CLASS_MAPPED_INDEX_STAR
         .init            = mscd_init,
         .open            = mscd_open,
         .control_request = mscd_control_request,
-        .isr             = mscd_isr,
+        .xfer_cb    = mscd_xfer_cb,
         .close           = mscd_close
     },
 #endif
@@ -92,7 +92,7 @@ static usbd_class_driver_t const usbd_class_drivers[TUSB_CLASS_MAPPED_INDEX_STAR
         .init            = cdcd_init,
         .open            = cdcd_open,
         .control_request = cdcd_control_request,
-        .isr             = cdcd_isr,
+        .xfer_cb    = cdcd_isr,
         .close           = cdcd_close
     },
 #endif
@@ -123,15 +123,28 @@ enum {
 };
 
 typedef enum {
-  USBD_EVENTID_SETUP_RECEIVED = 1
+  USBD_EVENTID_SETUP_RECEIVED = 1,
+  USBD_EVENTID_XFER_DONE
 }usbd_eventid_t;
 
-typedef struct ATTR_ALIGNED(2)
+typedef struct ATTR_ALIGNED(4)
 {
   uint8_t coreid;
   uint8_t event_id;
-  uint8_t data[ MAX_OF(sizeof(tusb_control_request_t), sizeof(endpoint_handle_t)) ]; // hold control request or endpoint handle
+  uint8_t sub_event_id;
+  uint8_t reserved;
+
+  union {
+    tusb_control_request_t setup_received; // USBD_EVENTID_SETUP_RECEIVED
+
+    struct { // USBD_EVENTID_XFER_DONE
+      endpoint_handle_t edpt_hdl;
+      uint32_t xferred_byte;
+    }xfer_done;
+  };
 }usbd_task_event_t;
+
+STATIC_ASSERT(sizeof(usbd_task_event_t) <= 12, "size is not correct");
 
 OSAL_TASK_DEF(usbd_task, 150, TUSB_CFG_OS_TASK_PRIO);
 OSAL_QUEUE_DEF(usbd_queue_def, USBD_TASK_QUEUE_DEPTH, usbd_task_event_t);
@@ -190,6 +203,7 @@ tusb_error_t usbd_control_request_subtask(uint8_t coreid, tusb_control_request_t
       error = TUSB_ERROR_DCD_CONTROL_REQUEST_NOT_SUPPORT;
     }
   }
+
   //------------- Class/Interface Specific Request -------------//
   else if ( TUSB_REQUEST_RECIPIENT_INTERFACE == p_request->bmRequestType_bit.recipient)
   {
@@ -204,6 +218,7 @@ tusb_error_t usbd_control_request_subtask(uint8_t coreid, tusb_control_request_t
       error = TUSB_ERROR_DCD_CONTROL_REQUEST_NOT_SUPPORT;
     }
   }
+
   //------------- Endpoint Request -------------//
   else if ( TUSB_REQUEST_RECIPIENT_ENDPOINT == p_request->bmRequestType_bit.recipient &&
             TUSB_REQUEST_TYPE_STANDARD      == p_request->bmRequestType_bit.type &&
@@ -242,12 +257,20 @@ OSAL_TASK_FUNCTION(usbd_task) (void* p_task_para)
 
   if ( USBD_EVENTID_SETUP_RECEIVED == event.event_id )
   {
-    OSAL_SUBTASK_INVOKED_AND_WAIT( usbd_control_request_subtask(event.coreid, (tusb_control_request_t*) event.data), error );
+    OSAL_SUBTASK_INVOKED_AND_WAIT( usbd_control_request_subtask(event.coreid, &event.setup_received), error );
   }else
   {
+    uint8_t class_index;
+    class_index = std_class_code_to_index( event.xfer_done.edpt_hdl.class_code );
 
+    if (usbd_class_drivers[class_index].xfer_cb)
+    {
+      usbd_class_drivers[class_index].xfer_cb( event.xfer_done.edpt_hdl, event.sub_event_id, event.xfer_done.xferred_byte);
+    }else
+    {
+      hal_debugger_breakpoint(); // something wrong, no one claims the isr's source
+    }
   }
-  //else {}
 
   OSAL_TASK_LOOP_END
 }
@@ -381,36 +404,38 @@ void usbd_dcd_bus_event_isr(uint8_t coreid, usbd_bus_event_type_t bus_event)
 
 void usbd_setup_received_isr(uint8_t coreid, tusb_control_request_t * p_request)
 {
-  usbd_task_event_t event =
+  usbd_task_event_t task_event =
   {
-      .coreid   = coreid,
-      .event_id = USBD_EVENTID_SETUP_RECEIVED
+      .coreid          = coreid,
+      .event_id        = USBD_EVENTID_SETUP_RECEIVED,
   };
 
-  memcpy(event.data, p_request, sizeof(tusb_control_request_t));
-
-  osal_queue_send(usbd_queue_hdl, &event);
+  task_event.setup_received  = (*p_request);
+  osal_queue_send(usbd_queue_hdl, &task_event);
 }
 
 void usbd_xfer_isr(endpoint_handle_t edpt_hdl, tusb_event_t event, uint32_t xferred_bytes)
 {
-//  usbd_device_info_t *p_device = &usbd_devices[edpt_hdl.coreid];
-  uint8_t class_index = std_class_code_to_index(edpt_hdl.class_code);
-
-  if (class_index == 0 ) // Control Transfer
+  if (edpt_hdl.class_code == 0 ) // Control Transfer
   {
     if (usbd_devices[edpt_hdl.coreid].is_waiting_control_xfer)
     {
       osal_semaphore_post( usbd_control_xfer_sem_hdl );
     }
-  }else if (usbd_class_drivers[class_index].isr)
-  {
-    usbd_class_drivers[class_index].isr(edpt_hdl, event, xferred_bytes);
   }else
   {
-    ASSERT(false, VOID_RETURN); // something wrong, no one claims the isr's source
-  }
+    usbd_task_event_t task_event =
+    {
+        .coreid       = edpt_hdl.coreid,
+        .event_id     = USBD_EVENTID_XFER_DONE,
+        .sub_event_id = event
+    };
 
+    task_event.xfer_done.xferred_byte = xferred_bytes;
+    task_event.xfer_done.edpt_hdl     = edpt_hdl;
+
+    osal_queue_send(usbd_queue_hdl, &task_event);
+  }
 }
 
 //--------------------------------------------------------------------+

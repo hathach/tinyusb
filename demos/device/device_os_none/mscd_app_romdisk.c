@@ -47,10 +47,6 @@
 //--------------------------------------------------------------------+
 // MACRO CONSTANT TYPEDEF
 //--------------------------------------------------------------------+
-#define README_CONTENTS \
-"This is tinyusb's MassStorage Class demo.\r\n\r\n\
-If you find any bugs or get any questions, feel free to file an\r\n\
-issue at github.com/hathach/tinyusb"
 
 //--------------------------------------------------------------------+
 // INTERNAL OBJECT & FUNCTION DECLARATION
@@ -67,10 +63,10 @@ const uint8_t mscd_app_rommdisk[DISK_BLOCK_NUM][DISK_BLOCK_SIZE] =
       [510] = 0x55, [511] = 0xAA // FAT magic code
   },
 
-  //------------- FAT12 Table (first 2 entries are F8FF, third entry is cluster end of readme file-------------//
+  //------------- FAT12 Table -------------//
   [1] =
   {
-      0xF8, 0xFF, 0xFF, 0xFF, 0x0F
+      0xF8, 0xFF, 0xFF, 0xFF, 0x0F // first 2 entries must be F8FF, third entry is cluster end of readme file
   },
 
   //------------- Root Directory -------------//
@@ -90,21 +86,21 @@ const uint8_t mscd_app_rommdisk[DISK_BLOCK_NUM][DISK_BLOCK_SIZE] =
 };
 
 ATTR_USB_MIN_ALIGNMENT
-static uint8_t ramdisk_buffer[DISK_BLOCK_SIZE] TUSB_CFG_ATTR_USBRAM;
+static uint8_t sector_buffer[DISK_BLOCK_SIZE] TUSB_CFG_ATTR_USBRAM;
 
 //--------------------------------------------------------------------+
 // IMPLEMENTATION
 //--------------------------------------------------------------------+
 uint16_t tusbd_msc_read10_cb (uint8_t coreid, uint8_t lun, void** pp_buffer, uint32_t lba, uint16_t block_count)
 {
-  memcpy(ramdisk_buffer, mscd_app_rommdisk[lba], DISK_BLOCK_SIZE);
-  (*pp_buffer) = ramdisk_buffer;
+  memcpy(sector_buffer, mscd_app_rommdisk[lba], DISK_BLOCK_SIZE);
+  (*pp_buffer) = sector_buffer;
 
   return 1;
 }
 
 // Stall write10 as this is readonly disk
-uint16_t tusbh_msc_write10_cb(uint8_t coreid, uint8_t lun, void** pp_buffer, uint32_t lba, uint16_t block_count)
+uint16_t tusbd_msc_write10_cb(uint8_t coreid, uint8_t lun, void** pp_buffer, uint32_t lba, uint16_t block_count)
 {
   (*pp_buffer) = NULL;
   return 0;

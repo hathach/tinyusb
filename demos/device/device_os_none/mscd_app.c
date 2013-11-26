@@ -60,8 +60,8 @@ static scsi_inquiry_data_t mscd_inquiry_data TUSB_CFG_ATTR_USBRAM =
 ATTR_USB_MIN_ALIGNMENT
 static scsi_read_capacity10_data_t mscd_read_capacity10_data TUSB_CFG_ATTR_USBRAM =
 {
-    .last_lba   = __le2be(DISK_BLOCK_NUM-1), // read capacity
-    .block_size = __le2be(DISK_BLOCK_SIZE)
+    .last_lba   = __n2be(DISK_BLOCK_NUM-1), // read capacity
+    .block_size = __n2be(DISK_BLOCK_SIZE)
 };
 
 ATTR_USB_MIN_ALIGNMENT
@@ -76,9 +76,9 @@ ATTR_USB_MIN_ALIGNMENT
 static scsi_read_format_capacity_data_t mscd_format_capacity_data TUSB_CFG_ATTR_USBRAM =
 {
     .list_length     = 8,
-    .block_num       = __le2be(DISK_BLOCK_NUM), // write capacity
+    .block_num       = __n2be(DISK_BLOCK_NUM), // write capacity
     .descriptor_type = 2, // TODO formatted media, refractor to const
-    .block_size_u16  = __h2be_16(DISK_BLOCK_SIZE)
+    .block_size_u16  = __n2be_16(DISK_BLOCK_SIZE)
 };
 
 ATTR_USB_MIN_ALIGNMENT
@@ -99,6 +99,7 @@ static scsi_mode_parameters_t msc_dev_mode_para TUSB_CFG_ATTR_USBRAM =
 //--------------------------------------------------------------------+
 msc_csw_status_t tusbd_msc_scsi_received_isr (uint8_t coreid, uint8_t lun, uint8_t scsi_cmd[16], void ** pp_buffer, uint16_t* p_length)
 {
+  // read10 & write10 has their own callback and MUST not be handled here
   switch (scsi_cmd[0])
   {
     case SCSI_CMD_INQUIRY:
@@ -134,14 +135,6 @@ msc_csw_status_t tusbd_msc_scsi_received_isr (uint8_t coreid, uint8_t lun, uint8
     case SCSI_CMD_PREVENT_ALLOW_MEDIUM_REMOVAL:
       (*pp_buffer) = NULL;
       (*p_length) = 0;
-    break;
-
-    case SCSI_CMD_READ_10:
-      (*p_length)  = read10(coreid, lun, (scsi_read10_t*) scsi_cmd, pp_buffer);
-    break;
-
-    case SCSI_CMD_WRITE_10:
-      (*p_length)  = write10(coreid, lun, (scsi_read10_t*) scsi_cmd, pp_buffer);
     break;
 
     default: return MSC_CSW_STATUS_FAILED;

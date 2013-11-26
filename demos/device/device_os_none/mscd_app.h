@@ -61,6 +61,11 @@ enum
   DISK_BLOCK_SIZE = 512
 };
 
+#define README_CONTENTS \
+"This is tinyusb's MassStorage Class demo.\r\n\r\n\
+If you find any bugs or get any questions, feel free to file an\r\n\
+issue at github.com/hathach/tinyusb"
+
 #if TUSB_CFG_MCU==MCU_LPC11UXX || TUSB_CFG_MCU==MCU_LPC13UXX
   #define MSCD_APP_ROMDISK
 #else // defaults is ram disk

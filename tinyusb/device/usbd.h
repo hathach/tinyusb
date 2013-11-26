@@ -71,7 +71,7 @@ typedef struct {
   void (* const init) (void);
   tusb_error_t (* const open)(uint8_t, tusb_descriptor_interface_t const *, uint16_t*);
   tusb_error_t (* const control_request) (uint8_t, tusb_control_request_t const *);
-  void (* const isr) (endpoint_handle_t, tusb_event_t, uint32_t);
+  tusb_error_t (* const xfer_cb) (endpoint_handle_t, tusb_event_t, uint32_t);
   void (* const close) (uint8_t);
 } usbd_class_driver_t;
 

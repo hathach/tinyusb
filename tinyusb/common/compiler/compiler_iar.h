@@ -82,8 +82,8 @@
 #define ATTR_UNUSED
 
 // built-in function to convert 32-bit Big-Endian to Little-Endian
-#define __be2le   __REV
-#define __le2be   __be2le
+#define __be2n   __REV
+#define __n2be   __be2n
 
 #ifdef __cplusplus
  }

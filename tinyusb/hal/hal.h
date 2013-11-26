@@ -109,8 +109,10 @@ static inline bool hal_debugger_is_attached(void)
 // TODO check core M3/M4 defined instead
 #if !defined(_TEST_) && !(TUSB_CFG_MCU==MCU_LPC11UXX)
   return ( (CoreDebug->DHCSR & CoreDebug_DHCSR_C_DEBUGEN_Msk) == CoreDebug_DHCSR_C_DEBUGEN_Msk );
+#elif TUSB_CFG_DEBUG == 3
+  return true; // force to break into breakpoint with debug = 3
 #else
-  return true; // force to break into breakpoint
+  return false
 #endif
 }
 

@@ -136,91 +136,118 @@ tusb_error_t mscd_control_request(uint8_t coreid, tusb_control_request_t const *
   return TUSB_ERROR_NONE;
 }
 
-void mscd_isr(endpoint_handle_t edpt_hdl, tusb_event_t event, uint32_t xferred_bytes)
+// return true if data phase is complete, false if not yet complete
+static bool read10_write10_data_xfer(mscd_interface_t* p_msc)
+{
+  msc_cmd_block_wrapper_t *  const p_cbw = &p_msc->cbw;
+  msc_cmd_status_wrapper_t * const p_csw = &p_msc->csw;
+
+  scsi_read10_t* p_readwrite = (scsi_read10_t*) &p_cbw->command; // read10 & write10 has the same format
+
+  endpoint_handle_t const edpt_hdl = BIT_TEST_(p_cbw->dir, 7) ? p_msc->edpt_in : p_msc->edpt_out;
+
+  uint32_t const lba         = __be2n(p_readwrite->lba);
+  uint16_t const block_count = __be2n_16(p_readwrite->block_count);
+  void *p_buffer = NULL;
+
+  uint16_t xferred_block = (SCSI_CMD_READ_10 == p_cbw->command[0]) ? tusbd_msc_read10_cb (edpt_hdl.coreid, p_cbw->lun, &p_buffer, lba, block_count) :
+                                                                     tusbd_msc_write10_cb(edpt_hdl.coreid, p_cbw->lun, &p_buffer, lba, block_count);
+  xferred_block = min16_of(xferred_block, block_count);
+
+  uint16_t xferred_byte = xferred_block * (p_cbw->xfer_bytes / block_count);
+
+  if ( 0 == xferred_block  )
+  { // xferred_block is zero will cause pipe is stalled & status in CSW set to failed
+    p_csw->data_residue = __n2be(p_cbw->xfer_bytes);
+    p_csw->status       = MSC_CSW_STATUS_FAILED;
+
+    (void) dcd_pipe_stall(edpt_hdl);
+
+    return true;
+  } else if (xferred_block < block_count)
+  {
+    ASSERT_STATUS( dcd_pipe_xfer( edpt_hdl, p_buffer, xferred_byte, true) );
+
+    // adjust lba, block_count, xfer_bytes for the next call
+    p_readwrite->lba         = __n2be(lba+xferred_block);
+    p_readwrite->block_count = __n2be_16(block_count - xferred_block);
+    p_cbw->xfer_bytes       -= xferred_byte;
+
+    return false;
+  }else
+  {
+    p_csw->status = MSC_CSW_STATUS_PASSED;
+    ASSERT_STATUS( dcd_pipe_queue_xfer( edpt_hdl, p_buffer, xferred_byte) );
+    return true;
+  }
+}
+
+tusb_error_t mscd_xfer_cb(endpoint_handle_t edpt_hdl, tusb_event_t event, uint32_t xferred_bytes)
 {
   // TODO failed --> STALL pipe, on clear STALL --> queue endpoint OUT
+  static bool is_waiting_read10_write10 = false; // indicate we are transferring data in READ10, WRITE10 command
+
   mscd_interface_t *         const p_msc = &mscd_data;
   msc_cmd_block_wrapper_t *  const p_cbw = &p_msc->cbw;
   msc_cmd_status_wrapper_t * const p_csw = &p_msc->csw;
 
-  if ( endpointhandle_is_equal(p_msc->edpt_in, edpt_hdl) )
-  {
-    return; // currently no need to handle bulk in
-  }
+  if ( !is_waiting_read10_write10)
+  { // new CBW received
+    if ( endpointhandle_is_equal(p_msc->edpt_in, edpt_hdl) ) return TUSB_ERROR_NONE; // bulk in interrupt for dcd to clean up
 
-  ASSERT( endpointhandle_is_equal(p_msc->edpt_out, edpt_hdl) &&
-          xferred_bytes == sizeof(msc_cmd_block_wrapper_t) &&
-          event == TUSB_EVENT_XFER_COMPLETE &&
-          p_cbw->signature == MSC_CBW_SIGNATURE, VOID_RETURN );
+    ASSERT( endpointhandle_is_equal(p_msc->edpt_out, edpt_hdl) &&
+            xferred_bytes == sizeof(msc_cmd_block_wrapper_t)   &&
+            event == TUSB_EVENT_XFER_COMPLETE                  &&
+            p_cbw->signature == MSC_CBW_SIGNATURE, TUSB_ERROR_INVALID_PARA );
 
-  void *p_buffer = NULL;
-  uint16_t actual_length = p_cbw->xfer_bytes;
-
-  p_csw->signature    = MSC_CSW_SIGNATURE;
-  p_csw->tag          = p_cbw->tag;
-  p_csw->data_residue = 0;
-
-  switch(p_cbw->command[0])
-  {
-    case SCSI_CMD_READ_10:
-    case SCSI_CMD_WRITE_10:
+    if ( (SCSI_CMD_READ_10 != p_cbw->command[0]) && (SCSI_CMD_WRITE_10 != p_cbw->command[0]) )
     {
-      scsi_read10_t const * const p_read10 = &p_cbw->command; // read10 & write10 has the same data structure
-      uint32_t const lba                   = __be2le(p_read10->lba);
-      uint16_t const block_count           = __be2h_16(p_read10->block_count);
+      void *p_buffer = NULL;
+      uint16_t actual_length = p_cbw->xfer_bytes;
 
-      uint16_t actual_block_count;
-
-      if (SCSI_CMD_READ_10 == p_cbw->command[0])
-      {
-        actual_block_count = tusbd_msc_read10_cb (edpt_hdl.coreid, p_cbw->lun, &p_buffer, lba, block_count);
-      }else
-      {
-        actual_block_count = tusbh_msc_write10_cb(edpt_hdl.coreid, p_cbw->lun, &p_buffer, lba, block_count);
-      }
-
-      ASSERT( actual_block_count <= block_count, VOID_RETURN);
-
-      if ( actual_block_count < block_count )
-      {
-        uint32_t const block_size = p_cbw->xfer_bytes / block_count;
-        actual_length       = block_size * actual_block_count;
-        p_csw->data_residue = p_cbw->xfer_bytes - actual_length;
-        p_csw->status       = MSC_CSW_STATUS_FAILED;
-      }else
-      {
-        p_csw->status       = MSC_CSW_STATUS_PASSED;
-      }
-    }
-    break;
-
-    default:
       p_csw->status = tusbd_msc_scsi_received_isr(edpt_hdl.coreid, p_cbw->lun, p_cbw->command, &p_buffer, &actual_length);
-    break;
+
+      //------------- Data Phase -------------//
+      if ( p_cbw->xfer_bytes )
+      {
+        ASSERT( p_cbw->xfer_bytes >= actual_length, TUSB_ERROR_INVALID_PARA );
+        if ( p_buffer == NULL || actual_length == 0 )
+        { // application does not provide data to response --> possibly unsupported SCSI command
+          ASSERT_STATUS( dcd_pipe_stall(p_msc->edpt_in) );
+          p_csw->status = MSC_CSW_STATUS_FAILED;
+        }else
+        {
+          ASSERT_STATUS( dcd_pipe_queue_xfer( BIT_TEST_(p_cbw->dir, 7) ? p_msc->edpt_in : p_msc->edpt_out,
+                                              p_buffer, actual_length) );
+        }
+      }
+    }
   }
 
-  ASSERT( p_cbw->xfer_bytes >= actual_length, VOID_RETURN );
-
-  //------------- Data Phase -------------//
-  if ( p_cbw->xfer_bytes )
+  //------------- Data Phase For READ10 & WRITE10 (can be executed several times) -------------//
+  if ( (SCSI_CMD_READ_10 == p_cbw->command[0]) || (SCSI_CMD_WRITE_10 == p_cbw->command[0]) )
   {
-    if ( p_buffer == NULL || actual_length == 0 )
-    { // application does not provide data to response --> possibly unsupported SCSI command
-      ASSERT( TUSB_ERROR_NONE == dcd_pipe_stall(p_msc->edpt_in), VOID_RETURN );
-      p_csw->status = MSC_CSW_STATUS_FAILED;
-    }else
-    {
-      ASSERT( dcd_pipe_queue_xfer( BIT_TEST_(p_cbw->dir, 7) ? p_msc->edpt_in : p_msc->edpt_out,
-                                                                p_buffer, actual_length) == TUSB_ERROR_NONE, VOID_RETURN);
+    if (is_waiting_read10_write10)
+    { // continue with read10, write10 data transfer, interrupt must come from endpoint IN
+      ASSERT( endpointhandle_is_equal(p_msc->edpt_in, edpt_hdl) && event == TUSB_EVENT_XFER_COMPLETE, TUSB_ERROR_INVALID_PARA);
     }
+    is_waiting_read10_write10 = !read10_write10_data_xfer(p_msc);
   }
 
   //------------- Status Phase -------------//
-  ASSERT( dcd_pipe_xfer( p_msc->edpt_in , p_csw, sizeof(msc_cmd_status_wrapper_t), true) == TUSB_ERROR_NONE, VOID_RETURN ); // need to be true for dcd to clean up qtd !!
+  if (!is_waiting_read10_write10)
+  {
+    p_csw->signature    = MSC_CSW_SIGNATURE;
+    p_csw->tag          = p_cbw->tag;
+    p_csw->data_residue = 0;
 
-  //------------- Queue the next CBW -------------//
-  ASSERT( dcd_pipe_xfer( p_msc->edpt_out, p_cbw, sizeof(msc_cmd_block_wrapper_t), true) == TUSB_ERROR_NONE, VOID_RETURN );
+    ASSERT_STATUS( dcd_pipe_xfer( p_msc->edpt_in , p_csw, sizeof(msc_cmd_status_wrapper_t), true) ); // need to be true for dcd to clean up qtd !!
 
+    //------------- Queue the next CBW -------------//
+    ASSERT_STATUS( dcd_pipe_xfer( p_msc->edpt_out, p_cbw, sizeof(msc_cmd_block_wrapper_t), true) );
+  }
+
+  return TUSB_ERROR_NONE;
 }
 
 #endif
