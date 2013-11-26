@@ -200,6 +200,10 @@ tusb_error_t mscd_xfer_cb(endpoint_handle_t edpt_hdl, tusb_event_t event, uint32
             event == TUSB_EVENT_XFER_COMPLETE                  &&
             p_cbw->signature == MSC_CBW_SIGNATURE, TUSB_ERROR_INVALID_PARA );
 
+    p_csw->signature    = MSC_CSW_SIGNATURE;
+    p_csw->tag          = p_cbw->tag;
+    p_csw->data_residue = 0;
+
     if ( (SCSI_CMD_READ_10 != p_cbw->command[0]) && (SCSI_CMD_WRITE_10 != p_cbw->command[0]) )
     {
       void *p_buffer = NULL;
@@ -237,10 +241,6 @@ tusb_error_t mscd_xfer_cb(endpoint_handle_t edpt_hdl, tusb_event_t event, uint32
   //------------- Status Phase -------------//
   if (!is_waiting_read10_write10)
   {
-    p_csw->signature    = MSC_CSW_SIGNATURE;
-    p_csw->tag          = p_cbw->tag;
-    p_csw->data_residue = 0;
-
     ASSERT_STATUS( dcd_pipe_xfer( p_msc->edpt_in , p_csw, sizeof(msc_cmd_status_wrapper_t), true) ); // need to be true for dcd to clean up qtd !!
 
     //------------- Queue the next CBW -------------//

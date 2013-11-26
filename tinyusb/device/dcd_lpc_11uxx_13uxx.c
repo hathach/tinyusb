@@ -403,7 +403,6 @@ tusb_error_t  dcd_pipe_xfer(endpoint_handle_t edpt_hdl, void* buffer, uint16_t t
 
   dcd_data.qhd[edpt_hdl.index][0].active = 1; // buffer0 always has queued xfer
 
-
 	return TUSB_ERROR_NONE;
 }
 #endif
