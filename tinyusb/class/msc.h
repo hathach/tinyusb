@@ -55,9 +55,8 @@
 #endif
 
 //--------------------------------------------------------------------+
-// USB Class Constant
+// Mass Storage Class Constant
 //--------------------------------------------------------------------+
-
 /// MassStorage Subclass
 typedef enum {
   MSC_SUBCLASS_RBC = 1 , ///< Reduced Block Commands (RBC) T10 Project 1240-D
@@ -119,6 +118,10 @@ typedef ATTR_PACKED_STRUCT(struct) {
 
 STATIC_ASSERT(sizeof(msc_cmd_status_wrapper_t) == 13, "size is not correct");
 
+//--------------------------------------------------------------------+
+// SCSI Constant
+//--------------------------------------------------------------------+
+
 /// SCSI Command Operation Code
 typedef enum {
   SCSI_CMD_TEST_UNIT_READY              = 0x00, ///< The SCSI Test Unit Ready command is used to determine if a device is ready to transfer data (read/write), i.e. if a disk has spun up, if a tape is loaded and ready etc. The device does not perform a self-test operation.
@@ -132,6 +135,23 @@ typedef enum {
   SCSI_CMD_READ_10                      = 0x28, ///< The READ (10) command requests that the device server read the specified logical block(s) and transfer them to the data-in buffer.
   SCSI_CMD_WRITE_10                     = 0x2A, ///< The WRITE (10) command requests thatthe device server transfer the specified logical block(s) from the data-out buffer and write them.
 }scsi_cmd_type_t;
+
+/// SCSI Sense Key
+typedef enum {
+  SCSI_SENSEKEY_NONE            = 0x00, ///< no specific Sense Key. This would be the case for a successful command
+  SCSI_SENSEKEY_RECOVERED_ERROR = 0x01, ///< ndicates the last command completed successfully with some recovery action performed by the disc drive.
+  SCSI_SENSEKEY_NOT_READY       = 0x02, ///< Indicates the logical unit addressed cannot be accessed.
+  SCSI_SENSEKEY_MEDIUM_ERROR    = 0x03, ///< Indicates the command terminated with a non-recovered error condition.
+  SCSI_SENSEKEY_HARDWARE_ERROR  = 0x04, ///< Indicates the disc drive detected a nonrecoverable hardware failure while performing the command or during a self test.
+  SCSI_SENSEKEY_ILLEGLA_REQUEST = 0x05, ///< Indicates an illegal parameter in the command descriptor block or in the additional parameters
+  SCSI_SENSEKEY_UNIT_ATTENTION  = 0x06, ///< Indicates the disc drive may have been reset.
+  SCSI_SENSEKEY_DATA_PROTECT    = 0x07, ///< Indicates that a command that reads or writes the medium was attempted on a block that is protected from this operation. The read or write operation is not performed.
+  SCSI_SENSEKEY_FIRMWARE_ERROR  = 0x08, ///< Vendor specific sense key.
+  SCSI_SENSEKEY_ABORTED_COMMAND = 0x0b, ///< Indicates the disc drive aborted the command.
+  SCSI_SENSEKEY_EQUAL           = 0x0c, ///< Indicates a SEARCH DATA command has satisfied an equal comparison.
+  SCSI_SENSEKEY_VOLUME_OVERFLOW = 0x0d, ///< Indicates a buffered peripheral device has reached the end of medium partition and data remains in the buffer that has not been written to the medium.
+  SCSI_SENSEKEY_MISCOMPARE      = 0x0e  ///< ndicates that the source data did not match the data read from the medium.
+}scsi_sense_key_type_t;
 
 //--------------------------------------------------------------------+
 // SCSI Primary Command (SPC-4)

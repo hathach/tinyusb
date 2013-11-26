@@ -65,7 +65,7 @@ static scsi_read_capacity10_data_t mscd_read_capacity10_data TUSB_CFG_ATTR_USBRA
 };
 
 ATTR_USB_MIN_ALIGNMENT
-static scsi_sense_fixed_data_t mscd_sense_data TUSB_CFG_ATTR_USBRAM =
+scsi_sense_fixed_data_t mscd_sense_data TUSB_CFG_ATTR_USBRAM =
 {
     .response_code        = 0x70,
     .sense_key            = 0, // no errors
@@ -138,6 +138,14 @@ msc_csw_status_t tusbd_msc_scsi_received_isr (uint8_t coreid, uint8_t lun, uint8
     break;
 
     default: return MSC_CSW_STATUS_FAILED;
+  }
+
+  //------------- clear sense data if it is not request sense command -------------//
+  if ( SCSI_CMD_REQUEST_SENSE != scsi_cmd[0] )
+  {
+    mscd_sense_data.sense_key                  = SCSI_SENSEKEY_NONE;
+    mscd_sense_data.additional_sense_code      = 0;
+    mscd_sense_data.additional_sense_qualifier = 0;
   }
 
   return MSC_CSW_STATUS_PASSED;
