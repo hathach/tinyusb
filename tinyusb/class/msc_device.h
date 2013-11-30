@@ -63,11 +63,13 @@
 void tusbd_msc_mounted_cb(uint8_t coreid);
 void tusbd_msc_unmounted_cb(uint8_t coreid);
 
-// p_length [in,out] allocated/maximum length, application update with actual length
-msc_csw_status_t tusbd_msc_scsi_received_isr (uint8_t coreid, uint8_t lun, uint8_t scsi_cmd[16], void ** pp_buffer, uint16_t* p_length);
 
+// return 0 will end up with stall transaction
 uint16_t tusbd_msc_read10_cb (uint8_t coreid, uint8_t lun, void** pp_buffer, uint32_t lba, uint16_t block_count) ATTR_WARN_UNUSED_RESULT;
 uint16_t tusbd_msc_write10_cb(uint8_t coreid, uint8_t lun, void** pp_buffer, uint32_t lba, uint16_t block_count) ATTR_WARN_UNUSED_RESULT;
+
+// p_length [in,out] allocated/maximum length, application update with actual length
+msc_csw_status_t tusbd_msc_scsi_received_isr (uint8_t coreid, uint8_t lun, uint8_t scsi_cmd[16], void ** pp_buffer, uint16_t* p_length);
 
 /** @} */
 /** @} */

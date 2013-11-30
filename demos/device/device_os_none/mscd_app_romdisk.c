@@ -54,6 +54,12 @@
 const uint8_t mscd_app_rommdisk[DISK_BLOCK_NUM][DISK_BLOCK_SIZE] =
 {
   //------------- Boot Sector -------------//
+  // byte_per_sector    = DISK_BLOCK_SIZE; fat12_sector_num_16  = DISK_BLOCK_NUM;
+  // sector_per_cluster = 1; reserved_sectors = 1;
+  // fat_num            = 1; fat12_root_entry_num = 16;
+  // sector_per_fat     = 1; sector_per_track = 1; head_num = 1; hidden_sectors = 0;
+  // drive_number       = 0x80; media_type = 0xf8; extended_boot_signature = 0x29;
+  // filesystem_type    = "FAT12   "; volume_serial_number = 0x1234; volume_label = "tinyusb msc";
   [0] =
   {
       0xEB, 0x3C, 0x90, 0x4D, 0x53, 0x44, 0x4F, 0x53, 0x35, 0x2E, 0x30, 0x00, 0x02, 0x01, 0x01, 0x00,

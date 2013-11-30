@@ -154,7 +154,7 @@ static bool read10_write10_data_xfer(mscd_interface_t* p_msc)
                                                                      tusbd_msc_write10_cb(edpt_hdl.coreid, p_cbw->lun, &p_buffer, lba, block_count);
   xferred_block = min16_of(xferred_block, block_count);
 
-  uint16_t xferred_byte = xferred_block * (p_cbw->xfer_bytes / block_count);
+  uint16_t const xferred_byte = xferred_block * (p_cbw->xfer_bytes / block_count);
 
   if ( 0 == xferred_block  )
   { // xferred_block is zero will cause pipe is stalled & status in CSW set to failed

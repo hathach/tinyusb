@@ -157,7 +157,7 @@ msc_csw_status_t tusbd_msc_scsi_received_isr (uint8_t coreid, uint8_t lun, uint8
 
 void msc_dev_app_init (void)
 {
-  // fat12_fs_init(mscd_app_ramdisk);
+
 }
 
 
