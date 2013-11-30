@@ -488,7 +488,6 @@ tusb_error_t  dcd_pipe_xfer(endpoint_handle_t edpt_hdl, void* buffer, uint16_t t
 
 	return TUSB_ERROR_NONE;
 }
-#endif
 
 #endif
 
