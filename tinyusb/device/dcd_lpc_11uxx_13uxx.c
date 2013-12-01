@@ -144,6 +144,7 @@ static inline uint16_t addr_offset(void const * p_buffer)
 
 static void queue_xfer_to_buffer(uint8_t ep_id, uint8_t buff_idx, uint16_t buff_addr_offset, uint16_t total_bytes);
 static void pipe_queue_xfer(uint8_t ep_id, uint16_t buff_addr_offset, uint16_t total_bytes);
+static void queue_xfer_in_next_td(uint8_t ep_id);
 
 //--------------------------------------------------------------------+
 // CONTROLLER API
@@ -315,11 +316,7 @@ void dcd_isr(uint8_t coreid)
         //------------- Next TD is available -------------//
         if ( dcd_data.next_td[ep_id].total_bytes != 0 )
         {
-          dcd_data.current_ioc |= ( dcd_data.next_ioc & BIT_(ep_id) ); // copy next IOC to current IOC
-
-          pipe_queue_xfer(ep_id, dcd_data.next_td[ep_id].buff_addr_offset, dcd_data.next_td[ep_id].total_bytes);
-
-          dcd_data.next_td[ep_id].total_bytes = 0; // clear this field as it is used to indicate next TD available
+          queue_xfer_in_next_td(ep_id);
         }
       }
     }
@@ -370,11 +367,14 @@ static inline uint8_t edpt_phy2log(uint8_t physical_endpoint)
 //--------------------------------------------------------------------+
 tusb_error_t dcd_pipe_stall(endpoint_handle_t edpt_hdl)
 {
-//  ASSERT( !dcd_pipe_is_busy(edpt_hdl), TUSB_ERROR_INTERFACE_IS_BUSY); // endpoint must not in transferring
-
   dcd_data.qhd[edpt_hdl.index][0].stall = dcd_data.qhd[edpt_hdl.index][1].stall = 1;
 
   return TUSB_ERROR_NONE;
+}
+
+bool dcd_pipe_is_stalled(endpoint_handle_t edpt_hdl)
+{
+  return dcd_data.qhd[edpt_hdl.index][0].stall || dcd_data.qhd[edpt_hdl.index][1].stall;
 }
 
 tusb_error_t dcd_pipe_clear_stall(uint8_t coreid, uint8_t edpt_addr)
@@ -386,6 +386,12 @@ tusb_error_t dcd_pipe_clear_stall(uint8_t coreid, uint8_t edpt_addr)
 
   dcd_data.qhd[ep_id][active_buffer].toggle_reset    = 1;
   dcd_data.qhd[ep_id][active_buffer].feedback_toggle = 0;
+
+  //------------- clear stall must carry on any previously queued transfer -------------//
+  if ( dcd_data.next_td[ep_id].total_bytes != 0 )
+  {
+    queue_xfer_in_next_td(ep_id);
+  }
 
   return TUSB_ERROR_NONE;
 }
@@ -460,6 +466,15 @@ static void pipe_queue_xfer(uint8_t ep_id, uint16_t buff_addr_offset, uint16_t t
   queue_xfer_to_buffer(ep_id, 0, buff_addr_offset, total_bytes);
 }
 
+static void queue_xfer_in_next_td(uint8_t ep_id)
+{
+  dcd_data.current_ioc |= ( dcd_data.next_ioc & BIT_(ep_id) ); // copy next IOC to current IOC
+
+  pipe_queue_xfer(ep_id, dcd_data.next_td[ep_id].buff_addr_offset, dcd_data.next_td[ep_id].total_bytes);
+
+  dcd_data.next_td[ep_id].total_bytes = 0; // clear this field as it is used to indicate whehther next TD available
+}
+
 tusb_error_t dcd_pipe_queue_xfer(endpoint_handle_t edpt_hdl, void * buffer, uint16_t total_bytes)
 {
   ASSERT( !dcd_pipe_is_busy(edpt_hdl), TUSB_ERROR_INTERFACE_IS_BUSY); // endpoint must not in transferring
@@ -473,8 +488,8 @@ tusb_error_t dcd_pipe_queue_xfer(endpoint_handle_t edpt_hdl, void * buffer, uint
 
 tusb_error_t  dcd_pipe_xfer(endpoint_handle_t edpt_hdl, void* buffer, uint16_t total_bytes, bool int_on_complete)
 {
-  if( dcd_pipe_is_busy(edpt_hdl) )
-  { // save this transfer data to next td
+  if( dcd_pipe_is_busy(edpt_hdl) || dcd_pipe_is_stalled(edpt_hdl) )
+  { // save this transfer data to next td if pipe is busy or already been stalled
     dcd_data.next_td[edpt_hdl.index].buff_addr_offset = addr_offset(buffer);
     dcd_data.next_td[edpt_hdl.index].total_bytes      = total_bytes;
 

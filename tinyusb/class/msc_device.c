@@ -158,7 +158,7 @@ static bool read10_write10_data_xfer(mscd_interface_t* p_msc)
 
   if ( 0 == xferred_block  )
   { // xferred_block is zero will cause pipe is stalled & status in CSW set to failed
-    p_csw->data_residue = __n2be(p_cbw->xfer_bytes);
+    p_csw->data_residue = p_cbw->xfer_bytes;
     p_csw->status       = MSC_CSW_STATUS_FAILED;
 
     (void) dcd_pipe_stall(edpt_hdl);
@@ -239,6 +239,7 @@ tusb_error_t mscd_xfer_cb(endpoint_handle_t edpt_hdl, tusb_event_t event, uint32
   }
 
   //------------- Status Phase -------------//
+  // Either bulk in & out can be stalled in the data phase, dcd must make sure these queued transfer will be resumed after host clear stall
   if (!is_waiting_read10_write10)
   {
     ASSERT_STATUS( dcd_pipe_xfer( p_msc->edpt_in , p_csw, sizeof(msc_cmd_status_wrapper_t), true) ); // need to be true for dcd to clean up qtd !!
