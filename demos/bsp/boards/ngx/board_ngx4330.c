@@ -58,7 +58,7 @@ void board_init(void)
   GPIO_SetDir   (5, BIT_(6), 1);              // GPIO5[6] is output
   GPIO_SetValue (5, BIT_(6));                 // GPIO5[6] output high
 
-  // Leds Init
+  //------------- LED -------------//
   for (uint8_t i=0; i<BOARD_MAX_LEDS; i++)
   {
     scu_pinmux(leds[i].port, leds[i].pin, MD_PUP|MD_EZI|MD_ZI, FUNC0);

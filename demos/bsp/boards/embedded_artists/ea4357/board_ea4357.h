@@ -36,12 +36,6 @@
 */
 /**************************************************************************/
 
-/** \file
- *  \brief TBD
- *
- *  \note TBD
- */
-
 /** \ingroup TBD
  *  \defgroup TBD
  *  \brief TBD
@@ -65,12 +59,13 @@
 
 
 #include "../oem_base_board/pca9532.h" // LEDs
-//#include "../oem_board/nand.h"
+//#include "../oem_board/nand.h"a
 
 
 //#define CFG_PRINTF_TARGET       PRINTF_TARGET_SWO
 #define CFG_PRINTF_TARGET       PRINTF_TARGET_UART // FIXME keil's cmsis rtx does not work with UART (work with SWO)
 
+// TODO clean up
 /*=========================================================================
     HARDWARE MAC ADDRESS
     -----------------------------------------------------------------------*/

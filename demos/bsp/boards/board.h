@@ -69,6 +69,7 @@
 #define BOARD_LPCXPRESSO1769        7
 
 #define BOARD_LPC4357USB            8
+#define BOARD_LPCLINK2              9
 
 //--------------------------------------------------------------------+
 // PRINTF TARGET DEFINE
@@ -80,9 +81,7 @@
 
 #define PRINTF(...) printf(__VA_ARGS__)
 
-#if BOARD == 0
-  #error BOARD is not defined or supported yet
-#elif BOARD == BOARD_NGX4330
+#if BOARD == BOARD_NGX4330
   #include "ngx/board_ngx4330.h"
 #elif BOARD == BOARD_LPCXPRESSO1347
   #include "lpcxpresso/board_lpcxpresso1347.h"
@@ -98,6 +97,8 @@
   #include "lpcxpresso/board_lpcxpresso1769.h"
 #elif BOARD == BOARD_LPC4357USB
   #include "microbuilder/board_lpc4357usb.h"
+#elif BOARD == BOARD_LPCLINK2
+ #include "lpcxpresso/board_lpclink2.h"
 #else
   #error BOARD is not defined or supported yet
 #endif
