@@ -72,12 +72,12 @@ STATIC_VAR mscd_interface_t mscd_data TUSB_CFG_ATTR_USBRAM;
 //--------------------------------------------------------------------+
 void mscd_init(void)
 {
-  // TODO not implemented
+  memclr_(&mscd_data, sizeof(mscd_interface_t));
 }
 
 void mscd_close(uint8_t coreid)
 {
-  // TODO not implemented yet
+  memclr_(&mscd_data, sizeof(mscd_interface_t));
 }
 
 tusb_error_t mscd_open(uint8_t coreid, tusb_descriptor_interface_t const * p_interface_desc, uint16_t *p_length)
@@ -182,6 +182,9 @@ static bool read10_write10_data_xfer(mscd_interface_t* p_msc)
   }
 }
 
+//--------------------------------------------------------------------+
+// MSCD APPLICATION CALLBACK
+//--------------------------------------------------------------------+
 tusb_error_t mscd_xfer_cb(endpoint_handle_t edpt_hdl, tusb_event_t event, uint32_t xferred_bytes)
 {
   // TODO failed --> STALL pipe, on clear STALL --> queue endpoint OUT
@@ -191,8 +194,9 @@ tusb_error_t mscd_xfer_cb(endpoint_handle_t edpt_hdl, tusb_event_t event, uint32
   msc_cmd_block_wrapper_t *  const p_cbw = &p_msc->cbw;
   msc_cmd_status_wrapper_t * const p_csw = &p_msc->csw;
 
+  //------------- new CBW received -------------//
   if ( !is_waiting_read10_write10)
-  { // new CBW received
+  {
     if ( endpointhandle_is_equal(p_msc->edpt_in, edpt_hdl) ) return TUSB_ERROR_NONE; // bulk in interrupt for dcd to clean up
 
     ASSERT( endpointhandle_is_equal(p_msc->edpt_out, edpt_hdl) &&
@@ -207,7 +211,7 @@ tusb_error_t mscd_xfer_cb(endpoint_handle_t edpt_hdl, tusb_event_t event, uint32
     if ( (SCSI_CMD_READ_10 != p_cbw->command[0]) && (SCSI_CMD_WRITE_10 != p_cbw->command[0]) )
     {
       void *p_buffer = NULL;
-      uint16_t actual_length = p_cbw->xfer_bytes;
+      uint16_t actual_length = (uint16_t) p_cbw->xfer_bytes;
 
       p_csw->status = tusbd_msc_scsi_received_isr(edpt_hdl.coreid, p_cbw->lun, p_cbw->command, &p_buffer, &actual_length);
 
@@ -215,14 +219,15 @@ tusb_error_t mscd_xfer_cb(endpoint_handle_t edpt_hdl, tusb_event_t event, uint32
       if ( p_cbw->xfer_bytes )
       {
         ASSERT( p_cbw->xfer_bytes >= actual_length, TUSB_ERROR_INVALID_PARA );
+        endpoint_handle_t const edpt_data = BIT_TEST_(p_cbw->dir, 7) ? p_msc->edpt_in : p_msc->edpt_out;
+
         if ( p_buffer == NULL || actual_length == 0 )
         { // application does not provide data to response --> possibly unsupported SCSI command
-          ASSERT_STATUS( dcd_pipe_stall(p_msc->edpt_in) );
+          ASSERT_STATUS( dcd_pipe_stall(edpt_data) );
           p_csw->status = MSC_CSW_STATUS_FAILED;
         }else
         {
-          ASSERT_STATUS( dcd_pipe_queue_xfer( BIT_TEST_(p_cbw->dir, 7) ? p_msc->edpt_in : p_msc->edpt_out,
-                                              p_buffer, actual_length) );
+          ASSERT_STATUS( dcd_pipe_queue_xfer( edpt_data, p_buffer, min16_of(actual_length, (uint16_t) p_cbw->xfer_bytes)) );
         }
       }
     }
