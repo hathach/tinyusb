@@ -91,7 +91,7 @@ tusb_error_t tusbd_hid_keyboard_send(uint8_t coreid, hid_keyboard_report_t const
  *              - TUSB_EVENT_XFER_ERROR   : previously scheduled transfer encountered a transaction error.
  *              - TUSB_EVENT_XFER_STALLED : previously scheduled transfer is stalled by device.
  */
-void tusbd_hid_keyboard_isr(uint8_t coreid, tusb_event_t event, uint32_t xferred_bytes);
+void tusbd_hid_keyboard_cb(uint8_t coreid, tusb_event_t event, uint32_t xferred_bytes);
 void tusbd_hid_keyboard_mounted_cb(uint8_t coreid);
 void tusbd_hid_keyboard_unmounted_cb(uint8_t coreid);
 
@@ -141,7 +141,7 @@ tusb_error_t tusbd_hid_mouse_send(uint8_t coreid, hid_mouse_report_t const *p_re
  *              - TUSB_EVENT_XFER_ERROR   : previously scheduled transfer encountered a transaction error.
  *              - TUSB_EVENT_XFER_STALLED : previously scheduled transfer is stalled by device.
  */
-void tusbd_hid_mouse_isr(uint8_t coreid, tusb_event_t event, uint32_t xferred_bytes);
+void tusbd_hid_mouse_cb(uint8_t coreid, tusb_event_t event, uint32_t xferred_bytes);
 void tusbd_hid_mouse_mounted_cb(uint8_t coreid);
 void tusbd_hid_mouse_unmounted_cb(uint8_t coreid);
 
@@ -158,7 +158,7 @@ void tusbd_hid_mouse_unmounted_cb(uint8_t coreid);
 void hidd_init(void);
 tusb_error_t hidd_open(uint8_t coreid, tusb_descriptor_interface_t const * p_interface_desc, uint16_t *p_length);
 tusb_error_t hidd_control_request(uint8_t coreid, tusb_control_request_t const * p_request);
-void hidd_isr(endpoint_handle_t edpt_hdl, tusb_event_t event, uint32_t xferred_bytes);
+tusb_error_t hidd_xfer_cb(endpoint_handle_t edpt_hdl, tusb_event_t event, uint32_t xferred_bytes);
 void hidd_close(uint8_t coreid);
 
 #endif

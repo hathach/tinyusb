@@ -82,7 +82,7 @@ tusb_error_t tusbd_hid_keyboard_send(uint8_t coreid, hid_keyboard_report_t const
 
   hidd_interface_t * p_kbd = &keyboardd_data; // TODO &keyboardd_data[coreid];
 
-  ASSERT_STATUS( dcd_pipe_xfer(p_kbd->ept_handle, p_report, sizeof(hid_keyboard_report_t), false) ) ;
+  ASSERT_STATUS( dcd_pipe_xfer(p_kbd->ept_handle, p_report, sizeof(hid_keyboard_report_t), true) ) ;
 
   return TUSB_ERROR_NONE;
 }
@@ -108,7 +108,7 @@ tusb_error_t tusbd_hid_mouse_send(uint8_t coreid, hid_mouse_report_t const *p_re
 
   hidd_interface_t * p_mouse = &moused_data; // TODO &keyboardd_data[coreid];
 
-  ASSERT_STATUS( dcd_pipe_xfer(p_mouse->ept_handle, p_report, sizeof(hid_mouse_report_t), false) ) ;
+  ASSERT_STATUS( dcd_pipe_xfer(p_mouse->ept_handle, p_report, sizeof(hid_mouse_report_t), true) ) ;
 
   return TUSB_ERROR_NONE;
 }
@@ -232,13 +232,19 @@ tusb_error_t hidd_open(uint8_t coreid, tusb_descriptor_interface_t const * p_int
         p_hid->interface_number = p_interface_desc->bInterfaceNumber;
         p_hid->report_length    = p_desc_hid->wReportLength;
 
+        #if TUSB_CFG_DEVICE_HID_KEYBOARD
         if (p_interface_desc->bInterfaceProtocol == HID_PROTOCOL_KEYBOARD)
         {
           tusbd_hid_keyboard_mounted_cb(coreid);
-        }else
+        }
+        #endif
+
+        #if TUSB_CFG_DEVICE_HID_MOUSE
+        if (p_interface_desc->bInterfaceProtocol == HID_PROTOCOL_MOUSE)
         {
           tusbd_hid_mouse_mounted_cb(coreid);
         }
+        #endif
       }
       break;
 
@@ -255,23 +261,23 @@ tusb_error_t hidd_open(uint8_t coreid, tusb_descriptor_interface_t const * p_int
   return TUSB_ERROR_NONE;
 }
 
-void hidd_isr(endpoint_handle_t edpt_hdl, tusb_event_t event, uint32_t xferred_bytes)
+tusb_error_t hidd_xfer_cb(endpoint_handle_t edpt_hdl, tusb_event_t event, uint32_t xferred_bytes)
 {
 #if TUSB_CFG_DEVICE_HID_KEYBOARD
   if ( endpointhandle_is_equal(edpt_hdl, keyboardd_data.ept_handle) )
   {
-    tusbd_hid_keyboard_isr(edpt_hdl.coreid, event, xferred_bytes);
-    return;
+    tusbd_hid_keyboard_cb(edpt_hdl.coreid, event, xferred_bytes);
   }
 #endif
 
 #if TUSB_CFG_DEVICE_HID_MOUSE
   if ( endpointhandle_is_equal(edpt_hdl, moused_data.ept_handle) )
   {
-    tusbd_hid_mouse_isr(edpt_hdl.coreid, event, xferred_bytes);
-    return;
+    tusbd_hid_mouse_cb(edpt_hdl.coreid, event, xferred_bytes);
   }
 #endif
+
+  return TUSB_ERROR_NONE;
 }
 
 #if defined(CAP_DEVICE_ROMDRIVER)

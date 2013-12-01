@@ -70,7 +70,7 @@ static usbd_class_driver_t const usbd_class_drivers[TUSB_CLASS_MAPPED_INDEX_STAR
         .init            = hidd_init,
         .open            = hidd_open,
         .control_request = hidd_control_request,
-        .xfer_cb    = hidd_isr,
+        .xfer_cb         = hidd_xfer_cb,
         .close           = hidd_close
     },
 #endif
@@ -81,7 +81,7 @@ static usbd_class_driver_t const usbd_class_drivers[TUSB_CLASS_MAPPED_INDEX_STAR
         .init            = mscd_init,
         .open            = mscd_open,
         .control_request = mscd_control_request,
-        .xfer_cb    = mscd_xfer_cb,
+        .xfer_cb         = mscd_xfer_cb,
         .close           = mscd_close
     },
 #endif
@@ -92,7 +92,7 @@ static usbd_class_driver_t const usbd_class_drivers[TUSB_CLASS_MAPPED_INDEX_STAR
         .init            = cdcd_init,
         .open            = cdcd_open,
         .control_request = cdcd_control_request,
-        .xfer_cb    = cdcd_isr,
+        .xfer_cb         = cdcd_xfer_cb,
         .close           = cdcd_close
     },
 #endif

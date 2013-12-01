@@ -140,10 +140,6 @@ tusb_descriptor_device_t app_tusb_desc_device =
     .bDeviceClass       = TUSB_CLASS_MISC,
     .bDeviceSubClass    = MISC_SUBCLASS_COMMON,
     .bDeviceProtocol    = MISC_PROTOCOL_IAD,
-  #elif TUSB_CFG_DEVICE_CDC
-    .bDeviceClass       = TUSB_CLASS_CDC,
-    .bDeviceSubClass    = 0x00,
-    .bDeviceProtocol    = 0x00,
   #else
     .bDeviceClass       = 0x00,
     .bDeviceSubClass    = 0x00,
@@ -198,7 +194,6 @@ app_descriptor_configuration_t app_tusb_desc_configuration =
     #endif
 
     #if TUSB_CFG_DEVICE_CDC
-    // USB CDC Serial Interface
     //------------- CDC Communication Interface -------------//
     .cdc_comm_interface =
     {

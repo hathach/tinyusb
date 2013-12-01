@@ -67,6 +67,7 @@ FIFO_DEF(fifo_serial, CDCD_APP_BUFFER_SIZE, uint8_t, true);
 
 //--------------------------------------------------------------------+
 // IMPLEMENTATION
+//--------------------------------------------------------------------+
 void cdcd_serial_app_init(void)
 {
   sem_hdl = osal_semaphore_create( OSAL_SEM_REF(cdcd_semaphore) );
@@ -82,7 +83,7 @@ void tusbd_cdc_mounted_cb(uint8_t coreid)
   tusbd_cdc_receive(coreid, serial_rx_buffer, CDCD_APP_BUFFER_SIZE, true);
 }
 
-void tusbd_cdc_xfer_isr(uint8_t coreid, tusb_event_t event, cdc_pipeid_t pipe_id, uint32_t xferred_bytes)
+void tusbd_cdc_xfer_cb(uint8_t coreid, tusb_event_t event, cdc_pipeid_t pipe_id, uint32_t xferred_bytes)
 {
   switch ( pipe_id )
   {

@@ -211,7 +211,7 @@ tusb_error_t cdcd_control_request(uint8_t coreid, tusb_control_request_t const *
   return TUSB_ERROR_NONE;
 }
 
-void cdcd_isr(endpoint_handle_t edpt_hdl, tusb_event_t event, uint32_t xferred_bytes)
+tusb_error_t cdcd_xfer_cb(endpoint_handle_t edpt_hdl, tusb_event_t event, uint32_t xferred_bytes)
 {
   cdcd_data_t const * p_cdc = &cdcd_data[edpt_hdl.coreid];
 
@@ -219,10 +219,12 @@ void cdcd_isr(endpoint_handle_t edpt_hdl, tusb_event_t event, uint32_t xferred_b
   {
     if ( endpointhandle_is_equal(edpt_hdl, p_cdc->edpt_hdl[pipeid]) )
     {
-      tusbd_cdc_xfer_isr(edpt_hdl.coreid, event, pipeid, xferred_bytes);
-      return;
+      tusbd_cdc_xfer_cb(edpt_hdl.coreid, event, pipeid, xferred_bytes);
+      break;
     }
   }
+
+  return TUSB_ERROR_NONE;
 }
 
 #endif

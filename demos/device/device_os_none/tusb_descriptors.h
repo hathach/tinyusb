@@ -65,8 +65,8 @@
 #define TOTAL_INTEFACES            (2*TUSB_CFG_DEVICE_CDC + TUSB_CFG_DEVICE_HID_KEYBOARD + TUSB_CFG_DEVICE_HID_MOUSE + \
                                     TUSB_CFG_DEVICE_HID_GENERIC + TUSB_CFG_DEVICE_MSC)
 
-// Interface Assosication Descriptor is required when enable CDC with any other class
-#define IAD_DESC_REQUIRED ( TUSB_CFG_DEVICE_CDC && (TOTAL_INTEFACES > 2) )
+// Interface Assosication Descriptor is required when enable CDC
+#define IAD_DESC_REQUIRED           ( TUSB_CFG_DEVICE_CDC )
 
 //--------------------------------------------------------------------+
 // Endpoints Address & Max Packet Size
