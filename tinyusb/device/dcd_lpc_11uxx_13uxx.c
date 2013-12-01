@@ -63,7 +63,7 @@
 #define DCD_11U_13U_QHD_COUNT 10
 
 enum {
-  DCD_11U_13U_FIXED_ENDPIONT_SIZE = 64
+  DCD_11U_13U_MAX_BYTE_PER_TD = (TUSB_CFG_MCU == MCU_LPC11UXX ? 64 : 1023)
 };
 
 enum {
@@ -436,7 +436,7 @@ bool dcd_pipe_is_busy(endpoint_handle_t edpt_hdl)
 
 static void queue_xfer_to_buffer(uint8_t ep_id, uint8_t buff_idx, uint16_t buff_addr_offset, uint16_t total_bytes)
 {
-  uint16_t const queued_bytes = min16_of(total_bytes, DCD_11U_13U_FIXED_ENDPIONT_SIZE);
+  uint16_t const queued_bytes = min16_of(total_bytes, DCD_11U_13U_MAX_BYTE_PER_TD);
 
   dcd_data.current_td[ep_id].queued_bytes_in_buff[buff_idx] = queued_bytes;
   dcd_data.current_td[ep_id].remaining_bytes               -= queued_bytes;
@@ -458,9 +458,9 @@ static void pipe_queue_xfer(uint8_t ep_id, uint16_t buff_addr_offset, uint16_t t
 
   // need to queue buffer1 first, as activate buffer0 can causes controller does transferring immediately
   // while buffer1 is not ready yet
-  if ( total_bytes > DCD_11U_13U_FIXED_ENDPIONT_SIZE)
+  if ( total_bytes > DCD_11U_13U_MAX_BYTE_PER_TD)
   {
-    queue_xfer_to_buffer(ep_id, 1, buff_addr_offset+1, total_bytes - DCD_11U_13U_FIXED_ENDPIONT_SIZE);
+    queue_xfer_to_buffer(ep_id, 1, buff_addr_offset+1, total_bytes - DCD_11U_13U_MAX_BYTE_PER_TD);
   }
 
   queue_xfer_to_buffer(ep_id, 0, buff_addr_offset, total_bytes);
