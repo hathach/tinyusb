@@ -118,9 +118,9 @@ int main(void)
 //--------------------------------------------------------------------+
 OSAL_TASK_FUNCTION( led_blinking_task ) (void* p_task_para)
 {
-  static uint32_t led_on_mask = 0;
-
   OSAL_TASK_LOOP_BEGIN
+
+  static uint32_t led_on_mask = 0;
 
   osal_task_delay(1000);
 

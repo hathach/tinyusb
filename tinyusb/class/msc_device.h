@@ -55,7 +55,6 @@
 //--------------------------------------------------------------------+
 // APPLICATION API
 //--------------------------------------------------------------------+
-//bool tusbd_msc_is_configured(uint8_t coreid);
 
 //--------------------------------------------------------------------+
 // APPLICATION CALLBACK API
@@ -64,11 +63,57 @@ void tusbd_msc_mounted_cb(uint8_t coreid);
 void tusbd_msc_unmounted_cb(uint8_t coreid);
 
 
-// return 0 will end up with stall transaction
-uint16_t tusbd_msc_read10_cb (uint8_t coreid, uint8_t lun, void** pp_buffer, uint32_t lba, uint16_t block_count) ATTR_WARN_UNUSED_RESULT;
-uint16_t tusbd_msc_write10_cb(uint8_t coreid, uint8_t lun, void** pp_buffer, uint32_t lba, uint16_t block_count) ATTR_WARN_UNUSED_RESULT;
+/** \brief 			Callback that is invoked when tinyusb stack received \ref SCSI_CMD_READ_10 command from host
+ * \param[in]		coreid	    USB Controller ID
+ * \param[in]		lun         Targeted Logical Unit
+ * \param[out]	pp_buffer   Pointer to buffer which application need to update with the response data's address.
+ *                          Must be accessible by USB controller (see \ref TUSB_CFG_ATTR_USBRAM)
+ * \param[in]		lba         Starting Logical Block Address to be read
+ * \param[in]		block_count Number of requested block
+ * \retval      non-zero    Actual number of block that application processed, must be less than or equal to \a \b block_count.
+ * \retval      zero        Indicate error in retrieving data from application. Tinyusb device stack will \b STALL the corresponding
+ *                          endpoint and return failed status in command status wrapper phase.
+ * \note        Host can request dozens of Kbytes in one command e.g \a \b block_count = 128, it is insufficient to require
+ *              application to have that much of buffer. Instead, application can return the number of blocks it can processed,
+ *              the stack after transferred that amount of data will continue to invoke this callback with adjusted \a \b lba and \a \b block_count.
+ *              \n\n Although this callback is called by tinyusb device task (non-isr context), however as all the classes share
+ *              the same task (to save resource), any delay in this callback will cause delay in reponse on other classes.
+ */
+uint16_t tusbd_msc_read10_cb (uint8_t coreid, uint8_t lun, void** pp_buffer, uint32_t lba, uint16_t block_count);
+
+/** \brief 			Callback that is invoked when tinyusb stack received \ref SCSI_CMD_WRITE_10 command from host
+ * \param[in]		coreid	    USB Controller ID
+ * \param[in]		lun         Targeted Logical Unit
+ * \param[out]	pp_buffer   Pointer to buffer which application need to update with the address to hold data from host
+ *                          Must be accessible by USB controller (see \ref TUSB_CFG_ATTR_USBRAM)
+ * \param[in]		lba         Starting Logical Block Address to be write
+ * \param[in]		block_count Number of requested block
+ * \retval      non-zero    Actual number of block that application can receive and must be less than or equal to \a \b block_count.
+ * \retval      zero        Indicate error in retrieving data from application. Tinyusb device stack will \b STALL the corresponding
+ *                          endpoint and return failed status in command status wrapper phase.
+ * \note        Host can request dozens of Kbytes in one command e.g \a \b block_count = 128, it is insufficient to require
+ *              application to have that much of buffer. Instead, application can return the number of blocks it can processed,
+ *              the stack after transferred that amount of data will continue to invoke this callback with adjusted \a \b lba and \a \b block_count.
+ *              \n\n Although this callback is called by tinyusb device task (non-isr context), however as all the classes share
+ *              the same task (to save resource), any delay in this callback will cause delay in reponse on other classes.
+ */
+uint16_t tusbd_msc_write10_cb(uint8_t coreid, uint8_t lun, void** pp_buffer, uint32_t lba, uint16_t block_count);
 
 // p_length [in,out] allocated/maximum length, application update with actual length
+/** \brief 			Callback that is invoked when tinyusb stack received an SCSI command other than \ref SCSI_CMD_WRITE_10 and
+ *              \ref SCSI_CMD_READ_10 command from host
+ * \param[in]		coreid	    USB Controller ID
+ * \param[in]		lun         Targeted Logical Unit
+ * \param[in]		scsi_cmd    SCSI command contents, application should examine this command block to know which command host requested
+ * \param[out]	pp_buffer   Pointer to buffer which application need to update with the address to transceive data with host
+ *                          Must be accessible by USB controller (see \ref TUSB_CFG_ATTR_USBRAM)
+ * \param[in]		p_length    length
+ * \retval      non-zero    Actual number of block that application can receive and must be less than or equal to \a \b block_count.
+ * \retval      zero        Indicate error in retrieving data from application. Tinyusb device stack will \b STALL the corresponding
+ *                          endpoint and return failed status in command status wrapper phase.
+ * \note        Although this callback is called by tinyusb device task (non-isr context), however as all the classes share
+ *              the same task (to save resource), any delay in this callback will cause delay in reponse on other classes.
+ */
 msc_csw_status_t tusbd_msc_scsi_received_isr (uint8_t coreid, uint8_t lun, uint8_t scsi_cmd[16], void ** pp_buffer, uint16_t* p_length);
 
 /** @} */
