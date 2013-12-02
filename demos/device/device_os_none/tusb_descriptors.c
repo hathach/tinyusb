@@ -418,7 +418,7 @@ tusb_descriptor_string_t desc_str_product =
 {
     .bLength         = STRING_LEN_UNICODE(14),
     .bDescriptorType = TUSB_DESC_TYPE_STRING,
-    .unicode_string  = { 'D', 'e', 'v', 'i', 'c', 'e', ' ', 'E', 'x', 'a', 'm', 'p', 'l', 'e' } // len = 14
+    .unicode_string  = { 't', 'i', 'n', 'y', 'u', 's', 'b', ' ', 'D', 'e', 'v', 'i', 'c', 'e' } // len = 14
 };
 
 ATTR_USB_MIN_ALIGNMENT TUSB_CFG_ATTR_USBRAM

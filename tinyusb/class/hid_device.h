@@ -56,8 +56,6 @@
 /** \defgroup Keyboard_Device Device
  *  @{ */
 
-//bool tusbd_hid_keyboard_is_configured(uint8_t coreid);
-
 /** \brief      Check if the interface is currently busy or not
  * \param[in]   coreid USB Controller ID
  * \retval      true if the interface is busy meaning the stack is still transferring/waiting data from/to host
@@ -82,6 +80,9 @@ tusb_error_t tusbd_hid_keyboard_send(uint8_t coreid, hid_keyboard_report_t const
 //--------------------------------------------------------------------+
 // APPLICATION CALLBACK API
 //--------------------------------------------------------------------+
+void tusbd_hid_keyboard_mounted_cb(uint8_t coreid);
+void tusbd_hid_keyboard_unmounted_cb(uint8_t coreid);
+
 /** \brief      Callback function that is invoked when an transferring event occurred
  *              after invoking \ref tusbd_hid_keyboard_send
  * \param[in]		coreid	USB Controller ID
@@ -92,8 +93,9 @@ tusb_error_t tusbd_hid_keyboard_send(uint8_t coreid, hid_keyboard_report_t const
  *              - TUSB_EVENT_XFER_STALLED : previously scheduled transfer is stalled by device.
  */
 void tusbd_hid_keyboard_cb(uint8_t coreid, tusb_event_t event, uint32_t xferred_bytes);
-void tusbd_hid_keyboard_mounted_cb(uint8_t coreid);
-void tusbd_hid_keyboard_unmounted_cb(uint8_t coreid);
+
+void tusbd_hid_keyboard_set_report_cb(uint8_t coreid, hid_request_report_type_t report_type, uint8_t report_data[]);
+void tusbd_hid_keyboard_get_report_cb(uint8_t coreid, hid_request_report_type_t report_type, void** pp_report);
 
 /** @} */
 /** @} */
@@ -132,6 +134,10 @@ tusb_error_t tusbd_hid_mouse_send(uint8_t coreid, hid_mouse_report_t const *p_re
 //--------------------------------------------------------------------+
 // APPLICATION CALLBACK API
 //--------------------------------------------------------------------+
+
+void tusbd_hid_mouse_mounted_cb(uint8_t coreid);
+void tusbd_hid_mouse_unmounted_cb(uint8_t coreid);
+
 /** \brief      Callback function that is invoked when an transferring event occurred
  *              after invoking \ref tusbd_hid_mouse_send
  * \param[in]		coreid	USB Controller ID
@@ -142,8 +148,6 @@ tusb_error_t tusbd_hid_mouse_send(uint8_t coreid, hid_mouse_report_t const *p_re
  *              - TUSB_EVENT_XFER_STALLED : previously scheduled transfer is stalled by device.
  */
 void tusbd_hid_mouse_cb(uint8_t coreid, tusb_event_t event, uint32_t xferred_bytes);
-void tusbd_hid_mouse_mounted_cb(uint8_t coreid);
-void tusbd_hid_mouse_unmounted_cb(uint8_t coreid);
 
 /** @} */
 /** @} */

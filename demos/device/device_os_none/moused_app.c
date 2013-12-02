@@ -59,6 +59,16 @@ static uint8_t moused_report_count; // number of reports sent each mounted
 //--------------------------------------------------------------------+
 // tinyusb Callbacks
 //--------------------------------------------------------------------+
+void tusbd_hid_mouse_mounted_cb(uint8_t coreid)
+{
+  moused_report_count = 0;
+}
+
+void tusbd_hid_mouse_unmounted_cb(uint8_t coreid)
+{
+
+}
+
 void tusbd_hid_mouse_cb(uint8_t coreid, tusb_event_t event, uint32_t xferred_bytes)
 {
   switch(event)
@@ -68,11 +78,6 @@ void tusbd_hid_mouse_cb(uint8_t coreid, tusb_event_t event, uint32_t xferred_byt
     case TUSB_EVENT_XFER_STALLED:
     default: break;
   }
-}
-
-void tusbd_hid_mouse_mounted_cb(uint8_t coreid)
-{
-  moused_report_count = 0;
 }
 
 //--------------------------------------------------------------------+

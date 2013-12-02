@@ -212,6 +212,10 @@ enum {
   DESCRIPTOR_OFFSET_TYPE   = 1
 };
 
+enum {
+  INTERFACE_INVALID_NUMBER = 0xff
+};
+
 static inline uint8_t std_class_code_to_index(uint8_t std_class_code) ATTR_CONST ATTR_ALWAYS_INLINE;
 static inline uint8_t std_class_code_to_index(uint8_t std_class_code)
 {
