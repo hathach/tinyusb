@@ -351,20 +351,35 @@ void dcd_pipe_control_stall(uint8_t coreid)
 }
 
 // control transfer does not need to use qtd find function
-tusb_error_t dcd_pipe_control_xfer(uint8_t coreid, tusb_direction_t dir, void * buffer, uint16_t length)
+tusb_error_t dcd_pipe_control_xfer(uint8_t coreid, tusb_direction_t dir, void * p_buffer, uint16_t length, bool int_on_complete)
 {
   LPC_USB0_Type* const lpc_usb = LPC_USB[coreid];
-  dcd_data_t* p_dcd = dcd_data_ptr[coreid];
+  dcd_data_t* const p_dcd      = dcd_data_ptr[coreid];
 
-  uint8_t const ep_id = dir; // IN : 1, OUT = 0
+  // determine Endpoint where Data & Status phase occurred (IN or OUT)
+  uint8_t const ep_data   = (dir == TUSB_DIR_DEV_TO_HOST) ? 1 : 0;
+  uint8_t const ep_status = 1 - ep_data;
 
-  ASSERT_FALSE(p_dcd->qhd[ep_id].qtd_overlay.active, TUSB_ERROR_FAILED);
+  ASSERT_FALSE(p_dcd->qhd[0].qtd_overlay.active || p_dcd->qhd[1].qtd_overlay.active, TUSB_ERROR_FAILED);
 
-  dcd_qtd_t* p_qtd = &p_dcd->qtd[ep_id];
-  qtd_init(p_qtd, buffer, length);
-  p_dcd->qhd[ep_id].qtd_overlay.next = (uint32_t) p_qtd;
+  //------------- Data Phase -------------//
+  if (length)
+  {
+    dcd_qtd_t* p_qtd_data = &p_dcd->qtd[0];
+    qtd_init(p_qtd_data, p_buffer, length);
+    p_dcd->qhd[ep_data].qtd_overlay.next = (uint32_t) p_qtd_data;
 
-  lpc_usb->ENDPTPRIME = BIT_( edpt_phy2pos(ep_id) );
+    lpc_usb->ENDPTPRIME = BIT_( edpt_phy2pos(ep_data) );
+  }
+
+  //------------- Status Phase -------------//
+  dcd_qtd_t* p_qtd_status = &p_dcd->qtd[1];
+  qtd_init(p_qtd_status, NULL, 0); // zero length xfer
+  p_qtd_status->int_on_complete = int_on_complete ? 1 : 0;
+
+  p_dcd->qhd[ep_status].qtd_overlay.next = (uint32_t) p_qtd_status;
+
+  LPC_USB0->ENDPTPRIME |= BIT_( edpt_phy2pos(ep_status) );
 
   return TUSB_ERROR_NONE;
 }
@@ -565,32 +580,47 @@ void dcd_isr(uint8_t coreid)
 
 	if (int_status & INT_MASK_USB)
 	{
+	  uint32_t const edpt_complete = lpc_usb->ENDPTCOMPLETE;
+		lpc_usb->ENDPTCOMPLETE       = edpt_complete; // acknowledge
+
+		dcd_data_t* const p_dcd = dcd_data_ptr[coreid];
+
 	  //------------- Set up Received -------------//
 		if (lpc_usb->ENDPTSETUPSTAT)
 		{ // 23.10.10.2 Operational model for setup transfers
-		  dcd_data_t* p_dcd = dcd_data_ptr[coreid];
 		  tusb_control_request_t control_request = p_dcd->qhd[0].setup_request;
 
 		  lpc_usb->ENDPTSETUPSTAT = lpc_usb->ENDPTSETUPSTAT;
 
 		  //------------- Flush if previous transfer is not done -------------//
-		  if (p_dcd->qhd[0].qtd_overlay.active || p_dcd->qhd[1].qtd_overlay.active)
-		  {
-		    do
-		    {
-		      lpc_usb->ENDPTFLUSH = BIT_(0) | BIT_(16);
-		      while(lpc_usb->ENDPTFLUSH) {} // TODO refractor later
-		    }while( lpc_usb->ENDPTSTAT & (BIT_(0) | BIT_(16)) );
-
-		    p_dcd->qhd[0].qtd_overlay.active = p_dcd->qhd[1].qtd_overlay.active = 0;
-		  }
+//		  if (p_dcd->qhd[0].qtd_overlay.active || p_dcd->qhd[1].qtd_overlay.active)
+//		  {
+//		    do
+//		    {
+//		      lpc_usb->ENDPTFLUSH = BIT_(0) | BIT_(16);
+//		      while(lpc_usb->ENDPTFLUSH) {} // TODO refractor later
+//		    }while( lpc_usb->ENDPTSTAT & (BIT_(0) | BIT_(16)) );
+//
+//		    p_dcd->qhd[0].qtd_overlay.active = p_dcd->qhd[1].qtd_overlay.active = 0;
+//		  }
 
 		  usbd_setup_received_isr(coreid, &control_request);
+		}else if ( edpt_complete & 0x03 )
+		{ // only either of Endpoint Control is set with interrupt on complete flag
+		  endpoint_handle_t edpt_hdl =
+      {
+          .coreid     = coreid,
+          .index      = 0,
+          .class_code = 0
+      };
+
+		  dcd_qtd_t * const p_qtd = &p_dcd->qhd[ (edpt_complete & BIT_(0)) ? 0 : 1 ].qtd_overlay;
+		  tusb_event_t event = ( p_qtd->xact_err || p_qtd->halted || p_qtd->buffer_err ) ? TUSB_EVENT_XFER_ERROR : TUSB_EVENT_XFER_COMPLETE;
+
+		  usbd_xfer_isr(edpt_hdl, event, 0); // TODO xferred bytes for control xfer is not needed yet !!!!
 		}
 
 		//------------- Transfer Complete -------------//
-		uint32_t edpt_complete = lpc_usb->ENDPTCOMPLETE;
-		lpc_usb->ENDPTCOMPLETE = edpt_complete; // acknowledge
 
 		if (edpt_complete)
 		{
