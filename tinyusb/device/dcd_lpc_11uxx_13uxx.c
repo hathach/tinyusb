@@ -269,14 +269,9 @@ static void endpoint_control_isr(uint32_t int_status)
 
     if ( BIT_TEST_(dcd_data.current_ioc, ep_id) )
     {
-      endpoint_handle_t edpt_hdl =
-      {
-          .coreid     = 0,
-          .index      = 0,
-          .class_code = 0
-      };
+      endpoint_handle_t edpt_hdl = { .coreid = 0 };
 
-      dcd_data.current_ioc = BIT_CLR_(dcd_data.current_ioc, edpt_hdl.index);
+      dcd_data.current_ioc = BIT_CLR_(dcd_data.current_ioc, ep_id);
 
       // FIXME xferred_byte for control xfer is not needed now !!!
       usbd_xfer_isr(edpt_hdl, TUSB_EVENT_XFER_COMPLETE, 0);

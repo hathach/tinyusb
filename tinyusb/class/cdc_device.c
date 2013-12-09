@@ -197,11 +197,10 @@ tusb_error_t cdcd_control_request_subtask(uint8_t coreid, tusb_control_request_t
     case CDC_REQUEST_SET_LINE_CODING:
       dcd_pipe_control_xfer(coreid, p_request->bmRequestType_bit.direction,
                             &cdcd_line_coding[coreid], min16_of(sizeof(cdc_line_coding_t), p_request->wLength), false );
-      // TODO notify application on xfer complete
+      // TODO notify application on xfer completea
     break;
 
     case CDC_REQUEST_SET_CONTROL_LINE_STATE: // TODO extract DTE present
-//      dcd_pipe_control_xfer(coreid, p_request->bmRequestType_bit.direction, NULL, 0);
     break;
 
 

@@ -63,6 +63,11 @@ typedef struct {
 
   volatile uint32_t ioc_dd; ///< each bit for each DD
 
+  struct {
+    uint8_t* p_data;
+    uint16_t remaining_bytes;
+  }control_dma;
+
 }dcd_data_t;
 
 STATIC_ dcd_data_t dcd_data TUSB_CFG_ATTR_USBRAM;
@@ -72,6 +77,8 @@ STATIC_ dcd_data_t dcd_data TUSB_CFG_ATTR_USBRAM;
 //--------------------------------------------------------------------+
 static void bus_reset(void);
 static tusb_error_t pipe_control_read(void * buffer, uint16_t length);
+static tusb_error_t pipe_control_write(void const * buffer, uint16_t length);
+static tusb_error_t pipe_control_xfer(uint8_t ep_id, uint8_t* p_buffer, uint16_t length);
 
 //--------------------------------------------------------------------+
 // PIPE HELPER
@@ -154,48 +161,92 @@ tusb_error_t dcd_init(void)
 	LPC_USB->USBUDCAH    = (uint32_t) dcd_data.udca;
 	LPC_USB->USBDMAIntEn = (DMA_INT_END_OF_XFER_MASK | DMA_INT_ERROR_MASK );
 
-	// clear all stall on control endpoint IN & OUT if any
-//	sie_write(SIE_CMDCODE_ENDPOINT_SET_STATUS  , 1, 0);
-//	sie_write(SIE_CMDCODE_ENDPOINT_SET_STATUS+1, 1, 0);
-
 	sie_write(SIE_CMDCODE_DEVICE_STATUS, 1, 1); // connect
 
   return TUSB_ERROR_NONE;
 }
 
-void endpoint_control_isr(void)
+static void endpoint_non_control_isr(uint32_t eot_int)
 {
-  uint32_t const endpoint_int_status = LPC_USB->USBEpIntSt & LPC_USB->USBEpIntEn;
-
-  //------------- control OUT -------------//
-  if (endpoint_int_status & BIT_(0))
+  for(uint8_t ep_id = 2; ep_id < DCD_QHD_MAX; ep_id++ )
   {
-    uint32_t const endpoint_status = sie_read(SIE_CMDCODE_ENDPOINT_SELECT+0, 1);
-    if (endpoint_status & SIE_SELECT_ENDPOINT_SETUP_RECEIVED_MASK)
+    if ( BIT_TEST_(eot_int, ep_id) )
     {
-      tusb_control_request_t control_request;
+      dcd_dma_descriptor_t* const p_fixed_dd = qhd_get_fixed_dd(ep_id);
+      // Maximum is 2 QTD are queued in an endpoint
+      dcd_dma_descriptor_t* const p_last_dd = (p_fixed_dd->is_next_valid) ? ((dcd_dma_descriptor_t*) p_fixed_dd->next) : p_fixed_dd;
 
-      (void) sie_read(SIE_CMDCODE_ENDPOINT_SELECT_CLEAR_INTERRUPT+0, 1); // clear setup bit
+      // only handle when Controller already finished the last DD
+      if ( dcd_data.udca[ep_id] == p_last_dd )
+      {
+        dcd_data.udca[ep_id] = p_fixed_dd; // UDCA currently points to the last DD, change to the fixed DD
+        p_fixed_dd->buffer_length = 0; // buffer length is used to determined if fixed dd is queued in pipe xfer function
 
-      pipe_control_read(&control_request, 8); // TODO read before clear setup above
+        if (p_fixed_dd->is_next_valid)
+        { // last_dd is not fixed_dd --> need to free
+          p_last_dd->used = 0;
+        }
 
-      usbd_setup_received_isr(0, &control_request);
-    }else
-    {
-      // Current not support any out control with data yet
+        if ( BIT_TEST_(dcd_data.ioc_dd, dd_get_index(p_last_dd) ) )
+        {
+          dcd_data.ioc_dd = BIT_CLR_(dcd_data.ioc_dd, dd_get_index(p_last_dd) );
+
+          endpoint_handle_t edpt_hdl =
+          {
+              .coreid     = 0,
+              .index      = ep_id,
+              .class_code = dcd_data.class_code[ep_id]
+          };
+          tusb_event_t event = (p_last_dd->status == DD_STATUS_NORMAL || p_last_dd->status == DD_STATUS_DATA_UNDERUN) ? TUSB_EVENT_XFER_COMPLETE : TUSB_EVENT_XFER_ERROR;
+
+          usbd_xfer_isr(edpt_hdl, event, p_last_dd->present_count); // only number of bytes in the IOC qtd
+        }
+      }
     }
   }
+}
 
-  //------------- control IN -------------//
-  if (endpoint_int_status & BIT_(1))
+static void endpoint_control_isr(void)
+{
+  uint32_t const endpoint_int_status = LPC_USB->USBEpIntSt & LPC_USB->USBEpIntEn;
+//  LPC_USB->USBEpIntClr = endpoint_int_status; // acknowledge interrupt TODO cannot immediately acknowledge setup packet
+
+  //------------- Setup Recieved-------------//
+  if ( (endpoint_int_status & BIT_(0)) &&
+       (sie_read(SIE_CMDCODE_ENDPOINT_SELECT+0, 1) & SIE_SELECT_ENDPOINT_SETUP_RECEIVED_MASK) )
   {
-    endpoint_handle_t edpt_hdl =
-    {
-        .index      = 1 //BIT_TEST_(int_status, 1) ? 1 : 0
-    };
+    (void) sie_read(SIE_CMDCODE_ENDPOINT_SELECT_CLEAR_INTERRUPT+0, 1); // clear setup bit
 
-    // FIXME xferred_byte for control xfer is not needed now !!!
-    usbd_xfer_isr(edpt_hdl, TUSB_EVENT_XFER_COMPLETE, 0);
+    tusb_control_request_t control_request;
+    pipe_control_read(&control_request, 8); // TODO read before clear setup above
+    usbd_setup_received_isr(0, &control_request);
+  }
+  else if (endpoint_int_status & 0x03)
+  {
+    uint8_t const ep_id = ( endpoint_int_status & BIT_(0) ) ? 0 : 1;
+
+    if ( dcd_data.control_dma.remaining_bytes > 0 )
+    { // there are still data to transfer
+      pipe_control_xfer(ep_id, dcd_data.control_dma.p_data, dcd_data.control_dma.remaining_bytes);
+    }
+    else
+    {
+      dcd_data.control_dma.remaining_bytes = 0;
+//      if ( ep_id == 0 )
+//      { // always need to read from OUT endpoint in interrupt handler
+//        pipe_control_xfer(ep_id, dcd_data.control_dma.p_data, dcd_data.control_dma.remaining_bytes);
+//      }
+
+      if ( BIT_TEST_(dcd_data.ioc_dd, ep_id) )
+      {
+        endpoint_handle_t edpt_hdl = { .coreid = 0, .class_code = 0 };
+
+        dcd_data.ioc_dd = BIT_CLR_(dcd_data.ioc_dd, ep_id);
+
+        // FIXME xferred_byte for control xfer is not needed now !!!
+        usbd_xfer_isr(edpt_hdl, TUSB_EVENT_XFER_COMPLETE, 0);
+      }
+    }
   }
 
   LPC_USB->USBEpIntClr = endpoint_int_status; // acknowledge interrupt TODO cannot immediately acknowledge setup packet
@@ -249,43 +300,7 @@ void dcd_isr(uint8_t coreid)
     uint32_t eot_int = LPC_USB->USBEoTIntSt;
     LPC_USB->USBEoTIntClr = eot_int; // acknowledge interrupt source
 
-    for(uint8_t ep_id = 2; ep_id < DCD_QHD_MAX; ep_id++ )
-    {
-      if ( BIT_TEST_(eot_int, ep_id) )
-      {
-        dcd_dma_descriptor_t* const p_fixed_dd = qhd_get_fixed_dd(ep_id);
-        // Maximum is 2 QTD are queued in an endpoint
-        dcd_dma_descriptor_t* const p_last_dd = (p_fixed_dd->is_next_valid) ? ((dcd_dma_descriptor_t*) p_fixed_dd->next) : p_fixed_dd;
-
-
-        // only handle when Controller already finished the last DD
-        if ( dcd_data.udca[ep_id] == p_last_dd )
-        {
-          dcd_data.udca[ep_id] = p_fixed_dd; // UDCA currently points to the last DD, change to the fixed DD
-          p_fixed_dd->buffer_length = 0; // buffer length is used to determined if fixed dd is queued in pipe xfer function
-
-          if (p_fixed_dd->is_next_valid)
-          { // last_dd is not fixed_dd --> need to free
-            p_last_dd->used = 0;
-          }
-
-          if ( BIT_TEST_(dcd_data.ioc_dd, dd_get_index(p_last_dd) ) )
-          {
-            dcd_data.ioc_dd = BIT_CLR_(dcd_data.ioc_dd, dd_get_index(p_last_dd) );
-
-            endpoint_handle_t edpt_hdl =
-            {
-                .coreid     = 0,
-                .index      = ep_id,
-                .class_code = dcd_data.class_code[ep_id]
-            };
-            tusb_event_t event = (p_last_dd->status == DD_STATUS_NORMAL || p_last_dd->status == DD_STATUS_DATA_UNDERUN) ? TUSB_EVENT_XFER_COMPLETE : TUSB_EVENT_XFER_ERROR;
-
-            usbd_xfer_isr(edpt_hdl, event, p_last_dd->present_count); // only number of bytes in the IOC qtd
-          }
-        }
-      }
-    }
+    endpoint_non_control_isr(eot_int);
   }
 
   if (device_int_status & DEV_INT_ERROR_MASK || dma_int_status & DMA_INT_ERROR_MASK)
@@ -326,20 +341,36 @@ static inline uint16_t length_byte2dword(uint16_t length_in_bytes)
   return (length_in_bytes + 3) / 4; // length_in_dword
 }
 
+static tusb_error_t pipe_control_xfer(uint8_t ep_id, uint8_t* p_buffer, uint16_t length)
+{
+  uint16_t const packet_len = min16_of(length, TUSB_CFG_DEVICE_CONTROL_ENDOINT_SIZE);
+
+  if (ep_id)
+  {
+    ASSERT_STATUS ( pipe_control_write(p_buffer, packet_len) );
+  }else
+  {
+    ASSERT_STATUS ( pipe_control_read(p_buffer, packet_len) );
+  }
+
+  dcd_data.control_dma.remaining_bytes -= packet_len;
+  dcd_data.control_dma.p_data          += packet_len;
+}
+
 static tusb_error_t pipe_control_write(void const * buffer, uint16_t length)
 {
-  ASSERT( length !=0 || buffer == NULL, TUSB_ERROR_INVALID_PARA);
+  uint32_t const * p_write_data = (uint32_t const *) buffer;
 
   LPC_USB->USBCtrl   = USBCTRL_WRITE_ENABLE_MASK; // logical endpoint = 0
 	LPC_USB->USBTxPLen = length;
 
 	for (uint16_t count = 0; count < length_byte2dword(length); count++)
 	{
-		LPC_USB->USBTxData = *((uint32_t *)buffer); // NOTE: cortex M3 have no problem with alignment
-		buffer += 4;
+		LPC_USB->USBTxData = *p_write_data; // NOTE: cortex M3 have no problem with alignment
+		p_write_data++;
 	}
 
-    LPC_USB->USBCtrl   = 0;
+	LPC_USB->USBCtrl   = 0;
 
 	// select control IN & validate the endpoint
 	sie_write(SIE_CMDCODE_ENDPOINT_SELECT+1, 0, 0);
@@ -378,16 +409,32 @@ void dcd_pipe_control_stall(uint8_t coreid)
   sie_write(SIE_CMDCODE_ENDPOINT_SET_STATUS+0, 1, SIE_SET_ENDPOINT_STALLED_MASK | SIE_SET_ENDPOINT_CONDITION_STALLED_MASK);
 }
 
-tusb_error_t dcd_pipe_control_xfer(uint8_t coreid, tusb_direction_t dir, void * p_buffer, uint16_t length)
+tusb_error_t dcd_pipe_control_xfer(uint8_t coreid, tusb_direction_t dir, void * p_buffer, uint16_t length, bool int_on_complete)
 {
   (void) coreid;
 
-  if ( dir )
+  ASSERT( !(length != 0 && p_buffer == NULL), TUSB_ERROR_INVALID_PARA);
+
+  // determine Endpoint where Data & Status phase occurred (IN or OUT)
+  uint8_t const ep_data   = (dir == TUSB_DIR_DEV_TO_HOST) ? 1 : 0;
+  uint8_t const ep_status = 1 - ep_data;
+
+  dcd_data.ioc_dd = int_on_complete ? BIT_SET_(dcd_data.ioc_dd, ep_status) : BIT_CLR_(dcd_data.ioc_dd, ep_status);
+
+  //------------- Data Phase -------------//
+  if ( length )
   {
-    ASSERT_STATUS ( pipe_control_write(p_buffer, length) );
-  }else
-  {
-    ASSERT_STATUS ( pipe_control_read(p_buffer, length) );
+    dcd_data.control_dma.p_data          = (uint8_t*) p_buffer;
+    dcd_data.control_dma.remaining_bytes = length;
+
+    // lpc17xx already received the first DATA OUT packet by now
+    ASSERT_STATUS ( pipe_control_xfer(dir, p_buffer, length) );
+  }
+
+  //------------- Status Phase (opposite direct to Data) -------------//
+  if (dir == TUSB_DIR_HOST_TO_DEV)
+  { // only write for CONTROL OUT, CONTROL IN data will be retrieved in dcd_isr
+    ASSERT_STATUS ( pipe_control_write(NULL, 0) );
   }
 
   return TUSB_ERROR_NONE;
