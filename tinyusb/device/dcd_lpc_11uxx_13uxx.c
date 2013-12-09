@@ -114,7 +114,7 @@ typedef struct {
   }next_td[DCD_11U_13U_QHD_COUNT];
 
   uint32_t current_ioc; ///< interrupt on complete mask for current TD
-  uint32_t next_ioc;    ///< interrupt on complete mask for next TD
+  uint32_t next_ioc;             ///< interrupt on complete mask for next TD
 
   // should start from 128
   ATTR_ALIGNED(64) tusb_control_request_t setup_request;
@@ -200,6 +200,61 @@ static void bus_reset(void)
   LPC_USB->INTEN        = INT_MASK_DEVICE_STATUS | BIT_(0) | BIT_(1); // enable device status & control endpoints
 }
 
+static void endpoint_non_control_isr(uint32_t int_status)
+{
+  for(uint8_t ep_id = 2; ep_id < DCD_11U_13U_QHD_COUNT; ep_id++ )
+  {
+    if ( BIT_TEST_(int_status, ep_id) )
+    {
+      dcd_11u_13u_qhd_t * const arr_qhd = dcd_data.qhd[ep_id];
+
+      // when double buffering, the complete buffer is opposed to the current active buffer in EPINUSE
+      uint8_t const buff_idx = LPC_USB->EPINUSE & BIT_(ep_id) ? 0 : 1;
+      uint16_t const xferred_bytes = dcd_data.current_td[ep_id].queued_bytes_in_buff[buff_idx] - arr_qhd[buff_idx].total_bytes;
+
+      dcd_data.current_td[ep_id].xferred_total += xferred_bytes;
+
+      // there are still data to transfer.
+      if ( (arr_qhd[buff_idx].total_bytes == 0) && (dcd_data.current_td[ep_id].remaining_bytes > 0) )
+      { // NOTE although buff_addr_offset has been increased when xfer is completed
+        // but we still need to increase it one more as we are using double buffering.
+        queue_xfer_to_buffer(ep_id, buff_idx, arr_qhd[buff_idx].buff_addr_offset+1, dcd_data.current_td[ep_id].remaining_bytes);
+      }
+      // short packet or (no more byte and both buffers are finished)
+      else if ( (arr_qhd[buff_idx].total_bytes > 0) || !arr_qhd[1-buff_idx].active  )
+      { // current TD (request) is completed
+        LPC_USB->EPSKIP   = BIT_SET_(LPC_USB->EPSKIP, ep_id); // skip other endpoint in case of short-package
+
+        dcd_data.current_td[ep_id].remaining_bytes = 0;
+
+        if ( BIT_TEST_(dcd_data.current_ioc, ep_id) )
+        {
+          endpoint_handle_t edpt_hdl =
+          {
+              .coreid     = 0,
+              .index      = ep_id,
+              .class_code = dcd_data.class_code[ep_id]
+          };
+
+          dcd_data.current_ioc = BIT_CLR_(dcd_data.current_ioc, edpt_hdl.index);
+
+          // TODO no way determine if the transfer is failed or not
+          usbd_xfer_isr(edpt_hdl, TUSB_EVENT_XFER_COMPLETE, dcd_data.current_td[ep_id].xferred_total);
+        }
+
+        //------------- Next TD is available -------------//
+        if ( dcd_data.next_td[ep_id].total_bytes != 0 )
+        {
+          queue_xfer_in_next_td(ep_id);
+        }
+      }else
+      {
+        // transfer complete, there is no more remaining bytes, but this buffer is not the last transaction (the other is)
+      }
+    }
+  }
+}
+
 void dcd_isr(uint8_t coreid)
 {
   (void) coreid;
@@ -248,7 +303,7 @@ void dcd_isr(uint8_t coreid)
 //    }
   }
 
-  //------------- Control Endpoint -------------//
+  //------------- Setup Received -------------//
   if ( BIT_TEST_(int_status, 0) && (dev_cmd_stat & CMDSTAT_SETUP_RECEIVED_MASK) )
   { // received control request from host
     // copy setup request & acknowledge so that the next setup can be received by hw
@@ -260,88 +315,73 @@ void dcd_isr(uint8_t coreid)
     LPC_USB->DEVCMDSTAT |= CMDSTAT_SETUP_RECEIVED_MASK;
     dcd_data.qhd[0][1].buff_addr_offset = addr_offset(&dcd_data.setup_request);
   }
+  //------------- Control Endpoint -------------//
   else if ( int_status & 0x03 )
   { // either control endpoints
-    endpoint_handle_t edpt_hdl =
+    uint8_t const ep_id = ( int_status & BIT_(0) ) ? 0 : 1;
+
+    // there are still data to transfer.
+    if ( (dcd_data.qhd[ep_id][0].total_bytes == 0) && (dcd_data.current_td[ep_id].remaining_bytes > 0) )
     {
-        .coreid     = coreid,
-        .index      = BIT_TEST_(int_status, 1) ? 1 : 0
-    };
-
-    // FIXME xferred_byte for control xfer is not needed now !!!
-    usbd_xfer_isr(edpt_hdl, TUSB_EVENT_XFER_COMPLETE, 0);
-  }
-
-  //------------- Non-Control Endpoints -------------//
-  for(uint8_t ep_id = 2; ep_id < DCD_11U_13U_QHD_COUNT; ep_id++ )
-  {
-    if ( BIT_TEST_(int_status, ep_id) )
+      queue_xfer_to_buffer(ep_id, 0, dcd_data.qhd[ep_id][0].buff_addr_offset, dcd_data.current_td[ep_id].remaining_bytes);
+    }else
     {
-      dcd_11u_13u_qhd_t * const arr_qhd = dcd_data.qhd[ep_id];
+      dcd_data.current_td[ep_id].remaining_bytes = 0;
 
-      // when double buffering, the complete buffer is opposed to the current active buffer in EPINUSE
-      uint8_t const buff_idx = LPC_USB->EPINUSE & BIT_(ep_id) ? 0 : 1;
-      uint16_t const xferred_bytes = dcd_data.current_td[ep_id].queued_bytes_in_buff[buff_idx] - arr_qhd[buff_idx].total_bytes;
-
-      dcd_data.current_td[ep_id].xferred_total += xferred_bytes;
-
-      // there are still data to transfer.
-      if ( (arr_qhd[buff_idx].total_bytes == 0) && (dcd_data.current_td[ep_id].remaining_bytes > 0) )
-      { // NOTE although buff_addr_offset has been increased when xfer is completed
-        // but we still need to increase it one more as we are using double buffering.
-        queue_xfer_to_buffer(ep_id, buff_idx, arr_qhd[buff_idx].buff_addr_offset+1, dcd_data.current_td[ep_id].remaining_bytes);
-      }
-      // short packet or (no more byte and both buffers are finished)
-      else if ( (arr_qhd[buff_idx].total_bytes > 0) || !arr_qhd[1-buff_idx].active  )
-      { // current TD (request) is completed
-        LPC_USB->EPSKIP   = BIT_SET_(LPC_USB->EPSKIP, ep_id); // skip other endpoint in case of short-package
-
-        dcd_data.current_td[ep_id].remaining_bytes = 0;
-
-        if ( BIT_TEST_(dcd_data.current_ioc, ep_id) )
+      if ( BIT_TEST_(dcd_data.current_ioc, ep_id) )
+      {
+        endpoint_handle_t edpt_hdl =
         {
-          endpoint_handle_t edpt_hdl =
-          {
-              .coreid     = coreid,
-              .index      = ep_id,
-              .class_code = dcd_data.class_code[ep_id]
-          };
+            .coreid     = coreid,
+            .index      = 0
+        };
 
-          dcd_data.current_ioc = BIT_CLR_(dcd_data.current_ioc, edpt_hdl.index);
+        dcd_data.current_ioc = BIT_CLR_(dcd_data.current_ioc, edpt_hdl.index);
 
-          // TODO no way determine if the transfer is failed or not
-          usbd_xfer_isr(edpt_hdl, TUSB_EVENT_XFER_COMPLETE, dcd_data.current_td[ep_id].xferred_total);
-        }
-
-        //------------- Next TD is available -------------//
-        if ( dcd_data.next_td[ep_id].total_bytes != 0 )
-        {
-          queue_xfer_in_next_td(ep_id);
-        }
+        // FIXME xferred_byte for control xfer is not needed now !!!
+        usbd_xfer_isr(edpt_hdl, TUSB_EVENT_XFER_COMPLETE, 0);
       }
     }
   }
+
+  //------------- Non-Control Endpoints -------------//
+  endpoint_non_control_isr(int_status);
 }
 
 //--------------------------------------------------------------------+
 // CONTROL PIPE API
 //--------------------------------------------------------------------+
 void dcd_pipe_control_stall(uint8_t coreid)
-{ // TODO cannot able to STALL Control OUT endpoint !!!!!
+{
   (void) coreid;
-
+  // TODO cannot able to STALL Control OUT endpoint !!!!! FIXME try some walk-around
   dcd_data.qhd[0][0].stall = dcd_data.qhd[1][0].stall = 1;
 }
 
-tusb_error_t dcd_pipe_control_xfer(uint8_t coreid, tusb_direction_t dir, void * p_buffer, uint16_t length)
+tusb_error_t dcd_pipe_control_xfer(uint8_t coreid, tusb_direction_t dir, void * p_buffer, uint16_t length, bool int_on_complete)
 {
   (void) coreid;
 
-  uint8_t const ep_id = dir; // IN : 1, OUT = 0
+  // determine Endpoint where Data & Status phase occurred (IN or OUT)
+  uint8_t const ep_data   = (dir == TUSB_DIR_DEV_TO_HOST) ? 1 : 0;
+  uint8_t const ep_status = 1 - ep_data;
 
-  dcd_data.qhd[ep_id][0].buff_addr_offset = (length ? addr_offset(p_buffer) : 0 );
-  dcd_data.qhd[ep_id][0].total_bytes      = length;
-  dcd_data.qhd[ep_id][0].active           = 1 ;
+  dcd_data.current_ioc = int_on_complete ? BIT_SET_(dcd_data.current_ioc, ep_status) : BIT_CLR_(dcd_data.current_ioc, ep_status);
+
+  //------------- Data Phase -------------//
+  if (length)
+  {
+    dcd_data.current_td[ep_data].remaining_bytes = length;
+    dcd_data.current_td[ep_data].xferred_total   = 0;
+
+    queue_xfer_to_buffer(ep_data, 0, addr_offset(p_buffer), length);
+  }
+
+  //------------- Status Phase -------------//
+  dcd_data.current_td[ep_status].remaining_bytes = 0;
+  dcd_data.current_td[ep_status].xferred_total   = 0;
+
+  queue_xfer_to_buffer(ep_status, 0, NULL, 0);
 
   return TUSB_ERROR_NONE;
 }

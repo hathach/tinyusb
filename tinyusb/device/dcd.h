@@ -81,7 +81,7 @@ void dcd_controller_set_address(uint8_t coreid, uint8_t dev_addr);
 void dcd_controller_set_configuration(uint8_t coreid);
 
 //------------- PIPE API -------------//
-tusb_error_t dcd_pipe_control_xfer(uint8_t coreid, tusb_direction_t dir, void * p_buffer, uint16_t length);
+tusb_error_t dcd_pipe_control_xfer(uint8_t coreid, tusb_direction_t dir, void * p_buffer, uint16_t length, bool int_on_complete);
 void dcd_pipe_control_stall(uint8_t coreid);
 
 endpoint_handle_t dcd_pipe_open(uint8_t coreid, tusb_descriptor_endpoint_t const * p_endpoint_desc, uint8_t class_code) ATTR_WARN_UNUSED_RESULT;

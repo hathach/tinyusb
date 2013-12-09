@@ -80,6 +80,41 @@ void tusbd_hid_keyboard_cb(uint8_t coreid, tusb_event_t event, uint32_t xferred_
   }
 }
 
+uint16_t tusbd_hid_keyboard_get_report_cb(uint8_t coreid, hid_request_report_type_t report_type, void** pp_report, uint16_t requested_length)
+{
+  // get other than input report is not supported by this keyboard demo
+  if ( report_type != HID_REQUEST_REPORT_INPUT ) return 0;
+
+  (*pp_report) = &keyboard_report;
+  return requested_length;
+}
+
+void tusbd_hid_keyboard_set_report_cb(uint8_t coreid, hid_request_report_type_t report_type, uint8_t p_report_data[], uint16_t length)
+{
+  // set other than output report is not supported by this keyboard demo
+  if ( report_type != HID_REQUEST_REPORT_OUTPUT ) return;
+
+  uint8_t kbd_led = p_report_data[0];
+  uint32_t interval_divider = 1; // each LED will reduce blinking interval by a half
+
+  if (kbd_led & KEYBOARD_LED_NUMLOCK)
+  {
+    interval_divider *= 2;
+  }
+
+  if (kbd_led & KEYBOARD_LED_CAPSLOCK)
+  {
+    interval_divider *= 2;
+  }
+
+  if (kbd_led & KEYBOARD_LED_SCROLLLOCK)
+  {
+    interval_divider *= 2;
+  }
+
+  led_blinking_set_interval( 1000 / interval_divider);
+}
+
 //--------------------------------------------------------------------+
 // APPLICATION CODE
 //--------------------------------------------------------------------+

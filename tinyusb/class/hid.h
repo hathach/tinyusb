@@ -199,6 +199,14 @@ typedef enum {
 	KEYBOARD_MODIFIER_RIGHTGUI   = BIT_(7)  ///< Right Window
 }hid_keyboard_modifier_bm_t;
 
+typedef enum {
+  KEYBOARD_LED_NUMLOCK    = BIT_(0), ///< Num Lock LED
+  KEYBOARD_LED_CAPSLOCK   = BIT_(1), ///< Caps Lock LED
+  KEYBOARD_LED_SCROLLLOCK = BIT_(2), ///< Scroll Lock LED
+  KEYBOARD_LED_COMPOSE    = BIT_(3), ///< Composition Mode
+  KEYBOARD_LED_KANA       = BIT_(4) ///< Kana mode
+}hid_keyboard_led_bm_t;
+
 /// @}
 
 #define HID_KEYCODE_TABLE(ENTRY) \

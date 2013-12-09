@@ -49,13 +49,6 @@
 #include "tusb_descriptors.h" // TODO callback include
 #include "usbd_dcd.h"
 
-// Some MCUs cannot transfer more than 64 bytes each queue, thus require special task-alike treatment
-#if TUSB_CFG_MCU == MCU_LPC11UXX || TUSB_CFG_MCU == MCU_LPC175X_6X
-  #define USBD_CONTROL_ONE_PACKET_EACH_XFER // for each Transfer, cannot queue more than packet size
-  enum {
-    USBD_COTNROL_MAX_LENGTH_EACH_XFER = 64
-  };
-#endif
 //--------------------------------------------------------------------+
 // MACRO CONSTANT TYPEDEF
 //--------------------------------------------------------------------+
@@ -67,33 +60,33 @@ static usbd_class_driver_t const usbd_class_drivers[TUSB_CLASS_MAPPED_INDEX_STAR
 #if DEVICE_CLASS_HID
     [TUSB_CLASS_HID] =
     {
-        .init            = hidd_init,
-        .open            = hidd_open,
-        .control_request = hidd_control_request,
-        .xfer_cb         = hidd_xfer_cb,
-        .close           = hidd_close
+        .init                    = hidd_init,
+        .open                    = hidd_open,
+        .control_request_subtask = hidd_control_request_subtask,
+        .xfer_cb                 = hidd_xfer_cb,
+        .close                   = hidd_close
     },
 #endif
 
 #if TUSB_CFG_DEVICE_MSC
     [TUSB_CLASS_MSC] =
     {
-        .init            = mscd_init,
-        .open            = mscd_open,
-        .control_request = mscd_control_request,
-        .xfer_cb         = mscd_xfer_cb,
-        .close           = mscd_close
+        .init                    = mscd_init,
+        .open                    = mscd_open,
+        .control_request_subtask = mscd_control_request_subtask,
+        .xfer_cb                 = mscd_xfer_cb,
+        .close                   = mscd_close
     },
 #endif
 
 #if TUSB_CFG_DEVICE_CDC
     [TUSB_CLASS_CDC] =
     {
-        .init            = cdcd_init,
-        .open            = cdcd_open,
-        .control_request = cdcd_control_request,
-        .xfer_cb         = cdcd_xfer_cb,
-        .close           = cdcd_close
+        .init                    = cdcd_init,
+        .open                    = cdcd_open,
+        .control_request_subtask = cdcd_control_request_subtask,
+        .xfer_cb                 = cdcd_xfer_cb,
+        .close                   = cdcd_close
     },
 #endif
 
@@ -151,7 +144,7 @@ OSAL_QUEUE_DEF(usbd_queue_def, USBD_TASK_QUEUE_DEPTH, usbd_task_event_t);
 OSAL_SEM_DEF(usbd_control_xfer_semaphore_def);
 
 static osal_queue_handle_t usbd_queue_hdl;
-static osal_semaphore_handle_t usbd_control_xfer_sem_hdl;
+/*static*/ osal_semaphore_handle_t usbd_control_xfer_sem_hdl; // TODO may need to change to static with wrapper function
 
 tusb_error_t usbd_control_request_subtask(uint8_t coreid, tusb_control_request_t const * const p_request)
 {
@@ -165,29 +158,14 @@ tusb_error_t usbd_control_request_subtask(uint8_t coreid, tusb_control_request_t
   {
     if ( TUSB_REQUEST_GET_DESCRIPTOR == p_request->bRequest )
     {
-      OSAL_VAR uint8_t* p_buffer = NULL;
-      OSAL_VAR uint16_t length = 0;
+      uint8_t* p_buffer = NULL;
+      uint16_t length = 0;
 
       error = get_descriptor_subtask(coreid, p_request, &p_buffer, &length);
 
-#ifdef USBD_CONTROL_ONE_PACKET_EACH_XFER
-      while ( length > USBD_COTNROL_MAX_LENGTH_EACH_XFER && error == TUSB_ERROR_NONE )
-      {
-        usbd_devices[coreid].is_waiting_control_xfer = true;
-
-        dcd_pipe_control_xfer(coreid, p_request->bmRequestType_bit.direction, p_buffer, USBD_COTNROL_MAX_LENGTH_EACH_XFER); // zero length
-        osal_semaphore_wait(usbd_control_xfer_sem_hdl, OSAL_TIMEOUT_NORMAL, &error);
-
-        length   -= USBD_COTNROL_MAX_LENGTH_EACH_XFER;
-        p_buffer += USBD_COTNROL_MAX_LENGTH_EACH_XFER;
-
-        usbd_devices[coreid].is_waiting_control_xfer = false;
-      }
-#endif
-
       if ( TUSB_ERROR_NONE == error )
       {
-        dcd_pipe_control_xfer(coreid, p_request->bmRequestType_bit.direction, p_buffer, length);
+        dcd_pipe_control_xfer(coreid, p_request->bmRequestType_bit.direction, p_buffer, length, false);
       }
     }
     else if ( TUSB_REQUEST_SET_ADDRESS == p_request->bRequest )
@@ -207,12 +185,14 @@ tusb_error_t usbd_control_request_subtask(uint8_t coreid, tusb_control_request_t
   //------------- Class/Interface Specific Request -------------//
   else if ( TUSB_REQUEST_RECIPIENT_INTERFACE == p_request->bmRequestType_bit.recipient)
   {
-    tusb_std_class_code_t class_code = usbd_devices[coreid].interface2class[ u16_low_u8(p_request->wIndex) ];
+    OSAL_VAR tusb_std_class_code_t class_code;
+
+    class_code = usbd_devices[coreid].interface2class[ u16_low_u8(p_request->wIndex) ];
 
     if ( (TUSB_CLASS_AUDIO <= class_code) && (class_code <= TUSB_CLASS_AUDIO_VIDEO) &&
-         usbd_class_drivers[class_code].control_request )
+         usbd_class_drivers[class_code].control_request_subtask )
     {
-      error = usbd_class_drivers[class_code].control_request(coreid, p_request);
+      OSAL_SUBTASK_INVOKED_AND_WAIT( usbd_class_drivers[class_code].control_request_subtask(coreid, p_request), error );
     }else
     {
       error = TUSB_ERROR_DCD_CONTROL_REQUEST_NOT_SUPPORT;
@@ -234,9 +214,9 @@ tusb_error_t usbd_control_request_subtask(uint8_t coreid, tusb_control_request_t
   { // Response with Protocol Stall if request is not supported
     dcd_pipe_control_stall(coreid);
     //    ASSERT(error == TUSB_ERROR_NONE, VOID_RETURN);
-  }else
-  { // status phase
-    dcd_pipe_control_xfer(coreid, 1-p_request->bmRequestType_bit.direction, NULL, 0); // zero length
+  }else if (p_request->wLength == 0)
+  {
+    dcd_pipe_control_xfer(coreid, p_request->bmRequestType_bit.direction, NULL, 0, false); // zero length for non-data
   }
 
   OSAL_SUBTASK_END
@@ -418,10 +398,7 @@ void usbd_xfer_isr(endpoint_handle_t edpt_hdl, tusb_event_t event, uint32_t xfer
 {
   if (edpt_hdl.class_code == 0 ) // Control Transfer
   {
-    if (usbd_devices[edpt_hdl.coreid].is_waiting_control_xfer)
-    {
-      osal_semaphore_post( usbd_control_xfer_sem_hdl );
-    }
+    osal_semaphore_post( usbd_control_xfer_sem_hdl );
   }else
   {
     usbd_task_event_t task_event =

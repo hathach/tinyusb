@@ -76,7 +76,7 @@ void tusbd_cdc_xfer_cb(uint8_t coreid, tusb_event_t event, cdc_pipeid_t pipe_id,
 
 void cdcd_init(void);
 tusb_error_t cdcd_open(uint8_t coreid, tusb_descriptor_interface_t const * p_interface_desc, uint16_t *p_length);
-tusb_error_t cdcd_control_request(uint8_t coreid, tusb_control_request_t const * p_request);
+tusb_error_t cdcd_control_request_subtask(uint8_t coreid, tusb_control_request_t const * p_request);
 tusb_error_t cdcd_xfer_cb(endpoint_handle_t edpt_hdl, tusb_event_t event, uint32_t xferred_bytes);
 void cdcd_close(uint8_t coreid);
 

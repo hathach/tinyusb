@@ -70,7 +70,7 @@
 typedef struct {
   void (* const init) (void);
   tusb_error_t (* const open)(uint8_t, tusb_descriptor_interface_t const *, uint16_t*);
-  tusb_error_t (* const control_request) (uint8_t, tusb_control_request_t const *);
+  tusb_error_t (* const control_request_subtask) (uint8_t, tusb_control_request_t const *);
   tusb_error_t (* const xfer_cb) (endpoint_handle_t, tusb_event_t, uint32_t);
   void (* const close) (uint8_t);
 } usbd_class_driver_t;
@@ -90,8 +90,11 @@ bool tusbd_is_configured(uint8_t coreid) ATTR_WARN_UNUSED_RESULT;
 //--------------------------------------------------------------------+
 #ifdef _TINY_USB_SOURCE_FILE_
 
+extern osal_semaphore_handle_t usbd_control_xfer_sem_hdl;
+
 tusb_error_t usbd_init(void);
 OSAL_TASK_FUNCTION (usbd_task) (void* p_task_para);
+
 #endif
 
 #ifdef __cplusplus

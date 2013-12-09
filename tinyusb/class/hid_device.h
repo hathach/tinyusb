@@ -94,8 +94,8 @@ void tusbd_hid_keyboard_unmounted_cb(uint8_t coreid);
  */
 void tusbd_hid_keyboard_cb(uint8_t coreid, tusb_event_t event, uint32_t xferred_bytes);
 
-void tusbd_hid_keyboard_set_report_cb(uint8_t coreid, hid_request_report_type_t report_type, uint8_t report_data[]);
-void tusbd_hid_keyboard_get_report_cb(uint8_t coreid, hid_request_report_type_t report_type, void** pp_report);
+void tusbd_hid_keyboard_set_report_cb(uint8_t coreid, hid_request_report_type_t report_type, uint8_t p_report_data[], uint16_t length);
+uint16_t tusbd_hid_keyboard_get_report_cb(uint8_t coreid, hid_request_report_type_t report_type, void** pp_report, uint16_t requested_length);
 
 /** @} */
 /** @} */
@@ -107,8 +107,6 @@ void tusbd_hid_keyboard_get_report_cb(uint8_t coreid, hid_request_report_type_t 
  *  @{ */
 /** \defgroup Mouse_Device Device
  *  @{ */
-
-//bool tusbd_hid_mouse_is_configured(uint8_t coreid);
 
 /** \brief      Check if the interface is currently busy or not
  * \param[in]   coreid USB Controller ID
@@ -149,6 +147,8 @@ void tusbd_hid_mouse_unmounted_cb(uint8_t coreid);
  */
 void tusbd_hid_mouse_cb(uint8_t coreid, tusb_event_t event, uint32_t xferred_bytes);
 
+uint16_t tusbd_hid_mouse_get_report_cb(uint8_t coreid, hid_request_report_type_t report_type, void** pp_report, uint16_t requested_length);
+void tusbd_hid_mouse_set_report_cb(uint8_t coreid, hid_request_report_type_t report_type, uint8_t p_report_data[], uint16_t length);
 /** @} */
 /** @} */
 
@@ -161,7 +161,7 @@ void tusbd_hid_mouse_cb(uint8_t coreid, tusb_event_t event, uint32_t xferred_byt
 
 void hidd_init(void);
 tusb_error_t hidd_open(uint8_t coreid, tusb_descriptor_interface_t const * p_interface_desc, uint16_t *p_length);
-tusb_error_t hidd_control_request(uint8_t coreid, tusb_control_request_t const * p_request);
+tusb_error_t hidd_control_request_subtask(uint8_t coreid, tusb_control_request_t const * p_request);
 tusb_error_t hidd_xfer_cb(endpoint_handle_t edpt_hdl, tusb_event_t event, uint32_t xferred_bytes);
 void hidd_close(uint8_t coreid);
 

@@ -51,7 +51,6 @@
 //--------------------------------------------------------------------+
 // MACRO CONSTANT TYPEDEF
 //--------------------------------------------------------------------+
-ATTR_USB_MIN_ALIGNMENT uint8_t set_report[ MAX_OF(sizeof(hid_keyboard_report_t), sizeof(hid_mouse_report_t)) ] TUSB_CFG_ATTR_USBRAM;
 
 enum {
   HIDD_NUMBER_OF_SUBCLASS = 3
@@ -70,6 +69,8 @@ typedef struct {
   void (* const mounted_cb) (uint8_t coreid);
   void (* const unmounted_cb) (uint8_t coreid);
   void (* const xfer_cb) (uint8_t, tusb_event_t, uint32_t);
+  uint16_t (* const get_report_cb) (uint8_t, hid_request_report_type_t, void**, uint16_t );
+  void (* const set_report_cb) (uint8_t, hid_request_report_type_t, uint8_t[], uint16_t);
 }hidd_class_driver_t;
 
 extern ATTR_WEAK hidd_interface_t keyboardd_data;
@@ -86,7 +87,9 @@ static hidd_class_driver_t const hidd_class_driver[HIDD_NUMBER_OF_SUBCLASS] =
         .p_interface   = &keyboardd_data,
         .mounted_cb    = tusbd_hid_keyboard_mounted_cb,
         .unmounted_cb  = tusbd_hid_keyboard_unmounted_cb,
-        .xfer_cb       = tusbd_hid_keyboard_cb
+        .xfer_cb       = tusbd_hid_keyboard_cb,
+        .get_report_cb = tusbd_hid_keyboard_get_report_cb,
+        .set_report_cb = tusbd_hid_keyboard_set_report_cb
     },
 #endif
 
@@ -97,10 +100,16 @@ static hidd_class_driver_t const hidd_class_driver[HIDD_NUMBER_OF_SUBCLASS] =
         .p_interface   = &moused_data,
         .mounted_cb    = tusbd_hid_mouse_mounted_cb,
         .unmounted_cb  = tusbd_hid_mouse_unmounted_cb,
-        .xfer_cb       = tusbd_hid_mouse_cb
+        .xfer_cb       = tusbd_hid_mouse_cb,
+        .get_report_cb = tusbd_hid_mouse_get_report_cb,
+        .set_report_cb = tusbd_hid_mouse_set_report_cb
     }
 #endif
 };
+
+#if TUSB_CFG_DEVICE_HID_KEYBOARD || TUSB_CFG_DEVICE_HID_MOUSE
+ATTR_USB_MIN_ALIGNMENT uint8_t m_control_data[ MAX_OF(sizeof(hid_keyboard_report_t), sizeof(hid_mouse_report_t)) ] TUSB_CFG_ATTR_USBRAM;
+#endif
 
 //--------------------------------------------------------------------+
 // KEYBOARD APPLICATION API
@@ -180,7 +189,7 @@ void hidd_close(uint8_t coreid)
   }
 }
 
-tusb_error_t hidd_control_request(uint8_t coreid, tusb_control_request_t const * p_request)
+tusb_error_t hidd_control_request_subtask(uint8_t coreid, tusb_control_request_t const * p_request)
 {
   uint8_t subclass_idx;
   for(subclass_idx=0; subclass_idx<HIDD_NUMBER_OF_SUBCLASS; subclass_idx++)
@@ -194,7 +203,7 @@ tusb_error_t hidd_control_request(uint8_t coreid, tusb_control_request_t const *
 
   ASSERT(subclass_idx < HIDD_NUMBER_OF_SUBCLASS, TUSB_ERROR_FAILED);
 
-  hidd_class_driver_t* const p_driver = &hidd_class_driver[subclass_idx];
+  hidd_class_driver_t const * const p_driver = &hidd_class_driver[subclass_idx];
   hidd_interface_t* const p_hid = p_driver->p_interface;
 
   //------------- STD Request -------------//
@@ -208,39 +217,50 @@ tusb_error_t hidd_control_request(uint8_t coreid, tusb_control_request_t const *
     ASSERT ( p_request->bRequest == TUSB_REQUEST_GET_DESCRIPTOR && desc_type == HID_DESC_TYPE_REPORT,
              TUSB_ERROR_DCD_CONTROL_REQUEST_NOT_SUPPORT);
 
-    dcd_pipe_control_xfer(coreid, TUSB_DIR_DEV_TO_HOST, p_driver->p_report_desc, p_hid->report_length);
+    dcd_pipe_control_xfer(coreid, TUSB_DIR_DEV_TO_HOST, p_driver->p_report_desc, p_hid->report_length, false);
   }
   //------------- Class Specific Request -------------//
   else if (p_request->bmRequestType_bit.type == TUSB_REQUEST_TYPE_CLASS)
   {
-    switch(p_request->bRequest)
+    OSAL_SUBTASK_BEGIN
+
+    if( (HID_REQUEST_CONTROL_GET_REPORT == p_request->bRequest) && (p_driver->get_report_cb != NULL) )
     {
-      case HID_REQUEST_CONTROL_SET_IDLE:
-        // idle_rate = u16_high_u8(p_request->wValue);
-      break;
+      // wValue = Report Type | Report ID
+      void* p_buffer = NULL;
 
-      case HID_REQUEST_CONTROL_SET_REPORT:
-      {
-//        return TUSB_ERROR_DCD_CONTROL_REQUEST_NOT_SUPPORT; // TODO test STALL control out endpoint (with mouse+keyboard)aaaaa
+      uint16_t actual_length = p_driver->get_report_cb(coreid, (hid_request_report_type_t) u16_high_u8(p_request->wValue),
+                                                       &p_buffer, p_request->wLength);
+      SUBTASK_ASSERT( p_buffer != NULL && actual_length > 0 );
 
-        // TODO HIDD set report support
-        hid_request_report_type_t report_type = u16_high_u8(p_request->wValue);
-        uint8_t report_id = u16_low_u8(p_request->wValue);
-
-        (void) report_id;
-        (void) report_type;
-
-        dcd_pipe_control_xfer(coreid, TUSB_DIR_HOST_TO_DEV, &set_report, p_request->wLength);
-      }
-      break;
-
-      case HID_REQUEST_CONTROL_GET_IDLE:
-      case HID_REQUEST_CONTROL_GET_REPORT:
-      case HID_REQUEST_CONTROL_GET_PROTOCOL:
-      case HID_REQUEST_CONTROL_SET_PROTOCOL:
-      default:
-        return TUSB_ERROR_DCD_CONTROL_REQUEST_NOT_SUPPORT;
+      dcd_pipe_control_xfer(coreid, p_request->bmRequestType_bit.direction, p_buffer, actual_length, false);
     }
+    else if ( (HID_REQUEST_CONTROL_SET_REPORT == p_request->bRequest) && (p_driver->set_report_cb != NULL) )
+    {
+      //        return TUSB_ERROR_DCD_CONTROL_REQUEST_NOT_SUPPORT; // TODO test STALL control out endpoint (with mouse+keyboard)
+      // wValue = Report Type | Report ID
+      tusb_error_t error;
+
+      dcd_pipe_control_xfer(coreid, p_request->bmRequestType_bit.direction, &m_control_data, p_request->wLength, true);
+
+      osal_semaphore_wait(usbd_control_xfer_sem_hdl, OSAL_TIMEOUT_NORMAL, &error); // wait for control xfer complete
+      SUBTASK_ASSERT_STATUS(error);
+
+      p_driver->set_report_cb(coreid, (hid_request_report_type_t) u16_high_u8(p_request->wValue),
+                              &m_control_data, p_request->wLength);
+    }
+    else if (HID_REQUEST_CONTROL_SET_IDLE == p_request->bRequest)
+    {
+      // uint8_t idle_rate = u16_high_u8(p_request->wValue);
+    }else
+    {
+//      HID_REQUEST_CONTROL_GET_IDLE:
+//      HID_REQUEST_CONTROL_GET_PROTOCOL:
+//      HID_REQUEST_CONTROL_SET_PROTOCOL:
+      return TUSB_ERROR_DCD_CONTROL_REQUEST_NOT_SUPPORT;
+    }
+
+    OSAL_SUBTASK_END
   }else
   {
     return TUSB_ERROR_DCD_CONTROL_REQUEST_NOT_SUPPORT;
@@ -270,7 +290,7 @@ tusb_error_t hidd_open(uint8_t coreid, tusb_descriptor_interface_t const * p_int
       case HID_PROTOCOL_KEYBOARD:
       case HID_PROTOCOL_MOUSE:
       {
-        hidd_class_driver_t * const p_driver = &hidd_class_driver[p_interface_desc->bInterfaceProtocol];
+        hidd_class_driver_t const * const p_driver = &hidd_class_driver[p_interface_desc->bInterfaceProtocol];
         hidd_interface_t * const p_hid = p_driver->p_interface;
 
         ASSERT_PTR(p_hid, TUSB_ERROR_FAILED);

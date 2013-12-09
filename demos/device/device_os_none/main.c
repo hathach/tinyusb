@@ -108,7 +108,7 @@ int main(void)
   #error need to start RTOS schduler
 #endif
 
-  while(1) { } // should not be reached here
+  while(1) { } // should not reach here
 
   return 0;
 }
@@ -116,13 +116,19 @@ int main(void)
 //--------------------------------------------------------------------+
 // BLINKING TASK
 //--------------------------------------------------------------------+
+static uint32_t led_blink_interval_ms = 1000; // default is 1 seconda
+void led_blinking_set_interval(uint32_t ms)
+{
+  led_blink_interval_ms = ms;
+}
+
 OSAL_TASK_FUNCTION( led_blinking_task ) (void* p_task_para)
 {
   OSAL_TASK_LOOP_BEGIN
 
   static uint32_t led_on_mask = 0;
 
-  osal_task_delay(1000);
+  osal_task_delay(led_blink_interval_ms);
 
   board_leds(led_on_mask, 1 - led_on_mask);
   led_on_mask = 1 - led_on_mask; // toggle

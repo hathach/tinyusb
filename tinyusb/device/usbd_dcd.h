@@ -68,7 +68,6 @@ typedef enum {
 
 typedef struct {
   volatile uint8_t state;
-  uint8_t is_waiting_control_xfer;             // set if task is waiting for control xfer to complete to proceed
   uint8_t interface2class[USBD_INTERFACE_NUM_MAX]; // determine interface number belongs to which class
 }usbd_device_info_t;
 

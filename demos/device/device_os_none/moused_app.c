@@ -80,6 +80,19 @@ void tusbd_hid_mouse_cb(uint8_t coreid, tusb_event_t event, uint32_t xferred_byt
   }
 }
 
+uint16_t tusbd_hid_mouse_get_report_cb(uint8_t coreid, hid_request_report_type_t report_type, void** pp_report, uint16_t requested_length)
+{
+  if ( report_type != HID_REQUEST_REPORT_INPUT ) return 0; // not support other report type for this mouse demo
+
+  (*pp_report) =  &mouse_report;
+  return requested_length;
+}
+
+void tusbd_hid_mouse_set_report_cb(uint8_t coreid, hid_request_report_type_t report_type, uint8_t report_data[], uint16_t length)
+{
+  // mouse demo does not support set report --> return 0 will result in rejecting (STALL) this request
+  return 0;
+}
 //--------------------------------------------------------------------+
 // APPLICATION CODE
 //--------------------------------------------------------------------+

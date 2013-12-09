@@ -182,7 +182,7 @@ void cdcd_close(uint8_t coreid)
   memclr_(&cdcd_data[coreid], sizeof(cdcd_data_t));
 }
 
-tusb_error_t cdcd_control_request(uint8_t coreid, tusb_control_request_t const * p_request)
+tusb_error_t cdcd_control_request_subtask(uint8_t coreid, tusb_control_request_t const * p_request)
 {
   //------------- Class Specific Request -------------//
   if (p_request->bmRequestType_bit.type != TUSB_REQUEST_TYPE_CLASS) return TUSB_ERROR_DCD_CONTROL_REQUEST_NOT_SUPPORT;
@@ -191,17 +191,17 @@ tusb_error_t cdcd_control_request(uint8_t coreid, tusb_control_request_t const *
   {
     case CDC_REQUEST_GET_LINE_CODING:
       dcd_pipe_control_xfer(coreid, p_request->bmRequestType_bit.direction,
-                            &cdcd_line_coding[coreid], min16_of(sizeof(cdc_line_coding_t), p_request->wLength) );
+                            &cdcd_line_coding[coreid], min16_of(sizeof(cdc_line_coding_t), p_request->wLength), false );
     break;
 
     case CDC_REQUEST_SET_LINE_CODING:
       dcd_pipe_control_xfer(coreid, p_request->bmRequestType_bit.direction,
-                            &cdcd_line_coding[coreid], min16_of(sizeof(cdc_line_coding_t), p_request->wLength) );
+                            &cdcd_line_coding[coreid], min16_of(sizeof(cdc_line_coding_t), p_request->wLength), false );
       // TODO notify application on xfer complete
     break;
 
     case CDC_REQUEST_SET_CONTROL_LINE_STATE: // TODO extract DTE present
-      dcd_pipe_control_xfer(coreid, p_request->bmRequestType_bit.direction, NULL, 0);
+//      dcd_pipe_control_xfer(coreid, p_request->bmRequestType_bit.direction, NULL, 0);
     break;
 
 
