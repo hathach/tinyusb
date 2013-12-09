@@ -507,7 +507,6 @@ tusb_error_t  dcd_pipe_xfer(endpoint_handle_t edpt_hdl, void* buffer, uint16_t t
 //------------- Device Controller Driver's Interrupt Handler -------------//
 void xfer_complete_isr(uint8_t coreid, uint32_t reg_complete)
 {
-  // TODO currently exclude control
   for(uint8_t ep_idx = 2; ep_idx < DCD_QHD_MAX; ep_idx++)
   {
     if ( BIT_TEST_(reg_complete, edpt_phy2pos(ep_idx)) )
@@ -589,23 +588,12 @@ void dcd_isr(uint8_t coreid)
 		if (lpc_usb->ENDPTSETUPSTAT)
 		{ // 23.10.10.2 Operational model for setup transfers
 		  tusb_control_request_t control_request = p_dcd->qhd[0].setup_request;
-
-		  lpc_usb->ENDPTSETUPSTAT = lpc_usb->ENDPTSETUPSTAT;
-
-		  //------------- Flush if previous transfer is not done -------------//
-//		  if (p_dcd->qhd[0].qtd_overlay.active || p_dcd->qhd[1].qtd_overlay.active)
-//		  {
-//		    do
-//		    {
-//		      lpc_usb->ENDPTFLUSH = BIT_(0) | BIT_(16);
-//		      while(lpc_usb->ENDPTFLUSH) {} // TODO refractor later
-//		    }while( lpc_usb->ENDPTSTAT & (BIT_(0) | BIT_(16)) );
-//
-//		    p_dcd->qhd[0].qtd_overlay.active = p_dcd->qhd[1].qtd_overlay.active = 0;
-//		  }
+		  lpc_usb->ENDPTSETUPSTAT = lpc_usb->ENDPTSETUPSTAT; // acknowledge
 
 		  usbd_setup_received_isr(coreid, &control_request);
-		}else if ( edpt_complete & 0x03 )
+		}
+		//------------- Control Request Completed -------------//
+		else if ( edpt_complete & 0x03 )
 		{ // only either of Endpoint Control is set with interrupt on complete flag
 		  endpoint_handle_t edpt_hdl =
       {
@@ -621,8 +609,7 @@ void dcd_isr(uint8_t coreid)
 		}
 
 		//------------- Transfer Complete -------------//
-
-		if (edpt_complete)
+		if ( edpt_complete & ~(0x03UL) )
 		{
 		  xfer_complete_isr(coreid, edpt_complete);
 		}

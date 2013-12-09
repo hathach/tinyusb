@@ -351,7 +351,10 @@ void dcd_isr(uint8_t coreid)
   }
 
   //------------- Non-Control Endpoints -------------//
-  endpoint_non_control_isr(int_status);
+  if( int_status & ~(0x03UL) )
+  {
+    endpoint_non_control_isr(int_status);
+  }
 }
 
 //--------------------------------------------------------------------+
