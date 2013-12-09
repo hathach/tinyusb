@@ -255,6 +255,35 @@ static void endpoint_non_control_isr(uint32_t int_status)
   }
 }
 
+static void endpoint_control_isr(uint32_t int_status)
+{
+  uint8_t const ep_id = ( int_status & BIT_(0) ) ? 0 : 1;
+
+  // there are still data to transfer.
+  if ( (dcd_data.qhd[ep_id][0].total_bytes == 0) && (dcd_data.current_td[ep_id].remaining_bytes > 0) )
+  {
+    queue_xfer_to_buffer(ep_id, 0, dcd_data.qhd[ep_id][0].buff_addr_offset, dcd_data.current_td[ep_id].remaining_bytes);
+  }else
+  {
+    dcd_data.current_td[ep_id].remaining_bytes = 0;
+
+    if ( BIT_TEST_(dcd_data.current_ioc, ep_id) )
+    {
+      endpoint_handle_t edpt_hdl =
+      {
+          .coreid     = 0,
+          .index      = 0,
+          .class_code = 0
+      };
+
+      dcd_data.current_ioc = BIT_CLR_(dcd_data.current_ioc, edpt_hdl.index);
+
+      // FIXME xferred_byte for control xfer is not needed now !!!
+      usbd_xfer_isr(edpt_hdl, TUSB_EVENT_XFER_COMPLETE, 0);
+    }
+  }
+}
+
 void dcd_isr(uint8_t coreid)
 {
   (void) coreid;
@@ -317,31 +346,8 @@ void dcd_isr(uint8_t coreid)
   }
   //------------- Control Endpoint -------------//
   else if ( int_status & 0x03 )
-  { // either control endpoints
-    uint8_t const ep_id = ( int_status & BIT_(0) ) ? 0 : 1;
-
-    // there are still data to transfer.
-    if ( (dcd_data.qhd[ep_id][0].total_bytes == 0) && (dcd_data.current_td[ep_id].remaining_bytes > 0) )
-    {
-      queue_xfer_to_buffer(ep_id, 0, dcd_data.qhd[ep_id][0].buff_addr_offset, dcd_data.current_td[ep_id].remaining_bytes);
-    }else
-    {
-      dcd_data.current_td[ep_id].remaining_bytes = 0;
-
-      if ( BIT_TEST_(dcd_data.current_ioc, ep_id) )
-      {
-        endpoint_handle_t edpt_hdl =
-        {
-            .coreid     = coreid,
-            .index      = 0
-        };
-
-        dcd_data.current_ioc = BIT_CLR_(dcd_data.current_ioc, edpt_hdl.index);
-
-        // FIXME xferred_byte for control xfer is not needed now !!!
-        usbd_xfer_isr(edpt_hdl, TUSB_EVENT_XFER_COMPLETE, 0);
-      }
-    }
+  {
+    endpoint_control_isr(int_status);
   }
 
   //------------- Non-Control Endpoints -------------//
