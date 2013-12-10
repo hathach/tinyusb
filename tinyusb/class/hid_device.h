@@ -64,7 +64,7 @@
  */
 bool tusbd_hid_keyboard_is_busy(uint8_t coreid);
 
-/** \brief        Perform transfer queuing
+/** \brief        Submit USB transfer
  * \param[in]		  coreid USB Controller ID
  * \param[in,out] p_report address that is used to store data from device. Must be accessible by usb controller (see \ref TUSB_CFG_ATTR_USBRAM)
  * \returns       \ref tusb_error_t type to indicate success or error condition.
@@ -94,8 +94,31 @@ void tusbd_hid_keyboard_unmounted_cb(uint8_t coreid);
  */
 void tusbd_hid_keyboard_cb(uint8_t coreid, tusb_event_t event, uint32_t xferred_bytes);
 
-void tusbd_hid_keyboard_set_report_cb(uint8_t coreid, hid_request_report_type_t report_type, uint8_t p_report_data[], uint16_t length);
+/** \brief      Callback function that is invoked when USB host request \ref HID_REQUEST_CONTROL_GET_REPORT
+ *              via control endpoint.
+ * \param[in]		coreid	USB Controller ID
+ * \param[in]   report_type specify which report (INPUT, OUTPUT, FEATURE) that host requests
+ * \param[out]  pp_report pointer to buffer that application need to update, value must be accessible by USB controller (see \ref TUSB_CFG_ATTR_USBRAM)
+ * \param[in]   requested_length  number of bytes that host requested
+ * \retval      non-zero Actual number of bytes in the response's buffer.
+ * \retval      zero  indicates the current request is not supported. Tinyusb device stack will reject the request by
+ *              sending STALL in the data phase.
+ * \note        After this callback, the request is silently executed by the tinyusb stack, thus
+ *              the completion of this control request will not be reported to application.
+ *              For Keyboard, USB host often uses this to turn on/off the LED for CAPLOCKS, NUMLOCK (\ref hid_keyboard_led_bm_t)
+ */
 uint16_t tusbd_hid_keyboard_get_report_cb(uint8_t coreid, hid_request_report_type_t report_type, void** pp_report, uint16_t requested_length);
+
+/** \brief      Callback function that is invoked when USB host request \ref HID_REQUEST_CONTROL_SET_REPORT
+ *              via control endpoint.
+ * \param[in]		coreid	USB Controller ID
+ * \param[in]   report_type specify which report (INPUT, OUTPUT, FEATURE) that host requests
+ * \param[in]   p_report_data buffer containing the report's data
+ * \param[in]   length  number of bytes in the \a p_report_data
+ * \note        By the time this callback is invoked, the USB control transfer is already completed in the hardware side.
+ *              Application are free to handle data at its own will.
+ */
+void tusbd_hid_keyboard_set_report_cb(uint8_t coreid, hid_request_report_type_t report_type, uint8_t p_report_data[], uint16_t length);
 
 /** @} */
 /** @} */
@@ -147,8 +170,31 @@ void tusbd_hid_mouse_unmounted_cb(uint8_t coreid);
  */
 void tusbd_hid_mouse_cb(uint8_t coreid, tusb_event_t event, uint32_t xferred_bytes);
 
+/** \brief      Callback function that is invoked when USB host request \ref HID_REQUEST_CONTROL_GET_REPORT
+ *              via control endpoint.
+ * \param[in]		coreid	USB Controller ID
+ * \param[in]   report_type specify which report (INPUT, OUTPUT, FEATURE) that host requests
+ * \param[out]  pp_report pointer to buffer that application need to update, value must be accessible by USB controller (see \ref TUSB_CFG_ATTR_USBRAM)
+ * \param[in]   requested_length  number of bytes that host requested
+ * \retval      non-zero Actual number of bytes in the response's buffer.
+ * \retval      zero  indicates the current request is not supported. Tinyusb device stack will reject the request by
+ *              sending STALL in the data phase.
+ * \note        After this callback, the request is silently executed by the tinyusb stack, thus
+ *              the completion of this control request will not be reported to application
+ */
 uint16_t tusbd_hid_mouse_get_report_cb(uint8_t coreid, hid_request_report_type_t report_type, void** pp_report, uint16_t requested_length);
+
+/** \brief      Callback function that is invoked when USB host request \ref HID_REQUEST_CONTROL_SET_REPORT
+ *              via control endpoint.
+ * \param[in]		coreid	USB Controller ID
+ * \param[in]   report_type specify which report (INPUT, OUTPUT, FEATURE) that host requests
+ * \param[in]   p_report_data buffer containing the report's data
+ * \param[in]   length  number of bytes in the \a p_report_data
+ * \note        By the time this callback is invoked, the USB control transfer is already completed in the hardware side.
+ *              Application are free to handle data at its own will.
+ */
 void tusbd_hid_mouse_set_report_cb(uint8_t coreid, hid_request_report_type_t report_type, uint8_t p_report_data[], uint16_t length);
+
 /** @} */
 /** @} */
 
