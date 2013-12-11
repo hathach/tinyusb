@@ -171,6 +171,13 @@ tusb_speed_t hcd_port_speed_get(uint8_t hostid)
   return (tusb_speed_t) get_operational_register(hostid)->portsc_bit.nxp_port_speed; // NXP specific port speed
 }
 
+// TODO refractor abtract later
+void hcd_port_unplug(uint8_t hostid)
+{
+	ehci_registers_t* const regs = get_operational_register(hostid);
+  regs->usb_cmd_bit.advacne_async = 1; // Async doorbell check EHCI 4.8.2 for operational details
+}
+
 //--------------------------------------------------------------------+
 // Controller API
 //--------------------------------------------------------------------+
@@ -570,13 +577,6 @@ static void port_connect_status_change_isr(uint8_t hostid)
     usbh_hcd_rhport_unplugged_isr(hostid);
 //    regs->usb_cmd_bit.advacne_async = 1; // Async doorbell check EHCI 4.8.2 for operational details
   }
-}
-
-// TODO refractor abtract later
-void hcd_port_unplug(uint8_t hostid)
-{
-	ehci_registers_t* const regs = get_operational_register(hostid);
-  regs->usb_cmd_bit.advacne_async = 1; // Async doorbell check EHCI 4.8.2 for operational details
 }
 
 static void qhd_xfer_complete_isr(ehci_qhd_t * p_qhd)

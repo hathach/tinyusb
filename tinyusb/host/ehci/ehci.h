@@ -71,7 +71,7 @@
 #define HOST_HCD_XFER_INTERRUPT // TODO interrupt is used widely, should always be enalbed
 #define EHCI_PERIODIC_LIST (defined HOST_HCD_XFER_INTERRUPT || defined HOST_HCD_XFER_ISOCHRONOUS)
 
-// TODO allow user to configure
+// TODO merge OHCI with EHCI
 #define EHCI_MAX_QHD  8
 #define EHCI_MAX_QTD  20
 #define EHCI_MAX_ITD  4
