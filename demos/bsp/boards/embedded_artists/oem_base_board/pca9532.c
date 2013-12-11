@@ -24,6 +24,9 @@
 /******************************************************************************
  * Includes
  *****************************************************************************/
+#include "../../board.h"
+
+#if BOARD == BOARD_EA4357
 
 #include "lpc43xx_i2c.h"
 #include "lpc43xx_cgu.h"
@@ -342,3 +345,5 @@ void pca9532_setBlink1Leds(uint16_t ledMask)
     blink1Shadow |= ledMask;
     setLeds();
 }
+
+#endif

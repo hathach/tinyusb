@@ -355,6 +355,8 @@ static tusb_error_t pipe_control_xfer(uint8_t ep_id, uint8_t* p_buffer, uint16_t
 
   dcd_data.control_dma.remaining_bytes -= packet_len;
   dcd_data.control_dma.p_data          += packet_len;
+
+  return TUSB_ERROR_NONE;
 }
 
 static tusb_error_t pipe_control_write(void const * buffer, uint16_t length)
@@ -428,7 +430,7 @@ tusb_error_t dcd_pipe_control_xfer(uint8_t coreid, tusb_direction_t dir, void * 
     dcd_data.control_dma.remaining_bytes = length;
 
     // lpc17xx already received the first DATA OUT packet by now
-    ASSERT_STATUS ( pipe_control_xfer(dir, p_buffer, length) );
+    ASSERT_STATUS ( pipe_control_xfer(ep_data, p_buffer, length) );
   }
 
   //------------- Status Phase (opposite direct to Data) -------------//
@@ -436,6 +438,8 @@ tusb_error_t dcd_pipe_control_xfer(uint8_t coreid, tusb_direction_t dir, void * 
   { // only write for CONTROL OUT, CONTROL IN data will be retrieved in dcd_isr
     ASSERT_STATUS ( pipe_control_write(NULL, 0) );
   }
+//  ASSERT_STATUS ( pipe_control_xfer(ep_status, NULL, 0) );
+
 
   return TUSB_ERROR_NONE;
 }
