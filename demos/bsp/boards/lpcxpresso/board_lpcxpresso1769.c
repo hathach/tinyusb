@@ -107,10 +107,11 @@ uint32_t board_uart_send(uint8_t *buffer, uint32_t length)
   return UART_Send(BOARD_UART_PORT, buffer, length, BLOCKING);
 }
 
-uint32_t board_uart_recv(uint8_t *buffer, uint32_t length)
+uint8_t  board_uart_getchar(void)
 {
-  return UART_Receive(BOARD_UART_PORT, buffer, length, BLOCKING);
+  return UART_ReceiveByte(BOARD_UART_PORT);
 }
+
 #endif
 
 #endif

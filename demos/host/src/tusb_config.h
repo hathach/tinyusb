@@ -36,12 +36,6 @@
 */
 /**************************************************************************/
 
-/** \file
- *  \brief TBD
- *
- *  \note TBD
- */
-
 /** \ingroup TBD
  *  \defgroup TBD
  *  \brief TBD
@@ -59,8 +53,9 @@
 //--------------------------------------------------------------------+
 // CONTROLLER CONFIGURATION
 //--------------------------------------------------------------------+
+//#define TUSB_CFG_MCU will be passed from IDE for easy board/mcu switching
 #define TUSB_CFG_CONTROLLER_0_MODE  (TUSB_MODE_HOST)
-#define TUSB_CFG_CONTROLLER_1_MODE  (TUSB_MODE_NONE)
+#define TUSB_CFG_CONTROLLER_1_MODE  (TUSB_MODE_NONE) // TODO not yet tested
 
 //--------------------------------------------------------------------+
 // HOST CONFIGURATION
@@ -83,16 +78,19 @@
 //--------------------------------------------------------------------+
 // DEVICE CONFIGURATION
 //--------------------------------------------------------------------+
+#define TUSB_CFG_DEVICE_CONTROL_ENDOINT_SIZE    64 // TODO refractor remove
+#define TUSB_CFG_DEVICE_STRING_DESCRIPTOR_COUNT 4
 
 //------------- CLASS -------------//
-//#define TUSB_CFG_DEVICE_CDC
-//#define TUSB_CFG_DEVICE_HID_KEYBOARD  1
-//#define TUSB_CFG_DEVICE_HID_MOUSE     1
+#define TUSB_CFG_DEVICE_HID_KEYBOARD  0
+#define TUSB_CFG_DEVICE_HID_MOUSE     0
+#define TUSB_CFG_DEVICE_HID_GENERIC   0
+#define TUSB_CFG_DEVICE_MSC           0
+#define TUSB_CFG_DEVICE_CDC           0
 
 //--------------------------------------------------------------------+
 // COMMON CONFIGURATION
 //--------------------------------------------------------------------+
-
 #define TUSB_CFG_DEBUG                3
 
 //#define TUSB_CFG_OS                   TUSB_OS_NONE // defined using eclipse build
@@ -101,19 +99,31 @@
 #define TUSB_CFG_OS_TICKS_PER_SECOND  1000
 
 #ifdef __CODE_RED // make use of code red's support for ram region macros
+
   #if (TUSB_CFG_MCU == MCU_LPC11UXX) || (TUSB_CFG_MCU == MCU_LPC13UXX)
     #define TUSB_RAM_SECTION  ".data.$RAM2"
   #elif  (TUSB_CFG_MCU == MCU_LPC43XX)
     #define TUSB_RAM_SECTION  ".data.$RAM3"
+  #elif (TUSB_CFG_MCU == MCU_LPC175X_6X)
+    #define TUSB_RAM_SECTION  ".data.$RAM2"
+  #else
+    #error Please define USB RAM section
   #endif
 
   #define TUSB_CFG_ATTR_USBRAM   __attribute__ ((section(TUSB_RAM_SECTION)))
+
 #elif defined  __CC_ARM // Compiled with Keil armcc
+
   #define TUSB_CFG_ATTR_USBRAM
+
 #elif __ICCARM__ // compiled with IAR
+
   #define TUSB_CFG_ATTR_USBRAM  @ ".ahb_sram1"
+
 #else
+
   #error compiler not specified
+
 #endif
 
 

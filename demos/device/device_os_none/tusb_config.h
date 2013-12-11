@@ -73,6 +73,8 @@
 #define TUSB_CFG_HOST_HID_MOUSE     0
 #define TUSB_CFG_HOST_HID_GENERIC   0
 #define TUSB_CFG_HOST_MSC           0
+#define TUSB_CFG_HOST_CDC           0
+#define TUSB_CFG_HOST_CDC_RNDIS     0
 
 //--------------------------------------------------------------------+
 // DEVICE CONFIGURATION
@@ -96,8 +98,9 @@
 //--------------------------------------------------------------------+
 #define TUSB_CFG_DEBUG                3
 
-#define TUSB_CFG_OS                   TUSB_OS_NONE // defined using eclipse build
+//#define TUSB_CFG_OS                   TUSB_OS_NONE // defined using eclipse build
 //#define TUSB_CFG_OS_TASK_PRIO
+
 #define TUSB_CFG_OS_TICKS_PER_SECOND  1000
 
 #ifdef __CODE_RED // make use of code red's support for ram region macros
@@ -112,10 +115,19 @@
   #endif
 
   #define TUSB_CFG_ATTR_USBRAM   __attribute__ ((section(TUSB_RAM_SECTION)))
+
 #elif defined  __CC_ARM // Compiled with Keil armcc
+
   #define TUSB_CFG_ATTR_USBRAM
+
+#elif __ICCARM__ // compiled with IAR
+
+  #define TUSB_CFG_ATTR_USBRAM  @ ".ahb_sram1"
+
 #else
+
   #error compiler not specified
+
 #endif
 
 

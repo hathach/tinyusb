@@ -20,6 +20,9 @@
 /******************************************************************************
  * Includes
  *****************************************************************************/
+#include "../../board.h"
+
+#if BOARD == BOARD_EA4357
 
 #include "lpc_types.h"
 #include "lpc43xx_scu.h"
@@ -383,7 +386,7 @@ uint32_t nand_isBlockValid(uint32_t block)
  *
  * Params:
  *    block - block number to read from
- *    page  - page withín block to read from
+ *    page  - page withï¿½n block to read from
  *    pageBuf - data is copied to this buffer. The size must be at least 
  *              pageSize.
  *
@@ -540,4 +543,4 @@ uint32_t nand_eraseBlock(uint32_t block)
   return ((nandStatus() & 0x01) != 0x01); 
 }
 
-
+#endif

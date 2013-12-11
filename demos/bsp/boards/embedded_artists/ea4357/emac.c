@@ -15,6 +15,10 @@
  *****                                                        *****
  ******************************************************************/
 
+#include "../../board.h"
+
+#if BOARD == BOARD_EA4357
+
 #include "EMAC.h"
 //#include "tcpip.h"
 #include "lpc43xx.h"
@@ -471,4 +475,6 @@ void CopyToFrame_EMAC(void *Source, unsigned int Size)
   if (TxDescIndex == NUM_TX_DESC)
     TxDescIndex = 0;
 }
+
+#endif
 
