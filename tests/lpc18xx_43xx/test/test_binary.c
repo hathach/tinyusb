@@ -1,6 +1,6 @@
 /**************************************************************************/
 /*!
-    @file     test_binary_const.c
+    @file     test_binary.c
     @author   hathach (tinyusb.org)
 
     @section LICENSE
@@ -48,7 +48,7 @@ void tearDown(void)
 {
 }
 
-void test_binary_8()
+void test_binary_8(void)
 {
   TEST_ASSERT_EQUAL_HEX8(0x00, BIN8(00000000));
   TEST_ASSERT_EQUAL_HEX8(0x01, BIN8(00000001));
@@ -65,7 +65,7 @@ void test_binary_8()
   TEST_ASSERT_EQUAL_HEX8(0xff, BIN8(11111111));
 }
 
-void test_binary_16()
+void test_binary_16(void)
 {
   TEST_ASSERT_EQUAL_HEX16(0x0000, BIN16(00000000, 00000000));
   TEST_ASSERT_EQUAL_HEX16(0x000f, BIN16(00000000, 00001111));
@@ -75,7 +75,7 @@ void test_binary_16()
   TEST_ASSERT_EQUAL_HEX16(0xffff, BIN16(11111111, 11111111));
 }
 
-void test_binary_32()
+void test_binary_32(void)
 {
   TEST_ASSERT_EQUAL_HEX32(0x00000000, BIN32(00000000, 00000000, 00000000, 00000000));
   TEST_ASSERT_EQUAL_HEX32(0x0000000f, BIN32(00000000, 00000000, 00000000, 00001111));
@@ -87,4 +87,40 @@ void test_binary_32()
   TEST_ASSERT_EQUAL_HEX32(0x0f000000, BIN32(00001111, 00000000, 00000000, 00000000));
   TEST_ASSERT_EQUAL_HEX32(0xf0000000, BIN32(11110000, 00000000, 00000000, 00000000));
   TEST_ASSERT_EQUAL_HEX32(0xffffffff, BIN32(11111111, 11111111, 11111111, 11111111));
+}
+
+void test_bit_set(void)
+{
+  TEST_ASSERT_EQUAL_HEX32( BIN8(00001101), bit_set( BIN8(00001001), 2));
+  TEST_ASSERT_EQUAL_HEX32( BIN8(10001101), bit_set( BIN8(00001101), 7));
+}
+
+void test_bit_clear(void)
+{
+  TEST_ASSERT_EQUAL_HEX32( BIN8(00001001), bit_clear( BIN8(00001101), 2));
+  TEST_ASSERT_EQUAL_HEX32( BIN8(00001101), bit_clear( BIN8(10001101), 7));
+}
+
+void test_bit_mask(void)
+{
+  TEST_ASSERT_EQUAL_HEX32(0x0000ffff, bit_mask(16));
+  TEST_ASSERT_EQUAL_HEX32(0x00ffffff, bit_mask(24));
+  TEST_ASSERT_EQUAL_HEX32(0xffffffff, bit_mask(32));
+}
+
+void test_bit_range(void)
+{
+  TEST_ASSERT_EQUAL_HEX32(BIN8(00001111), bit_mask_range(0, 3));
+  TEST_ASSERT_EQUAL_HEX32(BIN8(01100000), bit_mask_range(5, 6));
+
+  TEST_ASSERT_EQUAL_HEX32(BIN16(00001111, 00000000), bit_mask_range(8, 11));
+  TEST_ASSERT_EQUAL_HEX32(0xf0000000, bit_mask_range(28, 31));
+}
+
+void test_bit_set_range(void)
+{
+  TEST_ASSERT_EQUAL_HEX32(BIN8(01011001), bit_set_range(BIN8(00001001), 4, 6, BIN8(101)));
+
+  TEST_ASSERT_EQUAL_HEX32(BIN32(11001011, 10100000, 00000000, 00001001),
+                          bit_set_range(BIN8(00001001), 21, 31, BIN16(110, 01011101)));
 }

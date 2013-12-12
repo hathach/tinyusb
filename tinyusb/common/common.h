@@ -89,10 +89,10 @@
 //--------------------------------------------------------------------+
 // MACROS
 //--------------------------------------------------------------------+
-#define STRING_(x)  #x                             // stringify without expand
-#define XSTRING_(x) STRING_(x)                     // expand then stringify
-#define STRING_CONCAT_(a, b) a##b                  // concat without expand
-#define XSTRING_CONCAT_(a, b) STRING_CONCAT_(a, b) // expand then concat
+#define STRING_(x)  #x                             ///< stringify without expand
+#define XSTRING_(x) STRING_(x)                     ///< expand then stringify
+#define STRING_CONCAT_(a, b) a##b                  ///< concat without expand
+#define XSTRING_CONCAT_(a, b) STRING_CONCAT_(a, b) ///< expand then concat
 
 #define MAX_OF(a, b)  ( (a) > (b) ? (a) : (b) )
 #define MIN_OF(a, b)  ( (a) < (b) ? (a) : (b) )

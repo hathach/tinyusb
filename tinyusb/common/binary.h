@@ -36,12 +36,6 @@
 */
 /**************************************************************************/
 
-/** \file
- *  \brief TBD
- *
- *  \note TBD
- */
-
 /** \ingroup TBD
  *  \defgroup TBD
  *  \brief TBD
@@ -56,18 +50,54 @@
  extern "C" {
 #endif
 
-/// n-th Bit
-#define BIT_(n) (1U << (n))
+#include "primitive_types.h"
+#include "compiler/compiler.h"
 
-/// set n-th bit of x to 1
-#define BIT_SET_(x, n) ( (x) | BIT_(n) )
+//------------- Bit manipulation -------------//
+#define BIT_(n) (1U << (n))                                ///< n-th Bit
+#define BIT_SET_(x, n) ( (x) | BIT_(n) )                   ///< set n-th bit of x to 1
+#define BIT_CLR_(x, n) ( (x) & (~BIT_(n)) )                ///< clear n-th bit of x
+#define BIT_TEST_(x, n) ( ((x) & BIT_(n)) ? true : false ) ///< check if n-th bit of x is 1
 
-/// clear n-th bit of x
-#define BIT_CLR_(x, n) ( (x) & (~BIT_(n)) )
+static inline uint32_t bit_set(uint32_t value, uint8_t n) ATTR_CONST ATTR_ALWAYS_INLINE;
+static inline uint32_t bit_set(uint32_t value, uint8_t n)
+{
+  return value | BIT_(n);
+}
 
-/// test n-th bit of x
-#define BIT_TEST_(x, n) ( ((x) & BIT_(n)) ? true : false )
+static inline uint32_t bit_clear(uint32_t value, uint8_t n) ATTR_CONST ATTR_ALWAYS_INLINE;
+static inline uint32_t bit_clear(uint32_t value, uint8_t n)
+{
+  return value & (~BIT_(n));
+}
 
+static inline bool bit_test(uint32_t value, uint8_t n) ATTR_CONST ATTR_ALWAYS_INLINE;
+static inline bool bit_test(uint32_t value, uint8_t n)
+{
+  return (value & BIT_(n)) ? true : false;
+}
+
+///< create a mask with n-bit lsb set to 1
+static inline uint32_t bit_mask(uint8_t n) ATTR_CONST ATTR_ALWAYS_INLINE;
+static inline uint32_t bit_mask(uint8_t n)
+{
+  return (n < 32) ? ( BIT_(n) - 1 ) : UINT32_MAX;
+}
+
+static inline uint32_t bit_mask_range(uint8_t start, uint32_t end) ATTR_CONST ATTR_ALWAYS_INLINE;
+static inline uint32_t bit_mask_range(uint8_t start, uint32_t end)
+{
+  return bit_mask(end+1) & ~ bit_mask(start);
+}
+
+static inline uint32_t bit_set_range(uint32_t value, uint8_t start, uint8_t end, uint32_t pattern) ATTR_CONST ATTR_ALWAYS_INLINE;
+static inline uint32_t bit_set_range(uint32_t value, uint8_t start, uint8_t end, uint32_t pattern)
+{
+   return ( value & ~bit_mask_range(start, end) ) | (pattern << start);
+}
+
+
+//------------- Binary Constant -------------//
 #if defined(__GNUC__) && !defined(__CC_ARM)
 
 #define BIN8(x)               ((uint8_t)  (0b##x))
