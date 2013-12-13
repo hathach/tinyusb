@@ -50,6 +50,7 @@ void board_init(void)
   // Leds Init
   GPIO_SetDir(CFG_LED_PORT, BIT_(CFG_LED_PIN), 1);
 
+#if MODE_DEVICE_SUPPORTED
   //------------- USB Device -------------//
   // VBUS sense is wrongly connected to P0_5 (instead of P1_30). So we need to always pull P1_30 to high
   // so that USB device block can work. However, Device Controller (thus tinyusb) cannot able to determine
@@ -57,6 +58,9 @@ void board_init(void)
   PINSEL_ConfigPin( &(PINSEL_CFG_Type) {
       .Portnum = 1, .Pinnum = 30,
       .Funcnum = 2, .Pinmode = PINSEL_PINMODE_PULLUP} );
+
+  //P0_21 instead of P2_9 as USB connect
+#endif
 
 #if CFG_UART_ENABLE
   //------------- UART init -------------//

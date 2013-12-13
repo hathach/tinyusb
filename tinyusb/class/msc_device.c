@@ -122,11 +122,11 @@ tusb_error_t mscd_control_request_subtask(uint8_t coreid, tusb_control_request_t
   switch(p_request->bRequest)
   {
     case MSC_REQUEST_RESET:
-      dcd_pipe_control_xfer(coreid, TUSB_DIR_HOST_TO_DEV, NULL, 0);
+      dcd_pipe_control_xfer(coreid, TUSB_DIR_HOST_TO_DEV, NULL, 0, false);
     break;
 
     case MSC_REQUEST_GET_MAX_LUN:
-      dcd_pipe_control_xfer(coreid, TUSB_DIR_DEV_TO_HOST, &p_msc->max_lun, 1);
+      dcd_pipe_control_xfer(coreid, TUSB_DIR_DEV_TO_HOST, &p_msc->max_lun, 1, false);
     break;
 
     default:
