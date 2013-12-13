@@ -59,14 +59,12 @@ tusb_error_t hal_init(void)
   LPC_SC->PCONP |= CLKPWR_PCONP_PCUSB; // enable USB Peripherals
 
   //------------- user manual 11.13 usb device controller initialization -------------//
-  LPC_PINCON->PINSEL1 = bit_set_range(LPC_PINCON->PINSEL1, 26, 27, BIN8(01)); // P0.29 as D+
-  LPC_PINCON->PINSEL1 = bit_set_range(LPC_PINCON->PINSEL1, 28, 29, BIN8(01)); // P0.30 as D-
+  PINSEL_ConfigPin( &(PINSEL_CFG_Type) { .Portnum = 0, .Pinnum = 29, .Funcnum = 1} ); // P0.29 as D+
+  PINSEL_ConfigPin( &(PINSEL_CFG_Type) { .Portnum = 0, .Pinnum = 30, .Funcnum = 1} ); // P0.30 as D-
 
 #if MODE_HOST_SUPPORTED
-  LPC_PINCON->PINSEL3 = bit_set_range(LPC_PINCON->PINSEL3, 12, 23, BIN8(10)); // P1.22 as USB_PWRD
-//  PINSEL_ConfigPin( &(PINSEL_CFG_Type) { .Portnum = 1, .Pinnum = 22,
-//                                         .Funcnum = 2, .Pinmode = PINSEL_PINMODE_PULLUP} );
-  LPC_PINCON->PINSEL3 = bit_set_range(LPC_PINCON->PINSEL3,  6,  7, BIN8(10)); // P1.19 as USB_PPWR
+  PINSEL_ConfigPin( &(PINSEL_CFG_Type) { .Portnum = 1, .Pinnum = 22, .Funcnum = 2} ); // P1.22 as USB_PWRD
+  PINSEL_ConfigPin( &(PINSEL_CFG_Type) { .Portnum = 1, .Pinnum = 19, .Funcnum = 2} ); // P1.19 as USB_PPWR
 
   LPC_USB->USBClkCtrl = USBCLK_HOST;
   while ((LPC_USB->USBClkSt & USBCLK_HOST) != USBCLK_HOST);
