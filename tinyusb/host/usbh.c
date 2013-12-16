@@ -373,7 +373,7 @@ tusb_error_t enumeration_body_subtask(void)
     { // connection event
       osal_task_delay(200); // wait for device is stable
       hcd_port_reset( usbh_devices[0].core_id ); // port must be reset to have correct speed operation
-      //  osal_task_delay(50); // TODO reset is recommended to last 50 ms (NXP EHCI passes this)
+      osal_task_delay(50); // TODO reset is recommended to last 50 ms (NXP EHCI passes this)
       usbh_devices[0].speed    = hcd_port_speed_get( usbh_devices[0].core_id );
     }
     else
@@ -437,7 +437,7 @@ tusb_error_t enumeration_body_subtask(void)
   { // connected directly to roothub
     SUBTASK_ASSERT_STATUS(error); // TODO some slow device is observed to fail the very fist controller xfer, can try more times
     hcd_port_reset( usbh_devices[0].core_id ); // reset port after 8 byte descriptor
-//  osal_task_delay(50); // TODO reset is recommended to last 50 ms (NXP EHCI passes this)
+    osal_task_delay(50); // TODO reset is recommended to last 50 ms (NXP EHCI passes this)
   }
   #if TUSB_CFG_HOST_HUB
   else

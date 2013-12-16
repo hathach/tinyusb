@@ -310,7 +310,6 @@ tusb_error_t  hcd_pipe_control_open(uint8_t dev_addr, uint8_t max_packet_size)
   if (dev_addr != 0)
   {
     //------------- insert to async list -------------//
-    // TODO might need to to disable async list first
     list_insert( (ehci_link_t*) get_async_head(usbh_devices[dev_addr].core_id),
                  (ehci_link_t*) p_qhd, EHCI_QUEUE_ELEMENT_QHD);
   }
@@ -965,7 +964,7 @@ static inline void qtd_insert_to_qhd(ehci_qhd_t *p_qhd, ehci_qtd_t *p_qtd_new)
 
 static void qhd_init(ehci_qhd_t *p_qhd, uint8_t dev_addr, uint16_t max_packet_size, uint8_t endpoint_addr, uint8_t xfer_type, uint8_t interval)
 {
-  // address 0 uses async head, which always on the list --> cannot be cleared (ehci halted otherwise)
+  // address 0 is used as async head, which always on the list --> cannot be cleared (ehci halted otherwise)
   if (dev_addr != 0)
   {
     memclr_(p_qhd, sizeof(ehci_qhd_t));

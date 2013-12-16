@@ -63,6 +63,12 @@
 #define OHCI_MAX_QTD  20
 #define OHCI_MAX_ITD  4
 
+enum {
+  OHCI_PID_SETUP = 0,
+  OHCI_PID_OUT,
+  OHCI_PID_IN,
+};
+
 //--------------------------------------------------------------------+
 // OHCI Data Structure
 //--------------------------------------------------------------------+
@@ -75,8 +81,18 @@ typedef struct {
 }ohci_hcca_t; // ATTR_ALIGNED(256)
 
 typedef struct {
+  uint32_t reserved[2];
+  volatile uint32_t next_td;
+  uint32_t reserved2;
+}ohci_td_item_t;
+
+
+typedef struct {
 	//------------- Word 0 -------------//
-  uint32_t                         : 18;
+	uint32_t used                    : 1;
+	uint32_t index                   : 4;  // endpoint index the td belongs to, or device address in case of control xfer
+  uint32_t expected_bytes          : 13; // TODO available for hcd
+
   uint32_t buffer_rounding         : 1;
   uint32_t pid                     : 2;
   uint32_t delay_interrupt         : 3;
@@ -155,16 +171,18 @@ STATIC_ASSERT( sizeof(ochi_itd_t) == 32, "size is not correct" );
 // structure with member alignment required from large to small
 typedef struct {
   ohci_hcca_t hcca;
-//  ochi_itd_t itd[OHCI_MAX_ITD];
 
-  // control endpoints has reserved
+  // control endpoints has reserved resources
   struct {
     ohci_ed_t ed;
     ohci_gtd_t gtd[3]; // setup, data, status
   }control[TUSB_CFG_HOST_DEVICE_MAX+1];
 
-  ohci_ed_t ed[OHCI_MAX_QHD];
-  ohci_gtd_t gtd[OHCI_MAX_QTD];
+  struct {
+    //  ochi_itd_t itd[OHCI_MAX_ITD]; // itd requires alignment of 32
+    ohci_ed_t ed[OHCI_MAX_QHD];
+    ohci_gtd_t gtd[OHCI_MAX_QTD];
+  }device[TUSB_CFG_HOST_DEVICE_MAX];
 
 }ATTR_ALIGNED(256) ohci_data_t;
 

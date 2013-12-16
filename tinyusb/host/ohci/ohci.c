@@ -90,12 +90,48 @@ enum {
 
   OHCI_INT_OWNERSHIP_CHANGE_MASK     = BIT_(30),
   OHCI_INT_MASTER_ENABLE_MASK        = BIT_(31),
-
-  OHCI_INT_ALL_MASK = OHCI_INT_SCHEDULING_OVERUN_MASK | OHCI_INT_WRITEBACK_DONEHEAD_MASK | OHCI_INT_SOF_MASK |
-    OHCI_INT_RESUME_DETECTED_MASK | OHCI_INT_UNRECOVERABLE_ERROR_MASK | OHCI_INT_FRAME_OVERFLOW_MASK |
-    OHCI_INT_RHPORT_STATUS_CHANGE_MASK | OHCI_INT_OWNERSHIP_CHANGE_MASK | OHCI_INT_MASTER_ENABLE_MASK
 };
 
+enum {
+  OHCI_RHPORT_CURRENT_CONNECT_STATUS_MASK      = BIT_(0),
+  OHCI_RHPORT_PORT_ENABLE_STATUS_MASK          = BIT_(1),
+  OHCI_RHPORT_PORT_SUSPEND_STATUS_MASK         = BIT_(2),
+  OHCI_RHPORT_PORT_OVER_CURRENT_INDICATOR_MASK = BIT_(3),
+  OHCI_RHPORT_PORT_RESET_STATUS_MASK           = BIT_(4), ///< write '1' to reset port
+
+  OHCI_RHPORT_PORT_POWER_STATUS_MASK           = BIT_(8),
+  OHCI_RHPORT_LOW_SPEED_DEVICE_ATTACHED_MASK   = BIT_(9),
+
+  OHCI_RHPORT_CONNECT_STATUS_CHANGE_MASK       = BIT_(16),
+  OHCI_RHPORT_PORT_ENABLE_CHANGE_MASK          = BIT_(17),
+  OHCI_RHPORT_PORT_SUSPEND_CHANGE_MASK         = BIT_(18),
+  OHCI_RHPORT_OVER_CURRENT_CHANGE_MASK         = BIT_(19),
+  OHCI_RHPORT_PORT_RESET_CHANGE_MASK           = BIT_(20),
+
+  OHCI_RHPORT_ALL_CHANGE_MASK = OHCI_RHPORT_CONNECT_STATUS_CHANGE_MASK | OHCI_RHPORT_PORT_ENABLE_CHANGE_MASK |
+    OHCI_RHPORT_PORT_SUSPEND_CHANGE_MASK | OHCI_RHPORT_OVER_CURRENT_CHANGE_MASK | OHCI_RHPORT_PORT_RESET_CHANGE_MASK
+};
+
+enum {
+  OHCI_CCODE_NO_ERROR              = 0,
+  OHCI_CCODE_CRC                   = 1,
+	OHCI_CCODE_BIT_STUFFING          = 2,
+	OHCI_CCODE_DATA_TOGGLE_MISMATCH  = 3,
+	OHCI_CCODE_STALL                 = 4,
+	OHCI_CCODE_DEVICE_NOT_RESPONDING = 5,
+	OHCI_CCODE_PID_CHECK_FAILURE     = 6,
+	OHCI_CCODE_UNEXPECTED_PID        = 7,
+	OHCI_CCODE_DATA_OVERRUN          = 8,
+	OHCI_CCODE_DATA_UNDERRUN         = 9,
+	OHCI_CCODE_BUFFER_OVERRUN        = 12,
+	OHCI_CCODE_BUFFER_UNDERRUN       = 13,
+	OHCI_CCODE_NOT_ACCESSED          = 14,
+};
+
+enum {
+  OHCI_INT_ON_COMPLETE_YES = 0,
+  OHCI_INT_ON_COMPLETE_NO  = BIN8(111)
+};
 //--------------------------------------------------------------------+
 // INTERNAL OBJECT & FUNCTION DECLARATION
 //--------------------------------------------------------------------+
@@ -132,7 +168,7 @@ tusb_error_t hcd_init(void)
 
   OHCI_REG->rh_status_bit.local_power_status_change = 1; // set global power for ports
 
-  OHCI_REG->interrupt_disable = OHCI_INT_ALL_MASK;
+  OHCI_REG->interrupt_disable = OHCI_REG->interrupt_enable; // disable all interrupts
   OHCI_REG->interrupt_status  = OHCI_REG->interrupt_status; // clear current set bits
   OHCI_REG->interrupt_enable  = OHCI_INT_WRITEBACK_DONEHEAD_MASK | OHCI_INT_RESUME_DETECTED_MASK |
       OHCI_INT_UNRECOVERABLE_ERROR_MASK | OHCI_INT_FRAME_OVERFLOW_MASK | OHCI_INT_RHPORT_STATUS_CHANGE_MASK |
@@ -146,17 +182,17 @@ tusb_error_t hcd_init(void)
 //--------------------------------------------------------------------+
 void hcd_port_reset(uint8_t hostid)
 {
-  // TODO OHCI
+  OHCI_REG->rhport_status[0] = OHCI_RHPORT_PORT_RESET_STATUS_MASK;
 }
 
 bool hcd_port_connect_status(uint8_t hostid)
 {
-  // TODO OHCI
+  return OHCI_REG->rhport_status_bit[0].current_connect_status;
 }
 
 tusb_speed_t hcd_port_speed_get(uint8_t hostid)
 {
-  // TODO OHCI
+  return OHCI_REG->rhport_status_bit[0].low_speed_device_attached ? TUSB_SPEED_LOW : TUSB_SPEED_FULL;
 }
 
 // TODO refractor abtract later
@@ -172,14 +208,97 @@ void hcd_port_unplug(uint8_t hostid)
 //--------------------------------------------------------------------+
 // CONTROL PIPE API
 //--------------------------------------------------------------------+
+static void ed_init(ohci_ed_t *p_ed, uint8_t dev_addr, uint16_t max_packet_size, uint8_t endpoint_addr, uint8_t xfer_type, uint8_t interval)
+{
+  // address 0 is used as async head, which always on the list --> cannot be cleared
+  if (dev_addr != 0)
+  {
+    memclr_(p_ed, sizeof(ohci_ed_t));
+  }
+
+  p_ed->device_address   = dev_addr;
+  p_ed->endpoint_number  = endpoint_addr & 0x0F;
+  p_ed->direction        = (xfer_type == TUSB_XFER_CONTROL) ? OHCI_PID_SETUP : ( (endpoint_addr & TUSB_DIR_DEV_TO_HOST_MASK) ? OHCI_PID_IN : OHCI_PID_OUT );
+  p_ed->speed            = usbh_devices[dev_addr].speed;
+  p_ed->is_iso           = (xfer_type == TUSB_XFER_ISOCHRONOUS) ? 1 : 0;
+  p_ed->max_package_size = max_packet_size;
+}
+
+static void qtd_init(ohci_gtd_t* p_td, void* data_ptr, uint16_t total_bytes)
+{
+  memclr_(p_td, sizeof(ohci_gtd_t));
+
+  p_td->used                   = 1;
+  p_td->expected_bytes         = total_bytes;
+
+  p_td->buffer_rounding        = 1; // less than queued length is not a error
+  p_td->delay_interrupt        = OHCI_INT_ON_COMPLETE_NO;
+  p_td->condition_code         = OHCI_CCODE_NOT_ACCESSED;
+
+  p_td->current_buffer_pointer = data_ptr;
+  p_td->buffer_end             = total_bytes ? (((uint8_t*) data_ptr) + total_bytes-1) : NULL;
+}
+
 tusb_error_t  hcd_pipe_control_open(uint8_t dev_addr, uint8_t max_packet_size)
 {
-  // TODO OHCI return TUSB_ERROR_NONE;
+  ohci_ed_t* const p_ed = &ohci_data.control[dev_addr].ed;
+
+  ed_init(p_ed, dev_addr, max_packet_size, 0, TUSB_XFER_CONTROL, 0); // TODO binterval of control is ignored
+
+  if ( dev_addr != 0 )
+  { // insert to control head
+    p_ed->next_ed = ohci_data.control[0].ed.next_ed;
+    ohci_data.control[0].ed.next_ed = (uint32_t) p_ed;
+  }else
+  {
+    p_ed->skip = 0; // addr0 is used as static control head --> only need to clear skip bit
+  }
+
+  return TUSB_ERROR_NONE;
 }
 
 tusb_error_t  hcd_pipe_control_xfer(uint8_t dev_addr, tusb_control_request_t const * p_request, uint8_t data[])
 {
-  // TODO OHCI return TUSB_ERROR_NONE;
+  ohci_ed_t* const p_ed = &ohci_data.control[dev_addr].ed;
+
+  ohci_gtd_t *p_setup      = &ohci_data.control[dev_addr].gtd[0];
+  ohci_gtd_t *p_data       = p_setup + 1;
+  ohci_gtd_t *p_status     = p_setup + 2;
+
+  //------------- SETUP Phase -------------//
+  qtd_init(p_setup, p_request, 8);
+  p_setup->index       = dev_addr;
+  p_setup->pid         = OHCI_PID_SETUP;
+  p_setup->next_td     = (uint32_t) p_data;
+  p_setup->data_toggle = BIN8(10); // DATA0
+
+  //------------- DATA Phase -------------//
+  if (p_request->wLength > 0)
+  {
+    qtd_init(p_data, data, p_request->wLength);
+    p_data->index       = dev_addr;
+    p_data->pid         = p_request->bmRequestType_bit.direction ? OHCI_PID_IN : OHCI_PID_OUT;
+    p_data->data_toggle = BIN8(11); // DATA1
+  }else
+  {
+    p_data = p_setup;
+  }
+  p_data->next_td = (uint32_t) p_status;
+
+  //------------- STATUS Phase -------------//
+  qtd_init(p_status, NULL, 0); // zero-length data
+  p_status->index           = dev_addr;
+  p_status->pid             = p_request->bmRequestType_bit.direction ? OHCI_PID_OUT : OHCI_PID_IN; // reverse direction of data phase
+  p_status->data_toggle     = BIN8(11); // DATA1
+  p_status->delay_interrupt = OHCI_INT_ON_COMPLETE_YES;
+
+  //------------- Attach TDs list to Control Endpoint -------------//
+  p_ed->td_head = (uint32_t) p_setup;
+  p_ed->td_tail = 0;
+
+  OHCI_REG->command_status_bit.control_list_filled = 1;
+
+  return TUSB_ERROR_NONE;
 }
 
 tusb_error_t  hcd_pipe_control_close(uint8_t dev_addr)
@@ -240,17 +359,100 @@ tusb_error_t hcd_pipe_clear_stall(pipe_handle_t pipe_hdl)
 //--------------------------------------------------------------------+
 // OHCI Interrupt Handler
 //--------------------------------------------------------------------+
+static ohci_td_item_t* list_reverse(ohci_td_item_t* td_head)
+{
+  ohci_td_item_t* td_reverse_head = NULL;
+
+  while(td_head != NULL)
+  {
+    uint32_t next = td_head->next_td;
+
+    // make current's item become reverse's first item
+    td_head->next_td = (uint32_t) td_reverse_head;
+    td_reverse_head  = td_head;
+
+    td_head = (ohci_td_item_t*) next; // advance to next item
+  }
+
+  return td_reverse_head;
+}
+
+static inline bool gtd_is_control(ohci_gtd_t const * const p_qtd) ATTR_CONST ATTR_ALWAYS_INLINE;
+static inline bool gtd_is_control(ohci_gtd_t const * const p_qtd)
+{
+  return ((uint32_t) p_qtd) < ((uint32_t) ohci_data.device); // check ohci_data_t for memory layout
+}
+
+static inline ohci_ed_t* gtd_get_ed(ohci_gtd_t const * const p_qtd) ATTR_PURE ATTR_ALWAYS_INLINE;
+static inline ohci_ed_t* gtd_get_ed(ohci_gtd_t const * const p_qtd)
+{
+  if ( gtd_is_control(p_qtd) )
+  { // control, index is device address
+    return &ohci_data.control[p_qtd->index].ed;
+  }else
+  {
+    return NULL;
+  }
+}
+
+static inline uint32_t gtd_xfer_byte_left(uint32_t buffer_end, uint32_t current_buffer) ATTR_CONST ATTR_ALWAYS_INLINE;
+static inline uint32_t gtd_xfer_byte_left(uint32_t buffer_end, uint32_t current_buffer)
+{ // 5.2.9 OHCI sample code
+  return (align4k(buffer_end ^ current_buffer) ? 0x1000 : 0) +
+      offset4k(buffer_end) - offset4k(current_buffer) + 1;
+}
+
+static void done_queue_isr(hostid)
+{
+  uint8_t max_loop = (TUSB_CFG_HOST_DEVICE_MAX+1)*OHCI_MAX_QTD;
+
+  // done head is written in reversed order of completion --> need to reverse the done queue first
+  ohci_td_item_t* td_head = list_reverse ( (ohci_td_item_t*) align16(ohci_data.hcca.done_head) );
+
+  while( td_head != NULL && max_loop > 0)
+  {
+    // TODO check if td_head is iso td
+    //------------- Non ISO transfer -------------//
+    ohci_gtd_t * const p_qtd = (ohci_gtd_t * const) td_head;
+
+    p_qtd->used = 0; // free TD
+    if ( p_qtd->delay_interrupt == OHCI_INT_ON_COMPLETE_YES)
+    {
+      ohci_ed_t * const p_ed  = gtd_get_ed(p_qtd);
+
+      uint32_t const xferred_bytes = p_qtd->expected_bytes - gtd_xfer_byte_left((uint32_t) p_qtd->buffer_end, (uint32_t) p_qtd->current_buffer_pointer);
+      tusb_event_t const event = (p_qtd->condition_code == OHCI_CCODE_NO_ERROR) ? TUSB_EVENT_XFER_COMPLETE :
+                                 (p_qtd->condition_code == OHCI_CCODE_STALL) ? TUSB_EVENT_XFER_STALLED : TUSB_EVENT_XFER_ERROR;
+
+      pipe_handle_t pipe_hdl =
+      {
+          .dev_addr  = p_ed->device_address,
+          .xfer_type = TUSB_XFER_CONTROL, // TODO other type
+          .index     = 0 // TODO other type
+      };
+
+      usbh_xfer_isr(pipe_hdl, 0, // TODO class code
+                    event, xferred_bytes);
+    }
+
+    td_head = (ohci_td_item_t*) td_head->next_td;
+    max_loop--;
+  }
+}
+
 void hcd_isr(uint8_t hostid)
 {
   uint32_t int_status = OHCI_REG->interrupt_status & OHCI_REG->interrupt_enable;
-  OHCI_REG->interrupt_status = int_status; // Acknowledge handled interrupt
 
   if (int_status == 0) return;
 
+  //------------- RootHub status -------------//
   if ( int_status & OHCI_INT_RHPORT_STATUS_CHANGE_MASK )
   {
+    uint32_t const rhport_status = OHCI_REG->rhport_status[0] & OHCI_RHPORT_ALL_CHANGE_MASK;
+
     // TODO dual port is not yet supported
-    if ( OHCI_REG->rhport_status_bit[0].connect_status_change )
+    if ( rhport_status & OHCI_RHPORT_CONNECT_STATUS_CHANGE_MASK )
     {
       if ( OHCI_REG->rhport_status_bit[0].current_connect_status )
       {
@@ -260,7 +462,22 @@ void hcd_isr(uint8_t hostid)
         usbh_hcd_rhport_unplugged_isr(0);
       }
     }
+
+    if ( rhport_status & OHCI_RHPORT_PORT_SUSPEND_CHANGE_MASK)
+    {
+
+    }
+
+    OHCI_REG->rhport_status[0] = rhport_status; // acknowledge all interrupt
   }
+
+  //------------- Transfer Complete -------------//
+  if ( int_status & OHCI_INT_WRITEBACK_DONEHEAD_MASK)
+  {
+    done_queue_isr(hostid);
+  }
+
+  OHCI_REG->interrupt_status = int_status; // Acknowledge handled interrupt
 }
 //--------------------------------------------------------------------+
 // HELPER

@@ -60,7 +60,7 @@
 //--------------------------------------------------------------------+
 // HOST CONFIGURATION
 //--------------------------------------------------------------------+
-#define TUSB_CFG_HOST_DEVICE_MAX     3
+#define TUSB_CFG_HOST_DEVICE_MAX     1
 #define TUSB_CFG_CONFIGURATION_MAX   1
 
 //------------- USBD -------------//
