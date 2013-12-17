@@ -137,6 +137,8 @@ enum {
 //--------------------------------------------------------------------+
 ohci_data_t ohci_data TUSB_CFG_ATTR_USBRAM;
 
+static void ed_list_insert(ohci_ed_t * p_pre, ohci_ed_t * p_ed);
+
 //--------------------------------------------------------------------+
 // USBH-HCD API
 //--------------------------------------------------------------------+
@@ -145,7 +147,10 @@ tusb_error_t hcd_init(void)
 {
   //------------- Data Structure init -------------//
   memclr_(&ohci_data, sizeof(ohci_data_t));
-  ohci_data.control[0].ed.skip = 1;
+
+  ohci_data.control[0].ed.skip  = 1;
+  ohci_data.bulk_head_ed.skip   = 1;
+  ohci_data.period_head_ed.skip = 1;
 
   // reset controller
   OHCI_REG->command_status_bit.controller_reset = 1;
@@ -161,10 +166,11 @@ tusb_error_t hcd_init(void)
   OHCI_REG->periodic_start = (OHCI_FMINTERVAL_FI * 9) / 10; // Periodic start is 90% of frame interval
 
   OHCI_REG->control_head_ed = (uint32_t) &ohci_data.control[0].ed;
+  OHCI_REG->bulk_head_ed    = (uint32_t) &ohci_data.bulk_head_ed;
   OHCI_REG->hcca            = (uint32_t) &ohci_data.hcca;
 
   OHCI_REG->control |= OHCI_CONTROL_CONTROL_BULK_RATIO | OHCI_CONTROL_LIST_CONTROL_ENABLE_MASK |
-       0 /*OHCI_CONTROL_LIST_BULK_ENABLE_MASK*/; // TODO periodic enable
+       OHCI_CONTROL_LIST_BULK_ENABLE_MASK; // TODO periodic enable
 
   OHCI_REG->rh_status_bit.local_power_status_change = 1; // set global power for ports
 
@@ -222,9 +228,11 @@ static void ed_init(ohci_ed_t *p_ed, uint8_t dev_addr, uint16_t max_packet_size,
   p_ed->speed            = usbh_devices[dev_addr].speed;
   p_ed->is_iso           = (xfer_type == TUSB_XFER_ISOCHRONOUS) ? 1 : 0;
   p_ed->max_package_size = max_packet_size;
+
+  p_ed->used             = 1;
 }
 
-static void qtd_init(ohci_gtd_t* p_td, void* data_ptr, uint16_t total_bytes)
+static void gtd_init(ohci_gtd_t* p_td, void* data_ptr, uint16_t total_bytes)
 {
   memclr_(p_td, sizeof(ohci_gtd_t));
 
@@ -247,8 +255,7 @@ tusb_error_t  hcd_pipe_control_open(uint8_t dev_addr, uint8_t max_packet_size)
 
   if ( dev_addr != 0 )
   { // insert to control head
-    p_ed->next_ed = ohci_data.control[0].ed.next_ed;
-    ohci_data.control[0].ed.next_ed = (uint32_t) p_ed;
+    ed_list_insert( &ohci_data.control[0].ed, p_ed);
   }else
   {
     p_ed->skip = 0; // addr0 is used as static control head --> only need to clear skip bit
@@ -266,7 +273,7 @@ tusb_error_t  hcd_pipe_control_xfer(uint8_t dev_addr, tusb_control_request_t con
   ohci_gtd_t *p_status     = p_setup + 2;
 
   //------------- SETUP Phase -------------//
-  qtd_init(p_setup, p_request, 8);
+  gtd_init(p_setup, p_request, 8);
   p_setup->index       = dev_addr;
   p_setup->pid         = OHCI_PID_SETUP;
   p_setup->next_td     = (uint32_t) p_data;
@@ -275,7 +282,7 @@ tusb_error_t  hcd_pipe_control_xfer(uint8_t dev_addr, tusb_control_request_t con
   //------------- DATA Phase -------------//
   if (p_request->wLength > 0)
   {
-    qtd_init(p_data, data, p_request->wLength);
+    gtd_init(p_data, data, p_request->wLength);
     p_data->index       = dev_addr;
     p_data->pid         = p_request->bmRequestType_bit.direction ? OHCI_PID_IN : OHCI_PID_OUT;
     p_data->data_toggle = BIN8(11); // DATA1
@@ -286,7 +293,7 @@ tusb_error_t  hcd_pipe_control_xfer(uint8_t dev_addr, tusb_control_request_t con
   p_data->next_td = (uint32_t) p_status;
 
   //------------- STATUS Phase -------------//
-  qtd_init(p_status, NULL, 0); // zero-length data
+  gtd_init(p_status, NULL, 0); // zero-length data
   p_status->index           = dev_addr;
   p_status->pid             = p_request->bmRequestType_bit.direction ? OHCI_PID_OUT : OHCI_PID_IN; // reverse direction of data phase
   p_status->data_toggle     = BIN8(11); // DATA1
@@ -309,19 +316,118 @@ tusb_error_t  hcd_pipe_control_close(uint8_t dev_addr)
 //--------------------------------------------------------------------+
 // BULK/INT/ISO PIPE API
 //--------------------------------------------------------------------+
+static ohci_ed_t * ed_find_free(uint8_t dev_addr)
+{
+  for(uint8_t i = 0; i < OHCI_MAX_QHD; i++)
+  {
+    if ( !ohci_data.device[dev_addr-1].ed[i].used )
+    {
+      return &ohci_data.device[dev_addr-1].ed[i];
+    }
+  }
+
+  return NULL;
+}
+
+static void ed_list_insert(ohci_ed_t * p_pre, ohci_ed_t * p_ed)
+{
+  p_ed->next_ed = p_pre->next_ed;
+  p_pre->next_ed = (uint32_t) p_ed;
+}
+
 pipe_handle_t hcd_pipe_open(uint8_t dev_addr, tusb_descriptor_endpoint_t const * p_endpoint_desc, uint8_t class_code)
 {
-  // TODO OHCI return TUSB_ERROR_NONE;
+  pipe_handle_t const null_handle = { .dev_addr = 0, .xfer_type = 0, .index = 0 };
+
+  // TODO iso support
+  ASSERT(p_endpoint_desc->bmAttributes.xfer != TUSB_XFER_ISOCHRONOUS, null_handle );
+
+  //------------- Prepare Queue Head -------------//
+  ohci_ed_t * const p_ed = ed_find_free(dev_addr);
+  ASSERT_PTR(p_ed, null_handle);
+
+  ed_init( p_ed, dev_addr, p_endpoint_desc->wMaxPacketSize.size, p_endpoint_desc->bEndpointAddress,
+            p_endpoint_desc->bmAttributes.xfer, p_endpoint_desc->bInterval );
+  p_ed->class_code = class_code;
+
+  switch(p_endpoint_desc->bmAttributes.xfer)
+  {
+    case TUSB_XFER_BULK:
+      ed_list_insert( &ohci_data.bulk_head_ed, p_ed );
+    break;
+
+    default: return null_handle; break;
+  }
+
+  return (pipe_handle_t)
+  {
+    .dev_addr  = dev_addr,
+    .xfer_type = p_endpoint_desc->bmAttributes.xfer,
+    .index     = p_ed - ohci_data.device[dev_addr-1].ed // TODO may refractor
+  };
+}
+
+static ohci_gtd_t * gtd_find_free(uint8_t dev_addr)
+{
+  for(uint8_t i=0; i < OHCI_MAX_QTD; i++)
+  {
+    if (!ohci_data.device[dev_addr-1].gtd[i].used)
+    {
+      return &ohci_data.device[dev_addr-1].gtd[i];
+    }
+  }
+
+  return NULL;
+}
+
+static void td_insert_to_ed(ohci_ed_t* p_ed, ohci_gtd_t * p_gtd)
+{
+  // tail is always NULL
+  if ( align16(p_ed->td_head) == 0 )
+  { // TD queue is empty --> head = TD
+    p_ed->td_head |= (uint32_t) p_gtd;
+  }
+  else
+  { // TODO currently only support queue up to 2 TD each endpoint at a time
+    ((ohci_gtd_t*) align16(p_ed->td_head))->next_td = (uint32_t) p_gtd;
+  }
+}
+
+
+static tusb_error_t  pipe_queue_xfer(pipe_handle_t pipe_hdl, uint8_t buffer[], uint16_t total_bytes, bool int_on_complete)
+{
+  ohci_ed_t* const p_ed = &ohci_data.device[pipe_hdl.dev_addr-1].ed[pipe_hdl.index];
+
+  if ( !p_ed->is_iso )
+  {
+    ohci_gtd_t * const p_gtd = gtd_find_free(pipe_hdl.dev_addr);
+    ASSERT_PTR(p_gtd, TUSB_ERROR_EHCI_NOT_ENOUGH_QTD); // TODO refractor error code
+
+    gtd_init(p_gtd, buffer, total_bytes);
+    p_gtd->index           = pipe_hdl.index;
+    if ( int_on_complete )  p_gtd->delay_interrupt = OHCI_INT_ON_COMPLETE_YES;
+
+    td_insert_to_ed(p_ed, p_gtd);
+  }else
+  {
+    ASSERT_STATUS(TUSB_ERROR_NOT_SUPPORTED_YET);
+  }
+
+  return TUSB_ERROR_NONE;
 }
 
 tusb_error_t  hcd_pipe_queue_xfer(pipe_handle_t pipe_hdl, uint8_t buffer[], uint16_t total_bytes)
 {
-  // TODO OHCI return TUSB_ERROR_NONE;
+  return pipe_queue_xfer(pipe_hdl, buffer, total_bytes, false);
 }
 
 tusb_error_t  hcd_pipe_xfer(pipe_handle_t pipe_hdl, uint8_t buffer[], uint16_t total_bytes, bool int_on_complete)
 {
-  // TODO OHCI return TUSB_ERROR_NONE;
+  ASSERT_STATUS( pipe_queue_xfer(pipe_hdl, buffer, total_bytes, true) );
+
+  OHCI_REG->command_status_bit.bulk_list_filled = 1;
+
+  return TUSB_ERROR_NONE;
 }
 
 /// pipe_close should only be called as a part of unmount/safe-remove process
@@ -386,13 +492,7 @@ static inline bool gtd_is_control(ohci_gtd_t const * const p_qtd)
 static inline ohci_ed_t* gtd_get_ed(ohci_gtd_t const * const p_qtd) ATTR_PURE ATTR_ALWAYS_INLINE;
 static inline ohci_ed_t* gtd_get_ed(ohci_gtd_t const * const p_qtd)
 {
-  if ( gtd_is_control(p_qtd) )
-  { // control, index is device address
-    return &ohci_data.control[p_qtd->index].ed;
-  }else
-  {
-    return NULL;
-  }
+  return gtd_is_control(p_qtd) ? &ohci_data.control[p_qtd->index].ed : NULL;
 }
 
 static inline uint32_t gtd_xfer_byte_left(uint32_t buffer_end, uint32_t current_buffer) ATTR_CONST ATTR_ALWAYS_INLINE;

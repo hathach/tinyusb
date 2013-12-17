@@ -122,7 +122,9 @@ typedef struct {
 	uint32_t skip             : 1;
 	uint32_t is_iso           : 1;
 	uint32_t max_package_size : 11;
-	uint32_t                  : 5;
+
+	uint32_t used             : 1; // HCD
+	uint32_t class_code       : 4; // FIXME refractor to use interface number instead
 
 	//------------- Word 1 -------------//
 	uint32_t td_tail; // 4 lsb bits are free to use
@@ -171,6 +173,9 @@ STATIC_ASSERT( sizeof(ochi_itd_t) == 32, "size is not correct" );
 // structure with member alignment required from large to small
 typedef struct {
   ohci_hcca_t hcca;
+
+  ohci_ed_t bulk_head_ed; // static bulk head (dummy)
+  ohci_ed_t period_head_ed; // static periodic list head (dummy)
 
   // control endpoints has reserved resources
   struct {
