@@ -508,14 +508,14 @@ bool hcd_pipe_is_stalled(pipe_handle_t pipe_hdl)
 uint8_t hcd_pipe_get_endpoint_addr(pipe_handle_t pipe_hdl)
 {
   ehci_qhd_t *p_qhd = qhd_get_from_pipe_handle( pipe_hdl );
-  return p_qhd->endpoint_number + ( (p_qhd->pid_non_control == EHCI_PID_IN) ? 0x80 : 0);
+  return p_qhd->endpoint_number + ( (p_qhd->pid_non_control == EHCI_PID_IN) ? TUSB_DIR_DEV_TO_HOST_MASK : 0);
 }
 
 tusb_error_t hcd_pipe_clear_stall(pipe_handle_t pipe_hdl)
 {
   ehci_qhd_t *p_qhd = qhd_get_from_pipe_handle( pipe_hdl );
   p_qhd->qtd_overlay.halted = 0;
-
+  // TODO reset data toggle ?
   return TUSB_ERROR_NONE;
 }
 

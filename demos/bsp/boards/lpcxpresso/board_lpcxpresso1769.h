@@ -57,9 +57,6 @@
  extern "C" {
 #endif
 
-#define CFG_LED_PORT                  (0)
-#define CFG_LED_PIN                   (22)
-
 #define CFG_PRINTF_TARGET             PRINTF_TARGET_UART
 
 #ifdef __cplusplus

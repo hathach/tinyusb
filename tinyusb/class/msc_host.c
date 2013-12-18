@@ -368,16 +368,17 @@ tusb_error_t msch_open_subtask(uint8_t dev_addr, tusb_descriptor_interface_t con
   osal_semaphore_wait(msch_sem_hdl, SCSI_XFER_TIMEOUT, &error);
   SUBTASK_ASSERT_STATUS(error);
 
-  // NOTE: my toshiba thumbdrive stall the first Read Capacity and require the sequence
+  // NOTE: my toshiba thumb-drive stall the first Read Capacity and require the sequence
   // Read Capacity --> Stalled --> Clear Stall --> Request Sense --> Read Capacity (2) to work
   if ( hcd_pipe_is_stalled(msch_data[dev_addr-1].bulk_in) )
-  { // clear stall TODO abtract clear stalll function
+  { // clear stall TODO abstract clear stall function
     OSAL_SUBTASK_INVOKED_AND_WAIT(
       usbh_control_xfer_subtask( dev_addr, bm_request_type(TUSB_DIR_HOST_TO_DEV, TUSB_REQUEST_TYPE_STANDARD, TUSB_REQUEST_RECIPIENT_ENDPOINT),
                                  TUSB_REQUEST_CLEAR_FEATURE, 0, hcd_pipe_get_endpoint_addr(msch_data[dev_addr-1].bulk_in),
                                  0, NULL ),
       error
     );
+    SUBTASK_ASSERT_STATUS(error);
 
     hcd_pipe_clear_stall(msch_data[dev_addr-1].bulk_in);
     osal_semaphore_wait(msch_sem_hdl, SCSI_XFER_TIMEOUT, &error); // wait for SCSI status

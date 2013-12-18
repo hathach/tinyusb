@@ -40,6 +40,9 @@
 
 #if BOARD == BOARD_LPCXPRESSO1769
 
+#define BOARD_LED_PORT                  (0)
+#define BOARD_LED_PIN                   (22)
+
 #define BOARD_UART_PORT   LPC_UART3
 
 void board_init(void)
@@ -48,7 +51,7 @@ void board_init(void)
   SysTick_Config(SystemCoreClock / CFG_TICKS_PER_SECOND); // 1 msec tick timer
 
   // Leds Init
-  GPIO_SetDir(CFG_LED_PORT, BIT_(CFG_LED_PIN), 1);
+  GPIO_SetDir(BOARD_LED_PORT, BIT_(BOARD_LED_PIN), 1);
 
 #if MODE_DEVICE_SUPPORTED
   //------------- USB Device -------------//
@@ -95,10 +98,10 @@ void board_leds(uint32_t on_mask, uint32_t off_mask)
 {
   if (on_mask & BIT_(0))
   {
-    GPIO_SetValue(CFG_LED_PORT, BIT_(CFG_LED_PIN));
+    GPIO_SetValue(BOARD_LED_PORT, BIT_(BOARD_LED_PIN));
   }else if (off_mask & BIT_(0))
   {
-    GPIO_ClearValue(CFG_LED_PORT, BIT_(CFG_LED_PIN));
+    GPIO_ClearValue(BOARD_LED_PORT, BIT_(BOARD_LED_PIN));
   }
 }
 

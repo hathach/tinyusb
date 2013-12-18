@@ -123,19 +123,28 @@ typedef struct {
 	uint32_t is_iso           : 1;
 	uint32_t max_package_size : 11;
 
-	uint32_t used             : 1; // HCD
-	uint32_t class_code       : 4; // FIXME refractor to use interface number instead
+	uint32_t used              : 1; // HCD
+	uint32_t is_interrupt_xfer : 1;
+	uint32_t is_stalled        : 1;
+	uint32_t                   : 2;
+
 
 	//------------- Word 1 -------------//
-	uint32_t td_tail; // 4 lsb bits are free to use
+	union {
+	  uint32_t address; // 4 lsb bits are free to use
+	  struct {
+	    uint32_t class_code : 4; // FIXME refractor to use interface number instead
+	    uint32_t : 28;
+	  };
+	}td_tail;
 
 	//------------- Word 2 -------------//
-	volatile union{
+	volatile union {
 		uint32_t td_head;
 		struct {
 			uint32_t halted : 1;
 			uint32_t toggle : 1;
-			uint32_t        : 30;
+			uint32_t : 30;
 		};
 	};
 

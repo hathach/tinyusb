@@ -63,7 +63,7 @@ enum {
 };
 
 enum {
-  OHCI_CONTROL_CONTROL_BULK_RATIO           = 3,
+  OHCI_CONTROL_CONTROL_BULK_RATIO           = 3, ///< This specifies the service ratio between Control and Bulk EDs. 0 = 1:1, 3 = 4:1
   OHCI_CONTROL_LIST_PERIODIC_ENABLE_MASK    = BIT_(2),
   OHCI_CONTROL_LIST_ISOCHRONOUS_ENABLE_MASK = BIT_(3),
   OHCI_CONTROL_LIST_CONTROL_ENABLE_MASK     = BIT_(4),
@@ -135,7 +135,7 @@ enum {
 //--------------------------------------------------------------------+
 // INTERNAL OBJECT & FUNCTION DECLARATION
 //--------------------------------------------------------------------+
-ohci_data_t ohci_data TUSB_CFG_ATTR_USBRAM;
+STATIC_VAR ohci_data_t ohci_data TUSB_CFG_ATTR_USBRAM;
 
 static void ed_list_insert(ohci_ed_t * p_pre, ohci_ed_t * p_ed);
 
@@ -177,7 +177,7 @@ tusb_error_t hcd_init(void)
   OHCI_REG->interrupt_disable = OHCI_REG->interrupt_enable; // disable all interrupts
   OHCI_REG->interrupt_status  = OHCI_REG->interrupt_status; // clear current set bits
   OHCI_REG->interrupt_enable  = OHCI_INT_WRITEBACK_DONEHEAD_MASK | OHCI_INT_RESUME_DETECTED_MASK |
-      OHCI_INT_UNRECOVERABLE_ERROR_MASK | OHCI_INT_FRAME_OVERFLOW_MASK | OHCI_INT_RHPORT_STATUS_CHANGE_MASK |
+      OHCI_INT_UNRECOVERABLE_ERROR_MASK | /*OHCI_INT_FRAME_OVERFLOW_MASK |*/ OHCI_INT_RHPORT_STATUS_CHANGE_MASK |
       OHCI_INT_MASTER_ENABLE_MASK;
 
   return TUSB_ERROR_NONE;
@@ -214,6 +214,14 @@ void hcd_port_unplug(uint8_t hostid)
 //--------------------------------------------------------------------+
 // CONTROL PIPE API
 //--------------------------------------------------------------------+
+static inline tusb_xfer_type_t ed_get_xfer_type(ohci_ed_t const * const p_ed) ATTR_PURE ATTR_ALWAYS_INLINE;
+static inline tusb_xfer_type_t ed_get_xfer_type(ohci_ed_t const * const p_ed)
+{
+  return (p_ed->endpoint_number == 0 ) ? TUSB_XFER_CONTROL     :
+         (p_ed->is_iso               ) ? TUSB_XFER_ISOCHRONOUS :
+         (p_ed->is_interrupt_xfer    ) ? TUSB_XFER_INTERRUPT   : TUSB_XFER_BULK;
+}
+
 static void ed_init(ohci_ed_t *p_ed, uint8_t dev_addr, uint16_t max_packet_size, uint8_t endpoint_addr, uint8_t xfer_type, uint8_t interval)
 {
   // address 0 is used as async head, which always on the list --> cannot be cleared
@@ -222,14 +230,15 @@ static void ed_init(ohci_ed_t *p_ed, uint8_t dev_addr, uint16_t max_packet_size,
     memclr_(p_ed, sizeof(ohci_ed_t));
   }
 
-  p_ed->device_address   = dev_addr;
-  p_ed->endpoint_number  = endpoint_addr & 0x0F;
-  p_ed->direction        = (xfer_type == TUSB_XFER_CONTROL) ? OHCI_PID_SETUP : ( (endpoint_addr & TUSB_DIR_DEV_TO_HOST_MASK) ? OHCI_PID_IN : OHCI_PID_OUT );
-  p_ed->speed            = usbh_devices[dev_addr].speed;
-  p_ed->is_iso           = (xfer_type == TUSB_XFER_ISOCHRONOUS) ? 1 : 0;
-  p_ed->max_package_size = max_packet_size;
+  p_ed->device_address    = dev_addr;
+  p_ed->endpoint_number   = endpoint_addr & 0x0F;
+  p_ed->direction         = (xfer_type == TUSB_XFER_CONTROL) ? OHCI_PID_SETUP : ( (endpoint_addr & TUSB_DIR_DEV_TO_HOST_MASK) ? OHCI_PID_IN : OHCI_PID_OUT );
+  p_ed->speed             = usbh_devices[dev_addr].speed;
+  p_ed->is_iso            = (xfer_type == TUSB_XFER_ISOCHRONOUS) ? 1 : 0;
+  p_ed->max_package_size  = max_packet_size;
 
-  p_ed->used             = 1;
+  p_ed->used              = 1;
+  p_ed->is_interrupt_xfer = (xfer_type == TUSB_XFER_INTERRUPT ? 1 : 0);
 }
 
 static void gtd_init(ohci_gtd_t* p_td, void* data_ptr, uint16_t total_bytes)
@@ -276,8 +285,8 @@ tusb_error_t  hcd_pipe_control_xfer(uint8_t dev_addr, tusb_control_request_t con
   gtd_init(p_setup, p_request, 8);
   p_setup->index       = dev_addr;
   p_setup->pid         = OHCI_PID_SETUP;
-  p_setup->next_td     = (uint32_t) p_data;
   p_setup->data_toggle = BIN8(10); // DATA0
+  p_setup->next_td     = (uint32_t) p_data;
 
   //------------- DATA Phase -------------//
   if (p_request->wLength > 0)
@@ -301,7 +310,6 @@ tusb_error_t  hcd_pipe_control_xfer(uint8_t dev_addr, tusb_control_request_t con
 
   //------------- Attach TDs list to Control Endpoint -------------//
   p_ed->td_head = (uint32_t) p_setup;
-  p_ed->td_tail = 0;
 
   OHCI_REG->command_status_bit.control_list_filled = 1;
 
@@ -310,13 +318,36 @@ tusb_error_t  hcd_pipe_control_xfer(uint8_t dev_addr, tusb_control_request_t con
 
 tusb_error_t  hcd_pipe_control_close(uint8_t dev_addr)
 {
-  // TODO OHCI return TUSB_ERROR_NONE;
+  ohci_ed_t* const p_ed = &ohci_data.control[dev_addr].ed;
+
+  if ( dev_addr == 0 )
+  { // addr0 serves as static head --> only set skip bitx
+    p_ed->skip = 1;
+  }else
+  {
+    return TUSB_ERROR_FAILED;
+  }
+
+  return TUSB_ERROR_NONE;
 }
 
 //--------------------------------------------------------------------+
 // BULK/INT/ISO PIPE API
 //--------------------------------------------------------------------+
-static ohci_ed_t * ed_find_free(uint8_t dev_addr)
+static inline uint8_t ed_get_index(ohci_ed_t const * const p_ed) ATTR_PURE ATTR_ALWAYS_INLINE;
+static inline uint8_t ed_get_index(ohci_ed_t const * const p_ed)
+{
+  return p_ed - ohci_data.device[p_ed->device_address-1].ed;
+}
+
+static inline ohci_ed_t * ed_from_pipe_handle(pipe_handle_t pipe_hdl) ATTR_PURE ATTR_ALWAYS_INLINE;
+static inline ohci_ed_t * ed_from_pipe_handle(pipe_handle_t pipe_hdl)
+{
+  return &ohci_data.device[pipe_hdl.dev_addr-1].ed[pipe_hdl.index];
+}
+
+static inline ohci_ed_t * ed_find_free(uint8_t dev_addr) ATTR_PURE ATTR_ALWAYS_INLINE;
+static inline ohci_ed_t * ed_find_free(uint8_t dev_addr)
 {
   for(uint8_t i = 0; i < OHCI_MAX_QHD; i++)
   {
@@ -331,8 +362,8 @@ static ohci_ed_t * ed_find_free(uint8_t dev_addr)
 
 static void ed_list_insert(ohci_ed_t * p_pre, ohci_ed_t * p_ed)
 {
-  p_ed->next_ed = p_pre->next_ed;
-  p_pre->next_ed = (uint32_t) p_ed;
+  p_ed->next_ed |= p_pre->next_ed; // to reserve 4 lsb bits
+  p_pre->next_ed = (p_pre->next_ed & 0x0FUL)  | ((uint32_t) p_ed);
 }
 
 pipe_handle_t hcd_pipe_open(uint8_t dev_addr, tusb_descriptor_endpoint_t const * p_endpoint_desc, uint8_t class_code)
@@ -348,7 +379,7 @@ pipe_handle_t hcd_pipe_open(uint8_t dev_addr, tusb_descriptor_endpoint_t const *
 
   ed_init( p_ed, dev_addr, p_endpoint_desc->wMaxPacketSize.size, p_endpoint_desc->bEndpointAddress,
             p_endpoint_desc->bmAttributes.xfer, p_endpoint_desc->bInterval );
-  p_ed->class_code = class_code;
+  p_ed->td_tail.class_code = class_code;
 
   switch(p_endpoint_desc->bmAttributes.xfer)
   {
@@ -363,7 +394,7 @@ pipe_handle_t hcd_pipe_open(uint8_t dev_addr, tusb_descriptor_endpoint_t const *
   {
     .dev_addr  = dev_addr,
     .xfer_type = p_endpoint_desc->bmAttributes.xfer,
-    .index     = p_ed - ohci_data.device[dev_addr-1].ed // TODO may refractor
+    .index     = ed_get_index(p_ed)
   };
 }
 
@@ -393,10 +424,9 @@ static void td_insert_to_ed(ohci_ed_t* p_ed, ohci_gtd_t * p_gtd)
   }
 }
 
-
 static tusb_error_t  pipe_queue_xfer(pipe_handle_t pipe_hdl, uint8_t buffer[], uint16_t total_bytes, bool int_on_complete)
 {
-  ohci_ed_t* const p_ed = &ohci_data.device[pipe_hdl.dev_addr-1].ed[pipe_hdl.index];
+  ohci_ed_t* const p_ed = ed_from_pipe_handle(pipe_hdl);
 
   if ( !p_ed->is_iso )
   {
@@ -425,7 +455,12 @@ tusb_error_t  hcd_pipe_xfer(pipe_handle_t pipe_hdl, uint8_t buffer[], uint16_t t
 {
   ASSERT_STATUS( pipe_queue_xfer(pipe_hdl, buffer, total_bytes, true) );
 
-  OHCI_REG->command_status_bit.bulk_list_filled = 1;
+  tusb_xfer_type_t xfer_type = ed_get_xfer_type( ed_from_pipe_handle(pipe_hdl) );
+
+  if (TUSB_XFER_BULK == xfer_type)
+  {
+    OHCI_REG->command_status_bit.bulk_list_filled = 1;
+  }
 
   return TUSB_ERROR_NONE;
 }
@@ -438,27 +473,41 @@ tusb_error_t  hcd_pipe_close(pipe_handle_t pipe_hdl)
 
 bool hcd_pipe_is_busy(pipe_handle_t pipe_hdl)
 {
-  // TODO OHCI
+  ohci_ed_t const * const p_ed = ed_from_pipe_handle(pipe_hdl);
+  return align16(p_ed->td_head) != align16(p_ed->td_tail.address);
 }
 
 bool hcd_pipe_is_error(pipe_handle_t pipe_hdl)
 {
-  // TODO OHCI
+  ohci_ed_t const * const p_ed = ed_from_pipe_handle(pipe_hdl);
+  return p_ed->halted;
 }
 
 bool hcd_pipe_is_stalled(pipe_handle_t pipe_hdl)
 {
-  // TODO OHCI
+  ohci_ed_t const * const p_ed = ed_from_pipe_handle(pipe_hdl);
+  return p_ed->halted && p_ed->is_stalled;
 }
 
 uint8_t hcd_pipe_get_endpoint_addr(pipe_handle_t pipe_hdl)
 {
-  // TODO OHCI
+  ohci_ed_t const * const p_ed = ed_from_pipe_handle(pipe_hdl);
+  return p_ed->endpoint_number | (p_ed->direction == OHCI_PID_IN ? TUSB_DIR_DEV_TO_HOST_MASK : 0 );
 }
 
 tusb_error_t hcd_pipe_clear_stall(pipe_handle_t pipe_hdl)
 {
-  // TODO OHCI return TUSB_ERROR_NONE;
+  ohci_ed_t * const p_ed = ed_from_pipe_handle(pipe_hdl);
+
+  p_ed->is_stalled        = 0;
+  p_ed->td_tail.address  &= 0x0Ful; // set tail pointer back to NULL
+
+  p_ed->toggle            = 0; // reset data toggle
+  p_ed->halted            = 0;
+
+  if ( TUSB_XFER_BULK == ed_get_xfer_type(p_ed) ) OHCI_REG->command_status_bit.bulk_list_filled = 1;
+
+  return TUSB_ERROR_NONE;
 }
 
 
@@ -492,7 +541,15 @@ static inline bool gtd_is_control(ohci_gtd_t const * const p_qtd)
 static inline ohci_ed_t* gtd_get_ed(ohci_gtd_t const * const p_qtd) ATTR_PURE ATTR_ALWAYS_INLINE;
 static inline ohci_ed_t* gtd_get_ed(ohci_gtd_t const * const p_qtd)
 {
-  return gtd_is_control(p_qtd) ? &ohci_data.control[p_qtd->index].ed : NULL;
+  if ( gtd_is_control(p_qtd) )
+  {
+    return &ohci_data.control[p_qtd->index].ed;
+  }else
+  {
+    uint8_t dev_addr_idx = (((uint32_t)p_qtd) - ((uint32_t)ohci_data.device)) / sizeof(ohci_data.device[0]);
+
+    return &ohci_data.device[dev_addr_idx].ed[p_qtd->index];
+  }
 }
 
 static inline uint32_t gtd_xfer_byte_left(uint32_t buffer_end, uint32_t current_buffer) ATTR_CONST ATTR_ALWAYS_INLINE;
@@ -502,9 +559,9 @@ static inline uint32_t gtd_xfer_byte_left(uint32_t buffer_end, uint32_t current_
       offset4k(buffer_end) - offset4k(current_buffer) + 1;
 }
 
-static void done_queue_isr(hostid)
+static void done_queue_isr(uint8_t hostid)
 {
-  uint8_t max_loop = (TUSB_CFG_HOST_DEVICE_MAX+1)*OHCI_MAX_QTD;
+  uint8_t max_loop = (TUSB_CFG_HOST_DEVICE_MAX+1)*(OHCI_MAX_QTD+OHCI_MAX_ITD);
 
   // done head is written in reversed order of completion --> need to reverse the done queue first
   ohci_td_item_t* td_head = list_reverse ( (ohci_td_item_t*) align16(ohci_data.hcca.done_head) );
@@ -514,25 +571,39 @@ static void done_queue_isr(hostid)
     // TODO check if td_head is iso td
     //------------- Non ISO transfer -------------//
     ohci_gtd_t * const p_qtd = (ohci_gtd_t * const) td_head;
+    tusb_event_t const event = (p_qtd->condition_code == OHCI_CCODE_NO_ERROR) ? TUSB_EVENT_XFER_COMPLETE :
+                               (p_qtd->condition_code == OHCI_CCODE_STALL) ? TUSB_EVENT_XFER_STALLED : TUSB_EVENT_XFER_ERROR;
 
     p_qtd->used = 0; // free TD
-    if ( p_qtd->delay_interrupt == OHCI_INT_ON_COMPLETE_YES)
+    if ( (p_qtd->delay_interrupt == OHCI_INT_ON_COMPLETE_YES) || (event != TUSB_EVENT_XFER_COMPLETE) )
     {
       ohci_ed_t * const p_ed  = gtd_get_ed(p_qtd);
 
       uint32_t const xferred_bytes = p_qtd->expected_bytes - gtd_xfer_byte_left((uint32_t) p_qtd->buffer_end, (uint32_t) p_qtd->current_buffer_pointer);
-      tusb_event_t const event = (p_qtd->condition_code == OHCI_CCODE_NO_ERROR) ? TUSB_EVENT_XFER_COMPLETE :
-                                 (p_qtd->condition_code == OHCI_CCODE_STALL) ? TUSB_EVENT_XFER_STALLED : TUSB_EVENT_XFER_ERROR;
+
+      // NOTE Assuming the current list is BULK and there is no other EDs in the list has queued TDs.
+      // When there is a error resulting this ED is halted, and this EP still has other queued TD
+      // --> the Bulk list only has this halted EP queueing TDs (remaining)
+      // --> Bulk list will be considered as not empty by HC !!! while there is no attempt transaction on this list
+      // --> HC will not process Control list (due to service ratio when Bulk list not empty)
+      // To walk-around this, the halted ED will have TailP = HeadP (empty list condition), when clearing halt
+      // the TailP must be set back to NULL for processing remaining TDs
+      if ((event != TUSB_EVENT_XFER_COMPLETE))
+      {
+        p_ed->td_tail.address &= 0x0Ful;
+        p_ed->td_tail.address |= align16(p_ed->td_head); // mark halted EP as empty queue
+        if ( event == TUSB_EVENT_XFER_STALLED ) p_ed->is_stalled = 1;
+      }
 
       pipe_handle_t pipe_hdl =
       {
           .dev_addr  = p_ed->device_address,
-          .xfer_type = TUSB_XFER_CONTROL, // TODO other type
-          .index     = 0 // TODO other type
+          .xfer_type = ed_get_xfer_type(p_ed),
       };
 
-      usbh_xfer_isr(pipe_hdl, 0, // TODO class code
-                    event, xferred_bytes);
+      if ( pipe_hdl.xfer_type != TUSB_XFER_CONTROL) pipe_hdl.index = ed_get_index(p_ed);
+
+      usbh_xfer_isr(pipe_hdl, p_ed->td_tail.class_code, event, xferred_bytes);
     }
 
     td_head = (ohci_td_item_t*) td_head->next_td;
