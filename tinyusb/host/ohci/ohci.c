@@ -137,7 +137,18 @@ enum {
 //--------------------------------------------------------------------+
 STATIC_VAR ohci_data_t ohci_data TUSB_CFG_ATTR_USBRAM;
 
+static ohci_ed_t * const p_ed_head[] =
+{
+    [TUSB_XFER_CONTROL]     = &ohci_data.control[0].ed,
+    [TUSB_XFER_BULK   ]     = &ohci_data.bulk_head_ed,
+    [TUSB_XFER_INTERRUPT]   = NULL,
+    [TUSB_XFER_ISOCHRONOUS] = NULL
+};
+
 static void ed_list_insert(ohci_ed_t * p_pre, ohci_ed_t * p_ed);
+static void ed_list_remove(ohci_ed_t * p_head, ohci_ed_t * p_ed);
+
+static ohci_ed_t * ed_list_find_previous(ohci_ed_t const * p_head, ohci_ed_t const * p_ed);
 
 //--------------------------------------------------------------------+
 // USBH-HCD API
@@ -264,7 +275,7 @@ tusb_error_t  hcd_pipe_control_open(uint8_t dev_addr, uint8_t max_packet_size)
 
   if ( dev_addr != 0 )
   { // insert to control head
-    ed_list_insert( &ohci_data.control[0].ed, p_ed);
+    ed_list_insert( p_ed_head[TUSB_XFER_CONTROL], p_ed);
   }else
   {
     p_ed->skip = 0; // addr0 is used as static control head --> only need to clear skip bit
@@ -325,7 +336,10 @@ tusb_error_t  hcd_pipe_control_close(uint8_t dev_addr)
     p_ed->skip = 1;
   }else
   {
-    return TUSB_ERROR_FAILED;
+    ed_list_remove( p_ed_head[ ed_get_xfer_type(p_ed)], p_ed );
+
+    // TODO refractor to be USBH
+    usbh_devices[dev_addr].state = TUSB_DEVICE_STATE_UNPLUG;
   }
 
   return TUSB_ERROR_NONE;
@@ -360,10 +374,39 @@ static inline ohci_ed_t * ed_find_free(uint8_t dev_addr)
   return NULL;
 }
 
+static ohci_ed_t * ed_list_find_previous(ohci_ed_t const * p_head, ohci_ed_t const * p_ed)
+{
+  uint32_t max_loop = OHCI_MAX_QHD;
+
+  ohci_ed_t const * p_prev = p_head;
+
+  ASSERT_PTR(p_prev, NULL);
+
+  while ( align16(p_prev->next_ed) != 0               && /* not reach null */
+          align16(p_prev->next_ed) != (uint32_t) p_ed && /* not found yet */
+          max_loop > 0)
+  {
+    p_prev = (ohci_ed_t const *) align16(p_prev->next_ed);
+    max_loop--;
+  }
+
+  return ( align16(p_prev->next_ed) == (uint32_t) p_ed ) ? (ohci_ed_t*) p_prev : NULL;
+}
+
 static void ed_list_insert(ohci_ed_t * p_pre, ohci_ed_t * p_ed)
 {
   p_ed->next_ed |= p_pre->next_ed; // to reserve 4 lsb bits
   p_pre->next_ed = (p_pre->next_ed & 0x0FUL)  | ((uint32_t) p_ed);
+}
+
+static void ed_list_remove(ohci_ed_t * p_head, ohci_ed_t * p_ed)
+{
+  ohci_ed_t * const p_prev  = ed_list_find_previous(p_head, p_ed);
+
+  p_prev->next_ed = (p_prev->next_ed & 0x0fUL) | align16(p_ed->next_ed);
+  // point the removed ED's next pointer to list head to make sure HC can always safely move away from this ED
+  p_ed->next_ed   = (uint32_t) p_head;
+  p_ed->used      = 0; // free ED
 }
 
 pipe_handle_t hcd_pipe_open(uint8_t dev_addr, tusb_descriptor_endpoint_t const * p_endpoint_desc, uint8_t class_code)
@@ -381,14 +424,7 @@ pipe_handle_t hcd_pipe_open(uint8_t dev_addr, tusb_descriptor_endpoint_t const *
             p_endpoint_desc->bmAttributes.xfer, p_endpoint_desc->bInterval );
   p_ed->td_tail.class_code = class_code;
 
-  switch(p_endpoint_desc->bmAttributes.xfer)
-  {
-    case TUSB_XFER_BULK:
-      ed_list_insert( &ohci_data.bulk_head_ed, p_ed );
-    break;
-
-    default: return null_handle; break;
-  }
+  ed_list_insert( p_ed_head[p_endpoint_desc->bmAttributes.xfer], p_ed );
 
   return (pipe_handle_t)
   {
@@ -457,18 +493,21 @@ tusb_error_t  hcd_pipe_xfer(pipe_handle_t pipe_hdl, uint8_t buffer[], uint16_t t
 
   tusb_xfer_type_t xfer_type = ed_get_xfer_type( ed_from_pipe_handle(pipe_hdl) );
 
-  if (TUSB_XFER_BULK == xfer_type)
-  {
-    OHCI_REG->command_status_bit.bulk_list_filled = 1;
-  }
+  if (TUSB_XFER_BULK == xfer_type) OHCI_REG->command_status_bit.bulk_list_filled = 1;
 
   return TUSB_ERROR_NONE;
 }
 
 /// pipe_close should only be called as a part of unmount/safe-remove process
+// endpoints are tied to an address, which only reclaim after a long delay when enumerating
+// thus there is no need to make sure ED is not in HC's cahed as it will not for sure
 tusb_error_t  hcd_pipe_close(pipe_handle_t pipe_hdl)
 {
-  // TODO OHCI return TUSB_ERROR_NONE;
+  ohci_ed_t * const p_ed = ed_from_pipe_handle(pipe_hdl);
+
+  ed_list_remove( p_ed_head[ ed_get_xfer_type(p_ed)], p_ed );
+
+  return TUSB_ERROR_FAILED;
 }
 
 bool hcd_pipe_is_busy(pipe_handle_t pipe_hdl)

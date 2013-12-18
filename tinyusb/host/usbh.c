@@ -304,12 +304,15 @@ static void usbh_device_unplugged(uint8_t hostid, uint8_t hub_addr, uint8_t hub_
           usbh_class_drivers[class_index].close(dev_addr);
         }
       }
-      usbh_pipe_control_close(dev_addr);
 
+      // TODO refractor
       // set to REMOVING to allow HCD to clean up its cached data for this device
       // HCD must set this device's state to TUSB_DEVICE_STATE_UNPLUG when done
       usbh_devices[dev_addr].state = TUSB_DEVICE_STATE_REMOVING;
       usbh_devices[dev_addr].flag_supported_class = 0;
+
+      usbh_pipe_control_close(dev_addr);
+
 
       is_found = true;
     }
