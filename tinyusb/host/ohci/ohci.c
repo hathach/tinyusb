@@ -141,8 +141,8 @@ static ohci_ed_t * const p_ed_head[] =
 {
     [TUSB_XFER_CONTROL]     = &ohci_data.control[0].ed,
     [TUSB_XFER_BULK   ]     = &ohci_data.bulk_head_ed,
-    [TUSB_XFER_INTERRUPT]   = NULL,
-    [TUSB_XFER_ISOCHRONOUS] = NULL
+    [TUSB_XFER_INTERRUPT]   = &ohci_data.period_head_ed,
+    [TUSB_XFER_ISOCHRONOUS] = NULL // TODO Isochronous
 };
 
 static void ed_list_insert(ohci_ed_t * p_pre, ohci_ed_t * p_ed);
@@ -158,6 +158,10 @@ tusb_error_t hcd_init(void)
 {
   //------------- Data Structure init -------------//
   memclr_(&ohci_data, sizeof(ohci_data_t));
+  for(uint8_t i=0; i<32; i++)
+  { // assign all interrupt pointes to period head ed
+    ohci_data.hcca.interrupt_table[i] = (uint32_t) &ohci_data.period_head_ed;
+  }
 
   ohci_data.control[0].ed.skip  = 1;
   ohci_data.bulk_head_ed.skip   = 1;
@@ -167,21 +171,19 @@ tusb_error_t hcd_init(void)
   OHCI_REG->command_status_bit.controller_reset = 1;
   while( OHCI_REG->command_status_bit.controller_reset ) {} // should not take longer than 10 us
 
-  // TODO peridoic list build
-  // TODO assign control, bulk head
-
   //------------- init ohci registers -------------//
   OHCI_REG->control_bit.hc_functional_state = OHCI_CONTROL_FUNCSTATE_OPERATIONAL; // move HC to operational state TODO use this to suspend (save power)
 
   OHCI_REG->frame_interval = (OHCI_FMINTERVAL_FSMPS << 16) | OHCI_FMINTERVAL_FI;
   OHCI_REG->periodic_start = (OHCI_FMINTERVAL_FI * 9) / 10; // Periodic start is 90% of frame interval
 
+
   OHCI_REG->control_head_ed = (uint32_t) &ohci_data.control[0].ed;
   OHCI_REG->bulk_head_ed    = (uint32_t) &ohci_data.bulk_head_ed;
   OHCI_REG->hcca            = (uint32_t) &ohci_data.hcca;
 
   OHCI_REG->control |= OHCI_CONTROL_CONTROL_BULK_RATIO | OHCI_CONTROL_LIST_CONTROL_ENABLE_MASK |
-       OHCI_CONTROL_LIST_BULK_ENABLE_MASK; // TODO periodic enable
+       OHCI_CONTROL_LIST_BULK_ENABLE_MASK | OHCI_CONTROL_LIST_PERIODIC_ENABLE_MASK; // TODO Isochronous
 
   OHCI_REG->rh_status_bit.local_power_status_change = 1; // set global power for ports
 

@@ -69,7 +69,7 @@
 //------------- CLASS -------------//
 #define TUSB_CFG_HOST_HUB           0
 #define TUSB_CFG_HOST_HID_KEYBOARD  0
-#define TUSB_CFG_HOST_HID_MOUSE     0
+#define TUSB_CFG_HOST_HID_MOUSE     1
 #define TUSB_CFG_HOST_HID_GENERIC   0
 #define TUSB_CFG_HOST_MSC           1
 #define TUSB_CFG_HOST_CDC           0
