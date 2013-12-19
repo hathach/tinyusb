@@ -154,11 +154,11 @@ void hcd_port_reset(uint8_t hostid)
   regs->portsc_bit.port_enable = 0; // disable port before reset
   regs->portsc_bit.port_reset = 1;
 
-#ifndef _TEST_
-  // NXP specific, port reset will automatically be 0 when reset sequence complete
-  // there is chance device is unplugged while reset sequence is not complete
-  while( regs->portsc_bit.port_reset) {} // TODO use task delay to remove blocking
-#endif
+//#ifndef _TEST_
+//  // NXP specific, port reset will automatically be 0 when reset sequence complete
+//  // there is chance device is unplugged while reset sequence is not complete
+//  while( regs->portsc_bit.port_reset) {} // TODO use task delay to remove blocking
+//#endif
 }
 
 bool hcd_port_connect_status(uint8_t hostid)
@@ -570,6 +570,7 @@ static void port_connect_status_change_isr(uint8_t hostid)
   // NOTE There is an sequence plug->unplug->…..-> plug if device is powering with pre-plugged device
   if (regs->portsc_bit.current_connect_status)
   {
+//    hcd_port_reset(hostid);
     usbh_hcd_rhport_plugged_isr(hostid);
   }else // device unplugged
   {

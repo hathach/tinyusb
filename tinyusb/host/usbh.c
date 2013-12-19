@@ -370,14 +370,19 @@ tusb_error_t enumeration_body_subtask(void)
   usbh_devices[0].hub_port = enum_entry.hub_port;
   usbh_devices[0].state    = TUSB_DEVICE_STATE_UNPLUG;
 
+  //------------- connected/disconnected directly with roothub -------------//
   if ( usbh_devices[0].hub_addr == 0)
-  { // connected/disconnected directly with roothub
+  {
     if( hcd_port_connect_status(usbh_devices[0].core_id) )
     { // connection event
-      osal_task_delay(200); // wait for port reset is complete & device is stable
-//      hcd_port_reset( usbh_devices[0].core_id ); // port must be reset to have correct speed operation
-//      osal_task_delay(50); // TODO reset is recommended to last 50 ms (NXP EHCI passes this)
-      usbh_devices[0].speed    = hcd_port_speed_get( usbh_devices[0].core_id );
+      osal_task_delay(200); // wait until device is stable
+
+      if ( !hcd_port_connect_status(usbh_devices[0].core_id) ) SUBTASK_EXIT(TUSB_ERROR_NONE); // exit if device unplugged while delaying
+
+      hcd_port_reset( usbh_devices[0].core_id ); // port must be reset to have correct speed operation
+      osal_task_delay(50); // USB Specs: reset is recommended to last 50 ms
+
+      usbh_devices[0].speed = hcd_port_speed_get( usbh_devices[0].core_id );
     }
     else
     { // disconnection event
@@ -386,8 +391,9 @@ tusb_error_t enumeration_body_subtask(void)
     }
   }
   #if TUSB_CFG_HOST_HUB
+  //------------- connected/disconnected via hub -------------//
   else
-  { // connected/disconnected via hub
+  {
     //------------- Get Port Status -------------//
     OSAL_SUBTASK_INVOKED_AND_WAIT(
         usbh_control_xfer_subtask( usbh_devices[0].hub_addr, bm_request_type(TUSB_DIR_DEV_TO_HOST, TUSB_REQUEST_TYPE_CLASS, TUSB_REQUEST_RECIPIENT_OTHER),

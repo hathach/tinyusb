@@ -60,14 +60,14 @@
 //--------------------------------------------------------------------+
 // HOST CONFIGURATION
 //--------------------------------------------------------------------+
-#define TUSB_CFG_HOST_DEVICE_MAX     1
+#define TUSB_CFG_HOST_DEVICE_MAX     3 // TODO be a part of HUB config
 #define TUSB_CFG_CONFIGURATION_MAX   1
 
 //------------- USBD -------------//
 #define TUSB_CFG_HOST_ENUM_BUFFER_SIZE 255
 
 //------------- CLASS -------------//
-#define TUSB_CFG_HOST_HUB           0
+#define TUSB_CFG_HOST_HUB           1
 #define TUSB_CFG_HOST_HID_KEYBOARD  0
 #define TUSB_CFG_HOST_HID_MOUSE     1
 #define TUSB_CFG_HOST_HID_GENERIC   0
