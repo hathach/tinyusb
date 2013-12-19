@@ -666,6 +666,7 @@ void hcd_isr(uint8_t hostid)
     {
       if ( OHCI_REG->rhport_status_bit[0].current_connect_status )
       {
+        OHCI_REG->rhport_status[0] = OHCI_RHPORT_PORT_RESET_STATUS_MASK;
         usbh_hcd_rhport_plugged_isr(0);
       }else
       {

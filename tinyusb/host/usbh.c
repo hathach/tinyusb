@@ -374,9 +374,9 @@ tusb_error_t enumeration_body_subtask(void)
   { // connected/disconnected directly with roothub
     if( hcd_port_connect_status(usbh_devices[0].core_id) )
     { // connection event
-      osal_task_delay(200); // wait for device is stable
-      hcd_port_reset( usbh_devices[0].core_id ); // port must be reset to have correct speed operation
-      osal_task_delay(50); // TODO reset is recommended to last 50 ms (NXP EHCI passes this)
+      osal_task_delay(200); // wait for port reset is complete & device is stable
+//      hcd_port_reset( usbh_devices[0].core_id ); // port must be reset to have correct speed operation
+//      osal_task_delay(50); // TODO reset is recommended to last 50 ms (NXP EHCI passes this)
       usbh_devices[0].speed    = hcd_port_speed_get( usbh_devices[0].core_id );
     }
     else
