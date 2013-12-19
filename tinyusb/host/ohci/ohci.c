@@ -172,26 +172,24 @@ tusb_error_t hcd_init(void)
   while( OHCI_REG->command_status_bit.controller_reset ) {} // should not take longer than 10 us
 
   //------------- init ohci registers -------------//
-  OHCI_REG->control_bit.hc_functional_state = OHCI_CONTROL_FUNCSTATE_OPERATIONAL; // move HC to operational state TODO use this to suspend (save power)
-
-  OHCI_REG->frame_interval = (OHCI_FMINTERVAL_FSMPS << 16) | OHCI_FMINTERVAL_FI;
-  OHCI_REG->periodic_start = (OHCI_FMINTERVAL_FI * 9) / 10; // Periodic start is 90% of frame interval
-
-
   OHCI_REG->control_head_ed = (uint32_t) &ohci_data.control[0].ed;
   OHCI_REG->bulk_head_ed    = (uint32_t) &ohci_data.bulk_head_ed;
   OHCI_REG->hcca            = (uint32_t) &ohci_data.hcca;
-
-  OHCI_REG->control |= OHCI_CONTROL_CONTROL_BULK_RATIO | OHCI_CONTROL_LIST_CONTROL_ENABLE_MASK |
-       OHCI_CONTROL_LIST_BULK_ENABLE_MASK | OHCI_CONTROL_LIST_PERIODIC_ENABLE_MASK; // TODO Isochronous
-
-  OHCI_REG->rh_status_bit.local_power_status_change = 1; // set global power for ports
 
   OHCI_REG->interrupt_disable = OHCI_REG->interrupt_enable; // disable all interrupts
   OHCI_REG->interrupt_status  = OHCI_REG->interrupt_status; // clear current set bits
   OHCI_REG->interrupt_enable  = OHCI_INT_WRITEBACK_DONEHEAD_MASK | OHCI_INT_RESUME_DETECTED_MASK |
       OHCI_INT_UNRECOVERABLE_ERROR_MASK | /*OHCI_INT_FRAME_OVERFLOW_MASK |*/ OHCI_INT_RHPORT_STATUS_CHANGE_MASK |
       OHCI_INT_MASTER_ENABLE_MASK;
+
+  OHCI_REG->control |= OHCI_CONTROL_CONTROL_BULK_RATIO | OHCI_CONTROL_LIST_CONTROL_ENABLE_MASK |
+       OHCI_CONTROL_LIST_BULK_ENABLE_MASK | OHCI_CONTROL_LIST_PERIODIC_ENABLE_MASK; // TODO Isochronous
+
+  OHCI_REG->frame_interval = (OHCI_FMINTERVAL_FSMPS << 16) | OHCI_FMINTERVAL_FI;
+  OHCI_REG->periodic_start = (OHCI_FMINTERVAL_FI * 9) / 10; // Periodic start is 90% of frame interval
+
+  OHCI_REG->control_bit.hc_functional_state = OHCI_CONTROL_FUNCSTATE_OPERATIONAL; // make HC's state to operational state TODO use this to suspend (save power)
+  OHCI_REG->rh_status_bit.local_power_status_change = 1; // set global power for ports
 
   return TUSB_ERROR_NONE;
 }
