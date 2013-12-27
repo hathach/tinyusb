@@ -11,7 +11,7 @@
 
 #include <stdint.h>
 #include "LPC11Uxx.h"
-#include "uart.h"
+#include "lpc11uxx_uart.h"
 
 volatile uint32_t UARTStatus;
 volatile uint8_t  UARTTxEmpty = 1;

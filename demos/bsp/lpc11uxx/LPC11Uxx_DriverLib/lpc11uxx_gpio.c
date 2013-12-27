@@ -20,7 +20,7 @@
  * use without further testing or modification.
 ****************************************************************************/
 #include "LPC11Uxx.h"			/* LPC11Uxx Peripheral Registers */
-#include "gpio.h"
+#include "lpc11uxx_gpio.h"
 
 volatile uint32_t flex_int0_counter = 0;
 volatile uint32_t flex_int1_counter = 0;

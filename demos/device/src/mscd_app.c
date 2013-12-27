@@ -60,8 +60,8 @@ static scsi_inquiry_data_t mscd_inquiry_data TUSB_CFG_ATTR_USBRAM =
 ATTR_USB_MIN_ALIGNMENT
 static scsi_read_capacity10_data_t mscd_read_capacity10_data TUSB_CFG_ATTR_USBRAM =
 {
-    .last_lba   = __n2be(DISK_BLOCK_NUM-1), // read capacity
-    .block_size = __n2be(DISK_BLOCK_SIZE)
+    .last_lba   = ENDIAN_BE(DISK_BLOCK_NUM-1), // read capacity
+    .block_size = ENDIAN_BE(DISK_BLOCK_SIZE)
 };
 
 ATTR_USB_MIN_ALIGNMENT
@@ -76,9 +76,9 @@ ATTR_USB_MIN_ALIGNMENT
 static scsi_read_format_capacity_data_t mscd_format_capacity_data TUSB_CFG_ATTR_USBRAM =
 {
     .list_length     = 8,
-    .block_num       = __n2be(DISK_BLOCK_NUM), // write capacity
+    .block_num       = ENDIAN_BE(DISK_BLOCK_NUM), // write capacity
     .descriptor_type = 2, // TODO formatted media, refractor to const
-    .block_size_u16  = __n2be_16(DISK_BLOCK_SIZE)
+    .block_size_u16  = ENDIAN_BE16(DISK_BLOCK_SIZE)
 };
 
 ATTR_USB_MIN_ALIGNMENT

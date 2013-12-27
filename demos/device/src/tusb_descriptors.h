@@ -179,7 +179,7 @@ typedef ATTR_PACKED_STRUCT(struct)
 //--------------------------------------------------------------------+
 // STRINGS DESCRIPTOR
 //--------------------------------------------------------------------+
-tusb_descriptor_string_t * const desc_str_table[TUSB_CFG_DEVICE_STRING_DESCRIPTOR_COUNT];
+extern tusb_descriptor_string_t * const desc_str_table[TUSB_CFG_DEVICE_STRING_DESCRIPTOR_COUNT];
 
 //--------------------------------------------------------------------+
 // Export descriptors

@@ -89,7 +89,7 @@
 #define TUSB_CFG_DEVICE_HID_MOUSE     0
 #define TUSB_CFG_DEVICE_HID_GENERIC   0
 #define TUSB_CFG_DEVICE_MSC           1
-#define TUSB_CFG_DEVICE_CDC           1
+#define TUSB_CFG_DEVICE_CDC           0
 
 
 
@@ -103,7 +103,7 @@
 
 #define TUSB_CFG_OS_TICKS_PER_SECOND  1000
 
-#ifdef __CODE_RED // make use of code red's support for ram region macros
+#ifdef __CODE_RED // compiled with lpcxpresso
   #if (TUSB_CFG_MCU == MCU_LPC11UXX) || (TUSB_CFG_MCU == MCU_LPC13UXX)
     #define TUSB_RAM_SECTION  ".data.$RAM2"
   #elif  (TUSB_CFG_MCU == MCU_LPC43XX)
@@ -116,9 +116,17 @@
 
   #define TUSB_CFG_ATTR_USBRAM   __attribute__ ((section(TUSB_RAM_SECTION)))
 
-#elif defined  __CC_ARM // Compiled with Keil armcc
+#elif defined  __CC_ARM // Compiled with Keil armcc, USBRAM_SECTION is defined in scatter files
 
-  #define TUSB_CFG_ATTR_USBRAM
+  #if (TUSB_CFG_MCU == MCU_LPC11UXX) || (TUSB_CFG_MCU == MCU_LPC13UXX)
+    #define TUSB_CFG_ATTR_USBRAM   __attribute__ ((section("USBRAM_SECTION")))
+  #elif  (TUSB_CFG_MCU == MCU_LPC43XX)
+    #define TUSB_CFG_ATTR_USBRAM
+  #elif (TUSB_CFG_MCU == MCU_LPC175X_6X)
+    #define TUSB_CFG_ATTR_USBRAM
+  #else
+    #error Please define USB RAM section
+  #endif
 
 #elif __ICCARM__ // compiled with IAR
 
