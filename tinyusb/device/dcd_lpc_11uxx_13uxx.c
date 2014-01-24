@@ -385,7 +385,7 @@ tusb_error_t dcd_pipe_control_xfer(uint8_t coreid, tusb_direction_t dir, void * 
   dcd_data.current_td[ep_status].remaining_bytes = 0;
   dcd_data.current_td[ep_status].xferred_total   = 0;
 
-  queue_xfer_to_buffer(ep_status, 0, NULL, 0);
+  queue_xfer_to_buffer(ep_status, 0, 0, 0);
 
   return TUSB_ERROR_NONE;
 }

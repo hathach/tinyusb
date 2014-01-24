@@ -96,7 +96,7 @@ static usbd_class_driver_t const usbd_class_drivers[TUSB_CLASS_MAPPED_INDEX_STAR
 // INTERNAL OBJECT & FUNCTION DECLARATION
 //--------------------------------------------------------------------+
 tusb_error_t usbd_set_configure_received(uint8_t coreid, uint8_t config_number);
-tusb_error_t get_descriptor_subtask(uint8_t coreid, tusb_control_request_t const * const p_request, uint8_t const ** pp_buffer, uint16_t * p_length);
+tusb_error_t get_descriptor_subtask(uint8_t coreid, tusb_control_request_t const * const p_request, uint8_t ** pp_buffer, uint16_t * p_length);
 
 //--------------------------------------------------------------------+
 // APPLICATION INTERFACE
@@ -324,26 +324,26 @@ tusb_error_t usbd_set_configure_received(uint8_t coreid, uint8_t config_number)
   return TUSB_ERROR_NONE;
 }
 
-tusb_error_t get_descriptor_subtask(uint8_t coreid, tusb_control_request_t const * const p_request, uint8_t const ** pp_buffer, uint16_t * p_length)
+tusb_error_t get_descriptor_subtask(uint8_t coreid, tusb_control_request_t const * const p_request, uint8_t ** pp_buffer, uint16_t * p_length)
 {
   tusb_std_descriptor_type_t const desc_type = u16_high_u8(p_request->wValue);
   uint8_t const desc_index = u16_low_u8( p_request->wValue );
 
   if ( TUSB_DESC_TYPE_DEVICE == desc_type )
   {
-    (*pp_buffer) = (uint8_t const *) &app_tusb_desc_device;
+    (*pp_buffer) = (uint8_t *) &app_tusb_desc_device;
     (*p_length)  = sizeof(tusb_descriptor_device_t);
   }
   else if ( TUSB_DESC_TYPE_CONFIGURATION == desc_type )
   {
-    (*pp_buffer) = (uint8_t const *) &app_tusb_desc_configuration;
+    (*pp_buffer) = (uint8_t *) &app_tusb_desc_configuration;
     (*p_length)  = sizeof(app_tusb_desc_configuration);
   }
   else if ( TUSB_DESC_TYPE_STRING == desc_type )
   {
     if ( ! (desc_index < TUSB_CFG_DEVICE_STRING_DESCRIPTOR_COUNT) ) return TUSB_ERROR_DCD_CONTROL_REQUEST_NOT_SUPPORT;
 
-    (*pp_buffer) = (uint8_t const*) desc_str_table[desc_index];
+    (*pp_buffer) = (uint8_t *) desc_str_table[desc_index];
     (*p_length)  = desc_str_table[desc_index]->bLength;
   }else
   {
