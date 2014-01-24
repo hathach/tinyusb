@@ -130,12 +130,14 @@
 *  @{
 */
 
-//#if __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
-// built-in function to convert 32-bit from native to Big Endian
-#define __be2n   __builtin_bswap32
-#define __n2be   __be2n
+// TODO mcu specific
+#if __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
+#define __n2be(x)   __REV(x) ///< built-in function to convert 32-bit from native to Big Endian
+#define __be2n(x)   __n2be(x) ///< built-in function to convert 32-bit from Big Endian to native
 
-//#define __le2be_16   __builtin_bswap16
+#define __n2be_16(u16)  ((uint16_t) __REV16(u16))
+#define __be2n_16(u16)  __n2be_16(u16)
+#endif
 
 /** @} */
 

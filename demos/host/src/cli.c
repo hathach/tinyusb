@@ -88,7 +88,7 @@ static char const * const cli_error_message[] =
 // Expands the function to have the standard function signature
 //--------------------------------------------------------------------+
 #define CLI_PROTOTYPE_EXPAND(command, function, description) \
-    cli_error_t function(char *);
+    cli_error_t function(char * p_para);
 
 CLI_COMMAND_TABLE(CLI_PROTOTYPE_EXPAND);
 
@@ -108,7 +108,6 @@ typedef enum {
 char const* const cli_string_tbl[] =
 {
   CLI_COMMAND_TABLE(CLI_STRING_EXPAND)
-  0
 };
 
 //--------------------------------------------------------------------+
@@ -118,7 +117,6 @@ char const* const cli_string_tbl[] =
 char const* const cli_description_tbl[] =
 {
   CLI_COMMAND_TABLE(CLI_DESCRIPTION_EXPAND)
-  0
 };
 
 

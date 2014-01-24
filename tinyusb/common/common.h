@@ -110,14 +110,15 @@
 #define U32_TO_U8S_LE(u32) U32_B4_U8(u32), U32_B3_U8(u32), U32_B2_U8(u32), U32_B1_U8(u32)
 
 //------------- Endian Conversion -------------//
-#define ENDIAN_BE(le32) \
-    (uint32_t) ( ((le32 & 0xFF) << 24) | ((le32 & 0xFF00) << 8) | ((le32 >> 8) & 0xFF00) | ((le32 >> 24) & 0xFF) )
+#define ENDIAN_BE(u32) \
+    (uint32_t) ( (((u32) & 0xFF) << 24) | (((u32) & 0xFF00) << 8) | (((u32) >> 8) & 0xFF00) | (((u32) >> 24) & 0xFF) )
 
 #define ENDIAN_BE16(le16) ((uint16_t) ((U16_LOW_U8(le16) << 8) | U16_HIGH_U8(le16)) )
 
-// TODO refractor to built-in function
+#ifndef __n2be_16
 #define __n2be_16(u16)  ((uint16_t) ((U16_LOW_U8(u16) << 8) | U16_HIGH_U8(u16)) )
 #define __be2n_16(u16)  __n2be_16(u16)
+#endif
 
 //--------------------------------------------------------------------+
 // INLINE FUNCTION
