@@ -154,11 +154,11 @@ void hcd_port_reset(uint8_t hostid)
   regs->portsc_bit.port_enable = 0; // disable port before reset
   regs->portsc_bit.port_reset = 1;
 
-//#ifndef _TEST_
-//  // NXP specific, port reset will automatically be 0 when reset sequence complete
-//  // there is chance device is unplugged while reset sequence is not complete
-//  while( regs->portsc_bit.port_reset) {} // TODO use task delay to remove blocking
-//#endif
+#ifndef _TEST_
+  // NXP specific, port reset will automatically be 0 when reset sequence complete
+  // there is chance device is unplugged while reset sequence is not complete
+  while( regs->portsc_bit.port_reset) {} // TODO use task delay to remove blocking
+#endif
 }
 
 bool hcd_port_connect_status(uint8_t hostid)
