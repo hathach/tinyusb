@@ -95,8 +95,8 @@ static usbd_class_driver_t const usbd_class_drivers[TUSB_CLASS_MAPPED_INDEX_STAR
 //--------------------------------------------------------------------+
 // INTERNAL OBJECT & FUNCTION DECLARATION
 //--------------------------------------------------------------------+
-tusb_error_t usbd_set_configure_received(uint8_t coreid, uint8_t config_number);
-tusb_error_t get_descriptor_subtask(uint8_t coreid, tusb_control_request_t const * const p_request, uint8_t ** pp_buffer, uint16_t * p_length);
+static tusb_error_t usbd_set_configure_received(uint8_t coreid, uint8_t config_number);
+static tusb_error_t get_descriptor(uint8_t coreid, tusb_control_request_t const * const p_request, uint8_t ** pp_buffer, uint16_t * p_length);
 
 //--------------------------------------------------------------------+
 // APPLICATION INTERFACE
@@ -161,7 +161,7 @@ tusb_error_t usbd_control_request_subtask(uint8_t coreid, tusb_control_request_t
       uint8_t* p_buffer = NULL;
       uint16_t length = 0;
 
-      error = get_descriptor_subtask(coreid, p_request, &p_buffer, &length);
+      error = get_descriptor(coreid, p_request, &p_buffer, &length);
 
       if ( TUSB_ERROR_NONE == error )
       {
@@ -285,7 +285,7 @@ tusb_error_t usbd_init (void)
 //--------------------------------------------------------------------+
 // TODO Host (windows) can get HID report descriptor before set configured
 // need to open interface before set configured
-tusb_error_t usbd_set_configure_received(uint8_t coreid, uint8_t config_number)
+static tusb_error_t usbd_set_configure_received(uint8_t coreid, uint8_t config_number)
 {
   dcd_controller_set_configuration(coreid);
   usbd_devices[coreid].state = TUSB_DEVICE_STATE_CONFIGURED;
@@ -324,7 +324,7 @@ tusb_error_t usbd_set_configure_received(uint8_t coreid, uint8_t config_number)
   return TUSB_ERROR_NONE;
 }
 
-tusb_error_t get_descriptor_subtask(uint8_t coreid, tusb_control_request_t const * const p_request, uint8_t ** pp_buffer, uint16_t * p_length)
+static tusb_error_t get_descriptor(uint8_t coreid, tusb_control_request_t const * const p_request, uint8_t ** pp_buffer, uint16_t * p_length)
 {
   tusb_std_descriptor_type_t const desc_type = u16_high_u8(p_request->wValue);
   uint8_t const desc_index = u16_low_u8( p_request->wValue );
