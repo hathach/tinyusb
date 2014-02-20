@@ -228,6 +228,13 @@ static inline uint32_t offset4k(uint32_t value)
 }
 
 //------------- Mathematics -------------//
+static inline uint32_t abs_of(int32_t value) ATTR_ALWAYS_INLINE ATTR_CONST;
+static inline uint32_t abs_of(int32_t value)
+{
+  return (value < 0) ? (-value) : value;
+}
+
+
 /// inclusive range checking
 static inline bool is_in_range(uint32_t lower, uint32_t value, uint32_t upper) ATTR_ALWAYS_INLINE ATTR_CONST;
 static inline bool is_in_range(uint32_t lower, uint32_t value, uint32_t upper)

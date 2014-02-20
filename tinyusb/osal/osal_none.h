@@ -203,7 +203,7 @@ static inline void osal_semaphore_reset(osal_semaphore_handle_t sem_hdl)
     timeout = osal_tick_get();\
     state = __LINE__; case __LINE__:\
     if( *(sem_hdl) == 0 ) {\
-      if ( (msec != OSAL_TIMEOUT_WAIT_FOREVER) && (timeout + osal_tick_from_msec(msec) <= osal_tick_get()) ) /* time out */ \
+      if ( ( ((uint32_t) (msec)) != OSAL_TIMEOUT_WAIT_FOREVER) && (timeout + osal_tick_from_msec(msec) <= osal_tick_get()) ) /* time out */ \
         *(p_error) = TUSB_ERROR_OSAL_TIMEOUT;\
       else\
         return TUSB_ERROR_OSAL_WAITING;\

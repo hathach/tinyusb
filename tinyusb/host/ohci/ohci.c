@@ -293,7 +293,7 @@ tusb_error_t  hcd_pipe_control_xfer(uint8_t dev_addr, tusb_control_request_t con
   ohci_gtd_t *p_status     = p_setup + 2;
 
   //------------- SETUP Phase -------------//
-  gtd_init(p_setup, p_request, 8);
+  gtd_init(p_setup, (void*) p_request, 8);
   p_setup->index       = dev_addr;
   p_setup->pid         = OHCI_PID_SETUP;
   p_setup->data_toggle = BIN8(10); // DATA0
@@ -664,9 +664,11 @@ void hcd_isr(uint8_t hostid)
     // TODO dual port is not yet supported
     if ( rhport_status & OHCI_RHPORT_CONNECT_STATUS_CHANGE_MASK )
     {
+      // TODO check if remote wake-up
       if ( OHCI_REG->rhport_status_bit[0].current_connect_status )
       {
-//        OHCI_REG->rhport_status[0] = OHCI_RHPORT_PORT_RESET_STATUS_MASK; // reset port immediately
+        // TODO reset port immediately, without this controller will got 2-3 (debouncing connection status change)
+        OHCI_REG->rhport_status[0] = OHCI_RHPORT_PORT_RESET_STATUS_MASK;
         usbh_hcd_rhport_plugged_isr(0);
       }else
       {

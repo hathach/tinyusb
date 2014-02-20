@@ -375,7 +375,7 @@ tusb_error_t enumeration_body_subtask(void)
   {
     if( hcd_port_connect_status(usbh_devices[0].core_id) )
     { // connection event
-      osal_task_delay(200); // wait until device is stable
+      osal_task_delay(200); // wait until device is stable. Increase this if the first 8 bytes is failed to get
 
       if ( !hcd_port_connect_status(usbh_devices[0].core_id) ) SUBTASK_EXIT(TUSB_ERROR_NONE); // exit if device unplugged while delaying
 

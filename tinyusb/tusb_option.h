@@ -126,10 +126,10 @@
 /**
  * Maximum number of supported USB's configuration (currently only support only 1)
  */
-#ifndef TUSB_CFG_CONFIGURATION_MAX
-  #define TUSB_CFG_CONFIGURATION_MAX 1
-  #warning TUSB_CFG_CONFIGURATION_MAX is not defined, default value is 1
-#endif
+//#ifndef TUSB_CFG_CONFIGURATION_MAX
+//  #define TUSB_CFG_CONFIGURATION_MAX 1
+//  #warning TUSB_CFG_CONFIGURATION_MAX is not defined, default value is 1
+//#endif
 
 //--------------------------------------------------------------------+
 // HOST OPTIONS
