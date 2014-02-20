@@ -493,12 +493,6 @@ bool hcd_pipe_is_error(pipe_handle_t pipe_hdl)
   return p_qhd->qtd_overlay.halted;
 }
 
-bool hcd_pipe_is_idle(pipe_handle_t pipe_hdl)
-{ // TODO to be remove
-  ehci_qhd_t *p_qhd = qhd_get_from_pipe_handle( pipe_hdl );
-  return (p_qhd->p_qtd_list_head == NULL);
-}
-
 bool hcd_pipe_is_stalled(pipe_handle_t pipe_hdl)
 {
   ehci_qhd_t *p_qhd = qhd_get_from_pipe_handle( pipe_hdl );

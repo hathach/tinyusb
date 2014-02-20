@@ -123,7 +123,6 @@ void cdc_serial_app_init(void)
 //------------- main task -------------//
 OSAL_TASK_FUNCTION( cdc_serial_app_task ) (void* p_task_para)
 {
-  // This task can be separated into 2 Task : sending & receiving.
   OSAL_TASK_LOOP_BEGIN
 
   //------------- send characters got from uart terminal to the first CDC device -------------//
@@ -147,14 +146,11 @@ OSAL_TASK_FUNCTION( cdc_serial_app_task ) (void* p_task_para)
 
   //------------- print out received characters -------------//
   tusb_error_t error;
-  osal_semaphore_wait(sem_hdl, 100, &error); // timeout to allow getchar from uart terminal can be executed
+  osal_semaphore_wait(sem_hdl, 100, &error); // waiting for incoming data
 
   if ( TUSB_ERROR_NONE == error)
   {
-    for(uint8_t i=0; i<received_bytes; i++)
-    {
-      printf("%c", serial_in_buffer[i]);
-    }
+    for(uint8_t i=0; i<received_bytes; i++) printf("%c", serial_in_buffer[i]);
 
     for(uint8_t dev_addr=1; dev_addr <= TUSB_CFG_HOST_DEVICE_MAX; dev_addr++)
     {

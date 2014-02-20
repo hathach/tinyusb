@@ -126,10 +126,7 @@ tusb_error_t tusbh_cdc_send(uint8_t dev_addr, void const * p_data, uint32_t leng
   ASSERT( p_data != NULL && length, TUSB_ERROR_INVALID_PARA);
 
   pipe_handle_t pipe_out = cdch_data[dev_addr-1].pipe_out;
-  if ( !hcd_pipe_is_idle(pipe_out) )
-  {
-    return TUSB_ERROR_INTERFACE_IS_BUSY;
-  }
+  if ( hcd_pipe_is_busy(pipe_out) ) return TUSB_ERROR_INTERFACE_IS_BUSY;
 
   return hcd_pipe_xfer( pipe_out, (void *) p_data, length, is_notify);
 }
@@ -140,10 +137,7 @@ tusb_error_t tusbh_cdc_receive(uint8_t dev_addr, void * p_buffer, uint32_t lengt
   ASSERT( p_buffer != NULL && length, TUSB_ERROR_INVALID_PARA);
 
   pipe_handle_t pipe_in = cdch_data[dev_addr-1].pipe_in;
-  if ( !hcd_pipe_is_idle(pipe_in) )
-  {
-    return TUSB_ERROR_INTERFACE_IS_BUSY;
-  }
+  if ( hcd_pipe_is_busy(pipe_in) ) return TUSB_ERROR_INTERFACE_IS_BUSY;
 
   return hcd_pipe_xfer( pipe_in, p_buffer, length, is_notify);
 }
