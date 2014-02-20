@@ -73,7 +73,7 @@
       <OPTFL>
         <tvExp>1</tvExp>
         <tvExpOptDlg>0</tvExpOptDlg>
-        <IsCurrentTarget>1</IsCurrentTarget>
+        <IsCurrentTarget>0</IsCurrentTarget>
       </OPTFL>
       <CpuCode>8</CpuCode>
       <Books>
@@ -436,6 +436,245 @@
         <StkLoc>0</StkLoc>
         <TrcWin>0</TrcWin>
         <newCpu>0</newCpu>
+        <uProt>0</uProt>
+      </DebugFlag>
+      <Tracepoint>
+        <THDelay>0</THDelay>
+      </Tracepoint>
+      <LintExecutable></LintExecutable>
+      <LintConfigFile></LintConfigFile>
+    </TargetOption>
+  </Target>
+
+  <Target>
+    <TargetName>Board LPCXpresso1769</TargetName>
+    <ToolsetNumber>0x4</ToolsetNumber>
+    <ToolsetName>ARM-ADS</ToolsetName>
+    <TargetOption>
+      <CLKADS>12000000</CLKADS>
+      <OPTTT>
+        <gFlags>1</gFlags>
+        <BeepAtEnd>1</BeepAtEnd>
+        <RunSim>1</RunSim>
+        <RunTarget>0</RunTarget>
+      </OPTTT>
+      <OPTHX>
+        <HexSelection>1</HexSelection>
+        <FlashByte>65535</FlashByte>
+        <HexRangeLowAddress>0</HexRangeLowAddress>
+        <HexRangeHighAddress>0</HexRangeHighAddress>
+        <HexOffset>0</HexOffset>
+      </OPTHX>
+      <OPTLEX>
+        <PageWidth>79</PageWidth>
+        <PageLength>66</PageLength>
+        <TabStop>8</TabStop>
+        <ListingPath>.\UV4Build\</ListingPath>
+      </OPTLEX>
+      <ListingPage>
+        <CreateCListing>1</CreateCListing>
+        <CreateAListing>1</CreateAListing>
+        <CreateLListing>1</CreateLListing>
+        <CreateIListing>0</CreateIListing>
+        <AsmCond>1</AsmCond>
+        <AsmSymb>1</AsmSymb>
+        <AsmXref>0</AsmXref>
+        <CCond>1</CCond>
+        <CCode>0</CCode>
+        <CListInc>0</CListInc>
+        <CSymb>0</CSymb>
+        <LinkerCodeListing>0</LinkerCodeListing>
+      </ListingPage>
+      <OPTXL>
+        <LMap>1</LMap>
+        <LComments>1</LComments>
+        <LGenerateSymbols>1</LGenerateSymbols>
+        <LLibSym>1</LLibSym>
+        <LLines>1</LLines>
+        <LLocSym>1</LLocSym>
+        <LPubSym>1</LPubSym>
+        <LXref>0</LXref>
+        <LExpSel>0</LExpSel>
+      </OPTXL>
+      <OPTFL>
+        <tvExp>1</tvExp>
+        <tvExpOptDlg>0</tvExpOptDlg>
+        <IsCurrentTarget>1</IsCurrentTarget>
+      </OPTFL>
+      <CpuCode>8</CpuCode>
+      <Books>
+        <Book>
+          <Number>0</Number>
+          <Title>Data Sheet</Title>
+          <Path>DATASHTS\PHILIPS\LPC176x_DS.pdf</Path>
+        </Book>
+        <Book>
+          <Number>1</Number>
+          <Title>User Manual</Title>
+          <Path>DATASHTS\PHILIPS\LPC17xx_UM.pdf</Path>
+        </Book>
+        <Book>
+          <Number>2</Number>
+          <Title>Technical Reference Manual</Title>
+          <Path>datashts\arm\cortex_m3\r2p1\DDI0337I_CORTEXM3_R2P1_TRM.PDF</Path>
+        </Book>
+        <Book>
+          <Number>3</Number>
+          <Title>Generic User Guide</Title>
+          <Path>datashts\arm\cortex_m3\r2p1\DUI0552A_CORTEX_M3_DGUG.PDF</Path>
+        </Book>
+      </Books>
+      <DllOpt>
+        <SimDllName>SARMCM3.DLL</SimDllName>
+        <SimDllArguments>-MPU</SimDllArguments>
+        <SimDlgDllName>DARMP1.DLL</SimDlgDllName>
+        <SimDlgDllArguments>-pLPC1769</SimDlgDllArguments>
+        <TargetDllName>SARMCM3.DLL</TargetDllName>
+        <TargetDllArguments>-MPU</TargetDllArguments>
+        <TargetDlgDllName>TARMP1.DLL</TargetDlgDllName>
+        <TargetDlgDllArguments>-pLPC1769</TargetDlgDllArguments>
+      </DllOpt>
+      <DebugOpt>
+        <uSim>0</uSim>
+        <uTrg>1</uTrg>
+        <sLdApp>1</sLdApp>
+        <sGomain>1</sGomain>
+        <sRbreak>1</sRbreak>
+        <sRwatch>1</sRwatch>
+        <sRmem>1</sRmem>
+        <sRfunc>1</sRfunc>
+        <sRbox>1</sRbox>
+        <tLdApp>1</tLdApp>
+        <tGomain>0</tGomain>
+        <tRbreak>1</tRbreak>
+        <tRwatch>1</tRwatch>
+        <tRmem>1</tRmem>
+        <tRfunc>0</tRfunc>
+        <tRbox>1</tRbox>
+        <tRtrace>1</tRtrace>
+        <sRunDeb>0</sRunDeb>
+        <sLrtime>0</sLrtime>
+        <nTsel>7</nTsel>
+        <sDll></sDll>
+        <sDllPa></sDllPa>
+        <sDlgDll></sDlgDll>
+        <sDlgPa></sDlgPa>
+        <sIfile></sIfile>
+        <tDll></tDll>
+        <tDllPa></tDllPa>
+        <tDlgDll></tDlgDll>
+        <tDlgPa></tDlgPa>
+        <tIfile></tIfile>
+        <pMon>Segger\JL2CM3.dll</pMon>
+      </DebugOpt>
+      <TargetDriverDllRegistry>
+        <SetRegEntry>
+          <Number>0</Number>
+          <Key>DLGTARM</Key>
+          <Name>(1010=-1,-1,-1,-1,0)(1007=-1,-1,-1,-1,0)(1008=-1,-1,-1,-1,0)(1009=-1,-1,-1,-1,0)(1012=-1,-1,-1,-1,0)</Name>
+        </SetRegEntry>
+        <SetRegEntry>
+          <Number>0</Number>
+          <Key>ARMDBGFLAGS</Key>
+          <Name></Name>
+        </SetRegEntry>
+        <SetRegEntry>
+          <Number>0</Number>
+          <Key>JL2CM3</Key>
+          <Name>-U268003250 -O463 -S8 -A0 -C0 -JU1 -JI127.0.0.1 -JP0 -RST0 -N00("ARM CoreSight SW-DP") -D00(2BA01477) -L00(0) -TO18 -TC10000000 -TP21 -TDS8004 -TDT0 -TDC1F -TIEFFFFFFFF -TIP8 -TB1 -TFE0 -FO15 -FD10000000 -FC800 -FN1 -FF0LPC_IAP_512 -FS00 -FL080000</Name>
+        </SetRegEntry>
+        <SetRegEntry>
+          <Number>0</Number>
+          <Key>UL2CM3</Key>
+          <Name>-O975 -S0 -C0 -FO7 -FD10000000 -FC800 -FN2 -FF0LPC18xx43xx_512_BA -FS01A000000 -FL080000 -FF1LPC18xx43xx_512_BB -FS11B000000 -FL180000)</Name>
+        </SetRegEntry>
+      </TargetDriverDllRegistry>
+      <Breakpoint>
+        <Bp>
+          <Number>0</Number>
+          <Type>0</Type>
+          <LineNumber>405</LineNumber>
+          <EnabledFlag>1</EnabledFlag>
+          <Address>0</Address>
+          <ByteObject>0</ByteObject>
+          <HtxType>0</HtxType>
+          <ManyObjects>0</ManyObjects>
+          <SizeOfObject>0</SizeOfObject>
+          <BreakByAccess>0</BreakByAccess>
+          <BreakIfRCount>0</BreakIfRCount>
+          <Filename>C:\Users\hathach\Dropbox\tinyusb\workspace\tinyusb\demos\host\src\cli.c</Filename>
+          <ExecCommand></ExecCommand>
+          <Expression></Expression>
+        </Bp>
+      </Breakpoint>
+      <WatchWindow1>
+        <Ww>
+          <count>0</count>
+          <WinNumber>1</WinNumber>
+          <ItemText>usbh_devices</ItemText>
+        </Ww>
+        <Ww>
+          <count>1</count>
+          <WinNumber>1</WinNumber>
+          <ItemText>ehci_data</ItemText>
+        </Ww>
+        <Ww>
+          <count>2</count>
+          <WinNumber>1</WinNumber>
+          <ItemText>ehci_data.device[1]</ItemText>
+        </Ww>
+        <Ww>
+          <count>3</count>
+          <WinNumber>1</WinNumber>
+          <ItemText>ehci_data.device[0]</ItemText>
+        </Ww>
+        <Ww>
+          <count>4</count>
+          <WinNumber>1</WinNumber>
+          <ItemText>hub_data</ItemText>
+        </Ww>
+        <Ww>
+          <count>5</count>
+          <WinNumber>1</WinNumber>
+          <ItemText>disk_state</ItemText>
+        </Ww>
+        <Ww>
+          <count>6</count>
+          <WinNumber>1</WinNumber>
+          <ItemText>**path</ItemText>
+        </Ww>
+      </WatchWindow1>
+      <MemoryWindow1>
+        <Mm>
+          <WinNumber>1</WinNumber>
+          <SubType>0</SubType>
+          <ItemText>0x20002067</ItemText>
+        </Mm>
+      </MemoryWindow1>
+      <DebugFlag>
+        <trace>0</trace>
+        <periodic>1</periodic>
+        <aLwin>1</aLwin>
+        <aCover>0</aCover>
+        <aSer1>0</aSer1>
+        <aSer2>0</aSer2>
+        <aPa>0</aPa>
+        <viewmode>1</viewmode>
+        <vrSel>0</vrSel>
+        <aSym>0</aSym>
+        <aTbox>0</aTbox>
+        <AscS1>0</AscS1>
+        <AscS2>0</AscS2>
+        <AscS3>0</AscS3>
+        <aSer3>0</aSer3>
+        <eProf>0</eProf>
+        <aLa>0</aLa>
+        <aPa1>0</aPa1>
+        <AscS4>0</AscS4>
+        <aSer4>1</aSer4>
+        <StkLoc>0</StkLoc>
+        <TrcWin>0</TrcWin>
+        <newCpu>1</newCpu>
         <uProt>0</uProt>
       </DebugFlag>
       <Tracepoint>
@@ -828,6 +1067,166 @@
       <RteFlg>0</RteFlg>
       <bShared>0</bShared>
     </File>
+    <File>
+      <GroupNumber>2</GroupNumber>
+      <FileNumber>24</FileNumber>
+      <FileType>1</FileType>
+      <tvExp>0</tvExp>
+      <Focus>0</Focus>
+      <ColumnNumber>0</ColumnNumber>
+      <tvExpOptDlg>0</tvExpOptDlg>
+      <TopLine>0</TopLine>
+      <CurrentLine>0</CurrentLine>
+      <bDave2>0</bDave2>
+      <PathWithFileName>..\..\..\tinyusb\device\dcd.c</PathWithFileName>
+      <FilenameWithoutPath>dcd.c</FilenameWithoutPath>
+      <RteFlg>0</RteFlg>
+      <bShared>0</bShared>
+    </File>
+    <File>
+      <GroupNumber>2</GroupNumber>
+      <FileNumber>25</FileNumber>
+      <FileType>1</FileType>
+      <tvExp>0</tvExp>
+      <Focus>0</Focus>
+      <ColumnNumber>0</ColumnNumber>
+      <tvExpOptDlg>0</tvExpOptDlg>
+      <TopLine>0</TopLine>
+      <CurrentLine>0</CurrentLine>
+      <bDave2>0</bDave2>
+      <PathWithFileName>..\..\..\tinyusb\device\dcd_lpc_11uxx_13uxx.c</PathWithFileName>
+      <FilenameWithoutPath>dcd_lpc_11uxx_13uxx.c</FilenameWithoutPath>
+      <RteFlg>0</RteFlg>
+      <bShared>0</bShared>
+    </File>
+    <File>
+      <GroupNumber>2</GroupNumber>
+      <FileNumber>26</FileNumber>
+      <FileType>1</FileType>
+      <tvExp>0</tvExp>
+      <Focus>0</Focus>
+      <ColumnNumber>0</ColumnNumber>
+      <tvExpOptDlg>0</tvExpOptDlg>
+      <TopLine>0</TopLine>
+      <CurrentLine>0</CurrentLine>
+      <bDave2>0</bDave2>
+      <PathWithFileName>..\..\..\tinyusb\device\dcd_lpc43xx.c</PathWithFileName>
+      <FilenameWithoutPath>dcd_lpc43xx.c</FilenameWithoutPath>
+      <RteFlg>0</RteFlg>
+      <bShared>0</bShared>
+    </File>
+    <File>
+      <GroupNumber>2</GroupNumber>
+      <FileNumber>27</FileNumber>
+      <FileType>1</FileType>
+      <tvExp>0</tvExp>
+      <Focus>0</Focus>
+      <ColumnNumber>0</ColumnNumber>
+      <tvExpOptDlg>0</tvExpOptDlg>
+      <TopLine>0</TopLine>
+      <CurrentLine>0</CurrentLine>
+      <bDave2>0</bDave2>
+      <PathWithFileName>..\..\..\tinyusb\device\dcd_lpc175x_6x.c</PathWithFileName>
+      <FilenameWithoutPath>dcd_lpc175x_6x.c</FilenameWithoutPath>
+      <RteFlg>0</RteFlg>
+      <bShared>0</bShared>
+    </File>
+    <File>
+      <GroupNumber>2</GroupNumber>
+      <FileNumber>28</FileNumber>
+      <FileType>1</FileType>
+      <tvExp>0</tvExp>
+      <Focus>0</Focus>
+      <ColumnNumber>0</ColumnNumber>
+      <tvExpOptDlg>0</tvExpOptDlg>
+      <TopLine>0</TopLine>
+      <CurrentLine>0</CurrentLine>
+      <bDave2>0</bDave2>
+      <PathWithFileName>..\..\..\tinyusb\device\usbd.c</PathWithFileName>
+      <FilenameWithoutPath>usbd.c</FilenameWithoutPath>
+      <RteFlg>0</RteFlg>
+      <bShared>0</bShared>
+    </File>
+    <File>
+      <GroupNumber>2</GroupNumber>
+      <FileNumber>29</FileNumber>
+      <FileType>1</FileType>
+      <tvExp>0</tvExp>
+      <Focus>0</Focus>
+      <ColumnNumber>0</ColumnNumber>
+      <tvExpOptDlg>0</tvExpOptDlg>
+      <TopLine>0</TopLine>
+      <CurrentLine>0</CurrentLine>
+      <bDave2>0</bDave2>
+      <PathWithFileName>..\..\..\tinyusb\host\ohci\ohci.c</PathWithFileName>
+      <FilenameWithoutPath>ohci.c</FilenameWithoutPath>
+      <RteFlg>0</RteFlg>
+      <bShared>0</bShared>
+    </File>
+    <File>
+      <GroupNumber>2</GroupNumber>
+      <FileNumber>30</FileNumber>
+      <FileType>1</FileType>
+      <tvExp>0</tvExp>
+      <Focus>0</Focus>
+      <ColumnNumber>0</ColumnNumber>
+      <tvExpOptDlg>0</tvExpOptDlg>
+      <TopLine>0</TopLine>
+      <CurrentLine>0</CurrentLine>
+      <bDave2>0</bDave2>
+      <PathWithFileName>..\..\..\tinyusb\class\cdc_device.c</PathWithFileName>
+      <FilenameWithoutPath>cdc_device.c</FilenameWithoutPath>
+      <RteFlg>0</RteFlg>
+      <bShared>0</bShared>
+    </File>
+    <File>
+      <GroupNumber>2</GroupNumber>
+      <FileNumber>31</FileNumber>
+      <FileType>1</FileType>
+      <tvExp>0</tvExp>
+      <Focus>0</Focus>
+      <ColumnNumber>0</ColumnNumber>
+      <tvExpOptDlg>0</tvExpOptDlg>
+      <TopLine>0</TopLine>
+      <CurrentLine>0</CurrentLine>
+      <bDave2>0</bDave2>
+      <PathWithFileName>..\..\..\tinyusb\class\custom_class_host.c</PathWithFileName>
+      <FilenameWithoutPath>custom_class_host.c</FilenameWithoutPath>
+      <RteFlg>0</RteFlg>
+      <bShared>0</bShared>
+    </File>
+    <File>
+      <GroupNumber>2</GroupNumber>
+      <FileNumber>32</FileNumber>
+      <FileType>1</FileType>
+      <tvExp>0</tvExp>
+      <Focus>0</Focus>
+      <ColumnNumber>0</ColumnNumber>
+      <tvExpOptDlg>0</tvExpOptDlg>
+      <TopLine>0</TopLine>
+      <CurrentLine>0</CurrentLine>
+      <bDave2>0</bDave2>
+      <PathWithFileName>..\..\..\tinyusb\class\hid_device.c</PathWithFileName>
+      <FilenameWithoutPath>hid_device.c</FilenameWithoutPath>
+      <RteFlg>0</RteFlg>
+      <bShared>0</bShared>
+    </File>
+    <File>
+      <GroupNumber>2</GroupNumber>
+      <FileNumber>33</FileNumber>
+      <FileType>1</FileType>
+      <tvExp>0</tvExp>
+      <Focus>0</Focus>
+      <ColumnNumber>0</ColumnNumber>
+      <tvExpOptDlg>0</tvExpOptDlg>
+      <TopLine>0</TopLine>
+      <CurrentLine>0</CurrentLine>
+      <bDave2>0</bDave2>
+      <PathWithFileName>..\..\..\tinyusb\class\msc_device.c</PathWithFileName>
+      <FilenameWithoutPath>msc_device.c</FilenameWithoutPath>
+      <RteFlg>0</RteFlg>
+      <bShared>0</bShared>
+    </File>
   </Group>
 
   <Group>
@@ -838,7 +1237,7 @@
     <RteFlg>0</RteFlg>
     <File>
       <GroupNumber>3</GroupNumber>
-      <FileNumber>24</FileNumber>
+      <FileNumber>34</FileNumber>
       <FileType>1</FileType>
       <tvExp>0</tvExp>
       <Focus>0</Focus>
@@ -854,7 +1253,7 @@
     </File>
     <File>
       <GroupNumber>3</GroupNumber>
-      <FileNumber>25</FileNumber>
+      <FileNumber>35</FileNumber>
       <FileType>1</FileType>
       <tvExp>0</tvExp>
       <Focus>0</Focus>
@@ -870,7 +1269,7 @@
     </File>
     <File>
       <GroupNumber>3</GroupNumber>
-      <FileNumber>26</FileNumber>
+      <FileNumber>36</FileNumber>
       <FileType>1</FileType>
       <tvExp>0</tvExp>
       <Focus>0</Focus>
@@ -886,7 +1285,7 @@
     </File>
     <File>
       <GroupNumber>3</GroupNumber>
-      <FileNumber>27</FileNumber>
+      <FileNumber>37</FileNumber>
       <FileType>1</FileType>
       <tvExp>0</tvExp>
       <Focus>0</Focus>
@@ -902,7 +1301,7 @@
     </File>
     <File>
       <GroupNumber>3</GroupNumber>
-      <FileNumber>28</FileNumber>
+      <FileNumber>38</FileNumber>
       <FileType>1</FileType>
       <tvExp>0</tvExp>
       <Focus>0</Focus>
@@ -918,7 +1317,7 @@
     </File>
     <File>
       <GroupNumber>3</GroupNumber>
-      <FileNumber>29</FileNumber>
+      <FileNumber>39</FileNumber>
       <FileType>1</FileType>
       <tvExp>0</tvExp>
       <Focus>0</Focus>
@@ -934,7 +1333,7 @@
     </File>
     <File>
       <GroupNumber>3</GroupNumber>
-      <FileNumber>30</FileNumber>
+      <FileNumber>40</FileNumber>
       <FileType>1</FileType>
       <tvExp>0</tvExp>
       <Focus>0</Focus>
@@ -950,7 +1349,7 @@
     </File>
     <File>
       <GroupNumber>3</GroupNumber>
-      <FileNumber>31</FileNumber>
+      <FileNumber>41</FileNumber>
       <FileType>1</FileType>
       <tvExp>0</tvExp>
       <Focus>0</Focus>
@@ -966,7 +1365,7 @@
     </File>
     <File>
       <GroupNumber>3</GroupNumber>
-      <FileNumber>32</FileNumber>
+      <FileNumber>42</FileNumber>
       <FileType>1</FileType>
       <tvExp>0</tvExp>
       <Focus>0</Focus>
@@ -982,7 +1381,7 @@
     </File>
     <File>
       <GroupNumber>3</GroupNumber>
-      <FileNumber>33</FileNumber>
+      <FileNumber>43</FileNumber>
       <FileType>1</FileType>
       <tvExp>0</tvExp>
       <Focus>0</Focus>
@@ -999,142 +1398,14 @@
   </Group>
 
   <Group>
-    <GroupName>cmsis</GroupName>
-    <tvExp>0</tvExp>
-    <tvExpOptDlg>0</tvExpOptDlg>
-    <cbSel>0</cbSel>
-    <RteFlg>0</RteFlg>
-    <File>
-      <GroupNumber>4</GroupNumber>
-      <FileNumber>34</FileNumber>
-      <FileType>1</FileType>
-      <tvExp>0</tvExp>
-      <Focus>0</Focus>
-      <ColumnNumber>0</ColumnNumber>
-      <tvExpOptDlg>0</tvExpOptDlg>
-      <TopLine>0</TopLine>
-      <CurrentLine>0</CurrentLine>
-      <bDave2>0</bDave2>
-      <PathWithFileName>..\..\bsp\lpc43xx\CMSIS_LPC43xx_DriverLib\src\lpc43xx_uart.c</PathWithFileName>
-      <FilenameWithoutPath>lpc43xx_uart.c</FilenameWithoutPath>
-      <RteFlg>0</RteFlg>
-      <bShared>0</bShared>
-    </File>
-    <File>
-      <GroupNumber>4</GroupNumber>
-      <FileNumber>35</FileNumber>
-      <FileType>1</FileType>
-      <tvExp>0</tvExp>
-      <Focus>0</Focus>
-      <ColumnNumber>0</ColumnNumber>
-      <tvExpOptDlg>0</tvExpOptDlg>
-      <TopLine>0</TopLine>
-      <CurrentLine>0</CurrentLine>
-      <bDave2>0</bDave2>
-      <PathWithFileName>..\..\bsp\lpc43xx\CMSIS_LPC43xx_DriverLib\src\lpc43xx_scu.c</PathWithFileName>
-      <FilenameWithoutPath>lpc43xx_scu.c</FilenameWithoutPath>
-      <RteFlg>0</RteFlg>
-      <bShared>0</bShared>
-    </File>
-    <File>
-      <GroupNumber>4</GroupNumber>
-      <FileNumber>36</FileNumber>
-      <FileType>1</FileType>
-      <tvExp>0</tvExp>
-      <Focus>0</Focus>
-      <ColumnNumber>0</ColumnNumber>
-      <tvExpOptDlg>0</tvExpOptDlg>
-      <TopLine>0</TopLine>
-      <CurrentLine>0</CurrentLine>
-      <bDave2>0</bDave2>
-      <PathWithFileName>..\..\bsp\lpc43xx\CMSIS_LPC43xx_DriverLib\src\lpc43xx_gpio.c</PathWithFileName>
-      <FilenameWithoutPath>lpc43xx_gpio.c</FilenameWithoutPath>
-      <RteFlg>0</RteFlg>
-      <bShared>0</bShared>
-    </File>
-    <File>
-      <GroupNumber>4</GroupNumber>
-      <FileNumber>37</FileNumber>
-      <FileType>1</FileType>
-      <tvExp>0</tvExp>
-      <Focus>0</Focus>
-      <ColumnNumber>3</ColumnNumber>
-      <tvExpOptDlg>0</tvExpOptDlg>
-      <TopLine>579</TopLine>
-      <CurrentLine>580</CurrentLine>
-      <bDave2>0</bDave2>
-      <PathWithFileName>..\..\bsp\lpc43xx\CMSIS_LPC43xx_DriverLib\src\lpc43xx_cgu.c</PathWithFileName>
-      <FilenameWithoutPath>lpc43xx_cgu.c</FilenameWithoutPath>
-      <RteFlg>0</RteFlg>
-      <bShared>0</bShared>
-    </File>
-    <File>
-      <GroupNumber>4</GroupNumber>
-      <FileNumber>38</FileNumber>
-      <FileType>1</FileType>
-      <tvExp>0</tvExp>
-      <Focus>0</Focus>
-      <ColumnNumber>0</ColumnNumber>
-      <tvExpOptDlg>0</tvExpOptDlg>
-      <TopLine>0</TopLine>
-      <CurrentLine>0</CurrentLine>
-      <bDave2>0</bDave2>
-      <PathWithFileName>..\..\bsp\lpc43xx\CMSIS_LPC43xx_DriverLib\src\system_LPC43xx.c</PathWithFileName>
-      <FilenameWithoutPath>system_LPC43xx.c</FilenameWithoutPath>
-      <RteFlg>0</RteFlg>
-      <bShared>0</bShared>
-    </File>
-    <File>
-      <GroupNumber>4</GroupNumber>
-      <FileNumber>39</FileNumber>
-      <FileType>1</FileType>
-      <tvExp>0</tvExp>
-      <Focus>0</Focus>
-      <ColumnNumber>7</ColumnNumber>
-      <tvExpOptDlg>0</tvExpOptDlg>
-      <TopLine>0</TopLine>
-      <CurrentLine>0</CurrentLine>
-      <bDave2>0</bDave2>
-      <PathWithFileName>..\..\bsp\lpc43xx\CMSIS_LPC43xx_DriverLib\src\lpc43xx_i2c.c</PathWithFileName>
-      <FilenameWithoutPath>lpc43xx_i2c.c</FilenameWithoutPath>
-      <RteFlg>0</RteFlg>
-      <bShared>0</bShared>
-    </File>
-  </Group>
-
-  <Group>
-    <GroupName>startup</GroupName>
-    <tvExp>0</tvExp>
-    <tvExpOptDlg>0</tvExpOptDlg>
-    <cbSel>0</cbSel>
-    <RteFlg>0</RteFlg>
-    <File>
-      <GroupNumber>5</GroupNumber>
-      <FileNumber>40</FileNumber>
-      <FileType>2</FileType>
-      <tvExp>0</tvExp>
-      <Focus>0</Focus>
-      <ColumnNumber>19</ColumnNumber>
-      <tvExpOptDlg>0</tvExpOptDlg>
-      <TopLine>149</TopLine>
-      <CurrentLine>152</CurrentLine>
-      <bDave2>0</bDave2>
-      <PathWithFileName>..\..\bsp\lpc43xx\startup_keil\startup_LPC43xx.s</PathWithFileName>
-      <FilenameWithoutPath>startup_LPC43xx.s</FilenameWithoutPath>
-      <RteFlg>0</RteFlg>
-      <bShared>0</bShared>
-    </File>
-  </Group>
-
-  <Group>
     <GroupName>fatfs</GroupName>
-    <tvExp>1</tvExp>
+    <tvExp>0</tvExp>
     <tvExpOptDlg>0</tvExpOptDlg>
     <cbSel>0</cbSel>
     <RteFlg>0</RteFlg>
     <File>
-      <GroupNumber>6</GroupNumber>
-      <FileNumber>41</FileNumber>
+      <GroupNumber>4</GroupNumber>
+      <FileNumber>44</FileNumber>
       <FileType>1</FileType>
       <tvExp>0</tvExp>
       <Focus>0</Focus>
@@ -1149,8 +1420,8 @@
       <bShared>0</bShared>
     </File>
     <File>
-      <GroupNumber>6</GroupNumber>
-      <FileNumber>42</FileNumber>
+      <GroupNumber>4</GroupNumber>
+      <FileNumber>45</FileNumber>
       <FileType>1</FileType>
       <tvExp>0</tvExp>
       <Focus>0</Focus>
@@ -1165,8 +1436,8 @@
       <bShared>0</bShared>
     </File>
     <File>
-      <GroupNumber>6</GroupNumber>
-      <FileNumber>43</FileNumber>
+      <GroupNumber>4</GroupNumber>
+      <FileNumber>46</FileNumber>
       <FileType>1</FileType>
       <tvExp>0</tvExp>
       <Focus>0</Focus>
@@ -1177,6 +1448,246 @@
       <bDave2>0</bDave2>
       <PathWithFileName>..\..\..\vendor\fatfs\ccsbcs.c</PathWithFileName>
       <FilenameWithoutPath>ccsbcs.c</FilenameWithoutPath>
+      <RteFlg>0</RteFlg>
+      <bShared>0</bShared>
+    </File>
+  </Group>
+
+  <Group>
+    <GroupName>bsp lpc43xx</GroupName>
+    <tvExp>0</tvExp>
+    <tvExpOptDlg>0</tvExpOptDlg>
+    <cbSel>0</cbSel>
+    <RteFlg>0</RteFlg>
+    <File>
+      <GroupNumber>5</GroupNumber>
+      <FileNumber>47</FileNumber>
+      <FileType>2</FileType>
+      <tvExp>0</tvExp>
+      <Focus>0</Focus>
+      <ColumnNumber>19</ColumnNumber>
+      <tvExpOptDlg>0</tvExpOptDlg>
+      <TopLine>149</TopLine>
+      <CurrentLine>152</CurrentLine>
+      <bDave2>0</bDave2>
+      <PathWithFileName>..\..\bsp\lpc43xx\startup_keil\startup_LPC43xx.s</PathWithFileName>
+      <FilenameWithoutPath>startup_LPC43xx.s</FilenameWithoutPath>
+      <RteFlg>0</RteFlg>
+      <bShared>0</bShared>
+    </File>
+    <File>
+      <GroupNumber>5</GroupNumber>
+      <FileNumber>48</FileNumber>
+      <FileType>1</FileType>
+      <tvExp>0</tvExp>
+      <Focus>0</Focus>
+      <ColumnNumber>0</ColumnNumber>
+      <tvExpOptDlg>0</tvExpOptDlg>
+      <TopLine>0</TopLine>
+      <CurrentLine>0</CurrentLine>
+      <bDave2>0</bDave2>
+      <PathWithFileName>..\..\bsp\lpc43xx\CMSIS_LPC43xx_DriverLib\src\system_LPC43xx.c</PathWithFileName>
+      <FilenameWithoutPath>system_LPC43xx.c</FilenameWithoutPath>
+      <RteFlg>0</RteFlg>
+      <bShared>0</bShared>
+    </File>
+    <File>
+      <GroupNumber>5</GroupNumber>
+      <FileNumber>49</FileNumber>
+      <FileType>1</FileType>
+      <tvExp>0</tvExp>
+      <Focus>0</Focus>
+      <ColumnNumber>7</ColumnNumber>
+      <tvExpOptDlg>0</tvExpOptDlg>
+      <TopLine>0</TopLine>
+      <CurrentLine>0</CurrentLine>
+      <bDave2>0</bDave2>
+      <PathWithFileName>..\..\bsp\lpc43xx\CMSIS_LPC43xx_DriverLib\src\lpc43xx_i2c.c</PathWithFileName>
+      <FilenameWithoutPath>lpc43xx_i2c.c</FilenameWithoutPath>
+      <RteFlg>0</RteFlg>
+      <bShared>0</bShared>
+    </File>
+    <File>
+      <GroupNumber>5</GroupNumber>
+      <FileNumber>50</FileNumber>
+      <FileType>1</FileType>
+      <tvExp>0</tvExp>
+      <Focus>0</Focus>
+      <ColumnNumber>0</ColumnNumber>
+      <tvExpOptDlg>0</tvExpOptDlg>
+      <TopLine>0</TopLine>
+      <CurrentLine>0</CurrentLine>
+      <bDave2>0</bDave2>
+      <PathWithFileName>..\..\bsp\lpc43xx\CMSIS_LPC43xx_DriverLib\src\lpc43xx_scu.c</PathWithFileName>
+      <FilenameWithoutPath>lpc43xx_scu.c</FilenameWithoutPath>
+      <RteFlg>0</RteFlg>
+      <bShared>0</bShared>
+    </File>
+    <File>
+      <GroupNumber>5</GroupNumber>
+      <FileNumber>51</FileNumber>
+      <FileType>1</FileType>
+      <tvExp>0</tvExp>
+      <Focus>0</Focus>
+      <ColumnNumber>3</ColumnNumber>
+      <tvExpOptDlg>0</tvExpOptDlg>
+      <TopLine>579</TopLine>
+      <CurrentLine>580</CurrentLine>
+      <bDave2>0</bDave2>
+      <PathWithFileName>..\..\bsp\lpc43xx\CMSIS_LPC43xx_DriverLib\src\lpc43xx_cgu.c</PathWithFileName>
+      <FilenameWithoutPath>lpc43xx_cgu.c</FilenameWithoutPath>
+      <RteFlg>0</RteFlg>
+      <bShared>0</bShared>
+    </File>
+    <File>
+      <GroupNumber>5</GroupNumber>
+      <FileNumber>52</FileNumber>
+      <FileType>1</FileType>
+      <tvExp>0</tvExp>
+      <Focus>0</Focus>
+      <ColumnNumber>0</ColumnNumber>
+      <tvExpOptDlg>0</tvExpOptDlg>
+      <TopLine>0</TopLine>
+      <CurrentLine>0</CurrentLine>
+      <bDave2>0</bDave2>
+      <PathWithFileName>..\..\bsp\lpc43xx\CMSIS_LPC43xx_DriverLib\src\lpc43xx_gpio.c</PathWithFileName>
+      <FilenameWithoutPath>lpc43xx_gpio.c</FilenameWithoutPath>
+      <RteFlg>0</RteFlg>
+      <bShared>0</bShared>
+    </File>
+    <File>
+      <GroupNumber>5</GroupNumber>
+      <FileNumber>53</FileNumber>
+      <FileType>1</FileType>
+      <tvExp>0</tvExp>
+      <Focus>0</Focus>
+      <ColumnNumber>0</ColumnNumber>
+      <tvExpOptDlg>0</tvExpOptDlg>
+      <TopLine>0</TopLine>
+      <CurrentLine>0</CurrentLine>
+      <bDave2>0</bDave2>
+      <PathWithFileName>..\..\bsp\lpc43xx\CMSIS_LPC43xx_DriverLib\src\lpc43xx_uart.c</PathWithFileName>
+      <FilenameWithoutPath>lpc43xx_uart.c</FilenameWithoutPath>
+      <RteFlg>0</RteFlg>
+      <bShared>0</bShared>
+    </File>
+  </Group>
+
+  <Group>
+    <GroupName>bsp lpc175x_6x</GroupName>
+    <tvExp>1</tvExp>
+    <tvExpOptDlg>0</tvExpOptDlg>
+    <cbSel>0</cbSel>
+    <RteFlg>0</RteFlg>
+    <File>
+      <GroupNumber>6</GroupNumber>
+      <FileNumber>54</FileNumber>
+      <FileType>1</FileType>
+      <tvExp>0</tvExp>
+      <Focus>0</Focus>
+      <ColumnNumber>0</ColumnNumber>
+      <tvExpOptDlg>0</tvExpOptDlg>
+      <TopLine>0</TopLine>
+      <CurrentLine>0</CurrentLine>
+      <bDave2>0</bDave2>
+      <PathWithFileName>..\..\bsp\lpc175x_6x\CMSISv2p00_LPC17xx\src\core_cm3.c</PathWithFileName>
+      <FilenameWithoutPath>core_cm3.c</FilenameWithoutPath>
+      <RteFlg>0</RteFlg>
+      <bShared>0</bShared>
+    </File>
+    <File>
+      <GroupNumber>6</GroupNumber>
+      <FileNumber>55</FileNumber>
+      <FileType>1</FileType>
+      <tvExp>0</tvExp>
+      <Focus>0</Focus>
+      <ColumnNumber>0</ColumnNumber>
+      <tvExpOptDlg>0</tvExpOptDlg>
+      <TopLine>0</TopLine>
+      <CurrentLine>0</CurrentLine>
+      <bDave2>0</bDave2>
+      <PathWithFileName>..\..\bsp\lpc175x_6x\CMSISv2p00_LPC17xx\src\system_LPC17xx.c</PathWithFileName>
+      <FilenameWithoutPath>system_LPC17xx.c</FilenameWithoutPath>
+      <RteFlg>0</RteFlg>
+      <bShared>0</bShared>
+    </File>
+    <File>
+      <GroupNumber>6</GroupNumber>
+      <FileNumber>56</FileNumber>
+      <FileType>1</FileType>
+      <tvExp>0</tvExp>
+      <Focus>0</Focus>
+      <ColumnNumber>0</ColumnNumber>
+      <tvExpOptDlg>0</tvExpOptDlg>
+      <TopLine>0</TopLine>
+      <CurrentLine>0</CurrentLine>
+      <bDave2>0</bDave2>
+      <PathWithFileName>..\..\bsp\lpc175x_6x\LPC17xx_DriverLib\source\lpc17xx_clkpwr.c</PathWithFileName>
+      <FilenameWithoutPath>lpc17xx_clkpwr.c</FilenameWithoutPath>
+      <RteFlg>0</RteFlg>
+      <bShared>0</bShared>
+    </File>
+    <File>
+      <GroupNumber>6</GroupNumber>
+      <FileNumber>57</FileNumber>
+      <FileType>1</FileType>
+      <tvExp>0</tvExp>
+      <Focus>0</Focus>
+      <ColumnNumber>0</ColumnNumber>
+      <tvExpOptDlg>0</tvExpOptDlg>
+      <TopLine>0</TopLine>
+      <CurrentLine>0</CurrentLine>
+      <bDave2>0</bDave2>
+      <PathWithFileName>..\..\bsp\lpc175x_6x\LPC17xx_DriverLib\source\lpc17xx_gpio.c</PathWithFileName>
+      <FilenameWithoutPath>lpc17xx_gpio.c</FilenameWithoutPath>
+      <RteFlg>0</RteFlg>
+      <bShared>0</bShared>
+    </File>
+    <File>
+      <GroupNumber>6</GroupNumber>
+      <FileNumber>58</FileNumber>
+      <FileType>1</FileType>
+      <tvExp>0</tvExp>
+      <Focus>0</Focus>
+      <ColumnNumber>0</ColumnNumber>
+      <tvExpOptDlg>0</tvExpOptDlg>
+      <TopLine>0</TopLine>
+      <CurrentLine>0</CurrentLine>
+      <bDave2>0</bDave2>
+      <PathWithFileName>..\..\bsp\lpc175x_6x\LPC17xx_DriverLib\source\lpc17xx_pinsel.c</PathWithFileName>
+      <FilenameWithoutPath>lpc17xx_pinsel.c</FilenameWithoutPath>
+      <RteFlg>0</RteFlg>
+      <bShared>0</bShared>
+    </File>
+    <File>
+      <GroupNumber>6</GroupNumber>
+      <FileNumber>59</FileNumber>
+      <FileType>1</FileType>
+      <tvExp>0</tvExp>
+      <Focus>0</Focus>
+      <ColumnNumber>0</ColumnNumber>
+      <tvExpOptDlg>0</tvExpOptDlg>
+      <TopLine>0</TopLine>
+      <CurrentLine>0</CurrentLine>
+      <bDave2>0</bDave2>
+      <PathWithFileName>..\..\bsp\lpc175x_6x\LPC17xx_DriverLib\source\lpc17xx_uart.c</PathWithFileName>
+      <FilenameWithoutPath>lpc17xx_uart.c</FilenameWithoutPath>
+      <RteFlg>0</RteFlg>
+      <bShared>0</bShared>
+    </File>
+    <File>
+      <GroupNumber>6</GroupNumber>
+      <FileNumber>60</FileNumber>
+      <FileType>2</FileType>
+      <tvExp>0</tvExp>
+      <Focus>0</Focus>
+      <ColumnNumber>0</ColumnNumber>
+      <tvExpOptDlg>0</tvExpOptDlg>
+      <TopLine>0</TopLine>
+      <CurrentLine>0</CurrentLine>
+      <bDave2>0</bDave2>
+      <PathWithFileName>..\..\bsp\lpc175x_6x\startup_keil\startup_LPC17xx.s</PathWithFileName>
+      <FilenameWithoutPath>startup_LPC17xx.s</FilenameWithoutPath>
       <RteFlg>0</RteFlg>
       <bShared>0</bShared>
     </File>
