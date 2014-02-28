@@ -36,12 +36,6 @@
 */
 /**************************************************************************/
 
-/** \file
- *  \brief TBD
- *
- *  \note TBD
- */
-
 /** \ingroup TBD
  *  \defgroup TBD
  *  \brief TBD
@@ -72,9 +66,6 @@ extern "C" {
 //--------------------------------------------------------------------+
 // TASK API
 //--------------------------------------------------------------------+
-#define OSAL_TASK_FUNCTION(task_func) \
-  void task_func
-
 typedef struct {
   char const * name;
   pdTASK_CODE code;
@@ -104,37 +95,6 @@ static inline void osal_task_delay(uint32_t msec)
 {
   vTaskDelay( (TUSB_CFG_OS_TICKS_PER_SECOND * msec) / 1000 );
 }
-
-#define OSAL_TASK_LOOP_BEGIN \
-  while(1) {
-
-#define OSAL_TASK_LOOP_END \
-  }
-
-//------------- Sub Task -------------//
-#define OSAL_SUBTASK_BEGIN // TODO refractor move
-#define OSAL_SUBTASK_END \
-  return TUSB_ERROR_NONE;
-
-#define SUBTASK_EXIT(error)   return error;
-
-#define OSAL_SUBTASK_INVOKED_AND_WAIT(subtask, status) \
-  status = subtask
-
-//------------- Sub Task Assert -------------//
-#define SUBTASK_ASSERT_STATUS(sts) ASSERT_STATUS(sts)
-#define SUBTASK_ASSERT(condition)  ASSERT(condition, TUSB_ERROR_OSAL_TASK_FAILED)
-
-#define _SUBTASK_ASSERT_ERROR_HANDLER(error, func_call)\
-    func_call; return error
-
-#define SUBTASK_ASSERT_STATUS_WITH_HANDLER(sts, func_call) \
-    ASSERT_DEFINE_WITH_HANDLER(_SUBTASK_ASSERT_ERROR_HANDLER, func_call, tusb_error_t status = (tusb_error_t)(sts),\
-                               TUSB_ERROR_NONE == status, status, "%s", TUSB_ErrorStr[status])
-
-#define SUBTASK_ASSERT_WITH_HANDLER(condition, func_call) \
-    ASSERT_DEFINE_WITH_HANDLER(_SUBTASK_ASSERT_ERROR_HANDLER, func_call, ,\
-                               condition, TUSB_ERROR_OSAL_TASK_FAILED, "%s", "evaluated to false")
 
 //--------------------------------------------------------------------+
 // Semaphore API

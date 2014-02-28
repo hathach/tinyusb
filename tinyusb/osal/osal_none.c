@@ -37,6 +37,7 @@
 /**************************************************************************/
 
 #include "tusb_option.h"
+#include "osal.h" // TODO refractor
 
 #if TUSB_CFG_OS == TUSB_OS_NONE
 
