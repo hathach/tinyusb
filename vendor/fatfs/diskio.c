@@ -59,7 +59,7 @@ static DSTATUS disk_state[TUSB_CFG_HOST_DEVICE_MAX];
 //--------------------------------------------------------------------+
 static DRESULT wait_for_io_complete(uint8_t usb_addr)
 {
-  #if TUSB_CFG_OS == TUSB_OS_NONE
+#if TUSB_CFG_OS == TUSB_OS_NONE
   while ( tusbh_msc_is_busy(usb_addr) )
   {
     // timeout here
@@ -124,20 +124,9 @@ DRESULT disk_write (BYTE pdrv, const BYTE* buff, DWORD sector, BYTE count)
 /* [IN] Drive number */
 /* [IN] Control command code */
 /* [I/O] Parameter and data buffer */
-msc_cmd_status_wrapper_t temp_csw TUSB_CFG_ATTR_USBRAM; // TODO MSCH test unit ready refractor
 DRESULT disk_ioctl (BYTE pdrv, BYTE cmd, void* buff)
 {
   if (cmd != CTRL_SYNC) return RES_ERROR;
-
-  uint8_t usb_addr = pdrv+1;
-
-  do {
-    memclr_(&temp_csw, sizeof(msc_cmd_status_wrapper_t));
-
-    if ( TUSB_ERROR_NONE != tusbh_msc_test_unit_ready(usb_addr, 0, &temp_csw) )		return RES_ERROR;
-    wait_for_io_complete(usb_addr);
-
-  } while( temp_csw.status != 0 ); // wait unitl unit is ready
 
   return RES_OK;
 }
