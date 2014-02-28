@@ -352,6 +352,11 @@ OSAL_TASK_FUNCTION(usbh_enumeration_task) (void* p_task_para)
 
 tusb_error_t enumeration_body_subtask(void)
 {
+  enum {
+    POWER_STABLE_DELAY = 300,
+    RESET_DELAY = 100 // NXP's EHCI require more than 50ms to work properly although the USB specs say only 50ms
+  };
+
   tusb_error_t error;
   usbh_enumerate_t enum_entry;
 
@@ -375,12 +380,12 @@ tusb_error_t enumeration_body_subtask(void)
   {
     if( hcd_port_connect_status(usbh_devices[0].core_id) )
     { // connection event
-      osal_task_delay(200); // wait until device is stable. Increase this if the first 8 bytes is failed to get
+      osal_task_delay(POWER_STABLE_DELAY); // wait until device is stable. Increase this if the first 8 bytes is failed to get
 
       if ( !hcd_port_connect_status(usbh_devices[0].core_id) ) SUBTASK_EXIT(TUSB_ERROR_NONE); // exit if device unplugged while delaying
 
       hcd_port_reset( usbh_devices[0].core_id ); // port must be reset to have correct speed operation
-      osal_task_delay(50); // USB Specs: reset is recommended to last 50 ms
+      osal_task_delay(RESET_DELAY);
 
       usbh_devices[0].speed = hcd_port_speed_get( usbh_devices[0].core_id );
     }
@@ -446,7 +451,7 @@ tusb_error_t enumeration_body_subtask(void)
   { // connected directly to roothub
     SUBTASK_ASSERT_STATUS(error); // TODO some slow device is observed to fail the very fist controller xfer, can try more times
     hcd_port_reset( usbh_devices[0].core_id ); // reset port after 8 byte descriptor
-    osal_task_delay(50); // TODO reset is recommended to last 50 ms (NXP EHCI passes this)
+    osal_task_delay(RESET_DELAY);
   }
   #if TUSB_CFG_HOST_HUB
   else
