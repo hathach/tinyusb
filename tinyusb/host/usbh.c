@@ -109,7 +109,7 @@ static host_class_driver_t const usbh_class_drivers[TUSB_CLASS_MAPPED_INDEX_END]
 usbh_device_info_t usbh_devices[TUSB_CFG_HOST_DEVICE_MAX+1] TUSB_CFG_ATTR_USBRAM; // including zero-address
 
 //------------- Enumeration Task Data -------------//
-OSAL_TASK_DEF(usbh_enumeration_task, 150, TUSB_CFG_OS_TASK_PRIO);
+OSAL_TASK_DEF(usbh_enumeration_task, 200, TUSB_CFG_OS_TASK_PRIO);
 OSAL_QUEUE_DEF(enum_queue_def, ENUM_QUEUE_DEPTH, uint32_t);
 
 static osal_queue_handle_t enum_queue_hdl;

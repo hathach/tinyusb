@@ -80,14 +80,6 @@ bool tusbh_msc_is_busy(uint8_t dev_addr)
           hcd_pipe_is_busy(msch_data[dev_addr-1].bulk_in);
 }
 
-bool tusbh_msc_is_failed(uint8_t dev_addr)
-{
-  return  msch_data[dev_addr-1].is_initialized &&
-          hcd_pipe_is_error(msch_data[dev_addr-1].bulk_in);
-}
-
-// TODO tusbh_msc_is_stalled
-
 uint8_t const* tusbh_msc_get_vendor_name(uint8_t dev_addr)
 {
   return msch_data[dev_addr-1].is_initialized ? msch_data[dev_addr-1].vendor_id : NULL;

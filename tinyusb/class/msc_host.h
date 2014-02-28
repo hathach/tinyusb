@@ -72,9 +72,6 @@ bool          tusbh_msc_is_mounted(uint8_t dev_addr) ATTR_PURE ATTR_WARN_UNUSED_
  */
 bool          tusbh_msc_is_busy(uint8_t dev_addr) ATTR_PURE ATTR_WARN_UNUSED_RESULT;
 
-// TODO refractor
-bool          tusbh_msc_is_failed(uint8_t dev_addr) ATTR_PURE ATTR_WARN_UNUSED_RESULT;
-
 /** \brief      Get SCSI vendor's name of MassStorage device
  * \param[in]   dev_addr device address
  * \return      pointer to vendor's name or NULL if specified device does not support MassStorage

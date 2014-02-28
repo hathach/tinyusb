@@ -58,6 +58,8 @@
 //--------------------------------------------------------------------+
 // INTERNAL OBJECT & FUNCTION DECLARATION
 //--------------------------------------------------------------------+
+OSAL_TASK_DEF(msc_app_task, 300, MSC_APP_TASK_PRIO);
+
 static FATFS fatfs[TUSB_CFG_HOST_DEVICE_MAX] TUSB_CFG_ATTR_USBRAM;
 
 //--------------------------------------------------------------------+
@@ -74,7 +76,7 @@ void tusbh_msc_mounted_cb(uint8_t dev_addr)
 
   for(uint8_t i=0; i<8; i++) putchar(p_vendor[i]);
 
-  printf(" ");
+  putchar(' ');
   for(uint8_t i=0; i<16; i++) putchar(p_product[i]);
   putchar('\n');
 
@@ -95,11 +97,11 @@ void tusbh_msc_mounted_cb(uint8_t dev_addr)
       return;
     }
 
-    puts("-------------------------------------------------------------------");
-    puts("- MASSSTORAGE CLASS CLI IS A IMMATURE CODE. DISK-WRITING COMMANDS -");
-    puts("- SUCH AS cp(COPY), mkdir(MAKE DIRECTORY) ARE POTENTIAL TO DAMAGE -");
-    puts("- YOUR USB THUMBDRIVE. USING THOSE COMMANDS ARE AT YOUR OWN RISK. -");
-    puts("- THE AUTHOR HAS NO RESPONSIBILITY WITH YOUR DEVICE NOR ITS DATA  -");
+    puts("---------------------------------------------------------------------");
+    puts("- MASSSTORAGE CLASS CLI IS A IMMATURE CODE. DISK-WRITING COMMANDS");
+    puts("- SUCH AS cp(COPY), mkdir(MAKE DIRECTORY) ARE POTENTIAL TO DAMAGE");
+    puts("- YOUR USB THUMBDRIVE. USING THOSE COMMANDS ARE AT YOUR OWN RISK.");
+    puts("- THE AUTHOR HAS NO RESPONSIBILITY WITH YOUR DEVICE NOR ITS DATA");
     puts("---------------------------------------------------------------------");
 
     f_chdrive(phy_disk); // change to newly mounted drive
@@ -141,6 +143,7 @@ void tusbh_msc_isr(uint8_t dev_addr, tusb_event_t event, uint32_t xferred_bytes)
 //--------------------------------------------------------------------+
 void msc_app_init(void)
 {
+  ASSERT( TUSB_ERROR_NONE == osal_task_create( OSAL_TASK_REF(msc_app_task) ), VOID_RETURN );
   diskio_init();
 }
 

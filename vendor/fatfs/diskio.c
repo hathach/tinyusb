@@ -59,16 +59,13 @@ static DSTATUS disk_state[TUSB_CFG_HOST_DEVICE_MAX];
 //--------------------------------------------------------------------+
 static DRESULT wait_for_io_complete(uint8_t usb_addr)
 {
-#if TUSB_CFG_OS == TUSB_OS_NONE
+  // TODO with RTOS, this should use semaphore instead of blocking
   while ( tusbh_msc_is_busy(usb_addr) )
   {
-    // timeout here
+    // TODO should have timeout here
   }
-  return tusbh_msc_is_failed(usb_addr) ? RES_ERROR : RES_OK;
-#else
-  #error semaphore instead of blocking
-#endif
 
+  return RES_OK;
 }
 
 void diskio_init(void)
