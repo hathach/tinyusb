@@ -348,7 +348,7 @@
             <uSurpInc>0</uSurpInc>
             <VariousControls>
               <MiscControls>--gnu --c99 --diag_suppress=66</MiscControls>
-              <Define>CORE_M4 MCU=MCU_LPC43XX BOARD=BOARD_EA4357 TUSB_CFG_OS=TUSB_OS_FREERTOS TUSB_CFG_OS_TASK_PRIO=configMAX_PRIORITIES-5</Define>
+              <Define>CORE_M4 TUSB_CFG_MCU=MCU_LPC43XX BOARD=BOARD_EA4357 TUSB_CFG_OS=TUSB_OS_FREERTOS TUSB_CFG_OS_TASK_PRIO=configMAX_PRIORITIES-5</Define>
               <Undefine></Undefine>
               <IncludePath>..\src;..\..\bsp\lpc43xx\CMSIS_LPC43xx_DriverLib\inc;..\..\bsp;..\..\..\tinyusb;..\..\..\vendor\freertos;..\..\..\vendor\freertos\freertos\Source\include;..\host_freertos;..\..\..\vendor\fatfs</IncludePath>
             </VariousControls>
@@ -421,6 +421,11 @@
               <FileType>1</FileType>
               <FilePath>..\src\msc_app.c</FilePath>
             </File>
+            <File>
+              <FileName>cli.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\src\cli.c</FilePath>
+            </File>
           </Files>
         </Group>
         <Group>
@@ -430,11 +435,6 @@
               <FileName>board.c</FileName>
               <FileType>1</FileType>
               <FilePath>..\..\bsp\boards\board.c</FilePath>
-            </File>
-            <File>
-              <FileName>board_ea4357.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>..\..\bsp\boards\embedded_artists\board_ea4357.c</FilePath>
             </File>
             <File>
               <FileName>printf_retarget.c</FileName>
@@ -475,6 +475,11 @@
               <FileName>board_mcb4300.c</FileName>
               <FileType>1</FileType>
               <FilePath>..\..\bsp\boards\keil\board_mcb4300.c</FilePath>
+            </File>
+            <File>
+              <FileName>board_ea4357.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\..\bsp\boards\embedded_artists\ea4357\board_ea4357.c</FilePath>
             </File>
           </Files>
         </Group>
@@ -1090,6 +1095,11 @@
               <FileType>1</FileType>
               <FilePath>..\src\msc_app.c</FilePath>
             </File>
+            <File>
+              <FileName>cli.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\src\cli.c</FilePath>
+            </File>
           </Files>
         </Group>
         <Group>
@@ -1099,11 +1109,6 @@
               <FileName>board.c</FileName>
               <FileType>1</FileType>
               <FilePath>..\..\bsp\boards\board.c</FilePath>
-            </File>
-            <File>
-              <FileName>board_ea4357.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>..\..\bsp\boards\embedded_artists\board_ea4357.c</FilePath>
             </File>
             <File>
               <FileName>printf_retarget.c</FileName>
@@ -1184,6 +1189,11 @@
               <FileName>board_mcb4300.c</FileName>
               <FileType>1</FileType>
               <FilePath>..\..\bsp\boards\keil\board_mcb4300.c</FilePath>
+            </File>
+            <File>
+              <FileName>board_ea4357.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\..\bsp\boards\embedded_artists\ea4357\board_ea4357.c</FilePath>
             </File>
           </Files>
         </Group>
