@@ -42,8 +42,8 @@
 //--------------------------------------------------------------------+
 // INCLUDE
 //--------------------------------------------------------------------+
+#include "ffconf.h"
 #include "diskio.h"
-
 //--------------------------------------------------------------------+
 // MACRO CONSTANT TYPEDEF
 //--------------------------------------------------------------------+
@@ -63,6 +63,9 @@ static DRESULT wait_for_io_complete(uint8_t usb_addr)
   while ( tusbh_msc_is_busy(usb_addr) )
   {
     // TODO should have timeout here
+    #if TUSB_CFG_OS != TUSB_OS_NONE
+    osal_task_delay(10);
+    #endif
   }
 
   return RES_OK;

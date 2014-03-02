@@ -58,7 +58,7 @@
 //--------------------------------------------------------------------+
 // INTERNAL OBJECT & FUNCTION DECLARATION
 //--------------------------------------------------------------------+
-OSAL_TASK_DEF(msc_app_task, 300, MSC_APP_TASK_PRIO);
+OSAL_TASK_DEF(msc_app_task, 512, MSC_APP_TASK_PRIO);
 
 static FATFS fatfs[TUSB_CFG_HOST_DEVICE_MAX] TUSB_CFG_ATTR_USBRAM;
 
