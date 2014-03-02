@@ -163,7 +163,9 @@ static inline void process_kbd_report(hid_keyboard_report_t const *p_new_report)
       }else
       {
         // previously non-existed means key is pressed
-        printf("%c", keycode_to_ascii(p_new_report->modifier, p_new_report->keycode[i]) );
+        uint8_t ch = keycode_to_ascii(p_new_report->modifier, p_new_report->keycode[i]);
+        putchar(ch);
+        if ( ch == '\r' ) putchar('\n'); // added new line for enter key
       }
     }
     // TODO example skips key released

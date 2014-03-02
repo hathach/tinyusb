@@ -150,7 +150,7 @@ OSAL_TASK_FUNCTION( cdc_serial_app_task ) (void* p_task_para)
 
   if ( TUSB_ERROR_NONE == error)
   {
-    for(uint8_t i=0; i<received_bytes; i++) printf("%c", serial_in_buffer[i]);
+    for(uint8_t i=0; i<received_bytes; i++) putchar(serial_in_buffer[i]);
 
     for(uint8_t dev_addr=1; dev_addr <= TUSB_CFG_HOST_DEVICE_MAX; dev_addr++)
     {
