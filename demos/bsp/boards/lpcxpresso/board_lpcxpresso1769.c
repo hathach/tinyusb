@@ -48,7 +48,10 @@
 void board_init(void)
 {
   SystemInit();
+
+#if TUSB_CFG_OS == TUSB_OS_NONE // TODO may move to main.c
   SysTick_Config(SystemCoreClock / CFG_TICKS_PER_SECOND); // 1 msec tick timer
+#endif
 
   // Leds Init
   GPIO_SetDir(BOARD_LED_PORT, BIT_(BOARD_LED_PIN), 1);
