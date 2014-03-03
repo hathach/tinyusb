@@ -564,6 +564,26 @@
           </Files>
         </Group>
         <Group>
+          <GroupName>fatfs</GroupName>
+          <Files>
+            <File>
+              <FileName>diskio.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\..\..\vendor\fatfs\diskio.c</FilePath>
+            </File>
+            <File>
+              <FileName>ff.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\..\..\vendor\fatfs\ff.c</FilePath>
+            </File>
+            <File>
+              <FileName>ccsbcs.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\..\..\vendor\fatfs\ccsbcs.c</FilePath>
+            </File>
+          </Files>
+        </Group>
+        <Group>
           <GroupName>boards</GroupName>
           <Files>
             <File>
@@ -615,26 +635,6 @@
               <FileName>board_mcb4300.c</FileName>
               <FileType>1</FileType>
               <FilePath>..\..\bsp\boards\keil\board_mcb4300.c</FilePath>
-            </File>
-          </Files>
-        </Group>
-        <Group>
-          <GroupName>fatfs</GroupName>
-          <Files>
-            <File>
-              <FileName>diskio.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>..\..\..\vendor\fatfs\diskio.c</FilePath>
-            </File>
-            <File>
-              <FileName>ff.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>..\..\..\vendor\fatfs\ff.c</FilePath>
-            </File>
-            <File>
-              <FileName>ccsbcs.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>..\..\..\vendor\fatfs\ccsbcs.c</FilePath>
             </File>
           </Files>
         </Group>
@@ -1334,6 +1334,26 @@
           </Files>
         </Group>
         <Group>
+          <GroupName>fatfs</GroupName>
+          <Files>
+            <File>
+              <FileName>diskio.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\..\..\vendor\fatfs\diskio.c</FilePath>
+            </File>
+            <File>
+              <FileName>ff.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\..\..\vendor\fatfs\ff.c</FilePath>
+            </File>
+            <File>
+              <FileName>ccsbcs.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\..\..\vendor\fatfs\ccsbcs.c</FilePath>
+            </File>
+          </Files>
+        </Group>
+        <Group>
           <GroupName>boards</GroupName>
           <Files>
             <File>
@@ -1425,26 +1445,6 @@
               <FileName>board_mcb4300.c</FileName>
               <FileType>1</FileType>
               <FilePath>..\..\bsp\boards\keil\board_mcb4300.c</FilePath>
-            </File>
-          </Files>
-        </Group>
-        <Group>
-          <GroupName>fatfs</GroupName>
-          <Files>
-            <File>
-              <FileName>diskio.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>..\..\..\vendor\fatfs\diskio.c</FilePath>
-            </File>
-            <File>
-              <FileName>ff.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>..\..\..\vendor\fatfs\ff.c</FilePath>
-            </File>
-            <File>
-              <FileName>ccsbcs.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>..\..\..\vendor\fatfs\ccsbcs.c</FilePath>
             </File>
           </Files>
         </Group>
@@ -2144,6 +2144,26 @@
           </Files>
         </Group>
         <Group>
+          <GroupName>fatfs</GroupName>
+          <Files>
+            <File>
+              <FileName>diskio.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\..\..\vendor\fatfs\diskio.c</FilePath>
+            </File>
+            <File>
+              <FileName>ff.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\..\..\vendor\fatfs\ff.c</FilePath>
+            </File>
+            <File>
+              <FileName>ccsbcs.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\..\..\vendor\fatfs\ccsbcs.c</FilePath>
+            </File>
+          </Files>
+        </Group>
+        <Group>
           <GroupName>boards</GroupName>
           <Files>
             <File>
@@ -2195,26 +2215,6 @@
               <FileName>board_mcb4300.c</FileName>
               <FileType>1</FileType>
               <FilePath>..\..\bsp\boards\keil\board_mcb4300.c</FilePath>
-            </File>
-          </Files>
-        </Group>
-        <Group>
-          <GroupName>fatfs</GroupName>
-          <Files>
-            <File>
-              <FileName>diskio.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>..\..\..\vendor\fatfs\diskio.c</FilePath>
-            </File>
-            <File>
-              <FileName>ff.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>..\..\..\vendor\fatfs\ff.c</FilePath>
-            </File>
-            <File>
-              <FileName>ccsbcs.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>..\..\..\vendor\fatfs\ccsbcs.c</FilePath>
             </File>
           </Files>
         </Group>
