@@ -115,7 +115,7 @@
         </option>
         <option>
           <name>GenStdoutInterface</name>
-          <state>1</state>
+          <state>0</state>
         </option>
         <option>
           <name>GeneralMisraRules98</name>
@@ -165,7 +165,7 @@
         <option>
           <name>CCDefines</name>
           <state>CORE_M4</state>
-          <state>MCU=MCU_LPC43XX</state>
+          <state>TUSB_CFG_MCU=MCU_LPC43XX</state>
           <state>BOARD=BOARD_EA4357</state>
           <state>TUSB_CFG_OS=TUSB_OS_NONE</state>
         </option>
@@ -957,7 +957,7 @@
         <name>$PROJ_DIR$\..\..\bsp\boards\board.c</name>
       </file>
       <file>
-        <name>$PROJ_DIR$\..\..\bsp\boards\embedded_artists\board_ea4357.c</name>
+        <name>$PROJ_DIR$\..\..\bsp\boards\embedded_artists\ea4357\board_ea4357.c</name>
       </file>
       <file>
         <name>$PROJ_DIR$\..\..\bsp\boards\microbuilder\board_lpc4357usb.c</name>

@@ -55,24 +55,8 @@
 #define FREERTOS_CONFIG_H
 
 #include <stdint.h>
+#include "hal/hal.h"
 extern uint32_t SystemCoreClock;
-
-/* Priorities to assign to tasks created by this demo. */
-#define configUART_COMMAND_CONSOLE_TASK_PRIORITY	( 3U )
-#define configSPI_7_SEG_WRITE_TASK_PRIORITY			( 2U )
-#define configI2C_TASK_PRIORITY						( 0U )
-
-/* Stack sizes to assign to tasks created by this demo. */
-#define configUART_COMMAND_CONSOLE_STACK_SIZE		( configMINIMAL_STACK_SIZE * 2 )
-#define configSPI_7_SEG_WRITE_TASK_STACK_SIZE		( configMINIMAL_STACK_SIZE * 2 )
-#define configI2C_TASK_STACK_SIZE					( configMINIMAL_STACK_SIZE * 3 )
-
-/* Dimensions a buffer that can be used by the FreeRTOS+CLI command
-interpreter.  Set this value to 1 to save RAM if FreeRTOS+CLI does not supply
-the output butter.  See the FreeRTOS+CLI documentation for more information:
-http://www.FreeRTOS.org/FreeRTOS-Plus/FreeRTOS_Plus_CLI/ */
-#define configCOMMAND_INT_MAX_OUTPUT_SIZE			1024
-
 
 /*-----------------------------------------------------------
  * Application specific definitions.
@@ -90,8 +74,8 @@ http://www.FreeRTOS.org/FreeRTOS-Plus/FreeRTOS_Plus_CLI/ */
 #define configCPU_CLOCK_HZ				( SystemCoreClock )
 #define configTICK_RATE_HZ				( ( portTickType ) 1000 )
 #define configMINIMAL_STACK_SIZE		( ( unsigned short ) 90 )
-#define configTOTAL_HEAP_SIZE			( ( size_t ) ( 15 * 1024 ) ) /* Has not effect in this demo as the heap is manually pointed to AHB RAM. */
-#define configMAX_TASK_NAME_LEN			( 12 )
+#define configTOTAL_HEAP_SIZE			( ( size_t ) ( 16 * 1024 ) )
+#define configMAX_TASK_NAME_LEN			( 32 )
 #define configIDLE_SHOULD_YIELD			0
 #define configQUEUE_REGISTRY_SIZE		10
 #define configUSE_TRACE_FACILITY		1
@@ -111,17 +95,17 @@ http://www.FreeRTOS.org/FreeRTOS-Plus/FreeRTOS_Plus_CLI/ */
 
 
 /* Software timer related definitions. */
-#define configUSE_TIMERS				1
+#define configUSE_TIMERS				0
 #define configTIMER_TASK_PRIORITY		( configMAX_PRIORITIES - 3 )
 #define configTIMER_QUEUE_LENGTH		10
 #define configTIMER_TASK_STACK_DEPTH	configMINIMAL_STACK_SIZE
 
 /* Run time stats gathering definitions. */
-void vMainConfigureTimerForRunTimeStats( void );
-uint32_t ulMainGetRunTimeCounterValue( void );
-#define configGENERATE_RUN_TIME_STATS	1
-#define portCONFIGURE_TIMER_FOR_RUN_TIME_STATS() vMainConfigureTimerForRunTimeStats()
-#define portGET_RUN_TIME_COUNTER_VALUE() ulMainGetRunTimeCounterValue()
+//void vMainConfigureTimerForRunTimeStats( void );
+//uint32_t ulMainGetRunTimeCounterValue( void );
+//#define configGENERATE_RUN_TIME_STATS	1
+//#define portCONFIGURE_TIMER_FOR_RUN_TIME_STATS() vMainConfigureTimerForRunTimeStats()
+//#define portGET_RUN_TIME_COUNTER_VALUE() ulMainGetRunTimeCounterValue()
 
 
 /* Set the following definitions to 1 to include the API function, or zero
