@@ -49,20 +49,6 @@ void SysTick_Handler (void)
 
 #endif
 
-#if 0
-// FIXME refractor
-void boardGetMACaddr(uint8_t *macaddr)
-{
-	macaddr[0] = BOARD_MAC_ADDR0;
-	macaddr[1] = BOARD_MAC_ADDR1;
-	macaddr[2] = BOARD_MAC_ADDR2;
-	macaddr[3] = BOARD_MAC_ADDR3;
-	macaddr[4] = BOARD_MAC_ADDR4;
-	macaddr[5] = BOARD_MAC_ADDR5;
-}
-
-#endif
-
 void check_failed(uint8_t *file, uint32_t line)
 {
   (void) file;

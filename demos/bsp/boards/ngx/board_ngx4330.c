@@ -40,11 +40,16 @@
 
 #if BOARD == BOARD_NGX4330
 
+#define BOARD_UART_PORT           LPC_USART0
+
 #define BOARD_MAX_LEDS  2
 const static struct {
-  uint8_t port;
-  uint8_t pin;
-}leds[BOARD_MAX_LEDS] = { {1, 11}, {1,12} };
+  uint8_t mux_port;
+  uint8_t mux_pin;
+
+  uint8_t gpio_port;
+  uint8_t gpio_pin;
+}leds[BOARD_MAX_LEDS] = { {2, 11, 1, 11}, {2, 12, 1,12} };
 
 void board_init(void)
 {
@@ -61,8 +66,8 @@ void board_init(void)
   //------------- LED -------------//
   for (uint8_t i=0; i<BOARD_MAX_LEDS; i++)
   {
-    scu_pinmux(leds[i].port, leds[i].pin, MD_PUP|MD_EZI|MD_ZI, FUNC0);
-    GPIO_SetDir(leds[i].port, BIT_(leds[i].pin), 1); // output
+    scu_pinmux(leds[i].mux_port, leds[i].mux_pin, MD_PUP|MD_EZI|MD_ZI, FUNC0);
+    GPIO_SetDir(leds[i].gpio_port, BIT_(leds[i].gpio_pin), 1); // output
   }
 
 #if CFG_UART_ENABLE
@@ -90,10 +95,10 @@ void board_leds(uint32_t on_mask, uint32_t off_mask)
   {
     if ( on_mask & BIT_(i))
     {
-      GPIO_SetValue(leds[i].port, BIT_(leds[i].pin));
+      GPIO_SetValue(leds[i].gpio_port, BIT_(leds[i].gpio_pin));
     }else if ( off_mask & BIT_(i)) // on_mask take precedence over off_mask
     {
-      GPIO_ClearValue(leds[i].port, BIT_(leds[i].pin));
+      GPIO_ClearValue(leds[i].gpio_port, BIT_(leds[i].gpio_pin));
     }
   }
 }
@@ -103,12 +108,21 @@ void board_leds(uint32_t on_mask, uint32_t off_mask)
 //--------------------------------------------------------------------+
 uint32_t board_uart_send(uint8_t *p_buffer, uint32_t length)
 {
-  return UART_Send((LPC_USARTn_Type*) LPC_USART0, p_buffer, length, BLOCKING);
+  return UART_Send(BOARD_UART_PORT, p_buffer, length, BLOCKING);
 }
 
 uint32_t board_uart_recv(uint8_t *p_buffer, uint32_t length)
 {
-  return UART_Receive((LPC_USARTn_Type*) LPC_USART0, p_buffer, length, BLOCKING);
+  return UART_Receive(BOARD_UART_PORT, p_buffer, length, BLOCKING);
 }
 
+uint8_t  board_uart_getchar(void)
+{
+  return UART_ReceiveByte(BOARD_UART_PORT);
+}
+
+//void board_uart_putchar(uint8_t c)
+//{
+//
+//}
 #endif

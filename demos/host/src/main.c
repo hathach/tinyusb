@@ -158,12 +158,6 @@ int main(void)
 OSAL_TASK_FUNCTION( led_blinking_task ) (void* p_task_para)
 {
   static uint32_t led_on_mask = 0;
-
-  #if 0
-  // FIXME OSAL NONE problem, invoke only 1
-  network_init();
-  http_server_netconn_init();
-  #endif
   
   OSAL_TASK_LOOP_BEGIN
 
@@ -196,68 +190,3 @@ void print_greeting(void)
   if (TUSB_CFG_HOST_CDC          ) puts("  - Communication Device Class");
 }
 
-//static inline void wait_blocking_us(volatile uint32_t us)
-//{
-//	us *= (SystemCoreClock / 1000000) / 3;
-//	while(us--);
-//}
-//
-//static inline void wait_blocking_ms(uint32_t ms)
-//{
-//	wait_blocking_us(ms * 1000);
-//}
-
-#if 0
-static struct netif lpc_netif;
-
-/* Callback for TCPIP thread to indicate TCPIP init is done */
-static void tcpip_init_done_signal(void *arg)
-{
-	/* Tell main thread TCP/IP init is done */
-	*(uint32_t *) arg = 1;
-}
-
-void network_init(void)
-{
-	ip_addr_t ipaddr, netmask, gw;
-	volatile uint32_t tcpip_init_done = 0;
-
-#if NO_SYS
-	lwip_init();
-#else
-	/* Wait until the TCP/IP thread is finished before
-	   continuing or weird things may happen */
-	LWIP_DEBUGF(LWIP_DBG_ON, ("Waiting for TCPIP thread to initialize...\n"));
-	tcpip_init(tcpip_init_done_signal, (void*)&tcpip_init_done);
-	while (!tcpip_init_done);
-//	tcpip_init(NULL, NULL);
-#endif
-
-	/* Static IP assignment */
-#if LWIP_DHCP
-	IP4_ADDR(&gw, 0, 0, 0, 0);
-	IP4_ADDR(&ipaddr, 0, 0, 0, 0);
-	IP4_ADDR(&netmask, 0, 0, 0, 0);
-#else
-	IP4_ADDR(&gw, 192, 168, 1, 1);
-	IP4_ADDR(&ipaddr, 192, 168, 1, 57);
-	IP4_ADDR(&netmask, 255, 255, 255, 0);
-#endif
-
-	/* Add netif interface for lpc18xx_43xx */
-	if (!netif_add(&lpc_netif, &ipaddr, &netmask, &gw, NULL, lpc_enetif_init,
-		tcpip_input))
-		LWIP_ASSERT("Net interface failed to initialize\r\n", 0);
-
-	netif_set_default(&lpc_netif);
-	netif_set_up(&lpc_netif);
-
-	/* Enable MAC interrupts only after LWIP is ready */
-	NVIC_SetPriority(ETHERNET_IRQn, ((0x01<<3)|0x01));
-	NVIC_EnableIRQ(ETHERNET_IRQn);
-
-#if LWIP_DHCP
-	dhcp_start(&lpc_netif);
-#endif
-}
-#endif
