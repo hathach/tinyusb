@@ -315,19 +315,27 @@
 //--------------------------------------------------------------------+
 // TinyUSB modification
 //--------------------------------------------------------------------+
-#include "tusb_option.h"
-
-#ifdef __GNUC__
+#if defined __CC_ARM
   #if __CORTEX_M == 4 // TODO M0 M4
-    #include "../portable/GCC/ARM_CM4F/portmacro.h"
+    #define PORTMACRO_PATH "../portable/RVDS/ARM_CM4F/portmacro.h"
   #elif __CORTEX_M == 3
-    #include "../portable/GCC/ARM_CM3/portmacro.h"
-  #else
-    #error portmacro.h for mcu is not supported yet
+    #define PORTMACRO_PATH "../portable/RVDS/ARM_CM3/portmacro.h"
   #endif
-#else
-  #error portmacro.h for mcu is not supported yet
+
+#elif defined __GNUC__
+  #if __CORTEX_M == 4 // TODO M0 M4
+    #define PORTMACRO_PATH "../portable/GCC/ARM_CM4F/portmacro.h"
+  #elif __CORTEX_M == 3
+    #define PORTMACRO_PATH "../portable/GCC/ARM_CM3/portmacro.h"
+  #endif
 #endif
+
+#ifndef PORTMACRO_PATH
+  #error portmacro.h path is not defined for this toolchain and/or MCU
+#endif
+
+#include PORTMACRO_PATH
+
 
 /* Catch all to ensure portmacro.h is included in the build.  Newer demos
 have the path as part of the project options, rather than as relative from

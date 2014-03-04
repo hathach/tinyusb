@@ -149,10 +149,14 @@ function can have.  Note that lower priority have numerically higher values.  */
 
 /* Definitions that map the FreeRTOS port interrupt handlers to their CMSIS
 standard names. */
-#define vPortSVCHandler SVCall_Handler
-#define xPortPendSVHandler PendSV_Handler
-#define xPortSysTickHandler SysTick_Handler
+#define xPortPendSVHandler    PendSV_Handler
+#define xPortSysTickHandler   SysTick_Handler
 
+#ifdef __CODE_RED
+#define vPortSVCHandler       SVCall_Handler
+#else
+#define vPortSVCHandler       SVC_Handler
+#endif
 
 
 #endif /* FREERTOS_CONFIG_H */

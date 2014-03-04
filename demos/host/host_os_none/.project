@@ -91,11 +91,6 @@
 			<locationURI>PARENT-3-PROJECT_LOC/vendor/fatfs</locationURI>
 		</link>
 		<link>
-			<name>lwip</name>
-			<type>2</type>
-			<locationURI>PARENT-3-PROJECT_LOC/vendor/lwip</locationURI>
-		</link>
-		<link>
 			<name>src</name>
 			<type>2</type>
 			<locationURI>PARENT-1-PROJECT_LOC/src</locationURI>
