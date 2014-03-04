@@ -66,6 +66,7 @@
 #define ATTR_ALIGNED_64            _Pragma("data_alignment=64")
 #define ATTR_ALIGNED_48            _Pragma("data_alignment=48")
 #define ATTR_ALIGNED_32            _Pragma("data_alignment=32")
+#define ATTR_ALIGNED_16            _Pragma("data_alignment=16")
 #define ATTR_ALIGNED_4             _Pragma("data_alignment=4")
 
 #ifndef ATTR_ALWAYS_INLINE
@@ -85,6 +86,9 @@
 //#if __LITTLE_ENDIAN__
 #define __be2n   __REV
 #define __n2be   __be2n
+
+#define __n2be_16(u16)  ((uint16_t) __REV16(u16))
+#define __be2n_16(u16)  __n2be_16(u16)
 
 #ifdef __cplusplus
  }

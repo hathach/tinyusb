@@ -152,6 +152,8 @@ typedef struct {
 	uint32_t buffer[5];
 } ehci_qtd_t; // XXX qtd is used to declare overlay in ehci_qhd_t -> cannot be declared with ATTR_ALIGNED(32)
 
+STATIC_ASSERT( sizeof(ehci_qtd_t) == 32, "size is not correct" );
+
 /// Queue Head (section 3.6)
 typedef struct {
 	/// Word 0: Queue Head Horizontal Link Pointer
@@ -202,6 +204,8 @@ typedef struct {
 	ehci_qtd_t * volatile p_qtd_list_tail;	// tail of the scheduled TD list
 } ehci_qhd_t;
 
+STATIC_ASSERT( sizeof(ehci_qhd_t) == 64, "size is not correct" );
+
 /// Highspeed Isochronous Transfer Descriptor (section 3.3)
 typedef struct ATTR_ALIGNED(32) {
 	/// Word 0: Next Link Pointer
@@ -231,6 +235,8 @@ typedef struct ATTR_ALIGNED(32) {
 //	uint32_t IhdIdx;
 //	uint32_t reserved[6];
 } ehci_itd_t;
+
+STATIC_ASSERT( sizeof(ehci_itd_t) == 64, "size is not correct" );
 
 /// Split (Full-Speed) Isochronous Transfer Descriptor
 typedef struct ATTR_ALIGNED(32) {
@@ -288,11 +294,13 @@ typedef struct ATTR_ALIGNED(32) {
 	/*---------- Word 6 ----------*/
 	ehci_link_t back;
 
-	/// SITD is 32-byte aligned but occupies only 28 --> 6 bytes for storing extra data
+	/// SITD is 32-byte aligned but occupies only 28 --> 4 bytes for storing extra data
 	uint8_t used;
 	uint8_t ihd_idx;
 	uint8_t reserved2[2];
 } ehci_sitd_t;
+
+STATIC_ASSERT( sizeof(ehci_sitd_t) == 32, "size is not correct" );
 
 //--------------------------------------------------------------------+
 // EHCI Operational Register

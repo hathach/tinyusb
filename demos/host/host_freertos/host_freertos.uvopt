@@ -1042,10 +1042,10 @@
       <FileType>1</FileType>
       <tvExp>0</tvExp>
       <Focus>0</Focus>
-      <ColumnNumber>2</ColumnNumber>
+      <ColumnNumber>0</ColumnNumber>
       <tvExpOptDlg>0</tvExpOptDlg>
-      <TopLine>2094</TopLine>
-      <CurrentLine>2109</CurrentLine>
+      <TopLine>2112</TopLine>
+      <CurrentLine>2115</CurrentLine>
       <bDave2>0</bDave2>
       <PathWithFileName>..\..\..\vendor\freertos\freertos\Source\tasks.c</PathWithFileName>
       <FilenameWithoutPath>tasks.c</FilenameWithoutPath>
@@ -1570,10 +1570,10 @@
       <FileType>2</FileType>
       <tvExp>0</tvExp>
       <Focus>0</Focus>
-      <ColumnNumber>20</ColumnNumber>
+      <ColumnNumber>0</ColumnNumber>
       <tvExpOptDlg>0</tvExpOptDlg>
       <TopLine>122</TopLine>
-      <CurrentLine>133</CurrentLine>
+      <CurrentLine>129</CurrentLine>
       <bDave2>0</bDave2>
       <PathWithFileName>..\..\bsp\lpc175x_6x\startup_keil\startup_LPC17xx.s</PathWithFileName>
       <FilenameWithoutPath>startup_LPC17xx.s</FilenameWithoutPath>

@@ -87,7 +87,7 @@ typedef struct {
 }ohci_td_item_t;
 
 
-typedef struct {
+typedef struct ATTR_ALIGNED(16) {
 	//------------- Word 0 -------------//
 	uint32_t used                    : 1;
 	uint32_t index                   : 4;  // endpoint index the td belongs to, or device address in case of control xfer
@@ -109,11 +109,11 @@ typedef struct {
 
 	//------------- Word 3 -------------//
 	uint8_t* buffer_end;
-} ATTR_ALIGNED(16) ohci_gtd_t;
+} ohci_gtd_t;
 
 STATIC_ASSERT( sizeof(ohci_gtd_t) == 16, "size is not correct" );
 
-typedef struct {
+typedef struct ATTR_ALIGNED(16) {
   //------------- Word 0 -------------//
 	uint32_t device_address   : 7;
 	uint32_t endpoint_number  : 4;
@@ -140,21 +140,21 @@ typedef struct {
 
 	//------------- Word 2 -------------//
 	volatile union {
-		uint32_t td_head;
+		uint32_t address;
 		struct {
 			uint32_t halted : 1;
 			uint32_t toggle : 1;
 			uint32_t : 30;
 		};
-	};
+	}td_head;
 
 	//------------- Word 3 -------------//
 	uint32_t next_ed; // 4 lsb bits are free to use
-} ATTR_ALIGNED(16) ohci_ed_t;
+} ohci_ed_t;
 
 STATIC_ASSERT( sizeof(ohci_ed_t) == 16, "size is not correct" );
 
-typedef struct {
+typedef struct ATTR_ALIGNED(32) {
 	/*---------- Word 1 ----------*/
   uint32_t starting_frame          : 16;
   uint32_t                         : 5; // can be used
@@ -175,12 +175,12 @@ typedef struct {
 
 	/*---------- Word 5-8 ----------*/
 	volatile uint16_t offset_packetstatus[8];
-} ATTR_ALIGNED(32) ochi_itd_t;
+} ochi_itd_t;
 
 STATIC_ASSERT( sizeof(ochi_itd_t) == 32, "size is not correct" );
 
 // structure with member alignment required from large to small
-typedef struct {
+typedef struct ATTR_ALIGNED(256) {
   ohci_hcca_t hcca;
 
   ohci_ed_t bulk_head_ed; // static bulk head (dummy)
@@ -198,7 +198,7 @@ typedef struct {
     ohci_gtd_t gtd[OHCI_MAX_QTD];
   }device[TUSB_CFG_HOST_DEVICE_MAX];
 
-}ATTR_ALIGNED(256) ohci_data_t;
+} ohci_data_t;
 
 //--------------------------------------------------------------------+
 // OHCI Operational Register

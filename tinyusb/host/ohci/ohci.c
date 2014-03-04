@@ -320,7 +320,7 @@ tusb_error_t  hcd_pipe_control_xfer(uint8_t dev_addr, tusb_control_request_t con
   p_status->delay_interrupt = OHCI_INT_ON_COMPLETE_YES;
 
   //------------- Attach TDs list to Control Endpoint -------------//
-  p_ed->td_head = (uint32_t) p_setup;
+  p_ed->td_head.address = (uint32_t) p_setup;
 
   OHCI_REG->command_status_bit.control_list_filled = 1;
 
@@ -450,13 +450,13 @@ static ohci_gtd_t * gtd_find_free(uint8_t dev_addr)
 static void td_insert_to_ed(ohci_ed_t* p_ed, ohci_gtd_t * p_gtd)
 {
   // tail is always NULL
-  if ( align16(p_ed->td_head) == 0 )
+  if ( align16(p_ed->td_head.address) == 0 )
   { // TD queue is empty --> head = TD
-    p_ed->td_head |= (uint32_t) p_gtd;
+    p_ed->td_head.address |= (uint32_t) p_gtd;
   }
   else
   { // TODO currently only support queue up to 2 TD each endpoint at a time
-    ((ohci_gtd_t*) align16(p_ed->td_head))->next_td = (uint32_t) p_gtd;
+    ((ohci_gtd_t*) align16(p_ed->td_head.address))->next_td = (uint32_t) p_gtd;
   }
 }
 
@@ -513,19 +513,19 @@ tusb_error_t  hcd_pipe_close(pipe_handle_t pipe_hdl)
 bool hcd_pipe_is_busy(pipe_handle_t pipe_hdl)
 {
   ohci_ed_t const * const p_ed = ed_from_pipe_handle(pipe_hdl);
-  return align16(p_ed->td_head) != align16(p_ed->td_tail.address);
+  return align16(p_ed->td_head.address) != align16(p_ed->td_tail.address);
 }
 
 bool hcd_pipe_is_error(pipe_handle_t pipe_hdl)
 {
   ohci_ed_t const * const p_ed = ed_from_pipe_handle(pipe_hdl);
-  return p_ed->halted;
+  return p_ed->td_head.halted;
 }
 
 bool hcd_pipe_is_stalled(pipe_handle_t pipe_hdl)
 {
   ohci_ed_t const * const p_ed = ed_from_pipe_handle(pipe_hdl);
-  return p_ed->halted && p_ed->is_stalled;
+  return p_ed->td_head.halted && p_ed->is_stalled;
 }
 
 uint8_t hcd_pipe_get_endpoint_addr(pipe_handle_t pipe_hdl)
@@ -541,8 +541,8 @@ tusb_error_t hcd_pipe_clear_stall(pipe_handle_t pipe_hdl)
   p_ed->is_stalled        = 0;
   p_ed->td_tail.address  &= 0x0Ful; // set tail pointer back to NULL
 
-  p_ed->toggle            = 0; // reset data toggle
-  p_ed->halted            = 0;
+  p_ed->td_head.toggle            = 0; // reset data toggle
+  p_ed->td_head.halted            = 0;
 
   if ( TUSB_XFER_BULK == ed_get_xfer_type(p_ed) ) OHCI_REG->command_status_bit.bulk_list_filled = 1;
 
@@ -630,7 +630,7 @@ static void done_queue_isr(uint8_t hostid)
       if ((event != TUSB_EVENT_XFER_COMPLETE))
       {
         p_ed->td_tail.address &= 0x0Ful;
-        p_ed->td_tail.address |= align16(p_ed->td_head); // mark halted EP as empty queue
+        p_ed->td_tail.address |= align16(p_ed->td_head.address); // mark halted EP as empty queue
         if ( event == TUSB_EVENT_XFER_STALLED ) p_ed->is_stalled = 1;
       }
 
