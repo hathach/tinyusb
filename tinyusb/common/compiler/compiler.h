@@ -36,12 +36,6 @@
 */
 /**************************************************************************/
 
-/** \file
- *  \brief Compiler Header
- *
- *  \note TBD
- */
-
 /** \ingroup Group_Common
  *  \defgroup Group_Compiler Compiler
  *  \brief Group_Compiler brief

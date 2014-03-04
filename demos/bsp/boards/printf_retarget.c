@@ -119,8 +119,7 @@ int fgetc(FILE *f)
 
 int fputc(int ch, FILE *f)
 {
-  if (//CFG_PRINTF_NEWLINE[0] == '\r' &&
-      ch == '\n')
+  if (ch == '\n')
   {
     uint8_t carry = '\r';
     retarget_putc(carry);
@@ -133,8 +132,7 @@ int fputc(int ch, FILE *f)
 
 void _ttywrch(int ch)
 {
-  if (//CFG_PRINTF_NEWLINE[0] == '\r' &&
-      ch == '\n')
+  if ( ch == '\n' )
   {
     uint8_t carry = '\r';
     retarget_putc(carry);
@@ -142,6 +140,50 @@ void _ttywrch(int ch)
 
   retarget_putc(ch);
 }
+
+
+//--------------------------------------------------------------------+
+// IAR
+//--------------------------------------------------------------------+
+#elif defined __ICCARM__
+
+#if CFG_PRINTF_TARGET == PRINTF_TARGET_UART
+#include <stddef.h>
+
+size_t __write(int handle, const unsigned char *buf, size_t bufSize)
+{
+  /* Check for the command to flush all handles */
+  if (handle == -1) return 0;
+
+  /* Check for stdout and stderr (only necessary if FILE descriptors are enabled.) */
+  if (handle != 1 && handle != 2) return -1;
+
+  for (size_t i=0; i<bufSize; i++)
+  {
+    if (buf[i] == '\n') board_uart_putchar('\r');
+    board_uart_putchar( buf[i] );
+  }
+
+  return bufSize;
+}
+
+size_t __read(int handle, unsigned char *buf, size_t bufSize)
+{
+  /* Check for stdin (only necessary if FILE descriptors are enabled) */
+  if (handle != 0) return -1;
+
+  size_t i;
+  for (i=0; i<bufSize; i++)
+  {
+    uint8_t ch = board_uart_getchar();
+    if (ch == 0) break;
+    buf[i] = ch;
+  }
+
+  return i;
+}
+
+#endif
 
 #endif
 

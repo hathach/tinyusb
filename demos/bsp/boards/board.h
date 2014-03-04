@@ -123,6 +123,7 @@ void board_leds(uint32_t on_mask, uint32_t off_mask);
 
 uint32_t board_uart_send(uint8_t *buffer, uint32_t length);
 uint8_t  board_uart_getchar(void);
+void board_uart_putchar(uint8_t c);
 
 extern volatile uint32_t system_ticks;
 
