@@ -119,3 +119,4 @@ static inline void tusb_tick_tock(void)
 #endif
 
 #endif /* _TUSB_H_ */
+

@@ -41,11 +41,11 @@
 #if CFG_PRINTF_TARGET != PRINTF_TARGET_SEMIHOST
 
 #if CFG_PRINTF_TARGET == PRINTF_TARGET_UART
-  #define retarget_getchar()  board_uart_getchar()
+  #define retarget_getchar()     board_uart_getchar()
   #define retarget_putchar(c)    board_uart_putchar(c);
 #elif CFG_PRINTF_TARGET == PRINTF_TARGET_SWO
   volatile int32_t ITM_RxBuffer;  // keil variable to read from SWO
-	#define retarget_getchar()  ITM_ReceiveChar()
+	#define retarget_getchar()     ITM_ReceiveChar()
 	#define retarget_putchar(c)    ITM_SendChar(c)
 #else
 	#error Target is not implemented yet
@@ -68,17 +68,14 @@ int __sys_write (int iFileHandle, char *buf, int length)
 {
   (void) iFileHandle;
 
-  int ret = length;
   for (int i=0; i<length; i++)
   {
-    if (buf[i] == '\n')
-    {
-      retarget_putchar('\r');
-      ret++;
-    }
+    if (buf[i] == '\n') retarget_putchar('\r');
+
     retarget_putchar( buf[i] );
   }
-  return ret;
+
+  return length;
 }
 
 // Called by bottom level of scanf routine within RedLib C library to read
@@ -113,14 +110,14 @@ int fgetc(FILE *f)
 
 int fputc(int ch, FILE *f)
 {
-  _ttywrch(ch)
+  _ttywrch(ch);
   return ch;
 }
 
 //--------------------------------------------------------------------+
 // IAR
 //--------------------------------------------------------------------+
-#elif 0 // defined __ICCARM__ TODO could not able to retarget to UART with IAR
+#elif defined __ICCARM__ // TODO could not able to retarget to UART with IAR
 
 #if CFG_PRINTF_TARGET == PRINTF_TARGET_UART
 #include <stddef.h>
@@ -133,18 +130,14 @@ size_t __write(int handle, const unsigned char *buf, size_t length)
   /* Check for stdout and stderr (only necessary if FILE descriptors are enabled.) */
   if (handle != 1 && handle != 2) return -1;
 
-  size_t ret = length;
   for (size_t i=0; i<length; i++)
   {
-    if (buf[i] == '\n')
-    {
-      board_uart_putchar('\r');
-      ret++;
-    }
-    board_uart_putchar( buf[i] );
+    if (buf[i] == '\n') retarget_putchar('\r');
+
+    retarget_putchar( buf[i] );
   }
 
-  return ret;
+  return length;
 }
 
 size_t __read(int handle, unsigned char *buf, size_t bufSize)
@@ -152,7 +145,7 @@ size_t __read(int handle, unsigned char *buf, size_t bufSize)
   /* Check for stdin (only necessary if FILE descriptors are enabled) */
   if (handle != 0) return -1;
 
-  /*size_t i;
+  size_t i;
   for (i=0; i<bufSize; i++)
   {
     uint8_t ch = board_uart_getchar();
@@ -160,8 +153,7 @@ size_t __read(int handle, unsigned char *buf, size_t bufSize)
     buf[i] = ch;
   }
 
-  return i; */
-  return 0;
+  return i;
 }
 
 #endif
