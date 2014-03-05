@@ -118,16 +118,6 @@ void board_leds(uint32_t on_mask, uint32_t off_mask)
 // UART
 //--------------------------------------------------------------------+
 #if CFG_UART_ENABLE
-uint32_t board_uart_send(uint8_t *buffer, uint32_t length)
-{
-  return UART_Send(BOARD_UART_PORT, buffer, length, BLOCKING);
-}
-
-uint32_t board_uart_recv(uint8_t *buffer, uint32_t length)
-{
-  return UART_Receive(BOARD_UART_PORT, buffer, length, BLOCKING);
-}
-
 uint8_t  board_uart_getchar(void)
 {
   return UART_ReceiveByte(BOARD_UART_PORT);

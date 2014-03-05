@@ -42,8 +42,11 @@
 
 #if CFG_PRINTF_TARGET == PRINTF_TARGET_UART
   #define retarget_getchar()  board_uart_getchar()
+  #define retarget_putchar(c)    board_uart_putchar(c);
 #elif CFG_PRINTF_TARGET == PRINTF_TARGET_SWO
+  volatile int32_t ITM_RxBuffer;  // keil variable to read from SWO
 	#define retarget_getchar()  ITM_ReceiveChar()
+	#define retarget_putchar(c)    ITM_SendChar(c)
 #else
 	#error Target is not implemented yet
 #endif
@@ -52,6 +55,11 @@
 // LPCXPRESSO / RED SUITE
 //--------------------------------------------------------------------+
 #if defined __CODE_RED
+
+#if CFG_PRINTF_TARGET == PRINTF_TARGET_SWO
+  #error author does not know how to retarget SWO with lpcxpresso/red-suite
+#endif
+
 // Called by bottom level of printf routine within RedLib C library to write
 // a character. With the default semihosting stub, this would write the character
 // to the debugger console window . But this version writes
@@ -60,22 +68,17 @@ int __sys_write (int iFileHandle, char *buf, int length)
 {
   (void) iFileHandle;
 
-#if CFG_PRINTF_TARGET == PRINTF_TARGET_UART
   int ret = length;
   for (int i=0; i<length; i++)
   {
     if (buf[i] == '\n')
     {
-      board_uart_putchar('\r');
+      retarget_putchar('\r');
       ret++;
     }
-    board_uart_putchar( buf[i] );
+    retarget_putchar( buf[i] );
   }
   return ret;
-#elif CFG_PRINTF_TARGET == PRINTF_TARGET_SWO
-  #error author does not know how to retarget SWO with lpcxpresso/red-suite
-#endif
-
 }
 
 // Called by bottom level of scanf routine within RedLib C library to read
@@ -92,16 +95,16 @@ int __sys_readc (void)
 //--------------------------------------------------------------------+
 #elif defined __CC_ARM // keil
 
-#if CFG_PRINTF_TARGET == PRINTF_TARGET_UART
-  #define retarget_putc(c)    board_uart_send( (uint8_t*) &c, 1);
-#elif CFG_PRINTF_TARGET == PRINTF_TARGET_SWO
-  volatile int32_t ITM_RxBuffer;
-	#define retarget_putc(c)    ITM_SendChar(c)
-#endif
-
 struct __FILE {
   uint32_t handle;
 };
+
+void _ttywrch(int ch)
+{
+  if ( ch == '\n' ) retarget_putchar('\r');
+
+  retarget_putchar(ch);
+}
 
 int fgetc(FILE *f)
 {
@@ -110,28 +113,9 @@ int fgetc(FILE *f)
 
 int fputc(int ch, FILE *f)
 {
-  if (ch == '\n')
-  {
-    uint8_t carry = '\r';
-    retarget_putc(carry);
-  }
-
-  retarget_putc(ch);
-
+  _ttywrch(ch)
   return ch;
 }
-
-void _ttywrch(int ch)
-{
-  if ( ch == '\n' )
-  {
-    uint8_t carry = '\r';
-    retarget_putc(carry);
-  }
-
-  retarget_putc(ch);
-}
-
 
 //--------------------------------------------------------------------+
 // IAR
