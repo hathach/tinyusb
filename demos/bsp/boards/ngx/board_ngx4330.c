@@ -54,7 +54,10 @@ const static struct {
 void board_init(void)
 {
   CGU_Init();
+
+#if TUSB_CFG_OS == TUSB_OS_NONE // TODO may move to main.c
   SysTick_Config( CGU_GetPCLKFrequency(CGU_PERIPHERAL_M4CORE)/CFG_TICKS_PER_SECOND );	/* 1 ms Timer */
+#endif
 
   //------------- USB Bus power HOST ONLY-------------//
   scu_pinmux(0x1, 7, MD_PUP | MD_EZI, FUNC4);	// P1_7 USB0_PWR_EN, USB0 VBus function Xplorer

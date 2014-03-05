@@ -11,6 +11,6 @@
   #include "FreeRTOSConfig_lpc175x_6x.h"
 #else
 	#error "not yet supported MCU"
-#endif /* ifdef CORE_M4 */
+#endif
 
 # endif /* __FREERTOS_CONFIG__H */
