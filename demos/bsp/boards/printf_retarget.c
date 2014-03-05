@@ -56,31 +56,22 @@
 // a character. With the default semihosting stub, this would write the character
 // to the debugger console window . But this version writes
 // the character to the UART.
-int __sys_write (int iFileHandle, char *pcBuffer, int iLength)
+int __sys_write (int iFileHandle, char *buf, int length)
 {
   (void) iFileHandle;
 
 #if CFG_PRINTF_TARGET == PRINTF_TARGET_UART
-  // following code to make \n --> \r\n
-  int length = iLength;
-  char* p_newline_pos = memchr(pcBuffer, '\n', length);
-
-  while(p_newline_pos != NULL)
+  int ret = length;
+  for (int i=0; i<length; i++)
   {
-    uint32_t chunk_len = p_newline_pos - pcBuffer;
-
-    board_uart_send((uint8_t*)pcBuffer, chunk_len);
-    board_uart_send(&"\r\n", 2);
-
-    pcBuffer += (chunk_len + 1);
-    length   -= (chunk_len + 1);
-    p_newline_pos = memchr(pcBuffer, '\n', length);
+    if (buf[i] == '\n')
+    {
+      board_uart_putchar('\r');
+      ret++;
+    }
+    board_uart_putchar( buf[i] );
   }
-
-   board_uart_send((uint8_t*)pcBuffer, length);
-
-  return iLength;
-
+  return ret;
 #elif CFG_PRINTF_TARGET == PRINTF_TARGET_SWO
   #error author does not know how to retarget SWO with lpcxpresso/red-suite
 #endif
@@ -126,7 +117,7 @@ int fputc(int ch, FILE *f)
   }
 
   retarget_putc(ch);
-  
+
   return ch;
 }
 
@@ -145,12 +136,12 @@ void _ttywrch(int ch)
 //--------------------------------------------------------------------+
 // IAR
 //--------------------------------------------------------------------+
-#elif defined __ICCARM__
+#elif 0 // defined __ICCARM__ TODO could not able to retarget to UART with IAR
 
 #if CFG_PRINTF_TARGET == PRINTF_TARGET_UART
 #include <stddef.h>
 
-size_t __write(int handle, const unsigned char *buf, size_t bufSize)
+size_t __write(int handle, const unsigned char *buf, size_t length)
 {
   /* Check for the command to flush all handles */
   if (handle == -1) return 0;
@@ -158,13 +149,18 @@ size_t __write(int handle, const unsigned char *buf, size_t bufSize)
   /* Check for stdout and stderr (only necessary if FILE descriptors are enabled.) */
   if (handle != 1 && handle != 2) return -1;
 
-  for (size_t i=0; i<bufSize; i++)
+  size_t ret = length;
+  for (size_t i=0; i<length; i++)
   {
-    if (buf[i] == '\n') board_uart_putchar('\r');
+    if (buf[i] == '\n')
+    {
+      board_uart_putchar('\r');
+      ret++;
+    }
     board_uart_putchar( buf[i] );
   }
 
-  return bufSize;
+  return ret;
 }
 
 size_t __read(int handle, unsigned char *buf, size_t bufSize)
@@ -172,7 +168,7 @@ size_t __read(int handle, unsigned char *buf, size_t bufSize)
   /* Check for stdin (only necessary if FILE descriptors are enabled) */
   if (handle != 0) return -1;
 
-  size_t i;
+  /*size_t i;
   for (i=0; i<bufSize; i++)
   {
     uint8_t ch = board_uart_getchar();
@@ -180,7 +176,8 @@ size_t __read(int handle, unsigned char *buf, size_t bufSize)
     buf[i] = ch;
   }
 
-  return i;
+  return i; */
+  return 0;
 }
 
 #endif

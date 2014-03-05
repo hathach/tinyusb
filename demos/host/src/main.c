@@ -158,7 +158,7 @@ int main(void)
 OSAL_TASK_FUNCTION( led_blinking_task ) (void* p_task_para)
 {
   static uint32_t led_on_mask = 0;
-  
+
   OSAL_TASK_LOOP_BEGIN
 
   osal_task_delay(1000);
@@ -174,7 +174,7 @@ OSAL_TASK_FUNCTION( led_blinking_task ) (void* p_task_para)
 //--------------------------------------------------------------------+
 void print_greeting(void)
 {
-  printf("\n\
+  puts("\n\
 --------------------------------------------------------------------\n\
 -                     Host Demo (a tinyusb example)\n\
 - if you find any bugs or get any questions, feel free to file an\n\
@@ -189,4 +189,3 @@ void print_greeting(void)
   if (TUSB_CFG_HOST_MSC          ) puts("  - Mass Storage");
   if (TUSB_CFG_HOST_CDC          ) puts("  - Communication Device Class");
 }
-

@@ -121,8 +121,8 @@ uint8_t  board_uart_getchar(void)
   return UART_ReceiveByte(BOARD_UART_PORT);
 }
 
-//void board_uart_putchar(uint8_t c)
-//{
-//
-//}
+void board_uart_putchar(uint8_t c)
+{
+  UART_Send(BOARD_UART_PORT, &c, 1, BLOCKING);
+}
 #endif
