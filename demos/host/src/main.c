@@ -179,7 +179,7 @@ void print_greeting(void)
 -                     Host Demo (a tinyusb example)\n\
 - if you find any bugs or get any questions, feel free to file an\n\
 - issue at https://github.com/hathach/tinyusb\n\
---------------------------------------------------------------------\n\n"
+--------------------------------------------------------------------\n"
   );
 
   puts("This demo supports the following classes");

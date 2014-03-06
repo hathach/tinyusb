@@ -3238,7 +3238,7 @@
         </option>
         <option>
           <name>OCProbeConfig</name>
-          <state></state>
+          <state>$TOOLKIT_DIR$\config\debugger\NXP\LPC43xx.ProbeConfig</state>
         </option>
         <option>
           <name>IjetProbeConfigRadio</name>
@@ -3450,7 +3450,7 @@
         </option>
         <option>
           <name>OCJLinkTraceSource</name>
-          <state>1</state>
+          <state>0</state>
         </option>
         <option>
           <name>OCJLinkTraceSourceDummy</name>
