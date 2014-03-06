@@ -54,9 +54,12 @@
 #ifndef FREERTOS_CONFIG_H
 #define FREERTOS_CONFIG_H
 
-#include <stdint.h>
+#ifndef __IASMARM__ // IAR assblemer portarm.s need to include this file but cannot understand <stdint.h>
 
+#include <stdint.h>
 extern uint32_t SystemCoreClock;
+
+#endif
 
 /*-----------------------------------------------------------
  * Application specific definitions.
@@ -152,7 +155,7 @@ standard names. */
 #define xPortPendSVHandler    PendSV_Handler
 #define xPortSysTickHandler   SysTick_Handler
 
-#ifdef __CODE_RED
+#ifdef __CODE_RED // cr_startup_lpc176x.c use different name for SVC_Hanlder
 #define vPortSVCHandler       SVCall_Handler
 #else
 #define vPortSVCHandler       SVC_Handler

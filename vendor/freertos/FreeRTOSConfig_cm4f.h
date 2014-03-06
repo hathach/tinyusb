@@ -55,10 +55,14 @@
 #ifndef FREERTOS_CONFIG_H
 #define FREERTOS_CONFIG_H
 
+#ifndef __IASMARM__ // IAR assblemer portarm.s need to include this file but cannot understand <stdint.h>
+
 #include "LPC43xx.h"
 #include "core_cm4.h"
 #include "lpc43xx_cgu.h"
 #include "hal/hal.h"
+
+#endif
 
 /*-----------------------------------------------------------
  * Application specific definitions.

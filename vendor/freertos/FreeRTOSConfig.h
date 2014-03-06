@@ -16,4 +16,4 @@
 	#error "not yet supported MCU"
 #endif
 
-# endif /* __FREERTOS_CONFIG__H */
+#endif /* __FREERTOS_CONFIG__H */

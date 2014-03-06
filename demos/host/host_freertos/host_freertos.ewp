@@ -456,11 +456,7 @@
         </option>
         <option>
           <name>ADefines</name>
-          <state>CORE_M4</state>
-          <state>TUSB_CFG_MCU=MCU_LPC43XX</state>
-          <state>BOARD=BOARD_EA4357</state>
-          <state>TUSB_CFG_OS=TUSB_OS_FREERTOS</state>
-          <state>TUSB_CFG_OS_TASK_PRIO=configMAX_PRIORITIES-5</state>
+          <state></state>
         </option>
         <option>
           <name>AList</name>
@@ -556,8 +552,6 @@
         </option>
         <option>
           <name>AUserIncludes</name>
-          <state>$PROJ_DIR$\..\src</state>
-          <state>$PROJ_DIR$\..\..\..\tinyusb</state>
           <state>$PROJ_DIR$\..\..\..\vendor\freertos</state>
         </option>
         <option>
@@ -1098,7 +1092,8 @@
           <name>CCDefines</name>
           <state>TUSB_CFG_MCU=MCU_LPC175X_6X</state>
           <state>BOARD=BOARD_LPCXPRESSO1769</state>
-          <state>TUSB_CFG_OS=TUSB_OS_NONE</state>
+          <state>TUSB_CFG_OS=TUSB_OS_FREERTOS</state>
+          <state>TUSB_CFG_OS_TASK_PRIO=configMAX_PRIORITIES-5</state>
         </option>
         <option>
           <name>CCPreprocFile</name>
@@ -1233,6 +1228,8 @@
           <state>$PROJ_DIR$\..\..\bsp</state>
           <state>$PROJ_DIR$\..\..\..\tinyusb</state>
           <state>$PROJ_DIR$\..\..\..\vendor\fatfs</state>
+          <state>$PROJ_DIR$\..\..\..\vendor\freertos</state>
+          <state>$PROJ_DIR$\..\..\..\vendor\freertos\freertos\Source\include</state>
         </option>
         <option>
           <name>CCStdIncCheck</name>
@@ -1481,7 +1478,7 @@
         </option>
         <option>
           <name>AUserIncludes</name>
-          <state></state>
+          <state>$PROJ_DIR$\..\..\..\vendor\freertos</state>
         </option>
         <option>
           <name>AExtraOptionsCheckV2</name>
@@ -2898,7 +2895,22 @@
   <group>
     <name>freertos</name>
     <group>
+      <name>CM3</name>
+      <excluded>
+        <configuration>Board EA4357</configuration>
+      </excluded>
+      <file>
+        <name>$PROJ_DIR$\..\..\..\vendor\freertos\freertos\Source\portable\IAR\ARM_CM3\port.c</name>
+      </file>
+      <file>
+        <name>$PROJ_DIR$\..\..\..\vendor\freertos\freertos\Source\portable\IAR\ARM_CM3\portasm.s</name>
+      </file>
+    </group>
+    <group>
       <name>CM4F</name>
+      <excluded>
+        <configuration>Board LPCXpresso1769</configuration>
+      </excluded>
       <file>
         <name>$PROJ_DIR$\..\..\..\vendor\freertos\freertos\Source\portable\IAR\ARM_CM4F\port.c</name>
       </file>

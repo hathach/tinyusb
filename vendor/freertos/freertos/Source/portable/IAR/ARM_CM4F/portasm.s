@@ -1,7 +1,7 @@
 /*
     FreeRTOS V7.3.0 - Copyright (C) 2012 Real Time Engineers Ltd.
 
-    FEATURES AND PORTS ARE ADDED TO FREERTOS ALL THE TIME.  PLEASE VISIT 
+    FEATURES AND PORTS ARE ADDED TO FREERTOS ALL THE TIME.  PLEASE VISIT
     http://www.FreeRTOS.org TO ENSURE YOU ARE USING THE LATEST VERSION.
 
     ***************************************************************************
@@ -42,7 +42,7 @@
     FreeRTOS WEB site.
 
     1 tab == 4 spaces!
-    
+
     ***************************************************************************
      *                                                                       *
      *    Having a problem?  Start by reading the FAQ "My application does   *
@@ -52,21 +52,21 @@
      *                                                                       *
     ***************************************************************************
 
-    
-    http://www.FreeRTOS.org - Documentation, training, latest versions, license 
-    and contact details.  
-    
+
+    http://www.FreeRTOS.org - Documentation, training, latest versions, license
+    and contact details.
+
     http://www.FreeRTOS.org/plus - A selection of FreeRTOS ecosystem products,
     including FreeRTOS+Trace - an indispensable productivity tool.
 
-    Real Time Engineers ltd license FreeRTOS to High Integrity Systems, who sell 
-    the code with commercial support, indemnification, and middleware, under 
+    Real Time Engineers ltd license FreeRTOS to High Integrity Systems, who sell
+    the code with commercial support, indemnification, and middleware, under
     the OpenRTOS brand: http://www.OpenRTOS.com.  High Integrity Systems also
-    provide a safety engineered and independently SIL3 certified version under 
+    provide a safety engineered and independently SIL3 certified version under
     the SafeRTOS brand: http://www.SafeRTOS.com.
 */
 
-#include <FreeRTOSConfig.h>
+#include <FreeRTOSConfig_cm4f.h>
 
 	RSEG    CODE:CODE(2)
 	thumb
@@ -85,11 +85,11 @@
 /*-----------------------------------------------------------*/
 
 xPortPendSVHandler:
-	mrs r0, psp						
-	
+	mrs r0, psp
+
 	/* Get the location of the current TCB. */
-	ldr	r3, =pxCurrentTCB			
-	ldr	r2, [r3]						
+	ldr	r3, =pxCurrentTCB
+	ldr	r2, [r3]
 
 	/* Is the task using the FPU context?  If so, push high vfp registers. */
 	tst r14, #0x10
@@ -97,34 +97,34 @@ xPortPendSVHandler:
 	vstmdbeq r0!, {s16-s31}
 
 	/* Save the core registers. */
-	stmdb r0!, {r4-r11, r14}				
-	
+	stmdb r0!, {r4-r11, r14}
+
 	/* Save the new top of stack into the first member of the TCB. */
 	str r0, [r2]
-	
+
 	stmdb sp!, {r3, r14}
 	mov r0, #configMAX_SYSCALL_INTERRUPT_PRIORITY
 	msr basepri, r0
-	bl vTaskSwitchContext			
+	bl vTaskSwitchContext
 	mov r0, #0
 	msr basepri, r0
 	ldmia sp!, {r3, r14}
 
 	/* The first item in pxCurrentTCB is the task top of stack. */
-	ldr r1, [r3]	
+	ldr r1, [r3]
 	ldr r0, [r1]
-	
+
 	/* Pop the core registers. */
 	ldmia r0!, {r4-r11, r14}
 
-	/* Is the task using the FPU context?  If so, pop the high vfp registers 
+	/* Is the task using the FPU context?  If so, pop the high vfp registers
 	too. */
 	tst r14, #0x10
 	it eq
 	vldmiaeq r0!, {s16-s31}
-	
-	msr psp, r0						
-	bx r14							
+
+	msr psp, r0
+	bx r14
 
 
 /*-----------------------------------------------------------*/
@@ -134,7 +134,7 @@ ulPortSetInterruptMask:
 	mov r1, #configMAX_SYSCALL_INTERRUPT_PRIORITY
 	msr basepri, r1
 	bx r14
-	
+
 /*-----------------------------------------------------------*/
 
 vPortClearInterruptMask:
@@ -152,7 +152,7 @@ vPortSVCHandler:
 	ldmia r0!, {r4-r11, r14}
 	msr psp, r0
 	mov r0, #0
-	msr	basepri, r0	
+	msr	basepri, r0
 	bx r14
 
 /*-----------------------------------------------------------*/
@@ -174,13 +174,13 @@ vPortEnableVFP:
 	/* The FPU enable bits are in the CPACR. */
 	ldr.w r0, =0xE000ED88
 	ldr	r1, [r0]
-	
+
 	/* Enable CP10 and CP11 coprocessors, then save back. */
 	orr	r1, r1, #( 0xf << 20 )
 	str r1, [r0]
-	bx	r14	
-	
+	bx	r14
+
 
 
 	END
-	
+
