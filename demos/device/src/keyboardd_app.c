@@ -54,14 +54,12 @@ OSAL_TASK_DEF(keyboardd_app_task, 128, KEYBOARDD_APP_TASK_PRIO);
 
 ATTR_USB_MIN_ALIGNMENT hid_keyboard_report_t keyboard_report TUSB_CFG_ATTR_USBRAM;
 
-static uint8_t keyboardd_report_count; // number of reports sent each mounted
-
 //--------------------------------------------------------------------+
 // tinyusb Callbacks
 //--------------------------------------------------------------------+
 void tusbd_hid_keyboard_mounted_cb(uint8_t coreid)
 {
-  keyboardd_report_count = 0;
+
 }
 
 void tusbd_hid_keyboard_unmounted_cb(uint8_t coreid)
@@ -135,7 +133,7 @@ OSAL_TASK_FUNCTION( keyboardd_app_task ) (void* p_task_para)
 
     uint32_t new_button_mask = board_buttons();
 
-    //------------- Key pressed -------------//
+    //------------- button pressed -------------//
     if ( (button_mask != new_button_mask) && !tusbd_hid_keyboard_is_busy(0) )
     {
       button_mask = new_button_mask;

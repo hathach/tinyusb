@@ -54,14 +54,12 @@ OSAL_TASK_DEF(moused_app_task, 128, MOUSED_APP_TASK_PRIO);
 
 ATTR_USB_MIN_ALIGNMENT hid_mouse_report_t mouse_report TUSB_CFG_ATTR_USBRAM;
 
-static uint8_t moused_report_count; // number of reports sent each mounted
-
 //--------------------------------------------------------------------+
 // tinyusb Callbacks
 //--------------------------------------------------------------------+
 void tusbd_hid_mouse_mounted_cb(uint8_t coreid)
 {
-  moused_report_count = 0;
+
 }
 
 void tusbd_hid_mouse_unmounted_cb(uint8_t coreid)
@@ -90,8 +88,7 @@ uint16_t tusbd_hid_mouse_get_report_cb(uint8_t coreid, hid_request_report_type_t
 
 void tusbd_hid_mouse_set_report_cb(uint8_t coreid, hid_request_report_type_t report_type, uint8_t report_data[], uint16_t length)
 {
-  // mouse demo does not support set report --> return 0 will result in rejecting (STALL) this request
-  return 0;
+  // mouse demo does not support set report --> do nothing
 }
 //--------------------------------------------------------------------+
 // APPLICATION CODE
@@ -105,17 +102,24 @@ OSAL_TASK_FUNCTION( moused_app_task ) (void* p_task_para)
 {
   OSAL_TASK_LOOP_BEGIN
 
-  // only send 5 reports
-  if (tusbd_is_configured(0) && (moused_report_count++ < 5) )
+  osal_task_delay(100);
+
+  if ( tusbd_is_configured(0) )
   {
-    if ( !tusbd_hid_mouse_is_busy(0) )
+    static uint32_t button_mask = 0;
+
+    uint32_t new_button_mask = board_buttons();
+
+    //------------- button pressed -------------//
+    if ( (button_mask != new_button_mask) && !tusbd_hid_mouse_is_busy(0) )
     {
-      mouse_report.x = mouse_report.y = 20;
+      button_mask = new_button_mask;
+
+      mouse_report.x = mouse_report.y = BIT_TEST_(button_mask, 0) ? 10 : 0;
+
       tusbd_hid_mouse_send(0, &mouse_report );
     }
   }
-
-  osal_task_delay(1000);
 
   OSAL_TASK_LOOP_END
 }
