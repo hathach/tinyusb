@@ -46,10 +46,7 @@
 #include "boards/board.h"
 #include "tusb.h"
 
-#if TUSB_CFG_OS != TUSB_OS_NONE
 #include "app_os_prio.h"
-#endif
-
 #include "mouse_app.h"
 #include "keyboard_app.h"
 #include "msc_app.h"

@@ -62,11 +62,11 @@
 
 #include "mcu_capacity.h"
 
-#ifdef TUSB_CFG_CONFIG_FILE
-  #include TUSB_CFG_CONFIG_FILE
-#else
-  #include "tusb_config.h"
+#ifndef TUSB_CFG_CONFIG_FILE
+  #define TUSB_CFG_CONFIG_FILE "tusb_config.h"
 #endif
+
+#include TUSB_CFG_CONFIG_FILE
 
 //--------------------------------------------------------------------+
 // CONTROLLER

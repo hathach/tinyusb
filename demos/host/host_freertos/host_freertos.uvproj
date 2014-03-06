@@ -350,7 +350,7 @@
               <MiscControls>--gnu --c99 --diag_suppress=66</MiscControls>
               <Define>CORE_M4 TUSB_CFG_MCU=MCU_LPC43XX BOARD=BOARD_EA4357 TUSB_CFG_OS=TUSB_OS_FREERTOS TUSB_CFG_OS_TASK_PRIO=configMAX_PRIORITIES-5</Define>
               <Undefine></Undefine>
-              <IncludePath>..\src;..\..\bsp\lpc43xx\CMSIS_LPC43xx_DriverLib\inc;..\..\bsp;..\..\..\tinyusb;..\..\..\vendor\freertos;..\..\..\vendor\freertos\freertos\Source\include;..\host_freertos;..\..\..\vendor\fatfs</IncludePath>
+              <IncludePath>..\src;..\..\bsp\lpc43xx\CMSIS_LPC43xx_DriverLib\inc;..\..\bsp;..\..\..\tinyusb;..\..\..\vendor\freertos;..\..\..\vendor\freertos\freertos\Source\include;..\..\..\vendor\fatfs</IncludePath>
             </VariousControls>
           </Cads>
           <Aads>
@@ -2020,7 +2020,7 @@
               <MiscControls>--gnu --c99 --diag_suppress=66</MiscControls>
               <Define>TUSB_CFG_MCU=MCU_LPC175X_6X BOARD=BOARD_LPCXPRESSO1769  TUSB_CFG_OS=TUSB_OS_FREERTOS TUSB_CFG_OS_TASK_PRIO=configMAX_PRIORITIES-5</Define>
               <Undefine></Undefine>
-              <IncludePath>..\src;..\..\bsp\lpc175x_6x\CMSISv2p00_LPC17xx\inc;..\..\bsp\lpc175x_6x\LPC17xx_DriverLib\include;..\..\bsp;..\..\..\tinyusb;..\..\..\vendor\freertos;..\..\..\vendor\freertos\freertos\Source\include;..\host_freertos;..\..\..\vendor\fatfs</IncludePath>
+              <IncludePath>..\src;..\..\bsp\lpc175x_6x\CMSISv2p00_LPC17xx\inc;..\..\bsp\lpc175x_6x\LPC17xx_DriverLib\include;..\..\bsp;..\..\..\tinyusb;..\..\..\vendor\freertos;..\..\..\vendor\freertos\freertos\Source\include;..\..\..\vendor\fatfs</IncludePath>
             </VariousControls>
           </Cads>
           <Aads>
@@ -2855,7 +2855,7 @@
               <MiscControls>--gnu --c99 --diag_suppress=66</MiscControls>
               <Define>CORE_M4 TUSB_CFG_MCU=MCU_LPC43XX BOARD=BOARD_NGX4330 TUSB_CFG_OS=TUSB_OS_FREERTOS TUSB_CFG_OS_TASK_PRIO=configMAX_PRIORITIES-5</Define>
               <Undefine></Undefine>
-              <IncludePath>..\src;..\..\bsp\lpc43xx\CMSIS_LPC43xx_DriverLib\inc;..\..\bsp;..\..\..\tinyusb;..\..\..\vendor\freertos;..\..\..\vendor\freertos\freertos\Source\include;..\host_freertos;..\..\..\vendor\fatfs</IncludePath>
+              <IncludePath>..\src;..\..\bsp\lpc43xx\CMSIS_LPC43xx_DriverLib\inc;..\..\bsp;..\..\..\tinyusb;..\..\..\vendor\freertos;..\..\..\vendor\freertos\freertos\Source\include;..\..\..\vendor\fatfs</IncludePath>
             </VariousControls>
           </Cads>
           <Aads>

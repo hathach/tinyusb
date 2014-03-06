@@ -167,7 +167,8 @@
           <state>CORE_M4</state>
           <state>TUSB_CFG_MCU=MCU_LPC43XX</state>
           <state>BOARD=BOARD_EA4357</state>
-          <state>TUSB_CFG_OS=TUSB_OS_NONE</state>
+          <state>TUSB_CFG_OS=TUSB_OS_FREERTOS</state>
+          <state>TUSB_CFG_OS_TASK_PRIO=configMAX_PRIORITIES-5</state>
         </option>
         <option>
           <name>CCPreprocFile</name>
@@ -301,6 +302,8 @@
           <state>$PROJ_DIR$\..\..\bsp</state>
           <state>$PROJ_DIR$\..\..\..\tinyusb</state>
           <state>$PROJ_DIR$\..\..\..\vendor\fatfs</state>
+          <state>$PROJ_DIR$\..\..\..\vendor\freertos</state>
+          <state>$PROJ_DIR$\..\..\..\vendor\freertos\freertos\Source\include</state>
         </option>
         <option>
           <name>CCStdIncCheck</name>
@@ -2884,6 +2887,39 @@
     </file>
     <file>
       <name>$PROJ_DIR$\..\..\..\vendor\fatfs\ff.c</name>
+    </file>
+  </group>
+  <group>
+    <name>freertos</name>
+    <group>
+      <name>CM4F</name>
+      <file>
+        <name>$PROJ_DIR$\..\..\..\vendor\freertos\freertos\Source\portable\IAR\ARM_CM4F\port.c</name>
+      </file>
+      <file>
+        <name>$PROJ_DIR$\..\..\..\vendor\freertos\freertos\Source\portable\IAR\ARM_CM4F\portasm.s</name>
+      </file>
+    </group>
+    <file>
+      <name>$PROJ_DIR$\..\..\..\vendor\freertos\freertos\Source\croutine.c</name>
+    </file>
+    <file>
+      <name>$PROJ_DIR$\..\..\..\vendor\freertos\freertoslpc\FreeRTOSCommonHooks.c</name>
+    </file>
+    <file>
+      <name>$PROJ_DIR$\..\..\..\vendor\freertos\freertos\Source\portable\MemMang\heap_4.c</name>
+    </file>
+    <file>
+      <name>$PROJ_DIR$\..\..\..\vendor\freertos\freertos\Source\list.c</name>
+    </file>
+    <file>
+      <name>$PROJ_DIR$\..\..\..\vendor\freertos\freertos\Source\queue.c</name>
+    </file>
+    <file>
+      <name>$PROJ_DIR$\..\..\..\vendor\freertos\freertos\Source\tasks.c</name>
+    </file>
+    <file>
+      <name>$PROJ_DIR$\..\..\..\vendor\freertos\freertos\Source\timers.c</name>
     </file>
   </group>
   <group>

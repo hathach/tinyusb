@@ -40,11 +40,7 @@
 // INCLUDE
 //--------------------------------------------------------------------+
 #include "mouse_app.h"
-
-#if TUSB_CFG_OS != TUSB_OS_NONE
 #include "app_os_prio.h"
-#endif
-
 
 #if TUSB_CFG_HOST_HID_MOUSE
 

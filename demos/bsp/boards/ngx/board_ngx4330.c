@@ -75,16 +75,16 @@ void board_init(void)
 
 #if CFG_UART_ENABLE
   //------------- UART init -------------//
+  scu_pinmux(0x6 ,4, MD_PDN | MD_EZI, FUNC2); 	// UART0_TXD
+  scu_pinmux(0x6 ,5, MD_PDN | MD_EZI, FUNC2); 	// UART0_RXD
+
   UART_CFG_Type UARTConfigStruct;
-
-  scu_pinmux(0x6 ,4, MD_PDN|MD_EZI, FUNC2); 	// UART0_TXD
-  scu_pinmux(0x6 ,5, MD_PDN|MD_EZI, FUNC2); 	// UART0_RXD
-
   UART_ConfigStructInit(&UARTConfigStruct);                   // default: baud = 9600, 8 bit data, 1 stop bit, no parity
-  UARTConfigStruct.Baud_rate = CFG_UART_BAUDRATE;             // Re-configure baudrate
+  UARTConfigStruct.Baud_rate   = CFG_UART_BAUDRATE;           // Re-configure baudrate
+  UARTConfigStruct.Clock_Speed = 0;
 
-  UART_Init((LPC_USARTn_Type*) LPC_USART0, &UARTConfigStruct); // Initialize UART port
-  UART_TxCmd((LPC_USARTn_Type*) LPC_USART0, ENABLE);           // Enable UART
+  UART_Init(BOARD_UART_PORT, &UARTConfigStruct);
+  UART_TxCmd(BOARD_UART_PORT, ENABLE);           // Enable UART
 #endif
 
 }

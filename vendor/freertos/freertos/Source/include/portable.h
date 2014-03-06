@@ -1,7 +1,7 @@
 /*
     FreeRTOS V7.3.0 - Copyright (C) 2012 Real Time Engineers Ltd.
 
-    FEATURES AND PORTS ARE ADDED TO FREERTOS ALL THE TIME.  PLEASE VISIT 
+    FEATURES AND PORTS ARE ADDED TO FREERTOS ALL THE TIME.  PLEASE VISIT
     http://www.FreeRTOS.org TO ENSURE YOU ARE USING THE LATEST VERSION.
 
     ***************************************************************************
@@ -42,7 +42,7 @@
     FreeRTOS WEB site.
 
     1 tab == 4 spaces!
-    
+
     ***************************************************************************
      *                                                                       *
      *    Having a problem?  Start by reading the FAQ "My application does   *
@@ -52,17 +52,17 @@
      *                                                                       *
     ***************************************************************************
 
-    
-    http://www.FreeRTOS.org - Documentation, training, latest versions, license 
-    and contact details.  
-    
+
+    http://www.FreeRTOS.org - Documentation, training, latest versions, license
+    and contact details.
+
     http://www.FreeRTOS.org/plus - A selection of FreeRTOS ecosystem products,
     including FreeRTOS+Trace - an indispensable productivity tool.
 
-    Real Time Engineers ltd license FreeRTOS to High Integrity Systems, who sell 
-    the code with commercial support, indemnification, and middleware, under 
+    Real Time Engineers ltd license FreeRTOS to High Integrity Systems, who sell
+    the code with commercial support, indemnification, and middleware, under
     the OpenRTOS brand: http://www.OpenRTOS.com.  High Integrity Systems also
-    provide a safety engineered and independently SIL3 certified version under 
+    provide a safety engineered and independently SIL3 certified version under
     the SafeRTOS brand: http://www.SafeRTOS.com.
 */
 
@@ -73,8 +73,39 @@
 #ifndef PORTABLE_H
 #define PORTABLE_H
 
-/* Include the macro file relevant to the port being used. */
+//--------------------------------------------------------------------+
+// TinyUSB modification
+//--------------------------------------------------------------------+
+#if defined __CC_ARM
+  #if __CORTEX_M == 4 // TODO M0 M4
+    #define PORTMACRO_PATH "../portable/RVDS/ARM_CM4F/portmacro.h"
+  #elif __CORTEX_M == 3
+    #define PORTMACRO_PATH "../portable/RVDS/ARM_CM3/portmacro.h"
+  #endif
 
+#elif defined __GNUC__
+  #if __CORTEX_M == 4 // TODO M0 M4
+    #define PORTMACRO_PATH "../portable/GCC/ARM_CM4F/portmacro.h"
+  #elif __CORTEX_M == 3
+    #define PORTMACRO_PATH "../portable/GCC/ARM_CM3/portmacro.h"
+  #endif
+
+#elif defined __ICCARM__
+  #if __CORTEX_M == 4 // TODO M0 M4
+    #define PORTMACRO_PATH "../portable/IAR/ARM_CM4F/portmacro.h"
+  #elif __CORTEX_M == 3
+    #define PORTMACRO_PATH "../portable/IAR/ARM_CM3/portmacro.h"
+  #endif
+
+#endif
+
+#ifndef PORTMACRO_PATH
+  #error portmacro.h path is not defined for this toolchain and/or MCU
+#endif
+
+#include PORTMACRO_PATH
+
+/* Include the macro file relevant to the port being used. */
 #ifdef OPEN_WATCOM_INDUSTRIAL_PC_PORT
 	#include "..\..\Source\portable\owatcom\16bitdos\pc\portmacro.h"
 	typedef void ( __interrupt __far *pxISR )();
@@ -130,9 +161,9 @@
 #endif
 
 #ifdef IAR_MSP430
-	#include "..\..\Source\portable\IAR\MSP430\portmacro.h"	
+	#include "..\..\Source\portable\IAR\MSP430\portmacro.h"
 #endif
-	
+
 #ifdef GCC_MSP430
 	#include "../../Source/portable/GCC/MSP430F449/portmacro.h"
 #endif
@@ -168,7 +199,7 @@
 #ifdef STR75X_IAR
 	#include "..\..\Source\portable\IAR\STR75x\portmacro.h"
 #endif
-	
+
 #ifdef STR75X_GCC
 	#include "..\..\Source\portable\GCC\STR75x\portmacro.h"
 #endif
@@ -176,7 +207,7 @@
 #ifdef STR91X_IAR
 	#include "..\..\Source\portable\IAR\STR91x\portmacro.h"
 #endif
-	
+
 #ifdef GCC_H8S
 	#include "../../Source/portable/GCC/H8S2329/portmacro.h"
 #endif
@@ -204,10 +235,10 @@
 #ifdef IAR_ARMCM3_LM
 	#include "../../Source/portable/IAR/ARM_CM3/portmacro.h"
 #endif
-	
+
 #ifdef HCS12_CODE_WARRIOR
 	#include "../../Source/portable/CodeWarrior/HCS12/portmacro.h"
-#endif	
+#endif
 
 #ifdef MICROBLAZE_GCC
 	#include "../../Source/portable/GCC/MicroBlaze/portmacro.h"
@@ -307,35 +338,10 @@
 #ifdef __IAR_78K0R_Kx3__
 	#include "../../Source/portable/IAR/78K0R/portmacro.h"
 #endif
-	
+
 #ifdef __IAR_78K0R_Kx3L__
 	#include "../../Source/portable/IAR/78K0R/portmacro.h"
 #endif
-
-//--------------------------------------------------------------------+
-// TinyUSB modification
-//--------------------------------------------------------------------+
-#if defined __CC_ARM
-  #if __CORTEX_M == 4 // TODO M0 M4
-    #define PORTMACRO_PATH "../portable/RVDS/ARM_CM4F/portmacro.h"
-  #elif __CORTEX_M == 3
-    #define PORTMACRO_PATH "../portable/RVDS/ARM_CM3/portmacro.h"
-  #endif
-
-#elif defined __GNUC__
-  #if __CORTEX_M == 4 // TODO M0 M4
-    #define PORTMACRO_PATH "../portable/GCC/ARM_CM4F/portmacro.h"
-  #elif __CORTEX_M == 3
-    #define PORTMACRO_PATH "../portable/GCC/ARM_CM3/portmacro.h"
-  #endif
-#endif
-
-#ifndef PORTMACRO_PATH
-  #error portmacro.h path is not defined for this toolchain and/or MCU
-#endif
-
-#include PORTMACRO_PATH
-
 
 /* Catch all to ensure portmacro.h is included in the build.  Newer demos
 have the path as part of the project options, rather than as relative from
@@ -344,9 +350,9 @@ portmacro.h has not yet been included - as every portmacro.h provides a
 portENTER_CRITICAL() definition.  Check the demo application for your demo
 to find the path to the correct portmacro.h file. */
 #ifndef portENTER_CRITICAL
-	#include "portmacro.h"	
+	#include "portmacro.h"
 #endif
-	
+
 #if portBYTE_ALIGNMENT == 8
 	#define portBYTE_ALIGNMENT_MASK ( 0x0007 )
 #endif
@@ -417,7 +423,7 @@ void vPortEndScheduler( void ) PRIVILEGED_FUNCTION;
  * Fills the xMPUSettings structure with the memory region information
  * contained in xRegions.
  */
-#if( portUSING_MPU_WRAPPERS == 1 ) 
+#if( portUSING_MPU_WRAPPERS == 1 )
 	struct xMEMORY_REGION;
 	void vPortStoreTaskMPUSettings( xMPU_SETTINGS *xMPUSettings, const struct xMEMORY_REGION * const xRegions, portSTACK_TYPE *pxBottomOfStack, unsigned short usStackDepth ) PRIVILEGED_FUNCTION;
 #endif
