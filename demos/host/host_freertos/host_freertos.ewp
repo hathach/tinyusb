@@ -579,7 +579,7 @@
         </option>
         <option>
           <name>OOCOutputFile</name>
-          <state>host_os_none.srec</state>
+          <state>host_freertos.srec</state>
         </option>
         <option>
           <name>OOCCommandLineProducer</name>
@@ -633,7 +633,7 @@
         </option>
         <option>
           <name>IlinkOutputFile</name>
-          <state>host_os_none.out</state>
+          <state>host_freertos.out</state>
         </option>
         <option>
           <name>IlinkDebugInfoEnable</name>
@@ -1502,7 +1502,7 @@
         </option>
         <option>
           <name>OOCOutputFile</name>
-          <state>host_os_none.srec</state>
+          <state>host_freertos.srec</state>
         </option>
         <option>
           <name>OOCCommandLineProducer</name>
@@ -1556,7 +1556,7 @@
         </option>
         <option>
           <name>IlinkOutputFile</name>
-          <state>host_os_none.out</state>
+          <state>host_freertos.out</state>
         </option>
         <option>
           <name>IlinkDebugInfoEnable</name>
@@ -2425,7 +2425,7 @@
         </option>
         <option>
           <name>OOCOutputFile</name>
-          <state>host_os_none.srec</state>
+          <state>host_freertos.srec</state>
         </option>
         <option>
           <name>OOCCommandLineProducer</name>
@@ -2479,7 +2479,7 @@
         </option>
         <option>
           <name>IlinkOutputFile</name>
-          <state>host_os_none.out</state>
+          <state>host_freertos.out</state>
         </option>
         <option>
           <name>IlinkDebugInfoEnable</name>

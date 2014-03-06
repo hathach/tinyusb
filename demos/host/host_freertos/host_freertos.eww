@@ -2,7 +2,7 @@
 
 <workspace>
   <project>
-    <path>$WS_DIR$\host_os_none.ewp</path>
+    <path>$WS_DIR$\host_freertos.ewp</path>
   </project>
   <batchBuild/>
 </workspace>

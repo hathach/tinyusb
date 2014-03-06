@@ -697,7 +697,7 @@
         </option>
         <option>
           <name>JLinkInitialSpeed</name>
-          <state>5000</state>
+          <state>32</state>
         </option>
         <option>
           <name>CCDoJlinkMultiTarget</name>
@@ -774,7 +774,7 @@
         </option>
         <option>
           <name>CCJLinkInterfaceRadio</name>
-          <state>1</state>
+          <state>0</state>
         </option>
         <option>
           <name>OCJLinkAttachSlave</name>
@@ -848,7 +848,7 @@
         </option>
         <option>
           <name>CCSwoClockAuto</name>
-          <state>1</state>
+          <state>0</state>
         </option>
         <option>
           <name>CCSwoClockEdit</name>
@@ -1342,7 +1342,7 @@
         </option>
         <option>
           <name>MemFile</name>
-          <state>$TOOLKIT_DIR$\CONFIG\debugger\NXP\LPC1769.ddf</state>
+          <state></state>
         </option>
         <option>
           <name>RunToEnable</name>
@@ -1382,11 +1382,11 @@
         </option>
         <option>
           <name>OCDynDriverList</name>
-          <state>JLINK_ID</state>
+          <state>ARMSIM_ID</state>
         </option>
         <option>
           <name>OCLastSavedByProductVersion</name>
-          <state>6.50.5.4846</state>
+          <state></state>
         </option>
         <option>
           <name>OCDownloadAttachToProgram</name>
@@ -1414,7 +1414,7 @@
         </option>
         <option>
           <name>FlashLoadersV3</name>
-          <state>$TOOLKIT_DIR$\config\flashloader\NXP\FlashNXPLPC512K_Cortex.board</state>
+          <state></state>
         </option>
         <option>
           <name>OCImagesSuppressCheck1</name>
@@ -1994,7 +1994,7 @@
         </option>
         <option>
           <name>JLinkInitialSpeed</name>
-          <state>5000</state>
+          <state>32</state>
         </option>
         <option>
           <name>CCDoJlinkMultiTarget</name>
@@ -2071,7 +2071,7 @@
         </option>
         <option>
           <name>CCJLinkInterfaceRadio</name>
-          <state>1</state>
+          <state>0</state>
         </option>
         <option>
           <name>OCJLinkAttachSlave</name>
@@ -2080,7 +2080,7 @@
         <option>
           <name>CCJLinkResetList</name>
           <version>6</version>
-          <state>7</state>
+          <state>5</state>
         </option>
         <option>
           <name>CCJLinkInterfaceCmdLine</name>
@@ -2145,7 +2145,7 @@
         </option>
         <option>
           <name>CCSwoClockAuto</name>
-          <state>1</state>
+          <state>0</state>
         </option>
         <option>
           <name>CCSwoClockEdit</name>
@@ -2153,7 +2153,7 @@
         </option>
         <option>
           <name>OCJLinkTraceSource</name>
-          <state>1</state>
+          <state>0</state>
         </option>
         <option>
           <name>OCJLinkTraceSourceDummy</name>
@@ -2639,7 +2639,7 @@
         </option>
         <option>
           <name>MemFile</name>
-          <state>$TOOLKIT_DIR$\CONFIG\debugger\NXP\LPC4330_M4.ddf</state>
+          <state></state>
         </option>
         <option>
           <name>RunToEnable</name>
@@ -2679,11 +2679,11 @@
         </option>
         <option>
           <name>OCDynDriverList</name>
-          <state>JLINK_ID</state>
+          <state>ARMSIM_ID</state>
         </option>
         <option>
           <name>OCLastSavedByProductVersion</name>
-          <state>6.50.5.4846</state>
+          <state></state>
         </option>
         <option>
           <name>OCDownloadAttachToProgram</name>
@@ -2711,7 +2711,7 @@
         </option>
         <option>
           <name>FlashLoadersV3</name>
-          <state>$TOOLKIT_DIR$\config\flashloader\</state>
+          <state></state>
         </option>
         <option>
           <name>OCImagesSuppressCheck1</name>
@@ -3238,7 +3238,7 @@
         </option>
         <option>
           <name>OCProbeConfig</name>
-          <state>$TOOLKIT_DIR$\config\debugger\NXP\LPC43xx.ProbeConfig</state>
+          <state></state>
         </option>
         <option>
           <name>IjetProbeConfigRadio</name>
@@ -3291,7 +3291,7 @@
         </option>
         <option>
           <name>JLinkInitialSpeed</name>
-          <state>5000</state>
+          <state>32</state>
         </option>
         <option>
           <name>CCDoJlinkMultiTarget</name>
@@ -3368,7 +3368,7 @@
         </option>
         <option>
           <name>CCJLinkInterfaceRadio</name>
-          <state>1</state>
+          <state>0</state>
         </option>
         <option>
           <name>OCJLinkAttachSlave</name>
@@ -3377,7 +3377,7 @@
         <option>
           <name>CCJLinkResetList</name>
           <version>6</version>
-          <state>7</state>
+          <state>5</state>
         </option>
         <option>
           <name>CCJLinkInterfaceCmdLine</name>
@@ -3442,7 +3442,7 @@
         </option>
         <option>
           <name>CCSwoClockAuto</name>
-          <state>1</state>
+          <state>0</state>
         </option>
         <option>
           <name>CCSwoClockEdit</name>
