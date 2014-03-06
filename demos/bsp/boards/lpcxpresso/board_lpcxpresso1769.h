@@ -58,7 +58,7 @@
 #endif
 
 #define CFG_PRINTF_TARGET             PRINTF_TARGET_UART
-//#define CFG_PRINTF_TARGET             PRINTF_TARGET_SWO 
+//#define CFG_PRINTF_TARGET             PRINTF_TARGET_SWO
 
 
 #ifdef __cplusplus
