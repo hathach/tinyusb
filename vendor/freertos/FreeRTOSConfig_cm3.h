@@ -55,7 +55,7 @@
 #define FREERTOS_CONFIG_H
 
 #include <stdint.h>
-#include "hal/hal.h"
+
 extern uint32_t SystemCoreClock;
 
 /*-----------------------------------------------------------

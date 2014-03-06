@@ -4,11 +4,14 @@
 #include "hal/hal.h"
 
 #if __CORTEX_M == 4
-#include "lpc43xx_m4_FreeRTOSConfig.h"
-#elif __CORTEX_M == 0
-	#include "lpc43xx_m0_FreeRTOSConfig.h"
+  #include "FreeRTOSConfig_cm4f.h"
+
 #elif __CORTEX_M == 3
-  #include "FreeRTOSConfig_lpc175x_6x.h"
+  #include "FreeRTOSConfig_cm3.h"
+
+#elif __CORTEX_M == 0
+	#include "FreeRTOSConfig_cm0.h"
+
 #else
 	#error "not yet supported MCU"
 #endif

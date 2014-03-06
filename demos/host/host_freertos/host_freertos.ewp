@@ -456,7 +456,11 @@
         </option>
         <option>
           <name>ADefines</name>
-          <state></state>
+          <state>CORE_M4</state>
+          <state>TUSB_CFG_MCU=MCU_LPC43XX</state>
+          <state>BOARD=BOARD_EA4357</state>
+          <state>TUSB_CFG_OS=TUSB_OS_FREERTOS</state>
+          <state>TUSB_CFG_OS_TASK_PRIO=configMAX_PRIORITIES-5</state>
         </option>
         <option>
           <name>AList</name>
@@ -552,7 +556,9 @@
         </option>
         <option>
           <name>AUserIncludes</name>
-          <state></state>
+          <state>$PROJ_DIR$\..\src</state>
+          <state>$PROJ_DIR$\..\..\..\tinyusb</state>
+          <state>$PROJ_DIR$\..\..\..\vendor\freertos</state>
         </option>
         <option>
           <name>AExtraOptionsCheckV2</name>
