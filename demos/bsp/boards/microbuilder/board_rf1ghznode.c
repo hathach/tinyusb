@@ -40,18 +40,39 @@
 
 #if BOARD == BOARD_RF1GHZNODE
 
+#define LED_PORT                  (1)
+#define LED_PIN                   (31)
+#define LED_ON                    (0)
+#define LED_OFF                   (1)
+
+enum {
+  BOARD_BUTTON_COUNT =   1
+};
+
+const static struct {
+  uint8_t port;
+  uint8_t pin;
+} buttons[BOARD_BUTTON_COUNT] = { 0, 1 };
+
 void board_init(void)
 {
   SystemInit();
+
+#if TUSB_CFG_OS == TUSB_OS_NONE // TODO may move to main.c
   SysTick_Config(SystemCoreClock / CFG_TICKS_PER_SECOND); // 1 msec tick timer
+#endif
+
   GPIOInit();
 
-  GPIOSetDir(CFG_LED_PORT, CFG_LED_PIN, 1);
+  //------------- LED -------------//
+  GPIOSetDir(LED_PORT, LED_PIN, 1);
   board_leds(0x01, 0); // turn off the led first
 
-#if CFG_UART_ENABLE
+  //------------- BUTTON -------------//
+  for(uint8_t i=0; i<BOARD_BUTTON_COUNT; i++) GPIOSetDir(buttons[i].port, buttons[i].pin, 0);
+
+  //------------- UART -------------//
   UARTInit(CFG_UART_BAUDRATE);
-#endif
 }
 
 //--------------------------------------------------------------------+
@@ -61,28 +82,34 @@ void board_leds(uint32_t on_mask, uint32_t off_mask)
 {
   if (on_mask & BIT_(0))
   {
-    GPIOSetBitValue(CFG_LED_PORT, CFG_LED_PIN, CFG_LED_ON);
+    GPIOSetBitValue(LED_PORT, LED_PIN, LED_ON);
   }else if (off_mask & BIT_(0))
   {
-    GPIOSetBitValue(CFG_LED_PORT, CFG_LED_PIN, CFG_LED_OFF);
+    GPIOSetBitValue(LED_PORT, LED_PIN, LED_OFF);
   }
+}
+
+//--------------------------------------------------------------------+
+// Buttons
+//--------------------------------------------------------------------+
+uint32_t board_buttons(void)
+{
+//  for(uint8_t i=0; i<BOARD_BUTTON_COUNT; i++) GPIOGetPinValue(buttons[i].port, buttons[i].pin);
+  return GPIOGetPinValue(buttons[0].port, buttons[0].pin) ? 0 : 1; // button is active low
 }
 
 //--------------------------------------------------------------------+
 // UART
 //--------------------------------------------------------------------+
-#if CFG_UART_ENABLE
-uint32_t board_uart_send(uint8_t *buffer, uint32_t length)
+void board_uart_putchar(uint8_t c)
 {
-  UARTSend(buffer, length);
-  return length;
+  UARTSend(&c, 1);
 }
 
-uint32_t board_uart_recv(uint8_t *buffer, uint32_t length)
+uint8_t  board_uart_getchar(void)
 {
 //  *buffer = get_key(); TODO cannot find available code for uart getchar
   return 0;
 }
-#endif
 
 #endif

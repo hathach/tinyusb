@@ -127,29 +127,28 @@ OSAL_TASK_FUNCTION( keyboardd_app_task ) (void* p_task_para)
 {
   OSAL_TASK_LOOP_BEGIN
 
-  if (tusbd_is_configured(0) && (keyboardd_report_count++ < 5) )
+  osal_task_delay(100);
+
+  if ( tusbd_is_configured(0) )
   {
-    if (!tusbd_hid_keyboard_is_busy(0))
+    static uint32_t button_mask = 0;
+
+    uint32_t new_button_mask = board_buttons();
+
+    //------------- Key pressed -------------//
+    if ( (button_mask != new_button_mask) && !tusbd_hid_keyboard_is_busy(0) )
     {
-      //------------- Key pressed -------------//
-      keyboard_report.keycode[0] = 0x04;
+      button_mask = new_button_mask;
+
+      for (uint8_t i=0; i<6; i++)
+      { // demo support up to 6 buttons, button0 = 'a', button1 = 'b', etc ...
+        keyboard_report.keycode[i] =  BIT_TEST_(button_mask, i) ? (0x04+i) : 0;
+      }
+
       tusbd_hid_keyboard_send(0, &keyboard_report );
-
-      while( tusbd_hid_keyboard_is_busy(0) )
-      { // delay for transfer complete
-        osal_task_delay(10);
-      }
-
-      //------------- Key released -------------//
-      if (!tusbd_hid_keyboard_is_busy(0))
-      {
-        keyboard_report.keycode[0] = 0x00;
-        tusbd_hid_keyboard_send(0, &keyboard_report );
-      }
     }
   }
 
-  osal_task_delay(1000);
 
   OSAL_TASK_LOOP_END
 }

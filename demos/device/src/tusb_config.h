@@ -82,11 +82,11 @@
 #define TUSB_CFG_DEVICE_FULLSPEED               1 // TODO refractor, remove
 
 //------------- CLASS -------------//
-#define TUSB_CFG_DEVICE_HID_KEYBOARD            0
+#define TUSB_CFG_DEVICE_HID_KEYBOARD            1
 #define TUSB_CFG_DEVICE_HID_MOUSE               0
 #define TUSB_CFG_DEVICE_HID_GENERIC             0
 #define TUSB_CFG_DEVICE_MSC                     0
-#define TUSB_CFG_DEVICE_CDC                     1
+#define TUSB_CFG_DEVICE_CDC                     0
 
 //--------------------------------------------------------------------+
 // COMMON CONFIGURATION
@@ -99,12 +99,10 @@
 #define TUSB_CFG_OS_TICKS_PER_SECOND  1000
 
 #ifdef __CODE_RED // compiled with lpcxpresso
-  #if (TUSB_CFG_MCU == MCU_LPC11UXX) || (TUSB_CFG_MCU == MCU_LPC13UXX)
+  #if (TUSB_CFG_MCU == MCU_LPC11UXX) || (TUSB_CFG_MCU == MCU_LPC13UXX) || (TUSB_CFG_MCU == MCU_LPC175X_6X)
     #define TUSB_RAM_SECTION  ".data.$RAM2"
   #elif  (TUSB_CFG_MCU == MCU_LPC43XX)
     #define TUSB_RAM_SECTION  ".data.$RAM3"
-  #elif (TUSB_CFG_MCU == MCU_LPC175X_6X)
-    #define TUSB_RAM_SECTION  ".data.$RAM2"
   #else
     #error Please define USB RAM section
   #endif

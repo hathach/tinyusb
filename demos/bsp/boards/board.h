@@ -124,6 +124,8 @@ void board_leds(uint32_t on_mask, uint32_t off_mask);
 uint8_t  board_uart_getchar(void);
 void board_uart_putchar(uint8_t c);
 
+uint32_t board_buttons(void);
+
 extern volatile uint32_t system_ticks;
 
 #ifdef __cplusplus

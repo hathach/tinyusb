@@ -36,12 +36,6 @@
 */
 /**************************************************************************/
 
-/** \file
- *  \brief TBD
- *
- *  \note TBD
- */
-
 /** \ingroup TBD
  *  \defgroup TBD
  *  \brief TBD
@@ -60,12 +54,8 @@
 #include "lpc11uxx/LPC11Uxx_DriverLib/lpc11uxx_gpio.h"
 #include "lpc11uxx/LPC11Uxx_DriverLib/lpc11uxx_uart.h"
 
-#define CFG_PRINTF_TARGET PRINTF_TARGET_SEMIHOST
-
-#define CFG_LED_PORT                  (1)
-#define CFG_LED_PIN                   (31)
-#define CFG_LED_ON                    (0)
-#define CFG_LED_OFF                   (1)
+//#define CFG_PRINTF_TARGET             PRINTF_TARGET_SEMIHOST
+#define CFG_PRINTF_TARGET             PRINTF_TARGET_UART
 
 #ifdef __cplusplus
  }

@@ -68,7 +68,6 @@ void board_init(void)
   //P0_21 instead of P2_9 as USB connect
 #endif
 
-#if CFG_UART_ENABLE
   //------------- UART init -------------//
 
   PINSEL_CFG_Type PinCfg =
@@ -91,7 +90,6 @@ void board_init(void)
 
 	UART_Init(BOARD_UART_PORT, &UARTConfigStruct);
 	UART_TxCmd(BOARD_UART_PORT, ENABLE); // Enable UART Transmit
-#endif
 }
 
 //--------------------------------------------------------------------+
@@ -111,8 +109,6 @@ void board_leds(uint32_t on_mask, uint32_t off_mask)
 //--------------------------------------------------------------------+
 // UART
 //--------------------------------------------------------------------+
-#if CFG_UART_ENABLE
-
 void board_uart_putchar(uint8_t c)
 {
   UART_Send(BOARD_UART_PORT, &c, 1, BLOCKING);
@@ -122,7 +118,5 @@ uint8_t  board_uart_getchar(void)
 {
   return UART_ReceiveByte(BOARD_UART_PORT);
 }
-
-#endif
 
 #endif
