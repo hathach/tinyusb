@@ -102,20 +102,34 @@ OSAL_TASK_FUNCTION( moused_app_task ) (void* p_task_para)
 {
   OSAL_TASK_LOOP_BEGIN
 
-  osal_task_delay(100);
+  osal_task_delay(10);
 
   if ( tusbd_is_configured(0) )
   {
-    static uint32_t button_mask = 0;
-
-    uint32_t new_button_mask = board_buttons();
+    uint32_t button_mask = board_buttons();
 
     //------------- button pressed -------------//
-    if ( (button_mask != new_button_mask) && !tusbd_hid_mouse_is_busy(0) )
+    if ( !tusbd_hid_mouse_is_busy(0) )
     {
-      button_mask = new_button_mask;
+      enum {
+        BUTTON_UP          = 0, // map to button mask
+        BUTTON_DOWN        = 1,
+        BUTTON_LEFT        = 2,
+        BUTTON_RIGHT       = 3,
+        BUTTON_CLICK_LEFT  = 4,
+//        BUTTON_CLICK_RIGHT = 5,
+        MOUSE_RESOLUTION  = 5
+      };
 
-      mouse_report.x = mouse_report.y = BIT_TEST_(button_mask, 0) ? 10 : 0;
+      memclr_(&mouse_report, sizeof(hid_mouse_report_t));
+
+      if ( BIT_TEST_(button_mask, BUTTON_UP) ) mouse_report.y = -MOUSE_RESOLUTION;
+      if ( BIT_TEST_(button_mask, BUTTON_DOWN) ) mouse_report.y = MOUSE_RESOLUTION;
+
+      if ( BIT_TEST_(button_mask, BUTTON_LEFT) ) mouse_report.x = -MOUSE_RESOLUTION;
+      if ( BIT_TEST_(button_mask, BUTTON_RIGHT) ) mouse_report.x = MOUSE_RESOLUTION;
+
+      if ( BIT_TEST_(button_mask, BUTTON_CLICK_LEFT) ) mouse_report.buttons = MOUSE_BUTTON_LEFT;
 
       tusbd_hid_mouse_send(0, &mouse_report );
     }

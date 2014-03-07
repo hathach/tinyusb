@@ -133,11 +133,11 @@ OSAL_TASK_FUNCTION( led_blinking_task ) (void* p_task_para)
   board_leds(led_on_mask, 1 - led_on_mask);
   led_on_mask = 1 - led_on_mask; // toggle
 
-  uint32_t btn_mask = board_buttons();
-  for(uint8_t i=0; i<32; i++)
-  {
-    if ( BIT_TEST_(btn_mask, i) ) printf("button %d is pressed\n", i);
-  }
+//  uint32_t btn_mask = board_buttons();
+//  for(uint8_t i=0; i<32; i++)
+//  {
+//    if ( BIT_TEST_(btn_mask, i) ) printf("button %d is pressed\n", i);
+//  }
 
   OSAL_TASK_LOOP_END
 }
