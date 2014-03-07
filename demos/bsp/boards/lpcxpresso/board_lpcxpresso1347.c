@@ -40,19 +40,50 @@
 
 #if BOARD == BOARD_LPCXPRESSO1347
 
+#define LED_PORT                  (0)
+#define LED_PIN                   (7)
+#define LED_ON                    (1)
+#define LED_OFF                   (0)
+
+const static struct {
+  uint8_t port;
+  uint8_t pin;
+} buttons[] =
+{
+    {1, 22 }, // Joystick up
+    {1, 20 }, // Joystick down
+    {1, 23 }, // Joystick left
+    {1, 21 }, // Joystick right
+    {1, 19 }, // Joystick press
+    {0, 1  }, // SW3
+//    {1, 4  }, // SW4 (require to remove J28)
+};
+
+enum {
+  BOARD_BUTTON_COUNT = sizeof(buttons) / sizeof(buttons[0])
+};
+
+
 void board_init(void)
 {
   SystemInit();
+
+#if TUSB_CFG_OS == TUSB_OS_NONE // TODO may move to main.c
   SysTick_Config(SystemCoreClock / CFG_TICKS_PER_SECOND); // 1 msec tick timer
+#endif
+
   GPIOInit();
 
-  // Leds Init
-  GPIOSetDir(CFG_LED_PORT, CFG_LED_PIN, 1);
-  LPC_GPIO->CLR[CFG_LED_PORT] = (1 << CFG_LED_PIN);
+  //------------- LED -------------//
+  GPIOSetDir(LED_PORT, LED_PIN, 1);
+  LPC_GPIO->CLR[LED_PORT] = (1 << LED_PIN);
 
-#if CFG_UART_ENABLE
+  //------------- BUTTON -------------//
+  for(uint8_t i=0; i<BOARD_BUTTON_COUNT; i++) GPIOSetDir(buttons[i].port, BIT_(buttons[i].pin), 0);
+
+  //------------- UART -------------//
   UARTInit(CFG_UART_BAUDRATE);
-#endif
+
 }
 
 //--------------------------------------------------------------------+
@@ -62,28 +93,41 @@ void board_leds(uint32_t on_mask, uint32_t off_mask)
 {
   if (on_mask & BIT_(0))
   {
-    GPIOSetBitValue(CFG_LED_PORT, CFG_LED_PIN, CFG_LED_ON);
+    GPIOSetBitValue(LED_PORT, LED_PIN, LED_ON);
   }else if (off_mask & BIT_(0))
   {
-    GPIOSetBitValue(CFG_LED_PORT, CFG_LED_PIN, CFG_LED_OFF);
+    GPIOSetBitValue(LED_PORT, LED_PIN, LED_OFF);
   }
+}
+
+//--------------------------------------------------------------------+
+// BUTTONS
+//--------------------------------------------------------------------+
+static bool button_read(uint8_t id)
+{
+  return !GPIOGetPinValue(buttons[id].port, buttons[id].pin); // button is active low
+}
+
+uint32_t board_buttons(void)
+{
+  uint32_t result = 0;
+
+  for(uint8_t i=0; i<BOARD_BUTTON_COUNT; i++) result |= (button_read(i) ? BIT_(i) : 0);
+
+  return result;
 }
 
 //--------------------------------------------------------------------+
 // UART
 //--------------------------------------------------------------------+
-#if CFG_UART_ENABLE
-uint32_t board_uart_send(uint8_t *buffer, uint32_t length)
+void board_uart_putchar(uint8_t c)
 {
-  UARTSend(buffer, length);
-  return length;
+  UARTSend(&c, 1);
 }
 
-uint32_t board_uart_recv(uint8_t *buffer, uint32_t length)
+uint8_t  board_uart_getchar(void)
 {
-  *buffer = get_key();
-  return 1;
+  return 0;
 }
-#endif
 
 #endif

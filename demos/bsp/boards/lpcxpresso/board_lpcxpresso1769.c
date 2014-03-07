@@ -129,7 +129,7 @@ void board_leds(uint32_t on_mask, uint32_t off_mask)
 //--------------------------------------------------------------------+
 // BUTTONS
 //--------------------------------------------------------------------+
-static uint32_t button_read(uint8_t id)
+static bool button_read(uint8_t id)
 {
   return !BIT_TEST_( GPIO_ReadValue(buttons[id].port), buttons[id].pin ); // button is active low
 }

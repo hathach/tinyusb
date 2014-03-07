@@ -36,12 +36,6 @@
 */
 /**************************************************************************/
 
-/** \file
- *  \brief TBD
- *
- *  \note TBD
- */
-
 /** \ingroup TBD
  *  \defgroup TBD
  *  \brief TBD
@@ -60,12 +54,7 @@
 #include "lpc13uxx/LPC13Uxx_DriverLib/inc/gpio.h"
 #include "lpc13uxx/LPC13Uxx_DriverLib/inc/uart.h"
 
-#define CFG_LED_PORT                  (0)
-#define CFG_LED_PIN                   (7)
-#define CFG_LED_ON                    (1)
-#define CFG_LED_OFF                   (0)
-
-#define CFG_PRINTF_TARGET PRINTF_TARGET_SEMIHOST
+#define CFG_PRINTF_TARGET PRINTF_TARGET_UART
 
 #ifdef __cplusplus
  }
