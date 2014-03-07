@@ -43,6 +43,24 @@
 #define BOARD_LED_PORT                  (0)
 #define BOARD_LED_PIN                   (22)
 
+const static struct {
+  uint8_t port;
+  uint8_t pin;
+} buttons[] =
+{
+    {2, 3  }, // Joystick up
+    {0, 15 }, // Joystick down
+    {2, 4  }, // Joystick left
+    {0, 16 }, // Joystick right
+    {0, 17 }, // Joystick press
+    {0, 4  }, // SW3
+//    {1, 31 }, // SW4 (require to remove J28)
+};
+
+enum {
+  BOARD_BUTTON_COUNT = sizeof(buttons) / sizeof(buttons[0])
+};
+
 #define BOARD_UART_PORT   LPC_UART3
 
 void board_init(void)
@@ -53,8 +71,11 @@ void board_init(void)
   SysTick_Config(SystemCoreClock / CFG_TICKS_PER_SECOND); // 1 msec tick timer
 #endif
 
-  // Leds Init
+  //------------- LED -------------//
   GPIO_SetDir(BOARD_LED_PORT, BIT_(BOARD_LED_PIN), 1);
+
+  //------------- BUTTON -------------//
+  for(uint8_t i=0; i<BOARD_BUTTON_COUNT; i++) GPIO_SetDir(buttons[i].port, BIT_(buttons[i].pin), 0);
 
 #if MODE_DEVICE_SUPPORTED
   //------------- USB Device -------------//
@@ -68,8 +89,7 @@ void board_init(void)
   //P0_21 instead of P2_9 as USB connect
 #endif
 
-  //------------- UART init -------------//
-
+  //------------- UART -------------//
   PINSEL_CFG_Type PinCfg =
   {
       .Portnum   = 0,
@@ -104,6 +124,23 @@ void board_leds(uint32_t on_mask, uint32_t off_mask)
   {
     GPIO_ClearValue(BOARD_LED_PORT, BIT_(BOARD_LED_PIN));
   }
+}
+
+//--------------------------------------------------------------------+
+// BUTTONS
+//--------------------------------------------------------------------+
+static uint32_t button_read(uint8_t id)
+{
+  return !BIT_TEST_( GPIO_ReadValue(buttons[id].port), buttons[id].pin ); // button is active low
+}
+
+uint32_t board_buttons(void)
+{
+  uint32_t result = 0;
+
+  for(uint8_t i=0; i<BOARD_BUTTON_COUNT; i++) result |= (button_read(i) ? BIT_(i) : 0);
+
+  return result;
 }
 
 //--------------------------------------------------------------------+

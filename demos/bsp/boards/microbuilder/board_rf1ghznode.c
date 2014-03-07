@@ -45,14 +45,14 @@
 #define LED_ON                    (0)
 #define LED_OFF                   (1)
 
-enum {
-  BOARD_BUTTON_COUNT =   1
-};
-
 const static struct {
   uint8_t port;
   uint8_t pin;
-} buttons[BOARD_BUTTON_COUNT] = { 0, 1 };
+} buttons[BOARD_BUTTON_COUNT] = { { 0, 1 } };
+
+enum {
+  BOARD_BUTTON_COUNT = sizeof(buttons) / sizeof(buttons[0])
+};
 
 void board_init(void)
 {
