@@ -40,11 +40,30 @@
 
 #if BOARD == BOARD_EA4357
 
-
 #define BOARD_UART_PORT           LPC_USART0
 #define BOARD_UART_PIN_PORT       0x0f
 #define BOARD_UART_PIN_TX         10 // PF.10 : UART0_TXD
 #define BOARD_UART_PIN_RX         11 // PF.11 : UART0_RXD
+
+const static struct {
+  uint8_t mux_port;
+  uint8_t mux_pin;
+
+  uint8_t gpio_port;
+  uint8_t gpio_pin;
+}buttons[] =
+{
+    {0x0a, 3, 4, 10 }, // Joystick up
+    {0x09, 1, 4, 13 }, // Joystick down
+    {0x0a, 2, 4, 9  }, // Joystick left
+    {0x09, 0, 4, 12 }, // Joystick right
+    {0x0a, 1, 4, 8  }, // Joystick press
+    {0x02, 7, 0, 7  }, // SW6
+};
+
+enum {
+  BOARD_BUTTON_COUNT = sizeof(buttons) / sizeof(buttons[0])
+};
 
 void board_init(void)
 {
@@ -66,7 +85,13 @@ void board_init(void)
   I2C_Cmd(LPC_I2C0, ENABLE);
   pca9532_init();
 
-#if CFG_UART_ENABLE
+  //------------- BUTTON -------------//
+  for(uint8_t i=0; i<BOARD_BUTTON_COUNT; i++)
+  {
+    scu_pinmux(buttons[i].mux_port, buttons[i].mux_pin, GPIO_NOPULL, FUNC0);
+    GPIO_SetDir(buttons[i].gpio_port, BIT_(buttons[i].gpio_pin), 0);
+  }
+
   //------------- UART -------------//
   scu_pinmux(BOARD_UART_PIN_PORT, BOARD_UART_PIN_TX, MD_PDN, FUNC1);
   scu_pinmux(BOARD_UART_PIN_PORT, BOARD_UART_PIN_RX, MD_PLN | MD_EZI | MD_ZI, FUNC1);
@@ -78,7 +103,6 @@ void board_init(void)
 
   UART_Init(BOARD_UART_PORT, &UARTConfigStruct);
   UART_TxCmd(BOARD_UART_PORT, ENABLE); // Enable UART Transmit
-#endif
 
   //------------- NAND Flash (K9FXX) Size = 128M, Page Size = 2K, Block Size = 128K, Number of Block = 1024 -------------//
 //  nand_init();
@@ -115,9 +139,25 @@ void board_leds(uint32_t on_mask, uint32_t off_mask)
 }
 
 //--------------------------------------------------------------------+
+// BUTTONS
+//--------------------------------------------------------------------+
+static bool button_read(uint8_t id)
+{
+  return !BIT_TEST_( GPIO_ReadValue(buttons[id].gpio_port), buttons[id].gpio_pin ); // button is active low
+}
+
+uint32_t board_buttons(void)
+{
+  uint32_t result = 0;
+
+  for(uint8_t i=0; i<BOARD_BUTTON_COUNT; i++) result |= (button_read(i) ? BIT_(i) : 0);
+
+  return result;
+}
+
+//--------------------------------------------------------------------+
 // UART
 //--------------------------------------------------------------------+
-#if CFG_UART_ENABLE
 uint8_t  board_uart_getchar(void)
 {
   return UART_ReceiveByte(BOARD_UART_PORT);
@@ -126,6 +166,5 @@ void board_uart_putchar(uint8_t c)
 {
   UART_Send(BOARD_UART_PORT, &c, 1, BLOCKING);
 }
-#endif
 
 #endif

@@ -73,7 +73,6 @@ void board_init(void)
     GPIO_SetDir(leds[i].gpio_port, BIT_(leds[i].gpio_pin), 1); // output
   }
 
-#if CFG_UART_ENABLE
   //------------- UART init -------------//
   scu_pinmux(0x6 ,4, MD_PDN | MD_EZI, FUNC2); 	// UART0_TXD
   scu_pinmux(0x6 ,5, MD_PDN | MD_EZI, FUNC2); 	// UART0_RXD
@@ -85,8 +84,6 @@ void board_init(void)
 
   UART_Init(BOARD_UART_PORT, &UARTConfigStruct);
   UART_TxCmd(BOARD_UART_PORT, ENABLE);           // Enable UART
-#endif
-
 }
 
 //--------------------------------------------------------------------+
@@ -118,4 +115,5 @@ void board_uart_putchar(uint8_t c)
 {
   UART_Send(BOARD_UART_PORT, &c, 1, BLOCKING);
 }
+
 #endif
