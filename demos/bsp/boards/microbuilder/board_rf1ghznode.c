@@ -48,7 +48,7 @@
 const static struct {
   uint8_t port;
   uint8_t pin;
-} buttons[BOARD_BUTTON_COUNT] = { { 0, 1 } };
+} buttons[] = { { 0, 1 } };
 
 enum {
   BOARD_BUTTON_COUNT = sizeof(buttons) / sizeof(buttons[0])
