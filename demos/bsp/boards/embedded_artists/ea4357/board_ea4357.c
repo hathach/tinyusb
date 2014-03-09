@@ -75,8 +75,13 @@ void board_init(void)
 
   //------------- USB -------------//
   // USB0 Power: EA4357 channel B U20 GPIO26 active low (base board), P2_3 on LPC4357
-  scu_pinmux(0x2, 3, MD_PUP | MD_EZI, FUNC7);		// USB0 VBus Power
+  scu_pinmux(0x02, 3, MD_PUP | MD_EZI, FUNC7);		// USB0 VBus Power
   
+  #if TUSB_CFG_CONTROLLER_0_MODE & TUSB_MODE_DEVICE
+  scu_pinmux(0x09, 5, GPIO_PDN, FUNC4); // P9_5 (GPIO5[18]) (GPIO28 on oem base) as USB connect, active low.
+  GPIO_SetDir(5, BIT_(18), 1);
+  #endif
+
   // USB1 Power: EA4357 channel A U20 is enabled by SJ5 connected to pad 1-2, no more action required
   // TODO Remove R170, R171, solder a pair of 15K to USB1 D+/D- to test with USB1 Host
 

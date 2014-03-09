@@ -114,7 +114,7 @@ uint16_t tusbd_msc_write10_cb(uint8_t coreid, uint8_t lun, void** pp_buffer, uin
  * \note        Although this callback is called by tinyusb device task (non-isr context), however as all the classes share
  *              the same task (to save resource), any delay in this callback will cause delay in reponse on other classes.
  */
-msc_csw_status_t tusbd_msc_scsi_received_isr (uint8_t coreid, uint8_t lun, uint8_t scsi_cmd[16], void ** pp_buffer, uint16_t* p_length);
+msc_csw_status_t tusbd_msc_scsi_cb (uint8_t coreid, uint8_t lun, uint8_t scsi_cmd[16], void ** pp_buffer, uint16_t* p_length);
 
 /** @} */
 /** @} */

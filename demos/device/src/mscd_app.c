@@ -97,7 +97,7 @@ static scsi_mode_parameters_t msc_dev_mode_para TUSB_CFG_ATTR_USBRAM =
 //--------------------------------------------------------------------+
 // tinyusb callback (ISR context)
 //--------------------------------------------------------------------+
-msc_csw_status_t tusbd_msc_scsi_received_isr (uint8_t coreid, uint8_t lun, uint8_t scsi_cmd[16], void ** pp_buffer, uint16_t* p_length)
+msc_csw_status_t tusbd_msc_scsi_cb (uint8_t coreid, uint8_t lun, uint8_t scsi_cmd[16], void ** pp_buffer, uint16_t* p_length)
 {
   // read10 & write10 has their own callback and MUST not be handled here
   switch (scsi_cmd[0])

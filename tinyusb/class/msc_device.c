@@ -66,6 +66,7 @@ STATIC_VAR mscd_interface_t mscd_data TUSB_CFG_ATTR_USBRAM;
 //--------------------------------------------------------------------+
 // INTERNAL OBJECT & FUNCTION DECLARATION
 //--------------------------------------------------------------------+
+static bool read10_write10_data_xfer(mscd_interface_t* p_msc);
 
 //--------------------------------------------------------------------+
 // USBD-CLASS API
@@ -136,6 +137,80 @@ tusb_error_t mscd_control_request_subtask(uint8_t coreid, tusb_control_request_t
   return TUSB_ERROR_NONE;
 }
 
+//--------------------------------------------------------------------+
+// MSCD APPLICATION CALLBACK
+//--------------------------------------------------------------------+
+tusb_error_t mscd_xfer_cb(endpoint_handle_t edpt_hdl, tusb_event_t event, uint32_t xferred_bytes)
+{
+  // TODO failed --> STALL pipe, on clear STALL --> queue endpoint OUT
+  static bool is_waiting_read10_write10 = false; // indicate we are transferring data in READ10, WRITE10 command
+
+  mscd_interface_t *         const p_msc = &mscd_data;
+  msc_cmd_block_wrapper_t *  const p_cbw = &p_msc->cbw;
+  msc_cmd_status_wrapper_t * const p_csw = &p_msc->csw;
+
+  //------------- new CBW received -------------//
+  if ( !is_waiting_read10_write10 )
+  {
+    if ( endpointhandle_is_equal(p_msc->edpt_in, edpt_hdl) ) return TUSB_ERROR_NONE; // bulk in interrupt for dcd to clean up
+
+    ASSERT( endpointhandle_is_equal(p_msc->edpt_out, edpt_hdl) &&
+            xferred_bytes == sizeof(msc_cmd_block_wrapper_t)   &&
+            event == TUSB_EVENT_XFER_COMPLETE                  &&
+            p_cbw->signature == MSC_CBW_SIGNATURE, TUSB_ERROR_INVALID_PARA );
+
+    p_csw->signature    = MSC_CSW_SIGNATURE;
+    p_csw->tag          = p_cbw->tag;
+    p_csw->data_residue = 0;
+
+    if ( (SCSI_CMD_READ_10 != p_cbw->command[0]) && (SCSI_CMD_WRITE_10 != p_cbw->command[0]) )
+    {
+      void *p_buffer = NULL;
+      uint16_t actual_length = (uint16_t) p_cbw->xfer_bytes;
+
+      p_csw->status = tusbd_msc_scsi_cb(edpt_hdl.coreid, p_cbw->lun, p_cbw->command, &p_buffer, &actual_length);
+
+      //------------- Data Phase (non READ10, WRITE10) -------------//
+      if ( p_cbw->xfer_bytes )
+      {
+        ASSERT( p_cbw->xfer_bytes >= actual_length, TUSB_ERROR_INVALID_PARA );
+        endpoint_handle_t const edpt_data = BIT_TEST_(p_cbw->dir, 7) ? p_msc->edpt_in : p_msc->edpt_out;
+
+        if ( p_buffer == NULL || actual_length == 0 )
+        { // application does not provide data to response --> possibly unsupported SCSI command
+          ASSERT_STATUS( dcd_pipe_stall(edpt_data) );
+          p_csw->status = MSC_CSW_STATUS_FAILED;
+        }else
+        {
+          ASSERT_STATUS( dcd_pipe_queue_xfer( edpt_data, p_buffer, min16_of(actual_length, (uint16_t) p_cbw->xfer_bytes)) );
+        }
+      }
+    }
+  }
+
+  //------------- Data Phase For READ10 & WRITE10 (can be executed several times) -------------//
+  if ( (SCSI_CMD_READ_10 == p_cbw->command[0]) || (SCSI_CMD_WRITE_10 == p_cbw->command[0]) )
+  {
+    if (is_waiting_read10_write10)
+    { // continue with read10, write10 data transfer, interrupt must come from endpoint IN
+      ASSERT( endpointhandle_is_equal(p_msc->edpt_in, edpt_hdl) && event == TUSB_EVENT_XFER_COMPLETE, TUSB_ERROR_INVALID_PARA);
+    }
+    is_waiting_read10_write10 = !read10_write10_data_xfer(p_msc);
+  }
+
+  //------------- Status Phase -------------//
+  // Either bulk in & out can be stalled in the data phase, dcd must make sure these queued transfer will be resumed after host clear stall
+  if (!is_waiting_read10_write10)
+  {
+    ASSERT_STATUS( dcd_pipe_xfer( p_msc->edpt_in , p_csw, sizeof(msc_cmd_status_wrapper_t), false) );
+
+    //------------- Queue the next CBW -------------//
+    ASSERT_STATUS( dcd_pipe_xfer( p_msc->edpt_out, p_cbw, sizeof(msc_cmd_block_wrapper_t), true) );
+  }
+
+  return TUSB_ERROR_NONE;
+}
+
 // return true if data phase is complete, false if not yet complete
 static bool read10_write10_data_xfer(mscd_interface_t* p_msc)
 {
@@ -180,80 +255,6 @@ static bool read10_write10_data_xfer(mscd_interface_t* p_msc)
     ASSERT_STATUS( dcd_pipe_queue_xfer( edpt_hdl, p_buffer, xferred_byte) );
     return true;
   }
-}
-
-//--------------------------------------------------------------------+
-// MSCD APPLICATION CALLBACK
-//--------------------------------------------------------------------+
-tusb_error_t mscd_xfer_cb(endpoint_handle_t edpt_hdl, tusb_event_t event, uint32_t xferred_bytes)
-{
-  // TODO failed --> STALL pipe, on clear STALL --> queue endpoint OUT
-  static bool is_waiting_read10_write10 = false; // indicate we are transferring data in READ10, WRITE10 command
-
-  mscd_interface_t *         const p_msc = &mscd_data;
-  msc_cmd_block_wrapper_t *  const p_cbw = &p_msc->cbw;
-  msc_cmd_status_wrapper_t * const p_csw = &p_msc->csw;
-
-  //------------- new CBW received -------------//
-  if ( !is_waiting_read10_write10)
-  {
-    if ( endpointhandle_is_equal(p_msc->edpt_in, edpt_hdl) ) return TUSB_ERROR_NONE; // bulk in interrupt for dcd to clean up
-
-    ASSERT( endpointhandle_is_equal(p_msc->edpt_out, edpt_hdl) &&
-            xferred_bytes == sizeof(msc_cmd_block_wrapper_t)   &&
-            event == TUSB_EVENT_XFER_COMPLETE                  &&
-            p_cbw->signature == MSC_CBW_SIGNATURE, TUSB_ERROR_INVALID_PARA );
-
-    p_csw->signature    = MSC_CSW_SIGNATURE;
-    p_csw->tag          = p_cbw->tag;
-    p_csw->data_residue = 0;
-
-    if ( (SCSI_CMD_READ_10 != p_cbw->command[0]) && (SCSI_CMD_WRITE_10 != p_cbw->command[0]) )
-    {
-      void *p_buffer = NULL;
-      uint16_t actual_length = (uint16_t) p_cbw->xfer_bytes;
-
-      p_csw->status = tusbd_msc_scsi_received_isr(edpt_hdl.coreid, p_cbw->lun, p_cbw->command, &p_buffer, &actual_length);
-
-      //------------- Data Phase -------------//
-      if ( p_cbw->xfer_bytes )
-      {
-        ASSERT( p_cbw->xfer_bytes >= actual_length, TUSB_ERROR_INVALID_PARA );
-        endpoint_handle_t const edpt_data = BIT_TEST_(p_cbw->dir, 7) ? p_msc->edpt_in : p_msc->edpt_out;
-
-        if ( p_buffer == NULL || actual_length == 0 )
-        { // application does not provide data to response --> possibly unsupported SCSI command
-          ASSERT_STATUS( dcd_pipe_stall(edpt_data) );
-          p_csw->status = MSC_CSW_STATUS_FAILED;
-        }else
-        {
-          ASSERT_STATUS( dcd_pipe_queue_xfer( edpt_data, p_buffer, min16_of(actual_length, (uint16_t) p_cbw->xfer_bytes)) );
-        }
-      }
-    }
-  }
-
-  //------------- Data Phase For READ10 & WRITE10 (can be executed several times) -------------//
-  if ( (SCSI_CMD_READ_10 == p_cbw->command[0]) || (SCSI_CMD_WRITE_10 == p_cbw->command[0]) )
-  {
-    if (is_waiting_read10_write10)
-    { // continue with read10, write10 data transfer, interrupt must come from endpoint IN
-      ASSERT( endpointhandle_is_equal(p_msc->edpt_in, edpt_hdl) && event == TUSB_EVENT_XFER_COMPLETE, TUSB_ERROR_INVALID_PARA);
-    }
-    is_waiting_read10_write10 = !read10_write10_data_xfer(p_msc);
-  }
-
-  //------------- Status Phase -------------//
-  // Either bulk in & out can be stalled in the data phase, dcd must make sure these queued transfer will be resumed after host clear stall
-  if (!is_waiting_read10_write10)
-  {
-    ASSERT_STATUS( dcd_pipe_xfer( p_msc->edpt_in , p_csw, sizeof(msc_cmd_status_wrapper_t), true) ); // need to be true for dcd to clean up qtd !!
-
-    //------------- Queue the next CBW -------------//
-    ASSERT_STATUS( dcd_pipe_xfer( p_msc->edpt_out, p_cbw, sizeof(msc_cmd_block_wrapper_t), true) );
-  }
-
-  return TUSB_ERROR_NONE;
 }
 
 #endif
