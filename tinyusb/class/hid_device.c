@@ -108,14 +108,15 @@ static hidd_class_driver_t const hidd_class_driver[HIDD_NUMBER_OF_SUBCLASS] =
 };
 
 #if TUSB_CFG_DEVICE_HID_KEYBOARD || TUSB_CFG_DEVICE_HID_MOUSE
-ATTR_USB_MIN_ALIGNMENT uint8_t m_control_data[ MAX_OF(sizeof(hid_keyboard_report_t), sizeof(hid_mouse_report_t)) ] TUSB_CFG_ATTR_USBRAM;
+TUSB_CFG_ATTR_USBRAM ATTR_USB_MIN_ALIGNMENT
+uint8_t m_control_data[ MAX_OF(sizeof(hid_keyboard_report_t), sizeof(hid_mouse_report_t)) ];
 #endif
 
 //--------------------------------------------------------------------+
 // KEYBOARD APPLICATION API
 //--------------------------------------------------------------------+
 #if TUSB_CFG_DEVICE_HID_KEYBOARD
-STATIC_VAR TUSB_CFG_ATTR_USBRAM hidd_interface_t keyboardd_data;
+TUSB_CFG_ATTR_USBRAM STATIC_VAR hidd_interface_t keyboardd_data;
 
 bool tusbd_hid_keyboard_is_busy(uint8_t coreid)
 {
@@ -128,7 +129,7 @@ tusb_error_t tusbd_hid_keyboard_send(uint8_t coreid, hid_keyboard_report_t const
 
   hidd_interface_t * p_kbd = &keyboardd_data; // TODO &keyboardd_data[coreid];
 
-  ASSERT_STATUS( dcd_pipe_xfer(p_kbd->ept_handle, p_report, sizeof(hid_keyboard_report_t), true) ) ;
+  ASSERT_STATUS( dcd_pipe_xfer(p_kbd->ept_handle, (void*) p_report, sizeof(hid_keyboard_report_t), true) ) ;
 
   return TUSB_ERROR_NONE;
 }
@@ -138,7 +139,7 @@ tusb_error_t tusbd_hid_keyboard_send(uint8_t coreid, hid_keyboard_report_t const
 // MOUSE APPLICATION API
 //--------------------------------------------------------------------+
 #if TUSB_CFG_DEVICE_HID_MOUSE
-STATIC_VAR TUSB_CFG_ATTR_USBRAM hidd_interface_t moused_data;
+TUSB_CFG_ATTR_USBRAM STATIC_VAR hidd_interface_t moused_data;
 
 bool tusbd_hid_mouse_is_busy(uint8_t coreid)
 {
@@ -151,7 +152,7 @@ tusb_error_t tusbd_hid_mouse_send(uint8_t coreid, hid_mouse_report_t const *p_re
 
   hidd_interface_t * p_mouse = &moused_data; // TODO &keyboardd_data[coreid];
 
-  ASSERT_STATUS( dcd_pipe_xfer(p_mouse->ept_handle, p_report, sizeof(hid_mouse_report_t), true) ) ;
+  ASSERT_STATUS( dcd_pipe_xfer(p_mouse->ept_handle, (void*) p_report, sizeof(hid_mouse_report_t), true) ) ;
 
   return TUSB_ERROR_NONE;
 }
@@ -217,7 +218,7 @@ tusb_error_t hidd_control_request_subtask(uint8_t coreid, tusb_control_request_t
     ASSERT ( p_request->bRequest == TUSB_REQUEST_GET_DESCRIPTOR && desc_type == HID_DESC_TYPE_REPORT,
              TUSB_ERROR_DCD_CONTROL_REQUEST_NOT_SUPPORT);
 
-    dcd_pipe_control_xfer(coreid, TUSB_DIR_DEV_TO_HOST, p_driver->p_report_desc, p_hid->report_length, false);
+    dcd_pipe_control_xfer(coreid, TUSB_DIR_DEV_TO_HOST, (uint8_t*) p_driver->p_report_desc, p_hid->report_length, false);
   }
   //------------- Class Specific Request -------------//
   else if (p_request->bmRequestType_bit.type == TUSB_REQUEST_TYPE_CLASS)
@@ -241,13 +242,13 @@ tusb_error_t hidd_control_request_subtask(uint8_t coreid, tusb_control_request_t
       // wValue = Report Type | Report ID
       tusb_error_t error;
 
-      dcd_pipe_control_xfer(coreid, p_request->bmRequestType_bit.direction, &m_control_data, p_request->wLength, true);
+      dcd_pipe_control_xfer(coreid, p_request->bmRequestType_bit.direction, m_control_data, p_request->wLength, true);
 
       osal_semaphore_wait(usbd_control_xfer_sem_hdl, OSAL_TIMEOUT_NORMAL, &error); // wait for control xfer complete
       SUBTASK_ASSERT_STATUS(error);
 
       p_driver->set_report_cb(coreid, (hid_request_report_type_t) u16_high_u8(p_request->wValue),
-                              &m_control_data, p_request->wLength);
+                              m_control_data, p_request->wLength);
     }
     else if (HID_REQUEST_CONTROL_SET_IDLE == p_request->bRequest)
     {

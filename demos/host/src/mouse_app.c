@@ -56,7 +56,7 @@ OSAL_TASK_DEF(mouse_app_task, 128, MOUSE_APP_TASK_PRIO);
 OSAL_QUEUE_DEF(queue_mouse_def, QUEUE_MOUSE_REPORT_DEPTH, hid_mouse_report_t);
 
 static osal_queue_handle_t queue_mouse_hdl;
-static hid_mouse_report_t usb_mouse_report TUSB_CFG_ATTR_USBRAM;
+TUSB_CFG_ATTR_USBRAM static hid_mouse_report_t usb_mouse_report;
 
 static inline void process_mouse_report(hid_mouse_report_t const * p_report);
 

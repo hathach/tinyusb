@@ -57,7 +57,7 @@
 //--------------------------------------------------------------------+
 OSAL_TASK_DEF(msc_app_task, 512, MSC_APP_TASK_PRIO);
 
-static FATFS fatfs[TUSB_CFG_HOST_DEVICE_MAX] TUSB_CFG_ATTR_USBRAM;
+TUSB_CFG_ATTR_USBRAM static FATFS fatfs[TUSB_CFG_HOST_DEVICE_MAX];
 
 //--------------------------------------------------------------------+
 // tinyusb callback (ISR context)

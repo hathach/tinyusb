@@ -62,7 +62,7 @@ typedef struct {
   ATTR_USB_MIN_ALIGNMENT msc_cmd_status_wrapper_t csw;
 }mscd_interface_t;
 
-STATIC_VAR mscd_interface_t mscd_data TUSB_CFG_ATTR_USBRAM;
+TUSB_CFG_ATTR_USBRAM STATIC_VAR mscd_interface_t mscd_data;
 //--------------------------------------------------------------------+
 // INTERNAL OBJECT & FUNCTION DECLARATION
 //--------------------------------------------------------------------+
@@ -109,7 +109,7 @@ tusb_error_t mscd_open(uint8_t coreid, tusb_descriptor_interface_t const * p_int
   (*p_length) += sizeof(tusb_descriptor_interface_t) + 2*sizeof(tusb_descriptor_endpoint_t);
 
   //------------- Queue Endpoint OUT for Command Block Wrapper -------------//
-  ASSERT_STATUS( dcd_pipe_xfer(p_msc->edpt_out, &p_msc->cbw, sizeof(msc_cmd_block_wrapper_t), true) );
+  ASSERT_STATUS( dcd_pipe_xfer(p_msc->edpt_out, (uint8_t*) &p_msc->cbw, sizeof(msc_cmd_block_wrapper_t), true) );
 
   return TUSB_ERROR_NONE;
 }
@@ -202,10 +202,10 @@ tusb_error_t mscd_xfer_cb(endpoint_handle_t edpt_hdl, tusb_event_t event, uint32
   // Either bulk in & out can be stalled in the data phase, dcd must make sure these queued transfer will be resumed after host clear stall
   if (!is_waiting_read10_write10)
   {
-    ASSERT_STATUS( dcd_pipe_xfer( p_msc->edpt_in , p_csw, sizeof(msc_cmd_status_wrapper_t), false) );
+    ASSERT_STATUS( dcd_pipe_xfer( p_msc->edpt_in , (uint8_t*) p_csw, sizeof(msc_cmd_status_wrapper_t), false) );
 
     //------------- Queue the next CBW -------------//
-    ASSERT_STATUS( dcd_pipe_xfer( p_msc->edpt_out, p_cbw, sizeof(msc_cmd_block_wrapper_t), true) );
+    ASSERT_STATUS( dcd_pipe_xfer( p_msc->edpt_out, (uint8_t*) p_cbw, sizeof(msc_cmd_block_wrapper_t), true) );
   }
 
   return TUSB_ERROR_NONE;

@@ -68,7 +68,7 @@ typedef struct {
 
 }dcd_data_t;
 
-STATIC_ dcd_data_t dcd_data TUSB_CFG_ATTR_USBRAM;
+TUSB_CFG_ATTR_USBRAM STATIC_ dcd_data_t dcd_data;
 
 //--------------------------------------------------------------------+
 // INTERNAL OBJECT & FUNCTION DECLARATION
@@ -372,7 +372,7 @@ void dcd_pipe_control_stall(uint8_t coreid)
   sie_write(SIE_CMDCODE_ENDPOINT_SET_STATUS+0, 1, SIE_SET_ENDPOINT_STALLED_MASK | SIE_SET_ENDPOINT_CONDITION_STALLED_MASK);
 }
 
-tusb_error_t dcd_pipe_control_xfer(uint8_t coreid, tusb_direction_t dir, void * p_buffer, uint16_t length, bool int_on_complete)
+tusb_error_t dcd_pipe_control_xfer(uint8_t coreid, tusb_direction_t dir, uint8_t * p_buffer, uint16_t length, bool int_on_complete)
 {
   (void) coreid;
 
@@ -473,7 +473,7 @@ void dd_xfer_init(dcd_dma_descriptor_t* p_dd, void* buffer, uint16_t total_bytes
   p_dd->present_count         = 0;
 }
 
-tusb_error_t dcd_pipe_queue_xfer(endpoint_handle_t edpt_hdl, void * buffer, uint16_t total_bytes)
+tusb_error_t dcd_pipe_queue_xfer(endpoint_handle_t edpt_hdl, uint8_t * buffer, uint16_t total_bytes)
 { // NOTE for sure the qhd has no dds
   dcd_dma_descriptor_t* const p_fixed_dd = &dcd_data.dd[edpt_hdl.index][0]; // always queue with the fixed DD
 
@@ -484,7 +484,7 @@ tusb_error_t dcd_pipe_queue_xfer(endpoint_handle_t edpt_hdl, void * buffer, uint
   return TUSB_ERROR_NONE;
 }
 
-tusb_error_t dcd_pipe_xfer(endpoint_handle_t edpt_hdl, void * buffer, uint16_t total_bytes, bool int_on_complete)
+tusb_error_t dcd_pipe_xfer(endpoint_handle_t edpt_hdl, uint8_t* buffer, uint16_t total_bytes, bool int_on_complete)
 {
   dcd_dma_descriptor_t* const p_first_dd = &dcd_data.dd[edpt_hdl.index][0];
 

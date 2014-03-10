@@ -168,11 +168,11 @@ typedef struct {
 }dcd_data_t;
 
 #if (TUSB_CFG_CONTROLLER_0_MODE & TUSB_MODE_DEVICE)
-ATTR_ALIGNED(2048) dcd_data_t dcd_data0 TUSB_CFG_ATTR_USBRAM;
+TUSB_CFG_ATTR_USBRAM ATTR_ALIGNED(2048) dcd_data_t dcd_data0;
 #endif
 
 #if (TUSB_CFG_CONTROLLER_1_MODE & TUSB_MODE_DEVICE)
-ATTR_ALIGNED(2048) dcd_data_t dcd_data1 TUSB_CFG_ATTR_USBRAM;
+TUSB_CFG_ATTR_USBRAM ATTR_ALIGNED(2048) dcd_data_t dcd_data1;
 #endif
 
 static LPC_USB0_Type * const LPC_USB[2] = { LPC_USB0, ((LPC_USB0_Type*) LPC_USB1_BASE) };

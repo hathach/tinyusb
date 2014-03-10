@@ -57,17 +57,9 @@
 #define ATTR_PACKED_STRUCT(x)     __packed x
 #define ATTR_PREPACKED  __packed
 #define ATTR_PACKED
+//#define ATTR_SECTION(section)      _Pragma((#section))
 
-#define ATTR_ALIGNED(Bytes)        ATTR_ALIGNED_##Bytes
-#define ATTR_ALIGNED_4096          _Pragma("data_alignment=4096")
-#define ATTR_ALIGNED_2048          _Pragma("data_alignment=2048")
-#define ATTR_ALIGNED_256           _Pragma("data_alignment=256")
-#define ATTR_ALIGNED_128           _Pragma("data_alignment=128")
-#define ATTR_ALIGNED_64            _Pragma("data_alignment=64")
-#define ATTR_ALIGNED_48            _Pragma("data_alignment=48")
-#define ATTR_ALIGNED_32            _Pragma("data_alignment=32")
-#define ATTR_ALIGNED_16            _Pragma("data_alignment=16")
-#define ATTR_ALIGNED_4             _Pragma("data_alignment=4")
+#define ATTR_ALIGNED(bytes)        _Pragma(XSTRING_(data_alignment=##bytes))
 
 #ifndef ATTR_ALWAYS_INLINE
 /// Generally, functions are not inlined unless optimization is specified. For functions declared inline, this attribute inlines the function even if no optimization level is specified

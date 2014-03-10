@@ -54,8 +54,8 @@
 //--------------------------------------------------------------------+
 #define RNDIS_MSG_PAYLOAD_MAX   (1024*4)
 
-static uint8_t msg_notification[TUSB_CFG_HOST_DEVICE_MAX][8] TUSB_CFG_ATTR_USBRAM;
-ATTR_ALIGNED(4) static uint8_t msg_payload[RNDIS_MSG_PAYLOAD_MAX]  TUSB_CFG_ATTR_USBRAM;
+TUSB_CFG_ATTR_USBRAM static uint8_t msg_notification[TUSB_CFG_HOST_DEVICE_MAX][8];
+TUSB_CFG_ATTR_USBRAM ATTR_ALIGNED(4) static uint8_t msg_payload[RNDIS_MSG_PAYLOAD_MAX];
 
 STATIC_VAR rndish_data_t rndish_data[TUSB_CFG_HOST_DEVICE_MAX];
 

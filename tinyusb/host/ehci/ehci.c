@@ -57,12 +57,12 @@
 //--------------------------------------------------------------------+
 // INTERNAL OBJECT & FUNCTION DECLARATION
 //--------------------------------------------------------------------+
-STATIC_VAR ehci_data_t ehci_data TUSB_CFG_ATTR_USBRAM;
+TUSB_CFG_ATTR_USBRAM STATIC_VAR ehci_data_t ehci_data;
 
 #if EHCI_PERIODIC_LIST
 
   #if (TUSB_CFG_CONTROLLER_0_MODE & TUSB_MODE_HOST)
-  ATTR_ALIGNED(4096) STATIC_VAR ehci_link_t period_frame_list0[EHCI_FRAMELIST_SIZE] TUSB_CFG_ATTR_USBRAM;
+  TUSB_CFG_ATTR_USBRAM ATTR_ALIGNED(4096) STATIC_VAR ehci_link_t period_frame_list0[EHCI_FRAMELIST_SIZE];
 
     #ifndef __ICCARM__ // IAR cannot able to determine the alignment with datalignment pragma
     STATIC_ASSERT( ALIGN_OF(period_frame_list0) == 4096, "Period Framelist must be 4k alginment"); // validation
@@ -70,7 +70,7 @@ STATIC_VAR ehci_data_t ehci_data TUSB_CFG_ATTR_USBRAM;
   #endif
 
   #if (TUSB_CFG_CONTROLLER_1_MODE & TUSB_MODE_HOST)
-  STATIC_VAR ehci_link_t period_frame_list1[EHCI_FRAMELIST_SIZE] ATTR_ALIGNED(4096) TUSB_CFG_ATTR_USBRAM;
+  TUSB_CFG_ATTR_USBRAM STATIC_VAR ehci_link_t period_frame_list1[EHCI_FRAMELIST_SIZE] ATTR_ALIGNED(4096);
 
     #ifndef __ICCARM__ // IAR cannot able to determine the alignment with datalignment pragma
     STATIC_ASSERT( ALIGN_OF(period_frame_list1) == 4096, "Period Framelist must be 4k alginment"); // validation

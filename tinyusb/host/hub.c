@@ -58,8 +58,8 @@ typedef struct {
   uint8_t status_change; // data from status change interrupt endpoint
 }usbh_hub_t;
 
-usbh_hub_t hub_data[TUSB_CFG_HOST_DEVICE_MAX] TUSB_CFG_ATTR_USBRAM;
-uint8_t hub_enum_buffer[sizeof(descriptor_hub_desc_t)] TUSB_CFG_ATTR_USBRAM;
+TUSB_CFG_ATTR_USBRAM usbh_hub_t hub_data[TUSB_CFG_HOST_DEVICE_MAX];
+TUSB_CFG_ATTR_USBRAM uint8_t hub_enum_buffer[sizeof(descriptor_hub_desc_t)];
 
 //OSAL_SEM_DEF(hub_enum_semaphore);
 //static osal_semaphore_handle_t hub_enum_sem_hdl;

@@ -56,7 +56,7 @@ OSAL_TASK_DEF(keyboard_app_task, 128, KEYBOARD_APP_TASK_PRIO);
 OSAL_QUEUE_DEF(queue_kbd_def, QUEUE_KEYBOARD_REPORT_DEPTH, hid_keyboard_report_t);
 
 static osal_queue_handle_t queue_kbd_hdl;
-static hid_keyboard_report_t usb_keyboard_report TUSB_CFG_ATTR_USBRAM;
+TUSB_CFG_ATTR_USBRAM static hid_keyboard_report_t usb_keyboard_report;
 
 static inline uint8_t keycode_to_ascii(uint8_t modifier, uint8_t keycode) ATTR_CONST ATTR_ALWAYS_INLINE;
 static inline void process_kbd_report(hid_keyboard_report_t const * report);

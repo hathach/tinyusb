@@ -50,8 +50,8 @@
 //--------------------------------------------------------------------+
 // MACRO CONSTANT TYPEDEF
 //--------------------------------------------------------------------+
-ATTR_USB_MIN_ALIGNMENT
-static cdc_line_coding_t cdcd_line_coding[CONTROLLER_DEVICE_NUMBER] TUSB_CFG_ATTR_USBRAM;
+TUSB_CFG_ATTR_USBRAM ATTR_USB_MIN_ALIGNMENT
+static cdc_line_coding_t cdcd_line_coding[CONTROLLER_DEVICE_NUMBER];
 
 typedef struct {
   uint8_t interface_number;
@@ -191,12 +191,12 @@ tusb_error_t cdcd_control_request_subtask(uint8_t coreid, tusb_control_request_t
   {
     case CDC_REQUEST_GET_LINE_CODING:
       dcd_pipe_control_xfer(coreid, p_request->bmRequestType_bit.direction,
-                            &cdcd_line_coding[coreid], min16_of(sizeof(cdc_line_coding_t), p_request->wLength), false );
+                            (uint8_t*) &cdcd_line_coding[coreid], min16_of(sizeof(cdc_line_coding_t), p_request->wLength), false );
     break;
 
     case CDC_REQUEST_SET_LINE_CODING:
       dcd_pipe_control_xfer(coreid, p_request->bmRequestType_bit.direction,
-                            &cdcd_line_coding[coreid], min16_of(sizeof(cdc_line_coding_t), p_request->wLength), false );
+                            (uint8_t*) &cdcd_line_coding[coreid], min16_of(sizeof(cdc_line_coding_t), p_request->wLength), false );
       // TODO notify application on xfer completea
     break;
 

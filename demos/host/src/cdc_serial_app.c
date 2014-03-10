@@ -51,8 +51,8 @@ OSAL_SEM_DEF(serial_semaphore);
 
 static osal_semaphore_handle_t sem_hdl;
 
-static uint8_t serial_in_buffer[32] TUSB_CFG_ATTR_USBRAM;
-static uint8_t serial_out_buffer[32] TUSB_CFG_ATTR_USBRAM;
+TUSB_CFG_ATTR_USBRAM static uint8_t serial_in_buffer[32];
+TUSB_CFG_ATTR_USBRAM static uint8_t serial_out_buffer[32];
 
 static uint8_t received_bytes; // set by transfer complete callback
 

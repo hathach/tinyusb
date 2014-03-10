@@ -115,7 +115,7 @@
 
 #elif defined __ICCARM__ // compiled with IAR
 
-  #define TUSB_CFG_ATTR_USBRAM  @ ".ahb_sram1"
+  #define TUSB_CFG_ATTR_USBRAM _Pragma("location=\".ahb_sram1\"")
 
 #else
 

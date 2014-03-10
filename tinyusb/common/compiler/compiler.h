@@ -49,6 +49,7 @@
 #ifndef _TEST_
   #define STATIC_     static
   #define INLINE_     inline
+  #define ATTR_TEST_WEAK
 
   #if TUSB_CFG_DEBUG == 3
     #define ATTR_ALWAYS_INLINE // no inline for debug = 3
@@ -56,12 +57,13 @@
   #else
     #define STATIC_VAR static
   #endif
-  #define ATTR_TEST_WEAK
+
 #else
   #define ATTR_ALWAYS_INLINE
   #define STATIC_
   #define STATIC_VAR
   #define INLINE_
+
 #endif
 
 #if defined(__GNUC__)

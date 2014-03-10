@@ -133,7 +133,7 @@ typedef struct {
 //--------------------------------------------------------------------+
 // INTERNAL OBJECT & FUNCTION DECLARATION
 //--------------------------------------------------------------------+
-ATTR_ALIGNED(256) static dcd_11u_13u_data_t dcd_data TUSB_CFG_ATTR_USBRAM;
+TUSB_CFG_ATTR_USBRAM ATTR_ALIGNED(256) static dcd_11u_13u_data_t dcd_data;
 
 static inline uint16_t addr_offset(void const * p_buffer) ATTR_CONST ATTR_ALWAYS_INLINE;
 static inline uint16_t addr_offset(void const * p_buffer)

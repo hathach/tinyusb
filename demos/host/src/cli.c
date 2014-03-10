@@ -135,8 +135,8 @@ static cli_cmdfunc_t cli_command_tbl[] =
 //--------------------------------------------------------------------+
 // INTERNAL OBJECT & FUNCTION DECLARATION
 //--------------------------------------------------------------------+
+TUSB_CFG_ATTR_USBRAM uint8_t fileread_buffer[CLI_FILE_READ_BUFFER];
 static char cli_buffer[CLI_MAX_BUFFER];
-uint8_t fileread_buffer[CLI_FILE_READ_BUFFER] TUSB_CFG_ATTR_USBRAM;
 static char volume_label[20];
 
 static inline void drive_number2letter(char * p_path) ATTR_ALWAYS_INLINE;

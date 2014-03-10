@@ -55,23 +55,24 @@
  */
 typedef struct
 {
+           uint8_t* const buffer    ; ///< buffer pointer
            uint16_t const depth     ; ///< max items
            uint16_t const item_size ; ///< size of each item
   volatile uint16_t count           ; ///< number of items in queue
   volatile uint16_t wr_idx          ; ///< write pointer
   volatile uint16_t rd_idx          ; ///< read pointer
            bool overwritable        ;
-           uint8_t buffer[]         ; ///< buffer pointer
   // IRQn_Type irq;
 } fifo_t;
 
 #define FIFO_DEF(name, ff_depth, type, is_overwritable) /*, irq_mutex)*/ \
+  uint8_t name##_buffer[ff_depth*sizeof(type)];\
   fifo_t name = {\
+      .buffer       = name##_buffer,\
       .depth        = ff_depth,\
       .item_size    = sizeof(type),\
       .overwritable = is_overwritable,\
       /*.irq          = irq_mutex*/\
-      .buffer       = { [ff_depth*sizeof(type) - 1] = 0 },\
   }
 
 bool fifo_write(fifo_t* f, void const * p_data);
