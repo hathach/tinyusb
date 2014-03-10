@@ -396,43 +396,40 @@ app_descriptor_configuration_t app_tusb_desc_configuration =
 // STRING DESCRIPTORS
 //--------------------------------------------------------------------+
 #define STRING_LEN_UNICODE(n) (2 + (2*(n))) // also includes 2 byte header
+#define ENDIAN_BE16_FROM( high, low) ENDIAN_BE16(high << 8 | low)
 
 ATTR_USB_MIN_ALIGNMENT TUSB_CFG_ATTR_USBRAM
-tusb_descriptor_string_t desc_str_language =
+uint16_t desc_str_language[] =
 {
-    .bLength         = STRING_LEN_UNICODE(1),
-    .bDescriptorType = TUSB_DESC_TYPE_STRING,
-    .unicode_string  = { 0x0409 }
+    ENDIAN_BE16_FROM( STRING_LEN_UNICODE(1), TUSB_DESC_TYPE_STRING ),
+    0x0409
 };
 
 ATTR_USB_MIN_ALIGNMENT TUSB_CFG_ATTR_USBRAM
-tusb_descriptor_string_t desc_str_manufacturer =
+uint16_t desc_str_manufacturer[] =
 {
-    .bLength         = STRING_LEN_UNICODE(11),
-    .bDescriptorType = TUSB_DESC_TYPE_STRING,
-    .unicode_string  = { 't', 'i', 'n', 'y', 'u', 's', 'b', '.', 'o', 'r', 'g' } // len = 11
+    ENDIAN_BE16_FROM( STRING_LEN_UNICODE(11), TUSB_DESC_TYPE_STRING),
+    't', 'i', 'n', 'y', 'u', 's', 'b', '.', 'o', 'r', 'g' // len = 11
 };
 
 ATTR_USB_MIN_ALIGNMENT TUSB_CFG_ATTR_USBRAM
-tusb_descriptor_string_t desc_str_product =
+uint16_t desc_str_product[] =
 {
-    .bLength         = STRING_LEN_UNICODE(14),
-    .bDescriptorType = TUSB_DESC_TYPE_STRING,
-    .unicode_string  = { 't', 'i', 'n', 'y', 'u', 's', 'b', ' ', 'D', 'e', 'v', 'i', 'c', 'e' } // len = 14
+    ENDIAN_BE16_FROM( STRING_LEN_UNICODE(14), TUSB_DESC_TYPE_STRING),
+    't', 'i', 'n', 'y', 'u', 's', 'b', ' ', 'D', 'e', 'v', 'i', 'c', 'e' // len = 14
 };
 
 ATTR_USB_MIN_ALIGNMENT TUSB_CFG_ATTR_USBRAM
-tusb_descriptor_string_t desc_str_serial =
+uint16_t desc_str_serial[] =
 {
-    .bLength         = STRING_LEN_UNICODE(4),
-    .bDescriptorType = TUSB_DESC_TYPE_STRING,
-    .unicode_string  = { '1', '2', '3', '4' } // len = 4
+    ENDIAN_BE16_FROM( STRING_LEN_UNICODE(4), TUSB_DESC_TYPE_STRING),
+    '1', '2', '3', '4' // len = 4
 };
 
-tusb_descriptor_string_t * const desc_str_table [TUSB_CFG_DEVICE_STRING_DESCRIPTOR_COUNT] =
+uint8_t* const desc_str_table [TUSB_CFG_DEVICE_STRING_DESCRIPTOR_COUNT] =
 {
-    &desc_str_language,
-    &desc_str_manufacturer,
-    &desc_str_product,
-    &desc_str_serial
+    (uint8_t*) desc_str_language,
+    (uint8_t*) desc_str_manufacturer,
+    (uint8_t*) desc_str_product,
+    (uint8_t*) desc_str_serial
 };

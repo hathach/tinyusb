@@ -351,7 +351,7 @@ void dcd_pipe_control_stall(uint8_t coreid)
 }
 
 // control transfer does not need to use qtd find function
-tusb_error_t dcd_pipe_control_xfer(uint8_t coreid, tusb_direction_t dir, void * p_buffer, uint16_t length, bool int_on_complete)
+tusb_error_t dcd_pipe_control_xfer(uint8_t coreid, tusb_direction_t dir, uint8_t * p_buffer, uint16_t length, bool int_on_complete)
 {
   LPC_USB0_Type* const lpc_usb = LPC_USB[coreid];
   dcd_data_t* const p_dcd      = dcd_data_ptr[coreid];
@@ -485,12 +485,12 @@ static tusb_error_t pipe_add_xfer(endpoint_handle_t edpt_hdl, void * buffer, uin
   return TUSB_ERROR_NONE;
 }
 
-tusb_error_t dcd_pipe_queue_xfer(endpoint_handle_t edpt_hdl, void * buffer, uint16_t total_bytes)
+tusb_error_t dcd_pipe_queue_xfer(endpoint_handle_t edpt_hdl, uint8_t * buffer, uint16_t total_bytes)
 {
   return pipe_add_xfer( edpt_hdl, buffer, total_bytes, false);
 }
 
-tusb_error_t  dcd_pipe_xfer(endpoint_handle_t edpt_hdl, void* buffer, uint16_t total_bytes, bool int_on_complete)
+tusb_error_t  dcd_pipe_xfer(endpoint_handle_t edpt_hdl, uint8_t * buffer, uint16_t total_bytes, bool int_on_complete)
 {
   ASSERT_STATUS ( pipe_add_xfer(edpt_hdl, buffer, total_bytes, int_on_complete) );
 
@@ -602,7 +602,7 @@ void dcd_isr(uint8_t coreid)
           .class_code = 0
       };
 
-		  dcd_qtd_t * const p_qtd = &p_dcd->qhd[ (edpt_complete & BIT_(0)) ? 0 : 1 ].qtd_overlay;
+		  dcd_qtd_t volatile * const p_qtd = &p_dcd->qhd[ (edpt_complete & BIT_(0)) ? 0 : 1 ].qtd_overlay;
 		  tusb_event_t event = ( p_qtd->xact_err || p_qtd->halted || p_qtd->buffer_err ) ? TUSB_EVENT_XFER_ERROR : TUSB_EVENT_XFER_COMPLETE;
 
 		  usbd_xfer_isr(edpt_hdl, event, 0); // TODO xferred bytes for control xfer is not needed yet !!!!

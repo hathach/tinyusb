@@ -344,7 +344,7 @@ static tusb_error_t get_descriptor(uint8_t coreid, tusb_control_request_t const 
     if ( ! (desc_index < TUSB_CFG_DEVICE_STRING_DESCRIPTOR_COUNT) ) return TUSB_ERROR_DCD_CONTROL_REQUEST_NOT_SUPPORT;
 
     (*pp_buffer) = (uint8_t *) desc_str_table[desc_index];
-    (*p_length)  = desc_str_table[desc_index]->bLength;
+    (*p_length)  = **pp_buffer;
   }else
   {
     return TUSB_ERROR_DCD_CONTROL_REQUEST_NOT_SUPPORT;
