@@ -392,6 +392,11 @@
           <GroupName>app</GroupName>
           <Files>
             <File>
+              <FileName>main.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\src\main.c</FilePath>
+            </File>
+            <File>
               <FileName>cdcd_app.c</FileName>
               <FileType>1</FileType>
               <FilePath>..\src\cdcd_app.c</FilePath>
@@ -400,11 +405,6 @@
               <FileName>keyboardd_app.c</FileName>
               <FileType>1</FileType>
               <FilePath>..\src\keyboardd_app.c</FilePath>
-            </File>
-            <File>
-              <FileName>main.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>..\src\main.c</FilePath>
             </File>
             <File>
               <FileName>moused_app.c</FileName>
@@ -1309,6 +1309,11 @@
           <GroupName>app</GroupName>
           <Files>
             <File>
+              <FileName>main.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\src\main.c</FilePath>
+            </File>
+            <File>
               <FileName>cdcd_app.c</FileName>
               <FileType>1</FileType>
               <FilePath>..\src\cdcd_app.c</FilePath>
@@ -1317,11 +1322,6 @@
               <FileName>keyboardd_app.c</FileName>
               <FileType>1</FileType>
               <FilePath>..\src\keyboardd_app.c</FilePath>
-            </File>
-            <File>
-              <FileName>main.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>..\src\main.c</FilePath>
             </File>
             <File>
               <FileName>moused_app.c</FileName>
@@ -2266,6 +2266,11 @@
           <GroupName>app</GroupName>
           <Files>
             <File>
+              <FileName>main.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\src\main.c</FilePath>
+            </File>
+            <File>
               <FileName>cdcd_app.c</FileName>
               <FileType>1</FileType>
               <FilePath>..\src\cdcd_app.c</FilePath>
@@ -2274,11 +2279,6 @@
               <FileName>keyboardd_app.c</FileName>
               <FileType>1</FileType>
               <FilePath>..\src\keyboardd_app.c</FilePath>
-            </File>
-            <File>
-              <FileName>main.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>..\src\main.c</FilePath>
             </File>
             <File>
               <FileName>moused_app.c</FileName>
@@ -2954,10 +2954,10 @@
             <RunIndependent>0</RunIndependent>
             <UpdateFlashBeforeDebugging>1</UpdateFlashBeforeDebugging>
             <Capability>1</Capability>
-            <DriverSelection>4096</DriverSelection>
+            <DriverSelection>4099</DriverSelection>
           </Flash1>
-          <Flash2>BIN\UL2CM3.DLL</Flash2>
-          <Flash3></Flash3>
+          <Flash2>Segger\JL2CM3.dll</Flash2>
+          <Flash3>"" ()</Flash3>
           <Flash4></Flash4>
         </Utilities>
         <TargetArmAds>
@@ -3183,6 +3183,11 @@
           <GroupName>app</GroupName>
           <Files>
             <File>
+              <FileName>main.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\src\main.c</FilePath>
+            </File>
+            <File>
               <FileName>cdcd_app.c</FileName>
               <FileType>1</FileType>
               <FilePath>..\src\cdcd_app.c</FilePath>
@@ -3191,11 +3196,6 @@
               <FileName>keyboardd_app.c</FileName>
               <FileType>1</FileType>
               <FilePath>..\src\keyboardd_app.c</FilePath>
-            </File>
-            <File>
-              <FileName>main.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>..\src\main.c</FilePath>
             </File>
             <File>
               <FileName>moused_app.c</FileName>
@@ -4140,6 +4140,11 @@
           <GroupName>app</GroupName>
           <Files>
             <File>
+              <FileName>main.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\src\main.c</FilePath>
+            </File>
+            <File>
               <FileName>cdcd_app.c</FileName>
               <FileType>1</FileType>
               <FilePath>..\src\cdcd_app.c</FilePath>
@@ -4148,11 +4153,6 @@
               <FileName>keyboardd_app.c</FileName>
               <FileType>1</FileType>
               <FilePath>..\src\keyboardd_app.c</FilePath>
-            </File>
-            <File>
-              <FileName>main.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>..\src\main.c</FilePath>
             </File>
             <File>
               <FileName>moused_app.c</FileName>
