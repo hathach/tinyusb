@@ -85,7 +85,7 @@
 #define TUSB_CFG_DEVICE_HID_KEYBOARD            1
 #define TUSB_CFG_DEVICE_HID_MOUSE               1
 #define TUSB_CFG_DEVICE_HID_GENERIC             0
-#define TUSB_CFG_DEVICE_MSC                     1
+#define TUSB_CFG_DEVICE_MSC                     0
 #define TUSB_CFG_DEVICE_CDC                     1
 
 //--------------------------------------------------------------------+
@@ -114,7 +114,7 @@
 #elif defined  __CC_ARM // Compiled with Keil armcc, USBRAM_SECTION is defined in scatter files
 
   #if (TUSB_CFG_MCU == MCU_LPC11UXX) || (TUSB_CFG_MCU == MCU_LPC13UXX)
-    #define TUSB_CFG_ATTR_USBRAM   __attribute__ ((section("USBRAM_SECTION")))
+    #define TUSB_CFG_ATTR_USBRAM   __attribute__ ((section("USBRAM_SECTION"))) // TODO Keil linker file
   #elif  (TUSB_CFG_MCU == MCU_LPC43XX)
     #define TUSB_CFG_ATTR_USBRAM // Use keil tool configure to have AHB SRAM as default memory
   #elif (TUSB_CFG_MCU == MCU_LPC175X_6X)
@@ -129,6 +129,8 @@
     #define TUSB_CFG_ATTR_USBRAM _Pragma("location=\".ahb_sram1\"")
   #elif (TUSB_CFG_MCU == MCU_LPC175X_6X)
     #define TUSB_CFG_ATTR_USBRAM
+  #elif (TUSB_CFG_MCU == MCU_LPC11UXX)
+    #define TUSB_CFG_ATTR_USBRAM _Pragma("location=\"USB_PACKET_MEMORY\"")
   #endif
 
 #else
