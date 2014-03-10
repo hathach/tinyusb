@@ -61,7 +61,7 @@ typedef struct ATTR_ALIGNED(4)
 	//------------- Word 1 -------------//
 	uint16_t mode            : 2; // either 00 normal or 01 ATLE(auto length extraction)
 	uint16_t is_next_valid   : 1;
-	uint16_t used            : 1; ///< make use of reserved bit
+	uint16_t int_on_complete : 1; ///< make use of reserved bit
 	uint16_t is_isochronous  : 1; // is an iso endpoint
 	uint16_t max_packet_size : 11;
 	volatile uint16_t buffer_length;
