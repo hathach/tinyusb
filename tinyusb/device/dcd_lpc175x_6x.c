@@ -58,10 +58,7 @@ typedef struct {
   volatile ATTR_ALIGNED(128) dcd_dma_descriptor_t* udca[DCD_QHD_MAX];
   dcd_dma_descriptor_t dd[DCD_QTD_MAX][2]; // each endpoints can have up to 2 DD queued at a time TODO 0-1 are not used, offset to reduce memory
 
-//  uint8_t ddat[DCD_QHD_MAX]; ///< DMA Descriptor Allocation Table. A fixed DD will be allocated for a UDCA pointer up on endpoint open
   uint8_t class_code[DCD_QHD_MAX];
-
-//  volatile uint32_t ioc_dd; ///< each bit for each DD
 
   struct {
     uint8_t* p_data;
@@ -103,30 +100,6 @@ static inline void edpt_set_max_packet_size(uint8_t ep_id, uint16_t max_packet_s
 #endif
 
 }
-
-// retval UINT8_MAX: invalid
-//static inline uint8_t dd_find_free(void) ATTR_PURE ATTR_ALWAYS_INLINE;
-//static inline uint8_t dd_find_free(void)
-//{
-//  for(uint8_t i=0; i<DCD_QTD_MAX; i++)
-//  {
-//    if (dcd_data.dd[i].used == 0) return i;
-//  }
-//
-//  return UINT8_MAX;
-//}
-
-//static inline uint8_t dd_get_index(dcd_dma_descriptor_t const * const p_dd) ATTR_PURE ATTR_ALWAYS_INLINE;
-//static inline uint8_t dd_get_index(dcd_dma_descriptor_t const * const p_dd)
-//{
-//  return (p_dd - dcd_data.dd);
-//}
-//
-//static inline dcd_dma_descriptor_t* qhd_get_fixed_dd(uint8_t ep_id) ATTR_PURE ATTR_ALWAYS_INLINE;
-//static inline dcd_dma_descriptor_t* qhd_get_fixed_dd(uint8_t ep_id)
-//{
-//  return &dcd_data.dd[ dcd_data.ddat[ep_id] ];
-//}
 
 //--------------------------------------------------------------------+
 // USBD-DCD API
@@ -173,25 +146,17 @@ static void endpoint_non_control_isr(uint32_t eot_int)
   {
     if ( BIT_TEST_(eot_int, ep_id) )
     {
-      dcd_dma_descriptor_t* const p_fixed_dd = &dcd_data.dd[ep_id][0];
-      // Maximum is 2 QTD are queued in an endpoint
-      dcd_dma_descriptor_t* const p_last_dd = (p_fixed_dd->is_next_valid) ? (&dcd_data.dd[ep_id][1]) : p_fixed_dd;
+      dcd_dma_descriptor_t* const p_first_dd = &dcd_data.dd[ep_id][0];
+      dcd_dma_descriptor_t* const p_last_dd  = dcd_data.dd[ep_id] + (p_first_dd->is_next_valid ? 1 : 0); // Maximum is 2 QTD are queued in an endpoint
 
       // only handle when Controller already finished the last DD
       if ( dcd_data.udca[ep_id] == p_last_dd )
       {
-        dcd_data.udca[ep_id] = p_fixed_dd; // UDCA currently points to the last DD, change to the fixed DD
-        p_fixed_dd->buffer_length = 0; // buffer length is used to determined if fixed dd is queued in pipe xfer function
-
-//        if (p_fixed_dd->is_next_valid)
-//        { // last_dd is not fixed_dd --> need to free
-//          p_last_dd->used = 0;
-//        }
+        dcd_data.udca[ep_id] = p_first_dd; // UDCA currently points to the last DD, change to the fixed DD
+        p_first_dd->buffer_length = 0; // buffer length is used to determined if first dd is queued in pipe xfer function
 
         if ( p_last_dd->int_on_complete )
         {
-//          dcd_data.ioc_dd = BIT_CLR_(dcd_data.ioc_dd, dd_get_index(p_last_dd) );
-
           endpoint_handle_t edpt_hdl =
           {
               .coreid     = 0,
@@ -200,7 +165,7 @@ static void endpoint_non_control_isr(uint32_t eot_int)
           };
           tusb_event_t event = (p_last_dd->status == DD_STATUS_NORMAL || p_last_dd->status == DD_STATUS_DATA_UNDERUN) ? TUSB_EVENT_XFER_COMPLETE : TUSB_EVENT_XFER_ERROR;
 
-          usbd_xfer_isr(edpt_hdl, event, p_last_dd->present_count); // only number of bytes in the IOC qtd
+          usbd_xfer_isr(edpt_hdl, event, p_last_dd->present_count); // report only xferred bytes in the IOC qtd
         }
       }
     }
@@ -233,17 +198,11 @@ static void endpoint_control_isr(void)
     else
     {
       dcd_data.control_dma.remaining_bytes = 0;
-//      if ( ep_id == 0 )
-//      { // always need to read from OUT endpoint in interrupt handler
-//        pipe_control_xfer(ep_id, dcd_data.control_dma.p_data, dcd_data.control_dma.remaining_bytes);
-//      }
 
       if ( BIT_TEST_(dcd_data.control_dma.int_on_complete, ep_id) )
       {
         endpoint_handle_t edpt_hdl = { .coreid = 0, .class_code = 0 };
         dcd_data.control_dma.int_on_complete = 0;
-
-//        dcd_data.ioc_dd = BIT_CLR_(dcd_data.ioc_dd, ep_id);
 
         // FIXME xferred_byte for control xfer is not needed now !!!
         usbd_xfer_isr(edpt_hdl, TUSB_EVENT_XFER_COMPLETE, 0);
@@ -437,10 +396,9 @@ tusb_error_t dcd_pipe_control_xfer(uint8_t coreid, tusb_direction_t dir, void * 
 
   //------------- Status Phase (opposite direct to Data) -------------//
   if (dir == TUSB_DIR_HOST_TO_DEV)
-  { // only write for CONTROL OUT, CONTROL IN data will be retrieved in dcd_isr
+  { // only write for CONTROL OUT, CONTROL IN data will be retrieved in dcd_isr // TODO ????
     ASSERT_STATUS ( pipe_control_write(NULL, 0) );
   }
-//  ASSERT_STATUS ( pipe_control_xfer(ep_status, NULL, 0) );
 
   return TUSB_ERROR_NONE;
 }
@@ -462,14 +420,9 @@ endpoint_handle_t dcd_pipe_open(uint8_t coreid, tusb_descriptor_endpoint_t const
 
   //------------- Realize Endpoint with Max Packet Size -------------//
   edpt_set_max_packet_size(ep_id, p_endpoint_desc->wMaxPacketSize.size);
-
-	//------------- fixed DD prepare -------------//
-//	uint8_t const dd_idx = dd_find_free();
-//	ASSERT(dd_idx != UINT8_MAX, null_handle);
-
-//	dcd_data.ddat[ep_id]       = dd_idx; // fixed this DD to UDCA for this endpoint
 	dcd_data.class_code[ep_id] = class_code;
 
+	//------------- first DD prepare -------------//
 	dcd_dma_descriptor_t* const p_dd = &dcd_data.dd[ep_id][0];
 	memclr_(p_dd, sizeof(dcd_dma_descriptor_t));
 
@@ -522,54 +475,45 @@ void dd_xfer_init(dcd_dma_descriptor_t* p_dd, void* buffer, uint16_t total_bytes
 
 tusb_error_t dcd_pipe_queue_xfer(endpoint_handle_t edpt_hdl, void * buffer, uint16_t total_bytes)
 { // NOTE for sure the qhd has no dds
-  dcd_dma_descriptor_t* const p_fixed_dd = &dcd_data.dd[edpt_hdl.index][0]; // qhd_get_fixed_dd(edpt_hdl.index); // always queue with the fixed DD
+  dcd_dma_descriptor_t* const p_fixed_dd = &dcd_data.dd[edpt_hdl.index][0]; // always queue with the fixed DD
 
   dd_xfer_init(p_fixed_dd, buffer, total_bytes);
   p_fixed_dd->is_retired      = 1;
   p_fixed_dd->int_on_complete = 0;
-
-//  dcd_data.ioc_dd = BIT_CLR_(dcd_data.ioc_dd, edpt_hdl.index);
 
   return TUSB_ERROR_NONE;
 }
 
 tusb_error_t dcd_pipe_xfer(endpoint_handle_t edpt_hdl, void * buffer, uint16_t total_bytes, bool int_on_complete)
 {
-  dcd_dma_descriptor_t* const p_fixed_dd = &dcd_data.dd[edpt_hdl.index][0];
+  dcd_dma_descriptor_t* const p_first_dd = &dcd_data.dd[edpt_hdl.index][0];
 
   //------------- fixed DD is already queued a xfer -------------//
-  if ( p_fixed_dd->buffer_length )
+  if ( p_first_dd->buffer_length )
   {
-    //------------- setup new dd -------------//
-//    uint8_t dd_idx = dd_find_free();
-//    ASSERT( dd_idx != UINT8_MAX, TUSB_ERROR_DCD_NOT_ENOUGH_QTD);
-
+    // setup new dd
     dcd_dma_descriptor_t* const p_dd = &dcd_data.dd[ edpt_hdl.index ][1];
     memclr_(p_dd, sizeof(dcd_dma_descriptor_t));
 
     dd_xfer_init(p_dd, buffer, total_bytes);
 
-    p_dd->max_packet_size = p_fixed_dd->max_packet_size;
-    p_dd->is_isochronous  = p_fixed_dd->is_isochronous;
-    p_dd->int_on_complete = int_on_complete;
+    p_dd->max_packet_size     = p_first_dd->max_packet_size;
+    p_dd->is_isochronous      = p_first_dd->is_isochronous;
+    p_dd->int_on_complete     = int_on_complete;
 
-    //------------- hook to fixed dd -------------//
-    p_fixed_dd->next          = (uint32_t) p_dd;
-    p_fixed_dd->is_next_valid = 1;
+    // hook to fixed dd
+    p_first_dd->next          = (uint32_t) p_dd;
+    p_first_dd->is_next_valid = 1;
   }
   //------------- fixed DD is free -------------//
   else
   {
-    dd_xfer_init(p_fixed_dd, buffer, total_bytes);
-    p_fixed_dd->int_on_complete = int_on_complete;
-//    dcd_data.ioc_dd     = int_on_complete ? BIT_SET_(dcd_data.ioc_dd, dcd_data.ddat[edpt_hdl.index]) :
-//                                            BIT_CLR_(dcd_data.ioc_dd, dcd_data.ddat[edpt_hdl.index]);
+    dd_xfer_init(p_first_dd, buffer, total_bytes);
+    p_first_dd->int_on_complete = int_on_complete;
   }
 
-  p_fixed_dd->is_retired = 0;
-
-  dcd_data.udca[edpt_hdl.index] = p_fixed_dd;
-
+  p_first_dd->is_retired = 0; // activate xfer
+  dcd_data.udca[edpt_hdl.index] = p_first_dd;
   LPC_USB->USBEpDMAEn = BIT_(edpt_hdl.index);
 
   if ( edpt_hdl.index % 2 )
