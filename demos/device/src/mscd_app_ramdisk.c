@@ -47,8 +47,8 @@
 //--------------------------------------------------------------------+
 // INTERNAL OBJECT & FUNCTION DECLARATION
 //--------------------------------------------------------------------+
-ATTR_USB_MIN_ALIGNMENT
-uint8_t mscd_app_ramdisk[DISK_BLOCK_NUM][DISK_BLOCK_SIZE] TUSB_CFG_ATTR_USBRAM =
+TUSB_CFG_ATTR_USBRAM ATTR_USB_MIN_ALIGNMENT
+uint8_t mscd_app_ramdisk[DISK_BLOCK_NUM][DISK_BLOCK_SIZE] =
 {
   //------------- Boot Sector -------------//
   // byte_per_sector    = DISK_BLOCK_SIZE; fat12_sector_num_16  = DISK_BLOCK_NUM;

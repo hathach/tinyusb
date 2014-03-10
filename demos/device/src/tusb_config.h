@@ -99,8 +99,10 @@
 #define TUSB_CFG_OS_TICKS_PER_SECOND  1000
 
 #ifdef __CODE_RED // compiled with lpcxpresso
-  #if (TUSB_CFG_MCU == MCU_LPC11UXX) || (TUSB_CFG_MCU == MCU_LPC13UXX) || (TUSB_CFG_MCU == MCU_LPC175X_6X)
+  #if (TUSB_CFG_MCU == MCU_LPC11UXX) || (TUSB_CFG_MCU == MCU_LPC13UXX)
     #define TUSB_RAM_SECTION  ".data.$RAM2"
+  #elif
+    #define TUSB_CFG_MCU == MCU_LPC175X_6X // LPC17xx USB DMA can access all
   #elif  (TUSB_CFG_MCU == MCU_LPC43XX)
     #define TUSB_RAM_SECTION  ".data.$RAM3"
   #else
@@ -114,7 +116,7 @@
   #if (TUSB_CFG_MCU == MCU_LPC11UXX) || (TUSB_CFG_MCU == MCU_LPC13UXX)
     #define TUSB_CFG_ATTR_USBRAM   __attribute__ ((section("USBRAM_SECTION")))
   #elif  (TUSB_CFG_MCU == MCU_LPC43XX)
-    #define TUSB_CFG_ATTR_USBRAM
+    #define TUSB_CFG_ATTR_USBRAM // Use keil tool configure to have AHB SRAM as default memory
   #elif (TUSB_CFG_MCU == MCU_LPC175X_6X)
     #define TUSB_CFG_ATTR_USBRAM
   #else
@@ -123,7 +125,11 @@
 
 #elif __ICCARM__ // compiled with IAR
 
-  #define TUSB_CFG_ATTR_USBRAM _Pragma("location=\".ahb_sram1\"")
+  #if  (TUSB_CFG_MCU == MCU_LPC43XX)
+    #define TUSB_CFG_ATTR_USBRAM _Pragma("location=\".ahb_sram1\"")
+  #elif (TUSB_CFG_MCU == MCU_LPC175X_6X)
+    #define TUSB_CFG_ATTR_USBRAM
+  #endif
 
 #else
 

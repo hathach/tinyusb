@@ -46,8 +46,8 @@
 //--------------------------------------------------------------------+
 // MACRO CONSTANT TYPEDEF
 //--------------------------------------------------------------------+
-ATTR_USB_MIN_ALIGNMENT
-static scsi_inquiry_data_t mscd_inquiry_data TUSB_CFG_ATTR_USBRAM =
+TUSB_CFG_ATTR_USBRAM ATTR_USB_MIN_ALIGNMENT
+static scsi_inquiry_data_t mscd_inquiry_data =
 {
     .is_removable         = 1,
     .version              = 2,
@@ -57,23 +57,23 @@ static scsi_inquiry_data_t mscd_inquiry_data TUSB_CFG_ATTR_USBRAM =
     .product_revision     = "0.01"
 };
 
-ATTR_USB_MIN_ALIGNMENT
-static scsi_read_capacity10_data_t mscd_read_capacity10_data TUSB_CFG_ATTR_USBRAM =
+TUSB_CFG_ATTR_USBRAM ATTR_USB_MIN_ALIGNMENT
+static scsi_read_capacity10_data_t mscd_read_capacity10_data =
 {
     .last_lba   = ENDIAN_BE(DISK_BLOCK_NUM-1), // read capacity
     .block_size = ENDIAN_BE(DISK_BLOCK_SIZE)
 };
 
-ATTR_USB_MIN_ALIGNMENT
-scsi_sense_fixed_data_t mscd_sense_data TUSB_CFG_ATTR_USBRAM =
+TUSB_CFG_ATTR_USBRAM ATTR_USB_MIN_ALIGNMENT
+scsi_sense_fixed_data_t mscd_sense_data =
 {
     .response_code        = 0x70,
     .sense_key            = 0, // no errors
     .additional_sense_len = sizeof(scsi_sense_fixed_data_t) - 8
 };
 
-ATTR_USB_MIN_ALIGNMENT
-static scsi_read_format_capacity_data_t mscd_format_capacity_data TUSB_CFG_ATTR_USBRAM =
+TUSB_CFG_ATTR_USBRAM ATTR_USB_MIN_ALIGNMENT
+static scsi_read_format_capacity_data_t mscd_format_capacity_data =
 {
     .list_length     = 8,
     .block_num       = ENDIAN_BE(DISK_BLOCK_NUM), // write capacity
@@ -81,8 +81,8 @@ static scsi_read_format_capacity_data_t mscd_format_capacity_data TUSB_CFG_ATTR_
     .block_size_u16  = ENDIAN_BE16(DISK_BLOCK_SIZE)
 };
 
-ATTR_USB_MIN_ALIGNMENT
-static scsi_mode_parameters_t msc_dev_mode_para TUSB_CFG_ATTR_USBRAM =
+TUSB_CFG_ATTR_USBRAM ATTR_USB_MIN_ALIGNMENT
+static scsi_mode_parameters_t msc_dev_mode_para =
 {
     .mode_data_length        = 3,
     .medium_type             = 0,

@@ -52,7 +52,7 @@
 //--------------------------------------------------------------------+
 OSAL_TASK_DEF(moused_app_task, 128, MOUSED_APP_TASK_PRIO);
 
-ATTR_USB_MIN_ALIGNMENT hid_mouse_report_t mouse_report TUSB_CFG_ATTR_USBRAM;
+TUSB_CFG_ATTR_USBRAM ATTR_USB_MIN_ALIGNMENT hid_mouse_report_t mouse_report;
 
 //--------------------------------------------------------------------+
 // tinyusb Callbacks

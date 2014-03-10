@@ -6,7 +6,7 @@
   into the USB RAM section as follows. if your mcu's usb controller has no such limit, define TUSB_CFG_ATTR_USBRAM as empty macro.
 
   @code
-  uint8_t tinyusb_data[10] TUSB_CFG_ATTR_USBRAM;
+  TUSB_CFG_ATTR_USBRAM uint8_t tinyusb_data[10];
   @endcode
  */
 #define TUSB_CFG_ATTR_USBRAM

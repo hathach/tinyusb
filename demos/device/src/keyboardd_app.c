@@ -52,7 +52,7 @@
 //--------------------------------------------------------------------+
 OSAL_TASK_DEF(keyboardd_app_task, 128, KEYBOARDD_APP_TASK_PRIO);
 
-ATTR_USB_MIN_ALIGNMENT hid_keyboard_report_t keyboard_report TUSB_CFG_ATTR_USBRAM;
+TUSB_CFG_ATTR_USBRAM ATTR_USB_MIN_ALIGNMENT hid_keyboard_report_t keyboard_report;
 
 //--------------------------------------------------------------------+
 // tinyusb Callbacks
