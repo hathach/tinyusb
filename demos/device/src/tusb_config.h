@@ -101,8 +101,8 @@
 #ifdef __CODE_RED // compiled with lpcxpresso
   #if (TUSB_CFG_MCU == MCU_LPC11UXX) || (TUSB_CFG_MCU == MCU_LPC13UXX)
     #define TUSB_RAM_SECTION  ".data.$RAM2"
-  #elif
-    #define TUSB_CFG_MCU == MCU_LPC175X_6X // LPC17xx USB DMA can access all
+  #elif TUSB_CFG_MCU == MCU_LPC175X_6X
+    #define TUSB_RAM_SECTION // LPC17xx USB DMA can access all
   #elif  (TUSB_CFG_MCU == MCU_LPC43XX)
     #define TUSB_RAM_SECTION  ".data.$RAM3"
   #else
