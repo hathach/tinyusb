@@ -2462,7 +2462,7 @@
             <CpuDllArguments></CpuDllArguments>
             <PeripheralDll></PeripheralDll>
             <PeripheralDllArguments></PeripheralDllArguments>
-            <InitializationFile>.\keil_ram.ini</InitializationFile>
+            <InitializationFile>..\..\bsp\lpc43xx\keil_ram.ini</InitializationFile>
             <Driver>Segger\JL2CM3.dll</Driver>
           </TargetDlls>
         </DebugOption>

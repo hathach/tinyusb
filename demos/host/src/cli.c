@@ -396,19 +396,30 @@ cli_error_t cli_cmd_copy(char *p_para)
   drive_letter2number(p_para);
   drive_letter2number(p_dest);
 
-  //------------- Check Existence of source & dest file -------------//
-  cli_error_t error = CLI_ERROR_NONE;
-  FIL src_file, dest_file;
-
+  //------------- Check Existence of source file -------------//
+  FIL src_file;
   if ( FR_OK != f_open(&src_file , p_para, FA_READ) )  return CLI_ERROR_INVALID_PATH;
+
+  //------------- Check if dest path is a folder or a non-existing file (overwritten is not allowed) -------------//
+  FILINFO dest_entry;
+  if ( (f_stat(p_dest, &dest_entry) == FR_OK) && (dest_entry.fattrib & AM_DIR) )
+  { // the destination is an existed folder --> auto append dest filename to be the folder
+    strcat(p_dest, "/");
+    strcat(p_dest, p_para);
+  }
+
+  //------------- Open dest file and start the copy -------------//
+  cli_error_t error = CLI_ERROR_NONE;
+  FIL dest_file;
+
   switch ( f_open(&dest_file, p_dest, FA_WRITE | FA_CREATE_NEW) )
   {
     case FR_EXIST:
       error = CLI_ERROR_FILE_EXISTED;
-    break;\
+    break;
 
     case FR_OK:
-      while(1)
+      while(1) // copying
       {
         uint32_t bytes_read = 0;
         uint32_t bytes_write = 0;
