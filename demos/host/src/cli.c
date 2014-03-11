@@ -75,14 +75,16 @@ static char const * const cli_error_message[] =
 
 // command, function, description
 #define CLI_COMMAND_TABLE(ENTRY)   \
-    ENTRY(unknown , cli_cmd_unknown  , NULL                                                                  ) \
-    ENTRY(help    , cli_cmd_help     , NULL                                                                  ) \
-    ENTRY(cls     , cli_cmd_clear    , "Clear the screen."                                                   ) \
-    ENTRY(ls      , cli_cmd_list     , "List information about the FILEs (the current directory by default).") \
-    ENTRY(cd      , cli_cmd_changedir, "change the current directory."                                       ) \
-    ENTRY(cat     , cli_cmd_cat      , "display contents of a file."                                         ) \
-    ENTRY(cp      , cli_cmd_copy     , "Copies one or more files to another location."                       ) \
-    ENTRY(mkdir   , cli_cmd_mkdir    , "Create a DIRECTORY, if it does not already exist."                   ) \
+    ENTRY(unknown , cli_cmd_unknown  , NULL                                                                                                           ) \
+    ENTRY(help    , cli_cmd_help     , NULL                                                                                                           ) \
+    ENTRY(cls     , cli_cmd_clear    , "Clear the screen.\n  cls\n"                                                                                   ) \
+    ENTRY(ls      , cli_cmd_list     , "List information of the FILEs.\n  ls\n"                                                                       ) \
+    ENTRY(cd      , cli_cmd_changedir, "change the current directory.\n  cd a_folder\n"                                                               ) \
+    ENTRY(cat     , cli_cmd_cat      , "display contents of a file.\n  cat a_file.txt\n"                                                              ) \
+    ENTRY(cp      , cli_cmd_copy     , "Copies one or more files to another location.\n  cp a_file.txt dir1/another_file.txt\n  cp a_file.txt dir1\n" ) \
+    ENTRY(mkdir   , cli_cmd_mkdir    , "Create a DIRECTORY, if it does not already exist.\n  mkdir <new folder>\n"                                    ) \
+    ENTRY(mv      , cli_cmd_move     , "Rename or move a DIRECTORY or a FILE.\n  mv old_name.txt new_name.txt\n  mv old_name.txt dir1/new_name.txt\n" ) \
+    ENTRY(rm      , cli_cmd_remove   , "Remove (delete) a empty DIRECTORY or a FILE.\n  rm deleted_name.txt\n  rm empty_dir\n" ) \
 
 //--------------------------------------------------------------------+
 // Expands the function to have the standard function signature
@@ -387,10 +389,9 @@ cli_error_t cli_cmd_copy(char *p_para)
 {
   char* p_space = strchr(p_para, ' ');
   if ( p_space == NULL ) return CLI_ERROR_INVALID_PARA;
-
   *p_space = 0; // replace space by NULL-character
-  char* p_dest = p_space+1;
 
+  char* p_dest = p_space+1;
   if ( strlen(p_dest) == 0 ) return CLI_ERROR_INVALID_PARA;
 
   drive_letter2number(p_para);
@@ -443,5 +444,40 @@ cli_error_t cli_cmd_copy(char *p_para)
   f_close(&src_file);
 
   return error;
+}
+
+//--------------------------------------------------------------------+
+// MOVE/RENAME
+//--------------------------------------------------------------------+
+cli_error_t cli_cmd_move(char *p_para)
+{
+  char* p_space = strchr(p_para, ' ');
+  if ( p_space == NULL ) return CLI_ERROR_INVALID_PARA;
+  *p_space = 0; // replace space by NULL-character
+
+  char* p_dest = p_space+1;
+  if ( strlen(p_dest) == 0 ) return CLI_ERROR_INVALID_PARA;
+
+  return (f_rename(p_para, p_dest) == FR_OK ) ? CLI_ERROR_NONE : CLI_ERROR_FAILED;
+}
+
+//--------------------------------------------------------------------+
+// REMOVE
+//--------------------------------------------------------------------+
+cli_error_t cli_cmd_remove(char *p_para)
+{
+  if ( strlen(p_para) == 0 ) return CLI_ERROR_INVALID_PARA;
+
+  switch( f_unlink(p_para) )
+  {
+    case FR_OK: return CLI_ERROR_NONE;
+
+    case FR_DENIED:
+      printf("cannot remove readonly file/foler or non-empty folder\n");
+
+    default: return CLI_ERROR_FAILED;
+  }
+
+  return CLI_ERROR_FAILED;
 }
 #endif
