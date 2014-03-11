@@ -42,14 +42,29 @@
 
 #define BOARD_UART_PORT           LPC_USART0
 
-#define BOARD_MAX_LEDS  2
 const static struct {
   uint8_t mux_port;
   uint8_t mux_pin;
 
   uint8_t gpio_port;
   uint8_t gpio_pin;
-}leds[BOARD_MAX_LEDS] = { {2, 11, 1, 11}, {2, 12, 1,12} };
+}leds[] = { {2, 11, 1, 11}, {2, 12, 1,12} };
+
+enum {
+  BOARD_MAX_LEDS = sizeof(leds) / sizeof(leds[0])
+};
+
+const static struct {
+  uint8_t mux_port;
+  uint8_t mux_pin;
+
+  uint8_t gpio_port;
+  uint8_t gpio_pin;
+}buttons[] = { {0x02, 7, 0, 7 } };
+
+enum {
+  BOARD_BUTTON_COUNT = sizeof(buttons) / sizeof(buttons[0])
+};
 
 void board_init(void)
 {
@@ -71,6 +86,13 @@ void board_init(void)
   {
     scu_pinmux(leds[i].mux_port, leds[i].mux_pin, MD_PUP|MD_EZI|MD_ZI, FUNC0);
     GPIO_SetDir(leds[i].gpio_port, BIT_(leds[i].gpio_pin), 1); // output
+  }
+
+  //------------- BUTTONS -------------//
+  for(uint8_t i=0; i<BOARD_BUTTON_COUNT; i++)
+  {
+    scu_pinmux(buttons[i].mux_port, buttons[i].mux_pin, GPIO_NOPULL, FUNC0);
+    GPIO_SetDir(buttons[i].gpio_port, BIT_(buttons[i].gpio_pin), 0);
   }
 
   //------------- UART init -------------//
@@ -101,6 +123,23 @@ void board_leds(uint32_t on_mask, uint32_t off_mask)
       GPIO_ClearValue(leds[i].gpio_port, BIT_(leds[i].gpio_pin));
     }
   }
+}
+
+//--------------------------------------------------------------------+
+// BUTTONS
+//--------------------------------------------------------------------+
+static bool button_read(uint8_t id)
+{
+  return !BIT_TEST_( GPIO_ReadValue(buttons[id].gpio_port), buttons[id].gpio_pin ); // button is active low
+}
+
+uint32_t board_buttons(void)
+{
+  uint32_t result = 0;
+
+  for(uint8_t i=0; i<BOARD_BUTTON_COUNT; i++) result |= (button_read(i) ? BIT_(i) : 0);
+
+  return result;
 }
 
 //--------------------------------------------------------------------+
