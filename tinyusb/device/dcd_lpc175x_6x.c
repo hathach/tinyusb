@@ -55,7 +55,7 @@
 #define DCD_QTD_MAX  32 // TODO scale with configure
 
 typedef struct {
-  volatile ATTR_ALIGNED(128) dcd_dma_descriptor_t* udca[DCD_QHD_MAX];
+  volatile dcd_dma_descriptor_t* udca[DCD_QHD_MAX]; // must be 128 byte aligned
   dcd_dma_descriptor_t dd[DCD_QTD_MAX][2]; // each endpoints can have up to 2 DD queued at a time TODO 0-1 are not used, offset to reduce memory
 
   uint8_t class_code[DCD_QHD_MAX];
@@ -68,7 +68,7 @@ typedef struct {
 
 }dcd_data_t;
 
-TUSB_CFG_ATTR_USBRAM STATIC_ dcd_data_t dcd_data;
+TUSB_CFG_ATTR_USBRAM ATTR_ALIGNED(128) STATIC_ dcd_data_t dcd_data;
 
 //--------------------------------------------------------------------+
 // INTERNAL OBJECT & FUNCTION DECLARATION
