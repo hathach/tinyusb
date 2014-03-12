@@ -73,19 +73,6 @@
 #define TUSB_CFG_HOST_CDC_RNDIS                 0
 
 //--------------------------------------------------------------------+
-// DEVICE CONFIGURATION
-//--------------------------------------------------------------------+
-#define TUSB_CFG_DEVICE_CONTROL_ENDOINT_SIZE    64 // TODO refractor remove
-#define TUSB_CFG_DEVICE_STRING_DESCRIPTOR_COUNT 4
-
-//------------- CLASS -------------//
-#define TUSB_CFG_DEVICE_HID_KEYBOARD            0
-#define TUSB_CFG_DEVICE_HID_MOUSE               0
-#define TUSB_CFG_DEVICE_HID_GENERIC             0
-#define TUSB_CFG_DEVICE_MSC                     0
-#define TUSB_CFG_DEVICE_CDC                     0
-
-//--------------------------------------------------------------------+
 // COMMON CONFIGURATION
 //--------------------------------------------------------------------+
 #define TUSB_CFG_DEBUG                3
@@ -95,6 +82,9 @@
 
 #define TUSB_CFG_OS_TICKS_PER_SECOND  1000
 
+//--------------------------------------------------------------------+
+// USB RAM PLACEMENT
+//--------------------------------------------------------------------+
 #ifdef __CODE_RED // make use of code red's support for ram region macros
 
   #if (TUSB_CFG_MCU == MCU_LPC11UXX) || (TUSB_CFG_MCU == MCU_LPC13UXX)
