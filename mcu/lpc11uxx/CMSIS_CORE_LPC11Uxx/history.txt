@@ -1,3 +1,16 @@
+History of updates to CMSIS_CORE_LPC11Uxx
+===========================================
+
+18 July 2013
+------------
+CMSIS library project using ARM Cortex-M0 CMSIS files as
+supplied in ARM's CMSIS 3.20 March 2013 release, together
+with NXP's device specific files taken from old
+CMSISv2p00_LPC11Uxx project.
+
+Note files are built -Os for both Debug and Release
+
+
 History of updates to CMSISv2p00_LPC11Uxx
 =========================================
 
@@ -20,4 +33,3 @@ Cortex-M0 CMSIS files as supplied in ARM's CMSIS 2.0
 December 2010 release, together with device/board 
 specific files from NXP.
 
-Note files are built -Os for both Debug and Release
