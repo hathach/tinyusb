@@ -53,7 +53,17 @@
 //--------------------------------------------------------------------+
 typedef struct {
   ATTR_USB_MIN_ALIGNMENT msc_cmd_block_wrapper_t  cbw;
+
+#if defined (__ICCARM__) && (TUSB_CFG_MCU == MCU_LPC11UXX || TUSB_CFG_MCU == MCU_LPC13UXX)
+  uint8_t padding1[64-sizeof(msc_cmd_block_wrapper_t)]; // IAR cannot align struct's member
+#endif
+
   ATTR_USB_MIN_ALIGNMENT msc_cmd_status_wrapper_t csw;
+
+#if defined (__ICCARM__) && (TUSB_CFG_MCU == MCU_LPC11UXX || TUSB_CFG_MCU == MCU_LPC13UXX)
+  uint8_t padding2[64-sizeof(msc_cmd_status_wrapper_t)]; // IAR cannot align struct's member
+#endif
+
   ATTR_USB_MIN_ALIGNMENT uint8_t max_lun; // can STALL for one LUN
 
   uint8_t interface_number;

@@ -256,7 +256,7 @@ void cdch_isr(pipe_handle_t pipe_hdl, tusb_event_t event, uint32_t xferred_bytes
     rndish_xfer_isr(p_cdc, pipe_hdl, event, xferred_bytes);
   } else
 #endif
-  
+
   tusbh_cdc_xfer_isr( pipe_hdl.dev_addr, event, get_app_pipeid(pipe_hdl), xferred_bytes );
 }
 
