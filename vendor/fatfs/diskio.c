@@ -105,7 +105,7 @@ DSTATUS disk_status (BYTE pdrv)
 DRESULT disk_read (BYTE pdrv, BYTE*buff, DWORD sector, BYTE count)
 {
   uint8_t usb_addr = pdrv+1;
-  
+
 	if ( TUSB_ERROR_NONE != tusbh_msc_read10(usb_addr, 0, buff, sector, count) )		return RES_ERROR;
 
 	return wait_for_io_complete(usb_addr);

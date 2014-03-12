@@ -736,7 +736,7 @@ FRESULT sync_window (
 	DWORD wsect;
 	UINT nf;
 
-	
+
 	if (fs->wflag) {	/* Write back the sector if it is dirty */
 		wsect = fs->winsect;	/* Current sector number */
 		if (disk_write(fs->drv, fs->win, wsect, 1) != RES_OK)
@@ -975,7 +975,7 @@ FRESULT remove_chain (
 #if _USE_ERASE
 			if (ecl + 1 == nxt) {	/* Is next cluster contiguous? */
 				ecl = nxt;
-			} else {				/* End of contiguous clusters */ 
+			} else {				/* End of contiguous clusters */
 				rt[0] = clust2sect(fs, scl);					/* Start sector */
 				rt[1] = clust2sect(fs, ecl) + fs->csize - 1;	/* End sector */
 				disk_ioctl(fs->drv, CTRL_ERASE_SECTOR, rt);		/* Erase the block */
@@ -2729,7 +2729,7 @@ FRESULT f_close (
 		FATFS *fs = fp->fs;;
 		res = validate(fp);
 		if (res == FR_OK) {
-			res = dec_lock(fp->lockid);	
+			res = dec_lock(fp->lockid);
 			unlock_fs(fs, FR_OK);
 		}
 #else
@@ -2831,7 +2831,7 @@ FRESULT f_getcwd (
 				res = dir_read(&dj, 0);
 				if (res != FR_OK) break;
 				if (ccl == ld_clust(dj.fs, dj.dir)) break;	/* Found the entry */
-				res = dir_next(&dj, 0);	
+				res = dir_next(&dj, 0);
 			} while (res == FR_OK);
 			if (res == FR_NO_FILE) res = FR_INT_ERR;/* It cannot be 'not found'. */
 			if (res != FR_OK) break;

@@ -1026,7 +1026,7 @@
         </option>
         <option>
           <name>GenLowLevelInterface</name>
-          <state>0</state>
+          <state>1</state>
         </option>
         <option>
           <name>GEndianModeBE</name>
@@ -1070,7 +1070,7 @@
         </option>
         <option>
           <name>OGUseCmsis</name>
-          <state>1</state>
+          <state>0</state>
         </option>
         <option>
           <name>OGUseCmsisDspLib</name>
