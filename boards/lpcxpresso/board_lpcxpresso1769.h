@@ -48,10 +48,10 @@
 
 #include "LPC17xx.h"
 
-#include "lpc175x_6x/LPC17xx_DriverLib/include/lpc17xx_clkpwr.h"
-#include "lpc175x_6x/LPC17xx_DriverLib/include/lpc17xx_pinsel.h"
-#include "lpc175x_6x/LPC17xx_DriverLib/include/lpc17xx_gpio.h"
-#include "lpc175x_6x/LPC17xx_DriverLib/include/lpc17xx_uart.h"
+#include "lpc17xx_clkpwr.h"
+#include "lpc17xx_pinsel.h"
+#include "lpc17xx_gpio.h"
+#include "lpc17xx_uart.h"
 
 #ifdef __cplusplus
  extern "C" {

@@ -46,7 +46,7 @@
 #ifndef _TUSB_RNDIS_APP_H_
 #define _TUSB_RNDIS_APP_H_
 
-#include "boards/board.h"
+#include "board.h"
 #include "tusb.h"
 
 #ifdef __cplusplus

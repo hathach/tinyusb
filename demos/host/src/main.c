@@ -43,7 +43,7 @@
 #include <stdio.h>
 #include <string.h>
 
-#include "boards/board.h"
+#include "board.h"
 #include "tusb.h"
 
 #include "app_os_prio.h"

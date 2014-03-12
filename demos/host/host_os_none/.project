@@ -81,14 +81,19 @@
 	</natures>
 	<linkedResources>
 		<link>
-			<name>bsp</name>
+			<name>boards</name>
 			<type>2</type>
-			<locationURI>PARENT-2-PROJECT_LOC/bsp</locationURI>
+			<locationURI>PARENT-3-PROJECT_LOC/boards</locationURI>
 		</link>
 		<link>
 			<name>fatfs</name>
 			<type>2</type>
 			<locationURI>PARENT-3-PROJECT_LOC/vendor/fatfs</locationURI>
+		</link>
+		<link>
+			<name>mcu</name>
+			<type>2</type>
+			<locationURI>PARENT-3-PROJECT_LOC/mcu</locationURI>
 		</link>
 		<link>
 			<name>src</name>
@@ -103,7 +108,7 @@
 	</linkedResources>
 	<filteredResources>
 		<filter>
-			<id>1380040598945</id>
+			<id>1394619722725</id>
 			<name></name>
 			<type>26</type>
 			<matcher>
@@ -112,7 +117,7 @@
 			</matcher>
 		</filter>
 		<filter>
-			<id>1380040598970</id>
+			<id>1394619722739</id>
 			<name></name>
 			<type>26</type>
 			<matcher>

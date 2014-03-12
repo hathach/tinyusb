@@ -55,7 +55,7 @@
 #include <stdint.h>
 #include <stdbool.h>
 
-#include "boards/board.h"
+#include "board.h"
 #include "tusb.h"
 
 #ifdef __cplusplus
