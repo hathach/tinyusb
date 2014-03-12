@@ -2,7 +2,7 @@
 /****************************************************************************************************//**
  * @file     LPC13Uxx.h
  *
- * 
+ *
  *
  * @brief    CMSIS Cortex-M3 Core Peripheral Access Layer Header File for
  *           default LPC13Uxx Device Series
@@ -30,7 +30,7 @@
 
 #ifdef __cplusplus
 extern "C" {
-#endif 
+#endif
 
 
 #if defined ( __CC_ARM   )
@@ -165,18 +165,18 @@ typedef struct {                            /*!< (@ 0x40004000) WWDT Structure  
 
 
 typedef struct {                            /*!< (@ 0x40008000) USART Structure        */
-  
+
   union {
     __IO uint32_t DLL;                      /*!< (@ 0x40008000) Divisor Latch LSB. Least significant byte of the baud rate divisor value. The full divisor is used to generate a baud rate from the fractional rate divider. (DLAB=1) */
     __O  uint32_t THR;                      /*!< (@ 0x40008000) Transmit Holding Register. The next character to be transmitted is written here. (DLAB=0) */
     __I  uint32_t RBR;                      /*!< (@ 0x40008000) Receiver Buffer Register. Contains the next received character to be read. (DLAB=0) */
   };
-  
+
   union {
     __IO uint32_t IER;                      /*!< (@ 0x40008004) Interrupt Enable Register. Contains individual interrupt enable bits for the 7 potential USART interrupts. (DLAB=0) */
     __IO uint32_t DLM;                      /*!< (@ 0x40008004) Divisor Latch MSB. Most significant byte of the baud rate divisor value. The full divisor is used to generate a baud rate from the fractional rate divider. (DLAB=1) */
   };
-  
+
   union {
     __O  uint32_t FCR;                      /*!< (@ 0x40008008) FIFO Control Register. Controls USART FIFO usage and modes. */
     __I  uint32_t IIR;                      /*!< (@ 0x40008008) Interrupt ID Register. Identifies which interrupt(s) are pending. */
@@ -754,7 +754,7 @@ typedef struct {                            /*!< (@ 0x50000000) GPIO_PORT Struct
 
 #ifdef __cplusplus
 }
-#endif 
+#endif
 
 
 #endif  // __LPC13UXX_H__

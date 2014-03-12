@@ -52,17 +52,15 @@
 // MACRO CONSTANT TYPEDEF
 //--------------------------------------------------------------------+
 typedef struct {
-  uint8_t interface_number;
-  endpoint_handle_t edpt_in, edpt_out;
-
-  // must be in USB ram
-  ATTR_USB_MIN_ALIGNMENT uint8_t max_lun; // can STALL for one LUN
-
   ATTR_USB_MIN_ALIGNMENT msc_cmd_block_wrapper_t  cbw;
   ATTR_USB_MIN_ALIGNMENT msc_cmd_status_wrapper_t csw;
+  ATTR_USB_MIN_ALIGNMENT uint8_t max_lun; // can STALL for one LUN
+
+  uint8_t interface_number;
+  endpoint_handle_t edpt_in, edpt_out;
 }mscd_interface_t;
 
-TUSB_CFG_ATTR_USBRAM STATIC_VAR mscd_interface_t mscd_data;
+ATTR_USB_MIN_ALIGNMENT TUSB_CFG_ATTR_USBRAM STATIC_VAR mscd_interface_t mscd_data;
 //--------------------------------------------------------------------+
 // INTERNAL OBJECT & FUNCTION DECLARATION
 //--------------------------------------------------------------------+

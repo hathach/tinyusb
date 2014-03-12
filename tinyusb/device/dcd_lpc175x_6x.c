@@ -354,7 +354,7 @@ static tusb_error_t pipe_control_read(void * buffer, uint16_t length)
     *p_read_data = LPC_USB->USBRxData;
     p_read_data++; // increase by 4 ( sizeof(uint32_t) )
   }
-  
+
   LPC_USB->USBCtrl = 0;
 
   // select control OUT & clear the endpoint
