@@ -68,7 +68,7 @@
 #define TUSB_CFG_HOST_HID_KEYBOARD              1
 #define TUSB_CFG_HOST_HID_MOUSE                 1
 #define TUSB_CFG_HOST_HID_GENERIC               0
-#define TUSB_CFG_HOST_MSC                       1
+#define TUSB_CFG_HOST_MSC                       0
 #define TUSB_CFG_HOST_CDC                       1
 #define TUSB_CFG_HOST_CDC_RNDIS                 0
 
@@ -88,16 +88,12 @@
 #ifdef __CODE_RED // make use of code red's support for ram region macros
 
   #if (TUSB_CFG_MCU == MCU_LPC11UXX) || (TUSB_CFG_MCU == MCU_LPC13UXX)
-    #define TUSB_RAM_SECTION  ".data.$RAM2"
+    #define TUSB_CFG_ATTR_USBRAM  ATTR_SECTION(.data.$RAM2)
+  #elif TUSB_CFG_MCU == MCU_LPC175X_6X
+    #define TUSB_CFG_ATTR_USBRAM // LPC17xx USB DMA can access all
   #elif  (TUSB_CFG_MCU == MCU_LPC43XX)
-    #define TUSB_RAM_SECTION  ".data.$RAM3"
-  #elif (TUSB_CFG_MCU == MCU_LPC175X_6X)
-    #define TUSB_RAM_SECTION  ".data.$RAM2"
-  #else
-    #error Please define USB RAM section
+    #define TUSB_CFG_ATTR_USBRAM  ATTR_SECTION(.data.$RAM3)
   #endif
-
-  #define TUSB_CFG_ATTR_USBRAM   __attribute__ ((section(TUSB_RAM_SECTION)))
 
 #elif defined __CC_ARM // Compiled with Keil armcc
 
@@ -105,7 +101,11 @@
 
 #elif defined __ICCARM__ // compiled with IAR
 
-  #define TUSB_CFG_ATTR_USBRAM _Pragma("location=\".ahb_sram1\"")
+  #if  (TUSB_CFG_MCU == MCU_LPC43XX)
+    #define TUSB_CFG_ATTR_USBRAM _Pragma("location=\".ahb_sram1\"")
+  #elif (TUSB_CFG_MCU == MCU_LPC175X_6X)
+    #define TUSB_CFG_ATTR_USBRAM
+  #endif
 
 #else
 

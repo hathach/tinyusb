@@ -81,9 +81,9 @@
 	</natures>
 	<linkedResources>
 		<link>
-			<name>bsp</name>
+			<name>boards</name>
 			<type>2</type>
-			<locationURI>PARENT-2-PROJECT_LOC/bsp</locationURI>
+			<locationURI>PARENT-3-PROJECT_LOC/boards</locationURI>
 		</link>
 		<link>
 			<name>fatfs</name>
@@ -94,6 +94,11 @@
 			<name>freertos</name>
 			<type>2</type>
 			<locationURI>PARENT-3-PROJECT_LOC/vendor/freertos</locationURI>
+		</link>
+		<link>
+			<name>mcu</name>
+			<type>2</type>
+			<locationURI>PARENT-3-PROJECT_LOC/mcu</locationURI>
 		</link>
 		<link>
 			<name>src</name>
@@ -108,7 +113,7 @@
 	</linkedResources>
 	<filteredResources>
 		<filter>
-			<id>1382869902141</id>
+			<id>1394642985711</id>
 			<name></name>
 			<type>26</type>
 			<matcher>
@@ -117,7 +122,7 @@
 			</matcher>
 		</filter>
 		<filter>
-			<id>1382869902149</id>
+			<id>1394642985721</id>
 			<name></name>
 			<type>26</type>
 			<matcher>
