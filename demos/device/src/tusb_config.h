@@ -59,21 +59,6 @@
 #define TUSB_CFG_CONTROLLER_1_MODE  (TUSB_MODE_NONE) // TODO not yet tested
 
 //--------------------------------------------------------------------+
-// HOST CONFIGURATION
-//--------------------------------------------------------------------+
-#define TUSB_CFG_HOST_DEVICE_MAX                1
-#define TUSB_CFG_HOST_ENUM_BUFFER_SIZE          256
-
-//------------- CLASS -------------//
-#define TUSB_CFG_HOST_HUB                       0
-#define TUSB_CFG_HOST_HID_KEYBOARD              0
-#define TUSB_CFG_HOST_HID_MOUSE                 0
-#define TUSB_CFG_HOST_HID_GENERIC               0
-#define TUSB_CFG_HOST_MSC                       0
-#define TUSB_CFG_HOST_CDC                       0
-#define TUSB_CFG_HOST_CDC_RNDIS                 0
-
-//--------------------------------------------------------------------+
 // DEVICE CONFIGURATION
 //--------------------------------------------------------------------+
 #define TUSB_CFG_DEVICE_CONTROL_ENDOINT_SIZE    64 // TODO refractor remove
@@ -82,11 +67,11 @@
 #define TUSB_CFG_DEVICE_FULLSPEED               1 // TODO refractor, remove
 
 //------------- CLASS -------------//
-#define TUSB_CFG_DEVICE_HID_KEYBOARD            1
-#define TUSB_CFG_DEVICE_HID_MOUSE               1
+#define TUSB_CFG_DEVICE_HID_KEYBOARD            0
+#define TUSB_CFG_DEVICE_HID_MOUSE               0
 #define TUSB_CFG_DEVICE_HID_GENERIC             0
 #define TUSB_CFG_DEVICE_MSC                     1
-#define TUSB_CFG_DEVICE_CDC                     1
+#define TUSB_CFG_DEVICE_CDC                     0
 
 //--------------------------------------------------------------------+
 // COMMON CONFIGURATION
