@@ -33,7 +33,7 @@
 #include "task.h"
 #include "FreeRTOSCommonHooks.h"
 
-#include "boards/board.h"
+#include "board.h"
 
 /*****************************************************************************
  * Private types/enumerations/variables

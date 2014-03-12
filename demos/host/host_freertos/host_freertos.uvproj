@@ -350,7 +350,7 @@
               <MiscControls>--gnu --c99 --diag_suppress=66</MiscControls>
               <Define>CORE_M4 TUSB_CFG_MCU=MCU_LPC43XX BOARD=BOARD_EA4357 TUSB_CFG_OS=TUSB_OS_FREERTOS TUSB_CFG_OS_TASK_PRIO=configMAX_PRIORITIES-5</Define>
               <Undefine></Undefine>
-              <IncludePath>..\src;..\..\bsp\lpc43xx\CMSIS_LPC43xx_DriverLib\inc;..\..\bsp;..\..\..\tinyusb;..\..\..\vendor\freertos;..\..\..\vendor\freertos\freertos\Source\include;..\..\..\vendor\fatfs</IncludePath>
+              <IncludePath>..\src;..\..\..\mcu\lpc43xx\CMSIS_LPC43xx_DriverLib\inc;..\..\..\boards;..\..\..\tinyusb;..\..\..\vendor\freertos;..\..\..\vendor\freertos\freertos\Source\include;..\..\..\vendor\fatfs</IncludePath>
             </VariousControls>
           </Cads>
           <Aads>
@@ -654,52 +654,52 @@
             <File>
               <FileName>board.c</FileName>
               <FileType>1</FileType>
-              <FilePath>..\..\bsp\boards\board.c</FilePath>
+              <FilePath>..\..\..\boards\board.c</FilePath>
             </File>
             <File>
               <FileName>printf_retarget.c</FileName>
               <FileType>1</FileType>
-              <FilePath>..\..\bsp\boards\printf_retarget.c</FilePath>
+              <FilePath>..\..\..\boards\printf_retarget.c</FilePath>
             </File>
             <File>
               <FileName>pca9532.c</FileName>
               <FileType>1</FileType>
-              <FilePath>..\..\bsp\boards\embedded_artists\oem_base_board\pca9532.c</FilePath>
+              <FilePath>..\..\..\boards\embedded_artists\oem_base_board\pca9532.c</FilePath>
             </File>
             <File>
               <FileName>board_ngx4330.c</FileName>
               <FileType>1</FileType>
-              <FilePath>..\..\bsp\boards\ngx\board_ngx4330.c</FilePath>
+              <FilePath>..\..\..\boards\ngx\board_ngx4330.c</FilePath>
             </File>
             <File>
               <FileName>board_lpc4357usb.c</FileName>
               <FileType>1</FileType>
-              <FilePath>..\..\bsp\boards\microbuilder\board_lpc4357usb.c</FilePath>
+              <FilePath>..\..\..\boards\microbuilder\board_lpc4357usb.c</FilePath>
             </File>
             <File>
               <FileName>board_rf1ghznode.c</FileName>
               <FileType>1</FileType>
-              <FilePath>..\..\bsp\boards\microbuilder\board_rf1ghznode.c</FilePath>
+              <FilePath>..\..\..\boards\microbuilder\board_rf1ghznode.c</FilePath>
             </File>
             <File>
               <FileName>board_lpcxpresso1769.c</FileName>
               <FileType>1</FileType>
-              <FilePath>..\..\bsp\boards\lpcxpresso\board_lpcxpresso1769.c</FilePath>
+              <FilePath>..\..\..\boards\lpcxpresso\board_lpcxpresso1769.c</FilePath>
             </File>
             <File>
               <FileName>board_lpcxpresso1347.c</FileName>
               <FileType>1</FileType>
-              <FilePath>..\..\bsp\boards\lpcxpresso\board_lpcxpresso1347.c</FilePath>
+              <FilePath>..\..\..\boards\lpcxpresso\board_lpcxpresso1347.c</FilePath>
             </File>
             <File>
               <FileName>board_mcb4300.c</FileName>
               <FileType>1</FileType>
-              <FilePath>..\..\bsp\boards\keil\board_mcb4300.c</FilePath>
+              <FilePath>..\..\..\boards\keil\board_mcb4300.c</FilePath>
             </File>
             <File>
               <FileName>board_ea4357.c</FileName>
               <FileType>1</FileType>
-              <FilePath>..\..\bsp\boards\embedded_artists\ea4357\board_ea4357.c</FilePath>
+              <FilePath>..\..\..\boards\embedded_artists\ea4357\board_ea4357.c</FilePath>
             </File>
           </Files>
         </Group>
@@ -709,37 +709,37 @@
             <File>
               <FileName>startup_LPC43xx.s</FileName>
               <FileType>2</FileType>
-              <FilePath>..\..\bsp\lpc43xx\startup_keil\startup_LPC43xx.s</FilePath>
+              <FilePath>..\..\..\mcu\lpc43xx\startup_keil\startup_LPC43xx.s</FilePath>
             </File>
             <File>
               <FileName>lpc43xx_uart.c</FileName>
               <FileType>1</FileType>
-              <FilePath>..\..\bsp\lpc43xx\CMSIS_LPC43xx_DriverLib\src\lpc43xx_uart.c</FilePath>
+              <FilePath>..\..\..\mcu\lpc43xx\CMSIS_LPC43xx_DriverLib\src\lpc43xx_uart.c</FilePath>
             </File>
             <File>
               <FileName>lpc43xx_scu.c</FileName>
               <FileType>1</FileType>
-              <FilePath>..\..\bsp\lpc43xx\CMSIS_LPC43xx_DriverLib\src\lpc43xx_scu.c</FilePath>
+              <FilePath>..\..\..\mcu\lpc43xx\CMSIS_LPC43xx_DriverLib\src\lpc43xx_scu.c</FilePath>
             </File>
             <File>
               <FileName>lpc43xx_gpio.c</FileName>
               <FileType>1</FileType>
-              <FilePath>..\..\bsp\lpc43xx\CMSIS_LPC43xx_DriverLib\src\lpc43xx_gpio.c</FilePath>
+              <FilePath>..\..\..\mcu\lpc43xx\CMSIS_LPC43xx_DriverLib\src\lpc43xx_gpio.c</FilePath>
             </File>
             <File>
               <FileName>lpc43xx_cgu.c</FileName>
               <FileType>1</FileType>
-              <FilePath>..\..\bsp\lpc43xx\CMSIS_LPC43xx_DriverLib\src\lpc43xx_cgu.c</FilePath>
+              <FilePath>..\..\..\mcu\lpc43xx\CMSIS_LPC43xx_DriverLib\src\lpc43xx_cgu.c</FilePath>
             </File>
             <File>
               <FileName>system_LPC43xx.c</FileName>
               <FileType>1</FileType>
-              <FilePath>..\..\bsp\lpc43xx\CMSIS_LPC43xx_DriverLib\src\system_LPC43xx.c</FilePath>
+              <FilePath>..\..\..\mcu\lpc43xx\CMSIS_LPC43xx_DriverLib\src\system_LPC43xx.c</FilePath>
             </File>
             <File>
               <FileName>lpc43xx_i2c.c</FileName>
               <FileType>1</FileType>
-              <FilePath>..\..\bsp\lpc43xx\CMSIS_LPC43xx_DriverLib\src\lpc43xx_i2c.c</FilePath>
+              <FilePath>..\..\..\mcu\lpc43xx\CMSIS_LPC43xx_DriverLib\src\lpc43xx_i2c.c</FilePath>
             </File>
           </Files>
         </Group>
@@ -803,39 +803,34 @@
           </GroupOption>
           <Files>
             <File>
-              <FileName>core_cm3.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>..\..\bsp\lpc175x_6x\CMSISv2p00_LPC17xx\src\core_cm3.c</FilePath>
-            </File>
-            <File>
               <FileName>system_LPC17xx.c</FileName>
               <FileType>1</FileType>
-              <FilePath>..\..\bsp\lpc175x_6x\CMSISv2p00_LPC17xx\src\system_LPC17xx.c</FilePath>
+              <FilePath>..\..\..\mcu\lpc175x_6x\CMSIS_CORE_LPC17xx\src\system_LPC17xx.c</FilePath>
             </File>
             <File>
               <FileName>lpc17xx_clkpwr.c</FileName>
               <FileType>1</FileType>
-              <FilePath>..\..\bsp\lpc175x_6x\LPC17xx_DriverLib\source\lpc17xx_clkpwr.c</FilePath>
+              <FilePath>..\..\..\mcu\lpc175x_6x\LPC17xx_DriverLib\source\lpc17xx_clkpwr.c</FilePath>
             </File>
             <File>
               <FileName>lpc17xx_gpio.c</FileName>
               <FileType>1</FileType>
-              <FilePath>..\..\bsp\lpc175x_6x\LPC17xx_DriverLib\source\lpc17xx_gpio.c</FilePath>
+              <FilePath>..\..\..\mcu\lpc175x_6x\LPC17xx_DriverLib\source\lpc17xx_gpio.c</FilePath>
             </File>
             <File>
               <FileName>lpc17xx_uart.c</FileName>
               <FileType>1</FileType>
-              <FilePath>..\..\bsp\lpc175x_6x\LPC17xx_DriverLib\source\lpc17xx_uart.c</FilePath>
+              <FilePath>..\..\..\mcu\lpc175x_6x\LPC17xx_DriverLib\source\lpc17xx_uart.c</FilePath>
             </File>
             <File>
               <FileName>lpc17xx_pinsel.c</FileName>
               <FileType>1</FileType>
-              <FilePath>..\..\bsp\lpc175x_6x\LPC17xx_DriverLib\source\lpc17xx_pinsel.c</FilePath>
+              <FilePath>..\..\..\mcu\lpc175x_6x\LPC17xx_DriverLib\source\lpc17xx_pinsel.c</FilePath>
             </File>
             <File>
               <FileName>startup_LPC17xx.s</FileName>
               <FileType>2</FileType>
-              <FilePath>..\..\bsp\lpc175x_6x\startup_keil\startup_LPC17xx.s</FilePath>
+              <FilePath>..\..\..\mcu\lpc175x_6x\startup_keil\startup_LPC17xx.s</FilePath>
             </File>
           </Files>
         </Group>
@@ -1185,7 +1180,7 @@
               <MiscControls>--gnu --c99</MiscControls>
               <Define>CORE_M4 TUSB_CFG_MCU=MCU_LPC43XX BOARD=BOARD_LPC4357USB TUSB_CFG_OS=TUSB_OS_FREERTOS TUSB_CFG_OS_TASK_PRIO=configMAX_PRIORITIES-5</Define>
               <Undefine></Undefine>
-              <IncludePath>..\src;..\..\bsp\lpc43xx\CMSIS_LPC43xx_DriverLib\inc;..\..\bsp;..\..\..\tinyusb</IncludePath>
+              <IncludePath>..\src;..\..\..\mcu\lpc43xx\CMSIS_LPC43xx_DriverLib\inc;..\..\..\boards;..\..\..\tinyusb</IncludePath>
             </VariousControls>
           </Cads>
           <Aads>
@@ -1449,17 +1444,17 @@
             <File>
               <FileName>board.c</FileName>
               <FileType>1</FileType>
-              <FilePath>..\..\bsp\boards\board.c</FilePath>
+              <FilePath>..\..\..\boards\board.c</FilePath>
             </File>
             <File>
               <FileName>printf_retarget.c</FileName>
               <FileType>1</FileType>
-              <FilePath>..\..\bsp\boards\printf_retarget.c</FilePath>
+              <FilePath>..\..\..\boards\printf_retarget.c</FilePath>
             </File>
             <File>
               <FileName>pca9532.c</FileName>
               <FileType>1</FileType>
-              <FilePath>..\..\bsp\boards\embedded_artists\oem_base_board\pca9532.c</FilePath>
+              <FilePath>..\..\..\boards\embedded_artists\oem_base_board\pca9532.c</FilePath>
               <FileOption>
                 <CommonProperty>
                   <UseCPPCompiler>2</UseCPPCompiler>
@@ -1504,37 +1499,37 @@
             <File>
               <FileName>board_ngx4330.c</FileName>
               <FileType>1</FileType>
-              <FilePath>..\..\bsp\boards\ngx\board_ngx4330.c</FilePath>
+              <FilePath>..\..\..\boards\ngx\board_ngx4330.c</FilePath>
             </File>
             <File>
               <FileName>board_lpc4357usb.c</FileName>
               <FileType>1</FileType>
-              <FilePath>..\..\bsp\boards\microbuilder\board_lpc4357usb.c</FilePath>
+              <FilePath>..\..\..\boards\microbuilder\board_lpc4357usb.c</FilePath>
             </File>
             <File>
               <FileName>board_rf1ghznode.c</FileName>
               <FileType>1</FileType>
-              <FilePath>..\..\bsp\boards\microbuilder\board_rf1ghznode.c</FilePath>
+              <FilePath>..\..\..\boards\microbuilder\board_rf1ghznode.c</FilePath>
             </File>
             <File>
               <FileName>board_lpcxpresso1769.c</FileName>
               <FileType>1</FileType>
-              <FilePath>..\..\bsp\boards\lpcxpresso\board_lpcxpresso1769.c</FilePath>
+              <FilePath>..\..\..\boards\lpcxpresso\board_lpcxpresso1769.c</FilePath>
             </File>
             <File>
               <FileName>board_lpcxpresso1347.c</FileName>
               <FileType>1</FileType>
-              <FilePath>..\..\bsp\boards\lpcxpresso\board_lpcxpresso1347.c</FilePath>
+              <FilePath>..\..\..\boards\lpcxpresso\board_lpcxpresso1347.c</FilePath>
             </File>
             <File>
               <FileName>board_mcb4300.c</FileName>
               <FileType>1</FileType>
-              <FilePath>..\..\bsp\boards\keil\board_mcb4300.c</FilePath>
+              <FilePath>..\..\..\boards\keil\board_mcb4300.c</FilePath>
             </File>
             <File>
               <FileName>board_ea4357.c</FileName>
               <FileType>1</FileType>
-              <FilePath>..\..\bsp\boards\embedded_artists\ea4357\board_ea4357.c</FilePath>
+              <FilePath>..\..\..\boards\embedded_artists\ea4357\board_ea4357.c</FilePath>
             </File>
           </Files>
         </Group>
@@ -1544,37 +1539,37 @@
             <File>
               <FileName>startup_LPC43xx.s</FileName>
               <FileType>2</FileType>
-              <FilePath>..\..\bsp\lpc43xx\startup_keil\startup_LPC43xx.s</FilePath>
+              <FilePath>..\..\..\mcu\lpc43xx\startup_keil\startup_LPC43xx.s</FilePath>
             </File>
             <File>
               <FileName>lpc43xx_uart.c</FileName>
               <FileType>1</FileType>
-              <FilePath>..\..\bsp\lpc43xx\CMSIS_LPC43xx_DriverLib\src\lpc43xx_uart.c</FilePath>
+              <FilePath>..\..\..\mcu\lpc43xx\CMSIS_LPC43xx_DriverLib\src\lpc43xx_uart.c</FilePath>
             </File>
             <File>
               <FileName>lpc43xx_scu.c</FileName>
               <FileType>1</FileType>
-              <FilePath>..\..\bsp\lpc43xx\CMSIS_LPC43xx_DriverLib\src\lpc43xx_scu.c</FilePath>
+              <FilePath>..\..\..\mcu\lpc43xx\CMSIS_LPC43xx_DriverLib\src\lpc43xx_scu.c</FilePath>
             </File>
             <File>
               <FileName>lpc43xx_gpio.c</FileName>
               <FileType>1</FileType>
-              <FilePath>..\..\bsp\lpc43xx\CMSIS_LPC43xx_DriverLib\src\lpc43xx_gpio.c</FilePath>
+              <FilePath>..\..\..\mcu\lpc43xx\CMSIS_LPC43xx_DriverLib\src\lpc43xx_gpio.c</FilePath>
             </File>
             <File>
               <FileName>lpc43xx_cgu.c</FileName>
               <FileType>1</FileType>
-              <FilePath>..\..\bsp\lpc43xx\CMSIS_LPC43xx_DriverLib\src\lpc43xx_cgu.c</FilePath>
+              <FilePath>..\..\..\mcu\lpc43xx\CMSIS_LPC43xx_DriverLib\src\lpc43xx_cgu.c</FilePath>
             </File>
             <File>
               <FileName>system_LPC43xx.c</FileName>
               <FileType>1</FileType>
-              <FilePath>..\..\bsp\lpc43xx\CMSIS_LPC43xx_DriverLib\src\system_LPC43xx.c</FilePath>
+              <FilePath>..\..\..\mcu\lpc43xx\CMSIS_LPC43xx_DriverLib\src\system_LPC43xx.c</FilePath>
             </File>
             <File>
               <FileName>lpc43xx_i2c.c</FileName>
               <FileType>1</FileType>
-              <FilePath>..\..\bsp\lpc43xx\CMSIS_LPC43xx_DriverLib\src\lpc43xx_i2c.c</FilePath>
+              <FilePath>..\..\..\mcu\lpc43xx\CMSIS_LPC43xx_DriverLib\src\lpc43xx_i2c.c</FilePath>
             </File>
           </Files>
         </Group>
@@ -1638,39 +1633,34 @@
           </GroupOption>
           <Files>
             <File>
-              <FileName>core_cm3.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>..\..\bsp\lpc175x_6x\CMSISv2p00_LPC17xx\src\core_cm3.c</FilePath>
-            </File>
-            <File>
               <FileName>system_LPC17xx.c</FileName>
               <FileType>1</FileType>
-              <FilePath>..\..\bsp\lpc175x_6x\CMSISv2p00_LPC17xx\src\system_LPC17xx.c</FilePath>
+              <FilePath>..\..\..\mcu\lpc175x_6x\CMSIS_CORE_LPC17xx\src\system_LPC17xx.c</FilePath>
             </File>
             <File>
               <FileName>lpc17xx_clkpwr.c</FileName>
               <FileType>1</FileType>
-              <FilePath>..\..\bsp\lpc175x_6x\LPC17xx_DriverLib\source\lpc17xx_clkpwr.c</FilePath>
+              <FilePath>..\..\..\mcu\lpc175x_6x\LPC17xx_DriverLib\source\lpc17xx_clkpwr.c</FilePath>
             </File>
             <File>
               <FileName>lpc17xx_gpio.c</FileName>
               <FileType>1</FileType>
-              <FilePath>..\..\bsp\lpc175x_6x\LPC17xx_DriverLib\source\lpc17xx_gpio.c</FilePath>
+              <FilePath>..\..\..\mcu\lpc175x_6x\LPC17xx_DriverLib\source\lpc17xx_gpio.c</FilePath>
             </File>
             <File>
               <FileName>lpc17xx_uart.c</FileName>
               <FileType>1</FileType>
-              <FilePath>..\..\bsp\lpc175x_6x\LPC17xx_DriverLib\source\lpc17xx_uart.c</FilePath>
+              <FilePath>..\..\..\mcu\lpc175x_6x\LPC17xx_DriverLib\source\lpc17xx_uart.c</FilePath>
             </File>
             <File>
               <FileName>lpc17xx_pinsel.c</FileName>
               <FileType>1</FileType>
-              <FilePath>..\..\bsp\lpc175x_6x\LPC17xx_DriverLib\source\lpc17xx_pinsel.c</FilePath>
+              <FilePath>..\..\..\mcu\lpc175x_6x\LPC17xx_DriverLib\source\lpc17xx_pinsel.c</FilePath>
             </File>
             <File>
               <FileName>startup_LPC17xx.s</FileName>
               <FileType>2</FileType>
-              <FilePath>..\..\bsp\lpc175x_6x\startup_keil\startup_LPC17xx.s</FilePath>
+              <FilePath>..\..\..\mcu\lpc175x_6x\startup_keil\startup_LPC17xx.s</FilePath>
             </File>
           </Files>
         </Group>
@@ -2020,7 +2010,7 @@
               <MiscControls>--gnu --c99 --diag_suppress=66</MiscControls>
               <Define>TUSB_CFG_MCU=MCU_LPC175X_6X BOARD=BOARD_LPCXPRESSO1769  TUSB_CFG_OS=TUSB_OS_FREERTOS TUSB_CFG_OS_TASK_PRIO=configMAX_PRIORITIES-5</Define>
               <Undefine></Undefine>
-              <IncludePath>..\src;..\..\bsp\lpc175x_6x\CMSISv2p00_LPC17xx\inc;..\..\bsp\lpc175x_6x\LPC17xx_DriverLib\include;..\..\bsp;..\..\..\tinyusb;..\..\..\vendor\freertos;..\..\..\vendor\freertos\freertos\Source\include;..\..\..\vendor\fatfs</IncludePath>
+              <IncludePath>..\src;..\..\..\mcu\lpc175x_6x\CMSIS_CORE_LPC17xx\inc;..\..\..\mcu\lpc175x_6x\LPC17xx_DriverLib\include;..\..\..\boards;..\..\..\tinyusb;..\..\..\vendor\freertos;..\..\..\vendor\freertos\freertos\Source\include;..\..\..\vendor\fatfs</IncludePath>
             </VariousControls>
           </Cads>
           <Aads>
@@ -2324,52 +2314,52 @@
             <File>
               <FileName>board.c</FileName>
               <FileType>1</FileType>
-              <FilePath>..\..\bsp\boards\board.c</FilePath>
+              <FilePath>..\..\..\boards\board.c</FilePath>
             </File>
             <File>
               <FileName>printf_retarget.c</FileName>
               <FileType>1</FileType>
-              <FilePath>..\..\bsp\boards\printf_retarget.c</FilePath>
+              <FilePath>..\..\..\boards\printf_retarget.c</FilePath>
             </File>
             <File>
               <FileName>pca9532.c</FileName>
               <FileType>1</FileType>
-              <FilePath>..\..\bsp\boards\embedded_artists\oem_base_board\pca9532.c</FilePath>
+              <FilePath>..\..\..\boards\embedded_artists\oem_base_board\pca9532.c</FilePath>
             </File>
             <File>
               <FileName>board_ngx4330.c</FileName>
               <FileType>1</FileType>
-              <FilePath>..\..\bsp\boards\ngx\board_ngx4330.c</FilePath>
+              <FilePath>..\..\..\boards\ngx\board_ngx4330.c</FilePath>
             </File>
             <File>
               <FileName>board_lpc4357usb.c</FileName>
               <FileType>1</FileType>
-              <FilePath>..\..\bsp\boards\microbuilder\board_lpc4357usb.c</FilePath>
+              <FilePath>..\..\..\boards\microbuilder\board_lpc4357usb.c</FilePath>
             </File>
             <File>
               <FileName>board_rf1ghznode.c</FileName>
               <FileType>1</FileType>
-              <FilePath>..\..\bsp\boards\microbuilder\board_rf1ghznode.c</FilePath>
+              <FilePath>..\..\..\boards\microbuilder\board_rf1ghznode.c</FilePath>
             </File>
             <File>
               <FileName>board_lpcxpresso1769.c</FileName>
               <FileType>1</FileType>
-              <FilePath>..\..\bsp\boards\lpcxpresso\board_lpcxpresso1769.c</FilePath>
+              <FilePath>..\..\..\boards\lpcxpresso\board_lpcxpresso1769.c</FilePath>
             </File>
             <File>
               <FileName>board_lpcxpresso1347.c</FileName>
               <FileType>1</FileType>
-              <FilePath>..\..\bsp\boards\lpcxpresso\board_lpcxpresso1347.c</FilePath>
+              <FilePath>..\..\..\boards\lpcxpresso\board_lpcxpresso1347.c</FilePath>
             </File>
             <File>
               <FileName>board_mcb4300.c</FileName>
               <FileType>1</FileType>
-              <FilePath>..\..\bsp\boards\keil\board_mcb4300.c</FilePath>
+              <FilePath>..\..\..\boards\keil\board_mcb4300.c</FilePath>
             </File>
             <File>
               <FileName>board_ea4357.c</FileName>
               <FileType>1</FileType>
-              <FilePath>..\..\bsp\boards\embedded_artists\ea4357\board_ea4357.c</FilePath>
+              <FilePath>..\..\..\boards\embedded_artists\ea4357\board_ea4357.c</FilePath>
             </File>
           </Files>
         </Group>
@@ -2435,37 +2425,37 @@
             <File>
               <FileName>startup_LPC43xx.s</FileName>
               <FileType>2</FileType>
-              <FilePath>..\..\bsp\lpc43xx\startup_keil\startup_LPC43xx.s</FilePath>
+              <FilePath>..\..\..\mcu\lpc43xx\startup_keil\startup_LPC43xx.s</FilePath>
             </File>
             <File>
               <FileName>lpc43xx_uart.c</FileName>
               <FileType>1</FileType>
-              <FilePath>..\..\bsp\lpc43xx\CMSIS_LPC43xx_DriverLib\src\lpc43xx_uart.c</FilePath>
+              <FilePath>..\..\..\mcu\lpc43xx\CMSIS_LPC43xx_DriverLib\src\lpc43xx_uart.c</FilePath>
             </File>
             <File>
               <FileName>lpc43xx_scu.c</FileName>
               <FileType>1</FileType>
-              <FilePath>..\..\bsp\lpc43xx\CMSIS_LPC43xx_DriverLib\src\lpc43xx_scu.c</FilePath>
+              <FilePath>..\..\..\mcu\lpc43xx\CMSIS_LPC43xx_DriverLib\src\lpc43xx_scu.c</FilePath>
             </File>
             <File>
               <FileName>lpc43xx_gpio.c</FileName>
               <FileType>1</FileType>
-              <FilePath>..\..\bsp\lpc43xx\CMSIS_LPC43xx_DriverLib\src\lpc43xx_gpio.c</FilePath>
+              <FilePath>..\..\..\mcu\lpc43xx\CMSIS_LPC43xx_DriverLib\src\lpc43xx_gpio.c</FilePath>
             </File>
             <File>
               <FileName>lpc43xx_cgu.c</FileName>
               <FileType>1</FileType>
-              <FilePath>..\..\bsp\lpc43xx\CMSIS_LPC43xx_DriverLib\src\lpc43xx_cgu.c</FilePath>
+              <FilePath>..\..\..\mcu\lpc43xx\CMSIS_LPC43xx_DriverLib\src\lpc43xx_cgu.c</FilePath>
             </File>
             <File>
               <FileName>system_LPC43xx.c</FileName>
               <FileType>1</FileType>
-              <FilePath>..\..\bsp\lpc43xx\CMSIS_LPC43xx_DriverLib\src\system_LPC43xx.c</FilePath>
+              <FilePath>..\..\..\mcu\lpc43xx\CMSIS_LPC43xx_DriverLib\src\system_LPC43xx.c</FilePath>
             </File>
             <File>
               <FileName>lpc43xx_i2c.c</FileName>
               <FileType>1</FileType>
-              <FilePath>..\..\bsp\lpc43xx\CMSIS_LPC43xx_DriverLib\src\lpc43xx_i2c.c</FilePath>
+              <FilePath>..\..\..\mcu\lpc43xx\CMSIS_LPC43xx_DriverLib\src\lpc43xx_i2c.c</FilePath>
             </File>
           </Files>
         </Group>
@@ -2473,39 +2463,34 @@
           <GroupName>bsp lpc175x_6x</GroupName>
           <Files>
             <File>
-              <FileName>core_cm3.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>..\..\bsp\lpc175x_6x\CMSISv2p00_LPC17xx\src\core_cm3.c</FilePath>
-            </File>
-            <File>
               <FileName>system_LPC17xx.c</FileName>
               <FileType>1</FileType>
-              <FilePath>..\..\bsp\lpc175x_6x\CMSISv2p00_LPC17xx\src\system_LPC17xx.c</FilePath>
+              <FilePath>..\..\..\mcu\lpc175x_6x\CMSIS_CORE_LPC17xx\src\system_LPC17xx.c</FilePath>
             </File>
             <File>
               <FileName>lpc17xx_clkpwr.c</FileName>
               <FileType>1</FileType>
-              <FilePath>..\..\bsp\lpc175x_6x\LPC17xx_DriverLib\source\lpc17xx_clkpwr.c</FilePath>
+              <FilePath>..\..\..\mcu\lpc175x_6x\LPC17xx_DriverLib\source\lpc17xx_clkpwr.c</FilePath>
             </File>
             <File>
               <FileName>lpc17xx_gpio.c</FileName>
               <FileType>1</FileType>
-              <FilePath>..\..\bsp\lpc175x_6x\LPC17xx_DriverLib\source\lpc17xx_gpio.c</FilePath>
+              <FilePath>..\..\..\mcu\lpc175x_6x\LPC17xx_DriverLib\source\lpc17xx_gpio.c</FilePath>
             </File>
             <File>
               <FileName>lpc17xx_uart.c</FileName>
               <FileType>1</FileType>
-              <FilePath>..\..\bsp\lpc175x_6x\LPC17xx_DriverLib\source\lpc17xx_uart.c</FilePath>
+              <FilePath>..\..\..\mcu\lpc175x_6x\LPC17xx_DriverLib\source\lpc17xx_uart.c</FilePath>
             </File>
             <File>
               <FileName>lpc17xx_pinsel.c</FileName>
               <FileType>1</FileType>
-              <FilePath>..\..\bsp\lpc175x_6x\LPC17xx_DriverLib\source\lpc17xx_pinsel.c</FilePath>
+              <FilePath>..\..\..\mcu\lpc175x_6x\LPC17xx_DriverLib\source\lpc17xx_pinsel.c</FilePath>
             </File>
             <File>
               <FileName>startup_LPC17xx.s</FileName>
               <FileType>2</FileType>
-              <FilePath>..\..\bsp\lpc175x_6x\startup_keil\startup_LPC17xx.s</FilePath>
+              <FilePath>..\..\..\mcu\lpc175x_6x\startup_keil\startup_LPC17xx.s</FilePath>
             </File>
           </Files>
         </Group>
@@ -2657,7 +2642,7 @@
             <CpuDllArguments></CpuDllArguments>
             <PeripheralDll></PeripheralDll>
             <PeripheralDllArguments></PeripheralDllArguments>
-            <InitializationFile>.\keil_ram.ini</InitializationFile>
+            <InitializationFile>..\..\..\mcu\lpc43xx\keil_ram.ini</InitializationFile>
             <Driver>Segger\JL2CM3.dll</Driver>
           </TargetDlls>
         </DebugOption>
@@ -2855,7 +2840,7 @@
               <MiscControls>--gnu --c99 --diag_suppress=66</MiscControls>
               <Define>CORE_M4 TUSB_CFG_MCU=MCU_LPC43XX BOARD=BOARD_NGX4330 TUSB_CFG_OS=TUSB_OS_FREERTOS TUSB_CFG_OS_TASK_PRIO=configMAX_PRIORITIES-5</Define>
               <Undefine></Undefine>
-              <IncludePath>..\src;..\..\bsp\lpc43xx\CMSIS_LPC43xx_DriverLib\inc;..\..\bsp;..\..\..\tinyusb;..\..\..\vendor\freertos;..\..\..\vendor\freertos\freertos\Source\include;..\..\..\vendor\fatfs</IncludePath>
+              <IncludePath>..\src;..\..\..\mcu\lpc43xx\CMSIS_LPC43xx_DriverLib\inc;..\..\..\boards;..\..\..\tinyusb;..\..\..\vendor\freertos;..\..\..\vendor\freertos\freertos\Source\include;..\..\..\vendor\fatfs</IncludePath>
             </VariousControls>
           </Cads>
           <Aads>
@@ -3159,52 +3144,52 @@
             <File>
               <FileName>board.c</FileName>
               <FileType>1</FileType>
-              <FilePath>..\..\bsp\boards\board.c</FilePath>
+              <FilePath>..\..\..\boards\board.c</FilePath>
             </File>
             <File>
               <FileName>printf_retarget.c</FileName>
               <FileType>1</FileType>
-              <FilePath>..\..\bsp\boards\printf_retarget.c</FilePath>
+              <FilePath>..\..\..\boards\printf_retarget.c</FilePath>
             </File>
             <File>
               <FileName>pca9532.c</FileName>
               <FileType>1</FileType>
-              <FilePath>..\..\bsp\boards\embedded_artists\oem_base_board\pca9532.c</FilePath>
+              <FilePath>..\..\..\boards\embedded_artists\oem_base_board\pca9532.c</FilePath>
             </File>
             <File>
               <FileName>board_ngx4330.c</FileName>
               <FileType>1</FileType>
-              <FilePath>..\..\bsp\boards\ngx\board_ngx4330.c</FilePath>
+              <FilePath>..\..\..\boards\ngx\board_ngx4330.c</FilePath>
             </File>
             <File>
               <FileName>board_lpc4357usb.c</FileName>
               <FileType>1</FileType>
-              <FilePath>..\..\bsp\boards\microbuilder\board_lpc4357usb.c</FilePath>
+              <FilePath>..\..\..\boards\microbuilder\board_lpc4357usb.c</FilePath>
             </File>
             <File>
               <FileName>board_rf1ghznode.c</FileName>
               <FileType>1</FileType>
-              <FilePath>..\..\bsp\boards\microbuilder\board_rf1ghznode.c</FilePath>
+              <FilePath>..\..\..\boards\microbuilder\board_rf1ghznode.c</FilePath>
             </File>
             <File>
               <FileName>board_lpcxpresso1769.c</FileName>
               <FileType>1</FileType>
-              <FilePath>..\..\bsp\boards\lpcxpresso\board_lpcxpresso1769.c</FilePath>
+              <FilePath>..\..\..\boards\lpcxpresso\board_lpcxpresso1769.c</FilePath>
             </File>
             <File>
               <FileName>board_lpcxpresso1347.c</FileName>
               <FileType>1</FileType>
-              <FilePath>..\..\bsp\boards\lpcxpresso\board_lpcxpresso1347.c</FilePath>
+              <FilePath>..\..\..\boards\lpcxpresso\board_lpcxpresso1347.c</FilePath>
             </File>
             <File>
               <FileName>board_mcb4300.c</FileName>
               <FileType>1</FileType>
-              <FilePath>..\..\bsp\boards\keil\board_mcb4300.c</FilePath>
+              <FilePath>..\..\..\boards\keil\board_mcb4300.c</FilePath>
             </File>
             <File>
               <FileName>board_ea4357.c</FileName>
               <FileType>1</FileType>
-              <FilePath>..\..\bsp\boards\embedded_artists\ea4357\board_ea4357.c</FilePath>
+              <FilePath>..\..\..\boards\embedded_artists\ea4357\board_ea4357.c</FilePath>
             </File>
           </Files>
         </Group>
@@ -3214,37 +3199,37 @@
             <File>
               <FileName>startup_LPC43xx.s</FileName>
               <FileType>2</FileType>
-              <FilePath>..\..\bsp\lpc43xx\startup_keil\startup_LPC43xx.s</FilePath>
+              <FilePath>..\..\..\mcu\lpc43xx\startup_keil\startup_LPC43xx.s</FilePath>
             </File>
             <File>
               <FileName>lpc43xx_uart.c</FileName>
               <FileType>1</FileType>
-              <FilePath>..\..\bsp\lpc43xx\CMSIS_LPC43xx_DriverLib\src\lpc43xx_uart.c</FilePath>
+              <FilePath>..\..\..\mcu\lpc43xx\CMSIS_LPC43xx_DriverLib\src\lpc43xx_uart.c</FilePath>
             </File>
             <File>
               <FileName>lpc43xx_scu.c</FileName>
               <FileType>1</FileType>
-              <FilePath>..\..\bsp\lpc43xx\CMSIS_LPC43xx_DriverLib\src\lpc43xx_scu.c</FilePath>
+              <FilePath>..\..\..\mcu\lpc43xx\CMSIS_LPC43xx_DriverLib\src\lpc43xx_scu.c</FilePath>
             </File>
             <File>
               <FileName>lpc43xx_gpio.c</FileName>
               <FileType>1</FileType>
-              <FilePath>..\..\bsp\lpc43xx\CMSIS_LPC43xx_DriverLib\src\lpc43xx_gpio.c</FilePath>
+              <FilePath>..\..\..\mcu\lpc43xx\CMSIS_LPC43xx_DriverLib\src\lpc43xx_gpio.c</FilePath>
             </File>
             <File>
               <FileName>lpc43xx_cgu.c</FileName>
               <FileType>1</FileType>
-              <FilePath>..\..\bsp\lpc43xx\CMSIS_LPC43xx_DriverLib\src\lpc43xx_cgu.c</FilePath>
+              <FilePath>..\..\..\mcu\lpc43xx\CMSIS_LPC43xx_DriverLib\src\lpc43xx_cgu.c</FilePath>
             </File>
             <File>
               <FileName>system_LPC43xx.c</FileName>
               <FileType>1</FileType>
-              <FilePath>..\..\bsp\lpc43xx\CMSIS_LPC43xx_DriverLib\src\system_LPC43xx.c</FilePath>
+              <FilePath>..\..\..\mcu\lpc43xx\CMSIS_LPC43xx_DriverLib\src\system_LPC43xx.c</FilePath>
             </File>
             <File>
               <FileName>lpc43xx_i2c.c</FileName>
               <FileType>1</FileType>
-              <FilePath>..\..\bsp\lpc43xx\CMSIS_LPC43xx_DriverLib\src\lpc43xx_i2c.c</FilePath>
+              <FilePath>..\..\..\mcu\lpc43xx\CMSIS_LPC43xx_DriverLib\src\lpc43xx_i2c.c</FilePath>
             </File>
           </Files>
         </Group>
@@ -3308,39 +3293,34 @@
           </GroupOption>
           <Files>
             <File>
-              <FileName>core_cm3.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>..\..\bsp\lpc175x_6x\CMSISv2p00_LPC17xx\src\core_cm3.c</FilePath>
-            </File>
-            <File>
               <FileName>system_LPC17xx.c</FileName>
               <FileType>1</FileType>
-              <FilePath>..\..\bsp\lpc175x_6x\CMSISv2p00_LPC17xx\src\system_LPC17xx.c</FilePath>
+              <FilePath>..\..\..\mcu\lpc175x_6x\CMSIS_CORE_LPC17xx\src\system_LPC17xx.c</FilePath>
             </File>
             <File>
               <FileName>lpc17xx_clkpwr.c</FileName>
               <FileType>1</FileType>
-              <FilePath>..\..\bsp\lpc175x_6x\LPC17xx_DriverLib\source\lpc17xx_clkpwr.c</FilePath>
+              <FilePath>..\..\..\mcu\lpc175x_6x\LPC17xx_DriverLib\source\lpc17xx_clkpwr.c</FilePath>
             </File>
             <File>
               <FileName>lpc17xx_gpio.c</FileName>
               <FileType>1</FileType>
-              <FilePath>..\..\bsp\lpc175x_6x\LPC17xx_DriverLib\source\lpc17xx_gpio.c</FilePath>
+              <FilePath>..\..\..\mcu\lpc175x_6x\LPC17xx_DriverLib\source\lpc17xx_gpio.c</FilePath>
             </File>
             <File>
               <FileName>lpc17xx_uart.c</FileName>
               <FileType>1</FileType>
-              <FilePath>..\..\bsp\lpc175x_6x\LPC17xx_DriverLib\source\lpc17xx_uart.c</FilePath>
+              <FilePath>..\..\..\mcu\lpc175x_6x\LPC17xx_DriverLib\source\lpc17xx_uart.c</FilePath>
             </File>
             <File>
               <FileName>lpc17xx_pinsel.c</FileName>
               <FileType>1</FileType>
-              <FilePath>..\..\bsp\lpc175x_6x\LPC17xx_DriverLib\source\lpc17xx_pinsel.c</FilePath>
+              <FilePath>..\..\..\mcu\lpc175x_6x\LPC17xx_DriverLib\source\lpc17xx_pinsel.c</FilePath>
             </File>
             <File>
               <FileName>startup_LPC17xx.s</FileName>
               <FileType>2</FileType>
-              <FilePath>..\..\bsp\lpc175x_6x\startup_keil\startup_LPC17xx.s</FilePath>
+              <FilePath>..\..\..\mcu\lpc175x_6x\startup_keil\startup_LPC17xx.s</FilePath>
             </File>
           </Files>
         </Group>
