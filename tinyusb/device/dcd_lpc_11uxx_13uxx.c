@@ -113,7 +113,7 @@ typedef struct {
     uint16_t total_bytes;
   }next_td[DCD_11U_13U_QHD_COUNT];
 
-  uint32_t current_ioc; ///< interrupt on complete mask for current TD
+  uint32_t current_ioc;          ///< interrupt on complete mask for current TD
   uint32_t next_ioc;             ///< interrupt on complete mask for next TD
 
   // should start from 128

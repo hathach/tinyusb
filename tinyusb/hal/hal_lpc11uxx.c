@@ -46,6 +46,7 @@ tusb_error_t hal_init(void)
 	// TODO remove magic number
   /* Enable AHB clock to the USB block and USB RAM. */
   LPC_SYSCON->SYSAHBCLKCTRL |= ((0x1<<14) | (0x1<<27));
+  LPC_SYSCON->PDRUNCFG &= ~( BIT_(8) | BIT_(10) ); // enable USB PLL & USB transceiver
 
   /* Pull-down is needed, or internally, VBUS will be floating. This is to
   address the wrong status in VBUSDebouncing bit in CmdStatus register.  */
