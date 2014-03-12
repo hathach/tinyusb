@@ -51,8 +51,8 @@
 #endif
 
 #include "LPC13Uxx.h"
-#include "lpc13uxx/LPC13Uxx_DriverLib/inc/gpio.h"
-#include "lpc13uxx/LPC13Uxx_DriverLib/inc/uart.h"
+#include "gpio.h"
+#include "uart.h"
 
 #define CFG_PRINTF_TARGET PRINTF_TARGET_UART
 

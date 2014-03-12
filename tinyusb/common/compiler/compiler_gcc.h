@@ -55,7 +55,7 @@
 #define ALIGN_OF(x) __alignof__(x)
 
 /// Normally, the compiler places the objects it generates in sections like data or bss & function in text. Sometimes, however, you need additional sections, or you need certain particular variables to appear in special sections, for example to map to special hardware. The section attribute specifies that a variable (or function) lives in a particular section
-#define ATTR_SECTION(section)      __attribute__ ((#section))
+#define ATTR_SECTION(sec_name)      __attribute__ (( section(#sec_name) ))
 
 /// If this attribute is used on a function declaration and a call to such a function is not eliminated through dead code elimination or other optimizations, an error that includes message is diagnosed. This is useful for compile-time checking
 #define ATTR_ERROR(Message)        __attribute__ ((error(Message)))
