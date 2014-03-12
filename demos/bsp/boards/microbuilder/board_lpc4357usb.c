@@ -54,29 +54,29 @@
 void board_init(void)
 {
   CGU_Init();
-  
+
   /* Setup the systick time for 1ms ticks */
   SysTick_Config(CGU_GetPCLKFrequency(CGU_PERIPHERAL_M4CORE) / CFG_TICKS_PER_SECOND);
-  
+
   /* Configure LED0 as GPIO */
   scu_pinmux(BOARD_LED0_PORT, BOARD_LED0_PIN, MD_PDN, BOARD_LED0_FUNCTION);
   GPIO_SetDir(BOARD_LED0_GPIO_PORT, (1 << BOARD_LED0_GPIO_PIN), 1);
-  
+
   /* Configure TRACE pins */
   scu_pinmux(0xF, 4, MD_PDN, 0x2); /* PF_4 = TRACECLK */
   scu_pinmux(0x7, 4, MD_PDN, 0x5); /* P7_4 = TRACEDATA[0] */
   scu_pinmux(0x7, 5, MD_PDN, 0x5); /* P7_5 = TRACEDATA[1] */
   scu_pinmux(0x7, 6, MD_PDN, 0x5); /* P7_6 = TRACEDATA[2] */
   scu_pinmux(0x7, 7, MD_PDN, 0x5); /* P7_7 = TRACEDATA[3] */
-  
+
   // USB0 Power: EA4357 channel B U20 GPIO26 active low (base board), P2_3 on LPC4357
-  scu_pinmux(0x2, 3, MD_PUP | MD_EZI, FUNC7);		// USB0 VBus Power  
+  scu_pinmux(0x2, 3, MD_PUP | MD_EZI, FUNC7);		// USB0 VBus Power
 
   // 1.5Kohm pull-up resistor is needed on the USB DP data signal. GPIO28 (base), P9_5 (LPC4357) controls
   //scu_pinmux(0x9, 5, MD_PUP|MD_EZI|MD_ZI, FUNC4);		// GPIO5[18]
   //GPIO_SetDir(5, BIT_(18), 1); // output
   //GPIO_ClearValue(5, BIT_(18));
-  
+
   /* Init I2C @ 400kHz */
   I2C_Init(LPC_I2C0, 400000);
   I2C_Cmd(LPC_I2C0, ENABLE);
@@ -105,7 +105,7 @@ void board_leds(uint32_t on_mask, uint32_t off_mask)
   {
     LPC_GPIO_PORT->SET[BOARD_LED0_GPIO_PORT] = (1 << BOARD_LED0_GPIO_PIN);
   }
-  
+
   if (off_mask & 0x01)
   {
     LPC_GPIO_PORT->CLR[BOARD_LED0_GPIO_PORT] = (1 << BOARD_LED0_GPIO_PIN);

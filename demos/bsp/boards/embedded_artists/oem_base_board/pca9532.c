@@ -60,7 +60,7 @@ static uint16_t ledStateShadow = 0;
  * Local Functions
  *****************************************************************************/
 
-static Status I2CWrite(uint32_t addr, uint8_t* buf, uint32_t len) 
+static Status I2CWrite(uint32_t addr, uint8_t* buf, uint32_t len)
 {
   I2C_M_SETUP_Type i2cData;
 
@@ -74,7 +74,7 @@ static Status I2CWrite(uint32_t addr, uint8_t* buf, uint32_t len)
   return I2C_MasterTransferData(I2C_PORT, &i2cData, I2C_TRANSFER_POLLING);
 }
 
-static Status I2CRead(uint32_t addr, uint8_t* buf, uint32_t len) 
+static Status I2CRead(uint32_t addr, uint8_t* buf, uint32_t len)
 {
   I2C_M_SETUP_Type i2cData;
 
@@ -176,7 +176,7 @@ uint16_t pca9532_getLedState (uint32_t shadow)
          * A blinking LED may be reported as on or off depending on
          * its state when reading the Input register.
          */
-        
+
         buf[0] = PCA9532_INPUT0;
         I2CWrite(PCA9532_I2C_ADDR, buf, 1);
 

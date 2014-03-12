@@ -114,7 +114,7 @@
     #define TUSB_CFG_ATTR_USBRAM _Pragma("location=\".ahb_sram1\"")
   #elif (TUSB_CFG_MCU == MCU_LPC175X_6X)
     #define TUSB_CFG_ATTR_USBRAM
-  #elif (TUSB_CFG_MCU == MCU_LPC11UXX)
+  #elif (TUSB_CFG_MCU == MCU_LPC11UXX) || (TUSB_CFG_MCU == MCU_LPC13UXX)
     #define TUSB_CFG_ATTR_USBRAM _Pragma("location=\"USB_PACKET_MEMORY\"")
   #endif
 
