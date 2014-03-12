@@ -33,7 +33,7 @@
 
 #ifdef __cplusplus
 extern "C" {
-#endif 
+#endif
 
 
 #if defined ( __CC_ARM   )
@@ -56,16 +56,16 @@ FLEX_INT0_IRQn                = 0,        /*!< All I/O pins can be routed to bel
   FLEX_INT1_IRQn                = 1,
   FLEX_INT2_IRQn                = 2,
   FLEX_INT3_IRQn                = 3,
-  FLEX_INT4_IRQn                = 4,   
-  FLEX_INT5_IRQn                = 5,        
-  FLEX_INT6_IRQn                = 6,        
-  FLEX_INT7_IRQn                = 7,        
+  FLEX_INT4_IRQn                = 4,
+  FLEX_INT5_IRQn                = 5,
+  FLEX_INT6_IRQn                = 6,
+  FLEX_INT7_IRQn                = 7,
   GINT0_IRQn                    = 8,        /*!< Grouped Interrupt 0                              */
   GINT1_IRQn                    = 9,        /*!< Grouped Interrupt 1                              */
   Reserved0_IRQn                = 10,       /*!< Reserved Interrupt                               */
-  Reserved1_IRQn                = 11,       
-  Reserved2_IRQn                = 12,       
-  Reserved3_IRQn                = 13,       
+  Reserved1_IRQn                = 11,
+  Reserved2_IRQn                = 12,
+  Reserved3_IRQn                = 13,
   SSP1_IRQn                     = 14,       /*!< SSP1 Interrupt                                   */
   I2C_IRQn                      = 15,       /*!< I2C Interrupt                                    */
   TIMER_16_0_IRQn               = 16,       /*!< 16-bit Timer0 Interrupt                          */
@@ -77,7 +77,7 @@ FLEX_INT0_IRQn                = 0,        /*!< All I/O pins can be routed to bel
   USB_IRQn                      = 22,       /*!< USB IRQ Interrupt                                */
   USB_FIQn                      = 23,       /*!< USB FIQ Interrupt                                */
   ADC_IRQn                      = 24,       /*!< A/D Converter Interrupt                          */
-  WDT_IRQn                      = 25,       /*!< Watchdog timer Interrupt                         */  
+  WDT_IRQn                      = 25,       /*!< Watchdog timer Interrupt                         */
   BOD_IRQn                      = 26,       /*!< Brown Out Detect(BOD) Interrupt                  */
   FMC_IRQn                      = 27,       /*!< Flash Memory Controller Interrupt                */
   Reserved4_IRQn                = 28,       /*!< Reserved Interrupt                               */
@@ -170,18 +170,18 @@ typedef struct {                            /*!< (@ 0x40004000) WWDT Structure  
   */
 
 typedef struct {                            /*!< (@ 0x40008000) USART Structure        */
-  
+
   union {
     __IO uint32_t DLL;                      /*!< (@ 0x40008000) Divisor Latch LSB. Least significant byte of the baud rate divisor value. The full divisor is used to generate a baud rate from the fractional rate divider. (DLAB=1) */
     __O  uint32_t THR;                      /*!< (@ 0x40008000) Transmit Holding Register. The next character to be transmitted is written here. (DLAB=0) */
     __I  uint32_t RBR;                      /*!< (@ 0x40008000) Receiver Buffer Register. Contains the next received character to be read. (DLAB=0) */
   };
-  
+
   union {
     __IO uint32_t IER;                      /*!< (@ 0x40008004) Interrupt Enable Register. Contains individual interrupt enable bits for the 7 potential USART interrupts. (DLAB=0) */
     __IO uint32_t DLM;                      /*!< (@ 0x40008004) Divisor Latch MSB. Most significant byte of the baud rate divisor value. The full divisor is used to generate a baud rate from the fractional rate divider. (DLAB=1) */
   };
-  
+
   union {
     __O  uint32_t FCR;                      /*!< (@ 0x40008008) FIFO Control Register. Controls USART FIFO usage and modes. */
     __I  uint32_t IIR;                      /*!< (@ 0x40008008) Interrupt ID Register. Identifies which interrupt(s) are pending. */
@@ -203,7 +203,7 @@ typedef struct {                            /*!< (@ 0x40008000) USART Structure 
   __IO uint32_t RS485CTRL;                  /*!< (@ 0x4000804C) RS-485/EIA-485 Control. Contains controls to configure various aspects of RS-485/EIA-485 modes. */
   __IO uint32_t RS485ADRMATCH;              /*!< (@ 0x40008050) RS-485/EIA-485 address match. Contains the address match value for RS-485/EIA-485 mode. */
   __IO uint32_t RS485DLY;                   /*!< (@ 0x40008054) RS-485/EIA-485 direction control delay. */
-  __IO uint32_t SYNCCTRL; 
+  __IO uint32_t SYNCCTRL;
 } LPC_USART_Type;
 
 
@@ -213,7 +213,7 @@ typedef struct {                            /*!< (@ 0x40008000) USART Structure 
 
 
 /**
-  * @brief Product name title=UM10462 Chapter title=LPC11U1x 32-bitcounter/timers CT32B0/1 Modification date=3/16/2011 Major revision=0 Minor revision=3  
+  * @brief Product name title=UM10462 Chapter title=LPC11U1x 32-bitcounter/timers CT32B0/1 Modification date=3/16/2011 Major revision=0 Minor revision=3
   */
 
 typedef struct {                            /*!< (@ 0x40014000) CT32B0 Structure        */
@@ -389,17 +389,17 @@ typedef struct {                            /*!< (@ 0x40044000) IOCONFIG Structu
   __IO uint32_t PIO0_22;                    /*!< (@ 0x40044058) I/O configuration for pin PIO0_22/AD6/CT16B1_MAT1/MISO1 */
   __IO uint32_t PIO0_23;                    /*!< (@ 0x4004405C) I/O configuration for pin PIO0_23/AD7 */
   __IO uint32_t PIO1_0;                 /*!< Offset: 0x060 */
-  __IO uint32_t PIO1_1;         
-  __IO uint32_t PIO1_2;       
-  __IO uint32_t PIO1_3;      
+  __IO uint32_t PIO1_1;
+  __IO uint32_t PIO1_2;
+  __IO uint32_t PIO1_3;
   __IO uint32_t PIO1_4;                 /*!< Offset: 0x070 */
   __IO uint32_t PIO1_5;                     /*!< (@ 0x40044074) I/O configuration for pin PIO1_5/CT32B1_CAP1 */
-  __IO uint32_t PIO1_6;     
-  __IO uint32_t PIO1_7;       
+  __IO uint32_t PIO1_6;
+  __IO uint32_t PIO1_7;
   __IO uint32_t PIO1_8;                 /*!< Offset: 0x080 */
-  __IO uint32_t PIO1_9;        
-  __IO uint32_t PIO1_10;        
-  __IO uint32_t PIO1_11;       
+  __IO uint32_t PIO1_9;
+  __IO uint32_t PIO1_10;
+  __IO uint32_t PIO1_11;
   __IO uint32_t PIO1_12;                /*!< Offset: 0x090 */
   __IO uint32_t PIO1_13;                    /*!< (@ 0x40044094) I/O configuration for pin PIO1_13/DTR/CT16B0_MAT0/TXD */
   __IO uint32_t PIO1_14;                    /*!< (@ 0x40044098) I/O configuration for pin PIO1_14/DSR/CT16B0_MAT1/RXD */
@@ -570,7 +570,7 @@ typedef struct {                            /*!< (@ 0x40080000) USB Structure   
   * @brief Product name title=UM10462 Chapter title=LPC11U1x GPIO Modification date=3/17/2011 Major revision=0 Minor revision=3  (GPIO_PORT)
   */
 
-typedef struct {                            
+typedef struct {
   union {
     struct {
       __IO uint8_t B0[32];                       /*!< (@ 0x50000000) Byte pin registers port 0; pins PIO0_0 to PIO0_31 */
@@ -664,7 +664,7 @@ typedef struct {
 
 #ifdef __cplusplus
 }
-#endif 
+#endif
 
 
 #endif  // __LPC11UXX_H__

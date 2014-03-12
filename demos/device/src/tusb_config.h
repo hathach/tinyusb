@@ -83,6 +83,9 @@
 
 #define TUSB_CFG_OS_TICKS_PER_SECOND  1000
 
+//--------------------------------------------------------------------+
+// USB RAM PLACEMENT
+//--------------------------------------------------------------------+
 #ifdef __CODE_RED // compiled with lpcxpresso
   #if (TUSB_CFG_MCU == MCU_LPC11UXX) || (TUSB_CFG_MCU == MCU_LPC13UXX)
     #define TUSB_RAM_SECTION  ".data.$RAM2"

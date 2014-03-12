@@ -2984,7 +2984,7 @@
         </option>
         <option>
           <name>CCDiagError</name>
-          <state></state>
+          <state>Pa050</state>
         </option>
         <option>
           <name>CCObjPrefix</name>
@@ -4772,6 +4772,9 @@
         <name>$PROJ_DIR$\..\..\bsp\lpc43xx\CMSIS_LPC43xx_DriverLib\src\system_LPC43xx.c</name>
       </file>
     </group>
+    <file>
+      <name>$PROJ_DIR$\..\..\bsp\boards\microbuilder\board_rf1ghznode.c</name>
+    </file>
   </group>
   <group>
     <name>tinyusb</name>

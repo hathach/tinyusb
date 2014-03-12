@@ -8,7 +8,7 @@
  *   2009.12.07  ver 1.00    Preliminary version, first Release
  *
 ******************************************************************************/
-#ifndef __UART_H 
+#ifndef __UART_H
 #define __UART_H
 
 #define RS485_ENABLED		0
