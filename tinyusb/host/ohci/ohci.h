@@ -77,8 +77,10 @@ typedef struct {
   volatile uint16_t frame_number;
   volatile uint16_t frame_pad;
   volatile uint32_t done_head;
-  uint8_t reserved[116]; // TODO try to make use of this area if possible
+  uint8_t reserved[116+4];  // TODO try to make use of this area if possible, extra 4 byte to make the whole struct size = 256
 }ohci_hcca_t; // ATTR_ALIGNED(256)
+
+STATIC_ASSERT( sizeof(ohci_hcca_t) == 256, "size is not correct" );
 
 typedef struct {
   uint32_t reserved[2];

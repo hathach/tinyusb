@@ -135,7 +135,7 @@ enum {
 //--------------------------------------------------------------------+
 // INTERNAL OBJECT & FUNCTION DECLARATION
 //--------------------------------------------------------------------+
-TUSB_CFG_ATTR_USBRAM STATIC_VAR ohci_data_t ohci_data;
+TUSB_CFG_ATTR_USBRAM ATTR_ALIGNED(256) STATIC_VAR ohci_data_t ohci_data;
 
 static ohci_ed_t * const p_ed_head[] =
 {
