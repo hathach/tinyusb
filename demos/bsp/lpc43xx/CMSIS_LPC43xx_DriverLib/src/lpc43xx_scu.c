@@ -40,7 +40,7 @@
 #include "lpc43xx_scu.h"
 
 /* Pin modes
-*  ========= 
+*  =========
 *  The EPUN and EPD bits in the SFS registers allow the selection of weak on-chip
 *  pull-up or pull-down resistors with a typical value of 50 kOhm for each pin or the
 *  selection of the repeater mode.
@@ -53,16 +53,16 @@
 *  typically be used to prevent a pin from floating (and potentially using significant power if it
 *  floats to an indeterminate state) if it is temporarily not driven.
 *  Repeater mode is enabled when both pull-up and pull-down are enabled.
-*  
+*
 *  To be able to receive a digital signal, the input buffer must be enabled through bit EZI in
 *  the pin configuration registers. By default, the input buffer is disabled.
 *  For pads that support both a digital and an analog function, the input buffer must be
 *  disabled before enabling the analog function.
-*  
+*
 *  All digital pins support a programmable glitch filter (bit ZIF), which can be switched on or
 *  off. By default, the glitch filter is on. The glitch filter should be disabled for
 *  clocking signals with frequencies higher than 30 MHz.
-*  
+*
 *  Normal-drive and high-speed pins support a programmable slew rate (bit EHS) to select
 *  between lower noise and low speed or higher noise and high speed . The typical
 *  frequencies supported are 50 MHz/80 MHz for normal-drive pins and 75 MHz/180 MHz for

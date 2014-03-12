@@ -552,7 +552,7 @@ end_stage:
 				I2C_IntCmd(I2Cx, FALSE);
 				// Send stop
 				I2C_Stop(I2Cx);
-				
+
 				I2C_MasterComplete[tmp] = TRUE;
 			}
 			break;

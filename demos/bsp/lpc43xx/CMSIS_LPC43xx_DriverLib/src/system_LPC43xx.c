@@ -69,7 +69,7 @@ void SystemInit (void)
         fpuEnable();
 #endif
 #endif
-        
+
 #if !defined(CORE_M0)
 // Set up Cortex_M3 or M4 VTOR register to point to vector table
 // This code uses a toolchain defined symbol to locate the vector table

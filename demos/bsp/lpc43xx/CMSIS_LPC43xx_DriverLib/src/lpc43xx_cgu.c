@@ -696,11 +696,11 @@ uint32_t CGU_SetPLL0audio(void){
     LPC_CGU->PLL0AUDIO_MDIV = (0 << 28)  /* SELR */
         | (40 << 22)   /* SELI */
         | (31 << 17)   /* SELP */
-        | 11372;       /* MDEC */  
+        | 11372;       /* MDEC */
     /* set ndec, pdec register */
     LPC_CGU->PLL0AUDIO_NP_DIV = (22 << 12)       /* ndec */
-        | (10);               /* pdec */  
-    
+        | (10);               /* pdec */
+
     /* set fraction divider register. [21:15] = m, [14:0] = fractional value */
     LPC_CGU->PLL0AUDIO_FRAC = (86 << 15) | 0x1B7;
     LPC_CGU->PLL0AUDIO_CTRL = (6 << 24)   /* source = XTAL OSC 12 MHz */
@@ -708,8 +708,8 @@ uint32_t CGU_SetPLL0audio(void){
                       | _BIT(4);   /* CLKEN */
 #endif
     /* wait for lock */
-    while (!(LPC_CGU->PLL0AUDIO_STAT & 1)); 
-     
+    while (!(LPC_CGU->PLL0AUDIO_STAT & 1));
+
 	return CGU_ERROR_SUCCESS;
 }
 

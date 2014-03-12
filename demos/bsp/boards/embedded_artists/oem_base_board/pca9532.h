@@ -48,7 +48,7 @@
 #define KEY_MASK 0x000F
 
 /*
- * MMC Card Detect and MMC Write Protect are mapped to LED4 
+ * MMC Card Detect and MMC Write Protect are mapped to LED4
  * and LED5 on the PCA9532. Please note that WP is active low.
  */
 
