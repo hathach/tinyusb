@@ -3,8 +3,8 @@
  *   Project: NXP LPC13Uxx UART example
  *
  *   Description:
- *     This file contains UART code example which include UART 
- *     initialization, UART interrupt handler, and related APIs for 
+ *     This file contains UART code example which include UART
+ *     initialization, UART interrupt handler, and related APIs for
  *     UART access.
  *
  ****************************************************************************
@@ -45,7 +45,7 @@ volatile uint32_t UARTAutoBaud = 0, AutoBaudTimeout = 0;
 **
 ** parameters:			None
 ** Returned value:		None
-** 
+**
 *****************************************************************************/
 void USART_IRQHandler(void)
 {
@@ -53,7 +53,7 @@ void USART_IRQHandler(void)
   uint8_t Dummy = Dummy;
 
   IIRValue = LPC_USART->IIR;
-    
+
   IIRValue >>= 1;			/* skip pending bit in IIR */
   IIRValue &= 0x07;			/* check bit 1~3, interrupt identification */
   if (IIRValue == IIR_RLS)		/* Receive Line Status */
@@ -65,11 +65,11 @@ void USART_IRQHandler(void)
       /* There are errors or break interrupt */
       /* Read LSR will clear the interrupt */
       UARTStatus = LSRValue;
-      Dummy = LPC_USART->RBR;	/* Dummy read on RX to clear 
+      Dummy = LPC_USART->RBR;	/* Dummy read on RX to clear
 								interrupt, then bail out */
       return;
     }
-    if (LSRValue & LSR_RDR)	/* Receive Data Ready */			
+    if (LSRValue & LSR_RDR)	/* Receive Data Ready */
     {
       /* If no error on RLS, normal ready, save into the data buffer. */
       /* Note: read RBR will clear the interrupt */
@@ -77,7 +77,7 @@ void USART_IRQHandler(void)
       if (UARTCount == BUFSIZE)
       {
         UARTCount = 0;		/* buffer overflow */
-      }	
+      }
     }
   }
   else if (IIRValue == IIR_RDA)	/* Receive Data Available */
@@ -135,18 +135,18 @@ void USART_IRQHandler(void)
 **
 ** parameters:			None
 ** Returned value:		None
-** 
+**
 *****************************************************************************/
 void ModemInit( void )
 {
-  
+
   LPC_IOCON->PIO0_7 &= ~0x07;     /* UART I/O config */
   LPC_IOCON->PIO0_7 |= 0x01;      /* UART CTS */
   LPC_IOCON->PIO0_17 &= ~0x07;    /* UART I/O config */
   LPC_IOCON->PIO0_17 |= 0x01;     /* UART RTS */
 #if 1
   LPC_IOCON->PIO1_13 &= ~0x07;    /* UART I/O config */
-  LPC_IOCON->PIO1_13 |= 0x01;     /* UART DTR */ 
+  LPC_IOCON->PIO1_13 |= 0x01;     /* UART DTR */
   LPC_IOCON->PIO1_14 &= ~0x07;    /* UART I/O config */
   LPC_IOCON->PIO1_14 |= 0x01;     /* UART DSR */
   LPC_IOCON->PIO1_15 &= ~0x07;    /* UART I/O config */
@@ -164,7 +164,7 @@ void ModemInit( void )
   LPC_IOCON->PIO1_22 &= ~0x07;    /* UART I/O config */
   LPC_IOCON->PIO1_22 |= 0x01;     /* UART RI */
 #endif
-  LPC_USART->MCR = 0xC0;          /* Enable Auto RTS and Auto CTS. */			
+  LPC_USART->MCR = 0xC0;          /* Enable Auto RTS and Auto CTS. */
   return;
 }
 #endif
@@ -269,7 +269,7 @@ uint32_t uart_set_divisors(uint32_t UARTClk, uint32_t baudrate)
 **
 ** parameters:			UART baudrate
 ** Returned value:		None
-** 
+**
 *****************************************************************************/
 void UARTInit(uint32_t baudrate)
 {
@@ -280,31 +280,31 @@ void UARTInit(uint32_t baudrate)
 
   UARTTxEmpty = 1;
   UARTCount = 0;
-  
+
   NVIC_DisableIRQ(USART_IRQn);
   /* Select only one location from below. */
 #if 1
   LPC_IOCON->PIO0_18 &= ~0x07;    /*  UART I/O config */
   LPC_IOCON->PIO0_18 |= 0x01;     /* UART RXD */
-  LPC_IOCON->PIO0_19 &= ~0x07;	
+  LPC_IOCON->PIO0_19 &= ~0x07;
   LPC_IOCON->PIO0_19 |= 0x01;     /* UART TXD */
 #endif
 #if 0
   LPC_IOCON->PIO1_14 &= ~0x07;    /*  UART I/O config */
   LPC_IOCON->PIO1_14 |= 0x03;     /* UART RXD */
-  LPC_IOCON->PIO1_13 &= ~0x07;	
+  LPC_IOCON->PIO1_13 &= ~0x07;
   LPC_IOCON->PIO1_13 |= 0x03;     /* UART TXD */
 #endif
 #if 0
   LPC_IOCON->PIO1_17 &= ~0x07;    /*  UART I/O config */
   LPC_IOCON->PIO1_17 |= 0x02;     /* UART RXD */
-  LPC_IOCON->PIO1_18 &= ~0x07;	
+  LPC_IOCON->PIO1_18 &= ~0x07;
   LPC_IOCON->PIO1_18 |= 0x02;     /* UART TXD */
 #endif
 #if 0
   LPC_IOCON->PIO1_26 &= ~0x07;    /*  UART I/O config */
   LPC_IOCON->PIO1_26 |= 0x02;     /* UART RXD */
-  LPC_IOCON->PIO1_27 &= ~0x07;	
+  LPC_IOCON->PIO1_27 &= ~0x07;
   LPC_IOCON->PIO1_27 |= 0x02;     /* UART TXD */
 #endif
 
@@ -318,13 +318,13 @@ void UARTInit(uint32_t baudrate)
 	if ( uart_set_divisors(SystemCoreClock/LPC_SYSCON->UARTCLKDIV, baudrate) != TRUE )
 	{
       Fdiv = ((SystemCoreClock/LPC_SYSCON->UARTCLKDIV)/16)/baudrate ;	/*baud rate */
-      LPC_USART->DLM = Fdiv / 256;							
+      LPC_USART->DLM = Fdiv / 256;
       LPC_USART->DLL = Fdiv % 256;
 	  LPC_USART->FDR = 0x10;		/* Default */
 	}
 #else
     Fdiv = ((SystemCoreClock/LPC_SYSCON->UARTCLKDIV)/16)/baudrate ;	/*baud rate */
-    LPC_USART->DLM = Fdiv / 256;							
+    LPC_USART->DLM = Fdiv / 256;
     LPC_USART->DLL = Fdiv % 256;
 	LPC_USART->FDR = 0x10;		/* Default */
 #endif
@@ -341,7 +341,7 @@ void UARTInit(uint32_t baudrate)
   {
 	regVal = LPC_USART->RBR;	/* Dump data from RX FIFO */
   }
- 
+
   /* Enable the UART Interrupt */
   NVIC_EnableIRQ(USART_IRQn);
 
@@ -364,11 +364,11 @@ void UARTInit(uint32_t baudrate)
 **
 ** parameters:		buffer pointer, and data length
 ** Returned value:	None
-** 
+**
 *****************************************************************************/
 void UARTSend(uint8_t *BufferPtr, uint32_t Length)
 {
-  
+
   while ( Length != 0 )
   {
 	  /* THRE status, contain valid data */
@@ -394,7 +394,7 @@ void UARTSend(uint8_t *BufferPtr, uint32_t Length)
 **
 ** parameters:			pointer to the string end with NULL char.
 ** Returned value:		none.
-** 
+**
 *****************************************************************************/
 void print_string( uint8_t *str_ptr )
 {
@@ -414,17 +414,17 @@ void print_string( uint8_t *str_ptr )
 **
 ** parameters:			None
 ** Returned value:		character, zero is none.
-** 
+**
 *****************************************************************************/
 uint8_t get_key( void )
 {
   uint8_t dummy;
-  
-  while ( !(LPC_USART->LSR & 0x01) );  
+
+  while ( !(LPC_USART->LSR & 0x01) );
   dummy = LPC_USART->RBR;
   if ((dummy>=65) && (dummy<=90))
   {
-	/* convert capital to non-capital character, A2a, B2b, C2c. */ 
+	/* convert capital to non-capital character, A2a, B2b, C2c. */
 	dummy +=32;
   }
   /* echo */

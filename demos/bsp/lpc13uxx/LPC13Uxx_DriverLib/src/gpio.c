@@ -3,8 +3,8 @@
  *   Project: NXP LPC13Uxx GPIO example
  *
  *   Description:
- *     This file contains GPIO code example which include GPIO 
- *     initialization, GPIO interrupt handler, and related APIs for 
+ *     This file contains GPIO code example which include GPIO
+ *     initialization, GPIO interrupt handler, and related APIs for
  *     GPIO access.
  *
  ****************************************************************************
@@ -73,9 +73,9 @@ volatile uint32_t gint1_edge_counter = 0;
 ** Descriptions:		Use one GPIO pin as interrupt source
 **
 ** parameters:			None
-** 						
+**
 ** Returned value:		None
-** 
+**
 *****************************************************************************/
 void PIN_INT0_IRQHandler(void)
 {
@@ -100,7 +100,7 @@ void PIN_INT0_IRQHandler(void)
 	  }
 	  LPC_GPIO_PIN_INT->IST = 0x1<<0;
 	}
-  }		
+  }
   return;
 }
 
@@ -110,9 +110,9 @@ void PIN_INT0_IRQHandler(void)
 ** Descriptions:		Use one GPIO pin as interrupt source
 **
 ** parameters:			None
-** 						
+**
 ** Returned value:		None
-** 
+**
 *****************************************************************************/
 void PIN_INT1_IRQHandler(void)
 {
@@ -137,7 +137,7 @@ void PIN_INT1_IRQHandler(void)
 	  }
 	  LPC_GPIO_PIN_INT->IST = 0x1<<1;
 	}
-  }		
+  }
   return;
 }
 
@@ -147,9 +147,9 @@ void PIN_INT1_IRQHandler(void)
 ** Descriptions:		Use one GPIO pin as interrupt source
 **
 ** parameters:			None
-** 						
+**
 ** Returned value:		None
-** 
+**
 *****************************************************************************/
 void PIN_INT2_IRQHandler(void)
 {
@@ -174,7 +174,7 @@ void PIN_INT2_IRQHandler(void)
 	  }
 	  LPC_GPIO_PIN_INT->IST = 0x1<<2;
 	}
-  }		
+  }
   return;
 }
 
@@ -184,9 +184,9 @@ void PIN_INT2_IRQHandler(void)
 ** Descriptions:		Use one GPIO pin as interrupt source
 **
 ** parameters:			None
-** 						
+**
 ** Returned value:		None
-** 
+**
 *****************************************************************************/
 void PIN_INT3_IRQHandler(void)
 {
@@ -211,7 +211,7 @@ void PIN_INT3_IRQHandler(void)
 	  }
 	  LPC_GPIO_PIN_INT->IST = 0x1<<3;
 	}
-  }		
+  }
   return;
 }
 
@@ -221,9 +221,9 @@ void PIN_INT3_IRQHandler(void)
 ** Descriptions:		Use one GPIO pin as interrupt source
 **
 ** parameters:			None
-** 						
+**
 ** Returned value:		None
-** 
+**
 *****************************************************************************/
 void PIN_INT4_IRQHandler(void)
 {
@@ -248,7 +248,7 @@ void PIN_INT4_IRQHandler(void)
 	  }
 	  LPC_GPIO_PIN_INT->IST = 0x1<<4;
 	}
-  }		
+  }
   return;
 }
 
@@ -258,9 +258,9 @@ void PIN_INT4_IRQHandler(void)
 ** Descriptions:		Use one GPIO pin as interrupt source
 **
 ** parameters:			None
-** 						
+**
 ** Returned value:		None
-** 
+**
 *****************************************************************************/
 void PIN_INT5_IRQHandler(void)
 {
@@ -285,7 +285,7 @@ void PIN_INT5_IRQHandler(void)
 	  }
 	  LPC_GPIO_PIN_INT->IST = 0x1<<5;
 	}
-  }		
+  }
   return;
 }
 
@@ -295,9 +295,9 @@ void PIN_INT5_IRQHandler(void)
 ** Descriptions:		Use one GPIO pin as interrupt source
 **
 ** parameters:			None
-** 						
+**
 ** Returned value:		None
-** 
+**
 *****************************************************************************/
 void PIN_INT6_IRQHandler(void)
 {
@@ -322,7 +322,7 @@ void PIN_INT6_IRQHandler(void)
 	  }
 	  LPC_GPIO_PIN_INT->IST = 0x1<<6;
 	}
-  }		
+  }
   return;
 }
 
@@ -332,9 +332,9 @@ void PIN_INT6_IRQHandler(void)
 ** Descriptions:		Use one GPIO pin as interrupt source
 **
 ** parameters:			None
-** 						
+**
 ** Returned value:		None
-** 
+**
 *****************************************************************************/
 void PIN_INT7_IRQHandler(void)
 {
@@ -359,7 +359,7 @@ void PIN_INT7_IRQHandler(void)
 	  }
 	  LPC_GPIO_PIN_INT->IST = 0x1<<7;
 	}
-  }		
+  }
   return;
 }
 
@@ -369,9 +369,9 @@ void PIN_INT7_IRQHandler(void)
 ** Descriptions:		Use one GPIO pin as interrupt source
 **
 ** parameters:			None
-** 						
+**
 ** Returned value:		None
-** 
+**
 *****************************************************************************/
 void GINT0_IRQHandler(void)
 {
@@ -387,7 +387,7 @@ void GINT0_IRQHandler(void)
 	  gint0_edge_counter++;
 	}
 	LPC_GPIO_GROUP_INT0->CTRL |= (0x1<<0);
-  }		
+  }
   return;
 }
 
@@ -397,9 +397,9 @@ void GINT0_IRQHandler(void)
 ** Descriptions:		Use one GPIO pin as interrupt source
 **
 ** parameters:			None
-** 						
+**
 ** Returned value:		None
-** 
+**
 *****************************************************************************/
 void GINT1_IRQHandler(void)
 {
@@ -415,7 +415,7 @@ void GINT1_IRQHandler(void)
 	  gint1_edge_counter++;
 	}
 	LPC_GPIO_GROUP_INT1->CTRL |= (0x1<<0);
-  }		
+  }
   return;
 }
 
@@ -426,11 +426,11 @@ void GINT1_IRQHandler(void)
 **						GPIO interrupt handler
 **
 ** parameters:			None
-** 						
+**
 ** Returned value:		true or false, return false if the VIC table
 **						is full and GPIO interrupt handler can be
 **						installed.
-** 
+**
 *****************************************************************************/
 void GPIOInit( void )
 {
@@ -447,13 +447,13 @@ void GPIOInit( void )
 ** Function name:		GPIOSetPinInterrupt
 **
 ** Descriptions:		Set interrupt sense, event, etc.
-**						sense: edge or level, 0 is edge, 1 is level 
+**						sense: edge or level, 0 is edge, 1 is level
 **						event/polarity: 0 is active low/falling, 1 is high/rising.
 **
 ** parameters:			channel #, port #, bit position, sense, event(polarity)
-** 						
+**
 ** Returned value:		None
-** 
+**
 *****************************************************************************/
 void GPIOSetPinInterrupt( uint32_t channelNum, uint32_t portNum, uint32_t bitPosi,
 		uint32_t sense, uint32_t event )
@@ -463,88 +463,88 @@ void GPIOSetPinInterrupt( uint32_t channelNum, uint32_t portNum, uint32_t bitPos
 	case CHANNEL0:
 	  if ( portNum )
 	  {
-		LPC_SYSCON->PINSEL[0] = bitPosi + 24; 
+		LPC_SYSCON->PINSEL[0] = bitPosi + 24;
 	  }
 	  else
 	  {
-		LPC_SYSCON->PINSEL[0] = bitPosi; 
+		LPC_SYSCON->PINSEL[0] = bitPosi;
 	  }
 	  NVIC_EnableIRQ(PIN_INT0_IRQn);
 	break;
 	case CHANNEL1:
 	  if ( portNum )
 	  {
-		LPC_SYSCON->PINSEL[1] = bitPosi + 24; 
+		LPC_SYSCON->PINSEL[1] = bitPosi + 24;
 	  }
 	  else
 	  {
-		LPC_SYSCON->PINSEL[1] = bitPosi; 
+		LPC_SYSCON->PINSEL[1] = bitPosi;
 	  }
 	  NVIC_EnableIRQ(PIN_INT1_IRQn);
 	break;
 	case CHANNEL2:
 	  if ( portNum )
 	  {
-		LPC_SYSCON->PINSEL[2] = bitPosi + 24; 
+		LPC_SYSCON->PINSEL[2] = bitPosi + 24;
 	  }
 	  else
 	  {
-		LPC_SYSCON->PINSEL[2] = bitPosi; 
+		LPC_SYSCON->PINSEL[2] = bitPosi;
 	  }
 	  NVIC_EnableIRQ(PIN_INT2_IRQn);
 	break;
 	case CHANNEL3:
 	  if ( portNum )
 	  {
-		LPC_SYSCON->PINSEL[3] = bitPosi + 24; 
+		LPC_SYSCON->PINSEL[3] = bitPosi + 24;
 	  }
 	  else
 	  {
-		LPC_SYSCON->PINSEL[3] = bitPosi; 
+		LPC_SYSCON->PINSEL[3] = bitPosi;
 	  }
-	  NVIC_EnableIRQ(PIN_INT3_IRQn);  	 
+	  NVIC_EnableIRQ(PIN_INT3_IRQn);
 	break;
 	case CHANNEL4:
 	  if ( portNum )
 	  {
-		LPC_SYSCON->PINSEL[4] = bitPosi + 24; 
+		LPC_SYSCON->PINSEL[4] = bitPosi + 24;
 	  }
 	  else
 	  {
-		LPC_SYSCON->PINSEL[4] = bitPosi; 
+		LPC_SYSCON->PINSEL[4] = bitPosi;
 	  }
 	  NVIC_EnableIRQ(PIN_INT4_IRQn);
 	break;
 	case CHANNEL5:
 	  if ( portNum )
 	  {
-		LPC_SYSCON->PINSEL[5] = bitPosi + 24; 
+		LPC_SYSCON->PINSEL[5] = bitPosi + 24;
 	  }
 	  else
 	  {
-		LPC_SYSCON->PINSEL[5] = bitPosi; 
+		LPC_SYSCON->PINSEL[5] = bitPosi;
 	  }
 	  NVIC_EnableIRQ(PIN_INT5_IRQn);
 	break;
 	case CHANNEL6:
 	  if ( portNum )
 	  {
-		LPC_SYSCON->PINSEL[6] = bitPosi + 24; 
+		LPC_SYSCON->PINSEL[6] = bitPosi + 24;
 	  }
 	  else
 	  {
-		LPC_SYSCON->PINSEL[6] = bitPosi; 
+		LPC_SYSCON->PINSEL[6] = bitPosi;
 	  }
 	  NVIC_EnableIRQ(PIN_INT6_IRQn);
 	break;
 	case CHANNEL7:
 	  if ( portNum )
 	  {
-		LPC_SYSCON->PINSEL[7] = bitPosi + 24; 
+		LPC_SYSCON->PINSEL[7] = bitPosi + 24;
 	  }
 	  else
 	  {
-		LPC_SYSCON->PINSEL[7] = bitPosi; 
+		LPC_SYSCON->PINSEL[7] = bitPosi;
 	  }
 	  NVIC_EnableIRQ(PIN_INT7_IRQn);
 	break;
@@ -586,7 +586,7 @@ void GPIOSetPinInterrupt( uint32_t channelNum, uint32_t portNum, uint32_t bitPos
 **
 ** parameters:			channel num, event(0 is falling edge, 1 is rising edge)
 ** Returned value:		None
-** 
+**
 *****************************************************************************/
 void GPIOPinIntEnable( uint32_t channelNum, uint32_t event )
 {
@@ -614,9 +614,9 @@ void GPIOPinIntEnable( uint32_t channelNum, uint32_t event )
 ** Descriptions:		Disable Interrupt
 **
 ** parameters:			channel num, event(0 is falling edge, 1 is rising edge)
-** 						
+**
 ** Returned value:		None
-** 
+**
 *****************************************************************************/
 void GPIOPinIntDisable( uint32_t channelNum, uint32_t event )
 {
@@ -644,9 +644,9 @@ void GPIOPinIntDisable( uint32_t channelNum, uint32_t event )
 ** Descriptions:		Get Interrupt status
 **
 ** parameters:			channel num
-** 						
+**
 ** Returned value:		None
-** 
+**
 *****************************************************************************/
 uint32_t GPIOPinIntStatus( uint32_t channelNum )
 {
@@ -666,9 +666,9 @@ uint32_t GPIOPinIntStatus( uint32_t channelNum )
 ** Descriptions:		Clear Interrupt
 **
 ** parameters:			channel num
-** 						
+**
 ** Returned value:		None
-** 
+**
 *****************************************************************************/
 void GPIOPinIntClear( uint32_t channelNum )
 {
@@ -683,14 +683,14 @@ void GPIOPinIntClear( uint32_t channelNum )
 ** Function name:		GPIOSetGroupedInterrupt
 **
 ** Descriptions:		Set interrupt logic, sense, eventPattern, etc.
-**						logic: AND or OR, 0 is OR, 1 is AND 
-**						sensePattern: edge or level, 0 is edge, 1 is level 
+**						logic: AND or OR, 0 is OR, 1 is AND
+**						sensePattern: edge or level, 0 is edge, 1 is level
 **						event/polarity: 0 is active low/falling, 1 is high/rising.
 **
 ** parameters:			group #, bit pattern, logic, sense, event(polarity) pattern
-** 						
+**
 ** Returned value:		None
-** 
+**
 *****************************************************************************/
 void GPIOSetGroupedInterrupt( uint32_t groupNum, uint32_t *bitPattern, uint32_t logic,
 		uint32_t sense, uint32_t *eventPattern )
@@ -771,10 +771,10 @@ void GPIOSetGroupedInterrupt( uint32_t groupNum, uint32_t *bitPattern, uint32_t 
 *****************************************************************************/
 uint32_t GPIOGetPinValue( uint32_t portNum, uint32_t bitPosi )
 {
-  uint32_t regVal = 0;	
+  uint32_t regVal = 0;
 
   if( bitPosi < 0x20 )
-  {	
+  {
 	if ( LPC_GPIO->PIN[portNum] & (0x1<<bitPosi) )
 	{
 	  regVal = 1;
@@ -784,7 +784,7 @@ uint32_t GPIOGetPinValue( uint32_t portNum, uint32_t bitPosi )
   {
 	regVal = LPC_GPIO->PIN[portNum];
   }
-  return ( regVal );		
+  return ( regVal );
 }
 
 /*****************************************************************************
@@ -793,7 +793,7 @@ uint32_t GPIOGetPinValue( uint32_t portNum, uint32_t bitPosi )
 ** Descriptions:		Set/clear a bit in a specific position
 **
 ** parameters:			port num, bit position, bit value
-** 						
+**
 ** Returned value:		None
 **
 *****************************************************************************/
@@ -816,7 +816,7 @@ void GPIOSetBitValue( uint32_t portNum, uint32_t bitPosi, uint32_t bitVal )
 ** Descriptions:		Set the direction in GPIO port
 **
 ** parameters:			portNum, bit position, direction (1 out, 0 input)
-** 						
+**
 ** Returned value:		None
 **
 *****************************************************************************/

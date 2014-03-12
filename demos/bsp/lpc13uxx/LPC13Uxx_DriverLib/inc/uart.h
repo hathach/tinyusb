@@ -17,7 +17,7 @@
  * warranty that such application will be suitable for the specified
  * use without further testing or modification.
 ****************************************************************************/
-#ifndef __UART_H 
+#ifndef __UART_H
 #define __UART_H
 
 #define AUTOBAUD_ENABLE 0

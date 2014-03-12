@@ -9,9 +9,9 @@
  * Copyright (C) 2009-2010 ARM Limited. All rights reserved.
  *
  * @par
- * ARM Limited (ARM) is supplying this software for use with Cortex-M 
- * processor based microcontrollers.  This file can be freely distributed 
- * within development tools that are supporting such ARM based processors. 
+ * ARM Limited (ARM) is supplying this software for use with Cortex-M
+ * processor based microcontrollers.  This file can be freely distributed
+ * within development tools that are supporting such ARM based processors.
  *
  * @par
  * THIS SOFTWARE IS PROVIDED "AS IS".  NO WARRANTIES, WHETHER EXPRESS, IMPLIED
@@ -209,7 +209,7 @@
 /*----------------------------------------------------------------------------
   DEFINES
  *----------------------------------------------------------------------------*/
-    
+
 /*----------------------------------------------------------------------------
   Define clocks
  *----------------------------------------------------------------------------*/
@@ -284,11 +284,11 @@
     #define __MAIN_CLOCK             (0)
   #endif
 
-  #define __SYSTEM_CLOCK             (__MAIN_CLOCK / SYSAHBCLKDIV_Val)         
+  #define __SYSTEM_CLOCK             (__MAIN_CLOCK / SYSAHBCLKDIV_Val)
 
 #else
   #define __SYSTEM_CLOCK             (__IRC_OSC_CLK)
-#endif  // CLOCK_SETUP 
+#endif  // CLOCK_SETUP
 
 
 /*----------------------------------------------------------------------------
@@ -324,7 +324,7 @@ void SystemCoreClockUpdate (void)            /* Get Core Clock Frequency      */
     case 15: wdt_osc = 3400000; break;
   }
   wdt_osc /= ((LPC_SYSCON->WDTOSCCTRL & 0x1F) << 1) + 2;
- 
+
   switch (LPC_SYSCON->MAINCLKSEL & 0x03) {
     case 0:                             /* Internal RC oscillator             */
       SystemCoreClock = __IRC_OSC_CLK;
@@ -370,7 +370,7 @@ void SystemCoreClockUpdate (void)            /* Get Core Clock Frequency      */
       break;
   }
 
-  SystemCoreClock /= LPC_SYSCON->SYSAHBCLKDIV;  
+  SystemCoreClock /= LPC_SYSCON->SYSAHBCLKDIV;
 
 }
 
@@ -423,7 +423,7 @@ void SystemInit (void) {
   LPC_SYSCON->USBCLKSEL     = USBCLKSEL_Val;      /* Select USB Clock         */
   LPC_SYSCON->USBCLKDIV     = USBCLKDIV_Val;      /* Set USB clock divider    */
 
-#else                                             /* USB clock is not used    */                        
+#else                                             /* USB clock is not used    */
   LPC_SYSCON->PDRUNCFG     |=  (1 << 10);         /* Power-down USB PHY       */
   LPC_SYSCON->PDRUNCFG     |=  (1 <<  8);         /* Power-down USB PLL       */
 #endif
