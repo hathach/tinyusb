@@ -45,7 +45,7 @@
 #define BOARD_UART_PIN_TX         10 // PF.10 : UART0_TXD
 #define BOARD_UART_PIN_RX         11 // PF.11 : UART0_RXD
 
-const static struct {
+static const struct {
   uint8_t mux_port;
   uint8_t mux_pin;
 

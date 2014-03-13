@@ -133,14 +133,11 @@ OSAL_TASK_FUNCTION( keyboard_app_task ) (void* p_task_para)
 //--------------------------------------------------------------------+
 
 // look up new key in previous keys
-static inline bool is_key_in_report(hid_keyboard_report_t const *p_report, uint8_t modifier, uint8_t keycode)
+static inline bool is_key_in_report(hid_keyboard_report_t const *p_report, uint8_t keycode)
 {
   for(uint8_t i=0; i<6; i++)
   {
-    if (p_report->keycode[i] == keycode)
-    {
-      return true;
-    }
+    if (p_report->keycode[i] == keycode)  return true;
   }
 
   return false;
@@ -148,19 +145,19 @@ static inline bool is_key_in_report(hid_keyboard_report_t const *p_report, uint8
 
 static inline void process_kbd_report(hid_keyboard_report_t const *p_new_report)
 {
-  static hid_keyboard_report_t prev_report = { 0 }; // previous report to check key released
+  static hid_keyboard_report_t prev_report = { 0, 0, {0} }; // previous report to check key released
 
   //------------- example code ignore control (non-printable) key affects -------------//
   for(uint8_t i=0; i<6; i++)
   {
     if ( p_new_report->keycode[i] )
     {
-      if ( is_key_in_report(&prev_report, p_new_report->modifier, p_new_report->keycode[i]) )
+      if ( is_key_in_report(&prev_report, p_new_report->keycode[i]) )
       {
-        // previously existed means holding
+        // exist in previous report means the current key is holding
       }else
       {
-        // previously non-existed means key is pressed
+        // not exist in previous report means the current key is pressed
         uint8_t ch = keycode_to_ascii(p_new_report->modifier, p_new_report->keycode[i]);
         putchar(ch);
         if ( ch == '\r' ) putchar('\n'); // added new line for enter key

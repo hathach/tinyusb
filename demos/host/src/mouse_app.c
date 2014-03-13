@@ -122,6 +122,8 @@ OSAL_TASK_FUNCTION( mouse_app_task ) (void* p_task_para)
   OSAL_TASK_LOOP_BEGIN
 
   osal_queue_receive(queue_mouse_hdl, &mouse_report, OSAL_TIMEOUT_WAIT_FOREVER, &error);
+	(void) error; // supporess compiler's warninig
+	
   process_mouse_report(&mouse_report);
 
   OSAL_TASK_LOOP_END
@@ -162,7 +164,7 @@ void cursor_movement(int8_t x, int8_t y, int8_t wheel)
 
 static inline void process_mouse_report(hid_mouse_report_t const * p_report)
 {
-  static hid_mouse_report_t prev_report = { 0 };
+  static hid_mouse_report_t prev_report = { 0, 0, 0, 0 };
 
   //------------- button state  -------------//
   uint8_t button_changed_mask = p_report->buttons ^ prev_report.buttons;

@@ -200,7 +200,6 @@ tusb_error_t hub_open_subtask(uint8_t dev_addr, tusb_descriptor_interface_t cons
 void         hub_isr(pipe_handle_t pipe_hdl, tusb_event_t event, uint32_t xferred_bytes);
 void         hub_close(uint8_t dev_addr);
 
-tusb_error_t hub_status_pipe_queue(uint8_t dev_addr);
 #endif
 
 #ifdef __cplusplus

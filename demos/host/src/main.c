@@ -109,7 +109,6 @@ void os_none_start_scheduler(void)
     msc_app_task(NULL);
     cdc_serial_app_task(NULL);
     rndis_app_task(NULL);
-
   }
 }
 #endif
@@ -143,8 +142,6 @@ int main(void)
 #else
   #error need to start RTOS schduler
 #endif
-
-  while(1) { } // should not be reached here
 
   return 0;
 }

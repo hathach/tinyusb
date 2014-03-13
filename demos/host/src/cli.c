@@ -92,7 +92,7 @@ static char const * const cli_error_message[] =
 #define CLI_PROTOTYPE_EXPAND(command, function, description) \
     cli_error_t function(char * p_para);
 
-CLI_COMMAND_TABLE(CLI_PROTOTYPE_EXPAND);
+CLI_COMMAND_TABLE(CLI_PROTOTYPE_EXPAND)
 
 //--------------------------------------------------------------------+
 // Expand to enum value

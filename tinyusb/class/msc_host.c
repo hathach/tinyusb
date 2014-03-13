@@ -377,7 +377,7 @@ tusb_error_t msch_open_subtask(uint8_t dev_addr, tusb_descriptor_interface_t con
     SUBTASK_ASSERT_STATUS(error);
 
     //------------- SCSI Request Sense -------------//
-    tusbh_msc_request_sense(dev_addr, 0, msch_buffer);
+    (void) tusbh_msc_request_sense(dev_addr, 0, msch_buffer);
     osal_semaphore_wait(msch_sem_hdl, SCSI_XFER_TIMEOUT, &error);
     SUBTASK_ASSERT_STATUS(error);
 
