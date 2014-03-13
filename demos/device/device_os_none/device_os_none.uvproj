@@ -690,7 +690,7 @@
             <File>
               <FileName>startup_LPC11Uxx.s</FileName>
               <FileType>2</FileType>
-              <FilePath>..\..\..\mcu\lpc11uxx\startup_keil\startup_LPC11Uxx.s</FilePath>
+              <FilePath>..\..\..\mcu\lpc11uxx\keil\startup_LPC11Uxx.s</FilePath>
             </File>
           </Files>
         </Group>
@@ -756,7 +756,7 @@
             <File>
               <FileName>startup_LPC13Uxx.s</FileName>
               <FileType>2</FileType>
-              <FilePath>..\..\..\mcu\lpc13uxx\startup_keil\startup_LPC13Uxx.s</FilePath>
+              <FilePath>..\..\..\mcu\lpc13uxx\keil\startup_LPC13Uxx.s</FilePath>
             </File>
             <File>
               <FileName>system_LPC13Uxx.c</FileName>
@@ -862,7 +862,7 @@
             <File>
               <FileName>startup_LPC17xx.s</FileName>
               <FileType>2</FileType>
-              <FilePath>..\..\..\mcu\lpc175x_6x\startup_keil\startup_LPC17xx.s</FilePath>
+              <FilePath>..\..\..\mcu\lpc175x_6x\keil\startup_LPC17xx.s</FilePath>
             </File>
           </Files>
         </Group>
@@ -907,7 +907,7 @@
             <File>
               <FileName>startup_LPC43xx.s</FileName>
               <FileType>2</FileType>
-              <FilePath>..\..\..\mcu\lpc43xx\startup_keil\startup_LPC43xx.s</FilePath>
+              <FilePath>..\..\..\mcu\lpc43xx\keil\startup_LPC43xx.s</FilePath>
             </File>
           </Files>
         </Group>
@@ -1637,7 +1637,7 @@
             <File>
               <FileName>startup_LPC11Uxx.s</FileName>
               <FileType>2</FileType>
-              <FilePath>..\..\..\mcu\lpc11uxx\startup_keil\startup_LPC11Uxx.s</FilePath>
+              <FilePath>..\..\..\mcu\lpc11uxx\keil\startup_LPC11Uxx.s</FilePath>
             </File>
           </Files>
         </Group>
@@ -1703,7 +1703,7 @@
             <File>
               <FileName>startup_LPC13Uxx.s</FileName>
               <FileType>2</FileType>
-              <FilePath>..\..\..\mcu\lpc13uxx\startup_keil\startup_LPC13Uxx.s</FilePath>
+              <FilePath>..\..\..\mcu\lpc13uxx\keil\startup_LPC13Uxx.s</FilePath>
             </File>
             <File>
               <FileName>system_LPC13Uxx.c</FileName>
@@ -1809,7 +1809,7 @@
             <File>
               <FileName>startup_LPC17xx.s</FileName>
               <FileType>2</FileType>
-              <FilePath>..\..\..\mcu\lpc175x_6x\startup_keil\startup_LPC17xx.s</FilePath>
+              <FilePath>..\..\..\mcu\lpc175x_6x\keil\startup_LPC17xx.s</FilePath>
             </File>
           </Files>
         </Group>
@@ -1854,7 +1854,7 @@
             <File>
               <FileName>startup_LPC43xx.s</FileName>
               <FileType>2</FileType>
-              <FilePath>..\..\..\mcu\lpc43xx\startup_keil\startup_LPC43xx.s</FilePath>
+              <FilePath>..\..\..\mcu\lpc43xx\keil\startup_LPC43xx.s</FilePath>
             </File>
           </Files>
         </Group>
@@ -2232,7 +2232,7 @@
             <useFile>0</useFile>
             <TextAddressRange>0x1A000000</TextAddressRange>
             <DataAddressRange>0x10000000</DataAddressRange>
-            <ScatterFile>..\..\..\mcu\lpc13uxx\startup_keil\lpc13uxx.sct</ScatterFile>
+            <ScatterFile>..\..\..\mcu\lpc13uxx\keil\lpc13uxx.sct</ScatterFile>
             <IncludeLibs></IncludeLibs>
             <IncludeLibsPath></IncludeLibsPath>
             <Misc></Misc>
@@ -2544,7 +2544,7 @@
             <File>
               <FileName>startup_LPC11Uxx.s</FileName>
               <FileType>2</FileType>
-              <FilePath>..\..\..\mcu\lpc11uxx\startup_keil\startup_LPC11Uxx.s</FilePath>
+              <FilePath>..\..\..\mcu\lpc11uxx\keil\startup_LPC11Uxx.s</FilePath>
             </File>
           </Files>
         </Group>
@@ -2554,7 +2554,7 @@
             <File>
               <FileName>startup_LPC13Uxx.s</FileName>
               <FileType>2</FileType>
-              <FilePath>..\..\..\mcu\lpc13uxx\startup_keil\startup_LPC13Uxx.s</FilePath>
+              <FilePath>..\..\..\mcu\lpc13uxx\keil\startup_LPC13Uxx.s</FilePath>
             </File>
             <File>
               <FileName>system_LPC13Uxx.c</FileName>
@@ -2660,7 +2660,7 @@
             <File>
               <FileName>startup_LPC17xx.s</FileName>
               <FileType>2</FileType>
-              <FilePath>..\..\..\mcu\lpc175x_6x\startup_keil\startup_LPC17xx.s</FilePath>
+              <FilePath>..\..\..\mcu\lpc175x_6x\keil\startup_LPC17xx.s</FilePath>
             </File>
           </Files>
         </Group>
@@ -2761,7 +2761,7 @@
             <File>
               <FileName>startup_LPC43xx.s</FileName>
               <FileType>2</FileType>
-              <FilePath>..\..\..\mcu\lpc43xx\startup_keil\startup_LPC43xx.s</FilePath>
+              <FilePath>..\..\..\mcu\lpc43xx\keil\startup_LPC43xx.s</FilePath>
             </File>
           </Files>
         </Group>
@@ -3451,7 +3451,7 @@
             <File>
               <FileName>startup_LPC11Uxx.s</FileName>
               <FileType>2</FileType>
-              <FilePath>..\..\..\mcu\lpc11uxx\startup_keil\startup_LPC11Uxx.s</FilePath>
+              <FilePath>..\..\..\mcu\lpc11uxx\keil\startup_LPC11Uxx.s</FilePath>
             </File>
           </Files>
         </Group>
@@ -3517,7 +3517,7 @@
             <File>
               <FileName>startup_LPC13Uxx.s</FileName>
               <FileType>2</FileType>
-              <FilePath>..\..\..\mcu\lpc13uxx\startup_keil\startup_LPC13Uxx.s</FilePath>
+              <FilePath>..\..\..\mcu\lpc13uxx\keil\startup_LPC13Uxx.s</FilePath>
             </File>
             <File>
               <FileName>system_LPC13Uxx.c</FileName>
@@ -3567,7 +3567,7 @@
             <File>
               <FileName>startup_LPC17xx.s</FileName>
               <FileType>2</FileType>
-              <FilePath>..\..\..\mcu\lpc175x_6x\startup_keil\startup_LPC17xx.s</FilePath>
+              <FilePath>..\..\..\mcu\lpc175x_6x\keil\startup_LPC17xx.s</FilePath>
             </File>
           </Files>
         </Group>
@@ -3668,7 +3668,7 @@
             <File>
               <FileName>startup_LPC43xx.s</FileName>
               <FileType>2</FileType>
-              <FilePath>..\..\..\mcu\lpc43xx\startup_keil\startup_LPC43xx.s</FilePath>
+              <FilePath>..\..\..\mcu\lpc43xx\keil\startup_LPC43xx.s</FilePath>
             </File>
           </Files>
         </Group>
@@ -4046,7 +4046,7 @@
             <useFile>0</useFile>
             <TextAddressRange>0x1A000000</TextAddressRange>
             <DataAddressRange>0x10000000</DataAddressRange>
-            <ScatterFile>..\..\..\mcu\lpc11uxx\startup_keil\lpc11uxx.sct</ScatterFile>
+            <ScatterFile>..\..\..\mcu\lpc11uxx\keil\lpc11uxx.sct</ScatterFile>
             <IncludeLibs></IncludeLibs>
             <IncludeLibsPath></IncludeLibsPath>
             <Misc></Misc>
@@ -4342,7 +4342,7 @@
             <File>
               <FileName>startup_LPC11Uxx.s</FileName>
               <FileType>2</FileType>
-              <FilePath>..\..\..\mcu\lpc11uxx\startup_keil\startup_LPC11Uxx.s</FilePath>
+              <FilePath>..\..\..\mcu\lpc11uxx\keil\startup_LPC11Uxx.s</FilePath>
             </File>
           </Files>
         </Group>
@@ -4408,7 +4408,7 @@
             <File>
               <FileName>startup_LPC13Uxx.s</FileName>
               <FileType>2</FileType>
-              <FilePath>..\..\..\mcu\lpc13uxx\startup_keil\startup_LPC13Uxx.s</FilePath>
+              <FilePath>..\..\..\mcu\lpc13uxx\keil\startup_LPC13Uxx.s</FilePath>
             </File>
             <File>
               <FileName>system_LPC13Uxx.c</FileName>
@@ -4514,7 +4514,7 @@
             <File>
               <FileName>startup_LPC17xx.s</FileName>
               <FileType>2</FileType>
-              <FilePath>..\..\..\mcu\lpc175x_6x\startup_keil\startup_LPC17xx.s</FilePath>
+              <FilePath>..\..\..\mcu\lpc175x_6x\keil\startup_LPC17xx.s</FilePath>
             </File>
           </Files>
         </Group>
@@ -4615,7 +4615,7 @@
             <File>
               <FileName>startup_LPC43xx.s</FileName>
               <FileType>2</FileType>
-              <FilePath>..\..\..\mcu\lpc43xx\startup_keil\startup_LPC43xx.s</FilePath>
+              <FilePath>..\..\..\mcu\lpc43xx\keil\startup_LPC43xx.s</FilePath>
             </File>
           </Files>
         </Group>
@@ -5305,7 +5305,7 @@
             <File>
               <FileName>startup_LPC11Uxx.s</FileName>
               <FileType>2</FileType>
-              <FilePath>..\..\..\mcu\lpc11uxx\startup_keil\startup_LPC11Uxx.s</FilePath>
+              <FilePath>..\..\..\mcu\lpc11uxx\keil\startup_LPC11Uxx.s</FilePath>
             </File>
           </Files>
         </Group>
@@ -5371,7 +5371,7 @@
             <File>
               <FileName>startup_LPC13Uxx.s</FileName>
               <FileType>2</FileType>
-              <FilePath>..\..\..\mcu\lpc13uxx\startup_keil\startup_LPC13Uxx.s</FilePath>
+              <FilePath>..\..\..\mcu\lpc13uxx\keil\startup_LPC13Uxx.s</FilePath>
             </File>
             <File>
               <FileName>system_LPC13Uxx.c</FileName>
@@ -5477,7 +5477,7 @@
             <File>
               <FileName>startup_LPC17xx.s</FileName>
               <FileType>2</FileType>
-              <FilePath>..\..\..\mcu\lpc175x_6x\startup_keil\startup_LPC17xx.s</FilePath>
+              <FilePath>..\..\..\mcu\lpc175x_6x\keil\startup_LPC17xx.s</FilePath>
             </File>
           </Files>
         </Group>
@@ -5522,7 +5522,7 @@
             <File>
               <FileName>startup_LPC43xx.s</FileName>
               <FileType>2</FileType>
-              <FilePath>..\..\..\mcu\lpc43xx\startup_keil\startup_LPC43xx.s</FilePath>
+              <FilePath>..\..\..\mcu\lpc43xx\keil\startup_LPC43xx.s</FilePath>
             </File>
           </Files>
         </Group>

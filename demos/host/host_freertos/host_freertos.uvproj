@@ -709,7 +709,7 @@
             <File>
               <FileName>startup_LPC43xx.s</FileName>
               <FileType>2</FileType>
-              <FilePath>..\..\..\mcu\lpc43xx\startup_keil\startup_LPC43xx.s</FilePath>
+              <FilePath>..\..\..\mcu\lpc43xx\keil\startup_LPC43xx.s</FilePath>
             </File>
             <File>
               <FileName>lpc43xx_uart.c</FileName>
@@ -830,7 +830,7 @@
             <File>
               <FileName>startup_LPC17xx.s</FileName>
               <FileType>2</FileType>
-              <FilePath>..\..\..\mcu\lpc175x_6x\startup_keil\startup_LPC17xx.s</FilePath>
+              <FilePath>..\..\..\mcu\lpc175x_6x\keil\startup_LPC17xx.s</FilePath>
             </File>
           </Files>
         </Group>
@@ -1539,7 +1539,7 @@
             <File>
               <FileName>startup_LPC43xx.s</FileName>
               <FileType>2</FileType>
-              <FilePath>..\..\..\mcu\lpc43xx\startup_keil\startup_LPC43xx.s</FilePath>
+              <FilePath>..\..\..\mcu\lpc43xx\keil\startup_LPC43xx.s</FilePath>
             </File>
             <File>
               <FileName>lpc43xx_uart.c</FileName>
@@ -1660,7 +1660,7 @@
             <File>
               <FileName>startup_LPC17xx.s</FileName>
               <FileType>2</FileType>
-              <FilePath>..\..\..\mcu\lpc175x_6x\startup_keil\startup_LPC17xx.s</FilePath>
+              <FilePath>..\..\..\mcu\lpc175x_6x\keil\startup_LPC17xx.s</FilePath>
             </File>
           </Files>
         </Group>
@@ -2425,7 +2425,7 @@
             <File>
               <FileName>startup_LPC43xx.s</FileName>
               <FileType>2</FileType>
-              <FilePath>..\..\..\mcu\lpc43xx\startup_keil\startup_LPC43xx.s</FilePath>
+              <FilePath>..\..\..\mcu\lpc43xx\keil\startup_LPC43xx.s</FilePath>
             </File>
             <File>
               <FileName>lpc43xx_uart.c</FileName>
@@ -2490,7 +2490,7 @@
             <File>
               <FileName>startup_LPC17xx.s</FileName>
               <FileType>2</FileType>
-              <FilePath>..\..\..\mcu\lpc175x_6x\startup_keil\startup_LPC17xx.s</FilePath>
+              <FilePath>..\..\..\mcu\lpc175x_6x\keil\startup_LPC17xx.s</FilePath>
             </File>
           </Files>
         </Group>
@@ -2642,7 +2642,7 @@
             <CpuDllArguments></CpuDllArguments>
             <PeripheralDll></PeripheralDll>
             <PeripheralDllArguments></PeripheralDllArguments>
-            <InitializationFile>..\..\..\mcu\lpc43xx\keil_ram.ini</InitializationFile>
+            <InitializationFile>..\..\..\mcu\lpc43xx\keil\keil_ram.ini</InitializationFile>
             <Driver>Segger\JL2CM3.dll</Driver>
           </TargetDlls>
         </DebugOption>
@@ -3199,7 +3199,7 @@
             <File>
               <FileName>startup_LPC43xx.s</FileName>
               <FileType>2</FileType>
-              <FilePath>..\..\..\mcu\lpc43xx\startup_keil\startup_LPC43xx.s</FilePath>
+              <FilePath>..\..\..\mcu\lpc43xx\keil\startup_LPC43xx.s</FilePath>
             </File>
             <File>
               <FileName>lpc43xx_uart.c</FileName>
@@ -3320,7 +3320,7 @@
             <File>
               <FileName>startup_LPC17xx.s</FileName>
               <FileType>2</FileType>
-              <FilePath>..\..\..\mcu\lpc175x_6x\startup_keil\startup_LPC17xx.s</FilePath>
+              <FilePath>..\..\..\mcu\lpc175x_6x\keil\startup_LPC17xx.s</FilePath>
             </File>
           </Files>
         </Group>

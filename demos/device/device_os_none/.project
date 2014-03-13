@@ -103,21 +103,21 @@
 	</linkedResources>
 	<filteredResources>
 		<filter>
-			<id>1394632197708</id>
-			<name></name>
+			<id>1394686778466</id>
+			<name>mcu</name>
 			<type>26</type>
 			<matcher>
 				<id>org.eclipse.ui.ide.multiFilter</id>
-				<arguments>1.0-name-matches-false-false-startup_keil</arguments>
+				<arguments>1.0-name-matches-false-false-iar</arguments>
 			</matcher>
 		</filter>
 		<filter>
-			<id>1394632197724</id>
-			<name></name>
+			<id>1394686778491</id>
+			<name>mcu</name>
 			<type>26</type>
 			<matcher>
 				<id>org.eclipse.ui.ide.multiFilter</id>
-				<arguments>1.0-name-matches-false-false-startup_iar</arguments>
+				<arguments>1.0-name-matches-false-false-keil</arguments>
 			</matcher>
 		</filter>
 	</filteredResources>
