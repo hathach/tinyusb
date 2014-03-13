@@ -155,8 +155,6 @@ void cdch_init(void)
 
 tusb_error_t cdch_open_subtask(uint8_t dev_addr, tusb_descriptor_interface_t const *p_interface_desc, uint16_t *p_length)
 {
-  tusb_error_t error;
-
   OSAL_SUBTASK_BEGIN
 
   if ( CDC_COMM_SUBCLASS_ABSTRACT_CONTROL_MODEL != p_interface_desc->bInterfaceSubClass) return TUSB_ERROR_CDC_UNSUPPORTED_SUBCLASS;
@@ -226,6 +224,8 @@ tusb_error_t cdch_open_subtask(uint8_t dev_addr, tusb_descriptor_interface_t con
   //------------- RNDIS -------------//
   if ( 0xff == cdch_data[dev_addr-1].interface_protocol && pipehandle_is_valid(cdch_data[dev_addr-1].pipe_notification) )
   {
+    tusb_error_t error;
+
     cdch_data[dev_addr-1].is_rndis = true; // set as true at first
 
     OSAL_SUBTASK_INVOKED_AND_WAIT( rndish_open_subtask(dev_addr, &cdch_data[dev_addr-1]), error );
@@ -248,9 +248,8 @@ tusb_error_t cdch_open_subtask(uint8_t dev_addr, tusb_descriptor_interface_t con
 
 void cdch_isr(pipe_handle_t pipe_hdl, tusb_event_t event, uint32_t xferred_bytes)
 {
-  cdch_data_t *p_cdc = &cdch_data[pipe_hdl.dev_addr - 1];
-
 #if TUSB_CFG_HOST_CDC_RNDIS
+	cdch_data_t *p_cdc = &cdch_data[pipe_hdl.dev_addr - 1];
   if ( p_cdc->is_rndis )
   {
     rndish_xfer_isr(p_cdc, pipe_hdl, event, xferred_bytes);

@@ -621,12 +621,11 @@ static void period_list_xfer_complete_isr(uint8_t hostid, uint8_t interval_ms)
       }
       break;
 
-      case EHCI_QUEUE_ELEMENT_ITD:
+      case EHCI_QUEUE_ELEMENT_ITD: // TODO support hs/fs ISO
       case EHCI_QUEUE_ELEMENT_SITD:
       case EHCI_QUEUE_ELEMENT_FSTN:
-      default:
-        ASSERT (false, VOID_RETURN); // TODO support hs/fs ISO
-      break;
+				
+      default: break;
     }
 
     next_item = *list_next(&next_item);
@@ -717,12 +716,11 @@ static void xfer_error_isr(uint8_t hostid)
         }
         break;
 
+				// TODO support hs/fs ISO
         case EHCI_QUEUE_ELEMENT_ITD:
         case EHCI_QUEUE_ELEMENT_SITD:
         case EHCI_QUEUE_ELEMENT_FSTN:
-        default:
-          ASSERT (false, VOID_RETURN); // TODO support hs/fs ISO
-        break;
+        default: break;
       }
 
       next_item = *list_next(&next_item);

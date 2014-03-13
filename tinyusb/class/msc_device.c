@@ -199,10 +199,10 @@ tusb_error_t mscd_xfer_cb(endpoint_handle_t edpt_hdl, tusb_event_t event, uint32
   //------------- Data Phase For READ10 & WRITE10 (can be executed several times) -------------//
   if ( (SCSI_CMD_READ_10 == p_cbw->command[0]) || (SCSI_CMD_WRITE_10 == p_cbw->command[0]) )
   {
-    if (is_waiting_read10_write10)
-    { // continue with read10, write10 data transfer, interrupt must come from endpoint IN
-      ASSERT( endpointhandle_is_equal(p_msc->edpt_in, edpt_hdl) && event == TUSB_EVENT_XFER_COMPLETE, TUSB_ERROR_INVALID_PARA);
-    }
+//    if (is_waiting_read10_write10)
+//    { // continue with read10, write10 data transfer, interrupt must come from endpoint IN
+//      ASSERT( endpointhandle_is_equal(p_msc->edpt_in, edpt_hdl) && event == TUSB_EVENT_XFER_COMPLETE, TUSB_ERROR_INVALID_PARA);
+//    }
     is_waiting_read10_write10 = !read10_write10_data_xfer(p_msc);
   }
 

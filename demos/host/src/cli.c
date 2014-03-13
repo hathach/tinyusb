@@ -210,21 +210,16 @@ void cli_poll(char ch)
     char* p_para = (p_space == NULL) ? (cli_buffer+command_len) : (p_space+1); // point to NULL-character or after space
 
     //------------- Find entered command in lookup table & execute it -------------//
-    cli_cmdtype_t cmd_id;
+    uint32_t cmd_id;
     for(cmd_id = CLI_CMDTYPE_COUNT - 1; cmd_id > CLI_CMDTYPE_unknown; cmd_id--)
     {
-      if( 0 == strncmp(cli_buffer, cli_string_tbl[cmd_id], command_len) )
-      {
-        break;
-      }
+      if( 0 == strncmp(cli_buffer, cli_string_tbl[cmd_id], command_len) ) break;
     }
 
     cli_error_t error = cli_command_tbl[cmd_id]( p_para ); // command execution, (unknown command if cannot find)
 
     if (CLI_ERROR_NONE != error)  puts(cli_error_message[error]); // error message output if any
-
-    //------------- print out current path -------------//
-    cli_command_prompt();
+    cli_command_prompt(); // print out current path
   }
   else if (ch=='\t') // \t may be used for auto-complete later
   {
@@ -247,7 +242,7 @@ cli_error_t cli_cmd_unknown(char * para)
 cli_error_t cli_cmd_help(char * para)
 {
   puts("current supported commands are:");
-  for(cli_cmdtype_t cmd_id = CLI_CMDTYPE_help+1; cmd_id < CLI_CMDTYPE_COUNT; cmd_id++)
+  for(uint32_t cmd_id = CLI_CMDTYPE_help+1; cmd_id < CLI_CMDTYPE_COUNT; cmd_id++)
   {
     printf("%s\t%s\n", cli_string_tbl[cmd_id], cli_description_tbl[cmd_id]);
   }
@@ -474,8 +469,9 @@ cli_error_t cli_cmd_remove(char *p_para)
 
     case FR_DENIED:
       printf("cannot remove readonly file/foler or non-empty folder\n");
-
-    default: return CLI_ERROR_FAILED;
+    break;
+		
+    default: break;
   }
 
   return CLI_ERROR_FAILED;
