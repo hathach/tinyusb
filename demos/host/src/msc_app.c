@@ -149,9 +149,12 @@ OSAL_TASK_FUNCTION( msc_app_task ) (void* p_task_para)
 {
   OSAL_TASK_LOOP_BEGIN
 
+  bool is_any_disk_mounted; 
+  
   osal_task_delay(10);
 
-  bool is_any_disk_mounted = false;
+  is_any_disk_mounted = false;
+  
   for(uint8_t phy_disk=0; phy_disk < TUSB_CFG_HOST_DEVICE_MAX; phy_disk++)
   {
     if ( disk_is_ready(phy_disk) )

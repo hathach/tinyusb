@@ -95,8 +95,10 @@ tusb_error_t hub_port_clear_feature_subtask(uint8_t hub_addr, uint8_t hub_port, 
   SUBTASK_ASSERT_STATUS( error );
 
   //------------- Check if feature is cleared -------------//
+  { // suppres compiler warning transfer of control bypasses initialization
   hub_port_status_response_t * p_port_status = (hub_port_status_response_t *) hub_enum_buffer;
   SUBTASK_ASSERT( !BIT_TEST_(p_port_status->status_change.value, feature-16)  );
+  }
 
   OSAL_SUBTASK_END
 }
@@ -127,9 +129,11 @@ tusb_error_t hub_port_reset_subtask(uint8_t hub_addr, uint8_t hub_port)
   );
   SUBTASK_ASSERT_STATUS( error );
 
+  { // suppres compiler warning transfer of control bypasses initialization
   hub_port_status_response_t * p_port_status = (hub_port_status_response_t *) hub_enum_buffer;
   SUBTASK_ASSERT ( p_port_status->status_change.reset && p_port_status->status_current.connect_status &&
                    p_port_status->status_current.port_power && p_port_status->status_current.port_enable);
+  }
 
   OSAL_SUBTASK_END
 }
