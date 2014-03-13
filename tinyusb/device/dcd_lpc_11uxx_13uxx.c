@@ -423,12 +423,13 @@ bool dcd_pipe_is_stalled(endpoint_handle_t edpt_hdl)
 tusb_error_t dcd_pipe_clear_stall(uint8_t coreid, uint8_t edpt_addr)
 {
   uint8_t ep_id = edpt_addr2phy(edpt_addr);
-  uint8_t active_buffer = BIT_TEST_(LPC_USB->EPINUSE, ep_id) ? 1 : 0;
+//  uint8_t active_buffer = BIT_TEST_(LPC_USB->EPINUSE, ep_id) ? 1 : 0;
 
   dcd_data.qhd[ep_id][0].stall = dcd_data.qhd[ep_id][1].stall = 0;
 
-  dcd_data.qhd[ep_id][active_buffer].toggle_reset    = 1;
-  dcd_data.qhd[ep_id][active_buffer].feedback_toggle = 0;
+  // since the next transfer always take place on buffer0 --> clear buffer0 toggle
+  dcd_data.qhd[ep_id][0].toggle_reset    = 1;
+  dcd_data.qhd[ep_id][0].feedback_toggle = 0;
 
   //------------- clear stall must carry on any previously queued transfer -------------//
   if ( dcd_data.next_td[ep_id].total_bytes != 0 )
