@@ -207,6 +207,7 @@ tusb_error_t hidh_open_subtask(uint8_t dev_addr, tusb_descriptor_interface_t con
                                0, NULL ),
     error
   );
+	(void) error; // skip it set idle is failed
 
 #if 0
   //------------- Get Report Descriptor TODO HID parser -------------//
@@ -218,7 +219,7 @@ tusb_error_t hidh_open_subtask(uint8_t dev_addr, tusb_descriptor_interface_t con
                                    p_desc_hid->wReportLength, report_descriptor ),
         error
     );
-    // if error in getting report descriptor --> treating like there is none
+    (void) error; // if error in getting report descriptor --> treating like there is none
   }
 #endif
 
