@@ -102,7 +102,7 @@
 #elif defined __ICCARM__ // compiled with IAR
 
   #if  (TUSB_CFG_MCU == MCU_LPC43XX)
-    #define TUSB_CFG_ATTR_USBRAM _Pragma("location=\".ahb_sram2\"") // some mcu like 4330 ahb_sram1 is used for heap/stack in IAR
+    #define TUSB_CFG_ATTR_USBRAM _Pragma("location=\".ahb_sram1\"")
   #elif (TUSB_CFG_MCU == MCU_LPC175X_6X)
     #define TUSB_CFG_ATTR_USBRAM
   #endif

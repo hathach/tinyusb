@@ -115,12 +115,13 @@ void keyboard_app_init(void)
 //------------- main task -------------//
 OSAL_TASK_FUNCTION( keyboard_app_task ) (void* p_task_para)
 {
-  tusb_error_t error;
   hid_keyboard_report_t kbd_report;
+  tusb_error_t error;
 
   OSAL_TASK_LOOP_BEGIN
 
   osal_queue_receive(queue_kbd_hdl, &kbd_report, OSAL_TIMEOUT_WAIT_FOREVER, &error);
+  (void) error; // suppress compiler warning
 
   process_kbd_report(&kbd_report);
 
