@@ -156,6 +156,7 @@ void cdch_init(void)
 tusb_error_t cdch_open_subtask(uint8_t dev_addr, tusb_descriptor_interface_t const *p_interface_desc, uint16_t *p_length)
 {
   OSAL_SUBTASK_BEGIN
+  // TODO change following assert to subtask_assert
 
   if ( CDC_COMM_SUBCLASS_ABSTRACT_CONTROL_MODEL != p_interface_desc->bInterfaceSubClass) return TUSB_ERROR_CDC_UNSUPPORTED_SUBCLASS;
 
@@ -165,8 +166,11 @@ tusb_error_t cdch_open_subtask(uint8_t dev_addr, tusb_descriptor_interface_t con
     return TUSB_ERROR_CDC_UNSUPPORTED_PROTOCOL;
   }
 
-  uint8_t const * p_desc = descriptor_next ( (uint8_t const *) p_interface_desc );
-  cdch_data_t * p_cdc = &cdch_data[dev_addr-1]; // non-static variable cannot be used after OS service call
+  uint8_t const * p_desc;
+  cdch_data_t * p_cdc;
+
+  p_desc = descriptor_next ( (uint8_t const *) p_interface_desc );
+  p_cdc  = &cdch_data[dev_addr-1]; // non-static variable cannot be used after OS service call
 
   p_cdc->interface_number   = p_interface_desc->bInterfaceNumber;
   p_cdc->interface_protocol = p_interface_desc->bInterfaceProtocol; // TODO 0xff is consider as rndis candidate, other is virtual Com

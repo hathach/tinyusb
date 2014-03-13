@@ -95,10 +95,10 @@ tusb_error_t hub_port_clear_feature_subtask(uint8_t hub_addr, uint8_t hub_port, 
   SUBTASK_ASSERT_STATUS( error );
 
   //------------- Check if feature is cleared -------------//
-  { // suppres compiler warning transfer of control bypasses initialization
-  hub_port_status_response_t * p_port_status = (hub_port_status_response_t *) hub_enum_buffer;
+  hub_port_status_response_t * p_port_status;
+  p_port_status = (hub_port_status_response_t *) hub_enum_buffer;
+
   SUBTASK_ASSERT( !BIT_TEST_(p_port_status->status_change.value, feature-16)  );
-  }
 
   OSAL_SUBTASK_END
 }
@@ -129,11 +129,11 @@ tusb_error_t hub_port_reset_subtask(uint8_t hub_addr, uint8_t hub_port)
   );
   SUBTASK_ASSERT_STATUS( error );
 
-  { // suppres compiler warning transfer of control bypasses initialization
-  hub_port_status_response_t * p_port_status = (hub_port_status_response_t *) hub_enum_buffer;
+  hub_port_status_response_t * p_port_status;
+  p_port_status = (hub_port_status_response_t *) hub_enum_buffer;
+
   SUBTASK_ASSERT ( p_port_status->status_change.reset && p_port_status->status_current.connect_status &&
                    p_port_status->status_current.port_power && p_port_status->status_current.port_enable);
-  }
 
   OSAL_SUBTASK_END
 }
@@ -165,7 +165,9 @@ tusb_error_t hub_open_subtask(uint8_t dev_addr, tusb_descriptor_interface_t cons
   if ( p_interface_desc->bInterfaceProtocol > 1 ) return TUSB_ERROR_HUB_FEATURE_NOT_SUPPORTED;
 
   //------------- Open Interrupt Status Pipe -------------//
-  tusb_descriptor_endpoint_t const *p_endpoint = (tusb_descriptor_endpoint_t const *) descriptor_next( (uint8_t const*) p_interface_desc );
+  tusb_descriptor_endpoint_t const *p_endpoint;
+  p_endpoint = (tusb_descriptor_endpoint_t const *) descriptor_next( (uint8_t const*) p_interface_desc );
+  
   SUBTASK_ASSERT(TUSB_DESC_TYPE_ENDPOINT == p_endpoint->bDescriptorType);
   SUBTASK_ASSERT(TUSB_XFER_INTERRUPT == p_endpoint->bmAttributes.xfer);
 
