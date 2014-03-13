@@ -297,8 +297,8 @@
         <option>
           <name>CCIncludePath2</name>
           <state>$PROJ_DIR$\..\src</state>
-          <state>$PROJ_DIR$\..\..\bsp\lpc43xx\CMSIS_LPC43xx_DriverLib\inc</state>
-          <state>$PROJ_DIR$\..\..\bsp</state>
+          <state>$PROJ_DIR$\..\..\..\mcu\lpc43xx\CMSIS_LPC43xx_DriverLib\inc</state>
+          <state>$PROJ_DIR$\..\..\..\boards</state>
           <state>$PROJ_DIR$\..\..\..\tinyusb</state>
         </option>
         <option>
@@ -1218,9 +1218,9 @@
         <option>
           <name>CCIncludePath2</name>
           <state>$PROJ_DIR$\..\src</state>
-          <state>$PROJ_DIR$\..\..\bsp\lpc175x_6x\CMSISv2p00_LPC17xx\inc</state>
-          <state>$PROJ_DIR$\..\..\bsp\lpc175x_6x\LPC17xx_DriverLib\include</state>
-          <state>$PROJ_DIR$\..\..\bsp</state>
+          <state>$PROJ_DIR$\..\..\..\mcu\lpc175x_6x\CMSIS_CORE_LPC17xx\inc</state>
+          <state>$PROJ_DIR$\..\..\..\mcu\lpc175x_6x\LPC17xx_DriverLib\include</state>
+          <state>$PROJ_DIR$\..\..\..\boards</state>
           <state>$PROJ_DIR$\..\..\..\tinyusb</state>
         </option>
         <option>
@@ -2141,8 +2141,8 @@
         <option>
           <name>CCIncludePath2</name>
           <state>$PROJ_DIR$\..\src</state>
-          <state>$PROJ_DIR$\..\..\bsp\lpc43xx\CMSIS_LPC43xx_DriverLib\inc</state>
-          <state>$PROJ_DIR$\..\..\bsp</state>
+          <state>$PROJ_DIR$\..\..\..\mcu\lpc43xx\CMSIS_LPC43xx_DriverLib\inc</state>
+          <state>$PROJ_DIR$\..\..\..\boards</state>
           <state>$PROJ_DIR$\..\..\..\tinyusb</state>
         </option>
         <option>
@@ -3062,9 +3062,9 @@
         <option>
           <name>CCIncludePath2</name>
           <state>$PROJ_DIR$\..\src</state>
-          <state>$PROJ_DIR$\..\..\bsp\lpc11uxx\CMSISv2p00_LPC11Uxx\inc</state>
-          <state>$PROJ_DIR$\..\..\bsp\lpc11uxx\LPC11Uxx_DriverLib</state>
-          <state>$PROJ_DIR$\..\..\bsp</state>
+          <state>$PROJ_DIR$\..\..\..\mcu\lpc11uxx\CMSIS_CORE_LPC11Uxx\inc</state>
+          <state>$PROJ_DIR$\..\..\..\mcu\lpc11uxx\LPC11Uxx_DriverLib</state>
+          <state>$PROJ_DIR$\..\..\..\boards</state>
           <state>$PROJ_DIR$\..\..\..\tinyusb</state>
         </option>
         <option>
@@ -3984,9 +3984,9 @@
         <option>
           <name>CCIncludePath2</name>
           <state>$PROJ_DIR$\..\src</state>
-          <state>$PROJ_DIR$\..\..\bsp\lpc13uxx\CMSISv2p10_LPC13Uxx\inc</state>
-          <state>$PROJ_DIR$\..\..\bsp\lpc13uxx\LPC13Uxx_DriverLib\inc</state>
-          <state>$PROJ_DIR$\..\..\bsp</state>
+          <state>$PROJ_DIR$\..\..\..\mcu\lpc13uxx\CMSIS_CORE_LPC13Uxx\inc</state>
+          <state>$PROJ_DIR$\..\..\..\mcu\lpc13uxx\LPC13Uxx_DriverLib\inc</state>
+          <state>$PROJ_DIR$\..\..\..\boards</state>
           <state>$PROJ_DIR$\..\..\..\tinyusb</state>
         </option>
         <option>
@@ -4644,28 +4644,28 @@
     <group>
       <name>boards</name>
       <file>
-        <name>$PROJ_DIR$\..\..\bsp\boards\board.c</name>
+        <name>$PROJ_DIR$\..\..\..\boards\board.c</name>
       </file>
       <file>
-        <name>$PROJ_DIR$\..\..\bsp\boards\embedded_artists\ea4357\board_ea4357.c</name>
+        <name>$PROJ_DIR$\..\..\..\boards\embedded_artists\ea4357\board_ea4357.c</name>
       </file>
       <file>
-        <name>$PROJ_DIR$\..\..\bsp\boards\microbuilder\board_lpc4357usb.c</name>
+        <name>$PROJ_DIR$\..\..\..\boards\microbuilder\board_lpc4357usb.c</name>
       </file>
       <file>
-        <name>$PROJ_DIR$\..\..\bsp\boards\lpcxpresso\board_lpcxpresso1347.c</name>
+        <name>$PROJ_DIR$\..\..\..\boards\lpcxpresso\board_lpcxpresso1347.c</name>
       </file>
       <file>
-        <name>$PROJ_DIR$\..\..\bsp\boards\lpcxpresso\board_lpcxpresso1769.c</name>
+        <name>$PROJ_DIR$\..\..\..\boards\lpcxpresso\board_lpcxpresso1769.c</name>
       </file>
       <file>
-        <name>$PROJ_DIR$\..\..\bsp\boards\ngx\board_ngx4330.c</name>
+        <name>$PROJ_DIR$\..\..\..\boards\ngx\board_ngx4330.c</name>
       </file>
       <file>
-        <name>$PROJ_DIR$\..\..\bsp\boards\embedded_artists\oem_base_board\pca9532.c</name>
+        <name>$PROJ_DIR$\..\..\..\boards\embedded_artists\oem_base_board\pca9532.c</name>
       </file>
       <file>
-        <name>$PROJ_DIR$\..\..\bsp\boards\printf_retarget.c</name>
+        <name>$PROJ_DIR$\..\..\..\boards\printf_retarget.c</name>
       </file>
     </group>
     <group>
@@ -4677,19 +4677,16 @@
         <configuration>Board LPCXpresso1347</configuration>
       </excluded>
       <file>
-        <name>$PROJ_DIR$\..\..\bsp\lpc11uxx\CMSISv2p00_LPC11Uxx\src\core_cm0.c</name>
+        <name>$PROJ_DIR$\..\..\..\mcu\lpc11uxx\LPC11Uxx_DriverLib\lpc11uxx_gpio.c</name>
       </file>
       <file>
-        <name>$PROJ_DIR$\..\..\bsp\lpc11uxx\LPC11Uxx_DriverLib\lpc11uxx_gpio.c</name>
+        <name>$PROJ_DIR$\..\..\..\mcu\lpc11uxx\LPC11Uxx_DriverLib\lpc11uxx_uart.c</name>
       </file>
       <file>
-        <name>$PROJ_DIR$\..\..\bsp\lpc11uxx\LPC11Uxx_DriverLib\lpc11uxx_uart.c</name>
+        <name>$PROJ_DIR$\..\..\..\mcu\lpc11uxx\iar\startup_lpc11xx.s</name>
       </file>
       <file>
-        <name>$PROJ_DIR$\..\..\bsp\lpc11uxx\startup_iar\startup_lpc11xx.s</name>
-      </file>
-      <file>
-        <name>$PROJ_DIR$\..\..\bsp\lpc11uxx\CMSISv2p00_LPC11Uxx\src\system_LPC11Uxx.c</name>
+        <name>$PROJ_DIR$\..\..\..\mcu\lpc11uxx\CMSIS_CORE_LPC11Uxx\src\system_LPC11Uxx.c</name>
       </file>
     </group>
     <group>
@@ -4701,16 +4698,16 @@
         <configuration>Board rf1ghznode</configuration>
       </excluded>
       <file>
-        <name>$PROJ_DIR$\..\..\bsp\lpc13uxx\LPC13Uxx_DriverLib\src\gpio.c</name>
+        <name>$PROJ_DIR$\..\..\..\mcu\lpc13uxx\LPC13Uxx_DriverLib\src\gpio.c</name>
       </file>
       <file>
-        <name>$PROJ_DIR$\..\..\bsp\lpc13uxx\startup_iar\startup_lpc13xx.s</name>
+        <name>$PROJ_DIR$\..\..\..\mcu\lpc13uxx\iar\startup_lpc13xx.s</name>
       </file>
       <file>
-        <name>$PROJ_DIR$\..\..\bsp\lpc13uxx\CMSISv2p10_LPC13Uxx\src\system_LPC13Uxx.c</name>
+        <name>$PROJ_DIR$\..\..\..\mcu\lpc13uxx\CMSIS_CORE_LPC13Uxx\src\system_LPC13Uxx.c</name>
       </file>
       <file>
-        <name>$PROJ_DIR$\..\..\bsp\lpc13uxx\LPC13Uxx_DriverLib\src\uart.c</name>
+        <name>$PROJ_DIR$\..\..\..\mcu\lpc13uxx\LPC13Uxx_DriverLib\src\uart.c</name>
       </file>
     </group>
     <group>
@@ -4722,25 +4719,22 @@
         <configuration>Board LPCXpresso1347</configuration>
       </excluded>
       <file>
-        <name>$PROJ_DIR$\..\..\bsp\lpc175x_6x\CMSISv2p00_LPC17xx\src\core_cm3.c</name>
+        <name>$PROJ_DIR$\..\..\..\mcu\lpc175x_6x\LPC17xx_DriverLib\source\lpc17xx_clkpwr.c</name>
       </file>
       <file>
-        <name>$PROJ_DIR$\..\..\bsp\lpc175x_6x\LPC17xx_DriverLib\source\lpc17xx_clkpwr.c</name>
+        <name>$PROJ_DIR$\..\..\..\mcu\lpc175x_6x\LPC17xx_DriverLib\source\lpc17xx_gpio.c</name>
       </file>
       <file>
-        <name>$PROJ_DIR$\..\..\bsp\lpc175x_6x\LPC17xx_DriverLib\source\lpc17xx_gpio.c</name>
+        <name>$PROJ_DIR$\..\..\..\mcu\lpc175x_6x\LPC17xx_DriverLib\source\lpc17xx_pinsel.c</name>
       </file>
       <file>
-        <name>$PROJ_DIR$\..\..\bsp\lpc175x_6x\LPC17xx_DriverLib\source\lpc17xx_pinsel.c</name>
+        <name>$PROJ_DIR$\..\..\..\mcu\lpc175x_6x\LPC17xx_DriverLib\source\lpc17xx_uart.c</name>
       </file>
       <file>
-        <name>$PROJ_DIR$\..\..\bsp\lpc175x_6x\LPC17xx_DriverLib\source\lpc17xx_uart.c</name>
+        <name>$PROJ_DIR$\..\..\..\mcu\lpc175x_6x\iar\startup_LPC17xx.s</name>
       </file>
       <file>
-        <name>$PROJ_DIR$\..\..\bsp\lpc175x_6x\startup_iar\startup_LPC17xx.s</name>
-      </file>
-      <file>
-        <name>$PROJ_DIR$\..\..\bsp\lpc175x_6x\CMSISv2p00_LPC17xx\src\system_LPC17xx.c</name>
+        <name>$PROJ_DIR$\..\..\..\mcu\lpc175x_6x\CMSIS_CORE_LPC17xx\src\system_LPC17xx.c</name>
       </file>
     </group>
     <group>
@@ -4751,29 +4745,29 @@
         <configuration>Board LPCXpresso1347</configuration>
       </excluded>
       <file>
-        <name>$PROJ_DIR$\..\..\bsp\lpc43xx\CMSIS_LPC43xx_DriverLib\src\lpc43xx_cgu.c</name>
+        <name>$PROJ_DIR$\..\..\..\mcu\lpc43xx\CMSIS_LPC43xx_DriverLib\src\lpc43xx_cgu.c</name>
       </file>
       <file>
-        <name>$PROJ_DIR$\..\..\bsp\lpc43xx\CMSIS_LPC43xx_DriverLib\src\lpc43xx_gpio.c</name>
+        <name>$PROJ_DIR$\..\..\..\mcu\lpc43xx\CMSIS_LPC43xx_DriverLib\src\lpc43xx_gpio.c</name>
       </file>
       <file>
-        <name>$PROJ_DIR$\..\..\bsp\lpc43xx\CMSIS_LPC43xx_DriverLib\src\lpc43xx_i2c.c</name>
+        <name>$PROJ_DIR$\..\..\..\mcu\lpc43xx\CMSIS_LPC43xx_DriverLib\src\lpc43xx_i2c.c</name>
       </file>
       <file>
-        <name>$PROJ_DIR$\..\..\bsp\lpc43xx\CMSIS_LPC43xx_DriverLib\src\lpc43xx_scu.c</name>
+        <name>$PROJ_DIR$\..\..\..\mcu\lpc43xx\CMSIS_LPC43xx_DriverLib\src\lpc43xx_scu.c</name>
       </file>
       <file>
-        <name>$PROJ_DIR$\..\..\bsp\lpc43xx\CMSIS_LPC43xx_DriverLib\src\lpc43xx_uart.c</name>
+        <name>$PROJ_DIR$\..\..\..\mcu\lpc43xx\CMSIS_LPC43xx_DriverLib\src\lpc43xx_uart.c</name>
       </file>
       <file>
-        <name>$PROJ_DIR$\..\..\bsp\lpc43xx\startup_iar\startup_LPC43xx.s</name>
+        <name>$PROJ_DIR$\..\..\..\mcu\lpc43xx\iar\startup_LPC43xx.s</name>
       </file>
       <file>
-        <name>$PROJ_DIR$\..\..\bsp\lpc43xx\CMSIS_LPC43xx_DriverLib\src\system_LPC43xx.c</name>
+        <name>$PROJ_DIR$\..\..\..\mcu\lpc43xx\CMSIS_LPC43xx_DriverLib\src\system_LPC43xx.c</name>
       </file>
     </group>
     <file>
-      <name>$PROJ_DIR$\..\..\bsp\boards\microbuilder\board_rf1ghznode.c</name>
+      <name>$PROJ_DIR$\..\..\..\boards\microbuilder\board_rf1ghznode.c</name>
     </file>
   </group>
   <group>

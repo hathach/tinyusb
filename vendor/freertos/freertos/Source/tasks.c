@@ -1324,7 +1324,7 @@ void vTaskSuspendAll( void )
 	portTickType prvGetExpectedIdleTime( void )
 	{
 	portTickType xReturn;
-	
+
 		if( pxCurrentTCB->uxPriority > tskIDLE_PRIORITY )
 		{
 			xReturn = 0;
@@ -1340,7 +1340,7 @@ void vTaskSuspendAll( void )
 		{
 			xReturn = xNextTaskUnblockTime - xTickCount;
 		}
-	
+
 		return xReturn;
 	}
 
@@ -1637,7 +1637,7 @@ unsigned portBASE_TYPE uxTaskGetNumberOfTasks( void )
 /*----------------------------------------------------------*/
 
 /* This conditional compilation should use inequality to 0, not equality to 1.
-This is to ensure vTaskStepTick() is available when user defined low power mode	
+This is to ensure vTaskStepTick() is available when user defined low power mode
 implementations require configUSE_TICKLESS_IDLE to be set to a value other than
 1. */
 #if ( configUSE_TICKLESS_IDLE != 0 )
@@ -1943,7 +1943,7 @@ portTickType xTimeToWake;
 		/* Calculate the time at which the task should be woken if the event does
 		not occur.  This may overflow but this doesn't matter. */
 		xTimeToWake = xTickCount + xTicksToWait;
-		
+
 		traceTASK_DELAY_UNTIL();
 		prvAddCurrentTaskToDelayedList( xTimeToWake );
 	}

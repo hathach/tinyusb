@@ -4,7 +4,23 @@
   <project>
     <path>$WS_DIR$\host_os_none.ewp</path>
   </project>
-  <batchBuild/>
+  <batchBuild>
+    <batchDefinition>
+      <name>all</name>
+      <member>
+        <project>host_os_none</project>
+        <configuration>Board EA4357</configuration>
+      </member>
+      <member>
+        <project>host_os_none</project>
+        <configuration>Board LPCXpresso1769</configuration>
+      </member>
+      <member>
+        <project>host_os_none</project>
+        <configuration>Board NGX4330</configuration>
+      </member>
+    </batchDefinition>
+  </batchBuild>
 </workspace>
 
 

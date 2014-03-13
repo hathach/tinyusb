@@ -1,7 +1,7 @@
 /*
     FreeRTOS V7.3.0 - Copyright (C) 2012 Real Time Engineers Ltd.
 
-    FEATURES AND PORTS ARE ADDED TO FREERTOS ALL THE TIME.  PLEASE VISIT 
+    FEATURES AND PORTS ARE ADDED TO FREERTOS ALL THE TIME.  PLEASE VISIT
     http://www.FreeRTOS.org TO ENSURE YOU ARE USING THE LATEST VERSION.
 
     ***************************************************************************
@@ -42,7 +42,7 @@
     FreeRTOS WEB site.
 
     1 tab == 4 spaces!
-    
+
     ***************************************************************************
      *                                                                       *
      *    Having a problem?  Start by reading the FAQ "My application does   *
@@ -52,26 +52,26 @@
      *                                                                       *
     ***************************************************************************
 
-    
-    http://www.FreeRTOS.org - Documentation, training, latest versions, license 
-    and contact details.  
-    
+
+    http://www.FreeRTOS.org - Documentation, training, latest versions, license
+    and contact details.
+
     http://www.FreeRTOS.org/plus - A selection of FreeRTOS ecosystem products,
     including FreeRTOS+Trace - an indispensable productivity tool.
 
-    Real Time Engineers ltd license FreeRTOS to High Integrity Systems, who sell 
-    the code with commercial support, indemnification, and middleware, under 
+    Real Time Engineers ltd license FreeRTOS to High Integrity Systems, who sell
+    the code with commercial support, indemnification, and middleware, under
     the OpenRTOS brand: http://www.OpenRTOS.com.  High Integrity Systems also
-    provide a safety engineered and independently SIL3 certified version under 
+    provide a safety engineered and independently SIL3 certified version under
     the SafeRTOS brand: http://www.SafeRTOS.com.
 */
 
 /*
- * A sample implementation of pvPortMalloc() and vPortFree() that combines 
- * (coalescences) adjacent memory blocks as they are freed, and in so doing 
+ * A sample implementation of pvPortMalloc() and vPortFree() that combines
+ * (coalescences) adjacent memory blocks as they are freed, and in so doing
  * limits memory fragmentation.
  *
- * See heap_1.c, heap_2.c and heap_3.c for alternative implementations, and the 
+ * See heap_1.c, heap_2.c and heap_3.c for alternative implementations, and the
  * memory management pages of http://www.FreeRTOS.org for more information.
  */
 #include <stdlib.h>
@@ -112,7 +112,7 @@ typedef struct A_BLOCK_LINK
 /*-----------------------------------------------------------*/
 
 /*
- * Inserts a block of memory that is being freed into the correct position in 
+ * Inserts a block of memory that is being freed into the correct position in
  * the list of free memory blocks.  The block being freed will be merged with
  * the block in front it and/or the block behind it if the memory blocks are
  * adjacent to each other.
@@ -165,7 +165,7 @@ void *pvReturn = NULL;
 		{
 			xWantedSize += heapSTRUCT_SIZE;
 
-			/* Ensure that blocks are always aligned to the required number of 
+			/* Ensure that blocks are always aligned to the required number of
 			bytes. */
 			if( xWantedSize & portBYTE_ALIGNMENT_MASK )
 			{
@@ -253,7 +253,7 @@ xBlockLink *pxLink;
 		{
 			/* Add this block to the list of free blocks. */
 			xFreeBytesRemaining += pxLink->xBlockSize;
-			prvInsertBlockIntoFreeList( ( ( xBlockLink * ) pxLink ) );			
+			prvInsertBlockIntoFreeList( ( ( xBlockLink * ) pxLink ) );
 		}
 		xTaskResumeAll();
 	}
@@ -318,7 +318,7 @@ unsigned char *puc;
 	}
 
 	/* Do the block being inserted, and the block it is being inserted after
-	make a contiguous block of memory? */	
+	make a contiguous block of memory? */
 	puc = ( unsigned char * ) pxIterator;
 	if( ( puc + pxIterator->xBlockSize ) == ( unsigned char * ) pxBlockToInsert )
 	{
@@ -344,7 +344,7 @@ unsigned char *puc;
 	}
 	else
 	{
-		pxBlockToInsert->pxNextFreeBlock = pxIterator->pxNextFreeBlock;		
+		pxBlockToInsert->pxNextFreeBlock = pxIterator->pxNextFreeBlock;
 	}
 
 	/* If the block being inserted plugged a gab, so was merged with the block
