@@ -98,6 +98,7 @@ static inline uint32_t osal_tick_get(void)
 #define OSAL_TASK_LOOP_BEGIN \
   ATTR_UNUSED static uint32_t timeout = 0;\
   static uint16_t state = 0;\
+  (void) timeout; /* timemout can possible unsued */ \
   switch(state) { \
     case 0: { \
 
