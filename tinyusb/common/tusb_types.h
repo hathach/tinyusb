@@ -152,29 +152,6 @@ typedef enum {
   MISC_PROTOCOL_IAD = 1
 }misc_protocol_type_t;
 
-typedef enum {
-  TUSB_CLASS_FLAG_AUDIO                = BIT_(TUSB_CLASS_AUDIO)               , ///< 1
-  TUSB_CLASS_FLAG_CDC                  = BIT_(TUSB_CLASS_CDC)                 , ///< 2
-  TUSB_CLASS_FLAG_HID                  = BIT_(TUSB_CLASS_HID)                 , ///< 3
-  TUSB_CLASS_FLAG_PHYSICAL             = BIT_(TUSB_CLASS_PHYSICAL)            , ///< 5
-  TUSB_CLASS_FLAG_IMAGE                = BIT_(TUSB_CLASS_IMAGE)               , ///< 6
-  TUSB_CLASS_FLAG_PRINTER              = BIT_(TUSB_CLASS_PRINTER)             , ///< 7
-  TUSB_CLASS_FLAG_MSC                  = BIT_(TUSB_CLASS_MSC)                 , ///< 8
-  TUSB_CLASS_FLAG_HUB                  = BIT_(TUSB_CLASS_HUB)                 , ///< 9
-  TUSB_CLASS_FLAG_CDC_DATA             = BIT_(TUSB_CLASS_CDC_DATA)            , ///< 10
-  TUSB_CLASS_FLAG_SMART_CARD           = BIT_(TUSB_CLASS_SMART_CARD)          , ///< 11
-  TUSB_CLASS_FLAG_CONTENT_SECURITY     = BIT_(TUSB_CLASS_CONTENT_SECURITY)    , ///< 13
-  TUSB_CLASS_FLAG_VIDEO                = BIT_(TUSB_CLASS_VIDEO)               , ///< 14
-  TUSB_CLASS_FLAG_PERSONAL_HEALTHCARE  = BIT_(TUSB_CLASS_PERSONAL_HEALTHCARE) , ///< 15
-  TUSB_CLASS_FLAG_AUDIO_VIDEO          = BIT_(TUSB_CLASS_AUDIO_VIDEO)         , ///< 16
-
-  TUSB_CLASS_FLAG_DIAGNOSTIC           = BIT_(27)                             ,
-  TUSB_CLASS_FLAG_WIRELESS_CONTROLLER  = BIT_(28)                             ,
-  TUSB_CLASS_FLAG_MISC                 = BIT_(29)                             ,
-  TUSB_CLASS_FLAG_APPLICATION_SPECIFIC = BIT_(30)                             ,
-  TUSB_CLASS_FLAG_VENDOR_SPECIFIC      = BIT_(31)
-} tusb_std_class_flag_t;
-
 enum {
   TUSB_DESC_CONFIG_ATT_REMOTE_WAKEUP = BIT_(5),
   TUSB_DESC_CONFIG_ATT_SELF_POWER    = BIT_(6),

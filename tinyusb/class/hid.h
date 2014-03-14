@@ -210,82 +210,82 @@ typedef enum {
 /// @}
 
 #define HID_KEYCODE_TABLE(ENTRY) \
-    ENTRY( 0x04, 'a', 'A' )\
-    ENTRY( 0x05, 'b', 'B' )\
-    ENTRY( 0x06, 'c', 'C' )\
-    ENTRY( 0x07, 'd', 'D' )\
-    ENTRY( 0x08, 'e', 'E' )\
-    ENTRY( 0x09, 'f', 'F' )\
-    ENTRY( 0x0a, 'g', 'G' )\
-    ENTRY( 0x0b, 'h', 'H' )\
-    ENTRY( 0x0c, 'i', 'I' )\
-    ENTRY( 0x0d, 'j', 'J' )\
-    ENTRY( 0x0e, 'k', 'K' )\
-    ENTRY( 0x0f, 'l', 'L' )\
+    ENTRY( 0x04, 'a'   , 'A'    )\
+    ENTRY( 0x05, 'b'   , 'B'    )\
+    ENTRY( 0x06, 'c'   , 'C'    )\
+    ENTRY( 0x07, 'd'   , 'D'    )\
+    ENTRY( 0x08, 'e'   , 'E'    )\
+    ENTRY( 0x09, 'f'   , 'F'    )\
+    ENTRY( 0x0a, 'g'   , 'G'    )\
+    ENTRY( 0x0b, 'h'   , 'H'    )\
+    ENTRY( 0x0c, 'i'   , 'I'    )\
+    ENTRY( 0x0d, 'j'   , 'J'    )\
+    ENTRY( 0x0e, 'k'   , 'K'    )\
+    ENTRY( 0x0f, 'l'   , 'L'    )\
+    ENTRY( 0x10, 'm'   , 'M'    )\
+    ENTRY( 0x11, 'n'   , 'N'    )\
+    ENTRY( 0x12, 'o'   , 'O'    )\
+    ENTRY( 0x13, 'p'   , 'P'    )\
+    ENTRY( 0x14, 'q'   , 'Q'    )\
+    ENTRY( 0x15, 'r'   , 'R'    )\
+    ENTRY( 0x16, 's'   , 'S'    )\
+    ENTRY( 0x17, 't'   , 'T'    )\
+    ENTRY( 0x18, 'u'   , 'U'    )\
+    ENTRY( 0x19, 'v'   , 'V'    )\
+    ENTRY( 0x1a, 'w'   , 'W'    )\
+    ENTRY( 0x1b, 'x'   , 'X'    )\
+    ENTRY( 0x1c, 'y'   , 'Y'    )\
+    ENTRY( 0x1d, 'z'   , 'Z'    )\
     \
-    ENTRY( 0x10, 'm', 'M' )\
-    ENTRY( 0x11, 'n', 'N' )\
-    ENTRY( 0x12, 'o', 'O' )\
-    ENTRY( 0x13, 'p', 'P' )\
-    ENTRY( 0x14, 'q', 'Q' )\
-    ENTRY( 0x15, 'r', 'R' )\
-    ENTRY( 0x16, 's', 'S' )\
-    ENTRY( 0x17, 't', 'T' )\
-    ENTRY( 0x18, 'u', 'U' )\
-    ENTRY( 0x19, 'v', 'V' )\
-    ENTRY( 0x1a, 'w', 'W' )\
-    ENTRY( 0x1b, 'x', 'X' )\
-    ENTRY( 0x1c, 'y', 'Y' )\
-    ENTRY( 0x1d, 'z', 'Z' )\
-    ENTRY( 0x1e, '1', '!' )\
-    ENTRY( 0x1f, '2', '@' )\
+    ENTRY( 0x1e, '1'   , '!'    )\
+    ENTRY( 0x1f, '2'   , '@'    )\
+    ENTRY( 0x20, '3'   , '#'    )\
+    ENTRY( 0x21, '4'   , '$'    )\
+    ENTRY( 0x22, '5'   , '%'    )\
+    ENTRY( 0x23, '6'   , '^'    )\
+    ENTRY( 0x24, '7'   , '&'    )\
+    ENTRY( 0x25, '8'   , '*'    )\
+    ENTRY( 0x26, '9'   , '('    )\
+    ENTRY( 0x27, '0'   , ')'    )\
     \
-    ENTRY( 0x20, '3', '#' )\
-    ENTRY( 0x21, '4', '$' )\
-    ENTRY( 0x22, '5', '%' )\
-    ENTRY( 0x23, '6', '^' )\
-    ENTRY( 0x24, '7', '&' )\
-    ENTRY( 0x25, '8', '*' )\
-    ENTRY( 0x26, '9', '(' )\
-    ENTRY( 0x27, '0', ')' )\
-    ENTRY( 0x28, '\r', '\r' )\
-    ENTRY( 0x29, '\e', '\e' )\
-    ENTRY( 0x2a, '\b', '\b' )\
-    ENTRY( 0x2b, '\t', '\t' )\
-    ENTRY( 0x2c, ' ', ' '  )\
-    ENTRY( 0x2d, '-', '_' )\
-    ENTRY( 0x2e, '=', '+' )\
-    ENTRY( 0x2f, '[', '{' )\
+    ENTRY( 0x28, '\r'  , '\r'   )\
+    ENTRY( 0x29, '\x1b', '\x1b' )\
+    ENTRY( 0x2a, '\b'  , '\b'   )\
+    ENTRY( 0x2b, '\t'  , '\t'   )\
+    ENTRY( 0x2c, ' '   , ' '    )\
+    ENTRY( 0x2d, '-'   , '_'    )\
+    ENTRY( 0x2e, '='   , '+'    )\
+    ENTRY( 0x2f, '['   , '{'    )\
+    ENTRY( 0x30, ']'   , '}'    )\
+    ENTRY( 0x31, '\\'  , '|'    )\
+    ENTRY( 0x32, '#'   , '~'    ) /* TODO non-US keyboard */ \
+    ENTRY( 0x33, ';'   , ':'    )\
+    ENTRY( 0x34, '\''  , '\"'   )\
+    ENTRY( 0x35, 0     , 0      )\
+    ENTRY( 0x36, ','   , '<'    )\
+    ENTRY( 0x37, '.'   , '>'    )\
+    ENTRY( 0x38, '/'   , '?'    )\
+    ENTRY( 0x39, 0     , 0      ) /* TODO CapsLock, non-locking key implementation*/ \
     \
-    ENTRY( 0x30, ']', '}' )\
-    ENTRY( 0x31, '\\', '|' )\
-    ENTRY( 0x32, '#', '~' ) /* TODO non-US keyboard */ \
-    ENTRY( 0x33, ';', ':' )\
-    ENTRY( 0x34, '\'', '\"' )\
-    ENTRY( 0x35, 0, 0 )\
-    ENTRY( 0x36, ',', '<' )\
-    ENTRY( 0x37, '.', '>' )\
-    ENTRY( 0x38, '/', '?' )\
-    ENTRY( 0x39, 0, 0 ) /* TODO CapsLock, non-locking key implementation*/ \
-    \
-    ENTRY( 0x54, '/', '/' )\
-    ENTRY( 0x55, '*', '*' )\
-    ENTRY( 0x56, '-', '-' )\
-    ENTRY( 0x57, '+', '+' )\
-    ENTRY( 0x58, '\r', '\r' )\
-    ENTRY( 0x59, '1', 0 ) /* numpad1 & end */ \
-    ENTRY( 0x5a, '2', 0 )\
-    ENTRY( 0x5b, '3', 0 )\
-    ENTRY( 0x5c, '4', 0 )\
-    ENTRY( 0x5d, '5', '5' )\
-    ENTRY( 0x5e, '6', 0 )\
-    ENTRY( 0x5f, '7', 0 )\
-    ENTRY( 0x60, '8', 0 )\
-    ENTRY( 0x61, '9', 0 )\
-    ENTRY( 0x62, '0', 0 )\
-    ENTRY( 0x63, '0', 0 )\
-    \
-    ENTRY( 0x67, '=', '=' )\
+    ENTRY( 0x54, '/'   , '/'    )\
+    ENTRY( 0x55, '*'   , '*'    )\
+    ENTRY( 0x56, '-'   , '-'    )\
+    ENTRY( 0x57, '+'   , '+'    )\
+    ENTRY( 0x58, '\r'  , '\r'   )\
+    ENTRY( 0x59, '1'   , 0      ) /* numpad1 & end */ \
+    ENTRY( 0x5a, '2'   , 0      )\
+    ENTRY( 0x5b, '3'   , 0      )\
+    ENTRY( 0x5c, '4'   , 0      )\
+    ENTRY( 0x5d, '5'   , '5'    )\
+    ENTRY( 0x5e, '6'   , 0      )\
+    ENTRY( 0x5f, '7'   , 0      )\
+    ENTRY( 0x60, '8'   , 0      )\
+    ENTRY( 0x61, '9'   , 0      )\
+    ENTRY( 0x62, '0'   , 0      )\
+    ENTRY( 0x63, '0'   , 0      )\
+    ENTRY( 0x67, '='   , '='    )\
+
+
 
 // TODO HID complete keycode table
 

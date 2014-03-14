@@ -8,7 +8,7 @@
 				<macros>
 					<stringMacro name="CFLAGS_OFF" type="VALUE_TEXT" value=""/>
 					<stringMacro name="CFLAGS" type="VALUE_TEXT" value="${CFLAGS_OFF}"/>
-					<stringMacro name="CFLAGS_ON" type="VALUE_TEXT" value="-pedantic -Wextra -Wswitch-default -Wunsafe-loop-optimizations -Wcast-align -Wlogical-op -Wpacked-bitfield-compat -Wpadded -Wnested-externs -Wredundant-decls -Winline -Wpacked"/>
+					<stringMacro name="CFLAGS_ON" type="VALUE_TEXT" value="-Wextra -Wswitch-default -Wunsafe-loop-optimizations -Wcast-align -Wlogical-op -Wpacked-bitfield-compat -Wnested-externs -Wredundant-decls -Winline"/>
 				</macros>
 				<externalSettings/>
 				<extensions>
@@ -3129,7 +3129,7 @@
 				<macros>
 					<stringMacro name="CFLAGS_OFF" type="VALUE_TEXT" value=""/>
 					<stringMacro name="CFLAGS" type="VALUE_TEXT" value="${CFLAGS_OFF}"/>
-					<stringMacro name="CFLAGS_ON" type="VALUE_TEXT" value="-pedantic -Wextra -Wswitch-default -Wunsafe-loop-optimizations -Wcast-align -Wlogical-op -Wpacked-bitfield-compat -Wpadded -Wnested-externs -Wredundant-decls -Winline -Wpacked"/>
+					<stringMacro name="CFLAGS_ON" type="VALUE_TEXT" value="-Wextra -Wswitch-default -Wunsafe-loop-optimizations -Wcast-align -Wlogical-op -Wpacked-bitfield-compat -Wnested-externs -Wredundant-decls -Winline"/>
 				</macros>
 				<externalSettings/>
 				<extensions>
@@ -4689,7 +4689,7 @@
 				<macros>
 					<stringMacro name="CFLAGS_OFF" type="VALUE_TEXT" value=""/>
 					<stringMacro name="CFLAGS" type="VALUE_TEXT" value="${CFLAGS_OFF}"/>
-					<stringMacro name="CFLAGS_ON" type="VALUE_TEXT" value="-pedantic -Wextra -Wswitch-default -Wunsafe-loop-optimizations -Wcast-align -Wlogical-op -Wpacked-bitfield-compat -Wpadded -Wnested-externs -Wredundant-decls -Winline -Wpacked"/>
+					<stringMacro name="CFLAGS_ON" type="VALUE_TEXT" value="-Wextra -Wswitch-default -Wunsafe-loop-optimizations -Wcast-align -Wlogical-op -Wpacked-bitfield-compat -Wnested-externs -Wredundant-decls -Winline"/>
 				</macros>
 				<externalSettings/>
 				<extensions>
@@ -6249,7 +6249,7 @@
 				<macros>
 					<stringMacro name="CFLAGS_OFF" type="VALUE_TEXT" value=""/>
 					<stringMacro name="CFLAGS" type="VALUE_TEXT" value="${CFLAGS_OFF}"/>
-					<stringMacro name="CFLAGS_ON" type="VALUE_TEXT" value="-pedantic -Wextra -Wswitch-default -Wunsafe-loop-optimizations -Wcast-align -Wlogical-op -Wpacked-bitfield-compat -Wpadded -Wnested-externs -Wredundant-decls -Winline -Wpacked"/>
+					<stringMacro name="CFLAGS_ON" type="VALUE_TEXT" value="-Wextra -Wswitch-default -Wunsafe-loop-optimizations -Wcast-align -Wlogical-op -Wpacked-bitfield-compat -Wnested-externs -Wredundant-decls -Winline"/>
 				</macros>
 				<externalSettings/>
 				<extensions>
@@ -7806,7 +7806,7 @@
 				<macros>
 					<stringMacro name="CFLAGS_OFF" type="VALUE_TEXT" value=""/>
 					<stringMacro name="CFLAGS" type="VALUE_TEXT" value="${CFLAGS_OFF}"/>
-					<stringMacro name="CFLAGS_ON" type="VALUE_TEXT" value="-pedantic -Wextra -Wswitch-default -Wunsafe-loop-optimizations -Wcast-align -Wlogical-op -Wpacked-bitfield-compat -Wpadded -Wnested-externs -Wredundant-decls -Winline -Wpacked"/>
+					<stringMacro name="CFLAGS_ON" type="VALUE_TEXT" value="-Wextra -Wswitch-default -Wunsafe-loop-optimizations -Wcast-align -Wlogical-op -Wpacked-bitfield-compat -Wnested-externs -Wredundant-decls -Winline"/>
 				</macros>
 				<externalSettings/>
 				<extensions>
