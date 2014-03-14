@@ -61,7 +61,7 @@ static uint8_t received_bytes; // set by transfer complete callback
 //--------------------------------------------------------------------+
 void tusbh_cdc_mounted_cb(uint8_t dev_addr)
 { // application set-up
-  printf("\na CDC device is mounted\n");
+  printf("\na CDC device  (address %d) is mounted\n", dev_addr);
 
   memclr_(serial_in_buffer, sizeof(serial_in_buffer));
   memclr_(serial_out_buffer, sizeof(serial_out_buffer));
@@ -73,11 +73,13 @@ void tusbh_cdc_mounted_cb(uint8_t dev_addr)
 
 void tusbh_cdc_unmounted_cb(uint8_t dev_addr)
 { // application tear-down
-  printf("\na CDC device is unmounted\n");
+  printf("\na CDC device (address %d) is unmounted \n", dev_addr);
 }
 
 void tusbh_cdc_xfer_isr(uint8_t dev_addr, tusb_event_t event, cdc_pipeid_t pipe_id, uint32_t xferred_bytes)
 {
+  (void) dev_addr; // compiler warnings
+
   switch ( pipe_id )
   {
     case CDC_PIPE_DATA_IN:
@@ -119,6 +121,8 @@ void cdc_serial_app_init(void)
 //------------- main task -------------//
 OSAL_TASK_FUNCTION( cdc_serial_app_task ) (void* p_task_para)
 {
+  (void) p_task_para;
+
   OSAL_TASK_LOOP_BEGIN
 
   //------------- send characters got from uart terminal to the first CDC device -------------//

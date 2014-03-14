@@ -55,52 +55,56 @@
 #define ENUM_QUEUE_DEPTH  5
 
 // TODO fix/compress number of class driver
-static host_class_driver_t const usbh_class_drivers[TUSB_CLASS_MAPPED_INDEX_END] =
+static host_class_driver_t const usbh_class_drivers[] =
 {
-#if HOST_CLASS_HID
+  #if HOST_CLASS_HID
     [TUSB_CLASS_HID] = {
         .init         = hidh_init,
         .open_subtask = hidh_open_subtask,
         .isr          = hidh_isr,
         .close        = hidh_close
     },
-#endif
+  #endif
 
-#if TUSB_CFG_HOST_CDC
+  #if TUSB_CFG_HOST_CDC
     [TUSB_CLASS_CDC] = {
         .init         = cdch_init,
         .open_subtask = cdch_open_subtask,
         .isr          = cdch_isr,
         .close        = cdch_close
     },
-#endif
+  #endif
 
-#if TUSB_CFG_HOST_MSC
+  #if TUSB_CFG_HOST_MSC
     [TUSB_CLASS_MSC] = {
         .init         = msch_init,
         .open_subtask = msch_open_subtask,
         .isr          = msch_isr,
         .close        = msch_close
     },
-#endif
+  #endif
 
-#if TUSB_CFG_HOST_HUB
+  #if TUSB_CFG_HOST_HUB
     [TUSB_CLASS_HUB] = {
         .init         = hub_init,
         .open_subtask = hub_open_subtask,
         .isr          = hub_isr,
         .close        = hub_close
     },
-#endif
+  #endif
 
-#if TUSB_CFG_HOST_CUSTOM_CLASS
+  #if TUSB_CFG_HOST_CUSTOM_CLASS
     [TUSB_CLASS_MAPPED_INDEX_END-1] = {
         .init         = cush_init,
         .open_subtask = cush_open_subtask,
         .isr          = cush_isr,
         .close        = cush_close
     }
-#endif
+  #endif
+};
+
+enum {
+  USBH_CLASS_DRIVER_COUNT = sizeof(usbh_class_drivers) / sizeof(host_class_driver_t)
 };
 
 //--------------------------------------------------------------------+
@@ -162,7 +166,7 @@ tusb_error_t usbh_init(void)
   }
 
   //------------- class init -------------//
-  for (uint8_t class_index = 1; class_index < TUSB_CLASS_MAPPED_INDEX_END; class_index++)
+  for (uint8_t class_index = 1; class_index < USBH_CLASS_DRIVER_COUNT; class_index++)
   {
     if (usbh_class_drivers[class_index].init)
     {
@@ -296,7 +300,7 @@ static void usbh_device_unplugged(uint8_t hostid, uint8_t hub_addr, uint8_t hub_
         usbh_devices[dev_addr].state    != TUSB_DEVICE_STATE_UNPLUG)
     {
       // TODO Hub multiple level
-      for (uint8_t class_index = 1; class_index < TUSB_CLASS_MAPPED_INDEX_END; class_index++)
+      for (uint8_t class_index = 1; class_index < USBH_CLASS_DRIVER_COUNT; class_index++)
       {
         if ((usbh_devices[dev_addr].flag_supported_class & BIT_(class_index)) &&
             usbh_class_drivers[class_index].close)
@@ -412,9 +416,12 @@ tusb_error_t enumeration_body_subtask(void)
     // Acknowledge Port Connection Change
     OSAL_SUBTASK_INVOKED_AND_WAIT( hub_port_clear_feature_subtask(usbh_devices[0].hub_addr, usbh_devices[0].hub_port, HUB_FEATURE_PORT_CONNECTION_CHANGE), error );
 
-    if ( ! ((hub_port_status_response_t *) enum_data_buffer)->status_change.connect_status )   SUBTASK_EXIT(TUSB_ERROR_NONE); // only handle connection change
+    hub_port_status_response_t * p_port_status;
+    p_port_status = ((hub_port_status_response_t *) enum_data_buffer);
 
-    if ( ! ((hub_port_status_response_t *) enum_data_buffer)->status_current.connect_status )
+    if ( ! p_port_status->status_change.connect_status )   SUBTASK_EXIT(TUSB_ERROR_NONE); // only handle connection change
+
+    if ( ! p_port_status->status_current.connect_status )
     { // Disconnection event
       usbh_device_unplugged(usbh_devices[0].core_id, usbh_devices[0].hub_addr, usbh_devices[0].hub_port);
 

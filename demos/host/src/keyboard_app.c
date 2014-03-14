@@ -67,8 +67,7 @@ static inline void process_kbd_report(hid_keyboard_report_t const * report);
 void tusbh_hid_keyboard_mounted_cb(uint8_t dev_addr)
 {
   // application set-up
-
-  puts("\na Keyboard device is mounted");
+  printf("\na Keyboard device (address %d) is mounted\n", dev_addr);
 
   osal_queue_flush(queue_kbd_hdl);
   tusbh_hid_keyboard_get_report(dev_addr, (uint8_t*) &usb_keyboard_report); // first report
@@ -77,7 +76,7 @@ void tusbh_hid_keyboard_mounted_cb(uint8_t dev_addr)
 void tusbh_hid_keyboard_unmounted_cb(uint8_t dev_addr)
 {
   // application tear-down
-  puts("\na Keyboard device is unmounted");
+  printf("\na Keyboard device (address %d) is unmounted\n", dev_addr);
 }
 
 void tusbh_hid_keyboard_isr(uint8_t dev_addr, tusb_event_t event)
@@ -115,6 +114,8 @@ void keyboard_app_init(void)
 //------------- main task -------------//
 OSAL_TASK_FUNCTION( keyboard_app_task ) (void* p_task_para)
 {
+  (void) p_task_para;
+
   hid_keyboard_report_t kbd_report;
   tusb_error_t error;
 

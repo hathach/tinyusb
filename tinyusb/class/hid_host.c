@@ -66,8 +66,8 @@ static inline tusb_error_t hidh_interface_open(uint8_t dev_addr, uint8_t interfa
   return TUSB_ERROR_NONE;
 }
 
-static inline void hidh_interface_close(uint8_t dev_addr, hidh_interface_info_t *p_hid) ATTR_ALWAYS_INLINE;
-static inline void hidh_interface_close(uint8_t dev_addr, hidh_interface_info_t *p_hid)
+static inline void hidh_interface_close(hidh_interface_info_t *p_hid) ATTR_ALWAYS_INLINE;
+static inline void hidh_interface_close(hidh_interface_info_t *p_hid)
 {
   (void) hcd_pipe_close(p_hid->pipe_hdl);
   memclr_(p_hid, sizeof(hidh_interface_info_t));
@@ -256,6 +256,8 @@ tusb_error_t hidh_open_subtask(uint8_t dev_addr, tusb_descriptor_interface_t con
 
 void hidh_isr(pipe_handle_t pipe_hdl, tusb_event_t event, uint32_t xferred_bytes)
 {
+  (void) xferred_bytes; // TODO may need to use this para later
+
 #if TUSB_CFG_HOST_HID_KEYBOARD
   if ( pipehandle_is_equal(pipe_hdl, keyboardh_data[pipe_hdl.dev_addr-1].pipe_hdl) )
   {
@@ -282,7 +284,7 @@ void hidh_close(uint8_t dev_addr)
 #if TUSB_CFG_HOST_HID_KEYBOARD
   if ( pipehandle_is_valid( keyboardh_data[dev_addr-1].pipe_hdl ) )
   {
-    hidh_interface_close(dev_addr, &keyboardh_data[dev_addr-1]);
+    hidh_interface_close(&keyboardh_data[dev_addr-1]);
     tusbh_hid_keyboard_unmounted_cb(dev_addr);
   }
 #endif
@@ -290,7 +292,7 @@ void hidh_close(uint8_t dev_addr)
 #if TUSB_CFG_HOST_HID_MOUSE
   if( pipehandle_is_valid( mouseh_data[dev_addr-1].pipe_hdl ) )
   {
-    hidh_interface_close(dev_addr, &mouseh_data[dev_addr-1]);
+    hidh_interface_close(&mouseh_data[dev_addr-1]);
     tusbh_hid_mouse_unmounted_cb( dev_addr );
   }
 #endif

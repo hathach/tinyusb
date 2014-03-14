@@ -132,7 +132,9 @@ void tusbh_msc_unmounted_cb(uint8_t dev_addr)
 
 void tusbh_msc_isr(uint8_t dev_addr, tusb_event_t event, uint32_t xferred_bytes)
 {
-
+  (void) dev_addr;
+  (void) event;
+  (void) xferred_bytes;
 }
 
 //--------------------------------------------------------------------+
@@ -147,6 +149,8 @@ void msc_app_init(void)
 //------------- main task -------------//
 OSAL_TASK_FUNCTION( msc_app_task ) (void* p_task_para)
 {
+  (void) p_task_para;
+
   OSAL_TASK_LOOP_BEGIN
 
   bool is_any_disk_mounted; 

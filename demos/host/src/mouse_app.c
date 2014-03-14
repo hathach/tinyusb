@@ -66,8 +66,7 @@ static inline void process_mouse_report(hid_mouse_report_t const * p_report);
 void tusbh_hid_mouse_mounted_cb(uint8_t dev_addr)
 {
   // application set-up
-
-  puts("\na Mouse device is mounted");
+  printf("\na Mouse device (address %d) is mounted\n", dev_addr);
 
   osal_queue_flush(queue_mouse_hdl);
   (void) tusbh_hid_mouse_get_report(dev_addr, (uint8_t*) &usb_mouse_report); // first report
@@ -76,7 +75,7 @@ void tusbh_hid_mouse_mounted_cb(uint8_t dev_addr)
 void tusbh_hid_mouse_unmounted_cb(uint8_t dev_addr)
 {
   // application tear-down
-  puts("\na Mouse device is unmounted\n");
+  printf("\na Mouse device (address %d) is unmounted\n", dev_addr);
 }
 
 void tusbh_hid_mouse_isr(uint8_t dev_addr, tusb_event_t event)
@@ -116,6 +115,8 @@ void mouse_app_init(void)
 //------------- main task -------------//
 OSAL_TASK_FUNCTION( mouse_app_task ) (void* p_task_para)
 {
+  (void) p_task_para;
+
   tusb_error_t error;
   hid_mouse_report_t mouse_report;
 

@@ -135,8 +135,7 @@ typedef enum {
   TUSB_CLASS_PERSONAL_HEALTHCARE  = 15   , ///< 15
   TUSB_CLASS_AUDIO_VIDEO          = 16   , ///< 16
 
-  TUSB_CLASS_MAPPED_INDEX_START   = 17   , // TODO compact & minimize this number
-  TUSB_CLASS_MAPPED_INDEX_END     = TUSB_CLASS_MAPPED_INDEX_START + 5,
+  TUSB_CLASS_MAPPED_INDEX_START   = 17   , // TODO Map DIAGNOSTIC, WIRELESS_CONTROLLER, MISC, VENDOR_SPECIFIC to this to minimize the array
 
   TUSB_CLASS_DIAGNOSTIC           = 0xDC ,
   TUSB_CLASS_WIRELESS_CONTROLLER  = 0xE0 ,
@@ -153,7 +152,7 @@ typedef enum {
   MISC_PROTOCOL_IAD = 1
 }misc_protocol_type_t;
 
-typedef enum tusb_std_class_flag_{
+typedef enum {
   TUSB_CLASS_FLAG_AUDIO                = BIT_(TUSB_CLASS_AUDIO)               , ///< 1
   TUSB_CLASS_FLAG_CDC                  = BIT_(TUSB_CLASS_CDC)                 , ///< 2
   TUSB_CLASS_FLAG_HID                  = BIT_(TUSB_CLASS_HID)                 , ///< 3
@@ -219,7 +218,7 @@ enum {
 static inline uint8_t std_class_code_to_index(uint8_t std_class_code) ATTR_CONST ATTR_ALWAYS_INLINE;
 static inline uint8_t std_class_code_to_index(uint8_t std_class_code)
 {
-  return  (std_class_code <= TUSB_CLASS_AUDIO_VIDEO          ) ? std_class_code                   :
+  return  (std_class_code <= TUSB_CLASS_AUDIO_VIDEO          ) ? std_class_code                    :
           (std_class_code == TUSB_CLASS_DIAGNOSTIC           ) ? TUSB_CLASS_MAPPED_INDEX_START     :
           (std_class_code == TUSB_CLASS_WIRELESS_CONTROLLER  ) ? TUSB_CLASS_MAPPED_INDEX_START + 1 :
           (std_class_code == TUSB_CLASS_MISC                 ) ? TUSB_CLASS_MAPPED_INDEX_START + 2 :

@@ -126,8 +126,9 @@ DRESULT disk_write (BYTE pdrv, const BYTE* buff, DWORD sector, BYTE count)
 /* [I/O] Parameter and data buffer */
 DRESULT disk_ioctl (BYTE pdrv, BYTE cmd, void* buff)
 {
-  if (cmd != CTRL_SYNC) return RES_ERROR;
+  (void) buff; (void) pdrv; // compiler warnings
 
+  if (cmd != CTRL_SYNC) return RES_ERROR;
   return RES_OK;
 }
 

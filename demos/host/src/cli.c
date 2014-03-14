@@ -206,11 +206,11 @@ void cli_poll(char ch)
     //------------- Separate Command & Parameter -------------//
     putchar('\n');
     char* p_space = strchr(cli_buffer, ' ');
-    uint32_t command_len = (p_space == NULL) ? strlen(cli_buffer) : (p_space - cli_buffer);
+    uint32_t command_len = (p_space == NULL) ? strlen(cli_buffer) : (uint32_t) (p_space - cli_buffer);
     char* p_para = (p_space == NULL) ? (cli_buffer+command_len) : (p_space+1); // point to NULL-character or after space
 
     //------------- Find entered command in lookup table & execute it -------------//
-    uint32_t cmd_id;
+    uint8_t cmd_id;
     for(cmd_id = CLI_CMDTYPE_COUNT - 1; cmd_id > CLI_CMDTYPE_unknown; cmd_id--)
     {
       if( 0 == strncmp(cli_buffer, cli_string_tbl[cmd_id], command_len) ) break;
@@ -230,8 +230,9 @@ void cli_poll(char ch)
 //--------------------------------------------------------------------+
 // UNKNOWN Command
 //--------------------------------------------------------------------+
-cli_error_t cli_cmd_unknown(char * para)
+cli_error_t cli_cmd_unknown(char * p_para)
 {
+  (void) p_para;
   puts("unknown command, please type \"help\" for list of supported commands");
   return CLI_ERROR_NONE;
 }
@@ -239,10 +240,12 @@ cli_error_t cli_cmd_unknown(char * para)
 //--------------------------------------------------------------------+
 // HELP command
 //--------------------------------------------------------------------+
-cli_error_t cli_cmd_help(char * para)
+cli_error_t cli_cmd_help(char * p_para)
 {
+  (void) p_para;
+
   puts("current supported commands are:");
-  for(uint32_t cmd_id = CLI_CMDTYPE_help+1; cmd_id < CLI_CMDTYPE_COUNT; cmd_id++)
+  for(uint8_t cmd_id = CLI_CMDTYPE_help+1; cmd_id < CLI_CMDTYPE_COUNT; cmd_id++)
   {
     printf("%s\t%s\n", cli_string_tbl[cmd_id], cli_description_tbl[cmd_id]);
   }
@@ -255,6 +258,7 @@ cli_error_t cli_cmd_help(char * para)
 //--------------------------------------------------------------------+
 cli_error_t cli_cmd_clear(char* p_para)
 {
+  (void) p_para;
   printf(ANSI_ERASE_SCREEN(2) ANSI_CURSOR_POSITION(1,1) );
   return CLI_ERROR_NONE;
 }
