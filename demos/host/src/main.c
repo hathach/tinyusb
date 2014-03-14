@@ -121,7 +121,7 @@ int main(void)
   tusb_init();
 
   //------------- application task init -------------//
-  (void) osal_task_create( OSAL_TASK_REF(led_blinking_task) );
+  if( osal_task_create( OSAL_TASK_REF(led_blinking_task) ) != TUSB_ERROR_NONE ) while(1){}
 
   keyboard_app_init();
   mouse_app_init();
