@@ -79,6 +79,10 @@ enum {
   OHCI_PERIODIC_START = 0x3E67
 };
 
+#ifdef __CC_ARM
+#pragma diag_suppress 66 // Suppress Keil warnings #66-D: enumeration value is out of "int" range
+#endif
+
 enum {
   OHCI_INT_SCHEDULING_OVERUN_MASK    = BIT_(0),
   OHCI_INT_WRITEBACK_DONEHEAD_MASK   = BIT_(1),
@@ -91,6 +95,10 @@ enum {
   OHCI_INT_OWNERSHIP_CHANGE_MASK     = BIT_(30),
   OHCI_INT_MASTER_ENABLE_MASK        = BIT_(31),
 };
+
+#ifdef __CC_ARM
+#pragma diag_default 66 // return Keil 66 to normal severity
+#endif
 
 enum {
   OHCI_RHPORT_CURRENT_CONNECT_STATUS_MASK      = BIT_(0),

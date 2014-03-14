@@ -347,7 +347,7 @@
             <uThumb>0</uThumb>
             <uSurpInc>0</uSurpInc>
             <VariousControls>
-              <MiscControls>--gnu --c99 --diag_suppress=66</MiscControls>
+              <MiscControls>--gnu --c99</MiscControls>
               <Define>CORE_M4 TUSB_CFG_MCU=MCU_LPC43XX BOARD=BOARD_EA4357 TUSB_CFG_OS=TUSB_OS_NONE</Define>
               <Undefine></Undefine>
               <IncludePath>..\src;..\..\..\mcu\lpc43xx\CMSIS_LPC43xx_DriverLib\inc;..\..\..\boards;..\..\..\tinyusb;..\..\..\vendor\fatfs</IncludePath>
@@ -1877,7 +1877,7 @@
             <uThumb>0</uThumb>
             <uSurpInc>0</uSurpInc>
             <VariousControls>
-              <MiscControls>--gnu --c99 --diag_suppress=66</MiscControls>
+              <MiscControls>--gnu --c99</MiscControls>
               <Define>TUSB_CFG_MCU=MCU_LPC175X_6X BOARD=BOARD_LPCXPRESSO1769 TUSB_CFG_OS=TUSB_OS_NONE</Define>
               <Undefine></Undefine>
               <IncludePath>..\src;..\..\..\mcu\lpc175x_6x\CMSIS_CORE_LPC17xx\inc;..\..\..\mcu\lpc175x_6x\LPC17xx_DriverLib\include;..\..\..\boards;..\..\..\tinyusb;..\..\..\vendor\fatfs</IncludePath>

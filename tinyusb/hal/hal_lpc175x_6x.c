@@ -41,6 +41,10 @@
 
 #if TUSB_CFG_MCU == MCU_LPC175X_6X
 
+#ifdef __CC_ARM
+#pragma diag_suppress 66 // Suppress Keil warnings #66-D: enumeration value is out of "int" range
+#endif
+
 //--------------------------------------------------------------------+
 // IMPLEMENTATION
 //--------------------------------------------------------------------+

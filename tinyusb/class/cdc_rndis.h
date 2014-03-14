@@ -51,6 +51,10 @@
  extern "C" {
 #endif
 
+#ifdef __CC_ARM
+#pragma diag_suppress 66 // Suppress Keil warnings #66-D: enumeration value is out of "int" range
+#endif
+
 /// RNDIS Message Types
 typedef enum {
   RNDIS_MSG_PACKET           = 0x00000001UL, ///< The host and device use this to send network data to one another.
@@ -84,6 +88,10 @@ typedef enum {
   RNDIS_STATUS_MEDIA_CONNECT    = 0x4001000BUL, ///< Device is connected to a network medium.
   RNDIS_STATUS_MEDIA_DISCONNECT = 0x4001000CUL  ///< Device is disconnected from the medium.
 }rndis_msg_status_t;
+
+#ifdef __CC_ARM
+#pragma diag_default 66 // return Keil 66 to normal severity
+#endif
 
 //--------------------------------------------------------------------+
 // MESSAGE STRUCTURE
