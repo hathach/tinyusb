@@ -139,7 +139,7 @@ tusb_error_t tusbh_msc_write10(uint8_t dev_addr, uint8_t lun, void const * p_buf
  * \retval      TUSB_ERROR_INVALID_PARA if input parameters are not correct
  * \note        This function is non-blocking and returns immediately. The result of USB transfer will be reported by the interface's callback function
  */
-tusb_error_t tusbh_msc_request_sense(uint8_t dev_addr, uint8_t lun, uint8_t *p_data) ATTR_WARN_UNUSED_RESULT;
+tusb_error_t tusbh_msc_request_sense(uint8_t dev_addr, uint8_t lun, uint8_t *p_data);
 
 /** \brief 			Perform SCSI TEST UNIT READY command to test if MassStorage device is ready
  * \param[in]		dev_addr	device address

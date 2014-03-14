@@ -47,11 +47,13 @@
 tusb_error_t hal_init(void)
 {
   enum {
-    USBCLK_DEVCIE = 0x12, // AHB + Device
-    USBCLK_HOST   = 0x19  // AHB + Host + OTG (!)
+    USBCLK_DEVCIE = 0x12,     // AHB + Device
+    USBCLK_HOST   = 0x19,     // AHB + Host + OTG (!)
+
+    PCONP_PCUSB   = BIT_(31)
   };
 
-  LPC_SC->PCONP |= CLKPWR_PCONP_PCUSB; // enable USB Peripherals
+  LPC_SC->PCONP |= PCONP_PCUSB; // enable USB Peripherals
 
   //------------- user manual 11.13 usb device controller initialization -------------//
   PINSEL_ConfigPin( &(PINSEL_CFG_Type) { .Portnum = 0, .Pinnum = 29, .Funcnum = 1} ); // P0.29 as D+
