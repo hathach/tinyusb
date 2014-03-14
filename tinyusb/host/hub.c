@@ -207,19 +207,29 @@ tusb_error_t hub_open_subtask(uint8_t dev_addr, tusb_descriptor_interface_t cons
   OSAL_SUBTASK_END
 }
 
+// is the response of interrupt endpoint polling
 void hub_isr(pipe_handle_t pipe_hdl, tusb_event_t event, uint32_t xferred_bytes)
 {
+  (void) xferred_bytes; // TODO can be more than 1 for hub with lots of ports
+
   usbh_hub_t * p_hub = &hub_data[pipe_hdl.dev_addr-1];
 
-  for (uint8_t port=1; port <= p_hub->port_number; port++)
-  { // TODO HUB ignore bit0 hub_status_change
-    if ( BIT_TEST_(p_hub->status_change, port) )
-    {
-      usbh_hub_port_plugged_isr(pipe_hdl.dev_addr, port);
+  if ( event == TUSB_EVENT_XFER_COMPLETE )
+  {
+    for (uint8_t port=1; port <= p_hub->port_number; port++)
+    { // TODO HUB ignore bit0 hub_status_change
+      if ( BIT_TEST_(p_hub->status_change, port) )
+      {
+        usbh_hub_port_plugged_isr(pipe_hdl.dev_addr, port);
+      }
     }
+    // NOTE: next status transfer is queued by usbh.c after handling this request
   }
-
-  // NOTE: next status transfer is queued by usbh.c after handling this request
+  else
+  {
+    // TODO [HUB] check if hub is still plugged before polling status endpoint since failed usually mean hub unplugged
+//    ASSERT_INT ( TUSB_ERROR_NONE, hcd_pipe_xfer(pipe_hdl, &p_hub->status_change, 1, true) );
+  }
 }
 
 void hub_close(uint8_t dev_addr)

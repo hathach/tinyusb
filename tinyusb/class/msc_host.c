@@ -184,6 +184,8 @@ tusb_error_t tusbh_msc_read_capacity10(uint8_t dev_addr, uint8_t lun, uint8_t *p
 
 tusb_error_t tusbh_msc_request_sense(uint8_t dev_addr, uint8_t lun, uint8_t *p_data)
 {
+  (void) lun; // TODO [MSCH] multiple lun support
+
   msch_interface_t* p_msch = &msch_data[dev_addr-1];
 
   //------------- Command Block Wrapper -------------//

@@ -151,6 +151,8 @@ int main(void)
 //--------------------------------------------------------------------+
 OSAL_TASK_FUNCTION( led_blinking_task ) (void* p_task_para)
 {
+  (void) p_task_para; // suppress compiler warnings
+
   static uint32_t led_on_mask = 0;
 
   OSAL_TASK_LOOP_BEGIN

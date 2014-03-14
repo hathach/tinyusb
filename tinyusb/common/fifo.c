@@ -38,8 +38,11 @@
 #include <string.h>
 #include "fifo.h"
 
-static inline void mutex_lock   (fifo_t* f) ATTR_ALWAYS_INLINE;
-static inline void mutex_unlock (fifo_t* f) ATTR_ALWAYS_INLINE;
+//static inline void mutex_lock   (fifo_t* f) ATTR_ALWAYS_INLINE;
+//static inline void mutex_unlock (fifo_t* f) ATTR_ALWAYS_INLINE;
+#define mutex_lock(f)
+#define mutex_unlock(f)
+
 static inline bool is_fifo_initalized(fifo_t* f) ATTR_ALWAYS_INLINE;
 
 
@@ -154,15 +157,15 @@ void fifo_clear(fifo_t *f)
                 Pointer to the FIFO that should be protected
 */
 /**************************************************************************/
-static inline void mutex_lock (fifo_t* f)
-{
+//static inline void mutex_lock (fifo_t* f)
+//{
 //  if (f->irq > 0)
 //  {
 //    #if !defined (_TEST_)
 //    NVIC_DisableIRQ(f->irq);
 //    #endif
 //  }
-}
+//}
 
 /**************************************************************************/
 /*!
@@ -172,15 +175,15 @@ static inline void mutex_lock (fifo_t* f)
                 Pointer to the FIFO that should be protected
 */
 /**************************************************************************/
-static inline void mutex_unlock (fifo_t* f)
-{
+//static inline void mutex_unlock (fifo_t* f)
+//{
 //  if (f->irq > 0)
 //  {
 //    #if !defined (_TEST_)
 //    NVIC_EnableIRQ(f->irq);
 //    #endif
 //  }
-}
+//}
 
 static inline bool is_fifo_initalized(fifo_t* f)
 {

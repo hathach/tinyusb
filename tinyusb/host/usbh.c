@@ -240,10 +240,11 @@ static inline tusb_error_t usbh_pipe_control_close(uint8_t dev_addr)
   return TUSB_ERROR_NONE;
 }
 
-tusb_interface_status_t usbh_pipe_status_get(pipe_handle_t pipe_hdl)
-{
-  return TUSB_INTERFACE_STATUS_BUSY;
-}
+// TODO [USBH] unify pipe status get
+//tusb_interface_status_t usbh_pipe_status_get(pipe_handle_t pipe_hdl)
+//{
+//  return TUSB_INTERFACE_STATUS_BUSY;
+//}
 
 //--------------------------------------------------------------------+
 // USBH-HCD ISR/Callback API
@@ -347,6 +348,8 @@ static tusb_error_t enumeration_body_subtask(void);
 // forever loop cannot have any return at all.
 OSAL_TASK_FUNCTION(usbh_enumeration_task) (void* p_task_para)
 {
+  (void) p_task_para; // suppress compiler warnings
+
   OSAL_TASK_LOOP_BEGIN
 
   enumeration_body_subtask();
