@@ -87,7 +87,7 @@ void dcd_pipe_control_stall(uint8_t coreid);
 endpoint_handle_t dcd_pipe_open(uint8_t coreid, tusb_descriptor_endpoint_t const * p_endpoint_desc, uint8_t class_code) ATTR_WARN_UNUSED_RESULT;
 tusb_error_t dcd_pipe_queue_xfer(endpoint_handle_t edpt_hdl, uint8_t * buffer, uint16_t total_bytes) ATTR_WARN_UNUSED_RESULT; // only queue, not transferring yet
 tusb_error_t dcd_pipe_xfer(endpoint_handle_t edpt_hdl, uint8_t * buffer, uint16_t total_bytes, bool int_on_complete)  ATTR_WARN_UNUSED_RESULT;
-tusb_error_t dcd_pipe_stall(endpoint_handle_t edpt_hdl) ATTR_WARN_UNUSED_RESULT;
+tusb_error_t dcd_pipe_stall(endpoint_handle_t edpt_hdl);
 bool dcd_pipe_is_busy(endpoint_handle_t edpt_hdl) ATTR_WARN_UNUSED_RESULT ;
 
 // TODO coreid + endpoint address are part of endpoint handle, not endpoint handle, data toggle also need to be reset

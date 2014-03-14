@@ -55,9 +55,9 @@
 usbd_device_info_t usbd_devices[CONTROLLER_DEVICE_NUMBER];
 
 // TODO fix/compress number of class driver
-static usbd_class_driver_t const usbd_class_drivers[TUSB_CLASS_MAPPED_INDEX_START] =
+static usbd_class_driver_t const usbd_class_drivers[] =
 {
-#if DEVICE_CLASS_HID
+  #if DEVICE_CLASS_HID
     [TUSB_CLASS_HID] =
     {
         .init                    = hidd_init,
@@ -66,9 +66,9 @@ static usbd_class_driver_t const usbd_class_drivers[TUSB_CLASS_MAPPED_INDEX_STAR
         .xfer_cb                 = hidd_xfer_cb,
         .close                   = hidd_close
     },
-#endif
+  #endif
 
-#if TUSB_CFG_DEVICE_MSC
+  #if TUSB_CFG_DEVICE_MSC
     [TUSB_CLASS_MSC] =
     {
         .init                    = mscd_init,
@@ -77,9 +77,9 @@ static usbd_class_driver_t const usbd_class_drivers[TUSB_CLASS_MAPPED_INDEX_STAR
         .xfer_cb                 = mscd_xfer_cb,
         .close                   = mscd_close
     },
-#endif
+  #endif
 
-#if TUSB_CFG_DEVICE_CDC
+  #if TUSB_CFG_DEVICE_CDC
     [TUSB_CLASS_CDC] =
     {
         .init                    = cdcd_init,
@@ -88,8 +88,12 @@ static usbd_class_driver_t const usbd_class_drivers[TUSB_CLASS_MAPPED_INDEX_STAR
         .xfer_cb                 = cdcd_xfer_cb,
         .close                   = cdcd_close
     },
-#endif
+  #endif
 
+};
+
+enum {
+  USBD_CLASS_DRIVER_COUNT = sizeof(usbd_class_drivers) / sizeof(usbd_class_driver_t)
 };
 
 //--------------------------------------------------------------------+
@@ -135,7 +139,7 @@ typedef struct ATTR_ALIGNED(4)
       uint32_t xferred_byte;
     }xfer_done;
   };
-}usbd_task_event_t;
+} usbd_task_event_t;
 
 STATIC_ASSERT(sizeof(usbd_task_event_t) <= 12, "size is not correct");
 
@@ -150,7 +154,8 @@ tusb_error_t usbd_control_request_subtask(uint8_t coreid, tusb_control_request_t
 {
   OSAL_SUBTASK_BEGIN
 
-  tusb_error_t error = TUSB_ERROR_NONE;
+  tusb_error_t error;
+  error = TUSB_ERROR_NONE;
 
   //------------- Standard Control such as those in enumeration -------------//
   if( TUSB_REQUEST_RECIPIENT_DEVICE == p_request->bmRequestType_bit.recipient &&
@@ -165,7 +170,7 @@ tusb_error_t usbd_control_request_subtask(uint8_t coreid, tusb_control_request_t
 
       if ( TUSB_ERROR_NONE == error )
       {
-        dcd_pipe_control_xfer(coreid, p_request->bmRequestType_bit.direction, p_buffer, length, false);
+        dcd_pipe_control_xfer(coreid, (tusb_direction_t) p_request->bmRequestType_bit.direction, p_buffer, length, false);
       }
     }
     else if ( TUSB_REQUEST_SET_ADDRESS == p_request->bRequest )
@@ -185,11 +190,12 @@ tusb_error_t usbd_control_request_subtask(uint8_t coreid, tusb_control_request_t
   //------------- Class/Interface Specific Request -------------//
   else if ( TUSB_REQUEST_RECIPIENT_INTERFACE == p_request->bmRequestType_bit.recipient)
   {
-    OSAL_VAR tusb_std_class_code_t class_code;
+    OSAL_VAR uint8_t class_code;
 
     class_code = usbd_devices[coreid].interface2class[ u16_low_u8(p_request->wIndex) ];
 
-    if ( (TUSB_CLASS_AUDIO <= class_code) && (class_code <= TUSB_CLASS_AUDIO_VIDEO) &&
+    // TODO [Custom] TUSB_CLASS_DIAGNOSTIC, vendor etc ...
+    if ( (class_code > 0) && (class_code < USBD_CLASS_DRIVER_COUNT) &&
          usbd_class_drivers[class_code].control_request_subtask )
     {
       OSAL_SUBTASK_INVOKED_AND_WAIT( usbd_class_drivers[class_code].control_request_subtask(coreid, p_request), error );
@@ -216,7 +222,7 @@ tusb_error_t usbd_control_request_subtask(uint8_t coreid, tusb_control_request_t
     //    ASSERT(error == TUSB_ERROR_NONE, VOID_RETURN);
   }else if (p_request->wLength == 0)
   {
-    dcd_pipe_control_xfer(coreid, p_request->bmRequestType_bit.direction, NULL, 0, false); // zero length for non-data
+    dcd_pipe_control_xfer(coreid, (tusb_direction_t) p_request->bmRequestType_bit.direction, NULL, 0, false); // zero length for non-data
   }
 
   OSAL_SUBTASK_END
@@ -230,7 +236,8 @@ OSAL_TASK_FUNCTION(usbd_task) (void* p_task_para)
   OSAL_TASK_LOOP_BEGIN
 
   OSAL_VAR usbd_task_event_t event;
-  tusb_error_t error = TUSB_ERROR_NONE;
+  tusb_error_t error;
+  error = TUSB_ERROR_NONE;
 
   osal_queue_receive(usbd_queue_hdl, &event, OSAL_TIMEOUT_WAIT_FOREVER, &error);
   SUBTASK_ASSERT_STATUS(error);
@@ -245,7 +252,7 @@ OSAL_TASK_FUNCTION(usbd_task) (void* p_task_para)
 
     if (usbd_class_drivers[class_index].xfer_cb)
     {
-      usbd_class_drivers[class_index].xfer_cb( event.xfer_done.edpt_hdl, event.sub_event_id, event.xfer_done.xferred_byte);
+      usbd_class_drivers[class_index].xfer_cb( event.xfer_done.edpt_hdl, (tusb_event_t) event.sub_event_id, event.xfer_done.xferred_byte);
     }else
     {
       hal_debugger_breakpoint(); // something wrong, no one claims the isr's source
@@ -326,7 +333,7 @@ static tusb_error_t usbd_set_configure_received(uint8_t coreid, uint8_t config_n
 
 static tusb_error_t get_descriptor(uint8_t coreid, tusb_control_request_t const * const p_request, uint8_t ** pp_buffer, uint16_t * p_length)
 {
-  tusb_std_descriptor_type_t const desc_type = u16_high_u8(p_request->wValue);
+  tusb_std_descriptor_type_t const desc_type = (tusb_std_descriptor_type_t) u16_high_u8(p_request->wValue);
   uint8_t const desc_index = u16_low_u8( p_request->wValue );
 
   if ( TUSB_DESC_TYPE_DEVICE == desc_type )
