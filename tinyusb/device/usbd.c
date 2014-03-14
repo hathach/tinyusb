@@ -276,7 +276,7 @@ tusb_error_t usbd_init (void)
   ASSERT_STATUS( osal_task_create( OSAL_TASK_REF(usbd_task) ));
 
   //------------- class init -------------//
-  for (tusb_std_class_code_t class_code = TUSB_CLASS_AUDIO; class_code <= TUSB_CLASS_AUDIO_VIDEO; class_code++)
+  for (uint8_t class_code = TUSB_CLASS_AUDIO; class_code < USBD_CLASS_DRIVER_COUNT; class_code++)
   {
     if ( usbd_class_drivers[class_code].init )
     {
@@ -315,7 +315,7 @@ static tusb_error_t usbd_set_configure_received(uint8_t coreid, uint8_t config_n
 
       class_index = p_desc_interface->bInterfaceClass;
 
-      ASSERT( class_index != 0 && usbd_class_drivers[class_index].open != NULL, TUSB_ERROR_NOT_SUPPORTED_YET );
+      ASSERT( class_index != 0 && class_index < USBD_CLASS_DRIVER_COUNT && usbd_class_drivers[class_index].open != NULL, TUSB_ERROR_NOT_SUPPORTED_YET );
       ASSERT( 0 == usbd_devices[coreid].interface2class[p_desc_interface->bInterfaceNumber], TUSB_ERROR_FAILED); // duplicate interface number TODO alternate setting
 
       usbd_devices[coreid].interface2class[p_desc_interface->bInterfaceNumber] = class_index;
@@ -375,7 +375,7 @@ void usbd_dcd_bus_event_isr(uint8_t coreid, usbd_bus_event_type_t bus_event)
     case USBD_BUS_EVENT_RESET     :
     case USBD_BUS_EVENT_UNPLUGGED :
       memclr_(&usbd_devices[coreid], sizeof(usbd_device_info_t));
-      for (tusb_std_class_code_t class_code = TUSB_CLASS_AUDIO; class_code <= TUSB_CLASS_AUDIO_VIDEO; class_code++)
+      for (uint8_t class_code = TUSB_CLASS_AUDIO; class_code < USBD_CLASS_DRIVER_COUNT; class_code++)
       {
         if ( usbd_class_drivers[class_code].close ) usbd_class_drivers[class_code].close( coreid );
       }
