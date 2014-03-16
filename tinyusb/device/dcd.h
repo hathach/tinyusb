@@ -36,11 +36,9 @@
 */
 /**************************************************************************/
 
-/** \addtogroup Port Port
- *  @{
- *  \defgroup Port_DCD Device Controller Driver (DCD)
- *  @{
- */
+/** \ingroup Group_USBD
+ * \defgroup Group_DCD Device Controller Driver (DCD)
+ *  @{ */
 
 #ifndef _TUSB_DCD_H_
 #define _TUSB_DCD_H_
@@ -99,5 +97,4 @@ tusb_error_t dcd_pipe_clear_stall(uint8_t coreid, uint8_t edpt_addr);
 
 #endif /* _TUSB_DCD_H_ */
 
-/// @}
 /// @}

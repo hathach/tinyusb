@@ -185,7 +185,7 @@ void tusbh_hid_mouse_unmounted_cb(uint8_t dev_addr);
 //--------------------------------------------------------------------+
 // GENERIC Application API
 //--------------------------------------------------------------------+
-/** \addtogroup ClassDriver_HID_Generic Generic
+/** \addtogroup ClassDriver_HID_Generic Generic (not supported yet)
  *  @{ */
 
 /** \defgroup Generic_Host Host

@@ -36,12 +36,11 @@
 */
 /**************************************************************************/
 
-/** \ingroup TBD
- *  \defgroup TBD
- *  \brief TBD
- *
- *  @{
- */
+/** \addtogroup Group_Common Common Files
+ * @{
+ *  \defgroup Group_Binary binary.h
+ *  @{ */
+
 
 #ifndef _TUSB_BINARY_H_
 #define _TUSB_BINARY_H_
@@ -131,4 +130,5 @@ static inline uint32_t bit_set_range(uint32_t value, uint8_t start, uint8_t end,
 
 #endif /* _TUSB_BINARY_H_ */
 
+/** @} */
 /** @} */

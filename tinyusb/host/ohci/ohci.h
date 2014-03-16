@@ -36,12 +36,11 @@
 */
 /**************************************************************************/
 
-/** \ingroup Port_HCD
+/** \ingroup Group_HCD
  * @{
  *  \defgroup OHCI
  *  \brief OHCI driver. All documents sources mentioned here (eg section 3.5) is referring to OHCI Specs unless state otherwise
- *  @{
- */
+ *  @{ */
 
 #ifndef _TUSB_OHCI_H_
 #define _TUSB_OHCI_H_

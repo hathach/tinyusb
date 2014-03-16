@@ -36,12 +36,9 @@
 */
 /**************************************************************************/
 
-/** \ingroup TBD
- *  \defgroup TBD
+/** \defgroup Group_USBD USB Device Driver (USBD)
  *  \brief TBD
- *
- *  @{
- */
+ *  @{ */
 
 #ifndef _TUSB_USBD_H_
 #define _TUSB_USBD_H_

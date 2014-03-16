@@ -53,31 +53,6 @@
 #include "cdc_serial_app.h"
 #include "rndis_app.h"
 
-//#if defined(__CODE_RED) // TODO to be removed
-//  #include <cr_section_macros.h>
-//  #include <NXP/crp.h>
-//  // Variable to store CRP value in. Will be placed automatically
-//  // by the linker when "Enable Code Read Protect" selected.
-//  // See crp.h header for more information
-//  __CRP const unsigned int CRP_WORD = CRP_NO_CRP ;
-//#endif
-
-#if 0
-#include "lwip/opt.h"
-#include "lwip/sys.h"
-#include "lwip/memp.h"
-#include "lwip/tcpip.h"
-#include "lwip/ip_addr.h"
-#include "lwip/netif.h"
-#include "lwip/timers.h"
-#include "netif/etharp.h"
-#if LWIP_DHCP
-#include "lwip/dhcp.h"
-#endif
-#include "../contrib/apps/httpserver/httpserver-netconn.h"
-#include "arch/lpc18xx_43xx_emac.h"
-#endif
-
 //--------------------------------------------------------------------+
 // MACRO CONSTANT TYPEDEF
 //--------------------------------------------------------------------+
@@ -89,7 +64,6 @@ OSAL_TASK_FUNCTION( led_blinking_task ) (void* p_task_para);
 OSAL_TASK_DEF(led_blinking_task, 128, LED_BLINKING_APP_TASK_PRIO);
 
 void print_greeting(void);
-//static inline void wait_blocking_ms(uint32_t ms);
 
 //--------------------------------------------------------------------+
 // IMPLEMENTATION

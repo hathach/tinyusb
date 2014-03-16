@@ -36,7 +36,7 @@
 */
 /**************************************************************************/
 
-/** \ingroup Port_HCD
+/** \ingroup Group_HCD
  * @{
  *  \defgroup EHCI
  *  \brief EHCI driver. All documents sources mentioned here (eg section 3.5) is referring to EHCI Specs unless state otherwise

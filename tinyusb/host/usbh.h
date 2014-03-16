@@ -36,12 +36,9 @@
 */
 /**************************************************************************/
 
-/** \ingroup TBD
- *  \defgroup TBD
+/** \defgroup Group_USBH USB Host Driver (USBH)
  *  \brief TBD
- *
- *  @{
- */
+ *  @{ */
 
 #ifndef _TUSB_USBD_HOST_H_
 #define _TUSB_USBD_HOST_H_

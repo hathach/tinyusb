@@ -36,10 +36,9 @@
 */
 /**************************************************************************/
 
-/** \ingroup TBD
- *  \defgroup TBD
- *  \brief TBD
- *
+/** \addtogroup ClassDriver Class Driver
+ * @{
+ *  \defgroup Group_Custom Custom Class (not supported yet)
  *  @{
  */
 
@@ -88,4 +87,5 @@ void         cush_close(uint8_t dev_addr);
 
 #endif /* _TUSB_CUSTOM_CLASS_H_ */
 
+/** @} */
 /** @} */

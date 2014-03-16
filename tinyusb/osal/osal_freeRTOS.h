@@ -36,12 +36,10 @@
 */
 /**************************************************************************/
 
-/** \ingroup TBD
- *  \defgroup TBD
- *  \brief TBD
- *
- *  @{
- */
+/** \ingroup Group_OSAL
+ * @{
+ *  \defgroup Group_FreeRTOS  FreeRTOS
+ *  @{ */
 
 #ifndef _TUSB_OSAL_FREERTOS_H_
 #define _TUSB_OSAL_FREERTOS_H_
@@ -201,3 +199,5 @@ static inline void osal_queue_flush(osal_queue_handle_t const queue_hdl)
 #endif /* _TUSB_OSAL_FREERTOS_H_ */
 
 /** @} */
+/** @} */
+

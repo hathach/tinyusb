@@ -36,8 +36,7 @@
 */
 /**************************************************************************/
 
-/**
- *  \addtogroup ClassDriver Class Driver
+/** \addtogroup ClassDriver Class Driver
  *  @{
  *  \defgroup ClassDriver_MSC MassStorage (MSC)
  *  @{ */

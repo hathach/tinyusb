@@ -38,7 +38,7 @@
 
 /** \addtogroup ClassDriver
  *  @{
- *  \defgroup ClassDriver_Hub Hub (Host)
+ *  \defgroup ClassDriver_Hub Hub (Host only)
  *  \details  Like most PC's OS, Hub support is completely hidden from Application. In fact, application cannot determine whether
  *            a device is mounted directly via roothub or via a hub's port. All Hub-related procedures are performed and managed
  *            by tinyusb stack. Unless you are trying to develop the stack itself, there are nothing else can be used by Application.

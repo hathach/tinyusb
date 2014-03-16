@@ -36,13 +36,10 @@
 */
 /**************************************************************************/
 
-/** \defgroup Group_Common Common Files
+/** \addtogroup Group_Common Common Files
  * @{
- *
  *  \defgroup Group_CommonH common.h
- *
- *  @{
- */
+ *  @{ */
 
 #ifndef _TUSB_COMMON_H_
 #define _TUSB_COMMON_H_

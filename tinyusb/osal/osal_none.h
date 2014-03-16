@@ -36,12 +36,10 @@
 */
 /**************************************************************************/
 
-/** \ingroup TBD
- *  \defgroup TBD
- *  \brief TBD
- *
- *  @{
- */
+/** \addtogroup Group_OSAL
+ * @{
+ * \defgroup Group_OSNone None OS
+ *  @{ */
 
 #ifndef _TUSB_OSAL_NONE_H_
 #define _TUSB_OSAL_NONE_H_
@@ -336,4 +334,5 @@ static inline void osal_queue_flush(osal_queue_handle_t const queue_hdl)
 
 #endif /* _TUSB_OSAL_NONE_H_ */
 
+/** @} */
 /** @} */

@@ -36,18 +36,11 @@
 */
 /**************************************************************************/
 
-/** \file
- *  \brief TBD
- *
- *  \note TBD
- */
+/** \addtogroup Group_Common Common Files
+ * @{
+ *  \defgroup Group_TimeoutTimer timeout timer
+ *  @{ */
 
-/** \ingroup TBD
- *  \defgroup TBD
- *  \brief TBD
- *
- *  @{
- */
 
 #ifndef _TUSB_TIMEOUT_TTIMER_H_
 #define _TUSB_TIMEOUT_TTIMER_H_
@@ -83,3 +76,5 @@ static inline bool timeout_expired(timeout_timer_t* tt)
 #endif /* _TUSB_TIMEOUT_TTIMER_H_ */
 
 /** @} */
+/** @} */
+

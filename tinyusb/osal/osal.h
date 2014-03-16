@@ -51,12 +51,8 @@
 /** @} */
 
 
-/** \addtogroup Port Port
- * @{
- *  \defgroup Port_OSAL  OS Abstraction Layer (OSAL)
- *  @{
- */
-
+/** \defgroup Group_OSAL OS Abstraction Layer (OSAL)
+ *  @{ */
 
 #ifdef __cplusplus
  extern "C" {
@@ -68,6 +64,7 @@
 
 #if TUSB_CFG_OS == TUSB_OS_NONE
   #include "osal_none.h"
+
 #else
   #define OSAL_VAR
   #define OSAL_TASK_FUNCTION(task_func) void task_func
@@ -111,7 +108,8 @@
   #endif
 #endif
 
-#else // OSAL API for cmock
+//------------- OSAL API for cmock -------------//
+#else
 
 #define OSAL_VAR
 #include "osal_common.h"
@@ -231,7 +229,6 @@ uint32_t osal_tick_get(void);
  }
 #endif
 
-/** @} */
 /** @} */
 
 #endif /* _TUSB_OSAL_H_ */

@@ -36,11 +36,9 @@
 */
 /**************************************************************************/
 
-/** \addtogroup Port Port
- *  @{
- *  \defgroup Port_HCD Host Controller Driver (HCD)
- *  @{
- */
+/** \ingroup Group_USBH
+ * \defgroup Group_HCD Host Controller Driver (HCD)
+ *  @{ */
 
 #ifndef _TUSB_HCD_H_
 #define _TUSB_HCD_H_
@@ -116,7 +114,6 @@ void hcd_port_unplug(uint8_t hostid); // called by usbh to instruct hcd that it 
  }
 #endif
 
- #endif /* _TUSB_HCD_H_ */
+#endif /* _TUSB_HCD_H_ */
 
-/// @}
 /// @}
