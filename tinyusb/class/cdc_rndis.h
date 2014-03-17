@@ -36,11 +36,11 @@
 */
 /**************************************************************************/
 
-/** \addtogroup CDC_RNDIS Remote Network Driver Interface Specification (RNDIS)
+/** \ingroup ClassDriver_CDC Communication Device Class (CDC)
+ * \defgroup CDC_RNDIS Remote Network Driver Interface Specification (RNDIS)
  *  @{
  *  \defgroup CDC_RNDIS_Common Common Definitions
- *  @{
- */
+ *  @{ */
 
 #ifndef _TUSB_CDC_RNDIS_H_
 #define _TUSB_CDC_RNDIS_H_

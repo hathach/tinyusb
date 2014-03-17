@@ -36,13 +36,6 @@
 */
 /**************************************************************************/
 
-/** \ingroup TBD
- *  \defgroup TBD
- *  \brief TBD
- *
- *  @{
- */
-
 #ifndef _TUSB_TUSB_CONFIG_H_
 #define _TUSB_TUSB_CONFIG_H_
 
@@ -53,10 +46,9 @@
 //--------------------------------------------------------------------+
 // CONTROLLER CONFIGURATION
 //--------------------------------------------------------------------+
-//#define TUSB_CFG_MCU will be passed from IDE for easy board/mcu switching
+//#define TUSB_CFG_MCU will be passed from IDE/command line for easy board/mcu switching
 
 #define TUSB_CFG_CONTROLLER_0_MODE  (TUSB_MODE_DEVICE)
-#define TUSB_CFG_CONTROLLER_1_MODE  (TUSB_MODE_NONE) // TODO not yet tested
 
 //--------------------------------------------------------------------+
 // DEVICE CONFIGURATION
@@ -78,9 +70,8 @@
 //--------------------------------------------------------------------+
 #define TUSB_CFG_DEBUG                3
 
-//#define TUSB_CFG_OS                   TUSB_OS_NONE // defined using eclipse build
-//#define TUSB_CFG_OS_TASK_PRIO
-
+//#define TUSB_CFG_OS                   TUSB_OS_NONE // be passed from IDE/command line for easy project switching
+//#define TUSB_CFG_OS_TASK_PRIO                      // be passed from IDE/command line for easy project switching
 #define TUSB_CFG_OS_TICKS_PER_SECOND  1000
 
 //--------------------------------------------------------------------+
@@ -128,5 +119,3 @@
 #endif
 
 #endif /* _TUSB_TUSB_CONFIG_H_ */
-
-/** @} */

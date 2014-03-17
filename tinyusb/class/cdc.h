@@ -36,9 +36,7 @@
 */
 /**************************************************************************/
 
-/** 
- *  \addtogroup ClassDriver Class Driver
- *  @{
+/** \ingroup ClassDriver Class Driver
  *  \defgroup ClassDriver_CDC Communication Device Class (CDC)
  *            Currently only Abstract Control Model subclass is supported
  *  @{
@@ -395,5 +393,4 @@ STATIC_ASSERT(sizeof(cdc_line_control_state_t) == 2, "size is not correct");
 
 #endif
 
-/** @} */
 /** @} */

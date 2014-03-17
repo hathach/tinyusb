@@ -48,16 +48,14 @@
  extern "C" {
 #endif
 
-/** \addtogroup ClassDriver_CDC Communication Device Class (CDC)
- *  @{ */
-
 //--------------------------------------------------------------------+
-// APPLICATION PUBLIC API
+// CDC APPLICATION PUBLIC API
 //--------------------------------------------------------------------+
-/** \addtogroup CDC_Serial Serial
- *  @{
- *  \defgroup   CDC_Serial_Host Host
- *  @{ */
+/** \ingroup ClassDriver_CDC Communication Device Class (CDC)
+ * \addtogroup CDC_Serial Serial
+ * @{
+ * \defgroup   CDC_Serial_Host Host
+ * @{ */
 
 /** \brief 			Check if device support CDC Serial interface or not
  * \param[in]		dev_addr	device address
@@ -131,15 +129,14 @@ void tusbh_cdc_unmounted_cb(uint8_t dev_addr);
  */
 void tusbh_cdc_xfer_isr(uint8_t dev_addr, tusb_event_t event, cdc_pipeid_t pipe_id, uint32_t xferred_bytes);
 
-/// @}
+/// @} // group CDC_Serial_Host
 /// @}
 
 //--------------------------------------------------------------------+
 // RNDIS APPLICATION API
 //--------------------------------------------------------------------+
-/** \addtogroup CDC_RNDIS Remote Network Driver Interface Specification (RNDIS)
- * @{
- * \addtogroup CDC_RNSID_Host Host
+/** \ingroup CDC_RNDIS Remote Network Driver Interface Specification (RNDIS)
+ * \defgroup CDC_RNSID_Host Host
  *  @{ */
 
 bool tusbh_cdc_rndis_is_mounted(uint8_t dev_addr) ATTR_PURE ATTR_WARN_UNUSED_RESULT;
@@ -162,8 +159,7 @@ void tusbh_cdc_rndis_unmounted_cb(uint8_t dev_addr);
 
 void tusbh_cdc_rndis_xfer_isr(uint8_t dev_addr, tusb_event_t event, cdc_pipeid_t pipe_id, uint32_t xferred_bytes);
 
-/// @}
-/// @}
+/// @} // group CDC_RNSID_Host
 
 //--------------------------------------------------------------------+
 // USBH-CLASS API
@@ -194,5 +190,3 @@ void         cdch_close(uint8_t dev_addr);
 #endif
 
 #endif /* _TUSB_CDC_HOST_H_ */
-
-/** @} */

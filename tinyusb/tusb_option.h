@@ -48,7 +48,7 @@
 #define TUSB_VERSION_NAME   "alpha"
 #define TUSB_VERSION        XSTRING_(TUSB_VERSION_YEAR) "." XSTRING_(TUSB_VERSION_MONTH)
 
-/** \defgroup MCU_ MCU Selection
+/** \defgroup config_mcu_selection MCU Selection
  * \brief TUSB_CFG_MCU must be defined to one of these
  *  @{ */
 #define MCU_LPC13UXX       1 ///< NXP LPC13xx 12 bit ADC family with USB on-chip Rom Driver (not supported yet)
@@ -78,6 +78,14 @@
 #define TUSB_MODE_DEVICE  0x01 ///< Device Mode
 #define TUSB_MODE_NONE    0x00 ///< Disabled
 /** @} */
+
+#ifndef TUSB_CFG_CONTROLLER_0_MODE
+  #define TUSB_CFG_CONTROLLER_0_MODE TUSB_MODE_NONE
+#endif
+
+#ifndef TUSB_CFG_CONTROLLER_1_MODE
+  #define TUSB_CFG_CONTROLLER_1_MODE TUSB_MODE_NONE
+#endif
 
 #define CONTROLLER_HOST_NUMBER (\
     ((TUSB_CFG_CONTROLLER_0_MODE & TUSB_MODE_HOST) ? 1 : 0) + \
@@ -123,9 +131,6 @@
   #endif
 #endif
 
-/**
- * Maximum number of supported USB's configuration (currently only support only 1)
- */
 //#ifndef TUSB_CFG_CONFIGURATION_MAX
 //  #define TUSB_CFG_CONFIGURATION_MAX 1
 //  #warning TUSB_CFG_CONFIGURATION_MAX is not defined, default value is 1
