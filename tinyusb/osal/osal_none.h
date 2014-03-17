@@ -108,7 +108,6 @@ uint32_t tusb_tick_get(void);
 //--------------------------------------------------------------------+
 // SUBTASK (a sub function that uses OS blocking services & called by a task
 //--------------------------------------------------------------------+
-//------------- Sub Task -------------//
 #define OSAL_SUBTASK_INVOKED_AND_WAIT(subtask, status) \
     do {\
       state = __LINE__; case __LINE__:\
@@ -314,9 +313,6 @@ static inline void osal_queue_flush(osal_queue_handle_t const queue_hdl)
       *(p_error) = TUSB_ERROR_NONE;\
     }\
   }while(0)
-
-
-// queue_send, queue_receive
 
 #ifdef __cplusplus
  }

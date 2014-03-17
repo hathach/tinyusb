@@ -36,12 +36,6 @@
 */
 /**************************************************************************/
 
-/** \file
- *  \brief Tiny USB header
- *
- *  \note Tiny USB header Note
- */
-
 #ifndef _TUSB_H_
 #define _TUSB_H_
 
