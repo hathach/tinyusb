@@ -56,18 +56,8 @@
 //--------------------------------------------------------------------+
 // TICK API
 //--------------------------------------------------------------------+
-extern volatile uint32_t osal_tick_current;
-static inline void osal_tick_tock(void) ATTR_ALWAYS_INLINE;
-static inline void osal_tick_tock(void)
-{
-  osal_tick_current++;
-}
-
-static inline uint32_t osal_tick_get(void) ATTR_ALWAYS_INLINE;
-static inline uint32_t osal_tick_get(void)
-{
-  return osal_tick_current;
-}
+uint32_t tusb_tick_get(void);
+#define osal_tick_get tusb_tick_get
 
 //--------------------------------------------------------------------+
 // TASK API

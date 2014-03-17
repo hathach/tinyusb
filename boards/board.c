@@ -38,13 +38,17 @@
 
 #include "board.h"
 
-#if TUSB_CFG_OS == TUSB_OS_NONE // TODO may move to main.c
+#if TUSB_CFG_OS == TUSB_OS_NONE
 volatile uint32_t system_ticks = 0;
 
 void SysTick_Handler (void)
 {
   system_ticks++;
-  tusb_tick_tock(); // TODO temporarily
+}
+
+uint32_t tusb_tick_get(void)
+{
+  return system_ticks;
 }
 
 #endif
