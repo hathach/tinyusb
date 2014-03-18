@@ -68,7 +68,7 @@ void board_init(void)
   SystemInit();
 
 #if TUSB_CFG_OS == TUSB_OS_NONE // TODO may move to main.c
-  SysTick_Config(SystemCoreClock / CFG_TICKS_PER_SECOND); // 1 msec tick timer
+  SysTick_Config(SystemCoreClock / TUSB_CFG_TICKS_HZ); // 1 msec tick timer
 #endif
 
   //------------- LED -------------//

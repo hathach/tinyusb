@@ -56,7 +56,7 @@ void board_init(void)
   CGU_Init();
 
   /* Setup the systick time for 1ms ticks */
-  SysTick_Config(CGU_GetPCLKFrequency(CGU_PERIPHERAL_M4CORE) / CFG_TICKS_PER_SECOND);
+  SysTick_Config(CGU_GetPCLKFrequency(CGU_PERIPHERAL_M4CORE) / TUSB_CFG_TICKS_HZ);
 
   /* Configure LED0 as GPIO */
   scu_pinmux(BOARD_LED0_PORT, BOARD_LED0_PIN, MD_PDN, BOARD_LED0_FUNCTION);

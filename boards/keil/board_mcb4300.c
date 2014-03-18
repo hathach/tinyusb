@@ -73,7 +73,7 @@ const static struct {
 void board_init(void)
 {
   CGU_Init();
-  SysTick_Config(CGU_GetPCLKFrequency(CGU_PERIPHERAL_M4CORE) / CFG_TICKS_PER_SECOND); // 1 msec tick timer
+  SysTick_Config(CGU_GetPCLKFrequency(CGU_PERIPHERAL_M4CORE) / TUSB_CFG_TICKS_HZ); // 1 msec tick timer
 
   //------------- USB Bus power HOST ONLY-------------//
   // Keil VBUS0 is P6_3

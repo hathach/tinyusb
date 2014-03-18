@@ -59,11 +59,10 @@ enum
   OSAL_TIMEOUT_WAIT_FOREVER = 0x0EEEEEEE
 };
 
-// TODO refractor/remove this function and/or TUSB_CFG_OS_TICKS_PER_SECOND if using an RTOS
 static inline uint32_t osal_tick_from_msec(uint32_t msec) ATTR_CONST ATTR_ALWAYS_INLINE;
 static inline uint32_t osal_tick_from_msec(uint32_t msec)
 {
-  return  (msec * TUSB_CFG_OS_TICKS_PER_SECOND)/1000;
+  return  (msec * TUSB_CFG_TICKS_HZ)/1000;
 }
 
 #ifdef __cplusplus

@@ -93,11 +93,38 @@
 //--------------------------------------------------------------------+
 // APPLICATION API
 //--------------------------------------------------------------------+
+/** \defgroup application_setup Application Setup
+ *  @{ */
+
+/** \brief Initialize the usb stack
+ * \return Error Code of the \ref TUSB_ERROR enum
+ * \note   Function will initialize the stack according to configuration in the configure file (tusb_config.h)
+ */
 tusb_error_t tusb_init(void);
 
 #if TUSB_CFG_OS == TUSB_OS_NONE
+/** \brief Run all tinyusb's internal tasks (e.g host task, device task).
+ * \note   This function is only required when using no RTOS (\ref TUSB_CFG_OS == TUSB_OS_NONE). All the stack functions
+ *         & callback are invoked within this function, so it should be called periodically within the mainloop
+ *
+    @code
+    int main(void)
+    {
+      // some init code
+      tusb_init();
+      while(1) // the mainloop
+      {
+        tusb_task_runner();
+        // other code
+      }
+    }
+    @endcode
+ *
+ */
 void tusb_task_runner(void);
 #endif
+
+/** @} */
 
 #ifdef __cplusplus
  }

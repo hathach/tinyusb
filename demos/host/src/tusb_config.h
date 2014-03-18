@@ -72,7 +72,7 @@
 //#define TUSB_CFG_OS                   TUSB_OS_NONE // defined using eclipse build
 //#define TUSB_CFG_OS_TASK_PRIO                      // defined using eclipse build
 
-#define TUSB_CFG_OS_TICKS_PER_SECOND  1000
+#define TUSB_CFG_TICKS_HZ             1000
 
 //--------------------------------------------------------------------+
 // USB RAM PLACEMENT

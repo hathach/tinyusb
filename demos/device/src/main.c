@@ -155,7 +155,7 @@ void print_greeting(void)
 --------------------------------------------------------------------\n\n"
   );
 
-  puts("This demo supports the following classes");
+  puts("This demo supports the following classes for DEVICE");
   if (TUSB_CFG_DEVICE_HID_MOUSE    ) puts("  - HID Mouse");
   if (TUSB_CFG_DEVICE_HID_KEYBOARD ) puts("  - HID Keyboard");
   if (TUSB_CFG_DEVICE_MSC          ) puts("  - Mass Storage");
