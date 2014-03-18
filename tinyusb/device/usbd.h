@@ -43,17 +43,19 @@
 #ifndef _TUSB_USBD_H_
 #define _TUSB_USBD_H_
 
-//--------------------------------------------------------------------+
-// INCLUDE
-//--------------------------------------------------------------------+
-#include "common/common.h"
-#include "osal/osal.h"
-#include "dcd.h"
-
 #ifdef __cplusplus
  extern "C" {
 #endif
 
+//--------------------------------------------------------------------+
+// INCLUDE
+//--------------------------------------------------------------------+
+#include "common/common.h"
+#include "dcd.h"
+
+//--------------------------------------------------------------------+
+// MACRO CONSTANT TYPEDEF
+//--------------------------------------------------------------------+
 // LPC11uxx and LPC13uxx requires each buffer has to be 64-byte alignment
 #if TUSB_CFG_MCU == MCU_LPC11UXX || TUSB_CFG_MCU == MCU_LPC13UXX
  #define ATTR_USB_MIN_ALIGNMENT   ATTR_ALIGNED(64)
@@ -61,9 +63,18 @@
  #define ATTR_USB_MIN_ALIGNMENT
 #endif
 
-//--------------------------------------------------------------------+
-// MACRO CONSTANT TYPEDEF
-//--------------------------------------------------------------------+
+typedef struct {
+  uint8_t * p_device;
+  uint8_t * p_configuration;
+  uint8_t * p_string_arr[TUSB_CFG_DEVICE_STRING_DESCRIPTOR_COUNT];
+
+  uint8_t * p_hid_keyboard_report;
+  uint8_t * p_hid_mouse_report;
+}tusbd_descriptor_pointer_t;
+
+// define by application
+extern tusbd_descriptor_pointer_t tusbd_descriptor_pointers;
+
 typedef struct {
   void (* const init) (void);
   tusb_error_t (* const open)(uint8_t, tusb_descriptor_interface_t const *, uint16_t*);

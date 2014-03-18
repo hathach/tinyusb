@@ -46,7 +46,6 @@
 // INCLUDE
 //--------------------------------------------------------------------+
 #include "tusb.h"
-#include "tusb_descriptors.h" // TODO callback include
 #include "usbd_dcd.h"
 
 //--------------------------------------------------------------------+
@@ -270,6 +269,10 @@ tusb_error_t usbd_init (void)
 
   ASSERT_STATUS( osal_task_create( OSAL_TASK_REF(usbd_task) ));
 
+  //------------- Descriptor Check -------------//
+  ASSERT_PTR(tusbd_descriptor_pointers.p_device, TUSB_ERROR_DESCRIPTOR_CORRUPTED);
+  ASSERT_PTR(tusbd_descriptor_pointers.p_configuration, TUSB_ERROR_DESCRIPTOR_CORRUPTED);
+
   //------------- class init -------------//
   for (uint8_t class_code = TUSB_CLASS_AUDIO; class_code < USBD_CLASS_DRIVER_COUNT; class_code++)
   {
@@ -293,7 +296,7 @@ static tusb_error_t usbd_set_configure_received(uint8_t coreid, uint8_t config_n
   usbd_devices[coreid].state = TUSB_DEVICE_STATE_CONFIGURED;
 
   //------------- parse configuration & open drivers -------------//
-  uint8_t* p_desc_configure = (uint8_t*) &tusbd_descriptor_configuration;
+  uint8_t* p_desc_configure = tusbd_descriptor_pointers.p_configuration;
   uint8_t* p_desc = p_desc_configure + sizeof(tusb_descriptor_configuration_t);
 
   while( p_desc < p_desc_configure + ((tusb_descriptor_configuration_t*)p_desc_configure)->wTotalLength )
@@ -333,19 +336,19 @@ static tusb_error_t get_descriptor(uint8_t coreid, tusb_control_request_t const 
 
   if ( TUSB_DESC_TYPE_DEVICE == desc_type )
   {
-    (*pp_buffer) = (uint8_t *) &tusbd_descriptor_device;
+    (*pp_buffer) = tusbd_descriptor_pointers.p_device;
     (*p_length)  = sizeof(tusb_descriptor_device_t);
   }
   else if ( TUSB_DESC_TYPE_CONFIGURATION == desc_type )
   {
-    (*pp_buffer) = (uint8_t *) &tusbd_descriptor_configuration;
-    (*p_length)  = sizeof(tusbd_descriptor_configuration);
+    (*pp_buffer) = tusbd_descriptor_pointers.p_configuration;
+    (*p_length)  = ((tusb_descriptor_configuration_t*)tusbd_descriptor_pointers.p_configuration)->wTotalLength;
   }
   else if ( TUSB_DESC_TYPE_STRING == desc_type )
   {
     if ( ! (desc_index < TUSB_CFG_DEVICE_STRING_DESCRIPTOR_COUNT) ) return TUSB_ERROR_DCD_CONTROL_REQUEST_NOT_SUPPORT;
 
-    (*pp_buffer) = (uint8_t *) tusbd_descriptor_string_table[desc_index];
+    (*pp_buffer) = tusbd_descriptor_pointers.p_string_arr[desc_index];
     (*p_length)  = **pp_buffer;
   }else
   {
