@@ -177,17 +177,14 @@ typedef ATTR_PACKED_STRUCT(struct)
 } app_descriptor_configuration_t;
 
 //--------------------------------------------------------------------+
-// STRINGS DESCRIPTOR
-//--------------------------------------------------------------------+
-extern uint8_t * const tusbd_string_desc_table[TUSB_CFG_DEVICE_STRING_DESCRIPTOR_COUNT];
-
-//--------------------------------------------------------------------+
 // Export descriptors
 //--------------------------------------------------------------------+
-extern tusb_descriptor_device_t app_tusb_desc_device;
-extern app_descriptor_configuration_t app_tusb_desc_configuration;
+extern tusb_descriptor_device_t tusbd_descriptor_device;
+extern app_descriptor_configuration_t tusbd_descriptor_configuration;
 
-extern uint8_t app_tusb_keyboard_desc_report[];
-extern uint8_t app_tusb_mouse_desc_report[];
+extern uint8_t * const tusbd_descriptor_string_table[TUSB_CFG_DEVICE_STRING_DESCRIPTOR_COUNT];
+
+extern uint8_t tusbd_hid_keyboard_descriptor_report[];
+extern uint8_t tusbd_hid_mouse_descriptor_report[];
 
 #endif

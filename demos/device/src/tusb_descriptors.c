@@ -40,7 +40,7 @@
 
 #if TUSB_CFG_DEVICE_HID_KEYBOARD
 ATTR_USB_MIN_ALIGNMENT TUSB_CFG_ATTR_USBRAM
-uint8_t app_tusb_keyboard_desc_report[] = {
+uint8_t tusbd_hid_keyboard_descriptor_report[] = {
   HID_USAGE_PAGE ( HID_USAGE_PAGE_DESKTOP     ),
   HID_USAGE      ( HID_USAGE_DESKTOP_KEYBOARD ),
   HID_COLLECTION ( HID_COLLECTION_APPLICATION ),
@@ -84,7 +84,7 @@ uint8_t app_tusb_keyboard_desc_report[] = {
 
 #if TUSB_CFG_DEVICE_HID_MOUSE
 ATTR_USB_MIN_ALIGNMENT TUSB_CFG_ATTR_USBRAM
-uint8_t app_tusb_mouse_desc_report[] = {
+uint8_t tusbd_hid_mouse_descriptor_report[] = {
   HID_USAGE_PAGE ( HID_USAGE_PAGE_DESKTOP     ),
   HID_USAGE      ( HID_USAGE_DESKTOP_MOUSE    ),
   HID_COLLECTION ( HID_COLLECTION_APPLICATION ),
@@ -129,7 +129,7 @@ uint8_t app_tusb_mouse_desc_report[] = {
 #endif
 
 ATTR_USB_MIN_ALIGNMENT TUSB_CFG_ATTR_USBRAM
-tusb_descriptor_device_t app_tusb_desc_device =
+tusb_descriptor_device_t tusbd_descriptor_device =
 {
     .bLength            = sizeof(tusb_descriptor_device_t),
     .bDescriptorType    = TUSB_DESC_TYPE_DEVICE,
@@ -160,7 +160,7 @@ tusb_descriptor_device_t app_tusb_desc_device =
 };
 
 ATTR_USB_MIN_ALIGNMENT TUSB_CFG_ATTR_USBRAM
-app_descriptor_configuration_t app_tusb_desc_configuration =
+app_descriptor_configuration_t tusbd_descriptor_configuration =
 {
     .configuration =
     {
@@ -304,7 +304,7 @@ app_descriptor_configuration_t app_tusb_desc_configuration =
         .bCountryCode      = HID_Local_NotSupported,
         .bNumDescriptors   = 1,
         .bReportType       = HID_DESC_TYPE_REPORT,
-        .wReportLength     = sizeof(app_tusb_keyboard_desc_report)
+        .wReportLength     = sizeof(tusbd_hid_keyboard_descriptor_report)
     },
 
     .keyboard_endpoint =
@@ -341,7 +341,7 @@ app_descriptor_configuration_t app_tusb_desc_configuration =
         .bCountryCode      = HID_Local_NotSupported,
         .bNumDescriptors   = 1,
         .bReportType       = HID_DESC_TYPE_REPORT,
-        .wReportLength     = sizeof(app_tusb_mouse_desc_report)
+        .wReportLength     = sizeof(tusbd_hid_mouse_descriptor_report)
     },
 
     .mouse_endpoint =
@@ -426,7 +426,7 @@ uint16_t desc_str_serial[] =
     '1', '2', '3', '4' // len = 4
 };
 
-uint8_t* const tusbd_string_desc_table [TUSB_CFG_DEVICE_STRING_DESCRIPTOR_COUNT] =
+uint8_t* const tusbd_descriptor_string_table [TUSB_CFG_DEVICE_STRING_DESCRIPTOR_COUNT] =
 {
     (uint8_t*) desc_str_language,
     (uint8_t*) desc_str_manufacturer,

@@ -52,9 +52,6 @@
 //--------------------------------------------------------------------+
 // MACRO CONSTANT TYPEDEF
 //--------------------------------------------------------------------+
-#define ENUM_QUEUE_DEPTH  5
-
-// TODO fix/compress number of class driver
 static host_class_driver_t const usbh_class_drivers[] =
 {
   #if HOST_CLASS_HID
@@ -103,16 +100,15 @@ static host_class_driver_t const usbh_class_drivers[] =
   #endif
 };
 
-enum {
-  USBH_CLASS_DRIVER_COUNT = sizeof(usbh_class_drivers) / sizeof(host_class_driver_t)
-};
+enum { USBH_CLASS_DRIVER_COUNT = sizeof(usbh_class_drivers) / sizeof(host_class_driver_t) };
 
 //--------------------------------------------------------------------+
 // INTERNAL OBJECT & FUNCTION DECLARATION
 //--------------------------------------------------------------------+
 TUSB_CFG_ATTR_USBRAM usbh_device_info_t usbh_devices[TUSB_CFG_HOST_DEVICE_MAX+1]; // including zero-address
 
-//------------- Enumeration Task Data -------------//
+//------------- Enumeration Task Data -------------/
+enum { ENUM_QUEUE_DEPTH = 5 };
 OSAL_TASK_DEF(usbh_enumeration_task, 200, TUSB_CFG_OS_TASK_PRIO);
 OSAL_QUEUE_DEF(enum_queue_def, ENUM_QUEUE_DEPTH, uint32_t);
 

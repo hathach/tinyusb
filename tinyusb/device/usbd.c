@@ -54,7 +54,6 @@
 //--------------------------------------------------------------------+
 usbd_device_info_t usbd_devices[CONTROLLER_DEVICE_NUMBER];
 
-// TODO fix/compress number of class driver
 static usbd_class_driver_t const usbd_class_drivers[] =
 {
   #if DEVICE_CLASS_HID
@@ -92,9 +91,7 @@ static usbd_class_driver_t const usbd_class_drivers[] =
 
 };
 
-enum {
-  USBD_CLASS_DRIVER_COUNT = sizeof(usbd_class_drivers) / sizeof(usbd_class_driver_t)
-};
+enum { USBD_CLASS_DRIVER_COUNT = sizeof(usbd_class_drivers) / sizeof(usbd_class_driver_t) };
 
 //--------------------------------------------------------------------+
 // INTERNAL OBJECT & FUNCTION DECLARATION
@@ -115,9 +112,7 @@ bool tusbd_is_configured(uint8_t coreid)
 //--------------------------------------------------------------------+
 
 //------------- OSAL Task -------------//
-enum {
-  USBD_TASK_QUEUE_DEPTH = 8
-};
+enum { USBD_TASK_QUEUE_DEPTH = 8 };
 
 typedef enum {
   USBD_EVENTID_SETUP_RECEIVED = 1,
@@ -298,7 +293,7 @@ static tusb_error_t usbd_set_configure_received(uint8_t coreid, uint8_t config_n
   usbd_devices[coreid].state = TUSB_DEVICE_STATE_CONFIGURED;
 
   //------------- parse configuration & open drivers -------------//
-  uint8_t* p_desc_configure = (uint8_t*) &app_tusb_desc_configuration;
+  uint8_t* p_desc_configure = (uint8_t*) &tusbd_descriptor_configuration;
   uint8_t* p_desc = p_desc_configure + sizeof(tusb_descriptor_configuration_t);
 
   while( p_desc < p_desc_configure + ((tusb_descriptor_configuration_t*)p_desc_configure)->wTotalLength )
@@ -338,19 +333,19 @@ static tusb_error_t get_descriptor(uint8_t coreid, tusb_control_request_t const 
 
   if ( TUSB_DESC_TYPE_DEVICE == desc_type )
   {
-    (*pp_buffer) = (uint8_t *) &app_tusb_desc_device;
+    (*pp_buffer) = (uint8_t *) &tusbd_descriptor_device;
     (*p_length)  = sizeof(tusb_descriptor_device_t);
   }
   else if ( TUSB_DESC_TYPE_CONFIGURATION == desc_type )
   {
-    (*pp_buffer) = (uint8_t *) &app_tusb_desc_configuration;
-    (*p_length)  = sizeof(app_tusb_desc_configuration);
+    (*pp_buffer) = (uint8_t *) &tusbd_descriptor_configuration;
+    (*p_length)  = sizeof(tusbd_descriptor_configuration);
   }
   else if ( TUSB_DESC_TYPE_STRING == desc_type )
   {
     if ( ! (desc_index < TUSB_CFG_DEVICE_STRING_DESCRIPTOR_COUNT) ) return TUSB_ERROR_DCD_CONTROL_REQUEST_NOT_SUPPORT;
 
-    (*pp_buffer) = (uint8_t *) tusbd_string_desc_table[desc_index];
+    (*pp_buffer) = (uint8_t *) tusbd_descriptor_string_table[desc_index];
     (*p_length)  = **pp_buffer;
   }else
   {

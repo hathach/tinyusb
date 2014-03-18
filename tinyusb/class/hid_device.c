@@ -83,7 +83,7 @@ static hidd_class_driver_t const hidd_class_driver[HIDD_NUMBER_OF_SUBCLASS] =
 #if TUSB_CFG_DEVICE_HID_KEYBOARD
     [HID_PROTOCOL_KEYBOARD] =
     {
-        .p_report_desc = app_tusb_keyboard_desc_report,
+        .p_report_desc = tusbd_hid_keyboard_descriptor_report,
         .p_interface   = &keyboardd_data,
         .mounted_cb    = tusbd_hid_keyboard_mounted_cb,
         .unmounted_cb  = tusbd_hid_keyboard_unmounted_cb,
@@ -96,7 +96,7 @@ static hidd_class_driver_t const hidd_class_driver[HIDD_NUMBER_OF_SUBCLASS] =
 #if TUSB_CFG_DEVICE_HID_MOUSE
     [HID_PROTOCOL_MOUSE] =
     {
-        .p_report_desc = app_tusb_mouse_desc_report,
+        .p_report_desc = tusbd_hid_mouse_descriptor_report,
         .p_interface   = &moused_data,
         .mounted_cb    = tusbd_hid_mouse_mounted_cb,
         .unmounted_cb  = tusbd_hid_mouse_unmounted_cb,
@@ -183,10 +183,7 @@ void hidd_close(uint8_t coreid)
   for(uint8_t i=0; i<HIDD_NUMBER_OF_SUBCLASS; i++)
   {
     interface_clear(hidd_class_driver[i].p_interface);
-    if ( hidd_class_driver[i].unmounted_cb )
-    {
-      hidd_class_driver[i].unmounted_cb(coreid);
-    }
+    if ( hidd_class_driver[i].unmounted_cb ) hidd_class_driver[i].unmounted_cb(coreid);
   }
 }
 
@@ -196,10 +193,7 @@ tusb_error_t hidd_control_request_subtask(uint8_t coreid, tusb_control_request_t
   for(subclass_idx=0; subclass_idx<HIDD_NUMBER_OF_SUBCLASS; subclass_idx++)
   {
     hidd_interface_t * const p_interface = hidd_class_driver[subclass_idx].p_interface;
-    if ( (p_interface != NULL) && (p_request->wIndex == p_interface->interface_number) )
-    {
-      break;
-    }
+    if ( (p_interface != NULL) && (p_request->wIndex == p_interface->interface_number) ) break;
   }
 
   ASSERT(subclass_idx < HIDD_NUMBER_OF_SUBCLASS, TUSB_ERROR_FAILED);
