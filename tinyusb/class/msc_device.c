@@ -46,7 +46,6 @@
 //--------------------------------------------------------------------+
 #include "common/common.h"
 #include "msc_device.h"
-#include "tusb_descriptors.h"
 
 //--------------------------------------------------------------------+
 // MACRO CONSTANT TYPEDEF
