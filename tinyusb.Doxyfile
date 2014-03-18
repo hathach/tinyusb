@@ -820,7 +820,7 @@ RECURSIVE              = YES
 # Note that relative paths are relative to the directory from which doxygen is
 # run.
 
-EXCLUDE                = tinyusb/device/romdriver
+EXCLUDE                = 
 
 # The EXCLUDE_SYMLINKS tag can be used to select whether or not files or
 # directories that are symbolic links (a Unix file system feature) are excluded
@@ -921,7 +921,7 @@ FILTER_SOURCE_PATTERNS =
 # (index.html). This can be useful if you have a project on for instance GitHub
 # and want to reuse the introduction page also for the doxygen output.
 
-USE_MDFILE_AS_MAINPAGE = 
+USE_MDFILE_AS_MAINPAGE = readme.md
 
 #---------------------------------------------------------------------------
 # Configuration options related to source browsing
@@ -1997,11 +1997,12 @@ INCLUDE_FILE_PATTERNS  =
 # This tag requires that the tag ENABLE_PREPROCESSING is set to YES.
 
 PREDEFINED             = TUSB_CFG_CONTROLLER_0_MODE=TUSB_MODE_HOST \
-                         TUSB_CFG_CONTROLLER_1_MODE=TUSB_MODE_HOST \
+                         TUSB_CFG_CONTROLLER_1_MODE=TUSB_MODE_NONE \
                          TUSB_CFG_HOST_HID_KEYBOARD=1 \
                          ATTR_PACKED_STRUCT(x)=x \
                          TUSB_CFG_HOST_CDC_RNDIS=1 \
-                         ATTR_ALIGNED(x)=
+                         ATTR_ALIGNED(x)= \
+                         TUSB_CFG_OS=TUSB_OS_NONE
 
 # If the MACRO_EXPANSION and EXPAND_ONLY_PREDEF tags are set to YES then this
 # tag can be used to specify a list of macro names that should be expanded. The
