@@ -482,9 +482,9 @@
               <FilePath>..\..\..\tinyusb\hal\hal_lpc175x_6x.c</FilePath>
             </File>
             <File>
-              <FileName>errors.c</FileName>
+              <FileName>tusb_errors.c</FileName>
               <FileType>1</FileType>
-              <FilePath>..\..\..\tinyusb\common\errors.c</FilePath>
+              <FilePath>..\..\..\tinyusb\common\tusb_errors.c</FilePath>
             </File>
             <File>
               <FileName>fifo.c</FileName>
@@ -1247,9 +1247,9 @@
               <FilePath>..\..\..\tinyusb\hal\hal_lpc175x_6x.c</FilePath>
             </File>
             <File>
-              <FileName>errors.c</FileName>
+              <FileName>tusb_errors.c</FileName>
               <FileType>1</FileType>
-              <FilePath>..\..\..\tinyusb\common\errors.c</FilePath>
+              <FilePath>..\..\..\tinyusb\common\tusb_errors.c</FilePath>
             </File>
             <File>
               <FileName>fifo.c</FileName>
@@ -2012,9 +2012,9 @@
               <FilePath>..\..\..\tinyusb\hal\hal_lpc175x_6x.c</FilePath>
             </File>
             <File>
-              <FileName>errors.c</FileName>
+              <FileName>tusb_errors.c</FileName>
               <FileType>1</FileType>
-              <FilePath>..\..\..\tinyusb\common\errors.c</FilePath>
+              <FilePath>..\..\..\tinyusb\common\tusb_errors.c</FilePath>
             </File>
             <File>
               <FileName>fifo.c</FileName>
@@ -2777,9 +2777,9 @@
               <FilePath>..\..\..\tinyusb\hal\hal_lpc175x_6x.c</FilePath>
             </File>
             <File>
-              <FileName>errors.c</FileName>
+              <FileName>tusb_errors.c</FileName>
               <FileType>1</FileType>
-              <FilePath>..\..\..\tinyusb\common\errors.c</FilePath>
+              <FilePath>..\..\..\tinyusb\common\tusb_errors.c</FilePath>
             </File>
             <File>
               <FileName>fifo.c</FileName>

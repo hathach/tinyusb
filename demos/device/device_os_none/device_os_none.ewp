@@ -4796,7 +4796,7 @@
     <group>
       <name>common</name>
       <file>
-        <name>$PROJ_DIR$\..\..\..\tinyusb\common\errors.c</name>
+        <name>$PROJ_DIR$\..\..\..\tinyusb\common\tusb_errors.c</name>
       </file>
       <file>
         <name>$PROJ_DIR$\..\..\..\tinyusb\common\fifo.c</name>

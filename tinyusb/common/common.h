@@ -73,7 +73,7 @@
 #include "compiler/compiler.h"
 #include "assertion.h"
 #include "binary.h"
-#include "errors.h"
+#include "tusb_errors.h"
 
 //------------- TUSB Header -------------//
 #include "tusb_types.h"

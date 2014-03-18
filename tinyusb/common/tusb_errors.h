@@ -1,6 +1,6 @@
 /**************************************************************************/
 /*!
-    @file     errors.h
+    @file     tusb_errors.h
     @author   hathach (tinyusb.org)
 
     @section LICENSE

@@ -53,7 +53,7 @@
 //--------------------------------------------------------------------+
 #include "tusb_option.h"
 #include "common/primitive_types.h"
-#include "common/errors.h"
+#include "common/tusb_errors.h"
 #include "common/compiler/compiler.h"
 
 //--------------------------------------------------------------------+
