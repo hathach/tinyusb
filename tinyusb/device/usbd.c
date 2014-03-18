@@ -303,7 +303,7 @@ static tusb_error_t usbd_set_configure_received(uint8_t coreid, uint8_t config_n
   {
     if ( TUSB_DESC_TYPE_INTERFACE_ASSOCIATION == p_desc[DESCRIPTOR_OFFSET_TYPE])
     {
-      p_desc += p_desc[DESCRIPTOR_OFFSET_LENGTH]; // ignore IAD
+      p_desc += p_desc[DESCRIPTOR_OFFSET_LENGTH]; // ignore Interface Association
     }else
     {
       ASSERT( TUSB_DESC_TYPE_INTERFACE == p_desc[DESCRIPTOR_OFFSET_TYPE], TUSB_ERROR_NOT_SUPPORTED_YET );
@@ -346,7 +346,7 @@ static tusb_error_t get_descriptor(uint8_t coreid, tusb_control_request_t const 
   }
   else if ( TUSB_DESC_TYPE_STRING == desc_type )
   {
-    if ( ! (desc_index < TUSB_CFG_DEVICE_STRING_DESCRIPTOR_COUNT) ) return TUSB_ERROR_DCD_CONTROL_REQUEST_NOT_SUPPORT;
+    if ( !(desc_index < TUSB_CFG_DEVICE_STRING_DESCRIPTOR_COUNT && tusbd_descriptor_pointers.p_string_arr[desc_index] != NULL) ) return TUSB_ERROR_DCD_CONTROL_REQUEST_NOT_SUPPORT;
 
     (*pp_buffer) = tusbd_descriptor_pointers.p_string_arr[desc_index];
     (*p_length)  = **pp_buffer;

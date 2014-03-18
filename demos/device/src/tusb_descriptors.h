@@ -176,10 +176,4 @@ typedef ATTR_PACKED_STRUCT(struct)
 
 } app_descriptor_configuration_t;
 
-//--------------------------------------------------------------------+
-// Export descriptors
-//--------------------------------------------------------------------+
-extern uint8_t tusbd_hid_keyboard_descriptor_report[];
-extern uint8_t tusbd_hid_mouse_descriptor_report[];
-
 #endif

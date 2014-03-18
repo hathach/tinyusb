@@ -46,17 +46,14 @@
 //--------------------------------------------------------------------+
 #include "common/common.h"
 #include "hid_device.h"
-#include "tusb_descriptors.h"
 
 //--------------------------------------------------------------------+
 // MACRO CONSTANT TYPEDEF
 //--------------------------------------------------------------------+
-
-enum {
-  HIDD_NUMBER_OF_SUBCLASS = 3
-};
+enum { HIDD_NUMBER_OF_SUBCLASS = 3 };
 
 typedef struct {
+  uint8_t const * p_report_desc;
   uint16_t report_length;
 
   endpoint_handle_t ept_handle;
@@ -64,7 +61,6 @@ typedef struct {
 }hidd_interface_t;
 
 typedef struct {
-  uint8_t const * const p_report_desc;
   hidd_interface_t * const p_interface;
   void (* const mounted_cb) (uint8_t coreid);
   void (* const unmounted_cb) (uint8_t coreid);
@@ -83,7 +79,6 @@ static hidd_class_driver_t const hidd_class_driver[HIDD_NUMBER_OF_SUBCLASS] =
 #if TUSB_CFG_DEVICE_HID_KEYBOARD
     [HID_PROTOCOL_KEYBOARD] =
     {
-        .p_report_desc = tusbd_hid_keyboard_descriptor_report,
         .p_interface   = &keyboardd_data,
         .mounted_cb    = tusbd_hid_keyboard_mounted_cb,
         .unmounted_cb  = tusbd_hid_keyboard_unmounted_cb,
@@ -96,7 +91,6 @@ static hidd_class_driver_t const hidd_class_driver[HIDD_NUMBER_OF_SUBCLASS] =
 #if TUSB_CFG_DEVICE_HID_MOUSE
     [HID_PROTOCOL_MOUSE] =
     {
-        .p_report_desc = tusbd_hid_mouse_descriptor_report,
         .p_interface   = &moused_data,
         .mounted_cb    = tusbd_hid_mouse_mounted_cb,
         .unmounted_cb  = tusbd_hid_mouse_unmounted_cb,
@@ -107,16 +101,16 @@ static hidd_class_driver_t const hidd_class_driver[HIDD_NUMBER_OF_SUBCLASS] =
 #endif
 };
 
-#if TUSB_CFG_DEVICE_HID_KEYBOARD || TUSB_CFG_DEVICE_HID_MOUSE
+
+// TODO [HID] generic
 TUSB_CFG_ATTR_USBRAM ATTR_USB_MIN_ALIGNMENT
 uint8_t m_control_data[ MAX_OF(sizeof(hid_keyboard_report_t), sizeof(hid_mouse_report_t)) ];
-#endif
 
 //--------------------------------------------------------------------+
 // KEYBOARD APPLICATION API
 //--------------------------------------------------------------------+
 #if TUSB_CFG_DEVICE_HID_KEYBOARD
-TUSB_CFG_ATTR_USBRAM STATIC_VAR hidd_interface_t keyboardd_data;
+STATIC_VAR hidd_interface_t keyboardd_data;
 
 bool tusbd_hid_keyboard_is_busy(uint8_t coreid)
 {
@@ -139,7 +133,7 @@ tusb_error_t tusbd_hid_keyboard_send(uint8_t coreid, hid_keyboard_report_t const
 // MOUSE APPLICATION API
 //--------------------------------------------------------------------+
 #if TUSB_CFG_DEVICE_HID_MOUSE
-TUSB_CFG_ATTR_USBRAM STATIC_VAR hidd_interface_t moused_data;
+STATIC_VAR hidd_interface_t moused_data;
 
 bool tusbd_hid_mouse_is_busy(uint8_t coreid)
 {
@@ -212,7 +206,7 @@ tusb_error_t hidd_control_request_subtask(uint8_t coreid, tusb_control_request_t
     ASSERT ( p_request->bRequest == TUSB_REQUEST_GET_DESCRIPTOR && desc_type == HID_DESC_TYPE_REPORT,
              TUSB_ERROR_DCD_CONTROL_REQUEST_NOT_SUPPORT);
 
-    dcd_pipe_control_xfer(coreid, TUSB_DIR_DEV_TO_HOST, (uint8_t*) p_driver->p_report_desc, p_hid->report_length, false);
+    dcd_pipe_control_xfer(coreid, TUSB_DIR_DEV_TO_HOST, (uint8_t*) p_hid->p_report_desc, p_hid->report_length, false);
   }
   //------------- Class Specific Request -------------//
   else if (p_request->bmRequestType_bit.type == TUSB_REQUEST_TYPE_CLASS)
@@ -294,8 +288,10 @@ tusb_error_t hidd_open(uint8_t coreid, tusb_descriptor_interface_t const * p_int
         ASSERT( endpointhandle_is_valid(p_hid->ept_handle), TUSB_ERROR_DCD_FAILED);
 
         p_hid->interface_number = p_interface_desc->bInterfaceNumber;
+        p_hid->p_report_desc    = (p_interface_desc->bInterfaceProtocol == HID_PROTOCOL_KEYBOARD) ? tusbd_descriptor_pointers.p_hid_keyboard_report : tusbd_descriptor_pointers.p_hid_mouse_report;
         p_hid->report_length    = p_desc_hid->wReportLength;
 
+        ASSERT_PTR(p_hid->p_report_desc, TUSB_ERROR_DESCRIPTOR_CORRUPTED);
         p_driver->mounted_cb(coreid);
       }
       break;

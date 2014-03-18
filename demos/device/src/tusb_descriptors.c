@@ -43,7 +43,7 @@
 //--------------------------------------------------------------------+
 #if TUSB_CFG_DEVICE_HID_KEYBOARD
 ATTR_USB_MIN_ALIGNMENT TUSB_CFG_ATTR_USBRAM
-uint8_t tusbd_hid_keyboard_descriptor_report[] = {
+uint8_t desc_keyboard_report[] = {
   HID_USAGE_PAGE ( HID_USAGE_PAGE_DESKTOP     ),
   HID_USAGE      ( HID_USAGE_DESKTOP_KEYBOARD ),
   HID_COLLECTION ( HID_COLLECTION_APPLICATION ),
@@ -90,7 +90,7 @@ uint8_t tusbd_hid_keyboard_descriptor_report[] = {
 //--------------------------------------------------------------------+
 #if TUSB_CFG_DEVICE_HID_MOUSE
 ATTR_USB_MIN_ALIGNMENT TUSB_CFG_ATTR_USBRAM
-uint8_t tusbd_hid_mouse_descriptor_report[] = {
+uint8_t desc_mouse_report[] = {
   HID_USAGE_PAGE ( HID_USAGE_PAGE_DESKTOP     ),
   HID_USAGE      ( HID_USAGE_DESKTOP_MOUSE    ),
   HID_COLLECTION ( HID_COLLECTION_APPLICATION ),
@@ -316,7 +316,7 @@ app_descriptor_configuration_t desc_configuration =
         .bCountryCode      = HID_Local_NotSupported,
         .bNumDescriptors   = 1,
         .bReportType       = HID_DESC_TYPE_REPORT,
-        .wReportLength     = sizeof(tusbd_hid_keyboard_descriptor_report)
+        .wReportLength     = sizeof(desc_keyboard_report)
     },
 
     .keyboard_endpoint =
@@ -353,7 +353,7 @@ app_descriptor_configuration_t desc_configuration =
         .bCountryCode      = HID_Local_NotSupported,
         .bNumDescriptors   = 1,
         .bReportType       = HID_DESC_TYPE_REPORT,
-        .wReportLength     = sizeof(tusbd_hid_mouse_descriptor_report)
+        .wReportLength     = sizeof(desc_mouse_report)
     },
 
     .mouse_endpoint =
@@ -454,10 +454,10 @@ tusbd_descriptor_pointer_t tusbd_descriptor_pointers =
     },
 
     #if TUSB_CFG_DEVICE_HID_KEYBOARD
-    .p_hid_keyboard_report = tusbd_hid_keyboard_descriptor_report,
+    .p_hid_keyboard_report = desc_keyboard_report,
     #endif
 
     #if TUSB_CFG_DEVICE_HID_KEYBOARD
-    .p_hid_mouse_report    = tusbd_hid_mouse_descriptor_report,
+    .p_hid_mouse_report    = desc_mouse_report,
     #endif
 };
