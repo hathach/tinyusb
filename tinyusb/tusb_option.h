@@ -39,14 +39,14 @@
 #ifndef _TUSB_TUSB_OPTION_H_
 #define _TUSB_TUSB_OPTION_H_
 
-/** \defgroup group_configuration Configuration tusb_config.h
- *  @{ */
-
 #define TUSB_VERSION_YEAR   00
 #define TUSB_VERSION_MONTH  00
 #define TUSB_VERSION_WEEK   0
 #define TUSB_VERSION_NAME   "alpha"
 #define TUSB_VERSION        XSTRING_(TUSB_VERSION_YEAR) "." XSTRING_(TUSB_VERSION_MONTH)
+
+/** \defgroup group_configuration Configuration tusb_config.h
+ *  @{ */
 
 /** \defgroup config_mcu_selection MCU Selection
  * \brief TUSB_CFG_MCU must be defined to one of these

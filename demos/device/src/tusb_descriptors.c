@@ -183,7 +183,7 @@ app_descriptor_configuration_t app_tusb_desc_configuration =
         .bLength           = sizeof(tusb_descriptor_interface_association_t),
         .bDescriptorType   = TUSB_DESC_TYPE_INTERFACE_ASSOCIATION,
 
-        .bFirstInterface   = INTERFACE_NUM_CDC,
+        .bFirstInterface   = INTERFACE_NO_CDC,
         .bInterfaceCount   = 2,
 
         .bFunctionClass    = TUSB_CLASS_CDC,
@@ -199,7 +199,7 @@ app_descriptor_configuration_t app_tusb_desc_configuration =
     {
         .bLength            = sizeof(tusb_descriptor_interface_t),
         .bDescriptorType    = TUSB_DESC_TYPE_INTERFACE,
-        .bInterfaceNumber   = INTERFACE_NUM_CDC,
+        .bInterfaceNumber   = INTERFACE_NO_CDC,
         .bAlternateSetting  = 0,
         .bNumEndpoints      = 1,
         .bInterfaceClass    = TUSB_CLASS_CDC,
@@ -251,7 +251,7 @@ app_descriptor_configuration_t app_tusb_desc_configuration =
     {
         .bLength            = sizeof(tusb_descriptor_interface_t),
         .bDescriptorType    = TUSB_DESC_TYPE_INTERFACE,
-        .bInterfaceNumber   = INTERFACE_NUM_CDC+1,
+        .bInterfaceNumber   = INTERFACE_NO_CDC+1,
         .bAlternateSetting  = 0x00,
         .bNumEndpoints      = 2,
         .bInterfaceClass    = TUSB_CLASS_CDC_DATA,
@@ -287,7 +287,7 @@ app_descriptor_configuration_t app_tusb_desc_configuration =
     {
         .bLength            = sizeof(tusb_descriptor_interface_t),
         .bDescriptorType    = TUSB_DESC_TYPE_INTERFACE,
-        .bInterfaceNumber   = INTERFACE_NUM_HID_KEYBOARD,
+        .bInterfaceNumber   = INTERFACE_NO_HID_KEYBOARD,
         .bAlternateSetting  = 0x00,
         .bNumEndpoints      = 1,
         .bInterfaceClass    = TUSB_CLASS_HID,
@@ -324,7 +324,7 @@ app_descriptor_configuration_t app_tusb_desc_configuration =
     {
         .bLength            = sizeof(tusb_descriptor_interface_t),
         .bDescriptorType    = TUSB_DESC_TYPE_INTERFACE,
-        .bInterfaceNumber   = INTERFACE_NUM_HID_MOUSE,
+        .bInterfaceNumber   = INTERFACE_NO_HID_MOUSE,
         .bAlternateSetting  = 0x00,
         .bNumEndpoints      = 1,
         .bInterfaceClass    = TUSB_CLASS_HID,
@@ -361,7 +361,7 @@ app_descriptor_configuration_t app_tusb_desc_configuration =
     {
         .bLength            = sizeof(tusb_descriptor_interface_t),
         .bDescriptorType    = TUSB_DESC_TYPE_INTERFACE,
-        .bInterfaceNumber   = INTERFACE_NUM_MSC,
+        .bInterfaceNumber   = INTERFACE_NO_MSC,
         .bAlternateSetting  = 0x00,
         .bNumEndpoints      = 2,
         .bInterfaceClass    = TUSB_CLASS_MSC,
@@ -426,7 +426,7 @@ uint16_t desc_str_serial[] =
     '1', '2', '3', '4' // len = 4
 };
 
-uint8_t* const desc_str_table [TUSB_CFG_DEVICE_STRING_DESCRIPTOR_COUNT] =
+uint8_t* const tusbd_string_desc_table [TUSB_CFG_DEVICE_STRING_DESCRIPTOR_COUNT] =
 {
     (uint8_t*) desc_str_language,
     (uint8_t*) desc_str_manufacturer,
