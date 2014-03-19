@@ -347,7 +347,7 @@
             <uThumb>0</uThumb>
             <uSurpInc>0</uSurpInc>
             <VariousControls>
-              <MiscControls>--gnu --c99 --diag_suppress=66</MiscControls>
+              <MiscControls>--gnu --c99</MiscControls>
               <Define>CORE_M4 TUSB_CFG_MCU=MCU_LPC43XX BOARD=BOARD_EA4357 TUSB_CFG_OS=TUSB_OS_NONE</Define>
               <Undefine></Undefine>
               <IncludePath>..\src;..\..\..\mcu\lpc43xx\CMSIS_LPC43xx_DriverLib\inc;..\..\..\boards;..\..\..\tinyusb;..\..\..\vendor\fatfs</IncludePath>
@@ -614,7 +614,7 @@
           </Files>
         </Group>
         <Group>
-          <GroupName>bsp lpc11uxx</GroupName>
+          <GroupName>lpc11uxx</GroupName>
           <GroupOption>
             <CommonProperty>
               <UseCPPCompiler>0</UseCPPCompiler>
@@ -695,7 +695,7 @@
           </Files>
         </Group>
         <Group>
-          <GroupName>bsp lpc13uxx</GroupName>
+          <GroupName>lpc13uxx</GroupName>
           <GroupOption>
             <CommonProperty>
               <UseCPPCompiler>0</UseCPPCompiler>
@@ -776,7 +776,7 @@
           </Files>
         </Group>
         <Group>
-          <GroupName>bsp lpc175x_6x</GroupName>
+          <GroupName>lpc175x_6x</GroupName>
           <GroupOption>
             <CommonProperty>
               <UseCPPCompiler>0</UseCPPCompiler>
@@ -867,7 +867,7 @@
           </Files>
         </Group>
         <Group>
-          <GroupName>bsp lpc43xx</GroupName>
+          <GroupName>lpc43xx</GroupName>
           <Files>
             <File>
               <FileName>lpc43xx_cgu.c</FileName>
@@ -1561,7 +1561,7 @@
           </Files>
         </Group>
         <Group>
-          <GroupName>bsp lpc11uxx</GroupName>
+          <GroupName>lpc11uxx</GroupName>
           <GroupOption>
             <CommonProperty>
               <UseCPPCompiler>0</UseCPPCompiler>
@@ -1642,7 +1642,7 @@
           </Files>
         </Group>
         <Group>
-          <GroupName>bsp lpc13uxx</GroupName>
+          <GroupName>lpc13uxx</GroupName>
           <GroupOption>
             <CommonProperty>
               <UseCPPCompiler>0</UseCPPCompiler>
@@ -1723,7 +1723,7 @@
           </Files>
         </Group>
         <Group>
-          <GroupName>bsp lpc175x_6x</GroupName>
+          <GroupName>lpc175x_6x</GroupName>
           <GroupOption>
             <CommonProperty>
               <UseCPPCompiler>0</UseCPPCompiler>
@@ -1814,7 +1814,7 @@
           </Files>
         </Group>
         <Group>
-          <GroupName>bsp lpc43xx</GroupName>
+          <GroupName>lpc43xx</GroupName>
           <Files>
             <File>
               <FileName>lpc43xx_cgu.c</FileName>
@@ -2201,7 +2201,7 @@
             <uThumb>0</uThumb>
             <uSurpInc>0</uSurpInc>
             <VariousControls>
-              <MiscControls>--gnu --c99 --diag_suppress=66</MiscControls>
+              <MiscControls>--gnu --c99</MiscControls>
               <Define>TUSB_CFG_MCU=MCU_LPC13UXX BOARD=BOARD_LPCXPRESSO1347 TUSB_CFG_OS=TUSB_OS_NONE</Define>
               <Undefine></Undefine>
               <IncludePath>..\..\..\mcu\lpc13uxx\CMSIS_CORE_LPC13Uxx\inc;..\..\..\mcu\lpc13uxx\LPC13Uxx_DriverLib\inc;..\src;..\..\..\boards;..\..\..\tinyusb</IncludePath>
@@ -2468,7 +2468,7 @@
           </Files>
         </Group>
         <Group>
-          <GroupName>bsp lpc11uxx</GroupName>
+          <GroupName>lpc11uxx</GroupName>
           <GroupOption>
             <CommonProperty>
               <UseCPPCompiler>0</UseCPPCompiler>
@@ -2549,7 +2549,7 @@
           </Files>
         </Group>
         <Group>
-          <GroupName>bsp lpc13uxx</GroupName>
+          <GroupName>lpc13uxx</GroupName>
           <Files>
             <File>
               <FileName>startup_LPC13Uxx.s</FileName>
@@ -2574,7 +2574,7 @@
           </Files>
         </Group>
         <Group>
-          <GroupName>bsp lpc175x_6x</GroupName>
+          <GroupName>lpc175x_6x</GroupName>
           <GroupOption>
             <CommonProperty>
               <UseCPPCompiler>0</UseCPPCompiler>
@@ -2665,7 +2665,7 @@
           </Files>
         </Group>
         <Group>
-          <GroupName>bsp lpc43xx</GroupName>
+          <GroupName>lpc43xx</GroupName>
           <GroupOption>
             <CommonProperty>
               <UseCPPCompiler>0</UseCPPCompiler>
@@ -3108,7 +3108,7 @@
             <uThumb>0</uThumb>
             <uSurpInc>0</uSurpInc>
             <VariousControls>
-              <MiscControls>--gnu --c99 --diag_suppress=66</MiscControls>
+              <MiscControls>--gnu --c99</MiscControls>
               <Define>TUSB_CFG_MCU=MCU_LPC175X_6X BOARD=BOARD_LPCXPRESSO1769 TUSB_CFG_OS=TUSB_OS_NONE</Define>
               <Undefine></Undefine>
               <IncludePath>..\..\..\mcu\lpc175x_6x\CMSIS_CORE_LPC17xx\inc;..\..\..\mcu\lpc175x_6x\LPC17xx_DriverLib\include;..\src;..\..\..\boards;..\..\..\tinyusb</IncludePath>
@@ -3375,7 +3375,7 @@
           </Files>
         </Group>
         <Group>
-          <GroupName>bsp lpc11uxx</GroupName>
+          <GroupName>lpc11uxx</GroupName>
           <GroupOption>
             <CommonProperty>
               <UseCPPCompiler>0</UseCPPCompiler>
@@ -3456,7 +3456,7 @@
           </Files>
         </Group>
         <Group>
-          <GroupName>bsp lpc13uxx</GroupName>
+          <GroupName>lpc13uxx</GroupName>
           <GroupOption>
             <CommonProperty>
               <UseCPPCompiler>0</UseCPPCompiler>
@@ -3537,7 +3537,7 @@
           </Files>
         </Group>
         <Group>
-          <GroupName>bsp lpc175x_6x</GroupName>
+          <GroupName>lpc175x_6x</GroupName>
           <Files>
             <File>
               <FileName>system_LPC17xx.c</FileName>
@@ -3572,7 +3572,7 @@
           </Files>
         </Group>
         <Group>
-          <GroupName>bsp lpc43xx</GroupName>
+          <GroupName>lpc43xx</GroupName>
           <GroupOption>
             <CommonProperty>
               <UseCPPCompiler>0</UseCPPCompiler>
@@ -4015,7 +4015,7 @@
             <uThumb>0</uThumb>
             <uSurpInc>0</uSurpInc>
             <VariousControls>
-              <MiscControls>--gnu --c99 --diag_suppress=66</MiscControls>
+              <MiscControls>--gnu --c99</MiscControls>
               <Define>TUSB_CFG_MCU=MCU_LPC11UXX BOARD=BOARD_RF1GHZNODE TUSB_CFG_OS=TUSB_OS_NONE</Define>
               <Undefine></Undefine>
               <IncludePath>..\..\..\mcu\lpc11uxx\CMSIS_CORE_LPC11Uxx\inc;..\..\..\mcu\lpc11uxx\LPC11Uxx_DriverLib;..\src;..\..\..\boards;..\..\..\tinyusb</IncludePath>
@@ -4322,7 +4322,7 @@
           </Files>
         </Group>
         <Group>
-          <GroupName>bsp lpc11uxx</GroupName>
+          <GroupName>lpc11uxx</GroupName>
           <Files>
             <File>
               <FileName>system_LPC11Uxx.c</FileName>
@@ -4347,7 +4347,7 @@
           </Files>
         </Group>
         <Group>
-          <GroupName>bsp lpc13uxx</GroupName>
+          <GroupName>lpc13uxx</GroupName>
           <GroupOption>
             <CommonProperty>
               <UseCPPCompiler>0</UseCPPCompiler>
@@ -4428,7 +4428,7 @@
           </Files>
         </Group>
         <Group>
-          <GroupName>bsp lpc175x_6x</GroupName>
+          <GroupName>lpc175x_6x</GroupName>
           <GroupOption>
             <CommonProperty>
               <UseCPPCompiler>0</UseCPPCompiler>
@@ -4519,7 +4519,7 @@
           </Files>
         </Group>
         <Group>
-          <GroupName>bsp lpc43xx</GroupName>
+          <GroupName>lpc43xx</GroupName>
           <GroupOption>
             <CommonProperty>
               <UseCPPCompiler>0</UseCPPCompiler>
@@ -4962,7 +4962,7 @@
             <uThumb>0</uThumb>
             <uSurpInc>0</uSurpInc>
             <VariousControls>
-              <MiscControls>--gnu --c99 --diag_suppress=66</MiscControls>
+              <MiscControls>--gnu --c99</MiscControls>
               <Define>CORE_M4 TUSB_CFG_MCU=MCU_LPC43XX BOARD=BOARD_NGX4330 TUSB_CFG_OS=TUSB_OS_NONE</Define>
               <Undefine></Undefine>
               <IncludePath>..\src;..\..\..\mcu\lpc43xx\CMSIS_LPC43xx_DriverLib\inc;..\..\..\boards;..\..\..\tinyusb;..\..\..\vendor\fatfs</IncludePath>
@@ -5229,7 +5229,7 @@
           </Files>
         </Group>
         <Group>
-          <GroupName>bsp lpc11uxx</GroupName>
+          <GroupName>lpc11uxx</GroupName>
           <GroupOption>
             <CommonProperty>
               <UseCPPCompiler>0</UseCPPCompiler>
@@ -5310,7 +5310,7 @@
           </Files>
         </Group>
         <Group>
-          <GroupName>bsp lpc13uxx</GroupName>
+          <GroupName>lpc13uxx</GroupName>
           <GroupOption>
             <CommonProperty>
               <UseCPPCompiler>0</UseCPPCompiler>
@@ -5391,7 +5391,7 @@
           </Files>
         </Group>
         <Group>
-          <GroupName>bsp lpc175x_6x</GroupName>
+          <GroupName>lpc175x_6x</GroupName>
           <GroupOption>
             <CommonProperty>
               <UseCPPCompiler>0</UseCPPCompiler>
@@ -5482,7 +5482,7 @@
           </Files>
         </Group>
         <Group>
-          <GroupName>bsp lpc43xx</GroupName>
+          <GroupName>lpc43xx</GroupName>
           <Files>
             <File>
               <FileName>lpc43xx_cgu.c</FileName>
