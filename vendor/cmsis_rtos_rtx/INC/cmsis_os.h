@@ -141,7 +141,7 @@ used throughout the whole project.
 
 
 /// \note MUST REMAIN UNCHANGED: \b osFeature_xxx shall be consistent in every CMSIS-RTOS.
-#define osFeature_MainThread   1       ///< main thread      1=main can be thread, 0=not available
+#define osFeature_MainThread   0       ///< main thread      1=main can be thread, 0=not available
 #define osFeature_Pool         1       ///< Memory Pools:    1=available, 0=not available
 #define osFeature_MailQ        1       ///< Mail Queues:     1=available, 0=not available
 #define osFeature_MessageQ     1       ///< Message Queues:  1=available, 0=not available

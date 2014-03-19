@@ -115,6 +115,9 @@ _declare_box8 (mp_stk, OS_STKSIZE*4, OS_TASK_CNT-OS_PRIV_CNT+1);
 uint32_t const mp_stk_size = sizeof(mp_stk);
 
 /* Memory pool for user specified stack allocation (+main, +timer) */
+#ifdef __CODE_RED
+__attribute__ (( section(".data.$RAM2") )) // overflow RamLoc32
+#endif
 uint64_t       os_stack_mem[2+OS_PRIV_CNT+(OS_STACK_SZ/8)];
 uint32_t const os_stack_sz = sizeof(os_stack_mem);
 
@@ -234,6 +237,7 @@ __attribute__((used)) void _mutex_release (OS_ID *mutex) {
  *      RTX Startup
  *---------------------------------------------------------------------------*/
 
+#if osFeature_MainThread
 /* Main Thread definition */
 extern int main (void);
 osThreadDef_t os_thread_def_main = {(os_pthread)main, osPriorityNormal, 1, 4*OS_MAINSTKSIZE };
@@ -370,6 +374,8 @@ __noreturn __stackless void __cmain(void) {
   a = osKernelStart();
   exit(a);
 }
+
+#endif
 
 #endif
 
