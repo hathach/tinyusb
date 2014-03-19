@@ -81,14 +81,24 @@
 	</natures>
 	<linkedResources>
 		<link>
-			<name>bsp</name>
+			<name>boards</name>
 			<type>2</type>
-			<locationURI>PARENT-2-PROJECT_LOC/bsp</locationURI>
+			<locationURI>PARENT-3-PROJECT_LOC/boards</locationURI>
 		</link>
 		<link>
 			<name>cmsis_rtos_rtx</name>
 			<type>2</type>
 			<locationURI>PARENT-3-PROJECT_LOC/vendor/cmsis_rtos_rtx</locationURI>
+		</link>
+		<link>
+			<name>fatfs</name>
+			<type>2</type>
+			<locationURI>PARENT-3-PROJECT_LOC/vendor/fatfs</locationURI>
+		</link>
+		<link>
+			<name>mcu</name>
+			<type>2</type>
+			<locationURI>PARENT-3-PROJECT_LOC/mcu</locationURI>
 		</link>
 		<link>
 			<name>src</name>
@@ -103,12 +113,21 @@
 	</linkedResources>
 	<filteredResources>
 		<filter>
-			<id>1368600635222</id>
-			<name></name>
+			<id>1395203227346</id>
+			<name>mcu</name>
 			<type>26</type>
 			<matcher>
 				<id>org.eclipse.ui.ide.multiFilter</id>
-				<arguments>1.0-name-matches-false-false-startup_keil</arguments>
+				<arguments>1.0-name-matches-false-false-iar</arguments>
+			</matcher>
+		</filter>
+		<filter>
+			<id>1395203227365</id>
+			<name>mcu</name>
+			<type>26</type>
+			<matcher>
+				<id>org.eclipse.ui.ide.multiFilter</id>
+				<arguments>1.0-name-matches-false-false-keil</arguments>
 			</matcher>
 		</filter>
 	</filteredResources>

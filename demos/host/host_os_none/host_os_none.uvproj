@@ -639,7 +639,7 @@
           </Files>
         </Group>
         <Group>
-          <GroupName>bsp lpc43xx</GroupName>
+          <GroupName>lpc43xx</GroupName>
           <Files>
             <File>
               <FileName>startup_LPC43xx.s</FileName>
@@ -679,7 +679,7 @@
           </Files>
         </Group>
         <Group>
-          <GroupName>bsp lpc175x_6x</GroupName>
+          <GroupName>lpc175x_6x</GroupName>
           <GroupOption>
             <CommonProperty>
               <UseCPPCompiler>0</UseCPPCompiler>
@@ -1404,7 +1404,7 @@
           </Files>
         </Group>
         <Group>
-          <GroupName>bsp lpc43xx</GroupName>
+          <GroupName>lpc43xx</GroupName>
           <Files>
             <File>
               <FileName>startup_LPC43xx.s</FileName>
@@ -1444,7 +1444,7 @@
           </Files>
         </Group>
         <Group>
-          <GroupName>bsp lpc175x_6x</GroupName>
+          <GroupName>lpc175x_6x</GroupName>
           <GroupOption>
             <CommonProperty>
               <UseCPPCompiler>0</UseCPPCompiler>
@@ -2169,7 +2169,7 @@
           </Files>
         </Group>
         <Group>
-          <GroupName>bsp lpc43xx</GroupName>
+          <GroupName>lpc43xx</GroupName>
           <GroupOption>
             <CommonProperty>
               <UseCPPCompiler>0</UseCPPCompiler>
@@ -2265,7 +2265,7 @@
           </Files>
         </Group>
         <Group>
-          <GroupName>bsp lpc175x_6x</GroupName>
+          <GroupName>lpc175x_6x</GroupName>
           <Files>
             <File>
               <FileName>system_LPC17xx.c</FileName>
@@ -2642,7 +2642,7 @@
             <uThumb>0</uThumb>
             <uSurpInc>0</uSurpInc>
             <VariousControls>
-              <MiscControls>--gnu --c99 --diag_suppress=66</MiscControls>
+              <MiscControls>--gnu --c99</MiscControls>
               <Define>CORE_M4 TUSB_CFG_MCU=MCU_LPC43XX BOARD=BOARD_NGX4330 TUSB_CFG_OS=TUSB_OS_NONE</Define>
               <Undefine></Undefine>
               <IncludePath>..\src;..\..\..\mcu\lpc43xx\CMSIS_LPC43xx_DriverLib\inc;..\..\..\boards;..\..\..\tinyusb;..\..\..\vendor\fatfs</IncludePath>
@@ -2934,7 +2934,7 @@
           </Files>
         </Group>
         <Group>
-          <GroupName>bsp lpc43xx</GroupName>
+          <GroupName>lpc43xx</GroupName>
           <Files>
             <File>
               <FileName>startup_LPC43xx.s</FileName>
@@ -2974,7 +2974,7 @@
           </Files>
         </Group>
         <Group>
-          <GroupName>bsp lpc175x_6x</GroupName>
+          <GroupName>lpc175x_6x</GroupName>
           <GroupOption>
             <CommonProperty>
               <UseCPPCompiler>0</UseCPPCompiler>
