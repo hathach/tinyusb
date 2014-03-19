@@ -1,25 +1,23 @@
 <?xml version="1.0" encoding="UTF-8" standalone="no"?>
-<?fileVersion 4.0.0?>
-
-<cproject storage_type_id="org.eclipse.cdt.core.XmlProjectDescriptionStorage">
+<?fileVersion 4.0.0?><cproject storage_type_id="org.eclipse.cdt.core.XmlProjectDescriptionStorage">
 	<storageModule moduleId="org.eclipse.cdt.core.settings">
 		<cconfiguration id="com.crt.advproject.config.exe.debug.1239969983">
 			<storageModule buildSystemId="org.eclipse.cdt.managedbuilder.core.configurationDataProvider" id="com.crt.advproject.config.exe.debug.1239969983" moduleId="org.eclipse.cdt.core.settings" name="Board NGX4330">
 				<macros>
 					<stringMacro name="CFLAGS_OFF" type="VALUE_TEXT" value=""/>
-					<stringMacro name="CFLAGS" type="VALUE_TEXT" value="${CFLAGS_OFF}"/>
 					<stringMacro name="CFLAGS_ON" type="VALUE_TEXT" value="-pedantic -Wextra -Wswitch-default -Wunsafe-loop-optimizations -Wcast-align -Wlogical-op -Wpacked-bitfield-compat -Wpadded -Wnested-externs -Wredundant-decls -Winline -Wpacked"/>
+					<stringMacro name="CFLAGS" type="VALUE_TEXT" value="${CFLAGS_OFF}"/>
 				</macros>
 				<externalSettings/>
 				<extensions>
-					<extension id="org.eclipse.cdt.core.ELF" point="org.eclipse.cdt.core.BinaryParser"/>
-					<extension id="org.eclipse.cdt.core.GNU_ELF" point="org.eclipse.cdt.core.BinaryParser"/>
 					<extension id="org.eclipse.cdt.core.GmakeErrorParser" point="org.eclipse.cdt.core.ErrorParser"/>
 					<extension id="org.eclipse.cdt.core.CWDLocator" point="org.eclipse.cdt.core.ErrorParser"/>
 					<extension id="org.eclipse.cdt.core.MakeErrorParser" point="org.eclipse.cdt.core.ErrorParser"/>
 					<extension id="org.eclipse.cdt.core.GCCErrorParser" point="org.eclipse.cdt.core.ErrorParser"/>
 					<extension id="org.eclipse.cdt.core.GASErrorParser" point="org.eclipse.cdt.core.ErrorParser"/>
 					<extension id="org.eclipse.cdt.core.GLDErrorParser" point="org.eclipse.cdt.core.ErrorParser"/>
+					<extension id="org.eclipse.cdt.core.ELF" point="org.eclipse.cdt.core.BinaryParser"/>
+					<extension id="org.eclipse.cdt.core.GNU_ELF" point="org.eclipse.cdt.core.BinaryParser"/>
 				</extensions>
 			</storageModule>
 			<storageModule moduleId="cdtBuildSystem" version="4.0.0">
@@ -77,7 +75,7 @@
 								</option>
 								<option id="gnu.c.link.option.libs.1088600788" name="Libraries (-l)" superClass="gnu.c.link.option.libs"/>
 								<option id="gnu.c.link.option.paths.1352371726" name="Library search path (-L)" superClass="gnu.c.link.option.paths"/>
-								<option id="com.crt.advproject.link.gcc.hdrlib.1912639139" name="Use C library" superClass="com.crt.advproject.link.gcc.hdrlib" value="com.crt.advproject.gcc.link.hdrlib.codered.semihost" valueType="enumerated"/>
+								<option id="com.crt.advproject.link.gcc.hdrlib.1912639139" name="Library" superClass="com.crt.advproject.link.gcc.hdrlib" value="com.crt.advproject.gcc.link.hdrlib.codered.semihost" valueType="enumerated"/>
 								<option id="com.crt.advproject.link.fpu.1071054814" name="Floating point" superClass="com.crt.advproject.link.fpu" value="com.crt.advproject.link.fpu.fpv4" valueType="enumerated"/>
 								<inputType id="cdt.managedbuild.tool.gnu.c.linker.input.1768732506" superClass="cdt.managedbuild.tool.gnu.c.linker.input">
 									<additionalInput kind="additionalinputdependency" paths="$(USER_OBJS)"/>
@@ -87,7 +85,7 @@
 						</toolChain>
 					</folderInfo>
 					<sourceEntries>
-						<entry excluding="mcu/lpc43xx/CMSIS_LPC43xx_DriverLib/src/sdio.c|mcu/lpc43xx/CMSIS_LPC43xx_DriverLib/src/lpc43xx_wwdt.c|mcu/lpc43xx/CMSIS_LPC43xx_DriverLib/src/lpc43xx_timer.c|mcu/lpc43xx/CMSIS_LPC43xx_DriverLib/src/lpc43xx_ssp.c|mcu/lpc43xx/CMSIS_LPC43xx_DriverLib/src/lpc43xx_sdmmc.c|mcu/lpc43xx/CMSIS_LPC43xx_DriverLib/src/lpc43xx_sdif.c|mcu/lpc43xx/CMSIS_LPC43xx_DriverLib/src/lpc43xx_sct.c|mcu/lpc43xx/CMSIS_LPC43xx_DriverLib/src/lpc43xx_rtc.c|mcu/lpc43xx/CMSIS_LPC43xx_DriverLib/src/lpc43xx_rit.c|mcu/lpc43xx/CMSIS_LPC43xx_DriverLib/src/lpc43xx_rgu.c|mcu/lpc43xx/CMSIS_LPC43xx_DriverLib/src/lpc43xx_qei.c|mcu/lpc43xx/CMSIS_LPC43xx_DriverLib/src/lpc43xx_pwr.c|mcu/lpc43xx/CMSIS_LPC43xx_DriverLib/src/lpc43xx_nvic.c|mcu/lpc43xx/CMSIS_LPC43xx_DriverLib/src/lpc43xx_mcpwm.c|mcu/lpc43xx/CMSIS_LPC43xx_DriverLib/src/lpc43xx_lcd.c|mcu/lpc43xx/CMSIS_LPC43xx_DriverLib/src/lpc43xx_i2s.c|mcu/lpc43xx/CMSIS_LPC43xx_DriverLib/src/lpc43xx_gpdma.c|mcu/lpc43xx/CMSIS_LPC43xx_DriverLib/src/lpc43xx_evrt.c|mcu/lpc43xx/CMSIS_LPC43xx_DriverLib/src/lpc43xx_emc.c|mcu/lpc43xx/CMSIS_LPC43xx_DriverLib/src/lpc43xx_dac.c|mcu/lpc43xx/CMSIS_LPC43xx_DriverLib/src/lpc43xx_can.c|mcu/lpc43xx/CMSIS_LPC43xx_DriverLib/src/lpc43xx_atimer.c|mcu/lpc43xx/CMSIS_LPC43xx_DriverLib/src/lpc43xx_adc.c|mcu/lpc43xx/CMSIS_LPC43xx_DriverLib/src/LCDTerm.c|mcu/lpc43xx/CMSIS_LPC43xx_DriverLib/src/Font5x7.c|mcu/lpc43xx/CMSIS_LPC43xx_DriverLib/src/debug_frmwrk.c|cmsis_rtos_rtx/SRC|mcu/lpc175x_6x|mcu/lpc13uxx|mcu/lpc11uxx|cmsis_rtos_rtx/SRC/IAR|bsp/boards/embedded_artists/oem_base_board|freertos/freertoslpc/FreeRTOS_lpc43xx_m0_Tick.c|freertos/freertos/Source/portable|bsp/boards/EA4357|NGX|bsp/lpc13uxx|bsp/lpc11uxx" flags="VALUE_WORKSPACE_PATH|RESOLVED" kind="sourcePath" name=""/>
+						<entry excluding="cmsis_rtos_rtx/SRC|cmsis_rtos_rtx/SRC/GCC/HAL_CM3.s|cmsis_rtos_rtx/SRC/GCC/HAL_CM0.s|cmsis_rtos_rtx/SRC/ARM|mcu/lpc43xx/CMSIS_LPC43xx_DriverLib/src/sdio.c|mcu/lpc43xx/CMSIS_LPC43xx_DriverLib/src/lpc43xx_wwdt.c|mcu/lpc43xx/CMSIS_LPC43xx_DriverLib/src/lpc43xx_timer.c|mcu/lpc43xx/CMSIS_LPC43xx_DriverLib/src/lpc43xx_ssp.c|mcu/lpc43xx/CMSIS_LPC43xx_DriverLib/src/lpc43xx_sdmmc.c|mcu/lpc43xx/CMSIS_LPC43xx_DriverLib/src/lpc43xx_sdif.c|mcu/lpc43xx/CMSIS_LPC43xx_DriverLib/src/lpc43xx_sct.c|mcu/lpc43xx/CMSIS_LPC43xx_DriverLib/src/lpc43xx_rtc.c|mcu/lpc43xx/CMSIS_LPC43xx_DriverLib/src/lpc43xx_rit.c|mcu/lpc43xx/CMSIS_LPC43xx_DriverLib/src/lpc43xx_rgu.c|mcu/lpc43xx/CMSIS_LPC43xx_DriverLib/src/lpc43xx_qei.c|mcu/lpc43xx/CMSIS_LPC43xx_DriverLib/src/lpc43xx_pwr.c|mcu/lpc43xx/CMSIS_LPC43xx_DriverLib/src/lpc43xx_nvic.c|mcu/lpc43xx/CMSIS_LPC43xx_DriverLib/src/lpc43xx_mcpwm.c|mcu/lpc43xx/CMSIS_LPC43xx_DriverLib/src/lpc43xx_lcd.c|mcu/lpc43xx/CMSIS_LPC43xx_DriverLib/src/lpc43xx_i2s.c|mcu/lpc43xx/CMSIS_LPC43xx_DriverLib/src/lpc43xx_gpdma.c|mcu/lpc43xx/CMSIS_LPC43xx_DriverLib/src/lpc43xx_evrt.c|mcu/lpc43xx/CMSIS_LPC43xx_DriverLib/src/lpc43xx_emc.c|mcu/lpc43xx/CMSIS_LPC43xx_DriverLib/src/lpc43xx_dac.c|mcu/lpc43xx/CMSIS_LPC43xx_DriverLib/src/lpc43xx_can.c|mcu/lpc43xx/CMSIS_LPC43xx_DriverLib/src/lpc43xx_atimer.c|mcu/lpc43xx/CMSIS_LPC43xx_DriverLib/src/lpc43xx_adc.c|mcu/lpc43xx/CMSIS_LPC43xx_DriverLib/src/LCDTerm.c|mcu/lpc43xx/CMSIS_LPC43xx_DriverLib/src/Font5x7.c|mcu/lpc43xx/CMSIS_LPC43xx_DriverLib/src/debug_frmwrk.c|mcu/lpc175x_6x|mcu/lpc13uxx|mcu/lpc11uxx|cmsis_rtos_rtx/SRC/IAR|bsp/boards/embedded_artists/oem_base_board|freertos/freertoslpc/FreeRTOS_lpc43xx_m0_Tick.c|freertos/freertos/Source/portable|bsp/boards/EA4357|NGX|bsp/lpc13uxx|bsp/lpc11uxx" flags="VALUE_WORKSPACE_PATH|RESOLVED" kind="sourcePath" name=""/>
 					</sourceEntries>
 				</configuration>
 			</storageModule>
@@ -95,25 +93,24 @@
 			<storageModule moduleId="org.eclipse.cdt.core.language.mapping"/>
 			<storageModule moduleId="org.eclipse.cdt.internal.ui.text.commentOwnerProjectMappings"/>
 			<storageModule moduleId="org.eclipse.cdt.make.core.buildtargets"/>
-			<storageModule moduleId="scannerConfiguration"/>
 		</cconfiguration>
 		<cconfiguration id="com.crt.advproject.config.exe.debug.1239969983.636406670">
 			<storageModule buildSystemId="org.eclipse.cdt.managedbuilder.core.configurationDataProvider" id="com.crt.advproject.config.exe.debug.1239969983.636406670" moduleId="org.eclipse.cdt.core.settings" name="Board EA4357">
 				<macros>
 					<stringMacro name="CFLAGS_OFF" type="VALUE_TEXT" value=""/>
-					<stringMacro name="CFLAGS" type="VALUE_TEXT" value="${CFLAGS_OFF}"/>
 					<stringMacro name="CFLAGS_ON" type="VALUE_TEXT" value="-pedantic -Wextra -Wswitch-default -Wunsafe-loop-optimizations -Wcast-align -Wlogical-op -Wpacked-bitfield-compat -Wpadded -Wnested-externs -Wredundant-decls -Winline -Wpacked"/>
+					<stringMacro name="CFLAGS" type="VALUE_TEXT" value="${CFLAGS_OFF}"/>
 				</macros>
 				<externalSettings/>
 				<extensions>
-					<extension id="org.eclipse.cdt.core.ELF" point="org.eclipse.cdt.core.BinaryParser"/>
-					<extension id="org.eclipse.cdt.core.GNU_ELF" point="org.eclipse.cdt.core.BinaryParser"/>
 					<extension id="org.eclipse.cdt.core.GmakeErrorParser" point="org.eclipse.cdt.core.ErrorParser"/>
 					<extension id="org.eclipse.cdt.core.CWDLocator" point="org.eclipse.cdt.core.ErrorParser"/>
 					<extension id="org.eclipse.cdt.core.MakeErrorParser" point="org.eclipse.cdt.core.ErrorParser"/>
 					<extension id="org.eclipse.cdt.core.GCCErrorParser" point="org.eclipse.cdt.core.ErrorParser"/>
 					<extension id="org.eclipse.cdt.core.GASErrorParser" point="org.eclipse.cdt.core.ErrorParser"/>
 					<extension id="org.eclipse.cdt.core.GLDErrorParser" point="org.eclipse.cdt.core.ErrorParser"/>
+					<extension id="org.eclipse.cdt.core.ELF" point="org.eclipse.cdt.core.BinaryParser"/>
+					<extension id="org.eclipse.cdt.core.GNU_ELF" point="org.eclipse.cdt.core.BinaryParser"/>
 				</extensions>
 			</storageModule>
 			<storageModule moduleId="cdtBuildSystem" version="4.0.0">
@@ -131,7 +128,7 @@
 									<listOptionValue builtIn="false" value="__CORTEX_M4F"/>
 									<listOptionValue builtIn="false" value="__CMSIS_RTOS "/>
 									<listOptionValue builtIn="false" value="__FPU_PRESENT"/>
-									<listOptionValue builtIn="false" value="__USE_CMSIS=CMSIS_LPC43xx_DriverLib"/>
+									<listOptionValue builtIn="false" value="__USE_CMSIS"/>
 									<listOptionValue builtIn="false" value="CORE_M4"/>
 									<listOptionValue builtIn="false" value="TUSB_CFG_MCU=MCU_LPC43XX"/>
 									<listOptionValue builtIn="false" value="BOARD=BOARD_EA4357"/>
@@ -178,8 +175,10 @@
 								<option id="gnu.c.link.option.paths.916077707" name="Library search path (-L)" superClass="gnu.c.link.option.paths" valueType="libPaths">
 									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/${ProjName}/cmsis_rtos_rtx/LIB/GCC}&quot;"/>
 								</option>
-								<option id="com.crt.advproject.link.gcc.hdrlib.1015545513" name="Use C library" superClass="com.crt.advproject.link.gcc.hdrlib" value="com.crt.advproject.gcc.link.hdrlib.codered.nohost" valueType="enumerated"/>
+								<option id="com.crt.advproject.link.gcc.hdrlib.1015545513" name="Library" superClass="com.crt.advproject.link.gcc.hdrlib" value="com.crt.advproject.gcc.link.hdrlib.codered.nohost" valueType="enumerated"/>
 								<option id="com.crt.advproject.link.fpu.834301167" name="Floating point" superClass="com.crt.advproject.link.fpu" value="com.crt.advproject.link.fpu.fpv4.hard" valueType="enumerated"/>
+								<option id="com.crt.advproject.link.gcc.multicore.slave.1674664189" name="Multicore slave" superClass="com.crt.advproject.link.gcc.multicore.slave"/>
+								<option id="com.crt.advproject.link.gcc.multicore.master.413285924" name="Multicore" superClass="com.crt.advproject.link.gcc.multicore.master"/>
 								<inputType id="cdt.managedbuild.tool.gnu.c.linker.input.388300407" superClass="cdt.managedbuild.tool.gnu.c.linker.input">
 									<additionalInput kind="additionalinputdependency" paths="$(USER_OBJS)"/>
 									<additionalInput kind="additionalinput" paths="$(LIBS)"/>
@@ -188,7 +187,7 @@
 						</toolChain>
 					</folderInfo>
 					<sourceEntries>
-						<entry excluding="mcu/lpc43xx/CMSIS_LPC43xx_DriverLib/src/sdio.c|mcu/lpc43xx/CMSIS_LPC43xx_DriverLib/src/lpc43xx_wwdt.c|mcu/lpc43xx/CMSIS_LPC43xx_DriverLib/src/lpc43xx_timer.c|mcu/lpc43xx/CMSIS_LPC43xx_DriverLib/src/lpc43xx_ssp.c|mcu/lpc43xx/CMSIS_LPC43xx_DriverLib/src/lpc43xx_sdmmc.c|mcu/lpc43xx/CMSIS_LPC43xx_DriverLib/src/lpc43xx_sdif.c|mcu/lpc43xx/CMSIS_LPC43xx_DriverLib/src/lpc43xx_sct.c|mcu/lpc43xx/CMSIS_LPC43xx_DriverLib/src/lpc43xx_rtc.c|mcu/lpc43xx/CMSIS_LPC43xx_DriverLib/src/lpc43xx_rit.c|mcu/lpc43xx/CMSIS_LPC43xx_DriverLib/src/lpc43xx_rgu.c|mcu/lpc43xx/CMSIS_LPC43xx_DriverLib/src/lpc43xx_qei.c|mcu/lpc43xx/CMSIS_LPC43xx_DriverLib/src/lpc43xx_pwr.c|mcu/lpc43xx/CMSIS_LPC43xx_DriverLib/src/lpc43xx_nvic.c|mcu/lpc43xx/CMSIS_LPC43xx_DriverLib/src/lpc43xx_mcpwm.c|mcu/lpc43xx/CMSIS_LPC43xx_DriverLib/src/lpc43xx_lcd.c|mcu/lpc43xx/CMSIS_LPC43xx_DriverLib/src/lpc43xx_i2s.c|mcu/lpc43xx/CMSIS_LPC43xx_DriverLib/src/lpc43xx_gpdma.c|mcu/lpc43xx/CMSIS_LPC43xx_DriverLib/src/lpc43xx_evrt.c|mcu/lpc43xx/CMSIS_LPC43xx_DriverLib/src/lpc43xx_emc.c|mcu/lpc43xx/CMSIS_LPC43xx_DriverLib/src/lpc43xx_dac.c|mcu/lpc43xx/CMSIS_LPC43xx_DriverLib/src/lpc43xx_can.c|mcu/lpc43xx/CMSIS_LPC43xx_DriverLib/src/lpc43xx_atimer.c|mcu/lpc43xx/CMSIS_LPC43xx_DriverLib/src/lpc43xx_adc.c|mcu/lpc43xx/CMSIS_LPC43xx_DriverLib/src/LCDTerm.c|mcu/lpc43xx/CMSIS_LPC43xx_DriverLib/src/Font5x7.c|mcu/lpc43xx/CMSIS_LPC43xx_DriverLib/src/debug_frmwrk.c|cmsis_rtos_rtx/SRC|mcu/lpc175x_6x|mcu/lpc13uxx|mcu/lpc11uxx|cmsis_rtos_rtx/SRC/IAR|freertos/freertoslpc/FreeRTOS_lpc43xx_m0_Tick.c|freertos/freertos/Source/portable|bsp/boards/EA4357|NGX|bsp/lpc13uxx|bsp/lpc11uxx" flags="VALUE_WORKSPACE_PATH|RESOLVED" kind="sourcePath" name=""/>
+						<entry excluding="cmsis_rtos_rtx/SRC|cmsis_rtos_rtx/SRC/GCC/HAL_CM3.s|cmsis_rtos_rtx/SRC/GCC/HAL_CM0.s|cmsis_rtos_rtx/SRC/ARM|mcu/lpc43xx/CMSIS_LPC43xx_DriverLib/src/sdio.c|mcu/lpc43xx/CMSIS_LPC43xx_DriverLib/src/lpc43xx_wwdt.c|mcu/lpc43xx/CMSIS_LPC43xx_DriverLib/src/lpc43xx_timer.c|mcu/lpc43xx/CMSIS_LPC43xx_DriverLib/src/lpc43xx_ssp.c|mcu/lpc43xx/CMSIS_LPC43xx_DriverLib/src/lpc43xx_sdmmc.c|mcu/lpc43xx/CMSIS_LPC43xx_DriverLib/src/lpc43xx_sdif.c|mcu/lpc43xx/CMSIS_LPC43xx_DriverLib/src/lpc43xx_sct.c|mcu/lpc43xx/CMSIS_LPC43xx_DriverLib/src/lpc43xx_rtc.c|mcu/lpc43xx/CMSIS_LPC43xx_DriverLib/src/lpc43xx_rit.c|mcu/lpc43xx/CMSIS_LPC43xx_DriverLib/src/lpc43xx_rgu.c|mcu/lpc43xx/CMSIS_LPC43xx_DriverLib/src/lpc43xx_qei.c|mcu/lpc43xx/CMSIS_LPC43xx_DriverLib/src/lpc43xx_pwr.c|mcu/lpc43xx/CMSIS_LPC43xx_DriverLib/src/lpc43xx_nvic.c|mcu/lpc43xx/CMSIS_LPC43xx_DriverLib/src/lpc43xx_mcpwm.c|mcu/lpc43xx/CMSIS_LPC43xx_DriverLib/src/lpc43xx_lcd.c|mcu/lpc43xx/CMSIS_LPC43xx_DriverLib/src/lpc43xx_i2s.c|mcu/lpc43xx/CMSIS_LPC43xx_DriverLib/src/lpc43xx_gpdma.c|mcu/lpc43xx/CMSIS_LPC43xx_DriverLib/src/lpc43xx_evrt.c|mcu/lpc43xx/CMSIS_LPC43xx_DriverLib/src/lpc43xx_emc.c|mcu/lpc43xx/CMSIS_LPC43xx_DriverLib/src/lpc43xx_dac.c|mcu/lpc43xx/CMSIS_LPC43xx_DriverLib/src/lpc43xx_can.c|mcu/lpc43xx/CMSIS_LPC43xx_DriverLib/src/lpc43xx_atimer.c|mcu/lpc43xx/CMSIS_LPC43xx_DriverLib/src/lpc43xx_adc.c|mcu/lpc43xx/CMSIS_LPC43xx_DriverLib/src/LCDTerm.c|mcu/lpc43xx/CMSIS_LPC43xx_DriverLib/src/Font5x7.c|mcu/lpc43xx/CMSIS_LPC43xx_DriverLib/src/debug_frmwrk.c|mcu/lpc175x_6x|mcu/lpc13uxx|mcu/lpc11uxx|cmsis_rtos_rtx/SRC/IAR|freertos/freertoslpc/FreeRTOS_lpc43xx_m0_Tick.c|freertos/freertos/Source/portable|bsp/boards/EA4357|NGX|bsp/lpc13uxx|bsp/lpc11uxx" flags="VALUE_WORKSPACE_PATH|RESOLVED" kind="sourcePath" name=""/>
 					</sourceEntries>
 				</configuration>
 			</storageModule>
@@ -196,7 +195,6 @@
 			<storageModule moduleId="org.eclipse.cdt.core.language.mapping"/>
 			<storageModule moduleId="org.eclipse.cdt.internal.ui.text.commentOwnerProjectMappings"/>
 			<storageModule moduleId="org.eclipse.cdt.make.core.buildtargets"/>
-			<storageModule moduleId="scannerConfiguration"/>
 		</cconfiguration>
 	</storageModule>
 	<storageModule moduleId="cdtBuildSystem" version="4.0.0">
@@ -206,10 +204,7 @@
 		<projectStorage>&lt;?xml version="1.0" encoding="UTF-8"?&gt;&#13;
 &lt;TargetConfig&gt;&#13;
 &lt;Properties property_0="" property_2="LPC18x7_43x7_2x512_BootA.cfx" property_3="NXP" property_4="LPC4357" property_count="5" version="60100"/&gt;&#13;
-&lt;infoList vendor="NXP"&gt;&#13;
-&lt;info chip="LPC4357" flash_driver="LPC18x7_43x7_2x512_BootA.cfx" match_id="0x0" name="LPC4357" resetscript="LPC18LPC43InternalFLASHBootResetscript.scp" stub="crt_emu_lpc18_43_nxp"&gt;&#13;
-&lt;chip&gt;&#13;
-&lt;name&gt;LPC4357&lt;/name&gt;&#13;
+&lt;infoList vendor="NXP"&gt;&lt;info chip="LPC4357" flash_driver="LPC18x7_43x7_2x512_BootA.cfx" match_id="0x0" name="LPC4357" resetscript="LPC18LPC43InternalFLASHBootResetscript.scp" stub="crt_emu_lpc18_43_nxp"&gt;&lt;chip&gt;&lt;name&gt;LPC4357&lt;/name&gt;&#13;
 &lt;family&gt;LPC43xx&lt;/family&gt;&#13;
 &lt;vendor&gt;NXP (formerly Philips)&lt;/vendor&gt;&#13;
 &lt;reset board="None" core="Real" sys="Real"/&gt;&#13;
@@ -284,8 +279,7 @@
 &lt;peripheralInstance derived_from="SPI" determined="infoFile" id="SPI" location="0x40100000"/&gt;&#13;
 &lt;peripheralInstance derived_from="SGPIO" determined="infoFile" id="SGPIO" location="0x40101000"/&gt;&#13;
 &lt;/chip&gt;&#13;
-&lt;processor&gt;&#13;
-&lt;name gcc_name="cortex-m4"&gt;Cortex-M4&lt;/name&gt;&#13;
+&lt;processor&gt;&lt;name gcc_name="cortex-m4"&gt;Cortex-M4&lt;/name&gt;&#13;
 &lt;family&gt;Cortex-M&lt;/family&gt;&#13;
 &lt;/processor&gt;&#13;
 &lt;link href="nxp_lpc43xx_peripheral.xme" show="embed" type="simple"/&gt;&#13;
