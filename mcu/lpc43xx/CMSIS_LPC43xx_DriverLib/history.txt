@@ -9,6 +9,10 @@ Note that this project provides both the basic CMSIS
 headers, as well as NXP's LPC43xx peripheral driver 
 code which sit on top of CMSIS.
 
+18 July 2013
+------------
+Updated with ARM Cortex-M4 CMSIS files as supplied in ARM's
+CMSIS 3.20 March 2013 release.
 
 12 March 2013
 -------------
