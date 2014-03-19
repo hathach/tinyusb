@@ -73,7 +73,7 @@ issue at github.com/hathach/tinyusb"
 #endif
 
 void msc_dev_app_init(void);
-OSAL_TASK_FUNCTION( msc_dev_app_task ) (void* p_task_para);
+OSAL_TASK_FUNCTION( msc_dev_app_task , p_task_para);
 
 extern scsi_sense_fixed_data_t mscd_sense_data;
 

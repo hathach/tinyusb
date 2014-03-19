@@ -64,6 +64,8 @@ extern "C" {
 //--------------------------------------------------------------------+
 // TASK API
 //--------------------------------------------------------------------+
+#define OSAL_TASK_FUNCTION portTASK_FUNCTION
+
 typedef struct {
   char const * name;
   pdTASK_CODE code;

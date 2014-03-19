@@ -60,7 +60,7 @@
 //--------------------------------------------------------------------+
 // INTERNAL OBJECT & FUNCTION DECLARATION
 //--------------------------------------------------------------------+
-OSAL_TASK_FUNCTION( led_blinking_task ) (void* p_task_para);
+OSAL_TASK_FUNCTION( led_blinking_task, p_task_para);
 OSAL_TASK_DEF(led_blinking_task, 128, LED_BLINKING_APP_TASK_PRIO);
 
 void print_greeting(void);
@@ -124,7 +124,7 @@ int main(void)
 //--------------------------------------------------------------------+
 // BLINKING TASK
 //--------------------------------------------------------------------+
-OSAL_TASK_FUNCTION( led_blinking_task ) (void* p_task_para)
+OSAL_TASK_FUNCTION( led_blinking_task, p_task_para)
 {
   (void) p_task_para; // suppress compiler warnings
 

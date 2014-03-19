@@ -225,7 +225,7 @@ tusb_error_t usbd_control_request_subtask(uint8_t coreid, tusb_control_request_t
 // To enable the TASK_ASSERT style (quick return on false condition) in a real RTOS, a task must act as a wrapper
 // and is used mainly to call subtasks. Within a subtask return statement can be called freely, the task with
 // forever loop cannot have any return at all.
-OSAL_TASK_FUNCTION(usbd_task) (void* p_task_para)
+OSAL_TASK_FUNCTION(usbd_task, p_task_para)
 {
   OSAL_TASK_LOOP_BEGIN
 

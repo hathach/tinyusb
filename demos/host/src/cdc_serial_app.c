@@ -119,7 +119,7 @@ void cdc_serial_app_init(void)
 }
 
 //------------- main task -------------//
-OSAL_TASK_FUNCTION( cdc_serial_app_task ) (void* p_task_para)
+OSAL_TASK_FUNCTION( cdc_serial_app_task, p_task_para)
 {
   (void) p_task_para;
 

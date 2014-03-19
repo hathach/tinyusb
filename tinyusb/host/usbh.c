@@ -342,7 +342,7 @@ static tusb_error_t enumeration_body_subtask(void);
 // To enable the TASK_ASSERT style (quick return on false condition) in a real RTOS, a task must act as a wrapper
 // and is used mainly to call subtasks. Within a subtask return statement can be called freely, the task with
 // forever loop cannot have any return at all.
-OSAL_TASK_FUNCTION(usbh_enumeration_task) (void* p_task_para)
+OSAL_TASK_FUNCTION(usbh_enumeration_task, p_task_para)
 {
   (void) p_task_para; // suppress compiler warnings
 

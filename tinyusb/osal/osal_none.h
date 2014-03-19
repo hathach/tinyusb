@@ -77,8 +77,7 @@ uint32_t tusb_tick_get(void);
 #define OSAL_TASK_REF
 #define osal_task_create(x) TUSB_ERROR_NONE
 
-#define OSAL_TASK_FUNCTION(task_func) \
-  tusb_error_t task_func
+#define OSAL_TASK_FUNCTION(task_func, p_para)   tusb_error_t task_func(void * p_para)
 
 #define TASK_RESTART \
   state = 0

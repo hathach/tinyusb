@@ -167,7 +167,8 @@
           <state>CORE_M4</state>
           <state>TUSB_CFG_MCU=MCU_LPC43XX</state>
           <state>BOARD=BOARD_EA4357</state>
-          <state>TUSB_CFG_OS=TUSB_OS_NONE</state>
+          <state>TUSB_CFG_OS=TUSB_OS_CMSIS_RTX</state>
+          <state>TUSB_CFG_OS_TASK_PRIO=osPriorityRealtime</state>
         </option>
         <option>
           <name>CCPreprocFile</name>
@@ -301,6 +302,7 @@
           <state>$PROJ_DIR$\..\..\..\boards</state>
           <state>$PROJ_DIR$\..\..\..\tinyusb</state>
           <state>$PROJ_DIR$\..\..\..\vendor\fatfs</state>
+          <state>$PROJ_DIR$\..\..\..\vendor\cmsis_rtos_rtx\INC</state>
         </option>
         <option>
           <name>CCStdIncCheck</name>
@@ -2793,31 +2795,31 @@
     </file>
   </group>
   <group>
-    <name>bsp</name>
-    <group>
-      <name>boards</name>
-      <file>
-        <name>$PROJ_DIR$\..\..\..\boards\board.c</name>
-      </file>
-      <file>
-        <name>$PROJ_DIR$\..\..\..\boards\embedded_artists\ea4357\board_ea4357.c</name>
-      </file>
-      <file>
-        <name>$PROJ_DIR$\..\..\..\boards\microbuilder\board_lpc4357usb.c</name>
-      </file>
-      <file>
-        <name>$PROJ_DIR$\..\..\..\boards\lpcxpresso\board_lpcxpresso1769.c</name>
-      </file>
-      <file>
-        <name>$PROJ_DIR$\..\..\..\boards\ngx\board_ngx4330.c</name>
-      </file>
-      <file>
-        <name>$PROJ_DIR$\..\..\..\boards\embedded_artists\oem_base_board\pca9532.c</name>
-      </file>
-      <file>
-        <name>$PROJ_DIR$\..\..\..\boards\printf_retarget.c</name>
-      </file>
-    </group>
+    <name>boards</name>
+    <file>
+      <name>$PROJ_DIR$\..\..\..\boards\board.c</name>
+    </file>
+    <file>
+      <name>$PROJ_DIR$\..\..\..\boards\embedded_artists\ea4357\board_ea4357.c</name>
+    </file>
+    <file>
+      <name>$PROJ_DIR$\..\..\..\boards\microbuilder\board_lpc4357usb.c</name>
+    </file>
+    <file>
+      <name>$PROJ_DIR$\..\..\..\boards\lpcxpresso\board_lpcxpresso1769.c</name>
+    </file>
+    <file>
+      <name>$PROJ_DIR$\..\..\..\boards\ngx\board_ngx4330.c</name>
+    </file>
+    <file>
+      <name>$PROJ_DIR$\..\..\..\boards\embedded_artists\oem_base_board\pca9532.c</name>
+    </file>
+    <file>
+      <name>$PROJ_DIR$\..\..\..\boards\printf_retarget.c</name>
+    </file>
+  </group>
+  <group>
+    <name>mcu</name>
     <group>
       <name>lpc175x_6x</name>
       <excluded>
@@ -2870,6 +2872,15 @@
         <name>$PROJ_DIR$\..\..\..\mcu\lpc43xx\CMSIS_LPC43xx_DriverLib\src\system_LPC43xx.c</name>
       </file>
     </group>
+  </group>
+  <group>
+    <name>cmsis-rtx</name>
+    <file>
+      <name>$PROJ_DIR$\..\..\..\vendor\cmsis_rtos_rtx\LIB\IAR\RTX_CM4.a</name>
+    </file>
+    <file>
+      <name>$PROJ_DIR$\..\..\..\vendor\cmsis_rtos_rtx\RTX_Conf_CM.c</name>
+    </file>
   </group>
   <group>
     <name>fatfs</name>

@@ -98,7 +98,7 @@ void moused_app_init(void)
   ASSERT( TUSB_ERROR_NONE == osal_task_create( OSAL_TASK_REF(moused_app_task) ), VOID_RETURN);
 }
 
-OSAL_TASK_FUNCTION( moused_app_task ) (void* p_task_para)
+OSAL_TASK_FUNCTION( moused_app_task , p_task_para)
 {
   OSAL_TASK_LOOP_BEGIN
 

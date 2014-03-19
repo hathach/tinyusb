@@ -66,8 +66,15 @@
   #include "osal_none.h"
 
 #else
+   #if TUSB_CFG_OS == TUSB_OS_FREERTOS
+    #include "osal_freeRTOS.h"
+  #elif TUSB_CFG_OS == TUSB_OS_CMSIS_RTX
+    #include "osal_cmsis_rtx.h"
+  #else
+    #error TUSB_CFG_OS is not defined or OS is not supported yet
+  #endif
+
   #define OSAL_VAR
-  #define OSAL_TASK_FUNCTION(task_func) void task_func
   #define OSAL_TASK_LOOP_BEGIN \
     while(1) {
 
@@ -98,14 +105,6 @@
   #define SUBTASK_ASSERT_WITH_HANDLER(condition, func_call) \
       ASSERT_DEFINE_WITH_HANDLER(_SUBTASK_ASSERT_ERROR_HANDLER, func_call, ,\
                                  condition, TUSB_ERROR_OSAL_TASK_FAILED, "%s", "evaluated to false")
-
-  #if TUSB_CFG_OS == TUSB_OS_FREERTOS
-    #include "osal_freeRTOS.h"
-  #elif TUSB_CFG_OS == TUSB_OS_CMSIS_RTX
-    #include "osal_cmsis_rtx.h"
-  #else
-    #error TUSB_CFG_OS is not defined or OS is not supported yet
-  #endif
 #endif
 
 //------------- OSAL API for cmock -------------//

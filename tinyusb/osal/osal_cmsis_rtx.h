@@ -59,6 +59,8 @@
 //--------------------------------------------------------------------+
 // TASK API
 //--------------------------------------------------------------------+
+#define OSAL_TASK_FUNCTION(task_func, p_para) void task_func(void const * p_para)
+
 typedef osThreadDef_t osal_task_t;
 
 #define OSAL_TASK_DEF(task_code, task_stack_depth, task_prio) \

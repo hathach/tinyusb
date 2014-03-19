@@ -57,7 +57,7 @@
 #if TUSB_CFG_HOST_MSC
 
 void msc_app_init(void);
-OSAL_TASK_FUNCTION( msc_app_task ) (void* p_task_para);
+OSAL_TASK_FUNCTION( msc_app_task, p_task_para);
 
 #else
 

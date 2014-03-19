@@ -116,7 +116,7 @@ void tusbd_cdc_xfer_cb(uint8_t coreid, tusb_event_t event, cdc_pipeid_t pipe_id,
   }
 }
 
-OSAL_TASK_FUNCTION( cdcd_serial_app_task ) (void* p_task_para)
+OSAL_TASK_FUNCTION( cdcd_serial_app_task , p_task_para)
 {
   OSAL_TASK_LOOP_BEGIN
 
