@@ -44,6 +44,7 @@ extern "C" {
 
 #define WEAK __attribute__ ((weak))
 #define ALIAS(f) __attribute__ ((weak, alias (#f)))
+#define SVCall_Handler SVC_Handler
 
 // Code Red - if CMSIS is being used, then SystemInit() routine
 // will be called by startup code rather than in application's main()

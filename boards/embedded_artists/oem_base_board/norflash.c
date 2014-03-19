@@ -21,6 +21,9 @@
 /******************************************************************************
  * Includes
  *****************************************************************************/
+#include "../../board.h"
+
+#if BOARD == BOARD_EA4357
 
 #include "lpc_types.h"
 #include "lpc43xx_scu.h"
@@ -541,3 +544,4 @@ uint32_t norflash_secid_writeWord(uint16_t target, uint16_t* data, uint16_t len)
   return TRUE;
 }
 
+#endif

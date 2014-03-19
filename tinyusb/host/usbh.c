@@ -178,7 +178,7 @@ tusb_error_t usbh_init(void)
 tusb_error_t usbh_control_xfer_subtask(uint8_t dev_addr, uint8_t bmRequestType, uint8_t bRequest,
                                        uint16_t wValue, uint16_t wIndex, uint16_t wLength, uint8_t* data)
 {
-  static tusb_error_t error; // FIXME cmsis-rtx use svc for OS API, error value changed after mutex release at the end of function
+  static tusb_error_t error; // FIXME [CMSIS-RTX] use svc for OS API, error value changed after mutex release at the end of function
 
   OSAL_SUBTASK_BEGIN
 

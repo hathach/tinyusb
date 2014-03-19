@@ -24,6 +24,9 @@
 /******************************************************************************
  * Includes
  *****************************************************************************/
+#include "../../board.h"
+
+#if BOARD == BOARD_EA4357
 
 #include <string.h>
 #include <stdio.h>
@@ -193,3 +196,5 @@ int16_t base_eeprom_write(uint8_t* buf, uint16_t offset, uint16_t len)
 
   return written;
 }
+
+#endif

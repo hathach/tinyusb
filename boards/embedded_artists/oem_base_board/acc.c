@@ -21,7 +21,9 @@
 /******************************************************************************
  * Includes
  *****************************************************************************/
+#include "../../board.h"
 
+#if BOARD == BOARD_EA4357
 
 #include "lpc_types.h"
 #include "lpc43xx_i2c.h"
@@ -249,3 +251,4 @@ void acc_setMode(acc_mode_t mode)
     setModeControl(mctl);
 }
 
+#endif

@@ -1,3 +1,6 @@
+#include "../../board.h"
+
+#if BOARD == BOARD_EA4357
 
 #include "lpc43xx_i2c.h"
 #include "lpc43xx_scu.h"
@@ -152,5 +155,5 @@ int32_t Uda1380_ReadData(uint8_t reg, uint16_t *data)
 	return UDA1380_FUNC_ERR;
 }
 
-
+#endif
 

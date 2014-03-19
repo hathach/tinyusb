@@ -45,8 +45,6 @@ extern "C" {
 #define WEAK __attribute__ ((weak))
 #define ALIAS(f) __attribute__ ((weak, alias (#f)))
 
-#define __USE_CMSIS // Added by nxpUSBlib
-
 // Code Red - if CMSIS is being used, then SystemInit() routine
 // will be called by startup code rather than in application's main()
 #if defined (__USE_CMSIS)

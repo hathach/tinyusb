@@ -85,7 +85,7 @@
 						</toolChain>
 					</folderInfo>
 					<sourceEntries>
-						<entry excluding="cmsis_rtos_rtx/SRC|cmsis_rtos_rtx/SRC/GCC/HAL_CM3.s|cmsis_rtos_rtx/SRC/GCC/HAL_CM0.s|cmsis_rtos_rtx/SRC/ARM|mcu/lpc43xx/CMSIS_LPC43xx_DriverLib/src/sdio.c|mcu/lpc43xx/CMSIS_LPC43xx_DriverLib/src/lpc43xx_wwdt.c|mcu/lpc43xx/CMSIS_LPC43xx_DriverLib/src/lpc43xx_timer.c|mcu/lpc43xx/CMSIS_LPC43xx_DriverLib/src/lpc43xx_ssp.c|mcu/lpc43xx/CMSIS_LPC43xx_DriverLib/src/lpc43xx_sdmmc.c|mcu/lpc43xx/CMSIS_LPC43xx_DriverLib/src/lpc43xx_sdif.c|mcu/lpc43xx/CMSIS_LPC43xx_DriverLib/src/lpc43xx_sct.c|mcu/lpc43xx/CMSIS_LPC43xx_DriverLib/src/lpc43xx_rtc.c|mcu/lpc43xx/CMSIS_LPC43xx_DriverLib/src/lpc43xx_rit.c|mcu/lpc43xx/CMSIS_LPC43xx_DriverLib/src/lpc43xx_rgu.c|mcu/lpc43xx/CMSIS_LPC43xx_DriverLib/src/lpc43xx_qei.c|mcu/lpc43xx/CMSIS_LPC43xx_DriverLib/src/lpc43xx_pwr.c|mcu/lpc43xx/CMSIS_LPC43xx_DriverLib/src/lpc43xx_nvic.c|mcu/lpc43xx/CMSIS_LPC43xx_DriverLib/src/lpc43xx_mcpwm.c|mcu/lpc43xx/CMSIS_LPC43xx_DriverLib/src/lpc43xx_lcd.c|mcu/lpc43xx/CMSIS_LPC43xx_DriverLib/src/lpc43xx_i2s.c|mcu/lpc43xx/CMSIS_LPC43xx_DriverLib/src/lpc43xx_gpdma.c|mcu/lpc43xx/CMSIS_LPC43xx_DriverLib/src/lpc43xx_evrt.c|mcu/lpc43xx/CMSIS_LPC43xx_DriverLib/src/lpc43xx_emc.c|mcu/lpc43xx/CMSIS_LPC43xx_DriverLib/src/lpc43xx_dac.c|mcu/lpc43xx/CMSIS_LPC43xx_DriverLib/src/lpc43xx_can.c|mcu/lpc43xx/CMSIS_LPC43xx_DriverLib/src/lpc43xx_atimer.c|mcu/lpc43xx/CMSIS_LPC43xx_DriverLib/src/lpc43xx_adc.c|mcu/lpc43xx/CMSIS_LPC43xx_DriverLib/src/LCDTerm.c|mcu/lpc43xx/CMSIS_LPC43xx_DriverLib/src/Font5x7.c|mcu/lpc43xx/CMSIS_LPC43xx_DriverLib/src/debug_frmwrk.c|mcu/lpc175x_6x|mcu/lpc13uxx|mcu/lpc11uxx|cmsis_rtos_rtx/SRC/IAR|bsp/boards/embedded_artists/oem_base_board|freertos/freertoslpc/FreeRTOS_lpc43xx_m0_Tick.c|freertos/freertos/Source/portable|bsp/boards/EA4357|NGX|bsp/lpc13uxx|bsp/lpc11uxx" flags="VALUE_WORKSPACE_PATH|RESOLVED" kind="sourcePath" name=""/>
+						<entry excluding="boards/embedded_artists/oem_base_board|cmsis_rtos_rtx/SRC|cmsis_rtos_rtx/SRC/GCC/HAL_CM3.s|cmsis_rtos_rtx/SRC/GCC/HAL_CM0.s|cmsis_rtos_rtx/SRC/ARM|mcu/lpc43xx/CMSIS_LPC43xx_DriverLib/src/sdio.c|mcu/lpc43xx/CMSIS_LPC43xx_DriverLib/src/lpc43xx_wwdt.c|mcu/lpc43xx/CMSIS_LPC43xx_DriverLib/src/lpc43xx_timer.c|mcu/lpc43xx/CMSIS_LPC43xx_DriverLib/src/lpc43xx_ssp.c|mcu/lpc43xx/CMSIS_LPC43xx_DriverLib/src/lpc43xx_sdmmc.c|mcu/lpc43xx/CMSIS_LPC43xx_DriverLib/src/lpc43xx_sdif.c|mcu/lpc43xx/CMSIS_LPC43xx_DriverLib/src/lpc43xx_sct.c|mcu/lpc43xx/CMSIS_LPC43xx_DriverLib/src/lpc43xx_rtc.c|mcu/lpc43xx/CMSIS_LPC43xx_DriverLib/src/lpc43xx_rit.c|mcu/lpc43xx/CMSIS_LPC43xx_DriverLib/src/lpc43xx_rgu.c|mcu/lpc43xx/CMSIS_LPC43xx_DriverLib/src/lpc43xx_qei.c|mcu/lpc43xx/CMSIS_LPC43xx_DriverLib/src/lpc43xx_pwr.c|mcu/lpc43xx/CMSIS_LPC43xx_DriverLib/src/lpc43xx_nvic.c|mcu/lpc43xx/CMSIS_LPC43xx_DriverLib/src/lpc43xx_mcpwm.c|mcu/lpc43xx/CMSIS_LPC43xx_DriverLib/src/lpc43xx_lcd.c|mcu/lpc43xx/CMSIS_LPC43xx_DriverLib/src/lpc43xx_i2s.c|mcu/lpc43xx/CMSIS_LPC43xx_DriverLib/src/lpc43xx_gpdma.c|mcu/lpc43xx/CMSIS_LPC43xx_DriverLib/src/lpc43xx_evrt.c|mcu/lpc43xx/CMSIS_LPC43xx_DriverLib/src/lpc43xx_emc.c|mcu/lpc43xx/CMSIS_LPC43xx_DriverLib/src/lpc43xx_dac.c|mcu/lpc43xx/CMSIS_LPC43xx_DriverLib/src/lpc43xx_can.c|mcu/lpc43xx/CMSIS_LPC43xx_DriverLib/src/lpc43xx_atimer.c|mcu/lpc43xx/CMSIS_LPC43xx_DriverLib/src/lpc43xx_adc.c|mcu/lpc43xx/CMSIS_LPC43xx_DriverLib/src/LCDTerm.c|mcu/lpc43xx/CMSIS_LPC43xx_DriverLib/src/Font5x7.c|mcu/lpc43xx/CMSIS_LPC43xx_DriverLib/src/debug_frmwrk.c|mcu/lpc175x_6x|mcu/lpc13uxx|mcu/lpc11uxx|cmsis_rtos_rtx/SRC/IAR|bsp/boards/embedded_artists/oem_base_board|freertos/freertoslpc/FreeRTOS_lpc43xx_m0_Tick.c|freertos/freertos/Source/portable|bsp/boards/EA4357|NGX|bsp/lpc13uxx|bsp/lpc11uxx" flags="VALUE_WORKSPACE_PATH|RESOLVED" kind="sourcePath" name=""/>
 					</sourceEntries>
 				</configuration>
 			</storageModule>
@@ -188,6 +188,108 @@
 					</folderInfo>
 					<sourceEntries>
 						<entry excluding="cmsis_rtos_rtx/SRC|mcu/lpc43xx/CMSIS_LPC43xx_DriverLib/src/sdio.c|mcu/lpc43xx/CMSIS_LPC43xx_DriverLib/src/lpc43xx_wwdt.c|mcu/lpc43xx/CMSIS_LPC43xx_DriverLib/src/lpc43xx_timer.c|mcu/lpc43xx/CMSIS_LPC43xx_DriverLib/src/lpc43xx_ssp.c|mcu/lpc43xx/CMSIS_LPC43xx_DriverLib/src/lpc43xx_sdmmc.c|mcu/lpc43xx/CMSIS_LPC43xx_DriverLib/src/lpc43xx_sdif.c|mcu/lpc43xx/CMSIS_LPC43xx_DriverLib/src/lpc43xx_sct.c|mcu/lpc43xx/CMSIS_LPC43xx_DriverLib/src/lpc43xx_rtc.c|mcu/lpc43xx/CMSIS_LPC43xx_DriverLib/src/lpc43xx_rit.c|mcu/lpc43xx/CMSIS_LPC43xx_DriverLib/src/lpc43xx_rgu.c|mcu/lpc43xx/CMSIS_LPC43xx_DriverLib/src/lpc43xx_qei.c|mcu/lpc43xx/CMSIS_LPC43xx_DriverLib/src/lpc43xx_pwr.c|mcu/lpc43xx/CMSIS_LPC43xx_DriverLib/src/lpc43xx_nvic.c|mcu/lpc43xx/CMSIS_LPC43xx_DriverLib/src/lpc43xx_mcpwm.c|mcu/lpc43xx/CMSIS_LPC43xx_DriverLib/src/lpc43xx_lcd.c|mcu/lpc43xx/CMSIS_LPC43xx_DriverLib/src/lpc43xx_i2s.c|mcu/lpc43xx/CMSIS_LPC43xx_DriverLib/src/lpc43xx_gpdma.c|mcu/lpc43xx/CMSIS_LPC43xx_DriverLib/src/lpc43xx_evrt.c|mcu/lpc43xx/CMSIS_LPC43xx_DriverLib/src/lpc43xx_emc.c|mcu/lpc43xx/CMSIS_LPC43xx_DriverLib/src/lpc43xx_dac.c|mcu/lpc43xx/CMSIS_LPC43xx_DriverLib/src/lpc43xx_can.c|mcu/lpc43xx/CMSIS_LPC43xx_DriverLib/src/lpc43xx_atimer.c|mcu/lpc43xx/CMSIS_LPC43xx_DriverLib/src/lpc43xx_adc.c|mcu/lpc43xx/CMSIS_LPC43xx_DriverLib/src/LCDTerm.c|mcu/lpc43xx/CMSIS_LPC43xx_DriverLib/src/Font5x7.c|mcu/lpc43xx/CMSIS_LPC43xx_DriverLib/src/debug_frmwrk.c|mcu/lpc175x_6x|mcu/lpc13uxx|mcu/lpc11uxx|freertos/freertoslpc/FreeRTOS_lpc43xx_m0_Tick.c|freertos/freertos/Source/portable" flags="VALUE_WORKSPACE_PATH" kind="sourcePath" name=""/>
+					</sourceEntries>
+				</configuration>
+			</storageModule>
+			<storageModule moduleId="org.eclipse.cdt.core.externalSettings"/>
+			<storageModule moduleId="org.eclipse.cdt.core.language.mapping"/>
+			<storageModule moduleId="org.eclipse.cdt.internal.ui.text.commentOwnerProjectMappings"/>
+			<storageModule moduleId="org.eclipse.cdt.make.core.buildtargets"/>
+		</cconfiguration>
+		<cconfiguration id="com.crt.advproject.config.exe.debug.1239969983.636406670.682459274">
+			<storageModule buildSystemId="org.eclipse.cdt.managedbuilder.core.configurationDataProvider" id="com.crt.advproject.config.exe.debug.1239969983.636406670.682459274" moduleId="org.eclipse.cdt.core.settings" name="Board LPCXpresso1769">
+				<macros>
+					<stringMacro name="CFLAGS_OFF" type="VALUE_TEXT" value=""/>
+					<stringMacro name="CFLAGS_ON" type="VALUE_TEXT" value="-pedantic -Wextra -Wswitch-default -Wunsafe-loop-optimizations -Wcast-align -Wlogical-op -Wpacked-bitfield-compat -Wpadded -Wnested-externs -Wredundant-decls -Winline -Wpacked"/>
+					<stringMacro name="CFLAGS" type="VALUE_TEXT" value="${CFLAGS_OFF}"/>
+				</macros>
+				<externalSettings/>
+				<extensions>
+					<extension id="org.eclipse.cdt.core.GmakeErrorParser" point="org.eclipse.cdt.core.ErrorParser"/>
+					<extension id="org.eclipse.cdt.core.CWDLocator" point="org.eclipse.cdt.core.ErrorParser"/>
+					<extension id="org.eclipse.cdt.core.MakeErrorParser" point="org.eclipse.cdt.core.ErrorParser"/>
+					<extension id="org.eclipse.cdt.core.GCCErrorParser" point="org.eclipse.cdt.core.ErrorParser"/>
+					<extension id="org.eclipse.cdt.core.GASErrorParser" point="org.eclipse.cdt.core.ErrorParser"/>
+					<extension id="org.eclipse.cdt.core.GLDErrorParser" point="org.eclipse.cdt.core.ErrorParser"/>
+					<extension id="org.eclipse.cdt.core.ELF" point="org.eclipse.cdt.core.BinaryParser"/>
+					<extension id="org.eclipse.cdt.core.GNU_ELF" point="org.eclipse.cdt.core.BinaryParser"/>
+				</extensions>
+			</storageModule>
+			<storageModule moduleId="cdtBuildSystem" version="4.0.0">
+				<configuration artifactExtension="axf" artifactName="${ProjName}" buildArtefactType="org.eclipse.cdt.build.core.buildArtefactType.exe" buildProperties="org.eclipse.cdt.build.core.buildArtefactType=org.eclipse.cdt.build.core.buildArtefactType.exe" cleanCommand="rm -rf" description="" errorParsers="org.eclipse.cdt.core.MakeErrorParser;org.eclipse.cdt.core.GCCErrorParser;org.eclipse.cdt.core.GLDErrorParser;org.eclipse.cdt.core.GASErrorParser;org.eclipse.cdt.core.CWDLocator;org.eclipse.cdt.core.GmakeErrorParser" id="com.crt.advproject.config.exe.debug.1239969983.636406670.682459274" name="Board LPCXpresso1769" parent="com.crt.advproject.config.exe.debug" postannouncebuildStep="Performing post-build steps" postbuildStep="arm-none-eabi-size &quot;${BuildArtifactFileName}&quot;; # arm-none-eabi-objcopy -O binary &quot;${BuildArtifactFileName}&quot; &quot;${BuildArtifactFileBaseName}.bin&quot; ; checksum -p ${TargetChip} -d &quot;${BuildArtifactFileBaseName}.bin&quot;;  " preannouncebuildStep="" prebuildStep="">
+					<folderInfo id="com.crt.advproject.config.exe.debug.1239969983.636406670.682459274." name="/" resourcePath="">
+						<toolChain errorParsers="" id="com.crt.advproject.toolchain.exe.debug.1095746865" name="Code Red MCU Tools" superClass="com.crt.advproject.toolchain.exe.debug">
+							<targetPlatform binaryParser="org.eclipse.cdt.core.ELF;org.eclipse.cdt.core.GNU_ELF" id="com.crt.advproject.platform.exe.debug.61051881" name="ARM-based MCU (Debug)" superClass="com.crt.advproject.platform.exe.debug"/>
+							<builder buildPath="${workspace_loc:/host/Debug}" errorParsers="org.eclipse.cdt.core.GmakeErrorParser;org.eclipse.cdt.core.CWDLocator" id="com.crt.advproject.builder.exe.debug.1225748121" keepEnvironmentInBuildfile="false" managedBuildOn="true" name="Gnu Make Builder" superClass="com.crt.advproject.builder.exe.debug"/>
+							<tool id="com.crt.advproject.cpp.exe.debug.1732793690" name="MCU C++ Compiler" superClass="com.crt.advproject.cpp.exe.debug"/>
+							<tool command="arm-none-eabi-gcc" commandLinePattern="${COMMAND} ${FLAGS} ${CFLAGS} ${OUTPUT_FLAG}${OUTPUT_PREFIX}${OUTPUT} ${INPUTS}" errorParsers="org.eclipse.cdt.core.GCCErrorParser" id="com.crt.advproject.gcc.exe.debug.1929539740" name="MCU C Compiler" superClass="com.crt.advproject.gcc.exe.debug">
+								<option id="com.crt.advproject.gcc.arch.268060068" name="Architecture" superClass="com.crt.advproject.gcc.arch" value="com.crt.advproject.gcc.target.cm3" valueType="enumerated"/>
+								<option id="com.crt.advproject.gcc.thumb.918927668" name="Thumb mode" superClass="com.crt.advproject.gcc.thumb" value="true" valueType="boolean"/>
+								<option id="gnu.c.compiler.option.preprocessor.def.symbols.1055719498" name="Defined symbols (-D)" superClass="gnu.c.compiler.option.preprocessor.def.symbols" valueType="definedSymbols">
+									<listOptionValue builtIn="false" value="__REDLIB__"/>
+									<listOptionValue builtIn="false" value="__CORTEX_M3"/>
+									<listOptionValue builtIn="false" value="__CMSIS_RTOS "/>
+									<listOptionValue builtIn="false" value="__USE_CMSIS"/>
+									<listOptionValue builtIn="false" value="TUSB_CFG_MCU=MCU_LPC175X_6X"/>
+									<listOptionValue builtIn="false" value="BOARD=BOARD_LPCXPRESSO1769"/>
+									<listOptionValue builtIn="false" value="TUSB_CFG_OS=TUSB_OS_CMSIS_RTX"/>
+									<listOptionValue builtIn="false" value="TUSB_CFG_OS_TASK_PRIO=osPriorityRealtime"/>
+									<listOptionValue builtIn="false" value="DEBUG"/>
+									<listOptionValue builtIn="false" value="__CODE_RED"/>
+								</option>
+								<option id="gnu.c.compiler.option.misc.other.856452465" name="Other flags" superClass="gnu.c.compiler.option.misc.other" value="-c -fmessage-length=0 -fno-builtin -ffunction-sections -fdata-sections" valueType="string"/>
+								<option id="gnu.c.compiler.option.include.paths.1254063509" name="Include paths (-I)" superClass="gnu.c.compiler.option.include.paths" valueType="includePath">
+									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/${ProjName}/boards}&quot;"/>
+									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/${ProjName}/fatfs}&quot;"/>
+									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/${ProjName}/mcu/lpc175x_6x/LPC17xx_DriverLib/include}&quot;"/>
+									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/${ProjName}/mcu/lpc175x_6x/CMSIS_CORE_LPC17xx/inc}&quot;"/>
+									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/${ProjName}/cmsis_rtos_rtx/INC}&quot;"/>
+									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/${ProjName}/tinyusb}&quot;"/>
+									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/${ProjName}/src}&quot;"/>
+								</option>
+								<option id="com.crt.advproject.c.misc.dialect.433357991" name="C Dialect" superClass="com.crt.advproject.c.misc.dialect" value="com.crt.advproject.misc.dialect.gnu99" valueType="enumerated"/>
+								<option id="com.crt.advproject.gcc.fpu.1262323634" name="Floating point" superClass="com.crt.advproject.gcc.fpu" value="com.crt.advproject.gcc.fpu.none" valueType="enumerated"/>
+								<option id="gnu.c.compiler.option.dialect.std.512107713" name="Language standard" superClass="gnu.c.compiler.option.dialect.std" value="gnu.c.compiler.dialect.default" valueType="enumerated"/>
+								<inputType id="com.crt.advproject.compiler.input.2041510445" superClass="com.crt.advproject.compiler.input"/>
+							</tool>
+							<tool command="arm-none-eabi-gcc" commandLinePattern="${COMMAND} ${FLAGS} ${OUTPUT_FLAG}${OUTPUT_PREFIX}${OUTPUT} ${INPUTS}" errorParsers="org.eclipse.cdt.core.GASErrorParser" id="com.crt.advproject.gas.exe.debug.844673095" name="MCU Assembler" superClass="com.crt.advproject.gas.exe.debug">
+								<option id="com.crt.advproject.gas.arch.1081225329" name="Architecture" superClass="com.crt.advproject.gas.arch" value="com.crt.advproject.gas.target.cm3" valueType="enumerated"/>
+								<option id="com.crt.advproject.gas.thumb.78538241" name="Thumb mode" superClass="com.crt.advproject.gas.thumb" value="true" valueType="boolean"/>
+								<option id="gnu.both.asm.option.flags.crt.2074404865" name="Assembler flags" superClass="gnu.both.asm.option.flags.crt" value="-c -x assembler-with-cpp -D__REDLIB__ -DDEBUG -D__CODE_RED" valueType="string"/>
+								<option id="com.crt.advproject.gas.fpu.639015202" name="Floating point" superClass="com.crt.advproject.gas.fpu" value="com.crt.advproject.gas.fpu.none" valueType="enumerated"/>
+								<inputType id="com.crt.advproject.assembler.input.1063672371" name="Additional Assembly Source Files" superClass="com.crt.advproject.assembler.input"/>
+								<inputType id="cdt.managedbuild.tool.gnu.assembler.input.150631130" superClass="cdt.managedbuild.tool.gnu.assembler.input"/>
+							</tool>
+							<tool id="com.crt.advproject.link.cpp.exe.debug.954988311" name="MCU C++ Linker" superClass="com.crt.advproject.link.cpp.exe.debug"/>
+							<tool command="arm-none-eabi-gcc" commandLinePattern="${COMMAND} ${FLAGS} ${OUTPUT_FLAG}${OUTPUT_PREFIX}${OUTPUT} ${INPUTS}" errorParsers="org.eclipse.cdt.core.GLDErrorParser" id="com.crt.advproject.link.exe.debug.1502192644" name="MCU Linker" superClass="com.crt.advproject.link.exe.debug">
+								<option id="com.crt.advproject.link.arch.158315986" name="Architecture" superClass="com.crt.advproject.link.arch" value="com.crt.advproject.link.target.cm3" valueType="enumerated"/>
+								<option id="com.crt.advproject.link.thumb.627956478" name="Thumb mode" superClass="com.crt.advproject.link.thumb" value="true" valueType="boolean"/>
+								<option id="com.crt.advproject.link.script.18945284" name="Linker script" superClass="com.crt.advproject.link.script" value="&quot;host_cmsis_rtx_Board_LPCXpresso1769.ld&quot;" valueType="string"/>
+								<option id="com.crt.advproject.link.manage.1847041217" name="Manage linker script" superClass="com.crt.advproject.link.manage" value="true" valueType="boolean"/>
+								<option id="gnu.c.link.option.nostdlibs.1862195417" name="No startup or default libs (-nostdlib)" superClass="gnu.c.link.option.nostdlibs" value="true" valueType="boolean"/>
+								<option id="gnu.c.link.option.other.2005212407" name="Other options (-Xlinker [option])" superClass="gnu.c.link.option.other" valueType="stringList">
+									<listOptionValue builtIn="false" value="-Map=&quot;${BuildArtifactFileBaseName}.map&quot;"/>
+									<listOptionValue builtIn="false" value="--gc-sections"/>
+								</option>
+								<option id="gnu.c.link.option.libs.570002171" name="Libraries (-l)" superClass="gnu.c.link.option.libs" valueType="libs">
+									<listOptionValue builtIn="false" value="RTX_CM3"/>
+								</option>
+								<option id="gnu.c.link.option.paths.1185436199" name="Library search path (-L)" superClass="gnu.c.link.option.paths" valueType="libPaths">
+									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/${ProjName}/cmsis_rtos_rtx/LIB/GCC}&quot;"/>
+								</option>
+								<option id="com.crt.advproject.link.gcc.hdrlib.1376822718" name="Library" superClass="com.crt.advproject.link.gcc.hdrlib" value="com.crt.advproject.gcc.link.hdrlib.codered.nohost" valueType="enumerated"/>
+								<option id="com.crt.advproject.link.fpu.1096421602" name="Floating point" superClass="com.crt.advproject.link.fpu" value="com.crt.advproject.link.fpu.none" valueType="enumerated"/>
+								<option id="com.crt.advproject.link.gcc.multicore.slave.1605384275" name="Multicore slave" superClass="com.crt.advproject.link.gcc.multicore.slave"/>
+								<option id="com.crt.advproject.link.gcc.multicore.master.122348860" name="Multicore" superClass="com.crt.advproject.link.gcc.multicore.master"/>
+								<inputType id="cdt.managedbuild.tool.gnu.c.linker.input.1743324153" superClass="cdt.managedbuild.tool.gnu.c.linker.input">
+									<additionalInput kind="additionalinputdependency" paths="$(USER_OBJS)"/>
+									<additionalInput kind="additionalinput" paths="$(LIBS)"/>
+								</inputType>
+							</tool>
+						</toolChain>
+					</folderInfo>
+					<sourceEntries>
+						<entry excluding="boards/embedded_artists/oem_base_board|mcu/lpc43xx|cmsis_rtos_rtx/SRC|mcu/lpc43xx/CMSIS_LPC43xx_DriverLib/src/sdio.c|mcu/lpc43xx/CMSIS_LPC43xx_DriverLib/src/lpc43xx_wwdt.c|mcu/lpc43xx/CMSIS_LPC43xx_DriverLib/src/lpc43xx_timer.c|mcu/lpc43xx/CMSIS_LPC43xx_DriverLib/src/lpc43xx_ssp.c|mcu/lpc43xx/CMSIS_LPC43xx_DriverLib/src/lpc43xx_sdmmc.c|mcu/lpc43xx/CMSIS_LPC43xx_DriverLib/src/lpc43xx_sdif.c|mcu/lpc43xx/CMSIS_LPC43xx_DriverLib/src/lpc43xx_sct.c|mcu/lpc43xx/CMSIS_LPC43xx_DriverLib/src/lpc43xx_rtc.c|mcu/lpc43xx/CMSIS_LPC43xx_DriverLib/src/lpc43xx_rit.c|mcu/lpc43xx/CMSIS_LPC43xx_DriverLib/src/lpc43xx_rgu.c|mcu/lpc43xx/CMSIS_LPC43xx_DriverLib/src/lpc43xx_qei.c|mcu/lpc43xx/CMSIS_LPC43xx_DriverLib/src/lpc43xx_pwr.c|mcu/lpc43xx/CMSIS_LPC43xx_DriverLib/src/lpc43xx_nvic.c|mcu/lpc43xx/CMSIS_LPC43xx_DriverLib/src/lpc43xx_mcpwm.c|mcu/lpc43xx/CMSIS_LPC43xx_DriverLib/src/lpc43xx_lcd.c|mcu/lpc43xx/CMSIS_LPC43xx_DriverLib/src/lpc43xx_i2s.c|mcu/lpc43xx/CMSIS_LPC43xx_DriverLib/src/lpc43xx_gpdma.c|mcu/lpc43xx/CMSIS_LPC43xx_DriverLib/src/lpc43xx_evrt.c|mcu/lpc43xx/CMSIS_LPC43xx_DriverLib/src/lpc43xx_emc.c|mcu/lpc43xx/CMSIS_LPC43xx_DriverLib/src/lpc43xx_dac.c|mcu/lpc43xx/CMSIS_LPC43xx_DriverLib/src/lpc43xx_can.c|mcu/lpc43xx/CMSIS_LPC43xx_DriverLib/src/lpc43xx_atimer.c|mcu/lpc43xx/CMSIS_LPC43xx_DriverLib/src/lpc43xx_adc.c|mcu/lpc43xx/CMSIS_LPC43xx_DriverLib/src/LCDTerm.c|mcu/lpc43xx/CMSIS_LPC43xx_DriverLib/src/Font5x7.c|mcu/lpc43xx/CMSIS_LPC43xx_DriverLib/src/debug_frmwrk.c|mcu/lpc13uxx|mcu/lpc11uxx|freertos/freertoslpc/FreeRTOS_lpc43xx_m0_Tick.c|freertos/freertos/Source/portable" flags="VALUE_WORKSPACE_PATH" kind="sourcePath" name=""/>
 					</sourceEntries>
 				</configuration>
 			</storageModule>

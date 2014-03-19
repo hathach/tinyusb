@@ -154,12 +154,6 @@ function can have.  Note that lower priority have numerically higher values.  */
 standard names. */
 #define xPortPendSVHandler    PendSV_Handler
 #define xPortSysTickHandler   SysTick_Handler
-
-#ifdef __CODE_RED // cr_startup_lpc176x.c use different name for SVC_Hanlder
-#define vPortSVCHandler       SVCall_Handler
-#else
 #define vPortSVCHandler       SVC_Handler
-#endif
-
 
 #endif /* FREERTOS_CONFIG_H */
