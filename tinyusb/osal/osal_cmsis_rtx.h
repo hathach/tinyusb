@@ -158,12 +158,12 @@ typedef osal_queue_t * osal_queue_handle_t;
 #define OSAL_QUEUE_DEF(name, queue_depth, type)\
   osMailQDef(name, queue_depth, type);
 
-#define OSAL_QUEUE_REF(name)  osMailQ(name)
+#define OSAL_QUEUE_REF(name)  ((osal_queue_t*) osMailQ(name))
 
 static inline osal_queue_handle_t osal_queue_create(osal_queue_t * const p_queue) ATTR_WARN_UNUSED_RESULT ATTR_ALWAYS_INLINE;
 static inline osal_queue_handle_t osal_queue_create(osal_queue_t * const p_queue)
 {
-  return (NULL != osMailCreate(p_queue, NULL)) ?  p_queue : NULL;
+  return (NULL != osMailCreate( (osMailQDef_t const *) p_queue, NULL)) ?  p_queue : NULL;
 }
 
 static inline void osal_queue_receive (osal_queue_handle_t const queue_hdl, void *p_data, uint32_t msec, tusb_error_t *p_error) ATTR_ALWAYS_INLINE;
