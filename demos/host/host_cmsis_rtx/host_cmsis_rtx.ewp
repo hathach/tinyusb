@@ -1091,7 +1091,8 @@
           <name>CCDefines</name>
           <state>TUSB_CFG_MCU=MCU_LPC175X_6X</state>
           <state>BOARD=BOARD_LPCXPRESSO1769</state>
-          <state>TUSB_CFG_OS=TUSB_OS_NONE</state>
+          <state>TUSB_CFG_OS=TUSB_OS_CMSIS_RTX</state>
+          <state>TUSB_CFG_OS_TASK_PRIO=osPriorityRealtime</state>
         </option>
         <option>
           <name>CCPreprocFile</name>
@@ -1226,6 +1227,7 @@
           <state>$PROJ_DIR$\..\..\..\boards</state>
           <state>$PROJ_DIR$\..\..\..\tinyusb</state>
           <state>$PROJ_DIR$\..\..\..\vendor\fatfs</state>
+          <state>$PROJ_DIR$\..\..\..\vendor\cmsis_rtos_rtx\INC</state>
         </option>
         <option>
           <name>CCStdIncCheck</name>
@@ -2819,6 +2821,37 @@
     </file>
   </group>
   <group>
+    <name>cmsis-rtx</name>
+    <file>
+      <name>$PROJ_DIR$\..\..\..\vendor\cmsis_rtos_rtx\LIB\IAR\RTX_CM3.a</name>
+      <excluded>
+        <configuration>Board EA4357</configuration>
+        <configuration>Board NGX4330</configuration>
+      </excluded>
+    </file>
+    <file>
+      <name>$PROJ_DIR$\..\..\..\vendor\cmsis_rtos_rtx\LIB\IAR\RTX_CM4.a</name>
+      <excluded>
+        <configuration>Board LPCXpresso1769</configuration>
+      </excluded>
+    </file>
+    <file>
+      <name>$PROJ_DIR$\..\..\..\vendor\cmsis_rtos_rtx\RTX_Conf_CM.c</name>
+    </file>
+  </group>
+  <group>
+    <name>fatfs</name>
+    <file>
+      <name>$PROJ_DIR$\..\..\..\vendor\fatfs\ccsbcs.c</name>
+    </file>
+    <file>
+      <name>$PROJ_DIR$\..\..\..\vendor\fatfs\diskio.c</name>
+    </file>
+    <file>
+      <name>$PROJ_DIR$\..\..\..\vendor\fatfs\ff.c</name>
+    </file>
+  </group>
+  <group>
     <name>mcu</name>
     <group>
       <name>lpc175x_6x</name>
@@ -2872,27 +2905,6 @@
         <name>$PROJ_DIR$\..\..\..\mcu\lpc43xx\CMSIS_LPC43xx_DriverLib\src\system_LPC43xx.c</name>
       </file>
     </group>
-  </group>
-  <group>
-    <name>cmsis-rtx</name>
-    <file>
-      <name>$PROJ_DIR$\..\..\..\vendor\cmsis_rtos_rtx\LIB\IAR\RTX_CM4.a</name>
-    </file>
-    <file>
-      <name>$PROJ_DIR$\..\..\..\vendor\cmsis_rtos_rtx\RTX_Conf_CM.c</name>
-    </file>
-  </group>
-  <group>
-    <name>fatfs</name>
-    <file>
-      <name>$PROJ_DIR$\..\..\..\vendor\fatfs\ccsbcs.c</name>
-    </file>
-    <file>
-      <name>$PROJ_DIR$\..\..\..\vendor\fatfs\diskio.c</name>
-    </file>
-    <file>
-      <name>$PROJ_DIR$\..\..\..\vendor\fatfs\ff.c</name>
-    </file>
   </group>
   <group>
     <name>tinyusb</name>
