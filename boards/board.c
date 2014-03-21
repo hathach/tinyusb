@@ -38,8 +38,8 @@
 
 #include "board.h"
 
-
 #if TUSB_CFG_OS == TUSB_OS_NONE
+
 volatile uint32_t system_ticks = 0;
 
 void SysTick_Handler (void)

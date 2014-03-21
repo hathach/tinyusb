@@ -59,17 +59,17 @@
 //--------------------------------------------------------------------+
 // BOARD DEFINE
 //--------------------------------------------------------------------+
-#define BOARD_RF1GHZNODE            1
-#define BOARD_LPCXPRESSO1347        2
+#define BOARD_RF1GHZNODE            1100
+#define BOARD_LPCXPRESSO1347        1300
+#define BOARD_LPCXPRESSO1769        1700
 
-#define BOARD_NGX4330               3
-#define BOARD_EA4357                4
-#define BOARD_MCB4300               5
-#define BOARD_HITEX4350             6
-#define BOARD_LPCXPRESSO1769        7
+#define BOARD_NGX4330               4300
+#define BOARD_EA4357                4301
+#define BOARD_MCB4300               4302
+#define BOARD_HITEX4350             4303
+#define BOARD_LPC4357USB            4304
 
-#define BOARD_LPC4357USB            8
-#define BOARD_LPCLINK2              9
+#define BOARD_LPCLINK2              4370
 
 //--------------------------------------------------------------------+
 // PRINTF TARGET DEFINE
