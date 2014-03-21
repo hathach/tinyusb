@@ -38,6 +38,7 @@
 
 #include "board.h"
 
+
 #if TUSB_CFG_OS == TUSB_OS_NONE
 volatile uint32_t system_ticks = 0;
 
@@ -53,6 +54,45 @@ uint32_t tusb_tick_get(void)
 
 #endif
 
+//--------------------------------------------------------------------+
+// BLINKING TASK
+//--------------------------------------------------------------------+
+OSAL_TASK_DEF(led_blinking_task, 128, LED_BLINKING_APP_TASK_PRIO);
+static uint32_t led_blink_interval_ms = 1000; // default is 1 second
+
+void led_blinking_init(void)
+{
+  (void) osal_task_create( OSAL_TASK_REF(led_blinking_task) );
+}
+
+void led_blinking_set_interval(uint32_t ms)
+{
+  led_blink_interval_ms = ms;
+}
+
+OSAL_TASK_FUNCTION( led_blinking_task , p_task_para)
+{
+  OSAL_TASK_LOOP_BEGIN
+
+  static uint32_t led_on_mask = 0;
+
+  osal_task_delay(led_blink_interval_ms);
+
+  board_leds(led_on_mask, 1 - led_on_mask);
+  led_on_mask = 1 - led_on_mask; // toggle
+
+//  uint32_t btn_mask;
+//  btn_mask = board_buttons();
+//
+//  for(uint8_t i=0; i<32; i++)
+//  {
+//    if ( BIT_TEST_(btn_mask, i) ) printf("button %d is pressed\n", i);
+//  }
+
+  OSAL_TASK_LOOP_END
+}
+
+// TODO remove legacy cmsis code
 void check_failed(uint8_t *file, uint32_t line)
 {
   (void) file;

@@ -44,7 +44,7 @@
 //--------------------------------------------------------------------+
 // Descriptors Value (calculated by enabled Classes)
 //--------------------------------------------------------------------+
-#define CFG_VENDORID            0x1FC9 // NXP
+#define CFG_VENDORID            0xCAFE
 //#define CFG_PRODUCTID           0x4567 // use auto product id to prevent conflict with pc's driver
 
 // each combination of interfaces need to have a unique productid, as windows will bind & remember device driver after the first plug.

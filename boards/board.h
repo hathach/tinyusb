@@ -115,13 +115,16 @@
 void board_init(void);
 
 void board_leds(uint32_t on_mask, uint32_t off_mask);
+uint32_t board_buttons(void);
 
 uint8_t  board_uart_getchar(void);
 void board_uart_putchar(uint8_t c);
 
-uint32_t board_buttons(void);
+//------------- Board Application  -------------//
+OSAL_TASK_FUNCTION( led_blinking_task , p_task_para);
 
-extern volatile uint32_t system_ticks;
+void led_blinking_init(void);
+void led_blinking_set_interval(uint32_t ms);
 
 #ifdef __cplusplus
  }

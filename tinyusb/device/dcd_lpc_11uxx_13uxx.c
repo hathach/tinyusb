@@ -66,10 +66,18 @@ enum {
   DCD_11U_13U_MAX_BYTE_PER_TD = (TUSB_CFG_MCU == MCU_LPC11UXX ? 64 : 1023)
 };
 
+#ifdef __CC_ARM
+#pragma diag_suppress 66 // Suppress Keil warnings #66-D: enumeration value is out of "int" range
+#endif
+
 enum {
   INT_MASK_SOF           = BIT_(30),
   INT_MASK_DEVICE_STATUS = BIT_(31)
 };
+
+#ifdef __CC_ARM
+#pragma diag_suppress 66 // Suppress Keil warnings #66-D: enumeration value is out of "int" range
+#endif
 
 enum {
   CMDSTAT_DEVICE_ADDR_MASK    = BIT_(7 )-1,
@@ -399,11 +407,13 @@ static inline uint8_t edpt_addr2phy(uint8_t endpoint_addr)
   return 2*(endpoint_addr & 0x0F) + ((endpoint_addr & TUSB_DIR_DEV_TO_HOST_MASK) ? 1 : 0);
 }
 
+#if 0
 static inline uint8_t edpt_phy2log(uint8_t physical_endpoint) ATTR_CONST ATTR_ALWAYS_INLINE;
 static inline uint8_t edpt_phy2log(uint8_t physical_endpoint)
 {
   return physical_endpoint/2;
 }
+#endif
 
 //--------------------------------------------------------------------+
 // BULK/INTERRUPT/ISOCHRONOUS PIPE API

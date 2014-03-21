@@ -104,8 +104,7 @@ void tusbd_cdc_xfer_cb(uint8_t coreid, tusb_event_t event, cdc_pipeid_t pipe_id,
 
         case TUSB_EVENT_XFER_STALLED:
         default :
-          ASSERT(false, VOID_RETURN);
-          break;
+        break;
       }
     break;
 
@@ -123,6 +122,7 @@ OSAL_TASK_FUNCTION( cdcd_serial_app_task , p_task_para)
   tusb_error_t error;
 
   osal_semaphore_wait(sem_hdl, OSAL_TIMEOUT_WAIT_FOREVER, &error);
+  (void) error; // suppress compiler's warnings
 
   if ( tusbd_is_configured(0) )
   {
