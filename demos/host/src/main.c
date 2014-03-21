@@ -60,9 +60,6 @@
 //--------------------------------------------------------------------+
 // INTERNAL OBJECT & FUNCTION DECLARATION
 //--------------------------------------------------------------------+
-OSAL_TASK_FUNCTION( led_blinking_task, p_task_para);
-OSAL_TASK_DEF(led_blinking_task, 128, LED_BLINKING_APP_TASK_PRIO);
-
 void print_greeting(void);
 
 //--------------------------------------------------------------------+
@@ -99,7 +96,7 @@ int main(void)
   tusb_init();
 
   //------------- application task init -------------//
-  if( osal_task_create( OSAL_TASK_REF(led_blinking_task) ) != TUSB_ERROR_NONE ) while(1){}
+  led_blinking_init();
 
   keyboard_app_init();
   mouse_app_init();
@@ -119,25 +116,6 @@ int main(void)
 #endif
 
   return 0;
-}
-
-//--------------------------------------------------------------------+
-// BLINKING TASK
-//--------------------------------------------------------------------+
-OSAL_TASK_FUNCTION( led_blinking_task, p_task_para)
-{
-  (void) p_task_para; // suppress compiler warnings
-
-  static uint32_t led_on_mask = 0;
-
-  OSAL_TASK_LOOP_BEGIN
-
-  osal_task_delay(1000);
-
-  board_leds(led_on_mask, 1 - led_on_mask);
-  led_on_mask = 1 - led_on_mask; // toggle
-
-  OSAL_TASK_LOOP_END
 }
 
 //--------------------------------------------------------------------+
