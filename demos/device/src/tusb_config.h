@@ -59,11 +59,11 @@
 #define TUSB_CFG_DEVICE_FULLSPEED               1 // TODO refractor, remove
 
 //------------- CLASS -------------//
-#define TUSB_CFG_DEVICE_HID_KEYBOARD            1
+#define TUSB_CFG_DEVICE_HID_KEYBOARD            0
 #define TUSB_CFG_DEVICE_HID_MOUSE               1
 #define TUSB_CFG_DEVICE_HID_GENERIC             0 // not supported yet
-#define TUSB_CFG_DEVICE_MSC                     0
-#define TUSB_CFG_DEVICE_CDC                     1
+#define TUSB_CFG_DEVICE_MSC                     1
+#define TUSB_CFG_DEVICE_CDC                     0
 
 //--------------------------------------------------------------------+
 // COMMON CONFIGURATION
@@ -80,7 +80,7 @@
 #ifdef __CODE_RED // compiled with lpcxpresso
 
   #if (TUSB_CFG_MCU == MCU_LPC11UXX) || (TUSB_CFG_MCU == MCU_LPC13UXX)
-    #define TUSB_CFG_ATTR_USBRAM  ATTR_SECTION(.data.$RAM2)
+    #define TUSB_CFG_ATTR_USBRAM  ATTR_SECTION(.data.$RAM2) ATTR_ALIGNED(64) // lp11u & lp13u requires data to be 64 byte aligned
   #elif TUSB_CFG_MCU == MCU_LPC175X_6X
     #define TUSB_CFG_ATTR_USBRAM // LPC17xx USB DMA can access all
   #elif  (TUSB_CFG_MCU == MCU_LPC43XX)
@@ -90,21 +90,21 @@
 #elif defined  __CC_ARM // Compiled with Keil armcc, USBRAM_SECTION is defined in scatter files
 
   #if (TUSB_CFG_MCU == MCU_LPC11UXX) || (TUSB_CFG_MCU == MCU_LPC13UXX)
-    #define TUSB_CFG_ATTR_USBRAM  ATTR_SECTION(USBRAM_SECTION)
-  #elif  (TUSB_CFG_MCU == MCU_LPC43XX)
-    #define TUSB_CFG_ATTR_USBRAM // Use keil tool configure to have AHB SRAM as default memory
+    #define TUSB_CFG_ATTR_USBRAM  ATTR_SECTION(USBRAM_SECTION) ATTR_ALIGNED(64) // lp11u & lp13u requires data to be 64 byte aligned
   #elif (TUSB_CFG_MCU == MCU_LPC175X_6X)
     #define TUSB_CFG_ATTR_USBRAM
+  #elif  (TUSB_CFG_MCU == MCU_LPC43XX)
+    #define TUSB_CFG_ATTR_USBRAM // Use keil tool configure to have AHB SRAM as default memory
   #endif
 
 #elif defined __ICCARM__ // compiled with IAR
 
-  #if  (TUSB_CFG_MCU == MCU_LPC43XX)
-    #define TUSB_CFG_ATTR_USBRAM _Pragma("location=\".ahb_sram1\"")
+  #if (TUSB_CFG_MCU == MCU_LPC11UXX) || (TUSB_CFG_MCU == MCU_LPC13UXX)
+    #define TUSB_CFG_ATTR_USBRAM _Pragma("location=\"USB_PACKET_MEMORY\"") ATTR_ALIGNED(64)
   #elif (TUSB_CFG_MCU == MCU_LPC175X_6X)
     #define TUSB_CFG_ATTR_USBRAM
-  #elif (TUSB_CFG_MCU == MCU_LPC11UXX) || (TUSB_CFG_MCU == MCU_LPC13UXX)
-    #define TUSB_CFG_ATTR_USBRAM _Pragma("location=\"USB_PACKET_MEMORY\"")
+  #elif  (TUSB_CFG_MCU == MCU_LPC43XX)
+    #define TUSB_CFG_ATTR_USBRAM _Pragma("location=\".ahb_sram1\"")
   #endif
 
 #else

@@ -57,8 +57,8 @@ OSAL_SEM_DEF(cdcd_semaphore);
 
 static osal_semaphore_handle_t sem_hdl;
 
-TUSB_CFG_ATTR_USBRAM ATTR_USB_MIN_ALIGNMENT static uint8_t serial_rx_buffer[CDCD_APP_BUFFER_SIZE];
-TUSB_CFG_ATTR_USBRAM ATTR_USB_MIN_ALIGNMENT static uint8_t serial_tx_buffer[CDCD_APP_BUFFER_SIZE];
+TUSB_CFG_ATTR_USBRAM static uint8_t serial_rx_buffer[CDCD_APP_BUFFER_SIZE];
+TUSB_CFG_ATTR_USBRAM static uint8_t serial_tx_buffer[CDCD_APP_BUFFER_SIZE];
 
 //--------------------------------------------------------------------+
 // INTERNAL OBJECT & FUNCTION DECLARATION

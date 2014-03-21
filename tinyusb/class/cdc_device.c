@@ -50,7 +50,7 @@
 //--------------------------------------------------------------------+
 // MACRO CONSTANT TYPEDEF
 //--------------------------------------------------------------------+
-TUSB_CFG_ATTR_USBRAM ATTR_USB_MIN_ALIGNMENT
+TUSB_CFG_ATTR_USBRAM
 static cdc_line_coding_t cdcd_line_coding[CONTROLLER_DEVICE_NUMBER];
 
 typedef struct {

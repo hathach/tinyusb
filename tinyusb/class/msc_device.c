@@ -69,7 +69,7 @@ typedef struct {
   endpoint_handle_t edpt_in, edpt_out;
 }mscd_interface_t;
 
-ATTR_USB_MIN_ALIGNMENT TUSB_CFG_ATTR_USBRAM STATIC_VAR mscd_interface_t mscd_data;
+TUSB_CFG_ATTR_USBRAM STATIC_VAR mscd_interface_t mscd_data;
 //--------------------------------------------------------------------+
 // INTERNAL OBJECT & FUNCTION DECLARATION
 //--------------------------------------------------------------------+

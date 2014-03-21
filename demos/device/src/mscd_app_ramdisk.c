@@ -47,7 +47,7 @@
 //--------------------------------------------------------------------+
 // INTERNAL OBJECT & FUNCTION DECLARATION
 //--------------------------------------------------------------------+
-TUSB_CFG_ATTR_USBRAM ATTR_USB_MIN_ALIGNMENT
+TUSB_CFG_ATTR_USBRAM
 uint8_t mscd_app_ramdisk[DISK_BLOCK_NUM][DISK_BLOCK_SIZE] =
 {
   //------------- Boot Sector -------------//

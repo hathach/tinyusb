@@ -42,7 +42,7 @@
 // Keyboard Report Descriptor
 //--------------------------------------------------------------------+
 #if TUSB_CFG_DEVICE_HID_KEYBOARD
-ATTR_USB_MIN_ALIGNMENT TUSB_CFG_ATTR_USBRAM
+TUSB_CFG_ATTR_USBRAM
 uint8_t desc_keyboard_report[] = {
   HID_USAGE_PAGE ( HID_USAGE_PAGE_DESKTOP     ),
   HID_USAGE      ( HID_USAGE_DESKTOP_KEYBOARD ),
@@ -89,7 +89,7 @@ uint8_t desc_keyboard_report[] = {
 // Mouse Report Descriptor
 //--------------------------------------------------------------------+
 #if TUSB_CFG_DEVICE_HID_MOUSE
-ATTR_USB_MIN_ALIGNMENT TUSB_CFG_ATTR_USBRAM
+TUSB_CFG_ATTR_USBRAM
 uint8_t desc_mouse_report[] = {
   HID_USAGE_PAGE ( HID_USAGE_PAGE_DESKTOP     ),
   HID_USAGE      ( HID_USAGE_DESKTOP_MOUSE    ),
@@ -137,7 +137,7 @@ uint8_t desc_mouse_report[] = {
 //--------------------------------------------------------------------+
 // USB DEVICE DESCRIPTOR
 //--------------------------------------------------------------------+
-ATTR_USB_MIN_ALIGNMENT TUSB_CFG_ATTR_USBRAM
+TUSB_CFG_ATTR_USBRAM
 tusb_descriptor_device_t desc_device =
 {
     .bLength            = sizeof(tusb_descriptor_device_t),
@@ -171,7 +171,7 @@ tusb_descriptor_device_t desc_device =
 //--------------------------------------------------------------------+
 // USB COFNIGURATION DESCRIPTOR
 //--------------------------------------------------------------------+
-ATTR_USB_MIN_ALIGNMENT TUSB_CFG_ATTR_USBRAM
+TUSB_CFG_ATTR_USBRAM
 app_descriptor_configuration_t desc_configuration =
 {
     .configuration =
@@ -410,28 +410,28 @@ app_descriptor_configuration_t desc_configuration =
 #define STRING_LEN_UNICODE(n) (2 + (2*(n))) // also includes 2 byte header
 #define ENDIAN_BE16_FROM( high, low) ENDIAN_BE16(high << 8 | low)
 
-ATTR_USB_MIN_ALIGNMENT TUSB_CFG_ATTR_USBRAM
+TUSB_CFG_ATTR_USBRAM
 uint16_t desc_string_language[] =
 {
     ENDIAN_BE16_FROM( STRING_LEN_UNICODE(1), TUSB_DESC_TYPE_STRING ),
     0x0409
 };
 
-ATTR_USB_MIN_ALIGNMENT TUSB_CFG_ATTR_USBRAM
+TUSB_CFG_ATTR_USBRAM
 uint16_t desc_string_manufacturer[] =
 {
     ENDIAN_BE16_FROM( STRING_LEN_UNICODE(11), TUSB_DESC_TYPE_STRING),
     't', 'i', 'n', 'y', 'u', 's', 'b', '.', 'o', 'r', 'g' // len = 11
 };
 
-ATTR_USB_MIN_ALIGNMENT TUSB_CFG_ATTR_USBRAM
+TUSB_CFG_ATTR_USBRAM
 uint16_t desc_string_product[] =
 {
     ENDIAN_BE16_FROM( STRING_LEN_UNICODE(14), TUSB_DESC_TYPE_STRING),
     't', 'i', 'n', 'y', 'u', 's', 'b', ' ', 'D', 'e', 'v', 'i', 'c', 'e' // len = 14
 };
 
-ATTR_USB_MIN_ALIGNMENT TUSB_CFG_ATTR_USBRAM
+TUSB_CFG_ATTR_USBRAM
 uint16_t desc_string_serial[] =
 {
     ENDIAN_BE16_FROM( STRING_LEN_UNICODE(4), TUSB_DESC_TYPE_STRING),
@@ -457,7 +457,7 @@ tusbd_descriptor_pointer_t tusbd_descriptor_pointers =
     .p_hid_keyboard_report = desc_keyboard_report,
     #endif
 
-    #if TUSB_CFG_DEVICE_HID_KEYBOARD
+    #if TUSB_CFG_DEVICE_HID_MOUSE
     .p_hid_mouse_report    = desc_mouse_report,
     #endif
 };

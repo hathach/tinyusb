@@ -101,10 +101,8 @@ static hidd_class_driver_t const hidd_class_driver[HIDD_NUMBER_OF_SUBCLASS] =
 #endif
 };
 
-
 // TODO [HID] generic
-TUSB_CFG_ATTR_USBRAM ATTR_USB_MIN_ALIGNMENT
-uint8_t m_control_data[ MAX_OF(sizeof(hid_keyboard_report_t), sizeof(hid_mouse_report_t)) ];
+TUSB_CFG_ATTR_USBRAM uint8_t m_control_data[ MAX_OF(sizeof(hid_keyboard_report_t), sizeof(hid_mouse_report_t)) ];
 
 //--------------------------------------------------------------------+
 // KEYBOARD APPLICATION API

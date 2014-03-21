@@ -141,7 +141,13 @@ typedef struct {
 //--------------------------------------------------------------------+
 // INTERNAL OBJECT & FUNCTION DECLARATION
 //--------------------------------------------------------------------+
-TUSB_CFG_ATTR_USBRAM ATTR_ALIGNED(256) static dcd_11u_13u_data_t dcd_data;
+// TUSB_CFG_ATTR_USBRAM must have ATTR_ALIGNED(64) for lpc11u & lpc13u
+#ifdef __ICCARM__
+ATTR_ALIGNED(256) TUSB_CFG_ATTR_USBRAM // for IAR the first ATTR_ALIGNED takes effect
+#else
+TUSB_CFG_ATTR_USBRAM ATTR_ALIGNED(256) // GCC & Keil the last ATTR_ALIGNED takes effect
+#endif
+static dcd_11u_13u_data_t dcd_data;
 
 static inline uint16_t addr_offset(void const * p_buffer) ATTR_CONST ATTR_ALWAYS_INLINE;
 static inline uint16_t addr_offset(void const * p_buffer)

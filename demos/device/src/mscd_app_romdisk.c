@@ -91,7 +91,7 @@ const uint8_t mscd_app_rommdisk[DISK_BLOCK_NUM][DISK_BLOCK_SIZE] =
   [3] = README_CONTENTS
 };
 
-ATTR_USB_MIN_ALIGNMENT TUSB_CFG_ATTR_USBRAM
+TUSB_CFG_ATTR_USBRAM
 static uint8_t sector_buffer[DISK_BLOCK_SIZE];
 
 //--------------------------------------------------------------------+
