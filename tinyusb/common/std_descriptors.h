@@ -42,8 +42,7 @@
 /** \addtogroup group_usb_definitions USB Definitions
  * @{
  *  \defgroup Group_StdDescriptor Standard Descriptors
- *  @{
- */
+ *  @{ */
 
 #ifndef _TUSB_STD_DESCRIPTORS_H_
 #define _TUSB_STD_DESCRIPTORS_H_
