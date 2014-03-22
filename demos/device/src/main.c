@@ -69,6 +69,7 @@ void os_none_start_scheduler(void)
     tusb_task_runner();
     led_blinking_task(NULL);
 
+    mscd_app_task(NULL);
     keyboardd_app_task(NULL);
     moused_app_task(NULL);
     cdcd_serial_app_task(NULL);
@@ -86,7 +87,7 @@ int main(void)
   //------------- application task init -------------//
   led_blinking_init();
 
-  msc_dev_app_init();
+  mscd_app_init();
   keyboardd_app_init();
   moused_app_init();
   cdcd_serial_app_init();

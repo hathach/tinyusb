@@ -72,15 +72,15 @@ issue at github.com/hathach/tinyusb"
   #define MSCD_APP_RAMDISK
 #endif
 
-void msc_dev_app_init(void);
-OSAL_TASK_FUNCTION( msc_dev_app_task , p_task_para);
+void mscd_app_init(void);
+OSAL_TASK_FUNCTION( mscd_app_task , p_task_para);
 
 extern scsi_sense_fixed_data_t mscd_sense_data;
 
 #else
 
-#define msc_dev_app_init()
-#define msc_dev_app_task(x)
+#define mscd_app_init()
+#define mscd_app_task(x)
 
 #endif
 

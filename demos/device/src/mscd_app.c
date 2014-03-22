@@ -149,8 +149,14 @@ msc_csw_status_t tusbd_msc_scsi_cb (uint8_t coreid, uint8_t lun, uint8_t scsi_cm
 //--------------------------------------------------------------------+
 // IMPLEMENTATION
 //--------------------------------------------------------------------+
+OSAL_TASK_FUNCTION( mscd_app_task , p_task_para)
+{ // no need to implement the task yet
+  OSAL_TASK_LOOP_BEGIN
 
-void msc_dev_app_init (void)
+  OSAL_TASK_LOOP_END
+}
+
+void mscd_app_init (void)
 {
 
 }
