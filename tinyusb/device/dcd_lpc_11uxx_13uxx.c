@@ -92,10 +92,10 @@ enum {
 };
 
 // buffer input must be 64 byte alignment
-typedef struct {
+typedef ATTR_PACKED_STRUCT(struct) {
   volatile uint16_t buff_addr_offset ; ///< The address offset is updated by hardware after each successful reception/transmission of a packet. Hardware increments the original value with the integer value when the packet size is divided by 64.
 
-  volatile uint16_t total_bytes : 10 ; ///< For OUT endpoints this is the number of bytes that can be received in this buffer. For IN endpoints this is the number of bytes that must be transmitted. HW decrements this value with the packet size every time when a packet is successfully transferred. Note: If a short packet is received on an OUT endpoint, the active bit will be cleared and the NBytes value indicates the remaining buffer space that is not used. Software calculates the received number of bytes by subtracting the remaining NBytes from the programmed value.
+  volatile uint16_t nbytes      : 10 ; ///< For OUT endpoints this is the number of bytes that can be received in this buffer. For IN endpoints this is the number of bytes that must be transmitted. HW decrements this value with the packet size every time when a packet is successfully transferred. Note: If a short packet is received on an OUT endpoint, the active bit will be cleared and the NBytes value indicates the remaining buffer space that is not used. Software calculates the received number of bytes by subtracting the remaining NBytes from the programmed value.
   uint16_t is_isochronous       : 1  ;
   uint16_t feedback_toggle      : 1  ; ///< For bulk endpoints and isochronous endpoints this bit is reserved and must be set to zero. For the control endpoint zero this bit is used as the toggle value. When the toggle reset bit is set, the data toggle is updated with the value programmed in this bit. When the endpoint is used as an interrupt endpoint, it can be set to the following values. 0: Interrupt endpoint in ‘toggle mode’ 1: Interrupt endpoint in ‘rate feedback mode’. This means that the data toggle is fixed to zero for all data packets. When the interrupt endpoint is in ‘rate feedback mode’, the TR bit must always be set to zero.
   uint16_t toggle_reset         : 1  ; ///< When software sets this bit to one, the HW will set the toggle value equal to the value indicated in the “toggle value” (TV) bit. For the control endpoint zero, this is not needed to be used because the hardware resets the endpoint toggle to one for both directions when a setup token is received. For the other endpoints, the toggle can only be reset to zero when the endpoint is reset.
@@ -124,7 +124,7 @@ typedef struct {
   uint32_t current_ioc;          ///< interrupt on complete mask for current TD
   uint32_t next_ioc;             ///< interrupt on complete mask for next TD
 
-  // should start from 128
+  // must start from 128
   ATTR_ALIGNED(64) tusb_control_request_t setup_request;
 
   struct {
@@ -224,18 +224,18 @@ static void endpoint_non_control_isr(uint32_t int_status)
 
       // when double buffering, the complete buffer is opposed to the current active buffer in EPINUSE
       uint8_t const buff_idx = LPC_USB->EPINUSE & BIT_(ep_id) ? 0 : 1;
-      uint16_t const xferred_bytes = dcd_data.current_td[ep_id].queued_bytes_in_buff[buff_idx] - arr_qhd[buff_idx].total_bytes;
+      uint16_t const xferred_bytes = dcd_data.current_td[ep_id].queued_bytes_in_buff[buff_idx] - arr_qhd[buff_idx].nbytes;
 
       dcd_data.current_td[ep_id].xferred_total += xferred_bytes;
 
       // there are still data to transfer.
-      if ( (arr_qhd[buff_idx].total_bytes == 0) && (dcd_data.current_td[ep_id].remaining_bytes > 0) )
+      if ( (arr_qhd[buff_idx].nbytes == 0) && (dcd_data.current_td[ep_id].remaining_bytes > 0) )
       { // NOTE although buff_addr_offset has been increased when xfer is completed
         // but we still need to increase it one more as we are using double buffering.
         queue_xfer_to_buffer(ep_id, buff_idx, arr_qhd[buff_idx].buff_addr_offset+1, dcd_data.current_td[ep_id].remaining_bytes);
       }
       // short packet or (no more byte and both buffers are finished)
-      else if ( (arr_qhd[buff_idx].total_bytes > 0) || !arr_qhd[1-buff_idx].active  )
+      else if ( (arr_qhd[buff_idx].nbytes > 0) || !arr_qhd[1-buff_idx].active  )
       { // current TD (request) is completed
         LPC_USB->EPSKIP   = BIT_SET_(LPC_USB->EPSKIP, ep_id); // skip other endpoint in case of short-package
 
@@ -274,7 +274,7 @@ static void endpoint_control_isr(uint32_t int_status)
   uint8_t const ep_id = ( int_status & BIT_(0) ) ? 0 : 1;
 
   // there are still data to transfer.
-  if ( (dcd_data.qhd[ep_id][0].total_bytes == 0) && (dcd_data.current_td[ep_id].remaining_bytes > 0) )
+  if ( (dcd_data.qhd[ep_id][0].nbytes == 0) && (dcd_data.current_td[ep_id].remaining_bytes > 0) )
   {
     queue_xfer_to_buffer(ep_id, 0, dcd_data.qhd[ep_id][0].buff_addr_offset, dcd_data.current_td[ep_id].remaining_bytes);
   }else
@@ -502,7 +502,7 @@ static void queue_xfer_to_buffer(uint8_t ep_id, uint8_t buff_idx, uint16_t buff_
   dcd_data.current_td[ep_id].remaining_bytes               -= queued_bytes;
 
   dcd_data.qhd[ep_id][buff_idx].buff_addr_offset            = buff_addr_offset;
-  dcd_data.qhd[ep_id][buff_idx].total_bytes                 = queued_bytes;
+  dcd_data.qhd[ep_id][buff_idx].nbytes                      = queued_bytes;
 
   dcd_data.qhd[ep_id][buff_idx].active = 1;
 }

@@ -46,8 +46,7 @@
 //--------------------------------------------------------------------+
 // MACRO CONSTANT TYPEDEF
 //--------------------------------------------------------------------+
-TUSB_CFG_ATTR_USBRAM
-static scsi_inquiry_data_t mscd_inquiry_data =
+static scsi_inquiry_data_t const mscd_inquiry_data =
 {
     .is_removable         = 1,
     .version              = 2,
@@ -57,14 +56,12 @@ static scsi_inquiry_data_t mscd_inquiry_data =
     .product_revision     = "0.01"
 };
 
-TUSB_CFG_ATTR_USBRAM
-static scsi_read_capacity10_data_t mscd_read_capacity10_data =
+static scsi_read_capacity10_data_t const mscd_read_capacity10_data =
 {
     .last_lba   = ENDIAN_BE(DISK_BLOCK_NUM-1), // read capacity
     .block_size = ENDIAN_BE(DISK_BLOCK_SIZE)
 };
 
-TUSB_CFG_ATTR_USBRAM
 scsi_sense_fixed_data_t mscd_sense_data =
 {
     .response_code        = 0x70,
@@ -72,8 +69,7 @@ scsi_sense_fixed_data_t mscd_sense_data =
     .additional_sense_len = sizeof(scsi_sense_fixed_data_t) - 8
 };
 
-TUSB_CFG_ATTR_USBRAM
-static scsi_read_format_capacity_data_t mscd_format_capacity_data =
+static scsi_read_format_capacity_data_t const mscd_format_capacity_data =
 {
     .list_length     = 8,
     .block_num       = ENDIAN_BE(DISK_BLOCK_NUM), // write capacity
@@ -81,8 +77,7 @@ static scsi_read_format_capacity_data_t mscd_format_capacity_data =
     .block_size_u16  = ENDIAN_BE16(DISK_BLOCK_SIZE)
 };
 
-TUSB_CFG_ATTR_USBRAM
-static scsi_mode_parameters_t msc_dev_mode_para =
+static scsi_mode_parameters_t const msc_dev_mode_para =
 {
     .mode_data_length        = 3,
     .medium_type             = 0,
@@ -97,7 +92,7 @@ static scsi_mode_parameters_t msc_dev_mode_para =
 //--------------------------------------------------------------------+
 // tinyusb callback (ISR context)
 //--------------------------------------------------------------------+
-msc_csw_status_t tusbd_msc_scsi_cb (uint8_t coreid, uint8_t lun, uint8_t scsi_cmd[16], void ** pp_buffer, uint16_t* p_length)
+msc_csw_status_t tusbd_msc_scsi_cb (uint8_t coreid, uint8_t lun, uint8_t scsi_cmd[16], void const ** pp_buffer, uint16_t* p_length)
 {
   // read10 & write10 has their own callback and MUST not be handled here
   switch (scsi_cmd[0])

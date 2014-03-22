@@ -96,6 +96,7 @@
     ENTRY(TUSB_ERROR_DCD_OPEN_PIPE_FAILED            )\
     ENTRY(TUSB_ERROR_NOT_SUPPORTED_YET               )\
     ENTRY(TUSB_ERROR_USBD_DEVICE_NOT_CONFIGURED      )\
+    ENTRY(TUSB_ERROR_NOT_ENOUGH_MEMORY               )\
     ENTRY(TUSB_ERROR_FAILED                          )\
 
 

@@ -51,6 +51,7 @@
 // MACRO CONSTANT TYPEDEF
 //--------------------------------------------------------------------+
 typedef struct {
+  uint8_t scsi_data[64]; // buffer for scsi's response other than read10 & write10. NOTE should be multiple of 64 to be compatible with lpc11/13u
   ATTR_USB_MIN_ALIGNMENT msc_cmd_block_wrapper_t  cbw;
 
 #if defined (__ICCARM__) && (TUSB_CFG_MCU == MCU_LPC11UXX || TUSB_CFG_MCU == MCU_LPC13UXX)
@@ -59,12 +60,7 @@ typedef struct {
 
   ATTR_USB_MIN_ALIGNMENT msc_cmd_status_wrapper_t csw;
 
-#if defined (__ICCARM__) && (TUSB_CFG_MCU == MCU_LPC11UXX || TUSB_CFG_MCU == MCU_LPC13UXX)
-  uint8_t padding2[64-sizeof(msc_cmd_status_wrapper_t)]; // IAR cannot align struct's member
-#endif
-
-  ATTR_USB_MIN_ALIGNMENT uint8_t max_lun; // can STALL for one LUN
-
+  uint8_t max_lun;
   uint8_t interface_number;
   endpoint_handle_t edpt_in, edpt_out;
 }mscd_interface_t;
@@ -134,7 +130,8 @@ tusb_error_t mscd_control_request_subtask(uint8_t coreid, tusb_control_request_t
     break;
 
     case MSC_REQUEST_GET_MAX_LUN:
-      dcd_pipe_control_xfer(coreid, TUSB_DIR_DEV_TO_HOST, &p_msc->max_lun, 1, false);
+      p_msc->scsi_data[0] = p_msc->max_lun; // Note: lpc11/13u need xfer data's address to be aligned 64 -> make use of scsi_data instead of using max_lun directly
+      dcd_pipe_control_xfer(coreid, TUSB_DIR_DEV_TO_HOST, p_msc->scsi_data, 1, false);
     break;
 
     default:
@@ -149,7 +146,6 @@ tusb_error_t mscd_control_request_subtask(uint8_t coreid, tusb_control_request_t
 //--------------------------------------------------------------------+
 tusb_error_t mscd_xfer_cb(endpoint_handle_t edpt_hdl, tusb_event_t event, uint32_t xferred_bytes)
 {
-  // TODO failed --> STALL pipe, on clear STALL --> queue endpoint OUT
   static bool is_waiting_read10_write10 = false; // indicate we are transferring data in READ10, WRITE10 command
 
   mscd_interface_t *         const p_msc = &mscd_data;
@@ -172,8 +168,11 @@ tusb_error_t mscd_xfer_cb(endpoint_handle_t edpt_hdl, tusb_event_t event, uint32
 
     if ( (SCSI_CMD_READ_10 != p_cbw->command[0]) && (SCSI_CMD_WRITE_10 != p_cbw->command[0]) )
     {
-      void *p_buffer = NULL;
+      void const *p_buffer = NULL;
       uint16_t actual_length = (uint16_t) p_cbw->xfer_bytes;
+
+      // TODO SCSI data out transfer is not yet supported
+      ASSERT_FALSE( p_cbw->xfer_bytes > 0 && !BIT_TEST_(p_cbw->dir, 7), TUSB_ERROR_NOT_SUPPORTED_YET);
 
       p_csw->status = tusbd_msc_scsi_cb(edpt_hdl.coreid, p_cbw->lun, p_cbw->command, &p_buffer, &actual_length);
 
@@ -181,6 +180,8 @@ tusb_error_t mscd_xfer_cb(endpoint_handle_t edpt_hdl, tusb_event_t event, uint32
       if ( p_cbw->xfer_bytes )
       {
         ASSERT( p_cbw->xfer_bytes >= actual_length, TUSB_ERROR_INVALID_PARA );
+        ASSERT( sizeof(p_msc->scsi_data) >= actual_length, TUSB_ERROR_NOT_ENOUGH_MEMORY); // needs to increase size for scsi_data
+
         endpoint_handle_t const edpt_data = BIT_TEST_(p_cbw->dir, 7) ? p_msc->edpt_in : p_msc->edpt_out;
 
         if ( p_buffer == NULL || actual_length == 0 )
@@ -189,7 +190,8 @@ tusb_error_t mscd_xfer_cb(endpoint_handle_t edpt_hdl, tusb_event_t event, uint32
           p_csw->status = MSC_CSW_STATUS_FAILED;
         }else
         {
-          ASSERT_STATUS( dcd_pipe_queue_xfer( edpt_data, p_buffer, min16_of(actual_length, (uint16_t) p_cbw->xfer_bytes)) );
+          memcpy(p_msc->scsi_data, p_buffer, actual_length);
+          ASSERT_STATUS( dcd_pipe_queue_xfer( edpt_data, p_msc->scsi_data, actual_length ) );
         }
       }
     }
@@ -198,10 +200,6 @@ tusb_error_t mscd_xfer_cb(endpoint_handle_t edpt_hdl, tusb_event_t event, uint32
   //------------- Data Phase For READ10 & WRITE10 (can be executed several times) -------------//
   if ( (SCSI_CMD_READ_10 == p_cbw->command[0]) || (SCSI_CMD_WRITE_10 == p_cbw->command[0]) )
   {
-//    if (is_waiting_read10_write10)
-//    { // continue with read10, write10 data transfer, interrupt must come from endpoint IN
-//      ASSERT( endpointhandle_is_equal(p_msc->edpt_in, edpt_hdl) && event == TUSB_EVENT_XFER_COMPLETE, TUSB_ERROR_INVALID_PARA);
-//    }
     is_waiting_read10_write10 = !read10_write10_data_xfer(p_msc);
   }
 
