@@ -143,8 +143,8 @@ tusb_descriptor_device_t desc_device =
     .bLength            = sizeof(tusb_descriptor_device_t),
     .bDescriptorType    = TUSB_DESC_TYPE_DEVICE,
     .bcdUSB             = 0x0200,
-  #if IAD_DESC_REQUIRED
-    // Multiple Interfaces Using Interface Association Descriptor (IAD)
+  #if TUSB_CFG_DEVICE_CDC
+    // Use Interface Association Descriptor (IAD) for CDC
     // As required by USB Specs IAD's subclass must be common class (2) and protocol must be IAD (1)
     .bDeviceClass       = TUSB_CLASS_MISC,
     .bDeviceSubClass    = MISC_SUBCLASS_COMMON,
@@ -188,7 +188,7 @@ app_descriptor_configuration_t desc_configuration =
         .bMaxPower           = TUSB_DESC_CONFIG_POWER_MA(100)
     },
 
-    #if IAD_DESC_REQUIRED
+    #if TUSB_CFG_DEVICE_CDC
     // IAD points to CDC Interfaces
     .cdc_iad =
     {
@@ -203,9 +203,7 @@ app_descriptor_configuration_t desc_configuration =
         .bFunctionProtocol = CDC_COMM_PROTOCOL_ATCOMMAND,
         .iFunction         = 0
     },
-    #endif
 
-    #if TUSB_CFG_DEVICE_CDC
     //------------- CDC Communication Interface -------------//
     .cdc_comm_interface =
     {

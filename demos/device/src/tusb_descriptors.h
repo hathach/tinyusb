@@ -57,16 +57,17 @@
 #endif
 
 #define INTERFACE_NO_CDC           0
-#define INTERFACE_NO_HID_KEYBOARD (INTERFACE_NO_CDC          + 2*TUSB_CFG_DEVICE_CDC        )
-#define INTERFACE_NO_HID_MOUSE    (INTERFACE_NO_HID_KEYBOARD + TUSB_CFG_DEVICE_HID_KEYBOARD )
-#define INTERFACE_NO_HID_GENERIC  (INTERFACE_NO_HID_MOUSE    + TUSB_CFG_DEVICE_HID_MOUSE    )
-#define INTERFACE_NO_MSC          (INTERFACE_NO_HID_GENERIC  + TUSB_CFG_DEVICE_HID_GENERIC  )
+#define INTERFACE_NO_HID_KEYBOARD (INTERFACE_NO_CDC          + 2*(TUSB_CFG_DEVICE_CDC ? 1 : 0) )
+#define INTERFACE_NO_HID_MOUSE    (INTERFACE_NO_HID_KEYBOARD + TUSB_CFG_DEVICE_HID_KEYBOARD    )
+#define INTERFACE_NO_HID_GENERIC  (INTERFACE_NO_HID_MOUSE    + TUSB_CFG_DEVICE_HID_MOUSE       )
+#define INTERFACE_NO_MSC          (INTERFACE_NO_HID_GENERIC  + TUSB_CFG_DEVICE_HID_GENERIC     )
 
 #define TOTAL_INTEFACES           (2*TUSB_CFG_DEVICE_CDC + TUSB_CFG_DEVICE_HID_KEYBOARD + TUSB_CFG_DEVICE_HID_MOUSE + \
                                    TUSB_CFG_DEVICE_HID_GENERIC + TUSB_CFG_DEVICE_MSC)
 
-// Interface Assosication Descriptor is required when enable CDC
-#define IAD_DESC_REQUIRED         ( TUSB_CFG_DEVICE_CDC )
+#if (TUSB_CFG_MCU == MCU_LPC11UXX || TUSB_CFG_MCU == MCU_LPC13UXX) && (TOTAL_INTEFACES > 4)
+  #error These MCUs do not have enough number of endpoints for the current configuration
+#endif
 
 //--------------------------------------------------------------------+
 // Endpoints Address & Max Packet Size
@@ -136,9 +137,7 @@ typedef ATTR_PACKED_STRUCT(struct)
 
   //------------- CDC -------------//
 #if TUSB_CFG_DEVICE_CDC
-  #if IAD_DESC_REQUIRED
   tusb_descriptor_interface_association_t      cdc_iad;
-  #endif
 
   //CDC Control Interface
   tusb_descriptor_interface_t                  cdc_comm_interface;
