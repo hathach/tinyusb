@@ -137,8 +137,7 @@ uint8_t desc_mouse_report[] = {
 //--------------------------------------------------------------------+
 // USB DEVICE DESCRIPTOR
 //--------------------------------------------------------------------+
-TUSB_CFG_ATTR_USBRAM
-tusb_descriptor_device_t desc_device =
+tusb_descriptor_device_t const desc_device =
 {
     .bLength            = sizeof(tusb_descriptor_device_t),
     .bDescriptorType    = TUSB_DESC_TYPE_DEVICE,
@@ -171,8 +170,7 @@ tusb_descriptor_device_t desc_device =
 //--------------------------------------------------------------------+
 // USB COFNIGURATION DESCRIPTOR
 //--------------------------------------------------------------------+
-TUSB_CFG_ATTR_USBRAM
-app_descriptor_configuration_t desc_configuration =
+app_descriptor_configuration_t const desc_configuration =
 {
     .configuration =
     {

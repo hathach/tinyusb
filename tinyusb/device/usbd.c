@@ -271,8 +271,7 @@ tusb_error_t usbd_init (void)
   ASSERT_STATUS( osal_task_create( OSAL_TASK_REF(usbd_task) ));
 
   //------------- Descriptor Check -------------//
-  ASSERT_PTR(tusbd_descriptor_pointers.p_device, TUSB_ERROR_DESCRIPTOR_CORRUPTED);
-  ASSERT_PTR(tusbd_descriptor_pointers.p_configuration, TUSB_ERROR_DESCRIPTOR_CORRUPTED);
+  ASSERT(tusbd_descriptor_pointers.p_device != NULL && tusbd_descriptor_pointers.p_configuration != NULL, TUSB_ERROR_DESCRIPTOR_CORRUPTED);
 
   //------------- class init -------------//
   for (uint8_t class_code = TUSB_CLASS_AUDIO; class_code < USBD_CLASS_DRIVER_COUNT; class_code++)
@@ -290,17 +289,19 @@ tusb_error_t usbd_init (void)
 // CONTROL REQUEST
 //--------------------------------------------------------------------+
 // TODO Host (windows) can get HID report descriptor before set configured
-// need to open interface before set configured
+// may need to open interface before set configured
 static tusb_error_t usbd_set_configure_received(uint8_t coreid, uint8_t config_number)
 {
   dcd_controller_set_configuration(coreid);
   usbd_devices[coreid].state = TUSB_DEVICE_STATE_CONFIGURED;
 
   //------------- parse configuration & open drivers -------------//
-  uint8_t* p_desc_configure = tusbd_descriptor_pointers.p_configuration;
-  uint8_t* p_desc = p_desc_configure + sizeof(tusb_descriptor_configuration_t);
+  uint8_t const * p_desc_config = tusbd_descriptor_pointers.p_configuration;
+  uint8_t const * p_desc = p_desc_config + sizeof(tusb_descriptor_configuration_t);
 
-  while( p_desc < p_desc_configure + ((tusb_descriptor_configuration_t*)p_desc_configure)->wTotalLength )
+  uint16_t const config_total_length = ((tusb_descriptor_configuration_t*)p_desc_config)->wTotalLength;
+
+  while( p_desc < p_desc_config + config_total_length )
   {
     if ( TUSB_DESC_TYPE_INTERFACE_ASSOCIATION == p_desc[DESCRIPTOR_OFFSET_TYPE])
     {
@@ -335,31 +336,37 @@ static tusb_error_t get_descriptor(uint8_t coreid, tusb_control_request_t const 
   tusb_std_descriptor_type_t const desc_type = (tusb_std_descriptor_type_t) u16_high_u8(p_request->wValue);
   uint8_t const desc_index = u16_low_u8( p_request->wValue );
 
-  if ( TUSB_DESC_TYPE_DEVICE == desc_type )
-  {
-    (*pp_buffer) = tusbd_descriptor_pointers.p_device;
-    (*p_length)  = sizeof(tusb_descriptor_device_t);
-  }
-  else if ( TUSB_DESC_TYPE_CONFIGURATION == desc_type )
-  {
-    (*pp_buffer) = tusbd_descriptor_pointers.p_configuration;
-    (*p_length)  = ((tusb_descriptor_configuration_t*)tusbd_descriptor_pointers.p_configuration)->wTotalLength;
-  }
-  else if ( TUSB_DESC_TYPE_STRING == desc_type )
-  {
-    if ( !(desc_index < 100) ) return TUSB_ERROR_DCD_CONTROL_REQUEST_NOT_SUPPORT; // windows sometimes ask for string at index 238 !!!
-    uint8_t const * const p_desc_string = tusbd_descriptor_pointers.p_string_arr[desc_index];
-    ASSERT( p_desc_string != NULL && p_desc_string[0] <= TUSB_CFG_DEVICE_ENUM_BUFFER_SIZE, TUSB_ERROR_NOT_ENOUGH_MEMORY);
+  uint8_t const * p_data = NULL ;
 
-    memcpy(usbd_enum_buffer, p_desc_string, p_desc_string[0]); // first byte of descriptor is its size
-    (*pp_buffer) = usbd_enum_buffer;
-    (*p_length)  = **pp_buffer;
-  }else
+  switch(desc_type)
   {
-    return TUSB_ERROR_DCD_CONTROL_REQUEST_NOT_SUPPORT;
+    case TUSB_DESC_TYPE_DEVICE:
+      p_data      = tusbd_descriptor_pointers.p_device;
+      (*p_length) = sizeof(tusb_descriptor_device_t);
+    break;
+
+    case TUSB_DESC_TYPE_CONFIGURATION:
+      p_data      = tusbd_descriptor_pointers.p_configuration;
+      (*p_length) = ((tusb_descriptor_configuration_t*)tusbd_descriptor_pointers.p_configuration)->wTotalLength;
+    break;
+
+    case TUSB_DESC_TYPE_STRING:
+      if ( !(desc_index < 100) ) return TUSB_ERROR_DCD_CONTROL_REQUEST_NOT_SUPPORT; // windows sometimes ask for string at index 238 !!!
+
+      p_data = tusbd_descriptor_pointers.p_string_arr[desc_index];
+      ASSERT( p_data != NULL, TUSB_ERROR_FAILED);
+
+      (*p_length)  = p_data[0];  // first byte of descriptor is its size
+    break;
+
+    default: return TUSB_ERROR_DCD_CONTROL_REQUEST_NOT_SUPPORT;
   }
 
   (*p_length) = min16_of(p_request->wLength, (*p_length) ); // cannot return more than hosts requires
+  ASSERT( (*p_length) <= TUSB_CFG_DEVICE_ENUM_BUFFER_SIZE, TUSB_ERROR_NOT_ENOUGH_MEMORY);
+
+  memcpy(usbd_enum_buffer, p_data, (*p_length));
+  (*pp_buffer) = usbd_enum_buffer;
 
   return TUSB_ERROR_NONE;
 }
