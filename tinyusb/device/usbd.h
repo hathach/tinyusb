@@ -63,8 +63,7 @@
  #define ATTR_USB_MIN_ALIGNMENT
 #endif
 
-/// \brief Descriptor pointer collector to all the needed. All the addresses pointed
-/// must be accessible by USB controller (see \ref TUSB_CFG_ATTR_USBRAM)
+/// \brief Descriptor pointer collector to all the needed.
 typedef struct {
   uint8_t const * p_device;              ///< pointer to device descritpor \ref tusb_descriptor_device_t
   uint8_t const * p_configuration;       ///< pointer to the whole configuration descriptor, starting by \ref tusb_descriptor_configuration_t

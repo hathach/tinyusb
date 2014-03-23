@@ -50,7 +50,10 @@
 //--------------------------------------------------------------------+
 // MACRO CONSTANT TYPEDEF
 //--------------------------------------------------------------------+
-enum { HIDD_NUMBER_OF_SUBCLASS = 3 };
+enum {
+  HIDD_NUMBER_OF_SUBCLASS = 3,
+  HIDD_BUFFER_SIZE = 128
+};
 
 typedef struct {
   uint8_t const * p_report_desc;
@@ -101,9 +104,8 @@ static hidd_class_driver_t const hidd_class_driver[HIDD_NUMBER_OF_SUBCLASS] =
 #endif
 };
 
-// TODO [HID] generic
-TUSB_CFG_ATTR_USBRAM
-static uint8_t m_control_report[ MAX_OF(sizeof(hid_keyboard_report_t), sizeof(hid_mouse_report_t)) ];
+// internal buffer for transferring data
+TUSB_CFG_ATTR_USBRAM static uint8_t m_hid_buffer[ HIDD_BUFFER_SIZE ];
 
 //--------------------------------------------------------------------+
 // KEYBOARD APPLICATION API
@@ -204,8 +206,10 @@ tusb_error_t hidd_control_request_subtask(uint8_t coreid, tusb_control_request_t
 
     ASSERT ( p_request->bRequest == TUSB_REQUEST_GET_DESCRIPTOR && desc_type == HID_DESC_TYPE_REPORT,
              TUSB_ERROR_DCD_CONTROL_REQUEST_NOT_SUPPORT);
+    ASSERT ( p_hid->report_length <= HIDD_BUFFER_SIZE, TUSB_ERROR_NOT_ENOUGH_MEMORY);
 
-    dcd_pipe_control_xfer(coreid, TUSB_DIR_DEV_TO_HOST, (uint8_t*) p_hid->p_report_desc, p_hid->report_length, false);
+    memcpy(m_hid_buffer, p_hid->p_report_desc, p_hid->report_length); // to allow report descriptor not to be in USBRAM
+    dcd_pipe_control_xfer(coreid, TUSB_DIR_DEV_TO_HOST, m_hid_buffer, p_hid->report_length, false);
   }
   //------------- Class Specific Request -------------//
   else if (p_request->bmRequestType_bit.type == TUSB_REQUEST_TYPE_CLASS)
@@ -229,13 +233,13 @@ tusb_error_t hidd_control_request_subtask(uint8_t coreid, tusb_control_request_t
       // wValue = Report Type | Report ID
       tusb_error_t error;
 
-      dcd_pipe_control_xfer(coreid, (tusb_direction_t) p_request->bmRequestType_bit.direction, m_control_report, p_request->wLength, true);
+      dcd_pipe_control_xfer(coreid, (tusb_direction_t) p_request->bmRequestType_bit.direction, m_hid_buffer, p_request->wLength, true);
 
       osal_semaphore_wait(usbd_control_xfer_sem_hdl, OSAL_TIMEOUT_NORMAL, &error); // wait for control xfer complete
       SUBTASK_ASSERT_STATUS(error);
 
       p_driver->set_report_cb(coreid, (hid_request_report_type_t) u16_high_u8(p_request->wValue),
-                              m_control_report, p_request->wLength);
+                              m_hid_buffer, p_request->wLength);
     }
     else if (HID_REQUEST_CONTROL_SET_IDLE == p_request->bRequest)
     {

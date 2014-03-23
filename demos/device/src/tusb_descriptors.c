@@ -42,8 +42,7 @@
 // Keyboard Report Descriptor
 //--------------------------------------------------------------------+
 #if TUSB_CFG_DEVICE_HID_KEYBOARD
-TUSB_CFG_ATTR_USBRAM
-uint8_t desc_keyboard_report[] = {
+uint8_t const desc_keyboard_report[] = {
   HID_USAGE_PAGE ( HID_USAGE_PAGE_DESKTOP     ),
   HID_USAGE      ( HID_USAGE_DESKTOP_KEYBOARD ),
   HID_COLLECTION ( HID_COLLECTION_APPLICATION ),
@@ -89,8 +88,7 @@ uint8_t desc_keyboard_report[] = {
 // Mouse Report Descriptor
 //--------------------------------------------------------------------+
 #if TUSB_CFG_DEVICE_HID_MOUSE
-TUSB_CFG_ATTR_USBRAM
-uint8_t desc_mouse_report[] = {
+uint8_t const desc_mouse_report[] = {
   HID_USAGE_PAGE ( HID_USAGE_PAGE_DESKTOP     ),
   HID_USAGE      ( HID_USAGE_DESKTOP_MOUSE    ),
   HID_COLLECTION ( HID_COLLECTION_APPLICATION ),
