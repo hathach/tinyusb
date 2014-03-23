@@ -21,6 +21,7 @@
 #define TUSB_CFG_MCU          ///< Select one of the supported MCU, the value must be from \ref config_mcu_selection
 #define TUSB_CFG_OS           ///< Select one of the supported RTOS, the value must be from \ref TUSB_OS RTOS.
 #define TUSB_CFG_OS_TASK_PRIO ///< If \ref TUSB_CFG_OS is configured to use a real RTOS (other than TUSB_OS_NONE). This determines the priority of the usb stack task.
+#define TUSB_CFG_TICKS_HZ     ///< The rate ticks in hert. This is used in conjunction with \ref tusb_tick_get to calculate timing.
 
 //--------------------------------------------------------------------+
 // HOST CONFIGURATION
@@ -55,8 +56,9 @@
 // DEVICE CONFIGURATION
 //--------------------------------------------------------------------+
 /** \defgroup TUSB_CFG_DEVICE Device Options
- * \brief For each Class Driver a value of 1 means enable, value of 0 mean disable
  *  @{ */
+
+#define TUSB_CFG_DEVICE_CONTROL_ENDOINT_SIZE ///< Max packet size of Cotnrol Endpoint, default is 64
 
 /** \defgroup config_device_class Class Driver
  * \brief For each Class Driver a value of 1 means enable, value of 0 mean disable

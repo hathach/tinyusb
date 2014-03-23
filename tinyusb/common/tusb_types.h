@@ -38,8 +38,7 @@
 
 /** \ingroup group_usb_definitions
  *  \defgroup USBDef_Type USB Types
- *  @{
- */
+ *  @{ */
 
 #ifndef _TUSB_TUSB_TYPES_H_
 #define _TUSB_TUSB_TYPES_H_
@@ -161,7 +160,7 @@ enum {
 #define TUSB_DESC_CONFIG_POWER_MA(x)  ((x)/2)
 
 /// Device State
-typedef enum tusb_device_state_{
+typedef enum {
   TUSB_DEVICE_STATE_UNPLUG = 0  ,
   TUSB_DEVICE_STATE_ADDRESSED   ,
   TUSB_DEVICE_STATE_CONFIGURED  ,

@@ -36,12 +36,8 @@
 */
 /**************************************************************************/
 
-/** \ingroup TBD
- *  \defgroup TBD
- *  \brief TBD
- *
- *  @{
- */
+/** \ingroup group_usb_definitions
+ *  @{ */
 
 #ifndef _TUSB_STD_REQUEST_H_
 #define _TUSB_STD_REQUEST_H_
@@ -53,9 +49,9 @@
 typedef ATTR_PACKED_STRUCT(struct){
   union {
     ATTR_PACKED_STRUCT(struct) {
-      uint8_t recipient :  5; /**< Recipient type tusb_std_request_recipient_t. */
-      uint8_t type      :  2; /**< Request type tusb_control_request_type_t.  */
-      uint8_t direction :  1; /**< Direction type. tusb_direction_t */
+      uint8_t recipient :  5; ///< Recipient type tusb_std_request_recipient_t.
+      uint8_t type      :  2; ///< Request type tusb_control_request_type_t.
+      uint8_t direction :  1; ///< Direction type. tusb_direction_t
     } bmRequestType_bit;
     uint8_t bmRequestType;
   };
