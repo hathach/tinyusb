@@ -267,7 +267,7 @@ app_descriptor_configuration_t desc_configuration =
         .bInterfaceClass    = TUSB_CLASS_CDC_DATA,
         .bInterfaceSubClass = 0,
         .bInterfaceProtocol = 0,
-        .iInterface         = 0x00
+        .iInterface         = 0x04
     },
 
     .cdc_endpoint_out =
@@ -303,7 +303,7 @@ app_descriptor_configuration_t desc_configuration =
         .bInterfaceClass    = TUSB_CLASS_HID,
         .bInterfaceSubClass = HID_SUBCLASS_BOOT,
         .bInterfaceProtocol = HID_PROTOCOL_KEYBOARD,
-        .iInterface         = 0x00
+        .iInterface         = 0x05
     },
 
     .keyboard_hid =
@@ -340,7 +340,7 @@ app_descriptor_configuration_t desc_configuration =
         .bInterfaceClass    = TUSB_CLASS_HID,
         .bInterfaceSubClass = HID_SUBCLASS_BOOT,
         .bInterfaceProtocol = HID_PROTOCOL_MOUSE,
-        .iInterface         = 0x00
+        .iInterface         = 0x06
     },
 
     .mouse_hid =
@@ -377,7 +377,7 @@ app_descriptor_configuration_t desc_configuration =
         .bInterfaceClass    = TUSB_CLASS_MSC,
         .bInterfaceSubClass = MSC_SUBCLASS_SCSI,
         .bInterfaceProtocol = MSC_PROTOCOL_BOT,
-        .iInterface         = 0x00
+        .iInterface         = 0x07
     },
 
     .msc_endpoint_in =
@@ -408,28 +408,48 @@ app_descriptor_configuration_t desc_configuration =
 #define STRING_LEN_UNICODE(n) (2 + (2*(n))) // also includes 2 byte header
 #define ENDIAN_BE16_FROM( high, low) ENDIAN_BE16(high << 8 | low)
 
-uint16_t desc_string_language[] =
+// array of pointer to string descriptors
+uint16_t const * const string_descriptor_arr [] =
 {
-    ENDIAN_BE16_FROM( STRING_LEN_UNICODE(1), TUSB_DESC_TYPE_STRING ),
-    0x0409
-};
+    [0] = (uint16_t []) { // supported language
+        ENDIAN_BE16_FROM( STRING_LEN_UNICODE(1), TUSB_DESC_TYPE_STRING ),
+        0x0409 // English
+    },
 
-uint16_t desc_string_manufacturer[] =
-{
-    ENDIAN_BE16_FROM( STRING_LEN_UNICODE(11), TUSB_DESC_TYPE_STRING),
-    't', 'i', 'n', 'y', 'u', 's', 'b', '.', 'o', 'r', 'g' // len = 11
-};
+    [1] = (uint16_t []) { // manufacturer
+        ENDIAN_BE16_FROM( STRING_LEN_UNICODE(11), TUSB_DESC_TYPE_STRING),
+        't', 'i', 'n', 'y', 'u', 's', 'b', '.', 'o', 'r', 'g' // len = 11
+    },
 
-uint16_t desc_string_product[] =
-{
-    ENDIAN_BE16_FROM( STRING_LEN_UNICODE(14), TUSB_DESC_TYPE_STRING),
-    't', 'i', 'n', 'y', 'u', 's', 'b', ' ', 'D', 'e', 'v', 'i', 'c', 'e' // len = 14
-};
+    [2] = (uint16_t []) { // product
+        ENDIAN_BE16_FROM( STRING_LEN_UNICODE(14), TUSB_DESC_TYPE_STRING),
+        't', 'i', 'n', 'y', 'u', 's', 'b', ' ', 'd', 'e', 'v', 'i', 'c', 'e' // len = 14
+    },
 
-uint16_t desc_string_serial[] =
-{
-    ENDIAN_BE16_FROM( STRING_LEN_UNICODE(4), TUSB_DESC_TYPE_STRING),
-    '1', '2', '3', '4' // len = 4
+    [3] = (uint16_t []) { // serials
+        ENDIAN_BE16_FROM( STRING_LEN_UNICODE(4), TUSB_DESC_TYPE_STRING),
+        '1', '2', '3', '4' // len = 4
+    },
+
+    [4] = (uint16_t []) { // CDC Interface
+        ENDIAN_BE16_FROM( STRING_LEN_UNICODE(3), TUSB_DESC_TYPE_STRING),
+        'c', 'd', 'c' // len = 3
+    },
+
+    [5] = (uint16_t []) { // Keyboard Interface
+        ENDIAN_BE16_FROM( STRING_LEN_UNICODE(5), TUSB_DESC_TYPE_STRING),
+        'm', 'o', 'u', 's', 'e' // len = 5
+    },
+
+    [6] = (uint16_t []) { // Keyboard Interface
+        ENDIAN_BE16_FROM( STRING_LEN_UNICODE(8), TUSB_DESC_TYPE_STRING),
+        'k', 'e', 'y', 'b', 'o', 'a', 'r', 'd' // len = 8
+    },
+
+    [7] = (uint16_t []) { // MSC Interface
+        ENDIAN_BE16_FROM( STRING_LEN_UNICODE(3), TUSB_DESC_TYPE_STRING),
+        'm', 's', 'c' // len = 3
+    }
 };
 
 //--------------------------------------------------------------------+
@@ -437,21 +457,15 @@ uint16_t desc_string_serial[] =
 //--------------------------------------------------------------------+
 tusbd_descriptor_pointer_t tusbd_descriptor_pointers =
 {
-    .p_device        = (uint8_t*) &desc_device,
-    .p_configuration = (uint8_t*) &desc_configuration,
-    .p_string_arr    =
-    {   // up to TUSB_CFG_DEVICE_STRING_DESCRIPTOR_COUNT (including language - index=0)
-        (uint8_t*) desc_string_language,
-        (uint8_t*) desc_string_manufacturer,
-        (uint8_t*) desc_string_product,
-        (uint8_t*) desc_string_serial
-    },
+    .p_device              = (uint8_t const * ) &desc_device,
+    .p_configuration       = (uint8_t const * ) &desc_configuration,
+    .p_string_arr          = (uint8_t const **) string_descriptor_arr,
 
     #if TUSB_CFG_DEVICE_HID_KEYBOARD
-    .p_hid_keyboard_report = desc_keyboard_report,
+    .p_hid_keyboard_report = (uint8_t const *) desc_keyboard_report,
     #endif
 
     #if TUSB_CFG_DEVICE_HID_MOUSE
-    .p_hid_mouse_report    = desc_mouse_report,
+    .p_hid_mouse_report    = (uint8_t const *)  desc_mouse_report,
     #endif
 };

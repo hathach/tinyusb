@@ -54,7 +54,6 @@
 // DEVICE CONFIGURATION
 //--------------------------------------------------------------------+
 #define TUSB_CFG_DEVICE_CONTROL_ENDOINT_SIZE    64
-#define TUSB_CFG_DEVICE_STRING_DESCRIPTOR_COUNT 4
 
 #define TUSB_CFG_DEVICE_FULLSPEED               1 // TODO refractor, remove
 

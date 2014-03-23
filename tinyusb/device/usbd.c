@@ -97,7 +97,7 @@ enum { USBD_CLASS_DRIVER_COUNT = sizeof(usbd_class_drivers) / sizeof(usbd_class_
 // INTERNAL OBJECT & FUNCTION DECLARATION
 //--------------------------------------------------------------------+
 static tusb_error_t usbd_set_configure_received(uint8_t coreid, uint8_t config_number);
-static tusb_error_t get_descriptor(uint8_t coreid, tusb_control_request_t const * const p_request, uint8_t ** pp_buffer, uint16_t * p_length);
+static tusb_error_t get_descriptor(uint8_t coreid, tusb_control_request_t const * const p_request, uint8_t const ** pp_buffer, uint16_t * p_length);
 
 //--------------------------------------------------------------------+
 // APPLICATION INTERFACE
@@ -158,14 +158,14 @@ tusb_error_t usbd_control_request_subtask(uint8_t coreid, tusb_control_request_t
   {
     if ( TUSB_REQUEST_GET_DESCRIPTOR == p_request->bRequest )
     {
-      uint8_t* p_buffer = NULL;
+      uint8_t const * p_buffer = NULL;
       uint16_t length = 0;
 
       error = get_descriptor(coreid, p_request, &p_buffer, &length);
 
       if ( TUSB_ERROR_NONE == error )
       {
-        dcd_pipe_control_xfer(coreid, (tusb_direction_t) p_request->bmRequestType_bit.direction, p_buffer, length, false);
+        dcd_pipe_control_xfer(coreid, (tusb_direction_t) p_request->bmRequestType_bit.direction, (uint8_t*) p_buffer, length, false);
       }
     }
     else if ( TUSB_REQUEST_SET_ADDRESS == p_request->bRequest )
@@ -330,7 +330,7 @@ static tusb_error_t usbd_set_configure_received(uint8_t coreid, uint8_t config_n
   return TUSB_ERROR_NONE;
 }
 
-static tusb_error_t get_descriptor(uint8_t coreid, tusb_control_request_t const * const p_request, uint8_t ** pp_buffer, uint16_t * p_length)
+static tusb_error_t get_descriptor(uint8_t coreid, tusb_control_request_t const * const p_request, uint8_t const ** pp_buffer, uint16_t * p_length)
 {
   tusb_std_descriptor_type_t const desc_type = (tusb_std_descriptor_type_t) u16_high_u8(p_request->wValue);
   uint8_t const desc_index = u16_low_u8( p_request->wValue );
@@ -347,7 +347,7 @@ static tusb_error_t get_descriptor(uint8_t coreid, tusb_control_request_t const 
   }
   else if ( TUSB_DESC_TYPE_STRING == desc_type )
   {
-    if ( !(desc_index < TUSB_CFG_DEVICE_STRING_DESCRIPTOR_COUNT) ) return TUSB_ERROR_DCD_CONTROL_REQUEST_NOT_SUPPORT;
+    if ( !(desc_index < 100) ) return TUSB_ERROR_DCD_CONTROL_REQUEST_NOT_SUPPORT; // windows sometimes ask for string at index 238 !!!
     uint8_t const * const p_desc_string = tusbd_descriptor_pointers.p_string_arr[desc_index];
     ASSERT( p_desc_string != NULL && p_desc_string[0] <= TUSB_CFG_DEVICE_ENUM_BUFFER_SIZE, TUSB_ERROR_NOT_ENOUGH_MEMORY);
 

@@ -66,12 +66,12 @@
 /// \brief Descriptor pointer collector to all the needed. All the addresses pointed
 /// must be accessible by USB controller (see \ref TUSB_CFG_ATTR_USBRAM)
 typedef struct {
-  uint8_t * p_device;                                              ///< pointer to device descritpor \ref tusb_descriptor_device_t
-  uint8_t * p_configuration;                                       ///< pointer to the whole configuration descriptor, starting by \ref tusb_descriptor_configuration_t
-  uint8_t * p_string_arr[TUSB_CFG_DEVICE_STRING_DESCRIPTOR_COUNT]; ///< a array of pointers to string descriptors
+  uint8_t const * p_device;              ///< pointer to device descritpor \ref tusb_descriptor_device_t
+  uint8_t const * p_configuration;       ///< pointer to the whole configuration descriptor, starting by \ref tusb_descriptor_configuration_t
+  uint8_t const** p_string_arr;          ///< a array of pointers to string descriptors
 
-  uint8_t * p_hid_keyboard_report;                                 ///< pointer to HID report descriptor of Keybaord interface. Only needed if TUSB_CFG_DEVICE_HID_KEYBOARD is enabled
-  uint8_t * p_hid_mouse_report;                                    ///< pointer to HID report descriptor of Mouse interface. Only needed if TUSB_CFG_DEVICE_HID_MOUSE is enabled
+  uint8_t const * p_hid_keyboard_report; ///< pointer to HID report descriptor of Keybaord interface. Only needed if TUSB_CFG_DEVICE_HID_KEYBOARD is enabled
+  uint8_t const * p_hid_mouse_report;    ///< pointer to HID report descriptor of Mouse interface. Only needed if TUSB_CFG_DEVICE_HID_MOUSE is enabled
 }tusbd_descriptor_pointer_t;
 
 // define by application
