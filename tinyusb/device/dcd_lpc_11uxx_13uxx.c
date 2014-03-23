@@ -297,7 +297,8 @@ void dcd_isr(uint8_t coreid)
 {
   (void) coreid;
 
-  uint32_t const int_status = LPC_USB->INTSTAT & LPC_USB->INTEN;
+  uint32_t const int_enable = LPC_USB->INTEN;
+  uint32_t const int_status = LPC_USB->INTSTAT & int_enable;
   LPC_USB->INTSTAT = int_status; // Acknowledge handled interrupt
 
   if (int_status == 0) return;

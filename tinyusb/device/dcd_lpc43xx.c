@@ -286,11 +286,13 @@ tusb_error_t dcd_init(void)
 //--------------------------------------------------------------------+
 // PIPE HELPER
 //--------------------------------------------------------------------+
+#if 0
 static inline uint8_t edpt_pos2phy(uint8_t pos) ATTR_CONST ATTR_ALWAYS_INLINE;
 static inline uint8_t edpt_pos2phy(uint8_t pos)
 { // 0-5 --> OUT, 16-21 IN
   return (pos < DCD_QHD_MAX/2) ? (2*pos) : (2*(pos-16)+1);
 }
+#endif
 
 static inline uint8_t edpt_phy2pos(uint8_t physical_endpoint) ATTR_CONST ATTR_ALWAYS_INLINE;
 static inline uint8_t edpt_phy2pos(uint8_t physical_endpoint)
@@ -546,29 +548,30 @@ void dcd_isr(uint8_t coreid)
 {
   LPC_USB0_Type* const lpc_usb = LPC_USB[coreid];
 
-	uint32_t const int_status = lpc_usb->USBSTS_D & lpc_usb->USBINTR_D;
-	lpc_usb->USBSTS_D = int_status; // Acknowledge handled interrupt
+  uint32_t const int_enable = lpc_usb->USBINTR_D;
+  uint32_t const int_status = lpc_usb->USBSTS_D & int_enable;
+  lpc_usb->USBSTS_D = int_status; // Acknowledge handled interrupt
 
-	if (int_status == 0) return; // disabled interrupt sources
+  if (int_status == 0) return;// disabled interrupt sources
 
-	if (int_status & INT_MASK_RESET)
-	{
-	  bus_reset(coreid);
-	  usbd_dcd_bus_event_isr(0, USBD_BUS_EVENT_RESET);
-	}
+  if (int_status & INT_MASK_RESET)
+  {
+    bus_reset(coreid);
+    usbd_dcd_bus_event_isr(0, USBD_BUS_EVENT_RESET);
+  }
 
-	if (int_status & INT_MASK_SUSPEND)
-	{
-	  if (lpc_usb->PORTSC1_D & PORTSC_SUSPEND_MASK)
-	  { // Note: Host may delay more than 3 ms before and/or after bus reset before doing enumeration.
-	    if ((lpc_usb->DEVICEADDR >> 25) & 0x0f)
-	    {
-	      usbd_dcd_bus_event_isr(0, USBD_BUS_EVENT_SUSPENDED);
-	    }
-	  }
-	}
+  if (int_status & INT_MASK_SUSPEND)
+  {
+    if (lpc_usb->PORTSC1_D & PORTSC_SUSPEND_MASK)
+    { // Note: Host may delay more than 3 ms before and/or after bus reset before doing enumeration.
+      if ((lpc_usb->DEVICEADDR >> 25) & 0x0f)
+      {
+        usbd_dcd_bus_event_isr(0, USBD_BUS_EVENT_SUSPENDED);
+      }
+    }
+  }
 
-	// TODO disconnection does not generate interrupt !!!!!!
+  // TODO disconnection does not generate interrupt !!!!!!
 //	if (int_status & INT_MASK_PORT_CHANGE)
 //	{
 //	  if ( !(lpc_usb->PORTSC1_D & PORTSC_CURRENT_CONNECT_STATUS_MASK) )
@@ -577,47 +580,47 @@ void dcd_isr(uint8_t coreid)
 //	  }
 //	}
 
-	if (int_status & INT_MASK_USB)
-	{
-	  uint32_t const edpt_complete = lpc_usb->ENDPTCOMPLETE;
-		lpc_usb->ENDPTCOMPLETE       = edpt_complete; // acknowledge
+  if (int_status & INT_MASK_USB)
+  {
+    uint32_t const edpt_complete = lpc_usb->ENDPTCOMPLETE;
+    lpc_usb->ENDPTCOMPLETE = edpt_complete; // acknowledge
 
-		dcd_data_t* const p_dcd = dcd_data_ptr[coreid];
+    dcd_data_t* const p_dcd = dcd_data_ptr[coreid];
 
-	  //------------- Set up Received -------------//
-		if (lpc_usb->ENDPTSETUPSTAT)
-		{ // 23.10.10.2 Operational model for setup transfers
-		  tusb_control_request_t control_request = p_dcd->qhd[0].setup_request;
-		  lpc_usb->ENDPTSETUPSTAT = lpc_usb->ENDPTSETUPSTAT; // acknowledge
+    //------------- Set up Received -------------//
+    if (lpc_usb->ENDPTSETUPSTAT)
+    { // 23.10.10.2 Operational model for setup transfers
+      tusb_control_request_t control_request = p_dcd->qhd[0].setup_request;
+      lpc_usb->ENDPTSETUPSTAT = lpc_usb->ENDPTSETUPSTAT;// acknowledge
 
-		  usbd_setup_received_isr(coreid, &control_request);
-		}
-		//------------- Control Request Completed -------------//
-		else if ( edpt_complete & 0x03 )
-		{ // only either of Endpoint Control is set with interrupt on complete flag
-		  endpoint_handle_t edpt_hdl =
+      usbd_setup_received_isr(coreid, &control_request);
+    }
+    //------------- Control Request Completed -------------//
+    else if ( edpt_complete & 0x03 )
+    { // only either of Endpoint Control is set with interrupt on complete flag
+      endpoint_handle_t edpt_hdl =
       {
-          .coreid     = coreid,
-          .index      = 0,
-          .class_code = 0
+        .coreid = coreid,
+        .index = 0,
+        .class_code = 0
       };
 
-		  dcd_qtd_t volatile * const p_qtd = &p_dcd->qhd[ (edpt_complete & BIT_(0)) ? 0 : 1 ].qtd_overlay;
-		  tusb_event_t event = ( p_qtd->xact_err || p_qtd->halted || p_qtd->buffer_err ) ? TUSB_EVENT_XFER_ERROR : TUSB_EVENT_XFER_COMPLETE;
+      dcd_qtd_t volatile * const p_qtd = &p_dcd->qhd[ (edpt_complete & BIT_(0)) ? 0 : 1 ].qtd_overlay;
+      tusb_event_t event = ( p_qtd->xact_err || p_qtd->halted || p_qtd->buffer_err ) ? TUSB_EVENT_XFER_ERROR : TUSB_EVENT_XFER_COMPLETE;
 
-		  usbd_xfer_isr(edpt_hdl, event, 0); // TODO xferred bytes for control xfer is not needed yet !!!!
-		}
+      usbd_xfer_isr(edpt_hdl, event, 0); // TODO xferred bytes for control xfer is not needed yet !!!!
+    }
 
-		//------------- Transfer Complete -------------//
-		if ( edpt_complete & ~(0x03UL) )
-		{
-		  xfer_complete_isr(coreid, edpt_complete);
-		}
-	}
+    //------------- Transfer Complete -------------//
+    if ( edpt_complete & ~(0x03UL) )
+    {
+      xfer_complete_isr(coreid, edpt_complete);
+    }
+  }
 
-	if (int_status & INT_MASK_SOF) { }
-	if (int_status & INT_MASK_NAK) { }
-	if (int_status & INT_MASK_ERROR) ASSERT(false, VOID_RETURN);
+  if (int_status & INT_MASK_SOF) {}
+  if (int_status & INT_MASK_NAK) {}
+  if (int_status & INT_MASK_ERROR) ASSERT(false, VOID_RETURN);
 }
 
 //--------------------------------------------------------------------+
