@@ -408,28 +408,24 @@ app_descriptor_configuration_t desc_configuration =
 #define STRING_LEN_UNICODE(n) (2 + (2*(n))) // also includes 2 byte header
 #define ENDIAN_BE16_FROM( high, low) ENDIAN_BE16(high << 8 | low)
 
-TUSB_CFG_ATTR_USBRAM
 uint16_t desc_string_language[] =
 {
     ENDIAN_BE16_FROM( STRING_LEN_UNICODE(1), TUSB_DESC_TYPE_STRING ),
     0x0409
 };
 
-TUSB_CFG_ATTR_USBRAM
 uint16_t desc_string_manufacturer[] =
 {
     ENDIAN_BE16_FROM( STRING_LEN_UNICODE(11), TUSB_DESC_TYPE_STRING),
     't', 'i', 'n', 'y', 'u', 's', 'b', '.', 'o', 'r', 'g' // len = 11
 };
 
-TUSB_CFG_ATTR_USBRAM
 uint16_t desc_string_product[] =
 {
     ENDIAN_BE16_FROM( STRING_LEN_UNICODE(14), TUSB_DESC_TYPE_STRING),
     't', 'i', 'n', 'y', 'u', 's', 'b', ' ', 'D', 'e', 'v', 'i', 'c', 'e' // len = 14
 };
 
-TUSB_CFG_ATTR_USBRAM
 uint16_t desc_string_serial[] =
 {
     ENDIAN_BE16_FROM( STRING_LEN_UNICODE(4), TUSB_DESC_TYPE_STRING),

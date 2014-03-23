@@ -52,6 +52,7 @@
 // MACRO CONSTANT TYPEDEF
 //--------------------------------------------------------------------+
 usbd_device_info_t usbd_devices[CONTROLLER_DEVICE_NUMBER];
+TUSB_CFG_ATTR_USBRAM uint8_t usbd_enum_buffer[TUSB_CFG_DEVICE_ENUM_BUFFER_SIZE];
 
 static usbd_class_driver_t const usbd_class_drivers[] =
 {
@@ -346,9 +347,12 @@ static tusb_error_t get_descriptor(uint8_t coreid, tusb_control_request_t const 
   }
   else if ( TUSB_DESC_TYPE_STRING == desc_type )
   {
-    if ( !(desc_index < TUSB_CFG_DEVICE_STRING_DESCRIPTOR_COUNT && tusbd_descriptor_pointers.p_string_arr[desc_index] != NULL) ) return TUSB_ERROR_DCD_CONTROL_REQUEST_NOT_SUPPORT;
+    if ( !(desc_index < TUSB_CFG_DEVICE_STRING_DESCRIPTOR_COUNT) ) return TUSB_ERROR_DCD_CONTROL_REQUEST_NOT_SUPPORT;
+    uint8_t const * const p_desc_string = tusbd_descriptor_pointers.p_string_arr[desc_index];
+    ASSERT( p_desc_string != NULL && p_desc_string[0] <= TUSB_CFG_DEVICE_ENUM_BUFFER_SIZE, TUSB_ERROR_NOT_ENOUGH_MEMORY);
 
-    (*pp_buffer) = tusbd_descriptor_pointers.p_string_arr[desc_index];
+    memcpy(usbd_enum_buffer, p_desc_string, p_desc_string[0]); // first byte of descriptor is its size
+    (*pp_buffer) = usbd_enum_buffer;
     (*p_length)  = **pp_buffer;
   }else
   {
