@@ -174,7 +174,8 @@ static void endpoint_non_control_isr(uint32_t eot_int)
 
 static void endpoint_control_isr(void)
 {
-  uint32_t const endpoint_int_status = LPC_USB->USBEpIntSt & LPC_USB->USBEpIntEn;
+  uint32_t const interrupt_enable = LPC_USB->USBEpIntEn;
+  uint32_t const endpoint_int_status = LPC_USB->USBEpIntSt & interrupt_enable;
 //  LPC_USB->USBEpIntClr = endpoint_int_status; // acknowledge interrupt TODO cannot immediately acknowledge setup packet
 
   //------------- Setup Recieved-------------//
@@ -216,7 +217,8 @@ static void endpoint_control_isr(void)
 void dcd_isr(uint8_t coreid)
 {
   (void) coreid;
-  uint32_t const device_int_status = LPC_USB->USBDevIntSt & LPC_USB->USBDevIntEn;
+  uint32_t const device_int_enable = LPC_USB->USBDevIntEn;
+  uint32_t const device_int_status = LPC_USB->USBDevIntSt & device_int_enable;
   LPC_USB->USBDevIntClr = device_int_status;// Acknowledge handled interrupt
 
   //------------- usb bus event -------------//
@@ -254,7 +256,8 @@ void dcd_isr(uint8_t coreid)
   }
 
   //------------- Non-Control Endpoint (DMA Mode) -------------//
-  uint32_t dma_int_status = LPC_USB->USBDMAIntSt & LPC_USB->USBDMAIntEn;
+  uint32_t const dma_int_enable = LPC_USB->USBDMAIntEn;
+  uint32_t const dma_int_status = LPC_USB->USBDMAIntSt & dma_int_enable;
 
   if (dma_int_status & DMA_INT_END_OF_XFER_MASK)
   {
