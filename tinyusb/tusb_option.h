@@ -153,7 +153,6 @@
 
   #ifndef TUSB_CFG_HOST_ENUM_BUFFER_SIZE
     #define TUSB_CFG_HOST_ENUM_BUFFER_SIZE 256
-    #warning TUSB_CFG_HOST_ENUM_BUFFER_SIZE is not defined, default value is 256
   #endif
 
   //------------- CLASS -------------//
