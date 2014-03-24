@@ -397,34 +397,34 @@
               <FilePath>..\src\main.c</FilePath>
             </File>
             <File>
-              <FileName>cdc_serial_app.c</FileName>
+              <FileName>cdc_serial_host_app.c</FileName>
               <FileType>1</FileType>
-              <FilePath>..\src\cdc_serial_app.c</FilePath>
+              <FilePath>..\src\cdc_serial_host_app.c</FilePath>
             </File>
             <File>
-              <FileName>keyboard_app.c</FileName>
+              <FileName>keyboard_host_app.c</FileName>
               <FileType>1</FileType>
-              <FilePath>..\src\keyboard_app.c</FilePath>
+              <FilePath>..\src\keyboard_host_app.c</FilePath>
             </File>
             <File>
-              <FileName>mouse_app.c</FileName>
+              <FileName>mouse_host_app.c</FileName>
               <FileType>1</FileType>
-              <FilePath>..\src\mouse_app.c</FilePath>
+              <FilePath>..\src\mouse_host_app.c</FilePath>
             </File>
             <File>
-              <FileName>rndis_app.c</FileName>
+              <FileName>rndis_host_app.c</FileName>
               <FileType>1</FileType>
-              <FilePath>..\src\rndis_app.c</FilePath>
+              <FilePath>..\src\rndis_host_app.c</FilePath>
             </File>
             <File>
-              <FileName>msc_app.c</FileName>
+              <FileName>msc_host_app.c</FileName>
               <FileType>1</FileType>
-              <FilePath>..\src\msc_app.c</FilePath>
+              <FilePath>..\src\msc_host_app.c</FilePath>
             </File>
             <File>
-              <FileName>cli.c</FileName>
+              <FileName>msc_cli.c</FileName>
               <FileType>1</FileType>
-              <FilePath>..\src\cli.c</FilePath>
+              <FilePath>..\src\msc_cli.c</FilePath>
             </File>
           </Files>
         </Group>
@@ -1162,34 +1162,34 @@
               <FilePath>..\src\main.c</FilePath>
             </File>
             <File>
-              <FileName>cdc_serial_app.c</FileName>
+              <FileName>cdc_serial_host_app.c</FileName>
               <FileType>1</FileType>
-              <FilePath>..\src\cdc_serial_app.c</FilePath>
+              <FilePath>..\src\cdc_serial_host_app.c</FilePath>
             </File>
             <File>
-              <FileName>keyboard_app.c</FileName>
+              <FileName>keyboard_host_app.c</FileName>
               <FileType>1</FileType>
-              <FilePath>..\src\keyboard_app.c</FilePath>
+              <FilePath>..\src\keyboard_host_app.c</FilePath>
             </File>
             <File>
-              <FileName>mouse_app.c</FileName>
+              <FileName>mouse_host_app.c</FileName>
               <FileType>1</FileType>
-              <FilePath>..\src\mouse_app.c</FilePath>
+              <FilePath>..\src\mouse_host_app.c</FilePath>
             </File>
             <File>
-              <FileName>rndis_app.c</FileName>
+              <FileName>rndis_host_app.c</FileName>
               <FileType>1</FileType>
-              <FilePath>..\src\rndis_app.c</FilePath>
+              <FilePath>..\src\rndis_host_app.c</FilePath>
             </File>
             <File>
-              <FileName>msc_app.c</FileName>
+              <FileName>msc_host_app.c</FileName>
               <FileType>1</FileType>
-              <FilePath>..\src\msc_app.c</FilePath>
+              <FilePath>..\src\msc_host_app.c</FilePath>
             </File>
             <File>
-              <FileName>cli.c</FileName>
+              <FileName>msc_cli.c</FileName>
               <FileType>1</FileType>
-              <FilePath>..\src\cli.c</FilePath>
+              <FilePath>..\src\msc_cli.c</FilePath>
             </File>
           </Files>
         </Group>
@@ -1927,34 +1927,34 @@
               <FilePath>..\src\main.c</FilePath>
             </File>
             <File>
-              <FileName>cdc_serial_app.c</FileName>
+              <FileName>cdc_serial_host_app.c</FileName>
               <FileType>1</FileType>
-              <FilePath>..\src\cdc_serial_app.c</FilePath>
+              <FilePath>..\src\cdc_serial_host_app.c</FilePath>
             </File>
             <File>
-              <FileName>keyboard_app.c</FileName>
+              <FileName>keyboard_host_app.c</FileName>
               <FileType>1</FileType>
-              <FilePath>..\src\keyboard_app.c</FilePath>
+              <FilePath>..\src\keyboard_host_app.c</FilePath>
             </File>
             <File>
-              <FileName>mouse_app.c</FileName>
+              <FileName>mouse_host_app.c</FileName>
               <FileType>1</FileType>
-              <FilePath>..\src\mouse_app.c</FilePath>
+              <FilePath>..\src\mouse_host_app.c</FilePath>
             </File>
             <File>
-              <FileName>rndis_app.c</FileName>
+              <FileName>rndis_host_app.c</FileName>
               <FileType>1</FileType>
-              <FilePath>..\src\rndis_app.c</FilePath>
+              <FilePath>..\src\rndis_host_app.c</FilePath>
             </File>
             <File>
-              <FileName>msc_app.c</FileName>
+              <FileName>msc_host_app.c</FileName>
               <FileType>1</FileType>
-              <FilePath>..\src\msc_app.c</FilePath>
+              <FilePath>..\src\msc_host_app.c</FilePath>
             </File>
             <File>
-              <FileName>cli.c</FileName>
+              <FileName>msc_cli.c</FileName>
               <FileType>1</FileType>
-              <FilePath>..\src\cli.c</FilePath>
+              <FilePath>..\src\msc_cli.c</FilePath>
             </File>
           </Files>
         </Group>
@@ -2692,34 +2692,34 @@
               <FilePath>..\src\main.c</FilePath>
             </File>
             <File>
-              <FileName>cdc_serial_app.c</FileName>
+              <FileName>cdc_serial_host_app.c</FileName>
               <FileType>1</FileType>
-              <FilePath>..\src\cdc_serial_app.c</FilePath>
+              <FilePath>..\src\cdc_serial_host_app.c</FilePath>
             </File>
             <File>
-              <FileName>keyboard_app.c</FileName>
+              <FileName>keyboard_host_app.c</FileName>
               <FileType>1</FileType>
-              <FilePath>..\src\keyboard_app.c</FilePath>
+              <FilePath>..\src\keyboard_host_app.c</FilePath>
             </File>
             <File>
-              <FileName>mouse_app.c</FileName>
+              <FileName>mouse_host_app.c</FileName>
               <FileType>1</FileType>
-              <FilePath>..\src\mouse_app.c</FilePath>
+              <FilePath>..\src\mouse_host_app.c</FilePath>
             </File>
             <File>
-              <FileName>rndis_app.c</FileName>
+              <FileName>rndis_host_app.c</FileName>
               <FileType>1</FileType>
-              <FilePath>..\src\rndis_app.c</FilePath>
+              <FilePath>..\src\rndis_host_app.c</FilePath>
             </File>
             <File>
-              <FileName>msc_app.c</FileName>
+              <FileName>msc_host_app.c</FileName>
               <FileType>1</FileType>
-              <FilePath>..\src\msc_app.c</FilePath>
+              <FilePath>..\src\msc_host_app.c</FilePath>
             </File>
             <File>
-              <FileName>cli.c</FileName>
+              <FileName>msc_cli.c</FileName>
               <FileType>1</FileType>
-              <FilePath>..\src\cli.c</FilePath>
+              <FilePath>..\src\msc_cli.c</FilePath>
             </File>
           </Files>
         </Group>

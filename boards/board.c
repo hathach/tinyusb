@@ -37,6 +37,7 @@
 /**************************************************************************/
 
 #include "board.h"
+#include "app_os_prio.h"
 
 #if TUSB_CFG_OS == TUSB_OS_NONE
 
