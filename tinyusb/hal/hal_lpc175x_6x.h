@@ -36,12 +36,9 @@
 */
 /**************************************************************************/
 
-/** \ingroup TBD
- *  \defgroup TBD
- *  \brief TBD
- *
- *  @{
- */
+/** \ingroup group_hal
+ *  \defgroup group_hal_lpc175x_6x LPC175x_6x
+ *  @{ */
 
 #ifndef _TUSB_HAL_LPC175X_6X_H_
 #define _TUSB_HAL_LPC175X_6X_H_

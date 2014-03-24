@@ -36,19 +36,9 @@
 */
 /**************************************************************************/
 
-/** \file
- *  \brief TBD
- *
- *  \note TBD
- */
-
-/** \ingroup TBD
- *  \defgroup TBD
- *  \brief TBD
- *
- *  @{
- */
-
+/** \ingroup group_hal
+ *  \defgroup group_hal_lpc143xx LPC43xx
+ *  @{ */
 #ifndef _TUSB_HAL_LPC43XX_H_
 #define _TUSB_HAL_LPC43XX_H_
 

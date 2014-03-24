@@ -135,8 +135,7 @@ void tusbh_cdc_xfer_isr(uint8_t dev_addr, tusb_event_t event, cdc_pipeid_t pipe_
 //--------------------------------------------------------------------+
 // RNDIS APPLICATION API
 //--------------------------------------------------------------------+
-/** \ingroup CDC_RNDIS Remote Network Driver Interface Specification (RNDIS)
- * \defgroup CDC_RNSID_Host Host
+/** \ingroup CDC_RNSID_Host
  *  @{ */
 
 bool tusbh_cdc_rndis_is_mounted(uint8_t dev_addr) ATTR_PURE ATTR_WARN_UNUSED_RESULT;

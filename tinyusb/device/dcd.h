@@ -36,8 +36,8 @@
 */
 /**************************************************************************/
 
-/** \ingroup Group_USBD
- * \defgroup Group_DCD Device Controller Driver (DCD)
+/** \ingroup group_usbd
+ * \defgroup group_dcd Device Controller Driver (DCD)
  *  @{ */
 
 #ifndef _TUSB_DCD_H_

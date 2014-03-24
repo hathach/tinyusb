@@ -36,7 +36,7 @@
 */
 /**************************************************************************/
 
-/** \ingroup Group_USBD
+/** \ingroup group_usbd
  *  @{ */
 
 #ifndef _TUSB_USBD_DCD_H_

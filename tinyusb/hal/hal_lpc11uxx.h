@@ -36,12 +36,9 @@
 */
 /**************************************************************************/
 
-/** \ingroup TBD
- *  \defgroup TBD
- *  \brief TBD
- *
- *  @{
- */
+/** \ingroup group_hal
+ *  \defgroup group_hal_lpc11u LPC11uxx
+ *  @{ */
 
 #ifndef _TUSB_HAL_LPC11UXX_H_
 #define _TUSB_HAL_LPC11UXX_H_

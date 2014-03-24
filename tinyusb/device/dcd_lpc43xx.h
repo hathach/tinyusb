@@ -36,12 +36,9 @@
 */
 /**************************************************************************/
 
-/** \ingroup TBD
- *  \defgroup TBD
- *  \brief TBD
- *
- *  @{
- */
+/** \ingroup group_dcd
+ *  \defgroup group_dcd_lpc143xx LPC43xx
+ *  @{ */
 
 #ifndef _TUSB_DCD_LPC43XX_H_
 #define _TUSB_DCD_LPC43XX_H_

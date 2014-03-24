@@ -36,12 +36,9 @@
 */
 /**************************************************************************/
 
-/** \ingroup Group_DCD
- * @{
- *  \defgroup LPC175x_6x
- *  @{
- */
-
+/** \ingroup group_dcd
+ *  \defgroup group_dcd_lpc175x_6x LPC175x_6x
+ *  @{ */
 
 #ifndef _TUSB_DCD_LPC175X_6X_H_
 #define _TUSB_DCD_LPC175X_6X_H_
@@ -239,5 +236,3 @@ static inline uint32_t sie_read (uint8_t cmd_code, uint8_t data_len)
 #endif /* _TUSB_DCD_LPC175X_6X_H_ */
 
 /** @} */
-/** @} */
-

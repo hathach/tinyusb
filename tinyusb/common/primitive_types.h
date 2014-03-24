@@ -36,13 +36,6 @@
 */
 /**************************************************************************/
 
-/** \ingroup TBD
- *  \defgroup TBD
- *  \brief TBD
- *
- *  @{
- */
-
 #ifndef _TUSB_PRIMITIVE_TYPES_H_
 #define _TUSB_PRIMITIVE_TYPES_H_
 
@@ -58,5 +51,3 @@
 #endif
 
 #endif /* _TUSB_PRIMITIVE_TYPES_H_ */
-
-/** @} */

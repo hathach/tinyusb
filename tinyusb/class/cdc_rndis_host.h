@@ -36,12 +36,9 @@
 */
 /**************************************************************************/
 
-/** \ingroup TBD
- *  \defgroup TBD
- *  \brief TBD
- *
- *  @{
- */
+/** \ingroup CDC_RNDIS
+ * \defgroup CDC_RNSID_Host Host
+ *  @{ */
 
 #ifndef _TUSB_CDC_RNDIS_HOST_H_
 #define _TUSB_CDC_RNDIS_HOST_H_

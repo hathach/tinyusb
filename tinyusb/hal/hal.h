@@ -39,9 +39,9 @@
 #ifndef _TUSB_HAL_H_
 #define _TUSB_HAL_H_
 
-/** \ingroup Group_USBD
+/** \ingroup group_usbd
  * \ingroup group_usbh
- * \defgroup Port_Hal Hardware Abtract Layer (HAL)
+ * \defgroup group_hal Hardware Abtract Layer (HAL)
  * Hardware Abstraction Layer (HAL) is an abstraction layer, between the physical hardware and the tinyusb stack.
  * Its function is to hide differences in hardware from most of MCUs, so that most of the stack code does not need to be changed to
  * run on systems with a different MCU.
