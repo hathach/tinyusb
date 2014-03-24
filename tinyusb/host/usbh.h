@@ -36,7 +36,7 @@
 */
 /**************************************************************************/
 
-/** \defgroup group_usbh USB Host Driver (USBH)
+/** \defgroup group_usbh USB Host Core (USBH)
  *  @{ */
 
 #ifndef _TUSB_USBH_H_

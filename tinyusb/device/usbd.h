@@ -36,7 +36,7 @@
 */
 /**************************************************************************/
 
-/** \defgroup group_usbd USB Device Driver (USBD)
+/** \defgroup group_usbd USB Device Core (USBD)
  *  @{ */
 
 #ifndef _TUSB_USBD_H_
