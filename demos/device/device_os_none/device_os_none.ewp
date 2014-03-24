@@ -4615,25 +4615,25 @@
   <group>
     <name>app</name>
     <file>
-      <name>$PROJ_DIR$\..\src\cdcd_app.c</name>
+      <name>$PROJ_DIR$\..\src\cdc_device_app.c</name>
     </file>
     <file>
-      <name>$PROJ_DIR$\..\src\keyboardd_app.c</name>
+      <name>$PROJ_DIR$\..\src\keyboard_device_app.c</name>
     </file>
     <file>
       <name>$PROJ_DIR$\..\src\main.c</name>
     </file>
     <file>
-      <name>$PROJ_DIR$\..\src\moused_app.c</name>
+      <name>$PROJ_DIR$\..\src\mouse_device_app.c</name>
     </file>
     <file>
-      <name>$PROJ_DIR$\..\src\mscd_app.c</name>
+      <name>$PROJ_DIR$\..\src\msc_device_app.c</name>
     </file>
     <file>
-      <name>$PROJ_DIR$\..\src\mscd_app_ramdisk.c</name>
+      <name>$PROJ_DIR$\..\src\msc_device_ramdisk.c</name>
     </file>
     <file>
-      <name>$PROJ_DIR$\..\src\mscd_app_romdisk.c</name>
+      <name>$PROJ_DIR$\..\src\msc_device_romdisk.c</name>
     </file>
     <file>
       <name>$PROJ_DIR$\..\src\tusb_descriptors.c</name>
