@@ -1,6 +1,6 @@
 /**************************************************************************/
 /*!
-    @file     moused_app.c
+    @file     mouse_device_app.c
     @author   hathach (tinyusb.org)
 
     @section LICENSE
@@ -36,7 +36,7 @@
 */
 /**************************************************************************/
 
-#include "moused_app.h"
+#include "mouse_device_app.h"
 
 #if TUSB_CFG_DEVICE_HID_MOUSE
 //--------------------------------------------------------------------+
@@ -50,7 +50,7 @@
 //--------------------------------------------------------------------+
 // INTERNAL OBJECT & FUNCTION DECLARATION
 //--------------------------------------------------------------------+
-OSAL_TASK_DEF(moused_app_task, 128, MOUSED_APP_TASK_PRIO);
+OSAL_TASK_DEF(mouse_device_app_task, 128, MOUSED_APP_TASK_PRIO);
 
 TUSB_CFG_ATTR_USBRAM hid_mouse_report_t mouse_report;
 
@@ -93,12 +93,12 @@ void tusbd_hid_mouse_set_report_cb(uint8_t coreid, hid_request_report_type_t rep
 //--------------------------------------------------------------------+
 // APPLICATION CODE
 //--------------------------------------------------------------------+
-void moused_app_init(void)
+void mouse_device_app_init(void)
 {
-  ASSERT( TUSB_ERROR_NONE == osal_task_create( OSAL_TASK_REF(moused_app_task) ), VOID_RETURN);
+  ASSERT( TUSB_ERROR_NONE == osal_task_create( OSAL_TASK_REF(mouse_device_app_task) ), VOID_RETURN);
 }
 
-OSAL_TASK_FUNCTION( moused_app_task , p_task_para)
+OSAL_TASK_FUNCTION( mouse_device_app_task , p_task_para)
 {
   OSAL_TASK_LOOP_BEGIN
 

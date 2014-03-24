@@ -1,6 +1,6 @@
 /**************************************************************************/
 /*!
-    @file     cdcd_app.h
+    @file     cdc_device_app.h
     @author   hathach (tinyusb.org)
 
     @section LICENSE

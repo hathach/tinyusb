@@ -1,6 +1,6 @@
 /**************************************************************************/
 /*!
-    @file     cdcd_app.c
+    @file     cdc_device_app.c
     @author   hathach (tinyusb.org)
 
     @section LICENSE
@@ -36,7 +36,7 @@
 */
 /**************************************************************************/
 
-#include "cdcd_app.h"
+#include "cdc_device_app.h"
 
 #if TUSB_CFG_DEVICE_CDC
 

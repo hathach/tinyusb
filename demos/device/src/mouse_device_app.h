@@ -1,6 +1,6 @@
 /**************************************************************************/
 /*!
-    @file     moused_app.h
+    @file     mouse_device_app.h
     @author   hathach (tinyusb.org)
 
     @section LICENSE
@@ -55,13 +55,13 @@
 
 #if TUSB_CFG_DEVICE_HID_MOUSE
 
-void moused_app_init(void);
-OSAL_TASK_FUNCTION( moused_app_task , p_task_para);
+void mouse_device_app_init(void);
+OSAL_TASK_FUNCTION( mouse_device_app_task , p_task_para);
 
 #else
 
-#define moused_app_init()
-#define moused_app_task(x)
+#define mouse_device_app_init()
+#define mouse_device_app_task(x)
 
 #endif
 

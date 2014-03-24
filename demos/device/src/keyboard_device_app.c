@@ -1,6 +1,6 @@
 /**************************************************************************/
 /*!
-    @file     keyboardd_app.c
+    @file     keyboard_device_app.c
     @author   hathach (tinyusb.org)
 
     @section LICENSE
@@ -36,7 +36,7 @@
 */
 /**************************************************************************/
 
-#include "keyboardd_app.h"
+#include "keyboard_device_app.h"
 
 #if TUSB_CFG_DEVICE_HID_KEYBOARD
 //--------------------------------------------------------------------+
@@ -50,7 +50,7 @@
 //--------------------------------------------------------------------+
 // INTERNAL OBJECT & FUNCTION DECLARATION
 //--------------------------------------------------------------------+
-OSAL_TASK_DEF(keyboardd_app_task, 128, KEYBOARDD_APP_TASK_PRIO);
+OSAL_TASK_DEF(keyboard_device_app_task, 128, KEYBOARDD_APP_TASK_PRIO);
 
 TUSB_CFG_ATTR_USBRAM hid_keyboard_report_t keyboard_report;
 
@@ -116,12 +116,12 @@ void tusbd_hid_keyboard_set_report_cb(uint8_t coreid, hid_request_report_type_t 
 //--------------------------------------------------------------------+
 // APPLICATION CODE
 //--------------------------------------------------------------------+
-void keyboardd_app_init(void)
+void keyboard_device_app_init(void)
 {
-  ASSERT( TUSB_ERROR_NONE == osal_task_create( OSAL_TASK_REF(keyboardd_app_task) ), VOID_RETURN);
+  ASSERT( TUSB_ERROR_NONE == osal_task_create( OSAL_TASK_REF(keyboard_device_app_task) ), VOID_RETURN);
 }
 
-OSAL_TASK_FUNCTION( keyboardd_app_task , p_task_para)
+OSAL_TASK_FUNCTION( keyboard_device_app_task , p_task_para)
 {
   OSAL_TASK_LOOP_BEGIN
 

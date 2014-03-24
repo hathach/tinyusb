@@ -1,6 +1,6 @@
 /**************************************************************************/
 /*!
-    @file     mscd_app.c
+    @file     msc_device_app.c
     @author   hathach (tinyusb.org)
 
     @section LICENSE
@@ -36,7 +36,7 @@
 */
 /**************************************************************************/
 
-#include "mscd_app.h"
+#include "msc_device_app.h"
 
 #if TUSB_CFG_DEVICE_MSC
 //--------------------------------------------------------------------+
@@ -149,14 +149,14 @@ msc_csw_status_t tusbd_msc_scsi_cb (uint8_t coreid, uint8_t lun, uint8_t scsi_cm
 //--------------------------------------------------------------------+
 // IMPLEMENTATION
 //--------------------------------------------------------------------+
-OSAL_TASK_FUNCTION( mscd_app_task , p_task_para)
+OSAL_TASK_FUNCTION( msc_device_app_task , p_task_para)
 { // no need to implement the task yet
   OSAL_TASK_LOOP_BEGIN
 
   OSAL_TASK_LOOP_END
 }
 
-void mscd_app_init (void)
+void msc_device_app_init (void)
 {
 
 }

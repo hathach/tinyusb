@@ -1,6 +1,6 @@
 /**************************************************************************/
 /*!
-    @file     keyboardd_app.h
+    @file     keyboard_device_app.h
     @author   hathach (tinyusb.org)
 
     @section LICENSE
@@ -55,13 +55,13 @@
 
 #if TUSB_CFG_DEVICE_HID_KEYBOARD
 
-void keyboardd_app_init(void);
-OSAL_TASK_FUNCTION( keyboardd_app_task , p_task_para);
+void keyboard_device_app_init(void);
+OSAL_TASK_FUNCTION( keyboard_device_app_task , p_task_para);
 
 #else
 
-#define keyboardd_app_init()
-#define keyboardd_app_task(x)
+#define keyboard_device_app_init()
+#define keyboard_device_app_task(x)
 
 #endif
 

@@ -1,6 +1,6 @@
 /**************************************************************************/
 /*!
-    @file     mscd_app_ramdisk.c
+    @file     msc_device_ramdisk.c
     @author   hathach (tinyusb.org)
 
     @section LICENSE
@@ -36,7 +36,7 @@
 */
 /**************************************************************************/
 
-#include "mscd_app.h"
+#include "msc_device_app.h"
 
 #if TUSB_CFG_DEVICE_MSC && defined (MSCD_APP_RAMDISK)
 
@@ -48,7 +48,7 @@
 // INTERNAL OBJECT & FUNCTION DECLARATION
 //--------------------------------------------------------------------+
 TUSB_CFG_ATTR_USBRAM
-uint8_t mscd_app_ramdisk[DISK_BLOCK_NUM][DISK_BLOCK_SIZE] =
+uint8_t msc_device_ramdisk[DISK_BLOCK_NUM][DISK_BLOCK_SIZE] =
 {
   //------------- Boot Sector -------------//
   // byte_per_sector    = DISK_BLOCK_SIZE; fat12_sector_num_16  = DISK_BLOCK_NUM;
@@ -93,13 +93,13 @@ uint8_t mscd_app_ramdisk[DISK_BLOCK_NUM][DISK_BLOCK_SIZE] =
 //--------------------------------------------------------------------+
 uint16_t tusbd_msc_read10_cb (uint8_t coreid, uint8_t lun, void** pp_buffer, uint32_t lba, uint16_t block_count)
 {
-  (*pp_buffer) = mscd_app_ramdisk[lba];
+  (*pp_buffer) = msc_device_ramdisk[lba];
 
   return min16_of(block_count, DISK_BLOCK_NUM);
 }
 uint16_t tusbd_msc_write10_cb(uint8_t coreid, uint8_t lun, void** pp_buffer, uint32_t lba, uint16_t block_count)
 {
-  (*pp_buffer) = mscd_app_ramdisk[lba];
+  (*pp_buffer) = msc_device_ramdisk[lba];
 
   return min16_of(block_count, DISK_BLOCK_NUM);
 }
@@ -165,7 +165,7 @@ typedef ATTR_PACKED_STRUCT(struct) {
 
 STATIC_ASSERT(sizeof(fat_directory_t) == 32, "size is not correct");
 
-void fat12_fs_init(uint8_t mscd_app_ramdisk[DISK_BLOCK_NUM][DISK_BLOCK_SIZE])
+void fat12_fs_init(uint8_t msc_device_ramdisk[DISK_BLOCK_NUM][DISK_BLOCK_SIZE])
 {
   uint8_t const readme_contents[] =
 "This is tinyusb's MassStorage Class demo.\r\n\r\n\
@@ -173,7 +173,7 @@ If you find any bugs or get any questions, feel free to file an\r\n\
 issue at https://github.com/hathach/tinyusb";
 
   //------------- Boot Sector -------------//
-  fat12_boot_sector_t* p_boot_fat = (fat12_boot_sector_t* ) mscd_app_ramdisk[0];
+  fat12_boot_sector_t* p_boot_fat = (fat12_boot_sector_t* ) msc_device_ramdisk[0];
   memclr_(p_boot_fat, sizeof(fat12_boot_sector_t));
 
   memcpy(p_boot_fat->jump_code, "\xEB\x3C\x90", 3);
@@ -198,10 +198,10 @@ issue at https://github.com/hathach/tinyusb";
   p_boot_fat->fat_signature           = 0xAA55;
 
   //------------- FAT12 Table (first 2 entries are F8FF, third entry is cluster end of readme file-------------//
-  memcpy(mscd_app_ramdisk[1], "\xF8\xFF\xFF\xFF\x0F", 5);
+  memcpy(msc_device_ramdisk[1], "\xF8\xFF\xFF\xFF\x0F", 5);
 
   //------------- Root Directory -------------//
-  fat_directory_t* p_entry = (fat_directory_t*) mscd_app_ramdisk[2];
+  fat_directory_t* p_entry = (fat_directory_t*) msc_device_ramdisk[2];
 
   // first entry is volume label
   (*p_entry) = (fat_directory_t)
@@ -228,7 +228,7 @@ issue at https://github.com/hathach/tinyusb";
   }; // first entry is volume label
 
   //------------- Readme Content -------------//
-  memcpy(mscd_app_ramdisk[3], readme_contents, sizeof(readme_contents)-1);
+  memcpy(msc_device_ramdisk[3], readme_contents, sizeof(readme_contents)-1);
 
 }
 #endif

@@ -46,10 +46,10 @@
 #include "board.h"
 #include "tusb.h"
 
-#include "mscd_app.h"
-#include "keyboardd_app.h"
-#include "moused_app.h"
-#include "cdcd_app.h"
+#include "msc_device_app.h"
+#include "keyboard_device_app.h"
+#include "mouse_device_app.h"
+#include "cdc_device_app.h"
 
 //--------------------------------------------------------------------+
 // MACRO CONSTANT TYPEDEF
@@ -69,9 +69,9 @@ void os_none_start_scheduler(void)
     tusb_task_runner();
     led_blinking_task(NULL);
 
-    mscd_app_task(NULL);
-    keyboardd_app_task(NULL);
-    moused_app_task(NULL);
+    msc_device_app_task(NULL);
+    keyboard_device_app_task(NULL);
+    mouse_device_app_task(NULL);
     cdcd_serial_app_task(NULL);
   }
 }
@@ -87,9 +87,9 @@ int main(void)
   //------------- application task init -------------//
   led_blinking_init();
 
-  mscd_app_init();
-  keyboardd_app_init();
-  moused_app_init();
+  msc_device_app_init();
+  keyboard_device_app_init();
+  mouse_device_app_init();
   cdcd_serial_app_init();
 
   //------------- start OS scheduler (never return) -------------//

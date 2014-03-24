@@ -1,6 +1,6 @@
 /**************************************************************************/
 /*!
-    @file     mscd_app_romdisk.c
+    @file     msc_device_romdisk.c
     @author   hathach (tinyusb.org)
 
     @section LICENSE
@@ -36,7 +36,7 @@
 */
 /**************************************************************************/
 
-#include "mscd_app.h"
+#include "msc_device_app.h"
 
 #if TUSB_CFG_DEVICE_MSC && defined (MSCD_APP_ROMDISK)
 
@@ -51,7 +51,7 @@
 //--------------------------------------------------------------------+
 // INTERNAL OBJECT & FUNCTION DECLARATION
 //--------------------------------------------------------------------+
-const uint8_t mscd_app_rommdisk[DISK_BLOCK_NUM][DISK_BLOCK_SIZE] =
+const uint8_t msc_device_app_rommdisk[DISK_BLOCK_NUM][DISK_BLOCK_SIZE] =
 {
   //------------- Boot Sector -------------//
   // byte_per_sector    = DISK_BLOCK_SIZE; fat12_sector_num_16  = DISK_BLOCK_NUM;
@@ -99,7 +99,7 @@ static uint8_t sector_buffer[DISK_BLOCK_SIZE];
 //--------------------------------------------------------------------+
 uint16_t tusbd_msc_read10_cb (uint8_t coreid, uint8_t lun, void** pp_buffer, uint32_t lba, uint16_t block_count)
 {
-  memcpy(sector_buffer, mscd_app_rommdisk[lba], DISK_BLOCK_SIZE);
+  memcpy(sector_buffer, msc_device_app_rommdisk[lba], DISK_BLOCK_SIZE);
   (*pp_buffer) = sector_buffer;
 
   return 1;
