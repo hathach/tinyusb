@@ -36,12 +36,10 @@
 */
 /**************************************************************************/
 
-/** \ingroup TBD
- *  \defgroup TBD
- *  \brief TBD
- *
- *  @{
- */
+/** \ingroup Group_Common
+ *  \defgroup group_assertion Assertion
+ *  @{ */
+
 
 #ifndef _TUSB_ASSERTION_H_
 #define _TUSB_ASSERTION_H_

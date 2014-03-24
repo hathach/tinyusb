@@ -50,7 +50,7 @@
 /** @} */
 
 
-/** \defgroup Group_OSAL OS Abstraction Layer (OSAL)
+/** \defgroup group_osal OS Abstraction Layer (OSAL)
  *  @{ */
 
 #ifdef __cplusplus

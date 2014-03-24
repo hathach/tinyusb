@@ -95,7 +95,7 @@ enum ehci_queue_element_type_{
   EHCI_QUEUE_ELEMENT_FSTN      ///< 3
 };
 
-/// TBD
+/// EHCI PID
 enum tusb_pid_{
   EHCI_PID_OUT = 0 ,
   EHCI_PID_IN      ,

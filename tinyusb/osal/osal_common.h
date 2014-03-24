@@ -36,12 +36,8 @@
 */
 /**************************************************************************/
 
-/** \ingroup TBD
- *  \defgroup TBD
- *  \brief TBD
- *
- *  @{
- */
+/** \ingroup group_osal
+ *  @{ */
 
 #ifndef _TUSB_OSAL_COMMON_H_
 #define _TUSB_OSAL_COMMON_H_

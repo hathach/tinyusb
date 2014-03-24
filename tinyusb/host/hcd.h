@@ -36,7 +36,7 @@
 */
 /**************************************************************************/
 
-/** \ingroup Group_USBH
+/** \ingroup group_usbh
  * \defgroup Group_HCD Host Controller Driver (HCD)
  *  @{ */
 

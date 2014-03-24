@@ -36,18 +36,9 @@
 */
 /**************************************************************************/
 
-/** \file
- *  \brief TBD
- *
- *  \note TBD
- */
-
 /** \ingroup TBD
  *  \defgroup TBD
- *  \brief TBD
- *
- *  @{
- */
+ *  @{ */
 
 #ifndef _TUSB_MCU_CAPACITY_H_
 #define _TUSB_MCU_CAPACITY_H_

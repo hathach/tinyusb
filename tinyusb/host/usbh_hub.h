@@ -36,12 +36,8 @@
 */
 /**************************************************************************/
 
-/** \ingroup TBD
- *  \defgroup TBD
- *  \brief TBD
- *
- *  @{
- */
+/** \ingroup group_usbh
+ *  @{ */
 
 #ifndef _TUSB_USBH_HUB_H_
 #define _TUSB_USBH_HUB_H_

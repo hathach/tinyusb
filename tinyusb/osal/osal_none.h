@@ -36,8 +36,7 @@
 */
 /**************************************************************************/
 
-/** \addtogroup Group_OSAL
- * @{
+/** \ingroup group_osal
  * \defgroup Group_OSNone None OS
  *  @{ */
 
@@ -319,5 +318,4 @@ static inline void osal_queue_flush(osal_queue_handle_t const queue_hdl)
 
 #endif /* _TUSB_OSAL_NONE_H_ */
 
-/** @} */
 /** @} */

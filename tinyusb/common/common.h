@@ -36,7 +36,7 @@
 */
 /**************************************************************************/
 
-/** \addtogroup Group_Common Common Files
+/** \defgroup Group_Common Common Files
  * @{
  *  \defgroup Group_CommonH common.h
  *  @{ */

@@ -36,12 +36,6 @@
 */
 /**************************************************************************/
 
-/** \file
- *  \brief Error Header
- *
- *  \note TBD
- */
-
 /** \ingroup Group_Common
  *  \defgroup Group_Error Error Codes
  *  @{
@@ -119,4 +113,4 @@ extern char const* const TUSB_ErrorStr[TUSB_ERROR_COUNT];
 
 #endif /* _TUSB_ERRORS_H_ */
 
- /**  @} */
+/**  @} */

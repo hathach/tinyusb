@@ -36,7 +36,7 @@
 */
 /**************************************************************************/
 
-/** \ingroup Group_OSAL
+/** \ingroup group_osal
  *  @{
  *  \defgroup Group_CMSISRTX CMSIS-RTOS RTX
  *  @{ */

@@ -37,9 +37,6 @@
 /**************************************************************************/
 
 /** \ingroup Group_HCD
- * @{
- *  \defgroup TBD
- *  \brief TBD
  *  @{ */
 
 #ifndef _TUSB_USBH_HCD_H_

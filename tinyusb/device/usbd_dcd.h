@@ -36,12 +36,8 @@
 */
 /**************************************************************************/
 
-/** \ingroup TBD
- *  \defgroup TBD
- *  \brief TBD
- *
- *  @{
- */
+/** \ingroup Group_USBD
+ *  @{ */
 
 #ifndef _TUSB_USBD_DCD_H_
 #define _TUSB_USBD_DCD_H_

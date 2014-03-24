@@ -36,12 +36,11 @@
 */
 /**************************************************************************/
 
-/** \defgroup Group_USBH USB Host Driver (USBH)
- *  \brief TBD
+/** \defgroup group_usbh USB Host Driver (USBH)
  *  @{ */
 
-#ifndef _TUSB_USBD_HOST_H_
-#define _TUSB_USBD_HOST_H_
+#ifndef _TUSB_USBH_H_
+#define _TUSB_USBH_H_
 
 #ifdef __cplusplus
  extern "C" {
@@ -112,6 +111,6 @@ tusb_error_t usbh_control_xfer_subtask(uint8_t dev_addr, uint8_t bmRequestType, 
  }
 #endif
 
-#endif /* _TUSB_USBD_HOST_H_ */
+#endif /* _TUSB_USBH_H_ */
 
 /** @} */

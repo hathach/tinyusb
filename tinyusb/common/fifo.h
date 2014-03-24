@@ -37,9 +37,8 @@
 /**************************************************************************/
 
 /** \ingroup Group_Common
- *
- *  @{
- */
+ * \defgroup group_fifo fifo
+ *  @{ */
 
 #ifndef _TUSB_FIFO_H_
 #define _TUSB_FIFO_H_
