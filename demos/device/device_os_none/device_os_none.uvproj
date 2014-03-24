@@ -397,39 +397,39 @@
               <FilePath>..\src\main.c</FilePath>
             </File>
             <File>
-              <FileName>cdcd_app.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>..\src\cdcd_app.c</FilePath>
-            </File>
-            <File>
-              <FileName>keyboardd_app.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>..\src\keyboardd_app.c</FilePath>
-            </File>
-            <File>
-              <FileName>moused_app.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>..\src\moused_app.c</FilePath>
-            </File>
-            <File>
-              <FileName>mscd_app.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>..\src\mscd_app.c</FilePath>
-            </File>
-            <File>
-              <FileName>mscd_app_ramdisk.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>..\src\mscd_app_ramdisk.c</FilePath>
-            </File>
-            <File>
-              <FileName>mscd_app_romdisk.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>..\src\mscd_app_romdisk.c</FilePath>
-            </File>
-            <File>
               <FileName>tusb_descriptors.c</FileName>
               <FileType>1</FileType>
               <FilePath>..\src\tusb_descriptors.c</FilePath>
+            </File>
+            <File>
+              <FileName>cdc_device_app.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\src\cdc_device_app.c</FilePath>
+            </File>
+            <File>
+              <FileName>keyboard_device_app.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\src\keyboard_device_app.c</FilePath>
+            </File>
+            <File>
+              <FileName>mouse_device_app.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\src\mouse_device_app.c</FilePath>
+            </File>
+            <File>
+              <FileName>msc_device_app.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\src\msc_device_app.c</FilePath>
+            </File>
+            <File>
+              <FileName>msc_device_ramdisk.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\src\msc_device_ramdisk.c</FilePath>
+            </File>
+            <File>
+              <FileName>msc_device_romdisk.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\src\msc_device_romdisk.c</FilePath>
             </File>
           </Files>
         </Group>
@@ -1304,39 +1304,39 @@
               <FilePath>..\src\main.c</FilePath>
             </File>
             <File>
-              <FileName>cdcd_app.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>..\src\cdcd_app.c</FilePath>
-            </File>
-            <File>
-              <FileName>keyboardd_app.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>..\src\keyboardd_app.c</FilePath>
-            </File>
-            <File>
-              <FileName>moused_app.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>..\src\moused_app.c</FilePath>
-            </File>
-            <File>
-              <FileName>mscd_app.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>..\src\mscd_app.c</FilePath>
-            </File>
-            <File>
-              <FileName>mscd_app_ramdisk.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>..\src\mscd_app_ramdisk.c</FilePath>
-            </File>
-            <File>
-              <FileName>mscd_app_romdisk.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>..\src\mscd_app_romdisk.c</FilePath>
-            </File>
-            <File>
               <FileName>tusb_descriptors.c</FileName>
               <FileType>1</FileType>
               <FilePath>..\src\tusb_descriptors.c</FilePath>
+            </File>
+            <File>
+              <FileName>cdc_device_app.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\src\cdc_device_app.c</FilePath>
+            </File>
+            <File>
+              <FileName>keyboard_device_app.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\src\keyboard_device_app.c</FilePath>
+            </File>
+            <File>
+              <FileName>mouse_device_app.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\src\mouse_device_app.c</FilePath>
+            </File>
+            <File>
+              <FileName>msc_device_app.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\src\msc_device_app.c</FilePath>
+            </File>
+            <File>
+              <FileName>msc_device_ramdisk.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\src\msc_device_ramdisk.c</FilePath>
+            </File>
+            <File>
+              <FileName>msc_device_romdisk.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\src\msc_device_romdisk.c</FilePath>
             </File>
           </Files>
         </Group>
@@ -2251,39 +2251,39 @@
               <FilePath>..\src\main.c</FilePath>
             </File>
             <File>
-              <FileName>cdcd_app.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>..\src\cdcd_app.c</FilePath>
-            </File>
-            <File>
-              <FileName>keyboardd_app.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>..\src\keyboardd_app.c</FilePath>
-            </File>
-            <File>
-              <FileName>moused_app.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>..\src\moused_app.c</FilePath>
-            </File>
-            <File>
-              <FileName>mscd_app.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>..\src\mscd_app.c</FilePath>
-            </File>
-            <File>
-              <FileName>mscd_app_ramdisk.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>..\src\mscd_app_ramdisk.c</FilePath>
-            </File>
-            <File>
-              <FileName>mscd_app_romdisk.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>..\src\mscd_app_romdisk.c</FilePath>
-            </File>
-            <File>
               <FileName>tusb_descriptors.c</FileName>
               <FileType>1</FileType>
               <FilePath>..\src\tusb_descriptors.c</FilePath>
+            </File>
+            <File>
+              <FileName>cdc_device_app.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\src\cdc_device_app.c</FilePath>
+            </File>
+            <File>
+              <FileName>keyboard_device_app.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\src\keyboard_device_app.c</FilePath>
+            </File>
+            <File>
+              <FileName>mouse_device_app.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\src\mouse_device_app.c</FilePath>
+            </File>
+            <File>
+              <FileName>msc_device_app.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\src\msc_device_app.c</FilePath>
+            </File>
+            <File>
+              <FileName>msc_device_ramdisk.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\src\msc_device_ramdisk.c</FilePath>
+            </File>
+            <File>
+              <FileName>msc_device_romdisk.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\src\msc_device_romdisk.c</FilePath>
             </File>
           </Files>
         </Group>
@@ -3158,39 +3158,39 @@
               <FilePath>..\src\main.c</FilePath>
             </File>
             <File>
-              <FileName>cdcd_app.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>..\src\cdcd_app.c</FilePath>
-            </File>
-            <File>
-              <FileName>keyboardd_app.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>..\src\keyboardd_app.c</FilePath>
-            </File>
-            <File>
-              <FileName>moused_app.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>..\src\moused_app.c</FilePath>
-            </File>
-            <File>
-              <FileName>mscd_app.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>..\src\mscd_app.c</FilePath>
-            </File>
-            <File>
-              <FileName>mscd_app_ramdisk.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>..\src\mscd_app_ramdisk.c</FilePath>
-            </File>
-            <File>
-              <FileName>mscd_app_romdisk.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>..\src\mscd_app_romdisk.c</FilePath>
-            </File>
-            <File>
               <FileName>tusb_descriptors.c</FileName>
               <FileType>1</FileType>
               <FilePath>..\src\tusb_descriptors.c</FilePath>
+            </File>
+            <File>
+              <FileName>cdc_device_app.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\src\cdc_device_app.c</FilePath>
+            </File>
+            <File>
+              <FileName>keyboard_device_app.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\src\keyboard_device_app.c</FilePath>
+            </File>
+            <File>
+              <FileName>mouse_device_app.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\src\mouse_device_app.c</FilePath>
+            </File>
+            <File>
+              <FileName>msc_device_app.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\src\msc_device_app.c</FilePath>
+            </File>
+            <File>
+              <FileName>msc_device_ramdisk.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\src\msc_device_ramdisk.c</FilePath>
+            </File>
+            <File>
+              <FileName>msc_device_romdisk.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\src\msc_device_romdisk.c</FilePath>
             </File>
           </Files>
         </Group>
@@ -4065,39 +4065,39 @@
               <FilePath>..\src\main.c</FilePath>
             </File>
             <File>
-              <FileName>cdcd_app.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>..\src\cdcd_app.c</FilePath>
-            </File>
-            <File>
-              <FileName>keyboardd_app.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>..\src\keyboardd_app.c</FilePath>
-            </File>
-            <File>
-              <FileName>moused_app.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>..\src\moused_app.c</FilePath>
-            </File>
-            <File>
-              <FileName>mscd_app.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>..\src\mscd_app.c</FilePath>
-            </File>
-            <File>
-              <FileName>mscd_app_ramdisk.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>..\src\mscd_app_ramdisk.c</FilePath>
-            </File>
-            <File>
-              <FileName>mscd_app_romdisk.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>..\src\mscd_app_romdisk.c</FilePath>
-            </File>
-            <File>
               <FileName>tusb_descriptors.c</FileName>
               <FileType>1</FileType>
               <FilePath>..\src\tusb_descriptors.c</FilePath>
+            </File>
+            <File>
+              <FileName>cdc_device_app.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\src\cdc_device_app.c</FilePath>
+            </File>
+            <File>
+              <FileName>keyboard_device_app.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\src\keyboard_device_app.c</FilePath>
+            </File>
+            <File>
+              <FileName>mouse_device_app.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\src\mouse_device_app.c</FilePath>
+            </File>
+            <File>
+              <FileName>msc_device_app.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\src\msc_device_app.c</FilePath>
+            </File>
+            <File>
+              <FileName>msc_device_ramdisk.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\src\msc_device_ramdisk.c</FilePath>
+            </File>
+            <File>
+              <FileName>msc_device_romdisk.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\src\msc_device_romdisk.c</FilePath>
             </File>
           </Files>
         </Group>
@@ -5012,39 +5012,39 @@
               <FilePath>..\src\main.c</FilePath>
             </File>
             <File>
-              <FileName>cdcd_app.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>..\src\cdcd_app.c</FilePath>
-            </File>
-            <File>
-              <FileName>keyboardd_app.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>..\src\keyboardd_app.c</FilePath>
-            </File>
-            <File>
-              <FileName>moused_app.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>..\src\moused_app.c</FilePath>
-            </File>
-            <File>
-              <FileName>mscd_app.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>..\src\mscd_app.c</FilePath>
-            </File>
-            <File>
-              <FileName>mscd_app_ramdisk.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>..\src\mscd_app_ramdisk.c</FilePath>
-            </File>
-            <File>
-              <FileName>mscd_app_romdisk.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>..\src\mscd_app_romdisk.c</FilePath>
-            </File>
-            <File>
               <FileName>tusb_descriptors.c</FileName>
               <FileType>1</FileType>
               <FilePath>..\src\tusb_descriptors.c</FilePath>
+            </File>
+            <File>
+              <FileName>cdc_device_app.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\src\cdc_device_app.c</FilePath>
+            </File>
+            <File>
+              <FileName>keyboard_device_app.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\src\keyboard_device_app.c</FilePath>
+            </File>
+            <File>
+              <FileName>mouse_device_app.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\src\mouse_device_app.c</FilePath>
+            </File>
+            <File>
+              <FileName>msc_device_app.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\src\msc_device_app.c</FilePath>
+            </File>
+            <File>
+              <FileName>msc_device_ramdisk.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\src\msc_device_ramdisk.c</FilePath>
+            </File>
+            <File>
+              <FileName>msc_device_romdisk.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\src\msc_device_romdisk.c</FilePath>
             </File>
           </Files>
         </Group>
