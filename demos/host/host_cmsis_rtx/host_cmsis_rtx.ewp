@@ -2778,22 +2778,22 @@
   <group>
     <name>app</name>
     <file>
-      <name>$PROJ_DIR$\..\src\cdc_serial_app.c</name>
+      <name>$PROJ_DIR$\..\src\cdc_serial_host_app.c</name>
     </file>
     <file>
-      <name>$PROJ_DIR$\..\src\cli.c</name>
+      <name>$PROJ_DIR$\..\src\msc_cli.c</name>
     </file>
     <file>
-      <name>$PROJ_DIR$\..\src\keyboard_app.c</name>
+      <name>$PROJ_DIR$\..\src\keyboard_host_app.c</name>
     </file>
     <file>
       <name>$PROJ_DIR$\..\src\main.c</name>
     </file>
     <file>
-      <name>$PROJ_DIR$\..\src\mouse_app.c</name>
+      <name>$PROJ_DIR$\..\src\mouse_host_app.c</name>
     </file>
     <file>
-      <name>$PROJ_DIR$\..\src\msc_app.c</name>
+      <name>$PROJ_DIR$\..\src\msc_host_app.c</name>
     </file>
   </group>
   <group>
