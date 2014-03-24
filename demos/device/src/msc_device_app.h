@@ -43,8 +43,8 @@
  *  @{
  */
 
-#ifndef _TUSB_MSCD_APP_H_
-#define _TUSB_MSCD_APP_H_
+#ifndef _TUSB_MSCD_DEVICE_APP_H_
+#define _TUSB_MSCD_DEVICE_APP_H_
 
 #include "board.h"
 #include "tusb.h"
@@ -88,6 +88,6 @@ extern scsi_sense_fixed_data_t mscd_sense_data;
  }
 #endif
 
-#endif /* _TUSB_MSCD_APP_H_ */
+#endif /* _TUSB_MSCD_DEVICE_APP_H_ */
 
 /** @} */

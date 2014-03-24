@@ -1,6 +1,6 @@
 /**************************************************************************/
 /*!
-    @file     cli.c
+    @file     msc_cli.c
     @author   hathach (tinyusb.org)
 
     @section LICENSE
@@ -34,7 +34,7 @@
 */
 /**************************************************************************/
 
-#include "cli.h"
+#include "msc_cli.h"
 #include "ctype.h"
 
 #if TUSB_CFG_HOST_MSC

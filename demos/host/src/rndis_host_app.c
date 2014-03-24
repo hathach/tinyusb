@@ -1,6 +1,6 @@
 /**************************************************************************/
 /*!
-    @file     rndis_app.c
+    @file     rndis_host_app.c
     @author   hathach (tinyusb.org)
 
     @section LICENSE
@@ -36,7 +36,7 @@
 */
 /**************************************************************************/
 
-#include "rndis_app.h"
+#include "rndis_host_app.h"
 #include "app_os_prio.h"
 
 #if TUSB_CFG_HOST_CDC && TUSB_CFG_HOST_CDC_RNDIS
@@ -62,12 +62,12 @@ void tusbh_cdc_rndis_unmounted_cb(uint8_t dev_addr)
   printf("\nan RNDIS device is unmounted\n");
 }
 
-void rndis_app_init(void)
+void rndis_host_app_init(void)
 {
 
 }
 
-OSAL_TASK_FUNCTION( rndis_app_task ) (void* p_task_para)
+OSAL_TASK_FUNCTION( rndis_host_app_task, p_task_para)
 {
   OSAL_TASK_LOOP_BEGIN
   OSAL_TASK_LOOP_END

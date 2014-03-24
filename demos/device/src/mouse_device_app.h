@@ -43,8 +43,8 @@
  *  @{
  */
 
-#ifndef _TUSB_MOUSED_APP_H_
-#define _TUSB_MOUSED_APP_H_
+#ifndef _TUSB_MOUSED_DEVICE_APP_H_
+#define _TUSB_MOUSED_DEVICE_APP_H_
 
 #include "board.h"
 #include "tusb.h"
@@ -69,6 +69,6 @@ OSAL_TASK_FUNCTION( mouse_device_app_task , p_task_para);
  }
 #endif
 
-#endif /* _TUSB_MOUSED_APP_H_ */
+#endif /* _TUSB_MOUSED_DEVICE_APP_H_ */
 
 /** @} */

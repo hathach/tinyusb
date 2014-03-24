@@ -1,6 +1,6 @@
 /**************************************************************************/
 /*!
-    @file     rndis_app.h
+    @file     rndis_host_app.h
     @author   hathach (tinyusb.org)
 
     @section LICENSE
@@ -43,8 +43,8 @@
  *  @{
  */
 
-#ifndef _TUSB_RNDIS_APP_H_
-#define _TUSB_RNDIS_APP_H_
+#ifndef _TUSB_RNDIS_HOST_APP_H_
+#define _TUSB_RNDIS_HOST_APP_H_
 
 #include "board.h"
 #include "tusb.h"
@@ -55,13 +55,13 @@
 
 #if TUSB_CFG_HOST_CDC && TUSB_CFG_HOST_CDC_RNDIS
 
-void rndis_app_init(void);
-OSAL_TASK_FUNCTION( rndis_app_task ) (void* p_task_para);
+void rndis_host_app_init(void);
+OSAL_TASK_FUNCTION( rndis_host_app_task, p_task_para);
 
 #else
 
-#define rndis_app_init()
-#define rndis_app_task(x)
+#define rndis_host_app_init()
+#define rndis_host_app_task(x)
 
 #endif
 
@@ -70,6 +70,6 @@ OSAL_TASK_FUNCTION( rndis_app_task ) (void* p_task_para);
  }
 #endif
 
-#endif /* _TUSB_RNDIS_APP_H_ */
+#endif /* _TUSB_RNDIS_HOST_APP_H_ */
 
 /** @} */

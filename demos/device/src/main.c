@@ -79,6 +79,10 @@ void os_none_start_scheduler(void)
 
 int main(void)
 {
+#if TUSB_CFG_OS == TUSB_OS_CMSIS_RTX
+  osKernelInitialize(); // CMSIS RTX requires kernel init before any other OS functions
+#endif
+
   board_init();
   print_greeting();
 
@@ -98,18 +102,13 @@ int main(void)
 #elif TUSB_CFG_OS == TUSB_OS_NONE
   os_none_start_scheduler();
 #elif TUSB_CFG_OS == TUSB_OS_CMSIS_RTX
-  while(1)
-  {
-    osDelay(osWaitForever); // CMSIS RTX osKernelStart already started, main() is a task
-  }
+  osKernelStart();
 #else
   #error need to start RTOS schduler
 #endif
 
   return 0;
 }
-
-
 
 //--------------------------------------------------------------------+
 // HELPER FUNCTION

@@ -47,11 +47,11 @@
 #include "tusb.h"
 
 #include "app_os_prio.h"
-#include "mouse_app.h"
-#include "keyboard_app.h"
-#include "msc_app.h"
-#include "cdc_serial_app.h"
-#include "rndis_app.h"
+#include "mouse_host_app.h"
+#include "keyboard_host_app.h"
+#include "msc_host_app.h"
+#include "cdc_serial_host_app.h"
+#include "rndis_host_app.h"
 
 //--------------------------------------------------------------------+
 // MACRO CONSTANT TYPEDEF
@@ -75,11 +75,11 @@ void os_none_start_scheduler(void)
     tusb_task_runner();
     led_blinking_task(NULL);
 
-    keyboard_app_task(NULL);
-    mouse_app_task(NULL);
-    msc_app_task(NULL);
-    cdc_serial_app_task(NULL);
-    rndis_app_task(NULL);
+    keyboard_host_app_task(NULL);
+    mouse_host_app_task(NULL);
+    msc_host_app_task(NULL);
+    cdc_serial_host_app_task(NULL);
+    rndis_host_app_task(NULL);
   }
 }
 #endif
@@ -98,11 +98,11 @@ int main(void)
   //------------- application task init -------------//
   led_blinking_init();
 
-  keyboard_app_init();
-  mouse_app_init();
-  msc_app_init();
-  cdc_serial_app_init();
-  rndis_app_init();
+  keyboard_host_app_init();
+  mouse_host_app_init();
+  msc_host_app_init();
+  cdc_serial_host_app_init();
+  rndis_host_app_init();
 
   //------------- start OS scheduler (never return) -------------//
 #if TUSB_CFG_OS == TUSB_OS_FREERTOS

@@ -1,6 +1,6 @@
 /**************************************************************************/
 /*!
-    @file     mouse_app.h
+    @file     mouse_host_app.h
     @author   hathach (tinyusb.org)
 
     @section LICENSE
@@ -49,8 +49,8 @@
  *  @{
  */
 
-#ifndef _TUSB_MOUSE_APP_H_
-#define _TUSB_MOUSE_APP_H_
+#ifndef _TUSB_MOUSE_HOST_APP_H_
+#define _TUSB_MOUSE_HOST_APP_H_
 
 #include <stdint.h>
 #include <stdbool.h>
@@ -64,13 +64,13 @@
 
 #if TUSB_CFG_HOST_HID_MOUSE
 
-void mouse_app_init(void);
-OSAL_TASK_FUNCTION( mouse_app_task, p_task_para);
+void mouse_host_app_init(void);
+OSAL_TASK_FUNCTION( mouse_host_app_task, p_task_para);
 
 #else
 
-#define mouse_app_init()
-#define mouse_app_task(x)
+#define mouse_host_app_init()
+#define mouse_host_app_task(x)
 
 #endif
 
@@ -78,6 +78,6 @@ OSAL_TASK_FUNCTION( mouse_app_task, p_task_para);
  }
 #endif
 
-#endif /* _TUSB_MOUSE_APP_H_ */
+#endif /* _TUSB_MOUSE_HOST_APP_H_ */
 
 /** @} */

@@ -1,6 +1,6 @@
 /**************************************************************************/
 /*!
-    @file     keyboard_app.c
+    @file     keyboard_host_app.c
     @author   hathach (tinyusb.org)
 
     @section LICENSE
@@ -39,7 +39,7 @@
 //--------------------------------------------------------------------+
 // INCLUDE
 //--------------------------------------------------------------------+
-#include "keyboard_app.h"
+#include "keyboard_host_app.h"
 #include "app_os_prio.h"
 
 #if TUSB_CFG_HOST_HID_KEYBOARD
@@ -52,7 +52,7 @@
 //--------------------------------------------------------------------+
 // INTERNAL OBJECT & FUNCTION DECLARATION
 //--------------------------------------------------------------------+
-OSAL_TASK_DEF(keyboard_app_task, 128, KEYBOARD_APP_TASK_PRIO);
+OSAL_TASK_DEF(keyboard_host_app_task, 128, KEYBOARD_APP_TASK_PRIO);
 OSAL_QUEUE_DEF(queue_kbd_def, QUEUE_KEYBOARD_REPORT_DEPTH, hid_keyboard_report_t);
 
 static osal_queue_handle_t queue_kbd_hdl;
@@ -100,19 +100,19 @@ void tusbh_hid_keyboard_isr(uint8_t dev_addr, tusb_event_t event)
 //--------------------------------------------------------------------+
 // APPLICATION
 //--------------------------------------------------------------------+
-void keyboard_app_init(void)
+void keyboard_host_app_init(void)
 {
   memclr_(&usb_keyboard_report, sizeof(hid_keyboard_report_t));
 
   queue_kbd_hdl = osal_queue_create( OSAL_QUEUE_REF(queue_kbd_def) );
   ASSERT_PTR( queue_kbd_hdl, VOID_RETURN );
 
-  ASSERT( TUSB_ERROR_NONE == osal_task_create( OSAL_TASK_REF(keyboard_app_task) ) ,
+  ASSERT( TUSB_ERROR_NONE == osal_task_create( OSAL_TASK_REF(keyboard_host_app_task) ) ,
           VOID_RETURN);
 }
 
 //------------- main task -------------//
-OSAL_TASK_FUNCTION( keyboard_app_task, p_task_para)
+OSAL_TASK_FUNCTION( keyboard_host_app_task, p_task_para)
 {
   (void) p_task_para;
 

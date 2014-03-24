@@ -43,8 +43,8 @@
  *  @{
  */
 
-#ifndef _TUSB_KEYBOARDD_APP_H_
-#define _TUSB_KEYBOARDD_APP_H_
+#ifndef _TUSB_KEYBOARDD_DEVICE_APP_H_
+#define _TUSB_KEYBOARDD_DEVICE_APP_H_
 
 #include "board.h"
 #include "tusb.h"
@@ -69,6 +69,6 @@ OSAL_TASK_FUNCTION( keyboard_device_app_task , p_task_para);
  }
 #endif
 
-#endif /* _TUSB_KEYBOARDD_APP_H_ */
+#endif /* _TUSB_KEYBOARDD_DEVICE_APP_H_ */
 
 /** @} */

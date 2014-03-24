@@ -1,6 +1,6 @@
 /**************************************************************************/
 /*!
-    @file     cli.h
+    @file     msc_cli.h
     @author   hathach (tinyusb.org)
 
     @section LICENSE
@@ -33,8 +33,8 @@
     SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
 /**************************************************************************/
-#ifndef _TUSB_CLI_H_
-#define _TUSB_CLI_H_
+#ifndef _TUSB_MSC_CLI_H_
+#define _TUSB_MSC_CLI_H_
 
 #include "board.h"
 #include "tusb.h"

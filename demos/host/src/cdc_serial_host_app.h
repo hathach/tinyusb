@@ -1,6 +1,6 @@
 /**************************************************************************/
 /*!
-    @file     cdc_serial_app.h
+    @file     cdc_serial_host_app.h
     @author   hathach (tinyusb.org)
 
     @section LICENSE
@@ -43,8 +43,8 @@
  *  @{
  */
 
-#ifndef _TUSB_CDC_SERIAL_APP_H_
-#define _TUSB_CDC_SERIAL_APP_H_
+#ifndef _TUSB_CDC_SERIAL_HOST_APP_H_
+#define _TUSB_CDC_SERIAL_HOST_APP_H_
 
 #include "board.h"
 #include "tusb.h"
@@ -55,13 +55,13 @@
 
 #if TUSB_CFG_HOST_CDC
 
-void cdc_serial_app_init(void);
-OSAL_TASK_FUNCTION( cdc_serial_app_task, p_task_para);
+void cdc_serial_host_app_init(void);
+OSAL_TASK_FUNCTION( cdc_serial_host_app_task, p_task_para);
 
 #else
 
-#define cdc_serial_app_init()
-#define cdc_serial_app_task(x)
+#define cdc_serial_host_app_init()
+#define cdc_serial_host_app_task(x)
 
 #endif
 
@@ -69,6 +69,6 @@ OSAL_TASK_FUNCTION( cdc_serial_app_task, p_task_para);
  }
 #endif
 
-#endif /* _TUSB_CDC_SERIAL_APP_H_ */
+#endif /* _TUSB_CDC_SERIAL_HOST_APP_H_ */
 
 /** @} */

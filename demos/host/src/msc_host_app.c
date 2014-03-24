@@ -1,6 +1,6 @@
 /**************************************************************************/
 /*!
-    @file     msc_app.c
+    @file     msc_host_app.c
     @author   hathach (tinyusb.org)
 
     @section LICENSE
@@ -39,12 +39,12 @@
 //--------------------------------------------------------------------+
 // INCLUDE
 //--------------------------------------------------------------------+
-#include "msc_app.h"
+#include "msc_host_app.h"
 #include "app_os_prio.h"
 
 #if TUSB_CFG_HOST_MSC
 
-#include "cli.h"
+#include "msc_cli.h"
 #include "ff.h"
 #include "diskio.h"
 
@@ -55,7 +55,7 @@
 //--------------------------------------------------------------------+
 // INTERNAL OBJECT & FUNCTION DECLARATION
 //--------------------------------------------------------------------+
-OSAL_TASK_DEF(msc_app_task, 512, MSC_APP_TASK_PRIO);
+OSAL_TASK_DEF(msc_host_app_task, 512, MSC_APP_TASK_PRIO);
 
 TUSB_CFG_ATTR_USBRAM static FATFS fatfs[TUSB_CFG_HOST_DEVICE_MAX];
 
@@ -140,14 +140,14 @@ void tusbh_msc_isr(uint8_t dev_addr, tusb_event_t event, uint32_t xferred_bytes)
 //--------------------------------------------------------------------+
 // IMPLEMENTATION
 //--------------------------------------------------------------------+
-void msc_app_init(void)
+void msc_host_app_init(void)
 {
-  ASSERT( TUSB_ERROR_NONE == osal_task_create( OSAL_TASK_REF(msc_app_task) ), VOID_RETURN );
+  ASSERT( TUSB_ERROR_NONE == osal_task_create( OSAL_TASK_REF(msc_host_app_task) ), VOID_RETURN );
   diskio_init();
 }
 
 //------------- main task -------------//
-OSAL_TASK_FUNCTION( msc_app_task, p_task_para)
+OSAL_TASK_FUNCTION( msc_host_app_task, p_task_para)
 {
   (void) p_task_para;
 

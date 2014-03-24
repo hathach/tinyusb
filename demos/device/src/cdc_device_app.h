@@ -43,8 +43,8 @@
  *  @{
  */
 
-#ifndef _TUSB_CDCD_APP_H_
-#define _TUSB_CDCD_APP_H_
+#ifndef _TUSB_CDCD_DEVICE_APP_H_
+#define _TUSB_CDCD_DEVICE_APP_H_
 
 #include "board.h"
 #include "tusb.h"
@@ -70,6 +70,6 @@ OSAL_TASK_FUNCTION( cdcd_serial_app_task , p_task_para);
  }
 #endif
 
-#endif /* _TUSB_CDCD_APP_H_ */
+#endif /* _TUSB_CDCD_DEVICE_APP_H_ */
 
 /** @} */

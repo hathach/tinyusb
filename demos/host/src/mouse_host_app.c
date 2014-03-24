@@ -1,6 +1,6 @@
 /**************************************************************************/
 /*!
-    @file     mouse_app.c
+    @file     mouse_host_app.c
     @author   hathach (tinyusb.org)
 
     @section LICENSE
@@ -39,7 +39,7 @@
 //--------------------------------------------------------------------+
 // INCLUDE
 //--------------------------------------------------------------------+
-#include "mouse_app.h"
+#include "mouse_host_app.h"
 #include "app_os_prio.h"
 
 #if TUSB_CFG_HOST_HID_MOUSE
@@ -52,7 +52,7 @@
 //--------------------------------------------------------------------+
 // INTERNAL OBJECT & FUNCTION DECLARATION
 //--------------------------------------------------------------------+
-OSAL_TASK_DEF(mouse_app_task, 128, MOUSE_APP_TASK_PRIO);
+OSAL_TASK_DEF(mouse_host_app_task, 128, MOUSE_APP_TASK_PRIO);
 OSAL_QUEUE_DEF(queue_mouse_def, QUEUE_MOUSE_REPORT_DEPTH, hid_mouse_report_t);
 
 static osal_queue_handle_t queue_mouse_hdl;
@@ -101,19 +101,19 @@ void tusbh_hid_mouse_isr(uint8_t dev_addr, tusb_event_t event)
 // NOTICE: MOUSE REPORT IS NOT CORRECT UNTIL A DECENT HID PARSER IS
 // IMPLEMENTED, MEANWHILE IT CAN MISS DISPLAY BUTTONS OR X,Y etc
 //--------------------------------------------------------------------+
-void mouse_app_init(void)
+void mouse_host_app_init(void)
 {
   memclr_(&usb_mouse_report, sizeof(hid_mouse_report_t));
 
   queue_mouse_hdl = osal_queue_create( OSAL_QUEUE_REF(queue_mouse_def) );
   ASSERT_PTR( queue_mouse_hdl, VOID_RETURN);
 
-  ASSERT( TUSB_ERROR_NONE == osal_task_create( OSAL_TASK_REF(mouse_app_task) ),
+  ASSERT( TUSB_ERROR_NONE == osal_task_create( OSAL_TASK_REF(mouse_host_app_task) ),
           VOID_RETURN );
 }
 
 //------------- main task -------------//
-OSAL_TASK_FUNCTION( mouse_app_task, p_task_para)
+OSAL_TASK_FUNCTION( mouse_host_app_task, p_task_para)
 {
   (void) p_task_para;
 

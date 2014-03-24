@@ -1,6 +1,6 @@
 /**************************************************************************/
 /*!
-    @file     cdc_serial_app.c
+    @file     cdc_serial_host_app.c
     @author   hathach (tinyusb.org)
 
     @section LICENSE
@@ -36,7 +36,7 @@
 */
 /**************************************************************************/
 
-#include "cdc_serial_app.h"
+#include "cdc_serial_host_app.h"
 #include "app_os_prio.h"
 
 #if TUSB_CFG_HOST_CDC
@@ -46,7 +46,7 @@
 //--------------------------------------------------------------------+
 // MACRO CONSTANT TYPEDEF
 //--------------------------------------------------------------------+
-OSAL_TASK_DEF(cdc_serial_app_task, 128, CDC_SERIAL_APP_TASK_PRIO);
+OSAL_TASK_DEF(cdc_serial_host_app_task, 128, CDC_SERIAL_APP_TASK_PRIO);
 OSAL_SEM_DEF(serial_semaphore);
 
 static osal_semaphore_handle_t sem_hdl;
@@ -110,16 +110,16 @@ void tusbh_cdc_xfer_isr(uint8_t dev_addr, tusb_event_t event, cdc_pipeid_t pipe_
 //--------------------------------------------------------------------+
 // APPLICATION
 //--------------------------------------------------------------------+
-void cdc_serial_app_init(void)
+void cdc_serial_host_app_init(void)
 {
   sem_hdl = osal_semaphore_create( OSAL_SEM_REF(serial_semaphore) );
   ASSERT_PTR( sem_hdl, VOID_RETURN);
 
-  ASSERT( TUSB_ERROR_NONE == osal_task_create(OSAL_TASK_REF(cdc_serial_app_task)), VOID_RETURN);
+  ASSERT( TUSB_ERROR_NONE == osal_task_create(OSAL_TASK_REF(cdc_serial_host_app_task)), VOID_RETURN);
 }
 
 //------------- main task -------------//
-OSAL_TASK_FUNCTION( cdc_serial_app_task, p_task_para)
+OSAL_TASK_FUNCTION( cdc_serial_host_app_task, p_task_para)
 {
   (void) p_task_para;
 
