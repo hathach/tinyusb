@@ -50,7 +50,7 @@ coming soon ...
 
 ## Supported Toolchains ##
 
-The following toolchain is supported
+The following toolchains are supported
 
 - *lpcxpresso/redsuite*
 - *Keil MDK*
@@ -66,4 +66,4 @@ If you find my little USB stack is useful, please take some time to file any iss
 
 ## License ##
 
-BSD license for most of the code base, but each file is individually licensed especially those in /vendor folder. Please make sure you understand all the license term for files you use in your project.
+BSD license for most of the code base, but each file is individually licensed especially those in /vendor folder. Please make sure you understand all the license term for files you use in your project. [Full license here](tinyusb/license.md)
