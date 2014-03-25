@@ -36,8 +36,7 @@
 */
 /**************************************************************************/
 
-/** \addtogroup ClassDriver
- *  @{
+/** \ingroup group_class
  *  \defgroup ClassDriver_Hub Hub (Host only)
  *  \details  Like most PC's OS, Hub support is completely hidden from Application. In fact, application cannot determine whether
  *            a device is mounted directly via roothub or via a hub's port. All Hub-related procedures are performed and managed
@@ -208,5 +207,4 @@ void         hub_close(uint8_t dev_addr);
 
 #endif /* _TUSB_HUB_H_ */
 
-/** @} */
 /** @} */

@@ -36,13 +36,6 @@
 */
 /**************************************************************************/
 
-/** \ingroup TBD
- *  \defgroup TBD
- *  \brief TBD
- *
- *  @{
- */
-
 #ifndef _TUSB_BOARD_LPCXPRESSO1347_H_
 #define _TUSB_BOARD_LPCXPRESSO1347_H_
 
@@ -61,5 +54,3 @@
 #endif
 
 #endif /* _TUSB_BOARD_LPCXPRESSO1347_H_ */
-
-/** @} */

@@ -45,18 +45,15 @@
 #define TUSB_VERSION_NAME   "alpha"
 #define TUSB_VERSION        XSTRING_(TUSB_VERSION_YEAR) "." XSTRING_(TUSB_VERSION_MONTH)
 
-/** \defgroup group_configuration Configuration tusb_config.h
- *  @{ */
-
-/** \defgroup config_mcu_selection MCU Selection
- * \brief TUSB_CFG_MCU must be defined to one of these
+/** \defgroup group_mcu Supported MCU
+ * \ref TUSB_CFG_MCU must be defined to one of these
  *  @{ */
 #define MCU_LPC13UXX       1 ///< NXP LPC13xx 12 bit ADC family with USB on-chip Rom Driver (not supported yet)
-#define MCU_LPC13XX        2 ///< NXP LPC13xx 10 bit ADC family (not supported yet)
-#define MCU_LPC11UXX       3 ///< NXP LPC11Uxx family (not supported yet)
+#define MCU_LPC13XX        2 ///< NXP LPC13xx 10 bit ADC family
+#define MCU_LPC11UXX       3 ///< NXP LPC11Uxx family
 #define MCU_LPC43XX        4 ///< NXP LPC43xx family
 #define MCU_LPC18XX        5 ///< NXP LPC18xx family (not supported yet)
-#define MCU_LPC175X_6X     6 ///< NXP LPC175x, LPC176x family (not supported yet)
+#define MCU_LPC175X_6X     6 ///< NXP LPC175x, LPC176x family
 #define MCU_LPC177X_8X     7 ///< NXP LPC177x, LPC178x family (not supported yet)
 /** @} */
 
@@ -67,6 +64,9 @@
 #endif
 
 #include TUSB_CFG_CONFIG_FILE
+
+/** \ingroup group_configuration
+ *  @{ */
 
 //--------------------------------------------------------------------+
 // CONTROLLER

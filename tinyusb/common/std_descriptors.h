@@ -36,8 +36,7 @@
 */
 /**************************************************************************/
 
-/** \brief Types & Declaration by USB Specs. All documents sources mentioned here (eg section 3.5) is referring to USB 2.0 Specs unless state otherwise
- */
+/// \brief Types & Declaration by USB Specs. All documents sources mentioned here (eg section 3.5) is referring to USB 2.0 Specs unless state otherwise
 
 /** \addtogroup group_usb_definitions USB Definitions
  * @{

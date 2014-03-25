@@ -36,13 +36,6 @@
 */
 /**************************************************************************/
 
-/** \ingroup TBD
- *  \defgroup TBD
- *  \brief TBD
- *
- *  @{
- */
-
 #ifndef _TUSB_BOARD_LPCLINK2_H_
 #define _TUSB_BOARD_LPCLINK2_H_
 
@@ -64,5 +57,3 @@
 #endif
 
 #endif /* _TUSB_BOARD_LPCLINK2_H_ */
-
-/** @} */

@@ -36,8 +36,7 @@
 */
 /**************************************************************************/
 
-/** \addtogroup ClassDriver Class Driver
- *  @{
+/** \ingroup group_class
  *  \defgroup ClassDriver_HID Human Interface Device (HID)
  *  @{ */
 
@@ -523,5 +522,4 @@ enum {
 
 #endif /* _TUSB_HID_H__ */
 
-/// @}
 /// @}

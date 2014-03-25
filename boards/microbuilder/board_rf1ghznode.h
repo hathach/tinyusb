@@ -36,13 +36,6 @@
 */
 /**************************************************************************/
 
-/** \ingroup TBD
- *  \defgroup TBD
- *  \brief TBD
- *
- *  @{
- */
-
 #ifndef _TUSB_BOARD_RF1GHZNODE_H_
 #define _TUSB_BOARD_RF1GHZNODE_H_
 
@@ -62,5 +55,3 @@
 #endif
 
 #endif /* _TUSB_BOARD_RF1GHZNODE_H_ */
-
-/** @} */

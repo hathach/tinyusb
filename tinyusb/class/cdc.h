@@ -36,7 +36,7 @@
 */
 /**************************************************************************/
 
-/** \ingroup ClassDriver Class Driver
+/** \ingroup group_class
  *  \defgroup ClassDriver_CDC Communication Device Class (CDC)
  *            Currently only Abstract Control Model subclass is supported
  *  @{ */

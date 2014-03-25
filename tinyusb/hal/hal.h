@@ -39,15 +39,6 @@
 #ifndef _TUSB_HAL_H_
 #define _TUSB_HAL_H_
 
-/** \ingroup group_usbd
- * \ingroup group_usbh
- * \defgroup group_hal Hardware Abtract Layer (HAL)
- * Hardware Abstraction Layer (HAL) is an abstraction layer, between the physical hardware and the tinyusb stack.
- * Its function is to hide differences in hardware from most of MCUs, so that most of the stack code does not need to be changed to
- * run on systems with a different MCU.
- * HAL are sets of routines that emulate some platform-specific details, giving programs direct access to the hardware resources.
- *  @{ */
-
 //--------------------------------------------------------------------+
 // INCLUDES
 //--------------------------------------------------------------------+
@@ -56,11 +47,19 @@
 #include "common/tusb_errors.h"
 #include "common/compiler/compiler.h"
 
+// callback from tusb.h
+extern void tusb_isr(uint8_t coreid);
+
 //--------------------------------------------------------------------+
 // HAL API
 //--------------------------------------------------------------------+
-// callback from tusb.h
-extern void tusb_isr(uint8_t coreid);
+/** \ingroup group_mcu
+ * \defgroup group_hal Hardware Abtract Layer (HAL)
+ * Hardware Abstraction Layer (HAL) is an abstraction layer, between the physical hardware and the tinyusb stack.
+ * Its function is to hide differences in hardware from most of MCUs, so that most of the stack code does not need to be changed to
+ * run on systems with a different MCU.
+ * HAL are sets of routines that emulate some platform-specific details, giving programs direct access to the hardware resources.
+ *  @{ */
 
 /** \brief    Initialize USB controller hardware
  * \returns   \ref tusb_error_t type to indicate success or error condition.

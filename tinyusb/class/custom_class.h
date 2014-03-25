@@ -36,11 +36,9 @@
 */
 /**************************************************************************/
 
-/** \addtogroup ClassDriver Class Driver
- * @{
+/** \ingroup group_class
  *  \defgroup Group_Custom Custom Class (not supported yet)
- *  @{
- */
+ *  @{ */
 
 #ifndef _TUSB_CUSTOM_CLASS_H_
 #define _TUSB_CUSTOM_CLASS_H_
@@ -87,5 +85,4 @@ void         cush_close(uint8_t dev_addr);
 
 #endif /* _TUSB_CUSTOM_CLASS_H_ */
 
-/** @} */
 /** @} */

@@ -36,13 +36,6 @@
 */
 /**************************************************************************/
 
-/** \ingroup TBD
- *  \defgroup TBD
- *  \brief TBD
- *
- *  @{
- */
-
 #ifndef _TUSB_BOARD_NGX4330_H_
 #define _TUSB_BOARD_NGX4330_H_
 
@@ -64,5 +57,3 @@
 #endif
 
 #endif /* _TUSB_BOARD_NGX4330_H_ */
-
-/** @} */

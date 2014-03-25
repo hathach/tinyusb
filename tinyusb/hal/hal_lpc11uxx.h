@@ -36,10 +36,6 @@
 */
 /**************************************************************************/
 
-/** \ingroup group_hal
- *  \defgroup group_hal_lpc11u LPC11uxx
- *  @{ */
-
 #ifndef _TUSB_HAL_LPC11UXX_H_
 #define _TUSB_HAL_LPC11UXX_H_
 
@@ -66,5 +62,3 @@ static inline void hal_interrupt_disable(uint8_t coreid)
 #endif
 
 #endif /* _TUSB_HAL_LPC11UXX_H_ */
-
-/** @} */

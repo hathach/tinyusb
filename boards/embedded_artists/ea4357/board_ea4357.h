@@ -36,13 +36,6 @@
 */
 /**************************************************************************/
 
-/** \ingroup TBD
- *  \defgroup TBD
- *  \brief TBD
- *
- *  @{
- */
-
 #ifndef _TUSB_BOARD_EA4357_H_
 #define _TUSB_BOARD_EA4357_H_
 
@@ -70,5 +63,3 @@
 #endif
 
 #endif /* _TUSB_BOARD_EA4357_H_ */
-
-/** @} */

@@ -36,10 +36,6 @@
 */
 /**************************************************************************/
 
-/** \ingroup group_hal
- *  \defgroup group_hal_lpc13u LPC13uxx (12-bit ADC)
- *  @{ */
-
 #ifndef _TUSB_HAL_LPC13UXX_H_
 #define _TUSB_HAL_LPC13UXX_H_
 
@@ -67,4 +63,3 @@ static inline void hal_interrupt_disable(uint8_t coreid)
 
 #endif /* _TUSB_HAL_LPC13UXX_H_ */
 
-/** @} */

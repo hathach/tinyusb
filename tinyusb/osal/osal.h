@@ -39,23 +39,21 @@
 #ifndef _TUSB_OSAL_H_
 #define _TUSB_OSAL_H_
 
-/** \ingroup group_configuration
- *  \defgroup TUSB_OS RTOS Integration Selection
- * \brief TUSB_CFG_OS must be defined to one of these
+#ifdef __cplusplus
+ extern "C" {
+#endif
+
+/** \defgroup group_osal OS Abstraction Layer (OSAL)
+ *  @{ */
+
+/** \defgroup group_supported_os Supported RTOS
+ * \brief \ref TUSB_CFG_OS must be defined to one of these
  *  @{ */
 #define TUSB_OS_NONE       1 ///< No RTOS is used
 #define TUSB_OS_FREERTOS   2 ///< FreeRTOS is used
 #define TUSB_OS_CMSIS_RTX  3 ///< CMSIS RTX is used
 #define TUSB_OS_UCOS3      4 ///< MicroC OS III is used (not supported yet)
 /** @} */
-
-
-/** \defgroup group_osal OS Abstraction Layer (OSAL)
- *  @{ */
-
-#ifdef __cplusplus
- extern "C" {
-#endif
 
 #include "tusb_option.h"
 

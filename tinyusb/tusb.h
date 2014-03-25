@@ -93,7 +93,7 @@
 //--------------------------------------------------------------------+
 // APPLICATION API
 //--------------------------------------------------------------------+
-/** \defgroup application_setup Application Setup
+/** \ingroup group_application_api
  *  @{ */
 
 /** \brief Initialize the usb stack

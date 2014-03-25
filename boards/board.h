@@ -36,12 +36,8 @@
 */
 /**************************************************************************/
 
-/**
- *  \defgroup Group_Board Boards
- *  \brief TBD
- *
- *  @{
- */
+/** \defgroup group_board Boards Abstraction Layer
+ *  @{ */
 
 #ifndef _TUSB_BOARD_H_
 #define _TUSB_BOARD_H_
@@ -59,28 +55,38 @@
 //--------------------------------------------------------------------+
 // BOARD DEFINE
 //--------------------------------------------------------------------+
-#define BOARD_RF1GHZNODE            1100
-#define BOARD_LPCXPRESSO1347        1300
-#define BOARD_LPCXPRESSO1769        1700
+/** \defgroup group_supported_board Supported Boards
+ *  @{ */
+#define BOARD_RF1GHZNODE            1100 ///< LPC11U37 from microbuilder http://www.microbuilder.eu/Blog/13-03-14/LPC1xxx_1GHZ_Wireless_Board_Preview.aspx
+#define BOARD_LPCXPRESSO1347        1300 ///< LPCXpresso 1347, some APIs requires the base board
+#define BOARD_LPCXPRESSO1769        1700 ///< LPCXpresso 1769, some APIs requires the base board
 
-#define BOARD_NGX4330               4300
-#define BOARD_EA4357                4301
-#define BOARD_MCB4300               4302
-#define BOARD_HITEX4350             4303
+#define BOARD_NGX4330               4300 ///< NGX 4330 Xplorer
+#define BOARD_EA4357                4301 ///< Embedded Artists LPC4357 developer kit
+#define BOARD_MCB4300               4302 ///< Keil MCB4300
+#define BOARD_HITEX4350             4303 ///< Hitex 4350
 #define BOARD_LPC4357USB            4304
 
-#define BOARD_LPCLINK2              4370
+#define BOARD_LPCLINK2              4370 ///< LPClink2 uses as LPC4370 development board
+/** @} */
 
 //--------------------------------------------------------------------+
 // PRINTF TARGET DEFINE
 //--------------------------------------------------------------------+
-#define PRINTF_TARGET_SEMIHOST      1
-#define PRINTF_TARGET_UART          2
-#define PRINTF_TARGET_SWO           3 // aka SWV, ITM
-#define PRINTF_TARGET_NONE          4
+/** \defgroup group_printf Printf Retarget
+ * \brief Retarget the standard stdio printf/getchar to other IOs
+ *  @{ */
+#define PRINTF_TARGET_SEMIHOST      1 ///< Using the semihost support from toolchain, requires no hardware but is the slowest
+#define PRINTF_TARGET_UART          2 ///< Using UART as stdio, this is the default for most of the board
+#define PRINTF_TARGET_SWO           3 ///< Using non-instructive serial wire output (SWO), is the best option since it does not slow down MCU but requires supported from debugger and IDE
+#define PRINTF_TARGET_NONE          4 ///< Using none at all.
+/** @} */
 
 #define PRINTF(...) printf(__VA_ARGS__)
 
+//--------------------------------------------------------------------+
+// BOARD INCLUDE
+//--------------------------------------------------------------------+
 #if BOARD == BOARD_NGX4330
   #include "ngx/board_ngx4330.h"
 #elif BOARD == BOARD_LPCXPRESSO1347
@@ -106,24 +112,52 @@
 //--------------------------------------------------------------------+
 // Common Configuration
 //--------------------------------------------------------------------+
-#define CFG_UART_BAUDRATE    115200
+#define CFG_UART_BAUDRATE    115200 ///< Baudrate for UART
 
 //--------------------------------------------------------------------+
 // Board Common API
 //--------------------------------------------------------------------+
-// Init board peripherals : Clock, UART, LEDs, Buttons
+/** \defgroup group_board_api Board API
+ * \brief All the board must support these APIs.
+ *  @{ */
+
+/// Initialize all required peripherals on board including uart, led, buttons etc ...
 void board_init(void);
 
+/** \brief Turns on and off leds on the board
+ * \param[in]  on_mask  Bitmask for LED's numbers is turning ON
+ * \param[out] off_mask Bitmask for LED's numbers is turning OFF
+ * \note the \a on_mask is more priority then \a off_mask, if an led's number is present on both.
+ * It will be turned ON.
+ */
 void board_leds(uint32_t on_mask, uint32_t off_mask);
+
+/** \brief Get the current state of the buttons on the board
+ * \return Bitmask where a '1' means active (pressed), a '0' means inactive.
+ */
 uint32_t board_buttons(void);
 
+/** \brief Get a character input from UART
+ * \return ASCII code of the input character or zero if none.
+ */
 uint8_t  board_uart_getchar(void);
+
+/** \brief Send a character to UART
+ * \param[in]  c the character to be sent
+ */
 void board_uart_putchar(uint8_t c);
+
+/** @} */
 
 //------------- Board Application  -------------//
 OSAL_TASK_FUNCTION( led_blinking_task , p_task_para);
 
+/// Initialize the LED blinking task application. The initial blinking rate is 1 Hert (1 per second)
 void led_blinking_init(void);
+
+/** \brief Change the blinking rate.
+ * \param[in]  ms The interval between on and off.
+ */
 void led_blinking_set_interval(uint32_t ms);
 
 #ifdef __cplusplus
