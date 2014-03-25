@@ -36,12 +36,9 @@
 */
 /**************************************************************************/
 
-/** \ingroup TBD
- *  \defgroup TBD
- *  \brief TBD
- *
- *  @{
- */
+/** \ingroup group_demo
+ *  \defgroup Mass Storage Device App
+ *  @{ */
 
 #ifndef _TUSB_MSCD_DEVICE_APP_H_
 #define _TUSB_MSCD_DEVICE_APP_H_
