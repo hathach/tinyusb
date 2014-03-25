@@ -36,8 +36,7 @@
 */
 /**************************************************************************/
 
-/** \defgroup Group_Common Common Files
- * @{
+/** \ingroup Group_Common
  *  \defgroup Group_CommonH common.h
  *  @{ */
 
@@ -284,5 +283,4 @@ static inline uint8_t cardinality_of(uint32_t value)
 
 #endif /* _TUSB_COMMON_H_ */
 
-/**  @} */
 /**  @} */

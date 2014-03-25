@@ -43,7 +43,7 @@
  extern "C" {
 #endif
 
-/** \defgroup group_osal OS Abstraction Layer (OSAL)
+/** \addtogroup group_osal
  *  @{ */
 
 /** \defgroup group_supported_os Supported RTOS

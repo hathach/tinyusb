@@ -38,8 +38,7 @@
 
 /// \brief Types & Declaration by USB Specs. All documents sources mentioned here (eg section 3.5) is referring to USB 2.0 Specs unless state otherwise
 
-/** \addtogroup group_usb_definitions USB Definitions
- * @{
+/** \ingroup group_usb_definitions
  *  \defgroup Group_StdDescriptor Standard Descriptors
  *  @{ */
 
@@ -187,5 +186,4 @@ typedef ATTR_PACKED_STRUCT(struct)
 
 #endif /* _TUSB_STD_DESCRIPTORS_H_ */
 
-/** @} */
 /** @} */

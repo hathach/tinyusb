@@ -36,7 +36,7 @@
 */
 /**************************************************************************/
 
-/** \defgroup group_usbd USB Device Core (USBD)
+/** \ingroup group_usbd
  *  @{ */
 
 #ifndef _TUSB_USBD_H_

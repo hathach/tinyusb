@@ -36,7 +36,8 @@
 */
 /**************************************************************************/
 
-/** \defgroup group_board Boards Abstraction Layer
+/** \ingroup group_demo
+ * \defgroup group_board Boards Abstraction Layer
  *  @{ */
 
 #ifndef _TUSB_BOARD_H_
