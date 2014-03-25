@@ -76,7 +76,6 @@ void board_init(void)
 
   //------------- LED -------------//
   GPIOSetDir(LED_PORT, LED_PIN, 1);
-  LPC_GPIO->CLR[LED_PORT] = (1 << LED_PIN);
 
   //------------- BUTTON -------------//
   for(uint8_t i=0; i<BOARD_BUTTON_COUNT; i++) GPIOSetDir(buttons[i].port, BIT_(buttons[i].pin), 0);

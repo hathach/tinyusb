@@ -58,6 +58,7 @@
 //--------------------------------------------------------------------+
 /** \defgroup group_supported_board Supported Boards
  *  @{ */
+#define BOARD_LPCXPRESSO11U14       1114 ///< LPCXpresso 11u14, some APIs requires the base board
 #define BOARD_RF1GHZNODE            1100 ///< LPC11U37 from microbuilder http://www.microbuilder.eu/Blog/13-03-14/LPC1xxx_1GHZ_Wireless_Board_Preview.aspx
 #define BOARD_LPCXPRESSO1347        1300 ///< LPCXpresso 1347, some APIs requires the base board
 #define BOARD_LPCXPRESSO1769        1700 ///< LPCXpresso 1769, some APIs requires the base board
@@ -88,20 +89,22 @@
 //--------------------------------------------------------------------+
 // BOARD INCLUDE
 //--------------------------------------------------------------------+
-#if BOARD == BOARD_NGX4330
-  #include "ngx/board_ngx4330.h"
-#elif BOARD == BOARD_LPCXPRESSO1347
-  #include "lpcxpresso/board_lpcxpresso1347.h"
+#if BOARD == BOARD_LPCXPRESSO11U14
+  #include "lpcxpresso/board_lpcxpresso11u14.h"
 #elif BOARD == BOARD_RF1GHZNODE
   #include "microbuilder/board_rf1ghznode.h"
+#elif BOARD == BOARD_LPCXPRESSO1347
+  #include "lpcxpresso/board_lpcxpresso1347.h"
+#elif BOARD == BOARD_LPCXPRESSO1769
+  #include "lpcxpresso/board_lpcxpresso1769.h"
+#elif BOARD == BOARD_NGX4330
+  #include "ngx/board_ngx4330.h"
 #elif BOARD == BOARD_EA4357
   #include "embedded_artists/ea4357/board_ea4357.h"
 #elif BOARD == BOARD_MCB4300
   #include "keil/board_mcb4300.h"
 #elif BOARD == BOARD_HITEX4350
   #include "hitex/board_hitex4350.h"
-#elif BOARD == BOARD_LPCXPRESSO1769
-  #include "lpcxpresso/board_lpcxpresso1769.h"
 #elif BOARD == BOARD_LPC4357USB
   #include "microbuilder/board_lpc4357usb.h"
 #elif BOARD == BOARD_LPCLINK2

@@ -66,7 +66,6 @@ void board_init(void)
 
   //------------- LED -------------//
   GPIOSetDir(LED_PORT, LED_PIN, 1);
-  board_leds(0x01, 0); // turn off the led first
 
   //------------- BUTTON -------------//
   for(uint8_t i=0; i<BOARD_BUTTON_COUNT; i++) GPIOSetDir(buttons[i].port, buttons[i].pin, 0);
