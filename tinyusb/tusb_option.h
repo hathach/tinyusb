@@ -48,13 +48,13 @@
 /** \defgroup group_mcu Supported MCU
  * \ref TUSB_CFG_MCU must be defined to one of these
  *  @{ */
-#define MCU_LPC13UXX       1 ///< NXP LPC13xx 12 bit ADC family with USB on-chip Rom Driver (not supported yet)
-#define MCU_LPC13XX        2 ///< NXP LPC13xx 10 bit ADC family
-#define MCU_LPC11UXX       3 ///< NXP LPC11Uxx family
-#define MCU_LPC43XX        4 ///< NXP LPC43xx family
-#define MCU_LPC18XX        5 ///< NXP LPC18xx family (not supported yet)
-#define MCU_LPC175X_6X     6 ///< NXP LPC175x, LPC176x family
-#define MCU_LPC177X_8X     7 ///< NXP LPC177x, LPC178x family (not supported yet)
+#define MCU_LPC11UXX       1 ///< NXP LPC11Uxx family
+#define MCU_LPC13XX        2 ///< NXP LPC13xx (not supported yet)
+#define MCU_LPC13UXX       3 ///< NXP LPC13xx 12 bit ADC family
+#define MCU_LPC175X_6X     4 ///< NXP LPC175x, LPC176x family
+#define MCU_LPC177X_8X     5 ///< NXP LPC177x, LPC178x family (not supported yet)
+#define MCU_LPC18XX        6 ///< NXP LPC18xx family (not supported yet)
+#define MCU_LPC43XX        7 ///< NXP LPC43xx family
 /** @} */
 
 #include "mcu_capacity.h"
@@ -65,13 +65,13 @@
 
 #include TUSB_CFG_CONFIG_FILE
 
-/** \ingroup group_configuration
+/** \addtogroup group_configuration
  *  @{ */
 
 //--------------------------------------------------------------------+
 // CONTROLLER
 //--------------------------------------------------------------------+
-/** \defgroup TUSB_MODE Host/Device Mode Selection
+/** \defgroup group_mode Controller Mode Selection
  * \brief TUSB_CFG_CONTROLLER_N_MODE must be defined with these
  *  @{ */
 #define TUSB_MODE_HOST    0x02 ///< Host Mode
