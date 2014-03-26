@@ -47,7 +47,6 @@
 #define TUSB_CFG_HOST_HID_GENERIC   ///< Enable HID Class for Generic (not supported yet)
 #define TUSB_CFG_HOST_MSC           ///< Enable Mass Storage Class (SCSI subclass only)
 #define TUSB_CFG_HOST_CDC           ///< Enable Virtual Serial (Communication Device Class)
-#define TUSB_CFG_HOST_CDC_RNDIS     ///< Enable Remote Network Device (require TUSB_CFG_HOST_CDC to be enabled)
 /** @} */
 
 /** @} */ // group Host
