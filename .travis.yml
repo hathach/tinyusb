@@ -1,4 +1,0 @@
-language: c
-compiler:
-  - gcc
-script: cd tests/lpc18xx_43xx  && rake test:all && cd ../lpc175x_6x  && rake test:all
