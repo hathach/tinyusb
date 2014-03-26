@@ -8,7 +8,7 @@ tinyusb is an open-source (BSD-licensed) USB Host/Device/OTG stack for embedded 
 
 ## Features
 
-designed to be simple and run out-of-the-box provided the configuration is correct.
+designed to run out-of-the-box and easy to configure.
 
 ### Host
 
@@ -42,11 +42,9 @@ coming soon ...
 
 ## Supported Platforms
 
-### MCUs
-
 The stack supports the following MCUs
 
-#### NXP
+### NXP
  
   - LPC11uxx
   - LPC13uxx (12 bit ADC)
@@ -57,7 +55,7 @@ The stack supports the following MCUs
 
 ### Toolchains
 
-You can compile with any of following toolchain
+You can compile with any of following toolchains
 
 - *lpcxpresso/redsuite*
 - *Keil MDK*
