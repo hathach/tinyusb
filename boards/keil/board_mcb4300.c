@@ -73,7 +73,10 @@ const static struct {
 void board_init(void)
 {
   CGU_Init();
+
+#if TUSB_CFG_OS == TUSB_OS_NONE // TODO may move to main.c
   SysTick_Config(CGU_GetPCLKFrequency(CGU_PERIPHERAL_M4CORE) / TUSB_CFG_TICKS_HZ); // 1 msec tick timer
+#endif
 
   //------------- USB Bus power HOST ONLY-------------//
   // Keil VBUS0 is P6_3
@@ -97,20 +100,17 @@ void board_init(void)
     GPIO_SetDir(leds[i].port, BIT_(leds[i].pin), 1); // output
   }
 
-  //------------- UART init -------------//
-  #if CFG_UART_ENABLE
-	scu_pinmux(BOARD_UART_PIN_PORT, BOARD_UART_PIN_TX, MD_PDN             , FUNC1);
-	scu_pinmux(BOARD_UART_PIN_PORT, BOARD_UART_PIN_RX, MD_PLN|MD_EZI|MD_ZI, FUNC1);
+  //------------- UART -------------//
+  scu_pinmux(BOARD_UART_PIN_PORT, BOARD_UART_PIN_TX, MD_PDN             , FUNC1);
+  scu_pinmux(BOARD_UART_PIN_PORT, BOARD_UART_PIN_RX, MD_PLN|MD_EZI|MD_ZI, FUNC1);
 
-	UART_CFG_Type UARTConfigStruct;
+  UART_CFG_Type UARTConfigStruct;
   UART_ConfigStructInit(&UARTConfigStruct);
-	UARTConfigStruct.Baud_rate = CFG_UART_BAUDRATE;
-	UARTConfigStruct.Clock_Speed = 0;
+  UARTConfigStruct.Baud_rate = CFG_UART_BAUDRATE;
+  UARTConfigStruct.Clock_Speed = 0;
 
-	UART_Init(BOARD_UART_PORT, &UARTConfigStruct);
-	UART_TxCmd(BOARD_UART_PORT, ENABLE); // Enable UART Transmit
-  #endif
-
+  UART_Init(BOARD_UART_PORT, &UARTConfigStruct);
+  UART_TxCmd(BOARD_UART_PORT, ENABLE); // Enable UART Transmit
 }
 
 //--------------------------------------------------------------------+
@@ -131,18 +131,24 @@ void board_leds(uint32_t on_mask, uint32_t off_mask)
 }
 
 //--------------------------------------------------------------------+
-// UART
+// BUTTONS
 //--------------------------------------------------------------------+
-#if CFG_UART_ENABLE
-uint32_t board_uart_send(uint8_t *buffer, uint32_t length)
+uint32_t board_buttons(void)
 {
-  return UART_Send(BOARD_UART_PORT, buffer, length, BLOCKING);
+  return 0; // TODO buttons for mcb4300
 }
 
-uint32_t board_uart_recv(uint8_t *buffer, uint32_t length)
+//--------------------------------------------------------------------+
+// UART
+//--------------------------------------------------------------------+
+uint8_t  board_uart_getchar(void)
 {
-  return UART_Receive(BOARD_UART_PORT, buffer, length, BLOCKING);
+  return UART_ReceiveByte(BOARD_UART_PORT);
 }
-#endif
+
+void board_uart_putchar(uint8_t c)
+{
+  UART_Send(BOARD_UART_PORT, &c, 1, BLOCKING);
+}
 
 #endif

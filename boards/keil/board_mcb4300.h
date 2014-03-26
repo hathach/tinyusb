@@ -49,7 +49,7 @@
  extern "C" {
 #endif
 
-#define CFG_PRINTF_TARGET       PRINTF_TARGET_SEMIHOST
+#define CFG_PRINTF_TARGET       PRINTF_TARGET_UART
 
 
 #ifdef __cplusplus
