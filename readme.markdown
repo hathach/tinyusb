@@ -1,16 +1,16 @@
-# tinyusb
+# tinyusb #
 
-## What Is tinyusb
+## What Is tinyusb ##
 
 tinyusb is an open-source (BSD-licensed) USB Host/Device/OTG stack for embedded micro-controller. It is developed using [Test-Driven Development (TDD)](tests/readme.md) approach to eliminate bugs as soon as possible.
 
 ![tinyusb diagram](/docs/images/what_is_tinyusb.png)
 
-## Features
+## Features ##
 
 designed to run out-of-the-box and easy to configure.
 
-### Host
+### Host ###
 
 - HID Mouse
 - HID Keyboard
@@ -20,7 +20,7 @@ designed to run out-of-the-box and easy to configure.
 - Hub
     - Only support 1 level of hub (due to my laziness)
 
-### Device
+### Device ###
 
 - HID Mouse
 - HID Keyboard
@@ -28,7 +28,7 @@ designed to run out-of-the-box and easy to configure.
 - Communication Class (CDC)
 - Mass Storage Class (MSC)
 
-### RTOS
+### RTOS ###
 
 tinyusb is designed to be OS-ware and run across RTOS vendors, thanks to its OS Abstraction Layer (OSAL). However, it can also run without an RTOS (OSAL will be expanded to be a state machine in this case). Currently the following OS can be run with tinyusb (out of the box).
 
@@ -36,15 +36,11 @@ tinyusb is designed to be OS-ware and run across RTOS vendors, thanks to its OS 
 - **FreeRTOS**
 - **CMSIS RTX**
 
-## Getting Started
-
-coming soon ...
-
-## Supported Platforms
+## Supported Platforms ##
 
 The stack supports the following MCUs
 
-### NXP
+### NXP ###
  
   - LPC11uxx
   - LPC13uxx (12 bit ADC)
@@ -53,7 +49,7 @@ The stack supports the following MCUs
 
 [Here is the list of supported Boards](boards/) in the code base
 
-### Toolchains
+### Toolchains ###
 
 You can compile with any of following toolchains
 
@@ -61,14 +57,18 @@ You can compile with any of following toolchains
 - *Keil MDK*
 - *IAR Workbench*
 
-## Known Issues
+## Getting Started ##
+
+[Here is the details for getting started](tinyusb/doxygen/get_started.md) with the stack  
+
+## Known Issues ##
 
 - LPC11uxx & LPC13uxx cannot able to STALL Control OUT endpoint !!! --> unsupported with data out request may cause host stuck with control transfer forever. (reproduce: enable keyboard + mouse, return error in set report of hid_device)
 
-## How Can I Help
+## How Can I Help ##
 
 If you find my little USB stack is useful, please take some time to file any issues that you encountered. It is not necessary to be a software bug, it can be a question, request, suggestion etc. We can consider each github's issue as a forum's topic. Alternatively, you can buy me a cup of coffee if you happen to be in Hochiminh city.
 
-## License
+## License ##
 
 BSD license for most of the code base, but each file is individually licensed especially those in /vendor folder. Please make sure you understand all the license term for files you use in your project. [Full license here](tinyusb/license.md)
