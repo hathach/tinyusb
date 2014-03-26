@@ -50,7 +50,6 @@
 #include "keyboard_host_app.h"
 #include "msc_host_app.h"
 #include "cdc_serial_host_app.h"
-#include "rndis_host_app.h"
 
 //--------------------------------------------------------------------+
 // MACRO CONSTANT TYPEDEF
@@ -78,7 +77,6 @@ void os_none_start_scheduler(void)
     mouse_host_app_task(NULL);
     msc_host_app_task(NULL);
     cdc_serial_host_app_task(NULL);
-    rndis_host_app_task(NULL);
   }
 }
 #endif
@@ -101,7 +99,6 @@ int main(void)
   mouse_host_app_init();
   msc_host_app_init();
   cdc_serial_host_app_init();
-  rndis_host_app_init();
 
   //------------- start OS scheduler (never return) -------------//
 #if TUSB_CFG_OS == TUSB_OS_FREERTOS

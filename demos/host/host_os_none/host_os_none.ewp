@@ -3818,9 +3818,6 @@
         <name>$PROJ_DIR$\..\..\..\tinyusb\class\cdc_host.c</name>
       </file>
       <file>
-        <name>$PROJ_DIR$\..\..\..\tinyusb\class\cdc_rndis_host.c</name>
-      </file>
-      <file>
         <name>$PROJ_DIR$\..\..\..\tinyusb\class\hid_host.c</name>
       </file>
       <file>

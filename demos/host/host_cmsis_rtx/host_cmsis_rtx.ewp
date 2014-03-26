@@ -2781,9 +2781,6 @@
       <name>$PROJ_DIR$\..\src\cdc_serial_host_app.c</name>
     </file>
     <file>
-      <name>$PROJ_DIR$\..\src\msc_cli.c</name>
-    </file>
-    <file>
       <name>$PROJ_DIR$\..\src\keyboard_host_app.c</name>
     </file>
     <file>
@@ -2791,6 +2788,9 @@
     </file>
     <file>
       <name>$PROJ_DIR$\..\src\mouse_host_app.c</name>
+    </file>
+    <file>
+      <name>$PROJ_DIR$\..\src\msc_cli.c</name>
     </file>
     <file>
       <name>$PROJ_DIR$\..\src\msc_host_app.c</name>
@@ -2912,9 +2912,6 @@
       <name>class</name>
       <file>
         <name>$PROJ_DIR$\..\..\..\tinyusb\class\cdc_host.c</name>
-      </file>
-      <file>
-        <name>$PROJ_DIR$\..\..\..\tinyusb\class\cdc_rndis_host.c</name>
       </file>
       <file>
         <name>$PROJ_DIR$\..\..\..\tinyusb\class\hid_host.c</name>

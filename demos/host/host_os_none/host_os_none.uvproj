@@ -412,11 +412,6 @@
               <FilePath>..\src\mouse_host_app.c</FilePath>
             </File>
             <File>
-              <FileName>rndis_host_app.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>..\src\rndis_host_app.c</FilePath>
-            </File>
-            <File>
               <FileName>msc_host_app.c</FileName>
               <FileType>1</FileType>
               <FilePath>..\src\msc_host_app.c</FilePath>
@@ -495,11 +490,6 @@
               <FileName>cdc_host.c</FileName>
               <FileType>1</FileType>
               <FilePath>..\..\..\tinyusb\class\cdc_host.c</FilePath>
-            </File>
-            <File>
-              <FileName>cdc_rndis_host.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>..\..\..\tinyusb\class\cdc_rndis_host.c</FilePath>
             </File>
             <File>
               <FileName>hid_host.c</FileName>
@@ -1177,11 +1167,6 @@
               <FilePath>..\src\mouse_host_app.c</FilePath>
             </File>
             <File>
-              <FileName>rndis_host_app.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>..\src\rndis_host_app.c</FilePath>
-            </File>
-            <File>
               <FileName>msc_host_app.c</FileName>
               <FileType>1</FileType>
               <FilePath>..\src\msc_host_app.c</FilePath>
@@ -1260,11 +1245,6 @@
               <FileName>cdc_host.c</FileName>
               <FileType>1</FileType>
               <FilePath>..\..\..\tinyusb\class\cdc_host.c</FilePath>
-            </File>
-            <File>
-              <FileName>cdc_rndis_host.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>..\..\..\tinyusb\class\cdc_rndis_host.c</FilePath>
             </File>
             <File>
               <FileName>hid_host.c</FileName>
@@ -1942,11 +1922,6 @@
               <FilePath>..\src\mouse_host_app.c</FilePath>
             </File>
             <File>
-              <FileName>rndis_host_app.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>..\src\rndis_host_app.c</FilePath>
-            </File>
-            <File>
               <FileName>msc_host_app.c</FileName>
               <FileType>1</FileType>
               <FilePath>..\src\msc_host_app.c</FilePath>
@@ -2025,11 +2000,6 @@
               <FileName>cdc_host.c</FileName>
               <FileType>1</FileType>
               <FilePath>..\..\..\tinyusb\class\cdc_host.c</FilePath>
-            </File>
-            <File>
-              <FileName>cdc_rndis_host.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>..\..\..\tinyusb\class\cdc_rndis_host.c</FilePath>
             </File>
             <File>
               <FileName>hid_host.c</FileName>
@@ -2707,11 +2677,6 @@
               <FilePath>..\src\mouse_host_app.c</FilePath>
             </File>
             <File>
-              <FileName>rndis_host_app.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>..\src\rndis_host_app.c</FilePath>
-            </File>
-            <File>
               <FileName>msc_host_app.c</FileName>
               <FileType>1</FileType>
               <FilePath>..\src\msc_host_app.c</FilePath>
@@ -2790,11 +2755,6 @@
               <FileName>cdc_host.c</FileName>
               <FileType>1</FileType>
               <FilePath>..\..\..\tinyusb\class\cdc_host.c</FilePath>
-            </File>
-            <File>
-              <FileName>cdc_rndis_host.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>..\..\..\tinyusb\class\cdc_rndis_host.c</FilePath>
             </File>
             <File>
               <FileName>hid_host.c</FileName>
@@ -3472,11 +3432,6 @@
               <FilePath>..\src\mouse_host_app.c</FilePath>
             </File>
             <File>
-              <FileName>rndis_host_app.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>..\src\rndis_host_app.c</FilePath>
-            </File>
-            <File>
               <FileName>msc_host_app.c</FileName>
               <FileType>1</FileType>
               <FilePath>..\src\msc_host_app.c</FilePath>
@@ -3555,11 +3510,6 @@
               <FileName>cdc_host.c</FileName>
               <FileType>1</FileType>
               <FilePath>..\..\..\tinyusb\class\cdc_host.c</FilePath>
-            </File>
-            <File>
-              <FileName>cdc_rndis_host.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>..\..\..\tinyusb\class\cdc_rndis_host.c</FilePath>
             </File>
             <File>
               <FileName>hid_host.c</FileName>

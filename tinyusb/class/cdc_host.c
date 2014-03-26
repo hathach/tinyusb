@@ -47,7 +47,6 @@
 //--------------------------------------------------------------------+
 #include "common/common.h"
 #include "cdc_host.h"
-#include "cdc_rndis_host.h"
 
 //--------------------------------------------------------------------+
 // MACRO CONSTANT TYPEDEF
@@ -115,11 +114,6 @@ bool tusbh_cdc_serial_is_mounted(uint8_t dev_addr)
       (cdch_data[dev_addr-1].interface_protocol <= CDC_COMM_PROTOCOL_ATCOMMAND_CDMA);
 }
 
-bool tusbh_cdc_rndis_is_mounted(uint8_t dev_addr)
-{
-  return tusbh_cdc_is_mounted(dev_addr) && cdch_data[dev_addr-1].is_rndis;
-}
-
 tusb_error_t tusbh_cdc_send(uint8_t dev_addr, void const * p_data, uint32_t length, bool is_notify)
 {
   ASSERT( tusbh_cdc_is_mounted(dev_addr),  TUSB_ERROR_CDCH_DEVICE_NOT_MOUNTED);
@@ -148,9 +142,6 @@ tusb_error_t tusbh_cdc_receive(uint8_t dev_addr, void * p_buffer, uint32_t lengt
 void cdch_init(void)
 {
   memclr_(cdch_data, sizeof(cdch_data_t)*TUSB_CFG_HOST_DEVICE_MAX);
-#if TUSB_CFG_HOST_CDC_RNDIS
-  rndish_init();
-#endif
 }
 
 tusb_error_t cdch_open_subtask(uint8_t dev_addr, tusb_descriptor_interface_t const *p_interface_desc, uint16_t *p_length)
@@ -224,24 +215,6 @@ tusb_error_t cdch_open_subtask(uint8_t dev_addr, tusb_descriptor_interface_t con
     }
   }
 
-#if TUSB_CFG_HOST_CDC_RNDIS // TODO move to rndis_host.c
-  //------------- RNDIS -------------//
-  if ( 0xff == cdch_data[dev_addr-1].interface_protocol && pipehandle_is_valid(cdch_data[dev_addr-1].pipe_notification) )
-  {
-    tusb_error_t error;
-
-    cdch_data[dev_addr-1].is_rndis = true; // set as true at first
-
-    OSAL_SUBTASK_INVOKED_AND_WAIT( rndish_open_subtask(dev_addr, &cdch_data[dev_addr-1]), error );
-
-    if (TUSB_ERROR_NONE != error)
-    {
-      cdch_data[dev_addr-1].is_rndis = false;
-    }
-  }
-
-  if ( !cdch_data[dev_addr-1].is_rndis ) // device is not an rndis
-#endif
   {
     // FIXME mounted class flag is not set yet
     tusbh_cdc_mounted_cb(dev_addr);
@@ -252,14 +225,6 @@ tusb_error_t cdch_open_subtask(uint8_t dev_addr, tusb_descriptor_interface_t con
 
 void cdch_isr(pipe_handle_t pipe_hdl, tusb_event_t event, uint32_t xferred_bytes)
 {
-#if TUSB_CFG_HOST_CDC_RNDIS
-	cdch_data_t *p_cdc = &cdch_data[pipe_hdl.dev_addr - 1];
-  if ( p_cdc->is_rndis )
-  {
-    rndish_xfer_isr(p_cdc, pipe_hdl, event, xferred_bytes);
-  } else
-#endif
-
   tusbh_cdc_xfer_isr( pipe_hdl.dev_addr, event, get_app_pipeid(pipe_hdl), xferred_bytes );
 }
 
@@ -267,20 +232,9 @@ void cdch_close(uint8_t dev_addr)
 {
   cdch_data_t * p_cdc = &cdch_data[dev_addr-1];
 
-#if TUSB_CFG_HOST_CDC_RNDIS
-  if (p_cdc->is_rndis)
-  {
-    rndish_close(dev_addr);
-  }
-#endif
-
   (void) hcd_pipe_close(p_cdc->pipe_notification);
   (void) hcd_pipe_close(p_cdc->pipe_in);
   (void) hcd_pipe_close(p_cdc->pipe_out);
-
-#if TUSB_CFG_HOST_CDC_RNDIS
-
-#endif
 
   memclr_(p_cdc, sizeof(cdch_data_t));
 

@@ -71,7 +71,7 @@ bool tusbh_cdc_serial_is_mounted(uint8_t dev_addr) ATTR_PURE ATTR_WARN_UNUSED_RE
  * \retval      false if the interface is not busy, meaning the stack successfully transferred data from/to device
  * \note        This function is used to check if previous transfer is complete (success or error), so that the next transfer
  *              can be scheduled. User needs to make sure the corresponding interface is mounted
- *              (by \ref tusbh_cdc_serial_is_mounted or \ref tusbh_cdc_rndis_is_mounted) before calling this function.
+ *              (by \ref tusbh_cdc_serial_is_mounted) before calling this function.
  */
 bool tusbh_cdc_is_busy(uint8_t dev_addr, cdc_pipeid_t pipeid)  ATTR_PURE ATTR_WARN_UNUSED_RESULT;
 
@@ -133,34 +133,6 @@ void tusbh_cdc_xfer_isr(uint8_t dev_addr, tusb_event_t event, cdc_pipeid_t pipe_
 /// @}
 
 //--------------------------------------------------------------------+
-// RNDIS APPLICATION API
-//--------------------------------------------------------------------+
-/** \ingroup CDC_RNSID_Host
- *  @{ */
-
-bool tusbh_cdc_rndis_is_mounted(uint8_t dev_addr) ATTR_PURE ATTR_WARN_UNUSED_RESULT;
-tusb_error_t tusbh_cdc_rndis_get_mac_addr(uint8_t dev_addr, uint8_t mac_address[6]);
-
-//--------------------------------------------------------------------+
-// RNDIS Application Callback (overshadow CDC callbacks)
-//--------------------------------------------------------------------+
-/** \brief 			Callback function that will be invoked when a device with RNDIS interface is mounted
- * \param[in]	  dev_addr Address of newly mounted device
- * \note        This callback should be used by Application to set-up interface-related data
- */
-void tusbh_cdc_rndis_mounted_cb(uint8_t dev_addr);
-
-/** \brief 			Callback function that will be invoked when a device with RNDIS interface is unmounted
- * \param[in] 	dev_addr Address of newly unmounted device
- * \note        This callback should be used by Application to tear-down interface-related data
- */
-void tusbh_cdc_rndis_unmounted_cb(uint8_t dev_addr);
-
-void tusbh_cdc_rndis_xfer_isr(uint8_t dev_addr, tusb_event_t event, cdc_pipeid_t pipe_id, uint32_t xferred_bytes);
-
-/// @} // group CDC_RNSID_Host
-
-//--------------------------------------------------------------------+
 // USBH-CLASS API
 //--------------------------------------------------------------------+
 #ifdef _TINY_USB_SOURCE_FILE_
@@ -168,7 +140,7 @@ void tusbh_cdc_rndis_xfer_isr(uint8_t dev_addr, tusb_event_t event, cdc_pipeid_t
 typedef struct {
   uint8_t interface_number;
   uint8_t interface_protocol;
-  bool is_rndis;
+
   cdc_acm_capability_t acm_capability;
 
   pipe_handle_t pipe_notification, pipe_out, pipe_in;

@@ -111,28 +111,6 @@ void board_init(void)
 
   //------------- NAND Flash (K9FXX) Size = 128M, Page Size = 2K, Block Size = 128K, Number of Block = 1024 -------------//
 //  nand_init();
-
-
-#if 0
-	//------------- Ethernet -------------//
-	LPC_CREG->CREG6 &= ~0x7;
-
-	/* RMII mode setup only */
-	LPC_CREG->CREG6 |= 0x4;
-
-	scu_pinmux(0x1, 18, (MD_EHS | MD_PLN | MD_ZI)         , FUNC3); // ENET TXD0
-	scu_pinmux(0x1, 20, (MD_EHS | MD_PLN | MD_ZI)         , FUNC3); // ENET TXD1
-	scu_pinmux(0x0, 1 , (MD_EHS | MD_PLN | MD_ZI)         , FUNC6); // ENET TX Enable
-
-	scu_pinmux(0x1, 15, (MD_EHS | MD_PLN | MD_EZI | MD_ZI), FUNC3); // ENET RXD0
-	scu_pinmux(0x0, 0 , (MD_EHS | MD_PLN | MD_EZI | MD_ZI), FUNC2); // ENET RXD1
-	scu_pinmux(0x1, 16, (MD_EHS | MD_PLN | MD_EZI | MD_ZI), FUNC7); // ENET RX Data Valid
-
-	scu_pinmux(0x1, 19, (MD_EHS | MD_PLN | MD_EZI | MD_ZI), FUNC0); // ENET REF CLK
-	scu_pinmux(0x1, 17, (MD_EHS | MD_PLN | MD_EZI | MD_ZI), FUNC3); // ENET MDIO
-	scu_pinmux(0xC,	1 , (MD_EHS | MD_PLN | MD_ZI)         , FUNC3); // ENET MDC
-#endif
-
 }
 
 //--------------------------------------------------------------------+
