@@ -1,0 +1,27 @@
+var tusb__option_8h =
+[
+    [ "CONTROLLER_DEVICE_NUMBER", "tusb__option_8h.html#gaf7445cdb2e7959b046b2e070cd14da4d", null ],
+    [ "CONTROLLER_HOST_NUMBER", "tusb__option_8h.html#gaa347ed376b429ee291e20042c273a468", null ],
+    [ "HOST_CLASS_HID", "tusb__option_8h.html#gaa0e14ffb4fe64f88b332829eb9de7b4b", null ],
+    [ "MCU_LPC11UXX", "tusb__option_8h.html#ga02313cadf1ec4d9545e3efb3fe0ccb8c", null ],
+    [ "MCU_LPC13UXX", "tusb__option_8h.html#gaf08862cbb7ee514748c70b372948acf7", null ],
+    [ "MCU_LPC13XX", "tusb__option_8h.html#gaa78a7eb70cec349f834817d99c179662", null ],
+    [ "MCU_LPC175X_6X", "tusb__option_8h.html#ga843c1b729743d903364ca8fe5ef35d3d", null ],
+    [ "MCU_LPC177X_8X", "tusb__option_8h.html#gad62bd1205ea0fa6886dfa674d80f6ab2", null ],
+    [ "MCU_LPC18XX", "tusb__option_8h.html#ga6407c9ee9e57288204ad64b677e73709", null ],
+    [ "MCU_LPC43XX", "tusb__option_8h.html#gab47d83c4905b13fdafe7ece9cdd4acf9", null ],
+    [ "MODE_DEVICE_SUPPORTED", "tusb__option_8h.html#ga9d10c49365399bc826c4b66eb51a8203", null ],
+    [ "MODE_HOST_SUPPORTED", "tusb__option_8h.html#ga1817c617a9c355126c2c6064f674bf8a", null ],
+    [ "TUSB_CFG_CONFIG_FILE", "tusb__option_8h.html#aa36ace3ee63a27b84b19d20af323814c", null ],
+    [ "TUSB_CFG_DEBUG", "tusb__option_8h.html#gabcaf736763738e142b326600354116fe", null ],
+    [ "TUSB_CFG_HOST_DEVICE_MAX", "tusb__option_8h.html#gafc4906ab5cb44b1931d4ae55894440c1", null ],
+    [ "TUSB_CFG_HOST_ENUM_BUFFER_SIZE", "tusb__option_8h.html#ga3e843cc332d1aa9a6a2e12294b2d4067", null ],
+    [ "TUSB_MODE_DEVICE", "tusb__option_8h.html#ga5a56147519cd5cbccd5d603955568eb5", null ],
+    [ "TUSB_MODE_HOST", "tusb__option_8h.html#ga29a388e11ac3a85e8973197c64392994", null ],
+    [ "TUSB_MODE_NONE", "tusb__option_8h.html#gaf57b49cd5006fb156d8782c65f30f1d3", null ],
+    [ "TUSB_VERSION", "tusb__option_8h.html#aae6badf05132a996b6291d3e17cedc5e", null ],
+    [ "TUSB_VERSION_MONTH", "tusb__option_8h.html#a67549af2059d44f91755c9a2b8eb5870", null ],
+    [ "TUSB_VERSION_NAME", "tusb__option_8h.html#a0097e3152c5594def3bc267fcd97ee99", null ],
+    [ "TUSB_VERSION_WEEK", "tusb__option_8h.html#aafb3a1d5154b7863090b099503b6870d", null ],
+    [ "TUSB_VERSION_YEAR", "tusb__option_8h.html#aa021fd18e50ed736f6771ac9a7f8bc0b", null ]
+];
