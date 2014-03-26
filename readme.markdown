@@ -51,7 +51,7 @@ The stack supports the following MCUs
   - LPC175x_6x
   - LPC43xx
 
-[Here is the list of supported Boards](boards/readme.md) in the code base
+[Here is the list of supported Boards](boards/) in the code base
 
 ### Toolchains
 

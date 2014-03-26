@@ -1,4 +1,4 @@
-# Boards # {#Boards}
+# Boards #
 
 ## Supported Boards ##
 
