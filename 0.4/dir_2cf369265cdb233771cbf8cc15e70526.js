@@ -10,6 +10,7 @@ var dir_2cf369265cdb233771cbf8cc15e70526 =
     [ "std_descriptors.h", "std__descriptors_8h.html", null ],
     [ "std_request.h", "std__request_8h.html", "std__request_8h" ],
     [ "timeout_timer.h", "timeout__timer_8h.html", "timeout__timer_8h" ],
+    [ "tusb_errors.c", "tusb__errors_8c_source.html", null ],
     [ "tusb_errors.h", "tusb__errors_8h.html", "tusb__errors_8h" ],
     [ "tusb_types.h", "tusb__types_8h.html", "tusb__types_8h" ]
 ];
