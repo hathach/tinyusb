@@ -4,7 +4,7 @@
 
 tinyusb is an open-source (BSD-licensed) USB Host/Device/OTG stack for embedded micro-controller. It is developed using [Test-Driven Development (TDD)](tests/readme.md) approach to eliminate bugs as soon as possible.
 
-![tinyusb diagram](/docs/images/what_is_tinyusb.png)
+![tinyusb diagram](http://docs.tinyusb.org/images/tinyusb_overview.png)
 
 ## Features ##
 

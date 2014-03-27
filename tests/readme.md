@@ -15,5 +15,4 @@ Continuous Integration (CI) is used to automatically run all the tests whenever 
 
 As many other open source project, tinyusb uses Travis-CI server (free for OOS). You can find my project on Travis here https://travis-ci.org/hathach/tinyusb  
 
-<!-- https://travis-ci.org/hathach/tinyusb --> 
-[![Build Status](https://travis-ci.org/hathach/tinyusb.png?branch=master)](https://travis-ci.org/hathach/tinyusb)
+[![Build Status](https://travis-ci.org/hathach/tinyusb.svg?branch=master)](https://travis-ci.org/hathach/tinyusb)
