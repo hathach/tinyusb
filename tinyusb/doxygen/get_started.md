@@ -47,16 +47,16 @@ In order to build and run application demo, you would need
 To prevent any sort of problems, it is recommended to do **EXACTLY** as follows (esp the item 4)
 
 1. Copy the whole repo folder to your lpcxpresso's workspace.
-2. Click *File->Import*, then expand the *General* folder and select **Existing Projects into Workspace** and click Next 
-![lpcxpresso_import.png](http://docs.tinyusb.org/images/lpcxpresso_import.png)
+2. Click *File->Import*, then expand the *General* folder and select **Existing Projects into Workspace** and click Next.
+    ![lpcxpresso_import.png](http://docs.tinyusb.org/images/lpcxpresso_import.png)
 3. On the next dialog, Click *Browse* and choose the **repo/demos** folder inside the repo. You should see a list of all demo applications.
-![lpcxpresso_import2.png](http://docs.tinyusb.org/images/lpcxpresso_import2.png)
+    ![lpcxpresso_import2.png](http://docs.tinyusb.org/images/lpcxpresso_import2.png)
 4. **IMPORTANT** make sure the option **Copy projects into workspace** is **CLEAR**. As demo application uses link folders and this option may cause problem for the import.
 5. Choose any of the demo application and click *Finish*.
 6. Select the configure corresponding to your development board.
-![lpcxpresso_select_board.png](http://docs.tinyusb.org/images/lpcxpresso_select_board.png)
+    ![lpcxpresso_select_board.png](http://docs.tinyusb.org/images/lpcxpresso_select_board.png)
 7. Then select the correct MCU option from project properties then you are ready to go.
-![lpcxpresso_mcu.png](http://docs.tinyusb.org/images/lpcxpresso_mcu.png)
+    ![lpcxpresso_mcu.png](http://docs.tinyusb.org/images/lpcxpresso_mcu.png)
 
 ### Keil ###
 
@@ -64,8 +64,7 @@ It is relatively simple for Keil
 
 1. Open the desired demo project e.g *demos/host/host_freertos/host_freertos.uvproj*
 2. Select the configure corresponding to your development board and build it. 
-
-![keil_select_board.png](http://docs.tinyusb.org/images/keil_select_board.png) 
+    ![keil_select_board.png](http://docs.tinyusb.org/images/keil_select_board.png) 
 
 ### IAR ###
 
@@ -73,8 +72,7 @@ IAR is just as easy as Keil
 
 1. Open the desired demo project e.g *demos/host/host_freertos/host_freertos.eww*
 2. Again select the configure corresponding to your development board and build it. 
-
-![iar_select_board.png](http://docs.tinyusb.org/images/iar_select_board.png)
+    ![iar_select_board.png](http://docs.tinyusb.org/images/iar_select_board.png)
 
 ## Configure demo ##
 
