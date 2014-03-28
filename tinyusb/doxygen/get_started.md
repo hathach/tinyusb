@@ -5,7 +5,7 @@
 **Table of Contents**
 
 - [Download](#download)
-- [Import & Build](#import-&-build)
+- [Import and Build](#import-and-build)
 	- [Prerequisites](#prerequisites)
 	- [LPCXpresso](#lpcxpresso)
 	- [Keil](#keil)
@@ -31,7 +31,7 @@ tests   | Unit tests for the stack
 tinyusb | All sources files for tinyusb stack itself.
 vendor  | Source files from 3rd party such as freeRTOS, fatfs etc ...
 
-## Import & Build ##
+## Import and Build ##
 
 *repo/demos* is the folder where all the application & project files are located. There are demos for both device and hosts. For each, there are different projects for each of supported RTOS. 
 
