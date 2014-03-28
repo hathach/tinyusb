@@ -86,6 +86,11 @@
 			<locationURI>PARENT-3-PROJECT_LOC/boards</locationURI>
 		</link>
 		<link>
+			<name>freertos</name>
+			<type>2</type>
+			<locationURI>PARENT-3-PROJECT_LOC/vendor/freertos</locationURI>
+		</link>
+		<link>
 			<name>mcu</name>
 			<type>2</type>
 			<locationURI>PARENT-3-PROJECT_LOC/mcu</locationURI>
