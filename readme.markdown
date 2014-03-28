@@ -1,5 +1,23 @@
 # tinyusb #
 
+<!-- START doctoc generated TOC please keep comment here to allow auto update -->
+<!-- DON'T EDIT THIS SECTION, INSTEAD RE-RUN doctoc TO UPDATE -->
+**Table of Contents**
+
+- [Features](#features)
+	- [Host](#host)
+	- [Device](#device)
+	- [RTOS](#rtos)
+	- [Supported MCUs](#supported-mcus)
+	- [Toolchains](#toolchains)
+- [Getting Started](#getting-started)
+- [License](#license)
+- [How Can I Help](#how-can-i-help)
+	- [Donate Time](#donate-time)
+	- [Donate Money](#donate-money)
+
+<!-- END doctoc generated TOC please keep comment here to allow auto update -->
+
 tinyusb is an open-source (BSD-licensed) USB Host/Device/OTG stack for embedded micro-controllers, especially ARM MCUs. It is designed to be user-friendly in term of configuration and out-of-the-box running experience.
 
 In addition to running without an RTOS, tinyusb is an OS-awared stack that can run across RTOS vendors. For the purpose of eliminating bugs as soon as possible, the stack is developed using [Test-Driven Development (TDD)](tests/readme.md) approach 
