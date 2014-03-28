@@ -12,7 +12,6 @@ Folder  | Description
 -----   | -------------
 boards  | Source files of supported boards
 demos   | Source & project files for demonstration application
-docs    | Documentation
 mcu     | Low level mcu core & peripheral drivers (e.g CMSIS )
 tests   | Unit tests for the stack
 tinyusb | All sources files for tinyusb stack itself.
