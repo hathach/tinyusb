@@ -1,3 +1,4 @@
+<!-- HTML header for doxygen 1.8.6-->
 <!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
 <html xmlns="http://www.w3.org/1999/xhtml">
 <head>
@@ -25,13 +26,16 @@
 <body>
 <div id="top"><!-- do not remove this div, it is closed by doxygen! -->
 <div id="titlearea">
-<table cellspacing="0" cellpadding="0">
+<table width="100%" cellspacing="0" cellpadding="0">
  <tbody>
  <tr style="height: 56px;">
   <td style="padding-left: 0.5em;">
    <div id="projectname">tinyusb
-   &#160;<span id="projectnumber">0.4</span>
+   &#160;<span id="projectnumber">0.4</span> 
    </div>
+  </td>
+  <td align="right">
+    <a href="https://pledgie.com/campaigns/24694"><img border="0" src="https://pledgie.com/campaigns/24694.png?skin_name=chrome" alt="Click here to lend your support to tinyusb donation and make a donation at pledgie.com"></a>
   </td>
  </tr>
  </tbody>
@@ -123,11 +127,11 @@ Functions</h2></td></tr>
 <tr class="memitem:ga392b2206c03d7e5a92d84e289d50fcdb"><td class="memItemLeft" align="right" valign="top"><a class="el" href="group___group___error.html#ga225612897c510054ef4026586562f716">tusb_error_t</a>&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group___keyboard___device.html#ga392b2206c03d7e5a92d84e289d50fcdb">tusbd_hid_keyboard_send</a> (uint8_t coreid, <a class="el" href="structhid__keyboard__report__t.html">hid_keyboard_report_t</a> const *p_report)</td></tr>
 <tr class="memdesc:ga392b2206c03d7e5a92d84e289d50fcdb"><td class="mdescLeft">&#160;</td><td class="mdescRight">Submit USB transfer.  <a href="group___keyboard___device.html#ga392b2206c03d7e5a92d84e289d50fcdb">More...</a><br/></td></tr>
 <tr class="separator:ga392b2206c03d7e5a92d84e289d50fcdb"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:ga0a2c21e286542d07224076d421c77381"><td class="memItemLeft" align="right" valign="top"><a class="anchor" id="ga0a2c21e286542d07224076d421c77381"></a>
-void&#160;</td><td class="memItemRight" valign="bottom"><b>tusbd_hid_keyboard_mounted_cb</b> (uint8_t coreid)</td></tr>
+<tr class="memitem:ga0a2c21e286542d07224076d421c77381"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group___keyboard___device.html#ga0a2c21e286542d07224076d421c77381">tusbd_hid_keyboard_mounted_cb</a> (uint8_t coreid)</td></tr>
+<tr class="memdesc:ga0a2c21e286542d07224076d421c77381"><td class="mdescLeft">&#160;</td><td class="mdescRight">Callback function that will be invoked when this interface is mounted (configured) by USB host.  <a href="group___keyboard___device.html#ga0a2c21e286542d07224076d421c77381">More...</a><br/></td></tr>
 <tr class="separator:ga0a2c21e286542d07224076d421c77381"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:gadc3bc3b71df89affd07d569aba9d8ca1"><td class="memItemLeft" align="right" valign="top"><a class="anchor" id="gadc3bc3b71df89affd07d569aba9d8ca1"></a>
-void&#160;</td><td class="memItemRight" valign="bottom"><b>tusbd_hid_keyboard_unmounted_cb</b> (uint8_t coreid)</td></tr>
+<tr class="memitem:gadc3bc3b71df89affd07d569aba9d8ca1"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group___keyboard___device.html#gadc3bc3b71df89affd07d569aba9d8ca1">tusbd_hid_keyboard_unmounted_cb</a> (uint8_t coreid)</td></tr>
+<tr class="memdesc:gadc3bc3b71df89affd07d569aba9d8ca1"><td class="mdescLeft">&#160;</td><td class="mdescRight">Callback function that will be invoked when this interface is unmounted (bus reset/unplugged)  <a href="group___keyboard___device.html#gadc3bc3b71df89affd07d569aba9d8ca1">More...</a><br/></td></tr>
 <tr class="separator:gadc3bc3b71df89affd07d569aba9d8ca1"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:ga325f15f403ee3572057fd6a55e28868e"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group___keyboard___device.html#ga325f15f403ee3572057fd6a55e28868e">tusbd_hid_keyboard_cb</a> (uint8_t coreid, tusb_event_t event, uint32_t xferred_bytes)</td></tr>
 <tr class="memdesc:ga325f15f403ee3572057fd6a55e28868e"><td class="mdescLeft">&#160;</td><td class="mdescRight">Callback function that is invoked when an transferring event occurred after invoking <a class="el" href="group___keyboard___device.html#ga392b2206c03d7e5a92d84e289d50fcdb">tusbd_hid_keyboard_send</a>.  <a href="group___keyboard___device.html#ga325f15f403ee3572057fd6a55e28868e">More...</a><br/></td></tr>
@@ -144,11 +148,11 @@ void&#160;</td><td class="memItemRight" valign="bottom"><b>tusbd_hid_keyboard_un
 <tr class="memitem:ga9ef46f1d6629ac7314defc26bbcd6ea9"><td class="memItemLeft" align="right" valign="top"><a class="el" href="group___group___error.html#ga225612897c510054ef4026586562f716">tusb_error_t</a>&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group___mouse___device.html#ga9ef46f1d6629ac7314defc26bbcd6ea9">tusbd_hid_mouse_send</a> (uint8_t coreid, <a class="el" href="structhid__mouse__report__t.html">hid_mouse_report_t</a> const *p_report)</td></tr>
 <tr class="memdesc:ga9ef46f1d6629ac7314defc26bbcd6ea9"><td class="mdescLeft">&#160;</td><td class="mdescRight">Perform transfer queuing.  <a href="group___mouse___device.html#ga9ef46f1d6629ac7314defc26bbcd6ea9">More...</a><br/></td></tr>
 <tr class="separator:ga9ef46f1d6629ac7314defc26bbcd6ea9"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:ga3228361526bd4a2cea32682b9bb6f036"><td class="memItemLeft" align="right" valign="top"><a class="anchor" id="ga3228361526bd4a2cea32682b9bb6f036"></a>
-void&#160;</td><td class="memItemRight" valign="bottom"><b>tusbd_hid_mouse_mounted_cb</b> (uint8_t coreid)</td></tr>
+<tr class="memitem:ga3228361526bd4a2cea32682b9bb6f036"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group___mouse___device.html#ga3228361526bd4a2cea32682b9bb6f036">tusbd_hid_mouse_mounted_cb</a> (uint8_t coreid)</td></tr>
+<tr class="memdesc:ga3228361526bd4a2cea32682b9bb6f036"><td class="mdescLeft">&#160;</td><td class="mdescRight">Callback function that will be invoked when this interface is mounted (configured) by USB host.  <a href="group___mouse___device.html#ga3228361526bd4a2cea32682b9bb6f036">More...</a><br/></td></tr>
 <tr class="separator:ga3228361526bd4a2cea32682b9bb6f036"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:ga9a4d4675c736ea37eb9264d44f6f1eb4"><td class="memItemLeft" align="right" valign="top"><a class="anchor" id="ga9a4d4675c736ea37eb9264d44f6f1eb4"></a>
-void&#160;</td><td class="memItemRight" valign="bottom"><b>tusbd_hid_mouse_unmounted_cb</b> (uint8_t coreid)</td></tr>
+<tr class="memitem:ga9a4d4675c736ea37eb9264d44f6f1eb4"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group___mouse___device.html#ga9a4d4675c736ea37eb9264d44f6f1eb4">tusbd_hid_mouse_unmounted_cb</a> (uint8_t coreid)</td></tr>
+<tr class="memdesc:ga9a4d4675c736ea37eb9264d44f6f1eb4"><td class="mdescLeft">&#160;</td><td class="mdescRight">Callback function that will be invoked when this interface is unmounted (bus reset/unplugged)  <a href="group___mouse___device.html#ga9a4d4675c736ea37eb9264d44f6f1eb4">More...</a><br/></td></tr>
 <tr class="separator:ga9a4d4675c736ea37eb9264d44f6f1eb4"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:ga20b34dac7e348b718b0bbb22ad2f6c57"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group___mouse___device.html#ga20b34dac7e348b718b0bbb22ad2f6c57">tusbd_hid_mouse_cb</a> (uint8_t coreid, tusb_event_t event, uint32_t xferred_bytes)</td></tr>
 <tr class="memdesc:ga20b34dac7e348b718b0bbb22ad2f6c57"><td class="mdescLeft">&#160;</td><td class="mdescRight">Callback function that is invoked when an transferring event occurred after invoking <a class="el" href="group___mouse___device.html#ga9ef46f1d6629ac7314defc26bbcd6ea9">tusbd_hid_mouse_send</a>.  <a href="group___mouse___device.html#ga20b34dac7e348b718b0bbb22ad2f6c57">More...</a><br/></td></tr>
@@ -182,7 +186,7 @@ LICENSE</h1>
 <div id="nav-path" class="navpath"><!-- id is needed for treeview function! -->
   <ul>
     <li class="navelem"><a class="el" href="dir_f44c0f1c8d3a85cc1de1e7f4648a56e6.html">tinyusb</a></li><li class="navelem"><a class="el" href="dir_c0cc4bd312f8dff81e67f48a71e5871f.html">class</a></li><li class="navelem"><a class="el" href="hid__device_8h.html">hid_device.h</a></li>
-    <li class="footer">Generated on Thu Mar 27 2014 18:31:59 for tinyusb by
+    <li class="footer">Generated on Mon Mar 31 2014 15:49:03 for tinyusb by
     <a href="http://www.doxygen.org/index.html">
     <img class="footer" src="doxygen.png" alt="doxygen"/></a> 1.8.6 </li>
   </ul>

@@ -1,3 +1,4 @@
+<!-- HTML header for doxygen 1.8.6-->
 <!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
 <html xmlns="http://www.w3.org/1999/xhtml">
 <head>
@@ -25,13 +26,16 @@
 <body>
 <div id="top"><!-- do not remove this div, it is closed by doxygen! -->
 <div id="titlearea">
-<table cellspacing="0" cellpadding="0">
+<table width="100%" cellspacing="0" cellpadding="0">
  <tbody>
  <tr style="height: 56px;">
   <td style="padding-left: 0.5em;">
    <div id="projectname">tinyusb
-   &#160;<span id="projectnumber">0.4</span>
+   &#160;<span id="projectnumber">0.4</span> 
    </div>
+  </td>
+  <td align="right">
+    <a href="https://pledgie.com/campaigns/24694"><img border="0" src="https://pledgie.com/campaigns/24694.png?skin_name=chrome" alt="Click here to lend your support to tinyusb donation and make a donation at pledgie.com"></a>
   </td>
  </tr>
  </tbody>
@@ -157,8 +161,8 @@ $(document).ready(function(){initNavTree('hid__device_8c_source.html','');});
 <div class="line"><a name="l00083"></a><span class="lineno">   83</span>&#160;<span class="preprocessor"></span>    [<a class="code" href="group___class_driver___h_i_d___common.html#gga90d00287412f4ba2286f2fd15173e6c7a230a1287ac2e27222537b12b4a16ebdd">HID_PROTOCOL_KEYBOARD</a>] =</div>
 <div class="line"><a name="l00084"></a><span class="lineno">   84</span>&#160;    {</div>
 <div class="line"><a name="l00085"></a><span class="lineno">   85</span>&#160;        .p_interface   = &amp;keyboardd_data,</div>
-<div class="line"><a name="l00086"></a><span class="lineno">   86</span>&#160;        .mounted_cb    = tusbd_hid_keyboard_mounted_cb,</div>
-<div class="line"><a name="l00087"></a><span class="lineno">   87</span>&#160;        .unmounted_cb  = tusbd_hid_keyboard_unmounted_cb,</div>
+<div class="line"><a name="l00086"></a><span class="lineno">   86</span>&#160;        .mounted_cb    = <a class="code" href="group___keyboard___device.html#ga0a2c21e286542d07224076d421c77381">tusbd_hid_keyboard_mounted_cb</a>,</div>
+<div class="line"><a name="l00087"></a><span class="lineno">   87</span>&#160;        .unmounted_cb  = <a class="code" href="group___keyboard___device.html#gadc3bc3b71df89affd07d569aba9d8ca1">tusbd_hid_keyboard_unmounted_cb</a>,</div>
 <div class="line"><a name="l00088"></a><span class="lineno">   88</span>&#160;        .xfer_cb       = <a class="code" href="group___keyboard___device.html#ga325f15f403ee3572057fd6a55e28868e">tusbd_hid_keyboard_cb</a>,</div>
 <div class="line"><a name="l00089"></a><span class="lineno">   89</span>&#160;        .get_report_cb = <a class="code" href="group___keyboard___device.html#gaf8345eebc7540356d9598554b91b1d4b">tusbd_hid_keyboard_get_report_cb</a>,</div>
 <div class="line"><a name="l00090"></a><span class="lineno">   90</span>&#160;        .set_report_cb = <a class="code" href="group___keyboard___device.html#gacf62354ad819d8e71894b7f096b8fc34">tusbd_hid_keyboard_set_report_cb</a></div>
@@ -169,8 +173,8 @@ $(document).ready(function(){initNavTree('hid__device_8c_source.html','');});
 <div class="line"><a name="l00095"></a><span class="lineno">   95</span>&#160;<span class="preprocessor"></span>    [<a class="code" href="group___class_driver___h_i_d___common.html#gga90d00287412f4ba2286f2fd15173e6c7a67b7be71e51bd28589a418432474c06b">HID_PROTOCOL_MOUSE</a>] =</div>
 <div class="line"><a name="l00096"></a><span class="lineno">   96</span>&#160;    {</div>
 <div class="line"><a name="l00097"></a><span class="lineno">   97</span>&#160;        .p_interface   = &amp;moused_data,</div>
-<div class="line"><a name="l00098"></a><span class="lineno">   98</span>&#160;        .mounted_cb    = tusbd_hid_mouse_mounted_cb,</div>
-<div class="line"><a name="l00099"></a><span class="lineno">   99</span>&#160;        .unmounted_cb  = tusbd_hid_mouse_unmounted_cb,</div>
+<div class="line"><a name="l00098"></a><span class="lineno">   98</span>&#160;        .mounted_cb    = <a class="code" href="group___mouse___device.html#ga3228361526bd4a2cea32682b9bb6f036">tusbd_hid_mouse_mounted_cb</a>,</div>
+<div class="line"><a name="l00099"></a><span class="lineno">   99</span>&#160;        .unmounted_cb  = <a class="code" href="group___mouse___device.html#ga9a4d4675c736ea37eb9264d44f6f1eb4">tusbd_hid_mouse_unmounted_cb</a>,</div>
 <div class="line"><a name="l00100"></a><span class="lineno">  100</span>&#160;        .xfer_cb       = <a class="code" href="group___mouse___device.html#ga20b34dac7e348b718b0bbb22ad2f6c57">tusbd_hid_mouse_cb</a>,</div>
 <div class="line"><a name="l00101"></a><span class="lineno">  101</span>&#160;        .get_report_cb = <a class="code" href="group___mouse___device.html#gaa1bdb8035d9d62836705dd07199575ee">tusbd_hid_mouse_get_report_cb</a>,</div>
 <div class="line"><a name="l00102"></a><span class="lineno">  102</span>&#160;        .set_report_cb = <a class="code" href="group___mouse___device.html#ga65365cdef2e7a72bcb6e49ae76e640bf">tusbd_hid_mouse_set_report_cb</a></div>
@@ -411,8 +415,11 @@ $(document).ready(function(){initNavTree('hid__device_8c_source.html','');});
 <div class="ttc" id="group__group__usbd_html_ga2a5230d87078cc1195f93f00f6198ae8"><div class="ttname"><a href="group__group__usbd.html#ga2a5230d87078cc1195f93f00f6198ae8">tusbd_descriptor_pointers</a></div><div class="ttdeci">tusbd_descriptor_pointer_t tusbd_descriptor_pointers</div><div class="ttdef"><b>Definition:</b> <a href="configuration_8txt_source.html#l00064">configuration.txt:64</a></div></div>
 <div class="ttc" id="structtusb__descriptor__interface__t_html_a6872c4ec51fd061e2955f84d97bea2a7"><div class="ttname"><a href="structtusb__descriptor__interface__t.html#a6872c4ec51fd061e2955f84d97bea2a7">tusb_descriptor_interface_t::bInterfaceProtocol</a></div><div class="ttdeci">uint8_t bInterfaceProtocol</div><div class="ttdoc">Protocol code (assigned by the USB).   These codes are qualified by the value of the bInterfaceClass ...</div><div class="ttdef"><b>Definition:</b> <a href="std__descriptors_8h_source.html#l00099">std_descriptors.h:99</a></div></div>
 <div class="ttc" id="structhid__mouse__report__t_html"><div class="ttname"><a href="structhid__mouse__report__t.html">hid_mouse_report_t</a></div><div class="ttdoc">Standard HID Boot Protocol Mouse Report. </div><div class="ttdef"><b>Definition:</b> <a href="hid_8h_source.html#l00158">hid.h:158</a></div></div>
+<div class="ttc" id="group___mouse___device_html_ga9a4d4675c736ea37eb9264d44f6f1eb4"><div class="ttname"><a href="group___mouse___device.html#ga9a4d4675c736ea37eb9264d44f6f1eb4">tusbd_hid_mouse_unmounted_cb</a></div><div class="ttdeci">void tusbd_hid_mouse_unmounted_cb(uint8_t coreid)</div><div class="ttdoc">Callback function that will be invoked when this interface is unmounted (bus reset/unplugged) ...</div></div>
+<div class="ttc" id="group___keyboard___device_html_gadc3bc3b71df89affd07d569aba9d8ca1"><div class="ttname"><a href="group___keyboard___device.html#gadc3bc3b71df89affd07d569aba9d8ca1">tusbd_hid_keyboard_unmounted_cb</a></div><div class="ttdeci">void tusbd_hid_keyboard_unmounted_cb(uint8_t coreid)</div><div class="ttdoc">Callback function that will be invoked when this interface is unmounted (bus reset/unplugged) ...</div></div>
 <div class="ttc" id="group___mouse___device_html_ga5e5d67756bc15892750de943ef937b51"><div class="ttname"><a href="group___mouse___device.html#ga5e5d67756bc15892750de943ef937b51">tusbd_hid_mouse_is_busy</a></div><div class="ttdeci">bool tusbd_hid_mouse_is_busy(uint8_t coreid)</div><div class="ttdoc">Check if the interface is currently busy or not. </div></div>
 <div class="ttc" id="structtusbd__descriptor__pointer__t_html_aefd0469b360bf2d9a7448afb221767f7"><div class="ttname"><a href="structtusbd__descriptor__pointer__t.html#aefd0469b360bf2d9a7448afb221767f7">tusbd_descriptor_pointer_t::p_hid_mouse_report</a></div><div class="ttdeci">uint8_t const * p_hid_mouse_report</div><div class="ttdoc">pointer to HID report descriptor of Mouse interface. Only needed if TUSB_CFG_DEVICE_HID_MOUSE is enab...</div><div class="ttdef"><b>Definition:</b> <a href="usbd_8h_source.html#l00072">usbd.h:72</a></div></div>
+<div class="ttc" id="group___mouse___device_html_ga3228361526bd4a2cea32682b9bb6f036"><div class="ttname"><a href="group___mouse___device.html#ga3228361526bd4a2cea32682b9bb6f036">tusbd_hid_mouse_mounted_cb</a></div><div class="ttdeci">void tusbd_hid_mouse_mounted_cb(uint8_t coreid)</div><div class="ttdoc">Callback function that will be invoked when this interface is mounted (configured) by USB host...</div></div>
 <div class="ttc" id="group___class_driver___h_i_d___common_html_ggada1109e4f5b655f5244d782d22ff2dd8ad7d289340fe803bd96447a9283d38b20"><div class="ttname"><a href="group___class_driver___h_i_d___common.html#ggada1109e4f5b655f5244d782d22ff2dd8ad7d289340fe803bd96447a9283d38b20">HID_DESC_TYPE_HID</a></div><div class="ttdoc">HID Descriptor. </div><div class="ttdef"><b>Definition:</b> <a href="hid_8h_source.html#l00073">hid.h:73</a></div></div>
 <div class="ttc" id="group___mouse___device_html_ga20b34dac7e348b718b0bbb22ad2f6c57"><div class="ttname"><a href="group___mouse___device.html#ga20b34dac7e348b718b0bbb22ad2f6c57">tusbd_hid_mouse_cb</a></div><div class="ttdeci">void tusbd_hid_mouse_cb(uint8_t coreid, tusb_event_t event, uint32_t xferred_bytes)</div><div class="ttdoc">Callback function that is invoked when an transferring event occurred after invoking tusbd_hid_mouse_...</div></div>
 <div class="ttc" id="group__group__configuration_html_ga977f8e429c64d2ea49ea42b5dac8a88c"><div class="ttname"><a href="group__group__configuration.html#ga977f8e429c64d2ea49ea42b5dac8a88c">TUSB_CFG_ATTR_USBRAM</a></div><div class="ttdeci">#define TUSB_CFG_ATTR_USBRAM</div><div class="ttdef"><b>Definition:</b> <a href="configuration_8txt_source.html#l00019">configuration.txt:19</a></div></div>
@@ -440,6 +447,7 @@ $(document).ready(function(){initNavTree('hid__device_8c_source.html','');});
 <div class="ttc" id="common_8h_html"><div class="ttname"><a href="common_8h.html">common.h</a></div></div>
 <div class="ttc" id="group___class_driver___h_i_d___common_html_gga40b25478e300d37659ba4fae7685ee8ba2c2c8443516b3761605658c1a6bc92fb"><div class="ttname"><a href="group___class_driver___h_i_d___common.html#gga40b25478e300d37659ba4fae7685ee8ba2c2c8443516b3761605658c1a6bc92fb">HID_REQUEST_CONTROL_GET_REPORT</a></div><div class="ttdoc">Get Report. </div><div class="ttdef"><b>Definition:</b> <a href="hid_8h_source.html#l00087">hid.h:87</a></div></div>
 <div class="ttc" id="structtusb__descriptor__interface__t_html_ae899427763e325f03241afc69a6e1ea0"><div class="ttname"><a href="structtusb__descriptor__interface__t.html#ae899427763e325f03241afc69a6e1ea0">tusb_descriptor_interface_t::bInterfaceClass</a></div><div class="ttdeci">uint8_t bInterfaceClass</div><div class="ttdoc">Class code (assigned by the USB-IF). </div><div class="ttdef"><b>Definition:</b> <a href="std__descriptors_8h_source.html#l00097">std_descriptors.h:97</a></div></div>
+<div class="ttc" id="group___keyboard___device_html_ga0a2c21e286542d07224076d421c77381"><div class="ttname"><a href="group___keyboard___device.html#ga0a2c21e286542d07224076d421c77381">tusbd_hid_keyboard_mounted_cb</a></div><div class="ttdeci">void tusbd_hid_keyboard_mounted_cb(uint8_t coreid)</div><div class="ttdoc">Callback function that will be invoked when this interface is mounted (configured) by USB host...</div></div>
 <div class="ttc" id="structtusbd__descriptor__pointer__t_html_adb2f04456533ad881326e8d7f4d9be8a"><div class="ttname"><a href="structtusbd__descriptor__pointer__t.html#adb2f04456533ad881326e8d7f4d9be8a">tusbd_descriptor_pointer_t::p_hid_keyboard_report</a></div><div class="ttdeci">uint8_t const * p_hid_keyboard_report</div><div class="ttdoc">pointer to HID report descriptor of Keybaord interface. Only needed if TUSB_CFG_DEVICE_HID_KEYBOARD i...</div><div class="ttdef"><b>Definition:</b> <a href="usbd_8h_source.html#l00071">usbd.h:71</a></div></div>
 <div class="ttc" id="group___class_driver___h_i_d___common_html_gga40b25478e300d37659ba4fae7685ee8babf065aa15f629f36482e36bb888bc4d2"><div class="ttname"><a href="group___class_driver___h_i_d___common.html#gga40b25478e300d37659ba4fae7685ee8babf065aa15f629f36482e36bb888bc4d2">HID_REQUEST_CONTROL_SET_IDLE</a></div><div class="ttdoc">Set Idle. </div><div class="ttdef"><b>Definition:</b> <a href="hid_8h_source.html#l00091">hid.h:91</a></div></div>
 <div class="ttc" id="structtusb__hid__descriptor__hid__t_html_a28cba4a4300e5256702bcc6092f477a9"><div class="ttname"><a href="structtusb__hid__descriptor__hid__t.html#a28cba4a4300e5256702bcc6092f477a9">tusb_hid_descriptor_hid_t::wReportLength</a></div><div class="ttdeci">uint16_t wReportLength</div><div class="ttdef"><b>Definition:</b> <a href="hid_8h_source.html#l00105">hid.h:105</a></div></div>
@@ -450,7 +458,7 @@ $(document).ready(function(){initNavTree('hid__device_8c_source.html','');});
 <div id="nav-path" class="navpath"><!-- id is needed for treeview function! -->
   <ul>
     <li class="navelem"><a class="el" href="dir_f44c0f1c8d3a85cc1de1e7f4648a56e6.html">tinyusb</a></li><li class="navelem"><a class="el" href="dir_c0cc4bd312f8dff81e67f48a71e5871f.html">class</a></li><li class="navelem"><a class="el" href="hid__device_8c.html">hid_device.c</a></li>
-    <li class="footer">Generated on Thu Mar 27 2014 18:31:56 for tinyusb by
+    <li class="footer">Generated on Mon Mar 31 2014 15:49:01 for tinyusb by
     <a href="http://www.doxygen.org/index.html">
     <img class="footer" src="doxygen.png" alt="doxygen"/></a> 1.8.6 </li>
   </ul>

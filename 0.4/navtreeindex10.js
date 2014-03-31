@@ -1,5 +1,13 @@
 var NAVTREEINDEX10 =
 {
+"structusbd__class__driver__t.html":[6,0,69],
+"structusbd__class__driver__t.html#a79b87637205be6e47f8d24488a74d1a1":[6,0,69,1],
+"structusbd__class__driver__t.html#a8d6fae0e9b8468e8f4ff948821d99c80":[6,0,69,0],
+"structusbd__class__driver__t.html#a9bbf8213d1acdbe0a6cd645a036fe00d":[6,0,69,4],
+"structusbd__class__driver__t.html#aabd1a31b6cbe0435c52e902233f4a30f":[6,0,69,2],
+"structusbd__class__driver__t.html#ae329fed1dcc697c59178739213d0fc89":[6,0,69,3],
+"structusbd__device__info__t.html":[6,0,70],
+"structusbd__device__info__t.html#a06fcd46097cb1779eaa383a6419cd27d":[6,0,70,1],
 "structusbd__device__info__t.html#a3f2d9f5408d744adbcac4771ed589ce1":[6,0,70,0],
 "structusbh__device__info__t.html":[6,0,71],
 "structusbh__device__info__t.html#a06fcd46097cb1779eaa383a6419cd27d":[6,0,71,13],

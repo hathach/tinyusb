@@ -1,5 +1,13 @@
 var NAVTREEINDEX4 =
 {
+"group___u_s_b_def___type.html#gga67b344c0d91e2c1b8e13ceb56431f2c1a4819e8fd126e72b6f6d0fcbeca4d43a8":[5,7,1,4,6],
+"group___u_s_b_def___type.html#gga67b344c0d91e2c1b8e13ceb56431f2c1a4eb90d68c8ff191b0b4626c7e33760d7":[5,7,1,4,2],
+"group___u_s_b_def___type.html#gga67b344c0d91e2c1b8e13ceb56431f2c1a7308ff601a9f3cbef4a4e5460ba08b7f":[5,7,1,4,12],
+"group___u_s_b_def___type.html#gga67b344c0d91e2c1b8e13ceb56431f2c1a7d6660a62a8fd34402edcede3eabf42f":[5,7,1,4,10],
+"group___u_s_b_def___type.html#gga67b344c0d91e2c1b8e13ceb56431f2c1a942e50d89cecbcd69f28ce97b2330a18":[5,7,1,4,8],
+"group___u_s_b_def___type.html#gga67b344c0d91e2c1b8e13ceb56431f2c1a94476ed050cf17bb01f2722a7bc25f0f":[5,7,1,4,11],
+"group___u_s_b_def___type.html#gga67b344c0d91e2c1b8e13ceb56431f2c1a9b285a0ee99efc07ccfa7a23fb786bfe":[5,7,1,4,4],
+"group___u_s_b_def___type.html#gga67b344c0d91e2c1b8e13ceb56431f2c1a9b51b0ed0bf4bf3978486eb49a981fef":[5,7,1,4,0],
 "group___u_s_b_def___type.html#gga67b344c0d91e2c1b8e13ceb56431f2c1ac45922bd1a9d81c20c0bee98610ec528":[5,7,1,4,3],
 "group___u_s_b_def___type.html#gga67b344c0d91e2c1b8e13ceb56431f2c1af126da6b779000492c0ecc7f36cfc23b":[5,7,1,4,5],
 "group___u_s_b_def___type.html#gga7235527ffc187847b43d4838e46f29b3a0270ceab4eaa43b029909ab7cbd38a8c":[5,7,1,2,7],
@@ -241,13 +249,5 @@ var NAVTREEINDEX4 =
 "hid_8h.html#ga9e73e560f490f7f8f04ed8cb203ae48d":[7,0,1,0,7,21],
 "hid_8h.html#gaa079d176e58155cfa4d6f11208214426":[7,0,1,0,7,7],
 "hid_8h.html#gaa8aec5db8addc37fe8ef63562c79e382":[7,0,1,0,7,51],
-"hid_8h.html#gaae5902c17a87da4bb22644ee3a0d2a7d":[7,0,1,0,7,26],
-"hid_8h.html#gaafc1f255042ec78051345f286b13079e":[7,0,1,0,7,20],
-"hid_8h.html#gab3bdeba18fe5cb097f108070d65f446c":[7,0,1,0,7,22],
-"hid_8h.html#gab58415b7583292a58b0ee29cba438c6a":[7,0,1,0,7,53],
-"hid_8h.html#gab93327a672de72456786c63a9ebe9ca4":[7,0,1,0,7,0],
-"hid_8h.html#gaba5ff39942cf67aecbb6cc4f6d055d3a":[7,0,1,0,7,8],
-"hid_8h.html#gabbf39c26156216c6eba110859e809e5e":[7,0,1,0,7,27],
-"hid_8h.html#gabc48f9ccf345e919aa49819200822a34":[7,0,1,0,7,38],
-"hid_8h.html#gac55ef718d83187c925264cb7a2f1e87e":[7,0,1,0,7,41]
+"hid_8h.html#gaae5902c17a87da4bb22644ee3a0d2a7d":[7,0,1,0,7,26]
 };

@@ -1,3 +1,4 @@
+<!-- HTML header for doxygen 1.8.6-->
 <!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
 <html xmlns="http://www.w3.org/1999/xhtml">
 <head>
@@ -25,13 +26,16 @@
 <body>
 <div id="top"><!-- do not remove this div, it is closed by doxygen! -->
 <div id="titlearea">
-<table cellspacing="0" cellpadding="0">
+<table width="100%" cellspacing="0" cellpadding="0">
  <tbody>
  <tr style="height: 56px;">
   <td style="padding-left: 0.5em;">
    <div id="projectname">tinyusb
-   &#160;<span id="projectnumber">0.4</span>
+   &#160;<span id="projectnumber">0.4</span> 
    </div>
+  </td>
+  <td align="right">
+    <a href="https://pledgie.com/campaigns/24694"><img border="0" src="https://pledgie.com/campaigns/24694.png?skin_name=chrome" alt="Click here to lend your support to tinyusb donation and make a donation at pledgie.com"></a>
   </td>
  </tr>
  </tbody>
@@ -245,7 +249,7 @@ $(document).ready(function(){initNavTree('cdc__device_8c_source.html','');});
 <div class="line"><a name="l00171"></a><span class="lineno">  171</span>&#160;</div>
 <div class="line"><a name="l00172"></a><span class="lineno">  172</span>&#160;  p_cdc-&gt;interface_number   = p_interface_desc-&gt;<a class="code" href="structtusb__descriptor__interface__t.html#a3d66d88c5e928462aef62633449f1eb0">bInterfaceNumber</a>;</div>
 <div class="line"><a name="l00173"></a><span class="lineno">  173</span>&#160;</div>
-<div class="line"><a name="l00174"></a><span class="lineno">  174</span>&#160;  tusbd_cdc_mounted_cb(coreid);</div>
+<div class="line"><a name="l00174"></a><span class="lineno">  174</span>&#160;  <a class="code" href="group___c_d_c___serial___device.html#gaf5183574b1a017e4a3057e7ca3cf57bf">tusbd_cdc_mounted_cb</a>(coreid);</div>
 <div class="line"><a name="l00175"></a><span class="lineno">  175</span>&#160;</div>
 <div class="line"><a name="l00176"></a><span class="lineno">  176</span>&#160;  <span class="keywordflow">return</span> TUSB_ERROR_NONE;</div>
 <div class="line"><a name="l00177"></a><span class="lineno">  177</span>&#160;}</div>
@@ -254,53 +258,55 @@ $(document).ready(function(){initNavTree('cdc__device_8c_source.html','');});
 <div class="line"><a name="l00180"></a><span class="lineno">  180</span>&#160;{</div>
 <div class="line"><a name="l00181"></a><span class="lineno">  181</span>&#160;  <span class="comment">// no need to close opened pipe, dcd bus reset will put controller&#39;s endpoints to default state</span></div>
 <div class="line"><a name="l00182"></a><span class="lineno">  182</span>&#160;  memclr_(&amp;cdcd_data[coreid], <span class="keyword">sizeof</span>(cdcd_data_t));</div>
-<div class="line"><a name="l00183"></a><span class="lineno">  183</span>&#160;}</div>
-<div class="line"><a name="l00184"></a><span class="lineno">  184</span>&#160;</div>
-<div class="line"><a name="l00185"></a><span class="lineno">  185</span>&#160;<a class="code" href="group___group___error.html#ga225612897c510054ef4026586562f716">tusb_error_t</a> cdcd_control_request_subtask(uint8_t coreid, <a class="code" href="structtusb__control__request__t.html">tusb_control_request_t</a> <span class="keyword">const</span> * p_request)</div>
-<div class="line"><a name="l00186"></a><span class="lineno">  186</span>&#160;{</div>
-<div class="line"><a name="l00187"></a><span class="lineno">  187</span>&#160;  <span class="comment">//------------- Class Specific Request -------------//</span></div>
-<div class="line"><a name="l00188"></a><span class="lineno">  188</span>&#160;  <span class="keywordflow">if</span> (p_request-&gt;bmRequestType_bit.type != TUSB_REQUEST_TYPE_CLASS) <span class="keywordflow">return</span> TUSB_ERROR_DCD_CONTROL_REQUEST_NOT_SUPPORT;</div>
-<div class="line"><a name="l00189"></a><span class="lineno">  189</span>&#160;</div>
-<div class="line"><a name="l00190"></a><span class="lineno">  190</span>&#160;  <span class="keywordflow">switch</span>(p_request-&gt;bRequest)</div>
-<div class="line"><a name="l00191"></a><span class="lineno">  191</span>&#160;  {</div>
-<div class="line"><a name="l00192"></a><span class="lineno">  192</span>&#160;    <span class="keywordflow">case</span> CDC_REQUEST_GET_LINE_CODING:</div>
-<div class="line"><a name="l00193"></a><span class="lineno">  193</span>&#160;      dcd_pipe_control_xfer(coreid, (tusb_direction_t) p_request-&gt;bmRequestType_bit.direction,</div>
-<div class="line"><a name="l00194"></a><span class="lineno">  194</span>&#160;                            (uint8_t*) &amp;cdcd_line_coding[coreid], min16_of(<span class="keyword">sizeof</span>(<a class="code" href="structcdc__line__coding__t.html">cdc_line_coding_t</a>), p_request-&gt;wLength), <span class="keyword">false</span> );</div>
-<div class="line"><a name="l00195"></a><span class="lineno">  195</span>&#160;    <span class="keywordflow">break</span>;</div>
-<div class="line"><a name="l00196"></a><span class="lineno">  196</span>&#160;</div>
-<div class="line"><a name="l00197"></a><span class="lineno">  197</span>&#160;    <span class="keywordflow">case</span> CDC_REQUEST_SET_LINE_CODING:</div>
-<div class="line"><a name="l00198"></a><span class="lineno">  198</span>&#160;      dcd_pipe_control_xfer(coreid, (tusb_direction_t) p_request-&gt;bmRequestType_bit.direction,</div>
-<div class="line"><a name="l00199"></a><span class="lineno">  199</span>&#160;                            (uint8_t*) &amp;cdcd_line_coding[coreid], min16_of(<span class="keyword">sizeof</span>(<a class="code" href="structcdc__line__coding__t.html">cdc_line_coding_t</a>), p_request-&gt;wLength), <span class="keyword">false</span> );</div>
-<div class="line"><a name="l00200"></a><span class="lineno">  200</span>&#160;      <span class="comment">// TODO notify application on xfer completea</span></div>
-<div class="line"><a name="l00201"></a><span class="lineno">  201</span>&#160;    <span class="keywordflow">break</span>;</div>
-<div class="line"><a name="l00202"></a><span class="lineno">  202</span>&#160;</div>
-<div class="line"><a name="l00203"></a><span class="lineno">  203</span>&#160;    <span class="keywordflow">case</span> CDC_REQUEST_SET_CONTROL_LINE_STATE: <span class="comment">// TODO extract DTE present</span></div>
-<div class="line"><a name="l00204"></a><span class="lineno">  204</span>&#160;    <span class="keywordflow">break</span>;</div>
-<div class="line"><a name="l00205"></a><span class="lineno">  205</span>&#160;</div>
-<div class="line"><a name="l00206"></a><span class="lineno">  206</span>&#160;</div>
-<div class="line"><a name="l00207"></a><span class="lineno">  207</span>&#160;    <span class="keywordflow">default</span>: <span class="keywordflow">return</span> TUSB_ERROR_DCD_CONTROL_REQUEST_NOT_SUPPORT;</div>
-<div class="line"><a name="l00208"></a><span class="lineno">  208</span>&#160;  }</div>
-<div class="line"><a name="l00209"></a><span class="lineno">  209</span>&#160;</div>
-<div class="line"><a name="l00210"></a><span class="lineno">  210</span>&#160;  <span class="keywordflow">return</span> TUSB_ERROR_NONE;</div>
-<div class="line"><a name="l00211"></a><span class="lineno">  211</span>&#160;}</div>
-<div class="line"><a name="l00212"></a><span class="lineno">  212</span>&#160;</div>
-<div class="line"><a name="l00213"></a><span class="lineno">  213</span>&#160;<a class="code" href="group___group___error.html#ga225612897c510054ef4026586562f716">tusb_error_t</a> cdcd_xfer_cb(<a class="code" href="structendpoint__handle__t.html">endpoint_handle_t</a> edpt_hdl, tusb_event_t event, uint32_t xferred_bytes)</div>
-<div class="line"><a name="l00214"></a><span class="lineno">  214</span>&#160;{</div>
-<div class="line"><a name="l00215"></a><span class="lineno">  215</span>&#160;  cdcd_data_t <span class="keyword">const</span> * p_cdc = &amp;cdcd_data[edpt_hdl.coreid];</div>
-<div class="line"><a name="l00216"></a><span class="lineno">  216</span>&#160;</div>
-<div class="line"><a name="l00217"></a><span class="lineno">  217</span>&#160;  <span class="keywordflow">for</span>(<a class="code" href="group___class_driver___c_d_c___common.html#ga8664e955870c947f08f6601901243b6f">cdc_pipeid_t</a> pipeid=<a class="code" href="group___class_driver___c_d_c___common.html#gga8664e955870c947f08f6601901243b6facfc9a1a0edff873a6bc0d44e7377683f">CDC_PIPE_NOTIFICATION</a>; pipeid &lt; <a class="code" href="group___class_driver___c_d_c___common.html#gga8664e955870c947f08f6601901243b6fa839413d02f9e60162138cff14a59da2e">CDC_PIPE_ERROR</a>; pipeid++ )</div>
-<div class="line"><a name="l00218"></a><span class="lineno">  218</span>&#160;  {</div>
-<div class="line"><a name="l00219"></a><span class="lineno">  219</span>&#160;    <span class="keywordflow">if</span> ( endpointhandle_is_equal(edpt_hdl, p_cdc-&gt;edpt_hdl[pipeid]) )</div>
-<div class="line"><a name="l00220"></a><span class="lineno">  220</span>&#160;    {</div>
-<div class="line"><a name="l00221"></a><span class="lineno">  221</span>&#160;      <a class="code" href="group___c_d_c___serial___device.html#ga249badeb2eaf6b6f12d17a6c6f91bd5f">tusbd_cdc_xfer_cb</a>(edpt_hdl.coreid, event, pipeid, xferred_bytes);</div>
-<div class="line"><a name="l00222"></a><span class="lineno">  222</span>&#160;      <span class="keywordflow">break</span>;</div>
-<div class="line"><a name="l00223"></a><span class="lineno">  223</span>&#160;    }</div>
-<div class="line"><a name="l00224"></a><span class="lineno">  224</span>&#160;  }</div>
-<div class="line"><a name="l00225"></a><span class="lineno">  225</span>&#160;</div>
-<div class="line"><a name="l00226"></a><span class="lineno">  226</span>&#160;  <span class="keywordflow">return</span> TUSB_ERROR_NONE;</div>
-<div class="line"><a name="l00227"></a><span class="lineno">  227</span>&#160;}</div>
-<div class="line"><a name="l00228"></a><span class="lineno">  228</span>&#160;</div>
-<div class="line"><a name="l00229"></a><span class="lineno">  229</span>&#160;<span class="preprocessor">#endif</span></div>
+<div class="line"><a name="l00183"></a><span class="lineno">  183</span>&#160;</div>
+<div class="line"><a name="l00184"></a><span class="lineno">  184</span>&#160;  <a class="code" href="group___c_d_c___serial___device.html#gaf18aa37f5e7476bab909fecb151db16e">tusbd_cdc_unmounted_cb</a>(coreid);</div>
+<div class="line"><a name="l00185"></a><span class="lineno">  185</span>&#160;}</div>
+<div class="line"><a name="l00186"></a><span class="lineno">  186</span>&#160;</div>
+<div class="line"><a name="l00187"></a><span class="lineno">  187</span>&#160;<a class="code" href="group___group___error.html#ga225612897c510054ef4026586562f716">tusb_error_t</a> cdcd_control_request_subtask(uint8_t coreid, <a class="code" href="structtusb__control__request__t.html">tusb_control_request_t</a> <span class="keyword">const</span> * p_request)</div>
+<div class="line"><a name="l00188"></a><span class="lineno">  188</span>&#160;{</div>
+<div class="line"><a name="l00189"></a><span class="lineno">  189</span>&#160;  <span class="comment">//------------- Class Specific Request -------------//</span></div>
+<div class="line"><a name="l00190"></a><span class="lineno">  190</span>&#160;  <span class="keywordflow">if</span> (p_request-&gt;bmRequestType_bit.type != TUSB_REQUEST_TYPE_CLASS) <span class="keywordflow">return</span> TUSB_ERROR_DCD_CONTROL_REQUEST_NOT_SUPPORT;</div>
+<div class="line"><a name="l00191"></a><span class="lineno">  191</span>&#160;</div>
+<div class="line"><a name="l00192"></a><span class="lineno">  192</span>&#160;  <span class="keywordflow">switch</span>(p_request-&gt;bRequest)</div>
+<div class="line"><a name="l00193"></a><span class="lineno">  193</span>&#160;  {</div>
+<div class="line"><a name="l00194"></a><span class="lineno">  194</span>&#160;    <span class="keywordflow">case</span> CDC_REQUEST_GET_LINE_CODING:</div>
+<div class="line"><a name="l00195"></a><span class="lineno">  195</span>&#160;      dcd_pipe_control_xfer(coreid, (tusb_direction_t) p_request-&gt;bmRequestType_bit.direction,</div>
+<div class="line"><a name="l00196"></a><span class="lineno">  196</span>&#160;                            (uint8_t*) &amp;cdcd_line_coding[coreid], min16_of(<span class="keyword">sizeof</span>(<a class="code" href="structcdc__line__coding__t.html">cdc_line_coding_t</a>), p_request-&gt;wLength), <span class="keyword">false</span> );</div>
+<div class="line"><a name="l00197"></a><span class="lineno">  197</span>&#160;    <span class="keywordflow">break</span>;</div>
+<div class="line"><a name="l00198"></a><span class="lineno">  198</span>&#160;</div>
+<div class="line"><a name="l00199"></a><span class="lineno">  199</span>&#160;    <span class="keywordflow">case</span> CDC_REQUEST_SET_LINE_CODING:</div>
+<div class="line"><a name="l00200"></a><span class="lineno">  200</span>&#160;      dcd_pipe_control_xfer(coreid, (tusb_direction_t) p_request-&gt;bmRequestType_bit.direction,</div>
+<div class="line"><a name="l00201"></a><span class="lineno">  201</span>&#160;                            (uint8_t*) &amp;cdcd_line_coding[coreid], min16_of(<span class="keyword">sizeof</span>(<a class="code" href="structcdc__line__coding__t.html">cdc_line_coding_t</a>), p_request-&gt;wLength), <span class="keyword">false</span> );</div>
+<div class="line"><a name="l00202"></a><span class="lineno">  202</span>&#160;      <span class="comment">// TODO notify application on xfer completea</span></div>
+<div class="line"><a name="l00203"></a><span class="lineno">  203</span>&#160;    <span class="keywordflow">break</span>;</div>
+<div class="line"><a name="l00204"></a><span class="lineno">  204</span>&#160;</div>
+<div class="line"><a name="l00205"></a><span class="lineno">  205</span>&#160;    <span class="keywordflow">case</span> CDC_REQUEST_SET_CONTROL_LINE_STATE: <span class="comment">// TODO extract DTE present</span></div>
+<div class="line"><a name="l00206"></a><span class="lineno">  206</span>&#160;    <span class="keywordflow">break</span>;</div>
+<div class="line"><a name="l00207"></a><span class="lineno">  207</span>&#160;</div>
+<div class="line"><a name="l00208"></a><span class="lineno">  208</span>&#160;</div>
+<div class="line"><a name="l00209"></a><span class="lineno">  209</span>&#160;    <span class="keywordflow">default</span>: <span class="keywordflow">return</span> TUSB_ERROR_DCD_CONTROL_REQUEST_NOT_SUPPORT;</div>
+<div class="line"><a name="l00210"></a><span class="lineno">  210</span>&#160;  }</div>
+<div class="line"><a name="l00211"></a><span class="lineno">  211</span>&#160;</div>
+<div class="line"><a name="l00212"></a><span class="lineno">  212</span>&#160;  <span class="keywordflow">return</span> TUSB_ERROR_NONE;</div>
+<div class="line"><a name="l00213"></a><span class="lineno">  213</span>&#160;}</div>
+<div class="line"><a name="l00214"></a><span class="lineno">  214</span>&#160;</div>
+<div class="line"><a name="l00215"></a><span class="lineno">  215</span>&#160;<a class="code" href="group___group___error.html#ga225612897c510054ef4026586562f716">tusb_error_t</a> cdcd_xfer_cb(<a class="code" href="structendpoint__handle__t.html">endpoint_handle_t</a> edpt_hdl, tusb_event_t event, uint32_t xferred_bytes)</div>
+<div class="line"><a name="l00216"></a><span class="lineno">  216</span>&#160;{</div>
+<div class="line"><a name="l00217"></a><span class="lineno">  217</span>&#160;  cdcd_data_t <span class="keyword">const</span> * p_cdc = &amp;cdcd_data[edpt_hdl.coreid];</div>
+<div class="line"><a name="l00218"></a><span class="lineno">  218</span>&#160;</div>
+<div class="line"><a name="l00219"></a><span class="lineno">  219</span>&#160;  <span class="keywordflow">for</span>(<a class="code" href="group___class_driver___c_d_c___common.html#ga8664e955870c947f08f6601901243b6f">cdc_pipeid_t</a> pipeid=<a class="code" href="group___class_driver___c_d_c___common.html#gga8664e955870c947f08f6601901243b6facfc9a1a0edff873a6bc0d44e7377683f">CDC_PIPE_NOTIFICATION</a>; pipeid &lt; <a class="code" href="group___class_driver___c_d_c___common.html#gga8664e955870c947f08f6601901243b6fa839413d02f9e60162138cff14a59da2e">CDC_PIPE_ERROR</a>; pipeid++ )</div>
+<div class="line"><a name="l00220"></a><span class="lineno">  220</span>&#160;  {</div>
+<div class="line"><a name="l00221"></a><span class="lineno">  221</span>&#160;    <span class="keywordflow">if</span> ( endpointhandle_is_equal(edpt_hdl, p_cdc-&gt;edpt_hdl[pipeid]) )</div>
+<div class="line"><a name="l00222"></a><span class="lineno">  222</span>&#160;    {</div>
+<div class="line"><a name="l00223"></a><span class="lineno">  223</span>&#160;      <a class="code" href="group___c_d_c___serial___device.html#ga249badeb2eaf6b6f12d17a6c6f91bd5f">tusbd_cdc_xfer_cb</a>(edpt_hdl.coreid, event, pipeid, xferred_bytes);</div>
+<div class="line"><a name="l00224"></a><span class="lineno">  224</span>&#160;      <span class="keywordflow">break</span>;</div>
+<div class="line"><a name="l00225"></a><span class="lineno">  225</span>&#160;    }</div>
+<div class="line"><a name="l00226"></a><span class="lineno">  226</span>&#160;  }</div>
+<div class="line"><a name="l00227"></a><span class="lineno">  227</span>&#160;</div>
+<div class="line"><a name="l00228"></a><span class="lineno">  228</span>&#160;  <span class="keywordflow">return</span> TUSB_ERROR_NONE;</div>
+<div class="line"><a name="l00229"></a><span class="lineno">  229</span>&#160;}</div>
+<div class="line"><a name="l00230"></a><span class="lineno">  230</span>&#160;</div>
+<div class="line"><a name="l00231"></a><span class="lineno">  231</span>&#160;<span class="preprocessor">#endif</span></div>
 <div class="ttc" id="structtusb__descriptor__interface__t_html"><div class="ttname"><a href="structtusb__descriptor__interface__t.html">tusb_descriptor_interface_t</a></div><div class="ttdoc">USB Standard Interface Descriptor (section 9.6.1 table 9-12) </div><div class="ttdef"><b>Definition:</b> <a href="std__descriptors_8h_source.html#l00090">std_descriptors.h:90</a></div></div>
 <div class="ttc" id="group___class_driver___c_d_c___common_html_gga48d58906ad33c9e53b2f7d6306ebced2a53661271012c020a3d2373044f0c319a"><div class="ttname"><a href="group___class_driver___c_d_c___common.html#gga48d58906ad33c9e53b2f7d6306ebced2a53661271012c020a3d2373044f0c319a">CDC_COMM_SUBCLASS_ABSTRACT_CONTROL_MODEL</a></div><div class="ttdoc">Abstract Control Model [USBPSTN1.2]. </div><div class="ttdef"><b>Definition:</b> <a href="cdc_8h_source.html#l00071">cdc.h:71</a></div></div>
 <div class="ttc" id="structtusb__control__request__t_html"><div class="ttname"><a href="structtusb__control__request__t.html">tusb_control_request_t</a></div><div class="ttdef"><b>Definition:</b> <a href="std__request_8h_source.html#l00049">std_request.h:49</a></div></div>
@@ -308,11 +314,13 @@ $(document).ready(function(){initNavTree('cdc__device_8c_source.html','');});
 <div class="ttc" id="structcdc__line__coding__t_html"><div class="ttname"><a href="structcdc__line__coding__t.html">cdc_line_coding_t</a></div><div class="ttdef"><b>Definition:</b> <a href="cdc_8h_source.html#l00370">cdc.h:370</a></div></div>
 <div class="ttc" id="cdc__device_8h_html"><div class="ttname"><a href="cdc__device_8h.html">cdc_device.h</a></div></div>
 <div class="ttc" id="group___class_driver___c_d_c___common_html_gga8925914b195491f5369642d68482ba8da3257a6e2c00e14e46fbd83026b9cb73b"><div class="ttname"><a href="group___class_driver___c_d_c___common.html#gga8925914b195491f5369642d68482ba8da3257a6e2c00e14e46fbd83026b9cb73b">CDC_COMM_PROTOCOL_ATCOMMAND</a></div><div class="ttdoc">AT Commands: V.250 etc. </div><div class="ttdef"><b>Definition:</b> <a href="cdc_8h_source.html#l00086">cdc.h:86</a></div></div>
+<div class="ttc" id="group___c_d_c___serial___device_html_gaf5183574b1a017e4a3057e7ca3cf57bf"><div class="ttname"><a href="group___c_d_c___serial___device.html#gaf5183574b1a017e4a3057e7ca3cf57bf">tusbd_cdc_mounted_cb</a></div><div class="ttdeci">void tusbd_cdc_mounted_cb(uint8_t coreid)</div><div class="ttdoc">Callback function that will be invoked when this interface is mounted (configured) by USB host...</div></div>
 <div class="ttc" id="group___class_driver___c_d_c___common_html_gga8664e955870c947f08f6601901243b6facfc9a1a0edff873a6bc0d44e7377683f"><div class="ttname"><a href="group___class_driver___c_d_c___common.html#gga8664e955870c947f08f6601901243b6facfc9a1a0edff873a6bc0d44e7377683f">CDC_PIPE_NOTIFICATION</a></div><div class="ttdoc">Notification pipe. </div><div class="ttdef"><b>Definition:</b> <a href="cdc_8h_source.html#l00059">cdc.h:59</a></div></div>
 <div class="ttc" id="group___c_d_c___serial___device_html_ga328ecd1975bbaf1d28196afccc76241f"><div class="ttname"><a href="group___c_d_c___serial___device.html#ga328ecd1975bbaf1d28196afccc76241f">tusbd_cdc_is_busy</a></div><div class="ttdeci">bool tusbd_cdc_is_busy(uint8_t coreid, cdc_pipeid_t pipeid) ATTR_PURE ATTR_WARN_UNUSED_RESULT</div><div class="ttdoc">Check if the interface is currently busy or not. </div></div>
 <div class="ttc" id="group___class_driver___c_d_c___common_html_gga8664e955870c947f08f6601901243b6fa65c6ea721ead66bcb523223790461f91"><div class="ttname"><a href="group___class_driver___c_d_c___common.html#gga8664e955870c947f08f6601901243b6fa65c6ea721ead66bcb523223790461f91">CDC_PIPE_DATA_IN</a></div><div class="ttdoc">Data in pipe. </div><div class="ttdef"><b>Definition:</b> <a href="cdc_8h_source.html#l00060">cdc.h:60</a></div></div>
 <div class="ttc" id="structtusb__descriptor__endpoint__t_html_a0d80d36c01bf6552c8bf985e936cd23a"><div class="ttname"><a href="structtusb__descriptor__endpoint__t.html#a0d80d36c01bf6552c8bf985e936cd23a">tusb_descriptor_endpoint_t::bmAttributes</a></div><div class="ttdeci">struct tusb_descriptor_endpoint_t::@8 bmAttributes</div><div class="ttdoc">This field describes the endpoint&#39;s attributes when it is configured using the bConfigurationValue.   Bits 1..0: Transfer Type  - 00 = Control  - 01 = Isochronous  - 10 = Bulk  - 11 = Interrupt   If not an isochronous endpoint, bits 5..2 are reserved and must be set to zero. If isochronous, they are defined as follows:   Bits 3..2: Synchronization Type  - 00 = No Synchronization  - 01 = Asynchronous  - 10 = Adaptive  - 11 = Synchronous   Bits 5..4: Usage Type  - 00 = Data endpoint  - 01 = Feedback endpoint  - 10 = Implicit feedback Data endpoint  - 11 = Reserved   Refer to Chapter 5 of USB 2.0 specification for more information.   All other bits are reserved and must be reset to zero. Reserved bits must be ignored by the host. </div></div>
 <div class="ttc" id="group__group__configuration_html_ga977f8e429c64d2ea49ea42b5dac8a88c"><div class="ttname"><a href="group__group__configuration.html#ga977f8e429c64d2ea49ea42b5dac8a88c">TUSB_CFG_ATTR_USBRAM</a></div><div class="ttdeci">#define TUSB_CFG_ATTR_USBRAM</div><div class="ttdef"><b>Definition:</b> <a href="configuration_8txt_source.html#l00019">configuration.txt:19</a></div></div>
+<div class="ttc" id="group___c_d_c___serial___device_html_gaf18aa37f5e7476bab909fecb151db16e"><div class="ttname"><a href="group___c_d_c___serial___device.html#gaf18aa37f5e7476bab909fecb151db16e">tusbd_cdc_unmounted_cb</a></div><div class="ttdeci">void tusbd_cdc_unmounted_cb(uint8_t coreid)</div><div class="ttdoc">Callback function that will be invoked when this interface is unmounted (bus reset/unplugged) ...</div></div>
 <div class="ttc" id="group___class_driver___c_d_c___common_html_gga8925914b195491f5369642d68482ba8dadcc8abdb42b9b29d0213634b918d5c01"><div class="ttname"><a href="group___class_driver___c_d_c___common.html#gga8925914b195491f5369642d68482ba8dadcc8abdb42b9b29d0213634b918d5c01">CDC_COMM_PROTOCOL_ATCOMMAND_CDMA</a></div><div class="ttdoc">AT Commands defined by TIA for CDMA. </div><div class="ttdef"><b>Definition:</b> <a href="cdc_8h_source.html#l00091">cdc.h:91</a></div></div>
 <div class="ttc" id="group___group___common_h_html_ga3fa8931c33cf5912fc50105ba767218b"><div class="ttname"><a href="group___group___common_h.html#ga3fa8931c33cf5912fc50105ba767218b">is_in_range</a></div><div class="ttdeci">static bool is_in_range(uint32_t lower, uint32_t value, uint32_t upper) ATTR_ALWAYS_INLINE ATTR_CONST</div><div class="ttdoc">inclusive range checking </div><div class="ttdef"><b>Definition:</b> <a href="common_8h_source.html#l00236">common.h:236</a></div></div>
 <div class="ttc" id="structtusb__descriptor__endpoint__t_html_a67d7027b9eb9ed268d28e84fbc675707"><div class="ttname"><a href="structtusb__descriptor__endpoint__t.html#a67d7027b9eb9ed268d28e84fbc675707">tusb_descriptor_endpoint_t::bDescriptorType</a></div><div class="ttdeci">uint8_t bDescriptorType</div><div class="ttdoc">ENDPOINT Descriptor Type. </div><div class="ttdef"><b>Definition:</b> <a href="std__descriptors_8h_source.html#l00106">std_descriptors.h:106</a></div></div>
@@ -341,7 +349,7 @@ $(document).ready(function(){initNavTree('cdc__device_8c_source.html','');});
 <div id="nav-path" class="navpath"><!-- id is needed for treeview function! -->
   <ul>
     <li class="navelem"><a class="el" href="dir_f44c0f1c8d3a85cc1de1e7f4648a56e6.html">tinyusb</a></li><li class="navelem"><a class="el" href="dir_c0cc4bd312f8dff81e67f48a71e5871f.html">class</a></li><li class="navelem"><a class="el" href="cdc__device_8c.html">cdc_device.c</a></li>
-    <li class="footer">Generated on Thu Mar 27 2014 18:31:56 for tinyusb by
+    <li class="footer">Generated on Mon Mar 31 2014 15:49:01 for tinyusb by
     <a href="http://www.doxygen.org/index.html">
     <img class="footer" src="doxygen.png" alt="doxygen"/></a> 1.8.6 </li>
   </ul>

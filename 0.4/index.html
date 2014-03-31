@@ -1,3 +1,4 @@
+<!-- HTML header for doxygen 1.8.6-->
 <!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
 <html xmlns="http://www.w3.org/1999/xhtml">
 <head>
@@ -25,13 +26,16 @@
 <body>
 <div id="top"><!-- do not remove this div, it is closed by doxygen! -->
 <div id="titlearea">
-<table cellspacing="0" cellpadding="0">
+<table width="100%" cellspacing="0" cellpadding="0">
  <tbody>
  <tr style="height: 56px;">
   <td style="padding-left: 0.5em;">
    <div id="projectname">tinyusb
-   &#160;<span id="projectnumber">0.4</span>
+   &#160;<span id="projectnumber">0.4</span> 
    </div>
+  </td>
+  <td align="right">
+    <a href="https://pledgie.com/campaigns/24694"><img border="0" src="https://pledgie.com/campaigns/24694.png?skin_name=chrome" alt="Click here to lend your support to tinyusb donation and make a donation at pledgie.com"></a>
   </td>
  </tr>
  </tbody>
@@ -101,13 +105,30 @@ $(document).ready(function(){initNavTree('index.html','');});
 <div class="title">tinyusb Documentation</div>  </div>
 </div><!--header-->
 <div class="contents">
-<div class="textblock"><h2>What Is tinyusb</h2>
-<p>tinyusb is an open-source (BSD-licensed) USB Host/Device/OTG stack for embedded micro-controller. It is developed using <a class="el" href="tests_2readme_8md_source.html">Test-Driven Development (TDD)</a> approach to eliminate bugs as soon as possible.</p>
+<div class="textblock"><p><b>Table of Contents</b></p>
+<ul>
+<li><a href="#features">Features</a><ul>
+<li><a href="#host">Host</a></li>
+<li><a href="#device">Device</a></li>
+<li><a href="#rtos">RTOS</a></li>
+<li><a href="#supported-mcus">Supported MCUs</a></li>
+<li><a href="#toolchains">Toolchains</a></li>
+</ul>
+</li>
+<li><a href="#getting-started">Getting Started</a></li>
+<li><a href="#license">License</a></li>
+<li><a href="#how-can-i-help">How Can I Help</a><ul>
+<li><a href="#donate-time">Donate Time</a></li>
+<li><a href="#donate-money">Donate Money</a></li>
+</ul>
+</li>
+</ul>
+<p>tinyusb is an open-source (BSD-licensed) USB Host/Device/OTG stack for embedded micro-controllers, especially ARM MCUs. It is designed to be user-friendly in term of configuration and out-of-the-box running experience.</p>
+<p>In addition to running without an RTOS, tinyusb is an OS-awared stack that can run across RTOS vendors. For the purpose of eliminating bugs as soon as possible, the stack is developed using <a class="el" href="tests_2readme_8md_source.html">Test-Driven Development (TDD)</a> approach</p>
 <div class="image">
 <img src="http://docs.tinyusb.org/images/tinyusb_overview.png"  alt="tinyusb diagram"/>
 </div>
 <h2>Features</h2>
-<p>designed to run out-of-the-box and easy to configure.</p>
 <h3>Host</h3>
 <ul>
 <li>HID Mouse</li>
@@ -129,15 +150,14 @@ $(document).ready(function(){initNavTree('index.html','');});
 <li>Mass Storage Class (MSC)</li>
 </ul>
 <h3>RTOS</h3>
-<p>tinyusb is designed to be OS-ware and run across RTOS vendors, thanks to its OS Abstraction Layer (OSAL). However, it can also run without an RTOS (OSAL will be expanded to be a state machine in this case). Currently the following OS can be run with tinyusb (out of the box).</p>
+<p>Currently the following OS are supported with tinyusb out of the box with a simple change of TUSB_CFG_OS macro.</p>
 <ul>
 <li><b>None OS</b></li>
 <li><b>FreeRTOS</b></li>
 <li><b>CMSIS RTX</b></li>
 </ul>
-<h2>Supported Platforms</h2>
+<h3>Supported MCUs</h3>
 <p>The stack supports the following MCUs</p>
-<h3>NXP</h3>
 <ul>
 <li>LPC11uxx</li>
 <li>LPC13uxx (12 bit ADC)</li>
@@ -154,20 +174,23 @@ $(document).ready(function(){initNavTree('index.html','');});
 </ul>
 <h2>Getting Started</h2>
 <p><a class="el" href="get__started_8md_source.html">Here is the details for getting started</a> with the stack</p>
-<h2>Known Issues</h2>
-<ul>
-<li>LPC11uxx &amp; LPC13uxx cannot able to STALL Control OUT endpoint !!! &ndash;&gt; unsupported with data out request may cause host stuck with control transfer forever. (reproduce: enable keyboard + mouse, return error in set report of hid_device)</li>
-</ul>
-<h2>How Can I Help</h2>
-<p>If you find my little USB stack is useful, please take some time to file any issues that you encountered. It is not necessary to be a software bug, it can be a question, request, suggestion etc. We can consider each github's issue as a forum's topic. Alternatively, you can buy me a cup of coffee if you happen to be in Hochiminh city.</p>
 <h2>License</h2>
-<p>BSD license for most of the code base, but each file is individually licensed especially those in /vendor folder. Please make sure you understand all the license term for files you use in your project. <a class="el" href="license_8md_source.html">Full license here</a> </p>
+<p>BSD license for most of the code base, but each file is individually licensed especially those in /vendor folder. Please make sure you understand all the license term for files you use in your project. <a class="el" href="license_8md_source.html">Full license here</a></p>
+<h2>How Can I Help</h2>
+<p>If you find my little USB stack is useful and want to give something back</p>
+<h3>Donate Time</h3>
+<p>You can contribute your time by helping with programming, testing and filing bug reports, improving documentation. Or simply by using tinyusb, giving me some feedback on how to improve it and telling others about it.</p>
+<h3>Donate Money</h3>
+<p>If you don't have time but still want to help, then please consider making a financial donation. This will help to pay the (mostly coffee) bills and motivate me to continue working on tinyusb. You can do so using the donation button, or contact me for other payment methods.</p>
+<p>[//]: # ( )
+<a href="https://pledgie.com/campaigns/24694"><img alt="Click here to lend your support to tinyusb donation and make a donation at pledgie.com" src="https://pledgie.com/campaigns/24694.png?skin_name=chrome" border="0"></a>
+[//]: # () </p>
 </div></div><!-- contents -->
 </div><!-- doc-content -->
 <!-- start footer part -->
 <div id="nav-path" class="navpath"><!-- id is needed for treeview function! -->
   <ul>
-    <li class="footer">Generated on Thu Mar 27 2014 18:32:03 for tinyusb by
+    <li class="footer">Generated on Mon Mar 31 2014 15:49:08 for tinyusb by
     <a href="http://www.doxygen.org/index.html">
     <img class="footer" src="doxygen.png" alt="doxygen"/></a> 1.8.6 </li>
   </ul>

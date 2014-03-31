@@ -1,3 +1,4 @@
+<!-- HTML header for doxygen 1.8.6-->
 <!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
 <html xmlns="http://www.w3.org/1999/xhtml">
 <head>
@@ -25,13 +26,16 @@
 <body>
 <div id="top"><!-- do not remove this div, it is closed by doxygen! -->
 <div id="titlearea">
-<table cellspacing="0" cellpadding="0">
+<table width="100%" cellspacing="0" cellpadding="0">
  <tbody>
  <tr style="height: 56px;">
   <td style="padding-left: 0.5em;">
    <div id="projectname">tinyusb
-   &#160;<span id="projectnumber">0.4</span>
+   &#160;<span id="projectnumber">0.4</span> 
    </div>
+  </td>
+  <td align="right">
+    <a href="https://pledgie.com/campaigns/24694"><img border="0" src="https://pledgie.com/campaigns/24694.png?skin_name=chrome" alt="Click here to lend your support to tinyusb donation and make a donation at pledgie.com"></a>
   </td>
  </tr>
  </tbody>
@@ -128,45 +132,47 @@ $(document).ready(function(){initNavTree('msc__device_8h_source.html','');});
 <div class="line"><a name="l00059"></a><span class="lineno">   59</span>&#160;<span class="comment">//--------------------------------------------------------------------+</span></div>
 <div class="line"><a name="l00060"></a><span class="lineno">   60</span>&#160;<span class="comment">// APPLICATION CALLBACK API</span></div>
 <div class="line"><a name="l00061"></a><span class="lineno">   61</span>&#160;<span class="comment">//--------------------------------------------------------------------+</span></div>
-<div class="line"><a name="l00062"></a><span class="lineno">   62</span>&#160;<span class="keywordtype">void</span> tusbd_msc_mounted_cb(uint8_t coreid);</div>
-<div class="line"><a name="l00063"></a><span class="lineno">   63</span>&#160;<span class="keywordtype">void</span> tusbd_msc_unmounted_cb(uint8_t coreid);</div>
-<div class="line"><a name="l00064"></a><span class="lineno">   64</span>&#160;</div>
-<div class="line"><a name="l00065"></a><span class="lineno">   65</span>&#160;</div>
-<div class="line"><a name="l00082"></a><span class="lineno">   82</span>&#160;uint16_t <a class="code" href="group___m_s_c___device.html#gaeb64ba2734e3400a0f73f1a140584e5f">tusbd_msc_read10_cb</a> (uint8_t coreid, uint8_t lun, <span class="keywordtype">void</span>** pp_buffer, uint32_t lba, uint16_t block_count);</div>
-<div class="line"><a name="l00083"></a><span class="lineno">   83</span>&#160;</div>
-<div class="line"><a name="l00100"></a><span class="lineno">  100</span>&#160;uint16_t <a class="code" href="group___m_s_c___device.html#ga5bc4dcb7613a9cfd56ea2da35a4d7944">tusbd_msc_write10_cb</a>(uint8_t coreid, uint8_t lun, <span class="keywordtype">void</span>** pp_buffer, uint32_t lba, uint16_t block_count);</div>
-<div class="line"><a name="l00101"></a><span class="lineno">  101</span>&#160;</div>
-<div class="line"><a name="l00102"></a><span class="lineno">  102</span>&#160;<span class="comment">// p_length [in,out] allocated/maximum length, application update with actual length</span></div>
-<div class="line"><a name="l00117"></a><span class="lineno">  117</span>&#160;<span class="comment"></span><a class="code" href="group___class_driver___m_s_c___common.html#gab78ea3586ce0c7a8bb2680d7fbcca3ae">msc_csw_status_t</a> <a class="code" href="group___m_s_c___device.html#gaa5a5d2d6181e947f02e2790113b84aeb">tusbd_msc_scsi_cb</a> (uint8_t coreid, uint8_t lun, uint8_t scsi_cmd[16], <span class="keywordtype">void</span> <span class="keyword">const</span> ** pp_buffer, uint16_t* p_length);</div>
-<div class="line"><a name="l00118"></a><span class="lineno">  118</span>&#160;</div>
-<div class="line"><a name="l00122"></a><span class="lineno">  122</span>&#160;<span class="comment">//--------------------------------------------------------------------+</span></div>
-<div class="line"><a name="l00123"></a><span class="lineno">  123</span>&#160;<span class="comment">// USBD-CLASS DRIVER API</span></div>
-<div class="line"><a name="l00124"></a><span class="lineno">  124</span>&#160;<span class="comment">//--------------------------------------------------------------------+</span></div>
-<div class="line"><a name="l00125"></a><span class="lineno">  125</span>&#160;<span class="preprocessor">#ifdef _TINY_USB_SOURCE_FILE_</span></div>
-<div class="line"><a name="l00126"></a><span class="lineno">  126</span>&#160;<span class="preprocessor"></span></div>
-<div class="line"><a name="l00127"></a><span class="lineno">  127</span>&#160;<span class="keywordtype">void</span> mscd_init(<span class="keywordtype">void</span>);</div>
-<div class="line"><a name="l00128"></a><span class="lineno">  128</span>&#160;<a class="code" href="group___group___error.html#ga225612897c510054ef4026586562f716">tusb_error_t</a> mscd_open(uint8_t coreid, <a class="code" href="structtusb__descriptor__interface__t.html">tusb_descriptor_interface_t</a> <span class="keyword">const</span> * p_interface_desc, uint16_t *p_length);</div>
-<div class="line"><a name="l00129"></a><span class="lineno">  129</span>&#160;<a class="code" href="group___group___error.html#ga225612897c510054ef4026586562f716">tusb_error_t</a> mscd_control_request_subtask(uint8_t coreid, <a class="code" href="structtusb__control__request__t.html">tusb_control_request_t</a> <span class="keyword">const</span> * p_request);</div>
-<div class="line"><a name="l00130"></a><span class="lineno">  130</span>&#160;<a class="code" href="group___group___error.html#ga225612897c510054ef4026586562f716">tusb_error_t</a> mscd_xfer_cb(<a class="code" href="structendpoint__handle__t.html">endpoint_handle_t</a> edpt_hdl, tusb_event_t event, uint32_t xferred_bytes);</div>
-<div class="line"><a name="l00131"></a><span class="lineno">  131</span>&#160;<span class="keywordtype">void</span> mscd_close(uint8_t coreid);</div>
-<div class="line"><a name="l00132"></a><span class="lineno">  132</span>&#160;</div>
-<div class="line"><a name="l00133"></a><span class="lineno">  133</span>&#160;<span class="preprocessor">#endif</span></div>
+<div class="line"><a name="l00066"></a><span class="lineno">   66</span>&#160;<span class="comment"></span><span class="keywordtype">void</span> <a class="code" href="group___m_s_c___device.html#ga73fc3dfbef73f24f29481ef419eb35e5">tusbd_msc_mounted_cb</a>(uint8_t coreid);</div>
+<div class="line"><a name="l00067"></a><span class="lineno">   67</span>&#160;</div>
+<div class="line"><a name="l00072"></a><span class="lineno">   72</span>&#160;<span class="keywordtype">void</span> <a class="code" href="group___m_s_c___device.html#gab4dbb5340eeaab5cdb4c0b4b03019880">tusbd_msc_unmounted_cb</a>(uint8_t coreid);</div>
+<div class="line"><a name="l00073"></a><span class="lineno">   73</span>&#160;</div>
+<div class="line"><a name="l00090"></a><span class="lineno">   90</span>&#160;uint16_t <a class="code" href="group___m_s_c___device.html#gaeb64ba2734e3400a0f73f1a140584e5f">tusbd_msc_read10_cb</a> (uint8_t coreid, uint8_t lun, <span class="keywordtype">void</span>** pp_buffer, uint32_t lba, uint16_t block_count);</div>
+<div class="line"><a name="l00091"></a><span class="lineno">   91</span>&#160;</div>
+<div class="line"><a name="l00108"></a><span class="lineno">  108</span>&#160;uint16_t <a class="code" href="group___m_s_c___device.html#ga5bc4dcb7613a9cfd56ea2da35a4d7944">tusbd_msc_write10_cb</a>(uint8_t coreid, uint8_t lun, <span class="keywordtype">void</span>** pp_buffer, uint32_t lba, uint16_t block_count);</div>
+<div class="line"><a name="l00109"></a><span class="lineno">  109</span>&#160;</div>
+<div class="line"><a name="l00110"></a><span class="lineno">  110</span>&#160;<span class="comment">// p_length [in,out] allocated/maximum length, application update with actual length</span></div>
+<div class="line"><a name="l00125"></a><span class="lineno">  125</span>&#160;<span class="comment"></span><a class="code" href="group___class_driver___m_s_c___common.html#gab78ea3586ce0c7a8bb2680d7fbcca3ae">msc_csw_status_t</a> <a class="code" href="group___m_s_c___device.html#gaa5a5d2d6181e947f02e2790113b84aeb">tusbd_msc_scsi_cb</a> (uint8_t coreid, uint8_t lun, uint8_t scsi_cmd[16], <span class="keywordtype">void</span> <span class="keyword">const</span> ** pp_buffer, uint16_t* p_length);</div>
+<div class="line"><a name="l00126"></a><span class="lineno">  126</span>&#160;</div>
+<div class="line"><a name="l00130"></a><span class="lineno">  130</span>&#160;<span class="comment">//--------------------------------------------------------------------+</span></div>
+<div class="line"><a name="l00131"></a><span class="lineno">  131</span>&#160;<span class="comment">// USBD-CLASS DRIVER API</span></div>
+<div class="line"><a name="l00132"></a><span class="lineno">  132</span>&#160;<span class="comment">//--------------------------------------------------------------------+</span></div>
+<div class="line"><a name="l00133"></a><span class="lineno">  133</span>&#160;<span class="preprocessor">#ifdef _TINY_USB_SOURCE_FILE_</span></div>
 <div class="line"><a name="l00134"></a><span class="lineno">  134</span>&#160;<span class="preprocessor"></span></div>
-<div class="line"><a name="l00135"></a><span class="lineno">  135</span>&#160;<span class="preprocessor">#ifdef __cplusplus</span></div>
-<div class="line"><a name="l00136"></a><span class="lineno">  136</span>&#160;<span class="preprocessor"></span> }</div>
-<div class="line"><a name="l00137"></a><span class="lineno">  137</span>&#160;<span class="preprocessor">#endif</span></div>
-<div class="line"><a name="l00138"></a><span class="lineno">  138</span>&#160;<span class="preprocessor"></span></div>
-<div class="line"><a name="l00139"></a><span class="lineno">  139</span>&#160;<span class="preprocessor">#endif </span><span class="comment">/* _TUSB_MSC_DEVICE_H_ */</span><span class="preprocessor"></span></div>
-<div class="line"><a name="l00140"></a><span class="lineno">  140</span>&#160;<span class="preprocessor"></span></div>
+<div class="line"><a name="l00135"></a><span class="lineno">  135</span>&#160;<span class="keywordtype">void</span> mscd_init(<span class="keywordtype">void</span>);</div>
+<div class="line"><a name="l00136"></a><span class="lineno">  136</span>&#160;<a class="code" href="group___group___error.html#ga225612897c510054ef4026586562f716">tusb_error_t</a> mscd_open(uint8_t coreid, <a class="code" href="structtusb__descriptor__interface__t.html">tusb_descriptor_interface_t</a> <span class="keyword">const</span> * p_interface_desc, uint16_t *p_length);</div>
+<div class="line"><a name="l00137"></a><span class="lineno">  137</span>&#160;<a class="code" href="group___group___error.html#ga225612897c510054ef4026586562f716">tusb_error_t</a> mscd_control_request_subtask(uint8_t coreid, <a class="code" href="structtusb__control__request__t.html">tusb_control_request_t</a> <span class="keyword">const</span> * p_request);</div>
+<div class="line"><a name="l00138"></a><span class="lineno">  138</span>&#160;<a class="code" href="group___group___error.html#ga225612897c510054ef4026586562f716">tusb_error_t</a> mscd_xfer_cb(<a class="code" href="structendpoint__handle__t.html">endpoint_handle_t</a> edpt_hdl, tusb_event_t event, uint32_t xferred_bytes);</div>
+<div class="line"><a name="l00139"></a><span class="lineno">  139</span>&#160;<span class="keywordtype">void</span> mscd_close(uint8_t coreid);</div>
+<div class="line"><a name="l00140"></a><span class="lineno">  140</span>&#160;</div>
+<div class="line"><a name="l00141"></a><span class="lineno">  141</span>&#160;<span class="preprocessor">#endif</span></div>
+<div class="line"><a name="l00142"></a><span class="lineno">  142</span>&#160;<span class="preprocessor"></span></div>
+<div class="line"><a name="l00143"></a><span class="lineno">  143</span>&#160;<span class="preprocessor">#ifdef __cplusplus</span></div>
+<div class="line"><a name="l00144"></a><span class="lineno">  144</span>&#160;<span class="preprocessor"></span> }</div>
+<div class="line"><a name="l00145"></a><span class="lineno">  145</span>&#160;<span class="preprocessor">#endif</span></div>
+<div class="line"><a name="l00146"></a><span class="lineno">  146</span>&#160;<span class="preprocessor"></span></div>
+<div class="line"><a name="l00147"></a><span class="lineno">  147</span>&#160;<span class="preprocessor">#endif </span><span class="comment">/* _TUSB_MSC_DEVICE_H_ */</span><span class="preprocessor"></span></div>
+<div class="line"><a name="l00148"></a><span class="lineno">  148</span>&#160;<span class="preprocessor"></span></div>
 <div class="ttc" id="structtusb__descriptor__interface__t_html"><div class="ttname"><a href="structtusb__descriptor__interface__t.html">tusb_descriptor_interface_t</a></div><div class="ttdoc">USB Standard Interface Descriptor (section 9.6.1 table 9-12) </div><div class="ttdef"><b>Definition:</b> <a href="std__descriptors_8h_source.html#l00090">std_descriptors.h:90</a></div></div>
 <div class="ttc" id="group___m_s_c___device_html_gaeb64ba2734e3400a0f73f1a140584e5f"><div class="ttname"><a href="group___m_s_c___device.html#gaeb64ba2734e3400a0f73f1a140584e5f">tusbd_msc_read10_cb</a></div><div class="ttdeci">uint16_t tusbd_msc_read10_cb(uint8_t coreid, uint8_t lun, void **pp_buffer, uint32_t lba, uint16_t block_count)</div><div class="ttdoc">Callback that is invoked when tinyusb stack received SCSI_CMD_READ_10 command from host...</div></div>
 <div class="ttc" id="structtusb__control__request__t_html"><div class="ttname"><a href="structtusb__control__request__t.html">tusb_control_request_t</a></div><div class="ttdef"><b>Definition:</b> <a href="std__request_8h_source.html#l00049">std_request.h:49</a></div></div>
 <div class="ttc" id="msc_8h_html"><div class="ttname"><a href="msc_8h.html">msc.h</a></div></div>
+<div class="ttc" id="group___m_s_c___device_html_ga73fc3dfbef73f24f29481ef419eb35e5"><div class="ttname"><a href="group___m_s_c___device.html#ga73fc3dfbef73f24f29481ef419eb35e5">tusbd_msc_mounted_cb</a></div><div class="ttdeci">void tusbd_msc_mounted_cb(uint8_t coreid)</div><div class="ttdoc">Callback function that will be invoked when this interface is mounted (configured) by USB host...</div></div>
 <div class="ttc" id="structendpoint__handle__t_html"><div class="ttname"><a href="structendpoint__handle__t.html">endpoint_handle_t</a></div><div class="ttdef"><b>Definition:</b> <a href="dcd_8h_source.html#l00052">dcd.h:52</a></div></div>
 <div class="ttc" id="group___class_driver___m_s_c___common_html_gab78ea3586ce0c7a8bb2680d7fbcca3ae"><div class="ttname"><a href="group___class_driver___m_s_c___common.html#gab78ea3586ce0c7a8bb2680d7fbcca3ae">msc_csw_status_t</a></div><div class="ttdeci">msc_csw_status_t</div><div class="ttdoc">Command Block Status Values. </div><div class="ttdef"><b>Definition:</b> <a href="msc_8h_source.html#l00090">msc.h:90</a></div></div>
 <div class="ttc" id="group___group___error_html_ga225612897c510054ef4026586562f716"><div class="ttname"><a href="group___group___error.html#ga225612897c510054ef4026586562f716">tusb_error_t</a></div><div class="ttdeci">tusb_error_t</div><div class="ttdoc">Error Code returned. </div><div class="ttdef"><b>Definition:</b> <a href="tusb__errors_8h_source.html#l00100">tusb_errors.h:100</a></div></div>
 <div class="ttc" id="group___m_s_c___device_html_ga5bc4dcb7613a9cfd56ea2da35a4d7944"><div class="ttname"><a href="group___m_s_c___device.html#ga5bc4dcb7613a9cfd56ea2da35a4d7944">tusbd_msc_write10_cb</a></div><div class="ttdeci">uint16_t tusbd_msc_write10_cb(uint8_t coreid, uint8_t lun, void **pp_buffer, uint32_t lba, uint16_t block_count)</div><div class="ttdoc">Callback that is invoked when tinyusb stack received SCSI_CMD_WRITE_10 command from host...</div></div>
 <div class="ttc" id="common_8h_html"><div class="ttname"><a href="common_8h.html">common.h</a></div></div>
+<div class="ttc" id="group___m_s_c___device_html_gab4dbb5340eeaab5cdb4c0b4b03019880"><div class="ttname"><a href="group___m_s_c___device.html#gab4dbb5340eeaab5cdb4c0b4b03019880">tusbd_msc_unmounted_cb</a></div><div class="ttdeci">void tusbd_msc_unmounted_cb(uint8_t coreid)</div><div class="ttdoc">Callback function that will be invoked when this interface is unmounted (bus reset/unplugged) ...</div></div>
 <div class="ttc" id="group___m_s_c___device_html_gaa5a5d2d6181e947f02e2790113b84aeb"><div class="ttname"><a href="group___m_s_c___device.html#gaa5a5d2d6181e947f02e2790113b84aeb">tusbd_msc_scsi_cb</a></div><div class="ttdeci">msc_csw_status_t tusbd_msc_scsi_cb(uint8_t coreid, uint8_t lun, uint8_t scsi_cmd[16], void const **pp_buffer, uint16_t *p_length)</div><div class="ttdoc">Callback that is invoked when tinyusb stack received an SCSI command other than SCSI_CMD_WRITE_10 and...</div></div>
 <div class="ttc" id="usbd_8h_html"><div class="ttname"><a href="usbd_8h.html">usbd.h</a></div></div>
 </div><!-- fragment --></div><!-- contents -->
@@ -175,7 +181,7 @@ $(document).ready(function(){initNavTree('msc__device_8h_source.html','');});
 <div id="nav-path" class="navpath"><!-- id is needed for treeview function! -->
   <ul>
     <li class="navelem"><a class="el" href="dir_f44c0f1c8d3a85cc1de1e7f4648a56e6.html">tinyusb</a></li><li class="navelem"><a class="el" href="dir_c0cc4bd312f8dff81e67f48a71e5871f.html">class</a></li><li class="navelem"><a class="el" href="msc__device_8h.html">msc_device.h</a></li>
-    <li class="footer">Generated on Thu Mar 27 2014 18:31:56 for tinyusb by
+    <li class="footer">Generated on Mon Mar 31 2014 15:49:01 for tinyusb by
     <a href="http://www.doxygen.org/index.html">
     <img class="footer" src="doxygen.png" alt="doxygen"/></a> 1.8.6 </li>
   </ul>
