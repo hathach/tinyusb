@@ -167,7 +167,8 @@
           <state>CORE_M4</state>
           <state>TUSB_CFG_MCU=MCU_LPC43XX</state>
           <state>BOARD=BOARD_EA4357</state>
-          <state>TUSB_CFG_OS=TUSB_OS_NONE</state>
+          <state>TUSB_CFG_OS=TUSB_OS_CMSIS_RTX</state>
+          <state>TUSB_CFG_OS_TASK_PRIO=osPriorityRealtime</state>
         </option>
         <option>
           <name>CCPreprocFile</name>
@@ -300,6 +301,7 @@
           <state>$PROJ_DIR$\..\..\..\mcu\lpc43xx\CMSIS_LPC43xx_DriverLib\inc</state>
           <state>$PROJ_DIR$\..\..\..\boards</state>
           <state>$PROJ_DIR$\..\..\..\tinyusb</state>
+          <state>$PROJ_DIR$\..\..\..\vendor\cmsis_rtos_rtx\INC</state>
         </option>
         <option>
           <name>CCStdIncCheck</name>
@@ -1088,7 +1090,8 @@
           <name>CCDefines</name>
           <state>TUSB_CFG_MCU=MCU_LPC175X_6X</state>
           <state>BOARD=BOARD_LPCXPRESSO1769</state>
-          <state>TUSB_CFG_OS=TUSB_OS_NONE</state>
+          <state>TUSB_CFG_OS=TUSB_OS_CMSIS_RTX</state>
+          <state>TUSB_CFG_OS_TASK_PRIO=osPriorityRealtime</state>
         </option>
         <option>
           <name>CCPreprocFile</name>
@@ -1222,6 +1225,7 @@
           <state>$PROJ_DIR$\..\..\..\mcu\lpc175x_6x\LPC17xx_DriverLib\include</state>
           <state>$PROJ_DIR$\..\..\..\boards</state>
           <state>$PROJ_DIR$\..\..\..\tinyusb</state>
+          <state>$PROJ_DIR$\..\..\..\vendor\cmsis_rtos_rtx\INC</state>
         </option>
         <option>
           <name>CCStdIncCheck</name>
@@ -2011,7 +2015,8 @@
           <state>CORE_M4</state>
           <state>TUSB_CFG_MCU=MCU_LPC43XX</state>
           <state>BOARD=BOARD_NGX4330</state>
-          <state>TUSB_CFG_OS=TUSB_OS_NONE</state>
+          <state>TUSB_CFG_OS=TUSB_OS_CMSIS_RTX</state>
+          <state>TUSB_CFG_OS_TASK_PRIO=osPriorityRealtime</state>
         </option>
         <option>
           <name>CCPreprocFile</name>
@@ -2144,6 +2149,7 @@
           <state>$PROJ_DIR$\..\..\..\mcu\lpc43xx\CMSIS_LPC43xx_DriverLib\inc</state>
           <state>$PROJ_DIR$\..\..\..\boards</state>
           <state>$PROJ_DIR$\..\..\..\tinyusb</state>
+          <state>$PROJ_DIR$\..\..\..\vendor\cmsis_rtos_rtx\INC</state>
         </option>
         <option>
           <name>CCStdIncCheck</name>
@@ -2932,7 +2938,8 @@
           <name>CCDefines</name>
           <state>TUSB_CFG_MCU=MCU_LPC11UXX</state>
           <state>BOARD=BOARD_RF1GHZNODE</state>
-          <state>TUSB_CFG_OS=TUSB_OS_NONE</state>
+          <state>TUSB_CFG_OS=TUSB_OS_CMSIS_RTX</state>
+          <state>TUSB_CFG_OS_TASK_PRIO=osPriorityRealtime</state>
         </option>
         <option>
           <name>CCPreprocFile</name>
@@ -3066,6 +3073,7 @@
           <state>$PROJ_DIR$\..\..\..\mcu\lpc11uxx\LPC11Uxx_DriverLib</state>
           <state>$PROJ_DIR$\..\..\..\boards</state>
           <state>$PROJ_DIR$\..\..\..\tinyusb</state>
+          <state>$PROJ_DIR$\..\..\..\vendor\cmsis_rtos_rtx\INC</state>
         </option>
         <option>
           <name>CCStdIncCheck</name>
@@ -3854,7 +3862,8 @@
           <name>CCDefines</name>
           <state>TUSB_CFG_MCU=MCU_LPC13UXX</state>
           <state>BOARD=BOARD_LPCXPRESSO1347</state>
-          <state>TUSB_CFG_OS=TUSB_OS_NONE</state>
+          <state>TUSB_CFG_OS=TUSB_OS_CMSIS_RTX</state>
+          <state>TUSB_CFG_OS_TASK_PRIO=osPriorityRealtime</state>
         </option>
         <option>
           <name>CCPreprocFile</name>
@@ -3988,6 +3997,7 @@
           <state>$PROJ_DIR$\..\..\..\mcu\lpc13uxx\LPC13Uxx_DriverLib\inc</state>
           <state>$PROJ_DIR$\..\..\..\boards</state>
           <state>$PROJ_DIR$\..\..\..\tinyusb</state>
+          <state>$PROJ_DIR$\..\..\..\vendor\cmsis_rtos_rtx\INC</state>
         </option>
         <option>
           <name>CCStdIncCheck</name>
@@ -4776,7 +4786,8 @@
           <name>CCDefines</name>
           <state>TUSB_CFG_MCU=MCU_LPC11UXX</state>
           <state>BOARD=BOARD_LPCXPRESSO11U14</state>
-          <state>TUSB_CFG_OS=TUSB_OS_NONE</state>
+          <state>TUSB_CFG_OS=TUSB_OS_CMSIS_RTX</state>
+          <state>TUSB_CFG_OS_TASK_PRIO=osPriorityRealtime</state>
         </option>
         <option>
           <name>CCPreprocFile</name>
@@ -4910,6 +4921,7 @@
           <state>$PROJ_DIR$\..\..\..\mcu\lpc11uxx\LPC11Uxx_DriverLib</state>
           <state>$PROJ_DIR$\..\..\..\boards</state>
           <state>$PROJ_DIR$\..\..\..\tinyusb</state>
+          <state>$PROJ_DIR$\..\..\..\vendor\cmsis_rtos_rtx\INC</state>
         </option>
         <option>
           <name>CCStdIncCheck</name>
@@ -5592,6 +5604,26 @@
     </file>
     <file>
       <name>$PROJ_DIR$\..\..\..\boards\printf_retarget.c</name>
+    </file>
+  </group>
+  <group>
+    <name>cmsis-rtx</name>
+    <file>
+      <name>$PROJ_DIR$\..\..\..\vendor\cmsis_rtos_rtx\LIB\IAR\RTX_CM3.a</name>
+      <excluded>
+        <configuration>Board EA4357</configuration>
+        <configuration>Board NGX4330</configuration>
+      </excluded>
+    </file>
+    <file>
+      <name>$PROJ_DIR$\..\..\..\vendor\cmsis_rtos_rtx\LIB\IAR\RTX_CM4.a</name>
+      <excluded>
+        <configuration>Board LPCXpresso1769</configuration>
+        <configuration>Board LPCXpresso1347</configuration>
+      </excluded>
+    </file>
+    <file>
+      <name>$PROJ_DIR$\..\..\..\vendor\cmsis_rtos_rtx\RTX_Conf_CM.c</name>
     </file>
   </group>
   <group>
