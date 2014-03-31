@@ -502,11 +502,6 @@
               <FilePath>..\..\..\tinyusb\class\cdc_host.c</FilePath>
             </File>
             <File>
-              <FileName>cdc_rndis_host.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>..\..\..\tinyusb\class\cdc_rndis_host.c</FilePath>
-            </File>
-            <File>
               <FileName>hid_host.c</FileName>
               <FileType>1</FileType>
               <FilePath>..\..\..\tinyusb\class\hid_host.c</FilePath>
@@ -1412,11 +1407,6 @@
               <FileName>cdc_host.c</FileName>
               <FileType>1</FileType>
               <FilePath>..\..\..\tinyusb\class\cdc_host.c</FilePath>
-            </File>
-            <File>
-              <FileName>cdc_rndis_host.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>..\..\..\tinyusb\class\cdc_rndis_host.c</FilePath>
             </File>
             <File>
               <FileName>hid_host.c</FileName>
@@ -2366,11 +2356,6 @@
               <FilePath>..\..\..\tinyusb\class\cdc_host.c</FilePath>
             </File>
             <File>
-              <FileName>cdc_rndis_host.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>..\..\..\tinyusb\class\cdc_rndis_host.c</FilePath>
-            </File>
-            <File>
               <FileName>hid_host.c</FileName>
               <FileType>1</FileType>
               <FilePath>..\..\..\tinyusb\class\hid_host.c</FilePath>
@@ -3276,11 +3261,6 @@
               <FileName>cdc_host.c</FileName>
               <FileType>1</FileType>
               <FilePath>..\..\..\tinyusb\class\cdc_host.c</FilePath>
-            </File>
-            <File>
-              <FileName>cdc_rndis_host.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>..\..\..\tinyusb\class\cdc_rndis_host.c</FilePath>
             </File>
             <File>
               <FileName>hid_host.c</FileName>
@@ -4190,11 +4170,6 @@
               <FilePath>..\..\..\tinyusb\class\cdc_host.c</FilePath>
             </File>
             <File>
-              <FileName>cdc_rndis_host.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>..\..\..\tinyusb\class\cdc_rndis_host.c</FilePath>
-            </File>
-            <File>
               <FileName>hid_host.c</FileName>
               <FileType>1</FileType>
               <FilePath>..\..\..\tinyusb\class\hid_host.c</FilePath>
@@ -4792,7 +4767,7 @@
             <CpuDllArguments></CpuDllArguments>
             <PeripheralDll></PeripheralDll>
             <PeripheralDllArguments></PeripheralDllArguments>
-            <InitializationFile>..\..\..\mcu\lpc43xx\keil_ram.ini</InitializationFile>
+            <InitializationFile>..\..\..\mcu\lpc43xx\keil\keil_ram.ini</InitializationFile>
             <Driver>Segger\JL2CM3.dll</Driver>
           </TargetDlls>
         </DebugOption>
@@ -5140,11 +5115,6 @@
               <FileName>cdc_host.c</FileName>
               <FileType>1</FileType>
               <FilePath>..\..\..\tinyusb\class\cdc_host.c</FilePath>
-            </File>
-            <File>
-              <FileName>cdc_rndis_host.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>..\..\..\tinyusb\class\cdc_rndis_host.c</FilePath>
             </File>
             <File>
               <FileName>hid_host.c</FileName>
@@ -6052,11 +6022,6 @@
               <FileName>cdc_host.c</FileName>
               <FileType>1</FileType>
               <FilePath>..\..\..\tinyusb\class\cdc_host.c</FilePath>
-            </File>
-            <File>
-              <FileName>cdc_rndis_host.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>..\..\..\tinyusb\class\cdc_rndis_host.c</FilePath>
             </File>
             <File>
               <FileName>hid_host.c</FileName>

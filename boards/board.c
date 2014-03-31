@@ -63,7 +63,7 @@ static uint32_t led_blink_interval_ms = 1000; // default is 1 second
 
 void led_blinking_init(void)
 {
-  (void) osal_task_create( OSAL_TASK_REF(led_blinking_task) );
+  ASSERT(TUSB_ERROR_NONE == osal_task_create( OSAL_TASK_REF(led_blinking_task) ), VOID_RETURN );
 }
 
 void led_blinking_set_interval(uint32_t ms)

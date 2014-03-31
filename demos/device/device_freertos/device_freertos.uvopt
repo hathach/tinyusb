@@ -73,7 +73,7 @@
       <OPTFL>
         <tvExp>1</tvExp>
         <tvExpOptDlg>0</tvExpOptDlg>
-        <IsCurrentTarget>1</IsCurrentTarget>
+        <IsCurrentTarget>0</IsCurrentTarget>
       </OPTFL>
       <CpuCode>8</CpuCode>
       <DllOpt>
@@ -489,7 +489,7 @@
       <OPTFL>
         <tvExp>1</tvExp>
         <tvExpOptDlg>0</tvExpOptDlg>
-        <IsCurrentTarget>0</IsCurrentTarget>
+        <IsCurrentTarget>1</IsCurrentTarget>
       </OPTFL>
       <CpuCode>8</CpuCode>
       <DllOpt>
@@ -858,7 +858,7 @@
         <tDllPa></tDllPa>
         <tDlgDll></tDlgDll>
         <tDlgPa></tDlgPa>
-        <tIfile>..\..\..\mcu\lpc43xx\keil_ram.ini</tIfile>
+        <tIfile>..\..\..\mcu\lpc43xx\keil\keil_ram.ini</tIfile>
         <pMon>Segger\JL2CM3.dll</pMon>
       </DebugOpt>
       <TargetDriverDllRegistry>
@@ -904,7 +904,7 @@
         <aLa>0</aLa>
         <aPa1>0</aPa1>
         <AscS4>0</AscS4>
-        <aSer4>1</aSer4>
+        <aSer4>0</aSer4>
         <StkLoc>0</StkLoc>
         <TrcWin>0</TrcWin>
         <newCpu>0</newCpu>
@@ -1083,7 +1083,7 @@
 
   <Group>
     <GroupName>app</GroupName>
-    <tvExp>0</tvExp>
+    <tvExp>1</tvExp>
     <tvExpOptDlg>0</tvExpOptDlg>
     <cbSel>0</cbSel>
     <RteFlg>0</RteFlg>
@@ -1095,8 +1095,8 @@
       <Focus>0</Focus>
       <ColumnNumber>0</ColumnNumber>
       <tvExpOptDlg>0</tvExpOptDlg>
-      <TopLine>113</TopLine>
-      <CurrentLine>123</CurrentLine>
+      <TopLine>74</TopLine>
+      <CurrentLine>81</CurrentLine>
       <bDave2>0</bDave2>
       <PathWithFileName>..\src\main.c</PathWithFileName>
       <FilenameWithoutPath>main.c</FilenameWithoutPath>
@@ -1111,8 +1111,8 @@
       <Focus>0</Focus>
       <ColumnNumber>0</ColumnNumber>
       <tvExpOptDlg>0</tvExpOptDlg>
-      <TopLine>1</TopLine>
-      <CurrentLine>1</CurrentLine>
+      <TopLine>0</TopLine>
+      <CurrentLine>0</CurrentLine>
       <bDave2>0</bDave2>
       <PathWithFileName>..\src\tusb_descriptors.c</PathWithFileName>
       <FilenameWithoutPath>tusb_descriptors.c</FilenameWithoutPath>
@@ -1231,8 +1231,8 @@
       <Focus>0</Focus>
       <ColumnNumber>68</ColumnNumber>
       <tvExpOptDlg>0</tvExpOptDlg>
-      <TopLine>36</TopLine>
-      <CurrentLine>37</CurrentLine>
+      <TopLine>0</TopLine>
+      <CurrentLine>0</CurrentLine>
       <bDave2>0</bDave2>
       <PathWithFileName>..\..\..\tinyusb\tusb.c</PathWithFileName>
       <FilenameWithoutPath>tusb.c</FilenameWithoutPath>
@@ -1487,8 +1487,8 @@
       <Focus>0</Focus>
       <ColumnNumber>0</ColumnNumber>
       <tvExpOptDlg>0</tvExpOptDlg>
-      <TopLine>1</TopLine>
-      <CurrentLine>1</CurrentLine>
+      <TopLine>0</TopLine>
+      <CurrentLine>0</CurrentLine>
       <bDave2>0</bDave2>
       <PathWithFileName>..\..\..\tinyusb\device\dcd_lpc_11uxx_13uxx.c</PathWithFileName>
       <FilenameWithoutPath>dcd_lpc_11uxx_13uxx.c</FilenameWithoutPath>
@@ -1503,8 +1503,8 @@
       <Focus>0</Focus>
       <ColumnNumber>0</ColumnNumber>
       <tvExpOptDlg>0</tvExpOptDlg>
-      <TopLine>1</TopLine>
-      <CurrentLine>1</CurrentLine>
+      <TopLine>0</TopLine>
+      <CurrentLine>0</CurrentLine>
       <bDave2>0</bDave2>
       <PathWithFileName>..\..\..\tinyusb\device\dcd_lpc43xx.c</PathWithFileName>
       <FilenameWithoutPath>dcd_lpc43xx.c</FilenameWithoutPath>
@@ -1533,10 +1533,10 @@
       <FileType>1</FileType>
       <tvExp>0</tvExp>
       <Focus>0</Focus>
-      <ColumnNumber>0</ColumnNumber>
+      <ColumnNumber>19</ColumnNumber>
       <tvExpOptDlg>0</tvExpOptDlg>
-      <TopLine>232</TopLine>
-      <CurrentLine>239</CurrentLine>
+      <TopLine>1</TopLine>
+      <CurrentLine>14</CurrentLine>
       <bDave2>0</bDave2>
       <PathWithFileName>..\..\..\tinyusb\device\usbd.c</PathWithFileName>
       <FilenameWithoutPath>usbd.c</FilenameWithoutPath>
@@ -1551,8 +1551,8 @@
       <Focus>0</Focus>
       <ColumnNumber>0</ColumnNumber>
       <tvExpOptDlg>0</tvExpOptDlg>
-      <TopLine>1</TopLine>
-      <CurrentLine>1</CurrentLine>
+      <TopLine>0</TopLine>
+      <CurrentLine>0</CurrentLine>
       <bDave2>0</bDave2>
       <PathWithFileName>..\..\..\tinyusb\class\cdc_device.c</PathWithFileName>
       <FilenameWithoutPath>cdc_device.c</FilenameWithoutPath>
@@ -1567,8 +1567,8 @@
       <Focus>0</Focus>
       <ColumnNumber>0</ColumnNumber>
       <tvExpOptDlg>0</tvExpOptDlg>
-      <TopLine>1</TopLine>
-      <CurrentLine>1</CurrentLine>
+      <TopLine>0</TopLine>
+      <CurrentLine>0</CurrentLine>
       <bDave2>0</bDave2>
       <PathWithFileName>..\..\..\tinyusb\class\hid_device.c</PathWithFileName>
       <FilenameWithoutPath>hid_device.c</FilenameWithoutPath>
@@ -1583,8 +1583,8 @@
       <Focus>0</Focus>
       <ColumnNumber>20</ColumnNumber>
       <tvExpOptDlg>0</tvExpOptDlg>
-      <TopLine>224</TopLine>
-      <CurrentLine>247</CurrentLine>
+      <TopLine>0</TopLine>
+      <CurrentLine>0</CurrentLine>
       <bDave2>0</bDave2>
       <PathWithFileName>..\..\..\tinyusb\class\msc_device.c</PathWithFileName>
       <FilenameWithoutPath>msc_device.c</FilenameWithoutPath>
@@ -1605,10 +1605,10 @@
       <FileType>1</FileType>
       <tvExp>0</tvExp>
       <Focus>0</Focus>
-      <ColumnNumber>0</ColumnNumber>
+      <ColumnNumber>27</ColumnNumber>
       <tvExpOptDlg>0</tvExpOptDlg>
-      <TopLine>0</TopLine>
-      <CurrentLine>0</CurrentLine>
+      <TopLine>59</TopLine>
+      <CurrentLine>64</CurrentLine>
       <bDave2>0</bDave2>
       <PathWithFileName>..\..\..\boards\board.c</PathWithFileName>
       <FilenameWithoutPath>board.c</FilenameWithoutPath>
@@ -2303,8 +2303,8 @@
       <Focus>0</Focus>
       <ColumnNumber>0</ColumnNumber>
       <tvExpOptDlg>0</tvExpOptDlg>
-      <TopLine>0</TopLine>
-      <CurrentLine>0</CurrentLine>
+      <TopLine>59</TopLine>
+      <CurrentLine>68</CurrentLine>
       <bDave2>0</bDave2>
       <PathWithFileName>..\..\..\vendor\freertos\freertoslpc\FreeRTOSCommonHooks.c</PathWithFileName>
       <FilenameWithoutPath>FreeRTOSCommonHooks.c</FilenameWithoutPath>

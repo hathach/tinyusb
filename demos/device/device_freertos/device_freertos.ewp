@@ -1091,7 +1091,8 @@
           <name>CCDefines</name>
           <state>TUSB_CFG_MCU=MCU_LPC175X_6X</state>
           <state>BOARD=BOARD_LPCXPRESSO1769</state>
-          <state>TUSB_CFG_OS=TUSB_OS_NONE</state>
+          <state>TUSB_CFG_OS=TUSB_OS_FREERTOS</state>
+          <state>TUSB_CFG_OS_TASK_PRIO=configMAX_PRIORITIES-5</state>
         </option>
         <option>
           <name>CCPreprocFile</name>
@@ -1225,6 +1226,8 @@
           <state>$PROJ_DIR$\..\..\..\mcu\lpc175x_6x\LPC17xx_DriverLib\include</state>
           <state>$PROJ_DIR$\..\..\..\boards</state>
           <state>$PROJ_DIR$\..\..\..\tinyusb</state>
+          <state>$PROJ_DIR$\..\..\..\vendor\freertos</state>
+          <state>$PROJ_DIR$\..\..\..\vendor\freertos\freertos\Source\include</state>
         </option>
         <option>
           <name>CCStdIncCheck</name>
@@ -1473,7 +1476,7 @@
         </option>
         <option>
           <name>AUserIncludes</name>
-          <state></state>
+          <state>$PROJ_DIR$\..\..\..\vendor\freertos</state>
         </option>
         <option>
           <name>AExtraOptionsCheckV2</name>
@@ -2014,7 +2017,8 @@
           <state>CORE_M4</state>
           <state>TUSB_CFG_MCU=MCU_LPC43XX</state>
           <state>BOARD=BOARD_NGX4330</state>
-          <state>TUSB_CFG_OS=TUSB_OS_NONE</state>
+          <state>TUSB_CFG_OS=TUSB_OS_FREERTOS</state>
+          <state>TUSB_CFG_OS_TASK_PRIO=configMAX_PRIORITIES-5</state>
         </option>
         <option>
           <name>CCPreprocFile</name>
@@ -2147,6 +2151,8 @@
           <state>$PROJ_DIR$\..\..\..\mcu\lpc43xx\CMSIS_LPC43xx_DriverLib\inc</state>
           <state>$PROJ_DIR$\..\..\..\boards</state>
           <state>$PROJ_DIR$\..\..\..\tinyusb</state>
+          <state>$PROJ_DIR$\..\..\..\vendor\freertos</state>
+          <state>$PROJ_DIR$\..\..\..\vendor\freertos\freertos\Source\include</state>
         </option>
         <option>
           <name>CCStdIncCheck</name>
@@ -2395,7 +2401,7 @@
         </option>
         <option>
           <name>AUserIncludes</name>
-          <state></state>
+          <state>$PROJ_DIR$\..\..\..\vendor\freertos</state>
         </option>
         <option>
           <name>AExtraOptionsCheckV2</name>
@@ -5603,6 +5609,8 @@
       <name>CM0</name>
       <excluded>
         <configuration>Board EA4357</configuration>
+        <configuration>Board LPCXpresso1769</configuration>
+        <configuration>Board NGX4330</configuration>
       </excluded>
       <file>
         <name>$PROJ_DIR$\..\..\..\vendor\freertos\freertos\Source\portable\IAR\ARM_CM0\port.c</name>
@@ -5615,6 +5623,7 @@
       <name>CM3</name>
       <excluded>
         <configuration>Board EA4357</configuration>
+        <configuration>Board NGX4330</configuration>
       </excluded>
       <file>
         <name>$PROJ_DIR$\..\..\..\vendor\freertos\freertos\Source\portable\IAR\ARM_CM3\port.c</name>
@@ -5625,6 +5634,9 @@
     </group>
     <group>
       <name>CM4F</name>
+      <excluded>
+        <configuration>Board LPCXpresso1769</configuration>
+      </excluded>
       <file>
         <name>$PROJ_DIR$\..\..\..\vendor\freertos\freertos\Source\portable\IAR\ARM_CM4F\port.c</name>
       </file>
