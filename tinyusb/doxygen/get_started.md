@@ -91,3 +91,5 @@ In addition, there are some configuration you can change such as
 
 - CFG_UART_BAUDRATE in board.h
 - CFG_PRINTF_TARGET in the specific board header (e.g board_ea4357.h) to either Semihost, Uart, or SWO.
+
+\subpage md_boards_readme
