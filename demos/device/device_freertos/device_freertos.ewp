@@ -2941,7 +2941,8 @@
           <name>CCDefines</name>
           <state>TUSB_CFG_MCU=MCU_LPC11UXX</state>
           <state>BOARD=BOARD_RF1GHZNODE</state>
-          <state>TUSB_CFG_OS=TUSB_OS_NONE</state>
+          <state>TUSB_CFG_OS=TUSB_OS_FREERTOS</state>
+          <state>TUSB_CFG_OS_TASK_PRIO=configMAX_PRIORITIES-5</state>
         </option>
         <option>
           <name>CCPreprocFile</name>
@@ -3075,6 +3076,8 @@
           <state>$PROJ_DIR$\..\..\..\mcu\lpc11uxx\LPC11Uxx_DriverLib</state>
           <state>$PROJ_DIR$\..\..\..\boards</state>
           <state>$PROJ_DIR$\..\..\..\tinyusb</state>
+          <state>$PROJ_DIR$\..\..\..\vendor\freertos</state>
+          <state>$PROJ_DIR$\..\..\..\vendor\freertos\freertos\Source\include</state>
         </option>
         <option>
           <name>CCStdIncCheck</name>
@@ -3323,7 +3326,7 @@
         </option>
         <option>
           <name>AUserIncludes</name>
-          <state></state>
+          <state>$PROJ_DIR$\..\..\..\vendor\freertos</state>
         </option>
         <option>
           <name>AExtraOptionsCheckV2</name>
@@ -3863,7 +3866,8 @@
           <name>CCDefines</name>
           <state>TUSB_CFG_MCU=MCU_LPC13UXX</state>
           <state>BOARD=BOARD_LPCXPRESSO1347</state>
-          <state>TUSB_CFG_OS=TUSB_OS_NONE</state>
+          <state>TUSB_CFG_OS=TUSB_OS_FREERTOS</state>
+          <state>TUSB_CFG_OS_TASK_PRIO=configMAX_PRIORITIES-5</state>
         </option>
         <option>
           <name>CCPreprocFile</name>
@@ -3997,6 +4001,8 @@
           <state>$PROJ_DIR$\..\..\..\mcu\lpc13uxx\LPC13Uxx_DriverLib\inc</state>
           <state>$PROJ_DIR$\..\..\..\boards</state>
           <state>$PROJ_DIR$\..\..\..\tinyusb</state>
+          <state>$PROJ_DIR$\..\..\..\vendor\freertos</state>
+          <state>$PROJ_DIR$\..\..\..\vendor\freertos\freertos\Source\include</state>
         </option>
         <option>
           <name>CCStdIncCheck</name>
@@ -4245,7 +4251,7 @@
         </option>
         <option>
           <name>AUserIncludes</name>
-          <state></state>
+          <state>$PROJ_DIR$\..\..\..\vendor\freertos</state>
         </option>
         <option>
           <name>AExtraOptionsCheckV2</name>
@@ -4785,7 +4791,8 @@
           <name>CCDefines</name>
           <state>TUSB_CFG_MCU=MCU_LPC11UXX</state>
           <state>BOARD=BOARD_LPCXPRESSO11U14</state>
-          <state>TUSB_CFG_OS=TUSB_OS_NONE</state>
+          <state>TUSB_CFG_OS=TUSB_OS_FREERTOS</state>
+          <state>TUSB_CFG_OS_TASK_PRIO=configMAX_PRIORITIES-5</state>
         </option>
         <option>
           <name>CCPreprocFile</name>
@@ -4919,6 +4926,8 @@
           <state>$PROJ_DIR$\..\..\..\mcu\lpc11uxx\LPC11Uxx_DriverLib</state>
           <state>$PROJ_DIR$\..\..\..\boards</state>
           <state>$PROJ_DIR$\..\..\..\tinyusb</state>
+          <state>$PROJ_DIR$\..\..\..\vendor\freertos</state>
+          <state>$PROJ_DIR$\..\..\..\vendor\freertos\freertos\Source\include</state>
         </option>
         <option>
           <name>CCStdIncCheck</name>
@@ -5167,7 +5176,7 @@
         </option>
         <option>
           <name>AUserIncludes</name>
-          <state></state>
+          <state>$PROJ_DIR$\..\..\..\vendor\freertos</state>
         </option>
         <option>
           <name>AExtraOptionsCheckV2</name>
@@ -5611,6 +5620,7 @@
         <configuration>Board EA4357</configuration>
         <configuration>Board LPCXpresso1769</configuration>
         <configuration>Board NGX4330</configuration>
+        <configuration>Board LPCXpresso1347</configuration>
       </excluded>
       <file>
         <name>$PROJ_DIR$\..\..\..\vendor\freertos\freertos\Source\portable\IAR\ARM_CM0\port.c</name>
@@ -5624,6 +5634,8 @@
       <excluded>
         <configuration>Board EA4357</configuration>
         <configuration>Board NGX4330</configuration>
+        <configuration>Board rf1ghznode</configuration>
+        <configuration>Board LPCXpresso11u14</configuration>
       </excluded>
       <file>
         <name>$PROJ_DIR$\..\..\..\vendor\freertos\freertos\Source\portable\IAR\ARM_CM3\port.c</name>
@@ -5636,6 +5648,9 @@
       <name>CM4F</name>
       <excluded>
         <configuration>Board LPCXpresso1769</configuration>
+        <configuration>Board rf1ghznode</configuration>
+        <configuration>Board LPCXpresso1347</configuration>
+        <configuration>Board LPCXpresso11u14</configuration>
       </excluded>
       <file>
         <name>$PROJ_DIR$\..\..\..\vendor\freertos\freertos\Source\portable\IAR\ARM_CM4F\port.c</name>

@@ -2392,9 +2392,9 @@
             <uSurpInc>0</uSurpInc>
             <VariousControls>
               <MiscControls>--gnu --c99</MiscControls>
-              <Define>TUSB_CFG_MCU=MCU_LPC13UXX BOARD=BOARD_LPCXPRESSO1347 TUSB_CFG_OS=TUSB_OS_NONE</Define>
+              <Define>TUSB_CFG_MCU=MCU_LPC13UXX BOARD=BOARD_LPCXPRESSO1347 TUSB_CFG_OS=TUSB_OS_FREERTOS TUSB_CFG_OS_TASK_PRIO=configMAX_PRIORITIES-5</Define>
               <Undefine></Undefine>
-              <IncludePath>..\..\..\mcu\lpc13uxx\CMSIS_CORE_LPC13Uxx\inc;..\..\..\mcu\lpc13uxx\LPC13Uxx_DriverLib\inc;..\src;..\..\..\boards;..\..\..\tinyusb</IncludePath>
+              <IncludePath>..\..\..\mcu\lpc13uxx\CMSIS_CORE_LPC13Uxx\inc;..\..\..\mcu\lpc13uxx\LPC13Uxx_DriverLib\inc;..\src;..\..\..\boards;..\..\..\tinyusb;..\..\..\vendor\freertos;..\..\..\vendor\freertos\freertos\Source\include</IncludePath>
             </VariousControls>
           </Cads>
           <Aads>
@@ -2987,6 +2987,46 @@
               <FileName>port_cm0.c</FileName>
               <FileType>1</FileType>
               <FilePath>..\..\..\vendor\freertos\freertos\Source\portable\RVDS\ARM_CM0\port_cm0.c</FilePath>
+              <FileOption>
+                <CommonProperty>
+                  <UseCPPCompiler>2</UseCPPCompiler>
+                  <RVCTCodeConst>0</RVCTCodeConst>
+                  <RVCTZI>0</RVCTZI>
+                  <RVCTOtherData>0</RVCTOtherData>
+                  <ModuleSelection>0</ModuleSelection>
+                  <IncludeInBuild>0</IncludeInBuild>
+                  <AlwaysBuild>2</AlwaysBuild>
+                  <GenerateAssemblyFile>2</GenerateAssemblyFile>
+                  <AssembleAssemblyFile>2</AssembleAssemblyFile>
+                  <PublicsOnly>2</PublicsOnly>
+                  <StopOnExitCode>11</StopOnExitCode>
+                  <CustomArgument></CustomArgument>
+                  <IncludeLibraryModules></IncludeLibraryModules>
+                </CommonProperty>
+                <FileArmAds>
+                  <Cads>
+                    <interw>2</interw>
+                    <Optim>0</Optim>
+                    <oTime>2</oTime>
+                    <SplitLS>2</SplitLS>
+                    <OneElfS>2</OneElfS>
+                    <Strict>2</Strict>
+                    <EnumInt>2</EnumInt>
+                    <PlainCh>2</PlainCh>
+                    <Ropi>2</Ropi>
+                    <Rwpi>2</Rwpi>
+                    <wLevel>0</wLevel>
+                    <uThumb>2</uThumb>
+                    <uSurpInc>2</uSurpInc>
+                    <VariousControls>
+                      <MiscControls></MiscControls>
+                      <Define></Define>
+                      <Undefine></Undefine>
+                      <IncludePath></IncludePath>
+                    </VariousControls>
+                  </Cads>
+                </FileArmAds>
+              </FileOption>
             </File>
             <File>
               <FileName>port_cm3.c</FileName>
@@ -2997,6 +3037,46 @@
               <FileName>port_cm4f.c</FileName>
               <FileType>1</FileType>
               <FilePath>..\..\..\vendor\freertos\freertos\Source\portable\RVDS\ARM_CM4F\port_cm4f.c</FilePath>
+              <FileOption>
+                <CommonProperty>
+                  <UseCPPCompiler>2</UseCPPCompiler>
+                  <RVCTCodeConst>0</RVCTCodeConst>
+                  <RVCTZI>0</RVCTZI>
+                  <RVCTOtherData>0</RVCTOtherData>
+                  <ModuleSelection>0</ModuleSelection>
+                  <IncludeInBuild>0</IncludeInBuild>
+                  <AlwaysBuild>2</AlwaysBuild>
+                  <GenerateAssemblyFile>2</GenerateAssemblyFile>
+                  <AssembleAssemblyFile>2</AssembleAssemblyFile>
+                  <PublicsOnly>2</PublicsOnly>
+                  <StopOnExitCode>11</StopOnExitCode>
+                  <CustomArgument></CustomArgument>
+                  <IncludeLibraryModules></IncludeLibraryModules>
+                </CommonProperty>
+                <FileArmAds>
+                  <Cads>
+                    <interw>2</interw>
+                    <Optim>0</Optim>
+                    <oTime>2</oTime>
+                    <SplitLS>2</SplitLS>
+                    <OneElfS>2</OneElfS>
+                    <Strict>2</Strict>
+                    <EnumInt>2</EnumInt>
+                    <PlainCh>2</PlainCh>
+                    <Ropi>2</Ropi>
+                    <Rwpi>2</Rwpi>
+                    <wLevel>0</wLevel>
+                    <uThumb>2</uThumb>
+                    <uSurpInc>2</uSurpInc>
+                    <VariousControls>
+                      <MiscControls></MiscControls>
+                      <Define></Define>
+                      <Undefine></Undefine>
+                      <IncludePath></IncludePath>
+                    </VariousControls>
+                  </Cads>
+                </FileArmAds>
+              </FileOption>
             </File>
             <File>
               <FileName>FreeRTOSCommonHooks.c</FileName>
@@ -4396,9 +4476,9 @@
             <uSurpInc>0</uSurpInc>
             <VariousControls>
               <MiscControls>--gnu --c99</MiscControls>
-              <Define>TUSB_CFG_MCU=MCU_LPC11UXX BOARD=BOARD_RF1GHZNODE TUSB_CFG_OS=TUSB_OS_NONE</Define>
+              <Define>TUSB_CFG_MCU=MCU_LPC11UXX BOARD=BOARD_RF1GHZNODE TUSB_CFG_OS=TUSB_OS_FREERTOS TUSB_CFG_OS_TASK_PRIO=configMAX_PRIORITIES-5</Define>
               <Undefine></Undefine>
-              <IncludePath>..\..\..\mcu\lpc11uxx\CMSIS_CORE_LPC11Uxx\inc;..\..\..\mcu\lpc11uxx\LPC11Uxx_DriverLib;..\src;..\..\..\boards;..\..\..\tinyusb</IncludePath>
+              <IncludePath>..\..\..\mcu\lpc11uxx\CMSIS_CORE_LPC11Uxx\inc;..\..\..\mcu\lpc11uxx\LPC11Uxx_DriverLib;..\src;..\..\..\boards;..\..\..\tinyusb;..\..\..\vendor\freertos;..\..\..\vendor\freertos\freertos\Source\include</IncludePath>
             </VariousControls>
           </Cads>
           <Aads>
@@ -5036,11 +5116,91 @@
               <FileName>port_cm3.c</FileName>
               <FileType>1</FileType>
               <FilePath>..\..\..\vendor\freertos\freertos\Source\portable\RVDS\ARM_CM3\port_cm3.c</FilePath>
+              <FileOption>
+                <CommonProperty>
+                  <UseCPPCompiler>2</UseCPPCompiler>
+                  <RVCTCodeConst>0</RVCTCodeConst>
+                  <RVCTZI>0</RVCTZI>
+                  <RVCTOtherData>0</RVCTOtherData>
+                  <ModuleSelection>0</ModuleSelection>
+                  <IncludeInBuild>0</IncludeInBuild>
+                  <AlwaysBuild>2</AlwaysBuild>
+                  <GenerateAssemblyFile>2</GenerateAssemblyFile>
+                  <AssembleAssemblyFile>2</AssembleAssemblyFile>
+                  <PublicsOnly>2</PublicsOnly>
+                  <StopOnExitCode>11</StopOnExitCode>
+                  <CustomArgument></CustomArgument>
+                  <IncludeLibraryModules></IncludeLibraryModules>
+                </CommonProperty>
+                <FileArmAds>
+                  <Cads>
+                    <interw>2</interw>
+                    <Optim>0</Optim>
+                    <oTime>2</oTime>
+                    <SplitLS>2</SplitLS>
+                    <OneElfS>2</OneElfS>
+                    <Strict>2</Strict>
+                    <EnumInt>2</EnumInt>
+                    <PlainCh>2</PlainCh>
+                    <Ropi>2</Ropi>
+                    <Rwpi>2</Rwpi>
+                    <wLevel>0</wLevel>
+                    <uThumb>2</uThumb>
+                    <uSurpInc>2</uSurpInc>
+                    <VariousControls>
+                      <MiscControls></MiscControls>
+                      <Define></Define>
+                      <Undefine></Undefine>
+                      <IncludePath></IncludePath>
+                    </VariousControls>
+                  </Cads>
+                </FileArmAds>
+              </FileOption>
             </File>
             <File>
               <FileName>port_cm4f.c</FileName>
               <FileType>1</FileType>
               <FilePath>..\..\..\vendor\freertos\freertos\Source\portable\RVDS\ARM_CM4F\port_cm4f.c</FilePath>
+              <FileOption>
+                <CommonProperty>
+                  <UseCPPCompiler>2</UseCPPCompiler>
+                  <RVCTCodeConst>0</RVCTCodeConst>
+                  <RVCTZI>0</RVCTZI>
+                  <RVCTOtherData>0</RVCTOtherData>
+                  <ModuleSelection>0</ModuleSelection>
+                  <IncludeInBuild>0</IncludeInBuild>
+                  <AlwaysBuild>2</AlwaysBuild>
+                  <GenerateAssemblyFile>2</GenerateAssemblyFile>
+                  <AssembleAssemblyFile>2</AssembleAssemblyFile>
+                  <PublicsOnly>2</PublicsOnly>
+                  <StopOnExitCode>11</StopOnExitCode>
+                  <CustomArgument></CustomArgument>
+                  <IncludeLibraryModules></IncludeLibraryModules>
+                </CommonProperty>
+                <FileArmAds>
+                  <Cads>
+                    <interw>2</interw>
+                    <Optim>0</Optim>
+                    <oTime>2</oTime>
+                    <SplitLS>2</SplitLS>
+                    <OneElfS>2</OneElfS>
+                    <Strict>2</Strict>
+                    <EnumInt>2</EnumInt>
+                    <PlainCh>2</PlainCh>
+                    <Ropi>2</Ropi>
+                    <Rwpi>2</Rwpi>
+                    <wLevel>0</wLevel>
+                    <uThumb>2</uThumb>
+                    <uSurpInc>2</uSurpInc>
+                    <VariousControls>
+                      <MiscControls></MiscControls>
+                      <Define></Define>
+                      <Undefine></Undefine>
+                      <IncludePath></IncludePath>
+                    </VariousControls>
+                  </Cads>
+                </FileArmAds>
+              </FileOption>
             </File>
             <File>
               <FileName>FreeRTOSCommonHooks.c</FileName>
@@ -6440,9 +6600,9 @@
             <uSurpInc>0</uSurpInc>
             <VariousControls>
               <MiscControls>--gnu --c99</MiscControls>
-              <Define>TUSB_CFG_MCU=MCU_LPC11UXX BOARD=BOARD_LPCXPRESSO11U14 TUSB_CFG_OS=TUSB_OS_NONE</Define>
+              <Define>TUSB_CFG_MCU=MCU_LPC11UXX BOARD=BOARD_LPCXPRESSO11U14 TUSB_CFG_OS=TUSB_OS_FREERTOS TUSB_CFG_OS_TASK_PRIO=configMAX_PRIORITIES-5</Define>
               <Undefine></Undefine>
-              <IncludePath>..\..\..\mcu\lpc11uxx\CMSIS_CORE_LPC11Uxx\inc;..\..\..\mcu\lpc11uxx\LPC11Uxx_DriverLib;..\src;..\..\..\boards;..\..\..\tinyusb</IncludePath>
+              <IncludePath>..\..\..\mcu\lpc11uxx\CMSIS_CORE_LPC11Uxx\inc;..\..\..\mcu\lpc11uxx\LPC11Uxx_DriverLib;..\src;..\..\..\boards;..\..\..\tinyusb;..\..\..\vendor\freertos;..\..\..\vendor\freertos\freertos\Source\include</IncludePath>
             </VariousControls>
           </Cads>
           <Aads>
@@ -7080,11 +7240,91 @@
               <FileName>port_cm3.c</FileName>
               <FileType>1</FileType>
               <FilePath>..\..\..\vendor\freertos\freertos\Source\portable\RVDS\ARM_CM3\port_cm3.c</FilePath>
+              <FileOption>
+                <CommonProperty>
+                  <UseCPPCompiler>2</UseCPPCompiler>
+                  <RVCTCodeConst>0</RVCTCodeConst>
+                  <RVCTZI>0</RVCTZI>
+                  <RVCTOtherData>0</RVCTOtherData>
+                  <ModuleSelection>0</ModuleSelection>
+                  <IncludeInBuild>0</IncludeInBuild>
+                  <AlwaysBuild>2</AlwaysBuild>
+                  <GenerateAssemblyFile>2</GenerateAssemblyFile>
+                  <AssembleAssemblyFile>2</AssembleAssemblyFile>
+                  <PublicsOnly>2</PublicsOnly>
+                  <StopOnExitCode>11</StopOnExitCode>
+                  <CustomArgument></CustomArgument>
+                  <IncludeLibraryModules></IncludeLibraryModules>
+                </CommonProperty>
+                <FileArmAds>
+                  <Cads>
+                    <interw>2</interw>
+                    <Optim>0</Optim>
+                    <oTime>2</oTime>
+                    <SplitLS>2</SplitLS>
+                    <OneElfS>2</OneElfS>
+                    <Strict>2</Strict>
+                    <EnumInt>2</EnumInt>
+                    <PlainCh>2</PlainCh>
+                    <Ropi>2</Ropi>
+                    <Rwpi>2</Rwpi>
+                    <wLevel>0</wLevel>
+                    <uThumb>2</uThumb>
+                    <uSurpInc>2</uSurpInc>
+                    <VariousControls>
+                      <MiscControls></MiscControls>
+                      <Define></Define>
+                      <Undefine></Undefine>
+                      <IncludePath></IncludePath>
+                    </VariousControls>
+                  </Cads>
+                </FileArmAds>
+              </FileOption>
             </File>
             <File>
               <FileName>port_cm4f.c</FileName>
               <FileType>1</FileType>
               <FilePath>..\..\..\vendor\freertos\freertos\Source\portable\RVDS\ARM_CM4F\port_cm4f.c</FilePath>
+              <FileOption>
+                <CommonProperty>
+                  <UseCPPCompiler>2</UseCPPCompiler>
+                  <RVCTCodeConst>0</RVCTCodeConst>
+                  <RVCTZI>0</RVCTZI>
+                  <RVCTOtherData>0</RVCTOtherData>
+                  <ModuleSelection>0</ModuleSelection>
+                  <IncludeInBuild>0</IncludeInBuild>
+                  <AlwaysBuild>2</AlwaysBuild>
+                  <GenerateAssemblyFile>2</GenerateAssemblyFile>
+                  <AssembleAssemblyFile>2</AssembleAssemblyFile>
+                  <PublicsOnly>2</PublicsOnly>
+                  <StopOnExitCode>11</StopOnExitCode>
+                  <CustomArgument></CustomArgument>
+                  <IncludeLibraryModules></IncludeLibraryModules>
+                </CommonProperty>
+                <FileArmAds>
+                  <Cads>
+                    <interw>2</interw>
+                    <Optim>0</Optim>
+                    <oTime>2</oTime>
+                    <SplitLS>2</SplitLS>
+                    <OneElfS>2</OneElfS>
+                    <Strict>2</Strict>
+                    <EnumInt>2</EnumInt>
+                    <PlainCh>2</PlainCh>
+                    <Ropi>2</Ropi>
+                    <Rwpi>2</Rwpi>
+                    <wLevel>0</wLevel>
+                    <uThumb>2</uThumb>
+                    <uSurpInc>2</uSurpInc>
+                    <VariousControls>
+                      <MiscControls></MiscControls>
+                      <Define></Define>
+                      <Undefine></Undefine>
+                      <IncludePath></IncludePath>
+                    </VariousControls>
+                  </Cads>
+                </FileArmAds>
+              </FileOption>
             </File>
             <File>
               <FileName>FreeRTOSCommonHooks.c</FileName>
