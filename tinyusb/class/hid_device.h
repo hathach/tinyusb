@@ -80,7 +80,17 @@ tusb_error_t tusbd_hid_keyboard_send(uint8_t coreid, hid_keyboard_report_t const
 //--------------------------------------------------------------------+
 // APPLICATION CALLBACK API
 //--------------------------------------------------------------------+
+
+/** \brief 			Callback function that will be invoked when this interface is mounted (configured) by USB host
+ * \param[in] 	coreid USB Controller ID of the interface
+ * \note        This callback should be used by Application to \b set-up interface-related data
+ */
 void tusbd_hid_keyboard_mounted_cb(uint8_t coreid);
+
+/** \brief 			Callback function that will be invoked when this interface is unmounted (bus reset/unplugged)
+ * \param[in] 	coreid USB Controller ID of the interface
+ * \note        This callback should be used by Application to \b tear-down interface-related data
+ */
 void tusbd_hid_keyboard_unmounted_cb(uint8_t coreid);
 
 /** \brief      Callback function that is invoked when an transferring event occurred
@@ -155,8 +165,16 @@ tusb_error_t tusbd_hid_mouse_send(uint8_t coreid, hid_mouse_report_t const *p_re
 //--------------------------------------------------------------------+
 // APPLICATION CALLBACK API
 //--------------------------------------------------------------------+
-
+/** \brief 			Callback function that will be invoked when this interface is mounted (configured) by USB host
+ * \param[in] 	coreid USB Controller ID of the interface
+ * \note        This callback should be used by Application to \b set-up interface-related data
+ */
 void tusbd_hid_mouse_mounted_cb(uint8_t coreid);
+
+/** \brief 			Callback function that will be invoked when this interface is unmounted (bus reset/unplugged)
+ * \param[in] 	coreid USB Controller ID of the interface
+ * \note        This callback should be used by Application to \b tear-down interface-related data
+ */
 void tusbd_hid_mouse_unmounted_cb(uint8_t coreid);
 
 /** \brief      Callback function that is invoked when an transferring event occurred

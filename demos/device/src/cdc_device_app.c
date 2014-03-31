@@ -58,30 +58,27 @@ OSAL_SEM_DEF(cdcd_semaphore);
 
 static osal_semaphore_handle_t sem_hdl;
 
-TUSB_CFG_ATTR_USBRAM static uint8_t serial_rx_buffer[CDCD_APP_BUFFER_SIZE];
-TUSB_CFG_ATTR_USBRAM static uint8_t serial_tx_buffer[CDCD_APP_BUFFER_SIZE];
-
 //--------------------------------------------------------------------+
 // INTERNAL OBJECT & FUNCTION DECLARATION
 //--------------------------------------------------------------------+
+TUSB_CFG_ATTR_USBRAM static uint8_t serial_rx_buffer[CDCD_APP_BUFFER_SIZE];
+TUSB_CFG_ATTR_USBRAM static uint8_t serial_tx_buffer[CDCD_APP_BUFFER_SIZE];
+
 FIFO_DEF(fifo_serial, CDCD_APP_BUFFER_SIZE, uint8_t, true);
 
 //--------------------------------------------------------------------+
-// IMPLEMENTATION
+// tinyusb Callbacks
 //--------------------------------------------------------------------+
-void cdcd_serial_app_init(void)
-{
-  sem_hdl = osal_semaphore_create( OSAL_SEM_REF(cdcd_semaphore) );
-  ASSERT_PTR( sem_hdl, VOID_RETURN);
-
-  ASSERT( TUSB_ERROR_NONE == osal_task_create( OSAL_TASK_REF(cdcd_serial_app_task) ), VOID_RETURN);
-}
-
 void tusbd_cdc_mounted_cb(uint8_t coreid)
 {
   osal_semaphore_reset(sem_hdl);
 
   tusbd_cdc_receive(coreid, serial_rx_buffer, CDCD_APP_BUFFER_SIZE, true);
+}
+
+void tusbd_cdc_unmounted_cb(uint8_t coreid)
+{
+
 }
 
 void tusbd_cdc_xfer_cb(uint8_t coreid, tusb_event_t event, cdc_pipeid_t pipe_id, uint32_t xferred_bytes)
@@ -114,6 +111,17 @@ void tusbd_cdc_xfer_cb(uint8_t coreid, tusb_event_t event, cdc_pipeid_t pipe_id,
     default:
     break;
   }
+}
+
+//--------------------------------------------------------------------+
+// APPLICATION CODE
+//--------------------------------------------------------------------+
+void cdcd_serial_app_init(void)
+{
+  sem_hdl = osal_semaphore_create( OSAL_SEM_REF(cdcd_semaphore) );
+  ASSERT_PTR( sem_hdl, VOID_RETURN);
+
+  ASSERT( TUSB_ERROR_NONE == osal_task_create( OSAL_TASK_REF(cdcd_serial_app_task) ), VOID_RETURN);
 }
 
 OSAL_TASK_FUNCTION( cdcd_serial_app_task , p_task_para)

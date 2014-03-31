@@ -82,6 +82,7 @@ void mscd_init(void)
 void mscd_close(uint8_t coreid)
 {
   memclr_(&mscd_data, sizeof(mscd_interface_t));
+  tusbd_msc_unmounted_cb(coreid);
 }
 
 tusb_error_t mscd_open(uint8_t coreid, tusb_descriptor_interface_t const * p_interface_desc, uint16_t *p_length)
@@ -110,6 +111,8 @@ tusb_error_t mscd_open(uint8_t coreid, tusb_descriptor_interface_t const * p_int
   p_msc->interface_number = p_interface_desc->bInterfaceNumber;
 
   (*p_length) += sizeof(tusb_descriptor_interface_t) + 2*sizeof(tusb_descriptor_endpoint_t);
+
+  tusbd_msc_mounted_cb(coreid);
 
   //------------- Queue Endpoint OUT for Command Block Wrapper -------------//
   ASSERT_STATUS( dcd_pipe_xfer(p_msc->edpt_out, (uint8_t*) &p_msc->cbw, sizeof(msc_cmd_block_wrapper_t), true) );

@@ -180,6 +180,8 @@ void cdcd_close(uint8_t coreid)
 {
   // no need to close opened pipe, dcd bus reset will put controller's endpoints to default state
   memclr_(&cdcd_data[coreid], sizeof(cdcd_data_t));
+
+  tusbd_cdc_unmounted_cb(coreid);
 }
 
 tusb_error_t cdcd_control_request_subtask(uint8_t coreid, tusb_control_request_t const * p_request)

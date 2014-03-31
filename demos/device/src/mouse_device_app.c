@@ -1,4 +1,4 @@
-/**************************************************************************/
+  /**************************************************************************/
 /*!
     @file     mouse_device_app.c
     @author   hathach (tinyusb.org)
@@ -42,6 +42,7 @@
 //--------------------------------------------------------------------+
 // INCLUDE
 //--------------------------------------------------------------------+
+#include "app_os_prio.h"
 
 //--------------------------------------------------------------------+
 // MACRO CONSTANT TYPEDEF
@@ -50,7 +51,7 @@
 //--------------------------------------------------------------------+
 // INTERNAL OBJECT & FUNCTION DECLARATION
 //--------------------------------------------------------------------+
-OSAL_TASK_DEF(mouse_device_app_task, 128, MOUSED_APP_TASK_PRIO);
+OSAL_TASK_DEF(mouse_device_app_task, 128, MOUSE_APP_TASK_PRIO);
 
 TUSB_CFG_ATTR_USBRAM hid_mouse_report_t mouse_report;
 
@@ -90,6 +91,7 @@ void tusbd_hid_mouse_set_report_cb(uint8_t coreid, hid_request_report_type_t rep
 {
   // mouse demo does not support set report --> do nothing
 }
+
 //--------------------------------------------------------------------+
 // APPLICATION CODE
 //--------------------------------------------------------------------+
