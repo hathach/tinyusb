@@ -145,6 +145,87 @@ OSAL_SEM_DEF(usbd_control_xfer_semaphore_def);
 static osal_queue_handle_t usbd_queue_hdl;
 /*static*/ osal_semaphore_handle_t usbd_control_xfer_sem_hdl; // TODO may need to change to static with wrapper function
 
+//--------------------------------------------------------------------+
+// IMPLEMENTATION
+//--------------------------------------------------------------------+
+tusb_error_t usbd_control_request_subtask(uint8_t coreid, tusb_control_request_t const * const p_request);
+static tusb_error_t usbd_body_subtask(void);
+
+tusb_error_t usbd_init (void)
+{
+  ASSERT_STATUS ( dcd_init() );
+
+  //------------- Task init -------------//
+  usbd_queue_hdl = osal_queue_create( OSAL_QUEUE_REF(usbd_queue_def) );
+  ASSERT_PTR(usbd_queue_hdl, TUSB_ERROR_OSAL_QUEUE_FAILED);
+
+  usbd_control_xfer_sem_hdl = osal_semaphore_create( OSAL_SEM_REF(usbd_control_xfer_semaphore_def) );
+  ASSERT_PTR(usbd_queue_hdl, TUSB_ERROR_OSAL_SEMAPHORE_FAILED);
+
+  ASSERT_STATUS( osal_task_create( OSAL_TASK_REF(usbd_task) ));
+
+  //------------- Descriptor Check -------------//
+  ASSERT(tusbd_descriptor_pointers.p_device != NULL && tusbd_descriptor_pointers.p_configuration != NULL, TUSB_ERROR_DESCRIPTOR_CORRUPTED);
+
+  //------------- class init -------------//
+  for (uint8_t class_code = TUSB_CLASS_AUDIO; class_code < USBD_CLASS_DRIVER_COUNT; class_code++)
+  {
+    if ( usbd_class_drivers[class_code].init )
+    {
+      usbd_class_drivers[class_code].init();
+    }
+  }
+
+  return TUSB_ERROR_NONE;
+}
+
+// To enable the TASK_ASSERT style (quick return on false condition) in a real RTOS, a task must act as a wrapper
+// and is used mainly to call subtasks. Within a subtask return statement can be called freely, the task with
+// forever loop cannot have any return at all.
+OSAL_TASK_FUNCTION(usbd_task, p_task_para)
+{
+  (void) p_task_para; // suppress compiler warnings
+
+  OSAL_TASK_LOOP_BEGIN
+  usbd_body_subtask();
+  OSAL_TASK_LOOP_END
+}
+
+static tusb_error_t usbd_body_subtask(void)
+{
+  OSAL_VAR usbd_task_event_t event;
+
+  OSAL_SUBTASK_BEGIN
+
+  tusb_error_t error;
+  error = TUSB_ERROR_NONE;
+
+  osal_queue_receive(usbd_queue_hdl, &event, OSAL_TIMEOUT_WAIT_FOREVER, &error);
+  SUBTASK_ASSERT_STATUS(error);
+
+  if ( USBD_EVENTID_SETUP_RECEIVED == event.event_id )
+  {
+    OSAL_SUBTASK_INVOKED_AND_WAIT( usbd_control_request_subtask(event.coreid, &event.setup_received), error );
+  }else
+  {
+    uint8_t class_index;
+    class_index = std_class_code_to_index( event.xfer_done.edpt_hdl.class_code );
+
+    if (usbd_class_drivers[class_index].xfer_cb)
+    {
+      usbd_class_drivers[class_index].xfer_cb( event.xfer_done.edpt_hdl, (tusb_event_t) event.sub_event_id, event.xfer_done.xferred_byte);
+    }else
+    {
+      hal_debugger_breakpoint(); // something wrong, no one claims the isr's source
+    }
+  }
+
+  OSAL_SUBTASK_END
+}
+
+//--------------------------------------------------------------------+
+// CONTROL REQUEST
+//--------------------------------------------------------------------+
 tusb_error_t usbd_control_request_subtask(uint8_t coreid, tusb_control_request_t const * const p_request)
 {
   OSAL_SUBTASK_BEGIN
@@ -223,71 +304,6 @@ tusb_error_t usbd_control_request_subtask(uint8_t coreid, tusb_control_request_t
   OSAL_SUBTASK_END
 }
 
-// To enable the TASK_ASSERT style (quick return on false condition) in a real RTOS, a task must act as a wrapper
-// and is used mainly to call subtasks. Within a subtask return statement can be called freely, the task with
-// forever loop cannot have any return at all.
-OSAL_TASK_FUNCTION(usbd_task, p_task_para)
-{
-  OSAL_TASK_LOOP_BEGIN
-
-  OSAL_VAR usbd_task_event_t event;
-  tusb_error_t error;
-  error = TUSB_ERROR_NONE;
-
-  osal_queue_receive(usbd_queue_hdl, &event, OSAL_TIMEOUT_WAIT_FOREVER, &error);
-  SUBTASK_ASSERT_STATUS(error);
-
-  if ( USBD_EVENTID_SETUP_RECEIVED == event.event_id )
-  {
-    OSAL_SUBTASK_INVOKED_AND_WAIT( usbd_control_request_subtask(event.coreid, &event.setup_received), error );
-  }else
-  {
-    uint8_t class_index;
-    class_index = std_class_code_to_index( event.xfer_done.edpt_hdl.class_code );
-
-    if (usbd_class_drivers[class_index].xfer_cb)
-    {
-      usbd_class_drivers[class_index].xfer_cb( event.xfer_done.edpt_hdl, (tusb_event_t) event.sub_event_id, event.xfer_done.xferred_byte);
-    }else
-    {
-      hal_debugger_breakpoint(); // something wrong, no one claims the isr's source
-    }
-  }
-
-  OSAL_TASK_LOOP_END
-}
-
-tusb_error_t usbd_init (void)
-{
-  ASSERT_STATUS ( dcd_init() );
-
-  //------------- Task init -------------//
-  usbd_queue_hdl = osal_queue_create( OSAL_QUEUE_REF(usbd_queue_def) );
-  ASSERT_PTR(usbd_queue_hdl, TUSB_ERROR_OSAL_QUEUE_FAILED);
-
-  usbd_control_xfer_sem_hdl = osal_semaphore_create( OSAL_SEM_REF(usbd_control_xfer_semaphore_def) );
-  ASSERT_PTR(usbd_queue_hdl, TUSB_ERROR_OSAL_SEMAPHORE_FAILED);
-
-  ASSERT_STATUS( osal_task_create( OSAL_TASK_REF(usbd_task) ));
-
-  //------------- Descriptor Check -------------//
-  ASSERT(tusbd_descriptor_pointers.p_device != NULL && tusbd_descriptor_pointers.p_configuration != NULL, TUSB_ERROR_DESCRIPTOR_CORRUPTED);
-
-  //------------- class init -------------//
-  for (uint8_t class_code = TUSB_CLASS_AUDIO; class_code < USBD_CLASS_DRIVER_COUNT; class_code++)
-  {
-    if ( usbd_class_drivers[class_code].init )
-    {
-      usbd_class_drivers[class_code].init();
-    }
-  }
-
-  return TUSB_ERROR_NONE;
-}
-
-//--------------------------------------------------------------------+
-// CONTROL REQUEST
-//--------------------------------------------------------------------+
 // TODO Host (windows) can get HID report descriptor before set configured
 // may need to open interface before set configured
 static tusb_error_t usbd_set_configure_received(uint8_t coreid, uint8_t config_number)

@@ -5562,37 +5562,40 @@
     </file>
   </group>
   <group>
-    <name>bsp</name>
-    <group>
-      <name>boards</name>
-      <file>
-        <name>$PROJ_DIR$\..\..\..\boards\board.c</name>
-      </file>
-      <file>
-        <name>$PROJ_DIR$\..\..\..\boards\embedded_artists\ea4357\board_ea4357.c</name>
-      </file>
-      <file>
-        <name>$PROJ_DIR$\..\..\..\boards\microbuilder\board_lpc4357usb.c</name>
-      </file>
-      <file>
-        <name>$PROJ_DIR$\..\..\..\boards\lpcxpresso\board_lpcxpresso11u14.c</name>
-      </file>
-      <file>
-        <name>$PROJ_DIR$\..\..\..\boards\lpcxpresso\board_lpcxpresso1347.c</name>
-      </file>
-      <file>
-        <name>$PROJ_DIR$\..\..\..\boards\lpcxpresso\board_lpcxpresso1769.c</name>
-      </file>
-      <file>
-        <name>$PROJ_DIR$\..\..\..\boards\ngx\board_ngx4330.c</name>
-      </file>
-      <file>
-        <name>$PROJ_DIR$\..\..\..\boards\embedded_artists\oem_base_board\pca9532.c</name>
-      </file>
-      <file>
-        <name>$PROJ_DIR$\..\..\..\boards\printf_retarget.c</name>
-      </file>
-    </group>
+    <name>boards</name>
+    <file>
+      <name>$PROJ_DIR$\..\..\..\boards\board.c</name>
+    </file>
+    <file>
+      <name>$PROJ_DIR$\..\..\..\boards\embedded_artists\ea4357\board_ea4357.c</name>
+    </file>
+    <file>
+      <name>$PROJ_DIR$\..\..\..\boards\microbuilder\board_lpc4357usb.c</name>
+    </file>
+    <file>
+      <name>$PROJ_DIR$\..\..\..\boards\lpcxpresso\board_lpcxpresso11u14.c</name>
+    </file>
+    <file>
+      <name>$PROJ_DIR$\..\..\..\boards\lpcxpresso\board_lpcxpresso1347.c</name>
+    </file>
+    <file>
+      <name>$PROJ_DIR$\..\..\..\boards\lpcxpresso\board_lpcxpresso1769.c</name>
+    </file>
+    <file>
+      <name>$PROJ_DIR$\..\..\..\boards\ngx\board_ngx4330.c</name>
+    </file>
+    <file>
+      <name>$PROJ_DIR$\..\..\..\boards\microbuilder\board_rf1ghznode.c</name>
+    </file>
+    <file>
+      <name>$PROJ_DIR$\..\..\..\boards\embedded_artists\oem_base_board\pca9532.c</name>
+    </file>
+    <file>
+      <name>$PROJ_DIR$\..\..\..\boards\printf_retarget.c</name>
+    </file>
+  </group>
+  <group>
+    <name>mcu</name>
     <group>
       <name>lpc11uxx</name>
       <excluded>
@@ -5694,9 +5697,6 @@
         <name>$PROJ_DIR$\..\..\..\mcu\lpc43xx\CMSIS_LPC43xx_DriverLib\src\system_LPC43xx.c</name>
       </file>
     </group>
-    <file>
-      <name>$PROJ_DIR$\..\..\..\boards\microbuilder\board_rf1ghznode.c</name>
-    </file>
   </group>
   <group>
     <name>tinyusb</name>
