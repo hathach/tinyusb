@@ -5,7 +5,7 @@
 <meta http-equiv="Content-Type" content="text/xhtml;charset=UTF-8"/>
 <meta http-equiv="X-UA-Compatible" content="IE=9"/>
 <meta name="generator" content="Doxygen 1.8.6"/>
-<title>tinyusb: tinyusb/doxygen/coding_standard.md Source File</title>
+<title>tinyusb: doxygen/coding_standard.md Source File</title>
 <link href="tabs.css" rel="stylesheet" type="text/css"/>
 <script type="text/javascript" src="jquery.js"></script>
 <script type="text/javascript" src="dynsections.js"></script>
@@ -108,7 +108,7 @@ $(document).ready(function(){initNavTree('coding__standard_8md.html','');});
 
 <div class="header">
   <div class="headertitle">
-<div class="title">tinyusb/doxygen/coding_standard.md</div>  </div>
+<div class="title">doxygen/coding_standard.md</div>  </div>
 </div><!--header-->
 <div class="contents">
 <div class="fragment"><div class="line"><a name="l00001"></a><span class="lineno">    1</span>&#160;<span class="preprocessor"># Coding Standards #</span></div>
@@ -125,57 +125,79 @@ $(document).ready(function(){initNavTree('coding__standard_8md.html','');});
 <div class="line"><a name="l00012"></a><span class="lineno">   12</span>&#160;<span class="preprocessor"></span></div>
 <div class="line"><a name="l00013"></a><span class="lineno">   13</span>&#160;MISRA-C is well respected &amp; a bar <span class="keywordflow">for</span> industrial coding standard. </div>
 <div class="line"><a name="l00014"></a><span class="lineno">   14</span>&#160;</div>
-<div class="line"><a name="l00015"></a><span class="lineno">   15</span>&#160;- **Rule 2.2: use only /\*** It has <span class="keywordtype">long</span> passed the day that C99 comment style <span class="comment">// will cause any issues, especially compiler&#39;s C99 mode is required to build tinyusb.</span></div>
-<div class="line"><a name="l00016"></a><span class="lineno">   16</span>&#160;- **Rule 8.5: No definitions of objects or <span class="keyword">function</span> in a header file**  <span class="keyword">function</span> definitions in header files are used to allow <span class="stringliteral">&#39;inlining&#39;</span></div>
-<div class="line"><a name="l00017"></a><span class="lineno">   17</span>&#160;- **Rule 14.7: A <span class="keyword">function</span> shall have a single point of exit at the end of the <span class="keyword">function</span>** Unfortunately, following <span class="keyword">this</span> rule will have a lot of nesting <span class="keywordflow">if</span>-<span class="keywordflow">else</span>, I prefer to exit as soon as possible with assert style and flatten <span class="keywordflow">if</span>-<span class="keywordflow">else</span>.</div>
-<div class="line"><a name="l00018"></a><span class="lineno">   18</span>&#160;- **Rule 18.4: Unions shall not be used** sorry MISRA, <span class="keyword">union </span>is required to effectively mapped to MCU&#39;s registers</div>
-<div class="line"><a name="l00019"></a><span class="lineno">   19</span>&#160;- expect to have more &amp; more exceptions.</div>
-<div class="line"><a name="l00020"></a><span class="lineno">   20</span>&#160;</div>
-<div class="line"><a name="l00021"></a><span class="lineno">   21</span>&#160;## Power of 10 ##</div>
-<div class="line"><a name="l00022"></a><span class="lineno">   22</span>&#160;</div>
-<div class="line"><a name="l00023"></a><span class="lineno">   23</span>&#160;is a small &amp; easy to remember but yet powerful coding guideline. Most (<span class="keywordflow">if</span> not all) of the rules here are included in JPL. Because it is very small, all the rules will be listed here, those with *italic* are compliant, **bold** are violated. </div>
-<div class="line"><a name="l00024"></a><span class="lineno">   24</span>&#160;</div>
-<div class="line"><a name="l00025"></a><span class="lineno">   25</span>&#160;1. *Restrict to simple control flow constructs* </div>
-<div class="line"><a name="l00026"></a><span class="lineno">   26</span>&#160;yes, I hate <span class="keywordflow">goto</span> statement, therefore there is none of those here</div>
-<div class="line"><a name="l00027"></a><span class="lineno">   27</span>&#160;</div>
-<div class="line"><a name="l00028"></a><span class="lineno">   28</span>&#160;2. *Give all loops a fixed upper-bound* </div>
-<div class="line"><a name="l00029"></a><span class="lineno">   29</span>&#160;one of my favorite rule</div>
-<div class="line"><a name="l00030"></a><span class="lineno">   30</span>&#160;</div>
-<div class="line"><a name="l00031"></a><span class="lineno">   31</span>&#160;3. *Do not use dynamic memory allocation after initialization* </div>
-<div class="line"><a name="l00032"></a><span class="lineno">   32</span>&#160;the tinyusb uses the <span class="keyword">static</span> memory <span class="keywordflow">for</span> all of its data.</div>
-<div class="line"><a name="l00033"></a><span class="lineno">   33</span>&#160;</div>
-<div class="line"><a name="l00034"></a><span class="lineno">   34</span>&#160;4. **Limit functions to no more than 60 lines of text** </div>
-<div class="line"><a name="l00035"></a><span class="lineno">   35</span>&#160;60 is a little bit too strict, I will update the relaxing number later</div>
+<div class="line"><a name="l00015"></a><span class="lineno">   15</span>&#160;- **Rule 2.2: use only**</div>
+<div class="line"><a name="l00016"></a><span class="lineno">   16</span>&#160;    </div>
+<div class="line"><a name="l00017"></a><span class="lineno">   17</span>&#160;    It has <span class="keywordtype">long</span> passed the day that C99 comment style <span class="comment">// will cause any issues, especially compiler&#39;s C99 mode is required to build tinyusb.</span></div>
+<div class="line"><a name="l00018"></a><span class="lineno">   18</span>&#160;    </div>
+<div class="line"><a name="l00019"></a><span class="lineno">   19</span>&#160;- **Rule 8.5: No definitions of objects or <span class="keyword">function</span> in a header file**</div>
+<div class="line"><a name="l00020"></a><span class="lineno">   20</span>&#160;    </div>
+<div class="line"><a name="l00021"></a><span class="lineno">   21</span>&#160;    <span class="keyword">function</span> definitions in header files are used to allow <span class="stringliteral">&#39;inlining&#39;</span></div>
+<div class="line"><a name="l00022"></a><span class="lineno">   22</span>&#160;    </div>
+<div class="line"><a name="l00023"></a><span class="lineno">   23</span>&#160;- **Rule 14.7: A <span class="keyword">function</span> shall have a single point of exit at the end of the <span class="keyword">function</span>** </div>
+<div class="line"><a name="l00024"></a><span class="lineno">   24</span>&#160;    </div>
+<div class="line"><a name="l00025"></a><span class="lineno">   25</span>&#160;    Unfortunately, following <span class="keyword">this</span> rule will have a lot of nesting <span class="keywordflow">if</span>-<span class="keywordflow">else</span>, I prefer to exit as soon as possible with assert style and flatten <span class="keywordflow">if</span>-<span class="keywordflow">else</span>.</div>
+<div class="line"><a name="l00026"></a><span class="lineno">   26</span>&#160;    </div>
+<div class="line"><a name="l00027"></a><span class="lineno">   27</span>&#160;- **Rule 18.4: Unions shall not be used** </div>
+<div class="line"><a name="l00028"></a><span class="lineno">   28</span>&#160;</div>
+<div class="line"><a name="l00029"></a><span class="lineno">   29</span>&#160;    sorry MISRA, <span class="keyword">union </span>is required to effectively mapped to MCU&#39;s registers</div>
+<div class="line"><a name="l00030"></a><span class="lineno">   30</span>&#160;    </div>
+<div class="line"><a name="l00031"></a><span class="lineno">   31</span>&#160;- expect to have more &amp; more exceptions.</div>
+<div class="line"><a name="l00032"></a><span class="lineno">   32</span>&#160;</div>
+<div class="line"><a name="l00033"></a><span class="lineno">   33</span>&#160;## Power of 10 ##</div>
+<div class="line"><a name="l00034"></a><span class="lineno">   34</span>&#160;</div>
+<div class="line"><a name="l00035"></a><span class="lineno">   35</span>&#160;is a small &amp; easy to remember but yet powerful coding guideline. Most (<span class="keywordflow">if</span> not all) of the rules here are included in JPL. Because it is very small, all the rules will be listed here, those with *italic* are compliant, **bold** are violated. </div>
 <div class="line"><a name="l00036"></a><span class="lineno">   36</span>&#160;</div>
-<div class="line"><a name="l00037"></a><span class="lineno">   37</span>&#160;5. *Use minimally two assertions per <span class="keyword">function</span> on average* </div>
-<div class="line"><a name="l00038"></a><span class="lineno">   38</span>&#160;not sure the exact number, but I use a tons of those assert</div>
-<div class="line"><a name="l00039"></a><span class="lineno">   39</span>&#160;</div>
-<div class="line"><a name="l00040"></a><span class="lineno">   40</span>&#160;6. *Declare data objects at the smallest possible level of scope* </div>
-<div class="line"><a name="l00041"></a><span class="lineno">   41</span>&#160;one of the best &amp; easiest rule to follow</div>
+<div class="line"><a name="l00037"></a><span class="lineno">   37</span>&#160;1. *Restrict to simple control flow constructs* </div>
+<div class="line"><a name="l00038"></a><span class="lineno">   38</span>&#160;</div>
+<div class="line"><a name="l00039"></a><span class="lineno">   39</span>&#160;    yes, I hate <span class="keywordflow">goto</span> statement, therefore there is none of those here</div>
+<div class="line"><a name="l00040"></a><span class="lineno">   40</span>&#160;</div>
+<div class="line"><a name="l00041"></a><span class="lineno">   41</span>&#160;2. *Give all loops a fixed upper-bound* </div>
 <div class="line"><a name="l00042"></a><span class="lineno">   42</span>&#160;</div>
-<div class="line"><a name="l00043"></a><span class="lineno">   43</span>&#160;7. *Check the <span class="keywordflow">return</span> value of non-<span class="keywordtype">void</span> functions, and check the validity of <span class="keyword">function</span> parameters* </div>
-<div class="line"><a name="l00044"></a><span class="lineno">   44</span>&#160;I did check all of the <span class="keyword">public</span> application API<span class="stringliteral">&#39;s parameters. For internal API, calling function needs to trust their caller to reduce duplicated check.</span></div>
-<div class="line"><a name="l00045"></a><span class="lineno">   45</span>&#160;<span class="stringliteral"></span></div>
-<div class="line"><a name="l00046"></a><span class="lineno">   46</span>&#160;<span class="stringliteral">8. **Limit the use of the preprocessor to file inclusion and simple macros** </span></div>
-<div class="line"><a name="l00047"></a><span class="lineno">   47</span>&#160;<span class="stringliteral">Although I prefer inline function, however C macros are far powerful than that. I simply cannot hold myself to use, for example X-Macro technique to simplify code.</span></div>
-<div class="line"><a name="l00048"></a><span class="lineno">   48</span>&#160;<span class="stringliteral"></span></div>
-<div class="line"><a name="l00049"></a><span class="lineno">   49</span>&#160;<span class="stringliteral">9. *Limit the use of pointers. Use no more than two levels of dereferencing per expression* </span></div>
-<div class="line"><a name="l00050"></a><span class="lineno">   50</span>&#160;<span class="stringliteral">never intend to get in trouble with complex pointer dereferencing.</span></div>
-<div class="line"><a name="l00051"></a><span class="lineno">   51</span>&#160;<span class="stringliteral"></span></div>
-<div class="line"><a name="l00052"></a><span class="lineno">   52</span>&#160;<span class="stringliteral">10. *Compile with all warnings enabled, and use one or more source code analyzers* </span></div>
-<div class="line"><a name="l00053"></a><span class="lineno">   53</span>&#160;<span class="stringliteral">I try to use all the defensive options of gnu, let me know if I miss some.</span></div>
-<div class="line"><a name="l00054"></a><span class="lineno">   54</span>&#160;<span class="stringliteral">&gt;-Wextra -Wswitch-default -Wunsafe-loop-optimizations -Wcast-align -Wlogical-op -Wpacked-bitfield-compat -Wnested-externs -Wredundant-decls -Winline</span></div>
-<div class="line"><a name="l00055"></a><span class="lineno">   55</span>&#160;<span class="stringliteral"></span></div>
-<div class="line"><a name="l00056"></a><span class="lineno">   56</span>&#160;<span class="stringliteral">## JPL ##</span></div>
-<div class="line"><a name="l00057"></a><span class="lineno">   57</span>&#160;<span class="stringliteral"></span></div>
-<div class="line"><a name="l00058"></a><span class="lineno">   58</span>&#160;<span class="stringliteral">coming soon ...</span></div>
+<div class="line"><a name="l00043"></a><span class="lineno">   43</span>&#160;    one of my favorite rule</div>
+<div class="line"><a name="l00044"></a><span class="lineno">   44</span>&#160;</div>
+<div class="line"><a name="l00045"></a><span class="lineno">   45</span>&#160;3. *Do not use dynamic memory allocation after initialization* </div>
+<div class="line"><a name="l00046"></a><span class="lineno">   46</span>&#160;</div>
+<div class="line"><a name="l00047"></a><span class="lineno">   47</span>&#160;    the tinyusb uses the <span class="keyword">static</span> memory <span class="keywordflow">for</span> all of its data.</div>
+<div class="line"><a name="l00048"></a><span class="lineno">   48</span>&#160;</div>
+<div class="line"><a name="l00049"></a><span class="lineno">   49</span>&#160;4. **Limit functions to no more than 60 lines of text** </div>
+<div class="line"><a name="l00050"></a><span class="lineno">   50</span>&#160;</div>
+<div class="line"><a name="l00051"></a><span class="lineno">   51</span>&#160;    60 is a little bit too strict, I will update the relaxing number later</div>
+<div class="line"><a name="l00052"></a><span class="lineno">   52</span>&#160;</div>
+<div class="line"><a name="l00053"></a><span class="lineno">   53</span>&#160;5. *Use minimally two assertions per <span class="keyword">function</span> on average* </div>
+<div class="line"><a name="l00054"></a><span class="lineno">   54</span>&#160;</div>
+<div class="line"><a name="l00055"></a><span class="lineno">   55</span>&#160;    not sure the exact number, but I use a tons of those assert</div>
+<div class="line"><a name="l00056"></a><span class="lineno">   56</span>&#160;</div>
+<div class="line"><a name="l00057"></a><span class="lineno">   57</span>&#160;6. *Declare data objects at the smallest possible level of scope* </div>
+<div class="line"><a name="l00058"></a><span class="lineno">   58</span>&#160;</div>
+<div class="line"><a name="l00059"></a><span class="lineno">   59</span>&#160;    one of the best &amp; easiest rule to follow</div>
+<div class="line"><a name="l00060"></a><span class="lineno">   60</span>&#160;</div>
+<div class="line"><a name="l00061"></a><span class="lineno">   61</span>&#160;7. *Check the <span class="keywordflow">return</span> value of non-<span class="keywordtype">void</span> functions, and check the validity of <span class="keyword">function</span> parameters* </div>
+<div class="line"><a name="l00062"></a><span class="lineno">   62</span>&#160;</div>
+<div class="line"><a name="l00063"></a><span class="lineno">   63</span>&#160;    I did check all of the <span class="keyword">public</span> application API<span class="stringliteral">&#39;s parameters. For internal API, calling function needs to trust their caller to reduce duplicated check.</span></div>
+<div class="line"><a name="l00064"></a><span class="lineno">   64</span>&#160;<span class="stringliteral"></span></div>
+<div class="line"><a name="l00065"></a><span class="lineno">   65</span>&#160;<span class="stringliteral">8. **Limit the use of the preprocessor to file inclusion and simple macros** </span></div>
+<div class="line"><a name="l00066"></a><span class="lineno">   66</span>&#160;<span class="stringliteral"></span></div>
+<div class="line"><a name="l00067"></a><span class="lineno">   67</span>&#160;<span class="stringliteral">    Although I prefer inline function, however C macros are far powerful than that. I simply cannot hold myself to use, for example X-Macro technique to simplify code.</span></div>
+<div class="line"><a name="l00068"></a><span class="lineno">   68</span>&#160;<span class="stringliteral"></span></div>
+<div class="line"><a name="l00069"></a><span class="lineno">   69</span>&#160;<span class="stringliteral">9. *Limit the use of pointers. Use no more than two levels of dereferencing per expression* </span></div>
+<div class="line"><a name="l00070"></a><span class="lineno">   70</span>&#160;<span class="stringliteral"></span></div>
+<div class="line"><a name="l00071"></a><span class="lineno">   71</span>&#160;<span class="stringliteral">    never intend to get in trouble with complex pointer dereferencing.</span></div>
+<div class="line"><a name="l00072"></a><span class="lineno">   72</span>&#160;<span class="stringliteral"></span></div>
+<div class="line"><a name="l00073"></a><span class="lineno">   73</span>&#160;<span class="stringliteral">10. *Compile with all warnings enabled, and use one or more source code analyzers* </span></div>
+<div class="line"><a name="l00074"></a><span class="lineno">   74</span>&#160;<span class="stringliteral"></span></div>
+<div class="line"><a name="l00075"></a><span class="lineno">   75</span>&#160;<span class="stringliteral">    I try to use all the defensive options of gnu, let me know if I miss some.</span></div>
+<div class="line"><a name="l00076"></a><span class="lineno">   76</span>&#160;<span class="stringliteral">    &gt;-Wextra -Wswitch-default -Wunsafe-loop-optimizations -Wcast-align -Wlogical-op -Wpacked-bitfield-compat -Wnested-externs -Wredundant-decls -Winline</span></div>
+<div class="line"><a name="l00077"></a><span class="lineno">   77</span>&#160;<span class="stringliteral"></span></div>
+<div class="line"><a name="l00078"></a><span class="lineno">   78</span>&#160;<span class="stringliteral">## JPL ##</span></div>
+<div class="line"><a name="l00079"></a><span class="lineno">   79</span>&#160;<span class="stringliteral"></span></div>
+<div class="line"><a name="l00080"></a><span class="lineno">   80</span>&#160;<span class="stringliteral">coming soon ...</span></div>
 </div><!-- fragment --></div><!-- contents -->
 </div><!-- doc-content -->
 <!-- start footer part -->
 <div id="nav-path" class="navpath"><!-- id is needed for treeview function! -->
   <ul>
     <li class="navelem"><b>coding_standard.md</b></li>
-    <li class="footer">Generated on Mon Mar 31 2014 15:49:02 for tinyusb by
+    <li class="footer">Generated on Mon Mar 31 2014 16:41:48 for tinyusb by
     <a href="http://www.doxygen.org/index.html">
     <img class="footer" src="doxygen.png" alt="doxygen"/></a> 1.8.6 </li>
   </ul>

@@ -1,10 +1,9 @@
 var NAVTREE =
 [
   [ "tinyusb", "index.html", [
-    [ "Coding Standards", "md_tinyusb_doxygen_coding_standard.html", null ],
-    [ "Get Started", "md_tinyusb_doxygen_get_started.html", null ],
+    [ "Coding Standards", "md_doxygen_coding_standard.html", null ],
+    [ "Get Started", "md_doxygen_get_started.html", "md_doxygen_get_started" ],
     [ "License", "md_tinyusb_license.html", null ],
-    [ "Boards", "md_boards_readme.html", null ],
     [ "Test-Driven Development", "md_tests_readme.html", null ],
     [ "Modules", "modules.html", "modules" ],
     [ "Data Structures", null, [

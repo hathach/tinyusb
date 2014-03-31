@@ -122,5 +122,5 @@ var searchData=
   ['configuration_20tusb_5fconfig_2eh',['Configuration tusb_config.h',['../group__group__configuration.html',1,'']]],
   ['custom_20class_20_28not_20supported_20yet_29',['Custom Class (not supported yet)',['../group___group___custom.html',1,'']]],
   ['controller_20mode_20selection',['Controller Mode Selection',['../group__group__mode.html',1,'']]],
-  ['coding_20standards',['Coding Standards',['../md_tinyusb_doxygen_coding_standard.html',1,'']]]
+  ['coding_20standards',['Coding Standards',['../md_doxygen_coding_standard.html',1,'']]]
 ];

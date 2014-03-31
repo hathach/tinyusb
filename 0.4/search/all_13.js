@@ -102,7 +102,7 @@ var searchData=
   ['tusbd_5fcdc_5funmounted_5fcb',['tusbd_cdc_unmounted_cb',['../group___c_d_c___serial___device.html#gaf18aa37f5e7476bab909fecb151db16e',1,'cdc_device.h']]],
   ['tusbd_5fcdc_5fxfer_5fcb',['tusbd_cdc_xfer_cb',['../group___c_d_c___serial___device.html#ga249badeb2eaf6b6f12d17a6c6f91bd5f',1,'cdc_device.h']]],
   ['tusbd_5fdescriptor_5fpointer_5ft',['tusbd_descriptor_pointer_t',['../structtusbd__descriptor__pointer__t.html',1,'']]],
-  ['tusbd_5fdescriptor_5fpointers',['tusbd_descriptor_pointers',['../group__group__usbd.html#ga2a5230d87078cc1195f93f00f6198ae8',1,'tusbd_descriptor_pointers():&#160;configuration.txt'],['../group___t_u_s_b___c_f_g___d_e_v_i_c_e.html#ga2a5230d87078cc1195f93f00f6198ae8',1,'tusbd_descriptor_pointers():&#160;configuration.txt']]],
+  ['tusbd_5fdescriptor_5fpointers',['tusbd_descriptor_pointers',['../group___t_u_s_b___c_f_g___d_e_v_i_c_e.html#ga2a5230d87078cc1195f93f00f6198ae8',1,'tusbd_descriptor_pointers():&#160;configuration.txt'],['../group__group__usbd.html#ga2a5230d87078cc1195f93f00f6198ae8',1,'tusbd_descriptor_pointers():&#160;configuration.txt']]],
   ['tusbd_5fhid_5fkeyboard_5fcb',['tusbd_hid_keyboard_cb',['../group___keyboard___device.html#ga325f15f403ee3572057fd6a55e28868e',1,'hid_device.h']]],
   ['tusbd_5fhid_5fkeyboard_5fget_5freport_5fcb',['tusbd_hid_keyboard_get_report_cb',['../group___keyboard___device.html#gaf8345eebc7540356d9598554b91b1d4b',1,'hid_device.h']]],
   ['tusbd_5fhid_5fkeyboard_5fis_5fbusy',['tusbd_hid_keyboard_is_busy',['../group___keyboard___device.html#gadf674819657d0a75be8c4b94fb6163da',1,'hid_device.h']]],

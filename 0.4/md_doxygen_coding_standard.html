@@ -83,7 +83,7 @@ var searchBox = new SearchBox("searchBox", "search",false,'Search');
   </div>
 </div>
 <script type="text/javascript">
-$(document).ready(function(){initNavTree('md_tinyusb_doxygen_coding_standard.html','');});
+$(document).ready(function(){initNavTree('md_doxygen_coding_standard.html','');});
 </script>
 <div id="doc-content">
 <!-- window showing the filter options -->
@@ -115,25 +115,53 @@ $(document).ready(function(){initNavTree('md_tinyusb_doxygen_coding_standard.htm
 <h2>MISRA-C 2004 Exceptions</h2>
 <p>MISRA-C is well respected &amp; a bar for industrial coding standard.</p>
 <ul>
-<li><b>Rule 2.2: use only /*</b> It has long passed the day that C99 comment style // will cause any issues, especially compiler's C99 mode is required to build tinyusb.</li>
-<li><b>Rule 8.5: No definitions of objects or function in a header file</b> function definitions in header files are used to allow 'inlining'</li>
-<li><b>Rule 14.7: A function shall have a single point of exit at the end of the function</b> Unfortunately, following this rule will have a lot of nesting if-else, I prefer to exit as soon as possible with assert style and flatten if-else.</li>
-<li><b>Rule 18.4: Unions shall not be used</b> sorry MISRA, union is required to effectively mapped to MCU's registers</li>
+<li><p class="startli"><b>Rule 2.2: use only</b></p>
+<p class="startli">It has long passed the day that C99 comment style // will cause any issues, especially compiler's C99 mode is required to build tinyusb.</p>
+</li>
+<li><p class="startli"><b>Rule 8.5: No definitions of objects or function in a header file</b></p>
+<p class="startli">function definitions in header files are used to allow 'inlining'</p>
+</li>
+<li><p class="startli"><b>Rule 14.7: A function shall have a single point of exit at the end of the function</b></p>
+<p class="startli">Unfortunately, following this rule will have a lot of nesting if-else, I prefer to exit as soon as possible with assert style and flatten if-else.</p>
+</li>
+<li><p class="startli"><b>Rule 18.4: Unions shall not be used</b></p>
+<p class="startli">sorry MISRA, union is required to effectively mapped to MCU's registers</p>
+</li>
 <li>expect to have more &amp; more exceptions.</li>
 </ul>
 <h2>Power of 10</h2>
 <p>is a small &amp; easy to remember but yet powerful coding guideline. Most (if not all) of the rules here are included in JPL. Because it is very small, all the rules will be listed here, those with <em>italic</em> are compliant, <b>bold</b> are violated.</p>
 <ol type="1">
-<li><em>Restrict to simple control flow constructs</em> yes, I hate goto statement, therefore there is none of those here</li>
-<li><em>Give all loops a fixed upper-bound</em> one of my favorite rule</li>
-<li><em>Do not use dynamic memory allocation after initialization</em> the tinyusb uses the static memory for all of its data.</li>
-<li><b>Limit functions to no more than 60 lines of text</b> 60 is a little bit too strict, I will update the relaxing number later</li>
-<li><em>Use minimally two assertions per function on average</em> not sure the exact number, but I use a tons of those assert</li>
-<li><em>Declare data objects at the smallest possible level of scope</em> one of the best &amp; easiest rule to follow</li>
-<li><em>Check the return value of non-void functions, and check the validity of function parameters</em> I did check all of the public application API's parameters. For internal API, calling function needs to trust their caller to reduce duplicated check.</li>
-<li><b>Limit the use of the preprocessor to file inclusion and simple macros</b> Although I prefer inline function, however C macros are far powerful than that. I simply cannot hold myself to use, for example X-Macro technique to simplify code.</li>
-<li><em>Limit the use of pointers. Use no more than two levels of dereferencing per expression</em> never intend to get in trouble with complex pointer dereferencing.</li>
-<li><em>Compile with all warnings enabled, and use one or more source code analyzers</em> I try to use all the defensive options of gnu, let me know if I miss some. &gt;-Wextra -Wswitch-default -Wunsafe-loop-optimizations -Wcast-align -Wlogical-op -Wpacked-bitfield-compat -Wnested-externs -Wredundant-decls -Winline</li>
+<li><p class="startli"><em>Restrict to simple control flow constructs</em></p>
+<p class="startli">yes, I hate goto statement, therefore there is none of those here</p>
+</li>
+<li><p class="startli"><em>Give all loops a fixed upper-bound</em></p>
+<p class="startli">one of my favorite rule</p>
+</li>
+<li><p class="startli"><em>Do not use dynamic memory allocation after initialization</em></p>
+<p class="startli">the tinyusb uses the static memory for all of its data.</p>
+</li>
+<li><p class="startli"><b>Limit functions to no more than 60 lines of text</b></p>
+<p class="startli">60 is a little bit too strict, I will update the relaxing number later</p>
+</li>
+<li><p class="startli"><em>Use minimally two assertions per function on average</em></p>
+<p class="startli">not sure the exact number, but I use a tons of those assert</p>
+</li>
+<li><p class="startli"><em>Declare data objects at the smallest possible level of scope</em></p>
+<p class="startli">one of the best &amp; easiest rule to follow</p>
+</li>
+<li><p class="startli"><em>Check the return value of non-void functions, and check the validity of function parameters</em></p>
+<p class="startli">I did check all of the public application API's parameters. For internal API, calling function needs to trust their caller to reduce duplicated check.</p>
+</li>
+<li><p class="startli"><b>Limit the use of the preprocessor to file inclusion and simple macros</b></p>
+<p class="startli">Although I prefer inline function, however C macros are far powerful than that. I simply cannot hold myself to use, for example X-Macro technique to simplify code.</p>
+</li>
+<li><p class="startli"><em>Limit the use of pointers. Use no more than two levels of dereferencing per expression</em></p>
+<p class="startli">never intend to get in trouble with complex pointer dereferencing.</p>
+</li>
+<li><p class="startli"><em>Compile with all warnings enabled, and use one or more source code analyzers</em></p>
+<p class="startli">I try to use all the defensive options of gnu, let me know if I miss some. &gt;-Wextra -Wswitch-default -Wunsafe-loop-optimizations -Wcast-align -Wlogical-op -Wpacked-bitfield-compat -Wnested-externs -Wredundant-decls -Winline</p>
+</li>
 </ol>
 <h2>JPL</h2>
 <p>coming soon ... </p>
@@ -142,7 +170,7 @@ $(document).ready(function(){initNavTree('md_tinyusb_doxygen_coding_standard.htm
 <!-- start footer part -->
 <div id="nav-path" class="navpath"><!-- id is needed for treeview function! -->
   <ul>
-    <li class="footer">Generated on Mon Mar 31 2014 15:49:04 for tinyusb by
+    <li class="footer">Generated on Mon Mar 31 2014 16:41:52 for tinyusb by
     <a href="http://www.doxygen.org/index.html">
     <img class="footer" src="doxygen.png" alt="doxygen"/></a> 1.8.6 </li>
   </ul>
