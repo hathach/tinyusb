@@ -60,7 +60,7 @@ OSAL_TASK_DEF(msc_host_app_task, 512, MSC_APP_TASK_PRIO);
 TUSB_CFG_ATTR_USBRAM static FATFS fatfs[TUSB_CFG_HOST_DEVICE_MAX];
 
 //--------------------------------------------------------------------+
-// tinyusb callback (ISR context)
+// tinyusb callbacks
 //--------------------------------------------------------------------+
 void tusbh_msc_mounted_cb(uint8_t dev_addr)
 {
@@ -130,6 +130,7 @@ void tusbh_msc_unmounted_cb(uint8_t dev_addr)
   }
 }
 
+// invoked ISR context
 void tusbh_msc_isr(uint8_t dev_addr, tusb_event_t event, uint32_t xferred_bytes)
 {
   (void) dev_addr;
@@ -138,7 +139,7 @@ void tusbh_msc_isr(uint8_t dev_addr, tusb_event_t event, uint32_t xferred_bytes)
 }
 
 //--------------------------------------------------------------------+
-// IMPLEMENTATION
+// APPLICATION CODE
 //--------------------------------------------------------------------+
 void msc_host_app_init(void)
 {

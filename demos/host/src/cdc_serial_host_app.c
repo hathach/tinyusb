@@ -57,7 +57,7 @@ TUSB_CFG_ATTR_USBRAM static uint8_t serial_out_buffer[32];
 static uint8_t received_bytes; // set by transfer complete callback
 
 //--------------------------------------------------------------------+
-// tinyusb Callbacks
+// tinyusb callbacks
 //--------------------------------------------------------------------+
 void tusbh_cdc_mounted_cb(uint8_t dev_addr)
 { // application set-up
@@ -76,6 +76,7 @@ void tusbh_cdc_unmounted_cb(uint8_t dev_addr)
   printf("\na CDC device (address %d) is unmounted \n", dev_addr);
 }
 
+// invoked ISR context
 void tusbh_cdc_xfer_isr(uint8_t dev_addr, tusb_event_t event, cdc_pipeid_t pipe_id, uint32_t xferred_bytes)
 {
   (void) dev_addr; // compiler warnings

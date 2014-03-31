@@ -62,7 +62,7 @@ static inline uint8_t keycode_to_ascii(uint8_t modifier, uint8_t keycode) ATTR_C
 static inline void process_kbd_report(hid_keyboard_report_t const * report);
 
 //--------------------------------------------------------------------+
-// tinyusb callback (ISR context)
+// tinyusb callbacks
 //--------------------------------------------------------------------+
 void tusbh_hid_keyboard_mounted_cb(uint8_t dev_addr)
 {
@@ -79,6 +79,7 @@ void tusbh_hid_keyboard_unmounted_cb(uint8_t dev_addr)
   printf("\na Keyboard device (address %d) is unmounted\n", dev_addr);
 }
 
+// invoked ISR context
 void tusbh_hid_keyboard_isr(uint8_t dev_addr, tusb_event_t event)
 {
   switch(event)
@@ -132,9 +133,8 @@ OSAL_TASK_FUNCTION( keyboard_host_app_task, p_task_para)
 //--------------------------------------------------------------------+
 // HELPER
 //--------------------------------------------------------------------+
-
 // look up new key in previous keys
-static inline bool is_key_in_report(hid_keyboard_report_t const *p_report, uint8_t keycode)
+static inline bool find_key_in_report(hid_keyboard_report_t const *p_report, uint8_t keycode)
 {
   for(uint8_t i=0; i<6; i++)
   {
@@ -153,12 +153,12 @@ static inline void process_kbd_report(hid_keyboard_report_t const *p_new_report)
   {
     if ( p_new_report->keycode[i] )
     {
-      if ( is_key_in_report(&prev_report, p_new_report->keycode[i]) )
+      if ( find_key_in_report(&prev_report, p_new_report->keycode[i]) )
       {
         // exist in previous report means the current key is holding
       }else
       {
-        // not exist in previous report means the current key is pressed
+        // not existed in previous report means the current key is pressed
         uint8_t ch = keycode_to_ascii(p_new_report->modifier, p_new_report->keycode[i]);
         putchar(ch);
         if ( ch == '\r' ) putchar('\n'); // added new line for enter key

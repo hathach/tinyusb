@@ -61,7 +61,7 @@ TUSB_CFG_ATTR_USBRAM static hid_mouse_report_t usb_mouse_report;
 static inline void process_mouse_report(hid_mouse_report_t const * p_report);
 
 //--------------------------------------------------------------------+
-// tinyusb callback (ISR context)
+// tinyusb callbacks
 //--------------------------------------------------------------------+
 void tusbh_hid_mouse_mounted_cb(uint8_t dev_addr)
 {
@@ -78,6 +78,7 @@ void tusbh_hid_mouse_unmounted_cb(uint8_t dev_addr)
   printf("\na Mouse device (address %d) is unmounted\n", dev_addr);
 }
 
+// invoked ISR context
 void tusbh_hid_mouse_isr(uint8_t dev_addr, tusb_event_t event)
 {
   switch(event)
@@ -97,7 +98,7 @@ void tusbh_hid_mouse_isr(uint8_t dev_addr, tusb_event_t event)
 }
 
 //--------------------------------------------------------------------+
-// APPLICATION
+// APPLICATION CODE
 // NOTICE: MOUSE REPORT IS NOT CORRECT UNTIL A DECENT HID PARSER IS
 // IMPLEMENTED, MEANWHILE IT CAN MISS DISPLAY BUTTONS OR X,Y etc
 //--------------------------------------------------------------------+

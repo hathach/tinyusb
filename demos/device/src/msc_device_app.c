@@ -87,11 +87,7 @@ static scsi_mode_parameters_t const msc_dev_mode_para =
 };
 
 //--------------------------------------------------------------------+
-// INTERNAL OBJECT & FUNCTION DECLARATION
-//--------------------------------------------------------------------+
-
-//--------------------------------------------------------------------+
-// tinyusb callback (ISR context)
+// tinyusb callbacks
 //--------------------------------------------------------------------+
 void tusbd_msc_mounted_cb(uint8_t coreid)
 {
@@ -158,7 +154,7 @@ msc_csw_status_t tusbd_msc_scsi_cb (uint8_t coreid, uint8_t lun, uint8_t scsi_cm
 }
 
 //--------------------------------------------------------------------+
-// IMPLEMENTATION
+// APPLICATION CODE
 //--------------------------------------------------------------------+
 OSAL_TASK_FUNCTION( msc_device_app_task , p_task_para)
 { // no need to implement the task yet

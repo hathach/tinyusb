@@ -56,7 +56,7 @@ OSAL_TASK_DEF(mouse_device_app_task, 128, MOUSE_APP_TASK_PRIO);
 TUSB_CFG_ATTR_USBRAM hid_mouse_report_t mouse_report;
 
 //--------------------------------------------------------------------+
-// tinyusb Callbacks
+// tinyusb callbacks
 //--------------------------------------------------------------------+
 void tusbd_hid_mouse_mounted_cb(uint8_t coreid)
 {

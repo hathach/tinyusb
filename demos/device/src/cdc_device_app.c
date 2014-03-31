@@ -67,7 +67,7 @@ TUSB_CFG_ATTR_USBRAM static uint8_t serial_tx_buffer[CDCD_APP_BUFFER_SIZE];
 FIFO_DEF(fifo_serial, CDCD_APP_BUFFER_SIZE, uint8_t, true);
 
 //--------------------------------------------------------------------+
-// tinyusb Callbacks
+// tinyusb callbacks
 //--------------------------------------------------------------------+
 void tusbd_cdc_mounted_cb(uint8_t coreid)
 {

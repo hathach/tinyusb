@@ -56,7 +56,7 @@ OSAL_TASK_DEF(keyboard_device_app_task, 128, KEYBOARD_APP_TASK_PRIO);
 TUSB_CFG_ATTR_USBRAM hid_keyboard_report_t keyboard_report;
 
 //--------------------------------------------------------------------+
-// tinyusb Callbacks
+// tinyusb callbacks
 //--------------------------------------------------------------------+
 void tusbd_hid_keyboard_mounted_cb(uint8_t coreid)
 {
