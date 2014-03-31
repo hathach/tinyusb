@@ -62,7 +62,7 @@
 #define TUSB_CFG_DEVICE_HID_MOUSE               1
 #define TUSB_CFG_DEVICE_HID_GENERIC             0 // not supported yet
 #define TUSB_CFG_DEVICE_MSC                     1
-#define TUSB_CFG_DEVICE_CDC                     1
+#define TUSB_CFG_DEVICE_CDC                     0
 
 //--------------------------------------------------------------------+
 // COMMON CONFIGURATION
