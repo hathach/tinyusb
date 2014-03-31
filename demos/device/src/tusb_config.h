@@ -62,7 +62,7 @@
 #define TUSB_CFG_DEVICE_HID_MOUSE               0
 #define TUSB_CFG_DEVICE_HID_GENERIC             0 // not supported yet
 #define TUSB_CFG_DEVICE_MSC                     1
-#define TUSB_CFG_DEVICE_CDC                     1
+#define TUSB_CFG_DEVICE_CDC                     0
 
 //--------------------------------------------------------------------+
 // COMMON CONFIGURATION
@@ -91,7 +91,7 @@
   #if (TUSB_CFG_MCU == MCU_LPC11UXX) || (TUSB_CFG_MCU == MCU_LPC13UXX)
     #define TUSB_CFG_ATTR_USBRAM  ATTR_SECTION(USBRAM_SECTION) ATTR_ALIGNED(64) // lp11u & lp13u requires data to be 64 byte aligned
   #elif (TUSB_CFG_MCU == MCU_LPC175X_6X)
-    #define TUSB_CFG_ATTR_USBRAM
+    #define TUSB_CFG_ATTR_USBRAM  // LPC17xx USB DMA can access all address
   #elif  (TUSB_CFG_MCU == MCU_LPC43XX)
     #define TUSB_CFG_ATTR_USBRAM // Use keil tool configure to have AHB SRAM as default memory
   #endif

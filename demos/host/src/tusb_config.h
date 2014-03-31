@@ -77,24 +77,26 @@
 //--------------------------------------------------------------------+
 #ifdef __CODE_RED // make use of code red's support for ram region macros
 
-  #if (TUSB_CFG_MCU == MCU_LPC11UXX) || (TUSB_CFG_MCU == MCU_LPC13UXX)
-    #define TUSB_CFG_ATTR_USBRAM  ATTR_SECTION(.data.$RAM2)
-  #elif TUSB_CFG_MCU == MCU_LPC175X_6X
-    #define TUSB_CFG_ATTR_USBRAM // LPC17xx USB DMA can access all
+  #if TUSB_CFG_MCU == MCU_LPC175X_6X
+    #define TUSB_CFG_ATTR_USBRAM // LPC17xx USB DMA can access all address
   #elif  (TUSB_CFG_MCU == MCU_LPC43XX)
     #define TUSB_CFG_ATTR_USBRAM  ATTR_SECTION(.data.$RAM3)
   #endif
 
 #elif defined __CC_ARM // Compiled with Keil armcc
 
-  #define TUSB_CFG_ATTR_USBRAM
+  #if (TUSB_CFG_MCU == MCU_LPC175X_6X)
+    #define TUSB_CFG_ATTR_USBRAM  // LPC17xx USB DMA can access all address
+  #elif  (TUSB_CFG_MCU == MCU_LPC43XX)
+    #define TUSB_CFG_ATTR_USBRAM // Use keil tool configure to have AHB SRAM as default memory
+  #endif
 
 #elif defined __ICCARM__ // compiled with IAR
 
-  #if  (TUSB_CFG_MCU == MCU_LPC43XX)
-    #define TUSB_CFG_ATTR_USBRAM _Pragma("location=\".ahb_sram1\"")
-  #elif (TUSB_CFG_MCU == MCU_LPC175X_6X)
+  #if (TUSB_CFG_MCU == MCU_LPC175X_6X)
     #define TUSB_CFG_ATTR_USBRAM
+  #elif  (TUSB_CFG_MCU == MCU_LPC43XX)
+    #define TUSB_CFG_ATTR_USBRAM _Pragma("location=\".ahb_sram1\"")
   #endif
 
 #else

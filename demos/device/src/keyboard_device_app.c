@@ -42,6 +42,7 @@
 //--------------------------------------------------------------------+
 // INCLUDE
 //--------------------------------------------------------------------+
+#include "app_os_prio.h"
 
 //--------------------------------------------------------------------+
 // MACRO CONSTANT TYPEDEF
@@ -50,7 +51,7 @@
 //--------------------------------------------------------------------+
 // INTERNAL OBJECT & FUNCTION DECLARATION
 //--------------------------------------------------------------------+
-OSAL_TASK_DEF(keyboard_device_app_task, 128, KEYBOARDD_APP_TASK_PRIO);
+OSAL_TASK_DEF(keyboard_device_app_task, 128, KEYBOARD_APP_TASK_PRIO);
 
 TUSB_CFG_ATTR_USBRAM hid_keyboard_report_t keyboard_report;
 

@@ -55,7 +55,7 @@ Currently the following OS are supported with tinyusb out of the box with a simp
 ### Supported MCUs ###
 
 The stack supports the following MCUs
- 
+
   - LPC11uxx
   - LPC13uxx (12 bit ADC)
   - LPC175x_6x

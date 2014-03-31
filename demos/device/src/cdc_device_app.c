@@ -41,6 +41,7 @@
 #if TUSB_CFG_DEVICE_CDC
 
 #include "common/fifo.h" // TODO refractor
+#include "app_os_prio.h"
 
 //--------------------------------------------------------------------+
 // INCLUDE
@@ -52,7 +53,7 @@ enum {
 //--------------------------------------------------------------------+
 // MACRO CONSTANT TYPEDEF
 //--------------------------------------------------------------------+
-OSAL_TASK_DEF(cdcd_serial_app_task, 128, CDCD_SERIAL_APP_TASK_PRIO);
+OSAL_TASK_DEF(cdcd_serial_app_task, 128, CDC_SERIAL_APP_TASK_PRIO);
 OSAL_SEM_DEF(cdcd_semaphore);
 
 static osal_semaphore_handle_t sem_hdl;
