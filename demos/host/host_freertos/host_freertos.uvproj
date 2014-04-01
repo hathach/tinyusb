@@ -7,7 +7,7 @@
 
   <Targets>
     <Target>
-      <TargetName>Board EA4357</TargetName>
+      <TargetName>Board_EA4357</TargetName>
       <ToolsetNumber>0x4</ToolsetNumber>
       <ToolsetName>ARM-ADS</ToolsetName>
       <TargetOption>
@@ -43,14 +43,14 @@
             <NotGenerated>0</NotGenerated>
             <InvalidFlash>1</InvalidFlash>
           </TargetStatus>
-          <OutputDirectory>.\UV4Build\</OutputDirectory>
+          <OutputDirectory>.\KeilBuild\Board_EA4357\</OutputDirectory>
           <OutputName>host_freertos</OutputName>
           <CreateExecutable>1</CreateExecutable>
           <CreateLib>0</CreateLib>
           <CreateHexFile>0</CreateHexFile>
           <DebugInformation>1</DebugInformation>
           <BrowseInformation>1</BrowseInformation>
-          <ListingPath>.\UV4Build\</ListingPath>
+          <ListingPath>.\KeilBuild\Board_EA4357\</ListingPath>
           <HexFormatSelection>1</HexFormatSelection>
           <Merge32K>0</Merge32K>
           <CreateBatchFile>0</CreateBatchFile>
@@ -827,7 +827,7 @@
       </Groups>
     </Target>
     <Target>
-      <TargetName>Board LPCXpresso1769</TargetName>
+      <TargetName>Board_LPCXpresso1769</TargetName>
       <ToolsetNumber>0x4</ToolsetNumber>
       <ToolsetName>ARM-ADS</ToolsetName>
       <TargetOption>
@@ -863,14 +863,14 @@
             <NotGenerated>0</NotGenerated>
             <InvalidFlash>1</InvalidFlash>
           </TargetStatus>
-          <OutputDirectory>.\UV4Build\</OutputDirectory>
+          <OutputDirectory>.\KeilBuild\Board_LPCXpresso1769\</OutputDirectory>
           <OutputName>host_freertos</OutputName>
           <CreateExecutable>1</CreateExecutable>
           <CreateLib>0</CreateLib>
           <CreateHexFile>0</CreateHexFile>
           <DebugInformation>1</DebugInformation>
           <BrowseInformation>1</BrowseInformation>
-          <ListingPath>.\UV4Build\</ListingPath>
+          <ListingPath>.\KeilBuild\Board_LPCXpresso1769\</ListingPath>
           <HexFormatSelection>1</HexFormatSelection>
           <Merge32K>0</Merge32K>
           <CreateBatchFile>0</CreateBatchFile>
@@ -1647,7 +1647,7 @@
       </Groups>
     </Target>
     <Target>
-      <TargetName>Board NGX4330</TargetName>
+      <TargetName>Board_NGX4330</TargetName>
       <ToolsetNumber>0x4</ToolsetNumber>
       <ToolsetName>ARM-ADS</ToolsetName>
       <TargetOption>
@@ -1683,14 +1683,14 @@
             <NotGenerated>0</NotGenerated>
             <InvalidFlash>1</InvalidFlash>
           </TargetStatus>
-          <OutputDirectory>.\UV4Build\</OutputDirectory>
+          <OutputDirectory>.\KeilBuild\Board_NGX4330\</OutputDirectory>
           <OutputName>host_freertos</OutputName>
           <CreateExecutable>1</CreateExecutable>
           <CreateLib>0</CreateLib>
           <CreateHexFile>0</CreateHexFile>
           <DebugInformation>1</DebugInformation>
           <BrowseInformation>1</BrowseInformation>
-          <ListingPath>.\UV4Build\</ListingPath>
+          <ListingPath>.\KeilBuild\Board_NGX4330\</ListingPath>
           <HexFormatSelection>1</HexFormatSelection>
           <Merge32K>0</Merge32K>
           <CreateBatchFile>0</CreateBatchFile>
@@ -2467,7 +2467,7 @@
       </Groups>
     </Target>
     <Target>
-      <TargetName>Board MCB4300</TargetName>
+      <TargetName>Board_MCB4300</TargetName>
       <ToolsetNumber>0x4</ToolsetNumber>
       <ToolsetName>ARM-ADS</ToolsetName>
       <TargetOption>
@@ -2503,14 +2503,14 @@
             <NotGenerated>0</NotGenerated>
             <InvalidFlash>1</InvalidFlash>
           </TargetStatus>
-          <OutputDirectory>.\UV4Build\</OutputDirectory>
+          <OutputDirectory>.\KeilBuild\Board_MCB4300\</OutputDirectory>
           <OutputName>host_freertos</OutputName>
           <CreateExecutable>1</CreateExecutable>
           <CreateLib>0</CreateLib>
           <CreateHexFile>0</CreateHexFile>
           <DebugInformation>1</DebugInformation>
           <BrowseInformation>1</BrowseInformation>
-          <ListingPath>.\UV4Build\</ListingPath>
+          <ListingPath>.\KeilBuild\Board_MCB4300\</ListingPath>
           <HexFormatSelection>1</HexFormatSelection>
           <Merge32K>0</Merge32K>
           <CreateBatchFile>0</CreateBatchFile>
