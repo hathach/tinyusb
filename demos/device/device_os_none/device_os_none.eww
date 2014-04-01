@@ -4,31 +4,6 @@
   <project>
     <path>$WS_DIR$\device_os_none.ewp</path>
   </project>
-  <batchBuild>
-    <batchDefinition>
-      <name>all</name>
-      <member>
-        <project>device_os_none</project>
-        <configuration>Board EA4357</configuration>
-      </member>
-      <member>
-        <project>device_os_none</project>
-        <configuration>Board LPCXpresso1347</configuration>
-      </member>
-      <member>
-        <project>device_os_none</project>
-        <configuration>Board LPCXpresso1769</configuration>
-      </member>
-      <member>
-        <project>device_os_none</project>
-        <configuration>Board NGX4330</configuration>
-      </member>
-      <member>
-        <project>device_os_none</project>
-        <configuration>Board rf1ghznode</configuration>
-      </member>
-    </batchDefinition>
-  </batchBuild>
 </workspace>
 
 

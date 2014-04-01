@@ -3,7 +3,7 @@
 <project>
   <fileVersion>2</fileVersion>
   <configuration>
-    <name>Board EA4357</name>
+    <name>Board_EA4357</name>
     <toolchain>
       <name>ARM</name>
     </toolchain>
@@ -17,15 +17,15 @@
         <debug>1</debug>
         <option>
           <name>ExePath</name>
-          <state>Board EA4357\Exe</state>
+          <state>Board_EA4357\Exe</state>
         </option>
         <option>
           <name>ObjPath</name>
-          <state>Board EA4357\Obj</state>
+          <state>Board_EA4357\Obj</state>
         </option>
         <option>
           <name>ListPath</name>
-          <state>Board EA4357\List</state>
+          <state>Board_EA4357\List</state>
         </option>
         <option>
           <name>Variant</name>
@@ -928,7 +928,7 @@
     </settings>
   </configuration>
   <configuration>
-    <name>Board LPCXpresso1769</name>
+    <name>Board_LPCXpresso1769</name>
     <toolchain>
       <name>ARM</name>
     </toolchain>
@@ -942,15 +942,15 @@
         <debug>1</debug>
         <option>
           <name>ExePath</name>
-          <state>Board LPCXpresso1769\Exe</state>
+          <state>Board_LPCXpresso1769\Exe</state>
         </option>
         <option>
           <name>ObjPath</name>
-          <state>Board LPCXpresso1769\Obj</state>
+          <state>Board_LPCXpresso1769\Obj</state>
         </option>
         <option>
           <name>ListPath</name>
-          <state>Board LPCXpresso1769\List</state>
+          <state>Board_LPCXpresso1769\List</state>
         </option>
         <option>
           <name>Variant</name>
@@ -1853,7 +1853,7 @@
     </settings>
   </configuration>
   <configuration>
-    <name>Board NGX4330</name>
+    <name>Board_NGX4330</name>
     <toolchain>
       <name>ARM</name>
     </toolchain>
@@ -1867,15 +1867,15 @@
         <debug>1</debug>
         <option>
           <name>ExePath</name>
-          <state>Board NGX4330\Exe</state>
+          <state>Board_NGX4330\Exe</state>
         </option>
         <option>
           <name>ObjPath</name>
-          <state>Board NGX4330\Obj</state>
+          <state>Board_NGX4330\Obj</state>
         </option>
         <option>
           <name>ListPath</name>
-          <state>Board NGX4330\List</state>
+          <state>Board_NGX4330\List</state>
         </option>
         <option>
           <name>Variant</name>
@@ -2825,14 +2825,14 @@
     <file>
       <name>$PROJ_DIR$\..\..\..\vendor\cmsis_rtos_rtx\LIB\IAR\RTX_CM3.a</name>
       <excluded>
-        <configuration>Board EA4357</configuration>
-        <configuration>Board NGX4330</configuration>
+        <configuration>Board_EA4357</configuration>
+        <configuration>Board_NGX4330</configuration>
       </excluded>
     </file>
     <file>
       <name>$PROJ_DIR$\..\..\..\vendor\cmsis_rtos_rtx\LIB\IAR\RTX_CM4.a</name>
       <excluded>
-        <configuration>Board LPCXpresso1769</configuration>
+        <configuration>Board_LPCXpresso1769</configuration>
       </excluded>
     </file>
     <file>
@@ -2856,8 +2856,8 @@
     <group>
       <name>lpc175x_6x</name>
       <excluded>
-        <configuration>Board EA4357</configuration>
-        <configuration>Board NGX4330</configuration>
+        <configuration>Board_EA4357</configuration>
+        <configuration>Board_NGX4330</configuration>
       </excluded>
       <file>
         <name>$PROJ_DIR$\..\..\..\mcu\lpc175x_6x\LPC17xx_DriverLib\source\lpc17xx_clkpwr.c</name>
@@ -2881,7 +2881,7 @@
     <group>
       <name>lpc43xx</name>
       <excluded>
-        <configuration>Board LPCXpresso1769</configuration>
+        <configuration>Board_LPCXpresso1769</configuration>
       </excluded>
       <file>
         <name>$PROJ_DIR$\..\..\..\mcu\lpc43xx\CMSIS_LPC43xx_DriverLib\src\lpc43xx_cgu.c</name>

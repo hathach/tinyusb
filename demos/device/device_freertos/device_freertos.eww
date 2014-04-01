@@ -4,31 +4,6 @@
   <project>
     <path>$WS_DIR$\device_freertos.ewp</path>
   </project>
-  <batchBuild>
-    <batchDefinition>
-      <name>all</name>
-      <member>
-        <project>device_freertos</project>
-        <configuration>Board EA4357</configuration>
-      </member>
-      <member>
-        <project>device_freertos</project>
-        <configuration>Board LPCXpresso1347</configuration>
-      </member>
-      <member>
-        <project>device_freertos</project>
-        <configuration>Board LPCXpresso1769</configuration>
-      </member>
-      <member>
-        <project>device_freertos</project>
-        <configuration>Board NGX4330</configuration>
-      </member>
-      <member>
-        <project>device_freertos</project>
-        <configuration>Board rf1ghznode</configuration>
-      </member>
-    </batchDefinition>
-  </batchBuild>
 </workspace>
 
 

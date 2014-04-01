@@ -4,23 +4,6 @@
   <project>
     <path>$WS_DIR$\host_cmsis_rtx.ewp</path>
   </project>
-  <batchBuild>
-    <batchDefinition>
-      <name>all</name>
-      <member>
-        <project>host_cmsis_rtx</project>
-        <configuration>Board EA4357</configuration>
-      </member>
-      <member>
-        <project>host_cmsis_rtx</project>
-        <configuration>Board LPCXpresso1769</configuration>
-      </member>
-      <member>
-        <project>host_cmsis_rtx</project>
-        <configuration>Board NGX4330</configuration>
-      </member>
-    </batchDefinition>
-  </batchBuild>
 </workspace>
 
 

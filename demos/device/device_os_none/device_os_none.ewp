@@ -3,7 +3,7 @@
 <project>
   <fileVersion>2</fileVersion>
   <configuration>
-    <name>Board EA4357</name>
+    <name>Board_EA4357</name>
     <toolchain>
       <name>ARM</name>
     </toolchain>
@@ -17,15 +17,15 @@
         <debug>1</debug>
         <option>
           <name>ExePath</name>
-          <state>Board EA4357\Exe</state>
+          <state>Board_EA4357\Exe</state>
         </option>
         <option>
           <name>ObjPath</name>
-          <state>Board EA4357\Obj</state>
+          <state>Board_EA4357\Obj</state>
         </option>
         <option>
           <name>ListPath</name>
-          <state>Board EA4357\List</state>
+          <state>Board_EA4357\List</state>
         </option>
         <option>
           <name>Variant</name>
@@ -925,7 +925,7 @@
     </settings>
   </configuration>
   <configuration>
-    <name>Board LPCXpresso1769</name>
+    <name>Board_LPCXpresso1769</name>
     <toolchain>
       <name>ARM</name>
     </toolchain>
@@ -939,15 +939,15 @@
         <debug>1</debug>
         <option>
           <name>ExePath</name>
-          <state>Board LPCXpresso1769\Exe</state>
+          <state>Board_LPCXpresso1769\Exe</state>
         </option>
         <option>
           <name>ObjPath</name>
-          <state>Board LPCXpresso1769\Obj</state>
+          <state>Board_LPCXpresso1769\Obj</state>
         </option>
         <option>
           <name>ListPath</name>
-          <state>Board LPCXpresso1769\List</state>
+          <state>Board_LPCXpresso1769\List</state>
         </option>
         <option>
           <name>Variant</name>
@@ -1847,7 +1847,7 @@
     </settings>
   </configuration>
   <configuration>
-    <name>Board NGX4330</name>
+    <name>Board_NGX4330</name>
     <toolchain>
       <name>ARM</name>
     </toolchain>
@@ -1861,15 +1861,15 @@
         <debug>1</debug>
         <option>
           <name>ExePath</name>
-          <state>Board NGX4330\Exe</state>
+          <state>Board_NGX4330\Exe</state>
         </option>
         <option>
           <name>ObjPath</name>
-          <state>Board NGX4330\Obj</state>
+          <state>Board_NGX4330\Obj</state>
         </option>
         <option>
           <name>ListPath</name>
-          <state>Board NGX4330\List</state>
+          <state>Board_NGX4330\List</state>
         </option>
         <option>
           <name>Variant</name>
@@ -2769,7 +2769,7 @@
     </settings>
   </configuration>
   <configuration>
-    <name>Board rf1ghznode</name>
+    <name>Board_rf1ghznode</name>
     <toolchain>
       <name>ARM</name>
     </toolchain>
@@ -2783,15 +2783,15 @@
         <debug>1</debug>
         <option>
           <name>ExePath</name>
-          <state>Board rf1ghznode\Exe</state>
+          <state>Board_rf1ghznode\Exe</state>
         </option>
         <option>
           <name>ObjPath</name>
-          <state>Board rf1ghznode\Obj</state>
+          <state>Board_rf1ghznode\Obj</state>
         </option>
         <option>
           <name>ListPath</name>
-          <state>Board rf1ghznode\List</state>
+          <state>Board_rf1ghznode\List</state>
         </option>
         <option>
           <name>Variant</name>
@@ -3691,7 +3691,7 @@
     </settings>
   </configuration>
   <configuration>
-    <name>Board LPCXpresso1347</name>
+    <name>Board_LPCXpresso1347</name>
     <toolchain>
       <name>ARM</name>
     </toolchain>
@@ -3705,15 +3705,15 @@
         <debug>1</debug>
         <option>
           <name>ExePath</name>
-          <state>Board LPCXpresso1347\Exe</state>
+          <state>Board_LPCXpresso1347\Exe</state>
         </option>
         <option>
           <name>ObjPath</name>
-          <state>Board LPCXpresso1347\Obj</state>
+          <state>Board_LPCXpresso1347\Obj</state>
         </option>
         <option>
           <name>ListPath</name>
-          <state>Board LPCXpresso1347\List</state>
+          <state>Board_LPCXpresso1347\List</state>
         </option>
         <option>
           <name>Variant</name>
@@ -4613,7 +4613,7 @@
     </settings>
   </configuration>
   <configuration>
-    <name>Board LPCXpresso11u14</name>
+    <name>Board_LPCXpresso11u14</name>
     <toolchain>
       <name>ARM</name>
     </toolchain>
@@ -4627,15 +4627,15 @@
         <debug>1</debug>
         <option>
           <name>ExePath</name>
-          <state>Board LPCXpresso11u14\Exe</state>
+          <state>Board_LPCXpresso11u14\Exe</state>
         </option>
         <option>
           <name>ObjPath</name>
-          <state>Board LPCXpresso11u14\Obj</state>
+          <state>Board_LPCXpresso11u14\Obj</state>
         </option>
         <option>
           <name>ListPath</name>
-          <state>Board LPCXpresso11u14\List</state>
+          <state>Board_LPCXpresso11u14\List</state>
         </option>
         <option>
           <name>Variant</name>
@@ -5599,10 +5599,10 @@
     <group>
       <name>lpc11uxx</name>
       <excluded>
-        <configuration>Board EA4357</configuration>
-        <configuration>Board LPCXpresso1769</configuration>
-        <configuration>Board NGX4330</configuration>
-        <configuration>Board LPCXpresso1347</configuration>
+        <configuration>Board_EA4357</configuration>
+        <configuration>Board_LPCXpresso1769</configuration>
+        <configuration>Board_NGX4330</configuration>
+        <configuration>Board_LPCXpresso1347</configuration>
       </excluded>
       <file>
         <name>$PROJ_DIR$\..\..\..\mcu\lpc11uxx\LPC11Uxx_DriverLib\lpc11uxx_gpio.c</name>
@@ -5620,11 +5620,11 @@
     <group>
       <name>lpc13uxx</name>
       <excluded>
-        <configuration>Board EA4357</configuration>
-        <configuration>Board LPCXpresso1769</configuration>
-        <configuration>Board NGX4330</configuration>
-        <configuration>Board rf1ghznode</configuration>
-        <configuration>Board LPCXpresso11u14</configuration>
+        <configuration>Board_EA4357</configuration>
+        <configuration>Board_LPCXpresso1769</configuration>
+        <configuration>Board_NGX4330</configuration>
+        <configuration>Board_rf1ghznode</configuration>
+        <configuration>Board_LPCXpresso11u14</configuration>
       </excluded>
       <file>
         <name>$PROJ_DIR$\..\..\..\mcu\lpc13uxx\LPC13Uxx_DriverLib\src\gpio.c</name>
@@ -5642,11 +5642,11 @@
     <group>
       <name>lpc175x_6x</name>
       <excluded>
-        <configuration>Board EA4357</configuration>
-        <configuration>Board NGX4330</configuration>
-        <configuration>Board rf1ghznode</configuration>
-        <configuration>Board LPCXpresso1347</configuration>
-        <configuration>Board LPCXpresso11u14</configuration>
+        <configuration>Board_EA4357</configuration>
+        <configuration>Board_NGX4330</configuration>
+        <configuration>Board_rf1ghznode</configuration>
+        <configuration>Board_LPCXpresso1347</configuration>
+        <configuration>Board_LPCXpresso11u14</configuration>
       </excluded>
       <file>
         <name>$PROJ_DIR$\..\..\..\mcu\lpc175x_6x\LPC17xx_DriverLib\source\lpc17xx_clkpwr.c</name>
@@ -5670,10 +5670,10 @@
     <group>
       <name>lpc43xx</name>
       <excluded>
-        <configuration>Board LPCXpresso1769</configuration>
-        <configuration>Board rf1ghznode</configuration>
-        <configuration>Board LPCXpresso1347</configuration>
-        <configuration>Board LPCXpresso11u14</configuration>
+        <configuration>Board_LPCXpresso1769</configuration>
+        <configuration>Board_rf1ghznode</configuration>
+        <configuration>Board_LPCXpresso1347</configuration>
+        <configuration>Board_LPCXpresso11u14</configuration>
       </excluded>
       <file>
         <name>$PROJ_DIR$\..\..\..\mcu\lpc43xx\CMSIS_LPC43xx_DriverLib\src\lpc43xx_cgu.c</name>
