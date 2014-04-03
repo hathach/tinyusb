@@ -119,6 +119,13 @@ int main(void)
 //--------------------------------------------------------------------+
 void print_greeting(void)
 {
+  char const * const rtos_name[] =
+  {
+      [TUSB_OS_NONE]      = "None",
+      [TUSB_OS_FREERTOS]  = "FreeRTOS",
+      [TUSB_OS_CMSIS_RTX] = "CMSIS-RTX"
+  };
+
   puts("\n\
 --------------------------------------------------------------------\n\
 -                     Host Demo (a tinyusb example)\n\
@@ -127,7 +134,8 @@ void print_greeting(void)
 --------------------------------------------------------------------\n"
   );
 
-  puts("This demo supports the following classes for HOST");
+  puts("This HOST demo is configured to support:");
+  printf("  - RTOS = %s\n", rtos_name[TUSB_CFG_OS]);
   if (TUSB_CFG_HOST_HUB          ) puts("  - Hub (1 level only)");
   if (TUSB_CFG_HOST_HID_MOUSE    ) puts("  - HID Mouse");
   if (TUSB_CFG_HOST_HID_KEYBOARD ) puts("  - HID Keyboard");

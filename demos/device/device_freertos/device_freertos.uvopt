@@ -21,7 +21,7 @@
   </DaveTm>
 
   <Target>
-    <TargetName>Board EA4357</TargetName>
+    <TargetName>Board_EA4357</TargetName>
     <ToolsetNumber>0x4</ToolsetNumber>
     <ToolsetName>ARM-ADS</ToolsetName>
     <TargetOption>
@@ -43,7 +43,7 @@
         <PageWidth>79</PageWidth>
         <PageLength>66</PageLength>
         <TabStop>8</TabStop>
-        <ListingPath>.\UV4Build\</ListingPath>
+        <ListingPath>.\KeilBuild\Board_EA4357\</ListingPath>
       </OPTLEX>
       <ListingPage>
         <CreateCListing>1</CreateCListing>
@@ -71,7 +71,7 @@
         <LExpSel>0</LExpSel>
       </OPTXL>
       <OPTFL>
-        <tvExp>1</tvExp>
+        <tvExp>0</tvExp>
         <tvExpOptDlg>0</tvExpOptDlg>
         <IsCurrentTarget>0</IsCurrentTarget>
       </OPTFL>
@@ -162,7 +162,7 @@
   </Target>
 
   <Target>
-    <TargetName>Board LPCXpresso1347</TargetName>
+    <TargetName>Board_LPCXpresso1347</TargetName>
     <ToolsetNumber>0x4</ToolsetNumber>
     <ToolsetName>ARM-ADS</ToolsetName>
     <TargetOption>
@@ -184,7 +184,7 @@
         <PageWidth>79</PageWidth>
         <PageLength>66</PageLength>
         <TabStop>8</TabStop>
-        <ListingPath>.\UV4Build\</ListingPath>
+        <ListingPath>.\KeilBuild\Board_LPCXpresso1347\</ListingPath>
       </OPTLEX>
       <ListingPage>
         <CreateCListing>1</CreateCListing>
@@ -212,7 +212,7 @@
         <LExpSel>0</LExpSel>
       </OPTXL>
       <OPTFL>
-        <tvExp>1</tvExp>
+        <tvExp>0</tvExp>
         <tvExpOptDlg>0</tvExpOptDlg>
         <IsCurrentTarget>0</IsCurrentTarget>
       </OPTFL>
@@ -264,7 +264,7 @@
         <SetRegEntry>
           <Number>0</Number>
           <Key>JL2CM3</Key>
-          <Name>-U268003250 -O78 -S8 -A0 -C0 -JU1 -JI127.0.0.1 -JP0 -RST0 -N00("ARM CoreSight SW-DP") -D00(2BA01477) -L00(0) -TO18 -TC10000000 -TP21 -TDS8004 -TDT0 -TDC1F -TIEFFFFFFFF -TIP8 -TB1 -TFE0 -FO15 -FD10000000 -FC800 -FN1 -FF0LPC1xxx_64 -FS00 -FL010000</Name>
+          <Name>-U -O14 -S0 -A0 -C-1 -JU1 -JI127.0.0.1 -JP0 -RST0 -TO18 -TC10000000 -TP21 -TDS8007 -TDT0 -TDC1F -TIEFFFFFFFF -TIP8 -TB1 -TFE0 -FO15 -FD10000000 -FC800 -FN1 -FF0LPC1xxx_64 -FS00 -FL010000</Name>
         </SetRegEntry>
       </TargetDriverDllRegistry>
       <Breakpoint/>
@@ -303,7 +303,7 @@
   </Target>
 
   <Target>
-    <TargetName>Board LPCXpresso1769</TargetName>
+    <TargetName>Board_LPCXpresso1769</TargetName>
     <ToolsetNumber>0x4</ToolsetNumber>
     <ToolsetName>ARM-ADS</ToolsetName>
     <TargetOption>
@@ -325,7 +325,7 @@
         <PageWidth>79</PageWidth>
         <PageLength>66</PageLength>
         <TabStop>8</TabStop>
-        <ListingPath>.\UV4Build\</ListingPath>
+        <ListingPath>.\KeilBuild\Board_LPCXpresso1769\</ListingPath>
       </OPTLEX>
       <ListingPage>
         <CreateCListing>1</CreateCListing>
@@ -353,7 +353,7 @@
         <LExpSel>0</LExpSel>
       </OPTXL>
       <OPTFL>
-        <tvExp>1</tvExp>
+        <tvExp>0</tvExp>
         <tvExpOptDlg>0</tvExpOptDlg>
         <IsCurrentTarget>0</IsCurrentTarget>
       </OPTFL>
@@ -405,7 +405,7 @@
         <SetRegEntry>
           <Number>0</Number>
           <Key>JL2CM3</Key>
-          <Name>-U268003250 -O14 -S0 -A0 -C0 -JU1 -JI127.0.0.1 -JP0 -RST0 -N00("ARM CoreSight JTAG-DP") -D00(4BA00477) -L00(4) -TO18 -TC10000000 -TP21 -TDS8007 -TDT0 -TDC1F -TIEFFFFFFFF -TIP8 -TB1 -TFE0 -FO15 -FD10000000 -FC800 -FN1 -FF0LPC_IAP_512 -FS00 -FL080000</Name>
+          <Name>-U -O14 -S0 -A0 -C-1 -JU1 -JI127.0.0.1 -JP0 -RST0 -TO18 -TC10000000 -TP21 -TDS8007 -TDT0 -TDC1F -TIEFFFFFFFF -TIP8 -TB1 -TFE0 -FO15 -FD10000000 -FC800 -FN1 -FF0LPC_IAP_512 -FS00 -FL080000</Name>
         </SetRegEntry>
       </TargetDriverDllRegistry>
       <Breakpoint/>
@@ -444,7 +444,7 @@
   </Target>
 
   <Target>
-    <TargetName>Board rf1ghznode</TargetName>
+    <TargetName>Board_rf1ghznode</TargetName>
     <ToolsetNumber>0x4</ToolsetNumber>
     <ToolsetName>ARM-ADS</ToolsetName>
     <TargetOption>
@@ -466,7 +466,7 @@
         <PageWidth>79</PageWidth>
         <PageLength>66</PageLength>
         <TabStop>8</TabStop>
-        <ListingPath>.\UV4Build\</ListingPath>
+        <ListingPath>.\KeilBuild\Board_rf1ghznode\</ListingPath>
       </OPTLEX>
       <ListingPage>
         <CreateCListing>1</CreateCListing>
@@ -494,33 +494,11 @@
         <LExpSel>0</LExpSel>
       </OPTXL>
       <OPTFL>
-        <tvExp>1</tvExp>
+        <tvExp>0</tvExp>
         <tvExpOptDlg>0</tvExpOptDlg>
         <IsCurrentTarget>0</IsCurrentTarget>
       </OPTFL>
       <CpuCode>8</CpuCode>
-      <Books>
-        <Book>
-          <Number>0</Number>
-          <Title>Data Sheet</Title>
-          <Path>DATASHTS\NXP\LPC11Uxx\LPC11U3x_DS.pdf</Path>
-        </Book>
-        <Book>
-          <Number>1</Number>
-          <Title>User Manual</Title>
-          <Path>DATASHTS\NXP\LPC11Uxx\LPC11U3x_UM.pdf</Path>
-        </Book>
-        <Book>
-          <Number>2</Number>
-          <Title>Technical Reference Manual</Title>
-          <Path>datashts\arm\cortex_m0\r0p0\DDI0432C_CORTEX_M0_R0P0_TRM.PDF</Path>
-        </Book>
-        <Book>
-          <Number>3</Number>
-          <Title>Generic User Guide</Title>
-          <Path>datashts\arm\cortex_m0\r0p0\DUI0497A_CORTEX_M0_R0P0_GENERIC_UG.PDF</Path>
-        </Book>
-      </Books>
       <DllOpt>
         <SimDllName>SARMCM3.DLL</SimDllName>
         <SimDllArguments></SimDllArguments>
@@ -568,7 +546,7 @@
         <SetRegEntry>
           <Number>0</Number>
           <Key>JL2CM3</Key>
-          <Name>-U268003250 -O78 -S8 -A0 -C0 -JU1 -JI127.0.0.1 -JP0 -RST0 -N00("ARM CoreSight SW-DP") -D00(0BB11477) -L00(0) -TO18 -TC10000000 -TP21 -TDS8004 -TDT0 -TDC1F -TIEFFFFFFFF -TIP8 -TB1 -TFE0 -FO15 -FD10000000 -FC800 -FN1 -FF0LPC1xxx_64 -FS00 -FL010000</Name>
+          <Name>-U -O14 -S0 -A0 -C-1 -JU1 -JI127.0.0.1 -JP0 -RST0 -TO18 -TC10000000 -TP21 -TDS8007 -TDT0 -TDC1F -TIEFFFFFFFF -TIP8 -TB1 -TFE0 -FO15 -FD10000000 -FC800 -FN1 -FF0LPC1xxx_64 -FS00 -FL010000</Name>
         </SetRegEntry>
       </TargetDriverDllRegistry>
       <Breakpoint/>
@@ -607,13 +585,13 @@
   </Target>
 
   <Target>
-    <TargetName>Board NGX4330</TargetName>
+    <TargetName>Board_NGX4330</TargetName>
     <ToolsetNumber>0x4</ToolsetNumber>
     <ToolsetName>ARM-ADS</ToolsetName>
     <TargetOption>
       <CLKADS>12000000</CLKADS>
       <OPTTT>
-        <gFlags>1</gFlags>
+        <gFlags>0</gFlags>
         <BeepAtEnd>1</BeepAtEnd>
         <RunSim>1</RunSim>
         <RunTarget>0</RunTarget>
@@ -629,7 +607,7 @@
         <PageWidth>79</PageWidth>
         <PageLength>66</PageLength>
         <TabStop>8</TabStop>
-        <ListingPath>.\UV4Build\</ListingPath>
+        <ListingPath>.\KeilBuild\Board_NGX4330\</ListingPath>
       </OPTLEX>
       <ListingPage>
         <CreateCListing>1</CreateCListing>
@@ -662,28 +640,6 @@
         <IsCurrentTarget>0</IsCurrentTarget>
       </OPTFL>
       <CpuCode>8</CpuCode>
-      <Books>
-        <Book>
-          <Number>0</Number>
-          <Title>Data Sheet</Title>
-          <Path>DATASHTS\NXP\LPC43xx\LPC43x0_DS.pdf</Path>
-        </Book>
-        <Book>
-          <Number>1</Number>
-          <Title>User Manual</Title>
-          <Path>DATASHTS\NXP\LPC43xx\LPC43xx_UM.pdf</Path>
-        </Book>
-        <Book>
-          <Number>2</Number>
-          <Title>Technical Reference Manual</Title>
-          <Path>datashts\arm\cortex_m4\r0p1\DDI0439C_CORTEX_M4_R0P1_TRM.PDF</Path>
-        </Book>
-        <Book>
-          <Number>3</Number>
-          <Title>Generic User Guide</Title>
-          <Path>datashts\arm\cortex_m4\r0p1\DUI0553A_CORTEX_M4_DGUG.PDF</Path>
-        </Book>
-      </Books>
       <DllOpt>
         <SimDllName>SARMCM3.DLL</SimDllName>
         <SimDllArguments>-MPU</SimDllArguments>
@@ -727,38 +683,16 @@
         <tIfile>..\..\..\mcu\lpc43xx\keil\keil_ram.ini</tIfile>
         <pMon>Segger\JL2CM3.dll</pMon>
       </DebugOpt>
-      <TargetDriverDllRegistry>
-        <SetRegEntry>
-          <Number>0</Number>
-          <Key>DLGUARM</Key>
-          <Name></Name>
-        </SetRegEntry>
-        <SetRegEntry>
-          <Number>0</Number>
-          <Key>DLGTARM</Key>
-          <Name>(1010=-1,-1,-1,-1,0)(1007=-1,-1,-1,-1,0)(1008=-1,-1,-1,-1,0)(1009=-1,-1,-1,-1,0)(1012=-1,-1,-1,-1,0)</Name>
-        </SetRegEntry>
-        <SetRegEntry>
-          <Number>0</Number>
-          <Key>ARMDBGFLAGS</Key>
-          <Name></Name>
-        </SetRegEntry>
-        <SetRegEntry>
-          <Number>0</Number>
-          <Key>JL2CM3</Key>
-          <Name>-U268003250 -O975 -S8 -A0 -C0 -JU1 -JI127.0.0.1 -JP0 -RST0 -N00("ARM CoreSight SW-DP") -D00(2BA01477) -L00(0) -TO19 -TC72000000 -TP21 -TDS800B -TDT0 -TDC1F -TIEFFFFFFFF -TIP8 -TB1 -TFE0 -FO7 -FD10000000 -FC800 -FN0</Name>
-        </SetRegEntry>
-      </TargetDriverDllRegistry>
       <Breakpoint/>
       <DebugFlag>
         <trace>0</trace>
         <periodic>0</periodic>
-        <aLwin>1</aLwin>
+        <aLwin>0</aLwin>
         <aCover>0</aCover>
         <aSer1>0</aSer1>
         <aSer2>0</aSer2>
         <aPa>0</aPa>
-        <viewmode>1</viewmode>
+        <viewmode>0</viewmode>
         <vrSel>0</vrSel>
         <aSym>0</aSym>
         <aTbox>0</aTbox>
@@ -785,7 +719,7 @@
   </Target>
 
   <Target>
-    <TargetName>Board LPCXpresso11u14</TargetName>
+    <TargetName>Board_LPCXpresso11u14</TargetName>
     <ToolsetNumber>0x4</ToolsetNumber>
     <ToolsetName>ARM-ADS</ToolsetName>
     <TargetOption>
@@ -807,7 +741,7 @@
         <PageWidth>79</PageWidth>
         <PageLength>66</PageLength>
         <TabStop>8</TabStop>
-        <ListingPath>.\UV4Build\</ListingPath>
+        <ListingPath>.\KeilBuild\Board_LPCXpresso11u14\</ListingPath>
       </OPTLEX>
       <ListingPage>
         <CreateCListing>1</CreateCListing>
@@ -840,28 +774,6 @@
         <IsCurrentTarget>1</IsCurrentTarget>
       </OPTFL>
       <CpuCode>8</CpuCode>
-      <Books>
-        <Book>
-          <Number>0</Number>
-          <Title>Data Sheet</Title>
-          <Path>DATASHTS\NXP\LPC11Uxx\LPC11U1x_DS.pdf</Path>
-        </Book>
-        <Book>
-          <Number>1</Number>
-          <Title>User Manual</Title>
-          <Path>DATASHTS\NXP\LPC11Uxx\LPC11U1x_UM.pdf</Path>
-        </Book>
-        <Book>
-          <Number>2</Number>
-          <Title>Technical Reference Manual</Title>
-          <Path>datashts\arm\cortex_m0\r0p0\DDI0432C_CORTEX_M0_R0P0_TRM.PDF</Path>
-        </Book>
-        <Book>
-          <Number>3</Number>
-          <Title>Generic User Guide</Title>
-          <Path>datashts\arm\cortex_m0\r0p0\DUI0497A_CORTEX_M0_R0P0_GENERIC_UG.PDF</Path>
-        </Book>
-      </Books>
       <DllOpt>
         <SimDllName>SARMCM3.DLL</SimDllName>
         <SimDllArguments></SimDllArguments>
@@ -909,7 +821,7 @@
         <SetRegEntry>
           <Number>0</Number>
           <Key>JL2CM3</Key>
-          <Name>-U268003250 -O78 -S8 -A0 -C0 -JU1 -JI127.0.0.1 -JP0 -RST0 -N00("ARM CoreSight SW-DP") -D00(0BB11477) -L00(0) -TO18 -TC10000000 -TP21 -TDS8004 -TDT0 -TDC1F -TIEFFFFFFFF -TIP8 -TB1 -TFE0 -FO15 -FD10000000 -FC800 -FN1 -FF0LPC1xxx_64 -FS00 -FL010000</Name>
+          <Name>-U -O14 -S0 -A0 -C-1 -JU1 -JI127.0.0.1 -JP0 -RST0 -TO18 -TC10000000 -TP21 -TDS8007 -TDT0 -TDC1F -TIEFFFFFFFF -TIP8 -TB1 -TFE0 -FO15 -FD10000000 -FC800 -FN1 -FF0LPC1xxx_64 -FS00 -FL010000</Name>
         </SetRegEntry>
       </TargetDriverDllRegistry>
       <Breakpoint/>
@@ -961,7 +873,7 @@
       <Focus>0</Focus>
       <ColumnNumber>0</ColumnNumber>
       <tvExpOptDlg>0</tvExpOptDlg>
-      <TopLine>78</TopLine>
+      <TopLine>80</TopLine>
       <CurrentLine>81</CurrentLine>
       <bDave2>0</bDave2>
       <PathWithFileName>..\src\main.c</PathWithFileName>
@@ -1401,7 +1313,7 @@
       <Focus>0</Focus>
       <ColumnNumber>19</ColumnNumber>
       <tvExpOptDlg>0</tvExpOptDlg>
-      <TopLine>11</TopLine>
+      <TopLine>13</TopLine>
       <CurrentLine>14</CurrentLine>
       <bDave2>0</bDave2>
       <PathWithFileName>..\..\..\tinyusb\device\usbd.c</PathWithFileName>
@@ -1461,7 +1373,7 @@
 
   <Group>
     <GroupName>boards</GroupName>
-    <tvExp>0</tvExp>
+    <tvExp>1</tvExp>
     <tvExpOptDlg>0</tvExpOptDlg>
     <cbSel>0</cbSel>
     <RteFlg>0</RteFlg>
@@ -1473,7 +1385,7 @@
       <Focus>0</Focus>
       <ColumnNumber>27</ColumnNumber>
       <tvExpOptDlg>0</tvExpOptDlg>
-      <TopLine>62</TopLine>
+      <TopLine>63</TopLine>
       <CurrentLine>64</CurrentLine>
       <bDave2>0</bDave2>
       <PathWithFileName>..\..\..\boards\board.c</PathWithFileName>
@@ -1501,7 +1413,7 @@
       <GroupNumber>3</GroupNumber>
       <FileNumber>34</FileNumber>
       <FileType>1</FileType>
-      <tvExp>0</tvExp>
+      <tvExp>1</tvExp>
       <Focus>0</Focus>
       <ColumnNumber>0</ColumnNumber>
       <tvExpOptDlg>0</tvExpOptDlg>
@@ -1581,7 +1493,7 @@
       <GroupNumber>3</GroupNumber>
       <FileNumber>39</FileNumber>
       <FileType>1</FileType>
-      <tvExp>0</tvExp>
+      <tvExp>1</tvExp>
       <Focus>0</Focus>
       <ColumnNumber>0</ColumnNumber>
       <tvExpOptDlg>0</tvExpOptDlg>
@@ -2169,7 +2081,7 @@
       <Focus>0</Focus>
       <ColumnNumber>1</ColumnNumber>
       <tvExpOptDlg>0</tvExpOptDlg>
-      <TopLine>74</TopLine>
+      <TopLine>76</TopLine>
       <CurrentLine>83</CurrentLine>
       <bDave2>0</bDave2>
       <PathWithFileName>..\..\..\vendor\freertos\freertoslpc\FreeRTOSCommonHooks.c</PathWithFileName>
