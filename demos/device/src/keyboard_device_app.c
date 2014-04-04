@@ -96,20 +96,9 @@ void tusbd_hid_keyboard_set_report_cb(uint8_t coreid, hid_request_report_type_t 
   uint8_t kbd_led = p_report_data[0];
   uint32_t interval_divider = 1; // each LED will reduce blinking interval by a half
 
-  if (kbd_led & KEYBOARD_LED_NUMLOCK)
-  {
-    interval_divider *= 2;
-  }
-
-  if (kbd_led & KEYBOARD_LED_CAPSLOCK)
-  {
-    interval_divider *= 2;
-  }
-
-  if (kbd_led & KEYBOARD_LED_SCROLLLOCK)
-  {
-    interval_divider *= 2;
-  }
+  if (kbd_led & KEYBOARD_LED_NUMLOCK   ) interval_divider *= 2;
+  if (kbd_led & KEYBOARD_LED_CAPSLOCK  ) interval_divider *= 2;
+  if (kbd_led & KEYBOARD_LED_SCROLLLOCK) interval_divider *= 2;
 
   led_blinking_set_interval( 1000 / interval_divider);
 }
