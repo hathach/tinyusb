@@ -365,13 +365,13 @@ tusb_error_t dcd_pipe_control_xfer(uint8_t coreid, tusb_direction_t dir, uint8_t
   ASSERT_FALSE(p_dcd->qhd[0].qtd_overlay.active || p_dcd->qhd[1].qtd_overlay.active, TUSB_ERROR_FAILED);
 
   //------------- Data Phase -------------//
-  if (length)
+  if (length > 0)
   {
     dcd_qtd_t* p_qtd_data = &p_dcd->qtd[0];
     qtd_init(p_qtd_data, p_buffer, length);
     p_dcd->qhd[ep_data].qtd_overlay.next = (uint32_t) p_qtd_data;
 
-    lpc_usb->ENDPTPRIME = BIT_( edpt_phy2pos(ep_data) );
+    lpc_usb->ENDPTPRIME = BIT_(edpt_phy2pos(ep_data));
   }
 
   //------------- Status Phase -------------//
@@ -381,7 +381,7 @@ tusb_error_t dcd_pipe_control_xfer(uint8_t coreid, tusb_direction_t dir, uint8_t
 
   p_dcd->qhd[ep_status].qtd_overlay.next = (uint32_t) p_qtd_status;
 
-  LPC_USB0->ENDPTPRIME |= BIT_( edpt_phy2pos(ep_status) );
+  LPC_USB0->ENDPTPRIME = BIT_(edpt_phy2pos(ep_status)); // | (length>0 ? BIT_(edpt_phy2pos(ep_data)) : 0 );
 
   return TUSB_ERROR_NONE;
 }
@@ -501,7 +501,7 @@ tusb_error_t  dcd_pipe_xfer(endpoint_handle_t edpt_hdl, uint8_t * buffer, uint16
 
   p_qhd->qtd_overlay.next = (uint32_t) p_qtd; // attach head QTD to QHD start transferring
 
-	LPC_USB[edpt_hdl.coreid]->ENDPTPRIME |= BIT_( edpt_phy2pos(edpt_hdl.index) ) ;
+	LPC_USB[edpt_hdl.coreid]->ENDPTPRIME = BIT_( edpt_phy2pos(edpt_hdl.index) ) ;
 
 	return TUSB_ERROR_NONE;
 }
@@ -597,18 +597,28 @@ void dcd_isr(uint8_t coreid)
     }
     //------------- Control Request Completed -------------//
     else if ( edpt_complete & 0x03 )
-    { // only either of Endpoint Control is set with interrupt on complete flag
-      endpoint_handle_t edpt_hdl =
+    {
+      for(uint8_t ep_idx = 0; ep_idx < 2; ep_idx++)
       {
-        .coreid = coreid,
-        .index = 0,
-        .class_code = 0
-      };
+        if ( BIT_TEST_(edpt_complete, edpt_phy2pos(ep_idx)) )
+        {
+          // TODO use the actual QTD instead of the qhd's overlay to get expected bytes for actual byte xferred
+          dcd_qtd_t volatile * const p_qtd = &p_dcd->qhd[ep_idx].qtd_overlay;
 
-      dcd_qtd_t volatile * const p_qtd = &p_dcd->qhd[ (edpt_complete & BIT_(0)) ? 0 : 1 ].qtd_overlay;
-      tusb_event_t event = ( p_qtd->xact_err || p_qtd->halted || p_qtd->buffer_err ) ? TUSB_EVENT_XFER_ERROR : TUSB_EVENT_XFER_COMPLETE;
+          if ( p_qtd->int_on_complete )
+          {
+            endpoint_handle_t edpt_hdl =
+            {
+                .coreid = coreid,
+                .index = 0,
+                .class_code = 0
+            };
+            tusb_event_t event = ( p_qtd->xact_err || p_qtd->halted || p_qtd->buffer_err ) ? TUSB_EVENT_XFER_ERROR : TUSB_EVENT_XFER_COMPLETE;
 
-      usbd_xfer_isr(edpt_hdl, event, 0); // TODO xferred bytes for control xfer is not needed yet !!!!
+            usbd_xfer_isr(edpt_hdl, event, 0); // TODO xferred bytes for control xfer is not needed yet !!!!
+          }
+        }
+      }
     }
 
     //------------- Transfer Complete -------------//

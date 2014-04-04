@@ -400,6 +400,7 @@ void usbd_dcd_bus_event_isr(uint8_t coreid, usbd_bus_event_type_t bus_event)
     case USBD_BUS_EVENT_RESET     :
     case USBD_BUS_EVENT_UNPLUGGED :
       memclr_(&usbd_devices[coreid], sizeof(usbd_device_info_t));
+      osal_semaphore_reset(usbd_control_xfer_sem_hdl);
       for (uint8_t class_code = TUSB_CLASS_AUDIO; class_code < USBD_CLASS_DRIVER_COUNT; class_code++)
       {
         if ( usbd_class_drivers[class_code].close ) usbd_class_drivers[class_code].close( coreid );

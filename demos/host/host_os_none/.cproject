@@ -375,7 +375,7 @@
 	<storageModule moduleId="com.crt.config">
 		<projectStorage>&lt;?xml version="1.0" encoding="UTF-8"?&gt;&#13;
 &lt;TargetConfig&gt;&#13;
-&lt;Properties property_0="" property_2="LPC18x7_43x7_2x512_BootA.cfx" property_3="NXP" property_4="LPC4357" property_count="5" version="1"/&gt;&#13;
+&lt;Properties property_0="" property_2="LPC18x7_43x7_2x512_BootA.cfx" property_3="NXP" property_4="LPC4357" property_count="5" version="60100"/&gt;&#13;
 &lt;infoList vendor="NXP"&gt;&lt;info chip="LPC4357" flash_driver="LPC18x7_43x7_2x512_BootA.cfx" match_id="0x0" name="LPC4357" resetscript="LPC18LPC43InternalFLASHBootResetscript.scp" stub="crt_emu_lpc18_43_nxp"&gt;&lt;chip&gt;&lt;name&gt;LPC4357&lt;/name&gt;&#13;
 &lt;family&gt;LPC43xx&lt;/family&gt;&#13;
 &lt;vendor&gt;NXP (formerly Philips)&lt;/vendor&gt;&#13;
