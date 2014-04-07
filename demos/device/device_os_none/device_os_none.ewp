@@ -1959,7 +1959,7 @@
         </option>
         <option>
           <name>GenStdoutInterface</name>
-          <state>1</state>
+          <state>0</state>
         </option>
         <option>
           <name>GeneralMisraRules98</name>
@@ -2536,11 +2536,11 @@
         </option>
         <option>
           <name>IlinkIcfOverride</name>
-          <state>0</state>
+          <state>1</state>
         </option>
         <option>
           <name>IlinkIcfFile</name>
-          <state>$TOOLKIT_DIR$\config\linker\NXP\lpc4330_m4.icf</state>
+          <state>$PROJ_DIR$\..\..\..\mcu\lpc43xx\iar\lpc4330_m4_spifi.icf</state>
         </option>
         <option>
           <name>IlinkIcfFileSlave</name>

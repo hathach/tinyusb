@@ -2627,11 +2627,11 @@
         </option>
         <option>
           <name>MacOverride</name>
-          <state>0</state>
+          <state>1</state>
         </option>
         <option>
           <name>MacFile</name>
-          <state></state>
+          <state>$PROJ_DIR$\..\..\..\mcu\lpc43xx\iar\lpc18xx_43xx_debug.mac</state>
         </option>
         <option>
           <name>MemOverride</name>
@@ -2739,7 +2739,7 @@
         </option>
         <option>
           <name>OverrideDefFlashBoard</name>
-          <state>0</state>
+          <state>1</state>
         </option>
         <option>
           <name>OCImagesOffset1</name>
