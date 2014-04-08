@@ -2539,11 +2539,11 @@
         </option>
         <option>
           <name>IlinkIcfOverride</name>
-          <state>0</state>
+          <state>1</state>
         </option>
         <option>
           <name>IlinkIcfFile</name>
-          <state>$TOOLKIT_DIR$\config\linker\NXP\lpc4330_m4.icf</state>
+          <state>$PROJ_DIR$\..\..\..\mcu\lpc43xx\iar\lpc4330_m4_spifi.icf</state>
         </option>
         <option>
           <name>IlinkIcfFileSlave</name>
@@ -3743,6 +3743,18 @@
     </file>
   </group>
   <group>
+    <name>fatfs</name>
+    <file>
+      <name>$PROJ_DIR$\..\..\..\vendor\fatfs\ccsbcs.c</name>
+    </file>
+    <file>
+      <name>$PROJ_DIR$\..\..\..\vendor\fatfs\diskio.c</name>
+    </file>
+    <file>
+      <name>$PROJ_DIR$\..\..\..\vendor\fatfs\ff.c</name>
+    </file>
+  </group>
+  <group>
     <name>mcu</name>
     <group>
       <name>lpc175x_6x</name>
@@ -3797,18 +3809,6 @@
         <name>$PROJ_DIR$\..\..\..\mcu\lpc43xx\CMSIS_LPC43xx_DriverLib\src\system_LPC43xx.c</name>
       </file>
     </group>
-  </group>
-  <group>
-    <name>fatfs</name>
-    <file>
-      <name>$PROJ_DIR$\..\..\..\vendor\fatfs\ccsbcs.c</name>
-    </file>
-    <file>
-      <name>$PROJ_DIR$\..\..\..\vendor\fatfs\diskio.c</name>
-    </file>
-    <file>
-      <name>$PROJ_DIR$\..\..\..\vendor\fatfs\ff.c</name>
-    </file>
   </group>
   <group>
     <name>tinyusb</name>

@@ -2017,7 +2017,8 @@
           <state>CORE_M4</state>
           <state>TUSB_CFG_MCU=MCU_LPC43XX</state>
           <state>BOARD=BOARD_NGX4330</state>
-          <state>TUSB_CFG_OS=TUSB_OS_NONE</state>
+          <state>TUSB_CFG_OS=TUSB_OS_CMSIS_RTX</state>
+          <state>TUSB_CFG_OS_TASK_PRIO=osPriorityRealtime</state>
         </option>
         <option>
           <name>CCPreprocFile</name>
@@ -2151,6 +2152,7 @@
           <state>$PROJ_DIR$\..\..\..\boards</state>
           <state>$PROJ_DIR$\..\..\..\tinyusb</state>
           <state>$PROJ_DIR$\..\..\..\vendor\fatfs</state>
+          <state>$PROJ_DIR$\..\..\..\vendor\cmsis_rtos_rtx\INC</state>
         </option>
         <option>
           <name>CCStdIncCheck</name>
@@ -2543,11 +2545,11 @@
         </option>
         <option>
           <name>IlinkIcfOverride</name>
-          <state>0</state>
+          <state>1</state>
         </option>
         <option>
           <name>IlinkIcfFile</name>
-          <state>$TOOLKIT_DIR$\config\linker\NXP\lpc4330_m4.icf</state>
+          <state>$PROJ_DIR$\..\..\..\mcu\lpc43xx\iar\lpc4330_m4_spifi.icf</state>
         </option>
         <option>
           <name>IlinkIcfFileSlave</name>

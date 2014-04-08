@@ -2548,11 +2548,11 @@
         </option>
         <option>
           <name>IlinkIcfOverride</name>
-          <state>0</state>
+          <state>1</state>
         </option>
         <option>
           <name>IlinkIcfFile</name>
-          <state>$TOOLKIT_DIR$\config\linker\NXP\lpc4330_m4.icf</state>
+          <state>$PROJ_DIR$\..\..\..\mcu\lpc43xx\iar\lpc4330_m4_spifi.icf</state>
         </option>
         <option>
           <name>IlinkIcfFileSlave</name>
@@ -3755,62 +3755,6 @@
     </file>
   </group>
   <group>
-    <name>mcu</name>
-    <group>
-      <name>lpc175x_6x</name>
-      <excluded>
-        <configuration>Board_EA4357</configuration>
-        <configuration>Board_NGX4330</configuration>
-        <configuration>Board_MCB4300</configuration>
-      </excluded>
-      <file>
-        <name>$PROJ_DIR$\..\..\..\mcu\lpc175x_6x\LPC17xx_DriverLib\source\lpc17xx_clkpwr.c</name>
-      </file>
-      <file>
-        <name>$PROJ_DIR$\..\..\..\mcu\lpc175x_6x\LPC17xx_DriverLib\source\lpc17xx_gpio.c</name>
-      </file>
-      <file>
-        <name>$PROJ_DIR$\..\..\..\mcu\lpc175x_6x\LPC17xx_DriverLib\source\lpc17xx_pinsel.c</name>
-      </file>
-      <file>
-        <name>$PROJ_DIR$\..\..\..\mcu\lpc175x_6x\LPC17xx_DriverLib\source\lpc17xx_uart.c</name>
-      </file>
-      <file>
-        <name>$PROJ_DIR$\..\..\..\mcu\lpc175x_6x\iar\startup_LPC17xx.s</name>
-      </file>
-      <file>
-        <name>$PROJ_DIR$\..\..\..\mcu\lpc175x_6x\CMSIS_CORE_LPC17xx\src\system_LPC17xx.c</name>
-      </file>
-    </group>
-    <group>
-      <name>lpc43xx</name>
-      <excluded>
-        <configuration>Board_LPCXpresso1769</configuration>
-      </excluded>
-      <file>
-        <name>$PROJ_DIR$\..\..\..\mcu\lpc43xx\CMSIS_LPC43xx_DriverLib\src\lpc43xx_cgu.c</name>
-      </file>
-      <file>
-        <name>$PROJ_DIR$\..\..\..\mcu\lpc43xx\CMSIS_LPC43xx_DriverLib\src\lpc43xx_gpio.c</name>
-      </file>
-      <file>
-        <name>$PROJ_DIR$\..\..\..\mcu\lpc43xx\CMSIS_LPC43xx_DriverLib\src\lpc43xx_i2c.c</name>
-      </file>
-      <file>
-        <name>$PROJ_DIR$\..\..\..\mcu\lpc43xx\CMSIS_LPC43xx_DriverLib\src\lpc43xx_scu.c</name>
-      </file>
-      <file>
-        <name>$PROJ_DIR$\..\..\..\mcu\lpc43xx\CMSIS_LPC43xx_DriverLib\src\lpc43xx_uart.c</name>
-      </file>
-      <file>
-        <name>$PROJ_DIR$\..\..\..\mcu\lpc43xx\iar\startup_LPC43xx.s</name>
-      </file>
-      <file>
-        <name>$PROJ_DIR$\..\..\..\mcu\lpc43xx\CMSIS_LPC43xx_DriverLib\src\system_LPC43xx.c</name>
-      </file>
-    </group>
-  </group>
-  <group>
     <name>fatfs</name>
     <file>
       <name>$PROJ_DIR$\..\..\..\vendor\fatfs\ccsbcs.c</name>
@@ -3871,6 +3815,62 @@
     <file>
       <name>$PROJ_DIR$\..\..\..\vendor\freertos\freertos\Source\timers.c</name>
     </file>
+  </group>
+  <group>
+    <name>mcu</name>
+    <group>
+      <name>lpc175x_6x</name>
+      <excluded>
+        <configuration>Board_EA4357</configuration>
+        <configuration>Board_NGX4330</configuration>
+        <configuration>Board_MCB4300</configuration>
+      </excluded>
+      <file>
+        <name>$PROJ_DIR$\..\..\..\mcu\lpc175x_6x\LPC17xx_DriverLib\source\lpc17xx_clkpwr.c</name>
+      </file>
+      <file>
+        <name>$PROJ_DIR$\..\..\..\mcu\lpc175x_6x\LPC17xx_DriverLib\source\lpc17xx_gpio.c</name>
+      </file>
+      <file>
+        <name>$PROJ_DIR$\..\..\..\mcu\lpc175x_6x\LPC17xx_DriverLib\source\lpc17xx_pinsel.c</name>
+      </file>
+      <file>
+        <name>$PROJ_DIR$\..\..\..\mcu\lpc175x_6x\LPC17xx_DriverLib\source\lpc17xx_uart.c</name>
+      </file>
+      <file>
+        <name>$PROJ_DIR$\..\..\..\mcu\lpc175x_6x\iar\startup_LPC17xx.s</name>
+      </file>
+      <file>
+        <name>$PROJ_DIR$\..\..\..\mcu\lpc175x_6x\CMSIS_CORE_LPC17xx\src\system_LPC17xx.c</name>
+      </file>
+    </group>
+    <group>
+      <name>lpc43xx</name>
+      <excluded>
+        <configuration>Board_LPCXpresso1769</configuration>
+      </excluded>
+      <file>
+        <name>$PROJ_DIR$\..\..\..\mcu\lpc43xx\CMSIS_LPC43xx_DriverLib\src\lpc43xx_cgu.c</name>
+      </file>
+      <file>
+        <name>$PROJ_DIR$\..\..\..\mcu\lpc43xx\CMSIS_LPC43xx_DriverLib\src\lpc43xx_gpio.c</name>
+      </file>
+      <file>
+        <name>$PROJ_DIR$\..\..\..\mcu\lpc43xx\CMSIS_LPC43xx_DriverLib\src\lpc43xx_i2c.c</name>
+      </file>
+      <file>
+        <name>$PROJ_DIR$\..\..\..\mcu\lpc43xx\CMSIS_LPC43xx_DriverLib\src\lpc43xx_scu.c</name>
+      </file>
+      <file>
+        <name>$PROJ_DIR$\..\..\..\mcu\lpc43xx\CMSIS_LPC43xx_DriverLib\src\lpc43xx_uart.c</name>
+      </file>
+      <file>
+        <name>$PROJ_DIR$\..\..\..\mcu\lpc43xx\iar\startup_LPC43xx.s</name>
+      </file>
+      <file>
+        <name>$PROJ_DIR$\..\..\..\mcu\lpc43xx\CMSIS_LPC43xx_DriverLib\src\system_LPC43xx.c</name>
+      </file>
+    </group>
   </group>
   <group>
     <name>tinyusb</name>
