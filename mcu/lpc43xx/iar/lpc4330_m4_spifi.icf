@@ -55,6 +55,6 @@ place in PD_LOCAL_SRAM_region  { section .pd_local_sram };
 place in AHB_SRAM2_region      { section .ahb_sram2 };
 place in ETB_SRAM_region       { section .etb_sram };
 
-place in RAM_region         { readonly };
-place in AHB_SRAM1_region   { readwrite,
-                             block CSTACK, block HEAP };
+place in ROM_region            { readonly };
+place in RAM_region            { readwrite,
+                                 block CSTACK, block HEAP };

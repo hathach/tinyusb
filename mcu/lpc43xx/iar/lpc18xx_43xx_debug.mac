@@ -1,0 +1,18 @@
+__Setup(){
+__writeMemory32((int)&__vector_table, 0x40043100, "Memory"); // map BootArea to shadow area at address 0
+__writeMemory32((int)&__vector_table, 0xE000ED08, "Memory"); // map BootArea to shadow area at address 0
+__message "Memory at: ", &__vector_table, " mapped to 0x00000000\n";
+}
+
+execUserReset()
+{
+  __message "execUserReset\n";
+  __Setup();
+  __message "execUserReset Finish\n";
+}
+
+execUserFlashInit(){
+  __message "execUserFlashInit\n";
+  __Setup();
+  __message "execUserFlashInit Finish\n";
+}

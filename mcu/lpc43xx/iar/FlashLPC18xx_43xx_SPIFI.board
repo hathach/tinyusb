@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="iso-8859-1"?>
+
+<flash_board>
+  <pass>
+    <loader>C:\Users\hathach\Dropbox\tinyusb\workspace\tinyusb\mcu\lpc43xx\iar\FlashLPC18xx_43xx_SPIFI.flash</loader>
+  </pass>
+</flash_board>
+
+
