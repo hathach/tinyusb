@@ -193,7 +193,7 @@ OSAL_TASK_FUNCTION(usbd_task, p_task_para)
 
 static tusb_error_t usbd_body_subtask(void)
 {
-  OSAL_VAR usbd_task_event_t event;
+  static usbd_task_event_t event;
 
   OSAL_SUBTASK_BEGIN
 
@@ -266,7 +266,7 @@ tusb_error_t usbd_control_request_subtask(uint8_t coreid, tusb_control_request_t
   //------------- Class/Interface Specific Request -------------//
   else if ( TUSB_REQUEST_RECIPIENT_INTERFACE == p_request->bmRequestType_bit.recipient)
   {
-    OSAL_VAR uint8_t class_code;
+    static uint8_t class_code;
 
     class_code = usbd_devices[coreid].interface2class[ u16_low_u8(p_request->wIndex) ];
 

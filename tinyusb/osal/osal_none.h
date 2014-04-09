@@ -49,9 +49,6 @@
  extern "C" {
 #endif
 
-// variable that retains value after OSAL blocking service need to declare with OSAL_VAR
-#define OSAL_VAR  static
-
 //--------------------------------------------------------------------+
 // TICK API
 //--------------------------------------------------------------------+
