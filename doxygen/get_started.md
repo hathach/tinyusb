@@ -37,14 +37,5 @@ In order to build and run application demo, you would need
 - A [supported development board](../../boards/readme.md)
 - A supported toolchain: LPCXpresso, Keil, IAR.
 
-## Configure demo ##
-
-Application demo is written to have the code excluded if its required option is not enabled in [tusb_config.h](). Some of combination may exceed the 32KB limit of IAR/Keil so you may want to re-configure to disable some class support, decrease TUSB_CFG_DEBUG or increase the compiler optimization level.
-
-In addition, there are some configuration you can change such as
-
-- CFG_UART_BAUDRATE in board.h
-- CFG_PRINTF_TARGET in the specific board header (e.g board_ea4357.h) to either Semihost, Uart, or SWO.
-
 \subpage md_boards_readme
 \subpage md_doxygen_started_build
