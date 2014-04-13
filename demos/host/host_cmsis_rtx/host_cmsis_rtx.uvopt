@@ -561,7 +561,7 @@
         <tDllPa></tDllPa>
         <tDlgDll></tDlgDll>
         <tDlgPa></tDlgPa>
-        <tIfile>..\..\..\mcu\lpc43xx\keil\keil_ram.ini</tIfile>
+        <tIfile>..\..\..\mcu\lpc43xx\keil\lpc43xx_debug_init.ini</tIfile>
         <pMon>Segger\JL2CM3.dll</pMon>
       </DebugOpt>
       <TargetDriverDllRegistry>
