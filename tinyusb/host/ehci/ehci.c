@@ -523,12 +523,12 @@ static void async_advance_isr(ehci_qhd_t * const async_head)
       // Host Controller has cleaned up its cached data for this device, set state to unplug
       usbh_devices[relative_dev_addr+1].state = TUSB_DEVICE_STATE_UNPLUG;
 
-      for (uint8_t i=0; i<EHCI_MAX_QHD; i++) // free all qhd
+      for (uint8_t i=0; i<HCD_MAX_ENDPOINT; i++) // free all qhd
       {
         ehci_data.device[relative_dev_addr].qhd[i].used        = 0;
         ehci_data.device[relative_dev_addr].qhd[i].is_removing = 0;
       }
-      for (uint8_t i=0; i<EHCI_MAX_QTD; i++) // free all qtd
+      for (uint8_t i=0; i<HCD_MAX_XFER; i++) // free all qtd
       {
         ehci_data.device[relative_dev_addr].qtd[i].used = 0;
       }
@@ -560,7 +560,7 @@ static void qhd_xfer_complete_isr(ehci_qhd_t * p_qhd)
 
   // free all TDs from the head td to the first active TD
   while(p_qhd->p_qtd_list_head != NULL && !p_qhd->p_qtd_list_head->active
-      && max_loop < EHCI_MAX_QTD)
+      && max_loop < HCD_MAX_XFER)
   {
     // TD need to be freed and removed from qhd, before invoking callback
     bool is_ioc = (p_qhd->p_qtd_list_head->int_on_complete != 0);
@@ -593,7 +593,7 @@ static void async_list_xfer_complete_isr(ehci_qhd_t * const async_head)
     }
     p_qhd = qhd_next(p_qhd);
     max_loop++;
-  }while(p_qhd != async_head && max_loop < EHCI_MAX_QHD); // async list traversal, stop if loop around
+  }while(p_qhd != async_head && max_loop < HCD_MAX_ENDPOINT); // async list traversal, stop if loop around
   // TODO abstract max loop guard for async
 }
 
@@ -607,7 +607,7 @@ static void period_list_xfer_complete_isr(uint8_t hostid, uint8_t interval_ms)
   // TODO abstract max loop guard for period
   while( !next_item.terminate &&
       !(interval_ms > 1 && period_1ms_addr == align32(next_item.address)) &&
-      max_loop < (EHCI_MAX_QHD + EHCI_MAX_ITD + EHCI_MAX_SITD))
+      max_loop < (HCD_MAX_ENDPOINT + EHCI_MAX_ITD + EHCI_MAX_SITD))
   {
     switch ( next_item.type )
     {
@@ -692,7 +692,7 @@ static void xfer_error_isr(uint8_t hostid)
     qhd_xfer_error_isr( p_qhd );
     p_qhd = qhd_next(p_qhd);
     max_loop++;
-  }while(p_qhd != async_head && max_loop < EHCI_MAX_QHD); // async list traversal, stop if loop around
+  }while(p_qhd != async_head && max_loop < HCD_MAX_ENDPOINT); // async list traversal, stop if loop around
 
   #if EHCI_PERIODIC_LIST
   //------------- TODO refractor period list -------------//
@@ -705,7 +705,7 @@ static void xfer_error_isr(uint8_t hostid)
     // TODO abstract max loop guard for period
     while( !next_item.terminate &&
         !(interval_ms > 1 && period_1ms_addr == align32(next_item.address)) &&
-        period_max_loop < (EHCI_MAX_QHD + EHCI_MAX_ITD + EHCI_MAX_SITD))
+        period_max_loop < (HCD_MAX_ENDPOINT + EHCI_MAX_ITD + EHCI_MAX_SITD))
     {
       switch ( next_item.type )
       {
@@ -852,11 +852,11 @@ static inline ehci_qhd_t* qhd_find_free (uint8_t dev_addr)
 {
   uint8_t relative_address = dev_addr-1;
   uint8_t index=0;
-  while( index<EHCI_MAX_QHD && ehci_data.device[relative_address].qhd[index].used )
+  while( index<HCD_MAX_ENDPOINT && ehci_data.device[relative_address].qhd[index].used )
   {
     index++;
   }
-  return (index < EHCI_MAX_QHD) ? &ehci_data.device[relative_address].qhd[index] : NULL;
+  return (index < HCD_MAX_ENDPOINT) ? &ehci_data.device[relative_address].qhd[index] : NULL;
 }
 
 static inline uint8_t qhd_get_index(ehci_qhd_t const * p_qhd)
@@ -899,12 +899,12 @@ static inline pipe_handle_t qhd_create_pipe_handle(ehci_qhd_t const * p_qhd, tus
 STATIC_ INLINE_ ehci_qtd_t* qtd_find_free(uint8_t dev_addr)
 {
   uint8_t index=0;
-  while( index<EHCI_MAX_QTD && ehci_data.device[dev_addr-1].qtd[index].used )
+  while( index<HCD_MAX_XFER && ehci_data.device[dev_addr-1].qtd[index].used )
   {
     index++;
   }
 
-  return (index < EHCI_MAX_QTD) ? &ehci_data.device[dev_addr-1].qtd[index] : NULL;
+  return (index < HCD_MAX_XFER) ? &ehci_data.device[dev_addr-1].qtd[index] : NULL;
 }
 
 static inline ehci_qtd_t* qtd_next(ehci_qtd_t const * p_qtd )
@@ -1044,7 +1044,7 @@ static ehci_link_t* list_find_previous_item(ehci_link_t* p_head, ehci_link_t* p_
   while( (align32(p_prev->address) != (uint32_t) p_head)    && // not loop around
          (align32(p_prev->address) != (uint32_t) p_current) && // not found yet
          !p_prev->terminate                                 && // not advanceable
-         max_loop < EHCI_MAX_QHD)
+         max_loop < HCD_MAX_ENDPOINT)
   {
     p_prev = list_next(p_prev);
     max_loop++;

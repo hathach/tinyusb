@@ -52,7 +52,7 @@
 //--------------------------------------------------------------------+
 // HOST CONFIGURATION
 //--------------------------------------------------------------------+
-#define TUSB_CFG_HOST_DEVICE_MAX                3 // TODO be a part of HUB config
+#define TUSB_CFG_HOST_DEVICE_MAX                5 // TODO be a part of HUB config
 
 //------------- CLASS -------------//
 #define TUSB_CFG_HOST_HUB                       1

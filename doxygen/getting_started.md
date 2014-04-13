@@ -38,4 +38,5 @@ In order to build and run application demo, you would need
 - A supported toolchain: LPCXpresso, Keil, IAR.
 
 \subpage md_boards_readme
-\subpage md_doxygen_started_build
+\subpage md_doxygen_started_build_demo
+\subpage md_doxygen_started_run_demo

@@ -71,19 +71,17 @@
 #define HOST_HCD_XFER_INTERRUPT // TODO interrupt is used widely, should always be enalbed
 #define EHCI_PERIODIC_LIST (defined HOST_HCD_XFER_INTERRUPT || defined HOST_HCD_XFER_ISOCHRONOUS)
 
-// TODO merge OHCI with EHCI
-#define EHCI_MAX_QHD  8
-#define EHCI_MAX_QTD  20
-#define EHCI_MAX_ITD  4
-#define EHCI_MAX_SITD 16
-
 #define	EHCI_CFG_FRAMELIST_SIZE_BITS			7			/// Framelist Size (NXP specific) (0:1024) - (1:512) - (2:256) - (3:128) - (4:64) - (5:32) - (6:16) - (7:8)
 #define EHCI_FRAMELIST_SIZE  (1024 >> EHCI_CFG_FRAMELIST_SIZE_BITS)
 
+// TODO merge OHCI with EHCI
+enum {
+  EHCI_MAX_ITD  = 4,
+  EHCI_MAX_SITD = 16
+};
+
 //------------- Validation -------------//
-#if EHCI_CFG_FRAMELIST_SIZE_BITS > 7
- #error EHCI_CFG_FRAMELIST_SIZE_BITS must be from 0-7
-#endif
+STATIC_ASSERT(EHCI_CFG_FRAMELIST_SIZE_BITS <= 7, "incorrect value");
 
 //--------------------------------------------------------------------+
 // EHCI Data Structure
@@ -469,8 +467,8 @@ typedef struct {
       ehci_qtd_t qtd[3];
     }control;
 
-    ehci_qhd_t  qhd[EHCI_MAX_QHD]                  ; ///< Queue Head Pool
-    ehci_qtd_t  qtd[EHCI_MAX_QTD] ATTR_ALIGNED(32) ; ///< Queue Element Transfer Pool
+    ehci_qhd_t  qhd[HCD_MAX_ENDPOINT]                  ; ///< Queue Head Pool
+    ehci_qtd_t  qtd[HCD_MAX_XFER] ATTR_ALIGNED(32) ; ///< Queue Element Transfer Pool
 //  ehci_itd_t  itd[EHCI_MAX_ITD]                  ; ///< Iso Transfer Pool
 //  ehci_sitd_t sitd[EHCI_MAX_SITD]                ; ///< Split (FS) Isochronous Transfer Pool
   }device[TUSB_CFG_HOST_DEVICE_MAX];

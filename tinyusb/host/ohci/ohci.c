@@ -371,7 +371,7 @@ static inline ohci_ed_t * ed_from_pipe_handle(pipe_handle_t pipe_hdl)
 static inline ohci_ed_t * ed_find_free(uint8_t dev_addr) ATTR_PURE ATTR_ALWAYS_INLINE;
 static inline ohci_ed_t * ed_find_free(uint8_t dev_addr)
 {
-  for(uint8_t i = 0; i < OHCI_MAX_QHD; i++)
+  for(uint8_t i = 0; i < HCD_MAX_ENDPOINT; i++)
   {
     if ( !ohci_data.device[dev_addr-1].ed[i].used )
     {
@@ -384,7 +384,7 @@ static inline ohci_ed_t * ed_find_free(uint8_t dev_addr)
 
 static ohci_ed_t * ed_list_find_previous(ohci_ed_t const * p_head, ohci_ed_t const * p_ed)
 {
-  uint32_t max_loop = OHCI_MAX_QHD;
+  uint32_t max_loop = HCD_MAX_ENDPOINT;
 
   ohci_ed_t const * p_prev = p_head;
 
@@ -444,7 +444,7 @@ pipe_handle_t hcd_pipe_open(uint8_t dev_addr, tusb_descriptor_endpoint_t const *
 
 static ohci_gtd_t * gtd_find_free(uint8_t dev_addr)
 {
-  for(uint8_t i=0; i < OHCI_MAX_QTD; i++)
+  for(uint8_t i=0; i < HCD_MAX_XFER; i++)
   {
     if (!ohci_data.device[dev_addr-1].gtd[i].used)
     {
@@ -608,7 +608,7 @@ static inline uint32_t gtd_xfer_byte_left(uint32_t buffer_end, uint32_t current_
 
 static void done_queue_isr(uint8_t hostid)
 {
-  uint8_t max_loop = (TUSB_CFG_HOST_DEVICE_MAX+1)*(OHCI_MAX_QTD+OHCI_MAX_ITD);
+  uint8_t max_loop = (TUSB_CFG_HOST_DEVICE_MAX+1)*(HCD_MAX_XFER+OHCI_MAX_ITD);
 
   // done head is written in reversed order of completion --> need to reverse the done queue first
   ohci_td_item_t* td_head = list_reverse ( (ohci_td_item_t*) align16(ohci_data.hcca.done_head) );

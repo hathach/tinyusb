@@ -58,9 +58,9 @@
 #define OHCI_PERIODIC_LIST (defined HOST_HCD_XFER_INTERRUPT || defined HOST_HCD_XFER_ISOCHRONOUS)
 
 // TODO merge OHCI with EHCI
-#define OHCI_MAX_QHD  8
-#define OHCI_MAX_QTD  20
-#define OHCI_MAX_ITD  4
+enum {
+  OHCI_MAX_ITD = 4
+};
 
 enum {
   OHCI_PID_SETUP = 0,
@@ -195,8 +195,8 @@ typedef struct ATTR_ALIGNED(256) {
 
   struct {
     //  ochi_itd_t itd[OHCI_MAX_ITD]; // itd requires alignment of 32
-    ohci_ed_t ed[OHCI_MAX_QHD];
-    ohci_gtd_t gtd[OHCI_MAX_QTD];
+    ohci_ed_t ed[HCD_MAX_ENDPOINT];
+    ohci_gtd_t gtd[HCD_MAX_XFER];
   }device[TUSB_CFG_HOST_DEVICE_MAX];
 
 } ohci_data_t;

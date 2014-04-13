@@ -43,11 +43,19 @@
 #ifndef _TUSB_HCD_H_
 #define _TUSB_HCD_H_
 
-#include "common/common.h"
-
 #ifdef __cplusplus
  extern "C" {
 #endif
+
+#include "common/common.h"
+
+// Max number of endpoints per device
+enum {
+  HCD_MAX_ENDPOINT = TUSB_CFG_HOST_HUB + TUSB_CFG_HOST_HID_KEYBOARD + TUSB_CFG_HOST_HID_MOUSE + TUSB_CFG_HOST_HID_GENERIC +
+                     TUSB_CFG_HOST_MSC*2 + TUSB_CFG_HOST_CDC*3,
+
+  HCD_MAX_XFER     = HCD_MAX_ENDPOINT*2,
+};
 
 //--------------------------------------------------------------------+
 // MACRO CONSTANT TYPEDEF
