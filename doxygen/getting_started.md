@@ -32,7 +32,7 @@ vendor  | Source files from 3rd party such as freeRTOS, fatfs etc ...
 
 It is relatively simple to incorporate tinyusb to your (existing) project
 
-1. Copy core folder /**tinyusb** to your project. Let's say it is *your_project/tinyusb*
+1. Copy core folder **repo/tinyusb** to your project. Let's say it is *your_project/tinyusb*
 2. Add all the .c in the core folder to your project settings (uvproj, ewp, makefile)
 3. Add *your_project/tinysb* to your include path. Also make sure your current include path also contains the configuration file tusb_config.h. Or you could simply put the tusb_config.h into the tinyusb folder as well.
 4. Make sure all required macros such as TUSB_CFG_MCU are all defined properly in tusb_config.h.
@@ -44,3 +44,5 @@ It is relatively simple to incorporate tinyusb to your (existing) project
 \subpage md_doxygen_started_build_demo
 
 \subpage md_doxygen_started_run_demo
+
+\subpage md_doxygen_tools

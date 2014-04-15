@@ -49,7 +49,7 @@ IAR is just as easy as Keil
     
     ![iar_select_board.png](http://docs.tinyusb.org/images/iar_select_board.png)
 
-## Configure demo ##
+## Configure demo
 
 Application demo is written to have the code excluded if its required option is not enabled in [tusb_config.h](). Some of combination may exceed the 32KB limit of IAR/Keil so you may want to re-configure to disable some class support, decrease TUSB_CFG_DEBUG or increase the compiler optimization level.
 
