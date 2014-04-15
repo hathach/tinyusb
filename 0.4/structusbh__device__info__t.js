@@ -1,7 +1,7 @@
 var structusbh__device__info__t =
 [
     [ "configure_count", "structusbh__device__info__t.html#a5d0318b0250bf4ed155a11fe9fe61ab9", null ],
-    [ "control", "structusbh__device__info__t.html#a686f2ea50ed3c801bfafb23c6da42a63", null ],
+    [ "control", "structusbh__device__info__t.html#ad71cb8d8d3f0613d214dd28790d8fbc8", null ],
     [ "core_id", "structusbh__device__info__t.html#a107ea94748eef5f825574b93be3f3454", null ],
     [ "flag_supported_class", "structusbh__device__info__t.html#a56d4bd44171a8279a3d6dd74ae1f719f", null ],
     [ "hub_addr", "structusbh__device__info__t.html#a3d4bcc57166e06e9e13e9391a7547bfc", null ],

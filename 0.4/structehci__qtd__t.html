@@ -126,12 +126,12 @@ Data Fields</h2></td></tr>
 <a class="el" href="unionehci__link__t.html">ehci_link_t</a>&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structehci__qtd__t.html#a8f18d97ad3c8b23a16c6b07c3ce58113">next</a></td></tr>
 <tr class="memdesc:a8f18d97ad3c8b23a16c6b07c3ce58113"><td class="mdescLeft">&#160;</td><td class="mdescRight">Word 0: Next QTD Pointer. <br/></td></tr>
 <tr class="separator:a8f18d97ad3c8b23a16c6b07c3ce58113"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:af4e5735bfe125bf6f642af00b80aadbf"><td class="memItemLeft" ><a class="anchor" id="af4e5735bfe125bf6f642af00b80aadbf"></a>
+<tr class="memitem:ac1fb742b97bc51c5bdefd18c7624a854"><td class="memItemLeft" ><a class="anchor" id="ac1fb742b97bc51c5bdefd18c7624a854"></a>
 union {</td></tr>
 <tr class="memitem:a2d656b24a289bce22fa7180a54b0e9f7"><td class="memItemLeft" ><a class="anchor" id="a2d656b24a289bce22fa7180a54b0e9f7"></a>
 &#160;&#160;&#160;<a class="el" href="unionehci__link__t.html">ehci_link_t</a>&#160;&#160;&#160;<b>alternate</b></td></tr>
 <tr class="separator:a2d656b24a289bce22fa7180a54b0e9f7"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:abba44a468590289dc5ce4015bd6522e9"><td class="memItemLeft" ><a class="anchor" id="abba44a468590289dc5ce4015bd6522e9"></a>
+<tr class="memitem:a2ee6a60584817def95f0c6db8df1ff56"><td class="memItemLeft" ><a class="anchor" id="a2ee6a60584817def95f0c6db8df1ff56"></a>
 &#160;&#160;&#160;struct {</td></tr>
 <tr class="memitem:a3e57c2ef1c3ffb36722f000cc1156824"><td class="memItemLeft" ><a class="anchor" id="a3e57c2ef1c3ffb36722f000cc1156824"></a>
 &#160;&#160;&#160;&#160;&#160;&#160;uint32_t&#160;&#160;&#160;<b>__pad0__</b>: 5</td></tr>
@@ -145,11 +145,11 @@ union {</td></tr>
 <tr class="memitem:ad4aa318988b065f700e50ebfd3e8c996"><td class="memItemLeft" ><a class="anchor" id="ad4aa318988b065f700e50ebfd3e8c996"></a>
 &#160;&#160;&#160;&#160;&#160;&#160;uint32_t&#160;&#160;&#160;<b>expected_bytes</b>: 16</td></tr>
 <tr class="separator:ad4aa318988b065f700e50ebfd3e8c996"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:abba44a468590289dc5ce4015bd6522e9"><td class="memItemLeft" valign="top">&#160;&#160;&#160;}&#160;</td><td class="memItemRight" valign="bottom"></td></tr>
-<tr class="separator:abba44a468590289dc5ce4015bd6522e9"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:af4e5735bfe125bf6f642af00b80aadbf"><td class="memItemLeft" valign="top">};&#160;</td><td class="memItemRight" valign="bottom"></td></tr>
-<tr class="memdesc:af4e5735bfe125bf6f642af00b80aadbf"><td class="mdescLeft">&#160;</td><td class="mdescRight">Word 1: Alternate Next QTD Pointer (not used) <br/></td></tr>
-<tr class="separator:af4e5735bfe125bf6f642af00b80aadbf"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a2ee6a60584817def95f0c6db8df1ff56"><td class="memItemLeft" valign="top">&#160;&#160;&#160;}&#160;</td><td class="memItemRight" valign="bottom"></td></tr>
+<tr class="separator:a2ee6a60584817def95f0c6db8df1ff56"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ac1fb742b97bc51c5bdefd18c7624a854"><td class="memItemLeft" valign="top">};&#160;</td><td class="memItemRight" valign="bottom"></td></tr>
+<tr class="memdesc:ac1fb742b97bc51c5bdefd18c7624a854"><td class="mdescLeft">&#160;</td><td class="mdescRight">Word 1: Alternate Next QTD Pointer (not used) <br/></td></tr>
+<tr class="separator:ac1fb742b97bc51c5bdefd18c7624a854"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:ad11316a45c6c93ce6ed877a85bae22cc"><td class="memItemLeft" align="right" valign="top">volatile uint32_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structehci__qtd__t.html#ad11316a45c6c93ce6ed877a85bae22cc">pingstate_err</a>: 1</td></tr>
 <tr class="memdesc:ad11316a45c6c93ce6ed877a85bae22cc"><td class="mdescLeft">&#160;</td><td class="mdescRight">Word 2: qTQ Token.  <a href="#ad11316a45c6c93ce6ed877a85bae22cc">More...</a><br/></td></tr>
 <tr class="separator:ad11316a45c6c93ce6ed877a85bae22cc"><td class="memSeparator" colspan="2">&#160;</td></tr>
@@ -213,7 +213,7 @@ uint32_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="
 <a name="details" id="details"></a><h2 class="groupheader">Detailed Description</h2>
 <div class="textblock"><p>Queue Element Transfer Descriptor (section 3.5) </p>
 
-<p>Definition at line <a class="el" href="ehci_8h_source.html#l00115">115</a> of file <a class="el" href="ehci_8h_source.html">ehci.h</a>.</p>
+<p>Definition at line <a class="el" href="ehci_8h_source.html#l00113">113</a> of file <a class="el" href="ehci_8h_source.html">ehci.h</a>.</p>
 </div><h2 class="groupheader">Field Documentation</h2>
 <a class="anchor" id="ad11316a45c6c93ce6ed877a85bae22cc"></a>
 <div class="memitem">
@@ -228,7 +228,7 @@ uint32_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="
 <p>Word 2: qTQ Token. </p>
 <p>If the QH.EPSfield indicates a High-speed device and the PID_Codeindicates an OUT endpoint, then this is the state bit for the Ping protocol. 0b=OUT 1b=PING </p>
 
-<p>Definition at line <a class="el" href="ehci_8h_source.html#l00132">132</a> of file <a class="el" href="ehci_8h_source.html">ehci.h</a>.</p>
+<p>Definition at line <a class="el" href="ehci_8h_source.html#l00130">130</a> of file <a class="el" href="ehci_8h_source.html">ehci.h</a>.</p>
 
 </div>
 </div>
@@ -241,7 +241,7 @@ uint32_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="
 <div id="nav-path" class="navpath"><!-- id is needed for treeview function! -->
   <ul>
     <li class="navelem"><a class="el" href="structehci__qtd__t.html">ehci_qtd_t</a></li>
-    <li class="footer">Generated on Mon Mar 31 2014 16:41:54 for tinyusb by
+    <li class="footer">Generated on Tue Apr 15 2014 10:49:30 for tinyusb by
     <a href="http://www.doxygen.org/index.html">
     <img class="footer" src="doxygen.png" alt="doxygen"/></a> 1.8.6 </li>
   </ul>

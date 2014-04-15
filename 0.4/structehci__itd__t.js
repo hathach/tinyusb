@@ -10,5 +10,5 @@ var structehci__itd__t =
     [ "next", "structehci__itd__t.html#a8f18d97ad3c8b23a16c6b07c3ce58113", null ],
     [ "offset", "structehci__itd__t.html#a2df482bb0528381abc0a05905bb5826a", null ],
     [ "page_select", "structehci__itd__t.html#a82f879acedb3ac6ba026e7dce89fc711", null ],
-    [ "xact", "structehci__itd__t.html#a24787c55fad3cbc01477c9323ba56131", null ]
+    [ "xact", "structehci__itd__t.html#a1b013fffa38ed3ec6c9d40cead8c6ce3", null ]
 ];

@@ -5,7 +5,7 @@
 <meta http-equiv="Content-Type" content="text/xhtml;charset=UTF-8"/>
 <meta http-equiv="X-UA-Compatible" content="IE=9"/>
 <meta name="generator" content="Doxygen 1.8.6"/>
-<title>tinyusb: Get Started</title>
+<title>tinyusb: Device Demos</title>
 <link href="tabs.css" rel="stylesheet" type="text/css"/>
 <script type="text/javascript" src="jquery.js"></script>
 <script type="text/javascript" src="dynsections.js"></script>
@@ -83,7 +83,7 @@ var searchBox = new SearchBox("searchBox", "search",false,'Search');
   </div>
 </div>
 <script type="text/javascript">
-$(document).ready(function(){initNavTree('md_doxygen_get_started.html','');});
+$(document).ready(function(){initNavTree('md_doxygen_started_device_demo.html','');});
 </script>
 <div id="doc-content">
 <!-- window showing the filter options -->
@@ -102,110 +102,23 @@ $(document).ready(function(){initNavTree('md_doxygen_get_started.html','');});
 
 <div class="header">
   <div class="headertitle">
-<div class="title">Get Started </div>  </div>
+<div class="title">Device Demos </div>  </div>
 </div><!--header-->
 <div class="contents">
 <div class="textblock"><p><b>Table of Contents</b></p>
 <ul>
-<li><a href="#download">Download</a></li>
-<li><a href="#import-and-build">Import and Build</a><ul>
-<li><a href="#prerequisites">Prerequisites</a></li>
 <li><a href="#lpcxpresso">LPCXpresso</a></li>
 <li><a href="#keil">Keil</a></li>
 <li><a href="#iar">IAR</a></li>
+<li><a href="#configure-demo">Configure demo</a> </li>
 </ul>
-</li>
-<li><a href="#configure-demo">Configure demo</a></li>
-</ul>
-<h2>Download</h2>
-<p>tinyusb uses github as online repository <a href="https://github.com/hathach/tinyusb">https://github.com/hathach/tinyusb</a> since it is the best place for open source project.</p>
-<p>If you are using Linux, you already know how to what to do. But If Windows is your OS, I would suggest to install <a href="http://git-scm.com/">git</a> and front-end gui such as <a href="http://code.google.com/p/tortoisegit">tortoisegit</a> to begin with.</p>
-<p>After downloading/cloning, the code base is composed of</p>
-<table class="doxtable">
-<tr>
-<th>Folder </th><th>Description  </th></tr>
-<tr>
-<td>boards </td><td>Source files of supported boards </td></tr>
-<tr>
-<td>demos </td><td>Source &amp; project files for demonstration application </td></tr>
-<tr>
-<td>mcu </td><td>Low level mcu core &amp; peripheral drivers (e.g CMSIS ) </td></tr>
-<tr>
-<td>tests </td><td>Unit tests for the stack </td></tr>
-<tr>
-<td>tinyusb </td><td>All sources files for tinyusb stack itself. </td></tr>
-<tr>
-<td>vendor </td><td>Source files from 3rd party such as freeRTOS, fatfs etc ... </td></tr>
-</table>
-<h2>Import and Build</h2>
-<p><em>repo/demos</em> is the folder where all the application &amp; project files are located. There are demos for both device and hosts. For each, there are different projects for each of supported RTOS.</p>
-<h3>Prerequisites</h3>
-<p>In order to build and run application demo, you would need</p>
-<ul>
-<li>A ../../boards/readme.md "supported development board"</li>
-<li>A supported toolchain: LPCXpresso, Keil, IAR.</li>
-</ul>
-<h3>LPCXpresso</h3>
-<p>To prevent any sort of problems, it is recommended to do <b>EXACTLY</b> as follows (esp the item 4)</p>
-<ol type="1">
-<li>Copy the whole repo folder to your lpcxpresso's workspace.</li>
-<li><p class="startli">Click <em>File-&gt;Import</em>, then expand the <em>General</em> folder and select <b>Existing Projects into Workspace</b> and click Next.</p>
-<div class="image">
-<img src="http://docs.tinyusb.org/images/lpcxpresso_import.png"  alt="lpcxpresso_import.png"/>
-</div>
-</li>
-<li><p class="startli">On the next dialog, Click <em>Browse</em> and choose the <b>repo/demos</b> folder inside the repo. You should see a list of all demo applications.</p>
-<div class="image">
-<img src="http://docs.tinyusb.org/images/lpcxpresso_import2.png"  alt="lpcxpresso_import2.png"/>
-</div>
-</li>
-<li><b>IMPORTANT</b> make sure the option <b>Copy projects into workspace</b> is <b>CLEAR</b>. As demo application uses link folders and this option may cause problem for the import.</li>
-<li>Choose any of the demo application and click <em>Finish</em>.</li>
-<li><p class="startli">Select the configure corresponding to your development board.</p>
-<div class="image">
-<img src="http://docs.tinyusb.org/images/lpcxpresso_select_board.png"  alt="lpcxpresso_select_board.png"/>
-</div>
-</li>
-<li><p class="startli">Then select the correct MCU option from project properties then you are ready to go.</p>
-<div class="image">
-<img src="http://docs.tinyusb.org/images/lpcxpresso_mcu.png"  alt="lpcxpresso_mcu.png"/>
-</div>
-</li>
-</ol>
-<h3>Keil</h3>
-<p>It is relatively simple for Keil</p>
-<ol type="1">
-<li>Open the desired demo project e.g <em>demos/host/host_freertos/host_freertos.uvproj</em></li>
-<li><p class="startli">Select the configure corresponding to your development board and build it.</p>
-<div class="image">
-<img src="http://docs.tinyusb.org/images/keil_select_board.png"  alt="keil_select_board.png"/>
-</div>
-</li>
-</ol>
-<h3>IAR</h3>
-<p>IAR is just as easy as Keil</p>
-<ol type="1">
-<li>Open the desired demo project e.g <em>demos/host/host_freertos/host_freertos.eww</em></li>
-<li><p class="startli">Again select the configure corresponding to your development board and build it.</p>
-<div class="image">
-<img src="http://docs.tinyusb.org/images/iar_select_board.png"  alt="iar_select_board.png"/>
-</div>
-</li>
-</ol>
-<h2>Configure demo</h2>
-<p>Application demo is written to have the code excluded if its required option is not enabled in [tusb_config.h](). Some of combination may exceed the 32KB limit of IAR/Keil so you may want to re-configure to disable some class support, decrease TUSB_CFG_DEBUG or increase the compiler optimization level.</p>
-<p>In addition, there are some configuration you can change such as</p>
-<ul>
-<li>CFG_UART_BAUDRATE in <a class="el" href="board_8h.html">board.h</a></li>
-<li>CFG_PRINTF_TARGET in the specific board header (e.g <a class="el" href="board__ea4357_8h.html">board_ea4357.h</a>) to either Semihost, Uart, or SWO.</li>
-</ul>
-<p><a class="el" href="md_boards_readme.html">Boards</a> </p>
 </div></div><!-- contents -->
 </div><!-- doc-content -->
 <!-- start footer part -->
 <div id="nav-path" class="navpath"><!-- id is needed for treeview function! -->
   <ul>
-    <li class="footer">Generated on Mon Mar 31 2014 16:41:52 for tinyusb by
+    <li class="navelem"><a class="el" href="md_doxygen_getting_started.html">Getting Started</a></li><li class="navelem"><a class="el" href="md_doxygen_started_run_demo.html">Run Demos</a></li>
+    <li class="footer">Generated on Tue Apr 15 2014 10:49:27 for tinyusb by
     <a href="http://www.doxygen.org/index.html">
     <img class="footer" src="doxygen.png" alt="doxygen"/></a> 1.8.6 </li>
   </ul>

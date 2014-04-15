@@ -2,12 +2,10 @@ var ehci_8h =
 [
     [ "EHCI_CFG_FRAMELIST_SIZE_BITS", "ehci_8h.html#gab9987d7d2d0bc2f3e09c1730d456b6a7", null ],
     [ "EHCI_FRAMELIST_SIZE", "ehci_8h.html#ga5f69a5aba5c4b0dba12f4d18dfabea36", null ],
-    [ "EHCI_MAX_ITD", "ehci_8h.html#ga1edfaa45f26925817c307c855be0622c", null ],
-    [ "EHCI_MAX_QHD", "ehci_8h.html#gac6437df5fb228336373fbed9aaad1825", null ],
-    [ "EHCI_MAX_QTD", "ehci_8h.html#ga785d58e16dc3a39bbe73e2ed0498c85d", null ],
-    [ "EHCI_MAX_SITD", "ehci_8h.html#ga56a76badf8b5f5a4e3f8c346b3ccb4e9", null ],
     [ "EHCI_PERIODIC_LIST", "ehci_8h.html#gacc57e97af5c794b7631e50b5b29e55d0", null ],
     [ "HOST_HCD_XFER_INTERRUPT", "ehci_8h.html#ga92822d83eb6fb408005b2096422b8705", null ],
+    [ "EHCI_MAX_ITD", "ehci_8h.html#ggaabfcbcb5ac86a1edac4035264bc7d2b8a771c7d447e0c859566d9121f02cd7acf", null ],
+    [ "EHCI_MAX_SITD", "ehci_8h.html#ggaabfcbcb5ac86a1edac4035264bc7d2b8ac3813bef27f1a48747ab309697df4a4c", null ],
     [ "ehci_interrupt_mask_", "ehci_8h.html#gaeeb4a4981a7b454f0f12a9ab344dbe34", [
       [ "EHCI_INT_MASK_USB", "ehci_8h.html#ggaeeb4a4981a7b454f0f12a9ab344dbe34a6f704647358260a2bc5ed9d4b97fc018", null ],
       [ "EHCI_INT_MASK_ERROR", "ehci_8h.html#ggaeeb4a4981a7b454f0f12a9ab344dbe34aef33bb21a50b212f6d0a7d98f9f12931", null ],
@@ -45,6 +43,7 @@ var ehci_8h =
       [ "EHCI_PID_IN", "ehci_8h.html#ggab1e3305e65f94c6b12023de02563b284a03de182233226ceae3e48ab24770ad8f", null ],
       [ "EHCI_PID_SETUP", "ehci_8h.html#ggab1e3305e65f94c6b12023de02563b284ae11512091e357743db9249b7a17b018a", null ]
     ] ],
+    [ "STATIC_ASSERT", "ehci_8h.html#ga0a1c30234f67fed5688ad14c8ac42288", null ],
     [ "STATIC_ASSERT", "ehci_8h.html#ga9a4c4441ba72be282bf7422fc5903182", null ],
     [ "STATIC_ASSERT", "ehci_8h.html#gac11735ce6bf2b15a374b090ae0a8f2db", null ],
     [ "STATIC_ASSERT", "ehci_8h.html#gaf59911bac8cbcd310c518a8829de2ad5", null ],

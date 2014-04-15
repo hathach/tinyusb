@@ -1,8 +1,9 @@
 var NAVTREE =
 [
   [ "tinyusb", "index.html", [
+    [ "Change Log", "md_doxygen_changelog.html", null ],
     [ "Coding Standards", "md_doxygen_coding_standard.html", null ],
-    [ "Get Started", "md_doxygen_get_started.html", "md_doxygen_get_started" ],
+    [ "Getting Started", "md_doxygen_getting_started.html", "md_doxygen_getting_started" ],
     [ "License", "md_tinyusb_license.html", null ],
     [ "Test-Driven Development", "md_tests_readme.html", null ],
     [ "Modules", "modules.html", "modules" ],
@@ -34,14 +35,14 @@ var NAVTREEINDEX =
 "acc_8c_source.html",
 "cdc_8h.html#ggafe51e6ac2b0028e0d33de1cbb4739e6fa3c1e8630d77b0ad9a633da8f2617d14a",
 "ehci_8h.html",
-"group___class_driver___h_i_d___common.html#gga26df686fa916cfbae8777bb3fa0c4143a0d28b408784992ed23603120e30d553b",
-"group___u_s_b_def___type.html#gga67b344c0d91e2c1b8e13ceb56431f2c1a4819e8fd126e72b6f6d0fcbeca4d43a8",
-"hid_8h.html#gaafc1f255042ec78051345f286b13079e",
-"hub_8h.html#ga8ab160ae6ab48885e62099cb2ae63260",
-"osal__none_8h.html#ga79a93ca3a99f42410924828172c7709a",
-"structehci__registers__t.html#a7b2edc85d90e34c4435951e1e5c59517",
-"structohci__td__item__t.html#acd040db423e61876975bb5cd1f416a59",
-"structusbd__class__driver__t.html"
+"group___class_driver___h_i_d___common.html#gga26df686fa916cfbae8777bb3fa0c4143a0fd20e448e90a3abdb4a02109e7522b9",
+"group___u_s_b_def___type.html#gga67b344c0d91e2c1b8e13ceb56431f2c1a4eb90d68c8ff191b0b4626c7e33760d7",
+"hid_8h.html#gaae5902c17a87da4bb22644ee3a0d2a7d",
+"hub_8h.html#ga8050e8d27b5b45a84d507d2d29f2df8b",
+"osal__none_8h.html#ga5b9f2369b928b84579637e3911d4215c",
+"structehci__registers__t.html#a7a0f624309b7e7068948d6cc1fe63da6",
+"structohci__registers__t.html#af47d900be5b5e5b1cce48f959401cb4e",
+"structtusbd__descriptor__pointer__t.html#a671e1600d4f83a104792ee79e1480464"
 ];
 
 var SYNCONMSG = 'click to disable panel synchronisation';

@@ -130,10 +130,10 @@ $(document).ready(function(){initNavTree('ohci_8h_source.html','');});
 <div class="line"><a name="l00058"></a><span class="lineno">   58</span>&#160;<span class="preprocessor"></span><span class="preprocessor">#define OHCI_PERIODIC_LIST (defined HOST_HCD_XFER_INTERRUPT || defined HOST_HCD_XFER_ISOCHRONOUS)</span></div>
 <div class="line"><a name="l00059"></a><span class="lineno">   59</span>&#160;<span class="preprocessor"></span></div>
 <div class="line"><a name="l00060"></a><span class="lineno">   60</span>&#160;<span class="comment">// TODO merge OHCI with EHCI</span></div>
-<div class="line"><a name="l00061"></a><span class="lineno">   61</span>&#160;<span class="preprocessor">#define OHCI_MAX_QHD  8</span></div>
-<div class="line"><a name="l00062"></a><span class="lineno">   62</span>&#160;<span class="preprocessor"></span><span class="preprocessor">#define OHCI_MAX_QTD  20</span></div>
-<div class="line"><a name="l00063"></a><span class="lineno">   63</span>&#160;<span class="preprocessor"></span><span class="preprocessor">#define OHCI_MAX_ITD  4</span></div>
-<div class="line"><a name="l00064"></a><span class="lineno">   64</span>&#160;<span class="preprocessor"></span></div>
+<div class="line"><a name="l00061"></a><span class="lineno">   61</span>&#160;<span class="keyword">enum</span> {</div>
+<div class="line"><a name="l00062"></a><span class="lineno">   62</span>&#160;  OHCI_MAX_ITD = 4</div>
+<div class="line"><a name="l00063"></a><span class="lineno">   63</span>&#160;};</div>
+<div class="line"><a name="l00064"></a><span class="lineno">   64</span>&#160;</div>
 <div class="line"><a name="l00065"></a><span class="lineno">   65</span>&#160;<span class="keyword">enum</span> {</div>
 <div class="line"><a name="l00066"></a><span class="lineno">   66</span>&#160;  OHCI_PID_SETUP = 0,</div>
 <div class="line"><a name="l00067"></a><span class="lineno">   67</span>&#160;  OHCI_PID_OUT,</div>
@@ -267,8 +267,8 @@ $(document).ready(function(){initNavTree('ohci_8h_source.html','');});
 <div class="line"><a name="l00195"></a><span class="lineno">  195</span>&#160;</div>
 <div class="line"><a name="l00196"></a><span class="lineno">  196</span>&#160;  <span class="keyword">struct </span>{</div>
 <div class="line"><a name="l00197"></a><span class="lineno">  197</span>&#160;    <span class="comment">//  ochi_itd_t itd[OHCI_MAX_ITD]; // itd requires alignment of 32</span></div>
-<div class="line"><a name="l00198"></a><span class="lineno">  198</span>&#160;    <a class="code" href="structohci__ed__t.html">ohci_ed_t</a> ed[OHCI_MAX_QHD];</div>
-<div class="line"><a name="l00199"></a><span class="lineno">  199</span>&#160;    <a class="code" href="structohci__gtd__t.html">ohci_gtd_t</a> gtd[OHCI_MAX_QTD];</div>
+<div class="line"><a name="l00198"></a><span class="lineno">  198</span>&#160;    <a class="code" href="structohci__ed__t.html">ohci_ed_t</a> ed[HCD_MAX_ENDPOINT];</div>
+<div class="line"><a name="l00199"></a><span class="lineno">  199</span>&#160;    <a class="code" href="structohci__gtd__t.html">ohci_gtd_t</a> gtd[HCD_MAX_XFER];</div>
 <div class="line"><a name="l00200"></a><span class="lineno">  200</span>&#160;  }device[<a class="code" href="group___t_u_s_b___c_f_g___h_o_s_t.html#gafc4906ab5cb44b1931d4ae55894440c1">TUSB_CFG_HOST_DEVICE_MAX</a>];</div>
 <div class="line"><a name="l00201"></a><span class="lineno">  201</span>&#160;</div>
 <div class="line"><a name="l00202"></a><span class="lineno">  202</span>&#160;} <a class="code" href="structohci__data__t.html">ohci_data_t</a>;</div>
@@ -394,7 +394,7 @@ $(document).ready(function(){initNavTree('ohci_8h_source.html','');});
 <div id="nav-path" class="navpath"><!-- id is needed for treeview function! -->
   <ul>
     <li class="navelem"><a class="el" href="dir_f44c0f1c8d3a85cc1de1e7f4648a56e6.html">tinyusb</a></li><li class="navelem"><a class="el" href="dir_b871d914c1cc8934d54bd26c3ab0c17f.html">host</a></li><li class="navelem"><a class="el" href="dir_cecddf9c6195aba45a8457812ce73b44.html">ohci</a></li><li class="navelem"><a class="el" href="ohci_8h.html">ohci.h</a></li>
-    <li class="footer">Generated on Mon Mar 31 2014 16:41:49 for tinyusb by
+    <li class="footer">Generated on Tue Apr 15 2014 10:49:24 for tinyusb by
     <a href="http://www.doxygen.org/index.html">
     <img class="footer" src="doxygen.png" alt="doxygen"/></a> 1.8.6 </li>
   </ul>

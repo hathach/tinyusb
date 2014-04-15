@@ -132,6 +132,10 @@ Data Structures</h2></td></tr>
 <tr class="separator:"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:"><td class="memItemLeft" align="right" valign="top">struct &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structehci__data__t.html">ehci_data_t</a></td></tr>
 <tr class="separator:"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:gaabfcbcb5ac86a1edac4035264bc7d2b8"><td class="memItemLeft" align="right" valign="top">enum &#160;</td><td class="memItemRight" valign="bottom">{ <b>EHCI_MAX_ITD</b> = 4, 
+<b>EHCI_MAX_SITD</b> = 16
+ }</td></tr>
+<tr class="separator:gaabfcbcb5ac86a1edac4035264bc7d2b8"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:ga6cbf3d3e87d6fa2221fc0b467a985aae"><td class="memItemLeft" align="right" valign="top">enum &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group___e_h_c_i.html#ga6cbf3d3e87d6fa2221fc0b467a985aae">ehci_queue_element_type_</a> { <a class="el" href="group___e_h_c_i.html#gga6cbf3d3e87d6fa2221fc0b467a985aaea74403c018b0ab2c2391e7d09a97218ac">EHCI_QUEUE_ELEMENT_ITD</a> = 0, 
 <a class="el" href="group___e_h_c_i.html#gga6cbf3d3e87d6fa2221fc0b467a985aaeae77dec640b6e35bfd1afb7832e5d5ced">EHCI_QUEUE_ELEMENT_QHD</a>, 
 <a class="el" href="group___e_h_c_i.html#gga6cbf3d3e87d6fa2221fc0b467a985aaeaedf6f4454f16369d7283f0495d746017">EHCI_QUEUE_ELEMENT_SITD</a>, 
@@ -177,6 +181,9 @@ Data Structures</h2></td></tr>
 <b>EHCI_PORTSC_MASK_ALL</b>
  }</td></tr>
 <tr class="separator:ga06a2dfc5fbeb1c2b8c1121ce6489e140"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ga0a1c30234f67fed5688ad14c8ac42288"><td class="memItemLeft" align="right" valign="top"><a class="anchor" id="ga0a1c30234f67fed5688ad14c8ac42288"></a>
+&#160;</td><td class="memItemRight" valign="bottom"><b>STATIC_ASSERT</b> (EHCI_CFG_FRAMELIST_SIZE_BITS&lt;=7,&quot;incorrect value&quot;)</td></tr>
+<tr class="separator:ga0a1c30234f67fed5688ad14c8ac42288"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:ga9a4c4441ba72be282bf7422fc5903182"><td class="memItemLeft" align="right" valign="top"><a class="anchor" id="ga9a4c4441ba72be282bf7422fc5903182"></a>
 &#160;</td><td class="memItemRight" valign="bottom"><b>STATIC_ASSERT</b> (sizeof(<a class="el" href="structehci__qtd__t.html">ehci_qtd_t</a>)==32,&quot;size is not correct&quot;)</td></tr>
 <tr class="separator:ga9a4c4441ba72be282bf7422fc5903182"><td class="memSeparator" colspan="2">&#160;</td></tr>
@@ -195,18 +202,6 @@ Data Structures</h2></td></tr>
 <tr class="memitem:gacc57e97af5c794b7631e50b5b29e55d0"><td class="memItemLeft" align="right" valign="top"><a class="anchor" id="gacc57e97af5c794b7631e50b5b29e55d0"></a>
 #define&#160;</td><td class="memItemRight" valign="bottom"><b>EHCI_PERIODIC_LIST</b>&#160;&#160;&#160;(defined HOST_HCD_XFER_INTERRUPT || defined HOST_HCD_XFER_ISOCHRONOUS)</td></tr>
 <tr class="separator:gacc57e97af5c794b7631e50b5b29e55d0"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:gac6437df5fb228336373fbed9aaad1825"><td class="memItemLeft" align="right" valign="top"><a class="anchor" id="gac6437df5fb228336373fbed9aaad1825"></a>
-#define&#160;</td><td class="memItemRight" valign="bottom"><b>EHCI_MAX_QHD</b>&#160;&#160;&#160;8</td></tr>
-<tr class="separator:gac6437df5fb228336373fbed9aaad1825"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:ga785d58e16dc3a39bbe73e2ed0498c85d"><td class="memItemLeft" align="right" valign="top"><a class="anchor" id="ga785d58e16dc3a39bbe73e2ed0498c85d"></a>
-#define&#160;</td><td class="memItemRight" valign="bottom"><b>EHCI_MAX_QTD</b>&#160;&#160;&#160;20</td></tr>
-<tr class="separator:ga785d58e16dc3a39bbe73e2ed0498c85d"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:ga1edfaa45f26925817c307c855be0622c"><td class="memItemLeft" align="right" valign="top"><a class="anchor" id="ga1edfaa45f26925817c307c855be0622c"></a>
-#define&#160;</td><td class="memItemRight" valign="bottom"><b>EHCI_MAX_ITD</b>&#160;&#160;&#160;4</td></tr>
-<tr class="separator:ga1edfaa45f26925817c307c855be0622c"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:ga56a76badf8b5f5a4e3f8c346b3ccb4e9"><td class="memItemLeft" align="right" valign="top"><a class="anchor" id="ga56a76badf8b5f5a4e3f8c346b3ccb4e9"></a>
-#define&#160;</td><td class="memItemRight" valign="bottom"><b>EHCI_MAX_SITD</b>&#160;&#160;&#160;16</td></tr>
-<tr class="separator:ga56a76badf8b5f5a4e3f8c346b3ccb4e9"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:gab9987d7d2d0bc2f3e09c1730d456b6a7"><td class="memItemLeft" align="right" valign="top"><a class="anchor" id="gab9987d7d2d0bc2f3e09c1730d456b6a7"></a>
 #define&#160;</td><td class="memItemRight" valign="bottom"><b>EHCI_CFG_FRAMELIST_SIZE_BITS</b>&#160;&#160;&#160;7</td></tr>
 <tr class="separator:gab9987d7d2d0bc2f3e09c1730d456b6a7"><td class="memSeparator" colspan="2">&#160;</td></tr>
@@ -241,7 +236,7 @@ Data Structures</h2></td></tr>
 </td></tr>
 </table>
 
-<p>Definition at line <a class="el" href="ehci_8h_source.html#l00091">91</a> of file <a class="el" href="ehci_8h_source.html">ehci.h</a>.</p>
+<p>Definition at line <a class="el" href="ehci_8h_source.html#l00089">89</a> of file <a class="el" href="ehci_8h_source.html">ehci.h</a>.</p>
 
 </div>
 </div>
@@ -250,7 +245,7 @@ Data Structures</h2></td></tr>
 <!-- start footer part -->
 <div id="nav-path" class="navpath"><!-- id is needed for treeview function! -->
   <ul>
-    <li class="footer">Generated on Mon Mar 31 2014 16:41:53 for tinyusb by
+    <li class="footer">Generated on Tue Apr 15 2014 10:49:29 for tinyusb by
     <a href="http://www.doxygen.org/index.html">
     <img class="footer" src="doxygen.png" alt="doxygen"/></a> 1.8.6 </li>
   </ul>

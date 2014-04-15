@@ -1,4 +1,4 @@
 var searchData=
 [
-  ['get_20started',['Get Started',['../md_doxygen_get_started.html',1,'']]]
+  ['device_20demos',['Device Demos',['../md_doxygen_started_device_demo.html',1,'md_doxygen_started_run_demo']]]
 ];

@@ -1,5 +1,7 @@
 var hcd_8h =
 [
+    [ "HCD_MAX_ENDPOINT", "hcd_8h.html#ggaf715e26dfffd1f8de1c18449e2770cffa51e209e23b136ec7cbe4fcb341d6a570", null ],
+    [ "HCD_MAX_XFER", "hcd_8h.html#ggaf715e26dfffd1f8de1c18449e2770cffa13517cb32e54e1b0ea77bb23a2fd07bc", null ],
     [ "hcd_init", "hcd_8h.html#gad808cbba25d9bf86a9d63ff74c26e54b", null ],
     [ "hcd_isr", "hcd_8h.html#ga29691c54eefece09d7e27326fd8042d7", null ],
     [ "hcd_pipe_clear_stall", "hcd_8h.html#ga18b5e7bcda8a935e351cc530c18c2912", null ],

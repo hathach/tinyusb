@@ -271,7 +271,7 @@ $(document).ready(function(){initNavTree('usbd_8c_source.html','');});
 <div class="line"><a name="l00193"></a><span class="lineno">  193</span>&#160;</div>
 <div class="line"><a name="l00194"></a><span class="lineno">  194</span>&#160;<span class="keyword">static</span> <a class="code" href="group___group___error.html#ga225612897c510054ef4026586562f716">tusb_error_t</a> usbd_body_subtask(<span class="keywordtype">void</span>)</div>
 <div class="line"><a name="l00195"></a><span class="lineno">  195</span>&#160;{</div>
-<div class="line"><a name="l00196"></a><span class="lineno">  196</span>&#160;  OSAL_VAR usbd_task_event_t event;</div>
+<div class="line"><a name="l00196"></a><span class="lineno">  196</span>&#160;  <span class="keyword">static</span> usbd_task_event_t event;</div>
 <div class="line"><a name="l00197"></a><span class="lineno">  197</span>&#160;</div>
 <div class="line"><a name="l00198"></a><span class="lineno">  198</span>&#160;  OSAL_SUBTASK_BEGIN</div>
 <div class="line"><a name="l00199"></a><span class="lineno">  199</span>&#160;</div>
@@ -344,7 +344,7 @@ $(document).ready(function(){initNavTree('usbd_8c_source.html','');});
 <div class="line"><a name="l00266"></a><span class="lineno">  266</span>&#160;  <span class="comment">//------------- Class/Interface Specific Request -------------//</span></div>
 <div class="line"><a name="l00267"></a><span class="lineno">  267</span>&#160;  <span class="keywordflow">else</span> <span class="keywordflow">if</span> ( TUSB_REQUEST_RECIPIENT_INTERFACE == p_request-&gt;bmRequestType_bit.recipient)</div>
 <div class="line"><a name="l00268"></a><span class="lineno">  268</span>&#160;  {</div>
-<div class="line"><a name="l00269"></a><span class="lineno">  269</span>&#160;    OSAL_VAR uint8_t class_code;</div>
+<div class="line"><a name="l00269"></a><span class="lineno">  269</span>&#160;    <span class="keyword">static</span> uint8_t class_code;</div>
 <div class="line"><a name="l00270"></a><span class="lineno">  270</span>&#160;</div>
 <div class="line"><a name="l00271"></a><span class="lineno">  271</span>&#160;    class_code = usbd_devices[coreid].interface2class[ u16_low_u8(p_request-&gt;wIndex) ];</div>
 <div class="line"><a name="l00272"></a><span class="lineno">  272</span>&#160;</div>
@@ -478,58 +478,59 @@ $(document).ready(function(){initNavTree('usbd_8c_source.html','');});
 <div class="line"><a name="l00400"></a><span class="lineno">  400</span>&#160;    <span class="keywordflow">case</span> USBD_BUS_EVENT_RESET     :</div>
 <div class="line"><a name="l00401"></a><span class="lineno">  401</span>&#160;    <span class="keywordflow">case</span> USBD_BUS_EVENT_UNPLUGGED :</div>
 <div class="line"><a name="l00402"></a><span class="lineno">  402</span>&#160;      memclr_(&amp;usbd_devices[coreid], <span class="keyword">sizeof</span>(<a class="code" href="structusbd__device__info__t.html">usbd_device_info_t</a>));</div>
-<div class="line"><a name="l00403"></a><span class="lineno">  403</span>&#160;      <span class="keywordflow">for</span> (uint8_t class_code = <a class="code" href="group___u_s_b_def___type.html#gga7235527ffc187847b43d4838e46f29b3a1c0286b14f0983947cb58639aa254bd8">TUSB_CLASS_AUDIO</a>; class_code &lt; USBD_CLASS_DRIVER_COUNT; class_code++)</div>
-<div class="line"><a name="l00404"></a><span class="lineno">  404</span>&#160;      {</div>
-<div class="line"><a name="l00405"></a><span class="lineno">  405</span>&#160;        <span class="keywordflow">if</span> ( usbd_class_drivers[class_code].close ) usbd_class_drivers[class_code].close( coreid );</div>
-<div class="line"><a name="l00406"></a><span class="lineno">  406</span>&#160;      }</div>
-<div class="line"><a name="l00407"></a><span class="lineno">  407</span>&#160;    <span class="keywordflow">break</span>;</div>
-<div class="line"><a name="l00408"></a><span class="lineno">  408</span>&#160;</div>
-<div class="line"><a name="l00409"></a><span class="lineno">  409</span>&#160;    <span class="keywordflow">case</span> USBD_BUS_EVENT_SUSPENDED:</div>
-<div class="line"><a name="l00410"></a><span class="lineno">  410</span>&#160;      usbd_devices[coreid].state = TUSB_DEVICE_STATE_SUSPENDED;</div>
-<div class="line"><a name="l00411"></a><span class="lineno">  411</span>&#160;    <span class="keywordflow">break</span>;</div>
-<div class="line"><a name="l00412"></a><span class="lineno">  412</span>&#160;</div>
-<div class="line"><a name="l00413"></a><span class="lineno">  413</span>&#160;    <span class="keywordflow">default</span>: <span class="keywordflow">break</span>;</div>
-<div class="line"><a name="l00414"></a><span class="lineno">  414</span>&#160;  }</div>
-<div class="line"><a name="l00415"></a><span class="lineno">  415</span>&#160;}</div>
-<div class="line"><a name="l00416"></a><span class="lineno">  416</span>&#160;</div>
-<div class="line"><a name="l00417"></a><span class="lineno">  417</span>&#160;<span class="keywordtype">void</span> usbd_setup_received_isr(uint8_t coreid, <a class="code" href="structtusb__control__request__t.html">tusb_control_request_t</a> * p_request)</div>
-<div class="line"><a name="l00418"></a><span class="lineno">  418</span>&#160;{</div>
-<div class="line"><a name="l00419"></a><span class="lineno">  419</span>&#160;  usbd_task_event_t task_event =</div>
-<div class="line"><a name="l00420"></a><span class="lineno">  420</span>&#160;  {</div>
-<div class="line"><a name="l00421"></a><span class="lineno">  421</span>&#160;      .coreid          = coreid,</div>
-<div class="line"><a name="l00422"></a><span class="lineno">  422</span>&#160;      .event_id        = USBD_EVENTID_SETUP_RECEIVED,</div>
-<div class="line"><a name="l00423"></a><span class="lineno">  423</span>&#160;  };</div>
-<div class="line"><a name="l00424"></a><span class="lineno">  424</span>&#160;</div>
-<div class="line"><a name="l00425"></a><span class="lineno">  425</span>&#160;  task_event.setup_received  = (*p_request);</div>
-<div class="line"><a name="l00426"></a><span class="lineno">  426</span>&#160;  osal_queue_send(usbd_queue_hdl, &amp;task_event);</div>
-<div class="line"><a name="l00427"></a><span class="lineno">  427</span>&#160;}</div>
-<div class="line"><a name="l00428"></a><span class="lineno">  428</span>&#160;</div>
-<div class="line"><a name="l00429"></a><span class="lineno">  429</span>&#160;<span class="keywordtype">void</span> usbd_xfer_isr(<a class="code" href="structendpoint__handle__t.html">endpoint_handle_t</a> edpt_hdl, tusb_event_t event, uint32_t xferred_bytes)</div>
-<div class="line"><a name="l00430"></a><span class="lineno">  430</span>&#160;{</div>
-<div class="line"><a name="l00431"></a><span class="lineno">  431</span>&#160;  <span class="keywordflow">if</span> (edpt_hdl.class_code == 0 ) <span class="comment">// Control Transfer</span></div>
-<div class="line"><a name="l00432"></a><span class="lineno">  432</span>&#160;  {</div>
-<div class="line"><a name="l00433"></a><span class="lineno">  433</span>&#160;    osal_semaphore_post( usbd_control_xfer_sem_hdl );</div>
-<div class="line"><a name="l00434"></a><span class="lineno">  434</span>&#160;  }<span class="keywordflow">else</span></div>
-<div class="line"><a name="l00435"></a><span class="lineno">  435</span>&#160;  {</div>
-<div class="line"><a name="l00436"></a><span class="lineno">  436</span>&#160;    usbd_task_event_t task_event =</div>
-<div class="line"><a name="l00437"></a><span class="lineno">  437</span>&#160;    {</div>
-<div class="line"><a name="l00438"></a><span class="lineno">  438</span>&#160;        .coreid       = edpt_hdl.coreid,</div>
-<div class="line"><a name="l00439"></a><span class="lineno">  439</span>&#160;        .event_id     = USBD_EVENTID_XFER_DONE,</div>
-<div class="line"><a name="l00440"></a><span class="lineno">  440</span>&#160;        .sub_event_id = <span class="keyword">event</span></div>
-<div class="line"><a name="l00441"></a><span class="lineno">  441</span>&#160;    };</div>
-<div class="line"><a name="l00442"></a><span class="lineno">  442</span>&#160;</div>
-<div class="line"><a name="l00443"></a><span class="lineno">  443</span>&#160;    task_event.xfer_done.xferred_byte = xferred_bytes;</div>
-<div class="line"><a name="l00444"></a><span class="lineno">  444</span>&#160;    task_event.xfer_done.edpt_hdl     = edpt_hdl;</div>
-<div class="line"><a name="l00445"></a><span class="lineno">  445</span>&#160;</div>
-<div class="line"><a name="l00446"></a><span class="lineno">  446</span>&#160;    osal_queue_send(usbd_queue_hdl, &amp;task_event);</div>
-<div class="line"><a name="l00447"></a><span class="lineno">  447</span>&#160;  }</div>
-<div class="line"><a name="l00448"></a><span class="lineno">  448</span>&#160;}</div>
-<div class="line"><a name="l00449"></a><span class="lineno">  449</span>&#160;</div>
-<div class="line"><a name="l00450"></a><span class="lineno">  450</span>&#160;<span class="comment">//--------------------------------------------------------------------+</span></div>
-<div class="line"><a name="l00451"></a><span class="lineno">  451</span>&#160;<span class="comment">// HELPER</span></div>
-<div class="line"><a name="l00452"></a><span class="lineno">  452</span>&#160;<span class="comment">//--------------------------------------------------------------------+</span></div>
-<div class="line"><a name="l00453"></a><span class="lineno">  453</span>&#160;</div>
-<div class="line"><a name="l00454"></a><span class="lineno">  454</span>&#160;<span class="preprocessor">#endif</span></div>
+<div class="line"><a name="l00403"></a><span class="lineno">  403</span>&#160;      osal_semaphore_reset(usbd_control_xfer_sem_hdl);</div>
+<div class="line"><a name="l00404"></a><span class="lineno">  404</span>&#160;      <span class="keywordflow">for</span> (uint8_t class_code = <a class="code" href="group___u_s_b_def___type.html#gga7235527ffc187847b43d4838e46f29b3a1c0286b14f0983947cb58639aa254bd8">TUSB_CLASS_AUDIO</a>; class_code &lt; USBD_CLASS_DRIVER_COUNT; class_code++)</div>
+<div class="line"><a name="l00405"></a><span class="lineno">  405</span>&#160;      {</div>
+<div class="line"><a name="l00406"></a><span class="lineno">  406</span>&#160;        <span class="keywordflow">if</span> ( usbd_class_drivers[class_code].close ) usbd_class_drivers[class_code].close( coreid );</div>
+<div class="line"><a name="l00407"></a><span class="lineno">  407</span>&#160;      }</div>
+<div class="line"><a name="l00408"></a><span class="lineno">  408</span>&#160;    <span class="keywordflow">break</span>;</div>
+<div class="line"><a name="l00409"></a><span class="lineno">  409</span>&#160;</div>
+<div class="line"><a name="l00410"></a><span class="lineno">  410</span>&#160;    <span class="keywordflow">case</span> USBD_BUS_EVENT_SUSPENDED:</div>
+<div class="line"><a name="l00411"></a><span class="lineno">  411</span>&#160;      usbd_devices[coreid].state = TUSB_DEVICE_STATE_SUSPENDED;</div>
+<div class="line"><a name="l00412"></a><span class="lineno">  412</span>&#160;    <span class="keywordflow">break</span>;</div>
+<div class="line"><a name="l00413"></a><span class="lineno">  413</span>&#160;</div>
+<div class="line"><a name="l00414"></a><span class="lineno">  414</span>&#160;    <span class="keywordflow">default</span>: <span class="keywordflow">break</span>;</div>
+<div class="line"><a name="l00415"></a><span class="lineno">  415</span>&#160;  }</div>
+<div class="line"><a name="l00416"></a><span class="lineno">  416</span>&#160;}</div>
+<div class="line"><a name="l00417"></a><span class="lineno">  417</span>&#160;</div>
+<div class="line"><a name="l00418"></a><span class="lineno">  418</span>&#160;<span class="keywordtype">void</span> usbd_setup_received_isr(uint8_t coreid, <a class="code" href="structtusb__control__request__t.html">tusb_control_request_t</a> * p_request)</div>
+<div class="line"><a name="l00419"></a><span class="lineno">  419</span>&#160;{</div>
+<div class="line"><a name="l00420"></a><span class="lineno">  420</span>&#160;  usbd_task_event_t task_event =</div>
+<div class="line"><a name="l00421"></a><span class="lineno">  421</span>&#160;  {</div>
+<div class="line"><a name="l00422"></a><span class="lineno">  422</span>&#160;      .coreid          = coreid,</div>
+<div class="line"><a name="l00423"></a><span class="lineno">  423</span>&#160;      .event_id        = USBD_EVENTID_SETUP_RECEIVED,</div>
+<div class="line"><a name="l00424"></a><span class="lineno">  424</span>&#160;  };</div>
+<div class="line"><a name="l00425"></a><span class="lineno">  425</span>&#160;</div>
+<div class="line"><a name="l00426"></a><span class="lineno">  426</span>&#160;  task_event.setup_received  = (*p_request);</div>
+<div class="line"><a name="l00427"></a><span class="lineno">  427</span>&#160;  osal_queue_send(usbd_queue_hdl, &amp;task_event);</div>
+<div class="line"><a name="l00428"></a><span class="lineno">  428</span>&#160;}</div>
+<div class="line"><a name="l00429"></a><span class="lineno">  429</span>&#160;</div>
+<div class="line"><a name="l00430"></a><span class="lineno">  430</span>&#160;<span class="keywordtype">void</span> usbd_xfer_isr(<a class="code" href="structendpoint__handle__t.html">endpoint_handle_t</a> edpt_hdl, tusb_event_t event, uint32_t xferred_bytes)</div>
+<div class="line"><a name="l00431"></a><span class="lineno">  431</span>&#160;{</div>
+<div class="line"><a name="l00432"></a><span class="lineno">  432</span>&#160;  <span class="keywordflow">if</span> (edpt_hdl.class_code == 0 ) <span class="comment">// Control Transfer</span></div>
+<div class="line"><a name="l00433"></a><span class="lineno">  433</span>&#160;  {</div>
+<div class="line"><a name="l00434"></a><span class="lineno">  434</span>&#160;    osal_semaphore_post( usbd_control_xfer_sem_hdl );</div>
+<div class="line"><a name="l00435"></a><span class="lineno">  435</span>&#160;  }<span class="keywordflow">else</span></div>
+<div class="line"><a name="l00436"></a><span class="lineno">  436</span>&#160;  {</div>
+<div class="line"><a name="l00437"></a><span class="lineno">  437</span>&#160;    usbd_task_event_t task_event =</div>
+<div class="line"><a name="l00438"></a><span class="lineno">  438</span>&#160;    {</div>
+<div class="line"><a name="l00439"></a><span class="lineno">  439</span>&#160;        .coreid       = edpt_hdl.coreid,</div>
+<div class="line"><a name="l00440"></a><span class="lineno">  440</span>&#160;        .event_id     = USBD_EVENTID_XFER_DONE,</div>
+<div class="line"><a name="l00441"></a><span class="lineno">  441</span>&#160;        .sub_event_id = <span class="keyword">event</span></div>
+<div class="line"><a name="l00442"></a><span class="lineno">  442</span>&#160;    };</div>
+<div class="line"><a name="l00443"></a><span class="lineno">  443</span>&#160;</div>
+<div class="line"><a name="l00444"></a><span class="lineno">  444</span>&#160;    task_event.xfer_done.xferred_byte = xferred_bytes;</div>
+<div class="line"><a name="l00445"></a><span class="lineno">  445</span>&#160;    task_event.xfer_done.edpt_hdl     = edpt_hdl;</div>
+<div class="line"><a name="l00446"></a><span class="lineno">  446</span>&#160;</div>
+<div class="line"><a name="l00447"></a><span class="lineno">  447</span>&#160;    osal_queue_send(usbd_queue_hdl, &amp;task_event);</div>
+<div class="line"><a name="l00448"></a><span class="lineno">  448</span>&#160;  }</div>
+<div class="line"><a name="l00449"></a><span class="lineno">  449</span>&#160;}</div>
+<div class="line"><a name="l00450"></a><span class="lineno">  450</span>&#160;</div>
+<div class="line"><a name="l00451"></a><span class="lineno">  451</span>&#160;<span class="comment">//--------------------------------------------------------------------+</span></div>
+<div class="line"><a name="l00452"></a><span class="lineno">  452</span>&#160;<span class="comment">// HELPER</span></div>
+<div class="line"><a name="l00453"></a><span class="lineno">  453</span>&#160;<span class="comment">//--------------------------------------------------------------------+</span></div>
+<div class="line"><a name="l00454"></a><span class="lineno">  454</span>&#160;</div>
+<div class="line"><a name="l00455"></a><span class="lineno">  455</span>&#160;<span class="preprocessor">#endif</span></div>
 <div class="ttc" id="structtusb__descriptor__interface__t_html"><div class="ttname"><a href="structtusb__descriptor__interface__t.html">tusb_descriptor_interface_t</a></div><div class="ttdoc">USB Standard Interface Descriptor (section 9.6.1 table 9-12) </div><div class="ttdef"><b>Definition:</b> <a href="std__descriptors_8h_source.html#l00090">std_descriptors.h:90</a></div></div>
 <div class="ttc" id="group___u_s_b_def___type_html_gga67b344c0d91e2c1b8e13ceb56431f2c1a3b9b7705999a0d01ea081d7f0add4210"><div class="ttname"><a href="group___u_s_b_def___type.html#gga67b344c0d91e2c1b8e13ceb56431f2c1a3b9b7705999a0d01ea081d7f0add4210">TUSB_REQUEST_SET_CONFIGURATION</a></div><div class="ttdoc">9 </div><div class="ttdef"><b>Definition:</b> <a href="tusb__types_8h_source.html#l00099">tusb_types.h:99</a></div></div>
 <div class="ttc" id="structtusb__control__request__t_html"><div class="ttname"><a href="structtusb__control__request__t.html">tusb_control_request_t</a></div><div class="ttdef"><b>Definition:</b> <a href="std__request_8h_source.html#l00049">std_request.h:49</a></div></div>
@@ -566,7 +567,7 @@ $(document).ready(function(){initNavTree('usbd_8c_source.html','');});
 <div id="nav-path" class="navpath"><!-- id is needed for treeview function! -->
   <ul>
     <li class="navelem"><a class="el" href="dir_f44c0f1c8d3a85cc1de1e7f4648a56e6.html">tinyusb</a></li><li class="navelem"><a class="el" href="dir_6adba90b56e3a755676388ecfb8a2e14.html">device</a></li><li class="navelem"><a class="el" href="usbd_8c.html">usbd.c</a></li>
-    <li class="footer">Generated on Mon Mar 31 2014 16:41:49 for tinyusb by
+    <li class="footer">Generated on Tue Apr 15 2014 10:49:24 for tinyusb by
     <a href="http://www.doxygen.org/index.html">
     <img class="footer" src="doxygen.png" alt="doxygen"/></a> 1.8.6 </li>
   </ul>

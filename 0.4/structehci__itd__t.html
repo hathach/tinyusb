@@ -126,7 +126,7 @@ Data Fields</h2></td></tr>
 <a class="el" href="unionehci__link__t.html">ehci_link_t</a>&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structehci__itd__t.html#a8f18d97ad3c8b23a16c6b07c3ce58113">next</a></td></tr>
 <tr class="memdesc:a8f18d97ad3c8b23a16c6b07c3ce58113"><td class="mdescLeft">&#160;</td><td class="mdescRight">Word 0: Next Link Pointer. <br/></td></tr>
 <tr class="separator:a8f18d97ad3c8b23a16c6b07c3ce58113"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a24787c55fad3cbc01477c9323ba56131"><td class="memItemLeft" ><a class="anchor" id="a24787c55fad3cbc01477c9323ba56131"></a>
+<tr class="memitem:a1b013fffa38ed3ec6c9d40cead8c6ce3"><td class="memItemLeft" ><a class="anchor" id="a1b013fffa38ed3ec6c9d40cead8c6ce3"></a>
 struct {</td></tr>
 <tr class="memitem:a2df482bb0528381abc0a05905bb5826a"><td class="memItemLeft" ><a class="anchor" id="a2df482bb0528381abc0a05905bb5826a"></a>
 &#160;&#160;&#160;volatile uint32_t&#160;&#160;&#160;<a class="el" href="structehci__itd__t.html#a2df482bb0528381abc0a05905bb5826a">offset</a>: 12</td></tr>
@@ -159,9 +159,9 @@ struct {</td></tr>
 &#160;&#160;&#160;volatile uint32_t&#160;&#160;&#160;<a class="el" href="structehci__itd__t.html#a4e55231d0adda8f7262ab94d443cc7af">active</a>: 1</td></tr>
 <tr class="memdesc:a4e55231d0adda8f7262ab94d443cc7af"><td class="mdescLeft">&#160;</td><td class="mdescRight">Set to 1 by software to enable the execution of an isochronous transaction by the Host Controller. <br/></td></tr>
 <tr class="separator:a4e55231d0adda8f7262ab94d443cc7af"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a24787c55fad3cbc01477c9323ba56131"><td class="memItemLeft" valign="top">}&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structehci__itd__t.html#a24787c55fad3cbc01477c9323ba56131">xact</a> [8]</td></tr>
-<tr class="memdesc:a24787c55fad3cbc01477c9323ba56131"><td class="mdescLeft">&#160;</td><td class="mdescRight">Word 1-8: iTD Transaction Status and Control List. <br/></td></tr>
-<tr class="separator:a24787c55fad3cbc01477c9323ba56131"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a1b013fffa38ed3ec6c9d40cead8c6ce3"><td class="memItemLeft" valign="top">}&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structehci__itd__t.html#a1b013fffa38ed3ec6c9d40cead8c6ce3">xact</a> [8]</td></tr>
+<tr class="memdesc:a1b013fffa38ed3ec6c9d40cead8c6ce3"><td class="mdescLeft">&#160;</td><td class="mdescRight">Word 1-8: iTD Transaction Status and Control List. <br/></td></tr>
+<tr class="separator:a1b013fffa38ed3ec6c9d40cead8c6ce3"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a2988381c89c877faa091c6ed4398de4a"><td class="memItemLeft" align="right" valign="top"><a class="anchor" id="a2988381c89c877faa091c6ed4398de4a"></a>
 uint32_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structehci__itd__t.html#a2988381c89c877faa091c6ed4398de4a">BufferPointer</a> [7]</td></tr>
 <tr class="memdesc:a2988381c89c877faa091c6ed4398de4a"><td class="mdescLeft">&#160;</td><td class="mdescRight">Word 9-15 Buffer Page Pointer List (Plus) <br/></td></tr>
@@ -170,7 +170,7 @@ uint32_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="
 <a name="details" id="details"></a><h2 class="groupheader">Detailed Description</h2>
 <div class="textblock"><p>Highspeed Isochronous Transfer Descriptor (section 3.3) </p>
 
-<p>Definition at line <a class="el" href="ehci_8h_source.html#l00210">210</a> of file <a class="el" href="ehci_8h_source.html">ehci.h</a>.</p>
+<p>Definition at line <a class="el" href="ehci_8h_source.html#l00208">208</a> of file <a class="el" href="ehci_8h_source.html">ehci.h</a>.</p>
 </div><h2 class="groupheader">Field Documentation</h2>
 <a class="anchor" id="aa22e7675f77b1f89a273f53b2707fc8b"></a>
 <div class="memitem">
@@ -185,7 +185,7 @@ uint32_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="
 <p>For an IN, the initial value of the field is the number of bytes the host expects the endpoint to deliver. During the status update, the host controller writes back the number of bytes successfully received. The value in this register is the actual byte count. </p>
 <p>For an OUT, this field is the number of data bytes the host controller will send during the transaction. The host controller is not required to update this field to reflect the actual number of bytes transferred during the transfer </p>
 
-<p>Definition at line <a class="el" href="ehci_8h_source.html#l00220">220</a> of file <a class="el" href="ehci_8h_source.html">ehci.h</a>.</p>
+<p>Definition at line <a class="el" href="ehci_8h_source.html#l00218">218</a> of file <a class="el" href="ehci_8h_source.html">ehci.h</a>.</p>
 
 </div>
 </div>
@@ -198,7 +198,7 @@ uint32_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="
 <div id="nav-path" class="navpath"><!-- id is needed for treeview function! -->
   <ul>
     <li class="navelem"><a class="el" href="structehci__itd__t.html">ehci_itd_t</a></li>
-    <li class="footer">Generated on Mon Mar 31 2014 16:41:54 for tinyusb by
+    <li class="footer">Generated on Tue Apr 15 2014 10:49:30 for tinyusb by
     <a href="http://www.doxygen.org/index.html">
     <img class="footer" src="doxygen.png" alt="doxygen"/></a> 1.8.6 </li>
   </ul>

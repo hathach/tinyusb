@@ -14,8 +14,8 @@ var structohci__ed__t =
     [ "next_ed", "structohci__ed__t.html#a9ddafc52070ef2e4b743656db4ea9f53", null ],
     [ "skip", "structohci__ed__t.html#a5f7cf97cdb6c42d9f019f1824adb3753", null ],
     [ "speed", "structohci__ed__t.html#a220859a8b5da0232739a11cbe7f79fc5", null ],
-    [ "td_head", "structohci__ed__t.html#a3e53bccc077abc5c7e699e474fa30637", null ],
-    [ "td_tail", "structohci__ed__t.html#add2201ea409ce671d3bd10a70a39871b", null ],
+    [ "td_head", "structohci__ed__t.html#a4b1dde94c5ecb1c8378c039e1a0fce14", null ],
+    [ "td_tail", "structohci__ed__t.html#a235082ae57bcf43988a419dfc4a2790e", null ],
     [ "toggle", "structohci__ed__t.html#a3dcce674a13506a9f7344f414865cfc2", null ],
     [ "used", "structohci__ed__t.html#a5e1ebda31e026934b2091d2d0051818a", null ]
 ];

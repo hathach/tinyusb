@@ -141,45 +141,46 @@ $(document).ready(function(){initNavTree('board_8c_source.html','');});
 <div class="line"><a name="l00063"></a><span class="lineno">   63</span>&#160;</div>
 <div class="line"><a name="l00064"></a><span class="lineno"><a class="line" href="group__group__board.html#ga47a596168dceb64ea78eee24e560a04a">   64</a></span>&#160;<span class="keywordtype">void</span> <a class="code" href="group__group__board.html#ga47a596168dceb64ea78eee24e560a04a">led_blinking_init</a>(<span class="keywordtype">void</span>)</div>
 <div class="line"><a name="l00065"></a><span class="lineno">   65</span>&#160;{</div>
-<div class="line"><a name="l00066"></a><span class="lineno">   66</span>&#160;  ASSERT(TUSB_ERROR_NONE == osal_task_create( OSAL_TASK_REF(led_blinking_task) ), VOID_RETURN );</div>
-<div class="line"><a name="l00067"></a><span class="lineno">   67</span>&#160;}</div>
-<div class="line"><a name="l00068"></a><span class="lineno">   68</span>&#160;</div>
-<div class="line"><a name="l00069"></a><span class="lineno"><a class="line" href="group__group__board.html#ga222759d23952b0a17c3b3eb0a6a94c49">   69</a></span>&#160;<span class="keywordtype">void</span> <a class="code" href="group__group__board.html#ga222759d23952b0a17c3b3eb0a6a94c49">led_blinking_set_interval</a>(uint32_t ms)</div>
-<div class="line"><a name="l00070"></a><span class="lineno">   70</span>&#160;{</div>
-<div class="line"><a name="l00071"></a><span class="lineno">   71</span>&#160;  led_blink_interval_ms = ms;</div>
-<div class="line"><a name="l00072"></a><span class="lineno">   72</span>&#160;}</div>
-<div class="line"><a name="l00073"></a><span class="lineno">   73</span>&#160;</div>
-<div class="line"><a name="l00074"></a><span class="lineno">   74</span>&#160;OSAL_TASK_FUNCTION( led_blinking_task , p_task_para)</div>
-<div class="line"><a name="l00075"></a><span class="lineno">   75</span>&#160;{</div>
-<div class="line"><a name="l00076"></a><span class="lineno">   76</span>&#160;  OSAL_TASK_LOOP_BEGIN</div>
-<div class="line"><a name="l00077"></a><span class="lineno">   77</span>&#160;</div>
-<div class="line"><a name="l00078"></a><span class="lineno">   78</span>&#160;  <span class="keyword">static</span> uint32_t led_on_mask = 0;</div>
-<div class="line"><a name="l00079"></a><span class="lineno">   79</span>&#160;</div>
-<div class="line"><a name="l00080"></a><span class="lineno">   80</span>&#160;  osal_task_delay(led_blink_interval_ms);</div>
-<div class="line"><a name="l00081"></a><span class="lineno">   81</span>&#160;</div>
-<div class="line"><a name="l00082"></a><span class="lineno">   82</span>&#160;  <a class="code" href="group__group__board__api.html#ga92863b323080baae31555ea45d93c404">board_leds</a>(led_on_mask, 1 - led_on_mask);</div>
-<div class="line"><a name="l00083"></a><span class="lineno">   83</span>&#160;  led_on_mask = 1 - led_on_mask; <span class="comment">// toggle</span></div>
-<div class="line"><a name="l00084"></a><span class="lineno">   84</span>&#160;</div>
-<div class="line"><a name="l00085"></a><span class="lineno">   85</span>&#160;<span class="comment">//  uint32_t btn_mask;</span></div>
-<div class="line"><a name="l00086"></a><span class="lineno">   86</span>&#160;<span class="comment">//  btn_mask = board_buttons();</span></div>
-<div class="line"><a name="l00087"></a><span class="lineno">   87</span>&#160;<span class="comment">//</span></div>
-<div class="line"><a name="l00088"></a><span class="lineno">   88</span>&#160;<span class="comment">//  for(uint8_t i=0; i&lt;32; i++)</span></div>
-<div class="line"><a name="l00089"></a><span class="lineno">   89</span>&#160;<span class="comment">//  {</span></div>
-<div class="line"><a name="l00090"></a><span class="lineno">   90</span>&#160;<span class="comment">//    if ( BIT_TEST_(btn_mask, i) ) printf(&quot;button %d is pressed\n&quot;, i);</span></div>
-<div class="line"><a name="l00091"></a><span class="lineno">   91</span>&#160;<span class="comment">//  }</span></div>
-<div class="line"><a name="l00092"></a><span class="lineno">   92</span>&#160;</div>
-<div class="line"><a name="l00093"></a><span class="lineno">   93</span>&#160;  OSAL_TASK_LOOP_END</div>
-<div class="line"><a name="l00094"></a><span class="lineno">   94</span>&#160;}</div>
-<div class="line"><a name="l00095"></a><span class="lineno">   95</span>&#160;</div>
-<div class="line"><a name="l00096"></a><span class="lineno">   96</span>&#160;<span class="comment">// TODO remove legacy cmsis code</span></div>
-<div class="line"><a name="l00097"></a><span class="lineno">   97</span>&#160;<span class="keywordtype">void</span> check_failed(uint8_t *file, uint32_t line)</div>
-<div class="line"><a name="l00098"></a><span class="lineno">   98</span>&#160;{</div>
-<div class="line"><a name="l00099"></a><span class="lineno">   99</span>&#160;  (void) file;</div>
-<div class="line"><a name="l00100"></a><span class="lineno">  100</span>&#160;  (void) line;</div>
-<div class="line"><a name="l00101"></a><span class="lineno">  101</span>&#160;}</div>
+<div class="line"><a name="l00066"></a><span class="lineno">   66</span>&#160;  led_blink_interval_ms = 1000;</div>
+<div class="line"><a name="l00067"></a><span class="lineno">   67</span>&#160;  ASSERT(TUSB_ERROR_NONE == osal_task_create( OSAL_TASK_REF(led_blinking_task) ), VOID_RETURN );</div>
+<div class="line"><a name="l00068"></a><span class="lineno">   68</span>&#160;}</div>
+<div class="line"><a name="l00069"></a><span class="lineno">   69</span>&#160;</div>
+<div class="line"><a name="l00070"></a><span class="lineno"><a class="line" href="group__group__board.html#ga222759d23952b0a17c3b3eb0a6a94c49">   70</a></span>&#160;<span class="keywordtype">void</span> <a class="code" href="group__group__board.html#ga222759d23952b0a17c3b3eb0a6a94c49">led_blinking_set_interval</a>(uint32_t ms)</div>
+<div class="line"><a name="l00071"></a><span class="lineno">   71</span>&#160;{</div>
+<div class="line"><a name="l00072"></a><span class="lineno">   72</span>&#160;  led_blink_interval_ms = ms;</div>
+<div class="line"><a name="l00073"></a><span class="lineno">   73</span>&#160;}</div>
+<div class="line"><a name="l00074"></a><span class="lineno">   74</span>&#160;</div>
+<div class="line"><a name="l00075"></a><span class="lineno">   75</span>&#160;OSAL_TASK_FUNCTION( led_blinking_task , p_task_para)</div>
+<div class="line"><a name="l00076"></a><span class="lineno">   76</span>&#160;{</div>
+<div class="line"><a name="l00077"></a><span class="lineno">   77</span>&#160;  OSAL_TASK_LOOP_BEGIN</div>
+<div class="line"><a name="l00078"></a><span class="lineno">   78</span>&#160;</div>
+<div class="line"><a name="l00079"></a><span class="lineno">   79</span>&#160;  <span class="keyword">static</span> uint32_t led_on_mask = 0;</div>
+<div class="line"><a name="l00080"></a><span class="lineno">   80</span>&#160;</div>
+<div class="line"><a name="l00081"></a><span class="lineno">   81</span>&#160;  osal_task_delay(led_blink_interval_ms);</div>
+<div class="line"><a name="l00082"></a><span class="lineno">   82</span>&#160;</div>
+<div class="line"><a name="l00083"></a><span class="lineno">   83</span>&#160;  <a class="code" href="group__group__board__api.html#ga92863b323080baae31555ea45d93c404">board_leds</a>(led_on_mask, 1 - led_on_mask);</div>
+<div class="line"><a name="l00084"></a><span class="lineno">   84</span>&#160;  led_on_mask = 1 - led_on_mask; <span class="comment">// toggle</span></div>
+<div class="line"><a name="l00085"></a><span class="lineno">   85</span>&#160;</div>
+<div class="line"><a name="l00086"></a><span class="lineno">   86</span>&#160;<span class="comment">//  uint32_t btn_mask;</span></div>
+<div class="line"><a name="l00087"></a><span class="lineno">   87</span>&#160;<span class="comment">//  btn_mask = board_buttons();</span></div>
+<div class="line"><a name="l00088"></a><span class="lineno">   88</span>&#160;<span class="comment">//</span></div>
+<div class="line"><a name="l00089"></a><span class="lineno">   89</span>&#160;<span class="comment">//  for(uint8_t i=0; i&lt;32; i++)</span></div>
+<div class="line"><a name="l00090"></a><span class="lineno">   90</span>&#160;<span class="comment">//  {</span></div>
+<div class="line"><a name="l00091"></a><span class="lineno">   91</span>&#160;<span class="comment">//    if ( BIT_TEST_(btn_mask, i) ) printf(&quot;button %d is pressed\n&quot;, i);</span></div>
+<div class="line"><a name="l00092"></a><span class="lineno">   92</span>&#160;<span class="comment">//  }</span></div>
+<div class="line"><a name="l00093"></a><span class="lineno">   93</span>&#160;</div>
+<div class="line"><a name="l00094"></a><span class="lineno">   94</span>&#160;  OSAL_TASK_LOOP_END</div>
+<div class="line"><a name="l00095"></a><span class="lineno">   95</span>&#160;}</div>
+<div class="line"><a name="l00096"></a><span class="lineno">   96</span>&#160;</div>
+<div class="line"><a name="l00097"></a><span class="lineno">   97</span>&#160;<span class="comment">// TODO remove legacy cmsis code</span></div>
+<div class="line"><a name="l00098"></a><span class="lineno">   98</span>&#160;<span class="keywordtype">void</span> check_failed(uint8_t *file, uint32_t line)</div>
+<div class="line"><a name="l00099"></a><span class="lineno">   99</span>&#160;{</div>
+<div class="line"><a name="l00100"></a><span class="lineno">  100</span>&#160;  (void) file;</div>
+<div class="line"><a name="l00101"></a><span class="lineno">  101</span>&#160;  (void) line;</div>
+<div class="line"><a name="l00102"></a><span class="lineno">  102</span>&#160;}</div>
 <div class="ttc" id="group__group__board_html_ga47a596168dceb64ea78eee24e560a04a"><div class="ttname"><a href="group__group__board.html#ga47a596168dceb64ea78eee24e560a04a">led_blinking_init</a></div><div class="ttdeci">void led_blinking_init(void)</div><div class="ttdoc">Initialize the LED blinking task application. The initial blinking rate is 1 Hert (1 per second) ...</div><div class="ttdef"><b>Definition:</b> <a href="board_8c_source.html#l00064">board.c:64</a></div></div>
 <div class="ttc" id="group__group__board__api_html_ga92863b323080baae31555ea45d93c404"><div class="ttname"><a href="group__group__board__api.html#ga92863b323080baae31555ea45d93c404">board_leds</a></div><div class="ttdeci">void board_leds(uint32_t on_mask, uint32_t off_mask)</div><div class="ttdoc">Turns on and off leds on the board. </div></div>
-<div class="ttc" id="group__group__board_html_ga222759d23952b0a17c3b3eb0a6a94c49"><div class="ttname"><a href="group__group__board.html#ga222759d23952b0a17c3b3eb0a6a94c49">led_blinking_set_interval</a></div><div class="ttdeci">void led_blinking_set_interval(uint32_t ms)</div><div class="ttdoc">Change the blinking rate. </div><div class="ttdef"><b>Definition:</b> <a href="board_8c_source.html#l00069">board.c:69</a></div></div>
+<div class="ttc" id="group__group__board_html_ga222759d23952b0a17c3b3eb0a6a94c49"><div class="ttname"><a href="group__group__board.html#ga222759d23952b0a17c3b3eb0a6a94c49">led_blinking_set_interval</a></div><div class="ttdeci">void led_blinking_set_interval(uint32_t ms)</div><div class="ttdoc">Change the blinking rate. </div><div class="ttdef"><b>Definition:</b> <a href="board_8c_source.html#l00070">board.c:70</a></div></div>
 <div class="ttc" id="board_8h_html"><div class="ttname"><a href="board_8h.html">board.h</a></div></div>
 </div><!-- fragment --></div><!-- contents -->
 </div><!-- doc-content -->
@@ -187,7 +188,7 @@ $(document).ready(function(){initNavTree('board_8c_source.html','');});
 <div id="nav-path" class="navpath"><!-- id is needed for treeview function! -->
   <ul>
     <li class="navelem"><a class="el" href="dir_6c8313236d9db5b969ca7d150fe527de.html">boards</a></li><li class="navelem"><a class="el" href="board_8c.html">board.c</a></li>
-    <li class="footer">Generated on Mon Mar 31 2014 16:41:47 for tinyusb by
+    <li class="footer">Generated on Tue Apr 15 2014 10:49:22 for tinyusb by
     <a href="http://www.doxygen.org/index.html">
     <img class="footer" src="doxygen.png" alt="doxygen"/></a> 1.8.6 </li>
   </ul>

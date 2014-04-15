@@ -440,13 +440,13 @@ $(document).ready(function(){initNavTree('dcd__lpc43xx_8c_source.html','');});
 <div class="line"><a name="l00365"></a><span class="lineno">  365</span>&#160;  ASSERT_FALSE(p_dcd-&gt;qhd[0].qtd_overlay.active || p_dcd-&gt;qhd[1].qtd_overlay.active, TUSB_ERROR_FAILED);</div>
 <div class="line"><a name="l00366"></a><span class="lineno">  366</span>&#160;</div>
 <div class="line"><a name="l00367"></a><span class="lineno">  367</span>&#160;  <span class="comment">//------------- Data Phase -------------//</span></div>
-<div class="line"><a name="l00368"></a><span class="lineno">  368</span>&#160;  <span class="keywordflow">if</span> (length)</div>
+<div class="line"><a name="l00368"></a><span class="lineno">  368</span>&#160;  <span class="keywordflow">if</span> (length &gt; 0)</div>
 <div class="line"><a name="l00369"></a><span class="lineno">  369</span>&#160;  {</div>
 <div class="line"><a name="l00370"></a><span class="lineno">  370</span>&#160;    dcd_qtd_t* p_qtd_data = &amp;p_dcd-&gt;qtd[0];</div>
 <div class="line"><a name="l00371"></a><span class="lineno">  371</span>&#160;    qtd_init(p_qtd_data, p_buffer, length);</div>
 <div class="line"><a name="l00372"></a><span class="lineno">  372</span>&#160;    p_dcd-&gt;qhd[ep_data].qtd_overlay.next = (uint32_t) p_qtd_data;</div>
 <div class="line"><a name="l00373"></a><span class="lineno">  373</span>&#160;</div>
-<div class="line"><a name="l00374"></a><span class="lineno">  374</span>&#160;    lpc_usb-&gt;ENDPTPRIME = <a class="code" href="group___group___binary.html#gaa67325f45e71a327f9e4dbb8455f64ee">BIT_</a>( edpt_phy2pos(ep_data) );</div>
+<div class="line"><a name="l00374"></a><span class="lineno">  374</span>&#160;    lpc_usb-&gt;ENDPTPRIME = <a class="code" href="group___group___binary.html#gaa67325f45e71a327f9e4dbb8455f64ee">BIT_</a>(edpt_phy2pos(ep_data));</div>
 <div class="line"><a name="l00375"></a><span class="lineno">  375</span>&#160;  }</div>
 <div class="line"><a name="l00376"></a><span class="lineno">  376</span>&#160;</div>
 <div class="line"><a name="l00377"></a><span class="lineno">  377</span>&#160;  <span class="comment">//------------- Status Phase -------------//</span></div>
@@ -456,7 +456,7 @@ $(document).ready(function(){initNavTree('dcd__lpc43xx_8c_source.html','');});
 <div class="line"><a name="l00381"></a><span class="lineno">  381</span>&#160;</div>
 <div class="line"><a name="l00382"></a><span class="lineno">  382</span>&#160;  p_dcd-&gt;qhd[ep_status].qtd_overlay.next = (uint32_t) p_qtd_status;</div>
 <div class="line"><a name="l00383"></a><span class="lineno">  383</span>&#160;</div>
-<div class="line"><a name="l00384"></a><span class="lineno">  384</span>&#160;  LPC_USB0-&gt;ENDPTPRIME |= <a class="code" href="group___group___binary.html#gaa67325f45e71a327f9e4dbb8455f64ee">BIT_</a>( edpt_phy2pos(ep_status) );</div>
+<div class="line"><a name="l00384"></a><span class="lineno">  384</span>&#160;  LPC_USB0-&gt;ENDPTPRIME = <a class="code" href="group___group___binary.html#gaa67325f45e71a327f9e4dbb8455f64ee">BIT_</a>(edpt_phy2pos(ep_status)); <span class="comment">// | (length&gt;0 ? BIT_(edpt_phy2pos(ep_data)) : 0 );</span></div>
 <div class="line"><a name="l00385"></a><span class="lineno">  385</span>&#160;</div>
 <div class="line"><a name="l00386"></a><span class="lineno">  386</span>&#160;  <span class="keywordflow">return</span> TUSB_ERROR_NONE;</div>
 <div class="line"><a name="l00387"></a><span class="lineno">  387</span>&#160;}</div>
@@ -576,7 +576,7 @@ $(document).ready(function(){initNavTree('dcd__lpc43xx_8c_source.html','');});
 <div class="line"><a name="l00501"></a><span class="lineno">  501</span>&#160;</div>
 <div class="line"><a name="l00502"></a><span class="lineno">  502</span>&#160;  p_qhd-&gt;qtd_overlay.next = (uint32_t) p_qtd; <span class="comment">// attach head QTD to QHD start transferring</span></div>
 <div class="line"><a name="l00503"></a><span class="lineno">  503</span>&#160;</div>
-<div class="line"><a name="l00504"></a><span class="lineno">  504</span>&#160;    LPC_USB[edpt_hdl.coreid]-&gt;ENDPTPRIME |= <a class="code" href="group___group___binary.html#gaa67325f45e71a327f9e4dbb8455f64ee">BIT_</a>( edpt_phy2pos(edpt_hdl.index) ) ;</div>
+<div class="line"><a name="l00504"></a><span class="lineno">  504</span>&#160;    LPC_USB[edpt_hdl.coreid]-&gt;ENDPTPRIME = <a class="code" href="group___group___binary.html#gaa67325f45e71a327f9e4dbb8455f64ee">BIT_</a>( edpt_phy2pos(edpt_hdl.index) ) ;</div>
 <div class="line"><a name="l00505"></a><span class="lineno">  505</span>&#160;</div>
 <div class="line"><a name="l00506"></a><span class="lineno">  506</span>&#160;    <span class="keywordflow">return</span> TUSB_ERROR_NONE;</div>
 <div class="line"><a name="l00507"></a><span class="lineno">  507</span>&#160;}</div>
@@ -672,36 +672,46 @@ $(document).ready(function(){initNavTree('dcd__lpc43xx_8c_source.html','');});
 <div class="line"><a name="l00597"></a><span class="lineno">  597</span>&#160;    }</div>
 <div class="line"><a name="l00598"></a><span class="lineno">  598</span>&#160;    <span class="comment">//------------- Control Request Completed -------------//</span></div>
 <div class="line"><a name="l00599"></a><span class="lineno">  599</span>&#160;    <span class="keywordflow">else</span> <span class="keywordflow">if</span> ( edpt_complete &amp; 0x03 )</div>
-<div class="line"><a name="l00600"></a><span class="lineno">  600</span>&#160;    { <span class="comment">// only either of Endpoint Control is set with interrupt on complete flag</span></div>
-<div class="line"><a name="l00601"></a><span class="lineno">  601</span>&#160;      <a class="code" href="structendpoint__handle__t.html">endpoint_handle_t</a> edpt_hdl =</div>
+<div class="line"><a name="l00600"></a><span class="lineno">  600</span>&#160;    {</div>
+<div class="line"><a name="l00601"></a><span class="lineno">  601</span>&#160;      <span class="keywordflow">for</span>(uint8_t ep_idx = 0; ep_idx &lt; 2; ep_idx++)</div>
 <div class="line"><a name="l00602"></a><span class="lineno">  602</span>&#160;      {</div>
-<div class="line"><a name="l00603"></a><span class="lineno">  603</span>&#160;        .coreid = coreid,</div>
-<div class="line"><a name="l00604"></a><span class="lineno">  604</span>&#160;        .index = 0,</div>
-<div class="line"><a name="l00605"></a><span class="lineno">  605</span>&#160;        .class_code = 0</div>
-<div class="line"><a name="l00606"></a><span class="lineno">  606</span>&#160;      };</div>
+<div class="line"><a name="l00603"></a><span class="lineno">  603</span>&#160;        <span class="keywordflow">if</span> ( <a class="code" href="group___group___binary.html#ga4b95f183978653490c15f71b3028ad0b">BIT_TEST_</a>(edpt_complete, edpt_phy2pos(ep_idx)) )</div>
+<div class="line"><a name="l00604"></a><span class="lineno">  604</span>&#160;        {</div>
+<div class="line"><a name="l00605"></a><span class="lineno">  605</span>&#160;          <span class="comment">// TODO use the actual QTD instead of the qhd&#39;s overlay to get expected bytes for actual byte xferred</span></div>
+<div class="line"><a name="l00606"></a><span class="lineno">  606</span>&#160;          dcd_qtd_t <span class="keyword">volatile</span> * <span class="keyword">const</span> p_qtd = &amp;p_dcd-&gt;qhd[ep_idx].qtd_overlay;</div>
 <div class="line"><a name="l00607"></a><span class="lineno">  607</span>&#160;</div>
-<div class="line"><a name="l00608"></a><span class="lineno">  608</span>&#160;      dcd_qtd_t <span class="keyword">volatile</span> * <span class="keyword">const</span> p_qtd = &amp;p_dcd-&gt;qhd[ (edpt_complete &amp; <a class="code" href="group___group___binary.html#gaa67325f45e71a327f9e4dbb8455f64ee">BIT_</a>(0)) ? 0 : 1 ].qtd_overlay;</div>
-<div class="line"><a name="l00609"></a><span class="lineno">  609</span>&#160;      tusb_event_t <span class="keyword">event</span> = ( p_qtd-&gt;xact_err || p_qtd-&gt;halted || p_qtd-&gt;buffer_err ) ? TUSB_EVENT_XFER_ERROR : TUSB_EVENT_XFER_COMPLETE;</div>
-<div class="line"><a name="l00610"></a><span class="lineno">  610</span>&#160;</div>
-<div class="line"><a name="l00611"></a><span class="lineno">  611</span>&#160;      usbd_xfer_isr(edpt_hdl, event, 0); <span class="comment">// TODO xferred bytes for control xfer is not needed yet !!!!</span></div>
-<div class="line"><a name="l00612"></a><span class="lineno">  612</span>&#160;    }</div>
-<div class="line"><a name="l00613"></a><span class="lineno">  613</span>&#160;</div>
-<div class="line"><a name="l00614"></a><span class="lineno">  614</span>&#160;    <span class="comment">//------------- Transfer Complete -------------//</span></div>
-<div class="line"><a name="l00615"></a><span class="lineno">  615</span>&#160;    <span class="keywordflow">if</span> ( edpt_complete &amp; ~(0x03UL) )</div>
-<div class="line"><a name="l00616"></a><span class="lineno">  616</span>&#160;    {</div>
-<div class="line"><a name="l00617"></a><span class="lineno">  617</span>&#160;      xfer_complete_isr(coreid, edpt_complete);</div>
-<div class="line"><a name="l00618"></a><span class="lineno">  618</span>&#160;    }</div>
-<div class="line"><a name="l00619"></a><span class="lineno">  619</span>&#160;  }</div>
-<div class="line"><a name="l00620"></a><span class="lineno">  620</span>&#160;</div>
-<div class="line"><a name="l00621"></a><span class="lineno">  621</span>&#160;  <span class="keywordflow">if</span> (int_status &amp; INT_MASK_SOF) {}</div>
-<div class="line"><a name="l00622"></a><span class="lineno">  622</span>&#160;  <span class="keywordflow">if</span> (int_status &amp; INT_MASK_NAK) {}</div>
-<div class="line"><a name="l00623"></a><span class="lineno">  623</span>&#160;  <span class="keywordflow">if</span> (int_status &amp; INT_MASK_ERROR) ASSERT(<span class="keyword">false</span>, VOID_RETURN);</div>
-<div class="line"><a name="l00624"></a><span class="lineno">  624</span>&#160;}</div>
-<div class="line"><a name="l00625"></a><span class="lineno">  625</span>&#160;</div>
-<div class="line"><a name="l00626"></a><span class="lineno">  626</span>&#160;<span class="comment">//--------------------------------------------------------------------+</span></div>
-<div class="line"><a name="l00627"></a><span class="lineno">  627</span>&#160;<span class="comment">// HELPER</span></div>
-<div class="line"><a name="l00628"></a><span class="lineno">  628</span>&#160;<span class="comment">//--------------------------------------------------------------------+</span></div>
-<div class="line"><a name="l00629"></a><span class="lineno">  629</span>&#160;<span class="preprocessor">#endif</span></div>
+<div class="line"><a name="l00608"></a><span class="lineno">  608</span>&#160;          <span class="keywordflow">if</span> ( p_qtd-&gt;int_on_complete )</div>
+<div class="line"><a name="l00609"></a><span class="lineno">  609</span>&#160;          {</div>
+<div class="line"><a name="l00610"></a><span class="lineno">  610</span>&#160;            <a class="code" href="structendpoint__handle__t.html">endpoint_handle_t</a> edpt_hdl =</div>
+<div class="line"><a name="l00611"></a><span class="lineno">  611</span>&#160;            {</div>
+<div class="line"><a name="l00612"></a><span class="lineno">  612</span>&#160;                .coreid = coreid,</div>
+<div class="line"><a name="l00613"></a><span class="lineno">  613</span>&#160;                .index = 0,</div>
+<div class="line"><a name="l00614"></a><span class="lineno">  614</span>&#160;                .class_code = 0</div>
+<div class="line"><a name="l00615"></a><span class="lineno">  615</span>&#160;            };</div>
+<div class="line"><a name="l00616"></a><span class="lineno">  616</span>&#160;            tusb_event_t <span class="keyword">event</span> = ( p_qtd-&gt;xact_err || p_qtd-&gt;halted || p_qtd-&gt;buffer_err ) ? TUSB_EVENT_XFER_ERROR : TUSB_EVENT_XFER_COMPLETE;</div>
+<div class="line"><a name="l00617"></a><span class="lineno">  617</span>&#160;</div>
+<div class="line"><a name="l00618"></a><span class="lineno">  618</span>&#160;            usbd_xfer_isr(edpt_hdl, event, 0); <span class="comment">// TODO xferred bytes for control xfer is not needed yet !!!!</span></div>
+<div class="line"><a name="l00619"></a><span class="lineno">  619</span>&#160;          }</div>
+<div class="line"><a name="l00620"></a><span class="lineno">  620</span>&#160;        }</div>
+<div class="line"><a name="l00621"></a><span class="lineno">  621</span>&#160;      }</div>
+<div class="line"><a name="l00622"></a><span class="lineno">  622</span>&#160;    }</div>
+<div class="line"><a name="l00623"></a><span class="lineno">  623</span>&#160;</div>
+<div class="line"><a name="l00624"></a><span class="lineno">  624</span>&#160;    <span class="comment">//------------- Transfer Complete -------------//</span></div>
+<div class="line"><a name="l00625"></a><span class="lineno">  625</span>&#160;    <span class="keywordflow">if</span> ( edpt_complete &amp; ~(0x03UL) )</div>
+<div class="line"><a name="l00626"></a><span class="lineno">  626</span>&#160;    {</div>
+<div class="line"><a name="l00627"></a><span class="lineno">  627</span>&#160;      xfer_complete_isr(coreid, edpt_complete);</div>
+<div class="line"><a name="l00628"></a><span class="lineno">  628</span>&#160;    }</div>
+<div class="line"><a name="l00629"></a><span class="lineno">  629</span>&#160;  }</div>
+<div class="line"><a name="l00630"></a><span class="lineno">  630</span>&#160;</div>
+<div class="line"><a name="l00631"></a><span class="lineno">  631</span>&#160;  <span class="keywordflow">if</span> (int_status &amp; INT_MASK_SOF) {}</div>
+<div class="line"><a name="l00632"></a><span class="lineno">  632</span>&#160;  <span class="keywordflow">if</span> (int_status &amp; INT_MASK_NAK) {}</div>
+<div class="line"><a name="l00633"></a><span class="lineno">  633</span>&#160;  <span class="keywordflow">if</span> (int_status &amp; INT_MASK_ERROR) ASSERT(<span class="keyword">false</span>, VOID_RETURN);</div>
+<div class="line"><a name="l00634"></a><span class="lineno">  634</span>&#160;}</div>
+<div class="line"><a name="l00635"></a><span class="lineno">  635</span>&#160;</div>
+<div class="line"><a name="l00636"></a><span class="lineno">  636</span>&#160;<span class="comment">//--------------------------------------------------------------------+</span></div>
+<div class="line"><a name="l00637"></a><span class="lineno">  637</span>&#160;<span class="comment">// HELPER</span></div>
+<div class="line"><a name="l00638"></a><span class="lineno">  638</span>&#160;<span class="comment">//--------------------------------------------------------------------+</span></div>
+<div class="line"><a name="l00639"></a><span class="lineno">  639</span>&#160;<span class="preprocessor">#endif</span></div>
 <div class="ttc" id="osal_8h_html"><div class="ttname"><a href="osal_8h.html">osal.h</a></div></div>
 <div class="ttc" id="timeout__timer_8h_html"><div class="ttname"><a href="timeout__timer_8h.html">timeout_timer.h</a></div></div>
 <div class="ttc" id="group___group___binary_html_gaa67325f45e71a327f9e4dbb8455f64ee"><div class="ttname"><a href="group___group___binary.html#gaa67325f45e71a327f9e4dbb8455f64ee">BIT_</a></div><div class="ttdeci">#define BIT_(n)</div><div class="ttdoc">n-th Bit </div><div class="ttdef"><b>Definition:</b> <a href="binary_8h_source.html#l00054">binary.h:54</a></div></div>
@@ -731,7 +741,7 @@ $(document).ready(function(){initNavTree('dcd__lpc43xx_8c_source.html','');});
 <div id="nav-path" class="navpath"><!-- id is needed for treeview function! -->
   <ul>
     <li class="navelem"><a class="el" href="dir_f44c0f1c8d3a85cc1de1e7f4648a56e6.html">tinyusb</a></li><li class="navelem"><a class="el" href="dir_6adba90b56e3a755676388ecfb8a2e14.html">device</a></li><li class="navelem"><a class="el" href="dcd__lpc43xx_8c.html">dcd_lpc43xx.c</a></li>
-    <li class="footer">Generated on Mon Mar 31 2014 16:41:49 for tinyusb by
+    <li class="footer">Generated on Tue Apr 15 2014 10:49:24 for tinyusb by
     <a href="http://www.doxygen.org/index.html">
     <img class="footer" src="doxygen.png" alt="doxygen"/></a> 1.8.6 </li>
   </ul>

@@ -9,10 +9,10 @@ var structohci__registers__t =
     [ "bulk_list_filled", "structohci__registers__t.html#a8c5d58744f6fce1df78141d8bf7ac4e1", null ],
     [ "clear_remote_wakeup_enable", "structohci__registers__t.html#a4fa724038cc3b3369eaac90321cd7985", null ],
     [ "command_status", "structohci__registers__t.html#a2960f6509b0c69731a3aa02a834fed40", null ],
-    [ "command_status_bit", "structohci__registers__t.html#accba9fc79baab348de90965af69883fe", null ],
+    [ "command_status_bit", "structohci__registers__t.html#a9e93b873f0bb487f0606e9f713aff903", null ],
     [ "connect_status_change", "structohci__registers__t.html#a2fd8c7797b12f6e766180d74026c7ab0", null ],
     [ "control", "structohci__registers__t.html#af47d900be5b5e5b1cce48f959401cb4e", null ],
-    [ "control_bit", "structohci__registers__t.html#a23084e579c460c16b9883fc8cf8106c8", null ],
+    [ "control_bit", "structohci__registers__t.html#a12ef22f42d113c0a826c7eb29a15b024", null ],
     [ "control_bulk_service_ratio", "structohci__registers__t.html#a2f8fb145e41905b9a5a32e7f0ca90a80", null ],
     [ "control_current_ed", "structohci__registers__t.html#a838d09e480fd8226ffa2ce2824a1fbde", null ],
     [ "control_head_ed", "structohci__registers__t.html#a70b674a59efde47fff3dee614df9d439", null ],
@@ -57,8 +57,8 @@ var structohci__registers__t =
     [ "rh_descriptorA", "structohci__registers__t.html#ae57ca0879aecfb5f3920745ec12c0cb9", null ],
     [ "rh_descriptorB", "structohci__registers__t.html#acafbfcb918d7985af94e0ca03fc3fb80", null ],
     [ "rh_status", "structohci__registers__t.html#a7c71ff765fedd2c32fa03eac815c17ff", null ],
-    [ "rh_status_bit", "structohci__registers__t.html#aedb79381e1958bda768269214fef4cc9", null ],
+    [ "rh_status_bit", "structohci__registers__t.html#a1aeda9fbc51ecb03b9759eb4fb5e6724", null ],
     [ "rhport_status", "structohci__registers__t.html#ac2bdd6342c005e13942dd7d916e1471e", null ],
-    [ "rhport_status_bit", "structohci__registers__t.html#a3a8a7cca3315265b5c7b17900c55ce11", null ],
+    [ "rhport_status_bit", "structohci__registers__t.html#a5800f170d576afc7d2623449b855b0fc", null ],
     [ "scheduling_overrun_count", "structohci__registers__t.html#aea7769c7cb9ce5878ba303f51888c734", null ]
 ];

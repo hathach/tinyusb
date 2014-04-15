@@ -69,7 +69,7 @@ var group___e_h_c_i =
       [ "next", "structehci__itd__t.html#a8f18d97ad3c8b23a16c6b07c3ce58113", null ],
       [ "offset", "structehci__itd__t.html#a2df482bb0528381abc0a05905bb5826a", null ],
       [ "page_select", "structehci__itd__t.html#a82f879acedb3ac6ba026e7dce89fc711", null ],
-      [ "xact", "structehci__itd__t.html#a24787c55fad3cbc01477c9323ba56131", null ]
+      [ "xact", "structehci__itd__t.html#a1b013fffa38ed3ec6c9d40cead8c6ce3", null ]
     ] ],
     [ "ehci_sitd_t", "structehci__sitd__t.html", [
       [ "__pad0__", "structehci__sitd__t.html#a3e57c2ef1c3ffb36722f000cc1156824", null ],
@@ -152,7 +152,7 @@ var group___e_h_c_i =
       [ "port_reset", "structehci__registers__t.html#a9e11f2fe465b3971a7b3bc1162928fa4", null ],
       [ "port_test_control", "structehci__registers__t.html#a07820834719fcfa649c32da23dc7b870", null ],
       [ "portsc", "structehci__registers__t.html#a8003e7311686c7ef8ab9b8a9a50c4573", null ],
-      [ "portsc_bit", "structehci__registers__t.html#a54dd3512c28a993e614623ee67d87ff7", null ],
+      [ "portsc_bit", "structehci__registers__t.html#adff6d1eb7e480c8672349c943ce97868", null ],
       [ "reclamation", "structehci__registers__t.html#a079482937c99b8f2d01747fd5fefa6f4", null ],
       [ "reserved", "structehci__registers__t.html#aac9724a68645be69c67178229134aa21", null ],
       [ "reset", "structehci__registers__t.html#aa0110dfcd1a7cfdd3fae2a5676f7901d", null ],
@@ -161,12 +161,12 @@ var group___e_h_c_i =
       [ "tt_control", "structehci__registers__t.html#adde3355c31e811ed52bb953ca8cb3396", null ],
       [ "usb", "structehci__registers__t.html#a6e60f608783dd4476b3b8ecab7066eb3", null ],
       [ "usb_cmd", "structehci__registers__t.html#ada89558b4ff38af9168f5c527b645fe0", null ],
-      [ "usb_cmd_bit", "structehci__registers__t.html#a841d4bbe3c2b10d88631ec4dc0c3bcdd", null ],
+      [ "usb_cmd_bit", "structehci__registers__t.html#a759d4598d95d8c63743fd103306ed272", null ],
       [ "usb_error", "structehci__registers__t.html#a6fedc196af2d4d152fd32b0783c78d7f", null ],
       [ "usb_int_enable", "structehci__registers__t.html#aee3539bd214c9f1c3a5b35db1d086fa2", null ],
-      [ "usb_int_enable_bit", "structehci__registers__t.html#a497ab81b6aef2f83e2c6ed87d058cbb4", null ],
+      [ "usb_int_enable_bit", "structehci__registers__t.html#a7c889d36bdc7116c27ed2639195c549d", null ],
       [ "usb_sts", "structehci__registers__t.html#a8758e103afb55f598eeb082f60537d78", null ],
-      [ "usb_sts_bit", "structehci__registers__t.html#a722aaf0c653219b547b7ff2984ae6ab7", null ],
+      [ "usb_sts_bit", "structehci__registers__t.html#ae1e07fd316af59c6d3f7e288ef9c81b6", null ],
       [ "wake_on_connect_enable", "structehci__registers__t.html#af2b6342eddbac6afd0498878dbe4f040", null ],
       [ "wake_on_disconnect_enable", "structehci__registers__t.html#a4d3f477b644b9608920375f3e489da41", null ],
       [ "wake_on_over_current_enable", "structehci__registers__t.html#aeb1838e319021e7dba82b0b74e5170fc", null ]
@@ -174,10 +174,10 @@ var group___e_h_c_i =
     [ "ehci_data_t", "structehci__data__t.html", [
       [ "addr0_qtd", "structehci__data__t.html#ac6e0798c8243ff57e75d81006856bb68", null ],
       [ "async_head", "structehci__data__t.html#a4aa889f702100f216b8d5685550e0b3d", null ],
-      [ "control", "structehci__data__t.html#aa5e8ac7e392cc2b4ab5e1a01dd528b4a", null ],
-      [ "device", "structehci__data__t.html#ad5c9dedb9154bfe25d239a054a8657a1", null ],
-      [ "qhd", "structehci__data__t.html#a61363e12a327c9a0f791b5c22e558166", null ],
-      [ "qtd", "structehci__data__t.html#ad6df23cb228087df8c65a688327d2bef", null ]
+      [ "control", "structehci__data__t.html#ae050f10a2a40571473e034668d3b5747", null ],
+      [ "device", "structehci__data__t.html#a921b9d21db750539d85a03649838b8b4", null ],
+      [ "qhd", "structehci__data__t.html#adac2758e568b22df7646940e1c9221f3", null ],
+      [ "qtd", "structehci__data__t.html#a05e2eebc74f80772c79c17054e46fb7d", null ]
     ] ],
     [ "ehci_queue_element_type_", "group___e_h_c_i.html#ga6cbf3d3e87d6fa2221fc0b467a985aae", [
       [ "EHCI_QUEUE_ELEMENT_ITD", "group___e_h_c_i.html#gga6cbf3d3e87d6fa2221fc0b467a985aaea74403c018b0ab2c2391e7d09a97218ac", null ],

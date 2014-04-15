@@ -449,7 +449,7 @@ $(document).ready(function(){initNavTree('ohci_8c_source.html','');});
 <div class="line"><a name="l00371"></a><span class="lineno">  371</span>&#160;<span class="keyword">static</span> <span class="keyword">inline</span> <a class="code" href="structohci__ed__t.html">ohci_ed_t</a> * ed_find_free(uint8_t dev_addr) <a class="code" href="group___group___func_attr.html#ga477faefde32bfd89d5b5b40d70b1a998">ATTR_PURE</a> <a class="code" href="group___group___func_attr.html#ga18a61fcb06b815274b12b7f626993ac6">ATTR_ALWAYS_INLINE</a>;</div>
 <div class="line"><a name="l00372"></a><span class="lineno">  372</span>&#160;<span class="keyword">static</span> <span class="keyword">inline</span> <a class="code" href="structohci__ed__t.html">ohci_ed_t</a> * ed_find_free(uint8_t dev_addr)</div>
 <div class="line"><a name="l00373"></a><span class="lineno">  373</span>&#160;{</div>
-<div class="line"><a name="l00374"></a><span class="lineno">  374</span>&#160;  <span class="keywordflow">for</span>(uint8_t i = 0; i &lt; OHCI_MAX_QHD; i++)</div>
+<div class="line"><a name="l00374"></a><span class="lineno">  374</span>&#160;  <span class="keywordflow">for</span>(uint8_t i = 0; i &lt; HCD_MAX_ENDPOINT; i++)</div>
 <div class="line"><a name="l00375"></a><span class="lineno">  375</span>&#160;  {</div>
 <div class="line"><a name="l00376"></a><span class="lineno">  376</span>&#160;    <span class="keywordflow">if</span> ( !ohci_data.device[dev_addr-1].ed[i].used )</div>
 <div class="line"><a name="l00377"></a><span class="lineno">  377</span>&#160;    {</div>
@@ -462,7 +462,7 @@ $(document).ready(function(){initNavTree('ohci_8c_source.html','');});
 <div class="line"><a name="l00384"></a><span class="lineno">  384</span>&#160;</div>
 <div class="line"><a name="l00385"></a><span class="lineno">  385</span>&#160;<span class="keyword">static</span> <a class="code" href="structohci__ed__t.html">ohci_ed_t</a> * ed_list_find_previous(<a class="code" href="structohci__ed__t.html">ohci_ed_t</a> <span class="keyword">const</span> * p_head, <a class="code" href="structohci__ed__t.html">ohci_ed_t</a> <span class="keyword">const</span> * p_ed)</div>
 <div class="line"><a name="l00386"></a><span class="lineno">  386</span>&#160;{</div>
-<div class="line"><a name="l00387"></a><span class="lineno">  387</span>&#160;  uint32_t max_loop = OHCI_MAX_QHD;</div>
+<div class="line"><a name="l00387"></a><span class="lineno">  387</span>&#160;  uint32_t max_loop = HCD_MAX_ENDPOINT;</div>
 <div class="line"><a name="l00388"></a><span class="lineno">  388</span>&#160;</div>
 <div class="line"><a name="l00389"></a><span class="lineno">  389</span>&#160;  <a class="code" href="structohci__ed__t.html">ohci_ed_t</a> <span class="keyword">const</span> * p_prev = p_head;</div>
 <div class="line"><a name="l00390"></a><span class="lineno">  390</span>&#160;</div>
@@ -522,7 +522,7 @@ $(document).ready(function(){initNavTree('ohci_8c_source.html','');});
 <div class="line"><a name="l00444"></a><span class="lineno">  444</span>&#160;</div>
 <div class="line"><a name="l00445"></a><span class="lineno">  445</span>&#160;<span class="keyword">static</span> <a class="code" href="structohci__gtd__t.html">ohci_gtd_t</a> * gtd_find_free(uint8_t dev_addr)</div>
 <div class="line"><a name="l00446"></a><span class="lineno">  446</span>&#160;{</div>
-<div class="line"><a name="l00447"></a><span class="lineno">  447</span>&#160;  <span class="keywordflow">for</span>(uint8_t i=0; i &lt; OHCI_MAX_QTD; i++)</div>
+<div class="line"><a name="l00447"></a><span class="lineno">  447</span>&#160;  <span class="keywordflow">for</span>(uint8_t i=0; i &lt; HCD_MAX_XFER; i++)</div>
 <div class="line"><a name="l00448"></a><span class="lineno">  448</span>&#160;  {</div>
 <div class="line"><a name="l00449"></a><span class="lineno">  449</span>&#160;    <span class="keywordflow">if</span> (!ohci_data.device[dev_addr-1].gtd[i].used)</div>
 <div class="line"><a name="l00450"></a><span class="lineno">  450</span>&#160;    {</div>
@@ -685,7 +685,7 @@ $(document).ready(function(){initNavTree('ohci_8c_source.html','');});
 <div class="line"><a name="l00608"></a><span class="lineno">  608</span>&#160;</div>
 <div class="line"><a name="l00609"></a><span class="lineno">  609</span>&#160;<span class="keyword">static</span> <span class="keywordtype">void</span> done_queue_isr(uint8_t hostid)</div>
 <div class="line"><a name="l00610"></a><span class="lineno">  610</span>&#160;{</div>
-<div class="line"><a name="l00611"></a><span class="lineno">  611</span>&#160;  uint8_t max_loop = (<a class="code" href="group___t_u_s_b___c_f_g___h_o_s_t.html#gafc4906ab5cb44b1931d4ae55894440c1">TUSB_CFG_HOST_DEVICE_MAX</a>+1)*(OHCI_MAX_QTD+OHCI_MAX_ITD);</div>
+<div class="line"><a name="l00611"></a><span class="lineno">  611</span>&#160;  uint8_t max_loop = (<a class="code" href="group___t_u_s_b___c_f_g___h_o_s_t.html#gafc4906ab5cb44b1931d4ae55894440c1">TUSB_CFG_HOST_DEVICE_MAX</a>+1)*(HCD_MAX_XFER+OHCI_MAX_ITD);</div>
 <div class="line"><a name="l00612"></a><span class="lineno">  612</span>&#160;</div>
 <div class="line"><a name="l00613"></a><span class="lineno">  613</span>&#160;  <span class="comment">// done head is written in reversed order of completion --&gt; need to reverse the done queue first</span></div>
 <div class="line"><a name="l00614"></a><span class="lineno">  614</span>&#160;  <a class="code" href="structohci__td__item__t.html">ohci_td_item_t</a>* td_head = list_reverse ( (<a class="code" href="structohci__td__item__t.html">ohci_td_item_t</a>*) align16(ohci_data.hcca.done_head) );</div>
@@ -792,7 +792,7 @@ $(document).ready(function(){initNavTree('ohci_8c_source.html','');});
 <div class="ttc" id="structohci__data__t_html"><div class="ttname"><a href="structohci__data__t.html">ohci_data_t</a></div><div class="ttdef"><b>Definition:</b> <a href="ohci_8h_source.html#l00184">ohci.h:184</a></div></div>
 <div class="ttc" id="structtusb__control__request__t_html"><div class="ttname"><a href="structtusb__control__request__t.html">tusb_control_request_t</a></div><div class="ttdef"><b>Definition:</b> <a href="std__request_8h_source.html#l00049">std_request.h:49</a></div></div>
 <div class="ttc" id="group___group___h_c_d_html_ga44286f968f41df24133b9150d8442177"><div class="ttname"><a href="group___group___h_c_d.html#ga44286f968f41df24133b9150d8442177">hcd_port_connect_status</a></div><div class="ttdeci">bool hcd_port_connect_status(uint8_t hostid) ATTR_PURE ATTR_WARN_UNUSED_RESULT</div><div class="ttdoc">return the current connect status of roothub port </div></div>
-<div class="ttc" id="structpipe__handle__t_html"><div class="ttname"><a href="structpipe__handle__t.html">pipe_handle_t</a></div><div class="ttdef"><b>Definition:</b> <a href="hcd_8h_source.html#l00055">hcd.h:55</a></div></div>
+<div class="ttc" id="structpipe__handle__t_html"><div class="ttname"><a href="structpipe__handle__t.html">pipe_handle_t</a></div><div class="ttdef"><b>Definition:</b> <a href="hcd_8h_source.html#l00063">hcd.h:63</a></div></div>
 <div class="ttc" id="hal_8h_html"><div class="ttname"><a href="hal_8h.html">hal.h</a></div></div>
 <div class="ttc" id="group___t_u_s_b___c_f_g___h_o_s_t_html_gafc4906ab5cb44b1931d4ae55894440c1"><div class="ttname"><a href="group___t_u_s_b___c_f_g___h_o_s_t.html#gafc4906ab5cb44b1931d4ae55894440c1">TUSB_CFG_HOST_DEVICE_MAX</a></div><div class="ttdeci">#define TUSB_CFG_HOST_DEVICE_MAX</div><div class="ttdoc">Maximum number of device host stack can manage   If hub class is not enabled, set this equal to numbe...</div><div class="ttdef"><b>Definition:</b> <a href="configuration_8txt_source.html#l00035">configuration.txt:35</a></div></div>
 <div class="ttc" id="group___group___func_attr_html_ga477faefde32bfd89d5b5b40d70b1a998"><div class="ttname"><a href="group___group___func_attr.html#ga477faefde32bfd89d5b5b40d70b1a998">ATTR_PURE</a></div><div class="ttdeci">#define ATTR_PURE</div><div class="ttdoc">Many functions have no effects except the return value and their return value depends only on the par...</div><div class="ttdef"><b>Definition:</b> <a href="compiler__gcc_8h_source.html#l00096">compiler_gcc.h:96</a></div></div>
@@ -818,7 +818,7 @@ $(document).ready(function(){initNavTree('ohci_8c_source.html','');});
 <div id="nav-path" class="navpath"><!-- id is needed for treeview function! -->
   <ul>
     <li class="navelem"><a class="el" href="dir_f44c0f1c8d3a85cc1de1e7f4648a56e6.html">tinyusb</a></li><li class="navelem"><a class="el" href="dir_b871d914c1cc8934d54bd26c3ab0c17f.html">host</a></li><li class="navelem"><a class="el" href="dir_cecddf9c6195aba45a8457812ce73b44.html">ohci</a></li><li class="navelem"><a class="el" href="ohci_8c.html">ohci.c</a></li>
-    <li class="footer">Generated on Mon Mar 31 2014 16:41:49 for tinyusb by
+    <li class="footer">Generated on Tue Apr 15 2014 10:49:24 for tinyusb by
     <a href="http://www.doxygen.org/index.html">
     <img class="footer" src="doxygen.png" alt="doxygen"/></a> 1.8.6 </li>
   </ul>

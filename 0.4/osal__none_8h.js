@@ -21,7 +21,6 @@ var osal__none_8h =
     [ "OSAL_TASK_LOOP_END", "osal__none_8h.html#ga3305abf72ca02da091e2690686aaeb5a", null ],
     [ "OSAL_TASK_REF", "osal__none_8h.html#ga22c69f5ea615cb69432ea65f524b95a3", null ],
     [ "osal_tick_get", "osal__none_8h.html#ga1e57fb8ec430a058b3ec90da20f4e7b6", null ],
-    [ "OSAL_VAR", "osal__none_8h.html#gae7ae27161ae9c0d5828a31751a4d22d1", null ],
     [ "SUBTASK_ASSERT", "osal__none_8h.html#gafbe4cece601b7db2da3dec9982ac91ef", null ],
     [ "SUBTASK_ASSERT_STATUS", "osal__none_8h.html#ga79a93ca3a99f42410924828172c7709a", null ],
     [ "SUBTASK_ASSERT_STATUS_WITH_HANDLER", "osal__none_8h.html#gae36ef6146d68792ca92eb689f2307aba", null ],
