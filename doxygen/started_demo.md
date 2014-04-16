@@ -1,6 +1,6 @@
-# Run Demos #
+# Demos #
 
-For simplicity and user's convenience, there are only 2 basic application demos which are *Device* and *Host* respectively. Each application demo, however, has a few projects, each for its supported RTOS. For instance in the /demo/device you will find:
+For simplicity and user's convenience, there are only 2 basic application demos which are *Device* and *Host* respectively. Each application demo, however, has a few projects, each for its supported RTOS. For instance, in addition to the *src* folder, you will also find in the /demo/device 
 
 - device\_os\_none for no RTOS
 - device\_freertos for freeRTOS
@@ -50,6 +50,7 @@ In order to run application demo, you would need
 - A supported toolchain: LPCXpresso, Keil, IAR.
 
 
+\subpage md_doxygen_started_build_demo
 
 \subpage md_doxygen_started_device_demo
 
