@@ -1,5 +1,6 @@
 var NAVTREEINDEX7 =
 {
+"osal__none_8h.html#ga59dd27dafc555a1329d09e407dcb2063":[7,0,1,5,5,16],
 "osal__none_8h.html#ga5b9f2369b928b84579637e3911d4215c":[7,0,1,5,5,14],
 "osal__none_8h.html#ga60f4e5ad53bb2bd05b8560d926f84646":[7,0,1,5,5,6],
 "osal__none_8h.html#ga6cb38a5c2f22bddfc6aec74ce98864eb":[7,0,1,5,5,28],
@@ -248,6 +249,5 @@ var NAVTREEINDEX7 =
 "structehci__registers__t.html#a6e60f608783dd4476b3b8ecab7066eb3":[5,5,0,0,5,54],
 "structehci__registers__t.html#a6fedc196af2d4d152fd32b0783c78d7f":[5,5,0,0,5,57],
 "structehci__registers__t.html#a759d4598d95d8c63743fd103306ed272":[5,5,0,0,5,56],
-"structehci__registers__t.html#a78b0e0f9ce4fb61a1aa95e8db2901bef":[5,5,0,0,5,30],
-"structehci__registers__t.html#a799501625702562ec594f6a2ae03a4be":[5,5,0,0,5,42]
+"structehci__registers__t.html#a78b0e0f9ce4fb61a1aa95e8db2901bef":[5,5,0,0,5,30]
 };

@@ -1,5 +1,6 @@
 var NAVTREEINDEX10 =
 {
+"structtusbd__descriptor__pointer__t.html#a294a78a8146312dce0ef1d998ae9381b":[6,0,68,1],
 "structtusbd__descriptor__pointer__t.html#a671e1600d4f83a104792ee79e1480464":[6,0,68,0],
 "structtusbd__descriptor__pointer__t.html#adb2f04456533ad881326e8d7f4d9be8a":[6,0,68,2],
 "structtusbd__descriptor__pointer__t.html#aefd0469b360bf2d9a7448afb221767f7":[6,0,68,3],

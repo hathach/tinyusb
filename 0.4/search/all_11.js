@@ -1,6 +1,5 @@
 var searchData=
 [
-  ['run_20demos',['Run Demos',['../md_doxygen_started_run_demo.html',1,'md_doxygen_getting_started']]],
   ['rd_5fidx',['rd_idx',['../group__group__fifo.html#ga85e6a7b1738f3f627cab6ff605ec0fa6',1,'fifo_t::rd_idx()'],['../structosal__queue__t.html#a9832d9b3f2315664c279f03033b37883',1,'osal_queue_t::rd_idx()']]],
   ['recipient',['recipient',['../structtusb__control__request__t.html#a6aaa87d23467ef27759c75bdbc3c5ba6',1,'tusb_control_request_t']]],
   ['reclamation',['reclamation',['../structehci__registers__t.html#a079482937c99b8f2d01747fd5fefa6f4',1,'ehci_registers_t']]],

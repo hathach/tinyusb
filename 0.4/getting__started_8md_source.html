@@ -139,32 +139,55 @@ $(document).ready(function(){initNavTree('getting__started_8md.html','');});
 <div class="line"><a name="l00026"></a><span class="lineno">   26</span>&#160;<span class="stringliteral">tinyusb | All sources files for tinyusb stack itself.</span></div>
 <div class="line"><a name="l00027"></a><span class="lineno">   27</span>&#160;<span class="stringliteral">vendor  | Source files from 3rd party such as freeRTOS, fatfs etc ...</span></div>
 <div class="line"><a name="l00028"></a><span class="lineno">   28</span>&#160;<span class="stringliteral"></span></div>
-<div class="line"><a name="l00029"></a><span class="lineno">   29</span>&#160;<span class="stringliteral">*repo/demos* is the folder where all the application &amp; project files are located. There are demos for both device and hosts. For each, there are different projects for each of supported RTOS. </span></div>
+<div class="line"><a name="l00029"></a><span class="lineno">   29</span>&#160;<span class="stringliteral">*demos* is the folder where all the application &amp; project files are located. There are demos for both device and hosts. For each, there are different projects for each of supported RTOS. </span></div>
 <div class="line"><a name="l00030"></a><span class="lineno">   30</span>&#160;<span class="stringliteral"></span></div>
 <div class="line"><a name="l00031"></a><span class="lineno">   31</span>&#160;<span class="stringliteral">## Add tinyusb to your project</span></div>
 <div class="line"><a name="l00032"></a><span class="lineno">   32</span>&#160;<span class="stringliteral"></span></div>
 <div class="line"><a name="l00033"></a><span class="lineno">   33</span>&#160;<span class="stringliteral">It is relatively simple to incorporate tinyusb to your (existing) project</span></div>
 <div class="line"><a name="l00034"></a><span class="lineno">   34</span>&#160;<span class="stringliteral"></span></div>
-<div class="line"><a name="l00035"></a><span class="lineno">   35</span>&#160;<span class="stringliteral">1. Copy core folder **repo/tinyusb** to your project. Let&#39;</span>s say it is *your_project/tinyusb*</div>
+<div class="line"><a name="l00035"></a><span class="lineno">   35</span>&#160;<span class="stringliteral">1. Copy core folder **tinyusb** to your project. Let&#39;</span>s say it is *your_project/tinyusb*</div>
 <div class="line"><a name="l00036"></a><span class="lineno">   36</span>&#160;2. Add all the .c in the core folder to your project settings (uvproj, ewp, makefile)</div>
 <div class="line"><a name="l00037"></a><span class="lineno">   37</span>&#160;3. Add *your_project/tinysb* to your include path. Also make sure your current include path also contains the configuration file tusb_config.h. Or you could simply put the tusb_config.h into the tinyusb folder as well.</div>
-<div class="line"><a name="l00038"></a><span class="lineno">   38</span>&#160;4. Make sure all required macros such as <a class="code" href="group__group__configuration.html#ga78e20d9920eacaa514c16d19638dcb06">TUSB_CFG_MCU</a> are all defined properly in tusb_config.h.</div>
-<div class="line"><a name="l00039"></a><span class="lineno">   39</span>&#160;</div>
-<div class="line"><a name="l00040"></a><span class="lineno">   40</span>&#160;</div>
-<div class="line"><a name="l00041"></a><span class="lineno">   41</span>&#160;</div>
-<div class="line"><a name="l00042"></a><span class="lineno">   42</span>&#160;\subpage md_boards_readme</div>
+<div class="line"><a name="l00038"></a><span class="lineno">   38</span>&#160;4. Make sure all required macros are all defined properly in tusb_config.h (configure file in demo application is sufficient, but you need to add a few more such as <a class="code" href="group__group__configuration.html#ga78e20d9920eacaa514c16d19638dcb06">TUSB_CFG_MCU</a>, <a class="code" href="group__group__configuration.html#ga4614c6e63e1e3e83f4e1b2525f42ee80">TUSB_CFG_OS</a>, <a class="code" href="group__group__configuration.html#gae3a0c79557690fea08f79c39003c2e8e">TUSB_CFG_OS_TASK_PRIO</a> since they are passed by IDE/compiler to maintain a unique configure <span class="keywordflow">for</span> all demo projects).</div>
+<div class="line"><a name="l00039"></a><span class="lineno">   39</span>&#160;5. If you use the device stack, make sure you have created/modified usb descriptors <span class="keywordflow">for</span> your own need. Ultimately you need to fill out required pointers in <a class="code" href="group___t_u_s_b___c_f_g___d_e_v_i_c_e.html#ga2a5230d87078cc1195f93f00f6198ae8">tusbd_descriptor_pointers</a> <span class="keywordflow">for</span> that stack to work.</div>
+<div class="line"><a name="l00040"></a><span class="lineno">   40</span>&#160;6. Add <a class="code" href="group__group__application__api.html#gae5e5337c5ac56048ee326db2121f415e">tusb_init</a>() call to your reset initialization code.</div>
+<div class="line"><a name="l00041"></a><span class="lineno">   41</span>&#160;7. Implement all enabled classes&#39;s callbacks.</div>
+<div class="line"><a name="l00042"></a><span class="lineno">   42</span>&#160;8. If you dont use any RTOSes at all, you need to continuously and/or periodically call <a class="code" href="tusb_8c.html#aa03e39232c87572815dd9b854a95163e">tusb_task_runner</a>() function. Most of the callbacks and functionality are handled and invoke within the call of that task runner.</div>
 <div class="line"><a name="l00043"></a><span class="lineno">   43</span>&#160;</div>
-<div class="line"><a name="l00044"></a><span class="lineno">   44</span>&#160;\subpage md_doxygen_started_build_demo</div>
-<div class="line"><a name="l00045"></a><span class="lineno">   45</span>&#160;</div>
-<div class="line"><a name="l00046"></a><span class="lineno">   46</span>&#160;\subpage md_doxygen_started_run_demo</div>
+<div class="line"><a name="l00044"></a><span class="lineno">   44</span>&#160;~~~{.c}</div>
+<div class="line"><a name="l00045"></a><span class="lineno">   45</span>&#160;<span class="keywordtype">int</span> main(<span class="keywordtype">void</span>)</div>
+<div class="line"><a name="l00046"></a><span class="lineno">   46</span>&#160;{</div>
+<div class="line"><a name="l00047"></a><span class="lineno">   47</span>&#160;  your_init_code();</div>
+<div class="line"><a name="l00048"></a><span class="lineno">   48</span>&#160;  <a class="code" href="group__group__application__api.html#gae5e5337c5ac56048ee326db2121f415e">tusb_init</a>(); <span class="comment">// initialize tinyusb stack</span></div>
+<div class="line"><a name="l00049"></a><span class="lineno">   49</span>&#160;  </div>
+<div class="line"><a name="l00050"></a><span class="lineno">   50</span>&#160;  <span class="keywordflow">while</span>(1) <span class="comment">// the mainloop</span></div>
+<div class="line"><a name="l00051"></a><span class="lineno">   51</span>&#160;  {</div>
+<div class="line"><a name="l00052"></a><span class="lineno">   52</span>&#160;    your_application_code();</div>
+<div class="line"><a name="l00053"></a><span class="lineno">   53</span>&#160;    </div>
+<div class="line"><a name="l00054"></a><span class="lineno">   54</span>&#160;    <a class="code" href="tusb_8c.html#aa03e39232c87572815dd9b854a95163e">tusb_task_runner</a>(); <span class="comment">// handle tinyusb event, task etc ...</span></div>
+<div class="line"><a name="l00055"></a><span class="lineno">   55</span>&#160;  }</div>
+<div class="line"><a name="l00056"></a><span class="lineno">   56</span>&#160;}</div>
+<div class="line"><a name="l00057"></a><span class="lineno">   57</span>&#160;~~~</div>
+<div class="line"><a name="l00058"></a><span class="lineno">   58</span>&#160;</div>
+<div class="line"><a name="l00059"></a><span class="lineno">   59</span>&#160;</div>
+<div class="line"><a name="l00060"></a><span class="lineno">   60</span>&#160;\subpage md_boards_readme</div>
+<div class="line"><a name="l00061"></a><span class="lineno">   61</span>&#160;</div>
+<div class="line"><a name="l00062"></a><span class="lineno">   62</span>&#160;\subpage md_doxygen_started_demo</div>
+<div class="line"><a name="l00063"></a><span class="lineno">   63</span>&#160;</div>
+<div class="line"><a name="l00064"></a><span class="lineno">   64</span>&#160;\subpage md_tools_readme</div>
+<div class="ttc" id="group__group__application__api_html_gae5e5337c5ac56048ee326db2121f415e"><div class="ttname"><a href="group__group__application__api.html#gae5e5337c5ac56048ee326db2121f415e">tusb_init</a></div><div class="ttdeci">tusb_error_t tusb_init(void)</div><div class="ttdoc">Initialize the usb stack. </div><div class="ttdef"><b>Definition:</b> <a href="tusb_8c_source.html#l00043">tusb.c:43</a></div></div>
+<div class="ttc" id="group___t_u_s_b___c_f_g___d_e_v_i_c_e_html_ga2a5230d87078cc1195f93f00f6198ae8"><div class="ttname"><a href="group___t_u_s_b___c_f_g___d_e_v_i_c_e.html#ga2a5230d87078cc1195f93f00f6198ae8">tusbd_descriptor_pointers</a></div><div class="ttdeci">tusbd_descriptor_pointer_t tusbd_descriptor_pointers</div><div class="ttdef"><b>Definition:</b> <a href="configuration_8txt_source.html#l00064">configuration.txt:64</a></div></div>
+<div class="ttc" id="tusb_8c_html_aa03e39232c87572815dd9b854a95163e"><div class="ttname"><a href="tusb_8c.html#aa03e39232c87572815dd9b854a95163e">tusb_task_runner</a></div><div class="ttdeci">void tusb_task_runner(void)</div><div class="ttdoc">Run all tinyusb&#39;s internal tasks (e.g host task, device task). </div><div class="ttdef"><b>Definition:</b> <a href="tusb_8c_source.html#l00084">tusb.c:84</a></div></div>
+<div class="ttc" id="group__group__configuration_html_gae3a0c79557690fea08f79c39003c2e8e"><div class="ttname"><a href="group__group__configuration.html#gae3a0c79557690fea08f79c39003c2e8e">TUSB_CFG_OS_TASK_PRIO</a></div><div class="ttdeci">#define TUSB_CFG_OS_TASK_PRIO</div><div class="ttdoc">If TUSB_CFG_OS is configured to use a real RTOS (other than TUSB_OS_NONE). This determines the priori...</div><div class="ttdef"><b>Definition:</b> <a href="configuration_8txt_source.html#l00023">configuration.txt:23</a></div></div>
 <div class="ttc" id="group__group__configuration_html_ga78e20d9920eacaa514c16d19638dcb06"><div class="ttname"><a href="group__group__configuration.html#ga78e20d9920eacaa514c16d19638dcb06">TUSB_CFG_MCU</a></div><div class="ttdeci">#define TUSB_CFG_MCU</div><div class="ttdoc">Select one of the supported MCU, the value must be from Supported MCU. </div><div class="ttdef"><b>Definition:</b> <a href="configuration_8txt_source.html#l00021">configuration.txt:21</a></div></div>
+<div class="ttc" id="group__group__configuration_html_ga4614c6e63e1e3e83f4e1b2525f42ee80"><div class="ttname"><a href="group__group__configuration.html#ga4614c6e63e1e3e83f4e1b2525f42ee80">TUSB_CFG_OS</a></div><div class="ttdeci">#define TUSB_CFG_OS</div><div class="ttdoc">Select one of the supported RTOS, the value must be from Supported RTOS. </div><div class="ttdef"><b>Definition:</b> <a href="configuration_8txt_source.html#l00022">configuration.txt:22</a></div></div>
 </div><!-- fragment --></div><!-- contents -->
 </div><!-- doc-content -->
 <!-- start footer part -->
 <div id="nav-path" class="navpath"><!-- id is needed for treeview function! -->
   <ul>
     <li class="navelem"><b>getting_started.md</b></li>
-    <li class="footer">Generated on Tue Apr 15 2014 10:49:23 for tinyusb by
+    <li class="footer">Generated on Wed Apr 16 2014 22:28:36 for tinyusb by
     <a href="http://www.doxygen.org/index.html">
     <img class="footer" src="doxygen.png" alt="doxygen"/></a> 1.8.6 </li>
   </ul>

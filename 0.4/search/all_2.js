@@ -90,5 +90,5 @@ var searchData=
   ['board_20api',['Board API',['../group__group__board__api.html',1,'']]],
   ['built_2din_20functions',['Built-in Functions',['../group___group___builtin_func.html',1,'']]],
   ['boards',['Boards',['../md_boards_readme.html',1,'md_doxygen_getting_started']]],
-  ['build_20demos',['Build Demos',['../md_doxygen_started_build_demo.html',1,'md_doxygen_getting_started']]]
+  ['build_20demos',['Build Demos',['../md_doxygen_started_build_demo.html',1,'md_doxygen_started_demo']]]
 ];

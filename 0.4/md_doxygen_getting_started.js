@@ -1,6 +1,6 @@
 var md_doxygen_getting_started =
 [
     [ "Boards", "md_boards_readme.html", null ],
-    [ "Build Demos", "md_doxygen_started_build_demo.html", null ],
-    [ "Run Demos", "md_doxygen_started_run_demo.html", "md_doxygen_started_run_demo" ]
+    [ "Demos", "md_doxygen_started_demo.html", "md_doxygen_started_demo" ],
+    [ "Tools", "md_tools_readme.html", null ]
 ];

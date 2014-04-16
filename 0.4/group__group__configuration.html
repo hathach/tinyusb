@@ -232,9 +232,9 @@ Macros</h2></td></tr>
 </div><div class="memdoc">
 <p>determines the debug level for the stack</p>
 <ul>
-<li>Level 3: ATTR_ALWAYS_INLINE is null, ASSERT has text, Error has its String, STATIC_VAR is NULL</li>
-<li>Level 2: ATTR_ALWAYS_INLINE is attribute, ASSERT has no text, Error has no strings</li>
-<li>Level 1: TBD</li>
+<li>Level 3: TBD</li>
+<li>Level 2: ATTR_ALWAYS_INLINE is null &ndash;&gt; no function is inline</li>
+<li>Level 1: Print out if Assert failed. STATIC_VAR is NULL &ndash;&gt; accessible when debugging</li>
 <li>Level 0: no debug information is generated </li>
 </ul>
 
@@ -247,7 +247,7 @@ Macros</h2></td></tr>
 <!-- start footer part -->
 <div id="nav-path" class="navpath"><!-- id is needed for treeview function! -->
   <ul>
-    <li class="footer">Generated on Tue Apr 15 2014 10:49:27 for tinyusb by
+    <li class="footer">Generated on Wed Apr 16 2014 22:28:39 for tinyusb by
     <a href="http://www.doxygen.org/index.html">
     <img class="footer" src="doxygen.png" alt="doxygen"/></a> 1.8.6 </li>
   </ul>

@@ -225,7 +225,7 @@ Macros</h2></td></tr>
 <div class="line">                  error,\</div>
 <div class="line">                  <span class="stringliteral">&quot;expected &quot;</span> BIN8_PRINTF_PATTERN <span class="stringliteral">&quot;, actual &quot;</span> BIN8_PRINTF_PATTERN, BIN8_PRINTF_CONVERT(exp), BIN8_PRINTF_CONVERT(act) )</div>
 </div><!-- fragment -->
-<p>Definition at line <a class="el" href="assertion_8h_source.html#l00180">180</a> of file <a class="el" href="assertion_8h_source.html">assertion.h</a>.</p>
+<p>Definition at line <a class="el" href="assertion_8h_source.html#l00177">177</a> of file <a class="el" href="assertion_8h_source.html">assertion.h</a>.</p>
 
 </div>
 </div>
@@ -285,11 +285,8 @@ Macros</h2></td></tr>
 <b>Value:</b><div class="fragment"><div class="line"><span class="keywordflow">do</span>{\</div>
 <div class="line">    setup_statement;\</div>
 <div class="line">      if (!(condition)) {\</div>
-<div class="line">        if (hal_debugger_is_attached()){\</div>
-<div class="line">          hal_debugger_breakpoint();\</div>
-<div class="line">        }<span class="keywordflow">else</span>{\</div>
-<div class="line">          ASSERT_MESSAGE(format, __VA_ARGS__);\</div>
-<div class="line">        }\</div>
+<div class="line">        hal_debugger_breakpoint();\</div>
+<div class="line">        ASSERT_MESSAGE(format, __VA_ARGS__);\</div>
 <div class="line">        error_handler(error, handler_para);\</div>
 <div class="line">      }\</div>
 <div class="line">    }<span class="keywordflow">while</span>(0)</div>
@@ -313,9 +310,9 @@ Macros</h2></td></tr>
 </div><div class="memdoc">
 <b>Value:</b><div class="fragment"><div class="line">ASSERT_DEFINE(<a class="code" href="group___group___error.html#ga225612897c510054ef4026586562f716">tusb_error_t</a> status = (<a class="code" href="group___group___error.html#ga225612897c510054ef4026586562f716">tusb_error_t</a>)(sts),\</div>
 <div class="line">                  TUSB_ERROR_NONE == status, status, <span class="stringliteral">&quot;%s&quot;</span>, TUSB_ErrorStr[status])</div>
-<div class="ttc" id="group___group___error_html_ga225612897c510054ef4026586562f716"><div class="ttname"><a href="group___group___error.html#ga225612897c510054ef4026586562f716">tusb_error_t</a></div><div class="ttdeci">tusb_error_t</div><div class="ttdoc">Error Code returned. </div><div class="ttdef"><b>Definition:</b> <a href="tusb__errors_8h_source.html#l00100">tusb_errors.h:100</a></div></div>
+<div class="ttc" id="group___group___error_html_ga225612897c510054ef4026586562f716"><div class="ttname"><a href="group___group___error.html#ga225612897c510054ef4026586562f716">tusb_error_t</a></div><div class="ttdeci">tusb_error_t</div><div class="ttdoc">Error Code returned. </div><div class="ttdef"><b>Definition:</b> <a href="tusb__errors_8h_source.html#l00097">tusb_errors.h:97</a></div></div>
 </div><!-- fragment -->
-<p>Definition at line <a class="el" href="assertion_8h_source.html#l00116">116</a> of file <a class="el" href="assertion_8h_source.html">assertion.h</a>.</p>
+<p>Definition at line <a class="el" href="assertion_8h_source.html#l00113">113</a> of file <a class="el" href="assertion_8h_source.html">assertion.h</a>.</p>
 
 </div>
 </div>
@@ -344,9 +341,9 @@ Macros</h2></td></tr>
 </div><div class="memdoc">
 <b>Value:</b><div class="fragment"><div class="line">ASSERT_DEFINE(<a class="code" href="group___group___error.html#ga225612897c510054ef4026586562f716">tusb_error_t</a> status = (<a class="code" href="group___group___error.html#ga225612897c510054ef4026586562f716">tusb_error_t</a>)(sts),\</div>
 <div class="line">                  TUSB_ERROR_NONE == status, status, <span class="stringliteral">&quot;%s: %s&quot;</span>, TUSB_ErrorStr[status], message)</div>
-<div class="ttc" id="group___group___error_html_ga225612897c510054ef4026586562f716"><div class="ttname"><a href="group___group___error.html#ga225612897c510054ef4026586562f716">tusb_error_t</a></div><div class="ttdeci">tusb_error_t</div><div class="ttdoc">Error Code returned. </div><div class="ttdef"><b>Definition:</b> <a href="tusb__errors_8h_source.html#l00100">tusb_errors.h:100</a></div></div>
+<div class="ttc" id="group___group___error_html_ga225612897c510054ef4026586562f716"><div class="ttname"><a href="group___group___error.html#ga225612897c510054ef4026586562f716">tusb_error_t</a></div><div class="ttdeci">tusb_error_t</div><div class="ttdoc">Error Code returned. </div><div class="ttdef"><b>Definition:</b> <a href="tusb__errors_8h_source.html#l00097">tusb_errors.h:97</a></div></div>
 </div><!-- fragment -->
-<p>Definition at line <a class="el" href="assertion_8h_source.html#l00112">112</a> of file <a class="el" href="assertion_8h_source.html">assertion.h</a>.</p>
+<p>Definition at line <a class="el" href="assertion_8h_source.html#l00109">109</a> of file <a class="el" href="assertion_8h_source.html">assertion.h</a>.</p>
 
 </div>
 </div>
@@ -391,7 +388,7 @@ Macros</h2></td></tr>
 <div class="line">                  error,\</div>
 <div class="line">                  <span class="stringliteral">&quot;expected &quot;</span> type_format <span class="stringliteral">&quot;, actual &quot;</span> type_format, exp, act)</div>
 </div><!-- fragment -->
-<p>Definition at line <a class="el" href="assertion_8h_source.html#l00137">137</a> of file <a class="el" href="assertion_8h_source.html">assertion.h</a>.</p>
+<p>Definition at line <a class="el" href="assertion_8h_source.html#l00134">134</a> of file <a class="el" href="assertion_8h_source.html">assertion.h</a>.</p>
 
 </div>
 </div>
@@ -442,7 +439,7 @@ Macros</h2></td></tr>
 <div class="line">                  error,\</div>
 <div class="line">                  <span class="stringliteral">&quot;expected within &quot;</span> type_format <span class="stringliteral">&quot; - &quot;</span> type_format <span class="stringliteral">&quot;, actual &quot;</span> type_format, low, up, act)</div>
 </div><!-- fragment -->
-<p>Definition at line <a class="el" href="assertion_8h_source.html#l00144">144</a> of file <a class="el" href="assertion_8h_source.html">assertion.h</a>.</p>
+<p>Definition at line <a class="el" href="assertion_8h_source.html#l00141">141</a> of file <a class="el" href="assertion_8h_source.html">assertion.h</a>.</p>
 
 </div>
 </div>
@@ -468,7 +465,7 @@ Macros</h2></td></tr>
 <div class="line">  ((byte) &amp; 0x02 ? 1 : 0), \</div>
 <div class="line">  ((byte) &amp; 0x01 ? 1 : 0)</div>
 </div><!-- fragment -->
-<p>Definition at line <a class="el" href="assertion_8h_source.html#l00169">169</a> of file <a class="el" href="assertion_8h_source.html">assertion.h</a>.</p>
+<p>Definition at line <a class="el" href="assertion_8h_source.html#l00166">166</a> of file <a class="el" href="assertion_8h_source.html">assertion.h</a>.</p>
 
 </div>
 </div>
@@ -477,7 +474,7 @@ Macros</h2></td></tr>
 <!-- start footer part -->
 <div id="nav-path" class="navpath"><!-- id is needed for treeview function! -->
   <ul>
-    <li class="footer">Generated on Tue Apr 15 2014 10:49:28 for tinyusb by
+    <li class="footer">Generated on Wed Apr 16 2014 22:28:40 for tinyusb by
     <a href="http://www.doxygen.org/index.html">
     <img class="footer" src="doxygen.png" alt="doxygen"/></a> 1.8.6 </li>
   </ul>

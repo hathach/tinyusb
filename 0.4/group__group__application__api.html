@@ -193,12 +193,14 @@ Functions</h2></td></tr>
 <dl class="section note"><dt>Note</dt><dd>This function is only required when using no RTOS (<a class="el" href="group__group__configuration.html#ga4614c6e63e1e3e83f4e1b2525f42ee80">TUSB_CFG_OS</a> == TUSB_OS_NONE). All the stack functions &amp; callback are invoked within this function, so it should be called periodically within the mainloop</dd></dl>
 <div class="fragment"><div class="line"><span class="keywordtype">int</span> main(<span class="keywordtype">void</span>)</div>
 <div class="line">{</div>
-<div class="line">  <span class="comment">// some init code</span></div>
+<div class="line">  your_init_code();</div>
 <div class="line">  <a class="code" href="group__group__application__api.html#gae5e5337c5ac56048ee326db2121f415e">tusb_init</a>();</div>
+<div class="line"></div>
 <div class="line">  <span class="keywordflow">while</span>(1) <span class="comment">// the mainloop</span></div>
 <div class="line">  {</div>
-<div class="line">    <a class="code" href="tusb_8c.html#aa03e39232c87572815dd9b854a95163e">tusb_task_runner</a>();</div>
-<div class="line">    <span class="comment">// other code</span></div>
+<div class="line">    your_application_code();</div>
+<div class="line"></div>
+<div class="line">    <a class="code" href="tusb_8c.html#aa03e39232c87572815dd9b854a95163e">tusb_task_runner</a>(); <span class="comment">// handle tinyusb event, task etc ...</span></div>
 <div class="line">  }</div>
 <div class="line">}</div>
 </div><!-- fragment --> 
@@ -211,7 +213,7 @@ Functions</h2></td></tr>
 <!-- start footer part -->
 <div id="nav-path" class="navpath"><!-- id is needed for treeview function! -->
   <ul>
-    <li class="footer">Generated on Tue Apr 15 2014 10:49:27 for tinyusb by
+    <li class="footer">Generated on Wed Apr 16 2014 22:28:39 for tinyusb by
     <a href="http://www.doxygen.org/index.html">
     <img class="footer" src="doxygen.png" alt="doxygen"/></a> 1.8.6 </li>
   </ul>

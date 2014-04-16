@@ -5,7 +5,7 @@
 <meta http-equiv="Content-Type" content="text/xhtml;charset=UTF-8"/>
 <meta http-equiv="X-UA-Compatible" content="IE=9"/>
 <meta name="generator" content="Doxygen 1.8.6"/>
-<title>tinyusb: Run Demos</title>
+<title>tinyusb: tools/readme.md Source File</title>
 <link href="tabs.css" rel="stylesheet" type="text/css"/>
 <script type="text/javascript" src="jquery.js"></script>
 <script type="text/javascript" src="dynsections.js"></script>
@@ -49,10 +49,10 @@ var searchBox = new SearchBox("searchBox", "search",false,'Search');
   <div id="navrow1" class="tabs">
     <ul class="tablist">
       <li><a href="index.html"><span>Main&#160;Page</span></a></li>
-      <li class="current"><a href="pages.html"><span>Related&#160;Pages</span></a></li>
+      <li><a href="pages.html"><span>Related&#160;Pages</span></a></li>
       <li><a href="modules.html"><span>Modules</span></a></li>
       <li><a href="annotated.html"><span>Data&#160;Structures</span></a></li>
-      <li><a href="files.html"><span>Files</span></a></li>
+      <li class="current"><a href="files.html"><span>Files</span></a></li>
       <li>
         <div id="MSearchBox" class="MSearchBoxInactive">
         <span class="left">
@@ -71,6 +71,12 @@ var searchBox = new SearchBox("searchBox", "search",false,'Search');
       </li>
     </ul>
   </div>
+  <div id="navrow2" class="tabs2">
+    <ul class="tablist">
+      <li><a href="files.html"><span>File&#160;List</span></a></li>
+      <li><a href="globals.html"><span>Globals</span></a></li>
+    </ul>
+  </div>
 </div><!-- top -->
 <div id="side-nav" class="ui-resizable side-nav-resizable">
   <div id="nav-tree">
@@ -83,7 +89,7 @@ var searchBox = new SearchBox("searchBox", "search",false,'Search');
   </div>
 </div>
 <script type="text/javascript">
-$(document).ready(function(){initNavTree('md_doxygen_started_run_demo.html','');});
+$(document).ready(function(){initNavTree('tools_2readme_8md.html','');});
 </script>
 <div id="doc-content">
 <!-- window showing the filter options -->
@@ -102,58 +108,29 @@ $(document).ready(function(){initNavTree('md_doxygen_started_run_demo.html','');
 
 <div class="header">
   <div class="headertitle">
-<div class="title">Run Demos </div>  </div>
+<div class="title">tools/readme.md</div>  </div>
 </div><!--header-->
 <div class="contents">
-<div class="textblock"><p>For simplicity and user's convenience, there are only 2 basic application demos which are <em>Device</em> and <em>Host</em> respectively. Each application demo, however, has a few projects, each for its supported RTOS. For instance in the /demo/device you will find:</p>
-<ul>
-<li>device_os_none for no RTOS</li>
-<li>device_freertos for freeRTOS</li>
-<li>device_cmsis_rtx for ARM CMSIS with RTX implemenation</li>
-</ul>
-<p>To be able to have the same application code running across RTOSes, the application make use of the "internal" <b>OSAL layer</b>. Thus this makes the application code a bit weird and over-complicated than it should be in some (many) cases. This is absolutely not necessary in product development. User can just use the native API function of supported RTOS or a state machine or blocking wait in case of none OS. For example, instead of the blinking task in application</p>
-<div class="fragment"><div class="line">OSAL_TASK_FUNCTION( led_blinking_task , p_task_para)</div>
-<div class="line">{</div>
-<div class="line">  OSAL_TASK_LOOP_BEGIN</div>
-<div class="line"></div>
-<div class="line">  <span class="keyword">static</span> uint32_t led_on_mask = 0;</div>
-<div class="line"></div>
-<div class="line">  osal_task_delay(led_blink_interval_ms);</div>
-<div class="line"></div>
-<div class="line">  <a class="code" href="group__group__board__api.html#ga92863b323080baae31555ea45d93c404">board_leds</a>(led_on_mask, 1 - led_on_mask);</div>
-<div class="line">  led_on_mask = 1 - led_on_mask; <span class="comment">// toggle</span></div>
-<div class="line"></div>
-<div class="line">  OSAL_TASK_LOOP_END</div>
-<div class="line">}</div>
-</div><!-- fragment --><p>can be written in FreeRTOS's native API</p>
-<div class="fragment"><div class="line"><span class="keywordtype">void</span> led_blinking_task( <span class="keywordtype">void</span> * p_task_para )</div>
-<div class="line">{</div>
-<div class="line">  <span class="keywordflow">while</span>(1)</div>
-<div class="line">  {</div>
-<div class="line">    <span class="keyword">static</span> uint32_t led_on_mask = 0;</div>
-<div class="line"></div>
-<div class="line">    <span class="comment">// FreeRTOS API&#39;s vTaskDelay is used in place of osal_task_delay. Note it takes input parameter in tick</span></div>
-<div class="line">    vTaskDelay( (led_blink_interval_ms * <a class="code" href="group__group__configuration.html#ga4706afa7f3c38e91949610556cac75d3">TUSB_CFG_TICKS_HZ</a>) / 1000);</div>
-<div class="line"></div>
-<div class="line">    <a class="code" href="group__group__board__api.html#ga92863b323080baae31555ea45d93c404">board_leds</a>(led_on_mask, 1 - led_on_mask);</div>
-<div class="line">    led_on_mask = 1 - led_on_mask; <span class="comment">// toggle</span></div>
-<div class="line">  }</div>
-<div class="line">}</div>
-</div><!-- fragment --><h2>Prerequisites</h2>
-<p>In order to run application demo, you would need</p>
-<ul>
-<li>A ../../boards/readme.md "supported development board"</li>
-<li>A supported toolchain: LPCXpresso, Keil, IAR.</li>
-</ul>
-<p><a class="el" href="md_doxygen_started_device_demo.html">Device Demos</a></p>
-<p><a class="el" href="md_doxygen_started_host_demo.html">Host Demos</a> </p>
-</div></div><!-- contents -->
+<div class="fragment"><div class="line"><a name="l00001"></a><span class="lineno">    1</span>&#160;<span class="preprocessor"># Tools</span></div>
+<div class="line"><a name="l00002"></a><span class="lineno">    2</span>&#160;<span class="preprocessor"></span></div>
+<div class="line"><a name="l00003"></a><span class="lineno">    3</span>&#160;This folder contain several helpful tools that will ease our USB development process. Some are small enough to be included here, some you will need to download by yourself.</div>
+<div class="line"><a name="l00004"></a><span class="lineno">    4</span>&#160;</div>
+<div class="line"><a name="l00005"></a><span class="lineno">    5</span>&#160;## USB Tree View </div>
+<div class="line"><a name="l00006"></a><span class="lineno">    6</span>&#160;</div>
+<div class="line"><a name="l00007"></a><span class="lineno">    7</span>&#160;It is the enhanced version of Microsoft USBView and is a very handy windows application from http:<span class="comment">//www.uwe-sieber.de for viewing usb devices and their descriptors.</span></div>
+<div class="line"><a name="l00008"></a><span class="lineno">    8</span>&#160;</div>
+<div class="line"><a name="l00009"></a><span class="lineno">    9</span>&#160;![usb_tree_view.png](http:<span class="comment">//docs.tinyusb.org/images/usb_tree_view.png)</span></div>
+<div class="line"><a name="l00010"></a><span class="lineno">   10</span>&#160;</div>
+<div class="line"><a name="l00011"></a><span class="lineno">   11</span>&#160;<span class="preprocessor">## Tera Term</span></div>
+<div class="line"><a name="l00012"></a><span class="lineno">   12</span>&#160;<span class="preprocessor"></span></div>
+<div class="line"><a name="l00013"></a><span class="lineno">   13</span>&#160;For most demo, UART is the <span class="keywordflow">default</span>/prefer way to interact with user, thus I would recommend a decent terminal such as [Tera Term](http:<span class="comment">//en.sourceforge.jp/projects/ttssh2/). Especially host demo requires a [ANSI escape](http://en.wikipedia.org/wiki/ANSI_escape_code) supported terminal to demonstrate properly.</span></div>
+</div><!-- fragment --></div><!-- contents -->
 </div><!-- doc-content -->
 <!-- start footer part -->
 <div id="nav-path" class="navpath"><!-- id is needed for treeview function! -->
   <ul>
-    <li class="navelem"><a class="el" href="md_doxygen_getting_started.html">Getting Started</a></li>
-    <li class="footer">Generated on Tue Apr 15 2014 10:49:27 for tinyusb by
+    <li class="navelem"><b>readme.md</b></li>
+    <li class="footer">Generated on Wed Apr 16 2014 22:28:36 for tinyusb by
     <a href="http://www.doxygen.org/index.html">
     <img class="footer" src="doxygen.png" alt="doxygen"/></a> 1.8.6 </li>
   </ul>

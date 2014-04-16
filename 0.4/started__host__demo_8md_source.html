@@ -117,20 +117,100 @@ $(document).ready(function(){initNavTree('started__host__demo_8md.html','');});
 <div class="line"><a name="l00004"></a><span class="lineno">    4</span>&#160;&lt;!-- DON<span class="stringliteral">&#39;T EDIT THIS SECTION, INSTEAD RE-RUN doctoc TO UPDATE --&gt;</span></div>
 <div class="line"><a name="l00005"></a><span class="lineno">    5</span>&#160;<span class="stringliteral">**Table of Contents**</span></div>
 <div class="line"><a name="l00006"></a><span class="lineno">    6</span>&#160;<span class="stringliteral"></span></div>
-<div class="line"><a name="l00007"></a><span class="lineno">    7</span>&#160;<span class="stringliteral">- [LPCXpresso](#lpcxpresso)</span></div>
-<div class="line"><a name="l00008"></a><span class="lineno">    8</span>&#160;<span class="stringliteral">- [Keil](#keil)</span></div>
-<div class="line"><a name="l00009"></a><span class="lineno">    9</span>&#160;<span class="stringliteral">- [IAR](#iar)</span></div>
-<div class="line"><a name="l00010"></a><span class="lineno">   10</span>&#160;<span class="stringliteral">- [Configure demo](#configure-demo)</span></div>
-<div class="line"><a name="l00011"></a><span class="lineno">   11</span>&#160;<span class="stringliteral"></span></div>
-<div class="line"><a name="l00012"></a><span class="lineno">   12</span>&#160;<span class="stringliteral">&lt;!-- END doctoc generated TOC please keep comment here to allow auto update --&gt;</span></div>
-<div class="line"><a name="l00013"></a><span class="lineno">   13</span>&#160;<span class="stringliteral"></span></div>
+<div class="line"><a name="l00007"></a><span class="lineno">    7</span>&#160;<span class="stringliteral">- [Prerequisites](#prerequisites)</span></div>
+<div class="line"><a name="l00008"></a><span class="lineno">    8</span>&#160;<span class="stringliteral">- [Hub](#hub)</span></div>
+<div class="line"><a name="l00009"></a><span class="lineno">    9</span>&#160;<span class="stringliteral">- [Human Interface Device (HID)](#human-interface-device-hid)</span></div>
+<div class="line"><a name="l00010"></a><span class="lineno">   10</span>&#160;<span class="stringliteral">    - [Keyboard](#keyboard)</span></div>
+<div class="line"><a name="l00011"></a><span class="lineno">   11</span>&#160;<span class="stringliteral">    - [Mouse](#mouse)</span></div>
+<div class="line"><a name="l00012"></a><span class="lineno">   12</span>&#160;<span class="stringliteral">- [Mass Storage Class Device (MSC)](#mass-storage-class-device-msc)</span></div>
+<div class="line"><a name="l00013"></a><span class="lineno">   13</span>&#160;<span class="stringliteral">- [Communication Class Device (CDC)](#communication-class-device-cdc)</span></div>
+<div class="line"><a name="l00014"></a><span class="lineno">   14</span>&#160;<span class="stringliteral">    - [Serial](#serial)</span></div>
+<div class="line"><a name="l00015"></a><span class="lineno">   15</span>&#160;<span class="stringliteral"></span></div>
+<div class="line"><a name="l00016"></a><span class="lineno">   16</span>&#160;<span class="stringliteral">&lt;!-- END doctoc generated TOC please keep comment here to allow auto update --&gt;</span></div>
+<div class="line"><a name="l00017"></a><span class="lineno">   17</span>&#160;<span class="stringliteral"></span></div>
+<div class="line"><a name="l00018"></a><span class="lineno">   18</span>&#160;<span class="stringliteral">device application code is store at *demos/device/src* containing</span></div>
+<div class="line"><a name="l00019"></a><span class="lineno">   19</span>&#160;<span class="stringliteral"></span></div>
+<div class="line"><a name="l00020"></a><span class="lineno">   20</span>&#160;<span class="stringliteral">File  | Description</span></div>
+<div class="line"><a name="l00021"></a><span class="lineno">   21</span>&#160;<span class="stringliteral">----- | -------------</span></div>
+<div class="line"><a name="l00022"></a><span class="lineno">   22</span>&#160;<span class="stringliteral">main.c | Initialization (board, stack) and a RTOS task scheduler call or just simple a indefinite loop for non OS to invoke class-specific tasks.</span></div>
+<div class="line"><a name="l00023"></a><span class="lineno">   23</span>&#160;<span class="stringliteral">tusb_config.h | tinyusb stack configuration.</span></div>
+<div class="line"><a name="l00024"></a><span class="lineno">   24</span>&#160;<span class="stringliteral">app_os_prio.h | RTOS task priority definitions</span></div>
+<div class="line"><a name="l00025"></a><span class="lineno">   25</span>&#160;<span class="stringliteral">Class-specific | Application files for supported classes.</span></div>
+<div class="line"><a name="l00026"></a><span class="lineno">   26</span>&#160;<span class="stringliteral"></span></div>
+<div class="line"><a name="l00027"></a><span class="lineno">   27</span>&#160;<span class="stringliteral">Firstly connect your ansi-escaped supported terminal (see below) to the UART of the  evaluation board since all the user interaction happens there. The default UART configure is </span></div>
+<div class="line"><a name="l00028"></a><span class="lineno">   28</span>&#160;<span class="stringliteral">- Baudrate = 115200</span></div>
+<div class="line"><a name="l00029"></a><span class="lineno">   29</span>&#160;<span class="stringliteral">- Data = 8 bits</span></div>
+<div class="line"><a name="l00030"></a><span class="lineno">   30</span>&#160;<span class="stringliteral">- Parity = none</span></div>
+<div class="line"><a name="l00031"></a><span class="lineno">   31</span>&#160;<span class="stringliteral">- Stop = 1 bit</span></div>
+<div class="line"><a name="l00032"></a><span class="lineno">   32</span>&#160;<span class="stringliteral">- Flow control = none</span></div>
+<div class="line"><a name="l00033"></a><span class="lineno">   33</span>&#160;<span class="stringliteral"></span></div>
+<div class="line"><a name="l00034"></a><span class="lineno">   34</span>&#160;<span class="stringliteral">The demo will start with the greeting of enabled classes and chosen RTOS then start to blink an LED at 1 Hz. When any of supported devices is plugged or un-plugged either directly or via a hub, demo application will print out a short message. Notes: if usb device is composed of supported and unsupported classes such as a keyboard and a camera, the keyboard interface is still mounted as usual without any issues.</span></div>
+<div class="line"><a name="l00035"></a><span class="lineno">   35</span>&#160;<span class="stringliteral"></span></div>
+<div class="line"><a name="l00036"></a><span class="lineno">   36</span>&#160;<span class="stringliteral">**NOTE** Host demo is quite power hunger, especially when you plug a hub with several devices on it. Make sure you have enough power before filing any bugs. </span></div>
+<div class="line"><a name="l00037"></a><span class="lineno">   37</span>&#160;<span class="stringliteral"></span></div>
+<div class="line"><a name="l00038"></a><span class="lineno">   38</span>&#160;<span class="stringliteral">## Prerequisites ##</span></div>
+<div class="line"><a name="l00039"></a><span class="lineno">   39</span>&#160;<span class="stringliteral"></span></div>
+<div class="line"><a name="l00040"></a><span class="lineno">   40</span>&#160;<span class="stringliteral">In order to run application demo, you would need</span></div>
+<div class="line"><a name="l00041"></a><span class="lineno">   41</span>&#160;<span class="stringliteral"></span></div>
+<div class="line"><a name="l00042"></a><span class="lineno">   42</span>&#160;<span class="stringliteral">- A [supported development board](../../boards/readme.md).</span></div>
+<div class="line"><a name="l00043"></a><span class="lineno">   43</span>&#160;<span class="stringliteral">- A supported toolchain: LPCXpresso, Keil, IAR.</span></div>
+<div class="line"><a name="l00044"></a><span class="lineno">   44</span>&#160;<span class="stringliteral">- A [ANSI escape](http://en.wikipedia.org/wiki/ANSI_escape_code) supported terminal such as [Tera Term](http://en.sourceforge.jp/projects/ttssh2/) to demonstrate properly.</span></div>
+<div class="line"><a name="l00045"></a><span class="lineno">   45</span>&#160;<span class="stringliteral"></span></div>
+<div class="line"><a name="l00046"></a><span class="lineno">   46</span>&#160;<span class="stringliteral">## Hub</span></div>
+<div class="line"><a name="l00047"></a><span class="lineno">   47</span>&#160;<span class="stringliteral"></span></div>
+<div class="line"><a name="l00048"></a><span class="lineno">   48</span>&#160;<span class="stringliteral">Hub is internally handled by tinyusb stack, application code does not have to worry on how to get hub operated. However, application must be written to handle multiple devices simultaneously.</span></div>
+<div class="line"><a name="l00049"></a><span class="lineno">   49</span>&#160;<span class="stringliteral"></span></div>
+<div class="line"><a name="l00050"></a><span class="lineno">   50</span>&#160;<span class="stringliteral">## Human Interface Device (HID)</span></div>
+<div class="line"><a name="l00051"></a><span class="lineno">   51</span>&#160;<span class="stringliteral"></span></div>
+<div class="line"><a name="l00052"></a><span class="lineno">   52</span>&#160;<span class="stringliteral">### Keyboard</span></div>
+<div class="line"><a name="l00053"></a><span class="lineno">   53</span>&#160;<span class="stringliteral"></span></div>
+<div class="line"><a name="l00054"></a><span class="lineno">   54</span>&#160;<span class="stringliteral">When a keyboard device is enumerated, any keys pressed on the device will be echoed to the UART terminal.</span></div>
+<div class="line"><a name="l00055"></a><span class="lineno">   55</span>&#160;<span class="stringliteral"></span></div>
+<div class="line"><a name="l00056"></a><span class="lineno">   56</span>&#160;<span class="stringliteral">![Host Keyboard Demo](http://docs.tinyusb.org/images/demo_host_keyboard.png)</span></div>
+<div class="line"><a name="l00057"></a><span class="lineno">   57</span>&#160;<span class="stringliteral"></span></div>
+<div class="line"><a name="l00058"></a><span class="lineno">   58</span>&#160;<span class="stringliteral">### Mouse</span></div>
+<div class="line"><a name="l00059"></a><span class="lineno">   59</span>&#160;<span class="stringliteral"></span></div>
+<div class="line"><a name="l00060"></a><span class="lineno">   60</span>&#160;<span class="stringliteral">When a mouse device is enumerated, any movements or clicks on the device will be reflected on the terminal. Only make sure the terminal&#39;</span>s windows is active on your host OS and it supports ANSI escape code.</div>
+<div class="line"><a name="l00061"></a><span class="lineno">   61</span>&#160;</div>
+<div class="line"><a name="l00062"></a><span class="lineno">   62</span>&#160;![Host Mouse Demo](http:<span class="comment">//docs.tinyusb.org/images/demo_host_mouse.png)</span></div>
+<div class="line"><a name="l00063"></a><span class="lineno">   63</span>&#160;</div>
+<div class="line"><a name="l00064"></a><span class="lineno">   64</span>&#160;<span class="preprocessor">## Mass Storage Class Device (MSC)</span></div>
+<div class="line"><a name="l00065"></a><span class="lineno">   65</span>&#160;<span class="preprocessor"></span></div>
+<div class="line"><a name="l00066"></a><span class="lineno">   66</span>&#160;Mass storage demo application only supports device with FAT file system by the help of fatfs (source in *vendor/fatfs*). In addition, it also includes a minimal command line <span class="keyword">interface </span>*msc_cli.c* to allow user to navigate and execute several basic file operations. When mass storage device is plugged, CLI will be activated, type <span class="stringliteral">&quot;help&quot;</span> <span class="keywordflow">for</span> the usage. Some are</div>
+<div class="line"><a name="l00067"></a><span class="lineno">   67</span>&#160;</div>
+<div class="line"><a name="l00068"></a><span class="lineno">   68</span>&#160;Command  | Description</div>
+<div class="line"><a name="l00069"></a><span class="lineno">   69</span>&#160;----- | -------------</div>
+<div class="line"><a name="l00070"></a><span class="lineno">   70</span>&#160;cls | clear screen </div>
+<div class="line"><a name="l00071"></a><span class="lineno">   71</span>&#160;ls | List information of the FILEs, only supported current directory.</div>
+<div class="line"><a name="l00072"></a><span class="lineno">   72</span>&#160;cd | change the current directory.</div>
+<div class="line"><a name="l00073"></a><span class="lineno">   73</span>&#160;cat | display contents of a file.</div>
+<div class="line"><a name="l00074"></a><span class="lineno">   74</span>&#160;cp | copy files to another location.</div>
+<div class="line"><a name="l00075"></a><span class="lineno">   75</span>&#160;mkdir | create a directory, <span class="keywordflow">if</span> it does not already exist.</div>
+<div class="line"><a name="l00076"></a><span class="lineno">   76</span>&#160;mv | rename or move a directory or a file.</div>
+<div class="line"><a name="l00077"></a><span class="lineno">   77</span>&#160;rm | <span class="keyword">remove</span> (<span class="keyword">delete</span>) an empty directory or file</div>
+<div class="line"><a name="l00078"></a><span class="lineno">   78</span>&#160;</div>
+<div class="line"><a name="l00079"></a><span class="lineno">   79</span>&#160;Furthermore, the demo<span class="stringliteral">&#39;s CLI also supports multiple mass storage devices. You could *cd* between disk drives, and copy a file from one to another.</span></div>
+<div class="line"><a name="l00080"></a><span class="lineno">   80</span>&#160;<span class="stringliteral"></span></div>
+<div class="line"><a name="l00081"></a><span class="lineno">   81</span>&#160;<span class="stringliteral">![Host MSC Demo](http://docs.tinyusb.org/images/demo_host_msc.png)</span></div>
+<div class="line"><a name="l00082"></a><span class="lineno">   82</span>&#160;<span class="stringliteral"></span></div>
+<div class="line"><a name="l00083"></a><span class="lineno">   83</span>&#160;<span class="stringliteral">## Communication Class Device (CDC)</span></div>
+<div class="line"><a name="l00084"></a><span class="lineno">   84</span>&#160;<span class="stringliteral"></span></div>
+<div class="line"><a name="l00085"></a><span class="lineno">   85</span>&#160;<span class="stringliteral">CDC has several subclass, currently tinyusb only supports the popular *Abstract Control Model (ACM)*</span></div>
+<div class="line"><a name="l00086"></a><span class="lineno">   86</span>&#160;<span class="stringliteral"></span></div>
+<div class="line"><a name="l00087"></a><span class="lineno">   87</span>&#160;<span class="stringliteral">### Serial</span></div>
+<div class="line"><a name="l00088"></a><span class="lineno">   88</span>&#160;<span class="stringliteral"></span></div>
+<div class="line"><a name="l00089"></a><span class="lineno">   89</span>&#160;<span class="stringliteral">A virtual serial of CDC-ACM is supported, the host demo will echo back any thing it received from the device. So if you use the tinyusb device stack with CDC enabled to test with, you should modify it a bit to constantly send somethings (otherwise 2 demos will wait for each other).</span></div>
+<div class="line"><a name="l00090"></a><span class="lineno">   90</span>&#160;<span class="stringliteral"></span></div>
+<div class="line"><a name="l00091"></a><span class="lineno">   91</span>&#160;<span class="stringliteral">Notes: FTDI is a vendor-specific class, which is not currently supported.</span></div>
+<div class="line"><a name="l00092"></a><span class="lineno">   92</span>&#160;<span class="stringliteral"></span></div>
+<div class="line"><a name="l00093"></a><span class="lineno">   93</span>&#160;<span class="stringliteral">![Host Serial Demo](http://docs.tinyusb.org/images/demo_host_serial.png)</span></div>
 </div><!-- fragment --></div><!-- contents -->
 </div><!-- doc-content -->
 <!-- start footer part -->
 <div id="nav-path" class="navpath"><!-- id is needed for treeview function! -->
   <ul>
     <li class="navelem"><b>started_host_demo.md</b></li>
-    <li class="footer">Generated on Tue Apr 15 2014 10:49:23 for tinyusb by
+    <li class="footer">Generated on Wed Apr 16 2014 22:28:36 for tinyusb by
     <a href="http://www.doxygen.org/index.html">
     <img class="footer" src="doxygen.png" alt="doxygen"/></a> 1.8.6 </li>
   </ul>

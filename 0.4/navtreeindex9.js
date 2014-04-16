@@ -1,5 +1,6 @@
 var NAVTREEINDEX9 =
 {
+"structohci__registers__t.html#af2afc8fba2d3db4d3b7e7e9877977625":[5,5,0,1,6,24],
 "structohci__registers__t.html#af47d900be5b5e5b1cce48f959401cb4e":[5,5,0,1,6,11],
 "structohci__registers__t.html#af6dbcd3e0eca81846cc603ad0497d533":[5,5,0,1,6,48],
 "structohci__td__item__t.html":[5,5,0,1,1],
@@ -8,20 +9,20 @@ var NAVTREEINDEX9 =
 "structohci__td__item__t.html#ae673672452e4741c4ab7c174af880a87":[5,5,0,1,1,2],
 "structosal__mutex__t.html":[5,6,1,1],
 "structosal__mutex__t.html#a52128377a0b421dd6f72894d94222bfb":[5,6,1,1,0],
-"structosal__queue__t.html":[5,6,2,1],
 "structosal__queue__t.html":[5,6,3,0],
-"structosal__queue__t.html#a209cb9cecab36517780818f791fd4cb1":[5,6,2,1,0],
+"structosal__queue__t.html":[5,6,2,1],
 "structosal__queue__t.html#a209cb9cecab36517780818f791fd4cb1":[5,6,3,0,0],
-"structosal__queue__t.html#a5efe9cd7ca8a0d548060f7e127bb5a72":[5,6,2,1,5],
+"structosal__queue__t.html#a209cb9cecab36517780818f791fd4cb1":[5,6,2,1,0],
 "structosal__queue__t.html#a5efe9cd7ca8a0d548060f7e127bb5a72":[5,6,3,0,5],
-"structosal__queue__t.html#a74da51b50502cf0c67cdd3e124f57100":[5,6,3,0,3],
+"structosal__queue__t.html#a5efe9cd7ca8a0d548060f7e127bb5a72":[5,6,2,1,5],
 "structosal__queue__t.html#a74da51b50502cf0c67cdd3e124f57100":[5,6,2,1,3],
-"structosal__queue__t.html#a9832d9b3f2315664c279f03033b37883":[5,6,3,0,4],
+"structosal__queue__t.html#a74da51b50502cf0c67cdd3e124f57100":[5,6,3,0,3],
 "structosal__queue__t.html#a9832d9b3f2315664c279f03033b37883":[5,6,2,1,4],
-"structosal__queue__t.html#aef4c4f3630ede69cba8c75369a5459af":[5,6,3,0,1],
+"structosal__queue__t.html#a9832d9b3f2315664c279f03033b37883":[5,6,3,0,4],
 "structosal__queue__t.html#aef4c4f3630ede69cba8c75369a5459af":[5,6,2,1,1],
-"structosal__queue__t.html#af84ccc4f75d16c1b63349d7cea5839e9":[5,6,2,1,2],
+"structosal__queue__t.html#aef4c4f3630ede69cba8c75369a5459af":[5,6,3,0,1],
 "structosal__queue__t.html#af84ccc4f75d16c1b63349d7cea5839e9":[5,6,3,0,2],
+"structosal__queue__t.html#af84ccc4f75d16c1b63349d7cea5839e9":[5,6,2,1,2],
 "structosal__semaphore__t.html":[5,6,1,0],
 "structosal__semaphore__t.html#ad4035512b71e5da324da6dc4eb66e9f3":[5,6,1,0,0],
 "structosal__task__t.html":[5,6,2,0],
@@ -248,6 +249,5 @@ var NAVTREEINDEX9 =
 "structtusb__hid__descriptor__hid__t.html#acecf167e66be263b6dc06434b063af4a":[5,1,2,0,0,5],
 "structtusb__hid__descriptor__hid__t.html#acf09c753851ce018b81a07325bda9d8e":[5,1,2,0,0,0],
 "structtusbd__descriptor__pointer__t.html":[6,0,68],
-"structtusbd__descriptor__pointer__t.html#a0bf73885b77328e78076b85f6208b4b5":[6,0,68,4],
-"structtusbd__descriptor__pointer__t.html#a294a78a8146312dce0ef1d998ae9381b":[6,0,68,1]
+"structtusbd__descriptor__pointer__t.html#a0bf73885b77328e78076b85f6208b4b5":[6,0,68,4]
 };

@@ -44,12 +44,13 @@ var NAVTREEINDEX6 =
 "md_doxygen_changelog.html":[0],
 "md_doxygen_coding_standard.html":[1],
 "md_doxygen_getting_started.html":[2],
-"md_doxygen_started_build_demo.html":[2,1],
-"md_doxygen_started_device_demo.html":[2,2,0],
-"md_doxygen_started_host_demo.html":[2,2,1],
-"md_doxygen_started_run_demo.html":[2,2],
+"md_doxygen_started_build_demo.html":[2,1,0],
+"md_doxygen_started_demo.html":[2,1],
+"md_doxygen_started_device_demo.html":[2,1,1],
+"md_doxygen_started_host_demo.html":[2,1,2],
 "md_tests_readme.html":[4],
 "md_tinyusb_license.html":[3],
+"md_tools_readme.html":[2,2],
 "memreg_8c_source.html":[7,0,0,0,1,6],
 "memreg_8h_source.html":[7,0,0,0,1,7],
 "modules.html":[5],
@@ -248,6 +249,5 @@ var NAVTREEINDEX6 =
 "osal__none_8h.html#ga463dc914cb6b936930c63b867d069448":[7,0,1,5,5,8],
 "osal__none_8h.html#ga4c67c039a38bc641483417219c243c9d":[7,0,1,5,5,9],
 "osal__none_8h.html#ga4daa8785a678d44eceb1bc9b3f015892":[7,0,1,5,5,2],
-"osal__none_8h.html#ga53f4b0bd6932c7697120bb8296b34d5a":[7,0,1,5,5,31],
-"osal__none_8h.html#ga59dd27dafc555a1329d09e407dcb2063":[7,0,1,5,5,16]
+"osal__none_8h.html#ga53f4b0bd6932c7697120bb8296b34d5a":[7,0,1,5,5,31]
 };

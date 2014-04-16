@@ -102,7 +102,7 @@ var searchData=
   ['hub_5fport_5fstatus_5fresponse_5ft',['hub_port_status_response_t',['../structhub__port__status__response__t.html',1,'']]],
   ['hub_5fstatus_5fresponse_5ft',['hub_status_response_t',['../structhub__status__response__t.html',1,'']]],
   ['host',['Host',['../group___keyboard___host.html',1,'']]],
-  ['host_20demos',['Host Demos',['../md_doxygen_started_host_demo.html',1,'md_doxygen_started_run_demo']]],
+  ['host_20demos',['Host Demos',['../md_doxygen_started_host_demo.html',1,'md_doxygen_started_demo']]],
   ['host',['Host',['../group___mouse___host.html',1,'']]],
   ['host',['Host',['../group___m_s_c___host.html',1,'']]],
   ['host_20options',['Host Options',['../group___t_u_s_b___c_f_g___h_o_s_t.html',1,'']]]
