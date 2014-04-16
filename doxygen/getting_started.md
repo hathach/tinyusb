@@ -61,4 +61,4 @@ int main(void)
 
 \subpage md_doxygen_started_demo
 
-\subpage md_doxygen_tools
+\subpage md_tools_readme
