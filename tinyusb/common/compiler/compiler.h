@@ -39,26 +39,30 @@
 /** \ingroup Group_Common
  *  \defgroup Group_Compiler Compiler
  *  \brief Group_Compiler brief
- *
- *  @{
- */
+ *  @{ */
 
 #ifndef _TUSB_COMPILER_H_
 #define _TUSB_COMPILER_H_
 
 #ifndef _TEST_
+  // TODO move some to tusb_option.h
   #define STATIC_     static
   #define INLINE_     inline
   #define ATTR_TEST_WEAK
 
-  #if TUSB_CFG_DEBUG == 3
-    #define ATTR_ALWAYS_INLINE // no inline for debug = 3
+  // allow debugger to watch any module-wide variables anywhere
+  #if TUSB_CFG_DEBUG
     #define STATIC_VAR
   #else
     #define STATIC_VAR static
   #endif
 
-#else
+  // function will not be inline for easy step by step debugging
+  #if TUSB_CFG_DEBUG >= 2
+    #define ATTR_ALWAYS_INLINE
+  #endif
+
+#else // TODO remove this, try to pass using compiler command option
   #define ATTR_ALWAYS_INLINE
   #define STATIC_
   #define STATIC_VAR
@@ -73,4 +77,5 @@
 #endif
 
 #endif /* _TUSB_COMPILER_H_ */
+
 /// @}

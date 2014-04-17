@@ -38,8 +38,7 @@
 
 /** \ingroup Group_Common
  *  \defgroup Group_Error Error Codes
- *  @{
- */
+ *  @{ */
 
 #ifndef _TUSB_ERRORS_H_
 #define _TUSB_ERRORS_H_
@@ -94,15 +93,13 @@
     ENTRY(TUSB_ERROR_FAILED                          )\
 
 
-/** \enum tusb_error_t
- *  \brief Error Code returned
- */
+/// \brief Error Code returned
 typedef enum {
   ERROR_TABLE(ERROR_ENUM)
   TUSB_ERROR_COUNT
 }tusb_error_t;
 
-#if TUSB_CFG_DEBUG == 3
+#if TUSB_CFG_DEBUG
 /// Enum to String for debugging purposes. Only available if \ref TUSB_CFG_DEBUG > 0
 extern char const* const TUSB_ErrorStr[TUSB_ERROR_COUNT];
 #endif

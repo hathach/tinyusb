@@ -73,7 +73,7 @@
       <OPTFL>
         <tvExp>1</tvExp>
         <tvExpOptDlg>0</tvExpOptDlg>
-        <IsCurrentTarget>0</IsCurrentTarget>
+        <IsCurrentTarget>1</IsCurrentTarget>
       </OPTFL>
       <CpuCode>8</CpuCode>
       <DllOpt>
@@ -212,7 +212,7 @@
         <LExpSel>0</LExpSel>
       </OPTXL>
       <OPTFL>
-        <tvExp>0</tvExp>
+        <tvExp>1</tvExp>
         <tvExpOptDlg>0</tvExpOptDlg>
         <IsCurrentTarget>0</IsCurrentTarget>
       </OPTFL>
@@ -355,7 +355,7 @@
       <OPTFL>
         <tvExp>1</tvExp>
         <tvExpOptDlg>0</tvExpOptDlg>
-        <IsCurrentTarget>1</IsCurrentTarget>
+        <IsCurrentTarget>0</IsCurrentTarget>
       </OPTFL>
       <CpuCode>8</CpuCode>
       <DllOpt>
@@ -613,7 +613,7 @@
       <Focus>0</Focus>
       <ColumnNumber>9</ColumnNumber>
       <tvExpOptDlg>0</tvExpOptDlg>
-      <TopLine>85</TopLine>
+      <TopLine>86</TopLine>
       <CurrentLine>90</CurrentLine>
       <bDave2>0</bDave2>
       <PathWithFileName>..\src\main.c</PathWithFileName>
@@ -645,7 +645,7 @@
       <Focus>0</Focus>
       <ColumnNumber>0</ColumnNumber>
       <tvExpOptDlg>0</tvExpOptDlg>
-      <TopLine>113</TopLine>
+      <TopLine>114</TopLine>
       <CurrentLine>117</CurrentLine>
       <bDave2>0</bDave2>
       <PathWithFileName>..\src\keyboard_host_app.c</PathWithFileName>
@@ -659,10 +659,10 @@
       <FileType>1</FileType>
       <tvExp>0</tvExp>
       <Focus>0</Focus>
-      <ColumnNumber>0</ColumnNumber>
+      <ColumnNumber>9</ColumnNumber>
       <tvExpOptDlg>0</tvExpOptDlg>
-      <TopLine>122</TopLine>
-      <CurrentLine>126</CurrentLine>
+      <TopLine>120</TopLine>
+      <CurrentLine>135</CurrentLine>
       <bDave2>0</bDave2>
       <PathWithFileName>..\src\mouse_host_app.c</PathWithFileName>
       <FilenameWithoutPath>mouse_host_app.c</FilenameWithoutPath>
@@ -677,7 +677,7 @@
       <Focus>0</Focus>
       <ColumnNumber>0</ColumnNumber>
       <tvExpOptDlg>0</tvExpOptDlg>
-      <TopLine>155</TopLine>
+      <TopLine>142</TopLine>
       <CurrentLine>159</CurrentLine>
       <bDave2>0</bDave2>
       <PathWithFileName>..\src\msc_host_app.c</PathWithFileName>
@@ -781,7 +781,7 @@
       <Focus>0</Focus>
       <ColumnNumber>0</ColumnNumber>
       <tvExpOptDlg>0</tvExpOptDlg>
-      <TopLine>350</TopLine>
+      <TopLine>351</TopLine>
       <CurrentLine>354</CurrentLine>
       <bDave2>0</bDave2>
       <PathWithFileName>..\..\..\tinyusb\host\usbh.c</PathWithFileName>
@@ -1349,7 +1349,7 @@
       <Focus>0</Focus>
       <ColumnNumber>0</ColumnNumber>
       <tvExpOptDlg>0</tvExpOptDlg>
-      <TopLine>144</TopLine>
+      <TopLine>145</TopLine>
       <CurrentLine>151</CurrentLine>
       <bDave2>0</bDave2>
       <PathWithFileName>..\..\..\mcu\lpc43xx\keil\startup_LPC43xx.s</PathWithFileName>

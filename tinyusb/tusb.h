@@ -110,12 +110,14 @@ tusb_error_t tusb_init(void);
     @code
     int main(void)
     {
-      // some init code
+      your_init_code();
       tusb_init();
+
       while(1) // the mainloop
       {
-        tusb_task_runner();
-        // other code
+        your_application_code();
+
+        tusb_task_runner(); // handle tinyusb event, task etc ...
       }
     }
     @endcode

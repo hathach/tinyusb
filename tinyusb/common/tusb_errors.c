@@ -38,7 +38,7 @@
 
 #include "tusb_errors.h"
 
-#if TUSB_CFG_DEBUG == 3
+#if TUSB_CFG_DEBUG
 
 char const* const TUSB_ErrorStr[TUSB_ERROR_COUNT] =
 {

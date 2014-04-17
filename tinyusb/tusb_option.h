@@ -107,14 +107,14 @@
 //--------------------------------------------------------------------+
 /**
   determines the debug level for the stack
-  - Level 3: ATTR_ALWAYS_INLINE is null, ASSERT has text, Error has its String, STATIC_VAR is NULL
-  - Level 2: ATTR_ALWAYS_INLINE is attribute, ASSERT has no text, Error has no strings
-  - Level 1: TBD
+  - Level 3: TBD
+  - Level 2: ATTR_ALWAYS_INLINE is null --> no function is inline
+  - Level 1: Print out if Assert failed. STATIC_VAR is NULL --> accessible when debugging
   - Level 0: no debug information is generated
 */
 #ifndef TUSB_CFG_DEBUG
-  #define TUSB_CFG_DEBUG 2
-  #warning TUSB_CFG_DEBUG is not defined, default value is 3
+  #define TUSB_CFG_DEBUG 0
+  #warning TUSB_CFG_DEBUG is not defined, default value is 0
 #endif
 
 #ifndef TUSB_CFG_ATTR_USBRAM

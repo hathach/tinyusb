@@ -73,7 +73,7 @@
       <OPTFL>
         <tvExp>0</tvExp>
         <tvExpOptDlg>0</tvExpOptDlg>
-        <IsCurrentTarget>0</IsCurrentTarget>
+        <IsCurrentTarget>1</IsCurrentTarget>
       </OPTFL>
       <CpuCode>8</CpuCode>
       <DllOpt>
@@ -355,7 +355,7 @@
       <OPTFL>
         <tvExp>0</tvExp>
         <tvExpOptDlg>0</tvExpOptDlg>
-        <IsCurrentTarget>1</IsCurrentTarget>
+        <IsCurrentTarget>0</IsCurrentTarget>
       </OPTFL>
       <CpuCode>8</CpuCode>
       <DllOpt>
@@ -608,7 +608,7 @@
       <Focus>0</Focus>
       <ColumnNumber>27</ColumnNumber>
       <tvExpOptDlg>0</tvExpOptDlg>
-      <TopLine>96</TopLine>
+      <TopLine>97</TopLine>
       <CurrentLine>98</CurrentLine>
       <bDave2>0</bDave2>
       <PathWithFileName>..\src\main.c</PathWithFileName>
@@ -1248,7 +1248,7 @@
       <Focus>0</Focus>
       <ColumnNumber>0</ColumnNumber>
       <tvExpOptDlg>0</tvExpOptDlg>
-      <TopLine>81</TopLine>
+      <TopLine>95</TopLine>
       <CurrentLine>103</CurrentLine>
       <bDave2>0</bDave2>
       <PathWithFileName>..\..\..\boards\board.c</PathWithFileName>
@@ -1416,7 +1416,7 @@
       <Focus>0</Focus>
       <ColumnNumber>0</ColumnNumber>
       <tvExpOptDlg>0</tvExpOptDlg>
-      <TopLine>148</TopLine>
+      <TopLine>149</TopLine>
       <CurrentLine>154</CurrentLine>
       <bDave2>0</bDave2>
       <PathWithFileName>..\..\..\mcu\lpc43xx\keil\startup_LPC43xx.s</PathWithFileName>
