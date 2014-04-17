@@ -43,6 +43,6 @@ void led_blinking_task( void * p_task_para )
 ~~~
 
 
-[//]: # (\subpage md_doxygen_started_build_demo)
-[//]: # (\subpage md_doxygen_started_device_demo)
-[//]: # (\subpage md_doxygen_started_host_demo)
+[//]: # (\subpage md_demos_readme)
+[//]: # (\subpage md_demos_device_readme)
+[//]: # (\subpage md_demos_host_readme)
