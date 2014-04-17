@@ -38,7 +38,7 @@
 
 #include <stdlib.h>
 #include "unity.h"
-#include "errors.h"
+#include "tusb_errors.h"
 #include "type_helper.h"
 
 #include "tusb_descriptors.h"

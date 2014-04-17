@@ -45,7 +45,7 @@
 #include "CException.h"
 #include "binary.h"
 #include "common/assertion.h"
-#include "errors.h"
+#include "tusb_errors.h"
 
 CEXCEPTION_T e;
 

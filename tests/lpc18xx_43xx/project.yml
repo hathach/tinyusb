@@ -32,11 +32,11 @@
     
   :source:
     - ../../tinyusb/**
-    - +:../../demos/bsp/lpc43xx/**
+    - +:../../mcu/lpc43xx/**
     #- +:../../demos/device/keyboard/*
     - -:../../demos/
-    - ../../vendor/freertos/freertos/Source/*
-    - ../../vendor/freertos/freertos/Source/portable/MSVC-MingW/*
+    #- ../../vendor/freertos/freertos/Source/*
+    #- ../../vendor/freertos/freertos/Source/portable/MSVC-MingW/*
 
 :defines:
   # in order to add common defines:

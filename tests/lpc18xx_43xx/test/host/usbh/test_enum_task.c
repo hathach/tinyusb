@@ -37,7 +37,7 @@
 /**************************************************************************/
 
 #include "unity.h"
-#include "errors.h"
+#include "tusb_errors.h"
 #include "descriptor_test.h"
 
 #include "mock_osal.h"

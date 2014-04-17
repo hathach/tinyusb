@@ -41,7 +41,7 @@
 #endif
 
 #include "unity.h"
-#include "errors.h"
+#include "tusb_errors.h"
 #include "osal_none.h"
 
 #define QUEUE_DEPTH 10

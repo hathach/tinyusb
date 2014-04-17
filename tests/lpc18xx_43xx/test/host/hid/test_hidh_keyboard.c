@@ -39,7 +39,7 @@
 #include "stdlib.h"
 #include "unity.h"
 #include "type_helper.h"
-#include "errors.h"
+#include "tusb_errors.h"
 #include "common/common.h"
 #include "hid_host.h"
 #include "mock_osal.h"

@@ -40,7 +40,7 @@
 #include "unity.h"
 #include "type_helper.h"
 #include "tusb_option.h"
-#include "errors.h"
+#include "tusb_errors.h"
 #include "binary.h"
 
 #include "hal.h"
