@@ -40,13 +40,13 @@
  * @{
  *  \defgroup EHCI
  *  \brief EHCI driver. All documents sources mentioned here (eg section 3.5) is referring to EHCI Specs unless state otherwise
- *  @{
- */
+ *  @{ */
 
 #ifndef _TUSB_EHCI_H_
 #define _TUSB_EHCI_H_
 
 #include "common/common.h"
+#include "../hcd.h"
 
 /* Abbreviation
  * HC: Host Controller

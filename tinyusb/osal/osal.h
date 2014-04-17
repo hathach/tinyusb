@@ -75,8 +75,8 @@
   #define OSAL_TASK_LOOP_END   }
 
   //------------- Sub Task -------------//
-  #define OSAL_SUBTASK_BEGIN // TODO refractor move
-  #define OSAL_SUBTASK_END return TUSB_ERROR_NONE;
+  #define OSAL_SUBTASK_BEGIN
+  #define OSAL_SUBTASK_END      return TUSB_ERROR_NONE;
 
   #define SUBTASK_EXIT(error)   return error;
   #define OSAL_SUBTASK_INVOKED_AND_WAIT(subtask, status) status = subtask
@@ -111,10 +111,8 @@ typedef uint32_t osal_task_t;
 tusb_error_t osal_task_create(osal_task_t *task);
 
 #define OSAL_TASK_DEF(code, stack_depth, prio) osal_task_t variable
-
 #define OSAL_TASK_REF(name) (&name)
-
-#define OSAL_TASK_FUNCTION(task_name) void task_name
+#define OSAL_TASK_FUNCTION(task_func, p_para)   void task_func(void * p_para)
 
 void osal_task_delay(uint32_t msec);
 

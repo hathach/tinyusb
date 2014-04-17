@@ -161,7 +161,7 @@ void test_usbh_hcd_rhport_unplugged_isr(void)
   usbh_devices[dev_addr].core_id              = 0;
   usbh_devices[dev_addr].hub_addr             = 0;
   usbh_devices[dev_addr].hub_port             = 0;
-  usbh_devices[dev_addr].flag_supported_class = TUSB_CLASS_FLAG_HID;
+  usbh_devices[dev_addr].flag_supported_class = BIT_(TUSB_CLASS_HID);
 
   hidh_close_Expect(dev_addr);
   hcd_pipe_control_close_ExpectAndReturn(dev_addr, TUSB_ERROR_NONE);
@@ -180,7 +180,7 @@ void test_usbh_device_unplugged_multple_class(void)
   usbh_devices[dev_addr].core_id              = 0;
   usbh_devices[dev_addr].hub_addr             = 0;
   usbh_devices[dev_addr].hub_port             = 0;
-  usbh_devices[dev_addr].flag_supported_class = TUSB_CLASS_FLAG_HID | TUSB_CLASS_FLAG_MSC | TUSB_CLASS_FLAG_CDC;
+  usbh_devices[dev_addr].flag_supported_class = BIT_(TUSB_CLASS_HID) | BIT_(TUSB_CLASS_MSC) | BIT_(TUSB_CLASS_CDC);
 
   cdch_close_Expect(dev_addr);
   hidh_close_Expect(dev_addr);

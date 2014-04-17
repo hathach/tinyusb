@@ -50,7 +50,10 @@
 
 #include "descriptor_cdc.h"
 #include "cdc_host.h"
+
+#if TUSB_CFG_HOST_CDC_RNDIS // TODO enable
 #include "cdc_rndis_host.h"
+#endif
 
 static uint8_t dev_addr;
 static uint16_t length;

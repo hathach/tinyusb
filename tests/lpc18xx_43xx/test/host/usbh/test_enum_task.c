@@ -321,6 +321,6 @@ void test_enum_set_configure(void)
 
   usbh_enumeration_task(NULL);
 
-  TEST_ASSERT_EQUAL(TUSB_CLASS_FLAG_HID | TUSB_CLASS_FLAG_MSC | TUSB_CLASS_FLAG_CDC,
+  TEST_ASSERT_EQUAL( BIT_(TUSB_CLASS_HID) | BIT_(TUSB_CLASS_MSC) | BIT_(TUSB_CLASS_CDC),
                     usbh_devices[1].flag_supported_class); // TODO change later
 }

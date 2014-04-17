@@ -36,6 +36,14 @@
 */
 /**************************************************************************/
 
+void setUp(void)
+{
+}
+void tearDown(void)
+{
+}
+
+#if 0 // TODO enable
 #include "stdlib.h"
 #include "unity.h"
 #include "tusb_option.h"
@@ -305,3 +313,4 @@ void test_rndis_initialization_sequence_ok(void)
   TEST_ASSERT_EQUAL(msg_init_cmplt.max_xfer_size, p_rndis->max_xfer_size);
   TEST_ASSERT_EQUAL_HEX8_ARRAY("CAFEBB", p_rndis->mac_address, 6);
 }
+#endif

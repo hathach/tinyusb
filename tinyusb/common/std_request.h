@@ -46,6 +46,10 @@
  extern "C" {
 #endif
 
+#include "tusb_option.h"
+#include "primitive_types.h"
+#include "compiler/compiler.h"
+
 typedef ATTR_PACKED_STRUCT(struct){
   union {
     ATTR_PACKED_STRUCT(struct) {

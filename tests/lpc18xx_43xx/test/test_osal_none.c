@@ -40,6 +40,16 @@
 #undef TUSB_CFG_OS
 #endif
 
+void setUp(void)
+{
+}
+
+void tearDown(void)
+{
+
+}
+
+#if 0 // TODO enable
 #include "unity.h"
 #include "tusb_errors.h"
 #include "osal_none.h"
@@ -432,3 +442,4 @@ void test_task_flow_control_assert_status_hanlder(void)
   TEST_ASSERT_EQUAL(0, statements[3]);
   TEST_ASSERT_EQUAL(1, statements[5]);
 }
+#endif

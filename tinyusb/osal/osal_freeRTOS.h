@@ -133,8 +133,7 @@ static inline void osal_semaphore_reset(osal_semaphore_handle_t const sem_hdl)
 #define OSAL_MUTEX_DEF  OSAL_SEM_DEF
 typedef xSemaphoreHandle osal_mutex_handle_t;
 
-#define osal_mutex_create(x) \
-  xSemaphoreCreateMutex()
+#define osal_mutex_create(x) xSemaphoreCreateMutex()
 
 static inline  tusb_error_t osal_mutex_release(osal_mutex_handle_t const mutex_hdl) ATTR_ALWAYS_INLINE;
 static inline  tusb_error_t osal_mutex_release(osal_mutex_handle_t const mutex_hdl)
@@ -172,8 +171,7 @@ typedef xQueueHandle osal_queue_handle_t;
 
 #define OSAL_QUEUE_REF(name)    (&name)
 
-#define osal_queue_create(p_queue) \
-  xQueueCreate((p_queue)->depth, (p_queue)->item_size)
+#define osal_queue_create(p_queue) xQueueCreate((p_queue)->depth, (p_queue)->item_size)
 
 static inline void osal_queue_receive (osal_queue_handle_t const queue_hdl, void *p_data, uint32_t msec, tusb_error_t *p_error) ATTR_ALWAYS_INLINE;
 static inline void osal_queue_receive (osal_queue_handle_t const queue_hdl, void *p_data, uint32_t msec, tusb_error_t *p_error)

@@ -50,10 +50,10 @@
 // INCLUDE
 //--------------------------------------------------------------------+
 #include "common/common.h"
+#include "osal/osal.h"
 
 #ifdef _TEST_
 #include "hcd.h"
-#include "osal.h"
 #endif
 
 //--------------------------------------------------------------------+

@@ -44,6 +44,26 @@
 #ifndef _TUSB_COMPILER_H_
 #define _TUSB_COMPILER_H_
 
+#define STRING_(x)  #x                             ///< stringify without expand
+#define XSTRING_(x) STRING_(x)                     ///< expand then stringify
+#define STRING_CONCAT_(a, b) a##b                  ///< concat without expand
+#define XSTRING_CONCAT_(a, b) STRING_CONCAT_(a, b) ///< expand then concat
+
+//--------------------------------------------------------------------+
+// Compile-time Assert
+//--------------------------------------------------------------------+
+#ifdef __ICCARM__
+  #define STATIC_ASSERT static_assert
+#else
+  #if defined __COUNTER__ && __COUNTER__ != __COUNTER__
+    #define _ASSERT_COUNTER __COUNTER__
+  #else
+    #define _ASSERT_COUNTER __LINE__
+  #endif
+
+  #define STATIC_ASSERT(const_expr, message) enum { XSTRING_CONCAT_(static_assert_, _ASSERT_COUNTER) = 1/(!!(const_expr)) }
+#endif
+
 #ifndef _TEST_
   // TODO move some to tusb_option.h
   #define STATIC_     static

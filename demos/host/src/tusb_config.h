@@ -65,10 +65,10 @@
 //--------------------------------------------------------------------+
 // COMMON CONFIGURATION
 //--------------------------------------------------------------------+
-#define TUSB_CFG_DEBUG                3
+#define TUSB_CFG_DEBUG                2
 
 //#define TUSB_CFG_OS                   TUSB_OS_NONE // defined using eclipse build
-//#define TUSB_CFG_OS_TASK_PRIO                      // defined using eclipse build
+//#define TUSB_CFG_OS_TASK_PRIO         0            // defined using eclipse build
 
 #define TUSB_CFG_TICKS_HZ             1000
 

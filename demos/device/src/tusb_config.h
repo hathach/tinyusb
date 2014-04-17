@@ -57,7 +57,7 @@
 
 //------------- CLASS -------------//
 #define TUSB_CFG_DEVICE_HID_KEYBOARD            1
-#define TUSB_CFG_DEVICE_HID_MOUSE               1
+#define TUSB_CFG_DEVICE_HID_MOUSE               0
 #define TUSB_CFG_DEVICE_HID_GENERIC             0 // not supported yet
 #define TUSB_CFG_DEVICE_MSC                     1
 #define TUSB_CFG_DEVICE_CDC                     1
@@ -65,10 +65,10 @@
 //--------------------------------------------------------------------+
 // COMMON CONFIGURATION
 //--------------------------------------------------------------------+
-#define TUSB_CFG_DEBUG                3
+#define TUSB_CFG_DEBUG                2
 
 //#define TUSB_CFG_OS                   TUSB_OS_NONE // be passed from IDE/command line for easy project switching
-//#define TUSB_CFG_OS_TASK_PRIO                      // be passed from IDE/command line for easy project switching
+//#define TUSB_CFG_OS_TASK_PRIO         0            // be passed from IDE/command line for easy project switching
 #define TUSB_CFG_TICKS_HZ             1000
 
 //--------------------------------------------------------------------+

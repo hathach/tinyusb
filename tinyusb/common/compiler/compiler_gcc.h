@@ -36,14 +36,9 @@
 */
 /**************************************************************************/
 
-/** \file
- *  \brief GCC Header
- */
-
 /** \ingroup Group_Compiler
  *  \defgroup Group_GCC GNU GCC
- *  @{
- */
+ *  @{ */
 
 #ifndef _TUSB_COMPILER_GCC_H_
 #define _TUSB_COMPILER_GCC_H_
@@ -63,10 +58,8 @@
 /// If this attribute is used on a function declaration and a call to such a function is not eliminated through dead code elimination or other optimizations, a warning that includes message is diagnosed. This is useful for compile-time checking
 #define ATTR_WARNING(Message)      __attribute__ ((warning(Message)))
 
-/**
- *  \defgroup Group_VariableAttr Variable Attributes
- *  @{
- */
+/** \defgroup Group_VariableAttr Variable Attributes
+ *  @{ */
 
 /// This attribute specifies a minimum alignment for the variable or structure field, measured in bytes
 #define ATTR_ALIGNED(Bytes)        __attribute__ ((aligned(Bytes)))
@@ -79,10 +72,8 @@
 #define ATTR_PACKED_STRUCT(x)     x __attribute__ ((packed))
 /** @} */
 
-/**
- *  \defgroup Group_FuncAttr Function Attributes
- *  @{
- */
+/** \defgroup Group_FuncAttr Function Attributes
+ *  @{ */
 
 #ifndef ATTR_ALWAYS_INLINE
 /// Generally, functions are not inlined unless optimization is specified. For functions declared inline, this attribute inlines the function even if no optimization level is specified
@@ -125,10 +116,8 @@
 
 /** @} */
 
-/**
-*  \defgroup Group_BuiltinFunc Built-in Functions
-*  @{
-*/
+/** \defgroup Group_BuiltinFunc Built-in Functions
+*  @{ */
 
 // TODO mcu specific
 #if __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
