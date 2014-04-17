@@ -124,7 +124,7 @@ $(document).ready(function(){initNavTree('index.html','');});
 </li>
 </ul>
 <p>tinyusb is an open-source (BSD-licensed) USB Host/Device/OTG stack for embedded micro-controllers, especially ARM MCUs. It is designed to be user-friendly in term of configuration and out-of-the-box running experience.</p>
-<p>In addition to running without an RTOS, tinyusb is an OS-awared stack that can run across RTOS vendors. For the purpose of eliminating bugs as soon as possible, the stack is developed using <a class="el" href="tests_2readme_8md_source.html">Test-Driven Development (TDD)</a> approach</p>
+<p>In addition to running without an RTOS, tinyusb is an OS-awared stack that can run across RTOS vendors. For the purpose of eliminating bugs as soon as possible, the stack is developed using <a class="el" href="tests_2readme_8md_source.html">Test-Driven Development (TDD)</a> approach. More documents and API reference can be found at <a href="http://docs.tinyusb.org">http://docs.tinyusb.org</a></p>
 <div class="image">
 <img src="http://docs.tinyusb.org/images/tinyusb_overview.png"  alt="tinyusb diagram"/>
 </div>
@@ -136,10 +136,7 @@ $(document).ready(function(){initNavTree('index.html','');});
 <li>HID Generic (comming soon)</li>
 <li>Communication Device Class (CDC)</li>
 <li>Mass Storage Class (MSC)</li>
-<li>Hub<ul>
-<li>Only support 1 level of hub (due to my laziness)</li>
-</ul>
-</li>
+<li>Hub currnetly only support 1 level of hub (due to my laziness)</li>
 </ul>
 <h3>Device</h3>
 <ul>
@@ -156,6 +153,13 @@ $(document).ready(function(){initNavTree('index.html','');});
 <li><b>FreeRTOS</b></li>
 <li><b>CMSIS RTX</b></li>
 </ul>
+<h3>Toolchains</h3>
+<p>You can compile with any of following toolchains</p>
+<ul>
+<li>lpcxpresso</li>
+<li>Keil MDK</li>
+<li>IAR Workbench</li>
+</ul>
 <h3>Supported MCUs</h3>
 <p>The stack supports the following MCUs</p>
 <ul>
@@ -164,18 +168,11 @@ $(document).ready(function(){initNavTree('index.html','');});
 <li>LPC175x_6x</li>
 <li>LPC43xx</li>
 </ul>
-<p><a href="boards/">Here is the list of supported Boards</a> in the code base</p>
-<h3>Toolchains</h3>
-<p>You can compile with any of following toolchains</p>
-<ul>
-<li><em>lpcxpresso/redsuite</em></li>
-<li><em>Keil MDK</em></li>
-<li><em>IAR Workbench</em></li>
-</ul>
+<p><a class="el" href="boards_2readme_8md_source.html">Here is the list of supported Boards</a> in the code base</p>
 <h2>Getting Started</h2>
-<p>Here is the details for getting started with the stack</p>
+<p><a class="el" href="getting__started_8md_source.html">Here is the details for getting started</a> with the stack.</p>
 <h2>License</h2>
-<p>BSD license for most of the code base, but each file is individually licensed especially those in /vendor folder. Please make sure you understand all the license term for files you use in your project. <a class="el" href="license_8md_source.html">Full license here</a></p>
+<p>BSD license for most of the code base, but each file is individually licensed especially those in <em>vendor</em> folder. Please make sure you understand all the license term for files you use in your project. <a class="el" href="license_8md_source.html">Full license is here</a></p>
 <h2>How Can I Help</h2>
 <p>If you find my little USB stack is useful and want to give something back</p>
 <h3>Donate Time</h3>
@@ -190,7 +187,7 @@ $(document).ready(function(){initNavTree('index.html','');});
 <!-- start footer part -->
 <div id="nav-path" class="navpath"><!-- id is needed for treeview function! -->
   <ul>
-    <li class="footer">Generated on Wed Apr 16 2014 22:28:42 for tinyusb by
+    <li class="footer">Generated on Thu Apr 17 2014 13:05:33 for tinyusb by
     <a href="http://www.doxygen.org/index.html">
     <img class="footer" src="doxygen.png" alt="doxygen"/></a> 1.8.6 </li>
   </ul>

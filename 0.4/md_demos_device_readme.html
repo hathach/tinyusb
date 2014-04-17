@@ -5,7 +5,7 @@
 <meta http-equiv="Content-Type" content="text/xhtml;charset=UTF-8"/>
 <meta http-equiv="X-UA-Compatible" content="IE=9"/>
 <meta name="generator" content="Doxygen 1.8.6"/>
-<title>tinyusb: Build Demos</title>
+<title>tinyusb: Device Demos</title>
 <link href="tabs.css" rel="stylesheet" type="text/css"/>
 <script type="text/javascript" src="jquery.js"></script>
 <script type="text/javascript" src="dynsections.js"></script>
@@ -83,7 +83,7 @@ var searchBox = new SearchBox("searchBox", "search",false,'Search');
   </div>
 </div>
 <script type="text/javascript">
-$(document).ready(function(){initNavTree('md_doxygen_started_build_demo.html','');});
+$(document).ready(function(){initNavTree('md_demos_device_readme.html','');});
 </script>
 <div id="doc-content">
 <!-- window showing the filter options -->
@@ -102,74 +102,82 @@ $(document).ready(function(){initNavTree('md_doxygen_started_build_demo.html',''
 
 <div class="header">
   <div class="headertitle">
-<div class="title">Build Demos </div>  </div>
+<div class="title">Device Demos </div>  </div>
 </div><!--header-->
 <div class="contents">
 <div class="textblock"><p><b>Table of Contents</b></p>
 <ul>
-<li><a href="#lpcxpresso">LPCXpresso</a></li>
-<li><a href="#keil">Keil</a></li>
-<li><a href="#iar">IAR</a></li>
-<li><a href="#configure-demo">Configure demo</a></li>
+<li><a href="#prerequisites">Prerequisites</a></li>
+<li><a href="#human-interface-device-hid">Human Interface Device (HID)</a><ul>
+<li><a href="#keyboard">Keyboard</a></li>
+<li><a href="#mouse">Mouse</a></li>
 </ul>
-<h2>LPCXpresso</h2>
-<p>LPCXpresso is an eclipse-based IDE, so you will need to create an workspace first then import project files (.cproject &amp; .project) into it. The following step explain how to do just that.</p>
-<ol type="1">
-<li><p class="startli">Click <em>File-&gt;Import</em>, then expand the <em>General</em> folder and select <b>Existing Projects into Workspace</b> and click Next.</p>
-<div class="image">
-<img src="http://docs.tinyusb.org/images/lpcxpresso_import.png"  alt="lpcxpresso_import.png"/>
-</div>
 </li>
-<li><p class="startli">On the next dialog, Click <em>Browse</em> and choose the <b>repo/demos</b> folder inside the repo. You should see a list of all demo applications. [<b>IMPORTANT</b>] Make sure the option <b>Copy projects into workspace</b> is <b>CLEAR</b>, as demo application uses <em>link folders</em> and this option may cause problem with the copy import. Then choose any of the demo application and click <em>Finish</em>.</p>
-<div class="image">
-<img src="http://docs.tinyusb.org/images/lpcxpresso_import2.png"  alt="lpcxpresso_import2.png"/>
-</div>
+<li><a href="#mass-storage-class-device-msc">Mass Storage Class Device (MSC)</a></li>
+<li><a href="#communication-class-device-cdc">Communication Class Device (CDC)</a><ul>
+<li><a href="#serial">Serial</a></li>
+</ul>
 </li>
-<li><p class="startli">Select the configure corresponding to your development board.</p>
-<div class="image">
-<img src="http://docs.tinyusb.org/images/lpcxpresso_select_board.png"  alt="lpcxpresso_select_board.png"/>
-</div>
-</li>
-<li><p class="startli">Then select the correct MCU option from project properties then you are ready to go.</p>
-<div class="image">
-<img src="http://docs.tinyusb.org/images/lpcxpresso_mcu.png"  alt="lpcxpresso_mcu.png"/>
-</div>
-</li>
-</ol>
-<h2>Keil</h2>
-<p>It is relatively simple for Keil</p>
-<ol type="1">
-<li>Open the desired demo project e.g <em>demos/host/host_freertos/host_freertos.uvproj</em></li>
-<li><p class="startli">Select the configure corresponding to your development board and build it.</p>
-<div class="image">
-<img src="http://docs.tinyusb.org/images/keil_select_board.png"  alt="keil_select_board.png"/>
-</div>
-</li>
-</ol>
-<h2>IAR</h2>
-<p>IAR is just as easy as Keil</p>
-<ol type="1">
-<li>Open the desired demo project e.g <em>demos/host/host_freertos/host_freertos.eww</em></li>
-<li><p class="startli">Again select the configure corresponding to your development board and build it.</p>
-<div class="image">
-<img src="http://docs.tinyusb.org/images/iar_select_board.png"  alt="iar_select_board.png"/>
-</div>
-</li>
-</ol>
-<h2>Configure demo</h2>
-<p>Application demo is written to have the code excluded if its required option is not enabled in [tusb_config.h](). Some of combination may exceed the 32KB limit of IAR/Keil so you may want to re-configure to disable some class support, decrease TUSB_CFG_DEBUG or increase the compiler optimization level.</p>
-<p>In addition, there are some configuration you can change such as</p>
+</ul>
+<p>device application code is store at <em>demos/device/src</em> containing</p>
+<table class="doxtable">
+<tr>
+<th>File </th><th>Description  </th></tr>
+<tr>
+<td>main.c </td><td>Initialization (board, stack) and a RTOS task scheduler call or just simple a indefinite loop for non OS to invoke class-specific tasks. </td></tr>
+<tr>
+<td>tusb_config.h </td><td>tinyusb stack configuration. </td></tr>
+<tr>
+<td>tusb_descriptors(c,h) </td><td>contains all the required usb descriptors for all combination of supported classes. And definition of stack-required variable <em>tusbd_descriptor_pointers</em>. </td></tr>
+<tr>
+<td>app_os_prio.h </td><td>RTOS task priority definitions </td></tr>
+<tr>
+<td>Class-specific </td><td>Application files for supported classes. </td></tr>
+</table>
+<p>The demo will start with the greeting of enabled classes and chosen RTOS then start to blink an LED at 1 Hz.</p>
+<h2>Prerequisites</h2>
+<p>In order to run application demo, you would need</p>
 <ul>
-<li>CFG_UART_BAUDRATE in <a class="el" href="board_8h.html">board.h</a></li>
-<li>CFG_PRINTF_TARGET in the specific board header (e.g <a class="el" href="board__ea4357_8h.html">board_ea4357.h</a>) to either Semihost, Uart, or SWO. </li>
+<li>A ../../boards/readme.md "supported development board" with at least a button for mouse, keyboard demo.</li>
+<li>A supported toolchain: LPCXpresso, Keil, IAR.</li>
+<li>A decent terminal such as <a href="http://en.sourceforge.jp/projects/ttssh2/">Tera Term</a> for CDC Serial.</li>
 </ul>
-</div></div><!-- contents -->
+<h2>Human Interface Device (HID)</h2>
+<h3>Keyboard</h3>
+<p>After the board get enumerated successfully, you can try to press some buttons while opening notepad. It should get some characters out accordingly. In addition, when you press Capslock or Numlock key on your own pc's keyboard, the LED will blink faster twice. This demonstrates that keyboard application can receive Set Report via control pipe.</p>
+<p>Notes: The very same buttons may also used by Mouse application. You can get the mouse moving and character, should you enable both.</p>
+<h3>Mouse</h3>
+<p>After the board get enumerated successfully, you can try to press some buttons. The mouse's cursor should move accordingly.</p>
+<p>Notes: The very same buttons may also used by Keyboard application. You can get the mouse moving and character, should you enable both.</p>
+<h2>Mass Storage Class Device (MSC)</h2>
+<p>This class is very simple, as soon as the demo work, you could open the demo drive. Inside, you should find a <em>README.TXT</em> file which contains a few lines of descriptions. The demo drive's format is FAT12 and only has 8KB, which is the smallest possible to work with most host OS (Windows/Linux).</p>
+<p>Notes: The entire disk contents ( 8KB ) is located on MCU's SRAM if possible (such as lpc43xx, lpc175x_6x). For MCU (lpc11u, lpc13u) that cannot afford that, the contents is instead on internal Flash which make the demo drive is read-only.</p>
+<h2>Communication Class Device (CDC)</h2>
+<p>CDC has several subclass, currently tinyusb only supports the popular <em>Abstract Control Model (ACM)</em></p>
+<h3>Serial</h3>
+<p>The virtual COM is also as easy as MSC. Except that we need to "install" driver for the first plug if your host OS is Windows, Linux should be able to work right away.</p>
+<p><b>Install Driver for Windows</b></p>
+<p>Actually Windows already has the needed driver to operate with virtual serial of CDC-ACM, the <em>usbser</em>. However, since it also use Abstract Control Model for other purposes, it requires us to tell exactly which VendorID/ProductID comibination should be used as a virtual serial. The demo's src folder includes <em>WinCDCdriver.inf</em> to do just that.</p>
+<p>Firstly open <em>Device Manager</em>, we should find our board under "Other devices", right click on it and choose "Update Driver Software..."</p>
+<div class="image">
+<img src="http://docs.tinyusb.org/images/demo_serial_driver.png"  alt="Serial Install Driver"/>
+</div>
+<p>Then choose "Browse my computer for driver software" then navigate to the device demo's <em>src</em> and click next. Since I am nowhere near a known publisher to Microsoft, it will warn you with a scary dialog. With all your trust in me, click next and hope that nothing harmful will ever happen and we are done with the driver.</p>
+<div class="image">
+<img src="http://docs.tinyusb.org/images/demo_serial_driver2.png"  alt="Serial Install Driver"/>
+</div>
+<p><b>Testing Demo</b></p>
+<p>Connect to the "tinyusb Serial Port" with your terminal application, and start to type. You should get echo back as the CDC serial application demo is written to transmit what it received.</p>
+<div class="image">
+<img src="http://docs.tinyusb.org/images/demo_cdc_connect.png"  alt="Serial Connect"/>
+</div>
+ </div></div><!-- contents -->
 </div><!-- doc-content -->
 <!-- start footer part -->
 <div id="nav-path" class="navpath"><!-- id is needed for treeview function! -->
   <ul>
     <li class="navelem"><a class="el" href="md_doxygen_getting_started.html">Getting Started</a></li><li class="navelem"><a class="el" href="md_doxygen_started_demo.html">Demos</a></li>
-    <li class="footer">Generated on Wed Apr 16 2014 22:28:39 for tinyusb by
+    <li class="footer">Generated on Thu Apr 17 2014 13:05:28 for tinyusb by
     <a href="http://www.doxygen.org/index.html">
     <img class="footer" src="doxygen.png" alt="doxygen"/></a> 1.8.6 </li>
   </ul>
