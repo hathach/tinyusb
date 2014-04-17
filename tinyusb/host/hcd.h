@@ -49,6 +49,7 @@
 
 #include "common/common.h"
 
+#if MODE_HOST_SUPPORTED
 // Max number of endpoints per device
 enum {
   HCD_MAX_ENDPOINT = TUSB_CFG_HOST_HUB + TUSB_CFG_HOST_HID_KEYBOARD + TUSB_CFG_HOST_HID_MOUSE + TUSB_CFG_HOST_HID_GENERIC +
@@ -56,6 +57,7 @@ enum {
 
   HCD_MAX_XFER     = HCD_MAX_ENDPOINT*2,
 };
+#endif
 
 //--------------------------------------------------------------------+
 // MACRO CONSTANT TYPEDEF
