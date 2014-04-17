@@ -73,7 +73,7 @@ You can compile with any of following toolchains
 
 ## Getting Started ##
 
-[Here is the details for getting started](tinyusb/doxygen/getting_started.md) with the stack  
+[Here is the details for getting started](doxygen/getting_started.md) with the stack  
 
 ## License ##
 
