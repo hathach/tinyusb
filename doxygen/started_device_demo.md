@@ -4,6 +4,7 @@
 <!-- DON'T EDIT THIS SECTION, INSTEAD RE-RUN doctoc TO UPDATE -->
 **Table of Contents**
 
+- [Prerequisites](#prerequisites)
 - [Human Interface Device (HID)](#human-interface-device-hid)
 	- [Keyboard](#keyboard)
 	- [Mouse](#mouse)
@@ -37,7 +38,7 @@ In order to run application demo, you would need
 
 ### Keyboard
 
-After the board get enumerated successfully, you can try to press some buttons while opening notepad. It should get some characters out accordingly. Hint: 
+After the board get enumerated successfully, you can try to press some buttons while opening notepad. It should get some characters out accordingly. In addition, when you press Capslock or Numlock key on your own pc's keyboard, the LED will blink faster twice. This demonstrates that keyboard application can receive Set Report via control pipe. 
 
 Notes: The very same buttons may also used by Mouse application. You can get the mouse moving and character, should you enable both.
 

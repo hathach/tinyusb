@@ -84,7 +84,7 @@ static char const * const cli_error_message[] =
     ENTRY(cp      , cli_cmd_copy     , "Copies one or more files to another location.\n  cp a_file.txt dir1/another_file.txt\n  cp a_file.txt dir1\n" ) \
     ENTRY(mkdir   , cli_cmd_mkdir    , "Create a DIRECTORY, if it does not already exist.\n  mkdir <new folder>\n"                                    ) \
     ENTRY(mv      , cli_cmd_move     , "Rename or move a DIRECTORY or a FILE.\n  mv old_name.txt new_name.txt\n  mv old_name.txt dir1/new_name.txt\n" ) \
-    ENTRY(rm      , cli_cmd_remove   , "Remove (delete) a empty DIRECTORY or a FILE.\n  rm deleted_name.txt\n  rm empty_dir\n"                        ) \
+    ENTRY(rm      , cli_cmd_remove   , "Remove (delete) an empty DIRECTORY or FILE.\n  rm deleted_name.txt\n  rm empty_dir\n"                        ) \
 
 //--------------------------------------------------------------------+
 // Expands the function to have the standard function signature
