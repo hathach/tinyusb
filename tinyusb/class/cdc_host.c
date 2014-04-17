@@ -55,7 +55,7 @@
 //--------------------------------------------------------------------+
 // INTERNAL OBJECT & FUNCTION DECLARATION
 //--------------------------------------------------------------------+
-/*STATIC_*/ cdch_data_t cdch_data[TUSB_CFG_HOST_DEVICE_MAX]; // TODO to be static
+STATIC_VAR cdch_data_t cdch_data[TUSB_CFG_HOST_DEVICE_MAX]; // TODO to be static
 
 static inline cdc_pipeid_t get_app_pipeid(pipe_handle_t pipe_hdl) ATTR_PURE  ATTR_ALWAYS_INLINE;
 static inline cdc_pipeid_t get_app_pipeid(pipe_handle_t pipe_hdl)

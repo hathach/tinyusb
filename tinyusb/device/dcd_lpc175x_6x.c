@@ -68,7 +68,7 @@ typedef struct {
 
 }dcd_data_t;
 
-TUSB_CFG_ATTR_USBRAM ATTR_ALIGNED(128) STATIC_ dcd_data_t dcd_data;
+TUSB_CFG_ATTR_USBRAM ATTR_ALIGNED(128) STATIC_VAR dcd_data_t dcd_data;
 
 //--------------------------------------------------------------------+
 // INTERNAL OBJECT & FUNCTION DECLARATION

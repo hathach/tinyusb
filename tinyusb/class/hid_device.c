@@ -105,7 +105,7 @@ static hidd_class_driver_t const hidd_class_driver[HIDD_NUMBER_OF_SUBCLASS] =
 };
 
 // internal buffer for transferring data
-TUSB_CFG_ATTR_USBRAM static uint8_t m_hid_buffer[ HIDD_BUFFER_SIZE ];
+TUSB_CFG_ATTR_USBRAM STATIC_VAR uint8_t m_hid_buffer[ HIDD_BUFFER_SIZE ];
 
 //--------------------------------------------------------------------+
 // KEYBOARD APPLICATION API
