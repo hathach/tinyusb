@@ -112,7 +112,7 @@ tusb_error_t hal_init(void)
     LPC_USB1->USBMODE_D = LPC43XX_USBMODE_DEVICE;
   #endif
 
-  LPC_USB1->PORTSC1_D |= (1<<24); // TODO abtract, force port to fullspeed
+  LPC_USB1->PORTSC1_D |= (1<<24); // TODO abstract, force port to fullspeed
 #endif
 
   return TUSB_ERROR_NONE;

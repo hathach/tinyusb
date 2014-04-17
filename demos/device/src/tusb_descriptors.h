@@ -77,56 +77,55 @@
 
 #if TUSB_CFG_MCU == MCU_LPC175X_6X // MCUs's endpoint number has a fixed type
 
-//------------- CDC -------------//
-#define CDC_EDPT_NOTIFICATION_ADDR            EDPT_IN (1)
-#define CDC_EDPT_NOTIFICATION_PACKETSIZE      64
+  //------------- CDC -------------//
+  #define CDC_EDPT_NOTIFICATION_ADDR            EDPT_IN (1)
+  #define CDC_EDPT_NOTIFICATION_PACKETSIZE      64
 
-#define CDC_EDPT_DATA_OUT_ADDR                EDPT_OUT(2)
-#define CDC_EDPT_DATA_IN_ADDR                 EDPT_IN (2)
-#define CDC_EDPT_DATA_PACKETSIZE              64
+  #define CDC_EDPT_DATA_OUT_ADDR                EDPT_OUT(2)
+  #define CDC_EDPT_DATA_IN_ADDR                 EDPT_IN (2)
+  #define CDC_EDPT_DATA_PACKETSIZE              64
 
-//------------- HID Keyboard -------------//
-#define HID_KEYBOARD_EDPT_ADDR                EDPT_IN (4)
-#define HID_KEYBOARD_EDPT_PACKETSIZE          8
+  //------------- HID Keyboard -------------//
+  #define HID_KEYBOARD_EDPT_ADDR                EDPT_IN (4)
+  #define HID_KEYBOARD_EDPT_PACKETSIZE          8
 
-//------------- HID Mouse -------------//
-#define HID_MOUSE_EDPT_ADDR                   EDPT_IN (7)
-#define HID_MOUSE_EDPT_PACKETSIZE             8
+  //------------- HID Mouse -------------//
+  #define HID_MOUSE_EDPT_ADDR                   EDPT_IN (7)
+  #define HID_MOUSE_EDPT_PACKETSIZE             8
 
-//------------- HID Generic -------------//
+  //------------- HID Generic -------------//
 
-//------------- Mass Storage -------------//
-#define MSC_EDPT_OUT_ADDR                     EDPT_OUT(5)
-#define MSC_EDPT_IN_ADDR                      EDPT_IN (5)
-#define MSC_EDPT_PACKETSIZE                   (TUSB_CFG_DEVICE_FULLSPEED ? 64 : 512)
-
+  //------------- Mass Storage -------------//
+  #define MSC_EDPT_OUT_ADDR                     EDPT_OUT(5)
+  #define MSC_EDPT_IN_ADDR                      EDPT_IN (5)
 
 #else
 
-//------------- CDC -------------//
-#define CDC_EDPT_NOTIFICATION_ADDR            EDPT_IN (INTERFACE_NO_CDC+1)
-#define CDC_EDPT_NOTIFICATION_PACKETSIZE      64
+  //------------- CDC -------------//
+  #define CDC_EDPT_NOTIFICATION_ADDR            EDPT_IN (INTERFACE_NO_CDC+1)
+  #define CDC_EDPT_NOTIFICATION_PACKETSIZE      64
 
-#define CDC_EDPT_DATA_OUT_ADDR                EDPT_OUT(INTERFACE_NO_CDC+2)
-#define CDC_EDPT_DATA_IN_ADDR                 EDPT_IN (INTERFACE_NO_CDC+2)
-#define CDC_EDPT_DATA_PACKETSIZE              64
+  #define CDC_EDPT_DATA_OUT_ADDR                EDPT_OUT(INTERFACE_NO_CDC+2)
+  #define CDC_EDPT_DATA_IN_ADDR                 EDPT_IN (INTERFACE_NO_CDC+2)
+  #define CDC_EDPT_DATA_PACKETSIZE              64
 
-//------------- HID Keyboard -------------//
-#define HID_KEYBOARD_EDPT_ADDR                EDPT_IN (INTERFACE_NO_HID_KEYBOARD+1)
-#define HID_KEYBOARD_EDPT_PACKETSIZE          8
+  //------------- HID Keyboard -------------//
+  #define HID_KEYBOARD_EDPT_ADDR                EDPT_IN (INTERFACE_NO_HID_KEYBOARD+1)
+  #define HID_KEYBOARD_EDPT_PACKETSIZE          8
 
-//------------- HID Mouse -------------//
-#define HID_MOUSE_EDPT_ADDR                   EDPT_IN (INTERFACE_NO_HID_MOUSE+1)
-#define HID_MOUSE_EDPT_PACKETSIZE             8
+  //------------- HID Mouse -------------//
+  #define HID_MOUSE_EDPT_ADDR                   EDPT_IN (INTERFACE_NO_HID_MOUSE+1)
+  #define HID_MOUSE_EDPT_PACKETSIZE             8
 
-//------------- HID Generic -------------//
+  //------------- HID Generic -------------//
 
-//------------- Mass Storage -------------//
-#define MSC_EDPT_OUT_ADDR                     EDPT_OUT(INTERFACE_NO_MSC+1)
-#define MSC_EDPT_IN_ADDR                      EDPT_IN (INTERFACE_NO_MSC+1)
-#define MSC_EDPT_PACKETSIZE                   (TUSB_CFG_DEVICE_FULLSPEED ? 64 : 512)
+  //------------- Mass Storage -------------//
+  #define MSC_EDPT_OUT_ADDR                     EDPT_OUT(INTERFACE_NO_MSC+1)
+  #define MSC_EDPT_IN_ADDR                      EDPT_IN (INTERFACE_NO_MSC+1)
 
 #endif
+
+#define MSC_EDPT_PACKETSIZE                   (TUSB_CFG_MCU == MCU_LPC43XX ? 512 : 64)
 
 //--------------------------------------------------------------------+
 // CONFIGURATION DESCRIPTOR

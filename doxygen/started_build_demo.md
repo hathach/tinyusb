@@ -31,6 +31,10 @@ LPCXpresso is an eclipse-based IDE, so you will need to create an workspace firs
     
     ![lpcxpresso_mcu.png](http://docs.tinyusb.org/images/lpcxpresso_mcu.png)
 
+*TIPS* Working with eclipse-based IDE like lpcxpresso, you should change the indexer option in *Preferences->C/C++->Indexer* to "active build" to have a better code viewer. Those lines that are opt out by #if will be gray, I found this extremely helpful.
+
+![lpcpresso_indexer](http://docs.tinyusb.org/images/lpcxpresso_indexer.png)
+
 ## Keil
 
 It is relatively simple for Keil
