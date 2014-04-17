@@ -20,7 +20,7 @@
 
 tinyusb is an open-source (BSD-licensed) USB Host/Device/OTG stack for embedded micro-controllers, especially ARM MCUs. It is designed to be user-friendly in term of configuration and out-of-the-box running experience.
 
-In addition to running without an RTOS, tinyusb is an OS-awared stack that can run across RTOS vendors. For the purpose of eliminating bugs as soon as possible, the stack is developed using [Test-Driven Development (TDD)](tests/readme.md) approach 
+In addition to running without an RTOS, tinyusb is an OS-awared stack that can run across RTOS vendors. For the purpose of eliminating bugs as soon as possible, the stack is developed using [Test-Driven Development (TDD)](tests/readme.md) approach. More documents and API reference can be found at http://docs.tinyusb.org
 
 ![tinyusb diagram](http://docs.tinyusb.org/images/tinyusb_overview.png)
 
@@ -33,8 +33,7 @@ In addition to running without an RTOS, tinyusb is an OS-awared stack that can r
 - HID Generic (comming soon)
 - Communication Device Class (CDC)
 - Mass Storage Class (MSC)
-- Hub
-    - Only support 1 level of hub (due to my laziness)
+- Hub currnetly only support 1 level of hub (due to my laziness)
 
 ### Device ###
 
@@ -52,6 +51,14 @@ Currently the following OS are supported with tinyusb out of the box with a simp
 - **FreeRTOS**
 - **CMSIS RTX**
 
+### Toolchains ###
+
+You can compile with any of following toolchains
+
+- lpcxpresso
+- Keil MDK
+- IAR Workbench
+
 ### Supported MCUs ###
 
 The stack supports the following MCUs
@@ -61,23 +68,15 @@ The stack supports the following MCUs
   - LPC175x_6x
   - LPC43xx
 
-[Here is the list of supported Boards](boards/) in the code base
-
-### Toolchains ###
-
-You can compile with any of following toolchains
-
-- *lpcxpresso/redsuite*
-- *Keil MDK*
-- *IAR Workbench*
+[Here is the list of supported Boards](boards/readme.md) in the code base
 
 ## Getting Started ##
 
-[Here is the details for getting started](doxygen/getting_started.md) with the stack  
+[Here is the details for getting started](doxygen/getting_started.md) with the stack.
 
 ## License ##
 
-BSD license for most of the code base, but each file is individually licensed especially those in /vendor folder. Please make sure you understand all the license term for files you use in your project. [Full license here](tinyusb/license.md)
+BSD license for most of the code base, but each file is individually licensed especially those in *vendor* folder. Please make sure you understand all the license term for files you use in your project. [Full license is here](tinyusb/license.md)
 
 ## How Can I Help ##
 

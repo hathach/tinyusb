@@ -15,7 +15,7 @@
 
 <!-- END doctoc generated TOC please keep comment here to allow auto update -->
 
-device application code is store at *demos/device/src* containing
+host application code is store at *demos/host/src* containing
 
 File  | Description
 ----- | -------------

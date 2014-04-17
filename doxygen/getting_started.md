@@ -56,9 +56,6 @@ int main(void)
 }
 ~~~
 
-
-\subpage md_boards_readme
-
-\subpage md_doxygen_started_demo
-
-\subpage md_tools_readme
+[//]: # (\subpage md_boards_readme)
+[//]: # (\subpage md_doxygen_started_demo)
+[//]: # (\subpage md_tools_readme)

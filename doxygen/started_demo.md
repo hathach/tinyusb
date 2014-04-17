@@ -42,16 +42,7 @@ void led_blinking_task( void * p_task_para )
 }
 ~~~
 
-## Prerequisites ##
 
-In order to run application demo, you would need
-
-- A [supported development board](../../boards/readme.md)
-- A supported toolchain: LPCXpresso, Keil, IAR.
-
-
-\subpage md_doxygen_started_build_demo
-
-\subpage md_doxygen_started_device_demo
-
-\subpage md_doxygen_started_host_demo
+[//]: # (\subpage md_doxygen_started_build_demo)
+[//]: # (\subpage md_doxygen_started_device_demo)
+[//]: # (\subpage md_doxygen_started_host_demo)
