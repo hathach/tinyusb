@@ -26,7 +26,7 @@ tests   | Unit tests for the stack
 tinyusb | All sources files for tinyusb stack itself.
 vendor  | Source files from 3rd party such as freeRTOS, fatfs etc ...
 
-*demos* is the folder where all the application & project files are located. There are demos for both device and hosts. For each, there are different projects for each of supported RTOS. 
+*demos* is the folder where all the application & project files are located. There are demos for both device and hosts. For each, there are different projects for each of supported RTOS. Click to have more information on how to [build](demos/readme.md) and run [device](../demos/device/readme.md) or [host](../demos/host/readme.md) demo.
 
 ## Add tinyusb to your project
 
