@@ -52,7 +52,6 @@
 //--------------------------------------------------------------------+
 // HOST CONFIGURATION
 //--------------------------------------------------------------------+
-#define TUSB_CFG_HOST_DEVICE_MAX                5 // TODO be a part of HUB config
 
 //------------- CLASS -------------//
 #define TUSB_CFG_HOST_HUB                       1
@@ -61,6 +60,8 @@
 #define TUSB_CFG_HOST_HID_GENERIC               0 // (not yet supported)
 #define TUSB_CFG_HOST_MSC                       1
 #define TUSB_CFG_HOST_CDC                       1
+
+#define TUSB_CFG_HOST_DEVICE_MAX                (TUSB_CFG_HOST_HUB ? 5 : 1) // normal hub has 4 ports
 
 //--------------------------------------------------------------------+
 // COMMON CONFIGURATION
