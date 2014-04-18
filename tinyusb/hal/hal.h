@@ -110,7 +110,7 @@ static inline bool hal_debugger_is_attached(void)
 #elif TUSB_CFG_DEBUG == 3
   return true; // force to break into breakpoint with debug = 3
 #else
-  return false
+  return false;
 #endif
 }
 
