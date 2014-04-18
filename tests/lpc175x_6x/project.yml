@@ -28,8 +28,8 @@
     - +:test/**
   :source:
     - ../../tinyusb/**
-    - +:../../demos/bsp/lpc175x_6x/**
-    - +:../../demos/device/keyboard/*
+    - +:../../mcu/lpc175x_6x/**
+    #- +:../../demos/device/keyboard/*
     - -:../../demos/
 #    - ../vendor/freertos/freertos/Source/*
 #    - ../vendor/freertos/freertos/Source/portable/MSVC-MingW/*
