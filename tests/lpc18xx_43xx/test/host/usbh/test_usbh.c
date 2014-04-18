@@ -140,6 +140,7 @@ void test_usbh_init_ok(void)
   }
 }
 
+#if 0 // TODO TEST enable this
 // device is not mounted before, even the control pipe is not open, do nothing
 void test_usbh_hcd_rhport_unplugged_isr_device_not_previously_mounted(void)
 {
@@ -194,6 +195,7 @@ void test_usbh_device_unplugged_multple_class(void)
   TEST_ASSERT_EQUAL(TUSB_DEVICE_STATE_REMOVING, usbh_devices[dev_addr].state);
 
 }
+#endif
 
 void semaphore_wait_success_stub(osal_mutex_handle_t const sem_hdl, uint32_t msec, tusb_error_t *p_error, int num_call)
 {

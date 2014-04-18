@@ -55,7 +55,7 @@
 #define TUSB_CFG_HOST_DEVICE_MAX                5 // TODO be a part of HUB config
 
 //------------- CLASS -------------//
-#define TUSB_CFG_HOST_HUB                        1
+#define TUSB_CFG_HOST_HUB                        0
 #define TUSB_CFG_HOST_HID_KEYBOARD               1
 #define TUSB_CFG_HOST_HID_MOUSE                  1
 #define TUSB_CFG_HOST_HID_GENERIC                0

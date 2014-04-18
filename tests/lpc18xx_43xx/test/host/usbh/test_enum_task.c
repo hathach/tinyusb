@@ -66,6 +66,11 @@ void queue_recv_stub (osal_queue_handle_t const queue_hdl, uint32_t *p_data, uin
 void semaphore_wait_success_stub(osal_semaphore_handle_t const sem_hdl, uint32_t msec, tusb_error_t *p_error, int num_call);
 tusb_error_t control_xfer_stub(uint8_t dev_addr, const tusb_control_request_t * const p_request, uint8_t data[], int num_call);
 
+enum {
+  POWER_STABLE_DELAY = 300,
+  RESET_DELAY = 100 // NXP's EHCI require more than 50ms to work properly although the USB specs say only 50ms
+};
+
 void setUp(void)
 {
   memclr_(usbh_devices, sizeof(usbh_device_info_t)*(TUSB_CFG_HOST_DEVICE_MAX+1));
@@ -78,8 +83,10 @@ void setUp(void)
   hcd_pipe_control_xfer_StubWithCallback(control_xfer_stub);
 
   hcd_port_connect_status_ExpectAndReturn(enum_connect.core_id, true);
-  osal_task_delay_Expect(200);
+  osal_task_delay_Expect(POWER_STABLE_DELAY);
+  hcd_port_connect_status_ExpectAndReturn(enum_connect.core_id, true);
   hcd_port_reset_Expect(enum_connect.core_id);
+  osal_task_delay_Expect(RESET_DELAY);
   hcd_port_speed_get_ExpectAndReturn(enum_connect.core_id, device_speed);
 
   osal_semaphore_reset_Expect( usbh_devices[0].control.sem_hdl );
@@ -223,6 +230,7 @@ void test_addr0_failed_set_address(void)
 {
   osal_semaphore_wait_StubWithCallback(semaphore_wait_timeout_stub(1));
   hcd_port_reset_Expect( usbh_devices[0].core_id );
+  osal_task_delay_Expect(RESET_DELAY);
 //  tusbh_device_mount_failed_cb_Expect(TUSB_ERROR_USBH_MOUNT_DEVICE_NOT_RESPOND, NULL);
 
   usbh_enumeration_task(NULL);
@@ -235,6 +243,7 @@ void test_enum_failed_get_full_dev_desc(void)
 {
   osal_semaphore_wait_StubWithCallback(semaphore_wait_timeout_stub(2));
   hcd_port_reset_Expect( usbh_devices[0].core_id );
+  osal_task_delay_Expect(RESET_DELAY);
   hcd_pipe_control_close_ExpectAndReturn(0, TUSB_ERROR_NONE);
 
   osal_semaphore_reset_Expect( usbh_devices[0].control.sem_hdl );
@@ -256,6 +265,7 @@ void test_enum_failed_get_9byte_config_desc(void)
 {
   osal_semaphore_wait_StubWithCallback(semaphore_wait_timeout_stub(3));
   hcd_port_reset_Expect( usbh_devices[0].core_id );
+  osal_task_delay_Expect(RESET_DELAY);
   hcd_pipe_control_close_ExpectAndReturn(0, TUSB_ERROR_NONE);
   osal_semaphore_reset_Expect( usbh_devices[0].control.sem_hdl );
   osal_mutex_reset_Expect( usbh_devices[0].control.mutex_hdl );
@@ -275,6 +285,7 @@ void test_enum_failed_get_full_config_desc(void)
 {
   osal_semaphore_wait_StubWithCallback(semaphore_wait_timeout_stub(4));
   hcd_port_reset_Expect( usbh_devices[0].core_id );
+  osal_task_delay_Expect(RESET_DELAY);
   hcd_pipe_control_close_ExpectAndReturn(0, TUSB_ERROR_NONE);
   osal_semaphore_reset_Expect( usbh_devices[0].control.sem_hdl );
   osal_mutex_reset_Expect( usbh_devices[0].control.mutex_hdl );
@@ -289,6 +300,7 @@ void test_enum_parse_config_desc(void)
 {
   osal_semaphore_wait_StubWithCallback(semaphore_wait_timeout_stub(5));
   hcd_port_reset_Expect( usbh_devices[0].core_id );
+  osal_task_delay_Expect(RESET_DELAY);
   hcd_pipe_control_close_ExpectAndReturn(0, TUSB_ERROR_NONE);
   osal_semaphore_reset_Expect( usbh_devices[0].control.sem_hdl );
   osal_mutex_reset_Expect( usbh_devices[0].control.mutex_hdl );
@@ -306,6 +318,7 @@ void test_enum_set_configure(void)
 {
   osal_semaphore_wait_StubWithCallback(semaphore_wait_timeout_stub(6));
   hcd_port_reset_Expect( usbh_devices[0].core_id );
+  osal_task_delay_Expect(RESET_DELAY);
   hcd_pipe_control_close_ExpectAndReturn(0, TUSB_ERROR_NONE);
   osal_semaphore_reset_Expect( usbh_devices[0].control.sem_hdl );
   osal_mutex_reset_Expect( usbh_devices[0].control.mutex_hdl );
