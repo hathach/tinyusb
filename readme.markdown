@@ -53,7 +53,7 @@ Currently the following OS are supported with tinyusb out of the box with a simp
 
 ### Toolchains ###
 
-You can compile with any of following toolchains
+You can compile with any of following toolchains, however, the stack requires C99 to build with
 
 - lpcxpresso
 - Keil MDK
