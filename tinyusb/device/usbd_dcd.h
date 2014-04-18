@@ -47,6 +47,10 @@
 //--------------------------------------------------------------------+
 #include "common/common.h"
 
+#ifdef _TEST_
+#include "dcd.h"
+#endif
+
 #ifdef __cplusplus
  extern "C" {
 #endif

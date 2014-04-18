@@ -153,7 +153,7 @@ typedef struct {
 STATIC_ASSERT( sizeof(ehci_qtd_t) == 32, "size is not correct" );
 
 /// Queue Head (section 3.6)
-typedef struct {
+typedef struct ATTR_ALIGNED(32) {
 	/// Word 0: Queue Head Horizontal Link Pointer
 	ehci_link_t next;
 

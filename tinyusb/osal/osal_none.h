@@ -148,11 +148,8 @@ uint32_t tusb_tick_get(void);
 typedef volatile uint8_t osal_semaphore_t;
 typedef osal_semaphore_t * osal_semaphore_handle_t;
 
-#define OSAL_SEM_DEF(name)\
-  osal_semaphore_t name
-
-#define OSAL_SEM_REF(name)\
-  &name
+#define OSAL_SEM_DEF(name) osal_semaphore_t name
+#define OSAL_SEM_REF(name) &name
 
 static inline osal_semaphore_handle_t osal_semaphore_create(osal_semaphore_t * p_sem) ATTR_WARN_UNUSED_RESULT ATTR_ALWAYS_INLINE;
 static inline osal_semaphore_handle_t osal_semaphore_create(osal_semaphore_t * p_sem)
@@ -165,7 +162,6 @@ static inline  tusb_error_t osal_semaphore_post(osal_semaphore_handle_t sem_hdl)
 static inline  tusb_error_t osal_semaphore_post(osal_semaphore_handle_t sem_hdl)
 {
   (*sem_hdl)++;
-
   return TUSB_ERROR_NONE;
 }
 
@@ -196,11 +192,8 @@ static inline void osal_semaphore_reset(osal_semaphore_handle_t sem_hdl)
 typedef osal_semaphore_t        osal_mutex_t;
 typedef osal_semaphore_handle_t osal_mutex_handle_t;
 
-#define OSAL_MUTEX_DEF(name)\
-  osal_mutex_t name
-
-#define OSAL_MUTEX_REF(name)\
-  &name
+#define OSAL_MUTEX_DEF(name) osal_mutex_t name
+#define OSAL_MUTEX_REF(name) &name
 
 static inline osal_mutex_handle_t osal_mutex_create(osal_mutex_t * p_mutex) ATTR_WARN_UNUSED_RESULT ATTR_ALWAYS_INLINE;
 static inline osal_mutex_handle_t osal_mutex_create(osal_mutex_t * p_mutex)
@@ -257,33 +250,7 @@ static inline osal_queue_handle_t osal_queue_create(osal_queue_t * const p_queue
   p_queue->count = p_queue->wr_idx = p_queue->rd_idx = 0;
   return (osal_queue_handle_t) p_queue;
 }
-
-// TODO move to osal_none.c
-// when queue is full, it will overwrite the oldest data in the queue
-static inline tusb_error_t osal_queue_send(osal_queue_handle_t const queue_hdl, void const * data) ATTR_ALWAYS_INLINE;
-static inline tusb_error_t osal_queue_send(osal_queue_handle_t const queue_hdl, void const * data)
-{
-  //TODO mutex lock hal_interrupt_disable
-
-  memcpy( queue_hdl->buffer + (queue_hdl->wr_idx * queue_hdl->item_size),
-          data,
-          queue_hdl->item_size);
-
-  queue_hdl->wr_idx = (queue_hdl->wr_idx + 1) % queue_hdl->depth;
-
-  if (queue_hdl->depth == queue_hdl->count) // queue is full, 1st rd is overwritten
-  {
-    queue_hdl->rd_idx = queue_hdl->wr_idx; // keep full state
-  }else
-  {
-    queue_hdl->count++;
-  }
-
-  //TODO mutex unlock hal_interrupt_enable
-
-  return TUSB_ERROR_NONE;
-}
-
+tusb_error_t osal_queue_send(osal_queue_handle_t const queue_hdl, void const * data);
 static inline void osal_queue_flush(osal_queue_handle_t const queue_hdl) ATTR_ALWAYS_INLINE;
 static inline void osal_queue_flush(osal_queue_handle_t const queue_hdl)
 {

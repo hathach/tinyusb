@@ -37,7 +37,7 @@
 /**************************************************************************/
 
 #include "tusb_option.h"
-#include "osal.h" // TODO refractor
+#include "osal.h"
 
 #if TUSB_CFG_OS == TUSB_OS_NONE
 
@@ -51,11 +51,31 @@
 //--------------------------------------------------------------------+
 // INTERNAL OBJECT & FUNCTION DECLARATION
 //--------------------------------------------------------------------+
-//volatile uint32_t osal_tick_current = 0;
 
 //--------------------------------------------------------------------+
-// IMPLEMENTATION
+// QUEUE API
 //--------------------------------------------------------------------+
+// when queue is full, it will overwrite the oldest data in the queue
+tusb_error_t osal_queue_send(osal_queue_handle_t const queue_hdl, void const * data)
+{
+  //TODO mutex lock hal_interrupt_disable
+  memcpy( queue_hdl->buffer + (queue_hdl->wr_idx * queue_hdl->item_size),
+          data,
+          queue_hdl->item_size);
 
+  queue_hdl->wr_idx = (queue_hdl->wr_idx + 1) % queue_hdl->depth;
+
+  if (queue_hdl->depth == queue_hdl->count) // queue is full, 1st rd is overwritten
+  {
+    queue_hdl->rd_idx = queue_hdl->wr_idx; // keep full state
+  }else
+  {
+    queue_hdl->count++;
+  }
+
+  //TODO mutex unlock hal_interrupt_enable
+
+  return TUSB_ERROR_NONE;
+}
 
 #endif

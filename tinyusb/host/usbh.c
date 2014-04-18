@@ -112,7 +112,7 @@ enum { ENUM_QUEUE_DEPTH = 8 };
 OSAL_TASK_DEF(usbh_enumeration_task, 200, TUSB_CFG_OS_TASK_PRIO);
 OSAL_QUEUE_DEF(enum_queue_def, ENUM_QUEUE_DEPTH, uint32_t);
 
-static osal_queue_handle_t enum_queue_hdl;
+STATIC_VAR osal_queue_handle_t enum_queue_hdl;
 TUSB_CFG_ATTR_USBRAM ATTR_ALIGNED(4) STATIC_VAR uint8_t enum_data_buffer[TUSB_CFG_HOST_ENUM_BUFFER_SIZE];
 
 //------------- Reporter Task Data -------------//
