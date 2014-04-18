@@ -95,7 +95,8 @@
 #elif defined __ICCARM__ // compiled with IAR
 
   #if (TUSB_CFG_MCU == MCU_LPC175X_6X)
-    #define TUSB_CFG_ATTR_USBRAM
+    // LP175x_6x can access all but CMSIS-RTX causes overflow in 32KB SRAM --> move to AHB ram
+    #define TUSB_CFG_ATTR_USBRAM _Pragma("location=\".sram\"")
   #elif  (TUSB_CFG_MCU == MCU_LPC43XX)
     #define TUSB_CFG_ATTR_USBRAM _Pragma("location=\".ahb_sram1\"")
   #endif
