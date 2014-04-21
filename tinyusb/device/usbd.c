@@ -417,7 +417,6 @@ void usbd_dcd_bus_event_isr(uint8_t coreid, usbd_bus_event_type_t bus_event)
 
 void usbd_setup_received_isr(uint8_t coreid, tusb_control_request_t * p_request)
 {
-#if 1
   usbd_task_event_t task_event =
   {
       .coreid          = coreid,
@@ -426,15 +425,6 @@ void usbd_setup_received_isr(uint8_t coreid, tusb_control_request_t * p_request)
 
   task_event.setup_received  = (*p_request);
   osal_queue_send(usbd_queue_hdl, &task_event);
-#else
-  if ( (p_request->wLength > 0) && (p_request->bmRequestType_bit.direction == TUSB_DIR_HOST_TO_DEV) )
-  { // Control Out with data --> get data first and handle in control complete
-
-  }else
-  {
-    usbd_control_request_subtask(coreid, p_request);
-  }
-#endif
 }
 
 void usbd_xfer_isr(endpoint_handle_t edpt_hdl, tusb_event_t event, uint32_t xferred_bytes)
