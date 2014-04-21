@@ -76,6 +76,6 @@ Then choose "Browse my computer for driver software" then navigate to the device
 
 **Testing Demo**
 
-Connect to the "tinyusb Serial Port" with your terminal application, and start to type. You should get echo back as the CDC serial application demo is written to transmit what it received.
+Connect to the "tinyusb Serial Port" with your terminal application, and start to type. You should get echo back as the CDC serial application demo is written to transmit what it received. Notes: if Windows/terminal don't realize serial port (especially if you unplugged device without disconnect previously), simply unplug and plug device again. This is a "known feature" of Windows's usbser. 
 
 ![Serial Connect](http://docs.tinyusb.org/images/demo_cdc_connect.png)
