@@ -353,6 +353,7 @@ void dcd_pipe_control_stall(uint8_t coreid)
 }
 
 // control transfer does not need to use qtd find function
+// follows UM 24.10.8.1.1 Setup packet handling using setup lockout mechanism
 tusb_error_t dcd_pipe_control_xfer(uint8_t coreid, tusb_direction_t dir, uint8_t * p_buffer, uint16_t length, bool int_on_complete)
 {
   LPC_USB0_Type* const lpc_usb = LPC_USB[coreid];
@@ -362,6 +363,7 @@ tusb_error_t dcd_pipe_control_xfer(uint8_t coreid, tusb_direction_t dir, uint8_t
   uint8_t const ep_data   = (dir == TUSB_DIR_DEV_TO_HOST) ? 1 : 0;
   uint8_t const ep_status = 1 - ep_data;
 
+  while(lpc_usb->ENDPTSETUPSTAT & BIT_(0)) {} // wait until ENDPTSETUPSTAT before priming data/status in response
   ASSERT_FALSE(p_dcd->qhd[0].qtd_overlay.active || p_dcd->qhd[1].qtd_overlay.active, TUSB_ERROR_FAILED);
 
   //------------- Data Phase -------------//
@@ -381,7 +383,7 @@ tusb_error_t dcd_pipe_control_xfer(uint8_t coreid, tusb_direction_t dir, uint8_t
 
   p_dcd->qhd[ep_status].qtd_overlay.next = (uint32_t) p_qtd_status;
 
-  LPC_USB0->ENDPTPRIME = BIT_(edpt_phy2pos(ep_status)); // | (length>0 ? BIT_(edpt_phy2pos(ep_data)) : 0 );
+  lpc_usb->ENDPTPRIME = BIT_(edpt_phy2pos(ep_status));
 
   return TUSB_ERROR_NONE;
 }
