@@ -96,7 +96,7 @@ if ($is_xpresso)
   {
     /([^\/]+)\/.cproject/;
     my $log_file = "build_all_xpresso_" . $1 . ".txt";
-    my $build_cmd = "lpcxpressoc -nosplash --launcher.suppressErrors -application org.eclipse.cdt.managedbuilder.core.headlessbuild -build $1 -data $workspace_dir > $log_file";
+    my $build_cmd = "lpcxpressoc -nosplash --launcher.suppressErrors -application org.eclipse.cdt.managedbuilder.core.headlessbuild -cleanBuild $1 -data $workspace_dir > $log_file";
     
     cmd_execute($build_cmd);
     

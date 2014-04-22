@@ -118,15 +118,18 @@ if ($is_xpresso)
 
   foreach (@XPRESSO_PROJECT_LIST)
   {
-    /([^\/]+)\/.cproject/;
-    print_title("XPRESSO $1");
+    /(.+\/(.+))\/.cproject/;
+    my $proj_dir = $1;
+    my $proj = $2;
+    print_title("XPRESSO $proj");
     
-    my $build_cmd = "lpcxpressoc -nosplash --launcher.suppressErrors -application org.eclipse.cdt.managedbuilder.core.headlessbuild -cleanBuild $1/$board -data $workspace_dir >> $log_file";
+    my $build_cmd = "lpcxpressoc -nosplash --launcher.suppressErrors -application org.eclipse.cdt.managedbuilder.core.headlessbuild -build $proj/$board -data $workspace_dir >> $log_file";
+    
+    system("cd $proj_dir/$board & make clean >> $log_file") if !$is_download_only; # lpcxpresso have a bug that clean the current active config instead of the passed in, manual clean
     
     if ( $is_download_only || cmd_execute($build_cmd) == 0)
     {
-      /(.+\/(.+))\/.cproject/;
-      my $flash_cmd = "$flash_tool{$board}[0] -p$flash_tool{$board}[1] -s2000 -flash-load-exec=$1/$board/$2.axf";
+      my $flash_cmd = "$flash_tool{$board}[0] -p$flash_tool{$board}[1] -s2000 -flash-load-exec=$proj_dir/$board/$proj.axf";
       
       $flash_cmd .= " -flash-driver=$XPRESSO_BIN_PATH/Flash/LPC18_43_SPIFI_4MB_64KB.cfx" if $board eq 'Board_NGX4330';
       
