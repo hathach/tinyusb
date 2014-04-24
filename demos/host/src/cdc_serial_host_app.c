@@ -88,7 +88,7 @@ void tusbh_cdc_xfer_isr(uint8_t dev_addr, tusb_event_t event, cdc_pipeid_t pipe_
       {
         case TUSB_EVENT_XFER_COMPLETE:
           received_bytes = xferred_bytes;
-          osal_semaphore_post(sem_hdl);  // notify main task
+          (void) osal_semaphore_post(sem_hdl);  // notify main task
         break;
 
         case TUSB_EVENT_XFER_ERROR:

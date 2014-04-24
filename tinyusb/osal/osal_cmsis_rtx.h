@@ -182,7 +182,7 @@ static inline void osal_queue_receive (osal_queue_handle_t const queue_hdl, void
   }
 }
 
-static inline tusb_error_t osal_queue_send(osal_queue_handle_t const queue_hdl, void const * data) ATTR_ALWAYS_INLINE;
+static inline tusb_error_t osal_queue_send(osal_queue_handle_t const queue_hdl, void const * data) ATTR_WARN_UNUSED_RESULT ATTR_ALWAYS_INLINE;
 static inline tusb_error_t osal_queue_send(osal_queue_handle_t const queue_hdl, void const * data)
 {
   void *p_buf = osMailAlloc(queue_hdl->pool, 0); // instantly return in case of sending within ISR (mostly used)

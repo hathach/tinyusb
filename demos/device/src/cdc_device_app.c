@@ -91,7 +91,7 @@ void tusbd_cdc_xfer_cb(uint8_t coreid, tusb_event_t event, cdc_pipeid_t pipe_id,
           {
             fifo_write(&fifo_serial, serial_rx_buffer+i);
           }
-          osal_semaphore_post(sem_hdl);  // notify main task
+          (void) osal_semaphore_post(sem_hdl);  // notify main task
         break;
 
         case TUSB_EVENT_XFER_ERROR:

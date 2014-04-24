@@ -85,7 +85,7 @@ void tusbh_hid_keyboard_isr(uint8_t dev_addr, tusb_event_t event)
   switch(event)
   {
     case TUSB_EVENT_XFER_COMPLETE:
-      osal_queue_send(queue_kbd_hdl, &usb_keyboard_report);
+      (void) osal_queue_send(queue_kbd_hdl, &usb_keyboard_report);
       tusbh_hid_keyboard_get_report(dev_addr, (uint8_t*) &usb_keyboard_report);
     break;
 
