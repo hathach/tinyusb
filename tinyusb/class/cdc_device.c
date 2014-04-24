@@ -204,7 +204,6 @@ tusb_error_t cdcd_control_request_subtask(uint8_t coreid, tusb_control_request_t
     case CDC_REQUEST_SET_CONTROL_LINE_STATE: // TODO extract DTE present
     break;
 
-
     default: return TUSB_ERROR_DCD_CONTROL_REQUEST_NOT_SUPPORT;
   }
 

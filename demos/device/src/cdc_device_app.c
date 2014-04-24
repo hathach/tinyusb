@@ -95,7 +95,7 @@ void tusbd_cdc_xfer_cb(uint8_t coreid, tusb_event_t event, cdc_pipeid_t pipe_id,
         break;
 
         case TUSB_EVENT_XFER_ERROR:
-          xferred_bytes = 0; // ignore
+          tusbd_cdc_receive(0, serial_rx_buffer, CDCD_APP_BUFFER_SIZE, true); // ignore, queue transfer again
         break;
 
         case TUSB_EVENT_XFER_STALLED:

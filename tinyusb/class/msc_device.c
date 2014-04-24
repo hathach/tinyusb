@@ -158,7 +158,7 @@ tusb_error_t mscd_xfer_cb(endpoint_handle_t edpt_hdl, tusb_event_t event, uint32
   //------------- new CBW received -------------//
   if ( !is_waiting_read10_write10 )
   {
-    if ( endpointhandle_is_equal(p_msc->edpt_in, edpt_hdl) ) return TUSB_ERROR_NONE; // bulk in interrupt for dcd to clean up
+//    if ( endpointhandle_is_equal(p_msc->edpt_in, edpt_hdl) ) return TUSB_ERROR_NONE; // bulk in interrupt for dcd to clean up
 
     ASSERT( endpointhandle_is_equal(p_msc->edpt_out, edpt_hdl) &&
             xferred_bytes == sizeof(msc_cmd_block_wrapper_t)   &&

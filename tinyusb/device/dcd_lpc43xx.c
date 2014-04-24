@@ -151,7 +151,7 @@ typedef struct ATTR_ALIGNED(64) {
 	/// thus there are 16 bytes padding free that we can make use of.
   //--------------------------------------------------------------------+
   uint8_t class_code; // Class code that endpoint belongs to
-  uint8_t list_qtd_idx[DCD_QTD_PER_QHD_MAX];
+  volatile uint8_t list_qtd_idx[DCD_QTD_PER_QHD_MAX];
 
 	uint8_t reserved[15-DCD_QTD_PER_QHD_MAX];
 } dcd_qhd_t;
@@ -167,6 +167,9 @@ typedef struct {
 
 }dcd_data_t;
 
+extern ATTR_WEAK dcd_data_t dcd_data0;
+extern ATTR_WEAK dcd_data_t dcd_data1;
+
 #if (TUSB_CFG_CONTROLLER_0_MODE & TUSB_MODE_DEVICE)
 TUSB_CFG_ATTR_USBRAM ATTR_ALIGNED(2048) STATIC_VAR dcd_data_t dcd_data0;
 #endif
@@ -176,20 +179,7 @@ TUSB_CFG_ATTR_USBRAM ATTR_ALIGNED(2048) STATIC_VAR dcd_data_t dcd_data1;
 #endif
 
 static LPC_USB0_Type * const LPC_USB[2] = { LPC_USB0, ((LPC_USB0_Type*) LPC_USB1_BASE) };
-static dcd_data_t* const dcd_data_ptr[2] =
-{
-  #if (TUSB_CFG_CONTROLLER_0_MODE & TUSB_MODE_DEVICE)
-    &dcd_data0,
-  #else
-    NULL,
-  #endif
-
-  #if (TUSB_CFG_CONTROLLER_1_MODE & TUSB_MODE_DEVICE)
-    &dcd_data1
-  #else
-    NULL
-  #endif
-};
+static dcd_data_t* const dcd_data_ptr[2] = { &dcd_data0, &dcd_data1 };
 
 //--------------------------------------------------------------------+
 // CONTROLLER API
@@ -364,6 +354,7 @@ tusb_error_t dcd_pipe_control_xfer(uint8_t coreid, tusb_direction_t dir, uint8_t
   uint8_t const ep_status = 1 - ep_data;
 
   while(lpc_usb->ENDPTSETUPSTAT & BIT_(0)) {} // wait until ENDPTSETUPSTAT before priming data/status in response
+//  while(p_dcd->qhd[0].qtd_overlay.active || p_dcd->qhd[1].qtd_overlay.active) {}; // wait until previous device request is completed
   ASSERT_FALSE(p_dcd->qhd[0].qtd_overlay.active || p_dcd->qhd[1].qtd_overlay.active, TUSB_ERROR_FAILED);
 
   //------------- Data Phase -------------//
@@ -454,10 +445,10 @@ endpoint_handle_t dcd_pipe_open(uint8_t coreid, tusb_descriptor_endpoint_t const
 
 bool dcd_pipe_is_busy(endpoint_handle_t edpt_hdl)
 {
-  dcd_qhd_t* p_qhd = &dcd_data_ptr[edpt_hdl.coreid]->qhd[edpt_hdl.index];
+  dcd_qhd_t const * p_qhd = &dcd_data_ptr[edpt_hdl.coreid]->qhd[edpt_hdl.index];
 
-  // LPC_USB0->ENDPTSTAT & endpoint_phy2pos(edpt_hdl.index)
-  return !p_qhd->qtd_overlay.halted && p_qhd->qtd_overlay.active;
+  return p_qhd->list_qtd_idx[0] != 0; // qtd list is not empty
+//  return !p_qhd->qtd_overlay.halted && p_qhd->qtd_overlay.active;
 }
 
 // add only, controller virtually cannot know

@@ -73,7 +73,7 @@
       <OPTFL>
         <tvExp>1</tvExp>
         <tvExpOptDlg>0</tvExpOptDlg>
-        <IsCurrentTarget>1</IsCurrentTarget>
+        <IsCurrentTarget>0</IsCurrentTarget>
       </OPTFL>
       <CpuCode>8</CpuCode>
       <DllOpt>
@@ -679,7 +679,7 @@
       <OPTFL>
         <tvExp>1</tvExp>
         <tvExpOptDlg>0</tvExpOptDlg>
-        <IsCurrentTarget>0</IsCurrentTarget>
+        <IsCurrentTarget>1</IsCurrentTarget>
       </OPTFL>
       <CpuCode>8</CpuCode>
       <DllOpt>
@@ -935,10 +935,10 @@
       <FileType>1</FileType>
       <tvExp>0</tvExp>
       <Focus>0</Focus>
-      <ColumnNumber>24</ColumnNumber>
+      <ColumnNumber>15</ColumnNumber>
       <tvExpOptDlg>0</tvExpOptDlg>
-      <TopLine>88</TopLine>
-      <CurrentLine>94</CurrentLine>
+      <TopLine>68</TopLine>
+      <CurrentLine>86</CurrentLine>
       <bDave2>0</bDave2>
       <PathWithFileName>..\src\main.c</PathWithFileName>
       <FilenameWithoutPath>main.c</FilenameWithoutPath>
@@ -1375,10 +1375,10 @@
       <FileType>1</FileType>
       <tvExp>0</tvExp>
       <Focus>0</Focus>
-      <ColumnNumber>80</ColumnNumber>
+      <ColumnNumber>0</ColumnNumber>
       <tvExpOptDlg>0</tvExpOptDlg>
-      <TopLine>221</TopLine>
-      <CurrentLine>237</CurrentLine>
+      <TopLine>1</TopLine>
+      <CurrentLine>1</CurrentLine>
       <bDave2>0</bDave2>
       <PathWithFileName>..\..\..\tinyusb\device\usbd.c</PathWithFileName>
       <FilenameWithoutPath>usbd.c</FilenameWithoutPath>
@@ -1994,7 +1994,7 @@
       <ColumnNumber>0</ColumnNumber>
       <tvExpOptDlg>0</tvExpOptDlg>
       <TopLine>138</TopLine>
-      <CurrentLine>146</CurrentLine>
+      <CurrentLine>156</CurrentLine>
       <bDave2>0</bDave2>
       <PathWithFileName>..\..\..\mcu\lpc43xx\keil\startup_LPC43xx.s</PathWithFileName>
       <FilenameWithoutPath>startup_LPC43xx.s</FilenameWithoutPath>
@@ -2063,10 +2063,10 @@
       <FileType>1</FileType>
       <tvExp>0</tvExp>
       <Focus>0</Focus>
-      <ColumnNumber>63</ColumnNumber>
+      <ColumnNumber>51</ColumnNumber>
       <tvExpOptDlg>0</tvExpOptDlg>
-      <TopLine>1875</TopLine>
-      <CurrentLine>1882</CurrentLine>
+      <TopLine>1653</TopLine>
+      <CurrentLine>1673</CurrentLine>
       <bDave2>0</bDave2>
       <PathWithFileName>..\..\..\vendor\freertos\freertos\Source\tasks.c</PathWithFileName>
       <FilenameWithoutPath>tasks.c</FilenameWithoutPath>
@@ -2143,10 +2143,10 @@
       <FileType>1</FileType>
       <tvExp>0</tvExp>
       <Focus>0</Focus>
-      <ColumnNumber>6</ColumnNumber>
+      <ColumnNumber>0</ColumnNumber>
       <tvExpOptDlg>0</tvExpOptDlg>
-      <TopLine>59</TopLine>
-      <CurrentLine>62</CurrentLine>
+      <TopLine>1</TopLine>
+      <CurrentLine>1</CurrentLine>
       <bDave2>0</bDave2>
       <PathWithFileName>..\..\..\vendor\freertos\freertoslpc\FreeRTOSCommonHooks.c</PathWithFileName>
       <FilenameWithoutPath>FreeRTOSCommonHooks.c</FilenameWithoutPath>
