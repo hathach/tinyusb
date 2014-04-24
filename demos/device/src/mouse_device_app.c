@@ -104,36 +104,42 @@ OSAL_TASK_FUNCTION( mouse_device_app_task , p_task_para)
 {
   OSAL_TASK_LOOP_BEGIN
 
-  osal_task_delay(10);
+  osal_task_delay(20);
 
-  if ( tusbd_is_configured(0) )
+  if ( tusbd_is_configured(0) &&  !tusbd_hid_mouse_is_busy(0) )
   {
+    static uint8_t prev_mouse_buttons = 0;
+
+    enum {
+      BUTTON_UP           = 0, // map to button mask
+      BUTTON_DOWN         = 1,
+      BUTTON_LEFT         = 2,
+      BUTTON_RIGHT        = 3,
+      BUTTON_CLICK_LEFT   = 4,
+      BUTTON_CLICK_RIGHT  = 5,
+      BUTTON_CLICK_MIDDLE = 6
+    };
+
+    enum { MOUSE_RESOLUTION  = 5 };
+
     uint32_t button_mask = board_buttons();
+    memclr_(&mouse_report, sizeof(hid_mouse_report_t));
 
-    //------------- button pressed -------------//
-    if ( !tusbd_hid_mouse_is_busy(0) )
-    {
-      enum {
-        BUTTON_UP          = 0, // map to button mask
-        BUTTON_DOWN        = 1,
-        BUTTON_LEFT        = 2,
-        BUTTON_RIGHT       = 3,
-        BUTTON_CLICK_LEFT  = 4,
-//        BUTTON_CLICK_RIGHT = 5,
-        MOUSE_RESOLUTION  = 5
-      };
+    if ( BIT_TEST_(button_mask, BUTTON_UP           ) ) mouse_report.y = -MOUSE_RESOLUTION;
+    if ( BIT_TEST_(button_mask, BUTTON_DOWN         ) ) mouse_report.y = MOUSE_RESOLUTION;
 
-      memclr_(&mouse_report, sizeof(hid_mouse_report_t));
+    if ( BIT_TEST_(button_mask, BUTTON_LEFT         ) ) mouse_report.x = -MOUSE_RESOLUTION;
+    if ( BIT_TEST_(button_mask, BUTTON_RIGHT        ) ) mouse_report.x = MOUSE_RESOLUTION;
 
-      if ( BIT_TEST_(button_mask, BUTTON_UP) ) mouse_report.y = -MOUSE_RESOLUTION;
-      if ( BIT_TEST_(button_mask, BUTTON_DOWN) ) mouse_report.y = MOUSE_RESOLUTION;
+    if ( BIT_TEST_(button_mask, BUTTON_CLICK_LEFT   ) ) mouse_report.buttons |= MOUSE_BUTTON_LEFT;
+    if ( BIT_TEST_(button_mask, BUTTON_CLICK_RIGHT  ) ) mouse_report.buttons |= MOUSE_BUTTON_RIGHT;
+    if ( BIT_TEST_(button_mask, BUTTON_CLICK_MIDDLE ) ) mouse_report.buttons |= MOUSE_BUTTON_MIDDLE;
 
-      if ( BIT_TEST_(button_mask, BUTTON_LEFT) ) mouse_report.x = -MOUSE_RESOLUTION;
-      if ( BIT_TEST_(button_mask, BUTTON_RIGHT) ) mouse_report.x = MOUSE_RESOLUTION;
+    if ( ! (prev_mouse_buttons == mouse_report.buttons && mouse_report.y == 0 && mouse_report.x == 0 && mouse_report.wheel == 0) )
+    { // send report if clicked buttons are changed or there is any movement x, y, wheel
+      prev_mouse_buttons = mouse_report.buttons;
 
-      if ( BIT_TEST_(button_mask, BUTTON_CLICK_LEFT) ) mouse_report.buttons = MOUSE_BUTTON_LEFT;
-
-      tusbd_hid_mouse_send(0, &mouse_report );
+      tusbd_hid_mouse_send(0, &mouse_report);
     }
   }
 

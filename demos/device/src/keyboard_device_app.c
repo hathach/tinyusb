@@ -115,16 +115,15 @@ OSAL_TASK_FUNCTION( keyboard_device_app_task , p_task_para)
 {
   OSAL_TASK_LOOP_BEGIN
 
-  osal_task_delay(100);
+  osal_task_delay(50);
 
-  if ( tusbd_is_configured(0) )
+  if ( tusbd_is_configured(0) && !tusbd_hid_keyboard_is_busy(0) )
   {
     static uint32_t button_mask = 0;
-
     uint32_t new_button_mask = board_buttons();
 
     //------------- button pressed -------------//
-    if ( (button_mask != new_button_mask) && !tusbd_hid_keyboard_is_busy(0) )
+    if (button_mask != new_button_mask)
     {
       button_mask = new_button_mask;
 
