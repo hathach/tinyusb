@@ -82,7 +82,7 @@
 //#define configCPU_CLOCK_HZ        		( SystemCoreClock )
 #define configCPU_CLOCK_HZ          		( CGU_GetPCLKFrequency(CGU_PERIPHERAL_M4CORE))
 #define configTICK_RATE_HZ          		( ( portTickType ) 1000 )
-#define configMAX_PRIORITIES        		( ( unsigned portBASE_TYPE ) 16 )
+#define configMAX_PRIORITIES        		( ( unsigned portBASE_TYPE ) 8 )
 #define configMINIMAL_STACK_SIZE    		( ( unsigned short ) 128 )
 #define configTOTAL_HEAP_SIZE       		( ( size_t ) ( 16*1024 ) )
 #define configMAX_TASK_NAME_LEN     		( 32 )

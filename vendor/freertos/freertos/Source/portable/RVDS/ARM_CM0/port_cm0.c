@@ -1,48 +1,41 @@
 /*
-    FreeRTOS V7.3.0 - Copyright (C) 2012 Real Time Engineers Ltd.
+    FreeRTOS V7.6.0 - Copyright (C) 2013 Real Time Engineers Ltd. 
+    All rights reserved
 
-    FEATURES AND PORTS ARE ADDED TO FREERTOS ALL THE TIME.  PLEASE VISIT 
-    http://www.FreeRTOS.org TO ENSURE YOU ARE USING THE LATEST VERSION.
+    VISIT http://www.FreeRTOS.org TO ENSURE YOU ARE USING THE LATEST VERSION.
 
     ***************************************************************************
      *                                                                       *
-     *    FreeRTOS tutorial books are available in pdf and paperback.        *
-     *    Complete, revised, and edited pdf reference manuals are also       *
-     *    available.                                                         *
+     *    FreeRTOS provides completely free yet professionally developed,    *
+     *    robust, strictly quality controlled, supported, and cross          *
+     *    platform software that has become a de facto standard.             *
      *                                                                       *
-     *    Purchasing FreeRTOS documentation will not only help you, by       *
-     *    ensuring you get running as quickly as possible and with an        *
-     *    in-depth knowledge of how to use FreeRTOS, it will also help       *
-     *    the FreeRTOS project to continue with its mission of providing     *
-     *    professional grade, cross platform, de facto standard solutions    *
-     *    for microcontrollers - completely free of charge!                  *
+     *    Help yourself get started quickly and support the FreeRTOS         *
+     *    project by purchasing a FreeRTOS tutorial book, reference          *
+     *    manual, or both from: http://www.FreeRTOS.org/Documentation        *
      *                                                                       *
-     *    >>> See http://www.FreeRTOS.org/Documentation for details. <<<     *
-     *                                                                       *
-     *    Thank you for using FreeRTOS, and thank you for your support!      *
+     *    Thank you!                                                         *
      *                                                                       *
     ***************************************************************************
-
 
     This file is part of the FreeRTOS distribution.
 
     FreeRTOS is free software; you can redistribute it and/or modify it under
     the terms of the GNU General Public License (version 2) as published by the
-    Free Software Foundation AND MODIFIED BY the FreeRTOS exception.
-    >>>NOTE<<< The modification to the GPL is included to allow you to
-    distribute a combined work that includes FreeRTOS without being obliged to
-    provide the source code for proprietary components outside of the FreeRTOS
-    kernel.  FreeRTOS is distributed in the hope that it will be useful, but
-    WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY
-    or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License for
-    more details. You should have received a copy of the GNU General Public
-    License and the FreeRTOS license exception along with FreeRTOS; if not it
-    can be viewed here: http://www.freertos.org/a00114.html and also obtained
-    by writing to Richard Barry, contact details for whom are available on the
-    FreeRTOS WEB site.
+    Free Software Foundation >>!AND MODIFIED BY!<< the FreeRTOS exception.
+
+    >>! NOTE: The modification to the GPL is included to allow you to distribute
+    >>! a combined work that includes FreeRTOS without being obliged to provide
+    >>! the source code for proprietary components outside of the FreeRTOS
+    >>! kernel.
+
+    FreeRTOS is distributed in the hope that it will be useful, but WITHOUT ANY
+    WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+    FOR A PARTICULAR PURPOSE.  Full license text is available from the following
+    link: http://www.freertos.org/a00114.html
 
     1 tab == 4 spaces!
-    
+
     ***************************************************************************
      *                                                                       *
      *    Having a problem?  Start by reading the FAQ "My application does   *
@@ -52,18 +45,22 @@
      *                                                                       *
     ***************************************************************************
 
-    
-    http://www.FreeRTOS.org - Documentation, training, latest versions, license 
-    and contact details.  
-    
-    http://www.FreeRTOS.org/plus - A selection of FreeRTOS ecosystem products,
-    including FreeRTOS+Trace - an indispensable productivity tool.
+    http://www.FreeRTOS.org - Documentation, books, training, latest versions,
+    license and Real Time Engineers Ltd. contact details.
 
-    Real Time Engineers ltd license FreeRTOS to High Integrity Systems, who sell 
-    the code with commercial support, indemnification, and middleware, under 
-    the OpenRTOS brand: http://www.OpenRTOS.com.  High Integrity Systems also
-    provide a safety engineered and independently SIL3 certified version under 
-    the SafeRTOS brand: http://www.SafeRTOS.com.
+    http://www.FreeRTOS.org/plus - A selection of FreeRTOS ecosystem products,
+    including FreeRTOS+Trace - an indispensable productivity tool, a DOS
+    compatible FAT file system, and our tiny thread aware UDP/IP stack.
+
+    http://www.OpenRTOS.com - Real Time Engineers ltd license FreeRTOS to High
+    Integrity Systems to sell under the OpenRTOS brand.  Low cost OpenRTOS
+    licenses offer ticketed support, indemnification and middleware.
+
+    http://www.SafeRTOS.com - High Integrity Systems also provide a safety
+    engineered and independently SIL3 certified version for use in safety and
+    mission critical applications that require provable dependability.
+
+    1 tab == 4 spaces!
 */
 
 /*-----------------------------------------------------------
@@ -90,29 +87,34 @@
 /* Constants required to set up the initial stack. */
 #define portINITIAL_XPSR			( 0x01000000 )
 
+/* Constants used with memory barrier intrinsics. */
+#define portSY_FULL_READ_WRITE		( 15 )
+
 /* Each task maintains its own interrupt status in the critical nesting
 variable. */
 static unsigned portBASE_TYPE uxCriticalNesting = 0xaaaaaaaa;
 
-#if configUSE_CUSTOM_TICK == 0
 /*
  * Setup the timer to generate the tick interrupts.
  */
 static void prvSetupTimerInterrupt( void );
-#endif
 
-#ifdef __GNUC__
 /*
  * Exception handlers.
  */
-void xPortPendSVHandler( void ) __attribute__ (( naked ));
+void xPortPendSVHandler( void );
 void xPortSysTickHandler( void );
-void vPortSVCHandler( void ) __attribute__ (( naked ));
+void vPortSVCHandler( void );
+
 /*
  * Start first task is a separate function so it can be tested in isolation.
  */
-static void vPortStartFirstTask( void ) __attribute__ (( naked ));
-#endif
+static void prvPortStartFirstTask( void );
+
+/*
+ * Used to catch tasks that attempt to return from their implementing function.
+ */
+static void prvTaskExitError( void );
 
 /*-----------------------------------------------------------*/
 
@@ -127,96 +129,61 @@ portSTACK_TYPE *pxPortInitialiseStack( portSTACK_TYPE *pxTopOfStack, pdTASK_CODE
 	*pxTopOfStack = portINITIAL_XPSR;	/* xPSR */
 	pxTopOfStack--;
 	*pxTopOfStack = ( portSTACK_TYPE ) pxCode;	/* PC */
-	pxTopOfStack -= 6;	/* LR, R12, R3..R1 */
+	pxTopOfStack--;
+	*pxTopOfStack = ( portSTACK_TYPE ) prvTaskExitError;	/* LR */
+	pxTopOfStack -= 5;	/* R12, R3, R2 and R1. */
 	*pxTopOfStack = ( portSTACK_TYPE ) pvParameters;	/* R0 */
 	pxTopOfStack -= 8; /* R11..R4. */
 
 	return pxTopOfStack;
 }
 /*-----------------------------------------------------------*/
-#if defined ( __CC_ARM   )
-__asm void vPortSVCHandler( void )
+
+static void prvTaskExitError( void )
 {
-	extern pxCurrentTCB;
-
-	PRESERVE8
-
-	ldr	r3, =pxCurrentTCB		/* Restore the context. */
-	ldr r1, [r3]				/* Get the pxCurrentTCB address. */
-	ldr r0, [r1]				/* The first item in pxCurrentTCB is the task top of stack. */
-	adds r0, r0, #16			/* Move to the high registers. */
-	ldmia r0!, {r4-r7}
-	mov r8,  r4
-	mov r9,  r5
-	mov r10, r6
-	mov r11, r7
-	msr psp, r0					/* Remember the new top of stack for the task. */
-	subs r0, r0, #32			/* Go back for the low registers that are not automatically restored. */
-	ldmia r0!, {r4-r7}			/* Pop low registers.  */
-	mov r1, r14
-	movs r0, #0xd
-	orrs r1, r0
-	bx r1
+	/* A function that implements a task must not exit or attempt to return to
+	its caller as there is nothing to return to.  If a task wants to exit it 
+	should instead call vTaskDelete( NULL ).
+	
+	Artificially force an assert() to be triggered if configASSERT() is 
+	defined, then stop here so application writers can catch the error. */
+	configASSERT( uxCriticalNesting == ~0UL );
+	portDISABLE_INTERRUPTS();	
+	for( ;; );
 }
-
-#elif defined   (  __GNUC__  )
-void vPortSVCHandler( void )
-{
-	__asm volatile (
-					"	ldr	r3, pxCurrentTCBConst2		\n" /* Restore the context. */
-					"	ldr r1, [r3]					\n" /* Use pxCurrentTCBConst to get the pxCurrentTCB address. */
-					"	ldr r0, [r1]					\n" /* The first item in pxCurrentTCB is the task top of stack. */
-					"	add r0, r0, #16					\n" /* Move to the high registers. */
-					"	ldmia r0!, {r4-r7}				\n" /* Pop the high registers. */
-					" 	mov r8, r4						\n"
-					" 	mov r9, r5						\n"
-					" 	mov r10, r6						\n"
-					" 	mov r11, r7						\n"
-					"									\n"
-					"	msr psp, r0						\n" /* Remember the new top of stack for the task. */
-					"									\n"
-					"	sub r0, r0, #32					\n" /* Go back for the low registers that are not automatically restored. */
-					" 	ldmia r0!, {r4-r7}              \n" /* Pop low registers.  */
-					"	mov r1, r14						\n" /* OR R14 with 0x0d. */
-					"	movs r0, #0x0d					\n"
-					"	orr r1, r0						\n"
-					"	bx r1							\n"
-					"									\n"
-					"	.align 2						\n"
-					"pxCurrentTCBConst2: .word pxCurrentTCB	\n"
-				);
-}
-#else
-#error vPortSVCHandler not defined for this compiler!
-#endif
 /*-----------------------------------------------------------*/
 
-#if defined ( __CC_ARM   )
-__asm void vPortStartFirstTask( void )
+void vPortSVCHandler( void )
 {
+	/* This function is no longer used, but retained for backward 
+	compatibility. */
+}
+/*-----------------------------------------------------------*/
+
+__asm void prvPortStartFirstTask( void )
+{
+	extern pxCurrentTCB;
+	
 	PRESERVE8
+	
+	/* The MSP stack is not reset as, unlike on M3/4 parts, there is no vector
+	table offset register that can be used to locate the initial stack value.
+	Not all M0 parts have the application vector table at address 0. */
+	
+	ldr	r3, =pxCurrentTCB	/* Obtain location of pxCurrentTCB. */
+	ldr r1, [r3]			
+	ldr r0, [r1]			/* The first item in pxCurrentTCB is the task top of stack. */
+	adds r0, #32			/* Discard everything up to r0. */
+	msr psp, r0				/* This is now the new top of stack to use in the task. */
+	movs r0, #2				/* Switch to the psp stack. */
+	msr CONTROL, r0
+	pop {r0-r5}				/* Pop the registers that are saved automatically. */
+	mov lr, r5				/* lr is now in r5. */
+	cpsie i					/* The first task has its context and interrupts can be enabled. */
+	pop {pc}				/* Finally, pop the PC to jump to the user defined task code. */
 
-	movs r0, #0x00 		/* Locate the top of stack. */
-	ldr r0, [r0]
-	msr msp, r0			/* Set the msp back to the start of the stack. */
-	cpsie i				/* Globally enable interrupts. */
-	svc 0				/* System call to start first task. */
-	nop
+	ALIGN
 }
-
-#elif defined   (  __GNUC__  )
-void vPortStartFirstTask( void )
-{
-	__asm volatile(
-					" movs r0, #0x00 	\n" /* Locate the top of stack. */
-					" ldr r0, [r0] 		\n"
-					" msr msp, r0		\n" /* Set the msp back to the start of the stack. */
-					" cpsie i			\n" /* Globally enable interrupts. */
-					" svc 0				\n" /* System call to start first task. */
-					" nop				\n"
-				);
-}
-#endif
 /*-----------------------------------------------------------*/
 
 /*
@@ -228,17 +195,15 @@ portBASE_TYPE xPortStartScheduler( void )
 	*(portNVIC_SYSPRI2) |= portNVIC_PENDSV_PRI;
 	*(portNVIC_SYSPRI2) |= portNVIC_SYSTICK_PRI;
 
-#if configUSE_CUSTOM_TICK == 0
 	/* Start the timer that generates the tick ISR.  Interrupts are disabled
 	here already. */
 	prvSetupTimerInterrupt();
-#endif	
 
 	/* Initialise the critical nesting count ready for the first task. */
 	uxCriticalNesting = 0;
 
 	/* Start the first task. */
-	vPortStartFirstTask();
+	prvPortStartFirstTask();
 
 	/* Should not get here! */
 	return 0;
@@ -252,10 +217,15 @@ void vPortEndScheduler( void )
 }
 /*-----------------------------------------------------------*/
 
-void vPortYieldFromISR( void )
+void vPortYield( void )
 {
 	/* Set a PendSV to request a context switch. */
 	*( portNVIC_INT_CTRL ) = portNVIC_PENDSVSET;
+
+	/* Barriers are normally not required but do ensure the code is completely
+	within the specified behaviour for the architecture. */
+	__dsb( portSY_FULL_READ_WRITE );
+	__isb( portSY_FULL_READ_WRITE );
 }
 /*-----------------------------------------------------------*/
 
@@ -263,6 +233,8 @@ void vPortEnterCritical( void )
 {
     portDISABLE_INTERRUPTS();
     uxCriticalNesting++;
+	__dsb( portSY_FULL_READ_WRITE );
+	__isb( portSY_FULL_READ_WRITE );
 }
 /*-----------------------------------------------------------*/
 
@@ -276,109 +248,81 @@ void vPortExitCritical( void )
 }
 /*-----------------------------------------------------------*/
 
-#if defined ( __CC_ARM   )
+__asm unsigned long ulSetInterruptMaskFromISR( void )
+{
+	mrs r0, PRIMASK
+	cpsid i
+	bx lr
+}
+/*-----------------------------------------------------------*/
+
+__asm void vClearInterruptMaskFromISR( unsigned long ulMask )
+{
+	msr PRIMASK, r0
+	bx lr
+}
+/*-----------------------------------------------------------*/
+
 __asm void xPortPendSVHandler( void )
 {
-	extern pxCurrentTCB;
-	extern vTaskSwitchContext;
+	extern vTaskSwitchContext
+	extern pxCurrentTCB
 
 	PRESERVE8
 
 	mrs r0, psp
-	ldr	r3, =pxCurrentTCB			/* Get the location of the current TCB. */
+
+	ldr	r3, =pxCurrentTCB 	/* Get the location of the current TCB. */
 	ldr	r2, [r3]
-	subs r0, r0, #32				/* Make space for the remaining low registers. */
-	str r0, [r2]					/* Save the new top of stack. */
-	stmia r0!, {r4-r7}				/* Store the low registers that are not saved automatically. */
-	mov r4, r8						/* Store the high registers. */
+
+	subs r0, #32			/* Make space for the remaining low registers. */
+	str r0, [r2]			/* Save the new top of stack. */
+	stmia r0!, {r4-r7}		/* Store the low registers that are not saved automatically. */
+	mov r4, r8				/* Store the high registers. */
 	mov r5, r9
 	mov r6, r10
 	mov r7, r11
 	stmia r0!, {r4-r7}
+
 	push {r3, r14}
 	cpsid i
 	bl vTaskSwitchContext
 	cpsie i
-	pop {r2, r3}					/* lr goes in r3. r2 now holds tcb pointer. */
+	pop {r2, r3}			/* lr goes in r3. r2 now holds tcb pointer. */
+
 	ldr r1, [r2]
-	ldr r0, [r1]					/* The first item in pxCurrentTCB is the task top of stack. */
-	adds r0, r0, #16				/* Move to the high registers. */
-	ldmia r0!, {r4-r7}				/* Pop the high registers. */
+	ldr r0, [r1]			/* The first item in pxCurrentTCB is the task top of stack. */
+	adds r0, #16			/* Move to the high registers. */
+	ldmia r0!, {r4-r7}		/* Pop the high registers. */
 	mov r8, r4
 	mov r9, r5
 	mov r10, r6
 	mov r11, r7
-	msr psp, r0						/* Remember the new top of stack for the task. */
-	subs r0, r0, #32				/* Go back for the low registers that are not automatically restored. */
-	ldmia r0!, {r4-r7}              /* Pop low registers.  */
+
+	msr psp, r0				/* Remember the new top of stack for the task. */
+
+	subs r0, #32			/* Go back for the low registers that are not automatically restored. */
+	ldmia r0!, {r4-r7}      /* Pop low registers.  */
+
 	bx r3
+	ALIGN
 }
-
-#elif defined   (  __GNUC__  )
-void xPortPendSVHandler( void )
-{
-	/* This is a naked function. */
-
-	__asm volatile
-	(
-	"	mrs r0, psp							\n"
-	"										\n"
-	"	ldr	r3, pxCurrentTCBConst			\n" /* Get the location of the current TCB. */
-	"	ldr	r2, [r3]						\n"
-	"										\n"
-	"	sub r0, r0, #32						\n" /* Make space for the remaining low registers. */
-	"	str r0, [r2]						\n" /* Save the new top of stack. */
-	"	stmia r0!, {r4-r7}					\n" /* Store the low registers that are not saved automatically. */
-	" 	mov r4, r8							\n" /* Store the high registers. */
-	" 	mov r5, r9							\n"
-	" 	mov r6, r10							\n"
-	" 	mov r7, r11							\n"
-	" 	stmia r0!, {r4-r7}              	\n"
-	"										\n"
-	"	push {r3, r14}						\n"
-	"	cpsid i								\n"
-	"	bl vTaskSwitchContext				\n"
-	"	cpsie i								\n"
-	"	pop {r2, r3}						\n" /* lr goes in r3. r2 now holds tcb pointer. */
-	"										\n"
-	"	ldr r1, [r2]						\n"
-	"	ldr r0, [r1]						\n" /* The first item in pxCurrentTCB is the task top of stack. */
-	"	add r0, r0, #16						\n" /* Move to the high registers. */
-	"	ldmia r0!, {r4-r7}					\n" /* Pop the high registers. */
-	" 	mov r8, r4							\n"
-	" 	mov r9, r5							\n"
-	" 	mov r10, r6							\n"
-	" 	mov r11, r7							\n"
-	"										\n"
-	"	msr psp, r0							\n" /* Remember the new top of stack for the task. */
-	"										\n"
-	"	sub r0, r0, #32						\n" /* Go back for the low registers that are not automatically restored. */
-	" 	ldmia r0!, {r4-r7}              	\n" /* Pop low registers.  */
-	"										\n"
-	"	bx r3								\n"
-	"										\n"
-	"	.align 2							\n"
-	"pxCurrentTCBConst: .word pxCurrentTCB	  "
-	);
-}
-#endif
 /*-----------------------------------------------------------*/
 
-#if configUSE_CUSTOM_TICK == 0
 void xPortSysTickHandler( void )
 {
-unsigned long ulDummy;
+unsigned long ulPreviousMask;
 
-	/* If using preemption, also force a context switch. */
-	#if configUSE_PREEMPTION == 1
-		*(portNVIC_INT_CTRL) = portNVIC_PENDSVSET;
-	#endif
-
-	ulDummy = portSET_INTERRUPT_MASK_FROM_ISR();
+	ulPreviousMask = portSET_INTERRUPT_MASK_FROM_ISR();
 	{
-		vTaskIncrementTick();
+		/* Increment the RTOS tick. */
+		if( xTaskIncrementTick() != pdFALSE )
+		{
+			/* Pend a context switch. */
+			*(portNVIC_INT_CTRL) = portNVIC_PENDSVSET;
+		}
 	}
-	portCLEAR_INTERRUPT_MASK_FROM_ISR( ulDummy );
+	portCLEAR_INTERRUPT_MASK_FROM_ISR( ulPreviousMask );
 }
 /*-----------------------------------------------------------*/
 
@@ -392,6 +336,5 @@ void prvSetupTimerInterrupt( void )
 	*(portNVIC_SYSTICK_LOAD) = ( configCPU_CLOCK_HZ / configTICK_RATE_HZ ) - 1UL;
 	*(portNVIC_SYSTICK_CTRL) = portNVIC_SYSTICK_CLK | portNVIC_SYSTICK_INT | portNVIC_SYSTICK_ENABLE;
 }
-#endif
 /*-----------------------------------------------------------*/
 

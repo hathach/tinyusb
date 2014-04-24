@@ -1,45 +1,38 @@
 /*
-    FreeRTOS V7.3.0 - Copyright (C) 2012 Real Time Engineers Ltd.
+    FreeRTOS V7.6.0 - Copyright (C) 2013 Real Time Engineers Ltd. 
+    All rights reserved
 
-    FEATURES AND PORTS ARE ADDED TO FREERTOS ALL THE TIME.  PLEASE VISIT
-    http://www.FreeRTOS.org TO ENSURE YOU ARE USING THE LATEST VERSION.
+    VISIT http://www.FreeRTOS.org TO ENSURE YOU ARE USING THE LATEST VERSION.
 
     ***************************************************************************
      *                                                                       *
-     *    FreeRTOS tutorial books are available in pdf and paperback.        *
-     *    Complete, revised, and edited pdf reference manuals are also       *
-     *    available.                                                         *
+     *    FreeRTOS provides completely free yet professionally developed,    *
+     *    robust, strictly quality controlled, supported, and cross          *
+     *    platform software that has become a de facto standard.             *
      *                                                                       *
-     *    Purchasing FreeRTOS documentation will not only help you, by       *
-     *    ensuring you get running as quickly as possible and with an        *
-     *    in-depth knowledge of how to use FreeRTOS, it will also help       *
-     *    the FreeRTOS project to continue with its mission of providing     *
-     *    professional grade, cross platform, de facto standard solutions    *
-     *    for microcontrollers - completely free of charge!                  *
+     *    Help yourself get started quickly and support the FreeRTOS         *
+     *    project by purchasing a FreeRTOS tutorial book, reference          *
+     *    manual, or both from: http://www.FreeRTOS.org/Documentation        *
      *                                                                       *
-     *    >>> See http://www.FreeRTOS.org/Documentation for details. <<<     *
-     *                                                                       *
-     *    Thank you for using FreeRTOS, and thank you for your support!      *
+     *    Thank you!                                                         *
      *                                                                       *
     ***************************************************************************
-
 
     This file is part of the FreeRTOS distribution.
 
     FreeRTOS is free software; you can redistribute it and/or modify it under
     the terms of the GNU General Public License (version 2) as published by the
-    Free Software Foundation AND MODIFIED BY the FreeRTOS exception.
-    >>>NOTE<<< The modification to the GPL is included to allow you to
-    distribute a combined work that includes FreeRTOS without being obliged to
-    provide the source code for proprietary components outside of the FreeRTOS
-    kernel.  FreeRTOS is distributed in the hope that it will be useful, but
-    WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY
-    or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License for
-    more details. You should have received a copy of the GNU General Public
-    License and the FreeRTOS license exception along with FreeRTOS; if not it
-    can be viewed here: http://www.freertos.org/a00114.html and also obtained
-    by writing to Richard Barry, contact details for whom are available on the
-    FreeRTOS WEB site.
+    Free Software Foundation >>!AND MODIFIED BY!<< the FreeRTOS exception.
+
+    >>! NOTE: The modification to the GPL is included to allow you to distribute
+    >>! a combined work that includes FreeRTOS without being obliged to provide
+    >>! the source code for proprietary components outside of the FreeRTOS
+    >>! kernel.
+
+    FreeRTOS is distributed in the hope that it will be useful, but WITHOUT ANY
+    WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+    FOR A PARTICULAR PURPOSE.  Full license text is available from the following
+    link: http://www.freertos.org/a00114.html
 
     1 tab == 4 spaces!
 
@@ -52,18 +45,22 @@
      *                                                                       *
     ***************************************************************************
 
-
-    http://www.FreeRTOS.org - Documentation, training, latest versions, license
-    and contact details.
+    http://www.FreeRTOS.org - Documentation, books, training, latest versions,
+    license and Real Time Engineers Ltd. contact details.
 
     http://www.FreeRTOS.org/plus - A selection of FreeRTOS ecosystem products,
-    including FreeRTOS+Trace - an indispensable productivity tool.
+    including FreeRTOS+Trace - an indispensable productivity tool, a DOS
+    compatible FAT file system, and our tiny thread aware UDP/IP stack.
 
-    Real Time Engineers ltd license FreeRTOS to High Integrity Systems, who sell
-    the code with commercial support, indemnification, and middleware, under
-    the OpenRTOS brand: http://www.OpenRTOS.com.  High Integrity Systems also
-    provide a safety engineered and independently SIL3 certified version under
-    the SafeRTOS brand: http://www.SafeRTOS.com.
+    http://www.OpenRTOS.com - Real Time Engineers ltd license FreeRTOS to High
+    Integrity Systems to sell under the OpenRTOS brand.  Low cost OpenRTOS
+    licenses offer ticketed support, indemnification and middleware.
+
+    http://www.SafeRTOS.com - High Integrity Systems also provide a safety
+    engineered and independently SIL3 certified version for use in safety and
+    mission critical applications that require provable dependability.
+
+    1 tab == 4 spaces!
 */
 
 
@@ -74,9 +71,10 @@
 	#error "include FreeRTOS.h must appear in source files before include timers.h"
 #endif
 
-#include "portable.h"
-#include "list.h"
+/*lint -e537 This headers are only multiply included if the application code
+happens to also be including task.h. */
 #include "task.h"
+/*lint +e956 */
 
 #ifdef __cplusplus
 extern "C" {
@@ -85,10 +83,10 @@ extern "C" {
 /* IDs for commands that can be sent/received on the timer queue.  These are to
 be used solely through the macros that make up the public software timer API,
 as defined below. */
-#define tmrCOMMAND_START					0
-#define tmrCOMMAND_STOP						1
-#define tmrCOMMAND_CHANGE_PERIOD			2
-#define tmrCOMMAND_DELETE					3
+#define tmrCOMMAND_START					( ( portBASE_TYPE ) 0 )
+#define tmrCOMMAND_STOP						( ( portBASE_TYPE ) 1 )
+#define tmrCOMMAND_CHANGE_PERIOD			( ( portBASE_TYPE ) 2 )
+#define tmrCOMMAND_DELETE					( ( portBASE_TYPE ) 3 )
 
 /*-----------------------------------------------------------
  * MACROS AND DEFINITIONS
@@ -152,7 +150,7 @@ typedef void (*tmrTIMER_CALLBACK)( xTimerHandle xTimer );
  * structures, or the timer period was set to 0) then 0 is returned.
  *
  * Example usage:
- *
+ * @verbatim
  * #define NUM_TIMERS 5
  *
  * // An array to hold handles to the created timers.
@@ -172,7 +170,7 @@ typedef void (*tmrTIMER_CALLBACK)( xTimerHandle xTimer );
  *
  * 	   // Optionally do something if the pxTimer parameter is NULL.
  * 	   configASSERT( pxTimer );
- *
+ * 	
  *     // Which timer expired?
  *     lArrayIndex = ( long ) pvTimerGetTimerID( pxTimer );
  *
@@ -231,6 +229,7 @@ typedef void (*tmrTIMER_CALLBACK)( xTimerHandle xTimer );
  *     // Should not reach here.
  *     for( ;; );
  * }
+ * @endverbatim
  */
 xTimerHandle xTimerCreate( const signed char * const pcTimerName, portTickType xTimerPeriodInTicks, unsigned portBASE_TYPE uxAutoReload, void * pvTimerID, tmrTIMER_CALLBACK pxCallbackFunction ) PRIVILEGED_FUNCTION;
 
@@ -276,7 +275,7 @@ void *pvTimerGetTimerID( xTimerHandle xTimer ) PRIVILEGED_FUNCTION;
  * pdFALSE will be returned if the timer is active.
  *
  * Example usage:
- *
+ * @verbatim
  * // This function assumes xTimer has already been created.
  * void vAFunction( xTimerHandle xTimer )
  * {
@@ -289,11 +288,12 @@ void *pvTimerGetTimerID( xTimerHandle xTimer ) PRIVILEGED_FUNCTION;
  *         // xTimer is not active, do something else.
  *     }
  * }
+ * @endverbatim
  */
 portBASE_TYPE xTimerIsTimerActive( xTimerHandle xTimer ) PRIVILEGED_FUNCTION;
 
 /**
- * xTimerGetTimerDaemonTaskHandle() is only available if
+ * xTimerGetTimerDaemonTaskHandle() is only available if 
  * INCLUDE_xTimerGetTimerDaemonTaskHandle is set to 1 in FreeRTOSConfig.h.
  *
  * Simply returns the handle of the timer service/daemon task.  It it not valid
@@ -441,7 +441,7 @@ xTaskHandle xTimerGetTimerDaemonTaskHandle( void );
  * configTIMER_TASK_PRIORITY configuration constant.
  *
  * Example usage:
- *
+ * @verbatim
  * // This function assumes xTimer has already been created.  If the timer
  * // referenced by xTimer is already active when it is called, then the timer
  * // is deleted.  If the timer referenced by xTimer is not active when it is
@@ -471,6 +471,7 @@ xTaskHandle xTimerGetTimerDaemonTaskHandle( void );
  *         }
  *     }
  * }
+ * @endverbatim
  */
  #define xTimerChangePeriod( xTimer, xNewPeriod, xBlockTime ) xTimerGenericCommand( ( xTimer ), tmrCOMMAND_CHANGE_PERIOD, ( xNewPeriod ), NULL, ( xBlockTime ) )
 
@@ -560,7 +561,7 @@ xTaskHandle xTimerGetTimerDaemonTaskHandle( void );
  * configuration constant.
  *
  * Example usage:
- *
+ * @verbatim
  * // When a key is pressed, an LCD back-light is switched on.  If 5 seconds pass
  * // without a key being pressed, then the LCD back-light is switched off.  In
  * // this case, the timer is a one-shot timer.
@@ -632,6 +633,7 @@ xTaskHandle xTimerGetTimerDaemonTaskHandle( void );
  *     // Should not reach here.
  *     for( ;; );
  * }
+ * @endverbatim
  */
 #define xTimerReset( xTimer, xBlockTime ) xTimerGenericCommand( ( xTimer ), tmrCOMMAND_START, ( xTaskGetTickCount() ), NULL, ( xBlockTime ) )
 
@@ -665,7 +667,7 @@ xTaskHandle xTimerGetTimerDaemonTaskHandle( void );
  * task priority is set by the configTIMER_TASK_PRIORITY configuration constant.
  *
  * Example usage:
- *
+ * @verbatim
  * // This scenario assumes xBacklightTimer has already been created.  When a
  * // key is pressed, an LCD back-light is switched on.  If 5 seconds pass
  * // without a key being pressed, then the LCD back-light is switched off.  In
@@ -716,6 +718,7 @@ xTaskHandle xTimerGetTimerDaemonTaskHandle( void );
  *         // depends on the FreeRTOS port being used.
  *     }
  * }
+ * @endverbatim
  */
 #define xTimerStartFromISR( xTimer, pxHigherPriorityTaskWoken ) xTimerGenericCommand( ( xTimer ), tmrCOMMAND_START, ( xTaskGetTickCountFromISR() ), ( pxHigherPriorityTaskWoken ), 0U )
 
@@ -748,7 +751,7 @@ xTaskHandle xTimerGetTimerDaemonTaskHandle( void );
  * priority is set by the configTIMER_TASK_PRIORITY configuration constant.
  *
  * Example usage:
- *
+ * @verbatim
  * // This scenario assumes xTimer has already been created and started.  When
  * // an interrupt occurs, the timer should be simply stopped.
  *
@@ -778,6 +781,7 @@ xTaskHandle xTimerGetTimerDaemonTaskHandle( void );
  *         // depends on the FreeRTOS port being used.
  *     }
  * }
+ * @endverbatim
  */
 #define xTimerStopFromISR( xTimer, pxHigherPriorityTaskWoken ) xTimerGenericCommand( ( xTimer ), tmrCOMMAND_STOP, 0, ( pxHigherPriorityTaskWoken ), 0U )
 
@@ -820,7 +824,7 @@ xTaskHandle xTimerGetTimerDaemonTaskHandle( void );
  * priority is set by the configTIMER_TASK_PRIORITY configuration constant.
  *
  * Example usage:
- *
+ * @verbatim
  * // This scenario assumes xTimer has already been created and started.  When
  * // an interrupt occurs, the period of xTimer should be changed to 500ms.
  *
@@ -850,6 +854,7 @@ xTaskHandle xTimerGetTimerDaemonTaskHandle( void );
  *         // depends on the FreeRTOS port being used.
  *     }
  * }
+ * @endverbatim
  */
 #define xTimerChangePeriodFromISR( xTimer, xNewPeriod, pxHigherPriorityTaskWoken ) xTimerGenericCommand( ( xTimer ), tmrCOMMAND_CHANGE_PERIOD, ( xNewPeriod ), ( pxHigherPriorityTaskWoken ), 0U )
 
@@ -884,7 +889,7 @@ xTaskHandle xTimerGetTimerDaemonTaskHandle( void );
  * task priority is set by the configTIMER_TASK_PRIORITY configuration constant.
  *
  * Example usage:
- *
+ * @verbatim
  * // This scenario assumes xBacklightTimer has already been created.  When a
  * // key is pressed, an LCD back-light is switched on.  If 5 seconds pass
  * // without a key being pressed, then the LCD back-light is switched off.  In
@@ -935,6 +940,7 @@ xTaskHandle xTimerGetTimerDaemonTaskHandle( void );
  *         // depends on the FreeRTOS port being used.
  *     }
  * }
+ * @endverbatim
  */
 #define xTimerResetFromISR( xTimer, pxHigherPriorityTaskWoken ) xTimerGenericCommand( ( xTimer ), tmrCOMMAND_START, ( xTaskGetTickCountFromISR() ), ( pxHigherPriorityTaskWoken ), 0U )
 

@@ -1,45 +1,38 @@
 /*
-    FreeRTOS V7.3.0 - Copyright (C) 2012 Real Time Engineers Ltd.
+    FreeRTOS V7.6.0 - Copyright (C) 2013 Real Time Engineers Ltd. 
+    All rights reserved
 
-    FEATURES AND PORTS ARE ADDED TO FREERTOS ALL THE TIME.  PLEASE VISIT
-    http://www.FreeRTOS.org TO ENSURE YOU ARE USING THE LATEST VERSION.
+    VISIT http://www.FreeRTOS.org TO ENSURE YOU ARE USING THE LATEST VERSION.
 
     ***************************************************************************
      *                                                                       *
-     *    FreeRTOS tutorial books are available in pdf and paperback.        *
-     *    Complete, revised, and edited pdf reference manuals are also       *
-     *    available.                                                         *
+     *    FreeRTOS provides completely free yet professionally developed,    *
+     *    robust, strictly quality controlled, supported, and cross          *
+     *    platform software that has become a de facto standard.             *
      *                                                                       *
-     *    Purchasing FreeRTOS documentation will not only help you, by       *
-     *    ensuring you get running as quickly as possible and with an        *
-     *    in-depth knowledge of how to use FreeRTOS, it will also help       *
-     *    the FreeRTOS project to continue with its mission of providing     *
-     *    professional grade, cross platform, de facto standard solutions    *
-     *    for microcontrollers - completely free of charge!                  *
+     *    Help yourself get started quickly and support the FreeRTOS         *
+     *    project by purchasing a FreeRTOS tutorial book, reference          *
+     *    manual, or both from: http://www.FreeRTOS.org/Documentation        *
      *                                                                       *
-     *    >>> See http://www.FreeRTOS.org/Documentation for details. <<<     *
-     *                                                                       *
-     *    Thank you for using FreeRTOS, and thank you for your support!      *
+     *    Thank you!                                                         *
      *                                                                       *
     ***************************************************************************
-
 
     This file is part of the FreeRTOS distribution.
 
     FreeRTOS is free software; you can redistribute it and/or modify it under
     the terms of the GNU General Public License (version 2) as published by the
-    Free Software Foundation AND MODIFIED BY the FreeRTOS exception.
-    >>>NOTE<<< The modification to the GPL is included to allow you to
-    distribute a combined work that includes FreeRTOS without being obliged to
-    provide the source code for proprietary components outside of the FreeRTOS
-    kernel.  FreeRTOS is distributed in the hope that it will be useful, but
-    WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY
-    or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License for
-    more details. You should have received a copy of the GNU General Public
-    License and the FreeRTOS license exception along with FreeRTOS; if not it
-    can be viewed here: http://www.freertos.org/a00114.html and also obtained
-    by writing to Richard Barry, contact details for whom are available on the
-    FreeRTOS WEB site.
+    Free Software Foundation >>!AND MODIFIED BY!<< the FreeRTOS exception.
+
+    >>! NOTE: The modification to the GPL is included to allow you to distribute
+    >>! a combined work that includes FreeRTOS without being obliged to provide
+    >>! the source code for proprietary components outside of the FreeRTOS
+    >>! kernel.
+
+    FreeRTOS is distributed in the hope that it will be useful, but WITHOUT ANY
+    WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+    FOR A PARTICULAR PURPOSE.  Full license text is available from the following
+    link: http://www.freertos.org/a00114.html
 
     1 tab == 4 spaces!
 
@@ -52,18 +45,22 @@
      *                                                                       *
     ***************************************************************************
 
-
-    http://www.FreeRTOS.org - Documentation, training, latest versions, license
-    and contact details.
+    http://www.FreeRTOS.org - Documentation, books, training, latest versions,
+    license and Real Time Engineers Ltd. contact details.
 
     http://www.FreeRTOS.org/plus - A selection of FreeRTOS ecosystem products,
-    including FreeRTOS+Trace - an indispensable productivity tool.
+    including FreeRTOS+Trace - an indispensable productivity tool, a DOS
+    compatible FAT file system, and our tiny thread aware UDP/IP stack.
 
-    Real Time Engineers ltd license FreeRTOS to High Integrity Systems, who sell
-    the code with commercial support, indemnification, and middleware, under
-    the OpenRTOS brand: http://www.OpenRTOS.com.  High Integrity Systems also
-    provide a safety engineered and independently SIL3 certified version under
-    the SafeRTOS brand: http://www.SafeRTOS.com.
+    http://www.OpenRTOS.com - Real Time Engineers ltd license FreeRTOS to High
+    Integrity Systems to sell under the OpenRTOS brand.  Low cost OpenRTOS
+    licenses offer ticketed support, indemnification and middleware.
+
+    http://www.SafeRTOS.com - High Integrity Systems also provide a safety
+    engineered and independently SIL3 certified version for use in safety and
+    mission critical applications that require provable dependability.
+
+    1 tab == 4 spaces!
 */
 
 
@@ -79,26 +76,39 @@ extern "C" {
 #endif
 
 
-#include "mpu_wrappers.h"
-
 /**
- * Type by which queues are referenced.  For example, a call to xQueueCreate
- * returns (via a pointer parameter) an xQueueHandle variable that can then
- * be used as a parameter to xQueueSend(), xQueueReceive(), etc.
+ * Type by which queues are referenced.  For example, a call to xQueueCreate()
+ * returns an xQueueHandle variable that can then be used as a parameter to
+ * xQueueSend(), xQueueReceive(), etc.
  */
 typedef void * xQueueHandle;
 
+/**
+ * Type by which queue sets are referenced.  For example, a call to
+ * xQueueCreateSet() returns an xQueueSet variable that can then be used as a
+ * parameter to xQueueSelectFromSet(), xQueueAddToSet(), etc.
+ */
+typedef void * xQueueSetHandle;
+
+/**
+ * Queue sets can contain both queues and semaphores, so the
+ * xQueueSetMemberHandle is defined as a type to be used where a parameter or
+ * return value can be either an xQueueHandle or an xSemaphoreHandle.
+ */
+typedef void * xQueueSetMemberHandle;
 
 /* For internal use only. */
-#define	queueSEND_TO_BACK	( 0 )
-#define	queueSEND_TO_FRONT	( 1 )
+#define	queueSEND_TO_BACK		( ( portBASE_TYPE ) 0 )
+#define	queueSEND_TO_FRONT		( ( portBASE_TYPE ) 1 )
+#define queueOVERWRITE			( ( portBASE_TYPE ) 2 )
 
 /* For internal use only.  These definitions *must* match those in queue.c. */
-#define queueQUEUE_TYPE_BASE				( 0U )
-#define queueQUEUE_TYPE_MUTEX 				( 1U )
-#define queueQUEUE_TYPE_COUNTING_SEMAPHORE	( 2U )
-#define queueQUEUE_TYPE_BINARY_SEMAPHORE	( 3U )
-#define queueQUEUE_TYPE_RECURSIVE_MUTEX		( 4U )
+#define queueQUEUE_TYPE_BASE				( ( unsigned char ) 0U )
+#define queueQUEUE_TYPE_SET					( ( unsigned char ) 0U )
+#define queueQUEUE_TYPE_MUTEX 				( ( unsigned char ) 1U )
+#define queueQUEUE_TYPE_COUNTING_SEMAPHORE	( ( unsigned char ) 2U )
+#define queueQUEUE_TYPE_BINARY_SEMAPHORE	( ( unsigned char ) 3U )
+#define queueQUEUE_TYPE_RECURSIVE_MUTEX		( ( unsigned char ) 4U )
 
 /**
  * queue. h
@@ -406,6 +416,89 @@ typedef void * xQueueHandle;
  */
 #define xQueueSend( xQueue, pvItemToQueue, xTicksToWait ) xQueueGenericSend( ( xQueue ), ( pvItemToQueue ), ( xTicksToWait ), queueSEND_TO_BACK )
 
+/**
+ * queue. h
+ * <pre>
+ portBASE_TYPE xQueueOverwrite(
+							  xQueueHandle xQueue,
+							  const void * pvItemToQueue
+						 );
+ * </pre>
+ *
+ * Only for use with queues that have a length of one - so the queue is either
+ * empty or full.
+ *
+ * Post an item on a queue.  If the queue is already full then overwrite the
+ * value held in the queue.  The item is queued by copy, not by reference.
+ *
+ * This function must not be called from an interrupt service routine.
+ * See xQueueOverwriteFromISR () for an alternative which may be used in an ISR.
+ *
+ * @param xQueue The handle of the queue to which the data is being sent.
+ *
+ * @param pvItemToQueue A pointer to the item that is to be placed on the
+ * queue.  The size of the items the queue will hold was defined when the
+ * queue was created, so this many bytes will be copied from pvItemToQueue
+ * into the queue storage area.
+ *
+ * @return xQueueOverwrite() is a macro that calls xQueueGenericSend(), and
+ * therefore has the same return values as xQueueSendToFront().  However, pdPASS
+ * is the only value that can be returned because xQueueOverwrite() will write
+ * to the queue even when the queue is already full.
+ *
+ * Example usage:
+   <pre>
+
+ void vFunction( void *pvParameters )
+ {
+ xQueueHandle xQueue;
+ unsigned long ulVarToSend, ulValReceived;
+
+	// Create a queue to hold one unsigned long value.  It is strongly
+	// recommended *not* to use xQueueOverwrite() on queues that can
+	// contain more than one value, and doing so will trigger an assertion
+	// if configASSERT() is defined.
+	xQueue = xQueueCreate( 1, sizeof( unsigned long ) );
+
+	// Write the value 10 to the queue using xQueueOverwrite().
+	ulVarToSend = 10;
+	xQueueOverwrite( xQueue, &ulVarToSend );
+
+	// Peeking the queue should now return 10, but leave the value 10 in
+	// the queue.  A block time of zero is used as it is known that the
+	// queue holds a value.
+	ulValReceived = 0;
+	xQueuePeek( xQueue, &ulValReceived, 0 );
+
+	if( ulValReceived != 10 )
+	{
+		// Error unless the item was removed by a different task.
+	}
+
+	// The queue is still full.  Use xQueueOverwrite() to overwrite the
+	// value held in the queue with 100.
+	ulVarToSend = 100;
+	xQueueOverwrite( xQueue, &ulVarToSend );
+
+	// This time read from the queue, leaving the queue empty once more.
+	// A block time of 0 is used again.
+	xQueueReceive( xQueue, &ulValReceived, 0 );
+
+	// The value read should be the last value written, even though the
+	// queue was already full when the value was written.
+	if( ulValReceived != 100 )
+	{
+		// Error!
+	}
+
+	// ...
+}
+ </pre>
+ * \defgroup xQueueOverwrite xQueueOverwrite
+ * \ingroup QueueManagement
+ */
+#define xQueueOverwrite( xQueue, pvItemToQueue ) xQueueGenericSend( ( xQueue ), ( pvItemToQueue ), 0, queueOVERWRITE )
+
 
 /**
  * queue. h
@@ -492,7 +585,7 @@ typedef void * xQueueHandle;
  * \defgroup xQueueSend xQueueSend
  * \ingroup QueueManagement
  */
-signed portBASE_TYPE xQueueGenericSend( xQueueHandle pxQueue, const void * const pvItemToQueue, portTickType xTicksToWait, portBASE_TYPE xCopyPosition );
+signed portBASE_TYPE xQueueGenericSend( xQueueHandle xQueue, const void * const pvItemToQueue, portTickType xTicksToWait, portBASE_TYPE xCopyPosition ) PRIVILEGED_FUNCTION;
 
 /**
  * queue. h
@@ -513,9 +606,11 @@ signed portBASE_TYPE xQueueGenericSend( xQueueHandle pxQueue, const void * const
  * Successfully received items remain on the queue so will be returned again
  * by the next call, or a call to xQueueReceive().
  *
- * This macro must not be used in an interrupt service routine.
+ * This macro must not be used in an interrupt service routine.  See
+ * xQueuePeekFromISR() for an alternative that can be called from an interrupt
+ * service routine.
  *
- * @param pxQueue The handle to the queue from which the item is to be
+ * @param xQueue The handle to the queue from which the item is to be
  * received.
  *
  * @param pvBuffer Pointer to the buffer into which the received item will
@@ -591,6 +686,39 @@ signed portBASE_TYPE xQueueGenericSend( xQueueHandle pxQueue, const void * const
 /**
  * queue. h
  * <pre>
+ portBASE_TYPE xQueuePeekFromISR(
+									xQueueHandle xQueue,
+									void *pvBuffer,
+								);</pre>
+ *
+ * A version of xQueuePeek() that can be called from an interrupt service
+ * routine (ISR).
+ *
+ * Receive an item from a queue without removing the item from the queue.
+ * The item is received by copy so a buffer of adequate size must be
+ * provided.  The number of bytes copied into the buffer was defined when
+ * the queue was created.
+ *
+ * Successfully received items remain on the queue so will be returned again
+ * by the next call, or a call to xQueueReceive().
+ *
+ * @param xQueue The handle to the queue from which the item is to be
+ * received.
+ *
+ * @param pvBuffer Pointer to the buffer into which the received item will
+ * be copied.
+ *
+ * @return pdTRUE if an item was successfully received from the queue,
+ * otherwise pdFALSE.
+ *
+ * \defgroup xQueuePeekFromISR xQueuePeekFromISR
+ * \ingroup QueueManagement
+ */
+signed portBASE_TYPE xQueuePeekFromISR( xQueueHandle xQueue, void * const pvBuffer ) PRIVILEGED_FUNCTION;
+
+/**
+ * queue. h
+ * <pre>
  portBASE_TYPE xQueueReceive(
 								 xQueueHandle xQueue,
 								 void *pvBuffer,
@@ -608,7 +736,7 @@ signed portBASE_TYPE xQueueGenericSend( xQueueHandle pxQueue, const void * const
  * This function must not be used in an interrupt service routine.  See
  * xQueueReceiveFromISR for an alternative that can.
  *
- * @param pxQueue The handle to the queue from which the item is to be
+ * @param xQueue The handle to the queue from which the item is to be
  * received.
  *
  * @param pvBuffer Pointer to the buffer into which the received item will
@@ -702,7 +830,7 @@ signed portBASE_TYPE xQueueGenericSend( xQueueHandle pxQueue, const void * const
  * This function must not be used in an interrupt service routine.  See
  * xQueueReceiveFromISR for an alternative that can.
  *
- * @param pxQueue The handle to the queue from which the item is to be
+ * @param xQueue The handle to the queue from which the item is to be
  * received.
  *
  * @param pvBuffer Pointer to the buffer into which the received item will
@@ -778,7 +906,7 @@ signed portBASE_TYPE xQueueGenericSend( xQueueHandle pxQueue, const void * const
  * \defgroup xQueueReceive xQueueReceive
  * \ingroup QueueManagement
  */
-signed portBASE_TYPE xQueueGenericReceive( xQueueHandle xQueue, void * const pvBuffer, portTickType xTicksToWait, portBASE_TYPE xJustPeek );
+signed portBASE_TYPE xQueueGenericReceive( xQueueHandle xQueue, void * const pvBuffer, portTickType xTicksToWait, portBASE_TYPE xJustPeek ) PRIVILEGED_FUNCTION;
 
 /**
  * queue. h
@@ -790,10 +918,27 @@ signed portBASE_TYPE xQueueGenericReceive( xQueueHandle xQueue, void * const pvB
  *
  * @return The number of messages available in the queue.
  *
- * \page uxQueueMessagesWaiting uxQueueMessagesWaiting
+ * \defgroup uxQueueMessagesWaiting uxQueueMessagesWaiting
  * \ingroup QueueManagement
  */
-unsigned portBASE_TYPE uxQueueMessagesWaiting( const xQueueHandle xQueue );
+unsigned portBASE_TYPE uxQueueMessagesWaiting( const xQueueHandle xQueue ) PRIVILEGED_FUNCTION;
+
+/**
+ * queue. h
+ * <pre>unsigned portBASE_TYPE uxQueueSpacesAvailable( const xQueueHandle xQueue );</pre>
+ *
+ * Return the number of free spaces available in a queue.  This is equal to the
+ * number of items that can be sent to the queue before the queue becomes full
+ * if no items are removed.
+ *
+ * @param xQueue A handle to the queue being queried.
+ *
+ * @return The number of spaces available in the queue.
+ *
+ * \defgroup uxQueueMessagesWaiting uxQueueMessagesWaiting
+ * \ingroup QueueManagement
+ */
+unsigned portBASE_TYPE uxQueueSpacesAvailable( const xQueueHandle xQueue ) PRIVILEGED_FUNCTION;
 
 /**
  * queue. h
@@ -804,16 +949,16 @@ unsigned portBASE_TYPE uxQueueMessagesWaiting( const xQueueHandle xQueue );
  *
  * @param xQueue A handle to the queue to be deleted.
  *
- * \page vQueueDelete vQueueDelete
+ * \defgroup vQueueDelete vQueueDelete
  * \ingroup QueueManagement
  */
-void vQueueDelete( xQueueHandle pxQueue );
+void vQueueDelete( xQueueHandle xQueue ) PRIVILEGED_FUNCTION;
 
 /**
  * queue. h
  * <pre>
  portBASE_TYPE xQueueSendToFrontFromISR(
-										 xQueueHandle pxQueue,
+										 xQueueHandle xQueue,
 										 const void *pvItemToQueue,
 										 portBASE_TYPE *pxHigherPriorityTaskWoken
 									  );
@@ -877,14 +1022,14 @@ void vQueueDelete( xQueueHandle pxQueue );
  * \defgroup xQueueSendFromISR xQueueSendFromISR
  * \ingroup QueueManagement
  */
-#define xQueueSendToFrontFromISR( pxQueue, pvItemToQueue, pxHigherPriorityTaskWoken ) xQueueGenericSendFromISR( ( pxQueue ), ( pvItemToQueue ), ( pxHigherPriorityTaskWoken ), queueSEND_TO_FRONT )
+#define xQueueSendToFrontFromISR( xQueue, pvItemToQueue, pxHigherPriorityTaskWoken ) xQueueGenericSendFromISR( ( xQueue ), ( pvItemToQueue ), ( pxHigherPriorityTaskWoken ), queueSEND_TO_FRONT )
 
 
 /**
  * queue. h
  * <pre>
  portBASE_TYPE xQueueSendToBackFromISR(
-										 xQueueHandle pxQueue,
+										 xQueueHandle xQueue,
 										 const void *pvItemToQueue,
 										 portBASE_TYPE *pxHigherPriorityTaskWoken
 									  );
@@ -948,13 +1093,100 @@ void vQueueDelete( xQueueHandle pxQueue );
  * \defgroup xQueueSendFromISR xQueueSendFromISR
  * \ingroup QueueManagement
  */
-#define xQueueSendToBackFromISR( pxQueue, pvItemToQueue, pxHigherPriorityTaskWoken ) xQueueGenericSendFromISR( ( pxQueue ), ( pvItemToQueue ), ( pxHigherPriorityTaskWoken ), queueSEND_TO_BACK )
+#define xQueueSendToBackFromISR( xQueue, pvItemToQueue, pxHigherPriorityTaskWoken ) xQueueGenericSendFromISR( ( xQueue ), ( pvItemToQueue ), ( pxHigherPriorityTaskWoken ), queueSEND_TO_BACK )
+
+/**
+ * queue. h
+ * <pre>
+ portBASE_TYPE xQueueOverwriteFromISR(
+							  xQueueHandle xQueue,
+							  const void * pvItemToQueue,
+							  portBASE_TYPE *pxHigherPriorityTaskWoken
+						 );
+ * </pre>
+ *
+ * A version of xQueueOverwrite() that can be used in an interrupt service
+ * routine (ISR).
+ *
+ * Only for use with queues that can hold a single item - so the queue is either
+ * empty or full.
+ *
+ * Post an item on a queue.  If the queue is already full then overwrite the
+ * value held in the queue.  The item is queued by copy, not by reference.
+ *
+ * @param xQueue The handle to the queue on which the item is to be posted.
+ *
+ * @param pvItemToQueue A pointer to the item that is to be placed on the
+ * queue.  The size of the items the queue will hold was defined when the
+ * queue was created, so this many bytes will be copied from pvItemToQueue
+ * into the queue storage area.
+ *
+ * @param pxHigherPriorityTaskWoken xQueueOverwriteFromISR() will set
+ * *pxHigherPriorityTaskWoken to pdTRUE if sending to the queue caused a task
+ * to unblock, and the unblocked task has a priority higher than the currently
+ * running task.  If xQueueOverwriteFromISR() sets this value to pdTRUE then
+ * a context switch should be requested before the interrupt is exited.
+ *
+ * @return xQueueOverwriteFromISR() is a macro that calls
+ * xQueueGenericSendFromISR(), and therefore has the same return values as
+ * xQueueSendToFrontFromISR().  However, pdPASS is the only value that can be
+ * returned because xQueueOverwriteFromISR() will write to the queue even when
+ * the queue is already full.
+ *
+ * Example usage:
+   <pre>
+
+ xQueueHandle xQueue;
+ 
+ void vFunction( void *pvParameters )
+ {
+ 	// Create a queue to hold one unsigned long value.  It is strongly
+	// recommended *not* to use xQueueOverwriteFromISR() on queues that can
+	// contain more than one value, and doing so will trigger an assertion
+	// if configASSERT() is defined.
+	xQueue = xQueueCreate( 1, sizeof( unsigned long ) );
+}
+
+void vAnInterruptHandler( void )
+{
+// xHigherPriorityTaskWoken must be set to pdFALSE before it is used.
+portBASE_TYPE xHigherPriorityTaskWoken = pdFALSE;
+unsigned long ulVarToSend, ulValReceived;
+
+	// Write the value 10 to the queue using xQueueOverwriteFromISR().
+	ulVarToSend = 10;
+	xQueueOverwriteFromISR( xQueue, &ulVarToSend, &xHigherPriorityTaskWoken );
+
+	// The queue is full, but calling xQueueOverwriteFromISR() again will still
+	// pass because the value held in the queue will be overwritten with the
+	// new value.
+	ulVarToSend = 100;
+	xQueueOverwriteFromISR( xQueue, &ulVarToSend, &xHigherPriorityTaskWoken );
+
+	// Reading from the queue will now return 100.
+
+	// ...
+	
+	if( xHigherPrioritytaskWoken == pdTRUE )
+	{
+		// Writing to the queue caused a task to unblock and the unblocked task
+		// has a priority higher than or equal to the priority of the currently
+		// executing task (the task this interrupt interrupted).  Perform a context
+		// switch so this interrupt returns directly to the unblocked task.
+		portYIELD_FROM_ISR(); // or portEND_SWITCHING_ISR() depending on the port.
+	}
+}
+ </pre>
+ * \defgroup xQueueOverwriteFromISR xQueueOverwriteFromISR
+ * \ingroup QueueManagement
+ */
+#define xQueueOverwriteFromISR( xQueue, pvItemToQueue, pxHigherPriorityTaskWoken ) xQueueGenericSendFromISR( ( xQueue ), ( pvItemToQueue ), ( pxHigherPriorityTaskWoken ), queueOVERWRITE )
 
 /**
  * queue. h
  * <pre>
  portBASE_TYPE xQueueSendFromISR(
-									 xQueueHandle pxQueue,
+									 xQueueHandle xQueue,
 									 const void *pvItemToQueue,
 									 portBASE_TYPE *pxHigherPriorityTaskWoken
 								);
@@ -1014,7 +1246,7 @@ void vQueueDelete( xQueueHandle pxQueue );
 	if( xHigherPriorityTaskWoken )
 	{
 		// Actual macro used here is port specific.
-		taskYIELD_FROM_ISR ();
+		portYIELD_FROM_ISR ();
 	}
  }
  </pre>
@@ -1022,13 +1254,13 @@ void vQueueDelete( xQueueHandle pxQueue );
  * \defgroup xQueueSendFromISR xQueueSendFromISR
  * \ingroup QueueManagement
  */
-#define xQueueSendFromISR( pxQueue, pvItemToQueue, pxHigherPriorityTaskWoken ) xQueueGenericSendFromISR( ( pxQueue ), ( pvItemToQueue ), ( pxHigherPriorityTaskWoken ), queueSEND_TO_BACK )
+#define xQueueSendFromISR( xQueue, pvItemToQueue, pxHigherPriorityTaskWoken ) xQueueGenericSendFromISR( ( xQueue ), ( pvItemToQueue ), ( pxHigherPriorityTaskWoken ), queueSEND_TO_BACK )
 
 /**
  * queue. h
  * <pre>
  portBASE_TYPE xQueueGenericSendFromISR(
-										   xQueueHandle	pxQueue,
+										   xQueueHandle		xQueue,
 										   const	void	*pvItemToQueue,
 										   portBASE_TYPE	*pxHigherPriorityTaskWoken,
 										   portBASE_TYPE	xCopyPosition
@@ -1100,22 +1332,22 @@ void vQueueDelete( xQueueHandle pxQueue );
  * \defgroup xQueueSendFromISR xQueueSendFromISR
  * \ingroup QueueManagement
  */
-signed portBASE_TYPE xQueueGenericSendFromISR( xQueueHandle pxQueue, const void * const pvItemToQueue, signed portBASE_TYPE *pxHigherPriorityTaskWoken, portBASE_TYPE xCopyPosition );
+signed portBASE_TYPE xQueueGenericSendFromISR( xQueueHandle xQueue, const void * const pvItemToQueue, signed portBASE_TYPE *pxHigherPriorityTaskWoken, portBASE_TYPE xCopyPosition ) PRIVILEGED_FUNCTION;
 
 /**
  * queue. h
  * <pre>
  portBASE_TYPE xQueueReceiveFromISR(
-									   xQueueHandle	pxQueue,
+									   xQueueHandle	xQueue,
 									   void	*pvBuffer,
-									   portBASE_TYPE	*pxTaskWoken
+									   portBASE_TYPE *pxTaskWoken
 								   );
  * </pre>
  *
  * Receive an item from a queue.  It is safe to use this function from within an
  * interrupt service routine.
  *
- * @param pxQueue The handle to the queue from which the item is to be
+ * @param xQueue The handle to the queue from which the item is to be
  * received.
  *
  * @param pvBuffer Pointer to the buffer into which the received item will
@@ -1189,15 +1421,15 @@ signed portBASE_TYPE xQueueGenericSendFromISR( xQueueHandle pxQueue, const void 
  * \defgroup xQueueReceiveFromISR xQueueReceiveFromISR
  * \ingroup QueueManagement
  */
-signed portBASE_TYPE xQueueReceiveFromISR( xQueueHandle pxQueue, void * const pvBuffer, signed portBASE_TYPE *pxHigherPriorityTaskWoken );
+signed portBASE_TYPE xQueueReceiveFromISR( xQueueHandle xQueue, void * const pvBuffer, signed portBASE_TYPE *pxHigherPriorityTaskWoken ) PRIVILEGED_FUNCTION;
 
 /*
  * Utilities to query queues that are safe to use from an ISR.  These utilities
  * should be used only from witin an ISR, or within a critical section.
  */
-signed portBASE_TYPE xQueueIsQueueEmptyFromISR( const xQueueHandle pxQueue );
-signed portBASE_TYPE xQueueIsQueueFullFromISR( const xQueueHandle pxQueue );
-unsigned portBASE_TYPE uxQueueMessagesWaitingFromISR( const xQueueHandle pxQueue );
+signed portBASE_TYPE xQueueIsQueueEmptyFromISR( const xQueueHandle xQueue ) PRIVILEGED_FUNCTION;
+signed portBASE_TYPE xQueueIsQueueFullFromISR( const xQueueHandle xQueue ) PRIVILEGED_FUNCTION;
+unsigned portBASE_TYPE uxQueueMessagesWaitingFromISR( const xQueueHandle xQueue ) PRIVILEGED_FUNCTION;
 
 
 /*
@@ -1214,8 +1446,8 @@ unsigned portBASE_TYPE uxQueueMessagesWaitingFromISR( const xQueueHandle pxQueue
  * responsiveness to gain execution speed, whereas the fully featured API
  * sacrifices execution speed to ensure better interrupt responsiveness.
  */
-signed portBASE_TYPE xQueueAltGenericSend( xQueueHandle pxQueue, const void * const pvItemToQueue, portTickType xTicksToWait, portBASE_TYPE xCopyPosition );
-signed portBASE_TYPE xQueueAltGenericReceive( xQueueHandle pxQueue, void * const pvBuffer, portTickType xTicksToWait, portBASE_TYPE xJustPeeking );
+signed portBASE_TYPE xQueueAltGenericSend( xQueueHandle xQueue, const void * const pvItemToQueue, portTickType xTicksToWait, portBASE_TYPE xCopyPosition );
+signed portBASE_TYPE xQueueAltGenericReceive( xQueueHandle xQueue, void * const pvBuffer, portTickType xTicksToWait, portBASE_TYPE xJustPeeking );
 #define xQueueAltSendToFront( xQueue, pvItemToQueue, xTicksToWait ) xQueueAltGenericSend( ( xQueue ), ( pvItemToQueue ), ( xTicksToWait ), queueSEND_TO_FRONT )
 #define xQueueAltSendToBack( xQueue, pvItemToQueue, xTicksToWait ) xQueueAltGenericSend( ( xQueue ), ( pvItemToQueue ), ( xTicksToWait ), queueSEND_TO_BACK )
 #define xQueueAltReceive( xQueue, pvBuffer, xTicksToWait ) xQueueAltGenericReceive( ( xQueue ), ( pvBuffer ), ( xTicksToWait ), pdFALSE )
@@ -1230,26 +1462,26 @@ signed portBASE_TYPE xQueueAltGenericReceive( xQueueHandle pxQueue, void * const
  * should not be called directly from application code.  Instead use the macro
  * wrappers defined within croutine.h.
  */
-signed portBASE_TYPE xQueueCRSendFromISR( xQueueHandle pxQueue, const void *pvItemToQueue, signed portBASE_TYPE xCoRoutinePreviouslyWoken );
-signed portBASE_TYPE xQueueCRReceiveFromISR( xQueueHandle pxQueue, void *pvBuffer, signed portBASE_TYPE *pxTaskWoken );
-signed portBASE_TYPE xQueueCRSend( xQueueHandle pxQueue, const void *pvItemToQueue, portTickType xTicksToWait );
-signed portBASE_TYPE xQueueCRReceive( xQueueHandle pxQueue, void *pvBuffer, portTickType xTicksToWait );
+signed portBASE_TYPE xQueueCRSendFromISR( xQueueHandle xQueue, const void *pvItemToQueue, signed portBASE_TYPE xCoRoutinePreviouslyWoken );
+signed portBASE_TYPE xQueueCRReceiveFromISR( xQueueHandle xQueue, void *pvBuffer, signed portBASE_TYPE *pxTaskWoken );
+signed portBASE_TYPE xQueueCRSend( xQueueHandle xQueue, const void *pvItemToQueue, portTickType xTicksToWait );
+signed portBASE_TYPE xQueueCRReceive( xQueueHandle xQueue, void *pvBuffer, portTickType xTicksToWait );
 
 /*
  * For internal use only.  Use xSemaphoreCreateMutex(),
  * xSemaphoreCreateCounting() or xSemaphoreGetMutexHolder() instead of calling
  * these functions directly.
  */
-xQueueHandle xQueueCreateMutex( unsigned char ucQueueType );
-xQueueHandle xQueueCreateCountingSemaphore( unsigned portBASE_TYPE uxCountValue, unsigned portBASE_TYPE uxInitialCount );
-void* xQueueGetMutexHolder( xQueueHandle xSemaphore );
+xQueueHandle xQueueCreateMutex( unsigned char ucQueueType ) PRIVILEGED_FUNCTION;
+xQueueHandle xQueueCreateCountingSemaphore( unsigned portBASE_TYPE uxMaxCount, unsigned portBASE_TYPE uxInitialCount ) PRIVILEGED_FUNCTION;
+void* xQueueGetMutexHolder( xQueueHandle xSemaphore ) PRIVILEGED_FUNCTION;
 
 /*
  * For internal use only.  Use xSemaphoreTakeMutexRecursive() or
  * xSemaphoreGiveMutexRecursive() instead of calling these functions directly.
  */
-portBASE_TYPE xQueueTakeMutexRecursive( xQueueHandle pxMutex, portTickType xBlockTime );
-portBASE_TYPE xQueueGiveMutexRecursive( xQueueHandle pxMutex );
+portBASE_TYPE xQueueTakeMutexRecursive( xQueueHandle xMutex, portTickType xBlockTime ) PRIVILEGED_FUNCTION;
+portBASE_TYPE xQueueGiveMutexRecursive( xQueueHandle pxMutex ) PRIVILEGED_FUNCTION;
 
 /*
  * Reset a queue back to its original empty state.  pdPASS is returned if the
@@ -1257,7 +1489,7 @@ portBASE_TYPE xQueueGiveMutexRecursive( xQueueHandle pxMutex );
  * reset because there are tasks blocked on the queue waiting to either
  * receive from the queue or send to the queue.
  */
-#define xQueueReset( pxQueue ) xQueueGenericReset( pxQueue, pdFALSE )
+#define xQueueReset( xQueue ) xQueueGenericReset( xQueue, pdFALSE )
 
 /*
  * The registry is provided as a means for kernel aware debuggers to
@@ -1279,19 +1511,170 @@ portBASE_TYPE xQueueGiveMutexRecursive( xQueueHandle pxMutex );
  * @param pcName The name to be associated with the handle.  This is the
  * name that the kernel aware debugger will display.
  */
-#if configQUEUE_REGISTRY_SIZE > 0U
-	void vQueueAddToRegistry( xQueueHandle xQueue, signed char *pcName );
+#if configQUEUE_REGISTRY_SIZE > 0
+	void vQueueAddToRegistry( xQueueHandle xQueue, signed char *pcName ) PRIVILEGED_FUNCTION;
+#endif
+
+/*
+ * The registry is provided as a means for kernel aware debuggers to
+ * locate queues, semaphores and mutexes.  Call vQueueAddToRegistry() add
+ * a queue, semaphore or mutex handle to the registry if you want the handle
+ * to be available to a kernel aware debugger, and vQueueUnregisterQueue() to
+ * remove the queue, semaphore or mutex from the register.  If you are not using
+ * a kernel aware debugger then this function can be ignored.
+ *
+ * @param xQueue The handle of the queue being removed from the registry.
+ */
+#if configQUEUE_REGISTRY_SIZE > 0
+	void vQueueUnregisterQueue( xQueueHandle xQueue ) PRIVILEGED_FUNCTION;
 #endif
 
 /*
  * Generic version of the queue creation function, which is in turn called by
  * any queue, semaphore or mutex creation function or macro.
  */
-xQueueHandle xQueueGenericCreate( unsigned portBASE_TYPE uxQueueLength, unsigned portBASE_TYPE uxItemSize, unsigned char ucQueueType );
+xQueueHandle xQueueGenericCreate( unsigned portBASE_TYPE uxQueueLength, unsigned portBASE_TYPE uxItemSize, unsigned char ucQueueType ) PRIVILEGED_FUNCTION;
+
+/*
+ * Queue sets provide a mechanism to allow a task to block (pend) on a read
+ * operation from multiple queues or semaphores simultaneously.
+ *
+ * See FreeRTOS/Source/Demo/Common/Minimal/QueueSet.c for an example using this
+ * function.
+ *
+ * A queue set must be explicitly created using a call to xQueueCreateSet()
+ * before it can be used.  Once created, standard FreeRTOS queues and semaphores
+ * can be added to the set using calls to xQueueAddToSet().
+ * xQueueSelectFromSet() is then used to determine which, if any, of the queues
+ * or semaphores contained in the set is in a state where a queue read or
+ * semaphore take operation would be successful.
+ *
+ * Note 1:  See the documentation on http://wwwFreeRTOS.org/RTOS-queue-sets.html
+ * for reasons why queue sets are very rarely needed in practice as there are
+ * simpler methods of blocking on multiple objects.
+ *
+ * Note 2:  Blocking on a queue set that contains a mutex will not cause the
+ * mutex holder to inherit the priority of the blocked task.
+ *
+ * Note 3:  An additional 4 bytes of RAM is required for each space in a every
+ * queue added to a queue set.  Therefore counting semaphores that have a high
+ * maximum count value should not be added to a queue set.
+ *
+ * Note 4:  A receive (in the case of a queue) or take (in the case of a
+ * semaphore) operation must not be performed on a member of a queue set unless
+ * a call to xQueueSelectFromSet() has first returned a handle to that set member.
+ *
+ * @param uxEventQueueLength Queue sets store events that occur on
+ * the queues and semaphores contained in the set.  uxEventQueueLength specifies
+ * the maximum number of events that can be queued at once.  To be absolutely
+ * certain that events are not lost uxEventQueueLength should be set to the
+ * total sum of the length of the queues added to the set, where binary
+ * semaphores and mutexes have a length of 1, and counting semaphores have a
+ * length set by their maximum count value.  Examples:
+ *  + If a queue set is to hold a queue of length 5, another queue of length 12,
+ *    and a binary semaphore, then uxEventQueueLength should be set to
+ *    (5 + 12 + 1), or 18.
+ *  + If a queue set is to hold three binary semaphores then uxEventQueueLength
+ *    should be set to (1 + 1 + 1 ), or 3.
+ *  + If a queue set is to hold a counting semaphore that has a maximum count of
+ *    5, and a counting semaphore that has a maximum count of 3, then
+ *    uxEventQueueLength should be set to (5 + 3), or 8.
+ *
+ * @return If the queue set is created successfully then a handle to the created
+ * queue set is returned.  Otherwise NULL is returned.
+ */
+xQueueSetHandle xQueueCreateSet( unsigned portBASE_TYPE uxEventQueueLength ) PRIVILEGED_FUNCTION;
+
+/*
+ * Adds a queue or semaphore to a queue set that was previously created by a
+ * call to xQueueCreateSet().
+ *
+ * See FreeRTOS/Source/Demo/Common/Minimal/QueueSet.c for an example using this
+ * function.
+ *
+ * Note 1:  A receive (in the case of a queue) or take (in the case of a
+ * semaphore) operation must not be performed on a member of a queue set unless
+ * a call to xQueueSelectFromSet() has first returned a handle to that set member.
+ *
+ * @param xQueueOrSemaphore The handle of the queue or semaphore being added to
+ * the queue set (cast to an xQueueSetMemberHandle type).
+ *
+ * @param xQueueSet The handle of the queue set to which the queue or semaphore
+ * is being added.
+ *
+ * @return If the queue or semaphore was successfully added to the queue set
+ * then pdPASS is returned.  If the queue could not be successfully added to the
+ * queue set because it is already a member of a different queue set then pdFAIL
+ * is returned.
+ */
+portBASE_TYPE xQueueAddToSet( xQueueSetMemberHandle xQueueOrSemaphore, xQueueSetHandle xQueueSet ) PRIVILEGED_FUNCTION;
+
+/*
+ * Removes a queue or semaphore from a queue set.  A queue or semaphore can only
+ * be removed from a set if the queue or semaphore is empty.
+ *
+ * See FreeRTOS/Source/Demo/Common/Minimal/QueueSet.c for an example using this
+ * function.
+ *
+ * @param xQueueOrSemaphore The handle of the queue or semaphore being removed
+ * from the queue set (cast to an xQueueSetMemberHandle type).
+ *
+ * @param xQueueSet The handle of the queue set in which the queue or semaphore
+ * is included.
+ *
+ * @return If the queue or semaphore was successfully removed from the queue set
+ * then pdPASS is returned.  If the queue was not in the queue set, or the
+ * queue (or semaphore) was not empty, then pdFAIL is returned.
+ */
+portBASE_TYPE xQueueRemoveFromSet( xQueueSetMemberHandle xQueueOrSemaphore, xQueueSetHandle xQueueSet ) PRIVILEGED_FUNCTION;
+
+/*
+ * xQueueSelectFromSet() selects from the members of a queue set a queue or
+ * semaphore that either contains data (in the case of a queue) or is available
+ * to take (in the case of a semaphore).  xQueueSelectFromSet() effectively
+ * allows a task to block (pend) on a read operation on all the queues and
+ * semaphores in a queue set simultaneously.
+ *
+ * See FreeRTOS/Source/Demo/Common/Minimal/QueueSet.c for an example using this
+ * function.
+ *
+ * Note 1:  See the documentation on http://wwwFreeRTOS.org/RTOS-queue-sets.html
+ * for reasons why queue sets are very rarely needed in practice as there are
+ * simpler methods of blocking on multiple objects.
+ *
+ * Note 2:  Blocking on a queue set that contains a mutex will not cause the
+ * mutex holder to inherit the priority of the blocked task.
+ *
+ * Note 3:  A receive (in the case of a queue) or take (in the case of a
+ * semaphore) operation must not be performed on a member of a queue set unless
+ * a call to xQueueSelectFromSet() has first returned a handle to that set member.
+ *
+ * @param xQueueSet The queue set on which the task will (potentially) block.
+ *
+ * @param xBlockTimeTicks The maximum time, in ticks, that the calling task will
+ * remain in the Blocked state (with other tasks executing) to wait for a member
+ * of the queue set to be ready for a successful queue read or semaphore take
+ * operation.
+ *
+ * @return xQueueSelectFromSet() will return the handle of a queue (cast to
+ * a xQueueSetMemberHandle type) contained in the queue set that contains data,
+ * or the handle of a semaphore (cast to a xQueueSetMemberHandle type) contained
+ * in the queue set that is available, or NULL if no such queue or semaphore
+ * exists before before the specified block time expires.
+ */
+xQueueSetMemberHandle xQueueSelectFromSet( xQueueSetHandle xQueueSet, portTickType xBlockTimeTicks ) PRIVILEGED_FUNCTION;
+
+/*
+ * A version of xQueueSelectFromSet() that can be used from an ISR.
+ */
+xQueueSetMemberHandle xQueueSelectFromSetFromISR( xQueueSetHandle xQueueSet ) PRIVILEGED_FUNCTION;
 
 /* Not public API functions. */
-void vQueueWaitForMessageRestricted( xQueueHandle pxQueue, portTickType xTicksToWait );
-portBASE_TYPE xQueueGenericReset( xQueueHandle pxQueue, portBASE_TYPE xNewQueue );
+void vQueueWaitForMessageRestricted( xQueueHandle xQueue, portTickType xTicksToWait ) PRIVILEGED_FUNCTION;
+portBASE_TYPE xQueueGenericReset( xQueueHandle xQueue, portBASE_TYPE xNewQueue ) PRIVILEGED_FUNCTION;
+void vQueueSetQueueNumber( xQueueHandle xQueue, unsigned char ucQueueNumber ) PRIVILEGED_FUNCTION;
+unsigned char ucQueueGetQueueNumber( xQueueHandle xQueue ) PRIVILEGED_FUNCTION;
+unsigned char ucQueueGetQueueType( xQueueHandle xQueue ) PRIVILEGED_FUNCTION;
 
 
 #ifdef __cplusplus

@@ -1,45 +1,38 @@
 /*
-    FreeRTOS V7.3.0 - Copyright (C) 2012 Real Time Engineers Ltd.
+    FreeRTOS V7.6.0 - Copyright (C) 2013 Real Time Engineers Ltd.
+    All rights reserved
 
-    FEATURES AND PORTS ARE ADDED TO FREERTOS ALL THE TIME.  PLEASE VISIT
-    http://www.FreeRTOS.org TO ENSURE YOU ARE USING THE LATEST VERSION.
+    VISIT http://www.FreeRTOS.org TO ENSURE YOU ARE USING THE LATEST VERSION.
 
     ***************************************************************************
      *                                                                       *
-     *    FreeRTOS tutorial books are available in pdf and paperback.        *
-     *    Complete, revised, and edited pdf reference manuals are also       *
-     *    available.                                                         *
+     *    FreeRTOS provides completely free yet professionally developed,    *
+     *    robust, strictly quality controlled, supported, and cross          *
+     *    platform software that has become a de facto standard.             *
      *                                                                       *
-     *    Purchasing FreeRTOS documentation will not only help you, by       *
-     *    ensuring you get running as quickly as possible and with an        *
-     *    in-depth knowledge of how to use FreeRTOS, it will also help       *
-     *    the FreeRTOS project to continue with its mission of providing     *
-     *    professional grade, cross platform, de facto standard solutions    *
-     *    for microcontrollers - completely free of charge!                  *
+     *    Help yourself get started quickly and support the FreeRTOS         *
+     *    project by purchasing a FreeRTOS tutorial book, reference          *
+     *    manual, or both from: http://www.FreeRTOS.org/Documentation        *
      *                                                                       *
-     *    >>> See http://www.FreeRTOS.org/Documentation for details. <<<     *
-     *                                                                       *
-     *    Thank you for using FreeRTOS, and thank you for your support!      *
+     *    Thank you!                                                         *
      *                                                                       *
     ***************************************************************************
-
 
     This file is part of the FreeRTOS distribution.
 
     FreeRTOS is free software; you can redistribute it and/or modify it under
     the terms of the GNU General Public License (version 2) as published by the
-    Free Software Foundation AND MODIFIED BY the FreeRTOS exception.
-    >>>NOTE<<< The modification to the GPL is included to allow you to
-    distribute a combined work that includes FreeRTOS without being obliged to
-    provide the source code for proprietary components outside of the FreeRTOS
-    kernel.  FreeRTOS is distributed in the hope that it will be useful, but
-    WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY
-    or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License for
-    more details. You should have received a copy of the GNU General Public
-    License and the FreeRTOS license exception along with FreeRTOS; if not it
-    can be viewed here: http://www.freertos.org/a00114.html and also obtained
-    by writing to Richard Barry, contact details for whom are available on the
-    FreeRTOS WEB site.
+    Free Software Foundation >>!AND MODIFIED BY!<< the FreeRTOS exception.
+
+    >>! NOTE: The modification to the GPL is included to allow you to distribute
+    >>! a combined work that includes FreeRTOS without being obliged to provide
+    >>! the source code for proprietary components outside of the FreeRTOS
+    >>! kernel.
+
+    FreeRTOS is distributed in the hope that it will be useful, but WITHOUT ANY
+    WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+    FOR A PARTICULAR PURPOSE.  Full license text is available from the following
+    link: http://www.freertos.org/a00114.html
 
     1 tab == 4 spaces!
 
@@ -52,18 +45,22 @@
      *                                                                       *
     ***************************************************************************
 
-
-    http://www.FreeRTOS.org - Documentation, training, latest versions, license
-    and contact details.
+    http://www.FreeRTOS.org - Documentation, books, training, latest versions,
+    license and Real Time Engineers Ltd. contact details.
 
     http://www.FreeRTOS.org/plus - A selection of FreeRTOS ecosystem products,
-    including FreeRTOS+Trace - an indispensable productivity tool.
+    including FreeRTOS+Trace - an indispensable productivity tool, a DOS
+    compatible FAT file system, and our tiny thread aware UDP/IP stack.
 
-    Real Time Engineers ltd license FreeRTOS to High Integrity Systems, who sell
-    the code with commercial support, indemnification, and middleware, under
-    the OpenRTOS brand: http://www.OpenRTOS.com.  High Integrity Systems also
-    provide a safety engineered and independently SIL3 certified version under
-    the SafeRTOS brand: http://www.SafeRTOS.com.
+    http://www.OpenRTOS.com - Real Time Engineers ltd license FreeRTOS to High
+    Integrity Systems to sell under the OpenRTOS brand.  Low cost OpenRTOS
+    licenses offer ticketed support, indemnification and middleware.
+
+    http://www.SafeRTOS.com - High Integrity Systems also provide a safety
+    engineered and independently SIL3 certified version for use in safety and
+    mission critical applications that require provable dependability.
+
+    1 tab == 4 spaces!
 */
 
 #ifndef SEMAPHORE_H
@@ -86,6 +83,13 @@ typedef xQueueHandle xSemaphoreHandle;
  * semphr. h
  * <pre>vSemaphoreCreateBinary( xSemaphoreHandle xSemaphore )</pre>
  *
+ * This old vSemaphoreCreateBinary() macro is now deprecated in favour of the
+ * xSemaphoreCreateBinary() function.  Note that binary semaphores created using
+ * the vSemaphoreCreateBinary() macro are created in a state such that the
+ * first call to 'take' the semaphore would pass, whereas binary semaphores
+ * created using xSemaphoreCreateBinary() are created in a state such that the
+ * the semaphore must first be 'given' before it can be 'taken'.
+ *
  * <i>Macro</i> that implements a semaphore by using the existing queue mechanism.
  * The queue length is 1 as this is a binary semaphore.  The data size is 0
  * as we don't want to actually store any data - we just want to know if the
@@ -102,7 +106,7 @@ typedef xQueueHandle xSemaphoreHandle;
  *
  * Example usage:
  <pre>
- xSemaphoreHandle xSemaphore;
+ xSemaphoreHandle xSemaphore = NULL;
 
  void vATask( void * pvParameters )
  {
@@ -125,9 +129,56 @@ typedef xQueueHandle xSemaphoreHandle;
 		( xSemaphore ) = xQueueGenericCreate( ( unsigned portBASE_TYPE ) 1, semSEMAPHORE_QUEUE_ITEM_LENGTH, queueQUEUE_TYPE_BINARY_SEMAPHORE );	\
 		if( ( xSemaphore ) != NULL )																											\
 		{																																		\
-			xSemaphoreGive( ( xSemaphore ) );																									\
+			( void ) xSemaphoreGive( ( xSemaphore ) );																							\
 		}																																		\
 	}
+
+/**
+ * semphr. h
+ * <pre>xSemaphoreHandle xSemaphoreCreateBinary( void )</pre>
+ *
+ * The old vSemaphoreCreateBinary() macro is now deprecated in favour of this
+ * xSemaphoreCreateBinary() function.  Note that binary semaphores created using
+ * the vSemaphoreCreateBinary() macro are created in a state such that the
+ * first call to 'take' the semaphore would pass, whereas binary semaphores
+ * created using xSemaphoreCreateBinary() are created in a state such that the
+ * the semaphore must first be 'given' before it can be 'taken'.
+ *
+ * Function that creates a semaphore by using the existing queue mechanism.
+ * The queue length is 1 as this is a binary semaphore.  The data size is 0
+ * as nothing is actually stored - all that is important is whether the queue is
+ * empty or full (the binary semaphore is available or not).
+ *
+ * This type of semaphore can be used for pure synchronisation between tasks or
+ * between an interrupt and a task.  The semaphore need not be given back once
+ * obtained, so one task/interrupt can continuously 'give' the semaphore while
+ * another continuously 'takes' the semaphore.  For this reason this type of
+ * semaphore does not use a priority inheritance mechanism.  For an alternative
+ * that does use priority inheritance see xSemaphoreCreateMutex().
+ *
+ * @return Handle to the created semaphore.
+ *
+ * Example usage:
+ <pre>
+ xSemaphoreHandle xSemaphore = NULL;
+
+ void vATask( void * pvParameters )
+ {
+    // Semaphore cannot be used before a call to vSemaphoreCreateBinary ().
+    // This is a macro so pass the variable in directly.
+    xSemaphore = xSemaphoreCreateBinary();
+
+    if( xSemaphore != NULL )
+    {
+        // The semaphore was created successfully.
+        // The semaphore can now be used.
+    }
+ }
+ </pre>
+ * \defgroup vSemaphoreCreateBinary vSemaphoreCreateBinary
+ * \ingroup Semaphores
+ */
+#define xSemaphoreCreateBinary() xQueueGenericCreate( ( unsigned portBASE_TYPE ) 1, semSEMAPHORE_QUEUE_ITEM_LENGTH, queueQUEUE_TYPE_BINARY_SEMAPHORE )
 
 /**
  * semphr. h
@@ -764,7 +815,7 @@ typedef xQueueHandle xSemaphoreHandle;
  *
  * @param xSemaphore A handle to the semaphore to be deleted.
  *
- * \page vSemaphoreDelete vSemaphoreDelete
+ * \defgroup vSemaphoreDelete vSemaphoreDelete
  * \ingroup Semaphores
  */
 #define vSemaphoreDelete( xSemaphore ) vQueueDelete( ( xQueueHandle ) ( xSemaphore ) )

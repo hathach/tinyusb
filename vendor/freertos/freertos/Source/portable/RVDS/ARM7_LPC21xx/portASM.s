@@ -1,5 +1,6 @@
 ;/*
-;    FreeRTOS V7.3.0 - Copyright (C) 2012 Real Time Engineers Ltd.
+;    FreeRTOS V7.6.0 - Copyright (C) 2013 Real Time Engineers Ltd.
+;    All rights reserved
 ;	
 ;
 ;    ***************************************************************************
@@ -54,7 +55,7 @@
 	INCLUDE portmacro.inc
 
 	IMPORT	vTaskSwitchContext
-	IMPORT	vTaskIncrementTick
+	IMPORT	xTaskIncrementTick
 
 	EXPORT	vPortYieldProcessor
 	EXPORT	vPortStartFirstTask
@@ -127,14 +128,16 @@ vPreemptiveTick
 
 	portSAVE_CONTEXT					; Save the context of the current task.	
 
-	LDR R0, =vTaskIncrementTick			; Increment the tick count.  
+	LDR R0, =xTaskIncrementTick			; Increment the tick count.  
 	MOV LR, PC							; This may make a delayed task ready
 	BX R0								; to run.
-	
+
+	CMP R0, #0
+	BEQ SkipContextSwitch
 	LDR R0, =vTaskSwitchContext			; Find the highest priority task that 
 	MOV LR, PC							; is ready to run.
 	BX R0
-	
+SkipContextSwitch
 	MOV R0, #T0MATCHBIT					; Clear the timer event
 	LDR R1, =T0IR
 	STR R0, [R1] 

@@ -1,45 +1,38 @@
 /*
-    FreeRTOS V7.3.0 - Copyright (C) 2012 Real Time Engineers Ltd.
+    FreeRTOS V7.6.0 - Copyright (C) 2013 Real Time Engineers Ltd. 
+    All rights reserved
 
-    FEATURES AND PORTS ARE ADDED TO FREERTOS ALL THE TIME.  PLEASE VISIT
-    http://www.FreeRTOS.org TO ENSURE YOU ARE USING THE LATEST VERSION.
+    VISIT http://www.FreeRTOS.org TO ENSURE YOU ARE USING THE LATEST VERSION.
 
     ***************************************************************************
      *                                                                       *
-     *    FreeRTOS tutorial books are available in pdf and paperback.        *
-     *    Complete, revised, and edited pdf reference manuals are also       *
-     *    available.                                                         *
+     *    FreeRTOS provides completely free yet professionally developed,    *
+     *    robust, strictly quality controlled, supported, and cross          *
+     *    platform software that has become a de facto standard.             *
      *                                                                       *
-     *    Purchasing FreeRTOS documentation will not only help you, by       *
-     *    ensuring you get running as quickly as possible and with an        *
-     *    in-depth knowledge of how to use FreeRTOS, it will also help       *
-     *    the FreeRTOS project to continue with its mission of providing     *
-     *    professional grade, cross platform, de facto standard solutions    *
-     *    for microcontrollers - completely free of charge!                  *
+     *    Help yourself get started quickly and support the FreeRTOS         *
+     *    project by purchasing a FreeRTOS tutorial book, reference          *
+     *    manual, or both from: http://www.FreeRTOS.org/Documentation        *
      *                                                                       *
-     *    >>> See http://www.FreeRTOS.org/Documentation for details. <<<     *
-     *                                                                       *
-     *    Thank you for using FreeRTOS, and thank you for your support!      *
+     *    Thank you!                                                         *
      *                                                                       *
     ***************************************************************************
-
 
     This file is part of the FreeRTOS distribution.
 
     FreeRTOS is free software; you can redistribute it and/or modify it under
     the terms of the GNU General Public License (version 2) as published by the
-    Free Software Foundation AND MODIFIED BY the FreeRTOS exception.
-    >>>NOTE<<< The modification to the GPL is included to allow you to
-    distribute a combined work that includes FreeRTOS without being obliged to
-    provide the source code for proprietary components outside of the FreeRTOS
-    kernel.  FreeRTOS is distributed in the hope that it will be useful, but
-    WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY
-    or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License for
-    more details. You should have received a copy of the GNU General Public
-    License and the FreeRTOS license exception along with FreeRTOS; if not it
-    can be viewed here: http://www.freertos.org/a00114.html and also obtained
-    by writing to Richard Barry, contact details for whom are available on the
-    FreeRTOS WEB site.
+    Free Software Foundation >>!AND MODIFIED BY!<< the FreeRTOS exception.
+
+    >>! NOTE: The modification to the GPL is included to allow you to distribute
+    >>! a combined work that includes FreeRTOS without being obliged to provide
+    >>! the source code for proprietary components outside of the FreeRTOS
+    >>! kernel.
+
+    FreeRTOS is distributed in the hope that it will be useful, but WITHOUT ANY
+    WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+    FOR A PARTICULAR PURPOSE.  Full license text is available from the following
+    link: http://www.freertos.org/a00114.html
 
     1 tab == 4 spaces!
 
@@ -52,18 +45,22 @@
      *                                                                       *
     ***************************************************************************
 
-
-    http://www.FreeRTOS.org - Documentation, training, latest versions, license
-    and contact details.
+    http://www.FreeRTOS.org - Documentation, books, training, latest versions,
+    license and Real Time Engineers Ltd. contact details.
 
     http://www.FreeRTOS.org/plus - A selection of FreeRTOS ecosystem products,
-    including FreeRTOS+Trace - an indispensable productivity tool.
+    including FreeRTOS+Trace - an indispensable productivity tool, a DOS
+    compatible FAT file system, and our tiny thread aware UDP/IP stack.
 
-    Real Time Engineers ltd license FreeRTOS to High Integrity Systems, who sell
-    the code with commercial support, indemnification, and middleware, under
-    the OpenRTOS brand: http://www.OpenRTOS.com.  High Integrity Systems also
-    provide a safety engineered and independently SIL3 certified version under
-    the SafeRTOS brand: http://www.SafeRTOS.com.
+    http://www.OpenRTOS.com - Real Time Engineers ltd license FreeRTOS to High
+    Integrity Systems to sell under the OpenRTOS brand.  Low cost OpenRTOS
+    licenses offer ticketed support, indemnification and middleware.
+
+    http://www.SafeRTOS.com - High Integrity Systems also provide a safety
+    engineered and independently SIL3 certified version for use in safety and
+    mission critical applications that require provable dependability.
+
+    1 tab == 4 spaces!
 */
 
 #ifndef MPU_WRAPPERS_H
@@ -85,7 +82,7 @@ only for ports that are using the MPU. */
 		#define vTaskDelay						MPU_vTaskDelay
 		#define uxTaskPriorityGet				MPU_uxTaskPriorityGet
 		#define vTaskPrioritySet				MPU_vTaskPrioritySet
-		#define eTaskStateGet					MPU_eTaskStateGet
+		#define eTaskGetState					MPU_eTaskGetState
 		#define vTaskSuspend					MPU_vTaskSuspend
 		#define xTaskIsTaskSuspended			MPU_xTaskIsTaskSuspended
 		#define vTaskResume						MPU_vTaskResume
@@ -101,6 +98,8 @@ only for ports that are using the MPU. */
 		#define uxTaskGetStackHighWaterMark		MPU_uxTaskGetStackHighWaterMark
 		#define xTaskGetCurrentTaskHandle		MPU_xTaskGetCurrentTaskHandle
 		#define xTaskGetSchedulerState			MPU_xTaskGetSchedulerState
+		#define xTaskGetIdleTaskHandle			MPU_xTaskGetIdleTaskHandle
+		#define uxTaskGetSystemState			MPU_uxTaskGetSystemState
 
 		#define xQueueGenericCreate				MPU_xQueueGenericCreate
 		#define xQueueCreateMutex				MPU_xQueueCreateMutex
@@ -113,6 +112,12 @@ only for ports that are using the MPU. */
 		#define xQueueGenericReceive			MPU_xQueueGenericReceive
 		#define uxQueueMessagesWaiting			MPU_uxQueueMessagesWaiting
 		#define vQueueDelete					MPU_vQueueDelete
+		#define xQueueGenericReset				MPU_xQueueGenericReset
+		#define xQueueCreateSet					MPU_xQueueCreateSet
+		#define xQueueSelectFromSet				MPU_xQueueSelectFromSet
+		#define xQueueAddToSet					MPU_xQueueAddToSet
+		#define xQueueRemoveFromSet				MPU_xQueueRemoveFromSet
+		#define xQueuePeekFromISR				MPU_xQueuePeekFromISR
 
 		#define pvPortMalloc					MPU_pvPortMalloc
 		#define vPortFree						MPU_vPortFree
@@ -132,7 +137,6 @@ only for ports that are using the MPU. */
 		/* Ensure API functions go in the privileged execution section. */
 		#define PRIVILEGED_FUNCTION __attribute__((section("privileged_functions")))
 		#define PRIVILEGED_DATA __attribute__((section("privileged_data")))
-        //#define PRIVILEGED_DATA
 
 	#endif /* MPU_WRAPPERS_INCLUDED_FROM_API_FILE */
 
