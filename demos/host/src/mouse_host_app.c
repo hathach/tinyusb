@@ -118,13 +118,13 @@ OSAL_TASK_FUNCTION( mouse_host_app_task, p_task_para)
 {
   (void) p_task_para;
 
+  OSAL_TASK_LOOP_BEGIN
+
   tusb_error_t error;
   hid_mouse_report_t mouse_report;
 
-  OSAL_TASK_LOOP_BEGIN
-
   osal_queue_receive(queue_mouse_hdl, &mouse_report, OSAL_TIMEOUT_WAIT_FOREVER, &error);
-	(void) error; // supporess compiler's warninig
+	(void) error; // suppress compiler's warnings
 	
   process_mouse_report(&mouse_report);
 
@@ -138,29 +138,29 @@ void cursor_movement(int8_t x, int8_t y, int8_t wheel)
 {
   //------------- X -------------//
   if ( x < 0)
-  { // move left
-    printf(ANSI_CURSOR_BACKWARD(%d), (-x));
+  {
+    printf(ANSI_CURSOR_BACKWARD(%d), (-x)); // move left
   }else if ( x > 0)
-  { // move right
-    printf(ANSI_CURSOR_FORWARD(%d), x);
+  {
+    printf(ANSI_CURSOR_FORWARD(%d), x); // move right
   }else { }
 
   //------------- Y -------------//
   if ( y < 0)
-  { // move up
-    printf(ANSI_CURSOR_UP(%d), (-y));
+  {
+    printf(ANSI_CURSOR_UP(%d), (-y)); // move up
   }else if ( y > 0)
-  { // move down
-    printf(ANSI_CURSOR_DOWN(%d), y);
+  {
+    printf(ANSI_CURSOR_DOWN(%d), y); // move down
   }else { }
 
   //------------- wheel -------------//
   if (wheel < 0)
-  { // scroll up
-    printf(ANSI_SCROLL_UP(%d), (-wheel));
+  {
+    printf(ANSI_SCROLL_UP(%d), (-wheel)); // scroll up
   }else if (wheel > 0)
-  { // scroll down
-    printf(ANSI_SCROLL_DOWN(%d), wheel);
+  {
+    printf(ANSI_SCROLL_DOWN(%d), wheel); // scroll down
   }else { }
 }
 

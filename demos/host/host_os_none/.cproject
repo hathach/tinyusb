@@ -379,10 +379,7 @@
 		<projectStorage>&lt;?xml version="1.0" encoding="UTF-8"?&gt;&#13;
 &lt;TargetConfig&gt;&#13;
 &lt;Properties property_0="" property_2="LPC18x7_43x7_2x512_BootA.cfx" property_3="NXP" property_4="LPC4357" property_count="5" version="70002"/&gt;&#13;
-&lt;infoList vendor="NXP"&gt;&#13;
-&lt;info chip="LPC4357" flash_driver="LPC18x7_43x7_2x512_BootA.cfx" match_id="0x0" name="LPC4357" stub="crt_emu_lpc18_43_nxp"&gt;&#13;
-&lt;chip&gt;&#13;
-&lt;name&gt;LPC4357&lt;/name&gt;&#13;
+&lt;infoList vendor="NXP"&gt;&lt;info chip="LPC4357" flash_driver="LPC18x7_43x7_2x512_BootA.cfx" match_id="0x0" name="LPC4357" stub="crt_emu_lpc18_43_nxp"&gt;&lt;chip&gt;&lt;name&gt;LPC4357&lt;/name&gt;&#13;
 &lt;family&gt;LPC43xx&lt;/family&gt;&#13;
 &lt;vendor&gt;NXP (formerly Philips)&lt;/vendor&gt;&#13;
 &lt;reset board="None" core="Real" sys="Real"/&gt;&#13;
@@ -457,8 +454,7 @@
 &lt;peripheralInstance derived_from="SPI" determined="infoFile" id="SPI" location="0x40100000"/&gt;&#13;
 &lt;peripheralInstance derived_from="SGPIO" determined="infoFile" id="SGPIO" location="0x40101000"/&gt;&#13;
 &lt;/chip&gt;&#13;
-&lt;processor&gt;&#13;
-&lt;name gcc_name="cortex-m4"&gt;Cortex-M4&lt;/name&gt;&#13;
+&lt;processor&gt;&lt;name gcc_name="cortex-m4"&gt;Cortex-M4&lt;/name&gt;&#13;
 &lt;family&gt;Cortex-M&lt;/family&gt;&#13;
 &lt;/processor&gt;&#13;
 &lt;link href="nxp_lpc43xx_peripheral.xme" show="embed" type="simple"/&gt;&#13;

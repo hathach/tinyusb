@@ -1,23 +1,25 @@
 <?xml version="1.0" encoding="UTF-8" standalone="no"?>
-<?fileVersion 4.0.0?><cproject storage_type_id="org.eclipse.cdt.core.XmlProjectDescriptionStorage">
+<?fileVersion 4.0.0?>
+
+<cproject storage_type_id="org.eclipse.cdt.core.XmlProjectDescriptionStorage">
 	<storageModule moduleId="org.eclipse.cdt.core.settings">
 		<cconfiguration id="com.crt.advproject.config.exe.debug.1239969983">
 			<storageModule buildSystemId="org.eclipse.cdt.managedbuilder.core.configurationDataProvider" id="com.crt.advproject.config.exe.debug.1239969983" moduleId="org.eclipse.cdt.core.settings" name="Board_NGX4330">
 				<macros>
 					<stringMacro name="CFLAGS_OFF" type="VALUE_TEXT" value=""/>
-					<stringMacro name="CFLAGS_ON" type="VALUE_TEXT" value="-Wextra -Wswitch-default -Wunsafe-loop-optimizations -Wcast-align -Wlogical-op -Wpacked-bitfield-compat -Wnested-externs -Wredundant-decls -Winline"/>
 					<stringMacro name="CFLAGS" type="VALUE_TEXT" value="${CFLAGS_OFF}"/>
+					<stringMacro name="CFLAGS_ON" type="VALUE_TEXT" value="-Wextra -Wswitch-default -Wunsafe-loop-optimizations -Wcast-align -Wlogical-op -Wpacked-bitfield-compat -Wnested-externs -Wredundant-decls -Winline"/>
 				</macros>
 				<externalSettings/>
 				<extensions>
+					<extension id="org.eclipse.cdt.core.ELF" point="org.eclipse.cdt.core.BinaryParser"/>
+					<extension id="org.eclipse.cdt.core.GNU_ELF" point="org.eclipse.cdt.core.BinaryParser"/>
 					<extension id="org.eclipse.cdt.core.GmakeErrorParser" point="org.eclipse.cdt.core.ErrorParser"/>
 					<extension id="org.eclipse.cdt.core.CWDLocator" point="org.eclipse.cdt.core.ErrorParser"/>
 					<extension id="org.eclipse.cdt.core.MakeErrorParser" point="org.eclipse.cdt.core.ErrorParser"/>
 					<extension id="org.eclipse.cdt.core.GCCErrorParser" point="org.eclipse.cdt.core.ErrorParser"/>
 					<extension id="org.eclipse.cdt.core.GASErrorParser" point="org.eclipse.cdt.core.ErrorParser"/>
 					<extension id="org.eclipse.cdt.core.GLDErrorParser" point="org.eclipse.cdt.core.ErrorParser"/>
-					<extension id="org.eclipse.cdt.core.ELF" point="org.eclipse.cdt.core.BinaryParser"/>
-					<extension id="org.eclipse.cdt.core.GNU_ELF" point="org.eclipse.cdt.core.BinaryParser"/>
 				</extensions>
 			</storageModule>
 			<storageModule moduleId="cdtBuildSystem" version="4.0.0">
@@ -97,24 +99,25 @@
 			<storageModule moduleId="org.eclipse.cdt.core.language.mapping"/>
 			<storageModule moduleId="org.eclipse.cdt.internal.ui.text.commentOwnerProjectMappings"/>
 			<storageModule moduleId="org.eclipse.cdt.make.core.buildtargets"/>
+			<storageModule moduleId="scannerConfiguration"/>
 		</cconfiguration>
 		<cconfiguration id="com.crt.advproject.config.exe.debug.1239969983.636406670">
 			<storageModule buildSystemId="org.eclipse.cdt.managedbuilder.core.configurationDataProvider" id="com.crt.advproject.config.exe.debug.1239969983.636406670" moduleId="org.eclipse.cdt.core.settings" name="Board_EA4357">
 				<macros>
 					<stringMacro name="CFLAGS_OFF" type="VALUE_TEXT" value=""/>
-					<stringMacro name="CFLAGS_ON" type="VALUE_TEXT" value="-Wextra -Wswitch-default -Wunsafe-loop-optimizations -Wcast-align -Wlogical-op -Wpacked-bitfield-compat -Wnested-externs -Wredundant-decls -Winline"/>
 					<stringMacro name="CFLAGS" type="VALUE_TEXT" value="${CFLAGS_OFF}"/>
+					<stringMacro name="CFLAGS_ON" type="VALUE_TEXT" value="-Wextra -Wswitch-default -Wunsafe-loop-optimizations -Wcast-align -Wlogical-op -Wpacked-bitfield-compat -Wnested-externs -Wredundant-decls -Winline"/>
 				</macros>
 				<externalSettings/>
 				<extensions>
+					<extension id="org.eclipse.cdt.core.ELF" point="org.eclipse.cdt.core.BinaryParser"/>
+					<extension id="org.eclipse.cdt.core.GNU_ELF" point="org.eclipse.cdt.core.BinaryParser"/>
 					<extension id="org.eclipse.cdt.core.GmakeErrorParser" point="org.eclipse.cdt.core.ErrorParser"/>
 					<extension id="org.eclipse.cdt.core.CWDLocator" point="org.eclipse.cdt.core.ErrorParser"/>
 					<extension id="org.eclipse.cdt.core.MakeErrorParser" point="org.eclipse.cdt.core.ErrorParser"/>
 					<extension id="org.eclipse.cdt.core.GCCErrorParser" point="org.eclipse.cdt.core.ErrorParser"/>
 					<extension id="org.eclipse.cdt.core.GASErrorParser" point="org.eclipse.cdt.core.ErrorParser"/>
 					<extension id="org.eclipse.cdt.core.GLDErrorParser" point="org.eclipse.cdt.core.ErrorParser"/>
-					<extension id="org.eclipse.cdt.core.ELF" point="org.eclipse.cdt.core.BinaryParser"/>
-					<extension id="org.eclipse.cdt.core.GNU_ELF" point="org.eclipse.cdt.core.BinaryParser"/>
 				</extensions>
 			</storageModule>
 			<storageModule moduleId="cdtBuildSystem" version="4.0.0">
@@ -194,6 +197,7 @@
 			<storageModule moduleId="org.eclipse.cdt.core.language.mapping"/>
 			<storageModule moduleId="org.eclipse.cdt.internal.ui.text.commentOwnerProjectMappings"/>
 			<storageModule moduleId="org.eclipse.cdt.make.core.buildtargets"/>
+			<storageModule moduleId="scannerConfiguration"/>
 		</cconfiguration>
 		<cconfiguration id="com.crt.advproject.config.exe.debug.1239969983.636406670.2076562408">
 			<storageModule buildSystemId="org.eclipse.cdt.managedbuilder.core.configurationDataProvider" id="com.crt.advproject.config.exe.debug.1239969983.636406670.872802562" moduleId="org.eclipse.cdt.core.settings" name="Board_LPCXpresso1769">
@@ -361,42 +365,43 @@
 			<storageModule buildSystemId="org.eclipse.cdt.managedbuilder.core.configurationDataProvider" id="com.crt.advproject.config.exe.debug.1239969983.636406670.872802562" moduleId="org.eclipse.cdt.core.settings" name="Board_LPCXpresso1769">
 				<macros>
 					<stringMacro name="CFLAGS_OFF" type="VALUE_TEXT" value=""/>
-					<stringMacro name="CFLAGS_ON" type="VALUE_TEXT" value="-Wextra -Wswitch-default -Wunsafe-loop-optimizations -Wcast-align -Wlogical-op -Wpacked-bitfield-compat -Wnested-externs -Wredundant-decls -Winline"/>
 					<stringMacro name="CFLAGS" type="VALUE_TEXT" value="${CFLAGS_OFF}"/>
+					<stringMacro name="CFLAGS_ON" type="VALUE_TEXT" value="-Wextra -Wswitch-default -Wunsafe-loop-optimizations -Wcast-align -Wlogical-op -Wpacked-bitfield-compat -Wnested-externs -Wredundant-decls -Winline"/>
 				</macros>
 				<externalSettings/>
 				<extensions>
+					<extension id="org.eclipse.cdt.core.ELF" point="org.eclipse.cdt.core.BinaryParser"/>
+					<extension id="org.eclipse.cdt.core.GNU_ELF" point="org.eclipse.cdt.core.BinaryParser"/>
 					<extension id="org.eclipse.cdt.core.GmakeErrorParser" point="org.eclipse.cdt.core.ErrorParser"/>
 					<extension id="org.eclipse.cdt.core.CWDLocator" point="org.eclipse.cdt.core.ErrorParser"/>
 					<extension id="org.eclipse.cdt.core.MakeErrorParser" point="org.eclipse.cdt.core.ErrorParser"/>
 					<extension id="org.eclipse.cdt.core.GCCErrorParser" point="org.eclipse.cdt.core.ErrorParser"/>
 					<extension id="org.eclipse.cdt.core.GASErrorParser" point="org.eclipse.cdt.core.ErrorParser"/>
 					<extension id="org.eclipse.cdt.core.GLDErrorParser" point="org.eclipse.cdt.core.ErrorParser"/>
-					<extension id="org.eclipse.cdt.core.ELF" point="org.eclipse.cdt.core.BinaryParser"/>
-					<extension id="org.eclipse.cdt.core.GNU_ELF" point="org.eclipse.cdt.core.BinaryParser"/>
 				</extensions>
 			</storageModule>
 			<storageModule moduleId="org.eclipse.cdt.core.externalSettings"/>
 			<storageModule moduleId="org.eclipse.cdt.core.language.mapping"/>
 			<storageModule moduleId="org.eclipse.cdt.internal.ui.text.commentOwnerProjectMappings"/>
+			<storageModule moduleId="scannerConfiguration"/>
 		</cconfiguration>
 		<cconfiguration id="com.crt.advproject.config.exe.debug.1239969983.636406670.1656408621">
 			<storageModule buildSystemId="org.eclipse.cdt.managedbuilder.core.configurationDataProvider" id="com.crt.advproject.config.exe.debug.1239969983.636406670.1656408621" moduleId="org.eclipse.cdt.core.settings" name="Board_MCB4300">
 				<macros>
 					<stringMacro name="CFLAGS_OFF" type="VALUE_TEXT" value=""/>
-					<stringMacro name="CFLAGS_ON" type="VALUE_TEXT" value="-Wextra -Wswitch-default -Wunsafe-loop-optimizations -Wcast-align -Wlogical-op -Wpacked-bitfield-compat -Wnested-externs -Wredundant-decls -Winline"/>
 					<stringMacro name="CFLAGS" type="VALUE_TEXT" value="${CFLAGS_OFF}"/>
+					<stringMacro name="CFLAGS_ON" type="VALUE_TEXT" value="-Wextra -Wswitch-default -Wunsafe-loop-optimizations -Wcast-align -Wlogical-op -Wpacked-bitfield-compat -Wnested-externs -Wredundant-decls -Winline"/>
 				</macros>
 				<externalSettings/>
 				<extensions>
+					<extension id="org.eclipse.cdt.core.ELF" point="org.eclipse.cdt.core.BinaryParser"/>
+					<extension id="org.eclipse.cdt.core.GNU_ELF" point="org.eclipse.cdt.core.BinaryParser"/>
 					<extension id="org.eclipse.cdt.core.GmakeErrorParser" point="org.eclipse.cdt.core.ErrorParser"/>
 					<extension id="org.eclipse.cdt.core.CWDLocator" point="org.eclipse.cdt.core.ErrorParser"/>
 					<extension id="org.eclipse.cdt.core.MakeErrorParser" point="org.eclipse.cdt.core.ErrorParser"/>
 					<extension id="org.eclipse.cdt.core.GCCErrorParser" point="org.eclipse.cdt.core.ErrorParser"/>
 					<extension id="org.eclipse.cdt.core.GASErrorParser" point="org.eclipse.cdt.core.ErrorParser"/>
 					<extension id="org.eclipse.cdt.core.GLDErrorParser" point="org.eclipse.cdt.core.ErrorParser"/>
-					<extension id="org.eclipse.cdt.core.ELF" point="org.eclipse.cdt.core.BinaryParser"/>
-					<extension id="org.eclipse.cdt.core.GNU_ELF" point="org.eclipse.cdt.core.BinaryParser"/>
 				</extensions>
 			</storageModule>
 			<storageModule moduleId="cdtBuildSystem" version="4.0.0">
@@ -476,6 +481,7 @@
 			<storageModule moduleId="org.eclipse.cdt.core.language.mapping"/>
 			<storageModule moduleId="org.eclipse.cdt.internal.ui.text.commentOwnerProjectMappings"/>
 			<storageModule moduleId="org.eclipse.cdt.make.core.buildtargets"/>
+			<storageModule moduleId="scannerConfiguration"/>
 		</cconfiguration>
 	</storageModule>
 	<storageModule moduleId="cdtBuildSystem" version="4.0.0">
@@ -485,10 +491,7 @@
 		<projectStorage>&lt;?xml version="1.0" encoding="UTF-8"?&gt;&#13;
 &lt;TargetConfig&gt;&#13;
 &lt;Properties property_0="" property_2="LPC18x7_43x7_2x512_BootA.cfx" property_3="NXP" property_4="LPC4357" property_count="5" version="70002"/&gt;&#13;
-&lt;infoList vendor="NXP"&gt;&#13;
-&lt;info chip="LPC4357" flash_driver="LPC18x7_43x7_2x512_BootA.cfx" match_id="0x0" name="LPC4357" stub="crt_emu_lpc18_43_nxp"&gt;&#13;
-&lt;chip&gt;&#13;
-&lt;name&gt;LPC4357&lt;/name&gt;&#13;
+&lt;infoList vendor="NXP"&gt;&lt;info chip="LPC4357" flash_driver="LPC18x7_43x7_2x512_BootA.cfx" match_id="0x0" name="LPC4357" stub="crt_emu_lpc18_43_nxp"&gt;&lt;chip&gt;&lt;name&gt;LPC4357&lt;/name&gt;&#13;
 &lt;family&gt;LPC43xx&lt;/family&gt;&#13;
 &lt;vendor&gt;NXP (formerly Philips)&lt;/vendor&gt;&#13;
 &lt;reset board="None" core="Real" sys="Real"/&gt;&#13;
@@ -563,8 +566,7 @@
 &lt;peripheralInstance derived_from="SPI" determined="infoFile" id="SPI" location="0x40100000"/&gt;&#13;
 &lt;peripheralInstance derived_from="SGPIO" determined="infoFile" id="SGPIO" location="0x40101000"/&gt;&#13;
 &lt;/chip&gt;&#13;
-&lt;processor&gt;&#13;
-&lt;name gcc_name="cortex-m4"&gt;Cortex-M4&lt;/name&gt;&#13;
+&lt;processor&gt;&lt;name gcc_name="cortex-m4"&gt;Cortex-M4&lt;/name&gt;&#13;
 &lt;family&gt;Cortex-M&lt;/family&gt;&#13;
 &lt;/processor&gt;&#13;
 &lt;link href="nxp_lpc43xx_peripheral.xme" show="embed" type="simple"/&gt;&#13;

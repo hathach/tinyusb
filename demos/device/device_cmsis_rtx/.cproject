@@ -72,10 +72,15 @@
 									<listOptionValue builtIn="false" value="-Map=&quot;${BuildArtifactFileBaseName}.map&quot;"/>
 									<listOptionValue builtIn="false" value="--gc-sections"/>
 								</option>
-								<option id="gnu.c.link.option.paths.1465143173" name="Library search path (-L)" superClass="gnu.c.link.option.paths"/>
-								<option id="gnu.c.link.option.libs.447978281" name="Libraries (-l)" superClass="gnu.c.link.option.libs"/>
+								<option id="gnu.c.link.option.paths.1465143173" name="Library search path (-L)" superClass="gnu.c.link.option.paths" valueType="libPaths">
+									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/${ProjName}/cmsis_rtos_rtx/LIB/GCC}&quot;"/>
+								</option>
+								<option id="gnu.c.link.option.libs.447978281" name="Libraries (-l)" superClass="gnu.c.link.option.libs" valueType="libs">
+									<listOptionValue builtIn="false" value="RTX_CM3"/>
+								</option>
 								<option id="com.crt.advproject.link.gcc.hdrlib.1111642583" name="Library" superClass="com.crt.advproject.link.gcc.hdrlib" value="com.crt.advproject.gcc.link.hdrlib.codered.nohost" valueType="enumerated"/>
 								<option id="com.crt.advproject.link.gcc.multicore.slave.1875369133" name="Multicore slave" superClass="com.crt.advproject.link.gcc.multicore.slave"/>
+								<option id="com.crt.advproject.link.gcc.multicore.master.621779262" name="Multicore" superClass="com.crt.advproject.link.gcc.multicore.master"/>
 								<inputType id="cdt.managedbuild.tool.gnu.c.linker.input.1234316494" superClass="cdt.managedbuild.tool.gnu.c.linker.input">
 									<additionalInput kind="additionalinputdependency" paths="$(USER_OBJS)"/>
 									<additionalInput kind="additionalinput" paths="$(LIBS)"/>
@@ -165,8 +170,12 @@
 									<listOptionValue builtIn="false" value="-Map=&quot;${BuildArtifactFileBaseName}.map&quot;"/>
 									<listOptionValue builtIn="false" value="--gc-sections"/>
 								</option>
-								<option id="gnu.c.link.option.paths.1946871342" name="Library search path (-L)" superClass="gnu.c.link.option.paths"/>
-								<option id="gnu.c.link.option.libs.937236410" name="Libraries (-l)" superClass="gnu.c.link.option.libs"/>
+								<option id="gnu.c.link.option.paths.1946871342" name="Library search path (-L)" superClass="gnu.c.link.option.paths" valueType="libPaths">
+									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/${ProjName}/cmsis_rtos_rtx/LIB/GCC}&quot;"/>
+								</option>
+								<option id="gnu.c.link.option.libs.937236410" name="Libraries (-l)" superClass="gnu.c.link.option.libs" valueType="libs">
+									<listOptionValue builtIn="false" value="RTX_CM0"/>
+								</option>
 								<option id="com.crt.advproject.link.gcc.hdrlib.1273255587" name="Library" superClass="com.crt.advproject.link.gcc.hdrlib" value="com.crt.advproject.gcc.link.hdrlib.codered.nohost" valueType="enumerated"/>
 								<inputType id="cdt.managedbuild.tool.gnu.c.linker.input.888929207" superClass="cdt.managedbuild.tool.gnu.c.linker.input">
 									<additionalInput kind="additionalinputdependency" paths="$(USER_OBJS)"/>
@@ -556,9 +565,15 @@
 									<listOptionValue builtIn="false" value="-Map=&quot;${BuildArtifactFileBaseName}.map&quot;"/>
 									<listOptionValue builtIn="false" value="--gc-sections"/>
 								</option>
-								<option id="gnu.c.link.option.paths.2043194234" name="Library search path (-L)" superClass="gnu.c.link.option.paths"/>
-								<option id="gnu.c.link.option.libs.627305358" name="Libraries (-l)" superClass="gnu.c.link.option.libs"/>
+								<option id="gnu.c.link.option.paths.2043194234" name="Library search path (-L)" superClass="gnu.c.link.option.paths" valueType="libPaths">
+									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/${ProjName}/cmsis_rtos_rtx/LIB/GCC}&quot;"/>
+								</option>
+								<option id="gnu.c.link.option.libs.627305358" name="Libraries (-l)" superClass="gnu.c.link.option.libs" valueType="libs">
+									<listOptionValue builtIn="false" value="RTX_CM0"/>
+								</option>
 								<option id="com.crt.advproject.link.gcc.hdrlib.1098185782" name="Library" superClass="com.crt.advproject.link.gcc.hdrlib" value="com.crt.advproject.gcc.link.hdrlib.codered.nohost" valueType="enumerated"/>
+								<option id="com.crt.advproject.link.gcc.multicore.slave.1664969067" superClass="com.crt.advproject.link.gcc.multicore.slave"/>
+								<option id="com.crt.advproject.link.gcc.multicore.master.1296103241" superClass="com.crt.advproject.link.gcc.multicore.master"/>
 								<inputType id="cdt.managedbuild.tool.gnu.c.linker.input.1799133268" superClass="cdt.managedbuild.tool.gnu.c.linker.input">
 									<additionalInput kind="additionalinputdependency" paths="$(USER_OBJS)"/>
 									<additionalInput kind="additionalinput" paths="$(LIBS)"/>
@@ -584,10 +599,7 @@
 		<projectStorage>&lt;?xml version="1.0" encoding="UTF-8"?&gt;&#13;
 &lt;TargetConfig&gt;&#13;
 &lt;Properties property_0="" property_2="LPC18x7_43x7_2x512_BootA.cfx" property_3="NXP" property_4="LPC4357" property_count="5" version="70002"/&gt;&#13;
-&lt;infoList vendor="NXP"&gt;&#13;
-&lt;info chip="LPC4357" flash_driver="LPC18x7_43x7_2x512_BootA.cfx" match_id="0x0" name="LPC4357" stub="crt_emu_lpc18_43_nxp"&gt;&#13;
-&lt;chip&gt;&#13;
-&lt;name&gt;LPC4357&lt;/name&gt;&#13;
+&lt;infoList vendor="NXP"&gt;&lt;info chip="LPC4357" flash_driver="LPC18x7_43x7_2x512_BootA.cfx" match_id="0x0" name="LPC4357" stub="crt_emu_lpc18_43_nxp"&gt;&lt;chip&gt;&lt;name&gt;LPC4357&lt;/name&gt;&#13;
 &lt;family&gt;LPC43xx&lt;/family&gt;&#13;
 &lt;vendor&gt;NXP (formerly Philips)&lt;/vendor&gt;&#13;
 &lt;reset board="None" core="Real" sys="Real"/&gt;&#13;
@@ -662,8 +674,7 @@
 &lt;peripheralInstance derived_from="SPI" determined="infoFile" id="SPI" location="0x40100000"/&gt;&#13;
 &lt;peripheralInstance derived_from="SGPIO" determined="infoFile" id="SGPIO" location="0x40101000"/&gt;&#13;
 &lt;/chip&gt;&#13;
-&lt;processor&gt;&#13;
-&lt;name gcc_name="cortex-m4"&gt;Cortex-M4&lt;/name&gt;&#13;
+&lt;processor&gt;&lt;name gcc_name="cortex-m4"&gt;Cortex-M4&lt;/name&gt;&#13;
 &lt;family&gt;Cortex-M&lt;/family&gt;&#13;
 &lt;/processor&gt;&#13;
 &lt;link href="nxp_lpc43xx_peripheral.xme" show="embed" type="simple"/&gt;&#13;

@@ -524,7 +524,7 @@ void xfer_complete_isr(uint8_t coreid, uint32_t reg_complete)
 
         //------------- Free QTD and shift array list -------------//
         p_qtd->used = 0; // free QTD
-        memmove(p_qhd->list_qtd_idx, p_qhd->list_qtd_idx+1, DCD_QTD_PER_QHD_MAX-1);
+        memmove( (void*) p_qhd->list_qtd_idx, (void*) (p_qhd->list_qtd_idx+1), DCD_QTD_PER_QHD_MAX-1);
         p_qhd->list_qtd_idx[DCD_QTD_PER_QHD_MAX-1]=0;
 
         if (p_qtd->int_on_complete)

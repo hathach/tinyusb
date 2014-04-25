@@ -46,7 +46,7 @@
 //--------------------------------------------------------------------+
 // INCLUDE
 //--------------------------------------------------------------------+
-enum { CDCD_APP_BUFFER_SIZE = 64 };
+enum { SERIAL_BUFFER_SIZE = 64 };
 
 //--------------------------------------------------------------------+
 // MACRO CONSTANT TYPEDEF
@@ -59,10 +59,10 @@ static osal_semaphore_handle_t sem_hdl;
 //--------------------------------------------------------------------+
 // INTERNAL OBJECT & FUNCTION DECLARATION
 //--------------------------------------------------------------------+
-TUSB_CFG_ATTR_USBRAM static uint8_t serial_rx_buffer[CDCD_APP_BUFFER_SIZE];
-TUSB_CFG_ATTR_USBRAM static uint8_t serial_tx_buffer[CDCD_APP_BUFFER_SIZE];
+TUSB_CFG_ATTR_USBRAM static uint8_t serial_rx_buffer[SERIAL_BUFFER_SIZE];
+TUSB_CFG_ATTR_USBRAM static uint8_t serial_tx_buffer[SERIAL_BUFFER_SIZE];
 
-FIFO_DEF(fifo_serial, CDCD_APP_BUFFER_SIZE, uint8_t, true);
+FIFO_DEF(fifo_serial, SERIAL_BUFFER_SIZE, uint8_t, true);
 
 //--------------------------------------------------------------------+
 // tinyusb callbacks
@@ -71,7 +71,7 @@ void tusbd_cdc_mounted_cb(uint8_t coreid)
 {
   osal_semaphore_reset(sem_hdl);
 
-  tusbd_cdc_receive(coreid, serial_rx_buffer, CDCD_APP_BUFFER_SIZE, true);
+  tusbd_cdc_receive(coreid, serial_rx_buffer, SERIAL_BUFFER_SIZE, true);
 }
 
 void tusbd_cdc_unmounted_cb(uint8_t coreid)
@@ -95,7 +95,7 @@ void tusbd_cdc_xfer_cb(uint8_t coreid, tusb_event_t event, cdc_pipeid_t pipe_id,
         break;
 
         case TUSB_EVENT_XFER_ERROR:
-          tusbd_cdc_receive(0, serial_rx_buffer, CDCD_APP_BUFFER_SIZE, true); // ignore, queue transfer again
+          tusbd_cdc_receive(0, serial_rx_buffer, SERIAL_BUFFER_SIZE, true); // ignore, queue transfer again
         break;
 
         case TUSB_EVENT_XFER_STALLED:
@@ -149,7 +149,7 @@ OSAL_TASK_FUNCTION( cdcd_serial_app_task , p_task_para)
     }
 
     // getting more data from host
-    tusbd_cdc_receive(0, serial_rx_buffer, CDCD_APP_BUFFER_SIZE, true);
+    tusbd_cdc_receive(0, serial_rx_buffer, SERIAL_BUFFER_SIZE, true);
   }
 
   OSAL_TASK_LOOP_END

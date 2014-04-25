@@ -117,10 +117,10 @@ OSAL_TASK_FUNCTION( keyboard_host_app_task, p_task_para)
 {
   (void) p_task_para;
 
+  OSAL_TASK_LOOP_BEGIN
+
   hid_keyboard_report_t kbd_report;
   tusb_error_t error;
-
-  OSAL_TASK_LOOP_BEGIN
 
   osal_queue_receive(queue_kbd_hdl, &kbd_report, OSAL_TIMEOUT_WAIT_FOREVER, &error);
   (void) error; // suppress compiler warning

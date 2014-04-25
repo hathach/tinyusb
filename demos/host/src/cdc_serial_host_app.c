@@ -51,8 +51,9 @@ OSAL_SEM_DEF(serial_semaphore);
 
 static osal_semaphore_handle_t sem_hdl;
 
-TUSB_CFG_ATTR_USBRAM static uint8_t serial_in_buffer[32];
-TUSB_CFG_ATTR_USBRAM static uint8_t serial_out_buffer[32];
+enum { SERIAL_BUFFER_SIZE = 64 };
+TUSB_CFG_ATTR_USBRAM static uint8_t serial_in_buffer[SERIAL_BUFFER_SIZE];
+TUSB_CFG_ATTR_USBRAM static uint8_t serial_out_buffer[SERIAL_BUFFER_SIZE];
 
 static uint8_t received_bytes; // set by transfer complete callback
 
@@ -68,7 +69,7 @@ void tusbh_cdc_mounted_cb(uint8_t dev_addr)
   received_bytes = 0;
 
   osal_semaphore_reset(sem_hdl);
-  tusbh_cdc_receive(dev_addr, serial_in_buffer, sizeof(serial_in_buffer), true); // schedule first transfer
+  tusbh_cdc_receive(dev_addr, serial_in_buffer, SERIAL_BUFFER_SIZE, true); // schedule first transfer
 }
 
 void tusbh_cdc_unmounted_cb(uint8_t dev_addr)
@@ -93,6 +94,7 @@ void tusbh_cdc_xfer_isr(uint8_t dev_addr, tusb_event_t event, cdc_pipeid_t pipe_
 
         case TUSB_EVENT_XFER_ERROR:
           received_bytes = 0; // ignore
+          tusbh_cdc_receive(dev_addr, serial_in_buffer, SERIAL_BUFFER_SIZE, true); // waiting for next data
         break;
 
         case TUSB_EVENT_XFER_STALLED:
@@ -133,12 +135,12 @@ OSAL_TASK_FUNCTION( cdc_serial_host_app_task, p_task_para)
     {
       int ch_tx = getchar();
       if ( ch_tx > 0 )
-      { // USB is much faster than serial, here we assume usb is always complete. There could be some characters missing
+      { // USB is much faster than serial, here we assume usb is always complete. There could be some characters missing though
         serial_out_buffer[0] = (uint8_t) ch_tx;
 
         if ( !tusbh_cdc_is_busy(dev_addr, CDC_PIPE_DATA_OUT) )
         {
-          tusbh_cdc_send(dev_addr, serial_out_buffer, 1, false); // no need for interrupt on serial out pipe
+          tusbh_cdc_send(dev_addr, serial_out_buffer, 1, false); // no need for callback on serial out pipe
         }
       }
       break; // demo app only communicate with the first CDC-capable device
@@ -157,7 +159,7 @@ OSAL_TASK_FUNCTION( cdc_serial_host_app_task, p_task_para)
     {
       if ( tusbh_cdc_serial_is_mounted(dev_addr) )
       {
-        tusbh_cdc_receive(dev_addr, serial_in_buffer, sizeof(serial_in_buffer), true);
+        tusbh_cdc_receive(dev_addr, serial_in_buffer, SERIAL_BUFFER_SIZE, true);
 
         break; // demo app only communicate with the first CDC-capable device
       }

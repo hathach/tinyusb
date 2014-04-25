@@ -100,6 +100,7 @@ static inline void osal_task_delay(uint32_t msec)
 // Semaphore API
 //--------------------------------------------------------------------+
 #define OSAL_SEM_DEF(name)
+#define OSAL_SEM_REF(name)
 typedef xSemaphoreHandle osal_semaphore_handle_t;
 
 // create FreeRTOS binary semaphore with zero as init value TODO: omit semaphore take from vSemaphoreCreateBinary API, should double checks this
@@ -129,6 +130,7 @@ static inline void osal_semaphore_reset(osal_semaphore_handle_t const sem_hdl)
 // MUTEX API (priority inheritance)
 //--------------------------------------------------------------------+
 #define OSAL_MUTEX_DEF  OSAL_SEM_DEF
+#define OSAL_MUTEX_REF  OSAL_SEM_REF
 typedef xSemaphoreHandle osal_mutex_handle_t;
 
 #define osal_mutex_create(x) xSemaphoreCreateMutex()

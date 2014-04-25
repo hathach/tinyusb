@@ -73,7 +73,7 @@
       <OPTFL>
         <tvExp>1</tvExp>
         <tvExpOptDlg>0</tvExpOptDlg>
-        <IsCurrentTarget>1</IsCurrentTarget>
+        <IsCurrentTarget>0</IsCurrentTarget>
       </OPTFL>
       <CpuCode>8</CpuCode>
       <DllOpt>
@@ -248,7 +248,7 @@
       <OPTFL>
         <tvExp>1</tvExp>
         <tvExpOptDlg>0</tvExpOptDlg>
-        <IsCurrentTarget>0</IsCurrentTarget>
+        <IsCurrentTarget>1</IsCurrentTarget>
       </OPTFL>
       <CpuCode>8</CpuCode>
       <DllOpt>
@@ -956,7 +956,7 @@
       <Focus>0</Focus>
       <ColumnNumber>3</ColumnNumber>
       <tvExpOptDlg>0</tvExpOptDlg>
-      <TopLine>74</TopLine>
+      <TopLine>75</TopLine>
       <CurrentLine>76</CurrentLine>
       <bDave2>0</bDave2>
       <PathWithFileName>..\src\main.c</PathWithFileName>
@@ -1004,7 +1004,7 @@
       <Focus>0</Focus>
       <ColumnNumber>1</ColumnNumber>
       <tvExpOptDlg>0</tvExpOptDlg>
-      <TopLine>106</TopLine>
+      <TopLine>105</TopLine>
       <CurrentLine>112</CurrentLine>
       <bDave2>0</bDave2>
       <PathWithFileName>..\src\keyboard_device_app.c</PathWithFileName>
@@ -1168,7 +1168,7 @@
       <GroupNumber>2</GroupNumber>
       <FileNumber>14</FileNumber>
       <FileType>1</FileType>
-      <tvExp>1</tvExp>
+      <tvExp>0</tvExp>
       <Focus>0</Focus>
       <ColumnNumber>0</ColumnNumber>
       <tvExpOptDlg>0</tvExpOptDlg>
@@ -2012,7 +2012,7 @@
       <Focus>0</Focus>
       <ColumnNumber>54</ColumnNumber>
       <tvExpOptDlg>0</tvExpOptDlg>
-      <TopLine>157</TopLine>
+      <TopLine>159</TopLine>
       <CurrentLine>160</CurrentLine>
       <bDave2>0</bDave2>
       <PathWithFileName>..\..\..\mcu\lpc43xx\keil\startup_LPC43xx.s</PathWithFileName>

@@ -68,9 +68,9 @@ extern "C"
 // Assert Helper
 //--------------------------------------------------------------------+
 #ifndef _TEST_
-  #define ASSERT_MESSAGE(format, ...) _PRINTF("Assert at %s: %s: %d: " format "\n", __BASE_FILE__, __func__ , __LINE__, __VA_ARGS__)
+  #define _ASSERT_MESSAGE(format, ...) _PRINTF("Assert at %s: %s: %d: " format "\n", __BASE_FILE__, __func__ , __LINE__, __VA_ARGS__)
 #else // TODO remove this
-  #define ASSERT_MESSAGE(format, ...) _PRINTF("%d:note: Assert " format "\n", __LINE__, __VA_ARGS__)
+  #define _ASSERT_MESSAGE(format, ...) _PRINTF("%d:note: Assert " format "\n", __LINE__, __VA_ARGS__)
 #endif
 
 #ifndef _TEST_ASSERT_
@@ -84,7 +84,7 @@ extern "C"
     setup_statement;\
 	  if (!(condition)) {\
 	    hal_debugger_breakpoint();\
-	    ASSERT_MESSAGE(format, __VA_ARGS__);\
+	    _ASSERT_MESSAGE(format, __VA_ARGS__);\
 	    error_handler(error, handler_para);\
 	  }\
 	}while(0)
@@ -108,6 +108,8 @@ extern "C"
 #define ASSERT(...)                      ASSERT_TRUE(__VA_ARGS__)
 #define ASSERT_TRUE(condition  , error)  ASSERT_DEFINE( , (condition), error, "%s", "evaluated to false")
 #define ASSERT_FALSE(condition , error)  ASSERT_DEFINE( ,!(condition), error, "%s", "evaluated to true")
+#define ASSERT_FAILED(error)             ASSERT_DEFINE( , false, error, "%s", "FAILED")
+#define ASSERT_FAILED_MSG(error, msg)    ASSERT_DEFINE( , false, error, "FAILED: %s", msg)
 
 //--------------------------------------------------------------------+
 // Pointer Assert

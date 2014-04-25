@@ -86,7 +86,9 @@ CDC has several subclass, currently tinyusb only supports the popular *Abstract 
 
 ### Serial
 
-A virtual serial of CDC-ACM is supported, the host demo will echo back any thing it received from the device. So if you use the tinyusb device stack with CDC enabled to test with, you should modify it a bit to constantly send somethings (otherwise 2 demos will wait for each other).
+A virtual serial of CDC-ACM is supported such as those built with tinyusb device stack. The host demo literally does 2 things
+- Echo back any thing it received from the device to the terminal
+- Receive data from terminal and send it to device.
 
 Notes: FTDI is a vendor-specific class, which is not currently supported.
 

@@ -78,20 +78,26 @@
     #define PORTMACRO_PATH "../portable/RVDS/ARM_CM4F/portmacro.h"
   #elif __CORTEX_M == 3
     #define PORTMACRO_PATH "../portable/RVDS/ARM_CM3/portmacro.h"
+  #elif __CORTEX_M == 0
+    #define PORTMACRO_PATH "../portable/RVDS/ARM_CM0/portmacro.h"
   #endif
 
 #elif defined __GNUC__
-  #if __CORTEX_M == 4 // TODO M0 M4
+  #if __CORTEX_M == 4
     #define PORTMACRO_PATH "../portable/GCC/ARM_CM4F/portmacro.h"
   #elif __CORTEX_M == 3
     #define PORTMACRO_PATH "../portable/GCC/ARM_CM3/portmacro.h"
+  #elif __CORTEX_M == 0
+    #define PORTMACRO_PATH "../portable/GCC/ARM_CM0/portmacro.h"
   #endif
 
 #elif defined __ICCARM__
-  #if __CORTEX_M == 4 // TODO M0 M4
+  #if __CORTEX_M == 4
     #define PORTMACRO_PATH "../portable/IAR/ARM_CM4F/portmacro.h"
   #elif __CORTEX_M == 3
     #define PORTMACRO_PATH "../portable/IAR/ARM_CM3/portmacro.h"
+  #elif __CORTEX_M == 0
+    #define PORTMACRO_PATH "../portable/IAR/ARM_CM0/portmacro.h"
   #endif
 
 #endif
