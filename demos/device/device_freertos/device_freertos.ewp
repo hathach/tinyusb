@@ -5663,7 +5663,7 @@
       <name>$PROJ_DIR$\..\..\..\vendor\freertos\freertos\Source\croutine.c</name>
     </file>
     <file>
-      <name>$PROJ_DIR$\..\..\..\vendor\freertos\freertoslpc\FreeRTOSCommonHooks.c</name>
+      <name>$PROJ_DIR$\..\..\..\vendor\freertos\freertos_hook.c</name>
     </file>
     <file>
       <name>$PROJ_DIR$\..\..\..\vendor\freertos\freertos\Source\portable\MemMang\heap_4.c</name>

@@ -532,11 +532,6 @@
           <GroupName>freertos</GroupName>
           <Files>
             <File>
-              <FileName>FreeRTOSCommonHooks.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>..\..\..\vendor\freertos\freertoslpc\FreeRTOSCommonHooks.c</FilePath>
-            </File>
-            <File>
               <FileName>croutine.c</FileName>
               <FileType>1</FileType>
               <FilePath>..\..\..\vendor\freertos\freertos\Source\croutine.c</FilePath>
@@ -615,6 +610,11 @@
                   </Cads>
                 </FileArmAds>
               </FileOption>
+            </File>
+            <File>
+              <FileName>freertos_hook.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\..\..\vendor\freertos\freertos_hook.c</FilePath>
             </File>
           </Files>
         </Group>
@@ -1352,11 +1352,6 @@
           <GroupName>freertos</GroupName>
           <Files>
             <File>
-              <FileName>FreeRTOSCommonHooks.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>..\..\..\vendor\freertos\freertoslpc\FreeRTOSCommonHooks.c</FilePath>
-            </File>
-            <File>
               <FileName>croutine.c</FileName>
               <FileType>1</FileType>
               <FilePath>..\..\..\vendor\freertos\freertos\Source\croutine.c</FilePath>
@@ -1435,6 +1430,11 @@
               <FileName>port_cm3.c</FileName>
               <FileType>1</FileType>
               <FilePath>..\..\..\vendor\freertos\freertos\Source\portable\RVDS\ARM_CM3\port_cm3.c</FilePath>
+            </File>
+            <File>
+              <FileName>freertos_hook.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\..\..\vendor\freertos\freertos_hook.c</FilePath>
             </File>
           </Files>
         </Group>
@@ -2172,11 +2172,6 @@
           <GroupName>freertos</GroupName>
           <Files>
             <File>
-              <FileName>FreeRTOSCommonHooks.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>..\..\..\vendor\freertos\freertoslpc\FreeRTOSCommonHooks.c</FilePath>
-            </File>
-            <File>
               <FileName>croutine.c</FileName>
               <FileType>1</FileType>
               <FilePath>..\..\..\vendor\freertos\freertos\Source\croutine.c</FilePath>
@@ -2255,6 +2250,11 @@
                   </Cads>
                 </FileArmAds>
               </FileOption>
+            </File>
+            <File>
+              <FileName>freertos_hook.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\..\..\vendor\freertos\freertos_hook.c</FilePath>
             </File>
           </Files>
         </Group>
@@ -2992,11 +2992,6 @@
           <GroupName>freertos</GroupName>
           <Files>
             <File>
-              <FileName>FreeRTOSCommonHooks.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>..\..\..\vendor\freertos\freertoslpc\FreeRTOSCommonHooks.c</FilePath>
-            </File>
-            <File>
               <FileName>croutine.c</FileName>
               <FileType>1</FileType>
               <FilePath>..\..\..\vendor\freertos\freertos\Source\croutine.c</FilePath>
@@ -3075,6 +3070,11 @@
                   </Cads>
                 </FileArmAds>
               </FileOption>
+            </File>
+            <File>
+              <FileName>freertos_hook.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\..\..\vendor\freertos\freertos_hook.c</FilePath>
             </File>
           </Files>
         </Group>

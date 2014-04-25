@@ -1035,14 +1035,14 @@
               <FilePath>..\..\..\vendor\freertos\freertos\Source\portable\RVDS\ARM_CM4F\port_cm4f.c</FilePath>
             </File>
             <File>
-              <FileName>FreeRTOSCommonHooks.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>..\..\..\vendor\freertos\freertoslpc\FreeRTOSCommonHooks.c</FilePath>
-            </File>
-            <File>
               <FileName>heap_4.c</FileName>
               <FileType>1</FileType>
               <FilePath>..\..\..\vendor\freertos\freertos\Source\portable\MemMang\heap_4.c</FilePath>
+            </File>
+            <File>
+              <FileName>freertos_hook.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\..\..\vendor\freertos\freertos_hook.c</FilePath>
             </File>
           </Files>
         </Group>
@@ -2077,14 +2077,14 @@
               </FileOption>
             </File>
             <File>
-              <FileName>FreeRTOSCommonHooks.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>..\..\..\vendor\freertos\freertoslpc\FreeRTOSCommonHooks.c</FilePath>
-            </File>
-            <File>
               <FileName>heap_4.c</FileName>
               <FileType>1</FileType>
               <FilePath>..\..\..\vendor\freertos\freertos\Source\portable\MemMang\heap_4.c</FilePath>
+            </File>
+            <File>
+              <FileName>freertos_hook.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\..\..\vendor\freertos\freertos_hook.c</FilePath>
             </File>
           </Files>
         </Group>
@@ -3119,14 +3119,14 @@
               </FileOption>
             </File>
             <File>
-              <FileName>FreeRTOSCommonHooks.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>..\..\..\vendor\freertos\freertoslpc\FreeRTOSCommonHooks.c</FilePath>
-            </File>
-            <File>
               <FileName>heap_4.c</FileName>
               <FileType>1</FileType>
               <FilePath>..\..\..\vendor\freertos\freertos\Source\portable\MemMang\heap_4.c</FilePath>
+            </File>
+            <File>
+              <FileName>freertos_hook.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\..\..\vendor\freertos\freertos_hook.c</FilePath>
             </File>
           </Files>
         </Group>
@@ -4201,14 +4201,14 @@
               </FileOption>
             </File>
             <File>
-              <FileName>FreeRTOSCommonHooks.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>..\..\..\vendor\freertos\freertoslpc\FreeRTOSCommonHooks.c</FilePath>
-            </File>
-            <File>
               <FileName>heap_4.c</FileName>
               <FileType>1</FileType>
               <FilePath>..\..\..\vendor\freertos\freertos\Source\portable\MemMang\heap_4.c</FilePath>
+            </File>
+            <File>
+              <FileName>freertos_hook.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\..\..\vendor\freertos\freertos_hook.c</FilePath>
             </File>
           </Files>
         </Group>
@@ -5243,14 +5243,14 @@
               <FilePath>..\..\..\vendor\freertos\freertos\Source\portable\RVDS\ARM_CM4F\port_cm4f.c</FilePath>
             </File>
             <File>
-              <FileName>FreeRTOSCommonHooks.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>..\..\..\vendor\freertos\freertoslpc\FreeRTOSCommonHooks.c</FilePath>
-            </File>
-            <File>
               <FileName>heap_4.c</FileName>
               <FileType>1</FileType>
               <FilePath>..\..\..\vendor\freertos\freertos\Source\portable\MemMang\heap_4.c</FilePath>
+            </File>
+            <File>
+              <FileName>freertos_hook.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\..\..\vendor\freertos\freertos_hook.c</FilePath>
             </File>
           </Files>
         </Group>
@@ -6325,14 +6325,14 @@
               </FileOption>
             </File>
             <File>
-              <FileName>FreeRTOSCommonHooks.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>..\..\..\vendor\freertos\freertoslpc\FreeRTOSCommonHooks.c</FilePath>
-            </File>
-            <File>
               <FileName>heap_4.c</FileName>
               <FileType>1</FileType>
               <FilePath>..\..\..\vendor\freertos\freertos\Source\portable\MemMang\heap_4.c</FilePath>
+            </File>
+            <File>
+              <FileName>freertos_hook.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\..\..\vendor\freertos\freertos_hook.c</FilePath>
             </File>
           </Files>
         </Group>
