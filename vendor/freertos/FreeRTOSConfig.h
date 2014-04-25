@@ -1,31 +1,15 @@
 #ifndef __FREERTOS_CONFIG__H
 #define __FREERTOS_CONFIG__H
 
+#ifndef __IASMARM__
+// IAR assembler "compile" portarm.s need to include this file but cannot understand many other headers.
 #include "hal/hal.h"
-
-#ifndef __IASMARM__ // IAR assblemer portarm.s need to include this file but cannot understand <stdint.h>
-
-//#include "LPC43xx.h"
-//#include "core_cm4.h"
-//#include "lpc43xx_cgu.h"
-#include "hal/hal.h"
-
+#include "common/assertion.h"
 #endif
 
-/*-----------------------------------------------------------
- * See http://www.freertos.org/a00110.html.
- *----------------------------------------------------------*/
-
-#if __CORTEX_M == 4
-
-#elif __CORTEX_M == 3
-
-#elif __CORTEX_M == 0
-
-#else
-	#error "not yet supported MCU"
-#endif
-
+//--------------------------------------------------------------------+
+// See http://www.freertos.org/a00110.html.
+//--------------------------------------------------------------------+
 #define configUSE_PREEMPTION                   1
 #define configCPU_CLOCK_HZ                     ( SystemCoreClock )
 //#define configCPU_CLOCK_HZ                   ( CGU_GetPCLKFrequency(CGU_PERIPHERAL_M4CORE))
@@ -88,7 +72,9 @@
 #define xPortSysTickHandler   SysTick_Handler
 #define vPortSVCHandler       SVC_Handler
 
-/* Interrupt nesting behaviour configuration. */
+//--------------------------------------------------------------------+
+// Interrupt nesting behaviour configuration.
+//--------------------------------------------------------------------+
 /* Cortex-M specific definitions. */
 #ifdef __NVIC_PRIO_BITS
 	#define configPRIO_BITS       __NVIC_PRIO_BITS
@@ -113,5 +99,17 @@ to all Cortex-M ports, and do not rely on any particular library functions. */
 /* !!!! configMAX_SYSCALL_INTERRUPT_PRIORITY must not be set to zero !!!!
 See http://www.FreeRTOS.org/RTOS-Cortex-M3-M4.html. */
 #define configMAX_SYSCALL_INTERRUPT_PRIORITY 	        ( configLIBRARY_MAX_SYSCALL_INTERRUPT_PRIORITY << (8 - configPRIO_BITS) )
+
+#if 0
+#if __CORTEX_M == 4
+
+#elif __CORTEX_M == 3
+
+#elif __CORTEX_M == 0
+
+#else
+	#error "not yet supported MCU"
+#endif
+#endif
 
 #endif /* __FREERTOS_CONFIG__H */
