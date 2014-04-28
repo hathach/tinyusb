@@ -67,8 +67,8 @@ void semaphore_wait_success_stub(osal_semaphore_handle_t const sem_hdl, uint32_t
 tusb_error_t control_xfer_stub(uint8_t dev_addr, const tusb_control_request_t * const p_request, uint8_t data[], int num_call);
 
 enum {
-  POWER_STABLE_DELAY = 300,
-  RESET_DELAY = 100 // NXP's EHCI require more than 50ms to work properly although the USB specs say only 50ms
+  POWER_STABLE_DELAY = 500,
+  RESET_DELAY = 200 // USB specs say only 50ms though many devices requires a longer time
 };
 
 void setUp(void)

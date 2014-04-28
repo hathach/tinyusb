@@ -199,14 +199,11 @@ tusb_error_t usbh_control_xfer_subtask(uint8_t dev_addr, uint8_t bmRequestType, 
   usbh_devices[dev_addr].control.pipe_status = TUSB_EVENT_XFER_COMPLETE; // in Test project, mark as complete immediately
 #endif
 
-  SUBTASK_ASSERT_STATUS_WITH_HANDLER( hcd_pipe_control_xfer(dev_addr, &usbh_devices[dev_addr].control.request, data),
-                                      osal_mutex_release(usbh_devices[dev_addr].control.mutex_hdl) );
-
-  osal_semaphore_wait(usbh_devices[dev_addr].control.sem_hdl, OSAL_TIMEOUT_NORMAL, &error); // careful of local variable without static
+  error = hcd_pipe_control_xfer(dev_addr, &usbh_devices[dev_addr].control.request, data);
+  if ( TUSB_ERROR_NONE == error ) osal_semaphore_wait(usbh_devices[dev_addr].control.sem_hdl, OSAL_TIMEOUT_NORMAL, &error);
   osal_mutex_release(usbh_devices[dev_addr].control.mutex_hdl);
 
-  // TODO make handler for this function general purpose
-  if (TUSB_ERROR_NONE != error)   SUBTASK_EXIT(error);
+  SUBTASK_ASSERT_STATUS(error);
   if (TUSB_EVENT_XFER_STALLED == usbh_devices[dev_addr].control.pipe_status) SUBTASK_EXIT(TUSB_ERROR_USBH_XFER_STALLED);
   if (TUSB_EVENT_XFER_ERROR   == usbh_devices[dev_addr].control.pipe_status) SUBTASK_EXIT(TUSB_ERROR_USBH_XFER_FAILED);
 
@@ -259,7 +256,7 @@ void usbh_xfer_isr(pipe_handle_t pipe_hdl, uint8_t class_code, tusb_event_t even
     usbh_class_drivers[class_index].isr(pipe_hdl, event, xferred_bytes);
   }else
   {
-    ASSERT(false, VOID_RETURN); // something wrong, no one claims the isr's source
+    ASSERT_FAILED(VOID_RETURN); // something wrong, no one claims the isr's source
   }
 }
 
@@ -361,8 +358,8 @@ OSAL_TASK_FUNCTION(usbh_enumeration_task, p_task_para)
 tusb_error_t enumeration_body_subtask(void)
 {
   enum {
-    POWER_STABLE_DELAY = 300,
-    RESET_DELAY = 100 // NXP's EHCI require more than 50ms to work properly although the USB specs say only 50ms
+    POWER_STABLE_DELAY = 500,
+    RESET_DELAY        = 200 // USB specs say only 50ms but many devices require much longer
   };
 
   tusb_error_t error;

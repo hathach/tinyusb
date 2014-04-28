@@ -10,9 +10,13 @@
 //--------------------------------------------------------------------+
 // See http://www.freertos.org/a00110.html.
 //--------------------------------------------------------------------+
+#if TUSB_CFG_MCU == MCU_LPC43XX
+  #define configCPU_CLOCK_HZ                   CGU_GetPCLKFrequency(CGU_PERIPHERAL_M4CORE)
+#else
+  #define configCPU_CLOCK_HZ                   SystemCoreClock
+#endif
+
 #define configUSE_PREEMPTION                   1
-#define configCPU_CLOCK_HZ                     ( SystemCoreClock )
-//#define configCPU_CLOCK_HZ                   ( CGU_GetPCLKFrequency(CGU_PERIPHERAL_M4CORE))
 #define configTICK_RATE_HZ                     ( ( portTickType ) 1000 )
 #define configMAX_PRIORITIES                   ( ( unsigned portBASE_TYPE ) 8 )
 #define configMINIMAL_STACK_SIZE               ( ( unsigned short ) 128 )
@@ -100,16 +104,29 @@ to all Cortex-M ports, and do not rely on any particular library functions. */
 See http://www.FreeRTOS.org/RTOS-Cortex-M3-M4.html. */
 #define configMAX_SYSCALL_INTERRUPT_PRIORITY 	        ( configLIBRARY_MAX_SYSCALL_INTERRUPT_PRIORITY << (8 - configPRIO_BITS) )
 
-#if 0
+//--------------------------------------------------------------------+
+// portmacro.h include path
+//--------------------------------------------------------------------+
+#if defined __CC_ARM
+  #define TOOL_DIR  RVDS
+#elif defined __GNUC__
+  #define TOOL_DIR  GCC
+#elif defined __ICCARM__
+  #define TOOL_DIR  IAR
+#else
+  #error "not yet supported toolchain"
+#endif
+
 #if __CORTEX_M == 4
-
+  #define ARCH_DIR  ARM_CM4F
 #elif __CORTEX_M == 3
-
+  #define ARCH_DIR  ARM_CM3
 #elif __CORTEX_M == 0
-
+  #define ARCH_DIR  ARM_CM0
 #else
 	#error "not yet supported MCU"
 #endif
-#endif
+
+#include XSTRING_(freertos/Source/portable/TOOL_DIR/ARCH_DIR/portmacro.h)
 
 #endif /* __FREERTOS_CONFIG__H */

@@ -105,6 +105,7 @@ tusb_error_t hub_port_clear_feature_subtask(uint8_t hub_addr, uint8_t hub_port, 
 
 tusb_error_t hub_port_reset_subtask(uint8_t hub_addr, uint8_t hub_port)
 {
+  enum { RESET_DELAY = 200 }; // USB specs say only 50ms but many devices require much longer
   tusb_error_t error;
 
   OSAL_SUBTASK_BEGIN
@@ -118,7 +119,7 @@ tusb_error_t hub_port_reset_subtask(uint8_t hub_addr, uint8_t hub_port)
   );
   SUBTASK_ASSERT_STATUS( error );
 
-  osal_task_delay(50); // TODO Hub wait for Status Endpoint on Reset Change
+  osal_task_delay(RESET_DELAY); // TODO Hub wait for Status Endpoint on Reset Change
 
   //------------- Get Port Status to check if port is enabled, powered and reset_change -------------//
   OSAL_SUBTASK_INVOKED_AND_WAIT(
@@ -221,6 +222,7 @@ void hub_isr(pipe_handle_t pipe_hdl, tusb_event_t event, uint32_t xferred_bytes)
       if ( BIT_TEST_(p_hub->status_change, port) )
       {
         usbh_hub_port_plugged_isr(pipe_hdl.dev_addr, port);
+        break; // handle one port at a time, next port if any will be handled in the next cycle
       }
     }
     // NOTE: next status transfer is queued by usbh.c after handling this request

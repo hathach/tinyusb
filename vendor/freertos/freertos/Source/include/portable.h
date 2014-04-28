@@ -70,44 +70,6 @@
 #ifndef PORTABLE_H
 #define PORTABLE_H
 
-//--------------------------------------------------------------------+
-// TinyUSB modification
-//--------------------------------------------------------------------+
-#if defined __CC_ARM
-  #if __CORTEX_M == 4 // TODO M0 M4
-    #define PORTMACRO_PATH "../portable/RVDS/ARM_CM4F/portmacro.h"
-  #elif __CORTEX_M == 3
-    #define PORTMACRO_PATH "../portable/RVDS/ARM_CM3/portmacro.h"
-  #elif __CORTEX_M == 0
-    #define PORTMACRO_PATH "../portable/RVDS/ARM_CM0/portmacro.h"
-  #endif
-
-#elif defined __GNUC__
-  #if __CORTEX_M == 4
-    #define PORTMACRO_PATH "../portable/GCC/ARM_CM4F/portmacro.h"
-  #elif __CORTEX_M == 3
-    #define PORTMACRO_PATH "../portable/GCC/ARM_CM3/portmacro.h"
-  #elif __CORTEX_M == 0
-    #define PORTMACRO_PATH "../portable/GCC/ARM_CM0/portmacro.h"
-  #endif
-
-#elif defined __ICCARM__
-  #if __CORTEX_M == 4
-    #define PORTMACRO_PATH "../portable/IAR/ARM_CM4F/portmacro.h"
-  #elif __CORTEX_M == 3
-    #define PORTMACRO_PATH "../portable/IAR/ARM_CM3/portmacro.h"
-  #elif __CORTEX_M == 0
-    #define PORTMACRO_PATH "../portable/IAR/ARM_CM0/portmacro.h"
-  #endif
-
-#endif
-
-#ifndef PORTMACRO_PATH
-  #error portmacro.h path is not defined for this toolchain and/or MCU
-#endif
-
-#include PORTMACRO_PATH
-
 /* Include the macro file relevant to the port being used. */
 
 #ifdef OPEN_WATCOM_INDUSTRIAL_PC_PORT
