@@ -79,11 +79,11 @@
 //--------------------------------------------------------------------+
 // Interrupt nesting behaviour configuration.
 //--------------------------------------------------------------------+
-/* Cortex-M specific definitions. */
+/* Cortex-M specific definitions. __NVIC_PRIO_BITS is defined in core_cmx.h */
 #ifdef __NVIC_PRIO_BITS
 	#define configPRIO_BITS       __NVIC_PRIO_BITS
 #else
-	#define configPRIO_BITS       5        /* 32 priority levels */
+	#define configPRIO_BITS       5        // 32 priority levels FIXME IAR Assembler will wrongly get this default value
 #endif
 
 /* The lowest interrupt priority that can be used in a call to a "set priority"
@@ -107,6 +107,8 @@ See http://www.FreeRTOS.org/RTOS-Cortex-M3-M4.html. */
 //--------------------------------------------------------------------+
 // portmacro.h include path
 //--------------------------------------------------------------------+
+#ifndef __IASMARM__ // avoid messing up with IAR
+
 #if defined __CC_ARM
   #define TOOL_DIR  RVDS
 #elif defined __GNUC__
@@ -128,5 +130,7 @@ See http://www.FreeRTOS.org/RTOS-Cortex-M3-M4.html. */
 #endif
 
 #include XSTRING_(freertos/Source/portable/TOOL_DIR/ARCH_DIR/portmacro.h)
+
+#endif
 
 #endif /* __FREERTOS_CONFIG__H */
