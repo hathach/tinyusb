@@ -592,7 +592,7 @@ static void async_list_xfer_complete_isr(ehci_qhd_t * const async_head)
     }
     p_qhd = qhd_next(p_qhd);
     max_loop++;
-  }while(p_qhd != async_head && max_loop < HCD_MAX_ENDPOINT); // async list traversal, stop if loop around
+  }while(p_qhd != async_head && max_loop < HCD_MAX_ENDPOINT*TUSB_CFG_HOST_DEVICE_MAX); // async list traversal, stop if loop around
   // TODO abstract max loop guard for async
 }
 
@@ -606,7 +606,7 @@ static void period_list_xfer_complete_isr(uint8_t hostid, uint8_t interval_ms)
   // TODO abstract max loop guard for period
   while( !next_item.terminate &&
       !(interval_ms > 1 && period_1ms_addr == align32(next_item.address)) &&
-      max_loop < (HCD_MAX_ENDPOINT + EHCI_MAX_ITD + EHCI_MAX_SITD))
+      max_loop < (HCD_MAX_ENDPOINT + EHCI_MAX_ITD + EHCI_MAX_SITD)*TUSB_CFG_HOST_DEVICE_MAX)
   {
     switch ( next_item.type )
     {
@@ -646,8 +646,8 @@ static void qhd_xfer_error_isr(ehci_qhd_t * p_qhd)
 
     p_qhd->total_xferred_bytes += p_qhd->p_qtd_list_head->expected_bytes - p_qhd->p_qtd_list_head->total_bytes;
 
-    // TODO skip unplugged device
-    if ( TUSB_EVENT_XFER_ERROR == error_event )    hal_debugger_breakpoint();
+
+//    if ( TUSB_EVENT_XFER_ERROR == error_event )    hal_debugger_breakpoint(); // TODO skip unplugged device
 
     p_qhd->p_qtd_list_head->used = 0; // free QTD
     qtd_remove_1st_from_qhd(p_qhd);
@@ -691,7 +691,7 @@ static void xfer_error_isr(uint8_t hostid)
     qhd_xfer_error_isr( p_qhd );
     p_qhd = qhd_next(p_qhd);
     max_loop++;
-  }while(p_qhd != async_head && max_loop < HCD_MAX_ENDPOINT); // async list traversal, stop if loop around
+  }while(p_qhd != async_head && max_loop < HCD_MAX_ENDPOINT*TUSB_CFG_HOST_DEVICE_MAX); // async list traversal, stop if loop around
 
   #if EHCI_PERIODIC_LIST
   //------------- TODO refractor period list -------------//
@@ -704,7 +704,7 @@ static void xfer_error_isr(uint8_t hostid)
     // TODO abstract max loop guard for period
     while( !next_item.terminate &&
         !(interval_ms > 1 && period_1ms_addr == align32(next_item.address)) &&
-        period_max_loop < (HCD_MAX_ENDPOINT + EHCI_MAX_ITD + EHCI_MAX_SITD))
+        period_max_loop < (HCD_MAX_ENDPOINT + EHCI_MAX_ITD + EHCI_MAX_SITD)*TUSB_CFG_HOST_DEVICE_MAX)
     {
       switch ( next_item.type )
       {

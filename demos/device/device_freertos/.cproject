@@ -170,8 +170,8 @@
 								<option id="gnu.c.link.option.paths.1946871342" name="Library search path (-L)" superClass="gnu.c.link.option.paths"/>
 								<option id="gnu.c.link.option.libs.937236410" name="Libraries (-l)" superClass="gnu.c.link.option.libs"/>
 								<option id="com.crt.advproject.link.gcc.hdrlib.1273255587" name="Library" superClass="com.crt.advproject.link.gcc.hdrlib" value="com.crt.advproject.gcc.link.hdrlib.codered.nohost" valueType="enumerated"/>
-								<option id="com.crt.advproject.link.gcc.multicore.slave.1321595401" superClass="com.crt.advproject.link.gcc.multicore.slave"/>
-								<option id="com.crt.advproject.link.gcc.multicore.master.871347365" superClass="com.crt.advproject.link.gcc.multicore.master"/>
+								<option id="com.crt.advproject.link.gcc.multicore.slave.1321595401" name="Multicore slave" superClass="com.crt.advproject.link.gcc.multicore.slave"/>
+								<option id="com.crt.advproject.link.gcc.multicore.master.871347365" name="Multicore" superClass="com.crt.advproject.link.gcc.multicore.master"/>
 								<inputType id="cdt.managedbuild.tool.gnu.c.linker.input.888929207" superClass="cdt.managedbuild.tool.gnu.c.linker.input">
 									<additionalInput kind="additionalinputdependency" paths="$(USER_OBJS)"/>
 									<additionalInput kind="additionalinput" paths="$(LIBS)"/>

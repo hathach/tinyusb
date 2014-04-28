@@ -384,7 +384,7 @@ static inline ohci_ed_t * ed_find_free(uint8_t dev_addr)
 
 static ohci_ed_t * ed_list_find_previous(ohci_ed_t const * p_head, ohci_ed_t const * p_ed)
 {
-  uint32_t max_loop = HCD_MAX_ENDPOINT;
+  uint32_t max_loop = HCD_MAX_ENDPOINT*TUSB_CFG_HOST_DEVICE_MAX;
 
   ohci_ed_t const * p_prev = p_head;
 
