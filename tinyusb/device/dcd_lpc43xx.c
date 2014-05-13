@@ -353,8 +353,9 @@ tusb_error_t dcd_pipe_control_xfer(uint8_t coreid, tusb_direction_t dir, uint8_t
   uint8_t const ep_data   = (dir == TUSB_DIR_DEV_TO_HOST) ? 1 : 0;
   uint8_t const ep_status = 1 - ep_data;
 
-  while(lpc_usb->ENDPTSETUPSTAT & BIT_(0)) {} // wait until ENDPTSETUPSTAT before priming data/status in response
-//  while(p_dcd->qhd[0].qtd_overlay.active || p_dcd->qhd[1].qtd_overlay.active) {}; // wait until previous device request is completed
+  while(lpc_usb->ENDPTSETUPSTAT & BIT_(0)) {} // wait until ENDPTSETUPSTAT before priming data/status in response TODO add time out
+//  while(p_dcd->qhd[0].qtd_overlay.active || p_dcd->qhd[1].qtd_overlay.active) {}; // wait until previous device request is completed TODO add timeout
+
   ASSERT_FALSE(p_dcd->qhd[0].qtd_overlay.active || p_dcd->qhd[1].qtd_overlay.active, TUSB_ERROR_FAILED);
 
   //------------- Data Phase -------------//
