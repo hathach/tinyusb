@@ -1,6 +1,6 @@
 /**************************************************************************/
 /*!
-    @file     board_rf1ghznode.h
+    @file     board_lpcxpresso11u68.h
     @author   hathach (tinyusb.org)
 
     @section LICENSE
@@ -36,8 +36,8 @@
 */
 /**************************************************************************/
 
-#ifndef _TUSB_BOARD_RF1GHZNODE_H_
-#define _TUSB_BOARD_RF1GHZNODE_H_
+#ifndef _TUSB_BOARD_LPCXPRESSO11U68_H_
+#define _TUSB_BOARD_LPCXPRESSO11U68_H_
 
 #ifdef __cplusplus
  extern "C" {
@@ -54,4 +54,4 @@
  }
 #endif
 
-#endif /* _TUSB_BOARD_RF1GHZNODE_H_ */
+#endif /* _TUSB_BOARD_LPCXPRESSO11U68_H_ */

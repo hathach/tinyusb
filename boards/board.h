@@ -59,15 +59,16 @@
 /** \defgroup group_supported_board Supported Boards
  *  @{ */
 #define BOARD_LPCXPRESSO11U14       1114 ///< LPCXpresso 11u14, some APIs requires the base board
-#define BOARD_RF1GHZNODE            1100 ///< LPC11U37 from microbuilder http://www.microbuilder.eu/Blog/13-03-14/LPC1xxx_1GHZ_Wireless_Board_Preview.aspx
-#define BOARD_LPCXPRESSO1347        1300 ///< LPCXpresso 1347, some APIs requires the base board
-#define BOARD_LPCXPRESSO1769        1700 ///< LPCXpresso 1769, some APIs requires the base board
+#define BOARD_LPCXPRESSO11U68       1168 ///< LPC11U37 from microbuilder http://www.microbuilder.eu/Blog/13-03-14/LPC1xxx_1GHZ_Wireless_Board_Preview.aspx
+#define BOARD_LPCXPRESSO1347        1347 ///< LPCXpresso 1347, some APIs requires the base board
+#define BOARD_LPCXPRESSO1769        1769 ///< LPCXpresso 1769, some APIs requires the base board
 
-#define BOARD_NGX4330               4300 ///< NGX 4330 Xplorer
-#define BOARD_EA4357                4301 ///< Embedded Artists LPC4357 developer kit
-#define BOARD_MCB4300               4302 ///< Keil MCB4300
-#define BOARD_HITEX4350             4303 ///< Hitex 4350
-#define BOARD_LPC4357USB            4304
+#define BOARD_NGX4330               4330 ///< NGX 4330 Xplorer
+#define BOARD_EA4357                4357 ///< Embedded Artists LPC4357 developer kit
+#define BOARD_MCB4300               4300 ///< Keil MCB4300
+#define BOARD_HITEX4350             4350 ///< Hitex 4350
+
+#define BOARD_LPC4357USB            4304 ///< microbuilder.eu
 
 #define BOARD_LPCLINK2              4370 ///< LPClink2 uses as LPC4370 development board
 /** @} */
@@ -91,8 +92,8 @@
 //--------------------------------------------------------------------+
 #if BOARD == BOARD_LPCXPRESSO11U14
   #include "lpcxpresso/board_lpcxpresso11u14.h"
-#elif BOARD == BOARD_RF1GHZNODE
-  #include "microbuilder/board_rf1ghznode.h"
+#elif BOARD == BOARD_LPCXPRESSO11U68
+  #include "lpcxpresso/board_lpcxpresso11u68.h"
 #elif BOARD == BOARD_LPCXPRESSO1347
   #include "lpcxpresso/board_lpcxpresso1347.h"
 #elif BOARD == BOARD_LPCXPRESSO1769

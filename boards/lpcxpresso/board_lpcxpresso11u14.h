@@ -36,8 +36,8 @@
 */
 /**************************************************************************/
 
-#ifndef _TUSB_BOARD_RF1GHZNODE_H_
-#define _TUSB_BOARD_RF1GHZNODE_H_
+#ifndef _TUSB_BOARD_LPCXPRESSO11U14_H_
+#define _TUSB_BOARD_LPCXPRESSO11U14_H_
 
 #ifdef __cplusplus
  extern "C" {
@@ -54,4 +54,4 @@
  }
 #endif
 
-#endif /* _TUSB_BOARD_RF1GHZNODE_H_ */
+#endif /* _TUSB_BOARD_LPCXPRESSO11U14_H_ */
