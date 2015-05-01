@@ -93,7 +93,7 @@ typedef enum {
 }hid_request_type_t;
 
 /// USB HID Descriptor
-typedef ATTR_PACKED_STRUCT(struct) {
+typedef struct ATTR_PACKED {
   uint8_t  bLength;         /**< Numeric expression that is the total size of the HID descriptor */
   uint8_t  bDescriptorType; /**< Constant name specifying type of HID descriptor. */
 
@@ -155,7 +155,7 @@ typedef enum
  *  @{ */
 
 /// Standard HID Boot Protocol Mouse Report.
-typedef ATTR_PACKED_STRUCT(struct)
+typedef struct ATTR_PACKED
 {
   uint8_t buttons; /**< buttons mask for currently pressed buttons in the mouse. */
   int8_t  x;       /**< Current delta x movement of the mouse. */
@@ -179,7 +179,7 @@ typedef enum {
  *  @{ */
 
 /// Standard HID Boot Protocol Keyboard Report.
-typedef ATTR_PACKED_STRUCT(struct)
+typedef struct ATTR_PACKED
 {
   uint8_t modifier;   /**< Keyboard modifier byte, indicating pressed modifier keys (a combination of HID_KEYBOARD_MODIFER_* masks). */
   uint8_t reserved;   /**< Reserved for OEM use, always set to 0. */

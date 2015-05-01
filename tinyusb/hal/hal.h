@@ -43,7 +43,9 @@
 // INCLUDES
 //--------------------------------------------------------------------+
 #include "tusb_option.h"
-#include "common/primitive_types.h"
+#include <stdbool.h>
+#include <stdint.h>
+
 #include "common/tusb_errors.h"
 #include "common/compiler/compiler.h"
 

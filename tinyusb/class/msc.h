@@ -94,7 +94,7 @@ typedef enum {
 }msc_csw_status_t;
 
 /// Command Block Wrapper
-typedef ATTR_PACKED_STRUCT(struct) {
+typedef struct ATTR_PACKED {
   uint32_t signature   ; ///< Signature that helps identify this data packet as a CBW. The signature field shall contain the value 43425355h (little endian), indicating a CBW.
   uint32_t tag         ; ///< Tag sent by the host. The device shall echo the contents of this field back to the host in the dCSWTagfield of the associated CSW. The dCSWTagpositively associates a CSW with the corresponding CBW.
   uint32_t xfer_bytes  ; ///< The number of bytes of data that the host expects to transfer on the Bulk-In or Bulk-Out endpoint (as indicated by the Directionbit) during the execution of this command. If this field is zero, the device and the host shall transfer no data between the CBW and the associated CSW, and the device shall ignore the value of the Directionbit in bmCBWFlags.
@@ -107,7 +107,7 @@ typedef ATTR_PACKED_STRUCT(struct) {
 STATIC_ASSERT(sizeof(msc_cmd_block_wrapper_t) == 31, "size is not correct");
 
 /// Command Status Wrapper
-typedef ATTR_PACKED_STRUCT(struct) {
+typedef struct ATTR_PACKED {
   uint32_t signature    ; ///< Signature that helps identify this data packet as a CSW. The signature field shall contain the value 53425355h (little endian), indicating CSW.
   uint32_t tag          ; ///< The device shall set this field to the value received in the dCBWTag of the associated CBW.
   uint32_t data_residue ; ///< For Data-Out the device shall report in the dCSWDataResiduethe difference between the amount of data expected as stated in the dCBWDataTransferLength, and the actual amount of data processed by the device. For Data-In the device shall report in the dCSWDataResiduethe difference between the amount of data expected as stated in the dCBWDataTransferLengthand the actual amount of relevant data sent by the device
@@ -156,7 +156,7 @@ typedef enum {
 //--------------------------------------------------------------------+
 
 /// SCSI Test Unit Ready Command
-typedef ATTR_PACKED_STRUCT(struct) {
+typedef struct ATTR_PACKED {
   uint8_t cmd_code    ; ///< SCSI OpCode for \ref SCSI_CMD_TEST_UNIT_READY
   uint8_t lun         ; ///< Logical Unit
   uint8_t reserved[3] ;
@@ -166,7 +166,7 @@ typedef ATTR_PACKED_STRUCT(struct) {
 STATIC_ASSERT(sizeof(scsi_test_unit_ready_t) == 6, "size is not correct");
 
 /// SCSI Inquiry Command
-typedef ATTR_PACKED_STRUCT(struct) {
+typedef struct ATTR_PACKED {
   uint8_t cmd_code     ; ///< SCSI OpCode for \ref SCSI_CMD_INQUIRY
   uint8_t reserved1    ;
   uint8_t page_code    ;
@@ -178,7 +178,7 @@ typedef ATTR_PACKED_STRUCT(struct) {
 STATIC_ASSERT(sizeof(scsi_inquiry_t) == 6, "size is not correct");
 
 /// SCSI Inquiry Response Data
-typedef ATTR_PACKED_STRUCT(struct)
+typedef struct ATTR_PACKED
 {
   uint8_t peripheral_device_type     : 5;
   uint8_t peripheral_qualifier       : 3;
@@ -224,7 +224,7 @@ typedef ATTR_PACKED_STRUCT(struct)
 STATIC_ASSERT(sizeof(scsi_inquiry_data_t) == 36, "size is not correct");
 
 
-typedef ATTR_PACKED_STRUCT(struct) {
+typedef struct ATTR_PACKED {
   uint8_t response_code           : 7; ///< 70h - current errors, Fixed Format 71h - deferred errors, Fixed Format
   uint8_t valid                   : 1;
 
@@ -249,7 +249,7 @@ typedef ATTR_PACKED_STRUCT(struct) {
 
 STATIC_ASSERT(sizeof(scsi_sense_fixed_data_t) == 18, "size is not correct");
 
-typedef ATTR_PACKED_STRUCT(struct) {
+typedef struct ATTR_PACKED {
   uint8_t cmd_code     ; ///< SCSI OpCode for \ref SCSI_CMD_MODE_SENSE_6
 
   uint8_t : 3;
@@ -266,7 +266,7 @@ typedef ATTR_PACKED_STRUCT(struct) {
 
 STATIC_ASSERT( sizeof(scsi_mode_sense_6_t) == 6, "size is not correct");
 
-typedef ATTR_PACKED_STRUCT(struct) {
+typedef struct ATTR_PACKED {
   uint8_t mode_data_length;
   uint8_t medium_type;
   uint8_t device_specific_para;
@@ -275,7 +275,7 @@ typedef ATTR_PACKED_STRUCT(struct) {
 
 STATIC_ASSERT( sizeof(scsi_mode_parameters_t) == 4, "size is not correct");
 
-typedef ATTR_PACKED_STRUCT(struct) {
+typedef struct ATTR_PACKED {
   uint8_t cmd_code; ///< SCSI OpCode for \ref SCSI_CMD_PREVENT_ALLOW_MEDIUM_REMOVAL
   uint8_t reserved[3];
   uint8_t prohibit_removal;
@@ -288,7 +288,7 @@ STATIC_ASSERT( sizeof(scsi_prevent_allow_medium_removal_t) == 6, "size is not co
 // SCSI MMC
 //--------------------------------------------------------------------+
 /// SCSI Read Format Capacity: Write Capacity
-typedef ATTR_PACKED_STRUCT(struct) {
+typedef struct ATTR_PACKED {
   uint8_t cmd_code;
   uint8_t reserved[6];
   uint16_t alloc_length;
@@ -297,7 +297,7 @@ typedef ATTR_PACKED_STRUCT(struct) {
 
 STATIC_ASSERT( sizeof(scsi_read_format_capacity_t) == 10, "size is not correct");
 
-typedef ATTR_PACKED_STRUCT(struct){
+typedef struct ATTR_PACKED{
   uint8_t reserved[3];
   uint8_t list_length; /// must be 8*n, length in bytes of formattable capacity descriptor followed it.
 
@@ -317,7 +317,7 @@ STATIC_ASSERT( sizeof(scsi_read_format_capacity_data_t) == 12, "size is not corr
 //--------------------------------------------------------------------+
 
 /// SCSI Read Capacity 10 Command: Read Capacity
-typedef ATTR_PACKED_STRUCT(struct) {
+typedef struct ATTR_PACKED {
   uint8_t  cmd_code                 ; ///< SCSI OpCode for \ref SCSI_CMD_READ_CAPACITY_10
   uint8_t  reserved1                ;
   uint32_t lba                      ; ///< The first Logical Block Address (LBA) accessed by this command
@@ -337,7 +337,7 @@ typedef struct {
 STATIC_ASSERT(sizeof(scsi_read_capacity10_data_t) == 8, "size is not correct");
 
 /// SCSI Read 10 Command
-typedef ATTR_PACKED_STRUCT(struct) {
+typedef struct ATTR_PACKED {
   uint8_t  cmd_code    ; ///< SCSI OpCode
   uint8_t  reserved    ; // has LUN according to wiki
   uint32_t lba         ; ///< The first Logical Block Address (LBA) accessed by this command

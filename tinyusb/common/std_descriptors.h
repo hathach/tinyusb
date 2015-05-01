@@ -50,14 +50,15 @@
 #endif
 
 #include "tusb_option.h"
-#include "primitive_types.h"
+#include <stdbool.h>
+#include <stdint.h>
 #include "compiler/compiler.h"
 
 //--------------------------------------------------------------------+
 // STANDARD DESCRIPTORS
 //--------------------------------------------------------------------+
 /// USB Standard Device Descriptor (section 9.6.1, table 9-8)
-typedef ATTR_PACKED_STRUCT(struct) {
+typedef struct ATTR_PACKED {
   uint8_t  bLength            ; ///< Size of this descriptor in bytes.
   uint8_t  bDescriptorType    ; ///< DEVICE Descriptor Type.
   uint16_t bcdUSB             ; ///< BUSB Specification Release Number in Binary-Coded Decimal (i.e., 2.10 is 210H). This field identifies the release of the USB Specification with which the device and its descriptors are compliant.
@@ -78,7 +79,7 @@ typedef ATTR_PACKED_STRUCT(struct) {
 } tusb_descriptor_device_t;
 
 /// USB Standard Configuration Descriptor (section 9.6.1 table 9-10) */
-typedef ATTR_PACKED_STRUCT(struct) {
+typedef struct ATTR_PACKED {
   uint8_t  bLength             ; ///< Size of this descriptor in bytes
   uint8_t  bDescriptorType     ; ///< CONFIGURATION Descriptor Type
   uint16_t wTotalLength        ; ///< Total length of data returned for this configuration. Includes the combined length of all descriptors (configuration, interface, endpoint, and class- or vendor-specific) returned for this configuration.
@@ -91,7 +92,7 @@ typedef ATTR_PACKED_STRUCT(struct) {
 } tusb_descriptor_configuration_t;
 
 /// USB Standard Interface Descriptor (section 9.6.1 table 9-12)
-typedef ATTR_PACKED_STRUCT(struct) {
+typedef struct ATTR_PACKED {
   uint8_t  bLength            ; ///< Size of this descriptor in bytes
   uint8_t  bDescriptorType    ; ///< INTERFACE Descriptor Type
 
@@ -105,20 +106,20 @@ typedef ATTR_PACKED_STRUCT(struct) {
 } tusb_descriptor_interface_t;
 
 /// USB Standard Endpoint Descriptor (section 9.6.1 table 9-13)
-typedef ATTR_PACKED_STRUCT(struct) {
+typedef struct ATTR_PACKED {
   uint8_t  bLength          ; ///< Size of this descriptor in bytes
   uint8_t  bDescriptorType  ; ///< ENDPOINT Descriptor Type
 
   uint8_t  bEndpointAddress ; ///< The address of the endpoint on the USB device described by this descriptor. The address is encoded as follows: \n Bit 3...0: The endpoint number \n Bit 6...4: Reserved, reset to zero \n Bit 7: Direction, ignored for control endpoints 0 = OUT endpoint 1 = IN endpoint.
 
-  ATTR_PACKED_STRUCT(struct) {
+  struct ATTR_PACKED {
     uint8_t xfer  : 2;
     uint8_t sync  : 2;
     uint8_t usage : 2;
     uint8_t       : 2;
   } bmAttributes     ; ///< This field describes the endpoint's attributes when it is configured using the bConfigurationValue. \n Bits 1..0: Transfer Type \n- 00 = Control \n- 01 = Isochronous \n- 10 = Bulk \n- 11 = Interrupt \n If not an isochronous endpoint, bits 5..2 are reserved and must be set to zero. If isochronous, they are defined as follows: \n Bits 3..2: Synchronization Type \n- 00 = No Synchronization \n- 01 = Asynchronous \n- 10 = Adaptive \n- 11 = Synchronous \n Bits 5..4: Usage Type \n- 00 = Data endpoint \n- 01 = Feedback endpoint \n- 10 = Implicit feedback Data endpoint \n- 11 = Reserved \n Refer to Chapter 5 of USB 2.0 specification for more information. \n All other bits are reserved and must be reset to zero. Reserved bits must be ignored by the host.
 
-  ATTR_PACKED_STRUCT(struct) {
+  struct ATTR_PACKED {
     uint16_t size           : 11; ///< Maximum packet size this endpoint is capable of sending or receiving when this configuration is selected. \n For isochronous endpoints, this value is used to reserve the bus time in the schedule, required for the per-(micro)frame data payloads. The pipe may, on an ongoing basis, actually use less bandwidth than that reserved. The device reports, if necessary, the actual bandwidth used via its normal, non-USB defined mechanisms. \n For all endpoints, bits 10..0 specify the maximum packet size (in bytes). \n For high-speed isochronous and interrupt endpoints: \n Bits 12..11 specify the number of additional transaction opportunities per microframe: \n- 00 = None (1 transaction per microframe) \n- 01 = 1 additional (2 per microframe) \n- 10 = 2 additional (3 per microframe) \n- 11 = Reserved \n Bits 15..13 are reserved and must be set to zero.
     uint16_t hs_period_mult : 2;
     uint16_t : 0;
@@ -128,7 +129,7 @@ typedef ATTR_PACKED_STRUCT(struct) {
 } tusb_descriptor_endpoint_t;
 
 /// USB Other Speed Configuration Descriptor (section 9.6.1 table 9-11)
-typedef ATTR_PACKED_STRUCT(struct) {
+typedef struct ATTR_PACKED {
   uint8_t  bLength             ; ///< Size of descriptor
   uint8_t  bDescriptorType     ; ///< Other_speed_Configuration Type
   uint16_t wTotalLength        ; ///< Total length of data returned
@@ -141,7 +142,7 @@ typedef ATTR_PACKED_STRUCT(struct) {
 } tusb_descriptor_other_speed_t;
 
 /// USB Device Qualifier Descriptor (section 9.6.1 table 9-9)
-typedef ATTR_PACKED_STRUCT(struct) {
+typedef struct ATTR_PACKED {
   uint8_t  bLength            ; ///< Size of descriptor
   uint8_t  bDescriptorType    ; ///< Device Qualifier Type
   uint16_t bcdUSB             ; ///< USB specification version number (e.g., 0200H for V2.00)
@@ -155,7 +156,7 @@ typedef ATTR_PACKED_STRUCT(struct) {
 } tusb_descriptor_device_qualifier_t;
 
 /// USB Interface Association Descriptor (IAD ECN)
-typedef ATTR_PACKED_STRUCT(struct)
+typedef struct ATTR_PACKED
 {
   uint8_t bLength           ; ///< Size of descriptor
   uint8_t bDescriptorType   ; ///< Other_speed_Configuration Type
@@ -171,13 +172,13 @@ typedef ATTR_PACKED_STRUCT(struct)
 } tusb_descriptor_interface_association_t;
 
 /// USB Header Descriptor
-typedef ATTR_PACKED_STRUCT(struct)
+typedef struct ATTR_PACKED
 {
   uint8_t  bLength         ; ///< Size of this descriptor in bytes
   uint8_t  bDescriptorType ; ///< Descriptor Type
 } tusb_descriptor_header_t;
 
-typedef ATTR_PACKED_STRUCT(struct)
+typedef struct ATTR_PACKED
 {
   uint8_t  bLength         ; ///< Size of this descriptor in bytes
   uint8_t  bDescriptorType ; ///< Descriptor Type

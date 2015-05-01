@@ -47,7 +47,8 @@
  extern "C" {
 #endif
 
-#include "primitive_types.h"
+#include <stdbool.h>
+#include <stdint.h>
 #include "compiler/compiler.h"
 
 //------------- Bit manipulation -------------//

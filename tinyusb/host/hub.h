@@ -93,7 +93,7 @@
 //indicators. See Section 11.5.3.
 //D15...D8: Reserved
 
-typedef ATTR_PACKED_STRUCT(struct){
+typedef struct ATTR_PACKED{
   uint8_t  bLength           ; ///< Size of descriptor
   uint8_t  bDescriptorType   ; ///< Other_speed_Configuration Type
   uint8_t  bNbrPorts;
@@ -147,7 +147,7 @@ enum{
 // data in response of HUB_REQUEST_GET_STATUS, wIndex = 0 (hub)
 typedef struct {
   union{
-    ATTR_PACKED_STRUCT(struct) {
+    struct ATTR_PACKED {
       uint16_t local_power_source : 1;
       uint16_t over_current       : 1;
       uint16_t : 14;
@@ -162,7 +162,7 @@ STATIC_ASSERT( sizeof(hub_status_response_t) == 4, "size is not correct");
 // data in response of HUB_REQUEST_GET_STATUS, wIndex = Port num
 typedef struct {
   union {
-    ATTR_PACKED_STRUCT(struct) {
+    struct ATTR_PACKED {
       uint16_t connect_status             : 1;
       uint16_t port_enable                : 1;
       uint16_t suspend                    : 1;

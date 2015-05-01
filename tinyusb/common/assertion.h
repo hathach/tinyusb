@@ -50,7 +50,8 @@ extern "C"
 #endif
 
 #include "tusb_option.h"
-#include "primitive_types.h"
+#include <stdbool.h>
+#include <stdint.h>
 #include "compiler/compiler.h"
 
 #include "hal/hal.h" // TODO find a way to break hal dependency

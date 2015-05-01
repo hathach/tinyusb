@@ -52,7 +52,8 @@
 //--------------------------------------------------------------------+
 
 //------------- Standard Header -------------//
-#include "primitive_types.h"
+#include <stdbool.h>
+#include <stdint.h>
 #include <stddef.h>
 #include <string.h>
 #include <stdio.h>

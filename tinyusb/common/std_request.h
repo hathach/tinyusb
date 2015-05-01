@@ -47,12 +47,13 @@
 #endif
 
 #include "tusb_option.h"
-#include "primitive_types.h"
+#include <stdbool.h>
+#include <stdint.h>
 #include "compiler/compiler.h"
 
-typedef ATTR_PACKED_STRUCT(struct){
+typedef struct ATTR_PACKED{
   union {
-    ATTR_PACKED_STRUCT(struct) {
+    struct ATTR_PACKED {
       uint8_t recipient :  5; ///< Recipient type tusb_std_request_recipient_t.
       uint8_t type      :  2; ///< Request type tusb_control_request_type_t.
       uint8_t direction :  1; ///< Direction type. tusb_direction_t
