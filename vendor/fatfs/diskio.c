@@ -60,7 +60,7 @@ static DSTATUS disk_state[TUSB_CFG_HOST_DEVICE_MAX];
 static DRESULT wait_for_io_complete(uint8_t usb_addr)
 {
   // TODO with RTOS, this should use semaphore instead of blocking
-  while ( tusbh_msc_is_busy(usb_addr) )
+  while ( tuh_msc_is_busy(usb_addr) )
   {
     // TODO should have timeout here
     #if TUSB_CFG_OS != TUSB_OS_NONE
@@ -106,7 +106,7 @@ DRESULT disk_read (BYTE pdrv, BYTE*buff, DWORD sector, BYTE count)
 {
   uint8_t usb_addr = pdrv+1;
 
-	if ( TUSB_ERROR_NONE != tusbh_msc_read10(usb_addr, 0, buff, sector, count) )		return RES_ERROR;
+	if ( TUSB_ERROR_NONE != tuh_msc_read10(usb_addr, 0, buff, sector, count) )		return RES_ERROR;
 
 	return wait_for_io_complete(usb_addr);
 }
@@ -116,7 +116,7 @@ DRESULT disk_write (BYTE pdrv, const BYTE* buff, DWORD sector, BYTE count)
 {
   uint8_t usb_addr = pdrv+1;
 
-	if ( TUSB_ERROR_NONE != tusbh_msc_write10(usb_addr, 0, buff, sector, count) )		return RES_ERROR;
+	if ( TUSB_ERROR_NONE != tuh_msc_write10(usb_addr, 0, buff, sector, count) )		return RES_ERROR;
 
 	return wait_for_io_complete(usb_addr);
 }

@@ -62,14 +62,14 @@ TUSB_CFG_ATTR_USBRAM static FATFS fatfs[TUSB_CFG_HOST_DEVICE_MAX];
 //--------------------------------------------------------------------+
 // tinyusb callbacks
 //--------------------------------------------------------------------+
-void tusbh_msc_mounted_cb(uint8_t dev_addr)
+void tuh_msc_mounted_cb(uint8_t dev_addr)
 {
   puts("\na MassStorage device is mounted");
 
   //------------- Disk Information -------------//
   // SCSI VendorID[8] & ProductID[16] from Inquiry Command
-  uint8_t const* p_vendor  = tusbh_msc_get_vendor_name(dev_addr);
-  uint8_t const* p_product = tusbh_msc_get_product_name(dev_addr);
+  uint8_t const* p_vendor  = tuh_msc_get_vendor_name(dev_addr);
+  uint8_t const* p_product = tuh_msc_get_product_name(dev_addr);
 
   for(uint8_t i=0; i<8; i++) putchar(p_vendor[i]);
 
@@ -78,7 +78,7 @@ void tusbh_msc_mounted_cb(uint8_t dev_addr)
   putchar('\n');
 
   uint32_t last_lba, block_size;
-  tusbh_msc_get_capacity(dev_addr, &last_lba, &block_size);
+  tuh_msc_get_capacity(dev_addr, &last_lba, &block_size);
   printf("Disk Size: %d MB\n", (last_lba+1)/ ((1024*1024)/block_size) );
   printf("LBA 0-0x%X  Block Size: %d\n", last_lba, block_size);
 
@@ -108,7 +108,7 @@ void tusbh_msc_mounted_cb(uint8_t dev_addr)
   }
 }
 
-void tusbh_msc_unmounted_cb(uint8_t dev_addr)
+void tuh_msc_unmounted_cb(uint8_t dev_addr)
 {
   puts("\na MassStorage device is unmounted");
 
@@ -131,7 +131,7 @@ void tusbh_msc_unmounted_cb(uint8_t dev_addr)
 }
 
 // invoked ISR context
-void tusbh_msc_isr(uint8_t dev_addr, tusb_event_t event, uint32_t xferred_bytes)
+void tuh_msc_isr(uint8_t dev_addr, tusb_event_t event, uint32_t xferred_bytes)
 {
   (void) dev_addr;
   (void) event;

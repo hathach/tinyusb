@@ -67,29 +67,29 @@ TUSB_CFG_ATTR_USBRAM ATTR_ALIGNED(4) STATIC_VAR uint8_t msch_buffer[sizeof(scsi_
 //--------------------------------------------------------------------+
 // PUBLIC API
 //--------------------------------------------------------------------+
-bool tusbh_msc_is_mounted(uint8_t dev_addr)
+bool tuh_msc_is_mounted(uint8_t dev_addr)
 {
   return  tusbh_device_is_configured(dev_addr) && // is configured can be omitted
           msch_data[dev_addr-1].is_initialized;
 }
 
-bool tusbh_msc_is_busy(uint8_t dev_addr)
+bool tuh_msc_is_busy(uint8_t dev_addr)
 {
   return  msch_data[dev_addr-1].is_initialized &&
           hcd_pipe_is_busy(msch_data[dev_addr-1].bulk_in);
 }
 
-uint8_t const* tusbh_msc_get_vendor_name(uint8_t dev_addr)
+uint8_t const* tuh_msc_get_vendor_name(uint8_t dev_addr)
 {
   return msch_data[dev_addr-1].is_initialized ? msch_data[dev_addr-1].vendor_id : NULL;
 }
 
-uint8_t const* tusbh_msc_get_product_name(uint8_t dev_addr)
+uint8_t const* tuh_msc_get_product_name(uint8_t dev_addr)
 {
   return msch_data[dev_addr-1].is_initialized ? msch_data[dev_addr-1].product_id : NULL;
 }
 
-tusb_error_t tusbh_msc_get_capacity(uint8_t dev_addr, uint32_t* p_last_lba, uint32_t* p_block_size)
+tusb_error_t tuh_msc_get_capacity(uint8_t dev_addr, uint32_t* p_last_lba, uint32_t* p_block_size)
 {
   if ( !msch_data[dev_addr-1].is_initialized )   return TUSB_ERROR_MSCH_DEVICE_NOT_MOUNTED;
   ASSERT(p_last_lba != NULL && p_block_size != NULL, TUSB_ERROR_INVALID_PARA);
@@ -181,7 +181,7 @@ tusb_error_t tusbh_msc_read_capacity10(uint8_t dev_addr, uint8_t lun, uint8_t *p
   return TUSB_ERROR_NONE;
 }
 
-tusb_error_t tusbh_msc_request_sense(uint8_t dev_addr, uint8_t lun, uint8_t *p_data)
+tusb_error_t tuh_msc_request_sense(uint8_t dev_addr, uint8_t lun, uint8_t *p_data)
 {
   (void) lun; // TODO [MSCH] multiple lun support
 
@@ -206,7 +206,7 @@ tusb_error_t tusbh_msc_request_sense(uint8_t dev_addr, uint8_t lun, uint8_t *p_d
   return TUSB_ERROR_NONE;
 }
 
-tusb_error_t tusbh_msc_test_unit_ready(uint8_t dev_addr, uint8_t lun,  msc_cmd_status_wrapper_t * p_csw)
+tusb_error_t tuh_msc_test_unit_ready(uint8_t dev_addr, uint8_t lun,  msc_cmd_status_wrapper_t * p_csw)
 {
   msch_interface_t* p_msch = &msch_data[dev_addr-1];
 
@@ -233,7 +233,7 @@ tusb_error_t tusbh_msc_test_unit_ready(uint8_t dev_addr, uint8_t lun,  msc_cmd_s
   return TUSB_ERROR_NONE;
 }
 
-tusb_error_t  tusbh_msc_read10(uint8_t dev_addr, uint8_t lun, void * p_buffer, uint32_t lba, uint16_t block_count)
+tusb_error_t  tuh_msc_read10(uint8_t dev_addr, uint8_t lun, void * p_buffer, uint32_t lba, uint16_t block_count)
 {
   msch_interface_t* p_msch = &msch_data[dev_addr-1];
 
@@ -259,7 +259,7 @@ tusb_error_t  tusbh_msc_read10(uint8_t dev_addr, uint8_t lun, void * p_buffer, u
   return TUSB_ERROR_NONE;
 }
 
-tusb_error_t tusbh_msc_write10(uint8_t dev_addr, uint8_t lun, void const * p_buffer, uint32_t lba, uint16_t block_count)
+tusb_error_t tuh_msc_write10(uint8_t dev_addr, uint8_t lun, void const * p_buffer, uint32_t lba, uint16_t block_count)
 {
   msch_interface_t* p_msch = &msch_data[dev_addr-1];
 
@@ -380,7 +380,7 @@ tusb_error_t msch_open_subtask(uint8_t dev_addr, tusb_descriptor_interface_t con
     SUBTASK_ASSERT_STATUS(error);
 
     //------------- SCSI Request Sense -------------//
-    (void) tusbh_msc_request_sense(dev_addr, 0, msch_buffer);
+    (void) tuh_msc_request_sense(dev_addr, 0, msch_buffer);
     osal_semaphore_wait(msch_sem_hdl, SCSI_XFER_TIMEOUT, &error);
     SUBTASK_ASSERT_STATUS(error);
 
@@ -394,7 +394,7 @@ tusb_error_t msch_open_subtask(uint8_t dev_addr, tusb_descriptor_interface_t con
   msch_data[dev_addr-1].block_size = (uint16_t) __be2n( ((scsi_read_capacity10_data_t*)msch_buffer)->block_size );
 
   msch_data[dev_addr-1].is_initialized = true;
-  tusbh_msc_mounted_cb(dev_addr);
+  tuh_msc_mounted_cb(dev_addr);
 
   OSAL_SUBTASK_END
 }
@@ -405,7 +405,7 @@ void msch_isr(pipe_handle_t pipe_hdl, tusb_event_t event, uint32_t xferred_bytes
   {
     if (msch_data[pipe_hdl.dev_addr-1].is_initialized)
     {
-      tusbh_msc_isr(pipe_hdl.dev_addr, event, xferred_bytes);
+      tuh_msc_isr(pipe_hdl.dev_addr, event, xferred_bytes);
     }else
     { // still initializing under open subtask
       ASSERT( TUSB_ERROR_NONE == osal_semaphore_post(msch_sem_hdl), VOID_RETURN );
@@ -421,7 +421,7 @@ void msch_close(uint8_t dev_addr)
   memclr_(&msch_data[dev_addr-1], sizeof(msch_interface_t));
   osal_semaphore_reset(msch_sem_hdl);
 
-  tusbh_msc_unmounted_cb(dev_addr); // invoke Application Callback
+  tuh_msc_unmounted_cb(dev_addr); // invoke Application Callback
 }
 
 //--------------------------------------------------------------------+

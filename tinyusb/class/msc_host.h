@@ -60,17 +60,17 @@
  * \retval      true if device supports
  * \retval      false if device does not support or is not mounted
  */
-bool          tusbh_msc_is_mounted(uint8_t dev_addr) ATTR_PURE ATTR_WARN_UNUSED_RESULT;
+bool          tuh_msc_is_mounted(uint8_t dev_addr) ATTR_PURE ATTR_WARN_UNUSED_RESULT;
 
 /** \brief      Check if the interface is currently busy or not
  * \param[in]   dev_addr device address
  * \retval      true if the interface is busy meaning the stack is still transferring/waiting data from/to device
  * \retval      false if the interface is not busy meaning the stack successfully transferred data from/to device
  * \note        This function is used to check if previous transfer is complete (success or error), so that the next transfer
- *              can be scheduled. User needs to make sure the corresponding interface is mounted (by \ref tusbh_msc_is_mounted)
+ *              can be scheduled. User needs to make sure the corresponding interface is mounted (by \ref tuh_msc_is_mounted)
  *              before calling this function
  */
-bool          tusbh_msc_is_busy(uint8_t dev_addr) ATTR_PURE ATTR_WARN_UNUSED_RESULT;
+bool          tuh_msc_is_busy(uint8_t dev_addr) ATTR_PURE ATTR_WARN_UNUSED_RESULT;
 
 /** \brief      Get SCSI vendor's name of MassStorage device
  * \param[in]   dev_addr device address
@@ -79,7 +79,7 @@ bool          tusbh_msc_is_busy(uint8_t dev_addr) ATTR_PURE ATTR_WARN_UNUSED_RES
  *              retrieved (via SCSI INQUIRY) and store this information internally. There is no need for application to re-send SCSI INQUIRY
  *              command or allocate buffer for this.
  */
-uint8_t const* tusbh_msc_get_vendor_name(uint8_t dev_addr);
+uint8_t const* tuh_msc_get_vendor_name(uint8_t dev_addr);
 
 /** \brief      Get SCSI product's name of MassStorage device
  * \param[in]   dev_addr device address
@@ -88,7 +88,7 @@ uint8_t const* tusbh_msc_get_vendor_name(uint8_t dev_addr);
  *              retrieved (via SCSI INQUIRY) and store this information internally. There is no need for application to re-send SCSI INQUIRY
  *              command or allocate buffer for this.
  */
-uint8_t const* tusbh_msc_get_product_name(uint8_t dev_addr);
+uint8_t const* tuh_msc_get_product_name(uint8_t dev_addr);
 
 /** \brief      Get SCSI Capacity of MassStorage device
  * \param[in]   dev_addr device address
@@ -99,7 +99,7 @@ uint8_t const* tusbh_msc_get_product_name(uint8_t dev_addr);
  *              retrieved (via SCSI READ CAPACITY 10) and store this information internally. There is no need for application
  *              to re-send SCSI READ CAPACITY 10 command
  */
-tusb_error_t tusbh_msc_get_capacity(uint8_t dev_addr, uint32_t* p_last_lba, uint32_t* p_block_size);
+tusb_error_t tuh_msc_get_capacity(uint8_t dev_addr, uint32_t* p_last_lba, uint32_t* p_block_size);
 
 /** \brief 			Perform SCSI READ 10 command to read data from MassStorage device
  * \param[in]		dev_addr	device address
@@ -113,7 +113,7 @@ tusb_error_t tusbh_msc_get_capacity(uint8_t dev_addr, uint32_t* p_last_lba, uint
  * \retval      TUSB_ERROR_INVALID_PARA if input parameters are not correct
  * \note        This function is non-blocking and returns immediately. The result of USB transfer will be reported by the interface's callback function
  */
-tusb_error_t tusbh_msc_read10 (uint8_t dev_addr, uint8_t lun, void * p_buffer, uint32_t lba, uint16_t block_count) ATTR_WARN_UNUSED_RESULT;
+tusb_error_t tuh_msc_read10 (uint8_t dev_addr, uint8_t lun, void * p_buffer, uint32_t lba, uint16_t block_count) ATTR_WARN_UNUSED_RESULT;
 
 /** \brief 			Perform SCSI WRITE 10 command to write data to MassStorage device
  * \param[in]		dev_addr	device address
@@ -127,7 +127,7 @@ tusb_error_t tusbh_msc_read10 (uint8_t dev_addr, uint8_t lun, void * p_buffer, u
  * \retval      TUSB_ERROR_INVALID_PARA if input parameters are not correct
  * \note        This function is non-blocking and returns immediately. The result of USB transfer will be reported by the interface's callback function
  */
-tusb_error_t tusbh_msc_write10(uint8_t dev_addr, uint8_t lun, void const * p_buffer, uint32_t lba, uint16_t block_count) ATTR_WARN_UNUSED_RESULT;
+tusb_error_t tuh_msc_write10(uint8_t dev_addr, uint8_t lun, void const * p_buffer, uint32_t lba, uint16_t block_count) ATTR_WARN_UNUSED_RESULT;
 
 /** \brief 			Perform SCSI REQUEST SENSE command, used to retrieve sense data from MassStorage device
  * \param[in]		dev_addr	device address
@@ -139,7 +139,7 @@ tusb_error_t tusbh_msc_write10(uint8_t dev_addr, uint8_t lun, void const * p_buf
  * \retval      TUSB_ERROR_INVALID_PARA if input parameters are not correct
  * \note        This function is non-blocking and returns immediately. The result of USB transfer will be reported by the interface's callback function
  */
-tusb_error_t tusbh_msc_request_sense(uint8_t dev_addr, uint8_t lun, uint8_t *p_data);
+tusb_error_t tuh_msc_request_sense(uint8_t dev_addr, uint8_t lun, uint8_t *p_data);
 
 /** \brief 			Perform SCSI TEST UNIT READY command to test if MassStorage device is ready
  * \param[in]		dev_addr	device address
@@ -150,7 +150,7 @@ tusb_error_t tusbh_msc_request_sense(uint8_t dev_addr, uint8_t lun, uint8_t *p_d
  * \retval      TUSB_ERROR_INVALID_PARA if input parameters are not correct
  * \note        This function is non-blocking and returns immediately. The result of USB transfer will be reported by the interface's callback function
  */
-tusb_error_t tusbh_msc_test_unit_ready(uint8_t dev_addr, uint8_t lun, msc_cmd_status_wrapper_t * p_csw) ATTR_WARN_UNUSED_RESULT; // TODO to be refractor
+tusb_error_t tuh_msc_test_unit_ready(uint8_t dev_addr, uint8_t lun, msc_cmd_status_wrapper_t * p_csw) ATTR_WARN_UNUSED_RESULT; // TODO to be refractor
 
 //tusb_error_t  tusbh_msc_scsi_send(uint8_t dev_addr, uint8_t lun, bool is_direction_in,
 //                                  uint8_t const * p_command, uint8_t cmd_len,
@@ -161,13 +161,13 @@ tusb_error_t tusbh_msc_test_unit_ready(uint8_t dev_addr, uint8_t lun, msc_cmd_st
  * \param[in]	  dev_addr Address of newly mounted device
  * \note        This callback should be used by Application to set-up interface-related data
  */
-void tusbh_msc_mounted_cb(uint8_t dev_addr);
+void tuh_msc_mounted_cb(uint8_t dev_addr);
 
 /** \brief 			Callback function that will be invoked when a device with MassStorage interface is unmounted
  * \param[in] 	dev_addr Address of newly unmounted device
  * \note        This callback should be used by Application to tear-down interface-related data
  */
-void tusbh_msc_unmounted_cb(uint8_t dev_addr);
+void tuh_msc_unmounted_cb(uint8_t dev_addr);
 
 /** \brief      Callback function that is invoked when an transferring event occurred
  * \param[in]		dev_addr	Address of device
@@ -179,7 +179,7 @@ void tusbh_msc_unmounted_cb(uint8_t dev_addr);
  *              - TUSB_EVENT_XFER_STALLED : previously scheduled transfer is stalled by device.
  * \note
  */
-void tusbh_msc_isr(uint8_t dev_addr, tusb_event_t event, uint32_t xferred_bytes);
+void tuh_msc_isr(uint8_t dev_addr, tusb_event_t event, uint32_t xferred_bytes);
 
 
 //--------------------------------------------------------------------+
