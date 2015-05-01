@@ -80,7 +80,7 @@ STATIC_ INLINE_ bool tusbh_cdc_is_mounted(uint8_t dev_addr)
 #endif
 }
 
-bool tusbh_cdc_is_busy(uint8_t dev_addr, cdc_pipeid_t pipeid)
+bool tuh_cdc_is_busy(uint8_t dev_addr, cdc_pipeid_t pipeid)
 {
   if ( !tusbh_cdc_is_mounted(dev_addr) ) return false;
 
@@ -106,7 +106,7 @@ bool tusbh_cdc_is_busy(uint8_t dev_addr, cdc_pipeid_t pipeid)
 //--------------------------------------------------------------------+
 // APPLICATION API (parameter validation needed)
 //--------------------------------------------------------------------+
-bool tusbh_cdc_serial_is_mounted(uint8_t dev_addr)
+bool tuh_cdc_serial_is_mounted(uint8_t dev_addr)
 {
   // TODO consider all AT Command as serial candidate
   return tusbh_cdc_is_mounted(dev_addr)                                         &&
@@ -114,7 +114,7 @@ bool tusbh_cdc_serial_is_mounted(uint8_t dev_addr)
       (cdch_data[dev_addr-1].interface_protocol <= CDC_COMM_PROTOCOL_ATCOMMAND_CDMA);
 }
 
-tusb_error_t tusbh_cdc_send(uint8_t dev_addr, void const * p_data, uint32_t length, bool is_notify)
+tusb_error_t tuh_cdc_send(uint8_t dev_addr, void const * p_data, uint32_t length, bool is_notify)
 {
   ASSERT( tusbh_cdc_is_mounted(dev_addr),  TUSB_ERROR_CDCH_DEVICE_NOT_MOUNTED);
   ASSERT( p_data != NULL && length, TUSB_ERROR_INVALID_PARA);
@@ -125,7 +125,7 @@ tusb_error_t tusbh_cdc_send(uint8_t dev_addr, void const * p_data, uint32_t leng
   return hcd_pipe_xfer( pipe_out, (void *) p_data, length, is_notify);
 }
 
-tusb_error_t tusbh_cdc_receive(uint8_t dev_addr, void * p_buffer, uint32_t length, bool is_notify)
+tusb_error_t tuh_cdc_receive(uint8_t dev_addr, void * p_buffer, uint32_t length, bool is_notify)
 {
   ASSERT( tusbh_cdc_is_mounted(dev_addr),  TUSB_ERROR_CDCH_DEVICE_NOT_MOUNTED);
   ASSERT( p_buffer != NULL && length, TUSB_ERROR_INVALID_PARA);
@@ -217,7 +217,7 @@ tusb_error_t cdch_open_subtask(uint8_t dev_addr, tusb_descriptor_interface_t con
 
   {
     // FIXME mounted class flag is not set yet
-    tusbh_cdc_mounted_cb(dev_addr);
+    tuh_cdc_mounted_cb(dev_addr);
   }
 
   OSAL_SUBTASK_END
@@ -225,7 +225,7 @@ tusb_error_t cdch_open_subtask(uint8_t dev_addr, tusb_descriptor_interface_t con
 
 void cdch_isr(pipe_handle_t pipe_hdl, tusb_event_t event, uint32_t xferred_bytes)
 {
-  tusbh_cdc_xfer_isr( pipe_hdl.dev_addr, event, get_app_pipeid(pipe_hdl), xferred_bytes );
+  tuh_cdc_xfer_isr( pipe_hdl.dev_addr, event, get_app_pipeid(pipe_hdl), xferred_bytes );
 }
 
 void cdch_close(uint8_t dev_addr)
@@ -238,7 +238,7 @@ void cdch_close(uint8_t dev_addr)
 
   memclr_(p_cdc, sizeof(cdch_data_t));
 
-  tusbh_cdc_unmounted_cb(dev_addr);
+  tuh_cdc_unmounted_cb(dev_addr);
 
 }
 

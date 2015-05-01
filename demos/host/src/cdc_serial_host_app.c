@@ -60,7 +60,7 @@ static uint8_t received_bytes; // set by transfer complete callback
 //--------------------------------------------------------------------+
 // tinyusb callbacks
 //--------------------------------------------------------------------+
-void tusbh_cdc_mounted_cb(uint8_t dev_addr)
+void tuh_cdc_mounted_cb(uint8_t dev_addr)
 { // application set-up
   printf("\na CDC device  (address %d) is mounted\n", dev_addr);
 
@@ -69,16 +69,16 @@ void tusbh_cdc_mounted_cb(uint8_t dev_addr)
   received_bytes = 0;
 
   osal_semaphore_reset(sem_hdl);
-  tusbh_cdc_receive(dev_addr, serial_in_buffer, SERIAL_BUFFER_SIZE, true); // schedule first transfer
+  tuh_cdc_receive(dev_addr, serial_in_buffer, SERIAL_BUFFER_SIZE, true); // schedule first transfer
 }
 
-void tusbh_cdc_unmounted_cb(uint8_t dev_addr)
+void tuh_cdc_unmounted_cb(uint8_t dev_addr)
 { // application tear-down
   printf("\na CDC device (address %d) is unmounted \n", dev_addr);
 }
 
 // invoked ISR context
-void tusbh_cdc_xfer_isr(uint8_t dev_addr, tusb_event_t event, cdc_pipeid_t pipe_id, uint32_t xferred_bytes)
+void tuh_cdc_xfer_isr(uint8_t dev_addr, tusb_event_t event, cdc_pipeid_t pipe_id, uint32_t xferred_bytes)
 {
   (void) dev_addr; // compiler warnings
 
@@ -94,7 +94,7 @@ void tusbh_cdc_xfer_isr(uint8_t dev_addr, tusb_event_t event, cdc_pipeid_t pipe_
 
         case TUSB_EVENT_XFER_ERROR:
           received_bytes = 0; // ignore
-          tusbh_cdc_receive(dev_addr, serial_in_buffer, SERIAL_BUFFER_SIZE, true); // waiting for next data
+          tuh_cdc_receive(dev_addr, serial_in_buffer, SERIAL_BUFFER_SIZE, true); // waiting for next data
         break;
 
         case TUSB_EVENT_XFER_STALLED:
@@ -131,16 +131,16 @@ OSAL_TASK_FUNCTION( cdc_serial_host_app_task, p_task_para)
   //------------- send characters got from uart terminal to the first CDC device -------------//
   for(uint8_t dev_addr=1; dev_addr <= TUSB_CFG_HOST_DEVICE_MAX; dev_addr++)
   {
-    if ( tusbh_cdc_serial_is_mounted(dev_addr) )
+    if ( tuh_cdc_serial_is_mounted(dev_addr) )
     {
       int ch_tx = getchar();
       if ( ch_tx > 0 )
       { // USB is much faster than serial, here we assume usb is always complete. There could be some characters missing though
         serial_out_buffer[0] = (uint8_t) ch_tx;
 
-        if ( !tusbh_cdc_is_busy(dev_addr, CDC_PIPE_DATA_OUT) )
+        if ( !tuh_cdc_is_busy(dev_addr, CDC_PIPE_DATA_OUT) )
         {
-          tusbh_cdc_send(dev_addr, serial_out_buffer, 1, false); // no need for callback on serial out pipe
+          tuh_cdc_send(dev_addr, serial_out_buffer, 1, false); // no need for callback on serial out pipe
         }
       }
       break; // demo app only communicate with the first CDC-capable device
@@ -157,9 +157,9 @@ OSAL_TASK_FUNCTION( cdc_serial_host_app_task, p_task_para)
 
     for(uint8_t dev_addr=1; dev_addr <= TUSB_CFG_HOST_DEVICE_MAX; dev_addr++)
     {
-      if ( tusbh_cdc_serial_is_mounted(dev_addr) )
+      if ( tuh_cdc_serial_is_mounted(dev_addr) )
       {
-        tusbh_cdc_receive(dev_addr, serial_in_buffer, SERIAL_BUFFER_SIZE, true);
+        tuh_cdc_receive(dev_addr, serial_in_buffer, SERIAL_BUFFER_SIZE, true);
 
         break; // demo app only communicate with the first CDC-capable device
       }
