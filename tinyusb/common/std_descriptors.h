@@ -58,7 +58,8 @@
 // STANDARD DESCRIPTORS
 //--------------------------------------------------------------------+
 /// USB Standard Device Descriptor (section 9.6.1, table 9-8)
-typedef struct ATTR_PACKED {
+typedef struct ATTR_PACKED
+{
   uint8_t  bLength            ; ///< Size of this descriptor in bytes.
   uint8_t  bDescriptorType    ; ///< DEVICE Descriptor Type.
   uint16_t bcdUSB             ; ///< BUSB Specification Release Number in Binary-Coded Decimal (i.e., 2.10 is 210H). This field identifies the release of the USB Specification with which the device and its descriptors are compliant.
@@ -79,7 +80,8 @@ typedef struct ATTR_PACKED {
 } tusb_descriptor_device_t;
 
 /// USB Standard Configuration Descriptor (section 9.6.1 table 9-10) */
-typedef struct ATTR_PACKED {
+typedef struct ATTR_PACKED
+{
   uint8_t  bLength             ; ///< Size of this descriptor in bytes
   uint8_t  bDescriptorType     ; ///< CONFIGURATION Descriptor Type
   uint16_t wTotalLength        ; ///< Total length of data returned for this configuration. Includes the combined length of all descriptors (configuration, interface, endpoint, and class- or vendor-specific) returned for this configuration.
@@ -92,7 +94,8 @@ typedef struct ATTR_PACKED {
 } tusb_descriptor_configuration_t;
 
 /// USB Standard Interface Descriptor (section 9.6.1 table 9-12)
-typedef struct ATTR_PACKED {
+typedef struct ATTR_PACKED
+{
   uint8_t  bLength            ; ///< Size of this descriptor in bytes
   uint8_t  bDescriptorType    ; ///< INTERFACE Descriptor Type
 
@@ -106,7 +109,8 @@ typedef struct ATTR_PACKED {
 } tusb_descriptor_interface_t;
 
 /// USB Standard Endpoint Descriptor (section 9.6.1 table 9-13)
-typedef struct ATTR_PACKED {
+typedef struct ATTR_PACKED
+{
   uint8_t  bLength          ; ///< Size of this descriptor in bytes
   uint8_t  bDescriptorType  ; ///< ENDPOINT Descriptor Type
 
@@ -129,7 +133,8 @@ typedef struct ATTR_PACKED {
 } tusb_descriptor_endpoint_t;
 
 /// USB Other Speed Configuration Descriptor (section 9.6.1 table 9-11)
-typedef struct ATTR_PACKED {
+typedef struct ATTR_PACKED
+{
   uint8_t  bLength             ; ///< Size of descriptor
   uint8_t  bDescriptorType     ; ///< Other_speed_Configuration Type
   uint16_t wTotalLength        ; ///< Total length of data returned
@@ -142,7 +147,8 @@ typedef struct ATTR_PACKED {
 } tusb_descriptor_other_speed_t;
 
 /// USB Device Qualifier Descriptor (section 9.6.1 table 9-9)
-typedef struct ATTR_PACKED {
+typedef struct ATTR_PACKED
+{
   uint8_t  bLength            ; ///< Size of descriptor
   uint8_t  bDescriptorType    ; ///< Device Qualifier Type
   uint16_t bcdUSB             ; ///< USB specification version number (e.g., 0200H for V2.00)

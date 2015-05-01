@@ -92,7 +92,8 @@ enum {
 };
 
 // buffer input must be 64 byte alignment
-typedef struct ATTR_PACKED {
+typedef struct ATTR_PACKED
+{
   volatile uint16_t buff_addr_offset ; ///< The address offset is updated by hardware after each successful reception/transmission of a packet. Hardware increments the original value with the integer value when the packet size is divided by 64.
 
   volatile uint16_t nbytes      : 10 ; ///< For OUT endpoints this is the number of bytes that can be received in this buffer. For IN endpoints this is the number of bytes that must be transmitted. HW decrements this value with the packet size every time when a packet is successfully transferred. Note: If a short packet is received on an OUT endpoint, the active bit will be cleared and the NBytes value indicates the remaining buffer space that is not used. Software calculates the received number of bytes by subtracting the remaining NBytes from the programmed value.

@@ -93,7 +93,8 @@ typedef enum {
 }hid_request_type_t;
 
 /// USB HID Descriptor
-typedef struct ATTR_PACKED {
+typedef struct ATTR_PACKED
+{
   uint8_t  bLength;         /**< Numeric expression that is the total size of the HID descriptor */
   uint8_t  bDescriptorType; /**< Constant name specifying type of HID descriptor. */
 

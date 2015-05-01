@@ -217,7 +217,8 @@ typedef enum {
 // FUNCTIONAL DESCRIPTOR (COMMUNICATION INTERFACE)
 //--------------------------------------------------------------------+
 /// Header Functional Descriptor (Communication Interface)
-typedef struct ATTR_PACKED {
+typedef struct ATTR_PACKED
+{
   uint8_t bLength            ; ///< Size of this descriptor in bytes.
   uint8_t bDescriptorType    ; ///< Descriptor Type, must be Class-Specific
   uint8_t bDescriptorSubType ; ///< Descriptor SubType one of above CDC_FUCN_DESC_
@@ -225,7 +226,8 @@ typedef struct ATTR_PACKED {
 }cdc_desc_func_header_t;
 
 /// Union Functional Descriptor (Communication Interface)
-typedef struct ATTR_PACKED {
+typedef struct ATTR_PACKED
+{
   uint8_t bLength                  ; ///< Size of this descriptor in bytes.
   uint8_t bDescriptorType          ; ///< Descriptor Type, must be Class-Specific
   uint8_t bDescriptorSubType       ; ///< Descriptor SubType one of above CDC_FUCN_DESC_
@@ -243,7 +245,8 @@ typedef struct ATTR_PACKED {
 }
 
 /// Country Selection Functional Descriptor (Communication Interface)
-typedef struct ATTR_PACKED {
+typedef struct ATTR_PACKED
+{
   uint8_t bLength             ; ///< Size of this descriptor in bytes.
   uint8_t bDescriptorType     ; ///< Descriptor Type, must be Class-Specific
   uint8_t bDescriptorSubType  ; ///< Descriptor SubType one of above CDC_FUCN_DESC_
@@ -266,7 +269,8 @@ typedef struct ATTR_PACKED {
 
 /// \brief Call Management Functional Descriptor
 /// \details This functional descriptor describes the processing of calls for the Communications Class interface.
-typedef struct ATTR_PACKED {
+typedef struct ATTR_PACKED
+{
   uint8_t bLength            ; ///< Size of this descriptor in bytes.
   uint8_t bDescriptorType    ; ///< Descriptor Type, must be Class-Specific
   uint8_t bDescriptorSubType ; ///< Descriptor SubType one of above CDC_FUCN_DESC_
@@ -281,7 +285,8 @@ typedef struct ATTR_PACKED {
 }cdc_desc_func_call_management_t;
 
 
-typedef struct ATTR_PACKED {
+typedef struct ATTR_PACKED
+{
   uint8_t support_comm_request                    : 1; ///< Device supports the request combination of Set_Comm_Feature, Clear_Comm_Feature, and Get_Comm_Feature.
   uint8_t support_line_request                    : 1; ///< Device supports the request combination of Set_Line_Coding, Set_Control_Line_State, Get_Line_Coding, and the notification Serial_State.
   uint8_t support_send_break                      : 1; ///< Device supports the request Send_Break
@@ -293,7 +298,8 @@ STATIC_ASSERT(sizeof(cdc_acm_capability_t) == 1, "mostly problem with compiler")
 
 /// \brief Abstract Control Management Functional Descriptor
 /// \details This functional descriptor describes the commands supported by by the Communications Class interface with SubClass code of \ref CDC_COMM_SUBCLASS_ABSTRACT_CONTROL_MODEL
-typedef struct ATTR_PACKED {
+typedef struct ATTR_PACKED
+{
   uint8_t bLength                  ; ///< Size of this descriptor in bytes.
   uint8_t bDescriptorType          ; ///< Descriptor Type, must be Class-Specific
   uint8_t bDescriptorSubType       ; ///< Descriptor SubType one of above CDC_FUCN_DESC_
@@ -302,7 +308,8 @@ typedef struct ATTR_PACKED {
 
 /// \brief Direct Line Management Functional Descriptor
 /// \details This functional descriptor describes the commands supported by the Communications Class interface with SubClass code of \ref CDC_FUNC_DESC_DIRECT_LINE_MANAGEMENT
-typedef struct ATTR_PACKED {
+typedef struct ATTR_PACKED
+{
   uint8_t bLength            ; ///< Size of this descriptor in bytes.
   uint8_t bDescriptorType    ; ///< Descriptor Type, must be Class-Specific
   uint8_t bDescriptorSubType ; ///< Descriptor SubType one of above CDC_FUCN_DESC_
@@ -317,7 +324,8 @@ typedef struct ATTR_PACKED {
 /// \brief Telephone Ringer Functional Descriptor
 /// \details The Telephone Ringer functional descriptor describes the ringer capabilities supported by the Communications Class interface,
 /// with the SubClass code of \ref CDC_COMM_SUBCLASS_TELEPHONE_CONTROL_MODEL
-typedef struct ATTR_PACKED {
+typedef struct ATTR_PACKED
+{
   uint8_t bLength            ; ///< Size of this descriptor in bytes.
   uint8_t bDescriptorType    ; ///< Descriptor Type, must be Class-Specific
   uint8_t bDescriptorSubType ; ///< Descriptor SubType one of above CDC_FUCN_DESC_
@@ -328,7 +336,8 @@ typedef struct ATTR_PACKED {
 /// \brief Telephone Operational Modes Functional Descriptor
 /// \details The Telephone Operational Modes functional descriptor describes the operational modes supported by
 /// the Communications Class interface, with the SubClass code of \ref CDC_COMM_SUBCLASS_TELEPHONE_CONTROL_MODEL
-typedef struct ATTR_PACKED {
+typedef struct ATTR_PACKED
+{
   uint8_t bLength            ; ///< Size of this descriptor in bytes.
   uint8_t bDescriptorType    ; ///< Descriptor Type, must be Class-Specific
   uint8_t bDescriptorSubType ; ///< Descriptor SubType one of above CDC_FUCN_DESC_
@@ -343,7 +352,8 @@ typedef struct ATTR_PACKED {
 /// \brief Telephone Call and Line State Reporting Capabilities Descriptor
 /// \details The Telephone Call and Line State Reporting Capabilities functional descriptor describes the abilities of a
 /// telephone device to report optional call and line states.
-typedef struct ATTR_PACKED {
+typedef struct ATTR_PACKED
+{
   uint8_t bLength            ; ///< Size of this descriptor in bytes.
   uint8_t bDescriptorType    ; ///< Descriptor Type, must be Class-Specific
   uint8_t bDescriptorSubType ; ///< Descriptor SubType one of above CDC_FUCN_DESC_
@@ -367,7 +377,8 @@ static inline uint8_t cdc_functional_desc_typeof(uint8_t const * p_desc)
 //--------------------------------------------------------------------+
 // Requests
 //--------------------------------------------------------------------+
-typedef struct ATTR_PACKED {
+typedef struct ATTR_PACKED
+{
   uint32_t bit_rate;
   uint8_t  stop_bits; ///< 0: 1 stop bit - 1: 1.5 stop bits - 2: 2 stop bits
   uint8_t  parity; ///< 0: None - 1: Odd - 2: Even - 3: Mark - 4: Space
@@ -376,7 +387,8 @@ typedef struct ATTR_PACKED {
 
 STATIC_ASSERT(sizeof(cdc_line_coding_t) == 7, "size is not correct");
 
-typedef struct ATTR_PACKED {
+typedef struct ATTR_PACKED
+{
   uint16_t dte_is_present : 1; ///< Indicates to DCE if DTE is presentor not. This signal corresponds to V.24 signal 108/2 and RS-232 signal DTR.
   uint16_t half_duplex_carrier_control : 1;
   uint16_t : 14;
