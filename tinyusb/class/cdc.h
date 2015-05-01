@@ -55,7 +55,8 @@
 
 
 /// CDC Pipe ID, used to indicate which pipe the API is addressing to (Notification, Out, In)
-typedef enum {
+typedef enum
+{
   CDC_PIPE_NOTIFICATION , ///< Notification pipe
   CDC_PIPE_DATA_IN      , ///< Data in pipe
   CDC_PIPE_DATA_OUT     , ///< Data out pipe
@@ -66,7 +67,8 @@ typedef enum {
 // CDC COMMUNICATION INTERFACE CLASS
 //--------------------------------------------------------------------+
 /// Communication Interface Subclass Codes
-typedef enum {
+typedef enum
+{
   CDC_COMM_SUBCLASS_DIRECT_LINE_CONTROL_MODEL = 0x01  , ///< Direct Line Control Model  [USBPSTN1.2]
   CDC_COMM_SUBCLASS_ABSTRACT_CONTROL_MODEL            , ///< Abstract Control Model  [USBPSTN1.2]
   CDC_COMM_SUBCLASS_TELEPHONE_CONTROL_MODEL           , ///< Telephone Control Model  [USBPSTN1.2]
@@ -82,7 +84,8 @@ typedef enum {
 } cdc_comm_sublcass_type_t;
 
 /// Communication Interface Protocol Codes
-typedef enum {
+typedef enum
+{
   CDC_COMM_PROTOCOL_ATCOMMAND              = 0x01 , ///< AT Commands: V.250 etc
   CDC_COMM_PROTOCOL_ATCOMMAND_PCCA_101            , ///< AT Commands defined by PCCA-101
   CDC_COMM_PROTOCOL_ATCOMMAND_PCCA_101_AND_ANNEXO , ///< AT Commands defined by PCCA-101 & Annex O
@@ -94,7 +97,8 @@ typedef enum {
 
 //------------- SubType Descriptor in COMM Functional Descriptor -------------//
 /// Communication Interface SubType Descriptor
-typedef enum {
+typedef enum
+{
   CDC_FUNC_DESC_HEADER                                           = 0x00 , ///< Header Functional Descriptor, which marks the beginning of the concatenated set of functional descriptors for the interface.
   CDC_FUNC_DESC_CALL_MANAGEMENT                                  = 0x01 , ///< Call Management Functional Descriptor.
   CDC_FUNC_DESC_ABSTRACT_CONTROL_MANAGEMENT                      = 0x02 , ///< Abstract Control Management Functional Descriptor.
@@ -148,7 +152,8 @@ typedef enum{
 // MANAGEMENT ELEMENT REQUEST (CONTROL ENDPOINT)
 //--------------------------------------------------------------------+
 /// Communication Interface Management Element Request Codes
-typedef enum {
+typedef enum
+{
   CDC_REQUEST_SEND_ENCAPSULATED_COMMAND                    = 0x00, ///< is used to issue a command in the format of the supported control protocol of the Communications Class interface
   CDC_REQUEST_GET_ENCAPSULATED_RESPONSE                    = 0x01, ///< is used to request a response in the format of the supported control protocol of the Communications Class interface.
 
@@ -198,7 +203,8 @@ typedef enum {
 // MANAGEMENT ELEMENENT NOTIFICATION (NOTIFICATION ENDPOINT)
 //--------------------------------------------------------------------+
 /// Communication Interface Management Element Notification Codes
-typedef enum {
+typedef enum
+{
   NETWORK_CONNECTION               = 0x00, ///< This notification allows the device to notify the host about network connection status.
   RESPONSE_AVAILABLE               = 0x01, ///< This notification allows the device to notify the hostthat a response is available. This response can be retrieved with a subsequent \ref CDC_REQUEST_GET_ENCAPSULATED_RESPONSE request.
 

@@ -94,7 +94,8 @@
 
 
 /// \brief Error Code returned
-typedef enum {
+typedef enum
+{
   ERROR_TABLE(ERROR_ENUM)
   TUSB_ERROR_COUNT
 }tusb_error_t;

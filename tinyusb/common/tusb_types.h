@@ -48,21 +48,24 @@
 #endif
 
 /// defined base on EHCI specs value for Endpoint Speed
-typedef enum {
+typedef enum
+{
   TUSB_SPEED_FULL = 0,
   TUSB_SPEED_LOW     ,
   TUSB_SPEED_HIGH
 }tusb_speed_t;
 
 /// defined base on USB Specs Endpoint's bmAttributes
-typedef enum {
+typedef enum
+{
   TUSB_XFER_CONTROL = 0 ,
   TUSB_XFER_ISOCHRONOUS ,
   TUSB_XFER_BULK        ,
   TUSB_XFER_INTERRUPT
 }tusb_xfer_type_t;
 
-typedef enum {
+typedef enum
+{
   TUSB_DIR_HOST_TO_DEV      = 0,
   TUSB_DIR_DEV_TO_HOST      = 1,
 
@@ -71,7 +74,8 @@ typedef enum {
 
 
 /// USB Descriptor Types (section 9.4 table 9-5)
-typedef enum {
+typedef enum
+{
   TUSB_DESC_TYPE_DEVICE                    = 0x01 ,
   TUSB_DESC_TYPE_CONFIGURATION             = 0x02 ,
   TUSB_DESC_TYPE_STRING                    = 0x03 ,
@@ -86,7 +90,8 @@ typedef enum {
   TUSB_DESC_TYPE_INTERFACE_CLASS_SPECIFIC  = 0x24
 }tusb_std_descriptor_type_t;
 
-typedef enum {
+typedef enum
+{
   TUSB_REQUEST_GET_STATUS =0     , ///< 0
   TUSB_REQUEST_CLEAR_FEATURE     , ///< 1
   TUSB_REQUEST_RESERVED          , ///< 2
@@ -102,20 +107,23 @@ typedef enum {
   TUSB_REQUEST_SYNCH_FRAME         ///< 12
 }tusb_std_request_code_t;
 
-typedef enum {
+typedef enum
+{
   TUSB_REQUEST_TYPE_STANDARD = 0,
   TUSB_REQUEST_TYPE_CLASS,
   TUSB_REQUEST_TYPE_VENDOR
 } tusb_control_request_type_t;
 
-typedef enum {
+typedef enum
+{
   TUSB_REQUEST_RECIPIENT_DEVICE =0,
   TUSB_REQUEST_RECIPIENT_INTERFACE,
   TUSB_REQUEST_RECIPIENT_ENDPOINT,
   TUSB_REQUEST_RECIPIENT_OTHER
 } tusb_std_request_recipient_t;
 
-typedef enum {
+typedef enum
+{
   TUSB_CLASS_UNSPECIFIED          = 0    , ///< 0
   TUSB_CLASS_AUDIO                = 1    , ///< 1
   TUSB_CLASS_CDC                  = 2    , ///< 2
@@ -143,11 +151,13 @@ typedef enum {
   TUSB_CLASS_VENDOR_SPECIFIC      = 0xFF
 }tusb_std_class_code_t;
 
-typedef enum {
+typedef enum
+{
   MISC_SUBCLASS_COMMON = 2
 }misc_subclass_type_t;
 
-typedef enum {
+typedef enum
+{
   MISC_PROTOCOL_IAD = 1
 }misc_protocol_type_t;
 
@@ -160,7 +170,8 @@ enum {
 #define TUSB_DESC_CONFIG_POWER_MA(x)  ((x)/2)
 
 /// Device State
-typedef enum {
+typedef enum
+{
   TUSB_DEVICE_STATE_UNPLUG = 0  ,
   TUSB_DEVICE_STATE_ADDRESSED   ,
   TUSB_DEVICE_STATE_CONFIGURED  ,
@@ -172,7 +183,8 @@ typedef enum {
   TUSB_DEVICE_STATE_INVALID_PARAMETER
 }tusb_device_state_t;
 
-typedef enum {
+typedef enum
+{
   TUSB_EVENT_NONE = 0,
   TUSB_EVENT_XFER_COMPLETE,
   TUSB_EVENT_XFER_ERROR,

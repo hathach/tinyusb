@@ -56,34 +56,39 @@
  *  @{ */
 
 /// HID Subclass
-typedef enum {
+typedef enum
+{
   HID_SUBCLASS_NONE = 0, ///< No Subclass
   HID_SUBCLASS_BOOT = 1  ///< Boot Interface Subclass
 }hid_subclass_type_t;
 
 /// HID Protocol
-typedef enum {
+typedef enum
+{
   HID_PROTOCOL_NONE     = 0, ///< None
   HID_PROTOCOL_KEYBOARD = 1, ///< Keyboard
   HID_PROTOCOL_MOUSE    = 2  ///< Mouse
 }hid_protocol_type_t;
 
 /// HID Descriptor Type
-typedef enum {
+typedef enum
+{
   HID_DESC_TYPE_HID      = 0x21, ///< HID Descriptor
   HID_DESC_TYPE_REPORT   = 0x22, ///< Report Descriptor
   HID_DESC_TYPE_PHYSICAL = 0x23  ///< Physical Descriptor
 }hid_descriptor_type_t;
 
 /// HID Request Report Type
-typedef enum {
+typedef enum
+{
   HID_REQUEST_REPORT_INPUT = 1, ///< Input
   HID_REQUEST_REPORT_OUTPUT,    ///< Output
   HID_REQUEST_REPORT_FEATURE    ///< Feature
 }hid_request_report_type_t;
 
 /// HID Class Specific Control Request
-typedef enum {
+typedef enum
+{
   HID_REQUEST_CONTROL_GET_REPORT   = 0x01, ///< Get Report
   HID_REQUEST_CONTROL_GET_IDLE     = 0x02, ///< Get Idle
   HID_REQUEST_CONTROL_GET_PROTOCOL = 0x03, ///< Get Protocol
@@ -165,7 +170,8 @@ typedef struct ATTR_PACKED
 } hid_mouse_report_t;
 
 /// Standard Mouse Buttons Bitmap
-typedef enum {
+typedef enum
+{
 	MOUSE_BUTTON_LEFT   = BIT_(0), ///< Left button
 	MOUSE_BUTTON_RIGHT  = BIT_(1), ///< Right button
 	MOUSE_BUTTON_MIDDLE = BIT_(2)  ///< Middle button
@@ -188,7 +194,8 @@ typedef struct ATTR_PACKED
 } hid_keyboard_report_t;
 
 /// Keyboard modifier codes bitmap
-typedef enum {
+typedef enum
+{
 	KEYBOARD_MODIFIER_LEFTCTRL   = BIT_(0), ///< Left Control
 	KEYBOARD_MODIFIER_LEFTSHIFT  = BIT_(1), ///< Left Shift
 	KEYBOARD_MODIFIER_LEFTALT    = BIT_(2), ///< Left Alt
@@ -199,7 +206,8 @@ typedef enum {
 	KEYBOARD_MODIFIER_RIGHTGUI   = BIT_(7)  ///< Right Window
 }hid_keyboard_modifier_bm_t;
 
-typedef enum {
+typedef enum
+{
   KEYBOARD_LED_NUMLOCK    = BIT_(0), ///< Num Lock LED
   KEYBOARD_LED_CAPSLOCK   = BIT_(1), ///< Caps Lock LED
   KEYBOARD_LED_SCROLLLOCK = BIT_(2), ///< Scroll Lock LED

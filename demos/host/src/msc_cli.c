@@ -52,7 +52,8 @@ enum {
   ASCII_BACKSPACE = 8,
 };
 
-typedef enum {
+typedef enum
+{
   CLI_ERROR_NONE = 0,
   CLI_ERROR_INVALID_PARA,
   CLI_ERROR_INVALID_PATH,
@@ -98,7 +99,8 @@ CLI_COMMAND_TABLE(CLI_PROTOTYPE_EXPAND)
 // Expand to enum value
 //--------------------------------------------------------------------+
 #define CLI_ENUM_EXPAND(command, function, description)    CLI_CMDTYPE_##command,
-typedef enum {
+typedef enum
+{
   CLI_COMMAND_TABLE(CLI_ENUM_EXPAND)
   CLI_CMDTYPE_COUNT
 }cli_cmdtype_t;

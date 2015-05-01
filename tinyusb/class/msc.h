@@ -56,7 +56,8 @@
 // Mass Storage Class Constant
 //--------------------------------------------------------------------+
 /// MassStorage Subclass
-typedef enum {
+typedef enum
+{
   MSC_SUBCLASS_RBC = 1 , ///< Reduced Block Commands (RBC) T10 Project 1240-D
   MSC_SUBCLASS_SFF_MMC , ///< SFF-8020i, MMC-2 (ATAPI). Typically used by a CD/DVD device
   MSC_SUBCLASS_QIC     , ///< QIC-157. Typically used by a tape device
@@ -72,14 +73,16 @@ enum {
 
 /// \brief MassStorage Protocol.
 /// \details CBI only approved to use with full-speed floopy disk & should not used with highspeed or device other than floopy
-typedef enum {
+typedef enum
+{
   MSC_PROTOCOL_CBI              = 0 ,  ///< Control/Bulk/Interrupt protocol (with command completion interrupt)
   MSC_PROTOCOL_CBI_NO_INTERRUPT = 1 ,  ///< Control/Bulk/Interrupt protocol (without command completion interrupt)
   MSC_PROTOCOL_BOT              = 0x50 ///< Bulk-Only Transport
 }msc_protocol_type_t;
 
 /// MassStorage Class-Specific Control Request
-typedef enum {
+typedef enum
+{
   MSC_REQUEST_GET_MAX_LUN = 254, ///< The Get Max LUN device request is used to determine the number of logical units supported by the device. Logical Unit Numbers on the device shall be numbered contiguously starting from LUN 0 to a maximum LUN of 15
   MSC_REQUEST_RESET       = 255  ///< This request is used to reset the mass storage device and its associated interface. This class-specific request shall ready the device for the next CBW from the host.
 }msc_request_type_t;
@@ -87,7 +90,8 @@ typedef enum {
 /// \brief Command Block Status Values
 /// \details Indicates the success or failure of the command. The device shall set this byte to zero if the command completed
 /// successfully. A non-zero value shall indicate a failure during command execution according to the following
-typedef enum {
+typedef enum
+{
   MSC_CSW_STATUS_PASSED = 0 , ///< MSC_CSW_STATUS_PASSED
   MSC_CSW_STATUS_FAILED     , ///< MSC_CSW_STATUS_FAILED
   MSC_CSW_STATUS_PHASE_ERROR  ///< MSC_CSW_STATUS_PHASE_ERROR
@@ -123,7 +127,8 @@ STATIC_ASSERT(sizeof(msc_cmd_status_wrapper_t) == 13, "size is not correct");
 //--------------------------------------------------------------------+
 
 /// SCSI Command Operation Code
-typedef enum {
+typedef enum
+{
   SCSI_CMD_TEST_UNIT_READY              = 0x00, ///< The SCSI Test Unit Ready command is used to determine if a device is ready to transfer data (read/write), i.e. if a disk has spun up, if a tape is loaded and ready etc. The device does not perform a self-test operation.
   SCSI_CMD_INQUIRY                      = 0x12, ///< The SCSI Inquiry command is used to obtain basic information from a target device.
   SCSI_CMD_MODE_SELECT_6                = 0x15, ///<  provides a means for the application client to specify medium, logical unit, or peripheral device parameters to the device server. Device servers that implement the MODE SELECT(6) command shall also implement the MODE SENSE(6) command. Application clients should issue MODE SENSE(6) prior to each MODE SELECT(6) to determine supported mode pages, page lengths, and other parameters.
@@ -137,7 +142,8 @@ typedef enum {
 }scsi_cmd_type_t;
 
 /// SCSI Sense Key
-typedef enum {
+typedef enum
+{
   SCSI_SENSEKEY_NONE            = 0x00, ///< no specific Sense Key. This would be the case for a successful command
   SCSI_SENSEKEY_RECOVERED_ERROR = 0x01, ///< ndicates the last command completed successfully with some recovery action performed by the disc drive.
   SCSI_SENSEKEY_NOT_READY       = 0x02, ///< Indicates the logical unit addressed cannot be accessed.

@@ -131,7 +131,8 @@ enum {
 };
 
 //------------- SIE Command Code -------------//
-typedef enum {
+typedef enum
+{
   SIE_CMDPHASE_WRITE   = 1,
   SIE_CMDPHASE_READ    = 2,
   SIE_CMDPHASE_COMMAND = 5
@@ -176,7 +177,8 @@ enum {
   SIE_SELECT_ENDPOINT_BUFFER2_FULL_MASK       = BIT_(6)
 };
 
-typedef enum {
+typedef enum
+{
   SIE_SET_ENDPOINT_STALLED_MASK           = BIT_(0),
   SIE_SET_ENDPOINT_DISABLED_MASK          = BIT_(5),
   SIE_SET_ENDPOINT_RATE_FEEDBACK_MASK     = BIT_(6),

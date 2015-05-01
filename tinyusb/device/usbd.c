@@ -114,7 +114,8 @@ bool tusbd_is_configured(uint8_t coreid)
 //------------- OSAL Task -------------//
 enum { USBD_TASK_QUEUE_DEPTH = 16 };
 
-typedef enum {
+typedef enum
+{
   USBD_EVENTID_SETUP_RECEIVED = 1,
   USBD_EVENTID_XFER_DONE
 }usbd_eventid_t;

@@ -56,7 +56,8 @@
 #endif
 
 /// RNDIS Message Types
-typedef enum {
+typedef enum
+{
   RNDIS_MSG_PACKET           = 0x00000001UL, ///< The host and device use this to send network data to one another.
 
   RNDIS_MSG_INITIALIZE       = 0x00000002UL, ///< Sent by the host to initialize the device.
@@ -80,7 +81,8 @@ typedef enum {
 }rndis_msg_type_t;
 
 /// RNDIS Message Status Values
-typedef enum {
+typedef enum
+{
   RNDIS_STATUS_SUCCESS          = 0x00000000UL, ///< Success
   RNDIS_STATUS_FAILURE          = 0xC0000001UL, ///< Unspecified error
   RNDIS_STATUS_INVALID_DATA     = 0xC0010015UL, ///< Invalid data error
@@ -243,7 +245,8 @@ typedef struct {
 //--------------------------------------------------------------------+
 
 /// NDIS Object ID
-typedef enum {
+typedef enum
+{
   //------------- General Required OIDs -------------//
   RNDIS_OID_GEN_SUPPORTED_LIST          = 0x00010101, ///< List of supported OIDs
   RNDIS_OID_GEN_HARDWARE_STATUS         = 0x00010102, ///< Hardware status
@@ -283,7 +286,8 @@ typedef enum {
 } rndis_oid_type_t;
 
 /// RNDIS Packet Filter Bits \ref RNDIS_OID_GEN_CURRENT_PACKET_FILTER.
-typedef enum {
+typedef enum
+{
   RNDIS_PACKET_TYPE_DIRECTED              = 0x00000001, ///< Directed packets. Directed packets contain a destination address equal to the station address of the NIC.
   RNDIS_PACKET_TYPE_MULTICAST             = 0x00000002, ///< Multicast address packets sent to addresses in the multicast address list.
   RNDIS_PACKET_TYPE_ALL_MULTICAST         = 0x00000004, ///< All multicast address packets, not just the ones enumerated in the multicast address list.

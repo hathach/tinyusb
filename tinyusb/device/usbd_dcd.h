@@ -59,7 +59,8 @@ enum {
   USBD_INTERFACE_NUM_MAX = 16 // USB specs specify up to 16 endpoints per device
 };
 
-typedef enum {
+typedef enum
+{
   USBD_BUS_EVENT_RESET = 1,
   USBD_BUS_EVENT_UNPLUGGED,
   USBD_BUS_EVENT_SUSPENDED,
