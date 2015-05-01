@@ -79,7 +79,7 @@ tusb_error_t hidh_interface_get_report(uint8_t dev_addr, void * report, hidh_int
 {
   //------------- parameters validation -------------//
   // TODO change to use is configured function
-  ASSERT_INT  (TUSB_DEVICE_STATE_CONFIGURED, tusbh_device_get_state(dev_addr), TUSB_ERROR_DEVICE_NOT_READY);
+  ASSERT_INT  (TUSB_DEVICE_STATE_CONFIGURED, tuh_device_get_state(dev_addr), TUSB_ERROR_DEVICE_NOT_READY);
   ASSERT_PTR  (report, TUSB_ERROR_INVALID_PARA);
   ASSERT_FALSE(hcd_pipe_is_busy(p_hid->pipe_hdl), TUSB_ERROR_INTERFACE_IS_BUSY);
 
@@ -108,7 +108,7 @@ STATIC_VAR hidh_interface_info_t keyboardh_data[TUSB_CFG_HOST_DEVICE_MAX]; // do
 //------------- KEYBOARD PUBLIC API (parameter validation required) -------------//
 bool  tuh_hid_keyboard_is_mounted(uint8_t dev_addr)
 {
-  return tusbh_device_is_configured(dev_addr) && pipehandle_is_valid(keyboardh_data[dev_addr-1].pipe_hdl);
+  return tuh_device_is_configured(dev_addr) && pipehandle_is_valid(keyboardh_data[dev_addr-1].pipe_hdl);
 }
 
 tusb_error_t tuh_hid_keyboard_get_report(uint8_t dev_addr, void* p_report)
@@ -134,7 +134,7 @@ STATIC_VAR hidh_interface_info_t mouseh_data[TUSB_CFG_HOST_DEVICE_MAX]; // does 
 //------------- Public API -------------//
 bool tuh_hid_mouse_is_mounted(uint8_t dev_addr)
 {
-  return tusbh_device_is_configured(dev_addr) && pipehandle_is_valid(mouseh_data[dev_addr-1].pipe_hdl);
+  return tuh_device_is_configured(dev_addr) && pipehandle_is_valid(mouseh_data[dev_addr-1].pipe_hdl);
 }
 
 bool tuh_hid_mouse_is_busy(uint8_t dev_addr)

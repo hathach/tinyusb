@@ -124,15 +124,15 @@ static inline uint8_t get_configure_number_for_device(tusb_descriptor_device_t* 
 //--------------------------------------------------------------------+
 // PUBLIC API (Parameter Verification is required)
 //--------------------------------------------------------------------+
-tusb_device_state_t tusbh_device_get_state (uint8_t const dev_addr)
+tusb_device_state_t tuh_device_get_state (uint8_t const dev_addr)
 {
   ASSERT_INT_WITHIN(1, TUSB_CFG_HOST_DEVICE_MAX, dev_addr, TUSB_DEVICE_STATE_INVALID_PARAMETER);
   return (tusb_device_state_t) usbh_devices[dev_addr].state;
 }
 
-uint32_t tusbh_device_get_mounted_class_flag(uint8_t dev_addr)
+uint32_t tuh_device_get_mounted_class_flag(uint8_t dev_addr)
 {
-  return tusbh_device_is_configured(dev_addr) ? usbh_devices[dev_addr].flag_supported_class : 0;
+  return tuh_device_is_configured(dev_addr) ? usbh_devices[dev_addr].flag_supported_class : 0;
 }
 
 //--------------------------------------------------------------------+
@@ -209,7 +209,7 @@ tusb_error_t usbh_control_xfer_subtask(uint8_t dev_addr, uint8_t bmRequestType, 
 
 //  SUBTASK_ASSERT_WITH_HANDLER(TUSB_ERROR_NONE == error &&
 //                              TUSB_EVENT_XFER_COMPLETE == usbh_devices[dev_addr].control.pipe_status,
-//                              tusbh_device_mount_failed_cb(TUSB_ERROR_USBH_MOUNT_DEVICE_NOT_RESPOND, NULL) );
+//                              tuh_device_mount_failed_cb(TUSB_ERROR_USBH_MOUNT_DEVICE_NOT_RESPOND, NULL) );
 
   OSAL_SUBTASK_END
 }
@@ -527,7 +527,7 @@ tusb_error_t enumeration_body_subtask(void)
   );
   SUBTASK_ASSERT_STATUS(error);
   SUBTASK_ASSERT_WITH_HANDLER( TUSB_CFG_HOST_ENUM_BUFFER_SIZE >= ((tusb_descriptor_configuration_t*)enum_data_buffer)->wTotalLength,
-                            tusbh_device_mount_failed_cb(TUSB_ERROR_USBH_MOUNT_CONFIG_DESC_TOO_LONG, NULL) );
+                            tuh_device_mount_failed_cb(TUSB_ERROR_USBH_MOUNT_CONFIG_DESC_TOO_LONG, NULL) );
 
   //------------- Get full configuration descriptor -------------//
   OSAL_SUBTASK_INVOKED_AND_WAIT(
@@ -598,7 +598,7 @@ tusb_error_t enumeration_body_subtask(void)
     }
   }
 
-  tusbh_device_mount_succeed_cb(new_addr);
+  tuh_device_mount_succeed_cb(new_addr);
 
   OSAL_SUBTASK_END
 }
@@ -630,9 +630,9 @@ static inline uint8_t get_configure_number_for_device(tusb_descriptor_device_t* 
   uint8_t config_num = 1;
 
   // invoke callback to ask user which configuration to select
-  if (tusbh_device_attached_cb)
+  if (tuh_device_attached_cb)
   {
-    config_num = min8_of(1, tusbh_device_attached_cb(dev_desc) );
+    config_num = min8_of(1, tuh_device_attached_cb(dev_desc) );
   }
 
   return config_num;

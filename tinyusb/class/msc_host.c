@@ -69,7 +69,7 @@ TUSB_CFG_ATTR_USBRAM ATTR_ALIGNED(4) STATIC_VAR uint8_t msch_buffer[sizeof(scsi_
 //--------------------------------------------------------------------+
 bool tuh_msc_is_mounted(uint8_t dev_addr)
 {
-  return  tusbh_device_is_configured(dev_addr) && // is configured can be omitted
+  return  tuh_device_is_configured(dev_addr) && // is configured can be omitted
           msch_data[dev_addr-1].is_initialized;
 }
 

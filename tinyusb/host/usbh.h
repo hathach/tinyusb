@@ -77,20 +77,20 @@ typedef struct {
 // APPLICATION API
 //--------------------------------------------------------------------+
 //tusb_error_t tusbh_configuration_set     (uint8_t dev_addr, uint8_t configure_number) ATTR_WARN_UNUSED_RESULT;
-tusb_device_state_t tusbh_device_get_state (uint8_t dev_addr) ATTR_WARN_UNUSED_RESULT ATTR_PURE;
-static inline bool tusbh_device_is_configured(uint8_t dev_addr) ATTR_ALWAYS_INLINE ATTR_WARN_UNUSED_RESULT ATTR_PURE;
-static inline bool tusbh_device_is_configured(uint8_t dev_addr)
+tusb_device_state_t tuh_device_get_state (uint8_t dev_addr) ATTR_WARN_UNUSED_RESULT ATTR_PURE;
+static inline bool tuh_device_is_configured(uint8_t dev_addr) ATTR_ALWAYS_INLINE ATTR_WARN_UNUSED_RESULT ATTR_PURE;
+static inline bool tuh_device_is_configured(uint8_t dev_addr)
 {
-  return tusbh_device_get_state(dev_addr) == TUSB_DEVICE_STATE_CONFIGURED;
+  return tuh_device_get_state(dev_addr) == TUSB_DEVICE_STATE_CONFIGURED;
 }
-uint32_t tusbh_device_get_mounted_class_flag(uint8_t dev_addr);
+uint32_t tuh_device_get_mounted_class_flag(uint8_t dev_addr);
 
 //--------------------------------------------------------------------+
 // APPLICATION CALLBACK
 //--------------------------------------------------------------------+
-ATTR_WEAK uint8_t tusbh_device_attached_cb (tusb_descriptor_device_t const *p_desc_device)  ATTR_WARN_UNUSED_RESULT;
-ATTR_WEAK void    tusbh_device_mount_succeed_cb (uint8_t dev_addr);
-ATTR_WEAK void    tusbh_device_mount_failed_cb(tusb_error_t error, tusb_descriptor_device_t const *p_desc_device); // TODO refractor remove desc_device
+ATTR_WEAK uint8_t tuh_device_attached_cb (tusb_descriptor_device_t const *p_desc_device)  ATTR_WARN_UNUSED_RESULT;
+ATTR_WEAK void    tuh_device_mount_succeed_cb (uint8_t dev_addr);
+ATTR_WEAK void    tuh_device_mount_failed_cb(tusb_error_t error, tusb_descriptor_device_t const *p_desc_device); // TODO refractor remove desc_device
 
 //--------------------------------------------------------------------+
 // CLASS-USBH & INTERNAL API
