@@ -67,16 +67,16 @@ extern uint8_t const hid_keycode_to_ascii_tbl[2][128]; // TODO used weak attr if
  * \retval      true if device supports Keyboard interface
  * \retval      false if device does not support Keyboard interface or is not mounted
  */
-bool          tusbh_hid_keyboard_is_mounted(uint8_t dev_addr) ATTR_PURE ATTR_WARN_UNUSED_RESULT;
+bool          tuh_hid_keyboard_is_mounted(uint8_t dev_addr) ATTR_PURE ATTR_WARN_UNUSED_RESULT;
 
 /** \brief      Check if the interface is currently busy or not
  * \param[in]   dev_addr device address
  * \retval      true if the interface is busy meaning the stack is still transferring/waiting data from/to device
  * \retval      false if the interface is not busy meaning the stack successfully transferred data from/to device
- * \note        This function is primarily used for polling/waiting result after \ref tusbh_hid_keyboard_get_report.
+ * \note        This function is primarily used for polling/waiting result after \ref tuh_hid_keyboard_get_report.
  *              Alternatively, asynchronous event API can be used
  */
-bool          tusbh_hid_keyboard_is_busy(uint8_t dev_addr) ATTR_PURE ATTR_WARN_UNUSED_RESULT;
+bool          tuh_hid_keyboard_is_busy(uint8_t dev_addr) ATTR_PURE ATTR_WARN_UNUSED_RESULT;
 
 /** \brief        Perform a get report from Keyboard interface
  * \param[in]		  dev_addr device address
@@ -88,7 +88,7 @@ bool          tusbh_hid_keyboard_is_busy(uint8_t dev_addr) ATTR_PURE ATTR_WARN_U
  * \retval        TUSB_ERROR_INVALID_PARA if input parameters are not correct
  * \note          This function is non-blocking and returns immediately. The result of usb transfer will be reported by the interface's callback function
  */
-tusb_error_t  tusbh_hid_keyboard_get_report(uint8_t dev_addr, void * p_report) /*ATTR_WARN_UNUSED_RESULT*/;
+tusb_error_t  tuh_hid_keyboard_get_report(uint8_t dev_addr, void * p_report) /*ATTR_WARN_UNUSED_RESULT*/;
 
 //------------- Application Callback -------------//
 /** \brief      Callback function that is invoked when an transferring event occurred
@@ -98,21 +98,21 @@ tusb_error_t  tusbh_hid_keyboard_get_report(uint8_t dev_addr, void * p_report) /
  *              - TUSB_EVENT_XFER_COMPLETE : previously scheduled transfer completes successfully.
  *              - TUSB_EVENT_XFER_ERROR   : previously scheduled transfer encountered a transaction error.
  *              - TUSB_EVENT_XFER_STALLED : previously scheduled transfer is stalled by device.
- * \note        Application should schedule the next report by calling \ref tusbh_hid_keyboard_get_report within this callback
+ * \note        Application should schedule the next report by calling \ref tuh_hid_keyboard_get_report within this callback
  */
-void tusbh_hid_keyboard_isr(uint8_t dev_addr, tusb_event_t event);
+void tuh_hid_keyboard_isr(uint8_t dev_addr, tusb_event_t event);
 
 /** \brief 			Callback function that will be invoked when a device with Keyboard interface is mounted
  * \param[in] 	dev_addr Address of newly mounted device
  * \note        This callback should be used by Application to set-up interface-related data
  */
-void tusbh_hid_keyboard_mounted_cb(uint8_t dev_addr);
+void tuh_hid_keyboard_mounted_cb(uint8_t dev_addr);
 
 /** \brief 			Callback function that will be invoked when a device with Keyboard interface is unmounted
  * \param[in] 	dev_addr Address of newly unmounted device
  * \note        This callback should be used by Application to tear-down interface-related data
  */
-void tusbh_hid_keyboard_unmounted_cb(uint8_t dev_addr);
+void tuh_hid_keyboard_unmounted_cb(uint8_t dev_addr);
 
 /** @} */ // Keyboard_Host
 /** @} */ // ClassDriver_HID_Keyboard
@@ -132,16 +132,16 @@ void tusbh_hid_keyboard_unmounted_cb(uint8_t dev_addr);
  * \retval      true if device supports Mouse interface
  * \retval      false if device does not support Mouse interface or is not mounted
  */
-bool          tusbh_hid_mouse_is_mounted(uint8_t dev_addr) ATTR_PURE ATTR_WARN_UNUSED_RESULT;
+bool          tuh_hid_mouse_is_mounted(uint8_t dev_addr) ATTR_PURE ATTR_WARN_UNUSED_RESULT;
 
 /** \brief      Check if the interface is currently busy or not
  * \param[in]   dev_addr device address
  * \retval      true if the interface is busy meaning the stack is still transferring/waiting data from/to device
  * \retval      false if the interface is not busy meaning the stack successfully transferred data from/to device
- * \note        This function is primarily used for polling/waiting result after \ref tusbh_hid_mouse_get_report.
+ * \note        This function is primarily used for polling/waiting result after \ref tuh_hid_mouse_get_report.
  *              Alternatively, asynchronous event API can be used
  */
-bool          tusbh_hid_mouse_is_busy(uint8_t dev_addr) ATTR_PURE ATTR_WARN_UNUSED_RESULT;
+bool          tuh_hid_mouse_is_busy(uint8_t dev_addr) ATTR_PURE ATTR_WARN_UNUSED_RESULT;
 
 /** \brief        Perform a get report from Mouse interface
  * \param[in]		  dev_addr device address
@@ -153,7 +153,7 @@ bool          tusbh_hid_mouse_is_busy(uint8_t dev_addr) ATTR_PURE ATTR_WARN_UNUS
  * \retval        TUSB_ERROR_INVALID_PARA if input parameters are not correct
  * \note          This function is non-blocking and returns immediately. The result of usb transfer will be reported by the interface's callback function
  */
-tusb_error_t  tusbh_hid_mouse_get_report(uint8_t dev_addr, void* p_report) /*ATTR_WARN_UNUSED_RESULT*/;
+tusb_error_t  tuh_hid_mouse_get_report(uint8_t dev_addr, void* p_report) /*ATTR_WARN_UNUSED_RESULT*/;
 
 //------------- Application Callback -------------//
 /** \brief      Callback function that is invoked when an transferring event occurred
@@ -163,21 +163,21 @@ tusb_error_t  tusbh_hid_mouse_get_report(uint8_t dev_addr, void* p_report) /*ATT
  *              - TUSB_EVENT_XFER_COMPLETE : previously scheduled transfer completes successfully.
  *              - TUSB_EVENT_XFER_ERROR   : previously scheduled transfer encountered a transaction error.
  *              - TUSB_EVENT_XFER_STALLED : previously scheduled transfer is stalled by device.
- * \note        Application should schedule the next report by calling \ref tusbh_hid_mouse_get_report within this callback
+ * \note        Application should schedule the next report by calling \ref tuh_hid_mouse_get_report within this callback
  */
-void tusbh_hid_mouse_isr(uint8_t dev_addr, tusb_event_t event);
+void tuh_hid_mouse_isr(uint8_t dev_addr, tusb_event_t event);
 
 /** \brief 			Callback function that will be invoked when a device with Mouse interface is mounted
  * \param[in]	  dev_addr Address of newly mounted device
  * \note        This callback should be used by Application to set-up interface-related data
  */
-void tusbh_hid_mouse_mounted_cb(uint8_t dev_addr);
+void tuh_hid_mouse_mounted_cb(uint8_t dev_addr);
 
 /** \brief 			Callback function that will be invoked when a device with Mouse interface is unmounted
  * \param[in] 	dev_addr Address of newly unmounted device
  * \note        This callback should be used by Application to tear-down interface-related data
  */
-void tusbh_hid_mouse_unmounted_cb(uint8_t dev_addr);
+void tuh_hid_mouse_unmounted_cb(uint8_t dev_addr);
 
 /** @} */ // Mouse_Host
 /** @} */ // ClassDriver_HID_Mouse
@@ -192,14 +192,14 @@ void tusbh_hid_mouse_unmounted_cb(uint8_t dev_addr);
  *  The interface API includes status checking function, data transferring function and callback functions
  *  @{ */
 
-bool          tusbh_hid_generic_is_mounted(uint8_t dev_addr) ATTR_PURE ATTR_WARN_UNUSED_RESULT;
-tusb_error_t  tusbh_hid_generic_get_report(uint8_t dev_addr, void* p_report, bool int_on_complete) ATTR_WARN_UNUSED_RESULT;
-tusb_error_t  tusbh_hid_generic_set_report(uint8_t dev_addr, void* p_report, bool int_on_complete) ATTR_WARN_UNUSED_RESULT;
-tusb_interface_status_t tusbh_hid_generic_get_status(uint8_t dev_addr) ATTR_WARN_UNUSED_RESULT;
-tusb_interface_status_t tusbh_hid_generic_set_status(uint8_t dev_addr) ATTR_WARN_UNUSED_RESULT;
+bool          tuh_hid_generic_is_mounted(uint8_t dev_addr) ATTR_PURE ATTR_WARN_UNUSED_RESULT;
+tusb_error_t  tuh_hid_generic_get_report(uint8_t dev_addr, void* p_report, bool int_on_complete) ATTR_WARN_UNUSED_RESULT;
+tusb_error_t  tuh_hid_generic_set_report(uint8_t dev_addr, void* p_report, bool int_on_complete) ATTR_WARN_UNUSED_RESULT;
+tusb_interface_status_t tuh_hid_generic_get_status(uint8_t dev_addr) ATTR_WARN_UNUSED_RESULT;
+tusb_interface_status_t tuh_hid_generic_set_status(uint8_t dev_addr) ATTR_WARN_UNUSED_RESULT;
 
 //------------- Application Callback -------------//
-void tusbh_hid_generic_isr(uint8_t dev_addr, tusb_event_t event);
+void tuh_hid_generic_isr(uint8_t dev_addr, tusb_event_t event);
 
 /** @} */ // Generic_Host
 /** @} */ // ClassDriver_HID_Generic

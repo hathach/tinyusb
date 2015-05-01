@@ -63,33 +63,33 @@ static inline void process_mouse_report(hid_mouse_report_t const * p_report);
 //--------------------------------------------------------------------+
 // tinyusb callbacks
 //--------------------------------------------------------------------+
-void tusbh_hid_mouse_mounted_cb(uint8_t dev_addr)
+void tuh_hid_mouse_mounted_cb(uint8_t dev_addr)
 {
   // application set-up
   printf("\na Mouse device (address %d) is mounted\n", dev_addr);
 
   osal_queue_flush(queue_mouse_hdl);
-  (void) tusbh_hid_mouse_get_report(dev_addr, (uint8_t*) &usb_mouse_report); // first report
+  (void) tuh_hid_mouse_get_report(dev_addr, (uint8_t*) &usb_mouse_report); // first report
 }
 
-void tusbh_hid_mouse_unmounted_cb(uint8_t dev_addr)
+void tuh_hid_mouse_unmounted_cb(uint8_t dev_addr)
 {
   // application tear-down
   printf("\na Mouse device (address %d) is unmounted\n", dev_addr);
 }
 
 // invoked ISR context
-void tusbh_hid_mouse_isr(uint8_t dev_addr, tusb_event_t event)
+void tuh_hid_mouse_isr(uint8_t dev_addr, tusb_event_t event)
 {
   switch(event)
   {
     case TUSB_EVENT_XFER_COMPLETE:
       (void) osal_queue_send(queue_mouse_hdl, &usb_mouse_report);
-      (void) tusbh_hid_mouse_get_report(dev_addr, (uint8_t*) &usb_mouse_report);
+      (void) tuh_hid_mouse_get_report(dev_addr, (uint8_t*) &usb_mouse_report);
     break;
 
     case TUSB_EVENT_XFER_ERROR:
-      (void) tusbh_hid_mouse_get_report(dev_addr, (uint8_t*) &usb_mouse_report); // ignore & continue
+      (void) tuh_hid_mouse_get_report(dev_addr, (uint8_t*) &usb_mouse_report); // ignore & continue
     break;
 
     default :

@@ -64,33 +64,33 @@ static inline void process_kbd_report(hid_keyboard_report_t const * report);
 //--------------------------------------------------------------------+
 // tinyusb callbacks
 //--------------------------------------------------------------------+
-void tusbh_hid_keyboard_mounted_cb(uint8_t dev_addr)
+void tuh_hid_keyboard_mounted_cb(uint8_t dev_addr)
 {
   // application set-up
   printf("\na Keyboard device (address %d) is mounted\n", dev_addr);
 
   osal_queue_flush(queue_kbd_hdl);
-  tusbh_hid_keyboard_get_report(dev_addr, (uint8_t*) &usb_keyboard_report); // first report
+  tuh_hid_keyboard_get_report(dev_addr, (uint8_t*) &usb_keyboard_report); // first report
 }
 
-void tusbh_hid_keyboard_unmounted_cb(uint8_t dev_addr)
+void tuh_hid_keyboard_unmounted_cb(uint8_t dev_addr)
 {
   // application tear-down
   printf("\na Keyboard device (address %d) is unmounted\n", dev_addr);
 }
 
 // invoked ISR context
-void tusbh_hid_keyboard_isr(uint8_t dev_addr, tusb_event_t event)
+void tuh_hid_keyboard_isr(uint8_t dev_addr, tusb_event_t event)
 {
   switch(event)
   {
     case TUSB_EVENT_XFER_COMPLETE:
       (void) osal_queue_send(queue_kbd_hdl, &usb_keyboard_report);
-      tusbh_hid_keyboard_get_report(dev_addr, (uint8_t*) &usb_keyboard_report);
+      tuh_hid_keyboard_get_report(dev_addr, (uint8_t*) &usb_keyboard_report);
     break;
 
     case TUSB_EVENT_XFER_ERROR:
-      tusbh_hid_keyboard_get_report(dev_addr, (uint8_t*) &usb_keyboard_report); // ignore & continue
+      tuh_hid_keyboard_get_report(dev_addr, (uint8_t*) &usb_keyboard_report); // ignore & continue
     break;
 
     default :

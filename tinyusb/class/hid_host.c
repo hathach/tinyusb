@@ -106,19 +106,19 @@ uint8_t const hid_keycode_to_ascii_tbl[2][128] =
 STATIC_VAR hidh_interface_info_t keyboardh_data[TUSB_CFG_HOST_DEVICE_MAX]; // does not have addr0, index = dev_address-1
 
 //------------- KEYBOARD PUBLIC API (parameter validation required) -------------//
-bool  tusbh_hid_keyboard_is_mounted(uint8_t dev_addr)
+bool  tuh_hid_keyboard_is_mounted(uint8_t dev_addr)
 {
   return tusbh_device_is_configured(dev_addr) && pipehandle_is_valid(keyboardh_data[dev_addr-1].pipe_hdl);
 }
 
-tusb_error_t tusbh_hid_keyboard_get_report(uint8_t dev_addr, void* p_report)
+tusb_error_t tuh_hid_keyboard_get_report(uint8_t dev_addr, void* p_report)
 {
   return hidh_interface_get_report(dev_addr, p_report, &keyboardh_data[dev_addr-1]);
 }
 
-bool tusbh_hid_keyboard_is_busy(uint8_t dev_addr)
+bool tuh_hid_keyboard_is_busy(uint8_t dev_addr)
 {
-  return  tusbh_hid_keyboard_is_mounted(dev_addr) &&
+  return  tuh_hid_keyboard_is_mounted(dev_addr) &&
           hcd_pipe_is_busy( keyboardh_data[dev_addr-1].pipe_hdl );
 }
 
@@ -132,18 +132,18 @@ bool tusbh_hid_keyboard_is_busy(uint8_t dev_addr)
 STATIC_VAR hidh_interface_info_t mouseh_data[TUSB_CFG_HOST_DEVICE_MAX]; // does not have addr0, index = dev_address-1
 
 //------------- Public API -------------//
-bool tusbh_hid_mouse_is_mounted(uint8_t dev_addr)
+bool tuh_hid_mouse_is_mounted(uint8_t dev_addr)
 {
   return tusbh_device_is_configured(dev_addr) && pipehandle_is_valid(mouseh_data[dev_addr-1].pipe_hdl);
 }
 
-bool tusbh_hid_mouse_is_busy(uint8_t dev_addr)
+bool tuh_hid_mouse_is_busy(uint8_t dev_addr)
 {
-  return  tusbh_hid_mouse_is_mounted(dev_addr) &&
+  return  tuh_hid_mouse_is_mounted(dev_addr) &&
           hcd_pipe_is_busy( mouseh_data[dev_addr-1].pipe_hdl );
 }
 
-tusb_error_t tusbh_hid_mouse_get_report(uint8_t dev_addr, void * report)
+tusb_error_t tuh_hid_mouse_get_report(uint8_t dev_addr, void * report)
 {
   return hidh_interface_get_report(dev_addr, report, &mouseh_data[dev_addr-1]);
 }
@@ -229,7 +229,7 @@ tusb_error_t hidh_open_subtask(uint8_t dev_addr, tusb_descriptor_interface_t con
     if ( HID_PROTOCOL_KEYBOARD == p_interface_desc->bInterfaceProtocol)
     {
       SUBTASK_ASSERT_STATUS ( hidh_interface_open(dev_addr, p_interface_desc->bInterfaceNumber, p_endpoint_desc, &keyboardh_data[dev_addr-1]) );
-      tusbh_hid_keyboard_mounted_cb(dev_addr);
+      tuh_hid_keyboard_mounted_cb(dev_addr);
     } else
     #endif
 
@@ -237,7 +237,7 @@ tusb_error_t hidh_open_subtask(uint8_t dev_addr, tusb_descriptor_interface_t con
     if ( HID_PROTOCOL_MOUSE == p_interface_desc->bInterfaceProtocol)
     {
       SUBTASK_ASSERT_STATUS ( hidh_interface_open(dev_addr, p_interface_desc->bInterfaceNumber, p_endpoint_desc, &mouseh_data[dev_addr-1]) );
-      tusbh_hid_mouse_mounted_cb(dev_addr);
+      tuh_hid_mouse_mounted_cb(dev_addr);
     } else
     #endif
 
@@ -261,7 +261,7 @@ void hidh_isr(pipe_handle_t pipe_hdl, tusb_event_t event, uint32_t xferred_bytes
 #if TUSB_CFG_HOST_HID_KEYBOARD
   if ( pipehandle_is_equal(pipe_hdl, keyboardh_data[pipe_hdl.dev_addr-1].pipe_hdl) )
   {
-    tusbh_hid_keyboard_isr(pipe_hdl.dev_addr, event);
+    tuh_hid_keyboard_isr(pipe_hdl.dev_addr, event);
     return;
   }
 #endif
@@ -269,7 +269,7 @@ void hidh_isr(pipe_handle_t pipe_hdl, tusb_event_t event, uint32_t xferred_bytes
 #if TUSB_CFG_HOST_HID_MOUSE
   if ( pipehandle_is_equal(pipe_hdl, mouseh_data[pipe_hdl.dev_addr-1].pipe_hdl) )
   {
-    tusbh_hid_mouse_isr(pipe_hdl.dev_addr, event);
+    tuh_hid_mouse_isr(pipe_hdl.dev_addr, event);
     return;
   }
 #endif
@@ -285,7 +285,7 @@ void hidh_close(uint8_t dev_addr)
   if ( pipehandle_is_valid( keyboardh_data[dev_addr-1].pipe_hdl ) )
   {
     hidh_interface_close(&keyboardh_data[dev_addr-1]);
-    tusbh_hid_keyboard_unmounted_cb(dev_addr);
+    tuh_hid_keyboard_unmounted_cb(dev_addr);
   }
 #endif
 
@@ -293,7 +293,7 @@ void hidh_close(uint8_t dev_addr)
   if( pipehandle_is_valid( mouseh_data[dev_addr-1].pipe_hdl ) )
   {
     hidh_interface_close(&mouseh_data[dev_addr-1]);
-    tusbh_hid_mouse_unmounted_cb( dev_addr );
+    tuh_hid_mouse_unmounted_cb( dev_addr );
   }
 #endif
 
