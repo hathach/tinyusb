@@ -387,7 +387,7 @@ typedef struct ATTR_PACKED
 {
   uint32_t bit_rate;
   uint8_t  stop_bits; ///< 0: 1 stop bit - 1: 1.5 stop bits - 2: 2 stop bits
-  uint8_t  parity; ///< 0: None - 1: Odd - 2: Even - 3: Mark - 4: Space
+  uint8_t  parity;    ///< 0: None - 1: Odd - 2: Even - 3: Mark - 4: Space
   uint8_t  data_bits; ///< can be 5, 6, 7, 8 or 16
 } cdc_line_coding_t;
 

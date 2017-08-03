@@ -375,6 +375,9 @@ static tusb_error_t get_descriptor(uint8_t coreid, tusb_control_request_t const 
       (*p_length)  = p_data[0];  // first byte of descriptor is its size
     break;
 
+    // TODO Report Descriptor (HID Generic)
+    // TODO HID Descriptor
+
     default: return TUSB_ERROR_DCD_CONTROL_REQUEST_NOT_SUPPORT;
   }
 
