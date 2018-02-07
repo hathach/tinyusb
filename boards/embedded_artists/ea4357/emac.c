@@ -19,9 +19,9 @@
 
 #if BOARD == BOARD_EA4357
 
-#include "EMAC.h"
+#include "emac.h"
 //#include "tcpip.h"
-#include "lpc43xx.h"
+#include "LPC43xx.h"
 #include "lpc43xx_scu.h"
 #include "lpc43xx_rgu.h"
 
