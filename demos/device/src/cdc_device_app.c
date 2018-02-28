@@ -121,11 +121,20 @@ void cdcd_serial_app_init(void)
   osal_task_create(cdcd_serial_app_task, "cdc", 128, NULL, CDC_SERIAL_APP_TASK_PRIO, NULL);
 }
 
+tusb_error_t cdcd_serial_subtask(void);
+
 void cdcd_serial_app_task(void* param)
 {
   (void) param;
 
   OSAL_TASK_LOOP_BEGIN
+  cdcd_serial_subtask();
+  OSAL_TASK_LOOP_END
+}
+
+tusb_error_t cdcd_serial_subtask(void)
+{
+  OSAL_SUBTASK_BEGIN
 
   tusb_error_t error;
 
@@ -153,7 +162,7 @@ void cdcd_serial_app_task(void* param)
     tusbd_cdc_receive(0, serial_rx_buffer, SERIAL_BUFFER_SIZE, true);
   }
 
-  OSAL_TASK_LOOP_END
+  OSAL_SUBTASK_END
 }
 
 #endif

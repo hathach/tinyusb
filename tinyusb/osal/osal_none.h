@@ -89,7 +89,7 @@ static inline bool osal_task_create(osal_func_t code, const char* name, uint32_t
   default:\
     TASK_RESTART;\
   }}\
-  return /*TUSB_ERROR_NONE*/;
+  return;
 
 
 #define osal_task_delay(msec) \
@@ -114,7 +114,11 @@ static inline bool osal_task_create(osal_func_t code, const char* name, uint32_t
     }while(0)
 
 #define OSAL_SUBTASK_BEGIN  OSAL_TASK_LOOP_BEGIN
-#define OSAL_SUBTASK_END    OSAL_TASK_LOOP_END
+#define OSAL_SUBTASK_END \
+  default:\
+    TASK_RESTART;\
+  }}\
+  return TUSB_ERROR_NONE;
 
 //------------- Sub Task Assert -------------//
 #define SUBTASK_EXIT(error)  \

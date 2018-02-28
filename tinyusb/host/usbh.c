@@ -109,7 +109,6 @@ TUSB_CFG_ATTR_USBRAM usbh_device_info_t usbh_devices[TUSB_CFG_HOST_DEVICE_MAX+1]
 
 //------------- Enumeration Task Data -------------/
 enum { ENUM_QUEUE_DEPTH = 16 };
-OSAL_TASK_DEF(usbh_enumeration_task, 200, TUSB_CFG_OS_TASK_PRIO);
 OSAL_QUEUE_DEF(enum_queue_def, ENUM_QUEUE_DEPTH, uint32_t);
 
 STATIC_VAR osal_queue_handle_t enum_queue_hdl;
@@ -147,7 +146,8 @@ tusb_error_t usbh_init(void)
   //------------- Enumeration & Reporter Task init -------------//
   enum_queue_hdl = osal_queue_create( OSAL_QUEUE_REF(enum_queue_def) );
   ASSERT_PTR(enum_queue_hdl, TUSB_ERROR_OSAL_QUEUE_FAILED);
-  ASSERT_STATUS( osal_task_create( OSAL_TASK_REF(usbh_enumeration_task) ));
+
+  osal_task_create(usbh_enumeration_task, "usbh", 200, NULL, TUSB_CFG_OS_TASK_PRIO, NULL);
 
   //------------- Semaphore, Mutex for Control Pipe -------------//
   for(uint8_t i=0; i<TUSB_CFG_HOST_DEVICE_MAX+1; i++) // including address zero
@@ -344,9 +344,9 @@ static tusb_error_t enumeration_body_subtask(void);
 // To enable the TASK_ASSERT style (quick return on false condition) in a real RTOS, a task must act as a wrapper
 // and is used mainly to call subtasks. Within a subtask return statement can be called freely, the task with
 // forever loop cannot have any return at all.
-OSAL_TASK_FUNCTION(usbh_enumeration_task, p_task_para)
+void usbh_enumeration_task(void* param)
 {
-  (void) p_task_para; // suppress compiler warnings
+  (void) param;
 
   OSAL_TASK_LOOP_BEGIN
 

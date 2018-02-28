@@ -109,11 +109,20 @@ void keyboard_device_app_init(void)
   osal_task_create(keyboard_device_app_task, "kbd", 128, NULL, KEYBOARD_APP_TASK_PRIO, NULL);
 }
 
+tusb_error_t keyboard_device_subtask(void);
+
 void keyboard_device_app_task(void* param)
 {
   (void) param;
 
   OSAL_TASK_LOOP_BEGIN
+  keyboard_device_subtask();
+  OSAL_TASK_LOOP_END
+}
+
+tusb_error_t keyboard_device_subtask(void)
+{
+  OSAL_SUBTASK_BEGIN
 
   osal_task_delay(50);
 
@@ -136,8 +145,7 @@ void keyboard_device_app_task(void* param)
     }
   }
 
-
-  OSAL_TASK_LOOP_END
+  OSAL_SUBTASK_END
 }
 
 #endif

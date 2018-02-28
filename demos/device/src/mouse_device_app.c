@@ -98,11 +98,19 @@ void mouse_device_app_init(void)
   osal_task_create(mouse_device_app_task, "mouse", 128, NULL, MOUSE_APP_TASK_PRIO, NULL);
 }
 
+void mouse_device_subtask(void);
+
 void mouse_device_app_task(void * param)
 {
   (void) para;
-
   OSAL_TASK_LOOP_BEGIN
+  mouse_device_subtask();
+  OSAL_TASK_LOOP_END
+}
+
+void mouse_device_subtask(void)
+{
+  OSAL_SUBTASK_BEGIN
 
   osal_task_delay(20);
 
@@ -143,7 +151,7 @@ void mouse_device_app_task(void * param)
     }
   }
 
-  OSAL_TASK_LOOP_END
+  OSAL_SUBTASK_END
 }
 
 #endif
