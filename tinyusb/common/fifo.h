@@ -7,7 +7,7 @@
 
     Software License Agreement (BSD License)
 
-    Copyright (c) 2013, hathach (tinyusb.org)
+    Copyright (c) 2018, hathach (tinyusb.org)
     All rights reserved.
 
     Redistribution and use in source and binary forms, with or without
@@ -43,11 +43,35 @@
 #ifndef _TUSB_FIFO_H_
 #define _TUSB_FIFO_H_
 
-#include "common/common.h"
+#define CFG_FIFO_MUTEX      0
+
+#include <stdint.h>
+#include <stdbool.h>
+#include <string.h>
 
 #ifdef __cplusplus
  extern "C" {
 #endif
+
+#if CFG_FIFO_MUTEX
+
+/*Mutex port for newt*/
+#include "os/os_mutex.h"
+
+#define fifo_mutex_t          struct os_mutex
+
+#define fifo_mutex_lock(m)    os_mutex_pend(m, OS_TIMEOUT_NEVER)
+#define fifo_mutex_unlock(m)  os_mutex_release(m)
+
+/* Internal use only */
+#define _mutex_declare(m)     .mutex = m
+
+#else
+
+#define _mutex_declare(m)
+
+#endif
+
 
 /** \struct fifo_t
  * \brief Simple Circular FIFO
@@ -61,7 +85,11 @@ typedef struct
   volatile uint16_t wr_idx          ; ///< write pointer
   volatile uint16_t rd_idx          ; ///< read pointer
            bool overwritable        ;
-  // IRQn_Type irq;
+
+#if CFG_FIFO_MUTEX
+  fifo_mutex_t * const mutex;
+#endif
+
 } fifo_t;
 
 #define FIFO_DEF(name, ff_depth, type, is_overwritable) /*, irq_mutex)*/ \
@@ -72,28 +100,47 @@ typedef struct
       .item_size    = sizeof(type),\
       .overwritable = is_overwritable,\
       /*.irq          = irq_mutex*/\
+      _mutex_declare(_mutex)\
   }
 
-bool fifo_write(fifo_t* f, void const * p_data);
-bool fifo_read(fifo_t* f, void * p_buffer);
 void fifo_clear(fifo_t *f);
 
-static inline bool fifo_is_empty(fifo_t* f) ATTR_PURE ATTR_ALWAYS_INLINE;
+bool     fifo_write   (fifo_t* f, void const * p_data);
+uint16_t fifo_write_n (fifo_t* f, void const * p_data, uint16_t count);
+
+bool     fifo_read    (fifo_t* f, void * p_buffer);
+uint16_t fifo_read_n  (fifo_t* f, void * p_buffer, uint16_t count);
+
+bool     fifo_peek_at (fifo_t* f, uint16_t position, void * p_buffer);
+
+static inline bool fifo_peek(fifo_t* f, void * p_buffer)
+{
+  return fifo_peek_at(f, 0, p_buffer);
+}
+
 static inline bool fifo_is_empty(fifo_t* f)
 {
   return (f->count == 0);
 }
 
-static inline bool fifo_is_full(fifo_t* f) ATTR_PURE ATTR_ALWAYS_INLINE;
 static inline bool fifo_is_full(fifo_t* f)
 {
   return (f->count == f->depth);
 }
 
-static inline uint16_t fifo_get_length(fifo_t* f) ATTR_PURE ATTR_ALWAYS_INLINE;
 static inline uint16_t fifo_get_length(fifo_t* f)
 {
   return f->count;
+}
+
+static inline uint16_t fifo_remaining(fifo_t* f)
+{
+  return f->depth - f->count;
+}
+
+static inline uint16_t fifo_depth(fifo_t* f)
+{
+  return f->depth;
 }
 
 #ifdef __cplusplus
