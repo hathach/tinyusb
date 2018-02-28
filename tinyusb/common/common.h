@@ -109,6 +109,12 @@
 #define memclr_(buffer, size)  memset((buffer), 0, (size))
 
 
+#define memclr(buffer, size)  memset(buffer, 0, size)
+#define varclr(_var)          memclr(_var, sizeof(*(_var)))
+#define arrclr(_arr)          memclr(_arr, sizeof(_arr))
+
+#define arrcount(_arr)       ( sizeof(_arr) / sizeof(_arr[0]) )
+
 static inline uint8_t const * descriptor_next(uint8_t const p_desc[]) ATTR_ALWAYS_INLINE ATTR_PURE;
 static inline uint8_t const * descriptor_next(uint8_t const p_desc[])
 {

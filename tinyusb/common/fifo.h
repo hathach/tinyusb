@@ -78,13 +78,15 @@
  */
 typedef struct
 {
-           uint8_t* const buffer    ; ///< buffer pointer
-           uint16_t const depth     ; ///< max items
-           uint16_t const item_size ; ///< size of each item
-  volatile uint16_t count           ; ///< number of items in queue
-  volatile uint16_t wr_idx          ; ///< write pointer
-  volatile uint16_t rd_idx          ; ///< read pointer
-           bool overwritable        ;
+           uint8_t* buffer    ; ///< buffer pointer
+           uint16_t depth     ; ///< max items
+           uint16_t item_size ; ///< size of each item
+
+  volatile uint16_t count     ; ///< number of items in queue
+  volatile uint16_t wr_idx    ; ///< write pointer
+  volatile uint16_t rd_idx    ; ///< read pointer
+
+           bool overwritable  ;
 
 #if CFG_FIFO_MUTEX
   fifo_mutex_t * const mutex;
@@ -118,12 +120,12 @@ static inline bool fifo_peek(fifo_t* f, void * p_buffer)
   return fifo_peek_at(f, 0, p_buffer);
 }
 
-static inline bool fifo_is_empty(fifo_t* f)
+static inline bool fifo_empty(fifo_t* f)
 {
   return (f->count == 0);
 }
 
-static inline bool fifo_is_full(fifo_t* f)
+static inline bool fifo_full(fifo_t* f)
 {
   return (f->count == f->depth);
 }

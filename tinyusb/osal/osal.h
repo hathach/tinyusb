@@ -58,10 +58,15 @@
 
 #ifndef _TEST_
 
+/*------------- Task -------------*/
 typedef void (*osal_func_t)(void *param);
 typedef void* osal_task_t;
 
 static inline bool osal_task_create(osal_func_t code, const char* name, uint32_t stack_size, void* param, uint32_t prio, osal_task_t* task_hdl);
+
+/*------------- Queue -------------*/
+
+
 
 #if TUSB_CFG_OS == TUSB_OS_NONE
   #include "osal_none.h"
@@ -180,8 +185,6 @@ typedef struct{
 
 typedef osal_queue_t * osal_queue_handle_t;
 
-#define OSAL_QUEUE_DEF(name, queue_depth, type) osal_queue_t name
-#define OSAL_QUEUE_REF(name)  (&name)
 
 osal_queue_handle_t  osal_queue_create  (osal_queue_t *p_queue);
 void                 osal_queue_receive (osal_queue_handle_t const queue_hdl, void *p_data, uint32_t msec, tusb_error_t *p_error);

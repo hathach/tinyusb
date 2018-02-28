@@ -131,6 +131,15 @@
 //  #warning TUSB_CFG_CONFIGURATION_MAX is not defined, default value is 1
 //#endif
 
+#ifndef tu_malloc
+#include <stdlib.h>
+#define tu_malloc malloc
+#endif
+
+#ifndef tu_free
+#define tu_free free
+#endif
+
 //--------------------------------------------------------------------+
 // HOST OPTIONS
 //--------------------------------------------------------------------+

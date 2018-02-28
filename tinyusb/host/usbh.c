@@ -109,9 +109,8 @@ TUSB_CFG_ATTR_USBRAM usbh_device_info_t usbh_devices[TUSB_CFG_HOST_DEVICE_MAX+1]
 
 //------------- Enumeration Task Data -------------/
 enum { ENUM_QUEUE_DEPTH = 16 };
-OSAL_QUEUE_DEF(enum_queue_def, ENUM_QUEUE_DEPTH, uint32_t);
 
-STATIC_VAR osal_queue_handle_t enum_queue_hdl;
+STATIC_VAR osal_queue_t enum_queue_hdl;
 TUSB_CFG_ATTR_USBRAM ATTR_ALIGNED(4) STATIC_VAR uint8_t enum_data_buffer[TUSB_CFG_HOST_ENUM_BUFFER_SIZE];
 
 //------------- Reporter Task Data -------------//
@@ -144,7 +143,7 @@ tusb_error_t usbh_init(void)
   ASSERT_STATUS( hcd_init() );
 
   //------------- Enumeration & Reporter Task init -------------//
-  enum_queue_hdl = osal_queue_create( OSAL_QUEUE_REF(enum_queue_def) );
+  enum_queue_hdl = osal_queue_create( ENUM_QUEUE_DEPTH, sizeof(uint32_t) );
   ASSERT_PTR(enum_queue_hdl, TUSB_ERROR_OSAL_QUEUE_FAILED);
 
   osal_task_create(usbh_enumeration_task, "usbh", 200, NULL, TUSB_CFG_OS_TASK_PRIO, NULL);

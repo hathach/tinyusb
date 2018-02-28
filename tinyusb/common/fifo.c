@@ -83,7 +83,7 @@ static inline bool fifo_initalized(fifo_t* f)
 bool fifo_read(fifo_t* f, void * p_buffer)
 {
   if( !fifo_initalized(f) ) return false;
-  if( fifo_is_empty(f) ) return false;
+  if( fifo_empty(f) ) return false;
 
   mutex_lock_if_needed(f);
 
@@ -117,7 +117,7 @@ bool fifo_read(fifo_t* f, void * p_buffer)
 uint16_t fifo_read_n (fifo_t* f, void * p_buffer, uint16_t count)
 {
   if( !fifo_initalized(f) ) return false;
-  if( fifo_is_empty(f) ) return false;
+  if( fifo_empty(f) ) return false;
 
   /* Limit up to fifo's count */
   count = min16_of(count, f->count);
@@ -192,7 +192,7 @@ bool fifo_peek_at(fifo_t* f, uint16_t position, void * p_buffer)
 bool fifo_write(fifo_t* f, void const * p_data)
 {
   if ( !fifo_initalized(f) ) return false;
-  if ( fifo_is_full(f) && !f->overwritable ) return false;
+  if ( fifo_full(f) && !f->overwritable ) return false;
 
   mutex_lock_if_needed(f);
 
@@ -202,7 +202,7 @@ bool fifo_write(fifo_t* f, void const * p_data)
 
   f->wr_idx = (f->wr_idx + 1) % f->depth;
 
-  if (fifo_is_full(f))
+  if (fifo_full(f))
   {
     f->rd_idx = f->wr_idx; // keep the full state (rd == wr && len = size)
   }

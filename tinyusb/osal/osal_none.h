@@ -44,6 +44,7 @@
 #define _TUSB_OSAL_NONE_H_
 
 #include "osal_common.h"
+#include "common/fifo.h"
 
 #ifdef __cplusplus
  extern "C" {
@@ -225,38 +226,30 @@ static inline void osal_mutex_reset(osal_mutex_handle_t mutex_hdl)
 //--------------------------------------------------------------------+
 // QUEUE API
 //--------------------------------------------------------------------+
-typedef struct{
-           uint8_t* const buffer    ; ///< buffer pointer
-           uint8_t  const depth     ; ///< max items
-           uint8_t  const item_size ; ///< size of each item
-  volatile uint8_t count            ; ///< number of items in queue
-  volatile uint8_t wr_idx           ; ///< write pointer
-  volatile uint8_t rd_idx           ; ///< read pointer
-} osal_queue_t;
+typedef fifo_t* osal_queue_t;
 
-typedef osal_queue_t * osal_queue_handle_t;
-
-// use to declare a queue, within the scope of tinyusb, should only use primitive type only
-#define OSAL_QUEUE_DEF(name, queue_depth, type)\
-  STATIC_ASSERT(queue_depth < 256, "OSAL Queue only support up to 255 depth");\
-  type name##_buffer[queue_depth];\
-  osal_queue_t name = {\
-      .buffer    = (uint8_t*) name##_buffer,\
-      .depth     = queue_depth,\
-      .item_size = sizeof(type)\
-  }
-
-#define OSAL_QUEUE_REF(name)  (&name)
-
-static inline osal_queue_handle_t osal_queue_create(osal_queue_t * const p_queue) ATTR_WARN_UNUSED_RESULT ATTR_ALWAYS_INLINE;
-static inline osal_queue_handle_t osal_queue_create(osal_queue_t * const p_queue)
+static inline osal_queue_t osal_queue_create(uint32_t depth, uint32_t item_size)
 {
-  p_queue->count = p_queue->wr_idx = p_queue->rd_idx = 0;
-  return (osal_queue_handle_t) p_queue;
+  fifo_t* ff   = (fifo_t* ) tu_malloc( sizeof(fifo_t) );
+  uint8_t* buf = (uint8_t*) tu_malloc( depth*item_size );
+
+  VERIFY( ff && buf, NULL);
+
+  *ff = (fifo_t) {
+    .buffer = buf, .depth = depth, .item_size = item_size,
+    .count = 0, .wr_idx =0, .rd_idx = 0, .overwritable = false
+  };
+
+  return (osal_queue_t) ff;
 }
-tusb_error_t osal_queue_send(osal_queue_handle_t const queue_hdl, void const * data);
-static inline void osal_queue_flush(osal_queue_handle_t const queue_hdl) ATTR_ALWAYS_INLINE;
-static inline void osal_queue_flush(osal_queue_handle_t const queue_hdl)
+
+
+static inline bool osal_queue_send(osal_queue_t const queue_hdl, void const * data)
+{
+  return fifo_write( (fifo_t*) queue_hdl, data);
+}
+
+static inline void osal_queue_flush(osal_queue_t const queue_hdl)
 {
   queue_hdl->count = queue_hdl->rd_idx = queue_hdl->wr_idx = 0;
 }

@@ -147,10 +147,9 @@ STATIC_ASSERT(sizeof(usbd_task_event_t) <= 12, "size is not correct");
 #define TUSB_CFG_OS_TASK_PRIO 0
 #endif
 
-OSAL_QUEUE_DEF(usbd_queue_def, USBD_TASK_QUEUE_DEPTH, usbd_task_event_t);
 OSAL_SEM_DEF(usbd_control_xfer_semaphore_def);
 
-static osal_queue_handle_t usbd_queue_hdl;
+static osal_queue_t usbd_queue_hdl;
 /*static*/ osal_semaphore_handle_t usbd_control_xfer_sem_hdl; // TODO may need to change to static with wrapper function
 
 //--------------------------------------------------------------------+
@@ -164,7 +163,7 @@ tusb_error_t usbd_init (void)
   ASSERT_STATUS ( dcd_init() );
 
   //------------- Task init -------------//
-  usbd_queue_hdl = osal_queue_create( OSAL_QUEUE_REF(usbd_queue_def) );
+  usbd_queue_hdl = osal_queue_create(USBD_TASK_QUEUE_DEPTH, sizeof(usbd_task_event_t));
   ASSERT_PTR(usbd_queue_hdl, TUSB_ERROR_OSAL_QUEUE_FAILED);
 
   usbd_control_xfer_sem_hdl = osal_semaphore_create( OSAL_SEM_REF(usbd_control_xfer_semaphore_def) );
@@ -437,7 +436,7 @@ void usbd_setup_received_isr(uint8_t coreid, tusb_control_request_t * p_request)
   };
 
   task_event.setup_received  = (*p_request);
-  ASSERT( TUSB_ERROR_NONE == osal_queue_send(usbd_queue_hdl, &task_event), VOID_RETURN);
+  VERIFY( osal_queue_send(usbd_queue_hdl, &task_event), );
 }
 
 void usbd_xfer_isr(endpoint_handle_t edpt_hdl, tusb_event_t event, uint32_t xferred_bytes)
@@ -457,7 +456,7 @@ void usbd_xfer_isr(endpoint_handle_t edpt_hdl, tusb_event_t event, uint32_t xfer
     task_event.xfer_done.xferred_byte = xferred_bytes;
     task_event.xfer_done.edpt_hdl     = edpt_hdl;
 
-    ASSERT( TUSB_ERROR_NONE == osal_queue_send(usbd_queue_hdl, &task_event), VOID_RETURN);
+    VERIFY( osal_queue_send(usbd_queue_hdl, &task_event), );
   }
 }
 

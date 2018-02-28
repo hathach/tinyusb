@@ -135,38 +135,34 @@ static inline void osal_mutex_reset(osal_mutex_handle_t const mutex_hdl)
 //--------------------------------------------------------------------+
 // QUEUE API
 //--------------------------------------------------------------------+
-typedef struct{
-  uint8_t const depth;     ///< buffer size
-  uint8_t const item_size; ///< size of each item
-} osal_queue_t;
+typedef xQueueHandle osal_queue_t;
 
-typedef xQueueHandle osal_queue_handle_t;
 
-#define OSAL_QUEUE_DEF(name, queue_depth, type)\
-  osal_queue_t name = {\
-      .depth     = queue_depth,\
-      .item_size = sizeof(type)\
-  }
+static inline osal_queue_t osal_queue_create(uint32_t depth, uint32_t item_size)
+{
+  return xQueueCreate(depth, item_size);
+}
 
-#define OSAL_QUEUE_REF(name)    (&name)
-
-#define osal_queue_create(p_queue) xQueueCreate((p_queue)->depth, (p_queue)->item_size)
-
-static inline void osal_queue_receive (osal_queue_handle_t const queue_hdl, void *p_data, uint32_t msec, tusb_error_t *p_error) ATTR_ALWAYS_INLINE;
-static inline void osal_queue_receive (osal_queue_handle_t const queue_hdl, void *p_data, uint32_t msec, tusb_error_t *p_error)
+static inline void osal_queue_receive (osal_queue_t const queue_hdl, void *p_data, uint32_t msec, tusb_error_t *p_error)
 {
   uint32_t const ticks = (msec == OSAL_TIMEOUT_WAIT_FOREVER) ? portMAX_DELAY : osal_tick_from_msec(msec);
-  (*p_error) = ( xQueueReceive(queue_hdl, p_data, ticks) == pdPASS ) ? TUSB_ERROR_NONE : TUSB_ERROR_OSAL_TIMEOUT;
+
+  portBASE_TYPE result = (SCB->ICSR & SCB_ICSR_VECTACTIVE_Msk) ?  xQueueReceiveFromISR(queue_hdl, p_data, NULL) : xQueueReceive(queue_hdl, p_data, ticks);
+  (*p_error) = ( result == pdPASS ) ? TUSB_ERROR_NONE : TUSB_ERROR_OSAL_TIMEOUT;
 }
 
-static inline tusb_error_t osal_queue_send(osal_queue_handle_t const queue_hdl, void const * data) ATTR_WARN_UNUSED_RESULT ATTR_ALWAYS_INLINE;
-static inline tusb_error_t osal_queue_send(osal_queue_handle_t const queue_hdl, void const * data)
+static inline bool osal_queue_send(osal_queue_t const queue_hdl, void const * data)
 {
-  return ( xQueueSend(queue_hdl, data, 0) == pdTRUE ) ? TUSB_ERROR_NONE : TUSB_ERROR_OSAL_QUEUE_FAILED;
+  if (SCB->ICSR & SCB_ICSR_VECTACTIVE_Msk)
+  {
+    return xQueueSendToFrontFromISR(queue_hdl, data, NULL);
+  }else
+  {
+    return xQueueSendToFront(queue_hdl, data, 0);
+  }
 }
 
-static inline void osal_queue_flush(osal_queue_handle_t const queue_hdl) ATTR_ALWAYS_INLINE;
-static inline void osal_queue_flush(osal_queue_handle_t const queue_hdl)
+static inline void osal_queue_flush(osal_queue_t const queue_hdl)
 {
   xQueueReset(queue_hdl);
 }
