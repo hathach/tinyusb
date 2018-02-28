@@ -51,8 +51,6 @@
 //--------------------------------------------------------------------+
 // INTERNAL OBJECT & FUNCTION DECLARATION
 //--------------------------------------------------------------------+
-OSAL_TASK_DEF(keyboard_device_app_task, 128, KEYBOARD_APP_TASK_PRIO);
-
 TUSB_CFG_ATTR_USBRAM hid_keyboard_report_t keyboard_report;
 
 //--------------------------------------------------------------------+
@@ -108,11 +106,13 @@ void tusbd_hid_keyboard_set_report_cb(uint8_t coreid, hid_request_report_type_t 
 //--------------------------------------------------------------------+
 void keyboard_device_app_init(void)
 {
-  ASSERT( TUSB_ERROR_NONE == osal_task_create( OSAL_TASK_REF(keyboard_device_app_task) ), VOID_RETURN);
+  osal_task_create(keyboard_device_app_task, "kbd", 128, NULL, KEYBOARD_APP_TASK_PRIO, NULL);
 }
 
-OSAL_TASK_FUNCTION( keyboard_device_app_task , p_task_para)
+void keyboard_device_app_task(void* param)
 {
+  (void) param;
+
   OSAL_TASK_LOOP_BEGIN
 
   osal_task_delay(50);

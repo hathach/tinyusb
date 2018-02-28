@@ -58,13 +58,12 @@ uint32_t tusb_tick_get(void)
 //--------------------------------------------------------------------+
 // BLINKING TASK
 //--------------------------------------------------------------------+
-OSAL_TASK_DEF(led_blinking_task, 128, LED_BLINKING_APP_TASK_PRIO);
 static uint32_t led_blink_interval_ms = 1000; // default is 1 second
 
 void led_blinking_init(void)
 {
   led_blink_interval_ms = 1000;
-  ASSERT(TUSB_ERROR_NONE == osal_task_create( OSAL_TASK_REF(led_blinking_task) ), VOID_RETURN );
+  osal_task_create(led_blinking_task, "blinky", 128, NULL, LED_BLINKING_APP_TASK_PRIO, NULL);
 }
 
 void led_blinking_set_interval(uint32_t ms)
@@ -72,8 +71,10 @@ void led_blinking_set_interval(uint32_t ms)
   led_blink_interval_ms = ms;
 }
 
-OSAL_TASK_FUNCTION( led_blinking_task , p_task_para)
+void led_blinking_task(void* param)
 {
+  (void) param;
+
   OSAL_TASK_LOOP_BEGIN
 
   static uint32_t led_on_mask = 0;

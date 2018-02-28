@@ -155,7 +155,7 @@ void board_uart_putchar(uint8_t c);
 /** @} */
 
 //------------- Board Application  -------------//
-OSAL_TASK_FUNCTION( led_blinking_task , p_task_para);
+void led_blinking_task(void* param);
 
 /// Initialize the LED blinking task application. The initial blinking rate is 1 Hert (1 per second)
 void led_blinking_init(void);

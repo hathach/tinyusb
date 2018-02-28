@@ -56,7 +56,7 @@
 #if TUSB_CFG_DEVICE_HID_MOUSE
 
 void mouse_device_app_init(void);
-OSAL_TASK_FUNCTION( mouse_device_app_task , p_task_para);
+void mouse_device_app_task(void * param);
 
 #else
 

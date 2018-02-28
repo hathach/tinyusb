@@ -56,7 +56,7 @@
 #if TUSB_CFG_DEVICE_CDC
 
 void cdcd_serial_app_init(void);
-OSAL_TASK_FUNCTION( cdcd_serial_app_task , p_task_para);
+void cdcd_serial_app_task(void* param);
 
 #else
 

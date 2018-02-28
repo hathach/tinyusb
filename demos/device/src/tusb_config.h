@@ -49,6 +49,7 @@
 //#define TUSB_CFG_MCU will be passed from IDE/command line for easy board/mcu switching
 
 #define TUSB_CFG_CONTROLLER_0_MODE  (TUSB_MODE_DEVICE)
+//#define TUSB_CFG_CONTROLLER_1_MODE  (TUSB_MODE_DEVICE)
 
 //--------------------------------------------------------------------+
 // DEVICE CONFIGURATION

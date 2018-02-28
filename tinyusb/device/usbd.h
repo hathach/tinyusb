@@ -102,7 +102,7 @@ bool tusbd_is_configured(uint8_t coreid) ATTR_WARN_UNUSED_RESULT;
 extern osal_semaphore_handle_t usbd_control_xfer_sem_hdl;
 
 tusb_error_t usbd_init(void);
-OSAL_TASK_FUNCTION (usbd_task, p_task_para);
+void usbd_task( void* param);
 
 #endif
 

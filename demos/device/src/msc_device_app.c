@@ -156,8 +156,10 @@ msc_csw_status_t tusbd_msc_scsi_cb (uint8_t coreid, uint8_t lun, uint8_t scsi_cm
 //--------------------------------------------------------------------+
 // APPLICATION CODE
 //--------------------------------------------------------------------+
-OSAL_TASK_FUNCTION( msc_device_app_task , p_task_para)
+void msc_device_app_task(void* param)
 { // no need to implement the task yet
+  (void) param;
+
   OSAL_TASK_LOOP_BEGIN
 
   OSAL_TASK_LOOP_END

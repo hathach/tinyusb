@@ -56,8 +56,14 @@
 /** @} */
 
 #include "tusb_option.h"
+#include "common/common.h"
 
 #ifndef _TEST_
+
+typedef void (*osal_func_t)(void *param);
+typedef void* osal_task_t;
+
+static inline bool osal_task_create(osal_func_t code, const char* name, uint32_t stack_size, void* param, uint32_t prio, osal_task_t* task_hdl);
 
 #if TUSB_CFG_OS == TUSB_OS_NONE
   #include "osal_none.h"

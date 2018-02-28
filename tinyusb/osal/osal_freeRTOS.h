@@ -66,13 +66,6 @@ extern "C" {
 //--------------------------------------------------------------------+
 #define OSAL_TASK_FUNCTION portTASK_FUNCTION
 
-typedef struct {
-  char const * name;
-  pdTASK_CODE code;
-  unsigned portSHORT stack_depth;
-  unsigned portBASE_TYPE prio;
-} osal_task_t;
-
 #define OSAL_TASK_DEF(task_code, task_stack_depth, task_prio) \
   osal_task_t osal_task_def_##task_code = {\
       .name        = #task_code       , \
@@ -83,11 +76,9 @@ typedef struct {
 
 #define OSAL_TASK_REF(name)   (&osal_task_def_##name)
 
-static inline tusb_error_t osal_task_create(osal_task_t *task) ATTR_WARN_UNUSED_RESULT ATTR_ALWAYS_INLINE;
-static inline tusb_error_t osal_task_create(osal_task_t *task)
+static inline bool osal_task_create(osal_func_t code, const char* name, uint32_t stack_size, void* param, uint32_t prio, osal_task_t* task_hdl)
 {
-  return pdPASS == xTaskCreate(task->code, (signed portCHAR const *) task->name, task->stack_depth, NULL, task->prio, NULL) ?
-    TUSB_ERROR_NONE : TUSB_ERROR_OSAL_TASK_CREATE_FAILED;
+  return xTaskCreate(code, (const signed char*) name, stack_size, param, prio, task_hdl);
 }
 
 static inline void osal_task_delay(uint32_t msec) ATTR_ALWAYS_INLINE;

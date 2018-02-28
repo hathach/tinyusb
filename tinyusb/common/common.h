@@ -64,6 +64,7 @@
 //------------- General Header -------------//
 #include "compiler/compiler.h"
 #include "assertion.h"
+#include "verify.h"
 #include "binary.h"
 #include "tusb_errors.h"
 

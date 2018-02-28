@@ -139,7 +139,14 @@ typedef struct ATTR_ALIGNED(4)
 
 STATIC_ASSERT(sizeof(usbd_task_event_t) <= 12, "size is not correct");
 
-OSAL_TASK_DEF(usbd_task, 150, TUSB_CFG_OS_TASK_PRIO);
+#ifndef TUC_DEVICE_STACKSIZE
+#define TUC_DEVICE_STACKSIZE 150
+#endif
+
+#ifndef TUSB_CFG_OS_TASK_PRIO
+#define TUSB_CFG_OS_TASK_PRIO 0
+#endif
+
 OSAL_QUEUE_DEF(usbd_queue_def, USBD_TASK_QUEUE_DEPTH, usbd_task_event_t);
 OSAL_SEM_DEF(usbd_control_xfer_semaphore_def);
 
@@ -163,7 +170,9 @@ tusb_error_t usbd_init (void)
   usbd_control_xfer_sem_hdl = osal_semaphore_create( OSAL_SEM_REF(usbd_control_xfer_semaphore_def) );
   ASSERT_PTR(usbd_queue_hdl, TUSB_ERROR_OSAL_SEMAPHORE_FAILED);
 
-  ASSERT_STATUS( osal_task_create( OSAL_TASK_REF(usbd_task) ));
+  osal_task_t usbd_hdl;
+  osal_task_create(usbd_task, "usbd", TUC_DEVICE_STACKSIZE, NULL, TUSB_CFG_OS_TASK_PRIO, &usbd_hdl);
+
 
   //------------- Descriptor Check -------------//
   ASSERT(tusbd_descriptor_pointers.p_device != NULL && tusbd_descriptor_pointers.p_configuration != NULL, TUSB_ERROR_DESCRIPTOR_CORRUPTED);
@@ -183,9 +192,9 @@ tusb_error_t usbd_init (void)
 // To enable the TASK_ASSERT style (quick return on false condition) in a real RTOS, a task must act as a wrapper
 // and is used mainly to call subtasks. Within a subtask return statement can be called freely, the task with
 // forever loop cannot have any return at all.
-OSAL_TASK_FUNCTION(usbd_task, p_task_para)
+void usbd_task( void* param)
 {
-  (void) p_task_para; // suppress compiler warnings
+  (void) param;
 
   OSAL_TASK_LOOP_BEGIN
   usbd_body_subtask();

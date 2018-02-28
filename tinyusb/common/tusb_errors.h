@@ -67,7 +67,6 @@
     ENTRY(TUSB_ERROR_OSAL_TIMEOUT                    )\
     ENTRY(TUSB_ERROR_OSAL_WAITING                    ) /* only used by OSAL_NONE in the subtask */ \
     ENTRY(TUSB_ERROR_OSAL_TASK_FAILED                )\
-    ENTRY(TUSB_ERROR_OSAL_TASK_CREATE_FAILED         )\
     ENTRY(TUSB_ERROR_OSAL_QUEUE_FAILED               )\
     ENTRY(TUSB_ERROR_OSAL_SEMAPHORE_FAILED           )\
     ENTRY(TUSB_ERROR_OSAL_MUTEX_FAILED               )\

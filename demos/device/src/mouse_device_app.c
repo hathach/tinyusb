@@ -51,8 +51,6 @@
 //--------------------------------------------------------------------+
 // INTERNAL OBJECT & FUNCTION DECLARATION
 //--------------------------------------------------------------------+
-OSAL_TASK_DEF(mouse_device_app_task, 128, MOUSE_APP_TASK_PRIO);
-
 TUSB_CFG_ATTR_USBRAM hid_mouse_report_t mouse_report;
 
 //--------------------------------------------------------------------+
@@ -97,11 +95,13 @@ void tusbd_hid_mouse_set_report_cb(uint8_t coreid, hid_request_report_type_t rep
 //--------------------------------------------------------------------+
 void mouse_device_app_init(void)
 {
-  ASSERT( TUSB_ERROR_NONE == osal_task_create( OSAL_TASK_REF(mouse_device_app_task) ), VOID_RETURN);
+  osal_task_create(mouse_device_app_task, "mouse", 128, NULL, MOUSE_APP_TASK_PRIO, NULL);
 }
 
-OSAL_TASK_FUNCTION( mouse_device_app_task , p_task_para)
+void mouse_device_app_task(void * param)
 {
+  (void) para;
+
   OSAL_TASK_LOOP_BEGIN
 
   osal_task_delay(20);
