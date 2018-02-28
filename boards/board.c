@@ -71,11 +71,19 @@ void led_blinking_set_interval(uint32_t ms)
   led_blink_interval_ms = ms;
 }
 
+tusb_error_t led_blinking_subtask(void);
 void led_blinking_task(void* param)
 {
   (void) param;
 
   OSAL_TASK_LOOP_BEGIN
+  led_blinking_subtask();
+  OSAL_TASK_LOOP_END
+}
+
+tusb_error_t led_blinking_subtask(void)
+{
+  OSAL_SUBTASK_BEGIN
 
   static uint32_t led_on_mask = 0;
 
@@ -92,7 +100,7 @@ void led_blinking_task(void* param)
 //    if ( BIT_TEST_(btn_mask, i) ) printf("button %d is pressed\n", i);
 //  }
 
-  OSAL_TASK_LOOP_END
+  OSAL_SUBTASK_END
 }
 
 // TODO remove legacy cmsis code

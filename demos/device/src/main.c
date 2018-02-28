@@ -79,10 +79,6 @@ void os_none_start_scheduler(void)
 
 int main(void)
 {
-#if TUSB_CFG_OS == TUSB_OS_CMSIS_RTX
-  osKernelInitialize(); // CMSIS RTX requires kernel init before any other OS functions
-#endif
-
   board_init();
   print_greeting();
 
@@ -101,8 +97,6 @@ int main(void)
   vTaskStartScheduler();
 #elif TUSB_CFG_OS == TUSB_OS_NONE
   os_none_start_scheduler();
-#elif TUSB_CFG_OS == TUSB_OS_CMSIS_RTX
-  osKernelStart();
 #else
   #error need to start RTOS schduler
 #endif
@@ -119,7 +113,6 @@ void print_greeting(void)
   {
       [TUSB_OS_NONE]      = "None",
       [TUSB_OS_FREERTOS]  = "FreeRTOS",
-      [TUSB_OS_CMSIS_RTX] = "CMSIS-RTX"
   };
 
   printf("\n\

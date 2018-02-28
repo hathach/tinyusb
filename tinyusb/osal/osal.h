@@ -51,8 +51,6 @@
  *  @{ */
 #define TUSB_OS_NONE       1 ///< No RTOS is used
 #define TUSB_OS_FREERTOS   2 ///< FreeRTOS is used
-#define TUSB_OS_CMSIS_RTX  3 ///< CMSIS RTX is used
-#define TUSB_OS_UCOS3      4 ///< MicroC OS III is used (not supported yet)
 /** @} */
 
 #include "tusb_option.h"
@@ -71,8 +69,6 @@ static inline bool osal_task_create(osal_func_t code, const char* name, uint32_t
 #else
    #if TUSB_CFG_OS == TUSB_OS_FREERTOS
     #include "osal_freeRTOS.h"
-  #elif TUSB_CFG_OS == TUSB_OS_CMSIS_RTX
-    #include "osal_cmsis_rtx.h"
   #else
     #error TUSB_CFG_OS is not defined or OS is not supported yet
   #endif

@@ -50,8 +50,6 @@
   #define LOWER_PRIO(x)   0   // does not matter
 #elif TUSB_CFG_OS == TUSB_OS_FREERTOS
   #define LOWER_PRIO(x)   ((x)-1) // freeRTOS lower number --> lower priority
-#elif TUSB_CFG_OS == TUSB_OS_CMSIS_RTX
-  #define LOWER_PRIO(x)   ((x)-1) // CMSIS-RTOS lower number --> lower priority
 #else
   #error Priority is not configured for this RTOS
 #endif

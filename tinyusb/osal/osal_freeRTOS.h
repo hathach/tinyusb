@@ -69,7 +69,6 @@ static inline bool osal_task_create(osal_func_t code, const char* name, uint32_t
   return xTaskCreate(code, (const signed char*) name, stack_size, param, prio, task_hdl);
 }
 
-static inline void osal_task_delay(uint32_t msec) ATTR_ALWAYS_INLINE;
 static inline void osal_task_delay(uint32_t msec)
 {
   vTaskDelay( (TUSB_CFG_TICKS_HZ * msec) / 1000 );
