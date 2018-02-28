@@ -116,10 +116,6 @@ uint32_t osal_tick_get(void);
 typedef uint32_t osal_task_t;
 tusb_error_t osal_task_create(osal_task_t *task);
 
-#define OSAL_TASK_DEF(code, stack_depth, prio) osal_task_t variable
-#define OSAL_TASK_REF(name) (&name)
-#define OSAL_TASK_FUNCTION(task_func, p_para)   void task_func(void * p_para)
-
 void osal_task_delay(uint32_t msec);
 
 #define OSAL_TASK_LOOP_BEGIN

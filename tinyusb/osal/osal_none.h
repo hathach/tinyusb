@@ -69,16 +69,11 @@ uint32_t tusb_tick_get(void);
 //   OSAL_TASK_LOOP_ENG
 // }
 //--------------------------------------------------------------------+
-#define OSAL_TASK_DEF(code, stack_depth, prio)
-
-
 static inline bool osal_task_create(osal_func_t code, const char* name, uint32_t stack_size, void* param, uint32_t prio, osal_task_t* task_hdl)
 {
   (void) code; (void) name; (void) stack_size; (void) param; (void) prio; (void) task_hdl;
   return true;
 }
-
-#define OSAL_TASK_FUNCTION(task_func, p_para)   tusb_error_t task_func(void * p_para)
 
 #define TASK_RESTART \
   state = 0

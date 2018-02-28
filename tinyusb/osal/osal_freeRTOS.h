@@ -64,18 +64,6 @@ extern "C" {
 //--------------------------------------------------------------------+
 // TASK API
 //--------------------------------------------------------------------+
-#define OSAL_TASK_FUNCTION portTASK_FUNCTION
-
-#define OSAL_TASK_DEF(task_code, task_stack_depth, task_prio) \
-  osal_task_t osal_task_def_##task_code = {\
-      .name        = #task_code       , \
-      .code        = task_code        , \
-      .stack_depth = task_stack_depth , \
-      .prio        = task_prio          \
-  }
-
-#define OSAL_TASK_REF(name)   (&osal_task_def_##name)
-
 static inline bool osal_task_create(osal_func_t code, const char* name, uint32_t stack_size, void* param, uint32_t prio, osal_task_t* task_hdl)
 {
   return xTaskCreate(code, (const signed char*) name, stack_size, param, prio, task_hdl);
