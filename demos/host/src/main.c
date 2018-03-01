@@ -123,7 +123,6 @@ void print_greeting(void)
   {
       [TUSB_OS_NONE]      = "None",
       [TUSB_OS_FREERTOS]  = "FreeRTOS",
-      [TUSB_OS_CMSIS_RTX] = "CMSIS-RTX"
   };
 
   puts("\n\

@@ -147,10 +147,9 @@ STATIC_ASSERT(sizeof(usbd_task_event_t) <= 12, "size is not correct");
 #define TUSB_CFG_OS_TASK_PRIO 0
 #endif
 
-OSAL_SEM_DEF(usbd_control_xfer_semaphore_def);
 
 static osal_queue_t usbd_queue_hdl;
-/*static*/ osal_semaphore_handle_t usbd_control_xfer_sem_hdl; // TODO may need to change to static with wrapper function
+/*static*/ osal_semaphore_t usbd_control_xfer_sem_hdl; // TODO may need to change to static with wrapper function
 
 //--------------------------------------------------------------------+
 // IMPLEMENTATION
@@ -166,7 +165,7 @@ tusb_error_t usbd_init (void)
   usbd_queue_hdl = osal_queue_create(USBD_TASK_QUEUE_DEPTH, sizeof(usbd_task_event_t));
   ASSERT_PTR(usbd_queue_hdl, TUSB_ERROR_OSAL_QUEUE_FAILED);
 
-  usbd_control_xfer_sem_hdl = osal_semaphore_create( OSAL_SEM_REF(usbd_control_xfer_semaphore_def) );
+  usbd_control_xfer_sem_hdl = osal_semaphore_create(1, 0);
   ASSERT_PTR(usbd_queue_hdl, TUSB_ERROR_OSAL_SEMAPHORE_FAILED);
 
   osal_task_t usbd_hdl;

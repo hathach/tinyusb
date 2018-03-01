@@ -56,7 +56,7 @@
 #if TUSB_CFG_HOST_CDC && TUSB_CFG_HOST_CDC_RNDIS
 
 void rndis_host_app_init(void);
-OSAL_TASK_FUNCTION( rndis_host_app_task, p_task_para);
+void rndis_host_app_task(void* param);
 
 #else
 

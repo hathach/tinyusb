@@ -91,11 +91,8 @@ typedef struct {
 //    uint8_t xferred_bytes; TODO not yet necessary
     tusb_control_request_t request;
 
-    OSAL_SEM_DEF(semaphore);          // TODO move to semaphore pool ?
-    osal_semaphore_handle_t sem_hdl;  // used to synchronize with HCD when control xfer complete
-
-    OSAL_MUTEX_DEF(mutex);            // TODO move to mutex pool ?
-    osal_mutex_handle_t mutex_hdl;    // used to exclusively occupy control pipe
+    osal_semaphore_t sem_hdl;  // used to synchronize with HCD when control xfer complete
+    osal_mutex_t mutex_hdl;    // used to exclusively occupy control pipe
   } control;
 } usbh_device_info_t;
 

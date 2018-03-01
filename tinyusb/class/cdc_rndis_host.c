@@ -89,7 +89,7 @@ tusb_error_t tusbh_cdc_rndis_get_mac_addr(uint8_t dev_addr, uint8_t mac_address[
 // To enable the TASK_ASSERT style (quick return on false condition) in a real RTOS, a task must act as a wrapper
 // and is used mainly to call subtasks. Within a subtask return statement can be called freely, the task with
 // forever loop cannot have any return at all.
-OSAL_TASK_FUNCTION(cdch_rndis_task) (void* p_task_para)
+OSAL_TASK_FUNCTION(cdch_rndis_task) (void* param;)
 {
   OSAL_TASK_LOOP_BEGIN
 

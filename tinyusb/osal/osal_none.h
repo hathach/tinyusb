@@ -150,43 +150,49 @@ static inline bool osal_task_create(osal_func_t code, const char* name, uint32_t
 //--------------------------------------------------------------------+
 // Semaphore API
 //--------------------------------------------------------------------+
-typedef volatile uint8_t osal_semaphore_t;
-typedef osal_semaphore_t * osal_semaphore_handle_t;
-
-#define OSAL_SEM_DEF(name) osal_semaphore_t name
-#define OSAL_SEM_REF(name) &name
-
-static inline osal_semaphore_handle_t osal_semaphore_create(osal_semaphore_t * p_sem) ATTR_WARN_UNUSED_RESULT ATTR_ALWAYS_INLINE;
-static inline osal_semaphore_handle_t osal_semaphore_create(osal_semaphore_t * p_sem)
+typedef struct
 {
-  (*p_sem) = 0; // TODO consider to have initial count parameter
-  return (osal_semaphore_handle_t) p_sem;
+  volatile uint16_t count;
+           uint16_t max_count;
+}osal_semaphore_data_t;
+
+typedef osal_semaphore_data_t* osal_semaphore_t;
+
+
+static inline osal_semaphore_t osal_semaphore_create(uint32_t max_count, uint32_t init)
+{
+  osal_semaphore_data_t* sem_data = (osal_semaphore_data_t*) tu_malloc( sizeof(osal_semaphore_data_t));
+  VERIFY(sem_data, NULL);
+
+  sem_data->count     = init;
+  sem_data->max_count = max_count;
+
+  return sem_data;
 }
 
-static inline  tusb_error_t osal_semaphore_post(osal_semaphore_handle_t sem_hdl) ATTR_ALWAYS_INLINE;
-static inline  tusb_error_t osal_semaphore_post(osal_semaphore_handle_t sem_hdl)
+static inline  tusb_error_t osal_semaphore_post(osal_semaphore_t sem_hdl)
 {
-  (*sem_hdl)++;
+  if (sem_hdl->count < sem_hdl->max_count ) sem_hdl->count++;
+
   return TUSB_ERROR_NONE;
 }
 
-static inline void osal_semaphore_reset(osal_semaphore_handle_t sem_hdl) ATTR_ALWAYS_INLINE;
-static inline void osal_semaphore_reset(osal_semaphore_handle_t sem_hdl)
+static inline void osal_semaphore_reset(osal_semaphore_t sem_hdl)
 {
-  (*sem_hdl) = 0;
+  sem_hdl->count = 0;
 }
 
 #define osal_semaphore_wait(sem_hdl, msec, p_error) \
   do {\
     timeout = osal_tick_get();\
     state = __LINE__; case __LINE__:\
-    if( *(sem_hdl) == 0 ) {\
+    if( sem_hdl->count == 0 ) {\
       if ( ( ((uint32_t) (msec)) != OSAL_TIMEOUT_WAIT_FOREVER) && (timeout + osal_tick_from_msec(msec) <= osal_tick_get()) ) /* time out */ \
         *(p_error) = TUSB_ERROR_OSAL_TIMEOUT;\
       else\
         return TUSB_ERROR_OSAL_WAITING;\
     } else{\
-      (*(sem_hdl))--; /*TODO mutex hal_interrupt_disable consideration*/\
+      if (sem_hdl->count) sem_hdl->count--; /*TODO mutex hal_interrupt_disable consideration*/\
       *(p_error) = TUSB_ERROR_NONE;\
     }\
   }while(0)
@@ -194,31 +200,22 @@ static inline void osal_semaphore_reset(osal_semaphore_handle_t sem_hdl)
 //--------------------------------------------------------------------+
 // MUTEX API (priority inheritance)
 //--------------------------------------------------------------------+
-typedef osal_semaphore_t        osal_mutex_t;
-typedef osal_semaphore_handle_t osal_mutex_handle_t;
+typedef osal_semaphore_t osal_mutex_t;
 
-#define OSAL_MUTEX_DEF(name) osal_mutex_t name
-#define OSAL_MUTEX_REF(name) &name
-
-static inline osal_mutex_handle_t osal_mutex_create(osal_mutex_t * p_mutex) ATTR_WARN_UNUSED_RESULT ATTR_ALWAYS_INLINE;
-static inline osal_mutex_handle_t osal_mutex_create(osal_mutex_t * p_mutex)
+static inline osal_mutex_t osal_mutex_create(void)
 {
-  (*p_mutex) = 1;
-  return (osal_mutex_handle_t) p_mutex;
+  return osal_semaphore_create(1, 0);
 }
 
-static inline  tusb_error_t osal_mutex_release(osal_mutex_handle_t mutex_hdl) ATTR_ALWAYS_INLINE;
-static inline  tusb_error_t osal_mutex_release(osal_mutex_handle_t mutex_hdl)
+static inline  tusb_error_t osal_mutex_release(osal_mutex_t mutex_hdl)
 {
-  (*mutex_hdl) = 1; // mutex is a binary semaphore
-
-  return TUSB_ERROR_NONE;
+  return osal_semaphore_post(mutex_hdl);
 }
 
-static inline void osal_mutex_reset(osal_mutex_handle_t mutex_hdl) ATTR_ALWAYS_INLINE;
-static inline void osal_mutex_reset(osal_mutex_handle_t mutex_hdl)
+// TOOD remove
+static inline void osal_mutex_reset(osal_mutex_t mutex_hdl)
 {
-  (*mutex_hdl) = 1;
+  osal_semaphore_reset(mutex_hdl);
 }
 
 #define osal_mutex_wait osal_semaphore_wait

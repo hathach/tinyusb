@@ -54,8 +54,7 @@
 TUSB_CFG_ATTR_USBRAM STATIC_VAR msch_interface_t msch_data[TUSB_CFG_HOST_DEVICE_MAX];
 
 //------------- Initalization Data -------------//
-OSAL_SEM_DEF(msch_semaphore);
-static osal_semaphore_handle_t msch_sem_hdl;
+static osal_semaphore_t msch_sem_hdl;
 
 // buffer used to read scsi information when mounted, largest response data currently is inquiry
 TUSB_CFG_ATTR_USBRAM ATTR_ALIGNED(4) STATIC_VAR uint8_t msch_buffer[sizeof(scsi_inquiry_data_t)];
@@ -291,7 +290,7 @@ tusb_error_t tuh_msc_write10(uint8_t dev_addr, uint8_t lun, void const * p_buffe
 void msch_init(void)
 {
   memclr_(msch_data, sizeof(msch_interface_t)*TUSB_CFG_HOST_DEVICE_MAX);
-  msch_sem_hdl = osal_semaphore_create( OSAL_SEM_REF(msch_semaphore) );
+  msch_sem_hdl = osal_semaphore_create(1, 0);
 }
 
 tusb_error_t msch_open_subtask(uint8_t dev_addr, tusb_descriptor_interface_t const *p_interface_desc, uint16_t *p_length)

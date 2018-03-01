@@ -67,7 +67,7 @@ void rndis_host_app_init(void)
 
 }
 
-OSAL_TASK_FUNCTION( rndis_host_app_task, p_task_para)
+void rndis_host_app_task(void* param)
 {
   OSAL_TASK_LOOP_BEGIN
   OSAL_TASK_LOOP_END

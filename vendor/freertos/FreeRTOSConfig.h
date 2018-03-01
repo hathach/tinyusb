@@ -26,7 +26,7 @@
 #define configIDLE_SHOULD_YIELD                1
 #define configUSE_MUTEXES                      1
 #define configUSE_RECURSIVE_MUTEXES            0
-#define configUSE_COUNTING_SEMAPHORES          0
+#define configUSE_COUNTING_SEMAPHORES          1
 #define configQUEUE_REGISTRY_SIZE              10 // used to name queue/semaphore with debugger
 
 /* Hook function related definitions. */

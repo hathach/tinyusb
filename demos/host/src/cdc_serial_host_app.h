@@ -56,7 +56,7 @@
 #if TUSB_CFG_HOST_CDC
 
 void cdc_serial_host_app_init(void);
-OSAL_TASK_FUNCTION( cdc_serial_host_app_task, p_task_para);
+void cdc_serial_host_app_task(void* param);
 
 #else
 

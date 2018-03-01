@@ -62,7 +62,7 @@
 #if TUSB_CFG_HOST_HID_KEYBOARD
 
 void keyboard_host_app_init(void);
-OSAL_TASK_FUNCTION( keyboard_host_app_task, p_task_para);
+void keyboard_host_app_task(void* param);
 
 #else
 

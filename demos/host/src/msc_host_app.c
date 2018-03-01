@@ -55,8 +55,6 @@
 //--------------------------------------------------------------------+
 // INTERNAL OBJECT & FUNCTION DECLARATION
 //--------------------------------------------------------------------+
-OSAL_TASK_DEF(msc_host_app_task, 512, MSC_APP_TASK_PRIO);
-
 TUSB_CFG_ATTR_USBRAM static FATFS fatfs[TUSB_CFG_HOST_DEVICE_MAX];
 
 //--------------------------------------------------------------------+
@@ -143,14 +141,14 @@ void tuh_msc_isr(uint8_t dev_addr, tusb_event_t event, uint32_t xferred_bytes)
 //--------------------------------------------------------------------+
 void msc_host_app_init(void)
 {
-  ASSERT( TUSB_ERROR_NONE == osal_task_create( OSAL_TASK_REF(msc_host_app_task) ), VOID_RETURN );
+  osal_task_create( msc_host_app_task, "msc", 512, NULL, MSC_APP_TASK_PRIO, NULL);
   diskio_init();
 }
 
 //------------- main task -------------//
-OSAL_TASK_FUNCTION( msc_host_app_task, p_task_para)
+void msc_host_app_task(void* param)
 {
-  (void) p_task_para;
+  (void) param;;
 
   OSAL_TASK_LOOP_BEGIN
 

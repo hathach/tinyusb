@@ -46,10 +46,7 @@
 //--------------------------------------------------------------------+
 // MACRO CONSTANT TYPEDEF
 //--------------------------------------------------------------------+
-OSAL_TASK_DEF(cdc_serial_host_app_task, 128, CDC_SERIAL_APP_TASK_PRIO);
-OSAL_SEM_DEF(serial_semaphore);
-
-static osal_semaphore_handle_t sem_hdl;
+static osal_semaphore_t sem_hdl;
 
 enum { SERIAL_BUFFER_SIZE = 64 };
 TUSB_CFG_ATTR_USBRAM static uint8_t serial_in_buffer[SERIAL_BUFFER_SIZE];
@@ -115,16 +112,16 @@ void tuh_cdc_xfer_isr(uint8_t dev_addr, tusb_event_t event, cdc_pipeid_t pipe_id
 //--------------------------------------------------------------------+
 void cdc_serial_host_app_init(void)
 {
-  sem_hdl = osal_semaphore_create( OSAL_SEM_REF(serial_semaphore) );
+  sem_hdl = osal_semaphore_create(1, 0);
   ASSERT_PTR( sem_hdl, VOID_RETURN);
 
-  ASSERT( TUSB_ERROR_NONE == osal_task_create(OSAL_TASK_REF(cdc_serial_host_app_task)), VOID_RETURN);
+  VERIFY( osal_task_create(cdc_serial_host_app_task, "cdc", 128, NULL, CDC_SERIAL_APP_TASK_PRIO, NULL), );
 }
 
 //------------- main task -------------//
-OSAL_TASK_FUNCTION( cdc_serial_host_app_task, p_task_para)
+void cdc_serial_host_app_task( void* param )
 {
-  (void) p_task_para;
+  (void) param;
 
   OSAL_TASK_LOOP_BEGIN
 

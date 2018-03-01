@@ -98,7 +98,7 @@ ATTR_WEAK void    tuh_device_mount_failed_cb(tusb_error_t error, tusb_descriptor
 #ifdef _TINY_USB_SOURCE_FILE_
 
 
-OSAL_TASK_FUNCTION (usbh_enumeration_task, p_task_para);
+void usbh_enumeration_task(void* param);
 tusb_error_t usbh_init(void);
 
 tusb_error_t usbh_control_xfer_subtask(uint8_t dev_addr, uint8_t bmRequestType, uint8_t bRequest,

@@ -99,7 +99,7 @@ bool tusbd_is_configured(uint8_t coreid) ATTR_WARN_UNUSED_RESULT;
 //--------------------------------------------------------------------+
 #ifdef _TINY_USB_SOURCE_FILE_
 
-extern osal_semaphore_handle_t usbd_control_xfer_sem_hdl;
+extern osal_semaphore_t usbd_control_xfer_sem_hdl;
 
 tusb_error_t usbd_init(void);
 void usbd_task( void* param);

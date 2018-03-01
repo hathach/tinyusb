@@ -51,9 +51,7 @@ enum { SERIAL_BUFFER_SIZE = 64 };
 //--------------------------------------------------------------------+
 // MACRO CONSTANT TYPEDEF
 //--------------------------------------------------------------------+
-OSAL_SEM_DEF(cdcd_semaphore);
-
-static osal_semaphore_handle_t sem_hdl;
+static osal_semaphore_t sem_hdl;
 
 //--------------------------------------------------------------------+
 // INTERNAL OBJECT & FUNCTION DECLARATION
@@ -115,7 +113,7 @@ void tusbd_cdc_xfer_cb(uint8_t coreid, tusb_event_t event, cdc_pipeid_t pipe_id,
 //--------------------------------------------------------------------+
 void cdcd_serial_app_init(void)
 {
-  sem_hdl = osal_semaphore_create( OSAL_SEM_REF(cdcd_semaphore) );
+  sem_hdl = osal_semaphore_create(1, 0);
   ASSERT_PTR( sem_hdl, VOID_RETURN);
 
   osal_task_create(cdcd_serial_app_task, "cdc", 128, NULL, CDC_SERIAL_APP_TASK_PRIO, NULL);

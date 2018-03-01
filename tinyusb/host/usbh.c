@@ -42,6 +42,10 @@
 
 #define _TINY_USB_SOURCE_FILE_
 
+#ifndef TUSB_CFG_OS_TASK_PRIO
+#define TUSB_CFG_OS_TASK_PRIO 0
+#endif
+
 //--------------------------------------------------------------------+
 // INCLUDE
 //--------------------------------------------------------------------+
@@ -153,10 +157,10 @@ tusb_error_t usbh_init(void)
   {
     usbh_device_info_t * const p_device = &usbh_devices[i];
 
-    p_device->control.sem_hdl = osal_semaphore_create( OSAL_SEM_REF(p_device->control.semaphore) );
+    p_device->control.sem_hdl = osal_semaphore_create(1, 0);
     ASSERT_PTR(p_device->control.sem_hdl, TUSB_ERROR_OSAL_SEMAPHORE_FAILED);
 
-    p_device->control.mutex_hdl = osal_mutex_create ( OSAL_MUTEX_REF(p_device->control.mutex) );
+    p_device->control.mutex_hdl = osal_mutex_create();
     ASSERT_PTR(p_device->control.mutex_hdl, TUSB_ERROR_OSAL_MUTEX_FAILED);
   }
 
