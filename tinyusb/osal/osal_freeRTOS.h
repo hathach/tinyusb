@@ -64,9 +64,14 @@ extern "C" {
 //--------------------------------------------------------------------+
 // TASK API
 //--------------------------------------------------------------------+
-static inline bool osal_task_create(osal_func_t code, const char* name, uint32_t stack_size, void* param, uint32_t prio, osal_task_t* task_hdl)
+typedef void (*osal_func_t)(void *param);
+typedef void* osal_task_t;
+
+static inline osal_task_t osal_task_create(osal_func_t code, const char* name, uint32_t stack_size, void* param, uint32_t prio)
 {
-  return xTaskCreate(code, (const signed char*) name, stack_size, param, prio, task_hdl);
+  osal_task_t task_hdl;
+  xTaskCreate(code, (const signed char*) name, stack_size, param, prio, &task_hdl);
+  return task_hdl;
 }
 
 static inline void osal_task_delay(uint32_t msec)

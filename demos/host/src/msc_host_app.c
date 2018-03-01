@@ -141,7 +141,7 @@ void tuh_msc_isr(uint8_t dev_addr, tusb_event_t event, uint32_t xferred_bytes)
 //--------------------------------------------------------------------+
 void msc_host_app_init(void)
 {
-  osal_task_create( msc_host_app_task, "msc", 512, NULL, MSC_APP_TASK_PRIO, NULL);
+  osal_task_create( msc_host_app_task, "msc", 512, NULL, MSC_APP_TASK_PRIO);
   diskio_init();
 }
 

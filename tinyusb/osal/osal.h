@@ -56,13 +56,7 @@
 #include "tusb_option.h"
 #include "common/common.h"
 
-#ifndef _TEST_
-
 /*------------- Task -------------*/
-typedef void (*osal_func_t)(void *param);
-typedef void* osal_task_t;
-
-static inline bool osal_task_create(osal_func_t code, const char* name, uint32_t stack_size, void* param, uint32_t prio, osal_task_t* task_hdl);
 
 /*------------- Queue -------------*/
 
@@ -101,97 +95,6 @@ static inline bool osal_task_create(osal_func_t code, const char* name, uint32_t
   #define SUBTASK_ASSERT_WITH_HANDLER(condition, func_call) \
       ASSERT_DEFINE_WITH_HANDLER(_SUBTASK_ASSERT_ERROR_HANDLER, func_call, ,\
                                  condition, TUSB_ERROR_OSAL_TASK_FAILED, "%s", "evaluated to false")
-#endif
-
-//------------- OSAL API for cmock -------------//
-#else
-
-#include "osal_common.h"
-
-//------------- Tick -------------//
-uint32_t osal_tick_get(void);
-
-//--------------------------------------------------------------------+
-// TASK API
-//--------------------------------------------------------------------+
-typedef uint32_t osal_task_t;
-tusb_error_t osal_task_create(osal_task_t *task);
-
-void osal_task_delay(uint32_t msec);
-
-#define OSAL_TASK_LOOP_BEGIN
-#define OSAL_TASK_LOOP_END
-
-#define SUBTASK_EXIT(error)   return error;
-
-//------------- Sub Task -------------//
-#define OSAL_SUBTASK_INVOKED_AND_WAIT(subtask, status) status = subtask
-
-#define OSAL_SUBTASK_BEGIN
-#define OSAL_SUBTASK_END return TUSB_ERROR_NONE;
-
-//------------- Sub Task Assert -------------//
-#define _SUBTASK_ASSERT_ERROR_HANDLER(error, func_call) func_call; return error
-
-#define SUBTASK_ASSERT_STATUS(sts) ASSERT_STATUS(sts)
-
-#define SUBTASK_ASSERT_STATUS_WITH_HANDLER(sts, func_call) \
-    ASSERT_DEFINE_WITH_HANDLER(_SUBTASK_ASSERT_ERROR_HANDLER, func_call, tusb_error_t status = (tusb_error_t)(sts),\
-                               TUSB_ERROR_NONE == status, status, "%s", TUSB_ErrorStr[status])
-
-#define SUBTASK_ASSERT(condition)  ASSERT(condition, TUSB_ERROR_OSAL_TASK_FAILED)
-
-#define SUBTASK_ASSERT_WITH_HANDLER(condition, func_call) \
-    ASSERT_DEFINE_WITH_HANDLER(_SUBTASK_ASSERT_ERROR_HANDLER, func_call, ,\
-                               condition, TUSB_ERROR_OSAL_TASK_FAILED, "%s", "evaluated to false")
-
-//--------------------------------------------------------------------+
-// Semaphore API
-//--------------------------------------------------------------------+
-typedef volatile uint8_t osal_semaphore_t;
-typedef osal_semaphore_t * osal_semaphore_handle_t;
-
-osal_semaphore_handle_t osal_semaphore_create(osal_semaphore_t * p_sem);
-void osal_semaphore_wait(osal_semaphore_handle_t sem_hdl, uint32_t msec, tusb_error_t *p_error);
-tusb_error_t osal_semaphore_post(osal_semaphore_handle_t sem_hdl);
-void osal_semaphore_reset(osal_semaphore_handle_t sem_hdl);
-
-//--------------------------------------------------------------------+
-// MUTEX API (priority inheritance)
-//--------------------------------------------------------------------+
-#define OSAL_MUTEX_DEF(name) osal_mutex_t name
-#define OSAL_MUTEX_REF(name) &name
-
-typedef osal_semaphore_t        osal_mutex_t;
-typedef osal_semaphore_handle_t osal_mutex_handle_t;
-
-osal_mutex_handle_t osal_mutex_create(osal_mutex_t * p_mutex);
-void osal_mutex_wait(osal_mutex_handle_t mutex_hdl, uint32_t msec, tusb_error_t *p_error);
-tusb_error_t osal_mutex_release(osal_mutex_handle_t mutex_hdl);
-void osal_mutex_reset(osal_mutex_handle_t mutex_hdl);
-//--------------------------------------------------------------------+
-// QUEUE API
-//--------------------------------------------------------------------+
-typedef struct{
-           uint32_t * const buffer ; ///< buffer pointer
-           uint8_t const depth     ; ///< buffer size
-  volatile uint8_t count           ; ///< bytes in fifo
-  volatile uint8_t wr_idx          ; ///< write pointer
-  volatile uint8_t rd_idx          ; ///< read pointer
-} osal_queue_t;
-
-typedef osal_queue_t * osal_queue_handle_t;
-
-
-osal_queue_handle_t  osal_queue_create  (osal_queue_t *p_queue);
-void                 osal_queue_receive (osal_queue_handle_t const queue_hdl, void *p_data, uint32_t msec, tusb_error_t *p_error);
-tusb_error_t         osal_queue_send    (osal_queue_handle_t const queue_hdl, const void * data);
-void osal_queue_flush(osal_queue_handle_t const queue_hdl);
-
-//--------------------------------------------------------------------+
-// TICK API
-//--------------------------------------------------------------------+
-uint32_t osal_tick_get(void);
 #endif
 
 #ifdef __cplusplus

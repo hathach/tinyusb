@@ -168,8 +168,7 @@ tusb_error_t usbd_init (void)
   usbd_control_xfer_sem_hdl = osal_semaphore_create(1, 0);
   ASSERT_PTR(usbd_queue_hdl, TUSB_ERROR_OSAL_SEMAPHORE_FAILED);
 
-  osal_task_t usbd_hdl;
-  osal_task_create(usbd_task, "usbd", TUC_DEVICE_STACKSIZE, NULL, TUSB_CFG_OS_TASK_PRIO, &usbd_hdl);
+  osal_task_create(usbd_task, "usbd", TUC_DEVICE_STACKSIZE, NULL, TUSB_CFG_OS_TASK_PRIO);
 
 
   //------------- Descriptor Check -------------//

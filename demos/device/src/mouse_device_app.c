@@ -95,7 +95,7 @@ void tusbd_hid_mouse_set_report_cb(uint8_t coreid, hid_request_report_type_t rep
 //--------------------------------------------------------------------+
 void mouse_device_app_init(void)
 {
-  osal_task_create(mouse_device_app_task, "mouse", 128, NULL, MOUSE_APP_TASK_PRIO, NULL);
+  osal_task_create(mouse_device_app_task, "mouse", 128, NULL, MOUSE_APP_TASK_PRIO);
 }
 
 void mouse_device_subtask(void);

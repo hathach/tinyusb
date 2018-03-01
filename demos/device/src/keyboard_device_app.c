@@ -106,7 +106,7 @@ void tusbd_hid_keyboard_set_report_cb(uint8_t coreid, hid_request_report_type_t 
 //--------------------------------------------------------------------+
 void keyboard_device_app_init(void)
 {
-  osal_task_create(keyboard_device_app_task, "kbd", 128, NULL, KEYBOARD_APP_TASK_PRIO, NULL);
+  osal_task_create(keyboard_device_app_task, "kbd", 128, NULL, KEYBOARD_APP_TASK_PRIO);
 }
 
 tusb_error_t keyboard_device_subtask(void);

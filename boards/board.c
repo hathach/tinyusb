@@ -63,7 +63,7 @@ static uint32_t led_blink_interval_ms = 1000; // default is 1 second
 void led_blinking_init(void)
 {
   led_blink_interval_ms = 1000;
-  osal_task_create(led_blinking_task, "blinky", 128, NULL, LED_BLINKING_APP_TASK_PRIO, NULL);
+  osal_task_create(led_blinking_task, "blinky", 128, NULL, LED_BLINKING_APP_TASK_PRIO);
 }
 
 void led_blinking_set_interval(uint32_t ms)

@@ -116,7 +116,7 @@ void cdcd_serial_app_init(void)
   sem_hdl = osal_semaphore_create(1, 0);
   ASSERT_PTR( sem_hdl, VOID_RETURN);
 
-  osal_task_create(cdcd_serial_app_task, "cdc", 128, NULL, CDC_SERIAL_APP_TASK_PRIO, NULL);
+  osal_task_create(cdcd_serial_app_task, "cdc", 128, NULL, CDC_SERIAL_APP_TASK_PRIO);
 }
 
 tusb_error_t cdcd_serial_subtask(void);
