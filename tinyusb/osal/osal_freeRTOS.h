@@ -70,7 +70,7 @@ typedef void* osal_task_t;
 static inline osal_task_t osal_task_create(osal_func_t code, const char* name, uint32_t stack_size, void* param, uint32_t prio)
 {
   osal_task_t task_hdl;
-  xTaskCreate(code, (const signed char*) name, stack_size, param, prio, &task_hdl);
+  xTaskCreate(code, (const char*) name, stack_size, param, prio, &task_hdl);
   return task_hdl;
 }
 

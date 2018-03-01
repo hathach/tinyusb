@@ -1,67 +1,30 @@
 /*
-    FreeRTOS V7.6.0 - Copyright (C) 2013 Real Time Engineers Ltd. 
-    All rights reserved
-
-    VISIT http://www.FreeRTOS.org TO ENSURE YOU ARE USING THE LATEST VERSION.
-
-    ***************************************************************************
-     *                                                                       *
-     *    FreeRTOS provides completely free yet professionally developed,    *
-     *    robust, strictly quality controlled, supported, and cross          *
-     *    platform software that has become a de facto standard.             *
-     *                                                                       *
-     *    Help yourself get started quickly and support the FreeRTOS         *
-     *    project by purchasing a FreeRTOS tutorial book, reference          *
-     *    manual, or both from: http://www.FreeRTOS.org/Documentation        *
-     *                                                                       *
-     *    Thank you!                                                         *
-     *                                                                       *
-    ***************************************************************************
-
-    This file is part of the FreeRTOS distribution.
-
-    FreeRTOS is free software; you can redistribute it and/or modify it under
-    the terms of the GNU General Public License (version 2) as published by the
-    Free Software Foundation >>!AND MODIFIED BY!<< the FreeRTOS exception.
-
-    >>! NOTE: The modification to the GPL is included to allow you to distribute
-    >>! a combined work that includes FreeRTOS without being obliged to provide
-    >>! the source code for proprietary components outside of the FreeRTOS
-    >>! kernel.
-
-    FreeRTOS is distributed in the hope that it will be useful, but WITHOUT ANY
-    WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
-    FOR A PARTICULAR PURPOSE.  Full license text is available from the following
-    link: http://www.freertos.org/a00114.html
-
-    1 tab == 4 spaces!
-
-    ***************************************************************************
-     *                                                                       *
-     *    Having a problem?  Start by reading the FAQ "My application does   *
-     *    not run, what could be wrong?"                                     *
-     *                                                                       *
-     *    http://www.FreeRTOS.org/FAQHelp.html                               *
-     *                                                                       *
-    ***************************************************************************
-
-    http://www.FreeRTOS.org - Documentation, books, training, latest versions,
-    license and Real Time Engineers Ltd. contact details.
-
-    http://www.FreeRTOS.org/plus - A selection of FreeRTOS ecosystem products,
-    including FreeRTOS+Trace - an indispensable productivity tool, a DOS
-    compatible FAT file system, and our tiny thread aware UDP/IP stack.
-
-    http://www.OpenRTOS.com - Real Time Engineers ltd license FreeRTOS to High
-    Integrity Systems to sell under the OpenRTOS brand.  Low cost OpenRTOS
-    licenses offer ticketed support, indemnification and middleware.
-
-    http://www.SafeRTOS.com - High Integrity Systems also provide a safety
-    engineered and independently SIL3 certified version for use in safety and
-    mission critical applications that require provable dependability.
-
-    1 tab == 4 spaces!
-*/
+ * FreeRTOS Kernel V10.0.0
+ * Copyright (C) 2017 Amazon.com, Inc. or its affiliates.  All Rights Reserved.
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a copy of
+ * this software and associated documentation files (the "Software"), to deal in
+ * the Software without restriction, including without limitation the rights to
+ * use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of
+ * the Software, and to permit persons to whom the Software is furnished to do so,
+ * subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in all
+ * copies or substantial portions of the Software. If you wish to use our Amazon
+ * FreeRTOS name, please do so in a fair use way that does not cause confusion.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS
+ * FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR
+ * COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER
+ * IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
+ * CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+ *
+ * http://www.FreeRTOS.org
+ * http://aws.amazon.com/freertos
+ *
+ * 1 tab == 4 spaces!
+ */
 
 #ifndef CO_ROUTINE_H
 #define CO_ROUTINE_H
@@ -79,28 +42,28 @@ extern "C" {
 /* Used to hide the implementation of the co-routine control block.  The
 control block structure however has to be included in the header due to
 the macro implementation of the co-routine functionality. */
-typedef void * xCoRoutineHandle;
+typedef void * CoRoutineHandle_t;
 
 /* Defines the prototype to which co-routine functions must conform. */
-typedef void (*crCOROUTINE_CODE)( xCoRoutineHandle, unsigned portBASE_TYPE );
+typedef void (*crCOROUTINE_CODE)( CoRoutineHandle_t, UBaseType_t );
 
 typedef struct corCoRoutineControlBlock
 {
-	crCOROUTINE_CODE 		pxCoRoutineFunction;
-	xListItem				xGenericListItem;	/*< List item used to place the CRCB in ready and blocked queues. */
-	xListItem				xEventListItem;		/*< List item used to place the CRCB in event lists. */
-	unsigned portBASE_TYPE 	uxPriority;			/*< The priority of the co-routine in relation to other co-routines. */
-	unsigned portBASE_TYPE 	uxIndex;			/*< Used to distinguish between co-routines when multiple co-routines use the same co-routine function. */
-	unsigned short 		uxState;			/*< Used internally by the co-routine implementation. */
-} corCRCB; /* Co-routine control block.  Note must be identical in size down to uxPriority with tskTCB. */
+	crCOROUTINE_CODE 	pxCoRoutineFunction;
+	ListItem_t			xGenericListItem;	/*< List item used to place the CRCB in ready and blocked queues. */
+	ListItem_t			xEventListItem;		/*< List item used to place the CRCB in event lists. */
+	UBaseType_t 		uxPriority;			/*< The priority of the co-routine in relation to other co-routines. */
+	UBaseType_t 		uxIndex;			/*< Used to distinguish between co-routines when multiple co-routines use the same co-routine function. */
+	uint16_t 			uxState;			/*< Used internally by the co-routine implementation. */
+} CRCB_t; /* Co-routine control block.  Note must be identical in size down to uxPriority with TCB_t. */
 
 /**
  * croutine. h
  *<pre>
- portBASE_TYPE xCoRoutineCreate(
+ BaseType_t xCoRoutineCreate(
                                  crCOROUTINE_CODE pxCoRoutineCode,
-                                 unsigned portBASE_TYPE uxPriority,
-                                 unsigned portBASE_TYPE uxIndex
+                                 UBaseType_t uxPriority,
+                                 UBaseType_t uxIndex
                                );</pre>
  *
  * Create a new co-routine and add it to the list of co-routines that are
@@ -123,12 +86,12 @@ typedef struct corCoRoutineControlBlock
  * Example usage:
    <pre>
  // Co-routine to be created.
- void vFlashCoRoutine( xCoRoutineHandle xHandle, unsigned portBASE_TYPE uxIndex )
+ void vFlashCoRoutine( CoRoutineHandle_t xHandle, UBaseType_t uxIndex )
  {
  // Variables in co-routines must be declared static if they must maintain value across a blocking call.
  // This may not be necessary for const variables.
  static const char cLedToFlash[ 2 ] = { 5, 6 };
- static const portTickType uxFlashRates[ 2 ] = { 200, 400 };
+ static const TickType_t uxFlashRates[ 2 ] = { 200, 400 };
 
      // Must start every co-routine with a call to crSTART();
      crSTART( xHandle );
@@ -138,7 +101,7 @@ typedef struct corCoRoutineControlBlock
          // This co-routine just delays for a fixed period, then toggles
          // an LED.  Two co-routines are created using this function, so
          // the uxIndex parameter is used to tell the co-routine which
-         // LED to flash and how long to delay.  This assumes xQueue has
+         // LED to flash and how int32_t to delay.  This assumes xQueue has
          // already been created.
          vParTestToggleLED( cLedToFlash[ uxIndex ] );
          crDELAY( xHandle, uxFlashRates[ uxIndex ] );
@@ -151,9 +114,9 @@ typedef struct corCoRoutineControlBlock
  // Function that creates two co-routines.
  void vOtherFunction( void )
  {
- unsigned char ucParameterToPass;
- xTaskHandle xHandle;
-		
+ uint8_t ucParameterToPass;
+ TaskHandle_t xHandle;
+
      // Create two co-routines at priority 0.  The first is given index 0
      // so (from the code above) toggles LED 5 every 200 ticks.  The second
      // is given index 1 so toggles LED 6 every 400 ticks.
@@ -166,7 +129,7 @@ typedef struct corCoRoutineControlBlock
  * \defgroup xCoRoutineCreate xCoRoutineCreate
  * \ingroup Tasks
  */
-signed portBASE_TYPE xCoRoutineCreate( crCOROUTINE_CODE pxCoRoutineCode, unsigned portBASE_TYPE uxPriority, unsigned portBASE_TYPE uxIndex );
+BaseType_t xCoRoutineCreate( crCOROUTINE_CODE pxCoRoutineCode, UBaseType_t uxPriority, UBaseType_t uxIndex );
 
 
 /**
@@ -213,17 +176,17 @@ void vCoRoutineSchedule( void );
 /**
  * croutine. h
  * <pre>
- crSTART( xCoRoutineHandle xHandle );</pre>
+ crSTART( CoRoutineHandle_t xHandle );</pre>
  *
  * This macro MUST always be called at the start of a co-routine function.
  *
  * Example usage:
    <pre>
  // Co-routine to be created.
- void vACoRoutine( xCoRoutineHandle xHandle, unsigned portBASE_TYPE uxIndex )
+ void vACoRoutine( CoRoutineHandle_t xHandle, UBaseType_t uxIndex )
  {
  // Variables in co-routines must be declared static if they must maintain value across a blocking call.
- static long ulAVariable;
+ static int32_t ulAVariable;
 
      // Must start every co-routine with a call to crSTART();
      crSTART( xHandle );
@@ -239,7 +202,7 @@ void vCoRoutineSchedule( void );
  * \defgroup crSTART crSTART
  * \ingroup Tasks
  */
-#define crSTART( pxCRCB ) switch( ( ( corCRCB * )( pxCRCB ) )->uxState ) { case 0:
+#define crSTART( pxCRCB ) switch( ( ( CRCB_t * )( pxCRCB ) )->uxState ) { case 0:
 
 /**
  * croutine. h
@@ -251,10 +214,10 @@ void vCoRoutineSchedule( void );
  * Example usage:
    <pre>
  // Co-routine to be created.
- void vACoRoutine( xCoRoutineHandle xHandle, unsigned portBASE_TYPE uxIndex )
+ void vACoRoutine( CoRoutineHandle_t xHandle, UBaseType_t uxIndex )
  {
  // Variables in co-routines must be declared static if they must maintain value across a blocking call.
- static long ulAVariable;
+ static int32_t ulAVariable;
 
      // Must start every co-routine with a call to crSTART();
      crSTART( xHandle );
@@ -276,13 +239,13 @@ void vCoRoutineSchedule( void );
  * These macros are intended for internal use by the co-routine implementation
  * only.  The macros should not be used directly by application writers.
  */
-#define crSET_STATE0( xHandle ) ( ( corCRCB * )( xHandle ) )->uxState = (__LINE__ * 2); return; case (__LINE__ * 2):
-#define crSET_STATE1( xHandle ) ( ( corCRCB * )( xHandle ) )->uxState = ((__LINE__ * 2)+1); return; case ((__LINE__ * 2)+1):
+#define crSET_STATE0( xHandle ) ( ( CRCB_t * )( xHandle ) )->uxState = (__LINE__ * 2); return; case (__LINE__ * 2):
+#define crSET_STATE1( xHandle ) ( ( CRCB_t * )( xHandle ) )->uxState = ((__LINE__ * 2)+1); return; case ((__LINE__ * 2)+1):
 
 /**
  * croutine. h
  *<pre>
- crDELAY( xCoRoutineHandle xHandle, portTickType xTicksToDelay );</pre>
+ crDELAY( CoRoutineHandle_t xHandle, TickType_t xTicksToDelay );</pre>
  *
  * Delay a co-routine for a fixed period of time.
  *
@@ -295,18 +258,18 @@ void vCoRoutineSchedule( void );
  *
  * @param xTickToDelay The number of ticks that the co-routine should delay
  * for.  The actual amount of time this equates to is defined by
- * configTICK_RATE_HZ (set in FreeRTOSConfig.h).  The constant portTICK_RATE_MS
+ * configTICK_RATE_HZ (set in FreeRTOSConfig.h).  The constant portTICK_PERIOD_MS
  * can be used to convert ticks to milliseconds.
  *
  * Example usage:
    <pre>
  // Co-routine to be created.
- void vACoRoutine( xCoRoutineHandle xHandle, unsigned portBASE_TYPE uxIndex )
+ void vACoRoutine( CoRoutineHandle_t xHandle, UBaseType_t uxIndex )
  {
  // Variables in co-routines must be declared static if they must maintain value across a blocking call.
  // This may not be necessary for const variables.
  // We are to delay for 200ms.
- static const xTickType xDelayTime = 200 / portTICK_RATE_MS;
+ static const xTickType xDelayTime = 200 / portTICK_PERIOD_MS;
 
      // Must start every co-routine with a call to crSTART();
      crSTART( xHandle );
@@ -335,11 +298,11 @@ void vCoRoutineSchedule( void );
 /**
  * <pre>
  crQUEUE_SEND(
-                  xCoRoutineHandle xHandle,
-                  xQueueHandle pxQueue,
+                  CoRoutineHandle_t xHandle,
+                  QueueHandle_t pxQueue,
                   void *pvItemToQueue,
-                  portTickType xTicksToWait,
-                  portBASE_TYPE *pxResult
+                  TickType_t xTicksToWait,
+                  BaseType_t *pxResult
              )</pre>
  *
  * The macro's crQUEUE_SEND() and crQUEUE_RECEIVE() are the co-routine
@@ -372,7 +335,7 @@ void vCoRoutineSchedule( void );
  * to wait for space to become available on the queue, should space not be
  * available immediately. The actual amount of time this equates to is defined
  * by configTICK_RATE_HZ (set in FreeRTOSConfig.h).  The constant
- * portTICK_RATE_MS can be used to convert ticks to milliseconds (see example
+ * portTICK_PERIOD_MS can be used to convert ticks to milliseconds (see example
  * below).
  *
  * @param pxResult The variable pointed to by pxResult will be set to pdPASS if
@@ -383,11 +346,11 @@ void vCoRoutineSchedule( void );
    <pre>
  // Co-routine function that blocks for a fixed period then posts a number onto
  // a queue.
- static void prvCoRoutineFlashTask( xCoRoutineHandle xHandle, unsigned portBASE_TYPE uxIndex )
+ static void prvCoRoutineFlashTask( CoRoutineHandle_t xHandle, UBaseType_t uxIndex )
  {
  // Variables in co-routines must be declared static if they must maintain value across a blocking call.
- static portBASE_TYPE xNumberToPost = 0;
- static portBASE_TYPE xResult;
+ static BaseType_t xNumberToPost = 0;
+ static BaseType_t xResult;
 
     // Co-routines must begin with a call to crSTART().
     crSTART( xHandle );
@@ -434,11 +397,11 @@ void vCoRoutineSchedule( void );
  * croutine. h
  * <pre>
   crQUEUE_RECEIVE(
-                     xCoRoutineHandle xHandle,
-                     xQueueHandle pxQueue,
+                     CoRoutineHandle_t xHandle,
+                     QueueHandle_t pxQueue,
                      void *pvBuffer,
-                     portTickType xTicksToWait,
-                     portBASE_TYPE *pxResult
+                     TickType_t xTicksToWait,
+                     BaseType_t *pxResult
                  )</pre>
  *
  * The macro's crQUEUE_SEND() and crQUEUE_RECEIVE() are the co-routine
@@ -470,7 +433,7 @@ void vCoRoutineSchedule( void );
  * to wait for data to become available from the queue, should data not be
  * available immediately. The actual amount of time this equates to is defined
  * by configTICK_RATE_HZ (set in FreeRTOSConfig.h).  The constant
- * portTICK_RATE_MS can be used to convert ticks to milliseconds (see the
+ * portTICK_PERIOD_MS can be used to convert ticks to milliseconds (see the
  * crQUEUE_SEND example).
  *
  * @param pxResult The variable pointed to by pxResult will be set to pdPASS if
@@ -481,11 +444,11 @@ void vCoRoutineSchedule( void );
  <pre>
  // A co-routine receives the number of an LED to flash from a queue.  It
  // blocks on the queue until the number is received.
- static void prvCoRoutineFlashWorkTask( xCoRoutineHandle xHandle, unsigned portBASE_TYPE uxIndex )
+ static void prvCoRoutineFlashWorkTask( CoRoutineHandle_t xHandle, UBaseType_t uxIndex )
  {
  // Variables in co-routines must be declared static if they must maintain value across a blocking call.
- static portBASE_TYPE xResult;
- static unsigned portBASE_TYPE uxLEDToFlash;
+ static BaseType_t xResult;
+ static UBaseType_t uxLEDToFlash;
 
     // All co-routines must start with a call to crSTART().
     crSTART( xHandle );
@@ -526,9 +489,9 @@ void vCoRoutineSchedule( void );
  * croutine. h
  * <pre>
   crQUEUE_SEND_FROM_ISR(
-                            xQueueHandle pxQueue,
+                            QueueHandle_t pxQueue,
                             void *pvItemToQueue,
-                            portBASE_TYPE xCoRoutinePreviouslyWoken
+                            BaseType_t xCoRoutinePreviouslyWoken
                        )</pre>
  *
  * The macro's crQUEUE_SEND_FROM_ISR() and crQUEUE_RECEIVE_FROM_ISR() are the
@@ -566,10 +529,10 @@ void vCoRoutineSchedule( void );
  * Example usage:
  <pre>
  // A co-routine that blocks on a queue waiting for characters to be received.
- static void vReceivingCoRoutine( xCoRoutineHandle xHandle, unsigned portBASE_TYPE uxIndex )
+ static void vReceivingCoRoutine( CoRoutineHandle_t xHandle, UBaseType_t uxIndex )
  {
  char cRxedChar;
- portBASE_TYPE xResult;
+ BaseType_t xResult;
 
      // All co-routines must start with a call to crSTART().
      crSTART( xHandle );
@@ -596,7 +559,7 @@ void vCoRoutineSchedule( void );
  void vUART_ISR( void )
  {
  char cRxedChar;
- portBASE_TYPE xCRWokenByPost = pdFALSE;
+ BaseType_t xCRWokenByPost = pdFALSE;
 
      // We loop around reading characters until there are none left in the UART.
      while( UART_RX_REG_NOT_EMPTY() )
@@ -623,9 +586,9 @@ void vCoRoutineSchedule( void );
  * croutine. h
  * <pre>
   crQUEUE_SEND_FROM_ISR(
-                            xQueueHandle pxQueue,
+                            QueueHandle_t pxQueue,
                             void *pvBuffer,
-                            portBASE_TYPE * pxCoRoutineWoken
+                            BaseType_t * pxCoRoutineWoken
                        )</pre>
  *
  * The macro's crQUEUE_SEND_FROM_ISR() and crQUEUE_RECEIVE_FROM_ISR() are the
@@ -664,12 +627,12 @@ void vCoRoutineSchedule( void );
  <pre>
  // A co-routine that posts a character to a queue then blocks for a fixed
  // period.  The character is incremented each time.
- static void vSendingCoRoutine( xCoRoutineHandle xHandle, unsigned portBASE_TYPE uxIndex )
+ static void vSendingCoRoutine( CoRoutineHandle_t xHandle, UBaseType_t uxIndex )
  {
  // cChar holds its value while this co-routine is blocked and must therefore
  // be declared static.
  static char cCharToTx = 'a';
- portBASE_TYPE xResult;
+ BaseType_t xResult;
 
      // All co-routines must start with a call to crSTART().
      crSTART( xHandle );
@@ -712,7 +675,7 @@ void vCoRoutineSchedule( void );
  void vUART_ISR( void )
  {
  char cCharToTx;
- portBASE_TYPE xCRWokenByPost = pdFALSE;
+ BaseType_t xCRWokenByPost = pdFALSE;
 
      while( UART_TX_REG_EMPTY() )
      {
@@ -740,7 +703,7 @@ void vCoRoutineSchedule( void );
  * Removes the current co-routine from its ready list and places it in the
  * appropriate delayed list.
  */
-void vCoRoutineAddToDelayedList( portTickType xTicksToDelay, xList *pxEventList );
+void vCoRoutineAddToDelayedList( TickType_t xTicksToDelay, List_t *pxEventList );
 
 /*
  * This function is intended for internal use by the queue implementation only.
@@ -749,7 +712,7 @@ void vCoRoutineAddToDelayedList( portTickType xTicksToDelay, xList *pxEventList 
  * Removes the highest priority co-routine from the event list and places it in
  * the pending ready list.
  */
-signed portBASE_TYPE xCoRoutineRemoveFromEventList( const xList *pxEventList );
+BaseType_t xCoRoutineRemoveFromEventList( const List_t *pxEventList );
 
 #ifdef __cplusplus
 }
