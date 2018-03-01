@@ -61,7 +61,7 @@
  * \retval      false if the interface is not busy meaning the stack successfully transferred data from/to host
  * \note        This function is primarily used for polling/waiting result after \ref tusbd_hid_keyboard_send.
  */
-bool tusbd_cdc_is_busy(uint8_t coreid, cdc_pipeid_t pipeid)  ATTR_PURE ATTR_WARN_UNUSED_RESULT;
+bool tud_cdc_busy(uint8_t coreid, cdc_pipeid_t pipeid)  ATTR_PURE ATTR_WARN_UNUSED_RESULT;
 
 /** \brief        Submit USB transfer
  * \param[in]		  coreid USB Controller ID
@@ -77,7 +77,7 @@ bool tusbd_cdc_is_busy(uint8_t coreid, cdc_pipeid_t pipeid)  ATTR_PURE ATTR_WARN
  * \note          This function is non-blocking and returns immediately. Data will be transferred when USB Host work with this interface.
  *                The result of usb transfer will be reported by the interface's callback function if \a is_notify is true
  */
-tusb_error_t tusbd_cdc_send(uint8_t coreid, void * p_data, uint32_t length, bool is_notify);
+tusb_error_t tud_cdc_send(uint8_t coreid, void * p_data, uint32_t length, bool is_notify);
 
 /** \brief        Submit USB transfer
  * \param[in]		  coreid USB Controller ID
@@ -93,7 +93,7 @@ tusb_error_t tusbd_cdc_send(uint8_t coreid, void * p_data, uint32_t length, bool
  * \note          This function is non-blocking and returns immediately. Data will be transferred when USB Host work with this interface.
  *                The result of usb transfer will be reported by the interface's callback function if \a is_notify is true
  */
-tusb_error_t tusbd_cdc_receive(uint8_t coreid, void * p_buffer, uint32_t length, bool is_notify);
+tusb_error_t tud_cdc_receive(uint8_t coreid, void * p_buffer, uint32_t length, bool is_notify);
 
 //--------------------------------------------------------------------+
 // APPLICATION CALLBACK API
@@ -102,13 +102,13 @@ tusb_error_t tusbd_cdc_receive(uint8_t coreid, void * p_buffer, uint32_t length,
  * \param[in] 	coreid USB Controller ID of the interface
  * \note        This callback should be used by Application to \b set-up interface-related data
  */
-void tusbd_cdc_mounted_cb(uint8_t coreid);
+void tud_cdc_mounted_cb(uint8_t coreid);
 
 /** \brief 			Callback function that will be invoked when this interface is unmounted (bus reset/unplugged)
  * \param[in] 	coreid USB Controller ID of the interface
  * \note        This callback should be used by Application to \b tear-down interface-related data
  */
-void tusbd_cdc_unmounted_cb(uint8_t coreid);
+void tud_cdc_unmounted_cb(uint8_t coreid);
 
 /** \brief      Callback function that is invoked when an completion (error or success) of an USB transfer previously submitted
  *              by application (e.g \ref tusbd_cdc_send or \ref tusbd_cdc_send) with \a is_notify set to true.
@@ -118,8 +118,8 @@ void tusbd_cdc_unmounted_cb(uint8_t coreid);
  * \param[in]   xferred_bytes is actual number of bytes transferred via USB bus. This value in general can be different to
  *              the one that previously submitted by application.
  */
-void tusbd_cdc_xfer_cb(uint8_t coreid, tusb_event_t event, cdc_pipeid_t pipe_id, uint32_t xferred_bytes);
-//void tusbd_cdc_line_coding_changed_cb(uint8_t coreid, cdc_line_coding_t* p_line_coding);
+void tud_cdc_xfer_cb(uint8_t coreid, tusb_event_t event, cdc_pipeid_t pipe_id, uint32_t xferred_bytes);
+//void tud_cdc_line_coding_changed_cb(uint8_t coreid, cdc_line_coding_t* p_line_coding);
 
 //--------------------------------------------------------------------+
 // USBD-CLASS DRIVER API

@@ -82,7 +82,7 @@ void mscd_init(void)
 void mscd_close(uint8_t coreid)
 {
   memclr_(&mscd_data, sizeof(mscd_interface_t));
-  tusbd_msc_unmounted_cb(coreid);
+  tud_msc_unmounted_cb(coreid);
 }
 
 tusb_error_t mscd_open(uint8_t coreid, tusb_descriptor_interface_t const * p_interface_desc, uint16_t *p_length)
@@ -112,7 +112,7 @@ tusb_error_t mscd_open(uint8_t coreid, tusb_descriptor_interface_t const * p_int
 
   (*p_length) += sizeof(tusb_descriptor_interface_t) + 2*sizeof(tusb_descriptor_endpoint_t);
 
-  tusbd_msc_mounted_cb(coreid);
+  tud_msc_mounted_cb(coreid);
 
   //------------- Queue Endpoint OUT for Command Block Wrapper -------------//
   ASSERT_STATUS( dcd_pipe_xfer(p_msc->edpt_out, (uint8_t*) &p_msc->cbw, sizeof(msc_cmd_block_wrapper_t), true) );
@@ -177,7 +177,7 @@ tusb_error_t mscd_xfer_cb(endpoint_handle_t edpt_hdl, tusb_event_t event, uint32
       // TODO SCSI data out transfer is not yet supported
       ASSERT_FALSE( p_cbw->xfer_bytes > 0 && !BIT_TEST_(p_cbw->dir, 7), TUSB_ERROR_NOT_SUPPORTED_YET);
 
-      p_csw->status = tusbd_msc_scsi_cb(edpt_hdl.coreid, p_cbw->lun, p_cbw->command, &p_buffer, &actual_length);
+      p_csw->status = tud_msc_scsi_cb(edpt_hdl.coreid, p_cbw->lun, p_cbw->command, &p_buffer, &actual_length);
 
       //------------- Data Phase (non READ10, WRITE10) -------------//
       if ( p_cbw->xfer_bytes )
@@ -233,8 +233,8 @@ static bool read10_write10_data_xfer(mscd_interface_t* p_msc)
   uint16_t const block_count = __be2n_16(p_readwrite->block_count);
   void *p_buffer = NULL;
 
-  uint16_t xferred_block = (SCSI_CMD_READ_10 == p_cbw->command[0]) ? tusbd_msc_read10_cb (edpt_hdl.coreid, p_cbw->lun, &p_buffer, lba, block_count) :
-                                                                     tusbd_msc_write10_cb(edpt_hdl.coreid, p_cbw->lun, &p_buffer, lba, block_count);
+  uint16_t xferred_block = (SCSI_CMD_READ_10 == p_cbw->command[0]) ? tud_msc_read10_cb (edpt_hdl.coreid, p_cbw->lun, &p_buffer, lba, block_count) :
+                                                                     tud_msc_write10_cb(edpt_hdl.coreid, p_cbw->lun, &p_buffer, lba, block_count);
   xferred_block = min16_of(xferred_block, block_count);
 
   uint16_t const xferred_byte = xferred_block * (p_cbw->xfer_bytes / block_count);

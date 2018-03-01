@@ -63,13 +63,13 @@
  * \param[in] 	coreid USB Controller ID of the interface
  * \note        This callback should be used by Application to \b set-up interface-related data
  */
-void tusbd_msc_mounted_cb(uint8_t coreid);
+void tud_msc_mounted_cb(uint8_t coreid);
 
 /** \brief 			Callback function that will be invoked when this interface is unmounted (bus reset/unplugged)
  * \param[in] 	coreid USB Controller ID of the interface
  * \note        This callback should be used by Application to \b tear-down interface-related data
  */
-void tusbd_msc_unmounted_cb(uint8_t coreid);
+void tud_msc_unmounted_cb(uint8_t coreid);
 
 /** \brief 			Callback that is invoked when tinyusb stack received \ref SCSI_CMD_READ_10 command from host
  * \param[in]		coreid	    USB Controller ID
@@ -87,7 +87,7 @@ void tusbd_msc_unmounted_cb(uint8_t coreid);
  *              \n\n Although this callback is called by tinyusb device task (non-isr context), however as all the classes share
  *              the same task (to save resource), any delay in this callback will cause delay in reponse on other classes.
  */
-uint16_t tusbd_msc_read10_cb (uint8_t coreid, uint8_t lun, void** pp_buffer, uint32_t lba, uint16_t block_count);
+uint16_t tud_msc_read10_cb (uint8_t coreid, uint8_t lun, void** pp_buffer, uint32_t lba, uint16_t block_count);
 
 /** \brief 			Callback that is invoked when tinyusb stack received \ref SCSI_CMD_WRITE_10 command from host
  * \param[in]		coreid	    USB Controller ID
@@ -105,7 +105,7 @@ uint16_t tusbd_msc_read10_cb (uint8_t coreid, uint8_t lun, void** pp_buffer, uin
  *              \n\n Although this callback is called by tinyusb device task (non-isr context), however as all the classes share
  *              the same task (to save resource), any delay in this callback will cause delay in reponse on other classes.
  */
-uint16_t tusbd_msc_write10_cb(uint8_t coreid, uint8_t lun, void** pp_buffer, uint32_t lba, uint16_t block_count);
+uint16_t tud_msc_write10_cb(uint8_t coreid, uint8_t lun, void** pp_buffer, uint32_t lba, uint16_t block_count);
 
 // p_length [in,out] allocated/maximum length, application update with actual length
 /** \brief 			Callback that is invoked when tinyusb stack received an SCSI command other than \ref SCSI_CMD_WRITE_10 and
@@ -122,7 +122,7 @@ uint16_t tusbd_msc_write10_cb(uint8_t coreid, uint8_t lun, void** pp_buffer, uin
  * \note        Although this callback is called by tinyusb device task (non-isr context), however as all the classes share
  *              the same task (to save resource), any delay in this callback will cause delay in reponse on other classes.
  */
-msc_csw_status_t tusbd_msc_scsi_cb (uint8_t coreid, uint8_t lun, uint8_t scsi_cmd[16], void const ** pp_buffer, uint16_t* p_length);
+msc_csw_status_t tud_msc_scsi_cb (uint8_t coreid, uint8_t lun, uint8_t scsi_cmd[16], void const ** pp_buffer, uint16_t* p_length);
 
 /** @} */
 /** @} */

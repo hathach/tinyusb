@@ -64,19 +64,19 @@ FIFO_DEF(fifo_serial, SERIAL_BUFFER_SIZE, uint8_t, true);
 //--------------------------------------------------------------------+
 // tinyusb callbacks
 //--------------------------------------------------------------------+
-void tusbd_cdc_mounted_cb(uint8_t coreid)
+void tud_cdc_mounted_cb(uint8_t coreid)
 {
   osal_semaphore_reset(sem_hdl);
 
-  tusbd_cdc_receive(coreid, serial_rx_buffer, SERIAL_BUFFER_SIZE, true);
+  tud_cdc_receive(coreid, serial_rx_buffer, SERIAL_BUFFER_SIZE, true);
 }
 
-void tusbd_cdc_unmounted_cb(uint8_t coreid)
+void tud_cdc_unmounted_cb(uint8_t coreid)
 {
 
 }
 
-void tusbd_cdc_xfer_cb(uint8_t coreid, tusb_event_t event, cdc_pipeid_t pipe_id, uint32_t xferred_bytes)
+void tud_cdc_xfer_cb(uint8_t coreid, tusb_event_t event, cdc_pipeid_t pipe_id, uint32_t xferred_bytes)
 {
   switch ( pipe_id )
   {
@@ -92,7 +92,7 @@ void tusbd_cdc_xfer_cb(uint8_t coreid, tusb_event_t event, cdc_pipeid_t pipe_id,
         break;
 
         case TUSB_EVENT_XFER_ERROR:
-          tusbd_cdc_receive(0, serial_rx_buffer, SERIAL_BUFFER_SIZE, true); // ignore, queue transfer again
+          tud_cdc_receive(0, serial_rx_buffer, SERIAL_BUFFER_SIZE, true); // ignore, queue transfer again
         break;
 
         case TUSB_EVENT_XFER_STALLED:
@@ -139,10 +139,10 @@ tusb_error_t cdcd_serial_subtask(void)
   osal_semaphore_wait(sem_hdl, OSAL_TIMEOUT_WAIT_FOREVER, &error);
   (void) error; // suppress compiler's warnings
 
-  if ( tusbd_is_configured(0) )
+  if ( tud_configured(0) )
   {
     // echo back data in the fifo
-    if ( !tusbd_cdc_is_busy(0, CDC_PIPE_DATA_IN) )
+    if ( !tud_cdc_busy(0, CDC_PIPE_DATA_IN) )
     {
       uint16_t count=0;
       while( fifo_read(&fifo_serial, &serial_tx_buffer[count]) )
@@ -152,12 +152,12 @@ tusb_error_t cdcd_serial_subtask(void)
 
       if (count)
       {
-        tusbd_cdc_send(0, serial_tx_buffer, count, false);
+        tud_cdc_send(0, serial_tx_buffer, count, false);
       }
     }
 
     // getting more data from host
-    tusbd_cdc_receive(0, serial_rx_buffer, SERIAL_BUFFER_SIZE, true);
+    tud_cdc_receive(0, serial_rx_buffer, SERIAL_BUFFER_SIZE, true);
   }
 
   OSAL_SUBTASK_END

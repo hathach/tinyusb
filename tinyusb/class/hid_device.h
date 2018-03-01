@@ -62,7 +62,7 @@
  * \retval      false if the interface is not busy meaning the stack successfully transferred data from/to host
  * \note        This function is primarily used for polling/waiting result after \ref tusbd_hid_keyboard_send.
  */
-bool tusbd_hid_keyboard_is_busy(uint8_t coreid);
+bool tud_hid_keyboard_busy(uint8_t coreid);
 
 /** \brief        Submit USB transfer
  * \param[in]		  coreid USB Controller ID
@@ -75,7 +75,7 @@ bool tusbd_hid_keyboard_is_busy(uint8_t coreid);
  * \note          This function is non-blocking and returns immediately. Data will be transferred when USB Host work with this interface.
  *                The result of usb transfer will be reported by the interface's callback function
  */
-tusb_error_t tusbd_hid_keyboard_send(uint8_t coreid, hid_keyboard_report_t const *p_report);
+tusb_error_t tud_hid_keyboard_send(uint8_t coreid, hid_keyboard_report_t const *p_report);
 
 //--------------------------------------------------------------------+
 // APPLICATION CALLBACK API
@@ -85,13 +85,13 @@ tusb_error_t tusbd_hid_keyboard_send(uint8_t coreid, hid_keyboard_report_t const
  * \param[in] 	coreid USB Controller ID of the interface
  * \note        This callback should be used by Application to \b set-up interface-related data
  */
-void tusbd_hid_keyboard_mounted_cb(uint8_t coreid);
+void tud_hid_keyboard_mounted_cb(uint8_t coreid);
 
 /** \brief 			Callback function that will be invoked when this interface is unmounted (bus reset/unplugged)
  * \param[in] 	coreid USB Controller ID of the interface
  * \note        This callback should be used by Application to \b tear-down interface-related data
  */
-void tusbd_hid_keyboard_unmounted_cb(uint8_t coreid);
+void tud_hid_keyboard_unmounted_cb(uint8_t coreid);
 
 /** \brief      Callback function that is invoked when an transferring event occurred
  *              after invoking \ref tusbd_hid_keyboard_send
@@ -102,7 +102,7 @@ void tusbd_hid_keyboard_unmounted_cb(uint8_t coreid);
  *              - TUSB_EVENT_XFER_ERROR   : previously scheduled transfer encountered a transaction error.
  *              - TUSB_EVENT_XFER_STALLED : previously scheduled transfer is stalled by device.
  */
-void tusbd_hid_keyboard_cb(uint8_t coreid, tusb_event_t event, uint32_t xferred_bytes);
+void tud_hid_keyboard_cb(uint8_t coreid, tusb_event_t event, uint32_t xferred_bytes);
 
 /** \brief      Callback function that is invoked when USB host request \ref HID_REQUEST_CONTROL_GET_REPORT
  *              via control endpoint.
@@ -117,7 +117,7 @@ void tusbd_hid_keyboard_cb(uint8_t coreid, tusb_event_t event, uint32_t xferred_
  *              the completion of this control request will not be reported to application.
  *              For Keyboard, USB host often uses this to turn on/off the LED for CAPLOCKS, NUMLOCK (\ref hid_keyboard_led_bm_t)
  */
-uint16_t tusbd_hid_keyboard_get_report_cb(uint8_t coreid, hid_request_report_type_t report_type, void** pp_report, uint16_t requested_length);
+uint16_t tud_hid_keyboard_get_report_cb(uint8_t coreid, hid_request_report_type_t report_type, void** pp_report, uint16_t requested_length);
 
 /** \brief      Callback function that is invoked when USB host request \ref HID_REQUEST_CONTROL_SET_REPORT
  *              via control endpoint.
@@ -128,7 +128,7 @@ uint16_t tusbd_hid_keyboard_get_report_cb(uint8_t coreid, hid_request_report_typ
  * \note        By the time this callback is invoked, the USB control transfer is already completed in the hardware side.
  *              Application are free to handle data at its own will.
  */
-void tusbd_hid_keyboard_set_report_cb(uint8_t coreid, hid_request_report_type_t report_type, uint8_t p_report_data[], uint16_t length);
+void tud_hid_keyboard_set_report_cb(uint8_t coreid, hid_request_report_type_t report_type, uint8_t p_report_data[], uint16_t length);
 
 /** @} */
 /** @} */
@@ -147,7 +147,7 @@ void tusbd_hid_keyboard_set_report_cb(uint8_t coreid, hid_request_report_type_t 
  * \retval      false if the interface is not busy meaning the stack successfully transferred data from/to host
  * \note        This function is primarily used for polling/waiting result after \ref tusbd_hid_mouse_send.
  */
-bool tusbd_hid_mouse_is_busy(uint8_t coreid);
+bool tud_hid_mouse_is_busy(uint8_t coreid);
 
 /** \brief        Perform transfer queuing
  * \param[in]		  coreid USB Controller ID
@@ -160,7 +160,7 @@ bool tusbd_hid_mouse_is_busy(uint8_t coreid);
  * \note          This function is non-blocking and returns immediately. Data will be transferred when USB Host work with this interface.
  *                The result of usb transfer will be reported by the interface's callback function
  */
-tusb_error_t tusbd_hid_mouse_send(uint8_t coreid, hid_mouse_report_t const *p_report);
+tusb_error_t tud_hid_mouse_send(uint8_t coreid, hid_mouse_report_t const *p_report);
 
 //--------------------------------------------------------------------+
 // APPLICATION CALLBACK API
@@ -169,13 +169,13 @@ tusb_error_t tusbd_hid_mouse_send(uint8_t coreid, hid_mouse_report_t const *p_re
  * \param[in] 	coreid USB Controller ID of the interface
  * \note        This callback should be used by Application to \b set-up interface-related data
  */
-void tusbd_hid_mouse_mounted_cb(uint8_t coreid);
+void tud_hid_mouse_mounted_cb(uint8_t coreid);
 
 /** \brief 			Callback function that will be invoked when this interface is unmounted (bus reset/unplugged)
  * \param[in] 	coreid USB Controller ID of the interface
  * \note        This callback should be used by Application to \b tear-down interface-related data
  */
-void tusbd_hid_mouse_unmounted_cb(uint8_t coreid);
+void tud_hid_mouse_unmounted_cb(uint8_t coreid);
 
 /** \brief      Callback function that is invoked when an transferring event occurred
  *              after invoking \ref tusbd_hid_mouse_send
@@ -186,7 +186,7 @@ void tusbd_hid_mouse_unmounted_cb(uint8_t coreid);
  *              - TUSB_EVENT_XFER_ERROR   : previously scheduled transfer encountered a transaction error.
  *              - TUSB_EVENT_XFER_STALLED : previously scheduled transfer is stalled by device.
  */
-void tusbd_hid_mouse_cb(uint8_t coreid, tusb_event_t event, uint32_t xferred_bytes);
+void tud_hid_mouse_cb(uint8_t coreid, tusb_event_t event, uint32_t xferred_bytes);
 
 /** \brief      Callback function that is invoked when USB host request \ref HID_REQUEST_CONTROL_GET_REPORT
  *              via control endpoint.
@@ -200,7 +200,7 @@ void tusbd_hid_mouse_cb(uint8_t coreid, tusb_event_t event, uint32_t xferred_byt
  * \note        After this callback, the request is silently executed by the tinyusb stack, thus
  *              the completion of this control request will not be reported to application
  */
-uint16_t tusbd_hid_mouse_get_report_cb(uint8_t coreid, hid_request_report_type_t report_type, void** pp_report, uint16_t requested_length);
+uint16_t tud_hid_mouse_get_report_cb(uint8_t coreid, hid_request_report_type_t report_type, void** pp_report, uint16_t requested_length);
 
 /** \brief      Callback function that is invoked when USB host request \ref HID_REQUEST_CONTROL_SET_REPORT
  *              via control endpoint.
@@ -211,7 +211,7 @@ uint16_t tusbd_hid_mouse_get_report_cb(uint8_t coreid, hid_request_report_type_t
  * \note        By the time this callback is invoked, the USB control transfer is already completed in the hardware side.
  *              Application are free to handle data at its own will.
  */
-void tusbd_hid_mouse_set_report_cb(uint8_t coreid, hid_request_report_type_t report_type, uint8_t p_report_data[], uint16_t length);
+void tud_hid_mouse_set_report_cb(uint8_t coreid, hid_request_report_type_t report_type, uint8_t p_report_data[], uint16_t length);
 
 /** @} */
 /** @} */

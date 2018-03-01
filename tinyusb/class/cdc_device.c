@@ -66,7 +66,7 @@ STATIC_VAR cdcd_data_t cdcd_data[CONTROLLER_DEVICE_NUMBER];
 
 static tusb_error_t cdcd_xfer(uint8_t coreid,  cdc_pipeid_t pipeid, void * p_buffer, uint32_t length, bool is_notify)
 {
-  ASSERT(tusbd_is_configured(coreid), TUSB_ERROR_USBD_DEVICE_NOT_CONFIGURED);
+  ASSERT(tud_configured(coreid), TUSB_ERROR_USBD_DEVICE_NOT_CONFIGURED);
 
   cdcd_data_t* p_cdc = &cdcd_data[coreid];
 
@@ -79,17 +79,17 @@ static tusb_error_t cdcd_xfer(uint8_t coreid,  cdc_pipeid_t pipeid, void * p_buf
 //--------------------------------------------------------------------+
 // APPLICATION API (Parameters requires validation)
 //--------------------------------------------------------------------+
-bool tusbd_cdc_is_busy(uint8_t coreid, cdc_pipeid_t pipeid)
+bool tud_cdc_busy(uint8_t coreid, cdc_pipeid_t pipeid)
 {
   return dcd_pipe_is_busy( cdcd_data[coreid].edpt_hdl[pipeid] );
 }
 
-tusb_error_t tusbd_cdc_receive(uint8_t coreid, void * p_buffer, uint32_t length, bool is_notify)
+tusb_error_t tud_cdc_receive(uint8_t coreid, void * p_buffer, uint32_t length, bool is_notify)
 {
   return cdcd_xfer(coreid, CDC_PIPE_DATA_OUT, p_buffer, length, is_notify);
 }
 
-tusb_error_t tusbd_cdc_send(uint8_t coreid, void * p_data, uint32_t length, bool is_notify)
+tusb_error_t tud_cdc_send(uint8_t coreid, void * p_data, uint32_t length, bool is_notify)
 {
   return cdcd_xfer(coreid, CDC_PIPE_DATA_IN, p_data, length, is_notify);
 }
@@ -170,7 +170,7 @@ tusb_error_t cdcd_open(uint8_t coreid, tusb_descriptor_interface_t const * p_int
 
   p_cdc->interface_number   = p_interface_desc->bInterfaceNumber;
 
-  tusbd_cdc_mounted_cb(coreid);
+  tud_cdc_mounted_cb(coreid);
 
   return TUSB_ERROR_NONE;
 }
@@ -180,7 +180,7 @@ void cdcd_close(uint8_t coreid)
   // no need to close opened pipe, dcd bus reset will put controller's endpoints to default state
   memclr_(&cdcd_data[coreid], sizeof(cdcd_data_t));
 
-  tusbd_cdc_unmounted_cb(coreid);
+  tud_cdc_unmounted_cb(coreid);
 }
 
 tusb_error_t cdcd_control_request_subtask(uint8_t coreid, tusb_control_request_t const * p_request)
@@ -218,7 +218,7 @@ tusb_error_t cdcd_xfer_cb(endpoint_handle_t edpt_hdl, tusb_event_t event, uint32
   {
     if ( endpointhandle_is_equal(edpt_hdl, p_cdc->edpt_hdl[pipeid]) )
     {
-      tusbd_cdc_xfer_cb(edpt_hdl.coreid, event, pipeid, xferred_bytes);
+      tud_cdc_xfer_cb(edpt_hdl.coreid, event, pipeid, xferred_bytes);
       break;
     }
   }

@@ -89,17 +89,17 @@ static scsi_mode_parameters_t const msc_dev_mode_para =
 //--------------------------------------------------------------------+
 // tinyusb callbacks
 //--------------------------------------------------------------------+
-void tusbd_msc_mounted_cb(uint8_t coreid)
+void tud_msc_mounted_cb(uint8_t coreid)
 {
 
 }
 
-void tusbd_msc_unmounted_cb(uint8_t coreid)
+void tud_msc_unmounted_cb(uint8_t coreid)
 {
 
 }
 
-msc_csw_status_t tusbd_msc_scsi_cb (uint8_t coreid, uint8_t lun, uint8_t scsi_cmd[16], void const ** pp_buffer, uint16_t* p_length)
+msc_csw_status_t tud_msc_scsi_cb (uint8_t coreid, uint8_t lun, uint8_t scsi_cmd[16], void const ** pp_buffer, uint16_t* p_length)
 {
   // read10 & write10 has their own callback and MUST not be handled here
   switch (scsi_cmd[0])

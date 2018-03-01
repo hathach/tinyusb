@@ -56,17 +56,17 @@ TUSB_CFG_ATTR_USBRAM hid_keyboard_report_t keyboard_report;
 //--------------------------------------------------------------------+
 // tinyusb callbacks
 //--------------------------------------------------------------------+
-void tusbd_hid_keyboard_mounted_cb(uint8_t coreid)
+void tud_hid_keyboard_mounted_cb(uint8_t coreid)
 {
 
 }
 
-void tusbd_hid_keyboard_unmounted_cb(uint8_t coreid)
+void tud_hid_keyboard_unmounted_cb(uint8_t coreid)
 {
 
 }
 
-void tusbd_hid_keyboard_cb(uint8_t coreid, tusb_event_t event, uint32_t xferred_bytes)
+void tud_hid_keyboard_cb(uint8_t coreid, tusb_event_t event, uint32_t xferred_bytes)
 {
   switch(event)
   {
@@ -77,7 +77,7 @@ void tusbd_hid_keyboard_cb(uint8_t coreid, tusb_event_t event, uint32_t xferred_
   }
 }
 
-uint16_t tusbd_hid_keyboard_get_report_cb(uint8_t coreid, hid_request_report_type_t report_type, void** pp_report, uint16_t requested_length)
+uint16_t tud_hid_keyboard_get_report_cb(uint8_t coreid, hid_request_report_type_t report_type, void** pp_report, uint16_t requested_length)
 {
   // get other than input report is not supported by this keyboard demo
   if ( report_type != HID_REQUEST_REPORT_INPUT ) return 0;
@@ -86,7 +86,7 @@ uint16_t tusbd_hid_keyboard_get_report_cb(uint8_t coreid, hid_request_report_typ
   return requested_length;
 }
 
-void tusbd_hid_keyboard_set_report_cb(uint8_t coreid, hid_request_report_type_t report_type, uint8_t p_report_data[], uint16_t length)
+void tud_hid_keyboard_set_report_cb(uint8_t coreid, hid_request_report_type_t report_type, uint8_t p_report_data[], uint16_t length)
 {
   // set other than output report is not supported by this keyboard demo
   if ( report_type != HID_REQUEST_REPORT_OUTPUT ) return;
@@ -126,7 +126,7 @@ tusb_error_t keyboard_device_subtask(void)
 
   osal_task_delay(50);
 
-  if ( tusbd_is_configured(0) && !tusbd_hid_keyboard_is_busy(0) )
+  if ( tud_configured(0) && !tud_hid_keyboard_busy(0) )
   {
     static uint32_t button_mask = 0;
     uint32_t new_button_mask = board_buttons();
@@ -141,7 +141,7 @@ tusb_error_t keyboard_device_subtask(void)
         keyboard_report.keycode[i] =  BIT_TEST_(button_mask, i) ? (0x04+i) : 0;
       }
 
-      tusbd_hid_keyboard_send(0, &keyboard_report );
+      tud_hid_keyboard_send(0, &keyboard_report );
     }
   }
 

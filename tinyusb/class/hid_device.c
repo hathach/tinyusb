@@ -83,11 +83,11 @@ static hidd_class_driver_t const hidd_class_driver[HIDD_NUMBER_OF_SUBCLASS] =
     [HID_PROTOCOL_KEYBOARD] =
     {
         .p_interface   = &keyboardd_data,
-        .mounted_cb    = tusbd_hid_keyboard_mounted_cb,
-        .unmounted_cb  = tusbd_hid_keyboard_unmounted_cb,
-        .xfer_cb       = tusbd_hid_keyboard_cb,
-        .get_report_cb = tusbd_hid_keyboard_get_report_cb,
-        .set_report_cb = tusbd_hid_keyboard_set_report_cb
+        .mounted_cb    = tud_hid_keyboard_mounted_cb,
+        .unmounted_cb  = tud_hid_keyboard_unmounted_cb,
+        .xfer_cb       = tud_hid_keyboard_cb,
+        .get_report_cb = tud_hid_keyboard_get_report_cb,
+        .set_report_cb = tud_hid_keyboard_set_report_cb
     },
 #endif
 
@@ -113,14 +113,14 @@ TUSB_CFG_ATTR_USBRAM STATIC_VAR uint8_t m_hid_buffer[ HIDD_BUFFER_SIZE ];
 #if TUSB_CFG_DEVICE_HID_KEYBOARD
 STATIC_VAR hidd_interface_t keyboardd_data;
 
-bool tusbd_hid_keyboard_is_busy(uint8_t coreid)
+bool tud_hid_keyboard_busy(uint8_t coreid)
 {
   return dcd_pipe_is_busy(keyboardd_data.ept_handle);
 }
 
-tusb_error_t tusbd_hid_keyboard_send(uint8_t coreid, hid_keyboard_report_t const *p_report)
+tusb_error_t tud_hid_keyboard_send(uint8_t coreid, hid_keyboard_report_t const *p_report)
 {
-  ASSERT(tusbd_is_configured(coreid), TUSB_ERROR_USBD_DEVICE_NOT_CONFIGURED);
+  ASSERT(tud_configured(coreid), TUSB_ERROR_USBD_DEVICE_NOT_CONFIGURED);
 
   hidd_interface_t * p_kbd = &keyboardd_data; // TODO &keyboardd_data[coreid];
 
@@ -143,7 +143,7 @@ bool tusbd_hid_mouse_is_busy(uint8_t coreid)
 
 tusb_error_t tusbd_hid_mouse_send(uint8_t coreid, hid_mouse_report_t const *p_report)
 {
-  ASSERT(tusbd_is_configured(coreid), TUSB_ERROR_USBD_DEVICE_NOT_CONFIGURED);
+  ASSERT(tud_configured(coreid), TUSB_ERROR_USBD_DEVICE_NOT_CONFIGURED);
 
   hidd_interface_t * p_mouse = &moused_data; // TODO &keyboardd_data[coreid];
 
