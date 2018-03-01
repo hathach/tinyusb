@@ -434,7 +434,7 @@ void usbd_setup_received_isr(uint8_t coreid, tusb_control_request_t * p_request)
   };
 
   task_event.setup_received  = (*p_request);
-  VERIFY( osal_queue_send(usbd_queue_hdl, &task_event), );
+  osal_queue_send(usbd_queue_hdl, &task_event);
 }
 
 void usbd_xfer_isr(endpoint_handle_t edpt_hdl, tusb_event_t event, uint32_t xferred_bytes)
@@ -454,7 +454,7 @@ void usbd_xfer_isr(endpoint_handle_t edpt_hdl, tusb_event_t event, uint32_t xfer
     task_event.xfer_done.xferred_byte = xferred_bytes;
     task_event.xfer_done.edpt_hdl     = edpt_hdl;
 
-    VERIFY( osal_queue_send(usbd_queue_hdl, &task_event), );
+    osal_queue_send(usbd_queue_hdl, &task_event);
   }
 }
 

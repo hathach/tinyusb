@@ -81,7 +81,7 @@ void tuh_hid_mouse_isr(uint8_t dev_addr, tusb_event_t event)
   switch(event)
   {
     case TUSB_EVENT_XFER_COMPLETE:
-      (void) osal_queue_send(queue_mouse_hdl, &usb_mouse_report);
+      osal_queue_send(queue_mouse_hdl, &usb_mouse_report);
       (void) tuh_hid_mouse_get_report(dev_addr, (uint8_t*) &usb_mouse_report);
     break;
 

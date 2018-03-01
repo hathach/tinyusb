@@ -272,7 +272,7 @@ void usbh_hub_port_plugged_isr(uint8_t hub_addr, uint8_t hub_port)
       .hub_port = hub_port
   };
 
-  ASSERT( TUSB_ERROR_NONE == osal_queue_send(enum_queue_hdl, &enum_entry), VOID_RETURN );
+  osal_queue_send(enum_queue_hdl, &enum_entry);
 }
 
 void usbh_hcd_rhport_plugged_isr(uint8_t hostid)
@@ -284,7 +284,7 @@ void usbh_hcd_rhport_plugged_isr(uint8_t hostid)
       .hub_port = 0
   };
 
-  ASSERT( TUSB_ERROR_NONE == osal_queue_send(enum_queue_hdl, &enum_entry), VOID_RETURN );
+  osal_queue_send(enum_queue_hdl, &enum_entry);
 }
 
 // a device unplugged on hostid, hub_addr, hub_port
@@ -336,7 +336,7 @@ void usbh_hcd_rhport_unplugged_isr(uint8_t hostid)
       .hub_port = 0
   };
 
-  ASSERT( TUSB_ERROR_NONE == osal_queue_send(enum_queue_hdl, &enum_entry), VOID_RETURN );
+  osal_queue_send(enum_queue_hdl, &enum_entry);
 }
 
 //--------------------------------------------------------------------+
