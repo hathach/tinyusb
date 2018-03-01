@@ -91,11 +91,9 @@ tusb_error_t tusbh_cdc_rndis_get_mac_addr(uint8_t dev_addr, uint8_t mac_address[
 // forever loop cannot have any return at all.
 OSAL_TASK_FUNCTION(cdch_rndis_task) (void* param;)
 {
-  OSAL_TASK_LOOP_BEGIN
-
+  OSAL_TASK_BEGIN
   rndis_body_subtask();
-
-  OSAL_TASK_LOOP_END
+  OSAL_TASK_END
 }
 
 static tusb_error_t rndis_body_subtask(void)

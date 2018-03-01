@@ -76,9 +76,9 @@ void led_blinking_task(void* param)
 {
   (void) param;
 
-  OSAL_TASK_LOOP_BEGIN
+  OSAL_TASK_BEGIN
   led_blinking_subtask();
-  OSAL_TASK_LOOP_END
+  OSAL_TASK_END
 }
 
 tusb_error_t led_blinking_subtask(void)

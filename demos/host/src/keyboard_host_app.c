@@ -113,7 +113,7 @@ void keyboard_host_app_task(void* param)
 {
   (void) param;
 
-  OSAL_TASK_LOOP_BEGIN
+  OSAL_TASK_BEGIN
 
   hid_keyboard_report_t kbd_report;
   tusb_error_t error;
@@ -123,7 +123,7 @@ void keyboard_host_app_task(void* param)
 
   process_kbd_report(&kbd_report);
 
-  OSAL_TASK_LOOP_END
+  OSAL_TASK_END
 }
 
 //--------------------------------------------------------------------+

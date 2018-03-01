@@ -123,7 +123,7 @@ void cdc_serial_host_app_task( void* param )
 {
   (void) param;
 
-  OSAL_TASK_LOOP_BEGIN
+  OSAL_TASK_BEGIN
 
   //------------- send characters got from uart terminal to the first CDC device -------------//
   for(uint8_t dev_addr=1; dev_addr <= TUSB_CFG_HOST_DEVICE_MAX; dev_addr++)
@@ -163,7 +163,7 @@ void cdc_serial_host_app_task( void* param )
     }
   }
 
-  OSAL_TASK_LOOP_END
+  OSAL_TASK_END
 }
 
 #endif

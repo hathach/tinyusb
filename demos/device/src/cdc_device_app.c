@@ -125,9 +125,9 @@ void cdcd_serial_app_task(void* param)
 {
   (void) param;
 
-  OSAL_TASK_LOOP_BEGIN
+  OSAL_TASK_BEGIN
   cdcd_serial_subtask();
-  OSAL_TASK_LOOP_END
+  OSAL_TASK_END
 }
 
 tusb_error_t cdcd_serial_subtask(void)

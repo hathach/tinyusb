@@ -114,7 +114,7 @@ void mouse_host_app_task(void* param)
 {
   (void) param;
 
-  OSAL_TASK_LOOP_BEGIN
+  OSAL_TASK_BEGIN
 
   tusb_error_t error;
   hid_mouse_report_t mouse_report;
@@ -124,7 +124,7 @@ void mouse_host_app_task(void* param)
 	
   process_mouse_report(&mouse_report);
 
-  OSAL_TASK_LOOP_END
+  OSAL_TASK_END
 }
 
 //--------------------------------------------------------------------+

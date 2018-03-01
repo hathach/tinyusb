@@ -56,11 +56,6 @@
 #include "tusb_option.h"
 #include "common/common.h"
 
-/*------------- Task -------------*/
-
-/*------------- Queue -------------*/
-
-
 
 #if TUSB_CFG_OS == TUSB_OS_NONE
   #include "osal_none.h"
@@ -72,8 +67,8 @@
     #error TUSB_CFG_OS is not defined or OS is not supported yet
   #endif
 
-  #define OSAL_TASK_LOOP_BEGIN while(1) {
-  #define OSAL_TASK_LOOP_END   }
+  #define OSAL_TASK_BEGIN while(1) {
+  #define OSAL_TASK_END   }
 
   //------------- Sub Task -------------//
   #define OSAL_SUBTASK_BEGIN

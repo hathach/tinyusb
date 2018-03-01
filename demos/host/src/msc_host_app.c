@@ -150,7 +150,7 @@ void msc_host_app_task(void* param)
 {
   (void) param;;
 
-  OSAL_TASK_LOOP_BEGIN
+  OSAL_TASK_BEGIN
 
   bool is_any_disk_mounted; 
   
@@ -176,7 +176,7 @@ void msc_host_app_task(void* param)
     }
   }
 
-  OSAL_TASK_LOOP_END
+  OSAL_TASK_END
 }
 
 #endif

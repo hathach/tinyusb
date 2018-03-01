@@ -193,9 +193,9 @@ void usbd_task( void* param)
 {
   (void) param;
 
-  OSAL_TASK_LOOP_BEGIN
+  OSAL_TASK_BEGIN
   usbd_body_subtask();
-  OSAL_TASK_LOOP_END
+  OSAL_TASK_END
 }
 
 static tusb_error_t usbd_body_subtask(void)

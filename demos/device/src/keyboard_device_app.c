@@ -115,9 +115,9 @@ void keyboard_device_app_task(void* param)
 {
   (void) param;
 
-  OSAL_TASK_LOOP_BEGIN
+  OSAL_TASK_BEGIN
   keyboard_device_subtask();
-  OSAL_TASK_LOOP_END
+  OSAL_TASK_END
 }
 
 tusb_error_t keyboard_device_subtask(void)

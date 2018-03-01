@@ -160,9 +160,9 @@ void msc_device_app_task(void* param)
 { // no need to implement the task yet
   (void) param;
 
-  OSAL_TASK_LOOP_BEGIN
+  OSAL_TASK_BEGIN
 
-  OSAL_TASK_LOOP_END
+  OSAL_TASK_END
 }
 
 void msc_device_app_init (void)

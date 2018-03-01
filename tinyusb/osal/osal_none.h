@@ -63,7 +63,7 @@ uint32_t tusb_tick_get(void);
 // retain value before/after such services needed to declare as static
 // OSAL_TASK_LOOP
 // {
-//   OSAL_TASK_LOOP_BEGIN
+//   OSAL_TASK_BEGIN
 //
 //   task body statements
 //
@@ -82,14 +82,14 @@ static inline osal_task_t osal_task_create(osal_func_t code, const char* name, u
 #define TASK_RESTART \
   state = 0
 
-#define OSAL_TASK_LOOP_BEGIN \
+#define OSAL_TASK_BEGIN \
   ATTR_UNUSED static uint32_t timeout = 0;\
   static uint16_t state = 0;\
   (void) timeout; /* timemout can possible unsued */ \
   switch(state) { \
     case 0: { \
 
-#define OSAL_TASK_LOOP_END \
+#define OSAL_TASK_END \
   default:\
     TASK_RESTART;\
   }}\
@@ -117,7 +117,7 @@ static inline osal_task_t osal_task_create(osal_func_t code, const char* name, u
       }\
     }while(0)
 
-#define OSAL_SUBTASK_BEGIN  OSAL_TASK_LOOP_BEGIN
+#define OSAL_SUBTASK_BEGIN  OSAL_TASK_BEGIN
 #define OSAL_SUBTASK_END \
   default:\
     TASK_RESTART;\

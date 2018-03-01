@@ -103,9 +103,9 @@ void mouse_device_subtask(void);
 void mouse_device_app_task(void * param)
 {
   (void) para;
-  OSAL_TASK_LOOP_BEGIN
+  OSAL_TASK_BEGIN
   mouse_device_subtask();
-  OSAL_TASK_LOOP_END
+  OSAL_TASK_END
 }
 
 void mouse_device_subtask(void)
