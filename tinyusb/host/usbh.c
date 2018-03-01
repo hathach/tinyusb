@@ -253,7 +253,7 @@ void usbh_xfer_isr(pipe_handle_t pipe_hdl, uint8_t class_code, tusb_event_t even
   {
     usbh_devices[ pipe_hdl.dev_addr ].control.pipe_status   = event;
 //    usbh_devices[ pipe_hdl.dev_addr ].control.xferred_bytes = xferred_bytes; not yet neccessary
-    ASSERT( TUSB_ERROR_NONE == osal_semaphore_post( usbh_devices[ pipe_hdl.dev_addr ].control.sem_hdl ), VOID_RETURN);
+    osal_semaphore_post( usbh_devices[ pipe_hdl.dev_addr ].control.sem_hdl );
   }else if (usbh_class_drivers[class_index].isr)
   {
     usbh_class_drivers[class_index].isr(pipe_hdl, event, xferred_bytes);

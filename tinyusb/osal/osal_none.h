@@ -151,79 +151,6 @@ static inline osal_task_t osal_task_create(osal_func_t code, const char* name, u
                                condition, TUSB_ERROR_OSAL_TASK_FAILED, "%s", "evaluated to false")
 
 //--------------------------------------------------------------------+
-// Semaphore API
-//--------------------------------------------------------------------+
-typedef struct
-{
-  volatile uint16_t count;
-           uint16_t max_count;
-}osal_semaphore_data_t;
-
-typedef osal_semaphore_data_t* osal_semaphore_t;
-
-
-static inline osal_semaphore_t osal_semaphore_create(uint32_t max_count, uint32_t init)
-{
-  osal_semaphore_data_t* sem_data = (osal_semaphore_data_t*) tu_malloc( sizeof(osal_semaphore_data_t));
-  VERIFY(sem_data, NULL);
-
-  sem_data->count     = init;
-  sem_data->max_count = max_count;
-
-  return sem_data;
-}
-
-static inline  tusb_error_t osal_semaphore_post(osal_semaphore_t sem_hdl)
-{
-  if (sem_hdl->count < sem_hdl->max_count ) sem_hdl->count++;
-
-  return TUSB_ERROR_NONE;
-}
-
-static inline void osal_semaphore_reset(osal_semaphore_t sem_hdl)
-{
-  sem_hdl->count = 0;
-}
-
-#define osal_semaphore_wait(sem_hdl, msec, p_error) \
-  do {\
-    timeout = osal_tick_get();\
-    state = __LINE__; case __LINE__:\
-    if( sem_hdl->count == 0 ) {\
-      if ( ( ((uint32_t) (msec)) != OSAL_TIMEOUT_WAIT_FOREVER) && (timeout + osal_tick_from_msec(msec) <= osal_tick_get()) ) /* time out */ \
-        *(p_error) = TUSB_ERROR_OSAL_TIMEOUT;\
-      else\
-        return TUSB_ERROR_OSAL_WAITING;\
-    } else{\
-      if (sem_hdl->count) sem_hdl->count--; /*TODO mutex hal_interrupt_disable consideration*/\
-      *(p_error) = TUSB_ERROR_NONE;\
-    }\
-  }while(0)
-
-//--------------------------------------------------------------------+
-// MUTEX API (priority inheritance)
-//--------------------------------------------------------------------+
-typedef osal_semaphore_t osal_mutex_t;
-
-static inline osal_mutex_t osal_mutex_create(void)
-{
-  return osal_semaphore_create(1, 0);
-}
-
-static inline  tusb_error_t osal_mutex_release(osal_mutex_t mutex_hdl)
-{
-  return osal_semaphore_post(mutex_hdl);
-}
-
-// TOOD remove
-static inline void osal_mutex_reset(osal_mutex_t mutex_hdl)
-{
-  osal_semaphore_reset(mutex_hdl);
-}
-
-#define osal_mutex_wait osal_semaphore_wait
-
-//--------------------------------------------------------------------+
 // QUEUE API
 //--------------------------------------------------------------------+
 typedef fifo_t* osal_queue_t;
@@ -272,6 +199,81 @@ static inline void osal_queue_flush(osal_queue_t const queue_hdl)
       *(p_error) = TUSB_ERROR_NONE;\
     }\
   }while(0)
+
+
+//--------------------------------------------------------------------+
+// Semaphore API
+//--------------------------------------------------------------------+
+typedef struct
+{
+  volatile uint16_t count;
+           uint16_t max_count;
+}osal_semaphore_data_t;
+
+typedef osal_semaphore_data_t* osal_semaphore_t;
+
+
+static inline osal_semaphore_t osal_semaphore_create(uint32_t max_count, uint32_t init)
+{
+  osal_semaphore_data_t* sem_data = (osal_semaphore_data_t*) tu_malloc( sizeof(osal_semaphore_data_t));
+  VERIFY(sem_data, NULL);
+
+  sem_data->count     = init;
+  sem_data->max_count = max_count;
+
+  return sem_data;
+}
+
+static inline  bool osal_semaphore_post(osal_semaphore_t sem_hdl)
+{
+  if (sem_hdl->count < sem_hdl->max_count ) sem_hdl->count++;
+  return true;
+}
+
+static inline void osal_semaphore_reset(osal_semaphore_t sem_hdl)
+{
+  sem_hdl->count = 0;
+}
+
+#define osal_semaphore_wait(sem_hdl, msec, p_error) \
+  do {\
+    timeout = osal_tick_get();\
+    state = __LINE__; case __LINE__:\
+    if( sem_hdl->count == 0 ) {\
+      if ( ( ((uint32_t) (msec)) != OSAL_TIMEOUT_WAIT_FOREVER) && (timeout + osal_tick_from_msec(msec) <= osal_tick_get()) ) /* time out */ \
+        *(p_error) = TUSB_ERROR_OSAL_TIMEOUT;\
+      else\
+        return TUSB_ERROR_OSAL_WAITING;\
+    } else{\
+      if (sem_hdl->count) sem_hdl->count--; /*TODO mutex hal_interrupt_disable consideration*/\
+      *(p_error) = TUSB_ERROR_NONE;\
+    }\
+  }while(0)
+
+//--------------------------------------------------------------------+
+// MUTEX API (priority inheritance)
+//--------------------------------------------------------------------+
+typedef osal_semaphore_t osal_mutex_t;
+
+static inline osal_mutex_t osal_mutex_create(void)
+{
+  return osal_semaphore_create(1, 0);
+}
+
+static inline bool osal_mutex_release(osal_mutex_t mutex_hdl)
+{
+  return osal_semaphore_post(mutex_hdl);
+}
+
+// TOOD remove
+static inline void osal_mutex_reset(osal_mutex_t mutex_hdl)
+{
+  osal_semaphore_reset(mutex_hdl);
+}
+
+#define osal_mutex_wait osal_semaphore_wait
+
+
 
 #ifdef __cplusplus
  }

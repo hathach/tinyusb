@@ -441,7 +441,7 @@ void usbd_xfer_isr(endpoint_handle_t edpt_hdl, tusb_event_t event, uint32_t xfer
 {
   if (edpt_hdl.class_code == 0 ) // Control Transfer
   {
-    ASSERT( TUSB_ERROR_NONE == osal_semaphore_post( usbd_control_xfer_sem_hdl ), VOID_RETURN);
+    osal_semaphore_post( usbd_control_xfer_sem_hdl );
   }else
   {
     usbd_task_event_t task_event =

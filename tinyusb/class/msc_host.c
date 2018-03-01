@@ -407,7 +407,7 @@ void msch_isr(pipe_handle_t pipe_hdl, tusb_event_t event, uint32_t xferred_bytes
       tuh_msc_isr(pipe_hdl.dev_addr, event, xferred_bytes);
     }else
     { // still initializing under open subtask
-      ASSERT( TUSB_ERROR_NONE == osal_semaphore_post(msch_sem_hdl), VOID_RETURN );
+      osal_semaphore_post(msch_sem_hdl);
     }
   }
 }

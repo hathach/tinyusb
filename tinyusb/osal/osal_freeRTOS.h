@@ -80,59 +80,6 @@ static inline void osal_task_delay(uint32_t msec)
 }
 
 //--------------------------------------------------------------------+
-// Semaphore API
-//--------------------------------------------------------------------+
-typedef xSemaphoreHandle osal_semaphore_t;
-
-// create FreeRTOS binary semaphore with zero as init value TODO: omit semaphore take from vSemaphoreCreateBinary API, should double checks this
-//#define osal_semaphore_create(x) xSemaphoreCreateBinary()
-
-static inline osal_semaphore_t osal_semaphore_create(uint32_t max, uint32_t init)
-{
-  return xSemaphoreCreateCounting(max, init);
-}
-
-// TODO add timeout (with instant return from ISR option) for semaphore post & queue send
-static inline  tusb_error_t osal_semaphore_post(osal_semaphore_t sem_hdl)
-{
-  return (xSemaphoreGive(sem_hdl) == pdTRUE) ? TUSB_ERROR_NONE : TUSB_ERROR_OSAL_SEMAPHORE_FAILED;
-}
-
-static inline void osal_semaphore_wait(osal_semaphore_t sem_hdl, uint32_t msec, tusb_error_t *p_error)
-{
-  uint32_t const ticks = (msec == OSAL_TIMEOUT_WAIT_FOREVER) ? portMAX_DELAY : osal_tick_from_msec(msec);
-  (*p_error) = ( xSemaphoreTake(sem_hdl, ticks) == pdPASS ) ? TUSB_ERROR_NONE : TUSB_ERROR_OSAL_TIMEOUT;
-}
-
-static inline void osal_semaphore_reset(osal_semaphore_t const sem_hdl)
-{
-  (void) xSemaphoreTake(sem_hdl, 0);
-}
-
-//--------------------------------------------------------------------+
-// MUTEX API (priority inheritance)
-//--------------------------------------------------------------------+
-typedef xSemaphoreHandle osal_mutex_t;
-
-#define osal_mutex_create(x) xSemaphoreCreateMutex()
-
-static inline  tusb_error_t osal_mutex_release(osal_mutex_t mutex_hdl)
-{
-  return osal_semaphore_post(mutex_hdl);
-}
-
-static inline void osal_mutex_wait(osal_mutex_t mutex_hdl, uint32_t msec, tusb_error_t *p_error)
-{
-  osal_semaphore_wait(mutex_hdl, msec, p_error);
-}
-
-// TOOD remove
-static inline void osal_mutex_reset(osal_mutex_t mutex_hdl)
-{
-  xSemaphoreGive(mutex_hdl);
-}
-
-//--------------------------------------------------------------------+
 // QUEUE API
 //--------------------------------------------------------------------+
 typedef xQueueHandle osal_queue_t;
@@ -165,6 +112,64 @@ static inline void osal_queue_flush(osal_queue_t const queue_hdl)
 {
   xQueueReset(queue_hdl);
 }
+
+//--------------------------------------------------------------------+
+// Semaphore API
+//--------------------------------------------------------------------+
+typedef xSemaphoreHandle osal_semaphore_t;
+
+static inline osal_semaphore_t osal_semaphore_create(uint32_t max, uint32_t init)
+{
+  return xSemaphoreCreateCounting(max, init);
+}
+
+// TODO add timeout (with instant return from ISR option) for semaphore post & queue send
+static inline bool osal_semaphore_post(osal_semaphore_t sem_hdl)
+{
+  if (SCB->ICSR & SCB_ICSR_VECTACTIVE_Msk)
+  {
+    return xSemaphoreGive(sem_hdl);
+  }else
+  {
+    return xSemaphoreGiveFromISR(sem_hdl, NULL);
+  }
+}
+
+static inline void osal_semaphore_wait(osal_semaphore_t sem_hdl, uint32_t msec, tusb_error_t *p_error)
+{
+  uint32_t const ticks = (msec == OSAL_TIMEOUT_WAIT_FOREVER) ? portMAX_DELAY : osal_tick_from_msec(msec);
+  (*p_error) = ( xSemaphoreTake(sem_hdl, ticks) == pdPASS ) ? TUSB_ERROR_NONE : TUSB_ERROR_OSAL_TIMEOUT;
+}
+
+static inline void osal_semaphore_reset(osal_semaphore_t const sem_hdl)
+{
+  (void) xSemaphoreTake(sem_hdl, 0);
+}
+
+//--------------------------------------------------------------------+
+// MUTEX API (priority inheritance)
+//--------------------------------------------------------------------+
+typedef xSemaphoreHandle osal_mutex_t;
+
+#define osal_mutex_create(x) xSemaphoreCreateMutex()
+
+static inline bool osal_mutex_release(osal_mutex_t mutex_hdl)
+{
+  return osal_semaphore_post(mutex_hdl);
+}
+
+static inline void osal_mutex_wait(osal_mutex_t mutex_hdl, uint32_t msec, tusb_error_t *p_error)
+{
+  osal_semaphore_wait(mutex_hdl, msec, p_error);
+}
+
+// TOOD remove
+static inline void osal_mutex_reset(osal_mutex_t mutex_hdl)
+{
+  xSemaphoreGive(mutex_hdl);
+}
+
+
 
 #ifdef __cplusplus
  }
