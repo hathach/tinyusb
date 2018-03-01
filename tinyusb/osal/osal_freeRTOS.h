@@ -110,7 +110,7 @@ static inline bool osal_queue_send(osal_queue_t const queue_hdl, void const * da
 
 static inline void osal_queue_flush(osal_queue_t const queue_hdl)
 {
-  xQueueReset(queue_hdl);
+//  xQueueReset(queue_hdl);
 }
 
 //--------------------------------------------------------------------+
@@ -128,22 +128,34 @@ static inline bool osal_semaphore_post(osal_semaphore_t sem_hdl)
 {
   if (SCB->ICSR & SCB_ICSR_VECTACTIVE_Msk)
   {
-    return xSemaphoreGive(sem_hdl);
+    return xSemaphoreGiveFromISR(sem_hdl, NULL);
   }else
   {
-    return xSemaphoreGiveFromISR(sem_hdl, NULL);
+    return xSemaphoreGive(sem_hdl);
   }
 }
 
 static inline void osal_semaphore_wait(osal_semaphore_t sem_hdl, uint32_t msec, tusb_error_t *p_error)
 {
   uint32_t const ticks = (msec == OSAL_TIMEOUT_WAIT_FOREVER) ? portMAX_DELAY : osal_tick_from_msec(msec);
-  (*p_error) = ( xSemaphoreTake(sem_hdl, ticks) == pdPASS ) ? TUSB_ERROR_NONE : TUSB_ERROR_OSAL_TIMEOUT;
+
+  BaseType_t result;
+
+  if (SCB->ICSR & SCB_ICSR_VECTACTIVE_Msk)
+  {
+    result = xSemaphoreTakeFromISR(sem_hdl, NULL);
+  }else
+  {
+    result = xSemaphoreTake(sem_hdl, ticks);
+  }
+
+  (*p_error) = result ? TUSB_ERROR_NONE : TUSB_ERROR_OSAL_TIMEOUT;
 }
 
 static inline void osal_semaphore_reset(osal_semaphore_t const sem_hdl)
 {
-  (void) xSemaphoreTake(sem_hdl, 0);
+  tusb_error_t err;
+  osal_semaphore_wait(sem_hdl, 0, &err);
 }
 
 //--------------------------------------------------------------------+

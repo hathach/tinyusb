@@ -13,18 +13,25 @@
   #define configCPU_CLOCK_HZ                   SystemCoreClock
 #endif
 
-#define configUSE_PREEMPTION                   1
-#define configTICK_RATE_HZ                     ( ( portTickType ) 1000 )
-#define configMAX_PRIORITIES                   (8 )
-#define configMINIMAL_STACK_SIZE               (128 )
-#define configTOTAL_HEAP_SIZE                  ( ( size_t ) ( 16*1024 ) )
-#define configMAX_TASK_NAME_LEN                32
-#define configUSE_16_BIT_TICKS      		       0
-#define configIDLE_SHOULD_YIELD                1
-#define configUSE_MUTEXES                      1
-#define configUSE_RECURSIVE_MUTEXES            0
-#define configUSE_COUNTING_SEMAPHORES          1
-#define configQUEUE_REGISTRY_SIZE              10 // used to name queue/semaphore with debugger
+#define configUSE_PREEMPTION                    1
+#define configUSE_PORT_OPTIMISED_TASK_SELECTION 0
+#define configTICK_RATE_HZ                      ( 1000 )
+#define configMAX_PRIORITIES                    (8 )
+#define configMINIMAL_STACK_SIZE                (128 )
+#define configTOTAL_HEAP_SIZE                   ( ( size_t ) ( 16*1024 ) )
+#define configMAX_TASK_NAME_LEN                 32
+#define configUSE_16_BIT_TICKS      		        0
+#define configIDLE_SHOULD_YIELD                 1
+#define configUSE_MUTEXES                       1
+#define configUSE_RECURSIVE_MUTEXES             0
+#define configUSE_COUNTING_SEMAPHORES           1
+#define configQUEUE_REGISTRY_SIZE               10 // used to name queue/semaphore with debugger
+#define configUSE_QUEUE_SETS                    0
+#define configUSE_TIME_SLICING                  0
+#define configUSE_NEWLIB_REENTRANT              0
+#define configENABLE_BACKWARD_COMPATIBILITY     1
+
+#define configSUPPORT_STATIC_ALLOCATION         0
 
 /* Hook function related definitions. */
 #define configUSE_IDLE_HOOK                    1
@@ -80,7 +87,7 @@
 #ifdef __NVIC_PRIO_BITS
 	#define configPRIO_BITS       __NVIC_PRIO_BITS
 #else
-	#define configPRIO_BITS       5        // 32 priority levels FIXME IAR Assembler will wrongly get this default value
+	#define configPRIO_BITS       5        // 32 priority levels
 #endif
 
 /* The lowest interrupt priority that can be used in a call to a "set priority"
@@ -95,10 +102,10 @@ PRIORITY THAN THIS! (higher priorities are lower numeric values. */
 
 /* Interrupt priorities used by the kernel port layer itself.  These are generic
 to all Cortex-M ports, and do not rely on any particular library functions. */
-#define configKERNEL_INTERRUPT_PRIORITY 		          ( configLIBRARY_LOWEST_INTERRUPT_PRIORITY << (8 - configPRIO_BITS) )
+#define configKERNEL_INTERRUPT_PRIORITY 		          configLIBRARY_LOWEST_INTERRUPT_PRIORITY // ( configLIBRARY_LOWEST_INTERRUPT_PRIORITY << (8 - configPRIO_BITS) )
 
 /* !!!! configMAX_SYSCALL_INTERRUPT_PRIORITY must not be set to zero !!!!
 See http://www.FreeRTOS.org/RTOS-Cortex-M3-M4.html. */
-#define configMAX_SYSCALL_INTERRUPT_PRIORITY 	        ( configLIBRARY_MAX_SYSCALL_INTERRUPT_PRIORITY << (8 - configPRIO_BITS) )
+#define configMAX_SYSCALL_INTERRUPT_PRIORITY 	        configLIBRARY_MAX_SYSCALL_INTERRUPT_PRIORITY //( configLIBRARY_MAX_SYSCALL_INTERRUPT_PRIORITY << (8 - configPRIO_BITS) )
 
 #endif /* __FREERTOS_CONFIG__H */
