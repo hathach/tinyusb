@@ -139,7 +139,7 @@ tusb_error_t cdcd_serial_subtask(void)
   osal_semaphore_wait(sem_hdl, OSAL_TIMEOUT_WAIT_FOREVER, &error);
   (void) error; // suppress compiler's warnings
 
-  if ( tud_configured(0) )
+  if ( tud_mounted(0) )
   {
     // echo back data in the fifo
     if ( !tud_cdc_busy(0, CDC_PIPE_DATA_IN) )

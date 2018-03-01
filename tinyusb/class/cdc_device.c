@@ -66,7 +66,7 @@ STATIC_VAR cdcd_data_t cdcd_data[CONTROLLER_DEVICE_NUMBER];
 
 static tusb_error_t cdcd_xfer(uint8_t coreid,  cdc_pipeid_t pipeid, void * p_buffer, uint32_t length, bool is_notify)
 {
-  ASSERT(tud_configured(coreid), TUSB_ERROR_USBD_DEVICE_NOT_CONFIGURED);
+  ASSERT(tud_mounted(coreid), TUSB_ERROR_USBD_DEVICE_NOT_CONFIGURED);
 
   cdcd_data_t* p_cdc = &cdcd_data[coreid];
 

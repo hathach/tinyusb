@@ -102,7 +102,7 @@ static tusb_error_t get_descriptor(uint8_t coreid, tusb_control_request_t const 
 //--------------------------------------------------------------------+
 // APPLICATION INTERFACE
 //--------------------------------------------------------------------+
-bool tud_configured(uint8_t coreid)
+bool tud_mounted(uint8_t coreid)
 {
   return usbd_devices[coreid].state == TUSB_DEVICE_STATE_CONFIGURED;
 }

@@ -120,7 +120,7 @@ bool tud_hid_keyboard_busy(uint8_t coreid)
 
 tusb_error_t tud_hid_keyboard_send(uint8_t coreid, hid_keyboard_report_t const *p_report)
 {
-  ASSERT(tud_configured(coreid), TUSB_ERROR_USBD_DEVICE_NOT_CONFIGURED);
+  ASSERT(tud_mounted(coreid), TUSB_ERROR_USBD_DEVICE_NOT_CONFIGURED);
 
   hidd_interface_t * p_kbd = &keyboardd_data; // TODO &keyboardd_data[coreid];
 
@@ -143,7 +143,7 @@ bool tusbd_hid_mouse_is_busy(uint8_t coreid)
 
 tusb_error_t tusbd_hid_mouse_send(uint8_t coreid, hid_mouse_report_t const *p_report)
 {
-  ASSERT(tud_configured(coreid), TUSB_ERROR_USBD_DEVICE_NOT_CONFIGURED);
+  ASSERT(tud_mounted(coreid), TUSB_ERROR_USBD_DEVICE_NOT_CONFIGURED);
 
   hidd_interface_t * p_mouse = &moused_data; // TODO &keyboardd_data[coreid];
 

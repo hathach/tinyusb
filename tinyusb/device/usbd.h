@@ -85,13 +85,14 @@ typedef struct {
 } usbd_class_driver_t;
 
 //--------------------------------------------------------------------+
-// INTERNAL OBJECT & FUNCTION DECLARATION
-//--------------------------------------------------------------------+
-
-//--------------------------------------------------------------------+
 // APPLICATION API
 //--------------------------------------------------------------------+
-bool tud_configured(uint8_t coreid);
+bool tud_mounted(uint8_t coreid);
+
+/*------------- Callback -------------*/
+void tud_mount_cb(uint8_t coreid);
+void tud_umount_cb(uint8_t coreid);
+
 //void tud_device_suspended_cb(uint8_t coreid);
 
 //--------------------------------------------------------------------+
