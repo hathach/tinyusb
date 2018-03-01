@@ -89,12 +89,12 @@ static scsi_mode_parameters_t const msc_dev_mode_para =
 //--------------------------------------------------------------------+
 // tinyusb callbacks
 //--------------------------------------------------------------------+
-void tud_msc_mounted_cb(uint8_t coreid)
+void msc_app_mount(uint8_t coreid)
 {
 
 }
 
-void tud_msc_unmounted_cb(uint8_t coreid)
+void msc_app_umount(uint8_t coreid)
 {
 
 }
@@ -156,7 +156,7 @@ msc_csw_status_t tud_msc_scsi_cb (uint8_t coreid, uint8_t lun, uint8_t scsi_cmd[
 //--------------------------------------------------------------------+
 // APPLICATION CODE
 //--------------------------------------------------------------------+
-void msc_device_app_task(void* param)
+void msc_app_task(void* param)
 { // no need to implement the task yet
   (void) param;
 
@@ -165,7 +165,7 @@ void msc_device_app_task(void* param)
   OSAL_TASK_END
 }
 
-void msc_device_app_init (void)
+void msc_app_init (void)
 {
 
 }

@@ -69,10 +69,10 @@ void os_none_start_scheduler(void)
     tusb_task_runner();
     led_blinking_task(NULL);
 
-    msc_device_app_task(NULL);
-    keyboard_device_app_task(NULL);
-    mouse_device_app_task(NULL);
-    cdcd_serial_app_task(NULL);
+    msc_app_task(NULL);
+    keyboard_app_task(NULL);
+    mouse_app_task(NULL);
+    cdc_serial_app_task(NULL);
   }
 }
 #endif
@@ -87,10 +87,10 @@ int main(void)
   //------------- application task init -------------//
   led_blinking_init();
 
-  msc_device_app_init();
-  keyboard_device_app_init();
-  mouse_device_app_init();
-  cdcd_serial_app_init();
+  msc_app_init();
+  keyboard_app_init();
+  mouse_app_init();
+  cdc_serial_app_init();
 
   //------------- start OS scheduler (never return) -------------//
 #if TUSB_CFG_OS == TUSB_OS_FREERTOS
@@ -102,6 +102,23 @@ int main(void)
 #endif
 
   return 0;
+}
+
+//--------------------------------------------------------------------+
+// tinyusb callbacks
+//--------------------------------------------------------------------+
+void tud_mount_cb(uint8_t coreid)
+{
+  cdc_serial_app_mount(coreid);
+  keyboard_app_mount(coreid);
+  msc_app_mount(coreid);
+}
+
+void tud_umount_cb(uint8_t coreid)
+{
+  cdc_serial_app_umount(coreid);
+  keyboard_app_umount(coreid);
+  msc_app_umount(coreid);
 }
 
 //--------------------------------------------------------------------+

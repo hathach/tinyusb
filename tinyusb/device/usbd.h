@@ -90,7 +90,16 @@ typedef struct {
 bool tud_mounted(uint8_t coreid);
 
 /*------------- Callback -------------*/
+/** \brief 			Callback function that will be invoked device is mounted (configured) by USB host
+ * \param[in] 	coreid USB Controller ID of the interface
+ * \note        This callback should be used by Application to \b set-up application data
+ */
 void tud_mount_cb(uint8_t coreid);
+
+/** \brief 			Callback function that will be invoked when device is unmounted (bus reset/unplugged)
+ * \param[in] 	coreid USB Controller ID of the interface
+ * \note        This callback should be used by Application to \b tear-down application data
+ */
 void tud_umount_cb(uint8_t coreid);
 
 //void tud_device_suspended_cb(uint8_t coreid);

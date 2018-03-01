@@ -59,17 +59,6 @@
 //--------------------------------------------------------------------+
 // APPLICATION CALLBACK API
 //--------------------------------------------------------------------+
-/** \brief 			Callback function that will be invoked when this interface is mounted (configured) by USB host
- * \param[in] 	coreid USB Controller ID of the interface
- * \note        This callback should be used by Application to \b set-up interface-related data
- */
-void tud_msc_mounted_cb(uint8_t coreid);
-
-/** \brief 			Callback function that will be invoked when this interface is unmounted (bus reset/unplugged)
- * \param[in] 	coreid USB Controller ID of the interface
- * \note        This callback should be used by Application to \b tear-down interface-related data
- */
-void tud_msc_unmounted_cb(uint8_t coreid);
 
 /** \brief 			Callback that is invoked when tinyusb stack received \ref SCSI_CMD_READ_10 command from host
  * \param[in]		coreid	    USB Controller ID

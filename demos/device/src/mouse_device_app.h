@@ -55,13 +55,17 @@
 
 #if TUSB_CFG_DEVICE_HID_MOUSE
 
-void mouse_device_app_init(void);
-void mouse_device_app_task(void * param);
+void mouse_app_init(void);
+void mouse_app_task(void * param);
+void mouse_app_mount(uint8_t coreid);
+void mouse_app_umount(uint8_t coreid);
 
 #else
 
-#define mouse_device_app_init()
-#define mouse_device_app_task(x)
+#define mouse_app_init()
+#define mouse_app_task(x)
+#define mouse_app_mount(x)
+#define mouse_app_umount(x)
 
 #endif
 

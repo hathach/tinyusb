@@ -170,8 +170,6 @@ tusb_error_t cdcd_open(uint8_t coreid, tusb_descriptor_interface_t const * p_int
 
   p_cdc->interface_number   = p_interface_desc->bInterfaceNumber;
 
-  tud_cdc_mounted_cb(coreid);
-
   return TUSB_ERROR_NONE;
 }
 
@@ -179,8 +177,6 @@ void cdcd_close(uint8_t coreid)
 {
   // no need to close opened pipe, dcd bus reset will put controller's endpoints to default state
   memclr_(&cdcd_data[coreid], sizeof(cdcd_data_t));
-
-  tud_cdc_unmounted_cb(coreid);
 }
 
 tusb_error_t cdcd_control_request_subtask(uint8_t coreid, tusb_control_request_t const * p_request)

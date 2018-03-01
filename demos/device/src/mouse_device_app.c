@@ -56,12 +56,12 @@ TUSB_CFG_ATTR_USBRAM hid_mouse_report_t mouse_report;
 //--------------------------------------------------------------------+
 // tinyusb callbacks
 //--------------------------------------------------------------------+
-void tusbd_hid_mouse_mounted_cb(uint8_t coreid)
+void mouse_app_mount(uint8_t coreid)
 {
 
 }
 
-void tusbd_hid_mouse_unmounted_cb(uint8_t coreid)
+void mouse_app_umount(uint8_t coreid)
 {
 
 }
@@ -93,22 +93,22 @@ void tusbd_hid_mouse_set_report_cb(uint8_t coreid, hid_request_report_type_t rep
 //--------------------------------------------------------------------+
 // APPLICATION CODE
 //--------------------------------------------------------------------+
-void mouse_device_app_init(void)
+void mouse_app_init(void)
 {
-  osal_task_create(mouse_device_app_task, "mouse", 128, NULL, MOUSE_APP_TASK_PRIO);
+  osal_task_create(mouse_app_task, "mouse", 128, NULL, MOUSE_APP_TASK_PRIO);
 }
 
-void mouse_device_subtask(void);
+void mouse_app_subtask(void);
 
-void mouse_device_app_task(void * param)
+void mouse_app_task(void * param)
 {
   (void) para;
   OSAL_TASK_BEGIN
-  mouse_device_subtask();
+  mouse_app_subtask();
   OSAL_TASK_END
 }
 
-void mouse_device_subtask(void)
+void mouse_app_subtask(void)
 {
   OSAL_SUBTASK_BEGIN
 

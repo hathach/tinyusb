@@ -65,8 +65,6 @@ typedef struct {
 
 typedef struct {
   hidd_interface_t * const p_interface;
-  void (* const mounted_cb) (uint8_t coreid);
-  void (* const unmounted_cb) (uint8_t coreid);
   void (* const xfer_cb) (uint8_t, tusb_event_t, uint32_t);
   uint16_t (* const get_report_cb) (uint8_t, hid_request_report_type_t, void**, uint16_t );
   void (* const set_report_cb) (uint8_t, hid_request_report_type_t, uint8_t[], uint16_t);
@@ -83,8 +81,6 @@ static hidd_class_driver_t const hidd_class_driver[HIDD_NUMBER_OF_SUBCLASS] =
     [HID_PROTOCOL_KEYBOARD] =
     {
         .p_interface   = &keyboardd_data,
-        .mounted_cb    = tud_hid_keyboard_mounted_cb,
-        .unmounted_cb  = tud_hid_keyboard_unmounted_cb,
         .xfer_cb       = tud_hid_keyboard_cb,
         .get_report_cb = tud_hid_keyboard_get_report_cb,
         .set_report_cb = tud_hid_keyboard_set_report_cb
@@ -95,8 +91,6 @@ static hidd_class_driver_t const hidd_class_driver[HIDD_NUMBER_OF_SUBCLASS] =
     [HID_PROTOCOL_MOUSE] =
     {
         .p_interface   = &moused_data,
-        .mounted_cb    = tusbd_hid_mouse_mounted_cb,
-        .unmounted_cb  = tusbd_hid_mouse_unmounted_cb,
         .xfer_cb       = tusbd_hid_mouse_cb,
         .get_report_cb = tusbd_hid_mouse_get_report_cb,
         .set_report_cb = tusbd_hid_mouse_set_report_cb
@@ -178,7 +172,6 @@ void hidd_close(uint8_t coreid)
   for(uint8_t i=0; i<HIDD_NUMBER_OF_SUBCLASS; i++)
   {
     interface_clear(hidd_class_driver[i].p_interface);
-    if ( hidd_class_driver[i].unmounted_cb ) hidd_class_driver[i].unmounted_cb(coreid);
   }
 }
 
@@ -295,7 +288,6 @@ tusb_error_t hidd_open(uint8_t coreid, tusb_descriptor_interface_t const * p_int
         p_hid->report_length    = p_desc_hid->wReportLength;
 
         ASSERT_PTR(p_hid->p_report_desc, TUSB_ERROR_DESCRIPTOR_CORRUPTED);
-        p_driver->mounted_cb(coreid);
       }
       break;
 

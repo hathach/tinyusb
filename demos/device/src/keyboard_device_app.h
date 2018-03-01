@@ -55,13 +55,18 @@
 
 #if TUSB_CFG_DEVICE_HID_KEYBOARD
 
-void keyboard_device_app_init(void);
-void keyboard_device_app_task(void* param);
+void keyboard_app_init(void);
+void keyboard_app_task(void* param);
+
+void keyboard_app_mount(uint8_t coreid);
+void keyboard_app_umount(uint8_t coreid);
 
 #else
 
-#define keyboard_device_app_init()
-#define keyboard_device_app_task(x)
+#define keyboard_app_init()
+#define keyboard_app_task(x)
+#define keyboard_app_mount(x)
+#define keyboard_app_umount(x)
 
 #endif
 

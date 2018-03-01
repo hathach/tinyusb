@@ -98,18 +98,6 @@ tusb_error_t tud_cdc_receive(uint8_t coreid, void * p_buffer, uint32_t length, b
 //--------------------------------------------------------------------+
 // APPLICATION CALLBACK API
 //--------------------------------------------------------------------+
-/** \brief 			Callback function that will be invoked when this interface is mounted (configured) by USB host
- * \param[in] 	coreid USB Controller ID of the interface
- * \note        This callback should be used by Application to \b set-up interface-related data
- */
-void tud_cdc_mounted_cb(uint8_t coreid);
-
-/** \brief 			Callback function that will be invoked when this interface is unmounted (bus reset/unplugged)
- * \param[in] 	coreid USB Controller ID of the interface
- * \note        This callback should be used by Application to \b tear-down interface-related data
- */
-void tud_cdc_unmounted_cb(uint8_t coreid);
-
 /** \brief      Callback function that is invoked when an completion (error or success) of an USB transfer previously submitted
  *              by application (e.g \ref tusbd_cdc_send or \ref tusbd_cdc_send) with \a is_notify set to true.
  * \param[in]		coreid	USB Controller ID

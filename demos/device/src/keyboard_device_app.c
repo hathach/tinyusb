@@ -56,12 +56,12 @@ TUSB_CFG_ATTR_USBRAM hid_keyboard_report_t keyboard_report;
 //--------------------------------------------------------------------+
 // tinyusb callbacks
 //--------------------------------------------------------------------+
-void tud_hid_keyboard_mounted_cb(uint8_t coreid)
+void keyboard_app_mount(uint8_t coreid)
 {
 
 }
 
-void tud_hid_keyboard_unmounted_cb(uint8_t coreid)
+void keyboard_app_umount(uint8_t coreid)
 {
 
 }
@@ -104,14 +104,14 @@ void tud_hid_keyboard_set_report_cb(uint8_t coreid, hid_request_report_type_t re
 //--------------------------------------------------------------------+
 // APPLICATION CODE
 //--------------------------------------------------------------------+
-void keyboard_device_app_init(void)
+void keyboard_app_init(void)
 {
-  osal_task_create(keyboard_device_app_task, "kbd", 128, NULL, KEYBOARD_APP_TASK_PRIO);
+  osal_task_create(keyboard_app_task, "kbd", 128, NULL, KEYBOARD_APP_TASK_PRIO);
 }
 
 tusb_error_t keyboard_device_subtask(void);
 
-void keyboard_device_app_task(void* param)
+void keyboard_app_task(void* param)
 {
   (void) param;
 

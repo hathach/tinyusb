@@ -64,14 +64,14 @@ FIFO_DEF(fifo_serial, SERIAL_BUFFER_SIZE, uint8_t, true);
 //--------------------------------------------------------------------+
 // tinyusb callbacks
 //--------------------------------------------------------------------+
-void tud_cdc_mounted_cb(uint8_t coreid)
+void cdc_serial_app_mount(uint8_t coreid)
 {
   osal_semaphore_reset(sem_hdl);
 
   tud_cdc_receive(coreid, serial_rx_buffer, SERIAL_BUFFER_SIZE, true);
 }
 
-void tud_cdc_unmounted_cb(uint8_t coreid)
+void cdc_serial_app_umount(uint8_t coreid)
 {
 
 }
@@ -111,26 +111,26 @@ void tud_cdc_xfer_cb(uint8_t coreid, tusb_event_t event, cdc_pipeid_t pipe_id, u
 //--------------------------------------------------------------------+
 // APPLICATION CODE
 //--------------------------------------------------------------------+
-void cdcd_serial_app_init(void)
+void cdc_serial_app_init(void)
 {
   sem_hdl = osal_semaphore_create(1, 0);
   ASSERT_PTR( sem_hdl, VOID_RETURN);
 
-  osal_task_create(cdcd_serial_app_task, "cdc", 128, NULL, CDC_SERIAL_APP_TASK_PRIO);
+  osal_task_create(cdc_serial_app_task, "cdc", 128, NULL, CDC_SERIAL_APP_TASK_PRIO);
 }
 
-tusb_error_t cdcd_serial_subtask(void);
+tusb_error_t cdc_serial_subtask(void);
 
-void cdcd_serial_app_task(void* param)
+void cdc_serial_app_task(void* param)
 {
   (void) param;
 
   OSAL_TASK_BEGIN
-  cdcd_serial_subtask();
+  cdc_serial_subtask();
   OSAL_TASK_END
 }
 
-tusb_error_t cdcd_serial_subtask(void)
+tusb_error_t cdc_serial_subtask(void)
 {
   OSAL_SUBTASK_BEGIN
 
