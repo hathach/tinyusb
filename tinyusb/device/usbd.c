@@ -264,7 +264,7 @@ tusb_error_t usbd_control_request_subtask(uint8_t coreid, tusb_control_request_t
     }
     else if ( TUSB_REQUEST_SET_ADDRESS == p_request->bRequest )
     {
-      dcd_controller_set_address(coreid, (uint8_t) p_request->wValue);
+      hal_dcd_set_address(coreid, (uint8_t) p_request->wValue);
       usbd_devices[coreid].state = TUSB_DEVICE_STATE_ADDRESSED;
     }
     else if ( TUSB_REQUEST_SET_CONFIGURATION == p_request->bRequest )
@@ -321,7 +321,7 @@ tusb_error_t usbd_control_request_subtask(uint8_t coreid, tusb_control_request_t
 // may need to open interface before set configured
 static tusb_error_t usbd_set_configure_received(uint8_t coreid, uint8_t config_number)
 {
-  dcd_controller_set_configuration(coreid);
+  hal_dcd_set_config(coreid);
   usbd_devices[coreid].state = TUSB_DEVICE_STATE_CONFIGURED;
 
   //------------- parse configuration & open drivers -------------//

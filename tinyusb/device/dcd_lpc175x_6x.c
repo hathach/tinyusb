@@ -280,19 +280,19 @@ void dcd_isr(uint8_t coreid)
 //--------------------------------------------------------------------+
 // USBD API - CONTROLLER
 //--------------------------------------------------------------------+
-void dcd_controller_connect(uint8_t coreid)
+void hal_dcd_connect(uint8_t coreid)
 {
   (void) coreid;
   sie_write(SIE_CMDCODE_DEVICE_STATUS, 1, 1);
 }
 
-void dcd_controller_set_address(uint8_t coreid, uint8_t dev_addr)
+void hal_dcd_set_address(uint8_t coreid, uint8_t dev_addr)
 {
   (void) coreid;
   sie_write(SIE_CMDCODE_SET_ADDRESS, 1, 0x80 | dev_addr); // 7th bit is : device_enable
 }
 
-void dcd_controller_set_configuration(uint8_t coreid)
+void hal_dcd_set_config(uint8_t coreid)
 {
   (void) coreid;
   sie_write(SIE_CMDCODE_CONFIGURE_DEVICE, 1, 1);

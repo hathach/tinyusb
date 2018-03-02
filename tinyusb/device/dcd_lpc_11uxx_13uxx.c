@@ -164,18 +164,18 @@ static void queue_xfer_in_next_td(uint8_t ep_id);
 //--------------------------------------------------------------------+
 // CONTROLLER API
 //--------------------------------------------------------------------+
-void dcd_controller_connect(uint8_t coreid)
+void hal_dcd_connect(uint8_t coreid)
 {
   (void) coreid;
   LPC_USB->DEVCMDSTAT |= CMDSTAT_DEVICE_CONNECT_MASK;
 }
 
-void dcd_controller_set_configuration(uint8_t coreid)
+void hal_dcd_set_config(uint8_t coreid)
 {
 
 }
 
-void dcd_controller_set_address(uint8_t coreid, uint8_t dev_addr)
+void hal_dcd_set_address(uint8_t coreid, uint8_t dev_addr)
 {
   (void) coreid;
 

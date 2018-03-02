@@ -184,17 +184,17 @@ static dcd_data_t* const dcd_data_ptr[2] = { &dcd_data0, &dcd_data1 };
 //--------------------------------------------------------------------+
 // CONTROLLER API
 //--------------------------------------------------------------------+
-void dcd_controller_connect(uint8_t coreid)
+void hal_dcd_connect(uint8_t coreid)
 {
   LPC_USB[coreid]->USBCMD_D |= BIT_(0);
 }
 
-void dcd_controller_set_address(uint8_t coreid, uint8_t dev_addr)
+void hal_dcd_set_address(uint8_t coreid, uint8_t dev_addr)
 {
   LPC_USB[coreid]->DEVICEADDR = (dev_addr << 25) | BIT_(24);
 }
 
-void dcd_controller_set_configuration(uint8_t coreid)
+void hal_dcd_set_config(uint8_t coreid)
 {
 
 }
