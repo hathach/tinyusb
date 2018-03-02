@@ -57,8 +57,6 @@
 #define MCU_LPC43XX        7 ///< NXP LPC43xx family
 /** @} */
 
-#include "mcu_capacity.h"
-
 #ifndef TUSB_CFG_CONFIG_FILE
   #define TUSB_CFG_CONFIG_FILE "tusb_config.h"
 #endif
