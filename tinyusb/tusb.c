@@ -42,7 +42,7 @@
 
 tusb_error_t tusb_init(void)
 {
-  VERIFY( hal_init(), TUSB_ERROR_FAILED ) ; // hardware init
+  VERIFY( hal_usb_init(), TUSB_ERROR_FAILED ) ; // hardware init
 
 #if MODE_HOST_SUPPORTED
   ASSERT_STATUS( usbh_init() ); // host stack init

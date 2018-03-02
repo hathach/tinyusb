@@ -56,7 +56,7 @@ void hal_usb_int_disable(uint8_t coreid)
 //--------------------------------------------------------------------+
 // IMPLEMENTATION
 //--------------------------------------------------------------------+
-bool hal_init(void)
+bool hal_usb_init(void)
 {
   enum {
     USBCLK_DEVCIE = 0x12,     // AHB + Device

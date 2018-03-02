@@ -73,6 +73,8 @@ typedef struct {
 }usbd_device_info_t;
 
 extern usbd_device_info_t usbd_devices[CONTROLLER_DEVICE_NUMBER];
+
+
 //--------------------------------------------------------------------+
 // callback from DCD ISR
 //--------------------------------------------------------------------+

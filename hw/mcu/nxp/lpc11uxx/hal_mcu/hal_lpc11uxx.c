@@ -53,7 +53,7 @@ void hal_usb_int_disable(uint8_t coreid)
   NVIC_DisableIRQ(USB_IRQn);
 }
 
-bool hal_init(void)
+bool hal_usb_init(void)
 {
 	// TODO remove magic number
   /* Enable AHB clock to the USB block and USB RAM. */

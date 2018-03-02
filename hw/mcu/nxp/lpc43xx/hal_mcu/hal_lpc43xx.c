@@ -79,7 +79,7 @@ static void hal_controller_reset(uint8_t coreid)
 //  return timeout_expired(&timeout) ? TUSB_ERROR_OSAL_TIMEOUT : TUSB_ERROR_NONE;
 }
 
-bool hal_init(void)
+bool hal_usb_init(void)
 {
   LPC_CREG->CREG0 &= ~(1<<5); /* Turn on the phy */
 

@@ -71,7 +71,7 @@ extern "C" {
  * \returns   true if succeedded
  * \note      This function is invoked by \ref tusb_init as part of the initialization.
  */
-bool hal_init(void);
+bool hal_usb_init(void);
 
 /** \brief 			Enable USB Interrupt on a specific USB Controller
  * \param[in]		coreid	is a zero-based index to identify USB controller's ID
