@@ -83,7 +83,7 @@ void hal_usb_int_enable(uint8_t coreid);
  */
 void hal_usb_int_disable(uint8_t coreid);
 
-#include "hal_usb.h"
+#include "hal_mcu.h"
 
 #ifdef __cplusplus
 extern "C" {

@@ -1,6 +1,6 @@
 /**************************************************************************/
 /*!
-    @file     hal_lpc11uxx.h
+    @file     hal_lpc13uxx.h
     @author   hathach (tinyusb.org)
 
     @section LICENSE
@@ -36,10 +36,10 @@
 */
 /**************************************************************************/
 
-#ifndef _TUSB_HAL_LPC11UXX_H_
-#define _TUSB_HAL_LPC11UXX_H_
+#ifndef _TUSB_HAL_MCU_H_
+#define _TUSB_HAL_MCU_H_
 
-#include "LPC11Uxx.h"
+#include "LPC13Uxx.h"
 
 #ifdef __cplusplus
  extern "C" {
@@ -50,4 +50,5 @@
  }
 #endif
 
-#endif /* _TUSB_HAL_LPC11UXX_H_ */
+#endif /* _TUSB_HAL_MCU_H_ */
+

@@ -36,8 +36,8 @@
 */
 /**************************************************************************/
 
-#ifndef _TUSB_HAL_LPC175X_6X_H_
-#define _TUSB_HAL_LPC175X_6X_H_
+#ifndef _TUSB_HAL_MCU_H_
+#define _TUSB_HAL_MCU_H_
 
 #include "LPC17xx.h"
 #include "lpc17xx_pinsel.h"
@@ -51,5 +51,5 @@
  }
 #endif
 
-#endif /* _TUSB_HAL_LPC175X_6X_H_ */
+#endif /* _TUSB_HAL_MCU_H_ */
 
