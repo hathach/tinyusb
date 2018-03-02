@@ -36,7 +36,7 @@
 */
 /**************************************************************************/
 
-#include "hal_mcu.h"
+#include "hal_usb.h"
 #include "tusb.h"
 
 #if TUSB_CFG_MCU == MCU_LPC43XX
