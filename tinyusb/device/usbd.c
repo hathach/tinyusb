@@ -159,7 +159,14 @@ static tusb_error_t usbd_body_subtask(void);
 
 tusb_error_t usbd_init (void)
 {
-  ASSERT_STATUS ( dcd_init() );
+  #if (TUSB_CFG_CONTROLLER_0_MODE & TUSB_MODE_DEVICE)
+  hal_dcd_init(0);
+  #endif
+
+  #if (TUSB_CFG_CONTROLLER_1_MODE & TUSB_MODE_DEVICE)
+  hal_dcd_init(1);
+  #endif
+
 
   //------------- Task init -------------//
   usbd_queue_hdl = osal_queue_create(USBD_TASK_QUEUE_DEPTH, sizeof(usbd_task_event_t));

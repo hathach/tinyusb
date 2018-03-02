@@ -183,8 +183,10 @@ void dcd_controller_set_address(uint8_t coreid, uint8_t dev_addr)
   LPC_USB->DEVCMDSTAT |= dev_addr;
 }
 
-tusb_error_t dcd_init(void)
+bool hal_dcd_init(uint8_t coreid)
 {
+  (void) coreid;
+
   LPC_USB->EPLISTSTART  = (uint32_t) dcd_data.qhd;
   LPC_USB->DATABUFSTART = 0x20000000; // only SRAM1 & USB RAM can be used for transfer
 
@@ -193,7 +195,7 @@ tusb_error_t dcd_init(void)
   LPC_USB->DEVCMDSTAT  |= CMDSTAT_DEVICE_ENABLE_MASK | CMDSTAT_DEVICE_CONNECT_MASK |
                           CMDSTAT_RESET_CHANGE_MASK | CMDSTAT_CONNECT_CHANGE_MASK | CMDSTAT_SUSPEND_CHANGE_MASK;
 
-  return TUSB_ERROR_NONE;
+  return true;
 }
 
 static void bus_reset(void)

@@ -122,8 +122,10 @@ static void bus_reset(void)
 	memclr_(&dcd_data, sizeof(dcd_data_t));
 }
 
-tusb_error_t dcd_init(void)
+bool hal_dcd_init(uint8_t coreid)
 {
+  (void) coreid;
+
   //------------- user manual 11.13 usb device controller initialization -------------//  LPC_USB->USBEpInd = 0;
   // step 6 : set up control endpoint
   edpt_set_max_packet_size(0, TUSB_CFG_DEVICE_CONTROL_ENDOINT_SIZE);

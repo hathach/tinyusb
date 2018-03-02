@@ -49,8 +49,8 @@
 #include "osal/osal.h"
 #include "common/timeout_timer.h"
 
-#include "dcd.h"
-#include "usbd_dcd.h"
+#include "device/dcd.h"
+#include "device/usbd_dcd.h"
 #include "dcd_lpc43xx.h"
 
 //--------------------------------------------------------------------+
@@ -245,7 +245,7 @@ static void bus_reset(uint8_t coreid)
 
 }
 
-static void lpc43xx_controller_init(uint8_t coreid)
+bool hal_dcd_init(uint8_t coreid)
 {
   LPC_USB0_Type* const lpc_usb = LPC_USB[coreid];
   dcd_data_t* p_dcd = dcd_data_ptr[coreid];
@@ -258,19 +258,8 @@ static void lpc43xx_controller_init(uint8_t coreid)
 
   lpc_usb->USBCMD_D &= ~0x00FF0000; // Interrupt Threshold Interval = 0
   lpc_usb->USBCMD_D |= BIT_(0); // connect
-}
 
-tusb_error_t dcd_init(void)
-{
-  #if (TUSB_CFG_CONTROLLER_0_MODE & TUSB_MODE_DEVICE)
-  lpc43xx_controller_init(0);
-  #endif
-
-  #if (TUSB_CFG_CONTROLLER_1_MODE & TUSB_MODE_DEVICE)
-  lpc43xx_controller_init(1);
-  #endif
-
-  return TUSB_ERROR_NONE;
+  return true;
 }
 
 //--------------------------------------------------------------------+
