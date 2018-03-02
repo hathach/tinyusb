@@ -53,11 +53,11 @@ tusb_error_t tusb_init(void)
 #endif
 
 #if (TUSB_CFG_CONTROLLER_0_MODE)
-  hal_interrupt_enable(0);
+  hal_usb_int_enable(0);
 #endif
 
 #if (TUSB_CFG_CONTROLLER_1_MODE)
-  hal_interrupt_enable(1);
+  hal_usb_int_enable(1);
 #endif
 
   return TUSB_ERROR_NONE;

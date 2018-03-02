@@ -41,13 +41,13 @@
 
 #if TUSB_CFG_MCU == MCU_LPC13UXX
 
-void hal_interrupt_enable(uint8_t coreid)
+void hal_usb_int_enable(uint8_t coreid)
 {
   (void) coreid; // discard compiler's warning
   NVIC_EnableIRQ(USB_IRQ_IRQn);
 }
 
-void hal_interrupt_disable(uint8_t coreid)
+void hal_usb_int_disable(uint8_t coreid)
 {
   (void) coreid; // discard compiler's warning
   NVIC_DisableIRQ(USB_IRQ_IRQn);

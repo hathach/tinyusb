@@ -74,14 +74,14 @@ tusb_error_t hal_init(void);
  * \note        Some MCUs such as NXP LPC43xx has multiple USB controllers. It is necessary to know which USB controller for
  *              those MCUs.
  */
-void hal_interrupt_enable(uint8_t coreid);
+void hal_usb_int_enable(uint8_t coreid);
 
 /** \brief 			Disable USB Interrupt on a specific USB Controller
  * \param[in]		coreid	is a zero-based index to identify USB controller's ID
  * \note        Some MCUs such as NXP LPC43xx has multiple USB controllers. It is necessary to know which USB controller for
  *              those MCUs.
  */
-void hal_interrupt_disable(uint8_t coreid);
+void hal_usb_int_disable(uint8_t coreid);
 
 #include "hal_usb.h"
 
