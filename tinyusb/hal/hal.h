@@ -64,10 +64,10 @@ void tusb_isr(uint8_t coreid);
  *  @{ */
 
 /** \brief    Initialize USB controller hardware
- * \returns   \ref tusb_error_t type to indicate success or error condition.
+ * \returns   true if succeedded
  * \note      This function is invoked by \ref tusb_init as part of the initialization.
  */
-tusb_error_t hal_init(void);
+bool hal_init(void);
 
 /** \brief 			Enable USB Interrupt on a specific USB Controller
  * \param[in]		coreid	is a zero-based index to identify USB controller's ID

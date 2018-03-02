@@ -55,7 +55,18 @@ enum {
   LPC43XX_USBMODE_VBUS_HIGH = 1
 };
 
-static tusb_error_t hal_controller_reset(uint8_t coreid)
+void hal_usb_int_enable(uint8_t coreid)
+{
+  NVIC_EnableIRQ(coreid ? USB1_IRQn : USB0_IRQn);
+}
+
+void hal_usb_int_disable(uint8_t coreid)
+{
+  NVIC_DisableIRQ(coreid ? USB1_IRQn : USB0_IRQn);
+}
+
+
+static void hal_controller_reset(uint8_t coreid)
 { // TODO timeout expired to prevent trap
   volatile uint32_t * p_reg_usbcmd;
 
@@ -68,32 +79,21 @@ static tusb_error_t hal_controller_reset(uint8_t coreid)
   while( ((*p_reg_usbcmd) & BIT_(1)) /*&& !timeout_expired(&timeout)*/) {}
 //
 //  return timeout_expired(&timeout) ? TUSB_ERROR_OSAL_TIMEOUT : TUSB_ERROR_NONE;
-  return TUSB_ERROR_NONE;
 }
 
-void hal_usb_int_enable(uint8_t coreid)
-{
-  NVIC_EnableIRQ(coreid ? USB1_IRQn : USB0_IRQn);
-}
-
-void hal_usb_int_disable(uint8_t coreid)
-{
-  NVIC_DisableIRQ(coreid ? USB1_IRQn : USB0_IRQn);
-}
-
-tusb_error_t hal_init(void)
+bool hal_init(void)
 {
   LPC_CREG->CREG0 &= ~(1<<5); /* Turn on the phy */
 
   //------------- USB0 -------------//
 #if TUSB_CFG_CONTROLLER_0_MODE
   CGU_EnableEntity(CGU_CLKSRC_PLL0, DISABLE); /* Disable PLL first */
-  ASSERT_INT( CGU_ERROR_SUCCESS, CGU_SetPLL0(), TUSB_ERROR_FAILED); /* the usb core require output clock = 480MHz */
+  VERIFY( CGU_ERROR_SUCCESS == CGU_SetPLL0()); /* the usb core require output clock = 480MHz */
   CGU_EntityConnect(CGU_CLKSRC_XTAL_OSC, CGU_CLKSRC_PLL0);
   CGU_EnableEntity(CGU_CLKSRC_PLL0, ENABLE);   /* Enable PLL after all setting is done */
 
   // reset controller & set role
-  ASSERT_STATUS( hal_controller_reset(0) );
+  hal_controller_reset(0);
 
   #if TUSB_CFG_CONTROLLER_0_MODE & TUSB_MODE_HOST
     LPC_USB0->USBMODE_H = LPC43XX_USBMODE_HOST | (LPC43XX_USBMODE_VBUS_HIGH << 5);
@@ -115,7 +115,7 @@ tusb_error_t hal_init(void)
   CGU_EntityConnect(CGU_CLKSRC_PLL1, CGU_BASE_USB1); /* FIXME Run base BASE_USB1_CLK clock from PLL1 (assume PLL1 is 60 MHz, no division required) */
   LPC_SCU->SFSUSB = (TUSB_CFG_CONTROLLER_1_MODE & TUSB_MODE_HOST) ? 0x16 : 0x12; // enable USB1 with on-chip FS PHY
 
-  ASSERT_STATUS( hal_controller_reset(1) );
+  hal_controller_reset(1);
 
   #if TUSB_CFG_CONTROLLER_1_MODE & TUSB_MODE_HOST
     LPC_USB1->USBMODE_H = LPC43XX_USBMODE_HOST | (LPC43XX_USBMODE_VBUS_HIGH << 5);
@@ -126,7 +126,7 @@ tusb_error_t hal_init(void)
   LPC_USB1->PORTSC1_D |= (1<<24); // TODO abstract, force port to fullspeed
 #endif
 
-  return TUSB_ERROR_NONE;
+  return true;
 }
 
 #if TUSB_CFG_CONTROLLER_0_MODE

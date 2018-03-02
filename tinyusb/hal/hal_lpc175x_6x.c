@@ -56,7 +56,7 @@ void hal_usb_int_disable(uint8_t coreid)
 //--------------------------------------------------------------------+
 // IMPLEMENTATION
 //--------------------------------------------------------------------+
-tusb_error_t hal_init(void)
+bool hal_init(void)
 {
   enum {
     USBCLK_DEVCIE = 0x12,     // AHB + Device
@@ -97,7 +97,7 @@ tusb_error_t hal_init(void)
   while ((LPC_USB->USBClkSt & USBCLK_DEVCIE) != USBCLK_DEVCIE);
 #endif
 
-  return TUSB_ERROR_NONE;
+  return true;
 }
 
 void USB_IRQHandler(void)

@@ -53,7 +53,7 @@ void hal_usb_int_disable(uint8_t coreid)
   NVIC_DisableIRQ(USB_IRQn);
 }
 
-tusb_error_t hal_init(void)
+bool hal_init(void)
 {
 	// TODO remove magic number
   /* Enable AHB clock to the USB block and USB RAM. */
@@ -70,7 +70,7 @@ tusb_error_t hal_init(void)
   LPC_IOCON->PIO0_6   &= ~0x07;
   LPC_IOCON->PIO0_6   |= (0x01<<0);            /* Secondary function SoftConn */
 
-  return TUSB_ERROR_NONE;
+  return true;
 }
 
 void USB_IRQHandler(void)
