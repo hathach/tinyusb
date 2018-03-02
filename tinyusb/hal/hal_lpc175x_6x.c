@@ -41,9 +41,17 @@
 
 #if TUSB_CFG_MCU == MCU_LPC175X_6X
 
-#ifdef __CC_ARM
-#pragma diag_suppress 66 // Suppress Keil warnings #66-D: enumeration value is out of "int" range
-#endif
+void hal_interrupt_enable(uint8_t coreid)
+{
+  (void) coreid; // discard compiler's warning
+  NVIC_EnableIRQ(USB_IRQn);
+}
+
+void hal_interrupt_disable(uint8_t coreid)
+{
+  (void) coreid; // discard compiler's warning
+  NVIC_DisableIRQ(USB_IRQn);
+}
 
 //--------------------------------------------------------------------+
 // IMPLEMENTATION

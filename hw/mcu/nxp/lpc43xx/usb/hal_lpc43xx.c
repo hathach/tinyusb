@@ -37,10 +37,11 @@
 /**************************************************************************/
 
 #include "common/common.h"
-#include "hal.h"
+#include "hal/hal.h"
 
 #if TUSB_CFG_MCU == MCU_LPC43XX
 
+#include "LPC43xx.h"
 #include "lpc43xx_cgu.h"
 #include "lpc43xx_scu.h"
 
@@ -68,6 +69,16 @@ static tusb_error_t hal_controller_reset(uint8_t coreid)
 //
 //  return timeout_expired(&timeout) ? TUSB_ERROR_OSAL_TIMEOUT : TUSB_ERROR_NONE;
   return TUSB_ERROR_NONE;
+}
+
+void hal_interrupt_enable(uint8_t coreid)
+{
+  NVIC_EnableIRQ(coreid ? USB1_IRQn : USB0_IRQn);
+}
+
+void hal_interrupt_disable(uint8_t coreid)
+{
+  NVIC_DisableIRQ(coreid ? USB1_IRQn : USB0_IRQn);
 }
 
 tusb_error_t hal_init(void)

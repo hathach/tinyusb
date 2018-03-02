@@ -46,15 +46,7 @@
  extern "C" {
 #endif
 
-static inline void hal_interrupt_enable(uint8_t coreid)
-{
-  NVIC_EnableIRQ(coreid ? USB1_IRQn : USB0_IRQn);
-}
 
-static inline void hal_interrupt_disable(uint8_t coreid)
-{
-  NVIC_DisableIRQ(coreid ? USB1_IRQn : USB0_IRQn);
-}
 
 #ifdef __cplusplus
  }

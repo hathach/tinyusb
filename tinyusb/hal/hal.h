@@ -50,7 +50,7 @@
 #include "common/compiler/compiler.h"
 
 // callback from tusb.h
-extern void tusb_isr(uint8_t coreid);
+void tusb_isr(uint8_t coreid);
 
 //--------------------------------------------------------------------+
 // HAL API
@@ -74,14 +74,14 @@ tusb_error_t hal_init(void);
  * \note        Some MCUs such as NXP LPC43xx has multiple USB controllers. It is necessary to know which USB controller for
  *              those MCUs.
  */
-static inline void hal_interrupt_enable(uint8_t coreid) ATTR_ALWAYS_INLINE;
+void hal_interrupt_enable(uint8_t coreid);
 
 /** \brief 			Disable USB Interrupt on a specific USB Controller
  * \param[in]		coreid	is a zero-based index to identify USB controller's ID
  * \note        Some MCUs such as NXP LPC43xx has multiple USB controllers. It is necessary to know which USB controller for
  *              those MCUs.
  */
-static inline void hal_interrupt_disable(uint8_t coreid) ATTR_ALWAYS_INLINE;
+void hal_interrupt_disable(uint8_t coreid);
 
 //--------------------------------------------------------------------+
 // INCLUDE DRIVEN
@@ -91,7 +91,7 @@ static inline void hal_interrupt_disable(uint8_t coreid) ATTR_ALWAYS_INLINE;
 #elif TUSB_CFG_MCU == MCU_LPC13UXX
   #include "hal_lpc13uxx.h"
 #elif TUSB_CFG_MCU == MCU_LPC43XX
-  #include "hal_lpc43xx.h"
+  #include "mcu/nxp/lpc43xx/usb/hal_lpc43xx.h"
 #elif TUSB_CFG_MCU == MCU_LPC175X_6X
   #include "hal_lpc175x_6x.h"
 #else
@@ -102,8 +102,6 @@ static inline void hal_interrupt_disable(uint8_t coreid) ATTR_ALWAYS_INLINE;
 extern "C" {
 #endif
 
-
-static inline bool hal_debugger_is_attached(void) ATTR_PURE ATTR_ALWAYS_INLINE;
 static inline bool hal_debugger_is_attached(void)
 {
 // TODO check core M3/M4 defined instead

@@ -41,6 +41,18 @@
 
 #if TUSB_CFG_MCU == MCU_LPC11UXX
 
+void hal_interrupt_enable(uint8_t coreid)
+{
+  (void) coreid; // discard compiler's warning
+  NVIC_EnableIRQ(USB_IRQn);
+}
+
+void hal_interrupt_disable(uint8_t coreid)
+{
+  (void) coreid; // discard compiler's warning
+  NVIC_DisableIRQ(USB_IRQn);
+}
+
 tusb_error_t hal_init(void)
 {
 	// TODO remove magic number
