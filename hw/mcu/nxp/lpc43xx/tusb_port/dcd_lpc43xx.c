@@ -194,7 +194,7 @@ void hal_dcd_set_address(uint8_t coreid, uint8_t dev_addr)
   LPC_USB[coreid]->DEVICEADDR = (dev_addr << 25) | BIT_(24);
 }
 
-void hal_dcd_set_config(uint8_t coreid)
+void hal_dcd_set_config(uint8_t coreid, uint8_t config_num)
 {
 
 }

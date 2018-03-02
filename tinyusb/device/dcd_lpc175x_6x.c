@@ -292,9 +292,10 @@ void hal_dcd_set_address(uint8_t coreid, uint8_t dev_addr)
   sie_write(SIE_CMDCODE_SET_ADDRESS, 1, 0x80 | dev_addr); // 7th bit is : device_enable
 }
 
-void hal_dcd_set_config(uint8_t coreid)
+void hal_dcd_set_config(uint8_t coreid, uint8_t config_num)
 {
   (void) coreid;
+  (void) config_num;
   sie_write(SIE_CMDCODE_CONFIGURE_DEVICE, 1, 1);
 }
 

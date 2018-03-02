@@ -170,7 +170,7 @@ void hal_dcd_connect(uint8_t coreid)
   LPC_USB->DEVCMDSTAT |= CMDSTAT_DEVICE_CONNECT_MASK;
 }
 
-void hal_dcd_set_config(uint8_t coreid)
+void hal_dcd_set_config(uint8_t coreid, uint8_t config_num)
 {
 
 }

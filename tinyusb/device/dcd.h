@@ -76,7 +76,7 @@ void dcd_isr(uint8_t coreid);
 void hal_dcd_connect    (uint8_t coreid);
 void hal_dcd_disconnect (uint8_t coreid);
 void hal_dcd_set_address(uint8_t coreid, uint8_t dev_addr);
-void hal_dcd_set_config (uint8_t coreid);
+void hal_dcd_set_config (uint8_t coreid, uint8_t config_num);
 
 //------------- PIPE API -------------//
 tusb_error_t dcd_pipe_control_xfer(uint8_t coreid, tusb_direction_t dir, uint8_t * p_buffer, uint16_t length, bool int_on_complete);

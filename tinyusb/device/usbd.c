@@ -321,7 +321,7 @@ tusb_error_t usbd_control_request_subtask(uint8_t coreid, tusb_control_request_t
 // may need to open interface before set configured
 static tusb_error_t usbd_set_configure_received(uint8_t coreid, uint8_t config_number)
 {
-  hal_dcd_set_config(coreid);
+  hal_dcd_set_config(coreid, config_number);
   usbd_devices[coreid].state = TUSB_DEVICE_STATE_CONFIGURED;
 
   //------------- parse configuration & open drivers -------------//
