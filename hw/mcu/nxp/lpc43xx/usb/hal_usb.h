@@ -36,8 +36,8 @@
 */
 /**************************************************************************/
 
-#ifndef _TUSB_HAL_LPC43XX_H_
-#define _TUSB_HAL_LPC43XX_H_
+#ifndef _TUSB_HAL_USB_H_
+#define _TUSB_HAL_USB_H_
 
 #include "LPC43xx.h"
 #include "lpc43xx_cgu.h"
@@ -52,5 +52,5 @@
  }
 #endif
 
-#endif /* _TUSB_HAL_LPC43XX_H_ */
+#endif /* _TUSB_HAL_USB_H_ */
 

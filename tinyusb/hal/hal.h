@@ -83,20 +83,7 @@ void hal_interrupt_enable(uint8_t coreid);
  */
 void hal_interrupt_disable(uint8_t coreid);
 
-//--------------------------------------------------------------------+
-// INCLUDE DRIVEN
-//--------------------------------------------------------------------+
-#if TUSB_CFG_MCU == MCU_LPC11UXX
-  #include "hal_lpc11uxx.h"
-#elif TUSB_CFG_MCU == MCU_LPC13UXX
-  #include "hal_lpc13uxx.h"
-#elif TUSB_CFG_MCU == MCU_LPC43XX
-  #include "mcu/nxp/lpc43xx/usb/hal_lpc43xx.h"
-#elif TUSB_CFG_MCU == MCU_LPC175X_6X
-  #include "hal_lpc175x_6x.h"
-#else
-  #error MCU is not defined or supported yet
-#endif
+#include "hal_usb.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -114,7 +101,6 @@ static inline bool hal_debugger_is_attached(void)
 #endif
 }
 
-static inline void hal_debugger_breakpoint(void) ATTR_ALWAYS_INLINE;
 static inline void hal_debugger_breakpoint(void)
 {
 #ifndef _TEST_
