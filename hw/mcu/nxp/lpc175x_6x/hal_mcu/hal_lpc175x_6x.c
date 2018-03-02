@@ -37,7 +37,7 @@
 /**************************************************************************/
 
 #include "common/common.h"
-#include "hal.h"
+#include "hal_mcu.h"
 
 #if TUSB_CFG_MCU == MCU_LPC175X_6X
 

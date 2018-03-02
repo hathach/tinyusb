@@ -91,13 +91,13 @@
 // BOARD INCLUDE
 //--------------------------------------------------------------------+
 #if BOARD == BOARD_LPCXPRESSO11U14
-  #include "lpcxpresso/board_lpcxpresso11u14.h"
+  #include "lpcxpresso11u14/board_lpcxpresso11u14.h"
 #elif BOARD == BOARD_LPCXPRESSO11U68
-  #include "lpcxpresso/board_lpcxpresso11u68.h"
+  #include "lpcxpresso11u68/board_lpcxpresso11u68.h"
 #elif BOARD == BOARD_LPCXPRESSO1347
-  #include "lpcxpresso/board_lpcxpresso1347.h"
+  #include "lpcxpresso1347/board_lpcxpresso1347.h"
 #elif BOARD == BOARD_LPCXPRESSO1769
-  #include "lpcxpresso/board_lpcxpresso1769.h"
+  #include "lpcxpresso1769/board_lpcxpresso1769.h"
 #elif BOARD == BOARD_NGX4330
   #include "ngx/board_ngx4330.h"
 #elif BOARD == BOARD_EA4357
