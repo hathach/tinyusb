@@ -83,7 +83,7 @@
 		<link>
 			<name>boards</name>
 			<type>2</type>
-			<locationURI>PARENT-3-PROJECT_LOC/boards</locationURI>
+			<locationURI>PARENT-3-PROJECT_LOC/hw/boards</locationURI>
 		</link>
 		<link>
 			<name>freertos</name>

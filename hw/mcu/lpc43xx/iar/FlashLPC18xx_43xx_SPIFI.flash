@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="iso-8859-1"?>
+
+<flash_device>
+  <exe>$PROJ_DIR$\..\..\..\mcu\lpc43xx\iar\FlashLPC18xx_43xx_SPIFI.out</exe>
+  <page>256</page>
+  <block>1 0x4000000</block>
+  <flash_base>0x14000000</flash_base>
+  <macro>$PROJ_DIR$\..\..\..\mcu\lpc43xx\iar\FlashLPC18xx_43xx_SPIFI.mac</macro>
+  <aggregate>1</aggregate>
+</flash_device>

@@ -1,0 +1,32 @@
+<!-- liblinks.xml
+
+     LPCXpresso "Smart update wizard" script file
+     When executed on a particular application project, will
+     add appropriate links to the specified library project.
+
+     Note that this script assumes that the application project
+     contains the standard 'Debug' and 'Release' build 
+     configurations.
+-->
+
+<project name="" update="true">
+	<setting id="all.compiler.inc">
+		<value>${workspace_loc:/CMSIS_CORE_LPC17xx/inc}</value>
+        </setting>
+    <setting id="all.compiler.def">
+		<value>__USE_CMSIS=CMSIS_CORE_LPC17xx</value>
+    </setting>
+	<setting id="linker.libs">
+		<value>CMSIS_CORE_LPC17xx</value>
+	</setting>
+	<setting id="linker.paths" buildType="Debug">
+		<value>${workspace_loc:/CMSIS_CORE_LPC17xx/Debug}</value>
+	</setting>
+	<setting id="linker.paths" buildType="Release">
+		<value>${workspace_loc:/CMSIS_CORE_LPC17xx/Release}</value>
+	</setting>
+	<requires msg="Library project `CMSIS_CORE_LPC17xx` not found">
+		<value>CMSIS_CORE_LPC17xx</value>
+	</requires>
+</project>
+

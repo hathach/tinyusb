@@ -1,0 +1,60 @@
+/*###ICF### Section handled by ICF editor, don't touch! ****/
+/*-Editor annotation file-*/
+/* IcfEditorFile="$TOOLKIT_DIR$\config\ide\IcfEditor\cortex_v1_0.xml" */
+/*-Specials-*/
+define symbol __ICFEDIT_intvec_start__ = 0x14000000;
+/*-Memory Regions-*/
+define symbol __ICFEDIT_region_ROM_start__ = 0x14000140;
+define symbol __ICFEDIT_region_ROM_end__   = 0x1407FFFF;
+define symbol __ICFEDIT_region_RAM_start__ = 0x10000000;
+define symbol __ICFEDIT_region_RAM_end__   = 0x1001FFFF;
+/*-Sizes-*/
+define symbol __ICFEDIT_size_cstack__ = 0x2000;
+define symbol __ICFEDIT_size_heap__   = 0x2000;
+/**** End of ICF editor section. ###ICF###*/
+
+/********** Local SRAM Region **********/
+define symbol LOCAL_SRAM_start__    = 0x10080000;
+define symbol LOCAL_SRAM_end__      = 0x1008FFFF;
+
+/** Power-Down preserved Local SRAM Region **/
+define symbol PD_LOCAL_SRAM_start__ = 0x10090000;
+define symbol PD_LOCAL_SRAM_end__   = 0x10091FFF;
+
+/********** AHB SRAM Region 1 **********/
+define symbol AHB_SRAM1_start__     = 0x20000000;
+define symbol AHB_SRAM1_end__       = 0x20007FFF;
+
+/********** AHB SRAM Region 2 **********/
+define symbol AHB_SRAM2_start__     = 0x20008000;
+define symbol AHB_SRAM2_end__       = 0x2000BFFF;
+
+/********* ETB/AHB SRAM Region *********/
+define symbol ETB_SRAM_start__      = 0x2000C000;
+define symbol ETB_SRAM_end__        = 0x2000FFFF;
+
+define memory mem with size = 4G;
+define region ROM_region           = mem:[from __ICFEDIT_region_ROM_start__   to __ICFEDIT_region_ROM_end__];
+define region RAM_region           = mem:[from __ICFEDIT_region_RAM_start__   to __ICFEDIT_region_RAM_end__];
+define region LOCAL_SRAM_region    = mem:[from LOCAL_SRAM_start__             to LOCAL_SRAM_end__];
+define region PD_LOCAL_SRAM_region = mem:[from PD_LOCAL_SRAM_start__          to PD_LOCAL_SRAM_end__];
+define region AHB_SRAM1_region     = mem:[from AHB_SRAM1_start__              to AHB_SRAM1_end__];
+define region AHB_SRAM2_region     = mem:[from AHB_SRAM2_start__              to AHB_SRAM2_end__];
+define region ETB_SRAM_region      = mem:[from ETB_SRAM_start__               to ETB_SRAM_end__];
+
+define block CSTACK    with alignment = 8, size = __ICFEDIT_size_cstack__   { };
+define block HEAP      with alignment = 8, size = __ICFEDIT_size_heap__     { };
+
+initialize by copy { readwrite };
+do not initialize  { section .noinit };
+
+place at address mem:__ICFEDIT_intvec_start__ { section .intvec };
+
+place in LOCAL_SRAM_region     { section .local_sram };
+place in PD_LOCAL_SRAM_region  { section .pd_local_sram };
+place in AHB_SRAM2_region      { section .ahb_sram2 };
+place in ETB_SRAM_region       { section .etb_sram };
+
+place in ROM_region            { readonly };
+place in RAM_region            { readwrite,
+                                 block CSTACK, block HEAP };

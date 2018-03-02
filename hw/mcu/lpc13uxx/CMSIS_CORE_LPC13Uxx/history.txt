@@ -1,0 +1,25 @@
+History of updates to CMSIS_CORE_LPC13Uxx
+===========================================
+
+18 July 2013
+------------
+CMSIS library project using ARM Cortex-M0 CMSIS files as
+supplied in ARM's CMSIS 3.20 March 2013 release, together
+with NXP's device specific files taken from old
+CMSISv2p10_LPC13Uxx project.
+
+Note files are built -Os for both Debug and Release
+
+
+History of updates to CMSISv2p10_LPC13Uxx
+=========================================
+
+17 February 2012
+----------------
+
+CMSIS 2.1 library project using ARM Cortex-M3 CMSIS 
+files as supplied in ARM's CMSIS 2.1 July 2011 release,
+together with device/board specific files from NXP for
+LPC1300 (12bit ADC) parts (ie LPC1315/16/17/45/46/47).
+
+
