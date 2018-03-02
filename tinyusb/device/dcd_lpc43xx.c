@@ -277,26 +277,22 @@ tusb_error_t dcd_init(void)
 // PIPE HELPER
 //--------------------------------------------------------------------+
 #if 0
-static inline uint8_t edpt_pos2phy(uint8_t pos) ATTR_CONST ATTR_ALWAYS_INLINE;
 static inline uint8_t edpt_pos2phy(uint8_t pos)
 { // 0-5 --> OUT, 16-21 IN
   return (pos < DCD_QHD_MAX/2) ? (2*pos) : (2*(pos-16)+1);
 }
 #endif
 
-static inline uint8_t edpt_phy2pos(uint8_t physical_endpoint) ATTR_CONST ATTR_ALWAYS_INLINE;
 static inline uint8_t edpt_phy2pos(uint8_t physical_endpoint)
 {
   return physical_endpoint/2 + ( (physical_endpoint%2) ? 16 : 0);
 }
 
-static inline uint8_t edpt_addr2phy(uint8_t endpoint_addr) ATTR_CONST ATTR_ALWAYS_INLINE;
 static inline uint8_t edpt_addr2phy(uint8_t endpoint_addr)
 {
   return 2*(endpoint_addr & 0x0F) + ((endpoint_addr & TUSB_DIR_DEV_TO_HOST_MASK) ? 1 : 0);
 }
 
-static inline uint8_t edpt_phy2log(uint8_t physical_endpoint) ATTR_CONST ATTR_ALWAYS_INLINE;
 static inline uint8_t edpt_phy2log(uint8_t physical_endpoint)
 {
   return physical_endpoint/2;
@@ -323,7 +319,6 @@ static void qtd_init(dcd_qtd_t* p_qtd, void * data_ptr, uint16_t total_bytes)
 }
 
 // retval 0: invalid
-static inline uint8_t qtd_find_free(uint8_t coreid) ATTR_PURE ATTR_ALWAYS_INLINE;
 static inline uint8_t qtd_find_free(uint8_t coreid)
 {
   for(uint8_t i=2; i<DCD_QTD_MAX; i++)
@@ -383,7 +378,6 @@ tusb_error_t dcd_pipe_control_xfer(uint8_t coreid, tusb_direction_t dir, uint8_t
 //--------------------------------------------------------------------+
 // BULK/INTERRUPT/ISOCHRONOUS PIPE API
 //--------------------------------------------------------------------+
-static inline volatile uint32_t * get_reg_control_addr(uint8_t coreid, uint8_t physical_endpoint) ATTR_PURE ATTR_ALWAYS_INLINE;
 static inline volatile uint32_t * get_reg_control_addr(uint8_t coreid, uint8_t physical_endpoint)
 {
  return &(LPC_USB[coreid]->ENDPTCTRL0) + edpt_phy2log(physical_endpoint);

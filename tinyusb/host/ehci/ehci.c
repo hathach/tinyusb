@@ -84,21 +84,21 @@ TUSB_CFG_ATTR_USBRAM STATIC_VAR ehci_data_t ehci_data;
 //--------------------------------------------------------------------+
 // PROTOTYPE
 //--------------------------------------------------------------------+
-STATIC_ INLINE_ ehci_registers_t*  get_operational_register(uint8_t hostid) ATTR_PURE ATTR_ALWAYS_INLINE ATTR_WARN_UNUSED_RESULT;
-STATIC_ INLINE_ ehci_link_t*       get_period_frame_list(uint8_t hostid) ATTR_PURE ATTR_ALWAYS_INLINE ATTR_WARN_UNUSED_RESULT;
-STATIC_ INLINE_ uint8_t            hostid_to_data_idx(uint8_t hostid) ATTR_ALWAYS_INLINE ATTR_CONST ATTR_WARN_UNUSED_RESULT;
+static inline ehci_registers_t*  get_operational_register(uint8_t hostid) ATTR_PURE ATTR_ALWAYS_INLINE ATTR_WARN_UNUSED_RESULT;
+static inline ehci_link_t*       get_period_frame_list(uint8_t hostid) ATTR_PURE ATTR_ALWAYS_INLINE ATTR_WARN_UNUSED_RESULT;
+static inline uint8_t            hostid_to_data_idx(uint8_t hostid) ATTR_ALWAYS_INLINE ATTR_CONST ATTR_WARN_UNUSED_RESULT;
 
-STATIC_ INLINE_ ehci_qhd_t*  get_async_head(uint8_t hostid) ATTR_ALWAYS_INLINE ATTR_PURE ATTR_WARN_UNUSED_RESULT;
-STATIC_ INLINE_ ehci_link_t* get_period_head(uint8_t hostid, uint8_t interval_ms) ATTR_ALWAYS_INLINE ATTR_PURE ATTR_WARN_UNUSED_RESULT;
+static inline ehci_qhd_t*  get_async_head(uint8_t hostid) ATTR_ALWAYS_INLINE ATTR_PURE ATTR_WARN_UNUSED_RESULT;
+static inline ehci_link_t* get_period_head(uint8_t hostid, uint8_t interval_ms) ATTR_ALWAYS_INLINE ATTR_PURE ATTR_WARN_UNUSED_RESULT;
 
-STATIC_ INLINE_ ehci_qhd_t* get_control_qhd(uint8_t dev_addr) ATTR_ALWAYS_INLINE ATTR_PURE ATTR_WARN_UNUSED_RESULT;
-STATIC_ INLINE_ ehci_qtd_t* get_control_qtds(uint8_t dev_addr) ATTR_ALWAYS_INLINE ATTR_PURE ATTR_WARN_UNUSED_RESULT;
+static inline ehci_qhd_t* get_control_qhd(uint8_t dev_addr) ATTR_ALWAYS_INLINE ATTR_PURE ATTR_WARN_UNUSED_RESULT;
+static inline ehci_qtd_t* get_control_qtds(uint8_t dev_addr) ATTR_ALWAYS_INLINE ATTR_PURE ATTR_WARN_UNUSED_RESULT;
 
 static inline uint8_t        qhd_get_index(ehci_qhd_t const * p_qhd) ATTR_ALWAYS_INLINE ATTR_PURE;
 static inline ehci_qhd_t*    qhd_next(ehci_qhd_t const * p_qhd) ATTR_ALWAYS_INLINE ATTR_PURE;
 static inline ehci_qhd_t*    qhd_find_free (uint8_t dev_addr) ATTR_PURE ATTR_ALWAYS_INLINE;
 static inline tusb_xfer_type_t qhd_get_xfer_type(ehci_qhd_t const * p_qhd) ATTR_ALWAYS_INLINE ATTR_PURE;
-STATIC_ INLINE_ ehci_qhd_t*  qhd_get_from_pipe_handle(pipe_handle_t pipe_hdl) ATTR_PURE ATTR_ALWAYS_INLINE;
+static inline ehci_qhd_t*  qhd_get_from_pipe_handle(pipe_handle_t pipe_hdl) ATTR_PURE ATTR_ALWAYS_INLINE;
 static inline pipe_handle_t  qhd_create_pipe_handle(ehci_qhd_t const * p_qhd, tusb_xfer_type_t xfer_type) ATTR_PURE ATTR_ALWAYS_INLINE;
 // determine if a queue head has bus-related error
 static inline bool qhd_has_xact_error(ehci_qhd_t * p_qhd) ATTR_ALWAYS_INLINE ATTR_PURE;
@@ -111,7 +111,7 @@ static inline bool qhd_has_xact_error(ehci_qhd_t * p_qhd)
 static void qhd_init(ehci_qhd_t *p_qhd, uint8_t dev_addr, uint16_t max_packet_size, uint8_t endpoint_addr, uint8_t xfer_type, uint8_t interval);
 
 
-STATIC_ INLINE_ ehci_qtd_t*  qtd_find_free(uint8_t dev_addr) ATTR_PURE ATTR_ALWAYS_INLINE;
+static inline ehci_qtd_t*  qtd_find_free(uint8_t dev_addr) ATTR_PURE ATTR_ALWAYS_INLINE;
 static inline ehci_qtd_t*    qtd_next(ehci_qtd_t const * p_qtd ) ATTR_PURE ATTR_ALWAYS_INLINE;
 static inline void           qtd_insert_to_qhd(ehci_qhd_t *p_qhd, ehci_qtd_t *p_qtd_new) ATTR_ALWAYS_INLINE;
 static inline void           qtd_remove_1st_from_qhd(ehci_qhd_t *p_qhd) ATTR_ALWAYS_INLINE;
@@ -784,13 +784,13 @@ void hcd_isr(uint8_t hostid)
 //--------------------------------------------------------------------+
 // HELPER
 //--------------------------------------------------------------------+
-STATIC_ INLINE_ ehci_registers_t* get_operational_register(uint8_t hostid)
+static inline ehci_registers_t* get_operational_register(uint8_t hostid)
 {
   return (ehci_registers_t*) (hostid ? (&LPC_USB1->USBCMD_H) : (&LPC_USB0->USBCMD_H) );
 }
 
 #if EHCI_PERIODIC_LIST // TODO refractor/group this together
-STATIC_ INLINE_ ehci_link_t* get_period_frame_list(uint8_t hostid)
+static inline ehci_link_t* get_period_frame_list(uint8_t hostid)
 {
   switch(hostid)
   {
@@ -809,7 +809,7 @@ STATIC_ INLINE_ ehci_link_t* get_period_frame_list(uint8_t hostid)
 }
 #endif
 
-STATIC_ INLINE_ uint8_t hostid_to_data_idx(uint8_t hostid)
+static inline uint8_t hostid_to_data_idx(uint8_t hostid)
 {
   #if (CONTROLLER_HOST_NUMBER == 1) && (TUSB_CFG_CONTROLLER_1_MODE & TUSB_MODE_HOST)
     (void) hostid;
@@ -820,26 +820,26 @@ STATIC_ INLINE_ uint8_t hostid_to_data_idx(uint8_t hostid)
 }
 
 //------------- queue head helper -------------//
-STATIC_ INLINE_ ehci_qhd_t* get_async_head(uint8_t hostid)
+static inline ehci_qhd_t* get_async_head(uint8_t hostid)
 {
   return &ehci_data.async_head[ hostid_to_data_idx(hostid) ];
 }
 
 #if EHCI_PERIODIC_LIST // TODO refractor/group this together
-STATIC_ INLINE_ ehci_link_t* get_period_head(uint8_t hostid, uint8_t interval_ms)
+static inline ehci_link_t* get_period_head(uint8_t hostid, uint8_t interval_ms)
 {
   return (ehci_link_t*) (&ehci_data.period_head_arr[ hostid_to_data_idx(hostid) ]
                                                     [ log2_of( min8_of(EHCI_FRAMELIST_SIZE, interval_ms) ) ] );
 }
 #endif
 
-STATIC_ INLINE_ ehci_qhd_t* get_control_qhd(uint8_t dev_addr)
+static inline ehci_qhd_t* get_control_qhd(uint8_t dev_addr)
 {
   return (dev_addr == 0) ?
       get_async_head( usbh_devices[dev_addr].core_id ) :
       &ehci_data.device[dev_addr-1].control.qhd;
 }
-STATIC_ INLINE_ ehci_qtd_t* get_control_qtds(uint8_t dev_addr)
+static inline ehci_qtd_t* get_control_qtds(uint8_t dev_addr)
 {
   return (dev_addr == 0) ?
       ehci_data.addr0_qtd :
@@ -873,7 +873,7 @@ static inline ehci_qhd_t* qhd_next(ehci_qhd_t const * p_qhd)
   return (ehci_qhd_t*) align32(p_qhd->next.address);
 }
 
-STATIC_ INLINE_ ehci_qhd_t* qhd_get_from_pipe_handle(pipe_handle_t pipe_hdl)
+static inline ehci_qhd_t* qhd_get_from_pipe_handle(pipe_handle_t pipe_hdl)
 {
   return &ehci_data.device[ pipe_hdl.dev_addr-1 ].qhd[ pipe_hdl.index ];
 }
@@ -895,7 +895,7 @@ static inline pipe_handle_t qhd_create_pipe_handle(ehci_qhd_t const * p_qhd, tus
 }
 
 //------------- TD helper -------------//
-STATIC_ INLINE_ ehci_qtd_t* qtd_find_free(uint8_t dev_addr)
+static inline ehci_qtd_t* qtd_find_free(uint8_t dev_addr)
 {
   uint8_t index=0;
   while( index<HCD_MAX_XFER && ehci_data.device[dev_addr-1].qtd[index].used )

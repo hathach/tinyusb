@@ -203,7 +203,6 @@ enum {
   INTERFACE_INVALID_NUMBER = 0xff
 };
 
-static inline uint8_t std_class_code_to_index(uint8_t std_class_code) ATTR_CONST ATTR_ALWAYS_INLINE;
 static inline uint8_t std_class_code_to_index(uint8_t std_class_code)
 {
   return  (std_class_code <= TUSB_CLASS_AUDIO_VIDEO          ) ? std_class_code                    :

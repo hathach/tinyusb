@@ -53,7 +53,7 @@
 // Compile-time Assert
 //--------------------------------------------------------------------+
 #ifdef __ICCARM__
-  #define STATIC_ASSERT static_assert
+  #define STATIC_ASSERT   static_assert
 #else
   #if defined __COUNTER__ && __COUNTER__ != __COUNTER__
     #define _ASSERT_COUNTER __COUNTER__
@@ -64,31 +64,13 @@
   #define STATIC_ASSERT(const_expr, message) enum { XSTRING_CONCAT_(static_assert_, _ASSERT_COUNTER) = 1/(!!(const_expr)) }
 #endif
 
-#ifndef _TEST_
-  // TODO move some to tusb_option.h
-  #define STATIC_     static
-  #define INLINE_     inline
-  #define ATTR_TEST_WEAK
-
-  // allow debugger to watch any module-wide variables anywhere
-  #if TUSB_CFG_DEBUG
-    #define STATIC_VAR
-  #else
-    #define STATIC_VAR static
-  #endif
-
-  // function will not be inline for easy step by step debugging
-  #if TUSB_CFG_DEBUG >= 2
-    #define ATTR_ALWAYS_INLINE
-  #endif
-
-#else // TODO remove this, try to pass using compiler command option
-  #define ATTR_ALWAYS_INLINE
-  #define STATIC_
-  #define STATIC_VAR
-  #define INLINE_
-
+// allow debugger to watch any module-wide variables anywhere
+#if TUSB_CFG_DEBUG
+#define STATIC_VAR
+#else
+#define STATIC_VAR static
 #endif
+
 
 #if defined(__GNUC__)
   #include "compiler_gcc.h"

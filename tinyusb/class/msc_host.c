@@ -102,7 +102,6 @@ tusb_error_t tuh_msc_get_capacity(uint8_t dev_addr, uint32_t* p_last_lba, uint32
 //--------------------------------------------------------------------+
 // PUBLIC API: SCSI COMMAND
 //--------------------------------------------------------------------+
-static inline void msc_cbw_add_signature(msc_cmd_block_wrapper_t *p_cbw, uint8_t lun) ATTR_ALWAYS_INLINE;
 static inline void msc_cbw_add_signature(msc_cmd_block_wrapper_t *p_cbw, uint8_t lun)
 {
   p_cbw->signature  = MSC_CBW_SIGNATURE;

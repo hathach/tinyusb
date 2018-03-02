@@ -115,13 +115,11 @@
 
 #define arrcount(_arr)       ( sizeof(_arr) / sizeof(_arr[0]) )
 
-static inline uint8_t const * descriptor_next(uint8_t const p_desc[]) ATTR_ALWAYS_INLINE ATTR_PURE;
 static inline uint8_t const * descriptor_next(uint8_t const p_desc[])
 {
   return p_desc + p_desc[DESCRIPTOR_OFFSET_LENGTH];
 }
 
-static inline uint8_t descriptor_typeof(uint8_t const p_desc[]) ATTR_ALWAYS_INLINE ATTR_PURE;
 static inline uint8_t descriptor_typeof(uint8_t const p_desc[])
 {
   return p_desc[DESCRIPTOR_OFFSET_TYPE];

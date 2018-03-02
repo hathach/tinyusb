@@ -58,7 +58,7 @@ typedef struct {
 //--------------------------------------------------------------------+
 // USBH-CLASS DRIVER API
 //--------------------------------------------------------------------+
-STATIC_ INLINE_ bool tusbh_custom_is_mounted(uint8_t dev_addr, uint16_t vendor_id, uint16_t product_id)
+static inline bool tusbh_custom_is_mounted(uint8_t dev_addr, uint16_t vendor_id, uint16_t product_id)
 {
   (void) vendor_id; // TODO check this later
   (void) product_id;

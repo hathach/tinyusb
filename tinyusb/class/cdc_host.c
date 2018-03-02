@@ -57,7 +57,6 @@
 //--------------------------------------------------------------------+
 STATIC_VAR cdch_data_t cdch_data[TUSB_CFG_HOST_DEVICE_MAX]; // TODO to be static
 
-static inline cdc_pipeid_t get_app_pipeid(pipe_handle_t pipe_hdl) ATTR_PURE  ATTR_ALWAYS_INLINE;
 static inline cdc_pipeid_t get_app_pipeid(pipe_handle_t pipe_hdl)
 {
   cdch_data_t const * p_cdc = &cdch_data[pipe_hdl.dev_addr-1];
@@ -68,8 +67,7 @@ static inline cdc_pipeid_t get_app_pipeid(pipe_handle_t pipe_hdl)
 }
 
 
-STATIC_ INLINE_ bool tusbh_cdc_is_mounted(uint8_t dev_addr) ATTR_PURE ATTR_ALWAYS_INLINE ATTR_WARN_UNUSED_RESULT;
-STATIC_ INLINE_ bool tusbh_cdc_is_mounted(uint8_t dev_addr)
+static inline bool tusbh_cdc_is_mounted(uint8_t dev_addr)
 {
 // FIXME cannot use mounted class flag as at the point _open_sublass is called, the flag is not set yet
 #ifdef _TEST_

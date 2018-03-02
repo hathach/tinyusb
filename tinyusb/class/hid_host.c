@@ -54,7 +54,6 @@
 //--------------------------------------------------------------------+
 // HID Interface common functions
 //--------------------------------------------------------------------+
-static inline tusb_error_t hidh_interface_open(uint8_t dev_addr, uint8_t interface_number, tusb_descriptor_endpoint_t const *p_endpoint_desc, hidh_interface_info_t *p_hid) ATTR_ALWAYS_INLINE;
 static inline tusb_error_t hidh_interface_open(uint8_t dev_addr, uint8_t interface_number, tusb_descriptor_endpoint_t const *p_endpoint_desc, hidh_interface_info_t *p_hid)
 {
   p_hid->pipe_hdl         = hcd_pipe_open(dev_addr, p_endpoint_desc, TUSB_CLASS_HID);
@@ -66,7 +65,6 @@ static inline tusb_error_t hidh_interface_open(uint8_t dev_addr, uint8_t interfa
   return TUSB_ERROR_NONE;
 }
 
-static inline void hidh_interface_close(hidh_interface_info_t *p_hid) ATTR_ALWAYS_INLINE;
 static inline void hidh_interface_close(hidh_interface_info_t *p_hid)
 {
   (void) hcd_pipe_close(p_hid->pipe_hdl);
@@ -74,7 +72,6 @@ static inline void hidh_interface_close(hidh_interface_info_t *p_hid)
 }
 
 // called from public API need to validate parameters
-tusb_error_t hidh_interface_get_report(uint8_t dev_addr, void * report, hidh_interface_info_t *p_hid) ATTR_ALWAYS_INLINE;
 tusb_error_t hidh_interface_get_report(uint8_t dev_addr, void * report, hidh_interface_info_t *p_hid)
 {
   //------------- parameters validation -------------//

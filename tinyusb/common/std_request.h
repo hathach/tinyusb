@@ -70,7 +70,6 @@ typedef struct ATTR_PACKED{
 STATIC_ASSERT( sizeof(tusb_control_request_t) == 8, "mostly compiler option issue");
 
 // TODO move to somewhere suitable
-static inline uint8_t bm_request_type(uint8_t direction, uint8_t type, uint8_t recipient) ATTR_CONST ATTR_ALWAYS_INLINE;
 static inline uint8_t bm_request_type(uint8_t direction, uint8_t type, uint8_t recipient)
 {
   return ((uint8_t) (direction << 7)) | ((uint8_t) (type << 5)) | (recipient);
