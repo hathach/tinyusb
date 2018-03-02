@@ -101,7 +101,7 @@
 #elif BOARD == BOARD_NGX4330
   #include "ngx/board_ngx4330.h"
 #elif BOARD == BOARD_EA4357
-  #include "embedded_artists/ea4357/board_ea4357.h"
+  #include "ea4357/board_ea4357.h"
 #elif BOARD == BOARD_MCB4300
   #include "keil/board_mcb4300.h"
 #elif BOARD == BOARD_HITEX4350

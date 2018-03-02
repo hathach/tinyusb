@@ -1,4 +1,4 @@
-#include "../../../board.h"
+#include "../../board.h"
 
 #if BOARD == BOARD_EA4357
 
