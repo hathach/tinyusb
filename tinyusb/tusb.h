@@ -47,7 +47,7 @@
 // INCLUDE
 //--------------------------------------------------------------------+
 #include "common/common.h"
-#include "hal/hal.h"
+#include "tusb_hal.h"
 #include "osal/osal.h"
 
 //------------- HOST -------------//

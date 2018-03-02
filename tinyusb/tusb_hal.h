@@ -39,6 +39,10 @@
 #ifndef _TUSB_HAL_H_
 #define _TUSB_HAL_H_
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 //--------------------------------------------------------------------+
 // INCLUDES
 //--------------------------------------------------------------------+
@@ -49,8 +53,8 @@
 #include "common/tusb_errors.h"
 #include "common/compiler/compiler.h"
 
-// callback from tusb.h
-void tusb_isr(uint8_t coreid);
+// from mcu port
+#include "hal_mcu.h"
 
 //--------------------------------------------------------------------+
 // HAL API
@@ -83,11 +87,8 @@ void hal_usb_int_enable(uint8_t coreid);
  */
 void hal_usb_int_disable(uint8_t coreid);
 
-#include "hal_mcu.h"
 
-#ifdef __cplusplus
-extern "C" {
-#endif
+
 
 static inline bool hal_debugger_is_attached(void)
 {

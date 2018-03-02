@@ -36,13 +36,11 @@
 */
 /**************************************************************************/
 
-#include "common/common.h"
-#include "hal/hal.h"
+#include "hal_mcu.h"
+#include "tusb.h"
 
 #if TUSB_CFG_MCU == MCU_LPC43XX
 
-#include "LPC43xx.h"
-#include "lpc43xx_cgu.h"
 #include "lpc43xx_scu.h"
 
 enum {

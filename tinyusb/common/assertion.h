@@ -54,7 +54,7 @@ extern "C"
 #include <stdint.h>
 #include "compiler/compiler.h"
 
-#include "hal/hal.h" // TODO find a way to break hal dependency
+#include "tusb_hal.h" // TODO find a way to break hal dependency
 
 #define VOID_RETURN
 
