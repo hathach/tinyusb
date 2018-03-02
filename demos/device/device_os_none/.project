@@ -83,7 +83,7 @@
 		<link>
 			<name>hw</name>
 			<type>2</type>
-			<location>/home/hathach/Dropbox/tinyusb/workspace/tinyusb/hw</location>
+			<locationURI>PARENT-3-PROJECT_LOC/hw</locationURI>
 		</link>
 		<link>
 			<name>src</name>
