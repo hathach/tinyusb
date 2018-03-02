@@ -43,7 +43,7 @@
 #ifndef _TUSB_MSCD_DEVICE_APP_H_
 #define _TUSB_MSCD_DEVICE_APP_H_
 
-#include "board.h"
+#include "bsp/board.h"
 #include "tusb.h"
 
 #ifdef __cplusplus

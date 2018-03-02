@@ -43,7 +43,7 @@
 #include <stdio.h>
 #include <string.h>
 
-#include "board.h"
+#include "bsp/board.h"
 #include "tusb.h"
 
 #include "msc_device_app.h"
