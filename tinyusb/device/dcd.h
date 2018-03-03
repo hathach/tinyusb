@@ -79,7 +79,7 @@ void hal_dcd_set_address(uint8_t coreid, uint8_t dev_addr);
 void hal_dcd_set_config (uint8_t coreid, uint8_t config_num);
 
 //------------- PIPE API -------------//
-tusb_error_t dcd_pipe_control_xfer(uint8_t coreid, tusb_direction_t dir, uint8_t * p_buffer, uint16_t length, bool int_on_complete);
+bool dcd_pipe_control_xfer(uint8_t coreid, tusb_direction_t dir, uint8_t * p_buffer, uint16_t length, bool int_on_complete);
 void dcd_pipe_control_stall(uint8_t coreid);
 
 endpoint_handle_t dcd_pipe_open(uint8_t coreid, tusb_descriptor_endpoint_t const * p_endpoint_desc, uint8_t class_code);

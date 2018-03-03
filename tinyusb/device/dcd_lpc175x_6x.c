@@ -378,11 +378,11 @@ void dcd_pipe_control_stall(uint8_t coreid)
   sie_write(SIE_CMDCODE_ENDPOINT_SET_STATUS+0, 1, SIE_SET_ENDPOINT_STALLED_MASK | SIE_SET_ENDPOINT_CONDITION_STALLED_MASK);
 }
 
-tusb_error_t dcd_pipe_control_xfer(uint8_t coreid, tusb_direction_t dir, uint8_t * p_buffer, uint16_t length, bool int_on_complete)
+bool dcd_pipe_control_xfer(uint8_t coreid, tusb_direction_t dir, uint8_t * p_buffer, uint16_t length, bool int_on_complete)
 {
   (void) coreid;
 
-  ASSERT( !(length != 0 && p_buffer == NULL), TUSB_ERROR_INVALID_PARA);
+  VERIFY( !(length != 0 && p_buffer == NULL) );
 
   // determine Endpoint where Data & Status phase occurred (IN or OUT)
   uint8_t const ep_data   = (dir == TUSB_DIR_DEV_TO_HOST) ? 1 : 0;
@@ -397,16 +397,16 @@ tusb_error_t dcd_pipe_control_xfer(uint8_t coreid, tusb_direction_t dir, uint8_t
     dcd_data.control_dma.remaining_bytes = length;
 
     // lpc17xx already received the first DATA OUT packet by now
-    ASSERT_STATUS ( pipe_control_xfer(ep_data, p_buffer, length) );
+    VERIFY_STATUS ( pipe_control_xfer(ep_data, p_buffer, length), false );
   }
 
   //------------- Status Phase (opposite direct to Data) -------------//
   if (dir == TUSB_DIR_HOST_TO_DEV)
   { // only write for CONTROL OUT, CONTROL IN data will be retrieved in dcd_isr // TODO ????
-    ASSERT_STATUS ( pipe_control_write(NULL, 0) );
+    VERIFY_STATUS ( pipe_control_write(NULL, 0), false );
   }
 
-  return TUSB_ERROR_NONE;
+  return true;
 }
 
 //--------------------------------------------------------------------+

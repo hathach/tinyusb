@@ -61,22 +61,16 @@
 //--------------------------------------------------------------------+
 #if TUSB_CFG_DEBUG >= 1
 //  #define VERIFY_MESS(format, ...) cprintf("[%08ld] %s: %d: verify failed\n", get_millis(), __func__, __LINE__)
-  #define VERIFY_MESS(_status)   cprintf("%s: %d: verify failed, error = %s\n", __PRETTY_FUNCTION__, __LINE__, dbg_err_str(_status));
+  #define VERIFY_MESS(_status)   printf("%s: %d: verify failed, error = %s\n", __PRETTY_FUNCTION__, __LINE__, TUSB_ErrorStr[_status]);
 #else
   #define VERIFY_MESS(_status)
 #endif
 
-
-#define VERIFY_DEFINE(_status, _error)  \
-    if ( 0 != _status ) {               \
-      VERIFY_MESS(_status)              \
-      return _error;                    \
-    }
-
 /**
  * Helper to implement optional parameter for VERIFY Macro family
  */
-#define VERIFY_GETARGS(arg1, arg2, arg3, ...)  arg3
+#define GET_3RD_ARG(arg1, arg2, arg3, ...)        arg3
+#define GET_4TH_ARG(arg1, arg2, arg3, arg4, ...)  arg4
 
 /*------------------------------------------------------------------*/
 /* VERIFY STATUS
@@ -84,15 +78,15 @@
  * - VERIFY_STS_2ARGS : return provided status code if failed
  *------------------------------------------------------------------*/
 #define VERIFY_STS_1ARGS(sts)             \
-    do {                              \
-      uint32_t _status = (uint32_t)(sts);   \
-      VERIFY_DEFINE(_status, _status);\
+    do {                                  \
+      uint32_t _status = (uint32_t)(sts); \
+      if ( 0 != _status ) { VERIFY_MESS(_status) return _status; } \
     } while(0)
 
 #define VERIFY_STS_2ARGS(sts, _error)     \
-    do {                              \
-      uint32_t _status = (uint32_t)(sts);   \
-      VERIFY_DEFINE(_status, _error);\
+    do {                                  \
+      uint32_t _status = (uint32_t)(sts); \
+      if ( 0 != _status ) { VERIFY_MESS(_status) return _error; }\
     } while(0)
 
 /**
@@ -100,26 +94,54 @@
  * - status value if called with 1 parameter e.g VERIFY_STATUS(status)
  * - 2 parameter if called with 2 parameters e.g VERIFY_STATUS(status, errorcode)
  */
-#define VERIFY_STATUS(...)  VERIFY_GETARGS(__VA_ARGS__, VERIFY_STS_2ARGS, VERIFY_STS_1ARGS)(__VA_ARGS__)
+#define VERIFY_STATUS(...)  GET_3RD_ARG(__VA_ARGS__, VERIFY_STS_2ARGS, VERIFY_STS_1ARGS)(__VA_ARGS__)
 
+/*------------------------------------------------------------------*/
+/* VERIFY STATUS WITH HANDLER
+ * - VERIFY_STS_HDLR_2ARGS : execute handler, return status if failed
+ * - VERIFY_STS_HDLR_3ARGS : execute handler, return provided error if failed
+ *------------------------------------------------------------------*/
+#define VERIFY_STS_HDLR_2ARGS(sts, _handler)          \
+    do {                                              \
+      uint32_t _status = (uint32_t)(sts);             \
+      if ( 0 != _status ) { VERIFY_MESS(_status) _handler; return _status; }\
+    } while(0)
+
+#define VERIFY_STS_HDLR_3ARGS(sts, _handler, _error)  \
+    do {                                              \
+      uint32_t _status = (uint32_t)(sts);             \
+      if ( 0 != _status ) { VERIFY_MESS(_status) _handler; return _error; }\
+    } while(0)
+
+#define VERIFY_STATUS_HDLR(...)  GET_4TH_ARG(__VA_ARGS__, VERIFY_STS_HDLR_3ARGS, VERIFY_STS_HDLR_2ARGS)(__VA_ARGS__)
 
 /*------------------------------------------------------------------*/
 /* VERIFY
- * - VERIFY_1ARGS : return condition if failed (false)
+ * - VERIFY_1ARGS : return false if failed
  * - VERIFY_2ARGS : return provided value if failed
  *------------------------------------------------------------------*/
-#define VERIFY_1ARGS(cond)            if (!(cond)) return false;
-#define VERIFY_2ARGS(cond, _error)    if (!(cond)) return _error;
+#define VERIFY_1ARGS(cond)            do { if (!(cond)) return false;  } while(0)
+#define VERIFY_2ARGS(cond, _error)    do { if (!(cond)) return _error; } while(0)
 
 /**
  * Check if condition is success (true), otherwise return
  * - false value if called with 1 parameter e.g VERIFY(condition)
  * - 2 parameter if called with 2 parameters e.g VERIFY(condition, errorcode)
  */
-#define VERIFY(...)  VERIFY_GETARGS(__VA_ARGS__, VERIFY_2ARGS, VERIFY_1ARGS)(__VA_ARGS__)
+#define VERIFY(...)  GET_3RD_ARG(__VA_ARGS__, VERIFY_2ARGS, VERIFY_1ARGS)(__VA_ARGS__)
 
-// TODO VERIFY with final statement
+/*------------------------------------------------------------------*/
+/* VERIFY WITH HANDLER
+ * - VERIFY_HDLR_2ARGS : execute handler, return false if failed
+ * - VERIFY_HDLR_3ARGS : execute handler, return provided error if failed
+ *------------------------------------------------------------------*/
+#define VERIFY_HDLR_2ARGS(cond, _handler)         \
+    do { if ( !(cond) ) { _handler; return false; } } while(0)
 
+#define VERIFY_HDLR_3ARGS(cond, _handler, _error) \
+    do { if ( !(cond) ) { _handler; return _error; } } while(0)
+
+#define VERIFY_HDLR(...) GET_4TH_ARG(__VA_ARGS__, VERIFY_HDLR_3ARGS, VERIFY_HDLR_2ARGS)(__VA_ARGS__)
 
 #ifdef __cplusplus
  }

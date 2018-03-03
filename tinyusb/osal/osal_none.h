@@ -69,6 +69,8 @@ uint32_t tusb_tick_get(void);
 //
 //   OSAL_TASK_LOOP_ENG
 // }
+//
+// NOTE: no switch statement is allowed in Task and subtask
 //--------------------------------------------------------------------+
 typedef void (*osal_func_t)(void *param);
 typedef void* osal_task_t;
@@ -100,13 +102,20 @@ static inline osal_task_t osal_task_create(osal_func_t code, const char* name, u
   do {\
     timeout = osal_tick_get();\
     state = __LINE__; case __LINE__:\
-      if ( timeout + osal_tick_from_msec(msec) > osal_tick_get() ) /* time out */ \
+      if ( timeout + osal_tick_from_msec(msec) > osal_tick_get() ) \
         return TUSB_ERROR_OSAL_WAITING;\
   }while(0)
 
 //--------------------------------------------------------------------+
 // SUBTASK (a sub function that uses OS blocking services & called by a task
 //--------------------------------------------------------------------+
+#define OSAL_SUBTASK_BEGIN  OSAL_TASK_BEGIN
+#define OSAL_SUBTASK_END \
+  default:\
+    TASK_RESTART;\
+  }}\
+  return TUSB_ERROR_NONE;
+
 #define OSAL_SUBTASK_INVOKED_AND_WAIT(subtask, status) \
     do {\
       state = __LINE__; case __LINE__:\
@@ -117,22 +126,22 @@ static inline osal_task_t osal_task_create(osal_func_t code, const char* name, u
       }\
     }while(0)
 
-#define OSAL_SUBTASK_BEGIN  OSAL_TASK_BEGIN
-#define OSAL_SUBTASK_END \
-  default:\
-    TASK_RESTART;\
-  }}\
-  return TUSB_ERROR_NONE;
-
 //------------- Sub Task Assert -------------//
-#define SUBTASK_EXIT(error)  \
-    do {\
-      TASK_RESTART; return error;\
-    }while(0)
+#define SUBTASK_EXIT(error) \
+    do { TASK_RESTART; return error; } while(0)
 
 #define _SUBTASK_ASSERT_ERROR_HANDLER(error, func_call) \
-  func_call; TASK_RESTART; return error
+    do { func_call; TASK_RESTART; return error; } while(0)
 
+
+#define SUBTASK_ASSERT_STATUS(sts)                          VERIFY_STATUS_HDLR(sts, TASK_RESTART)
+#define SUBTASK_ASSERT_STATUS_WITH_HANDLER(sts, func_call)  VERIFY_STATUS_HDLR(sts, func_call; TASK_RESTART )
+
+#define SUBTASK_ASSERT(condition)                           VERIFY_HDLR(condition, TASK_RESTART)
+// TODO remove assert with handler by catching error in enum main task
+#define SUBTASK_ASSERT_WITH_HANDLER(condition, func_call)  VERIFY_HDLR(condition, func_call; TASK_RESTART)
+
+/*
 #define SUBTASK_ASSERT_STATUS(sts) \
     ASSERT_DEFINE_WITH_HANDLER(_SUBTASK_ASSERT_ERROR_HANDLER, , tusb_error_t status = (tusb_error_t)(sts),\
                                TUSB_ERROR_NONE == status, status, "%s", TUSB_ErrorStr[status])
@@ -149,6 +158,10 @@ static inline osal_task_t osal_task_create(osal_func_t code, const char* name, u
 #define SUBTASK_ASSERT_WITH_HANDLER(condition, func_call) \
     ASSERT_DEFINE_WITH_HANDLER(_SUBTASK_ASSERT_ERROR_HANDLER, func_call, ,\
                                condition, TUSB_ERROR_OSAL_TASK_FAILED, "%s", "evaluated to false")
+
+*/
+
+
 
 //--------------------------------------------------------------------+
 // QUEUE API

@@ -380,7 +380,7 @@ void dcd_pipe_control_stall(uint8_t coreid)
   dcd_data.qhd[0][0].stall = dcd_data.qhd[1][0].stall = 1;
 }
 
-tusb_error_t dcd_pipe_control_xfer(uint8_t coreid, tusb_direction_t dir, uint8_t * p_buffer, uint16_t length, bool int_on_complete)
+bool dcd_pipe_control_xfer(uint8_t coreid, tusb_direction_t dir, uint8_t * p_buffer, uint16_t length, bool int_on_complete)
 {
   (void) coreid;
 
@@ -405,7 +405,7 @@ tusb_error_t dcd_pipe_control_xfer(uint8_t coreid, tusb_direction_t dir, uint8_t
 
   queue_xfer_to_buffer(ep_status, 0, 0, 0);
 
-  return TUSB_ERROR_NONE;
+  return true;
 }
 
 //--------------------------------------------------------------------+
