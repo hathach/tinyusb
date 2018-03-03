@@ -534,7 +534,7 @@ void dcd_isr(uint8_t coreid)
   if (int_status & INT_MASK_RESET)
   {
     bus_reset(coreid);
-    usbd_dcd_bus_event_isr(0, USBD_BUS_EVENT_RESET);
+    hal_dcd_bus_event(coreid, USBD_BUS_EVENT_RESET);
   }
 
   if (int_status & INT_MASK_SUSPEND)
@@ -543,7 +543,7 @@ void dcd_isr(uint8_t coreid)
     { // Note: Host may delay more than 3 ms before and/or after bus reset before doing enumeration.
       if ((lpc_usb->DEVICEADDR >> 25) & 0x0f)
       {
-        usbd_dcd_bus_event_isr(0, USBD_BUS_EVENT_SUSPENDED);
+        hal_dcd_bus_event(0, USBD_BUS_EVENT_SUSPENDED);
       }
     }
   }
@@ -553,7 +553,7 @@ void dcd_isr(uint8_t coreid)
 //	{
 //	  if ( !(lpc_usb->PORTSC1_D & PORTSC_CURRENT_CONNECT_STATUS_MASK) )
 //	  {
-//	    usbd_dcd_bus_event_isr(0, USBD_BUS_EVENT_UNPLUGGED);
+//	    hal_dcd_bus_event(0, USBD_BUS_EVENT_UNPLUGGED);
 //	  }
 //	}
 

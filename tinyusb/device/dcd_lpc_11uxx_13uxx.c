@@ -315,14 +315,14 @@ void dcd_isr(uint8_t coreid)
     if ( dev_cmd_stat & CMDSTAT_RESET_CHANGE_MASK) // bus reset
     {
       bus_reset();
-      usbd_dcd_bus_event_isr(0, USBD_BUS_EVENT_RESET);
+      hal_dcd_bus_event(0, USBD_BUS_EVENT_RESET);
     }
 
     if (dev_cmd_stat & CMDSTAT_CONNECT_CHANGE_MASK)
     { // device disconnect
       if (dev_cmd_stat & CMDSTAT_DEVICE_ADDR_MASK)
       { // debouncing as this can be set when device is powering
-        usbd_dcd_bus_event_isr(0, USBD_BUS_EVENT_UNPLUGGED);
+        hal_dcd_bus_event(0, USBD_BUS_EVENT_UNPLUGGED);
       }
     }
 
@@ -334,13 +334,13 @@ void dcd_isr(uint8_t coreid)
         // Note: Host may delay more than 3 ms before and/or after bus reset before doing enumeration.
         if (dev_cmd_stat & CMDSTAT_DEVICE_ADDR_MASK)
         {
-          usbd_dcd_bus_event_isr(0, USBD_BUS_EVENT_SUSPENDED);
+          hal_dcd_bus_event(0, USBD_BUS_EVENT_SUSPENDED);
         }
       }
     }
 //        else
 //      { // resume signal
-//        usbd_dcd_bus_event_isr(0, USBD_BUS_EVENT_RESUME);
+//        hal_dcd_bus_event(0, USBD_BUS_EVENT_RESUME);
 //      }
 //    }
   }

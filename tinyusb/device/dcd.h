@@ -49,6 +49,14 @@
  extern "C" {
 #endif
 
+typedef enum
+{
+  USBD_BUS_EVENT_RESET = 1,
+  USBD_BUS_EVENT_UNPLUGGED,
+  USBD_BUS_EVENT_SUSPENDED,
+  USBD_BUS_EVENT_RESUME
+}usbd_bus_event_type_t;
+
 typedef struct {
   uint8_t coreid;
   uint8_t reserved; // TODO redundant, cannot be control as control uses separated API
@@ -68,15 +76,19 @@ static inline bool endpointhandle_is_equal(endpoint_handle_t x, endpoint_handle_
   return (x.coreid == y.coreid) && (x.index == y.index) && (x.class_code == y.class_code);
 }
 
-bool hal_dcd_init(uint8_t coreid);
 
 void dcd_isr(uint8_t coreid);
 
 //------------- Controller API -------------//
-void hal_dcd_connect    (uint8_t coreid);
-void hal_dcd_disconnect (uint8_t coreid);
-void hal_dcd_set_address(uint8_t coreid, uint8_t dev_addr);
-void hal_dcd_set_config (uint8_t coreid, uint8_t config_num);
+bool hal_dcd_init        (uint8_t coreid);
+void hal_dcd_connect     (uint8_t coreid);
+void hal_dcd_disconnect  (uint8_t coreid);
+void hal_dcd_set_address (uint8_t coreid, uint8_t dev_addr);
+void hal_dcd_set_config  (uint8_t coreid, uint8_t config_num);
+
+/*------------- Event function -------------*/
+void hal_dcd_setup_received(uint8_t coreid, uint8_t const* p_request);
+void hal_dcd_bus_event(uint8_t coreid, usbd_bus_event_type_t bus_event);
 
 //------------- PIPE API -------------//
 bool dcd_pipe_control_xfer(uint8_t coreid, tusb_direction_t dir, uint8_t * p_buffer, uint16_t length, bool int_on_complete);

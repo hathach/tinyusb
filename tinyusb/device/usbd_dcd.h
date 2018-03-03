@@ -55,13 +55,7 @@ enum {
   USBD_INTERFACE_NUM_MAX = 16 // USB specs specify up to 16 endpoints per device
 };
 
-typedef enum
-{
-  USBD_BUS_EVENT_RESET = 1,
-  USBD_BUS_EVENT_UNPLUGGED,
-  USBD_BUS_EVENT_SUSPENDED,
-  USBD_BUS_EVENT_RESUME
-}usbd_bus_event_type_t;
+
 
 typedef struct {
   volatile uint8_t state;
@@ -74,9 +68,6 @@ extern usbd_device_info_t usbd_devices[CONTROLLER_DEVICE_NUMBER];
 //--------------------------------------------------------------------+
 // callback from DCD ISR
 //--------------------------------------------------------------------+
-void usbd_dcd_bus_event_isr(uint8_t coreid, usbd_bus_event_type_t bus_event);
-void hal_dcd_setup_received(uint8_t coreid, uint8_t const* p_request);
-
 void usbd_xfer_isr(endpoint_handle_t edpt_hdl, tusb_event_t event, uint32_t xferred_bytes);
 
 

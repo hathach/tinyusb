@@ -230,23 +230,23 @@ void dcd_isr(uint8_t coreid)
     if (dev_status_reg & SIE_DEV_STATUS_RESET_MASK)
     {
       bus_reset();
-      usbd_dcd_bus_event_isr(0, USBD_BUS_EVENT_RESET);
+      hal_dcd_bus_event(0, USBD_BUS_EVENT_RESET);
     }
 
     if (dev_status_reg & SIE_DEV_STATUS_CONNECT_CHANGE_MASK)
     { // device is disconnected, require using VBUS (P1_30)
-      usbd_dcd_bus_event_isr(0, USBD_BUS_EVENT_UNPLUGGED);
+      hal_dcd_bus_event(0, USBD_BUS_EVENT_UNPLUGGED);
     }
 
     if (dev_status_reg & SIE_DEV_STATUS_SUSPEND_CHANGE_MASK)
     {
       if (dev_status_reg & SIE_DEV_STATUS_SUSPEND_MASK)
       {
-        usbd_dcd_bus_event_isr(0, USBD_BUS_EVENT_SUSPENDED);
+        hal_dcd_bus_event(0, USBD_BUS_EVENT_SUSPENDED);
       }
 //      else
 //      {
-//        usbd_dcd_bus_event_isr(0, USBD_BUS_EVENT_RESUME);
+//        hal_dcd_bus_event(0, USBD_BUS_EVENT_RESUME);
 //      }
     }
   }

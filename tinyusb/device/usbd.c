@@ -409,12 +409,11 @@ static tusb_error_t get_descriptor(uint8_t coreid, tusb_control_request_t const 
 //--------------------------------------------------------------------+
 // USBD-DCD Callback API
 //--------------------------------------------------------------------+
-void usbd_dcd_bus_event_isr(uint8_t coreid, usbd_bus_event_type_t bus_event)
+void hal_dcd_bus_event(uint8_t coreid, usbd_bus_event_type_t bus_event)
 {
   switch(bus_event)
   {
     case USBD_BUS_EVENT_RESET     :
-    case USBD_BUS_EVENT_UNPLUGGED :
       memclr_(&usbd_devices[coreid], sizeof(usbd_device_info_t));
       osal_queue_flush(usbd_queue_hdl);
       osal_semaphore_reset(usbd_control_xfer_sem_hdl);
@@ -423,6 +422,8 @@ void usbd_dcd_bus_event_isr(uint8_t coreid, usbd_bus_event_type_t bus_event)
         if ( usbd_class_drivers[class_code].close ) usbd_class_drivers[class_code].close( coreid );
       }
     break;
+
+    case USBD_BUS_EVENT_UNPLUGGED : break;
 
     case USBD_BUS_EVENT_SUSPENDED:
       usbd_devices[coreid].state = TUSB_DEVICE_STATE_SUSPENDED;
