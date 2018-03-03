@@ -188,7 +188,7 @@ static void endpoint_control_isr(void)
 
     tusb_control_request_t control_request;
     pipe_control_read(&control_request, 8); // TODO read before clear setup above
-    usbd_setup_received_isr(0, &control_request);
+    hal_dcd_setup_received(0, (uint8_t*) &control_request);
   }
   else if (endpoint_int_status & 0x03)
   {

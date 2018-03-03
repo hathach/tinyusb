@@ -567,10 +567,9 @@ void dcd_isr(uint8_t coreid)
     //------------- Set up Received -------------//
     if (lpc_usb->ENDPTSETUPSTAT)
     { // 23.10.10.2 Operational model for setup transfers
-      tusb_control_request_t control_request = p_dcd->qhd[0].setup_request;
       lpc_usb->ENDPTSETUPSTAT = lpc_usb->ENDPTSETUPSTAT;// acknowledge
 
-      usbd_setup_received_isr(coreid, &control_request);
+      hal_dcd_setup_received(coreid, (uint8_t*) &p_dcd->qhd[0].setup_request);
     }
     //------------- Control Request Completed -------------//
     else if ( edpt_complete & 0x03 )

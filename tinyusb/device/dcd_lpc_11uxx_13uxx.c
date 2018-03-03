@@ -349,7 +349,7 @@ void dcd_isr(uint8_t coreid)
   if ( BIT_TEST_(int_status, 0) && (dev_cmd_stat & CMDSTAT_SETUP_RECEIVED_MASK) )
   { // received control request from host
     // copy setup request & acknowledge so that the next setup can be received by hw
-    usbd_setup_received_isr(coreid, &dcd_data.setup_request);
+    hal_dcd_setup_received(coreid, (uint8_t*)&dcd_data.setup_request);
 
     // NXP control flowchart clear Active & Stall on both Control IN/OUT endpoints
     dcd_data.qhd[0][0].stall = dcd_data.qhd[1][0].stall = 0;

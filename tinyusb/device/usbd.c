@@ -432,7 +432,7 @@ void usbd_dcd_bus_event_isr(uint8_t coreid, usbd_bus_event_type_t bus_event)
   }
 }
 
-void usbd_setup_received_isr(uint8_t coreid, tusb_control_request_t * p_request)
+void hal_dcd_setup_received(uint8_t coreid, uint8_t const* p_request)
 {
   usbd_task_event_t task_event =
   {
@@ -440,7 +440,7 @@ void usbd_setup_received_isr(uint8_t coreid, tusb_control_request_t * p_request)
       .event_id        = USBD_EVENTID_SETUP_RECEIVED,
   };
 
-  task_event.setup_received  = (*p_request);
+  memcpy(&task_event.setup_received, p_request, sizeof(tusb_control_request_t));
   osal_queue_send(usbd_queue_hdl, &task_event);
 }
 

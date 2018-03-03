@@ -47,10 +47,6 @@
 //--------------------------------------------------------------------+
 #include "common/common.h"
 
-#ifdef _TEST_
-#include "dcd.h"
-#endif
-
 #ifdef __cplusplus
  extern "C" {
 #endif
@@ -79,7 +75,8 @@ extern usbd_device_info_t usbd_devices[CONTROLLER_DEVICE_NUMBER];
 // callback from DCD ISR
 //--------------------------------------------------------------------+
 void usbd_dcd_bus_event_isr(uint8_t coreid, usbd_bus_event_type_t bus_event);
-void usbd_setup_received_isr(uint8_t coreid, tusb_control_request_t * p_request);
+void hal_dcd_setup_received(uint8_t coreid, uint8_t const* p_request);
+
 void usbd_xfer_isr(endpoint_handle_t edpt_hdl, tusb_event_t event, uint32_t xferred_bytes);
 
 
