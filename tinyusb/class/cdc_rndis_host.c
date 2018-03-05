@@ -179,7 +179,7 @@ tusb_error_t rndish_open_subtask(uint8_t dev_addr, cdch_data_t *p_cdc)
                                          msg_payload),
       error
   );
-  if ( TUSB_ERROR_NONE != error )   SUBTASK_EXIT(error);
+  if ( TUSB_ERROR_NONE != error )   SUBTASK_RETURN(error);
 
   // TODO currently not support multiple data packets per xfer
   rndis_msg_initialize_cmplt_t * const p_init_cmpt = (rndis_msg_initialize_cmplt_t *) msg_payload;
@@ -197,7 +197,7 @@ tusb_error_t rndish_open_subtask(uint8_t dev_addr, cdch_data_t *p_cdc)
                                          msg_payload),
       error
   );
-  if ( TUSB_ERROR_NONE != error )   SUBTASK_EXIT(error);
+  if ( TUSB_ERROR_NONE != error )   SUBTASK_RETURN(error);
 
   rndis_msg_query_cmplt_t * const p_query_cmpt = (rndis_msg_query_cmplt_t *) msg_payload;
   SUBTASK_ASSERT(p_query_cmpt->type == RNDIS_MSG_QUERY_CMPLT && p_query_cmpt->status == RNDIS_STATUS_SUCCESS);
@@ -214,7 +214,7 @@ tusb_error_t rndish_open_subtask(uint8_t dev_addr, cdch_data_t *p_cdc)
                                          msg_payload),
       error
   );
-  if ( TUSB_ERROR_NONE != error )   SUBTASK_EXIT(error);
+  if ( TUSB_ERROR_NONE != error )   SUBTASK_RETURN(error);
 
   rndis_msg_set_cmplt_t * const p_set_cmpt = (rndis_msg_set_cmplt_t *) msg_payload;
   SUBTASK_ASSERT(p_set_cmpt->type == RNDIS_MSG_SET_CMPLT && p_set_cmpt->status == RNDIS_STATUS_SUCCESS);
@@ -250,12 +250,12 @@ static tusb_error_t send_message_get_response_subtask( uint8_t dev_addr, cdch_da
                                  mess_length, p_mess),
       error
   );
-  if ( TUSB_ERROR_NONE != error )   SUBTASK_EXIT(error);
+  if ( TUSB_ERROR_NONE != error )   SUBTASK_RETURN(error);
 
   //------------- waiting for Response Available notification -------------//
   (void) hcd_pipe_xfer(p_cdc->pipe_notification, msg_notification[dev_addr-1], 8, true);
   osal_semaphore_wait(rndish_data[dev_addr-1].sem_notification_hdl, OSAL_TIMEOUT_NORMAL, &error);
-  if ( TUSB_ERROR_NONE != error )   SUBTASK_EXIT(error);
+  if ( TUSB_ERROR_NONE != error )   SUBTASK_RETURN(error);
   SUBTASK_ASSERT(msg_notification[dev_addr-1][0] == 1);
 
   //------------- Get RNDIS Message Initialize Complete -------------//
@@ -265,7 +265,7 @@ static tusb_error_t send_message_get_response_subtask( uint8_t dev_addr, cdch_da
                                RNDIS_MSG_PAYLOAD_MAX, p_response),
     error
   );
-  if ( TUSB_ERROR_NONE != error )   SUBTASK_EXIT(error);
+  if ( TUSB_ERROR_NONE != error )   SUBTASK_RETURN(error);
 
   OSAL_SUBTASK_END
 }

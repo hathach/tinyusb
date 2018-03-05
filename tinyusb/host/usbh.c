@@ -207,8 +207,8 @@ tusb_error_t usbh_control_xfer_subtask(uint8_t dev_addr, uint8_t bmRequestType, 
   osal_mutex_release(usbh_devices[dev_addr].control.mutex_hdl);
 
   SUBTASK_ASSERT_STATUS(error);
-  if (TUSB_EVENT_XFER_STALLED == usbh_devices[dev_addr].control.pipe_status) SUBTASK_EXIT(TUSB_ERROR_USBH_XFER_STALLED);
-  if (TUSB_EVENT_XFER_ERROR   == usbh_devices[dev_addr].control.pipe_status) SUBTASK_EXIT(TUSB_ERROR_USBH_XFER_FAILED);
+  if (TUSB_EVENT_XFER_STALLED == usbh_devices[dev_addr].control.pipe_status) SUBTASK_RETURN(TUSB_ERROR_USBH_XFER_STALLED);
+  if (TUSB_EVENT_XFER_ERROR   == usbh_devices[dev_addr].control.pipe_status) SUBTASK_RETURN(TUSB_ERROR_USBH_XFER_FAILED);
 
 //  SUBTASK_ASSERT_WITH_HANDLER(TUSB_ERROR_NONE == error &&
 //                              TUSB_EVENT_XFER_COMPLETE == usbh_devices[dev_addr].control.pipe_status,
@@ -388,7 +388,7 @@ tusb_error_t enumeration_body_subtask(void)
     { // connection event
       osal_task_delay(POWER_STABLE_DELAY); // wait until device is stable. Increase this if the first 8 bytes is failed to get
 
-      if ( !hcd_port_connect_status(usbh_devices[0].core_id) ) SUBTASK_EXIT(TUSB_ERROR_NONE); // exit if device unplugged while delaying
+      if ( !hcd_port_connect_status(usbh_devices[0].core_id) ) SUBTASK_RETURN(TUSB_ERROR_NONE); // exit if device unplugged while delaying
 
       hcd_port_reset( usbh_devices[0].core_id ); // port must be reset to have correct speed operation
       osal_task_delay(RESET_DELAY);
@@ -398,7 +398,7 @@ tusb_error_t enumeration_body_subtask(void)
     else
     { // disconnection event
       usbh_device_unplugged(usbh_devices[0].core_id, 0, 0);
-      SUBTASK_EXIT(TUSB_ERROR_NONE); // restart task
+      SUBTASK_RETURN(TUSB_ERROR_NONE); // restart task
     }
   }
   #if TUSB_CFG_HOST_HUB
@@ -421,14 +421,14 @@ tusb_error_t enumeration_body_subtask(void)
     hub_port_status_response_t * p_port_status;
     p_port_status = ((hub_port_status_response_t *) enum_data_buffer);
 
-    if ( ! p_port_status->status_change.connect_status )   SUBTASK_EXIT(TUSB_ERROR_NONE); // only handle connection change
+    if ( ! p_port_status->status_change.connect_status )   SUBTASK_RETURN(TUSB_ERROR_NONE); // only handle connection change
 
     if ( ! p_port_status->status_current.connect_status )
     { // Disconnection event
       usbh_device_unplugged(usbh_devices[0].core_id, usbh_devices[0].hub_addr, usbh_devices[0].hub_port);
 
       (void) hub_status_pipe_queue( usbh_devices[0].hub_addr ); // done with hub, waiting for next data on status pipe
-      SUBTASK_EXIT(TUSB_ERROR_NONE); // restart task
+      SUBTASK_RETURN(TUSB_ERROR_NONE); // restart task
     }
     else
     { // Connection Event

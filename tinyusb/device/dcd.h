@@ -87,8 +87,8 @@ void hal_dcd_set_address (uint8_t coreid, uint8_t dev_addr);
 void hal_dcd_set_config  (uint8_t coreid, uint8_t config_num);
 
 /*------------- Event function -------------*/
-void hal_dcd_setup_received(uint8_t coreid, uint8_t const* p_request);
 void hal_dcd_bus_event(uint8_t coreid, usbd_bus_event_type_t bus_event);
+void hal_dcd_setup_received(uint8_t coreid, uint8_t const* p_request);
 
 //------------- PIPE API -------------//
 bool dcd_pipe_control_xfer(uint8_t coreid, tusb_direction_t dir, uint8_t * p_buffer, uint16_t length, bool int_on_complete);

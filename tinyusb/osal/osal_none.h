@@ -127,7 +127,7 @@ static inline osal_task_t osal_task_create(osal_func_t code, const char* name, u
     }while(0)
 
 //------------- Sub Task Assert -------------//
-#define SUBTASK_EXIT(error) \
+#define SUBTASK_RETURN(error) \
     do { TASK_RESTART; return error; } while(0)
 
 #define _SUBTASK_ASSERT_ERROR_HANDLER(error, func_call) \
