@@ -130,8 +130,7 @@ static inline osal_task_t osal_task_create(osal_func_t code, const char* name, u
 #define SUBTASK_RETURN(error) \
     do { TASK_RESTART; return error; } while(0)
 
-#define _SUBTASK_ASSERT_ERROR_HANDLER(error, func_call) \
-    do { func_call; TASK_RESTART; return error; } while(0)
+
 
 
 #define SUBTASK_ASSERT_STATUS(sts)                          VERIFY_STATUS_HDLR(sts, TASK_RESTART)
@@ -142,6 +141,9 @@ static inline osal_task_t osal_task_create(osal_func_t code, const char* name, u
 #define SUBTASK_ASSERT_WITH_HANDLER(condition, func_call)  VERIFY_HDLR(condition, func_call; TASK_RESTART)
 
 /*
+#define _SUBTASK_ASSERT_ERROR_HANDLER(error, func_call) \
+    do { func_call; TASK_RESTART; return error; } while(0)
+
 #define SUBTASK_ASSERT_STATUS(sts) \
     ASSERT_DEFINE_WITH_HANDLER(_SUBTASK_ASSERT_ERROR_HANDLER, , tusb_error_t status = (tusb_error_t)(sts),\
                                TUSB_ERROR_NONE == status, status, "%s", TUSB_ErrorStr[status])

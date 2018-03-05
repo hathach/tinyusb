@@ -78,18 +78,11 @@
   #define OSAL_SUBTASK_INVOKED_AND_WAIT(subtask, status) status = subtask
 
   //------------- Sub Task Assert -------------//
-  #define SUBTASK_ASSERT_STATUS(sts) ASSERT_STATUS(sts)
-  #define SUBTASK_ASSERT(condition)  ASSERT(condition, TUSB_ERROR_OSAL_TASK_FAILED)
+  #define SUBTASK_ASSERT_STATUS(sts) VERIFY_STATUS(sts)
+  #define SUBTASK_ASSERT(condition)  VERIFY(condition, TUSB_ERROR_OSAL_TASK_FAILED)
 
-  #define _SUBTASK_ASSERT_ERROR_HANDLER(error, func_call) func_call; return error
-
-  #define SUBTASK_ASSERT_STATUS_WITH_HANDLER(sts, func_call) \
-      ASSERT_DEFINE_WITH_HANDLER(_SUBTASK_ASSERT_ERROR_HANDLER, func_call, tusb_error_t status = (tusb_error_t)(sts),\
-                                 TUSB_ERROR_NONE == status, status, "%s", TUSB_ErrorStr[status])
-
-  #define SUBTASK_ASSERT_WITH_HANDLER(condition, func_call) \
-      ASSERT_DEFINE_WITH_HANDLER(_SUBTASK_ASSERT_ERROR_HANDLER, func_call, ,\
-                                 condition, TUSB_ERROR_OSAL_TASK_FAILED, "%s", "evaluated to false")
+  #define SUBTASK_ASSERT_STATUS_WITH_HANDLER(sts, func_call)  VERIFY_STATUS_HDLR(sts, func_call)
+  #define SUBTASK_ASSERT_WITH_HANDLER(condition, func_call)   VERIFY_HDLR(condition, func_call)
 #endif
 
 #ifdef __cplusplus
