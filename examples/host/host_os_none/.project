@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <projectDescription>
-	<name>device_os_none</name>
+	<name>host_os_none</name>
 	<comment></comment>
 	<projects>
 	</projects>
@@ -31,7 +31,7 @@
 				</dictionary>
 				<dictionary>
 					<key>org.eclipse.cdt.make.core.buildLocation</key>
-					<value>${workspace_loc:/device_keyboard/Debug}</value>
+					<value>${workspace_loc:/host/Debug}</value>
 				</dictionary>
 				<dictionary>
 					<key>org.eclipse.cdt.make.core.cleanBuildTarget</key>
@@ -81,9 +81,19 @@
 	</natures>
 	<linkedResources>
 		<link>
-			<name>hw</name>
+			<name>boards</name>
 			<type>2</type>
-			<locationURI>PARENT-3-PROJECT_LOC/hw</locationURI>
+			<locationURI>PARENT-3-PROJECT_LOC/boards</locationURI>
+		</link>
+		<link>
+			<name>fatfs</name>
+			<type>2</type>
+			<locationURI>PARENT-3-PROJECT_LOC/vendor/fatfs</locationURI>
+		</link>
+		<link>
+			<name>mcu</name>
+			<type>2</type>
+			<locationURI>PARENT-3-PROJECT_LOC/mcu</locationURI>
 		</link>
 		<link>
 			<name>src</name>
@@ -96,4 +106,24 @@
 			<locationURI>PARENT-3-PROJECT_LOC/tinyusb</locationURI>
 		</link>
 	</linkedResources>
+	<filteredResources>
+		<filter>
+			<id>1394685086167</id>
+			<name>mcu</name>
+			<type>26</type>
+			<matcher>
+				<id>org.eclipse.ui.ide.multiFilter</id>
+				<arguments>1.0-name-matches-false-false-iar</arguments>
+			</matcher>
+		</filter>
+		<filter>
+			<id>1394685086182</id>
+			<name>mcu</name>
+			<type>26</type>
+			<matcher>
+				<id>org.eclipse.ui.ide.multiFilter</id>
+				<arguments>1.0-name-matches-false-false-keil</arguments>
+			</matcher>
+		</filter>
+	</filteredResources>
 </projectDescription>

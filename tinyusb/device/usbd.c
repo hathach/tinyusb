@@ -445,7 +445,6 @@ void hal_dcd_setup_received(uint8_t coreid, uint8_t const* p_request)
 
 void usbd_xfer_isr(endpoint_handle_t edpt_hdl, tusb_event_t event, uint32_t xferred_bytes)
 {
-//  if (edpt_hdl.class_code == 0 )
   if (edpt_hdl.index == 0 )
   {
     // Control Transfer
