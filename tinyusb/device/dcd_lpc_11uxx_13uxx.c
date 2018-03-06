@@ -428,11 +428,9 @@ static inline uint8_t edpt_phy2log(uint8_t physical_endpoint)
 //--------------------------------------------------------------------+
 // BULK/INTERRUPT/ISOCHRONOUS PIPE API
 //--------------------------------------------------------------------+
-tusb_error_t dcd_pipe_stall(endpoint_handle_t edpt_hdl)
+void hal_dcd_pipe_stall(endpoint_handle_t edpt_hdl)
 {
   dcd_data.qhd[edpt_hdl.index][0].stall = dcd_data.qhd[edpt_hdl.index][1].stall = 1;
-
-  return TUSB_ERROR_NONE;
 }
 
 bool dcd_pipe_is_stalled(endpoint_handle_t edpt_hdl)

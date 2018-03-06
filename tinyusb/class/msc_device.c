@@ -186,7 +186,7 @@ tusb_error_t mscd_xfer_cb(endpoint_handle_t edpt_hdl, tusb_event_t event, uint32
 
         if ( p_buffer == NULL || actual_length == 0 )
         { // application does not provide data to response --> possibly unsupported SCSI command
-          ASSERT_STATUS( dcd_pipe_stall(edpt_data) );
+          hal_dcd_pipe_stall(edpt_data);
           p_csw->status = MSC_CSW_STATUS_FAILED;
         }else
         {
@@ -241,7 +241,7 @@ static bool read10_write10_data_xfer(mscd_interface_t* p_msc)
     p_csw->data_residue = p_cbw->xfer_bytes;
     p_csw->status       = MSC_CSW_STATUS_FAILED;
 
-    (void) dcd_pipe_stall(edpt_hdl);
+    hal_dcd_pipe_stall(edpt_hdl);
 
     return true;
   } else if (xferred_block < block_count)

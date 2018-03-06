@@ -453,10 +453,9 @@ bool dcd_pipe_is_busy(endpoint_handle_t edpt_hdl)
   return (dcd_data.udca[edpt_hdl.index] != NULL && !dcd_data.udca[edpt_hdl.index]->is_retired);
 }
 
-tusb_error_t dcd_pipe_stall(endpoint_handle_t edpt_hdl)
+void hal_dcd_pipe_stall(endpoint_handle_t edpt_hdl)
 {
   sie_write(SIE_CMDCODE_ENDPOINT_SET_STATUS+edpt_hdl.index, 1, SIE_SET_ENDPOINT_STALLED_MASK);
-  return TUSB_ERROR_NONE;
 }
 
 tusb_error_t dcd_pipe_clear_stall(uint8_t coreid, uint8_t edpt_addr)

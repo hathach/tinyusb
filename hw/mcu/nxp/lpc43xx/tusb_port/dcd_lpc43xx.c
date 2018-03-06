@@ -371,13 +371,11 @@ static inline volatile uint32_t * get_reg_control_addr(uint8_t coreid, uint8_t p
  return &(LPC_USB[coreid]->ENDPTCTRL0) + edpt_phy2log(physical_endpoint);
 }
 
-tusb_error_t dcd_pipe_stall(endpoint_handle_t edpt_hdl)
+void hal_dcd_pipe_stall(endpoint_handle_t edpt_hdl)
 {
   volatile uint32_t * reg_control = get_reg_control_addr(edpt_hdl.coreid, edpt_hdl.index);
 
   (*reg_control) |= ENDPTCTRL_MASK_STALL << (edpt_hdl.index & 0x01 ? 16 : 0);
-
-  return TUSB_ERROR_NONE;
 }
 
 tusb_error_t dcd_pipe_clear_stall(uint8_t coreid, uint8_t edpt_addr)

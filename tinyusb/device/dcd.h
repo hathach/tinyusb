@@ -91,7 +91,7 @@ bool hal_dcd_pipe_open(uint8_t coreid, tusb_descriptor_endpoint_t const * p_endp
 
 tusb_error_t dcd_pipe_queue_xfer(endpoint_handle_t edpt_hdl, uint8_t * buffer, uint16_t total_bytes); // only queue, not transferring yet
 tusb_error_t hal_dcd_pipe_xfer(endpoint_handle_t edpt_hdl, uint8_t * buffer, uint16_t total_bytes, bool int_on_complete);
-tusb_error_t dcd_pipe_stall(endpoint_handle_t edpt_hdl);
+void hal_dcd_pipe_stall(endpoint_handle_t edpt_hdl);
 
 bool dcd_pipe_is_busy(endpoint_handle_t edpt_hdl);
 
