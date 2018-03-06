@@ -280,8 +280,7 @@ tusb_error_t hidd_open(uint8_t coreid, tusb_descriptor_interface_t const * p_int
 
         ASSERT_PTR(p_hid, TUSB_ERROR_FAILED);
 
-        p_hid->ept_handle       = hal_dcd_pipe_open(coreid, p_desc_endpoint);
-        ASSERT( endpointhandle_is_valid(p_hid->ept_handle), TUSB_ERROR_DCD_FAILED);
+        VERIFY( hal_dcd_pipe_open(coreid, p_desc_endpoint, &p_hid->ept_handle), TUSB_ERROR_DCD_FAILED );
 
         p_hid->interface_number = p_interface_desc->bInterfaceNumber;
         p_hid->p_report_desc    = (p_interface_desc->bInterfaceProtocol == HID_PROTOCOL_KEYBOARD) ? tusbd_descriptor_pointers.p_hid_keyboard_report : tusbd_descriptor_pointers.p_hid_mouse_report;

@@ -391,13 +391,11 @@ tusb_error_t dcd_pipe_clear_stall(uint8_t coreid, uint8_t edpt_addr)
   return TUSB_ERROR_NONE;
 }
 
-endpoint_handle_t hal_dcd_pipe_open(uint8_t coreid, tusb_descriptor_endpoint_t const * p_endpoint_desc)
+bool hal_dcd_pipe_open(uint8_t coreid, tusb_descriptor_endpoint_t const * p_endpoint_desc, endpoint_handle_t* eh)
 {
   // TODO USB1 only has 4 non-control enpoint (USB0 has 5)
-  endpoint_handle_t const null_handle = { 0 };
-
   // TODO not support ISO yet
-  if (p_endpoint_desc->bmAttributes.xfer == TUSB_XFER_ISOCHRONOUS) return null_handle;
+  VERIFY ( p_endpoint_desc->bmAttributes.xfer != TUSB_XFER_ISOCHRONOUS);
 
   tusb_direction_t dir = (p_endpoint_desc->bEndpointAddress & TUSB_DIR_DEV_TO_HOST_MASK) ? TUSB_DIR_DEV_TO_HOST : TUSB_DIR_HOST_TO_DEV;
 
@@ -414,14 +412,15 @@ endpoint_handle_t hal_dcd_pipe_open(uint8_t coreid, tusb_descriptor_endpoint_t c
   //------------- Endpoint Control Register -------------//
   volatile uint32_t * reg_control = get_reg_control_addr(coreid, ep_idx);
 
-  ASSERT_FALSE( (*reg_control) &  (ENDPTCTRL_MASK_ENABLE << (dir ? 16 : 0)), null_handle ); // endpoint must not be already enabled
+  // endpoint must not be already enabled
+  VERIFY( !( (*reg_control) &  (ENDPTCTRL_MASK_ENABLE << (dir ? 16 : 0)) ) );
+
   (*reg_control) |= ((p_endpoint_desc->bmAttributes.xfer << 2) | ENDPTCTRL_MASK_ENABLE | ENDPTCTRL_MASK_TOGGLE_RESET) << (dir ? 16 : 0);
 
-  return (endpoint_handle_t)
-      {
-          .coreid     = coreid,
-          .index      = ep_idx,
-      };
+  eh->coreid = coreid;
+  eh->index  = ep_idx;
+
+  return true;
 }
 
 bool dcd_pipe_is_busy(endpoint_handle_t edpt_hdl)

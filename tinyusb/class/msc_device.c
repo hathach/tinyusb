@@ -101,9 +101,7 @@ tusb_error_t mscd_open(uint8_t coreid, tusb_descriptor_interface_t const * p_int
     endpoint_handle_t * p_edpt_hdl =  ( p_endpoint->bEndpointAddress &  TUSB_DIR_DEV_TO_HOST_MASK ) ?
         &p_msc->edpt_in : &p_msc->edpt_out;
 
-    (*p_edpt_hdl) = hal_dcd_pipe_open(coreid, p_endpoint);
-    ASSERT( endpointhandle_is_valid(*p_edpt_hdl), TUSB_ERROR_DCD_FAILED);
-
+    VERIFY( hal_dcd_pipe_open(coreid, p_endpoint, p_edpt_hdl), TUSB_ERROR_DCD_FAILED );
     p_endpoint = (tusb_descriptor_endpoint_t const *) descriptor_next( (uint8_t const*)  p_endpoint );
   }
 
