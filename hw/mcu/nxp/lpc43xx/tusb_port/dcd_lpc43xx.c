@@ -378,15 +378,13 @@ void hal_dcd_pipe_stall(endpoint_handle_t edpt_hdl)
   (*reg_control) |= ENDPTCTRL_MASK_STALL << (edpt_hdl.index & 0x01 ? 16 : 0);
 }
 
-tusb_error_t dcd_pipe_clear_stall(uint8_t coreid, uint8_t edpt_addr)
+void hal_dcd_pipe_clear_stall(uint8_t coreid, uint8_t edpt_addr)
 {
   volatile uint32_t * reg_control = get_reg_control_addr(coreid, edpt_addr2phy(edpt_addr));
 
   // data toggle also need to be reset
   (*reg_control) |= ENDPTCTRL_MASK_TOGGLE_RESET << ((edpt_addr & TUSB_DIR_DEV_TO_HOST_MASK) ? 16 : 0);
   (*reg_control) &= ~(ENDPTCTRL_MASK_STALL << ((edpt_addr & TUSB_DIR_DEV_TO_HOST_MASK) ? 16 : 0));
-
-  return TUSB_ERROR_NONE;
 }
 
 bool hal_dcd_pipe_open(uint8_t coreid, tusb_descriptor_endpoint_t const * p_endpoint_desc, endpoint_handle_t* eh)

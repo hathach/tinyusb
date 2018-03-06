@@ -297,7 +297,7 @@ tusb_error_t usbd_control_request_subtask(uint8_t coreid, tusb_control_request_t
             TUSB_REQUEST_TYPE_STANDARD      == p_request->bmRequestType_bit.type &&
             TUSB_REQUEST_CLEAR_FEATURE      == p_request->bRequest )
   {
-    dcd_pipe_clear_stall(coreid, u16_low_u8(p_request->wIndex) );
+    hal_dcd_pipe_clear_stall(coreid, u16_low_u8(p_request->wIndex) );
   } else
   {
     error = TUSB_ERROR_DCD_CONTROL_REQUEST_NOT_SUPPORT;

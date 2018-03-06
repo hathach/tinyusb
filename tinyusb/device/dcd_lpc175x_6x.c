@@ -458,13 +458,11 @@ void hal_dcd_pipe_stall(endpoint_handle_t edpt_hdl)
   sie_write(SIE_CMDCODE_ENDPOINT_SET_STATUS+edpt_hdl.index, 1, SIE_SET_ENDPOINT_STALLED_MASK);
 }
 
-tusb_error_t dcd_pipe_clear_stall(uint8_t coreid, uint8_t edpt_addr)
+void hal_dcd_pipe_clear_stall(uint8_t coreid, uint8_t edpt_addr)
 {
   uint8_t ep_id = edpt_addr2phy(edpt_addr);
 
   sie_write(SIE_CMDCODE_ENDPOINT_SET_STATUS+ep_id, 1, 0);
-
-  return TUSB_ERROR_FAILED;
 }
 
 void dd_xfer_init(dcd_dma_descriptor_t* p_dd, void* buffer, uint16_t total_bytes)

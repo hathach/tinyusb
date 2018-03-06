@@ -438,7 +438,7 @@ bool dcd_pipe_is_stalled(endpoint_handle_t edpt_hdl)
   return dcd_data.qhd[edpt_hdl.index][0].stall || dcd_data.qhd[edpt_hdl.index][1].stall;
 }
 
-tusb_error_t dcd_pipe_clear_stall(uint8_t coreid, uint8_t edpt_addr)
+void hal_dcd_pipe_clear_stall(uint8_t coreid, uint8_t edpt_addr)
 {
   uint8_t ep_id = edpt_addr2phy(edpt_addr);
 //  uint8_t active_buffer = BIT_TEST_(LPC_USB->EPINUSE, ep_id) ? 1 : 0;
@@ -454,8 +454,6 @@ tusb_error_t dcd_pipe_clear_stall(uint8_t coreid, uint8_t edpt_addr)
   {
     queue_xfer_in_next_td(ep_id);
   }
-
-  return TUSB_ERROR_NONE;
 }
 
 endpoint_handle_t hal_dcd_pipe_open(uint8_t coreid, tusb_descriptor_endpoint_t const * p_endpoint_desc, uint8_t class_code)
