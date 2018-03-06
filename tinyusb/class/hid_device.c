@@ -118,7 +118,7 @@ tusb_error_t tud_hid_keyboard_send(uint8_t coreid, hid_keyboard_report_t const *
 
   hidd_interface_t * p_kbd = &keyboardd_data; // TODO &keyboardd_data[coreid];
 
-  ASSERT_STATUS( dcd_pipe_xfer(p_kbd->ept_handle, (void*) p_report, sizeof(hid_keyboard_report_t), true) ) ;
+  ASSERT_STATUS( hal_dcd_pipe_xfer(p_kbd->ept_handle, (void*) p_report, sizeof(hid_keyboard_report_t), true) ) ;
 
   return TUSB_ERROR_NONE;
 }
@@ -141,7 +141,7 @@ tusb_error_t tusbd_hid_mouse_send(uint8_t coreid, hid_mouse_report_t const *p_re
 
   hidd_interface_t * p_mouse = &moused_data; // TODO &keyboardd_data[coreid];
 
-  ASSERT_STATUS( dcd_pipe_xfer(p_mouse->ept_handle, (void*) p_report, sizeof(hid_mouse_report_t), true) ) ;
+  ASSERT_STATUS( hal_dcd_pipe_xfer(p_mouse->ept_handle, (void*) p_report, sizeof(hid_mouse_report_t), true) ) ;
 
   return TUSB_ERROR_NONE;
 }

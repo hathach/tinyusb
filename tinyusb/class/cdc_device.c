@@ -71,7 +71,7 @@ static tusb_error_t cdcd_xfer(uint8_t coreid,  cdc_pipeid_t pipeid, void * p_buf
   cdcd_data_t* p_cdc = &cdcd_data[coreid];
 
   ASSERT_FALSE ( dcd_pipe_is_busy(p_cdc->edpt_hdl[pipeid]), TUSB_ERROR_INTERFACE_IS_BUSY);
-  ASSERT_STATUS( dcd_pipe_xfer(p_cdc->edpt_hdl[pipeid], p_buffer, length, is_notify) );
+  ASSERT_STATUS( hal_dcd_pipe_xfer(p_cdc->edpt_hdl[pipeid], p_buffer, length, is_notify) );
 
   return TUSB_ERROR_NONE;
 }

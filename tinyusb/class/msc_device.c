@@ -110,7 +110,7 @@ tusb_error_t mscd_open(uint8_t coreid, tusb_descriptor_interface_t const * p_int
   (*p_length) += sizeof(tusb_descriptor_interface_t) + 2*sizeof(tusb_descriptor_endpoint_t);
 
   //------------- Queue Endpoint OUT for Command Block Wrapper -------------//
-  ASSERT_STATUS( dcd_pipe_xfer(p_msc->edpt_out, (uint8_t*) &p_msc->cbw, sizeof(msc_cmd_block_wrapper_t), true) );
+  ASSERT_STATUS( hal_dcd_pipe_xfer(p_msc->edpt_out, (uint8_t*) &p_msc->cbw, sizeof(msc_cmd_block_wrapper_t), true) );
 
   return TUSB_ERROR_NONE;
 }
@@ -207,10 +207,10 @@ tusb_error_t mscd_xfer_cb(endpoint_handle_t edpt_hdl, tusb_event_t event, uint32
   // Either bulk in & out can be stalled in the data phase, dcd must make sure these queued transfer will be resumed after host clear stall
   if (!is_waiting_read10_write10)
   {
-    ASSERT_STATUS( dcd_pipe_xfer( p_msc->edpt_in , (uint8_t*) p_csw, sizeof(msc_cmd_status_wrapper_t), false) );
+    ASSERT_STATUS( hal_dcd_pipe_xfer( p_msc->edpt_in , (uint8_t*) p_csw, sizeof(msc_cmd_status_wrapper_t), false) );
 
     //------------- Queue the next CBW -------------//
-    ASSERT_STATUS( dcd_pipe_xfer( p_msc->edpt_out, (uint8_t*) p_cbw, sizeof(msc_cmd_block_wrapper_t), true) );
+    ASSERT_STATUS( hal_dcd_pipe_xfer( p_msc->edpt_out, (uint8_t*) p_cbw, sizeof(msc_cmd_block_wrapper_t), true) );
   }
 
   return TUSB_ERROR_NONE;
@@ -246,7 +246,7 @@ static bool read10_write10_data_xfer(mscd_interface_t* p_msc)
     return true;
   } else if (xferred_block < block_count)
   {
-    ASSERT_STATUS( dcd_pipe_xfer( edpt_hdl, p_buffer, xferred_byte, true) );
+    ASSERT_STATUS( hal_dcd_pipe_xfer( edpt_hdl, p_buffer, xferred_byte, true) );
 
     // adjust lba, block_count, xfer_bytes for the next call
     p_readwrite->lba         = __n2be(lba+xferred_block);
