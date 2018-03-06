@@ -55,15 +55,15 @@
   #include "host/usbh.h"
 
   #if HOST_CLASS_HID
-    #include "class/hid_host.h"
+    #include "class/hid/hid_host.h"
   #endif
 
   #if TUSB_CFG_HOST_MSC
-    #include "class/msc_host.h"
+    #include "class/msc/msc_host.h"
   #endif
 
   #if TUSB_CFG_HOST_CDC
-    #include "class/cdc_host.h"
+    #include "class/cdc/cdc_host.h"
   #endif
 
   #if TUSB_CFG_HOST_CUSTOM_CLASS
@@ -77,15 +77,15 @@
   #include "device/usbd.h"
 
   #if DEVICE_CLASS_HID
-    #include "class/hid_device.h"
+    #include "class/hid/hid_device.h"
   #endif
 
   #if TUSB_CFG_DEVICE_CDC
-    #include "class/cdc_device.h"
+    #include "class/cdc/cdc_device.h"
   #endif
 
   #if TUSB_CFG_DEVICE_MSC
-    #include "class/msc_device.h"
+    #include "class/msc/msc_device.h"
   #endif
 #endif
 
