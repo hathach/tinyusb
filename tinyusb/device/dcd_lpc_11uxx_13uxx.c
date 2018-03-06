@@ -373,14 +373,14 @@ void dcd_isr(uint8_t coreid)
 //--------------------------------------------------------------------+
 // CONTROL PIPE API
 //--------------------------------------------------------------------+
-void dcd_pipe_control_stall(uint8_t coreid)
+void hal_dcd_control_stall(uint8_t coreid)
 {
   (void) coreid;
   // TODO cannot able to STALL Control OUT endpoint !!!!! FIXME try some walk-around
   dcd_data.qhd[0][0].stall = dcd_data.qhd[1][0].stall = 1;
 }
 
-bool dcd_pipe_control_xfer(uint8_t coreid, tusb_direction_t dir, uint8_t * p_buffer, uint16_t length, bool int_on_complete)
+bool hal_dcd_control_xfer(uint8_t coreid, tusb_direction_t dir, uint8_t * p_buffer, uint16_t length, bool int_on_complete)
 {
   (void) coreid;
 

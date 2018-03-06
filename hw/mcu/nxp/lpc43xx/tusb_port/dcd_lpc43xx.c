@@ -321,14 +321,14 @@ static inline uint8_t qtd_find_free(uint8_t coreid)
 //--------------------------------------------------------------------+
 // CONTROL PIPE API
 //--------------------------------------------------------------------+
-void dcd_pipe_control_stall(uint8_t coreid)
+void hal_dcd_control_stall(uint8_t coreid)
 {
   LPC_USB[coreid]->ENDPTCTRL0 |= (ENDPTCTRL_MASK_STALL << 16); // stall Control IN TODO stall control OUT as well
 }
 
 // control transfer does not need to use qtd find function
 // follows UM 24.10.8.1.1 Setup packet handling using setup lockout mechanism
-bool dcd_pipe_control_xfer(uint8_t coreid, tusb_direction_t dir, uint8_t * p_buffer, uint16_t length, bool int_on_complete)
+bool hal_dcd_control_xfer(uint8_t coreid, tusb_direction_t dir, uint8_t * p_buffer, uint16_t length, bool int_on_complete)
 {
   LPC_USB0_Type* const lpc_usb = LPC_USB[coreid];
   dcd_data_t* const p_dcd      = dcd_data_ptr[coreid];

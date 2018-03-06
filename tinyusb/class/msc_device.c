@@ -126,12 +126,12 @@ tusb_error_t mscd_control_request_subtask(uint8_t coreid, tusb_control_request_t
   switch(p_request->bRequest)
   {
     case MSC_REQUEST_RESET:
-      dcd_pipe_control_xfer(coreid, TUSB_DIR_HOST_TO_DEV, NULL, 0, false);
+      hal_dcd_control_xfer(coreid, TUSB_DIR_HOST_TO_DEV, NULL, 0, false);
     break;
 
     case MSC_REQUEST_GET_MAX_LUN:
       p_msc->scsi_data[0] = p_msc->max_lun; // Note: lpc11/13u need xfer data's address to be aligned 64 -> make use of scsi_data instead of using max_lun directly
-      dcd_pipe_control_xfer(coreid, TUSB_DIR_DEV_TO_HOST, p_msc->scsi_data, 1, false);
+      hal_dcd_control_xfer(coreid, TUSB_DIR_DEV_TO_HOST, p_msc->scsi_data, 1, false);
     break;
 
     default:

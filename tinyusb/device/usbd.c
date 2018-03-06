@@ -167,7 +167,6 @@ tusb_error_t usbd_init (void)
   hal_dcd_init(1);
   #endif
 
-
   //------------- Task init -------------//
   usbd_queue_hdl = osal_queue_create(USBD_TASK_QUEUE_DEPTH, sizeof(usbd_task_event_t));
   ASSERT_PTR(usbd_queue_hdl, TUSB_ERROR_OSAL_QUEUE_FAILED);
@@ -176,7 +175,6 @@ tusb_error_t usbd_init (void)
   ASSERT_PTR(usbd_queue_hdl, TUSB_ERROR_OSAL_SEMAPHORE_FAILED);
 
   osal_task_create(usbd_task, "usbd", TUC_DEVICE_STACKSIZE, NULL, TUSB_CFG_OS_TASK_PRIO);
-
 
   //------------- Descriptor Check -------------//
   ASSERT(tusbd_descriptor_pointers.p_device != NULL && tusbd_descriptor_pointers.p_configuration != NULL, TUSB_ERROR_DESCRIPTOR_CORRUPTED);
@@ -259,7 +257,7 @@ tusb_error_t usbd_control_request_subtask(uint8_t coreid, tusb_control_request_t
 
       if ( TUSB_ERROR_NONE == error )
       {
-        dcd_pipe_control_xfer(coreid, (tusb_direction_t) p_request->bmRequestType_bit.direction, (uint8_t*) p_buffer, length, false);
+        hal_dcd_control_xfer(coreid, (tusb_direction_t) p_request->bmRequestType_bit.direction, (uint8_t*) p_buffer, length, false);
       }
     }
     else if ( TUSB_REQUEST_SET_ADDRESS == p_request->bRequest )
@@ -307,11 +305,11 @@ tusb_error_t usbd_control_request_subtask(uint8_t coreid, tusb_control_request_t
 
   if(TUSB_ERROR_NONE != error)
   { // Response with Protocol Stall if request is not supported
-    dcd_pipe_control_stall(coreid);
+    hal_dcd_control_stall(coreid);
     //    ASSERT(error == TUSB_ERROR_NONE, VOID_RETURN);
   }else if (p_request->wLength == 0)
   {
-    dcd_pipe_control_xfer(coreid, (tusb_direction_t) p_request->bmRequestType_bit.direction, NULL, 0, false); // zero length for non-data
+    hal_dcd_control_xfer(coreid, (tusb_direction_t) p_request->bmRequestType_bit.direction, NULL, 0, false); // zero length for non-data
   }
 
   OSAL_SUBTASK_END

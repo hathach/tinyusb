@@ -57,6 +57,7 @@ typedef enum
   USBD_BUS_EVENT_RESUME
 }usbd_bus_event_type_t;
 
+// TODO move Hal
 typedef struct {
   uint8_t coreid;
   uint8_t reserved; // TODO redundant, cannot be control as control uses separated API
@@ -91,8 +92,8 @@ void hal_dcd_bus_event(uint8_t coreid, usbd_bus_event_type_t bus_event);
 void hal_dcd_setup_received(uint8_t coreid, uint8_t const* p_request);
 
 //------------- PIPE API -------------//
-bool dcd_pipe_control_xfer(uint8_t coreid, tusb_direction_t dir, uint8_t * p_buffer, uint16_t length, bool int_on_complete);
-void dcd_pipe_control_stall(uint8_t coreid);
+bool hal_dcd_control_xfer(uint8_t coreid, tusb_direction_t dir, uint8_t * p_buffer, uint16_t length, bool int_on_complete);
+void hal_dcd_control_stall(uint8_t coreid);
 
 endpoint_handle_t dcd_pipe_open(uint8_t coreid, tusb_descriptor_endpoint_t const * p_endpoint_desc, uint8_t class_code);
 tusb_error_t dcd_pipe_queue_xfer(endpoint_handle_t edpt_hdl, uint8_t * buffer, uint16_t total_bytes); // only queue, not transferring yet

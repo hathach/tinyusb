@@ -202,7 +202,7 @@ tusb_error_t hidd_control_request_subtask(uint8_t coreid, tusb_control_request_t
     ASSERT ( p_hid->report_length <= HIDD_BUFFER_SIZE, TUSB_ERROR_NOT_ENOUGH_MEMORY);
 
     memcpy(m_hid_buffer, p_hid->p_report_desc, p_hid->report_length); // to allow report descriptor not to be in USBRAM
-    dcd_pipe_control_xfer(coreid, TUSB_DIR_DEV_TO_HOST, m_hid_buffer, p_hid->report_length, false);
+    hal_dcd_control_xfer(coreid, TUSB_DIR_DEV_TO_HOST, m_hid_buffer, p_hid->report_length, false);
   }
   //------------- Class Specific Request -------------//
   else if (p_request->bmRequestType_bit.type == TUSB_REQUEST_TYPE_CLASS)
@@ -218,7 +218,7 @@ tusb_error_t hidd_control_request_subtask(uint8_t coreid, tusb_control_request_t
                                                        &p_buffer, p_request->wLength);
       SUBTASK_ASSERT( p_buffer != NULL && actual_length > 0 );
 
-      dcd_pipe_control_xfer(coreid, (tusb_direction_t) p_request->bmRequestType_bit.direction, p_buffer, actual_length, false);
+      hal_dcd_control_xfer(coreid, (tusb_direction_t) p_request->bmRequestType_bit.direction, p_buffer, actual_length, false);
     }
     else if ( (HID_REQUEST_CONTROL_SET_REPORT == p_request->bRequest) && (p_driver->set_report_cb != NULL) )
     {
@@ -226,7 +226,7 @@ tusb_error_t hidd_control_request_subtask(uint8_t coreid, tusb_control_request_t
       // wValue = Report Type | Report ID
       tusb_error_t error;
 
-      dcd_pipe_control_xfer(coreid, (tusb_direction_t) p_request->bmRequestType_bit.direction, m_hid_buffer, p_request->wLength, true);
+      hal_dcd_control_xfer(coreid, (tusb_direction_t) p_request->bmRequestType_bit.direction, m_hid_buffer, p_request->wLength, true);
 
       osal_semaphore_wait(usbd_control_xfer_sem_hdl, OSAL_TIMEOUT_NORMAL, &error); // wait for control xfer complete
       SUBTASK_ASSERT_STATUS(error);
