@@ -101,7 +101,7 @@ tusb_error_t mscd_open(uint8_t coreid, tusb_descriptor_interface_t const * p_int
     endpoint_handle_t * p_edpt_hdl =  ( p_endpoint->bEndpointAddress &  TUSB_DIR_DEV_TO_HOST_MASK ) ?
         &p_msc->edpt_in : &p_msc->edpt_out;
 
-    (*p_edpt_hdl) = dcd_pipe_open(coreid, p_endpoint, p_interface_desc->bInterfaceClass);
+    (*p_edpt_hdl) = hal_dcd_pipe_open(coreid, p_endpoint);
     ASSERT( endpointhandle_is_valid(*p_edpt_hdl), TUSB_ERROR_DCD_FAILED);
 
     p_endpoint = (tusb_descriptor_endpoint_t const *) descriptor_next( (uint8_t const*)  p_endpoint );
@@ -151,6 +151,8 @@ tusb_error_t mscd_xfer_cb(endpoint_handle_t edpt_hdl, tusb_event_t event, uint32
   mscd_interface_t *         const p_msc = &mscd_data;
   msc_cmd_block_wrapper_t *  const p_cbw = &p_msc->cbw;
   msc_cmd_status_wrapper_t * const p_csw = &p_msc->csw;
+
+  VERIFY(endpointhandle_is_equal(edpt_hdl, p_msc->edpt_out) || endpointhandle_is_equal(edpt_hdl, p_msc->edpt_in), TUSB_ERROR_INVALID_PARA);
 
   //------------- new CBW received -------------//
   if ( !is_waiting_read10_write10 )

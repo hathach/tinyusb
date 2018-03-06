@@ -412,7 +412,7 @@ bool hal_dcd_control_xfer(uint8_t coreid, tusb_direction_t dir, uint8_t * p_buff
 //--------------------------------------------------------------------+
 // BULK/INTERRUPT/ISO PIPE API
 //--------------------------------------------------------------------+
-endpoint_handle_t dcd_pipe_open(uint8_t coreid, tusb_descriptor_endpoint_t const * p_endpoint_desc, uint8_t class_code)
+endpoint_handle_t hal_dcd_pipe_open(uint8_t coreid, tusb_descriptor_endpoint_t const * p_endpoint_desc, uint8_t class_code)
 {
   (void) coreid;
 

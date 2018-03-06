@@ -135,7 +135,7 @@ tusb_error_t cdcd_open(uint8_t coreid, tusb_descriptor_interface_t const * p_int
 
   if ( TUSB_DESC_TYPE_ENDPOINT == p_desc[DESCRIPTOR_OFFSET_TYPE])
   { // notification endpoint if any
-    p_cdc->edpt_hdl[CDC_PIPE_NOTIFICATION] = dcd_pipe_open(coreid, (tusb_descriptor_endpoint_t const *) p_desc, TUSB_CLASS_CDC);
+    p_cdc->edpt_hdl[CDC_PIPE_NOTIFICATION] = hal_dcd_pipe_open(coreid, (tusb_descriptor_endpoint_t const *) p_desc);
 
     (*p_length) += p_desc[DESCRIPTOR_OFFSET_LENGTH];
     p_desc = descriptor_next(p_desc);
@@ -160,7 +160,7 @@ tusb_error_t cdcd_open(uint8_t coreid, tusb_descriptor_interface_t const * p_int
       endpoint_handle_t * p_edpt_hdl =  ( p_endpoint->bEndpointAddress &  TUSB_DIR_DEV_TO_HOST_MASK ) ?
           &p_cdc->edpt_hdl[CDC_PIPE_DATA_IN] : &p_cdc->edpt_hdl[CDC_PIPE_DATA_OUT] ;
 
-      (*p_edpt_hdl) = dcd_pipe_open(coreid, p_endpoint, TUSB_CLASS_CDC);
+      (*p_edpt_hdl) = hal_dcd_pipe_open(coreid, p_endpoint);
       ASSERT ( endpointhandle_is_valid(*p_edpt_hdl), TUSB_ERROR_DCD_OPEN_PIPE_FAILED );
 
       (*p_length) += p_desc[DESCRIPTOR_OFFSET_LENGTH];

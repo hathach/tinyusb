@@ -221,11 +221,11 @@ static tusb_error_t usbd_body_subtask(void)
     OSAL_SUBTASK_INVOKED_AND_WAIT( usbd_control_request_subtask(event.coreid, &event.setup_received), error );
   }else if (USBD_EVENTID_XFER_DONE == event.event_id)
   {
-    uint8_t class_index;
-    class_index = std_class_code_to_index( event.xfer_done.edpt_hdl.class_code );
-
-    SUBTASK_ASSERT(usbd_class_drivers[class_index].xfer_cb != NULL);
-    usbd_class_drivers[class_index].xfer_cb( event.xfer_done.edpt_hdl, (tusb_event_t) event.sub_event_id, event.xfer_done.xferred_byte);
+    // Call class handling function, Class that endpoint not belong to should check and return
+    for (uint8_t class_code = TUSB_CLASS_AUDIO; class_code < USBD_CLASS_DRIVER_COUNT; class_code++)
+    {
+      if ( usbd_class_drivers[class_code].xfer_cb ) usbd_class_drivers[class_code].xfer_cb( event.xfer_done.edpt_hdl, (tusb_event_t) event.sub_event_id, event.xfer_done.xferred_byte);
+    }
   }else
   {
     SUBTASK_ASSERT(false);
@@ -445,8 +445,10 @@ void hal_dcd_setup_received(uint8_t coreid, uint8_t const* p_request)
 
 void usbd_xfer_isr(endpoint_handle_t edpt_hdl, tusb_event_t event, uint32_t xferred_bytes)
 {
-  if (edpt_hdl.class_code == 0 ) // Control Transfer
+//  if (edpt_hdl.class_code == 0 )
+  if (edpt_hdl.index == 0 )
   {
+    // Control Transfer
     osal_semaphore_post( usbd_control_xfer_sem_hdl );
   }else
   {

@@ -150,10 +150,9 @@ typedef struct ATTR_ALIGNED(64) {
   /// Due to the fact QHD is 64 bytes aligned but occupies only 48 bytes
 	/// thus there are 16 bytes padding free that we can make use of.
   //--------------------------------------------------------------------+
-  uint8_t class_code; // Class code that endpoint belongs to
   volatile uint8_t list_qtd_idx[DCD_QTD_PER_QHD_MAX];
 
-	uint8_t reserved[15-DCD_QTD_PER_QHD_MAX];
+	uint8_t reserved[16-DCD_QTD_PER_QHD_MAX];
 } dcd_qhd_t;
 
 STATIC_ASSERT( sizeof(dcd_qhd_t) == 64, "size is not correct");
@@ -392,13 +391,13 @@ tusb_error_t dcd_pipe_clear_stall(uint8_t coreid, uint8_t edpt_addr)
   return TUSB_ERROR_NONE;
 }
 
-endpoint_handle_t dcd_pipe_open(uint8_t coreid, tusb_descriptor_endpoint_t const * p_endpoint_desc, uint8_t class_code)
+endpoint_handle_t hal_dcd_pipe_open(uint8_t coreid, tusb_descriptor_endpoint_t const * p_endpoint_desc)
 {
   // TODO USB1 only has 4 non-control enpoint (USB0 has 5)
   endpoint_handle_t const null_handle = { 0 };
 
-  if (p_endpoint_desc->bmAttributes.xfer == TUSB_XFER_ISOCHRONOUS)
-    return null_handle; // TODO not support ISO yet
+  // TODO not support ISO yet
+  if (p_endpoint_desc->bmAttributes.xfer == TUSB_XFER_ISOCHRONOUS) return null_handle;
 
   tusb_direction_t dir = (p_endpoint_desc->bEndpointAddress & TUSB_DIR_DEV_TO_HOST_MASK) ? TUSB_DIR_DEV_TO_HOST : TUSB_DIR_HOST_TO_DEV;
 
@@ -408,7 +407,6 @@ endpoint_handle_t dcd_pipe_open(uint8_t coreid, tusb_descriptor_endpoint_t const
 
   memclr_(p_qhd, sizeof(dcd_qhd_t));
 
-  p_qhd->class_code              = class_code;
   p_qhd->zero_length_termination = 1;
   p_qhd->max_package_size        = p_endpoint_desc->wMaxPacketSize.size;
   p_qhd->qtd_overlay.next        = QTD_NEXT_INVALID;
@@ -423,7 +421,6 @@ endpoint_handle_t dcd_pipe_open(uint8_t coreid, tusb_descriptor_endpoint_t const
       {
           .coreid     = coreid,
           .index      = ep_idx,
-          .class_code = class_code
       };
 }
 
@@ -496,7 +493,6 @@ void xfer_complete_isr(uint8_t coreid, uint32_t reg_complete)
       {
           .coreid     = coreid,
           .index      = ep_idx,
-          .class_code = p_qhd->class_code
       };
 
       // retire all QTDs in array list, up to 1st still-active QTD
@@ -587,7 +583,6 @@ void dcd_isr(uint8_t coreid)
             {
                 .coreid = coreid,
                 .index = 0,
-                .class_code = 0
             };
             tusb_event_t event = ( p_qtd->xact_err || p_qtd->halted || p_qtd->buffer_err ) ? TUSB_EVENT_XFER_ERROR : TUSB_EVENT_XFER_COMPLETE;
 

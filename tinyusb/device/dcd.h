@@ -60,21 +60,18 @@ typedef enum
 // TODO move Hal
 typedef struct {
   uint8_t coreid;
-  uint8_t reserved; // TODO redundant, cannot be control as control uses separated API
-  uint8_t index;
-  uint8_t class_code;
+  uint8_t index; // must be zero to indicate control
 } endpoint_handle_t;
 
-static inline bool endpointhandle_is_valid(endpoint_handle_t edpt_hdl) ATTR_CONST ATTR_ALWAYS_INLINE ATTR_WARN_UNUSED_RESULT;
 static inline bool endpointhandle_is_valid(endpoint_handle_t edpt_hdl)
 {
-  return (edpt_hdl.class_code != 0);
+  // Control does not use this to check
+  return edpt_hdl.index != 0;
 }
 
-static inline bool endpointhandle_is_equal(endpoint_handle_t x, endpoint_handle_t y) ATTR_CONST ATTR_ALWAYS_INLINE ATTR_WARN_UNUSED_RESULT;
 static inline bool endpointhandle_is_equal(endpoint_handle_t x, endpoint_handle_t y)
 {
-  return (x.coreid == y.coreid) && (x.index == y.index) && (x.class_code == y.class_code);
+  return (x.coreid == y.coreid) && (x.index == y.index);
 }
 
 
@@ -95,7 +92,7 @@ void hal_dcd_setup_received(uint8_t coreid, uint8_t const* p_request);
 bool hal_dcd_control_xfer(uint8_t coreid, tusb_direction_t dir, uint8_t * p_buffer, uint16_t length, bool int_on_complete);
 void hal_dcd_control_stall(uint8_t coreid);
 
-endpoint_handle_t dcd_pipe_open(uint8_t coreid, tusb_descriptor_endpoint_t const * p_endpoint_desc, uint8_t class_code);
+endpoint_handle_t hal_dcd_pipe_open(uint8_t coreid, tusb_descriptor_endpoint_t const * p_endpoint_desc);
 tusb_error_t dcd_pipe_queue_xfer(endpoint_handle_t edpt_hdl, uint8_t * buffer, uint16_t total_bytes); // only queue, not transferring yet
 tusb_error_t dcd_pipe_xfer(endpoint_handle_t edpt_hdl, uint8_t * buffer, uint16_t total_bytes, bool int_on_complete);
 tusb_error_t dcd_pipe_stall(endpoint_handle_t edpt_hdl);
