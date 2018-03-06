@@ -114,7 +114,7 @@ void tud_cdc_xfer_cb(uint8_t coreid, tusb_event_t event, cdc_pipeid_t pipe_id, u
 void cdc_serial_app_init(void)
 {
   sem_hdl = osal_semaphore_create(1, 0);
-  ASSERT_PTR( sem_hdl, VOID_RETURN);
+  VERIFY(sem_hdl, );
 
   osal_task_create(cdc_serial_app_task, "cdc", 128, NULL, CDC_SERIAL_APP_TASK_PRIO);
 }

@@ -169,10 +169,10 @@ tusb_error_t usbd_init (void)
 
   //------------- Task init -------------//
   usbd_queue_hdl = osal_queue_create(USBD_TASK_QUEUE_DEPTH, sizeof(usbd_task_event_t));
-  ASSERT_PTR(usbd_queue_hdl, TUSB_ERROR_OSAL_QUEUE_FAILED);
+  VERIFY(usbd_queue_hdl, TUSB_ERROR_OSAL_QUEUE_FAILED);
 
   usbd_control_xfer_sem_hdl = osal_semaphore_create(1, 0);
-  ASSERT_PTR(usbd_queue_hdl, TUSB_ERROR_OSAL_SEMAPHORE_FAILED);
+  VERIFY(usbd_queue_hdl, TUSB_ERROR_OSAL_SEMAPHORE_FAILED);
 
   osal_task_create(usbd_task, "usbd", TUC_DEVICE_STACKSIZE, NULL, TUSB_CFG_OS_TASK_PRIO);
 

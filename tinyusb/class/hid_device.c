@@ -278,7 +278,7 @@ tusb_error_t hidd_open(uint8_t coreid, tusb_descriptor_interface_t const * p_int
         hidd_class_driver_t const * const p_driver = &hidd_class_driver[p_interface_desc->bInterfaceProtocol];
         hidd_interface_t * const p_hid = p_driver->p_interface;
 
-        ASSERT_PTR(p_hid, TUSB_ERROR_FAILED);
+        VERIFY(p_hid, TUSB_ERROR_FAILED);
 
         VERIFY( hal_dcd_pipe_open(coreid, p_desc_endpoint, &p_hid->ept_handle), TUSB_ERROR_DCD_FAILED );
 
@@ -286,7 +286,7 @@ tusb_error_t hidd_open(uint8_t coreid, tusb_descriptor_interface_t const * p_int
         p_hid->p_report_desc    = (p_interface_desc->bInterfaceProtocol == HID_PROTOCOL_KEYBOARD) ? tusbd_descriptor_pointers.p_hid_keyboard_report : tusbd_descriptor_pointers.p_hid_mouse_report;
         p_hid->report_length    = p_desc_hid->wReportLength;
 
-        ASSERT_PTR(p_hid->p_report_desc, TUSB_ERROR_DESCRIPTOR_CORRUPTED);
+        VERIFY(p_hid->p_report_desc, TUSB_ERROR_DESCRIPTOR_CORRUPTED);
       }
       break;
 
