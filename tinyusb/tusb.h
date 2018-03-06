@@ -102,8 +102,6 @@
  */
 tusb_error_t tusb_init(void);
 
-void tusb_isr(uint8_t coreid);
-
 #if TUSB_CFG_OS == TUSB_OS_NONE
 /** \brief Run all tinyusb's internal tasks (e.g host task, device task).
  * \note   This function is only required when using no RTOS (\ref TUSB_CFG_OS == TUSB_OS_NONE). All the stack functions

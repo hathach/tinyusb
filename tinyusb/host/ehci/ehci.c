@@ -730,7 +730,7 @@ static void xfer_error_isr(uint8_t hostid)
 }
 
 //------------- Host Controller Driver's Interrupt Handler -------------//
-void hcd_isr(uint8_t hostid)
+void hal_hcd_isr(uint8_t hostid)
 {
   ehci_registers_t* const regs = get_operational_register(hostid);
 

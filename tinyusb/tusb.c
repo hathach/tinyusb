@@ -63,23 +63,6 @@ tusb_error_t tusb_init(void)
   return TUSB_ERROR_NONE;
 }
 
-/** \ingroup group_application_api
- * \brief USB interrupt handler
- * \param[in]  coreid Controller ID where the interrupt happened
- * \note This function must be called by HAL layer or Application for the stack to manage USB events/transfers.
- */
-void tusb_isr(uint8_t coreid)
-{
-#if MODE_HOST_SUPPORTED
-  hcd_isr(coreid);
-#endif
-
-#if MODE_DEVICE_SUPPORTED
-  dcd_isr(coreid);
-#endif
-
-}
-
 #if TUSB_CFG_OS == TUSB_OS_NONE
 void tusb_task_runner(void)
 {

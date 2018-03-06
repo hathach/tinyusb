@@ -512,7 +512,7 @@ void xfer_complete_isr(uint8_t coreid, uint32_t reg_complete)
   }
 }
 
-void dcd_isr(uint8_t coreid)
+void hal_dcd_isr(uint8_t coreid)
 {
   LPC_USB0_Type* const lpc_usb = LPC_USB[coreid];
 

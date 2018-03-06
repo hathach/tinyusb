@@ -296,7 +296,7 @@ static void endpoint_control_isr(uint32_t int_status)
   }
 }
 
-void dcd_isr(uint8_t coreid)
+void hal_dcd_isr(uint8_t coreid)
 {
   (void) coreid;
 

@@ -102,7 +102,13 @@ bool hal_usb_init(void)
 
 void USB_IRQHandler(void)
 {
-  tusb_isr(0);
+  #if MODE_HOST_SUPPORTED
+    hal_hcd_isr(0);
+  #endif
+
+  #if MODE_DEVICE_SUPPORTED
+    hal_dcd_isr(0);
+  #endif
 }
 
 #endif

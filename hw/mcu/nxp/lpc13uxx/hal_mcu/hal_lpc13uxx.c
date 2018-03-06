@@ -74,7 +74,7 @@ bool hal_usb_init(void)
 
 void USB_IRQHandler(void)
 {
-  tusb_isr(0);
+  hal_dcd_isr(0);
 }
 
 

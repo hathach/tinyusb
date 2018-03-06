@@ -216,7 +216,7 @@ static void endpoint_control_isr(void)
   LPC_USB->USBEpIntClr = endpoint_int_status; // acknowledge interrupt TODO cannot immediately acknowledge setup packet
 }
 
-void dcd_isr(uint8_t coreid)
+void hal_dcd_isr(uint8_t coreid)
 {
   (void) coreid;
   uint32_t const device_int_enable = LPC_USB->USBDevIntEn;
@@ -402,7 +402,7 @@ bool hal_dcd_control_xfer(uint8_t coreid, tusb_direction_t dir, uint8_t * p_buff
 
   //------------- Status Phase (opposite direct to Data) -------------//
   if (dir == TUSB_DIR_HOST_TO_DEV)
-  { // only write for CONTROL OUT, CONTROL IN data will be retrieved in dcd_isr // TODO ????
+  { // only write for CONTROL OUT, CONTROL IN data will be retrieved in hal_dcd_isr // TODO ????
     VERIFY_STATUS ( pipe_control_write(NULL, 0), false );
   }
 

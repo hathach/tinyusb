@@ -127,17 +127,31 @@ bool hal_usb_init(void)
   return true;
 }
 
+void hal_dcd_isr(uint8_t coreid);
+
 #if TUSB_CFG_CONTROLLER_0_MODE
 void USB0_IRQHandler(void)
 {
-  tusb_isr(0);
+  #if MODE_HOST_SUPPORTED
+    hal_hcd_isr(0);
+  #endif
+
+  #if MODE_DEVICE_SUPPORTED
+    hal_dcd_isr(0);
+  #endif
 }
 #endif
 
 #if TUSB_CFG_CONTROLLER_1_MODE
 void USB1_IRQHandler(void)
 {
-  tusb_isr(1);
+  #if MODE_HOST_SUPPORTED
+    hal_hcd_isr(1);
+  #endif
+
+  #if MODE_DEVICE_SUPPORTED
+    hal_dcd_isr(1);
+  #endif
 }
 #endif
 

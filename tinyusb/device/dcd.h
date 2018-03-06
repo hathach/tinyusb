@@ -68,9 +68,6 @@ static inline bool endpointhandle_is_equal(endpoint_handle_t x, endpoint_handle_
   return (x.coreid == y.coreid) && (x.index == y.index);
 }
 
-
-void dcd_isr(uint8_t coreid);
-
 //------------- Controller API -------------//
 bool hal_dcd_init        (uint8_t coreid);
 void hal_dcd_connect     (uint8_t coreid);
