@@ -357,6 +357,9 @@ static tusb_error_t usbd_set_configure_received(uint8_t coreid, uint8_t config_n
     }
   }
 
+  // invoke callback
+  tud_mount_cb(coreid);
+
   return TUSB_ERROR_NONE;
 }
 
@@ -421,6 +424,9 @@ void hal_dcd_bus_event(uint8_t coreid, usbd_bus_event_type_t bus_event)
       {
         if ( usbd_class_drivers[class_code].close ) usbd_class_drivers[class_code].close( coreid );
       }
+
+      // invoke callback
+      tud_umount_cb(coreid);
     break;
 
     case USBD_BUS_EVENT_UNPLUGGED : break;
