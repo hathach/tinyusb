@@ -103,7 +103,13 @@ void cdcd_init(void)
 
   // default line coding is : stop bit = 1, parity = none, data bits = 8
   memclr_(cdcd_line_coding, sizeof(cdc_line_coding_t)*CONTROLLER_DEVICE_NUMBER);
-  for(uint8_t i=0; i<CONTROLLER_DEVICE_NUMBER; i++) cdcd_line_coding[i].data_bits = 8;
+  for(uint8_t i=0; i<CONTROLLER_DEVICE_NUMBER; i++)
+  {
+    cdcd_line_coding[i].bit_rate  = 115200;
+    cdcd_line_coding[i].stop_bits = 0;
+    cdcd_line_coding[i].parity    = 0;
+    cdcd_line_coding[i].data_bits = 8;
+  }
 }
 
 tusb_error_t cdcd_open(uint8_t coreid, tusb_descriptor_interface_t const * p_interface_desc, uint16_t *p_length)
@@ -195,6 +201,24 @@ tusb_error_t cdcd_control_request_subtask(uint8_t coreid, tusb_control_request_t
     break;
 
     case CDC_REQUEST_SET_CONTROL_LINE_STATE: // TODO extract DTE present
+    {
+      enum {
+        ACTIVE_DTE_PRESENT     = 0x0003,
+        ACTIVE_DTE_NOT_PRESENT = 0x0002
+      };
+
+      if (p_request->wValue == ACTIVE_DTE_PRESENT)
+      {
+        // terminal connected
+      }
+      else if (p_request->wValue == ACTIVE_DTE_NOT_PRESENT)
+      {
+        // terminal disconnected
+      }else
+      {
+        // De-active --> disconnected
+      }
+    }
     break;
 
     default: return TUSB_ERROR_DCD_CONTROL_REQUEST_NOT_SUPPORT;

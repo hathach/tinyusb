@@ -244,7 +244,7 @@ tusb_error_t usbd_control_request_subtask(uint8_t coreid, tusb_control_request_t
   tusb_error_t error;
   error = TUSB_ERROR_NONE;
 
-  //------------- Standard Control such as those in enumeration -------------//
+  //------------- Standard Control e.g in enumeration -------------//
   if( TUSB_REQUEST_RECIPIENT_DEVICE == p_request->bmRequestType_bit.recipient &&
       TUSB_REQUEST_TYPE_STANDARD    == p_request->bmRequestType_bit.type )
   {

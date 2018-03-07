@@ -181,7 +181,7 @@ app_descriptor_configuration_t const desc_configuration =
         .bConfigurationValue = 1,
         .iConfiguration      = 0x00,
         .bmAttributes        = TUSB_DESC_CONFIG_ATT_BUS_POWER,
-        .bMaxPower           = TUSB_DESC_CONFIG_POWER_MA(100)
+        .bMaxPower           = TUSB_DESC_CONFIG_POWER_MA(500)
     },
 
     #if TUSB_CFG_DEVICE_CDC
@@ -222,14 +222,22 @@ app_descriptor_configuration_t const desc_configuration =
         .bcdCDC             = 0x0120
     },
 
+    .cdc_call =
+    {
+        .bLength            = sizeof(cdc_desc_func_call_management_t),
+        .bDescriptorType    = TUSB_DESC_TYPE_INTERFACE_CLASS_SPECIFIC,
+        .bDescriptorSubType = CDC_FUNC_DESC_CALL_MANAGEMENT,
+        .bmCapabilities     = { 0 },
+        .bDataInterface     = INTERFACE_NO_CDC+1,
+    },
+
     .cdc_acm =
     {
         .bLength            = sizeof(cdc_desc_func_abstract_control_management_t),
         .bDescriptorType    = TUSB_DESC_TYPE_INTERFACE_CLASS_SPECIFIC,
         .bDescriptorSubType = CDC_FUNC_DESC_ABSTRACT_CONTROL_MANAGEMENT,
-        .bmCapabilities     = { // 0x06
+        .bmCapabilities     = { // 0x02
             .support_line_request = 1,
-            .support_send_break   = 1
         }
     },
 
@@ -238,8 +246,8 @@ app_descriptor_configuration_t const desc_configuration =
         .bLength                  = sizeof(cdc_desc_func_union_t), // plus number of
         .bDescriptorType          = TUSB_DESC_TYPE_INTERFACE_CLASS_SPECIFIC,
         .bDescriptorSubType       = CDC_FUNC_DESC_UNION,
-        .bControlInterface        = 0,
-        .bSubordinateInterface    = 1,
+        .bControlInterface        = INTERFACE_NO_CDC,
+        .bSubordinateInterface    = INTERFACE_NO_CDC+1,
     },
 
     .cdc_endpoint_notification =
@@ -249,7 +257,7 @@ app_descriptor_configuration_t const desc_configuration =
         .bEndpointAddress = CDC_EDPT_NOTIFICATION_ADDR,
         .bmAttributes     = { .xfer = TUSB_XFER_INTERRUPT },
         .wMaxPacketSize   = { .size = 0x08 },
-        .bInterval        = 0x0a
+        .bInterval        = 0x10
     },
 
     //------------- CDC Data Interface -------------//
