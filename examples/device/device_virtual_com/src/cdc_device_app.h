@@ -53,23 +53,11 @@
  extern "C" {
 #endif
 
-#if TUSB_CFG_DEVICE_CDC
-
 void cdc_serial_app_init(void);
 void cdc_serial_app_task(void* param);
 
 void cdc_serial_app_mount(uint8_t coreid);
 void cdc_serial_app_umount(uint8_t coreid);
-
-#else
-
-#define cdc_serial_app_init()
-#define cdc_serial_app_task(x)
-#define cdc_serial_app_mount(x)
-#define cdc_serial_app_umount(x)
-
-#endif
-
 
 #ifdef __cplusplus
  }

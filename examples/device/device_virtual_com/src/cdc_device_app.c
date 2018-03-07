@@ -37,11 +37,7 @@
 /**************************************************************************/
 
 #include "cdc_device_app.h"
-
-#if TUSB_CFG_DEVICE_CDC
-
 #include "common/fifo.h" // TODO refractor
-#include "app_os_prio.h"
 
 //--------------------------------------------------------------------+
 // INCLUDE
@@ -89,8 +85,6 @@ void cdc_serial_app_init(void)
 {
   sem_hdl = osal_semaphore_create(1, 0);
   VERIFY(sem_hdl, );
-
-  osal_task_create(cdc_serial_app_task, "cdc", 128, NULL, CDC_SERIAL_APP_TASK_PRIO);
 }
 
 tusb_error_t cdc_serial_subtask(void);
@@ -136,5 +130,3 @@ tusb_error_t cdc_serial_subtask(void)
 
   OSAL_SUBTASK_END
 }
-
-#endif

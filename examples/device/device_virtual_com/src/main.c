@@ -56,7 +56,9 @@
 // INTERNAL OBJECT & FUNCTION DECLARATION
 //--------------------------------------------------------------------+
 void print_greeting(void);
+void led_blinking_task(void);
 
+/*------------- MAIN -------------*/
 int main(void)
 {
   board_init();
@@ -71,7 +73,7 @@ int main(void)
   {
     tusb_task();
 
-    led_blinking_task(NULL);
+    led_blinking_task();
     cdc_serial_app_task(NULL);
   }
 
