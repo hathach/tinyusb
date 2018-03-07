@@ -117,13 +117,13 @@ tusb_error_t tusb_init(void);
       {
         your_application_code();
 
-        tusb_task_runner(); // handle tinyusb event, task etc ...
+        tusb_task(); // handle tinyusb event, task etc ...
       }
     }
     @endcode
  *
  */
-void tusb_task_runner(void);
+void tusb_task(void);
 #endif
 
 /** @} */

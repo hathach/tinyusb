@@ -66,7 +66,7 @@ void os_none_start_scheduler(void)
 {
   while (1)
   {
-    tusb_task_runner();
+    tusb_task();
     led_blinking_task(NULL);
 
     msc_app_task(NULL);

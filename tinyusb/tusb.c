@@ -64,7 +64,7 @@ tusb_error_t tusb_init(void)
 }
 
 #if TUSB_CFG_OS == TUSB_OS_NONE
-void tusb_task_runner(void)
+void tusb_task(void)
 {
   #if MODE_HOST_SUPPORTED
   usbh_enumeration_task(NULL);

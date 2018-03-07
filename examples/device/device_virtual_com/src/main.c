@@ -57,19 +57,6 @@
 //--------------------------------------------------------------------+
 void print_greeting(void);
 
-#if TUSB_CFG_OS == TUSB_OS_NONE
-// like a real RTOS, this function is a main loop invoking each task in application and never return
-void os_none_start_scheduler(void)
-{
-  while (1)
-  {
-    tusb_task_runner();
-    led_blinking_task(NULL);
-    cdc_serial_app_task(NULL);
-  }
-}
-#endif
-
 int main(void)
 {
   board_init();
@@ -83,7 +70,7 @@ int main(void)
 
   while (1)
   {
-    tusb_task_runner();
+    tusb_task();
 
     led_blinking_task(NULL);
     cdc_serial_app_task(NULL);
