@@ -65,7 +65,6 @@ int main(void)
   tusb_init();
 
   //------------- application task init -------------//
-  led_blinking_init();
   cdc_serial_app_init();
 
   while (1)
@@ -90,6 +89,25 @@ void tud_mount_cb(uint8_t coreid)
 void tud_umount_cb(uint8_t coreid)
 {
   cdc_serial_app_umount(coreid);
+}
+
+//--------------------------------------------------------------------+
+// BLINKING TASK
+//--------------------------------------------------------------------+
+void led_blinking_task(void)
+{
+  enum { BLINK_INTEVAL = 1000 };
+
+  static uint32_t led_on_mask = 0;
+  static uint32_t last_blink = 0;
+
+  // not enough time
+  if ( last_blink + BLINK_INTEVAL > hal_tick_get() ) return;
+
+  last_blink += BLINK_INTEVAL;
+
+  board_leds(led_on_mask, 1 - led_on_mask);
+  led_on_mask = 1 - led_on_mask; // toggle
 }
 
 //--------------------------------------------------------------------+

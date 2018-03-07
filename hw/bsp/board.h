@@ -154,6 +154,7 @@ void board_uart_putchar(uint8_t c);
 
 /** @} */
 
+#if 0
 //------------- Board Application  -------------//
 void led_blinking_task(void* param);
 
@@ -164,6 +165,7 @@ void led_blinking_init(void);
  * \param[in]  ms The interval between on and off.
  */
 void led_blinking_set_interval(uint32_t ms);
+#endif
 
 #ifdef __cplusplus
  }
