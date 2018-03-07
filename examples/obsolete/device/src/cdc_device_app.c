@@ -76,6 +76,13 @@ void cdc_serial_app_umount(uint8_t coreid)
 
 }
 
+void tud_cdc_rx_cb(uint8_t coreid, uint32_t xferred_bytes)
+{
+  fifo_write_n(&fifo_serial, serial_rx_buffer, xferred_bytes);
+  osal_semaphore_post(sem_hdl);  // notify main task
+}
+
+
 void tud_cdc_xfer_cb(uint8_t coreid, tusb_event_t event, cdc_pipeid_t pipe_id, uint32_t xferred_bytes)
 {
   switch ( pipe_id )

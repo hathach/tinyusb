@@ -109,6 +109,8 @@ tusb_error_t tud_cdc_receive(uint8_t coreid, void * p_buffer, uint32_t length, b
 void tud_cdc_xfer_cb(uint8_t coreid, tusb_event_t event, cdc_pipeid_t pipe_id, uint32_t xferred_bytes);
 //void tud_cdc_line_coding_changed_cb(uint8_t coreid, cdc_line_coding_t* p_line_coding);
 
+void tud_cdc_rx_cb(uint8_t coreid, uint32_t xferred_bytes);
+
 //--------------------------------------------------------------------+
 // USBD-CLASS DRIVER API
 //--------------------------------------------------------------------+

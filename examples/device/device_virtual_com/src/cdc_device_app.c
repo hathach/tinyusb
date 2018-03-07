@@ -76,36 +76,10 @@ void cdc_serial_app_umount(uint8_t coreid)
 
 }
 
-void tud_cdc_xfer_cb(uint8_t coreid, tusb_event_t event, cdc_pipeid_t pipe_id, uint32_t xferred_bytes)
+void tud_cdc_rx_cb(uint8_t coreid, uint32_t xferred_bytes)
 {
-  switch ( pipe_id )
-  {
-    case CDC_PIPE_DATA_OUT:
-      switch(event)
-      {
-        case TUSB_EVENT_XFER_COMPLETE:
-          for(uint8_t i=0; i<xferred_bytes; i++)
-          {
-            fifo_write(&fifo_serial, serial_rx_buffer+i);
-          }
-          osal_semaphore_post(sem_hdl);  // notify main task
-        break;
-
-        case TUSB_EVENT_XFER_ERROR:
-          tud_cdc_receive(0, serial_rx_buffer, SERIAL_BUFFER_SIZE, true); // ignore, queue transfer again
-        break;
-
-        case TUSB_EVENT_XFER_STALLED:
-        default :
-        break;
-      }
-    break;
-
-    case CDC_PIPE_DATA_IN:
-    case CDC_PIPE_NOTIFICATION:
-    default:
-    break;
-  }
+  fifo_write_n(&fifo_serial, serial_rx_buffer, xferred_bytes);
+  osal_semaphore_post(sem_hdl);  // notify main task
 }
 
 //--------------------------------------------------------------------+
@@ -135,9 +109,9 @@ tusb_error_t cdc_serial_subtask(void)
   OSAL_SUBTASK_BEGIN
 
   tusb_error_t error;
+  (void) error; // suppress compiler's warnings
 
   osal_semaphore_wait(sem_hdl, OSAL_TIMEOUT_WAIT_FOREVER, &error);
-  (void) error; // suppress compiler's warnings
 
   if ( tud_mounted(0) )
   {

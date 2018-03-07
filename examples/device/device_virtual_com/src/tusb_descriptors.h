@@ -56,18 +56,8 @@
                                            PRODUCTID_BITMAP(MSC, 4) ) )
 #endif
 
-#define INTERFACE_NO_CDC           0
-#define INTERFACE_NO_HID_KEYBOARD (INTERFACE_NO_CDC          + 2*(TUSB_CFG_DEVICE_CDC ? 1 : 0) )
-#define INTERFACE_NO_HID_MOUSE    (INTERFACE_NO_HID_KEYBOARD + TUSB_CFG_DEVICE_HID_KEYBOARD    )
-#define INTERFACE_NO_HID_GENERIC  (INTERFACE_NO_HID_MOUSE    + TUSB_CFG_DEVICE_HID_MOUSE       )
-#define INTERFACE_NO_MSC          (INTERFACE_NO_HID_GENERIC  + TUSB_CFG_DEVICE_HID_GENERIC     )
-
-#define TOTAL_INTEFACES           (2*TUSB_CFG_DEVICE_CDC + TUSB_CFG_DEVICE_HID_KEYBOARD + TUSB_CFG_DEVICE_HID_MOUSE + \
-                                   TUSB_CFG_DEVICE_HID_GENERIC + TUSB_CFG_DEVICE_MSC)
-
-#if (TUSB_CFG_MCU == MCU_LPC11UXX || TUSB_CFG_MCU == MCU_LPC13UXX) && (TOTAL_INTEFACES > 4)
-  #error These MCUs do not have enough number of endpoints for the current configuration
-#endif
+#define INTERFACE_NO_CDC          0
+#define TOTAL_INTEFACES           2
 
 //--------------------------------------------------------------------+
 // Endpoints Address & Max Packet Size
@@ -75,57 +65,13 @@
 #define EDPT_IN(x)    (0x80 | (x))
 #define EDPT_OUT(x)   (x)
 
-#if TUSB_CFG_MCU == MCU_LPC175X_6X // MCUs's endpoint number has a fixed type
+#define CDC_EDPT_NOTIFICATION_ADDR            EDPT_IN (1)
+#define CDC_EDPT_NOTIFICATION_PACKETSIZE      64
 
-  //------------- CDC -------------//
-  #define CDC_EDPT_NOTIFICATION_ADDR            EDPT_IN (1)
-  #define CDC_EDPT_NOTIFICATION_PACKETSIZE      64
+#define CDC_EDPT_DATA_OUT_ADDR                EDPT_OUT(2)
+#define CDC_EDPT_DATA_IN_ADDR                 EDPT_IN (2)
+#define CDC_EDPT_DATA_PACKETSIZE              64
 
-  #define CDC_EDPT_DATA_OUT_ADDR                EDPT_OUT(2)
-  #define CDC_EDPT_DATA_IN_ADDR                 EDPT_IN (2)
-  #define CDC_EDPT_DATA_PACKETSIZE              64
-
-  //------------- HID Keyboard -------------//
-  #define HID_KEYBOARD_EDPT_ADDR                EDPT_IN (4)
-  #define HID_KEYBOARD_EDPT_PACKETSIZE          8
-
-  //------------- HID Mouse -------------//
-  #define HID_MOUSE_EDPT_ADDR                   EDPT_IN (7)
-  #define HID_MOUSE_EDPT_PACKETSIZE             8
-
-  //------------- HID Generic -------------//
-
-  //------------- Mass Storage -------------//
-  #define MSC_EDPT_OUT_ADDR                     EDPT_OUT(5)
-  #define MSC_EDPT_IN_ADDR                      EDPT_IN (5)
-
-#else
-
-  //------------- CDC -------------//
-  #define CDC_EDPT_NOTIFICATION_ADDR            EDPT_IN (INTERFACE_NO_CDC+1)
-  #define CDC_EDPT_NOTIFICATION_PACKETSIZE      64
-
-  #define CDC_EDPT_DATA_OUT_ADDR                EDPT_OUT(INTERFACE_NO_CDC+2)
-  #define CDC_EDPT_DATA_IN_ADDR                 EDPT_IN (INTERFACE_NO_CDC+2)
-  #define CDC_EDPT_DATA_PACKETSIZE              64
-
-  //------------- HID Keyboard -------------//
-  #define HID_KEYBOARD_EDPT_ADDR                EDPT_IN (INTERFACE_NO_HID_KEYBOARD+1)
-  #define HID_KEYBOARD_EDPT_PACKETSIZE          8
-
-  //------------- HID Mouse -------------//
-  #define HID_MOUSE_EDPT_ADDR                   EDPT_IN (INTERFACE_NO_HID_MOUSE+1)
-  #define HID_MOUSE_EDPT_PACKETSIZE             8
-
-  //------------- HID Generic -------------//
-
-  //------------- Mass Storage -------------//
-  #define MSC_EDPT_OUT_ADDR                     EDPT_OUT(INTERFACE_NO_MSC+1)
-  #define MSC_EDPT_IN_ADDR                      EDPT_IN (INTERFACE_NO_MSC+1)
-
-#endif
-
-#define MSC_EDPT_PACKETSIZE                   (TUSB_CFG_MCU == MCU_LPC43XX ? 512 : 64)
 
 //--------------------------------------------------------------------+
 // CONFIGURATION DESCRIPTOR
@@ -135,7 +81,6 @@ typedef struct ATTR_PACKED
   tusb_descriptor_configuration_t              configuration;
 
   //------------- CDC -------------//
-#if TUSB_CFG_DEVICE_CDC
   tusb_descriptor_interface_association_t      cdc_iad;
 
   //CDC Control Interface
@@ -150,28 +95,6 @@ typedef struct ATTR_PACKED
   tusb_descriptor_interface_t                  cdc_data_interface;
   tusb_descriptor_endpoint_t                   cdc_endpoint_out;
   tusb_descriptor_endpoint_t                   cdc_endpoint_in;
-#endif
-
-  //------------- HID Keyboard -------------//
-#if TUSB_CFG_DEVICE_HID_KEYBOARD
-  tusb_descriptor_interface_t                    keyboard_interface;
-  tusb_hid_descriptor_hid_t                      keyboard_hid;
-  tusb_descriptor_endpoint_t                     keyboard_endpoint;
-#endif
-
-//------------- HID Mouse -------------//
-#if TUSB_CFG_DEVICE_HID_MOUSE
-  tusb_descriptor_interface_t                    mouse_interface;
-  tusb_hid_descriptor_hid_t                      mouse_hid;
-  tusb_descriptor_endpoint_t                     mouse_endpoint;
-#endif
-
-//------------- Mass Storage -------------//
-#if TUSB_CFG_DEVICE_MSC
-  tusb_descriptor_interface_t                    msc_interface;
-  tusb_descriptor_endpoint_t                     msc_endpoint_in;
-  tusb_descriptor_endpoint_t                     msc_endpoint_out;
-#endif
 
 } app_descriptor_configuration_t;
 

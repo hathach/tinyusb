@@ -55,6 +55,7 @@ uint32_t tusb_tick_get(void)
 
 #endif
 
+#if 1
 //--------------------------------------------------------------------+
 // BLINKING TASK
 //--------------------------------------------------------------------+
@@ -102,6 +103,7 @@ tusb_error_t led_blinking_subtask(void)
 
   OSAL_SUBTASK_END
 }
+#endif
 
 // TODO remove legacy cmsis code
 void check_failed(uint8_t *file, uint32_t line)

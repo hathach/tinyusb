@@ -1,7 +1,6 @@
 #ifndef __FREERTOS_CONFIG__H
 #define __FREERTOS_CONFIG__H
 
-#include "hal/hal.h"
 #include "common/assertion.h"
 
 //--------------------------------------------------------------------+

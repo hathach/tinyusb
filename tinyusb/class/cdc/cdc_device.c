@@ -231,14 +231,19 @@ tusb_error_t cdcd_xfer_cb(endpoint_handle_t edpt_hdl, tusb_event_t event, uint32
 {
   cdcd_data_t const * p_cdc = &cdcd_data[edpt_hdl.coreid];
 
-  for(cdc_pipeid_t pipeid=CDC_PIPE_NOTIFICATION; pipeid < CDC_PIPE_ERROR; pipeid++ )
+  if ( endpointhandle_is_equal(edpt_hdl, p_cdc->edpt_hdl[CDC_PIPE_DATA_OUT]) )
   {
-    if ( endpointhandle_is_equal(edpt_hdl, p_cdc->edpt_hdl[pipeid]) )
-    {
-      tud_cdc_xfer_cb(edpt_hdl.coreid, event, pipeid, xferred_bytes);
-      break;
-    }
+    tud_cdc_rx_cb(edpt_hdl.coreid, xferred_bytes);
   }
+
+//  for(cdc_pipeid_t pipeid=CDC_PIPE_NOTIFICATION; pipeid < CDC_PIPE_ERROR; pipeid++ )
+//  {
+//    if ( endpointhandle_is_equal(edpt_hdl, p_cdc->edpt_hdl[pipeid]) )
+//    {
+//      tud_cdc_xfer_cb(edpt_hdl.coreid, event, pipeid, xferred_bytes);
+//      break;
+//    }
+//  }
 
   return TUSB_ERROR_NONE;
 }

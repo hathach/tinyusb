@@ -120,8 +120,8 @@
  * - VERIFY_1ARGS : return false if failed
  * - VERIFY_2ARGS : return provided value if failed
  *------------------------------------------------------------------*/
-#define VERIFY_1ARGS(cond)            do { if (!(cond)) return false;  } while(0)
-#define VERIFY_2ARGS(cond, _error)    do { if (!(cond)) return _error; } while(0)
+#define VERIFY_1ARGS(cond)            do { if (!(cond)) { hal_debugger_breakpoint(); return false; } } while(0)
+#define VERIFY_2ARGS(cond, _error)    do { if (!(cond)) { hal_debugger_breakpoint(); return _error;} } while(0)
 
 /**
  * Check if condition is success (true), otherwise return

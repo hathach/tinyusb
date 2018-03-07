@@ -224,7 +224,10 @@ static tusb_error_t usbd_body_subtask(void)
     // Call class handling function, Class that endpoint not belong to should check and return
     for (uint8_t class_code = TUSB_CLASS_AUDIO; class_code < USBD_CLASS_DRIVER_COUNT; class_code++)
     {
-      if ( usbd_class_drivers[class_code].xfer_cb ) usbd_class_drivers[class_code].xfer_cb( event.xfer_done.edpt_hdl, (tusb_event_t) event.sub_event_id, event.xfer_done.xferred_byte);
+      if ( usbd_class_drivers[class_code].xfer_cb )
+      {
+        usbd_class_drivers[class_code].xfer_cb( event.xfer_done.edpt_hdl, (tusb_event_t) event.sub_event_id, event.xfer_done.xferred_byte);
+      }
     }
   }else
   {
@@ -273,7 +276,6 @@ tusb_error_t usbd_control_request_subtask(uint8_t coreid, tusb_control_request_t
       error = TUSB_ERROR_DCD_CONTROL_REQUEST_NOT_SUPPORT;
     }
   }
-
   //------------- Class/Interface Specific Request -------------//
   else if ( TUSB_REQUEST_RECIPIENT_INTERFACE == p_request->bmRequestType_bit.recipient)
   {
