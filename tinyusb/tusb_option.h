@@ -119,6 +119,9 @@
  #error TUSB_CFG_ATTR_USBRAM is not defined, please help me know how to place data in accessible RAM for usb controller
 #endif
 
+#ifndef TUSB_OS_NONE
+#define TUSB_CFG_OS TUSB_OS_NONE
+#endif
 
 #if (TUSB_CFG_OS != TUSB_OS_NONE) && !defined (TUSB_CFG_OS_TASK_PRIO)
   #error TUSB_CFG_OS_TASK_PRIO need to be defined (hint: use the highest if possible)
