@@ -74,7 +74,7 @@ int main(void)
     tusb_task();
 
     led_blinking_task();
-    cdc_serial_app_task(NULL);
+    cdc_serial_app_task();
   }
 
   return 0;

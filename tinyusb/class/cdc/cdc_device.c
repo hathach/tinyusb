@@ -56,8 +56,19 @@ typedef struct {
   uint8_t interface_number;
   cdc_acm_capability_t acm_capability;
 
+  bool connected;
+
   endpoint_handle_t edpt_hdl[3]; // notification, data in, data out
 }cdcd_data_t;
+
+// TODO multiple port
+TUSB_CFG_ATTR_USBRAM uint8_t _tmp_rx_buf[64];
+TUSB_CFG_ATTR_USBRAM uint8_t _tmp_tx_buf[64];
+
+#define CFG_TUD_CDC_BUFSIZE   128
+
+FIFO_DEF(_rx_ff, CFG_TUD_CDC_BUFSIZE, uint8_t, true);
+FIFO_DEF(_tx_ff, CFG_TUD_CDC_BUFSIZE, uint8_t, true);
 
 //--------------------------------------------------------------------+
 // INTERNAL OBJECT & FUNCTION DECLARATION
@@ -158,13 +169,13 @@ tusb_error_t cdcd_open(uint8_t coreid, tusb_descriptor_interface_t const * p_int
     for(uint32_t i=0; i<2; i++)
     {
       tusb_descriptor_endpoint_t const *p_endpoint = (tusb_descriptor_endpoint_t const *) p_desc;
-      ASSERT_INT(TUSB_DESC_TYPE_ENDPOINT, p_endpoint->bDescriptorType, TUSB_ERROR_DESCRIPTOR_CORRUPTED);
-      ASSERT_INT(TUSB_XFER_BULK, p_endpoint->bmAttributes.xfer, TUSB_ERROR_DESCRIPTOR_CORRUPTED);
+      ASSERT_(TUSB_DESC_TYPE_ENDPOINT == p_endpoint->bDescriptorType, TUSB_ERROR_DESCRIPTOR_CORRUPTED);
+      ASSERT_(TUSB_XFER_BULK == p_endpoint->bmAttributes.xfer, TUSB_ERROR_DESCRIPTOR_CORRUPTED);
 
       endpoint_handle_t * p_edpt_hdl =  ( p_endpoint->bEndpointAddress &  TUSB_DIR_DEV_TO_HOST_MASK ) ?
           &p_cdc->edpt_hdl[CDC_PIPE_DATA_IN] : &p_cdc->edpt_hdl[CDC_PIPE_DATA_OUT] ;
 
-      VERIFY( hal_dcd_pipe_open(coreid, p_endpoint, p_edpt_hdl), TUSB_ERROR_DCD_OPEN_PIPE_FAILED);
+      ASSERT_( hal_dcd_pipe_open(coreid, p_endpoint, p_edpt_hdl), TUSB_ERROR_DCD_OPEN_PIPE_FAILED);
 
       (*p_length) += p_desc[DESCRIPTOR_OFFSET_LENGTH];
       p_desc = descriptor_next( p_desc );
@@ -173,6 +184,10 @@ tusb_error_t cdcd_open(uint8_t coreid, tusb_descriptor_interface_t const * p_int
 
   p_cdc->interface_number   = p_interface_desc->bInterfaceNumber;
 
+  // Prepare for incoming data
+  hal_dcd_pipe_xfer(p_cdc->edpt_hdl[CDC_PIPE_DATA_OUT], _tmp_rx_buf, sizeof(_tmp_rx_buf), true);
+
+
   return TUSB_ERROR_NONE;
 }
 
@@ -180,6 +195,9 @@ void cdcd_close(uint8_t coreid)
 {
   // no need to close opened pipe, dcd bus reset will put controller's endpoints to default state
   memclr_(&cdcd_data[coreid], sizeof(cdcd_data_t));
+
+  fifo_clear(&_rx_ff);
+  fifo_clear(&_tx_ff);
 }
 
 tusb_error_t cdcd_control_request_subtask(uint8_t coreid, tusb_control_request_t const * p_request)
@@ -207,16 +225,21 @@ tusb_error_t cdcd_control_request_subtask(uint8_t coreid, tusb_control_request_t
         ACTIVE_DTE_NOT_PRESENT = 0x0002
       };
 
+      cdcd_data_t * p_cdc = &cdcd_data[coreid];
+
       if (p_request->wValue == ACTIVE_DTE_PRESENT)
       {
         // terminal connected
+        p_cdc->connected = true;
       }
       else if (p_request->wValue == ACTIVE_DTE_NOT_PRESENT)
       {
         // terminal disconnected
+        p_cdc->connected = false;
       }else
       {
         // De-active --> disconnected
+        p_cdc->connected = false;
       }
     }
     break;
@@ -231,21 +254,62 @@ tusb_error_t cdcd_xfer_cb(endpoint_handle_t edpt_hdl, tusb_event_t event, uint32
 {
   cdcd_data_t const * p_cdc = &cdcd_data[edpt_hdl.coreid];
 
-  if ( endpointhandle_is_equal(edpt_hdl, p_cdc->edpt_hdl[CDC_PIPE_DATA_OUT]) )
+  if ( edpt_equal(edpt_hdl, p_cdc->edpt_hdl[CDC_PIPE_DATA_OUT]) )
   {
-    tud_cdc_rx_cb(edpt_hdl.coreid, xferred_bytes);
-  }
+    fifo_write_n(&_rx_ff, _tmp_rx_buf, xferred_bytes);
 
-//  for(cdc_pipeid_t pipeid=CDC_PIPE_NOTIFICATION; pipeid < CDC_PIPE_ERROR; pipeid++ )
-//  {
-//    if ( endpointhandle_is_equal(edpt_hdl, p_cdc->edpt_hdl[pipeid]) )
-//    {
-//      tud_cdc_xfer_cb(edpt_hdl.coreid, event, pipeid, xferred_bytes);
-//      break;
-//    }
-//  }
+    // preparing for next
+    hal_dcd_pipe_xfer(p_cdc->edpt_hdl[CDC_PIPE_DATA_OUT], _tmp_rx_buf, sizeof(_tmp_rx_buf), true);
+
+    // fire callback
+    tud_cdc_rx_cb(edpt_hdl.coreid);
+  }
 
   return TUSB_ERROR_NONE;
 }
+
+void cdcd_sof(uint8_t coreid)
+{
+  endpoint_handle_t ep = cdcd_data[coreid].edpt_hdl[CDC_PIPE_DATA_IN];
+
+  if ( !dcd_pipe_is_busy( ep ) )
+  {
+    uint16_t count = fifo_read_n(&_tx_ff, _tmp_tx_buf, sizeof(_tmp_tx_buf));
+
+    hal_dcd_pipe_xfer(ep, _tmp_tx_buf, count, false);
+  }
+}
+
+uint32_t tud_cdc_available(uint8_t coreid)
+{
+  return fifo_count(&_rx_ff);
+}
+
+bool tud_cdc_connected(uint8_t coreid)
+{
+  return cdcd_data[coreid].connected;
+}
+
+int tud_cdc_read_char(uint8_t coreid)
+{
+  uint8_t ch;
+  return fifo_read(&_rx_ff, &ch) ? ch : (-1);
+}
+
+uint32_t tud_cdc_read(uint8_t coreid, void* buffer, uint32_t bufsize)
+{
+  return fifo_read_n(&_rx_ff, buffer, bufsize);
+}
+
+uint32_t tud_cdc_write_char(uint8_t coreid, char ch)
+{
+  return fifo_write(&_tx_ff, &ch);
+}
+
+uint32_t tud_cdc_write(uint8_t coreid, void const* buffer, uint32_t bufsize)
+{
+  return fifo_write_n(&_tx_ff, buffer, bufsize);
+}
+
 
 #endif

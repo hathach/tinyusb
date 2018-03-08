@@ -54,7 +54,7 @@
 #endif
 
 void cdc_serial_app_init(void);
-void cdc_serial_app_task(void* param);
+void cdc_serial_app_task(void);
 
 void cdc_serial_app_mount(uint8_t coreid);
 void cdc_serial_app_umount(uint8_t coreid);

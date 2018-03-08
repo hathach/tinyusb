@@ -63,6 +63,8 @@ static usbd_class_driver_t const usbd_class_drivers[] =
         .open                    = hidd_open,
         .control_request_subtask = hidd_control_request_subtask,
         .xfer_cb                 = hidd_xfer_cb,
+//        .routine                 = NULL,
+        .sof                     = NULL,
         .close                   = hidd_close
     },
   #endif
@@ -74,6 +76,8 @@ static usbd_class_driver_t const usbd_class_drivers[] =
         .open                    = mscd_open,
         .control_request_subtask = mscd_control_request_subtask,
         .xfer_cb                 = mscd_xfer_cb,
+//        .routine                 = NULL,
+        .sof                     = NULL,
         .close                   = mscd_close
     },
   #endif
@@ -85,6 +89,8 @@ static usbd_class_driver_t const usbd_class_drivers[] =
         .open                    = cdcd_open,
         .control_request_subtask = cdcd_control_request_subtask,
         .xfer_cb                 = cdcd_xfer_cb,
+//        .routine                 = NULL,
+        .sof                     = cdcd_sof,
         .close                   = cdcd_close
     },
   #endif
@@ -117,7 +123,8 @@ enum { USBD_TASK_QUEUE_DEPTH = 16 };
 typedef enum
 {
   USBD_EVENTID_SETUP_RECEIVED = 1,
-  USBD_EVENTID_XFER_DONE
+  USBD_EVENTID_XFER_DONE,
+  USBD_EVENTID_SOF
 }usbd_eventid_t;
 
 typedef struct ATTR_ALIGNED(4)
@@ -128,7 +135,7 @@ typedef struct ATTR_ALIGNED(4)
   uint8_t reserved;
 
   union {
-    tusb_control_request_t setup_received; // USBD_EVENTID_SETUP_RECEIVED
+    tusb_control_request_t setup_received;
 
     struct { // USBD_EVENTID_XFER_DONE
       endpoint_handle_t edpt_hdl;
@@ -213,8 +220,27 @@ static tusb_error_t usbd_body_subtask(void)
   error = TUSB_ERROR_NONE;
 
   memclr_(&event, sizeof(usbd_task_event_t));
+
+#if 1
   osal_queue_receive(usbd_queue_hdl, &event, OSAL_TIMEOUT_WAIT_FOREVER, &error);
   SUBTASK_ASSERT_STATUS(error);
+#else
+  enum { ROUTINE_INTERVAL_MS = 10 };
+  osal_queue_receive(usbd_queue_hdl, &event, ROUTINE_INTERVAL_MS, &error);
+  if ( error != TUSB_ERROR_NONE )
+  {
+    // time out, run class routine then
+    if ( error == TUSB_ERROR_OSAL_TIMEOUT)
+    {
+      for (uint8_t class_code = TUSB_CLASS_AUDIO; class_code < USBD_CLASS_DRIVER_COUNT; class_code++)
+      {
+        if ( usbd_class_drivers[class_code].routine ) usbd_class_drivers[class_code].routine();
+      }
+    }
+
+    SUBTASK_RETURN(error);
+  }
+#endif
 
   if ( USBD_EVENTID_SETUP_RECEIVED == event.event_id )
   {
@@ -229,7 +255,17 @@ static tusb_error_t usbd_body_subtask(void)
         usbd_class_drivers[class_code].xfer_cb( event.xfer_done.edpt_hdl, (tusb_event_t) event.sub_event_id, event.xfer_done.xferred_byte);
       }
     }
-  }else
+  }else if (USBD_EVENTID_SOF == event.event_id)
+  {
+    for (uint8_t class_code = TUSB_CLASS_AUDIO; class_code < USBD_CLASS_DRIVER_COUNT; class_code++)
+    {
+      if ( usbd_class_drivers[class_code].sof )
+      {
+        usbd_class_drivers[class_code].sof( event.coreid );
+      }
+    }
+  }
+  else
   {
     SUBTASK_ASSERT(false);
   }
@@ -427,6 +463,17 @@ void hal_dcd_bus_event(uint8_t coreid, usbd_bus_event_type_t bus_event)
 
       // invoke callback
       tud_umount_cb(coreid);
+    break;
+
+    case USBD_BUS_EVENT_SOF:
+    {
+      usbd_task_event_t task_event =
+      {
+          .coreid          = coreid,
+          .event_id        = USBD_EVENTID_SOF,
+      };
+      osal_queue_send(usbd_queue_hdl, &task_event);
+    }
     break;
 
     case USBD_BUS_EVENT_UNPLUGGED : break;

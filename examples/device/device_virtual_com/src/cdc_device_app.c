@@ -42,40 +42,20 @@
 //--------------------------------------------------------------------+
 // INCLUDE
 //--------------------------------------------------------------------+
-enum { SERIAL_BUFFER_SIZE = 64 };
 
 //--------------------------------------------------------------------+
 // MACRO CONSTANT TYPEDEF
 //--------------------------------------------------------------------+
-static osal_semaphore_t sem_hdl;
 
 //--------------------------------------------------------------------+
 // INTERNAL OBJECT & FUNCTION DECLARATION
 //--------------------------------------------------------------------+
-TUSB_CFG_ATTR_USBRAM static uint8_t serial_rx_buffer[SERIAL_BUFFER_SIZE];
-TUSB_CFG_ATTR_USBRAM static uint8_t serial_tx_buffer[SERIAL_BUFFER_SIZE];
-
-FIFO_DEF(fifo_serial, SERIAL_BUFFER_SIZE, uint8_t, true);
 
 //--------------------------------------------------------------------+
 // tinyusb callbacks
 //--------------------------------------------------------------------+
-void cdc_serial_app_mount(uint8_t coreid)
+void tud_cdc_rx_cb(uint8_t coreid)
 {
-  osal_semaphore_reset(sem_hdl);
-
-  tud_cdc_receive(coreid, serial_rx_buffer, SERIAL_BUFFER_SIZE, true);
-}
-
-void cdc_serial_app_umount(uint8_t coreid)
-{
-
-}
-
-void tud_cdc_rx_cb(uint8_t coreid, uint32_t xferred_bytes)
-{
-  fifo_write_n(&fifo_serial, serial_rx_buffer, xferred_bytes);
-  osal_semaphore_post(sem_hdl);  // notify main task
 }
 
 //--------------------------------------------------------------------+
@@ -83,50 +63,25 @@ void tud_cdc_rx_cb(uint8_t coreid, uint32_t xferred_bytes)
 //--------------------------------------------------------------------+
 void cdc_serial_app_init(void)
 {
-  sem_hdl = osal_semaphore_create(1, 0);
-  VERIFY(sem_hdl, );
 }
 
-tusb_error_t cdc_serial_subtask(void);
-
-void cdc_serial_app_task(void* param)
+void cdc_serial_app_mount(uint8_t coreid)
 {
-  (void) param;
-
-  OSAL_TASK_BEGIN
-  cdc_serial_subtask();
-  OSAL_TASK_END
 }
 
-tusb_error_t cdc_serial_subtask(void)
+void cdc_serial_app_umount(uint8_t coreid)
 {
-  OSAL_SUBTASK_BEGIN
 
-  tusb_error_t error;
-  (void) error; // suppress compiler's warnings
+}
 
-  osal_semaphore_wait(sem_hdl, OSAL_TIMEOUT_WAIT_FOREVER, &error);
-
-  if ( tud_mounted(0) )
+void cdc_serial_app_task(void)
+{
+  if ( tud_mounted(0) && tud_cdc_available(0) )
   {
-    // echo back data in the fifo
-    if ( !tud_cdc_busy(0, CDC_PIPE_DATA_IN) )
-    {
-      uint16_t count=0;
-      while( fifo_read(&fifo_serial, &serial_tx_buffer[count]) )
-      {
-        count++;
-      }
+    uint8_t buf[64];
 
-      if (count)
-      {
-        tud_cdc_send(0, serial_tx_buffer, count, false);
-      }
-    }
+    uint32_t count = tud_cdc_read(0, buf, sizeof(buf));
 
-    // getting more data from host
-    tud_cdc_receive(0, serial_rx_buffer, SERIAL_BUFFER_SIZE, true);
+    tud_cdc_write(0, buf, count);
   }
-
-  OSAL_SUBTASK_END
 }
