@@ -106,6 +106,7 @@ typedef struct
   }
 
 void fifo_clear(fifo_t *f);
+void fifo_config(fifo_t *f, void* buffer, uint16_t depth, uint16_t item_size, bool overwritable);
 
 bool     fifo_write   (fifo_t* f, void const * p_data);
 uint16_t fifo_write_n (fifo_t* f, void const * p_data, uint16_t count);

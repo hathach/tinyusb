@@ -67,6 +67,7 @@
 #include "verify.h"
 #include "binary.h"
 #include "tusb_errors.h"
+#include "fifo.h"
 
 //------------- TUSB Header -------------//
 #include "tusb_types.h"

@@ -62,8 +62,10 @@
 #if TUSB_CFG_DEBUG >= 1
 //  #define VERIFY_MESS(format, ...) cprintf("[%08ld] %s: %d: verify failed\n", get_millis(), __func__, __LINE__)
   #define VERIFY_MESS(_status)   printf("%s: %d: verify failed, error = %s\n", __PRETTY_FUNCTION__, __LINE__, TUSB_ErrorStr[_status]);
+  #define _ASSERT_MESS()         printf("%s: %d: assert failed\n", __PRETTY_FUNCTION__, __LINE__);
 #else
   #define VERIFY_MESS(_status)
+  #define _ASSERT_MESS()
 #endif
 
 /**
@@ -142,6 +144,18 @@
     do { if ( !(cond) ) { _handler; return _error; } } while(0)
 
 #define VERIFY_HDLR(...) GET_4TH_ARG(__VA_ARGS__, VERIFY_HDLR_3ARGS, VERIFY_HDLR_2ARGS)(__VA_ARGS__)
+
+
+/*------------------------------------------------------------------*/
+/* ASSERT
+ * basically VERIFY with hal_debugger_breakpoint as handler
+ * - 1 arg : return false if failed
+ * - 2 arg : return error if failed
+ *------------------------------------------------------------------*/
+#define ASSERT_1ARGS(cond)            do { if (!(cond)) { hal_debugger_breakpoint(); _ASSERT_MESS() return false; } } while(0)
+#define ASSERT_2ARGS(cond, _error)    do { if (!(cond)) { hal_debugger_breakpoint(); _ASSERT_MESS() return _error;} } while(0)
+
+#define ASSERT_(...)  GET_3RD_ARG(__VA_ARGS__, ASSERT_2ARGS, ASSERT_1ARGS)(__VA_ARGS__)
 
 #ifdef __cplusplus
  }

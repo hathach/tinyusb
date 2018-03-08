@@ -64,6 +64,21 @@ static inline bool fifo_initalized(fifo_t* f)
 }
 
 
+void fifo_config(fifo_t *f, void* buffer, uint16_t depth, uint16_t item_size, bool overwritable)
+{
+  mutex_lock_if_needed(f);
+
+  f->buffer = (uint8_t*) buffer;
+  f->depth  = depth;
+  f->item_size = item_size;
+  f->overwritable = overwritable;
+
+  f->rd_idx = f->wr_idx = f->count = 0;
+
+  mutex_unlock_if_needed(f);
+}
+
+
 /******************************************************************************/
 /*!
     @brief Read one byte out of the RX buffer.

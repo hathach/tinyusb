@@ -308,7 +308,7 @@ tusb_error_t hidd_xfer_cb(endpoint_handle_t edpt_hdl, tusb_event_t event, uint32
   for(uint8_t i=0; i<HIDD_NUMBER_OF_SUBCLASS; i++)
   {
     hidd_interface_t * const p_interface = hidd_class_driver[i].p_interface;
-    if ( (p_interface != NULL) && endpointhandle_is_equal(edpt_hdl, p_interface->ept_handle) )
+    if ( (p_interface != NULL) && edpt_equal(edpt_hdl, p_interface->ept_handle) )
     {
       hidd_class_driver[i].xfer_cb(edpt_hdl.coreid, event, xferred_bytes);
     }

@@ -63,7 +63,7 @@ typedef struct {
   uint8_t index; // must be zero to indicate control
 } endpoint_handle_t;
 
-static inline bool endpointhandle_is_equal(endpoint_handle_t x, endpoint_handle_t y)
+static inline bool edpt_equal(endpoint_handle_t x, endpoint_handle_t y)
 {
   return (x.coreid == y.coreid) && (x.index == y.index);
 }
