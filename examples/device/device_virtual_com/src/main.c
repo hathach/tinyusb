@@ -46,8 +46,6 @@
 #include "bsp/board.h"
 #include "tusb.h"
 
-#include "cdc_device_app.h"
-
 //--------------------------------------------------------------------+
 // MACRO CONSTANT TYPEDEF
 //--------------------------------------------------------------------+
@@ -57,6 +55,7 @@
 //--------------------------------------------------------------------+
 void print_greeting(void);
 void led_blinking_task(void);
+void virtual_com_task(void);
 
 /*------------- MAIN -------------*/
 int main(void)
@@ -66,31 +65,46 @@ int main(void)
 
   tusb_init();
 
-  //------------- application task init -------------//
-  cdc_serial_app_init();
-
   while (1)
   {
     tusb_task();
 
     led_blinking_task();
-    cdc_serial_app_task();
+    virtual_com_task();
   }
 
   return 0;
 }
+
+void virtual_com_task(void)
+{
+  // connected and there are data available
+  if ( tud_mounted(0) && tud_cdc_available(0) )
+  {
+    uint8_t buf[64];
+
+    // read and echo back
+    uint32_t count = tud_cdc_read(0, buf, sizeof(buf));
+
+    tud_cdc_write(0, buf, count);
+  }
+}
+
 
 //--------------------------------------------------------------------+
 // tinyusb callbacks
 //--------------------------------------------------------------------+
 void tud_mount_cb(uint8_t coreid)
 {
-  cdc_serial_app_mount(coreid);
+
 }
 
 void tud_umount_cb(uint8_t coreid)
 {
-  cdc_serial_app_umount(coreid);
+}
+
+void tud_cdc_rx_cb(uint8_t coreid)
+{
 }
 
 //--------------------------------------------------------------------+

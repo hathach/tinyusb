@@ -75,38 +75,43 @@ FIFO_DEF(_tx_ff, CFG_TUD_CDC_BUFSIZE, uint8_t, true);
 //--------------------------------------------------------------------+
 STATIC_VAR cdcd_data_t cdcd_data[CONTROLLER_DEVICE_NUMBER];
 
-static tusb_error_t cdcd_xfer(uint8_t coreid,  cdc_pipeid_t pipeid, void * p_buffer, uint32_t length, bool is_notify)
+//--------------------------------------------------------------------+
+// APPLICATION API
+//--------------------------------------------------------------------+
+bool tud_cdc_connected(uint8_t coreid)
 {
-  ASSERT(tud_mounted(coreid), TUSB_ERROR_USBD_DEVICE_NOT_CONFIGURED);
-
-  cdcd_data_t* p_cdc = &cdcd_data[coreid];
-
-  ASSERT_FALSE ( dcd_pipe_is_busy(p_cdc->edpt_hdl[pipeid]), TUSB_ERROR_INTERFACE_IS_BUSY);
-  ASSERT_STATUS( hal_dcd_pipe_xfer(p_cdc->edpt_hdl[pipeid], p_buffer, length, is_notify) );
-
-  return TUSB_ERROR_NONE;
+  return cdcd_data[coreid].connected;
 }
+
+uint32_t tud_cdc_available(uint8_t coreid)
+{
+  return fifo_count(&_rx_ff);
+}
+
+int tud_cdc_read_char(uint8_t coreid)
+{
+  uint8_t ch;
+  return fifo_read(&_rx_ff, &ch) ? ch : (-1);
+}
+
+uint32_t tud_cdc_read(uint8_t coreid, void* buffer, uint32_t bufsize)
+{
+  return fifo_read_n(&_rx_ff, buffer, bufsize);
+}
+
+uint32_t tud_cdc_write_char(uint8_t coreid, char ch)
+{
+  return fifo_write(&_tx_ff, &ch);
+}
+
+uint32_t tud_cdc_write(uint8_t coreid, void const* buffer, uint32_t bufsize)
+{
+  return fifo_write_n(&_tx_ff, buffer, bufsize);
+}
+
 
 //--------------------------------------------------------------------+
-// APPLICATION API (Parameters requires validation)
-//--------------------------------------------------------------------+
-bool tud_cdc_busy(uint8_t coreid, cdc_pipeid_t pipeid)
-{
-  return dcd_pipe_is_busy( cdcd_data[coreid].edpt_hdl[pipeid] );
-}
-
-tusb_error_t tud_cdc_receive(uint8_t coreid, void * p_buffer, uint32_t length, bool is_notify)
-{
-  return cdcd_xfer(coreid, CDC_PIPE_DATA_OUT, p_buffer, length, is_notify);
-}
-
-tusb_error_t tud_cdc_send(uint8_t coreid, void * p_data, uint32_t length, bool is_notify)
-{
-  return cdcd_xfer(coreid, CDC_PIPE_DATA_IN, p_data, length, is_notify);
-}
-
-//--------------------------------------------------------------------+
-// USBD-CLASS API
+// USBD Driver API
 //--------------------------------------------------------------------+
 void cdcd_init(void)
 {
@@ -281,37 +286,5 @@ void cdcd_sof(uint8_t coreid)
     hal_dcd_pipe_xfer(ep, _tmp_tx_buf, count, false);
   }
 }
-
-bool tud_cdc_connected(uint8_t coreid)
-{
-  return cdcd_data[coreid].connected;
-}
-
-uint32_t tud_cdc_available(uint8_t coreid)
-{
-  return fifo_count(&_rx_ff);
-}
-
-int tud_cdc_read_char(uint8_t coreid)
-{
-  uint8_t ch;
-  return fifo_read(&_rx_ff, &ch) ? ch : (-1);
-}
-
-uint32_t tud_cdc_read(uint8_t coreid, void* buffer, uint32_t bufsize)
-{
-  return fifo_read_n(&_rx_ff, buffer, bufsize);
-}
-
-uint32_t tud_cdc_write_char(uint8_t coreid, char ch)
-{
-  return fifo_write(&_tx_ff, &ch);
-}
-
-uint32_t tud_cdc_write(uint8_t coreid, void const* buffer, uint32_t bufsize)
-{
-  return fifo_write_n(&_tx_ff, buffer, bufsize);
-}
-
 
 #endif
