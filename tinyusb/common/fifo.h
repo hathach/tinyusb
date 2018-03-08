@@ -131,7 +131,7 @@ static inline bool fifo_full(fifo_t* f)
   return (f->count == f->depth);
 }
 
-static inline uint16_t fifo_get_length(fifo_t* f)
+static inline uint16_t fifo_count(fifo_t* f)
 {
   return f->count;
 }

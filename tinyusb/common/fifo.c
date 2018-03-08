@@ -126,7 +126,7 @@ bool fifo_read(fifo_t* f, void * p_buffer)
     @param[in]  count
                 Number of element that buffer can afford
 
-    @returns number of bytes read from the FIFO
+    @returns number of items read from the FIFO
 */
 /******************************************************************************/
 uint16_t fifo_read_n (fifo_t* f, void * p_buffer, uint16_t count)
