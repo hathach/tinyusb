@@ -270,6 +270,8 @@ tusb_error_t cdcd_xfer_cb(endpoint_handle_t edpt_hdl, tusb_event_t event, uint32
 
 void cdcd_sof(uint8_t coreid)
 {
+  if ( !tud_cdc_connected(coreid) ) return;
+
   endpoint_handle_t ep = cdcd_data[coreid].edpt_hdl[CDC_PIPE_DATA_IN];
 
   if ( !dcd_pipe_is_busy( ep ) )
@@ -280,14 +282,14 @@ void cdcd_sof(uint8_t coreid)
   }
 }
 
-uint32_t tud_cdc_available(uint8_t coreid)
-{
-  return fifo_count(&_rx_ff);
-}
-
 bool tud_cdc_connected(uint8_t coreid)
 {
   return cdcd_data[coreid].connected;
+}
+
+uint32_t tud_cdc_available(uint8_t coreid)
+{
+  return fifo_count(&_rx_ff);
 }
 
 int tud_cdc_read_char(uint8_t coreid)

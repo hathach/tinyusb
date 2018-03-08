@@ -252,7 +252,7 @@ bool hal_dcd_init(uint8_t coreid)
 
   lpc_usb->ENDPOINTLISTADDR = (uint32_t) p_dcd->qhd; // Endpoint List Address has to be 2K alignment
   lpc_usb->USBSTS_D  = lpc_usb->USBSTS_D;
-  lpc_usb->USBINTR_D = INT_MASK_USB | INT_MASK_ERROR | INT_MASK_PORT_CHANGE | INT_MASK_RESET | INT_MASK_SUSPEND /*| INT_MASK_SOF */;
+  lpc_usb->USBINTR_D = INT_MASK_USB | INT_MASK_ERROR | INT_MASK_PORT_CHANGE | INT_MASK_RESET | INT_MASK_SUSPEND | INT_MASK_SOF;
 
   lpc_usb->USBCMD_D &= ~0x00FF0000; // Interrupt Threshold Interval = 0
   lpc_usb->USBCMD_D |= BIT_(0); // connect
@@ -595,7 +595,7 @@ void hal_dcd_isr(uint8_t coreid)
 
   if (int_status & INT_MASK_SOF)
   {
-//    hal_dcd_bus_event(coreid, USBD_BUS_EVENT_SOF);
+    hal_dcd_bus_event(coreid, USBD_BUS_EVENT_SOF);
   }
 
   if (int_status & INT_MASK_NAK) {}
