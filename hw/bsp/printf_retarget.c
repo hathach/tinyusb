@@ -87,6 +87,38 @@ int __sys_readc (void)
 	return (int) retarget_getchar();
 }
 
+#elif defined __SES_ARM && 0
+#include <stdarg.h>
+#include <stdio.h>
+#include "__libc.h"
+
+int printf(const char *fmt,...) {
+  char buffer[128];
+  va_list args;
+  va_start (args, fmt);
+  int n = vsnprintf(buffer, sizeof(buffer), fmt, args);
+  
+  for(int i=0; i < n; i++)
+  {
+    retarget_putchar( buffer[i] );
+  }
+
+  va_end(args);
+  return n;
+}
+
+int __putchar(int ch, __printf_tag_ptr ctx) 
+{
+  (void)ctx;
+  retarget_putchar( (uint8_t) ch );
+  return 1;
+}
+
+int __getchar()
+{
+  return retarget_getchar();
+}
+
 //--------------------------------------------------------------------+
 // KEIL
 //--------------------------------------------------------------------+

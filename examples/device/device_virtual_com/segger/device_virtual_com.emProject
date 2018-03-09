@@ -1,0 +1,219 @@
+<!DOCTYPE CrossStudio_Project_File>
+<solution Name="device_virtual_com" target="8" version="2">
+  <project Name="device_virtual_com">
+    <configuration
+      Name="Common"
+      Placement="Flash"
+      Target="LPC4357 Cortex-M4"
+      arm_architecture="v7EM"
+      arm_core_type="Cortex-M4"
+      arm_endian="Little"
+      arm_fp_abi="Hard"
+      arm_fpu_type="FPv4-SP-D16"
+      arm_interwork="No"
+      arm_linker_heap_size="2048"
+      arm_linker_process_stack_size="0"
+      arm_linker_stack_size="2048"
+      arm_simulator_memory_simulation_parameter="RAM;0x10000000;0x00008000;ROM;0x1A000000;0x00080000;ROM;0x1B000000;0x00080000;RAM;0x20000000;0x00010000"
+      arm_target_debug_interface_type="ADIv5"
+      arm_target_device_name="LPC4357_M4"
+      arm_target_interface_type="SWD"
+      c_preprocessor_definitions="CORE_M4;__LPC4300_FAMILY;__LPC435x_SUBFAMILY;ARM_MATH_CM4;FLASH_PLACEMENT=1"
+      c_user_include_directories="../src;$(ProjectDir)/LPC4300/CMSIS/Device/Include;$(RepoDir)/hw/cmsis/Include;$(RepoDir)/hw/mcu/nxp/lpc43xx/hal;$(RepoDir)/hw/mcu/nxp/lpc43xx/CMSIS_LPC43xx_DriverLib/inc;$(RepoDir)/hw/;$(RepoDir)/tinyusb"
+      debug_register_definition_file="$(ProjectDir)/LPC43xx_Registers.xml"
+      debug_target_connection="J-Link"
+      gcc_entry_point="Reset_Handler"
+      linker_memory_map_file="$(ProjectDir)/LPC4357 Cortex-M4_MemoryMap.xml"
+      linker_section_placement_file="$(ProjectDir)/flash_placement.xml"
+      macros="DeviceHeaderFile=$(PackagesDir)/LPC4300/CMSIS/Device/Include/LPC43xx.h;DeviceLibraryIdentifier=M4lf;DeviceSystemFile=$(PackagesDir)/LPC4300/CMSIS/Device/Source/system_LPC43xx.c;DeviceVectorsFile=$(PackagesDir)/LPC4300/Source/LPC43xx_Vectors.s;DeviceFamily=LPC4300;DeviceSubFamily=LPC435x;Target=LPC4357 Cortex-M4;Placement=Flash;RepoDir=../../../.."
+      package_dependencies="LPC4300"
+      project_directory=""
+      project_type="Executable"
+      target_reset_script="Reset();"
+      target_trace_initialize_script="EnableTrace(&quot;$(TraceInterfaceType)&quot;)" />
+    <folder Name="RTT Files">
+      <file file_name="SEGGER_RTT.c" />
+      <file file_name="SEGGER_RTT.h" />
+      <file file_name="SEGGER_RTT_Conf.h" />
+      <file file_name="SEGGER_RTT_SES.c" />
+    </folder>
+    <folder Name="Script Files">
+      <file file_name="LPC4300_Target.js">
+        <configuration Name="Common" file_type="Reset Script" />
+      </file>
+    </folder>
+    <folder Name="src">
+      <configuration Name="Common" filter="c;cpp;cxx;cc;h;s;asm;inc" />
+      <file file_name="../src/main.c" />
+      <file file_name="../src/tusb_config.h" />
+      <file file_name="../src/tusb_descriptors.c" />
+      <file file_name="../src/tusb_descriptors.h" />
+    </folder>
+    <folder Name="System Files">
+      <file file_name="thumb_crt0.s" />
+      <file file_name="LPC4300_Startup.s" />
+      <file file_name="LPC43xx_Vectors.s">
+        <configuration Name="Common" file_type="Assembly" />
+      </file>
+    </folder>
+    <configuration Name="Debug" c_user_include_directories="." />
+    <folder
+      Name="tinyusb"
+      exclude=""
+      filter="*.c;*.h"
+      path="../../../../tinyusb"
+      recurse="Yes" />
+    <folder Name="hw">
+      <folder Name="bsp">
+        <file file_name="../../../../hw/bsp/ansi_escape.h" />
+        <file file_name="../../../../hw/bsp/board.c" />
+        <file file_name="../../../../hw/bsp/board.h" />
+        <file file_name="../../../../hw/bsp/printf_retarget.c" />
+        <folder Name="ea4357">
+          <file file_name="../../../../hw/bsp/ea4357/board_ea4357.c" />
+          <file file_name="../../../../hw/bsp/ea4357/board_ea4357.h" />
+          <file file_name="../../../../hw/bsp/ea4357/emac.c" />
+          <file file_name="../../../../hw/bsp/ea4357/emac.h" />
+          <file file_name="../../../../hw/bsp/ea4357/sdram.c" />
+          <file file_name="../../../../hw/bsp/ea4357/sdram.h" />
+          <folder Name="oem_base_board">
+            <file file_name="../../../../hw/bsp/ea4357/oem_base_board/acc.c" />
+            <file file_name="../../../../hw/bsp/ea4357/oem_base_board/acc.h" />
+            <file file_name="../../../../hw/bsp/ea4357/oem_base_board/base_eeprom.c" />
+            <file file_name="../../../../hw/bsp/ea4357/oem_base_board/base_eeprom.h" />
+            <file file_name="../../../../hw/bsp/ea4357/oem_base_board/lm75a.c" />
+            <file file_name="../../../../hw/bsp/ea4357/oem_base_board/lm75a.h" />
+            <file file_name="../../../../hw/bsp/ea4357/oem_base_board/memreg.c" />
+            <file file_name="../../../../hw/bsp/ea4357/oem_base_board/memreg.h" />
+            <file file_name="../../../../hw/bsp/ea4357/oem_base_board/pca9532.c" />
+            <file file_name="../../../../hw/bsp/ea4357/oem_base_board/pca9532.h" />
+            <file file_name="../../../../hw/bsp/ea4357/oem_base_board/uda1380.c" />
+            <file file_name="../../../../hw/bsp/ea4357/oem_base_board/uda1380.h" />
+          </folder>
+        </folder>
+      </folder>
+      <folder Name="cmsis">
+        <folder Name="Include">
+          <file file_name="../../../../hw/cmsis/Include/arm_common_tables.h" />
+          <file file_name="../../../../hw/cmsis/Include/arm_const_structs.h" />
+          <file file_name="../../../../hw/cmsis/Include/arm_math.h" />
+          <file file_name="../../../../hw/cmsis/Include/cmsis_armcc.h" />
+          <file file_name="../../../../hw/cmsis/Include/cmsis_armcc_V6.h" />
+          <file file_name="../../../../hw/cmsis/Include/cmsis_gcc.h" />
+          <file file_name="../../../../hw/cmsis/Include/core_cm0.h" />
+          <file file_name="../../../../hw/cmsis/Include/core_cm0plus.h" />
+          <file file_name="../../../../hw/cmsis/Include/core_cm3.h" />
+          <file file_name="../../../../hw/cmsis/Include/core_cm4.h" />
+          <file file_name="../../../../hw/cmsis/Include/core_cm7.h" />
+          <file file_name="../../../../hw/cmsis/Include/core_cmFunc.h" />
+          <file file_name="../../../../hw/cmsis/Include/core_cmInstr.h" />
+          <file file_name="../../../../hw/cmsis/Include/core_cmSimd.h" />
+          <file file_name="../../../../hw/cmsis/Include/core_sc000.h" />
+          <file file_name="../../../../hw/cmsis/Include/core_sc300.h" />
+        </folder>
+      </folder>
+      <folder Name="mcu">
+        <folder Name="nxp">
+          <folder Name="lpc43xx">
+            <folder Name="CMSIS_LPC43xx_DriverLib">
+              <folder Name="inc">
+                <file file_name="../../../../hw/mcu/nxp/lpc43xx/CMSIS_LPC43xx_DriverLib/inc/debug_frmwrk.h" />
+                <file file_name="../../../../hw/mcu/nxp/lpc43xx/CMSIS_LPC43xx_DriverLib/inc/fpu_enable.h" />
+                <file file_name="../../../../hw/mcu/nxp/lpc43xx/CMSIS_LPC43xx_DriverLib/inc/fpu_init.h" />
+                <file file_name="../../../../hw/mcu/nxp/lpc43xx/CMSIS_LPC43xx_DriverLib/inc/LCDTerm.h" />
+                <file file_name="../../../../hw/mcu/nxp/lpc43xx/CMSIS_LPC43xx_DriverLib/inc/LPC43xx.h" />
+                <file file_name="../../../../hw/mcu/nxp/lpc43xx/CMSIS_LPC43xx_DriverLib/inc/lpc43xx_adc.h" />
+                <file file_name="../../../../hw/mcu/nxp/lpc43xx/CMSIS_LPC43xx_DriverLib/inc/lpc43xx_atimer.h" />
+                <file file_name="../../../../hw/mcu/nxp/lpc43xx/CMSIS_LPC43xx_DriverLib/inc/lpc43xx_can.h" />
+                <file file_name="../../../../hw/mcu/nxp/lpc43xx/CMSIS_LPC43xx_DriverLib/inc/lpc43xx_cgu.h" />
+                <file file_name="../../../../hw/mcu/nxp/lpc43xx/CMSIS_LPC43xx_DriverLib/inc/lpc43xx_dac.h" />
+                <file file_name="../../../../hw/mcu/nxp/lpc43xx/CMSIS_LPC43xx_DriverLib/inc/lpc43xx_emc.h" />
+                <file file_name="../../../../hw/mcu/nxp/lpc43xx/CMSIS_LPC43xx_DriverLib/inc/lpc43xx_evrt.h" />
+                <file file_name="../../../../hw/mcu/nxp/lpc43xx/CMSIS_LPC43xx_DriverLib/inc/lpc43xx_gpdma.h" />
+                <file file_name="../../../../hw/mcu/nxp/lpc43xx/CMSIS_LPC43xx_DriverLib/inc/lpc43xx_gpio.h" />
+                <file file_name="../../../../hw/mcu/nxp/lpc43xx/CMSIS_LPC43xx_DriverLib/inc/lpc43xx_i2c.h" />
+                <file file_name="../../../../hw/mcu/nxp/lpc43xx/CMSIS_LPC43xx_DriverLib/inc/lpc43xx_i2s.h" />
+                <file file_name="../../../../hw/mcu/nxp/lpc43xx/CMSIS_LPC43xx_DriverLib/inc/lpc43xx_lcd.h" />
+                <file file_name="../../../../hw/mcu/nxp/lpc43xx/CMSIS_LPC43xx_DriverLib/inc/lpc43xx_libcfg_default.h" />
+                <file file_name="../../../../hw/mcu/nxp/lpc43xx/CMSIS_LPC43xx_DriverLib/inc/lpc43xx_mcpwm.h" />
+                <file file_name="../../../../hw/mcu/nxp/lpc43xx/CMSIS_LPC43xx_DriverLib/inc/lpc43xx_nvic.h" />
+                <file file_name="../../../../hw/mcu/nxp/lpc43xx/CMSIS_LPC43xx_DriverLib/inc/lpc43xx_pwr.h" />
+                <file file_name="../../../../hw/mcu/nxp/lpc43xx/CMSIS_LPC43xx_DriverLib/inc/lpc43xx_qei.h" />
+                <file file_name="../../../../hw/mcu/nxp/lpc43xx/CMSIS_LPC43xx_DriverLib/inc/lpc43xx_rgu.h" />
+                <file file_name="../../../../hw/mcu/nxp/lpc43xx/CMSIS_LPC43xx_DriverLib/inc/lpc43xx_rit.h" />
+                <file file_name="../../../../hw/mcu/nxp/lpc43xx/CMSIS_LPC43xx_DriverLib/inc/lpc43xx_rtc.h" />
+                <file file_name="../../../../hw/mcu/nxp/lpc43xx/CMSIS_LPC43xx_DriverLib/inc/lpc43xx_sct.h" />
+                <file file_name="../../../../hw/mcu/nxp/lpc43xx/CMSIS_LPC43xx_DriverLib/inc/lpc43xx_scu.h" />
+                <file file_name="../../../../hw/mcu/nxp/lpc43xx/CMSIS_LPC43xx_DriverLib/inc/lpc43xx_sdif.h" />
+                <file file_name="../../../../hw/mcu/nxp/lpc43xx/CMSIS_LPC43xx_DriverLib/inc/lpc43xx_sdmmc.h" />
+                <file file_name="../../../../hw/mcu/nxp/lpc43xx/CMSIS_LPC43xx_DriverLib/inc/lpc43xx_ssp.h" />
+                <file file_name="../../../../hw/mcu/nxp/lpc43xx/CMSIS_LPC43xx_DriverLib/inc/lpc43xx_timer.h" />
+                <file file_name="../../../../hw/mcu/nxp/lpc43xx/CMSIS_LPC43xx_DriverLib/inc/lpc43xx_uart.h" />
+                <file file_name="../../../../hw/mcu/nxp/lpc43xx/CMSIS_LPC43xx_DriverLib/inc/lpc43xx_wwdt.h" />
+                <file file_name="../../../../hw/mcu/nxp/lpc43xx/CMSIS_LPC43xx_DriverLib/inc/lpc_sdmmc.h" />
+                <file file_name="../../../../hw/mcu/nxp/lpc43xx/CMSIS_LPC43xx_DriverLib/inc/lpc_types.h" />
+                <file file_name="../../../../hw/mcu/nxp/lpc43xx/CMSIS_LPC43xx_DriverLib/inc/sdio.h" />
+                <file file_name="../../../../hw/mcu/nxp/lpc43xx/CMSIS_LPC43xx_DriverLib/inc/spifi_rom_api.h" />
+                <file file_name="../../../../hw/mcu/nxp/lpc43xx/CMSIS_LPC43xx_DriverLib/inc/system_LPC43xx.h" />
+              </folder>
+              <folder Name="src">
+                <file file_name="../../../../hw/mcu/nxp/lpc43xx/CMSIS_LPC43xx_DriverLib/src/debug_frmwrk.c" />
+                <file file_name="../../../../hw/mcu/nxp/lpc43xx/CMSIS_LPC43xx_DriverLib/src/Font5x7.c" />
+                <file file_name="../../../../hw/mcu/nxp/lpc43xx/CMSIS_LPC43xx_DriverLib/src/LCDTerm.c" />
+                <file file_name="../../../../hw/mcu/nxp/lpc43xx/CMSIS_LPC43xx_DriverLib/src/lpc43xx_adc.c" />
+                <file file_name="../../../../hw/mcu/nxp/lpc43xx/CMSIS_LPC43xx_DriverLib/src/lpc43xx_atimer.c" />
+                <file file_name="../../../../hw/mcu/nxp/lpc43xx/CMSIS_LPC43xx_DriverLib/src/lpc43xx_can.c" />
+                <file file_name="../../../../hw/mcu/nxp/lpc43xx/CMSIS_LPC43xx_DriverLib/src/lpc43xx_cgu.c" />
+                <file file_name="../../../../hw/mcu/nxp/lpc43xx/CMSIS_LPC43xx_DriverLib/src/lpc43xx_dac.c" />
+                <file file_name="../../../../hw/mcu/nxp/lpc43xx/CMSIS_LPC43xx_DriverLib/src/lpc43xx_emc.c" />
+                <file file_name="../../../../hw/mcu/nxp/lpc43xx/CMSIS_LPC43xx_DriverLib/src/lpc43xx_evrt.c" />
+                <file file_name="../../../../hw/mcu/nxp/lpc43xx/CMSIS_LPC43xx_DriverLib/src/lpc43xx_gpdma.c" />
+                <file file_name="../../../../hw/mcu/nxp/lpc43xx/CMSIS_LPC43xx_DriverLib/src/lpc43xx_gpio.c" />
+                <file file_name="../../../../hw/mcu/nxp/lpc43xx/CMSIS_LPC43xx_DriverLib/src/lpc43xx_i2c.c" />
+                <file file_name="../../../../hw/mcu/nxp/lpc43xx/CMSIS_LPC43xx_DriverLib/src/lpc43xx_i2s.c" />
+                <file file_name="../../../../hw/mcu/nxp/lpc43xx/CMSIS_LPC43xx_DriverLib/src/lpc43xx_lcd.c" />
+                <file file_name="../../../../hw/mcu/nxp/lpc43xx/CMSIS_LPC43xx_DriverLib/src/lpc43xx_mcpwm.c" />
+                <file file_name="../../../../hw/mcu/nxp/lpc43xx/CMSIS_LPC43xx_DriverLib/src/lpc43xx_nvic.c" />
+                <file file_name="../../../../hw/mcu/nxp/lpc43xx/CMSIS_LPC43xx_DriverLib/src/lpc43xx_pwr.c" />
+                <file file_name="../../../../hw/mcu/nxp/lpc43xx/CMSIS_LPC43xx_DriverLib/src/lpc43xx_qei.c" />
+                <file file_name="../../../../hw/mcu/nxp/lpc43xx/CMSIS_LPC43xx_DriverLib/src/lpc43xx_rgu.c" />
+                <file file_name="../../../../hw/mcu/nxp/lpc43xx/CMSIS_LPC43xx_DriverLib/src/lpc43xx_rit.c" />
+                <file file_name="../../../../hw/mcu/nxp/lpc43xx/CMSIS_LPC43xx_DriverLib/src/lpc43xx_rtc.c" />
+                <file file_name="../../../../hw/mcu/nxp/lpc43xx/CMSIS_LPC43xx_DriverLib/src/lpc43xx_sct.c" />
+                <file file_name="../../../../hw/mcu/nxp/lpc43xx/CMSIS_LPC43xx_DriverLib/src/lpc43xx_scu.c" />
+                <file file_name="../../../../hw/mcu/nxp/lpc43xx/CMSIS_LPC43xx_DriverLib/src/lpc43xx_sdif.c" />
+                <file file_name="../../../../hw/mcu/nxp/lpc43xx/CMSIS_LPC43xx_DriverLib/src/lpc43xx_sdmmc.c" />
+                <file file_name="../../../../hw/mcu/nxp/lpc43xx/CMSIS_LPC43xx_DriverLib/src/lpc43xx_ssp.c" />
+                <file file_name="../../../../hw/mcu/nxp/lpc43xx/CMSIS_LPC43xx_DriverLib/src/lpc43xx_timer.c" />
+                <file file_name="../../../../hw/mcu/nxp/lpc43xx/CMSIS_LPC43xx_DriverLib/src/lpc43xx_uart.c" />
+                <file file_name="../../../../hw/mcu/nxp/lpc43xx/CMSIS_LPC43xx_DriverLib/src/lpc43xx_wwdt.c" />
+                <file file_name="../../../../hw/mcu/nxp/lpc43xx/CMSIS_LPC43xx_DriverLib/src/system_LPC43xx.c" />
+              </folder>
+            </folder>
+            <folder Name="hal">
+              <file file_name="../../../../hw/mcu/nxp/lpc43xx/hal/dcd_lpc43xx.c" />
+              <file file_name="../../../../hw/mcu/nxp/lpc43xx/hal/dcd_lpc43xx.h" />
+              <file file_name="../../../../hw/mcu/nxp/lpc43xx/hal/hal_lpc43xx.c" />
+              <file file_name="../../../../hw/mcu/nxp/lpc43xx/hal/hal_usb.h" />
+            </folder>
+          </folder>
+        </folder>
+      </folder>
+    </folder>
+    <configuration
+      Name="EA4357"
+      c_preprocessor_definitions="BOARD=BOARD_EA4357;TUSB_CFG_MCU=MCU_LPC43XX" />
+  </project>
+  <configuration
+    Name="Debug"
+    c_preprocessor_definitions="DEBUG"
+    gcc_debugging_level="Level 3"
+    gcc_optimization_level="None" />
+  <configuration
+    Name="Release"
+    c_preprocessor_definitions="NDEBUG"
+    gcc_debugging_level="None"
+    gcc_omit_frame_pointer="Yes"
+    gcc_optimization_level="Level 1" />
+  <configuration Name="EA4357" />
+</solution>

@@ -107,6 +107,10 @@
     #define TUSB_CFG_ATTR_USBRAM _Pragma("location=\".ahb_sram1\"")
   #endif
 
+#elif defined __SES_ARM
+
+#define TUSB_CFG_ATTR_USBRAM  ATTR_SECTION(.bss2)
+
 #else
 
   #error compiler not specified

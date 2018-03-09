@@ -89,6 +89,9 @@ void SystemInit (void)
 	extern void *__Vectors;
 
 	org = *pSCB_VTOR = (unsigned int)&__Vectors;
+#elif defined (__SES_ARM)
+        extern uint32_t _vectors;
+        org = *pSCB_VTOR = (((unsigned int)&_vectors)  & 0xFFF00000UL);
 #else
 #error Unknown compiler
 #endif
