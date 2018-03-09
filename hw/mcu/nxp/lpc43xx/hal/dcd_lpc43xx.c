@@ -52,6 +52,10 @@
 #include "device/usbd_dcd.h"
 #include "dcd_lpc43xx.h"
 
+#include "LPC43xx.h"
+#include "lpc43xx_cgu.h"
+
+
 //--------------------------------------------------------------------+
 // MACRO CONSTANT TYPEDEF
 //--------------------------------------------------------------------+

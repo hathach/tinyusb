@@ -53,9 +53,6 @@ extern "C" {
 #include "common/tusb_errors.h"
 #include "common/compiler/compiler.h"
 
-// from mcu port
-#include "hal_tusb.h"
-
 //--------------------------------------------------------------------+
 // HAL API
 //--------------------------------------------------------------------+
@@ -87,30 +84,8 @@ void hal_usb_int_enable(uint8_t port);
  */
 void hal_usb_int_disable(uint8_t port);
 
-
-
-
-static inline bool hal_debugger_is_attached(void)
-{
-// TODO check core M3/M4 defined instead
-#if !defined(_TEST_) && !(TUSB_CFG_MCU==MCU_LPC11UXX)
-  return ( (CoreDebug->DHCSR & CoreDebug_DHCSR_C_DEBUGEN_Msk) == CoreDebug_DHCSR_C_DEBUGEN_Msk );
-#elif TUSB_CFG_DEBUG == 3
-  return true; // force to break into breakpoint with debug = 3
-#else
-  return false;
-#endif
-}
-
-static inline void hal_debugger_breakpoint(void)
-{
-#ifndef _TEST_
-  if (hal_debugger_is_attached()) /* if there is debugger connected */
-  {
-    __asm("BKPT #0\n");
-  }
-#endif
-}
+// for debug only, halt mcu if assert/verify is failed if debugger is attached
+void hal_debugger_breakpoint(void);
 
 #ifdef __cplusplus
  }

@@ -36,12 +36,12 @@
 */
 /**************************************************************************/
 
-#include "hal_tusb.h"
 #include "tusb.h"
 
 #if TUSB_CFG_MCU == MCU_LPC43XX
 
-#include "lpc43xx_scu.h"
+#include "LPC43xx.h"
+#include "lpc43xx_cgu.h"
 
 enum {
   LPC43XX_USBMODE_DEVICE = 2,
@@ -52,6 +52,18 @@ enum {
   LPC43XX_USBMODE_VBUS_LOW  = 0,
   LPC43XX_USBMODE_VBUS_HIGH = 1
 };
+
+void hal_debugger_breakpoint(void)
+{
+  // M0 cannot check if debugger is attached or not
+#if defined(__CORTEX_M) && (__CORTEX_M > 0)
+  // check if debugger is attached
+  if ( (CoreDebug->DHCSR & CoreDebug_DHCSR_C_DEBUGEN_Msk) == CoreDebug_DHCSR_C_DEBUGEN_Msk)
+  {
+    __asm("BKPT #0\n");
+  }
+#endif
+}
 
 void hal_usb_int_enable(uint8_t port)
 {
