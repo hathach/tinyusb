@@ -102,15 +102,15 @@ enum { USBD_CLASS_DRIVER_COUNT = sizeof(usbd_class_drivers) / sizeof(usbd_class_
 //--------------------------------------------------------------------+
 // INTERNAL OBJECT & FUNCTION DECLARATION
 //--------------------------------------------------------------------+
-static tusb_error_t usbd_set_configure_received(uint8_t coreid, uint8_t config_number);
-static tusb_error_t get_descriptor(uint8_t coreid, tusb_control_request_t const * const p_request, uint8_t const ** pp_buffer, uint16_t * p_length);
+static tusb_error_t usbd_set_configure_received(uint8_t port, uint8_t config_number);
+static tusb_error_t get_descriptor(uint8_t port, tusb_control_request_t const * const p_request, uint8_t const ** pp_buffer, uint16_t * p_length);
 
 //--------------------------------------------------------------------+
 // APPLICATION INTERFACE
 //--------------------------------------------------------------------+
-bool tud_mounted(uint8_t coreid)
+bool tud_mounted(uint8_t port)
 {
-  return usbd_devices[coreid].state == TUSB_DEVICE_STATE_CONFIGURED;
+  return usbd_devices[port].state == TUSB_DEVICE_STATE_CONFIGURED;
 }
 
 //--------------------------------------------------------------------+
@@ -129,7 +129,7 @@ typedef enum
 
 typedef struct ATTR_ALIGNED(4)
 {
-  uint8_t coreid;
+  uint8_t port;
   uint8_t event_id;
   uint8_t sub_event_id;
   uint8_t reserved;
@@ -161,7 +161,7 @@ static osal_queue_t usbd_queue_hdl;
 //--------------------------------------------------------------------+
 // IMPLEMENTATION
 //--------------------------------------------------------------------+
-tusb_error_t usbd_control_request_subtask(uint8_t coreid, tusb_control_request_t const * const p_request);
+tusb_error_t usbd_control_request_subtask(uint8_t port, tusb_control_request_t const * const p_request);
 static tusb_error_t usbd_body_subtask(void);
 
 tusb_error_t usbd_init (void)
@@ -244,7 +244,7 @@ static tusb_error_t usbd_body_subtask(void)
 
   if ( USBD_EVENTID_SETUP_RECEIVED == event.event_id )
   {
-    OSAL_SUBTASK_INVOKED_AND_WAIT( usbd_control_request_subtask(event.coreid, &event.setup_received), error );
+    OSAL_SUBTASK_INVOKED_AND_WAIT( usbd_control_request_subtask(event.port, &event.setup_received), error );
   }else if (USBD_EVENTID_XFER_DONE == event.event_id)
   {
     // Call class handling function, Class that endpoint not belong to should check and return
@@ -261,7 +261,7 @@ static tusb_error_t usbd_body_subtask(void)
     {
       if ( usbd_class_drivers[class_code].sof )
       {
-        usbd_class_drivers[class_code].sof( event.coreid );
+        usbd_class_drivers[class_code].sof( event.port );
       }
     }
   }
@@ -276,7 +276,7 @@ static tusb_error_t usbd_body_subtask(void)
 //--------------------------------------------------------------------+
 // CONTROL REQUEST
 //--------------------------------------------------------------------+
-tusb_error_t usbd_control_request_subtask(uint8_t coreid, tusb_control_request_t const * const p_request)
+tusb_error_t usbd_control_request_subtask(uint8_t port, tusb_control_request_t const * const p_request)
 {
   OSAL_SUBTASK_BEGIN
 
@@ -292,21 +292,21 @@ tusb_error_t usbd_control_request_subtask(uint8_t coreid, tusb_control_request_t
       uint8_t const * p_buffer = NULL;
       uint16_t length = 0;
 
-      error = get_descriptor(coreid, p_request, &p_buffer, &length);
+      error = get_descriptor(port, p_request, &p_buffer, &length);
 
       if ( TUSB_ERROR_NONE == error )
       {
-        hal_dcd_control_xfer(coreid, (tusb_direction_t) p_request->bmRequestType_bit.direction, (uint8_t*) p_buffer, length, false);
+        hal_dcd_control_xfer(port, (tusb_direction_t) p_request->bmRequestType_bit.direction, (uint8_t*) p_buffer, length, false);
       }
     }
     else if ( TUSB_REQUEST_SET_ADDRESS == p_request->bRequest )
     {
-      hal_dcd_set_address(coreid, (uint8_t) p_request->wValue);
-      usbd_devices[coreid].state = TUSB_DEVICE_STATE_ADDRESSED;
+      hal_dcd_set_address(port, (uint8_t) p_request->wValue);
+      usbd_devices[port].state = TUSB_DEVICE_STATE_ADDRESSED;
     }
     else if ( TUSB_REQUEST_SET_CONFIGURATION == p_request->bRequest )
     {
-      usbd_set_configure_received(coreid, (uint8_t) p_request->wValue);
+      usbd_set_configure_received(port, (uint8_t) p_request->wValue);
     }else
     {
       error = TUSB_ERROR_DCD_CONTROL_REQUEST_NOT_SUPPORT;
@@ -317,13 +317,13 @@ tusb_error_t usbd_control_request_subtask(uint8_t coreid, tusb_control_request_t
   {
     static uint8_t class_code;
 
-    class_code = usbd_devices[coreid].interface2class[ u16_low_u8(p_request->wIndex) ];
+    class_code = usbd_devices[port].interface2class[ u16_low_u8(p_request->wIndex) ];
 
     // TODO [Custom] TUSB_CLASS_DIAGNOSTIC, vendor etc ...
     if ( (class_code > 0) && (class_code < USBD_CLASS_DRIVER_COUNT) &&
          usbd_class_drivers[class_code].control_request_subtask )
     {
-      OSAL_SUBTASK_INVOKED_AND_WAIT( usbd_class_drivers[class_code].control_request_subtask(coreid, p_request), error );
+      OSAL_SUBTASK_INVOKED_AND_WAIT( usbd_class_drivers[class_code].control_request_subtask(port, p_request), error );
     }else
     {
       error = TUSB_ERROR_DCD_CONTROL_REQUEST_NOT_SUPPORT;
@@ -335,7 +335,7 @@ tusb_error_t usbd_control_request_subtask(uint8_t coreid, tusb_control_request_t
             TUSB_REQUEST_TYPE_STANDARD      == p_request->bmRequestType_bit.type &&
             TUSB_REQUEST_CLEAR_FEATURE      == p_request->bRequest )
   {
-    hal_dcd_pipe_clear_stall(coreid, u16_low_u8(p_request->wIndex) );
+    hal_dcd_pipe_clear_stall(port, u16_low_u8(p_request->wIndex) );
   } else
   {
     error = TUSB_ERROR_DCD_CONTROL_REQUEST_NOT_SUPPORT;
@@ -343,11 +343,11 @@ tusb_error_t usbd_control_request_subtask(uint8_t coreid, tusb_control_request_t
 
   if(TUSB_ERROR_NONE != error)
   { // Response with Protocol Stall if request is not supported
-    hal_dcd_control_stall(coreid);
+    hal_dcd_control_stall(port);
     //    ASSERT(error == TUSB_ERROR_NONE, VOID_RETURN);
   }else if (p_request->wLength == 0)
   {
-    hal_dcd_control_xfer(coreid, (tusb_direction_t) p_request->bmRequestType_bit.direction, NULL, 0, false); // zero length for non-data
+    hal_dcd_control_xfer(port, (tusb_direction_t) p_request->bmRequestType_bit.direction, NULL, 0, false); // zero length for non-data
   }
 
   OSAL_SUBTASK_END
@@ -355,10 +355,10 @@ tusb_error_t usbd_control_request_subtask(uint8_t coreid, tusb_control_request_t
 
 // TODO Host (windows) can get HID report descriptor before set configured
 // may need to open interface before set configured
-static tusb_error_t usbd_set_configure_received(uint8_t coreid, uint8_t config_number)
+static tusb_error_t usbd_set_configure_received(uint8_t port, uint8_t config_number)
 {
-  hal_dcd_set_config(coreid, config_number);
-  usbd_devices[coreid].state = TUSB_DEVICE_STATE_CONFIGURED;
+  hal_dcd_set_config(port, config_number);
+  usbd_devices[port].state = TUSB_DEVICE_STATE_CONFIGURED;
 
   //------------- parse configuration & open drivers -------------//
   uint8_t const * p_desc_config = tusbd_descriptor_pointers.p_configuration;
@@ -381,12 +381,12 @@ static tusb_error_t usbd_set_configure_received(uint8_t coreid, uint8_t config_n
       class_index = p_desc_interface->bInterfaceClass;
 
       ASSERT( class_index != 0 && class_index < USBD_CLASS_DRIVER_COUNT && usbd_class_drivers[class_index].open != NULL, TUSB_ERROR_NOT_SUPPORTED_YET );
-      ASSERT( 0 == usbd_devices[coreid].interface2class[p_desc_interface->bInterfaceNumber], TUSB_ERROR_FAILED); // duplicate interface number TODO alternate setting
+      ASSERT( 0 == usbd_devices[port].interface2class[p_desc_interface->bInterfaceNumber], TUSB_ERROR_FAILED); // duplicate interface number TODO alternate setting
 
-      usbd_devices[coreid].interface2class[p_desc_interface->bInterfaceNumber] = class_index;
+      usbd_devices[port].interface2class[p_desc_interface->bInterfaceNumber] = class_index;
 
       uint16_t length=0;
-      ASSERT_STATUS( usbd_class_drivers[class_index].open( coreid, p_desc_interface, &length ) );
+      ASSERT_STATUS( usbd_class_drivers[class_index].open( port, p_desc_interface, &length ) );
 
       ASSERT( length >= sizeof(tusb_descriptor_interface_t), TUSB_ERROR_FAILED );
       p_desc += length;
@@ -394,12 +394,12 @@ static tusb_error_t usbd_set_configure_received(uint8_t coreid, uint8_t config_n
   }
 
   // invoke callback
-  tud_mount_cb(coreid);
+  tud_mount_cb(port);
 
   return TUSB_ERROR_NONE;
 }
 
-static tusb_error_t get_descriptor(uint8_t coreid, tusb_control_request_t const * const p_request, uint8_t const ** pp_buffer, uint16_t * p_length)
+static tusb_error_t get_descriptor(uint8_t port, tusb_control_request_t const * const p_request, uint8_t const ** pp_buffer, uint16_t * p_length)
 {
   tusb_std_descriptor_type_t const desc_type = (tusb_std_descriptor_type_t) u16_high_u8(p_request->wValue);
   uint8_t const desc_index = u16_low_u8( p_request->wValue );
@@ -448,28 +448,28 @@ static tusb_error_t get_descriptor(uint8_t coreid, tusb_control_request_t const 
 //--------------------------------------------------------------------+
 // USBD-DCD Callback API
 //--------------------------------------------------------------------+
-void hal_dcd_bus_event(uint8_t coreid, usbd_bus_event_type_t bus_event)
+void hal_dcd_bus_event(uint8_t port, usbd_bus_event_type_t bus_event)
 {
   switch(bus_event)
   {
     case USBD_BUS_EVENT_RESET     :
-      memclr_(&usbd_devices[coreid], sizeof(usbd_device_info_t));
+      memclr_(&usbd_devices[port], sizeof(usbd_device_info_t));
       osal_queue_flush(usbd_queue_hdl);
       osal_semaphore_reset(usbd_control_xfer_sem_hdl);
       for (uint8_t class_code = TUSB_CLASS_AUDIO; class_code < USBD_CLASS_DRIVER_COUNT; class_code++)
       {
-        if ( usbd_class_drivers[class_code].close ) usbd_class_drivers[class_code].close( coreid );
+        if ( usbd_class_drivers[class_code].close ) usbd_class_drivers[class_code].close( port );
       }
 
       // invoke callback
-      tud_umount_cb(coreid);
+      tud_umount_cb(port);
     break;
 
     case USBD_BUS_EVENT_SOF:
     {
       usbd_task_event_t task_event =
       {
-          .coreid          = coreid,
+          .port          = port,
           .event_id        = USBD_EVENTID_SOF,
       };
       osal_queue_send(usbd_queue_hdl, &task_event);
@@ -479,18 +479,18 @@ void hal_dcd_bus_event(uint8_t coreid, usbd_bus_event_type_t bus_event)
     case USBD_BUS_EVENT_UNPLUGGED : break;
 
     case USBD_BUS_EVENT_SUSPENDED:
-      usbd_devices[coreid].state = TUSB_DEVICE_STATE_SUSPENDED;
+      usbd_devices[port].state = TUSB_DEVICE_STATE_SUSPENDED;
     break;
 
     default: break;
   }
 }
 
-void hal_dcd_setup_received(uint8_t coreid, uint8_t const* p_request)
+void hal_dcd_setup_received(uint8_t port, uint8_t const* p_request)
 {
   usbd_task_event_t task_event =
   {
-      .coreid          = coreid,
+      .port          = port,
       .event_id        = USBD_EVENTID_SETUP_RECEIVED,
   };
 
@@ -508,7 +508,7 @@ void usbd_xfer_isr(endpoint_handle_t edpt_hdl, tusb_event_t event, uint32_t xfer
   {
     usbd_task_event_t task_event =
     {
-        .coreid       = edpt_hdl.coreid,
+        .port       = edpt_hdl.port,
         .event_id     = USBD_EVENTID_XFER_DONE,
         .sub_event_id = event
     };

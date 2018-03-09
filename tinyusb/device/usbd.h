@@ -79,32 +79,32 @@ extern tusbd_descriptor_pointer_t tusbd_descriptor_pointers;
 typedef struct {
   void (* init) (void);
   tusb_error_t (* open)(uint8_t, tusb_descriptor_interface_t const *, uint16_t*);
-  tusb_error_t (* control_request_subtask) (uint8_t coreid, tusb_control_request_t const *);
+  tusb_error_t (* control_request_subtask) (uint8_t port, tusb_control_request_t const *);
   tusb_error_t (* xfer_cb) (endpoint_handle_t, tusb_event_t, uint32_t);
 //  void (* routine)(void);
-  void (* sof)(uint8_t coreid);
+  void (* sof)(uint8_t port);
   void (* close) (uint8_t);
 } usbd_class_driver_t;
 
 //--------------------------------------------------------------------+
 // APPLICATION API
 //--------------------------------------------------------------------+
-bool tud_mounted(uint8_t coreid);
+bool tud_mounted(uint8_t port);
 
 /*------------- Callback -------------*/
 /** \brief 			Callback function that will be invoked device is mounted (configured) by USB host
- * \param[in] 	coreid USB Controller ID of the interface
+ * \param[in] 	port USB Controller ID of the interface
  * \note        This callback should be used by Application to \b set-up application data
  */
-void tud_mount_cb(uint8_t coreid);
+void tud_mount_cb(uint8_t port);
 
 /** \brief 			Callback function that will be invoked when device is unmounted (bus reset/unplugged)
- * \param[in] 	coreid USB Controller ID of the interface
+ * \param[in] 	port USB Controller ID of the interface
  * \note        This callback should be used by Application to \b tear-down application data
  */
-void tud_umount_cb(uint8_t coreid);
+void tud_umount_cb(uint8_t port);
 
-//void tud_device_suspended_cb(uint8_t coreid);
+//void tud_device_suspended_cb(uint8_t port);
 
 //--------------------------------------------------------------------+
 // CLASS-USBD & INTERNAL API

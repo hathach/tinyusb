@@ -78,33 +78,33 @@ STATIC_VAR cdcd_data_t cdcd_data[CONTROLLER_DEVICE_NUMBER];
 //--------------------------------------------------------------------+
 // APPLICATION API
 //--------------------------------------------------------------------+
-bool tud_cdc_connected(uint8_t coreid)
+bool tud_cdc_connected(uint8_t port)
 {
-  return cdcd_data[coreid].connected;
+  return cdcd_data[port].connected;
 }
 
-uint32_t tud_cdc_available(uint8_t coreid)
+uint32_t tud_cdc_available(uint8_t port)
 {
   return fifo_count(&_rx_ff);
 }
 
-int tud_cdc_read_char(uint8_t coreid)
+int tud_cdc_read_char(uint8_t port)
 {
   uint8_t ch;
   return fifo_read(&_rx_ff, &ch) ? ch : (-1);
 }
 
-uint32_t tud_cdc_read(uint8_t coreid, void* buffer, uint32_t bufsize)
+uint32_t tud_cdc_read(uint8_t port, void* buffer, uint32_t bufsize)
 {
   return fifo_read_n(&_rx_ff, buffer, bufsize);
 }
 
-uint32_t tud_cdc_write_char(uint8_t coreid, char ch)
+uint32_t tud_cdc_write_char(uint8_t port, char ch)
 {
   return fifo_write(&_tx_ff, &ch);
 }
 
-uint32_t tud_cdc_write(uint8_t coreid, void const* buffer, uint32_t bufsize)
+uint32_t tud_cdc_write(uint8_t port, void const* buffer, uint32_t bufsize)
 {
   return fifo_write_n(&_tx_ff, buffer, bufsize);
 }
@@ -128,7 +128,7 @@ void cdcd_init(void)
   }
 }
 
-tusb_error_t cdcd_open(uint8_t coreid, tusb_descriptor_interface_t const * p_interface_desc, uint16_t *p_length)
+tusb_error_t cdcd_open(uint8_t port, tusb_descriptor_interface_t const * p_interface_desc, uint16_t *p_length)
 {
   if ( CDC_COMM_SUBCLASS_ABSTRACT_CONTROL_MODEL != p_interface_desc->bInterfaceSubClass) return TUSB_ERROR_CDC_UNSUPPORTED_SUBCLASS;
 
@@ -139,7 +139,7 @@ tusb_error_t cdcd_open(uint8_t coreid, tusb_descriptor_interface_t const * p_int
   }
 
   uint8_t const * p_desc = descriptor_next ( (uint8_t const *) p_interface_desc );
-  cdcd_data_t * p_cdc = &cdcd_data[coreid];
+  cdcd_data_t * p_cdc = &cdcd_data[port];
 
   //------------- Communication Interface -------------//
   (*p_length) = sizeof(tusb_descriptor_interface_t);
@@ -157,7 +157,7 @@ tusb_error_t cdcd_open(uint8_t coreid, tusb_descriptor_interface_t const * p_int
 
   if ( TUSB_DESC_TYPE_ENDPOINT == p_desc[DESCRIPTOR_OFFSET_TYPE])
   { // notification endpoint if any
-    VERIFY( hal_dcd_pipe_open(coreid, (tusb_descriptor_endpoint_t const *) p_desc, &p_cdc->edpt_hdl[CDC_PIPE_NOTIFICATION]), TUSB_ERROR_DCD_OPEN_PIPE_FAILED);
+    VERIFY( hal_dcd_pipe_open(port, (tusb_descriptor_endpoint_t const *) p_desc, &p_cdc->edpt_hdl[CDC_PIPE_NOTIFICATION]), TUSB_ERROR_DCD_OPEN_PIPE_FAILED);
 
     (*p_length) += p_desc[DESCRIPTOR_OFFSET_LENGTH];
     p_desc = descriptor_next(p_desc);
@@ -180,7 +180,7 @@ tusb_error_t cdcd_open(uint8_t coreid, tusb_descriptor_interface_t const * p_int
       endpoint_handle_t * p_edpt_hdl =  ( p_endpoint->bEndpointAddress &  TUSB_DIR_DEV_TO_HOST_MASK ) ?
           &p_cdc->edpt_hdl[CDC_PIPE_DATA_IN] : &p_cdc->edpt_hdl[CDC_PIPE_DATA_OUT] ;
 
-      ASSERT_( hal_dcd_pipe_open(coreid, p_endpoint, p_edpt_hdl), TUSB_ERROR_DCD_OPEN_PIPE_FAILED);
+      ASSERT_( hal_dcd_pipe_open(port, p_endpoint, p_edpt_hdl), TUSB_ERROR_DCD_OPEN_PIPE_FAILED);
 
       (*p_length) += p_desc[DESCRIPTOR_OFFSET_LENGTH];
       p_desc = descriptor_next( p_desc );
@@ -196,16 +196,16 @@ tusb_error_t cdcd_open(uint8_t coreid, tusb_descriptor_interface_t const * p_int
   return TUSB_ERROR_NONE;
 }
 
-void cdcd_close(uint8_t coreid)
+void cdcd_close(uint8_t port)
 {
   // no need to close opened pipe, dcd bus reset will put controller's endpoints to default state
-  memclr_(&cdcd_data[coreid], sizeof(cdcd_data_t));
+  memclr_(&cdcd_data[port], sizeof(cdcd_data_t));
 
   fifo_clear(&_rx_ff);
   fifo_clear(&_tx_ff);
 }
 
-tusb_error_t cdcd_control_request_subtask(uint8_t coreid, tusb_control_request_t const * p_request)
+tusb_error_t cdcd_control_request_subtask(uint8_t port, tusb_control_request_t const * p_request)
 {
   //------------- Class Specific Request -------------//
   if (p_request->bmRequestType_bit.type != TUSB_REQUEST_TYPE_CLASS) return TUSB_ERROR_DCD_CONTROL_REQUEST_NOT_SUPPORT;
@@ -213,13 +213,13 @@ tusb_error_t cdcd_control_request_subtask(uint8_t coreid, tusb_control_request_t
   switch(p_request->bRequest)
   {
     case CDC_REQUEST_GET_LINE_CODING:
-      hal_dcd_control_xfer(coreid, (tusb_direction_t) p_request->bmRequestType_bit.direction,
-                            (uint8_t*) &cdcd_line_coding[coreid], min16_of(sizeof(cdc_line_coding_t), p_request->wLength), false );
+      hal_dcd_control_xfer(port, (tusb_direction_t) p_request->bmRequestType_bit.direction,
+                            (uint8_t*) &cdcd_line_coding[port], min16_of(sizeof(cdc_line_coding_t), p_request->wLength), false );
     break;
 
     case CDC_REQUEST_SET_LINE_CODING:
-      hal_dcd_control_xfer(coreid, (tusb_direction_t) p_request->bmRequestType_bit.direction,
-                            (uint8_t*) &cdcd_line_coding[coreid], min16_of(sizeof(cdc_line_coding_t), p_request->wLength), false );
+      hal_dcd_control_xfer(port, (tusb_direction_t) p_request->bmRequestType_bit.direction,
+                            (uint8_t*) &cdcd_line_coding[port], min16_of(sizeof(cdc_line_coding_t), p_request->wLength), false );
       // TODO notify application on xfer completea
     break;
 
@@ -230,7 +230,7 @@ tusb_error_t cdcd_control_request_subtask(uint8_t coreid, tusb_control_request_t
         ACTIVE_DTE_NOT_PRESENT = 0x0002
       };
 
-      cdcd_data_t * p_cdc = &cdcd_data[coreid];
+      cdcd_data_t * p_cdc = &cdcd_data[port];
 
       if (p_request->wValue == ACTIVE_DTE_PRESENT)
       {
@@ -257,7 +257,7 @@ tusb_error_t cdcd_control_request_subtask(uint8_t coreid, tusb_control_request_t
 
 tusb_error_t cdcd_xfer_cb(endpoint_handle_t edpt_hdl, tusb_event_t event, uint32_t xferred_bytes)
 {
-  cdcd_data_t const * p_cdc = &cdcd_data[edpt_hdl.coreid];
+  cdcd_data_t const * p_cdc = &cdcd_data[edpt_hdl.port];
 
   if ( edpt_equal(edpt_hdl, p_cdc->edpt_hdl[CDC_PIPE_DATA_OUT]) )
   {
@@ -267,17 +267,17 @@ tusb_error_t cdcd_xfer_cb(endpoint_handle_t edpt_hdl, tusb_event_t event, uint32
     hal_dcd_pipe_xfer(p_cdc->edpt_hdl[CDC_PIPE_DATA_OUT], _tmp_rx_buf, sizeof(_tmp_rx_buf), true);
 
     // fire callback
-    tud_cdc_rx_cb(edpt_hdl.coreid);
+    tud_cdc_rx_cb(edpt_hdl.port);
   }
 
   return TUSB_ERROR_NONE;
 }
 
-void cdcd_sof(uint8_t coreid)
+void cdcd_sof(uint8_t port)
 {
-  if ( !tud_cdc_connected(coreid) ) return;
+  if ( !tud_cdc_connected(port) ) return;
 
-  endpoint_handle_t ep = cdcd_data[coreid].edpt_hdl[CDC_PIPE_DATA_IN];
+  endpoint_handle_t ep = cdcd_data[port].edpt_hdl[CDC_PIPE_DATA_IN];
 
   if ( !dcd_pipe_is_busy( ep ) )
   {

@@ -53,22 +53,22 @@ enum {
   LPC43XX_USBMODE_VBUS_HIGH = 1
 };
 
-void hal_usb_int_enable(uint8_t coreid)
+void hal_usb_int_enable(uint8_t port)
 {
-  NVIC_EnableIRQ(coreid ? USB1_IRQn : USB0_IRQn);
+  NVIC_EnableIRQ(port ? USB1_IRQn : USB0_IRQn);
 }
 
-void hal_usb_int_disable(uint8_t coreid)
+void hal_usb_int_disable(uint8_t port)
 {
-  NVIC_DisableIRQ(coreid ? USB1_IRQn : USB0_IRQn);
+  NVIC_DisableIRQ(port ? USB1_IRQn : USB0_IRQn);
 }
 
 
-static void hal_controller_reset(uint8_t coreid)
+static void hal_controller_reset(uint8_t port)
 { // TODO timeout expired to prevent trap
   volatile uint32_t * p_reg_usbcmd;
 
-  p_reg_usbcmd = (coreid ? &LPC_USB1->USBCMD_D : &LPC_USB0->USBCMD_D);
+  p_reg_usbcmd = (port ? &LPC_USB1->USBCMD_D : &LPC_USB0->USBCMD_D);
 // NXP chip powered with non-host mode --> sts bit is not correctly reflected
   (*p_reg_usbcmd) |= BIT_(1);
 
@@ -127,7 +127,7 @@ bool hal_usb_init(void)
   return true;
 }
 
-void hal_dcd_isr(uint8_t coreid);
+void hal_dcd_isr(uint8_t port);
 
 #if TUSB_CFG_CONTROLLER_0_MODE
 void USB0_IRQHandler(void)

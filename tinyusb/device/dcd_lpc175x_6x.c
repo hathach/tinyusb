@@ -122,9 +122,9 @@ static void bus_reset(void)
 	memclr_(&dcd_data, sizeof(dcd_data_t));
 }
 
-bool hal_dcd_init(uint8_t coreid)
+bool hal_dcd_init(uint8_t port)
 {
-  (void) coreid;
+  (void) port;
 
   //------------- user manual 11.13 usb device controller initialization -------------//  LPC_USB->USBEpInd = 0;
   // step 6 : set up control endpoint
@@ -161,7 +161,7 @@ static void endpoint_non_control_isr(uint32_t eot_int)
         {
           endpoint_handle_t edpt_hdl =
           {
-              .coreid     = 0,
+              .port     = 0,
               .index      = ep_id,
               .class_code = dcd_data.class_code[ep_id]
           };
@@ -204,7 +204,7 @@ static void endpoint_control_isr(void)
 
       if ( BIT_TEST_(dcd_data.control_dma.int_on_complete, ep_id) )
       {
-        endpoint_handle_t edpt_hdl = { .coreid = 0, .class_code = 0 };
+        endpoint_handle_t edpt_hdl = { .port = 0, .class_code = 0 };
         dcd_data.control_dma.int_on_complete = 0;
 
         // FIXME xferred_byte for control xfer is not needed now !!!
@@ -216,9 +216,9 @@ static void endpoint_control_isr(void)
   LPC_USB->USBEpIntClr = endpoint_int_status; // acknowledge interrupt TODO cannot immediately acknowledge setup packet
 }
 
-void hal_dcd_isr(uint8_t coreid)
+void hal_dcd_isr(uint8_t port)
 {
-  (void) coreid;
+  (void) port;
   uint32_t const device_int_enable = LPC_USB->USBDevIntEn;
   uint32_t const device_int_status = LPC_USB->USBDevIntSt & device_int_enable;
   LPC_USB->USBDevIntClr = device_int_status;// Acknowledge handled interrupt
@@ -280,21 +280,21 @@ void hal_dcd_isr(uint8_t coreid)
 //--------------------------------------------------------------------+
 // USBD API - CONTROLLER
 //--------------------------------------------------------------------+
-void hal_dcd_connect(uint8_t coreid)
+void hal_dcd_connect(uint8_t port)
 {
-  (void) coreid;
+  (void) port;
   sie_write(SIE_CMDCODE_DEVICE_STATUS, 1, 1);
 }
 
-void hal_dcd_set_address(uint8_t coreid, uint8_t dev_addr)
+void hal_dcd_set_address(uint8_t port, uint8_t dev_addr)
 {
-  (void) coreid;
+  (void) port;
   sie_write(SIE_CMDCODE_SET_ADDRESS, 1, 0x80 | dev_addr); // 7th bit is : device_enable
 }
 
-void hal_dcd_set_config(uint8_t coreid, uint8_t config_num)
+void hal_dcd_set_config(uint8_t port, uint8_t config_num)
 {
-  (void) coreid;
+  (void) port;
   (void) config_num;
   sie_write(SIE_CMDCODE_CONFIGURE_DEVICE, 1, 1);
 }
@@ -373,14 +373,14 @@ static tusb_error_t pipe_control_read(void * buffer, uint16_t length)
 //--------------------------------------------------------------------+
 // CONTROL PIPE API
 //--------------------------------------------------------------------+
-void hal_dcd_control_stall(uint8_t coreid)
+void hal_dcd_control_stall(uint8_t port)
 {
   sie_write(SIE_CMDCODE_ENDPOINT_SET_STATUS+0, 1, SIE_SET_ENDPOINT_STALLED_MASK | SIE_SET_ENDPOINT_CONDITION_STALLED_MASK);
 }
 
-bool hal_dcd_control_xfer(uint8_t coreid, tusb_direction_t dir, uint8_t * p_buffer, uint16_t length, bool int_on_complete)
+bool hal_dcd_control_xfer(uint8_t port, tusb_direction_t dir, uint8_t * p_buffer, uint16_t length, bool int_on_complete)
 {
-  (void) coreid;
+  (void) port;
 
   VERIFY( !(length != 0 && p_buffer == NULL) );
 
@@ -412,9 +412,9 @@ bool hal_dcd_control_xfer(uint8_t coreid, tusb_direction_t dir, uint8_t * p_buff
 //--------------------------------------------------------------------+
 // BULK/INTERRUPT/ISO PIPE API
 //--------------------------------------------------------------------+
-endpoint_handle_t hal_dcd_pipe_open(uint8_t coreid, tusb_descriptor_endpoint_t const * p_endpoint_desc, uint8_t class_code)
+endpoint_handle_t hal_dcd_pipe_open(uint8_t port, tusb_descriptor_endpoint_t const * p_endpoint_desc, uint8_t class_code)
 {
-  (void) coreid;
+  (void) port;
 
   endpoint_handle_t const null_handle = { 0 };
 
@@ -442,7 +442,7 @@ endpoint_handle_t hal_dcd_pipe_open(uint8_t coreid, tusb_descriptor_endpoint_t c
 
   return (endpoint_handle_t)
       {
-          .coreid     = 0,
+          .port     = 0,
           .index      = ep_id,
           .class_code = class_code
       };
@@ -458,7 +458,7 @@ void hal_dcd_pipe_stall(endpoint_handle_t edpt_hdl)
   sie_write(SIE_CMDCODE_ENDPOINT_SET_STATUS+edpt_hdl.index, 1, SIE_SET_ENDPOINT_STALLED_MASK);
 }
 
-void hal_dcd_pipe_clear_stall(uint8_t coreid, uint8_t edpt_addr)
+void hal_dcd_pipe_clear_stall(uint8_t port, uint8_t edpt_addr)
 {
   uint8_t ep_id = edpt_addr2phy(edpt_addr);
 

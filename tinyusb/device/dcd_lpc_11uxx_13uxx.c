@@ -164,28 +164,28 @@ static void queue_xfer_in_next_td(uint8_t ep_id);
 //--------------------------------------------------------------------+
 // CONTROLLER API
 //--------------------------------------------------------------------+
-void hal_dcd_connect(uint8_t coreid)
+void hal_dcd_connect(uint8_t port)
 {
-  (void) coreid;
+  (void) port;
   LPC_USB->DEVCMDSTAT |= CMDSTAT_DEVICE_CONNECT_MASK;
 }
 
-void hal_dcd_set_config(uint8_t coreid, uint8_t config_num)
+void hal_dcd_set_config(uint8_t port, uint8_t config_num)
 {
 
 }
 
-void hal_dcd_set_address(uint8_t coreid, uint8_t dev_addr)
+void hal_dcd_set_address(uint8_t port, uint8_t dev_addr)
 {
-  (void) coreid;
+  (void) port;
 
   LPC_USB->DEVCMDSTAT &= ~CMDSTAT_DEVICE_ADDR_MASK;
   LPC_USB->DEVCMDSTAT |= dev_addr;
 }
 
-bool hal_dcd_init(uint8_t coreid)
+bool hal_dcd_init(uint8_t port)
 {
-  (void) coreid;
+  (void) port;
 
   LPC_USB->EPLISTSTART  = (uint32_t) dcd_data.qhd;
   LPC_USB->DATABUFSTART = 0x20000000; // only SRAM1 & USB RAM can be used for transfer
@@ -248,7 +248,7 @@ static void endpoint_non_control_isr(uint32_t int_status)
         {
           endpoint_handle_t edpt_hdl =
           {
-              .coreid     = 0,
+              .port     = 0,
               .index      = ep_id,
               .class_code = dcd_data.class_code[ep_id]
           };
@@ -286,7 +286,7 @@ static void endpoint_control_isr(uint32_t int_status)
 
     if ( BIT_TEST_(dcd_data.current_ioc, ep_id) )
     {
-      endpoint_handle_t edpt_hdl = { .coreid = 0 };
+      endpoint_handle_t edpt_hdl = { .port = 0 };
 
       dcd_data.current_ioc = BIT_CLR_(dcd_data.current_ioc, ep_id);
 
@@ -296,9 +296,9 @@ static void endpoint_control_isr(uint32_t int_status)
   }
 }
 
-void hal_dcd_isr(uint8_t coreid)
+void hal_dcd_isr(uint8_t port)
 {
-  (void) coreid;
+  (void) port;
 
   uint32_t const int_enable = LPC_USB->INTEN;
   uint32_t const int_status = LPC_USB->INTSTAT & int_enable;
@@ -349,7 +349,7 @@ void hal_dcd_isr(uint8_t coreid)
   if ( BIT_TEST_(int_status, 0) && (dev_cmd_stat & CMDSTAT_SETUP_RECEIVED_MASK) )
   { // received control request from host
     // copy setup request & acknowledge so that the next setup can be received by hw
-    hal_dcd_setup_received(coreid, (uint8_t*)&dcd_data.setup_request);
+    hal_dcd_setup_received(port, (uint8_t*)&dcd_data.setup_request);
 
     // NXP control flowchart clear Active & Stall on both Control IN/OUT endpoints
     dcd_data.qhd[0][0].stall = dcd_data.qhd[1][0].stall = 0;
@@ -373,16 +373,16 @@ void hal_dcd_isr(uint8_t coreid)
 //--------------------------------------------------------------------+
 // CONTROL PIPE API
 //--------------------------------------------------------------------+
-void hal_dcd_control_stall(uint8_t coreid)
+void hal_dcd_control_stall(uint8_t port)
 {
-  (void) coreid;
+  (void) port;
   // TODO cannot able to STALL Control OUT endpoint !!!!! FIXME try some walk-around
   dcd_data.qhd[0][0].stall = dcd_data.qhd[1][0].stall = 1;
 }
 
-bool hal_dcd_control_xfer(uint8_t coreid, tusb_direction_t dir, uint8_t * p_buffer, uint16_t length, bool int_on_complete)
+bool hal_dcd_control_xfer(uint8_t port, tusb_direction_t dir, uint8_t * p_buffer, uint16_t length, bool int_on_complete)
 {
-  (void) coreid;
+  (void) port;
 
   // determine Endpoint where Data & Status phase occurred (IN or OUT)
   uint8_t const ep_data   = (dir == TUSB_DIR_DEV_TO_HOST) ? 1 : 0;
@@ -438,7 +438,7 @@ bool dcd_pipe_is_stalled(endpoint_handle_t edpt_hdl)
   return dcd_data.qhd[edpt_hdl.index][0].stall || dcd_data.qhd[edpt_hdl.index][1].stall;
 }
 
-void hal_dcd_pipe_clear_stall(uint8_t coreid, uint8_t edpt_addr)
+void hal_dcd_pipe_clear_stall(uint8_t port, uint8_t edpt_addr)
 {
   uint8_t ep_id = edpt_addr2phy(edpt_addr);
 //  uint8_t active_buffer = BIT_TEST_(LPC_USB->EPINUSE, ep_id) ? 1 : 0;
@@ -456,9 +456,9 @@ void hal_dcd_pipe_clear_stall(uint8_t coreid, uint8_t edpt_addr)
   }
 }
 
-endpoint_handle_t hal_dcd_pipe_open(uint8_t coreid, tusb_descriptor_endpoint_t const * p_endpoint_desc, uint8_t class_code)
+endpoint_handle_t hal_dcd_pipe_open(uint8_t port, tusb_descriptor_endpoint_t const * p_endpoint_desc, uint8_t class_code)
 {
-  (void) coreid;
+  (void) port;
   endpoint_handle_t const null_handle = { 0 };
 
   if (p_endpoint_desc->bmAttributes.xfer == TUSB_XFER_ISOCHRONOUS) return null_handle; // TODO not support ISO yet
@@ -483,7 +483,7 @@ endpoint_handle_t hal_dcd_pipe_open(uint8_t coreid, tusb_descriptor_endpoint_t c
 
   return (endpoint_handle_t)
       {
-          .coreid     = 0,
+          .port     = 0,
           .index      = ep_id,
           .class_code = class_code
       };

@@ -79,12 +79,12 @@ void mscd_init(void)
   memclr_(&mscd_data, sizeof(mscd_interface_t));
 }
 
-void mscd_close(uint8_t coreid)
+void mscd_close(uint8_t port)
 {
   memclr_(&mscd_data, sizeof(mscd_interface_t));
 }
 
-tusb_error_t mscd_open(uint8_t coreid, tusb_descriptor_interface_t const * p_interface_desc, uint16_t *p_length)
+tusb_error_t mscd_open(uint8_t port, tusb_descriptor_interface_t const * p_interface_desc, uint16_t *p_length)
 {
   ASSERT( ( MSC_SUBCLASS_SCSI == p_interface_desc->bInterfaceSubClass &&
             MSC_PROTOCOL_BOT  == p_interface_desc->bInterfaceProtocol ), TUSB_ERROR_MSC_UNSUPPORTED_PROTOCOL );
@@ -101,7 +101,7 @@ tusb_error_t mscd_open(uint8_t coreid, tusb_descriptor_interface_t const * p_int
     endpoint_handle_t * p_edpt_hdl =  ( p_endpoint->bEndpointAddress &  TUSB_DIR_DEV_TO_HOST_MASK ) ?
         &p_msc->edpt_in : &p_msc->edpt_out;
 
-    VERIFY( hal_dcd_pipe_open(coreid, p_endpoint, p_edpt_hdl), TUSB_ERROR_DCD_FAILED );
+    VERIFY( hal_dcd_pipe_open(port, p_endpoint, p_edpt_hdl), TUSB_ERROR_DCD_FAILED );
     p_endpoint = (tusb_descriptor_endpoint_t const *) descriptor_next( (uint8_t const*)  p_endpoint );
   }
 
@@ -115,7 +115,7 @@ tusb_error_t mscd_open(uint8_t coreid, tusb_descriptor_interface_t const * p_int
   return TUSB_ERROR_NONE;
 }
 
-tusb_error_t mscd_control_request_subtask(uint8_t coreid, tusb_control_request_t const * p_request)
+tusb_error_t mscd_control_request_subtask(uint8_t port, tusb_control_request_t const * p_request)
 {
   ASSERT(p_request->bmRequestType_bit.type == TUSB_REQUEST_TYPE_CLASS, TUSB_ERROR_DCD_CONTROL_REQUEST_NOT_SUPPORT);
 
@@ -124,12 +124,12 @@ tusb_error_t mscd_control_request_subtask(uint8_t coreid, tusb_control_request_t
   switch(p_request->bRequest)
   {
     case MSC_REQUEST_RESET:
-      hal_dcd_control_xfer(coreid, TUSB_DIR_HOST_TO_DEV, NULL, 0, false);
+      hal_dcd_control_xfer(port, TUSB_DIR_HOST_TO_DEV, NULL, 0, false);
     break;
 
     case MSC_REQUEST_GET_MAX_LUN:
       p_msc->scsi_data[0] = p_msc->max_lun; // Note: lpc11/13u need xfer data's address to be aligned 64 -> make use of scsi_data instead of using max_lun directly
-      hal_dcd_control_xfer(coreid, TUSB_DIR_DEV_TO_HOST, p_msc->scsi_data, 1, false);
+      hal_dcd_control_xfer(port, TUSB_DIR_DEV_TO_HOST, p_msc->scsi_data, 1, false);
     break;
 
     default:
@@ -174,7 +174,7 @@ tusb_error_t mscd_xfer_cb(endpoint_handle_t edpt_hdl, tusb_event_t event, uint32
       // TODO SCSI data out transfer is not yet supported
       ASSERT_FALSE( p_cbw->xfer_bytes > 0 && !BIT_TEST_(p_cbw->dir, 7), TUSB_ERROR_NOT_SUPPORTED_YET);
 
-      p_csw->status = tud_msc_scsi_cb(edpt_hdl.coreid, p_cbw->lun, p_cbw->command, &p_buffer, &actual_length);
+      p_csw->status = tud_msc_scsi_cb(edpt_hdl.port, p_cbw->lun, p_cbw->command, &p_buffer, &actual_length);
 
       //------------- Data Phase (non READ10, WRITE10) -------------//
       if ( p_cbw->xfer_bytes )
@@ -230,8 +230,8 @@ static bool read10_write10_data_xfer(mscd_interface_t* p_msc)
   uint16_t const block_count = __be2n_16(p_readwrite->block_count);
   void *p_buffer = NULL;
 
-  uint16_t xferred_block = (SCSI_CMD_READ_10 == p_cbw->command[0]) ? tud_msc_read10_cb (edpt_hdl.coreid, p_cbw->lun, &p_buffer, lba, block_count) :
-                                                                     tud_msc_write10_cb(edpt_hdl.coreid, p_cbw->lun, &p_buffer, lba, block_count);
+  uint16_t xferred_block = (SCSI_CMD_READ_10 == p_cbw->command[0]) ? tud_msc_read10_cb (edpt_hdl.port, p_cbw->lun, &p_buffer, lba, block_count) :
+                                                                     tud_msc_write10_cb(edpt_hdl.port, p_cbw->lun, &p_buffer, lba, block_count);
   xferred_block = min16_of(xferred_block, block_count);
 
   uint16_t const xferred_byte = xferred_block * (p_cbw->xfer_bytes / block_count);

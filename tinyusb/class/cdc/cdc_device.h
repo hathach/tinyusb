@@ -55,21 +55,21 @@
 //--------------------------------------------------------------------+
 // APPLICATION API
 //--------------------------------------------------------------------+
-bool     tud_cdc_connected(uint8_t coreid);
-uint32_t tud_cdc_available(uint8_t coreid);
+bool     tud_cdc_connected(uint8_t port);
+uint32_t tud_cdc_available(uint8_t port);
 
-int      tud_cdc_read_char(uint8_t coreid);
-uint32_t tud_cdc_read(uint8_t coreid, void* buffer, uint32_t bufsize);
+int      tud_cdc_read_char(uint8_t port);
+uint32_t tud_cdc_read(uint8_t port, void* buffer, uint32_t bufsize);
 
-uint32_t tud_cdc_write_char(uint8_t coreid, char ch);
-uint32_t tud_cdc_write(uint8_t coreid, void const* buffer, uint32_t bufsize);
+uint32_t tud_cdc_write_char(uint8_t port, char ch);
+uint32_t tud_cdc_write(uint8_t port, void const* buffer, uint32_t bufsize);
 
 
 //--------------------------------------------------------------------+
 // APPLICATION CALLBACK API
 //--------------------------------------------------------------------+
-//void tud_cdc_line_coding_changed_cb(uint8_t coreid, cdc_line_coding_t* p_line_coding);
-void tud_cdc_rx_cb(uint8_t coreid);
+//void tud_cdc_line_coding_changed_cb(uint8_t port, cdc_line_coding_t* p_line_coding);
+void tud_cdc_rx_cb(uint8_t port);
 
 //--------------------------------------------------------------------+
 // USBD-CLASS DRIVER API
@@ -77,12 +77,12 @@ void tud_cdc_rx_cb(uint8_t coreid);
 #ifdef _TINY_USB_SOURCE_FILE_
 
 void cdcd_init(void);
-tusb_error_t cdcd_open(uint8_t coreid, tusb_descriptor_interface_t const * p_interface_desc, uint16_t *p_length);
-tusb_error_t cdcd_control_request_subtask(uint8_t coreid, tusb_control_request_t const * p_request);
+tusb_error_t cdcd_open(uint8_t port, tusb_descriptor_interface_t const * p_interface_desc, uint16_t *p_length);
+tusb_error_t cdcd_control_request_subtask(uint8_t port, tusb_control_request_t const * p_request);
 tusb_error_t cdcd_xfer_cb(endpoint_handle_t edpt_hdl, tusb_event_t event, uint32_t xferred_bytes);
-void cdcd_close(uint8_t coreid);
+void cdcd_close(uint8_t port);
 
-void cdcd_sof(uint8_t coreid);
+void cdcd_sof(uint8_t port);
 
 #endif
 

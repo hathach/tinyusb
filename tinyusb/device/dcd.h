@@ -60,31 +60,31 @@ typedef enum
 
 // TODO move Hal
 typedef struct {
-  uint8_t coreid;
+  uint8_t port;
   uint8_t index; // must be zero to indicate control
 } endpoint_handle_t;
 
 static inline bool edpt_equal(endpoint_handle_t x, endpoint_handle_t y)
 {
-  return (x.coreid == y.coreid) && (x.index == y.index);
+  return (x.port == y.port) && (x.index == y.index);
 }
 
 //------------- Controller API -------------//
-bool hal_dcd_init        (uint8_t coreid);
-void hal_dcd_connect     (uint8_t coreid);
-void hal_dcd_disconnect  (uint8_t coreid);
-void hal_dcd_set_address (uint8_t coreid, uint8_t dev_addr);
-void hal_dcd_set_config  (uint8_t coreid, uint8_t config_num);
+bool hal_dcd_init        (uint8_t port);
+void hal_dcd_connect     (uint8_t port);
+void hal_dcd_disconnect  (uint8_t port);
+void hal_dcd_set_address (uint8_t port, uint8_t dev_addr);
+void hal_dcd_set_config  (uint8_t port, uint8_t config_num);
 
 /*------------- Event function -------------*/
-void hal_dcd_bus_event(uint8_t coreid, usbd_bus_event_type_t bus_event);
-void hal_dcd_setup_received(uint8_t coreid, uint8_t const* p_request);
+void hal_dcd_bus_event(uint8_t port, usbd_bus_event_type_t bus_event);
+void hal_dcd_setup_received(uint8_t port, uint8_t const* p_request);
 
 //------------- PIPE API -------------//
-bool hal_dcd_control_xfer(uint8_t coreid, tusb_direction_t dir, uint8_t * p_buffer, uint16_t length, bool int_on_complete);
-void hal_dcd_control_stall(uint8_t coreid);
+bool hal_dcd_control_xfer(uint8_t port, tusb_direction_t dir, uint8_t * p_buffer, uint16_t length, bool int_on_complete);
+void hal_dcd_control_stall(uint8_t port);
 
-bool hal_dcd_pipe_open(uint8_t coreid, tusb_descriptor_endpoint_t const * p_endpoint_desc, endpoint_handle_t* eh);
+bool hal_dcd_pipe_open(uint8_t port, tusb_descriptor_endpoint_t const * p_endpoint_desc, endpoint_handle_t* eh);
 
 
 tusb_error_t dcd_pipe_queue_xfer(endpoint_handle_t edpt_hdl, uint8_t * buffer, uint16_t total_bytes); // only queue, not transferring yet
@@ -92,9 +92,9 @@ tusb_error_t hal_dcd_pipe_xfer(endpoint_handle_t edpt_hdl, uint8_t * buffer, uin
 
 bool dcd_pipe_is_busy(endpoint_handle_t edpt_hdl);
 
-// TODO coreid + endpoint address are part of endpoint handle, not endpoint handle, data toggle also need to be reset
+// TODO port + endpoint address are part of endpoint handle, not endpoint handle, data toggle also need to be reset
 void hal_dcd_pipe_stall(endpoint_handle_t edpt_hdl);
-void hal_dcd_pipe_clear_stall(uint8_t coreid, uint8_t edpt_addr);
+void hal_dcd_pipe_clear_stall(uint8_t port, uint8_t edpt_addr);
 
 #ifdef __cplusplus
  }

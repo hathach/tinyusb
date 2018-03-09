@@ -61,7 +61,7 @@
 //--------------------------------------------------------------------+
 
 /** \brief 			Callback that is invoked when tinyusb stack received \ref SCSI_CMD_READ_10 command from host
- * \param[in]		coreid	    USB Controller ID
+ * \param[in]		port	    USB Controller ID
  * \param[in]		lun         Targeted Logical Unit
  * \param[out]	pp_buffer   Pointer to buffer which application need to update with the response data's address.
  *                          Must be accessible by USB controller (see \ref TUSB_CFG_ATTR_USBRAM)
@@ -76,10 +76,10 @@
  *              \n\n Although this callback is called by tinyusb device task (non-isr context), however as all the classes share
  *              the same task (to save resource), any delay in this callback will cause delay in reponse on other classes.
  */
-uint16_t tud_msc_read10_cb (uint8_t coreid, uint8_t lun, void** pp_buffer, uint32_t lba, uint16_t block_count);
+uint16_t tud_msc_read10_cb (uint8_t port, uint8_t lun, void** pp_buffer, uint32_t lba, uint16_t block_count);
 
 /** \brief 			Callback that is invoked when tinyusb stack received \ref SCSI_CMD_WRITE_10 command from host
- * \param[in]		coreid	    USB Controller ID
+ * \param[in]		port	    USB Controller ID
  * \param[in]		lun         Targeted Logical Unit
  * \param[out]	pp_buffer   Pointer to buffer which application need to update with the address to hold data from host
  *                          Must be accessible by USB controller (see \ref TUSB_CFG_ATTR_USBRAM)
@@ -94,12 +94,12 @@ uint16_t tud_msc_read10_cb (uint8_t coreid, uint8_t lun, void** pp_buffer, uint3
  *              \n\n Although this callback is called by tinyusb device task (non-isr context), however as all the classes share
  *              the same task (to save resource), any delay in this callback will cause delay in reponse on other classes.
  */
-uint16_t tud_msc_write10_cb(uint8_t coreid, uint8_t lun, void** pp_buffer, uint32_t lba, uint16_t block_count);
+uint16_t tud_msc_write10_cb(uint8_t port, uint8_t lun, void** pp_buffer, uint32_t lba, uint16_t block_count);
 
 // p_length [in,out] allocated/maximum length, application update with actual length
 /** \brief 			Callback that is invoked when tinyusb stack received an SCSI command other than \ref SCSI_CMD_WRITE_10 and
  *              \ref SCSI_CMD_READ_10 command from host
- * \param[in]		coreid	    USB Controller ID
+ * \param[in]		port	    USB Controller ID
  * \param[in]		lun         Targeted Logical Unit
  * \param[in]		scsi_cmd    SCSI command contents, application should examine this command block to know which command host requested
  * \param[out]	pp_buffer   Pointer to buffer which application need to update with the address to transfer data with host.
@@ -111,7 +111,7 @@ uint16_t tud_msc_write10_cb(uint8_t coreid, uint8_t lun, void** pp_buffer, uint3
  * \note        Although this callback is called by tinyusb device task (non-isr context), however as all the classes share
  *              the same task (to save resource), any delay in this callback will cause delay in reponse on other classes.
  */
-msc_csw_status_t tud_msc_scsi_cb (uint8_t coreid, uint8_t lun, uint8_t scsi_cmd[16], void const ** pp_buffer, uint16_t* p_length);
+msc_csw_status_t tud_msc_scsi_cb (uint8_t port, uint8_t lun, uint8_t scsi_cmd[16], void const ** pp_buffer, uint16_t* p_length);
 
 /** @} */
 /** @} */
@@ -122,10 +122,10 @@ msc_csw_status_t tud_msc_scsi_cb (uint8_t coreid, uint8_t lun, uint8_t scsi_cmd[
 #ifdef _TINY_USB_SOURCE_FILE_
 
 void mscd_init(void);
-tusb_error_t mscd_open(uint8_t coreid, tusb_descriptor_interface_t const * p_interface_desc, uint16_t *p_length);
-tusb_error_t mscd_control_request_subtask(uint8_t coreid, tusb_control_request_t const * p_request);
+tusb_error_t mscd_open(uint8_t port, tusb_descriptor_interface_t const * p_interface_desc, uint16_t *p_length);
+tusb_error_t mscd_control_request_subtask(uint8_t port, tusb_control_request_t const * p_request);
 tusb_error_t mscd_xfer_cb(endpoint_handle_t edpt_hdl, tusb_event_t event, uint32_t xferred_bytes);
-void mscd_close(uint8_t coreid);
+void mscd_close(uint8_t port);
 
 #endif
 
