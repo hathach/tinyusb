@@ -54,7 +54,7 @@ extern "C" {
 #include "common/compiler/compiler.h"
 
 // from mcu port
-#include "hal_usb.h"
+#include "hal_tusb.h"
 
 //--------------------------------------------------------------------+
 // HAL API
