@@ -110,6 +110,8 @@
   #include "microbuilder/board_lpc4357usb.h"
 #elif BOARD == BOARD_LPCLINK2
  #include "lpcxpresso/board_lpclink2.h"
+#elif defined BOARD_PCA10056
+ #include "pca10056/board_pca10056.h"
 #else
   #error BOARD is not defined or supported yet
 #endif

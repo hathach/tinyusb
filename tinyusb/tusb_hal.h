@@ -84,6 +84,8 @@ void hal_usb_int_enable(uint8_t port);
  */
 void hal_usb_int_disable(uint8_t port);
 
+uint32_t hal_tick_get(void);
+
 // for debug only, halt mcu if assert/verify is failed if debugger is attached
 void hal_debugger_breakpoint(void);
 

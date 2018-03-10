@@ -1,0 +1,108 @@
+<!DOCTYPE CrossStudio_Project_File>
+<solution Name="nrf52840" target="8" version="2">
+  <project Name="nrf52840">
+    <configuration
+      Name="Common"
+      Placement="Flash"
+      Target="nRF52840_xxAA"
+      arm_architecture="v7EM"
+      arm_core_type="Cortex-M4"
+      arm_endian="Little"
+      arm_fp_abi="Hard"
+      arm_fpu_type="FPv4-SP-D16"
+      arm_interwork="No"
+      arm_linker_heap_size="1024"
+      arm_linker_process_stack_size="0"
+      arm_linker_stack_size="1024"
+      arm_simulator_memory_simulation_parameter="ROM;0x00000000;0x00100000;RAM;0x20000000;0x00040000"
+      arm_target_debug_interface_type="ADIv5"
+      arm_target_device_name="nRF52840_xxAA"
+      arm_target_interface_type="SWD"
+      c_preprocessor_definitions="NRF52840_XXAA;__nRF_FAMILY;ARM_MATH_CM4;FLASH_PLACEMENT=1;BOARD_PCA10056"
+      c_user_include_directories="$(ProjectDir)/CMSIS_4/CMSIS/Include;$(ProjectDir)/nRF/CMSIS/Device/Include;$(RepoDir)/hw/cmsis/Include;$(RepoDir)/hw;$(McuDir)/hal;$(RepoDir)/tinyusb;$(McuDir)/sdk;$(McuDir)/sdk/drivers_nrf/hal;$(McuDir)/sdk/drivers_nrf/systick;$(McuDir)/sdk/drivers_nrf/uart;$(McuDir)/sdk/drivers_nrf/usbd;$(McuDir)/sdk/drivers_nrf/common;$(McuDir)/sdk/drivers_nrf/delay;$(McuDir)/sdk/drivers_nrf/power;$(McuDir)/sdk/drivers_nrf/clock;$(McuDir)/sdk/external/fprintf;$(McuDir)/sdk/libraries/util;$(McuDir)/sdk/libraries/strerror;$(McuDir)/sdk/libraries/atomic;$(McuDir)/sdk/libraries/balloc;$(McuDir)/sdk/libraries/experimental_log/src;$(McuDir)/sdk/libraries/experimental_log;$(McuDir)/sdk/libraries/experimental_section_vars;$(McuDir)/sdk/libraries/experimental_memobj;$(McuDir)/sdk/softdevice/s140/headers;$(McuDir)/sdk/softdevice/s140/headers/nrf52;$(McuDir)/sdk/softdevice/common;../src"
+      debug_register_definition_file="$(ProjectDir)/nrf52840_Registers.xml"
+      debug_target_connection="J-Link"
+      gcc_entry_point="Reset_Handler"
+      linker_memory_map_file="$(ProjectDir)/nRF52840_xxAA_MemoryMap.xml"
+      linker_section_placement_file="$(ProjectDir)/flash_placement.xml"
+      macros="DeviceHeaderFile=$(PackagesDir)/nRF/CMSIS/Device/Include/nrf.h;DeviceLibraryIdentifier=M4lf;DeviceSystemFile=$(PackagesDir)/nRF/CMSIS/Device/Source/system_nrf52840.c;DeviceVectorsFile=$(PackagesDir)/nRF/Source/ses_nrf52840_Vectors.s;DeviceFamily=nRF;Target=nRF52840_xxAA;Placement=Flash;RepoDir=../../../..;McuDir=../../../../hw/mcu/nordic/nrf52"
+      project_directory=""
+      project_type="Executable"
+      target_reset_script="Reset();"
+      target_script_file="$(ProjectDir)/nRF_Target.js"
+      target_trace_initialize_script="EnableTrace(&quot;$(TraceInterfaceType)&quot;)" />
+    <folder Name="CMSIS Files">
+      <file file_name="nrf.h" />
+      <file file_name="system_nrf52840.c">
+        <configuration
+          Name="Common"
+          default_code_section=".init"
+          default_const_section=".init_rodata" />
+      </file>
+    </folder>
+    <folder Name="RTT Files">
+      <file file_name="SEGGER_RTT.c" />
+      <file file_name="SEGGER_RTT.h" />
+      <file file_name="SEGGER_RTT_Conf.h" />
+      <file file_name="SEGGER_RTT_SES.c" />
+    </folder>
+    <folder Name="Script Files">
+      <file file_name="nRF_Target.js">
+        <configuration Name="Common" file_type="Reset Script" />
+      </file>
+    </folder>
+    <folder Name="System Files">
+      <file file_name="thumb_crt0.s" />
+      <file file_name="ses_nRF_Startup.s" />
+      <file file_name="ses_nrf52840_Vectors.s">
+        <configuration Name="Common" file_type="Assembly" />
+      </file>
+    </folder>
+    <folder
+      Name="tinyusb"
+      exclude=""
+      filter="*.c;*.h"
+      path="../../../../tinyusb"
+      recurse="Yes" />
+    <folder Name="src">
+      <file file_name="../src/main.c" />
+      <file file_name="../src/tusb_config.h" />
+      <file file_name="../src/tusb_descriptors.c" />
+      <file file_name="../src/tusb_descriptors.h" />
+    </folder>
+    <folder Name="hw">
+      <folder Name="bsp">
+        <folder Name="pca10056">
+          <file file_name="../../../../hw/bsp/pca10056/board_pca10056.c" />
+          <file file_name="../../../../hw/bsp/pca10056/board_pca10056.h" />
+        </folder>
+      </folder>
+      <folder Name="mcu">
+        <folder Name="nordic">
+          <folder Name="nrf52">
+            <folder Name="hal">
+              <file file_name="../../../../hw/mcu/nordic/nrf52/hal/hal_nrf52.c" />
+            </folder>
+            <folder
+              Name="sdk"
+              exclude=""
+              filter="*.c;*.h"
+              path="../../../../hw/mcu/nordic/nrf52/sdk"
+              recurse="Yes" />
+          </folder>
+        </folder>
+      </folder>
+    </folder>
+  </project>
+  <configuration
+    Name="Debug"
+    c_preprocessor_definitions="DEBUG"
+    gcc_debugging_level="Level 3"
+    gcc_optimization_level="None" />
+  <configuration
+    Name="Release"
+    c_preprocessor_definitions="NDEBUG"
+    gcc_debugging_level="None"
+    gcc_omit_frame_pointer="Yes"
+    gcc_optimization_level="Level 1" />
+</solution>

@@ -88,7 +88,7 @@
 						</toolChain>
 					</folderInfo>
 					<sourceEntries>
-						<entry excluding="hw/bsp/ngx|hw/bsp/lpcxpresso1769|hw/bsp/lpcxpresso1347|hw/bsp/lpcxpresso11u68|hw/bsp/lpcxpresso|hw/bsp/keil|hw/bsp/hitex|hw/mcu/nxp/lpc175x_6x|hw/mcu/nxp/lpc13uxx|hw/mcu/nxp/lpc11uxx" flags="VALUE_WORKSPACE_PATH|RESOLVED" kind="sourcePath" name=""/>
+						<entry excluding="hw/mcu/nordic|hw/bsp/pca10056|hw/bsp/ngx|hw/bsp/lpcxpresso1769|hw/bsp/lpcxpresso1347|hw/bsp/lpcxpresso11u68|hw/bsp/lpcxpresso|hw/bsp/keil|hw/bsp/hitex|hw/mcu/nxp/lpc175x_6x|hw/mcu/nxp/lpc13uxx|hw/mcu/nxp/lpc11uxx" flags="VALUE_WORKSPACE_PATH|RESOLVED" kind="sourcePath" name=""/>
 					</sourceEntries>
 				</configuration>
 			</storageModule>
