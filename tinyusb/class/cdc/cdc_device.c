@@ -213,7 +213,7 @@ void cdcd_close(uint8_t port)
 tusb_error_t cdcd_control_request_subtask(uint8_t port, tusb_control_request_t const * p_request)
 {
   //------------- Class Specific Request -------------//
-  if (p_request->bmRequestType_bit.type != TUSB_REQUEST_TYPE_CLASS) return TUSB_ERROR_DCD_CONTROL_REQUEST_NOT_SUPPORT;
+  if (p_request->bmRequestType_bit.type != TUSB_REQ_TYPE_CLASS) return TUSB_ERROR_DCD_CONTROL_REQUEST_NOT_SUPPORT;
 
   switch(p_request->bRequest)
   {

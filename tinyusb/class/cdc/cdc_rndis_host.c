@@ -245,7 +245,7 @@ static tusb_error_t send_message_get_response_subtask( uint8_t dev_addr, cdch_da
 
   //------------- Send RNDIS Control Message -------------//
   OSAL_SUBTASK_INVOKED_AND_WAIT(
-      usbh_control_xfer_subtask( dev_addr, bm_request_type(TUSB_DIR_OUT, TUSB_REQUEST_TYPE_CLASS, TUSB_REQUEST_RECIPIENT_INTERFACE),
+      usbh_control_xfer_subtask( dev_addr, bm_request_type(TUSB_DIR_OUT, TUSB_REQ_TYPE_CLASS, TUSB_REQ_RCPT_INTERFACE),
                                  CDC_REQUEST_SEND_ENCAPSULATED_COMMAND, 0, p_cdc->interface_number,
                                  mess_length, p_mess),
       error
@@ -260,7 +260,7 @@ static tusb_error_t send_message_get_response_subtask( uint8_t dev_addr, cdch_da
 
   //------------- Get RNDIS Message Initialize Complete -------------//
   OSAL_SUBTASK_INVOKED_AND_WAIT(
-    usbh_control_xfer_subtask( dev_addr, bm_request_type(TUSB_DIR_IN, TUSB_REQUEST_TYPE_CLASS, TUSB_REQUEST_RECIPIENT_INTERFACE),
+    usbh_control_xfer_subtask( dev_addr, bm_request_type(TUSB_DIR_IN, TUSB_REQ_TYPE_CLASS, TUSB_REQ_RCPT_INTERFACE),
                                CDC_REQUEST_GET_ENCAPSULATED_RESPONSE, 0, p_cdc->interface_number,
                                RNDIS_MSG_PAYLOAD_MAX, p_response),
     error

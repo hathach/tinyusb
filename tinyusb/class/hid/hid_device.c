@@ -190,7 +190,7 @@ tusb_error_t hidd_control_request_subtask(uint8_t port, tusb_control_request_t c
   hidd_interface_t* const p_hid = p_driver->p_interface;
 
   //------------- STD Request -------------//
-  if (p_request->bmRequestType_bit.type == TUSB_REQUEST_TYPE_STANDARD)
+  if (p_request->bmRequestType_bit.type == TUSB_REQ_TYPE_STANDARD)
   {
     uint8_t const desc_type  = u16_high_u8(p_request->wValue);
     uint8_t const desc_index = u16_low_u8 (p_request->wValue);
@@ -205,7 +205,7 @@ tusb_error_t hidd_control_request_subtask(uint8_t port, tusb_control_request_t c
     tusb_dcd_control_xfer(port, TUSB_DIR_IN, m_hid_buffer, p_hid->report_length, false);
   }
   //------------- Class Specific Request -------------//
-  else if (p_request->bmRequestType_bit.type == TUSB_REQUEST_TYPE_CLASS)
+  else if (p_request->bmRequestType_bit.type == TUSB_REQ_TYPE_CLASS)
   {
     OSAL_SUBTASK_BEGIN
 

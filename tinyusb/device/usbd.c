@@ -284,8 +284,8 @@ tusb_error_t usbd_control_request_subtask(uint8_t port, tusb_control_request_t c
   error = TUSB_ERROR_NONE;
 
   //------------- Standard Control e.g in enumeration -------------//
-  if( TUSB_REQUEST_RECIPIENT_DEVICE == p_request->bmRequestType_bit.recipient &&
-      TUSB_REQUEST_TYPE_STANDARD    == p_request->bmRequestType_bit.type )
+  if( TUSB_REQ_RCPT_DEVICE == p_request->bmRequestType_bit.recipient &&
+      TUSB_REQ_TYPE_STANDARD    == p_request->bmRequestType_bit.type )
   {
     if ( TUSB_REQUEST_GET_DESCRIPTOR == p_request->bRequest )
     {
@@ -313,7 +313,7 @@ tusb_error_t usbd_control_request_subtask(uint8_t port, tusb_control_request_t c
     }
   }
   //------------- Class/Interface Specific Request -------------//
-  else if ( TUSB_REQUEST_RECIPIENT_INTERFACE == p_request->bmRequestType_bit.recipient)
+  else if ( TUSB_REQ_RCPT_INTERFACE == p_request->bmRequestType_bit.recipient)
   {
     static uint8_t class_code;
 
@@ -331,8 +331,8 @@ tusb_error_t usbd_control_request_subtask(uint8_t port, tusb_control_request_t c
   }
 
   //------------- Endpoint Request -------------//
-  else if ( TUSB_REQUEST_RECIPIENT_ENDPOINT == p_request->bmRequestType_bit.recipient &&
-            TUSB_REQUEST_TYPE_STANDARD      == p_request->bmRequestType_bit.type &&
+  else if ( TUSB_REQ_RCPT_ENDPOINT == p_request->bmRequestType_bit.recipient &&
+            TUSB_REQ_TYPE_STANDARD      == p_request->bmRequestType_bit.type &&
             TUSB_REQUEST_CLEAR_FEATURE      == p_request->bRequest )
   {
     tusb_dcd_edpt_clear_stall(port, u16_low_u8(p_request->wIndex) );

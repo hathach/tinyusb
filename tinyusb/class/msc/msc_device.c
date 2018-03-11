@@ -123,7 +123,7 @@ tusb_error_t mscd_open(uint8_t port, tusb_descriptor_interface_t const * p_inter
 
 tusb_error_t mscd_control_request_subtask(uint8_t port, tusb_control_request_t const * p_request)
 {
-  ASSERT(p_request->bmRequestType_bit.type == TUSB_REQUEST_TYPE_CLASS, TUSB_ERROR_DCD_CONTROL_REQUEST_NOT_SUPPORT);
+  ASSERT(p_request->bmRequestType_bit.type == TUSB_REQ_TYPE_CLASS, TUSB_ERROR_DCD_CONTROL_REQUEST_NOT_SUPPORT);
 
   mscd_interface_t * p_msc = &mscd_data;
 

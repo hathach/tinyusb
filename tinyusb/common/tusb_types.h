@@ -105,22 +105,22 @@ typedef enum
   TUSB_REQUEST_GET_INTERFACE     , ///< 10
   TUSB_REQUEST_SET_INTERFACE     , ///< 11
   TUSB_REQUEST_SYNCH_FRAME         ///< 12
-}tusb_std_request_code_t;
+}tusb_request_code_t;
 
 typedef enum
 {
-  TUSB_REQUEST_TYPE_STANDARD = 0,
-  TUSB_REQUEST_TYPE_CLASS,
-  TUSB_REQUEST_TYPE_VENDOR
-} tusb_control_request_type_t;
+  TUSB_REQ_TYPE_STANDARD = 0,
+  TUSB_REQ_TYPE_CLASS,
+  TUSB_REQ_TYPE_VENDOR
+} tusb_request_type_t;
 
 typedef enum
 {
-  TUSB_REQUEST_RECIPIENT_DEVICE =0,
-  TUSB_REQUEST_RECIPIENT_INTERFACE,
-  TUSB_REQUEST_RECIPIENT_ENDPOINT,
-  TUSB_REQUEST_RECIPIENT_OTHER
-} tusb_std_request_recipient_t;
+  TUSB_REQ_RCPT_DEVICE =0,
+  TUSB_REQ_RCPT_INTERFACE,
+  TUSB_REQ_RCPT_ENDPOINT,
+  TUSB_REQ_RCPT_OTHER
+} tusb_request_recipient_t;
 
 typedef enum
 {
@@ -149,7 +149,7 @@ typedef enum
   TUSB_CLASS_MISC                 = 0xEF ,
   TUSB_CLASS_APPLICATION_SPECIFIC = 0xFE ,
   TUSB_CLASS_VENDOR_SPECIFIC      = 0xFF
-}tusb_std_class_code_t;
+}tusb_class_code_t;
 
 typedef enum
 {
