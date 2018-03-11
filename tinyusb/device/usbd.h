@@ -100,7 +100,13 @@ typedef struct {
 //--------------------------------------------------------------------+
 // APPLICATION API
 //--------------------------------------------------------------------+
-bool tud_mounted(uint8_t port);
+bool tud_n_mounted(uint8_t port);
+
+static inline bool tud_mounted(void)
+{
+  return tud_n_mounted(0);
+}
+
 
 /*------------- Callback -------------*/
 /** \brief 			Callback function that will be invoked device is mounted (configured) by USB host

@@ -76,33 +76,33 @@ STATIC_VAR cdcd_data_t cdcd_data[CONTROLLER_DEVICE_NUMBER];
 //--------------------------------------------------------------------+
 // APPLICATION API
 //--------------------------------------------------------------------+
-bool tud_cdc_connected(uint8_t port)
+bool tud_n_cdc_connected(uint8_t port)
 {
   return cdcd_data[port].connected;
 }
 
-uint32_t tud_cdc_available(uint8_t port)
+uint32_t tud_n_cdc_available(uint8_t port)
 {
   return fifo_count(&_rx_ff);
 }
 
-int tud_cdc_read_char(uint8_t port)
+int tud_n_cdc_read_char(uint8_t port)
 {
   uint8_t ch;
   return fifo_read(&_rx_ff, &ch) ? ch : (-1);
 }
 
-uint32_t tud_cdc_read(uint8_t port, void* buffer, uint32_t bufsize)
+uint32_t tud_n_cdc_read(uint8_t port, void* buffer, uint32_t bufsize)
 {
   return fifo_read_n(&_rx_ff, buffer, bufsize);
 }
 
-uint32_t tud_cdc_write_char(uint8_t port, char ch)
+uint32_t tud_n_cdc_write_char(uint8_t port, char ch)
 {
   return fifo_write(&_tx_ff, &ch);
 }
 
-uint32_t tud_cdc_write(uint8_t port, void const* buffer, uint32_t bufsize)
+uint32_t tud_n_cdc_write(uint8_t port, void const* buffer, uint32_t bufsize)
 {
   return fifo_write_n(&_tx_ff, buffer, bufsize);
 }
@@ -280,7 +280,7 @@ tusb_error_t cdcd_xfer_cb(uint8_t port, uint8_t edpt_addr, tusb_event_t event, u
 
 void cdcd_sof(uint8_t port)
 {
-  if ( !tud_cdc_connected(port) ) return;
+  if ( !tud_n_cdc_connected(port) ) return;
 
   uint8_t edpt = cdcd_data[port].edpt_addr[CDC_PIPE_DATA_IN];
 

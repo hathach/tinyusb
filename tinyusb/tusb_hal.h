@@ -65,22 +65,18 @@ extern "C" {
  *  @{ */
 
 /** \brief    Initialize USB controller hardware
- * \returns   true if succeedded
+ * \returns   true if succeeded
  * \note      This function is invoked by \ref tusb_init as part of the initialization.
  */
 bool tusb_hal_init(void);
 
 /** \brief 			Enable USB Interrupt on a specific USB Controller
  * \param[in]		port	is a zero-based index to identify USB controller's ID
- * \note        Some MCUs such as NXP LPC43xx has multiple USB controllers. It is necessary to know which USB controller for
- *              those MCUs.
  */
 void tusb_hal_init_enable(uint8_t port);
 
 /** \brief 			Disable USB Interrupt on a specific USB Controller
  * \param[in]		port	is a zero-based index to identify USB controller's ID
- * \note        Some MCUs such as NXP LPC43xx has multiple USB controllers. It is necessary to know which USB controller for
- *              those MCUs.
  */
 void tusb_hal_init_disable(uint8_t port);
 

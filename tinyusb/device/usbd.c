@@ -108,9 +108,9 @@ static tusb_error_t get_descriptor(uint8_t port, tusb_control_request_t const * 
 //--------------------------------------------------------------------+
 // APPLICATION INTERFACE
 //--------------------------------------------------------------------+
-bool tud_mounted(uint8_t port)
+bool tud_n_mounted(uint8_t port)
 {
-  return usbd_devices[port].state == TUSB_DEVICE_STATE_CONFIGURED;
+    return usbd_devices[port].state == TUSB_DEVICE_STATE_CONFIGURED;
 }
 
 //--------------------------------------------------------------------+
