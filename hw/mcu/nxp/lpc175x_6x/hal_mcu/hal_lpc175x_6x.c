@@ -41,13 +41,13 @@
 
 #if TUSB_CFG_MCU == MCU_LPC175X_6X
 
-void hal_usb_int_enable(uint8_t port)
+void tusb_hal_init_enable(uint8_t port)
 {
   (void) port; // discard compiler's warning
   NVIC_EnableIRQ(USB_IRQn);
 }
 
-void hal_usb_int_disable(uint8_t port)
+void tusb_hal_init_disable(uint8_t port)
 {
   (void) port; // discard compiler's warning
   NVIC_DisableIRQ(USB_IRQn);
@@ -56,7 +56,7 @@ void hal_usb_int_disable(uint8_t port)
 //--------------------------------------------------------------------+
 // IMPLEMENTATION
 //--------------------------------------------------------------------+
-bool hal_usb_init(void)
+bool tusb_hal_init(void)
 {
   enum {
     USBCLK_DEVCIE = 0x12,     // AHB + Device

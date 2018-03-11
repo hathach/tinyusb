@@ -58,7 +58,6 @@ typedef enum
   USBD_BUS_EVENT_RESUME
 }usbd_bus_event_type_t;
 
-// TODO move Hal
 typedef struct {
   uint8_t port;
   uint8_t index; // must be zero to indicate control

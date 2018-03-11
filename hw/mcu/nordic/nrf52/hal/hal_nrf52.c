@@ -60,24 +60,24 @@ void SysTick_Handler (void)
 }
 
 
-bool hal_usb_init(void)
+bool tusb_hal_init(void)
 {
 
 }
 
-void hal_usb_int_enable(uint8_t port)
+void tusb_hal_init_enable(uint8_t port)
 {
   (void) port;
   NVIC_EnableIRQ(USBD_IRQn);
 }
 
-void hal_usb_int_disable(uint8_t port)
+void tusb_hal_init_disable(uint8_t port)
 {
   (void) port;
   NVIC_DisableIRQ(USBD_IRQn);
 }
 
-uint32_t hal_tick_get(void)
+uint32_t tusb_hal_tick_get(void)
 {
   //#define tick2ms(tck)         ( ( ((uint64_t)(tck)) * 1000) / configTICK_RATE_HZ )
   //return tick2ms( app_timer_cnt_get() );
@@ -85,7 +85,7 @@ uint32_t hal_tick_get(void)
   return system_ticks;
 }
 
-void hal_debugger_breakpoint(void)
+void tusb_hal_dbg_breakpoint(void)
 {
   // M0 cannot check if debugger is attached or not
 #if defined(__CORTEX_M) && (__CORTEX_M > 0)

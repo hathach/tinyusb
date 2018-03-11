@@ -53,7 +53,7 @@
 //--------------------------------------------------------------------+
 // TICK API
 //--------------------------------------------------------------------+
-#define osal_tick_get hal_tick_get
+#define osal_tick_get tusb_hal_tick_get
 
 //--------------------------------------------------------------------+
 // TASK API
@@ -204,11 +204,11 @@ static inline void osal_queue_flush(osal_queue_t const queue_hdl)
       else\
         return TUSB_ERROR_OSAL_WAITING;\
     } else{\
-      /*TODO mutex lock hal_usb_int_disable */\
+      /*TODO mutex lock tusb_hal_init_disable */\
       memcpy(p_data, queue_hdl->buffer + (queue_hdl->rd_idx * queue_hdl->item_size), queue_hdl->item_size);\
       queue_hdl->rd_idx = (queue_hdl->rd_idx + 1) % queue_hdl->depth;\
       queue_hdl->count--;\
-      /*TODO mutex unlock hal_usb_int_enable */\
+      /*TODO mutex unlock tusb_hal_init_enable */\
       *(p_error) = TUSB_ERROR_NONE;\
     }\
   }while(0)
@@ -258,7 +258,7 @@ static inline void osal_semaphore_reset(osal_semaphore_t sem_hdl)
       else\
         return TUSB_ERROR_OSAL_WAITING;\
     } else{\
-      if (sem_hdl->count) sem_hdl->count--; /*TODO mutex hal_usb_int_disable consideration*/\
+      if (sem_hdl->count) sem_hdl->count--; /*TODO mutex tusb_hal_init_disable consideration*/\
       *(p_error) = TUSB_ERROR_NONE;\
     }\
   }while(0)

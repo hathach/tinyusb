@@ -48,7 +48,7 @@ void SysTick_Handler (void)
   system_ticks++;
 }
 
-uint32_t hal_tick_get(void)
+uint32_t tusb_hal_tick_get(void)
 {
   return system_ticks;
 }

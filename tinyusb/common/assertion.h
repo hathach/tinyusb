@@ -84,7 +84,7 @@ extern "C"
   do{\
     setup_statement;\
 	  if (!(condition)) {\
-	    hal_debugger_breakpoint();\
+	    tusb_hal_dbg_breakpoint();\
 	    _ASSERT_MESSAGE(format, __VA_ARGS__);\
 	    error_handler(error, handler_para);\
 	  }\

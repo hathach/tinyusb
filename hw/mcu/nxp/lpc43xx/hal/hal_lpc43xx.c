@@ -53,7 +53,7 @@ enum {
   LPC43XX_USBMODE_VBUS_HIGH = 1
 };
 
-void hal_debugger_breakpoint(void)
+void tusb_hal_dbg_breakpoint(void)
 {
   // M0 cannot check if debugger is attached or not
 #if defined(__CORTEX_M) && (__CORTEX_M > 0)
@@ -65,12 +65,12 @@ void hal_debugger_breakpoint(void)
 #endif
 }
 
-void hal_usb_int_enable(uint8_t port)
+void tusb_hal_init_enable(uint8_t port)
 {
   NVIC_EnableIRQ(port ? USB1_IRQn : USB0_IRQn);
 }
 
-void hal_usb_int_disable(uint8_t port)
+void tusb_hal_init_disable(uint8_t port)
 {
   NVIC_DisableIRQ(port ? USB1_IRQn : USB0_IRQn);
 }
@@ -91,7 +91,7 @@ static void hal_controller_reset(uint8_t port)
 //  return timeout_expired(&timeout) ? TUSB_ERROR_OSAL_TIMEOUT : TUSB_ERROR_NONE;
 }
 
-bool hal_usb_init(void)
+bool tusb_hal_init(void)
 {
   LPC_CREG->CREG0 &= ~(1<<5); /* Turn on the phy */
 

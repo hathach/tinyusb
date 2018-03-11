@@ -148,12 +148,12 @@
 
 /*------------------------------------------------------------------*/
 /* ASSERT
- * basically VERIFY with hal_debugger_breakpoint as handler
+ * basically VERIFY with tusb_hal_dbg_breakpoint as handler
  * - 1 arg : return false if failed
  * - 2 arg : return error if failed
  *------------------------------------------------------------------*/
-#define ASSERT_1ARGS(cond)            do { if (!(cond)) { hal_debugger_breakpoint(); _ASSERT_MESS() return false; } } while(0)
-#define ASSERT_2ARGS(cond, _error)    do { if (!(cond)) { hal_debugger_breakpoint(); _ASSERT_MESS() return _error;} } while(0)
+#define ASSERT_1ARGS(cond)            do { if (!(cond)) { tusb_hal_dbg_breakpoint(); _ASSERT_MESS() return false; } } while(0)
+#define ASSERT_2ARGS(cond, _error)    do { if (!(cond)) { tusb_hal_dbg_breakpoint(); _ASSERT_MESS() return _error;} } while(0)
 
 #define ASSERT_(...)  GET_3RD_ARG(__VA_ARGS__, ASSERT_2ARGS, ASSERT_1ARGS)(__VA_ARGS__)
 

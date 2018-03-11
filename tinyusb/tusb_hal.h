@@ -68,26 +68,26 @@ extern "C" {
  * \returns   true if succeedded
  * \note      This function is invoked by \ref tusb_init as part of the initialization.
  */
-bool hal_usb_init(void);
+bool tusb_hal_init(void);
 
 /** \brief 			Enable USB Interrupt on a specific USB Controller
  * \param[in]		port	is a zero-based index to identify USB controller's ID
  * \note        Some MCUs such as NXP LPC43xx has multiple USB controllers. It is necessary to know which USB controller for
  *              those MCUs.
  */
-void hal_usb_int_enable(uint8_t port);
+void tusb_hal_init_enable(uint8_t port);
 
 /** \brief 			Disable USB Interrupt on a specific USB Controller
  * \param[in]		port	is a zero-based index to identify USB controller's ID
  * \note        Some MCUs such as NXP LPC43xx has multiple USB controllers. It is necessary to know which USB controller for
  *              those MCUs.
  */
-void hal_usb_int_disable(uint8_t port);
+void tusb_hal_init_disable(uint8_t port);
 
-uint32_t hal_tick_get(void);
+uint32_t tusb_hal_tick_get(void);
 
 // for debug only, halt mcu if assert/verify is failed if debugger is attached
-void hal_debugger_breakpoint(void) ATTR_WEAK;
+void tusb_hal_dbg_breakpoint(void) ATTR_WEAK;
 
 #ifdef __cplusplus
  }
