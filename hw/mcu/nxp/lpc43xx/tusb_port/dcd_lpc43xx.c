@@ -183,6 +183,11 @@ static inline uint8_t edpt_addr2phy(uint8_t endpoint_addr)
   return 2*(endpoint_addr & 0x0F) + ((endpoint_addr & TUSB_DIR_DEV_TO_HOST_MASK) ? 1 : 0);
 }
 
+static inline uint8_t edpt_phy2addr(uint8_t ep_idx)
+{
+  return (ep_idx/2) | ( ep_idx & 0x01 ? TUSB_DIR_DEV_TO_HOST_MASK : 0 );
+}
+
 static inline uint8_t edpt_phy2log(uint8_t physical_endpoint)
 {
   return physical_endpoint/2;
@@ -273,11 +278,12 @@ static inline volatile uint32_t * get_reg_control_addr(uint8_t port, uint8_t phy
  return &(LPC_USB[port]->ENDPTCTRL0) + edpt_phy2log(physical_endpoint);
 }
 
-void tusb_dcd_edpt_stall(edpt_hdl_t edpt_hdl)
+void tusb_dcd_edpt_stall(uint8_t port, uint8_t edpt_addr)
 {
-  volatile uint32_t * reg_control = get_reg_control_addr(edpt_hdl.port, edpt_hdl.index);
+  uint8_t ep_idx    = edpt_addr2phy(edpt_addr);
+  volatile uint32_t * reg_control = get_reg_control_addr(port, ep_idx);
 
-  (*reg_control) |= ENDPTCTRL_MASK_STALL << (edpt_hdl.index & 0x01 ? 16 : 0);
+  (*reg_control) |= ENDPTCTRL_MASK_STALL << (ep_idx & 0x01 ? 16 : 0);
 }
 
 void tusb_dcd_edpt_clear_stall(uint8_t port, uint8_t edpt_addr)
@@ -289,7 +295,7 @@ void tusb_dcd_edpt_clear_stall(uint8_t port, uint8_t edpt_addr)
   (*reg_control) &= ~(ENDPTCTRL_MASK_STALL << ((edpt_addr & TUSB_DIR_DEV_TO_HOST_MASK) ? 16 : 0));
 }
 
-bool tusb_dcd_edpt_open(uint8_t port, tusb_descriptor_endpoint_t const * p_endpoint_desc, edpt_hdl_t* eh)
+bool tusb_dcd_edpt_open(uint8_t port, tusb_descriptor_endpoint_t const * p_endpoint_desc)
 {
   // TODO USB1 only has 4 non-control enpoint (USB0 has 5)
   // TODO not support ISO yet
@@ -315,28 +321,26 @@ bool tusb_dcd_edpt_open(uint8_t port, tusb_descriptor_endpoint_t const * p_endpo
 
   (*reg_control) |= ((p_endpoint_desc->bmAttributes.xfer << 2) | ENDPTCTRL_MASK_ENABLE | ENDPTCTRL_MASK_TOGGLE_RESET) << (dir ? 16 : 0);
 
-  eh->port = port;
-  eh->index  = ep_idx;
-
   return true;
 }
 
-bool tusb_dcd_edpt_busy(edpt_hdl_t edpt_hdl)
+bool tusb_dcd_edpt_busy(uint8_t port, uint8_t edpt_addr)
 {
-  dcd_qhd_t const * p_qhd = &dcd_data_ptr[edpt_hdl.port]->qhd[edpt_hdl.index];
+  uint8_t ep_idx    = edpt_addr2phy(edpt_addr);
+  dcd_qhd_t const * p_qhd = &dcd_data_ptr[port]->qhd[ep_idx];
 
   return p_qhd->list_qtd_idx[0] != 0; // qtd list is not empty
 //  return !p_qhd->qtd_overlay.halted && p_qhd->qtd_overlay.active;
 }
 
 // add only, controller virtually cannot know
-static tusb_error_t pipe_add_xfer(edpt_hdl_t edpt_hdl, void * buffer, uint16_t total_bytes, bool int_on_complete)
+static tusb_error_t pipe_add_xfer(uint8_t port, uint8_t ed_idx, void * buffer, uint16_t total_bytes, bool int_on_complete)
 {
-  uint8_t qtd_idx  = qtd_find_free(edpt_hdl.port);
+  uint8_t qtd_idx  = qtd_find_free(port);
   ASSERT(qtd_idx != 0, TUSB_ERROR_DCD_NOT_ENOUGH_QTD);
 
-  dcd_data_t* p_dcd = dcd_data_ptr[edpt_hdl.port];
-  dcd_qhd_t * p_qhd = &p_dcd->qhd[edpt_hdl.index];
+  dcd_data_t* p_dcd = dcd_data_ptr[port];
+  dcd_qhd_t * p_qhd = &p_dcd->qhd[ed_idx];
   dcd_qtd_t * p_qtd = &p_dcd->qtd[qtd_idx];
 
   //------------- Find free slot in qhd's array list -------------//
@@ -358,21 +362,24 @@ static tusb_error_t pipe_add_xfer(edpt_hdl_t edpt_hdl, void * buffer, uint16_t t
   return TUSB_ERROR_NONE;
 }
 
-tusb_error_t tusb_dcd_edpt_queue_xfer(edpt_hdl_t edpt_hdl, uint8_t * buffer, uint16_t total_bytes)
+tusb_error_t tusb_dcd_edpt_queue_xfer(uint8_t port, uint8_t edpt_addr, uint8_t * buffer, uint16_t total_bytes)
 {
-  return pipe_add_xfer( edpt_hdl, buffer, total_bytes, false);
+  uint8_t ep_idx = edpt_addr2phy(edpt_addr);
+  return pipe_add_xfer(port, ep_idx, buffer, total_bytes, false);
 }
 
-tusb_error_t  tusb_dcd_edpt_xfer(edpt_hdl_t edpt_hdl, uint8_t * buffer, uint16_t total_bytes, bool int_on_complete)
+tusb_error_t  tusb_dcd_edpt_xfer(uint8_t port, uint8_t edpt_addr, uint8_t * buffer, uint16_t total_bytes, bool int_on_complete)
 {
-  ASSERT_STATUS ( pipe_add_xfer(edpt_hdl, buffer, total_bytes, int_on_complete) );
+  uint8_t ep_idx = edpt_addr2phy(edpt_addr);
 
-  dcd_qhd_t* p_qhd = &dcd_data_ptr[edpt_hdl.port]->qhd[ edpt_hdl.index ];
-  dcd_qtd_t* p_qtd = &dcd_data_ptr[edpt_hdl.port]->qtd[ p_qhd->list_qtd_idx[0] ];
+  ASSERT_STATUS ( pipe_add_xfer(port, ep_idx, buffer, total_bytes, int_on_complete) );
+
+  dcd_qhd_t* p_qhd = &dcd_data_ptr[port]->qhd[ ep_idx ];
+  dcd_qtd_t* p_qtd = &dcd_data_ptr[port]->qtd[ p_qhd->list_qtd_idx[0] ];
 
   p_qhd->qtd_overlay.next = (uint32_t) p_qtd; // attach head QTD to QHD start transferring
 
-	LPC_USB[edpt_hdl.port]->ENDPTPRIME = BIT_( edpt_phy2pos(edpt_hdl.index) ) ;
+	LPC_USB[port]->ENDPTPRIME = BIT_( edpt_phy2pos(ep_idx) ) ;
 
 	return TUSB_ERROR_NONE;
 }
@@ -385,12 +392,6 @@ void xfer_complete_isr(uint8_t port, uint32_t reg_complete)
     if ( BIT_TEST_(reg_complete, edpt_phy2pos(ep_idx)) )
     { // 23.10.12.3 Failed QTD also get ENDPTCOMPLETE set
       dcd_qhd_t * p_qhd = &dcd_data_ptr[port]->qhd[ep_idx];
-
-      edpt_hdl_t edpt_hdl =
-      {
-          .port     = port,
-          .index      = ep_idx,
-      };
 
       // retire all QTDs in array list, up to 1st still-active QTD
       while( p_qhd->list_qtd_idx[0] != 0 )
@@ -407,7 +408,9 @@ void xfer_complete_isr(uint8_t port, uint32_t reg_complete)
         if (p_qtd->int_on_complete)
         {
           bool succeeded = ( p_qtd->xact_err || p_qtd->halted || p_qtd->buffer_err ) ? false : true;
-          tusb_dcd_xfer_complete(edpt_hdl, p_qtd->expected_bytes - p_qtd->total_bytes, succeeded); // only number of bytes in the IOC qtd
+
+          uint8_t edpt_addr = edpt_phy2addr(ep_idx);
+          tusb_dcd_xfer_complete(port, edpt_addr, p_qtd->expected_bytes - p_qtd->total_bytes, succeeded); // only number of bytes in the IOC qtd
         }
       }
     }
@@ -476,14 +479,8 @@ void hal_dcd_isr(uint8_t port)
 
           if ( p_qtd->int_on_complete )
           {
-            edpt_hdl_t edpt_hdl =
-            {
-                .port = port,
-                .index = 0,
-            };
             bool succeeded = ( p_qtd->xact_err || p_qtd->halted || p_qtd->buffer_err ) ? false : true;
-
-            tusb_dcd_xfer_complete(edpt_hdl, 0, succeeded); // TODO xferred bytes for control xfer is not needed yet !!!!
+            tusb_dcd_xfer_complete(port, 0, 0, succeeded); // TODO xferred bytes for control xfer is not needed yet !!!!
           }
         }
       }

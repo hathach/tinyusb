@@ -79,7 +79,7 @@ void tud_cdc_rx_cb(uint8_t port);
 void cdcd_init(void);
 tusb_error_t cdcd_open(uint8_t port, tusb_descriptor_interface_t const * p_interface_desc, uint16_t *p_length);
 tusb_error_t cdcd_control_request_subtask(uint8_t port, tusb_control_request_t const * p_request);
-tusb_error_t cdcd_xfer_cb(edpt_hdl_t edpt_hdl, tusb_event_t event, uint32_t xferred_bytes);
+tusb_error_t cdcd_xfer_cb(uint8_t port, uint8_t edpt_addr, tusb_event_t event, uint32_t xferred_bytes);
 void cdcd_close(uint8_t port);
 
 void cdcd_sof(uint8_t port);

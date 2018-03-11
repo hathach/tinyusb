@@ -155,7 +155,7 @@
 #define ASSERT_1ARGS(cond)            do { if (!(cond)) { tusb_hal_dbg_breakpoint(); _ASSERT_MESS() return false; } } while(0)
 #define ASSERT_2ARGS(cond, _error)    do { if (!(cond)) { tusb_hal_dbg_breakpoint(); _ASSERT_MESS() return _error;} } while(0)
 
-#define ASSERT_(...)  GET_3RD_ARG(__VA_ARGS__, ASSERT_2ARGS, ASSERT_1ARGS)(__VA_ARGS__)
+#define TU_ASSERT(...)  GET_3RD_ARG(__VA_ARGS__, ASSERT_2ARGS, ASSERT_1ARGS)(__VA_ARGS__)
 
 #ifdef __cplusplus
  }

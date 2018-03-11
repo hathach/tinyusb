@@ -55,10 +55,8 @@ TUSB_CFG_ATTR_USBRAM STATIC_VAR cdc_line_coding_t cdcd_line_coding[CONTROLLER_DE
 typedef struct {
   uint8_t interface_number;
   cdc_acm_capability_t acm_capability;
-
   bool connected;
-
-  edpt_hdl_t edpt_hdl[3]; // notification, data in, data out
+  uint8_t edpt_addr[3]; // notification, data in, data out
 }cdcd_data_t;
 
 // TODO multiple port
@@ -157,7 +155,9 @@ tusb_error_t cdcd_open(uint8_t port, tusb_descriptor_interface_t const * p_inter
 
   if ( TUSB_DESC_TYPE_ENDPOINT == p_desc[DESCRIPTOR_OFFSET_TYPE])
   { // notification endpoint if any
-    VERIFY( tusb_dcd_edpt_open(port, (tusb_descriptor_endpoint_t const *) p_desc, &p_cdc->edpt_hdl[CDC_PIPE_NOTIFICATION]), TUSB_ERROR_DCD_OPEN_PIPE_FAILED);
+    TU_ASSERT( tusb_dcd_edpt_open(port, (tusb_descriptor_endpoint_t const *) p_desc), TUSB_ERROR_DCD_OPEN_PIPE_FAILED);
+
+    p_cdc->edpt_addr[CDC_PIPE_NOTIFICATION] = ((tusb_descriptor_endpoint_t const *) p_desc)->bEndpointAddress;
 
     (*p_length) += p_desc[DESCRIPTOR_OFFSET_LENGTH];
     p_desc = descriptor_next(p_desc);
@@ -174,13 +174,18 @@ tusb_error_t cdcd_open(uint8_t port, tusb_descriptor_interface_t const * p_inter
     for(uint32_t i=0; i<2; i++)
     {
       tusb_descriptor_endpoint_t const *p_endpoint = (tusb_descriptor_endpoint_t const *) p_desc;
-      ASSERT_(TUSB_DESC_TYPE_ENDPOINT == p_endpoint->bDescriptorType, TUSB_ERROR_DESCRIPTOR_CORRUPTED);
-      ASSERT_(TUSB_XFER_BULK == p_endpoint->bmAttributes.xfer, TUSB_ERROR_DESCRIPTOR_CORRUPTED);
+      TU_ASSERT(TUSB_DESC_TYPE_ENDPOINT == p_endpoint->bDescriptorType, TUSB_ERROR_DESCRIPTOR_CORRUPTED);
+      TU_ASSERT(TUSB_XFER_BULK == p_endpoint->bmAttributes.xfer, TUSB_ERROR_DESCRIPTOR_CORRUPTED);
 
-      edpt_hdl_t * p_edpt_hdl =  ( p_endpoint->bEndpointAddress &  TUSB_DIR_DEV_TO_HOST_MASK ) ?
-          &p_cdc->edpt_hdl[CDC_PIPE_DATA_IN] : &p_cdc->edpt_hdl[CDC_PIPE_DATA_OUT] ;
+      TU_ASSERT( tusb_dcd_edpt_open(port, p_endpoint), TUSB_ERROR_DCD_OPEN_PIPE_FAILED);
 
-      ASSERT_( tusb_dcd_edpt_open(port, p_endpoint, p_edpt_hdl), TUSB_ERROR_DCD_OPEN_PIPE_FAILED);
+      if ( p_endpoint->bEndpointAddress &  TUSB_DIR_DEV_TO_HOST_MASK )
+      {
+        p_cdc->edpt_addr[CDC_PIPE_DATA_IN] = p_endpoint->bEndpointAddress;
+      }else
+      {
+        p_cdc->edpt_addr[CDC_PIPE_DATA_OUT] = p_endpoint->bEndpointAddress;
+      }
 
       (*p_length) += p_desc[DESCRIPTOR_OFFSET_LENGTH];
       p_desc = descriptor_next( p_desc );
@@ -190,7 +195,7 @@ tusb_error_t cdcd_open(uint8_t port, tusb_descriptor_interface_t const * p_inter
   p_cdc->interface_number   = p_interface_desc->bInterfaceNumber;
 
   // Prepare for incoming data
-  tusb_dcd_edpt_xfer(p_cdc->edpt_hdl[CDC_PIPE_DATA_OUT], _tmp_rx_buf, sizeof(_tmp_rx_buf), true);
+  tusb_dcd_edpt_xfer(port, p_cdc->edpt_addr[CDC_PIPE_DATA_OUT], _tmp_rx_buf, sizeof(_tmp_rx_buf), true);
 
 
   return TUSB_ERROR_NONE;
@@ -255,19 +260,19 @@ tusb_error_t cdcd_control_request_subtask(uint8_t port, tusb_control_request_t c
   return TUSB_ERROR_NONE;
 }
 
-tusb_error_t cdcd_xfer_cb(edpt_hdl_t edpt_hdl, tusb_event_t event, uint32_t xferred_bytes)
+tusb_error_t cdcd_xfer_cb(uint8_t port, uint8_t edpt_addr, tusb_event_t event, uint32_t xferred_bytes)
 {
-  cdcd_data_t const * p_cdc = &cdcd_data[edpt_hdl.port];
+  cdcd_data_t const * p_cdc = &cdcd_data[port];
 
-  if ( edpt_equal(edpt_hdl, p_cdc->edpt_hdl[CDC_PIPE_DATA_OUT]) )
+  if ( edpt_addr == p_cdc->edpt_addr[CDC_PIPE_DATA_OUT] )
   {
     fifo_write_n(&_rx_ff, _tmp_rx_buf, xferred_bytes);
 
     // preparing for next
-    tusb_dcd_edpt_xfer(p_cdc->edpt_hdl[CDC_PIPE_DATA_OUT], _tmp_rx_buf, sizeof(_tmp_rx_buf), true);
+    tusb_dcd_edpt_xfer(port, p_cdc->edpt_addr[CDC_PIPE_DATA_OUT], _tmp_rx_buf, sizeof(_tmp_rx_buf), true);
 
     // fire callback
-    tud_cdc_rx_cb(edpt_hdl.port);
+    tud_cdc_rx_cb(port);
   }
 
   return TUSB_ERROR_NONE;
@@ -277,13 +282,13 @@ void cdcd_sof(uint8_t port)
 {
   if ( !tud_cdc_connected(port) ) return;
 
-  edpt_hdl_t ep = cdcd_data[port].edpt_hdl[CDC_PIPE_DATA_IN];
+  uint8_t edpt = cdcd_data[port].edpt_addr[CDC_PIPE_DATA_IN];
 
-  if ( !tusb_dcd_edpt_busy( ep ) )
+  if ( !tusb_dcd_edpt_busy(port, edpt) )
   {
     uint16_t count = fifo_read_n(&_tx_ff, _tmp_tx_buf, sizeof(_tmp_tx_buf));
 
-    tusb_dcd_edpt_xfer(ep, _tmp_tx_buf, count, false);
+    tusb_dcd_edpt_xfer(port, edpt, _tmp_tx_buf, count, false);
   }
 }
 
