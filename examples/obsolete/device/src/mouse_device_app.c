@@ -114,7 +114,7 @@ void mouse_app_subtask(void)
 
   osal_task_delay(20);
 
-  if ( tud_mounted(0) &&  !tud_hid_mouse_is_busy(0) )
+  if ( tud_mounted() &&  !tud_hid_mouse_is_busy(0) )
   {
     static uint8_t prev_mouse_buttons = 0;
 

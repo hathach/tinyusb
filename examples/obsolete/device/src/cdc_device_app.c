@@ -96,14 +96,14 @@ tusb_error_t cdc_serial_subtask(void)
 {
   OSAL_SUBTASK_BEGIN
 
-  if ( tud_mounted(0) && tud_cdc_available(0) )
+  if ( tud_mounted() && tud_cdc_available() )
   {
     uint8_t buf[64];
 
     // read and echo back
-    uint32_t count = tud_cdc_read(0, buf, sizeof(buf));
+    uint32_t count = tud_cdc_read(buf, sizeof(buf));
 
-    tud_cdc_write(0, buf, count);
+    tud_cdc_write(buf, count);
   }
 
   OSAL_SUBTASK_END
