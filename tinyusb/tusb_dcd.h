@@ -43,7 +43,8 @@
 #ifndef _TUSB_DCD_H_
 #define _TUSB_DCD_H_
 
-#include "common/common.h"
+#include <stdint.h>
+#include <stdbool.h>
 
 #ifdef __cplusplus
  extern "C" {
@@ -58,8 +59,9 @@ typedef enum
   USBD_BUS_EVENT_RESUME
 }usbd_bus_event_type_t;
 
-
-//------------- Controller API -------------//
+/*------------------------------------------------------------------*/
+/* Controller API
+ *------------------------------------------------------------------*/
 bool tusb_dcd_init        (uint8_t port);
 void tusb_dcd_connect     (uint8_t port);
 void tusb_dcd_disconnect  (uint8_t port);
@@ -75,19 +77,20 @@ void tusb_dcd_setup_received(uint8_t port, uint8_t const* p_request);
 void tusb_dcd_xfer_complete(uint8_t port, uint8_t edpt_addr, uint32_t xferred_bytes, bool succeeded);
 
 /*------------------------------------------------------------------*/
-/* API
+/* Endpoint API
  *------------------------------------------------------------------*/
+
 //------------- Control Endpoint -------------//
 bool tusb_dcd_control_xfer(uint8_t port, tusb_dir_t dir, uint8_t * p_buffer, uint16_t length, bool int_on_complete);
 void tusb_dcd_control_stall(uint8_t port);
 
+//------------- Other Endpoints -------------//
 bool tusb_dcd_edpt_open(uint8_t port, tusb_descriptor_endpoint_t const * p_endpoint_desc);
 tusb_error_t tusb_dcd_edpt_queue_xfer(uint8_t port, uint8_t edpt_addr, uint8_t * buffer, uint16_t total_bytes); // only queue, not transferring yet
 tusb_error_t tusb_dcd_edpt_xfer(uint8_t port, uint8_t edpt_addr, uint8_t * buffer, uint16_t total_bytes, bool int_on_complete);
 
 bool tusb_dcd_edpt_busy(uint8_t port, uint8_t edpt_addr);
 
-// TODO port + endpoint address are part of endpoint handle, not endpoint handle, data toggle also need to be reset
 void tusb_dcd_edpt_stall(uint8_t port, uint8_t edpt_addr);
 void tusb_dcd_edpt_clear_stall(uint8_t port, uint8_t edpt_addr);
 
