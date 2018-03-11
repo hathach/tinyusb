@@ -86,6 +86,17 @@ typedef struct {
   void (* close) (uint8_t);
 } usbd_class_driver_t;
 
+
+enum {
+  USBD_INTERFACE_NUM_MAX = 16 // USB specs specify up to 16 endpoints per device
+};
+
+
+typedef struct {
+  volatile uint8_t state;
+  uint8_t interface2class[USBD_INTERFACE_NUM_MAX]; // determine interface number belongs to which class
+}usbd_device_info_t;
+
 //--------------------------------------------------------------------+
 // APPLICATION API
 //--------------------------------------------------------------------+

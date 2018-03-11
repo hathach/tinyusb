@@ -49,7 +49,6 @@
 #include "common/timeout_timer.h"
 
 #include "device/dcd.h"
-#include "device/usbd_dcd.h"
 #include "dcd_lpc43xx.h"
 
 #include "LPC43xx.h"
