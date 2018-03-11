@@ -378,7 +378,7 @@ void tusb_dcd_control_stall(uint8_t port)
   sie_write(SIE_CMDCODE_ENDPOINT_SET_STATUS+0, 1, SIE_SET_ENDPOINT_STALLED_MASK | SIE_SET_ENDPOINT_CONDITION_STALLED_MASK);
 }
 
-bool tusb_dcd_control_xfer(uint8_t port, tusb_direction_t dir, uint8_t * p_buffer, uint16_t length, bool int_on_complete)
+bool tusb_dcd_control_xfer(uint8_t port, tusb_dir_t dir, uint8_t * p_buffer, uint16_t length, bool int_on_complete)
 {
   (void) port;
 

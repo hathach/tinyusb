@@ -78,7 +78,7 @@ void tusb_dcd_xfer_complete(uint8_t port, uint8_t edpt_addr, uint32_t xferred_by
 /* API
  *------------------------------------------------------------------*/
 //------------- Control Endpoint -------------//
-bool tusb_dcd_control_xfer(uint8_t port, tusb_direction_t dir, uint8_t * p_buffer, uint16_t length, bool int_on_complete);
+bool tusb_dcd_control_xfer(uint8_t port, tusb_dir_t dir, uint8_t * p_buffer, uint16_t length, bool int_on_complete);
 void tusb_dcd_control_stall(uint8_t port);
 
 bool tusb_dcd_edpt_open(uint8_t port, tusb_descriptor_endpoint_t const * p_endpoint_desc);

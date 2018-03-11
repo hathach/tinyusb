@@ -218,7 +218,7 @@ tusb_error_t hidd_control_request_subtask(uint8_t port, tusb_control_request_t c
                                                        &p_buffer, p_request->wLength);
       SUBTASK_ASSERT( p_buffer != NULL && actual_length > 0 );
 
-      tusb_dcd_control_xfer(port, (tusb_direction_t) p_request->bmRequestType_bit.direction, p_buffer, actual_length, false);
+      tusb_dcd_control_xfer(port, (tusb_dir_t) p_request->bmRequestType_bit.direction, p_buffer, actual_length, false);
     }
     else if ( (HID_REQUEST_CONTROL_SET_REPORT == p_request->bRequest) && (p_driver->set_report_cb != NULL) )
     {
@@ -226,7 +226,7 @@ tusb_error_t hidd_control_request_subtask(uint8_t port, tusb_control_request_t c
       // wValue = Report Type | Report ID
       tusb_error_t error;
 
-      tusb_dcd_control_xfer(port, (tusb_direction_t) p_request->bmRequestType_bit.direction, m_hid_buffer, p_request->wLength, true);
+      tusb_dcd_control_xfer(port, (tusb_dir_t) p_request->bmRequestType_bit.direction, m_hid_buffer, p_request->wLength, true);
 
       osal_semaphore_wait(usbd_control_xfer_sem_hdl, OSAL_TIMEOUT_NORMAL, &error); // wait for control xfer complete
       SUBTASK_ASSERT_STATUS(error);

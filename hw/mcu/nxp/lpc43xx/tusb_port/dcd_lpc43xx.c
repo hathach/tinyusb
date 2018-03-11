@@ -234,7 +234,7 @@ void tusb_dcd_control_stall(uint8_t port)
 
 // control transfer does not need to use qtd find function
 // follows UM 24.10.8.1.1 Setup packet handling using setup lockout mechanism
-bool tusb_dcd_control_xfer(uint8_t port, tusb_direction_t dir, uint8_t * p_buffer, uint16_t length, bool int_on_complete)
+bool tusb_dcd_control_xfer(uint8_t port, tusb_dir_t dir, uint8_t * p_buffer, uint16_t length, bool int_on_complete)
 {
   LPC_USB0_Type* const lpc_usb = LPC_USB[port];
   dcd_data_t* const p_dcd      = dcd_data_ptr[port];
@@ -301,7 +301,7 @@ bool tusb_dcd_edpt_open(uint8_t port, tusb_descriptor_endpoint_t const * p_endpo
   // TODO not support ISO yet
   VERIFY ( p_endpoint_desc->bmAttributes.xfer != TUSB_XFER_ISOCHRONOUS);
 
-  tusb_direction_t dir = (p_endpoint_desc->bEndpointAddress & TUSB_DIR_DEV_TO_HOST_MASK) ? TUSB_DIR_DEV_TO_HOST : TUSB_DIR_HOST_TO_DEV;
+  tusb_dir_t dir = (p_endpoint_desc->bEndpointAddress & TUSB_DIR_DEV_TO_HOST_MASK) ? TUSB_DIR_DEV_TO_HOST : TUSB_DIR_HOST_TO_DEV;
 
   //------------- Prepare Queue Head -------------//
   uint8_t ep_idx    = edpt_addr2phy(p_endpoint_desc->bEndpointAddress);

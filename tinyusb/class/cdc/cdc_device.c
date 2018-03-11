@@ -218,12 +218,12 @@ tusb_error_t cdcd_control_request_subtask(uint8_t port, tusb_control_request_t c
   switch(p_request->bRequest)
   {
     case CDC_REQUEST_GET_LINE_CODING:
-      tusb_dcd_control_xfer(port, (tusb_direction_t) p_request->bmRequestType_bit.direction,
+      tusb_dcd_control_xfer(port, (tusb_dir_t) p_request->bmRequestType_bit.direction,
                             (uint8_t*) &cdcd_line_coding[port], min16_of(sizeof(cdc_line_coding_t), p_request->wLength), false );
     break;
 
     case CDC_REQUEST_SET_LINE_CODING:
-      tusb_dcd_control_xfer(port, (tusb_direction_t) p_request->bmRequestType_bit.direction,
+      tusb_dcd_control_xfer(port, (tusb_dir_t) p_request->bmRequestType_bit.direction,
                             (uint8_t*) &cdcd_line_coding[port], min16_of(sizeof(cdc_line_coding_t), p_request->wLength), false );
       // TODO notify application on xfer completea
     break;

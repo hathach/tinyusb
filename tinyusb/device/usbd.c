@@ -296,7 +296,7 @@ tusb_error_t usbd_control_request_subtask(uint8_t port, tusb_control_request_t c
 
       if ( TUSB_ERROR_NONE == error )
       {
-        tusb_dcd_control_xfer(port, (tusb_direction_t) p_request->bmRequestType_bit.direction, (uint8_t*) p_buffer, length, false);
+        tusb_dcd_control_xfer(port, (tusb_dir_t) p_request->bmRequestType_bit.direction, (uint8_t*) p_buffer, length, false);
       }
     }
     else if ( TUSB_REQUEST_SET_ADDRESS == p_request->bRequest )
@@ -347,7 +347,7 @@ tusb_error_t usbd_control_request_subtask(uint8_t port, tusb_control_request_t c
     //    ASSERT(error == TUSB_ERROR_NONE, VOID_RETURN);
   }else if (p_request->wLength == 0)
   {
-    tusb_dcd_control_xfer(port, (tusb_direction_t) p_request->bmRequestType_bit.direction, NULL, 0, false); // zero length for non-data
+    tusb_dcd_control_xfer(port, (tusb_dir_t) p_request->bmRequestType_bit.direction, NULL, 0, false); // zero length for non-data
   }
 
   OSAL_SUBTASK_END

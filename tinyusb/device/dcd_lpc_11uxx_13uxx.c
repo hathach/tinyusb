@@ -380,7 +380,7 @@ void tusb_dcd_control_stall(uint8_t port)
   dcd_data.qhd[0][0].stall = dcd_data.qhd[1][0].stall = 1;
 }
 
-bool tusb_dcd_control_xfer(uint8_t port, tusb_direction_t dir, uint8_t * p_buffer, uint16_t length, bool int_on_complete)
+bool tusb_dcd_control_xfer(uint8_t port, tusb_dir_t dir, uint8_t * p_buffer, uint16_t length, bool int_on_complete)
 {
   (void) port;
 

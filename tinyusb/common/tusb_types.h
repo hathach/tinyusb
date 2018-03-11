@@ -70,7 +70,7 @@ typedef enum
   TUSB_DIR_DEV_TO_HOST      = 1,
 
   TUSB_DIR_DEV_TO_HOST_MASK = 0x80
-}tusb_direction_t;
+}tusb_dir_t;
 
 
 /// USB Descriptor Types (section 9.4 table 9-5)
