@@ -80,7 +80,7 @@ typedef struct {
   void (* init) (void);
   tusb_error_t (* open)(uint8_t, tusb_descriptor_interface_t const *, uint16_t*);
   tusb_error_t (* control_request_subtask) (uint8_t port, tusb_control_request_t const *);
-  tusb_error_t (* xfer_cb) (endpoint_handle_t, tusb_event_t, uint32_t);
+  tusb_error_t (* xfer_cb) (edpt_hdl_t, tusb_event_t, uint32_t);
 //  void (* routine)(void);
   void (* sof)(uint8_t port);
   void (* close) (uint8_t);

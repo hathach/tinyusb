@@ -59,7 +59,7 @@ typedef struct {
   uint8_t const * p_report_desc;
   uint16_t report_length;
 
-  endpoint_handle_t ept_handle;
+  edpt_hdl_t ept_handle;
   uint8_t interface_number;
 }hidd_interface_t;
 
@@ -303,7 +303,7 @@ tusb_error_t hidd_open(uint8_t port, tusb_descriptor_interface_t const * p_inter
   return TUSB_ERROR_NONE;
 }
 
-tusb_error_t hidd_xfer_cb(endpoint_handle_t edpt_hdl, tusb_event_t event, uint32_t xferred_bytes)
+tusb_error_t hidd_xfer_cb(edpt_hdl_t edpt_hdl, tusb_event_t event, uint32_t xferred_bytes)
 {
   for(uint8_t i=0; i<HIDD_NUMBER_OF_SUBCLASS; i++)
   {

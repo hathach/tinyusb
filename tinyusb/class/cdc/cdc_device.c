@@ -58,7 +58,7 @@ typedef struct {
 
   bool connected;
 
-  endpoint_handle_t edpt_hdl[3]; // notification, data in, data out
+  edpt_hdl_t edpt_hdl[3]; // notification, data in, data out
 }cdcd_data_t;
 
 // TODO multiple port
@@ -177,7 +177,7 @@ tusb_error_t cdcd_open(uint8_t port, tusb_descriptor_interface_t const * p_inter
       ASSERT_(TUSB_DESC_TYPE_ENDPOINT == p_endpoint->bDescriptorType, TUSB_ERROR_DESCRIPTOR_CORRUPTED);
       ASSERT_(TUSB_XFER_BULK == p_endpoint->bmAttributes.xfer, TUSB_ERROR_DESCRIPTOR_CORRUPTED);
 
-      endpoint_handle_t * p_edpt_hdl =  ( p_endpoint->bEndpointAddress &  TUSB_DIR_DEV_TO_HOST_MASK ) ?
+      edpt_hdl_t * p_edpt_hdl =  ( p_endpoint->bEndpointAddress &  TUSB_DIR_DEV_TO_HOST_MASK ) ?
           &p_cdc->edpt_hdl[CDC_PIPE_DATA_IN] : &p_cdc->edpt_hdl[CDC_PIPE_DATA_OUT] ;
 
       ASSERT_( hal_dcd_pipe_open(port, p_endpoint, p_edpt_hdl), TUSB_ERROR_DCD_OPEN_PIPE_FAILED);
@@ -255,7 +255,7 @@ tusb_error_t cdcd_control_request_subtask(uint8_t port, tusb_control_request_t c
   return TUSB_ERROR_NONE;
 }
 
-tusb_error_t cdcd_xfer_cb(endpoint_handle_t edpt_hdl, tusb_event_t event, uint32_t xferred_bytes)
+tusb_error_t cdcd_xfer_cb(edpt_hdl_t edpt_hdl, tusb_event_t event, uint32_t xferred_bytes)
 {
   cdcd_data_t const * p_cdc = &cdcd_data[edpt_hdl.port];
 
@@ -277,7 +277,7 @@ void cdcd_sof(uint8_t port)
 {
   if ( !tud_cdc_connected(port) ) return;
 
-  endpoint_handle_t ep = cdcd_data[port].edpt_hdl[CDC_PIPE_DATA_IN];
+  edpt_hdl_t ep = cdcd_data[port].edpt_hdl[CDC_PIPE_DATA_IN];
 
   if ( !dcd_pipe_is_busy( ep ) )
   {

@@ -159,7 +159,7 @@ static void endpoint_non_control_isr(uint32_t eot_int)
 
         if ( p_last_dd->int_on_complete )
         {
-          endpoint_handle_t edpt_hdl =
+          edpt_hdl_t edpt_hdl =
           {
               .port     = 0,
               .index      = ep_id,
@@ -204,7 +204,7 @@ static void endpoint_control_isr(void)
 
       if ( BIT_TEST_(dcd_data.control_dma.int_on_complete, ep_id) )
       {
-        endpoint_handle_t edpt_hdl = { .port = 0, .class_code = 0 };
+        edpt_hdl_t edpt_hdl = { .port = 0, .class_code = 0 };
         dcd_data.control_dma.int_on_complete = 0;
 
         // FIXME xferred_byte for control xfer is not needed now !!!
@@ -412,11 +412,11 @@ bool hal_dcd_control_xfer(uint8_t port, tusb_direction_t dir, uint8_t * p_buffer
 //--------------------------------------------------------------------+
 // BULK/INTERRUPT/ISO PIPE API
 //--------------------------------------------------------------------+
-endpoint_handle_t hal_dcd_pipe_open(uint8_t port, tusb_descriptor_endpoint_t const * p_endpoint_desc, uint8_t class_code)
+edpt_hdl_t hal_dcd_pipe_open(uint8_t port, tusb_descriptor_endpoint_t const * p_endpoint_desc, uint8_t class_code)
 {
   (void) port;
 
-  endpoint_handle_t const null_handle = { 0 };
+  edpt_hdl_t const null_handle = { 0 };
 
   // TODO refractor to universal pipe open validation function
   if (p_endpoint_desc->bmAttributes.xfer == TUSB_XFER_ISOCHRONOUS) return null_handle; // TODO not support ISO yet
@@ -440,7 +440,7 @@ endpoint_handle_t hal_dcd_pipe_open(uint8_t port, tusb_descriptor_endpoint_t con
 
 	sie_write(SIE_CMDCODE_ENDPOINT_SET_STATUS+ep_id, 1, 0); // clear all endpoint status
 
-  return (endpoint_handle_t)
+  return (edpt_hdl_t)
       {
           .port     = 0,
           .index      = ep_id,
@@ -448,12 +448,12 @@ endpoint_handle_t hal_dcd_pipe_open(uint8_t port, tusb_descriptor_endpoint_t con
       };
 }
 
-bool dcd_pipe_is_busy(endpoint_handle_t edpt_hdl)
+bool dcd_pipe_is_busy(edpt_hdl_t edpt_hdl)
 {
   return (dcd_data.udca[edpt_hdl.index] != NULL && !dcd_data.udca[edpt_hdl.index]->is_retired);
 }
 
-void hal_dcd_pipe_stall(endpoint_handle_t edpt_hdl)
+void hal_dcd_pipe_stall(edpt_hdl_t edpt_hdl)
 {
   sie_write(SIE_CMDCODE_ENDPOINT_SET_STATUS+edpt_hdl.index, 1, SIE_SET_ENDPOINT_STALLED_MASK);
 }
@@ -476,7 +476,7 @@ void dd_xfer_init(dcd_dma_descriptor_t* p_dd, void* buffer, uint16_t total_bytes
   p_dd->present_count         = 0;
 }
 
-tusb_error_t dcd_pipe_queue_xfer(endpoint_handle_t edpt_hdl, uint8_t * buffer, uint16_t total_bytes)
+tusb_error_t dcd_pipe_queue_xfer(edpt_hdl_t edpt_hdl, uint8_t * buffer, uint16_t total_bytes)
 { // NOTE for sure the qhd has no dds
   dcd_dma_descriptor_t* const p_fixed_dd = &dcd_data.dd[edpt_hdl.index][0]; // always queue with the fixed DD
 
@@ -487,7 +487,7 @@ tusb_error_t dcd_pipe_queue_xfer(endpoint_handle_t edpt_hdl, uint8_t * buffer, u
   return TUSB_ERROR_NONE;
 }
 
-tusb_error_t hal_dcd_pipe_xfer(endpoint_handle_t edpt_hdl, uint8_t* buffer, uint16_t total_bytes, bool int_on_complete)
+tusb_error_t hal_dcd_pipe_xfer(edpt_hdl_t edpt_hdl, uint8_t* buffer, uint16_t total_bytes, bool int_on_complete)
 {
   dcd_dma_descriptor_t* const p_first_dd = &dcd_data.dd[edpt_hdl.index][0];
 

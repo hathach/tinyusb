@@ -246,7 +246,7 @@ static void endpoint_non_control_isr(uint32_t int_status)
 
         if ( BIT_TEST_(dcd_data.current_ioc, ep_id) )
         {
-          endpoint_handle_t edpt_hdl =
+          edpt_hdl_t edpt_hdl =
           {
               .port     = 0,
               .index      = ep_id,
@@ -286,7 +286,7 @@ static void endpoint_control_isr(uint32_t int_status)
 
     if ( BIT_TEST_(dcd_data.current_ioc, ep_id) )
     {
-      endpoint_handle_t edpt_hdl = { .port = 0 };
+      edpt_hdl_t edpt_hdl = { .port = 0 };
 
       dcd_data.current_ioc = BIT_CLR_(dcd_data.current_ioc, ep_id);
 
@@ -428,12 +428,12 @@ static inline uint8_t edpt_phy2log(uint8_t physical_endpoint)
 //--------------------------------------------------------------------+
 // BULK/INTERRUPT/ISOCHRONOUS PIPE API
 //--------------------------------------------------------------------+
-void hal_dcd_pipe_stall(endpoint_handle_t edpt_hdl)
+void hal_dcd_pipe_stall(edpt_hdl_t edpt_hdl)
 {
   dcd_data.qhd[edpt_hdl.index][0].stall = dcd_data.qhd[edpt_hdl.index][1].stall = 1;
 }
 
-bool dcd_pipe_is_stalled(endpoint_handle_t edpt_hdl)
+bool dcd_pipe_is_stalled(edpt_hdl_t edpt_hdl)
 {
   return dcd_data.qhd[edpt_hdl.index][0].stall || dcd_data.qhd[edpt_hdl.index][1].stall;
 }
@@ -456,10 +456,10 @@ void hal_dcd_pipe_clear_stall(uint8_t port, uint8_t edpt_addr)
   }
 }
 
-endpoint_handle_t hal_dcd_pipe_open(uint8_t port, tusb_descriptor_endpoint_t const * p_endpoint_desc, uint8_t class_code)
+edpt_hdl_t hal_dcd_pipe_open(uint8_t port, tusb_descriptor_endpoint_t const * p_endpoint_desc, uint8_t class_code)
 {
   (void) port;
-  endpoint_handle_t const null_handle = { 0 };
+  edpt_hdl_t const null_handle = { 0 };
 
   if (p_endpoint_desc->bmAttributes.xfer == TUSB_XFER_ISOCHRONOUS) return null_handle; // TODO not support ISO yet
 
@@ -481,7 +481,7 @@ endpoint_handle_t hal_dcd_pipe_open(uint8_t port, tusb_descriptor_endpoint_t con
   LPC_USB->EPBUFCFG |= BIT_(ep_id);
   LPC_USB->INTEN    |= BIT_(ep_id);
 
-  return (endpoint_handle_t)
+  return (edpt_hdl_t)
       {
           .port     = 0,
           .index      = ep_id,
@@ -489,7 +489,7 @@ endpoint_handle_t hal_dcd_pipe_open(uint8_t port, tusb_descriptor_endpoint_t con
       };
 }
 
-bool dcd_pipe_is_busy(endpoint_handle_t edpt_hdl)
+bool dcd_pipe_is_busy(edpt_hdl_t edpt_hdl)
 {
   return dcd_data.qhd[edpt_hdl.index][0].active || dcd_data.qhd[edpt_hdl.index][1].active;
 }
@@ -535,7 +535,7 @@ static void queue_xfer_in_next_td(uint8_t ep_id)
   dcd_data.next_td[ep_id].total_bytes = 0; // clear this field as it is used to indicate whehther next TD available
 }
 
-tusb_error_t dcd_pipe_queue_xfer(endpoint_handle_t edpt_hdl, uint8_t * buffer, uint16_t total_bytes)
+tusb_error_t dcd_pipe_queue_xfer(edpt_hdl_t edpt_hdl, uint8_t * buffer, uint16_t total_bytes)
 {
   ASSERT( !dcd_pipe_is_busy(edpt_hdl), TUSB_ERROR_INTERFACE_IS_BUSY); // endpoint must not in transferring
 
@@ -546,7 +546,7 @@ tusb_error_t dcd_pipe_queue_xfer(endpoint_handle_t edpt_hdl, uint8_t * buffer, u
   return TUSB_ERROR_NONE;
 }
 
-tusb_error_t  hal_dcd_pipe_xfer(endpoint_handle_t edpt_hdl, uint8_t* buffer, uint16_t total_bytes, bool int_on_complete)
+tusb_error_t  hal_dcd_pipe_xfer(edpt_hdl_t edpt_hdl, uint8_t* buffer, uint16_t total_bytes, bool int_on_complete)
 {
   if( dcd_pipe_is_busy(edpt_hdl) || dcd_pipe_is_stalled(edpt_hdl) )
   { // save this transfer data to next td if pipe is busy or already been stalled

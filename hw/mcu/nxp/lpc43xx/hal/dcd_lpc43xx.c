@@ -373,7 +373,7 @@ static inline volatile uint32_t * get_reg_control_addr(uint8_t port, uint8_t phy
  return &(LPC_USB[port]->ENDPTCTRL0) + edpt_phy2log(physical_endpoint);
 }
 
-void hal_dcd_pipe_stall(endpoint_handle_t edpt_hdl)
+void hal_dcd_pipe_stall(edpt_hdl_t edpt_hdl)
 {
   volatile uint32_t * reg_control = get_reg_control_addr(edpt_hdl.port, edpt_hdl.index);
 
@@ -389,7 +389,7 @@ void hal_dcd_pipe_clear_stall(uint8_t port, uint8_t edpt_addr)
   (*reg_control) &= ~(ENDPTCTRL_MASK_STALL << ((edpt_addr & TUSB_DIR_DEV_TO_HOST_MASK) ? 16 : 0));
 }
 
-bool hal_dcd_pipe_open(uint8_t port, tusb_descriptor_endpoint_t const * p_endpoint_desc, endpoint_handle_t* eh)
+bool hal_dcd_pipe_open(uint8_t port, tusb_descriptor_endpoint_t const * p_endpoint_desc, edpt_hdl_t* eh)
 {
   // TODO USB1 only has 4 non-control enpoint (USB0 has 5)
   // TODO not support ISO yet
@@ -421,7 +421,7 @@ bool hal_dcd_pipe_open(uint8_t port, tusb_descriptor_endpoint_t const * p_endpoi
   return true;
 }
 
-bool dcd_pipe_is_busy(endpoint_handle_t edpt_hdl)
+bool dcd_pipe_is_busy(edpt_hdl_t edpt_hdl)
 {
   dcd_qhd_t const * p_qhd = &dcd_data_ptr[edpt_hdl.port]->qhd[edpt_hdl.index];
 
@@ -430,7 +430,7 @@ bool dcd_pipe_is_busy(endpoint_handle_t edpt_hdl)
 }
 
 // add only, controller virtually cannot know
-static tusb_error_t pipe_add_xfer(endpoint_handle_t edpt_hdl, void * buffer, uint16_t total_bytes, bool int_on_complete)
+static tusb_error_t pipe_add_xfer(edpt_hdl_t edpt_hdl, void * buffer, uint16_t total_bytes, bool int_on_complete)
 {
   uint8_t qtd_idx  = qtd_find_free(edpt_hdl.port);
   ASSERT(qtd_idx != 0, TUSB_ERROR_DCD_NOT_ENOUGH_QTD);
@@ -458,12 +458,12 @@ static tusb_error_t pipe_add_xfer(endpoint_handle_t edpt_hdl, void * buffer, uin
   return TUSB_ERROR_NONE;
 }
 
-tusb_error_t dcd_pipe_queue_xfer(endpoint_handle_t edpt_hdl, uint8_t * buffer, uint16_t total_bytes)
+tusb_error_t dcd_pipe_queue_xfer(edpt_hdl_t edpt_hdl, uint8_t * buffer, uint16_t total_bytes)
 {
   return pipe_add_xfer( edpt_hdl, buffer, total_bytes, false);
 }
 
-tusb_error_t  hal_dcd_pipe_xfer(endpoint_handle_t edpt_hdl, uint8_t * buffer, uint16_t total_bytes, bool int_on_complete)
+tusb_error_t  hal_dcd_pipe_xfer(edpt_hdl_t edpt_hdl, uint8_t * buffer, uint16_t total_bytes, bool int_on_complete)
 {
   ASSERT_STATUS ( pipe_add_xfer(edpt_hdl, buffer, total_bytes, int_on_complete) );
 
@@ -486,7 +486,7 @@ void xfer_complete_isr(uint8_t port, uint32_t reg_complete)
     { // 23.10.12.3 Failed QTD also get ENDPTCOMPLETE set
       dcd_qhd_t * p_qhd = &dcd_data_ptr[port]->qhd[ep_idx];
 
-      endpoint_handle_t edpt_hdl =
+      edpt_hdl_t edpt_hdl =
       {
           .port     = port,
           .index      = ep_idx,
@@ -576,7 +576,7 @@ void hal_dcd_isr(uint8_t port)
 
           if ( p_qtd->int_on_complete )
           {
-            endpoint_handle_t edpt_hdl =
+            edpt_hdl_t edpt_hdl =
             {
                 .port = port,
                 .index = 0,

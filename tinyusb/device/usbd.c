@@ -138,7 +138,7 @@ typedef struct ATTR_ALIGNED(4)
     tusb_control_request_t setup_received;
 
     struct { // USBD_EVENTID_XFER_DONE
-      endpoint_handle_t edpt_hdl;
+      edpt_hdl_t edpt_hdl;
       uint32_t xferred_byte;
     }xfer_done;
   };
@@ -498,7 +498,7 @@ void hal_dcd_setup_received(uint8_t port, uint8_t const* p_request)
   osal_queue_send(usbd_queue_hdl, &task_event);
 }
 
-void usbd_xfer_isr(endpoint_handle_t edpt_hdl, tusb_event_t event, uint32_t xferred_bytes)
+void usbd_xfer_isr(edpt_hdl_t edpt_hdl, tusb_event_t event, uint32_t xferred_bytes)
 {
   if (edpt_hdl.index == 0 )
   {

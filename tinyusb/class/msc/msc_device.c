@@ -62,7 +62,7 @@ typedef struct {
 
   uint8_t max_lun;
   uint8_t interface_number;
-  endpoint_handle_t edpt_in, edpt_out;
+  edpt_hdl_t edpt_in, edpt_out;
 }mscd_interface_t;
 
 TUSB_CFG_ATTR_USBRAM STATIC_VAR mscd_interface_t mscd_data;
@@ -98,7 +98,7 @@ tusb_error_t mscd_open(uint8_t port, tusb_descriptor_interface_t const * p_inter
     ASSERT(TUSB_DESC_TYPE_ENDPOINT == p_endpoint->bDescriptorType &&
            TUSB_XFER_BULK == p_endpoint->bmAttributes.xfer, TUSB_ERROR_DESCRIPTOR_CORRUPTED);
 
-    endpoint_handle_t * p_edpt_hdl =  ( p_endpoint->bEndpointAddress &  TUSB_DIR_DEV_TO_HOST_MASK ) ?
+    edpt_hdl_t * p_edpt_hdl =  ( p_endpoint->bEndpointAddress &  TUSB_DIR_DEV_TO_HOST_MASK ) ?
         &p_msc->edpt_in : &p_msc->edpt_out;
 
     VERIFY( hal_dcd_pipe_open(port, p_endpoint, p_edpt_hdl), TUSB_ERROR_DCD_FAILED );
@@ -142,7 +142,7 @@ tusb_error_t mscd_control_request_subtask(uint8_t port, tusb_control_request_t c
 //--------------------------------------------------------------------+
 // MSCD APPLICATION CALLBACK
 //--------------------------------------------------------------------+
-tusb_error_t mscd_xfer_cb(endpoint_handle_t edpt_hdl, tusb_event_t event, uint32_t xferred_bytes)
+tusb_error_t mscd_xfer_cb(edpt_hdl_t edpt_hdl, tusb_event_t event, uint32_t xferred_bytes)
 {
   static bool is_waiting_read10_write10 = false; // indicate we are transferring data in READ10, WRITE10 command
 
@@ -182,7 +182,7 @@ tusb_error_t mscd_xfer_cb(endpoint_handle_t edpt_hdl, tusb_event_t event, uint32
         ASSERT( p_cbw->xfer_bytes >= actual_length, TUSB_ERROR_INVALID_PARA );
         ASSERT( sizeof(p_msc->scsi_data) >= actual_length, TUSB_ERROR_NOT_ENOUGH_MEMORY); // needs to increase size for scsi_data
 
-        endpoint_handle_t const edpt_data = BIT_TEST_(p_cbw->dir, 7) ? p_msc->edpt_in : p_msc->edpt_out;
+        edpt_hdl_t const edpt_data = BIT_TEST_(p_cbw->dir, 7) ? p_msc->edpt_in : p_msc->edpt_out;
 
         if ( p_buffer == NULL || actual_length == 0 )
         { // application does not provide data to response --> possibly unsupported SCSI command
@@ -224,7 +224,7 @@ static bool read10_write10_data_xfer(mscd_interface_t* p_msc)
 
   scsi_read10_t* p_readwrite = (scsi_read10_t*) &p_cbw->command; // read10 & write10 has the same format
 
-  endpoint_handle_t const edpt_hdl = BIT_TEST_(p_cbw->dir, 7) ? p_msc->edpt_in : p_msc->edpt_out;
+  edpt_hdl_t const edpt_hdl = BIT_TEST_(p_cbw->dir, 7) ? p_msc->edpt_in : p_msc->edpt_out;
 
   uint32_t const lba         = __be2n(p_readwrite->lba);
   uint16_t const block_count = __be2n_16(p_readwrite->block_count);
