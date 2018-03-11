@@ -108,7 +108,7 @@ typedef struct ATTR_PACKED
 STATIC_ASSERT( sizeof(dcd_11u_13u_qhd_t) == 4, "size is not correct" );
 
 // NOTE data will be transferred as soon as dcd get request by dcd_pipe(_queue)_xfer using double buffering.
-// If there is another hal_dcd_pipe_xfer request, the new request will be saved and executed when the first is done.
+// If there is another tusb_dcd_pipe_xfer request, the new request will be saved and executed when the first is done.
 // next_td stored the 2nd request information
 // current_td is used to keep track of number of remaining & xferred bytes of the current request.
 // queued_bytes_in_buff keep track of number of bytes queued to each buffer (in case of short packet)
@@ -164,18 +164,18 @@ static void queue_xfer_in_next_td(uint8_t ep_id);
 //--------------------------------------------------------------------+
 // CONTROLLER API
 //--------------------------------------------------------------------+
-void hal_dcd_connect(uint8_t port)
+void tusb_dcd_connect(uint8_t port)
 {
   (void) port;
   LPC_USB->DEVCMDSTAT |= CMDSTAT_DEVICE_CONNECT_MASK;
 }
 
-void hal_dcd_set_config(uint8_t port, uint8_t config_num)
+void tusb_dcd_set_config(uint8_t port, uint8_t config_num)
 {
 
 }
 
-void hal_dcd_set_address(uint8_t port, uint8_t dev_addr)
+void tusb_dcd_set_address(uint8_t port, uint8_t dev_addr)
 {
   (void) port;
 
@@ -183,7 +183,7 @@ void hal_dcd_set_address(uint8_t port, uint8_t dev_addr)
   LPC_USB->DEVCMDSTAT |= dev_addr;
 }
 
-bool hal_dcd_init(uint8_t port)
+bool tusb_dcd_init(uint8_t port)
 {
   (void) port;
 
@@ -315,14 +315,14 @@ void hal_dcd_isr(uint8_t port)
     if ( dev_cmd_stat & CMDSTAT_RESET_CHANGE_MASK) // bus reset
     {
       bus_reset();
-      hal_dcd_bus_event(0, USBD_BUS_EVENT_RESET);
+      tusb_dcd_bus_event(0, USBD_BUS_EVENT_RESET);
     }
 
     if (dev_cmd_stat & CMDSTAT_CONNECT_CHANGE_MASK)
     { // device disconnect
       if (dev_cmd_stat & CMDSTAT_DEVICE_ADDR_MASK)
       { // debouncing as this can be set when device is powering
-        hal_dcd_bus_event(0, USBD_BUS_EVENT_UNPLUGGED);
+        tusb_dcd_bus_event(0, USBD_BUS_EVENT_UNPLUGGED);
       }
     }
 
@@ -334,13 +334,13 @@ void hal_dcd_isr(uint8_t port)
         // Note: Host may delay more than 3 ms before and/or after bus reset before doing enumeration.
         if (dev_cmd_stat & CMDSTAT_DEVICE_ADDR_MASK)
         {
-          hal_dcd_bus_event(0, USBD_BUS_EVENT_SUSPENDED);
+          tusb_dcd_bus_event(0, USBD_BUS_EVENT_SUSPENDED);
         }
       }
     }
 //        else
 //      { // resume signal
-//        hal_dcd_bus_event(0, USBD_BUS_EVENT_RESUME);
+//        tusb_dcd_bus_event(0, USBD_BUS_EVENT_RESUME);
 //      }
 //    }
   }
@@ -349,7 +349,7 @@ void hal_dcd_isr(uint8_t port)
   if ( BIT_TEST_(int_status, 0) && (dev_cmd_stat & CMDSTAT_SETUP_RECEIVED_MASK) )
   { // received control request from host
     // copy setup request & acknowledge so that the next setup can be received by hw
-    hal_dcd_setup_received(port, (uint8_t*)&dcd_data.setup_request);
+    tusb_dcd_setup_received(port, (uint8_t*)&dcd_data.setup_request);
 
     // NXP control flowchart clear Active & Stall on both Control IN/OUT endpoints
     dcd_data.qhd[0][0].stall = dcd_data.qhd[1][0].stall = 0;
@@ -373,14 +373,14 @@ void hal_dcd_isr(uint8_t port)
 //--------------------------------------------------------------------+
 // CONTROL PIPE API
 //--------------------------------------------------------------------+
-void hal_dcd_control_stall(uint8_t port)
+void tusb_dcd_control_stall(uint8_t port)
 {
   (void) port;
   // TODO cannot able to STALL Control OUT endpoint !!!!! FIXME try some walk-around
   dcd_data.qhd[0][0].stall = dcd_data.qhd[1][0].stall = 1;
 }
 
-bool hal_dcd_control_xfer(uint8_t port, tusb_direction_t dir, uint8_t * p_buffer, uint16_t length, bool int_on_complete)
+bool tusb_dcd_control_xfer(uint8_t port, tusb_direction_t dir, uint8_t * p_buffer, uint16_t length, bool int_on_complete)
 {
   (void) port;
 
@@ -428,7 +428,7 @@ static inline uint8_t edpt_phy2log(uint8_t physical_endpoint)
 //--------------------------------------------------------------------+
 // BULK/INTERRUPT/ISOCHRONOUS PIPE API
 //--------------------------------------------------------------------+
-void hal_dcd_pipe_stall(edpt_hdl_t edpt_hdl)
+void tusb_dcd_pipe_stall(edpt_hdl_t edpt_hdl)
 {
   dcd_data.qhd[edpt_hdl.index][0].stall = dcd_data.qhd[edpt_hdl.index][1].stall = 1;
 }
@@ -438,7 +438,7 @@ bool dcd_pipe_is_stalled(edpt_hdl_t edpt_hdl)
   return dcd_data.qhd[edpt_hdl.index][0].stall || dcd_data.qhd[edpt_hdl.index][1].stall;
 }
 
-void hal_dcd_pipe_clear_stall(uint8_t port, uint8_t edpt_addr)
+void tusb_dcd_pipe_clear_stall(uint8_t port, uint8_t edpt_addr)
 {
   uint8_t ep_id = edpt_addr2phy(edpt_addr);
 //  uint8_t active_buffer = BIT_TEST_(LPC_USB->EPINUSE, ep_id) ? 1 : 0;
@@ -456,7 +456,7 @@ void hal_dcd_pipe_clear_stall(uint8_t port, uint8_t edpt_addr)
   }
 }
 
-edpt_hdl_t hal_dcd_pipe_open(uint8_t port, tusb_descriptor_endpoint_t const * p_endpoint_desc, uint8_t class_code)
+edpt_hdl_t tusb_dcd_pipe_open(uint8_t port, tusb_descriptor_endpoint_t const * p_endpoint_desc, uint8_t class_code)
 {
   (void) port;
   edpt_hdl_t const null_handle = { 0 };
@@ -535,7 +535,7 @@ static void queue_xfer_in_next_td(uint8_t ep_id)
   dcd_data.next_td[ep_id].total_bytes = 0; // clear this field as it is used to indicate whehther next TD available
 }
 
-tusb_error_t dcd_pipe_queue_xfer(edpt_hdl_t edpt_hdl, uint8_t * buffer, uint16_t total_bytes)
+tusb_error_t tusb_dcd_pipe_queue_xfer(edpt_hdl_t edpt_hdl, uint8_t * buffer, uint16_t total_bytes)
 {
   ASSERT( !dcd_pipe_is_busy(edpt_hdl), TUSB_ERROR_INTERFACE_IS_BUSY); // endpoint must not in transferring
 
@@ -546,7 +546,7 @@ tusb_error_t dcd_pipe_queue_xfer(edpt_hdl_t edpt_hdl, uint8_t * buffer, uint16_t
   return TUSB_ERROR_NONE;
 }
 
-tusb_error_t  hal_dcd_pipe_xfer(edpt_hdl_t edpt_hdl, uint8_t* buffer, uint16_t total_bytes, bool int_on_complete)
+tusb_error_t  tusb_dcd_pipe_xfer(edpt_hdl_t edpt_hdl, uint8_t* buffer, uint16_t total_bytes, bool int_on_complete)
 {
   if( dcd_pipe_is_busy(edpt_hdl) || dcd_pipe_is_stalled(edpt_hdl) )
   { // save this transfer data to next td if pipe is busy or already been stalled

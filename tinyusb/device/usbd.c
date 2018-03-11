@@ -167,11 +167,11 @@ static tusb_error_t usbd_body_subtask(void);
 tusb_error_t usbd_init (void)
 {
   #if (TUSB_CFG_CONTROLLER_0_MODE & TUSB_MODE_DEVICE)
-  hal_dcd_init(0);
+  tusb_dcd_init(0);
   #endif
 
   #if (TUSB_CFG_CONTROLLER_1_MODE & TUSB_MODE_DEVICE)
-  hal_dcd_init(1);
+  tusb_dcd_init(1);
   #endif
 
   //------------- Task init -------------//
@@ -296,12 +296,12 @@ tusb_error_t usbd_control_request_subtask(uint8_t port, tusb_control_request_t c
 
       if ( TUSB_ERROR_NONE == error )
       {
-        hal_dcd_control_xfer(port, (tusb_direction_t) p_request->bmRequestType_bit.direction, (uint8_t*) p_buffer, length, false);
+        tusb_dcd_control_xfer(port, (tusb_direction_t) p_request->bmRequestType_bit.direction, (uint8_t*) p_buffer, length, false);
       }
     }
     else if ( TUSB_REQUEST_SET_ADDRESS == p_request->bRequest )
     {
-      hal_dcd_set_address(port, (uint8_t) p_request->wValue);
+      tusb_dcd_set_address(port, (uint8_t) p_request->wValue);
       usbd_devices[port].state = TUSB_DEVICE_STATE_ADDRESSED;
     }
     else if ( TUSB_REQUEST_SET_CONFIGURATION == p_request->bRequest )
@@ -335,7 +335,7 @@ tusb_error_t usbd_control_request_subtask(uint8_t port, tusb_control_request_t c
             TUSB_REQUEST_TYPE_STANDARD      == p_request->bmRequestType_bit.type &&
             TUSB_REQUEST_CLEAR_FEATURE      == p_request->bRequest )
   {
-    hal_dcd_pipe_clear_stall(port, u16_low_u8(p_request->wIndex) );
+    tusb_dcd_pipe_clear_stall(port, u16_low_u8(p_request->wIndex) );
   } else
   {
     error = TUSB_ERROR_DCD_CONTROL_REQUEST_NOT_SUPPORT;
@@ -343,11 +343,11 @@ tusb_error_t usbd_control_request_subtask(uint8_t port, tusb_control_request_t c
 
   if(TUSB_ERROR_NONE != error)
   { // Response with Protocol Stall if request is not supported
-    hal_dcd_control_stall(port);
+    tusb_dcd_control_stall(port);
     //    ASSERT(error == TUSB_ERROR_NONE, VOID_RETURN);
   }else if (p_request->wLength == 0)
   {
-    hal_dcd_control_xfer(port, (tusb_direction_t) p_request->bmRequestType_bit.direction, NULL, 0, false); // zero length for non-data
+    tusb_dcd_control_xfer(port, (tusb_direction_t) p_request->bmRequestType_bit.direction, NULL, 0, false); // zero length for non-data
   }
 
   OSAL_SUBTASK_END
@@ -357,7 +357,7 @@ tusb_error_t usbd_control_request_subtask(uint8_t port, tusb_control_request_t c
 // may need to open interface before set configured
 static tusb_error_t usbd_set_configure_received(uint8_t port, uint8_t config_number)
 {
-  hal_dcd_set_config(port, config_number);
+  tusb_dcd_set_config(port, config_number);
   usbd_devices[port].state = TUSB_DEVICE_STATE_CONFIGURED;
 
   //------------- parse configuration & open drivers -------------//
@@ -448,7 +448,7 @@ static tusb_error_t get_descriptor(uint8_t port, tusb_control_request_t const * 
 //--------------------------------------------------------------------+
 // USBD-DCD Callback API
 //--------------------------------------------------------------------+
-void hal_dcd_bus_event(uint8_t port, usbd_bus_event_type_t bus_event)
+void tusb_dcd_bus_event(uint8_t port, usbd_bus_event_type_t bus_event)
 {
   switch(bus_event)
   {
@@ -486,7 +486,7 @@ void hal_dcd_bus_event(uint8_t port, usbd_bus_event_type_t bus_event)
   }
 }
 
-void hal_dcd_setup_received(uint8_t port, uint8_t const* p_request)
+void tusb_dcd_setup_received(uint8_t port, uint8_t const* p_request)
 {
   usbd_task_event_t task_event =
   {

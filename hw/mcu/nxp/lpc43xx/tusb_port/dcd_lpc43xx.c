@@ -85,17 +85,17 @@ static dcd_data_t* const dcd_data_ptr[2] = { &dcd_data0, &dcd_data1 };
 //--------------------------------------------------------------------+
 // CONTROLLER API
 //--------------------------------------------------------------------+
-void hal_dcd_connect(uint8_t port)
+void tusb_dcd_connect(uint8_t port)
 {
   LPC_USB[port]->USBCMD_D |= BIT_(0);
 }
 
-void hal_dcd_set_address(uint8_t port, uint8_t dev_addr)
+void tusb_dcd_set_address(uint8_t port, uint8_t dev_addr)
 {
   LPC_USB[port]->DEVICEADDR = (dev_addr << 25) | BIT_(24);
 }
 
-void hal_dcd_set_config(uint8_t port, uint8_t config_num)
+void tusb_dcd_set_config(uint8_t port, uint8_t config_num)
 {
 
 }
@@ -146,7 +146,7 @@ static void bus_reset(uint8_t port)
 
 }
 
-bool hal_dcd_init(uint8_t port)
+bool tusb_dcd_init(uint8_t port)
 {
   LPC_USB0_Type* const lpc_usb = LPC_USB[port];
   dcd_data_t* p_dcd = dcd_data_ptr[port];
@@ -222,14 +222,14 @@ static inline uint8_t qtd_find_free(uint8_t port)
 //--------------------------------------------------------------------+
 // CONTROL PIPE API
 //--------------------------------------------------------------------+
-void hal_dcd_control_stall(uint8_t port)
+void tusb_dcd_control_stall(uint8_t port)
 {
   LPC_USB[port]->ENDPTCTRL0 |= (ENDPTCTRL_MASK_STALL << 16); // stall Control IN TODO stall control OUT as well
 }
 
 // control transfer does not need to use qtd find function
 // follows UM 24.10.8.1.1 Setup packet handling using setup lockout mechanism
-bool hal_dcd_control_xfer(uint8_t port, tusb_direction_t dir, uint8_t * p_buffer, uint16_t length, bool int_on_complete)
+bool tusb_dcd_control_xfer(uint8_t port, tusb_direction_t dir, uint8_t * p_buffer, uint16_t length, bool int_on_complete)
 {
   LPC_USB0_Type* const lpc_usb = LPC_USB[port];
   dcd_data_t* const p_dcd      = dcd_data_ptr[port];
@@ -273,14 +273,14 @@ static inline volatile uint32_t * get_reg_control_addr(uint8_t port, uint8_t phy
  return &(LPC_USB[port]->ENDPTCTRL0) + edpt_phy2log(physical_endpoint);
 }
 
-void hal_dcd_pipe_stall(edpt_hdl_t edpt_hdl)
+void tusb_dcd_pipe_stall(edpt_hdl_t edpt_hdl)
 {
   volatile uint32_t * reg_control = get_reg_control_addr(edpt_hdl.port, edpt_hdl.index);
 
   (*reg_control) |= ENDPTCTRL_MASK_STALL << (edpt_hdl.index & 0x01 ? 16 : 0);
 }
 
-void hal_dcd_pipe_clear_stall(uint8_t port, uint8_t edpt_addr)
+void tusb_dcd_pipe_clear_stall(uint8_t port, uint8_t edpt_addr)
 {
   volatile uint32_t * reg_control = get_reg_control_addr(port, edpt_addr2phy(edpt_addr));
 
@@ -289,7 +289,7 @@ void hal_dcd_pipe_clear_stall(uint8_t port, uint8_t edpt_addr)
   (*reg_control) &= ~(ENDPTCTRL_MASK_STALL << ((edpt_addr & TUSB_DIR_DEV_TO_HOST_MASK) ? 16 : 0));
 }
 
-bool hal_dcd_pipe_open(uint8_t port, tusb_descriptor_endpoint_t const * p_endpoint_desc, edpt_hdl_t* eh)
+bool tusb_dcd_pipe_open(uint8_t port, tusb_descriptor_endpoint_t const * p_endpoint_desc, edpt_hdl_t* eh)
 {
   // TODO USB1 only has 4 non-control enpoint (USB0 has 5)
   // TODO not support ISO yet
@@ -358,12 +358,12 @@ static tusb_error_t pipe_add_xfer(edpt_hdl_t edpt_hdl, void * buffer, uint16_t t
   return TUSB_ERROR_NONE;
 }
 
-tusb_error_t dcd_pipe_queue_xfer(edpt_hdl_t edpt_hdl, uint8_t * buffer, uint16_t total_bytes)
+tusb_error_t tusb_dcd_pipe_queue_xfer(edpt_hdl_t edpt_hdl, uint8_t * buffer, uint16_t total_bytes)
 {
   return pipe_add_xfer( edpt_hdl, buffer, total_bytes, false);
 }
 
-tusb_error_t  hal_dcd_pipe_xfer(edpt_hdl_t edpt_hdl, uint8_t * buffer, uint16_t total_bytes, bool int_on_complete)
+tusb_error_t  tusb_dcd_pipe_xfer(edpt_hdl_t edpt_hdl, uint8_t * buffer, uint16_t total_bytes, bool int_on_complete)
 {
   ASSERT_STATUS ( pipe_add_xfer(edpt_hdl, buffer, total_bytes, int_on_complete) );
 
@@ -427,7 +427,7 @@ void hal_dcd_isr(uint8_t port)
   if (int_status & INT_MASK_RESET)
   {
     bus_reset(port);
-    hal_dcd_bus_event(port, USBD_BUS_EVENT_RESET);
+    tusb_dcd_bus_event(port, USBD_BUS_EVENT_RESET);
   }
 
   if (int_status & INT_MASK_SUSPEND)
@@ -436,7 +436,7 @@ void hal_dcd_isr(uint8_t port)
     { // Note: Host may delay more than 3 ms before and/or after bus reset before doing enumeration.
       if ((lpc_usb->DEVICEADDR >> 25) & 0x0f)
       {
-        hal_dcd_bus_event(0, USBD_BUS_EVENT_SUSPENDED);
+        tusb_dcd_bus_event(0, USBD_BUS_EVENT_SUSPENDED);
       }
     }
   }
@@ -446,7 +446,7 @@ void hal_dcd_isr(uint8_t port)
 //	{
 //	  if ( !(lpc_usb->PORTSC1_D & PORTSC_CURRENT_CONNECT_STATUS_MASK) )
 //	  {
-//	    hal_dcd_bus_event(0, USBD_BUS_EVENT_UNPLUGGED);
+//	    tusb_dcd_bus_event(0, USBD_BUS_EVENT_UNPLUGGED);
 //	  }
 //	}
 
@@ -462,7 +462,7 @@ void hal_dcd_isr(uint8_t port)
     { // 23.10.10.2 Operational model for setup transfers
       lpc_usb->ENDPTSETUPSTAT = lpc_usb->ENDPTSETUPSTAT;// acknowledge
 
-      hal_dcd_setup_received(port, (uint8_t*) &p_dcd->qhd[0].setup_request);
+      tusb_dcd_setup_received(port, (uint8_t*) &p_dcd->qhd[0].setup_request);
     }
     //------------- Control Request Completed -------------//
     else if ( edpt_complete & 0x03 )
@@ -498,7 +498,7 @@ void hal_dcd_isr(uint8_t port)
 
   if (int_status & INT_MASK_SOF)
   {
-    hal_dcd_bus_event(port, USBD_BUS_EVENT_SOF);
+    tusb_dcd_bus_event(port, USBD_BUS_EVENT_SOF);
   }
 
   if (int_status & INT_MASK_NAK) {}

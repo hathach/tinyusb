@@ -122,7 +122,7 @@ static void bus_reset(void)
 	memclr_(&dcd_data, sizeof(dcd_data_t));
 }
 
-bool hal_dcd_init(uint8_t port)
+bool tusb_dcd_init(uint8_t port)
 {
   (void) port;
 
@@ -188,7 +188,7 @@ static void endpoint_control_isr(void)
 
     tusb_control_request_t control_request;
     pipe_control_read(&control_request, 8); // TODO read before clear setup above
-    hal_dcd_setup_received(0, (uint8_t*) &control_request);
+    tusb_dcd_setup_received(0, (uint8_t*) &control_request);
   }
   else if (endpoint_int_status & 0x03)
   {
@@ -230,23 +230,23 @@ void hal_dcd_isr(uint8_t port)
     if (dev_status_reg & SIE_DEV_STATUS_RESET_MASK)
     {
       bus_reset();
-      hal_dcd_bus_event(0, USBD_BUS_EVENT_RESET);
+      tusb_dcd_bus_event(0, USBD_BUS_EVENT_RESET);
     }
 
     if (dev_status_reg & SIE_DEV_STATUS_CONNECT_CHANGE_MASK)
     { // device is disconnected, require using VBUS (P1_30)
-      hal_dcd_bus_event(0, USBD_BUS_EVENT_UNPLUGGED);
+      tusb_dcd_bus_event(0, USBD_BUS_EVENT_UNPLUGGED);
     }
 
     if (dev_status_reg & SIE_DEV_STATUS_SUSPEND_CHANGE_MASK)
     {
       if (dev_status_reg & SIE_DEV_STATUS_SUSPEND_MASK)
       {
-        hal_dcd_bus_event(0, USBD_BUS_EVENT_SUSPENDED);
+        tusb_dcd_bus_event(0, USBD_BUS_EVENT_SUSPENDED);
       }
 //      else
 //      {
-//        hal_dcd_bus_event(0, USBD_BUS_EVENT_RESUME);
+//        tusb_dcd_bus_event(0, USBD_BUS_EVENT_RESUME);
 //      }
     }
   }
@@ -280,19 +280,19 @@ void hal_dcd_isr(uint8_t port)
 //--------------------------------------------------------------------+
 // USBD API - CONTROLLER
 //--------------------------------------------------------------------+
-void hal_dcd_connect(uint8_t port)
+void tusb_dcd_connect(uint8_t port)
 {
   (void) port;
   sie_write(SIE_CMDCODE_DEVICE_STATUS, 1, 1);
 }
 
-void hal_dcd_set_address(uint8_t port, uint8_t dev_addr)
+void tusb_dcd_set_address(uint8_t port, uint8_t dev_addr)
 {
   (void) port;
   sie_write(SIE_CMDCODE_SET_ADDRESS, 1, 0x80 | dev_addr); // 7th bit is : device_enable
 }
 
-void hal_dcd_set_config(uint8_t port, uint8_t config_num)
+void tusb_dcd_set_config(uint8_t port, uint8_t config_num)
 {
   (void) port;
   (void) config_num;
@@ -373,12 +373,12 @@ static tusb_error_t pipe_control_read(void * buffer, uint16_t length)
 //--------------------------------------------------------------------+
 // CONTROL PIPE API
 //--------------------------------------------------------------------+
-void hal_dcd_control_stall(uint8_t port)
+void tusb_dcd_control_stall(uint8_t port)
 {
   sie_write(SIE_CMDCODE_ENDPOINT_SET_STATUS+0, 1, SIE_SET_ENDPOINT_STALLED_MASK | SIE_SET_ENDPOINT_CONDITION_STALLED_MASK);
 }
 
-bool hal_dcd_control_xfer(uint8_t port, tusb_direction_t dir, uint8_t * p_buffer, uint16_t length, bool int_on_complete)
+bool tusb_dcd_control_xfer(uint8_t port, tusb_direction_t dir, uint8_t * p_buffer, uint16_t length, bool int_on_complete)
 {
   (void) port;
 
@@ -412,7 +412,7 @@ bool hal_dcd_control_xfer(uint8_t port, tusb_direction_t dir, uint8_t * p_buffer
 //--------------------------------------------------------------------+
 // BULK/INTERRUPT/ISO PIPE API
 //--------------------------------------------------------------------+
-edpt_hdl_t hal_dcd_pipe_open(uint8_t port, tusb_descriptor_endpoint_t const * p_endpoint_desc, uint8_t class_code)
+edpt_hdl_t tusb_dcd_pipe_open(uint8_t port, tusb_descriptor_endpoint_t const * p_endpoint_desc, uint8_t class_code)
 {
   (void) port;
 
@@ -453,12 +453,12 @@ bool dcd_pipe_is_busy(edpt_hdl_t edpt_hdl)
   return (dcd_data.udca[edpt_hdl.index] != NULL && !dcd_data.udca[edpt_hdl.index]->is_retired);
 }
 
-void hal_dcd_pipe_stall(edpt_hdl_t edpt_hdl)
+void tusb_dcd_pipe_stall(edpt_hdl_t edpt_hdl)
 {
   sie_write(SIE_CMDCODE_ENDPOINT_SET_STATUS+edpt_hdl.index, 1, SIE_SET_ENDPOINT_STALLED_MASK);
 }
 
-void hal_dcd_pipe_clear_stall(uint8_t port, uint8_t edpt_addr)
+void tusb_dcd_pipe_clear_stall(uint8_t port, uint8_t edpt_addr)
 {
   uint8_t ep_id = edpt_addr2phy(edpt_addr);
 
@@ -476,7 +476,7 @@ void dd_xfer_init(dcd_dma_descriptor_t* p_dd, void* buffer, uint16_t total_bytes
   p_dd->present_count         = 0;
 }
 
-tusb_error_t dcd_pipe_queue_xfer(edpt_hdl_t edpt_hdl, uint8_t * buffer, uint16_t total_bytes)
+tusb_error_t tusb_dcd_pipe_queue_xfer(edpt_hdl_t edpt_hdl, uint8_t * buffer, uint16_t total_bytes)
 { // NOTE for sure the qhd has no dds
   dcd_dma_descriptor_t* const p_fixed_dd = &dcd_data.dd[edpt_hdl.index][0]; // always queue with the fixed DD
 
@@ -487,7 +487,7 @@ tusb_error_t dcd_pipe_queue_xfer(edpt_hdl_t edpt_hdl, uint8_t * buffer, uint16_t
   return TUSB_ERROR_NONE;
 }
 
-tusb_error_t hal_dcd_pipe_xfer(edpt_hdl_t edpt_hdl, uint8_t* buffer, uint16_t total_bytes, bool int_on_complete)
+tusb_error_t tusb_dcd_pipe_xfer(edpt_hdl_t edpt_hdl, uint8_t* buffer, uint16_t total_bytes, bool int_on_complete)
 {
   dcd_dma_descriptor_t* const p_first_dd = &dcd_data.dd[edpt_hdl.index][0];
 

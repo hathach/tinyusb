@@ -118,7 +118,7 @@ tusb_error_t tud_hid_keyboard_send(uint8_t port, hid_keyboard_report_t const *p_
 
   hidd_interface_t * p_kbd = &keyboardd_data; // TODO &keyboardd_data[port];
 
-  ASSERT_STATUS( hal_dcd_pipe_xfer(p_kbd->ept_handle, (void*) p_report, sizeof(hid_keyboard_report_t), true) ) ;
+  ASSERT_STATUS( tusb_dcd_pipe_xfer(p_kbd->ept_handle, (void*) p_report, sizeof(hid_keyboard_report_t), true) ) ;
 
   return TUSB_ERROR_NONE;
 }
@@ -141,7 +141,7 @@ tusb_error_t tusbd_hid_mouse_send(uint8_t port, hid_mouse_report_t const *p_repo
 
   hidd_interface_t * p_mouse = &moused_data; // TODO &keyboardd_data[port];
 
-  ASSERT_STATUS( hal_dcd_pipe_xfer(p_mouse->ept_handle, (void*) p_report, sizeof(hid_mouse_report_t), true) ) ;
+  ASSERT_STATUS( tusb_dcd_pipe_xfer(p_mouse->ept_handle, (void*) p_report, sizeof(hid_mouse_report_t), true) ) ;
 
   return TUSB_ERROR_NONE;
 }
@@ -202,7 +202,7 @@ tusb_error_t hidd_control_request_subtask(uint8_t port, tusb_control_request_t c
     ASSERT ( p_hid->report_length <= HIDD_BUFFER_SIZE, TUSB_ERROR_NOT_ENOUGH_MEMORY);
 
     memcpy(m_hid_buffer, p_hid->p_report_desc, p_hid->report_length); // to allow report descriptor not to be in USBRAM
-    hal_dcd_control_xfer(port, TUSB_DIR_DEV_TO_HOST, m_hid_buffer, p_hid->report_length, false);
+    tusb_dcd_control_xfer(port, TUSB_DIR_DEV_TO_HOST, m_hid_buffer, p_hid->report_length, false);
   }
   //------------- Class Specific Request -------------//
   else if (p_request->bmRequestType_bit.type == TUSB_REQUEST_TYPE_CLASS)
@@ -218,7 +218,7 @@ tusb_error_t hidd_control_request_subtask(uint8_t port, tusb_control_request_t c
                                                        &p_buffer, p_request->wLength);
       SUBTASK_ASSERT( p_buffer != NULL && actual_length > 0 );
 
-      hal_dcd_control_xfer(port, (tusb_direction_t) p_request->bmRequestType_bit.direction, p_buffer, actual_length, false);
+      tusb_dcd_control_xfer(port, (tusb_direction_t) p_request->bmRequestType_bit.direction, p_buffer, actual_length, false);
     }
     else if ( (HID_REQUEST_CONTROL_SET_REPORT == p_request->bRequest) && (p_driver->set_report_cb != NULL) )
     {
@@ -226,7 +226,7 @@ tusb_error_t hidd_control_request_subtask(uint8_t port, tusb_control_request_t c
       // wValue = Report Type | Report ID
       tusb_error_t error;
 
-      hal_dcd_control_xfer(port, (tusb_direction_t) p_request->bmRequestType_bit.direction, m_hid_buffer, p_request->wLength, true);
+      tusb_dcd_control_xfer(port, (tusb_direction_t) p_request->bmRequestType_bit.direction, m_hid_buffer, p_request->wLength, true);
 
       osal_semaphore_wait(usbd_control_xfer_sem_hdl, OSAL_TIMEOUT_NORMAL, &error); // wait for control xfer complete
       SUBTASK_ASSERT_STATUS(error);
@@ -280,7 +280,7 @@ tusb_error_t hidd_open(uint8_t port, tusb_descriptor_interface_t const * p_inter
 
         VERIFY(p_hid, TUSB_ERROR_FAILED);
 
-        VERIFY( hal_dcd_pipe_open(port, p_desc_endpoint, &p_hid->ept_handle), TUSB_ERROR_DCD_FAILED );
+        VERIFY( tusb_dcd_pipe_open(port, p_desc_endpoint, &p_hid->ept_handle), TUSB_ERROR_DCD_FAILED );
 
         p_hid->interface_number = p_interface_desc->bInterfaceNumber;
         p_hid->p_report_desc    = (p_interface_desc->bInterfaceProtocol == HID_PROTOCOL_KEYBOARD) ? tusbd_descriptor_pointers.p_hid_keyboard_report : tusbd_descriptor_pointers.p_hid_mouse_report;
