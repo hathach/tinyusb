@@ -251,7 +251,7 @@ static void ed_init(ohci_ed_t *p_ed, uint8_t dev_addr, uint16_t max_packet_size,
 
   p_ed->device_address    = dev_addr;
   p_ed->endpoint_number   = endpoint_addr & 0x0F;
-  p_ed->direction         = (xfer_type == TUSB_XFER_CONTROL) ? OHCI_PID_SETUP : ( (endpoint_addr & TUSB_DIR_DEV_TO_HOST_MASK) ? OHCI_PID_IN : OHCI_PID_OUT );
+  p_ed->direction         = (xfer_type == TUSB_XFER_CONTROL) ? OHCI_PID_SETUP : ( (endpoint_addr & TUSB_DIR_IN_MASK) ? OHCI_PID_IN : OHCI_PID_OUT );
   p_ed->speed             = usbh_devices[dev_addr].speed;
   p_ed->is_iso            = (xfer_type == TUSB_XFER_ISOCHRONOUS) ? 1 : 0;
   p_ed->max_package_size  = max_packet_size;
@@ -539,7 +539,7 @@ bool hcd_pipe_is_stalled(pipe_handle_t pipe_hdl)
 uint8_t hcd_pipe_get_endpoint_addr(pipe_handle_t pipe_hdl)
 {
   ohci_ed_t const * const p_ed = ed_from_pipe_handle(pipe_hdl);
-  return p_ed->endpoint_number | (p_ed->direction == OHCI_PID_IN ? TUSB_DIR_DEV_TO_HOST_MASK : 0 );
+  return p_ed->endpoint_number | (p_ed->direction == OHCI_PID_IN ? TUSB_DIR_IN_MASK : 0 );
 }
 
 tusb_error_t hcd_pipe_clear_stall(pipe_handle_t pipe_hdl)

@@ -407,7 +407,7 @@ tusb_error_t enumeration_body_subtask(void)
   {
     //------------- Get Port Status -------------//
     OSAL_SUBTASK_INVOKED_AND_WAIT(
-        usbh_control_xfer_subtask( usbh_devices[0].hub_addr, bm_request_type(TUSB_DIR_DEV_TO_HOST, TUSB_REQUEST_TYPE_CLASS, TUSB_REQUEST_RECIPIENT_OTHER),
+        usbh_control_xfer_subtask( usbh_devices[0].hub_addr, bm_request_type(TUSB_DIR_IN, TUSB_REQUEST_TYPE_CLASS, TUSB_REQUEST_RECIPIENT_OTHER),
                                    HUB_REQUEST_GET_STATUS, 0, usbh_devices[0].hub_port,
                                    4, enum_data_buffer ),
         error
@@ -449,7 +449,7 @@ tusb_error_t enumeration_body_subtask(void)
 
   //------------- Get first 8 bytes of device descriptor to get Control Endpoint Size -------------//
   OSAL_SUBTASK_INVOKED_AND_WAIT(
-      usbh_control_xfer_subtask( 0, bm_request_type(TUSB_DIR_DEV_TO_HOST, TUSB_REQUEST_TYPE_STANDARD, TUSB_REQUEST_RECIPIENT_DEVICE),
+      usbh_control_xfer_subtask( 0, bm_request_type(TUSB_DIR_IN, TUSB_REQUEST_TYPE_STANDARD, TUSB_REQUEST_RECIPIENT_DEVICE),
                                  TUSB_REQUEST_GET_DESCRIPTOR, (TUSB_DESC_TYPE_DEVICE << 8), 0,
                                  8, enum_data_buffer ),
       error
@@ -482,7 +482,7 @@ tusb_error_t enumeration_body_subtask(void)
   SUBTASK_ASSERT(new_addr <= TUSB_CFG_HOST_DEVICE_MAX); // TODO notify application we reach max devices
 
   OSAL_SUBTASK_INVOKED_AND_WAIT(
-    usbh_control_xfer_subtask( 0, bm_request_type(TUSB_DIR_HOST_TO_DEV, TUSB_REQUEST_TYPE_STANDARD, TUSB_REQUEST_RECIPIENT_DEVICE),
+    usbh_control_xfer_subtask( 0, bm_request_type(TUSB_DIR_OUT, TUSB_REQUEST_TYPE_STANDARD, TUSB_REQUEST_RECIPIENT_DEVICE),
                                TUSB_REQUEST_SET_ADDRESS, new_addr, 0,
                                0, NULL ),
     error
@@ -504,7 +504,7 @@ tusb_error_t enumeration_body_subtask(void)
 
   //------------- Get full device descriptor -------------//
   OSAL_SUBTASK_INVOKED_AND_WAIT(
-      usbh_control_xfer_subtask( new_addr, bm_request_type(TUSB_DIR_DEV_TO_HOST, TUSB_REQUEST_TYPE_STANDARD, TUSB_REQUEST_RECIPIENT_DEVICE),
+      usbh_control_xfer_subtask( new_addr, bm_request_type(TUSB_DIR_IN, TUSB_REQUEST_TYPE_STANDARD, TUSB_REQUEST_RECIPIENT_DEVICE),
                                  TUSB_REQUEST_GET_DESCRIPTOR, (TUSB_DESC_TYPE_DEVICE << 8), 0,
                                  18, enum_data_buffer ),
       error
@@ -521,7 +521,7 @@ tusb_error_t enumeration_body_subtask(void)
 
   //------------- Get 9 bytes of configuration descriptor -------------//
   OSAL_SUBTASK_INVOKED_AND_WAIT(
-      usbh_control_xfer_subtask( new_addr, bm_request_type(TUSB_DIR_DEV_TO_HOST, TUSB_REQUEST_TYPE_STANDARD, TUSB_REQUEST_RECIPIENT_DEVICE),
+      usbh_control_xfer_subtask( new_addr, bm_request_type(TUSB_DIR_IN, TUSB_REQUEST_TYPE_STANDARD, TUSB_REQUEST_RECIPIENT_DEVICE),
                                  TUSB_REQUEST_GET_DESCRIPTOR, (TUSB_DESC_TYPE_CONFIGURATION << 8) | (configure_selected - 1), 0,
                                  9, enum_data_buffer ),
       error
@@ -532,7 +532,7 @@ tusb_error_t enumeration_body_subtask(void)
 
   //------------- Get full configuration descriptor -------------//
   OSAL_SUBTASK_INVOKED_AND_WAIT(
-      usbh_control_xfer_subtask( new_addr, bm_request_type(TUSB_DIR_DEV_TO_HOST, TUSB_REQUEST_TYPE_STANDARD, TUSB_REQUEST_RECIPIENT_DEVICE),
+      usbh_control_xfer_subtask( new_addr, bm_request_type(TUSB_DIR_IN, TUSB_REQUEST_TYPE_STANDARD, TUSB_REQUEST_RECIPIENT_DEVICE),
                                  TUSB_REQUEST_GET_DESCRIPTOR, (TUSB_DESC_TYPE_CONFIGURATION << 8) | (configure_selected - 1), 0,
                                  TUSB_CFG_HOST_ENUM_BUFFER_SIZE, enum_data_buffer ),
       error
@@ -544,7 +544,7 @@ tusb_error_t enumeration_body_subtask(void)
 
   //------------- Set Configure -------------//
   OSAL_SUBTASK_INVOKED_AND_WAIT(
-    usbh_control_xfer_subtask( new_addr, bm_request_type(TUSB_DIR_HOST_TO_DEV, TUSB_REQUEST_TYPE_STANDARD, TUSB_REQUEST_RECIPIENT_DEVICE),
+    usbh_control_xfer_subtask( new_addr, bm_request_type(TUSB_DIR_OUT, TUSB_REQUEST_TYPE_STANDARD, TUSB_REQUEST_RECIPIENT_DEVICE),
                                TUSB_REQUEST_SET_CONFIGURATION, configure_selected, 0,
                                0, NULL ),
     error

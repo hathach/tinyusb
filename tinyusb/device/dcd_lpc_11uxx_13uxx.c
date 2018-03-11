@@ -385,7 +385,7 @@ bool tusb_dcd_control_xfer(uint8_t port, tusb_dir_t dir, uint8_t * p_buffer, uin
   (void) port;
 
   // determine Endpoint where Data & Status phase occurred (IN or OUT)
-  uint8_t const ep_data   = (dir == TUSB_DIR_DEV_TO_HOST) ? 1 : 0;
+  uint8_t const ep_data   = (dir == TUSB_DIR_IN) ? 1 : 0;
   uint8_t const ep_status = 1 - ep_data;
 
   dcd_data.current_ioc = int_on_complete ? BIT_SET_(dcd_data.current_ioc, ep_status) : BIT_CLR_(dcd_data.current_ioc, ep_status);
@@ -414,7 +414,7 @@ bool tusb_dcd_control_xfer(uint8_t port, tusb_dir_t dir, uint8_t * p_buffer, uin
 static inline uint8_t edpt_addr2phy(uint8_t endpoint_addr) ATTR_CONST ATTR_ALWAYS_INLINE;
 static inline uint8_t edpt_addr2phy(uint8_t endpoint_addr)
 {
-  return 2*(endpoint_addr & 0x0F) + ((endpoint_addr & TUSB_DIR_DEV_TO_HOST_MASK) ? 1 : 0);
+  return 2*(endpoint_addr & 0x0F) + ((endpoint_addr & TUSB_DIR_IN_MASK) ? 1 : 0);
 }
 
 #if 0

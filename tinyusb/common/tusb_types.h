@@ -66,10 +66,10 @@ typedef enum
 
 typedef enum
 {
-  TUSB_DIR_HOST_TO_DEV      = 0,
-  TUSB_DIR_DEV_TO_HOST      = 1,
+  TUSB_DIR_OUT = 0,
+  TUSB_DIR_IN  = 1,
 
-  TUSB_DIR_DEV_TO_HOST_MASK = 0x80
+  TUSB_DIR_IN_MASK = 0x80
 }tusb_dir_t;
 
 

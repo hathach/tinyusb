@@ -100,7 +100,7 @@ tusb_error_t mscd_open(uint8_t port, tusb_descriptor_interface_t const * p_inter
 
     TU_ASSERT( tusb_dcd_edpt_open(port, p_endpoint), TUSB_ERROR_DCD_FAILED );
 
-    if ( p_endpoint->bEndpointAddress &  TUSB_DIR_DEV_TO_HOST_MASK )
+    if ( p_endpoint->bEndpointAddress &  TUSB_DIR_IN_MASK )
     {
       p_msc->edpt_in = p_endpoint->bEndpointAddress;
     }else
@@ -130,12 +130,12 @@ tusb_error_t mscd_control_request_subtask(uint8_t port, tusb_control_request_t c
   switch(p_request->bRequest)
   {
     case MSC_REQUEST_RESET:
-      tusb_dcd_control_xfer(port, TUSB_DIR_HOST_TO_DEV, NULL, 0, false);
+      tusb_dcd_control_xfer(port, TUSB_DIR_OUT, NULL, 0, false);
     break;
 
     case MSC_REQUEST_GET_MAX_LUN:
       p_msc->scsi_data[0] = p_msc->max_lun; // Note: lpc11/13u need xfer data's address to be aligned 64 -> make use of scsi_data instead of using max_lun directly
-      tusb_dcd_control_xfer(port, TUSB_DIR_DEV_TO_HOST, p_msc->scsi_data, 1, false);
+      tusb_dcd_control_xfer(port, TUSB_DIR_IN, p_msc->scsi_data, 1, false);
     break;
 
     default:

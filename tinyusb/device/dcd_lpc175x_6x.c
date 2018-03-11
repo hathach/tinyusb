@@ -84,7 +84,7 @@ static tusb_error_t pipe_control_xfer(uint8_t ep_id, uint8_t* p_buffer, uint16_t
 static inline uint8_t edpt_addr2phy(uint8_t endpoint_addr) ATTR_CONST ATTR_ALWAYS_INLINE;
 static inline uint8_t edpt_addr2phy(uint8_t endpoint_addr)
 {
-  return 2*(endpoint_addr & 0x0F) + ((endpoint_addr & TUSB_DIR_DEV_TO_HOST_MASK) ? 1 : 0);
+  return 2*(endpoint_addr & 0x0F) + ((endpoint_addr & TUSB_DIR_IN_MASK) ? 1 : 0);
 }
 
 static inline void edpt_set_max_packet_size(uint8_t ep_id, uint16_t max_packet_size) ATTR_ALWAYS_INLINE;
@@ -385,7 +385,7 @@ bool tusb_dcd_control_xfer(uint8_t port, tusb_dir_t dir, uint8_t * p_buffer, uin
   VERIFY( !(length != 0 && p_buffer == NULL) );
 
   // determine Endpoint where Data & Status phase occurred (IN or OUT)
-  uint8_t const ep_data   = (dir == TUSB_DIR_DEV_TO_HOST) ? 1 : 0;
+  uint8_t const ep_data   = (dir == TUSB_DIR_IN) ? 1 : 0;
   uint8_t const ep_status = 1 - ep_data;
 
   dcd_data.control_dma.int_on_complete = int_on_complete ? BIT_(ep_status) : 0;
@@ -401,7 +401,7 @@ bool tusb_dcd_control_xfer(uint8_t port, tusb_dir_t dir, uint8_t * p_buffer, uin
   }
 
   //------------- Status Phase (opposite direct to Data) -------------//
-  if (dir == TUSB_DIR_HOST_TO_DEV)
+  if (dir == TUSB_DIR_OUT)
   { // only write for CONTROL OUT, CONTROL IN data will be retrieved in hal_dcd_isr // TODO ????
     VERIFY_STATUS ( pipe_control_write(NULL, 0), false );
   }

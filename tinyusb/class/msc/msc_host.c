@@ -114,7 +114,7 @@ static tusb_error_t msch_command_xfer(msch_interface_t * p_msch, void* p_buffer)
 {
   if ( NULL != p_buffer)
   { // there is data phase
-    if (p_msch->cbw.dir & TUSB_DIR_DEV_TO_HOST_MASK)
+    if (p_msch->cbw.dir & TUSB_DIR_IN_MASK)
     {
       ASSERT_STATUS( hcd_pipe_xfer(p_msch->bulk_out, (uint8_t*) &p_msch->cbw, sizeof(msc_cmd_block_wrapper_t), false) );
       ASSERT_STATUS( hcd_pipe_queue_xfer(p_msch->bulk_in , p_buffer, p_msch->cbw.xfer_bytes) );
@@ -137,7 +137,7 @@ tusb_error_t tusbh_msc_inquiry(uint8_t dev_addr, uint8_t lun, uint8_t *p_data)
   //------------- Command Block Wrapper -------------//
   msc_cbw_add_signature(&p_msch->cbw, lun);
   p_msch->cbw.xfer_bytes = sizeof(scsi_inquiry_data_t);
-  p_msch->cbw.dir        = TUSB_DIR_DEV_TO_HOST_MASK;
+  p_msch->cbw.dir        = TUSB_DIR_IN_MASK;
   p_msch->cbw.cmd_len    = sizeof(scsi_inquiry_t);
 
   //------------- SCSI command -------------//
@@ -161,7 +161,7 @@ tusb_error_t tusbh_msc_read_capacity10(uint8_t dev_addr, uint8_t lun, uint8_t *p
   //------------- Command Block Wrapper -------------//
   msc_cbw_add_signature(&p_msch->cbw, lun);
   p_msch->cbw.xfer_bytes = sizeof(scsi_read_capacity10_data_t);
-  p_msch->cbw.dir        = TUSB_DIR_DEV_TO_HOST_MASK;
+  p_msch->cbw.dir        = TUSB_DIR_IN_MASK;
   p_msch->cbw.cmd_len    = sizeof(scsi_read_capacity10_t);
 
   //------------- SCSI command -------------//
@@ -187,7 +187,7 @@ tusb_error_t tuh_msc_request_sense(uint8_t dev_addr, uint8_t lun, uint8_t *p_dat
 
   //------------- Command Block Wrapper -------------//
   p_msch->cbw.xfer_bytes = 18;
-  p_msch->cbw.dir        = TUSB_DIR_DEV_TO_HOST_MASK;
+  p_msch->cbw.dir        = TUSB_DIR_IN_MASK;
   p_msch->cbw.cmd_len    = sizeof(scsi_request_sense_t);
 
   //------------- SCSI command -------------//
@@ -212,7 +212,7 @@ tusb_error_t tuh_msc_test_unit_ready(uint8_t dev_addr, uint8_t lun,  msc_cmd_sta
   msc_cbw_add_signature(&p_msch->cbw, lun);
 
   p_msch->cbw.xfer_bytes = 0; // Number of bytes
-  p_msch->cbw.dir        = TUSB_DIR_HOST_TO_DEV;
+  p_msch->cbw.dir        = TUSB_DIR_OUT;
   p_msch->cbw.cmd_len    = sizeof(scsi_test_unit_ready_t);
 
   //------------- SCSI command -------------//
@@ -239,7 +239,7 @@ tusb_error_t  tuh_msc_read10(uint8_t dev_addr, uint8_t lun, void * p_buffer, uin
   msc_cbw_add_signature(&p_msch->cbw, lun);
 
   p_msch->cbw.xfer_bytes = p_msch->block_size*block_count; // Number of bytes
-  p_msch->cbw.dir        = TUSB_DIR_DEV_TO_HOST_MASK;
+  p_msch->cbw.dir        = TUSB_DIR_IN_MASK;
   p_msch->cbw.cmd_len    = sizeof(scsi_read10_t);
 
   //------------- SCSI command -------------//
@@ -265,7 +265,7 @@ tusb_error_t tuh_msc_write10(uint8_t dev_addr, uint8_t lun, void const * p_buffe
   msc_cbw_add_signature(&p_msch->cbw, lun);
 
   p_msch->cbw.xfer_bytes = p_msch->block_size*block_count; // Number of bytes
-  p_msch->cbw.dir        = TUSB_DIR_HOST_TO_DEV;
+  p_msch->cbw.dir        = TUSB_DIR_OUT;
   p_msch->cbw.cmd_len    = sizeof(scsi_write10_t);
 
   //------------- SCSI command -------------//
@@ -313,7 +313,7 @@ tusb_error_t msch_open_subtask(uint8_t dev_addr, tusb_descriptor_interface_t con
     SUBTASK_ASSERT(TUSB_DESC_TYPE_ENDPOINT == p_endpoint->bDescriptorType);
     SUBTASK_ASSERT(TUSB_XFER_BULK == p_endpoint->bmAttributes.xfer);
 
-    pipe_handle_t * p_pipe_hdl =  ( p_endpoint->bEndpointAddress &  TUSB_DIR_DEV_TO_HOST_MASK ) ?
+    pipe_handle_t * p_pipe_hdl =  ( p_endpoint->bEndpointAddress &  TUSB_DIR_IN_MASK ) ?
         &msch_data[dev_addr-1].bulk_in : &msch_data[dev_addr-1].bulk_out;
 
     (*p_pipe_hdl) = hcd_pipe_open(dev_addr, p_endpoint, TUSB_CLASS_MSC);
@@ -328,7 +328,7 @@ tusb_error_t msch_open_subtask(uint8_t dev_addr, tusb_descriptor_interface_t con
 
   //------------- Get Max Lun -------------//
   OSAL_SUBTASK_INVOKED_AND_WAIT(
-    usbh_control_xfer_subtask( dev_addr, bm_request_type(TUSB_DIR_DEV_TO_HOST, TUSB_REQUEST_TYPE_CLASS, TUSB_REQUEST_RECIPIENT_INTERFACE),
+    usbh_control_xfer_subtask( dev_addr, bm_request_type(TUSB_DIR_IN, TUSB_REQUEST_TYPE_CLASS, TUSB_REQUEST_RECIPIENT_INTERFACE),
                                MSC_REQUEST_GET_MAX_LUN, 0, msch_data[dev_addr-1].interface_number,
                                1, msch_buffer ),
     error
@@ -340,7 +340,7 @@ tusb_error_t msch_open_subtask(uint8_t dev_addr, tusb_descriptor_interface_t con
 #if 0
   //------------- Reset -------------//
   OSAL_SUBTASK_INVOKED_AND_WAIT(
-    usbh_control_xfer_subtask( dev_addr, bm_request_type(TUSB_DIR_HOST_TO_DEV, TUSB_REQUEST_TYPE_CLASS, TUSB_REQUEST_RECIPIENT_INTERFACE),
+    usbh_control_xfer_subtask( dev_addr, bm_request_type(TUSB_DIR_OUT, TUSB_REQUEST_TYPE_CLASS, TUSB_REQUEST_RECIPIENT_INTERFACE),
                                MSC_REQUEST_RESET, 0, msch_data[dev_addr-1].interface_number,
                                0, NULL ),
     error
@@ -366,7 +366,7 @@ tusb_error_t msch_open_subtask(uint8_t dev_addr, tusb_descriptor_interface_t con
   if ( hcd_pipe_is_stalled(msch_data[dev_addr-1].bulk_in) )
   { // clear stall TODO abstract clear stall function
     OSAL_SUBTASK_INVOKED_AND_WAIT(
-      usbh_control_xfer_subtask( dev_addr, bm_request_type(TUSB_DIR_HOST_TO_DEV, TUSB_REQUEST_TYPE_STANDARD, TUSB_REQUEST_RECIPIENT_ENDPOINT),
+      usbh_control_xfer_subtask( dev_addr, bm_request_type(TUSB_DIR_OUT, TUSB_REQUEST_TYPE_STANDARD, TUSB_REQUEST_RECIPIENT_ENDPOINT),
                                  TUSB_REQUEST_CLEAR_FEATURE, 0, hcd_pipe_get_endpoint_addr(msch_data[dev_addr-1].bulk_in),
                                  0, NULL ),
       error

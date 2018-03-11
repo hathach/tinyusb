@@ -180,12 +180,12 @@ static inline uint8_t edpt_phy2pos(uint8_t physical_endpoint)
 
 static inline uint8_t edpt_addr2phy(uint8_t endpoint_addr)
 {
-  return 2*(endpoint_addr & 0x0F) + ((endpoint_addr & TUSB_DIR_DEV_TO_HOST_MASK) ? 1 : 0);
+  return 2*(endpoint_addr & 0x0F) + ((endpoint_addr & TUSB_DIR_IN_MASK) ? 1 : 0);
 }
 
 static inline uint8_t edpt_phy2addr(uint8_t ep_idx)
 {
-  return (ep_idx/2) | ( ep_idx & 0x01 ? TUSB_DIR_DEV_TO_HOST_MASK : 0 );
+  return (ep_idx/2) | ( ep_idx & 0x01 ? TUSB_DIR_IN_MASK : 0 );
 }
 
 static inline uint8_t edpt_phy2log(uint8_t physical_endpoint)
@@ -240,7 +240,7 @@ bool tusb_dcd_control_xfer(uint8_t port, tusb_dir_t dir, uint8_t * p_buffer, uin
   dcd_data_t* const p_dcd      = dcd_data_ptr[port];
 
   // determine Endpoint where Data & Status phase occurred (IN or OUT)
-  uint8_t const ep_data   = (dir == TUSB_DIR_DEV_TO_HOST) ? 1 : 0;
+  uint8_t const ep_data   = (dir == TUSB_DIR_IN) ? 1 : 0;
   uint8_t const ep_status = 1 - ep_data;
 
   while(lpc_usb->ENDPTSETUPSTAT & BIT_(0)) {} // wait until ENDPTSETUPSTAT before priming data/status in response TODO add time out
@@ -291,8 +291,8 @@ void tusb_dcd_edpt_clear_stall(uint8_t port, uint8_t edpt_addr)
   volatile uint32_t * reg_control = get_reg_control_addr(port, edpt_addr2phy(edpt_addr));
 
   // data toggle also need to be reset
-  (*reg_control) |= ENDPTCTRL_MASK_TOGGLE_RESET << ((edpt_addr & TUSB_DIR_DEV_TO_HOST_MASK) ? 16 : 0);
-  (*reg_control) &= ~(ENDPTCTRL_MASK_STALL << ((edpt_addr & TUSB_DIR_DEV_TO_HOST_MASK) ? 16 : 0));
+  (*reg_control) |= ENDPTCTRL_MASK_TOGGLE_RESET << ((edpt_addr & TUSB_DIR_IN_MASK) ? 16 : 0);
+  (*reg_control) &= ~(ENDPTCTRL_MASK_STALL << ((edpt_addr & TUSB_DIR_IN_MASK) ? 16 : 0));
 }
 
 bool tusb_dcd_edpt_open(uint8_t port, tusb_descriptor_endpoint_t const * p_endpoint_desc)
@@ -301,7 +301,7 @@ bool tusb_dcd_edpt_open(uint8_t port, tusb_descriptor_endpoint_t const * p_endpo
   // TODO not support ISO yet
   VERIFY ( p_endpoint_desc->bmAttributes.xfer != TUSB_XFER_ISOCHRONOUS);
 
-  tusb_dir_t dir = (p_endpoint_desc->bEndpointAddress & TUSB_DIR_DEV_TO_HOST_MASK) ? TUSB_DIR_DEV_TO_HOST : TUSB_DIR_HOST_TO_DEV;
+  tusb_dir_t dir = (p_endpoint_desc->bEndpointAddress & TUSB_DIR_IN_MASK) ? TUSB_DIR_IN : TUSB_DIR_OUT;
 
   //------------- Prepare Queue Head -------------//
   uint8_t ep_idx    = edpt_addr2phy(p_endpoint_desc->bEndpointAddress);

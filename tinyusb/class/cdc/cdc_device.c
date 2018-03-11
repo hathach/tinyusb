@@ -179,7 +179,7 @@ tusb_error_t cdcd_open(uint8_t port, tusb_descriptor_interface_t const * p_inter
 
       TU_ASSERT( tusb_dcd_edpt_open(port, p_endpoint), TUSB_ERROR_DCD_OPEN_PIPE_FAILED);
 
-      if ( p_endpoint->bEndpointAddress &  TUSB_DIR_DEV_TO_HOST_MASK )
+      if ( p_endpoint->bEndpointAddress &  TUSB_DIR_IN_MASK )
       {
         p_cdc->edpt_addr[CDC_PIPE_DATA_IN] = p_endpoint->bEndpointAddress;
       }else

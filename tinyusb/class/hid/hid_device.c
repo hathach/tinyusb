@@ -202,7 +202,7 @@ tusb_error_t hidd_control_request_subtask(uint8_t port, tusb_control_request_t c
     ASSERT ( p_hid->report_length <= HIDD_BUFFER_SIZE, TUSB_ERROR_NOT_ENOUGH_MEMORY);
 
     memcpy(m_hid_buffer, p_hid->p_report_desc, p_hid->report_length); // to allow report descriptor not to be in USBRAM
-    tusb_dcd_control_xfer(port, TUSB_DIR_DEV_TO_HOST, m_hid_buffer, p_hid->report_length, false);
+    tusb_dcd_control_xfer(port, TUSB_DIR_IN, m_hid_buffer, p_hid->report_length, false);
   }
   //------------- Class Specific Request -------------//
   else if (p_request->bmRequestType_bit.type == TUSB_REQUEST_TYPE_CLASS)
