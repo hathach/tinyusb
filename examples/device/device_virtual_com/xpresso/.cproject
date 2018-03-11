@@ -43,7 +43,7 @@
 								<option id="gnu.c.compiler.option.include.paths.927641778" name="Include paths (-I)" superClass="gnu.c.compiler.option.include.paths" useByScannerDiscovery="false" valueType="includePath">
 									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/${ProjName}/hw/cmsis/Include}&quot;"/>
 									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/${ProjName}/hw/mcu/nxp/lpc43xx/CMSIS_LPC43xx_DriverLib/inc}&quot;"/>
-									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/${ProjName}/hw/mcu/nxp/lpc43xx/hal}&quot;"/>
+									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/${ProjName}/hw/mcu/nxp/lpc43xx/tusb_port}&quot;"/>
 									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/${ProjName}/hw}&quot;"/>
 									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/${ProjName}/tinyusb}&quot;"/>
 									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/${ProjName}/src}&quot;"/>
@@ -88,7 +88,7 @@
 						</toolChain>
 					</folderInfo>
 					<sourceEntries>
-						<entry excluding="hw/mcu/nordic|hw/bsp/pca10056|hw/bsp/ngx|hw/bsp/lpcxpresso1769|hw/bsp/lpcxpresso1347|hw/bsp/lpcxpresso11u68|hw/bsp/lpcxpresso|hw/bsp/keil|hw/bsp/hitex|hw/mcu/nxp/lpc175x_6x|hw/mcu/nxp/lpc13uxx|hw/mcu/nxp/lpc11uxx" flags="VALUE_WORKSPACE_PATH|RESOLVED" kind="sourcePath" name=""/>
+						<entry excluding="hw/bsp/hitex|hw/bsp/keil|hw/mcu/nordic|hw/bsp/lpcxpresso|hw/mcu/nxp/lpc13uxx|hw/bsp/lpcxpresso1347|hw/mcu/nxp/lpc11uxx|hw/bsp/lpcxpresso1769|hw/mcu/nxp/lpc175x_6x|hw/bsp/pca10056|hw/bsp/ngx|hw/bsp/lpcxpresso11u68" flags="VALUE_WORKSPACE_PATH|RESOLVED" kind="sourcePath" name=""/>
 					</sourceEntries>
 				</configuration>
 			</storageModule>
