@@ -51,7 +51,7 @@
 //--------------------------------------------------------------------+
 #include "common/common.h"
 #include "osal/osal.h"
-#include "dcd.h"
+#include "tusb_dcd.h"
 
 //--------------------------------------------------------------------+
 // MACRO CONSTANT TYPEDEF
