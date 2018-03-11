@@ -165,9 +165,9 @@ static void endpoint_non_control_isr(uint32_t eot_int)
               .index      = ep_id,
               .class_code = dcd_data.class_code[ep_id]
           };
-          tusb_event_t event = (p_last_dd->status == DD_STATUS_NORMAL || p_last_dd->status == DD_STATUS_DATA_UNDERUN) ? TUSB_EVENT_XFER_COMPLETE : TUSB_EVENT_XFER_ERROR;
+          bool succeeded = (p_last_dd->status == DD_STATUS_NORMAL || p_last_dd->status == DD_STATUS_DATA_UNDERUN) ? true : false;
 
-          usbd_xfer_isr(edpt_hdl, event, p_last_dd->present_count); // report only xferred bytes in the IOC qtd
+          tusb_dcd_xfer_complete(edpt_hdl, p_last_dd->present_count, succeeded); // report only xferred bytes in the IOC qtd
         }
       }
     }
@@ -208,7 +208,7 @@ static void endpoint_control_isr(void)
         dcd_data.control_dma.int_on_complete = 0;
 
         // FIXME xferred_byte for control xfer is not needed now !!!
-        usbd_xfer_isr(edpt_hdl, TUSB_EVENT_XFER_COMPLETE, 0);
+        tusb_dcd_xfer_complete(edpt_hdl, 0, true);
       }
     }
   }

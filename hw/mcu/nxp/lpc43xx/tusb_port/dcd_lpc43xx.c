@@ -406,8 +406,8 @@ void xfer_complete_isr(uint8_t port, uint32_t reg_complete)
 
         if (p_qtd->int_on_complete)
         {
-          tusb_event_t event = ( p_qtd->xact_err || p_qtd->halted || p_qtd->buffer_err ) ? TUSB_EVENT_XFER_ERROR : TUSB_EVENT_XFER_COMPLETE;
-          usbd_xfer_isr(edpt_hdl, event, p_qtd->expected_bytes - p_qtd->total_bytes); // only number of bytes in the IOC qtd
+          bool succeeded = ( p_qtd->xact_err || p_qtd->halted || p_qtd->buffer_err ) ? false : true;
+          tusb_dcd_xfer_complete(edpt_hdl, p_qtd->expected_bytes - p_qtd->total_bytes, succeeded); // only number of bytes in the IOC qtd
         }
       }
     }
@@ -481,9 +481,9 @@ void hal_dcd_isr(uint8_t port)
                 .port = port,
                 .index = 0,
             };
-            tusb_event_t event = ( p_qtd->xact_err || p_qtd->halted || p_qtd->buffer_err ) ? TUSB_EVENT_XFER_ERROR : TUSB_EVENT_XFER_COMPLETE;
+            bool succeeded = ( p_qtd->xact_err || p_qtd->halted || p_qtd->buffer_err ) ? false : true;
 
-            usbd_xfer_isr(edpt_hdl, event, 0); // TODO xferred bytes for control xfer is not needed yet !!!!
+            tusb_dcd_xfer_complete(edpt_hdl, 0, succeeded); // TODO xferred bytes for control xfer is not needed yet !!!!
           }
         }
       }

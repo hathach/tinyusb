@@ -256,7 +256,7 @@ static void endpoint_non_control_isr(uint32_t int_status)
           dcd_data.current_ioc = BIT_CLR_(dcd_data.current_ioc, edpt_hdl.index);
 
           // TODO no way determine if the transfer is failed or not
-          usbd_xfer_isr(edpt_hdl, TUSB_EVENT_XFER_COMPLETE, dcd_data.current_td[ep_id].xferred_total);
+          tusb_dcd_xfer_complete(edpt_hdl, dcd_data.current_td[ep_id].xferred_total, true);
         }
 
         //------------- Next TD is available -------------//
@@ -291,7 +291,7 @@ static void endpoint_control_isr(uint32_t int_status)
       dcd_data.current_ioc = BIT_CLR_(dcd_data.current_ioc, ep_id);
 
       // FIXME xferred_byte for control xfer is not needed now !!!
-      usbd_xfer_isr(edpt_hdl, TUSB_EVENT_XFER_COMPLETE, 0);
+      tusb_dcd_xfer_complete(edpt_hdl, 0, true);
     }
   }
 }

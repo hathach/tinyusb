@@ -498,7 +498,7 @@ void tusb_dcd_setup_received(uint8_t port, uint8_t const* p_request)
   osal_queue_send(usbd_queue_hdl, &task_event);
 }
 
-void usbd_xfer_isr(edpt_hdl_t edpt_hdl, tusb_event_t event, uint32_t xferred_bytes)
+void tusb_dcd_xfer_complete(edpt_hdl_t edpt_hdl, uint32_t xferred_bytes, bool succeeded)
 {
   if (edpt_hdl.index == 0 )
   {
@@ -508,9 +508,9 @@ void usbd_xfer_isr(edpt_hdl_t edpt_hdl, tusb_event_t event, uint32_t xferred_byt
   {
     usbd_task_event_t task_event =
     {
-        .port       = edpt_hdl.port,
+        .port         = edpt_hdl.port,
         .event_id     = USBD_EVENTID_XFER_DONE,
-        .sub_event_id = event
+        .sub_event_id = succeeded ? TUSB_EVENT_XFER_COMPLETE : TUSB_EVENT_XFER_ERROR
     };
 
     task_event.xfer_done.xferred_byte = xferred_bytes;

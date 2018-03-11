@@ -75,10 +75,13 @@ void tusb_dcd_disconnect  (uint8_t port);
 void tusb_dcd_set_address (uint8_t port, uint8_t dev_addr);
 void tusb_dcd_set_config  (uint8_t port, uint8_t config_num);
 
-/*------------- Event function -------------*/
+/*------------------------------------------------------------------*/
+/* Event Function
+ * Called by DCD to notify USBD
+ *------------------------------------------------------------------*/
 void tusb_dcd_bus_event(uint8_t port, usbd_bus_event_type_t bus_event);
 void tusb_dcd_setup_received(uint8_t port, uint8_t const* p_request);
-void usbd_xfer_isr(edpt_hdl_t edpt_hdl, tusb_event_t event, uint32_t xferred_bytes);
+void tusb_dcd_xfer_complete(edpt_hdl_t edpt_hdl, uint32_t xferred_bytes, bool succeeded);
 
 //------------- PIPE API -------------//
 bool tusb_dcd_control_xfer(uint8_t port, tusb_direction_t dir, uint8_t * p_buffer, uint16_t length, bool int_on_complete);
