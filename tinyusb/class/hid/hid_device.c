@@ -266,7 +266,7 @@ tusb_error_t hidd_open(uint8_t port, tusb_descriptor_interface_t const * p_inter
   //------------- Endpoint Descriptor -------------//
   p_desc += p_desc[DESCRIPTOR_OFFSET_LENGTH];
   tusb_descriptor_endpoint_t const *p_desc_endpoint = (tusb_descriptor_endpoint_t const *) p_desc;
-  ASSERT_INT(TUSB_DESC_TYPE_ENDPOINT, p_desc_endpoint->bDescriptorType, TUSB_ERROR_HIDD_DESCRIPTOR_INTERFACE);
+  ASSERT_INT(TUSB_DESC_ENDPOINT, p_desc_endpoint->bDescriptorType, TUSB_ERROR_HIDD_DESCRIPTOR_INTERFACE);
 
   if (p_interface_desc->bInterfaceSubClass == HID_SUBCLASS_BOOT)
   {

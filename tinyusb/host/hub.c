@@ -169,7 +169,7 @@ tusb_error_t hub_open_subtask(uint8_t dev_addr, tusb_descriptor_interface_t cons
   tusb_descriptor_endpoint_t const *p_endpoint;
   p_endpoint = (tusb_descriptor_endpoint_t const *) descriptor_next( (uint8_t const*) p_interface_desc );
   
-  SUBTASK_ASSERT(TUSB_DESC_TYPE_ENDPOINT == p_endpoint->bDescriptorType);
+  SUBTASK_ASSERT(TUSB_DESC_ENDPOINT == p_endpoint->bDescriptorType);
   SUBTASK_ASSERT(TUSB_XFER_INTERRUPT == p_endpoint->bmAttributes.xfer);
 
   hub_data[dev_addr-1].pipe_status = hcd_pipe_open(dev_addr, p_endpoint, TUSB_CLASS_HUB);

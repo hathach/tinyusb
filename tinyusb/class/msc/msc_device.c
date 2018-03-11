@@ -95,7 +95,7 @@ tusb_error_t mscd_open(uint8_t port, tusb_descriptor_interface_t const * p_inter
   tusb_descriptor_endpoint_t const *p_endpoint = (tusb_descriptor_endpoint_t const *) descriptor_next( (uint8_t const*) p_interface_desc );
   for(uint32_t i=0; i<2; i++)
   {
-    TU_ASSERT(TUSB_DESC_TYPE_ENDPOINT == p_endpoint->bDescriptorType &&
+    TU_ASSERT(TUSB_DESC_ENDPOINT == p_endpoint->bDescriptorType &&
            TUSB_XFER_BULK == p_endpoint->bmAttributes.xfer, TUSB_ERROR_DESCRIPTOR_CORRUPTED);
 
     TU_ASSERT( tusb_dcd_edpt_open(port, p_endpoint), TUSB_ERROR_DCD_FAILED );

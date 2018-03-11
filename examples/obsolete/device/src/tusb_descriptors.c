@@ -138,7 +138,7 @@ uint8_t const desc_mouse_report[] = {
 tusb_descriptor_device_t const desc_device =
 {
     .bLength            = sizeof(tusb_descriptor_device_t),
-    .bDescriptorType    = TUSB_DESC_TYPE_DEVICE,
+    .bDescriptorType    = TUSB_DESC_DEVICE,
     .bcdUSB             = 0x0200,
   #if TUSB_CFG_DEVICE_CDC
     // Use Interface Association Descriptor (IAD) for CDC
@@ -173,7 +173,7 @@ app_descriptor_configuration_t const desc_configuration =
     .configuration =
     {
         .bLength             = sizeof(tusb_descriptor_configuration_t),
-        .bDescriptorType     = TUSB_DESC_TYPE_CONFIGURATION,
+        .bDescriptorType     = TUSB_DESC_CONFIGURATION,
 
         .wTotalLength        = sizeof(app_descriptor_configuration_t),
         .bNumInterfaces      = TOTAL_INTEFACES,
@@ -189,7 +189,7 @@ app_descriptor_configuration_t const desc_configuration =
     .cdc_iad =
     {
         .bLength           = sizeof(tusb_descriptor_interface_association_t),
-        .bDescriptorType   = TUSB_DESC_TYPE_INTERFACE_ASSOCIATION,
+        .bDescriptorType   = TUSB_DESC_INTERFACE_ASSOCIATION,
 
         .bFirstInterface   = INTERFACE_NO_CDC,
         .bInterfaceCount   = 2,
@@ -204,7 +204,7 @@ app_descriptor_configuration_t const desc_configuration =
     .cdc_comm_interface =
     {
         .bLength            = sizeof(tusb_descriptor_interface_t),
-        .bDescriptorType    = TUSB_DESC_TYPE_INTERFACE,
+        .bDescriptorType    = TUSB_DESC_INTERFACE,
         .bInterfaceNumber   = INTERFACE_NO_CDC,
         .bAlternateSetting  = 0,
         .bNumEndpoints      = 1,
@@ -217,7 +217,7 @@ app_descriptor_configuration_t const desc_configuration =
     .cdc_header =
     {
         .bLength            = sizeof(cdc_desc_func_header_t),
-        .bDescriptorType    = TUSB_DESC_TYPE_INTERFACE_CLASS_SPECIFIC,
+        .bDescriptorType    = TUSB_DESC_CLASS_SPECIFIC,
         .bDescriptorSubType = CDC_FUNC_DESC_HEADER,
         .bcdCDC             = 0x0120
     },
@@ -225,7 +225,7 @@ app_descriptor_configuration_t const desc_configuration =
     .cdc_call =
     {
         .bLength            = sizeof(cdc_desc_func_call_management_t),
-        .bDescriptorType    = TUSB_DESC_TYPE_INTERFACE_CLASS_SPECIFIC,
+        .bDescriptorType    = TUSB_DESC_CLASS_SPECIFIC,
         .bDescriptorSubType = CDC_FUNC_DESC_CALL_MANAGEMENT,
         .bmCapabilities     = { 0 },
         .bDataInterface     = INTERFACE_NO_CDC+1,
@@ -234,7 +234,7 @@ app_descriptor_configuration_t const desc_configuration =
     .cdc_acm =
     {
         .bLength            = sizeof(cdc_desc_func_abstract_control_management_t),
-        .bDescriptorType    = TUSB_DESC_TYPE_INTERFACE_CLASS_SPECIFIC,
+        .bDescriptorType    = TUSB_DESC_CLASS_SPECIFIC,
         .bDescriptorSubType = CDC_FUNC_DESC_ABSTRACT_CONTROL_MANAGEMENT,
         .bmCapabilities     = { // 0x02
             .support_line_request = 1,
@@ -244,7 +244,7 @@ app_descriptor_configuration_t const desc_configuration =
     .cdc_union =
     {
         .bLength                  = sizeof(cdc_desc_func_union_t), // plus number of
-        .bDescriptorType          = TUSB_DESC_TYPE_INTERFACE_CLASS_SPECIFIC,
+        .bDescriptorType          = TUSB_DESC_CLASS_SPECIFIC,
         .bDescriptorSubType       = CDC_FUNC_DESC_UNION,
         .bControlInterface        = INTERFACE_NO_CDC,
         .bSubordinateInterface    = INTERFACE_NO_CDC+1,
@@ -253,7 +253,7 @@ app_descriptor_configuration_t const desc_configuration =
     .cdc_endpoint_notification =
     {
         .bLength          = sizeof(tusb_descriptor_endpoint_t),
-        .bDescriptorType  = TUSB_DESC_TYPE_ENDPOINT,
+        .bDescriptorType  = TUSB_DESC_ENDPOINT,
         .bEndpointAddress = CDC_EDPT_NOTIFICATION_ADDR,
         .bmAttributes     = { .xfer = TUSB_XFER_INTERRUPT },
         .wMaxPacketSize   = { .size = 0x08 },
@@ -264,7 +264,7 @@ app_descriptor_configuration_t const desc_configuration =
     .cdc_data_interface =
     {
         .bLength            = sizeof(tusb_descriptor_interface_t),
-        .bDescriptorType    = TUSB_DESC_TYPE_INTERFACE,
+        .bDescriptorType    = TUSB_DESC_INTERFACE,
         .bInterfaceNumber   = INTERFACE_NO_CDC+1,
         .bAlternateSetting  = 0x00,
         .bNumEndpoints      = 2,
@@ -277,7 +277,7 @@ app_descriptor_configuration_t const desc_configuration =
     .cdc_endpoint_out =
     {
         .bLength          = sizeof(tusb_descriptor_endpoint_t),
-        .bDescriptorType  = TUSB_DESC_TYPE_ENDPOINT,
+        .bDescriptorType  = TUSB_DESC_ENDPOINT,
         .bEndpointAddress = CDC_EDPT_DATA_OUT_ADDR,
         .bmAttributes     = { .xfer = TUSB_XFER_BULK },
         .wMaxPacketSize   = { .size = CDC_EDPT_DATA_PACKETSIZE },
@@ -287,7 +287,7 @@ app_descriptor_configuration_t const desc_configuration =
     .cdc_endpoint_in =
     {
         .bLength          = sizeof(tusb_descriptor_endpoint_t),
-        .bDescriptorType  = TUSB_DESC_TYPE_ENDPOINT,
+        .bDescriptorType  = TUSB_DESC_ENDPOINT,
         .bEndpointAddress = CDC_EDPT_DATA_IN_ADDR,
         .bmAttributes     = { .xfer = TUSB_XFER_BULK },
         .wMaxPacketSize   = { .size = CDC_EDPT_DATA_PACKETSIZE },
@@ -300,7 +300,7 @@ app_descriptor_configuration_t const desc_configuration =
     .keyboard_interface =
     {
         .bLength            = sizeof(tusb_descriptor_interface_t),
-        .bDescriptorType    = TUSB_DESC_TYPE_INTERFACE,
+        .bDescriptorType    = TUSB_DESC_INTERFACE,
         .bInterfaceNumber   = INTERFACE_NO_HID_KEYBOARD,
         .bAlternateSetting  = 0x00,
         .bNumEndpoints      = 1,
@@ -324,7 +324,7 @@ app_descriptor_configuration_t const desc_configuration =
     .keyboard_endpoint =
     {
         .bLength          = sizeof(tusb_descriptor_endpoint_t),
-        .bDescriptorType  = TUSB_DESC_TYPE_ENDPOINT,
+        .bDescriptorType  = TUSB_DESC_ENDPOINT,
         .bEndpointAddress = HID_KEYBOARD_EDPT_ADDR,
         .bmAttributes     = { .xfer = TUSB_XFER_INTERRUPT },
         .wMaxPacketSize   = { .size = HID_KEYBOARD_EDPT_PACKETSIZE },
@@ -337,7 +337,7 @@ app_descriptor_configuration_t const desc_configuration =
     .mouse_interface =
     {
         .bLength            = sizeof(tusb_descriptor_interface_t),
-        .bDescriptorType    = TUSB_DESC_TYPE_INTERFACE,
+        .bDescriptorType    = TUSB_DESC_INTERFACE,
         .bInterfaceNumber   = INTERFACE_NO_HID_MOUSE,
         .bAlternateSetting  = 0x00,
         .bNumEndpoints      = 1,
@@ -361,7 +361,7 @@ app_descriptor_configuration_t const desc_configuration =
     .mouse_endpoint =
     {
         .bLength          = sizeof(tusb_descriptor_endpoint_t),
-        .bDescriptorType  = TUSB_DESC_TYPE_ENDPOINT,
+        .bDescriptorType  = TUSB_DESC_ENDPOINT,
         .bEndpointAddress = HID_MOUSE_EDPT_ADDR, // TODO
         .bmAttributes     = { .xfer = TUSB_XFER_INTERRUPT },
         .wMaxPacketSize   = { .size = HID_MOUSE_EDPT_PACKETSIZE },
@@ -374,7 +374,7 @@ app_descriptor_configuration_t const desc_configuration =
     .msc_interface =
     {
         .bLength            = sizeof(tusb_descriptor_interface_t),
-        .bDescriptorType    = TUSB_DESC_TYPE_INTERFACE,
+        .bDescriptorType    = TUSB_DESC_INTERFACE,
         .bInterfaceNumber   = INTERFACE_NO_MSC,
         .bAlternateSetting  = 0x00,
         .bNumEndpoints      = 2,
@@ -387,7 +387,7 @@ app_descriptor_configuration_t const desc_configuration =
     .msc_endpoint_in =
     {
         .bLength          = sizeof(tusb_descriptor_endpoint_t),
-        .bDescriptorType  = TUSB_DESC_TYPE_ENDPOINT,
+        .bDescriptorType  = TUSB_DESC_ENDPOINT,
         .bEndpointAddress = MSC_EDPT_IN_ADDR,
         .bmAttributes     = { .xfer = TUSB_XFER_BULK },
         .wMaxPacketSize   = { .size = MSC_EDPT_PACKETSIZE },
@@ -397,7 +397,7 @@ app_descriptor_configuration_t const desc_configuration =
     .msc_endpoint_out =
     {
         .bLength          = sizeof(tusb_descriptor_endpoint_t),
-        .bDescriptorType  = TUSB_DESC_TYPE_ENDPOINT,
+        .bDescriptorType  = TUSB_DESC_ENDPOINT,
         .bEndpointAddress = MSC_EDPT_OUT_ADDR,
         .bmAttributes     = { .xfer = TUSB_XFER_BULK },
         .wMaxPacketSize   = { .size = MSC_EDPT_PACKETSIZE },
@@ -416,42 +416,42 @@ app_descriptor_configuration_t const desc_configuration =
 uint16_t const * const string_descriptor_arr [] =
 {
     [0] = (uint16_t []) { // supported language
-        ENDIAN_BE16_FROM( STRING_LEN_UNICODE(1), TUSB_DESC_TYPE_STRING ),
+        ENDIAN_BE16_FROM( STRING_LEN_UNICODE(1), TUSB_DESC_STRING ),
         0x0409 // English
     },
 
     [1] = (uint16_t []) { // manufacturer
-        ENDIAN_BE16_FROM( STRING_LEN_UNICODE(11), TUSB_DESC_TYPE_STRING),
+        ENDIAN_BE16_FROM( STRING_LEN_UNICODE(11), TUSB_DESC_STRING),
         't', 'i', 'n', 'y', 'u', 's', 'b', '.', 'o', 'r', 'g' // len = 11
     },
 
     [2] = (uint16_t []) { // product
-        ENDIAN_BE16_FROM( STRING_LEN_UNICODE(14), TUSB_DESC_TYPE_STRING),
+        ENDIAN_BE16_FROM( STRING_LEN_UNICODE(14), TUSB_DESC_STRING),
         't', 'i', 'n', 'y', 'u', 's', 'b', ' ', 'd', 'e', 'v', 'i', 'c', 'e' // len = 14
     },
 
     [3] = (uint16_t []) { // serials
-        ENDIAN_BE16_FROM( STRING_LEN_UNICODE(4), TUSB_DESC_TYPE_STRING),
+        ENDIAN_BE16_FROM( STRING_LEN_UNICODE(4), TUSB_DESC_STRING),
         '1', '2', '3', '4' // len = 4
     },
 
     [4] = (uint16_t []) { // CDC Interface
-        ENDIAN_BE16_FROM( STRING_LEN_UNICODE(3), TUSB_DESC_TYPE_STRING),
+        ENDIAN_BE16_FROM( STRING_LEN_UNICODE(3), TUSB_DESC_STRING),
         'c', 'd', 'c' // len = 3
     },
 
     [5] = (uint16_t []) { // Keyboard Interface
-        ENDIAN_BE16_FROM( STRING_LEN_UNICODE(5), TUSB_DESC_TYPE_STRING),
+        ENDIAN_BE16_FROM( STRING_LEN_UNICODE(5), TUSB_DESC_STRING),
         'm', 'o', 'u', 's', 'e' // len = 5
     },
 
     [6] = (uint16_t []) { // Keyboard Interface
-        ENDIAN_BE16_FROM( STRING_LEN_UNICODE(8), TUSB_DESC_TYPE_STRING),
+        ENDIAN_BE16_FROM( STRING_LEN_UNICODE(8), TUSB_DESC_STRING),
         'k', 'e', 'y', 'b', 'o', 'a', 'r', 'd' // len = 8
     },
 
     [7] = (uint16_t []) { // MSC Interface
-        ENDIAN_BE16_FROM( STRING_LEN_UNICODE(3), TUSB_DESC_TYPE_STRING),
+        ENDIAN_BE16_FROM( STRING_LEN_UNICODE(3), TUSB_DESC_STRING),
         'm', 's', 'c' // len = 3
     }
 };

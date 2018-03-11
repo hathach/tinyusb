@@ -310,7 +310,7 @@ tusb_error_t msch_open_subtask(uint8_t dev_addr, tusb_descriptor_interface_t con
 
   for(uint32_t i=0; i<2; i++)
   {
-    SUBTASK_ASSERT(TUSB_DESC_TYPE_ENDPOINT == p_endpoint->bDescriptorType);
+    SUBTASK_ASSERT(TUSB_DESC_ENDPOINT == p_endpoint->bDescriptorType);
     SUBTASK_ASSERT(TUSB_XFER_BULK == p_endpoint->bmAttributes.xfer);
 
     pipe_handle_t * p_pipe_hdl =  ( p_endpoint->bEndpointAddress &  TUSB_DIR_IN_MASK ) ?

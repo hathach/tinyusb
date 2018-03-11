@@ -368,12 +368,12 @@ static tusb_error_t usbd_set_configure_received(uint8_t port, uint8_t config_num
 
   while( p_desc < p_desc_config + config_total_length )
   {
-    if ( TUSB_DESC_TYPE_INTERFACE_ASSOCIATION == p_desc[DESCRIPTOR_OFFSET_TYPE])
+    if ( TUSB_DESC_INTERFACE_ASSOCIATION == p_desc[DESCRIPTOR_OFFSET_TYPE])
     {
       p_desc += p_desc[DESCRIPTOR_OFFSET_LENGTH]; // ignore Interface Association
     }else
     {
-      ASSERT( TUSB_DESC_TYPE_INTERFACE == p_desc[DESCRIPTOR_OFFSET_TYPE], TUSB_ERROR_NOT_SUPPORTED_YET );
+      ASSERT( TUSB_DESC_INTERFACE == p_desc[DESCRIPTOR_OFFSET_TYPE], TUSB_ERROR_NOT_SUPPORTED_YET );
 
       uint8_t class_index;
       tusb_descriptor_interface_t* p_desc_interface = (tusb_descriptor_interface_t*) p_desc;
@@ -408,17 +408,17 @@ static tusb_error_t get_descriptor(uint8_t port, tusb_control_request_t const * 
 
   switch(desc_type)
   {
-    case TUSB_DESC_TYPE_DEVICE:
+    case TUSB_DESC_DEVICE:
       p_data      = tusbd_descriptor_pointers.p_device;
       (*p_length) = sizeof(tusb_descriptor_device_t);
     break;
 
-    case TUSB_DESC_TYPE_CONFIGURATION:
+    case TUSB_DESC_CONFIGURATION:
       p_data      = tusbd_descriptor_pointers.p_configuration;
       (*p_length) = ((tusb_descriptor_configuration_t*)tusbd_descriptor_pointers.p_configuration)->wTotalLength;
     break;
 
-    case TUSB_DESC_TYPE_STRING:
+    case TUSB_DESC_STRING:
       if ( !(desc_index < 100) ) return TUSB_ERROR_DCD_CONTROL_REQUEST_NOT_SUPPORT; // windows sometimes ask for string at index 238 !!!
 
       p_data = tusbd_descriptor_pointers.p_string_arr[desc_index];

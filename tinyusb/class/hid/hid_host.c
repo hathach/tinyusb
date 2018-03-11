@@ -193,7 +193,7 @@ tusb_error_t hidh_open_subtask(uint8_t dev_addr, tusb_descriptor_interface_t con
   //------------- Endpoint Descriptor -------------//
   p_desc += p_desc[DESCRIPTOR_OFFSET_LENGTH];
   tusb_descriptor_endpoint_t const * p_endpoint_desc = (tusb_descriptor_endpoint_t const *) p_desc;
-  ASSERT_INT(TUSB_DESC_TYPE_ENDPOINT, p_endpoint_desc->bDescriptorType, TUSB_ERROR_INVALID_PARA);
+  ASSERT_INT(TUSB_DESC_ENDPOINT, p_endpoint_desc->bDescriptorType, TUSB_ERROR_INVALID_PARA);
 
   OSAL_SUBTASK_BEGIN
 
