@@ -59,7 +59,7 @@ typedef struct {
   uint8_t const * p_report_desc;
   uint16_t report_length;
 
-  edpt_hdl_t ept_handle;
+  uint8_t edpt_addr;
   uint8_t interface_number;
 }hidd_interface_t;
 
@@ -91,9 +91,9 @@ static hidd_class_driver_t const hidd_class_driver[HIDD_NUMBER_OF_SUBCLASS] =
     [HID_PROTOCOL_MOUSE] =
     {
         .p_interface   = &moused_data,
-        .xfer_cb       = tusbd_hid_mouse_cb,
-        .get_report_cb = tusbd_hid_mouse_get_report_cb,
-        .set_report_cb = tusbd_hid_mouse_set_report_cb
+        .xfer_cb       = tud_hid_mouse_cb,
+        .get_report_cb = tud_hid_mouse_get_report_cb,
+        .set_report_cb = tud_hid_mouse_set_report_cb
     }
 #endif
 };
@@ -109,7 +109,7 @@ STATIC_VAR hidd_interface_t keyboardd_data;
 
 bool tud_hid_keyboard_busy(uint8_t port)
 {
-  return tusb_dcd_edpt_busy(keyboardd_data.ept_handle);
+  return tusb_dcd_edpt_busy(port, keyboardd_data.edpt_addr);
 }
 
 tusb_error_t tud_hid_keyboard_send(uint8_t port, hid_keyboard_report_t const *p_report)
@@ -118,7 +118,7 @@ tusb_error_t tud_hid_keyboard_send(uint8_t port, hid_keyboard_report_t const *p_
 
   hidd_interface_t * p_kbd = &keyboardd_data; // TODO &keyboardd_data[port];
 
-  ASSERT_STATUS( tusb_dcd_edpt_xfer(p_kbd->ept_handle, (void*) p_report, sizeof(hid_keyboard_report_t), true) ) ;
+  ASSERT_STATUS( tusb_dcd_edpt_xfer(port, p_kbd->edpt_addr, (void*) p_report, sizeof(hid_keyboard_report_t), true) ) ;
 
   return TUSB_ERROR_NONE;
 }
@@ -130,18 +130,18 @@ tusb_error_t tud_hid_keyboard_send(uint8_t port, hid_keyboard_report_t const *p_
 #if TUSB_CFG_DEVICE_HID_MOUSE
 STATIC_VAR hidd_interface_t moused_data;
 
-bool tusbd_hid_mouse_is_busy(uint8_t port)
+bool tud_hid_mouse_is_busy(uint8_t port)
 {
-  return tusb_dcd_edpt_busy(moused_data.ept_handle);
+  return tusb_dcd_edpt_busy(port, moused_data.edpt_addr);
 }
 
-tusb_error_t tusbd_hid_mouse_send(uint8_t port, hid_mouse_report_t const *p_report)
+tusb_error_t tud_hid_mouse_send(uint8_t port, hid_mouse_report_t const *p_report)
 {
   ASSERT(tud_mounted(port), TUSB_ERROR_USBD_DEVICE_NOT_CONFIGURED);
 
   hidd_interface_t * p_mouse = &moused_data; // TODO &keyboardd_data[port];
 
-  ASSERT_STATUS( tusb_dcd_edpt_xfer(p_mouse->ept_handle, (void*) p_report, sizeof(hid_mouse_report_t), true) ) ;
+  ASSERT_STATUS( tusb_dcd_edpt_xfer(port, p_mouse->edpt_addr, (void*) p_report, sizeof(hid_mouse_report_t), true) ) ;
 
   return TUSB_ERROR_NONE;
 }
@@ -280,7 +280,9 @@ tusb_error_t hidd_open(uint8_t port, tusb_descriptor_interface_t const * p_inter
 
         VERIFY(p_hid, TUSB_ERROR_FAILED);
 
-        VERIFY( tusb_dcd_edpt_open(port, p_desc_endpoint, &p_hid->ept_handle), TUSB_ERROR_DCD_FAILED );
+        VERIFY( tusb_dcd_edpt_open(port, p_desc_endpoint), TUSB_ERROR_DCD_FAILED );
+
+        p_hid->edpt_addr = p_desc_endpoint->bEndpointAddress;
 
         p_hid->interface_number = p_interface_desc->bInterfaceNumber;
         p_hid->p_report_desc    = (p_interface_desc->bInterfaceProtocol == HID_PROTOCOL_KEYBOARD) ? tusbd_descriptor_pointers.p_hid_keyboard_report : tusbd_descriptor_pointers.p_hid_mouse_report;
@@ -303,14 +305,14 @@ tusb_error_t hidd_open(uint8_t port, tusb_descriptor_interface_t const * p_inter
   return TUSB_ERROR_NONE;
 }
 
-tusb_error_t hidd_xfer_cb(edpt_hdl_t edpt_hdl, tusb_event_t event, uint32_t xferred_bytes)
+tusb_error_t hidd_xfer_cb(uint8_t port, uint8_t edpt_addr, tusb_event_t event, uint32_t xferred_bytes)
 {
   for(uint8_t i=0; i<HIDD_NUMBER_OF_SUBCLASS; i++)
   {
     hidd_interface_t * const p_interface = hidd_class_driver[i].p_interface;
-    if ( (p_interface != NULL) && edpt_equal(edpt_hdl, p_interface->ept_handle) )
+    if ( (p_interface != NULL) && (edpt_addr == p_interface->edpt_addr) )
     {
-      hidd_class_driver[i].xfer_cb(edpt_hdl.port, event, xferred_bytes);
+      hidd_class_driver[i].xfer_cb(port, event, xferred_bytes);
     }
   }
 

@@ -66,7 +66,7 @@ void mouse_app_umount(uint8_t port)
 
 }
 
-void tusbd_hid_mouse_cb(uint8_t port, tusb_event_t event, uint32_t xferred_bytes)
+void tud_hid_mouse_cb(uint8_t port, tusb_event_t event, uint32_t xferred_bytes)
 {
   switch(event)
   {
@@ -77,7 +77,7 @@ void tusbd_hid_mouse_cb(uint8_t port, tusb_event_t event, uint32_t xferred_bytes
   }
 }
 
-uint16_t tusbd_hid_mouse_get_report_cb(uint8_t port, hid_request_report_type_t report_type, void** pp_report, uint16_t requested_length)
+uint16_t tud_hid_mouse_get_report_cb(uint8_t port, hid_request_report_type_t report_type, void** pp_report, uint16_t requested_length)
 {
   if ( report_type != HID_REQUEST_REPORT_INPUT ) return 0; // not support other report type for this mouse demo
 
@@ -85,7 +85,7 @@ uint16_t tusbd_hid_mouse_get_report_cb(uint8_t port, hid_request_report_type_t r
   return requested_length;
 }
 
-void tusbd_hid_mouse_set_report_cb(uint8_t port, hid_request_report_type_t report_type, uint8_t report_data[], uint16_t length)
+void tud_hid_mouse_set_report_cb(uint8_t port, hid_request_report_type_t report_type, uint8_t report_data[], uint16_t length)
 {
   // mouse demo does not support set report --> do nothing
 }
@@ -102,7 +102,7 @@ void mouse_app_subtask(void);
 
 void mouse_app_task(void * param)
 {
-  (void) para;
+  (void) param;
   OSAL_TASK_BEGIN
   mouse_app_subtask();
   OSAL_TASK_END
@@ -114,7 +114,7 @@ void mouse_app_subtask(void)
 
   osal_task_delay(20);
 
-  if ( tusbd_is_configured(0) &&  !tusbd_hid_mouse_is_busy(0) )
+  if ( tud_mounted(0) &&  !tud_hid_mouse_is_busy(0) )
   {
     static uint8_t prev_mouse_buttons = 0;
 
@@ -147,7 +147,7 @@ void mouse_app_subtask(void)
     { // send report if clicked buttons are changed or there is any movement x, y, wheel
       prev_mouse_buttons = mouse_report.buttons;
 
-      tusbd_hid_mouse_send(0, &mouse_report);
+      tud_hid_mouse_send(0, &mouse_report);
     }
   }
 
