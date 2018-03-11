@@ -23,13 +23,12 @@
   <ProjectSessionItem path="device_virtual_com;device_virtual_com"/>
   <ProjectSessionItem path="device_virtual_com;device_virtual_com;hw"/>
   <ProjectSessionItem path="device_virtual_com;device_virtual_com;hw;bsp"/>
-  <ProjectSessionItem path="device_virtual_com;device_virtual_com;hw;bsp;ea4357"/>
-  <ProjectSessionItem path="device_virtual_com;device_virtual_com;hw;bsp;ea4357;oem_base_board"/>
   <ProjectSessionItem path="device_virtual_com;device_virtual_com;hw;cmsis"/>
   <ProjectSessionItem path="device_virtual_com;device_virtual_com;hw;mcu"/>
   <ProjectSessionItem path="device_virtual_com;device_virtual_com;hw;mcu;nxp"/>
   <ProjectSessionItem path="device_virtual_com;device_virtual_com;hw;mcu;nxp;lpc43xx"/>
   <ProjectSessionItem path="device_virtual_com;device_virtual_com;hw;mcu;nxp;lpc43xx;CMSIS_LPC43xx_DriverLib"/>
+  <ProjectSessionItem path="device_virtual_com;device_virtual_com;hw;mcu;nxp;lpc43xx;tusb_port"/>
   <ProjectSessionItem path="device_virtual_com;device_virtual_com;RTT Files"/>
   <ProjectSessionItem path="device_virtual_com;device_virtual_com;Script Files"/>
   <ProjectSessionItem path="device_virtual_com;device_virtual_com;src"/>
@@ -69,13 +68,12 @@
   <SessionOpenFile windowGroup="DockEditLeft" x="0" y="38" useTextEdit="1" useBinaryEdit="0" left="0" path="../../../../tinyusb/tusb_option.h" debugPath="../../../../tinyusb/tusb_option.h" selected="0" top="29" codecName="Default"/>
   <SessionOpenFile windowGroup="DockEditLeft" x="0" y="108" useTextEdit="1" useBinaryEdit="0" left="0" path="../src/tusb_config.h" debugPath="../src/tusb_config.h" selected="0" top="86" codecName="Default"/>
   <SessionOpenFile windowGroup="DockEditLeft" x="0" y="33" useTextEdit="1" useBinaryEdit="0" left="0" path="flash_placement.xml" debugPath="flash_placement.xml" selected="0" top="6" codecName="Default"/>
-  <SessionOpenFile windowGroup="DockEditLeft" x="0" y="37" useTextEdit="1" useBinaryEdit="0" left="0" path="../../../../hw/mcu/nxp/lpc43xx/hal/hal_usb.h" debugPath="../../../../hw/mcu/nxp/lpc43xx/hal/hal_usb.h" selected="0" top="14" codecName="Default"/>
   <SessionOpenFile windowGroup="DockEditLeft" x="0" y="64" useTextEdit="1" useBinaryEdit="0" left="0" path="../../../../hw/mcu/nxp/lpc43xx/CMSIS_LPC43xx_DriverLib/inc/LPC43xx.h" debugPath="../../../../hw/mcu/nxp/lpc43xx/CMSIS_LPC43xx_DriverLib/inc/LPC43xx.h" selected="0" top="47" codecName="Default"/>
   <SessionOpenFile windowGroup="DockEditLeft" x="0" y="100" useTextEdit="1" useBinaryEdit="0" left="0" path="../../../../hw/bsp/board.h" debugPath="../../../../hw/bsp/board.h" selected="0" top="85" codecName="Default"/>
   <SessionOpenFile windowGroup="DockEditLeft" x="0" y="251" useTextEdit="1" useBinaryEdit="0" left="0" path="../../../../hw/bsp/ea4357/nand.c" debugPath="../../../../hw/bsp/ea4357/nand.c" selected="0" top="243" codecName="Default"/>
   <SessionOpenFile windowGroup="DockEditLeft" x="0" y="276" useTextEdit="1" useBinaryEdit="0" left="0" path="../../../../hw/bsp/ea4357/oem_base_board/norflash.c" debugPath="../../../../hw/bsp/ea4357/oem_base_board/norflash.c" selected="0" top="269" codecName="Default"/>
   <SessionOpenFile windowGroup="DockEditLeft" x="0" y="149" useTextEdit="1" useBinaryEdit="0" left="0" path="../../../../hw/mcu/nxp/lpc43xx/CMSIS_LPC43xx_DriverLib/src/lpc43xx_emc.c" debugPath="../../../../hw/mcu/nxp/lpc43xx/CMSIS_LPC43xx_DriverLib/src/lpc43xx_emc.c" selected="0" top="130" codecName="Default"/>
-  <SessionOpenFile windowGroup="DockEditLeft" x="0" y="39" useTextEdit="1" useBinaryEdit="0" left="0" path="LPC43xx_Vectors.s" debugPath="LPC43xx_Vectors.s" selected="1" top="22" codecName="Default"/>
+  <SessionOpenFile windowGroup="DockEditLeft" x="0" y="45" useTextEdit="1" useBinaryEdit="0" left="0" path="LPC43xx_Vectors.s" debugPath="LPC43xx_Vectors.s" selected="1" top="22" codecName="Default"/>
   <SessionOpenFile windowGroup="DockEditLeft" x="0" y="0" useTextEdit="1" useBinaryEdit="0" left="0" path="../../../../hw/bsp/board.c" debugPath="../../../../hw/bsp/board.c" selected="0" top="72" codecName="Default"/>
   <SessionOpenFile windowGroup="DockEditLeft" x="0" y="87" useTextEdit="1" useBinaryEdit="0" left="0" path="../../../../hw/bsp/printf_retarget.c" debugPath="../../../../hw/bsp/printf_retarget.c" selected="0" top="73" codecName="Default"/>
   <SessionOpenFile windowGroup="DockEditLeft" x="0" y="51" useTextEdit="1" useBinaryEdit="0" left="0" path="SEGGER_RTT_SES.c" debugPath="SEGGER_RTT_SES.c" selected="0" top="44" codecName="Default"/>
@@ -85,5 +83,5 @@
   <SessionOpenFile windowGroup="DockEditLeft" x="0" y="0" useTextEdit="1" useBinaryEdit="0" left="0" path="LPC4300_Startup.s" debugPath="LPC4300_Startup.s" selected="0" top="0" codecName="Default"/>
   <SessionOpenFile windowGroup="DockEditLeft" x="0" y="13" useTextEdit="1" useBinaryEdit="0" left="0" path="thumb_crt0.s" debugPath="thumb_crt0.s" selected="0" top="0" codecName="Default"/>
  </Files>
- <ARMCrossStudioWindow activeProject="device_virtual_com" fileDialogDefaultFilter="*.c" autoConnectTarget="J-Link" buildConfiguration="EA4357" debugSearchFileMap="" fileDialogInitialDirectory="/home/hathach/Dropbox/tinyusb/workspace/tinyusb/examples/device/device_virtual_com/segger" debugSearchPath="" autoConnectCapabilities="3199"/>
+ <ARMCrossStudioWindow activeProject="device_virtual_com" fileDialogDefaultFilter="*.c" autoConnectTarget="J-Link" buildConfiguration="EA4357" debugSearchFileMap="" fileDialogInitialDirectory="/home/hathach/Dropbox/tinyusb/workspace/tinyusb/hw/mcu/nxp/lpc43xx/tusb_port" debugSearchPath="" autoConnectCapabilities="3199"/>
 </session>

@@ -19,7 +19,7 @@
       arm_target_device_name="LPC4357_M4"
       arm_target_interface_type="SWD"
       c_preprocessor_definitions="CORE_M4;__LPC4300_FAMILY;__LPC435x_SUBFAMILY;ARM_MATH_CM4;FLASH_PLACEMENT=1"
-      c_user_include_directories="../src;$(ProjectDir)/LPC4300/CMSIS/Device/Include;$(RepoDir)/hw/cmsis/Include;$(RepoDir)/hw/mcu/nxp/lpc43xx/hal;$(RepoDir)/hw/mcu/nxp/lpc43xx/CMSIS_LPC43xx_DriverLib/inc;$(RepoDir)/hw/;$(RepoDir)/tinyusb"
+      c_user_include_directories="../src;$(ProjectDir)/LPC4300/CMSIS/Device/Include;$(RepoDir)/hw/cmsis/Include;$(RepoDir)/hw/mcu/nxp/lpc43xx/tusb_port;$(RepoDir)/hw/mcu/nxp/lpc43xx/CMSIS_LPC43xx_DriverLib/inc;$(RepoDir)/hw/;$(RepoDir)/tinyusb"
       debug_register_definition_file="$(ProjectDir)/LPC43xx_Registers.xml"
       debug_target_connection="J-Link"
       gcc_entry_point="Reset_Handler"
@@ -190,11 +190,10 @@
                 <file file_name="../../../../hw/mcu/nxp/lpc43xx/CMSIS_LPC43xx_DriverLib/src/system_LPC43xx.c" />
               </folder>
             </folder>
-            <folder Name="hal">
-              <file file_name="../../../../hw/mcu/nxp/lpc43xx/hal/dcd_lpc43xx.c" />
-              <file file_name="../../../../hw/mcu/nxp/lpc43xx/hal/dcd_lpc43xx.h" />
-              <file file_name="../../../../hw/mcu/nxp/lpc43xx/hal/hal_lpc43xx.c" />
-              <file file_name="../../../../hw/mcu/nxp/lpc43xx/hal/hal_usb.h" />
+            <folder Name="tusb_port">
+              <file file_name="../../../../hw/mcu/nxp/lpc43xx/tusb_port/dcd_lpc43xx.c" />
+              <file file_name="../../../../hw/mcu/nxp/lpc43xx/tusb_port/dcd_lpc43xx.h" />
+              <file file_name="../../../../hw/mcu/nxp/lpc43xx/tusb_port/hal_lpc43xx.c" />
             </folder>
           </folder>
         </folder>

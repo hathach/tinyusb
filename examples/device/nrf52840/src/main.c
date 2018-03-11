@@ -118,7 +118,7 @@ void led_blinking_task(void)
   static uint32_t last_blink = 0;
 
   // not enough time
-  if ( last_blink + BLINK_INTEVAL > hal_tick_get() ) return;
+  if ( last_blink + BLINK_INTEVAL > tusb_hal_tick_get() ) return;
 
   last_blink += BLINK_INTEVAL;
 

@@ -1,9 +1,7 @@
 <!DOCTYPE CrossStudio_Session_File>
 <session>
  <Bookmarks/>
- <Breakpoints groups="Breakpoints" active_group="Breakpoints">
-  <Exceptions set="MemManage;UsageFault_Coprocessor;UsageFault_CheckingError;UsageFault_StateError;BusFault;ExceptionEntryReturnFault;HardFault"/>
- </Breakpoints>
+ <Breakpoints groups="Breakpoints" active_group="Breakpoints"/>
  <ExecutionProfileWindow/>
  <FrameBufferWindow>
   <FrameBufferWindow bufferHeight="-1" addressSpace="" addressText="" bufferWidth="-1"/>
@@ -35,15 +33,11 @@
   <ProjectSessionItem path="nrf52840;nrf52840;hw;mcu;nordic;nrf52"/>
   <ProjectSessionItem path="nrf52840;nrf52840;hw;mcu;nordic;nrf52;hal"/>
   <ProjectSessionItem path="nrf52840;nrf52840;hw;mcu;nordic;nrf52;sdk"/>
-  <ProjectSessionItem path="nrf52840;nrf52840;hw;mcu;nordic;nrf52;sdk;libraries"/>
-  <ProjectSessionItem path="nrf52840;nrf52840;hw;mcu;nordic;nrf52;sdk;libraries;experimental_log"/>
-  <ProjectSessionItem path="nrf52840;nrf52840;hw;mcu;nordic;nrf52;sdk;libraries;experimental_log;src"/>
-  <ProjectSessionItem path="nrf52840;nrf52840;hw;mcu;nordic;nrf52;sdk;libraries;experimental_memobj"/>
   <ProjectSessionItem path="nrf52840;nrf52840;hw;mcu;nordic;nrf52;sdk;softdevice"/>
   <ProjectSessionItem path="nrf52840;nrf52840;hw;mcu;nordic;nrf52;sdk;softdevice;common"/>
   <ProjectSessionItem path="nrf52840;nrf52840;src"/>
   <ProjectSessionItem path="nrf52840;nrf52840;tinyusb"/>
-  <ProjectSessionItem path="nrf52840;nrf52840;tinyusb;common"/>
+  <ProjectSessionItem path="nrf52840;nrf52840;tinyusb;device"/>
  </Project>
  <Register1>
   <RegisterWindow visibleNodes="CPU - Current Context/r0;CPU - Current Context/r1;CPU - Current Context/r2;CPU - Current Context/r3;CPU - Current Context/r4;CPU - Current Context/r5;CPU - Current Context/r6;CPU - Current Context/r7;CPU - Current Context/r8;CPU - Current Context/r9;CPU - Current Context/r10;CPU - Current Context/r11;CPU - Current Context/r12;CPU - Current Context/sp(r13);CPU - Current Context/lr(r14);CPU - Current Context/pc(r15);CPU - Current Context/apsr;CPU/r0;CPU/r1;CPU/r2;CPU/r3;CPU/r4;CPU/r5;CPU/r6;CPU/r7;CPU/r8;CPU/r9;CPU/r10;CPU/r11;CPU/r12;CPU/sp(r13);CPU/lr(r14);CPU/pc(r15);CPU/xpsr;CPU/msp;CPU/psp;CPU/cfbp" binaryNodes="" asciiNodes="" openNodes="CPU - Current Context" name="device_virtual_com" decimalNodes="" octalNodes="" unsignedNodes=""/>
@@ -77,28 +71,11 @@
   <Watches active="0" update="Never"/>
  </Watch4>
  <Files>
-  <SessionOpenFile windowGroup="DockEditLeft" x="0" y="48" useTextEdit="1" useBinaryEdit="0" left="0" path="../../../../tinyusb/common/common.h" debugPath="../../../../tinyusb/common/common.h" selected="0" top="27" codecName="Default"/>
-  <SessionOpenFile windowGroup="DockEditLeft" x="35" y="65" useTextEdit="1" useBinaryEdit="0" left="0" path="../../../../tinyusb/tusb_option.h" debugPath="../../../../tinyusb/tusb_option.h" selected="0" top="53" codecName="Default"/>
-  <SessionOpenFile windowGroup="DockEditLeft" x="12" y="86" useTextEdit="1" useBinaryEdit="0" left="0" path="../../../../tinyusb/tusb_hal.h" debugPath="../../../../tinyusb/tusb_hal.h" selected="0" top="59" codecName="Default"/>
-  <SessionOpenFile windowGroup="DockEditLeft" x="0" y="69" useTextEdit="1" useBinaryEdit="0" left="0" path="nrf.h" debugPath="nrf.h" selected="0" top="60" codecName="Default"/>
-  <SessionOpenFile windowGroup="DockEditLeft" x="0" y="116" useTextEdit="1" useBinaryEdit="0" left="0" path="nRF/CMSIS/Device/Include/nrf52840.h" debugPath="nRF/CMSIS/Device/Include/nrf52840.h" selected="0" top="90" codecName="Default"/>
-  <SessionOpenFile windowGroup="DockEditLeft" x="35" y="96" useTextEdit="1" useBinaryEdit="0" left="0" path="../../../../hw/bsp/board.h" debugPath="../../../../hw/bsp/board.h" selected="0" top="85" codecName="Default"/>
-  <SessionOpenFile windowGroup="DockEditLeft" x="30" y="122" useTextEdit="1" useBinaryEdit="0" left="0" path="../src/main.c" debugPath="../src/main.c" selected="0" top="96" codecName="Default"/>
-  <SessionOpenFile windowGroup="DockEditLeft" x="18" y="60" useTextEdit="1" useBinaryEdit="0" left="0" path="../src/tusb_config.h" debugPath="../src/tusb_config.h" selected="0" top="54" codecName="Default"/>
-  <SessionOpenFile windowGroup="DockEditLeft" x="0" y="25" useTextEdit="1" useBinaryEdit="0" left="0" path="../../../../tinyusb/tusb.c" debugPath="../../../../tinyusb/tusb.c" selected="0" top="16" codecName="Default"/>
-  <SessionOpenFile windowGroup="DockEditLeft" x="1" y="69" useTextEdit="1" useBinaryEdit="0" left="0" path="../../../../hw/mcu/nordic/nrf52/hal/hal_nrf52.c" debugPath="../../../../hw/mcu/nordic/nrf52/hal/hal_nrf52.c" selected="0" top="41" codecName="Default"/>
-  <SessionOpenFile windowGroup="DockEditLeft" x="0" y="24" useTextEdit="1" useBinaryEdit="0" left="0" path="../../../../hw/mcu/nordic/nrf52/sdk/drivers_nrf/hal/nrf_saadc.c" debugPath="../../../../hw/mcu/nordic/nrf52/sdk/drivers_nrf/hal/nrf_saadc.c" selected="0" top="12" codecName="Default"/>
-  <SessionOpenFile windowGroup="DockEditLeft" x="30" y="55" useTextEdit="1" useBinaryEdit="0" left="0" path="../../../../hw/mcu/nordic/nrf52/sdk/drivers_nrf/uart/nrf_drv_uart.c" debugPath="../../../../hw/mcu/nordic/nrf52/sdk/drivers_nrf/uart/nrf_drv_uart.c" selected="0" top="32" codecName="Default"/>
-  <SessionOpenFile windowGroup="DockEditLeft" x="0" y="39" useTextEdit="1" useBinaryEdit="0" left="0" path="../../../../hw/mcu/nordic/nrf52/sdk/drivers_nrf/systick/nrf_drv_systick.c" debugPath="../../../../hw/mcu/nordic/nrf52/sdk/drivers_nrf/systick/nrf_drv_systick.c" selected="0" top="8" codecName="Default"/>
-  <SessionOpenFile windowGroup="DockEditLeft" x="0" y="65" useTextEdit="1" useBinaryEdit="0" left="0" path="../../../../hw/mcu/nordic/nrf52/sdk/libraries/util/sdk_errors.h" debugPath="../../../../hw/mcu/nordic/nrf52/sdk/libraries/util/sdk_errors.h" selected="0" top="44" codecName="Default"/>
-  <SessionOpenFile windowGroup="DockEditLeft" x="41" y="65" useTextEdit="1" useBinaryEdit="0" left="0" path="../../../../hw/mcu/nordic/nrf52/sdk/libraries/experimental_log/nrf_log.h" debugPath="../../../../hw/mcu/nordic/nrf52/sdk/libraries/experimental_log/nrf_log.h" selected="0" top="47" codecName="Default"/>
-  <SessionOpenFile windowGroup="DockEditLeft" x="9" y="781" useTextEdit="1" useBinaryEdit="0" left="0" path="../../../../hw/mcu/nordic/nrf52/sdk/drivers_nrf/usbd/nrf_drv_usbd.c" debugPath="../../../../hw/mcu/nordic/nrf52/sdk/drivers_nrf/usbd/nrf_drv_usbd.c" selected="0" top="767" codecName="Default"/>
-  <SessionOpenFile windowGroup="DockEditLeft" x="0" y="44" useTextEdit="1" useBinaryEdit="0" left="0" path="../../../../hw/bsp/pca10056/board_pca10056.c" debugPath="../../../../hw/bsp/pca10056/board_pca10056.c" selected="0" top="27" codecName="Default"/>
-  <SessionOpenFile windowGroup="DockEditLeft" x="0" y="54" useTextEdit="1" useBinaryEdit="0" left="0" path="../../../../hw/mcu/nordic/nrf52/sdk/drivers_nrf/common/nrf_drv_common.c" debugPath="../../../../hw/mcu/nordic/nrf52/sdk/drivers_nrf/common/nrf_drv_common.c" selected="0" top="37" codecName="Default"/>
-  <SessionOpenFile windowGroup="DockEditLeft" x="0" y="28" useTextEdit="1" useBinaryEdit="0" left="0" path="../../../../hw/mcu/nordic/nrf52/sdk/sdk_config.h" debugPath="../../../../hw/mcu/nordic/nrf52/sdk/sdk_config.h" selected="0" top="0" codecName="Default"/>
-  <SessionOpenFile windowGroup="DockEditLeft" x="0" y="33" useTextEdit="1" useBinaryEdit="0" left="0" path="../../../../hw/mcu/nordic/nrf52/sdk/libraries/experimental_log/nrf_log_backend_interface.h" debugPath="../../../../hw/mcu/nordic/nrf52/sdk/libraries/experimental_log/nrf_log_backend_interface.h" selected="0" top="22" codecName="Default"/>
-  <SessionOpenFile windowGroup="DockEditLeft" x="0" y="50" useTextEdit="1" useBinaryEdit="0" left="0" path="../../../../hw/mcu/nordic/nrf52/sdk/libraries/experimental_memobj/nrf_memobj.h" debugPath="../../../../hw/mcu/nordic/nrf52/sdk/libraries/experimental_memobj/nrf_memobj.h" selected="0" top="25" codecName="Default"/>
-  <SessionOpenFile windowGroup="DockEditLeft" x="0" y="57" useTextEdit="1" useBinaryEdit="0" left="0" path="../../../../hw/mcu/nordic/nrf52/sdk/libraries/experimental_log/src/nrf_log_backend_serial.h" debugPath="../../../../hw/mcu/nordic/nrf52/sdk/libraries/experimental_log/src/nrf_log_backend_serial.h" selected="1" top="32" codecName="Default"/>
+  <SessionOpenFile windowGroup="DockEditLeft" x="0" y="59" useTextEdit="1" useBinaryEdit="0" left="0" path="../../../../hw/bsp/pca10056/board_pca10056.c" debugPath="../../../../hw/bsp/pca10056/board_pca10056.c" selected="0" top="54" codecName="Default"/>
+  <SessionOpenFile windowGroup="DockEditLeft" x="0" y="290" useTextEdit="1" useBinaryEdit="0" left="0" path="../../../../hw/mcu/nordic/nrf52/sdk/sdk_config.h" debugPath="../../../../hw/mcu/nordic/nrf52/sdk/sdk_config.h" selected="0" top="281" codecName="Default"/>
+  <SessionOpenFile windowGroup="DockEditLeft" x="0" y="55" useTextEdit="1" useBinaryEdit="0" left="0" path="../../../../hw/mcu/nordic/nrf52/hal/hal_nrf52.c" debugPath="../../../../hw/mcu/nordic/nrf52/hal/hal_nrf52.c" selected="0" top="49" codecName="Default"/>
+  <SessionOpenFile windowGroup="DockEditLeft" x="0" y="63" useTextEdit="1" useBinaryEdit="0" left="0" path="../src/main.c" debugPath="../src/main.c" selected="0" top="55" codecName="Default"/>
+  <SessionOpenFile windowGroup="DockEditLeft" x="0" y="44" useTextEdit="1" useBinaryEdit="0" left="0" path="../../../../hw/mcu/nordic/nrf52/sdk/softdevice/common/nrf_sdh_freertos.c" debugPath="../../../../hw/mcu/nordic/nrf52/sdk/softdevice/common/nrf_sdh_freertos.c" selected="1" top="10" codecName="Default"/>
  </Files>
- <ARMCrossStudioWindow activeProject="nrf52840" fileDialogDefaultFilter="*.c" autoConnectTarget="J-Link" buildConfiguration="Debug" debugSearchFileMap="" fileDialogInitialDirectory="/home/hathach/Dropbox/tinyusb/workspace/tinyusb/hw/mcu/nordic/nrf52/hal" debugSearchPath="" autoConnectCapabilities="3711"/>
+ <ARMCrossStudioWindow activeProject="nrf52840" fileDialogDefaultFilter="*.c" autoConnectTarget="J-Link" buildConfiguration="Debug" debugSearchFileMap="" fileDialogInitialDirectory="/home/hathach/Dropbox/tinyusb/workspace/tinyusb/hw/mcu/nordic/nrf52/hal" debugSearchPath="" autoConnectCapabilities="3199"/>
 </session>
