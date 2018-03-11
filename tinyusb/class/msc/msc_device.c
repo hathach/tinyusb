@@ -101,7 +101,7 @@ tusb_error_t mscd_open(uint8_t port, tusb_descriptor_interface_t const * p_inter
     edpt_hdl_t * p_edpt_hdl =  ( p_endpoint->bEndpointAddress &  TUSB_DIR_DEV_TO_HOST_MASK ) ?
         &p_msc->edpt_in : &p_msc->edpt_out;
 
-    VERIFY( tusb_dcd_pipe_open(port, p_endpoint, p_edpt_hdl), TUSB_ERROR_DCD_FAILED );
+    VERIFY( tusb_dcd_edpt_open(port, p_endpoint, p_edpt_hdl), TUSB_ERROR_DCD_FAILED );
     p_endpoint = (tusb_descriptor_endpoint_t const *) descriptor_next( (uint8_t const*)  p_endpoint );
   }
 
@@ -110,7 +110,7 @@ tusb_error_t mscd_open(uint8_t port, tusb_descriptor_interface_t const * p_inter
   (*p_length) += sizeof(tusb_descriptor_interface_t) + 2*sizeof(tusb_descriptor_endpoint_t);
 
   //------------- Queue Endpoint OUT for Command Block Wrapper -------------//
-  ASSERT_STATUS( tusb_dcd_pipe_xfer(p_msc->edpt_out, (uint8_t*) &p_msc->cbw, sizeof(msc_cmd_block_wrapper_t), true) );
+  ASSERT_STATUS( tusb_dcd_edpt_xfer(p_msc->edpt_out, (uint8_t*) &p_msc->cbw, sizeof(msc_cmd_block_wrapper_t), true) );
 
   return TUSB_ERROR_NONE;
 }
@@ -186,12 +186,12 @@ tusb_error_t mscd_xfer_cb(edpt_hdl_t edpt_hdl, tusb_event_t event, uint32_t xfer
 
         if ( p_buffer == NULL || actual_length == 0 )
         { // application does not provide data to response --> possibly unsupported SCSI command
-          tusb_dcd_pipe_stall(edpt_data);
+          tusb_dcd_edpt_stall(edpt_data);
           p_csw->status = MSC_CSW_STATUS_FAILED;
         }else
         {
           memcpy(p_msc->scsi_data, p_buffer, actual_length);
-          ASSERT_STATUS( tusb_dcd_pipe_queue_xfer( edpt_data, p_msc->scsi_data, actual_length ) );
+          ASSERT_STATUS( tusb_dcd_edpt_queue_xfer( edpt_data, p_msc->scsi_data, actual_length ) );
         }
       }
     }
@@ -207,10 +207,10 @@ tusb_error_t mscd_xfer_cb(edpt_hdl_t edpt_hdl, tusb_event_t event, uint32_t xfer
   // Either bulk in & out can be stalled in the data phase, dcd must make sure these queued transfer will be resumed after host clear stall
   if (!is_waiting_read10_write10)
   {
-    ASSERT_STATUS( tusb_dcd_pipe_xfer( p_msc->edpt_in , (uint8_t*) p_csw, sizeof(msc_cmd_status_wrapper_t), false) );
+    ASSERT_STATUS( tusb_dcd_edpt_xfer( p_msc->edpt_in , (uint8_t*) p_csw, sizeof(msc_cmd_status_wrapper_t), false) );
 
     //------------- Queue the next CBW -------------//
-    ASSERT_STATUS( tusb_dcd_pipe_xfer( p_msc->edpt_out, (uint8_t*) p_cbw, sizeof(msc_cmd_block_wrapper_t), true) );
+    ASSERT_STATUS( tusb_dcd_edpt_xfer( p_msc->edpt_out, (uint8_t*) p_cbw, sizeof(msc_cmd_block_wrapper_t), true) );
   }
 
   return TUSB_ERROR_NONE;
@@ -241,12 +241,12 @@ static bool read10_write10_data_xfer(mscd_interface_t* p_msc)
     p_csw->data_residue = p_cbw->xfer_bytes;
     p_csw->status       = MSC_CSW_STATUS_FAILED;
 
-    tusb_dcd_pipe_stall(edpt_hdl);
+    tusb_dcd_edpt_stall(edpt_hdl);
 
     return true;
   } else if (xferred_block < block_count)
   {
-    ASSERT_STATUS( tusb_dcd_pipe_xfer( edpt_hdl, p_buffer, xferred_byte, true) );
+    ASSERT_STATUS( tusb_dcd_edpt_xfer( edpt_hdl, p_buffer, xferred_byte, true) );
 
     // adjust lba, block_count, xfer_bytes for the next call
     p_readwrite->lba         = __n2be(lba+xferred_block);
@@ -257,7 +257,7 @@ static bool read10_write10_data_xfer(mscd_interface_t* p_msc)
   }else
   {
     p_csw->status = MSC_CSW_STATUS_PASSED;
-    ASSERT_STATUS( tusb_dcd_pipe_queue_xfer( edpt_hdl, p_buffer, xferred_byte) );
+    ASSERT_STATUS( tusb_dcd_edpt_queue_xfer( edpt_hdl, p_buffer, xferred_byte) );
     return true;
   }
 }

@@ -109,7 +109,7 @@ STATIC_VAR hidd_interface_t keyboardd_data;
 
 bool tud_hid_keyboard_busy(uint8_t port)
 {
-  return dcd_pipe_is_busy(keyboardd_data.ept_handle);
+  return tusb_dcd_edpt_busy(keyboardd_data.ept_handle);
 }
 
 tusb_error_t tud_hid_keyboard_send(uint8_t port, hid_keyboard_report_t const *p_report)
@@ -118,7 +118,7 @@ tusb_error_t tud_hid_keyboard_send(uint8_t port, hid_keyboard_report_t const *p_
 
   hidd_interface_t * p_kbd = &keyboardd_data; // TODO &keyboardd_data[port];
 
-  ASSERT_STATUS( tusb_dcd_pipe_xfer(p_kbd->ept_handle, (void*) p_report, sizeof(hid_keyboard_report_t), true) ) ;
+  ASSERT_STATUS( tusb_dcd_edpt_xfer(p_kbd->ept_handle, (void*) p_report, sizeof(hid_keyboard_report_t), true) ) ;
 
   return TUSB_ERROR_NONE;
 }
@@ -132,7 +132,7 @@ STATIC_VAR hidd_interface_t moused_data;
 
 bool tusbd_hid_mouse_is_busy(uint8_t port)
 {
-  return dcd_pipe_is_busy(moused_data.ept_handle);
+  return tusb_dcd_edpt_busy(moused_data.ept_handle);
 }
 
 tusb_error_t tusbd_hid_mouse_send(uint8_t port, hid_mouse_report_t const *p_report)
@@ -141,7 +141,7 @@ tusb_error_t tusbd_hid_mouse_send(uint8_t port, hid_mouse_report_t const *p_repo
 
   hidd_interface_t * p_mouse = &moused_data; // TODO &keyboardd_data[port];
 
-  ASSERT_STATUS( tusb_dcd_pipe_xfer(p_mouse->ept_handle, (void*) p_report, sizeof(hid_mouse_report_t), true) ) ;
+  ASSERT_STATUS( tusb_dcd_edpt_xfer(p_mouse->ept_handle, (void*) p_report, sizeof(hid_mouse_report_t), true) ) ;
 
   return TUSB_ERROR_NONE;
 }
@@ -280,7 +280,7 @@ tusb_error_t hidd_open(uint8_t port, tusb_descriptor_interface_t const * p_inter
 
         VERIFY(p_hid, TUSB_ERROR_FAILED);
 
-        VERIFY( tusb_dcd_pipe_open(port, p_desc_endpoint, &p_hid->ept_handle), TUSB_ERROR_DCD_FAILED );
+        VERIFY( tusb_dcd_edpt_open(port, p_desc_endpoint, &p_hid->ept_handle), TUSB_ERROR_DCD_FAILED );
 
         p_hid->interface_number = p_interface_desc->bInterfaceNumber;
         p_hid->p_report_desc    = (p_interface_desc->bInterfaceProtocol == HID_PROTOCOL_KEYBOARD) ? tusbd_descriptor_pointers.p_hid_keyboard_report : tusbd_descriptor_pointers.p_hid_mouse_report;

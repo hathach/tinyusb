@@ -157,7 +157,7 @@ tusb_error_t cdcd_open(uint8_t port, tusb_descriptor_interface_t const * p_inter
 
   if ( TUSB_DESC_TYPE_ENDPOINT == p_desc[DESCRIPTOR_OFFSET_TYPE])
   { // notification endpoint if any
-    VERIFY( tusb_dcd_pipe_open(port, (tusb_descriptor_endpoint_t const *) p_desc, &p_cdc->edpt_hdl[CDC_PIPE_NOTIFICATION]), TUSB_ERROR_DCD_OPEN_PIPE_FAILED);
+    VERIFY( tusb_dcd_edpt_open(port, (tusb_descriptor_endpoint_t const *) p_desc, &p_cdc->edpt_hdl[CDC_PIPE_NOTIFICATION]), TUSB_ERROR_DCD_OPEN_PIPE_FAILED);
 
     (*p_length) += p_desc[DESCRIPTOR_OFFSET_LENGTH];
     p_desc = descriptor_next(p_desc);
@@ -180,7 +180,7 @@ tusb_error_t cdcd_open(uint8_t port, tusb_descriptor_interface_t const * p_inter
       edpt_hdl_t * p_edpt_hdl =  ( p_endpoint->bEndpointAddress &  TUSB_DIR_DEV_TO_HOST_MASK ) ?
           &p_cdc->edpt_hdl[CDC_PIPE_DATA_IN] : &p_cdc->edpt_hdl[CDC_PIPE_DATA_OUT] ;
 
-      ASSERT_( tusb_dcd_pipe_open(port, p_endpoint, p_edpt_hdl), TUSB_ERROR_DCD_OPEN_PIPE_FAILED);
+      ASSERT_( tusb_dcd_edpt_open(port, p_endpoint, p_edpt_hdl), TUSB_ERROR_DCD_OPEN_PIPE_FAILED);
 
       (*p_length) += p_desc[DESCRIPTOR_OFFSET_LENGTH];
       p_desc = descriptor_next( p_desc );
@@ -190,7 +190,7 @@ tusb_error_t cdcd_open(uint8_t port, tusb_descriptor_interface_t const * p_inter
   p_cdc->interface_number   = p_interface_desc->bInterfaceNumber;
 
   // Prepare for incoming data
-  tusb_dcd_pipe_xfer(p_cdc->edpt_hdl[CDC_PIPE_DATA_OUT], _tmp_rx_buf, sizeof(_tmp_rx_buf), true);
+  tusb_dcd_edpt_xfer(p_cdc->edpt_hdl[CDC_PIPE_DATA_OUT], _tmp_rx_buf, sizeof(_tmp_rx_buf), true);
 
 
   return TUSB_ERROR_NONE;
@@ -264,7 +264,7 @@ tusb_error_t cdcd_xfer_cb(edpt_hdl_t edpt_hdl, tusb_event_t event, uint32_t xfer
     fifo_write_n(&_rx_ff, _tmp_rx_buf, xferred_bytes);
 
     // preparing for next
-    tusb_dcd_pipe_xfer(p_cdc->edpt_hdl[CDC_PIPE_DATA_OUT], _tmp_rx_buf, sizeof(_tmp_rx_buf), true);
+    tusb_dcd_edpt_xfer(p_cdc->edpt_hdl[CDC_PIPE_DATA_OUT], _tmp_rx_buf, sizeof(_tmp_rx_buf), true);
 
     // fire callback
     tud_cdc_rx_cb(edpt_hdl.port);
@@ -279,11 +279,11 @@ void cdcd_sof(uint8_t port)
 
   edpt_hdl_t ep = cdcd_data[port].edpt_hdl[CDC_PIPE_DATA_IN];
 
-  if ( !dcd_pipe_is_busy( ep ) )
+  if ( !tusb_dcd_edpt_busy( ep ) )
   {
     uint16_t count = fifo_read_n(&_tx_ff, _tmp_tx_buf, sizeof(_tmp_tx_buf));
 
-    tusb_dcd_pipe_xfer(ep, _tmp_tx_buf, count, false);
+    tusb_dcd_edpt_xfer(ep, _tmp_tx_buf, count, false);
   }
 }
 

@@ -412,7 +412,7 @@ bool tusb_dcd_control_xfer(uint8_t port, tusb_direction_t dir, uint8_t * p_buffe
 //--------------------------------------------------------------------+
 // BULK/INTERRUPT/ISO PIPE API
 //--------------------------------------------------------------------+
-edpt_hdl_t tusb_dcd_pipe_open(uint8_t port, tusb_descriptor_endpoint_t const * p_endpoint_desc, uint8_t class_code)
+edpt_hdl_t tusb_dcd_edpt_open(uint8_t port, tusb_descriptor_endpoint_t const * p_endpoint_desc, uint8_t class_code)
 {
   (void) port;
 
@@ -448,17 +448,17 @@ edpt_hdl_t tusb_dcd_pipe_open(uint8_t port, tusb_descriptor_endpoint_t const * p
       };
 }
 
-bool dcd_pipe_is_busy(edpt_hdl_t edpt_hdl)
+bool tusb_dcd_edpt_busy(edpt_hdl_t edpt_hdl)
 {
   return (dcd_data.udca[edpt_hdl.index] != NULL && !dcd_data.udca[edpt_hdl.index]->is_retired);
 }
 
-void tusb_dcd_pipe_stall(edpt_hdl_t edpt_hdl)
+void tusb_dcd_edpt_stall(edpt_hdl_t edpt_hdl)
 {
   sie_write(SIE_CMDCODE_ENDPOINT_SET_STATUS+edpt_hdl.index, 1, SIE_SET_ENDPOINT_STALLED_MASK);
 }
 
-void tusb_dcd_pipe_clear_stall(uint8_t port, uint8_t edpt_addr)
+void tusb_dcd_edpt_clear_stall(uint8_t port, uint8_t edpt_addr)
 {
   uint8_t ep_id = edpt_addr2phy(edpt_addr);
 
@@ -476,7 +476,7 @@ void dd_xfer_init(dcd_dma_descriptor_t* p_dd, void* buffer, uint16_t total_bytes
   p_dd->present_count         = 0;
 }
 
-tusb_error_t tusb_dcd_pipe_queue_xfer(edpt_hdl_t edpt_hdl, uint8_t * buffer, uint16_t total_bytes)
+tusb_error_t tusb_dcd_edpt_queue_xfer(edpt_hdl_t edpt_hdl, uint8_t * buffer, uint16_t total_bytes)
 { // NOTE for sure the qhd has no dds
   dcd_dma_descriptor_t* const p_fixed_dd = &dcd_data.dd[edpt_hdl.index][0]; // always queue with the fixed DD
 
@@ -487,7 +487,7 @@ tusb_error_t tusb_dcd_pipe_queue_xfer(edpt_hdl_t edpt_hdl, uint8_t * buffer, uin
   return TUSB_ERROR_NONE;
 }
 
-tusb_error_t tusb_dcd_pipe_xfer(edpt_hdl_t edpt_hdl, uint8_t* buffer, uint16_t total_bytes, bool int_on_complete)
+tusb_error_t tusb_dcd_edpt_xfer(edpt_hdl_t edpt_hdl, uint8_t* buffer, uint16_t total_bytes, bool int_on_complete)
 {
   dcd_dma_descriptor_t* const p_first_dd = &dcd_data.dd[edpt_hdl.index][0];
 

@@ -108,7 +108,7 @@ typedef struct ATTR_PACKED
 STATIC_ASSERT( sizeof(dcd_11u_13u_qhd_t) == 4, "size is not correct" );
 
 // NOTE data will be transferred as soon as dcd get request by dcd_pipe(_queue)_xfer using double buffering.
-// If there is another tusb_dcd_pipe_xfer request, the new request will be saved and executed when the first is done.
+// If there is another tusb_dcd_edpt_xfer request, the new request will be saved and executed when the first is done.
 // next_td stored the 2nd request information
 // current_td is used to keep track of number of remaining & xferred bytes of the current request.
 // queued_bytes_in_buff keep track of number of bytes queued to each buffer (in case of short packet)
@@ -428,7 +428,7 @@ static inline uint8_t edpt_phy2log(uint8_t physical_endpoint)
 //--------------------------------------------------------------------+
 // BULK/INTERRUPT/ISOCHRONOUS PIPE API
 //--------------------------------------------------------------------+
-void tusb_dcd_pipe_stall(edpt_hdl_t edpt_hdl)
+void tusb_dcd_edpt_stall(edpt_hdl_t edpt_hdl)
 {
   dcd_data.qhd[edpt_hdl.index][0].stall = dcd_data.qhd[edpt_hdl.index][1].stall = 1;
 }
@@ -438,7 +438,7 @@ bool dcd_pipe_is_stalled(edpt_hdl_t edpt_hdl)
   return dcd_data.qhd[edpt_hdl.index][0].stall || dcd_data.qhd[edpt_hdl.index][1].stall;
 }
 
-void tusb_dcd_pipe_clear_stall(uint8_t port, uint8_t edpt_addr)
+void tusb_dcd_edpt_clear_stall(uint8_t port, uint8_t edpt_addr)
 {
   uint8_t ep_id = edpt_addr2phy(edpt_addr);
 //  uint8_t active_buffer = BIT_TEST_(LPC_USB->EPINUSE, ep_id) ? 1 : 0;
@@ -456,7 +456,7 @@ void tusb_dcd_pipe_clear_stall(uint8_t port, uint8_t edpt_addr)
   }
 }
 
-edpt_hdl_t tusb_dcd_pipe_open(uint8_t port, tusb_descriptor_endpoint_t const * p_endpoint_desc, uint8_t class_code)
+edpt_hdl_t tusb_dcd_edpt_open(uint8_t port, tusb_descriptor_endpoint_t const * p_endpoint_desc, uint8_t class_code)
 {
   (void) port;
   edpt_hdl_t const null_handle = { 0 };
@@ -489,7 +489,7 @@ edpt_hdl_t tusb_dcd_pipe_open(uint8_t port, tusb_descriptor_endpoint_t const * p
       };
 }
 
-bool dcd_pipe_is_busy(edpt_hdl_t edpt_hdl)
+bool tusb_dcd_edpt_busy(edpt_hdl_t edpt_hdl)
 {
   return dcd_data.qhd[edpt_hdl.index][0].active || dcd_data.qhd[edpt_hdl.index][1].active;
 }
@@ -535,9 +535,9 @@ static void queue_xfer_in_next_td(uint8_t ep_id)
   dcd_data.next_td[ep_id].total_bytes = 0; // clear this field as it is used to indicate whehther next TD available
 }
 
-tusb_error_t tusb_dcd_pipe_queue_xfer(edpt_hdl_t edpt_hdl, uint8_t * buffer, uint16_t total_bytes)
+tusb_error_t tusb_dcd_edpt_queue_xfer(edpt_hdl_t edpt_hdl, uint8_t * buffer, uint16_t total_bytes)
 {
-  ASSERT( !dcd_pipe_is_busy(edpt_hdl), TUSB_ERROR_INTERFACE_IS_BUSY); // endpoint must not in transferring
+  ASSERT( !tusb_dcd_edpt_busy(edpt_hdl), TUSB_ERROR_INTERFACE_IS_BUSY); // endpoint must not in transferring
 
   dcd_data.current_ioc = BIT_CLR_(dcd_data.current_ioc, edpt_hdl.index);
 
@@ -546,9 +546,9 @@ tusb_error_t tusb_dcd_pipe_queue_xfer(edpt_hdl_t edpt_hdl, uint8_t * buffer, uin
   return TUSB_ERROR_NONE;
 }
 
-tusb_error_t  tusb_dcd_pipe_xfer(edpt_hdl_t edpt_hdl, uint8_t* buffer, uint16_t total_bytes, bool int_on_complete)
+tusb_error_t  tusb_dcd_edpt_xfer(edpt_hdl_t edpt_hdl, uint8_t* buffer, uint16_t total_bytes, bool int_on_complete)
 {
-  if( dcd_pipe_is_busy(edpt_hdl) || dcd_pipe_is_stalled(edpt_hdl) )
+  if( tusb_dcd_edpt_busy(edpt_hdl) || dcd_pipe_is_stalled(edpt_hdl) )
   { // save this transfer data to next td if pipe is busy or already been stalled
     dcd_data.next_td[edpt_hdl.index].buff_addr_offset = addr_offset(buffer);
     dcd_data.next_td[edpt_hdl.index].total_bytes      = total_bytes;

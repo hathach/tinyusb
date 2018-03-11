@@ -273,14 +273,14 @@ static inline volatile uint32_t * get_reg_control_addr(uint8_t port, uint8_t phy
  return &(LPC_USB[port]->ENDPTCTRL0) + edpt_phy2log(physical_endpoint);
 }
 
-void tusb_dcd_pipe_stall(edpt_hdl_t edpt_hdl)
+void tusb_dcd_edpt_stall(edpt_hdl_t edpt_hdl)
 {
   volatile uint32_t * reg_control = get_reg_control_addr(edpt_hdl.port, edpt_hdl.index);
 
   (*reg_control) |= ENDPTCTRL_MASK_STALL << (edpt_hdl.index & 0x01 ? 16 : 0);
 }
 
-void tusb_dcd_pipe_clear_stall(uint8_t port, uint8_t edpt_addr)
+void tusb_dcd_edpt_clear_stall(uint8_t port, uint8_t edpt_addr)
 {
   volatile uint32_t * reg_control = get_reg_control_addr(port, edpt_addr2phy(edpt_addr));
 
@@ -289,7 +289,7 @@ void tusb_dcd_pipe_clear_stall(uint8_t port, uint8_t edpt_addr)
   (*reg_control) &= ~(ENDPTCTRL_MASK_STALL << ((edpt_addr & TUSB_DIR_DEV_TO_HOST_MASK) ? 16 : 0));
 }
 
-bool tusb_dcd_pipe_open(uint8_t port, tusb_descriptor_endpoint_t const * p_endpoint_desc, edpt_hdl_t* eh)
+bool tusb_dcd_edpt_open(uint8_t port, tusb_descriptor_endpoint_t const * p_endpoint_desc, edpt_hdl_t* eh)
 {
   // TODO USB1 only has 4 non-control enpoint (USB0 has 5)
   // TODO not support ISO yet
@@ -321,7 +321,7 @@ bool tusb_dcd_pipe_open(uint8_t port, tusb_descriptor_endpoint_t const * p_endpo
   return true;
 }
 
-bool dcd_pipe_is_busy(edpt_hdl_t edpt_hdl)
+bool tusb_dcd_edpt_busy(edpt_hdl_t edpt_hdl)
 {
   dcd_qhd_t const * p_qhd = &dcd_data_ptr[edpt_hdl.port]->qhd[edpt_hdl.index];
 
@@ -358,12 +358,12 @@ static tusb_error_t pipe_add_xfer(edpt_hdl_t edpt_hdl, void * buffer, uint16_t t
   return TUSB_ERROR_NONE;
 }
 
-tusb_error_t tusb_dcd_pipe_queue_xfer(edpt_hdl_t edpt_hdl, uint8_t * buffer, uint16_t total_bytes)
+tusb_error_t tusb_dcd_edpt_queue_xfer(edpt_hdl_t edpt_hdl, uint8_t * buffer, uint16_t total_bytes)
 {
   return pipe_add_xfer( edpt_hdl, buffer, total_bytes, false);
 }
 
-tusb_error_t  tusb_dcd_pipe_xfer(edpt_hdl_t edpt_hdl, uint8_t * buffer, uint16_t total_bytes, bool int_on_complete)
+tusb_error_t  tusb_dcd_edpt_xfer(edpt_hdl_t edpt_hdl, uint8_t * buffer, uint16_t total_bytes, bool int_on_complete)
 {
   ASSERT_STATUS ( pipe_add_xfer(edpt_hdl, buffer, total_bytes, int_on_complete) );
 
