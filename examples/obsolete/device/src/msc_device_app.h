@@ -72,8 +72,8 @@ issue at github.com/hathach/tinyusb"
 void msc_app_init(void);
 void msc_app_task(void* param);
 
-void msc_app_mount(uint8_t coreid);
-void msc_app_umount(uint8_t coreid);
+void msc_app_mount(uint8_t port);
+void msc_app_umount(uint8_t port);
 
 extern scsi_sense_fixed_data_t mscd_sense_data;
 

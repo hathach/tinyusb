@@ -57,8 +57,8 @@
 
 void mouse_app_init(void);
 void mouse_app_task(void * param);
-void mouse_app_mount(uint8_t coreid);
-void mouse_app_umount(uint8_t coreid);
+void mouse_app_mount(uint8_t port);
+void mouse_app_umount(uint8_t port);
 
 #else
 

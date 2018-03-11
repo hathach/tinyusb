@@ -97,7 +97,7 @@ static uint8_t sector_buffer[DISK_BLOCK_SIZE];
 //--------------------------------------------------------------------+
 // IMPLEMENTATION
 //--------------------------------------------------------------------+
-uint16_t tusbd_msc_read10_cb (uint8_t coreid, uint8_t lun, void** pp_buffer, uint32_t lba, uint16_t block_count)
+uint16_t tusbd_msc_read10_cb (uint8_t port, uint8_t lun, void** pp_buffer, uint32_t lba, uint16_t block_count)
 {
   memcpy(sector_buffer, msc_device_app_rommdisk[lba], DISK_BLOCK_SIZE);
   (*pp_buffer) = sector_buffer;
@@ -106,7 +106,7 @@ uint16_t tusbd_msc_read10_cb (uint8_t coreid, uint8_t lun, void** pp_buffer, uin
 }
 
 // Stall write10 by return 0, as this is readonly disk
-uint16_t tusbd_msc_write10_cb(uint8_t coreid, uint8_t lun, void** pp_buffer, uint32_t lba, uint16_t block_count)
+uint16_t tusbd_msc_write10_cb(uint8_t port, uint8_t lun, void** pp_buffer, uint32_t lba, uint16_t block_count)
 {
   (*pp_buffer) = NULL;
 

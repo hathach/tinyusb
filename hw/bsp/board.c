@@ -55,56 +55,6 @@ uint32_t tusb_hal_tick_get(void)
 
 #endif
 
-#if 0
-//--------------------------------------------------------------------+
-// BLINKING TASK
-//--------------------------------------------------------------------+
-static uint32_t led_blink_interval_ms = 1000; // default is 1 second
-
-void led_blinking_init(void)
-{
-  led_blink_interval_ms = 1000;
-  osal_task_create(led_blinking_task, "blinky", 128, NULL, LED_BLINKING_APP_TASK_PRIO);
-}
-
-void led_blinking_set_interval(uint32_t ms)
-{
-  led_blink_interval_ms = ms;
-}
-
-tusb_error_t led_blinking_subtask(void);
-void led_blinking_task(void* param)
-{
-  (void) param;
-
-  OSAL_TASK_BEGIN
-  led_blinking_subtask();
-  OSAL_TASK_END
-}
-
-tusb_error_t led_blinking_subtask(void)
-{
-  OSAL_SUBTASK_BEGIN
-
-  static uint32_t led_on_mask = 0;
-
-  osal_task_delay(led_blink_interval_ms);
-
-  board_leds(led_on_mask, 1 - led_on_mask);
-  led_on_mask = 1 - led_on_mask; // toggle
-
-//  uint32_t btn_mask;
-//  btn_mask = board_buttons();
-//
-//  for(uint8_t i=0; i<32; i++)
-//  {
-//    if ( BIT_TEST_(btn_mask, i) ) printf("button %d is pressed\n", i);
-//  }
-
-  OSAL_SUBTASK_END
-}
-#endif
-
 // TODO remove legacy cmsis code
 void check_failed(uint8_t *file, uint32_t line)
 {

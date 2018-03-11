@@ -56,17 +56,17 @@ TUSB_CFG_ATTR_USBRAM hid_keyboard_report_t keyboard_report;
 //--------------------------------------------------------------------+
 // tinyusb callbacks
 //--------------------------------------------------------------------+
-void keyboard_app_mount(uint8_t coreid)
+void keyboard_app_mount(uint8_t port)
 {
 
 }
 
-void keyboard_app_umount(uint8_t coreid)
+void keyboard_app_umount(uint8_t port)
 {
 
 }
 
-void tud_hid_keyboard_cb(uint8_t coreid, tusb_event_t event, uint32_t xferred_bytes)
+void tud_hid_keyboard_cb(uint8_t port, tusb_event_t event, uint32_t xferred_bytes)
 {
   switch(event)
   {
@@ -77,7 +77,7 @@ void tud_hid_keyboard_cb(uint8_t coreid, tusb_event_t event, uint32_t xferred_by
   }
 }
 
-uint16_t tud_hid_keyboard_get_report_cb(uint8_t coreid, hid_request_report_type_t report_type, void** pp_report, uint16_t requested_length)
+uint16_t tud_hid_keyboard_get_report_cb(uint8_t port, hid_request_report_type_t report_type, void** pp_report, uint16_t requested_length)
 {
   // get other than input report is not supported by this keyboard demo
   if ( report_type != HID_REQUEST_REPORT_INPUT ) return 0;
@@ -86,7 +86,7 @@ uint16_t tud_hid_keyboard_get_report_cb(uint8_t coreid, hid_request_report_type_
   return requested_length;
 }
 
-void tud_hid_keyboard_set_report_cb(uint8_t coreid, hid_request_report_type_t report_type, uint8_t p_report_data[], uint16_t length)
+void tud_hid_keyboard_set_report_cb(uint8_t port, hid_request_report_type_t report_type, uint8_t p_report_data[], uint16_t length)
 {
   // set other than output report is not supported by this keyboard demo
   if ( report_type != HID_REQUEST_REPORT_OUTPUT ) return;
@@ -98,6 +98,8 @@ void tud_hid_keyboard_set_report_cb(uint8_t coreid, hid_request_report_type_t re
   if (kbd_led & KEYBOARD_LED_CAPSLOCK  ) interval_divider *= 2;
   if (kbd_led & KEYBOARD_LED_SCROLLLOCK) interval_divider *= 2;
 
+  // TODO remove
+  extern void led_blinking_set_interval(uint32_t ms);
   led_blinking_set_interval( 1000 / interval_divider);
 }
 

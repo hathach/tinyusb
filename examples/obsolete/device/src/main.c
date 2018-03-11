@@ -44,6 +44,7 @@
 #include <string.h>
 
 #include "bsp/board.h"
+#include "app_os_prio.h"
 #include "tusb.h"
 
 #include "msc_device_app.h"
@@ -59,6 +60,9 @@
 // INTERNAL OBJECT & FUNCTION DECLARATION
 //--------------------------------------------------------------------+
 void print_greeting(void);
+void led_blinking_init(void);
+void led_blinking_task(void* param);
+
 
 #if TUSB_CFG_OS == TUSB_OS_NONE
 // like a real RTOS, this function is a main loop invoking each task in application and never return
@@ -107,18 +111,66 @@ int main(void)
 //--------------------------------------------------------------------+
 // tinyusb callbacks
 //--------------------------------------------------------------------+
-void tud_mount_cb(uint8_t coreid)
+void tud_mount_cb(uint8_t port)
 {
-  cdc_serial_app_mount(coreid);
-  keyboard_app_mount(coreid);
-  msc_app_mount(coreid);
+  cdc_serial_app_mount(port);
+  keyboard_app_mount(port);
+  msc_app_mount(port);
 }
 
-void tud_umount_cb(uint8_t coreid)
+void tud_umount_cb(uint8_t port)
 {
-  cdc_serial_app_umount(coreid);
-  keyboard_app_umount(coreid);
-  msc_app_umount(coreid);
+  cdc_serial_app_umount(port);
+  keyboard_app_umount(port);
+  msc_app_umount(port);
+}
+
+//--------------------------------------------------------------------+
+// BLINKING TASK
+//--------------------------------------------------------------------+
+static uint32_t led_blink_interval_ms = 1000; // default is 1 second
+
+void led_blinking_init(void)
+{
+  led_blink_interval_ms = 1000;
+  osal_task_create(led_blinking_task, "blinky", 128, NULL, LED_BLINKING_APP_TASK_PRIO);
+}
+
+void led_blinking_set_interval(uint32_t ms)
+{
+  led_blink_interval_ms = ms;
+}
+
+tusb_error_t led_blinking_subtask(void);
+void led_blinking_task(void* param)
+{
+  (void) param;
+
+  OSAL_TASK_BEGIN
+  led_blinking_subtask();
+  OSAL_TASK_END
+}
+
+tusb_error_t led_blinking_subtask(void)
+{
+  OSAL_SUBTASK_BEGIN
+
+  static uint32_t led_on_mask = 0;
+
+  osal_task_delay(led_blink_interval_ms);
+
+  board_leds(led_on_mask, 1 - led_on_mask);
+  led_on_mask = 1 - led_on_mask; // toggle
+
+//  uint32_t btn_mask;
+//  btn_mask = board_buttons();
+//
+//  for(uint8_t i=0; i<32; i++)
+//  {
+//    if ( BIT_TEST_(btn_mask, i) ) printf("button %d is pressed\n", i);
+//  }
+
+  OSAL_SUBTASK_END
 }
 
 //--------------------------------------------------------------------+
