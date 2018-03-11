@@ -79,14 +79,14 @@ int main(void)
 void virtual_com_task(void)
 {
   // connected and there are data available
-  if ( tud_mounted(0) && tud_cdc_available(0) )
+  if ( tud_mounted() && tud_cdc_available() )
   {
     uint8_t buf[64];
 
     // read and echo back
-    uint32_t count = tud_cdc_read(0, buf, sizeof(buf));
+    uint32_t count = tud_cdc_read(buf, sizeof(buf));
 
-    tud_cdc_write(0, buf, count);
+    tud_cdc_write(buf, count);
   }
 }
 
