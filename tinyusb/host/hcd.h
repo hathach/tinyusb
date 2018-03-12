@@ -47,7 +47,7 @@
  extern "C" {
 #endif
 
-#include "common/common.h"
+#include <common/tusb_common.h>
 
 #if MODE_HOST_SUPPORTED
 // Max number of endpoints per device

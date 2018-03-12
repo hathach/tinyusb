@@ -44,7 +44,7 @@
 #ifndef _TUSB_CDC_H__
 #define _TUSB_CDC_H__
 
-#include "common/common.h"
+#include "common/tusb_common.h"
 
 #ifdef __cplusplus
  extern "C" {

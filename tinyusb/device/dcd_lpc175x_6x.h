@@ -43,7 +43,7 @@
 #ifndef _TUSB_DCD_LPC175X_6X_H_
 #define _TUSB_DCD_LPC175X_6X_H_
 
-#include "common/common.h"
+#include <common/tusb_common.h>
 
 #ifdef __cplusplus
  extern "C" {

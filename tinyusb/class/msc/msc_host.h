@@ -39,7 +39,7 @@
 #ifndef _TUSB_MSC_HOST_H_
 #define _TUSB_MSC_HOST_H_
 
-#include "common/common.h"
+#include "common/tusb_common.h"
 #include "host/usbh.h"
 #include "msc.h"
 

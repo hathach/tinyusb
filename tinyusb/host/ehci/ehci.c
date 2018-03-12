@@ -36,7 +36,7 @@
 */
 /**************************************************************************/
 
-#include "common/common.h"
+#include "common/tusb_common.h"
 
 #if MODE_HOST_SUPPORTED && (TUSB_CFG_MCU == MCU_LPC43XX || TUSB_CFG_MCU == MCU_LPC18XX)
 //--------------------------------------------------------------------+

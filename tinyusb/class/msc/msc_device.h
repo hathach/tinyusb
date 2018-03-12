@@ -39,7 +39,7 @@
 #ifndef _TUSB_MSC_DEVICE_H_
 #define _TUSB_MSC_DEVICE_H_
 
-#include "common/common.h"
+#include <common/tusb_common.h>
 #include "device/usbd.h"
 #include "msc.h"
 

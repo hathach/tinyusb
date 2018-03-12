@@ -39,7 +39,7 @@
 #ifndef _TUSB_HID_DEVICE_H_
 #define _TUSB_HID_DEVICE_H_
 
-#include "common/common.h"
+#include "common/tusb_common.h"
 #include "device/usbd.h"
 #include "hid.h"
 

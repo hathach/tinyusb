@@ -49,7 +49,7 @@
  extern "C" {
 #endif
 
-#include "common/common.h"
+#include "common/tusb_common.h"
 
 //--------------------------------------------------------------------+
 // OHCI CONFIGURATION & CONSTANTS

@@ -46,7 +46,7 @@
 #ifndef _TUSB_MSC_H_
 #define _TUSB_MSC_H_
 
-#include "common/common.h"
+#include <common/tusb_common.h>
 
 #ifdef __cplusplus
  extern "C" {

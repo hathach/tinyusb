@@ -54,7 +54,7 @@
 /** @} */
 
 #include "tusb_option.h"
-#include "common/common.h"
+#include "common/tusb_common.h"
 
 
 #if TUSB_CFG_OS == TUSB_OS_NONE

@@ -45,7 +45,7 @@
 //--------------------------------------------------------------------+
 // INCLUDE
 //--------------------------------------------------------------------+
-#include "common/common.h"
+#include "common/tusb_common.h"
 #include "cdc_host.h"
 #include "cdc_rndis_host.h"
 

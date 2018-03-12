@@ -45,7 +45,7 @@
 #ifndef _TUSB_EHCI_H_
 #define _TUSB_EHCI_H_
 
-#include "common/common.h"
+#include "common/tusb_common.h"
 #include "../hcd.h"
 
 /* Abbreviation

@@ -43,7 +43,7 @@
 #ifndef _TUSB_CDC_RNDIS_HOST_H_
 #define _TUSB_CDC_RNDIS_HOST_H_
 
-#include "common/common.h"
+#include "common/tusb_common.h"
 #include "host/usbh.h"
 #include "cdc_rndis.h"
 

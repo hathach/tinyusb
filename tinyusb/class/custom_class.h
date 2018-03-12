@@ -43,7 +43,7 @@
 #ifndef _TUSB_CUSTOM_CLASS_H_
 #define _TUSB_CUSTOM_CLASS_H_
 
-#include "common/common.h"
+#include "common/tusb_common.h"
 #include "host/usbh.h"
 
 #ifdef __cplusplus
