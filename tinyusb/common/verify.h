@@ -60,11 +60,11 @@
 // VERIFY Helper
 //--------------------------------------------------------------------+
 #if TUSB_CFG_DEBUG >= 1
-//  #define VERIFY_MESS(format, ...) cprintf("[%08ld] %s: %d: verify failed\n", get_millis(), __func__, __LINE__)
-  #define VERIFY_MESS(_status)   printf("%s: %d: verify failed, error = %s\n", __PRETTY_FUNCTION__, __LINE__, TUSB_ErrorStr[_status]);
+//  #define _VERIFY_MESS(format, ...) cprintf("[%08ld] %s: %d: verify failed\n", get_millis(), __func__, __LINE__)
+  #define _VERIFY_MESS(_status)   printf("%s: %d: verify failed, error = %s\n", __PRETTY_FUNCTION__, __LINE__, TUSB_ErrorStr[_status]);
   #define _ASSERT_MESS()         printf("%s: %d: assert failed\n", __PRETTY_FUNCTION__, __LINE__);
 #else
-  #define VERIFY_MESS(_status)
+  #define _VERIFY_MESS(_status)
   #define _ASSERT_MESS()
 #endif
 
@@ -82,13 +82,13 @@
 #define VERIFY_STS_1ARGS(sts)             \
     do {                                  \
       uint32_t _status = (uint32_t)(sts); \
-      if ( 0 != _status ) { VERIFY_MESS(_status) return _status; } \
+      if ( 0 != _status ) { _VERIFY_MESS(_status) return _status; } \
     } while(0)
 
 #define VERIFY_STS_2ARGS(sts, _error)     \
     do {                                  \
       uint32_t _status = (uint32_t)(sts); \
-      if ( 0 != _status ) { VERIFY_MESS(_status) return _error; }\
+      if ( 0 != _status ) { _VERIFY_MESS(_status) return _error; }\
     } while(0)
 
 /**
@@ -106,13 +106,13 @@
 #define VERIFY_STS_HDLR_2ARGS(sts, _handler)          \
     do {                                              \
       uint32_t _status = (uint32_t)(sts);             \
-      if ( 0 != _status ) { VERIFY_MESS(_status) _handler; return _status; }\
+      if ( 0 != _status ) { _VERIFY_MESS(_status) _handler; return _status; }\
     } while(0)
 
 #define VERIFY_STS_HDLR_3ARGS(sts, _handler, _error)  \
     do {                                              \
       uint32_t _status = (uint32_t)(sts);             \
-      if ( 0 != _status ) { VERIFY_MESS(_status) _handler; return _error; }\
+      if ( 0 != _status ) { _VERIFY_MESS(_status) _handler; return _error; }\
     } while(0)
 
 #define VERIFY_STATUS_HDLR(...)  GET_4TH_ARG(__VA_ARGS__, VERIFY_STS_HDLR_3ARGS, VERIFY_STS_HDLR_2ARGS)(__VA_ARGS__)

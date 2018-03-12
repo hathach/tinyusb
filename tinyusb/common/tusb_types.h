@@ -88,7 +88,7 @@ typedef enum
   TUSB_DESC_DEBUG                 = 0x0A ,
   TUSB_DESC_INTERFACE_ASSOCIATION = 0x0B ,
   TUSB_DESC_CLASS_SPECIFIC        = 0x24
-}tusb_std_descriptor_type_t;
+}tusb_desc_type_t;
 
 typedef enum
 {

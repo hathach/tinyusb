@@ -116,7 +116,7 @@ tusb_error_t mscd_open(uint8_t port, tusb_descriptor_interface_t const * p_inter
   (*p_length) += sizeof(tusb_descriptor_interface_t) + 2*sizeof(tusb_descriptor_endpoint_t);
 
   //------------- Queue Endpoint OUT for Command Block Wrapper -------------//
-  ASSERT_STATUS( tusb_dcd_edpt_xfer(port, p_msc->edpt_out, (uint8_t*) &p_msc->cbw, sizeof(msc_cmd_block_wrapper_t), true) );
+  TU_ASSERT( tusb_dcd_edpt_xfer(port, p_msc->edpt_out, (uint8_t*) &p_msc->cbw, sizeof(msc_cmd_block_wrapper_t), true), TUSB_ERROR_DCD_EDPT_XFER );
 
   return TUSB_ERROR_NONE;
 }
@@ -197,7 +197,7 @@ tusb_error_t mscd_xfer_cb(uint8_t port, uint8_t edpt_addr, tusb_event_t event, u
         }else
         {
           memcpy(p_msc->scsi_data, p_buffer, actual_length);
-          ASSERT_STATUS( tusb_dcd_edpt_queue_xfer(port, edpt_data, p_msc->scsi_data, actual_length ) );
+          TU_ASSERT( tusb_dcd_edpt_queue_xfer(port, edpt_data, p_msc->scsi_data, actual_length), TUSB_ERROR_DCD_EDPT_XFER );
         }
       }
     }
@@ -213,10 +213,10 @@ tusb_error_t mscd_xfer_cb(uint8_t port, uint8_t edpt_addr, tusb_event_t event, u
   // Either bulk in & out can be stalled in the data phase, dcd must make sure these queued transfer will be resumed after host clear stall
   if (!is_waiting_read10_write10)
   {
-    ASSERT_STATUS( tusb_dcd_edpt_xfer(port, p_msc->edpt_in , (uint8_t*) p_csw, sizeof(msc_cmd_status_wrapper_t), false) );
+    TU_ASSERT( tusb_dcd_edpt_xfer(port, p_msc->edpt_in , (uint8_t*) p_csw, sizeof(msc_cmd_status_wrapper_t), false), TUSB_ERROR_DCD_EDPT_XFER );
 
     //------------- Queue the next CBW -------------//
-    ASSERT_STATUS( tusb_dcd_edpt_xfer(port, p_msc->edpt_out, (uint8_t*) p_cbw, sizeof(msc_cmd_block_wrapper_t), true) );
+    TU_ASSERT( tusb_dcd_edpt_xfer(port, p_msc->edpt_out, (uint8_t*) p_cbw, sizeof(msc_cmd_block_wrapper_t), true), TUSB_ERROR_DCD_EDPT_XFER );
   }
 
   return TUSB_ERROR_NONE;
@@ -252,7 +252,7 @@ static bool read10_write10_data_xfer(uint8_t port, mscd_interface_t* p_msc)
     return true;
   } else if (xferred_block < block_count)
   {
-    ASSERT_STATUS( tusb_dcd_edpt_xfer(port, edpt_addr, p_buffer, xferred_byte, true) );
+    TU_ASSERT( tusb_dcd_edpt_xfer(port, edpt_addr, p_buffer, xferred_byte, true), TUSB_ERROR_DCD_EDPT_XFER );
 
     // adjust lba, block_count, xfer_bytes for the next call
     p_readwrite->lba         = __n2be(lba+xferred_block);
@@ -263,7 +263,7 @@ static bool read10_write10_data_xfer(uint8_t port, mscd_interface_t* p_msc)
   }else
   {
     p_csw->status = MSC_CSW_STATUS_PASSED;
-    ASSERT_STATUS( tusb_dcd_edpt_queue_xfer(port, edpt_addr, p_buffer, xferred_byte) );
+    TU_ASSERT( tusb_dcd_edpt_queue_xfer(port, edpt_addr, p_buffer, xferred_byte), TUSB_ERROR_DCD_EDPT_XFER );
     return true;
   }
 }

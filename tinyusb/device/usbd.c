@@ -401,7 +401,7 @@ static tusb_error_t usbd_set_configure_received(uint8_t port, uint8_t config_num
 
 static tusb_error_t get_descriptor(uint8_t port, tusb_control_request_t const * const p_request, uint8_t const ** pp_buffer, uint16_t * p_length)
 {
-  tusb_std_descriptor_type_t const desc_type = (tusb_std_descriptor_type_t) u16_high_u8(p_request->wValue);
+  tusb_desc_type_t const desc_type = (tusb_desc_type_t) u16_high_u8(p_request->wValue);
   uint8_t const desc_index = u16_low_u8( p_request->wValue );
 
   uint8_t const * p_data = NULL ;

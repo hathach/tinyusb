@@ -114,11 +114,11 @@ bool tud_hid_keyboard_busy(uint8_t port)
 
 tusb_error_t tud_hid_keyboard_send(uint8_t port, hid_keyboard_report_t const *p_report)
 {
-  ASSERT(tud_mounted(), TUSB_ERROR_USBD_DEVICE_NOT_CONFIGURED);
+  VERIFY(tud_mounted(), TUSB_ERROR_USBD_DEVICE_NOT_CONFIGURED);
 
   hidd_interface_t * p_kbd = &keyboardd_data; // TODO &keyboardd_data[port];
 
-  ASSERT_STATUS( tusb_dcd_edpt_xfer(port, p_kbd->edpt_addr, (void*) p_report, sizeof(hid_keyboard_report_t), true) ) ;
+  TU_ASSERT( tusb_dcd_edpt_xfer(port, p_kbd->edpt_addr, (void*) p_report, sizeof(hid_keyboard_report_t), true), TUSB_ERROR_DCD_EDPT_XFER ) ;
 
   return TUSB_ERROR_NONE;
 }
@@ -137,11 +137,11 @@ bool tud_hid_mouse_is_busy(uint8_t port)
 
 tusb_error_t tud_hid_mouse_send(uint8_t port, hid_mouse_report_t const *p_report)
 {
-  ASSERT(tud_mounted(), TUSB_ERROR_USBD_DEVICE_NOT_CONFIGURED);
+  VERIFY(tud_mounted(), TUSB_ERROR_USBD_DEVICE_NOT_CONFIGURED);
 
   hidd_interface_t * p_mouse = &moused_data; // TODO &keyboardd_data[port];
 
-  ASSERT_STATUS( tusb_dcd_edpt_xfer(port, p_mouse->edpt_addr, (void*) p_report, sizeof(hid_mouse_report_t), true) ) ;
+  TU_ASSERT( tusb_dcd_edpt_xfer(port, p_mouse->edpt_addr, (void*) p_report, sizeof(hid_mouse_report_t), true), TUSB_ERROR_DCD_EDPT_XFER ) ;
 
   return TUSB_ERROR_NONE;
 }

@@ -334,10 +334,10 @@ bool tusb_dcd_edpt_busy(uint8_t port, uint8_t edpt_addr)
 }
 
 // add only, controller virtually cannot know
-static tusb_error_t pipe_add_xfer(uint8_t port, uint8_t ed_idx, void * buffer, uint16_t total_bytes, bool int_on_complete)
+static bool pipe_add_xfer(uint8_t port, uint8_t ed_idx, void * buffer, uint16_t total_bytes, bool int_on_complete)
 {
   uint8_t qtd_idx  = qtd_find_free(port);
-  ASSERT(qtd_idx != 0, TUSB_ERROR_DCD_NOT_ENOUGH_QTD);
+  TU_ASSERT(qtd_idx != 0);
 
   dcd_data_t* p_dcd = dcd_data_ptr[port];
   dcd_qhd_t * p_qhd = &p_dcd->qhd[ed_idx];
@@ -349,7 +349,7 @@ static tusb_error_t pipe_add_xfer(uint8_t port, uint8_t ed_idx, void * buffer, u
   {
     if ( p_qhd->list_qtd_idx[free_slot] == 0 )  break; // found free slot
   }
-  ASSERT(free_slot < DCD_QTD_PER_QHD_MAX, TUSB_ERROR_DCD_NOT_ENOUGH_QTD);
+  TU_ASSERT(free_slot < DCD_QTD_PER_QHD_MAX);
 
   p_qhd->list_qtd_idx[free_slot] = qtd_idx; // add new qtd to qhd's array list
 
@@ -359,20 +359,20 @@ static tusb_error_t pipe_add_xfer(uint8_t port, uint8_t ed_idx, void * buffer, u
 
   if ( free_slot > 0 ) p_dcd->qtd[ p_qhd->list_qtd_idx[free_slot-1] ].next = (uint32_t) p_qtd;
 
-  return TUSB_ERROR_NONE;
+  return true;
 }
 
-tusb_error_t tusb_dcd_edpt_queue_xfer(uint8_t port, uint8_t edpt_addr, uint8_t * buffer, uint16_t total_bytes)
+bool tusb_dcd_edpt_queue_xfer(uint8_t port, uint8_t edpt_addr, uint8_t * buffer, uint16_t total_bytes)
 {
   uint8_t ep_idx = edpt_addr2phy(edpt_addr);
   return pipe_add_xfer(port, ep_idx, buffer, total_bytes, false);
 }
 
-tusb_error_t  tusb_dcd_edpt_xfer(uint8_t port, uint8_t edpt_addr, uint8_t * buffer, uint16_t total_bytes, bool int_on_complete)
+bool  tusb_dcd_edpt_xfer(uint8_t port, uint8_t edpt_addr, uint8_t * buffer, uint16_t total_bytes, bool int_on_complete)
 {
   uint8_t ep_idx = edpt_addr2phy(edpt_addr);
 
-  ASSERT_STATUS ( pipe_add_xfer(port, ep_idx, buffer, total_bytes, int_on_complete) );
+  VERIFY ( pipe_add_xfer(port, ep_idx, buffer, total_bytes, int_on_complete) );
 
   dcd_qhd_t* p_qhd = &dcd_data_ptr[port]->qhd[ ep_idx ];
   dcd_qtd_t* p_qtd = &dcd_data_ptr[port]->qtd[ p_qhd->list_qtd_idx[0] ];
@@ -381,7 +381,7 @@ tusb_error_t  tusb_dcd_edpt_xfer(uint8_t port, uint8_t edpt_addr, uint8_t * buff
 
 	LPC_USB[port]->ENDPTPRIME = BIT_( edpt_phy2pos(ep_idx) ) ;
 
-	return TUSB_ERROR_NONE;
+	return true;
 }
 
 //------------- Device Controller Driver's Interrupt Handler -------------//
