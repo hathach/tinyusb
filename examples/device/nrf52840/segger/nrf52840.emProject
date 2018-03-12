@@ -80,8 +80,8 @@
       <folder Name="mcu">
         <folder Name="nordic">
           <folder Name="nrf52">
-            <folder Name="hal">
-              <file file_name="../../../../hw/mcu/nordic/nrf52/hal/hal_nrf52.c" />
+            <folder Name="tusb_port">
+              <file file_name="../../../../hw/mcu/nordic/nrf52/tusb_port/hal_nrf52.c" />
             </folder>
             <folder
               Name="sdk"
