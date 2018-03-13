@@ -1,6 +1,6 @@
 /**************************************************************************/
 /*!
-    @file     hal_nrf52.c
+    @file     dcd_nrf52.c
     @author   hathach
 
     @section LICENSE
@@ -34,65 +34,34 @@
 */
 /**************************************************************************/
 
-#include <stdbool.h>
+// TODO remove
 #include "nrf.h"
-#include "nrf_gpio.h"
-#include "nrf_drv_systick.h"
+#include "nrf_power.h"
+#include "nrf_drv_usbd.h"
 
 /*------------------------------------------------------------------*/
 /* MACRO TYPEDEF CONSTANT ENUM
  *------------------------------------------------------------------*/
-
 
 /*------------------------------------------------------------------*/
 /* VARIABLE DECLARATION
  *------------------------------------------------------------------*/
 
 /*------------------------------------------------------------------*/
-/* FUNCTION DECLARATION
+/* Controller API
  *------------------------------------------------------------------*/
-
-volatile uint32_t system_ticks = 0;
-
-void SysTick_Handler (void)
+bool tusb_dcd_init (uint8_t port)
 {
-  system_ticks++;
+  // TODO USB power detection
+  nrf_power_int_enable(
+                NRF_POWER_INT_USBDETECTED_MASK |
+                NRF_POWER_INT_USBREMOVED_MASK  |
+                NRF_POWER_INT_USBPWRRDY_MASK);
+
+  nrf_drv_usbd_enable();
 }
 
-
-bool tusb_hal_init(void)
-{
-  return true;
-}
-
-void tusb_hal_int_enable(uint8_t port)
-{
-  (void) port;
-  NVIC_EnableIRQ(USBD_IRQn);
-}
-
-void tusb_hal_int_disable(uint8_t port)
-{
-  (void) port;
-  NVIC_DisableIRQ(USBD_IRQn);
-}
-
-uint32_t tusb_hal_tick_get(void)
-{
-  //#define tick2ms(tck)         ( ( ((uint64_t)(tck)) * 1000) / configTICK_RATE_HZ )
-  //return tick2ms( app_timer_cnt_get() );
-
-  return system_ticks;
-}
-
-void tusb_hal_dbg_breakpoint(void)
-{
-  // M0 cannot check if debugger is attached or not
-#if defined(__CORTEX_M) && (__CORTEX_M > 0)
-  // check if debugger is attached
-  if ( (CoreDebug->DHCSR & CoreDebug_DHCSR_C_DEBUGEN_Msk) == CoreDebug_DHCSR_C_DEBUGEN_Msk)
-  {
-    __asm("BKPT #0\n");
-  }
-#endif
-}
+void tusb_dcd_connect          (uint8_t port);
+void tusb_dcd_disconnect       (uint8_t port);
+void tusb_dcd_set_address      (uint8_t port, uint8_t dev_addr);
+void tusb_dcd_set_config       (uint8_t port, uint8_t config_num);

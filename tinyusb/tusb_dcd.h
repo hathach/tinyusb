@@ -43,8 +43,7 @@
 #ifndef _TUSB_DCD_H_
 #define _TUSB_DCD_H_
 
-#include <stdint.h>
-#include <stdbool.h>
+#include "common/tusb_common.h"
 
 #ifdef __cplusplus
  extern "C" {

@@ -52,14 +52,6 @@ tusb_error_t tusb_init(void)
   ASSERT_STATUS ( usbd_init() ); // device stack init
 #endif
 
-#if (TUSB_CFG_CONTROLLER_0_MODE)
-  tusb_hal_init_enable(0);
-#endif
-
-#if (TUSB_CFG_CONTROLLER_1_MODE)
-  tusb_hal_init_enable(1);
-#endif
-
   return TUSB_ERROR_NONE;
 }
 

@@ -53,6 +53,22 @@ enum {
   LPC43XX_USBMODE_VBUS_HIGH = 1
 };
 
+#if TUSB_CFG_OS == TUSB_OS_NONE
+
+volatile uint32_t system_ticks = 0;
+
+void SysTick_Handler (void)
+{
+  system_ticks++;
+}
+
+uint32_t tusb_hal_tick_get(void)
+{
+  return system_ticks;
+}
+
+#endif
+
 void tusb_hal_dbg_breakpoint(void)
 {
   // M0 cannot check if debugger is attached or not
@@ -65,12 +81,12 @@ void tusb_hal_dbg_breakpoint(void)
 #endif
 }
 
-void tusb_hal_init_enable(uint8_t port)
+void tusb_hal_int_enable(uint8_t port)
 {
   NVIC_EnableIRQ(port ? USB1_IRQn : USB0_IRQn);
 }
 
-void tusb_hal_init_disable(uint8_t port)
+void tusb_hal_int_disable(uint8_t port)
 {
   NVIC_DisableIRQ(port ? USB1_IRQn : USB0_IRQn);
 }
@@ -166,5 +182,12 @@ void USB1_IRQHandler(void)
   #endif
 }
 #endif
+
+
+void check_failed(uint8_t *file, uint32_t line)
+{
+  (void) file;
+  (void) line;
+}
 
 #endif

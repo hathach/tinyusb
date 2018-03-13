@@ -114,7 +114,7 @@ void led_blinking_task(void)
 {
   enum { BLINK_INTEVAL = 1000 };
 
-  static uint32_t led_on_mask = 0;
+  static bool led_state = false;
   static uint32_t last_blink = 0;
 
   // not enough time
@@ -122,8 +122,8 @@ void led_blinking_task(void)
 
   last_blink += BLINK_INTEVAL;
 
-  board_leds(led_on_mask, 1 - led_on_mask);
-  led_on_mask = 1 - led_on_mask; // toggle
+  board_led_control(BOARD_LED0, led_state);
+  led_state = 1 - led_state; // toggle
 }
 
 //--------------------------------------------------------------------+

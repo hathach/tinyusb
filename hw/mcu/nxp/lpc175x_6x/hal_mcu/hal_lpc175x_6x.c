@@ -41,13 +41,13 @@
 
 #if TUSB_CFG_MCU == MCU_LPC175X_6X
 
-void tusb_hal_init_enable(uint8_t port)
+void tusb_hal_int_enable(uint8_t port)
 {
   (void) port; // discard compiler's warning
   NVIC_EnableIRQ(USB_IRQn);
 }
 
-void tusb_hal_init_disable(uint8_t port)
+void tusb_hal_int_disable(uint8_t port)
 {
   (void) port; // discard compiler's warning
   NVIC_DisableIRQ(USB_IRQn);
@@ -109,6 +109,12 @@ void USB_IRQHandler(void)
   #if MODE_DEVICE_SUPPORTED
     hal_dcd_isr(0);
   #endif
+}
+
+void check_failed(uint8_t *file, uint32_t line)
+{
+  (void) file;
+  (void) line;
 }
 
 #endif

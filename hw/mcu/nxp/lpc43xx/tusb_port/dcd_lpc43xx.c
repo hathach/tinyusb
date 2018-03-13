@@ -160,6 +160,9 @@ bool tusb_dcd_init(uint8_t port)
   lpc_usb->USBCMD_D &= ~0x00FF0000; // Interrupt Threshold Interval = 0
   lpc_usb->USBCMD_D |= BIT_(0); // connect
 
+  // enable interrupt
+  NVIC_EnableIRQ(port ? USB1_IRQn : USB0_IRQn);
+
   return true;
 }
 

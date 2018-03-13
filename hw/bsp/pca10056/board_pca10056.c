@@ -43,6 +43,7 @@
  *------------------------------------------------------------------*/
 #define LED_1           13
 #define LED_STATE_ON    0
+#define LED_STATE_OFF   (1-LED_STATE_ON)
 
 
 /*------------------------------------------------------------------*/
@@ -60,17 +61,10 @@ void board_init(void)
   NVIC_EnableIRQ(SysTick_IRQn);
 }
 
-void board_leds(uint32_t on_mask, uint32_t off_mask)
+void board_led_control(uint32_t led_id, bool state)
 {
-  if (on_mask)
-  {
-    nrf_gpio_pin_write(LED_1, LED_STATE_ON);
-  }
-
-  if ( off_mask)
-  {
-    nrf_gpio_pin_write(LED_1, 1-LED_STATE_ON);
-  }
+  (void) led_id;
+  nrf_gpio_pin_write(LED_1, state ? LED_STATE_ON : LED_STATE_OFF);
 }
 
 uint32_t board_buttons(void)

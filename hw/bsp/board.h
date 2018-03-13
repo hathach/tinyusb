@@ -131,13 +131,21 @@
 /// Initialize all required peripherals on board including uart, led, buttons etc ...
 void board_init(void);
 
-/** \brief Turns on and off leds on the board
- * \param[in]  on_mask  Bitmask for LED's numbers is turning ON
- * \param[out] off_mask Bitmask for LED's numbers is turning OFF
- * \note the \a on_mask is more priority then \a off_mask, if an led's number is present on both.
- * It will be turned ON.
- */
-void board_leds(uint32_t on_mask, uint32_t off_mask);
+
+#define BOARD_LED0    0
+
+void board_led_control(uint32_t led_id, bool state);
+
+static inline void board_led_on(uint32_t led_id)
+{
+  board_led_control(led_id, true);
+}
+
+static inline void board_led_off(uint32_t led_id)
+{
+  board_led_control(led_id, false);
+}
+
 
 /** \brief Get the current state of the buttons on the board
  * \return Bitmask where a '1' means active (pressed), a '0' means inactive.
@@ -155,19 +163,6 @@ uint8_t  board_uart_getchar(void);
 void board_uart_putchar(uint8_t c);
 
 /** @} */
-
-#if 0
-//------------- Board Application  -------------//
-void led_blinking_task(void* param);
-
-/// Initialize the LED blinking task application. The initial blinking rate is 1 Hert (1 per second)
-void led_blinking_init(void);
-
-/** \brief Change the blinking rate.
- * \param[in]  ms The interval between on and off.
- */
-void led_blinking_set_interval(uint32_t ms);
-#endif
 
 #ifdef __cplusplus
  }

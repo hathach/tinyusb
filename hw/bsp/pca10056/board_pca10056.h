@@ -42,6 +42,7 @@
  extern "C" {
 #endif
 
+#define BOARD_LED_NUM   1
 
 #ifdef __cplusplus
  }

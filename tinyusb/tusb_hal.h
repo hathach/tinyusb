@@ -46,12 +46,7 @@ extern "C" {
 //--------------------------------------------------------------------+
 // INCLUDES
 //--------------------------------------------------------------------+
-#include "tusb_option.h"
-#include <stdbool.h>
-#include <stdint.h>
-
-#include "common/tusb_errors.h"
-#include "common/compiler/compiler.h"
+#include "common/tusb_common.h"
 
 //--------------------------------------------------------------------+
 // HAL API
@@ -73,12 +68,12 @@ bool tusb_hal_init(void);
 /** \brief 			Enable USB Interrupt on a specific USB Controller
  * \param[in]		port	is a zero-based index to identify USB controller's ID
  */
-void tusb_hal_init_enable(uint8_t port);
+void tusb_hal_int_enable(uint8_t port);
 
 /** \brief 			Disable USB Interrupt on a specific USB Controller
  * \param[in]		port	is a zero-based index to identify USB controller's ID
  */
-void tusb_hal_init_disable(uint8_t port);
+void tusb_hal_int_disable(uint8_t port);
 
 uint32_t tusb_hal_tick_get(void);
 
