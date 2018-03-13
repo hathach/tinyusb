@@ -139,6 +139,8 @@ bool tusb_dcd_init(uint8_t port)
 
 	sie_write(SIE_CMDCODE_DEVICE_STATUS, 1, 1); // connect
 
+	NVIC_EnableIRQ(USB_IRQn);
+
   return TUSB_ERROR_NONE;
 }
 
