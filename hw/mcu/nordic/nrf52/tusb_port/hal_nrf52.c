@@ -38,6 +38,9 @@
 #include "nrf.h"
 #include "nrf_gpio.h"
 #include "nrf_drv_systick.h"
+#include "nrf_drv_clock.h"
+
+#include "tusb_hal.h"
 
 /*------------------------------------------------------------------*/
 /* MACRO TYPEDEF CONSTANT ENUM
@@ -62,6 +65,10 @@ void SysTick_Handler (void)
 
 bool tusb_hal_init(void)
 {
+  VERIFY( NRF_SUCCESS == nrf_drv_clock_init() );
+
+
+
   return true;
 }
 

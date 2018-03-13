@@ -53,13 +53,13 @@ POSSIBILITY OF SUCH DAMAGE.
 #endif
 
 
-#if defined(_WIN32)
-    /* Do not include nrf specific files when building for PC host */
-#elif defined(__unix)
-    /* Do not include nrf specific files when building for PC host */
-#elif defined(__APPLE__)
-    /* Do not include nrf specific files when building for PC host */
-#else
+//#if defined(_WIN32)
+//    /* Do not include nrf specific files when building for PC host */
+//#elif defined(__unix)
+//    /* Do not include nrf specific files when building for PC host */
+//#elif defined(__APPLE__)
+//    /* Do not include nrf specific files when building for PC host */
+//#else
 
     /* Device selection for device includes. */
     #if defined (NRF51)
@@ -87,7 +87,7 @@ POSSIBILITY OF SUCH DAMAGE.
 
     #include "compiler_abstraction.h"
 
-#endif /* _WIN32 || __unix || __APPLE__ */
+//#endif /* _WIN32 || __unix || __APPLE__ */
 
 #endif /* NRF_H */
 
