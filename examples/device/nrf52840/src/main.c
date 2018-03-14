@@ -67,7 +67,7 @@ int main(void)
 
   while (1)
   {
-    //tusb_task();
+    tusb_task();
 
     led_blinking_task();
     //virtual_com_task();

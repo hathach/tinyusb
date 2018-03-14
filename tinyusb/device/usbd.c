@@ -99,6 +99,16 @@ static usbd_class_driver_t const usbd_class_drivers[] =
 
 enum { USBD_CLASS_DRIVER_COUNT = sizeof(usbd_class_drivers) / sizeof(usbd_class_driver_t) };
 
+
+
+//tusb_descriptor_device_qualifier_t _device_qual =
+//{
+//    .bLength = sizeof(tusb_descriptor_device_qualifier_t),
+//    .bDescriptorType = TUSB_DESC_DEVICE_QUALIFIER,
+//    .bcdUSB = 0x0200,
+//    .bDeviceClass =
+//};
+
 //--------------------------------------------------------------------+
 // INTERNAL OBJECT & FUNCTION DECLARATION
 //--------------------------------------------------------------------+
@@ -244,7 +254,7 @@ static tusb_error_t usbd_body_subtask(void)
 
   if ( USBD_EVENTID_SETUP_RECEIVED == event.event_id )
   {
-    OSAL_SUBTASK_INVOKED_AND_WAIT( usbd_control_request_subtask(event.port, &event.setup_received), error );
+    OSAL_SUBTASK_INVOKED( usbd_control_request_subtask(event.port, &event.setup_received), error );
   }else if (USBD_EVENTID_XFER_DONE == event.event_id)
   {
     // Call class handling function, Class that endpoint not belong to should check and return
@@ -276,6 +286,29 @@ static tusb_error_t usbd_body_subtask(void)
 //--------------------------------------------------------------------+
 // CONTROL REQUEST
 //--------------------------------------------------------------------+
+tusb_error_t usbd_control_xfer_substak(uint8_t port, tusb_dir_t dir, uint8_t * buffer, uint16_t length)
+{
+  OSAL_SUBTASK_BEGIN
+
+  tusb_error_t error;
+
+  // Data
+  if ( length )
+  {
+    tusb_dcd_control_xfer(port, dir, buffer, length, true);
+    osal_semaphore_wait( usbd_control_xfer_sem_hdl, 100, &error );
+
+    SUBTASK_ASSERT_STATUS( error );
+  }
+
+  // Status opposite direction with Zero Length
+  tusb_dcd_control_xfer(port, (tusb_dir_t) (1-dir), NULL, 0, true);
+
+  // no need to blocking wait for status to complete
+
+  OSAL_SUBTASK_END
+}
+
 tusb_error_t usbd_control_request_subtask(uint8_t port, tusb_control_request_t const * const p_request)
 {
   OSAL_SUBTASK_BEGIN
@@ -296,13 +329,17 @@ tusb_error_t usbd_control_request_subtask(uint8_t port, tusb_control_request_t c
 
       if ( TUSB_ERROR_NONE == error )
       {
-        tusb_dcd_control_xfer(port, (tusb_dir_t) p_request->bmRequestType_bit.direction, (uint8_t*) p_buffer, length, false);
+//        tusb_dcd_control_xfer(port, (tusb_dir_t) p_request->bmRequestType_bit.direction, (uint8_t*) p_buffer, length, false);
+        OSAL_SUBTASK_INVOKED ( usbd_control_xfer_substak(port, (tusb_dir_t) p_request->bmRequestType_bit.direction, (uint8_t*) p_buffer, length ), error );;
       }
     }
     else if ( TUSB_REQUEST_SET_ADDRESS == p_request->bRequest )
     {
       tusb_dcd_set_address(port, (uint8_t) p_request->wValue);
       usbd_devices[port].state = TUSB_DEVICE_STATE_ADDRESSED;
+
+      // TODO hack nrf52 auto handle set address
+      SUBTASK_RETURN(TUSB_ERROR_NONE);
     }
     else if ( TUSB_REQUEST_SET_CONFIGURATION == p_request->bRequest )
     {
@@ -323,7 +360,7 @@ tusb_error_t usbd_control_request_subtask(uint8_t port, tusb_control_request_t c
     if ( (class_code > 0) && (class_code < USBD_CLASS_DRIVER_COUNT) &&
          usbd_class_drivers[class_code].control_request_subtask )
     {
-      OSAL_SUBTASK_INVOKED_AND_WAIT( usbd_class_drivers[class_code].control_request_subtask(port, p_request), error );
+      OSAL_SUBTASK_INVOKED( usbd_class_drivers[class_code].control_request_subtask(port, p_request), error );
     }else
     {
       error = TUSB_ERROR_DCD_CONTROL_REQUEST_NOT_SUPPORT;
@@ -344,10 +381,10 @@ tusb_error_t usbd_control_request_subtask(uint8_t port, tusb_control_request_t c
   if(TUSB_ERROR_NONE != error)
   { // Response with Protocol Stall if request is not supported
     tusb_dcd_control_stall(port);
-    //    ASSERT(error == TUSB_ERROR_NONE, VOID_RETURN);
   }else if (p_request->wLength == 0)
   {
-    tusb_dcd_control_xfer(port, (tusb_dir_t) p_request->bmRequestType_bit.direction, NULL, 0, false); // zero length for non-data
+    // zero length for non-data
+    tusb_dcd_control_xfer(port, (tusb_dir_t) p_request->bmRequestType_bit.direction, NULL, 0, false);
   }
 
   OSAL_SUBTASK_END
@@ -425,6 +462,12 @@ static tusb_error_t get_descriptor(uint8_t port, tusb_control_request_t const * 
       ASSERT( p_data != NULL, TUSB_ERROR_FAILED);
 
       (*p_length)  = p_data[0];  // first byte of descriptor is its size
+    break;
+
+    case TUSB_DESC_DEVICE_QUALIFIER:
+      // TODO If not highspeed capable stall this request otherwise
+      // return the descriptor that could work in highspeed
+      return TUSB_ERROR_DCD_CONTROL_REQUEST_NOT_SUPPORT;
     break;
 
     // TODO Report Descriptor (HID Generic)
