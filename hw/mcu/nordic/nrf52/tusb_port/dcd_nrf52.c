@@ -48,10 +48,20 @@
 /*------------------------------------------------------------------*/
 /* MACRO TYPEDEF CONSTANT ENUM
  *------------------------------------------------------------------*/
+enum { MAX_PACKET_SIZE = 64 };
 
 /*------------------------------------------------------------------*/
 /* VARIABLE DECLARATION
  *------------------------------------------------------------------*/
+static struct
+{
+  struct
+  {
+    uint8_t* buffer;
+    uint16_t xfer_len;
+    uint8_t  dir;
+  }control;
+}_dcd_data;
 
 /*------------------------------------------------------------------*/
 /* Controller API
@@ -100,7 +110,7 @@ static void power_usb_event_handler(nrf_drv_power_usb_evt_t event)
         nrf_usbd_enable();
 
         // Enable HFCLK
-        nrf_drv_clock_handler_item_t clock_handler_item =
+        static nrf_drv_clock_handler_item_t clock_handler_item =
         {
             .event_handler = hfclk_ready
         };
@@ -128,8 +138,8 @@ static void power_usb_event_handler(nrf_drv_power_usb_evt_t event)
       nrf_usbd_isosplit_set(NRF_USBD_ISOSPLIT_Half);
 
       // Enable interrupt
-      NRF_USBD->INTENSET = USBD_INTEN_USBRESET_Msk | USBD_INTEN_STARTED_Msk |
-          USBD_INTEN_ENDEPIN0_Msk | USBD_INTEN_EP0DATADONE_Msk | USBD_INTEN_ENDEPOUT0_Msk | USBD_INTEN_EP0SETUP_Msk |
+      NRF_USBD->INTENSET = USBD_INTEN_USBRESET_Msk | /*USBD_INTEN_STARTED_Msk |*/
+          /*USBD_INTEN_ENDEPIN0_Msk |*/ USBD_INTEN_EP0DATADONE_Msk | USBD_INTEN_ENDEPOUT0_Msk | USBD_INTEN_EP0SETUP_Msk |
           USBD_INTEN_USBEVENT_Msk | USBD_INTEN_EPDATA_Msk | USBD_INTEN_ACCESSFAULT_Msk;
       //USBD_INTEN_SOF_Msk
 
@@ -188,7 +198,8 @@ void tusb_dcd_disconnect (uint8_t port)
 }
 void tusb_dcd_set_address (uint8_t port, uint8_t dev_addr)
 {
-
+  (void) port;
+  // address is automatically update by hw controller
 }
 void tusb_dcd_set_config (uint8_t port, uint8_t config_num)
 {
@@ -198,13 +209,62 @@ void tusb_dcd_set_config (uint8_t port, uint8_t config_num)
 /*------------------------------------------------------------------*/
 /* Control
  *------------------------------------------------------------------*/
-bool tusb_dcd_control_xfer (uint8_t port, tusb_dir_t dir, uint8_t * p_buffer, uint16_t length, bool int_on_complete)
+
+static void control_xact_start(void)
 {
+  uint8_t xact_len = min16_of(_dcd_data.control.xfer_len, MAX_PACKET_SIZE);
+
+  if ( _dcd_data.control.dir == TUSB_DIR_OUT )
+  {
+
+  }else
+  {
+    // Each transaction is up to 64 bytes
+    NRF_USBD->EPIN[0].PTR        = (uint32_t) _dcd_data.control.buffer;
+    NRF_USBD->EPIN[0].MAXCNT     = xact_len;
+    NRF_USBD->TASKS_STARTEPIN[0] = 1;
+
+    _dcd_data.control.buffer   += xact_len;
+    _dcd_data.control.xfer_len -= xact_len;
+  }
+}
+
+static void control_xact_done(void)
+{
+  if ( _dcd_data.control.xfer_len > 0 )
+  {
+    control_xact_start();
+  }else
+  {
+    tusb_dcd_xfer_complete(0, 0, 0, true);
+  }
+}
+
+
+bool tusb_dcd_control_xfer (uint8_t port, tusb_dir_t dir, uint8_t * buffer, uint16_t length, bool int_on_complete)
+{
+  (void) port;
+
+  if ( length )
+  {
+    // Data Phase
+    _dcd_data.control.xfer_len = length;
+    _dcd_data.control.buffer   = buffer;
+    _dcd_data.control.dir      = (uint8_t) dir;
+
+    control_xact_start();
+  }else
+  {
+    // Status Phase
+    NRF_USBD->TASKS_EP0STATUS = 1;
+  }
+
   return true;
 }
 void tusb_dcd_control_stall (uint8_t port)
 {
-
+  (void) port;
+  NRF_USBD->TASKS_EP0STALL = 1;
 }
 
 /*------------------------------------------------------------------*/
@@ -254,6 +314,8 @@ void bus_reset(void)
 
   NRF_USBD->TASKS_STARTISOIN  = 0;
   NRF_USBD->TASKS_STARTISOOUT = 0;
+
+  varclr(&_dcd_data);
 }
 
 void USBD_IRQHandler(void)
@@ -277,111 +339,117 @@ void USBD_IRQHandler(void)
   }
 
 #if 0
-    if (nrf_drv_usbd_errata_104())
+  if (nrf_drv_usbd_errata_104())
+  {
+    /* Event correcting */
+    if ((0 == m_dma_pending) && (0 != (active & (USBD_INTEN_SOF_Msk))))
     {
-        /* Event correcting */
-        if ((0 == m_dma_pending) && (0 != (active & (USBD_INTEN_SOF_Msk))))
+      uint8_t usbi, uoi, uii;
+      /* Testing */
+      *((volatile uint32_t *)(NRF_USBD_BASE + 0x800)) = 0x7A9;
+      uii = (uint8_t)(*((volatile uint32_t *)(NRF_USBD_BASE + 0x804)));
+      if (0 != uii)
+      {
+        uii &= (uint8_t)(*((volatile uint32_t *)(NRF_USBD_BASE + 0x804)));
+      }
+
+      *((volatile uint32_t *)(NRF_USBD_BASE + 0x800)) = 0x7AA;
+      uoi = (uint8_t)(*((volatile uint32_t *)(NRF_USBD_BASE + 0x804)));
+      if (0 != uoi)
+      {
+        uoi &= (uint8_t)(*((volatile uint32_t *)(NRF_USBD_BASE + 0x804)));
+      }
+      *((volatile uint32_t *)(NRF_USBD_BASE + 0x800)) = 0x7AB;
+      usbi = (uint8_t)(*((volatile uint32_t *)(NRF_USBD_BASE + 0x804)));
+      if (0 != usbi)
+      {
+        usbi &= (uint8_t)(*((volatile uint32_t *)(NRF_USBD_BASE + 0x804)));
+      }
+      /* Processing */
+      *((volatile uint32_t *)(NRF_USBD_BASE + 0x800)) = 0x7AC;
+      uii &= (uint8_t)*((volatile uint32_t *)(NRF_USBD_BASE + 0x804));
+      if (0 != uii)
+      {
+        uint8_t rb;
+        m_simulated_dataepstatus |= ((uint32_t)uii) << USBD_EPIN_BITPOS_0;
+        *((volatile uint32_t *)(NRF_USBD_BASE + 0x800)) = 0x7A9;
+        *((volatile uint32_t *)(NRF_USBD_BASE + 0x804)) = uii;
+        rb = (uint8_t)*((volatile uint32_t *)(NRF_USBD_BASE + 0x804));
+        NRF_DRV_USBD_LOG_PROTO1_FIX_PRINTF("   uii: 0x%.2x (0x%.2x)", uii, rb);
+      }
+
+      *((volatile uint32_t *)(NRF_USBD_BASE + 0x800)) = 0x7AD;
+      uoi &= (uint8_t)*((volatile uint32_t *)(NRF_USBD_BASE + 0x804));
+      if (0 != uoi)
+      {
+        uint8_t rb;
+        m_simulated_dataepstatus |= ((uint32_t)uoi) << USBD_EPOUT_BITPOS_0;
+        *((volatile uint32_t *)(NRF_USBD_BASE + 0x800)) = 0x7AA;
+        *((volatile uint32_t *)(NRF_USBD_BASE + 0x804)) = uoi;
+        rb = (uint8_t)*((volatile uint32_t *)(NRF_USBD_BASE + 0x804));
+        NRF_DRV_USBD_LOG_PROTO1_FIX_PRINTF("   uoi: 0x%.2u (0x%.2x)", uoi, rb);
+      }
+
+      *((volatile uint32_t *)(NRF_USBD_BASE + 0x800)) = 0x7AE;
+      usbi &= (uint8_t)*((volatile uint32_t *)(NRF_USBD_BASE + 0x804));
+      if (0 != usbi)
+      {
+        uint8_t rb;
+        if (usbi & 0x01)
         {
-            uint8_t usbi, uoi, uii;
-            /* Testing */
-            *((volatile uint32_t *)(NRF_USBD_BASE + 0x800)) = 0x7A9;
-            uii = (uint8_t)(*((volatile uint32_t *)(NRF_USBD_BASE + 0x804)));
-            if (0 != uii)
-            {
-                uii &= (uint8_t)(*((volatile uint32_t *)(NRF_USBD_BASE + 0x804)));
-            }
-
-            *((volatile uint32_t *)(NRF_USBD_BASE + 0x800)) = 0x7AA;
-            uoi = (uint8_t)(*((volatile uint32_t *)(NRF_USBD_BASE + 0x804)));
-            if (0 != uoi)
-            {
-                uoi &= (uint8_t)(*((volatile uint32_t *)(NRF_USBD_BASE + 0x804)));
-            }
-            *((volatile uint32_t *)(NRF_USBD_BASE + 0x800)) = 0x7AB;
-            usbi = (uint8_t)(*((volatile uint32_t *)(NRF_USBD_BASE + 0x804)));
-            if (0 != usbi)
-            {
-                usbi &= (uint8_t)(*((volatile uint32_t *)(NRF_USBD_BASE + 0x804)));
-            }
-            /* Processing */
-            *((volatile uint32_t *)(NRF_USBD_BASE + 0x800)) = 0x7AC;
-            uii &= (uint8_t)*((volatile uint32_t *)(NRF_USBD_BASE + 0x804));
-            if (0 != uii)
-            {
-                uint8_t rb;
-                m_simulated_dataepstatus |= ((uint32_t)uii) << USBD_EPIN_BITPOS_0;
-                *((volatile uint32_t *)(NRF_USBD_BASE + 0x800)) = 0x7A9;
-                *((volatile uint32_t *)(NRF_USBD_BASE + 0x804)) = uii;
-                rb = (uint8_t)*((volatile uint32_t *)(NRF_USBD_BASE + 0x804));
-            NRF_DRV_USBD_LOG_PROTO1_FIX_PRINTF("   uii: 0x%.2x (0x%.2x)", uii, rb);
-            }
-
-            *((volatile uint32_t *)(NRF_USBD_BASE + 0x800)) = 0x7AD;
-            uoi &= (uint8_t)*((volatile uint32_t *)(NRF_USBD_BASE + 0x804));
-            if (0 != uoi)
-            {
-                uint8_t rb;
-                m_simulated_dataepstatus |= ((uint32_t)uoi) << USBD_EPOUT_BITPOS_0;
-                *((volatile uint32_t *)(NRF_USBD_BASE + 0x800)) = 0x7AA;
-                *((volatile uint32_t *)(NRF_USBD_BASE + 0x804)) = uoi;
-                rb = (uint8_t)*((volatile uint32_t *)(NRF_USBD_BASE + 0x804));
-            NRF_DRV_USBD_LOG_PROTO1_FIX_PRINTF("   uoi: 0x%.2u (0x%.2x)", uoi, rb);
-            }
-
-            *((volatile uint32_t *)(NRF_USBD_BASE + 0x800)) = 0x7AE;
-            usbi &= (uint8_t)*((volatile uint32_t *)(NRF_USBD_BASE + 0x804));
-            if (0 != usbi)
-            {
-                uint8_t rb;
-                if (usbi & 0x01)
-                {
-                    active |= USBD_INTEN_EP0SETUP_Msk;
-                }
-                if (usbi & 0x10)
-                {
-                    active |= USBD_INTEN_USBRESET_Msk;
-                }
-                *((volatile uint32_t *)(NRF_USBD_BASE + 0x800)) = 0x7AB;
-                *((volatile uint32_t *)(NRF_USBD_BASE + 0x804)) = usbi;
-                rb = (uint8_t)*((volatile uint32_t *)(NRF_USBD_BASE + 0x804));
-            NRF_DRV_USBD_LOG_PROTO1_FIX_PRINTF("   usbi: 0x%.2u (0x%.2x)", usbi, rb);
-            }
-
-            if (0 != (m_simulated_dataepstatus &
-                ~((1U << USBD_EPOUT_BITPOS_0) | (1U << USBD_EPIN_BITPOS_0))))
-            {
-                active |= enabled & NRF_USBD_INT_DATAEP_MASK;
-            }
-            if (0 != (m_simulated_dataepstatus &
-                ((1U << USBD_EPOUT_BITPOS_0) | (1U << USBD_EPIN_BITPOS_0))))
-            {
-                if (0 != (enabled & NRF_USBD_INT_EP0DATADONE_MASK))
-                {
-                    m_simulated_dataepstatus &=
-                        ~((1U << USBD_EPOUT_BITPOS_0) | (1U << USBD_EPIN_BITPOS_0));
-                    active |= NRF_USBD_INT_EP0DATADONE_MASK;
-                }
-            }
+          active |= USBD_INTEN_EP0SETUP_Msk;
         }
+        if (usbi & 0x10)
+        {
+          active |= USBD_INTEN_USBRESET_Msk;
+        }
+        *((volatile uint32_t *)(NRF_USBD_BASE + 0x800)) = 0x7AB;
+        *((volatile uint32_t *)(NRF_USBD_BASE + 0x804)) = usbi;
+        rb = (uint8_t)*((volatile uint32_t *)(NRF_USBD_BASE + 0x804));
+        NRF_DRV_USBD_LOG_PROTO1_FIX_PRINTF("   usbi: 0x%.2u (0x%.2x)", usbi, rb);
+      }
+
+      if (0 != (m_simulated_dataepstatus &
+          ~((1U << USBD_EPOUT_BITPOS_0) | (1U << USBD_EPIN_BITPOS_0))))
+      {
+        active |= enabled & NRF_USBD_INT_DATAEP_MASK;
+      }
+      if (0 != (m_simulated_dataepstatus &
+          ((1U << USBD_EPOUT_BITPOS_0) | (1U << USBD_EPIN_BITPOS_0))))
+      {
+        if (0 != (enabled & NRF_USBD_INT_EP0DATADONE_MASK))
+        {
+          m_simulated_dataepstatus &=
+              ~((1U << USBD_EPOUT_BITPOS_0) | (1U << USBD_EPIN_BITPOS_0));
+          active |= NRF_USBD_INT_EP0DATADONE_MASK;
+        }
+      }
     }
+  }
 #endif
 
-    /*------------- Interrupt Processing -------------*/
+  /*------------- Interrupt Processing -------------*/
 
-    if ( int_status & USBD_INTEN_USBRESET_Msk )
-    {
-      bus_reset();
+  if ( int_status & USBD_INTEN_USBRESET_Msk )
+  {
+    bus_reset();
 
-      tusb_dcd_bus_event(0, USBD_BUS_EVENT_RESET);
-    }
+    tusb_dcd_bus_event(0, USBD_BUS_EVENT_RESET);
+  }
 
-    if ( int_status & USBD_INTEN_EP0SETUP_Msk )
-    {
-      uint8_t setup[8] = {
-          NRF_USBD->BMREQUESTTYPE, NRF_USBD->BREQUEST, NRF_USBD->WVALUEL, NRF_USBD->WVALUEH,
-          NRF_USBD->WINDEXL, NRF_USBD->WINDEXH, NRF_USBD->WLENGTHL, NRF_USBD->WLENGTHH
-      };
+  if ( int_status & USBD_INTEN_EP0SETUP_Msk )
+  {
+    uint8_t setup[8] = {
+        NRF_USBD->BMREQUESTTYPE, NRF_USBD->BREQUEST, NRF_USBD->WVALUEL, NRF_USBD->WVALUEH,
+        NRF_USBD->WINDEXL, NRF_USBD->WINDEXH, NRF_USBD->WLENGTHL, NRF_USBD->WLENGTHH
+    };
 
-      tusb_dcd_setup_received(0, setup);
-    }
+    //NRF_USBD->TASKS_EP0STALL = 0; // clear stall upon receive new setup
+    tusb_dcd_setup_received(0, setup);
+  }
+
+  if ( int_status & USBD_INTEN_EP0DATADONE_Msk )
+  {
+    control_xact_done();
+  }
 }
