@@ -406,7 +406,7 @@ tusb_error_t enumeration_body_subtask(void)
   else
   {
     //------------- Get Port Status -------------//
-    OSAL_SUBTASK_INVOKED_AND_WAIT(
+    OSAL_SUBTASK_INVOKED(
         usbh_control_xfer_subtask( usbh_devices[0].hub_addr, bm_request_type(TUSB_DIR_IN, TUSB_REQ_TYPE_CLASS, TUSB_REQ_RCPT_OTHER),
                                    HUB_REQUEST_GET_STATUS, 0, usbh_devices[0].hub_port,
                                    4, enum_data_buffer ),
@@ -416,7 +416,7 @@ tusb_error_t enumeration_body_subtask(void)
     SUBTASK_ASSERT_STATUS_WITH_HANDLER(error, hub_status_pipe_queue( usbh_devices[0].hub_addr) ); // TODO hub refractor
 
     // Acknowledge Port Connection Change
-    OSAL_SUBTASK_INVOKED_AND_WAIT( hub_port_clear_feature_subtask(usbh_devices[0].hub_addr, usbh_devices[0].hub_port, HUB_FEATURE_PORT_CONNECTION_CHANGE), error );
+    OSAL_SUBTASK_INVOKED( hub_port_clear_feature_subtask(usbh_devices[0].hub_addr, usbh_devices[0].hub_port, HUB_FEATURE_PORT_CONNECTION_CHANGE), error );
 
     hub_port_status_response_t * p_port_status;
     p_port_status = ((hub_port_status_response_t *) enum_data_buffer);
@@ -432,14 +432,14 @@ tusb_error_t enumeration_body_subtask(void)
     }
     else
     { // Connection Event
-      OSAL_SUBTASK_INVOKED_AND_WAIT ( hub_port_reset_subtask(usbh_devices[0].hub_addr, usbh_devices[0].hub_port), error );
+      OSAL_SUBTASK_INVOKED ( hub_port_reset_subtask(usbh_devices[0].hub_addr, usbh_devices[0].hub_port), error );
 //      SUBTASK_ASSERT_STATUS( error );
       SUBTASK_ASSERT_STATUS_WITH_HANDLER(error, hub_status_pipe_queue( usbh_devices[0].hub_addr) ); // TODO hub refractor
 
       usbh_devices[0].speed = hub_port_get_speed();
 
       // Acknowledge Port Reset Change
-      OSAL_SUBTASK_INVOKED_AND_WAIT( hub_port_clear_feature_subtask(usbh_devices[0].hub_addr, usbh_devices[0].hub_port, HUB_FEATURE_PORT_RESET_CHANGE), error );
+      OSAL_SUBTASK_INVOKED( hub_port_clear_feature_subtask(usbh_devices[0].hub_addr, usbh_devices[0].hub_port, HUB_FEATURE_PORT_RESET_CHANGE), error );
     }
   }
   #endif
@@ -448,7 +448,7 @@ tusb_error_t enumeration_body_subtask(void)
   usbh_devices[0].state = TUSB_DEVICE_STATE_ADDRESSED;
 
   //------------- Get first 8 bytes of device descriptor to get Control Endpoint Size -------------//
-  OSAL_SUBTASK_INVOKED_AND_WAIT(
+  OSAL_SUBTASK_INVOKED(
       usbh_control_xfer_subtask( 0, bm_request_type(TUSB_DIR_IN, TUSB_REQ_TYPE_STANDARD, TUSB_REQ_RCPT_DEVICE),
                                  TUSB_REQUEST_GET_DESCRIPTOR, (TUSB_DESC_DEVICE << 8), 0,
                                  8, enum_data_buffer ),
@@ -466,11 +466,11 @@ tusb_error_t enumeration_body_subtask(void)
   else
   { // connected via a hub
     SUBTASK_ASSERT_STATUS_WITH_HANDLER(error, hub_status_pipe_queue( usbh_devices[0].hub_addr) ); // TODO hub refractor
-    OSAL_SUBTASK_INVOKED_AND_WAIT ( hub_port_reset_subtask(usbh_devices[0].hub_addr, usbh_devices[0].hub_port), error );
+    OSAL_SUBTASK_INVOKED ( hub_port_reset_subtask(usbh_devices[0].hub_addr, usbh_devices[0].hub_port), error );
 
     if ( TUSB_ERROR_NONE == error )
     { // Acknowledge Port Reset Change if Reset Successful
-      OSAL_SUBTASK_INVOKED_AND_WAIT( hub_port_clear_feature_subtask(usbh_devices[0].hub_addr, usbh_devices[0].hub_port, HUB_FEATURE_PORT_RESET_CHANGE), error );
+      OSAL_SUBTASK_INVOKED( hub_port_clear_feature_subtask(usbh_devices[0].hub_addr, usbh_devices[0].hub_port, HUB_FEATURE_PORT_RESET_CHANGE), error );
     }
 
     (void) hub_status_pipe_queue( usbh_devices[0].hub_addr ); // done with hub, waiting for next data on status pipe
@@ -481,7 +481,7 @@ tusb_error_t enumeration_body_subtask(void)
   new_addr = get_new_address();
   SUBTASK_ASSERT(new_addr <= TUSB_CFG_HOST_DEVICE_MAX); // TODO notify application we reach max devices
 
-  OSAL_SUBTASK_INVOKED_AND_WAIT(
+  OSAL_SUBTASK_INVOKED(
     usbh_control_xfer_subtask( 0, bm_request_type(TUSB_DIR_OUT, TUSB_REQ_TYPE_STANDARD, TUSB_REQ_RCPT_DEVICE),
                                TUSB_REQUEST_SET_ADDRESS, new_addr, 0,
                                0, NULL ),
@@ -503,7 +503,7 @@ tusb_error_t enumeration_body_subtask(void)
   SUBTASK_ASSERT_STATUS ( usbh_pipe_control_open(new_addr, ((tusb_descriptor_device_t*) enum_data_buffer)->bMaxPacketSize0 ) );
 
   //------------- Get full device descriptor -------------//
-  OSAL_SUBTASK_INVOKED_AND_WAIT(
+  OSAL_SUBTASK_INVOKED(
       usbh_control_xfer_subtask( new_addr, bm_request_type(TUSB_DIR_IN, TUSB_REQ_TYPE_STANDARD, TUSB_REQ_RCPT_DEVICE),
                                  TUSB_REQUEST_GET_DESCRIPTOR, (TUSB_DESC_DEVICE << 8), 0,
                                  18, enum_data_buffer ),
@@ -520,7 +520,7 @@ tusb_error_t enumeration_body_subtask(void)
   SUBTASK_ASSERT(configure_selected <= usbh_devices[new_addr].configure_count); // TODO notify application when invalid configuration
 
   //------------- Get 9 bytes of configuration descriptor -------------//
-  OSAL_SUBTASK_INVOKED_AND_WAIT(
+  OSAL_SUBTASK_INVOKED(
       usbh_control_xfer_subtask( new_addr, bm_request_type(TUSB_DIR_IN, TUSB_REQ_TYPE_STANDARD, TUSB_REQ_RCPT_DEVICE),
                                  TUSB_REQUEST_GET_DESCRIPTOR, (TUSB_DESC_CONFIGURATION << 8) | (configure_selected - 1), 0,
                                  9, enum_data_buffer ),
@@ -531,7 +531,7 @@ tusb_error_t enumeration_body_subtask(void)
                             tuh_device_mount_failed_cb(TUSB_ERROR_USBH_MOUNT_CONFIG_DESC_TOO_LONG, NULL) );
 
   //------------- Get full configuration descriptor -------------//
-  OSAL_SUBTASK_INVOKED_AND_WAIT(
+  OSAL_SUBTASK_INVOKED(
       usbh_control_xfer_subtask( new_addr, bm_request_type(TUSB_DIR_IN, TUSB_REQ_TYPE_STANDARD, TUSB_REQ_RCPT_DEVICE),
                                  TUSB_REQUEST_GET_DESCRIPTOR, (TUSB_DESC_CONFIGURATION << 8) | (configure_selected - 1), 0,
                                  TUSB_CFG_HOST_ENUM_BUFFER_SIZE, enum_data_buffer ),
@@ -543,7 +543,7 @@ tusb_error_t enumeration_body_subtask(void)
   usbh_devices[new_addr].interface_count = ((tusb_descriptor_configuration_t*) enum_data_buffer)->bNumInterfaces;
 
   //------------- Set Configure -------------//
-  OSAL_SUBTASK_INVOKED_AND_WAIT(
+  OSAL_SUBTASK_INVOKED(
     usbh_control_xfer_subtask( new_addr, bm_request_type(TUSB_DIR_OUT, TUSB_REQ_TYPE_STANDARD, TUSB_REQ_RCPT_DEVICE),
                                TUSB_REQUEST_SET_CONFIGURATION, configure_selected, 0,
                                0, NULL ),
@@ -578,7 +578,7 @@ tusb_error_t enumeration_body_subtask(void)
         static uint16_t length;
         length = 0;
 
-        OSAL_SUBTASK_INVOKED_AND_WAIT ( // parameters in task/sub_task must be static storage (static or global)
+        OSAL_SUBTASK_INVOKED ( // parameters in task/sub_task must be static storage (static or global)
             usbh_class_drivers[class_index].open_subtask( new_addr, (tusb_descriptor_interface_t*) p_desc, &length ),
             error
         );

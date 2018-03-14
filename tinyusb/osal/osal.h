@@ -75,7 +75,7 @@
   #define OSAL_SUBTASK_END      return TUSB_ERROR_NONE;
 
   #define SUBTASK_RETURN(error)   return error;
-  #define OSAL_SUBTASK_INVOKED_AND_WAIT(subtask, status) status = subtask
+  #define OSAL_SUBTASK_INVOKED(subtask, status) status = subtask
 
   //------------- Sub Task Assert -------------//
   #define SUBTASK_ASSERT_STATUS(sts) VERIFY_STATUS(sts)

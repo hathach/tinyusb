@@ -77,7 +77,7 @@ tusb_error_t hub_port_clear_feature_subtask(uint8_t hub_addr, uint8_t hub_port, 
                  feature <= HUB_FEATURE_PORT_RESET_CHANGE);
 
   //------------- Clear Port Feature request -------------//
-  OSAL_SUBTASK_INVOKED_AND_WAIT(
+  OSAL_SUBTASK_INVOKED(
       usbh_control_xfer_subtask( hub_addr, bm_request_type(TUSB_DIR_OUT, TUSB_REQ_TYPE_CLASS, TUSB_REQ_RCPT_OTHER),
                                  HUB_REQUEST_CLEAR_FEATURE, feature, hub_port,
                                  0, NULL ),
@@ -86,7 +86,7 @@ tusb_error_t hub_port_clear_feature_subtask(uint8_t hub_addr, uint8_t hub_port, 
   SUBTASK_ASSERT_STATUS( error );
 
   //------------- Get Port Status to check if feature is cleared -------------//
-  OSAL_SUBTASK_INVOKED_AND_WAIT(
+  OSAL_SUBTASK_INVOKED(
       usbh_control_xfer_subtask( hub_addr, bm_request_type(TUSB_DIR_IN, TUSB_REQ_TYPE_CLASS, TUSB_REQ_RCPT_OTHER),
                                  HUB_REQUEST_GET_STATUS, 0, hub_port,
                                  4, hub_enum_buffer ),
@@ -111,7 +111,7 @@ tusb_error_t hub_port_reset_subtask(uint8_t hub_addr, uint8_t hub_port)
   OSAL_SUBTASK_BEGIN
 
   //------------- Set Port Reset -------------//
-  OSAL_SUBTASK_INVOKED_AND_WAIT(
+  OSAL_SUBTASK_INVOKED(
       usbh_control_xfer_subtask( hub_addr, bm_request_type(TUSB_DIR_OUT, TUSB_REQ_TYPE_CLASS, TUSB_REQ_RCPT_OTHER),
                                  HUB_REQUEST_SET_FEATURE, HUB_FEATURE_PORT_RESET, hub_port,
                                  0, NULL ),
@@ -122,7 +122,7 @@ tusb_error_t hub_port_reset_subtask(uint8_t hub_addr, uint8_t hub_port)
   osal_task_delay(RESET_DELAY); // TODO Hub wait for Status Endpoint on Reset Change
 
   //------------- Get Port Status to check if port is enabled, powered and reset_change -------------//
-  OSAL_SUBTASK_INVOKED_AND_WAIT(
+  OSAL_SUBTASK_INVOKED(
       usbh_control_xfer_subtask( hub_addr, bm_request_type(TUSB_DIR_IN, TUSB_REQ_TYPE_CLASS, TUSB_REQ_RCPT_OTHER),
                                  HUB_REQUEST_GET_STATUS, 0, hub_port,
                                  4, hub_enum_buffer ),
@@ -179,7 +179,7 @@ tusb_error_t hub_open_subtask(uint8_t dev_addr, tusb_descriptor_interface_t cons
   (*p_length) = sizeof(tusb_descriptor_interface_t) + sizeof(tusb_descriptor_endpoint_t);
 
   //------------- Get Hub Descriptor -------------//
-  OSAL_SUBTASK_INVOKED_AND_WAIT(
+  OSAL_SUBTASK_INVOKED(
     usbh_control_xfer_subtask( dev_addr, bm_request_type(TUSB_DIR_IN, TUSB_REQ_TYPE_CLASS, TUSB_REQ_RCPT_DEVICE),
                                HUB_REQUEST_GET_DESCRIPTOR, 0, 0,
                                sizeof(descriptor_hub_desc_t), hub_enum_buffer ),
@@ -194,7 +194,7 @@ tusb_error_t hub_open_subtask(uint8_t dev_addr, tusb_descriptor_interface_t cons
   static uint8_t i;
   for(i=1; i <= hub_data[dev_addr-1].port_number; i++)
   {
-    OSAL_SUBTASK_INVOKED_AND_WAIT(
+    OSAL_SUBTASK_INVOKED(
       usbh_control_xfer_subtask( dev_addr, bm_request_type(TUSB_DIR_OUT, TUSB_REQ_TYPE_CLASS, TUSB_REQ_RCPT_OTHER),
                                  HUB_REQUEST_SET_FEATURE, HUB_FEATURE_PORT_POWER, i,
                                  0, NULL ),

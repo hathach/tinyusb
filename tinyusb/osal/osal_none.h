@@ -115,7 +115,7 @@ static inline osal_task_t osal_task_create(osal_func_t code, const char* name, u
   }}\
   return TUSB_ERROR_NONE;
 
-#define OSAL_SUBTASK_INVOKED_AND_WAIT(subtask, status) \
+#define OSAL_SUBTASK_INVOKED(subtask, status) \
     do {\
       state = __LINE__; case __LINE__:\
       {\

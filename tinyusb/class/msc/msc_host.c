@@ -327,7 +327,7 @@ tusb_error_t msch_open_subtask(uint8_t dev_addr, tusb_descriptor_interface_t con
 
 
   //------------- Get Max Lun -------------//
-  OSAL_SUBTASK_INVOKED_AND_WAIT(
+  OSAL_SUBTASK_INVOKED(
     usbh_control_xfer_subtask( dev_addr, bm_request_type(TUSB_DIR_IN, TUSB_REQ_TYPE_CLASS, TUSB_REQ_RCPT_INTERFACE),
                                MSC_REQUEST_GET_MAX_LUN, 0, msch_data[dev_addr-1].interface_number,
                                1, msch_buffer ),
@@ -339,7 +339,7 @@ tusb_error_t msch_open_subtask(uint8_t dev_addr, tusb_descriptor_interface_t con
 
 #if 0
   //------------- Reset -------------//
-  OSAL_SUBTASK_INVOKED_AND_WAIT(
+  OSAL_SUBTASK_INVOKED(
     usbh_control_xfer_subtask( dev_addr, bm_request_type(TUSB_DIR_OUT, TUSB_REQ_TYPE_CLASS, TUSB_REQ_RCPT_INTERFACE),
                                MSC_REQUEST_RESET, 0, msch_data[dev_addr-1].interface_number,
                                0, NULL ),
@@ -365,7 +365,7 @@ tusb_error_t msch_open_subtask(uint8_t dev_addr, tusb_descriptor_interface_t con
   // Read Capacity --> Stalled --> Clear Stall --> Request Sense --> Read Capacity (2) to work
   if ( hcd_pipe_is_stalled(msch_data[dev_addr-1].bulk_in) )
   { // clear stall TODO abstract clear stall function
-    OSAL_SUBTASK_INVOKED_AND_WAIT(
+    OSAL_SUBTASK_INVOKED(
       usbh_control_xfer_subtask( dev_addr, bm_request_type(TUSB_DIR_OUT, TUSB_REQ_TYPE_STANDARD, TUSB_REQ_RCPT_ENDPOINT),
                                  TUSB_REQUEST_CLEAR_FEATURE, 0, hcd_pipe_get_endpoint_addr(msch_data[dev_addr-1].bulk_in),
                                  0, NULL ),
