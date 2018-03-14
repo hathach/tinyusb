@@ -1,0 +1,23 @@
+See the top of each source file for the license under which the file is 
+released.
+The following licenses are used in the nRF5 SDK:
+ 
+   i) nRF5 SDK license: The majority of the source code included in the 
+      nRF5 SDK (nRF5_Nordic_license.txt)
+
+  ii) nRF5 Dynastream license: Files released by Dynastream Innovations 
+      included in the nRF5 SDK (nRF5_Dynastream_license.txt)
+
+ iii) SoftDevice license: The SoftDevice and its headers 
+      (..\components\softdevice\sxxx\doc\<license file>)
+
+  iv) ARM 3-clause BSD license: CMSIS and system files (..\toolchain)
+
+   v) FreeRTOS license: FreeRTOS configuration files (FreeRTOSConfig.h 
+      in the examples that show how to use FreeRTOS)
+
+  vi) Third-party licenses: All third-party code contained in 
+      ..\external (respective licenses included in each of the imported
+      projects)
+ 
+ 
