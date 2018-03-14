@@ -39,6 +39,10 @@
 #include "nrf_power.h"
 #include "nrf_usbd.h"
 
+#include "nrf_drv_power.h"
+#include "nrf_drv_clock.h"
+#include "nrf_drv_usbd_errata.h"
+
 #include "tusb_dcd.h"
 
 /*------------------------------------------------------------------*/
@@ -54,7 +58,7 @@
  *------------------------------------------------------------------*/
 static void hfclk_ready(nrf_drv_clock_evt_type_t event)
 {
-
+  // do nothing
 }
 
 static void enable_usb(void)
@@ -73,66 +77,91 @@ static void enable_usb(void)
   nrf_drv_clock_hfclk_request(&clock_handler_item);
 
   /* Waiting for peripheral to enable, this should take a few us */
-  while ( 0 == (NRF_USBD_EVENTCAUSE_READY_MASK & nrf_usbd_eventcause_get()) ) { }
+  while ( !(NRF_USBD_EVENTCAUSE_READY_MASK & NRF_USBD->EVENTCAUSE) ) { }
   nrf_usbd_eventcause_clear(NRF_USBD_EVENTCAUSE_READY_MASK);
+  nrf_usbd_event_clear(NRF_USBD_EVENT_USBEVENT);
 
   // Wait until power is ready
   while (!nrf_power_usbregstatus_outrdy_get()) {}
-
-  // Wait until PHY is powered
-  while ( nrf_drv_clock_hfclk_is_running() ) {}
-
-  if ( nrf_drv_usbd_errata_166() )
-  {
-    *((volatile uint32_t *) (NRF_USBD_BASE + 0x800)) = 0x7E3;
-    *((volatile uint32_t *) (NRF_USBD_BASE + 0x804)) = 0x40;
-    __ISB();
-    __DSB();
-  }
-
-  nrf_usbd_isosplit_set(NRF_USBD_ISOSPLIT_Half);
-
-  // Enable interrupt
-  NRF_USBD->INTENSET = USBD_INTEN_USBRESET_Msk | USBD_INTEN_STARTED_Msk |
-      USBD_INTEN_ENDEPIN0_Msk | USBD_INTEN_EP0DATADONE_Msk | USBD_INTEN_ENDEPOUT0_Msk | USBD_INTEN_EP0SETUP_Msk |
-      USBD_INTEN_USBEVENT_Msk | USBD_INTEN_EPDATA_Msk | USBD_INTEN_ACCESSFAULT_Msk;
-      //USBD_INTEN_SOF_Msk
-
-//  if (enable_sof || nrf_drv_usbd_errata_104())
-//  {
-//    ints_to_enable |= NRF_USBD_INT_SOF_MASK;
-//  }
-
-  // Enable interrupt
-  NVIC_ClearPendingIRQ(USBD_IRQn);
-  NVIC_EnableIRQ(USBD_IRQn);
-
-  // Enable pull up
-  nrf_usbd_pullup_enable();
 }
 
 static void power_usb_event_handler(nrf_drv_power_usb_evt_t event)
 {
+  // 51.4 specs USBD start-up sequene
   switch ( event )
   {
     case NRF_DRV_POWER_USB_EVT_DETECTED:
       if ( !NRF_USBD->ENABLE )
       {
-        enable_usb();
+        /* Prepare for READY event receiving */
+        nrf_usbd_eventcause_clear(NRF_USBD_EVENTCAUSE_READY_MASK);
+
+        /* Enable the peripheral */
+        nrf_usbd_enable();
+
+        // Enable HFCLK
+        nrf_drv_clock_handler_item_t clock_handler_item =
+        {
+            .event_handler = hfclk_ready
+        };
+        nrf_drv_clock_hfclk_request(&clock_handler_item);
+
+        /* Waiting for peripheral to enable, this should take a few us */
+        while ( !(NRF_USBD_EVENTCAUSE_READY_MASK & NRF_USBD->EVENTCAUSE) ) { }
+        nrf_usbd_eventcause_clear(NRF_USBD_EVENTCAUSE_READY_MASK);
+        nrf_usbd_event_clear(NRF_USBD_EVENT_USBEVENT);
       }
+    break;
+
+    case NRF_DRV_POWER_USB_EVT_READY:
+      // Wait for HFCLK
+      while ( !nrf_drv_clock_hfclk_is_running() ) {}
+
+      if ( nrf_drv_usbd_errata_166() )
+      {
+        *((volatile uint32_t *) (NRF_USBD_BASE + 0x800)) = 0x7E3;
+        *((volatile uint32_t *) (NRF_USBD_BASE + 0x804)) = 0x40;
+        __ISB();
+        __DSB();
+      }
+
+      nrf_usbd_isosplit_set(NRF_USBD_ISOSPLIT_Half);
+
+      // Enable interrupt
+      NRF_USBD->INTENSET = USBD_INTEN_USBRESET_Msk | USBD_INTEN_STARTED_Msk |
+          USBD_INTEN_ENDEPIN0_Msk | USBD_INTEN_EP0DATADONE_Msk | USBD_INTEN_ENDEPOUT0_Msk | USBD_INTEN_EP0SETUP_Msk |
+          USBD_INTEN_USBEVENT_Msk | USBD_INTEN_EPDATA_Msk | USBD_INTEN_ACCESSFAULT_Msk;
+      //USBD_INTEN_SOF_Msk
+
+      //  if (enable_sof || nrf_drv_usbd_errata_104())
+      //  {
+      //    ints_to_enable |= NRF_USBD_INT_SOF_MASK;
+      //  }
+
+      // Enable interrupt
+      NVIC_ClearPendingIRQ(USBD_IRQn);
+      NVIC_EnableIRQ(USBD_IRQn);
+
+      // Enable pull up
+      nrf_usbd_pullup_enable();
     break;
 
     case NRF_DRV_POWER_USB_EVT_REMOVED:
       if ( NRF_USBD->ENABLE )
       {
-        nrf_drv_usbd_stop();
+        // Abort all transfers
 
-        NRF_USBD->INTENCLR = NRF_USBD->INTEN; // disable all interrupt
+        // Disable pull up
+        nrf_usbd_pullup_disable();
+
+        // Disable Interrupt
+        NVIC_DisableIRQ(USBD_IRQn);
+
+        // disable all interrupt
+        NRF_USBD->INTENCLR = NRF_USBD->INTEN;
+
         nrf_usbd_disable();
       }
-    break;
-
-    case NRF_DRV_POWER_USB_EVT_READY:
     break;
 
     default: break;
@@ -149,10 +178,83 @@ bool tusb_dcd_init (uint8_t port)
   VERIFY( NRF_SUCCESS == nrf_drv_power_usbevt_init(&config) );
 }
 
-void tusb_dcd_connect          (uint8_t port);
-void tusb_dcd_disconnect       (uint8_t port);
-void tusb_dcd_set_address      (uint8_t port, uint8_t dev_addr);
-void tusb_dcd_set_config       (uint8_t port, uint8_t config_num);
+void tusb_dcd_connect (uint8_t port)
+{
+
+}
+void tusb_dcd_disconnect (uint8_t port)
+{
+
+}
+void tusb_dcd_set_address (uint8_t port, uint8_t dev_addr)
+{
+
+}
+void tusb_dcd_set_config (uint8_t port, uint8_t config_num)
+{
+
+}
+
+/*------------------------------------------------------------------*/
+/* Control
+ *------------------------------------------------------------------*/
+bool tusb_dcd_control_xfer (uint8_t port, tusb_dir_t dir, uint8_t * p_buffer, uint16_t length, bool int_on_complete)
+{
+  return true;
+}
+void tusb_dcd_control_stall (uint8_t port)
+{
+
+}
+
+/*------------------------------------------------------------------*/
+/*
+ *------------------------------------------------------------------*/
+bool tusb_dcd_edpt_open (uint8_t port, tusb_descriptor_endpoint_t const * p_endpoint_desc)
+{
+  return true;
+}
+
+bool tusb_dcd_edpt_xfer (uint8_t port, uint8_t edpt_addr, uint8_t * buffer, uint16_t total_bytes, bool int_on_complete)
+{
+  return true;
+}
+
+bool tusb_dcd_edpt_queue_xfer (uint8_t port, uint8_t edpt_addr, uint8_t * buffer, uint16_t total_bytes)
+{
+  return true;
+}
+
+void tusb_dcd_edpt_stall (uint8_t port, uint8_t edpt_addr)
+{
+
+}
+
+void tusb_dcd_edpt_clear_stall (uint8_t port, uint8_t edpt_addr)
+{
+
+}
+
+// TODO may remove
+bool tusb_dcd_edpt_busy (uint8_t port, uint8_t edpt_addr)
+{
+  return true;
+}
+
+/*------------------------------------------------------------------*/
+/*
+ *------------------------------------------------------------------*/
+void bus_reset(void)
+{
+  for(int i=0; i<8; i++)
+  {
+    NRF_USBD->TASKS_STARTEPIN[i] = 0;
+    NRF_USBD->TASKS_STARTEPOUT[i] = 0;
+  }
+
+  NRF_USBD->TASKS_STARTISOIN  = 0;
+  NRF_USBD->TASKS_STARTISOOUT = 0;
+}
 
 void USBD_IRQHandler(void)
 {
@@ -268,8 +370,18 @@ void USBD_IRQHandler(void)
 
     if ( int_status & USBD_INTEN_USBRESET_Msk )
     {
-
+      bus_reset();
 
       tusb_dcd_bus_event(0, USBD_BUS_EVENT_RESET);
+    }
+
+    if ( int_status & USBD_INTEN_EP0SETUP_Msk )
+    {
+      uint8_t setup[8] = {
+          NRF_USBD->BMREQUESTTYPE, NRF_USBD->BREQUEST, NRF_USBD->WVALUEL, NRF_USBD->WVALUEH,
+          NRF_USBD->WINDEXL, NRF_USBD->WINDEXH, NRF_USBD->WLENGTHL, NRF_USBD->WLENGTHH
+      };
+
+      tusb_dcd_setup_received(0, setup);
     }
 }

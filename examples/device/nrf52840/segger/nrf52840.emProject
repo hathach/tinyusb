@@ -82,6 +82,8 @@
           <folder Name="nrf52">
             <folder Name="tusb_port">
               <file file_name="../../../../hw/mcu/nordic/nrf52/tusb_port/hal_nrf52.c" />
+              <file file_name="../../../../hw/mcu/nordic/nrf52/tusb_port/dcd_nrf52.c" />
+              <file file_name="../../../../hw/mcu/nordic/nrf52/tusb_port/dcd_nrf52.h" />
             </folder>
             <folder
               Name="sdk"
