@@ -62,7 +62,7 @@ static struct
     uint8_t  dir;
   }control;
 
-  bool dma_running;
+  volatile bool dma_running;
 }_dcd_data;
 
 /*------------------------------------------------------------------*/
@@ -142,7 +142,7 @@ static void power_usb_event_handler(nrf_drv_power_usb_evt_t event)
       // Enable interrupt
       NRF_USBD->INTENSET = USBD_INTEN_USBRESET_Msk | USBD_INTEN_USBEVENT_Msk | USBD_INTEN_ACCESSFAULT_Msk |
           USBD_INTEN_EP0SETUP_Msk | USBD_INTEN_EP0DATADONE_Msk |
-          /*USBD_INTEN_ENDEPIN0_Msk |*/  USBD_INTEN_ENDEPOUT0_Msk |
+          USBD_INTEN_ENDEPIN0_Msk |  USBD_INTEN_ENDEPOUT0_Msk |
           /*USBD_INTEN_STARTED_Msk |*/  USBD_INTEN_EPDATA_Msk ;
       //USBD_INTEN_SOF_Msk
 
@@ -181,6 +181,23 @@ static void power_usb_event_handler(nrf_drv_power_usb_evt_t event)
   }
 }
 
+void bus_reset(void)
+{
+  for(int i=0; i<8; i++)
+  {
+    NRF_USBD->TASKS_STARTEPIN[i] = 0;
+    NRF_USBD->TASKS_STARTEPOUT[i] = 0;
+  }
+
+  NRF_USBD->TASKS_STARTISOIN  = 0;
+  NRF_USBD->TASKS_STARTISOOUT = 0;
+
+  varclr(&_dcd_data);
+}
+
+/*------------------------------------------------------------------*/
+/* Controller API
+ *------------------------------------------------------------------*/
 bool tusb_dcd_init (uint8_t port)
 {
   // USB Power detection
@@ -212,6 +229,26 @@ void tusb_dcd_set_config (uint8_t port, uint8_t config_num)
 /*------------------------------------------------------------------*/
 /* Control
  *------------------------------------------------------------------*/
+static void edpt_dma_start(uint8_t epnum, uint8_t dir)
+{
+  // Only one dma could be active
+  while ( _dcd_data.dma_running ) { }
+
+  _dcd_data.dma_running = true;
+
+  if ( dir == TUSB_DIR_OUT )
+  {
+    NRF_USBD->TASKS_STARTEPOUT[epnum] = 1;
+  } else
+  {
+    NRF_USBD->TASKS_STARTEPIN[epnum] = 1;
+  }
+}
+
+static void edpt_dma_end(void)
+{
+  _dcd_data.dma_running = false;
+}
 
 static void control_xact_start(void)
 {
@@ -230,31 +267,30 @@ static void control_xact_start(void)
     NRF_USBD->EPIN[0].PTR        = (uint32_t) _dcd_data.control.buffer;
     NRF_USBD->EPIN[0].MAXCNT     = xact_len;
 
-    NRF_USBD->TASKS_STARTEPIN[0] = 1;
+    edpt_dma_start(0, TUSB_DIR_IN);
   }
 
   _dcd_data.control.buffer   += xact_len;
   _dcd_data.control.xfer_len -= xact_len;
-
 }
 
-static void control_xact_done(void)
-{
-  if ( _dcd_data.control.xfer_len > 0 )
-  {
-    if ( _dcd_data.control.dir == TUSB_DIR_OUT )
-    {
-      // out control need to wait for END EPOUT event before updating Pointer
-      NRF_USBD->TASKS_STARTEPOUT[0] = 1;
-    }else
-    {
-      control_xact_start();
-    }
-  }else
-  {
-    tusb_dcd_xfer_complete(0, 0, 0, true);
-  }
-}
+//static void control_xact_done(void)
+//{
+//  if ( _dcd_data.control.xfer_len > 0 )
+//  {
+//    if ( _dcd_data.control.dir == TUSB_DIR_OUT )
+//    {
+//      // out control need to wait for END EPOUT event before updating Pointer
+//      edpt_dma_start(0, TUSB_DIR_OUT);
+//    }else
+//    {
+//      control_xact_start();
+//    }
+//  }else
+//  {
+//    tusb_dcd_xfer_complete(0, 0, 0, true);
+//  }
+//}
 
 
 bool tusb_dcd_control_xfer (uint8_t port, tusb_dir_t dir, uint8_t * buffer, uint16_t length, bool int_on_complete)
@@ -322,20 +358,6 @@ bool tusb_dcd_edpt_busy (uint8_t port, uint8_t edpt_addr)
 /*------------------------------------------------------------------*/
 /*
  *------------------------------------------------------------------*/
-void bus_reset(void)
-{
-  for(int i=0; i<8; i++)
-  {
-    NRF_USBD->TASKS_STARTEPIN[i] = 0;
-    NRF_USBD->TASKS_STARTEPOUT[i] = 0;
-  }
-
-  NRF_USBD->TASKS_STARTISOIN  = 0;
-  NRF_USBD->TASKS_STARTISOOUT = 0;
-
-  varclr(&_dcd_data);
-}
-
 void USBD_IRQHandler(void)
 {
   uint32_t const inten  = NRF_USBD->INTEN;
@@ -455,6 +477,7 @@ void USBD_IRQHandler(void)
     tusb_dcd_bus_event(0, USBD_BUS_EVENT_RESET);
   }
 
+  /*------------- Control Transfer -------------*/
   if ( int_status & USBD_INTEN_EP0SETUP_Msk )
   {
     uint8_t setup[8] = {
@@ -466,12 +489,17 @@ void USBD_IRQHandler(void)
     tusb_dcd_setup_received(0, setup);
   }
 
+  if ( int_status & USBD_INTEN_ENDEPIN0_Msk )
+  {
+    edpt_dma_end();
+  }
+
   if ( int_status & USBD_INTEN_EP0DATADONE_Msk )
   {
     if ( _dcd_data.control.dir == TUSB_DIR_OUT )
     {
       // out control need to wait for END EPOUT (DMA complete) event
-      NRF_USBD->TASKS_STARTEPOUT[0] = 1;
+      edpt_dma_start(0, TUSB_DIR_OUT);
     }else
     {
       if ( _dcd_data.control.xfer_len > 0 )
@@ -487,6 +515,8 @@ void USBD_IRQHandler(void)
 
   if ( int_status & USBD_INTEN_ENDEPOUT0_Msk)
   {
+    edpt_dma_end();
+
     if ( _dcd_data.control.xfer_len > 0 )
     {
       control_xact_start();
