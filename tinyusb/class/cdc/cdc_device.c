@@ -212,52 +212,54 @@ void cdcd_close(uint8_t port)
 
 tusb_error_t cdcd_control_request_subtask(uint8_t port, tusb_control_request_t const * p_request)
 {
+  OSAL_SUBTASK_BEGIN
+
+  tusb_error_t err;
+
   //------------- Class Specific Request -------------//
   if (p_request->bmRequestType_bit.type != TUSB_REQ_TYPE_CLASS) return TUSB_ERROR_DCD_CONTROL_REQUEST_NOT_SUPPORT;
 
-  switch(p_request->bRequest)
+  if (CDC_REQUEST_GET_LINE_CODING == p_request->bRequest)
   {
-    case CDC_REQUEST_GET_LINE_CODING:
-      tusb_dcd_control_xfer(port, (tusb_dir_t) p_request->bmRequestType_bit.direction,
-                            (uint8_t*) &cdcd_line_coding[port], min16_of(sizeof(cdc_line_coding_t), p_request->wLength), false );
-    break;
+    OSAL_SUBTASK_INVOKED( usbd_control_xfer_substak(port, (tusb_dir_t) p_request->bmRequestType_bit.direction,
+                                                    (uint8_t*) &cdcd_line_coding[port], min16_of(sizeof(cdc_line_coding_t), p_request->wLength)), err );
+  }
+  else if (CDC_REQUEST_SET_LINE_CODING == p_request->bRequest)
+  {
+    OSAL_SUBTASK_INVOKED( usbd_control_xfer_substak(port, (tusb_dir_t) p_request->bmRequestType_bit.direction,
+                                                    (uint8_t*) &cdcd_line_coding[port], min16_of(sizeof(cdc_line_coding_t), p_request->wLength)), err );
+    // TODO notify application on xfer completea
+  }
+  else if (CDC_REQUEST_SET_CONTROL_LINE_STATE == p_request->bRequest )
+  {
+    enum {
+      ACTIVE_DTE_PRESENT     = 0x0003,
+      ACTIVE_DTE_NOT_PRESENT = 0x0002
+    };
 
-    case CDC_REQUEST_SET_LINE_CODING:
-      tusb_dcd_control_xfer(port, (tusb_dir_t) p_request->bmRequestType_bit.direction,
-                            (uint8_t*) &cdcd_line_coding[port], min16_of(sizeof(cdc_line_coding_t), p_request->wLength), false );
-      // TODO notify application on xfer completea
-    break;
+    cdcd_data_t * p_cdc = &cdcd_data[port];
 
-    case CDC_REQUEST_SET_CONTROL_LINE_STATE: // TODO extract DTE present
+    if (p_request->wValue == ACTIVE_DTE_PRESENT)
     {
-      enum {
-        ACTIVE_DTE_PRESENT     = 0x0003,
-        ACTIVE_DTE_NOT_PRESENT = 0x0002
-      };
-
-      cdcd_data_t * p_cdc = &cdcd_data[port];
-
-      if (p_request->wValue == ACTIVE_DTE_PRESENT)
-      {
-        // terminal connected
-        p_cdc->connected = true;
-      }
-      else if (p_request->wValue == ACTIVE_DTE_NOT_PRESENT)
-      {
-        // terminal disconnected
-        p_cdc->connected = false;
-      }else
-      {
-        // De-active --> disconnected
-        p_cdc->connected = false;
-      }
+      // terminal connected
+      p_cdc->connected = true;
     }
-    break;
-
-    default: return TUSB_ERROR_DCD_CONTROL_REQUEST_NOT_SUPPORT;
+    else if (p_request->wValue == ACTIVE_DTE_NOT_PRESENT)
+    {
+      // terminal disconnected
+      p_cdc->connected = false;
+    }else
+    {
+      // De-active --> disconnected
+      p_cdc->connected = false;
+    }
+  }
+  else
+  {
+    SUBTASK_RETURN(TUSB_ERROR_DCD_CONTROL_REQUEST_NOT_SUPPORT);
   }
 
-  return TUSB_ERROR_NONE;
+  OSAL_SUBTASK_END
 }
 
 tusb_error_t cdcd_xfer_cb(uint8_t port, uint8_t edpt_addr, tusb_event_t event, uint32_t xferred_bytes)

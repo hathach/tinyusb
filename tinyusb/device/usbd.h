@@ -130,6 +130,13 @@ void tud_umount_cb(uint8_t port);
 
 extern osal_semaphore_t usbd_control_xfer_sem_hdl;
 
+tusb_error_t usbd_control_xfer_substak(uint8_t port, tusb_dir_t dir, uint8_t * buffer, uint16_t length);
+
+static inline bool usbd_control_status(uint8_t port, tusb_dir_t dir)
+{
+  tusb_dcd_control_xfer(port , dir, NULL, 0, false);
+}
+
 tusb_error_t usbd_init(void);
 void usbd_task( void* param);
 

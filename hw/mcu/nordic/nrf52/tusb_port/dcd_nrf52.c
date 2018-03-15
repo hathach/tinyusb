@@ -61,6 +61,8 @@ static struct
     uint16_t xfer_len;
     uint8_t  dir;
   }control;
+
+  bool dma_running;
 }_dcd_data;
 
 /*------------------------------------------------------------------*/
@@ -138,9 +140,10 @@ static void power_usb_event_handler(nrf_drv_power_usb_evt_t event)
       nrf_usbd_isosplit_set(NRF_USBD_ISOSPLIT_Half);
 
       // Enable interrupt
-      NRF_USBD->INTENSET = USBD_INTEN_USBRESET_Msk | /*USBD_INTEN_STARTED_Msk |*/
-          /*USBD_INTEN_ENDEPIN0_Msk |*/ USBD_INTEN_EP0DATADONE_Msk | USBD_INTEN_ENDEPOUT0_Msk | USBD_INTEN_EP0SETUP_Msk |
-          USBD_INTEN_USBEVENT_Msk | USBD_INTEN_EPDATA_Msk | USBD_INTEN_ACCESSFAULT_Msk;
+      NRF_USBD->INTENSET = USBD_INTEN_USBRESET_Msk | USBD_INTEN_USBEVENT_Msk | USBD_INTEN_ACCESSFAULT_Msk |
+          USBD_INTEN_EP0SETUP_Msk | USBD_INTEN_EP0DATADONE_Msk |
+          /*USBD_INTEN_ENDEPIN0_Msk |*/  USBD_INTEN_ENDEPOUT0_Msk |
+          /*USBD_INTEN_STARTED_Msk |*/  USBD_INTEN_EPDATA_Msk ;
       //USBD_INTEN_SOF_Msk
 
       //  if (enable_sof || nrf_drv_usbd_errata_104())
@@ -212,28 +215,41 @@ void tusb_dcd_set_config (uint8_t port, uint8_t config_num)
 
 static void control_xact_start(void)
 {
+  // Each transaction is up to 64 bytes
   uint8_t xact_len = min16_of(_dcd_data.control.xfer_len, MAX_PACKET_SIZE);
 
   if ( _dcd_data.control.dir == TUSB_DIR_OUT )
   {
+    // TODO control out
+    NRF_USBD->EPOUT[0].PTR    = (uint32_t) _dcd_data.control.buffer;
+    NRF_USBD->EPOUT[0].MAXCNT = xact_len;
 
+    NRF_USBD->TASKS_EP0RCVOUT = 1;
   }else
   {
-    // Each transaction is up to 64 bytes
     NRF_USBD->EPIN[0].PTR        = (uint32_t) _dcd_data.control.buffer;
     NRF_USBD->EPIN[0].MAXCNT     = xact_len;
-    NRF_USBD->TASKS_STARTEPIN[0] = 1;
 
-    _dcd_data.control.buffer   += xact_len;
-    _dcd_data.control.xfer_len -= xact_len;
+    NRF_USBD->TASKS_STARTEPIN[0] = 1;
   }
+
+  _dcd_data.control.buffer   += xact_len;
+  _dcd_data.control.xfer_len -= xact_len;
+
 }
 
 static void control_xact_done(void)
 {
   if ( _dcd_data.control.xfer_len > 0 )
   {
-    control_xact_start();
+    if ( _dcd_data.control.dir == TUSB_DIR_OUT )
+    {
+      // out control need to wait for END EPOUT event before updating Pointer
+      NRF_USBD->TASKS_STARTEPOUT[0] = 1;
+    }else
+    {
+      control_xact_start();
+    }
   }else
   {
     tusb_dcd_xfer_complete(0, 0, 0, true);
@@ -272,6 +288,8 @@ void tusb_dcd_control_stall (uint8_t port)
  *------------------------------------------------------------------*/
 bool tusb_dcd_edpt_open (uint8_t port, tusb_descriptor_endpoint_t const * p_endpoint_desc)
 {
+  (void) port;
+
   return true;
 }
 
@@ -450,6 +468,32 @@ void USBD_IRQHandler(void)
 
   if ( int_status & USBD_INTEN_EP0DATADONE_Msk )
   {
-    control_xact_done();
+    if ( _dcd_data.control.dir == TUSB_DIR_OUT )
+    {
+      // out control need to wait for END EPOUT (DMA complete) event
+      NRF_USBD->TASKS_STARTEPOUT[0] = 1;
+    }else
+    {
+      if ( _dcd_data.control.xfer_len > 0 )
+      {
+        control_xact_start();
+      }else
+      {
+        // Data IN xfer complete
+        tusb_dcd_xfer_complete(0, 0, 0, true);
+      }
+    }
+  }
+
+  if ( int_status & USBD_INTEN_ENDEPOUT0_Msk)
+  {
+    if ( _dcd_data.control.xfer_len > 0 )
+    {
+      control_xact_start();
+    }else
+    {
+      // Data OUT xfer complete
+      tusb_dcd_xfer_complete(0, 0, 0, true);
+    }
   }
 }

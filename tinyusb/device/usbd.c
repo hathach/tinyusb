@@ -302,7 +302,7 @@ tusb_error_t usbd_control_xfer_substak(uint8_t port, tusb_dir_t dir, uint8_t * b
   }
 
   // Status opposite direction with Zero Length
-  tusb_dcd_control_xfer(port, (tusb_dir_t) (1-dir), NULL, 0, true);
+  usbd_control_status(port, 1-dir);
 
   // no need to blocking wait for status to complete
 
@@ -329,7 +329,6 @@ tusb_error_t usbd_control_request_subtask(uint8_t port, tusb_control_request_t c
 
       if ( TUSB_ERROR_NONE == error )
       {
-//        tusb_dcd_control_xfer(port, (tusb_dir_t) p_request->bmRequestType_bit.direction, (uint8_t*) p_buffer, length, false);
         OSAL_SUBTASK_INVOKED ( usbd_control_xfer_substak(port, (tusb_dir_t) p_request->bmRequestType_bit.direction, (uint8_t*) p_buffer, length ), error );;
       }
     }
@@ -379,12 +378,12 @@ tusb_error_t usbd_control_request_subtask(uint8_t port, tusb_control_request_t c
   }
 
   if(TUSB_ERROR_NONE != error)
-  { // Response with Protocol Stall if request is not supported
+  {
+    // Response with Protocol Stall if request is not supported
     tusb_dcd_control_stall(port);
   }else if (p_request->wLength == 0)
   {
-    // zero length for non-data
-    tusb_dcd_control_xfer(port, (tusb_dir_t) p_request->bmRequestType_bit.direction, NULL, 0, false);
+    usbd_control_status(port, (tusb_dir_t) p_request->bmRequestType_bit.direction);
   }
 
   OSAL_SUBTASK_END
