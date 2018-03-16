@@ -281,21 +281,21 @@ static inline volatile uint32_t * get_reg_control_addr(uint8_t port, uint8_t phy
  return &(LPC_USB[port]->ENDPTCTRL0) + edpt_phy2log(physical_endpoint);
 }
 
-void tusb_dcd_edpt_stall(uint8_t port, uint8_t edpt_addr)
+void tusb_dcd_edpt_stall(uint8_t port, uint8_t ep_addr)
 {
-  uint8_t ep_idx    = edpt_addr2phy(edpt_addr);
+  uint8_t ep_idx    = edpt_addr2phy(ep_addr);
   volatile uint32_t * reg_control = get_reg_control_addr(port, ep_idx);
 
   (*reg_control) |= ENDPTCTRL_MASK_STALL << (ep_idx & 0x01 ? 16 : 0);
 }
 
-void tusb_dcd_edpt_clear_stall(uint8_t port, uint8_t edpt_addr)
+void tusb_dcd_edpt_clear_stall(uint8_t port, uint8_t ep_addr)
 {
-  volatile uint32_t * reg_control = get_reg_control_addr(port, edpt_addr2phy(edpt_addr));
+  volatile uint32_t * reg_control = get_reg_control_addr(port, edpt_addr2phy(ep_addr));
 
   // data toggle also need to be reset
-  (*reg_control) |= ENDPTCTRL_MASK_TOGGLE_RESET << ((edpt_addr & TUSB_DIR_IN_MASK) ? 16 : 0);
-  (*reg_control) &= ~(ENDPTCTRL_MASK_STALL << ((edpt_addr & TUSB_DIR_IN_MASK) ? 16 : 0));
+  (*reg_control) |= ENDPTCTRL_MASK_TOGGLE_RESET << ((ep_addr & TUSB_DIR_IN_MASK) ? 16 : 0);
+  (*reg_control) &= ~(ENDPTCTRL_MASK_STALL << ((ep_addr & TUSB_DIR_IN_MASK) ? 16 : 0));
 }
 
 bool tusb_dcd_edpt_open(uint8_t port, tusb_descriptor_endpoint_t const * p_endpoint_desc)
@@ -327,9 +327,9 @@ bool tusb_dcd_edpt_open(uint8_t port, tusb_descriptor_endpoint_t const * p_endpo
   return true;
 }
 
-bool tusb_dcd_edpt_busy(uint8_t port, uint8_t edpt_addr)
+bool tusb_dcd_edpt_busy(uint8_t port, uint8_t ep_addr)
 {
-  uint8_t ep_idx    = edpt_addr2phy(edpt_addr);
+  uint8_t ep_idx    = edpt_addr2phy(ep_addr);
   dcd_qhd_t const * p_qhd = &dcd_data_ptr[port]->qhd[ep_idx];
 
   return p_qhd->list_qtd_idx[0] != 0; // qtd list is not empty
@@ -365,15 +365,15 @@ static bool pipe_add_xfer(uint8_t port, uint8_t ed_idx, void * buffer, uint16_t 
   return true;
 }
 
-bool tusb_dcd_edpt_queue_xfer(uint8_t port, uint8_t edpt_addr, uint8_t * buffer, uint16_t total_bytes)
+bool tusb_dcd_edpt_queue_xfer(uint8_t port, uint8_t ep_addr, uint8_t * buffer, uint16_t total_bytes)
 {
-  uint8_t ep_idx = edpt_addr2phy(edpt_addr);
+  uint8_t ep_idx = edpt_addr2phy(ep_addr);
   return pipe_add_xfer(port, ep_idx, buffer, total_bytes, false);
 }
 
-bool  tusb_dcd_edpt_xfer(uint8_t port, uint8_t edpt_addr, uint8_t * buffer, uint16_t total_bytes, bool int_on_complete)
+bool  tusb_dcd_edpt_xfer(uint8_t port, uint8_t ep_addr, uint8_t * buffer, uint16_t total_bytes, bool int_on_complete)
 {
-  uint8_t ep_idx = edpt_addr2phy(edpt_addr);
+  uint8_t ep_idx = edpt_addr2phy(ep_addr);
 
   VERIFY ( pipe_add_xfer(port, ep_idx, buffer, total_bytes, int_on_complete) );
 
@@ -412,8 +412,8 @@ void xfer_complete_isr(uint8_t port, uint32_t reg_complete)
         {
           bool succeeded = ( p_qtd->xact_err || p_qtd->halted || p_qtd->buffer_err ) ? false : true;
 
-          uint8_t edpt_addr = edpt_phy2addr(ep_idx);
-          tusb_dcd_xfer_complete(port, edpt_addr, p_qtd->expected_bytes - p_qtd->total_bytes, succeeded); // only number of bytes in the IOC qtd
+          uint8_t ep_addr = edpt_phy2addr(ep_idx);
+          tusb_dcd_xfer_complete(port, ep_addr, p_qtd->expected_bytes - p_qtd->total_bytes, succeeded); // only number of bytes in the IOC qtd
         }
       }
     }

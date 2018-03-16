@@ -48,22 +48,41 @@
 /*------------------------------------------------------------------*/
 /* MACRO TYPEDEF CONSTANT ENUM
  *------------------------------------------------------------------*/
-enum { MAX_PACKET_SIZE = 64 };
+enum
+{
+  // Max allowed by USB specs
+  MAX_PACKET_SIZE   = 64,
+
+  // Mask of all END event (IN & OUT) for all endpoints. ENDEPIN0-7, ENDEPOUT0-7, ENDISOIN, ENDISOOUT
+  EDPT_END_ALL_MASK = 0x1FFBFC
+};
 
 /*------------------------------------------------------------------*/
 /* VARIABLE DECLARATION
  *------------------------------------------------------------------*/
-static struct
+typedef struct
+{
+  uint8_t* buffer;
+  uint16_t total_len;
+  uint16_t actual_len;
+
+  uint8_t  mps; // max packet size
+} nom_xfer_t;
+
+/*static*/ struct
 {
   struct
   {
     uint8_t* buffer;
-    uint16_t xfer_len;
+    uint16_t len;
     uint8_t  dir;
   }control;
 
+  // Non control: 7 endpoints IN & OUT (offset 1)
+  nom_xfer_t xfer[2][7];
+
   volatile bool dma_running;
-}_dcd_data;
+}_dcd;
 
 /*------------------------------------------------------------------*/
 /* Controller API
@@ -71,30 +90,6 @@ static struct
 static void hfclk_ready(nrf_drv_clock_evt_type_t event)
 {
   // do nothing
-}
-
-static void enable_usb(void)
-{
-  /* Prepare for READY event receiving */
-  nrf_usbd_eventcause_clear(NRF_USBD_EVENTCAUSE_READY_MASK);
-
-  /* Enable the peripheral */
-  nrf_usbd_enable();
-
-  // Enable HFCLK
-  nrf_drv_clock_handler_item_t clock_handler_item =
-  {
-      .event_handler = hfclk_ready
-  };
-  nrf_drv_clock_hfclk_request(&clock_handler_item);
-
-  /* Waiting for peripheral to enable, this should take a few us */
-  while ( !(NRF_USBD_EVENTCAUSE_READY_MASK & NRF_USBD->EVENTCAUSE) ) { }
-  nrf_usbd_eventcause_clear(NRF_USBD_EVENTCAUSE_READY_MASK);
-  nrf_usbd_event_clear(NRF_USBD_EVENT_USBEVENT);
-
-  // Wait until power is ready
-  while (!nrf_power_usbregstatus_outrdy_get()) {}
 }
 
 static void power_usb_event_handler(nrf_drv_power_usb_evt_t event)
@@ -133,8 +128,8 @@ static void power_usb_event_handler(nrf_drv_power_usb_evt_t event)
       {
         *((volatile uint32_t *) (NRF_USBD_BASE + 0x800)) = 0x7E3;
         *((volatile uint32_t *) (NRF_USBD_BASE + 0x804)) = 0x40;
-        __ISB();
-        __DSB();
+
+        __ISB(); __DSB();
       }
 
       nrf_usbd_isosplit_set(NRF_USBD_ISOSPLIT_Half);
@@ -192,7 +187,7 @@ void bus_reset(void)
   NRF_USBD->TASKS_STARTISOIN  = 0;
   NRF_USBD->TASKS_STARTISOOUT = 0;
 
-  varclr(&_dcd_data);
+  varclr(&_dcd);
 }
 
 /*------------------------------------------------------------------*/
@@ -216,14 +211,20 @@ void tusb_dcd_disconnect (uint8_t port)
 {
 
 }
+
 void tusb_dcd_set_address (uint8_t port, uint8_t dev_addr)
 {
   (void) port;
-  // address is automatically update by hw controller
+
+  // Set Address is automatically update by hw controller
 }
+
 void tusb_dcd_set_config (uint8_t port, uint8_t config_num)
 {
+  (void) port;
+  (void) config_num;
 
+  // Nothing to do
 }
 
 /*------------------------------------------------------------------*/
@@ -232,9 +233,9 @@ void tusb_dcd_set_config (uint8_t port, uint8_t config_num)
 static void edpt_dma_start(uint8_t epnum, uint8_t dir)
 {
   // Only one dma could be active
-  while ( _dcd_data.dma_running ) { }
+  while ( _dcd.dma_running ) { }
 
-  _dcd_data.dma_running = true;
+  _dcd.dma_running = true;
 
   if ( dir == TUSB_DIR_OUT )
   {
@@ -243,35 +244,38 @@ static void edpt_dma_start(uint8_t epnum, uint8_t dir)
   {
     NRF_USBD->TASKS_STARTEPIN[epnum] = 1;
   }
+
+  __ISB(); __DSB();
 }
 
 static void edpt_dma_end(void)
 {
-  _dcd_data.dma_running = false;
+  _dcd.dma_running = false;
 }
 
 static void control_xact_start(void)
 {
   // Each transaction is up to 64 bytes
-  uint8_t xact_len = min16_of(_dcd_data.control.xfer_len, MAX_PACKET_SIZE);
+  uint8_t const xact_len = min16_of(_dcd.control.len, MAX_PACKET_SIZE);
 
-  if ( _dcd_data.control.dir == TUSB_DIR_OUT )
+  if ( _dcd.control.dir == TUSB_DIR_OUT )
   {
     // TODO control out
-    NRF_USBD->EPOUT[0].PTR    = (uint32_t) _dcd_data.control.buffer;
+    NRF_USBD->EPOUT[0].PTR    = (uint32_t) _dcd.control.buffer;
     NRF_USBD->EPOUT[0].MAXCNT = xact_len;
 
     NRF_USBD->TASKS_EP0RCVOUT = 1;
+    __ISB(); __DSB();
   }else
   {
-    NRF_USBD->EPIN[0].PTR        = (uint32_t) _dcd_data.control.buffer;
+    NRF_USBD->EPIN[0].PTR        = (uint32_t) _dcd.control.buffer;
     NRF_USBD->EPIN[0].MAXCNT     = xact_len;
 
     edpt_dma_start(0, TUSB_DIR_IN);
   }
 
-  _dcd_data.control.buffer   += xact_len;
-  _dcd_data.control.xfer_len -= xact_len;
+  _dcd.control.buffer += xact_len;
+  _dcd.control.len    -= xact_len;
 }
 
 //static void control_xact_done(void)
@@ -300,15 +304,16 @@ bool tusb_dcd_control_xfer (uint8_t port, tusb_dir_t dir, uint8_t * buffer, uint
   if ( length )
   {
     // Data Phase
-    _dcd_data.control.xfer_len = length;
-    _dcd_data.control.buffer   = buffer;
-    _dcd_data.control.dir      = (uint8_t) dir;
+    _dcd.control.len    = length;
+    _dcd.control.buffer = buffer;
+    _dcd.control.dir    = (uint8_t) dir;
 
     control_xact_start();
   }else
   {
     // Status Phase
     NRF_USBD->TASKS_EP0STATUS = 1;
+    __ISB(); __DSB();
   }
 
   return true;
@@ -317,40 +322,99 @@ void tusb_dcd_control_stall (uint8_t port)
 {
   (void) port;
   NRF_USBD->TASKS_EP0STALL = 1;
+  __ISB(); __DSB();
 }
 
 /*------------------------------------------------------------------*/
 /*
  *------------------------------------------------------------------*/
-bool tusb_dcd_edpt_open (uint8_t port, tusb_descriptor_endpoint_t const * p_endpoint_desc)
+static void normal_xact_start(uint8_t epnum, uint8_t dir)
+{
+  // Each transaction is up to Max Packet Size
+  nom_xfer_t* xfer = &_dcd.xfer[dir][epnum-1];
+
+  uint8_t const xact_len = min16_of(xfer->total_len - xfer->actual_len, xfer->mps);
+
+  if ( dir == TUSB_DIR_OUT )
+  {
+    // Overwrite size will allow hw to accept data
+    NRF_USBD->SIZE.EPOUT[epnum] = 0;
+    __ISB(); __DSB();
+  }else
+  {
+    NRF_USBD->EPIN[epnum].PTR    = (uint32_t) xfer->buffer;
+    NRF_USBD->EPIN[epnum].MAXCNT = xact_len;
+
+    xfer->buffer += xact_len;
+
+    edpt_dma_start(epnum, TUSB_DIR_IN);
+  }
+}
+
+bool tusb_dcd_edpt_open (uint8_t port, tusb_descriptor_endpoint_t const * desc_edpt)
 {
   (void) port;
 
+  uint8_t const epnum = edpt_number(desc_edpt->bEndpointAddress);
+  uint8_t const dir   = edpt_dir(desc_edpt->bEndpointAddress);
+
+  _dcd.xfer[dir][epnum-1].mps = desc_edpt->wMaxPacketSize.size;
+
+  if ( dir == TUSB_DIR_OUT )
+  {
+    NRF_USBD->INTENSET = BIT_(USBD_INTEN_ENDEPOUT0_Pos + epnum);
+    NRF_USBD->EPOUTEN |= BIT_(epnum);
+  }else
+  {
+    NRF_USBD->INTENSET = BIT_(USBD_INTEN_ENDEPIN0_Pos + epnum);
+    NRF_USBD->EPINEN  |= BIT_(epnum);
+  }
+  __ISB(); __DSB();
+
   return true;
 }
 
-bool tusb_dcd_edpt_xfer (uint8_t port, uint8_t edpt_addr, uint8_t * buffer, uint16_t total_bytes, bool int_on_complete)
+bool tusb_dcd_edpt_xfer (uint8_t port, uint8_t ep_addr, uint8_t * buffer, uint16_t total_bytes, bool int_on_complete)
+{
+  (void) port;
+
+  uint8_t const epnum = edpt_number(ep_addr);
+  uint8_t const dir   = edpt_dir(ep_addr);
+
+  _dcd.xfer[dir][epnum-1].buffer     = buffer;
+  _dcd.xfer[dir][epnum-1].total_len  = total_bytes;
+  _dcd.xfer[dir][epnum-1].actual_len = 0;
+
+  normal_xact_start(epnum, dir);
+
+//  if ( dir == TUSB_DIR_OUT )
+//  {
+//    // TODO
+//  }else
+//  {
+//
+//  }
+
+  return true;
+}
+
+bool tusb_dcd_edpt_queue_xfer (uint8_t port, uint8_t ep_addr, uint8_t * buffer, uint16_t total_bytes)
 {
   return true;
 }
 
-bool tusb_dcd_edpt_queue_xfer (uint8_t port, uint8_t edpt_addr, uint8_t * buffer, uint16_t total_bytes)
-{
-  return true;
-}
-
-void tusb_dcd_edpt_stall (uint8_t port, uint8_t edpt_addr)
+void tusb_dcd_edpt_stall (uint8_t port, uint8_t ep_addr)
 {
 
 }
 
-void tusb_dcd_edpt_clear_stall (uint8_t port, uint8_t edpt_addr)
+void tusb_dcd_edpt_clear_stall (uint8_t port, uint8_t ep_addr)
 {
 
 }
 
 // TODO may remove
-bool tusb_dcd_edpt_busy (uint8_t port, uint8_t edpt_addr)
+bool tusb_dcd_edpt_busy (uint8_t port, uint8_t ep_addr)
 {
   return true;
 }
@@ -373,100 +437,10 @@ void USBD_IRQHandler(void)
 
       // nrf_usbd_event_clear()
       regclr[i] = 0;
-      __ISB();
-      __DSB();
+
+      __ISB(); __DSB();
     }
   }
-
-#if 0
-  if (nrf_drv_usbd_errata_104())
-  {
-    /* Event correcting */
-    if ((0 == m_dma_pending) && (0 != (active & (USBD_INTEN_SOF_Msk))))
-    {
-      uint8_t usbi, uoi, uii;
-      /* Testing */
-      *((volatile uint32_t *)(NRF_USBD_BASE + 0x800)) = 0x7A9;
-      uii = (uint8_t)(*((volatile uint32_t *)(NRF_USBD_BASE + 0x804)));
-      if (0 != uii)
-      {
-        uii &= (uint8_t)(*((volatile uint32_t *)(NRF_USBD_BASE + 0x804)));
-      }
-
-      *((volatile uint32_t *)(NRF_USBD_BASE + 0x800)) = 0x7AA;
-      uoi = (uint8_t)(*((volatile uint32_t *)(NRF_USBD_BASE + 0x804)));
-      if (0 != uoi)
-      {
-        uoi &= (uint8_t)(*((volatile uint32_t *)(NRF_USBD_BASE + 0x804)));
-      }
-      *((volatile uint32_t *)(NRF_USBD_BASE + 0x800)) = 0x7AB;
-      usbi = (uint8_t)(*((volatile uint32_t *)(NRF_USBD_BASE + 0x804)));
-      if (0 != usbi)
-      {
-        usbi &= (uint8_t)(*((volatile uint32_t *)(NRF_USBD_BASE + 0x804)));
-      }
-      /* Processing */
-      *((volatile uint32_t *)(NRF_USBD_BASE + 0x800)) = 0x7AC;
-      uii &= (uint8_t)*((volatile uint32_t *)(NRF_USBD_BASE + 0x804));
-      if (0 != uii)
-      {
-        uint8_t rb;
-        m_simulated_dataepstatus |= ((uint32_t)uii) << USBD_EPIN_BITPOS_0;
-        *((volatile uint32_t *)(NRF_USBD_BASE + 0x800)) = 0x7A9;
-        *((volatile uint32_t *)(NRF_USBD_BASE + 0x804)) = uii;
-        rb = (uint8_t)*((volatile uint32_t *)(NRF_USBD_BASE + 0x804));
-        NRF_DRV_USBD_LOG_PROTO1_FIX_PRINTF("   uii: 0x%.2x (0x%.2x)", uii, rb);
-      }
-
-      *((volatile uint32_t *)(NRF_USBD_BASE + 0x800)) = 0x7AD;
-      uoi &= (uint8_t)*((volatile uint32_t *)(NRF_USBD_BASE + 0x804));
-      if (0 != uoi)
-      {
-        uint8_t rb;
-        m_simulated_dataepstatus |= ((uint32_t)uoi) << USBD_EPOUT_BITPOS_0;
-        *((volatile uint32_t *)(NRF_USBD_BASE + 0x800)) = 0x7AA;
-        *((volatile uint32_t *)(NRF_USBD_BASE + 0x804)) = uoi;
-        rb = (uint8_t)*((volatile uint32_t *)(NRF_USBD_BASE + 0x804));
-        NRF_DRV_USBD_LOG_PROTO1_FIX_PRINTF("   uoi: 0x%.2u (0x%.2x)", uoi, rb);
-      }
-
-      *((volatile uint32_t *)(NRF_USBD_BASE + 0x800)) = 0x7AE;
-      usbi &= (uint8_t)*((volatile uint32_t *)(NRF_USBD_BASE + 0x804));
-      if (0 != usbi)
-      {
-        uint8_t rb;
-        if (usbi & 0x01)
-        {
-          active |= USBD_INTEN_EP0SETUP_Msk;
-        }
-        if (usbi & 0x10)
-        {
-          active |= USBD_INTEN_USBRESET_Msk;
-        }
-        *((volatile uint32_t *)(NRF_USBD_BASE + 0x800)) = 0x7AB;
-        *((volatile uint32_t *)(NRF_USBD_BASE + 0x804)) = usbi;
-        rb = (uint8_t)*((volatile uint32_t *)(NRF_USBD_BASE + 0x804));
-        NRF_DRV_USBD_LOG_PROTO1_FIX_PRINTF("   usbi: 0x%.2u (0x%.2x)", usbi, rb);
-      }
-
-      if (0 != (m_simulated_dataepstatus &
-          ~((1U << USBD_EPOUT_BITPOS_0) | (1U << USBD_EPIN_BITPOS_0))))
-      {
-        active |= enabled & NRF_USBD_INT_DATAEP_MASK;
-      }
-      if (0 != (m_simulated_dataepstatus &
-          ((1U << USBD_EPOUT_BITPOS_0) | (1U << USBD_EPIN_BITPOS_0))))
-      {
-        if (0 != (enabled & NRF_USBD_INT_EP0DATADONE_MASK))
-        {
-          m_simulated_dataepstatus &=
-              ~((1U << USBD_EPOUT_BITPOS_0) | (1U << USBD_EPIN_BITPOS_0));
-          active |= NRF_USBD_INT_EP0DATADONE_MASK;
-        }
-      }
-    }
-  }
-#endif
 
   /*------------- Interrupt Processing -------------*/
 
@@ -477,6 +451,12 @@ void USBD_IRQHandler(void)
     tusb_dcd_bus_event(0, USBD_BUS_EVENT_RESET);
   }
 
+  if ( int_status & EDPT_END_ALL_MASK )
+  {
+    // DMA complete move data from SRAM -> Endpoint
+    edpt_dma_end();
+  }
+
   /*------------- Control Transfer -------------*/
   if ( int_status & USBD_INTEN_EP0SETUP_Msk )
   {
@@ -485,29 +465,25 @@ void USBD_IRQHandler(void)
         NRF_USBD->WINDEXL, NRF_USBD->WINDEXH, NRF_USBD->WLENGTHL, NRF_USBD->WLENGTHH
     };
 
-    //NRF_USBD->TASKS_EP0STALL = 0; // clear stall upon receive new setup
     tusb_dcd_setup_received(0, setup);
-  }
-
-  if ( int_status & USBD_INTEN_ENDEPIN0_Msk )
-  {
-    edpt_dma_end();
   }
 
   if ( int_status & USBD_INTEN_EP0DATADONE_Msk )
   {
-    if ( _dcd_data.control.dir == TUSB_DIR_OUT )
+    if ( _dcd.control.dir == TUSB_DIR_OUT )
     {
-      // out control need to wait for END EPOUT (DMA complete) event
+      // OUT data from Host -> Endpoint
+      // Trigger DMA to move Endpoint -> SRAM
       edpt_dma_start(0, TUSB_DIR_OUT);
     }else
     {
-      if ( _dcd_data.control.xfer_len > 0 )
+      // IN: data transferred from Endpoint -> Host
+      if ( _dcd.control.len > 0 )
       {
         control_xact_start();
       }else
       {
-        // Data IN xfer complete
+        // Control IN complete
         tusb_dcd_xfer_complete(0, 0, 0, true);
       }
     }
@@ -515,15 +491,84 @@ void USBD_IRQHandler(void)
 
   if ( int_status & USBD_INTEN_ENDEPOUT0_Msk)
   {
-    edpt_dma_end();
-
-    if ( _dcd_data.control.xfer_len > 0 )
+    // OUT data moved from Endpoint -> SRAM
+    if ( _dcd.control.len > 0 )
     {
       control_xact_start();
     }else
     {
-      // Data OUT xfer complete
+      // Control OUT complete
       tusb_dcd_xfer_complete(0, 0, 0, true);
     }
   }
+
+  /*------------- Bulk/Interrupt Transfer -------------*/
+  if ( int_status & USBD_INTEN_EPDATA_Msk)
+  {
+    uint32_t data_status = NRF_USBD->EPDATASTATUS;
+
+    nrf_usbd_epdatastatus_clear(data_status);
+
+    // In: data from Endpoint -> Host
+    for(uint8_t epnum=1; epnum<8; epnum++)
+    {
+      if ( BIT_TEST_(data_status, epnum ) )
+      {
+        nom_xfer_t* xfer = &_dcd.xfer[TUSB_DIR_IN][epnum-1];
+
+        xfer->actual_len += NRF_USBD->EPIN[epnum].MAXCNT;
+
+        if ( xfer->actual_len < xfer->total_len )
+        {
+          // more to xfer
+          normal_xact_start(epnum, TUSB_DIR_IN);
+        } else
+        {
+          // xfer complete
+          tusb_dcd_xfer_complete(0, epnum | TUSB_DIR_IN_MASK, xfer->actual_len, true);
+        }
+      }
+    }
+
+    // OUT: data from Host -> Endpoint
+    for(uint8_t epnum=1; epnum<8; epnum++)
+    {
+      if ( BIT_TEST_(data_status, 16+epnum ) )
+      {
+        nom_xfer_t* xfer = &_dcd.xfer[TUSB_DIR_OUT][epnum-1];
+
+        uint8_t const xact_len = NRF_USBD->SIZE.EPOUT[epnum];
+
+        // Trigger DMA move data from Endpoint -> SRAM
+        NRF_USBD->EPOUT[epnum].PTR    = (uint32_t) xfer->buffer;
+        NRF_USBD->EPOUT[epnum].MAXCNT = xact_len;
+
+        edpt_dma_start(epnum, TUSB_DIR_OUT);
+
+        xfer->buffer     += xact_len;
+        xfer->actual_len += xact_len;
+      }
+    }
+  }
+
+  // OUT: data from DMA -> SRAM
+  for(uint8_t epnum=1; epnum<8; epnum++)
+  {
+    if ( BIT_TEST_(int_status, USBD_INTEN_ENDEPOUT0_Pos+epnum) )
+    {
+      nom_xfer_t* xfer = &_dcd.xfer[TUSB_DIR_OUT][epnum-1];
+
+      // Transfer complete if transaction len < Max Packet Size or total len is transferred
+      if ( (NRF_USBD->EPOUT[epnum].AMOUNT == xfer->mps) && (xfer->actual_len < xfer->total_len) )
+      {
+        // Allow Host -> Endpoint
+        NRF_USBD->SIZE.EPOUT[epnum] = 0;
+        __ISB(); __DSB();
+      }else
+      {
+        tusb_dcd_xfer_complete(0, epnum, xfer->actual_len, true);
+      }
+    }
+  }
+
 }

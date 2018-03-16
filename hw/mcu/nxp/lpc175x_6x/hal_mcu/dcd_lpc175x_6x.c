@@ -460,9 +460,9 @@ void tusb_dcd_edpt_stall(edpt_hdl_t edpt_hdl)
   sie_write(SIE_CMDCODE_ENDPOINT_SET_STATUS+edpt_hdl.index, 1, SIE_SET_ENDPOINT_STALLED_MASK);
 }
 
-void tusb_dcd_edpt_clear_stall(uint8_t port, uint8_t edpt_addr)
+void tusb_dcd_edpt_clear_stall(uint8_t port, uint8_t ep_addr)
 {
-  uint8_t ep_id = edpt_addr2phy(edpt_addr);
+  uint8_t ep_id = ep_addr2phy(ep_addr);
 
   sie_write(SIE_CMDCODE_ENDPOINT_SET_STATUS+ep_id, 1, 0);
 }

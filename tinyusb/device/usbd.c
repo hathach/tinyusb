@@ -148,7 +148,7 @@ typedef struct ATTR_ALIGNED(4)
     tusb_control_request_t setup_received;
 
     struct { // USBD_EVENTID_XFER_DONE
-      uint8_t  edpt_addr;
+      uint8_t  ep_addr;
       uint32_t xferred_byte;
     }xfer_done;
   };
@@ -262,7 +262,7 @@ static tusb_error_t usbd_body_subtask(void)
     {
       if ( usbd_class_drivers[class_code].xfer_cb )
       {
-        usbd_class_drivers[class_code].xfer_cb( event.port, event.xfer_done.edpt_addr, (tusb_event_t) event.sub_event_id, event.xfer_done.xferred_byte);
+        usbd_class_drivers[class_code].xfer_cb( event.port, event.xfer_done.ep_addr, (tusb_event_t) event.sub_event_id, event.xfer_done.xferred_byte);
       }
     }
   }else if (USBD_EVENTID_SOF == event.event_id)
@@ -540,9 +540,9 @@ void tusb_dcd_setup_received(uint8_t port, uint8_t const* p_request)
   osal_queue_send(usbd_queue_hdl, &task_event);
 }
 
-void tusb_dcd_xfer_complete(uint8_t port, uint8_t edpt_addr, uint32_t xferred_bytes, bool succeeded)
+void tusb_dcd_xfer_complete(uint8_t port, uint8_t ep_addr, uint32_t xferred_bytes, bool succeeded)
 {
-  if (edpt_addr == 0 )
+  if (ep_addr == 0 )
   {
     // Control Transfer
     osal_semaphore_post( usbd_control_xfer_sem_hdl );
@@ -555,7 +555,7 @@ void tusb_dcd_xfer_complete(uint8_t port, uint8_t edpt_addr, uint32_t xferred_by
         .sub_event_id = succeeded ? TUSB_EVENT_XFER_COMPLETE : TUSB_EVENT_XFER_ERROR
     };
 
-    task_event.xfer_done.edpt_addr    = edpt_addr;
+    task_event.xfer_done.ep_addr    = ep_addr;
     task_event.xfer_done.xferred_byte = xferred_bytes;
 
     osal_queue_send(usbd_queue_hdl, &task_event);
