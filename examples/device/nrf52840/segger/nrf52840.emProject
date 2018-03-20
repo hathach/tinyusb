@@ -82,16 +82,29 @@
                 path="../../../../hw/mcu/nordic/nrf52/sdk/documentation" />
               <folder
                 Name="drivers_nrf"
-                path="../../../../hw/mcu/nordic/nrf52/sdk/drivers_nrf" />
+                exclude=""
+                filter="*.c;*.h;*.s;*.S"
+                path="../../../../hw/mcu/nordic/nrf52/sdk/drivers_nrf"
+                recurse="Yes" />
               <folder
                 Name="libraries"
-                path="../../../../hw/mcu/nordic/nrf52/sdk/libraries" />
+                exclude=""
+                filter="*.c;*.h;*.s;*.S"
+                path="../../../../hw/mcu/nordic/nrf52/sdk/libraries"
+                recurse="Yes" />
               <folder
                 Name="softdevice"
-                path="../../../../hw/mcu/nordic/nrf52/sdk/softdevice" />
-              <folder
-                Name="toolchain"
-                path="../../../../hw/mcu/nordic/nrf52/sdk/toolchain" />
+                exclude=""
+                filter="*.c;*.h;*.s;*.S"
+                path="../../../../hw/mcu/nordic/nrf52/sdk/softdevice"
+                recurse="Yes" />
+              <folder Name="toolchain">
+                <file file_name="../../../../hw/mcu/nordic/nrf52/sdk/toolchain/system_nrf52840.c" />
+                <file file_name="../../../../hw/mcu/nordic/nrf52/sdk/toolchain/system_nrf52840.h" />
+                <folder
+                  Name="ses"
+                  path="../../../../hw/mcu/nordic/nrf52/sdk/toolchain/ses" />
+              </folder>
             </folder>
           </folder>
         </folder>
