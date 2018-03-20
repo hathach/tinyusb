@@ -36,7 +36,9 @@
 
 #include "board_pca10056.h"
 #include "nrf_gpio.h"
+
 #include "nrf_drv_systick.h"
+#include "nrf_drv_power.h"
 
 /*------------------------------------------------------------------*/
 /* MACRO TYPEDEF CONSTANT ENUM
@@ -55,6 +57,12 @@
  *------------------------------------------------------------------*/
 void board_init(void)
 {
+  // Config clock source: XTAL or RC in sdk_config.h
+  NRF_CLOCK->LFCLKSRC = (uint32_t)((CLOCK_CONFIG_LF_SRC << CLOCK_LFCLKSRC_SRC_Pos) & CLOCK_LFCLKSRC_SRC_Msk);
+  NRF_CLOCK->TASKS_LFCLKSTART = 1UL;
+
+  nrf_drv_power_init(NULL);
+
   nrf_gpio_cfg_output(LED_1);
 
   SysTick_Config(SystemCoreClock/1000);

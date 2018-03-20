@@ -38,9 +38,9 @@
 #include "nrf.h"
 #include "nrf_power.h"
 #include "nrf_usbd.h"
+#include "nrf_clock.h"
 
 #include "nrf_drv_power.h"
-#include "nrf_drv_clock.h"
 #include "nrf_drv_usbd_errata.h"
 
 #include "tusb_dcd.h"
@@ -87,9 +87,48 @@ typedef struct
 /*------------------------------------------------------------------*/
 /* Controller API
  *------------------------------------------------------------------*/
-static void hfclk_ready(nrf_drv_clock_evt_type_t event)
+static bool hfclk_running(void)
 {
-  // do nothing
+#ifdef SOFTDEVICE_PRESENT
+  if (nrf_sdh_is_enabled())
+  {
+    uint32_t is_running;
+    (void) sd_clock_hfclk_is_running(&is_running);
+    return (is_running ? true : false);
+  }
+#endif
+
+  return nrf_clock_hf_is_running(NRF_CLOCK_HFCLK_HIGH_ACCURACY);
+}
+
+static void hfclk_enable(void)
+{
+  // already running, nothing to do
+  if ( hfclk_running() ) return;
+
+#ifdef SOFTDEVICE_PRESENT
+  if (nrf_sdh_is_enabled())
+  {
+    (void)sd_clock_hfclk_request();
+    return;
+  }
+#endif
+
+  nrf_clock_event_clear(NRF_CLOCK_EVENT_HFCLKSTARTED);
+  nrf_clock_task_trigger(NRF_CLOCK_TASK_HFCLKSTART);
+}
+
+static void hfclk_disable(void)
+{
+#ifdef SOFTDEVICE_PRESENT
+  if (nrf_sdh_is_enabled())
+  {
+    (void)sd_clock_hfclk_release();
+    return;
+  }
+#endif // SOFTDEVICE_PRESENT
+
+  nrf_clock_task_trigger(NRF_CLOCK_TASK_HFCLKSTOP);
 }
 
 static void power_usb_event_handler(nrf_drv_power_usb_evt_t event)
@@ -107,11 +146,7 @@ static void power_usb_event_handler(nrf_drv_power_usb_evt_t event)
         nrf_usbd_enable();
 
         // Enable HFCLK
-        static nrf_drv_clock_handler_item_t clock_handler_item =
-        {
-            .event_handler = hfclk_ready
-        };
-        nrf_drv_clock_hfclk_request(&clock_handler_item);
+        hfclk_enable();
 
         /* Waiting for peripheral to enable, this should take a few us */
         while ( !(NRF_USBD_EVENTCAUSE_READY_MASK & NRF_USBD->EVENTCAUSE) ) { }
@@ -122,7 +157,7 @@ static void power_usb_event_handler(nrf_drv_power_usb_evt_t event)
 
     case NRF_DRV_POWER_USB_EVT_READY:
       // Wait for HFCLK
-      while ( !nrf_drv_clock_hfclk_is_running() ) {}
+      while ( !hfclk_running() ) {}
 
       if ( nrf_drv_usbd_errata_166() )
       {
@@ -144,7 +179,8 @@ static void power_usb_event_handler(nrf_drv_power_usb_evt_t event)
       //    ints_to_enable |= NRF_USBD_INT_SOF_MASK;
       //  }
 
-      // Enable interrupt
+      // Enable interrupt, Priorities 0,1,4,5 (nRF52) are reserved for SoftDevice
+      NVIC_SetPriority(USBD_IRQn, 7);
       NVIC_ClearPendingIRQ(USBD_IRQn);
       NVIC_EnableIRQ(USBD_IRQn);
 
@@ -167,6 +203,7 @@ static void power_usb_event_handler(nrf_drv_power_usb_evt_t event)
         NRF_USBD->INTENCLR = NRF_USBD->INTEN;
 
         nrf_usbd_disable();
+        hfclk_disable();
       }
     break;
 
@@ -335,15 +372,18 @@ static void normal_xact_start(uint8_t epnum, uint8_t dir)
   {
     // HW issue on nrf5284 sample, SIZE.EPOUT won't trigger ACK as spec
     // use the back door interface as sdk for walk around
-    #if 0
-    // Overwrite size will allow hw to accept data
-    NRF_USBD->SIZE.EPOUT[epnum] = 0;
-    __ISB(); __DSB();
-    #else
-    *((volatile uint32_t *)(NRF_USBD_BASE + 0x800)) = 0x7C5 + 2*epnum;
-    *((volatile uint32_t *)(NRF_USBD_BASE + 0x804)) = 0;
-    (void) (((volatile uint32_t *)(NRF_USBD_BASE + 0x804)));
-    #endif
+    if ( nrf_drv_usbd_errata_sizeepout_rw() )
+    {
+      *((volatile uint32_t *)(NRF_USBD_BASE + 0x800)) = 0x7C5 + 2*epnum;
+      *((volatile uint32_t *)(NRF_USBD_BASE + 0x804)) = 0;
+      (void) (((volatile uint32_t *)(NRF_USBD_BASE + 0x804)));
+    }
+    else
+    {
+      // Overwrite size will allow hw to accept data
+      NRF_USBD->SIZE.EPOUT[epnum] = 0;
+      __ISB(); __DSB();
+    }
   }else
   {
     NRF_USBD->EPIN[epnum].PTR    = (uint32_t) xfer->buffer;
@@ -582,15 +622,18 @@ void USBD_IRQHandler(void)
 
         // HW issue on nrf5284 sample, SIZE.EPOUT won't trigger ACK as spec
         // use the back door interface as sdk for walk around
-        #if 0
-        // Overwrite size will allow hw to accept data
-        NRF_USBD->SIZE.EPOUT[epnum] = 0;
-        __ISB(); __DSB();
-        #else
-        *((volatile uint32_t *)(NRF_USBD_BASE + 0x800)) = 0x7C5 + 2*epnum;
-        *((volatile uint32_t *)(NRF_USBD_BASE + 0x804)) = 0;
-        (void) (((volatile uint32_t *)(NRF_USBD_BASE + 0x804)));
-        #endif
+        if ( nrf_drv_usbd_errata_sizeepout_rw() )
+        {
+          *((volatile uint32_t *)(NRF_USBD_BASE + 0x800)) = 0x7C5 + 2*epnum;
+          *((volatile uint32_t *)(NRF_USBD_BASE + 0x804)) = 0;
+          (void) (((volatile uint32_t *)(NRF_USBD_BASE + 0x804)));
+        }
+        else
+        {
+          // Overwrite size will allow hw to accept data
+          NRF_USBD->SIZE.EPOUT[epnum] = 0;
+          __ISB(); __DSB();
+        }
       }else
       {
         xfer->total_len = xfer->actual_len;

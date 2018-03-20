@@ -52,126 +52,8 @@
 // <e> APP_USBD_ENABLED - app_usbd - USB Device library
 //==========================================================
 #ifndef APP_USBD_ENABLED
-#define APP_USBD_ENABLED 1
+#define APP_USBD_ENABLED 0
 #endif
-// <s> APP_USBD_VID - Vendor ID
-
-// <i> Vendor ID ordered from USB IF: http://www.usb.org/developers/vendor/
-#ifndef APP_USBD_VID
-#define APP_USBD_VID 0x1915
-#endif
-
-// <s> APP_USBD_PID - Product ID
-
-// <i> Selected Product ID
-#ifndef APP_USBD_PID
-#define APP_USBD_PID 0x520F
-#endif
-
-// <o> APP_USBD_DEVICE_VER_MAJOR - Device version, major part  <0-99> 
-
-
-// <i> Device version, will be converted automatically to BCD notation. Use just decimal values.
-
-#ifndef APP_USBD_DEVICE_VER_MAJOR
-#define APP_USBD_DEVICE_VER_MAJOR 1
-#endif
-
-// <o> APP_USBD_DEVICE_VER_MINOR - Device version, minor part  <0-99> 
-
-
-// <i> Device version, will be converted automatically to BCD notation. Use just decimal values.
-
-#ifndef APP_USBD_DEVICE_VER_MINOR
-#define APP_USBD_DEVICE_VER_MINOR 0
-#endif
-
-// <e> APP_USBD_EVENT_QUEUE_ENABLE - Enable event queue
-
-// <i> This is the default configuration when all the events are placed into internal queue.
-// <i> Disable it when external queue is used like app_scheduler or if you wish to process all events inside interrupts.
-// <i> Processing all events from the interrupt level adds requirement not to call any functions that modifies the USBD library state from the context higher than USB interrupt context.
-// <i> Functions that modify USBD state are functions for sleep, wakeup, start, stop, enable and disable.
-//==========================================================
-#ifndef APP_USBD_EVENT_QUEUE_ENABLE
-#define APP_USBD_EVENT_QUEUE_ENABLE 1
-#endif
-// <o> APP_USBD_EVENT_QUEUE_SIZE - The size of event queue  <16-64> 
-
-
-// <i> The size of the queue for the events that would be processed in the main loop.
-
-#ifndef APP_USBD_EVENT_QUEUE_SIZE
-#define APP_USBD_EVENT_QUEUE_SIZE 32
-#endif
-
-// </e>
-
-// <q> APP_USBD_CONFIG_PROVIDE_SOF_TIMESTAMP  - Provide a function that generates timestamps for logs based on the current SOF
- 
-
-// <i> The function app_usbd_sof_timestamp_get will be implemented if the logger is enabled. 
-// <i> Use it when initializing the logger. 
-// <i> SOF processing will be always enabled when this configuration parameter is active. 
-// <i> Notice that this option is configured outside of APP_USBD_CONFIG_LOG_ENABLED. 
-// <i> This means that it will work even if the logging in this very module is disabled. 
-
-#ifndef APP_USBD_CONFIG_PROVIDE_SOF_TIMESTAMP
-#define APP_USBD_CONFIG_PROVIDE_SOF_TIMESTAMP 0
-#endif
-
-// <e> APP_USBD_CONFIG_LOG_ENABLED - Enable logging in the module
-//==========================================================
-#ifndef APP_USBD_CONFIG_LOG_ENABLED
-#define APP_USBD_CONFIG_LOG_ENABLED 0
-#endif
-// <o> APP_USBD_CONFIG_LOG_LEVEL  - Default Severity level
- 
-// <0=> Off 
-// <1=> Error 
-// <2=> Warning 
-// <3=> Info 
-// <4=> Debug 
-
-#ifndef APP_USBD_CONFIG_LOG_LEVEL
-#define APP_USBD_CONFIG_LOG_LEVEL 3
-#endif
-
-// <o> APP_USBD_CONFIG_INFO_COLOR  - ANSI escape code prefix.
- 
-// <0=> Default 
-// <1=> Black 
-// <2=> Red 
-// <3=> Green 
-// <4=> Yellow 
-// <5=> Blue 
-// <6=> Magenta 
-// <7=> Cyan 
-// <8=> White 
-
-#ifndef APP_USBD_CONFIG_INFO_COLOR
-#define APP_USBD_CONFIG_INFO_COLOR 0
-#endif
-
-// <o> APP_USBD_CONFIG_DEBUG_COLOR  - ANSI escape code prefix.
- 
-// <0=> Default 
-// <1=> Black 
-// <2=> Red 
-// <3=> Green 
-// <4=> Yellow 
-// <5=> Blue 
-// <6=> Magenta 
-// <7=> Cyan 
-// <8=> White 
-
-#ifndef APP_USBD_CONFIG_DEBUG_COLOR
-#define APP_USBD_CONFIG_DEBUG_COLOR 0
-#endif
-
-// </e>
-
-// </e>
 
 // <e> CLOCK_ENABLED - nrf_drv_clock - CLOCK peripheral driver
 //==========================================================
@@ -410,7 +292,7 @@
 // <e> USBD_ENABLED - nrf_drv_usbd - USB driver
 //==========================================================
 #ifndef USBD_ENABLED
-#define USBD_ENABLED 1
+#define USBD_ENABLED 0
 #endif
 // <o> USBD_CONFIG_IRQ_PRIORITY  - Interrupt priority
  
@@ -573,7 +455,7 @@
  
 
 #ifndef APP_USBD_CLASS_CDC_ACM_ENABLED
-#define APP_USBD_CLASS_CDC_ACM_ENABLED 1
+#define APP_USBD_CLASS_CDC_ACM_ENABLED 0
 #endif
 
 // <q> BUTTON_ENABLED  - app_button - buttons handling module
@@ -608,7 +490,7 @@
 // <e> NRF_BALLOC_ENABLED - nrf_balloc - Block allocator module
 //==========================================================
 #ifndef NRF_BALLOC_ENABLED
-#define NRF_BALLOC_ENABLED 1
+#define NRF_BALLOC_ENABLED 0
 #endif
 // <e> NRF_BALLOC_CONFIG_DEBUG_ENABLED - Enables debug mode in the module.
 //==========================================================
@@ -665,7 +547,7 @@
  
 
 #ifndef NRF_MEMOBJ_ENABLED
-#define NRF_MEMOBJ_ENABLED 1
+#define NRF_MEMOBJ_ENABLED 0
 #endif
 
 // <q> NRF_STRERROR_ENABLED  - nrf_strerror - Library for converting error code to string.
