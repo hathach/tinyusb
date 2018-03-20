@@ -87,12 +87,10 @@ void tusb_dcd_control_stall    (uint8_t port);
 bool tusb_dcd_edpt_open        (uint8_t port, tusb_descriptor_endpoint_t const * p_endpoint_desc);
 bool tusb_dcd_edpt_xfer        (uint8_t port, uint8_t edpt_addr, uint8_t * buffer, uint16_t total_bytes, bool int_on_complete);
 bool tusb_dcd_edpt_queue_xfer  (uint8_t port, uint8_t edpt_addr, uint8_t * buffer, uint16_t total_bytes); // only queue, not transferring yet
+bool tusb_dcd_edpt_busy        (uint8_t port, uint8_t edpt_addr);
 
 void tusb_dcd_edpt_stall       (uint8_t port, uint8_t edpt_addr);
 void tusb_dcd_edpt_clear_stall (uint8_t port, uint8_t edpt_addr);
-
-// TODO may remove
-bool tusb_dcd_edpt_busy        (uint8_t port, uint8_t edpt_addr);
 
 #ifdef __cplusplus
  }

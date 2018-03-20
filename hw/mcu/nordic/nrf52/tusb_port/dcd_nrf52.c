@@ -134,12 +134,10 @@ static void power_usb_event_handler(nrf_drv_power_usb_evt_t event)
 
       nrf_usbd_isosplit_set(NRF_USBD_ISOSPLIT_Half);
 
-      // Enable interrupt
+      // Enable interrupt. SOF is used as CDC auto flush
       NRF_USBD->INTENSET = USBD_INTEN_USBRESET_Msk | USBD_INTEN_USBEVENT_Msk | USBD_INTEN_ACCESSFAULT_Msk |
-          USBD_INTEN_EP0SETUP_Msk | USBD_INTEN_EP0DATADONE_Msk |
-          USBD_INTEN_ENDEPIN0_Msk |  USBD_INTEN_ENDEPOUT0_Msk |
-          /*USBD_INTEN_STARTED_Msk |*/  USBD_INTEN_EPDATA_Msk ;
-      //USBD_INTEN_SOF_Msk
+                           USBD_INTEN_EP0SETUP_Msk | USBD_INTEN_EP0DATADONE_Msk | USBD_INTEN_ENDEPIN0_Msk |  USBD_INTEN_ENDEPOUT0_Msk |
+                           USBD_INTEN_EPDATA_Msk   | USBD_INTEN_SOF_Msk;
 
       //  if (enable_sof || nrf_drv_usbd_errata_104())
       //  {
@@ -200,7 +198,7 @@ bool tusb_dcd_init (uint8_t port)
   {
       .handler = power_usb_event_handler
   };
-  VERIFY( NRF_SUCCESS == nrf_drv_power_usbevt_init(&config) );
+  return ( NRF_SUCCESS == nrf_drv_power_usbevt_init(&config) );
 }
 
 void tusb_dcd_connect (uint8_t port)
@@ -215,7 +213,6 @@ void tusb_dcd_disconnect (uint8_t port)
 void tusb_dcd_set_address (uint8_t port, uint8_t dev_addr)
 {
   (void) port;
-
   // Set Address is automatically update by hw controller
 }
 
@@ -223,7 +220,6 @@ void tusb_dcd_set_config (uint8_t port, uint8_t config_num)
 {
   (void) port;
   (void) config_num;
-
   // Nothing to do
 }
 
@@ -330,16 +326,24 @@ void tusb_dcd_control_stall (uint8_t port)
  *------------------------------------------------------------------*/
 static void normal_xact_start(uint8_t epnum, uint8_t dir)
 {
-  // Each transaction is up to Max Packet Size
   nom_xfer_t* xfer = &_dcd.xfer[dir][epnum-1];
 
+  // Each transaction is up to Max Packet Size
   uint8_t const xact_len = min16_of(xfer->total_len - xfer->actual_len, xfer->mps);
 
   if ( dir == TUSB_DIR_OUT )
   {
+    // HW issue on nrf5284 sample, SIZE.EPOUT won't trigger ACK as spec
+    // use the back door interface as sdk for walk around
+    #if 0
     // Overwrite size will allow hw to accept data
     NRF_USBD->SIZE.EPOUT[epnum] = 0;
     __ISB(); __DSB();
+    #else
+    *((volatile uint32_t *)(NRF_USBD_BASE + 0x800)) = 0x7C5 + 2*epnum;
+    *((volatile uint32_t *)(NRF_USBD_BASE + 0x804)) = 0;
+    (void) (((volatile uint32_t *)(NRF_USBD_BASE + 0x804)));
+    #endif
   }else
   {
     NRF_USBD->EPIN[epnum].PTR    = (uint32_t) xfer->buffer;
@@ -413,10 +417,19 @@ void tusb_dcd_edpt_clear_stall (uint8_t port, uint8_t ep_addr)
 
 }
 
-// TODO may remove
 bool tusb_dcd_edpt_busy (uint8_t port, uint8_t ep_addr)
 {
-  return true;
+  (void) port;
+
+  // USBD shouldn't check control endpoint state
+  if ( 0 == ep_addr ) return false;
+
+  uint8_t const epnum = edpt_number(ep_addr);
+  uint8_t const dir   = edpt_dir(ep_addr);
+
+  nom_xfer_t* xfer = &_dcd.xfer[dir][epnum-1];
+
+  return xfer->actual_len < xfer->total_len;
 }
 
 /*------------------------------------------------------------------*/
@@ -443,12 +456,16 @@ void USBD_IRQHandler(void)
   }
 
   /*------------- Interrupt Processing -------------*/
-
   if ( int_status & USBD_INTEN_USBRESET_Msk )
   {
     bus_reset();
 
     tusb_dcd_bus_event(0, USBD_BUS_EVENT_RESET);
+  }
+
+  if ( int_status & USBD_INTEN_SOF_Msk )
+  {
+    tusb_dcd_bus_event(0, USBD_BUS_EVENT_SOF);
   }
 
   if ( int_status & EDPT_END_ALL_MASK )
@@ -524,7 +541,7 @@ void USBD_IRQHandler(void)
           normal_xact_start(epnum, TUSB_DIR_IN);
         } else
         {
-          // xfer complete
+          // BULK/INT IN complete
           tusb_dcd_xfer_complete(0, epnum | TUSB_DIR_IN_MASK, xfer->actual_len, true);
         }
       }
@@ -562,10 +579,23 @@ void USBD_IRQHandler(void)
       if ( (NRF_USBD->EPOUT[epnum].AMOUNT == xfer->mps) && (xfer->actual_len < xfer->total_len) )
       {
         // Allow Host -> Endpoint
+
+        // HW issue on nrf5284 sample, SIZE.EPOUT won't trigger ACK as spec
+        // use the back door interface as sdk for walk around
+        #if 0
+        // Overwrite size will allow hw to accept data
         NRF_USBD->SIZE.EPOUT[epnum] = 0;
         __ISB(); __DSB();
+        #else
+        *((volatile uint32_t *)(NRF_USBD_BASE + 0x800)) = 0x7C5 + 2*epnum;
+        *((volatile uint32_t *)(NRF_USBD_BASE + 0x804)) = 0;
+        (void) (((volatile uint32_t *)(NRF_USBD_BASE + 0x804)));
+        #endif
       }else
       {
+        xfer->total_len = xfer->actual_len;
+
+        // BULK/INT OUT complete
         tusb_dcd_xfer_complete(0, epnum, xfer->actual_len, true);
       }
     }

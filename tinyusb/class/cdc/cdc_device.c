@@ -280,18 +280,24 @@ tusb_error_t cdcd_xfer_cb(uint8_t port, uint8_t ep_addr, tusb_event_t event, uin
   return TUSB_ERROR_NONE;
 }
 
-void cdcd_sof(uint8_t port)
+bool tud_n_cdc_flush (uint8_t port)
 {
-  if ( !tud_n_cdc_connected(port) ) return;
+  VERIFY( tud_n_cdc_connected(port) );
 
   uint8_t edpt = cdcd_data[port].ep_addr[CDC_PIPE_DATA_IN];
 
-  if ( !tusb_dcd_edpt_busy(port, edpt) )
-  {
-    uint16_t count = fifo_read_n(&_tx_ff, _tmp_tx_buf, sizeof(_tmp_tx_buf));
+  VERIFY( !tusb_dcd_edpt_busy(port, edpt) );
 
-    TU_ASSERT( tusb_dcd_edpt_xfer(port, edpt, _tmp_tx_buf, count, false), TUSB_ERROR_DCD_EDPT_XFER);
-  }
+
+  uint16_t count = fifo_read_n(&_tx_ff, _tmp_tx_buf, sizeof(_tmp_tx_buf));
+  TU_ASSERT( tusb_dcd_edpt_xfer(port, edpt, _tmp_tx_buf, count, false) );
+
+  return true;
+}
+
+void cdcd_sof(uint8_t port)
+{
+  tud_n_cdc_flush(port);
 }
 
 #endif
