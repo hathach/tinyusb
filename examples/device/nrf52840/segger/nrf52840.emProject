@@ -19,7 +19,7 @@
       arm_target_device_name="nRF52840_xxAA"
       arm_target_interface_type="SWD"
       c_preprocessor_definitions="NRF52840_XXAA;__nRF_FAMILY;ARM_MATH_CM4;FLASH_PLACEMENT=1;BOARD_PCA10056"
-      c_user_include_directories="$(ProjectDir)/CMSIS_4/CMSIS/Include;$(ProjectDir)/nRF/CMSIS/Device/Include;$(RepoDir)/hw/cmsis/Include;$(RepoDir)/hw;$(McuDir)/hal;$(RepoDir)/tinyusb;$(McuDir)/sdk;$(McuDir)/sdk/drivers_nrf/hal;$(McuDir)/sdk/drivers_nrf/systick;$(McuDir)/sdk/drivers_nrf/uart;$(McuDir)/sdk/drivers_nrf/usbd;$(McuDir)/sdk/drivers_nrf/common;$(McuDir)/sdk/drivers_nrf/delay;$(McuDir)/sdk/drivers_nrf/power;$(McuDir)/sdk/drivers_nrf/clock;$(McuDir)/sdk/external/fprintf;$(McuDir)/sdk/libraries/util;$(McuDir)/sdk/libraries/strerror;$(McuDir)/sdk/libraries/atomic;$(McuDir)/sdk/libraries/balloc;$(McuDir)/sdk/libraries/experimental_log/src;$(McuDir)/sdk/libraries/experimental_log;$(McuDir)/sdk/libraries/experimental_section_vars;$(McuDir)/sdk/libraries/experimental_memobj;$(McuDir)/sdk/softdevice/s140/headers;$(McuDir)/sdk/softdevice/s140/headers/nrf52;$(McuDir)/sdk/softdevice/common;../src"
+      c_user_include_directories="$(ProjectDir)/nRF/CMSIS/Device/Include;$(RepoDir)/hw/cmsis/Include;$(RepoDir)/hw;$(McuDir)/hal;$(RepoDir)/tinyusb;$(McuDir)/sdk;$(McuDir)/sdk/device;$(McuDir)/sdk/drivers_nrf/hal;$(McuDir)/sdk/drivers_nrf/systick;$(McuDir)/sdk/drivers_nrf/uart;$(McuDir)/sdk/drivers_nrf/usbd;$(McuDir)/sdk/drivers_nrf/common;$(McuDir)/sdk/drivers_nrf/delay;$(McuDir)/sdk/drivers_nrf/power;$(McuDir)/sdk/drivers_nrf/clock;$(McuDir)/sdk/external/fprintf;$(McuDir)/sdk/libraries/util;$(McuDir)/sdk/libraries/strerror;$(McuDir)/sdk/libraries/atomic;$(McuDir)/sdk/libraries/balloc;$(McuDir)/sdk/libraries/experimental_log/src;$(McuDir)/sdk/libraries/experimental_log;$(McuDir)/sdk/libraries/experimental_section_vars;$(McuDir)/sdk/libraries/experimental_memobj;$(McuDir)/sdk/softdevice/s140/headers;$(McuDir)/sdk/softdevice/s140/headers/nrf52;$(McuDir)/sdk/softdevice/common;../src"
       debug_register_definition_file="$(ProjectDir)/nrf52840_Registers.xml"
       debug_target_connection="J-Link"
       gcc_entry_point="Reset_Handler"
@@ -31,15 +31,6 @@
       target_reset_script="Reset();"
       target_script_file="$(ProjectDir)/nRF_Target.js"
       target_trace_initialize_script="EnableTrace(&quot;$(TraceInterfaceType)&quot;)" />
-    <folder Name="CMSIS Files">
-      <file file_name="nrf.h" />
-      <file file_name="system_nrf52840.c">
-        <configuration
-          Name="Common"
-          default_code_section=".init"
-          default_const_section=".init_rodata" />
-      </file>
-    </folder>
     <folder Name="RTT Files">
       <file file_name="SEGGER_RTT.c" />
       <file file_name="SEGGER_RTT.h" />
@@ -53,10 +44,6 @@
     </folder>
     <folder Name="System Files">
       <file file_name="thumb_crt0.s" />
-      <file file_name="ses_nRF_Startup.s" />
-      <file file_name="ses_nrf52840_Vectors.s">
-        <configuration Name="Common" file_type="Assembly" />
-      </file>
     </folder>
     <folder
       Name="tinyusb"
@@ -85,12 +72,27 @@
               <file file_name="../../../../hw/mcu/nordic/nrf52/tusb_port/dcd_nrf52.c" />
               <file file_name="../../../../hw/mcu/nordic/nrf52/tusb_port/dcd_nrf52.h" />
             </folder>
-            <folder
-              Name="sdk"
-              exclude=""
-              filter="*.c;*.h"
-              path="../../../../hw/mcu/nordic/nrf52/sdk"
-              recurse="Yes" />
+            <folder Name="sdk">
+              <file file_name="../../../../hw/mcu/nordic/nrf52/sdk/sdk_config.h" />
+              <folder
+                Name="device"
+                path="../../../../hw/mcu/nordic/nrf52/sdk/device" />
+              <folder
+                Name="documentation"
+                path="../../../../hw/mcu/nordic/nrf52/sdk/documentation" />
+              <folder
+                Name="drivers_nrf"
+                path="../../../../hw/mcu/nordic/nrf52/sdk/drivers_nrf" />
+              <folder
+                Name="libraries"
+                path="../../../../hw/mcu/nordic/nrf52/sdk/libraries" />
+              <folder
+                Name="softdevice"
+                path="../../../../hw/mcu/nordic/nrf52/sdk/softdevice" />
+              <folder
+                Name="toolchain"
+                path="../../../../hw/mcu/nordic/nrf52/sdk/toolchain" />
+            </folder>
           </folder>
         </folder>
       </folder>
