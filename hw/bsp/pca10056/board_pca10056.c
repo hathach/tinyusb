@@ -37,7 +37,6 @@
 #include "board_pca10056.h"
 #include "nrf_gpio.h"
 
-#include "nrf_drv_systick.h"
 #include "nrf_drv_power.h"
 
 /*------------------------------------------------------------------*/

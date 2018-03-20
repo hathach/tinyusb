@@ -37,8 +37,7 @@
 #include <stdbool.h>
 #include "nrf.h"
 #include "nrf_gpio.h"
-#include "nrf_drv_systick.h"
-#include "nrf_drv_clock.h"
+#include "nrf_clock.h"
 
 #include "tusb_hal.h"
 
