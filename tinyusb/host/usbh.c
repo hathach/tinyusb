@@ -450,7 +450,7 @@ tusb_error_t enumeration_body_subtask(void)
   //------------- Get first 8 bytes of device descriptor to get Control Endpoint Size -------------//
   OSAL_SUBTASK_INVOKED(
       usbh_control_xfer_subtask( 0, bm_request_type(TUSB_DIR_IN, TUSB_REQ_TYPE_STANDARD, TUSB_REQ_RCPT_DEVICE),
-                                 TUSB_REQUEST_GET_DESCRIPTOR, (TUSB_DESC_DEVICE << 8), 0,
+                                 TUSB_REQ_GET_DESCRIPTOR, (TUSB_DESC_DEVICE << 8), 0,
                                  8, enum_data_buffer ),
       error
   );
@@ -483,7 +483,7 @@ tusb_error_t enumeration_body_subtask(void)
 
   OSAL_SUBTASK_INVOKED(
     usbh_control_xfer_subtask( 0, bm_request_type(TUSB_DIR_OUT, TUSB_REQ_TYPE_STANDARD, TUSB_REQ_RCPT_DEVICE),
-                               TUSB_REQUEST_SET_ADDRESS, new_addr, 0,
+                               TUSB_REQ_SET_ADDRESS, new_addr, 0,
                                0, NULL ),
     error
   );
@@ -505,7 +505,7 @@ tusb_error_t enumeration_body_subtask(void)
   //------------- Get full device descriptor -------------//
   OSAL_SUBTASK_INVOKED(
       usbh_control_xfer_subtask( new_addr, bm_request_type(TUSB_DIR_IN, TUSB_REQ_TYPE_STANDARD, TUSB_REQ_RCPT_DEVICE),
-                                 TUSB_REQUEST_GET_DESCRIPTOR, (TUSB_DESC_DEVICE << 8), 0,
+                                 TUSB_REQ_GET_DESCRIPTOR, (TUSB_DESC_DEVICE << 8), 0,
                                  18, enum_data_buffer ),
       error
   );
@@ -522,7 +522,7 @@ tusb_error_t enumeration_body_subtask(void)
   //------------- Get 9 bytes of configuration descriptor -------------//
   OSAL_SUBTASK_INVOKED(
       usbh_control_xfer_subtask( new_addr, bm_request_type(TUSB_DIR_IN, TUSB_REQ_TYPE_STANDARD, TUSB_REQ_RCPT_DEVICE),
-                                 TUSB_REQUEST_GET_DESCRIPTOR, (TUSB_DESC_CONFIGURATION << 8) | (configure_selected - 1), 0,
+                                 TUSB_REQ_GET_DESCRIPTOR, (TUSB_DESC_CONFIGURATION << 8) | (configure_selected - 1), 0,
                                  9, enum_data_buffer ),
       error
   );
@@ -533,7 +533,7 @@ tusb_error_t enumeration_body_subtask(void)
   //------------- Get full configuration descriptor -------------//
   OSAL_SUBTASK_INVOKED(
       usbh_control_xfer_subtask( new_addr, bm_request_type(TUSB_DIR_IN, TUSB_REQ_TYPE_STANDARD, TUSB_REQ_RCPT_DEVICE),
-                                 TUSB_REQUEST_GET_DESCRIPTOR, (TUSB_DESC_CONFIGURATION << 8) | (configure_selected - 1), 0,
+                                 TUSB_REQ_GET_DESCRIPTOR, (TUSB_DESC_CONFIGURATION << 8) | (configure_selected - 1), 0,
                                  TUSB_CFG_HOST_ENUM_BUFFER_SIZE, enum_data_buffer ),
       error
   );
@@ -545,7 +545,7 @@ tusb_error_t enumeration_body_subtask(void)
   //------------- Set Configure -------------//
   OSAL_SUBTASK_INVOKED(
     usbh_control_xfer_subtask( new_addr, bm_request_type(TUSB_DIR_OUT, TUSB_REQ_TYPE_STANDARD, TUSB_REQ_RCPT_DEVICE),
-                               TUSB_REQUEST_SET_CONFIGURATION, configure_selected, 0,
+                               TUSB_REQ_SET_CONFIGURATION, configure_selected, 0,
                                0, NULL ),
     error
   );

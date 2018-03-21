@@ -134,7 +134,7 @@ tusb_error_t usbd_control_xfer_substak(uint8_t port, tusb_dir_t dir, uint8_t * b
 
 static inline bool usbd_control_status(uint8_t port, tusb_dir_t dir)
 {
-  tusb_dcd_control_xfer(port , dir, NULL, 0, false);
+  return tusb_dcd_control_xfer(port, dir, NULL, 0, false);
 }
 
 tusb_error_t usbd_init(void);

@@ -212,7 +212,7 @@ tusb_error_t hidh_open_subtask(uint8_t dev_addr, tusb_descriptor_interface_t con
   {
     OSAL_SUBTASK_INVOKED(
         usbh_control_xfer_subtask( dev_addr, bm_request_type(TUSB_DIR_IN, TUSB_REQ_TYPE_STANDARD, TUSB_REQ_RCPT_INTERFACE),
-                                   TUSB_REQUEST_GET_DESCRIPTOR, (p_desc_hid->bReportType << 8), 0,
+                                   TUSB_REQ_GET_DESCRIPTOR, (p_desc_hid->bReportType << 8), 0,
                                    p_desc_hid->wReportLength, report_descriptor ),
         error
     );

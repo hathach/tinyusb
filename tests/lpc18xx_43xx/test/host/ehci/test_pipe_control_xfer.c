@@ -105,16 +105,16 @@ void tearDown(void)
 //--------------------------------------------------------------------+
 tusb_control_request_t request_get_dev_desc =
 {
-    .bmRequestType_bit = { .direction = TUSB_DIR_DEV_TO_HOST, .type = TUSB_REQUEST_TYPE_STANDARD, .recipient = TUSB_REQUEST_RECIPIENT_DEVICE },
-    .bRequest = TUSB_REQUEST_GET_DESCRIPTOR,
+    .bmRequestType_bit = { .direction = TUSB_DIR_DEV_TO_HOST, .type = TUSB_REQ_TYPE_STANDARD, .recipient = TUSB_REQ_RECIPIENT_DEVICE },
+    .bRequest = TUSB_REQ_GET_DESCRIPTOR,
     .wValue   = (TUSB_DESC_TYPE_DEVICE << 8),
     .wLength  = 18
 };
 
 tusb_control_request_t request_set_dev_addr =
 {
-    .bmRequestType_bit = { .direction = TUSB_DIR_HOST_TO_DEV, .type = TUSB_REQUEST_TYPE_STANDARD, .recipient = TUSB_REQUEST_RECIPIENT_DEVICE },
-    .bRequest = TUSB_REQUEST_SET_ADDRESS,
+    .bmRequestType_bit = { .direction = TUSB_DIR_HOST_TO_DEV, .type = TUSB_REQ_TYPE_STANDARD, .recipient = TUSB_REQ_RECIPIENT_DEVICE },
+    .bRequest = TUSB_REQ_SET_ADDRESS,
     .wValue   = 3
 };
 

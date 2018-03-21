@@ -136,40 +136,40 @@ tusb_error_t control_xfer_stub(uint8_t dev_addr, const tusb_control_request_t * 
   switch (num_call)
   {
     case 0: // get 8 bytes of device descriptor
-      TEST_ASSERT_EQUAL(TUSB_REQUEST_GET_DESCRIPTOR, p_request->bRequest);
+      TEST_ASSERT_EQUAL(TUSB_REQ_GET_DESCRIPTOR, p_request->bRequest);
       TEST_ASSERT_EQUAL(TUSB_DESC_TYPE_DEVICE, p_request->wValue >> 8);
       TEST_ASSERT_EQUAL(8, p_request->wLength);
       memcpy(data, &desc_device, p_request->wLength);
     break;
 
     case 1: // set device address
-      TEST_ASSERT_EQUAL(TUSB_REQUEST_SET_ADDRESS, p_request->bRequest);
+      TEST_ASSERT_EQUAL(TUSB_REQ_SET_ADDRESS, p_request->bRequest);
       TEST_ASSERT_EQUAL(p_request->wValue, 1);
     break;
 
     case 2: // get full device decriptor for new address
-      TEST_ASSERT_EQUAL(TUSB_REQUEST_GET_DESCRIPTOR, p_request->bRequest);
+      TEST_ASSERT_EQUAL(TUSB_REQ_GET_DESCRIPTOR, p_request->bRequest);
       TEST_ASSERT_EQUAL(TUSB_DESC_TYPE_DEVICE, p_request->wValue >> 8);
       TEST_ASSERT_EQUAL(18, p_request->wLength);
       memcpy(data, &desc_device, p_request->wLength);
     break;
 
     case 3: // get 9 bytes of configuration descriptor
-      TEST_ASSERT_EQUAL(TUSB_REQUEST_GET_DESCRIPTOR, p_request->bRequest);
+      TEST_ASSERT_EQUAL(TUSB_REQ_GET_DESCRIPTOR, p_request->bRequest);
       TEST_ASSERT_EQUAL(TUSB_DESC_TYPE_CONFIGURATION, p_request->wValue >> 8);
       TEST_ASSERT_EQUAL(9, p_request->wLength);
       memcpy(data, &desc_configuration, p_request->wLength);
     break;
 
     case 4: // get full-length configuration descriptor
-      TEST_ASSERT_EQUAL(TUSB_REQUEST_GET_DESCRIPTOR, p_request->bRequest);
+      TEST_ASSERT_EQUAL(TUSB_REQ_GET_DESCRIPTOR, p_request->bRequest);
       TEST_ASSERT_EQUAL(TUSB_DESC_TYPE_CONFIGURATION, p_request->wValue >> 8);
       TEST_ASSERT_EQUAL(TUSB_CFG_HOST_ENUM_BUFFER_SIZE, p_request->wLength);
       memcpy(data, &desc_configuration, p_request->wLength);
     break;
 
     case 5: // set configure
-      TEST_ASSERT_EQUAL(TUSB_REQUEST_SET_CONFIGURATION, p_request->bRequest);
+      TEST_ASSERT_EQUAL(TUSB_REQ_SET_CONFIGURATION, p_request->bRequest);
       TEST_ASSERT_EQUAL(1, p_request->wValue);
       TEST_ASSERT_EQUAL(0, p_request->wIndex);
       TEST_ASSERT_EQUAL(0, p_request->wLength);

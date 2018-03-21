@@ -92,19 +92,19 @@ typedef enum
 
 typedef enum
 {
-  TUSB_REQUEST_GET_STATUS =0     , ///< 0
-  TUSB_REQUEST_CLEAR_FEATURE     , ///< 1
-  TUSB_REQUEST_RESERVED          , ///< 2
-  TUSB_REQUEST_SET_FEATURE       , ///< 3
-  TUSB_REQUEST_RESERVED2         , ///< 4
-  TUSB_REQUEST_SET_ADDRESS       , ///< 5
-  TUSB_REQUEST_GET_DESCRIPTOR    , ///< 6
-  TUSB_REQUEST_SET_DESCRIPTOR    , ///< 7
-  TUSB_REQUEST_GET_CONFIGURATION , ///< 8
-  TUSB_REQUEST_SET_CONFIGURATION , ///< 9
-  TUSB_REQUEST_GET_INTERFACE     , ///< 10
-  TUSB_REQUEST_SET_INTERFACE     , ///< 11
-  TUSB_REQUEST_SYNCH_FRAME         ///< 12
+  TUSB_REQ_GET_STATUS =0     , ///< 0
+  TUSB_REQ_CLEAR_FEATURE     , ///< 1
+  TUSB_REQ_RESERVED          , ///< 2
+  TUSB_REQ_SET_FEATURE       , ///< 3
+  TUSB_REQ_RESERVED2         , ///< 4
+  TUSB_REQ_SET_ADDRESS       , ///< 5
+  TUSB_REQ_GET_DESCRIPTOR    , ///< 6
+  TUSB_REQ_SET_DESCRIPTOR    , ///< 7
+  TUSB_REQ_GET_CONFIGURATION , ///< 8
+  TUSB_REQ_SET_CONFIGURATION , ///< 9
+  TUSB_REQ_GET_INTERFACE     , ///< 10
+  TUSB_REQ_SET_INTERFACE     , ///< 11
+  TUSB_REQ_SYNCH_FRAME         ///< 12
 }tusb_request_code_t;
 
 typedef enum
