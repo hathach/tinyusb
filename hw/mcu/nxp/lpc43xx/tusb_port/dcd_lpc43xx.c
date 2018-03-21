@@ -230,10 +230,6 @@ static inline uint8_t qtd_find_free(uint8_t port)
 //--------------------------------------------------------------------+
 // CONTROL PIPE API
 //--------------------------------------------------------------------+
-void tusb_dcd_control_stall(uint8_t port)
-{
-  LPC_USB[port]->ENDPTCTRL0 |= (ENDPTCTRL_MASK_STALL << 16); // stall Control IN TODO stall control OUT as well
-}
 
 // control transfer does not need to use qtd find function
 // follows UM 24.10.8.1.1 Setup packet handling using setup lockout mechanism
@@ -277,7 +273,14 @@ void tusb_dcd_edpt_stall(uint8_t port, uint8_t ep_addr)
   uint8_t ep_idx    = edpt_addr2phy(ep_addr);
   volatile uint32_t * reg_control = get_reg_control_addr(port, ep_idx);
 
-  (*reg_control) |= ENDPTCTRL_MASK_STALL << (ep_idx & 0x01 ? 16 : 0);
+  if ( ep_addr == 0)
+  {
+    // Stall both Control IN and OUT
+    (*reg_control) |= ( (ENDPTCTRL_MASK_STALL << 16) || (ENDPTCTRL_MASK_STALL << 0) );
+  }else
+  {
+    (*reg_control) |= ENDPTCTRL_MASK_STALL << (ep_idx & 0x01 ? 16 : 0);
+  }
 }
 
 void tusb_dcd_edpt_clear_stall(uint8_t port, uint8_t ep_addr)
@@ -475,7 +478,9 @@ void hal_dcd_isr(uint8_t port)
           if ( p_qtd->int_on_complete )
           {
             bool succeeded = ( p_qtd->xact_err || p_qtd->halted || p_qtd->buffer_err ) ? false : true;
-            tusb_dcd_xfer_complete(port, 0, 0, succeeded); // TODO xferred bytes for control xfer is not needed yet !!!!
+            (void) succeeded;
+
+            tusb_dcd_control_complete(port);
           }
         }
       }

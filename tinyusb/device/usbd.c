@@ -382,7 +382,7 @@ tusb_error_t usbd_control_request_subtask(uint8_t port, tusb_control_request_t c
   if(TUSB_ERROR_NONE != error)
   {
     // Response with Protocol Stall if request is not supported
-    tusb_dcd_control_stall(port);
+    tusb_dcd_edpt_stall(port, 0);
   }else if (p_request->wLength == 0)
   {
     usbd_control_status(port, 1-p_request->bmRequestType_bit.direction);
@@ -546,6 +546,10 @@ void tusb_dcd_xfer_complete(uint8_t port, uint8_t ep_addr, uint32_t xferred_byte
 {
   if (ep_addr == 0 )
   {
+    (void) port;
+    (void) xferred_bytes;
+    (void) succeeded;
+
     // Control Transfer
     osal_semaphore_post( usbd_control_xfer_sem_hdl );
   }else
@@ -557,7 +561,7 @@ void tusb_dcd_xfer_complete(uint8_t port, uint8_t ep_addr, uint32_t xferred_byte
         .sub_event_id = succeeded ? TUSB_EVENT_XFER_COMPLETE : TUSB_EVENT_XFER_ERROR
     };
 
-    task_event.xfer_done.ep_addr    = ep_addr;
+    task_event.xfer_done.ep_addr      = ep_addr;
     task_event.xfer_done.xferred_byte = xferred_bytes;
 
     osal_queue_send(usbd_queue_hdl, &task_event);

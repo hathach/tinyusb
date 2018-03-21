@@ -85,7 +85,7 @@ typedef struct
 }_dcd;
 
 /*------------------------------------------------------------------*/
-/* Controller API
+/* Controller Start up Sequence
  *------------------------------------------------------------------*/
 static bool hfclk_running(void)
 {
@@ -351,12 +351,6 @@ bool tusb_dcd_control_xfer (uint8_t port, tusb_dir_t dir, uint8_t * buffer, uint
 
   return true;
 }
-void tusb_dcd_control_stall (uint8_t port)
-{
-  (void) port;
-  NRF_USBD->TASKS_EP0STALL = 1;
-  __ISB(); __DSB();
-}
 
 /*------------------------------------------------------------------*/
 /*
@@ -449,12 +443,26 @@ bool tusb_dcd_edpt_queue_xfer (uint8_t port, uint8_t ep_addr, uint8_t * buffer, 
 
 void tusb_dcd_edpt_stall (uint8_t port, uint8_t ep_addr)
 {
+  (void) port;
 
+  if ( ep_addr == 0)
+  {
+    NRF_USBD->TASKS_EP0STALL = 1;
+  }else
+  {
+    NRF_USBD->EPSTALL = (USBD_EPSTALL_STALL_Stall << USBD_EPSTALL_STALL_Pos) | ep_addr;
+  }
+
+  __ISB(); __DSB();
 }
 
 void tusb_dcd_edpt_clear_stall (uint8_t port, uint8_t ep_addr)
 {
-
+  (void) port;
+  if ( ep_addr )
+  {
+    NRF_USBD->EPSTALL = (USBD_EPSTALL_STALL_UnStall << USBD_EPSTALL_STALL_Pos) | ep_addr;
+  }
 }
 
 bool tusb_dcd_edpt_busy (uint8_t port, uint8_t ep_addr)

@@ -73,24 +73,28 @@ void tusb_dcd_set_config       (uint8_t port, uint8_t config_num);
  *------------------------------------------------------------------*/
 void tusb_dcd_bus_event        (uint8_t port, usbd_bus_event_type_t bus_event);
 void tusb_dcd_setup_received   (uint8_t port, uint8_t const* p_request);
-void tusb_dcd_xfer_complete    (uint8_t port, uint8_t edpt_addr, uint32_t xferred_bytes, bool succeeded);
+void tusb_dcd_xfer_complete    (uint8_t port, uint8_t ep_addr, uint32_t xferred_bytes, bool succeeded);
+
+static inline void tusb_dcd_control_complete(uint8_t port)
+{
+  // TODO all control complete is successful !!
+  tusb_dcd_xfer_complete(port, 0, 0, true);
+}
 
 /*------------------------------------------------------------------*/
 /* Endpoint API
  *------------------------------------------------------------------*/
-
 //------------- Control Endpoint -------------//
 bool tusb_dcd_control_xfer     (uint8_t port, tusb_dir_t dir, uint8_t * buffer, uint16_t length);
-void tusb_dcd_control_stall    (uint8_t port);
 
 //------------- Other Endpoints -------------//
 bool tusb_dcd_edpt_open        (uint8_t port, tusb_descriptor_endpoint_t const * p_endpoint_desc);
-bool tusb_dcd_edpt_xfer        (uint8_t port, uint8_t edpt_addr, uint8_t * buffer, uint16_t total_bytes, bool int_on_complete);
-bool tusb_dcd_edpt_queue_xfer  (uint8_t port, uint8_t edpt_addr, uint8_t * buffer, uint16_t total_bytes); // only queue, not transferring yet
-bool tusb_dcd_edpt_busy        (uint8_t port, uint8_t edpt_addr);
+bool tusb_dcd_edpt_xfer        (uint8_t port, uint8_t ep_addr, uint8_t * buffer, uint16_t total_bytes, bool int_on_complete);
+bool tusb_dcd_edpt_queue_xfer  (uint8_t port, uint8_t ep_addr, uint8_t * buffer, uint16_t total_bytes); // only queue, not transferring yet
+bool tusb_dcd_edpt_busy        (uint8_t port, uint8_t ep_addr);
 
-void tusb_dcd_edpt_stall       (uint8_t port, uint8_t edpt_addr);
-void tusb_dcd_edpt_clear_stall (uint8_t port, uint8_t edpt_addr);
+void tusb_dcd_edpt_stall       (uint8_t port, uint8_t ep_addr);
+void tusb_dcd_edpt_clear_stall (uint8_t port, uint8_t ep_addr);
 
 #ifdef __cplusplus
  }
