@@ -237,7 +237,7 @@ void tusb_dcd_control_stall(uint8_t port)
 
 // control transfer does not need to use qtd find function
 // follows UM 24.10.8.1.1 Setup packet handling using setup lockout mechanism
-bool tusb_dcd_control_xfer(uint8_t port, tusb_dir_t dir, uint8_t * p_buffer, uint16_t length, bool int_on_complete)
+bool tusb_dcd_control_xfer(uint8_t port, tusb_dir_t dir, uint8_t * p_buffer, uint16_t length)
 {
   LPC_USB0_Type* const lpc_usb = LPC_USB[port];
   dcd_data_t* const p_dcd      = dcd_data_ptr[port];

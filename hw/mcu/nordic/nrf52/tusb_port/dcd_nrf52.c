@@ -330,7 +330,7 @@ static void control_xact_start(void)
 //}
 
 
-bool tusb_dcd_control_xfer (uint8_t port, tusb_dir_t dir, uint8_t * buffer, uint16_t length, bool int_on_complete)
+bool tusb_dcd_control_xfer (uint8_t port, tusb_dir_t dir, uint8_t * buffer, uint16_t length)
 {
   (void) port;
 

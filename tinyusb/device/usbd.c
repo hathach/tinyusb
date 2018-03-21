@@ -295,7 +295,7 @@ tusb_error_t usbd_control_xfer_substak(uint8_t port, tusb_dir_t dir, uint8_t * b
   // Data
   if ( length )
   {
-    tusb_dcd_control_xfer(port, dir, buffer, length, true);
+    tusb_dcd_control_xfer(port, dir, buffer, length);
     osal_semaphore_wait( usbd_control_xfer_sem_hdl, 100, &error );
 
     SUBTASK_ASSERT_STATUS( error );
