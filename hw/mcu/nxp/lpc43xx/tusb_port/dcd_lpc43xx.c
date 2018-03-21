@@ -242,33 +242,24 @@ bool tusb_dcd_control_xfer(uint8_t port, tusb_dir_t dir, uint8_t * p_buffer, uin
   LPC_USB0_Type* const lpc_usb = LPC_USB[port];
   dcd_data_t* const p_dcd      = dcd_data_ptr[port];
 
-  // determine Endpoint where Data & Status phase occurred (IN or OUT)
-  uint8_t const ep_data   = (dir == TUSB_DIR_IN) ? 1 : 0;
-  uint8_t const ep_status = 1 - ep_data;
+  uint8_t const ep_phy = (dir == TUSB_DIR_IN) ? 1 : 0;
 
-  while(lpc_usb->ENDPTSETUPSTAT & BIT_(0)) {} // wait until ENDPTSETUPSTAT before priming data/status in response TODO add time out
-//  while(p_dcd->qhd[0].qtd_overlay.active || p_dcd->qhd[1].qtd_overlay.active) {}; // wait until previous device request is completed TODO add timeout
+  dcd_qhd_t* qhd = &p_dcd->qhd[ep_phy];
 
-  VERIFY( !(p_dcd->qhd[0].qtd_overlay.active || p_dcd->qhd[1].qtd_overlay.active) );
+  // wait until ENDPTSETUPSTAT before priming data/status in response TODO add time out
+  while(lpc_usb->ENDPTSETUPSTAT & BIT_(0)) {}
 
-  //------------- Data Phase -------------//
-  if (length > 0)
-  {
-    dcd_qtd_t* p_qtd_data = &p_dcd->qtd[0];
-    qtd_init(p_qtd_data, p_buffer, length);
-    p_dcd->qhd[ep_data].qtd_overlay.next = (uint32_t) p_qtd_data;
+  VERIFY( !qhd->qtd_overlay.active );
 
-    lpc_usb->ENDPTPRIME = BIT_(edpt_phy2pos(ep_data));
-  }
+  dcd_qtd_t* qtd = &p_dcd->qtd[0];
+  qtd_init(qtd, p_buffer, length);
 
-  //------------- Status Phase -------------//
-  dcd_qtd_t* p_qtd_status = &p_dcd->qtd[1];
-  qtd_init(p_qtd_status, NULL, 0); // zero length xfer
-  p_qtd_status->int_on_complete = int_on_complete ? 1 : 0;
+  // skip xfer complete for Status
+  qtd->int_on_complete = (length > 0 ? 1 : 0);
 
-  p_dcd->qhd[ep_status].qtd_overlay.next = (uint32_t) p_qtd_status;
+  qhd->qtd_overlay.next = (uint32_t) qtd;
 
-  lpc_usb->ENDPTPRIME = BIT_(edpt_phy2pos(ep_status));
+  lpc_usb->ENDPTPRIME = BIT_(edpt_phy2pos(ep_phy));
 
   return true;
 }
@@ -465,13 +456,14 @@ void hal_dcd_isr(uint8_t port)
 
     //------------- Set up Received -------------//
     if (lpc_usb->ENDPTSETUPSTAT)
-    { // 23.10.10.2 Operational model for setup transfers
+    {
+      // 23.10.10.2 Operational model for setup transfers
       lpc_usb->ENDPTSETUPSTAT = lpc_usb->ENDPTSETUPSTAT;// acknowledge
 
       tusb_dcd_setup_received(port, (uint8_t*) &p_dcd->qhd[0].setup_request);
     }
     //------------- Control Request Completed -------------//
-    else if ( edpt_complete & 0x03 )
+    else if ( edpt_complete & ( BIT_(0) | BIT_(16)) )
     {
       for(uint8_t ep_idx = 0; ep_idx < 2; ep_idx++)
       {
@@ -490,7 +482,7 @@ void hal_dcd_isr(uint8_t port)
     }
 
     //------------- Transfer Complete -------------//
-    if ( edpt_complete & ~(0x03UL) )
+    if ( edpt_complete & ~(BIT_(0) | BIT_(16)) )
     {
       xfer_complete_isr(port, edpt_complete);
     }

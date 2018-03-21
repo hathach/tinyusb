@@ -317,10 +317,10 @@ tusb_error_t usbd_control_request_subtask(uint8_t port, tusb_control_request_t c
   error = TUSB_ERROR_NONE;
 
   //------------- Standard Control e.g in enumeration -------------//
-  if( TUSB_REQ_RCPT_DEVICE == p_request->bmRequestType_bit.recipient &&
-      TUSB_REQ_TYPE_STANDARD    == p_request->bmRequestType_bit.type )
+  if( TUSB_REQ_RCPT_DEVICE    == p_request->bmRequestType_bit.recipient &&
+      TUSB_REQ_TYPE_STANDARD  == p_request->bmRequestType_bit.type )
   {
-    if ( TUSB_REQUEST_GET_DESCRIPTOR == p_request->bRequest )
+    if ( TUSB_REQ_GET_DESCRIPTOR == p_request->bRequest )
     {
       uint8_t const * p_buffer = NULL;
       uint16_t length = 0;
@@ -329,18 +329,20 @@ tusb_error_t usbd_control_request_subtask(uint8_t port, tusb_control_request_t c
 
       if ( TUSB_ERROR_NONE == error )
       {
-        OSAL_SUBTASK_INVOKED ( usbd_control_xfer_substak(port, (tusb_dir_t) p_request->bmRequestType_bit.direction, (uint8_t*) p_buffer, length ), error );;
+        OSAL_SUBTASK_INVOKED ( usbd_control_xfer_substak(port, (tusb_dir_t) p_request->bmRequestType_bit.direction, (uint8_t*) p_buffer, length ), error );
       }
     }
-    else if ( TUSB_REQUEST_SET_ADDRESS == p_request->bRequest )
+    else if ( TUSB_REQ_SET_ADDRESS == p_request->bRequest )
     {
       tusb_dcd_set_address(port, (uint8_t) p_request->wValue);
       usbd_devices[port].state = TUSB_DEVICE_STATE_ADDRESSED;
 
-      // TODO hack nrf52 auto handle set address
+      #ifdef NRF52840_XXAA
+      // nrf52 auto handle set address, no need to return status
       SUBTASK_RETURN(TUSB_ERROR_NONE);
+      #endif
     }
-    else if ( TUSB_REQUEST_SET_CONFIGURATION == p_request->bRequest )
+    else if ( TUSB_REQ_SET_CONFIGURATION == p_request->bRequest )
     {
       usbd_set_configure_received(port, (uint8_t) p_request->wValue);
     }else
@@ -368,8 +370,8 @@ tusb_error_t usbd_control_request_subtask(uint8_t port, tusb_control_request_t c
 
   //------------- Endpoint Request -------------//
   else if ( TUSB_REQ_RCPT_ENDPOINT == p_request->bmRequestType_bit.recipient &&
-            TUSB_REQ_TYPE_STANDARD      == p_request->bmRequestType_bit.type &&
-            TUSB_REQUEST_CLEAR_FEATURE      == p_request->bRequest )
+            TUSB_REQ_TYPE_STANDARD == p_request->bmRequestType_bit.type &&
+            TUSB_REQ_CLEAR_FEATURE == p_request->bRequest )
   {
     tusb_dcd_edpt_clear_stall(port, u16_low_u8(p_request->wIndex) );
   } else
@@ -383,7 +385,7 @@ tusb_error_t usbd_control_request_subtask(uint8_t port, tusb_control_request_t c
     tusb_dcd_control_stall(port);
   }else if (p_request->wLength == 0)
   {
-    usbd_control_status(port, (tusb_dir_t) p_request->bmRequestType_bit.direction);
+    usbd_control_status(port, 1-p_request->bmRequestType_bit.direction);
   }
 
   OSAL_SUBTASK_END
