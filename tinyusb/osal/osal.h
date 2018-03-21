@@ -75,14 +75,14 @@
   #define OSAL_SUBTASK_END      return TUSB_ERROR_NONE;
 
   #define SUBTASK_RETURN(error)   return error;
-  #define OSAL_SUBTASK_INVOKED(subtask, status) status = subtask
+  #define SUBTASK_INVOKE(subtask, status) status = subtask
 
   //------------- Sub Task Assert -------------//
   #define SUBTASK_ASSERT_STATUS(sts) VERIFY_STATUS(sts)
   #define SUBTASK_ASSERT(condition)  VERIFY(condition, TUSB_ERROR_OSAL_TASK_FAILED)
 
-  #define SUBTASK_ASSERT_STATUS_WITH_HANDLER(sts, func_call)  VERIFY_STATUS_HDLR(sts, func_call)
-  #define SUBTASK_ASSERT_WITH_HANDLER(condition, func_call)   VERIFY_HDLR(condition, func_call)
+  #define SUBTASK_ASSERT_STATUS_HDLR(sts, func_call)  VERIFY_STATUS_HDLR(sts, func_call)
+  #define SUBTASK_ASSERT_HDLR(condition, func_call)   VERIFY_HDLR(condition, func_call)
 #endif
 
 #ifdef __cplusplus

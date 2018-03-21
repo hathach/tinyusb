@@ -81,27 +81,25 @@ static inline osal_task_t osal_task_create(osal_func_t code, const char* name, u
 }
 
 #define TASK_RESTART \
-  state = 0
+  _state = 0
 
 #define OSAL_TASK_BEGIN \
-  ATTR_UNUSED static uint32_t timeout = 0;\
-  static uint16_t state = 0;\
-  (void) timeout; /* timemout can possible unsued */ \
-  switch(state) { \
-    case 0: { \
+  static uint16_t _state = 0;               \
+  ATTR_UNUSED static uint32_t _timeout = 0; \
+  (void) _timeout;                          \
+  switch(_state) {                          \
+    case 0: {
 
 #define OSAL_TASK_END \
-  default:\
-    TASK_RESTART;\
+  default:  TASK_RESTART; break; \
   }}\
   return;
 
-
 #define osal_task_delay(msec) \
   do {\
-    timeout = osal_tick_get();\
-    state = __LINE__; case __LINE__:\
-      if ( timeout + osal_tick_from_msec(msec) > osal_tick_get() ) \
+    _timeout = osal_tick_get();\
+    _state = __LINE__; case __LINE__:\
+      if ( _timeout + osal_tick_from_msec(msec) > osal_tick_get() ) \
         return TUSB_ERROR_OSAL_WAITING;\
   }while(0)
 
@@ -110,58 +108,28 @@ static inline osal_task_t osal_task_create(osal_func_t code, const char* name, u
 //--------------------------------------------------------------------+
 #define OSAL_SUBTASK_BEGIN  OSAL_TASK_BEGIN
 #define OSAL_SUBTASK_END \
-  default:\
-    TASK_RESTART;\
+  default: TASK_RESTART; break; \
   }}\
   return TUSB_ERROR_NONE;
 
-#define OSAL_SUBTASK_INVOKED(subtask, status) \
-    do {\
-      state = __LINE__; case __LINE__:\
-      {\
-        status = subtask; /* invoke sub task */\
-        if (TUSB_ERROR_OSAL_WAITING == status) /* sub task not finished -> continue waiting */\
-          return TUSB_ERROR_OSAL_WAITING;\
-      }\
-    }while(0)
+#define SUBTASK_INVOKE(_subtask, _status) \
+  do {\
+    _state = __LINE__; case __LINE__:\
+    {\
+      _status = _subtask; /* invoke sub task */\
+      if (TUSB_ERROR_OSAL_WAITING == _status) /* sub task not finished -> continue waiting */\
+        return TUSB_ERROR_OSAL_WAITING;\
+    }\
+  }while(0)
 
 //------------- Sub Task Assert -------------//
 #define SUBTASK_RETURN(error)     do { TASK_RESTART; return error; } while(0)
 
+#define SUBTASK_ASSERT_STATUS(sts)                  VERIFY_STATUS_HDLR(sts, TASK_RESTART)
+#define SUBTASK_ASSERT_STATUS_HDLR(sts, func_call)  VERIFY_STATUS_HDLR(sts, func_call; TASK_RESTART )
 
-
-
-#define SUBTASK_ASSERT_STATUS(sts)                          VERIFY_STATUS_HDLR(sts, TASK_RESTART)
-#define SUBTASK_ASSERT_STATUS_WITH_HANDLER(sts, func_call)  VERIFY_STATUS_HDLR(sts, func_call; TASK_RESTART )
-
-#define SUBTASK_ASSERT(condition)                           VERIFY_HDLR(condition, TASK_RESTART)
-// TODO remove assert with handler by catching error in enum main task
-#define SUBTASK_ASSERT_WITH_HANDLER(condition, func_call)  VERIFY_HDLR(condition, func_call; TASK_RESTART)
-
-/*
-#define _SUBTASK_ASSERT_ERROR_HANDLER(error, func_call) \
-    do { func_call; TASK_RESTART; return error; } while(0)
-
-#define SUBTASK_ASSERT_STATUS(sts) \
-    ASSERT_DEFINE_WITH_HANDLER(_SUBTASK_ASSERT_ERROR_HANDLER, , tusb_error_t status = (tusb_error_t)(sts),\
-                               TUSB_ERROR_NONE == status, status, "%s", TUSB_ErrorStr[status])
-
-#define SUBTASK_ASSERT_STATUS_WITH_HANDLER(sts, func_call) \
-    ASSERT_DEFINE_WITH_HANDLER(_SUBTASK_ASSERT_ERROR_HANDLER, func_call, tusb_error_t status = (tusb_error_t)(sts),\
-                               TUSB_ERROR_NONE == status, status, "%s", TUSB_ErrorStr[status])
-
-// TODO allow to specify error return
-#define SUBTASK_ASSERT(condition)  \
-    ASSERT_DEFINE_WITH_HANDLER(_SUBTASK_ASSERT_ERROR_HANDLER, , , \
-                               (condition), TUSB_ERROR_OSAL_TASK_FAILED, "%s", "evaluated to false")
-// TODO remove assert with handler by catching error in enum main task
-#define SUBTASK_ASSERT_WITH_HANDLER(condition, func_call) \
-    ASSERT_DEFINE_WITH_HANDLER(_SUBTASK_ASSERT_ERROR_HANDLER, func_call, ,\
-                               condition, TUSB_ERROR_OSAL_TASK_FAILED, "%s", "evaluated to false")
-
-*/
-
-
+#define SUBTASK_ASSERT(condition)                   VERIFY_HDLR(condition, TASK_RESTART)
+#define SUBTASK_ASSERT_HDLR(condition, func_call)   VERIFY_HDLR(condition, func_call; TASK_RESTART)
 
 //--------------------------------------------------------------------+
 // QUEUE API
@@ -196,10 +164,10 @@ static inline void osal_queue_flush(osal_queue_t const queue_hdl)
 
 #define osal_queue_receive(queue_hdl, p_data, msec, p_error) \
   do {\
-    timeout = osal_tick_get();\
-    state = __LINE__; case __LINE__:\
+    _timeout = osal_tick_get();\
+    _state = __LINE__; case __LINE__:\
     if( queue_hdl->count == 0 ) {\
-      if ( (msec != OSAL_TIMEOUT_WAIT_FOREVER) && ( timeout + osal_tick_from_msec(msec) <= osal_tick_get() )) /* time out */ \
+      if ( (msec != OSAL_TIMEOUT_WAIT_FOREVER) && ( _timeout + osal_tick_from_msec(msec) <= osal_tick_get() )) /* time out */ \
         *(p_error) = TUSB_ERROR_OSAL_TIMEOUT;\
       else\
         return TUSB_ERROR_OSAL_WAITING;\
@@ -250,10 +218,10 @@ static inline void osal_semaphore_reset(osal_semaphore_t sem_hdl)
 
 #define osal_semaphore_wait(sem_hdl, msec, p_error) \
   do {\
-    timeout = osal_tick_get();\
-    state = __LINE__; case __LINE__:\
+    _timeout = osal_tick_get();\
+    _state = __LINE__; case __LINE__:\
     if( sem_hdl->count == 0 ) {\
-      if ( ( ((uint32_t) (msec)) != OSAL_TIMEOUT_WAIT_FOREVER) && (timeout + osal_tick_from_msec(msec) <= osal_tick_get()) ) /* time out */ \
+      if ( ( ((uint32_t) (msec)) != OSAL_TIMEOUT_WAIT_FOREVER) && (_timeout + osal_tick_from_msec(msec) <= osal_tick_get()) ) /* time out */ \
         *(p_error) = TUSB_ERROR_OSAL_TIMEOUT;\
       else\
         return TUSB_ERROR_OSAL_WAITING;\

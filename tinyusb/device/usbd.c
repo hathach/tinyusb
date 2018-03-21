@@ -254,7 +254,7 @@ static tusb_error_t usbd_body_subtask(void)
 
   if ( USBD_EVENTID_SETUP_RECEIVED == event.event_id )
   {
-    OSAL_SUBTASK_INVOKED( usbd_control_request_subtask(event.port, &event.setup_received), error );
+    SUBTASK_INVOKE( usbd_control_request_subtask(event.port, &event.setup_received), error );
   }else if (USBD_EVENTID_XFER_DONE == event.event_id)
   {
     // Call class handling function, Class that endpoint not belong to should check and return
@@ -329,7 +329,7 @@ tusb_error_t usbd_control_request_subtask(uint8_t port, tusb_control_request_t c
 
       if ( TUSB_ERROR_NONE == error )
       {
-        OSAL_SUBTASK_INVOKED ( usbd_control_xfer_substak(port, (tusb_dir_t) p_request->bmRequestType_bit.direction, (uint8_t*) p_buffer, length ), error );
+        SUBTASK_INVOKE ( usbd_control_xfer_substak(port, (tusb_dir_t) p_request->bmRequestType_bit.direction, (uint8_t*) p_buffer, length ), error );
       }
     }
     else if ( TUSB_REQ_SET_ADDRESS == p_request->bRequest )
@@ -361,7 +361,7 @@ tusb_error_t usbd_control_request_subtask(uint8_t port, tusb_control_request_t c
     if ( (class_code > 0) && (class_code < USBD_CLASS_DRIVER_COUNT) &&
          usbd_class_drivers[class_code].control_request_subtask )
     {
-      OSAL_SUBTASK_INVOKED( usbd_class_drivers[class_code].control_request_subtask(port, p_request), error );
+      SUBTASK_INVOKE( usbd_class_drivers[class_code].control_request_subtask(port, p_request), error );
     }else
     {
       error = TUSB_ERROR_DCD_CONTROL_REQUEST_NOT_SUPPORT;

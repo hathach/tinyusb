@@ -173,7 +173,7 @@ tusb_error_t rndish_open_subtask(uint8_t dev_addr, cdch_data_t *p_cdc)
 
   //------------- Message Initialize -------------//
   memcpy(msg_payload, &msg_init, sizeof(rndis_msg_initialize_t));
-  OSAL_SUBTASK_INVOKED(
+  SUBTASK_INVOKE(
       send_message_get_response_subtask( dev_addr, p_cdc,
                                          msg_payload, sizeof(rndis_msg_initialize_t),
                                          msg_payload),
@@ -191,7 +191,7 @@ tusb_error_t rndish_open_subtask(uint8_t dev_addr, cdch_data_t *p_cdc)
   memcpy(msg_payload, &msg_query_permanent_addr, sizeof(rndis_msg_query_t));
   memclr_(msg_payload + sizeof(rndis_msg_query_t), 6); // 6 bytes for MAC address
 
-  OSAL_SUBTASK_INVOKED(
+  SUBTASK_INVOKE(
       send_message_get_response_subtask( dev_addr, p_cdc,
                                          msg_payload, sizeof(rndis_msg_query_t) + 6,
                                          msg_payload),
@@ -208,7 +208,7 @@ tusb_error_t rndish_open_subtask(uint8_t dev_addr, cdch_data_t *p_cdc)
   memclr_(msg_payload + sizeof(rndis_msg_set_t), 4); // 4 bytes for filter flags
   ((rndis_msg_set_t*) msg_payload)->oid_buffer[0] = (RNDIS_PACKET_TYPE_DIRECTED | RNDIS_PACKET_TYPE_MULTICAST | RNDIS_PACKET_TYPE_BROADCAST);
 
-  OSAL_SUBTASK_INVOKED(
+  SUBTASK_INVOKE(
       send_message_get_response_subtask( dev_addr, p_cdc,
                                          msg_payload, sizeof(rndis_msg_set_t) + 4,
                                          msg_payload),
@@ -244,7 +244,7 @@ static tusb_error_t send_message_get_response_subtask( uint8_t dev_addr, cdch_da
   OSAL_SUBTASK_BEGIN
 
   //------------- Send RNDIS Control Message -------------//
-  OSAL_SUBTASK_INVOKED(
+  SUBTASK_INVOKE(
       usbh_control_xfer_subtask( dev_addr, bm_request_type(TUSB_DIR_OUT, TUSB_REQ_TYPE_CLASS, TUSB_REQ_RCPT_INTERFACE),
                                  CDC_REQUEST_SEND_ENCAPSULATED_COMMAND, 0, p_cdc->interface_number,
                                  mess_length, p_mess),
@@ -259,7 +259,7 @@ static tusb_error_t send_message_get_response_subtask( uint8_t dev_addr, cdch_da
   SUBTASK_ASSERT(msg_notification[dev_addr-1][0] == 1);
 
   //------------- Get RNDIS Message Initialize Complete -------------//
-  OSAL_SUBTASK_INVOKED(
+  SUBTASK_INVOKE(
     usbh_control_xfer_subtask( dev_addr, bm_request_type(TUSB_DIR_IN, TUSB_REQ_TYPE_CLASS, TUSB_REQ_RCPT_INTERFACE),
                                CDC_REQUEST_GET_ENCAPSULATED_RESPONSE, 0, p_cdc->interface_number,
                                RNDIS_MSG_PAYLOAD_MAX, p_response),

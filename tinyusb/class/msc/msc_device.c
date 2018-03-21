@@ -139,7 +139,7 @@ tusb_error_t mscd_control_request_subtask(uint8_t port, tusb_control_request_t c
   {
     // Note: lpc11/13u need xfer data's address to be aligned 64 -> make use of scsi_data instead of using max_lun directly
     p_msc->scsi_data[0] = p_msc->max_lun;
-    OSAL_SUBTASK_INVOKED( usbd_control_xfer_substak(port, TUSB_DIR_IN, p_msc->scsi_data, 1), err);
+    SUBTASK_INVOKE( usbd_control_xfer_substak(port, TUSB_DIR_IN, p_msc->scsi_data, 1), err);
   }else
   {
     SUBTASK_RETURN(TUSB_ERROR_DCD_CONTROL_REQUEST_NOT_SUPPORT);

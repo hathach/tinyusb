@@ -386,7 +386,7 @@ tusb_error_t sample_flow_control_subtask2(void)
   statements[2]++;
 
   osal_semaphore_wait(sem_hdl, OSAL_TIMEOUT_NORMAL, &error);
-  SUBTASK_ASSERT_STATUS_WITH_HANDLER(error, flow_control_error_handler());
+  SUBTASK_ASSERT_STATUS_HDLR(error, flow_control_error_handler());
   statements[3]++;
 
   OSAL_SUBTASK_END
