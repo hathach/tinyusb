@@ -123,26 +123,29 @@ tusb_error_t mscd_open(uint8_t port, tusb_descriptor_interface_t const * p_inter
 
 tusb_error_t mscd_control_request_subtask(uint8_t port, tusb_control_request_t const * p_request)
 {
-  ASSERT(p_request->bmRequestType_bit.type == TUSB_REQ_TYPE_CLASS, TUSB_ERROR_DCD_CONTROL_REQUEST_NOT_SUPPORT);
+  OSAL_SUBTASK_BEGIN
+
+  tusb_error_t err;
+
+  TU_ASSERT(p_request->bmRequestType_bit.type == TUSB_REQ_TYPE_CLASS, TUSB_ERROR_DCD_CONTROL_REQUEST_NOT_SUPPORT);
 
   mscd_interface_t * p_msc = &mscd_data;
 
-  switch(p_request->bRequest)
+  if(MSC_REQUEST_RESET == p_request->bRequest)
   {
-    case MSC_REQUEST_RESET:
-      tusb_dcd_control_xfer(port, TUSB_DIR_OUT, NULL, 0, false);
-    break;
-
-    case MSC_REQUEST_GET_MAX_LUN:
-      p_msc->scsi_data[0] = p_msc->max_lun; // Note: lpc11/13u need xfer data's address to be aligned 64 -> make use of scsi_data instead of using max_lun directly
-      tusb_dcd_control_xfer(port, TUSB_DIR_IN, p_msc->scsi_data, 1, false);
-    break;
-
-    default:
-      return TUSB_ERROR_DCD_CONTROL_REQUEST_NOT_SUPPORT;
+    usbd_control_status(port, TUSB_DIR_IN);
+  }
+  else if (MSC_REQUEST_GET_MAX_LUN == p_request->bRequest)
+  {
+    // Note: lpc11/13u need xfer data's address to be aligned 64 -> make use of scsi_data instead of using max_lun directly
+    p_msc->scsi_data[0] = p_msc->max_lun;
+    OSAL_SUBTASK_INVOKED( usbd_control_xfer_substak(port, TUSB_DIR_IN, p_msc->scsi_data, 1), err);
+  }else
+  {
+    SUBTASK_RETURN(TUSB_ERROR_DCD_CONTROL_REQUEST_NOT_SUPPORT);
   }
 
-  return TUSB_ERROR_NONE;
+  OSAL_SUBTASK_END
 }
 
 //--------------------------------------------------------------------+

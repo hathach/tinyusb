@@ -155,12 +155,12 @@ tusb_error_t led_blinking_subtask(void)
 {
   OSAL_SUBTASK_BEGIN
 
-  static uint32_t led_on_mask = 0;
+  static bool led_state = false;
 
   osal_task_delay(led_blink_interval_ms);
 
-  board_leds(led_on_mask, 1 - led_on_mask);
-  led_on_mask = 1 - led_on_mask; // toggle
+  board_led_control(BOARD_LED0, led_state);
+  led_state = 1 - led_state; // toggle
 
 //  uint32_t btn_mask;
 //  btn_mask = board_buttons();

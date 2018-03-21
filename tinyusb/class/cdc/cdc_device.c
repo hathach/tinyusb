@@ -228,7 +228,7 @@ tusb_error_t cdcd_control_request_subtask(uint8_t port, tusb_control_request_t c
   {
     OSAL_SUBTASK_INVOKED( usbd_control_xfer_substak(port, (tusb_dir_t) p_request->bmRequestType_bit.direction,
                                                     (uint8_t*) &cdcd_line_coding[port], min16_of(sizeof(cdc_line_coding_t), p_request->wLength)), err );
-    // TODO notify application on xfer completea
+    // TODO notify application on xfer complete
   }
   else if (CDC_REQUEST_SET_CONTROL_LINE_STATE == p_request->bRequest )
   {
