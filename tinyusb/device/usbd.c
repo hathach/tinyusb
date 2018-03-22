@@ -258,7 +258,7 @@ static tusb_error_t usbd_main_stk(void)
     STASK_INVOKE( proc_control_request_st(event.port, &event.setup_received), error );
   }else if (USBD_EVENTID_XFER_DONE == event.event_id)
   {
-    // Call class handling function, Class that endpoint not belong to should check and return
+    // Call class handling function. Those doest not own the endpoint should check and return
     for (uint8_t class_code = TUSB_CLASS_AUDIO; class_code < USBD_CLASS_DRIVER_COUNT; class_code++)
     {
       if ( usbd_class_drivers[class_code].xfer_cb )
