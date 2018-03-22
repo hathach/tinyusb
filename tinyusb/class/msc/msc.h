@@ -107,9 +107,9 @@ typedef struct ATTR_PACKED
   uint8_t  lun         ; ///< The device Logical Unit Number (LUN) to which the command block is being sent. For devices that support multiple LUNs, the host shall place into this field the LUN to which this command block is addressed. Otherwise, the host shall set this field to zero.
   uint8_t  cmd_len     ; ///< The valid length of the CBWCBin bytes. This defines the valid length of the command block. The only legal values are 1 through 16
   uint8_t  command[16] ; ///< The command block to be executed by the device. The device shall interpret the first cmd_len bytes in this field as a command block
-}msc_cmd_block_wrapper_t;
+}msc_cbw_t;
 
-STATIC_ASSERT(sizeof(msc_cmd_block_wrapper_t) == 31, "size is not correct");
+STATIC_ASSERT(sizeof(msc_cbw_t) == 31, "size is not correct");
 
 /// Command Status Wrapper
 typedef struct ATTR_PACKED
@@ -118,9 +118,9 @@ typedef struct ATTR_PACKED
   uint32_t tag          ; ///< The device shall set this field to the value received in the dCBWTag of the associated CBW.
   uint32_t data_residue ; ///< For Data-Out the device shall report in the dCSWDataResiduethe difference between the amount of data expected as stated in the dCBWDataTransferLength, and the actual amount of data processed by the device. For Data-In the device shall report in the dCSWDataResiduethe difference between the amount of data expected as stated in the dCBWDataTransferLengthand the actual amount of relevant data sent by the device
   uint8_t  status       ; ///< indicates the success or failure of the command. Values from \ref msc_csw_status_t
-}msc_cmd_status_wrapper_t;
+}msc_csw_t;
 
-STATIC_ASSERT(sizeof(msc_cmd_status_wrapper_t) == 13, "size is not correct");
+STATIC_ASSERT(sizeof(msc_csw_t) == 13, "size is not correct");
 
 //--------------------------------------------------------------------+
 // SCSI Constant

@@ -102,7 +102,7 @@ tusb_error_t tuh_msc_get_capacity(uint8_t dev_addr, uint32_t* p_last_lba, uint32
 //--------------------------------------------------------------------+
 // PUBLIC API: SCSI COMMAND
 //--------------------------------------------------------------------+
-static inline void msc_cbw_add_signature(msc_cmd_block_wrapper_t *p_cbw, uint8_t lun)
+static inline void msc_cbw_add_signature(msc_cbw_t *p_cbw, uint8_t lun)
 {
   p_cbw->signature  = MSC_CBW_SIGNATURE;
   p_cbw->tag        = 0xCAFECAFE;
@@ -116,16 +116,16 @@ static tusb_error_t msch_command_xfer(msch_interface_t * p_msch, void* p_buffer)
   { // there is data phase
     if (p_msch->cbw.dir & TUSB_DIR_IN_MASK)
     {
-      ASSERT_STATUS( hcd_pipe_xfer(p_msch->bulk_out, (uint8_t*) &p_msch->cbw, sizeof(msc_cmd_block_wrapper_t), false) );
+      ASSERT_STATUS( hcd_pipe_xfer(p_msch->bulk_out, (uint8_t*) &p_msch->cbw, sizeof(msc_cbw_t), false) );
       ASSERT_STATUS( hcd_pipe_queue_xfer(p_msch->bulk_in , p_buffer, p_msch->cbw.xfer_bytes) );
     }else
     {
-      ASSERT_STATUS( hcd_pipe_queue_xfer(p_msch->bulk_out, (uint8_t*) &p_msch->cbw, sizeof(msc_cmd_block_wrapper_t)) );
+      ASSERT_STATUS( hcd_pipe_queue_xfer(p_msch->bulk_out, (uint8_t*) &p_msch->cbw, sizeof(msc_cbw_t)) );
       ASSERT_STATUS( hcd_pipe_xfer(p_msch->bulk_out , p_buffer, p_msch->cbw.xfer_bytes, false) );
     }
   }
 
-  ASSERT_STATUS( hcd_pipe_xfer(p_msch->bulk_in , (uint8_t*) &p_msch->csw, sizeof(msc_cmd_status_wrapper_t), true) );
+  ASSERT_STATUS( hcd_pipe_xfer(p_msch->bulk_in , (uint8_t*) &p_msch->csw, sizeof(msc_csw_t), true) );
 
   return TUSB_ERROR_NONE;
 }
@@ -204,7 +204,7 @@ tusb_error_t tuh_msc_request_sense(uint8_t dev_addr, uint8_t lun, uint8_t *p_dat
   return TUSB_ERROR_NONE;
 }
 
-tusb_error_t tuh_msc_test_unit_ready(uint8_t dev_addr, uint8_t lun,  msc_cmd_status_wrapper_t * p_csw)
+tusb_error_t tuh_msc_test_unit_ready(uint8_t dev_addr, uint8_t lun,  msc_csw_t * p_csw)
 {
   msch_interface_t* p_msch = &msch_data[dev_addr-1];
 
@@ -225,8 +225,8 @@ tusb_error_t tuh_msc_test_unit_ready(uint8_t dev_addr, uint8_t lun,  msc_cmd_sta
   memcpy(p_msch->cbw.command, &cmd_test_unit_ready, p_msch->cbw.cmd_len);
 
   // TODO MSCH refractor test uinit ready
-  ASSERT_STATUS( hcd_pipe_xfer(p_msch->bulk_out, (uint8_t*) &p_msch->cbw, sizeof(msc_cmd_block_wrapper_t), false) );
-  ASSERT_STATUS( hcd_pipe_xfer(p_msch->bulk_in , (uint8_t*) p_csw, sizeof(msc_cmd_status_wrapper_t), true) );
+  ASSERT_STATUS( hcd_pipe_xfer(p_msch->bulk_out, (uint8_t*) &p_msch->cbw, sizeof(msc_cbw_t), false) );
+  ASSERT_STATUS( hcd_pipe_xfer(p_msch->bulk_in , (uint8_t*) p_csw, sizeof(msc_csw_t), true) );
 
   return TUSB_ERROR_NONE;
 }

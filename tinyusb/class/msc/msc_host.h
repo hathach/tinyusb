@@ -150,7 +150,7 @@ tusb_error_t tuh_msc_request_sense(uint8_t dev_addr, uint8_t lun, uint8_t *p_dat
  * \retval      TUSB_ERROR_INVALID_PARA if input parameters are not correct
  * \note        This function is non-blocking and returns immediately. The result of USB transfer will be reported by the interface's callback function
  */
-tusb_error_t tuh_msc_test_unit_ready(uint8_t dev_addr, uint8_t lun, msc_cmd_status_wrapper_t * p_csw) ATTR_WARN_UNUSED_RESULT; // TODO to be refractor
+tusb_error_t tuh_msc_test_unit_ready(uint8_t dev_addr, uint8_t lun, msc_csw_t * p_csw) ATTR_WARN_UNUSED_RESULT; // TODO to be refractor
 
 //tusb_error_t  tusbh_msc_scsi_send(uint8_t dev_addr, uint8_t lun, bool is_direction_in,
 //                                  uint8_t const * p_command, uint8_t cmd_len,
@@ -199,8 +199,8 @@ typedef struct {
   uint8_t vendor_id[8];
   uint8_t product_id[16];
 
-  msc_cmd_block_wrapper_t cbw;
-  msc_cmd_status_wrapper_t csw;
+  msc_cbw_t cbw;
+  msc_csw_t csw;
 }msch_interface_t;
 
 void         msch_init(void);

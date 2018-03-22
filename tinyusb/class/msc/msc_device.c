@@ -53,17 +53,18 @@
 //--------------------------------------------------------------------+
 typedef struct {
   uint8_t scsi_data[64]; // buffer for scsi's response other than read10 & write10. NOTE should be multiple of 64 to be compatible with lpc11/13u
-  ATTR_USB_MIN_ALIGNMENT msc_cmd_block_wrapper_t  cbw;
+  ATTR_USB_MIN_ALIGNMENT msc_cbw_t  cbw;
 
 #if defined (__ICCARM__) && (TUSB_CFG_MCU == MCU_LPC11UXX || TUSB_CFG_MCU == MCU_LPC13UXX)
-  uint8_t padding1[64-sizeof(msc_cmd_block_wrapper_t)]; // IAR cannot align struct's member
+  uint8_t padding1[64-sizeof(msc_cbw_t)]; // IAR cannot align struct's member
 #endif
 
-  ATTR_USB_MIN_ALIGNMENT msc_cmd_status_wrapper_t csw;
+  ATTR_USB_MIN_ALIGNMENT msc_csw_t csw;
 
   uint8_t max_lun;
-  uint8_t interface_number;
-  uint8_t edpt_in, edpt_out;
+  uint8_t interface_num;
+
+  uint8_t ep_in, ep_out;
 }mscd_interface_t;
 
 TUSB_CFG_ATTR_USBRAM STATIC_VAR mscd_interface_t mscd_data;
@@ -94,30 +95,30 @@ tusb_error_t mscd_open(uint8_t port, tusb_descriptor_interface_t const * p_inter
 
   //------------- Open Data Pipe -------------//
   tusb_descriptor_endpoint_t const *p_endpoint = (tusb_descriptor_endpoint_t const *) descriptor_next( (uint8_t const*) p_interface_desc );
-  for(uint32_t i=0; i<2; i++)
+  for(int i=0; i<2; i++)
   {
     TU_ASSERT(TUSB_DESC_ENDPOINT == p_endpoint->bDescriptorType &&
-           TUSB_XFER_BULK == p_endpoint->bmAttributes.xfer, TUSB_ERROR_DESCRIPTOR_CORRUPTED);
+              TUSB_XFER_BULK == p_endpoint->bmAttributes.xfer, TUSB_ERROR_DESCRIPTOR_CORRUPTED);
 
     TU_ASSERT( tusb_dcd_edpt_open(port, p_endpoint), TUSB_ERROR_DCD_FAILED );
 
     if ( p_endpoint->bEndpointAddress &  TUSB_DIR_IN_MASK )
     {
-      p_msc->edpt_in = p_endpoint->bEndpointAddress;
+      p_msc->ep_in = p_endpoint->bEndpointAddress;
     }else
     {
-      p_msc->edpt_out = p_endpoint->bEndpointAddress;
+      p_msc->ep_out = p_endpoint->bEndpointAddress;
     }
 
     p_endpoint = (tusb_descriptor_endpoint_t const *) descriptor_next( (uint8_t const*)  p_endpoint );
   }
 
-  p_msc->interface_number = p_interface_desc->bInterfaceNumber;
+  p_msc->interface_num = p_interface_desc->bInterfaceNumber;
 
   (*p_length) += sizeof(tusb_descriptor_interface_t) + 2*sizeof(tusb_descriptor_endpoint_t);
 
   //------------- Queue Endpoint OUT for Command Block Wrapper -------------//
-  TU_ASSERT( tusb_dcd_edpt_xfer(port, p_msc->edpt_out, (uint8_t*) &p_msc->cbw, sizeof(msc_cmd_block_wrapper_t), true), TUSB_ERROR_DCD_EDPT_XFER );
+  TU_ASSERT( tusb_dcd_edpt_xfer(port, p_msc->ep_out, (uint8_t*) &p_msc->cbw, sizeof(msc_cbw_t), true), TUSB_ERROR_DCD_EDPT_XFER );
 
   return TUSB_ERROR_NONE;
 }
@@ -152,25 +153,25 @@ tusb_error_t mscd_control_request_st(uint8_t port, tusb_control_request_t const 
 //--------------------------------------------------------------------+
 // MSCD APPLICATION CALLBACK
 //--------------------------------------------------------------------+
-tusb_error_t mscd_xfer_cb(uint8_t port, uint8_t edpt_addr, tusb_event_t event, uint32_t xferred_bytes)
+tusb_error_t mscd_xfer_cb(uint8_t port, uint8_t ep_addr, tusb_event_t event, uint32_t xferred_bytes)
 {
   static bool is_waiting_read10_write10 = false; // indicate we are transferring data in READ10, WRITE10 command
 
   mscd_interface_t *         const p_msc = &mscd_data;
-  msc_cmd_block_wrapper_t *  const p_cbw = &p_msc->cbw;
-  msc_cmd_status_wrapper_t * const p_csw = &p_msc->csw;
+  msc_cbw_t *  const p_cbw = &p_msc->cbw;
+  msc_csw_t * const p_csw = &p_msc->csw;
 
-  VERIFY( (edpt_addr == p_msc->edpt_out) || (edpt_addr == p_msc->edpt_in), TUSB_ERROR_INVALID_PARA);
+  VERIFY( (ep_addr == p_msc->ep_out) || (ep_addr == p_msc->ep_in), TUSB_ERROR_INVALID_PARA);
 
   //------------- new CBW received -------------//
   if ( !is_waiting_read10_write10 )
   {
-//    if ( edpt_addr == p_msc->edpt_in  ) return TUSB_ERROR_NONE; // bulk in interrupt for dcd to clean up
+//    if ( ep_addr == p_msc->edpt_in  ) return TUSB_ERROR_NONE; // bulk in interrupt for dcd to clean up
 
-    ASSERT( (edpt_addr == p_msc->edpt_out) &&
-            xferred_bytes == sizeof(msc_cmd_block_wrapper_t)   &&
-            event == TUSB_EVENT_XFER_COMPLETE                  &&
-            p_cbw->signature == MSC_CBW_SIGNATURE, TUSB_ERROR_INVALID_PARA );
+    TU_ASSERT( (ep_addr == p_msc->ep_out) &&
+               event == TUSB_EVENT_XFER_COMPLETE                  &&
+               xferred_bytes == sizeof(msc_cbw_t)   &&
+               p_cbw->signature == MSC_CBW_SIGNATURE, TUSB_ERROR_INVALID_PARA );
 
     p_csw->signature    = MSC_CSW_SIGNATURE;
     p_csw->tag          = p_cbw->tag;
@@ -192,7 +193,7 @@ tusb_error_t mscd_xfer_cb(uint8_t port, uint8_t edpt_addr, tusb_event_t event, u
         ASSERT( p_cbw->xfer_bytes >= actual_length, TUSB_ERROR_INVALID_PARA );
         ASSERT( sizeof(p_msc->scsi_data) >= actual_length, TUSB_ERROR_NOT_ENOUGH_MEMORY); // needs to increase size for scsi_data
 
-        uint8_t const edpt_data = BIT_TEST_(p_cbw->dir, 7) ? p_msc->edpt_in : p_msc->edpt_out;
+        uint8_t const edpt_data = BIT_TEST_(p_cbw->dir, 7) ? p_msc->ep_in : p_msc->ep_out;
 
         if ( p_buffer == NULL || actual_length == 0 )
         { // application does not provide data to response --> possibly unsupported SCSI command
@@ -217,10 +218,10 @@ tusb_error_t mscd_xfer_cb(uint8_t port, uint8_t edpt_addr, tusb_event_t event, u
   // Either bulk in & out can be stalled in the data phase, dcd must make sure these queued transfer will be resumed after host clear stall
   if (!is_waiting_read10_write10)
   {
-    TU_ASSERT( tusb_dcd_edpt_xfer(port, p_msc->edpt_in , (uint8_t*) p_csw, sizeof(msc_cmd_status_wrapper_t), false), TUSB_ERROR_DCD_EDPT_XFER );
+    TU_ASSERT( tusb_dcd_edpt_xfer(port, p_msc->ep_in , (uint8_t*) p_csw, sizeof(msc_csw_t), false), TUSB_ERROR_DCD_EDPT_XFER );
 
     //------------- Queue the next CBW -------------//
-    TU_ASSERT( tusb_dcd_edpt_xfer(port, p_msc->edpt_out, (uint8_t*) p_cbw, sizeof(msc_cmd_block_wrapper_t), true), TUSB_ERROR_DCD_EDPT_XFER );
+    TU_ASSERT( tusb_dcd_edpt_xfer(port, p_msc->ep_out, (uint8_t*) p_cbw, sizeof(msc_cbw_t), true), TUSB_ERROR_DCD_EDPT_XFER );
   }
 
   return TUSB_ERROR_NONE;
@@ -229,12 +230,12 @@ tusb_error_t mscd_xfer_cb(uint8_t port, uint8_t edpt_addr, tusb_event_t event, u
 // return true if data phase is complete, false if not yet complete
 static bool read10_write10_data_xfer(uint8_t port, mscd_interface_t* p_msc)
 {
-  msc_cmd_block_wrapper_t *  const p_cbw = &p_msc->cbw;
-  msc_cmd_status_wrapper_t * const p_csw = &p_msc->csw;
+  msc_cbw_t*  const p_cbw = &p_msc->cbw;
+  msc_csw_t* const p_csw = &p_msc->csw;
 
   scsi_read10_t* p_readwrite = (scsi_read10_t*) &p_cbw->command; // read10 & write10 has the same format
 
-  uint8_t const edpt_addr = BIT_TEST_(p_cbw->dir, 7) ? p_msc->edpt_in : p_msc->edpt_out;
+  uint8_t const ep_addr = BIT_TEST_(p_cbw->dir, 7) ? p_msc->ep_in : p_msc->ep_out;
 
   uint32_t const lba         = __be2n(p_readwrite->lba);
   uint16_t const block_count = __be2n_16(p_readwrite->block_count);
@@ -251,12 +252,12 @@ static bool read10_write10_data_xfer(uint8_t port, mscd_interface_t* p_msc)
     p_csw->data_residue = p_cbw->xfer_bytes;
     p_csw->status       = MSC_CSW_STATUS_FAILED;
 
-    tusb_dcd_edpt_stall(port, edpt_addr);
+    tusb_dcd_edpt_stall(port, ep_addr);
 
     return true;
   } else if (xferred_block < block_count)
   {
-    TU_ASSERT( tusb_dcd_edpt_xfer(port, edpt_addr, p_buffer, xferred_byte, true), TUSB_ERROR_DCD_EDPT_XFER );
+    TU_ASSERT( tusb_dcd_edpt_xfer(port, ep_addr, p_buffer, xferred_byte, true), TUSB_ERROR_DCD_EDPT_XFER );
 
     // adjust lba, block_count, xfer_bytes for the next call
     p_readwrite->lba         = __n2be(lba+xferred_block);
@@ -267,7 +268,7 @@ static bool read10_write10_data_xfer(uint8_t port, mscd_interface_t* p_msc)
   }else
   {
     p_csw->status = MSC_CSW_STATUS_PASSED;
-    TU_ASSERT( tusb_dcd_edpt_queue_xfer(port, edpt_addr, p_buffer, xferred_byte), TUSB_ERROR_DCD_EDPT_XFER );
+    TU_ASSERT( tusb_dcd_edpt_queue_xfer(port, ep_addr, p_buffer, xferred_byte), TUSB_ERROR_DCD_EDPT_XFER );
     return true;
   }
 }
