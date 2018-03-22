@@ -161,16 +161,6 @@ tusb_error_t mscd_control_request_st(uint8_t port, tusb_control_request_t const 
 //--------------------------------------------------------------------+
 // MSCD APPLICATION CALLBACK
 //--------------------------------------------------------------------+
-static bool send_status(uint8_t port, mscd_interface_t* p_msc)
-{
-  TU_ASSERT( tusb_dcd_edpt_xfer(port, p_msc->ep_in , (uint8_t*) &p_msc->csw, sizeof(msc_csw_t), false) );
-
-  //------------- Queue the next CBW -------------//
-  TU_ASSERT( tusb_dcd_edpt_xfer(port, p_msc->ep_out, (uint8_t*) &p_msc->cbw, sizeof(msc_cbw_t), true) );
-
-  return true;
-}
-
 tusb_error_t mscd_xfer_cb(uint8_t port, uint8_t ep_addr, tusb_event_t event, uint32_t xferred_bytes)
 {
   mscd_interface_t* const p_msc = &mscd_data;
@@ -183,10 +173,11 @@ tusb_error_t mscd_xfer_cb(uint8_t port, uint8_t ep_addr, tusb_event_t event, uin
   {
     //------------- new CBW received -------------//
     case MSC_STAGE_CMD:
-      TU_ASSERT( (ep_addr == p_msc->ep_out) &&
-                 event == TUSB_EVENT_XFER_COMPLETE                  &&
-                 xferred_bytes == sizeof(msc_cbw_t)   &&
-                 p_cbw->signature == MSC_CBW_SIGNATURE, TUSB_ERROR_INVALID_PARA );
+      // Complete IN while waiting for CMD is usually Status of previous SCSI op, ignore it
+      if(ep_addr != p_msc->ep_out) return TUSB_ERROR_NONE;
+
+      TU_ASSERT( event == TUSB_EVENT_XFER_COMPLETE  &&
+                 xferred_bytes == sizeof(msc_cbw_t) && p_cbw->signature == MSC_CBW_SIGNATURE, TUSB_ERROR_INVALID_PARA );
 
       p_csw->signature    = MSC_CSW_SIGNATURE;
       p_csw->tag          = p_cbw->tag;
@@ -260,7 +251,7 @@ tusb_error_t mscd_xfer_cb(uint8_t port, uint8_t ep_addr, tusb_event_t event, uin
     // Move to default CMD stage after sending status
     p_msc->stage = MSC_STAGE_CMD;
 
-    TU_ASSERT( tusb_dcd_edpt_xfer(port, p_msc->ep_in , (uint8_t*) &p_msc->csw, sizeof(msc_csw_t), false) );
+    TU_ASSERT( tusb_dcd_edpt_xfer(port, p_msc->ep_in , (uint8_t*) &p_msc->csw, sizeof(msc_csw_t), true) );
 
     //------------- Queue the next CBW -------------//
     TU_ASSERT( tusb_dcd_edpt_xfer(port, p_msc->ep_out, (uint8_t*) &p_msc->cbw, sizeof(msc_cbw_t), true) );
