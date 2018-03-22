@@ -365,11 +365,11 @@ bool tusb_dcd_edpt_queue_xfer(uint8_t port, uint8_t ep_addr, uint8_t * buffer, u
   return pipe_add_xfer(port, ep_idx, buffer, total_bytes, false);
 }
 
-bool  tusb_dcd_edpt_xfer(uint8_t port, uint8_t ep_addr, uint8_t * buffer, uint16_t total_bytes, bool int_on_complete)
+bool  tusb_dcd_edpt_xfer(uint8_t port, uint8_t ep_addr, uint8_t * buffer, uint16_t total_bytes)
 {
   uint8_t ep_idx = edpt_addr2phy(ep_addr);
 
-  VERIFY ( pipe_add_xfer(port, ep_idx, buffer, total_bytes, int_on_complete) );
+  VERIFY ( pipe_add_xfer(port, ep_idx, buffer, total_bytes, true) );
 
   dcd_qhd_t* p_qhd = &dcd_data_ptr[port]->qhd[ ep_idx ];
   dcd_qtd_t* p_qtd = &dcd_data_ptr[port]->qtd[ p_qhd->list_qtd_idx[0] ];

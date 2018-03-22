@@ -412,7 +412,7 @@ bool tusb_dcd_edpt_open (uint8_t port, tusb_descriptor_endpoint_t const * desc_e
   return true;
 }
 
-bool tusb_dcd_edpt_xfer (uint8_t port, uint8_t ep_addr, uint8_t * buffer, uint16_t total_bytes, bool int_on_complete)
+bool tusb_dcd_edpt_xfer (uint8_t port, uint8_t ep_addr, uint8_t * buffer, uint16_t total_bytes)
 {
   (void) port;
 

@@ -199,7 +199,7 @@ tusb_error_t cdcd_open(uint8_t port, tusb_descriptor_interface_t const * p_inter
   p_cdc->interface_number   = p_interface_desc->bInterfaceNumber;
 
   // Prepare for incoming data
-  TU_ASSERT( tusb_dcd_edpt_xfer(port, p_cdc->ep_out, _tmp_rx_buf, sizeof(_tmp_rx_buf), true), TUSB_ERROR_DCD_EDPT_XFER);
+  TU_ASSERT( tusb_dcd_edpt_xfer(port, p_cdc->ep_out, _tmp_rx_buf, sizeof(_tmp_rx_buf)), TUSB_ERROR_DCD_EDPT_XFER);
 
 
   return TUSB_ERROR_NONE;
@@ -277,7 +277,7 @@ tusb_error_t cdcd_xfer_cb(uint8_t port, uint8_t ep_addr, tusb_event_t event, uin
     fifo_write_n(&_rx_ff, _tmp_rx_buf, xferred_bytes);
 
     // preparing for next
-    TU_ASSERT(tusb_dcd_edpt_xfer(port, p_cdc->ep_out, _tmp_rx_buf, sizeof(_tmp_rx_buf), true), TUSB_ERROR_DCD_EDPT_XFER);
+    TU_ASSERT(tusb_dcd_edpt_xfer(port, p_cdc->ep_out, _tmp_rx_buf, sizeof(_tmp_rx_buf)), TUSB_ERROR_DCD_EDPT_XFER);
 
     // fire callback
     tud_cdc_rx_cb(port);
@@ -294,9 +294,8 @@ bool tud_n_cdc_flush (uint8_t port)
 
   VERIFY( !tusb_dcd_edpt_busy(port, edpt) );
 
-
   uint16_t count = fifo_read_n(&_tx_ff, _tmp_tx_buf, sizeof(_tmp_tx_buf));
-  TU_ASSERT( tusb_dcd_edpt_xfer(port, edpt, _tmp_tx_buf, count, false) );
+  TU_ASSERT( tusb_dcd_edpt_xfer(port, edpt, _tmp_tx_buf, count) );
 
   return true;
 }

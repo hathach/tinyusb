@@ -126,7 +126,7 @@ tusb_error_t mscd_open(uint8_t port, tusb_descriptor_interface_t const * p_inter
   (*p_length) += sizeof(tusb_descriptor_interface_t) + 2*sizeof(tusb_descriptor_endpoint_t);
 
   //------------- Queue Endpoint OUT for Command Block Wrapper -------------//
-  TU_ASSERT( tusb_dcd_edpt_xfer(port, p_msc->ep_out, (uint8_t*) &p_msc->cbw, sizeof(msc_cbw_t), true), TUSB_ERROR_DCD_EDPT_XFER );
+  TU_ASSERT( tusb_dcd_edpt_xfer(port, p_msc->ep_out, (uint8_t*) &p_msc->cbw, sizeof(msc_cbw_t)), TUSB_ERROR_DCD_EDPT_XFER );
 
   return TUSB_ERROR_NONE;
 }
@@ -251,10 +251,10 @@ tusb_error_t mscd_xfer_cb(uint8_t port, uint8_t ep_addr, tusb_event_t event, uin
     // Move to default CMD stage after sending status
     p_msc->stage = MSC_STAGE_CMD;
 
-    TU_ASSERT( tusb_dcd_edpt_xfer(port, p_msc->ep_in , (uint8_t*) &p_msc->csw, sizeof(msc_csw_t), true) );
+    TU_ASSERT( tusb_dcd_edpt_xfer(port, p_msc->ep_in , (uint8_t*) &p_msc->csw, sizeof(msc_csw_t)) );
 
     //------------- Queue the next CBW -------------//
-    TU_ASSERT( tusb_dcd_edpt_xfer(port, p_msc->ep_out, (uint8_t*) &p_msc->cbw, sizeof(msc_cbw_t), true) );
+    TU_ASSERT( tusb_dcd_edpt_xfer(port, p_msc->ep_out, (uint8_t*) &p_msc->cbw, sizeof(msc_cbw_t)) );
   }
 
   return TUSB_ERROR_NONE;
@@ -300,7 +300,7 @@ static bool read10_write10_data_xfer(uint8_t port, mscd_interface_t* p_msc)
     return true;
   } else if (xfer_block < block_count)
   {
-    TU_ASSERT( tusb_dcd_edpt_xfer(port, ep_addr, p_buffer, xfer_byte, true), TUSB_ERROR_DCD_EDPT_XFER );
+    TU_ASSERT( tusb_dcd_edpt_xfer(port, ep_addr, p_buffer, xfer_byte), TUSB_ERROR_DCD_EDPT_XFER );
 
     // adjust lba, block_count, xfer_bytes for the next call
     p_readwrite->lba         = __n2be(lba+xfer_block);
