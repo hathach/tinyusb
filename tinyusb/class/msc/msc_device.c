@@ -122,7 +122,7 @@ tusb_error_t mscd_open(uint8_t port, tusb_descriptor_interface_t const * p_inter
   return TUSB_ERROR_NONE;
 }
 
-tusb_error_t mscd_control_request_subtask(uint8_t port, tusb_control_request_t const * p_request)
+tusb_error_t mscd_control_request_st(uint8_t port, tusb_control_request_t const * p_request)
 {
   OSAL_SUBTASK_BEGIN
 
@@ -140,7 +140,7 @@ tusb_error_t mscd_control_request_subtask(uint8_t port, tusb_control_request_t c
   {
     // Note: lpc11/13u need xfer data's address to be aligned 64 -> make use of scsi_data instead of using max_lun directly
     p_msc->scsi_data[0] = p_msc->max_lun;
-    STASK_INVOKE( usbd_control_xfer_stask(port, p_request->bmRequestType_bit.direction, p_msc->scsi_data, 1), err);
+    STASK_INVOKE( usbd_control_xfer_st(port, p_request->bmRequestType_bit.direction, p_msc->scsi_data, 1), err);
   }else
   {
     usbd_control_stall(port); // stall unsupported request

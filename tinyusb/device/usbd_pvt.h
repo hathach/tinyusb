@@ -50,7 +50,7 @@ tusb_error_t usbd_init(void);
 void         usbd_task( void* param);
 
 // Carry out Data and Status stage of control transfer
-tusb_error_t usbd_control_xfer_stask(uint8_t port, tusb_dir_t dir, uint8_t * buffer, uint16_t length);
+tusb_error_t usbd_control_xfer_st(uint8_t port, tusb_dir_t dir, uint8_t * buffer, uint16_t length);
 
 // Return Status of control transfer
 // Note dir is value of direction bit in setup packet (aka DATA stage direction)

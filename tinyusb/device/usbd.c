@@ -62,7 +62,7 @@ static usbd_class_driver_t const usbd_class_drivers[] =
     {
         .init                    = hidd_init,
         .open                    = hidd_open,
-        .control_request_subtask = hidd_control_request_subtask,
+        .control_request_st = hidd_control_request_st,
         .xfer_cb                 = hidd_xfer_cb,
 //        .routine                 = NULL,
         .sof                     = NULL,
@@ -75,7 +75,7 @@ static usbd_class_driver_t const usbd_class_drivers[] =
     {
         .init                    = mscd_init,
         .open                    = mscd_open,
-        .control_request_subtask = mscd_control_request_subtask,
+        .control_request_st = mscd_control_request_st,
         .xfer_cb                 = mscd_xfer_cb,
 //        .routine                 = NULL,
         .sof                     = NULL,
@@ -88,7 +88,7 @@ static usbd_class_driver_t const usbd_class_drivers[] =
     {
         .init                    = cdcd_init,
         .open                    = cdcd_open,
-        .control_request_subtask = cdcd_control_request_subtask,
+        .control_request_st = cdcd_control_request_st,
         .xfer_cb                 = cdcd_xfer_cb,
 //        .routine                 = NULL,
         .sof                     = cdcd_sof,
@@ -172,8 +172,8 @@ static osal_queue_t usbd_queue_hdl;
 //--------------------------------------------------------------------+
 // IMPLEMENTATION
 //--------------------------------------------------------------------+
-static tusb_error_t proc_control_request_stask(uint8_t port, tusb_control_request_t const * const p_request);
-static tusb_error_t usbd_main_stask(void);
+static tusb_error_t proc_control_request_st(uint8_t port, tusb_control_request_t const * const p_request);
+static tusb_error_t usbd_main_stk(void);
 
 tusb_error_t usbd_init (void)
 {
@@ -217,11 +217,11 @@ void usbd_task( void* param)
   (void) param;
 
   OSAL_TASK_BEGIN
-  usbd_main_stask();
+  usbd_main_stk();
   OSAL_TASK_END
 }
 
-static tusb_error_t usbd_main_stask(void)
+static tusb_error_t usbd_main_stk(void)
 {
   static usbd_task_event_t event;
 
@@ -255,7 +255,7 @@ static tusb_error_t usbd_main_stask(void)
 
   if ( USBD_EVENTID_SETUP_RECEIVED == event.event_id )
   {
-    STASK_INVOKE( proc_control_request_stask(event.port, &event.setup_received), error );
+    STASK_INVOKE( proc_control_request_st(event.port, &event.setup_received), error );
   }else if (USBD_EVENTID_XFER_DONE == event.event_id)
   {
     // Call class handling function, Class that endpoint not belong to should check and return
@@ -287,7 +287,7 @@ static tusb_error_t usbd_main_stask(void)
 //--------------------------------------------------------------------+
 // CONTROL REQUEST
 //--------------------------------------------------------------------+
-tusb_error_t usbd_control_xfer_stask(uint8_t port, tusb_dir_t dir, uint8_t * buffer, uint16_t length)
+tusb_error_t usbd_control_xfer_st(uint8_t port, tusb_dir_t dir, uint8_t * buffer, uint16_t length)
 {
   OSAL_SUBTASK_BEGIN
 
@@ -310,7 +310,7 @@ tusb_error_t usbd_control_xfer_stask(uint8_t port, tusb_dir_t dir, uint8_t * buf
   OSAL_SUBTASK_END
 }
 
-static tusb_error_t proc_control_request_stask(uint8_t port, tusb_control_request_t const * const p_request)
+static tusb_error_t proc_control_request_st(uint8_t port, tusb_control_request_t const * const p_request)
 {
   OSAL_SUBTASK_BEGIN
 
@@ -328,7 +328,7 @@ static tusb_error_t proc_control_request_stask(uint8_t port, tusb_control_reques
 
       if ( len )
       {
-        STASK_INVOKE( usbd_control_xfer_stask(port, p_request->bmRequestType_bit.direction, (uint8_t*) buffer, len ), error );
+        STASK_INVOKE( usbd_control_xfer_st(port, p_request->bmRequestType_bit.direction, (uint8_t*) buffer, len ), error );
       }else
       {
         usbd_control_stall(port); // stall unsupported descriptor
@@ -363,9 +363,9 @@ static tusb_error_t proc_control_request_stask(uint8_t port, tusb_control_reques
 
     // TODO [Custom] TUSB_CLASS_DIAGNOSTIC, vendor etc ...
     if ( (class_code > 0) && (class_code < USBD_CLASS_DRIVER_COUNT) &&
-         usbd_class_drivers[class_code].control_request_subtask )
+         usbd_class_drivers[class_code].control_request_st )
     {
-      STASK_INVOKE( usbd_class_drivers[class_code].control_request_subtask(port, p_request), error );
+      STASK_INVOKE( usbd_class_drivers[class_code].control_request_st(port, p_request), error );
     }else
     {
       usbd_control_stall(port); // Stall unsupported request

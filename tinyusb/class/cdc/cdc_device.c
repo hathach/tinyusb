@@ -214,7 +214,7 @@ void cdcd_close(uint8_t port)
   fifo_clear(&_tx_ff);
 }
 
-tusb_error_t cdcd_control_request_subtask(uint8_t port, tusb_control_request_t const * p_request)
+tusb_error_t cdcd_control_request_st(uint8_t port, tusb_control_request_t const * p_request)
 {
   OSAL_SUBTASK_BEGIN
 
@@ -225,12 +225,12 @@ tusb_error_t cdcd_control_request_subtask(uint8_t port, tusb_control_request_t c
 
   if (CDC_REQUEST_GET_LINE_CODING == p_request->bRequest)
   {
-    STASK_INVOKE( usbd_control_xfer_stask(port, (tusb_dir_t) p_request->bmRequestType_bit.direction,
+    STASK_INVOKE( usbd_control_xfer_st(port, (tusb_dir_t) p_request->bmRequestType_bit.direction,
                                             (uint8_t*) &cdcd_line_coding[port], min16_of(sizeof(cdc_line_coding_t), p_request->wLength)), err );
   }
   else if (CDC_REQUEST_SET_LINE_CODING == p_request->bRequest)
   {
-    STASK_INVOKE( usbd_control_xfer_stask(port, (tusb_dir_t) p_request->bmRequestType_bit.direction,
+    STASK_INVOKE( usbd_control_xfer_st(port, (tusb_dir_t) p_request->bmRequestType_bit.direction,
                                             (uint8_t*) &cdcd_line_coding[port], min16_of(sizeof(cdc_line_coding_t), p_request->wLength)), err );
     // TODO notify application on xfer complete
   }

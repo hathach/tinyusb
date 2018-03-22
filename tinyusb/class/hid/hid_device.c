@@ -176,7 +176,7 @@ void hidd_close(uint8_t port)
   }
 }
 
-tusb_error_t hidd_control_request_subtask(uint8_t port, tusb_control_request_t const * p_request)
+tusb_error_t hidd_control_request_st(uint8_t port, tusb_control_request_t const * p_request)
 {
   uint8_t subclass_idx;
   for(subclass_idx=0; subclass_idx<HIDD_NUMBER_OF_SUBCLASS; subclass_idx++)
@@ -209,7 +209,7 @@ tusb_error_t hidd_control_request_subtask(uint8_t port, tusb_control_request_t c
       // copy to allow report descriptor not to be in USBRAM
       memcpy(m_hid_buffer, p_hid->p_report_desc, p_hid->report_length);
 
-      STASK_INVOKE( usbd_control_xfer_stask(port, p_request->bmRequestType_bit.direction, m_hid_buffer, p_hid->report_length), err );
+      STASK_INVOKE( usbd_control_xfer_st(port, p_request->bmRequestType_bit.direction, m_hid_buffer, p_hid->report_length), err );
     }else
     {
       usbd_control_stall(port);
@@ -227,13 +227,13 @@ tusb_error_t hidd_control_request_subtask(uint8_t port, tusb_control_request_t c
                                                        &p_buffer, p_request->wLength);
       STASK_ASSERT( p_buffer != NULL && actual_length > 0 );
 
-      STASK_INVOKE( usbd_control_xfer_stask(port, p_request->bmRequestType_bit.direction, p_buffer, actual_length), err );
+      STASK_INVOKE( usbd_control_xfer_st(port, p_request->bmRequestType_bit.direction, p_buffer, actual_length), err );
     }
     else if ( (HID_REQUEST_CONTROL_SET_REPORT == p_request->bRequest) && (p_driver->set_report_cb != NULL) )
     {
       //        return TUSB_ERROR_DCD_CONTROL_REQUEST_NOT_SUPPORT; // TODO test STALL control out endpoint (with mouse+keyboard)
       // wValue = Report Type | Report ID
-      STASK_INVOKE( usbd_control_xfer_stask(port, p_request->bmRequestType_bit.direction, m_hid_buffer, p_request->wLength), err );
+      STASK_INVOKE( usbd_control_xfer_st(port, p_request->bmRequestType_bit.direction, m_hid_buffer, p_request->wLength), err );
       STASK_ASSERT_STATUS(err);
 
       p_driver->set_report_cb(port, u16_high_u8(p_request->wValue), m_hid_buffer, p_request->wLength);
