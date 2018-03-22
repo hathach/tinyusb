@@ -310,14 +310,14 @@ tusb_error_t msch_open_subtask(uint8_t dev_addr, tusb_descriptor_interface_t con
 
   for(uint32_t i=0; i<2; i++)
   {
-    SUBTASK_ASSERT(TUSB_DESC_ENDPOINT == p_endpoint->bDescriptorType);
-    SUBTASK_ASSERT(TUSB_XFER_BULK == p_endpoint->bmAttributes.xfer);
+    STASK_ASSERT(TUSB_DESC_ENDPOINT == p_endpoint->bDescriptorType);
+    STASK_ASSERT(TUSB_XFER_BULK == p_endpoint->bmAttributes.xfer);
 
     pipe_handle_t * p_pipe_hdl =  ( p_endpoint->bEndpointAddress &  TUSB_DIR_IN_MASK ) ?
         &msch_data[dev_addr-1].bulk_in : &msch_data[dev_addr-1].bulk_out;
 
     (*p_pipe_hdl) = hcd_pipe_open(dev_addr, p_endpoint, TUSB_CLASS_MSC);
-    SUBTASK_ASSERT( pipehandle_is_valid(*p_pipe_hdl) );
+    STASK_ASSERT( pipehandle_is_valid(*p_pipe_hdl) );
 
     p_endpoint = (tusb_descriptor_endpoint_t const *) descriptor_next( (uint8_t const*)  p_endpoint );
   }
@@ -327,19 +327,19 @@ tusb_error_t msch_open_subtask(uint8_t dev_addr, tusb_descriptor_interface_t con
 
 
   //------------- Get Max Lun -------------//
-  SUBTASK_INVOKE(
+  STASK_INVOKE(
     usbh_control_xfer_subtask( dev_addr, bm_request_type(TUSB_DIR_IN, TUSB_REQ_TYPE_CLASS, TUSB_REQ_RCPT_INTERFACE),
                                MSC_REQUEST_GET_MAX_LUN, 0, msch_data[dev_addr-1].interface_number,
                                1, msch_buffer ),
     error
   );
 
-  SUBTASK_ASSERT( TUSB_ERROR_NONE == error /* && TODO STALL means zero */);
+  STASK_ASSERT( TUSB_ERROR_NONE == error /* && TODO STALL means zero */);
   msch_data[dev_addr-1].max_lun = msch_buffer[0];
 
 #if 0
   //------------- Reset -------------//
-  SUBTASK_INVOKE(
+  STASK_INVOKE(
     usbh_control_xfer_subtask( dev_addr, bm_request_type(TUSB_DIR_OUT, TUSB_REQ_TYPE_CLASS, TUSB_REQ_RCPT_INTERFACE),
                                MSC_REQUEST_RESET, 0, msch_data[dev_addr-1].interface_number,
                                0, NULL ),
@@ -351,7 +351,7 @@ tusb_error_t msch_open_subtask(uint8_t dev_addr, tusb_descriptor_interface_t con
   //------------- SCSI Inquiry -------------//
   tusbh_msc_inquiry(dev_addr, 0, msch_buffer);
   osal_semaphore_wait(msch_sem_hdl, SCSI_XFER_TIMEOUT, &error);
-  SUBTASK_ASSERT_STATUS(error);
+  STASK_ASSERT_STATUS(error);
 
   memcpy(msch_data[dev_addr-1].vendor_id , ((scsi_inquiry_data_t*) msch_buffer)->vendor_id , 8);
   memcpy(msch_data[dev_addr-1].product_id, ((scsi_inquiry_data_t*) msch_buffer)->product_id, 16);
@@ -359,33 +359,33 @@ tusb_error_t msch_open_subtask(uint8_t dev_addr, tusb_descriptor_interface_t con
   //------------- SCSI Read Capacity 10 -------------//
   tusbh_msc_read_capacity10(dev_addr, 0, msch_buffer);
   osal_semaphore_wait(msch_sem_hdl, SCSI_XFER_TIMEOUT, &error);
-  SUBTASK_ASSERT_STATUS(error);
+  STASK_ASSERT_STATUS(error);
 
   // NOTE: my toshiba thumb-drive stall the first Read Capacity and require the sequence
   // Read Capacity --> Stalled --> Clear Stall --> Request Sense --> Read Capacity (2) to work
   if ( hcd_pipe_is_stalled(msch_data[dev_addr-1].bulk_in) )
   { // clear stall TODO abstract clear stall function
-    SUBTASK_INVOKE(
+    STASK_INVOKE(
       usbh_control_xfer_subtask( dev_addr, bm_request_type(TUSB_DIR_OUT, TUSB_REQ_TYPE_STANDARD, TUSB_REQ_RCPT_ENDPOINT),
                                  TUSB_REQ_CLEAR_FEATURE, 0, hcd_pipe_get_endpoint_addr(msch_data[dev_addr-1].bulk_in),
                                  0, NULL ),
       error
     );
-    SUBTASK_ASSERT_STATUS(error);
+    STASK_ASSERT_STATUS(error);
 
     hcd_pipe_clear_stall(msch_data[dev_addr-1].bulk_in);
     osal_semaphore_wait(msch_sem_hdl, SCSI_XFER_TIMEOUT, &error); // wait for SCSI status
-    SUBTASK_ASSERT_STATUS(error);
+    STASK_ASSERT_STATUS(error);
 
     //------------- SCSI Request Sense -------------//
     (void) tuh_msc_request_sense(dev_addr, 0, msch_buffer);
     osal_semaphore_wait(msch_sem_hdl, SCSI_XFER_TIMEOUT, &error);
-    SUBTASK_ASSERT_STATUS(error);
+    STASK_ASSERT_STATUS(error);
 
     //------------- Re-read SCSI Read Capactity -------------//
     tusbh_msc_read_capacity10(dev_addr, 0, msch_buffer);
     osal_semaphore_wait(msch_sem_hdl, SCSI_XFER_TIMEOUT, &error);
-    SUBTASK_ASSERT_STATUS(error);
+    STASK_ASSERT_STATUS(error);
   }
 
   msch_data[dev_addr-1].last_lba   = __be2n( ((scsi_read_capacity10_data_t*)msch_buffer)->last_lba );

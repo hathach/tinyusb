@@ -186,7 +186,7 @@ tusb_error_t usbh_control_xfer_subtask(uint8_t dev_addr, uint8_t bmRequestType, 
   OSAL_SUBTASK_BEGIN
 
   osal_mutex_wait(usbh_devices[dev_addr].control.mutex_hdl, OSAL_TIMEOUT_NORMAL, &error);
-  SUBTASK_ASSERT_STATUS_HDLR(error, osal_mutex_release(usbh_devices[dev_addr].control.mutex_hdl));
+  STASK_ASSERT_STATUS_HDLR(error, osal_mutex_release(usbh_devices[dev_addr].control.mutex_hdl));
 
   usbh_devices[dev_addr].control.request = (tusb_control_request_t) {
                                                   {.bmRequestType = bmRequestType},
@@ -206,11 +206,11 @@ tusb_error_t usbh_control_xfer_subtask(uint8_t dev_addr, uint8_t bmRequestType, 
   if ( TUSB_ERROR_NONE == error ) osal_semaphore_wait(usbh_devices[dev_addr].control.sem_hdl, OSAL_TIMEOUT_NORMAL, &error);
   osal_mutex_release(usbh_devices[dev_addr].control.mutex_hdl);
 
-  SUBTASK_ASSERT_STATUS(error);
-  if (TUSB_EVENT_XFER_STALLED == usbh_devices[dev_addr].control.pipe_status) SUBTASK_RETURN(TUSB_ERROR_USBH_XFER_STALLED);
-  if (TUSB_EVENT_XFER_ERROR   == usbh_devices[dev_addr].control.pipe_status) SUBTASK_RETURN(TUSB_ERROR_USBH_XFER_FAILED);
+  STASK_ASSERT_STATUS(error);
+  if (TUSB_EVENT_XFER_STALLED == usbh_devices[dev_addr].control.pipe_status) STASK_RETURN(TUSB_ERROR_USBH_XFER_STALLED);
+  if (TUSB_EVENT_XFER_ERROR   == usbh_devices[dev_addr].control.pipe_status) STASK_RETURN(TUSB_ERROR_USBH_XFER_FAILED);
 
-//  SUBTASK_ASSERT_HDLR(TUSB_ERROR_NONE == error &&
+//  STASK_ASSERT_HDLR(TUSB_ERROR_NONE == error &&
 //                              TUSB_EVENT_XFER_COMPLETE == usbh_devices[dev_addr].control.pipe_status,
 //                              tuh_device_mount_failed_cb(TUSB_ERROR_USBH_MOUNT_DEVICE_NOT_RESPOND, NULL) );
 
@@ -374,7 +374,7 @@ tusb_error_t enumeration_body_subtask(void)
   OSAL_SUBTASK_BEGIN
 
   osal_queue_receive(enum_queue_hdl, &enum_entry, OSAL_TIMEOUT_WAIT_FOREVER, &error);
-  SUBTASK_ASSERT_STATUS(error);
+  STASK_ASSERT_STATUS(error);
 
   usbh_devices[0].core_id  = enum_entry.core_id; // TODO refractor integrate to device_pool
   usbh_devices[0].hub_addr = enum_entry.hub_addr;
@@ -388,7 +388,7 @@ tusb_error_t enumeration_body_subtask(void)
     { // connection event
       osal_task_delay(POWER_STABLE_DELAY); // wait until device is stable. Increase this if the first 8 bytes is failed to get
 
-      if ( !hcd_port_connect_status(usbh_devices[0].core_id) ) SUBTASK_RETURN(TUSB_ERROR_NONE); // exit if device unplugged while delaying
+      if ( !hcd_port_connect_status(usbh_devices[0].core_id) ) STASK_RETURN(TUSB_ERROR_NONE); // exit if device unplugged while delaying
 
       hcd_port_reset( usbh_devices[0].core_id ); // port must be reset to have correct speed operation
       osal_task_delay(RESET_DELAY);
@@ -398,7 +398,7 @@ tusb_error_t enumeration_body_subtask(void)
     else
     { // disconnection event
       usbh_device_unplugged(usbh_devices[0].core_id, 0, 0);
-      SUBTASK_RETURN(TUSB_ERROR_NONE); // restart task
+      STASK_RETURN(TUSB_ERROR_NONE); // restart task
     }
   }
   #if TUSB_CFG_HOST_HUB
@@ -406,49 +406,49 @@ tusb_error_t enumeration_body_subtask(void)
   else
   {
     //------------- Get Port Status -------------//
-    SUBTASK_INVOKE(
+    STASK_INVOKE(
         usbh_control_xfer_subtask( usbh_devices[0].hub_addr, bm_request_type(TUSB_DIR_IN, TUSB_REQ_TYPE_CLASS, TUSB_REQ_RCPT_OTHER),
                                    HUB_REQUEST_GET_STATUS, 0, usbh_devices[0].hub_port,
                                    4, enum_data_buffer ),
         error
     );
-//    SUBTASK_ASSERT_STATUS( error );
-    SUBTASK_ASSERT_STATUS_HDLR(error, hub_status_pipe_queue( usbh_devices[0].hub_addr) ); // TODO hub refractor
+//    STASK_ASSERT_STATUS( error );
+    STASK_ASSERT_STATUS_HDLR(error, hub_status_pipe_queue( usbh_devices[0].hub_addr) ); // TODO hub refractor
 
     // Acknowledge Port Connection Change
-    SUBTASK_INVOKE( hub_port_clear_feature_subtask(usbh_devices[0].hub_addr, usbh_devices[0].hub_port, HUB_FEATURE_PORT_CONNECTION_CHANGE), error );
+    STASK_INVOKE( hub_port_clear_feature_subtask(usbh_devices[0].hub_addr, usbh_devices[0].hub_port, HUB_FEATURE_PORT_CONNECTION_CHANGE), error );
 
     hub_port_status_response_t * p_port_status;
     p_port_status = ((hub_port_status_response_t *) enum_data_buffer);
 
-    if ( ! p_port_status->status_change.connect_status )   SUBTASK_RETURN(TUSB_ERROR_NONE); // only handle connection change
+    if ( ! p_port_status->status_change.connect_status )   STASK_RETURN(TUSB_ERROR_NONE); // only handle connection change
 
     if ( ! p_port_status->status_current.connect_status )
     { // Disconnection event
       usbh_device_unplugged(usbh_devices[0].core_id, usbh_devices[0].hub_addr, usbh_devices[0].hub_port);
 
       (void) hub_status_pipe_queue( usbh_devices[0].hub_addr ); // done with hub, waiting for next data on status pipe
-      SUBTASK_RETURN(TUSB_ERROR_NONE); // restart task
+      STASK_RETURN(TUSB_ERROR_NONE); // restart task
     }
     else
     { // Connection Event
-      SUBTASK_INVOKE ( hub_port_reset_subtask(usbh_devices[0].hub_addr, usbh_devices[0].hub_port), error );
-//      SUBTASK_ASSERT_STATUS( error );
-      SUBTASK_ASSERT_STATUS_HDLR(error, hub_status_pipe_queue( usbh_devices[0].hub_addr) ); // TODO hub refractor
+      STASK_INVOKE ( hub_port_reset_subtask(usbh_devices[0].hub_addr, usbh_devices[0].hub_port), error );
+//      STASK_ASSERT_STATUS( error );
+      STASK_ASSERT_STATUS_HDLR(error, hub_status_pipe_queue( usbh_devices[0].hub_addr) ); // TODO hub refractor
 
       usbh_devices[0].speed = hub_port_get_speed();
 
       // Acknowledge Port Reset Change
-      SUBTASK_INVOKE( hub_port_clear_feature_subtask(usbh_devices[0].hub_addr, usbh_devices[0].hub_port, HUB_FEATURE_PORT_RESET_CHANGE), error );
+      STASK_INVOKE( hub_port_clear_feature_subtask(usbh_devices[0].hub_addr, usbh_devices[0].hub_port, HUB_FEATURE_PORT_RESET_CHANGE), error );
     }
   }
   #endif
 
-  SUBTASK_ASSERT_STATUS( usbh_pipe_control_open(0, 8) );
+  STASK_ASSERT_STATUS( usbh_pipe_control_open(0, 8) );
   usbh_devices[0].state = TUSB_DEVICE_STATE_ADDRESSED;
 
   //------------- Get first 8 bytes of device descriptor to get Control Endpoint Size -------------//
-  SUBTASK_INVOKE(
+  STASK_INVOKE(
       usbh_control_xfer_subtask( 0, bm_request_type(TUSB_DIR_IN, TUSB_REQ_TYPE_STANDARD, TUSB_REQ_RCPT_DEVICE),
                                  TUSB_REQ_GET_DESCRIPTOR, (TUSB_DESC_DEVICE << 8), 0,
                                  8, enum_data_buffer ),
@@ -458,19 +458,19 @@ tusb_error_t enumeration_body_subtask(void)
   //------------- Reset device again before Set Address -------------//
   if (usbh_devices[0].hub_addr == 0)
   { // connected directly to roothub
-    SUBTASK_ASSERT_STATUS(error); // TODO some slow device is observed to fail the very fist controller xfer, can try more times
+    STASK_ASSERT_STATUS(error); // TODO some slow device is observed to fail the very fist controller xfer, can try more times
     hcd_port_reset( usbh_devices[0].core_id ); // reset port after 8 byte descriptor
     osal_task_delay(RESET_DELAY);
   }
   #if TUSB_CFG_HOST_HUB
   else
   { // connected via a hub
-    SUBTASK_ASSERT_STATUS_HDLR(error, hub_status_pipe_queue( usbh_devices[0].hub_addr) ); // TODO hub refractor
-    SUBTASK_INVOKE ( hub_port_reset_subtask(usbh_devices[0].hub_addr, usbh_devices[0].hub_port), error );
+    STASK_ASSERT_STATUS_HDLR(error, hub_status_pipe_queue( usbh_devices[0].hub_addr) ); // TODO hub refractor
+    STASK_INVOKE ( hub_port_reset_subtask(usbh_devices[0].hub_addr, usbh_devices[0].hub_port), error );
 
     if ( TUSB_ERROR_NONE == error )
     { // Acknowledge Port Reset Change if Reset Successful
-      SUBTASK_INVOKE( hub_port_clear_feature_subtask(usbh_devices[0].hub_addr, usbh_devices[0].hub_port, HUB_FEATURE_PORT_RESET_CHANGE), error );
+      STASK_INVOKE( hub_port_clear_feature_subtask(usbh_devices[0].hub_addr, usbh_devices[0].hub_port, HUB_FEATURE_PORT_RESET_CHANGE), error );
     }
 
     (void) hub_status_pipe_queue( usbh_devices[0].hub_addr ); // done with hub, waiting for next data on status pipe
@@ -479,15 +479,15 @@ tusb_error_t enumeration_body_subtask(void)
 
   //------------- Set new address -------------//
   new_addr = get_new_address();
-  SUBTASK_ASSERT(new_addr <= TUSB_CFG_HOST_DEVICE_MAX); // TODO notify application we reach max devices
+  STASK_ASSERT(new_addr <= TUSB_CFG_HOST_DEVICE_MAX); // TODO notify application we reach max devices
 
-  SUBTASK_INVOKE(
+  STASK_INVOKE(
     usbh_control_xfer_subtask( 0, bm_request_type(TUSB_DIR_OUT, TUSB_REQ_TYPE_STANDARD, TUSB_REQ_RCPT_DEVICE),
                                TUSB_REQ_SET_ADDRESS, new_addr, 0,
                                0, NULL ),
     error
   );
-  SUBTASK_ASSERT_STATUS(error);
+  STASK_ASSERT_STATUS(error);
 
   //------------- update port info & close control pipe of addr0 -------------//
   usbh_devices[new_addr].core_id  = usbh_devices[0].core_id;
@@ -500,16 +500,16 @@ tusb_error_t enumeration_body_subtask(void)
   usbh_devices[0].state = TUSB_DEVICE_STATE_UNPLUG;
 
   // open control pipe for new address
-  SUBTASK_ASSERT_STATUS ( usbh_pipe_control_open(new_addr, ((tusb_descriptor_device_t*) enum_data_buffer)->bMaxPacketSize0 ) );
+  STASK_ASSERT_STATUS ( usbh_pipe_control_open(new_addr, ((tusb_descriptor_device_t*) enum_data_buffer)->bMaxPacketSize0 ) );
 
   //------------- Get full device descriptor -------------//
-  SUBTASK_INVOKE(
+  STASK_INVOKE(
       usbh_control_xfer_subtask( new_addr, bm_request_type(TUSB_DIR_IN, TUSB_REQ_TYPE_STANDARD, TUSB_REQ_RCPT_DEVICE),
                                  TUSB_REQ_GET_DESCRIPTOR, (TUSB_DESC_DEVICE << 8), 0,
                                  18, enum_data_buffer ),
       error
   );
-  SUBTASK_ASSERT_STATUS(error);
+  STASK_ASSERT_STATUS(error);
 
   // update device info  TODO alignment issue
   usbh_devices[new_addr].vendor_id       = ((tusb_descriptor_device_t*) enum_data_buffer)->idVendor;
@@ -517,39 +517,39 @@ tusb_error_t enumeration_body_subtask(void)
   usbh_devices[new_addr].configure_count = ((tusb_descriptor_device_t*) enum_data_buffer)->bNumConfigurations;
 
   configure_selected = get_configure_number_for_device((tusb_descriptor_device_t*) enum_data_buffer);
-  SUBTASK_ASSERT(configure_selected <= usbh_devices[new_addr].configure_count); // TODO notify application when invalid configuration
+  STASK_ASSERT(configure_selected <= usbh_devices[new_addr].configure_count); // TODO notify application when invalid configuration
 
   //------------- Get 9 bytes of configuration descriptor -------------//
-  SUBTASK_INVOKE(
+  STASK_INVOKE(
       usbh_control_xfer_subtask( new_addr, bm_request_type(TUSB_DIR_IN, TUSB_REQ_TYPE_STANDARD, TUSB_REQ_RCPT_DEVICE),
                                  TUSB_REQ_GET_DESCRIPTOR, (TUSB_DESC_CONFIGURATION << 8) | (configure_selected - 1), 0,
                                  9, enum_data_buffer ),
       error
   );
-  SUBTASK_ASSERT_STATUS(error);
-  SUBTASK_ASSERT_HDLR( TUSB_CFG_HOST_ENUM_BUFFER_SIZE >= ((tusb_descriptor_configuration_t*)enum_data_buffer)->wTotalLength,
+  STASK_ASSERT_STATUS(error);
+  STASK_ASSERT_HDLR( TUSB_CFG_HOST_ENUM_BUFFER_SIZE >= ((tusb_descriptor_configuration_t*)enum_data_buffer)->wTotalLength,
                             tuh_device_mount_failed_cb(TUSB_ERROR_USBH_MOUNT_CONFIG_DESC_TOO_LONG, NULL) );
 
   //------------- Get full configuration descriptor -------------//
-  SUBTASK_INVOKE(
+  STASK_INVOKE(
       usbh_control_xfer_subtask( new_addr, bm_request_type(TUSB_DIR_IN, TUSB_REQ_TYPE_STANDARD, TUSB_REQ_RCPT_DEVICE),
                                  TUSB_REQ_GET_DESCRIPTOR, (TUSB_DESC_CONFIGURATION << 8) | (configure_selected - 1), 0,
                                  TUSB_CFG_HOST_ENUM_BUFFER_SIZE, enum_data_buffer ),
       error
   );
-  SUBTASK_ASSERT_STATUS(error);
+  STASK_ASSERT_STATUS(error);
 
   // update configuration info
   usbh_devices[new_addr].interface_count = ((tusb_descriptor_configuration_t*) enum_data_buffer)->bNumInterfaces;
 
   //------------- Set Configure -------------//
-  SUBTASK_INVOKE(
+  STASK_INVOKE(
     usbh_control_xfer_subtask( new_addr, bm_request_type(TUSB_DIR_OUT, TUSB_REQ_TYPE_STANDARD, TUSB_REQ_RCPT_DEVICE),
                                TUSB_REQ_SET_CONFIGURATION, configure_selected, 0,
                                0, NULL ),
     error
   );
-  SUBTASK_ASSERT_STATUS(error);
+  STASK_ASSERT_STATUS(error);
 
   usbh_devices[new_addr].state = TUSB_DEVICE_STATE_CONFIGURED;
 
@@ -570,7 +570,7 @@ tusb_error_t enumeration_body_subtask(void)
       static uint8_t class_index; // has to be static as it is used to call class's open_subtask
 
       class_index = std_class_code_to_index( ((tusb_descriptor_interface_t*) p_desc)->bInterfaceClass );
-      SUBTASK_ASSERT( class_index != 0 ); // class_index == 0 means corrupted data, abort enumeration
+      STASK_ASSERT( class_index != 0 ); // class_index == 0 means corrupted data, abort enumeration
 
       if (usbh_class_drivers[class_index].open_subtask &&
           !(class_index == TUSB_CLASS_HUB && usbh_devices[new_addr].hub_addr != 0))
@@ -578,14 +578,14 @@ tusb_error_t enumeration_body_subtask(void)
         static uint16_t length;
         length = 0;
 
-        SUBTASK_INVOKE ( // parameters in task/sub_task must be static storage (static or global)
+        STASK_INVOKE ( // parameters in task/sub_task must be static storage (static or global)
             usbh_class_drivers[class_index].open_subtask( new_addr, (tusb_descriptor_interface_t*) p_desc, &length ),
             error
         );
 
         if (error == TUSB_ERROR_NONE)
         {
-          SUBTASK_ASSERT( length >= sizeof(tusb_descriptor_interface_t) );
+          STASK_ASSERT( length >= sizeof(tusb_descriptor_interface_t) );
           usbh_devices[new_addr].flag_supported_class |= BIT_(class_index);
           p_desc += length;
         }else  // Interface open failed, for example a subclass is not supported

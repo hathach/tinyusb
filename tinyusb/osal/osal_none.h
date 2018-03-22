@@ -113,7 +113,7 @@ static inline osal_task_t osal_task_create(osal_func_t code, const char* name, u
   }}                                                                            \
   return TUSB_ERROR_NONE;
 
-#define SUBTASK_INVOKE(_subtask, _status)                                       \
+#define STASK_INVOKE(_subtask, _status)                                         \
   do {                                                                          \
     _state = __LINE__; case __LINE__:                                           \
     {                                                                           \
@@ -123,13 +123,13 @@ static inline osal_task_t osal_task_create(osal_func_t code, const char* name, u
   }while(0)
 
 //------------- Sub Task Assert -------------//
-#define SUBTASK_RETURN(error)     do { TASK_RESTART; return error; } while(0)
+#define STASK_RETURN(error)     do { TASK_RESTART; return error; } while(0)
 
-#define SUBTASK_ASSERT_STATUS(sts)                  VERIFY_STATUS_HDLR(sts, TASK_RESTART)
-#define SUBTASK_ASSERT_STATUS_HDLR(sts, func_call)  VERIFY_STATUS_HDLR(sts, func_call; TASK_RESTART )
+#define STASK_ASSERT_STATUS(sts)                  VERIFY_STATUS_HDLR(sts, TASK_RESTART)
+#define STASK_ASSERT_STATUS_HDLR(sts, func_call)  VERIFY_STATUS_HDLR(sts, func_call; TASK_RESTART )
 
-#define SUBTASK_ASSERT(condition)                   VERIFY_HDLR(condition, TASK_RESTART)
-#define SUBTASK_ASSERT_HDLR(condition, func_call)   VERIFY_HDLR(condition, func_call; TASK_RESTART)
+#define STASK_ASSERT(condition)                   VERIFY_HDLR(condition, TASK_RESTART)
+#define STASK_ASSERT_HDLR(condition, func_call)   VERIFY_HDLR(condition, func_call; TASK_RESTART)
 
 //--------------------------------------------------------------------+
 // QUEUE API

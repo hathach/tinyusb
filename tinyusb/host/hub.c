@@ -73,32 +73,32 @@ tusb_error_t hub_port_clear_feature_subtask(uint8_t hub_addr, uint8_t hub_port, 
 
   OSAL_SUBTASK_BEGIN
 
-  SUBTASK_ASSERT(HUB_FEATURE_PORT_CONNECTION_CHANGE <= feature &&
+  STASK_ASSERT(HUB_FEATURE_PORT_CONNECTION_CHANGE <= feature &&
                  feature <= HUB_FEATURE_PORT_RESET_CHANGE);
 
   //------------- Clear Port Feature request -------------//
-  SUBTASK_INVOKE(
+  STASK_INVOKE(
       usbh_control_xfer_subtask( hub_addr, bm_request_type(TUSB_DIR_OUT, TUSB_REQ_TYPE_CLASS, TUSB_REQ_RCPT_OTHER),
                                  HUB_REQUEST_CLEAR_FEATURE, feature, hub_port,
                                  0, NULL ),
       error
   );
-  SUBTASK_ASSERT_STATUS( error );
+  STASK_ASSERT_STATUS( error );
 
   //------------- Get Port Status to check if feature is cleared -------------//
-  SUBTASK_INVOKE(
+  STASK_INVOKE(
       usbh_control_xfer_subtask( hub_addr, bm_request_type(TUSB_DIR_IN, TUSB_REQ_TYPE_CLASS, TUSB_REQ_RCPT_OTHER),
                                  HUB_REQUEST_GET_STATUS, 0, hub_port,
                                  4, hub_enum_buffer ),
       error
   );
-  SUBTASK_ASSERT_STATUS( error );
+  STASK_ASSERT_STATUS( error );
 
   //------------- Check if feature is cleared -------------//
   hub_port_status_response_t * p_port_status;
   p_port_status = (hub_port_status_response_t *) hub_enum_buffer;
 
-  SUBTASK_ASSERT( !BIT_TEST_(p_port_status->status_change.value, feature-16)  );
+  STASK_ASSERT( !BIT_TEST_(p_port_status->status_change.value, feature-16)  );
 
   OSAL_SUBTASK_END
 }
@@ -111,29 +111,29 @@ tusb_error_t hub_port_reset_subtask(uint8_t hub_addr, uint8_t hub_port)
   OSAL_SUBTASK_BEGIN
 
   //------------- Set Port Reset -------------//
-  SUBTASK_INVOKE(
+  STASK_INVOKE(
       usbh_control_xfer_subtask( hub_addr, bm_request_type(TUSB_DIR_OUT, TUSB_REQ_TYPE_CLASS, TUSB_REQ_RCPT_OTHER),
                                  HUB_REQUEST_SET_FEATURE, HUB_FEATURE_PORT_RESET, hub_port,
                                  0, NULL ),
       error
   );
-  SUBTASK_ASSERT_STATUS( error );
+  STASK_ASSERT_STATUS( error );
 
   osal_task_delay(RESET_DELAY); // TODO Hub wait for Status Endpoint on Reset Change
 
   //------------- Get Port Status to check if port is enabled, powered and reset_change -------------//
-  SUBTASK_INVOKE(
+  STASK_INVOKE(
       usbh_control_xfer_subtask( hub_addr, bm_request_type(TUSB_DIR_IN, TUSB_REQ_TYPE_CLASS, TUSB_REQ_RCPT_OTHER),
                                  HUB_REQUEST_GET_STATUS, 0, hub_port,
                                  4, hub_enum_buffer ),
       error
   );
-  SUBTASK_ASSERT_STATUS( error );
+  STASK_ASSERT_STATUS( error );
 
   hub_port_status_response_t * p_port_status;
   p_port_status = (hub_port_status_response_t *) hub_enum_buffer;
 
-  SUBTASK_ASSERT ( p_port_status->status_change.reset && p_port_status->status_current.connect_status &&
+  STASK_ASSERT ( p_port_status->status_change.reset && p_port_status->status_current.connect_status &&
                    p_port_status->status_current.port_power && p_port_status->status_current.port_enable);
 
   OSAL_SUBTASK_END
@@ -169,23 +169,23 @@ tusb_error_t hub_open_subtask(uint8_t dev_addr, tusb_descriptor_interface_t cons
   tusb_descriptor_endpoint_t const *p_endpoint;
   p_endpoint = (tusb_descriptor_endpoint_t const *) descriptor_next( (uint8_t const*) p_interface_desc );
   
-  SUBTASK_ASSERT(TUSB_DESC_ENDPOINT == p_endpoint->bDescriptorType);
-  SUBTASK_ASSERT(TUSB_XFER_INTERRUPT == p_endpoint->bmAttributes.xfer);
+  STASK_ASSERT(TUSB_DESC_ENDPOINT == p_endpoint->bDescriptorType);
+  STASK_ASSERT(TUSB_XFER_INTERRUPT == p_endpoint->bmAttributes.xfer);
 
   hub_data[dev_addr-1].pipe_status = hcd_pipe_open(dev_addr, p_endpoint, TUSB_CLASS_HUB);
-  SUBTASK_ASSERT( pipehandle_is_valid(hub_data[dev_addr-1].pipe_status) );
+  STASK_ASSERT( pipehandle_is_valid(hub_data[dev_addr-1].pipe_status) );
   hub_data[dev_addr-1].interface_number = p_interface_desc->bInterfaceNumber;
 
   (*p_length) = sizeof(tusb_descriptor_interface_t) + sizeof(tusb_descriptor_endpoint_t);
 
   //------------- Get Hub Descriptor -------------//
-  SUBTASK_INVOKE(
+  STASK_INVOKE(
     usbh_control_xfer_subtask( dev_addr, bm_request_type(TUSB_DIR_IN, TUSB_REQ_TYPE_CLASS, TUSB_REQ_RCPT_DEVICE),
                                HUB_REQUEST_GET_DESCRIPTOR, 0, 0,
                                sizeof(descriptor_hub_desc_t), hub_enum_buffer ),
     error
   );
-  SUBTASK_ASSERT_STATUS(error);
+  STASK_ASSERT_STATUS(error);
 
   // only care about this field in hub descriptor
   hub_data[dev_addr-1].port_number = ((descriptor_hub_desc_t*) hub_enum_buffer)->bNbrPorts;
@@ -194,7 +194,7 @@ tusb_error_t hub_open_subtask(uint8_t dev_addr, tusb_descriptor_interface_t cons
   static uint8_t i;
   for(i=1; i <= hub_data[dev_addr-1].port_number; i++)
   {
-    SUBTASK_INVOKE(
+    STASK_INVOKE(
       usbh_control_xfer_subtask( dev_addr, bm_request_type(TUSB_DIR_OUT, TUSB_REQ_TYPE_CLASS, TUSB_REQ_RCPT_OTHER),
                                  HUB_REQUEST_SET_FEATURE, HUB_FEATURE_PORT_POWER, i,
                                  0, NULL ),
@@ -203,7 +203,7 @@ tusb_error_t hub_open_subtask(uint8_t dev_addr, tusb_descriptor_interface_t cons
   }
 
   //------------- Queue the initial Status endpoint transfer -------------//
-  SUBTASK_ASSERT_STATUS ( hcd_pipe_xfer(hub_data[dev_addr-1].pipe_status, &hub_data[dev_addr-1].status_change, 1, true) );
+  STASK_ASSERT_STATUS ( hcd_pipe_xfer(hub_data[dev_addr-1].pipe_status, &hub_data[dev_addr-1].status_change, 1, true) );
 
   OSAL_SUBTASK_END
 }

@@ -204,12 +204,12 @@ tusb_error_t hidd_control_request_subtask(uint8_t port, tusb_control_request_t c
 
     if (p_request->bRequest == TUSB_REQ_GET_DESCRIPTOR && desc_type == HID_DESC_TYPE_REPORT)
     {
-      SUBTASK_ASSERT ( p_hid->report_length <= HIDD_BUFFER_SIZE );
+      STASK_ASSERT ( p_hid->report_length <= HIDD_BUFFER_SIZE );
 
       // copy to allow report descriptor not to be in USBRAM
       memcpy(m_hid_buffer, p_hid->p_report_desc, p_hid->report_length);
 
-      SUBTASK_INVOKE( usbd_control_xfer_stask(port, p_request->bmRequestType_bit.direction, m_hid_buffer, p_hid->report_length), err );
+      STASK_INVOKE( usbd_control_xfer_stask(port, p_request->bmRequestType_bit.direction, m_hid_buffer, p_hid->report_length), err );
     }else
     {
       usbd_control_stall(port);
@@ -225,16 +225,16 @@ tusb_error_t hidd_control_request_subtask(uint8_t port, tusb_control_request_t c
 
       uint16_t actual_length = p_driver->get_report_cb(port, (hid_request_report_type_t) u16_high_u8(p_request->wValue),
                                                        &p_buffer, p_request->wLength);
-      SUBTASK_ASSERT( p_buffer != NULL && actual_length > 0 );
+      STASK_ASSERT( p_buffer != NULL && actual_length > 0 );
 
-      SUBTASK_INVOKE( usbd_control_xfer_stask(port, p_request->bmRequestType_bit.direction, p_buffer, actual_length), err );
+      STASK_INVOKE( usbd_control_xfer_stask(port, p_request->bmRequestType_bit.direction, p_buffer, actual_length), err );
     }
     else if ( (HID_REQUEST_CONTROL_SET_REPORT == p_request->bRequest) && (p_driver->set_report_cb != NULL) )
     {
       //        return TUSB_ERROR_DCD_CONTROL_REQUEST_NOT_SUPPORT; // TODO test STALL control out endpoint (with mouse+keyboard)
       // wValue = Report Type | Report ID
-      SUBTASK_INVOKE( usbd_control_xfer_stask(port, p_request->bmRequestType_bit.direction, m_hid_buffer, p_request->wLength), err );
-      SUBTASK_ASSERT_STATUS(err);
+      STASK_INVOKE( usbd_control_xfer_stask(port, p_request->bmRequestType_bit.direction, m_hid_buffer, p_request->wLength), err );
+      STASK_ASSERT_STATUS(err);
 
       p_driver->set_report_cb(port, u16_high_u8(p_request->wValue), m_hid_buffer, p_request->wLength);
     }

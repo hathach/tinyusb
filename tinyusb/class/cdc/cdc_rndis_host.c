@@ -173,17 +173,17 @@ tusb_error_t rndish_open_subtask(uint8_t dev_addr, cdch_data_t *p_cdc)
 
   //------------- Message Initialize -------------//
   memcpy(msg_payload, &msg_init, sizeof(rndis_msg_initialize_t));
-  SUBTASK_INVOKE(
+  STASK_INVOKE(
       send_message_get_response_subtask( dev_addr, p_cdc,
                                          msg_payload, sizeof(rndis_msg_initialize_t),
                                          msg_payload),
       error
   );
-  if ( TUSB_ERROR_NONE != error )   SUBTASK_RETURN(error);
+  if ( TUSB_ERROR_NONE != error )   STASK_RETURN(error);
 
   // TODO currently not support multiple data packets per xfer
   rndis_msg_initialize_cmplt_t * const p_init_cmpt = (rndis_msg_initialize_cmplt_t *) msg_payload;
-  SUBTASK_ASSERT(p_init_cmpt->type == RNDIS_MSG_INITIALIZE_CMPLT && p_init_cmpt->status == RNDIS_STATUS_SUCCESS &&
+  STASK_ASSERT(p_init_cmpt->type == RNDIS_MSG_INITIALIZE_CMPLT && p_init_cmpt->status == RNDIS_STATUS_SUCCESS &&
                  p_init_cmpt->max_packet_per_xfer == 1 && p_init_cmpt->max_xfer_size <= RNDIS_MSG_PAYLOAD_MAX);
   rndish_data[dev_addr-1].max_xfer_size = p_init_cmpt->max_xfer_size;
 
@@ -191,16 +191,16 @@ tusb_error_t rndish_open_subtask(uint8_t dev_addr, cdch_data_t *p_cdc)
   memcpy(msg_payload, &msg_query_permanent_addr, sizeof(rndis_msg_query_t));
   memclr_(msg_payload + sizeof(rndis_msg_query_t), 6); // 6 bytes for MAC address
 
-  SUBTASK_INVOKE(
+  STASK_INVOKE(
       send_message_get_response_subtask( dev_addr, p_cdc,
                                          msg_payload, sizeof(rndis_msg_query_t) + 6,
                                          msg_payload),
       error
   );
-  if ( TUSB_ERROR_NONE != error )   SUBTASK_RETURN(error);
+  if ( TUSB_ERROR_NONE != error )   STASK_RETURN(error);
 
   rndis_msg_query_cmplt_t * const p_query_cmpt = (rndis_msg_query_cmplt_t *) msg_payload;
-  SUBTASK_ASSERT(p_query_cmpt->type == RNDIS_MSG_QUERY_CMPLT && p_query_cmpt->status == RNDIS_STATUS_SUCCESS);
+  STASK_ASSERT(p_query_cmpt->type == RNDIS_MSG_QUERY_CMPLT && p_query_cmpt->status == RNDIS_STATUS_SUCCESS);
   memcpy(rndish_data[dev_addr-1].mac_address, msg_payload + 8 + p_query_cmpt->buffer_offset, 6);
 
   //------------- Set OID_GEN_CURRENT_PACKET_FILTER to (DIRECTED | MULTICAST | BROADCAST) -------------//
@@ -208,16 +208,16 @@ tusb_error_t rndish_open_subtask(uint8_t dev_addr, cdch_data_t *p_cdc)
   memclr_(msg_payload + sizeof(rndis_msg_set_t), 4); // 4 bytes for filter flags
   ((rndis_msg_set_t*) msg_payload)->oid_buffer[0] = (RNDIS_PACKET_TYPE_DIRECTED | RNDIS_PACKET_TYPE_MULTICAST | RNDIS_PACKET_TYPE_BROADCAST);
 
-  SUBTASK_INVOKE(
+  STASK_INVOKE(
       send_message_get_response_subtask( dev_addr, p_cdc,
                                          msg_payload, sizeof(rndis_msg_set_t) + 4,
                                          msg_payload),
       error
   );
-  if ( TUSB_ERROR_NONE != error )   SUBTASK_RETURN(error);
+  if ( TUSB_ERROR_NONE != error )   STASK_RETURN(error);
 
   rndis_msg_set_cmplt_t * const p_set_cmpt = (rndis_msg_set_cmplt_t *) msg_payload;
-  SUBTASK_ASSERT(p_set_cmpt->type == RNDIS_MSG_SET_CMPLT && p_set_cmpt->status == RNDIS_STATUS_SUCCESS);
+  STASK_ASSERT(p_set_cmpt->type == RNDIS_MSG_SET_CMPLT && p_set_cmpt->status == RNDIS_STATUS_SUCCESS);
 
   tusbh_cdc_rndis_mounted_cb(dev_addr);
 
@@ -244,28 +244,28 @@ static tusb_error_t send_message_get_response_subtask( uint8_t dev_addr, cdch_da
   OSAL_SUBTASK_BEGIN
 
   //------------- Send RNDIS Control Message -------------//
-  SUBTASK_INVOKE(
+  STASK_INVOKE(
       usbh_control_xfer_subtask( dev_addr, bm_request_type(TUSB_DIR_OUT, TUSB_REQ_TYPE_CLASS, TUSB_REQ_RCPT_INTERFACE),
                                  CDC_REQUEST_SEND_ENCAPSULATED_COMMAND, 0, p_cdc->interface_number,
                                  mess_length, p_mess),
       error
   );
-  if ( TUSB_ERROR_NONE != error )   SUBTASK_RETURN(error);
+  if ( TUSB_ERROR_NONE != error )   STASK_RETURN(error);
 
   //------------- waiting for Response Available notification -------------//
   (void) hcd_pipe_xfer(p_cdc->pipe_notification, msg_notification[dev_addr-1], 8, true);
   osal_semaphore_wait(rndish_data[dev_addr-1].sem_notification_hdl, OSAL_TIMEOUT_NORMAL, &error);
-  if ( TUSB_ERROR_NONE != error )   SUBTASK_RETURN(error);
-  SUBTASK_ASSERT(msg_notification[dev_addr-1][0] == 1);
+  if ( TUSB_ERROR_NONE != error )   STASK_RETURN(error);
+  STASK_ASSERT(msg_notification[dev_addr-1][0] == 1);
 
   //------------- Get RNDIS Message Initialize Complete -------------//
-  SUBTASK_INVOKE(
+  STASK_INVOKE(
     usbh_control_xfer_subtask( dev_addr, bm_request_type(TUSB_DIR_IN, TUSB_REQ_TYPE_CLASS, TUSB_REQ_RCPT_INTERFACE),
                                CDC_REQUEST_GET_ENCAPSULATED_RESPONSE, 0, p_cdc->interface_number,
                                RNDIS_MSG_PAYLOAD_MAX, p_response),
     error
   );
-  if ( TUSB_ERROR_NONE != error )   SUBTASK_RETURN(error);
+  if ( TUSB_ERROR_NONE != error )   STASK_RETURN(error);
 
   OSAL_SUBTASK_END
 }
