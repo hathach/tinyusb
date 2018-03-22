@@ -46,6 +46,7 @@
 //--------------------------------------------------------------------+
 #include "common/tusb_common.h"
 #include "hid_device.h"
+#include "device/usbd_pvt.h"
 
 //--------------------------------------------------------------------+
 // MACRO CONSTANT TYPEDEF
@@ -184,10 +185,14 @@ tusb_error_t hidd_control_request_subtask(uint8_t port, tusb_control_request_t c
     if ( (p_interface != NULL) && (p_request->wIndex == p_interface->interface_number) ) break;
   }
 
-  ASSERT(subclass_idx < HIDD_NUMBER_OF_SUBCLASS, TUSB_ERROR_FAILED);
+  TU_ASSERT(subclass_idx < HIDD_NUMBER_OF_SUBCLASS, TUSB_ERROR_FAILED);
 
   hidd_class_driver_t const * const p_driver = &hidd_class_driver[subclass_idx];
   hidd_interface_t* const p_hid = p_driver->p_interface;
+
+  OSAL_SUBTASK_BEGIN
+
+  tusb_error_t err;
 
   //------------- STD Request -------------//
   if (p_request->bmRequestType_bit.type == TUSB_REQ_TYPE_STANDARD)
@@ -197,18 +202,22 @@ tusb_error_t hidd_control_request_subtask(uint8_t port, tusb_control_request_t c
 
     (void) desc_index;
 
-    ASSERT ( p_request->bRequest == TUSB_REQ_GET_DESCRIPTOR && desc_type == HID_DESC_TYPE_REPORT,
-             TUSB_ERROR_DCD_CONTROL_REQUEST_NOT_SUPPORT);
-    ASSERT ( p_hid->report_length <= HIDD_BUFFER_SIZE, TUSB_ERROR_NOT_ENOUGH_MEMORY);
+    if (p_request->bRequest == TUSB_REQ_GET_DESCRIPTOR && desc_type == HID_DESC_TYPE_REPORT)
+    {
+      SUBTASK_ASSERT ( p_hid->report_length <= HIDD_BUFFER_SIZE );
 
-    memcpy(m_hid_buffer, p_hid->p_report_desc, p_hid->report_length); // to allow report descriptor not to be in USBRAM
-    tusb_dcd_control_xfer(port, TUSB_DIR_IN, m_hid_buffer, p_hid->report_length, false);
+      // copy to allow report descriptor not to be in USBRAM
+      memcpy(m_hid_buffer, p_hid->p_report_desc, p_hid->report_length);
+
+      SUBTASK_INVOKE( usbd_control_xfer_stask(port, p_request->bmRequestType_bit.direction, m_hid_buffer, p_hid->report_length), err );
+    }else
+    {
+      usbd_control_stall(port);
+    }
   }
   //------------- Class Specific Request -------------//
   else if (p_request->bmRequestType_bit.type == TUSB_REQ_TYPE_CLASS)
   {
-    OSAL_SUBTASK_BEGIN
-
     if( (HID_REQUEST_CONTROL_GET_REPORT == p_request->bRequest) && (p_driver->get_report_cb != NULL) )
     {
       // wValue = Report Type | Report ID
@@ -218,40 +227,34 @@ tusb_error_t hidd_control_request_subtask(uint8_t port, tusb_control_request_t c
                                                        &p_buffer, p_request->wLength);
       SUBTASK_ASSERT( p_buffer != NULL && actual_length > 0 );
 
-      tusb_dcd_control_xfer(port, (tusb_dir_t) p_request->bmRequestType_bit.direction, p_buffer, actual_length, false);
+      SUBTASK_INVOKE( usbd_control_xfer_stask(port, p_request->bmRequestType_bit.direction, p_buffer, actual_length), err );
     }
     else if ( (HID_REQUEST_CONTROL_SET_REPORT == p_request->bRequest) && (p_driver->set_report_cb != NULL) )
     {
       //        return TUSB_ERROR_DCD_CONTROL_REQUEST_NOT_SUPPORT; // TODO test STALL control out endpoint (with mouse+keyboard)
       // wValue = Report Type | Report ID
-      tusb_error_t error;
+      SUBTASK_INVOKE( usbd_control_xfer_stask(port, p_request->bmRequestType_bit.direction, m_hid_buffer, p_request->wLength), err );
+      SUBTASK_ASSERT_STATUS(err);
 
-      tusb_dcd_control_xfer(port, (tusb_dir_t) p_request->bmRequestType_bit.direction, m_hid_buffer, p_request->wLength, true);
-
-      osal_semaphore_wait(usbd_control_xfer_sem_hdl, OSAL_TIMEOUT_NORMAL, &error); // wait for control xfer complete
-      SUBTASK_ASSERT_STATUS(error);
-
-      p_driver->set_report_cb(port, (hid_request_report_type_t) u16_high_u8(p_request->wValue),
-                              m_hid_buffer, p_request->wLength);
+      p_driver->set_report_cb(port, u16_high_u8(p_request->wValue), m_hid_buffer, p_request->wLength);
     }
     else if (HID_REQUEST_CONTROL_SET_IDLE == p_request->bRequest)
     {
       // uint8_t idle_rate = u16_high_u8(p_request->wValue);
+      usbd_control_status(port, p_request->bmRequestType_bit.direction);
     }else
     {
 //      HID_REQUEST_CONTROL_GET_IDLE:
 //      HID_REQUEST_CONTROL_GET_PROTOCOL:
 //      HID_REQUEST_CONTROL_SET_PROTOCOL:
-      return TUSB_ERROR_DCD_CONTROL_REQUEST_NOT_SUPPORT;
+      usbd_control_stall(port);
     }
-
-    OSAL_SUBTASK_END
   }else
   {
-    return TUSB_ERROR_DCD_CONTROL_REQUEST_NOT_SUPPORT;
+    usbd_control_stall(port);
   }
 
-  return TUSB_ERROR_NONE;
+  OSAL_SUBTASK_END
 }
 
 tusb_error_t hidd_open(uint8_t port, tusb_descriptor_interface_t const * p_interface_desc, uint16_t *p_length)
