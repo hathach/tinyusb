@@ -57,7 +57,10 @@ typedef struct {
   uint8_t interface_number;
   cdc_acm_capability_t acm_capability;
   bool connected;
-  uint8_t ep_addr[3]; // notification, data in, data out
+
+  uint8_t ep_notif;
+  uint8_t ep_in;
+  uint8_t ep_out;
 }cdcd_data_t;
 
 // TODO multiple port
@@ -158,7 +161,7 @@ tusb_error_t cdcd_open(uint8_t port, tusb_descriptor_interface_t const * p_inter
   { // notification endpoint if any
     TU_ASSERT( tusb_dcd_edpt_open(port, (tusb_descriptor_endpoint_t const *) p_desc), TUSB_ERROR_DCD_OPEN_PIPE_FAILED);
 
-    p_cdc->ep_addr[CDC_PIPE_NOTIFICATION] = ((tusb_descriptor_endpoint_t const *) p_desc)->bEndpointAddress;
+    p_cdc->ep_notif = ((tusb_descriptor_endpoint_t const *) p_desc)->bEndpointAddress;
 
     (*p_length) += p_desc[DESCRIPTOR_OFFSET_LENGTH];
     p_desc = descriptor_next(p_desc);
@@ -182,10 +185,10 @@ tusb_error_t cdcd_open(uint8_t port, tusb_descriptor_interface_t const * p_inter
 
       if ( p_endpoint->bEndpointAddress &  TUSB_DIR_IN_MASK )
       {
-        p_cdc->ep_addr[CDC_PIPE_DATA_IN] = p_endpoint->bEndpointAddress;
+        p_cdc->ep_in = p_endpoint->bEndpointAddress;
       }else
       {
-        p_cdc->ep_addr[CDC_PIPE_DATA_OUT] = p_endpoint->bEndpointAddress;
+        p_cdc->ep_out = p_endpoint->bEndpointAddress;
       }
 
       (*p_length) += p_desc[DESCRIPTOR_OFFSET_LENGTH];
@@ -196,7 +199,7 @@ tusb_error_t cdcd_open(uint8_t port, tusb_descriptor_interface_t const * p_inter
   p_cdc->interface_number   = p_interface_desc->bInterfaceNumber;
 
   // Prepare for incoming data
-  TU_ASSERT( tusb_dcd_edpt_xfer(port, p_cdc->ep_addr[CDC_PIPE_DATA_OUT], _tmp_rx_buf, sizeof(_tmp_rx_buf), true), TUSB_ERROR_DCD_EDPT_XFER);
+  TU_ASSERT( tusb_dcd_edpt_xfer(port, p_cdc->ep_out, _tmp_rx_buf, sizeof(_tmp_rx_buf), true), TUSB_ERROR_DCD_EDPT_XFER);
 
 
   return TUSB_ERROR_NONE;
@@ -269,12 +272,12 @@ tusb_error_t cdcd_xfer_cb(uint8_t port, uint8_t ep_addr, tusb_event_t event, uin
 {
   cdcd_data_t const * p_cdc = &cdcd_data[port];
 
-  if ( ep_addr == p_cdc->ep_addr[CDC_PIPE_DATA_OUT] )
+  if ( ep_addr == p_cdc->ep_out )
   {
     fifo_write_n(&_rx_ff, _tmp_rx_buf, xferred_bytes);
 
     // preparing for next
-    TU_ASSERT(tusb_dcd_edpt_xfer(port, p_cdc->ep_addr[CDC_PIPE_DATA_OUT], _tmp_rx_buf, sizeof(_tmp_rx_buf), true), TUSB_ERROR_DCD_EDPT_XFER);
+    TU_ASSERT(tusb_dcd_edpt_xfer(port, p_cdc->ep_out, _tmp_rx_buf, sizeof(_tmp_rx_buf), true), TUSB_ERROR_DCD_EDPT_XFER);
 
     // fire callback
     tud_cdc_rx_cb(port);
@@ -287,7 +290,7 @@ bool tud_n_cdc_flush (uint8_t port)
 {
   VERIFY( tud_n_cdc_connected(port) );
 
-  uint8_t edpt = cdcd_data[port].ep_addr[CDC_PIPE_DATA_IN];
+  uint8_t edpt = cdcd_data[port].ep_in;
 
   VERIFY( !tusb_dcd_edpt_busy(port, edpt) );
 
