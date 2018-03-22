@@ -72,10 +72,10 @@
 
   //------------- Sub Task -------------//
   #define OSAL_SUBTASK_BEGIN
-  #define OSAL_SUBTASK_END      return TUSB_ERROR_NONE;
+  #define OSAL_SUBTASK_END                    return TUSB_ERROR_NONE;
 
-  #define SUBTASK_RETURN(error)   return error;
-  #define SUBTASK_INVOKE(subtask, status) status = subtask
+  #define SUBTASK_RETURN(_error)              return _error;
+  #define SUBTASK_INVOKE(_subtask, _status)   (_status) = _subtask
 
   //------------- Sub Task Assert -------------//
   #define SUBTASK_ASSERT_STATUS(sts) VERIFY_STATUS(sts)

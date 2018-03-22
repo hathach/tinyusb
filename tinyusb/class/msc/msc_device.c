@@ -44,8 +44,9 @@
 //--------------------------------------------------------------------+
 // INCLUDE
 //--------------------------------------------------------------------+
-#include <common/tusb_common.h>
+#include "common/tusb_common.h"
 #include "msc_device.h"
+#include "device/usbd_pvt.h"
 
 //--------------------------------------------------------------------+
 // MACRO CONSTANT TYPEDEF
@@ -133,16 +134,16 @@ tusb_error_t mscd_control_request_subtask(uint8_t port, tusb_control_request_t c
 
   if(MSC_REQUEST_RESET == p_request->bRequest)
   {
-    usbd_control_status(port, TUSB_DIR_IN);
+    usbd_control_status(port, p_request->bmRequestType_bit.direction);
   }
   else if (MSC_REQUEST_GET_MAX_LUN == p_request->bRequest)
   {
     // Note: lpc11/13u need xfer data's address to be aligned 64 -> make use of scsi_data instead of using max_lun directly
     p_msc->scsi_data[0] = p_msc->max_lun;
-    SUBTASK_INVOKE( usbd_control_xfer_substak(port, TUSB_DIR_IN, p_msc->scsi_data, 1), err);
+    SUBTASK_INVOKE( usbd_control_xfer_stask(port, p_request->bmRequestType_bit.direction, p_msc->scsi_data, 1), err);
   }else
   {
-    SUBTASK_RETURN(TUSB_ERROR_DCD_CONTROL_REQUEST_NOT_SUPPORT);
+    usbd_control_stall(port); // stall unsupported request
   }
 
   OSAL_SUBTASK_END

@@ -107,19 +107,19 @@ static inline osal_task_t osal_task_create(osal_func_t code, const char* name, u
 // SUBTASK (a sub function that uses OS blocking services & called by a task
 //--------------------------------------------------------------------+
 #define OSAL_SUBTASK_BEGIN  OSAL_TASK_BEGIN
-#define OSAL_SUBTASK_END \
-  default: TASK_RESTART; break; \
-  }}\
+
+#define OSAL_SUBTASK_END                                                        \
+  default: TASK_RESTART; break;                                                 \
+  }}                                                                            \
   return TUSB_ERROR_NONE;
 
-#define SUBTASK_INVOKE(_subtask, _status) \
-  do {\
-    _state = __LINE__; case __LINE__:\
-    {\
-      _status = _subtask; /* invoke sub task */\
-      if (TUSB_ERROR_OSAL_WAITING == _status) /* sub task not finished -> continue waiting */\
-        return TUSB_ERROR_OSAL_WAITING;\
-    }\
+#define SUBTASK_INVOKE(_subtask, _status)                                       \
+  do {                                                                          \
+    _state = __LINE__; case __LINE__:                                           \
+    {                                                                           \
+      (_status) = _subtask; /* invoke sub task */                               \
+      if (TUSB_ERROR_OSAL_WAITING == (_status)) return TUSB_ERROR_OSAL_WAITING; \
+    }                                                                           \
   }while(0)
 
 //------------- Sub Task Assert -------------//

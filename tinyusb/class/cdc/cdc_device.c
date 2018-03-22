@@ -44,8 +44,9 @@
 //--------------------------------------------------------------------+
 // INCLUDE
 //--------------------------------------------------------------------+
-#include <common/tusb_common.h>
+#include "common/tusb_common.h"
 #include "cdc_device.h"
+#include "device/usbd_pvt.h"
 
 //--------------------------------------------------------------------+
 // MACRO CONSTANT TYPEDEF
@@ -221,13 +222,13 @@ tusb_error_t cdcd_control_request_subtask(uint8_t port, tusb_control_request_t c
 
   if (CDC_REQUEST_GET_LINE_CODING == p_request->bRequest)
   {
-    SUBTASK_INVOKE( usbd_control_xfer_substak(port, (tusb_dir_t) p_request->bmRequestType_bit.direction,
-                                                    (uint8_t*) &cdcd_line_coding[port], min16_of(sizeof(cdc_line_coding_t), p_request->wLength)), err );
+    SUBTASK_INVOKE( usbd_control_xfer_stask(port, (tusb_dir_t) p_request->bmRequestType_bit.direction,
+                                            (uint8_t*) &cdcd_line_coding[port], min16_of(sizeof(cdc_line_coding_t), p_request->wLength)), err );
   }
   else if (CDC_REQUEST_SET_LINE_CODING == p_request->bRequest)
   {
-    SUBTASK_INVOKE( usbd_control_xfer_substak(port, (tusb_dir_t) p_request->bmRequestType_bit.direction,
-                                                    (uint8_t*) &cdcd_line_coding[port], min16_of(sizeof(cdc_line_coding_t), p_request->wLength)), err );
+    SUBTASK_INVOKE( usbd_control_xfer_stask(port, (tusb_dir_t) p_request->bmRequestType_bit.direction,
+                                            (uint8_t*) &cdcd_line_coding[port], min16_of(sizeof(cdc_line_coding_t), p_request->wLength)), err );
     // TODO notify application on xfer complete
   }
   else if (CDC_REQUEST_SET_CONTROL_LINE_STATE == p_request->bRequest )
@@ -253,10 +254,12 @@ tusb_error_t cdcd_control_request_subtask(uint8_t port, tusb_control_request_t c
       // De-active --> disconnected
       p_cdc->connected = false;
     }
+
+    usbd_control_status(port, p_request->bmRequestType_bit.direction);
   }
   else
   {
-    SUBTASK_RETURN(TUSB_ERROR_DCD_CONTROL_REQUEST_NOT_SUPPORT);
+    usbd_control_stall(port); // stall unsupported request
   }
 
   OSAL_SUBTASK_END

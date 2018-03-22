@@ -39,6 +39,7 @@
 #define _TINY_USB_SOURCE_FILE_
 
 #include "tusb.h"
+#include "device/usbd_pvt.h"
 
 tusb_error_t tusb_init(void)
 {
