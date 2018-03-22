@@ -477,9 +477,6 @@ static uint16_t get_descriptor(uint8_t port, tusb_control_request_t const * cons
       return 0;
     break;
 
-    // TODO Report Descriptor (HID Generic)
-    // TODO HID Descriptor
-
     default: return 0;
   }
 
