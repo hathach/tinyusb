@@ -59,16 +59,16 @@ enum { SERIAL_BUFFER_SIZE = 64 };
 //--------------------------------------------------------------------+
 // tinyusb callbacks
 //--------------------------------------------------------------------+
-void cdc_serial_app_mount(uint8_t port)
+void cdc_serial_app_mount(uint8_t rhport)
 {
 }
 
-void cdc_serial_app_umount(uint8_t port)
+void cdc_serial_app_umount(uint8_t rhport)
 {
 
 }
 
-void tud_cdc_rx_cb(uint8_t port)
+void tud_cdc_rx_cb(uint8_t rhport)
 {
 
 }

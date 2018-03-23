@@ -91,13 +91,13 @@ uint8_t msc_device_ramdisk[DISK_BLOCK_NUM][DISK_BLOCK_SIZE] =
 //--------------------------------------------------------------------+
 // IMPLEMENTATION
 //--------------------------------------------------------------------+
-uint16_t tud_msc_read10_cb (uint8_t port, uint8_t lun, void** pp_buffer, uint32_t lba, uint16_t block_count)
+uint16_t tud_msc_read10_cb (uint8_t rhport, uint8_t lun, void** pp_buffer, uint32_t lba, uint16_t block_count)
 {
   (*pp_buffer) = msc_device_ramdisk[lba];
 
   return min16_of(block_count, DISK_BLOCK_NUM);
 }
-uint16_t tud_msc_write10_cb(uint8_t port, uint8_t lun, void** pp_buffer, uint32_t lba, uint16_t block_count)
+uint16_t tud_msc_write10_cb(uint8_t rhport, uint8_t lun, void** pp_buffer, uint32_t lba, uint16_t block_count)
 {
   (*pp_buffer) = msc_device_ramdisk[lba];
 

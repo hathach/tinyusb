@@ -81,22 +81,22 @@ void tusb_hal_dbg_breakpoint(void)
 #endif
 }
 
-void tusb_hal_int_enable(uint8_t port)
+void tusb_hal_int_enable(uint8_t rhport)
 {
-  NVIC_EnableIRQ(port ? USB1_IRQn : USB0_IRQn);
+  NVIC_EnableIRQ(rhport ? USB1_IRQn : USB0_IRQn);
 }
 
-void tusb_hal_int_disable(uint8_t port)
+void tusb_hal_int_disable(uint8_t rhport)
 {
-  NVIC_DisableIRQ(port ? USB1_IRQn : USB0_IRQn);
+  NVIC_DisableIRQ(rhport ? USB1_IRQn : USB0_IRQn);
 }
 
 
-static void hal_controller_reset(uint8_t port)
+static void hal_controller_reset(uint8_t rhport)
 { // TODO timeout expired to prevent trap
   volatile uint32_t * p_reg_usbcmd;
 
-  p_reg_usbcmd = (port ? &LPC_USB1->USBCMD_D : &LPC_USB0->USBCMD_D);
+  p_reg_usbcmd = (rhport ? &LPC_USB1->USBCMD_D : &LPC_USB0->USBCMD_D);
 // NXP chip powered with non-host mode --> sts bit is not correctly reflected
   (*p_reg_usbcmd) |= BIT_(1);
 
@@ -149,13 +149,13 @@ bool tusb_hal_init(void)
     LPC_USB1->USBMODE_D = LPC43XX_USBMODE_DEVICE;
   #endif
 
-  LPC_USB1->PORTSC1_D |= (1<<24); // TODO abstract, force port to fullspeed
+  LPC_USB1->PORTSC1_D |= (1<<24); // TODO abstract, force rhport to fullspeed
 #endif
 
   return true;
 }
 
-void hal_dcd_isr(uint8_t port);
+void hal_dcd_isr(uint8_t rhport);
 
 #if TUSB_CFG_CONTROLLER_0_MODE
 void USB0_IRQHandler(void)

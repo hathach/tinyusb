@@ -58,8 +58,8 @@
 void keyboard_app_init(void);
 void keyboard_app_task(void* param);
 
-void keyboard_app_mount(uint8_t port);
-void keyboard_app_umount(uint8_t port);
+void keyboard_app_mount(uint8_t rhport);
+void keyboard_app_umount(uint8_t rhport);
 
 #else
 

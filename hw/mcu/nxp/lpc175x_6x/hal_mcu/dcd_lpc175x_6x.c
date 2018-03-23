@@ -122,9 +122,9 @@ static void bus_reset(void)
 	memclr_(&dcd_data, sizeof(dcd_data_t));
 }
 
-bool tusb_dcd_init(uint8_t port)
+bool tusb_dcd_init(uint8_t rhport)
 {
-  (void) port;
+  (void) rhport;
 
   //------------- user manual 11.13 usb device controller initialization -------------//  LPC_USB->USBEpInd = 0;
   // step 6 : set up control endpoint
@@ -163,7 +163,7 @@ static void endpoint_non_control_isr(uint32_t eot_int)
         {
           edpt_hdl_t edpt_hdl =
           {
-              .port     = 0,
+              .rhport     = 0,
               .index      = ep_id,
               .class_code = dcd_data.class_code[ep_id]
           };
@@ -206,7 +206,7 @@ static void endpoint_control_isr(void)
 
       if ( BIT_TEST_(dcd_data.control_dma.int_on_complete, ep_id) )
       {
-        edpt_hdl_t edpt_hdl = { .port = 0, .class_code = 0 };
+        edpt_hdl_t edpt_hdl = { .rhport = 0, .class_code = 0 };
         dcd_data.control_dma.int_on_complete = 0;
 
         // FIXME xferred_byte for control xfer is not needed now !!!
@@ -218,9 +218,9 @@ static void endpoint_control_isr(void)
   LPC_USB->USBEpIntClr = endpoint_int_status; // acknowledge interrupt TODO cannot immediately acknowledge setup packet
 }
 
-void hal_dcd_isr(uint8_t port)
+void hal_dcd_isr(uint8_t rhport)
 {
-  (void) port;
+  (void) rhport;
   uint32_t const device_int_enable = LPC_USB->USBDevIntEn;
   uint32_t const device_int_status = LPC_USB->USBDevIntSt & device_int_enable;
   LPC_USB->USBDevIntClr = device_int_status;// Acknowledge handled interrupt
@@ -282,21 +282,21 @@ void hal_dcd_isr(uint8_t port)
 //--------------------------------------------------------------------+
 // USBD API - CONTROLLER
 //--------------------------------------------------------------------+
-void tusb_dcd_connect(uint8_t port)
+void tusb_dcd_connect(uint8_t rhport)
 {
-  (void) port;
+  (void) rhport;
   sie_write(SIE_CMDCODE_DEVICE_STATUS, 1, 1);
 }
 
-void tusb_dcd_set_address(uint8_t port, uint8_t dev_addr)
+void tusb_dcd_set_address(uint8_t rhport, uint8_t dev_addr)
 {
-  (void) port;
+  (void) rhport;
   sie_write(SIE_CMDCODE_SET_ADDRESS, 1, 0x80 | dev_addr); // 7th bit is : device_enable
 }
 
-void tusb_dcd_set_config(uint8_t port, uint8_t config_num)
+void tusb_dcd_set_config(uint8_t rhport, uint8_t config_num)
 {
-  (void) port;
+  (void) rhport;
   (void) config_num;
   sie_write(SIE_CMDCODE_CONFIGURE_DEVICE, 1, 1);
 }
@@ -375,14 +375,14 @@ static tusb_error_t pipe_control_read(void * buffer, uint16_t length)
 //--------------------------------------------------------------------+
 // CONTROL PIPE API
 //--------------------------------------------------------------------+
-void tusb_dcd_control_stall(uint8_t port)
+void tusb_dcd_control_stall(uint8_t rhport)
 {
   sie_write(SIE_CMDCODE_ENDPOINT_SET_STATUS+0, 1, SIE_SET_ENDPOINT_STALLED_MASK | SIE_SET_ENDPOINT_CONDITION_STALLED_MASK);
 }
 
-bool tusb_dcd_control_xfer(uint8_t port, tusb_dir_t dir, uint8_t * p_buffer, uint16_t length, bool int_on_complete)
+bool tusb_dcd_control_xfer(uint8_t rhport, tusb_dir_t dir, uint8_t * p_buffer, uint16_t length, bool int_on_complete)
 {
-  (void) port;
+  (void) rhport;
 
   VERIFY( !(length != 0 && p_buffer == NULL) );
 
@@ -414,9 +414,9 @@ bool tusb_dcd_control_xfer(uint8_t port, tusb_dir_t dir, uint8_t * p_buffer, uin
 //--------------------------------------------------------------------+
 // BULK/INTERRUPT/ISO PIPE API
 //--------------------------------------------------------------------+
-edpt_hdl_t tusb_dcd_edpt_open(uint8_t port, tusb_descriptor_endpoint_t const * p_endpoint_desc, uint8_t class_code)
+edpt_hdl_t tusb_dcd_edpt_open(uint8_t rhport, tusb_descriptor_endpoint_t const * p_endpoint_desc, uint8_t class_code)
 {
-  (void) port;
+  (void) rhport;
 
   edpt_hdl_t const null_handle = { 0 };
 
@@ -444,7 +444,7 @@ edpt_hdl_t tusb_dcd_edpt_open(uint8_t port, tusb_descriptor_endpoint_t const * p
 
   return (edpt_hdl_t)
       {
-          .port     = 0,
+          .rhport     = 0,
           .index      = ep_id,
           .class_code = class_code
       };
@@ -460,7 +460,7 @@ void tusb_dcd_edpt_stall(edpt_hdl_t edpt_hdl)
   sie_write(SIE_CMDCODE_ENDPOINT_SET_STATUS+edpt_hdl.index, 1, SIE_SET_ENDPOINT_STALLED_MASK);
 }
 
-void tusb_dcd_edpt_clear_stall(uint8_t port, uint8_t ep_addr)
+void tusb_dcd_edpt_clear_stall(uint8_t rhport, uint8_t ep_addr)
 {
   uint8_t ep_id = ep_addr2phy(ep_addr);
 

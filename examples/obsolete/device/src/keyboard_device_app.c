@@ -56,17 +56,17 @@ TUSB_CFG_ATTR_USBRAM hid_keyboard_report_t keyboard_report;
 //--------------------------------------------------------------------+
 // tinyusb callbacks
 //--------------------------------------------------------------------+
-void keyboard_app_mount(uint8_t port)
+void keyboard_app_mount(uint8_t rhport)
 {
 
 }
 
-void keyboard_app_umount(uint8_t port)
+void keyboard_app_umount(uint8_t rhport)
 {
 
 }
 
-void tud_hid_keyboard_cb(uint8_t port, tusb_event_t event, uint32_t xferred_bytes)
+void tud_hid_keyboard_cb(uint8_t rhport, tusb_event_t event, uint32_t xferred_bytes)
 {
   switch(event)
   {
@@ -77,7 +77,7 @@ void tud_hid_keyboard_cb(uint8_t port, tusb_event_t event, uint32_t xferred_byte
   }
 }
 
-uint16_t tud_hid_keyboard_get_report_cb(uint8_t port, hid_request_report_type_t report_type, void** pp_report, uint16_t requested_length)
+uint16_t tud_hid_keyboard_get_report_cb(uint8_t rhport, hid_request_report_type_t report_type, void** pp_report, uint16_t requested_length)
 {
   // get other than input report is not supported by this keyboard demo
   if ( report_type != HID_REQUEST_REPORT_INPUT ) return 0;
@@ -86,7 +86,7 @@ uint16_t tud_hid_keyboard_get_report_cb(uint8_t port, hid_request_report_type_t 
   return requested_length;
 }
 
-void tud_hid_keyboard_set_report_cb(uint8_t port, hid_request_report_type_t report_type, uint8_t p_report_data[], uint16_t length)
+void tud_hid_keyboard_set_report_cb(uint8_t rhport, hid_request_report_type_t report_type, uint8_t p_report_data[], uint16_t length)
 {
   // set other than output report is not supported by this keyboard demo
   if ( report_type != HID_REQUEST_REPORT_OUTPUT ) return;

@@ -108,18 +108,18 @@ TUSB_CFG_ATTR_USBRAM STATIC_VAR uint8_t m_hid_buffer[ HIDD_BUFFER_SIZE ];
 #if TUSB_CFG_DEVICE_HID_KEYBOARD
 STATIC_VAR hidd_interface_t keyboardd_data;
 
-bool tud_hid_keyboard_busy(uint8_t port)
+bool tud_hid_keyboard_busy(uint8_t rhport)
 {
-  return tusb_dcd_edpt_busy(port, keyboardd_data.edpt_addr);
+  return tusb_dcd_edpt_busy(rhport, keyboardd_data.edpt_addr);
 }
 
-tusb_error_t tud_hid_keyboard_send(uint8_t port, hid_keyboard_report_t const *p_report)
+tusb_error_t tud_hid_keyboard_send(uint8_t rhport, hid_keyboard_report_t const *p_report)
 {
   VERIFY(tud_mounted(), TUSB_ERROR_USBD_DEVICE_NOT_CONFIGURED);
 
-  hidd_interface_t * p_kbd = &keyboardd_data; // TODO &keyboardd_data[port];
+  hidd_interface_t * p_kbd = &keyboardd_data; // TODO &keyboardd_data[rhport];
 
-  TU_ASSERT( tusb_dcd_edpt_xfer(port, p_kbd->edpt_addr, (void*) p_report, sizeof(hid_keyboard_report_t)), TUSB_ERROR_DCD_EDPT_XFER ) ;
+  TU_ASSERT( tusb_dcd_edpt_xfer(rhport, p_kbd->edpt_addr, (void*) p_report, sizeof(hid_keyboard_report_t)), TUSB_ERROR_DCD_EDPT_XFER ) ;
 
   return TUSB_ERROR_NONE;
 }
@@ -131,18 +131,18 @@ tusb_error_t tud_hid_keyboard_send(uint8_t port, hid_keyboard_report_t const *p_
 #if TUSB_CFG_DEVICE_HID_MOUSE
 STATIC_VAR hidd_interface_t moused_data;
 
-bool tud_hid_mouse_is_busy(uint8_t port)
+bool tud_hid_mouse_is_busy(uint8_t rhport)
 {
-  return tusb_dcd_edpt_busy(port, moused_data.edpt_addr);
+  return tusb_dcd_edpt_busy(rhport, moused_data.edpt_addr);
 }
 
-tusb_error_t tud_hid_mouse_send(uint8_t port, hid_mouse_report_t const *p_report)
+tusb_error_t tud_hid_mouse_send(uint8_t rhport, hid_mouse_report_t const *p_report)
 {
   VERIFY(tud_mounted(), TUSB_ERROR_USBD_DEVICE_NOT_CONFIGURED);
 
-  hidd_interface_t * p_mouse = &moused_data; // TODO &keyboardd_data[port];
+  hidd_interface_t * p_mouse = &moused_data; // TODO &keyboardd_data[rhport];
 
-  TU_ASSERT( tusb_dcd_edpt_xfer(port, p_mouse->edpt_addr, (void*) p_report, sizeof(hid_mouse_report_t)), TUSB_ERROR_DCD_EDPT_XFER ) ;
+  TU_ASSERT( tusb_dcd_edpt_xfer(rhport, p_mouse->edpt_addr, (void*) p_report, sizeof(hid_mouse_report_t)), TUSB_ERROR_DCD_EDPT_XFER ) ;
 
   return TUSB_ERROR_NONE;
 }
@@ -168,7 +168,7 @@ void hidd_init(void)
   }
 }
 
-void hidd_close(uint8_t port)
+void hidd_close(uint8_t rhport)
 {
   for(uint8_t i=0; i<HIDD_NUMBER_OF_SUBCLASS; i++)
   {
@@ -176,7 +176,7 @@ void hidd_close(uint8_t port)
   }
 }
 
-tusb_error_t hidd_control_request_st(uint8_t port, tusb_control_request_t const * p_request)
+tusb_error_t hidd_control_request_st(uint8_t rhport, tusb_control_request_t const * p_request)
 {
   uint8_t subclass_idx;
   for(subclass_idx=0; subclass_idx<HIDD_NUMBER_OF_SUBCLASS; subclass_idx++)
@@ -209,10 +209,10 @@ tusb_error_t hidd_control_request_st(uint8_t port, tusb_control_request_t const 
       // copy to allow report descriptor not to be in USBRAM
       memcpy(m_hid_buffer, p_hid->p_report_desc, p_hid->report_length);
 
-      STASK_INVOKE( usbd_control_xfer_st(port, p_request->bmRequestType_bit.direction, m_hid_buffer, p_hid->report_length), err );
+      STASK_INVOKE( usbd_control_xfer_st(rhport, p_request->bmRequestType_bit.direction, m_hid_buffer, p_hid->report_length), err );
     }else
     {
-      usbd_control_stall(port);
+      usbd_control_stall(rhport);
     }
   }
   //------------- Class Specific Request -------------//
@@ -223,41 +223,41 @@ tusb_error_t hidd_control_request_st(uint8_t port, tusb_control_request_t const 
       // wValue = Report Type | Report ID
       void* p_buffer = NULL;
 
-      uint16_t actual_length = p_driver->get_report_cb(port, (hid_request_report_type_t) u16_high_u8(p_request->wValue),
+      uint16_t actual_length = p_driver->get_report_cb(rhport, (hid_request_report_type_t) u16_high_u8(p_request->wValue),
                                                        &p_buffer, p_request->wLength);
       STASK_ASSERT( p_buffer != NULL && actual_length > 0 );
 
-      STASK_INVOKE( usbd_control_xfer_st(port, p_request->bmRequestType_bit.direction, p_buffer, actual_length), err );
+      STASK_INVOKE( usbd_control_xfer_st(rhport, p_request->bmRequestType_bit.direction, p_buffer, actual_length), err );
     }
     else if ( (HID_REQUEST_CONTROL_SET_REPORT == p_request->bRequest) && (p_driver->set_report_cb != NULL) )
     {
       //        return TUSB_ERROR_DCD_CONTROL_REQUEST_NOT_SUPPORT; // TODO test STALL control out endpoint (with mouse+keyboard)
       // wValue = Report Type | Report ID
-      STASK_INVOKE( usbd_control_xfer_st(port, p_request->bmRequestType_bit.direction, m_hid_buffer, p_request->wLength), err );
+      STASK_INVOKE( usbd_control_xfer_st(rhport, p_request->bmRequestType_bit.direction, m_hid_buffer, p_request->wLength), err );
       STASK_ASSERT_STATUS(err);
 
-      p_driver->set_report_cb(port, u16_high_u8(p_request->wValue), m_hid_buffer, p_request->wLength);
+      p_driver->set_report_cb(rhport, u16_high_u8(p_request->wValue), m_hid_buffer, p_request->wLength);
     }
     else if (HID_REQUEST_CONTROL_SET_IDLE == p_request->bRequest)
     {
       // uint8_t idle_rate = u16_high_u8(p_request->wValue);
-      usbd_control_status(port, p_request->bmRequestType_bit.direction);
+      usbd_control_status(rhport, p_request->bmRequestType_bit.direction);
     }else
     {
 //      HID_REQUEST_CONTROL_GET_IDLE:
 //      HID_REQUEST_CONTROL_GET_PROTOCOL:
 //      HID_REQUEST_CONTROL_SET_PROTOCOL:
-      usbd_control_stall(port);
+      usbd_control_stall(rhport);
     }
   }else
   {
-    usbd_control_stall(port);
+    usbd_control_stall(rhport);
   }
 
   OSAL_SUBTASK_END
 }
 
-tusb_error_t hidd_open(uint8_t port, tusb_descriptor_interface_t const * p_interface_desc, uint16_t *p_length)
+tusb_error_t hidd_open(uint8_t rhport, tusb_descriptor_interface_t const * p_interface_desc, uint16_t *p_length)
 {
   uint8_t const *p_desc = (uint8_t const *) p_interface_desc;
 
@@ -283,7 +283,7 @@ tusb_error_t hidd_open(uint8_t port, tusb_descriptor_interface_t const * p_inter
 
         VERIFY(p_hid, TUSB_ERROR_FAILED);
 
-        VERIFY( tusb_dcd_edpt_open(port, p_desc_endpoint), TUSB_ERROR_DCD_FAILED );
+        VERIFY( tusb_dcd_edpt_open(rhport, p_desc_endpoint), TUSB_ERROR_DCD_FAILED );
 
         p_hid->edpt_addr = p_desc_endpoint->bEndpointAddress;
 
@@ -308,14 +308,14 @@ tusb_error_t hidd_open(uint8_t port, tusb_descriptor_interface_t const * p_inter
   return TUSB_ERROR_NONE;
 }
 
-tusb_error_t hidd_xfer_cb(uint8_t port, uint8_t edpt_addr, tusb_event_t event, uint32_t xferred_bytes)
+tusb_error_t hidd_xfer_cb(uint8_t rhport, uint8_t edpt_addr, tusb_event_t event, uint32_t xferred_bytes)
 {
   for(uint8_t i=0; i<HIDD_NUMBER_OF_SUBCLASS; i++)
   {
     hidd_interface_t * const p_interface = hidd_class_driver[i].p_interface;
     if ( (p_interface != NULL) && (edpt_addr == p_interface->edpt_addr) )
     {
-      hidd_class_driver[i].xfer_cb(port, event, xferred_bytes);
+      hidd_class_driver[i].xfer_cb(rhport, event, xferred_bytes);
     }
   }
 

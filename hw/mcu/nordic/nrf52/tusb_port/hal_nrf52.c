@@ -67,15 +67,15 @@ bool tusb_hal_init(void)
   return true;
 }
 
-void tusb_hal_int_enable(uint8_t port)
+void tusb_hal_int_enable(uint8_t rhport)
 {
-  (void) port;
+  (void) rhport;
   NVIC_EnableIRQ(USBD_IRQn);
 }
 
-void tusb_hal_int_disable(uint8_t port)
+void tusb_hal_int_disable(uint8_t rhport)
 {
-  (void) port;
+  (void) rhport;
   NVIC_DisableIRQ(USBD_IRQn);
 }
 

@@ -72,11 +72,11 @@ extern tusbd_descriptor_pointer_t tusbd_descriptor_pointers;
 
 typedef struct {
   void (* init) (void);
-  tusb_error_t (* open)(uint8_t port, tusb_descriptor_interface_t const * desc_intf, uint16_t* p_length);
-  tusb_error_t (* control_request_st) (uint8_t port, tusb_control_request_t const *);
-  tusb_error_t (* xfer_cb) (uint8_t port, uint8_t ep_addr, tusb_event_t, uint32_t);
+  tusb_error_t (* open)(uint8_t rhport, tusb_descriptor_interface_t const * desc_intf, uint16_t* p_length);
+  tusb_error_t (* control_request_st) (uint8_t rhport, tusb_control_request_t const *);
+  tusb_error_t (* xfer_cb) (uint8_t rhport, uint8_t ep_addr, tusb_event_t, uint32_t);
 //  void (* routine)(void);
-  void (* sof)(uint8_t port);
+  void (* sof)(uint8_t rhport);
   void (* close) (uint8_t);
 } usbd_class_driver_t;
 
@@ -94,7 +94,7 @@ typedef struct {
 //--------------------------------------------------------------------+
 // APPLICATION API
 //--------------------------------------------------------------------+
-bool tud_n_mounted(uint8_t port);
+bool tud_n_mounted(uint8_t rhport);
 
 static inline bool tud_mounted(void)
 {
@@ -104,18 +104,18 @@ static inline bool tud_mounted(void)
 
 /*------------- Callback -------------*/
 /** \brief 			Callback function that will be invoked device is mounted (configured) by USB host
- * \param[in] 	port USB Controller ID of the interface
+ * \param[in] 	rhport USB Controller ID of the interface
  * \note        This callback should be used by Application to \b set-up application data
  */
-void tud_mount_cb(uint8_t port);
+void tud_mount_cb(uint8_t rhport);
 
 /** \brief 			Callback function that will be invoked when device is unmounted (bus reset/unplugged)
- * \param[in] 	port USB Controller ID of the interface
+ * \param[in] 	rhport USB Controller ID of the interface
  * \note        This callback should be used by Application to \b tear-down application data
  */
-void tud_umount_cb(uint8_t port);
+void tud_umount_cb(uint8_t rhport);
 
-//void tud_device_suspended_cb(uint8_t port);
+//void tud_device_suspended_cb(uint8_t rhport);
 
 #ifdef __cplusplus
  }

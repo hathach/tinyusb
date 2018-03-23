@@ -56,17 +56,17 @@ TUSB_CFG_ATTR_USBRAM hid_mouse_report_t mouse_report;
 //--------------------------------------------------------------------+
 // tinyusb callbacks
 //--------------------------------------------------------------------+
-void mouse_app_mount(uint8_t port)
+void mouse_app_mount(uint8_t rhport)
 {
 
 }
 
-void mouse_app_umount(uint8_t port)
+void mouse_app_umount(uint8_t rhport)
 {
 
 }
 
-void tud_hid_mouse_cb(uint8_t port, tusb_event_t event, uint32_t xferred_bytes)
+void tud_hid_mouse_cb(uint8_t rhport, tusb_event_t event, uint32_t xferred_bytes)
 {
   switch(event)
   {
@@ -77,7 +77,7 @@ void tud_hid_mouse_cb(uint8_t port, tusb_event_t event, uint32_t xferred_bytes)
   }
 }
 
-uint16_t tud_hid_mouse_get_report_cb(uint8_t port, hid_request_report_type_t report_type, void** pp_report, uint16_t requested_length)
+uint16_t tud_hid_mouse_get_report_cb(uint8_t rhport, hid_request_report_type_t report_type, void** pp_report, uint16_t requested_length)
 {
   if ( report_type != HID_REQUEST_REPORT_INPUT ) return 0; // not support other report type for this mouse demo
 
@@ -85,7 +85,7 @@ uint16_t tud_hid_mouse_get_report_cb(uint8_t port, hid_request_report_type_t rep
   return requested_length;
 }
 
-void tud_hid_mouse_set_report_cb(uint8_t port, hid_request_report_type_t report_type, uint8_t report_data[], uint16_t length)
+void tud_hid_mouse_set_report_cb(uint8_t rhport, hid_request_report_type_t report_type, uint8_t report_data[], uint16_t length)
 {
   // mouse demo does not support set report --> do nothing
 }

@@ -113,15 +113,15 @@ enum { USBD_CLASS_DRIVER_COUNT = sizeof(usbd_class_drivers) / sizeof(usbd_class_
 //--------------------------------------------------------------------+
 // INTERNAL OBJECT & FUNCTION DECLARATION
 //--------------------------------------------------------------------+
-static tusb_error_t proc_set_config_req(uint8_t port, uint8_t config_number);
-static uint16_t get_descriptor(uint8_t port, tusb_control_request_t const * const p_request, uint8_t const ** pp_buffer);
+static tusb_error_t proc_set_config_req(uint8_t rhport, uint8_t config_number);
+static uint16_t get_descriptor(uint8_t rhport, tusb_control_request_t const * const p_request, uint8_t const ** pp_buffer);
 
 //--------------------------------------------------------------------+
 // APPLICATION INTERFACE
 //--------------------------------------------------------------------+
-bool tud_n_mounted(uint8_t port)
+bool tud_n_mounted(uint8_t rhport)
 {
-    return usbd_devices[port].state == TUSB_DEVICE_STATE_CONFIGURED;
+    return usbd_devices[rhport].state == TUSB_DEVICE_STATE_CONFIGURED;
 }
 
 //--------------------------------------------------------------------+
@@ -140,7 +140,7 @@ typedef enum
 
 typedef struct ATTR_ALIGNED(4)
 {
-  uint8_t port;
+  uint8_t rhport;
   uint8_t event_id;
   uint8_t sub_event_id;
   uint8_t reserved;
@@ -172,7 +172,7 @@ static osal_queue_t usbd_queue_hdl;
 //--------------------------------------------------------------------+
 // IMPLEMENTATION
 //--------------------------------------------------------------------+
-static tusb_error_t proc_control_request_st(uint8_t port, tusb_control_request_t const * const p_request);
+static tusb_error_t proc_control_request_st(uint8_t rhport, tusb_control_request_t const * const p_request);
 static tusb_error_t usbd_main_stk(void);
 
 tusb_error_t usbd_init (void)
@@ -255,7 +255,7 @@ static tusb_error_t usbd_main_stk(void)
 
   if ( USBD_EVENTID_SETUP_RECEIVED == event.event_id )
   {
-    STASK_INVOKE( proc_control_request_st(event.port, &event.setup_received), error );
+    STASK_INVOKE( proc_control_request_st(event.rhport, &event.setup_received), error );
   }else if (USBD_EVENTID_XFER_DONE == event.event_id)
   {
     // Call class handling function. Those doest not own the endpoint should check and return
@@ -263,7 +263,7 @@ static tusb_error_t usbd_main_stk(void)
     {
       if ( usbd_class_drivers[class_code].xfer_cb )
       {
-        usbd_class_drivers[class_code].xfer_cb( event.port, event.xfer_done.ep_addr, (tusb_event_t) event.sub_event_id, event.xfer_done.xferred_byte);
+        usbd_class_drivers[class_code].xfer_cb( event.rhport, event.xfer_done.ep_addr, (tusb_event_t) event.sub_event_id, event.xfer_done.xferred_byte);
       }
     }
   }else if (USBD_EVENTID_SOF == event.event_id)
@@ -272,7 +272,7 @@ static tusb_error_t usbd_main_stk(void)
     {
       if ( usbd_class_drivers[class_code].sof )
       {
-        usbd_class_drivers[class_code].sof( event.port );
+        usbd_class_drivers[class_code].sof( event.rhport );
       }
     }
   }
@@ -287,7 +287,7 @@ static tusb_error_t usbd_main_stk(void)
 //--------------------------------------------------------------------+
 // CONTROL REQUEST
 //--------------------------------------------------------------------+
-tusb_error_t usbd_control_xfer_st(uint8_t port, tusb_dir_t dir, uint8_t * buffer, uint16_t length)
+tusb_error_t usbd_control_xfer_st(uint8_t rhport, tusb_dir_t dir, uint8_t * buffer, uint16_t length)
 {
   OSAL_SUBTASK_BEGIN
 
@@ -296,7 +296,7 @@ tusb_error_t usbd_control_xfer_st(uint8_t port, tusb_dir_t dir, uint8_t * buffer
   // Data
   if ( length )
   {
-    tusb_dcd_control_xfer(port, dir, buffer, length);
+    tusb_dcd_control_xfer(rhport, dir, buffer, length);
     osal_semaphore_wait( usbd_control_xfer_sem_hdl, 100, &error );
 
     STASK_ASSERT_STATUS( error );
@@ -305,12 +305,12 @@ tusb_error_t usbd_control_xfer_st(uint8_t port, tusb_dir_t dir, uint8_t * buffer
   // Status opposite direction with Zero Length
   // No need to wait for status to complete therefore
   // status phase must not call tusb_dcd_control_complete/tusb_dcd_xfer_complete
-  usbd_control_status(port, dir);
+  usbd_control_status(rhport, dir);
 
   OSAL_SUBTASK_END
 }
 
-static tusb_error_t proc_control_request_st(uint8_t port, tusb_control_request_t const * const p_request)
+static tusb_error_t proc_control_request_st(uint8_t rhport, tusb_control_request_t const * const p_request)
 {
   OSAL_SUBTASK_BEGIN
 
@@ -324,33 +324,33 @@ static tusb_error_t proc_control_request_st(uint8_t port, tusb_control_request_t
     if ( TUSB_REQ_GET_DESCRIPTOR == p_request->bRequest )
     {
       uint8_t  const * buffer = NULL;
-      uint16_t const   len    = get_descriptor(port, p_request, &buffer);
+      uint16_t const   len    = get_descriptor(rhport, p_request, &buffer);
 
       if ( len )
       {
-        STASK_INVOKE( usbd_control_xfer_st(port, p_request->bmRequestType_bit.direction, (uint8_t*) buffer, len ), error );
+        STASK_INVOKE( usbd_control_xfer_st(rhport, p_request->bmRequestType_bit.direction, (uint8_t*) buffer, len ), error );
       }else
       {
-        usbd_control_stall(port); // stall unsupported descriptor
+        usbd_control_stall(rhport); // stall unsupported descriptor
       }
     }
     else if ( TUSB_REQ_SET_ADDRESS == p_request->bRequest )
     {
-      tusb_dcd_set_address(port, (uint8_t) p_request->wValue);
-      usbd_devices[port].state = TUSB_DEVICE_STATE_ADDRESSED;
+      tusb_dcd_set_address(rhport, (uint8_t) p_request->wValue);
+      usbd_devices[rhport].state = TUSB_DEVICE_STATE_ADDRESSED;
 
       #ifndef NRF52840_XXAA // nrf52 auto handle set address, we must not return status
-      usbd_control_status(port, p_request->bmRequestType_bit.direction);
+      usbd_control_status(rhport, p_request->bmRequestType_bit.direction);
       #endif
     }
     else if ( TUSB_REQ_SET_CONFIGURATION == p_request->bRequest )
     {
-      proc_set_config_req(port, (uint8_t) p_request->wValue);
-      usbd_control_status(port, p_request->bmRequestType_bit.direction);
+      proc_set_config_req(rhport, (uint8_t) p_request->wValue);
+      usbd_control_status(rhport, p_request->bmRequestType_bit.direction);
     }
     else
     {
-      usbd_control_stall(port); // Stall unsupported request
+      usbd_control_stall(rhport); // Stall unsupported request
     }
   }
 
@@ -359,16 +359,16 @@ static tusb_error_t proc_control_request_st(uint8_t port, tusb_control_request_t
   {
     static uint8_t class_code;
 
-    class_code = usbd_devices[port].interface2class[ u16_low_u8(p_request->wIndex) ];
+    class_code = usbd_devices[rhport].interface2class[ u16_low_u8(p_request->wIndex) ];
 
     // TODO [Custom] TUSB_CLASS_DIAGNOSTIC, vendor etc ...
     if ( (class_code > 0) && (class_code < USBD_CLASS_DRIVER_COUNT) &&
          usbd_class_drivers[class_code].control_request_st )
     {
-      STASK_INVOKE( usbd_class_drivers[class_code].control_request_st(port, p_request), error );
+      STASK_INVOKE( usbd_class_drivers[class_code].control_request_st(rhport, p_request), error );
     }else
     {
-      usbd_control_stall(port); // Stall unsupported request
+      usbd_control_stall(rhport); // Stall unsupported request
     }
   }
 
@@ -378,18 +378,18 @@ static tusb_error_t proc_control_request_st(uint8_t port, tusb_control_request_t
   {
     if (TUSB_REQ_CLEAR_FEATURE == p_request->bRequest )
     {
-      tusb_dcd_edpt_clear_stall(port, u16_low_u8(p_request->wIndex) );
-      usbd_control_status(port, p_request->bmRequestType_bit.direction);
+      tusb_dcd_edpt_clear_stall(rhport, u16_low_u8(p_request->wIndex) );
+      usbd_control_status(rhport, p_request->bmRequestType_bit.direction);
     } else
     {
-      usbd_control_stall(port); // Stall unsupported request
+      usbd_control_stall(rhport); // Stall unsupported request
     }
   }
 
   //------------- Unsupported Request -------------//
   else
   {
-    usbd_control_stall(port); // Stall unsupported request
+    usbd_control_stall(rhport); // Stall unsupported request
   }
 
   OSAL_SUBTASK_END
@@ -397,10 +397,10 @@ static tusb_error_t proc_control_request_st(uint8_t port, tusb_control_request_t
 
 // TODO Host (windows) can get HID report descriptor before set configured
 // may need to open interface before set configured
-static tusb_error_t proc_set_config_req(uint8_t port, uint8_t config_number)
+static tusb_error_t proc_set_config_req(uint8_t rhport, uint8_t config_number)
 {
-  tusb_dcd_set_config(port, config_number);
-  usbd_devices[port].state = TUSB_DEVICE_STATE_CONFIGURED;
+  tusb_dcd_set_config(rhport, config_number);
+  usbd_devices[rhport].state = TUSB_DEVICE_STATE_CONFIGURED;
 
   //------------- parse configuration & open drivers -------------//
   uint8_t const * p_desc_config = tusbd_descriptor_pointers.p_configuration;
@@ -423,12 +423,12 @@ static tusb_error_t proc_set_config_req(uint8_t port, uint8_t config_number)
       class_index = p_desc_interface->bInterfaceClass;
 
       ASSERT( class_index != 0 && class_index < USBD_CLASS_DRIVER_COUNT && usbd_class_drivers[class_index].open != NULL, TUSB_ERROR_NOT_SUPPORTED_YET );
-      ASSERT( 0 == usbd_devices[port].interface2class[p_desc_interface->bInterfaceNumber], TUSB_ERROR_FAILED); // duplicate interface number TODO alternate setting
+      ASSERT( 0 == usbd_devices[rhport].interface2class[p_desc_interface->bInterfaceNumber], TUSB_ERROR_FAILED); // duplicate interface number TODO alternate setting
 
-      usbd_devices[port].interface2class[p_desc_interface->bInterfaceNumber] = class_index;
+      usbd_devices[rhport].interface2class[p_desc_interface->bInterfaceNumber] = class_index;
 
       uint16_t length=0;
-      ASSERT_STATUS( usbd_class_drivers[class_index].open( port, p_desc_interface, &length ) );
+      ASSERT_STATUS( usbd_class_drivers[class_index].open( rhport, p_desc_interface, &length ) );
 
       ASSERT( length >= sizeof(tusb_descriptor_interface_t), TUSB_ERROR_FAILED );
       p_desc += length;
@@ -436,12 +436,12 @@ static tusb_error_t proc_set_config_req(uint8_t port, uint8_t config_number)
   }
 
   // invoke callback
-  tud_mount_cb(port);
+  tud_mount_cb(rhport);
 
   return TUSB_ERROR_NONE;
 }
 
-static uint16_t get_descriptor(uint8_t port, tusb_control_request_t const * const p_request, uint8_t const ** pp_buffer)
+static uint16_t get_descriptor(uint8_t rhport, tusb_control_request_t const * const p_request, uint8_t const ** pp_buffer)
 {
   tusb_desc_type_t const desc_type = (tusb_desc_type_t) u16_high_u8(p_request->wValue);
   uint8_t const desc_index = u16_low_u8( p_request->wValue );
@@ -496,28 +496,28 @@ static uint16_t get_descriptor(uint8_t port, tusb_control_request_t const * cons
 //--------------------------------------------------------------------+
 // USBD-DCD Callback API
 //--------------------------------------------------------------------+
-void tusb_dcd_bus_event(uint8_t port, usbd_bus_event_type_t bus_event)
+void tusb_dcd_bus_event(uint8_t rhport, usbd_bus_event_type_t bus_event)
 {
   switch(bus_event)
   {
     case USBD_BUS_EVENT_RESET     :
-      memclr_(&usbd_devices[port], sizeof(usbd_device_info_t));
+      memclr_(&usbd_devices[rhport], sizeof(usbd_device_info_t));
       osal_queue_flush(usbd_queue_hdl);
       osal_semaphore_reset(usbd_control_xfer_sem_hdl);
       for (uint8_t class_code = TUSB_CLASS_AUDIO; class_code < USBD_CLASS_DRIVER_COUNT; class_code++)
       {
-        if ( usbd_class_drivers[class_code].close ) usbd_class_drivers[class_code].close( port );
+        if ( usbd_class_drivers[class_code].close ) usbd_class_drivers[class_code].close( rhport );
       }
 
       // invoke callback
-      tud_umount_cb(port);
+      tud_umount_cb(rhport);
     break;
 
     case USBD_BUS_EVENT_SOF:
     {
       usbd_task_event_t task_event =
       {
-          .port          = port,
+          .rhport          = rhport,
           .event_id        = USBD_EVENTID_SOF,
       };
       osal_queue_send(usbd_queue_hdl, &task_event);
@@ -527,18 +527,18 @@ void tusb_dcd_bus_event(uint8_t port, usbd_bus_event_type_t bus_event)
     case USBD_BUS_EVENT_UNPLUGGED : break;
 
     case USBD_BUS_EVENT_SUSPENDED:
-      usbd_devices[port].state = TUSB_DEVICE_STATE_SUSPENDED;
+      usbd_devices[rhport].state = TUSB_DEVICE_STATE_SUSPENDED;
     break;
 
     default: break;
   }
 }
 
-void tusb_dcd_setup_received(uint8_t port, uint8_t const* p_request)
+void tusb_dcd_setup_received(uint8_t rhport, uint8_t const* p_request)
 {
   usbd_task_event_t task_event =
   {
-      .port          = port,
+      .rhport          = rhport,
       .event_id        = USBD_EVENTID_SETUP_RECEIVED,
   };
 
@@ -546,11 +546,11 @@ void tusb_dcd_setup_received(uint8_t port, uint8_t const* p_request)
   osal_queue_send(usbd_queue_hdl, &task_event);
 }
 
-void tusb_dcd_xfer_complete(uint8_t port, uint8_t ep_addr, uint32_t xferred_bytes, bool succeeded)
+void tusb_dcd_xfer_complete(uint8_t rhport, uint8_t ep_addr, uint32_t xferred_bytes, bool succeeded)
 {
   if (ep_addr == 0 )
   {
-    (void) port;
+    (void) rhport;
     (void) xferred_bytes;
     (void) succeeded;
 
@@ -560,7 +560,7 @@ void tusb_dcd_xfer_complete(uint8_t port, uint8_t ep_addr, uint32_t xferred_byte
   {
     usbd_task_event_t task_event =
     {
-        .port         = port,
+        .rhport         = rhport,
         .event_id     = USBD_EVENTID_XFER_DONE,
         .sub_event_id = succeeded ? TUSB_EVENT_XFER_COMPLETE : TUSB_EVENT_XFER_ERROR
     };

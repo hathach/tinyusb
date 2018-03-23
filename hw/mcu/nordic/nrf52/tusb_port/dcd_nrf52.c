@@ -228,7 +228,7 @@ void bus_reset(void)
 /*------------------------------------------------------------------*/
 /* Controller API
  *------------------------------------------------------------------*/
-bool tusb_dcd_init (uint8_t port)
+bool tusb_dcd_init (uint8_t rhport)
 {
   // USB Power detection
   const nrf_drv_power_usbevt_config_t config =
@@ -238,24 +238,24 @@ bool tusb_dcd_init (uint8_t port)
   return ( NRF_SUCCESS == nrf_drv_power_usbevt_init(&config) );
 }
 
-void tusb_dcd_connect (uint8_t port)
+void tusb_dcd_connect (uint8_t rhport)
 {
 
 }
-void tusb_dcd_disconnect (uint8_t port)
+void tusb_dcd_disconnect (uint8_t rhport)
 {
 
 }
 
-void tusb_dcd_set_address (uint8_t port, uint8_t dev_addr)
+void tusb_dcd_set_address (uint8_t rhport, uint8_t dev_addr)
 {
-  (void) port;
+  (void) rhport;
   // Set Address is automatically update by hw controller
 }
 
-void tusb_dcd_set_config (uint8_t port, uint8_t config_num)
+void tusb_dcd_set_config (uint8_t rhport, uint8_t config_num)
 {
-  (void) port;
+  (void) rhport;
   (void) config_num;
   // Nothing to do
 }
@@ -330,9 +330,9 @@ static void control_xact_start(void)
 //}
 
 
-bool tusb_dcd_control_xfer (uint8_t port, tusb_dir_t dir, uint8_t * buffer, uint16_t length)
+bool tusb_dcd_control_xfer (uint8_t rhport, tusb_dir_t dir, uint8_t * buffer, uint16_t length)
 {
-  (void) port;
+  (void) rhport;
 
   if ( length )
   {
@@ -389,9 +389,9 @@ static void normal_xact_start(uint8_t epnum, uint8_t dir)
   }
 }
 
-bool tusb_dcd_edpt_open (uint8_t port, tusb_descriptor_endpoint_t const * desc_edpt)
+bool tusb_dcd_edpt_open (uint8_t rhport, tusb_descriptor_endpoint_t const * desc_edpt)
 {
-  (void) port;
+  (void) rhport;
 
   uint8_t const epnum = edpt_number(desc_edpt->bEndpointAddress);
   uint8_t const dir   = edpt_dir(desc_edpt->bEndpointAddress);
@@ -412,9 +412,9 @@ bool tusb_dcd_edpt_open (uint8_t port, tusb_descriptor_endpoint_t const * desc_e
   return true;
 }
 
-bool tusb_dcd_edpt_xfer (uint8_t port, uint8_t ep_addr, uint8_t * buffer, uint16_t total_bytes)
+bool tusb_dcd_edpt_xfer (uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t total_bytes)
 {
-  (void) port;
+  (void) rhport;
 
   uint8_t const epnum = edpt_number(ep_addr);
   uint8_t const dir   = edpt_dir(ep_addr);
@@ -436,9 +436,9 @@ bool tusb_dcd_edpt_xfer (uint8_t port, uint8_t ep_addr, uint8_t * buffer, uint16
   return true;
 }
 
-void tusb_dcd_edpt_stall (uint8_t port, uint8_t ep_addr)
+void tusb_dcd_edpt_stall (uint8_t rhport, uint8_t ep_addr)
 {
-  (void) port;
+  (void) rhport;
 
   if ( ep_addr == 0)
   {
@@ -451,18 +451,18 @@ void tusb_dcd_edpt_stall (uint8_t port, uint8_t ep_addr)
   __ISB(); __DSB();
 }
 
-void tusb_dcd_edpt_clear_stall (uint8_t port, uint8_t ep_addr)
+void tusb_dcd_edpt_clear_stall (uint8_t rhport, uint8_t ep_addr)
 {
-  (void) port;
+  (void) rhport;
   if ( ep_addr )
   {
     NRF_USBD->EPSTALL = (USBD_EPSTALL_STALL_UnStall << USBD_EPSTALL_STALL_Pos) | ep_addr;
   }
 }
 
-bool tusb_dcd_edpt_busy (uint8_t port, uint8_t ep_addr)
+bool tusb_dcd_edpt_busy (uint8_t rhport, uint8_t ep_addr)
 {
-  (void) port;
+  (void) rhport;
 
   // USBD shouldn't check control endpoint state
   if ( 0 == ep_addr ) return false;
