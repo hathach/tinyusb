@@ -70,27 +70,6 @@ typedef struct {
 // define by application
 extern tusbd_descriptor_pointer_t tusbd_descriptor_pointers;
 
-typedef struct {
-  void (* init) (void);
-  tusb_error_t (* open)(uint8_t rhport, tusb_desc_interface_t const * desc_intf, uint16_t* p_length);
-  tusb_error_t (* control_request_st) (uint8_t rhport, tusb_control_request_t const *);
-  tusb_error_t (* xfer_cb) (uint8_t rhport, uint8_t ep_addr, tusb_event_t, uint32_t);
-//  void (* routine)(void);
-  void (* sof)(uint8_t rhport);
-  void (* close) (uint8_t);
-} usbd_class_driver_t;
-
-
-enum {
-  USBD_INTERFACE_NUM_MAX = 16 // USB specs specify up to 16 endpoints per device
-};
-
-
-typedef struct {
-  volatile uint8_t state;
-  uint8_t interface2class[USBD_INTERFACE_NUM_MAX]; // determine interface number belongs to which class
-}usbd_device_info_t;
-
 //--------------------------------------------------------------------+
 // APPLICATION API
 //--------------------------------------------------------------------+

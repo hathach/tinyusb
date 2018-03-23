@@ -49,6 +49,29 @@
 #include "usbd.h"
 #include "device/usbd_pvt.h"
 
+
+typedef struct {
+  void (* init) (void);
+  tusb_error_t (* open)(uint8_t rhport, tusb_desc_interface_t const * desc_intf, uint16_t* p_length);
+  tusb_error_t (* control_request_st) (uint8_t rhport, tusb_control_request_t const *);
+  tusb_error_t (* xfer_cb) (uint8_t rhport, uint8_t ep_addr, tusb_event_t, uint32_t);
+//  void (* routine)(void);
+  void (* sof)(uint8_t rhport);
+  void (* close) (uint8_t);
+} usbd_class_driver_t;
+
+
+enum {
+  USBD_INTERFACE_NUM_MAX = 16 // USB specs specify up to 16 endpoints per device
+};
+
+typedef struct {
+  volatile uint8_t state;
+  uint8_t  config_num;
+
+  uint8_t interface2class[USBD_INTERFACE_NUM_MAX]; // determine interface number belongs to which class
+}usbd_device_info_t;
+
 //--------------------------------------------------------------------+
 // MACRO CONSTANT TYPEDEF
 //--------------------------------------------------------------------+
@@ -334,6 +357,11 @@ static tusb_error_t proc_control_request_st(uint8_t rhport, tusb_control_request
         usbd_control_stall(rhport); // stall unsupported descriptor
       }
     }
+    else if (TUSB_REQ_GET_CONFIGURATION == p_request->bRequest )
+    {
+      memcpy(usbd_enum_buffer, &usbd_devices[rhport].config_num, 1);
+      STASK_INVOKE( usbd_control_xfer_st(rhport, p_request->bmRequestType_bit.direction, (uint8_t*) usbd_enum_buffer, 1), error );
+    }
     else if ( TUSB_REQ_SET_ADDRESS == p_request->bRequest )
     {
       tusb_dcd_set_address(rhport, (uint8_t) p_request->wValue);
@@ -400,7 +428,9 @@ static tusb_error_t proc_control_request_st(uint8_t rhport, tusb_control_request
 static tusb_error_t proc_set_config_req(uint8_t rhport, uint8_t config_number)
 {
   tusb_dcd_set_config(rhport, config_number);
+
   usbd_devices[rhport].state = TUSB_DEVICE_STATE_CONFIGURED;
+  usbd_devices[rhport].config_num = config_number;
 
   //------------- parse configuration & open drivers -------------//
   uint8_t const * p_desc_config = tusbd_descriptor_pointers.p_configuration;
@@ -482,7 +512,7 @@ static uint16_t get_descriptor(uint8_t rhport, tusb_control_request_t const * co
 
   // up to Host's length
   len = min16_of(p_request->wLength, len );
-  ASSERT( len <= TUSB_CFG_DEVICE_ENUM_BUFFER_SIZE, TUSB_ERROR_NOT_ENOUGH_MEMORY);
+  TU_ASSERT( len <= TUSB_CFG_DEVICE_ENUM_BUFFER_SIZE, 0);
 
   memcpy(usbd_enum_buffer, desc_data, len);
   (*pp_buffer) = usbd_enum_buffer;
@@ -508,9 +538,6 @@ void tusb_dcd_bus_event(uint8_t rhport, usbd_bus_event_type_t bus_event)
       {
         if ( usbd_class_drivers[class_code].close ) usbd_class_drivers[class_code].close( rhport );
       }
-
-      // invoke callback
-      tud_umount_cb(rhport);
     break;
 
     case USBD_BUS_EVENT_SOF:
@@ -524,7 +551,10 @@ void tusb_dcd_bus_event(uint8_t rhport, usbd_bus_event_type_t bus_event)
     }
     break;
 
-    case USBD_BUS_EVENT_UNPLUGGED : break;
+    case USBD_BUS_EVENT_UNPLUGGED:
+      // invoke callback
+      tud_umount_cb(rhport);
+    break;
 
     case USBD_BUS_EVENT_SUSPENDED:
       usbd_devices[rhport].state = TUSB_DEVICE_STATE_SUSPENDED;
