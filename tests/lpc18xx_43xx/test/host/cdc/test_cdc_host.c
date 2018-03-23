@@ -58,10 +58,10 @@
 static uint8_t dev_addr;
 static uint16_t length;
 
-static tusb_descriptor_interface_t const * p_comm_interface = &cdc_config_descriptor.cdc_comm_interface;
-static tusb_descriptor_endpoint_t const * p_endpoint_notification = &cdc_config_descriptor.cdc_endpoint_notification;
-static tusb_descriptor_endpoint_t const * p_endpoint_out = &cdc_config_descriptor.cdc_endpoint_out;
-static tusb_descriptor_endpoint_t const * p_endpoint_in = &cdc_config_descriptor.cdc_endpoint_in;
+static tusb_desc_interface_t const * p_comm_interface = &cdc_config_descriptor.cdc_comm_interface;
+static tusb_desc_endpoint_t const * p_endpoint_notification = &cdc_config_descriptor.cdc_endpoint_notification;
+static tusb_desc_endpoint_t const * p_endpoint_out = &cdc_config_descriptor.cdc_endpoint_out;
+static tusb_desc_endpoint_t const * p_endpoint_in = &cdc_config_descriptor.cdc_endpoint_in;
 
 extern cdch_data_t cdch_data[TUSB_CFG_HOST_DEVICE_MAX];
 static cdch_data_t * p_cdc = &cdch_data[0];
@@ -124,11 +124,11 @@ void test_cdch_open_length_check(void)
 {
   const uint16_t expected_length =
       //------------- Comm Interface -------------//
-      sizeof(tusb_descriptor_interface_t) + sizeof(cdc_desc_func_header_t) +
+      sizeof(tusb_desc_interface_t) + sizeof(cdc_desc_func_header_t) +
       sizeof(cdc_desc_func_abstract_control_management_t) + sizeof(cdc_desc_func_union_t) +
-      sizeof(tusb_descriptor_endpoint_t) +
+      sizeof(tusb_desc_endpoint_t) +
       //------------- Data Interface -------------//
-      sizeof(tusb_descriptor_interface_t) + 2*sizeof(tusb_descriptor_endpoint_t);
+      sizeof(tusb_desc_interface_t) + 2*sizeof(tusb_desc_endpoint_t);
 
   pipe_handle_t dummy_hld = { .dev_addr = 1 };
   hcd_pipe_open_IgnoreAndReturn(dummy_hld);

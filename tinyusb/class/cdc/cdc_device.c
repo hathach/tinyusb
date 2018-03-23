@@ -130,7 +130,7 @@ void cdcd_init(void)
   }
 }
 
-tusb_error_t cdcd_open(uint8_t rhport, tusb_descriptor_interface_t const * p_interface_desc, uint16_t *p_length)
+tusb_error_t cdcd_open(uint8_t rhport, tusb_desc_interface_t const * p_interface_desc, uint16_t *p_length)
 {
   if ( CDC_COMM_SUBCLASS_ABSTRACT_CONTROL_MODEL != p_interface_desc->bInterfaceSubClass) return TUSB_ERROR_CDC_UNSUPPORTED_SUBCLASS;
 
@@ -144,7 +144,7 @@ tusb_error_t cdcd_open(uint8_t rhport, tusb_descriptor_interface_t const * p_int
   cdcd_data_t * p_cdc = &cdcd_data[rhport];
 
   //------------- Communication Interface -------------//
-  (*p_length) = sizeof(tusb_descriptor_interface_t);
+  (*p_length) = sizeof(tusb_desc_interface_t);
 
   while( TUSB_DESC_CLASS_SPECIFIC == p_desc[DESCRIPTOR_OFFSET_TYPE] )
   { // Communication Functional Descriptors
@@ -159,9 +159,9 @@ tusb_error_t cdcd_open(uint8_t rhport, tusb_descriptor_interface_t const * p_int
 
   if ( TUSB_DESC_ENDPOINT == p_desc[DESCRIPTOR_OFFSET_TYPE])
   { // notification endpoint if any
-    TU_ASSERT( tusb_dcd_edpt_open(rhport, (tusb_descriptor_endpoint_t const *) p_desc), TUSB_ERROR_DCD_OPEN_PIPE_FAILED);
+    TU_ASSERT( tusb_dcd_edpt_open(rhport, (tusb_desc_endpoint_t const *) p_desc), TUSB_ERROR_DCD_OPEN_PIPE_FAILED);
 
-    p_cdc->ep_notif = ((tusb_descriptor_endpoint_t const *) p_desc)->bEndpointAddress;
+    p_cdc->ep_notif = ((tusb_desc_endpoint_t const *) p_desc)->bEndpointAddress;
 
     (*p_length) += p_desc[DESCRIPTOR_OFFSET_LENGTH];
     p_desc = descriptor_next(p_desc);
@@ -169,7 +169,7 @@ tusb_error_t cdcd_open(uint8_t rhport, tusb_descriptor_interface_t const * p_int
 
   //------------- Data Interface (if any) -------------//
   if ( (TUSB_DESC_INTERFACE == p_desc[DESCRIPTOR_OFFSET_TYPE]) &&
-       (TUSB_CLASS_CDC_DATA      == ((tusb_descriptor_interface_t const *) p_desc)->bInterfaceClass) )
+       (TUSB_CLASS_CDC_DATA      == ((tusb_desc_interface_t const *) p_desc)->bInterfaceClass) )
   {
     (*p_length) += p_desc[DESCRIPTOR_OFFSET_LENGTH];
     p_desc = descriptor_next(p_desc);
@@ -177,7 +177,7 @@ tusb_error_t cdcd_open(uint8_t rhport, tusb_descriptor_interface_t const * p_int
     // data endpoints expected to be in pairs
     for(uint32_t i=0; i<2; i++)
     {
-      tusb_descriptor_endpoint_t const *p_endpoint = (tusb_descriptor_endpoint_t const *) p_desc;
+      tusb_desc_endpoint_t const *p_endpoint = (tusb_desc_endpoint_t const *) p_desc;
       TU_ASSERT(TUSB_DESC_ENDPOINT == p_endpoint->bDescriptorType, TUSB_ERROR_DESCRIPTOR_CORRUPTED);
       TU_ASSERT(TUSB_XFER_BULK == p_endpoint->bmAttributes.xfer, TUSB_ERROR_DESCRIPTOR_CORRUPTED);
 

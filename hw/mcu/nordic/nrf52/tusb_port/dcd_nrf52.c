@@ -389,7 +389,7 @@ static void normal_xact_start(uint8_t epnum, uint8_t dir)
   }
 }
 
-bool tusb_dcd_edpt_open (uint8_t rhport, tusb_descriptor_endpoint_t const * desc_edpt)
+bool tusb_dcd_edpt_open (uint8_t rhport, tusb_desc_endpoint_t const * desc_edpt)
 {
   (void) rhport;
 

@@ -201,7 +201,7 @@ void tud_hid_mouse_set_report_cb(uint8_t rhport, hid_request_report_type_t repor
 #ifdef _TINY_USB_SOURCE_FILE_
 
 void hidd_init(void);
-tusb_error_t hidd_open(uint8_t rhport, tusb_descriptor_interface_t const * p_interface_desc, uint16_t *p_length);
+tusb_error_t hidd_open(uint8_t rhport, tusb_desc_interface_t const * p_interface_desc, uint16_t *p_length);
 tusb_error_t hidd_control_request_st(uint8_t rhport, tusb_control_request_t const * p_request);
 tusb_error_t hidd_xfer_cb(uint8_t rhport, uint8_t edpt_addr, tusb_event_t event, uint32_t xferred_bytes);
 void hidd_close(uint8_t rhport);

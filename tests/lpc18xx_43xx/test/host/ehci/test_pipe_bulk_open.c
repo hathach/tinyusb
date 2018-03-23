@@ -107,9 +107,9 @@ void verify_open_qhd(ehci_qhd_t *p_qhd, uint8_t endpoint_addr, uint16_t max_pack
 //--------------------------------------------------------------------+
 // PIPE OPEN
 //--------------------------------------------------------------------+
-tusb_descriptor_endpoint_t const desc_ept_bulk_in =
+tusb_desc_endpoint_t const desc_ept_bulk_in =
 {
-    .bLength          = sizeof(tusb_descriptor_endpoint_t),
+    .bLength          = sizeof(tusb_desc_endpoint_t),
     .bDescriptorType  = TUSB_DESC_TYPE_ENDPOINT,
     .bEndpointAddress = 0x81,
     .bmAttributes     = { .xfer = TUSB_XFER_BULK },
@@ -117,9 +117,9 @@ tusb_descriptor_endpoint_t const desc_ept_bulk_in =
     .bInterval        = 0
 };
 
-tusb_descriptor_endpoint_t const desc_ept_bulk_out =
+tusb_desc_endpoint_t const desc_ept_bulk_out =
 {
-    .bLength          = sizeof(tusb_descriptor_endpoint_t),
+    .bLength          = sizeof(tusb_desc_endpoint_t),
     .bDescriptorType  = TUSB_DESC_TYPE_ENDPOINT,
     .bEndpointAddress = 0x01,
     .bmAttributes     = { .xfer = TUSB_XFER_BULK },
@@ -127,7 +127,7 @@ tusb_descriptor_endpoint_t const desc_ept_bulk_out =
     .bInterval        = 0
 };
 
-void verify_bulk_open_qhd(ehci_qhd_t *p_qhd, tusb_descriptor_endpoint_t const * desc_endpoint, uint8_t class_code)
+void verify_bulk_open_qhd(ehci_qhd_t *p_qhd, tusb_desc_endpoint_t const * desc_endpoint, uint8_t class_code)
 {
   verify_open_qhd(p_qhd, desc_endpoint->bEndpointAddress, desc_endpoint->wMaxPacketSize.size);
 
@@ -152,7 +152,7 @@ void test_open_bulk_qhd_data(void)
 {
   ehci_qhd_t *p_qhd;
   pipe_handle_t pipe_hdl;
-  tusb_descriptor_endpoint_t const * desc_endpoint = &desc_ept_bulk_in;
+  tusb_desc_endpoint_t const * desc_endpoint = &desc_ept_bulk_in;
 
   //------------- Code Under TEST -------------//
   pipe_hdl = hcd_pipe_open(dev_addr, desc_endpoint, TUSB_CLASS_MSC);
@@ -186,7 +186,7 @@ void test_open_bulk_hs_out_pingstate(void)
 //--------------------------------------------------------------------+
 void test_bulk_close(void)
 {
-  tusb_descriptor_endpoint_t const * desc_endpoint = &desc_ept_bulk_in;
+  tusb_desc_endpoint_t const * desc_endpoint = &desc_ept_bulk_in;
   pipe_handle_t pipe_hdl = hcd_pipe_open(dev_addr, desc_endpoint, TUSB_CLASS_MSC);
   ehci_qhd_t *p_qhd = &ehci_data.device[ pipe_hdl.dev_addr-1].qhd[ pipe_hdl.index ];
 

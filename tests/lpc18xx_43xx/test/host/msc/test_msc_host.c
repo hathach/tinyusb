@@ -53,9 +53,9 @@
 
 extern msch_interface_t msch_data[TUSB_CFG_HOST_DEVICE_MAX];
 
-static tusb_descriptor_interface_t const *p_msc_interface_desc = &desc_configuration.msc_interface;
-static tusb_descriptor_endpoint_t const *p_edp_in  = &desc_configuration.msc_endpoint_in;
-static tusb_descriptor_endpoint_t const *p_edp_out = &desc_configuration.msc_endpoint_out;
+static tusb_desc_interface_t const *p_msc_interface_desc = &desc_configuration.msc_interface;
+static tusb_desc_endpoint_t const *p_edp_in  = &desc_configuration.msc_endpoint_in;
+static tusb_desc_endpoint_t const *p_edp_out = &desc_configuration.msc_endpoint_out;
 
 static msch_interface_t* p_msc;
 
@@ -131,7 +131,7 @@ void test_open_desc_length(void)
   //------------- Code Under Test -------------//
   TEST_ASSERT_STATUS( msch_open_subtask(dev_addr, p_msc_interface_desc, &length) );
 
-  TEST_ASSERT_EQUAL(sizeof(tusb_descriptor_interface_t) + 2*sizeof(tusb_descriptor_endpoint_t),
+  TEST_ASSERT_EQUAL(sizeof(tusb_desc_interface_t) + 2*sizeof(tusb_desc_endpoint_t),
                     length);
 }
 

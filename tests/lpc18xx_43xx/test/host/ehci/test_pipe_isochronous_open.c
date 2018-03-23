@@ -82,9 +82,9 @@ void tearDown(void)
 //--------------------------------------------------------------------+
 // TODO ISOCRHONOUS PIPE
 //--------------------------------------------------------------------+
-tusb_descriptor_endpoint_t const desc_ept_iso_in =
+tusb_desc_endpoint_t const desc_ept_iso_in =
 {
-    .bLength          = sizeof(tusb_descriptor_endpoint_t),
+    .bLength          = sizeof(tusb_desc_endpoint_t),
     .bDescriptorType  = TUSB_DESC_TYPE_ENDPOINT,
     .bEndpointAddress = 0x83,
     .bmAttributes     = { .xfer = TUSB_XFER_ISOCHRONOUS },

@@ -257,7 +257,7 @@ tusb_error_t hidd_control_request_st(uint8_t rhport, tusb_control_request_t cons
   OSAL_SUBTASK_END
 }
 
-tusb_error_t hidd_open(uint8_t rhport, tusb_descriptor_interface_t const * p_interface_desc, uint16_t *p_length)
+tusb_error_t hidd_open(uint8_t rhport, tusb_desc_interface_t const * p_interface_desc, uint16_t *p_length)
 {
   uint8_t const *p_desc = (uint8_t const *) p_interface_desc;
 
@@ -268,7 +268,7 @@ tusb_error_t hidd_open(uint8_t rhport, tusb_descriptor_interface_t const * p_int
 
   //------------- Endpoint Descriptor -------------//
   p_desc += p_desc[DESCRIPTOR_OFFSET_LENGTH];
-  tusb_descriptor_endpoint_t const *p_desc_endpoint = (tusb_descriptor_endpoint_t const *) p_desc;
+  tusb_desc_endpoint_t const *p_desc_endpoint = (tusb_desc_endpoint_t const *) p_desc;
   ASSERT_INT(TUSB_DESC_ENDPOINT, p_desc_endpoint->bDescriptorType, TUSB_ERROR_HIDD_DESCRIPTOR_INTERFACE);
 
   if (p_interface_desc->bInterfaceSubClass == HID_SUBCLASS_BOOT)
@@ -298,7 +298,7 @@ tusb_error_t hidd_open(uint8_t rhport, tusb_descriptor_interface_t const * p_int
       default: // TODO unknown, unsupported protocol --> skip this interface
         return TUSB_ERROR_HIDD_DESCRIPTOR_INTERFACE;
     }
-    *p_length = sizeof(tusb_descriptor_interface_t) + sizeof(tusb_hid_descriptor_hid_t) + sizeof(tusb_descriptor_endpoint_t);
+    *p_length = sizeof(tusb_desc_interface_t) + sizeof(tusb_hid_descriptor_hid_t) + sizeof(tusb_desc_endpoint_t);
   }else
   {
     // open generic

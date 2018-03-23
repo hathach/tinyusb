@@ -54,7 +54,7 @@
 //--------------------------------------------------------------------+
 // HID Interface common functions
 //--------------------------------------------------------------------+
-static inline tusb_error_t hidh_interface_open(uint8_t dev_addr, uint8_t interface_number, tusb_descriptor_endpoint_t const *p_endpoint_desc, hidh_interface_info_t *p_hid)
+static inline tusb_error_t hidh_interface_open(uint8_t dev_addr, uint8_t interface_number, tusb_desc_endpoint_t const *p_endpoint_desc, hidh_interface_info_t *p_hid)
 {
   p_hid->pipe_hdl         = hcd_pipe_open(dev_addr, p_endpoint_desc, TUSB_CLASS_HID);
   p_hid->report_size      = p_endpoint_desc->wMaxPacketSize.size; // TODO get size from report descriptor
@@ -180,7 +180,7 @@ void hidh_init(void)
 TUSB_CFG_ATTR_USBRAM uint8_t report_descriptor[256];
 #endif
 
-tusb_error_t hidh_open_subtask(uint8_t dev_addr, tusb_descriptor_interface_t const *p_interface_desc, uint16_t *p_length)
+tusb_error_t hidh_open_subtask(uint8_t dev_addr, tusb_desc_interface_t const *p_interface_desc, uint16_t *p_length)
 {
   tusb_error_t error;
   uint8_t const *p_desc = (uint8_t const *) p_interface_desc;
@@ -192,7 +192,7 @@ tusb_error_t hidh_open_subtask(uint8_t dev_addr, tusb_descriptor_interface_t con
 
   //------------- Endpoint Descriptor -------------//
   p_desc += p_desc[DESCRIPTOR_OFFSET_LENGTH];
-  tusb_descriptor_endpoint_t const * p_endpoint_desc = (tusb_descriptor_endpoint_t const *) p_desc;
+  tusb_desc_endpoint_t const * p_endpoint_desc = (tusb_desc_endpoint_t const *) p_desc;
   ASSERT_INT(TUSB_DESC_ENDPOINT, p_endpoint_desc->bDescriptorType, TUSB_ERROR_INVALID_PARA);
 
   OSAL_SUBTASK_BEGIN
@@ -246,7 +246,7 @@ tusb_error_t hidh_open_subtask(uint8_t dev_addr, tusb_descriptor_interface_t con
     STASK_RETURN(TUSB_ERROR_HIDH_NOT_SUPPORTED_SUBCLASS); // exit & restart task
   }
 
-  *p_length = sizeof(tusb_descriptor_interface_t) + sizeof(tusb_hid_descriptor_hid_t) + sizeof(tusb_descriptor_endpoint_t);
+  *p_length = sizeof(tusb_desc_interface_t) + sizeof(tusb_hid_descriptor_hid_t) + sizeof(tusb_desc_endpoint_t);
 
   OSAL_SUBTASK_END
 }

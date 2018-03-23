@@ -195,7 +195,7 @@ tusb_error_t hub_status_pipe_queue(uint8_t dev_addr);
 #ifdef _TINY_USB_SOURCE_FILE_
 
 void         hub_init(void);
-tusb_error_t hub_open_subtask(uint8_t dev_addr, tusb_descriptor_interface_t const *p_interface_desc, uint16_t *p_length) ATTR_WARN_UNUSED_RESULT;
+tusb_error_t hub_open_subtask(uint8_t dev_addr, tusb_desc_interface_t const *p_interface_desc, uint16_t *p_length) ATTR_WARN_UNUSED_RESULT;
 void         hub_isr(pipe_handle_t pipe_hdl, tusb_event_t event, uint32_t xferred_bytes);
 void         hub_close(uint8_t dev_addr);
 

@@ -102,9 +102,9 @@ enum { USBD_CLASS_DRIVER_COUNT = sizeof(usbd_class_drivers) / sizeof(usbd_class_
 
 
 
-//tusb_descriptor_device_qualifier_t _device_qual =
+//tusb_desc_device_qualifier_t _device_qual =
 //{
-//    .bLength = sizeof(tusb_descriptor_device_qualifier_t),
+//    .bLength = sizeof(tusb_desc_device_qualifier_t),
 //    .bDescriptorType = TUSB_DESC_DEVICE_QUALIFIER,
 //    .bcdUSB = 0x0200,
 //    .bDeviceClass =
@@ -404,9 +404,9 @@ static tusb_error_t proc_set_config_req(uint8_t rhport, uint8_t config_number)
 
   //------------- parse configuration & open drivers -------------//
   uint8_t const * p_desc_config = tusbd_descriptor_pointers.p_configuration;
-  uint8_t const * p_desc = p_desc_config + sizeof(tusb_descriptor_configuration_t);
+  uint8_t const * p_desc = p_desc_config + sizeof(tusb_desc_configuration_t);
 
-  uint16_t const config_total_length = ((tusb_descriptor_configuration_t*)p_desc_config)->wTotalLength;
+  uint16_t const config_total_length = ((tusb_desc_configuration_t*)p_desc_config)->wTotalLength;
 
   while( p_desc < p_desc_config + config_total_length )
   {
@@ -418,7 +418,7 @@ static tusb_error_t proc_set_config_req(uint8_t rhport, uint8_t config_number)
       ASSERT( TUSB_DESC_INTERFACE == p_desc[DESCRIPTOR_OFFSET_TYPE], TUSB_ERROR_NOT_SUPPORTED_YET );
 
       uint8_t class_index;
-      tusb_descriptor_interface_t* p_desc_interface = (tusb_descriptor_interface_t*) p_desc;
+      tusb_desc_interface_t* p_desc_interface = (tusb_desc_interface_t*) p_desc;
 
       class_index = p_desc_interface->bInterfaceClass;
 
@@ -430,7 +430,7 @@ static tusb_error_t proc_set_config_req(uint8_t rhport, uint8_t config_number)
       uint16_t length=0;
       ASSERT_STATUS( usbd_class_drivers[class_index].open( rhport, p_desc_interface, &length ) );
 
-      ASSERT( length >= sizeof(tusb_descriptor_interface_t), TUSB_ERROR_FAILED );
+      ASSERT( length >= sizeof(tusb_desc_interface_t), TUSB_ERROR_FAILED );
       p_desc += length;
     }
   }
@@ -453,12 +453,12 @@ static uint16_t get_descriptor(uint8_t rhport, tusb_control_request_t const * co
   {
     case TUSB_DESC_DEVICE:
       desc_data = tusbd_descriptor_pointers.p_device;
-      len       = sizeof(tusb_descriptor_device_t);
+      len       = sizeof(tusb_desc_device_t);
     break;
 
     case TUSB_DESC_CONFIGURATION:
       desc_data = tusbd_descriptor_pointers.p_configuration;
-      len       = ((tusb_descriptor_configuration_t*)tusbd_descriptor_pointers.p_configuration)->wTotalLength;
+      len       = ((tusb_desc_configuration_t*)tusbd_descriptor_pointers.p_configuration)->wTotalLength;
     break;
 
     case TUSB_DESC_STRING:

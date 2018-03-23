@@ -118,9 +118,9 @@ void test_dcd_init(void)
 
 void test_dcd_configure_endpoint_in(void)
 {
-  tusb_descriptor_endpoint_t const desc_endpoint =
+  tusb_desc_endpoint_t const desc_endpoint =
   {
-      .bLength          = sizeof(tusb_descriptor_endpoint_t),
+      .bLength          = sizeof(tusb_desc_endpoint_t),
       .bDescriptorType  = TUSB_DESC_TYPE_ENDPOINT,
       .bEndpointAddress = 0x83,
       .bmAttributes     = { .xfer = TUSB_XFER_INTERRUPT },

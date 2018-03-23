@@ -63,10 +63,10 @@ void tearDown(void)
 static uint8_t dev_addr;
 static uint16_t length;
 
-static tusb_descriptor_interface_t const * p_comm_interface = &rndis_config_descriptor.cdc_comm_interface;
-static tusb_descriptor_endpoint_t const * p_endpoint_notification = &rndis_config_descriptor.cdc_endpoint_notification;
-static tusb_descriptor_endpoint_t const * p_endpoint_out = &rndis_config_descriptor.cdc_endpoint_out;
-static tusb_descriptor_endpoint_t const * p_endpoint_in = &rndis_config_descriptor.cdc_endpoint_in;
+static tusb_desc_interface_t const * p_comm_interface = &rndis_config_descriptor.cdc_comm_interface;
+static tusb_desc_endpoint_t const * p_endpoint_notification = &rndis_config_descriptor.cdc_endpoint_notification;
+static tusb_desc_endpoint_t const * p_endpoint_out = &rndis_config_descriptor.cdc_endpoint_out;
+static tusb_desc_endpoint_t const * p_endpoint_in = &rndis_config_descriptor.cdc_endpoint_in;
 
 static pipe_handle_t pipe_notification = { .dev_addr = 1, .xfer_type = TUSB_XFER_INTERRUPT };
 static pipe_handle_t pipe_out          = { .dev_addr  = 1, .xfer_type = TUSB_XFER_BULK, .index = 0 };

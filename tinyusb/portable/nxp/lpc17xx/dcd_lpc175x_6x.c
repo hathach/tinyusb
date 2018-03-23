@@ -414,7 +414,7 @@ bool tusb_dcd_control_xfer(uint8_t rhport, tusb_dir_t dir, uint8_t * p_buffer, u
 //--------------------------------------------------------------------+
 // BULK/INTERRUPT/ISO PIPE API
 //--------------------------------------------------------------------+
-edpt_hdl_t tusb_dcd_edpt_open(uint8_t rhport, tusb_descriptor_endpoint_t const * p_endpoint_desc, uint8_t class_code)
+edpt_hdl_t tusb_dcd_edpt_open(uint8_t rhport, tusb_desc_endpoint_t const * p_endpoint_desc, uint8_t class_code)
 {
   (void) rhport;
 

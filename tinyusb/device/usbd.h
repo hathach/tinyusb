@@ -59,8 +59,8 @@
 
 /// \brief Descriptor pointer collector to all the needed.
 typedef struct {
-  uint8_t const * p_device;              ///< pointer to device descritpor \ref tusb_descriptor_device_t
-  uint8_t const * p_configuration;       ///< pointer to the whole configuration descriptor, starting by \ref tusb_descriptor_configuration_t
+  uint8_t const * p_device;              ///< pointer to device descritpor \ref tusb_desc_device_t
+  uint8_t const * p_configuration;       ///< pointer to the whole configuration descriptor, starting by \ref tusb_desc_configuration_t
   uint8_t const** p_string_arr;          ///< a array of pointers to string descriptors
 
   uint8_t const * p_hid_keyboard_report; ///< pointer to HID report descriptor of Keybaord interface. Only needed if TUSB_CFG_DEVICE_HID_KEYBOARD is enabled
@@ -72,7 +72,7 @@ extern tusbd_descriptor_pointer_t tusbd_descriptor_pointers;
 
 typedef struct {
   void (* init) (void);
-  tusb_error_t (* open)(uint8_t rhport, tusb_descriptor_interface_t const * desc_intf, uint16_t* p_length);
+  tusb_error_t (* open)(uint8_t rhport, tusb_desc_interface_t const * desc_intf, uint16_t* p_length);
   tusb_error_t (* control_request_st) (uint8_t rhport, tusb_control_request_t const *);
   tusb_error_t (* xfer_cb) (uint8_t rhport, uint8_t ep_addr, tusb_event_t, uint32_t);
 //  void (* routine)(void);

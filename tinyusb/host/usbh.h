@@ -65,7 +65,7 @@ typedef enum tusb_interface_status_{
 
 typedef struct {
   void (* const init) (void);
-  tusb_error_t (* const open_subtask)(uint8_t, tusb_descriptor_interface_t const *, uint16_t*);
+  tusb_error_t (* const open_subtask)(uint8_t, tusb_desc_interface_t const *, uint16_t*);
   void (* const isr) (pipe_handle_t, tusb_event_t, uint32_t);
   void (* const close) (uint8_t);
 } host_class_driver_t;
@@ -88,9 +88,9 @@ uint32_t tuh_device_get_mounted_class_flag(uint8_t dev_addr);
 //--------------------------------------------------------------------+
 // APPLICATION CALLBACK
 //--------------------------------------------------------------------+
-ATTR_WEAK uint8_t tuh_device_attached_cb (tusb_descriptor_device_t const *p_desc_device)  ATTR_WARN_UNUSED_RESULT;
+ATTR_WEAK uint8_t tuh_device_attached_cb (tusb_desc_device_t const *p_desc_device)  ATTR_WARN_UNUSED_RESULT;
 ATTR_WEAK void    tuh_device_mount_succeed_cb (uint8_t dev_addr);
-ATTR_WEAK void    tuh_device_mount_failed_cb(tusb_error_t error, tusb_descriptor_device_t const *p_desc_device); // TODO refractor remove desc_device
+ATTR_WEAK void    tuh_device_mount_failed_cb(tusb_error_t error, tusb_desc_device_t const *p_desc_device); // TODO refractor remove desc_device
 
 //--------------------------------------------------------------------+
 // CLASS-USBH & INTERNAL API

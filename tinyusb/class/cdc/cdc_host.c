@@ -142,7 +142,7 @@ void cdch_init(void)
   memclr_(cdch_data, sizeof(cdch_data_t)*TUSB_CFG_HOST_DEVICE_MAX);
 }
 
-tusb_error_t cdch_open_subtask(uint8_t dev_addr, tusb_descriptor_interface_t const *p_interface_desc, uint16_t *p_length)
+tusb_error_t cdch_open_subtask(uint8_t dev_addr, tusb_desc_interface_t const *p_interface_desc, uint16_t *p_length)
 {
   OSAL_SUBTASK_BEGIN
   // TODO change following assert to subtask_assert
@@ -165,7 +165,7 @@ tusb_error_t cdch_open_subtask(uint8_t dev_addr, tusb_descriptor_interface_t con
   p_cdc->interface_protocol = p_interface_desc->bInterfaceProtocol; // TODO 0xff is consider as rndis candidate, other is virtual Com
 
   //------------- Communication Interface -------------//
-  (*p_length) = sizeof(tusb_descriptor_interface_t);
+  (*p_length) = sizeof(tusb_desc_interface_t);
 
   while( TUSB_DESC_CLASS_SPECIFIC == p_desc[DESCRIPTOR_OFFSET_TYPE] )
   { // Communication Functional Descriptors
@@ -180,7 +180,7 @@ tusb_error_t cdch_open_subtask(uint8_t dev_addr, tusb_descriptor_interface_t con
 
   if ( TUSB_DESC_ENDPOINT == p_desc[DESCRIPTOR_OFFSET_TYPE])
   { // notification endpoint if any
-    p_cdc->pipe_notification = hcd_pipe_open(dev_addr, (tusb_descriptor_endpoint_t const *) p_desc, TUSB_CLASS_CDC);
+    p_cdc->pipe_notification = hcd_pipe_open(dev_addr, (tusb_desc_endpoint_t const *) p_desc, TUSB_CLASS_CDC);
 
     (*p_length) += p_desc[DESCRIPTOR_OFFSET_LENGTH];
     p_desc = descriptor_next(p_desc);
@@ -190,7 +190,7 @@ tusb_error_t cdch_open_subtask(uint8_t dev_addr, tusb_descriptor_interface_t con
 
   //------------- Data Interface (if any) -------------//
   if ( (TUSB_DESC_INTERFACE == p_desc[DESCRIPTOR_OFFSET_TYPE]) &&
-       (TUSB_CLASS_CDC_DATA      == ((tusb_descriptor_interface_t const *) p_desc)->bInterfaceClass) )
+       (TUSB_CLASS_CDC_DATA      == ((tusb_desc_interface_t const *) p_desc)->bInterfaceClass) )
   {
     (*p_length) += p_desc[DESCRIPTOR_OFFSET_LENGTH];
     p_desc = descriptor_next(p_desc);
@@ -198,7 +198,7 @@ tusb_error_t cdch_open_subtask(uint8_t dev_addr, tusb_descriptor_interface_t con
     // data endpoints expected to be in pairs
     for(uint32_t i=0; i<2; i++)
     {
-      tusb_descriptor_endpoint_t const *p_endpoint = (tusb_descriptor_endpoint_t const *) p_desc;
+      tusb_desc_endpoint_t const *p_endpoint = (tusb_desc_endpoint_t const *) p_desc;
       ASSERT_INT(TUSB_DESC_ENDPOINT, p_endpoint->bDescriptorType, TUSB_ERROR_USBH_DESCRIPTOR_CORRUPTED);
       ASSERT_INT(TUSB_XFER_BULK, p_endpoint->bmAttributes.xfer, TUSB_ERROR_USBH_DESCRIPTOR_CORRUPTED);
 

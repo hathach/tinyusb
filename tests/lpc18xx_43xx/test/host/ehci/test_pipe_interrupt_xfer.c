@@ -64,9 +64,9 @@ static ehci_qhd_t *period_head_arr;
 static ehci_qhd_t *p_qhd_interrupt;
 static pipe_handle_t pipe_hdl_interrupt;
 
-static tusb_descriptor_endpoint_t const desc_ept_interrupt_in =
+static tusb_desc_endpoint_t const desc_ept_interrupt_in =
 {
-    .bLength          = sizeof(tusb_descriptor_endpoint_t),
+    .bLength          = sizeof(tusb_desc_endpoint_t),
     .bDescriptorType  = TUSB_DESC_TYPE_ENDPOINT,
     .bEndpointAddress = 0x81,
     .bmAttributes     = { .xfer = TUSB_XFER_INTERRUPT },
@@ -74,9 +74,9 @@ static tusb_descriptor_endpoint_t const desc_ept_interrupt_in =
     .bInterval        = 2
 };
 
-static tusb_descriptor_endpoint_t const desc_ept_interupt_out =
+static tusb_desc_endpoint_t const desc_ept_interupt_out =
 {
-    .bLength          = sizeof(tusb_descriptor_endpoint_t),
+    .bLength          = sizeof(tusb_desc_endpoint_t),
     .bDescriptorType  = TUSB_DESC_TYPE_ENDPOINT,
     .bEndpointAddress = 0x01,
     .bmAttributes     = { .xfer = TUSB_XFER_INTERRUPT },
@@ -217,7 +217,7 @@ void test_interrupt_xfer_complete_isr_interval_less_than_1ms(void)
 
 void test_interrupt_xfer_complete_isr_interval_2ms(void)
 {
-  tusb_descriptor_endpoint_t desc_endpoint_2ms = desc_ept_interrupt_in;
+  tusb_desc_endpoint_t desc_endpoint_2ms = desc_ept_interrupt_in;
   desc_endpoint_2ms.bInterval = 5;
 
   pipe_handle_t pipe_hdl_2ms = hcd_pipe_open(dev_addr, &desc_endpoint_2ms, TUSB_CLASS_HID);

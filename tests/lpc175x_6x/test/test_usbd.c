@@ -65,7 +65,7 @@ void test_dcd_init_failed(void)
   TEST_ASSERT_EQUAL(TUSB_ERROR_FAILED, usbd_init() );
 }
 
-tusb_error_t stub_hidd_init(uint8_t coreid, tusb_descriptor_interface_t const* p_interface_desc, uint16_t* p_length, int num_call)
+tusb_error_t stub_hidd_init(uint8_t coreid, tusb_desc_interface_t const* p_interface_desc, uint16_t* p_length, int num_call)
 {
   switch(num_call)
   {

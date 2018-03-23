@@ -107,7 +107,7 @@ void cush_init(void)
   memclr_(&custom_interface, sizeof(custom_interface_info_t) * TUSB_CFG_HOST_DEVICE_MAX);
 }
 
-tusb_error_t cush_open_subtask(uint8_t dev_addr, tusb_descriptor_interface_t const *p_interface_desc, uint16_t *p_length)
+tusb_error_t cush_open_subtask(uint8_t dev_addr, tusb_desc_interface_t const *p_interface_desc, uint16_t *p_length)
 {
   // FIXME quick hack to test lpc1k custom class with 2 bulk endpoints
   uint8_t const *p_desc = (uint8_t const *) p_interface_desc;
@@ -116,7 +116,7 @@ tusb_error_t cush_open_subtask(uint8_t dev_addr, tusb_descriptor_interface_t con
   //------------- Bulk Endpoints Descriptor -------------//
   for(uint32_t i=0; i<2; i++)
   {
-    tusb_descriptor_endpoint_t const *p_endpoint = (tusb_descriptor_endpoint_t const *) p_desc;
+    tusb_desc_endpoint_t const *p_endpoint = (tusb_desc_endpoint_t const *) p_desc;
     ASSERT_INT(TUSB_DESC_ENDPOINT, p_endpoint->bDescriptorType, TUSB_ERROR_INVALID_PARA);
 
     pipe_handle_t * p_pipe_hdl =  ( p_endpoint->bEndpointAddress &  TUSB_DIR_IN_MASK ) ?
@@ -127,7 +127,7 @@ tusb_error_t cush_open_subtask(uint8_t dev_addr, tusb_descriptor_interface_t con
     p_desc = descriptor_next(p_desc);
   }
 
-  (*p_length) = sizeof(tusb_descriptor_interface_t) + 2*sizeof(tusb_descriptor_endpoint_t);
+  (*p_length) = sizeof(tusb_desc_interface_t) + 2*sizeof(tusb_desc_endpoint_t);
   return TUSB_ERROR_NONE;
 }
 

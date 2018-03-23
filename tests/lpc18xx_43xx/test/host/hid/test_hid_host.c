@@ -56,9 +56,9 @@ pipe_handle_t pipe_hdl;
 
 extern hidh_interface_info_t keyboardh_data[TUSB_CFG_HOST_DEVICE_MAX];
 
-tusb_descriptor_interface_t const *p_kbd_interface_desc = &desc_configuration.keyboard_interface;
+tusb_desc_interface_t const *p_kbd_interface_desc = &desc_configuration.keyboard_interface;
 tusb_hid_descriptor_hid_t   const *p_kbh_hid_desc       = &desc_configuration.keyboard_hid;
-tusb_descriptor_endpoint_t  const *p_kdb_endpoint_desc  = &desc_configuration.keyboard_endpoint;
+tusb_desc_endpoint_t  const *p_kdb_endpoint_desc  = &desc_configuration.keyboard_endpoint;
 
 void setUp(void)
 {
@@ -80,7 +80,7 @@ void tearDown(void)
 //  //------------- Code Under TEST -------------//
 //  TEST_ASSERT_EQUAL(TUSB_ERROR_NONE, hidh_open_subtask(dev_addr, p_kbd_interface_desc, &length) );
 //
-//  TEST_ASSERT_EQUAL(sizeof(tusb_descriptor_interface_t) + sizeof(tusb_hid_descriptor_hid_t) + sizeof(tusb_descriptor_endpoint_t),
+//  TEST_ASSERT_EQUAL(sizeof(tusb_desc_interface_t) + sizeof(tusb_hid_descriptor_hid_t) + sizeof(tusb_desc_endpoint_t),
 //                    length);
 //}
 

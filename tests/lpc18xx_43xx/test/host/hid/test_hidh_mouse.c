@@ -53,8 +53,8 @@ extern hidh_interface_info_t mouseh_data[TUSB_CFG_HOST_DEVICE_MAX];
 hidh_interface_info_t *p_hidh_mouse;
 hid_mouse_report_t report;
 
-tusb_descriptor_interface_t const *p_mouse_interface_desc = &desc_configuration.mouse_interface;
-tusb_descriptor_endpoint_t  const *p_mouse_endpoint_desc  = &desc_configuration.mouse_endpoint;
+tusb_desc_interface_t const *p_mouse_interface_desc = &desc_configuration.mouse_interface;
+tusb_desc_endpoint_t  const *p_mouse_endpoint_desc  = &desc_configuration.mouse_endpoint;
 
 uint8_t dev_addr;
 
@@ -125,7 +125,7 @@ void test_mouse_open_ok(void)
 
   TEST_ASSERT_PIPE_HANDLE(pipe_hdl, p_hidh_mouse->pipe_hdl);
   TEST_ASSERT_EQUAL(8, p_hidh_mouse->report_size);
-  TEST_ASSERT_EQUAL(sizeof(tusb_descriptor_interface_t) + sizeof(tusb_hid_descriptor_hid_t) + sizeof(tusb_descriptor_endpoint_t),
+  TEST_ASSERT_EQUAL(sizeof(tusb_desc_interface_t) + sizeof(tusb_hid_descriptor_hid_t) + sizeof(tusb_desc_endpoint_t),
                     length);
   TEST_ASSERT_EQUAL(p_mouse_interface_desc->bInterfaceNumber, p_hidh_mouse->interface_number);
 

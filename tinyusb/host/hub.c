@@ -156,7 +156,7 @@ void hub_init(void)
 //  hub_enum_sem_hdl = osal_semaphore_create( OSAL_SEM_REF(hub_enum_semaphore) );
 }
 
-tusb_error_t hub_open_subtask(uint8_t dev_addr, tusb_descriptor_interface_t const *p_interface_desc, uint16_t *p_length)
+tusb_error_t hub_open_subtask(uint8_t dev_addr, tusb_desc_interface_t const *p_interface_desc, uint16_t *p_length)
 {
   tusb_error_t error;
 
@@ -166,8 +166,8 @@ tusb_error_t hub_open_subtask(uint8_t dev_addr, tusb_descriptor_interface_t cons
   if ( p_interface_desc->bInterfaceProtocol > 1 ) return TUSB_ERROR_HUB_FEATURE_NOT_SUPPORTED;
 
   //------------- Open Interrupt Status Pipe -------------//
-  tusb_descriptor_endpoint_t const *p_endpoint;
-  p_endpoint = (tusb_descriptor_endpoint_t const *) descriptor_next( (uint8_t const*) p_interface_desc );
+  tusb_desc_endpoint_t const *p_endpoint;
+  p_endpoint = (tusb_desc_endpoint_t const *) descriptor_next( (uint8_t const*) p_interface_desc );
   
   STASK_ASSERT(TUSB_DESC_ENDPOINT == p_endpoint->bDescriptorType);
   STASK_ASSERT(TUSB_XFER_INTERRUPT == p_endpoint->bmAttributes.xfer);
@@ -176,7 +176,7 @@ tusb_error_t hub_open_subtask(uint8_t dev_addr, tusb_descriptor_interface_t cons
   STASK_ASSERT( pipehandle_is_valid(hub_data[dev_addr-1].pipe_status) );
   hub_data[dev_addr-1].interface_number = p_interface_desc->bInterfaceNumber;
 
-  (*p_length) = sizeof(tusb_descriptor_interface_t) + sizeof(tusb_descriptor_endpoint_t);
+  (*p_length) = sizeof(tusb_desc_interface_t) + sizeof(tusb_desc_endpoint_t);
 
   //------------- Get Hub Descriptor -------------//
   STASK_INVOKE(

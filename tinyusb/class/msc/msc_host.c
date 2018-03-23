@@ -292,7 +292,7 @@ void msch_init(void)
   msch_sem_hdl = osal_semaphore_create(1, 0);
 }
 
-tusb_error_t msch_open_subtask(uint8_t dev_addr, tusb_descriptor_interface_t const *p_interface_desc, uint16_t *p_length)
+tusb_error_t msch_open_subtask(uint8_t dev_addr, tusb_desc_interface_t const *p_interface_desc, uint16_t *p_length)
 {
   tusb_error_t error;
 
@@ -305,8 +305,8 @@ tusb_error_t msch_open_subtask(uint8_t dev_addr, tusb_descriptor_interface_t con
   }
 
   //------------- Open Data Pipe -------------//
-  tusb_descriptor_endpoint_t const *p_endpoint;
-  p_endpoint = (tusb_descriptor_endpoint_t const *) descriptor_next( (uint8_t const*) p_interface_desc );
+  tusb_desc_endpoint_t const *p_endpoint;
+  p_endpoint = (tusb_desc_endpoint_t const *) descriptor_next( (uint8_t const*) p_interface_desc );
 
   for(uint32_t i=0; i<2; i++)
   {
@@ -319,11 +319,11 @@ tusb_error_t msch_open_subtask(uint8_t dev_addr, tusb_descriptor_interface_t con
     (*p_pipe_hdl) = hcd_pipe_open(dev_addr, p_endpoint, TUSB_CLASS_MSC);
     STASK_ASSERT( pipehandle_is_valid(*p_pipe_hdl) );
 
-    p_endpoint = (tusb_descriptor_endpoint_t const *) descriptor_next( (uint8_t const*)  p_endpoint );
+    p_endpoint = (tusb_desc_endpoint_t const *) descriptor_next( (uint8_t const*)  p_endpoint );
   }
 
   msch_data[dev_addr-1].interface_number = p_interface_desc->bInterfaceNumber;
-  (*p_length) += sizeof(tusb_descriptor_interface_t) + 2*sizeof(tusb_descriptor_endpoint_t);
+  (*p_length) += sizeof(tusb_desc_interface_t) + 2*sizeof(tusb_desc_endpoint_t);
 
 
   //------------- Get Max Lun -------------//

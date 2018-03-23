@@ -121,7 +121,7 @@ TUSB_CFG_ATTR_USBRAM ATTR_ALIGNED(4) STATIC_VAR uint8_t enum_data_buffer[TUSB_CF
 
 //------------- Helper Function Prototypes -------------//
 static inline uint8_t get_new_address(void) ATTR_ALWAYS_INLINE;
-static inline uint8_t get_configure_number_for_device(tusb_descriptor_device_t* dev_desc) ATTR_ALWAYS_INLINE;
+static inline uint8_t get_configure_number_for_device(tusb_desc_device_t* dev_desc) ATTR_ALWAYS_INLINE;
 
 //--------------------------------------------------------------------+
 // PUBLIC API (Parameter Verification is required)
@@ -500,7 +500,7 @@ tusb_error_t enumeration_body_subtask(void)
   usbh_devices[0].state = TUSB_DEVICE_STATE_UNPLUG;
 
   // open control pipe for new address
-  STASK_ASSERT_STATUS ( usbh_pipe_control_open(new_addr, ((tusb_descriptor_device_t*) enum_data_buffer)->bMaxPacketSize0 ) );
+  STASK_ASSERT_STATUS ( usbh_pipe_control_open(new_addr, ((tusb_desc_device_t*) enum_data_buffer)->bMaxPacketSize0 ) );
 
   //------------- Get full device descriptor -------------//
   STASK_INVOKE(
@@ -512,11 +512,11 @@ tusb_error_t enumeration_body_subtask(void)
   STASK_ASSERT_STATUS(error);
 
   // update device info  TODO alignment issue
-  usbh_devices[new_addr].vendor_id       = ((tusb_descriptor_device_t*) enum_data_buffer)->idVendor;
-  usbh_devices[new_addr].product_id      = ((tusb_descriptor_device_t*) enum_data_buffer)->idProduct;
-  usbh_devices[new_addr].configure_count = ((tusb_descriptor_device_t*) enum_data_buffer)->bNumConfigurations;
+  usbh_devices[new_addr].vendor_id       = ((tusb_desc_device_t*) enum_data_buffer)->idVendor;
+  usbh_devices[new_addr].product_id      = ((tusb_desc_device_t*) enum_data_buffer)->idProduct;
+  usbh_devices[new_addr].configure_count = ((tusb_desc_device_t*) enum_data_buffer)->bNumConfigurations;
 
-  configure_selected = get_configure_number_for_device((tusb_descriptor_device_t*) enum_data_buffer);
+  configure_selected = get_configure_number_for_device((tusb_desc_device_t*) enum_data_buffer);
   STASK_ASSERT(configure_selected <= usbh_devices[new_addr].configure_count); // TODO notify application when invalid configuration
 
   //------------- Get 9 bytes of configuration descriptor -------------//
@@ -527,7 +527,7 @@ tusb_error_t enumeration_body_subtask(void)
       error
   );
   STASK_ASSERT_STATUS(error);
-  STASK_ASSERT_HDLR( TUSB_CFG_HOST_ENUM_BUFFER_SIZE >= ((tusb_descriptor_configuration_t*)enum_data_buffer)->wTotalLength,
+  STASK_ASSERT_HDLR( TUSB_CFG_HOST_ENUM_BUFFER_SIZE >= ((tusb_desc_configuration_t*)enum_data_buffer)->wTotalLength,
                             tuh_device_mount_failed_cb(TUSB_ERROR_USBH_MOUNT_CONFIG_DESC_TOO_LONG, NULL) );
 
   //------------- Get full configuration descriptor -------------//
@@ -540,7 +540,7 @@ tusb_error_t enumeration_body_subtask(void)
   STASK_ASSERT_STATUS(error);
 
   // update configuration info
-  usbh_devices[new_addr].interface_count = ((tusb_descriptor_configuration_t*) enum_data_buffer)->bNumInterfaces;
+  usbh_devices[new_addr].interface_count = ((tusb_desc_configuration_t*) enum_data_buffer)->bNumInterfaces;
 
   //------------- Set Configure -------------//
   STASK_INVOKE(
@@ -556,10 +556,10 @@ tusb_error_t enumeration_body_subtask(void)
   //------------- TODO Get String Descriptors -------------//
 
   //------------- parse configuration & install drivers -------------//
-  p_desc = enum_data_buffer + sizeof(tusb_descriptor_configuration_t);
+  p_desc = enum_data_buffer + sizeof(tusb_desc_configuration_t);
 
   // parse each interfaces
-  while( p_desc < enum_data_buffer + ((tusb_descriptor_configuration_t*)enum_data_buffer)->wTotalLength )
+  while( p_desc < enum_data_buffer + ((tusb_desc_configuration_t*)enum_data_buffer)->wTotalLength )
   {
     // skip until we see interface descriptor
     if ( TUSB_DESC_INTERFACE != p_desc[DESCRIPTOR_OFFSET_TYPE] )
@@ -569,7 +569,7 @@ tusb_error_t enumeration_body_subtask(void)
     {
       static uint8_t class_index; // has to be static as it is used to call class's open_subtask
 
-      class_index = std_class_code_to_index( ((tusb_descriptor_interface_t*) p_desc)->bInterfaceClass );
+      class_index = std_class_code_to_index( ((tusb_desc_interface_t*) p_desc)->bInterfaceClass );
       STASK_ASSERT( class_index != 0 ); // class_index == 0 means corrupted data, abort enumeration
 
       if (usbh_class_drivers[class_index].open_subtask &&
@@ -579,13 +579,13 @@ tusb_error_t enumeration_body_subtask(void)
         length = 0;
 
         STASK_INVOKE ( // parameters in task/sub_task must be static storage (static or global)
-            usbh_class_drivers[class_index].open_subtask( new_addr, (tusb_descriptor_interface_t*) p_desc, &length ),
+            usbh_class_drivers[class_index].open_subtask( new_addr, (tusb_desc_interface_t*) p_desc, &length ),
             error
         );
 
         if (error == TUSB_ERROR_NONE)
         {
-          STASK_ASSERT( length >= sizeof(tusb_descriptor_interface_t) );
+          STASK_ASSERT( length >= sizeof(tusb_desc_interface_t) );
           usbh_devices[new_addr].flag_supported_class |= BIT_(class_index);
           p_desc += length;
         }else  // Interface open failed, for example a subclass is not supported
@@ -626,7 +626,7 @@ static inline uint8_t get_new_address(void)
   return addr;
 }
 
-static inline uint8_t get_configure_number_for_device(tusb_descriptor_device_t* dev_desc)
+static inline uint8_t get_configure_number_for_device(tusb_desc_device_t* dev_desc)
 {
   uint8_t config_num = 1;
 

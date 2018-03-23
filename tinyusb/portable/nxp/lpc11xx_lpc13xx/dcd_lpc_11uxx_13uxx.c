@@ -458,7 +458,7 @@ void tusb_dcd_edpt_clear_stall(uint8_t rhport, uint8_t edpt_addr)
   }
 }
 
-edpt_hdl_t tusb_dcd_edpt_open(uint8_t rhport, tusb_descriptor_endpoint_t const * p_endpoint_desc, uint8_t class_code)
+edpt_hdl_t tusb_dcd_edpt_open(uint8_t rhport, tusb_desc_endpoint_t const * p_endpoint_desc, uint8_t class_code)
 {
   (void) rhport;
   edpt_hdl_t const null_handle = { 0 };

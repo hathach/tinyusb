@@ -132,45 +132,45 @@
 //--------------------------------------------------------------------+
 typedef struct ATTR_PACKED
 {
-  tusb_descriptor_configuration_t              configuration;
+  tusb_desc_configuration_t              configuration;
 
   //------------- CDC -------------//
 #if TUSB_CFG_DEVICE_CDC
-  tusb_descriptor_interface_association_t      cdc_iad;
+  tusb_desc_interface_assoc_t      cdc_iad;
 
   //CDC Control Interface
-  tusb_descriptor_interface_t                  cdc_comm_interface;
+  tusb_desc_interface_t                  cdc_comm_interface;
   cdc_desc_func_header_t                       cdc_header;
   cdc_desc_func_call_management_t              cdc_call;
   cdc_desc_func_abstract_control_management_t  cdc_acm;
   cdc_desc_func_union_t                        cdc_union;
-  tusb_descriptor_endpoint_t                   cdc_endpoint_notification;
+  tusb_desc_endpoint_t                   cdc_endpoint_notification;
 
   //CDC Data Interface
-  tusb_descriptor_interface_t                  cdc_data_interface;
-  tusb_descriptor_endpoint_t                   cdc_endpoint_out;
-  tusb_descriptor_endpoint_t                   cdc_endpoint_in;
+  tusb_desc_interface_t                  cdc_data_interface;
+  tusb_desc_endpoint_t                   cdc_endpoint_out;
+  tusb_desc_endpoint_t                   cdc_endpoint_in;
 #endif
 
   //------------- HID Keyboard -------------//
 #if TUSB_CFG_DEVICE_HID_KEYBOARD
-  tusb_descriptor_interface_t                    keyboard_interface;
+  tusb_desc_interface_t                    keyboard_interface;
   tusb_hid_descriptor_hid_t                      keyboard_hid;
-  tusb_descriptor_endpoint_t                     keyboard_endpoint;
+  tusb_desc_endpoint_t                     keyboard_endpoint;
 #endif
 
 //------------- HID Mouse -------------//
 #if TUSB_CFG_DEVICE_HID_MOUSE
-  tusb_descriptor_interface_t                    mouse_interface;
+  tusb_desc_interface_t                    mouse_interface;
   tusb_hid_descriptor_hid_t                      mouse_hid;
-  tusb_descriptor_endpoint_t                     mouse_endpoint;
+  tusb_desc_endpoint_t                     mouse_endpoint;
 #endif
 
 //------------- Mass Storage -------------//
 #if TUSB_CFG_DEVICE_MSC
-  tusb_descriptor_interface_t                    msc_interface;
-  tusb_descriptor_endpoint_t                     msc_endpoint_in;
-  tusb_descriptor_endpoint_t                     msc_endpoint_out;
+  tusb_desc_interface_t                    msc_interface;
+  tusb_desc_endpoint_t                     msc_endpoint_in;
+  tusb_desc_endpoint_t                     msc_endpoint_out;
 #endif
 
 } app_descriptor_configuration_t;

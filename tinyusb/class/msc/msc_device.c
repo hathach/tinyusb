@@ -98,7 +98,7 @@ void mscd_close(uint8_t rhport)
   memclr_(&mscd_data, sizeof(mscd_interface_t));
 }
 
-tusb_error_t mscd_open(uint8_t rhport, tusb_descriptor_interface_t const * p_interface_desc, uint16_t *p_length)
+tusb_error_t mscd_open(uint8_t rhport, tusb_desc_interface_t const * p_interface_desc, uint16_t *p_length)
 {
   VERIFY( ( MSC_SUBCLASS_SCSI == p_interface_desc->bInterfaceSubClass &&
             MSC_PROTOCOL_BOT  == p_interface_desc->bInterfaceProtocol ), TUSB_ERROR_MSC_UNSUPPORTED_PROTOCOL );
@@ -106,7 +106,7 @@ tusb_error_t mscd_open(uint8_t rhport, tusb_descriptor_interface_t const * p_int
   mscd_interface_t * p_msc = &mscd_data;
 
   //------------- Open Data Pipe -------------//
-  tusb_descriptor_endpoint_t const *p_endpoint = (tusb_descriptor_endpoint_t const *) descriptor_next( (uint8_t const*) p_interface_desc );
+  tusb_desc_endpoint_t const *p_endpoint = (tusb_desc_endpoint_t const *) descriptor_next( (uint8_t const*) p_interface_desc );
   for(int i=0; i<2; i++)
   {
     TU_ASSERT(TUSB_DESC_ENDPOINT == p_endpoint->bDescriptorType &&
@@ -122,12 +122,12 @@ tusb_error_t mscd_open(uint8_t rhport, tusb_descriptor_interface_t const * p_int
       p_msc->ep_out = p_endpoint->bEndpointAddress;
     }
 
-    p_endpoint = (tusb_descriptor_endpoint_t const *) descriptor_next( (uint8_t const*)  p_endpoint );
+    p_endpoint = (tusb_desc_endpoint_t const *) descriptor_next( (uint8_t const*)  p_endpoint );
   }
 
   p_msc->interface_num = p_interface_desc->bInterfaceNumber;
 
-  (*p_length) += sizeof(tusb_descriptor_interface_t) + 2*sizeof(tusb_descriptor_endpoint_t);
+  (*p_length) += sizeof(tusb_desc_interface_t) + 2*sizeof(tusb_desc_endpoint_t);
 
   //------------- Queue Endpoint OUT for Command Block Wrapper -------------//
   TU_ASSERT( tusb_dcd_edpt_xfer(rhport, p_msc->ep_out, (uint8_t*) &p_msc->cbw, sizeof(msc_cbw_t)), TUSB_ERROR_DCD_EDPT_XFER );

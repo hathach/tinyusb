@@ -113,16 +113,16 @@ void verify_open_qhd(ehci_qhd_t *p_qhd, uint8_t endpoint_addr, uint16_t max_pack
 //--------------------------------------------------------------------+
 // PIPE OPEN
 //--------------------------------------------------------------------+
-tusb_descriptor_endpoint_t const desc_ept_interrupt_out =
+tusb_desc_endpoint_t const desc_ept_interrupt_out =
 {
-    .bLength          = sizeof(tusb_descriptor_endpoint_t),
+    .bLength          = sizeof(tusb_desc_endpoint_t),
     .bDescriptorType  = TUSB_DESC_TYPE_ENDPOINT,
     .bEndpointAddress = 0x02,
     .bmAttributes     = { .xfer = TUSB_XFER_INTERRUPT },
     .wMaxPacketSize   = 16,
     .bInterval        = 4
 };
-void verify_int_qhd(ehci_qhd_t *p_qhd, tusb_descriptor_endpoint_t const * desc_endpoint, uint8_t class_code)
+void verify_int_qhd(ehci_qhd_t *p_qhd, tusb_desc_endpoint_t const * desc_endpoint, uint8_t class_code)
 {
   verify_open_qhd(p_qhd, desc_endpoint->bEndpointAddress, desc_endpoint->wMaxPacketSize.size);
 
@@ -158,7 +158,7 @@ void test_open_interrupt_qhd_hs(void)
 
 void test_open_interrupt_hs_interval_1(void)
 {
-  tusb_descriptor_endpoint_t int_edp_interval = desc_ept_interrupt_out;
+  tusb_desc_endpoint_t int_edp_interval = desc_ept_interrupt_out;
   int_edp_interval.bInterval = 1;
 
   //------------- Code Under TEST -------------//
@@ -173,7 +173,7 @@ void test_open_interrupt_hs_interval_1(void)
 
 void test_open_interrupt_hs_interval_2(void)
 {
-  tusb_descriptor_endpoint_t int_edp_interval = desc_ept_interrupt_out;
+  tusb_desc_endpoint_t int_edp_interval = desc_ept_interrupt_out;
   int_edp_interval.bInterval = 2;
 
   //------------- Code Under TEST -------------//
@@ -187,7 +187,7 @@ void test_open_interrupt_hs_interval_2(void)
 
 void test_open_interrupt_hs_interval_3(void)
 {
-  tusb_descriptor_endpoint_t int_edp_interval = desc_ept_interrupt_out;
+  tusb_desc_endpoint_t int_edp_interval = desc_ept_interrupt_out;
   int_edp_interval.bInterval = 3;
 
   //------------- Code Under TEST -------------//
@@ -201,7 +201,7 @@ void test_open_interrupt_hs_interval_3(void)
 
 void test_open_interrupt_hs_interval_4(void)
 {
-  tusb_descriptor_endpoint_t int_edp_interval = desc_ept_interrupt_out;
+  tusb_desc_endpoint_t int_edp_interval = desc_ept_interrupt_out;
   int_edp_interval.bInterval = 4;
 
   //------------- Code Under TEST -------------//
@@ -215,7 +215,7 @@ void test_open_interrupt_hs_interval_4(void)
 
 void test_open_interrupt_hs_interval_5(void)
 {
-  tusb_descriptor_endpoint_t int_edp_interval = desc_ept_interrupt_out;
+  tusb_desc_endpoint_t int_edp_interval = desc_ept_interrupt_out;
   int_edp_interval.bInterval = 5;
 
   //------------- Code Under TEST -------------//
@@ -229,7 +229,7 @@ void test_open_interrupt_hs_interval_5(void)
 
 void test_open_interrupt_hs_interval_6(void)
 {
-  tusb_descriptor_endpoint_t int_edp_interval = desc_ept_interrupt_out;
+  tusb_desc_endpoint_t int_edp_interval = desc_ept_interrupt_out;
   int_edp_interval.bInterval = 6;
 
   //------------- Code Under TEST -------------//
@@ -243,7 +243,7 @@ void test_open_interrupt_hs_interval_6(void)
 
 void test_open_interrupt_hs_interval_7(void)
 {
-  tusb_descriptor_endpoint_t int_edp_interval = desc_ept_interrupt_out;
+  tusb_desc_endpoint_t int_edp_interval = desc_ept_interrupt_out;
   int_edp_interval.bInterval = 7;
 
   //------------- Code Under TEST -------------//
@@ -257,7 +257,7 @@ void test_open_interrupt_hs_interval_7(void)
 
 void test_open_interrupt_hs_interval_8(void)
 {
-  tusb_descriptor_endpoint_t int_edp_interval = desc_ept_interrupt_out;
+  tusb_desc_endpoint_t int_edp_interval = desc_ept_interrupt_out;
   int_edp_interval.bInterval = 16;
 
   //------------- Code Under TEST -------------//
@@ -291,7 +291,7 @@ void test_open_interrupt_qhd_non_hs(void)
 
 void test_open_interrupt_qhd_non_hs_9(void)
 {
-  tusb_descriptor_endpoint_t int_edp_interval = desc_ept_interrupt_out;
+  tusb_desc_endpoint_t int_edp_interval = desc_ept_interrupt_out;
   int_edp_interval.bInterval = 32;
 
   usbh_devices[dev_addr].speed = TUSB_SPEED_FULL;
@@ -325,7 +325,7 @@ void test_interrupt_close(void)
 
 void test_interrupt_256ms_close(void)
 {
-  tusb_descriptor_endpoint_t int_edp_interval = desc_ept_interrupt_out;
+  tusb_desc_endpoint_t int_edp_interval = desc_ept_interrupt_out;
   int_edp_interval.bInterval = 9;
 
   pipe_hdl = hcd_pipe_open(dev_addr, &int_edp_interval, TUSB_CLASS_HID);

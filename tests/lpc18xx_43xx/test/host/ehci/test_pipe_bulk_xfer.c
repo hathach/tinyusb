@@ -64,9 +64,9 @@ static ehci_qhd_t *async_head;
 static ehci_qhd_t *p_qhd_bulk;
 static pipe_handle_t pipe_hdl_bulk;
 
-tusb_descriptor_endpoint_t const desc_ept_bulk_in =
+tusb_desc_endpoint_t const desc_ept_bulk_in =
 {
-    .bLength          = sizeof(tusb_descriptor_endpoint_t),
+    .bLength          = sizeof(tusb_desc_endpoint_t),
     .bDescriptorType  = TUSB_DESC_TYPE_ENDPOINT,
     .bEndpointAddress = 0x81,
     .bmAttributes     = { .xfer = TUSB_XFER_BULK },
@@ -74,9 +74,9 @@ tusb_descriptor_endpoint_t const desc_ept_bulk_in =
     .bInterval        = 0
 };
 
-tusb_descriptor_endpoint_t const desc_ept_bulk_out =
+tusb_desc_endpoint_t const desc_ept_bulk_out =
 {
-    .bLength          = sizeof(tusb_descriptor_endpoint_t),
+    .bLength          = sizeof(tusb_desc_endpoint_t),
     .bDescriptorType  = TUSB_DESC_TYPE_ENDPOINT,
     .bEndpointAddress = 0x01,
     .bmAttributes     = { .xfer = TUSB_XFER_BULK },

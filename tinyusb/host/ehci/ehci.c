@@ -357,7 +357,7 @@ tusb_error_t  hcd_pipe_control_close(uint8_t dev_addr)
 //--------------------------------------------------------------------+
 // BULK/INT/ISO PIPE API
 //--------------------------------------------------------------------+
-pipe_handle_t hcd_pipe_open(uint8_t dev_addr, tusb_descriptor_endpoint_t const * p_endpoint_desc, uint8_t class_code)
+pipe_handle_t hcd_pipe_open(uint8_t dev_addr, tusb_desc_endpoint_t const * p_endpoint_desc, uint8_t class_code)
 {
   pipe_handle_t const null_handle = { .dev_addr = 0, .xfer_type = 0, .index = 0 };
 

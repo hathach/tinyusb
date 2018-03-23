@@ -186,27 +186,27 @@ tusb_error_t control_xfer_stub(uint8_t dev_addr, const tusb_control_request_t * 
   return TUSB_ERROR_NONE;
 }
 
-tusb_error_t stub_hidh_open(uint8_t dev_addr, tusb_descriptor_interface_t const *descriptor, uint16_t *p_length, int num_call)
+tusb_error_t stub_hidh_open(uint8_t dev_addr, tusb_desc_interface_t const *descriptor, uint16_t *p_length, int num_call)
 {
-  *p_length = sizeof(tusb_descriptor_interface_t) + sizeof(tusb_hid_descriptor_hid_t) + sizeof(tusb_descriptor_endpoint_t);
+  *p_length = sizeof(tusb_desc_interface_t) + sizeof(tusb_hid_descriptor_hid_t) + sizeof(tusb_desc_endpoint_t);
   return TUSB_ERROR_NONE;
 }
 
-tusb_error_t stub_msch_open(uint8_t dev_addr, tusb_descriptor_interface_t const *descriptor, uint16_t *p_length, int num_call)
+tusb_error_t stub_msch_open(uint8_t dev_addr, tusb_desc_interface_t const *descriptor, uint16_t *p_length, int num_call)
 {
-  *p_length = sizeof(tusb_descriptor_interface_t) + 2*sizeof(tusb_descriptor_endpoint_t);
+  *p_length = sizeof(tusb_desc_interface_t) + 2*sizeof(tusb_desc_endpoint_t);
   return TUSB_ERROR_NONE;
 }
 
-tusb_error_t stub_cdch_open(uint8_t dev_addr, tusb_descriptor_interface_t const *descriptor, uint16_t *p_length, int num_call)
+tusb_error_t stub_cdch_open(uint8_t dev_addr, tusb_desc_interface_t const *descriptor, uint16_t *p_length, int num_call)
 {
   *p_length =
       //------------- Comm Interface -------------//
-      sizeof(tusb_descriptor_interface_t) + sizeof(cdc_desc_func_header_t) +
+      sizeof(tusb_desc_interface_t) + sizeof(cdc_desc_func_header_t) +
       sizeof(cdc_desc_func_abstract_control_management_t) + sizeof(cdc_desc_func_union_t) +
-      sizeof(tusb_descriptor_endpoint_t) +
+      sizeof(tusb_desc_endpoint_t) +
       //------------- Data Interface -------------//
-      sizeof(tusb_descriptor_interface_t) + 2*sizeof(tusb_descriptor_endpoint_t);
+      sizeof(tusb_desc_interface_t) + 2*sizeof(tusb_desc_endpoint_t);
 
   return TUSB_ERROR_NONE;
 }
@@ -271,7 +271,7 @@ void test_enum_failed_get_9byte_config_desc(void)
   osal_mutex_reset_Expect( usbh_devices[0].control.mutex_hdl );
 
   hcd_pipe_control_open_ExpectAndReturn(1, desc_device.bMaxPacketSize0, TUSB_ERROR_NONE);
-  tusbh_device_attached_cb_ExpectAndReturn((tusb_descriptor_device_t*) enum_data_buffer, 1);
+  tusbh_device_attached_cb_ExpectAndReturn((tusb_desc_device_t*) enum_data_buffer, 1);
 //  tusbh_device_mount_failed_cb_Expect(TUSB_ERROR_USBH_MOUNT_DEVICE_NOT_RESPOND, NULL);
 
   usbh_enumeration_task(NULL);
@@ -290,7 +290,7 @@ void test_enum_failed_get_full_config_desc(void)
   osal_semaphore_reset_Expect( usbh_devices[0].control.sem_hdl );
   osal_mutex_reset_Expect( usbh_devices[0].control.mutex_hdl );
   hcd_pipe_control_open_ExpectAndReturn(1, desc_device.bMaxPacketSize0, TUSB_ERROR_NONE);
-  tusbh_device_attached_cb_ExpectAndReturn((tusb_descriptor_device_t*) enum_data_buffer, 1);
+  tusbh_device_attached_cb_ExpectAndReturn((tusb_desc_device_t*) enum_data_buffer, 1);
 //  tusbh_device_mount_failed_cb_Expect(TUSB_ERROR_USBH_MOUNT_DEVICE_NOT_RESPOND, NULL);
 
   usbh_enumeration_task(NULL);
@@ -305,7 +305,7 @@ void test_enum_parse_config_desc(void)
   osal_semaphore_reset_Expect( usbh_devices[0].control.sem_hdl );
   osal_mutex_reset_Expect( usbh_devices[0].control.mutex_hdl );
   hcd_pipe_control_open_ExpectAndReturn(1, desc_device.bMaxPacketSize0, TUSB_ERROR_NONE);
-  tusbh_device_attached_cb_ExpectAndReturn((tusb_descriptor_device_t*) enum_data_buffer, 1);
+  tusbh_device_attached_cb_ExpectAndReturn((tusb_desc_device_t*) enum_data_buffer, 1);
 
 //  tusbh_device_mount_failed_cb_Expect(TUSB_ERROR_USBH_MOUNT_DEVICE_NOT_RESPOND, NULL); // fail to set configure
 
@@ -323,7 +323,7 @@ void test_enum_set_configure(void)
   osal_semaphore_reset_Expect( usbh_devices[0].control.sem_hdl );
   osal_mutex_reset_Expect( usbh_devices[0].control.mutex_hdl );
   hcd_pipe_control_open_ExpectAndReturn(1, desc_device.bMaxPacketSize0, TUSB_ERROR_NONE);
-  tusbh_device_attached_cb_ExpectAndReturn((tusb_descriptor_device_t*) enum_data_buffer, 1);
+  tusbh_device_attached_cb_ExpectAndReturn((tusb_desc_device_t*) enum_data_buffer, 1);
 
   // class open TODO  more class expect
   hidh_open_subtask_StubWithCallback(stub_hidh_open);

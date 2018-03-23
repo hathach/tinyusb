@@ -293,7 +293,7 @@ void tusb_dcd_edpt_clear_stall(uint8_t rhport, uint8_t ep_addr)
   (*reg_control) &= ~(ENDPTCTRL_MASK_STALL << ((ep_addr & TUSB_DIR_IN_MASK) ? 16 : 0));
 }
 
-bool tusb_dcd_edpt_open(uint8_t rhport, tusb_descriptor_endpoint_t const * p_endpoint_desc)
+bool tusb_dcd_edpt_open(uint8_t rhport, tusb_desc_endpoint_t const * p_endpoint_desc)
 {
   // TODO USB1 only has 4 non-control enpoint (USB0 has 5)
   // TODO not support ISO yet

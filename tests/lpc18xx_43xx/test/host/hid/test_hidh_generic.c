@@ -58,8 +58,8 @@ extern hidh_interface_info_t mouseh_data[TUSB_CFG_HOST_DEVICE_MAX];
 hidh_interface_info_t *p_hidh_mouse;
 hid_mouse_report_t report;
 
-tusb_descriptor_interface_t const *p_mouse_interface_desc = &desc_configuration.mouse_interface;
-tusb_descriptor_endpoint_t  const *p_mouse_endpoint_desc  = &desc_configuration.mouse_endpoint;
+tusb_desc_interface_t const *p_mouse_interface_desc = &desc_configuration.mouse_interface;
+tusb_desc_endpoint_t  const *p_mouse_endpoint_desc  = &desc_configuration.mouse_endpoint;
 
 uint8_t dev_addr;
 

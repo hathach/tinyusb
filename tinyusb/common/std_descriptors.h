@@ -77,7 +77,7 @@ typedef struct ATTR_PACKED
   uint8_t  iSerialNumber      ; ///< Index of string descriptor describing the device's serial number.
 
   uint8_t  bNumConfigurations ; ///< Number of possible configurations.
-} tusb_descriptor_device_t;
+} tusb_desc_device_t;
 
 /// USB Standard Configuration Descriptor (section 9.6.1 table 9-10) */
 typedef struct ATTR_PACKED
@@ -91,7 +91,7 @@ typedef struct ATTR_PACKED
   uint8_t  iConfiguration      ; ///< Index of string descriptor describing this configuration
   uint8_t  bmAttributes        ; ///< Configuration characteristics \n D7: Reserved (set to one)\n D6: Self-powered \n D5: Remote Wakeup \n D4...0: Reserved (reset to zero) \n D7 is reserved and must be set to one for historical reasons. \n A device configuration that uses power from the bus and a local source reports a non-zero value in bMaxPower to indicate the amount of bus power required and sets D6. The actual power source at runtime may be determined using the GetStatus(DEVICE) request (see USB 2.0 spec Section 9.4.5). \n If a device configuration supports remote wakeup, D5 is set to one.
   uint8_t  bMaxPower           ; ///< Maximum power consumption of the USB device from the bus in this specific configuration when the device is fully operational. Expressed in 2 mA units (i.e., 50 = 100 mA).
-} tusb_descriptor_configuration_t;
+} tusb_desc_configuration_t;
 
 /// USB Standard Interface Descriptor (section 9.6.1 table 9-12)
 typedef struct ATTR_PACKED
@@ -106,7 +106,7 @@ typedef struct ATTR_PACKED
   uint8_t  bInterfaceSubClass ; ///< Subclass code (assigned by the USB-IF). \n These codes are qualified by the value of the bInterfaceClass field. \li If the bInterfaceClass field is reset to zero, this field must also be reset to zero. \li If the bInterfaceClass field is not set to FFH, all values are reserved for assignment by the USB-IF.
   uint8_t  bInterfaceProtocol ; ///< Protocol code (assigned by the USB). \n These codes are qualified by the value of the bInterfaceClass and the bInterfaceSubClass fields. If an interface supports class-specific requests, this code identifies the protocols that the device uses as defined by the specification of the device class. \li If this field is reset to zero, the device does not use a class-specific protocol on this interface. \li If this field is set to FFH, the device uses a vendor-specific protocol for this interface.
   uint8_t  iInterface         ; ///< Index of string descriptor describing this interface
-} tusb_descriptor_interface_t;
+} tusb_desc_interface_t;
 
 /// USB Standard Endpoint Descriptor (section 9.6.1 table 9-13)
 typedef struct ATTR_PACKED
@@ -130,7 +130,7 @@ typedef struct ATTR_PACKED
   }wMaxPacketSize;
 
   uint8_t  bInterval        ; ///< Interval for polling endpoint for data transfers. Expressed in frames or microframes depending on the device operating speed (i.e., either 1 millisecond or 125 us units). \n- For full-/high-speed isochronous endpoints, this value must be in the range from 1 to 16. The bInterval value is used as the exponent for a \f$ 2^(bInterval-1) \f$ value; e.g., a bInterval of 4 means a period of 8 (\f$ 2^(4-1) \f$). \n- For full-/low-speed interrupt endpoints, the value of this field may be from 1 to 255. \n- For high-speed interrupt endpoints, the bInterval value is used as the exponent for a \f$ 2^(bInterval-1) \f$ value; e.g., a bInterval of 4 means a period of 8 (\f$ 2^(4-1) \f$) . This value must be from 1 to 16. \n- For high-speed bulk/control OUT endpoints, the bInterval must specify the maximum NAK rate of the endpoint. A value of 0 indicates the endpoint never NAKs. Other values indicate at most 1 NAK each bInterval number of microframes. This value must be in the range from 0 to 255. \n Refer to Chapter 5 of USB 2.0 specification for more information.
-} tusb_descriptor_endpoint_t;
+} tusb_desc_endpoint_t;
 
 /// USB Other Speed Configuration Descriptor (section 9.6.1 table 9-11)
 typedef struct ATTR_PACKED
@@ -144,7 +144,7 @@ typedef struct ATTR_PACKED
   uint8_t  IConfiguration      ; ///< Index of string descriptor
   uint8_t  bmAttributes        ; ///< Same as Configuration descriptor
   uint8_t  bMaxPower           ; ///< Same as Configuration descriptor
-} tusb_descriptor_other_speed_t;
+} tusb_desc_other_speed_t;
 
 /// USB Device Qualifier Descriptor (section 9.6.1 table 9-9)
 typedef struct ATTR_PACKED
@@ -159,7 +159,7 @@ typedef struct ATTR_PACKED
   uint8_t  bMaxPacketSize0    ; ///< Maximum packet size for other speed
   uint8_t  bNumConfigurations ; ///< Number of Other-speed Configurations
   uint8_t  bReserved          ; ///< Reserved for future use, must be zero
-} tusb_descriptor_device_qualifier_t;
+} tusb_desc_device_qualifier_t;
 
 /// USB Interface Association Descriptor (IAD ECN)
 typedef struct ATTR_PACKED
@@ -175,21 +175,21 @@ typedef struct ATTR_PACKED
   uint8_t bFunctionProtocol ; ///< Interface protocol ID.
 
   uint8_t iFunction         ; ///< Index of the string descriptor describing the interface association.
-} tusb_descriptor_interface_association_t;
+} tusb_desc_interface_assoc_t;
 
 /// USB Header Descriptor
 typedef struct ATTR_PACKED
 {
   uint8_t  bLength         ; ///< Size of this descriptor in bytes
   uint8_t  bDescriptorType ; ///< Descriptor Type
-} tusb_descriptor_header_t;
+} tusb_desc_header_t;
 
 typedef struct ATTR_PACKED
 {
   uint8_t  bLength         ; ///< Size of this descriptor in bytes
   uint8_t  bDescriptorType ; ///< Descriptor Type
   uint16_t unicode_string[];
-} tusb_descriptor_string_t;
+} tusb_desc_string_t;
 
 #ifdef __cplusplus
  }
