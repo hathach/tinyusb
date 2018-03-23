@@ -219,8 +219,9 @@ static void qtd_init(dcd_qtd_t* p_qtd, void * data_ptr, uint16_t total_bytes)
 // retval 0: invalid
 static inline uint8_t qtd_find_free(uint8_t port)
 {
-  for(uint8_t i=2; i<DCD_QTD_MAX; i++)
-  { // exclude control's qtd
+  // QTD0 is reserved for control transfer
+  for(uint8_t i=1; i<DCD_QTD_MAX; i++)
+  {
     if ( dcd_data_ptr[port]->qtd[i].used == 0) return i;
   }
 
@@ -331,6 +332,7 @@ bool tusb_dcd_edpt_busy(uint8_t port, uint8_t ep_addr)
 }
 
 // add only, controller virtually cannot know
+// TODO remove and merge to tusb_dcd_edpt_xfer
 static bool pipe_add_xfer(uint8_t port, uint8_t ed_idx, void * buffer, uint16_t total_bytes, bool int_on_complete)
 {
   uint8_t qtd_idx  = qtd_find_free(port);
@@ -357,12 +359,6 @@ static bool pipe_add_xfer(uint8_t port, uint8_t ed_idx, void * buffer, uint16_t 
   if ( free_slot > 0 ) p_dcd->qtd[ p_qhd->list_qtd_idx[free_slot-1] ].next = (uint32_t) p_qtd;
 
   return true;
-}
-
-bool tusb_dcd_edpt_queue_xfer(uint8_t port, uint8_t ep_addr, uint8_t * buffer, uint16_t total_bytes)
-{
-  uint8_t ep_idx = edpt_addr2phy(ep_addr);
-  return pipe_add_xfer(port, ep_idx, buffer, total_bytes, false);
 }
 
 bool  tusb_dcd_edpt_xfer(uint8_t port, uint8_t ep_addr, uint8_t * buffer, uint16_t total_bytes)

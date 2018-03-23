@@ -90,7 +90,6 @@ bool tusb_dcd_control_xfer     (uint8_t port, tusb_dir_t dir, uint8_t * buffer, 
 //------------- Other Endpoints -------------//
 bool tusb_dcd_edpt_open        (uint8_t port, tusb_descriptor_endpoint_t const * p_endpoint_desc);
 bool tusb_dcd_edpt_xfer        (uint8_t port, uint8_t ep_addr, uint8_t * buffer, uint16_t total_bytes);
-bool tusb_dcd_edpt_queue_xfer  (uint8_t port, uint8_t ep_addr, uint8_t * buffer, uint16_t total_bytes); // only queue, not transferring yet
 bool tusb_dcd_edpt_busy        (uint8_t port, uint8_t ep_addr);
 
 void tusb_dcd_edpt_stall       (uint8_t port, uint8_t ep_addr);

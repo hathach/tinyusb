@@ -436,11 +436,6 @@ bool tusb_dcd_edpt_xfer (uint8_t port, uint8_t ep_addr, uint8_t * buffer, uint16
   return true;
 }
 
-bool tusb_dcd_edpt_queue_xfer (uint8_t port, uint8_t ep_addr, uint8_t * buffer, uint16_t total_bytes)
-{
-  return true;
-}
-
 void tusb_dcd_edpt_stall (uint8_t port, uint8_t ep_addr)
 {
   (void) port;
