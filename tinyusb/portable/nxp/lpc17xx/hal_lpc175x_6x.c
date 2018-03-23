@@ -37,9 +37,9 @@
 /**************************************************************************/
 
 #include "common/tusb_common.h"
+#if TUSB_CFG_MCU == MCU_LPC175X_6X
 #include "hal_usb.h"
 
-#if TUSB_CFG_MCU == MCU_LPC175X_6X
 
 void tusb_hal_int_enable(uint8_t rhport)
 {
