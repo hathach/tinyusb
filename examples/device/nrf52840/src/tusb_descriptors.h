@@ -56,8 +56,10 @@
                                            PRODUCTID_BITMAP(MSC, 4) ) )
 #endif
 
-#define INTERFACE_NO_CDC          0
-#define TOTAL_INTEFACES           2
+#define ITF_NUM_CDC    0
+#define ITF_NUM_MSC    2
+
+#define ITF_TOTAL      3 // total number of interfaces
 
 //--------------------------------------------------------------------+
 // Endpoints Address & Max Packet Size
@@ -65,12 +67,16 @@
 #define EDPT_IN(x)    (0x80 | (x))
 #define EDPT_OUT(x)   (x)
 
-#define CDC_EDPT_NOTIFICATION_ADDR            EDPT_IN (1)
-#define CDC_EDPT_NOTIFICATION_PACKETSIZE      64
+#define CDC_EDPT_NOTIF       EDPT_IN (1)
+#define CDC_EDPT_NOTIF_SIZE  8
 
-#define CDC_EDPT_DATA_OUT_ADDR                EDPT_OUT(2)
-#define CDC_EDPT_DATA_IN_ADDR                 EDPT_IN (2)
-#define CDC_EDPT_DATA_PACKETSIZE              64
+#define CDC_EDPT_OUT         EDPT_OUT(2)
+#define CDC_EDPT_IN          EDPT_IN (2)
+#define CDC_EDPT_SIZE        64
+
+#define MSC_EDPT_OUT         EDPT_OUT(3)
+#define MSC_EDPT_IN          EDPT_IN(3)
+#define MSC_EDPT_SIZE        64
 
 
 //--------------------------------------------------------------------+
@@ -97,6 +103,13 @@ typedef struct ATTR_PACKED
     tusb_desc_endpoint_t              ep_out;
     tusb_desc_endpoint_t              ep_in;
   }cdc;
+
+  struct ATTR_PACKED
+  {
+    tusb_desc_interface_t             interface;
+    tusb_desc_endpoint_t              ep_out;
+    tusb_desc_endpoint_t              ep_in;
+  }msc;
 
 } app_descriptor_configuration_t;
 

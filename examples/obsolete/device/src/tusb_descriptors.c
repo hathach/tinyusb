@@ -176,7 +176,7 @@ app_descriptor_configuration_t const desc_configuration =
         .bDescriptorType     = TUSB_DESC_CONFIGURATION,
 
         .wTotalLength        = sizeof(app_descriptor_configuration_t),
-        .bNumInterfaces      = TOTAL_INTEFACES,
+        .bNumInterfaces      = ITF_TOTAL,
 
         .bConfigurationValue = 1,
         .iConfiguration      = 0x00,
@@ -191,7 +191,7 @@ app_descriptor_configuration_t const desc_configuration =
         .bLength           = sizeof(tusb_desc_interface_assoc_t),
         .bDescriptorType   = TUSB_DESC_INTERFACE_ASSOCIATION,
 
-        .bFirstInterface   = INTERFACE_NO_CDC,
+        .bFirstInterface   = ITF_NUM_CDC,
         .bInterfaceCount   = 2,
 
         .bFunctionClass    = TUSB_CLASS_CDC,
@@ -205,7 +205,7 @@ app_descriptor_configuration_t const desc_configuration =
     {
         .bLength            = sizeof(tusb_desc_interface_t),
         .bDescriptorType    = TUSB_DESC_INTERFACE,
-        .bInterfaceNumber   = INTERFACE_NO_CDC,
+        .bInterfaceNumber   = ITF_NUM_CDC,
         .bAlternateSetting  = 0,
         .bNumEndpoints      = 1,
         .bInterfaceClass    = TUSB_CLASS_CDC,
@@ -228,7 +228,7 @@ app_descriptor_configuration_t const desc_configuration =
         .bDescriptorType    = TUSB_DESC_CLASS_SPECIFIC,
         .bDescriptorSubType = CDC_FUNC_DESC_CALL_MANAGEMENT,
         .bmCapabilities     = { 0 },
-        .bDataInterface     = INTERFACE_NO_CDC+1,
+        .bDataInterface     = ITF_NUM_CDC+1,
     },
 
     .cdc_acm =
@@ -246,15 +246,15 @@ app_descriptor_configuration_t const desc_configuration =
         .bLength                  = sizeof(cdc_desc_func_union_t), // plus number of
         .bDescriptorType          = TUSB_DESC_CLASS_SPECIFIC,
         .bDescriptorSubType       = CDC_FUNC_DESC_UNION,
-        .bControlInterface        = INTERFACE_NO_CDC,
-        .bSubordinateInterface    = INTERFACE_NO_CDC+1,
+        .bControlInterface        = ITF_NUM_CDC,
+        .bSubordinateInterface    = ITF_NUM_CDC+1,
     },
 
     .cdc_endpoint_notification =
     {
         .bLength          = sizeof(tusb_desc_endpoint_t),
         .bDescriptorType  = TUSB_DESC_ENDPOINT,
-        .bEndpointAddress = CDC_EDPT_NOTIFICATION_ADDR,
+        .bEndpointAddress = CDC_EDPT_NOTIF,
         .bmAttributes     = { .xfer = TUSB_XFER_INTERRUPT },
         .wMaxPacketSize   = { .size = 0x08 },
         .bInterval        = 0x10
@@ -265,7 +265,7 @@ app_descriptor_configuration_t const desc_configuration =
     {
         .bLength            = sizeof(tusb_desc_interface_t),
         .bDescriptorType    = TUSB_DESC_INTERFACE,
-        .bInterfaceNumber   = INTERFACE_NO_CDC+1,
+        .bInterfaceNumber   = ITF_NUM_CDC+1,
         .bAlternateSetting  = 0x00,
         .bNumEndpoints      = 2,
         .bInterfaceClass    = TUSB_CLASS_CDC_DATA,
@@ -278,9 +278,9 @@ app_descriptor_configuration_t const desc_configuration =
     {
         .bLength          = sizeof(tusb_desc_endpoint_t),
         .bDescriptorType  = TUSB_DESC_ENDPOINT,
-        .bEndpointAddress = CDC_EDPT_DATA_OUT_ADDR,
+        .bEndpointAddress = CDC_EDPT_OUT,
         .bmAttributes     = { .xfer = TUSB_XFER_BULK },
-        .wMaxPacketSize   = { .size = CDC_EDPT_DATA_PACKETSIZE },
+        .wMaxPacketSize   = { .size = CDC_EDPT_SIZE },
         .bInterval        = 0
     },
 
@@ -288,9 +288,9 @@ app_descriptor_configuration_t const desc_configuration =
     {
         .bLength          = sizeof(tusb_desc_endpoint_t),
         .bDescriptorType  = TUSB_DESC_ENDPOINT,
-        .bEndpointAddress = CDC_EDPT_DATA_IN_ADDR,
+        .bEndpointAddress = CDC_EDPT_IN,
         .bmAttributes     = { .xfer = TUSB_XFER_BULK },
-        .wMaxPacketSize   = { .size = CDC_EDPT_DATA_PACKETSIZE },
+        .wMaxPacketSize   = { .size = CDC_EDPT_SIZE },
         .bInterval        = 0
     },
     #endif
@@ -375,7 +375,7 @@ app_descriptor_configuration_t const desc_configuration =
     {
         .bLength            = sizeof(tusb_desc_interface_t),
         .bDescriptorType    = TUSB_DESC_INTERFACE,
-        .bInterfaceNumber   = INTERFACE_NO_MSC,
+        .bInterfaceNumber   = ITF_NUM_MSC,
         .bAlternateSetting  = 0x00,
         .bNumEndpoints      = 2,
         .bInterfaceClass    = TUSB_CLASS_MSC,

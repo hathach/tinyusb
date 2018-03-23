@@ -79,7 +79,7 @@ typedef struct {
   uint16_t xferred_len; // numbered of bytes transferred so far in the Data Stage
 }mscd_interface_t;
 
-TUSB_CFG_ATTR_USBRAM STATIC_VAR mscd_interface_t mscd_data;
+TUSB_CFG_ATTR_USBRAM ATTR_USB_MIN_ALIGNMENT STATIC_VAR mscd_interface_t mscd_data;
 //--------------------------------------------------------------------+
 // INTERNAL OBJECT & FUNCTION DECLARATION
 //--------------------------------------------------------------------+

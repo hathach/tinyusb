@@ -56,16 +56,16 @@
                                            PRODUCTID_BITMAP(MSC, 4) ) )
 #endif
 
-#define INTERFACE_NO_CDC           0
-#define INTERFACE_NO_HID_KEYBOARD (INTERFACE_NO_CDC          + 2*(TUSB_CFG_DEVICE_CDC ? 1 : 0) )
+#define ITF_NUM_CDC           0
+#define INTERFACE_NO_HID_KEYBOARD (ITF_NUM_CDC          + 2*(TUSB_CFG_DEVICE_CDC ? 1 : 0) )
 #define INTERFACE_NO_HID_MOUSE    (INTERFACE_NO_HID_KEYBOARD + TUSB_CFG_DEVICE_HID_KEYBOARD    )
 #define INTERFACE_NO_HID_GENERIC  (INTERFACE_NO_HID_MOUSE    + TUSB_CFG_DEVICE_HID_MOUSE       )
-#define INTERFACE_NO_MSC          (INTERFACE_NO_HID_GENERIC  + TUSB_CFG_DEVICE_HID_GENERIC     )
+#define ITF_NUM_MSC          (INTERFACE_NO_HID_GENERIC  + TUSB_CFG_DEVICE_HID_GENERIC     )
 
-#define TOTAL_INTEFACES           (2*TUSB_CFG_DEVICE_CDC + TUSB_CFG_DEVICE_HID_KEYBOARD + TUSB_CFG_DEVICE_HID_MOUSE + \
+#define ITF_TOTAL           (2*TUSB_CFG_DEVICE_CDC + TUSB_CFG_DEVICE_HID_KEYBOARD + TUSB_CFG_DEVICE_HID_MOUSE + \
                                    TUSB_CFG_DEVICE_HID_GENERIC + TUSB_CFG_DEVICE_MSC)
 
-#if (TUSB_CFG_MCU == MCU_LPC11UXX || TUSB_CFG_MCU == MCU_LPC13UXX) && (TOTAL_INTEFACES > 4)
+#if (TUSB_CFG_MCU == MCU_LPC11UXX || TUSB_CFG_MCU == MCU_LPC13UXX) && (ITF_TOTAL > 4)
   #error These MCUs do not have enough number of endpoints for the current configuration
 #endif
 
@@ -78,12 +78,12 @@
 #if TUSB_CFG_MCU == MCU_LPC175X_6X // MCUs's endpoint number has a fixed type
 
   //------------- CDC -------------//
-  #define CDC_EDPT_NOTIFICATION_ADDR            EDPT_IN (1)
+  #define CDC_EDPT_NOTIF            EDPT_IN (1)
   #define CDC_EDPT_NOTIFICATION_PACKETSIZE      64
 
-  #define CDC_EDPT_DATA_OUT_ADDR                EDPT_OUT(2)
-  #define CDC_EDPT_DATA_IN_ADDR                 EDPT_IN (2)
-  #define CDC_EDPT_DATA_PACKETSIZE              64
+  #define CDC_EDPT_OUT                EDPT_OUT(2)
+  #define CDC_EDPT_IN                 EDPT_IN (2)
+  #define CDC_EDPT_SIZE              64
 
   //------------- HID Keyboard -------------//
   #define HID_KEYBOARD_EDPT_ADDR                EDPT_IN (4)
@@ -102,12 +102,12 @@
 #else
 
   //------------- CDC -------------//
-  #define CDC_EDPT_NOTIFICATION_ADDR            EDPT_IN (INTERFACE_NO_CDC+1)
+  #define CDC_EDPT_NOTIF            EDPT_IN (ITF_NUM_CDC+1)
   #define CDC_EDPT_NOTIFICATION_PACKETSIZE      64
 
-  #define CDC_EDPT_DATA_OUT_ADDR                EDPT_OUT(INTERFACE_NO_CDC+2)
-  #define CDC_EDPT_DATA_IN_ADDR                 EDPT_IN (INTERFACE_NO_CDC+2)
-  #define CDC_EDPT_DATA_PACKETSIZE              64
+  #define CDC_EDPT_OUT                EDPT_OUT(ITF_NUM_CDC+2)
+  #define CDC_EDPT_IN                 EDPT_IN (ITF_NUM_CDC+2)
+  #define CDC_EDPT_SIZE              64
 
   //------------- HID Keyboard -------------//
   #define HID_KEYBOARD_EDPT_ADDR                EDPT_IN (INTERFACE_NO_HID_KEYBOARD+1)
@@ -120,8 +120,8 @@
   //------------- HID Generic -------------//
 
   //------------- Mass Storage -------------//
-  #define MSC_EDPT_OUT_ADDR                     EDPT_OUT(INTERFACE_NO_MSC+1)
-  #define MSC_EDPT_IN_ADDR                      EDPT_IN (INTERFACE_NO_MSC+1)
+  #define MSC_EDPT_OUT_ADDR                     EDPT_OUT(ITF_NUM_MSC+1)
+  #define MSC_EDPT_IN_ADDR                      EDPT_IN (ITF_NUM_MSC+1)
 
 #endif
 
