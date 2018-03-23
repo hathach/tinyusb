@@ -101,7 +101,7 @@ const cdc_configuration_desc_t cdc_config_descriptor =
 
     .cdc_acm =
     {
-        .bLength            = sizeof(cdc_desc_func_abstract_control_management_t),
+        .bLength            = sizeof(cdc_desc_func_acm_t),
         .bDescriptorType    = TUSB_DESC_TYPE_INTERFACE_CLASS_SPECIFIC,
         .bDescriptorSubType = CDC_FUNC_DESC_ABSTRACT_CONTROL_MANAGEMENT,
         .bmCapabilities     = { // 0x06
@@ -227,7 +227,7 @@ const cdc_configuration_desc_t rndis_config_descriptor =
 
     .cdc_acm =
     {
-        .bLength            = sizeof(cdc_desc_func_abstract_control_management_t),
+        .bLength            = sizeof(cdc_desc_func_acm_t),
         .bDescriptorType    = TUSB_DESC_TYPE_INTERFACE_CLASS_SPECIFIC,
         .bDescriptorSubType = CDC_FUNC_DESC_ABSTRACT_CONTROL_MANAGEMENT,
         .bmCapabilities     = { 0 }

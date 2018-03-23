@@ -171,7 +171,7 @@ tusb_error_t cdch_open_subtask(uint8_t dev_addr, tusb_desc_interface_t const *p_
   { // Communication Functional Descriptors
     if ( CDC_FUNC_DESC_ABSTRACT_CONTROL_MANAGEMENT == cdc_functional_desc_typeof(p_desc) )
     { // save ACM bmCapabilities
-      p_cdc->acm_capability = ((cdc_desc_func_abstract_control_management_t const *) p_desc)->bmCapabilities;
+      p_cdc->acm_capability = ((cdc_desc_func_acm_t const *) p_desc)->bmCapabilities;
     }
 
     (*p_length) += p_desc[DESCRIPTOR_OFFSET_LENGTH];

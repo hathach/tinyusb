@@ -125,7 +125,7 @@ void test_cdch_open_length_check(void)
   const uint16_t expected_length =
       //------------- Comm Interface -------------//
       sizeof(tusb_desc_interface_t) + sizeof(cdc_desc_func_header_t) +
-      sizeof(cdc_desc_func_abstract_control_management_t) + sizeof(cdc_desc_func_union_t) +
+      sizeof(cdc_desc_func_acm_t) + sizeof(cdc_desc_func_union_t) +
       sizeof(tusb_desc_endpoint_t) +
       //------------- Data Interface -------------//
       sizeof(tusb_desc_interface_t) + 2*sizeof(tusb_desc_endpoint_t);

@@ -86,113 +86,116 @@ app_descriptor_configuration_t const desc_configuration =
     },
 
     // IAD points to CDC Interfaces
-    .cdc_iad =
+    .cdc =
     {
-        .bLength           = sizeof(tusb_desc_interface_assoc_t),
-        .bDescriptorType   = TUSB_DESC_INTERFACE_ASSOCIATION,
+      .iad =
+      {
+          .bLength           = sizeof(tusb_desc_interface_assoc_t),
+          .bDescriptorType   = TUSB_DESC_INTERFACE_ASSOCIATION,
 
-        .bFirstInterface   = INTERFACE_NO_CDC,
-        .bInterfaceCount   = 2,
+          .bFirstInterface   = INTERFACE_NO_CDC,
+          .bInterfaceCount   = 2,
 
-        .bFunctionClass    = TUSB_CLASS_CDC,
-        .bFunctionSubClass = CDC_COMM_SUBCLASS_ABSTRACT_CONTROL_MODEL,
-        .bFunctionProtocol = CDC_COMM_PROTOCOL_ATCOMMAND,
-        .iFunction         = 0
-    },
+          .bFunctionClass    = TUSB_CLASS_CDC,
+          .bFunctionSubClass = CDC_COMM_SUBCLASS_ABSTRACT_CONTROL_MODEL,
+          .bFunctionProtocol = CDC_COMM_PROTOCOL_ATCOMMAND,
+          .iFunction         = 0
+      },
 
-    //------------- CDC Communication Interface -------------//
-    .cdc_comm_interface =
-    {
-        .bLength            = sizeof(tusb_desc_interface_t),
-        .bDescriptorType    = TUSB_DESC_INTERFACE,
-        .bInterfaceNumber   = INTERFACE_NO_CDC,
-        .bAlternateSetting  = 0,
-        .bNumEndpoints      = 1,
-        .bInterfaceClass    = TUSB_CLASS_CDC,
-        .bInterfaceSubClass = CDC_COMM_SUBCLASS_ABSTRACT_CONTROL_MODEL,
-        .bInterfaceProtocol = CDC_COMM_PROTOCOL_ATCOMMAND,
-        .iInterface         = 0x00
-    },
+      //------------- CDC Communication Interface -------------//
+      .comm_itf =
+      {
+          .bLength            = sizeof(tusb_desc_interface_t),
+          .bDescriptorType    = TUSB_DESC_INTERFACE,
+          .bInterfaceNumber   = INTERFACE_NO_CDC,
+          .bAlternateSetting  = 0,
+          .bNumEndpoints      = 1,
+          .bInterfaceClass    = TUSB_CLASS_CDC,
+          .bInterfaceSubClass = CDC_COMM_SUBCLASS_ABSTRACT_CONTROL_MODEL,
+          .bInterfaceProtocol = CDC_COMM_PROTOCOL_ATCOMMAND,
+          .iInterface         = 0x00
+      },
 
-    .cdc_header =
-    {
-        .bLength            = sizeof(cdc_desc_func_header_t),
-        .bDescriptorType    = TUSB_DESC_CLASS_SPECIFIC,
-        .bDescriptorSubType = CDC_FUNC_DESC_HEADER,
-        .bcdCDC             = 0x0120
-    },
+      .header =
+      {
+          .bLength            = sizeof(cdc_desc_func_header_t),
+          .bDescriptorType    = TUSB_DESC_CLASS_SPECIFIC,
+          .bDescriptorSubType = CDC_FUNC_DESC_HEADER,
+          .bcdCDC             = 0x0120
+      },
 
-    .cdc_call =
-    {
-        .bLength            = sizeof(cdc_desc_func_call_management_t),
-        .bDescriptorType    = TUSB_DESC_CLASS_SPECIFIC,
-        .bDescriptorSubType = CDC_FUNC_DESC_CALL_MANAGEMENT,
-        .bmCapabilities     = { 0 },
-        .bDataInterface     = INTERFACE_NO_CDC+1,
-    },
+      .call =
+      {
+          .bLength            = sizeof(cdc_desc_func_call_management_t),
+          .bDescriptorType    = TUSB_DESC_CLASS_SPECIFIC,
+          .bDescriptorSubType = CDC_FUNC_DESC_CALL_MANAGEMENT,
+          .bmCapabilities     = { 0 },
+          .bDataInterface     = INTERFACE_NO_CDC+1,
+      },
 
-    .cdc_acm =
-    {
-        .bLength            = sizeof(cdc_desc_func_abstract_control_management_t),
-        .bDescriptorType    = TUSB_DESC_CLASS_SPECIFIC,
-        .bDescriptorSubType = CDC_FUNC_DESC_ABSTRACT_CONTROL_MANAGEMENT,
-        .bmCapabilities     = { // 0x02
-            .support_line_request = 1,
-        }
-    },
+      .acm =
+      {
+          .bLength            = sizeof(cdc_desc_func_acm_t),
+          .bDescriptorType    = TUSB_DESC_CLASS_SPECIFIC,
+          .bDescriptorSubType = CDC_FUNC_DESC_ABSTRACT_CONTROL_MANAGEMENT,
+          .bmCapabilities     = { // 0x02
+              .support_line_request = 1,
+          }
+      },
 
-    .cdc_union =
-    {
-        .bLength                  = sizeof(cdc_desc_func_union_t), // plus number of
-        .bDescriptorType          = TUSB_DESC_CLASS_SPECIFIC,
-        .bDescriptorSubType       = CDC_FUNC_DESC_UNION,
-        .bControlInterface        = INTERFACE_NO_CDC,
-        .bSubordinateInterface    = INTERFACE_NO_CDC+1,
-    },
+      .union_func =
+      {
+          .bLength                  = sizeof(cdc_desc_func_union_t), // plus number of
+          .bDescriptorType          = TUSB_DESC_CLASS_SPECIFIC,
+          .bDescriptorSubType       = CDC_FUNC_DESC_UNION,
+          .bControlInterface        = INTERFACE_NO_CDC,
+          .bSubordinateInterface    = INTERFACE_NO_CDC+1,
+      },
 
-    .cdc_endpoint_notification =
-    {
-        .bLength          = sizeof(tusb_desc_endpoint_t),
-        .bDescriptorType  = TUSB_DESC_ENDPOINT,
-        .bEndpointAddress = CDC_EDPT_NOTIFICATION_ADDR,
-        .bmAttributes     = { .xfer = TUSB_XFER_INTERRUPT },
-        .wMaxPacketSize   = { .size = 0x08 },
-        .bInterval        = 0x10
-    },
+      .ep_notif =
+      {
+          .bLength          = sizeof(tusb_desc_endpoint_t),
+          .bDescriptorType  = TUSB_DESC_ENDPOINT,
+          .bEndpointAddress = CDC_EDPT_NOTIFICATION_ADDR,
+          .bmAttributes     = { .xfer = TUSB_XFER_INTERRUPT },
+          .wMaxPacketSize   = { .size = 0x08 },
+          .bInterval        = 0x10
+      },
 
-    //------------- CDC Data Interface -------------//
-    .cdc_data_interface =
-    {
-        .bLength            = sizeof(tusb_desc_interface_t),
-        .bDescriptorType    = TUSB_DESC_INTERFACE,
-        .bInterfaceNumber   = INTERFACE_NO_CDC+1,
-        .bAlternateSetting  = 0x00,
-        .bNumEndpoints      = 2,
-        .bInterfaceClass    = TUSB_CLASS_CDC_DATA,
-        .bInterfaceSubClass = 0,
-        .bInterfaceProtocol = 0,
-        .iInterface         = 0x00
-    },
+      //------------- CDC Data Interface -------------//
+      .data_itf =
+      {
+          .bLength            = sizeof(tusb_desc_interface_t),
+          .bDescriptorType    = TUSB_DESC_INTERFACE,
+          .bInterfaceNumber   = INTERFACE_NO_CDC+1,
+          .bAlternateSetting  = 0x00,
+          .bNumEndpoints      = 2,
+          .bInterfaceClass    = TUSB_CLASS_CDC_DATA,
+          .bInterfaceSubClass = 0,
+          .bInterfaceProtocol = 0,
+          .iInterface         = 0x00
+      },
 
-    .cdc_endpoint_out =
-    {
-        .bLength          = sizeof(tusb_desc_endpoint_t),
-        .bDescriptorType  = TUSB_DESC_ENDPOINT,
-        .bEndpointAddress = CDC_EDPT_DATA_OUT_ADDR,
-        .bmAttributes     = { .xfer = TUSB_XFER_BULK },
-        .wMaxPacketSize   = { .size = CDC_EDPT_DATA_PACKETSIZE },
-        .bInterval        = 0
-    },
+      .ep_out =
+      {
+          .bLength          = sizeof(tusb_desc_endpoint_t),
+          .bDescriptorType  = TUSB_DESC_ENDPOINT,
+          .bEndpointAddress = CDC_EDPT_DATA_OUT_ADDR,
+          .bmAttributes     = { .xfer = TUSB_XFER_BULK },
+          .wMaxPacketSize   = { .size = CDC_EDPT_DATA_PACKETSIZE },
+      .bInterval        = 0
+      },
 
-    .cdc_endpoint_in =
-    {
-        .bLength          = sizeof(tusb_desc_endpoint_t),
-        .bDescriptorType  = TUSB_DESC_ENDPOINT,
-        .bEndpointAddress = CDC_EDPT_DATA_IN_ADDR,
-        .bmAttributes     = { .xfer = TUSB_XFER_BULK },
-        .wMaxPacketSize   = { .size = CDC_EDPT_DATA_PACKETSIZE },
-        .bInterval        = 0
-    },
+      .ep_in =
+      {
+          .bLength          = sizeof(tusb_desc_endpoint_t),
+          .bDescriptorType  = TUSB_DESC_ENDPOINT,
+          .bEndpointAddress = CDC_EDPT_DATA_IN_ADDR,
+          .bmAttributes     = { .xfer = TUSB_XFER_BULK },
+          .wMaxPacketSize   = { .size = CDC_EDPT_DATA_PACKETSIZE },
+          .bInterval        = 0
+      },
+    }
 };
 
 //--------------------------------------------------------------------+

@@ -233,7 +233,7 @@ app_descriptor_configuration_t const desc_configuration =
 
     .cdc_acm =
     {
-        .bLength            = sizeof(cdc_desc_func_abstract_control_management_t),
+        .bLength            = sizeof(cdc_desc_func_acm_t),
         .bDescriptorType    = TUSB_DESC_CLASS_SPECIFIC,
         .bDescriptorSubType = CDC_FUNC_DESC_ABSTRACT_CONTROL_MANAGEMENT,
         .bmCapabilities     = { // 0x02

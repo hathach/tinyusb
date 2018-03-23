@@ -150,7 +150,7 @@ tusb_error_t cdcd_open(uint8_t rhport, tusb_desc_interface_t const * p_interface
   { // Communication Functional Descriptors
     if ( CDC_FUNC_DESC_ABSTRACT_CONTROL_MANAGEMENT == cdc_functional_desc_typeof(p_desc) )
     { // save ACM bmCapabilities
-      p_cdc->acm_capability = ((cdc_desc_func_abstract_control_management_t const *) p_desc)->bmCapabilities;
+      p_cdc->acm_capability = ((cdc_desc_func_acm_t const *) p_desc)->bmCapabilities;
     }
 
     (*p_length) += p_desc[DESCRIPTOR_OFFSET_LENGTH];

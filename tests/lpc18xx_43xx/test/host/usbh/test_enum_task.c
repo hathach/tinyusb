@@ -203,7 +203,7 @@ tusb_error_t stub_cdch_open(uint8_t dev_addr, tusb_desc_interface_t const *descr
   *p_length =
       //------------- Comm Interface -------------//
       sizeof(tusb_desc_interface_t) + sizeof(cdc_desc_func_header_t) +
-      sizeof(cdc_desc_func_abstract_control_management_t) + sizeof(cdc_desc_func_union_t) +
+      sizeof(cdc_desc_func_acm_t) + sizeof(cdc_desc_func_union_t) +
       sizeof(tusb_desc_endpoint_t) +
       //------------- Data Interface -------------//
       sizeof(tusb_desc_interface_t) + 2*sizeof(tusb_desc_endpoint_t);

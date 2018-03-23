@@ -78,23 +78,25 @@
 //--------------------------------------------------------------------+
 typedef struct ATTR_PACKED
 {
-  tusb_desc_configuration_t              configuration;
+  tusb_desc_configuration_t           configuration;
 
-  //------------- CDC -------------//
-  tusb_desc_interface_assoc_t      cdc_iad;
+  struct ATTR_PACKED
+  {
+    tusb_desc_interface_assoc_t       iad;
 
-  //CDC Control Interface
-  tusb_desc_interface_t                  cdc_comm_interface;
-  cdc_desc_func_header_t                       cdc_header;
-  cdc_desc_func_call_management_t              cdc_call;
-  cdc_desc_func_abstract_control_management_t  cdc_acm;
-  cdc_desc_func_union_t                        cdc_union;
-  tusb_desc_endpoint_t                   cdc_endpoint_notification;
+    //CDC Control Interface
+    tusb_desc_interface_t             comm_itf;
+    cdc_desc_func_header_t            header;
+    cdc_desc_func_call_management_t   call;
+    cdc_desc_func_acm_t               acm;
+    cdc_desc_func_union_t             union_func;
+    tusb_desc_endpoint_t              ep_notif;
 
-  //CDC Data Interface
-  tusb_desc_interface_t                  cdc_data_interface;
-  tusb_desc_endpoint_t                   cdc_endpoint_out;
-  tusb_desc_endpoint_t                   cdc_endpoint_in;
+    //CDC Data Interface
+    tusb_desc_interface_t             data_itf;
+    tusb_desc_endpoint_t              ep_out;
+    tusb_desc_endpoint_t              ep_in;
+  }cdc;
 
 } app_descriptor_configuration_t;
 

@@ -310,7 +310,7 @@ typedef struct ATTR_PACKED
   uint8_t bDescriptorType          ; ///< Descriptor Type, must be Class-Specific
   uint8_t bDescriptorSubType       ; ///< Descriptor SubType one of above CDC_FUCN_DESC_
   cdc_acm_capability_t bmCapabilities ;
-}cdc_desc_func_abstract_control_management_t;
+}cdc_desc_func_acm_t;
 
 /// \brief Direct Line Management Functional Descriptor
 /// \details This functional descriptor describes the commands supported by the Communications Class interface with SubClass code of \ref CDC_FUNC_DESC_DIRECT_LINE_MANAGEMENT
