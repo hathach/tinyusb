@@ -34,6 +34,8 @@
 */
 /**************************************************************************/
 
+#ifdef NRF52840_XXAA
+
 // TODO remove
 #include "nrf.h"
 #include "nrf_power.h"
@@ -648,3 +650,5 @@ void USBD_IRQHandler(void)
   }
 
 }
+
+#endif

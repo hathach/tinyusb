@@ -34,6 +34,8 @@
 */
 /**************************************************************************/
 
+#ifdef NRF52840_XXAA
+
 #include <stdbool.h>
 #include "nrf.h"
 #include "nrf_gpio.h"
@@ -98,3 +100,5 @@ void tusb_hal_dbg_breakpoint(void)
   }
 #endif
 }
+
+#endif
