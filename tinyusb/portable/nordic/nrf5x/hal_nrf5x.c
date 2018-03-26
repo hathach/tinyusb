@@ -1,6 +1,6 @@
 /**************************************************************************/
 /*!
-    @file     hal_nrf52.c
+    @file     hal_nrf5x.c
     @author   hathach
 
     @section LICENSE

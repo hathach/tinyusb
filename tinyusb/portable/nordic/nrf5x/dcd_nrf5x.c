@@ -1,6 +1,6 @@
 /**************************************************************************/
 /*!
-    @file     dcd_nrf52.c
+    @file     dcd_nrf5x.c
     @author   hathach
 
     @section LICENSE
