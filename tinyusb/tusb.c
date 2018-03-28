@@ -68,3 +68,16 @@ void tusb_task(void)
   #endif
 }
 #endif
+
+
+/*------------------------------------------------------------------*/
+/* Debug
+ *------------------------------------------------------------------*/
+#if TUSB_CFG_DEBUG
+
+char const* const tusb_strerr[TUSB_ERROR_COUNT] =
+{
+ ERROR_TABLE(ERROR_STRING)
+};
+
+#endif

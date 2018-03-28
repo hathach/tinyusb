@@ -102,7 +102,7 @@ typedef enum
 
 #if TUSB_CFG_DEBUG
 /// Enum to String for debugging purposes. Only available if \ref TUSB_CFG_DEBUG > 0
-extern char const* const TUSB_ErrorStr[TUSB_ERROR_COUNT];
+extern char const* const tusb_strerr[TUSB_ERROR_COUNT];
 #endif
 
 #ifdef __cplusplus

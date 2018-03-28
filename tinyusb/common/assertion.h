@@ -97,11 +97,11 @@ extern "C"
 //--------------------------------------------------------------------+
 #define ASSERT_STATUS_MESSAGE(sts, message) \
     ASSERT_DEFINE(tusb_error_t status = (tusb_error_t)(sts),\
-                  TUSB_ERROR_NONE == status, status, "%s: %s", TUSB_ErrorStr[status], message)
+                  TUSB_ERROR_NONE == status, status, "%s: %s", tusb_strerr[status], message)
 
 #define ASSERT_STATUS(sts) \
     ASSERT_DEFINE(tusb_error_t status = (tusb_error_t)(sts),\
-                  TUSB_ERROR_NONE == status, status, "%s", TUSB_ErrorStr[status])
+                  TUSB_ERROR_NONE == status, status, "%s", tusb_strerr[status])
 
 //--------------------------------------------------------------------+
 // Logical Assert
