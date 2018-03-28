@@ -50,18 +50,18 @@
 #define XSTRING_CONCAT_(a, b) STRING_CONCAT_(a, b) ///< expand then concat
 
 //--------------------------------------------------------------------+
-// Compile-time Assert
+// Compile-time Assert (use VERIFY_STATIC to avoid name conflict)
 //--------------------------------------------------------------------+
-#ifdef __ICCARM__
+#if defined(__ICCARM__) || (__STDC_VERSION__ >= 201112L )
   #define VERIFY_STATIC   static_assert
 #else
   #if defined __COUNTER__ && __COUNTER__ != __COUNTER__
-    #define _ASSERT_COUNTER __COUNTER__
+    #define _VERIFY_COUNTER __COUNTER__
   #else
-    #define _ASSERT_COUNTER __LINE__
+    #define _VERIFY_COUNTER __LINE__
   #endif
 
-  #define VERIFY_STATIC(const_expr, message) enum { XSTRING_CONCAT_(static_assert_, _ASSERT_COUNTER) = 1/(!!(const_expr)) }
+  #define VERIFY_STATIC(const_expr, _mess) enum { XSTRING_CONCAT_(_verify_static_, _VERIFY_COUNTER) = 1/(!!(const_expr)) }
 #endif
 
 // allow debugger to watch any module-wide variables anywhere

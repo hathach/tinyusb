@@ -52,21 +52,6 @@
 #define GET_4TH_ARG(arg1, arg2, arg3, arg4, ...)  arg4
 
 //--------------------------------------------------------------------+
-// Compile-time Verify (like assert static)
-//--------------------------------------------------------------------+
-#ifdef __ICCARM__
-  #define VERIFY_STATIC   static_assert
-#else
-  #if defined __COUNTER__ && __COUNTER__ != __COUNTER__
-    #define _VERIFY_COUNTER __COUNTER__
-  #else
-    #define _VERIFY_COUNTER __LINE__
-  #endif
-
-  #define VERIFY_STATIC(const_expr, _mess) enum { XSTRING_CONCAT_(_verify_static_, _VERIFY_COUNTER) = 1/(!!(const_expr)) }
-#endif
-
-//--------------------------------------------------------------------+
 // VERIFY Helper
 //--------------------------------------------------------------------+
 #if TUSB_CFG_DEBUG >= 1
