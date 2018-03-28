@@ -258,11 +258,11 @@ tusb_error_t cdcd_control_request_st(uint8_t rhport, tusb_control_request_t cons
       p_cdc->connected = false;
     }
 
-    usbd_control_status(rhport, p_request->bmRequestType_bit.direction);
+    dcd_control_status(rhport, p_request->bmRequestType_bit.direction);
   }
   else
   {
-    usbd_control_stall(rhport); // stall unsupported request
+    dcd_control_stall(rhport); // stall unsupported request
   }
 
   OSAL_SUBTASK_END

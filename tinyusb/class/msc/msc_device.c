@@ -147,7 +147,7 @@ tusb_error_t mscd_control_request_st(uint8_t rhport, tusb_control_request_t cons
 
   if(MSC_REQUEST_RESET == p_request->bRequest)
   {
-    usbd_control_status(rhport, p_request->bmRequestType_bit.direction);
+    dcd_control_status(rhport, p_request->bmRequestType_bit.direction);
   }
   else if (MSC_REQUEST_GET_MAX_LUN == p_request->bRequest)
   {
@@ -156,7 +156,7 @@ tusb_error_t mscd_control_request_st(uint8_t rhport, tusb_control_request_t cons
     STASK_INVOKE( usbd_control_xfer_st(rhport, p_request->bmRequestType_bit.direction, p_msc->scsi_data, 1), err);
   }else
   {
-    usbd_control_stall(rhport); // stall unsupported request
+    dcd_control_stall(rhport); // stall unsupported request
   }
 
   OSAL_SUBTASK_END

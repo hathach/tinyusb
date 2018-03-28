@@ -52,18 +52,7 @@ void         usbd_task( void* param);
 // Carry out Data and Status stage of control transfer
 tusb_error_t usbd_control_xfer_st(uint8_t rhport, tusb_dir_t dir, uint8_t * buffer, uint16_t length);
 
-// Return Status of control transfer
-// Note dir is value of direction bit in setup packet (aka DATA stage direction)
-static inline bool usbd_control_status(uint8_t rhport, tusb_dir_t dir)
-{
-  // status direction is reversed to one in the setup packet
-  return dcd_control_xfer(rhport, 1-dir, NULL, 0);
-}
 
-static inline void usbd_control_stall(uint8_t rhport)
-{
-  dcd_edpt_stall(rhport, 0);
-}
 
 
 #ifdef __cplusplus

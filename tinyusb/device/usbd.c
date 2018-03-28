@@ -328,7 +328,7 @@ tusb_error_t usbd_control_xfer_st(uint8_t rhport, tusb_dir_t dir, uint8_t * buff
   // Status opposite direction with Zero Length
   // No need to wait for status to complete therefore
   // status phase must not call dcd_control_complete/dcd_xfer_complete
-  usbd_control_status(rhport, dir);
+  dcd_control_status(rhport, dir);
 
   OSAL_SUBTASK_END
 }
@@ -354,7 +354,7 @@ static tusb_error_t proc_control_request_st(uint8_t rhport, tusb_control_request
         STASK_INVOKE( usbd_control_xfer_st(rhport, p_request->bmRequestType_bit.direction, (uint8_t*) buffer, len ), error );
       }else
       {
-        usbd_control_stall(rhport); // stall unsupported descriptor
+        dcd_control_stall(rhport); // stall unsupported descriptor
       }
     }
     else if (TUSB_REQ_GET_CONFIGURATION == p_request->bRequest )
@@ -368,17 +368,17 @@ static tusb_error_t proc_control_request_st(uint8_t rhport, tusb_control_request
       usbd_devices[rhport].state = TUSB_DEVICE_STATE_ADDRESSED;
 
       #ifndef NRF52840_XXAA // nrf52 auto handle set address, we must not return status
-      usbd_control_status(rhport, p_request->bmRequestType_bit.direction);
+      dcd_control_status(rhport, p_request->bmRequestType_bit.direction);
       #endif
     }
     else if ( TUSB_REQ_SET_CONFIGURATION == p_request->bRequest )
     {
       proc_set_config_req(rhport, (uint8_t) p_request->wValue);
-      usbd_control_status(rhport, p_request->bmRequestType_bit.direction);
+      dcd_control_status(rhport, p_request->bmRequestType_bit.direction);
     }
     else
     {
-      usbd_control_stall(rhport); // Stall unsupported request
+      dcd_control_stall(rhport); // Stall unsupported request
     }
   }
 
@@ -396,7 +396,7 @@ static tusb_error_t proc_control_request_st(uint8_t rhport, tusb_control_request
       STASK_INVOKE( usbd_class_drivers[class_code].control_request_st(rhport, p_request), error );
     }else
     {
-      usbd_control_stall(rhport); // Stall unsupported request
+      dcd_control_stall(rhport); // Stall unsupported request
     }
   }
 
@@ -407,17 +407,17 @@ static tusb_error_t proc_control_request_st(uint8_t rhport, tusb_control_request
     if (TUSB_REQ_CLEAR_FEATURE == p_request->bRequest )
     {
       dcd_edpt_clear_stall(rhport, u16_low_u8(p_request->wIndex) );
-      usbd_control_status(rhport, p_request->bmRequestType_bit.direction);
+      dcd_control_status(rhport, p_request->bmRequestType_bit.direction);
     } else
     {
-      usbd_control_stall(rhport); // Stall unsupported request
+      dcd_control_stall(rhport); // Stall unsupported request
     }
   }
 
   //------------- Unsupported Request -------------//
   else
   {
-    usbd_control_stall(rhport); // Stall unsupported request
+    dcd_control_stall(rhport); // Stall unsupported request
   }
 
   OSAL_SUBTASK_END

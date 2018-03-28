@@ -212,7 +212,7 @@ tusb_error_t hidd_control_request_st(uint8_t rhport, tusb_control_request_t cons
       STASK_INVOKE( usbd_control_xfer_st(rhport, p_request->bmRequestType_bit.direction, m_hid_buffer, p_hid->report_length), err );
     }else
     {
-      usbd_control_stall(rhport);
+      dcd_control_stall(rhport);
     }
   }
   //------------- Class Specific Request -------------//
@@ -241,17 +241,17 @@ tusb_error_t hidd_control_request_st(uint8_t rhport, tusb_control_request_t cons
     else if (HID_REQUEST_CONTROL_SET_IDLE == p_request->bRequest)
     {
       // uint8_t idle_rate = u16_high_u8(p_request->wValue);
-      usbd_control_status(rhport, p_request->bmRequestType_bit.direction);
+      dcd_control_status(rhport, p_request->bmRequestType_bit.direction);
     }else
     {
 //      HID_REQUEST_CONTROL_GET_IDLE:
 //      HID_REQUEST_CONTROL_GET_PROTOCOL:
 //      HID_REQUEST_CONTROL_SET_PROTOCOL:
-      usbd_control_stall(rhport);
+      dcd_control_stall(rhport);
     }
   }else
   {
-    usbd_control_stall(rhport);
+    dcd_control_stall(rhport);
   }
 
   OSAL_SUBTASK_END

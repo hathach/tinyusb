@@ -77,23 +77,36 @@ void dcd_xfer_complete    (uint8_t rhport, uint8_t ep_addr, uint32_t xferred_byt
 
 static inline void dcd_control_complete(uint8_t rhport)
 {
-  // TODO all control complete is successful !!
+  // all control complete is successful !!
   dcd_xfer_complete(rhport, 0, 0, true);
 }
 
 /*------------------------------------------------------------------*/
 /* Endpoint API
  *------------------------------------------------------------------*/
-//------------- Control Endpoint -------------//
-bool dcd_control_xfer     (uint8_t rhport, tusb_dir_t dir, uint8_t * buffer, uint16_t length);
 
-//------------- Other Endpoints -------------//
+//------------- Non-control Endpoints -------------//
 bool dcd_edpt_open        (uint8_t rhport, tusb_desc_endpoint_t const * p_endpoint_desc);
 bool dcd_edpt_xfer        (uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t total_bytes);
 bool dcd_edpt_busy        (uint8_t rhport, uint8_t ep_addr);
 
 void dcd_edpt_stall       (uint8_t rhport, uint8_t ep_addr);
 void dcd_edpt_clear_stall (uint8_t rhport, uint8_t ep_addr);
+
+//------------- Control Endpoint -------------//
+bool dcd_control_xfer     (uint8_t rhport, tusb_dir_t dir, uint8_t * buffer, uint16_t length);
+
+// Note input dir is value of direction bit in setup packet (i.e DATA stage direction)
+static inline bool dcd_control_status(uint8_t rhport, tusb_dir_t dir)
+{
+  // status direction is reversed to one in the setup packet
+  return dcd_control_xfer(rhport, 1-dir, NULL, 0);
+}
+
+static inline void dcd_control_stall(uint8_t rhport)
+{
+  dcd_edpt_stall(rhport, 0);
+}
 
 #ifdef __cplusplus
  }
