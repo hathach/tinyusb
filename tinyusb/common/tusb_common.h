@@ -66,7 +66,7 @@
 #include "assertion.h"
 #include "verify.h"
 #include "binary.h"
-#include "tusb_errors.h"
+#include "tusb_error.h"
 #include "fifo.h"
 
 //------------- TUSB Header -------------//

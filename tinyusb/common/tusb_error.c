@@ -1,6 +1,6 @@
 /**************************************************************************/
 /*!
-    @file     errors.c
+    @file     tusb_error.c
     @author   hathach (tinyusb.org)
 
     @section LICENSE
@@ -32,11 +32,11 @@
     INCLUDING NEGLIGENCE OR OTHERWISE ARISING IN ANY WAY OUT OF THE USE OF THIS
     SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-	This file is part of the tinyusb stack.
+    This file is part of the tinyusb stack.
 */
 /**************************************************************************/
 
-#include "tusb_errors.h"
+#include "tusb_error.h"
 
 #if TUSB_CFG_DEBUG
 
