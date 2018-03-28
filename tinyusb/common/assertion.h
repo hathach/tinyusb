@@ -54,8 +54,6 @@ extern "C"
 #include "tusb_option.h"
 #include "tusb_compiler.h"
 
-#include "tusb_hal.h" // TODO find a way to break hal dependency
-
 #define VOID_RETURN
 
 //#if ( defined CFG_PRINTF_UART || defined CFG_PRINTF_USBCDC || defined CFG_PRINTF_DEBUG )
@@ -74,7 +72,7 @@ extern "C"
   do{\
     setup_statement;\
 	  if (!(condition)) {\
-	    tusb_hal_dbg_breakpoint();\
+	    verify_breakpoint();\
 	    _ASSERT_MESSAGE(format, __VA_ARGS__);\
 	    return error; /* Throw X for Test */\
 	  }\

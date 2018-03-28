@@ -77,9 +77,6 @@ void tusb_hal_int_disable(uint8_t rhport);
 
 uint32_t tusb_hal_tick_get(void);
 
-// for debug only, halt mcu if assert/verify is failed if debugger is attached
-void tusb_hal_dbg_breakpoint(void) ATTR_WEAK;
-
 #ifdef __cplusplus
  }
 #endif

@@ -251,7 +251,7 @@ tusb_error_t mscd_xfer_cb(uint8_t rhport, uint8_t ep_addr, tusb_event_t event, u
       }else
       {
         // unlikely error
-        tusb_hal_dbg_breakpoint();
+        verify_breakpoint();
       }
     break;
 

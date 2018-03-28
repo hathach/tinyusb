@@ -89,16 +89,4 @@ uint32_t tusb_hal_tick_get(void)
   return system_ticks;
 }
 
-void tusb_hal_dbg_breakpoint(void)
-{
-  // M0 cannot check if debugger is attached or not
-#if defined(__CORTEX_M) && (__CORTEX_M > 0)
-  // check if debugger is attached
-  if ( (CoreDebug->DHCSR & CoreDebug_DHCSR_C_DEBUGEN_Msk) == CoreDebug_DHCSR_C_DEBUGEN_Msk)
-  {
-    __asm("BKPT #0\n");
-  }
-#endif
-}
-
 #endif

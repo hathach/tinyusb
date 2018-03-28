@@ -63,6 +63,24 @@
   #define _ASSERT_MESS()
 #endif
 
+// Halt CPU (breakpoint) when hitting error, only apply for Cortex M3, M4, M7
+#if defined(__ARM_ARCH_7M__) || defined (__ARM_ARCH_7EM__)
+
+// Cortex M CoreDebug->DHCSR
+#define ARM_CM_DHCSR    (*((volatile uint32_t*) 0xE000EDF0UL))
+
+static inline void verify_breakpoint(void)
+{
+  // Only halt mcu if debugger is attached
+  if ( ARM_CM_DHCSR & 1UL ) __asm("BKPT #0\n");
+}
+
+#else
+
+#define verify_breakpoint()
+
+#endif
+
 /*------------------------------------------------------------------*/
 /* VERIFY STATUS
  * - VERIFY_STS_1ARGS : return status of condition if failed
@@ -95,13 +113,13 @@
 #define VERIFY_STS_HDLR_2ARGS(sts, _handler)          \
     do {                                              \
       uint32_t _status = (uint32_t)(sts);             \
-      if ( 0 != _status ) { tusb_hal_dbg_breakpoint(); _VERIFY_MESS(_status) _handler; return _status; }\
+      if ( 0 != _status ) { verify_breakpoint(); _VERIFY_MESS(_status) _handler; return _status; }\
     } while(0)
 
 #define VERIFY_STS_HDLR_3ARGS(sts, _handler, _error)  \
     do {                                              \
       uint32_t _status = (uint32_t)(sts);             \
-      if ( 0 != _status ) { tusb_hal_dbg_breakpoint(); _VERIFY_MESS(_status) _handler; return _error; }\
+      if ( 0 != _status ) { verify_breakpoint(); _VERIFY_MESS(_status) _handler; return _error; }\
     } while(0)
 
 #define VERIFY_STATUS_HDLR(...)  GET_4TH_ARG(__VA_ARGS__, VERIFY_STS_HDLR_3ARGS, VERIFY_STS_HDLR_2ARGS)(__VA_ARGS__)
@@ -137,12 +155,12 @@
 
 /*------------------------------------------------------------------*/
 /* ASSERT
- * basically VERIFY with tusb_hal_dbg_breakpoint as handler
+ * basically VERIFY with verify_breakpoint as handler
  * - 1 arg : return false if failed
  * - 2 arg : return error if failed
  *------------------------------------------------------------------*/
-#define ASSERT_1ARGS(cond)            do { if (!(cond)) { tusb_hal_dbg_breakpoint(); _ASSERT_MESS() return false; } } while(0)
-#define ASSERT_2ARGS(cond, _error)    do { if (!(cond)) { tusb_hal_dbg_breakpoint(); _ASSERT_MESS() return _error;} } while(0)
+#define ASSERT_1ARGS(cond)            do { if (!(cond)) { verify_breakpoint(); _ASSERT_MESS() return false; } } while(0)
+#define ASSERT_2ARGS(cond, _error)    do { if (!(cond)) { verify_breakpoint(); _ASSERT_MESS() return _error;} } while(0)
 
 #define TU_ASSERT(...)  GET_3RD_ARG(__VA_ARGS__, ASSERT_2ARGS, ASSERT_1ARGS)(__VA_ARGS__)
 
