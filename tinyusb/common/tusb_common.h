@@ -71,8 +71,6 @@
 
 //------------- TUSB Header -------------//
 #include "tusb_types.h"
-#include "std_descriptors.h"
-#include "std_request.h"
 
 //--------------------------------------------------------------------+
 // MACROS
