@@ -230,7 +230,7 @@ void bus_reset(void)
 /*------------------------------------------------------------------*/
 /* Controller API
  *------------------------------------------------------------------*/
-bool tusb_dcd_init (uint8_t rhport)
+bool dcd_init (uint8_t rhport)
 {
   // USB Power detection
   const nrf_drv_power_usbevt_config_t config =
@@ -240,22 +240,22 @@ bool tusb_dcd_init (uint8_t rhport)
   return ( NRF_SUCCESS == nrf_drv_power_usbevt_init(&config) );
 }
 
-void tusb_dcd_connect (uint8_t rhport)
+void dcd_connect (uint8_t rhport)
 {
 
 }
-void tusb_dcd_disconnect (uint8_t rhport)
+void dcd_disconnect (uint8_t rhport)
 {
 
 }
 
-void tusb_dcd_set_address (uint8_t rhport, uint8_t dev_addr)
+void dcd_set_address (uint8_t rhport, uint8_t dev_addr)
 {
   (void) rhport;
   // Set Address is automatically update by hw controller
 }
 
-void tusb_dcd_set_config (uint8_t rhport, uint8_t config_num)
+void dcd_set_config (uint8_t rhport, uint8_t config_num)
 {
   (void) rhport;
   (void) config_num;
@@ -327,12 +327,12 @@ static void control_xact_start(void)
 //    }
 //  }else
 //  {
-//    tusb_dcd_xfer_complete(0, 0, 0, true);
+//    dcd_xfer_complete(0, 0, 0, true);
 //  }
 //}
 
 
-bool tusb_dcd_control_xfer (uint8_t rhport, tusb_dir_t dir, uint8_t * buffer, uint16_t length)
+bool dcd_control_xfer (uint8_t rhport, tusb_dir_t dir, uint8_t * buffer, uint16_t length)
 {
   (void) rhport;
 
@@ -391,7 +391,7 @@ static void normal_xact_start(uint8_t epnum, uint8_t dir)
   }
 }
 
-bool tusb_dcd_edpt_open (uint8_t rhport, tusb_desc_endpoint_t const * desc_edpt)
+bool dcd_edpt_open (uint8_t rhport, tusb_desc_endpoint_t const * desc_edpt)
 {
   (void) rhport;
 
@@ -414,7 +414,7 @@ bool tusb_dcd_edpt_open (uint8_t rhport, tusb_desc_endpoint_t const * desc_edpt)
   return true;
 }
 
-bool tusb_dcd_edpt_xfer (uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t total_bytes)
+bool dcd_edpt_xfer (uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t total_bytes)
 {
   (void) rhport;
 
@@ -438,7 +438,7 @@ bool tusb_dcd_edpt_xfer (uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint
   return true;
 }
 
-void tusb_dcd_edpt_stall (uint8_t rhport, uint8_t ep_addr)
+void dcd_edpt_stall (uint8_t rhport, uint8_t ep_addr)
 {
   (void) rhport;
 
@@ -453,7 +453,7 @@ void tusb_dcd_edpt_stall (uint8_t rhport, uint8_t ep_addr)
   __ISB(); __DSB();
 }
 
-void tusb_dcd_edpt_clear_stall (uint8_t rhport, uint8_t ep_addr)
+void dcd_edpt_clear_stall (uint8_t rhport, uint8_t ep_addr)
 {
   (void) rhport;
   if ( ep_addr )
@@ -462,7 +462,7 @@ void tusb_dcd_edpt_clear_stall (uint8_t rhport, uint8_t ep_addr)
   }
 }
 
-bool tusb_dcd_edpt_busy (uint8_t rhport, uint8_t ep_addr)
+bool dcd_edpt_busy (uint8_t rhport, uint8_t ep_addr)
 {
   (void) rhport;
 
@@ -505,12 +505,12 @@ void USBD_IRQHandler(void)
   {
     bus_reset();
 
-    tusb_dcd_bus_event(0, USBD_BUS_EVENT_RESET);
+    dcd_bus_event(0, USBD_BUS_EVENT_RESET);
   }
 
   if ( int_status & USBD_INTEN_SOF_Msk )
   {
-    tusb_dcd_bus_event(0, USBD_BUS_EVENT_SOF);
+    dcd_bus_event(0, USBD_BUS_EVENT_SOF);
   }
 
   if ( int_status & EDPT_END_ALL_MASK )
@@ -527,7 +527,7 @@ void USBD_IRQHandler(void)
         NRF_USBD->WINDEXL, NRF_USBD->WINDEXH, NRF_USBD->WLENGTHL, NRF_USBD->WLENGTHH
     };
 
-    tusb_dcd_setup_received(0, setup);
+    dcd_setup_received(0, setup);
   }
 
   if ( int_status & USBD_INTEN_EP0DATADONE_Msk )
@@ -546,7 +546,7 @@ void USBD_IRQHandler(void)
       }else
       {
         // Control IN complete
-        tusb_dcd_xfer_complete(0, 0, 0, true);
+        dcd_xfer_complete(0, 0, 0, true);
       }
     }
   }
@@ -560,7 +560,7 @@ void USBD_IRQHandler(void)
     }else
     {
       // Control OUT complete
-      tusb_dcd_xfer_complete(0, 0, 0, true);
+      dcd_xfer_complete(0, 0, 0, true);
     }
   }
 
@@ -587,7 +587,7 @@ void USBD_IRQHandler(void)
         } else
         {
           // BULK/INT IN complete
-          tusb_dcd_xfer_complete(0, epnum | TUSB_DIR_IN_MASK, xfer->actual_len, true);
+          dcd_xfer_complete(0, epnum | TUSB_DIR_IN_MASK, xfer->actual_len, true);
         }
       }
     }
@@ -644,7 +644,7 @@ void USBD_IRQHandler(void)
         xfer->total_len = xfer->actual_len;
 
         // BULK/INT OUT complete
-        tusb_dcd_xfer_complete(0, epnum, xfer->actual_len, true);
+        dcd_xfer_complete(0, epnum, xfer->actual_len, true);
       }
     }
   }

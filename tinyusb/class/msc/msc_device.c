@@ -112,7 +112,7 @@ tusb_error_t mscd_open(uint8_t rhport, tusb_desc_interface_t const * p_interface
     TU_ASSERT(TUSB_DESC_ENDPOINT == p_endpoint->bDescriptorType &&
               TUSB_XFER_BULK == p_endpoint->bmAttributes.xfer, TUSB_ERROR_DESCRIPTOR_CORRUPTED);
 
-    TU_ASSERT( tusb_dcd_edpt_open(rhport, p_endpoint), TUSB_ERROR_DCD_FAILED );
+    TU_ASSERT( dcd_edpt_open(rhport, p_endpoint), TUSB_ERROR_DCD_FAILED );
 
     if ( p_endpoint->bEndpointAddress &  TUSB_DIR_IN_MASK )
     {
@@ -130,7 +130,7 @@ tusb_error_t mscd_open(uint8_t rhport, tusb_desc_interface_t const * p_interface
   (*p_length) += sizeof(tusb_desc_interface_t) + 2*sizeof(tusb_desc_endpoint_t);
 
   //------------- Queue Endpoint OUT for Command Block Wrapper -------------//
-  TU_ASSERT( tusb_dcd_edpt_xfer(rhport, p_msc->ep_out, (uint8_t*) &p_msc->cbw, sizeof(msc_cbw_t)), TUSB_ERROR_DCD_EDPT_XFER );
+  TU_ASSERT( dcd_edpt_xfer(rhport, p_msc->ep_out, (uint8_t*) &p_msc->cbw, sizeof(msc_cbw_t)), TUSB_ERROR_DCD_EDPT_XFER );
 
   return TUSB_ERROR_NONE;
 }
@@ -223,14 +223,14 @@ tusb_error_t mscd_xfer_cb(uint8_t rhport, uint8_t ep_addr, tusb_event_t event, u
           if ( p_buffer == NULL || p_msc->data_len == 0 )
           {
             // application does not provide data to response --> possibly unsupported SCSI command
-            tusb_dcd_edpt_stall(rhport, ep_data);
+            dcd_edpt_stall(rhport, ep_data);
             p_csw->status = MSC_CSW_STATUS_FAILED;
 
             p_msc->stage = MSC_STAGE_STATUS;
           }else
           {
             memcpy(p_msc->scsi_data, p_buffer, p_msc->data_len);
-            TU_ASSERT( tusb_dcd_edpt_xfer(rhport, ep_data, p_msc->scsi_data, p_msc->data_len), TUSB_ERROR_DCD_EDPT_XFER );
+            TU_ASSERT( dcd_edpt_xfer(rhport, ep_data, p_msc->scsi_data, p_msc->data_len), TUSB_ERROR_DCD_EDPT_XFER );
           }
         }
       }
@@ -264,10 +264,10 @@ tusb_error_t mscd_xfer_cb(uint8_t rhport, uint8_t ep_addr, tusb_event_t event, u
     // Move to default CMD stage after sending status
     p_msc->stage         = MSC_STAGE_CMD;
 
-    TU_ASSERT( tusb_dcd_edpt_xfer(rhport, p_msc->ep_in , (uint8_t*) &p_msc->csw, sizeof(msc_csw_t)) );
+    TU_ASSERT( dcd_edpt_xfer(rhport, p_msc->ep_in , (uint8_t*) &p_msc->csw, sizeof(msc_csw_t)) );
 
     //------------- Queue the next CBW -------------//
-    TU_ASSERT( tusb_dcd_edpt_xfer(rhport, p_msc->ep_out, (uint8_t*) &p_msc->cbw, sizeof(msc_cbw_t)) );
+    TU_ASSERT( dcd_edpt_xfer(rhport, p_msc->ep_out, (uint8_t*) &p_msc->cbw, sizeof(msc_cbw_t)) );
   }
 
   return TUSB_ERROR_NONE;
@@ -311,12 +311,12 @@ static bool read10_write10_data_xfer(uint8_t rhport, mscd_interface_t* p_msc)
     p_csw->data_residue = p_cbw->xfer_bytes;
     p_csw->status       = MSC_CSW_STATUS_FAILED;
 
-    tusb_dcd_edpt_stall(rhport, ep_data);
+    dcd_edpt_stall(rhport, ep_data);
 
     return true;
   }else
   {
-    TU_ASSERT( tusb_dcd_edpt_xfer(rhport, ep_data, p_buffer, xfer_block * block_size) );
+    TU_ASSERT( dcd_edpt_xfer(rhport, ep_data, p_buffer, xfer_block * block_size) );
   }
 
   return true;

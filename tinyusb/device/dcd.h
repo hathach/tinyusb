@@ -61,39 +61,39 @@ typedef enum
 /*------------------------------------------------------------------*/
 /* Controller API
  *------------------------------------------------------------------*/
-bool tusb_dcd_init             (uint8_t rhport);
-void tusb_dcd_connect          (uint8_t rhport);
-void tusb_dcd_disconnect       (uint8_t rhport);
-void tusb_dcd_set_address      (uint8_t rhport, uint8_t dev_addr);
-void tusb_dcd_set_config       (uint8_t rhport, uint8_t config_num);
+bool dcd_init             (uint8_t rhport);
+void dcd_connect          (uint8_t rhport);
+void dcd_disconnect       (uint8_t rhport);
+void dcd_set_address      (uint8_t rhport, uint8_t dev_addr);
+void dcd_set_config       (uint8_t rhport, uint8_t config_num);
 
 /*------------------------------------------------------------------*/
 /* Event Function
  * Called by DCD to notify USBD
  *------------------------------------------------------------------*/
-void tusb_dcd_bus_event        (uint8_t rhport, usbd_bus_event_type_t bus_event);
-void tusb_dcd_setup_received   (uint8_t rhport, uint8_t const* p_request);
-void tusb_dcd_xfer_complete    (uint8_t rhport, uint8_t ep_addr, uint32_t xferred_bytes, bool succeeded);
+void dcd_bus_event        (uint8_t rhport, usbd_bus_event_type_t bus_event);
+void dcd_setup_received   (uint8_t rhport, uint8_t const* p_request);
+void dcd_xfer_complete    (uint8_t rhport, uint8_t ep_addr, uint32_t xferred_bytes, bool succeeded);
 
-static inline void tusb_dcd_control_complete(uint8_t rhport)
+static inline void dcd_control_complete(uint8_t rhport)
 {
   // TODO all control complete is successful !!
-  tusb_dcd_xfer_complete(rhport, 0, 0, true);
+  dcd_xfer_complete(rhport, 0, 0, true);
 }
 
 /*------------------------------------------------------------------*/
 /* Endpoint API
  *------------------------------------------------------------------*/
 //------------- Control Endpoint -------------//
-bool tusb_dcd_control_xfer     (uint8_t rhport, tusb_dir_t dir, uint8_t * buffer, uint16_t length);
+bool dcd_control_xfer     (uint8_t rhport, tusb_dir_t dir, uint8_t * buffer, uint16_t length);
 
 //------------- Other Endpoints -------------//
-bool tusb_dcd_edpt_open        (uint8_t rhport, tusb_desc_endpoint_t const * p_endpoint_desc);
-bool tusb_dcd_edpt_xfer        (uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t total_bytes);
-bool tusb_dcd_edpt_busy        (uint8_t rhport, uint8_t ep_addr);
+bool dcd_edpt_open        (uint8_t rhport, tusb_desc_endpoint_t const * p_endpoint_desc);
+bool dcd_edpt_xfer        (uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t total_bytes);
+bool dcd_edpt_busy        (uint8_t rhport, uint8_t ep_addr);
 
-void tusb_dcd_edpt_stall       (uint8_t rhport, uint8_t ep_addr);
-void tusb_dcd_edpt_clear_stall (uint8_t rhport, uint8_t ep_addr);
+void dcd_edpt_stall       (uint8_t rhport, uint8_t ep_addr);
+void dcd_edpt_clear_stall (uint8_t rhport, uint8_t ep_addr);
 
 #ifdef __cplusplus
  }

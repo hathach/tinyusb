@@ -159,7 +159,7 @@ tusb_error_t cdcd_open(uint8_t rhport, tusb_desc_interface_t const * p_interface
 
   if ( TUSB_DESC_ENDPOINT == p_desc[DESCRIPTOR_OFFSET_TYPE])
   { // notification endpoint if any
-    TU_ASSERT( tusb_dcd_edpt_open(rhport, (tusb_desc_endpoint_t const *) p_desc), TUSB_ERROR_DCD_OPEN_PIPE_FAILED);
+    TU_ASSERT( dcd_edpt_open(rhport, (tusb_desc_endpoint_t const *) p_desc), TUSB_ERROR_DCD_OPEN_PIPE_FAILED);
 
     p_cdc->ep_notif = ((tusb_desc_endpoint_t const *) p_desc)->bEndpointAddress;
 
@@ -181,7 +181,7 @@ tusb_error_t cdcd_open(uint8_t rhport, tusb_desc_interface_t const * p_interface
       TU_ASSERT(TUSB_DESC_ENDPOINT == p_endpoint->bDescriptorType, TUSB_ERROR_DESCRIPTOR_CORRUPTED);
       TU_ASSERT(TUSB_XFER_BULK == p_endpoint->bmAttributes.xfer, TUSB_ERROR_DESCRIPTOR_CORRUPTED);
 
-      TU_ASSERT( tusb_dcd_edpt_open(rhport, p_endpoint), TUSB_ERROR_DCD_OPEN_PIPE_FAILED);
+      TU_ASSERT( dcd_edpt_open(rhport, p_endpoint), TUSB_ERROR_DCD_OPEN_PIPE_FAILED);
 
       if ( p_endpoint->bEndpointAddress &  TUSB_DIR_IN_MASK )
       {
@@ -199,7 +199,7 @@ tusb_error_t cdcd_open(uint8_t rhport, tusb_desc_interface_t const * p_interface
   p_cdc->interface_number   = p_interface_desc->bInterfaceNumber;
 
   // Prepare for incoming data
-  TU_ASSERT( tusb_dcd_edpt_xfer(rhport, p_cdc->ep_out, _tmp_rx_buf, sizeof(_tmp_rx_buf)), TUSB_ERROR_DCD_EDPT_XFER);
+  TU_ASSERT( dcd_edpt_xfer(rhport, p_cdc->ep_out, _tmp_rx_buf, sizeof(_tmp_rx_buf)), TUSB_ERROR_DCD_EDPT_XFER);
 
 
   return TUSB_ERROR_NONE;
@@ -277,7 +277,7 @@ tusb_error_t cdcd_xfer_cb(uint8_t rhport, uint8_t ep_addr, tusb_event_t event, u
     fifo_write_n(&_rx_ff, _tmp_rx_buf, xferred_bytes);
 
     // preparing for next
-    TU_ASSERT(tusb_dcd_edpt_xfer(rhport, p_cdc->ep_out, _tmp_rx_buf, sizeof(_tmp_rx_buf)), TUSB_ERROR_DCD_EDPT_XFER);
+    TU_ASSERT(dcd_edpt_xfer(rhport, p_cdc->ep_out, _tmp_rx_buf, sizeof(_tmp_rx_buf)), TUSB_ERROR_DCD_EDPT_XFER);
 
     // fire callback
     tud_cdc_rx_cb(rhport);
@@ -292,10 +292,10 @@ bool tud_n_cdc_flush (uint8_t rhport)
 
   uint8_t edpt = cdcd_data[rhport].ep_in;
 
-  VERIFY( !tusb_dcd_edpt_busy(rhport, edpt) );
+  VERIFY( !dcd_edpt_busy(rhport, edpt) );
 
   uint16_t count = fifo_read_n(&_tx_ff, _tmp_tx_buf, sizeof(_tmp_tx_buf));
-  TU_ASSERT( tusb_dcd_edpt_xfer(rhport, edpt, _tmp_tx_buf, count) );
+  TU_ASSERT( dcd_edpt_xfer(rhport, edpt, _tmp_tx_buf, count) );
 
   return true;
 }

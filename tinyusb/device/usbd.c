@@ -201,11 +201,11 @@ static tusb_error_t usbd_main_stk(void);
 tusb_error_t usbd_init (void)
 {
   #if (TUSB_CFG_CONTROLLER_0_MODE & TUSB_MODE_DEVICE)
-  tusb_dcd_init(0);
+  dcd_init(0);
   #endif
 
   #if (TUSB_CFG_CONTROLLER_1_MODE & TUSB_MODE_DEVICE)
-  tusb_dcd_init(1);
+  dcd_init(1);
   #endif
 
   //------------- Task init -------------//
@@ -319,7 +319,7 @@ tusb_error_t usbd_control_xfer_st(uint8_t rhport, tusb_dir_t dir, uint8_t * buff
   // Data
   if ( length )
   {
-    tusb_dcd_control_xfer(rhport, dir, buffer, length);
+    dcd_control_xfer(rhport, dir, buffer, length);
     osal_semaphore_wait( usbd_control_xfer_sem_hdl, 100, &error );
 
     STASK_ASSERT_STATUS( error );
@@ -327,7 +327,7 @@ tusb_error_t usbd_control_xfer_st(uint8_t rhport, tusb_dir_t dir, uint8_t * buff
 
   // Status opposite direction with Zero Length
   // No need to wait for status to complete therefore
-  // status phase must not call tusb_dcd_control_complete/tusb_dcd_xfer_complete
+  // status phase must not call dcd_control_complete/dcd_xfer_complete
   usbd_control_status(rhport, dir);
 
   OSAL_SUBTASK_END
@@ -364,7 +364,7 @@ static tusb_error_t proc_control_request_st(uint8_t rhport, tusb_control_request
     }
     else if ( TUSB_REQ_SET_ADDRESS == p_request->bRequest )
     {
-      tusb_dcd_set_address(rhport, (uint8_t) p_request->wValue);
+      dcd_set_address(rhport, (uint8_t) p_request->wValue);
       usbd_devices[rhport].state = TUSB_DEVICE_STATE_ADDRESSED;
 
       #ifndef NRF52840_XXAA // nrf52 auto handle set address, we must not return status
@@ -406,7 +406,7 @@ static tusb_error_t proc_control_request_st(uint8_t rhport, tusb_control_request
   {
     if (TUSB_REQ_CLEAR_FEATURE == p_request->bRequest )
     {
-      tusb_dcd_edpt_clear_stall(rhport, u16_low_u8(p_request->wIndex) );
+      dcd_edpt_clear_stall(rhport, u16_low_u8(p_request->wIndex) );
       usbd_control_status(rhport, p_request->bmRequestType_bit.direction);
     } else
     {
@@ -427,7 +427,7 @@ static tusb_error_t proc_control_request_st(uint8_t rhport, tusb_control_request
 // may need to open interface before set configured
 static tusb_error_t proc_set_config_req(uint8_t rhport, uint8_t config_number)
 {
-  tusb_dcd_set_config(rhport, config_number);
+  dcd_set_config(rhport, config_number);
 
   usbd_devices[rhport].state = TUSB_DEVICE_STATE_CONFIGURED;
   usbd_devices[rhport].config_num = config_number;
@@ -526,7 +526,7 @@ static uint16_t get_descriptor(uint8_t rhport, tusb_control_request_t const * co
 //--------------------------------------------------------------------+
 // USBD-DCD Callback API
 //--------------------------------------------------------------------+
-void tusb_dcd_bus_event(uint8_t rhport, usbd_bus_event_type_t bus_event)
+void dcd_bus_event(uint8_t rhport, usbd_bus_event_type_t bus_event)
 {
   switch(bus_event)
   {
@@ -564,7 +564,7 @@ void tusb_dcd_bus_event(uint8_t rhport, usbd_bus_event_type_t bus_event)
   }
 }
 
-void tusb_dcd_setup_received(uint8_t rhport, uint8_t const* p_request)
+void dcd_setup_received(uint8_t rhport, uint8_t const* p_request)
 {
   usbd_task_event_t task_event =
   {
@@ -576,7 +576,7 @@ void tusb_dcd_setup_received(uint8_t rhport, uint8_t const* p_request)
   osal_queue_send(usbd_queue_hdl, &task_event);
 }
 
-void tusb_dcd_xfer_complete(uint8_t rhport, uint8_t ep_addr, uint32_t xferred_bytes, bool succeeded)
+void dcd_xfer_complete(uint8_t rhport, uint8_t ep_addr, uint32_t xferred_bytes, bool succeeded)
 {
   if (ep_addr == 0 )
   {

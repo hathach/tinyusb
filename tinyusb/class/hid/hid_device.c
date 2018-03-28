@@ -110,7 +110,7 @@ STATIC_VAR hidd_interface_t keyboardd_data;
 
 bool tud_hid_keyboard_busy(uint8_t rhport)
 {
-  return tusb_dcd_edpt_busy(rhport, keyboardd_data.edpt_addr);
+  return dcd_edpt_busy(rhport, keyboardd_data.edpt_addr);
 }
 
 tusb_error_t tud_hid_keyboard_send(uint8_t rhport, hid_keyboard_report_t const *p_report)
@@ -119,7 +119,7 @@ tusb_error_t tud_hid_keyboard_send(uint8_t rhport, hid_keyboard_report_t const *
 
   hidd_interface_t * p_kbd = &keyboardd_data; // TODO &keyboardd_data[rhport];
 
-  TU_ASSERT( tusb_dcd_edpt_xfer(rhport, p_kbd->edpt_addr, (void*) p_report, sizeof(hid_keyboard_report_t)), TUSB_ERROR_DCD_EDPT_XFER ) ;
+  TU_ASSERT( dcd_edpt_xfer(rhport, p_kbd->edpt_addr, (void*) p_report, sizeof(hid_keyboard_report_t)), TUSB_ERROR_DCD_EDPT_XFER ) ;
 
   return TUSB_ERROR_NONE;
 }
@@ -133,7 +133,7 @@ STATIC_VAR hidd_interface_t moused_data;
 
 bool tud_hid_mouse_is_busy(uint8_t rhport)
 {
-  return tusb_dcd_edpt_busy(rhport, moused_data.edpt_addr);
+  return dcd_edpt_busy(rhport, moused_data.edpt_addr);
 }
 
 tusb_error_t tud_hid_mouse_send(uint8_t rhport, hid_mouse_report_t const *p_report)
@@ -142,7 +142,7 @@ tusb_error_t tud_hid_mouse_send(uint8_t rhport, hid_mouse_report_t const *p_repo
 
   hidd_interface_t * p_mouse = &moused_data; // TODO &keyboardd_data[rhport];
 
-  TU_ASSERT( tusb_dcd_edpt_xfer(rhport, p_mouse->edpt_addr, (void*) p_report, sizeof(hid_mouse_report_t)), TUSB_ERROR_DCD_EDPT_XFER ) ;
+  TU_ASSERT( dcd_edpt_xfer(rhport, p_mouse->edpt_addr, (void*) p_report, sizeof(hid_mouse_report_t)), TUSB_ERROR_DCD_EDPT_XFER ) ;
 
   return TUSB_ERROR_NONE;
 }
@@ -283,7 +283,7 @@ tusb_error_t hidd_open(uint8_t rhport, tusb_desc_interface_t const * p_interface
 
         VERIFY(p_hid, TUSB_ERROR_FAILED);
 
-        VERIFY( tusb_dcd_edpt_open(rhport, p_desc_endpoint), TUSB_ERROR_DCD_FAILED );
+        VERIFY( dcd_edpt_open(rhport, p_desc_endpoint), TUSB_ERROR_DCD_FAILED );
 
         p_hid->edpt_addr = p_desc_endpoint->bEndpointAddress;
 

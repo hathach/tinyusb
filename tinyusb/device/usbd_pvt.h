@@ -57,12 +57,12 @@ tusb_error_t usbd_control_xfer_st(uint8_t rhport, tusb_dir_t dir, uint8_t * buff
 static inline bool usbd_control_status(uint8_t rhport, tusb_dir_t dir)
 {
   // status direction is reversed to one in the setup packet
-  return tusb_dcd_control_xfer(rhport, 1-dir, NULL, 0);
+  return dcd_control_xfer(rhport, 1-dir, NULL, 0);
 }
 
 static inline void usbd_control_stall(uint8_t rhport)
 {
-  tusb_dcd_edpt_stall(rhport, 0);
+  dcd_edpt_stall(rhport, 0);
 }
 
 

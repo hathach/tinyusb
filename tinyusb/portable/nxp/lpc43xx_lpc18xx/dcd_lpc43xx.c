@@ -85,17 +85,17 @@ static dcd_data_t* const dcd_data_ptr[2] = { &dcd_data0, &dcd_data1 };
 //--------------------------------------------------------------------+
 // CONTROLLER API
 //--------------------------------------------------------------------+
-void tusb_dcd_connect(uint8_t rhport)
+void dcd_connect(uint8_t rhport)
 {
   LPC_USB[rhport]->USBCMD_D |= BIT_(0);
 }
 
-void tusb_dcd_set_address(uint8_t rhport, uint8_t dev_addr)
+void dcd_set_address(uint8_t rhport, uint8_t dev_addr)
 {
   LPC_USB[rhport]->DEVICEADDR = (dev_addr << 25) | BIT_(24);
 }
 
-void tusb_dcd_set_config(uint8_t rhport, uint8_t config_num)
+void dcd_set_config(uint8_t rhport, uint8_t config_num)
 {
 
 }
@@ -146,7 +146,7 @@ static void bus_reset(uint8_t rhport)
 
 }
 
-bool tusb_dcd_init(uint8_t rhport)
+bool dcd_init(uint8_t rhport)
 {
   LPC_USB0_Type* const lpc_usb = LPC_USB[rhport];
   dcd_data_t* p_dcd = dcd_data_ptr[rhport];
@@ -234,7 +234,7 @@ static inline uint8_t qtd_find_free(uint8_t rhport)
 
 // control transfer does not need to use qtd find function
 // follows UM 24.10.8.1.1 Setup packet handling using setup lockout mechanism
-bool tusb_dcd_control_xfer(uint8_t rhport, tusb_dir_t dir, uint8_t * p_buffer, uint16_t length)
+bool dcd_control_xfer(uint8_t rhport, tusb_dir_t dir, uint8_t * p_buffer, uint16_t length)
 {
   LPC_USB0_Type* const lpc_usb = LPC_USB[rhport];
   dcd_data_t* const p_dcd      = dcd_data_ptr[rhport];
@@ -269,7 +269,7 @@ static inline volatile uint32_t * get_reg_control_addr(uint8_t rhport, uint8_t p
  return &(LPC_USB[rhport]->ENDPTCTRL0) + edpt_phy2log(physical_endpoint);
 }
 
-void tusb_dcd_edpt_stall(uint8_t rhport, uint8_t ep_addr)
+void dcd_edpt_stall(uint8_t rhport, uint8_t ep_addr)
 {
   uint8_t ep_idx    = edpt_addr2phy(ep_addr);
   volatile uint32_t * reg_control = get_reg_control_addr(rhport, ep_idx);
@@ -284,7 +284,7 @@ void tusb_dcd_edpt_stall(uint8_t rhport, uint8_t ep_addr)
   }
 }
 
-void tusb_dcd_edpt_clear_stall(uint8_t rhport, uint8_t ep_addr)
+void dcd_edpt_clear_stall(uint8_t rhport, uint8_t ep_addr)
 {
   volatile uint32_t * reg_control = get_reg_control_addr(rhport, edpt_addr2phy(ep_addr));
 
@@ -293,7 +293,7 @@ void tusb_dcd_edpt_clear_stall(uint8_t rhport, uint8_t ep_addr)
   (*reg_control) &= ~(ENDPTCTRL_MASK_STALL << ((ep_addr & TUSB_DIR_IN_MASK) ? 16 : 0));
 }
 
-bool tusb_dcd_edpt_open(uint8_t rhport, tusb_desc_endpoint_t const * p_endpoint_desc)
+bool dcd_edpt_open(uint8_t rhport, tusb_desc_endpoint_t const * p_endpoint_desc)
 {
   // TODO USB1 only has 4 non-control enpoint (USB0 has 5)
   // TODO not support ISO yet
@@ -322,7 +322,7 @@ bool tusb_dcd_edpt_open(uint8_t rhport, tusb_desc_endpoint_t const * p_endpoint_
   return true;
 }
 
-bool tusb_dcd_edpt_busy(uint8_t rhport, uint8_t ep_addr)
+bool dcd_edpt_busy(uint8_t rhport, uint8_t ep_addr)
 {
   uint8_t ep_idx    = edpt_addr2phy(ep_addr);
   dcd_qhd_t const * p_qhd = &dcd_data_ptr[rhport]->qhd[ep_idx];
@@ -332,7 +332,7 @@ bool tusb_dcd_edpt_busy(uint8_t rhport, uint8_t ep_addr)
 }
 
 // add only, controller virtually cannot know
-// TODO remove and merge to tusb_dcd_edpt_xfer
+// TODO remove and merge to dcd_edpt_xfer
 static bool pipe_add_xfer(uint8_t rhport, uint8_t ed_idx, void * buffer, uint16_t total_bytes, bool int_on_complete)
 {
   uint8_t qtd_idx  = qtd_find_free(rhport);
@@ -361,7 +361,7 @@ static bool pipe_add_xfer(uint8_t rhport, uint8_t ed_idx, void * buffer, uint16_
   return true;
 }
 
-bool  tusb_dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t total_bytes)
+bool  dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t total_bytes)
 {
   uint8_t ep_idx = edpt_addr2phy(ep_addr);
 
@@ -403,7 +403,7 @@ void xfer_complete_isr(uint8_t rhport, uint32_t reg_complete)
           bool succeeded = ( p_qtd->xact_err || p_qtd->halted || p_qtd->buffer_err ) ? false : true;
 
           uint8_t ep_addr = edpt_phy2addr(ep_idx);
-          tusb_dcd_xfer_complete(rhport, ep_addr, p_qtd->expected_bytes - p_qtd->total_bytes, succeeded); // only number of bytes in the IOC qtd
+          dcd_xfer_complete(rhport, ep_addr, p_qtd->expected_bytes - p_qtd->total_bytes, succeeded); // only number of bytes in the IOC qtd
         }
       }
     }
@@ -423,7 +423,7 @@ void hal_dcd_isr(uint8_t rhport)
   if (int_status & INT_MASK_RESET)
   {
     bus_reset(rhport);
-    tusb_dcd_bus_event(rhport, USBD_BUS_EVENT_RESET);
+    dcd_bus_event(rhport, USBD_BUS_EVENT_RESET);
   }
 
   if (int_status & INT_MASK_SUSPEND)
@@ -432,7 +432,7 @@ void hal_dcd_isr(uint8_t rhport)
     { // Note: Host may delay more than 3 ms before and/or after bus reset before doing enumeration.
       if ((lpc_usb->DEVICEADDR >> 25) & 0x0f)
       {
-        tusb_dcd_bus_event(0, USBD_BUS_EVENT_SUSPENDED);
+        dcd_bus_event(0, USBD_BUS_EVENT_SUSPENDED);
       }
     }
   }
@@ -442,7 +442,7 @@ void hal_dcd_isr(uint8_t rhport)
 //	{
 //	  if ( !(lpc_usb->PORTSC1_D & PORTSC_CURRENT_CONNECT_STATUS_MASK) )
 //	  {
-//	    tusb_dcd_bus_event(0, USBD_BUS_EVENT_UNPLUGGED);
+//	    dcd_bus_event(0, USBD_BUS_EVENT_UNPLUGGED);
 //	  }
 //	}
 
@@ -459,7 +459,7 @@ void hal_dcd_isr(uint8_t rhport)
       // 23.10.10.2 Operational model for setup transfers
       lpc_usb->ENDPTSETUPSTAT = lpc_usb->ENDPTSETUPSTAT;// acknowledge
 
-      tusb_dcd_setup_received(rhport, (uint8_t*) &p_dcd->qhd[0].setup_request);
+      dcd_setup_received(rhport, (uint8_t*) &p_dcd->qhd[0].setup_request);
     }
     //------------- Control Request Completed -------------//
     else if ( edpt_complete & ( BIT_(0) | BIT_(16)) )
@@ -476,7 +476,7 @@ void hal_dcd_isr(uint8_t rhport)
             bool succeeded = ( p_qtd->xact_err || p_qtd->halted || p_qtd->buffer_err ) ? false : true;
             (void) succeeded;
 
-            tusb_dcd_control_complete(rhport);
+            dcd_control_complete(rhport);
           }
         }
       }
@@ -491,7 +491,7 @@ void hal_dcd_isr(uint8_t rhport)
 
   if (int_status & INT_MASK_SOF)
   {
-    tusb_dcd_bus_event(rhport, USBD_BUS_EVENT_SOF);
+    dcd_bus_event(rhport, USBD_BUS_EVENT_SOF);
   }
 
   if (int_status & INT_MASK_NAK) {}
