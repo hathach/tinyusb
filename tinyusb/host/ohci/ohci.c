@@ -388,7 +388,7 @@ static ohci_ed_t * ed_list_find_previous(ohci_ed_t const * p_head, ohci_ed_t con
 
   ohci_ed_t const * p_prev = p_head;
 
-  ASSERT_PTR(p_prev, NULL);
+  TU_ASSERT(p_prev, NULL);
 
   while ( align16(p_prev->next_ed) != 0               && /* not reach null */
           align16(p_prev->next_ed) != (uint32_t) p_ed && /* not found yet */
@@ -422,11 +422,11 @@ pipe_handle_t hcd_pipe_open(uint8_t dev_addr, tusb_desc_endpoint_t const * p_end
   pipe_handle_t const null_handle = { .dev_addr = 0, .xfer_type = 0, .index = 0 };
 
   // TODO iso support
-  ASSERT(p_endpoint_desc->bmAttributes.xfer != TUSB_XFER_ISOCHRONOUS, null_handle );
+  TU_ASSERT(p_endpoint_desc->bmAttributes.xfer != TUSB_XFER_ISOCHRONOUS, null_handle );
 
   //------------- Prepare Queue Head -------------//
   ohci_ed_t * const p_ed = ed_find_free(dev_addr);
-  ASSERT_PTR(p_ed, null_handle);
+  TU_ASSERT(p_ed, null_handle);
 
   ed_init( p_ed, dev_addr, p_endpoint_desc->wMaxPacketSize.size, p_endpoint_desc->bEndpointAddress,
             p_endpoint_desc->bmAttributes.xfer, p_endpoint_desc->bInterval );
@@ -475,7 +475,7 @@ static tusb_error_t  pipe_queue_xfer(pipe_handle_t pipe_hdl, uint8_t buffer[], u
   if ( !p_ed->is_iso )
   {
     ohci_gtd_t * const p_gtd = gtd_find_free(pipe_hdl.dev_addr);
-    ASSERT_PTR(p_gtd, TUSB_ERROR_EHCI_NOT_ENOUGH_QTD); // TODO refractor error code
+    TU_ASSERT(p_gtd, TUSB_ERROR_EHCI_NOT_ENOUGH_QTD); // TODO refractor error code
 
     gtd_init(p_gtd, buffer, total_bytes);
     p_gtd->index           = pipe_hdl.index;

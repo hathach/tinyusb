@@ -91,7 +91,7 @@ uint8_t const* tuh_msc_get_product_name(uint8_t dev_addr)
 tusb_error_t tuh_msc_get_capacity(uint8_t dev_addr, uint32_t* p_last_lba, uint32_t* p_block_size)
 {
   if ( !msch_data[dev_addr-1].is_initialized )   return TUSB_ERROR_MSCH_DEVICE_NOT_MOUNTED;
-  ASSERT(p_last_lba != NULL && p_block_size != NULL, TUSB_ERROR_INVALID_PARA);
+  TU_ASSERT(p_last_lba != NULL && p_block_size != NULL, TUSB_ERROR_INVALID_PARA);
 
   (*p_last_lba)   = msch_data[dev_addr-1].last_lba;
   (*p_block_size) = (uint32_t) msch_data[dev_addr-1].block_size;

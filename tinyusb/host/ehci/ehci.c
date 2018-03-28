@@ -361,14 +361,14 @@ pipe_handle_t hcd_pipe_open(uint8_t dev_addr, tusb_desc_endpoint_t const * p_end
 {
   pipe_handle_t const null_handle = { .dev_addr = 0, .xfer_type = 0, .index = 0 };
 
-  ASSERT(dev_addr > 0, null_handle);
+  TU_ASSERT(dev_addr > 0, null_handle);
 
   if (p_endpoint_desc->bmAttributes.xfer == TUSB_XFER_ISOCHRONOUS)
     return null_handle; // TODO not support ISO yet
 
   //------------- Prepare Queue Head -------------//
   ehci_qhd_t * const p_qhd = qhd_find_free(dev_addr);
-  ASSERT_PTR(p_qhd, null_handle);
+  TU_ASSERT(p_qhd, null_handle);
 
   qhd_init( p_qhd, dev_addr, p_endpoint_desc->wMaxPacketSize.size, p_endpoint_desc->bEndpointAddress,
             p_endpoint_desc->bmAttributes.xfer, p_endpoint_desc->bInterval );
@@ -403,7 +403,7 @@ tusb_error_t  hcd_pipe_queue_xfer(pipe_handle_t pipe_hdl, uint8_t buffer[], uint
   ehci_qhd_t *p_qhd = qhd_get_from_pipe_handle(pipe_hdl);
   ehci_qtd_t *p_qtd = qtd_find_free(pipe_hdl.dev_addr);
 
-  ASSERT_PTR(p_qtd, TUSB_ERROR_EHCI_NOT_ENOUGH_QTD);
+  TU_ASSERT(p_qtd, TUSB_ERROR_EHCI_NOT_ENOUGH_QTD);
 
   qtd_init(p_qtd, (uint32_t) buffer, total_bytes);
   p_qtd->pid = p_qhd->pid_non_control;
@@ -432,9 +432,9 @@ tusb_error_t  hcd_pipe_xfer(pipe_handle_t pipe_hdl, uint8_t buffer[], uint16_t t
 /// pipe_close should only be called as a part of unmount/safe-remove process
 tusb_error_t  hcd_pipe_close(pipe_handle_t pipe_hdl)
 {
-  ASSERT(pipe_hdl.dev_addr > 0, TUSB_ERROR_INVALID_PARA);
+  TU_ASSERT(pipe_hdl.dev_addr > 0, TUSB_ERROR_INVALID_PARA);
 
-  ASSERT(pipe_hdl.xfer_type != TUSB_XFER_ISOCHRONOUS, TUSB_ERROR_INVALID_PARA);
+  TU_ASSERT(pipe_hdl.xfer_type != TUSB_XFER_ISOCHRONOUS, TUSB_ERROR_INVALID_PARA);
 
   ehci_qhd_t *p_qhd = qhd_get_from_pipe_handle( pipe_hdl );
 
@@ -971,7 +971,7 @@ static void qhd_init(ehci_qhd_t *p_qhd, uint8_t dev_addr, uint16_t max_packet_si
       }
     }else
     {
-      ASSERT( 0 != interval, VOID_RETURN);
+      TU_ASSERT( 0 != interval, VOID_RETURN);
       // Full/Low: 4.12.2.1 (EHCI) case 1 schedule start split at 1 us & complete split at 2,3,4 uframes
       p_qhd->interrupt_smask        = 0x01;
       p_qhd->non_hs_interrupt_cmask = BIN8(11100);
@@ -1056,7 +1056,7 @@ static tusb_error_t list_remove_qhd(ehci_link_t* p_head, ehci_link_t* p_remove)
 {
   ehci_link_t *p_prev = list_find_previous_item(p_head, p_remove);
 
-  ASSERT_PTR(p_prev, TUSB_ERROR_INVALID_PARA);
+  TU_ASSERT(p_prev, TUSB_ERROR_INVALID_PARA);
 
   p_prev->address   = p_remove->address;
   // EHCI 4.8.2 link the removing queue head to async/period head (which always reachable by Host Controller)

@@ -218,7 +218,7 @@ tusb_error_t usbd_init (void)
   osal_task_create(usbd_task, "usbd", TUC_DEVICE_STACKSIZE, NULL, TUSB_CFG_OS_TASK_PRIO);
 
   //------------- Descriptor Check -------------//
-  ASSERT(tusbd_descriptor_pointers.p_device != NULL && tusbd_descriptor_pointers.p_configuration != NULL, TUSB_ERROR_DESCRIPTOR_CORRUPTED);
+  TU_ASSERT(tusbd_descriptor_pointers.p_device != NULL && tusbd_descriptor_pointers.p_configuration != NULL, TUSB_ERROR_DESCRIPTOR_CORRUPTED);
 
   //------------- class init -------------//
   for (uint8_t class_code = TUSB_CLASS_AUDIO; class_code < USBD_CLASS_DRIVER_COUNT; class_code++)
@@ -445,22 +445,22 @@ static tusb_error_t proc_set_config_req(uint8_t rhport, uint8_t config_number)
       p_desc += p_desc[DESCRIPTOR_OFFSET_LENGTH]; // ignore Interface Association
     }else
     {
-      ASSERT( TUSB_DESC_INTERFACE == p_desc[DESCRIPTOR_OFFSET_TYPE], TUSB_ERROR_NOT_SUPPORTED_YET );
+      TU_ASSERT( TUSB_DESC_INTERFACE == p_desc[DESCRIPTOR_OFFSET_TYPE], TUSB_ERROR_NOT_SUPPORTED_YET );
 
       uint8_t class_index;
       tusb_desc_interface_t* p_desc_interface = (tusb_desc_interface_t*) p_desc;
 
       class_index = p_desc_interface->bInterfaceClass;
 
-      ASSERT( class_index != 0 && class_index < USBD_CLASS_DRIVER_COUNT && usbd_class_drivers[class_index].open != NULL, TUSB_ERROR_NOT_SUPPORTED_YET );
-      ASSERT( 0 == usbd_devices[rhport].interface2class[p_desc_interface->bInterfaceNumber], TUSB_ERROR_FAILED); // duplicate interface number TODO alternate setting
+      TU_ASSERT( class_index != 0 && class_index < USBD_CLASS_DRIVER_COUNT && usbd_class_drivers[class_index].open != NULL, TUSB_ERROR_NOT_SUPPORTED_YET );
+      TU_ASSERT( 0 == usbd_devices[rhport].interface2class[p_desc_interface->bInterfaceNumber], TUSB_ERROR_FAILED); // duplicate interface number TODO alternate setting
 
       usbd_devices[rhport].interface2class[p_desc_interface->bInterfaceNumber] = class_index;
 
       uint16_t length=0;
       ASSERT_STATUS( usbd_class_drivers[class_index].open( rhport, p_desc_interface, &length ) );
 
-      ASSERT( length >= sizeof(tusb_desc_interface_t), TUSB_ERROR_FAILED );
+      TU_ASSERT( length >= sizeof(tusb_desc_interface_t), TUSB_ERROR_FAILED );
       p_desc += length;
     }
   }

@@ -60,7 +60,7 @@ static inline tusb_error_t hidh_interface_open(uint8_t dev_addr, uint8_t interfa
   p_hid->report_size      = p_endpoint_desc->wMaxPacketSize.size; // TODO get size from report descriptor
   p_hid->interface_number = interface_number;
 
-  ASSERT (pipehandle_is_valid(p_hid->pipe_hdl), TUSB_ERROR_HCD_FAILED);
+  TU_ASSERT (pipehandle_is_valid(p_hid->pipe_hdl), TUSB_ERROR_HCD_FAILED);
 
   return TUSB_ERROR_NONE;
 }
@@ -77,7 +77,7 @@ tusb_error_t hidh_interface_get_report(uint8_t dev_addr, void * report, hidh_int
   //------------- parameters validation -------------//
   // TODO change to use is configured function
   ASSERT_INT (TUSB_DEVICE_STATE_CONFIGURED, tuh_device_get_state(dev_addr), TUSB_ERROR_DEVICE_NOT_READY);
-  ASSERT_PTR (report, TUSB_ERROR_INVALID_PARA);
+  VERIFY (report, TUSB_ERROR_INVALID_PARA);
   TU_ASSSERT (!hcd_pipe_is_busy(p_hid->pipe_hdl), TUSB_ERROR_INTERFACE_IS_BUSY);
 
   ASSERT_STATUS( hcd_pipe_xfer(p_hid->pipe_hdl, report, p_hid->report_size, true) ) ;

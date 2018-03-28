@@ -104,7 +104,7 @@ void mouse_host_app_init(void)
   memclr_(&usb_mouse_report, sizeof(hid_mouse_report_t));
 
   queue_mouse_hdl = osal_queue_create( QUEUE_MOUSE_REPORT_DEPTH, sizeof(hid_mouse_report_t) );
-  ASSERT_PTR( queue_mouse_hdl, VOID_RETURN);
+  TU_ASSERT( queue_mouse_hdl, VOID_RETURN);
 
   VERIFY( osal_task_create(mouse_host_app_task, "mouse", 128, NULL, MOUSE_APP_TASK_PRIO), );
 }

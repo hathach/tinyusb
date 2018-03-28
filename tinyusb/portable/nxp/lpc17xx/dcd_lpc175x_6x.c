@@ -275,7 +275,7 @@ void hal_dcd_isr(uint8_t rhport)
   {
     uint32_t error_status = sie_read(SIE_CMDCODE_READ_ERROR_STATUS, 1);
     (void) error_status;
-//    ASSERT(false, (void) 0);
+//    TU_ASSERT(false, (void) 0);
   }
 }
 
@@ -422,7 +422,7 @@ edpt_hdl_t dcd_edpt_open(uint8_t rhport, tusb_desc_endpoint_t const * p_endpoint
 
   // TODO refractor to universal pipe open validation function
   if (p_endpoint_desc->bmAttributes.xfer == TUSB_XFER_ISOCHRONOUS) return null_handle; // TODO not support ISO yet
-  ASSERT (p_endpoint_desc->wMaxPacketSize.size <= 64, null_handle); // TODO ISO can be 1023, but ISO not supported now
+  TU_ASSERT (p_endpoint_desc->wMaxPacketSize.size <= 64, null_handle); // TODO ISO can be 1023, but ISO not supported now
 
   uint8_t ep_id = edpt_addr2phy( p_endpoint_desc->bEndpointAddress );
 

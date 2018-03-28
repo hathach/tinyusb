@@ -153,7 +153,7 @@ STATIC_VAR dcd_11u_13u_data_t dcd_data;
 static inline uint16_t addr_offset(void const * p_buffer) ATTR_CONST ATTR_ALWAYS_INLINE;
 static inline uint16_t addr_offset(void const * p_buffer)
 {
-  ASSERT( (((uint32_t) p_buffer) & 0x3f) == 0, 0 );
+  TU_ASSERT( (((uint32_t) p_buffer) & 0x3f) == 0, 0 );
   return (uint16_t) ( (((uint32_t) p_buffer) >> 6 ) & 0xFFFF) ;
 }
 
@@ -465,14 +465,14 @@ edpt_hdl_t dcd_edpt_open(uint8_t rhport, tusb_desc_endpoint_t const * p_endpoint
 
   if (p_endpoint_desc->bmAttributes.xfer == TUSB_XFER_ISOCHRONOUS) return null_handle; // TODO not support ISO yet
 
-  ASSERT (p_endpoint_desc->wMaxPacketSize.size <= 64, null_handle); // TODO ISO can be 1023, but ISO not supported now
+  TU_ASSERT (p_endpoint_desc->wMaxPacketSize.size <= 64, null_handle); // TODO ISO can be 1023, but ISO not supported now
 
   // TODO prevent to open if endpoint size is not 64
 
   //------------- Prepare Queue Head -------------//
   uint8_t ep_id = edpt_addr2phy(p_endpoint_desc->bEndpointAddress);
 
-  ASSERT( dcd_data.qhd[ep_id][0].disable && dcd_data.qhd[ep_id][1].disable, null_handle ); // endpoint must not previously opened, normally this means running out of endpoints
+  TU_ASSERT( dcd_data.qhd[ep_id][0].disable && dcd_data.qhd[ep_id][1].disable, null_handle ); // endpoint must not previously opened, normally this means running out of endpoints
 
   memclr_(dcd_data.qhd[ep_id], 2*sizeof(dcd_11u_13u_qhd_t));
   dcd_data.qhd[ep_id][0].is_isochronous = dcd_data.qhd[ep_id][1].is_isochronous = (p_endpoint_desc->bmAttributes.xfer == TUSB_XFER_ISOCHRONOUS);
@@ -539,7 +539,7 @@ static void queue_xfer_in_next_td(uint8_t ep_id)
 
 tusb_error_t dcd_edpt_queue_xfer(edpt_hdl_t edpt_hdl, uint8_t * buffer, uint16_t total_bytes)
 {
-  ASSERT( !dcd_edpt_busy(edpt_hdl), TUSB_ERROR_INTERFACE_IS_BUSY); // endpoint must not in transferring
+  TU_ASSERT( !dcd_edpt_busy(edpt_hdl), TUSB_ERROR_INTERFACE_IS_BUSY); // endpoint must not in transferring
 
   dcd_data.current_ioc = BIT_CLR_(dcd_data.current_ioc, edpt_hdl.index);
 

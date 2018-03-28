@@ -74,8 +74,8 @@ static tusb_error_t send_message_get_response_subtask( uint8_t dev_addr, cdch_da
 //--------------------------------------------------------------------+
 tusb_error_t tusbh_cdc_rndis_get_mac_addr(uint8_t dev_addr, uint8_t mac_address[6])
 {
-  ASSERT( tusbh_cdc_rndis_is_mounted(dev_addr),  TUSB_ERROR_CDCH_DEVICE_NOT_MOUNTED);
-  ASSERT_PTR( mac_address,  TUSB_ERROR_INVALID_PARA);
+  TU_ASSERT( tusbh_cdc_rndis_is_mounted(dev_addr),  TUSB_ERROR_CDCH_DEVICE_NOT_MOUNTED);
+  VERIFY( mac_address,  TUSB_ERROR_INVALID_PARA);
 
   memcpy(mac_address, rndish_data[dev_addr-1].mac_address, 6);
 

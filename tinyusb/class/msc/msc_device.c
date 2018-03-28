@@ -215,8 +215,8 @@ tusb_error_t mscd_xfer_cb(uint8_t rhport, uint8_t ep_addr, tusb_event_t event, u
         else
         {
           // Data Phase (non READ10, WRITE10)
-          ASSERT( p_cbw->xfer_bytes >= p_msc->data_len, TUSB_ERROR_INVALID_PARA );
-          ASSERT( sizeof(p_msc->scsi_data) >= p_msc->data_len, TUSB_ERROR_NOT_ENOUGH_MEMORY); // needs to increase size for scsi_data
+          TU_ASSERT( p_cbw->xfer_bytes >= p_msc->data_len, TUSB_ERROR_INVALID_PARA );
+          TU_ASSERT( sizeof(p_msc->scsi_data) >= p_msc->data_len, TUSB_ERROR_NOT_ENOUGH_MEMORY); // needs to increase size for scsi_data
 
           uint8_t const ep_data = BIT_TEST_(p_cbw->dir, 7) ? p_msc->ep_in : p_msc->ep_out;
 

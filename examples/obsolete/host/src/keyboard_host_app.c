@@ -103,7 +103,7 @@ void keyboard_host_app_init(void)
   memclr_(&usb_keyboard_report, sizeof(hid_keyboard_report_t));
 
   queue_kbd_hdl = osal_queue_create( QUEUE_KEYBOARD_REPORT_DEPTH, sizeof(hid_keyboard_report_t) );
-  ASSERT_PTR( queue_kbd_hdl, VOID_RETURN );
+  TU_ASSERT( queue_kbd_hdl, VOID_RETURN );
 
   VERIFY( osal_task_create(keyboard_host_app_task, "kbd", 128, NULL, KEYBOARD_APP_TASK_PRIO), );
 }

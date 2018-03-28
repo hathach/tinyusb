@@ -64,7 +64,7 @@ static tusb_error_t cush_validate_paras(uint8_t dev_addr, uint16_t vendor_id, ui
     return TUSB_ERROR_DEVICE_NOT_READY;
   }
 
-  ASSERT( p_buffer != NULL && length != 0, TUSB_ERROR_INVALID_PARA);
+  TU_ASSERT( p_buffer != NULL && length != 0, TUSB_ERROR_INVALID_PARA);
 
   return TUSB_ERROR_NONE;
 }
@@ -122,7 +122,7 @@ tusb_error_t cush_open_subtask(uint8_t dev_addr, tusb_desc_interface_t const *p_
     pipe_handle_t * p_pipe_hdl =  ( p_endpoint->bEndpointAddress &  TUSB_DIR_IN_MASK ) ?
                          &custom_interface[dev_addr-1].pipe_in : &custom_interface[dev_addr-1].pipe_out;
     *p_pipe_hdl = hcd_pipe_open(dev_addr, p_endpoint, TUSB_CLASS_VENDOR_SPECIFIC);
-    ASSERT ( pipehandle_is_valid(*p_pipe_hdl), TUSB_ERROR_HCD_OPEN_PIPE_FAILED );
+    TU_ASSERT ( pipehandle_is_valid(*p_pipe_hdl), TUSB_ERROR_HCD_OPEN_PIPE_FAILED );
 
     p_desc = descriptor_next(p_desc);
   }
@@ -154,7 +154,7 @@ void cush_close(uint8_t dev_addr)
 
   memclr_(p_interface, sizeof(custom_interface_info_t));
 
-  ASSERT(err1 == TUSB_ERROR_NONE && err2 == TUSB_ERROR_NONE, (void) 0 );
+  TU_ASSERT(err1 == TUSB_ERROR_NONE && err2 == TUSB_ERROR_NONE, (void) 0 );
 }
 
 #endif

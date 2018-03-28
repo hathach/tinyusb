@@ -57,7 +57,7 @@
 #if TUSB_CFG_DEBUG >= 1
 //  #define _VERIFY_MESS(format, ...) cprintf("[%08ld] %s: %d: verify failed\n", get_millis(), __func__, __LINE__)
   #define _VERIFY_MESS(_status)   printf("%s: %d: verify failed, error = %s\n", __PRETTY_FUNCTION__, __LINE__, tusb_strerr[_status]);
-  #define _ASSERT_MESS()         printf("%s: %d: assert failed\n", __PRETTY_FUNCTION__, __LINE__);
+  #define _ASSERT_MESS()          printf("%s: %d: assert failed\n", __PRETTY_FUNCTION__, __LINE__);
 #else
   #define _VERIFY_MESS(_status)
   #define _ASSERT_MESS()

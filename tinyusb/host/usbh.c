@@ -148,7 +148,7 @@ tusb_error_t usbh_init(void)
 
   //------------- Enumeration & Reporter Task init -------------//
   enum_queue_hdl = osal_queue_create( ENUM_QUEUE_DEPTH, sizeof(uint32_t) );
-  ASSERT_PTR(enum_queue_hdl, TUSB_ERROR_OSAL_QUEUE_FAILED);
+  TU_ASSERT(enum_queue_hdl, TUSB_ERROR_OSAL_QUEUE_FAILED);
 
   osal_task_create(usbh_enumeration_task, "usbh", 200, NULL, TUSB_CFG_OS_TASK_PRIO);
 
@@ -158,10 +158,10 @@ tusb_error_t usbh_init(void)
     usbh_device_info_t * const p_device = &usbh_devices[i];
 
     p_device->control.sem_hdl = osal_semaphore_create(1, 0);
-    ASSERT_PTR(p_device->control.sem_hdl, TUSB_ERROR_OSAL_SEMAPHORE_FAILED);
+    TU_ASSERT(p_device->control.sem_hdl, TUSB_ERROR_OSAL_SEMAPHORE_FAILED);
 
     p_device->control.mutex_hdl = osal_mutex_create();
-    ASSERT_PTR(p_device->control.mutex_hdl, TUSB_ERROR_OSAL_MUTEX_FAILED);
+    TU_ASSERT(p_device->control.mutex_hdl, TUSB_ERROR_OSAL_MUTEX_FAILED);
   }
 
   //------------- class init -------------//

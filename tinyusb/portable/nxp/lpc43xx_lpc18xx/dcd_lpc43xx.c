@@ -495,7 +495,7 @@ void hal_dcd_isr(uint8_t rhport)
   }
 
   if (int_status & INT_MASK_NAK) {}
-  if (int_status & INT_MASK_ERROR) ASSERT(false, VOID_RETURN);
+  if (int_status & INT_MASK_ERROR) TU_ASSERT(false, );
 }
 
 //--------------------------------------------------------------------+

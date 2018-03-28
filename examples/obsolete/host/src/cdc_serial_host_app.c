@@ -113,7 +113,7 @@ void tuh_cdc_xfer_isr(uint8_t dev_addr, tusb_event_t event, cdc_pipeid_t pipe_id
 void cdc_serial_host_app_init(void)
 {
   sem_hdl = osal_semaphore_create(1, 0);
-  ASSERT_PTR( sem_hdl, VOID_RETURN);
+  TU_ASSERT( sem_hdl, VOID_RETURN);
 
   VERIFY( osal_task_create(cdc_serial_host_app_task, "cdc", 128, NULL, CDC_SERIAL_APP_TASK_PRIO), );
 }

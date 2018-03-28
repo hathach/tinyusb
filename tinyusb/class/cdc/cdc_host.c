@@ -114,8 +114,8 @@ bool tuh_cdc_serial_is_mounted(uint8_t dev_addr)
 
 tusb_error_t tuh_cdc_send(uint8_t dev_addr, void const * p_data, uint32_t length, bool is_notify)
 {
-  ASSERT( tusbh_cdc_is_mounted(dev_addr),  TUSB_ERROR_CDCH_DEVICE_NOT_MOUNTED);
-  ASSERT( p_data != NULL && length, TUSB_ERROR_INVALID_PARA);
+  TU_ASSERT( tusbh_cdc_is_mounted(dev_addr),  TUSB_ERROR_CDCH_DEVICE_NOT_MOUNTED);
+  TU_ASSERT( p_data != NULL && length, TUSB_ERROR_INVALID_PARA);
 
   pipe_handle_t pipe_out = cdch_data[dev_addr-1].pipe_out;
   if ( hcd_pipe_is_busy(pipe_out) ) return TUSB_ERROR_INTERFACE_IS_BUSY;
@@ -125,8 +125,8 @@ tusb_error_t tuh_cdc_send(uint8_t dev_addr, void const * p_data, uint32_t length
 
 tusb_error_t tuh_cdc_receive(uint8_t dev_addr, void * p_buffer, uint32_t length, bool is_notify)
 {
-  ASSERT( tusbh_cdc_is_mounted(dev_addr),  TUSB_ERROR_CDCH_DEVICE_NOT_MOUNTED);
-  ASSERT( p_buffer != NULL && length, TUSB_ERROR_INVALID_PARA);
+  TU_ASSERT( tusbh_cdc_is_mounted(dev_addr),  TUSB_ERROR_CDCH_DEVICE_NOT_MOUNTED);
+  TU_ASSERT( p_buffer != NULL && length, TUSB_ERROR_INVALID_PARA);
 
   pipe_handle_t pipe_in = cdch_data[dev_addr-1].pipe_in;
   if ( hcd_pipe_is_busy(pipe_in) ) return TUSB_ERROR_INTERFACE_IS_BUSY;
@@ -185,7 +185,7 @@ tusb_error_t cdch_open_subtask(uint8_t dev_addr, tusb_desc_interface_t const *p_
     (*p_length) += p_desc[DESCRIPTOR_OFFSET_LENGTH];
     p_desc = descriptor_next(p_desc);
 
-    ASSERT(pipehandle_is_valid(p_cdc->pipe_notification), TUSB_ERROR_HCD_OPEN_PIPE_FAILED);
+    TU_ASSERT(pipehandle_is_valid(p_cdc->pipe_notification), TUSB_ERROR_HCD_OPEN_PIPE_FAILED);
   }
 
   //------------- Data Interface (if any) -------------//
@@ -206,7 +206,7 @@ tusb_error_t cdch_open_subtask(uint8_t dev_addr, tusb_desc_interface_t const *p_
           &p_cdc->pipe_in : &p_cdc->pipe_out;
 
       (*p_pipe_hdl) = hcd_pipe_open(dev_addr, p_endpoint, TUSB_CLASS_CDC);
-      ASSERT ( pipehandle_is_valid(*p_pipe_hdl), TUSB_ERROR_HCD_OPEN_PIPE_FAILED );
+      TU_ASSERT ( pipehandle_is_valid(*p_pipe_hdl), TUSB_ERROR_HCD_OPEN_PIPE_FAILED );
 
       (*p_length) += p_desc[DESCRIPTOR_OFFSET_LENGTH];
       p_desc = descriptor_next( p_desc );
