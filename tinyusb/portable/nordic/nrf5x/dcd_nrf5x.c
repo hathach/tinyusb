@@ -45,7 +45,7 @@
 #include "nrf_drv_power.h"
 #include "nrf_drv_usbd_errata.h"
 
-#include "tusb_dcd.h"
+#include "device/dcd.h"
 
 /*------------------------------------------------------------------*/
 /* MACRO TYPEDEF CONSTANT ENUM

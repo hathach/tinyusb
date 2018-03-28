@@ -48,7 +48,7 @@
 #include "osal/osal.h"
 #include "common/timeout_timer.h"
 
-#include "tusb_dcd.h"
+#include "device/dcd.h"
 #include "dcd_lpc43xx.h"
 
 #include "LPC43xx.h"

@@ -53,7 +53,7 @@
 #include "osal/osal.h"
 #include "common/timeout_timer.h"
 
-#include "dcd.h"
+#include "device/dcd.h"
 #include "usbd_dcd.h"
 #include "dcd_lpc_11uxx_13uxx.h"
 

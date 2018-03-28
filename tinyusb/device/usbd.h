@@ -51,7 +51,7 @@
 //--------------------------------------------------------------------+
 #include <common/tusb_common.h>
 #include "osal/osal.h"
-#include "tusb_dcd.h"
+#include "device/dcd.h"
 
 //--------------------------------------------------------------------+
 // MACRO CONSTANT TYPEDEF
