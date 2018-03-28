@@ -53,7 +53,7 @@
 // Compile-time Assert
 //--------------------------------------------------------------------+
 #ifdef __ICCARM__
-  #define STATIC_ASSERT   static_assert
+  #define VERIFY_STATIC   static_assert
 #else
   #if defined __COUNTER__ && __COUNTER__ != __COUNTER__
     #define _ASSERT_COUNTER __COUNTER__
@@ -61,7 +61,7 @@
     #define _ASSERT_COUNTER __LINE__
   #endif
 
-  #define STATIC_ASSERT(const_expr, message) enum { XSTRING_CONCAT_(static_assert_, _ASSERT_COUNTER) = 1/(!!(const_expr)) }
+  #define VERIFY_STATIC(const_expr, message) enum { XSTRING_CONCAT_(static_assert_, _ASSERT_COUNTER) = 1/(!!(const_expr)) }
 #endif
 
 // allow debugger to watch any module-wide variables anywhere

@@ -142,7 +142,7 @@ typedef struct {
   uint8_t  oid_buffer[]  ; ///< Flexible array contains the input data supplied by the host, required for the OID query request processing by the device, as per the host NDIS specification.
 } rndis_msg_query_t, rndis_msg_set_t;
 
-STATIC_ASSERT(sizeof(rndis_msg_query_t) == 28, "Make sure flexible array member does not affect layout");
+VERIFY_STATIC(sizeof(rndis_msg_query_t) == 28, "Make sure flexible array member does not affect layout");
 
 /// \brief Query Complete Message
 /// \details This message MUST be sent by the device in response to a query OID message.
@@ -156,7 +156,7 @@ typedef struct {
   uint8_t  oid_buffer[]  ; ///< Flexible array member contains the response data to the OID query request as specified by the host.
 } rndis_msg_query_cmplt_t;
 
-STATIC_ASSERT(sizeof(rndis_msg_query_cmplt_t) == 24, "Make sure flexible array member does not affect layout");
+VERIFY_STATIC(sizeof(rndis_msg_query_cmplt_t) == 24, "Make sure flexible array member does not affect layout");
 
 //------------- Reset -------------//
 /// \brief Reset Message

@@ -137,7 +137,7 @@ typedef ATTR_PACKED_STRUCT(struct) {
   uint16_t fat_signature           ; ///< Signature value (0xAA55).
 }fat12_boot_sector_t;
 
-STATIC_ASSERT(sizeof(fat12_boot_sector_t) == 512, "size is not correct");
+VERIFY_STATIC(sizeof(fat12_boot_sector_t) == 512, "size is not correct");
 
 typedef ATTR_PACKED_STRUCT(struct) {
   uint8_t name[11];
@@ -163,7 +163,7 @@ typedef ATTR_PACKED_STRUCT(struct) {
   uint32_t file_size;
 }fat_directory_t;
 
-STATIC_ASSERT(sizeof(fat_directory_t) == 32, "size is not correct");
+VERIFY_STATIC(sizeof(fat_directory_t) == 32, "size is not correct");
 
 void fat12_fs_init(uint8_t msc_device_ramdisk[DISK_BLOCK_NUM][DISK_BLOCK_SIZE])
 {

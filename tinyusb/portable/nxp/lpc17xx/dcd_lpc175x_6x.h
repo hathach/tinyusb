@@ -80,7 +80,7 @@ typedef struct ATTR_ALIGNED(4)
 //	uint32_t iso_packet_size_addr;		// iso only, can be omitted for non-iso
 }dcd_dma_descriptor_t;
 
-STATIC_ASSERT( sizeof(dcd_dma_descriptor_t) == 16, "size is not correct"); // TODO not support ISO for now
+VERIFY_STATIC( sizeof(dcd_dma_descriptor_t) == 16, "size is not correct"); // TODO not support ISO for now
 
 
 //--------------------------------------------------------------------+

@@ -1,6 +1,6 @@
 /**************************************************************************/
 /*!
-    @file     common.h
+    @file     tusb_common.h
     @author   hathach (tinyusb.org)
 
     @section LICENSE

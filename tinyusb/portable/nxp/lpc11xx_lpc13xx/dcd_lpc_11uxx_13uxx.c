@@ -105,7 +105,7 @@ typedef struct ATTR_PACKED
   volatile uint16_t active      : 1  ; ///< The buffer is enabled. HW can use the buffer to store received OUT data or to transmit data on the IN endpoint. Software can only set this bit to ‘1’. As long as this bit is set to one, software is not allowed to update any of the values in this 32-bit word. In case software wants to deactivate the buffer, it must write a one to the corresponding “skip” bit in the USB Endpoint skip register. Hardware can only write this bit to zero. It will do this when it receives a short packet or when the NBytes field transitions to zero or when software has written a one to the “skip” bit.
 }dcd_11u_13u_qhd_t;
 
-STATIC_ASSERT( sizeof(dcd_11u_13u_qhd_t) == 4, "size is not correct" );
+VERIFY_STATIC( sizeof(dcd_11u_13u_qhd_t) == 4, "size is not correct" );
 
 // NOTE data will be transferred as soon as dcd get request by dcd_pipe(_queue)_xfer using double buffering.
 // If there is another dcd_edpt_xfer request, the new request will be saved and executed when the first is done.

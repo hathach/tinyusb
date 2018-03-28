@@ -119,7 +119,7 @@ typedef struct {
   uint8_t reserved;
 } dcd_qtd_t;
 
-STATIC_ASSERT( sizeof(dcd_qtd_t) == 32, "size is not correct");
+VERIFY_STATIC( sizeof(dcd_qtd_t) == 32, "size is not correct");
 
 typedef struct ATTR_ALIGNED(64) {
   // Word 0: Capabilities and Characteristics
@@ -149,7 +149,7 @@ typedef struct ATTR_ALIGNED(64) {
 	uint8_t reserved[16-DCD_QTD_PER_QHD_MAX];
 } dcd_qhd_t;
 
-STATIC_ASSERT( sizeof(dcd_qhd_t) == 64, "size is not correct");
+VERIFY_STATIC( sizeof(dcd_qhd_t) == 64, "size is not correct");
 
 
 #ifdef __cplusplus

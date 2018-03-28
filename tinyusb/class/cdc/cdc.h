@@ -300,7 +300,7 @@ typedef struct ATTR_PACKED
   uint8_t : 0;
 }cdc_acm_capability_t;
 
-STATIC_ASSERT(sizeof(cdc_acm_capability_t) == 1, "mostly problem with compiler");
+VERIFY_STATIC(sizeof(cdc_acm_capability_t) == 1, "mostly problem with compiler");
 
 /// \brief Abstract Control Management Functional Descriptor
 /// \details This functional descriptor describes the commands supported by by the Communications Class interface with SubClass code of \ref CDC_COMM_SUBCLASS_ABSTRACT_CONTROL_MODEL
@@ -390,7 +390,7 @@ typedef struct ATTR_PACKED
   uint8_t  data_bits; ///< can be 5, 6, 7, 8 or 16
 } cdc_line_coding_t;
 
-STATIC_ASSERT(sizeof(cdc_line_coding_t) == 7, "size is not correct");
+VERIFY_STATIC(sizeof(cdc_line_coding_t) == 7, "size is not correct");
 
 typedef struct ATTR_PACKED
 {
@@ -399,7 +399,7 @@ typedef struct ATTR_PACKED
   uint16_t : 14;
 } cdc_line_control_state_t;
 
-STATIC_ASSERT(sizeof(cdc_line_control_state_t) == 2, "size is not correct");
+VERIFY_STATIC(sizeof(cdc_line_control_state_t) == 2, "size is not correct");
 
 /** @} */
 

@@ -81,7 +81,7 @@ enum {
 };
 
 //------------- Validation -------------//
-STATIC_ASSERT(EHCI_CFG_FRAMELIST_SIZE_BITS <= 7, "incorrect value");
+VERIFY_STATIC(EHCI_CFG_FRAMELIST_SIZE_BITS <= 7, "incorrect value");
 
 //--------------------------------------------------------------------+
 // EHCI Data Structure
@@ -150,7 +150,7 @@ typedef struct {
 	uint32_t buffer[5];
 } ehci_qtd_t; // XXX qtd is used to declare overlay in ehci_qhd_t -> cannot be declared with ATTR_ALIGNED(32)
 
-STATIC_ASSERT( sizeof(ehci_qtd_t) == 32, "size is not correct" );
+VERIFY_STATIC( sizeof(ehci_qtd_t) == 32, "size is not correct" );
 
 /// Queue Head (section 3.6)
 typedef struct ATTR_ALIGNED(32) {
@@ -202,7 +202,7 @@ typedef struct ATTR_ALIGNED(32) {
 	ehci_qtd_t * volatile p_qtd_list_tail;	// tail of the scheduled TD list
 } ehci_qhd_t;
 
-STATIC_ASSERT( sizeof(ehci_qhd_t) == 64, "size is not correct" );
+VERIFY_STATIC( sizeof(ehci_qhd_t) == 64, "size is not correct" );
 
 /// Highspeed Isochronous Transfer Descriptor (section 3.3)
 typedef struct ATTR_ALIGNED(32) {
@@ -234,7 +234,7 @@ typedef struct ATTR_ALIGNED(32) {
 //	uint32_t reserved[6];
 } ehci_itd_t;
 
-STATIC_ASSERT( sizeof(ehci_itd_t) == 64, "size is not correct" );
+VERIFY_STATIC( sizeof(ehci_itd_t) == 64, "size is not correct" );
 
 /// Split (Full-Speed) Isochronous Transfer Descriptor
 typedef struct ATTR_ALIGNED(32) {
@@ -298,7 +298,7 @@ typedef struct ATTR_ALIGNED(32) {
 	uint8_t reserved2[2];
 } ehci_sitd_t;
 
-STATIC_ASSERT( sizeof(ehci_sitd_t) == 32, "size is not correct" );
+VERIFY_STATIC( sizeof(ehci_sitd_t) == 32, "size is not correct" );
 
 //--------------------------------------------------------------------+
 // EHCI Operational Register

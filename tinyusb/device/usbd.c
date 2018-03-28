@@ -178,7 +178,7 @@ typedef struct ATTR_ALIGNED(4)
   };
 } usbd_task_event_t;
 
-STATIC_ASSERT(sizeof(usbd_task_event_t) <= 12, "size is not correct");
+VERIFY_STATIC(sizeof(usbd_task_event_t) <= 12, "size is not correct");
 
 #ifndef TUC_DEVICE_STACKSIZE
 #define TUC_DEVICE_STACKSIZE 150

@@ -45,16 +45,26 @@
  extern "C" {
 #endif
 
-//--------------------------------------------------------------------+
-// Compile-time Verify
-//--------------------------------------------------------------------+
-#if defined __COUNTER__ && __COUNTER__ != __COUNTER__
-  #define _VERIFY_COUNTER __COUNTER__
-#else
-  #define _VERIFY_COUNTER __LINE__
-#endif
+/**
+ * Helper to implement optional parameter for VERIFY Macro family
+ */
+#define GET_3RD_ARG(arg1, arg2, arg3, ...)        arg3
+#define GET_4TH_ARG(arg1, arg2, arg3, arg4, ...)  arg4
 
-#define VERIFY_STATIC(const_expr) enum { XSTRING_CONCAT_(static_verify_, _VERIFY_COUNTER) = 1/(!!(const_expr)) }
+//--------------------------------------------------------------------+
+// Compile-time Verify (like assert static)
+//--------------------------------------------------------------------+
+#ifdef __ICCARM__
+  #define VERIFY_STATIC   static_assert
+#else
+  #if defined __COUNTER__ && __COUNTER__ != __COUNTER__
+    #define _VERIFY_COUNTER __COUNTER__
+  #else
+    #define _VERIFY_COUNTER __LINE__
+  #endif
+
+  #define VERIFY_STATIC(const_expr, _mess) enum { XSTRING_CONCAT_(_verify_static_, _VERIFY_COUNTER) = 1/(!!(const_expr)) }
+#endif
 
 //--------------------------------------------------------------------+
 // VERIFY Helper
@@ -67,12 +77,6 @@
   #define _VERIFY_MESS(_status)
   #define _ASSERT_MESS()
 #endif
-
-/**
- * Helper to implement optional parameter for VERIFY Macro family
- */
-#define GET_3RD_ARG(arg1, arg2, arg3, ...)        arg3
-#define GET_4TH_ARG(arg1, arg2, arg3, arg4, ...)  arg4
 
 /*------------------------------------------------------------------*/
 /* VERIFY STATUS
