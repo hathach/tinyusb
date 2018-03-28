@@ -49,7 +49,7 @@
 
 #include <stdbool.h>
 #include <stdint.h>
-#include "compiler/tusb_compiler.h"
+#include "tusb_compiler.h"
 
 //------------- Bit manipulation -------------//
 #define BIT_(n) (1U << (n))                                ///< n-th Bit

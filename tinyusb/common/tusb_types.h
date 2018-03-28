@@ -43,9 +43,9 @@
 #ifndef _TUSB_TYPES_H_
 #define _TUSB_TYPES_H_
 
-#include "compiler/tusb_compiler.h"
 #include <stdbool.h>
 #include <stdint.h>
+#include "tusb_compiler.h"
 
 #ifdef __cplusplus
  extern "C" {

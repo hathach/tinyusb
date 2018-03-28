@@ -36,10 +36,10 @@
 #ifndef VERIFY_H_
 #define VERIFY_H_
 
-#include "tusb_option.h"
 #include <stdbool.h>
 #include <stdint.h>
-#include "compiler/tusb_compiler.h"
+#include "tusb_option.h"
+#include "tusb_compiler.h"
 
 #ifdef __cplusplus
  extern "C" {

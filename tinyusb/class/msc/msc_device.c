@@ -203,7 +203,7 @@ tusb_error_t mscd_xfer_cb(uint8_t rhport, uint8_t ep_addr, tusb_event_t event, u
         void const *p_buffer = NULL;
 
         // TODO SCSI data out transfer is not yet supported
-        ASSERT_FALSE( p_cbw->xfer_bytes > 0 && !BIT_TEST_(p_cbw->dir, 7), TUSB_ERROR_NOT_SUPPORTED_YET);
+        TU_ASSERT( !(p_cbw->xfer_bytes > 0 && !BIT_TEST_(p_cbw->dir, 7)), TUSB_ERROR_NOT_SUPPORTED_YET);
 
         p_csw->status = tud_msc_scsi_cb(rhport, p_cbw->lun, p_cbw->command, &p_buffer, &p_msc->data_len);
 

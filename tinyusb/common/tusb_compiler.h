@@ -73,9 +73,9 @@
 
 
 #if defined(__GNUC__)
-  #include "compiler_gcc.h"
+  #include "compiler/tusb_compiler_gcc.h"
 #elif defined __ICCARM__
-  #include "compiler_iar.h"
+  #include "compiler/tusb_compiler_iar.h"
 #endif
 
 #endif /* _TUSB_COMPILER_H_ */

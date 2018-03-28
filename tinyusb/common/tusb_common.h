@@ -62,7 +62,7 @@
 #include "tusb_option.h"
 
 //------------- General Header -------------//
-#include "compiler/tusb_compiler.h"
+#include "tusb_compiler.h"
 #include "assertion.h"
 #include "verify.h"
 #include "binary.h"

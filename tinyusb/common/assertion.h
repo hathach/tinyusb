@@ -49,10 +49,10 @@ extern "C"
 {
 #endif
 
-#include "tusb_option.h"
 #include <stdbool.h>
 #include <stdint.h>
-#include "compiler/tusb_compiler.h"
+#include "tusb_option.h"
+#include "tusb_compiler.h"
 
 #include "tusb_hal.h" // TODO find a way to break hal dependency
 
@@ -108,9 +108,7 @@ extern "C"
 //--------------------------------------------------------------------+
 #define ASSERT(...)                      ASSERT_TRUE(__VA_ARGS__)
 #define ASSERT_TRUE(condition  , error)  ASSERT_DEFINE( , (condition), error, "%s", "evaluated to false")
-#define ASSERT_FALSE(condition , error)  ASSERT_DEFINE( ,!(condition), error, "%s", "evaluated to true")
 #define ASSERT_FAILED(error)             ASSERT_DEFINE( , false, error, "%s", "FAILED")
-#define ASSERT_FAILED_MSG(error, msg)    ASSERT_DEFINE( , false, error, "FAILED: %s", msg)
 
 //--------------------------------------------------------------------+
 // Pointer Assert
@@ -149,32 +147,6 @@ extern "C"
 #define ASSERT_HEX(...)        ASSERT_HEX_EQUAL(__VA_ARGS__)
 #define ASSERT_HEX_EQUAL(...)  ASSERT_XXX_EQUAL("0x%x", __VA_ARGS__)
 #define ASSERT_HEX_WITHIN(...) ASSERT_XXX_WITHIN("0x%x", __VA_ARGS__)
-
-//--------------------------------------------------------------------+
-// Bin Assert
-//--------------------------------------------------------------------+
-#define BIN8_PRINTF_PATTERN "%d%d%d%d%d%d%d%d"
-#define BIN8_PRINTF_CONVERT(byte)  \
-  ((byte) & 0x80 ? 1 : 0), \
-  ((byte) & 0x40 ? 1 : 0), \
-  ((byte) & 0x20 ? 1 : 0), \
-  ((byte) & 0x10 ? 1 : 0), \
-  ((byte) & 0x08 ? 1 : 0), \
-  ((byte) & 0x04 ? 1 : 0), \
-  ((byte) & 0x02 ? 1 : 0), \
-  ((byte) & 0x01 ? 1 : 0)
-
-#define ASSERT_BIN8(...)        ASSERT_BIN8_EQUAL(__VA_ARGS__)
-#define ASSERT_BIN8_EQUAL(expected, actual, error)\
-    ASSERT_DEFINE(\
-                  uint8_t exp = (expected); uint8_t act = (actual),\
-                  exp==act,\
-                  error,\
-                  "expected " BIN8_PRINTF_PATTERN ", actual " BIN8_PRINTF_PATTERN, BIN8_PRINTF_CONVERT(exp), BIN8_PRINTF_CONVERT(act) )
-
-//--------------------------------------------------------------------+
-// TODO Bit Assert
-//--------------------------------------------------------------------+
 
 
 #ifdef __cplusplus
