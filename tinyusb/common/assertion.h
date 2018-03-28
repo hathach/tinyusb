@@ -52,7 +52,7 @@ extern "C"
 #include "tusb_option.h"
 #include <stdbool.h>
 #include <stdint.h>
-#include "compiler/compiler.h"
+#include "compiler/tusb_compiler.h"
 
 #include "tusb_hal.h" // TODO find a way to break hal dependency
 

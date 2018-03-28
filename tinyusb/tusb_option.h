@@ -106,7 +106,7 @@
 /**
   determines the debug level for the stack
   - Level 3: TBD
-  - Level 2: ATTR_ALWAYS_INLINE is null --> no function is inline
+  - Level 2: TBD
   - Level 1: Print out if Assert failed. STATIC_VAR is NULL --> accessible when debugging
   - Level 0: no debug information is generated
 */

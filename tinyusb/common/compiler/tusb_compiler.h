@@ -44,9 +44,9 @@
 #ifndef _TUSB_COMPILER_H_
 #define _TUSB_COMPILER_H_
 
-#define STRING_(x)  #x                             ///< stringify without expand
-#define XSTRING_(x) STRING_(x)                     ///< expand then stringify
-#define STRING_CONCAT_(a, b) a##b                  ///< concat without expand
+#define STRING_(x)            #x                   ///< stringify without expand
+#define XSTRING_(x)           STRING_(x)           ///< expand then stringify
+#define STRING_CONCAT_(a, b)  a##b                 ///< concat without expand
 #define XSTRING_CONCAT_(a, b) STRING_CONCAT_(a, b) ///< expand then concat
 
 //--------------------------------------------------------------------+
@@ -74,7 +74,7 @@
 
 #if defined(__GNUC__)
   #include "compiler_gcc.h"
-#elif defined __ICCARM__ // IAR compiler
+#elif defined __ICCARM__
   #include "compiler_iar.h"
 #endif
 

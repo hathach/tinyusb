@@ -44,7 +44,7 @@
 #ifndef _TUSB_TIMEOUT_TTIMER_H_
 #define _TUSB_TIMEOUT_TTIMER_H_
 
-#include "compiler/compiler.h"
+#include "compiler/tusb_compiler.h"
 
 #ifdef __cplusplus
 extern "C" {

@@ -39,7 +39,7 @@
 #include "tusb_option.h"
 #include <stdbool.h>
 #include <stdint.h>
-#include "compiler/compiler.h"
+#include "compiler/tusb_compiler.h"
 
 #ifdef __cplusplus
  extern "C" {

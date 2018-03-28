@@ -75,10 +75,8 @@
 /** \defgroup Group_FuncAttr Function Attributes
  *  @{ */
 
-#ifndef ATTR_ALWAYS_INLINE
 /// Generally, functions are not inlined unless optimization is specified. For functions declared inline, this attribute inlines the function even if no optimization level is specified
 #define ATTR_ALWAYS_INLINE         __attribute__ ((always_inline))
-#endif
 
 /// The nonnull attribute specifies that some function parameters should be non-null pointers. f the compiler determines that a null pointer is passed in an argument slot marked as non-null, and the -Wnonnull option is enabled, a warning is issued. All pointer arguments are marked as non-null
 #define ATTR_NON_NULL              __attribute__ ((nonull))
