@@ -63,7 +63,7 @@
 
 //------------- General Header -------------//
 #include "tusb_compiler.h"
-#include "verify.h"
+#include "tusb_verify.h"
 #include "binary.h"
 #include "tusb_error.h"
 #include "tusb_fifo.h"

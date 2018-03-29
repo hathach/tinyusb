@@ -33,8 +33,8 @@
     SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
 /**************************************************************************/
-#ifndef VERIFY_H_
-#define VERIFY_H_
+#ifndef TUSB_VERIFY_H_
+#define TUSB_VERIFY_H_
 
 #include <stdbool.h>
 #include <stdint.h>
@@ -179,4 +179,4 @@ static inline void verify_breakpoint(void)
  }
 #endif
 
-#endif /* VERIFY_H_ */
+#endif /* TUSB_VERIFY_H_ */
