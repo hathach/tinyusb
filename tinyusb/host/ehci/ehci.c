@@ -134,11 +134,11 @@ tusb_error_t hcd_init(void)
   memclr_(&ehci_data, sizeof(ehci_data_t));
 
   #if (TUSB_CFG_CONTROLLER_0_MODE & TUSB_MODE_HOST)
-    ASSERT_STATUS (hcd_controller_init(0));
+    ASSERT_ERR (hcd_controller_init(0));
   #endif
 
   #if (TUSB_CFG_CONTROLLER_1_MODE & TUSB_MODE_HOST)
-    ASSERT_STATUS (hcd_controller_init(1));
+    ASSERT_ERR (hcd_controller_init(1));
   #endif
 
   return TUSB_ERROR_NONE;
@@ -347,7 +347,7 @@ tusb_error_t  hcd_pipe_control_close(uint8_t dev_addr)
 
   if (dev_addr != 0)
   {
-    ASSERT_STATUS( list_remove_qhd( (ehci_link_t*) get_async_head( usbh_devices[dev_addr].core_id ),
+    ASSERT_ERR( list_remove_qhd( (ehci_link_t*) get_async_head( usbh_devices[dev_addr].core_id ),
                                     (ehci_link_t*) p_qhd) );
   }
 
@@ -416,7 +416,7 @@ tusb_error_t  hcd_pipe_queue_xfer(pipe_handle_t pipe_hdl, uint8_t buffer[], uint
 
 tusb_error_t  hcd_pipe_xfer(pipe_handle_t pipe_hdl, uint8_t buffer[], uint16_t total_bytes, bool int_on_complete)
 {
-  ASSERT_STATUS ( hcd_pipe_queue_xfer(pipe_hdl, buffer, total_bytes) );
+  ASSERT_ERR ( hcd_pipe_queue_xfer(pipe_hdl, buffer, total_bytes) );
 
   ehci_qhd_t *p_qhd = qhd_get_from_pipe_handle(pipe_hdl);
 
@@ -445,14 +445,14 @@ tusb_error_t  hcd_pipe_close(pipe_handle_t pipe_hdl)
 
   if ( pipe_hdl.xfer_type == TUSB_XFER_BULK )
   {
-    ASSERT_STATUS( list_remove_qhd(
+    ASSERT_ERR( list_remove_qhd(
         (ehci_link_t*) get_async_head( usbh_devices[pipe_hdl.dev_addr].core_id ),
         (ehci_link_t*) p_qhd) );
   }
   #if EHCI_PERIODIC_LIST // TODO refractor/group this together
   else
   {
-    ASSERT_STATUS( list_remove_qhd(
+    ASSERT_ERR( list_remove_qhd(
         get_period_head( usbh_devices[pipe_hdl.dev_addr].core_id, p_qhd->interval_ms ),
         (ehci_link_t*) p_qhd) );
   }

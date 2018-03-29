@@ -484,7 +484,7 @@ static tusb_error_t  pipe_queue_xfer(pipe_handle_t pipe_hdl, uint8_t buffer[], u
     td_insert_to_ed(p_ed, p_gtd);
   }else
   {
-    ASSERT_STATUS(TUSB_ERROR_NOT_SUPPORTED_YET);
+    ASSERT_ERR(TUSB_ERROR_NOT_SUPPORTED_YET);
   }
 
   return TUSB_ERROR_NONE;
@@ -497,7 +497,7 @@ tusb_error_t  hcd_pipe_queue_xfer(pipe_handle_t pipe_hdl, uint8_t buffer[], uint
 
 tusb_error_t  hcd_pipe_xfer(pipe_handle_t pipe_hdl, uint8_t buffer[], uint16_t total_bytes, bool int_on_complete)
 {
-  ASSERT_STATUS( pipe_queue_xfer(pipe_hdl, buffer, total_bytes, true) );
+  ASSERT_ERR( pipe_queue_xfer(pipe_hdl, buffer, total_bytes, true) );
 
   tusb_xfer_type_t xfer_type = ed_get_xfer_type( ed_from_pipe_handle(pipe_hdl) );
 

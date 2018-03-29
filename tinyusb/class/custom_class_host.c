@@ -73,7 +73,7 @@ static tusb_error_t cush_validate_paras(uint8_t dev_addr, uint16_t vendor_id, ui
 //--------------------------------------------------------------------+
 tusb_error_t tusbh_custom_read(uint8_t dev_addr, uint16_t vendor_id, uint16_t product_id, void * p_buffer, uint16_t length)
 {
-  ASSERT_STATUS( cush_validate_paras(dev_addr, vendor_id, product_id, p_buffer, length) );
+  ASSERT_ERR( cush_validate_paras(dev_addr, vendor_id, product_id, p_buffer, length) );
 
   if ( !hcd_pipe_is_idle(custom_interface[dev_addr-1].pipe_in) )
   {
@@ -87,7 +87,7 @@ tusb_error_t tusbh_custom_read(uint8_t dev_addr, uint16_t vendor_id, uint16_t pr
 
 tusb_error_t tusbh_custom_write(uint8_t dev_addr, uint16_t vendor_id, uint16_t product_id, void const * p_data, uint16_t length)
 {
-  ASSERT_STATUS( cush_validate_paras(dev_addr, vendor_id, product_id, p_data, length) );
+  ASSERT_ERR( cush_validate_paras(dev_addr, vendor_id, product_id, p_data, length) );
 
   if ( !hcd_pipe_is_idle(custom_interface[dev_addr-1].pipe_out) )
   {
