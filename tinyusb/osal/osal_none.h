@@ -125,8 +125,8 @@ static inline osal_task_t osal_task_create(osal_func_t code, const char* name, u
 //------------- Sub Task Assert -------------//
 #define STASK_RETURN(error)     do { TASK_RESTART; return error; } while(0)
 
-#define STASK_ASSERT_ERR(_err)                VERIFY_STATUS_HDLR(_err, TASK_RESTART)
-#define STASK_ASSERT_ERR_HDLR(_err, _func)    VERIFY_STATUS_HDLR(_err, _func; TASK_RESTART )
+#define STASK_ASSERT_ERR(_err)                VERIFY_ERR_HDLR(_err, TASK_RESTART)
+#define STASK_ASSERT_ERR_HDLR(_err, _func)    VERIFY_ERR_HDLR(_err, _func; TASK_RESTART )
 
 #define STASK_ASSERT(_cond)                   VERIFY_HDLR(_cond, TASK_RESTART)
 #define STASK_ASSERT_HDLR(_cond, _func)       VERIFY_HDLR(_cond, _func; TASK_RESTART)

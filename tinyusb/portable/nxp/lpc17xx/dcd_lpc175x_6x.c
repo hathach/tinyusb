@@ -399,13 +399,13 @@ bool dcd_control_xfer(uint8_t rhport, tusb_dir_t dir, uint8_t * p_buffer, uint16
     dcd_data.control_dma.remaining_bytes = length;
 
     // lpc17xx already received the first DATA OUT packet by now
-    VERIFY_STATUS ( pipe_control_xfer(ep_data, p_buffer, length), false );
+    VERIFY_ERR ( pipe_control_xfer(ep_data, p_buffer, length), false );
   }
 
   //------------- Status Phase (opposite direct to Data) -------------//
   if (dir == TUSB_DIR_OUT)
   { // only write for CONTROL OUT, CONTROL IN data will be retrieved in hal_dcd_isr // TODO ????
-    VERIFY_STATUS ( pipe_control_write(NULL, 0), false );
+    VERIFY_ERR ( pipe_control_write(NULL, 0), false );
   }
 
   return true;

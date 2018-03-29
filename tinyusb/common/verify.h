@@ -95,14 +95,14 @@ static inline void verify_breakpoint(void)
 /*------------- Generator for VERIFY and VERIFY_HDLR -------------*/
 #define VERIFY_DEFINE(_cond, _handler, _error)  do { if ( !(_cond) ) { _handler; return _error;  } } while(0)
 
-/*------------- Generator for VERIFY_STATUS and VERIFY_STATUS_HDLR -------------*/
-#define VERIFY_STS_DEF2(sts, _handler)  \
+/*------------- Generator for VERIFY_ERR and VERIFY_ERR_HDLR -------------*/
+#define VERIFY_ERR_DEF2(sts, _handler)  \
     do {                                              \
       uint32_t _status = (uint32_t)(sts);             \
       if ( 0 != _status ) { _VERIFY_MESS(_status); _handler; return _status; }\
     } while(0)
 
-#define VERIFY_STS_DEF3(sts, _handler, _error)  \
+#define VERIFY_ERR_DEF3(sts, _handler, _error)  \
     do {                                              \
       uint32_t _status = (uint32_t)(sts);             \
       if ( 0 != _status ) { _VERIFY_MESS(_status); _handler; return _error; }\
@@ -135,23 +135,23 @@ static inline void verify_breakpoint(void)
 
 /*------------------------------------------------------------------*/
 /* VERIFY STATUS
- * - VERIFY_STS_1ARGS : return status of condition if failed
- * - VERIFY_STS_2ARGS : return provided status code if failed
+ * - VERIFY_ERR_1ARGS : return status of condition if failed
+ * - VERIFY_ERR_2ARGS : return provided status code if failed
  *------------------------------------------------------------------*/
-#define VERIFY_STS_1ARGS(sts)                         VERIFY_STS_DEF2(sts, )
-#define VERIFY_STS_2ARGS(sts, _error)                 VERIFY_STS_DEF3(sts, ,_error)
+#define VERIFY_ERR_1ARGS(sts)                         VERIFY_ERR_DEF2(sts, )
+#define VERIFY_ERR_2ARGS(sts, _error)                 VERIFY_ERR_DEF3(sts, ,_error)
 
-#define VERIFY_STATUS(...)            GET_3RD_ARG(__VA_ARGS__, VERIFY_STS_2ARGS, VERIFY_STS_1ARGS)(__VA_ARGS__)
+#define VERIFY_ERR(...)            GET_3RD_ARG(__VA_ARGS__, VERIFY_ERR_2ARGS, VERIFY_ERR_1ARGS)(__VA_ARGS__)
 
 /*------------------------------------------------------------------*/
 /* VERIFY STATUS WITH HANDLER
- * - VERIFY_STS_HDLR_2ARGS : execute handler, return status if failed
- * - VERIFY_STS_HDLR_3ARGS : execute handler, return provided error if failed
+ * - VERIFY_ERR_HDLR_2ARGS : execute handler, return status if failed
+ * - VERIFY_ERR_HDLR_3ARGS : execute handler, return provided error if failed
  *------------------------------------------------------------------*/
-#define VERIFY_STS_HDLR_2ARGS(sts, _handler)          VERIFY_STS_DEF2(sts, _handler)
-#define VERIFY_STS_HDLR_3ARGS(sts, _handler, _error)  VERIFY_STS_DEF3(sts, _handler, _error)
+#define VERIFY_ERR_HDLR_2ARGS(sts, _handler)          VERIFY_ERR_DEF2(sts, _handler)
+#define VERIFY_ERR_HDLR_3ARGS(sts, _handler, _error)  VERIFY_ERR_DEF3(sts, _handler, _error)
 
-#define VERIFY_STATUS_HDLR(...)       GET_4TH_ARG(__VA_ARGS__, VERIFY_STS_HDLR_3ARGS, VERIFY_STS_HDLR_2ARGS)(__VA_ARGS__)
+#define VERIFY_ERR_HDLR(...)       GET_4TH_ARG(__VA_ARGS__, VERIFY_ERR_HDLR_3ARGS, VERIFY_ERR_HDLR_2ARGS)(__VA_ARGS__)
 
 
 
@@ -170,8 +170,8 @@ static inline void verify_breakpoint(void)
 /* ASSERT Error
  * basically VERIFY Error with verify_breakpoint() as handler
  *------------------------------------------------------------------*/
-#define ASERT_ERR_1ARGS(_err)             VERIFY_STS_DEF2(_err, verify_breakpoint())
-#define ASERT_ERR_2ARGS(_err, _ret)       VERIFY_STS_DEF3(_err, verify_breakpoint(), _ret)
+#define ASERT_ERR_1ARGS(_err)             VERIFY_ERR_DEF2(_err, verify_breakpoint())
+#define ASERT_ERR_2ARGS(_err, _ret)       VERIFY_ERR_DEF3(_err, verify_breakpoint(), _ret)
 
 #define ASSERT_ERR(...)               GET_3RD_ARG(__VA_ARGS__, ASERT_ERR_2ARGS, ASERT_ERR_1ARGS)(__VA_ARGS__)
 
