@@ -958,7 +958,7 @@ static void qhd_init(ehci_qhd_t *p_qhd, uint8_t dev_addr, uint16_t max_packet_si
   {
     if (TUSB_SPEED_HIGH == p_qhd->endpoint_speed)
     {
-      ASSERT_INT_WITHIN(1, 16, interval, VOID_RETURN);
+      TU_ASSERT( interval <= 16, VOID_RETURN);
       if ( interval < 4) // sub milisecond interval
       {
         p_qhd->interval_ms     = 0;

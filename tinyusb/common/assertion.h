@@ -85,26 +85,6 @@ extern "C"
     ASSERT_DEFINE(tusb_error_t status = (tusb_error_t)(sts),\
                   TUSB_ERROR_NONE == status, status, "%s", tusb_strerr[status])
 
-//--------------------------------------------------------------------+
-// Integral Assert
-//--------------------------------------------------------------------+
-#define ASSERT_XXX_WITHIN(type_format, lower, upper, actual, error) \
-    ASSERT_DEFINE( uint32_t low = (lower); uint32_t up = (upper); uint32_t act = (actual),\
-                   (low <= act) && (act <= up),\
-                   error,\
-                   "expected within " type_format " - " type_format ", actual " type_format, low, up, act)
-
-//--------------------------------------------------------------------+
-// Integer Assert
-//--------------------------------------------------------------------+
-#define ASSERT_INT_WITHIN(...) ASSERT_XXX_WITHIN("%d", __VA_ARGS__)
-
-//--------------------------------------------------------------------+
-// Hex Assert
-//--------------------------------------------------------------------+
-#define ASSERT_HEX_WITHIN(...) ASSERT_XXX_WITHIN("0x%x", __VA_ARGS__)
-
-
 #ifdef __cplusplus
 }
 #endif
