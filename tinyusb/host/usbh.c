@@ -259,7 +259,7 @@ void usbh_xfer_isr(pipe_handle_t pipe_hdl, uint8_t class_code, tusb_event_t even
     usbh_class_drivers[class_index].isr(pipe_hdl, event, xferred_bytes);
   }else
   {
-    ASSERT_FAILED(VOID_RETURN); // something wrong, no one claims the isr's source
+    TU_ASSERT(false); // something wrong, no one claims the isr's source
   }
 }
 

@@ -230,7 +230,7 @@ void hub_isr(pipe_handle_t pipe_hdl, tusb_event_t event, uint32_t xferred_bytes)
   else
   {
     // TODO [HUB] check if hub is still plugged before polling status endpoint since failed usually mean hub unplugged
-//    ASSERT_INT ( TUSB_ERROR_NONE, hcd_pipe_xfer(pipe_hdl, &p_hub->status_change, 1, true) );
+//    TU_ASSERT ( TUSB_ERROR_NONE == hcd_pipe_xfer(pipe_hdl, &p_hub->status_change, 1, true) );
   }
 }
 

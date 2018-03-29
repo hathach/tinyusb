@@ -264,12 +264,12 @@ tusb_error_t hidd_open(uint8_t rhport, tusb_desc_interface_t const * p_interface
   //------------- HID descriptor -------------//
   p_desc += p_desc[DESCRIPTOR_OFFSET_LENGTH];
   tusb_hid_descriptor_hid_t const *p_desc_hid = (tusb_hid_descriptor_hid_t const *) p_desc;
-  ASSERT_INT(HID_DESC_TYPE_HID, p_desc_hid->bDescriptorType, TUSB_ERROR_HIDD_DESCRIPTOR_INTERFACE);
+  TU_ASSERT(HID_DESC_TYPE_HID == p_desc_hid->bDescriptorType, TUSB_ERROR_HIDD_DESCRIPTOR_INTERFACE);
 
   //------------- Endpoint Descriptor -------------//
   p_desc += p_desc[DESCRIPTOR_OFFSET_LENGTH];
   tusb_desc_endpoint_t const *p_desc_endpoint = (tusb_desc_endpoint_t const *) p_desc;
-  ASSERT_INT(TUSB_DESC_ENDPOINT, p_desc_endpoint->bDescriptorType, TUSB_ERROR_HIDD_DESCRIPTOR_INTERFACE);
+  TU_ASSERT(TUSB_DESC_ENDPOINT == p_desc_endpoint->bDescriptorType, TUSB_ERROR_HIDD_DESCRIPTOR_INTERFACE);
 
   if (p_interface_desc->bInterfaceSubClass == HID_SUBCLASS_BOOT)
   {

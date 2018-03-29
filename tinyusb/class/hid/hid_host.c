@@ -76,7 +76,7 @@ tusb_error_t hidh_interface_get_report(uint8_t dev_addr, void * report, hidh_int
 {
   //------------- parameters validation -------------//
   // TODO change to use is configured function
-  ASSERT_INT (TUSB_DEVICE_STATE_CONFIGURED, tuh_device_get_state(dev_addr), TUSB_ERROR_DEVICE_NOT_READY);
+  TU_ASSERT (TUSB_DEVICE_STATE_CONFIGURED == tuh_device_get_state(dev_addr), TUSB_ERROR_DEVICE_NOT_READY);
   VERIFY (report, TUSB_ERROR_INVALID_PARA);
   TU_ASSSERT (!hcd_pipe_is_busy(p_hid->pipe_hdl), TUSB_ERROR_INTERFACE_IS_BUSY);
 
@@ -188,12 +188,12 @@ tusb_error_t hidh_open_subtask(uint8_t dev_addr, tusb_desc_interface_t const *p_
   //------------- HID descriptor -------------//
   p_desc += p_desc[DESCRIPTOR_OFFSET_LENGTH];
   tusb_hid_descriptor_hid_t const *p_desc_hid = (tusb_hid_descriptor_hid_t const *) p_desc;
-  ASSERT_INT(HID_DESC_TYPE_HID, p_desc_hid->bDescriptorType, TUSB_ERROR_INVALID_PARA);
+  TU_ASSERT(HID_DESC_TYPE_HID == p_desc_hid->bDescriptorType, TUSB_ERROR_INVALID_PARA);
 
   //------------- Endpoint Descriptor -------------//
   p_desc += p_desc[DESCRIPTOR_OFFSET_LENGTH];
   tusb_desc_endpoint_t const * p_endpoint_desc = (tusb_desc_endpoint_t const *) p_desc;
-  ASSERT_INT(TUSB_DESC_ENDPOINT, p_endpoint_desc->bDescriptorType, TUSB_ERROR_INVALID_PARA);
+  TU_ASSERT(TUSB_DESC_ENDPOINT == p_endpoint_desc->bDescriptorType, TUSB_ERROR_INVALID_PARA);
 
   OSAL_SUBTASK_BEGIN
 

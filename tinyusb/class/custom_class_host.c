@@ -117,7 +117,7 @@ tusb_error_t cush_open_subtask(uint8_t dev_addr, tusb_desc_interface_t const *p_
   for(uint32_t i=0; i<2; i++)
   {
     tusb_desc_endpoint_t const *p_endpoint = (tusb_desc_endpoint_t const *) p_desc;
-    ASSERT_INT(TUSB_DESC_ENDPOINT, p_endpoint->bDescriptorType, TUSB_ERROR_INVALID_PARA);
+    TU_ASSERT(TUSB_DESC_ENDPOINT == p_endpoint->bDescriptorType, TUSB_ERROR_INVALID_PARA);
 
     pipe_handle_t * p_pipe_hdl =  ( p_endpoint->bEndpointAddress &  TUSB_DIR_IN_MASK ) ?
                          &custom_interface[dev_addr-1].pipe_in : &custom_interface[dev_addr-1].pipe_out;

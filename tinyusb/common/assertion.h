@@ -90,19 +90,8 @@ extern "C"
                   TUSB_ERROR_NONE == status, status, "%s", tusb_strerr[status])
 
 //--------------------------------------------------------------------+
-// Logical Assert
-//--------------------------------------------------------------------+
-#define ASSERT_FAILED(error)             ASSERT_DEFINE( , false, error, "%s", "FAILED")
-
-//--------------------------------------------------------------------+
 // Integral Assert
 //--------------------------------------------------------------------+
-#define ASSERT_XXX_EQUAL(type_format, expected, actual, error) \
-    ASSERT_DEFINE( uint32_t exp = (expected); uint32_t act = (actual),\
-                   exp==act,\
-                   error,\
-                   "expected " type_format ", actual " type_format, exp, act)
-
 #define ASSERT_XXX_WITHIN(type_format, lower, upper, actual, error) \
     ASSERT_DEFINE( uint32_t low = (lower); uint32_t up = (upper); uint32_t act = (actual),\
                    (low <= act) && (act <= up),\
@@ -112,15 +101,11 @@ extern "C"
 //--------------------------------------------------------------------+
 // Integer Assert
 //--------------------------------------------------------------------+
-#define ASSERT_INT(...)        ASSERT_INT_EQUAL(__VA_ARGS__)
-#define ASSERT_INT_EQUAL(...)  ASSERT_XXX_EQUAL("%d", __VA_ARGS__)
 #define ASSERT_INT_WITHIN(...) ASSERT_XXX_WITHIN("%d", __VA_ARGS__)
 
 //--------------------------------------------------------------------+
 // Hex Assert
 //--------------------------------------------------------------------+
-#define ASSERT_HEX(...)        ASSERT_HEX_EQUAL(__VA_ARGS__)
-#define ASSERT_HEX_EQUAL(...)  ASSERT_XXX_EQUAL("0x%x", __VA_ARGS__)
 #define ASSERT_HEX_WITHIN(...) ASSERT_XXX_WITHIN("0x%x", __VA_ARGS__)
 
 
