@@ -61,11 +61,11 @@
 // VERIFY Helper
 //--------------------------------------------------------------------+
 #if TUSB_CFG_DEBUG >= 1
-  #define _VERIFY_MESS(_status)   printf("%s: %d: failed, error = %s\n", __PRETTY_FUNCTION__, __LINE__, tusb_strerr[_status])
-  #define _FAILED_MESS()          printf("%s: %d: failed\n", __PRETTY_FUNCTION__, __LINE__)
+  #define _MESS_ERR(_err)         printf("%s: %d: failed, error = %s\n", __PRETTY_FUNCTION__, __LINE__, tusb_strerr[_err])
+  #define _MESS_FAILED()          printf("%s: %d: failed\n", __PRETTY_FUNCTION__, __LINE__)
 #else
-  #define _VERIFY_MESS(_status)
-  #define _ASSERT_MESS()
+  #define _MESS_ERR(_err)
+  #define _MESS_FAILED()
 #endif
 
 // Halt CPU (breakpoint) when hitting error, only apply for Cortex M3, M4, M7
@@ -93,19 +93,19 @@ static inline void verify_breakpoint(void)
 #define GET_4TH_ARG(arg1, arg2, arg3, arg4, ...)  arg4
 
 /*------------- Generator for VERIFY and VERIFY_HDLR -------------*/
-#define VERIFY_DEFINE(_cond, _handler, _error)  do { if ( !(_cond) ) { _handler; return _error;  } } while(0)
+#define VERIFY_DEFINE(_cond, _handler, _ret)  do { if ( !(_cond) ) { _handler; return _ret;  } } while(0)
 
 /*------------- Generator for VERIFY_ERR and VERIFY_ERR_HDLR -------------*/
-#define VERIFY_ERR_DEF2(sts, _handler)  \
+#define VERIFY_ERR_DEF2(_error, _handler)  \
     do {                                              \
-      uint32_t _status = (uint32_t)(sts);             \
-      if ( 0 != _status ) { _VERIFY_MESS(_status); _handler; return _status; }\
+      uint32_t _err = (uint32_t)(_error);             \
+      if ( 0 != _err ) { _MESS_ERR(_err); _handler; return _err; }\
     } while(0)
 
-#define VERIFY_ERR_DEF3(sts, _handler, _error)  \
+#define VERIFY_ERR_DEF3(_error, _handler, _ret)  \
     do {                                              \
-      uint32_t _status = (uint32_t)(sts);             \
-      if ( 0 != _status ) { _VERIFY_MESS(_status); _handler; return _error; }\
+      uint32_t _err = (uint32_t)(_error);             \
+      if ( 0 != _err ) { _MESS_ERR(_err); _handler; return _ret; }\
     } while(0)
 
 
@@ -116,8 +116,8 @@ static inline void verify_breakpoint(void)
  * - VERIFY_1ARGS : return false if failed
  * - VERIFY_2ARGS : return provided value if failed
  *------------------------------------------------------------------*/
-#define VERIFY_1ARGS(_cond)                           VERIFY_DEFINE(_cond, , false)
-#define VERIFY_2ARGS(_cond, _error)                   VERIFY_DEFINE(_cond, , _error)
+#define VERIFY_1ARGS(_cond)                         VERIFY_DEFINE(_cond, , false)
+#define VERIFY_2ARGS(_cond, _ret)                   VERIFY_DEFINE(_cond, , _ret)
 
 #define VERIFY(...)                   GET_3RD_ARG(__VA_ARGS__, VERIFY_2ARGS, VERIFY_1ARGS)(__VA_ARGS__)
 
@@ -127,8 +127,8 @@ static inline void verify_breakpoint(void)
  * - VERIFY_HDLR_2ARGS : execute handler, return false if failed
  * - VERIFY_HDLR_3ARGS : execute handler, return provided error if failed
  *------------------------------------------------------------------*/
-#define VERIFY_HDLR_2ARGS(cond, _handler)             VERIFY_DEFINE(cond, _handler, false)
-#define VERIFY_HDLR_3ARGS(cond, _handler, _error)     VERIFY_DEFINE(cond, _handler, _error)
+#define VERIFY_HDLR_2ARGS(_cond, _handler)           VERIFY_DEFINE(_cond, _handler, false)
+#define VERIFY_HDLR_3ARGS(_cond, _handler, _ret)     VERIFY_DEFINE(_cond, _handler, _ret)
 
 #define VERIFY_HDLR(...)              GET_4TH_ARG(__VA_ARGS__, VERIFY_HDLR_3ARGS, VERIFY_HDLR_2ARGS)(__VA_ARGS__)
 
@@ -138,8 +138,8 @@ static inline void verify_breakpoint(void)
  * - VERIFY_ERR_1ARGS : return status of condition if failed
  * - VERIFY_ERR_2ARGS : return provided status code if failed
  *------------------------------------------------------------------*/
-#define VERIFY_ERR_1ARGS(sts)                         VERIFY_ERR_DEF2(sts, )
-#define VERIFY_ERR_2ARGS(sts, _error)                 VERIFY_ERR_DEF3(sts, ,_error)
+#define VERIFY_ERR_1ARGS(_error)                       VERIFY_ERR_DEF2(_error, )
+#define VERIFY_ERR_2ARGS(_error, _ret)                 VERIFY_ERR_DEF3(_error, ,_ret)
 
 #define VERIFY_ERR(...)            GET_3RD_ARG(__VA_ARGS__, VERIFY_ERR_2ARGS, VERIFY_ERR_1ARGS)(__VA_ARGS__)
 
@@ -148,8 +148,8 @@ static inline void verify_breakpoint(void)
  * - VERIFY_ERR_HDLR_2ARGS : execute handler, return status if failed
  * - VERIFY_ERR_HDLR_3ARGS : execute handler, return provided error if failed
  *------------------------------------------------------------------*/
-#define VERIFY_ERR_HDLR_2ARGS(sts, _handler)          VERIFY_ERR_DEF2(sts, _handler)
-#define VERIFY_ERR_HDLR_3ARGS(sts, _handler, _error)  VERIFY_ERR_DEF3(sts, _handler, _error)
+#define VERIFY_ERR_HDLR_2ARGS(_error, _handler)        VERIFY_ERR_DEF2(_error, _handler)
+#define VERIFY_ERR_HDLR_3ARGS(_error, _handler, _ret)  VERIFY_ERR_DEF3(_error, _handler, _ret)
 
 #define VERIFY_ERR_HDLR(...)       GET_4TH_ARG(__VA_ARGS__, VERIFY_ERR_HDLR_3ARGS, VERIFY_ERR_HDLR_2ARGS)(__VA_ARGS__)
 
@@ -161,8 +161,8 @@ static inline void verify_breakpoint(void)
  * - 1 arg : return false if failed
  * - 2 arg : return error if failed
  *------------------------------------------------------------------*/
-#define ASSERT_1ARGS(cond)                VERIFY_DEFINE(cond, _FAILED_MESS(); verify_breakpoint(), false)
-#define ASSERT_2ARGS(cond, _error)        VERIFY_DEFINE(cond, _FAILED_MESS(); verify_breakpoint(), _error)
+#define ASSERT_1ARGS(_cond)            VERIFY_DEFINE(_cond, _MESS_FAILED(); verify_breakpoint(), false)
+#define ASSERT_2ARGS(_cond, _ret)      VERIFY_DEFINE(_cond, _MESS_FAILED(); verify_breakpoint(), _ret)
 
 #define TU_ASSERT(...)                GET_3RD_ARG(__VA_ARGS__, ASSERT_2ARGS, ASSERT_1ARGS)(__VA_ARGS__)
 
@@ -170,8 +170,8 @@ static inline void verify_breakpoint(void)
 /* ASSERT Error
  * basically VERIFY Error with verify_breakpoint() as handler
  *------------------------------------------------------------------*/
-#define ASERT_ERR_1ARGS(_err)             VERIFY_ERR_DEF2(_err, verify_breakpoint())
-#define ASERT_ERR_2ARGS(_err, _ret)       VERIFY_ERR_DEF3(_err, verify_breakpoint(), _ret)
+#define ASERT_ERR_1ARGS(_error)         VERIFY_ERR_DEF2(_error, verify_breakpoint())
+#define ASERT_ERR_2ARGS(_error, _ret)   VERIFY_ERR_DEF3(_error, verify_breakpoint(), _ret)
 
 #define ASSERT_ERR(...)               GET_3RD_ARG(__VA_ARGS__, ASERT_ERR_2ARGS, ASERT_ERR_1ARGS)(__VA_ARGS__)
 
