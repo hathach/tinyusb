@@ -34,6 +34,7 @@
 */
 /**************************************************************************/
 
+#include "bsp/board.h"
 #include "board_pca10056.h"
 #include "nrf_gpio.h"
 
@@ -48,11 +49,25 @@
 
 
 /*------------------------------------------------------------------*/
-/* VARIABLE DECLARATION
+/* TUSB HAL MILLISECOND
  *------------------------------------------------------------------*/
+volatile uint32_t system_ticks = 0;
+
+void SysTick_Handler (void)
+{
+  system_ticks++;
+}
+
+uint32_t tusb_hal_millis(void)
+{
+  //#define tick2ms(tck)         ( ( ((uint64_t)(tck)) * 1000) / configTICK_RATE_HZ )
+  //return tick2ms( app_timer_cnt_get() );
+
+  return (system_ticks*1000) / BOARD_TICKS_HZ;
+}
 
 /*------------------------------------------------------------------*/
-/* FUNCTION DECLARATION
+/* BOARD API
  *------------------------------------------------------------------*/
 void board_init(void)
 {
