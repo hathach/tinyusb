@@ -53,22 +53,6 @@ enum {
   LPC43XX_USBMODE_VBUS_HIGH = 1
 };
 
-#if TUSB_CFG_OS == TUSB_OS_NONE
-
-volatile uint32_t system_ticks = 0;
-
-void SysTick_Handler (void)
-{
-  system_ticks++;
-}
-
-uint32_t tusb_hal_tick_get(void)
-{
-  return system_ticks;
-}
-
-#endif
-
 void tusb_hal_int_enable(uint8_t rhport)
 {
   NVIC_EnableIRQ(rhport ? USB1_IRQn : USB0_IRQn);

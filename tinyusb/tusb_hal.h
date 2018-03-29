@@ -75,7 +75,7 @@ void tusb_hal_int_enable(uint8_t rhport);
  */
 void tusb_hal_int_disable(uint8_t rhport);
 
-uint32_t tusb_hal_tick_get(void);
+uint32_t tusb_hal_millis(void);
 
 #ifdef __cplusplus
  }

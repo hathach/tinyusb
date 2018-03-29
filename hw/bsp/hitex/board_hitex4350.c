@@ -54,7 +54,7 @@
 void board_init(void)
 {
   CGU_Init();
-  SysTick_Config(CGU_GetPCLKFrequency(CGU_PERIPHERAL_M4CORE) / TUSB_CFG_TICKS_HZ); // 1 msec tick timer
+  SysTick_Config(CGU_GetPCLKFrequency(CGU_PERIPHERAL_M4CORE) / BOARD_TICKS_HZ); // 1 msec tick timer
 
   //------------- USB Bus power HOST ONLY-------------//
   // Hitex VBUS0 is P2_3

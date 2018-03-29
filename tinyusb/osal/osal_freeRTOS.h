@@ -59,7 +59,7 @@ extern "C" {
 //--------------------------------------------------------------------+
 // TICK API
 //--------------------------------------------------------------------+
-#define osal_tick_get xTaskGetTickCount
+#define osal_millis xTaskGetTickCount
 
 //--------------------------------------------------------------------+
 // TASK API
@@ -76,7 +76,7 @@ static inline osal_task_t osal_task_create(osal_func_t code, const char* name, u
 
 static inline void osal_task_delay(uint32_t msec)
 {
-  vTaskDelay( (TUSB_CFG_TICKS_HZ * msec) / 1000 );
+  vTaskDelay( pdMS_TO_TICKS(msec) );
 }
 
 //--------------------------------------------------------------------+
@@ -91,7 +91,7 @@ static inline osal_queue_t osal_queue_create(uint32_t depth, uint32_t item_size)
 
 static inline void osal_queue_receive (osal_queue_t const queue_hdl, void *p_data, uint32_t msec, tusb_error_t *p_error)
 {
-  uint32_t const ticks = (msec == OSAL_TIMEOUT_WAIT_FOREVER) ? portMAX_DELAY : osal_tick_from_msec(msec);
+  uint32_t const ticks = (msec == OSAL_TIMEOUT_WAIT_FOREVER) ? portMAX_DELAY : pdMS_TO_TICKS(msec);
 
   portBASE_TYPE result = (SCB->ICSR & SCB_ICSR_VECTACTIVE_Msk) ?  xQueueReceiveFromISR(queue_hdl, p_data, NULL) : xQueueReceive(queue_hdl, p_data, ticks);
   (*p_error) = ( result == pdPASS ) ? TUSB_ERROR_NONE : TUSB_ERROR_OSAL_TIMEOUT;
@@ -137,7 +137,7 @@ static inline bool osal_semaphore_post(osal_semaphore_t sem_hdl)
 
 static inline void osal_semaphore_wait(osal_semaphore_t sem_hdl, uint32_t msec, tusb_error_t *p_error)
 {
-  uint32_t const ticks = (msec == OSAL_TIMEOUT_WAIT_FOREVER) ? portMAX_DELAY : osal_tick_from_msec(msec);
+  uint32_t const ticks = (msec == OSAL_TIMEOUT_WAIT_FOREVER) ? portMAX_DELAY : pdMS_TO_TICKS(msec);
 
   BaseType_t result;
 

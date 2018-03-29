@@ -81,7 +81,7 @@ void tusb_hal_int_disable(uint8_t rhport)
   NVIC_DisableIRQ(USBD_IRQn);
 }
 
-uint32_t tusb_hal_tick_get(void)
+uint32_t tusb_hal_millis(void)
 {
   //#define tick2ms(tck)         ( ( ((uint64_t)(tck)) * 1000) / configTICK_RATE_HZ )
   //return tick2ms( app_timer_cnt_get() );

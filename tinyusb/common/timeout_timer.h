@@ -55,17 +55,15 @@ typedef struct {
   uint32_t interval;
 }timeout_timer_t;
 
-static inline void timeout_set(timeout_timer_t* tt, uint32_t msec) ATTR_ALWAYS_INLINE;
 static inline void timeout_set(timeout_timer_t* tt, uint32_t msec)
 {
-  tt->interval = osal_tick_from_msec(msec);
-  tt->start    = osal_tick_get();
+  tt->interval = msec;
+  tt->start    = osal_millis();
 }
 
-static inline bool timeout_expired(timeout_timer_t* tt) ATTR_ALWAYS_INLINE;
 static inline bool timeout_expired(timeout_timer_t* tt)
 {
-  return ( osal_tick_get() - tt->start ) >= tt->interval;
+  return ( osal_millis() - tt->start ) >= tt->interval;
 }
 
 #ifdef __cplusplus

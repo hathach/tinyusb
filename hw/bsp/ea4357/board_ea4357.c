@@ -65,12 +65,34 @@ enum {
   BOARD_BUTTON_COUNT = sizeof(buttons) / sizeof(buttons[0])
 };
 
+/*------------------------------------------------------------------*/
+/* TUSB HAL MILLISECOND
+ *------------------------------------------------------------------*/
+#if TUSB_CFG_OS == TUSB_OS_NONE
+
+volatile uint32_t system_ticks = 0;
+
+void SysTick_Handler (void)
+{
+  system_ticks++;
+}
+
+uint32_t tusb_hal_millis(void)
+{
+  return (system_ticks*1000) / BOARD_TICKS_HZ;
+}
+
+#endif
+
+/*------------------------------------------------------------------*/
+/* BOARD API
+ *------------------------------------------------------------------*/
 void board_init(void)
 {
   CGU_Init();
 
 #if TUSB_CFG_OS == TUSB_OS_NONE // TODO may move to main.c
-  SysTick_Config(CGU_GetPCLKFrequency(CGU_PERIPHERAL_M4CORE) / TUSB_CFG_TICKS_HZ); // 1 msec tick timer
+  SysTick_Config(CGU_GetPCLKFrequency(CGU_PERIPHERAL_M4CORE) / BOARD_TICKS_HZ); // 1 msec tick timer
 #endif
 
   //------------- USB -------------//
