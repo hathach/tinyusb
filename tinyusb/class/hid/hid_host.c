@@ -225,7 +225,7 @@ tusb_error_t hidh_open_subtask(uint8_t dev_addr, tusb_desc_interface_t const *p_
     #if TUSB_CFG_HOST_HID_KEYBOARD
     if ( HID_PROTOCOL_KEYBOARD == p_interface_desc->bInterfaceProtocol)
     {
-      STASK_ASSERT_STATUS ( hidh_interface_open(dev_addr, p_interface_desc->bInterfaceNumber, p_endpoint_desc, &keyboardh_data[dev_addr-1]) );
+      STASK_ASSERT_ERR ( hidh_interface_open(dev_addr, p_interface_desc->bInterfaceNumber, p_endpoint_desc, &keyboardh_data[dev_addr-1]) );
       tuh_hid_keyboard_mounted_cb(dev_addr);
     } else
     #endif
@@ -233,7 +233,7 @@ tusb_error_t hidh_open_subtask(uint8_t dev_addr, tusb_desc_interface_t const *p_
     #if TUSB_CFG_HOST_HID_MOUSE
     if ( HID_PROTOCOL_MOUSE == p_interface_desc->bInterfaceProtocol)
     {
-      STASK_ASSERT_STATUS ( hidh_interface_open(dev_addr, p_interface_desc->bInterfaceNumber, p_endpoint_desc, &mouseh_data[dev_addr-1]) );
+      STASK_ASSERT_ERR ( hidh_interface_open(dev_addr, p_interface_desc->bInterfaceNumber, p_endpoint_desc, &mouseh_data[dev_addr-1]) );
       tuh_hid_mouse_mounted_cb(dev_addr);
     } else
     #endif

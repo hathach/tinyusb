@@ -351,7 +351,7 @@ tusb_error_t msch_open_subtask(uint8_t dev_addr, tusb_desc_interface_t const *p_
   //------------- SCSI Inquiry -------------//
   tusbh_msc_inquiry(dev_addr, 0, msch_buffer);
   osal_semaphore_wait(msch_sem_hdl, SCSI_XFER_TIMEOUT, &error);
-  STASK_ASSERT_STATUS(error);
+  STASK_ASSERT_ERR(error);
 
   memcpy(msch_data[dev_addr-1].vendor_id , ((scsi_inquiry_data_t*) msch_buffer)->vendor_id , 8);
   memcpy(msch_data[dev_addr-1].product_id, ((scsi_inquiry_data_t*) msch_buffer)->product_id, 16);
@@ -359,7 +359,7 @@ tusb_error_t msch_open_subtask(uint8_t dev_addr, tusb_desc_interface_t const *p_
   //------------- SCSI Read Capacity 10 -------------//
   tusbh_msc_read_capacity10(dev_addr, 0, msch_buffer);
   osal_semaphore_wait(msch_sem_hdl, SCSI_XFER_TIMEOUT, &error);
-  STASK_ASSERT_STATUS(error);
+  STASK_ASSERT_ERR(error);
 
   // NOTE: my toshiba thumb-drive stall the first Read Capacity and require the sequence
   // Read Capacity --> Stalled --> Clear Stall --> Request Sense --> Read Capacity (2) to work
@@ -371,21 +371,21 @@ tusb_error_t msch_open_subtask(uint8_t dev_addr, tusb_desc_interface_t const *p_
                                  0, NULL ),
       error
     );
-    STASK_ASSERT_STATUS(error);
+    STASK_ASSERT_ERR(error);
 
     hcd_pipe_clear_stall(msch_data[dev_addr-1].bulk_in);
     osal_semaphore_wait(msch_sem_hdl, SCSI_XFER_TIMEOUT, &error); // wait for SCSI status
-    STASK_ASSERT_STATUS(error);
+    STASK_ASSERT_ERR(error);
 
     //------------- SCSI Request Sense -------------//
     (void) tuh_msc_request_sense(dev_addr, 0, msch_buffer);
     osal_semaphore_wait(msch_sem_hdl, SCSI_XFER_TIMEOUT, &error);
-    STASK_ASSERT_STATUS(error);
+    STASK_ASSERT_ERR(error);
 
     //------------- Re-read SCSI Read Capactity -------------//
     tusbh_msc_read_capacity10(dev_addr, 0, msch_buffer);
     osal_semaphore_wait(msch_sem_hdl, SCSI_XFER_TIMEOUT, &error);
-    STASK_ASSERT_STATUS(error);
+    STASK_ASSERT_ERR(error);
   }
 
   msch_data[dev_addr-1].last_lba   = __be2n( ((scsi_read_capacity10_data_t*)msch_buffer)->last_lba );

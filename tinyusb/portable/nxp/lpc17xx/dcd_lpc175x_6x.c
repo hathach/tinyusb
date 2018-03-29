@@ -316,10 +316,10 @@ static tusb_error_t pipe_control_xfer(uint8_t ep_id, uint8_t* p_buffer, uint16_t
 
   if (ep_id)
   {
-    ASSERT_STATUS ( pipe_control_write(p_buffer, packet_len) );
+    ASSERT_ERR ( pipe_control_write(p_buffer, packet_len) );
   }else
   {
-    ASSERT_STATUS ( pipe_control_read(p_buffer, packet_len) );
+    ASSERT_ERR ( pipe_control_read(p_buffer, packet_len) );
   }
 
   dcd_data.control_dma.remaining_bytes -= packet_len;

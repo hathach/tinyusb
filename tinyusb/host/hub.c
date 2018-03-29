@@ -83,7 +83,7 @@ tusb_error_t hub_port_clear_feature_subtask(uint8_t hub_addr, uint8_t hub_port, 
                                  0, NULL ),
       error
   );
-  STASK_ASSERT_STATUS( error );
+  STASK_ASSERT_ERR( error );
 
   //------------- Get Port Status to check if feature is cleared -------------//
   STASK_INVOKE(
@@ -92,7 +92,7 @@ tusb_error_t hub_port_clear_feature_subtask(uint8_t hub_addr, uint8_t hub_port, 
                                  4, hub_enum_buffer ),
       error
   );
-  STASK_ASSERT_STATUS( error );
+  STASK_ASSERT_ERR( error );
 
   //------------- Check if feature is cleared -------------//
   hub_port_status_response_t * p_port_status;
@@ -117,7 +117,7 @@ tusb_error_t hub_port_reset_subtask(uint8_t hub_addr, uint8_t hub_port)
                                  0, NULL ),
       error
   );
-  STASK_ASSERT_STATUS( error );
+  STASK_ASSERT_ERR( error );
 
   osal_task_delay(RESET_DELAY); // TODO Hub wait for Status Endpoint on Reset Change
 
@@ -128,7 +128,7 @@ tusb_error_t hub_port_reset_subtask(uint8_t hub_addr, uint8_t hub_port)
                                  4, hub_enum_buffer ),
       error
   );
-  STASK_ASSERT_STATUS( error );
+  STASK_ASSERT_ERR( error );
 
   hub_port_status_response_t * p_port_status;
   p_port_status = (hub_port_status_response_t *) hub_enum_buffer;
@@ -185,7 +185,7 @@ tusb_error_t hub_open_subtask(uint8_t dev_addr, tusb_desc_interface_t const *p_i
                                sizeof(descriptor_hub_desc_t), hub_enum_buffer ),
     error
   );
-  STASK_ASSERT_STATUS(error);
+  STASK_ASSERT_ERR(error);
 
   // only care about this field in hub descriptor
   hub_data[dev_addr-1].port_number = ((descriptor_hub_desc_t*) hub_enum_buffer)->bNbrPorts;
@@ -203,7 +203,7 @@ tusb_error_t hub_open_subtask(uint8_t dev_addr, tusb_desc_interface_t const *p_i
   }
 
   //------------- Queue the initial Status endpoint transfer -------------//
-  STASK_ASSERT_STATUS ( hcd_pipe_xfer(hub_data[dev_addr-1].pipe_status, &hub_data[dev_addr-1].status_change, 1, true) );
+  STASK_ASSERT_ERR ( hcd_pipe_xfer(hub_data[dev_addr-1].pipe_status, &hub_data[dev_addr-1].status_change, 1, true) );
 
   OSAL_SUBTASK_END
 }

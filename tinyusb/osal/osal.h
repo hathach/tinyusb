@@ -74,15 +74,15 @@
   #define OSAL_SUBTASK_BEGIN
   #define OSAL_SUBTASK_END                    return TUSB_ERROR_NONE;
 
-  #define STASK_RETURN(_error)              return _error;
-  #define STASK_INVOKE(_subtask, _status)   (_status) = _subtask
+  #define STASK_RETURN(_error)                return _error;
+  #define STASK_INVOKE(_subtask, _status)     (_status) = _subtask
 
   //------------- Sub Task Assert -------------//
-  #define STASK_ASSERT_STATUS(sts) VERIFY_STATUS(sts)
-  #define STASK_ASSERT(condition)  VERIFY(condition, TUSB_ERROR_OSAL_TASK_FAILED)
+  #define STASK_ASSERT_ERR(_err)              VERIFY_STATUS(_err)
+  #define STASK_ASSERT_ERR_HDLR(_err, _func)  VERIFY_STATUS_HDLR(_err, _func)
 
-  #define STASK_ASSERT_STATUS_HDLR(sts, func_call)  VERIFY_STATUS_HDLR(sts, func_call)
-  #define STASK_ASSERT_HDLR(condition, func_call)   VERIFY_HDLR(condition, func_call)
+  #define STASK_ASSERT(_cond)                 VERIFY(_cond, TUSB_ERROR_OSAL_TASK_FAILED)
+  #define STASK_ASSERT_HDLR(_cond, _func)     VERIFY_HDLR(_cond, _func)
 #endif
 
 #ifdef __cplusplus

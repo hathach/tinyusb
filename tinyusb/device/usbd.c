@@ -257,7 +257,7 @@ static tusb_error_t usbd_main_stk(void)
 
 #if 1
   osal_queue_receive(usbd_queue_hdl, &event, OSAL_TIMEOUT_WAIT_FOREVER, &error);
-  STASK_ASSERT_STATUS(error);
+  STASK_ASSERT_ERR(error);
 #else
   enum { ROUTINE_INTERVAL_MS = 10 };
   osal_queue_receive(usbd_queue_hdl, &event, ROUTINE_INTERVAL_MS, &error);
@@ -322,7 +322,7 @@ tusb_error_t usbd_control_xfer_st(uint8_t rhport, tusb_dir_t dir, uint8_t * buff
     dcd_control_xfer(rhport, dir, buffer, length);
     osal_semaphore_wait( usbd_control_xfer_sem_hdl, 100, &error );
 
-    STASK_ASSERT_STATUS( error );
+    STASK_ASSERT_ERR( error );
   }
 
   // Status opposite direction with Zero Length
@@ -458,7 +458,7 @@ static tusb_error_t proc_set_config_req(uint8_t rhport, uint8_t config_number)
       usbd_devices[rhport].interface2class[p_desc_interface->bInterfaceNumber] = class_index;
 
       uint16_t length=0;
-      ASSERT_STATUS( usbd_class_drivers[class_index].open( rhport, p_desc_interface, &length ) );
+      ASSERT_ERR( usbd_class_drivers[class_index].open( rhport, p_desc_interface, &length ) );
 
       TU_ASSERT( length >= sizeof(tusb_desc_interface_t), TUSB_ERROR_FAILED );
       p_desc += length;
