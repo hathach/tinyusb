@@ -87,7 +87,7 @@ static inline void osal_task_delay(uint32_t msec)
 //--------------------------------------------------------------------+
 // QUEUE API
 //--------------------------------------------------------------------+
-typedef xQueueHandle osal_queue_t;
+typedef QueueHandle_t osal_queue_t;
 
 static inline osal_queue_t osal_queue_create(uint32_t depth, uint32_t item_size)
 {
@@ -107,13 +107,14 @@ static inline bool osal_queue_send(osal_queue_t const queue_hdl, void const * da
 
 static inline void osal_queue_flush(osal_queue_t const queue_hdl)
 {
+  // TODO move to thread context
 //  xQueueReset(queue_hdl);
 }
 
 //--------------------------------------------------------------------+
 // Semaphore API
 //--------------------------------------------------------------------+
-typedef xSemaphoreHandle osal_semaphore_t;
+typedef SemaphoreHandle_t osal_semaphore_t;
 
 static inline osal_semaphore_t osal_semaphore_create(uint32_t max, uint32_t init)
 {
@@ -141,7 +142,7 @@ static inline void osal_semaphore_reset(osal_semaphore_t const sem_hdl)
 //--------------------------------------------------------------------+
 // MUTEX API (priority inheritance)
 //--------------------------------------------------------------------+
-typedef xSemaphoreHandle osal_mutex_t;
+typedef SemaphoreHandle_t osal_mutex_t;
 
 #define osal_mutex_create(x) xSemaphoreCreateMutex()
 

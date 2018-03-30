@@ -44,16 +44,11 @@
 //--------------------------------------------------------------------+
 // INTERNAL API
 //--------------------------------------------------------------------+
-extern osal_semaphore_t usbd_control_xfer_sem_hdl;
-
 tusb_error_t usbd_init(void);
 void         usbd_task( void* param);
 
 // Carry out Data and Status stage of control transfer
 tusb_error_t usbd_control_xfer_st(uint8_t rhport, tusb_dir_t dir, uint8_t * buffer, uint16_t length);
-
-
-
 
 #ifdef __cplusplus
  }

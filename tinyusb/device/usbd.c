@@ -189,8 +189,8 @@ VERIFY_STATIC(sizeof(usbd_task_event_t) <= 12, "size is not correct");
 #endif
 
 
-static osal_queue_t usbd_queue_hdl;
-/*static*/ osal_semaphore_t usbd_control_xfer_sem_hdl; // TODO may need to change to static with wrapper function
+static osal_queue_t _usbd_q;
+static osal_semaphore_t _control_sem; // TODO may need to change to static with wrapper function
 
 //--------------------------------------------------------------------+
 // IMPLEMENTATION
@@ -209,11 +209,11 @@ tusb_error_t usbd_init (void)
   #endif
 
   //------------- Task init -------------//
-  usbd_queue_hdl = osal_queue_create(USBD_TASK_QUEUE_DEPTH, sizeof(usbd_task_event_t));
-  VERIFY(usbd_queue_hdl, TUSB_ERROR_OSAL_QUEUE_FAILED);
+  _usbd_q = osal_queue_create(USBD_TASK_QUEUE_DEPTH, sizeof(usbd_task_event_t));
+  VERIFY(_usbd_q, TUSB_ERROR_OSAL_QUEUE_FAILED);
 
-  usbd_control_xfer_sem_hdl = osal_semaphore_create(1, 0);
-  VERIFY(usbd_queue_hdl, TUSB_ERROR_OSAL_SEMAPHORE_FAILED);
+  _control_sem = osal_semaphore_create(1, 0);
+  VERIFY(_usbd_q, TUSB_ERROR_OSAL_SEMAPHORE_FAILED);
 
   osal_task_create(usbd_task, "usbd", TUC_DEVICE_STACKSIZE, NULL, TUSB_CFG_OS_TASK_PRIO);
 
@@ -256,11 +256,11 @@ static tusb_error_t usbd_main_st(void)
   memclr_(&event, sizeof(usbd_task_event_t));
 
 #if 1
-  osal_queue_receive(usbd_queue_hdl, &event, OSAL_TIMEOUT_WAIT_FOREVER, &error);
+  osal_queue_receive(_usbd_q, &event, OSAL_TIMEOUT_WAIT_FOREVER, &error);
   STASK_ASSERT_ERR(error);
 #else
   enum { ROUTINE_INTERVAL_MS = 10 };
-  osal_queue_receive(usbd_queue_hdl, &event, ROUTINE_INTERVAL_MS, &error);
+  osal_queue_receive(_usbd_q, &event, ROUTINE_INTERVAL_MS, &error);
   if ( error != TUSB_ERROR_NONE )
   {
     // time out, run class routine then
@@ -320,7 +320,7 @@ tusb_error_t usbd_control_xfer_st(uint8_t rhport, tusb_dir_t dir, uint8_t * buff
   if ( length )
   {
     dcd_control_xfer(rhport, dir, buffer, length);
-    osal_semaphore_wait( usbd_control_xfer_sem_hdl, 100, &error );
+    osal_semaphore_wait( _control_sem, 100, &error );
 
     STASK_ASSERT_ERR( error );
   }
@@ -532,8 +532,8 @@ void dcd_bus_event(uint8_t rhport, usbd_bus_event_type_t bus_event)
   {
     case USBD_BUS_EVENT_RESET     :
       memclr_(&usbd_devices[rhport], sizeof(usbd_device_info_t));
-      osal_queue_flush(usbd_queue_hdl);
-      osal_semaphore_reset(usbd_control_xfer_sem_hdl);
+      osal_queue_flush(_usbd_q);
+      osal_semaphore_reset(_control_sem);
       for (uint8_t class_code = TUSB_CLASS_AUDIO; class_code < USBD_CLASS_DRIVER_COUNT; class_code++)
       {
         if ( usbd_class_drivers[class_code].close ) usbd_class_drivers[class_code].close( rhport );
@@ -547,7 +547,7 @@ void dcd_bus_event(uint8_t rhport, usbd_bus_event_type_t bus_event)
           .rhport          = rhport,
           .event_id        = USBD_EVENTID_SOF,
       };
-      osal_queue_send(usbd_queue_hdl, &task_event);
+      osal_queue_send(_usbd_q, &task_event);
     }
     break;
 
@@ -573,7 +573,7 @@ void dcd_setup_received(uint8_t rhport, uint8_t const* p_request)
   };
 
   memcpy(&task_event.setup_received, p_request, sizeof(tusb_control_request_t));
-  osal_queue_send(usbd_queue_hdl, &task_event);
+  osal_queue_send(_usbd_q, &task_event);
 }
 
 void dcd_xfer_complete(uint8_t rhport, uint8_t ep_addr, uint32_t xferred_bytes, bool succeeded)
@@ -585,7 +585,7 @@ void dcd_xfer_complete(uint8_t rhport, uint8_t ep_addr, uint32_t xferred_bytes, 
     (void) succeeded;
 
     // Control Transfer
-    osal_semaphore_post( usbd_control_xfer_sem_hdl );
+    osal_semaphore_post( _control_sem );
   }else
   {
     usbd_task_event_t task_event =
@@ -598,7 +598,7 @@ void dcd_xfer_complete(uint8_t rhport, uint8_t ep_addr, uint32_t xferred_bytes, 
     task_event.xfer_done.ep_addr      = ep_addr;
     task_event.xfer_done.xferred_byte = xferred_bytes;
 
-    osal_queue_send(usbd_queue_hdl, &task_event);
+    osal_queue_send(_usbd_q, &task_event);
   }
 }
 
