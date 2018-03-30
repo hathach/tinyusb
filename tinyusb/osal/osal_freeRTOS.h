@@ -132,10 +132,10 @@ static inline void osal_semaphore_wait(osal_semaphore_t sem_hdl, uint32_t msec, 
   (*p_error) = (xSemaphoreTake(sem_hdl, ticks) ? TUSB_ERROR_NONE : TUSB_ERROR_OSAL_TIMEOUT);
 }
 
+// TODO remove
 static inline void osal_semaphore_reset(osal_semaphore_t const sem_hdl)
 {
-  tusb_error_t err;
-  osal_semaphore_wait(sem_hdl, 0, &err);
+  xSemaphoreTakeFromISR(sem_hdl, NULL);
 }
 
 //--------------------------------------------------------------------+
@@ -155,13 +155,6 @@ static inline void osal_mutex_wait(osal_mutex_t mutex_hdl, uint32_t msec, tusb_e
   uint32_t const ticks = (msec == OSAL_TIMEOUT_WAIT_FOREVER) ? portMAX_DELAY : pdMS_TO_TICKS(msec);
   (*p_error) = (xSemaphoreTake(mutex_hdl, ticks) ? TUSB_ERROR_NONE : TUSB_ERROR_OSAL_TIMEOUT);
 }
-
-// TOOD remove
-static inline void osal_mutex_reset(osal_mutex_t mutex_hdl)
-{
-  xSemaphoreGive(mutex_hdl);
-}
-
 
 
 #ifdef __cplusplus
