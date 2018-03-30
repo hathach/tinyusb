@@ -43,6 +43,8 @@
 #ifndef _TUSB_DCD_LPC43XX_H_
 #define _TUSB_DCD_LPC43XX_H_
 
+#include "common/tusb_common.h"
+
 #ifdef __cplusplus
  extern "C" {
 #endif
@@ -92,7 +94,8 @@ enum {
 
 };
 
-typedef struct {
+typedef struct
+{
   // Word 0: Next QTD Pointer
   uint32_t next; ///< Next link pointer This field contains the physical memory address of the next dTD to be processed
 
@@ -121,7 +124,8 @@ typedef struct {
 
 VERIFY_STATIC( sizeof(dcd_qtd_t) == 32, "size is not correct");
 
-typedef struct ATTR_ALIGNED(64) {
+typedef struct
+{
   // Word 0: Capabilities and Characteristics
   uint32_t                         : 15 ; ///< Number of packets executed per transaction descriptor 00 - Execute N transactions as demonstrated by the USB variable length protocol where N is computed using Max_packet_length and the Total_bytes field in the dTD. 01 - Execute one transaction 10 - Execute two transactions 11 - Execute three transactions Remark: Non-isochronous endpoints must set MULT = 00. Remark: Isochronous endpoints must set MULT = 01, 10, or 11 as needed.
   uint32_t int_on_setup            : 1  ; ///< Interrupt on setup This bit is used on control type endpoints to indicate if USBINT is set in response to a setup being received.
@@ -147,7 +151,7 @@ typedef struct ATTR_ALIGNED(64) {
   volatile uint8_t list_qtd_idx[DCD_QTD_PER_QHD_MAX];
 
 	uint8_t reserved[16-DCD_QTD_PER_QHD_MAX];
-} dcd_qhd_t;
+}  dcd_qhd_t;
 
 VERIFY_STATIC( sizeof(dcd_qhd_t) == 64, "size is not correct");
 

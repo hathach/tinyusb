@@ -63,9 +63,8 @@
 // INTERNAL OBJECT & FUNCTION DECLARATION
 //--------------------------------------------------------------------+
 typedef struct {
-  dcd_qhd_t qhd[DCD_QHD_MAX]; ///< Must be at 2K alignment
+  dcd_qhd_t qhd[DCD_QHD_MAX] ATTR_ALIGNED(64); ///< Must be at 2K alignment
   dcd_qtd_t qtd[DCD_QTD_MAX] ATTR_ALIGNED(32);
-
 }dcd_data_t;
 
 extern ATTR_WEAK dcd_data_t dcd_data0;
@@ -461,24 +460,22 @@ void hal_dcd_isr(uint8_t rhport)
 
       dcd_setup_received(rhport, (uint8_t*) &p_dcd->qhd[0].setup_request);
     }
+
     //------------- Control Request Completed -------------//
     else if ( edpt_complete & ( BIT_(0) | BIT_(16)) )
     {
-      for(uint8_t ep_idx = 0; ep_idx < 2; ep_idx++)
+      // determine Control OUT or IN
+      uint8_t ep_idx =  BIT_TEST_(edpt_complete, 0) ? 0 : 1;
+
+      // TODO use the actual QTD instead of the qhd's overlay to get expected bytes for actual byte xferred
+      dcd_qtd_t* const p_qtd =  (dcd_qtd_t*) p_dcd->qhd[ep_idx].qtd_addr;
+
+      if ( p_qtd->int_on_complete )
       {
-        if ( BIT_TEST_(edpt_complete, edpt_phy2pos(ep_idx)) )
-        {
-          // TODO use the actual QTD instead of the qhd's overlay to get expected bytes for actual byte xferred
-          dcd_qtd_t volatile * const p_qtd = &p_dcd->qhd[ep_idx].qtd_overlay;
+        bool succeeded = ( p_qtd->xact_err || p_qtd->halted || p_qtd->buffer_err ) ? false : true;
+        (void) succeeded;
 
-          if ( p_qtd->int_on_complete )
-          {
-            bool succeeded = ( p_qtd->xact_err || p_qtd->halted || p_qtd->buffer_err ) ? false : true;
-            (void) succeeded;
-
-            dcd_control_complete(rhport);
-          }
-        }
+        dcd_control_complete(rhport);
       }
     }
 
