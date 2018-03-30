@@ -196,7 +196,7 @@ static osal_queue_t usbd_queue_hdl;
 // IMPLEMENTATION
 //--------------------------------------------------------------------+
 static tusb_error_t proc_control_request_st(uint8_t rhport, tusb_control_request_t const * const p_request);
-static tusb_error_t usbd_main_stk(void);
+static tusb_error_t usbd_main_st(void);
 
 tusb_error_t usbd_init (void)
 {
@@ -240,11 +240,11 @@ void usbd_task( void* param)
   (void) param;
 
   OSAL_TASK_BEGIN
-  usbd_main_stk();
+  usbd_main_st();
   OSAL_TASK_END
 }
 
-static tusb_error_t usbd_main_stk(void)
+static tusb_error_t usbd_main_st(void)
 {
   static usbd_task_event_t event;
 
