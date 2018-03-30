@@ -56,6 +56,13 @@
 #include "tusb_option.h"
 #include "common/tusb_common.h"
 
+enum
+{
+  OSAL_TIMEOUT_NOTIMEOUT    = 0,    //  return immediately
+  OSAL_TIMEOUT_NORMAL       = 10*5, // default is 10 msec, FIXME [CMSIS-RTX] easily timeout with 10 msec
+  OSAL_TIMEOUT_WAIT_FOREVER = 0xFFFFFFFFUL
+};
+
 
 #if TUSB_CFG_OS == TUSB_OS_NONE
   #include "osal_none.h"

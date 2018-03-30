@@ -43,7 +43,6 @@
 #ifndef _TUSB_OSAL_NONE_H_
 #define _TUSB_OSAL_NONE_H_
 
-#include "osal_common.h"
 #include "common/tusb_fifo.h"
 
 #ifdef __cplusplus

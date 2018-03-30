@@ -44,8 +44,6 @@
 #ifndef _TUSB_OSAL_FREERTOS_H_
 #define _TUSB_OSAL_FREERTOS_H_
 
-#include "osal_common.h"
-
 //------------- FreeRTOS Headers -------------//
 #include "FreeRTOS.h"
 #include "semphr.h"
