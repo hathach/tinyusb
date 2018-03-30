@@ -1,13 +1,13 @@
 /**************************************************************************/
 /*!
-    @file     freertos_hook.c
-    @author   hathach (tinyusb.org)
+    @file     osal.c
+    @author   hathach
 
     @section LICENSE
 
     Software License Agreement (BSD License)
 
-    Copyright (c) 2014, hathach (tinyusb.org)
+    Copyright (c) 2018, hathach (tinyusb.org)
     All rights reserved.
 
     Redistribution and use in source and binary forms, with or without
@@ -36,44 +36,19 @@
 */
 /**************************************************************************/
 
-//--------------------------------------------------------------------+
-// INCLUDE
-//--------------------------------------------------------------------+
-#include "FreeRTOS.h"
-#include "task.h"
-#include "common/tusb_common.h"
+#include "tusb_option.h"
+#include "osal.h"
 
-//#include "board.h"
-//--------------------------------------------------------------------+
-// MACRO CONSTANT TYPEDEF
-//--------------------------------------------------------------------+
 
 //--------------------------------------------------------------------+
-// INTERNAL OBJECT & FUNCTION DECLARATION
+// TICK API
 //--------------------------------------------------------------------+
+#if TUSB_CFG_OS == TUSB_OS_FREERTOS
 
-//--------------------------------------------------------------------+
-// IMPLEMENTATION
-//--------------------------------------------------------------------+
-void vApplicationMallocFailedHook(void)
+uint32_t tusb_hal_millis(void)
 {
-	taskDISABLE_INTERRUPTS();
-	TU_ASSERT(false, );
+  return ( ( ((uint64_t) xTaskGetTickCount()) * 1000) / configTICK_RATE_HZ );
 }
 
-void vApplicationIdleHook(void)
-{
-  // no freeRTOS blocking API should be called here
-	__WFI(); // sleep until next interrupt
-}
+#endif
 
-void vApplicationStackOverflowHook(xTaskHandle pxTask, signed char *pcTaskName)
-{
-	(void) pxTask;
-
-	taskDISABLE_INTERRUPTS();
-	TU_ASSERT(false, );
-}
-
-// executes from within an ISR
-void vApplicationTickHook(void) {}

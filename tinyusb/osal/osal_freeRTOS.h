@@ -56,10 +56,15 @@
 extern "C" {
 #endif
 
-//--------------------------------------------------------------------+
-// TICK API
-//--------------------------------------------------------------------+
-#define osal_millis xTaskGetTickCount
+#if 0
+// Helper to determine if we are in ISR to use ISR API (only cover ARM Cortex)
+// Note: Actually we don't need this since any event signal (queue send, semaphore post)
+// is done in ISR, other event receive (queue receive, semaphore wait ) in in thread
+static inline bool in_isr(void)
+{
+  return (SCB->ICSR & SCB_ICSR_VECTACTIVE_Msk);
+}
+#endif
 
 //--------------------------------------------------------------------+
 // TASK API
@@ -92,20 +97,12 @@ static inline osal_queue_t osal_queue_create(uint32_t depth, uint32_t item_size)
 static inline void osal_queue_receive (osal_queue_t const queue_hdl, void *p_data, uint32_t msec, tusb_error_t *p_error)
 {
   uint32_t const ticks = (msec == OSAL_TIMEOUT_WAIT_FOREVER) ? portMAX_DELAY : pdMS_TO_TICKS(msec);
-
-  portBASE_TYPE result = (SCB->ICSR & SCB_ICSR_VECTACTIVE_Msk) ?  xQueueReceiveFromISR(queue_hdl, p_data, NULL) : xQueueReceive(queue_hdl, p_data, ticks);
-  (*p_error) = ( result == pdPASS ) ? TUSB_ERROR_NONE : TUSB_ERROR_OSAL_TIMEOUT;
+  (*p_error) = ( xQueueReceive(queue_hdl, p_data, ticks) ? TUSB_ERROR_NONE : TUSB_ERROR_OSAL_TIMEOUT);
 }
 
 static inline bool osal_queue_send(osal_queue_t const queue_hdl, void const * data)
 {
-  if (SCB->ICSR & SCB_ICSR_VECTACTIVE_Msk)
-  {
-    return xQueueSendToFrontFromISR(queue_hdl, data, NULL);
-  }else
-  {
-    return xQueueSendToFront(queue_hdl, data, 0);
-  }
+  return xQueueSendToFrontFromISR(queue_hdl, data, NULL);
 }
 
 static inline void osal_queue_flush(osal_queue_t const queue_hdl)
@@ -126,30 +123,13 @@ static inline osal_semaphore_t osal_semaphore_create(uint32_t max, uint32_t init
 // TODO add timeout (with instant return from ISR option) for semaphore post & queue send
 static inline bool osal_semaphore_post(osal_semaphore_t sem_hdl)
 {
-  if (SCB->ICSR & SCB_ICSR_VECTACTIVE_Msk)
-  {
-    return xSemaphoreGiveFromISR(sem_hdl, NULL);
-  }else
-  {
-    return xSemaphoreGive(sem_hdl);
-  }
+  return xSemaphoreGiveFromISR(sem_hdl, NULL);
 }
 
 static inline void osal_semaphore_wait(osal_semaphore_t sem_hdl, uint32_t msec, tusb_error_t *p_error)
 {
   uint32_t const ticks = (msec == OSAL_TIMEOUT_WAIT_FOREVER) ? portMAX_DELAY : pdMS_TO_TICKS(msec);
-
-  BaseType_t result;
-
-  if (SCB->ICSR & SCB_ICSR_VECTACTIVE_Msk)
-  {
-    result = xSemaphoreTakeFromISR(sem_hdl, NULL);
-  }else
-  {
-    result = xSemaphoreTake(sem_hdl, ticks);
-  }
-
-  (*p_error) = result ? TUSB_ERROR_NONE : TUSB_ERROR_OSAL_TIMEOUT;
+  (*p_error) = (xSemaphoreTake(sem_hdl, ticks) ? TUSB_ERROR_NONE : TUSB_ERROR_OSAL_TIMEOUT);
 }
 
 static inline void osal_semaphore_reset(osal_semaphore_t const sem_hdl)
@@ -167,12 +147,13 @@ typedef xSemaphoreHandle osal_mutex_t;
 
 static inline bool osal_mutex_release(osal_mutex_t mutex_hdl)
 {
-  return osal_semaphore_post(mutex_hdl);
+  return xSemaphoreGive(mutex_hdl);
 }
 
 static inline void osal_mutex_wait(osal_mutex_t mutex_hdl, uint32_t msec, tusb_error_t *p_error)
 {
-  osal_semaphore_wait(mutex_hdl, msec, p_error);
+  uint32_t const ticks = (msec == OSAL_TIMEOUT_WAIT_FOREVER) ? portMAX_DELAY : pdMS_TO_TICKS(msec);
+  (*p_error) = (xSemaphoreTake(mutex_hdl, ticks) ? TUSB_ERROR_NONE : TUSB_ERROR_OSAL_TIMEOUT);
 }
 
 // TOOD remove

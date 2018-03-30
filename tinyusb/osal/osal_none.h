@@ -51,11 +51,6 @@
 #endif
 
 //--------------------------------------------------------------------+
-// TICK API
-//--------------------------------------------------------------------+
-#define osal_millis tusb_hal_millis
-
-//--------------------------------------------------------------------+
 // TASK API
 // NOTES: Each blocking OSAL_NONE services such as semaphore wait,
 // queue receive embedded return statement, therefore local variable
@@ -97,9 +92,9 @@ static inline osal_task_t osal_task_create(osal_func_t code, const char* name, u
 
 #define osal_task_delay(msec) \
   do {\
-    _timeout = osal_millis();\
+    _timeout = tusb_hal_millis();\
     _state = __LINE__; case __LINE__:\
-      if ( _timeout + msec > osal_millis() ) \
+      if ( _timeout + msec > tusb_hal_millis() ) \
         return TUSB_ERROR_OSAL_WAITING;\
   }while(0)
 
@@ -164,10 +159,10 @@ static inline void osal_queue_flush(osal_queue_t const queue_hdl)
 
 #define osal_queue_receive(queue_hdl, p_data, msec, p_error) \
   do {\
-    _timeout = osal_millis();\
+    _timeout = tusb_hal_millis();\
     _state = __LINE__; case __LINE__:\
     if( queue_hdl->count == 0 ) {\
-      if ( (msec != OSAL_TIMEOUT_WAIT_FOREVER) && ( _timeout + msec <= osal_millis()) ) /* time out */ \
+      if ( (msec != OSAL_TIMEOUT_WAIT_FOREVER) && ( _timeout + msec <= tusb_hal_millis()) ) /* time out */ \
         *(p_error) = TUSB_ERROR_OSAL_TIMEOUT;\
       else\
         return TUSB_ERROR_OSAL_WAITING;\
@@ -218,10 +213,10 @@ static inline void osal_semaphore_reset(osal_semaphore_t sem_hdl)
 
 #define osal_semaphore_wait(sem_hdl, msec, p_error) \
   do {\
-    _timeout = osal_millis();\
+    _timeout = tusb_hal_millis();\
     _state = __LINE__; case __LINE__:\
     if( sem_hdl->count == 0 ) {\
-      if ( (msec != OSAL_TIMEOUT_WAIT_FOREVER) && (_timeout + msec <= osal_millis()) ) /* time out */ \
+      if ( (msec != OSAL_TIMEOUT_WAIT_FOREVER) && (_timeout + msec <= tusb_hal_millis()) ) /* time out */ \
         *(p_error) = TUSB_ERROR_OSAL_TIMEOUT;\
       else\
         return TUSB_ERROR_OSAL_WAITING;\

@@ -45,6 +45,7 @@
 #define _TUSB_TIMEOUT_TTIMER_H_
 
 #include "tusb_compiler.h"
+#include "tusb_hal.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -58,12 +59,12 @@ typedef struct {
 static inline void timeout_set(timeout_timer_t* tt, uint32_t msec)
 {
   tt->interval = msec;
-  tt->start    = osal_millis();
+  tt->start    = tusb_hal_millis();
 }
 
 static inline bool timeout_expired(timeout_timer_t* tt)
 {
-  return ( osal_millis() - tt->start ) >= tt->interval;
+  return ( tusb_hal_millis() - tt->start ) >= tt->interval;
 }
 
 #ifdef __cplusplus

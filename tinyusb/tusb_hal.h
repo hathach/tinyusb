@@ -75,6 +75,7 @@ void tusb_hal_int_enable(uint8_t rhport);
  */
 void tusb_hal_int_disable(uint8_t rhport);
 
+// Only required to implement if using No RTOS (osal_none)
 uint32_t tusb_hal_millis(void);
 
 #ifdef __cplusplus

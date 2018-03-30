@@ -63,7 +63,7 @@ uint32_t tusb_hal_millis(void)
   //#define tick2ms(tck)         ( ( ((uint64_t)(tck)) * 1000) / configTICK_RATE_HZ )
   //return tick2ms( app_timer_cnt_get() );
 
-  return (system_ticks*1000) / BOARD_TICKS_HZ;
+  return board_tick2ms(system_ticks);
 }
 
 /*------------------------------------------------------------------*/

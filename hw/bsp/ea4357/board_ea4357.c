@@ -79,7 +79,7 @@ void SysTick_Handler (void)
 
 uint32_t tusb_hal_millis(void)
 {
-  return (system_ticks*1000) / BOARD_TICKS_HZ;
+  return board_tick2ms(system_ticks);
 }
 
 #endif

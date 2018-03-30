@@ -1,12 +1,12 @@
 #ifndef __FREERTOS_CONFIG__H
 #define __FREERTOS_CONFIG__H
 
-#include "common/assertion.h"
-
 //--------------------------------------------------------------------+
 // See http://www.freertos.org/a00110.html.
 //--------------------------------------------------------------------+
 #if TUSB_CFG_MCU == MCU_LPC43XX
+  // TODO remove
+  #include "lpc43xx_cgu.h"
   #define configCPU_CLOCK_HZ                   CGU_GetPCLKFrequency(CGU_PERIPHERAL_M4CORE)
 #else
   #define configCPU_CLOCK_HZ                   SystemCoreClock
@@ -72,7 +72,25 @@
 #define INCLUDE_xTimerPendFunctionCall         0
 
 /* Define to trap errors during development. */
-#define configASSERT( x )                      if( ( x ) == 0 ) { taskDISABLE_INTERRUPTS(); hal_debugger_breakpoint(); }
+
+// Halt CPU (breakpoint) when hitting error, only apply for Cortex M3, M4, M7
+#if defined(__ARM_ARCH_7M__) || defined (__ARM_ARCH_7EM__)
+
+static inline void configASSERT_breakpoint(void)
+{
+  // Cortex M CoreDebug->DHCSR
+  volatile uint32_t* ARM_CM_DHCSR =  ((volatile uint32_t*) 0xE000EDF0UL);
+
+  // Only halt mcu if debugger is attached
+  if ( (*ARM_CM_DHCSR) & 1UL ) __asm("BKPT #0\n");
+}
+
+#else
+#define configASSERT_breakpoint()
+#endif
+
+
+#define configASSERT( x )                      if( ( x ) == 0 ) { taskDISABLE_INTERRUPTS(); configASSERT_breakpoint(); }
 
 /* FreeRTOS hooks to NVIC vectors */
 #define xPortPendSVHandler    PendSV_Handler

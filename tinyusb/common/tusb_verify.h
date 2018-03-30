@@ -71,13 +71,13 @@
 // Halt CPU (breakpoint) when hitting error, only apply for Cortex M3, M4, M7
 #if defined(__ARM_ARCH_7M__) || defined (__ARM_ARCH_7EM__)
 
-// Cortex M CoreDebug->DHCSR
-#define ARM_CM_DHCSR    (*((volatile uint32_t*) 0xE000EDF0UL))
-
 static inline void verify_breakpoint(void)
 {
+  // Cortex M CoreDebug->DHCSR
+  volatile uint32_t* ARM_CM_DHCSR =  ((volatile uint32_t*) 0xE000EDF0UL);
+
   // Only halt mcu if debugger is attached
-  if ( ARM_CM_DHCSR & 1UL ) __asm("BKPT #0\n");
+  if ( (*ARM_CM_DHCSR) & 1UL ) __asm("BKPT #0\n");
 }
 
 #else
