@@ -600,6 +600,8 @@ void dcd_xfer_complete(uint8_t rhport, uint8_t ep_addr, uint32_t xferred_bytes, 
 
     osal_queue_send(_usbd_q, &task_event);
   }
+
+  TU_ASSERT(succeeded, );
 }
 
 //--------------------------------------------------------------------+

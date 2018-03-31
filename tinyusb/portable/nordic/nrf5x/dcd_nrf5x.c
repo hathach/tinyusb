@@ -47,6 +47,11 @@
 
 #include "device/dcd.h"
 
+#ifdef SOFTDEVICE_PRESENT
+#include "nrf_sdm.h"
+#include "nrf_soc.h"
+#endif
+
 /*------------------------------------------------------------------*/
 /* MACRO TYPEDEF CONSTANT ENUM
  *------------------------------------------------------------------*/
@@ -89,10 +94,23 @@ typedef struct
 /*------------------------------------------------------------------*/
 /* Controller Start up Sequence
  *------------------------------------------------------------------*/
+
+static bool is_sd_enabled(void)
+{
+#ifdef SOFTDEVICE_PRESENT
+  uint8_t sd_en = 0;
+  (void) sd_softdevice_is_enabled(&sd_en);
+
+  return sd_en;
+#else
+  return false;
+#endif
+}
+
 static bool hfclk_running(void)
 {
 #ifdef SOFTDEVICE_PRESENT
-  if (nrf_sdh_is_enabled())
+  if ( is_sd_enabled() )
   {
     uint32_t is_running;
     (void) sd_clock_hfclk_is_running(&is_running);
@@ -109,7 +127,7 @@ static void hfclk_enable(void)
   if ( hfclk_running() ) return;
 
 #ifdef SOFTDEVICE_PRESENT
-  if (nrf_sdh_is_enabled())
+  if ( is_sd_enabled() )
   {
     (void)sd_clock_hfclk_request();
     return;
@@ -123,7 +141,7 @@ static void hfclk_enable(void)
 static void hfclk_disable(void)
 {
 #ifdef SOFTDEVICE_PRESENT
-  if (nrf_sdh_is_enabled())
+  if ( is_sd_enabled() )
   {
     (void)sd_clock_hfclk_release();
     return;
