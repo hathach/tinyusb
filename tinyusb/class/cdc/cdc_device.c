@@ -218,21 +218,15 @@ tusb_error_t cdcd_control_request_st(uint8_t rhport, tusb_control_request_t cons
 {
   OSAL_SUBTASK_BEGIN
 
-  tusb_error_t err;
-
   //------------- Class Specific Request -------------//
   if (p_request->bmRequestType_bit.type != TUSB_REQ_TYPE_CLASS) return TUSB_ERROR_DCD_CONTROL_REQUEST_NOT_SUPPORT;
 
-  if (CDC_REQUEST_GET_LINE_CODING == p_request->bRequest)
+  if ( (CDC_REQUEST_GET_LINE_CODING == p_request->bRequest) || (CDC_REQUEST_SET_LINE_CODING == p_request->bRequest) )
   {
-    STASK_INVOKE( usbd_control_xfer_st(rhport, (tusb_dir_t) p_request->bmRequestType_bit.direction,
-                                            (uint8_t*) &cdcd_line_coding[rhport], min16_of(sizeof(cdc_line_coding_t), p_request->wLength)), err );
-  }
-  else if (CDC_REQUEST_SET_LINE_CODING == p_request->bRequest)
-  {
-    STASK_INVOKE( usbd_control_xfer_st(rhport, (tusb_dir_t) p_request->bmRequestType_bit.direction,
-                                            (uint8_t*) &cdcd_line_coding[rhport], min16_of(sizeof(cdc_line_coding_t), p_request->wLength)), err );
-    // TODO notify application on xfer complete
+    uint16_t len = min16_of(sizeof(cdc_line_coding_t), p_request->wLength);
+    usbd_control_xfer_st(rhport, p_request->bmRequestType_bit.direction, (uint8_t*) &cdcd_line_coding[rhport], len);
+
+    // TODO notify application on set line encoding
   }
   else if (CDC_REQUEST_SET_CONTROL_LINE_STATE == p_request->bRequest )
   {

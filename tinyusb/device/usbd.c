@@ -189,8 +189,8 @@ VERIFY_STATIC(sizeof(usbd_task_event_t) <= 12, "size is not correct");
 #endif
 
 
-static osal_queue_t _usbd_q;
-static osal_semaphore_t _control_sem; // TODO may need to change to static with wrapper function
+static osal_queue_t     _usbd_q;
+/*static*/ osal_semaphore_t _usbd_ctrl_sem;
 
 //--------------------------------------------------------------------+
 // IMPLEMENTATION
@@ -212,7 +212,7 @@ tusb_error_t usbd_init (void)
   _usbd_q = osal_queue_create(USBD_TASK_QUEUE_DEPTH, sizeof(usbd_task_event_t));
   VERIFY(_usbd_q, TUSB_ERROR_OSAL_QUEUE_FAILED);
 
-  _control_sem = osal_semaphore_create(1, 0);
+  _usbd_ctrl_sem = osal_semaphore_create(1, 0);
   VERIFY(_usbd_q, TUSB_ERROR_OSAL_SEMAPHORE_FAILED);
 
   osal_task_create(usbd_task, "usbd", TUC_DEVICE_STACKSIZE, NULL, TUSB_CFG_OS_TASK_PRIO);
@@ -310,29 +310,6 @@ static tusb_error_t usbd_main_st(void)
 //--------------------------------------------------------------------+
 // CONTROL REQUEST
 //--------------------------------------------------------------------+
-tusb_error_t usbd_control_xfer_st(uint8_t rhport, tusb_dir_t dir, uint8_t * buffer, uint16_t length)
-{
-  OSAL_SUBTASK_BEGIN
-
-  tusb_error_t error;
-
-  // Data
-  if ( length )
-  {
-    dcd_control_xfer(rhport, dir, buffer, length);
-    osal_semaphore_wait( _control_sem, 100, &error );
-
-    STASK_ASSERT_ERR( error );
-  }
-
-  // Status opposite direction with Zero Length
-  // No need to wait for status to complete therefore
-  // status phase must not call dcd_control_complete/dcd_xfer_complete
-  dcd_control_status(rhport, dir);
-
-  OSAL_SUBTASK_END
-}
-
 static tusb_error_t proc_control_request_st(uint8_t rhport, tusb_control_request_t const * const p_request)
 {
   OSAL_SUBTASK_BEGIN
@@ -351,7 +328,7 @@ static tusb_error_t proc_control_request_st(uint8_t rhport, tusb_control_request
 
       if ( len )
       {
-        STASK_INVOKE( usbd_control_xfer_st(rhport, p_request->bmRequestType_bit.direction, (uint8_t*) buffer, len ), error );
+        usbd_control_xfer_st(rhport, p_request->bmRequestType_bit.direction, (uint8_t*) buffer, len );
       }else
       {
         dcd_control_stall(rhport); // stall unsupported descriptor
@@ -360,7 +337,7 @@ static tusb_error_t proc_control_request_st(uint8_t rhport, tusb_control_request
     else if (TUSB_REQ_GET_CONFIGURATION == p_request->bRequest )
     {
       memcpy(usbd_enum_buffer, &usbd_devices[rhport].config_num, 1);
-      STASK_INVOKE( usbd_control_xfer_st(rhport, p_request->bmRequestType_bit.direction, (uint8_t*) usbd_enum_buffer, 1), error );
+      usbd_control_xfer_st(rhport, p_request->bmRequestType_bit.direction, (uint8_t*) usbd_enum_buffer, 1);
     }
     else if ( TUSB_REQ_SET_ADDRESS == p_request->bRequest )
     {
@@ -533,7 +510,7 @@ void dcd_bus_event(uint8_t rhport, usbd_bus_event_type_t bus_event)
     case USBD_BUS_EVENT_RESET     :
       memclr_(&usbd_devices[rhport], sizeof(usbd_device_info_t));
       osal_queue_flush(_usbd_q);
-      osal_semaphore_reset(_control_sem);
+      osal_semaphore_reset(_usbd_ctrl_sem);
       for (uint8_t class_code = TUSB_CLASS_AUDIO; class_code < USBD_CLASS_DRIVER_COUNT; class_code++)
       {
         if ( usbd_class_drivers[class_code].close ) usbd_class_drivers[class_code].close( rhport );
@@ -585,7 +562,7 @@ void dcd_xfer_complete(uint8_t rhport, uint8_t ep_addr, uint32_t xferred_bytes, 
     (void) succeeded;
 
     // Control Transfer
-    osal_semaphore_post( _control_sem );
+    osal_semaphore_post( _usbd_ctrl_sem );
   }else
   {
     usbd_task_event_t task_event =

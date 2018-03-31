@@ -41,6 +41,9 @@
  extern "C" {
 #endif
 
+// for used by usbd_control_xfer_st() only, must not be used directly
+extern osal_semaphore_t _usbd_ctrl_sem;
+
 //--------------------------------------------------------------------+
 // INTERNAL API
 //--------------------------------------------------------------------+
@@ -48,7 +51,25 @@ tusb_error_t usbd_init(void);
 void         usbd_task( void* param);
 
 // Carry out Data and Status stage of control transfer
-tusb_error_t usbd_control_xfer_st(uint8_t rhport, tusb_dir_t dir, uint8_t * buffer, uint16_t length);
+//tusb_error_t usbd_control_xfer_st(uint8_t rhport, tusb_dir_t dir, uint8_t * buffer, uint16_t length);
+
+// Carry out Data and Status stage of control transfer
+// Must be call in a subtask (_st) function
+#define usbd_control_xfer_st(_rhport, _dir, _buffer, _len) \
+  do {\
+    if (_len) { \
+      tusb_error_t err;\
+      dcd_control_xfer(_rhport, _dir, _buffer, _len);\
+      osal_semaphore_wait( _usbd_ctrl_sem, OSAL_TIMEOUT_NORMAL, &err );\
+      STASK_ASSERT_ERR( err );\
+    }\
+    /* No need to wait for status to complete therefore */ \
+    /* status phase must not call dcd_control_complete/dcd_xfer_complete*/ \
+    dcd_control_status(_rhport, _dir);\
+  }while(0)
+
+
+
 
 #ifdef __cplusplus
  }

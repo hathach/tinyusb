@@ -192,8 +192,6 @@ tusb_error_t hidd_control_request_st(uint8_t rhport, tusb_control_request_t cons
 
   OSAL_SUBTASK_BEGIN
 
-  tusb_error_t err;
-
   //------------- STD Request -------------//
   if (p_request->bmRequestType_bit.type == TUSB_REQ_TYPE_STANDARD)
   {
@@ -209,7 +207,7 @@ tusb_error_t hidd_control_request_st(uint8_t rhport, tusb_control_request_t cons
       // copy to allow report descriptor not to be in USBRAM
       memcpy(m_hid_buffer, p_hid->p_report_desc, p_hid->report_length);
 
-      STASK_INVOKE( usbd_control_xfer_st(rhport, p_request->bmRequestType_bit.direction, m_hid_buffer, p_hid->report_length), err );
+      usbd_control_xfer_st(rhport, p_request->bmRequestType_bit.direction, m_hid_buffer, p_hid->report_length);
     }else
     {
       dcd_control_stall(rhport);
@@ -227,14 +225,13 @@ tusb_error_t hidd_control_request_st(uint8_t rhport, tusb_control_request_t cons
                                                        &p_buffer, p_request->wLength);
       STASK_ASSERT( p_buffer != NULL && actual_length > 0 );
 
-      STASK_INVOKE( usbd_control_xfer_st(rhport, p_request->bmRequestType_bit.direction, p_buffer, actual_length), err );
+      usbd_control_xfer_st(rhport, p_request->bmRequestType_bit.direction, p_buffer, actual_length);
     }
     else if ( (HID_REQUEST_CONTROL_SET_REPORT == p_request->bRequest) && (p_driver->set_report_cb != NULL) )
     {
       //        return TUSB_ERROR_DCD_CONTROL_REQUEST_NOT_SUPPORT; // TODO test STALL control out endpoint (with mouse+keyboard)
       // wValue = Report Type | Report ID
-      STASK_INVOKE( usbd_control_xfer_st(rhport, p_request->bmRequestType_bit.direction, m_hid_buffer, p_request->wLength), err );
-      STASK_ASSERT_ERR(err);
+      usbd_control_xfer_st(rhport, p_request->bmRequestType_bit.direction, m_hid_buffer, p_request->wLength);
 
       p_driver->set_report_cb(rhport, u16_high_u8(p_request->wValue), m_hid_buffer, p_request->wLength);
     }

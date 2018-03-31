@@ -153,7 +153,7 @@ tusb_error_t mscd_control_request_st(uint8_t rhport, tusb_control_request_t cons
   {
     // Note: lpc11/13u need xfer data's address to be aligned 64 -> make use of scsi_data instead of using max_lun directly
     p_msc->scsi_data[0] = p_msc->max_lun;
-    STASK_INVOKE( usbd_control_xfer_st(rhport, p_request->bmRequestType_bit.direction, p_msc->scsi_data, 1), err);
+    usbd_control_xfer_st(rhport, p_request->bmRequestType_bit.direction, p_msc->scsi_data, 1);
   }else
   {
     dcd_control_stall(rhport); // stall unsupported request
