@@ -46,11 +46,6 @@
 
 #include "device/dcd.h"
 
-#ifdef SOFTDEVICE_PRESENT
-#include "nrf_sdm.h"
-#include "nrf_soc.h"
-#endif
-
 /*------------------------------------------------------------------*/
 /* MACRO TYPEDEF CONSTANT ENUM
  *------------------------------------------------------------------*/

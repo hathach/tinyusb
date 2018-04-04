@@ -40,35 +40,72 @@
 #include "nrf.h"
 #include "nrf_gpio.h"
 #include "nrf_clock.h"
-#include "nrf_drv_power.h"
 #include "nrf_usbd.h"
 #include "nrf_drv_usbd_errata.h"
+
+#ifdef SOFTDEVICE_PRESENT
+#include "nrf_sdm.h"
+#include "nrf_soc.h"
+#else
+#include "nrf_drv_power.h"
+#endif
 
 #include "tusb_hal.h"
 
 /*------------------------------------------------------------------*/
 /* MACRO TYPEDEF CONSTANT ENUM
  *------------------------------------------------------------------*/
-
-/*------------------------------------------------------------------*/
-/* VARIABLE DECLARATION
- *------------------------------------------------------------------*/
-static void power_usb_event_handler(uint32_t event);
+// TODO must cover SD present but not enabled
+#ifdef SOFTDEVICE_PRESENT
+#define POWER_DETECT    NRF_EVT_POWER_USB_DETECTED
+#define POWER_READY     NRF_EVT_POWER_USB_POWER_READY
+#define POWER_REMOVE    NRF_EVT_POWER_USB_REMOVED
+#else
+#define POWER_DETECT    NRF_DRV_POWER_USB_EVT_DETECTED
+#define POWER_READY     NRF_DRV_POWER_USB_EVT_READY
+#define POWER_REMOVE    NRF_DRV_POWER_USB_EVT_REMOVED
+#endif
 
 /*------------------------------------------------------------------*/
 /* FUNCTION DECLARATION
  *------------------------------------------------------------------*/
+void power_usb_event_handler(uint32_t event);
+
+// check if SD is present and enabled
+static bool is_sd_enabled(void)
+{
+  uint8_t sd_en = false;
+
+#ifdef SOFTDEVICE_PRESENT
+  (void) sd_softdevice_is_enabled(&sd_en);
+#endif
+
+  return sd_en;
+}
+
+
 bool tusb_hal_init(void)
 {
-#ifndef SOFTDEVICE_PRESENT
+#ifdef SOFTDEVICE_PRESENT
+  if ( is_sd_enabled() )
+  {
+    sd_power_usbdetected_enable(true);
+    sd_power_usbpwrrdy_enable(true);
+    sd_power_usbremoved_enable(true);
+
+    // power_usb_event_handler must be called by soc event
+
+    return true;
+  }
+#endif
+
+#if 0
   // USB Power detection
   const nrf_drv_power_usbevt_config_t config =
   {
       .handler = power_usb_event_handler
   };
   return ( NRF_SUCCESS == nrf_drv_power_usbevt_init(&config) );
-#else
-
 #endif
 }
 
@@ -84,23 +121,10 @@ void tusb_hal_int_disable(uint8_t rhport)
   NVIC_DisableIRQ(USBD_IRQn);
 }
 
+
 /*------------------------------------------------------------------*/
-/* Controller Start up Sequence
+/* HFCLK helper
  *------------------------------------------------------------------*/
-
-/*------------- HFCLK helper  -------------*/
-static bool is_sd_enabled(void)
-{
-#ifdef SOFTDEVICE_PRESENT
-  uint8_t sd_en = 0;
-  (void) sd_softdevice_is_enabled(&sd_en);
-
-  return sd_en;
-#else
-  return false;
-#endif
-}
-
 static bool hfclk_running(void)
 {
 #ifdef SOFTDEVICE_PRESENT
@@ -145,12 +169,14 @@ static void hfclk_disable(void)
   nrf_clock_task_trigger(NRF_CLOCK_TASK_HFCLKSTOP);
 }
 
-/*------------- 51.4 specs USBD start-up sequene -------------*/
-static void power_usb_event_handler(uint32_t event)
+/*------------------------------------------------------------------*/
+/* Controller Start up Sequence (USBD 51.4 specs )
+ *------------------------------------------------------------------*/
+void power_usb_event_handler(uint32_t event)
 {
   switch ( event )
   {
-    case NRF_DRV_POWER_USB_EVT_DETECTED:
+    case POWER_DETECT:
       if ( !NRF_USBD->ENABLE )
       {
         /* Prepare for READY event receiving */
@@ -169,8 +195,8 @@ static void power_usb_event_handler(uint32_t event)
       }
     break;
 
-    case NRF_DRV_POWER_USB_EVT_READY:
-      // Wait for HFCLK
+    case POWER_READY:
+      // Wait for HFCLK TODO move before pull up
       while ( !hfclk_running() ) {}
 
       if ( nrf_drv_usbd_errata_166() )
@@ -202,7 +228,7 @@ static void power_usb_event_handler(uint32_t event)
       nrf_usbd_pullup_enable();
     break;
 
-    case NRF_DRV_POWER_USB_EVT_REMOVED:
+    case POWER_REMOVE:
       if ( NRF_USBD->ENABLE )
       {
         // Abort all transfers
