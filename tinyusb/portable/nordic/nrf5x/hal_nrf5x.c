@@ -93,8 +93,22 @@ bool tusb_hal_init(void)
     sd_power_usbpwrrdy_enable(true);
     sd_power_usbremoved_enable(true);
 
-    // power_usb_event_handler must be called by soc event
+    // USB power may already be ready at this time -> no event generated
+    // We need to execute the hanlder based on the status
+    uint32_t usb_reg;
+    sd_power_usbregstatus_get(&usb_reg);
 
+    if (usb_reg & POWER_USBREGSTATUS_VBUSDETECT_Msk )
+    {
+      power_usb_event_handler(POWER_DETECT);
+    }
+
+    if (usb_reg & POWER_USBREGSTATUS_OUTPUTRDY_Msk )
+    {
+      power_usb_event_handler(POWER_READY);
+    }
+
+    // power_usb_event_handler must be called by SOC event hanlder
     return true;
   }
 #endif
@@ -106,6 +120,8 @@ bool tusb_hal_init(void)
       .handler = power_usb_event_handler
   };
   return ( NRF_SUCCESS == nrf_drv_power_usbevt_init(&config) );
+#else
+  return true; // TODO remove
 #endif
 }
 
@@ -170,7 +186,7 @@ static void hfclk_disable(void)
 }
 
 /*------------------------------------------------------------------*/
-/* Controller Start up Sequence (USBD 51.4 specs )
+/* Controller Start up Sequence (USBD 51.4 specs)
  *------------------------------------------------------------------*/
 void power_usb_event_handler(uint32_t event)
 {
@@ -187,17 +203,14 @@ void power_usb_event_handler(uint32_t event)
 
         // Enable HFCLK
         hfclk_enable();
-
-        /* Waiting for peripheral to enable, this should take a few us */
-        while ( !(NRF_USBD_EVENTCAUSE_READY_MASK & NRF_USBD->EVENTCAUSE) ) { }
-        nrf_usbd_eventcause_clear(NRF_USBD_EVENTCAUSE_READY_MASK);
-        nrf_usbd_event_clear(NRF_USBD_EVENT_USBEVENT);
       }
     break;
 
     case POWER_READY:
-      // Wait for HFCLK TODO move before pull up
-      while ( !hfclk_running() ) {}
+      /* Waiting for USBD peripheral enabled */
+      while ( !(NRF_USBD_EVENTCAUSE_READY_MASK & NRF_USBD->EVENTCAUSE) ) { }
+      nrf_usbd_eventcause_clear(NRF_USBD_EVENTCAUSE_READY_MASK);
+      nrf_usbd_event_clear(NRF_USBD_EVENT_USBEVENT);
 
       if ( nrf_drv_usbd_errata_166() )
       {
@@ -223,6 +236,9 @@ void power_usb_event_handler(uint32_t event)
       NVIC_SetPriority(USBD_IRQn, 7);
       NVIC_ClearPendingIRQ(USBD_IRQn);
       NVIC_EnableIRQ(USBD_IRQn);
+
+      // Wait for HFCLK
+      while ( !hfclk_running() ) {}
 
       // Enable pull up
       nrf_usbd_pullup_enable();

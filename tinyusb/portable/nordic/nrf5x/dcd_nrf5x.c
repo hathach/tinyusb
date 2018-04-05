@@ -105,6 +105,7 @@ void bus_reset(void)
 bool dcd_init (uint8_t rhport)
 {
   (void) rhport;
+  return true;
 }
 
 void dcd_connect (uint8_t rhport)
