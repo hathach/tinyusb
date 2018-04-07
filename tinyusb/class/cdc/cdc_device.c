@@ -289,7 +289,11 @@ bool tud_n_cdc_flush (uint8_t rhport)
   VERIFY( !dcd_edpt_busy(rhport, edpt) );
 
   uint16_t count = fifo_read_n(&_tx_ff, _tmp_tx_buf, sizeof(_tmp_tx_buf));
-  TU_ASSERT( dcd_edpt_xfer(rhport, edpt, _tmp_tx_buf, count) );
+  
+  if ( count ) 
+  {
+    TU_ASSERT( dcd_edpt_xfer(rhport, edpt, _tmp_tx_buf, count) );
+  }
 
   return true;
 }

@@ -79,10 +79,10 @@ static inline uint32_t tud_cdc_write      (void const* buffer, uint32_t bufsize)
 static inline bool     tud_cdc_flush      (void)                                 { return tud_n_cdc_flush(0);                  }
 
 //--------------------------------------------------------------------+
-// APPLICATION CALLBACK API
+// APPLICATION CALLBACK API (WEAK is optional)
 //--------------------------------------------------------------------+
 //void tud_cdc_line_coding_changed_cb(uint8_t rhport, cdc_line_coding_t* p_line_coding);
-void tud_cdc_rx_cb(uint8_t rhport);
+void tud_cdc_rx_cb(uint8_t rhport) ATTR_WEAK;
 
 //--------------------------------------------------------------------+
 // USBD-CLASS DRIVER API
