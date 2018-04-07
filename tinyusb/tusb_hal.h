@@ -78,6 +78,33 @@ void tusb_hal_int_disable(uint8_t rhport);
 // Only required to implement if using No RTOS (osal_none)
 uint32_t tusb_hal_millis(void);
 
+
+// Enable all ports' interrupt
+static inline void tusb_hal_int_enable_all(void)
+{
+#ifdef TUSB_CFG_CONTROLLER_0_MODE
+  tusb_hal_int_enable(0);
+#endif
+
+#ifdef TUSB_CFG_CONTROLLER_0_MODE
+  tusb_hal_int_enable(1);
+#endif
+}
+
+// Disable all ports' interrupt
+static inline void tusb_hal_int_disable_all(void)
+{
+#ifdef TUSB_CFG_CONTROLLER_0_MODE
+  tusb_hal_int_disable(0);
+#endif
+
+#ifdef TUSB_CFG_CONTROLLER_0_MODE
+  tusb_hal_int_disable(1);
+#endif
+}
+
+
+
 #ifdef __cplusplus
  }
 #endif

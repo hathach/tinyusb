@@ -64,10 +64,14 @@ enum
 typedef struct
 {
   uint8_t* buffer;
+
   uint16_t total_len;
   uint16_t actual_len;
 
   uint8_t  mps; // max packet size
+
+  // FIXME Errata 104 walkaround
+  uint16_t frame_num;
 } nom_xfer_t;
 
 /*static*/ struct
@@ -80,7 +84,7 @@ typedef struct
   }control;
 
   // Non control: 7 endpoints IN & OUT (offset 1)
-  nom_xfer_t xfer[2][7];
+  nom_xfer_t xfer[7][2];
 
   volatile bool dma_running;
 }_dcd;
@@ -227,14 +231,14 @@ bool dcd_control_xfer (uint8_t rhport, tusb_dir_t dir, uint8_t * buffer, uint16_
  *------------------------------------------------------------------*/
 static void normal_xact_start(uint8_t epnum, uint8_t dir)
 {
-  nom_xfer_t* xfer = &_dcd.xfer[dir][epnum-1];
+  nom_xfer_t* xfer = &_dcd.xfer[epnum-1][dir];
 
   // Each transaction is up to Max Packet Size
   uint8_t const xact_len = min16_of(xfer->total_len - xfer->actual_len, xfer->mps);
 
   if ( dir == TUSB_DIR_OUT )
   {
-    // HW issue on nrf5284 sample, SIZE.EPOUT won't trigger ACK as spec
+    // Errata 135: HW issue on nrf5284 sample, SIZE.EPOUT won't trigger ACK as spec
     // use the back door interface as sdk for walk around
     if ( nrf_drv_usbd_errata_sizeepout_rw() )
     {
@@ -266,7 +270,7 @@ bool dcd_edpt_open (uint8_t rhport, tusb_desc_endpoint_t const * desc_edpt)
   uint8_t const epnum = edpt_number(desc_edpt->bEndpointAddress);
   uint8_t const dir   = edpt_dir(desc_edpt->bEndpointAddress);
 
-  _dcd.xfer[dir][epnum-1].mps = desc_edpt->wMaxPacketSize.size;
+  _dcd.xfer[epnum-1][dir].mps = desc_edpt->wMaxPacketSize.size;
 
   if ( dir == TUSB_DIR_OUT )
   {
@@ -289,9 +293,17 @@ bool dcd_edpt_xfer (uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t 
   uint8_t const epnum = edpt_number(ep_addr);
   uint8_t const dir   = edpt_dir(ep_addr);
 
-  _dcd.xfer[dir][epnum-1].buffer     = buffer;
-  _dcd.xfer[dir][epnum-1].total_len  = total_bytes;
-  _dcd.xfer[dir][epnum-1].actual_len = 0;
+  nom_xfer_t* xfer = &_dcd.xfer[epnum-1][dir];
+
+  xfer->buffer     = buffer;
+  xfer->total_len  = total_bytes;
+  xfer->actual_len = 0;
+
+  // FIXME Errata 104 walkaround
+  if ( nrf_drv_usbd_errata_104() )
+  {
+    xfer->frame_num  = (uint16_t) NRF_USBD->FRAMECNTR;
+  }
 
   normal_xact_start(epnum, dir);
 
@@ -340,7 +352,7 @@ bool dcd_edpt_busy (uint8_t rhport, uint8_t ep_addr)
   uint8_t const epnum = edpt_number(ep_addr);
   uint8_t const dir   = edpt_dir(ep_addr);
 
-  nom_xfer_t* xfer = &_dcd.xfer[dir][epnum-1];
+  nom_xfer_t* xfer = &_dcd.xfer[epnum-1][dir];
 
   return xfer->actual_len < xfer->total_len;
 }
@@ -374,11 +386,6 @@ void USBD_IRQHandler(void)
     bus_reset();
 
     dcd_bus_event(0, USBD_BUS_EVENT_RESET);
-  }
-
-  if ( int_status & USBD_INTEN_SOF_Msk )
-  {
-    dcd_bus_event(0, USBD_BUS_EVENT_SOF);
   }
 
   if ( int_status & EDPT_END_ALL_MASK )
@@ -444,7 +451,7 @@ void USBD_IRQHandler(void)
     {
       if ( BIT_TEST_(data_status, epnum ) )
       {
-        nom_xfer_t* xfer = &_dcd.xfer[TUSB_DIR_IN][epnum-1];
+        nom_xfer_t* xfer = &_dcd.xfer[epnum-1][TUSB_DIR_IN];
 
         xfer->actual_len += NRF_USBD->EPIN[epnum].MAXCNT;
 
@@ -465,7 +472,7 @@ void USBD_IRQHandler(void)
     {
       if ( BIT_TEST_(data_status, 16+epnum ) )
       {
-        nom_xfer_t* xfer = &_dcd.xfer[TUSB_DIR_OUT][epnum-1];
+        nom_xfer_t* xfer = &_dcd.xfer[epnum-1][TUSB_DIR_OUT];
 
         uint8_t const xact_len = NRF_USBD->SIZE.EPOUT[epnum];
 
@@ -486,7 +493,7 @@ void USBD_IRQHandler(void)
   {
     if ( BIT_TEST_(int_status, USBD_INTEN_ENDEPOUT0_Pos+epnum) )
     {
-      nom_xfer_t* xfer = &_dcd.xfer[TUSB_DIR_OUT][epnum-1];
+      nom_xfer_t* xfer = &_dcd.xfer[epnum-1][TUSB_DIR_OUT];
 
       // Transfer complete if transaction len < Max Packet Size or total len is transferred
       if ( (NRF_USBD->EPOUT[epnum].AMOUNT == xfer->mps) && (xfer->actual_len < xfer->total_len) )
@@ -516,6 +523,46 @@ void USBD_IRQHandler(void)
       }
     }
   }
+
+
+  // SOF interrupt
+  if ( int_status & USBD_INTEN_SOF_Msk )
+  {
+    // FIXME Errata 104 The EPDATA event might not be generated, and the related update of EPDATASTATUS does not occur.
+    // There is no way for software to tell if a xfer is complete or not.
+    // Walkaround: we will asssume an non-control IN transfer is always complete after 10 frames
+    if ( nrf_drv_usbd_errata_104() )
+    {
+      // Check all the queued IN transfer, retire all transfer if 10 frames has passed
+      for (int i=0; i<7; i++)
+      {
+        nom_xfer_t* xfer = &_dcd.xfer[i][TUSB_DIR_IN];
+
+        if (xfer->actual_len < xfer->total_len)
+        {
+          uint16_t diff = (uint16_t) NRF_USBD->FRAMECNTR;
+
+          if ( diff > xfer->frame_num )
+          {
+            diff -= xfer->frame_num;
+          }else
+          {
+            diff = (diff + 1024) - xfer->frame_num; // Frame counter cap at 1024
+          }
+
+          // Walkaround, mark this transfer as complete
+          if (diff > 10)
+          {
+            xfer->actual_len = xfer->total_len;
+            dcd_xfer_complete(0, (i+1) | TUSB_DIR_IN_MASK, xfer->actual_len, true);
+          }
+        }
+      }
+    }
+
+    dcd_bus_event(0, USBD_BUS_EVENT_SOF);
+  }
+
 
 }
 

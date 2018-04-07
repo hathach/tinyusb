@@ -45,6 +45,7 @@
 #define TUSB_VERSION_NAME   "alpha"
 #define TUSB_VERSION        XSTRING_(TUSB_VERSION_YEAR) "." XSTRING_(TUSB_VERSION_MONTH)
 
+// TODO remove, use vendor specific flag
 /** \defgroup group_mcu Supported MCU
  * \ref TUSB_CFG_MCU must be defined to one of these
  *  @{ */
@@ -57,6 +58,7 @@
 #define MCU_LPC43XX        7 ///< NXP LPC43xx family
 /** @} */
 
+// Allow to use command line to change the config name/location
 #ifndef TUSB_CFG_CONFIG_FILE
   #define TUSB_CFG_CONFIG_FILE "tusb_config.h"
 #endif

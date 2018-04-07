@@ -74,27 +74,27 @@ static inline osal_task_t osal_task_create(osal_func_t code, const char* name, u
   return (osal_task_t) 1;
 }
 
-#define TASK_RESTART \
+#define TASK_RESTART                             \
   _state = 0
 
-#define OSAL_TASK_BEGIN \
-  static uint16_t _state = 0;               \
-  ATTR_UNUSED static uint32_t _timeout = 0; \
-  (void) _timeout;                          \
-  switch(_state) {                          \
+#define OSAL_TASK_BEGIN                          \
+  static uint16_t _state = 0;                    \
+  ATTR_UNUSED static uint32_t _timeout = 0;      \
+  (void) _timeout;                               \
+  switch(_state) {                               \
     case 0: {
 
-#define OSAL_TASK_END \
-  default:  TASK_RESTART; break; \
-  }}\
+#define OSAL_TASK_END                            \
+  default:  TASK_RESTART; break;                 \
+  }}                                             \
   return;
 
-#define osal_task_delay(msec) \
-  do {\
-    _timeout = tusb_hal_millis();\
-    _state = __LINE__; case __LINE__:\
+#define osal_task_delay(msec)                    \
+  do {                                           \
+    _timeout = tusb_hal_millis();                \
+    _state = __LINE__; case __LINE__:            \
       if ( _timeout + msec > tusb_hal_millis() ) \
-        return TUSB_ERROR_OSAL_WAITING;\
+        return TUSB_ERROR_OSAL_WAITING;          \
   }while(0)
 
 //--------------------------------------------------------------------+
@@ -156,23 +156,21 @@ static inline void osal_queue_flush(osal_queue_t const queue_hdl)
   queue_hdl->count = queue_hdl->rd_idx = queue_hdl->wr_idx = 0;
 }
 
-#define osal_queue_receive(queue_hdl, p_data, msec, p_error) \
-  do {\
-    _timeout = tusb_hal_millis();\
-    _state = __LINE__; case __LINE__:\
-    if( queue_hdl->count == 0 ) {\
-      if ( (msec != OSAL_TIMEOUT_WAIT_FOREVER) && ( _timeout + msec <= tusb_hal_millis()) ) /* time out */ \
-        *(p_error) = TUSB_ERROR_OSAL_TIMEOUT;\
-      else\
-        return TUSB_ERROR_OSAL_WAITING;\
-    } else{\
-      /*TODO mutex lock tusb_hal_int_disable */\
-      memcpy(p_data, queue_hdl->buffer + (queue_hdl->rd_idx * queue_hdl->item_size), queue_hdl->item_size);\
-      queue_hdl->rd_idx = (queue_hdl->rd_idx + 1) % queue_hdl->depth;\
-      queue_hdl->count--;\
-      /*TODO mutex unlock tusb_hal_int_enable */\
-      *(p_error) = TUSB_ERROR_NONE;\
-    }\
+#define osal_queue_receive(queue_hdl, p_data, msec, p_error)                                \
+  do {                                                                                      \
+    _timeout = tusb_hal_millis();                                                           \
+    _state = __LINE__; case __LINE__:                                                       \
+    if( queue_hdl->count == 0 ) {                                                           \
+      if ( (msec != OSAL_TIMEOUT_WAIT_FOREVER) && ( _timeout + msec <= tusb_hal_millis()) ) \
+        *(p_error) = TUSB_ERROR_OSAL_TIMEOUT;                                               \
+      else                                                                                  \
+        return TUSB_ERROR_OSAL_WAITING;                                                     \
+    } else{                                                                                 \
+      /*tusb_hal_int_disable_all();*/                                                       \
+      fifo_read(queue_hdl, p_data);                                                         \
+      /*tusb_hal_int_enable_all();*/                                                            \
+      *(p_error) = TUSB_ERROR_NONE;                                                         \
+    }                                                                                       \
   }while(0)
 
 
@@ -210,19 +208,21 @@ static inline void osal_semaphore_reset(osal_semaphore_t sem_hdl)
   sem_hdl->count = 0;
 }
 
-#define osal_semaphore_wait(sem_hdl, msec, p_error) \
-  do {\
-    _timeout = tusb_hal_millis();\
-    _state = __LINE__; case __LINE__:\
-    if( sem_hdl->count == 0 ) {\
-      if ( (msec != OSAL_TIMEOUT_WAIT_FOREVER) && (_timeout + msec <= tusb_hal_millis()) ) /* time out */ \
-        *(p_error) = TUSB_ERROR_OSAL_TIMEOUT;\
-      else\
-        return TUSB_ERROR_OSAL_WAITING;\
-    } else{\
-      if (sem_hdl->count) sem_hdl->count--; /*TODO mutex tusb_hal_int_disable consideration*/\
-      *(p_error) = TUSB_ERROR_NONE;\
-    }\
+#define osal_semaphore_wait(sem_hdl, msec, p_error)                                        \
+  do {                                                                                     \
+    _timeout = tusb_hal_millis();                                                          \
+    _state = __LINE__; case __LINE__:                                                      \
+    if( sem_hdl->count == 0 ) {                                                            \
+      if ( (msec != OSAL_TIMEOUT_WAIT_FOREVER) && (_timeout + msec <= tusb_hal_millis()) ) \
+        *(p_error) = TUSB_ERROR_OSAL_TIMEOUT;                                              \
+      else                                                                                 \
+        return TUSB_ERROR_OSAL_WAITING;                                                    \
+    } else{                                                                                \
+      /*tusb_hal_int_disable_all();*/                                                          \
+      sem_hdl->count--;                                                                    \
+      /*tusb_hal_int_enable_all();*/                                                           \
+      *(p_error) = TUSB_ERROR_NONE;                                                        \
+    }                                                                                      \
   }while(0)
 
 //--------------------------------------------------------------------+

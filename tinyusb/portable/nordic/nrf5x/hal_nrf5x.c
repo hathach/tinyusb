@@ -199,6 +199,40 @@ void power_usb_event_handler(uint32_t event)
         nrf_usbd_eventcause_clear(NRF_USBD_EVENTCAUSE_READY_MASK);
 
         /* Enable the peripheral */
+        // ERRATA 171, 187
+
+        if (nrf_drv_usbd_errata_187())
+        {
+//          CRITICAL_REGION_ENTER();
+          if (*((volatile uint32_t *)(0x4006EC00)) == 0x00000000)
+          {
+            *((volatile uint32_t *)(0x4006EC00)) = 0x00009375;
+            *((volatile uint32_t *)(0x4006ED14)) = 0x00000003;
+            *((volatile uint32_t *)(0x4006EC00)) = 0x00009375;
+          }
+          else
+          {
+            *((volatile uint32_t *)(0x4006ED14)) = 0x00000003;
+          }
+//          CRITICAL_REGION_EXIT();
+        }
+
+        if (nrf_drv_usbd_errata_171())
+        {
+//          CRITICAL_REGION_ENTER();
+          if (*((volatile uint32_t *)(0x4006EC00)) == 0x00000000)
+          {
+            *((volatile uint32_t *)(0x4006EC00)) = 0x00009375;
+            *((volatile uint32_t *)(0x4006EC14)) = 0x000000C0;
+            *((volatile uint32_t *)(0x4006EC00)) = 0x00009375;
+          }
+          else
+          {
+            *((volatile uint32_t *)(0x4006EC14)) = 0x000000C0;
+          }
+//          CRITICAL_REGION_EXIT();
+        }
+
         nrf_usbd_enable();
 
         // Enable HFCLK
@@ -211,6 +245,39 @@ void power_usb_event_handler(uint32_t event)
       while ( !(NRF_USBD_EVENTCAUSE_READY_MASK & NRF_USBD->EVENTCAUSE) ) { }
       nrf_usbd_eventcause_clear(NRF_USBD_EVENTCAUSE_READY_MASK);
       nrf_usbd_event_clear(NRF_USBD_EVENT_USBEVENT);
+
+      if (nrf_drv_usbd_errata_171())
+      {
+//          CRITICAL_REGION_ENTER();
+          if (*((volatile uint32_t *)(0x4006EC00)) == 0x00000000)
+          {
+              *((volatile uint32_t *)(0x4006EC00)) = 0x00009375;
+              *((volatile uint32_t *)(0x4006EC14)) = 0x00000000;
+              *((volatile uint32_t *)(0x4006EC00)) = 0x00009375;
+          }
+          else
+          {
+              *((volatile uint32_t *)(0x4006EC14)) = 0x00000000;
+          }
+
+//          CRITICAL_REGION_EXIT();
+      }
+
+      if (nrf_drv_usbd_errata_187())
+      {
+//          CRITICAL_REGION_ENTER();
+          if (*((volatile uint32_t *)(0x4006EC00)) == 0x00000000)
+          {
+              *((volatile uint32_t *)(0x4006EC00)) = 0x00009375;
+              *((volatile uint32_t *)(0x4006ED14)) = 0x00000000;
+              *((volatile uint32_t *)(0x4006EC00)) = 0x00009375;
+          }
+          else
+          {
+              *((volatile uint32_t *)(0x4006ED14)) = 0x00000000;
+          }
+//          CRITICAL_REGION_EXIT();
+      }
 
       if ( nrf_drv_usbd_errata_166() )
       {
@@ -227,10 +294,9 @@ void power_usb_event_handler(uint32_t event)
                            USBD_INTEN_EP0SETUP_Msk | USBD_INTEN_EP0DATADONE_Msk | USBD_INTEN_ENDEPIN0_Msk |  USBD_INTEN_ENDEPOUT0_Msk |
                            USBD_INTEN_EPDATA_Msk   | USBD_INTEN_SOF_Msk;
 
-      //  if (enable_sof || nrf_drv_usbd_errata_104())
-      //  {
-      //    ints_to_enable |= NRF_USBD_INT_SOF_MASK;
-      //  }
+      // FIXME Errata 104: USB complete event is not generated (happedn randomly).
+      // Requires to enable SOF to perform clean up task.
+      // nrf_drv_usbd_errata_104()
 
       // Enable interrupt, Priorities 0,1,4,5 (nRF52) are reserved for SoftDevice
       NVIC_SetPriority(USBD_IRQn, 7);
