@@ -55,9 +55,16 @@
 
 #if CFG_FIFO_MUTEX
 
-/*Mutex port for newt*/
-#include "os/os_mutex.h"
+#include "osal/osal.h"
 
+#if TUSB_CFG_OS == TUSB_OS_NONE
+// Since all fifo read/write is done in thread mode, there should be
+// no conflict except for osal queue which will be address seperatedly.
+// Therefore there may be no need for mutex with internal use of fifo
+
+#define _ff_mutex_def(mutex)
+
+#else
 #define fifo_mutex_t          struct os_mutex
 
 #define fifo_mutex_lock(m)    os_mutex_pend(m, OS_TIMEOUT_NEVER)
@@ -65,6 +72,8 @@
 
 /* Internal use only */
 #define _mutex_declare(m)     .mutex = m
+
+#endif
 
 #else
 
