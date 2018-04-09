@@ -83,8 +83,9 @@ static inline bool     tud_cdc_flush      (void)                                
 //--------------------------------------------------------------------+
 // APPLICATION CALLBACK API (WEAK is optional)
 //--------------------------------------------------------------------+
-//void tud_cdc_line_coding_changed_cb(uint8_t rhport, cdc_line_coding_t* p_line_coding);
 void tud_cdc_rx_cb(uint8_t rhport) ATTR_WEAK;
+void tud_cdc_line_state_cb(uint8_t rhport, bool dtr, bool rts) ATTR_WEAK;
+void tud_cdc_line_coding_cb(uint8_t rhport, cdc_line_coding_t const* p_line_coding) ATTR_WEAK;
 
 //--------------------------------------------------------------------+
 // USBD-CLASS DRIVER API

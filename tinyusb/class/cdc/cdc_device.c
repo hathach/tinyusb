@@ -56,7 +56,9 @@ TUSB_CFG_ATTR_USBRAM STATIC_VAR cdc_line_coding_t cdcd_line_coding[CONTROLLER_DE
 typedef struct {
   uint8_t interface_number;
   cdc_acm_capability_t acm_capability;
-  bool connected;
+
+  // Bit 0:  DTR (Data Terminal Ready), Bit 1: RTS (Request to Send)
+  uint8_t line_state;
 
   uint8_t ep_notif;
   uint8_t ep_in;
@@ -82,7 +84,8 @@ STATIC_VAR cdcd_data_t cdcd_data[CONTROLLER_DEVICE_NUMBER];
 //--------------------------------------------------------------------+
 bool tud_n_cdc_connected(uint8_t rhport)
 {
-  return cdcd_data[rhport].connected;
+  // Either RTS or DTR active considered as connected
+  return cdcd_data[rhport].line_state;
 }
 
 uint32_t tud_n_cdc_available(uint8_t rhport)
@@ -109,6 +112,20 @@ uint32_t tud_n_cdc_write_char(uint8_t rhport, char ch)
 uint32_t tud_n_cdc_write(uint8_t rhport, void const* buffer, uint32_t bufsize)
 {
   return fifo_write_n(&_tx_ff, buffer, bufsize);
+}
+
+bool tud_n_cdc_flush (uint8_t rhport)
+{
+  uint8_t  edpt = cdcd_data[rhport].ep_in;
+  VERIFY( !dcd_edpt_busy(rhport, edpt) ); // skip if previous transfer not complete
+
+  uint16_t count = fifo_read_n(&_tx_ff, _tmp_tx_buf, sizeof(_tmp_tx_buf));
+
+  VERIFY( tud_n_cdc_connected(rhport) ); // fifo is empty if not connected
+
+  if ( count ) TU_ASSERT( dcd_edpt_xfer(rhport, edpt, _tmp_tx_buf, count) );
+
+  return true;
 }
 
 
@@ -226,23 +243,24 @@ tusb_error_t cdcd_control_request_st(uint8_t rhport, tusb_control_request_t cons
     uint16_t len = min16_of(sizeof(cdc_line_coding_t), p_request->wLength);
     usbd_control_xfer_st(rhport, p_request->bmRequestType_bit.direction, (uint8_t*) &cdcd_line_coding[rhport], len);
 
-    // TODO notify application on set line encoding
+    // Invoke callback
+    if ( tud_cdc_line_coding_cb ) tud_cdc_line_coding_cb(rhport, &cdcd_line_coding[rhport]);
   }
   else if (CDC_REQUEST_SET_CONTROL_LINE_STATE == p_request->bRequest )
   {
     // CDC PSTN v1.2 section 6.3.12
-    // Bit 0: Indicates if DTE is present or not. This signal corresponds to V.24 signal 108/2 and RS-232 signal DTR
-    // Bit 1: Carrier control for half-duplex modems. This signal corresponds to V.24 signal 105 and RS-232 signal RTS
+    // Bit 0: Indicates if DTE is present or not.
+    //        This signal corresponds to V.24 signal 108/2 and RS-232 signal DTR (Data Terminal Ready)
+    // Bit 1: Carrier control for half-duplex modems.
+    //        This signal corresponds to V.24 signal 105 and RS-232 signal RTS (Request to Send)
     cdcd_data_t * p_cdc = &cdcd_data[rhport];
 
-    // Terminal connected/disconected depending on carrier control
-    p_cdc->connected = BIT_TEST_(p_request->wValue, 1);
-
-    // TODO haven't known what to do with DTE present
-    // BIT_TEST_(p_request->wValue, 0);
-
+    p_cdc->line_state = (uint8_t) p_request->wValue;
 
     dcd_control_status(rhport, p_request->bmRequestType_bit.direction); // ACK control request
+
+    // Invoke callback
+    if ( tud_cdc_line_state_cb) tud_cdc_line_state_cb(rhport, BIT_TEST_(p_request->wValue, 0), BIT_TEST_(p_request->wValue, 1));
   }
   else
   {
@@ -264,24 +282,10 @@ tusb_error_t cdcd_xfer_cb(uint8_t rhport, uint8_t ep_addr, tusb_event_t event, u
     TU_ASSERT(dcd_edpt_xfer(rhport, p_cdc->ep_out, _tmp_rx_buf, sizeof(_tmp_rx_buf)), TUSB_ERROR_DCD_EDPT_XFER);
 
     // fire callback
-    tud_cdc_rx_cb(rhport);
+    if (tud_cdc_rx_cb) tud_cdc_rx_cb(rhport);
   }
 
   return TUSB_ERROR_NONE;
-}
-
-bool tud_n_cdc_flush (uint8_t rhport)
-{
-  uint8_t  edpt = cdcd_data[rhport].ep_in;
-  VERIFY( !dcd_edpt_busy(rhport, edpt) ); // skip if previous transfer not complete
-
-  uint16_t count = fifo_read_n(&_tx_ff, _tmp_tx_buf, sizeof(_tmp_tx_buf));
-
-  VERIFY( tud_n_cdc_connected(rhport) ); // fifo is empty if not connected
-
-  if ( count ) TU_ASSERT( dcd_edpt_xfer(rhport, edpt, _tmp_tx_buf, count) );
-
-  return true;
 }
 
 void cdcd_sof(uint8_t rhport)
