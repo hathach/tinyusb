@@ -90,9 +90,9 @@ uint32_t tud_n_cdc_available(uint8_t rhport)
   return fifo_count(&_rx_ff);
 }
 
-int tud_n_cdc_read_char(uint8_t rhport)
+int8_t tud_n_cdc_read_char(uint8_t rhport)
 {
-  uint8_t ch;
+  int8_t ch;
   return fifo_read(&_rx_ff, &ch) ? ch : (-1);
 }
 
@@ -230,29 +230,19 @@ tusb_error_t cdcd_control_request_st(uint8_t rhport, tusb_control_request_t cons
   }
   else if (CDC_REQUEST_SET_CONTROL_LINE_STATE == p_request->bRequest )
   {
-    enum {
-      ACTIVE_DTE_PRESENT     = 0x0003,
-      ACTIVE_DTE_NOT_PRESENT = 0x0002
-    };
-
+    // CDC PSTN v1.2 section 6.3.12
+    // Bit 0: Indicates if DTE is present or not. This signal corresponds to V.24 signal 108/2 and RS-232 signal DTR
+    // Bit 1: Carrier control for half-duplex modems. This signal corresponds to V.24 signal 105 and RS-232 signal RTS
     cdcd_data_t * p_cdc = &cdcd_data[rhport];
 
-    if (p_request->wValue == ACTIVE_DTE_PRESENT)
-    {
-      // terminal connected
-      p_cdc->connected = true;
-    }
-    else if (p_request->wValue == ACTIVE_DTE_NOT_PRESENT)
-    {
-      // terminal disconnected
-      p_cdc->connected = false;
-    }else
-    {
-      // De-active --> disconnected
-      p_cdc->connected = false;
-    }
+    // Terminal connected/disconected depending on carrier control
+    p_cdc->connected = BIT_TEST_(p_request->wValue, 1);
 
-    dcd_control_status(rhport, p_request->bmRequestType_bit.direction);
+    // TODO haven't known what to do with DTE present
+    // BIT_TEST_(p_request->wValue, 0);
+
+
+    dcd_control_status(rhport, p_request->bmRequestType_bit.direction); // ACK control request
   }
   else
   {
@@ -282,18 +272,14 @@ tusb_error_t cdcd_xfer_cb(uint8_t rhport, uint8_t ep_addr, tusb_event_t event, u
 
 bool tud_n_cdc_flush (uint8_t rhport)
 {
-  VERIFY( tud_n_cdc_connected(rhport) );
-
-  uint8_t edpt = cdcd_data[rhport].ep_in;
-
-  VERIFY( !dcd_edpt_busy(rhport, edpt) );
+  uint8_t  edpt = cdcd_data[rhport].ep_in;
+  VERIFY( !dcd_edpt_busy(rhport, edpt) ); // skip if previous transfer not complete
 
   uint16_t count = fifo_read_n(&_tx_ff, _tmp_tx_buf, sizeof(_tmp_tx_buf));
-  
-  if ( count ) 
-  {
-    TU_ASSERT( dcd_edpt_xfer(rhport, edpt, _tmp_tx_buf, count) );
-  }
+
+  VERIFY( tud_n_cdc_connected(rhport) ); // fifo is empty if not connected
+
+  if ( count ) TU_ASSERT( dcd_edpt_xfer(rhport, edpt, _tmp_tx_buf, count) );
 
   return true;
 }

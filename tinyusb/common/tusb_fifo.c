@@ -131,8 +131,8 @@ bool fifo_read(fifo_t* f, void * p_buffer)
 /******************************************************************************/
 uint16_t fifo_read_n (fifo_t* f, void * p_buffer, uint16_t count)
 {
-  if( !fifo_initalized(f) ) return false;
-  if( fifo_empty(f) ) return false;
+  if( !fifo_initalized(f) ) return 0;
+  if( fifo_empty(f) ) return 0;
 
   /* Limit up to fifo's count */
   count = min16_of(count, f->count);
