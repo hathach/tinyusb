@@ -87,7 +87,6 @@
 #define CFG_TUSB_DEBUG 3
 
 #define CFG_TUSB_OS TUSB_OS_NONE
-#define CFG_TUSB_TICKS_HZ 1000 // 1 ms tick
 #define CFG_TUSB_ATTR_USBRAM
 
 #ifdef __cplusplus

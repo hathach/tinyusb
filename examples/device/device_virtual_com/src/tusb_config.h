@@ -70,9 +70,6 @@
 
 //#define CFG_TUSB_OS                   TUSB_OS_NONE // be passed from IDE/command line for easy project switching
 //#define CFG_TUSB_OS_TASK_PRIO         0            // be passed from IDE/command line for easy project switching
-#define CFG_TUSB_TICKS_HZ                 1000
-
-//#define CFG_TUSB_OS       TUSB_OS_NONE
 
 //--------------------------------------------------------------------+
 // USB RAM PLACEMENT
