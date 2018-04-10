@@ -57,7 +57,7 @@
 /** \defgroup CFG_TUSB_DEVICE Device Options
  *  @{ */
 
-#define CFG_TUSB_DEVICE_CONTROL_ENDOINT_SIZE ///< Max packet size of Cotnrol Endpoint, default is 64
+#define CFG_TUSB_DEVICE_ENDOINT0_SIZE ///< Max packet size of Cotnrol Endpoint, default is 64
 
 /// Application MUST define this variable and initialize its pointers's member to all required USB descriptors including
 /// Device Descriptor, Configuration Descriptor, String Descriptors, HID Report Descriptors etc ...

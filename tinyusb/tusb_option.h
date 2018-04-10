@@ -144,6 +144,28 @@
 #endif
 
 //--------------------------------------------------------------------+
+// DEVICE OPTIONS
+//--------------------------------------------------------------------+
+#if MODE_DEVICE_SUPPORTED
+
+  #define DEVICE_CLASS_HID ( CFG_TUSB_DEVICE_HID_KEYBOARD + CFG_TUSB_DEVICE_HID_MOUSE + CFG_TUSB_DEVICE_HID_GENERIC )
+
+  #ifndef CFG_TUSB_DEVICE_ENDOINT0_SIZE
+    #define CFG_TUSB_DEVICE_ENDOINT0_SIZE    64
+  #endif
+
+
+  #if CFG_TUSB_DEVICE_ENDOINT0_SIZE > 64
+    #error Control Endpoint Max Package Size cannot larger than 64
+  #endif
+
+  #ifndef CFG_TUSB_DEVICE_ENUM_BUFFER_SIZE
+    #define CFG_TUSB_DEVICE_ENUM_BUFFER_SIZE 256
+  #endif
+
+#endif // MODE_DEVICE_SUPPORTED
+
+//--------------------------------------------------------------------+
 // HOST OPTIONS
 //--------------------------------------------------------------------+
 #if MODE_HOST_SUPPORTED
@@ -169,23 +191,6 @@
 
   //------------- CLASS -------------//
 #endif // MODE_HOST_SUPPORTED
-
-//--------------------------------------------------------------------+
-// DEVICE OPTIONS
-//--------------------------------------------------------------------+
-#if MODE_DEVICE_SUPPORTED
-
- #define DEVICE_CLASS_HID ( CFG_TUSB_DEVICE_HID_KEYBOARD + CFG_TUSB_DEVICE_HID_MOUSE + CFG_TUSB_DEVICE_HID_GENERIC )
-
- #if CFG_TUSB_DEVICE_CONTROL_ENDOINT_SIZE > 64
-  #error Control Endpoint Max Package Size cannot larger than 64
- #endif
-
- #ifndef CFG_TUSB_DEVICE_ENUM_BUFFER_SIZE
-   #define CFG_TUSB_DEVICE_ENUM_BUFFER_SIZE 256
- #endif
-
-#endif // MODE_DEVICE_SUPPORTED
 
 #endif /* _TUSB_TUSB_OPTION_H_ */
 

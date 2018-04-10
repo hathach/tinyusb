@@ -54,23 +54,23 @@
 //--------------------------------------------------------------------+
 // DEVICE CONFIGURATION
 //--------------------------------------------------------------------+
-#define CFG_TUSB_DEVICE_CONTROL_ENDOINT_SIZE    64
+#define CFG_TUSB_DEVICE_ENDOINT0_SIZE     64
 
 //------------- CLASS -------------//
-#define CFG_TUSB_DEVICE_HID_KEYBOARD            0
-#define CFG_TUSB_DEVICE_HID_MOUSE               0
-#define CFG_TUSB_DEVICE_HID_GENERIC             0 // not supported yet
-#define CFG_TUSB_DEVICE_MSC                     0
-#define CFG_TUSB_DEVICE_CDC                     1
+#define CFG_TUSB_DEVICE_HID_KEYBOARD      0
+#define CFG_TUSB_DEVICE_HID_MOUSE         0
+#define CFG_TUSB_DEVICE_HID_GENERIC       0 // not supported yet
+#define CFG_TUSB_DEVICE_MSC               0
+#define CFG_TUSB_DEVICE_CDC               1
 
 //--------------------------------------------------------------------+
 // COMMON CONFIGURATION
 //--------------------------------------------------------------------+
-#define CFG_TUSB_DEBUG                2
+#define CFG_TUSB_DEBUG                    2
 
 //#define CFG_TUSB_OS                   TUSB_OS_NONE // be passed from IDE/command line for easy project switching
 //#define CFG_TUSB_OS_TASK_PRIO         0            // be passed from IDE/command line for easy project switching
-#define CFG_TUSB_TICKS_HZ             1000
+#define CFG_TUSB_TICKS_HZ                 1000
 
 //#define CFG_TUSB_OS       TUSB_OS_NONE
 

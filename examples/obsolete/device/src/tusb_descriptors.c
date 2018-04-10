@@ -152,7 +152,7 @@ tusb_desc_device_t const desc_device =
     .bDeviceProtocol    = 0x00,
   #endif
 
-    .bMaxPacketSize0    = CFG_TUSB_DEVICE_CONTROL_ENDOINT_SIZE,
+    .bMaxPacketSize0    = CFG_TUSB_DEVICE_ENDOINT0_SIZE,
 
     .idVendor           = CFG_VENDORID,
     .idProduct          = CFG_PRODUCTID,

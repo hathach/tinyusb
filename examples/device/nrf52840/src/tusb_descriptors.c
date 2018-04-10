@@ -53,7 +53,7 @@ tusb_desc_device_t const desc_device =
     .bDeviceSubClass    = MISC_SUBCLASS_COMMON,
     .bDeviceProtocol    = MISC_PROTOCOL_IAD,
 
-    .bMaxPacketSize0    = CFG_TUSB_DEVICE_CONTROL_ENDOINT_SIZE,
+    .bMaxPacketSize0    = CFG_TUSB_DEVICE_ENDOINT0_SIZE,
 
     .idVendor           = CFG_VENDORID,
     .idProduct          = CFG_PRODUCTID,

@@ -47,26 +47,26 @@
 // CONTROLLER CONFIGURATION
 //--------------------------------------------------------------------+
 //#define CFG_TUSB_MCU will be passed from IDE for easy board/mcu switching
-#define CFG_TUSB_CONTROLLER_0_MODE  (TUSB_MODE_HOST)
+#define CFG_TUSB_CONTROLLER_0_MODE      (TUSB_MODE_HOST)
 
 //--------------------------------------------------------------------+
 // HOST CONFIGURATION
 //--------------------------------------------------------------------+
 
 //------------- CLASS -------------//
-#define CFG_TUSB_HOST_HUB                       1
-#define CFG_TUSB_HOST_HID_KEYBOARD              1
-#define CFG_TUSB_HOST_HID_MOUSE                 1
-#define CFG_TUSB_HOST_HID_GENERIC               0 // (not yet supported)
-#define CFG_TUSB_HOST_MSC                       1
-#define CFG_TUSB_HOST_CDC                       1
+#define CFG_TUSB_HOST_HUB               1
+#define CFG_TUSB_HOST_HID_KEYBOARD      1
+#define CFG_TUSB_HOST_HID_MOUSE         1
+#define CFG_TUSB_HOST_HID_GENERIC       0 // (not yet supported)
+#define CFG_TUSB_HOST_MSC               1
+#define CFG_TUSB_HOST_CDC               1
 
-#define CFG_TUSB_HOST_DEVICE_MAX                (CFG_TUSB_HOST_HUB ? 5 : 1) // normal hub has 4 ports
+#define CFG_TUSB_HOST_DEVICE_MAX        (CFG_TUSB_HOST_HUB ? 5 : 1) // normal hub has 4 ports
 
 //--------------------------------------------------------------------+
 // COMMON CONFIGURATION
 //--------------------------------------------------------------------+
-#define CFG_TUSB_DEBUG                2
+#define CFG_TUSB_DEBUG                  2
 
 //#define CFG_TUSB_OS                   TUSB_OS_NONE // defined using eclipse build
 //#define CFG_TUSB_OS_TASK_PRIO         0            // defined using eclipse build
