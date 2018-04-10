@@ -76,7 +76,7 @@ typedef struct {
 // MACRO CONSTANT TYPEDEF
 //--------------------------------------------------------------------+
 usbd_device_info_t usbd_devices[CONTROLLER_DEVICE_NUMBER];
-CFG_TUSB_ATTR_USBRAM ATTR_USB_MIN_ALIGNMENT uint8_t usbd_enum_buffer[CFG_TUSB_DEVICE_ENUM_BUFFER_SIZE];
+CFG_TUSB_ATTR_USBRAM CFG_TUSB_MEM_ALIGN uint8_t usbd_enum_buffer[CFG_TUSB_DEVICE_ENUM_BUFFER_SIZE];
 
 static usbd_class_driver_t const usbd_class_drivers[] =
 {

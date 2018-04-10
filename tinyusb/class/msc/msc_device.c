@@ -62,13 +62,13 @@ typedef struct {
   // buffer for scsi's response other than read10 & write10.
   // NOTE should be multiple of 64 to be compatible with lpc11/13u
   uint8_t scsi_data[64];
-  ATTR_USB_MIN_ALIGNMENT msc_cbw_t  cbw;
+  CFG_TUSB_MEM_ALIGN msc_cbw_t  cbw;
 
 #if defined (__ICCARM__) && (CFG_TUSB_MCU == MCU_LPC11UXX || CFG_TUSB_MCU == MCU_LPC13UXX)
   uint8_t padding1[64-sizeof(msc_cbw_t)]; // IAR cannot align struct's member
 #endif
 
-  ATTR_USB_MIN_ALIGNMENT msc_csw_t csw;
+  CFG_TUSB_MEM_ALIGN msc_csw_t csw;
 
   uint8_t max_lun;
   uint8_t interface_num;
@@ -79,7 +79,7 @@ typedef struct {
   uint16_t xferred_len; // numbered of bytes transferred so far in the Data Stage
 }mscd_interface_t;
 
-CFG_TUSB_ATTR_USBRAM ATTR_USB_MIN_ALIGNMENT STATIC_VAR mscd_interface_t mscd_data;
+CFG_TUSB_ATTR_USBRAM CFG_TUSB_MEM_ALIGN STATIC_VAR mscd_interface_t mscd_data;
 //--------------------------------------------------------------------+
 // INTERNAL OBJECT & FUNCTION DECLARATION
 //--------------------------------------------------------------------+

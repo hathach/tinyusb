@@ -69,8 +69,6 @@ typedef struct {
 CFG_TUSB_ATTR_USBRAM ATTR_ALIGNED(4) uint8_t _tmp_rx_buf[64];
 CFG_TUSB_ATTR_USBRAM ATTR_ALIGNED(4) uint8_t _tmp_tx_buf[64];
 
-#define CFG_TUD_CDC_BUFSIZE   128
-
 FIFO_DEF(_rx_ff, CFG_TUD_CDC_BUFSIZE, uint8_t, true);
 FIFO_DEF(_tx_ff, CFG_TUD_CDC_BUFSIZE, uint8_t, true);
 
@@ -163,8 +161,9 @@ tusb_error_t cdcd_open(uint8_t rhport, tusb_desc_interface_t const * p_interface
   //------------- Communication Interface -------------//
   (*p_length) = sizeof(tusb_desc_interface_t);
 
+  // Communication Functional Descriptors
   while( TUSB_DESC_CLASS_SPECIFIC == p_desc[DESCRIPTOR_OFFSET_TYPE] )
-  { // Communication Functional Descriptors
+  {
     if ( CDC_FUNC_DESC_ABSTRACT_CONTROL_MANAGEMENT == cdc_functional_desc_typeof(p_desc) )
     { // save ACM bmCapabilities
       p_cdc->acm_capability = ((cdc_desc_func_acm_t const *) p_desc)->bmCapabilities;
@@ -244,7 +243,10 @@ tusb_error_t cdcd_control_request_st(uint8_t rhport, tusb_control_request_t cons
     usbd_control_xfer_st(rhport, p_request->bmRequestType_bit.direction, (uint8_t*) &cdcd_line_coding[rhport], len);
 
     // Invoke callback
-    if ( tud_cdc_line_coding_cb ) tud_cdc_line_coding_cb(rhport, &cdcd_line_coding[rhport]);
+    if (CDC_REQUEST_SET_LINE_CODING == p_request->bRequest)
+    {
+      if ( tud_cdc_line_coding_cb ) tud_cdc_line_coding_cb(rhport, &cdcd_line_coding[rhport]);
+    }
   }
   else if (CDC_REQUEST_SET_CONTROL_LINE_STATE == p_request->bRequest )
   {
@@ -290,7 +292,9 @@ tusb_error_t cdcd_xfer_cb(uint8_t rhport, uint8_t ep_addr, tusb_event_t event, u
 
 void cdcd_sof(uint8_t rhport)
 {
+#if CFG_TUD_CDC_FLUSH_ON_SOF
   tud_n_cdc_flush(rhport);
+#endif
 }
 
 #endif

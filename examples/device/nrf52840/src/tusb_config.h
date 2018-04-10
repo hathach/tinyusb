@@ -77,11 +77,11 @@
 
 // LPC11uxx and LPC13uxx requires each buffer has to be 64-byte alignment
 #if CFG_TUSB_MCU == MCU_LPC11UXX || CFG_TUSB_MCU == MCU_LPC13UXX
- #define ATTR_USB_MIN_ALIGNMENT   ATTR_ALIGNED(64)
+ #define CFG_TUSB_MEM_ALIGN   ATTR_ALIGNED(64)
 #elif defined NRF52840_XXAA
- #define ATTR_USB_MIN_ALIGNMENT   ATTR_ALIGNED(4)
+ #define CFG_TUSB_MEM_ALIGN   ATTR_ALIGNED(4)
 #else
- #define ATTR_USB_MIN_ALIGNMENT
+ #define CFG_TUSB_MEM_ALIGN
 #endif
 
 #ifdef __cplusplus
