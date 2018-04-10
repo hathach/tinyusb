@@ -96,7 +96,7 @@ typedef struct {
   } control;
 } usbh_device_info_t;
 
-extern usbh_device_info_t usbh_devices[TUSB_CFG_HOST_DEVICE_MAX+1]; // including zero-address
+extern usbh_device_info_t usbh_devices[CFG_TUSB_HOST_DEVICE_MAX+1]; // including zero-address
 
 //--------------------------------------------------------------------+
 // callback from HCD ISR

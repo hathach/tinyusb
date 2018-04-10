@@ -50,7 +50,7 @@
  extern "C" {
 #endif
 
-#if TUSB_CFG_DEVICE_MSC
+#if CFG_TUSB_DEVICE_MSC
 
 enum
 {
@@ -63,7 +63,7 @@ enum
 If you find any bugs or get any questions, feel free to file an\r\n\
 issue at github.com/hathach/tinyusb"
 
-#if TUSB_CFG_MCU==MCU_LPC11UXX || TUSB_CFG_MCU==MCU_LPC13UXX
+#if CFG_TUSB_MCU==MCU_LPC11UXX || CFG_TUSB_MCU==MCU_LPC13UXX
   #define MSCD_APP_ROMDISK
 #else // defaults is ram disk
   #define MSCD_APP_RAMDISK

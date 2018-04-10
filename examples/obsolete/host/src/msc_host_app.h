@@ -54,7 +54,7 @@
  extern "C" {
 #endif
 
-#if TUSB_CFG_HOST_MSC
+#if CFG_TUSB_HOST_MSC
 
 void msc_host_app_init(void);
 void msc_host_app_task(void* param);

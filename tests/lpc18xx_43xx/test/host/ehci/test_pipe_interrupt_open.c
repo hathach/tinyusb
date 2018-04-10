@@ -50,7 +50,7 @@
 #include "ehci_controller_fake.h"
 #include "host_helper.h"
 
-usbh_device_info_t usbh_devices[TUSB_CFG_HOST_DEVICE_MAX+1];
+usbh_device_info_t usbh_devices[CFG_TUSB_HOST_DEVICE_MAX+1];
 
 static uint8_t const hub_addr = 2;
 static uint8_t const hub_port = 2;
@@ -67,7 +67,7 @@ static pipe_handle_t pipe_hdl;
 //--------------------------------------------------------------------+
 void setUp(void)
 {
-  memclr_(usbh_devices, sizeof(usbh_device_info_t)*(TUSB_CFG_HOST_DEVICE_MAX+1));
+  memclr_(usbh_devices, sizeof(usbh_device_info_t)*(CFG_TUSB_HOST_DEVICE_MAX+1));
 
   hcd_init();
 

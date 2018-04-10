@@ -54,7 +54,7 @@
 #include "host_helper.h"
 
 
-extern hidh_interface_info_t mouseh_data[TUSB_CFG_HOST_DEVICE_MAX];
+extern hidh_interface_info_t mouseh_data[CFG_TUSB_HOST_DEVICE_MAX];
 hidh_interface_info_t *p_hidh_mouse;
 hid_mouse_report_t report;
 
@@ -68,7 +68,7 @@ void setUp(void)
   helper_usbh_init_expect();
   usbh_init();
 
-  dev_addr = RANDOM(TUSB_CFG_HOST_DEVICE_MAX)+1;
+  dev_addr = RANDOM(CFG_TUSB_HOST_DEVICE_MAX)+1;
 
 //  uint16_t length;
 //  TEST_ASSERT_STATUS( hidh_open_subtask(dev_addr, p_mouse_interface_desc, &length) );
@@ -92,5 +92,5 @@ void tearDown(void)
 //{
 //  hidh_init();
 //
-//  TEST_ASSERT_MEM_ZERO(mouse_data, sizeof(hidh_interface_info_t)*TUSB_CFG_HOST_DEVICE_MAX);
+//  TEST_ASSERT_MEM_ZERO(mouse_data, sizeof(hidh_interface_info_t)*CFG_TUSB_HOST_DEVICE_MAX);
 //}

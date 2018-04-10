@@ -2010,13 +2010,13 @@ INCLUDE_FILE_PATTERNS  =
 # recursively expanded use the := operator instead of the = operator.
 # This tag requires that the tag ENABLE_PREPROCESSING is set to YES.
 
-PREDEFINED             = TUSB_CFG_CONTROLLER_0_MODE=TUSB_MODE_HOST \
-                         TUSB_CFG_CONTROLLER_1_MODE=TUSB_MODE_NONE \
-                         TUSB_CFG_HOST_HID_KEYBOARD=1 \
+PREDEFINED             = CFG_TUSB_CONTROLLER_0_MODE=TUSB_MODE_HOST \
+                         CFG_TUSB_CONTROLLER_1_MODE=TUSB_MODE_NONE \
+                         CFG_TUSB_HOST_HID_KEYBOARD=1 \
                          ATTR_PACKED_STRUCT(x)=x \
-                         TUSB_CFG_HOST_CDC_RNDIS=1 \
+                         CFG_TUSB_HOST_CDC_RNDIS=1 \
                          ATTR_ALIGNED(x)= \
-                         TUSB_CFG_OS=TUSB_OS_NONE
+                         CFG_TUSB_OS=TUSB_OS_NONE
 
 # If the MACRO_EXPANSION and EXPAND_ONLY_PREDEF tags are set to YES then this
 # tag can be used to specify a list of macro names that should be expanded. The

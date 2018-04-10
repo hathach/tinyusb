@@ -51,7 +51,7 @@
 #include "descriptor_cdc.h"
 #include "cdc_host.h"
 
-#if TUSB_CFG_HOST_CDC_RNDIS // TODO enable
+#if CFG_TUSB_HOST_CDC_RNDIS // TODO enable
 #include "cdc_rndis_host.h"
 #endif
 
@@ -63,7 +63,7 @@ static tusb_desc_endpoint_t const * p_endpoint_notification = &cdc_config_descri
 static tusb_desc_endpoint_t const * p_endpoint_out = &cdc_config_descriptor.cdc_endpoint_out;
 static tusb_desc_endpoint_t const * p_endpoint_in = &cdc_config_descriptor.cdc_endpoint_in;
 
-extern cdch_data_t cdch_data[TUSB_CFG_HOST_DEVICE_MAX];
+extern cdch_data_t cdch_data[CFG_TUSB_HOST_DEVICE_MAX];
 static cdch_data_t * p_cdc = &cdch_data[0];
 
 void setUp(void)
@@ -71,7 +71,7 @@ void setUp(void)
   length = 0;
   dev_addr = 1;
 
-  memclr_(cdch_data, sizeof(cdch_data_t)*TUSB_CFG_HOST_DEVICE_MAX);
+  memclr_(cdch_data, sizeof(cdch_data_t)*CFG_TUSB_HOST_DEVICE_MAX);
 }
 
 void tearDown(void)

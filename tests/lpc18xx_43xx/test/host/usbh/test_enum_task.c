@@ -51,8 +51,8 @@
 #include "mock_cdc_host.h"
 #include "mock_msc_host.h"
 
-extern usbh_device_info_t usbh_devices[TUSB_CFG_HOST_DEVICE_MAX+1];
-extern uint8_t enum_data_buffer[TUSB_CFG_HOST_ENUM_BUFFER_SIZE];
+extern usbh_device_info_t usbh_devices[CFG_TUSB_HOST_DEVICE_MAX+1];
+extern uint8_t enum_data_buffer[CFG_TUSB_HOST_ENUM_BUFFER_SIZE];
 
 usbh_enumerate_t const enum_connect = {
     .core_id  = 0,
@@ -73,7 +73,7 @@ enum {
 
 void setUp(void)
 {
-  memclr_(usbh_devices, sizeof(usbh_device_info_t)*(TUSB_CFG_HOST_DEVICE_MAX+1));
+  memclr_(usbh_devices, sizeof(usbh_device_info_t)*(CFG_TUSB_HOST_DEVICE_MAX+1));
 
   osal_queue_receive_StubWithCallback(queue_recv_stub);
   osal_semaphore_wait_StubWithCallback(semaphore_wait_success_stub);
@@ -164,7 +164,7 @@ tusb_error_t control_xfer_stub(uint8_t dev_addr, const tusb_control_request_t * 
     case 4: // get full-length configuration descriptor
       TEST_ASSERT_EQUAL(TUSB_REQ_GET_DESCRIPTOR, p_request->bRequest);
       TEST_ASSERT_EQUAL(TUSB_DESC_TYPE_CONFIGURATION, p_request->wValue >> 8);
-      TEST_ASSERT_EQUAL(TUSB_CFG_HOST_ENUM_BUFFER_SIZE, p_request->wLength);
+      TEST_ASSERT_EQUAL(CFG_TUSB_HOST_ENUM_BUFFER_SIZE, p_request->wLength);
       memcpy(data, &desc_configuration, p_request->wLength);
     break;
 

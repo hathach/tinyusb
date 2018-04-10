@@ -42,8 +42,8 @@
 
 #define _TINY_USB_SOURCE_FILE_
 
-#ifndef TUSB_CFG_OS_TASK_PRIO
-#define TUSB_CFG_OS_TASK_PRIO 0
+#ifndef CFG_TUSB_OS_TASK_PRIO
+#define CFG_TUSB_OS_TASK_PRIO 0
 #endif
 
 //--------------------------------------------------------------------+
@@ -67,7 +67,7 @@ static host_class_driver_t const usbh_class_drivers[] =
     },
   #endif
 
-  #if TUSB_CFG_HOST_CDC
+  #if CFG_TUSB_HOST_CDC
     [TUSB_CLASS_CDC] = {
         .init         = cdch_init,
         .open_subtask = cdch_open_subtask,
@@ -76,7 +76,7 @@ static host_class_driver_t const usbh_class_drivers[] =
     },
   #endif
 
-  #if TUSB_CFG_HOST_MSC
+  #if CFG_TUSB_HOST_MSC
     [TUSB_CLASS_MSC] = {
         .init         = msch_init,
         .open_subtask = msch_open_subtask,
@@ -85,7 +85,7 @@ static host_class_driver_t const usbh_class_drivers[] =
     },
   #endif
 
-  #if TUSB_CFG_HOST_HUB
+  #if CFG_TUSB_HOST_HUB
     [TUSB_CLASS_HUB] = {
         .init         = hub_init,
         .open_subtask = hub_open_subtask,
@@ -94,7 +94,7 @@ static host_class_driver_t const usbh_class_drivers[] =
     },
   #endif
 
-  #if TUSB_CFG_HOST_CUSTOM_CLASS
+  #if CFG_TUSB_HOST_CUSTOM_CLASS
     [TUSB_CLASS_MAPPED_INDEX_END-1] = {
         .init         = cush_init,
         .open_subtask = cush_open_subtask,
@@ -109,13 +109,13 @@ enum { USBH_CLASS_DRIVER_COUNT = sizeof(usbh_class_drivers) / sizeof(host_class_
 //--------------------------------------------------------------------+
 // INTERNAL OBJECT & FUNCTION DECLARATION
 //--------------------------------------------------------------------+
-TUSB_CFG_ATTR_USBRAM usbh_device_info_t usbh_devices[TUSB_CFG_HOST_DEVICE_MAX+1]; // including zero-address
+CFG_TUSB_ATTR_USBRAM usbh_device_info_t usbh_devices[CFG_TUSB_HOST_DEVICE_MAX+1]; // including zero-address
 
 //------------- Enumeration Task Data -------------/
 enum { ENUM_QUEUE_DEPTH = 16 };
 
 STATIC_VAR osal_queue_t enum_queue_hdl;
-TUSB_CFG_ATTR_USBRAM ATTR_ALIGNED(4) STATIC_VAR uint8_t enum_data_buffer[TUSB_CFG_HOST_ENUM_BUFFER_SIZE];
+CFG_TUSB_ATTR_USBRAM ATTR_ALIGNED(4) STATIC_VAR uint8_t enum_data_buffer[CFG_TUSB_HOST_ENUM_BUFFER_SIZE];
 
 //------------- Reporter Task Data -------------//
 
@@ -128,7 +128,7 @@ static inline uint8_t get_configure_number_for_device(tusb_desc_device_t* dev_de
 //--------------------------------------------------------------------+
 tusb_device_state_t tuh_device_get_state (uint8_t const dev_addr)
 {
-  TU_ASSERT( dev_addr <= TUSB_CFG_HOST_DEVICE_MAX, TUSB_DEVICE_STATE_INVALID_PARAMETER);
+  TU_ASSERT( dev_addr <= CFG_TUSB_HOST_DEVICE_MAX, TUSB_DEVICE_STATE_INVALID_PARAMETER);
   return (tusb_device_state_t) usbh_devices[dev_addr].state;
 }
 
@@ -142,7 +142,7 @@ uint32_t tuh_device_get_mounted_class_flag(uint8_t dev_addr)
 //--------------------------------------------------------------------+
 tusb_error_t usbh_init(void)
 {
-  memclr_(usbh_devices, sizeof(usbh_device_info_t)*(TUSB_CFG_HOST_DEVICE_MAX+1));
+  memclr_(usbh_devices, sizeof(usbh_device_info_t)*(CFG_TUSB_HOST_DEVICE_MAX+1));
 
   ASSERT_ERR( hcd_init() );
 
@@ -150,10 +150,10 @@ tusb_error_t usbh_init(void)
   enum_queue_hdl = osal_queue_create( ENUM_QUEUE_DEPTH, sizeof(uint32_t) );
   TU_ASSERT(enum_queue_hdl, TUSB_ERROR_OSAL_QUEUE_FAILED);
 
-  osal_task_create(usbh_enumeration_task, "usbh", 200, NULL, TUSB_CFG_OS_TASK_PRIO);
+  osal_task_create(usbh_enumeration_task, "usbh", 200, NULL, CFG_TUSB_OS_TASK_PRIO);
 
   //------------- Semaphore, Mutex for Control Pipe -------------//
-  for(uint8_t i=0; i<TUSB_CFG_HOST_DEVICE_MAX+1; i++) // including address zero
+  for(uint8_t i=0; i<CFG_TUSB_HOST_DEVICE_MAX+1; i++) // including address zero
   {
     usbh_device_info_t * const p_device = &usbh_devices[i];
 
@@ -293,7 +293,7 @@ static void usbh_device_unplugged(uint8_t hostid, uint8_t hub_addr, uint8_t hub_
 {
   bool is_found = false;
   //------------- find the all devices (star-network) under port that is unplugged -------------//
-  for (uint8_t dev_addr = 0; dev_addr <= TUSB_CFG_HOST_DEVICE_MAX; dev_addr ++)
+  for (uint8_t dev_addr = 0; dev_addr <= CFG_TUSB_HOST_DEVICE_MAX; dev_addr ++)
   {
     if (usbh_devices[dev_addr].core_id  == hostid   &&
         (hub_addr == 0 || usbh_devices[dev_addr].hub_addr == hub_addr) && // hub_addr == 0 & hub_port == 0 means roothub
@@ -401,7 +401,7 @@ tusb_error_t enumeration_body_subtask(void)
       STASK_RETURN(TUSB_ERROR_NONE); // restart task
     }
   }
-  #if TUSB_CFG_HOST_HUB
+  #if CFG_TUSB_HOST_HUB
   //------------- connected/disconnected via hub -------------//
   else
   {
@@ -462,7 +462,7 @@ tusb_error_t enumeration_body_subtask(void)
     hcd_port_reset( usbh_devices[0].core_id ); // reset port after 8 byte descriptor
     osal_task_delay(RESET_DELAY);
   }
-  #if TUSB_CFG_HOST_HUB
+  #if CFG_TUSB_HOST_HUB
   else
   { // connected via a hub
     STASK_ASSERT_ERR_HDLR(error, hub_status_pipe_queue( usbh_devices[0].hub_addr) ); // TODO hub refractor
@@ -479,7 +479,7 @@ tusb_error_t enumeration_body_subtask(void)
 
   //------------- Set new address -------------//
   new_addr = get_new_address();
-  STASK_ASSERT(new_addr <= TUSB_CFG_HOST_DEVICE_MAX); // TODO notify application we reach max devices
+  STASK_ASSERT(new_addr <= CFG_TUSB_HOST_DEVICE_MAX); // TODO notify application we reach max devices
 
   STASK_INVOKE(
     usbh_control_xfer_subtask( 0, bm_request_type(TUSB_DIR_OUT, TUSB_REQ_TYPE_STANDARD, TUSB_REQ_RCPT_DEVICE),
@@ -527,14 +527,14 @@ tusb_error_t enumeration_body_subtask(void)
       error
   );
   STASK_ASSERT_ERR(error);
-  STASK_ASSERT_HDLR( TUSB_CFG_HOST_ENUM_BUFFER_SIZE >= ((tusb_desc_configuration_t*)enum_data_buffer)->wTotalLength,
+  STASK_ASSERT_HDLR( CFG_TUSB_HOST_ENUM_BUFFER_SIZE >= ((tusb_desc_configuration_t*)enum_data_buffer)->wTotalLength,
                             tuh_device_mount_failed_cb(TUSB_ERROR_USBH_MOUNT_CONFIG_DESC_TOO_LONG, NULL) );
 
   //------------- Get full configuration descriptor -------------//
   STASK_INVOKE(
       usbh_control_xfer_subtask( new_addr, bm_request_type(TUSB_DIR_IN, TUSB_REQ_TYPE_STANDARD, TUSB_REQ_RCPT_DEVICE),
                                  TUSB_REQ_GET_DESCRIPTOR, (TUSB_DESC_CONFIGURATION << 8) | (configure_selected - 1), 0,
-                                 TUSB_CFG_HOST_ENUM_BUFFER_SIZE, enum_data_buffer ),
+                                 CFG_TUSB_HOST_ENUM_BUFFER_SIZE, enum_data_buffer ),
       error
   );
   STASK_ASSERT_ERR(error);
@@ -618,7 +618,7 @@ tusb_error_t enumeration_body_subtask(void)
 static inline uint8_t get_new_address(void)
 {
   uint8_t addr;
-  for (addr=1; addr <= TUSB_CFG_HOST_DEVICE_MAX; addr++)
+  for (addr=1; addr <= CFG_TUSB_HOST_DEVICE_MAX; addr++)
   {
     if (usbh_devices[addr].state == TUSB_DEVICE_STATE_UNPLUG)
       break;

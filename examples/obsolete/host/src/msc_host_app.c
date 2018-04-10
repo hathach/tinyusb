@@ -42,7 +42,7 @@
 #include "msc_host_app.h"
 #include "app_os_prio.h"
 
-#if TUSB_CFG_HOST_MSC
+#if CFG_TUSB_HOST_MSC
 
 #include "msc_cli.h"
 #include "ff.h"
@@ -55,7 +55,7 @@
 //--------------------------------------------------------------------+
 // INTERNAL OBJECT & FUNCTION DECLARATION
 //--------------------------------------------------------------------+
-TUSB_CFG_ATTR_USBRAM static FATFS fatfs[TUSB_CFG_HOST_DEVICE_MAX];
+CFG_TUSB_ATTR_USBRAM static FATFS fatfs[CFG_TUSB_HOST_DEVICE_MAX];
 
 //--------------------------------------------------------------------+
 // tinyusb callbacks
@@ -117,7 +117,7 @@ void tuh_msc_unmounted_cb(uint8_t dev_addr)
 
   if ( phy_disk == f_get_current_drive() )
   { // active drive is unplugged --> change to other drive
-    for(uint8_t i=0; i<TUSB_CFG_HOST_DEVICE_MAX; i++)
+    for(uint8_t i=0; i<CFG_TUSB_HOST_DEVICE_MAX; i++)
     {
       if ( disk_is_ready(i) )
       {
@@ -158,7 +158,7 @@ void msc_host_app_task(void* param)
 
   is_any_disk_mounted = false;
   
-  for(uint8_t phy_disk=0; phy_disk < TUSB_CFG_HOST_DEVICE_MAX; phy_disk++)
+  for(uint8_t phy_disk=0; phy_disk < CFG_TUSB_HOST_DEVICE_MAX; phy_disk++)
   {
     if ( disk_is_ready(phy_disk) )
     {

@@ -39,7 +39,7 @@
 #include "common/tusb_common.h"
 #include "hal.h"
 
-#if TUSB_CFG_MCU == MCU_LPC11UXX
+#if CFG_TUSB_MCU == MCU_LPC11UXX
 
 void tusb_hal_int_enable(uint8_t rhport)
 {

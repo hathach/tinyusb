@@ -64,7 +64,7 @@ void print_greeting(void);
 // IMPLEMENTATION
 //--------------------------------------------------------------------+
 
-#if TUSB_CFG_OS == TUSB_OS_NONE
+#if CFG_TUSB_OS == TUSB_OS_NONE
 // like a real RTOS, this function is a main loop invoking each task in application and never return
 void os_none_start_scheduler(void)
 {
@@ -83,7 +83,7 @@ void os_none_start_scheduler(void)
 
 int main(void)
 {
-#if TUSB_CFG_OS == TUSB_OS_CMSIS_RTX
+#if CFG_TUSB_OS == TUSB_OS_CMSIS_RTX
   osKernelInitialize(); // CMSIS RTX requires kernel init before any other OS functions
 #endif
 
@@ -101,11 +101,11 @@ int main(void)
   cdc_serial_host_app_init();
 
   //------------- start OS scheduler (never return) -------------//
-#if TUSB_CFG_OS == TUSB_OS_FREERTOS
+#if CFG_TUSB_OS == TUSB_OS_FREERTOS
   vTaskStartScheduler();
-#elif TUSB_CFG_OS == TUSB_OS_NONE
+#elif CFG_TUSB_OS == TUSB_OS_NONE
   os_none_start_scheduler();
-#elif TUSB_CFG_OS == TUSB_OS_CMSIS_RTX
+#elif CFG_TUSB_OS == TUSB_OS_CMSIS_RTX
   osKernelStart();
 #else
   #error need to start RTOS schduler
@@ -134,10 +134,10 @@ void print_greeting(void)
   );
 
   puts("This HOST demo is configured to support:");
-  printf("  - RTOS = %s\n", rtos_name[TUSB_CFG_OS]);
-  if (TUSB_CFG_HOST_HUB          ) puts("  - Hub (1 level only)");
-  if (TUSB_CFG_HOST_HID_MOUSE    ) puts("  - HID Mouse");
-  if (TUSB_CFG_HOST_HID_KEYBOARD ) puts("  - HID Keyboard");
-  if (TUSB_CFG_HOST_MSC          ) puts("  - Mass Storage");
-  if (TUSB_CFG_HOST_CDC          ) puts("  - Communication Device Class");
+  printf("  - RTOS = %s\n", rtos_name[CFG_TUSB_OS]);
+  if (CFG_TUSB_HOST_HUB          ) puts("  - Hub (1 level only)");
+  if (CFG_TUSB_HOST_HID_MOUSE    ) puts("  - HID Mouse");
+  if (CFG_TUSB_HOST_HID_KEYBOARD ) puts("  - HID Keyboard");
+  if (CFG_TUSB_HOST_MSC          ) puts("  - Mass Storage");
+  if (CFG_TUSB_HOST_CDC          ) puts("  - Communication Device Class");
 }

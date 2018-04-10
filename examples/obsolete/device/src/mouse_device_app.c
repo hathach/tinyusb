@@ -38,7 +38,7 @@
 
 #include "mouse_device_app.h"
 
-#if TUSB_CFG_DEVICE_HID_MOUSE
+#if CFG_TUSB_DEVICE_HID_MOUSE
 //--------------------------------------------------------------------+
 // INCLUDE
 //--------------------------------------------------------------------+
@@ -51,7 +51,7 @@
 //--------------------------------------------------------------------+
 // INTERNAL OBJECT & FUNCTION DECLARATION
 //--------------------------------------------------------------------+
-TUSB_CFG_ATTR_USBRAM hid_mouse_report_t mouse_report;
+CFG_TUSB_ATTR_USBRAM hid_mouse_report_t mouse_report;
 
 //--------------------------------------------------------------------+
 // tinyusb callbacks

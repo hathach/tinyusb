@@ -54,7 +54,7 @@
 uint8_t dev_addr;
 pipe_handle_t pipe_hdl;
 
-extern hidh_interface_info_t keyboardh_data[TUSB_CFG_HOST_DEVICE_MAX];
+extern hidh_interface_info_t keyboardh_data[CFG_TUSB_HOST_DEVICE_MAX];
 
 tusb_desc_interface_t const *p_kbd_interface_desc = &desc_configuration.keyboard_interface;
 tusb_hid_descriptor_hid_t   const *p_kbh_hid_desc       = &desc_configuration.keyboard_hid;
@@ -62,7 +62,7 @@ tusb_desc_endpoint_t  const *p_kdb_endpoint_desc  = &desc_configuration.keyboard
 
 void setUp(void)
 {
-  dev_addr = RANDOM(TUSB_CFG_HOST_DEVICE_MAX)+1;
+  dev_addr = RANDOM(CFG_TUSB_HOST_DEVICE_MAX)+1;
   pipe_hdl = (pipe_handle_t) {.dev_addr = dev_addr, .xfer_type = TUSB_XFER_INTERRUPT, .index = 2};
 }
 

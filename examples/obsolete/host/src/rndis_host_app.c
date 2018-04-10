@@ -39,7 +39,7 @@
 #include "rndis_host_app.h"
 #include "app_os_prio.h"
 
-#if TUSB_CFG_HOST_CDC && TUSB_CFG_HOST_CDC_RNDIS
+#if CFG_TUSB_HOST_CDC && CFG_TUSB_HOST_CDC_RNDIS
 
 //--------------------------------------------------------------------+
 // MACRO CONSTANT TYPEDEF

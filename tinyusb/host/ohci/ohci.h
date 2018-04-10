@@ -191,13 +191,13 @@ typedef struct ATTR_ALIGNED(256) {
   struct {
     ohci_ed_t ed;
     ohci_gtd_t gtd[3]; // setup, data, status
-  }control[TUSB_CFG_HOST_DEVICE_MAX+1];
+  }control[CFG_TUSB_HOST_DEVICE_MAX+1];
 
   struct {
     //  ochi_itd_t itd[OHCI_MAX_ITD]; // itd requires alignment of 32
     ohci_ed_t ed[HCD_MAX_ENDPOINT];
     ohci_gtd_t gtd[HCD_MAX_XFER];
-  }device[TUSB_CFG_HOST_DEVICE_MAX];
+  }device[CFG_TUSB_HOST_DEVICE_MAX];
 
 } ohci_data_t;
 

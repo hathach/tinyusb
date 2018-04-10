@@ -45,7 +45,7 @@ In addition to running without an RTOS, tinyusb is an OS-awared stack that can r
 
 ### RTOS ###
 
-Currently the following OS are supported with tinyusb out of the box with a simple change of TUSB_CFG_OS macro.
+Currently the following OS are supported with tinyusb out of the box with a simple change of CFG_TUSB_OS macro.
 
 - **None OS**
 - **FreeRTOS**

@@ -38,7 +38,7 @@
 
 #include "tusb_option.h"
 
-#if (MODE_HOST_SUPPORTED && TUSB_CFG_HOST_HUB)
+#if (MODE_HOST_SUPPORTED && CFG_TUSB_HOST_HUB)
 
 #define _TINY_USB_SOURCE_FILE_
 
@@ -58,8 +58,8 @@ typedef struct {
   uint8_t status_change; // data from status change interrupt endpoint
 }usbh_hub_t;
 
-TUSB_CFG_ATTR_USBRAM STATIC_VAR usbh_hub_t hub_data[TUSB_CFG_HOST_DEVICE_MAX];
-ATTR_ALIGNED(4) TUSB_CFG_ATTR_USBRAM STATIC_VAR uint8_t hub_enum_buffer[sizeof(descriptor_hub_desc_t)];
+CFG_TUSB_ATTR_USBRAM STATIC_VAR usbh_hub_t hub_data[CFG_TUSB_HOST_DEVICE_MAX];
+ATTR_ALIGNED(4) CFG_TUSB_ATTR_USBRAM STATIC_VAR uint8_t hub_enum_buffer[sizeof(descriptor_hub_desc_t)];
 
 //OSAL_SEM_DEF(hub_enum_semaphore);
 //static osal_semaphore_handle_t hub_enum_sem_hdl;
@@ -152,7 +152,7 @@ tusb_speed_t hub_port_get_speed(void)
 //--------------------------------------------------------------------+
 void hub_init(void)
 {
-  memclr_(hub_data, TUSB_CFG_HOST_DEVICE_MAX*sizeof(usbh_hub_t));
+  memclr_(hub_data, CFG_TUSB_HOST_DEVICE_MAX*sizeof(usbh_hub_t));
 //  hub_enum_sem_hdl = osal_semaphore_create( OSAL_SEM_REF(hub_enum_semaphore) );
 }
 

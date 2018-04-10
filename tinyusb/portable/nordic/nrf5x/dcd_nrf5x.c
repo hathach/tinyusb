@@ -528,6 +528,7 @@ void USBD_IRQHandler(void)
   // SOF interrupt
   if ( int_status & USBD_INTEN_SOF_Msk )
   {
+#if 0
     // FIXME Errata 104 The EPDATA event might not be generated, and the related update of EPDATASTATUS does not occur.
     // There is no way for software to tell if a xfer is complete or not.
     // Walkaround: we will asssume an non-control IN transfer is always complete after 10 frames
@@ -559,6 +560,7 @@ void USBD_IRQHandler(void)
         }
       }
     }
+#endif
 
     dcd_bus_event(0, USBD_BUS_EVENT_SOF);
   }

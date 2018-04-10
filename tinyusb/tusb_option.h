@@ -47,7 +47,7 @@
 
 // TODO remove, use vendor specific flag
 /** \defgroup group_mcu Supported MCU
- * \ref TUSB_CFG_MCU must be defined to one of these
+ * \ref CFG_TUSB_MCU must be defined to one of these
  *  @{ */
 #define MCU_LPC11UXX       1 ///< NXP LPC11Uxx family
 #define MCU_LPC13XX        2 ///< NXP LPC13xx (not supported yet)
@@ -59,11 +59,11 @@
 /** @} */
 
 // Allow to use command line to change the config name/location
-#ifndef TUSB_CFG_CONFIG_FILE
-  #define TUSB_CFG_CONFIG_FILE "tusb_config.h"
+#ifndef CFG_TUSB_CONFIG_FILE
+  #define CFG_TUSB_CONFIG_FILE "tusb_config.h"
 #endif
 
-#include TUSB_CFG_CONFIG_FILE
+#include CFG_TUSB_CONFIG_FILE
 
 /** \addtogroup group_configuration
  *  @{ */
@@ -72,34 +72,34 @@
 // CONTROLLER
 //--------------------------------------------------------------------+
 /** \defgroup group_mode Controller Mode Selection
- * \brief TUSB_CFG_CONTROLLER_N_MODE must be defined with these
+ * \brief CFG_TUSB_CONTROLLER_N_MODE must be defined with these
  *  @{ */
 #define TUSB_MODE_HOST    0x02 ///< Host Mode
 #define TUSB_MODE_DEVICE  0x01 ///< Device Mode
 #define TUSB_MODE_NONE    0x00 ///< Disabled
 /** @} */
 
-#ifndef TUSB_CFG_CONTROLLER_0_MODE
-  #define TUSB_CFG_CONTROLLER_0_MODE TUSB_MODE_NONE
+#ifndef CFG_TUSB_CONTROLLER_0_MODE
+  #define CFG_TUSB_CONTROLLER_0_MODE TUSB_MODE_NONE
 #endif
 
-#ifndef TUSB_CFG_CONTROLLER_1_MODE
-  #define TUSB_CFG_CONTROLLER_1_MODE TUSB_MODE_NONE
+#ifndef CFG_TUSB_CONTROLLER_1_MODE
+  #define CFG_TUSB_CONTROLLER_1_MODE TUSB_MODE_NONE
 #endif
 
 #define CONTROLLER_HOST_NUMBER (\
-    ((TUSB_CFG_CONTROLLER_0_MODE & TUSB_MODE_HOST) ? 1 : 0) + \
-    ((TUSB_CFG_CONTROLLER_1_MODE & TUSB_MODE_HOST) ? 1 : 0))
+    ((CFG_TUSB_CONTROLLER_0_MODE & TUSB_MODE_HOST) ? 1 : 0) + \
+    ((CFG_TUSB_CONTROLLER_1_MODE & TUSB_MODE_HOST) ? 1 : 0))
 
 #define CONTROLLER_DEVICE_NUMBER (\
-    ((TUSB_CFG_CONTROLLER_0_MODE & TUSB_MODE_DEVICE) ? 1 : 0) + \
-    ((TUSB_CFG_CONTROLLER_1_MODE & TUSB_MODE_DEVICE) ? 1 : 0))
+    ((CFG_TUSB_CONTROLLER_0_MODE & TUSB_MODE_DEVICE) ? 1 : 0) + \
+    ((CFG_TUSB_CONTROLLER_1_MODE & TUSB_MODE_DEVICE) ? 1 : 0))
 
 #define MODE_HOST_SUPPORTED   (CONTROLLER_HOST_NUMBER > 0)
 #define MODE_DEVICE_SUPPORTED (CONTROLLER_DEVICE_NUMBER > 0)
 
 #if !MODE_HOST_SUPPORTED && !MODE_DEVICE_SUPPORTED
-  #error please configure at least 1 TUSB_CFG_CONTROLLER_N_MODE to TUSB_MODE_HOST and/or TUSB_MODE_DEVICE
+  #error please configure at least 1 CFG_TUSB_CONTROLLER_N_MODE to TUSB_MODE_HOST and/or TUSB_MODE_DEVICE
 #endif
 
 //--------------------------------------------------------------------+
@@ -112,26 +112,26 @@
   - Level 1: Print out if Assert failed. STATIC_VAR is NULL --> accessible when debugging
   - Level 0: no debug information is generated
 */
-#ifndef TUSB_CFG_DEBUG
-  #define TUSB_CFG_DEBUG 0
-  #warning TUSB_CFG_DEBUG is not defined, default value is 0
+#ifndef CFG_TUSB_DEBUG
+  #define CFG_TUSB_DEBUG 0
+  #warning CFG_TUSB_DEBUG is not defined, default value is 0
 #endif
 
-#ifndef TUSB_CFG_ATTR_USBRAM
- #error TUSB_CFG_ATTR_USBRAM is not defined, please help me know how to place data in accessible RAM for usb controller
+#ifndef CFG_TUSB_ATTR_USBRAM
+ #error CFG_TUSB_ATTR_USBRAM is not defined, please help me know how to place data in accessible RAM for usb controller
 #endif
 
-#ifndef TUSB_CFG_OS
-#define TUSB_CFG_OS TUSB_OS_NONE
+#ifndef CFG_TUSB_OS
+#define CFG_TUSB_OS TUSB_OS_NONE
 #endif
 
-#if (TUSB_CFG_OS != TUSB_OS_NONE) && !defined (TUSB_CFG_OS_TASK_PRIO)
-  #error TUSB_CFG_OS_TASK_PRIO need to be defined (hint: use the highest if possible)
+#if (CFG_TUSB_OS != TUSB_OS_NONE) && !defined (CFG_TUSB_OS_TASK_PRIO)
+  #error CFG_TUSB_OS_TASK_PRIO need to be defined (hint: use the highest if possible)
 #endif
 
-//#ifndef TUSB_CFG_CONFIGURATION_MAX
-//  #define TUSB_CFG_CONFIGURATION_MAX 1
-//  #warning TUSB_CFG_CONFIGURATION_MAX is not defined, default value is 1
+//#ifndef CFG_TUSB_CONFIGURATION_MAX
+//  #define CFG_TUSB_CONFIGURATION_MAX 1
+//  #warning CFG_TUSB_CONFIGURATION_MAX is not defined, default value is 1
 //#endif
 
 #ifndef tu_malloc
@@ -147,24 +147,24 @@
 // HOST OPTIONS
 //--------------------------------------------------------------------+
 #if MODE_HOST_SUPPORTED
-  #ifndef TUSB_CFG_HOST_DEVICE_MAX
-    #define TUSB_CFG_HOST_DEVICE_MAX 1
-    #warning TUSB_CFG_HOST_DEVICE_MAX is not defined, default value is 1
+  #ifndef CFG_TUSB_HOST_DEVICE_MAX
+    #define CFG_TUSB_HOST_DEVICE_MAX 1
+    #warning CFG_TUSB_HOST_DEVICE_MAX is not defined, default value is 1
   #endif
 
   //------------- HUB CLASS -------------//
-  #if TUSB_CFG_HOST_HUB && (TUSB_CFG_HOST_DEVICE_MAX == 1)
-    #error there is no benefit enable hub with max device is 1. Please disable hub or increase TUSB_CFG_HOST_DEVICE_MAX
+  #if CFG_TUSB_HOST_HUB && (CFG_TUSB_HOST_DEVICE_MAX == 1)
+    #error there is no benefit enable hub with max device is 1. Please disable hub or increase CFG_TUSB_HOST_DEVICE_MAX
   #endif
 
   //------------- HID CLASS -------------//
-  #define HOST_CLASS_HID   ( TUSB_CFG_HOST_HID_KEYBOARD + TUSB_CFG_HOST_HID_MOUSE + TUSB_CFG_HOST_HID_GENERIC )
+  #define HOST_CLASS_HID   ( CFG_TUSB_HOST_HID_KEYBOARD + CFG_TUSB_HOST_HID_MOUSE + CFG_TUSB_HOST_HID_GENERIC )
 //  #if HOST_CLASS_HID
 //    #define HOST_HCD_XFER_INTERRUPT
 //  #endif
 
-  #ifndef TUSB_CFG_HOST_ENUM_BUFFER_SIZE
-    #define TUSB_CFG_HOST_ENUM_BUFFER_SIZE 256
+  #ifndef CFG_TUSB_HOST_ENUM_BUFFER_SIZE
+    #define CFG_TUSB_HOST_ENUM_BUFFER_SIZE 256
   #endif
 
   //------------- CLASS -------------//
@@ -175,14 +175,14 @@
 //--------------------------------------------------------------------+
 #if MODE_DEVICE_SUPPORTED
 
- #define DEVICE_CLASS_HID ( TUSB_CFG_DEVICE_HID_KEYBOARD + TUSB_CFG_DEVICE_HID_MOUSE + TUSB_CFG_DEVICE_HID_GENERIC )
+ #define DEVICE_CLASS_HID ( CFG_TUSB_DEVICE_HID_KEYBOARD + CFG_TUSB_DEVICE_HID_MOUSE + CFG_TUSB_DEVICE_HID_GENERIC )
 
- #if TUSB_CFG_DEVICE_CONTROL_ENDOINT_SIZE > 64
+ #if CFG_TUSB_DEVICE_CONTROL_ENDOINT_SIZE > 64
   #error Control Endpoint Max Package Size cannot larger than 64
  #endif
 
- #ifndef TUSB_CFG_DEVICE_ENUM_BUFFER_SIZE
-   #define TUSB_CFG_DEVICE_ENUM_BUFFER_SIZE 256
+ #ifndef CFG_TUSB_DEVICE_ENUM_BUFFER_SIZE
+   #define CFG_TUSB_DEVICE_ENUM_BUFFER_SIZE 256
  #endif
 
 #endif // MODE_DEVICE_SUPPORTED

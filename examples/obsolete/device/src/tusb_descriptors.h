@@ -50,22 +50,22 @@
 // each combination of interfaces need to have a unique productid, as windows will bind & remember device driver after the first plug.
 // Auto ProductID layout's Bitmap: (MSB) MassStorage | Generic | Mouse | Key | CDC (LSB)
 #ifndef CFG_PRODUCTID
-  #define PRODUCTID_BITMAP(interface, n)  ( (TUSB_CFG_DEVICE_##interface) << (n) )
+  #define PRODUCTID_BITMAP(interface, n)  ( (CFG_TUSB_DEVICE_##interface) << (n) )
   #define CFG_PRODUCTID                   (0x4000 | ( PRODUCTID_BITMAP(CDC, 0) | PRODUCTID_BITMAP(HID_KEYBOARD, 1) | \
                                            PRODUCTID_BITMAP(HID_MOUSE, 2) | PRODUCTID_BITMAP(HID_GENERIC, 3) | \
                                            PRODUCTID_BITMAP(MSC, 4) ) )
 #endif
 
 #define ITF_NUM_CDC           0
-#define INTERFACE_NO_HID_KEYBOARD (ITF_NUM_CDC          + 2*(TUSB_CFG_DEVICE_CDC ? 1 : 0) )
-#define INTERFACE_NO_HID_MOUSE    (INTERFACE_NO_HID_KEYBOARD + TUSB_CFG_DEVICE_HID_KEYBOARD    )
-#define INTERFACE_NO_HID_GENERIC  (INTERFACE_NO_HID_MOUSE    + TUSB_CFG_DEVICE_HID_MOUSE       )
-#define ITF_NUM_MSC          (INTERFACE_NO_HID_GENERIC  + TUSB_CFG_DEVICE_HID_GENERIC     )
+#define INTERFACE_NO_HID_KEYBOARD (ITF_NUM_CDC          + 2*(CFG_TUSB_DEVICE_CDC ? 1 : 0) )
+#define INTERFACE_NO_HID_MOUSE    (INTERFACE_NO_HID_KEYBOARD + CFG_TUSB_DEVICE_HID_KEYBOARD    )
+#define INTERFACE_NO_HID_GENERIC  (INTERFACE_NO_HID_MOUSE    + CFG_TUSB_DEVICE_HID_MOUSE       )
+#define ITF_NUM_MSC          (INTERFACE_NO_HID_GENERIC  + CFG_TUSB_DEVICE_HID_GENERIC     )
 
-#define ITF_TOTAL           (2*TUSB_CFG_DEVICE_CDC + TUSB_CFG_DEVICE_HID_KEYBOARD + TUSB_CFG_DEVICE_HID_MOUSE + \
-                                   TUSB_CFG_DEVICE_HID_GENERIC + TUSB_CFG_DEVICE_MSC)
+#define ITF_TOTAL           (2*CFG_TUSB_DEVICE_CDC + CFG_TUSB_DEVICE_HID_KEYBOARD + CFG_TUSB_DEVICE_HID_MOUSE + \
+                                   CFG_TUSB_DEVICE_HID_GENERIC + CFG_TUSB_DEVICE_MSC)
 
-#if (TUSB_CFG_MCU == MCU_LPC11UXX || TUSB_CFG_MCU == MCU_LPC13UXX) && (ITF_TOTAL > 4)
+#if (CFG_TUSB_MCU == MCU_LPC11UXX || CFG_TUSB_MCU == MCU_LPC13UXX) && (ITF_TOTAL > 4)
   #error These MCUs do not have enough number of endpoints for the current configuration
 #endif
 
@@ -75,7 +75,7 @@
 #define EDPT_IN(x)    (0x80 | (x))
 #define EDPT_OUT(x)   (x)
 
-#if TUSB_CFG_MCU == MCU_LPC175X_6X // MCUs's endpoint number has a fixed type
+#if CFG_TUSB_MCU == MCU_LPC175X_6X // MCUs's endpoint number has a fixed type
 
   //------------- CDC -------------//
   #define CDC_EDPT_NOTIF            EDPT_IN (1)
@@ -125,7 +125,7 @@
 
 #endif
 
-#define MSC_EDPT_PACKETSIZE                   (TUSB_CFG_MCU == MCU_LPC43XX ? 512 : 64)
+#define MSC_EDPT_PACKETSIZE                   (CFG_TUSB_MCU == MCU_LPC43XX ? 512 : 64)
 
 //--------------------------------------------------------------------+
 // CONFIGURATION DESCRIPTOR
@@ -135,7 +135,7 @@ typedef struct ATTR_PACKED
   tusb_desc_configuration_t              configuration;
 
   //------------- CDC -------------//
-#if TUSB_CFG_DEVICE_CDC
+#if CFG_TUSB_DEVICE_CDC
   tusb_desc_interface_assoc_t      cdc_iad;
 
   //CDC Control Interface
@@ -153,21 +153,21 @@ typedef struct ATTR_PACKED
 #endif
 
   //------------- HID Keyboard -------------//
-#if TUSB_CFG_DEVICE_HID_KEYBOARD
+#if CFG_TUSB_DEVICE_HID_KEYBOARD
   tusb_desc_interface_t                    keyboard_interface;
   tusb_hid_descriptor_hid_t                      keyboard_hid;
   tusb_desc_endpoint_t                     keyboard_endpoint;
 #endif
 
 //------------- HID Mouse -------------//
-#if TUSB_CFG_DEVICE_HID_MOUSE
+#if CFG_TUSB_DEVICE_HID_MOUSE
   tusb_desc_interface_t                    mouse_interface;
   tusb_hid_descriptor_hid_t                      mouse_hid;
   tusb_desc_endpoint_t                     mouse_endpoint;
 #endif
 
 //------------- Mass Storage -------------//
-#if TUSB_CFG_DEVICE_MSC
+#if CFG_TUSB_DEVICE_MSC
   tusb_desc_interface_t                    msc_interface;
   tusb_desc_endpoint_t                     msc_endpoint_in;
   tusb_desc_endpoint_t                     msc_endpoint_out;

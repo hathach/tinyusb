@@ -38,7 +38,7 @@
 
 #include "tusb_option.h"
 
-#if MODE_HOST_SUPPORTED & TUSB_CFG_HOST_MSC
+#if MODE_HOST_SUPPORTED & CFG_TUSB_HOST_MSC
 
 #define _TINY_USB_SOURCE_FILE_
 
@@ -51,13 +51,13 @@
 //--------------------------------------------------------------------+
 // MACRO CONSTANT TYPEDEF
 //--------------------------------------------------------------------+
-TUSB_CFG_ATTR_USBRAM STATIC_VAR msch_interface_t msch_data[TUSB_CFG_HOST_DEVICE_MAX];
+CFG_TUSB_ATTR_USBRAM STATIC_VAR msch_interface_t msch_data[CFG_TUSB_HOST_DEVICE_MAX];
 
 //------------- Initalization Data -------------//
 static osal_semaphore_t msch_sem_hdl;
 
 // buffer used to read scsi information when mounted, largest response data currently is inquiry
-TUSB_CFG_ATTR_USBRAM ATTR_ALIGNED(4) STATIC_VAR uint8_t msch_buffer[sizeof(scsi_inquiry_data_t)];
+CFG_TUSB_ATTR_USBRAM ATTR_ALIGNED(4) STATIC_VAR uint8_t msch_buffer[sizeof(scsi_inquiry_data_t)];
 
 //--------------------------------------------------------------------+
 // INTERNAL OBJECT & FUNCTION DECLARATION
@@ -288,7 +288,7 @@ tusb_error_t tuh_msc_write10(uint8_t dev_addr, uint8_t lun, void const * p_buffe
 //--------------------------------------------------------------------+
 void msch_init(void)
 {
-  memclr_(msch_data, sizeof(msch_interface_t)*TUSB_CFG_HOST_DEVICE_MAX);
+  memclr_(msch_data, sizeof(msch_interface_t)*CFG_TUSB_HOST_DEVICE_MAX);
   msch_sem_hdl = osal_semaphore_create(1, 0);
 }
 

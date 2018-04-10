@@ -38,7 +38,7 @@
 
 #include "tusb.h"
 
-#if TUSB_CFG_MCU == MCU_LPC43XX
+#if CFG_TUSB_MCU == MCU_LPC43XX
 
 #include "LPC43xx.h"
 #include "lpc43xx_cgu.h"
@@ -84,7 +84,7 @@ bool tusb_hal_init(void)
   LPC_CREG->CREG0 &= ~(1<<5); /* Turn on the phy */
 
   //------------- USB0 -------------//
-#if TUSB_CFG_CONTROLLER_0_MODE
+#if CFG_TUSB_CONTROLLER_0_MODE
   CGU_EnableEntity(CGU_CLKSRC_PLL0, DISABLE); /* Disable PLL first */
   VERIFY( CGU_ERROR_SUCCESS == CGU_SetPLL0()); /* the usb core require output clock = 480MHz */
   CGU_EntityConnect(CGU_CLKSRC_XTAL_OSC, CGU_CLKSRC_PLL0);
@@ -93,29 +93,29 @@ bool tusb_hal_init(void)
   // reset controller & set role
   hal_controller_reset(0);
 
-  #if TUSB_CFG_CONTROLLER_0_MODE & TUSB_MODE_HOST
+  #if CFG_TUSB_CONTROLLER_0_MODE & TUSB_MODE_HOST
     LPC_USB0->USBMODE_H = LPC43XX_USBMODE_HOST | (LPC43XX_USBMODE_VBUS_HIGH << 5);
   #else // TODO OTG
     LPC_USB0->USBMODE_D = LPC43XX_USBMODE_DEVICE;
     LPC_USB0->OTGSC = (1<<3) | (1<<0) /*| (1<<16)| (1<<24)| (1<<25)| (1<<26)| (1<<27)| (1<<28)| (1<<29)| (1<<30)*/;
-    #if TUSB_CFG_DEVICE_FULLSPEED // TODO for easy testing
+    #if CFG_TUSB_DEVICE_FULLSPEED // TODO for easy testing
       LPC_USB0->PORTSC1_D |= (1<<24); // force full speed
     #endif
   #endif
 #endif
 
   //------------- USB1 -------------//
-#if TUSB_CFG_CONTROLLER_1_MODE
+#if CFG_TUSB_CONTROLLER_1_MODE
   // Host require to config P2_5, TODO confirm whether device mode require P2_5 or not
   scu_pinmux(0x2, 5, MD_PLN | MD_EZI | MD_ZI, FUNC2);	// USB1_VBUS monitor presence, must be high for bus reset occur
 
   /* connect CLK_USB1 to 60 MHz clock */
   CGU_EntityConnect(CGU_CLKSRC_PLL1, CGU_BASE_USB1); /* FIXME Run base BASE_USB1_CLK clock from PLL1 (assume PLL1 is 60 MHz, no division required) */
-  LPC_SCU->SFSUSB = (TUSB_CFG_CONTROLLER_1_MODE & TUSB_MODE_HOST) ? 0x16 : 0x12; // enable USB1 with on-chip FS PHY
+  LPC_SCU->SFSUSB = (CFG_TUSB_CONTROLLER_1_MODE & TUSB_MODE_HOST) ? 0x16 : 0x12; // enable USB1 with on-chip FS PHY
 
   hal_controller_reset(1);
 
-  #if TUSB_CFG_CONTROLLER_1_MODE & TUSB_MODE_HOST
+  #if CFG_TUSB_CONTROLLER_1_MODE & TUSB_MODE_HOST
     LPC_USB1->USBMODE_H = LPC43XX_USBMODE_HOST | (LPC43XX_USBMODE_VBUS_HIGH << 5);
   #else // TODO OTG
     LPC_USB1->USBMODE_D = LPC43XX_USBMODE_DEVICE;
@@ -129,7 +129,7 @@ bool tusb_hal_init(void)
 
 void hal_dcd_isr(uint8_t rhport);
 
-#if TUSB_CFG_CONTROLLER_0_MODE
+#if CFG_TUSB_CONTROLLER_0_MODE
 void USB0_IRQHandler(void)
 {
   #if MODE_HOST_SUPPORTED
@@ -142,7 +142,7 @@ void USB0_IRQHandler(void)
 }
 #endif
 
-#if TUSB_CFG_CONTROLLER_1_MODE
+#if CFG_TUSB_CONTROLLER_1_MODE
 void USB1_IRQHandler(void)
 {
   #if MODE_HOST_SUPPORTED

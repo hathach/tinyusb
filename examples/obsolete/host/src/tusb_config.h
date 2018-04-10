@@ -46,57 +46,57 @@
 //--------------------------------------------------------------------+
 // CONTROLLER CONFIGURATION
 //--------------------------------------------------------------------+
-//#define TUSB_CFG_MCU will be passed from IDE for easy board/mcu switching
-#define TUSB_CFG_CONTROLLER_0_MODE  (TUSB_MODE_HOST)
+//#define CFG_TUSB_MCU will be passed from IDE for easy board/mcu switching
+#define CFG_TUSB_CONTROLLER_0_MODE  (TUSB_MODE_HOST)
 
 //--------------------------------------------------------------------+
 // HOST CONFIGURATION
 //--------------------------------------------------------------------+
 
 //------------- CLASS -------------//
-#define TUSB_CFG_HOST_HUB                       1
-#define TUSB_CFG_HOST_HID_KEYBOARD              1
-#define TUSB_CFG_HOST_HID_MOUSE                 1
-#define TUSB_CFG_HOST_HID_GENERIC               0 // (not yet supported)
-#define TUSB_CFG_HOST_MSC                       1
-#define TUSB_CFG_HOST_CDC                       1
+#define CFG_TUSB_HOST_HUB                       1
+#define CFG_TUSB_HOST_HID_KEYBOARD              1
+#define CFG_TUSB_HOST_HID_MOUSE                 1
+#define CFG_TUSB_HOST_HID_GENERIC               0 // (not yet supported)
+#define CFG_TUSB_HOST_MSC                       1
+#define CFG_TUSB_HOST_CDC                       1
 
-#define TUSB_CFG_HOST_DEVICE_MAX                (TUSB_CFG_HOST_HUB ? 5 : 1) // normal hub has 4 ports
+#define CFG_TUSB_HOST_DEVICE_MAX                (CFG_TUSB_HOST_HUB ? 5 : 1) // normal hub has 4 ports
 
 //--------------------------------------------------------------------+
 // COMMON CONFIGURATION
 //--------------------------------------------------------------------+
-#define TUSB_CFG_DEBUG                2
+#define CFG_TUSB_DEBUG                2
 
-//#define TUSB_CFG_OS                   TUSB_OS_NONE // defined using eclipse build
-//#define TUSB_CFG_OS_TASK_PRIO         0            // defined using eclipse build
+//#define CFG_TUSB_OS                   TUSB_OS_NONE // defined using eclipse build
+//#define CFG_TUSB_OS_TASK_PRIO         0            // defined using eclipse build
 
 //--------------------------------------------------------------------+
 // USB RAM PLACEMENT
 //--------------------------------------------------------------------+
 #ifdef __CODE_RED // make use of code red's support for ram region macros
 
-  #if TUSB_CFG_MCU == MCU_LPC175X_6X
-    #define TUSB_CFG_ATTR_USBRAM // LPC17xx USB DMA can access all address
-  #elif  (TUSB_CFG_MCU == MCU_LPC43XX)
-    #define TUSB_CFG_ATTR_USBRAM  ATTR_SECTION(.data.$RAM3)
+  #if CFG_TUSB_MCU == MCU_LPC175X_6X
+    #define CFG_TUSB_ATTR_USBRAM // LPC17xx USB DMA can access all address
+  #elif  (CFG_TUSB_MCU == MCU_LPC43XX)
+    #define CFG_TUSB_ATTR_USBRAM  ATTR_SECTION(.data.$RAM3)
   #endif
 
 #elif defined __CC_ARM // Compiled with Keil armcc
 
-  #if (TUSB_CFG_MCU == MCU_LPC175X_6X)
-    #define TUSB_CFG_ATTR_USBRAM  // LPC17xx USB DMA can access all address
-  #elif  (TUSB_CFG_MCU == MCU_LPC43XX)
-    #define TUSB_CFG_ATTR_USBRAM // Use keil tool configure to have AHB SRAM as default memory
+  #if (CFG_TUSB_MCU == MCU_LPC175X_6X)
+    #define CFG_TUSB_ATTR_USBRAM  // LPC17xx USB DMA can access all address
+  #elif  (CFG_TUSB_MCU == MCU_LPC43XX)
+    #define CFG_TUSB_ATTR_USBRAM // Use keil tool configure to have AHB SRAM as default memory
   #endif
 
 #elif defined __ICCARM__ // compiled with IAR
 
-  #if (TUSB_CFG_MCU == MCU_LPC175X_6X)
+  #if (CFG_TUSB_MCU == MCU_LPC175X_6X)
     // LP175x_6x can access all but CMSIS-RTX causes overflow in 32KB SRAM --> move to AHB ram
-    #define TUSB_CFG_ATTR_USBRAM _Pragma("location=\".sram\"")
-  #elif  (TUSB_CFG_MCU == MCU_LPC43XX)
-    #define TUSB_CFG_ATTR_USBRAM _Pragma("location=\".ahb_sram1\"")
+    #define CFG_TUSB_ATTR_USBRAM _Pragma("location=\".sram\"")
+  #elif  (CFG_TUSB_MCU == MCU_LPC43XX)
+    #define CFG_TUSB_ATTR_USBRAM _Pragma("location=\".ahb_sram1\"")
   #endif
 
 #else

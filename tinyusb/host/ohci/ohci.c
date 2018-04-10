@@ -38,7 +38,7 @@
 
 #include <common/tusb_common.h>
 
-#if MODE_HOST_SUPPORTED && (TUSB_CFG_MCU == MCU_LPC175X_6X)
+#if MODE_HOST_SUPPORTED && (CFG_TUSB_MCU == MCU_LPC175X_6X)
 //--------------------------------------------------------------------+
 // INCLUDE
 //--------------------------------------------------------------------+
@@ -143,7 +143,7 @@ enum {
 //--------------------------------------------------------------------+
 // INTERNAL OBJECT & FUNCTION DECLARATION
 //--------------------------------------------------------------------+
-TUSB_CFG_ATTR_USBRAM ATTR_ALIGNED(256) STATIC_VAR ohci_data_t ohci_data;
+CFG_TUSB_ATTR_USBRAM ATTR_ALIGNED(256) STATIC_VAR ohci_data_t ohci_data;
 
 static ohci_ed_t * const p_ed_head[] =
 {
@@ -384,7 +384,7 @@ static inline ohci_ed_t * ed_find_free(uint8_t dev_addr)
 
 static ohci_ed_t * ed_list_find_previous(ohci_ed_t const * p_head, ohci_ed_t const * p_ed)
 {
-  uint32_t max_loop = HCD_MAX_ENDPOINT*TUSB_CFG_HOST_DEVICE_MAX;
+  uint32_t max_loop = HCD_MAX_ENDPOINT*CFG_TUSB_HOST_DEVICE_MAX;
 
   ohci_ed_t const * p_prev = p_head;
 
@@ -608,7 +608,7 @@ static inline uint32_t gtd_xfer_byte_left(uint32_t buffer_end, uint32_t current_
 
 static void done_queue_isr(uint8_t hostid)
 {
-  uint8_t max_loop = (TUSB_CFG_HOST_DEVICE_MAX+1)*(HCD_MAX_XFER+OHCI_MAX_ITD);
+  uint8_t max_loop = (CFG_TUSB_HOST_DEVICE_MAX+1)*(HCD_MAX_XFER+OHCI_MAX_ITD);
 
   // done head is written in reversed order of completion --> need to reverse the done queue first
   ohci_td_item_t* td_head = list_reverse ( (ohci_td_item_t*) align16(ohci_data.hcca.done_head) );

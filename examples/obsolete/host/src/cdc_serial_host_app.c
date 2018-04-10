@@ -39,7 +39,7 @@
 #include "cdc_serial_host_app.h"
 #include "app_os_prio.h"
 
-#if TUSB_CFG_HOST_CDC
+#if CFG_TUSB_HOST_CDC
 
 #define QUEUE_SERIAL_DEPTH   100
 
@@ -49,8 +49,8 @@
 static osal_semaphore_t sem_hdl;
 
 enum { SERIAL_BUFFER_SIZE = 64 };
-TUSB_CFG_ATTR_USBRAM static uint8_t serial_in_buffer[SERIAL_BUFFER_SIZE];
-TUSB_CFG_ATTR_USBRAM static uint8_t serial_out_buffer[SERIAL_BUFFER_SIZE];
+CFG_TUSB_ATTR_USBRAM static uint8_t serial_in_buffer[SERIAL_BUFFER_SIZE];
+CFG_TUSB_ATTR_USBRAM static uint8_t serial_out_buffer[SERIAL_BUFFER_SIZE];
 
 static uint8_t received_bytes; // set by transfer complete callback
 
@@ -126,7 +126,7 @@ void cdc_serial_host_app_task( void* param )
   OSAL_TASK_BEGIN
 
   //------------- send characters got from uart terminal to the first CDC device -------------//
-  for(uint8_t dev_addr=1; dev_addr <= TUSB_CFG_HOST_DEVICE_MAX; dev_addr++)
+  for(uint8_t dev_addr=1; dev_addr <= CFG_TUSB_HOST_DEVICE_MAX; dev_addr++)
   {
     if ( tuh_cdc_serial_is_mounted(dev_addr) )
     {
@@ -152,7 +152,7 @@ void cdc_serial_host_app_task( void* param )
   {
     for(uint8_t i=0; i<received_bytes; i++) putchar(serial_in_buffer[i]);
 
-    for(uint8_t dev_addr=1; dev_addr <= TUSB_CFG_HOST_DEVICE_MAX; dev_addr++)
+    for(uint8_t dev_addr=1; dev_addr <= CFG_TUSB_HOST_DEVICE_MAX; dev_addr++)
     {
       if ( tuh_cdc_serial_is_mounted(dev_addr) )
       {

@@ -471,7 +471,7 @@ typedef struct {
     ehci_qtd_t  qtd[HCD_MAX_XFER] ATTR_ALIGNED(32) ; ///< Queue Element Transfer Pool
 //  ehci_itd_t  itd[EHCI_MAX_ITD]                  ; ///< Iso Transfer Pool
 //  ehci_sitd_t sitd[EHCI_MAX_SITD]                ; ///< Split (FS) Isochronous Transfer Pool
-  }device[TUSB_CFG_HOST_DEVICE_MAX];
+  }device[CFG_TUSB_HOST_DEVICE_MAX];
 }ehci_data_t;
 
 #ifdef __cplusplus

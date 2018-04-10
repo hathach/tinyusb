@@ -53,7 +53,7 @@
  extern "C" {
 #endif
 
-#if TUSB_CFG_DEVICE_HID_MOUSE
+#if CFG_TUSB_DEVICE_HID_MOUSE
 
 void mouse_app_init(void);
 void mouse_app_task(void * param);

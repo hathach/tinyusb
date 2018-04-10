@@ -42,7 +42,7 @@
 
 static inline void helper_class_init_expect(void)
 { // class code number order
-#if TUSB_CFG_HOST_CDC
+#if CFG_TUSB_HOST_CDC
   cdch_init_Expect();
 #endif
 
@@ -50,7 +50,7 @@ static inline void helper_class_init_expect(void)
   hidh_init_Expect();
 #endif
 
-#if TUSB_CFG_HOST_MSC
+#if CFG_TUSB_HOST_MSC
   msch_init_Expect();
 #endif
 

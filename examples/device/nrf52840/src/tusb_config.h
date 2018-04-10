@@ -46,41 +46,41 @@
 //--------------------------------------------------------------------+
 // CONTROLLER CONFIGURATION
 //--------------------------------------------------------------------+
-//#define TUSB_CFG_MCU will be passed from IDE/command line for easy board/mcu switching
+//#define CFG_TUSB_MCU will be passed from IDE/command line for easy board/mcu switching
 
-#define TUSB_CFG_CONTROLLER_0_MODE  (TUSB_MODE_DEVICE)
-//#define TUSB_CFG_CONTROLLER_1_MODE  (TUSB_MODE_DEVICE)
+#define CFG_TUSB_CONTROLLER_0_MODE  (TUSB_MODE_DEVICE)
+//#define CFG_TUSB_CONTROLLER_1_MODE  (TUSB_MODE_DEVICE)
 
 //--------------------------------------------------------------------+
 // DEVICE CONFIGURATION
 //--------------------------------------------------------------------+
-#define TUSB_CFG_DEVICE_CONTROL_ENDOINT_SIZE    64
+#define CFG_TUSB_DEVICE_CONTROL_ENDOINT_SIZE    64
 
 //------------- CLASS -------------//
-#define TUSB_CFG_DEVICE_HID_KEYBOARD            0
-#define TUSB_CFG_DEVICE_HID_MOUSE               0
-#define TUSB_CFG_DEVICE_HID_GENERIC             0 // not supported yet
-#define TUSB_CFG_DEVICE_MSC                     1
-#define TUSB_CFG_DEVICE_CDC                     1
+#define CFG_TUSB_DEVICE_HID_KEYBOARD            0
+#define CFG_TUSB_DEVICE_HID_MOUSE               0
+#define CFG_TUSB_DEVICE_HID_GENERIC             0 // not supported yet
+#define CFG_TUSB_DEVICE_MSC                     1
+#define CFG_TUSB_DEVICE_CDC                     1
 
 //--------------------------------------------------------------------+
 // COMMON CONFIGURATION
 //--------------------------------------------------------------------+
-#define TUSB_CFG_DEBUG                2
+#define CFG_TUSB_DEBUG                2
 
-#define TUSB_CFG_OS                   TUSB_OS_NONE // be passed from IDE/command line for easy project switching
-//#define TUSB_CFG_OS_TASK_PRIO         0            // be passed from IDE/command line for easy project switching
-#define TUSB_CFG_TICKS_HZ             1000
+#define CFG_TUSB_OS                   TUSB_OS_NONE // be passed from IDE/command line for easy project switching
+//#define CFG_TUSB_OS_TASK_PRIO         0            // be passed from IDE/command line for easy project switching
+#define CFG_TUSB_TICKS_HZ             1000
 
-//#define TUSB_CFG_OS       TUSB_OS_NONE
+//#define CFG_TUSB_OS       TUSB_OS_NONE
 
 //--------------------------------------------------------------------+
 // USB RAM PLACEMENT
 //--------------------------------------------------------------------+
-#define TUSB_CFG_ATTR_USBRAM
+#define CFG_TUSB_ATTR_USBRAM
 
 // LPC11uxx and LPC13uxx requires each buffer has to be 64-byte alignment
-#if TUSB_CFG_MCU == MCU_LPC11UXX || TUSB_CFG_MCU == MCU_LPC13UXX
+#if CFG_TUSB_MCU == MCU_LPC11UXX || CFG_TUSB_MCU == MCU_LPC13UXX
  #define ATTR_USB_MIN_ALIGNMENT   ATTR_ALIGNED(64)
 #elif defined NRF52840_XXAA
  #define ATTR_USB_MIN_ALIGNMENT   ATTR_ALIGNED(4)

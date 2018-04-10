@@ -34,7 +34,7 @@ void led_blinking_task( void * p_task_para )
     static uint32_t led_on_mask = 0;
 
     // FreeRTOS API's vTaskDelay is used in place of osal_task_delay. Note it takes input parameter in tick
-    vTaskDelay( (led_blink_interval_ms * TUSB_CFG_TICKS_HZ) / 1000);
+    vTaskDelay( (led_blink_interval_ms * CFG_TUSB_TICKS_HZ) / 1000);
 
     board_leds(led_on_mask, 1 - led_on_mask);
     led_on_mask = 1 - led_on_mask; // toggle

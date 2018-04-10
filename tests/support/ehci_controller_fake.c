@@ -54,7 +54,7 @@
 LPC_USB0_Type lpc_usb0;
 LPC_USB1_Type lpc_usb1;
 
-extern usbh_device_info_t usbh_devices[TUSB_CFG_HOST_DEVICE_MAX+1];
+extern usbh_device_info_t usbh_devices[CFG_TUSB_HOST_DEVICE_MAX+1];
 
 //--------------------------------------------------------------------+
 // IMPLEMENTATION

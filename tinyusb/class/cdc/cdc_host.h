@@ -77,27 +77,27 @@ bool tuh_cdc_is_busy(uint8_t dev_addr, cdc_pipeid_t pipeid)  ATTR_PURE ATTR_WARN
 
 /** \brief 			Perform USB OUT transfer to device
  * \param[in]		dev_addr	device address
- * \param[in]	  p_data    Buffer containing data. Must be accessible by USB controller (see \ref TUSB_CFG_ATTR_USBRAM)
+ * \param[in]	  p_data    Buffer containing data. Must be accessible by USB controller (see \ref CFG_TUSB_ATTR_USBRAM)
  * \param[in]		length    Number of bytes to be transferred via USB bus
  * \retval      TUSB_ERROR_NONE on success
  * \retval      TUSB_ERROR_INTERFACE_IS_BUSY if the interface is already transferring data with device
  * \retval      TUSB_ERROR_DEVICE_NOT_READY if device is not yet configured (by SET CONFIGURED request)
  * \retval      TUSB_ERROR_INVALID_PARA if input parameters are not correct
  * \note        This function is non-blocking and returns immediately. The result of USB transfer will be reported by the
- *              interface's callback function. \a p_data must be declared with \ref TUSB_CFG_ATTR_USBRAM.
+ *              interface's callback function. \a p_data must be declared with \ref CFG_TUSB_ATTR_USBRAM.
  */
 tusb_error_t tuh_cdc_send(uint8_t dev_addr, void const * p_data, uint32_t length, bool is_notify);
 
 /** \brief 			Perform USB IN transfer to get data from device
  * \param[in]		dev_addr	device address
- * \param[in]	  p_buffer  Buffer containing received data. Must be accessible by USB controller (see \ref TUSB_CFG_ATTR_USBRAM)
+ * \param[in]	  p_buffer  Buffer containing received data. Must be accessible by USB controller (see \ref CFG_TUSB_ATTR_USBRAM)
  * \param[in]		length    Number of bytes to be transferred via USB bus
  * \retval      TUSB_ERROR_NONE on success
  * \retval      TUSB_ERROR_INTERFACE_IS_BUSY if the interface is already transferring data with device
  * \retval      TUSB_ERROR_DEVICE_NOT_READY if device is not yet configured (by SET CONFIGURED request)
  * \retval      TUSB_ERROR_INVALID_PARA if input parameters are not correct
  * \note        This function is non-blocking and returns immediately. The result of USB transfer will be reported by the
- *              interface's callback function. \a p_data must be declared with \ref TUSB_CFG_ATTR_USBRAM.
+ *              interface's callback function. \a p_data must be declared with \ref CFG_TUSB_ATTR_USBRAM.
  */
 tusb_error_t tuh_cdc_receive(uint8_t dev_addr, void * p_buffer, uint32_t length, bool is_notify);
 
@@ -147,7 +147,7 @@ typedef struct {
 
 } cdch_data_t;
 
-extern cdch_data_t cdch_data[TUSB_CFG_HOST_DEVICE_MAX]; // TODO consider to move to cdch internal header file
+extern cdch_data_t cdch_data[CFG_TUSB_HOST_DEVICE_MAX]; // TODO consider to move to cdch internal header file
 
 void         cdch_init(void);
 tusb_error_t cdch_open_subtask(uint8_t dev_addr, tusb_desc_interface_t const *p_interface_desc, uint16_t *p_length) ATTR_WARN_UNUSED_RESULT;

@@ -43,7 +43,7 @@
 //--------------------------------------------------------------------+
 // TICK API
 //--------------------------------------------------------------------+
-#if TUSB_CFG_OS == TUSB_OS_FREERTOS
+#if CFG_TUSB_OS == TUSB_OS_FREERTOS
 
 uint32_t tusb_hal_millis(void)
 {

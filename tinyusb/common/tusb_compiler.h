@@ -65,7 +65,7 @@
 #endif
 
 // allow debugger to watch any module-wide variables anywhere
-#if TUSB_CFG_DEBUG
+#if CFG_TUSB_DEBUG
 #define STATIC_VAR
 #else
 #define STATIC_VAR static

@@ -100,8 +100,8 @@ typedef enum
   TUSB_ERROR_COUNT
 }tusb_error_t;
 
-#if TUSB_CFG_DEBUG
-/// Enum to String for debugging purposes. Only available if \ref TUSB_CFG_DEBUG > 0
+#if CFG_TUSB_DEBUG
+/// Enum to String for debugging purposes. Only available if \ref CFG_TUSB_DEBUG > 0
 extern char const* const tusb_strerr[TUSB_ERROR_COUNT];
 #endif
 

@@ -64,7 +64,7 @@ void led_blinking_init(void);
 void led_blinking_task(void* param);
 
 
-#if TUSB_CFG_OS == TUSB_OS_NONE
+#if CFG_TUSB_OS == TUSB_OS_NONE
 // like a real RTOS, this function is a main loop invoking each task in application and never return
 void os_none_start_scheduler(void)
 {
@@ -97,9 +97,9 @@ int main(void)
   cdc_serial_app_init();
 
   //------------- start OS scheduler (never return) -------------//
-#if TUSB_CFG_OS == TUSB_OS_FREERTOS
+#if CFG_TUSB_OS == TUSB_OS_FREERTOS
   vTaskStartScheduler();
-#elif TUSB_CFG_OS == TUSB_OS_NONE
+#elif CFG_TUSB_OS == TUSB_OS_NONE
   os_none_start_scheduler();
 #else
   #error need to start RTOS schduler
@@ -193,9 +193,9 @@ void print_greeting(void)
   );
 
   puts("This DEVICE demo is configured to support:");
-  printf("  - RTOS = %s\n", rtos_name[TUSB_CFG_OS]);
-  if (TUSB_CFG_DEVICE_HID_MOUSE    ) puts("  - HID Mouse");
-  if (TUSB_CFG_DEVICE_HID_KEYBOARD ) puts("  - HID Keyboard");
-  if (TUSB_CFG_DEVICE_MSC          ) puts("  - Mass Storage");
-  if (TUSB_CFG_DEVICE_CDC          ) puts("  - Communication Device Class");
+  printf("  - RTOS = %s\n", rtos_name[CFG_TUSB_OS]);
+  if (CFG_TUSB_DEVICE_HID_MOUSE    ) puts("  - HID Mouse");
+  if (CFG_TUSB_DEVICE_HID_KEYBOARD ) puts("  - HID Keyboard");
+  if (CFG_TUSB_DEVICE_MSC          ) puts("  - Mass Storage");
+  if (CFG_TUSB_DEVICE_CDC          ) puts("  - Communication Device Class");
 }

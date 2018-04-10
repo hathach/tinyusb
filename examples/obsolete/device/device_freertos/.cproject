@@ -32,9 +32,9 @@
 								<option id="com.crt.advproject.gcc.thumb.697143257" name="Thumb mode" superClass="com.crt.advproject.gcc.thumb" value="true" valueType="boolean"/>
 								<option id="gnu.c.compiler.option.preprocessor.def.symbols.371325215" name="Defined symbols (-D)" superClass="gnu.c.compiler.option.preprocessor.def.symbols" valueType="definedSymbols">
 									<listOptionValue builtIn="false" value="__REDLIB__"/>
-									<listOptionValue builtIn="false" value="TUSB_CFG_OS=TUSB_OS_FREERTOS"/>
-									<listOptionValue builtIn="false" value="TUSB_CFG_OS_TASK_PRIO=configMAX_PRIORITIES-5"/>
-									<listOptionValue builtIn="false" value="TUSB_CFG_MCU=MCU_LPC13UXX"/>
+									<listOptionValue builtIn="false" value="CFG_TUSB_OS=TUSB_OS_FREERTOS"/>
+									<listOptionValue builtIn="false" value="CFG_TUSB_OS_TASK_PRIO=configMAX_PRIORITIES-5"/>
+									<listOptionValue builtIn="false" value="CFG_TUSB_MCU=MCU_LPC13UXX"/>
 									<listOptionValue builtIn="false" value="BOARD=BOARD_LPCXPRESSO1347"/>
 									<listOptionValue builtIn="false" value="DEBUG"/>
 									<listOptionValue builtIn="false" value="__CODE_RED"/>
@@ -129,10 +129,10 @@
 								<option id="gnu.c.compiler.option.preprocessor.def.symbols.690334585" name="Defined symbols (-D)" superClass="gnu.c.compiler.option.preprocessor.def.symbols" valueType="definedSymbols">
 									<listOptionValue builtIn="false" value="__REDLIB__"/>
 									<listOptionValue builtIn="false" value="__USE_CMSIS"/>
-									<listOptionValue builtIn="false" value="TUSB_CFG_MCU=MCU_LPC11UXX"/>
+									<listOptionValue builtIn="false" value="CFG_TUSB_MCU=MCU_LPC11UXX"/>
 									<listOptionValue builtIn="false" value="BOARD=BOARD_LPCXPRESSO11U68"/>
-									<listOptionValue builtIn="false" value="TUSB_CFG_OS=TUSB_OS_FREERTOS"/>
-									<listOptionValue builtIn="false" value="TUSB_CFG_OS_TASK_PRIO=configMAX_PRIORITIES-5"/>
+									<listOptionValue builtIn="false" value="CFG_TUSB_OS=TUSB_OS_FREERTOS"/>
+									<listOptionValue builtIn="false" value="CFG_TUSB_OS_TASK_PRIO=configMAX_PRIORITIES-5"/>
 									<listOptionValue builtIn="false" value="DEBUG"/>
 									<listOptionValue builtIn="false" value="__CODE_RED"/>
 									<listOptionValue builtIn="false" value="__MULTICORE_NONE"/>
@@ -226,10 +226,10 @@
 								<option id="gnu.c.compiler.option.preprocessor.def.symbols.211439980" name="Defined symbols (-D)" superClass="gnu.c.compiler.option.preprocessor.def.symbols" useByScannerDiscovery="false" valueType="definedSymbols">
 									<listOptionValue builtIn="false" value="__REDLIB__"/>
 									<listOptionValue builtIn="false" value="__USE_CMSIS"/>
-									<listOptionValue builtIn="false" value="TUSB_CFG_OS_TASK_PRIO=configMAX_PRIORITIES-5"/>
-									<listOptionValue builtIn="false" value="TUSB_CFG_OS=TUSB_OS_FREERTOS"/>
+									<listOptionValue builtIn="false" value="CFG_TUSB_OS_TASK_PRIO=configMAX_PRIORITIES-5"/>
+									<listOptionValue builtIn="false" value="CFG_TUSB_OS=TUSB_OS_FREERTOS"/>
 									<listOptionValue builtIn="false" value="CORE_M4"/>
-									<listOptionValue builtIn="false" value="TUSB_CFG_MCU=MCU_LPC43XX"/>
+									<listOptionValue builtIn="false" value="CFG_TUSB_MCU=MCU_LPC43XX"/>
 									<listOptionValue builtIn="false" value="BOARD=BOARD_EA4357"/>
 									<listOptionValue builtIn="false" value="DEBUG"/>
 									<listOptionValue builtIn="false" value="__CODE_RED"/>
@@ -330,10 +330,10 @@
 								<option id="com.crt.advproject.gcc.thumb.530159727" name="Thumb mode" superClass="com.crt.advproject.gcc.thumb" value="true" valueType="boolean"/>
 								<option id="gnu.c.compiler.option.preprocessor.def.symbols.216849614" name="Defined symbols (-D)" superClass="gnu.c.compiler.option.preprocessor.def.symbols" valueType="definedSymbols">
 									<listOptionValue builtIn="false" value="__REDLIB__"/>
-									<listOptionValue builtIn="false" value="TUSB_CFG_MCU=MCU_LPC175X_6X "/>
+									<listOptionValue builtIn="false" value="CFG_TUSB_MCU=MCU_LPC175X_6X "/>
 									<listOptionValue builtIn="false" value="BOARD=BOARD_LPCXPRESSO1769"/>
-									<listOptionValue builtIn="false" value="TUSB_CFG_OS=TUSB_OS_FREERTOS"/>
-									<listOptionValue builtIn="false" value="TUSB_CFG_OS_TASK_PRIO=configMAX_PRIORITIES-5"/>
+									<listOptionValue builtIn="false" value="CFG_TUSB_OS=TUSB_OS_FREERTOS"/>
+									<listOptionValue builtIn="false" value="CFG_TUSB_OS_TASK_PRIO=configMAX_PRIORITIES-5"/>
 									<listOptionValue builtIn="false" value="DEBUG"/>
 									<listOptionValue builtIn="false" value="__CODE_RED"/>
 									<listOptionValue builtIn="false" value="__MULTICORE_NONE"/>
@@ -428,10 +428,10 @@
 									<listOptionValue builtIn="false" value="__REDLIB__"/>
 									<listOptionValue builtIn="false" value="__USE_CMSIS"/>
 									<listOptionValue builtIn="false" value="CORE_M4"/>
-									<listOptionValue builtIn="false" value="TUSB_CFG_MCU=MCU_LPC43XX"/>
+									<listOptionValue builtIn="false" value="CFG_TUSB_MCU=MCU_LPC43XX"/>
 									<listOptionValue builtIn="false" value="BOARD=BOARD_NGX4330"/>
-									<listOptionValue builtIn="false" value="TUSB_CFG_OS=TUSB_OS_FREERTOS"/>
-									<listOptionValue builtIn="false" value="TUSB_CFG_OS_TASK_PRIO=configMAX_PRIORITIES-5"/>
+									<listOptionValue builtIn="false" value="CFG_TUSB_OS=TUSB_OS_FREERTOS"/>
+									<listOptionValue builtIn="false" value="CFG_TUSB_OS_TASK_PRIO=configMAX_PRIORITIES-5"/>
 									<listOptionValue builtIn="false" value="DEBUG"/>
 									<listOptionValue builtIn="false" value="__CODE_RED"/>
 									<listOptionValue builtIn="false" value="__MULTICORE_NONE"/>
@@ -527,10 +527,10 @@
 								<option id="gnu.c.compiler.option.preprocessor.def.symbols.2019019201" name="Defined symbols (-D)" superClass="gnu.c.compiler.option.preprocessor.def.symbols" valueType="definedSymbols">
 									<listOptionValue builtIn="false" value="__REDLIB__"/>
 									<listOptionValue builtIn="false" value="__USE_CMSIS"/>
-									<listOptionValue builtIn="false" value="TUSB_CFG_MCU=MCU_LPC11UXX"/>
+									<listOptionValue builtIn="false" value="CFG_TUSB_MCU=MCU_LPC11UXX"/>
 									<listOptionValue builtIn="false" value="BOARD=BOARD_LPCXPRESSO11U14"/>
-									<listOptionValue builtIn="false" value="TUSB_CFG_OS=TUSB_OS_FREERTOS"/>
-									<listOptionValue builtIn="false" value="TUSB_CFG_OS_TASK_PRIO=configMAX_PRIORITIES-5"/>
+									<listOptionValue builtIn="false" value="CFG_TUSB_OS=TUSB_OS_FREERTOS"/>
+									<listOptionValue builtIn="false" value="CFG_TUSB_OS_TASK_PRIO=configMAX_PRIORITIES-5"/>
 									<listOptionValue builtIn="false" value="DEBUG"/>
 									<listOptionValue builtIn="false" value="__CODE_RED"/>
 									<listOptionValue builtIn="false" value="__MULTICORE_NONE"/>

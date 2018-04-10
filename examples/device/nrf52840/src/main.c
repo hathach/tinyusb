@@ -144,9 +144,9 @@ void print_greeting(void)
   printf("--------------------------------------------------------------------\n\n");
 
   printf("This DEVICE demo is configured to support:");
-  printf("  - RTOS = %s\n", rtos_name[TUSB_CFG_OS]);
-  if (TUSB_CFG_DEVICE_HID_MOUSE    ) puts("  - HID Mouse");
-  if (TUSB_CFG_DEVICE_HID_KEYBOARD ) puts("  - HID Keyboard");
-  if (TUSB_CFG_DEVICE_MSC          ) puts("  - Mass Storage");
-  if (TUSB_CFG_DEVICE_CDC          ) puts("  - Communication Device Class");
+  printf("  - RTOS = %s\n", rtos_name[CFG_TUSB_OS]);
+  if (CFG_TUSB_DEVICE_HID_MOUSE    ) puts("  - HID Mouse");
+  if (CFG_TUSB_DEVICE_HID_KEYBOARD ) puts("  - HID Keyboard");
+  if (CFG_TUSB_DEVICE_MSC          ) puts("  - Mass Storage");
+  if (CFG_TUSB_DEVICE_CDC          ) puts("  - Communication Device Class");
 }

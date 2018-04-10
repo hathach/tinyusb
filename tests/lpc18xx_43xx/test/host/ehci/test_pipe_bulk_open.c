@@ -51,7 +51,7 @@
 #include "ehci_controller_fake.h"
 #include "host_helper.h"
 
-usbh_device_info_t usbh_devices[TUSB_CFG_HOST_DEVICE_MAX+1];
+usbh_device_info_t usbh_devices[CFG_TUSB_HOST_DEVICE_MAX+1];
 
 static uint8_t const hub_addr = 2;
 static uint8_t const hub_port = 2;
@@ -70,7 +70,7 @@ void setUp(void)
   dev_addr = 1;
   hostid = RANDOM(CONTROLLER_HOST_NUMBER) + TEST_CONTROLLER_HOST_START_INDEX;
 
-  memclr_(usbh_devices, sizeof(usbh_device_info_t)*(TUSB_CFG_HOST_DEVICE_MAX+1));
+  memclr_(usbh_devices, sizeof(usbh_device_info_t)*(CFG_TUSB_HOST_DEVICE_MAX+1));
   helper_usbh_device_emulate(dev_addr, hub_addr, hub_port, hostid, TUSB_SPEED_HIGH);
 
   async_head =  get_async_head( hostid );

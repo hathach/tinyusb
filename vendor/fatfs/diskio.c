@@ -38,7 +38,7 @@
 
 #include "tusb.h"
 
-#if TUSB_CFG_HOST_MSC
+#if CFG_TUSB_HOST_MSC
 //--------------------------------------------------------------------+
 // INCLUDE
 //--------------------------------------------------------------------+
@@ -48,7 +48,7 @@
 // MACRO CONSTANT TYPEDEF
 //--------------------------------------------------------------------+
 // TODO change it to portable init
-static DSTATUS disk_state[TUSB_CFG_HOST_DEVICE_MAX];
+static DSTATUS disk_state[CFG_TUSB_HOST_DEVICE_MAX];
 
 //--------------------------------------------------------------------+
 // INTERNAL OBJECT & FUNCTION DECLARATION
@@ -63,7 +63,7 @@ static DRESULT wait_for_io_complete(uint8_t usb_addr)
   while ( tuh_msc_is_busy(usb_addr) )
   {
     // TODO should have timeout here
-    #if TUSB_CFG_OS != TUSB_OS_NONE
+    #if CFG_TUSB_OS != TUSB_OS_NONE
     osal_task_delay(10);
     #endif
   }
@@ -73,7 +73,7 @@ static DRESULT wait_for_io_complete(uint8_t usb_addr)
 
 void diskio_init(void)
 {
-  memset(disk_state, STA_NOINIT, TUSB_CFG_HOST_DEVICE_MAX);
+  memset(disk_state, STA_NOINIT, CFG_TUSB_HOST_DEVICE_MAX);
 }
 
 //pdrv Specifies the physical drive number.
@@ -204,4 +204,4 @@ DWORD get_fattime (void)
   return timestamp.value;
 }
 
-#endif // TUSB_CFG_HOST_MSC
+#endif // CFG_TUSB_HOST_MSC

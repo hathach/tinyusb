@@ -66,7 +66,7 @@ bool tud_hid_keyboard_busy(uint8_t rhport);
 
 /** \brief        Submit USB transfer
  * \param[in]		  rhport USB Controller ID
- * \param[in,out] p_report address that is used to store data from device. Must be accessible by usb controller (see \ref TUSB_CFG_ATTR_USBRAM)
+ * \param[in,out] p_report address that is used to store data from device. Must be accessible by usb controller (see \ref CFG_TUSB_ATTR_USBRAM)
  * \returns       \ref tusb_error_t type to indicate success or error condition.
  * \retval        TUSB_ERROR_NONE on success
  * \retval        TUSB_ERROR_INTERFACE_IS_BUSY if the interface is already transferring data with device
@@ -96,7 +96,7 @@ void tud_hid_keyboard_cb(uint8_t rhport, tusb_event_t event, uint32_t xferred_by
  *              via control endpoint.
  * \param[in]		rhport	USB Controller ID
  * \param[in]   report_type specify which report (INPUT, OUTPUT, FEATURE) that host requests
- * \param[out]  pp_report pointer to buffer that application need to update, value must be accessible by USB controller (see \ref TUSB_CFG_ATTR_USBRAM)
+ * \param[out]  pp_report pointer to buffer that application need to update, value must be accessible by USB controller (see \ref CFG_TUSB_ATTR_USBRAM)
  * \param[in]   requested_length  number of bytes that host requested
  * \retval      non-zero Actual number of bytes in the response's buffer.
  * \retval      zero  indicates the current request is not supported. Tinyusb device stack will reject the request by
@@ -139,7 +139,7 @@ bool tud_hid_mouse_is_busy(uint8_t rhport);
 
 /** \brief        Perform transfer queuing
  * \param[in]		  rhport USB Controller ID
- * \param[in,out] p_report address that is used to store data from device. Must be accessible by usb controller (see \ref TUSB_CFG_ATTR_USBRAM)
+ * \param[in,out] p_report address that is used to store data from device. Must be accessible by usb controller (see \ref CFG_TUSB_ATTR_USBRAM)
  * \returns       \ref tusb_error_t type to indicate success or error condition.
  * \retval        TUSB_ERROR_NONE on success
  * \retval        TUSB_ERROR_INTERFACE_IS_BUSY if the interface is already transferring data with device
@@ -169,7 +169,7 @@ void tud_hid_mouse_cb(uint8_t rhport, tusb_event_t event, uint32_t xferred_bytes
  *              via control endpoint.
  * \param[in]		rhport	USB Controller ID
  * \param[in]   report_type specify which report (INPUT, OUTPUT, FEATURE) that host requests
- * \param[out]  pp_report pointer to buffer that application need to update, value must be accessible by USB controller (see \ref TUSB_CFG_ATTR_USBRAM)
+ * \param[out]  pp_report pointer to buffer that application need to update, value must be accessible by USB controller (see \ref CFG_TUSB_ATTR_USBRAM)
  * \param[in]   requested_length  number of bytes that host requested
  * \retval      non-zero Actual number of bytes in the response's buffer.
  * \retval      zero  indicates the current request is not supported. Tinyusb device stack will reject the request by

@@ -201,7 +201,7 @@
     </folder>
     <configuration
       Name="EA4357"
-      c_preprocessor_definitions="BOARD=BOARD_EA4357;TUSB_CFG_MCU=MCU_LPC43XX" />
+      c_preprocessor_definitions="BOARD=BOARD_EA4357;CFG_TUSB_MCU=MCU_LPC43XX" />
   </project>
   <configuration
     Name="Debug"

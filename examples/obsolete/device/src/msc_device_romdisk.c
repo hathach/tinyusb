@@ -38,7 +38,7 @@
 
 #include "msc_device_app.h"
 
-#if TUSB_CFG_DEVICE_MSC && defined (MSCD_APP_ROMDISK)
+#if CFG_TUSB_DEVICE_MSC && defined (MSCD_APP_ROMDISK)
 
 //--------------------------------------------------------------------+
 // INCLUDE
@@ -91,7 +91,7 @@ const uint8_t msc_device_app_rommdisk[DISK_BLOCK_NUM][DISK_BLOCK_SIZE] =
   [3] = README_CONTENTS
 };
 
-TUSB_CFG_ATTR_USBRAM
+CFG_TUSB_ATTR_USBRAM
 static uint8_t sector_buffer[DISK_BLOCK_SIZE];
 
 //--------------------------------------------------------------------+

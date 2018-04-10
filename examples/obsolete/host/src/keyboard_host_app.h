@@ -59,7 +59,7 @@
  extern "C" {
 #endif
 
-#if TUSB_CFG_HOST_HID_KEYBOARD
+#if CFG_TUSB_HOST_HID_KEYBOARD
 
 void keyboard_host_app_init(void);
 void keyboard_host_app_task(void* param);

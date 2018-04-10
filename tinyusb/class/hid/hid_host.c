@@ -88,7 +88,7 @@ tusb_error_t hidh_interface_get_report(uint8_t dev_addr, void * report, hidh_int
 //--------------------------------------------------------------------+
 // KEYBOARD
 //--------------------------------------------------------------------+
-#if TUSB_CFG_HOST_HID_KEYBOARD
+#if CFG_TUSB_HOST_HID_KEYBOARD
 
 #define EXPAND_KEYCODE_TO_ASCII(keycode, ascii, shift_modified)  \
   [0][keycode] = ascii,\
@@ -100,7 +100,7 @@ uint8_t const hid_keycode_to_ascii_tbl[2][128] =
     HID_KEYCODE_TABLE(EXPAND_KEYCODE_TO_ASCII)
 };
 
-STATIC_VAR hidh_interface_info_t keyboardh_data[TUSB_CFG_HOST_DEVICE_MAX]; // does not have addr0, index = dev_address-1
+STATIC_VAR hidh_interface_info_t keyboardh_data[CFG_TUSB_HOST_DEVICE_MAX]; // does not have addr0, index = dev_address-1
 
 //------------- KEYBOARD PUBLIC API (parameter validation required) -------------//
 bool  tuh_hid_keyboard_is_mounted(uint8_t dev_addr)
@@ -124,9 +124,9 @@ bool tuh_hid_keyboard_is_busy(uint8_t dev_addr)
 //--------------------------------------------------------------------+
 // MOUSE
 //--------------------------------------------------------------------+
-#if TUSB_CFG_HOST_HID_MOUSE
+#if CFG_TUSB_HOST_HID_MOUSE
 
-STATIC_VAR hidh_interface_info_t mouseh_data[TUSB_CFG_HOST_DEVICE_MAX]; // does not have addr0, index = dev_address-1
+STATIC_VAR hidh_interface_info_t mouseh_data[CFG_TUSB_HOST_DEVICE_MAX]; // does not have addr0, index = dev_address-1
 
 //------------- Public API -------------//
 bool tuh_hid_mouse_is_mounted(uint8_t dev_addr)
@@ -150,11 +150,11 @@ tusb_error_t tuh_hid_mouse_get_report(uint8_t dev_addr, void * report)
 //--------------------------------------------------------------------+
 // GENERIC
 //--------------------------------------------------------------------+
-#if TUSB_CFG_HOST_HID_GENERIC
+#if CFG_TUSB_HOST_HID_GENERIC
 
 //STATIC_ struct {
 //  hidh_interface_info_t
-//} generic_data[TUSB_CFG_HOST_DEVICE_MAX];
+//} generic_data[CFG_TUSB_HOST_DEVICE_MAX];
 
 #endif
 
@@ -163,21 +163,21 @@ tusb_error_t tuh_hid_mouse_get_report(uint8_t dev_addr, void * report)
 //--------------------------------------------------------------------+
 void hidh_init(void)
 {
-#if TUSB_CFG_HOST_HID_KEYBOARD
-  memclr_(&keyboardh_data, sizeof(hidh_interface_info_t)*TUSB_CFG_HOST_DEVICE_MAX);
+#if CFG_TUSB_HOST_HID_KEYBOARD
+  memclr_(&keyboardh_data, sizeof(hidh_interface_info_t)*CFG_TUSB_HOST_DEVICE_MAX);
 #endif
 
-#if TUSB_CFG_HOST_HID_MOUSE
-  memclr_(&mouseh_data, sizeof(hidh_interface_info_t)*TUSB_CFG_HOST_DEVICE_MAX);
+#if CFG_TUSB_HOST_HID_MOUSE
+  memclr_(&mouseh_data, sizeof(hidh_interface_info_t)*CFG_TUSB_HOST_DEVICE_MAX);
 #endif
 
-#if TUSB_CFG_HOST_HID_GENERIC
+#if CFG_TUSB_HOST_HID_GENERIC
   hidh_generic_init();
 #endif
 }
 
 #if 0
-TUSB_CFG_ATTR_USBRAM uint8_t report_descriptor[256];
+CFG_TUSB_ATTR_USBRAM uint8_t report_descriptor[256];
 #endif
 
 tusb_error_t hidh_open_subtask(uint8_t dev_addr, tusb_desc_interface_t const *p_interface_desc, uint16_t *p_length)
@@ -222,7 +222,7 @@ tusb_error_t hidh_open_subtask(uint8_t dev_addr, tusb_desc_interface_t const *p_
 
   if ( HID_SUBCLASS_BOOT == p_interface_desc->bInterfaceSubClass )
   {
-    #if TUSB_CFG_HOST_HID_KEYBOARD
+    #if CFG_TUSB_HOST_HID_KEYBOARD
     if ( HID_PROTOCOL_KEYBOARD == p_interface_desc->bInterfaceProtocol)
     {
       STASK_ASSERT_ERR ( hidh_interface_open(dev_addr, p_interface_desc->bInterfaceNumber, p_endpoint_desc, &keyboardh_data[dev_addr-1]) );
@@ -230,7 +230,7 @@ tusb_error_t hidh_open_subtask(uint8_t dev_addr, tusb_desc_interface_t const *p_
     } else
     #endif
 
-    #if TUSB_CFG_HOST_HID_MOUSE
+    #if CFG_TUSB_HOST_HID_MOUSE
     if ( HID_PROTOCOL_MOUSE == p_interface_desc->bInterfaceProtocol)
     {
       STASK_ASSERT_ERR ( hidh_interface_open(dev_addr, p_interface_desc->bInterfaceNumber, p_endpoint_desc, &mouseh_data[dev_addr-1]) );
@@ -255,7 +255,7 @@ void hidh_isr(pipe_handle_t pipe_hdl, tusb_event_t event, uint32_t xferred_bytes
 {
   (void) xferred_bytes; // TODO may need to use this para later
 
-#if TUSB_CFG_HOST_HID_KEYBOARD
+#if CFG_TUSB_HOST_HID_KEYBOARD
   if ( pipehandle_is_equal(pipe_hdl, keyboardh_data[pipe_hdl.dev_addr-1].pipe_hdl) )
   {
     tuh_hid_keyboard_isr(pipe_hdl.dev_addr, event);
@@ -263,7 +263,7 @@ void hidh_isr(pipe_handle_t pipe_hdl, tusb_event_t event, uint32_t xferred_bytes
   }
 #endif
 
-#if TUSB_CFG_HOST_HID_MOUSE
+#if CFG_TUSB_HOST_HID_MOUSE
   if ( pipehandle_is_equal(pipe_hdl, mouseh_data[pipe_hdl.dev_addr-1].pipe_hdl) )
   {
     tuh_hid_mouse_isr(pipe_hdl.dev_addr, event);
@@ -271,14 +271,14 @@ void hidh_isr(pipe_handle_t pipe_hdl, tusb_event_t event, uint32_t xferred_bytes
   }
 #endif
 
-#if TUSB_CFG_HOST_HID_GENERIC
+#if CFG_TUSB_HOST_HID_GENERIC
 
 #endif
 }
 
 void hidh_close(uint8_t dev_addr)
 {
-#if TUSB_CFG_HOST_HID_KEYBOARD
+#if CFG_TUSB_HOST_HID_KEYBOARD
   if ( pipehandle_is_valid( keyboardh_data[dev_addr-1].pipe_hdl ) )
   {
     hidh_interface_close(&keyboardh_data[dev_addr-1]);
@@ -286,7 +286,7 @@ void hidh_close(uint8_t dev_addr)
   }
 #endif
 
-#if TUSB_CFG_HOST_HID_MOUSE
+#if CFG_TUSB_HOST_HID_MOUSE
   if( pipehandle_is_valid( mouseh_data[dev_addr-1].pipe_hdl ) )
   {
     hidh_interface_close(&mouseh_data[dev_addr-1]);
@@ -294,7 +294,7 @@ void hidh_close(uint8_t dev_addr)
   }
 #endif
 
-#if TUSB_CFG_HOST_HID_GENERIC
+#if CFG_TUSB_HOST_HID_GENERIC
   hidh_generic_close(dev_addr);
 #endif
 }

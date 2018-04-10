@@ -38,7 +38,7 @@
 
 #include "common/tusb_common.h"
 
-#if MODE_HOST_SUPPORTED && (TUSB_CFG_MCU == MCU_LPC43XX || TUSB_CFG_MCU == MCU_LPC18XX)
+#if MODE_HOST_SUPPORTED && (CFG_TUSB_MCU == MCU_LPC43XX || CFG_TUSB_MCU == MCU_LPC18XX)
 //--------------------------------------------------------------------+
 // INCLUDE
 //--------------------------------------------------------------------+
@@ -57,20 +57,20 @@
 //--------------------------------------------------------------------+
 // INTERNAL OBJECT & FUNCTION DECLARATION
 //--------------------------------------------------------------------+
-TUSB_CFG_ATTR_USBRAM STATIC_VAR ehci_data_t ehci_data;
+CFG_TUSB_ATTR_USBRAM STATIC_VAR ehci_data_t ehci_data;
 
 #if EHCI_PERIODIC_LIST
 
-  #if (TUSB_CFG_CONTROLLER_0_MODE & TUSB_MODE_HOST)
-  TUSB_CFG_ATTR_USBRAM ATTR_ALIGNED(4096) STATIC_VAR ehci_link_t period_frame_list0[EHCI_FRAMELIST_SIZE];
+  #if (CFG_TUSB_CONTROLLER_0_MODE & TUSB_MODE_HOST)
+  CFG_TUSB_ATTR_USBRAM ATTR_ALIGNED(4096) STATIC_VAR ehci_link_t period_frame_list0[EHCI_FRAMELIST_SIZE];
 
     #ifndef __ICCARM__ // IAR cannot able to determine the alignment with datalignment pragma
     VERIFY_STATIC( ALIGN_OF(period_frame_list0) == 4096, "Period Framelist must be 4k alginment"); // validation
     #endif
   #endif
 
-  #if (TUSB_CFG_CONTROLLER_1_MODE & TUSB_MODE_HOST)
-  TUSB_CFG_ATTR_USBRAM ATTR_ALIGNED(4096) STATIC_VAR ehci_link_t period_frame_list1[EHCI_FRAMELIST_SIZE];
+  #if (CFG_TUSB_CONTROLLER_1_MODE & TUSB_MODE_HOST)
+  CFG_TUSB_ATTR_USBRAM ATTR_ALIGNED(4096) STATIC_VAR ehci_link_t period_frame_list1[EHCI_FRAMELIST_SIZE];
 
     #ifndef __ICCARM__ // IAR cannot able to determine the alignment with datalignment pragma
     VERIFY_STATIC( ALIGN_OF(period_frame_list1) == 4096, "Period Framelist must be 4k alginment"); // validation
@@ -133,11 +133,11 @@ tusb_error_t hcd_init(void)
   //------------- Data Structure init -------------//
   memclr_(&ehci_data, sizeof(ehci_data_t));
 
-  #if (TUSB_CFG_CONTROLLER_0_MODE & TUSB_MODE_HOST)
+  #if (CFG_TUSB_CONTROLLER_0_MODE & TUSB_MODE_HOST)
     ASSERT_ERR (hcd_controller_init(0));
   #endif
 
-  #if (TUSB_CFG_CONTROLLER_1_MODE & TUSB_MODE_HOST)
+  #if (CFG_TUSB_CONTROLLER_1_MODE & TUSB_MODE_HOST)
     ASSERT_ERR (hcd_controller_init(1));
   #endif
 
@@ -511,7 +511,7 @@ static void async_advance_isr(ehci_qhd_t * const async_head)
     usbh_devices[0].state          = TUSB_DEVICE_STATE_UNPLUG;
   }
 
-  for(uint8_t relative_dev_addr=0; relative_dev_addr < TUSB_CFG_HOST_DEVICE_MAX; relative_dev_addr++)
+  for(uint8_t relative_dev_addr=0; relative_dev_addr < CFG_TUSB_HOST_DEVICE_MAX; relative_dev_addr++)
   {
     // check if control endpoint is removing
     ehci_qhd_t *p_control_qhd = &ehci_data.device[relative_dev_addr].control.qhd;
@@ -592,7 +592,7 @@ static void async_list_xfer_complete_isr(ehci_qhd_t * const async_head)
     }
     p_qhd = qhd_next(p_qhd);
     max_loop++;
-  }while(p_qhd != async_head && max_loop < HCD_MAX_ENDPOINT*TUSB_CFG_HOST_DEVICE_MAX); // async list traversal, stop if loop around
+  }while(p_qhd != async_head && max_loop < HCD_MAX_ENDPOINT*CFG_TUSB_HOST_DEVICE_MAX); // async list traversal, stop if loop around
   // TODO abstract max loop guard for async
 }
 
@@ -606,7 +606,7 @@ static void period_list_xfer_complete_isr(uint8_t hostid, uint8_t interval_ms)
   // TODO abstract max loop guard for period
   while( !next_item.terminate &&
       !(interval_ms > 1 && period_1ms_addr == align32(next_item.address)) &&
-      max_loop < (HCD_MAX_ENDPOINT + EHCI_MAX_ITD + EHCI_MAX_SITD)*TUSB_CFG_HOST_DEVICE_MAX)
+      max_loop < (HCD_MAX_ENDPOINT + EHCI_MAX_ITD + EHCI_MAX_SITD)*CFG_TUSB_HOST_DEVICE_MAX)
   {
     switch ( next_item.type )
     {
@@ -691,7 +691,7 @@ static void xfer_error_isr(uint8_t hostid)
     qhd_xfer_error_isr( p_qhd );
     p_qhd = qhd_next(p_qhd);
     max_loop++;
-  }while(p_qhd != async_head && max_loop < HCD_MAX_ENDPOINT*TUSB_CFG_HOST_DEVICE_MAX); // async list traversal, stop if loop around
+  }while(p_qhd != async_head && max_loop < HCD_MAX_ENDPOINT*CFG_TUSB_HOST_DEVICE_MAX); // async list traversal, stop if loop around
 
   #if EHCI_PERIODIC_LIST
   //------------- TODO refractor period list -------------//
@@ -704,7 +704,7 @@ static void xfer_error_isr(uint8_t hostid)
     // TODO abstract max loop guard for period
     while( !next_item.terminate &&
         !(interval_ms > 1 && period_1ms_addr == align32(next_item.address)) &&
-        period_max_loop < (HCD_MAX_ENDPOINT + EHCI_MAX_ITD + EHCI_MAX_SITD)*TUSB_CFG_HOST_DEVICE_MAX)
+        period_max_loop < (HCD_MAX_ENDPOINT + EHCI_MAX_ITD + EHCI_MAX_SITD)*CFG_TUSB_HOST_DEVICE_MAX)
     {
       switch ( next_item.type )
       {
@@ -794,12 +794,12 @@ static inline ehci_link_t* get_period_frame_list(uint8_t hostid)
 {
   switch(hostid)
   {
-#if (TUSB_CFG_CONTROLLER_0_MODE & TUSB_MODE_HOST)
+#if (CFG_TUSB_CONTROLLER_0_MODE & TUSB_MODE_HOST)
     case 0:
       return period_frame_list0;
 #endif
 
-#if (TUSB_CFG_CONTROLLER_1_MODE & TUSB_MODE_HOST)
+#if (CFG_TUSB_CONTROLLER_1_MODE & TUSB_MODE_HOST)
     case 1:
       return period_frame_list1;
 #endif
@@ -811,7 +811,7 @@ static inline ehci_link_t* get_period_frame_list(uint8_t hostid)
 
 static inline uint8_t hostid_to_data_idx(uint8_t hostid)
 {
-  #if (CONTROLLER_HOST_NUMBER == 1) && (TUSB_CFG_CONTROLLER_1_MODE & TUSB_MODE_HOST)
+  #if (CONTROLLER_HOST_NUMBER == 1) && (CFG_TUSB_CONTROLLER_1_MODE & TUSB_MODE_HOST)
     (void) hostid;
     return 0;
   #else

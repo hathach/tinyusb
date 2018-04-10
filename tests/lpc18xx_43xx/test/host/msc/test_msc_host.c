@@ -51,7 +51,7 @@
 #include "mock_msch_callback.h"
 #include "msc_host.h"
 
-extern msch_interface_t msch_data[TUSB_CFG_HOST_DEVICE_MAX];
+extern msch_interface_t msch_data[CFG_TUSB_HOST_DEVICE_MAX];
 
 static tusb_desc_interface_t const *p_msc_interface_desc = &desc_configuration.msc_interface;
 static tusb_desc_endpoint_t const *p_edp_in  = &desc_configuration.msc_endpoint_in;
@@ -66,11 +66,11 @@ static uint16_t length;
 
 void setUp(void)
 {
-  dev_addr = RANDOM(TUSB_CFG_HOST_DEVICE_MAX)+1;
+  dev_addr = RANDOM(CFG_TUSB_HOST_DEVICE_MAX)+1;
 
   osal_semaphore_create_IgnoreAndReturn( (osal_semaphore_handle_t) 0x1234);
   msch_init();
-  TEST_ASSERT_MEM_ZERO(msch_data, sizeof(msch_interface_t)*TUSB_CFG_HOST_DEVICE_MAX);
+  TEST_ASSERT_MEM_ZERO(msch_data, sizeof(msch_interface_t)*CFG_TUSB_HOST_DEVICE_MAX);
 
   p_msc = &msch_data[dev_addr-1];
   pipe_in  = (pipe_handle_t) {.dev_addr = dev_addr, .xfer_type = TUSB_XFER_BULK, .index = 1};

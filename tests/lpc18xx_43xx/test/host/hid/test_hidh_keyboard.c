@@ -48,7 +48,7 @@
 #include "mock_hidh_callback.h"
 #include "descriptor_test.h"
 
-extern hidh_interface_info_t keyboardh_data[TUSB_CFG_HOST_DEVICE_MAX];
+extern hidh_interface_info_t keyboardh_data[CFG_TUSB_HOST_DEVICE_MAX];
 
 hid_keyboard_report_t sample_key[2] =
 {
@@ -74,7 +74,7 @@ void setUp(void)
 {
   hidh_init();
   memclr_(&report, sizeof(hid_keyboard_report_t));
-  dev_addr = RANDOM(TUSB_CFG_HOST_DEVICE_MAX)+1;
+  dev_addr = RANDOM(CFG_TUSB_HOST_DEVICE_MAX)+1;
 
   p_hidh_kbd = &keyboardh_data[dev_addr-1];
 
@@ -95,7 +95,7 @@ void test_keyboard_init(void)
 {
   hidh_init();
 
-  TEST_ASSERT_MEM_ZERO(keyboardh_data, sizeof(hidh_interface_info_t)*TUSB_CFG_HOST_DEVICE_MAX);
+  TEST_ASSERT_MEM_ZERO(keyboardh_data, sizeof(hidh_interface_info_t)*CFG_TUSB_HOST_DEVICE_MAX);
 }
 
 //------------- is supported -------------//

@@ -38,7 +38,7 @@
 
 #include "tusb_option.h"
 
-#if (MODE_HOST_SUPPORTED && TUSB_CFG_HOST_CUSTOM_CLASS)
+#if (MODE_HOST_SUPPORTED && CFG_TUSB_HOST_CUSTOM_CLASS)
 
 #define _TINY_USB_SOURCE_FILE_
 
@@ -55,7 +55,7 @@
 //--------------------------------------------------------------------+
 // INTERNAL OBJECT & FUNCTION DECLARATION
 //--------------------------------------------------------------------+
-custom_interface_info_t custom_interface[TUSB_CFG_HOST_DEVICE_MAX];
+custom_interface_info_t custom_interface[CFG_TUSB_HOST_DEVICE_MAX];
 
 static tusb_error_t cush_validate_paras(uint8_t dev_addr, uint16_t vendor_id, uint16_t product_id, void * p_buffer, uint16_t length)
 {
@@ -104,7 +104,7 @@ tusb_error_t tusbh_custom_write(uint8_t dev_addr, uint16_t vendor_id, uint16_t p
 //--------------------------------------------------------------------+
 void cush_init(void)
 {
-  memclr_(&custom_interface, sizeof(custom_interface_info_t) * TUSB_CFG_HOST_DEVICE_MAX);
+  memclr_(&custom_interface, sizeof(custom_interface_info_t) * CFG_TUSB_HOST_DEVICE_MAX);
 }
 
 tusb_error_t cush_open_subtask(uint8_t dev_addr, tusb_desc_interface_t const *p_interface_desc, uint16_t *p_length)

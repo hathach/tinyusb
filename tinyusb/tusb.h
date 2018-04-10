@@ -58,15 +58,15 @@
     #include "class/hid/hid_host.h"
   #endif
 
-  #if TUSB_CFG_HOST_MSC
+  #if CFG_TUSB_HOST_MSC
     #include "class/msc/msc_host.h"
   #endif
 
-  #if TUSB_CFG_HOST_CDC
+  #if CFG_TUSB_HOST_CDC
     #include "class/cdc/cdc_host.h"
   #endif
 
-  #if TUSB_CFG_HOST_CUSTOM_CLASS
+  #if CFG_TUSB_HOST_CUSTOM_CLASS
     #include "class/custom_class.h"
   #endif
 
@@ -80,11 +80,11 @@
     #include "class/hid/hid_device.h"
   #endif
 
-  #if TUSB_CFG_DEVICE_CDC
+  #if CFG_TUSB_DEVICE_CDC
     #include "class/cdc/cdc_device.h"
   #endif
 
-  #if TUSB_CFG_DEVICE_MSC
+  #if CFG_TUSB_DEVICE_MSC
     #include "class/msc/msc_device.h"
   #endif
 #endif
@@ -102,9 +102,9 @@
  */
 tusb_error_t tusb_init(void);
 
-#if TUSB_CFG_OS == TUSB_OS_NONE
+#if CFG_TUSB_OS == TUSB_OS_NONE
 /** \brief Run all tinyusb's internal tasks (e.g host task, device task).
- * \note   This function is only required when using no RTOS (\ref TUSB_CFG_OS == TUSB_OS_NONE). All the stack functions
+ * \note   This function is only required when using no RTOS (\ref CFG_TUSB_OS == TUSB_OS_NONE). All the stack functions
  *         & callback are invoked within this function, so it should be called periodically within the mainloop
  *
     @code

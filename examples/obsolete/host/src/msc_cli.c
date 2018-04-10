@@ -37,7 +37,7 @@
 #include "msc_cli.h"
 #include "ctype.h"
 
-#if TUSB_CFG_HOST_MSC
+#if CFG_TUSB_HOST_MSC
 
 #include "ff.h"
 #include "diskio.h"
@@ -139,7 +139,7 @@ static cli_cmdfunc_t cli_command_tbl[] =
 //--------------------------------------------------------------------+
 // INTERNAL OBJECT & FUNCTION DECLARATION
 //--------------------------------------------------------------------+
-TUSB_CFG_ATTR_USBRAM uint8_t fileread_buffer[CLI_FILE_READ_BUFFER];
+CFG_TUSB_ATTR_USBRAM uint8_t fileread_buffer[CLI_FILE_READ_BUFFER];
 static char cli_buffer[CLI_MAX_BUFFER];
 static char volume_label[20];
 

@@ -53,18 +53,18 @@
 
 #include "tusb.h"
 
-#if TUSB_CFG_OS == TUSB_OS_NONE
+#if CFG_TUSB_OS == TUSB_OS_NONE
   #define LOWER_PRIO(x)   0   // does not matter
-#elif TUSB_CFG_OS == TUSB_OS_FREERTOS
+#elif CFG_TUSB_OS == TUSB_OS_FREERTOS
   #define LOWER_PRIO(x)   ((x)-1) // freeRTOS lower number --> lower priority
-#elif TUSB_CFG_OS == TUSB_OS_CMSIS_RTX
+#elif CFG_TUSB_OS == TUSB_OS_CMSIS_RTX
   #define LOWER_PRIO(x)   ((x)-1) // CMSIS-RTOS lower number --> lower priority
 #else
   #error Priority is not configured for this RTOS
 #endif
 
 enum {
-  STANDARD_APP_TASK_PRIO     = LOWER_PRIO(TUSB_CFG_OS_TASK_PRIO),  // Application Task is lower than usb system task
+  STANDARD_APP_TASK_PRIO     = LOWER_PRIO(CFG_TUSB_OS_TASK_PRIO),  // Application Task is lower than usb system task
   LED_BLINKING_APP_TASK_PRIO = LOWER_PRIO(STANDARD_APP_TASK_PRIO), // Blinking task is lower than normal task
 
   KEYBOARD_APP_TASK_PRIO     = STANDARD_APP_TASK_PRIO,

@@ -64,7 +64,7 @@
  * \param[in]		rhport	    USB Controller ID
  * \param[in]		lun         Targeted Logical Unit
  * \param[out]	pp_buffer   Pointer to buffer which application need to update with the response data's address.
- *                          Must be accessible by USB controller (see \ref TUSB_CFG_ATTR_USBRAM)
+ *                          Must be accessible by USB controller (see \ref CFG_TUSB_ATTR_USBRAM)
  * \param[in]		lba         Starting Logical Block Address to be read
  * \param[in]		block_count Number of requested block
  * \retval      non-zero    Actual number of block that application processed, must be less than or equal to \a \b block_count.
@@ -82,7 +82,7 @@ uint16_t tud_msc_read10_cb (uint8_t rhport, uint8_t lun, void** pp_buffer, uint3
  * \param[in]		rhport	    USB Controller ID
  * \param[in]		lun         Targeted Logical Unit
  * \param[out]	pp_buffer   Pointer to buffer which application need to update with the address to hold data from host
- *                          Must be accessible by USB controller (see \ref TUSB_CFG_ATTR_USBRAM)
+ *                          Must be accessible by USB controller (see \ref CFG_TUSB_ATTR_USBRAM)
  * \param[in]		lba         Starting Logical Block Address to be write
  * \param[in]		block_count Number of requested block
  * \retval      non-zero    Actual number of block that application can receive and must be less than or equal to \a \b block_count.

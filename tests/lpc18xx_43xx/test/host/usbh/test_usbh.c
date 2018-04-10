@@ -56,7 +56,7 @@
 uint8_t dev_addr;
 void setUp(void)
 {
-  dev_addr = RANDOM(TUSB_CFG_HOST_DEVICE_MAX)+1;
+  dev_addr = RANDOM(CFG_TUSB_HOST_DEVICE_MAX)+1;
 }
 
 void tearDown(void)
@@ -70,7 +70,7 @@ void test_usbh_status_get_fail(void)
 {
   usbh_devices[dev_addr].state = 0;
 
-  TEST_ASSERT_EQUAL( TUSB_DEVICE_STATE_INVALID_PARAMETER, tusbh_device_get_state(TUSB_CFG_HOST_DEVICE_MAX+1) );
+  TEST_ASSERT_EQUAL( TUSB_DEVICE_STATE_INVALID_PARAMETER, tusbh_device_get_state(CFG_TUSB_HOST_DEVICE_MAX+1) );
   TEST_ASSERT_EQUAL( TUSB_DEVICE_STATE_UNPLUG, tusbh_device_get_state(dev_addr) );
 }
 
@@ -134,7 +134,7 @@ void test_usbh_init_ok(void)
   //------------- code under test -------------//
   TEST_ASSERT_EQUAL(TUSB_ERROR_NONE, usbh_init());
 
-  for (uint8_t i=0; i<TUSB_CFG_HOST_DEVICE_MAX+1; i++)
+  for (uint8_t i=0; i<CFG_TUSB_HOST_DEVICE_MAX+1; i++)
   {
     TEST_ASSERT_NOT_NULL(usbh_devices[i].control.sem_hdl);
   }

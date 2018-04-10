@@ -35,7 +35,7 @@ It is relatively simple to incorporate tinyusb to your (existing) project
 1. Copy core folder **tinyusb** to your project. Let's say it is *your_project/tinyusb*
 2. Add all the .c in the core folder to your project settings (uvproj, ewp, makefile)
 3. Add *your_project/tinysb* to your include path. Also make sure your current include path also contains the configuration file tusb_config.h. Or you could simply put the tusb_config.h into the tinyusb folder as well.
-4. Make sure all required macros are all defined properly in tusb_config.h (configure file in demo application is sufficient, but you need to add a few more such as TUSB_CFG_MCU, TUSB_CFG_OS, TUSB_CFG_OS_TASK_PRIO since they are passed by IDE/compiler to maintain a unique configure for all demo projects).
+4. Make sure all required macros are all defined properly in tusb_config.h (configure file in demo application is sufficient, but you need to add a few more such as CFG_TUSB_MCU, CFG_TUSB_OS, CFG_TUSB_OS_TASK_PRIO since they are passed by IDE/compiler to maintain a unique configure for all demo projects).
 5. If you use the device stack, make sure you have created/modified usb descriptors for your own need. Ultimately you need to fill out required pointers in tusbd_descriptor_pointers for that stack to work.
 6. Add tusb_init() call to your reset initialization code.
 7. Implement all enabled classes's callbacks.

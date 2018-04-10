@@ -38,7 +38,7 @@
 
 #include "tusb_option.h"
 
-#if MODE_DEVICE_SUPPORTED && TUSB_CFG_MCU == MCU_LPC43XX
+#if MODE_DEVICE_SUPPORTED && CFG_TUSB_MCU == MCU_LPC43XX
 
 //--------------------------------------------------------------------+
 // INCLUDE
@@ -70,12 +70,12 @@ typedef struct {
 extern ATTR_WEAK dcd_data_t dcd_data0;
 extern ATTR_WEAK dcd_data_t dcd_data1;
 
-#if (TUSB_CFG_CONTROLLER_0_MODE & TUSB_MODE_DEVICE)
-TUSB_CFG_ATTR_USBRAM ATTR_ALIGNED(2048) STATIC_VAR dcd_data_t dcd_data0;
+#if (CFG_TUSB_CONTROLLER_0_MODE & TUSB_MODE_DEVICE)
+CFG_TUSB_ATTR_USBRAM ATTR_ALIGNED(2048) STATIC_VAR dcd_data_t dcd_data0;
 #endif
 
-#if (TUSB_CFG_CONTROLLER_1_MODE & TUSB_MODE_DEVICE)
-TUSB_CFG_ATTR_USBRAM ATTR_ALIGNED(2048) STATIC_VAR dcd_data_t dcd_data1;
+#if (CFG_TUSB_CONTROLLER_1_MODE & TUSB_MODE_DEVICE)
+CFG_TUSB_ATTR_USBRAM ATTR_ALIGNED(2048) STATIC_VAR dcd_data_t dcd_data1;
 #endif
 
 static LPC_USB0_Type * const LPC_USB[2] = { LPC_USB0, ((LPC_USB0_Type*) LPC_USB1_BASE) };
@@ -138,7 +138,7 @@ static void bus_reset(uint8_t rhport)
 
   //------------- Set up Control Endpoints (0 OUT, 1 IN) -------------//
 	p_dcd->qhd[0].zero_length_termination = p_dcd->qhd[1].zero_length_termination = 1;
-	p_dcd->qhd[0].max_package_size = p_dcd->qhd[1].max_package_size = TUSB_CFG_DEVICE_CONTROL_ENDOINT_SIZE;
+	p_dcd->qhd[0].max_package_size = p_dcd->qhd[1].max_package_size = CFG_TUSB_DEVICE_CONTROL_ENDOINT_SIZE;
 	p_dcd->qhd[0].qtd_overlay.next = p_dcd->qhd[1].qtd_overlay.next = QTD_NEXT_INVALID;
 
 	p_dcd->qhd[0].int_on_setup = 1; // OUT only

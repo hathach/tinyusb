@@ -55,7 +55,7 @@ IAR is just as easy as Keil
 
 ## Configure demo
 
-Application demo is written to have the code excluded if its required option is not enabled in [tusb_config.h](). Some of combination may exceed the 32KB limit of IAR/Keil so you may want to re-configure to disable some class support, decrease TUSB_CFG_DEBUG or increase the compiler optimization level.
+Application demo is written to have the code excluded if its required option is not enabled in [tusb_config.h](). Some of combination may exceed the 32KB limit of IAR/Keil so you may want to re-configure to disable some class support, decrease CFG_TUSB_DEBUG or increase the compiler optimization level.
 
 In addition, there are some configuration you can change such as
 

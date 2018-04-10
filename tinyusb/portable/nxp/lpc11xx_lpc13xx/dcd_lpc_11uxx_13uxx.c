@@ -38,7 +38,7 @@
 
 #include "tusb_option.h"
 
-#if MODE_DEVICE_SUPPORTED && (TUSB_CFG_MCU == MCU_LPC11UXX || TUSB_CFG_MCU == MCU_LPC13UXX)
+#if MODE_DEVICE_SUPPORTED && (CFG_TUSB_MCU == MCU_LPC11UXX || CFG_TUSB_MCU == MCU_LPC13UXX)
 
 #define _TINY_USB_SOURCE_FILE_
 
@@ -63,7 +63,7 @@
 #define DCD_11U_13U_QHD_COUNT 10
 
 enum {
-  DCD_11U_13U_MAX_BYTE_PER_TD = (TUSB_CFG_MCU == MCU_LPC11UXX ? 64 : 1023)
+  DCD_11U_13U_MAX_BYTE_PER_TD = (CFG_TUSB_MCU == MCU_LPC11UXX ? 64 : 1023)
 };
 
 #ifdef __CC_ARM
@@ -142,11 +142,11 @@ typedef struct {
 //--------------------------------------------------------------------+
 // INTERNAL OBJECT & FUNCTION DECLARATION
 //--------------------------------------------------------------------+
-// TUSB_CFG_ATTR_USBRAM must have ATTR_ALIGNED(64) for lpc11u & lpc13u
+// CFG_TUSB_ATTR_USBRAM must have ATTR_ALIGNED(64) for lpc11u & lpc13u
 #ifdef __ICCARM__
-ATTR_ALIGNED(256) TUSB_CFG_ATTR_USBRAM // for IAR the first ATTR_ALIGNED takes effect
+ATTR_ALIGNED(256) CFG_TUSB_ATTR_USBRAM // for IAR the first ATTR_ALIGNED takes effect
 #else
-TUSB_CFG_ATTR_USBRAM ATTR_ALIGNED(256) // GCC & Keil the last ATTR_ALIGNED takes effect
+CFG_TUSB_ATTR_USBRAM ATTR_ALIGNED(256) // GCC & Keil the last ATTR_ALIGNED takes effect
 #endif
 STATIC_VAR dcd_11u_13u_data_t dcd_data;
 

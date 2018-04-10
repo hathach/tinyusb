@@ -42,7 +42,7 @@
 #include "mouse_host_app.h"
 #include "app_os_prio.h"
 
-#if TUSB_CFG_HOST_HID_MOUSE
+#if CFG_TUSB_HOST_HID_MOUSE
 
 //--------------------------------------------------------------------+
 // MACRO CONSTANT TYPEDEF
@@ -53,7 +53,7 @@
 // INTERNAL OBJECT & FUNCTION DECLARATION
 //--------------------------------------------------------------------+
 static osal_queue_t queue_mouse_hdl;
-TUSB_CFG_ATTR_USBRAM static hid_mouse_report_t usb_mouse_report;
+CFG_TUSB_ATTR_USBRAM static hid_mouse_report_t usb_mouse_report;
 
 static inline void process_mouse_report(hid_mouse_report_t const * p_report);
 

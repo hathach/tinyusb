@@ -47,7 +47,7 @@
  *  @{ */
 
 /** \defgroup group_supported_os Supported RTOS
- * \brief \ref TUSB_CFG_OS must be defined to one of these
+ * \brief \ref CFG_TUSB_OS must be defined to one of these
  *  @{ */
 #define TUSB_OS_NONE       1 ///< No RTOS is used
 #define TUSB_OS_FREERTOS   2 ///< FreeRTOS is used
@@ -64,14 +64,14 @@ enum
 };
 
 
-#if TUSB_CFG_OS == TUSB_OS_NONE
+#if CFG_TUSB_OS == TUSB_OS_NONE
   #include "osal_none.h"
 
 #else
-   #if TUSB_CFG_OS == TUSB_OS_FREERTOS
+   #if CFG_TUSB_OS == TUSB_OS_FREERTOS
     #include "osal_freeRTOS.h"
   #else
-    #error TUSB_CFG_OS is not defined or OS is not supported yet
+    #error CFG_TUSB_OS is not defined or OS is not supported yet
   #endif
 
   #define OSAL_TASK_BEGIN while(1) {

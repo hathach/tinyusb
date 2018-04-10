@@ -38,7 +38,7 @@
 
 #include "tusb_option.h"
 
-#if MODE_DEVICE_SUPPORTED && (TUSB_CFG_MCU == MCU_LPC175X_6X)
+#if MODE_DEVICE_SUPPORTED && (CFG_TUSB_MCU == MCU_LPC175X_6X)
 
 #define _TINY_USB_SOURCE_FILE_
 //--------------------------------------------------------------------+
@@ -68,7 +68,7 @@ typedef struct {
 
 }dcd_data_t;
 
-TUSB_CFG_ATTR_USBRAM ATTR_ALIGNED(128) STATIC_VAR dcd_data_t dcd_data;
+CFG_TUSB_ATTR_USBRAM ATTR_ALIGNED(128) STATIC_VAR dcd_data_t dcd_data;
 
 //--------------------------------------------------------------------+
 // INTERNAL OBJECT & FUNCTION DECLARATION
@@ -128,8 +128,8 @@ bool dcd_init(uint8_t rhport)
 
   //------------- user manual 11.13 usb device controller initialization -------------//  LPC_USB->USBEpInd = 0;
   // step 6 : set up control endpoint
-  edpt_set_max_packet_size(0, TUSB_CFG_DEVICE_CONTROL_ENDOINT_SIZE);
-  edpt_set_max_packet_size(1, TUSB_CFG_DEVICE_CONTROL_ENDOINT_SIZE);
+  edpt_set_max_packet_size(0, CFG_TUSB_DEVICE_CONTROL_ENDOINT_SIZE);
+  edpt_set_max_packet_size(1, CFG_TUSB_DEVICE_CONTROL_ENDOINT_SIZE);
 
   bus_reset();
 
@@ -312,7 +312,7 @@ static inline uint16_t length_byte2dword(uint16_t length_in_bytes)
 
 static tusb_error_t pipe_control_xfer(uint8_t ep_id, uint8_t* p_buffer, uint16_t length)
 {
-  uint16_t const packet_len = min16_of(length, TUSB_CFG_DEVICE_CONTROL_ENDOINT_SIZE);
+  uint16_t const packet_len = min16_of(length, CFG_TUSB_DEVICE_CONTROL_ENDOINT_SIZE);
 
   if (ep_id)
   {

@@ -56,7 +56,7 @@ tusb_error_t tusb_init(void)
   return TUSB_ERROR_NONE;
 }
 
-#if TUSB_CFG_OS == TUSB_OS_NONE
+#if CFG_TUSB_OS == TUSB_OS_NONE
 void tusb_task(void)
 {
   #if MODE_HOST_SUPPORTED
@@ -73,7 +73,7 @@ void tusb_task(void)
 /*------------------------------------------------------------------*/
 /* Debug
  *------------------------------------------------------------------*/
-#if TUSB_CFG_DEBUG
+#if CFG_TUSB_DEBUG
 
 char const* const tusb_strerr[TUSB_ERROR_COUNT] =
 {

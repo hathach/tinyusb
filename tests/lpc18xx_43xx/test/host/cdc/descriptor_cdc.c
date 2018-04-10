@@ -42,7 +42,7 @@
 //--------------------------------------------------------------------+
 // CDC Serials
 //--------------------------------------------------------------------+
-TUSB_CFG_ATTR_USBRAM
+CFG_TUSB_ATTR_USBRAM
 const cdc_configuration_desc_t cdc_config_descriptor =
 {
     .configuration =
@@ -168,7 +168,7 @@ const cdc_configuration_desc_t cdc_config_descriptor =
 // CDC RNSID
 //--------------------------------------------------------------------+
 
-TUSB_CFG_ATTR_USBRAM
+CFG_TUSB_ATTR_USBRAM
 const cdc_configuration_desc_t rndis_config_descriptor =
 {
     .configuration =

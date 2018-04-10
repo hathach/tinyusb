@@ -38,7 +38,7 @@
 
 #include "tusb_option.h"
 
-#if (MODE_DEVICE_SUPPORTED && TUSB_CFG_DEVICE_MSC)
+#if (MODE_DEVICE_SUPPORTED && CFG_TUSB_DEVICE_MSC)
 
 #define _TINY_USB_SOURCE_FILE_
 //--------------------------------------------------------------------+
@@ -64,7 +64,7 @@ typedef struct {
   uint8_t scsi_data[64];
   ATTR_USB_MIN_ALIGNMENT msc_cbw_t  cbw;
 
-#if defined (__ICCARM__) && (TUSB_CFG_MCU == MCU_LPC11UXX || TUSB_CFG_MCU == MCU_LPC13UXX)
+#if defined (__ICCARM__) && (CFG_TUSB_MCU == MCU_LPC11UXX || CFG_TUSB_MCU == MCU_LPC13UXX)
   uint8_t padding1[64-sizeof(msc_cbw_t)]; // IAR cannot align struct's member
 #endif
 
@@ -79,7 +79,7 @@ typedef struct {
   uint16_t xferred_len; // numbered of bytes transferred so far in the Data Stage
 }mscd_interface_t;
 
-TUSB_CFG_ATTR_USBRAM ATTR_USB_MIN_ALIGNMENT STATIC_VAR mscd_interface_t mscd_data;
+CFG_TUSB_ATTR_USBRAM ATTR_USB_MIN_ALIGNMENT STATIC_VAR mscd_interface_t mscd_data;
 //--------------------------------------------------------------------+
 // INTERNAL OBJECT & FUNCTION DECLARATION
 //--------------------------------------------------------------------+

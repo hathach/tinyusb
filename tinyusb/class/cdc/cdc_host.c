@@ -38,7 +38,7 @@
 
 #include "tusb_option.h"
 
-#if (MODE_HOST_SUPPORTED && TUSB_CFG_HOST_CDC)
+#if (MODE_HOST_SUPPORTED && CFG_TUSB_HOST_CDC)
 
 #define _TINY_USB_SOURCE_FILE_
 
@@ -55,7 +55,7 @@
 //--------------------------------------------------------------------+
 // INTERNAL OBJECT & FUNCTION DECLARATION
 //--------------------------------------------------------------------+
-STATIC_VAR cdch_data_t cdch_data[TUSB_CFG_HOST_DEVICE_MAX]; // TODO to be static
+STATIC_VAR cdch_data_t cdch_data[CFG_TUSB_HOST_DEVICE_MAX]; // TODO to be static
 
 static inline cdc_pipeid_t get_app_pipeid(pipe_handle_t pipe_hdl)
 {
@@ -139,7 +139,7 @@ tusb_error_t tuh_cdc_receive(uint8_t dev_addr, void * p_buffer, uint32_t length,
 //--------------------------------------------------------------------+
 void cdch_init(void)
 {
-  memclr_(cdch_data, sizeof(cdch_data_t)*TUSB_CFG_HOST_DEVICE_MAX);
+  memclr_(cdch_data, sizeof(cdch_data_t)*CFG_TUSB_HOST_DEVICE_MAX);
 }
 
 tusb_error_t cdch_open_subtask(uint8_t dev_addr, tusb_desc_interface_t const *p_interface_desc, uint16_t *p_length)

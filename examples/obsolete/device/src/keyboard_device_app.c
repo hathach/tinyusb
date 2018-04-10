@@ -38,7 +38,7 @@
 
 #include "keyboard_device_app.h"
 
-#if TUSB_CFG_DEVICE_HID_KEYBOARD
+#if CFG_TUSB_DEVICE_HID_KEYBOARD
 //--------------------------------------------------------------------+
 // INCLUDE
 //--------------------------------------------------------------------+
@@ -51,7 +51,7 @@
 //--------------------------------------------------------------------+
 // INTERNAL OBJECT & FUNCTION DECLARATION
 //--------------------------------------------------------------------+
-TUSB_CFG_ATTR_USBRAM hid_keyboard_report_t keyboard_report;
+CFG_TUSB_ATTR_USBRAM hid_keyboard_report_t keyboard_report;
 
 //--------------------------------------------------------------------+
 // tinyusb callbacks

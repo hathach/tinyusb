@@ -53,7 +53,7 @@
  extern "C" {
 #endif
 
-#if TUSB_CFG_DEVICE_CDC
+#if CFG_TUSB_DEVICE_CDC
 
 void cdc_serial_app_init(void);
 void cdc_serial_app_task(void* param);

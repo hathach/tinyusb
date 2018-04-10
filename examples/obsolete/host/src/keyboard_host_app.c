@@ -42,7 +42,7 @@
 #include "keyboard_host_app.h"
 #include "app_os_prio.h"
 
-#if TUSB_CFG_HOST_HID_KEYBOARD
+#if CFG_TUSB_HOST_HID_KEYBOARD
 
 //--------------------------------------------------------------------+
 // MACRO CONSTANT TYPEDEF
@@ -53,7 +53,7 @@
 // INTERNAL OBJECT & FUNCTION DECLARATION
 //--------------------------------------------------------------------+
 static osal_queue_t queue_kbd_hdl;
-TUSB_CFG_ATTR_USBRAM static hid_keyboard_report_t usb_keyboard_report;
+CFG_TUSB_ATTR_USBRAM static hid_keyboard_report_t usb_keyboard_report;
 
 static inline uint8_t keycode_to_ascii(uint8_t modifier, uint8_t keycode) ATTR_CONST ATTR_ALWAYS_INLINE;
 static inline void process_kbd_report(hid_keyboard_report_t const * report);

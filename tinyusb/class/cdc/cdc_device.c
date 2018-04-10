@@ -38,7 +38,7 @@
 
 #include "tusb_option.h"
 
-#if (MODE_DEVICE_SUPPORTED && TUSB_CFG_DEVICE_CDC)
+#if (MODE_DEVICE_SUPPORTED && CFG_TUSB_DEVICE_CDC)
 
 #define _TINY_USB_SOURCE_FILE_
 //--------------------------------------------------------------------+
@@ -51,7 +51,7 @@
 //--------------------------------------------------------------------+
 // MACRO CONSTANT TYPEDEF
 //--------------------------------------------------------------------+
-TUSB_CFG_ATTR_USBRAM STATIC_VAR cdc_line_coding_t cdcd_line_coding[CONTROLLER_DEVICE_NUMBER];
+CFG_TUSB_ATTR_USBRAM STATIC_VAR cdc_line_coding_t cdcd_line_coding[CONTROLLER_DEVICE_NUMBER];
 
 typedef struct {
   uint8_t interface_number;
@@ -66,8 +66,8 @@ typedef struct {
 }cdcd_data_t;
 
 // TODO multiple rhport
-TUSB_CFG_ATTR_USBRAM ATTR_ALIGNED(4) uint8_t _tmp_rx_buf[64];
-TUSB_CFG_ATTR_USBRAM ATTR_ALIGNED(4) uint8_t _tmp_tx_buf[64];
+CFG_TUSB_ATTR_USBRAM ATTR_ALIGNED(4) uint8_t _tmp_rx_buf[64];
+CFG_TUSB_ATTR_USBRAM ATTR_ALIGNED(4) uint8_t _tmp_tx_buf[64];
 
 #define CFG_TUD_CDC_BUFSIZE   128
 

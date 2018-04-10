@@ -38,7 +38,7 @@
 
 #include "msc_device_app.h"
 
-#if TUSB_CFG_DEVICE_MSC && defined (MSCD_APP_RAMDISK)
+#if CFG_TUSB_DEVICE_MSC && defined (MSCD_APP_RAMDISK)
 
 //--------------------------------------------------------------------+
 // MACRO CONSTANT TYPEDEF
@@ -47,7 +47,7 @@
 //--------------------------------------------------------------------+
 // INTERNAL OBJECT & FUNCTION DECLARATION
 //--------------------------------------------------------------------+
-TUSB_CFG_ATTR_USBRAM
+CFG_TUSB_ATTR_USBRAM
 uint8_t msc_device_ramdisk[DISK_BLOCK_NUM][DISK_BLOCK_SIZE] =
 {
   //------------- Boot Sector -------------//

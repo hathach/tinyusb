@@ -60,7 +60,7 @@
 //--------------------------------------------------------------------+
 // VERIFY Helper
 //--------------------------------------------------------------------+
-#if TUSB_CFG_DEBUG >= 1
+#if CFG_TUSB_DEBUG >= 1
   #define _MESS_ERR(_err)         printf("%s: %d: failed, error = %s\n", __PRETTY_FUNCTION__, __LINE__, tusb_strerr[_err])
   #define _MESS_FAILED()          printf("%s: %d: failed\n", __PRETTY_FUNCTION__, __LINE__)
 #else
