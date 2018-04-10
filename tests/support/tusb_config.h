@@ -36,8 +36,8 @@
 */
 /**************************************************************************/
 
-#ifndef _TUSB_TUSB_CONFIG_H_
-#define _TUSB_TUSB_CONFIG_H_
+#ifndef _TUSB_CONFIG_H_
+#define _TUSB_CONFIG_H_
 
 #ifdef __cplusplus
  extern "C" {
@@ -96,6 +96,6 @@
 
 #define RANDOM(n) (rand()%(n))
 
-#endif /* _TUSB_TUSB_CONFIG_H_ */
+#endif /* _TUSB_CONFIG_H_ */
 
 /** @} */

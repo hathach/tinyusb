@@ -36,8 +36,8 @@
 */
 /**************************************************************************/
 
-#ifndef _TUSB_TUSB_CONFIG_H_
-#define _TUSB_TUSB_CONFIG_H_
+#ifndef _TUSB_CONFIG_H_
+#define _TUSB_CONFIG_H_
 
 #ifdef __cplusplus
  extern "C" {
@@ -124,4 +124,4 @@
  }
 #endif
 
-#endif /* _TUSB_TUSB_CONFIG_H_ */
+#endif /* _TUSB_CONFIG_H_ */
