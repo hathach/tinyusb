@@ -55,7 +55,7 @@ enum
   MAX_PACKET_SIZE   = 64,
 
   // Mask of all END event (IN & OUT) for all endpoints. ENDEPIN0-7, ENDEPOUT0-7, ENDISOIN, ENDISOOUT
-  EDPT_END_ALL_MASK = 0x1FFBFC
+  EDPT_END_ALL_MASK = 0x1FFBFCUL
 };
 
 /*------------------------------------------------------------------*/
@@ -139,7 +139,7 @@ void dcd_set_config (uint8_t rhport, uint8_t config_num)
  *------------------------------------------------------------------*/
 static void edpt_dma_start(uint8_t epnum, uint8_t dir)
 {
-  // Only one dma could be active
+  // Only one dma could be active, TODO resolve when this is called in ISR and dma is running
   while ( _dcd.dma_running ) { }
 
   _dcd.dma_running = true;
@@ -229,16 +229,17 @@ bool dcd_control_xfer (uint8_t rhport, tusb_dir_t dir, uint8_t * buffer, uint16_
 /*------------------------------------------------------------------*/
 /*
  *------------------------------------------------------------------*/
+
+static inline nom_xfer_t* get_td(uint8_t epnum, uint8_t dir)
+{
+  return &_dcd.xfer[epnum-1][dir];
+}
+
 static void normal_xact_start(uint8_t epnum, uint8_t dir)
 {
-  nom_xfer_t* xfer = &_dcd.xfer[epnum-1][dir];
-
-  // Each transaction is up to Max Packet Size
-  uint8_t const xact_len = min16_of(xfer->total_len - xfer->actual_len, xfer->mps);
-
   if ( dir == TUSB_DIR_OUT )
   {
-    // Errata 135: HW issue on nrf5284 sample, SIZE.EPOUT won't trigger ACK as spec
+    // Errata : HW issue on nrf5284 sample, SIZE.EPOUT won't trigger ACK as spec
     // use the back door interface as sdk for walk around
     if ( nrf_drv_usbd_errata_sizeepout_rw() )
     {
@@ -254,6 +255,11 @@ static void normal_xact_start(uint8_t epnum, uint8_t dir)
     }
   }else
   {
+    nom_xfer_t* xfer = get_td(epnum, dir);
+
+    // Each transaction is up to Max Packet Size
+    uint8_t const xact_len = min16_of(xfer->total_len - xfer->actual_len, xfer->mps);
+
     NRF_USBD->EPIN[epnum].PTR    = (uint32_t) xfer->buffer;
     NRF_USBD->EPIN[epnum].MAXCNT = xact_len;
 
@@ -293,7 +299,7 @@ bool dcd_edpt_xfer (uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t 
   uint8_t const epnum = edpt_number(ep_addr);
   uint8_t const dir   = edpt_dir(ep_addr);
 
-  nom_xfer_t* xfer = &_dcd.xfer[epnum-1][dir];
+  nom_xfer_t* xfer = get_td(epnum, dir);
 
   xfer->buffer     = buffer;
   xfer->total_len  = total_bytes;
@@ -306,14 +312,6 @@ bool dcd_edpt_xfer (uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t 
   }
 
   normal_xact_start(epnum, dir);
-
-//  if ( dir == TUSB_DIR_OUT )
-//  {
-//    // TODO
-//  }else
-//  {
-//
-//  }
 
   return true;
 }
@@ -352,7 +350,7 @@ bool dcd_edpt_busy (uint8_t rhport, uint8_t ep_addr)
   uint8_t const epnum = edpt_number(ep_addr);
   uint8_t const dir   = edpt_dir(ep_addr);
 
-  nom_xfer_t* xfer = &_dcd.xfer[epnum-1][dir];
+  nom_xfer_t* xfer = get_td(epnum, dir);
 
   return xfer->actual_len < xfer->total_len;
 }
@@ -451,7 +449,7 @@ void USBD_IRQHandler(void)
     {
       if ( BIT_TEST_(data_status, epnum ) )
       {
-        nom_xfer_t* xfer = &_dcd.xfer[epnum-1][TUSB_DIR_IN];
+        nom_xfer_t* xfer = get_td(epnum, TUSB_DIR_IN);
 
         xfer->actual_len += NRF_USBD->EPIN[epnum].MAXCNT;
 
@@ -472,7 +470,7 @@ void USBD_IRQHandler(void)
     {
       if ( BIT_TEST_(data_status, 16+epnum ) )
       {
-        nom_xfer_t* xfer = &_dcd.xfer[epnum-1][TUSB_DIR_OUT];
+        nom_xfer_t* xfer = get_td(epnum, TUSB_DIR_OUT);
 
         uint8_t const xact_len = NRF_USBD->SIZE.EPOUT[epnum];
 
@@ -493,27 +491,15 @@ void USBD_IRQHandler(void)
   {
     if ( BIT_TEST_(int_status, USBD_INTEN_ENDEPOUT0_Pos+epnum) )
     {
-      nom_xfer_t* xfer = &_dcd.xfer[epnum-1][TUSB_DIR_OUT];
+      nom_xfer_t* xfer = get_td(epnum, TUSB_DIR_OUT);
+
+      uint8_t const xact_len = NRF_USBD->EPOUT[epnum].AMOUNT;
 
       // Transfer complete if transaction len < Max Packet Size or total len is transferred
-      if ( (NRF_USBD->EPOUT[epnum].AMOUNT == xfer->mps) && (xfer->actual_len < xfer->total_len) )
+      if ( (xact_len == xfer->mps) && (xfer->actual_len < xfer->total_len) )
       {
-        // Allow Host -> Endpoint
-
-        // HW issue on nrf5284 sample, SIZE.EPOUT won't trigger ACK as spec
-        // use the back door interface as sdk for walk around
-        if ( nrf_drv_usbd_errata_sizeepout_rw() )
-        {
-          *((volatile uint32_t *)(NRF_USBD_BASE + 0x800)) = 0x7C5 + 2*epnum;
-          *((volatile uint32_t *)(NRF_USBD_BASE + 0x804)) = 0;
-          (void) (((volatile uint32_t *)(NRF_USBD_BASE + 0x804)));
-        }
-        else
-        {
-          // Overwrite size will allow hw to accept data
-          NRF_USBD->SIZE.EPOUT[epnum] = 0;
-          __ISB(); __DSB();
-        }
+        // Prepare for more data from Host -> Endpoint
+        normal_xact_start(epnum, TUSB_DIR_OUT);
       }else
       {
         xfer->total_len = xfer->actual_len;
@@ -535,9 +521,9 @@ void USBD_IRQHandler(void)
     if ( nrf_drv_usbd_errata_104() )
     {
       // Check all the queued IN transfer, retire all transfer if 10 frames has passed
-      for (int i=0; i<7; i++)
+      for (int ep=1; ep<= 8; ep++)
       {
-        nom_xfer_t* xfer = &_dcd.xfer[i][TUSB_DIR_IN];
+        nom_xfer_t* xfer = get_td(ep, TUSB_DIR_IN);
 
         if (xfer->actual_len < xfer->total_len)
         {
@@ -555,7 +541,7 @@ void USBD_IRQHandler(void)
           if (diff > 10)
           {
             xfer->actual_len = xfer->total_len;
-            dcd_xfer_complete(0, (i+1) | TUSB_DIR_IN_MASK, xfer->actual_len, true);
+            dcd_xfer_complete(0, ep | TUSB_DIR_IN_MASK, xfer->actual_len, true);
           }
         }
       }

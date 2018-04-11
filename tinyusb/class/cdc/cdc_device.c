@@ -66,11 +66,17 @@ typedef struct {
 }cdcd_data_t;
 
 // TODO multiple rhport
-CFG_TUSB_ATTR_USBRAM ATTR_ALIGNED(4) uint8_t _tmp_rx_buf[64];
-CFG_TUSB_ATTR_USBRAM ATTR_ALIGNED(4) uint8_t _tmp_tx_buf[64];
+#ifdef NRF52840_XXAA
+// FIXME nrf52 OUT bug ( Controller ACK data even we didn't prepare transfer )
+CFG_TUSB_ATTR_USBRAM CFG_TUSB_MEM_ALIGN uint8_t _tmp_rx_buf[1024];
+#else
+CFG_TUSB_ATTR_USBRAM CFG_TUSB_MEM_ALIGN uint8_t _tmp_rx_buf[64];
+#endif
+
+CFG_TUSB_ATTR_USBRAM CFG_TUSB_MEM_ALIGN uint8_t _tmp_tx_buf[64];
 
 FIFO_DEF(_rx_ff, CFG_TUD_CDC_BUFSIZE, uint8_t, true);
-FIFO_DEF(_tx_ff, CFG_TUD_CDC_BUFSIZE, uint8_t, true);
+FIFO_DEF(_tx_ff, CFG_TUD_CDC_BUFSIZE, uint8_t, false);
 
 //--------------------------------------------------------------------+
 // INTERNAL OBJECT & FUNCTION DECLARATION
@@ -83,7 +89,7 @@ STATIC_VAR cdcd_data_t cdcd_data[CONTROLLER_DEVICE_NUMBER];
 bool tud_n_cdc_connected(uint8_t rhport)
 {
   // Either RTS or DTR active considered as connected
-  return cdcd_data[rhport].line_state;
+  return (cdcd_data[rhport].line_state != 0);
 }
 
 uint32_t tud_n_cdc_available(uint8_t rhport)
@@ -104,7 +110,7 @@ uint32_t tud_n_cdc_read(uint8_t rhport, void* buffer, uint32_t bufsize)
 
 uint32_t tud_n_cdc_write_char(uint8_t rhport, char ch)
 {
-  return fifo_write(&_tx_ff, &ch);
+  return fifo_write(&_tx_ff, &ch) ? 1 : 0;
 }
 
 uint32_t tud_n_cdc_write(uint8_t rhport, void const* buffer, uint32_t bufsize)
@@ -281,7 +287,7 @@ tusb_error_t cdcd_xfer_cb(uint8_t rhport, uint8_t ep_addr, tusb_event_t event, u
     fifo_write_n(&_rx_ff, _tmp_rx_buf, xferred_bytes);
 
     // preparing for next
-    TU_ASSERT(dcd_edpt_xfer(rhport, p_cdc->ep_out, _tmp_rx_buf, sizeof(_tmp_rx_buf)), TUSB_ERROR_DCD_EDPT_XFER);
+    TU_ASSERT( dcd_edpt_xfer(rhport, p_cdc->ep_out, _tmp_rx_buf, sizeof(_tmp_rx_buf)), TUSB_ERROR_DCD_EDPT_XFER );
 
     // fire callback
     if (tud_cdc_rx_cb) tud_cdc_rx_cb(rhport);
