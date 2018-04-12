@@ -133,8 +133,8 @@ void print_greeting(void)
 {
   char const * const rtos_name[] =
   {
-      [TUSB_OS_NONE]      = "None",
-      [TUSB_OS_FREERTOS]  = "FreeRTOS",
+      [OPT_OS_NONE]      = "None",
+      [OPT_OS_FREERTOS]  = "FreeRTOS",
   };
 
   printf("\n\

@@ -57,7 +57,7 @@
 
 #include "osal/osal.h"
 
-#if CFG_TUSB_OS == TUSB_OS_NONE
+#if CFG_TUSB_OS == OPT_OS_NONE
 // Since all fifo read/write is done in thread mode, there should be
 // no conflict except for osal queue which will be address seperatedly.
 // Therefore there may be no need for mutex with internal use of fifo

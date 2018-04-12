@@ -67,7 +67,7 @@
 //--------------------------------------------------------------------+
 #define CFG_TUSB_DEBUG                    2
 
-#define CFG_TUSB_OS                       TUSB_OS_NONE // be passed from IDE/command line for easy project switching
+#define CFG_TUSB_OS                       OPT_OS_NONE // be passed from IDE/command line for easy project switching
 //#define CFG_TUSB_OS_TASK_PRIO         0              // be passed from IDE/command line for easy project switching
 
 //--------------------------------------------------------------------+

@@ -53,9 +53,9 @@
 
 #include "tusb.h"
 
-#if CFG_TUSB_OS == TUSB_OS_NONE
+#if CFG_TUSB_OS == OPT_OS_NONE
   #define LOWER_PRIO(x)   0   // does not matter
-#elif CFG_TUSB_OS == TUSB_OS_FREERTOS
+#elif CFG_TUSB_OS == OPT_OS_FREERTOS
   #define LOWER_PRIO(x)   ((x)-1) // freeRTOS lower number --> lower priority
 #elif CFG_TUSB_OS == TUSB_OS_CMSIS_RTX
   #define LOWER_PRIO(x)   ((x)-1) // CMSIS-RTOS lower number --> lower priority

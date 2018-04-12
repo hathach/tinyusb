@@ -36,8 +36,8 @@
 */
 /**************************************************************************/
 
-#ifndef _TUSB_TUSB_OPTION_H_
-#define _TUSB_TUSB_OPTION_H_
+#ifndef _TUSB_OPTION_H_
+#define _TUSB_OPTION_H_
 
 #define TUSB_VERSION_YEAR   00
 #define TUSB_VERSION_MONTH  00
@@ -57,6 +57,14 @@
 #define MCU_LPC18XX        6 ///< NXP LPC18xx family (not supported yet)
 #define MCU_LPC43XX        7 ///< NXP LPC43xx family
 /** @} */
+
+/** \defgroup group_supported_os Supported RTOS
+ * \brief \ref CFG_TUSB_OS must be defined to one of these
+ *  @{ */
+#define OPT_OS_NONE       1 ///< No RTOS is used
+#define OPT_OS_FREERTOS   2 ///< FreeRTOS is used
+/** @} */
+
 
 // Allow to use command line to change the config name/location
 #ifndef CFG_TUSB_CONFIG_FILE
@@ -122,10 +130,10 @@
 #endif
 
 #ifndef CFG_TUSB_OS
-#define CFG_TUSB_OS TUSB_OS_NONE
+#define CFG_TUSB_OS OPT_OS_NONE
 #endif
 
-#if (CFG_TUSB_OS != TUSB_OS_NONE) && !defined (CFG_TUSB_OS_TASK_PRIO)
+#if (CFG_TUSB_OS != OPT_OS_NONE) && !defined (CFG_TUSB_OS_TASK_PRIO)
   #error CFG_TUSB_OS_TASK_PRIO need to be defined (hint: use the highest if possible)
 #endif
 
@@ -192,6 +200,6 @@
   //------------- CLASS -------------//
 #endif // MODE_HOST_SUPPORTED
 
-#endif /* _TUSB_TUSB_OPTION_H_ */
+#endif /* _TUSB_OPTION_H_ */
 
 /** @} */

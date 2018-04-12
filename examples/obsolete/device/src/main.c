@@ -64,7 +64,7 @@ void led_blinking_init(void);
 void led_blinking_task(void* param);
 
 
-#if CFG_TUSB_OS == TUSB_OS_NONE
+#if CFG_TUSB_OS == OPT_OS_NONE
 // like a real RTOS, this function is a main loop invoking each task in application and never return
 void os_none_start_scheduler(void)
 {
@@ -97,9 +97,9 @@ int main(void)
   cdc_serial_app_init();
 
   //------------- start OS scheduler (never return) -------------//
-#if CFG_TUSB_OS == TUSB_OS_FREERTOS
+#if CFG_TUSB_OS == OPT_OS_FREERTOS
   vTaskStartScheduler();
-#elif CFG_TUSB_OS == TUSB_OS_NONE
+#elif CFG_TUSB_OS == OPT_OS_NONE
   os_none_start_scheduler();
 #else
   #error need to start RTOS schduler
@@ -180,8 +180,8 @@ void print_greeting(void)
 {
   char const * const rtos_name[] =
   {
-      [TUSB_OS_NONE]      = "None",
-      [TUSB_OS_FREERTOS]  = "FreeRTOS",
+      [OPT_OS_NONE]      = "None",
+      [OPT_OS_FREERTOS]  = "FreeRTOS",
   };
 
   printf("\n\

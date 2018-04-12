@@ -56,7 +56,7 @@ tusb_error_t tusb_init(void)
   return TUSB_ERROR_NONE;
 }
 
-#if CFG_TUSB_OS == TUSB_OS_NONE
+#if CFG_TUSB_OS == OPT_OS_NONE
 void tusb_task(void)
 {
   #if MODE_HOST_SUPPORTED

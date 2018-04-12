@@ -20,7 +20,7 @@
 
 #define CFG_TUSB_MCU          ///< Select one of the supported MCU, the value must be from \ref group_mcu
 #define CFG_TUSB_OS           ///< Select one of the supported RTOS, the value must be from \ref group_supported_os.
-#define CFG_TUSB_OS_TASK_PRIO ///< If \ref CFG_TUSB_OS is configured to use a real RTOS (other than TUSB_OS_NONE). This determines the priority of the usb stack task.
+#define CFG_TUSB_OS_TASK_PRIO ///< If \ref CFG_TUSB_OS is configured to use a real RTOS (other than OPT_OS_NONE). This determines the priority of the usb stack task.
 
 //--------------------------------------------------------------------+
 // HOST CONFIGURATION

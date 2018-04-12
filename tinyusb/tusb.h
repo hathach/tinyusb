@@ -102,9 +102,9 @@
  */
 tusb_error_t tusb_init(void);
 
-#if CFG_TUSB_OS == TUSB_OS_NONE
+#if CFG_TUSB_OS == OPT_OS_NONE
 /** \brief Run all tinyusb's internal tasks (e.g host task, device task).
- * \note   This function is only required when using no RTOS (\ref CFG_TUSB_OS == TUSB_OS_NONE). All the stack functions
+ * \note   This function is only required when using no RTOS (\ref CFG_TUSB_OS == OPT_OS_NONE). All the stack functions
  *         & callback are invoked within this function, so it should be called periodically within the mainloop
  *
     @code

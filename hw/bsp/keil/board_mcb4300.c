@@ -74,7 +74,7 @@ void board_init(void)
 {
   CGU_Init();
 
-#if CFG_TUSB_OS == TUSB_OS_NONE // TODO may move to main.c
+#if CFG_TUSB_OS == OPT_OS_NONE // TODO may move to main.c
   SysTick_Config(CGU_GetPCLKFrequency(CGU_PERIPHERAL_M4CORE) / BOARD_TICKS_HZ); // 1 msec tick timer
 #endif
 
