@@ -31,7 +31,7 @@
 									<listOptionValue builtIn="false" value="__LPC43XX__"/>
 									<listOptionValue builtIn="false" value="__REDLIB__"/>
 									<listOptionValue builtIn="false" value="__MULTICORE_NONE"/>
-									<listOptionValue builtIn="false" value="CFG_TUSB_MCU=MCU_LPC43XX"/>
+									<listOptionValue builtIn="false" value="CFG_TUSB_MCU=OPT_MCU_LPC43XX"/>
 									<listOptionValue builtIn="false" value="BOARD=BOARD_EA4357"/>
 								</option>
 								<option id="gnu.c.compiler.option.misc.other.1756693195" name="Other flags" superClass="gnu.c.compiler.option.misc.other" useByScannerDiscovery="false" value="-c -fmessage-length=0 -fno-builtin -ffunction-sections -fdata-sections -fsingle-precision-constant" valueType="string"/>
