@@ -49,13 +49,15 @@
 /** \defgroup group_mcu Supported MCU
  * \ref CFG_TUSB_MCU must be defined to one of these
  *  @{ */
-#define MCU_LPC11UXX       1 ///< NXP LPC11Uxx family
-#define MCU_LPC13XX        2 ///< NXP LPC13xx (not supported yet)
-#define MCU_LPC13UXX       3 ///< NXP LPC13xx 12 bit ADC family
-#define MCU_LPC175X_6X     4 ///< NXP LPC175x, LPC176x family
-#define MCU_LPC177X_8X     5 ///< NXP LPC177x, LPC178x family (not supported yet)
-#define MCU_LPC18XX        6 ///< NXP LPC18xx family (not supported yet)
-#define MCU_LPC43XX        7 ///< NXP LPC43xx family
+#define OPT_MCU_LPC11UXX       1 ///< NXP LPC11Uxx series
+#define OPT_MCU_LPC13XX        2 ///< NXP LPC13xx (not supported yet)
+#define OPT_MCU_LPC13UXX       3 ///< NXP LPC13xx 12 bit ADC series
+#define OPT_MCU_LPC175X_6X     4 ///< NXP LPC175x, LPC176x series
+#define OPT_MCU_LPC177X_8X     5 ///< NXP LPC177x, LPC178x series (not supported yet)
+#define OPT_MCU_LPC18XX        6 ///< NXP LPC18xx series (not supported yet)
+#define OPT_MCU_LPC43XX        7 ///< NXP LPC43xx series
+
+#define OPT_MCU_NRF5X        100 ///< Nordic nRF5x series
 /** @} */
 
 /** \defgroup group_supported_os Supported RTOS

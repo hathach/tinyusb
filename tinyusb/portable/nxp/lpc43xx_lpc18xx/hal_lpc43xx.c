@@ -38,7 +38,7 @@
 
 #include "tusb.h"
 
-#if CFG_TUSB_MCU == MCU_LPC43XX
+#if CFG_TUSB_MCU == OPT_MCU_LPC43XX
 
 #include "LPC43xx.h"
 #include "lpc43xx_cgu.h"

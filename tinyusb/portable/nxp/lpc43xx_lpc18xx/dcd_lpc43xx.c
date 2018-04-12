@@ -38,7 +38,7 @@
 
 #include "tusb_option.h"
 
-#if MODE_DEVICE_SUPPORTED && CFG_TUSB_MCU == MCU_LPC43XX
+#if MODE_DEVICE_SUPPORTED && CFG_TUSB_MCU == OPT_MCU_LPC43XX
 
 //--------------------------------------------------------------------+
 // INCLUDE

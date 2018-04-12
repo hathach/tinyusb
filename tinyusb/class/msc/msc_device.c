@@ -64,7 +64,7 @@ typedef struct {
   uint8_t scsi_data[64];
   CFG_TUSB_MEM_ALIGN msc_cbw_t  cbw;
 
-#if defined (__ICCARM__) && (CFG_TUSB_MCU == MCU_LPC11UXX || CFG_TUSB_MCU == MCU_LPC13UXX)
+#if defined (__ICCARM__) && (CFG_TUSB_MCU == OPT_MCU_LPC11UXX || CFG_TUSB_MCU == OPT_MCU_LPC13UXX)
   uint8_t padding1[64-sizeof(msc_cbw_t)]; // IAR cannot align struct's member
 #endif
 

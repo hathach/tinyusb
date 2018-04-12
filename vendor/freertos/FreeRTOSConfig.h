@@ -4,7 +4,7 @@
 //--------------------------------------------------------------------+
 // See http://www.freertos.org/a00110.html.
 //--------------------------------------------------------------------+
-#if CFG_TUSB_MCU == MCU_LPC43XX
+#if CFG_TUSB_MCU == OPT_MCU_LPC43XX
   // TODO remove
   #include "lpc43xx_cgu.h"
   #define configCPU_CLOCK_HZ                   CGU_GetPCLKFrequency(CGU_PERIPHERAL_M4CORE)

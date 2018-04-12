@@ -65,7 +65,7 @@
 #define ITF_TOTAL           (2*CFG_TUSB_DEVICE_CDC + CFG_TUSB_DEVICE_HID_KEYBOARD + CFG_TUSB_DEVICE_HID_MOUSE + \
                                    CFG_TUSB_DEVICE_HID_GENERIC + CFG_TUSB_DEVICE_MSC)
 
-#if (CFG_TUSB_MCU == MCU_LPC11UXX || CFG_TUSB_MCU == MCU_LPC13UXX) && (ITF_TOTAL > 4)
+#if (CFG_TUSB_MCU == OPT_MCU_LPC11UXX || CFG_TUSB_MCU == OPT_MCU_LPC13UXX) && (ITF_TOTAL > 4)
   #error These MCUs do not have enough number of endpoints for the current configuration
 #endif
 
@@ -75,7 +75,7 @@
 #define EDPT_IN(x)    (0x80 | (x))
 #define EDPT_OUT(x)   (x)
 
-#if CFG_TUSB_MCU == MCU_LPC175X_6X // MCUs's endpoint number has a fixed type
+#if CFG_TUSB_MCU == OPT_MCU_LPC175X_6X // MCUs's endpoint number has a fixed type
 
   //------------- CDC -------------//
   #define CDC_EDPT_NOTIF            EDPT_IN (1)
@@ -125,7 +125,7 @@
 
 #endif
 
-#define MSC_EDPT_PACKETSIZE                   (CFG_TUSB_MCU == MCU_LPC43XX ? 512 : 64)
+#define MSC_EDPT_PACKETSIZE                   (CFG_TUSB_MCU == OPT_MCU_LPC43XX ? 512 : 64)
 
 //--------------------------------------------------------------------+
 // CONFIGURATION DESCRIPTOR

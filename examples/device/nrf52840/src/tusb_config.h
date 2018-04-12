@@ -76,7 +76,7 @@
 #define CFG_TUSB_ATTR_USBRAM
 
 // LPC11uxx and LPC13uxx requires each buffer has to be 64-byte alignment
-#if CFG_TUSB_MCU == MCU_LPC11UXX || CFG_TUSB_MCU == MCU_LPC13UXX
+#if CFG_TUSB_MCU == OPT_MCU_LPC11UXX || CFG_TUSB_MCU == OPT_MCU_LPC13UXX
  #define CFG_TUSB_MEM_ALIGN   ATTR_ALIGNED(64)
 #elif defined NRF52840_XXAA
  #define CFG_TUSB_MEM_ALIGN   ATTR_ALIGNED(4)
