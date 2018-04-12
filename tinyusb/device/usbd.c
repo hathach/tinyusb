@@ -435,7 +435,7 @@ static tusb_error_t proc_set_config_req(uint8_t rhport, uint8_t config_number)
       usbd_devices[rhport].interface2class[p_desc_interface->bInterfaceNumber] = class_index;
 
       uint16_t length=0;
-      ASSERT_ERR( usbd_class_drivers[class_index].open( rhport, p_desc_interface, &length ) );
+      TU_ASSERT_ERR( usbd_class_drivers[class_index].open( rhport, p_desc_interface, &length ) );
 
       TU_ASSERT( length >= sizeof(tusb_desc_interface_t), TUSB_ERROR_FAILED );
       p_desc += length;

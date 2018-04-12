@@ -80,7 +80,7 @@ tusb_error_t hidh_interface_get_report(uint8_t dev_addr, void * report, hidh_int
   VERIFY (report, TUSB_ERROR_INVALID_PARA);
   TU_ASSSERT (!hcd_pipe_is_busy(p_hid->pipe_hdl), TUSB_ERROR_INTERFACE_IS_BUSY);
 
-  ASSERT_ERR( hcd_pipe_xfer(p_hid->pipe_hdl, report, p_hid->report_size, true) ) ;
+  TU_ASSERT_ERR( hcd_pipe_xfer(p_hid->pipe_hdl, report, p_hid->report_size, true) ) ;
 
   return TUSB_ERROR_NONE;
 }

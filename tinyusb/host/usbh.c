@@ -144,7 +144,7 @@ tusb_error_t usbh_init(void)
 {
   memclr_(usbh_devices, sizeof(usbh_device_info_t)*(CFG_TUSB_HOST_DEVICE_MAX+1));
 
-  ASSERT_ERR( hcd_init() );
+  TU_ASSERT_ERR( hcd_init() );
 
   //------------- Enumeration & Reporter Task init -------------//
   enum_queue_hdl = osal_queue_create( ENUM_QUEUE_DEPTH, sizeof(uint32_t) );
@@ -223,7 +223,7 @@ tusb_error_t usbh_pipe_control_open(uint8_t dev_addr, uint8_t max_packet_size)
   osal_semaphore_reset( usbh_devices[dev_addr].control.sem_hdl );
   osal_mutex_reset( usbh_devices[dev_addr].control.mutex_hdl );
 
-  ASSERT_ERR( hcd_pipe_control_open(dev_addr, max_packet_size) );
+  TU_ASSERT_ERR( hcd_pipe_control_open(dev_addr, max_packet_size) );
 
   return TUSB_ERROR_NONE;
 }
@@ -231,7 +231,7 @@ tusb_error_t usbh_pipe_control_open(uint8_t dev_addr, uint8_t max_packet_size)
 static inline tusb_error_t usbh_pipe_control_close(uint8_t dev_addr) ATTR_ALWAYS_INLINE;
 static inline tusb_error_t usbh_pipe_control_close(uint8_t dev_addr)
 {
-  ASSERT_ERR( hcd_pipe_control_close(dev_addr) );
+  TU_ASSERT_ERR( hcd_pipe_control_close(dev_addr) );
 
   return TUSB_ERROR_NONE;
 }

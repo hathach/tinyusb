@@ -164,7 +164,7 @@ static inline void verify_breakpoint(void)
 #define ASSERT_1ARGS(_cond)            VERIFY_DEFINE(_cond, _MESS_FAILED(); verify_breakpoint(), false)
 #define ASSERT_2ARGS(_cond, _ret)      VERIFY_DEFINE(_cond, _MESS_FAILED(); verify_breakpoint(), _ret)
 
-#define TU_ASSERT(...)                GET_3RD_ARG(__VA_ARGS__, ASSERT_2ARGS, ASSERT_1ARGS)(__VA_ARGS__)
+#define TU_ASSERT(...)             GET_3RD_ARG(__VA_ARGS__, ASSERT_2ARGS, ASSERT_1ARGS)(__VA_ARGS__)
 
 /*------------------------------------------------------------------*/
 /* ASSERT Error
@@ -173,7 +173,11 @@ static inline void verify_breakpoint(void)
 #define ASERT_ERR_1ARGS(_error)         VERIFY_ERR_DEF2(_error, verify_breakpoint())
 #define ASERT_ERR_2ARGS(_error, _ret)   VERIFY_ERR_DEF3(_error, verify_breakpoint(), _ret)
 
-#define ASSERT_ERR(...)               GET_3RD_ARG(__VA_ARGS__, ASERT_ERR_2ARGS, ASERT_ERR_1ARGS)(__VA_ARGS__)
+#define TU_ASSERT_ERR(...)            GET_3RD_ARG(__VA_ARGS__, ASERT_ERR_2ARGS, ASERT_ERR_1ARGS)(__VA_ARGS__)
+
+/*------------------------------------------------------------------*/
+/* ASSERT HDLR
+ *------------------------------------------------------------------*/
 
 #ifdef __cplusplus
  }

@@ -46,11 +46,11 @@ tusb_error_t tusb_init(void)
   VERIFY( tusb_hal_init(), TUSB_ERROR_FAILED ) ; // hardware init
 
 #if MODE_HOST_SUPPORTED
-  ASSERT_ERR( usbh_init() ); // host stack init
+  TU_ASSERT_ERR( usbh_init() ); // host stack init
 #endif
 
 #if MODE_DEVICE_SUPPORTED
-  ASSERT_ERR ( usbd_init() ); // device stack init
+  TU_ASSERT_ERR ( usbd_init() ); // device stack init
 #endif
 
   return TUSB_ERROR_NONE;
