@@ -69,7 +69,7 @@ typedef struct
   tusb_desc_interface_assoc_t     CDC_IAD;
 #endif
 
-#if 0 //&& CFG_TUSB_DEVICE_CDC
+#if 0 //&& CFG_TUD_CDC
   //CDC - Serial
   //CDC Control Interface
   tusb_desc_interface_t                 CDC_CCI_Interface;

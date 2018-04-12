@@ -157,19 +157,19 @@
 //--------------------------------------------------------------------+
 #if MODE_DEVICE_SUPPORTED
 
-  #define DEVICE_CLASS_HID ( CFG_TUSB_DEVICE_HID_KEYBOARD + CFG_TUSB_DEVICE_HID_MOUSE + CFG_TUSB_DEVICE_HID_GENERIC )
+  #define DEVICE_CLASS_HID ( CFG_TUD_HID_KEYBOARD + CFG_TUD_HID_MOUSE + CFG_TUD_HID_GENERIC )
 
-  #ifndef CFG_TUSB_DEVICE_ENDOINT0_SIZE
-    #define CFG_TUSB_DEVICE_ENDOINT0_SIZE    64
+  #ifndef CFG_TUD_ENDOINT0_SIZE
+    #define CFG_TUD_ENDOINT0_SIZE    64
   #endif
 
 
-  #if CFG_TUSB_DEVICE_ENDOINT0_SIZE > 64
+  #if CFG_TUD_ENDOINT0_SIZE > 64
     #error Control Endpoint Max Package Size cannot larger than 64
   #endif
 
-  #ifndef CFG_TUSB_DEVICE_ENUM_BUFFER_SIZE
-    #define CFG_TUSB_DEVICE_ENUM_BUFFER_SIZE 256
+  #ifndef CFG_TUD_ENUM_BUFFER_SIZE
+    #define CFG_TUD_ENUM_BUFFER_SIZE 256
   #endif
 
 #endif // MODE_DEVICE_SUPPORTED

@@ -128,26 +128,26 @@ void test_usbd_string_descriptor(void)
 
 
   //------------- manufacturer string descriptor -------------//
-  uint32_t const manufacturer_len = sizeof(CFG_TUSB_DEVICE_STRING_MANUFACTURER) - 1;
+  uint32_t const manufacturer_len = sizeof(CFG_TUD_STRING_MANUFACTURER) - 1;
   TEST_ASSERT_EQUAL(manufacturer_len*2 + 2, app_tusb_desc_strings.manufacturer.bLength);
   for(uint32_t i=0; i<manufacturer_len; i++)
   {
-    TEST_ASSERT_EQUAL(CFG_TUSB_DEVICE_STRING_MANUFACTURER[i], app_tusb_desc_strings.manufacturer.unicode_string[i]);
+    TEST_ASSERT_EQUAL(CFG_TUD_STRING_MANUFACTURER[i], app_tusb_desc_strings.manufacturer.unicode_string[i]);
   }
 
   //------------- product string descriptor -------------//
-  uint32_t const product_len = sizeof(CFG_TUSB_DEVICE_STRING_PRODUCT) - 1;
+  uint32_t const product_len = sizeof(CFG_TUD_STRING_PRODUCT) - 1;
   TEST_ASSERT_EQUAL(product_len*2 + 2, app_tusb_desc_strings.product.bLength);
   for(uint32_t i=0; i < product_len; i++)
   {
-    TEST_ASSERT_EQUAL(CFG_TUSB_DEVICE_STRING_PRODUCT[i], app_tusb_desc_strings.product.unicode_string[i]);
+    TEST_ASSERT_EQUAL(CFG_TUD_STRING_PRODUCT[i], app_tusb_desc_strings.product.unicode_string[i]);
   }
 
   //------------- serial string descriptor -------------//
-  uint32_t const serial_len = sizeof(CFG_TUSB_DEVICE_STRING_SERIAL) - 1;
+  uint32_t const serial_len = sizeof(CFG_TUD_STRING_SERIAL) - 1;
   TEST_ASSERT_EQUAL(serial_len*2 + 2, app_tusb_desc_strings.serial.bLength);
   for(uint32_t i=0; i<serial_len; i++)
   {
-    TEST_ASSERT_EQUAL(CFG_TUSB_DEVICE_STRING_SERIAL[i], app_tusb_desc_strings.serial.unicode_string[i]);
+    TEST_ASSERT_EQUAL(CFG_TUD_STRING_SERIAL[i], app_tusb_desc_strings.serial.unicode_string[i]);
   }
 }

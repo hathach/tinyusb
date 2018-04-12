@@ -54,14 +54,14 @@
 //--------------------------------------------------------------------+
 // DEVICE CONFIGURATION
 //--------------------------------------------------------------------+
-#define CFG_TUSB_DEVICE_ENDOINT0_SIZE     64
+#define CFG_TUD_ENDOINT0_SIZE     64
 
 //------------- CLASS -------------//
-#define CFG_TUSB_DEVICE_HID_KEYBOARD      0
-#define CFG_TUSB_DEVICE_HID_MOUSE         0
-#define CFG_TUSB_DEVICE_HID_GENERIC       0 // not supported yet
-#define CFG_TUSB_DEVICE_MSC               0
-#define CFG_TUSB_DEVICE_CDC               1
+#define CFG_TUD_HID_KEYBOARD      0
+#define CFG_TUD_HID_MOUSE         0
+#define CFG_TUD_HID_GENERIC       0 // not supported yet
+#define CFG_TUD_MSC               0
+#define CFG_TUD_CDC               1
 
 //--------------------------------------------------------------------+
 // COMMON CONFIGURATION

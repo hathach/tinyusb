@@ -41,7 +41,7 @@
 //--------------------------------------------------------------------+
 // Keyboard Report Descriptor
 //--------------------------------------------------------------------+
-#if CFG_TUSB_DEVICE_HID_KEYBOARD
+#if CFG_TUD_HID_KEYBOARD
 uint8_t const desc_keyboard_report[] = {
   HID_USAGE_PAGE ( HID_USAGE_PAGE_DESKTOP     ),
   HID_USAGE      ( HID_USAGE_DESKTOP_KEYBOARD ),
@@ -87,7 +87,7 @@ uint8_t const desc_keyboard_report[] = {
 //--------------------------------------------------------------------+
 // Mouse Report Descriptor
 //--------------------------------------------------------------------+
-#if CFG_TUSB_DEVICE_HID_MOUSE
+#if CFG_TUD_HID_MOUSE
 uint8_t const desc_mouse_report[] = {
   HID_USAGE_PAGE ( HID_USAGE_PAGE_DESKTOP     ),
   HID_USAGE      ( HID_USAGE_DESKTOP_MOUSE    ),
@@ -140,7 +140,7 @@ tusb_desc_device_t const desc_device =
     .bLength            = sizeof(tusb_desc_device_t),
     .bDescriptorType    = TUSB_DESC_DEVICE,
     .bcdUSB             = 0x0200,
-  #if CFG_TUSB_DEVICE_CDC
+  #if CFG_TUD_CDC
     // Use Interface Association Descriptor (IAD) for CDC
     // As required by USB Specs IAD's subclass must be common class (2) and protocol must be IAD (1)
     .bDeviceClass       = TUSB_CLASS_MISC,
@@ -152,7 +152,7 @@ tusb_desc_device_t const desc_device =
     .bDeviceProtocol    = 0x00,
   #endif
 
-    .bMaxPacketSize0    = CFG_TUSB_DEVICE_ENDOINT0_SIZE,
+    .bMaxPacketSize0    = CFG_TUD_ENDOINT0_SIZE,
 
     .idVendor           = CFG_VENDORID,
     .idProduct          = CFG_PRODUCTID,
@@ -184,7 +184,7 @@ app_descriptor_configuration_t const desc_configuration =
         .bMaxPower           = TUSB_DESC_CONFIG_POWER_MA(500)
     },
 
-    #if CFG_TUSB_DEVICE_CDC
+    #if CFG_TUD_CDC
     // IAD points to CDC Interfaces
     .cdc_iad =
     {
@@ -296,7 +296,7 @@ app_descriptor_configuration_t const desc_configuration =
     #endif
 
     //------------- HID Keyboard -------------//
-    #if CFG_TUSB_DEVICE_HID_KEYBOARD
+    #if CFG_TUD_HID_KEYBOARD
     .keyboard_interface =
     {
         .bLength            = sizeof(tusb_desc_interface_t),
@@ -333,7 +333,7 @@ app_descriptor_configuration_t const desc_configuration =
     #endif
 
     //------------- HID Mouse -------------//
-    #if CFG_TUSB_DEVICE_HID_MOUSE
+    #if CFG_TUD_HID_MOUSE
     .mouse_interface =
     {
         .bLength            = sizeof(tusb_desc_interface_t),
@@ -370,7 +370,7 @@ app_descriptor_configuration_t const desc_configuration =
     #endif
 
     //------------- Mass Storage -------------//
-    #if CFG_TUSB_DEVICE_MSC
+    #if CFG_TUD_MSC
     .msc_interface =
     {
         .bLength            = sizeof(tusb_desc_interface_t),
@@ -465,11 +465,11 @@ tusbd_descriptor_pointer_t tusbd_descriptor_pointers =
     .p_configuration       = (uint8_t const * ) &desc_configuration,
     .p_string_arr          = (uint8_t const **) string_descriptor_arr,
 
-    #if CFG_TUSB_DEVICE_HID_KEYBOARD
+    #if CFG_TUD_HID_KEYBOARD
     .p_hid_keyboard_report = (uint8_t const *) desc_keyboard_report,
     #endif
 
-    #if CFG_TUSB_DEVICE_HID_MOUSE
+    #if CFG_TUD_HID_MOUSE
     .p_hid_mouse_report    = (uint8_t const *)  desc_mouse_report,
     #endif
 };

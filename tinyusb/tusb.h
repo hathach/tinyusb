@@ -80,11 +80,11 @@
     #include "class/hid/hid_device.h"
   #endif
 
-  #if CFG_TUSB_DEVICE_CDC
+  #if CFG_TUD_CDC
     #include "class/cdc/cdc_device.h"
   #endif
 
-  #if CFG_TUSB_DEVICE_MSC
+  #if CFG_TUD_MSC
     #include "class/msc/msc_device.h"
   #endif
 #endif

@@ -50,7 +50,7 @@
  extern "C" {
 #endif
 
-#if CFG_TUSB_DEVICE_MSC
+#if CFG_TUD_MSC
 
 enum
 {

@@ -63,8 +63,8 @@ typedef struct {
   uint8_t const * p_configuration;       ///< pointer to the whole configuration descriptor, starting by \ref tusb_desc_configuration_t
   uint8_t const** p_string_arr;          ///< a array of pointers to string descriptors
 
-  uint8_t const * p_hid_keyboard_report; ///< pointer to HID report descriptor of Keybaord interface. Only needed if CFG_TUSB_DEVICE_HID_KEYBOARD is enabled
-  uint8_t const * p_hid_mouse_report;    ///< pointer to HID report descriptor of Mouse interface. Only needed if CFG_TUSB_DEVICE_HID_MOUSE is enabled
+  uint8_t const * p_hid_keyboard_report; ///< pointer to HID report descriptor of Keybaord interface. Only needed if CFG_TUD_HID_KEYBOARD is enabled
+  uint8_t const * p_hid_mouse_report;    ///< pointer to HID report descriptor of Mouse interface. Only needed if CFG_TUD_HID_MOUSE is enabled
 }tusbd_descriptor_pointer_t;
 
 // define by application

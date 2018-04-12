@@ -64,7 +64,7 @@ OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #if defined(_WIN32)
     /* Do not include nrf specific files when building for PC host */
-#elif defined(__unix)
+//#elif defined(__unix)
     /* Do not include nrf specific files when building for PC host */
 #elif defined(__APPLE__)
     /* Do not include nrf specific files when building for PC host */

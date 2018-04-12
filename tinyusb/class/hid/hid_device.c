@@ -78,7 +78,7 @@ static hidd_class_driver_t const hidd_class_driver[HIDD_NUMBER_OF_SUBCLASS] =
 {
 //    [HID_PROTOCOL_NONE]  = for HID Generic
 
-#if CFG_TUSB_DEVICE_HID_KEYBOARD
+#if CFG_TUD_HID_KEYBOARD
     [HID_PROTOCOL_KEYBOARD] =
     {
         .p_interface   = &keyboardd_data,
@@ -88,7 +88,7 @@ static hidd_class_driver_t const hidd_class_driver[HIDD_NUMBER_OF_SUBCLASS] =
     },
 #endif
 
-#if CFG_TUSB_DEVICE_HID_MOUSE
+#if CFG_TUD_HID_MOUSE
     [HID_PROTOCOL_MOUSE] =
     {
         .p_interface   = &moused_data,
@@ -105,7 +105,7 @@ CFG_TUSB_ATTR_USBRAM STATIC_VAR uint8_t m_hid_buffer[ HIDD_BUFFER_SIZE ];
 //--------------------------------------------------------------------+
 // KEYBOARD APPLICATION API
 //--------------------------------------------------------------------+
-#if CFG_TUSB_DEVICE_HID_KEYBOARD
+#if CFG_TUD_HID_KEYBOARD
 STATIC_VAR hidd_interface_t keyboardd_data;
 
 bool tud_hid_keyboard_busy(uint8_t rhport)
@@ -128,7 +128,7 @@ tusb_error_t tud_hid_keyboard_send(uint8_t rhport, hid_keyboard_report_t const *
 //--------------------------------------------------------------------+
 // MOUSE APPLICATION API
 //--------------------------------------------------------------------+
-#if CFG_TUSB_DEVICE_HID_MOUSE
+#if CFG_TUD_HID_MOUSE
 STATIC_VAR hidd_interface_t moused_data;
 
 bool tud_hid_mouse_is_busy(uint8_t rhport)

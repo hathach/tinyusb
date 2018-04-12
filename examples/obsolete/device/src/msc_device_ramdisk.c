@@ -38,7 +38,7 @@
 
 #include "msc_device_app.h"
 
-#if CFG_TUSB_DEVICE_MSC && defined (MSCD_APP_RAMDISK)
+#if CFG_TUD_MSC && defined (MSCD_APP_RAMDISK)
 
 //--------------------------------------------------------------------+
 // MACRO CONSTANT TYPEDEF

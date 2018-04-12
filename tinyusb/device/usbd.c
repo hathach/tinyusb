@@ -76,7 +76,7 @@ typedef struct {
 // MACRO CONSTANT TYPEDEF
 //--------------------------------------------------------------------+
 usbd_device_info_t usbd_devices[CONTROLLER_DEVICE_NUMBER];
-CFG_TUSB_ATTR_USBRAM CFG_TUSB_MEM_ALIGN uint8_t usbd_enum_buffer[CFG_TUSB_DEVICE_ENUM_BUFFER_SIZE];
+CFG_TUSB_ATTR_USBRAM CFG_TUSB_MEM_ALIGN uint8_t usbd_enum_buffer[CFG_TUD_ENUM_BUFFER_SIZE];
 
 static usbd_class_driver_t const usbd_class_drivers[] =
 {
@@ -93,7 +93,7 @@ static usbd_class_driver_t const usbd_class_drivers[] =
     },
   #endif
 
-  #if CFG_TUSB_DEVICE_MSC
+  #if CFG_TUD_MSC
     [TUSB_CLASS_MSC] =
     {
         .init                    = mscd_init,
@@ -106,7 +106,7 @@ static usbd_class_driver_t const usbd_class_drivers[] =
     },
   #endif
 
-  #if CFG_TUSB_DEVICE_CDC
+  #if CFG_TUD_CDC
     [TUSB_CLASS_CDC] =
     {
         .init                    = cdcd_init,
@@ -489,7 +489,7 @@ static uint16_t get_descriptor(uint8_t rhport, tusb_control_request_t const * co
 
   // up to Host's length
   len = min16_of(p_request->wLength, len );
-  TU_ASSERT( len <= CFG_TUSB_DEVICE_ENUM_BUFFER_SIZE, 0);
+  TU_ASSERT( len <= CFG_TUD_ENUM_BUFFER_SIZE, 0);
 
   memcpy(usbd_enum_buffer, desc_data, len);
   (*pp_buffer) = usbd_enum_buffer;

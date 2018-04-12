@@ -38,7 +38,7 @@
 
 #include "keyboard_device_app.h"
 
-#if CFG_TUSB_DEVICE_HID_KEYBOARD
+#if CFG_TUD_HID_KEYBOARD
 //--------------------------------------------------------------------+
 // INCLUDE
 //--------------------------------------------------------------------+

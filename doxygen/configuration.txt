@@ -56,7 +56,7 @@
 /** \defgroup CFG_TUSB_DEVICE Device Options
  *  @{ */
 
-#define CFG_TUSB_DEVICE_ENDOINT0_SIZE ///< Max packet size of Cotnrol Endpoint, default is 64
+#define CFG_TUD_ENDOINT0_SIZE ///< Max packet size of Cotnrol Endpoint, default is 64
 
 /// Application MUST define this variable and initialize its pointers's member to all required USB descriptors including
 /// Device Descriptor, Configuration Descriptor, String Descriptors, HID Report Descriptors etc ...
@@ -65,11 +65,11 @@ tusbd_descriptor_pointer_t tusbd_descriptor_pointers;
 /** \defgroup config_device_class Class Driver
  * \brief For each Class Driver a value of 1 means enable, value of 0 mean disable
  * @{ */
-#define CFG_TUSB_DEVICE_HID_KEYBOARD ///< Enable HID Class for Keyboard
-#define CFG_TUSB_DEVICE_HID_MOUSE 	 ///< Enable HID Class for Mouse
-#define CFG_TUSB_DEVICE_HID_GENERIC  ///< Enable HID Class for Generic (not supported yet)
-#define CFG_TUSB_DEVICE_MSC 				 ///< Enable Mass Storage Class (SCSI subclass only)
-#define CFG_TUSB_DEVICE_CDC 				 ///< Enable Virtual Serial (Communication Device Class)
+#define CFG_TUD_HID_KEYBOARD ///< Enable HID Class for Keyboard
+#define CFG_TUD_HID_MOUSE 	 ///< Enable HID Class for Mouse
+#define CFG_TUD_HID_GENERIC  ///< Enable HID Class for Generic (not supported yet)
+#define CFG_TUD_MSC 				 ///< Enable Mass Storage Class (SCSI subclass only)
+#define CFG_TUD_CDC 				 ///< Enable Virtual Serial (Communication Device Class)
 /** @} */
 
 /** @} */ // group Device

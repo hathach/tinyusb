@@ -38,7 +38,7 @@
 
 #include "cdc_device_app.h"
 
-#if CFG_TUSB_DEVICE_CDC
+#if CFG_TUD_CDC
 
 #include "common/tusb_fifo.h" // TODO refractor
 #include "app_os_prio.h"
