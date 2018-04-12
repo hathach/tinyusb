@@ -60,7 +60,7 @@ void         usbd_task( void* param);
     if (_len) { \
       tusb_error_t err;\
       dcd_control_xfer(_rhport, _dir, _buffer, _len);\
-      osal_semaphore_wait( _usbd_ctrl_sem, OSAL_TIMEOUT_NORMAL, &err );\
+      osal_semaphore_wait( _usbd_ctrl_sem, OSAL_TIMEOUT_CONTROL_XFER, &err );\
       STASK_ASSERT_ERR( err );\
     }\
     /* No need to wait for status to complete therefore */ \
