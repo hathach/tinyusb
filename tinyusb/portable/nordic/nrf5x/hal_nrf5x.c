@@ -34,7 +34,9 @@
 */
 /**************************************************************************/
 
-#ifdef NRF52840_XXAA
+#include "tusb_option.h"
+
+#if MODE_DEVICE_SUPPORTED && CFG_TUSB_MCU == OPT_MCU_NRF5X
 
 #include <stdbool.h>
 #include "nrf.h"

@@ -66,7 +66,7 @@ typedef struct {
 }cdcd_data_t;
 
 // TODO multiple rhport
-#ifdef NRF52840_XXAA
+#if CFG_TUSB_MCU == OPT_MCU_NRF5X
 // FIXME nrf52 OUT bug ( Controller ACK data even we didn't prepare transfer )
 CFG_TUSB_ATTR_USBRAM CFG_TUSB_MEM_ALIGN uint8_t _tmp_rx_buf[1024];
 #else

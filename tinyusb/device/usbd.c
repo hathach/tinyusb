@@ -344,7 +344,7 @@ static tusb_error_t proc_control_request_st(uint8_t rhport, tusb_control_request
       dcd_set_address(rhport, (uint8_t) p_request->wValue);
       usbd_devices[rhport].state = TUSB_DEVICE_STATE_ADDRESSED;
 
-      #ifndef NRF52840_XXAA // nrf52 auto handle set address, we must not return status
+      #if CFG_TUSB_MCU != OPT_MCU_NRF5X // nrf5x auto handle set address, we must not return status
       dcd_control_status(rhport, p_request->bmRequestType_bit.direction);
       #endif
     }
