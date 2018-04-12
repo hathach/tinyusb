@@ -93,7 +93,7 @@ bool tusb_hal_init(void)
   // reset controller & set role
   hal_controller_reset(0);
 
-  #if CFG_TUSB_CONTROLLER_0_MODE & TUSB_MODE_HOST
+  #if CFG_TUSB_CONTROLLER_0_MODE & OPT_MODE_HOST
     LPC_USB0->USBMODE_H = LPC43XX_USBMODE_HOST | (LPC43XX_USBMODE_VBUS_HIGH << 5);
   #else // TODO OTG
     LPC_USB0->USBMODE_D = LPC43XX_USBMODE_DEVICE;
@@ -111,11 +111,11 @@ bool tusb_hal_init(void)
 
   /* connect CLK_USB1 to 60 MHz clock */
   CGU_EntityConnect(CGU_CLKSRC_PLL1, CGU_BASE_USB1); /* FIXME Run base BASE_USB1_CLK clock from PLL1 (assume PLL1 is 60 MHz, no division required) */
-  LPC_SCU->SFSUSB = (CFG_TUSB_CONTROLLER_1_MODE & TUSB_MODE_HOST) ? 0x16 : 0x12; // enable USB1 with on-chip FS PHY
+  LPC_SCU->SFSUSB = (CFG_TUSB_CONTROLLER_1_MODE & OPT_MODE_HOST) ? 0x16 : 0x12; // enable USB1 with on-chip FS PHY
 
   hal_controller_reset(1);
 
-  #if CFG_TUSB_CONTROLLER_1_MODE & TUSB_MODE_HOST
+  #if CFG_TUSB_CONTROLLER_1_MODE & OPT_MODE_HOST
     LPC_USB1->USBMODE_H = LPC43XX_USBMODE_HOST | (LPC43XX_USBMODE_VBUS_HIGH << 5);
   #else // TODO OTG
     LPC_USB1->USBMODE_D = LPC43XX_USBMODE_DEVICE;

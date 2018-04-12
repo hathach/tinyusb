@@ -200,11 +200,11 @@ static tusb_error_t usbd_main_st(void);
 
 tusb_error_t usbd_init (void)
 {
-  #if (CFG_TUSB_CONTROLLER_0_MODE & TUSB_MODE_DEVICE)
+  #if (CFG_TUSB_CONTROLLER_0_MODE & OPT_MODE_DEVICE)
   dcd_init(0);
   #endif
 
-  #if (CFG_TUSB_CONTROLLER_1_MODE & TUSB_MODE_DEVICE)
+  #if (CFG_TUSB_CONTROLLER_1_MODE & OPT_MODE_DEVICE)
   dcd_init(1);
   #endif
 

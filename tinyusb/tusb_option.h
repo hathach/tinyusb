@@ -60,7 +60,7 @@
 /** @} */
 
 /** \defgroup group_supported_os Supported RTOS
- * \brief \ref CFG_TUSB_OS must be defined to one of these
+ *  \ref CFG_TUSB_OS must be defined to one of these
  *  @{ */
 #define OPT_OS_NONE       1 ///< No RTOS is used
 #define OPT_OS_FREERTOS   2 ///< FreeRTOS is used
@@ -83,32 +83,32 @@
 /** \defgroup group_mode Controller Mode Selection
  * \brief CFG_TUSB_CONTROLLER_N_MODE must be defined with these
  *  @{ */
-#define TUSB_MODE_HOST    0x02 ///< Host Mode
-#define TUSB_MODE_DEVICE  0x01 ///< Device Mode
-#define TUSB_MODE_NONE    0x00 ///< Disabled
+#define OPT_MODE_HOST    0x02 ///< Host Mode
+#define OPT_MODE_DEVICE  0x01 ///< Device Mode
+#define OPT_MODE_NONE    0x00 ///< Disabled
 /** @} */
 
 #ifndef CFG_TUSB_CONTROLLER_0_MODE
-  #define CFG_TUSB_CONTROLLER_0_MODE TUSB_MODE_NONE
+  #define CFG_TUSB_CONTROLLER_0_MODE OPT_MODE_NONE
 #endif
 
 #ifndef CFG_TUSB_CONTROLLER_1_MODE
-  #define CFG_TUSB_CONTROLLER_1_MODE TUSB_MODE_NONE
+  #define CFG_TUSB_CONTROLLER_1_MODE OPT_MODE_NONE
 #endif
 
 #define CONTROLLER_HOST_NUMBER (\
-    ((CFG_TUSB_CONTROLLER_0_MODE & TUSB_MODE_HOST) ? 1 : 0) + \
-    ((CFG_TUSB_CONTROLLER_1_MODE & TUSB_MODE_HOST) ? 1 : 0))
+    ((CFG_TUSB_CONTROLLER_0_MODE & OPT_MODE_HOST) ? 1 : 0) + \
+    ((CFG_TUSB_CONTROLLER_1_MODE & OPT_MODE_HOST) ? 1 : 0))
 
 #define CONTROLLER_DEVICE_NUMBER (\
-    ((CFG_TUSB_CONTROLLER_0_MODE & TUSB_MODE_DEVICE) ? 1 : 0) + \
-    ((CFG_TUSB_CONTROLLER_1_MODE & TUSB_MODE_DEVICE) ? 1 : 0))
+    ((CFG_TUSB_CONTROLLER_0_MODE & OPT_MODE_DEVICE) ? 1 : 0) + \
+    ((CFG_TUSB_CONTROLLER_1_MODE & OPT_MODE_DEVICE) ? 1 : 0))
 
 #define MODE_HOST_SUPPORTED   (CONTROLLER_HOST_NUMBER > 0)
 #define MODE_DEVICE_SUPPORTED (CONTROLLER_DEVICE_NUMBER > 0)
 
 #if !MODE_HOST_SUPPORTED && !MODE_DEVICE_SUPPORTED
-  #error please configure at least 1 CFG_TUSB_CONTROLLER_N_MODE to TUSB_MODE_HOST and/or TUSB_MODE_DEVICE
+  #error please configure at least 1 CFG_TUSB_CONTROLLER_N_MODE to OPT_MODE_HOST and/or OPT_MODE_DEVICE
 #endif
 
 //--------------------------------------------------------------------+

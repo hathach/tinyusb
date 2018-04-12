@@ -49,7 +49,7 @@
 //#define CFG_TUSB_MCU will be passed from IDE/command line for easy board/mcu switching
 
 #define CFG_TUSB_MCU                    OPT_MCU_NRF5X
-#define CFG_TUSB_CONTROLLER_0_MODE      (TUSB_MODE_DEVICE)
+#define CFG_TUSB_CONTROLLER_0_MODE      (OPT_MODE_DEVICE)
 
 //--------------------------------------------------------------------+
 // DEVICE CONFIGURATION
