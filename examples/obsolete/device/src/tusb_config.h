@@ -66,10 +66,22 @@
 //--------------------------------------------------------------------+
 // COMMON CONFIGURATION
 //--------------------------------------------------------------------+
-#define CFG_TUSB_DEBUG                    2
+#define CFG_TUSB_DEBUG            2
 
 //#define CFG_TUSB_OS                   OPT_OS_NONE // be passed from IDE/command line for easy project switching
 //#define CFG_TUSB_OS_TASK_PRIO         0            // be passed from IDE/command line for easy project switching
+
+
+/*------------------------------------------------------------------*/
+/* CLASS
+ *------------------------------------------------------------------*/
+
+// FIFO size of CDC TX and RX
+#define CFG_TUD_CDC_BUFSIZE       128
+
+// TX is sent automatically in Start of Frame event.
+// If not enabled, application must call tud_cdc_flush() periodically
+#define CFG_TUD_CDC_FLUSH_ON_SOF  1
 
 //--------------------------------------------------------------------+
 // USB RAM PLACEMENT
