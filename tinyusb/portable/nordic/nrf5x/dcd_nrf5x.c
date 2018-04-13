@@ -74,6 +74,7 @@ typedef struct
 
   // FIXME Errata 104 walkaround
   uint16_t frame_num;
+  uint8_t  prev_size;
 } nom_xfer_t;
 
 /*static*/ struct
@@ -142,7 +143,10 @@ void dcd_set_config (uint8_t rhport, uint8_t config_num)
 static void edpt_dma_start(uint8_t epnum, uint8_t dir)
 {
   // Only one dma could be active, TODO resolve when this is called in ISR and dma is running
-  while ( _dcd.dma_running ) { }
+  while ( _dcd.dma_running ) 
+  {
+    TU_ASSERT ( 0 == (SCB->ICSR & SCB_ICSR_VECTACTIVE_Msk), );
+  }
 
   _dcd.dma_running = true;
 
@@ -186,25 +190,6 @@ static void control_xact_start(void)
   _dcd.control.buffer += xact_len;
   _dcd.control.len    -= xact_len;
 }
-
-//static void control_xact_done(void)
-//{
-//  if ( _dcd_data.control.xfer_len > 0 )
-//  {
-//    if ( _dcd_data.control.dir == TUSB_DIR_OUT )
-//    {
-//      // out control need to wait for END EPOUT event before updating Pointer
-//      edpt_dma_start(0, TUSB_DIR_OUT);
-//    }else
-//    {
-//      control_xact_start();
-//    }
-//  }else
-//  {
-//    dcd_xfer_complete(0, 0, 0, true);
-//  }
-//}
-
 
 bool dcd_control_xfer (uint8_t rhport, tusb_dir_t dir, uint8_t * buffer, uint16_t length)
 {
@@ -310,7 +295,8 @@ bool dcd_edpt_xfer (uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t 
   // FIXME Errata 104 walkaround
   if ( nrf_drv_usbd_errata_104() )
   {
-    xfer->frame_num  = (uint16_t) NRF_USBD->FRAMECNTR;
+    xfer->frame_num = (uint16_t) NRF_USBD->FRAMECNTR;
+    xfer->prev_size = NRF_USBD->SIZE.EPOUT[epnum];
   }
 
   normal_xact_start(epnum, dir);
@@ -360,22 +346,35 @@ bool dcd_edpt_busy (uint8_t rhport, uint8_t ep_addr)
 /*------------------------------------------------------------------*/
 /*
  *------------------------------------------------------------------*/
+
+static uint16_t frame_sofar(uint16_t fr)
+{
+  uint16_t diff = (uint16_t) NRF_USBD->FRAMECNTR;
+
+  if ( diff > fr )
+  {
+    diff -= fr;
+  }else
+  {
+    diff = (diff + 1024) - fr; // Frame counter cap at 1024
+  }
+}
+
 void USBD_IRQHandler(void)
 {
   uint32_t const inten  = NRF_USBD->INTEN;
   uint32_t int_status = 0;
 
-  volatile uint32_t* regclr = &NRF_USBD->EVENTS_USBRESET;
+  volatile uint32_t* regevt = &NRF_USBD->EVENTS_USBRESET;
 
   for(int i=0; i<32; i++)
   {
-    if ( BIT_TEST_(inten, i) && regclr[i]  )
+    if ( BIT_TEST_(inten, i) && regevt[i]  )
     {
       int_status |= BIT_(i);
 
-      // nrf_usbd_event_clear()
-      regclr[i] = 0;
-
+      // event clear
+      regevt[i] = 0;
       __ISB(); __DSB();
     }
   }
@@ -426,9 +425,9 @@ void USBD_IRQHandler(void)
     }
   }
 
+  // OUT data moved from Endpoint -> SRAM
   if ( int_status & USBD_INTEN_ENDEPOUT0_Msk)
   {
-    // OUT data moved from Endpoint -> SRAM
     if ( _dcd.control.len > 0 )
     {
       control_xact_start();
@@ -476,6 +475,14 @@ void USBD_IRQHandler(void)
 
         uint8_t const xact_len = NRF_USBD->SIZE.EPOUT[epnum];
 
+        TU_ASSERT(xfer->actual_len < xfer->total_len, );
+        // FIXME Errata 104 walkaround
+        if ( nrf_drv_usbd_errata_104() )
+        {
+          xfer->prev_size = xact_len;
+          xfer->frame_num = (uint16_t) NRF_USBD->FRAMECNTR;
+        }
+
         // Trigger DMA move data from Endpoint -> SRAM
         NRF_USBD->EPOUT[epnum].PTR    = (uint32_t) xfer->buffer;
         NRF_USBD->EPOUT[epnum].MAXCNT = xact_len;
@@ -516,12 +523,39 @@ void USBD_IRQHandler(void)
   // SOF interrupt
   if ( int_status & USBD_INTEN_SOF_Msk )
   {
-#if 0
+    dcd_bus_event(0, USBD_BUS_EVENT_SOF);
+
+#if 1
     // FIXME Errata 104 The EPDATA event might not be generated, and the related update of EPDATASTATUS does not occur.
     // There is no way for software to tell if a xfer is complete or not.
     // Walkaround: we will asssume an non-control IN transfer is always complete after 10 frames
     if ( nrf_drv_usbd_errata_104() )
     {
+      // Check all OUT transfer, if the SIZE changes --> consider it is complete
+      for (int ep=1; ep<= 8; ep++)
+      {
+        nom_xfer_t* xfer = get_td(ep, TUSB_DIR_OUT);
+        if ((xfer->actual_len < xfer->total_len) && (xfer->prev_size != NRF_USBD->SIZE.EPOUT[ep]) )
+        {
+          if ( frame_sofar(xfer->frame_num) > 2)
+          {
+            uint8_t const xact_len = NRF_USBD->SIZE.EPOUT[ep];
+            xfer->prev_size = xact_len;
+            xfer->frame_num = (uint16_t) NRF_USBD->FRAMECNTR;
+
+            // Trigger DMA move data from Endpoint -> SRAM
+            NRF_USBD->EPOUT[ep].PTR    = (uint32_t) xfer->buffer;
+            NRF_USBD->EPOUT[ep].MAXCNT = xact_len;
+
+            edpt_dma_start(ep, TUSB_DIR_OUT);
+
+            xfer->buffer     += xact_len;
+            xfer->actual_len += xact_len;
+          }
+        }
+      }
+
+#if 0
       // Check all the queued IN transfer, retire all transfer if 10 frames has passed
       for (int ep=1; ep<= 8; ep++)
       {
@@ -529,28 +563,18 @@ void USBD_IRQHandler(void)
 
         if (xfer->actual_len < xfer->total_len)
         {
-          uint16_t diff = (uint16_t) NRF_USBD->FRAMECNTR;
-
-          if ( diff > xfer->frame_num )
-          {
-            diff -= xfer->frame_num;
-          }else
-          {
-            diff = (diff + 1024) - xfer->frame_num; // Frame counter cap at 1024
-          }
-
           // Walkaround, mark this transfer as complete
-          if (diff > 10)
+          if (frame_sofar(xfer->frame_num) > 10)
           {
             xfer->actual_len = xfer->total_len;
             dcd_xfer_complete(0, ep | TUSB_DIR_IN_MASK, xfer->actual_len, true);
           }
         }
       }
+#endif
     }
 #endif
 
-    dcd_bus_event(0, USBD_BUS_EVENT_SOF);
   }
 
 
