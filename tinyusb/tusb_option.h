@@ -134,8 +134,8 @@
 #define CFG_TUSB_OS OPT_OS_NONE
 #endif
 
-#if (CFG_TUSB_OS != OPT_OS_NONE) && !defined (CFG_TUSB_OS_TASK_PRIO)
-  #error CFG_TUSB_OS_TASK_PRIO need to be defined (hint: use the highest if possible)
+#if (CFG_TUSB_OS != OPT_OS_NONE) && !defined (CFG_TUD_TASK_PRIO)
+  #error CFG_TUD_TASK_PRIO need to be defined (hint: use the highest if possible)
 #endif
 
 //#ifndef CFG_TUSB_CONFIGURATION_MAX

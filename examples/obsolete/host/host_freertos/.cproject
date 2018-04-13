@@ -38,7 +38,7 @@
 									<listOptionValue builtIn="false" value="CFG_TUSB_MCU=OPT_MCU_LPC43XX"/>
 									<listOptionValue builtIn="false" value="BOARD=BOARD_NGX4330"/>
 									<listOptionValue builtIn="false" value="CFG_TUSB_OS=OPT_OS_FREERTOS"/>
-									<listOptionValue builtIn="false" value="CFG_TUSB_OS_TASK_PRIO=(configMAX_PRIORITIES-5)"/>
+									<listOptionValue builtIn="false" value="CFG_TUD_TASK_PRIO=(configMAX_PRIORITIES-5)"/>
 									<listOptionValue builtIn="false" value="DEBUG"/>
 									<listOptionValue builtIn="false" value="__CODE_RED"/>
 									<listOptionValue builtIn="false" value="__MULTICORE_NONE"/>
@@ -137,7 +137,7 @@
 									<listOptionValue builtIn="false" value="CFG_TUSB_MCU=OPT_MCU_LPC43XX"/>
 									<listOptionValue builtIn="false" value="BOARD=BOARD_EA4357"/>
 									<listOptionValue builtIn="false" value="CFG_TUSB_OS=OPT_OS_FREERTOS"/>
-									<listOptionValue builtIn="false" value="CFG_TUSB_OS_TASK_PRIO=configMAX_PRIORITIES-5"/>
+									<listOptionValue builtIn="false" value="CFG_TUD_TASK_PRIO=configMAX_PRIORITIES-5"/>
 									<listOptionValue builtIn="false" value="DEBUG"/>
 									<listOptionValue builtIn="false" value="__CODE_RED"/>
 									<listOptionValue builtIn="false" value="__MULTICORE_NONE"/>
@@ -308,7 +308,7 @@
 									<listOptionValue builtIn="false" value="CFG_TUSB_MCU=OPT_MCU_LPC175X_6X"/>
 									<listOptionValue builtIn="false" value="BOARD=BOARD_LPCXPRESSO1769"/>
 									<listOptionValue builtIn="false" value="CFG_TUSB_OS=OPT_OS_FREERTOS"/>
-									<listOptionValue builtIn="false" value="CFG_TUSB_OS_TASK_PRIO=(configMAX_PRIORITIES-5)"/>
+									<listOptionValue builtIn="false" value="CFG_TUD_TASK_PRIO=(configMAX_PRIORITIES-5)"/>
 									<listOptionValue builtIn="false" value="DEBUG"/>
 									<listOptionValue builtIn="false" value="__CODE_RED"/>
 									<listOptionValue builtIn="false" value="__MULTICORE_NONE"/>
@@ -425,7 +425,7 @@
 									<listOptionValue builtIn="false" value="CFG_TUSB_MCU=OPT_MCU_LPC43XX"/>
 									<listOptionValue builtIn="false" value="BOARD=BOARD_MCB4300"/>
 									<listOptionValue builtIn="false" value="CFG_TUSB_OS=OPT_OS_FREERTOS"/>
-									<listOptionValue builtIn="false" value="CFG_TUSB_OS_TASK_PRIO=(configMAX_PRIORITIES-5)"/>
+									<listOptionValue builtIn="false" value="CFG_TUD_TASK_PRIO=(configMAX_PRIORITIES-5)"/>
 									<listOptionValue builtIn="false" value="DEBUG"/>
 									<listOptionValue builtIn="false" value="__CODE_RED"/>
 									<listOptionValue builtIn="false" value="__MULTICORE_NONE"/>

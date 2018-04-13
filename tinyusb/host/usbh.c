@@ -42,8 +42,8 @@
 
 #define _TINY_USB_SOURCE_FILE_
 
-#ifndef CFG_TUSB_OS_TASK_PRIO
-#define CFG_TUSB_OS_TASK_PRIO 0
+#ifndef CFG_TUD_TASK_PRIO
+#define CFG_TUD_TASK_PRIO 0
 #endif
 
 //--------------------------------------------------------------------+
@@ -150,7 +150,7 @@ tusb_error_t usbh_init(void)
   enum_queue_hdl = osal_queue_create( ENUM_QUEUE_DEPTH, sizeof(uint32_t) );
   TU_ASSERT(enum_queue_hdl, TUSB_ERROR_OSAL_QUEUE_FAILED);
 
-  osal_task_create(usbh_enumeration_task, "usbh", 200, NULL, CFG_TUSB_OS_TASK_PRIO);
+  osal_task_create(usbh_enumeration_task, "usbh", 200, NULL, CFG_TUD_TASK_PRIO);
 
   //------------- Semaphore, Mutex for Control Pipe -------------//
   for(uint8_t i=0; i<CFG_TUSB_HOST_DEVICE_MAX+1; i++) // including address zero

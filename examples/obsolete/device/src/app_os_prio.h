@@ -55,7 +55,7 @@
 #endif
 
 enum {
-  STANDARD_APP_TASK_PRIO     = LOWER_PRIO(CFG_TUSB_OS_TASK_PRIO),  // Application Task is lower than usb system task
+  STANDARD_APP_TASK_PRIO     = LOWER_PRIO(CFG_TUD_TASK_PRIO),  // Application Task is lower than usb system task
   LED_BLINKING_APP_TASK_PRIO = LOWER_PRIO(STANDARD_APP_TASK_PRIO), // Blinking task is lower than normal task
 
   KEYBOARD_APP_TASK_PRIO     = STANDARD_APP_TASK_PRIO,

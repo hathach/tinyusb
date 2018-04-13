@@ -55,7 +55,6 @@ typedef struct {
   tusb_error_t (* open)(uint8_t rhport, tusb_desc_interface_t const * desc_intf, uint16_t* p_length);
   tusb_error_t (* control_request_st) (uint8_t rhport, tusb_control_request_t const *);
   tusb_error_t (* xfer_cb) (uint8_t rhport, uint8_t ep_addr, tusb_event_t, uint32_t);
-//  void (* routine)(void);
   void (* sof)(uint8_t rhport);
   void (* close) (uint8_t);
 } usbd_class_driver_t;
@@ -87,7 +86,6 @@ static usbd_class_driver_t const usbd_class_drivers[] =
         .open                    = hidd_open,
         .control_request_st = hidd_control_request_st,
         .xfer_cb                 = hidd_xfer_cb,
-//        .routine                 = NULL,
         .sof                     = NULL,
         .close                   = hidd_close
     },
@@ -100,7 +98,6 @@ static usbd_class_driver_t const usbd_class_drivers[] =
         .open                    = mscd_open,
         .control_request_st = mscd_control_request_st,
         .xfer_cb                 = mscd_xfer_cb,
-//        .routine                 = NULL,
         .sof                     = NULL,
         .close                   = mscd_close
     },
@@ -113,7 +110,6 @@ static usbd_class_driver_t const usbd_class_drivers[] =
         .open                    = cdcd_open,
         .control_request_st = cdcd_control_request_st,
         .xfer_cb                 = cdcd_xfer_cb,
-//        .routine                 = NULL,
         .sof                     = cdcd_sof,
         .close                   = cdcd_close
     },
@@ -180,12 +176,12 @@ typedef struct ATTR_ALIGNED(4)
 
 VERIFY_STATIC(sizeof(usbd_task_event_t) <= 12, "size is not correct");
 
-#ifndef TUC_DEVICE_STACKSIZE
-#define TUC_DEVICE_STACKSIZE 150
+#ifndef CFG_TUD_TASK_STACKSIZE
+#define CFG_TUD_TASK_STACKSIZE 150
 #endif
 
-#ifndef CFG_TUSB_OS_TASK_PRIO
-#define CFG_TUSB_OS_TASK_PRIO 0
+#ifndef CFG_TUD_TASK_PRIO
+#define CFG_TUD_TASK_PRIO 0
 #endif
 
 
@@ -215,7 +211,7 @@ tusb_error_t usbd_init (void)
   _usbd_ctrl_sem = osal_semaphore_create(1, 0);
   VERIFY(_usbd_q, TUSB_ERROR_OSAL_SEMAPHORE_FAILED);
 
-  osal_task_create(usbd_task, "usbd", TUC_DEVICE_STACKSIZE, NULL, CFG_TUSB_OS_TASK_PRIO);
+  osal_task_create(usbd_task, "usbd", CFG_TUD_TASK_STACKSIZE, NULL, CFG_TUD_TASK_PRIO);
 
   //------------- Descriptor Check -------------//
   TU_ASSERT(tusbd_descriptor_pointers.p_device != NULL && tusbd_descriptor_pointers.p_configuration != NULL, TUSB_ERROR_DESCRIPTOR_CORRUPTED);
@@ -250,37 +246,20 @@ static tusb_error_t usbd_main_st(void)
 
   OSAL_SUBTASK_BEGIN
 
-  tusb_error_t error;
-  error = TUSB_ERROR_NONE;
+  tusb_error_t err;
+  err = TUSB_ERROR_NONE;
 
   memclr_(&event, sizeof(usbd_task_event_t));
 
-#if 1
-  osal_queue_receive(_usbd_q, &event, OSAL_TIMEOUT_WAIT_FOREVER, &error);
-  STASK_ASSERT_ERR(error);
-#else
-  enum { ROUTINE_INTERVAL_MS = 10 };
-  osal_queue_receive(_usbd_q, &event, ROUTINE_INTERVAL_MS, &error);
-  if ( error != TUSB_ERROR_NONE )
-  {
-    // time out, run class routine then
-    if ( error == TUSB_ERROR_OSAL_TIMEOUT)
-    {
-      for (uint8_t class_code = TUSB_CLASS_AUDIO; class_code < USBD_CLASS_DRIVER_COUNT; class_code++)
-      {
-        if ( usbd_class_drivers[class_code].routine ) usbd_class_drivers[class_code].routine();
-      }
-    }
-
-    STASK_RETURN(error);
-  }
-#endif
+  osal_queue_receive(_usbd_q, &event, OSAL_TIMEOUT_WAIT_FOREVER, &err);
 
   if ( USBD_EVENTID_SETUP_RECEIVED == event.event_id )
   {
-    STASK_INVOKE( proc_control_request_st(event.rhport, &event.setup_received), error );
-  }else if (USBD_EVENTID_XFER_DONE == event.event_id)
+    STASK_INVOKE( proc_control_request_st(event.rhport, &event.setup_received), err );
+  }
+  else if (USBD_EVENTID_XFER_DONE == event.event_id)
   {
+    // TODO only call respective interface callback
     // Call class handling function. Those doest not own the endpoint should check and return
     for (uint8_t class_code = TUSB_CLASS_AUDIO; class_code < USBD_CLASS_DRIVER_COUNT; class_code++)
     {
@@ -289,7 +268,8 @@ static tusb_error_t usbd_main_st(void)
         usbd_class_drivers[class_code].xfer_cb( event.rhport, event.xfer_done.ep_addr, (tusb_event_t) event.sub_event_id, event.xfer_done.xferred_byte);
       }
     }
-  }else if (USBD_EVENTID_SOF == event.event_id)
+  }
+  else if (USBD_EVENTID_SOF == event.event_id)
   {
     for (uint8_t class_code = TUSB_CLASS_AUDIO; class_code < USBD_CLASS_DRIVER_COUNT; class_code++)
     {
