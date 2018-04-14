@@ -358,6 +358,8 @@ static uint16_t frame_sofar(uint16_t fr)
   {
     diff = (diff + 1024) - fr; // Frame counter cap at 1024
   }
+
+  return diff;
 }
 
 void USBD_IRQHandler(void)
@@ -532,10 +534,10 @@ void USBD_IRQHandler(void)
     if ( nrf_drv_usbd_errata_104() )
     {
       // Check all OUT transfer, if the SIZE changes --> consider it is complete
-      for (int ep=1; ep<= 8; ep++)
+      for (int ep=1; ep<8; ep++)
       {
         nom_xfer_t* xfer = get_td(ep, TUSB_DIR_OUT);
-        if ((xfer->actual_len < xfer->total_len) && (xfer->prev_size != NRF_USBD->SIZE.EPOUT[ep]) )
+        if ( (xfer->actual_len < xfer->total_len) && (xfer->prev_size != NRF_USBD->SIZE.EPOUT[ep]) )
         {
           if ( frame_sofar(xfer->frame_num) > 2)
           {
@@ -557,7 +559,7 @@ void USBD_IRQHandler(void)
 
 #if 0
       // Check all the queued IN transfer, retire all transfer if 10 frames has passed
-      for (int ep=1; ep<= 8; ep++)
+      for (int ep=1; ep< 8; ep++)
       {
         nom_xfer_t* xfer = get_td(ep, TUSB_DIR_IN);
 
