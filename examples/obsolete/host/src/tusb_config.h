@@ -47,7 +47,7 @@
 // CONTROLLER CONFIGURATION
 //--------------------------------------------------------------------+
 //#define CFG_TUSB_MCU will be passed from IDE for easy board/mcu switching
-#define CFG_TUSB_CONTROLLER_0_MODE      (OPT_MODE_HOST)
+#define CFG_TUSB_RHPORT0_MODE      (OPT_MODE_HOST)
 
 //--------------------------------------------------------------------+
 // HOST CONFIGURATION

@@ -7,7 +7,7 @@
 
 /// \brief tell the stack which mode (host/device/otg) the usb controller0 will be operated on. Possible value is
 /// from \ref group_mode. Note the hardware usb controller must support the selected mode.
-#define CFG_TUSB_CONTROLLER_0_MODE
+#define CFG_TUSB_RHPORT0_MODE
 
 /** USB controller in MCU often has limited access to specific RAM section. The Stack will use this macro to place internal variables
   into the USB RAM section as follows. if your mcu's usb controller has no such limit, define CFG_TUSB_ATTR_USBRAM as empty macro.

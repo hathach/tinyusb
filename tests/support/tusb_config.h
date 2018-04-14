@@ -46,8 +46,8 @@
 //--------------------------------------------------------------------+
 // CONTROLLER CONFIGURATION
 //--------------------------------------------------------------------+
-#define CFG_TUSB_CONTROLLER_0_MODE        (OPT_MODE_HOST | OPT_MODE_DEVICE)
-#define CFG_TUSB_CONTROLLER_1_MODE        (OPT_MODE_NONE)
+#define CFG_TUSB_RHPORT0_MODE        (OPT_MODE_HOST | OPT_MODE_DEVICE)
+#define CFG_TUSB_RHPORT1_MODE        (OPT_MODE_NONE)
 
 //--------------------------------------------------------------------+
 // HOST CONFIGURATION
@@ -65,7 +65,7 @@
 
 // Test support
 #define TEST_CONTROLLER_HOST_START_INDEX \
- ( ((CONTROLLER_HOST_NUMBER == 1) && (CFG_TUSB_CONTROLLER_1_MODE & OPT_MODE_HOST)) ? 1 : 0)
+ ( ((CONTROLLER_HOST_NUMBER == 1) && (CFG_TUSB_RHPORT1_MODE & OPT_MODE_HOST)) ? 1 : 0)
 
 //--------------------------------------------------------------------+
 // DEVICE CONFIGURATION

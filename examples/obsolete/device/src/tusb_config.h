@@ -48,8 +48,8 @@
 //--------------------------------------------------------------------+
 //#define CFG_TUSB_MCU will be passed from IDE/command line for easy board/mcu switching
 
-#define CFG_TUSB_CONTROLLER_0_MODE  (OPT_MODE_DEVICE)
-//#define CFG_TUSB_CONTROLLER_1_MODE  (OPT_MODE_DEVICE)
+#define CFG_TUSB_RHPORT0_MODE  (OPT_MODE_DEVICE)
+//#define CFG_TUSB_RHPORT1_MODE  (OPT_MODE_DEVICE)
 
 //--------------------------------------------------------------------+
 // DEVICE CONFIGURATION

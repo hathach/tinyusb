@@ -99,7 +99,7 @@ void board_init(void)
   // USB0 Power: EA4357 channel B U20 GPIO26 active low (base board), P2_3 on LPC4357
   scu_pinmux(0x02, 3, MD_PUP | MD_EZI, FUNC7);		// USB0 VBus Power
 
-  #if CFG_TUSB_CONTROLLER_0_MODE & OPT_MODE_DEVICE
+  #if CFG_TUSB_RHPORT0_MODE & OPT_MODE_DEVICE
   scu_pinmux(0x09, 5, GPIO_PDN, FUNC4); // P9_5 (GPIO5[18]) (GPIO28 on oem base) as USB connect, active low.
   GPIO_SetDir(5, BIT_(18), 1);
   #endif

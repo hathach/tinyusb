@@ -61,7 +61,7 @@ CFG_TUSB_ATTR_USBRAM STATIC_VAR ehci_data_t ehci_data;
 
 #if EHCI_PERIODIC_LIST
 
-  #if (CFG_TUSB_CONTROLLER_0_MODE & OPT_MODE_HOST)
+  #if (CFG_TUSB_RHPORT0_MODE & OPT_MODE_HOST)
   CFG_TUSB_ATTR_USBRAM ATTR_ALIGNED(4096) STATIC_VAR ehci_link_t period_frame_list0[EHCI_FRAMELIST_SIZE];
 
     #ifndef __ICCARM__ // IAR cannot able to determine the alignment with datalignment pragma
@@ -69,7 +69,7 @@ CFG_TUSB_ATTR_USBRAM STATIC_VAR ehci_data_t ehci_data;
     #endif
   #endif
 
-  #if (CFG_TUSB_CONTROLLER_1_MODE & OPT_MODE_HOST)
+  #if (CFG_TUSB_RHPORT1_MODE & OPT_MODE_HOST)
   CFG_TUSB_ATTR_USBRAM ATTR_ALIGNED(4096) STATIC_VAR ehci_link_t period_frame_list1[EHCI_FRAMELIST_SIZE];
 
     #ifndef __ICCARM__ // IAR cannot able to determine the alignment with datalignment pragma
@@ -133,11 +133,11 @@ tusb_error_t hcd_init(void)
   //------------- Data Structure init -------------//
   memclr_(&ehci_data, sizeof(ehci_data_t));
 
-  #if (CFG_TUSB_CONTROLLER_0_MODE & OPT_MODE_HOST)
+  #if (CFG_TUSB_RHPORT0_MODE & OPT_MODE_HOST)
     TU_ASSERT_ERR (hcd_controller_init(0));
   #endif
 
-  #if (CFG_TUSB_CONTROLLER_1_MODE & OPT_MODE_HOST)
+  #if (CFG_TUSB_RHPORT1_MODE & OPT_MODE_HOST)
     TU_ASSERT_ERR (hcd_controller_init(1));
   #endif
 
@@ -794,12 +794,12 @@ static inline ehci_link_t* get_period_frame_list(uint8_t hostid)
 {
   switch(hostid)
   {
-#if (CFG_TUSB_CONTROLLER_0_MODE & OPT_MODE_HOST)
+#if (CFG_TUSB_RHPORT0_MODE & OPT_MODE_HOST)
     case 0:
       return period_frame_list0;
 #endif
 
-#if (CFG_TUSB_CONTROLLER_1_MODE & OPT_MODE_HOST)
+#if (CFG_TUSB_RHPORT1_MODE & OPT_MODE_HOST)
     case 1:
       return period_frame_list1;
 #endif
@@ -811,7 +811,7 @@ static inline ehci_link_t* get_period_frame_list(uint8_t hostid)
 
 static inline uint8_t hostid_to_data_idx(uint8_t hostid)
 {
-  #if (CONTROLLER_HOST_NUMBER == 1) && (CFG_TUSB_CONTROLLER_1_MODE & OPT_MODE_HOST)
+  #if (CONTROLLER_HOST_NUMBER == 1) && (CFG_TUSB_RHPORT1_MODE & OPT_MODE_HOST)
     (void) hostid;
     return 0;
   #else
