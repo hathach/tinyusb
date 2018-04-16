@@ -48,6 +48,8 @@
 
 #include "device/dcd.h"
 
+#define ERRATA_104_FIX    0
+
 /*------------------------------------------------------------------*/
 /* MACRO TYPEDEF CONSTANT ENUM
  *------------------------------------------------------------------*/
@@ -72,9 +74,11 @@ typedef struct
 
   uint8_t  mps; // max packet size
 
+#if ERRATA_104_FIX
   // FIXME Errata 104 walkaround
   uint16_t frame_num;
   uint8_t  prev_size;
+#endif
 } nom_xfer_t;
 
 /*static*/ struct
@@ -292,12 +296,14 @@ bool dcd_edpt_xfer (uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t 
   xfer->total_len  = total_bytes;
   xfer->actual_len = 0;
 
+#if ERRATA_104_FIX
   // FIXME Errata 104 walkaround
   if ( nrf_drv_usbd_errata_104() )
   {
     xfer->frame_num = (uint16_t) NRF_USBD->FRAMECNTR;
     xfer->prev_size = NRF_USBD->SIZE.EPOUT[epnum];
   }
+#endif
 
   normal_xact_start(epnum, dir);
 
@@ -477,13 +483,17 @@ void USBD_IRQHandler(void)
 
         uint8_t const xact_len = NRF_USBD->SIZE.EPOUT[epnum];
 
+        // FIXME nrf52840 rev A does not NAK OUT packet properly
         TU_ASSERT(xfer->actual_len < xfer->total_len, );
+
+#if ERRATA_104_FIX
         // FIXME Errata 104 walkaround
         if ( nrf_drv_usbd_errata_104() )
         {
           xfer->prev_size = xact_len;
           xfer->frame_num = (uint16_t) NRF_USBD->FRAMECNTR;
         }
+#endif
 
         // Trigger DMA move data from Endpoint -> SRAM
         NRF_USBD->EPOUT[epnum].PTR    = (uint32_t) xfer->buffer;
@@ -527,7 +537,7 @@ void USBD_IRQHandler(void)
   {
     dcd_bus_event(0, USBD_BUS_EVENT_SOF);
 
-#if 1
+#if ERRATA_104_FIX
     // FIXME Errata 104 The EPDATA event might not be generated, and the related update of EPDATASTATUS does not occur.
     // There is no way for software to tell if a xfer is complete or not.
     // Walkaround: we will asssume an non-control IN transfer is always complete after 10 frames
@@ -537,11 +547,13 @@ void USBD_IRQHandler(void)
       for (int ep=1; ep<8; ep++)
       {
         nom_xfer_t* xfer = get_td(ep, TUSB_DIR_OUT);
-        if ( (xfer->actual_len < xfer->total_len) && (xfer->prev_size != NRF_USBD->SIZE.EPOUT[ep]) )
+        uint8_t const xact_len = NRF_USBD->SIZE.EPOUT[ep];
+
+
+        if ( frame_sofar(xfer->frame_num) > 20)
         {
-          if ( frame_sofar(xfer->frame_num) > 2)
+          if ( (xact_len != 0) && (xfer->actual_len < xfer->total_len) && (xfer->prev_size != xact_len) )
           {
-            uint8_t const xact_len = NRF_USBD->SIZE.EPOUT[ep];
             xfer->prev_size = xact_len;
             xfer->frame_num = (uint16_t) NRF_USBD->FRAMECNTR;
 
@@ -557,7 +569,6 @@ void USBD_IRQHandler(void)
         }
       }
 
-#if 0
       // Check all the queued IN transfer, retire all transfer if 10 frames has passed
       for (int ep=1; ep< 8; ep++)
       {
@@ -573,7 +584,6 @@ void USBD_IRQHandler(void)
           }
         }
       }
-#endif
     }
 #endif
 
