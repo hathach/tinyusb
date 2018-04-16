@@ -106,13 +106,10 @@
 // INLINE FUNCTION
 //--------------------------------------------------------------------+
 #define memclr_(buffer, size)  memset((buffer), 0, (size))
+#define varclr_(_var)          memclr_(_var, sizeof(*(_var)))
+#define arrclr_(_arr)          memclr_(_arr, sizeof(_arr))
 
-
-#define memclr(buffer, size)  memset(buffer, 0, size)
-#define varclr(_var)          memclr(_var, sizeof(*(_var)))
-#define arrclr(_arr)          memclr(_arr, sizeof(_arr))
-
-#define arrcount(_arr)       ( sizeof(_arr) / sizeof(_arr[0]) )
+#define arrcount_(_arr)       ( sizeof(_arr) / sizeof(_arr[0]) )
 
 static inline uint8_t const * descriptor_next(uint8_t const p_desc[])
 {

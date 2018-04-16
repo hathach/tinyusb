@@ -284,12 +284,11 @@ uint16_t const * const string_descriptor_arr [] =
     }
 };
 
-//--------------------------------------------------------------------+
-// TINYUSB Descriptors Pointer (this variable is required by the stack)
-//--------------------------------------------------------------------+
-tusbd_descriptor_pointer_t tusbd_descriptor_pointers =
+
+/*------------- Variable used by tud_set_descriptors -------------*/
+tud_desc_init_t usb_desc_init =
 {
-    .p_device              = (uint8_t const * ) &desc_device,
-    .p_configuration       = (uint8_t const * ) &desc_configuration,
-    .p_string_arr          = (uint8_t const **) string_descriptor_arr,
+    .device              = (uint8_t const * ) &desc_device,
+    .configuration       = (uint8_t const * ) &desc_configuration,
+    .string_arr          = (uint8_t const **) string_descriptor_arr,
 };

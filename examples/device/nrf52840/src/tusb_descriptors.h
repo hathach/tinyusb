@@ -113,4 +113,8 @@ typedef struct ATTR_PACKED
 
 } app_descriptor_configuration_t;
 
+
+
+extern tud_desc_init_t usb_desc_init;
+
 #endif

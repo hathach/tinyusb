@@ -59,29 +59,38 @@
 
 /// \brief Descriptor pointer collector to all the needed.
 typedef struct {
-  uint8_t const * p_device;              ///< pointer to device descritpor \ref tusb_desc_device_t
-  uint8_t const * p_configuration;       ///< pointer to the whole configuration descriptor, starting by \ref tusb_desc_configuration_t
-  uint8_t const** p_string_arr;          ///< a array of pointers to string descriptors
+  uint8_t const * device;              ///< pointer to device descriptor \ref tusb_desc_device_t
+  uint8_t const * configuration;       ///< pointer to the whole configuration descriptor, starting by \ref tusb_desc_configuration_t
+  uint8_t const** string_arr;          ///< a array of pointers to string descriptors
 
-  uint8_t const * p_hid_keyboard_report; ///< pointer to HID report descriptor of Keybaord interface. Only needed if CFG_TUD_HID_KEYBOARD is enabled
+  uint8_t const * p_hid_keyboard_report; ///< pointer to HID report descriptor of Keyboard interface. Only needed if CFG_TUD_HID_KEYBOARD is enabled
   uint8_t const * p_hid_mouse_report;    ///< pointer to HID report descriptor of Mouse interface. Only needed if CFG_TUD_HID_MOUSE is enabled
-}tusbd_descriptor_pointer_t;
-
-// define by application
-extern tusbd_descriptor_pointer_t tusbd_descriptor_pointers;
+}tud_desc_init_t;
 
 //--------------------------------------------------------------------+
-// APPLICATION API
+// APPLICATION API (Multiple Root Ports)
+// Should be used only with MCU that support more than 1 ports
 //--------------------------------------------------------------------+
 bool tud_n_mounted(uint8_t rhport);
+bool tud_n_set_descriptors(uint8_t rhport, tud_desc_init_t const* desc_cfg);
 
+//--------------------------------------------------------------------+
+// APPLICATION API (Single Port)
+// Should be used with MCU supporting only 1 USB port for code simplicity
+//--------------------------------------------------------------------+
 static inline bool tud_mounted(void)
 {
   return tud_n_mounted(0);
 }
 
+static inline bool tud_set_descriptors(tud_desc_init_t const* desc_cfg)
+{
+  return tud_n_set_descriptors(0, desc_cfg);
+}
 
-/*------------- Callback -------------*/
+//--------------------------------------------------------------------+
+// APPLICATION CALLBACK
+//--------------------------------------------------------------------+
 /** \brief 			Callback function that will be invoked device is mounted (configured) by USB host
  * \param[in] 	rhport USB Controller ID of the interface
  * \note        This callback should be used by Application to \b set-up application data

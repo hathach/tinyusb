@@ -42,14 +42,13 @@
 
 #define _TINY_USB_SOURCE_FILE_
 
-//--------------------------------------------------------------------+
-// INCLUDE
-//--------------------------------------------------------------------+
 #include "tusb.h"
 #include "usbd.h"
 #include "device/usbd_pvt.h"
 
-
+//--------------------------------------------------------------------+
+// MACRO CONSTANT TYPEDEF
+//--------------------------------------------------------------------+
 typedef struct {
   void (* init) (void);
   tusb_error_t (* open)(uint8_t rhport, tusb_desc_interface_t const * desc_intf, uint16_t* p_length);
@@ -72,10 +71,14 @@ typedef struct {
 }usbd_device_info_t;
 
 //--------------------------------------------------------------------+
-// MACRO CONSTANT TYPEDEF
+// INTERNAL VARIABLE
 //--------------------------------------------------------------------+
-usbd_device_info_t usbd_devices[CONTROLLER_DEVICE_NUMBER];
 CFG_TUSB_ATTR_USBRAM CFG_TUSB_MEM_ALIGN uint8_t usbd_enum_buffer[CFG_TUD_ENUM_BUFFER_SIZE];
+
+tud_desc_init_t _usbd_descs[CONTROLLER_DEVICE_NUMBER];
+usbd_device_info_t usbd_devices[CONTROLLER_DEVICE_NUMBER];
+
+
 
 static usbd_class_driver_t const usbd_class_drivers[] =
 {
@@ -130,18 +133,25 @@ enum { USBD_CLASS_DRIVER_COUNT = sizeof(usbd_class_drivers) / sizeof(usbd_class_
 //};
 
 //--------------------------------------------------------------------+
-// INTERNAL OBJECT & FUNCTION DECLARATION
+// INTERNAL FUNCTION
 //--------------------------------------------------------------------+
 static tusb_error_t proc_set_config_req(uint8_t rhport, uint8_t config_number);
 static uint16_t get_descriptor(uint8_t rhport, tusb_control_request_t const * const p_request, uint8_t const ** pp_buffer);
 
 //--------------------------------------------------------------------+
-// APPLICATION INTERFACE
+// APPLICATION API
 //--------------------------------------------------------------------+
 bool tud_n_mounted(uint8_t rhport)
 {
-    return usbd_devices[rhport].state == TUSB_DEVICE_STATE_CONFIGURED;
+  return usbd_devices[rhport].state == TUSB_DEVICE_STATE_CONFIGURED;
 }
+
+bool tud_n_set_descriptors(uint8_t rhport, tud_desc_init_t const* desc_cfg)
+{
+  _usbd_descs[rhport] = *desc_cfg;
+  return true;
+}
+
 
 //--------------------------------------------------------------------+
 // IMPLEMENTATION
@@ -213,8 +223,8 @@ tusb_error_t usbd_init (void)
 
   osal_task_create(usbd_task, "usbd", CFG_TUD_TASK_STACKSIZE, NULL, CFG_TUD_TASK_PRIO);
 
-  //------------- Descriptor Check -------------//
-  TU_ASSERT(tusbd_descriptor_pointers.p_device != NULL && tusbd_descriptor_pointers.p_configuration != NULL, TUSB_ERROR_DESCRIPTOR_CORRUPTED);
+  //------------- Core init -------------//
+  arrclr_( _usbd_descs );
 
   //------------- class init -------------//
   for (uint8_t class_code = TUSB_CLASS_AUDIO; class_code < USBD_CLASS_DRIVER_COUNT; class_code++)
@@ -390,12 +400,14 @@ static tusb_error_t proc_set_config_req(uint8_t rhport, uint8_t config_number)
   usbd_devices[rhport].config_num = config_number;
 
   //------------- parse configuration & open drivers -------------//
-  uint8_t const * p_desc_config = tusbd_descriptor_pointers.p_configuration;
+  uint8_t const * p_desc_config = _usbd_descs[rhport].configuration;
+  TU_ASSERT(p_desc_config != NULL, TUSB_ERROR_DESCRIPTOR_CORRUPTED);
+
   uint8_t const * p_desc = p_desc_config + sizeof(tusb_desc_configuration_t);
 
-  uint16_t const config_total_length = ((tusb_desc_configuration_t*)p_desc_config)->wTotalLength;
+  uint16_t const config_len = ((tusb_desc_configuration_t*)p_desc_config)->wTotalLength;
 
-  while( p_desc < p_desc_config + config_total_length )
+  while( p_desc < p_desc_config + config_len )
   {
     if ( TUSB_DESC_INTERFACE_ASSOCIATION == p_desc[DESCRIPTOR_OFFSET_TYPE])
     {
@@ -436,23 +448,26 @@ static uint16_t get_descriptor(uint8_t rhport, tusb_control_request_t const * co
   uint8_t const * desc_data = NULL ;
   uint16_t len = 0;
 
+  //------------- Descriptor Check -------------//
+  tud_desc_init_t const* descs = &_usbd_descs[rhport];
+
   switch(desc_type)
   {
     case TUSB_DESC_DEVICE:
-      desc_data = tusbd_descriptor_pointers.p_device;
+      desc_data = descs->device;
       len       = sizeof(tusb_desc_device_t);
     break;
 
     case TUSB_DESC_CONFIGURATION:
-      desc_data = tusbd_descriptor_pointers.p_configuration;
-      len       = ((tusb_desc_configuration_t*)tusbd_descriptor_pointers.p_configuration)->wTotalLength;
+      desc_data = descs->configuration;
+      len       = ((tusb_desc_configuration_t*)descs->configuration)->wTotalLength;
     break;
 
     case TUSB_DESC_STRING:
       // windows sometimes ask for string at index 238 !!!
       if ( !(desc_index < 100) ) return 0;
 
-      desc_data = tusbd_descriptor_pointers.p_string_arr[desc_index];
+      desc_data = descs->string_arr[desc_index];
       VERIFY( desc_data != NULL, 0 );
 
       len  = desc_data[0];  // first byte of descriptor is its size
@@ -467,10 +482,13 @@ static uint16_t get_descriptor(uint8_t rhport, tusb_control_request_t const * co
     default: return 0;
   }
 
+  TU_ASSERT( desc_data != NULL, 0);
+
   // up to Host's length
   len = min16_of(p_request->wLength, len );
   TU_ASSERT( len <= CFG_TUD_ENUM_BUFFER_SIZE, 0);
 
+  // FIXME copy data to enum buffer
   memcpy(usbd_enum_buffer, desc_data, len);
   (*pp_buffer) = usbd_enum_buffer;
 

@@ -113,6 +113,8 @@ tusb_error_t tusb_init(void);
       your_init_code();
       tusb_init();
 
+      // other config code
+
       while(1) // the mainloop
       {
         your_application_code();
