@@ -353,6 +353,7 @@ bool dcd_edpt_busy (uint8_t rhport, uint8_t ep_addr)
 /*
  *------------------------------------------------------------------*/
 
+#if ERRATA_104_FIX
 static uint16_t frame_sofar(uint16_t fr)
 {
   uint16_t diff = (uint16_t) NRF_USBD->FRAMECNTR;
@@ -367,6 +368,7 @@ static uint16_t frame_sofar(uint16_t fr)
 
   return diff;
 }
+#endif
 
 void USBD_IRQHandler(void)
 {
