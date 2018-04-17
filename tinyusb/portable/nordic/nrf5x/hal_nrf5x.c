@@ -57,6 +57,9 @@
 /*------------------------------------------------------------------*/
 /* MACRO TYPEDEF CONSTANT ENUM
  *------------------------------------------------------------------*/
+
+#define USB_NVIC_PRIO   7
+
 // TODO must cover SD present but not enabled
 #ifdef SOFTDEVICE_PRESENT
 #define POWER_DETECT    NRF_EVT_POWER_USB_DETECTED
@@ -301,7 +304,7 @@ void power_usb_event_handler(uint32_t event)
       // nrf_drv_usbd_errata_104()
 
       // Enable interrupt, Priorities 0,1,4,5 (nRF52) are reserved for SoftDevice
-      NVIC_SetPriority(USBD_IRQn, 7);
+      NVIC_SetPriority(USBD_IRQn, USB_NVIC_PRIO);
       NVIC_ClearPendingIRQ(USBD_IRQn);
       NVIC_EnableIRQ(USBD_IRQn);
 

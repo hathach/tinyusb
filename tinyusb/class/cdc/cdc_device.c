@@ -88,9 +88,8 @@ STATIC_VAR cdcd_data_t cdcd_data[CONTROLLER_DEVICE_NUMBER];
 //--------------------------------------------------------------------+
 bool tud_n_cdc_connected(uint8_t rhport)
 {
-  // Either RTS  (bit 1) or DTR (bit 0) active considered as connected
-  // May only check for DTR only
-  return (cdcd_data[rhport].line_state != 0);
+  // DTR (bit 0) active  isconsidered as connected
+  return BIT_TEST_(cdcd_data[rhport].line_state, 0);
 }
 
 uint8_t tud_n_cdc_get_line_state (uint8_t rhport)
