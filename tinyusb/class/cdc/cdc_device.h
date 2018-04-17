@@ -56,29 +56,33 @@
 // APPLICATION API (Multiple Root Ports)
 // Should be used only with MCU that support more than 1 ports
 //--------------------------------------------------------------------+
-bool     tud_n_cdc_connected  (uint8_t rhport);
-uint32_t tud_n_cdc_available  (uint8_t rhport);
+bool     tud_n_cdc_connected       (uint8_t rhport);
+uint8_t  tud_n_cdc_get_line_state  (uint8_t rhport);
+void     tud_n_cdc_get_line_coding (uint8_t rhport, cdc_line_coding_t* coding);
 
-int8_t   tud_n_cdc_read_char  (uint8_t rhport);
-uint32_t tud_n_cdc_read       (uint8_t rhport, void* buffer, uint32_t bufsize);
+uint32_t tud_n_cdc_available       (uint8_t rhport);
+int8_t   tud_n_cdc_read_char       (uint8_t rhport);
+uint32_t tud_n_cdc_read            (uint8_t rhport, void* buffer, uint32_t bufsize);
 
-uint32_t tud_n_cdc_write_char (uint8_t rhport, char ch);
-uint32_t tud_n_cdc_write      (uint8_t rhport, void const* buffer, uint32_t bufsize);
-bool     tud_n_cdc_flush      (uint8_t rhport);
+uint32_t tud_n_cdc_write_char      (uint8_t rhport, char ch);
+uint32_t tud_n_cdc_write           (uint8_t rhport, void const* buffer, uint32_t bufsize);
+bool     tud_n_cdc_flush           (uint8_t rhport);
 
 //--------------------------------------------------------------------+
 // APPLICATION API (Single Port)
 // Should be used with MCU supporting only 1 USB port for code simplicity
 //--------------------------------------------------------------------+
-static inline bool     tud_cdc_connected  (void)                                 { return tud_n_cdc_connected(0);              }
-static inline uint32_t tud_cdc_available  (void)                                 { return tud_n_cdc_available(0);              }
+static inline bool     tud_cdc_connected       (void)                                       { return tud_n_cdc_connected(0);              }
+static inline uint8_t  tud_cdc_get_line_state  (uint8_t rhport)                             { return tud_n_cdc_get_line_state(0);         }
+static inline void     tud_cdc_get_line_coding (uint8_t rhport, cdc_line_coding_t* coding)  { return tud_cdc_get_line_coding(0, coding);  }
 
-static inline int8_t   tud_cdc_read_char  (void)                                 { return tud_n_cdc_read_char(0);              }
-static inline uint32_t tud_cdc_read       (void* buffer, uint32_t bufsize)       { return tud_n_cdc_read(0, buffer, bufsize);  }
+static inline uint32_t tud_cdc_available       (void)                                       { return tud_n_cdc_available(0);              }
+static inline int8_t   tud_cdc_read_char       (void)                                       { return tud_n_cdc_read_char(0);              }
+static inline uint32_t tud_cdc_read            (void* buffer, uint32_t bufsize)             { return tud_n_cdc_read(0, buffer, bufsize);  }
 
-static inline uint32_t tud_cdc_write_char (char ch)                              { return tud_n_cdc_write_char(0, ch);         }
-static inline uint32_t tud_cdc_write      (void const* buffer, uint32_t bufsize) { return tud_n_cdc_write(0, buffer, bufsize); }
-static inline bool     tud_cdc_flush      (void)                                 { return tud_n_cdc_flush(0);                  }
+static inline uint32_t tud_cdc_write_char      (char ch)                                    { return tud_n_cdc_write_char(0, ch);         }
+static inline uint32_t tud_cdc_write           (void const* buffer, uint32_t bufsize)       { return tud_n_cdc_write(0, buffer, bufsize); }
+static inline bool     tud_cdc_flush           (void)                                       { return tud_n_cdc_flush(0);                  }
 
 //--------------------------------------------------------------------+
 // APPLICATION CALLBACK API (WEAK is optional)

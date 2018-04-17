@@ -88,10 +88,25 @@ STATIC_VAR cdcd_data_t cdcd_data[CONTROLLER_DEVICE_NUMBER];
 //--------------------------------------------------------------------+
 bool tud_n_cdc_connected(uint8_t rhport)
 {
-  // Either RTS or DTR active considered as connected
+  // Either RTS  (bit 1) or DTR (bit 0) active considered as connected
+  // May only check for DTR only
   return (cdcd_data[rhport].line_state != 0);
 }
 
+uint8_t tud_n_cdc_get_line_state (uint8_t rhport)
+{
+  return cdcd_data[rhport].line_state;
+}
+
+void tud_n_cdc_get_line_coding (uint8_t rhport, cdc_line_coding_t* coding)
+{
+  (*coding) = cdcd_line_coding[rhport];
+}
+
+
+//--------------------------------------------------------------------+
+// READ API
+//--------------------------------------------------------------------+
 uint32_t tud_n_cdc_available(uint8_t rhport)
 {
   return fifo_count(&_rx_ff);
@@ -107,6 +122,10 @@ uint32_t tud_n_cdc_read(uint8_t rhport, void* buffer, uint32_t bufsize)
 {
   return fifo_read_n(&_rx_ff, buffer, bufsize);
 }
+
+//--------------------------------------------------------------------+
+// WRITE API
+//--------------------------------------------------------------------+
 
 uint32_t tud_n_cdc_write_char(uint8_t rhport, char ch)
 {
