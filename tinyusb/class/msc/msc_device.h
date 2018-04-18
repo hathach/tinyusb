@@ -39,7 +39,7 @@
 #ifndef _TUSB_MSC_DEVICE_H_
 #define _TUSB_MSC_DEVICE_H_
 
-#include <common/tusb_common.h>
+#include "common/tusb_common.h"
 #include "device/usbd.h"
 #include "msc.h"
 
@@ -58,7 +58,7 @@
 //--------------------------------------------------------------------+
 
 //--------------------------------------------------------------------+
-// APPLICATION CALLBACK API
+// APPLICATION CALLBACK API (WEAK is optional)
 //--------------------------------------------------------------------+
 /** \brief Callback invoked when received \ref SCSI_CMD_READ_10 command
  * \param[in]		\rhport     Root hub port
@@ -80,8 +80,6 @@
  */
 uint16_t tud_msc_read10_cb (uint8_t rhport, uint8_t lun, uint32_t lba, uint16_t block_count, void** pp_buffer);
 
-//void     tud_msc_read10_cmpl_cb(uint8_t rhport, uint8_t lun);
-
 /** \brief 			Callback invoked when received \ref SCSI_CMD_WRITE_10 command
  * \param[in]		rhport	    Root hub port
  * \param[in]		lun         Targeted Logical Unit
@@ -102,6 +100,7 @@ uint16_t tud_msc_read10_cb (uint8_t rhport, uint8_t lun, uint32_t lba, uint16_t 
  */
 uint16_t tud_msc_write10_cb (uint8_t rhport, uint8_t lun, uint32_t lba, uint16_t block_count, void** pp_buffer);
 
+
 /** \brief 			  Callback invoked when received an SCSI command other than \ref SCSI_CMD_WRITE_10 and \ref SCSI_CMD_READ_10
  * \param[in]		  rhport	    Root hub port
  * \param[in]		  lun         Targeted Logical Unit
@@ -114,6 +113,11 @@ uint16_t tud_msc_write10_cb (uint8_t rhport, uint8_t lun, uint32_t lba, uint16_t
  *                failed status in command status wrapper stage.
  */
 bool tud_msc_scsi_cb (uint8_t rhport, uint8_t lun, uint8_t scsi_cmd[16], void* buffer, uint16_t* p_len);
+
+/*------------- Optional callbacks : Could be used by application to free up resources -------------*/
+ATTR_WEAK void tud_msc_read10_complete_cb(uint8_t rhport, uint8_t lun);
+ATTR_WEAK void tud_msc_write10_complete_cb(uint8_t rhport, uint8_t lun);
+ATTR_WEAK void tud_msc_scsi_complete_cb(uint8_t rhport, uint8_t lun, uint8_t scsi_cmd[16]);
 
 /** @} */
 /** @} */

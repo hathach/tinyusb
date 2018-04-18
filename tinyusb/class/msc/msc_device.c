@@ -83,7 +83,7 @@ CFG_TUSB_ATTR_USBRAM CFG_TUSB_MEM_ALIGN STATIC_VAR mscd_interface_t mscd_data;
 //--------------------------------------------------------------------+
 // INTERNAL OBJECT & FUNCTION DECLARATION
 //--------------------------------------------------------------------+
-static bool read10_write10_data_xfer(uint8_t rhport, mscd_interface_t* p_msc);
+static void read10_write10_data_xfer(uint8_t rhport, mscd_interface_t* p_msc);
 
 //--------------------------------------------------------------------+
 // USBD-CLASS API
@@ -267,6 +267,18 @@ tusb_error_t mscd_xfer_cb(uint8_t rhport, uint8_t ep_addr, tusb_event_t event, u
 
   if ( p_msc->stage == MSC_STAGE_STATUS )
   {
+    // Invoke Complete Callback if defined
+    if ( SCSI_CMD_READ_10 == p_cbw->command[0])
+    {
+      if ( tud_msc_read10_complete_cb ) tud_msc_read10_complete_cb(rhport, p_cbw->lun);
+    }else if ( SCSI_CMD_WRITE_10 == p_cbw->command[0] )
+    {
+      if ( tud_msc_write10_complete_cb ) tud_msc_write10_complete_cb(rhport, p_cbw->lun);
+    }else
+    {
+      if ( tud_msc_scsi_complete_cb ) tud_msc_scsi_complete_cb(rhport, p_cbw->lun, p_cbw->command);
+    }
+
     // Move to default CMD stage after sending status
     p_msc->stage         = MSC_STAGE_CMD;
 
@@ -279,8 +291,7 @@ tusb_error_t mscd_xfer_cb(uint8_t rhport, uint8_t ep_addr, tusb_event_t event, u
   return TUSB_ERROR_NONE;
 }
 
-// return true if data phase is complete, false if not yet complete
-static bool read10_write10_data_xfer(uint8_t rhport, mscd_interface_t* p_msc)
+static void read10_write10_data_xfer(uint8_t rhport, mscd_interface_t* p_msc)
 {
   msc_cbw_t* const p_cbw = &p_msc->cbw;
   msc_csw_t* const p_csw = &p_msc->csw;
@@ -320,14 +331,10 @@ static bool read10_write10_data_xfer(uint8_t rhport, mscd_interface_t* p_msc)
     p_csw->status       = MSC_CSW_STATUS_FAILED;
 
     dcd_edpt_stall(rhport, ep_data);
-
-    return true;
   }else
   {
     TU_ASSERT( dcd_edpt_xfer(rhport, ep_data, p_buffer, xfer_block * block_size) );
   }
-
-  return true;
 }
 
 #endif
