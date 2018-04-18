@@ -53,15 +53,18 @@
  *  @{ */
 
 //--------------------------------------------------------------------+
-// APPLICATION API
+// APPLICATION API (Multiple Root Hub Ports)
+// Should be used only with MCU that support more than 1 ports
 //--------------------------------------------------------------------+
+
+
 
 //--------------------------------------------------------------------+
 // APPLICATION CALLBACK API
 //--------------------------------------------------------------------+
 
 /** \brief 			Callback that is invoked when tinyusb stack received \ref SCSI_CMD_READ_10 command from host
- * \param[in]		rhport	    USB Controller ID
+ * \param[in]		rhport	    Root hub port
  * \param[in]		lun         Targeted Logical Unit
  * \param[out]	pp_buffer   Pointer to buffer which application need to update with the response data's address.
  *                          Must be accessible by USB controller (see \ref CFG_TUSB_ATTR_USBRAM)
@@ -79,7 +82,7 @@
 uint16_t tud_msc_read10_cb (uint8_t rhport, uint8_t lun, void** pp_buffer, uint32_t lba, uint16_t block_count);
 
 /** \brief 			Callback that is invoked when tinyusb stack received \ref SCSI_CMD_WRITE_10 command from host
- * \param[in]		rhport	    USB Controller ID
+ * \param[in]		rhport	    Root hub port
  * \param[in]		lun         Targeted Logical Unit
  * \param[out]	pp_buffer   Pointer to buffer which application need to update with the address to hold data from host
  *                          Must be accessible by USB controller (see \ref CFG_TUSB_ATTR_USBRAM)
@@ -99,19 +102,19 @@ uint16_t tud_msc_write10_cb(uint8_t rhport, uint8_t lun, void** pp_buffer, uint3
 // p_length [in,out] allocated/maximum length, application update with actual length
 /** \brief 			Callback that is invoked when tinyusb stack received an SCSI command other than \ref SCSI_CMD_WRITE_10 and
  *              \ref SCSI_CMD_READ_10 command from host
- * \param[in]		rhport	    USB Controller ID
+ * \param[in]		rhport	    Root hub port
  * \param[in]		lun         Targeted Logical Unit
  * \param[in]		scsi_cmd    SCSI command contents, application should examine this command block to know which command host requested
- * \param[out]	pp_buffer   Pointer to buffer which application need to update with the address to transfer data with host.
+ * \param[out]	buffer      Pointer to buffer which application need to update with the address to transfer data with host.
  *                          The buffer address can be anywhere since the stack will copy its contents to a internal USB-accessible buffer.
- * \param[in]		p_length    length
+ * \param[in]		p_length    Expected length from host, Application could update to actual data, but could not larger than original value.
  * \retval      non-zero    Actual number of block that application can receive and must be less than or equal to \a \b block_count.
  * \retval      zero        Indicate error in retrieving data from application. Tinyusb device stack will \b STALL the corresponding
  *                          endpoint and return failed status in command status wrapper phase.
  * \note        Although this callback is called by tinyusb device task (non-isr context), however as all the classes share
  *              the same task (to save resource), any delay in this callback will cause delay in reponse on other classes.
  */
-msc_csw_status_t tud_msc_scsi_cb (uint8_t rhport, uint8_t lun, uint8_t scsi_cmd[16], void const ** pp_buffer, uint16_t* p_length);
+msc_csw_status_t tud_msc_scsi_cb (uint8_t rhport, uint8_t lun, uint8_t scsi_cmd[16], void* buffer, uint16_t* p_len);
 
 /** @} */
 /** @} */

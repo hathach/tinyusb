@@ -187,7 +187,7 @@ tusb_error_t mscd_xfer_cb(uint8_t rhport, uint8_t ep_addr, tusb_event_t event, u
       p_csw->tag          = p_cbw->tag;
       p_csw->data_residue = 0;
 
-      // Valid command -> move to Data Stage
+      /*------------- Parse command and prepare DATA -------------*/
       p_msc->stage       = MSC_STAGE_DATA;
       p_msc->data_len    = p_cbw->xfer_bytes;
       p_msc->xferred_len = 0;
@@ -205,7 +205,8 @@ tusb_error_t mscd_xfer_cb(uint8_t rhport, uint8_t ep_addr, tusb_event_t event, u
         // TODO SCSI data out transfer is not yet supported
         TU_ASSERT( !(p_cbw->xfer_bytes > 0 && !BIT_TEST_(p_cbw->dir, 7)), TUSB_ERROR_NOT_SUPPORTED_YET);
 
-        p_csw->status = tud_msc_scsi_cb(rhport, p_cbw->lun, p_cbw->command, &p_buffer, &p_msc->data_len);
+        // Invoke callback
+        p_csw->status = tud_msc_scsi_cb(rhport, p_cbw->lun, p_cbw->command, p_msc->scsi_data, &p_msc->data_len);
 
         if ( p_cbw->xfer_bytes == 0)
         {
@@ -215,22 +216,20 @@ tusb_error_t mscd_xfer_cb(uint8_t rhport, uint8_t ep_addr, tusb_event_t event, u
         else
         {
           // Data Phase (non READ10, WRITE10)
-          TU_ASSERT( p_cbw->xfer_bytes >= p_msc->data_len, TUSB_ERROR_INVALID_PARA );
+          TU_ASSERT( p_cbw->xfer_bytes >= p_msc->data_len, TUSB_ERROR_INVALID_PARA ); // cannot return more than host expect
           TU_ASSERT( sizeof(p_msc->scsi_data) >= p_msc->data_len, TUSB_ERROR_NOT_ENOUGH_MEMORY); // needs to increase size for scsi_data
 
-          uint8_t const ep_data = BIT_TEST_(p_cbw->dir, 7) ? p_msc->ep_in : p_msc->ep_out;
+          uint8_t const ep = BIT_TEST_(p_cbw->dir, 7) ? p_msc->ep_in : p_msc->ep_out;
 
-          if ( p_buffer == NULL || p_msc->data_len == 0 )
+          if ( p_msc->data_len )
           {
-            // application does not provide data to response --> possibly unsupported SCSI command
-            dcd_edpt_stall(rhport, ep_data);
-            p_csw->status = MSC_CSW_STATUS_FAILED;
-
-            p_msc->stage = MSC_STAGE_STATUS;
+            TU_ASSERT( dcd_edpt_xfer(rhport, ep, p_msc->scsi_data, p_msc->data_len), TUSB_ERROR_DCD_EDPT_XFER );
           }else
           {
-            memcpy(p_msc->scsi_data, p_buffer, p_msc->data_len);
-            TU_ASSERT( dcd_edpt_xfer(rhport, ep_data, p_msc->scsi_data, p_msc->data_len), TUSB_ERROR_DCD_EDPT_XFER );
+            // application does not provide data to response --> possibly unsupported SCSI command
+            dcd_edpt_stall(rhport, ep);
+            p_csw->status = MSC_CSW_STATUS_FAILED;
+            p_msc->stage = MSC_STAGE_STATUS;
           }
         }
       }
@@ -284,8 +283,10 @@ static bool read10_write10_data_xfer(uint8_t rhport, mscd_interface_t* p_msc)
 
   uint8_t const ep_data = BIT_TEST_(p_cbw->dir, 7) ? p_msc->ep_in : p_msc->ep_out;
 
+  // LBA and Block count are in Big Endian
   uint32_t lba              = __be2n(p_readwrite->lba);
   uint16_t block_count      = __be2n_16(p_readwrite->block_count);
+
   uint16_t const block_size = p_cbw->xfer_bytes / block_count;
 
   // Adjust lba and block count according to byte transferred so far

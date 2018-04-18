@@ -75,8 +75,6 @@ void msc_app_task(void* param);
 void msc_app_mount(uint8_t rhport);
 void msc_app_umount(uint8_t rhport);
 
-extern scsi_sense_fixed_data_t mscd_sense_data;
-
 #else
 
 #define msc_app_init()
