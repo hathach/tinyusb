@@ -46,10 +46,14 @@
 //--------------------------------------------------------------------+
 // CONTROLLER CONFIGURATION
 //--------------------------------------------------------------------+
-//#define CFG_TUSB_MCU will be passed from IDE/command line for easy board/mcu switching
+#define CFG_TUSB_MCU              OPT_MCU_NRF5X
+#define CFG_TUSB_RHPORT0_MODE     OPT_MODE_DEVICE
 
-#define CFG_TUSB_MCU                    OPT_MCU_NRF5X
-#define CFG_TUSB_RHPORT0_MODE      (OPT_MODE_DEVICE)
+#define CFG_TUSB_DEBUG            2
+
+#define CFG_TUSB_OS               OPT_OS_NONE // be passed from IDE/command line for easy project switching
+//#define CFG_TUD_TASK_PRIO         0              // be passed from IDE/command line for easy project switching
+
 
 //--------------------------------------------------------------------+
 // DEVICE CONFIGURATION
@@ -63,27 +67,24 @@
 #define CFG_TUD_MSC               1
 #define CFG_TUD_CDC               1
 
-//--------------------------------------------------------------------+
-// COMMON CONFIGURATION
-//--------------------------------------------------------------------+
-#define CFG_TUSB_DEBUG                    2
+/*------------------------------------------------------------------*/
+/* CLASS DRIVER
+ *------------------------------------------------------------------*/
 
-#define CFG_TUSB_OS                       OPT_OS_NONE // be passed from IDE/command line for easy project switching
-//#define CFG_TUD_TASK_PRIO         0              // be passed from IDE/command line for easy project switching
+// FIFO size of CDC TX and RX
+#define CFG_TUD_CDC_BUFSIZE         64
+
+// TX is sent automatically every Start of Frame event.
+// If not enabled, application must call tud_cdc_flush() periodically
+#define CFG_TUD_CDC_FLUSH_ON_SOF    1
+
 
 //--------------------------------------------------------------------+
 // USB RAM PLACEMENT
 //--------------------------------------------------------------------+
 #define CFG_TUSB_ATTR_USBRAM
+#define CFG_TUSB_MEM_ALIGN          ATTR_ALIGNED(4)
 
-// LPC11uxx and LPC13uxx requires each buffer has to be 64-byte alignment
-#if CFG_TUSB_MCU == OPT_MCU_LPC11UXX || CFG_TUSB_MCU == OPT_MCU_LPC13UXX
- #define CFG_TUSB_MEM_ALIGN   ATTR_ALIGNED(64)
-#elif CFG_TUSB_MCU == OPT_MCU_NRF5X
- #define CFG_TUSB_MEM_ALIGN   ATTR_ALIGNED(4)
-#else
- #define CFG_TUSB_MEM_ALIGN
-#endif
 
 #ifdef __cplusplus
  }

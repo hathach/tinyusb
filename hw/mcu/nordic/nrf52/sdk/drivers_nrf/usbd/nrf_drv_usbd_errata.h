@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2017 - 2017, Nordic Semiconductor ASA
+ * Copyright (c) 2017 - 2018, Nordic Semiconductor ASA
  * 
  * All rights reserved.
  * 
@@ -86,6 +86,19 @@ static inline bool nrf_drv_usbd_errata_type_52840_proto1(void)
 }
 
 /**
+ * @brief Internal auxiliary function to check if the program is running on first final product of
+ *        NRF52840 chip
+ * @retval true  It is NRF52480 chip and it is first final product
+ * @retval false It is other chip
+ */
+static inline bool nrf_drv_usbd_errata_type_52840_fp1(void)
+{
+    return ( nrf_drv_usbd_errata_type_52840() &&
+               ( ((*(uint32_t *)0xF0000FE8) & 0xF0) == 0x10 ) &&
+               ( ((*(uint32_t *)0xF0000FEC) & 0xF0) == 0x00 ) );
+}
+
+/**
  * @brief Function to check if chip requires errata 104
  *
  * Errata: USBD: EPDATA event is not always generated.
@@ -125,6 +138,32 @@ static inline bool nrf_drv_usbd_errata_166(void)
 }
 
 /**
+ * @brief Function to check if chip requires errata 171
+ *
+ * Errata: USBD might not reach its active state.
+ *
+ * @retval true  Errata should be implemented
+ * @retval false Errata should not be implemented
+ */
+static inline bool nrf_drv_usbd_errata_171(void)
+{
+    return NRF_DRV_USBD_ERRATA_ENABLE && true;
+}
+
+/**
+ * @brief Function to check if chip requires errata 187
+ *
+ * Errata: USB cannot be enabled
+ *
+ * @retval true  Errata should be implemented
+ * @retval false Errata should not be implemented
+ */
+static inline bool nrf_drv_usbd_errata_187(void)
+{
+    return NRF_DRV_USBD_ERRATA_ENABLE && nrf_drv_usbd_errata_type_52840_fp1();
+}
+
+/**
  * @brief Function to check if chip requires errata ???
  *
  * Errata: SIZE.EPOUT not writable
@@ -135,6 +174,19 @@ static inline bool nrf_drv_usbd_errata_166(void)
 static inline bool nrf_drv_usbd_errata_sizeepout_rw(void)
 {
     return NRF_DRV_USBD_ERRATA_ENABLE && nrf_drv_usbd_errata_type_52840_proto1();
+}
+
+/**
+ * @brief Function to check if chip requires errata 199
+ *
+ * Errata: USBD cannot receive tasks during DMA
+ *
+ * @retval true  Errata should be implemented
+ * @retval false Errata should not be implemented
+ */
+static inline bool nrf_drv_usb_errata_199(void)
+{
+    return NRF_DRV_USBD_ERRATA_ENABLE && true;
 }
 
 /** @} */

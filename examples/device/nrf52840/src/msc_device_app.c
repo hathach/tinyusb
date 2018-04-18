@@ -98,47 +98,62 @@ void msc_app_umount(uint8_t rhport)
 
 }
 
-msc_csw_status_t tud_msc_scsi_cb (uint8_t rhport, uint8_t lun, uint8_t scsi_cmd[16], void const ** pp_buffer, uint16_t* p_length)
+bool tud_msc_scsi_cb (uint8_t rhport, uint8_t lun, uint8_t scsi_cmd[16], void* buffer, uint16_t* p_len)
 {
   // read10 & write10 has their own callback and MUST not be handled here
+
+  void* bufptr = NULL;
+  uint16_t buflen = 0;
+
   switch (scsi_cmd[0])
   {
     case SCSI_CMD_INQUIRY:
-      (*pp_buffer) = &mscd_inquiry_data;
-      (*p_length)  = sizeof(scsi_inquiry_data_t);
+      bufptr = &mscd_inquiry_data;
+      buflen = sizeof(scsi_inquiry_data_t);
     break;
 
     case SCSI_CMD_READ_CAPACITY_10:
-      (*pp_buffer) = &mscd_read_capacity10_data;
-      (*p_length)  = sizeof(scsi_read_capacity10_data_t);
+      bufptr = &mscd_read_capacity10_data;
+      buflen = sizeof(scsi_read_capacity10_data_t);
     break;
 
     case SCSI_CMD_REQUEST_SENSE:
-      (*pp_buffer) = &mscd_sense_data;
-      (*p_length)  = sizeof(scsi_sense_fixed_data_t);
+      bufptr = &mscd_sense_data;
+      buflen = sizeof(scsi_sense_fixed_data_t);
     break;
 
     case SCSI_CMD_READ_FORMAT_CAPACITY:
-      (*pp_buffer) = &mscd_format_capacity_data;
-      (*p_length)  = sizeof(scsi_read_format_capacity_data_t);
+      bufptr = &mscd_format_capacity_data;
+      buflen = sizeof(scsi_read_format_capacity_data_t);
     break;
 
     case SCSI_CMD_MODE_SENSE_6:
-      (*pp_buffer) = &msc_dev_mode_para;
-      (*p_length)  = sizeof(msc_dev_mode_para);
+      bufptr = &msc_dev_mode_para;
+      buflen = sizeof(msc_dev_mode_para);
     break;
 
     case SCSI_CMD_TEST_UNIT_READY:
-      (*pp_buffer) = NULL;
-      (*p_length) = 0;
+      bufptr = NULL;
+      buflen= 0;
     break;
 
     case SCSI_CMD_PREVENT_ALLOW_MEDIUM_REMOVAL:
-      (*pp_buffer) = NULL;
-      (*p_length) = 0;
+      bufptr = NULL;
+      buflen= 0;
     break;
 
-    default: return MSC_CSW_STATUS_FAILED;
+    default:
+      (*p_len) = 0;
+      return false;
+  }
+
+  if ( bufptr && buflen )
+  {
+    // Response len must not larger than expected from host
+    TU_ASSERT( (*p_len) >= buflen );
+
+    memcpy(buffer, bufptr, buflen);
+    (*p_len) = buflen;
   }
 
   //------------- clear sense data if it is not request sense command -------------//
@@ -149,7 +164,7 @@ msc_csw_status_t tud_msc_scsi_cb (uint8_t rhport, uint8_t lun, uint8_t scsi_cmd[
     mscd_sense_data.additional_sense_qualifier = 0;
   }
 
-  return MSC_CSW_STATUS_PASSED;
+  return true;
 }
 
 //--------------------------------------------------------------------+
