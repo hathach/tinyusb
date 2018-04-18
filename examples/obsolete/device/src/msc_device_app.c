@@ -59,8 +59,8 @@ static scsi_inquiry_data_t const mscd_inquiry_data =
 
 static scsi_read_capacity10_data_t const mscd_read_capacity10_data =
 {
-    .last_lba   = ENDIAN_BE(DISK_BLOCK_NUM-1), // read capacity
-    .block_size = ENDIAN_BE(DISK_BLOCK_SIZE)
+    .last_lba   = ENDIAN_BE(DISK_BLOCK_NUM-1), // Big Endian
+    .block_size = ENDIAN_BE(DISK_BLOCK_SIZE)   // Big Endian
 };
 
 static scsi_sense_fixed_data_t mscd_sense_data =
@@ -99,7 +99,7 @@ void msc_app_umount(uint8_t rhport)
 
 }
 
-msc_csw_status_t tud_msc_scsi_cb (uint8_t rhport, uint8_t lun, uint8_t scsi_cmd[16], void* buffer, uint16_t* p_len)
+bool tud_msc_scsi_cb (uint8_t rhport, uint8_t lun, uint8_t scsi_cmd[16], void* buffer, uint16_t* p_len)
 {
   // read10 & write10 has their own callback and MUST not be handled here
 
@@ -145,13 +145,13 @@ msc_csw_status_t tud_msc_scsi_cb (uint8_t rhport, uint8_t lun, uint8_t scsi_cmd[
 
     default:
       (*p_len) = 0;
-      return MSC_CSW_STATUS_FAILED;
+      return false;
   }
 
   if ( bufptr && buflen )
   {
     // Response len must not larger than expected from host
-    TU_ASSERT( (*p_len) >= buflen, MSC_CSW_STATUS_FAILED);
+    TU_ASSERT( (*p_len) >= buflen );
 
     memcpy(buffer, bufptr, buflen);
     (*p_len) = buflen;
@@ -165,7 +165,7 @@ msc_csw_status_t tud_msc_scsi_cb (uint8_t rhport, uint8_t lun, uint8_t scsi_cmd[
     mscd_sense_data.additional_sense_qualifier = 0;
   }
 
-  return MSC_CSW_STATUS_PASSED;
+  return true;
 }
 
 //--------------------------------------------------------------------+

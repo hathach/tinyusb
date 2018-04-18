@@ -162,9 +162,6 @@ tusb_error_t mscd_control_request_st(uint8_t rhport, tusb_control_request_t cons
   OSAL_SUBTASK_END
 }
 
-//--------------------------------------------------------------------+
-// MSCD APPLICATION CALLBACK
-//--------------------------------------------------------------------+
 tusb_error_t mscd_xfer_cb(uint8_t rhport, uint8_t ep_addr, tusb_event_t event, uint32_t xferred_bytes)
 {
   mscd_interface_t* const p_msc = &mscd_data;
@@ -206,7 +203,7 @@ tusb_error_t mscd_xfer_cb(uint8_t rhport, uint8_t ep_addr, tusb_event_t event, u
 
         if ( p_cbw->xfer_bytes == 0)
         {
-          p_csw->status = tud_msc_scsi_cb(rhport, p_cbw->lun, p_cbw->command, p_msc->scsi_data, &p_msc->data_len);
+          p_csw->status = tud_msc_scsi_cb(rhport, p_cbw->lun, p_cbw->command, p_msc->scsi_data, &p_msc->data_len) ? MSC_CSW_STATUS_PASSED : MSC_CSW_STATUS_FAILED;
           p_msc->stage  = MSC_STAGE_STATUS;
         }
         else if ( !BIT_TEST_(p_cbw->dir, 7) )
@@ -216,7 +213,7 @@ tusb_error_t mscd_xfer_cb(uint8_t rhport, uint8_t ep_addr, tusb_event_t event, u
         }
         else
         {
-          p_csw->status = tud_msc_scsi_cb(rhport, p_cbw->lun, p_cbw->command, p_msc->scsi_data, &p_msc->data_len);
+          p_csw->status = tud_msc_scsi_cb(rhport, p_cbw->lun, p_cbw->command, p_msc->scsi_data, &p_msc->data_len) ? MSC_CSW_STATUS_PASSED : MSC_CSW_STATUS_FAILED;
 
           TU_ASSERT( p_cbw->xfer_bytes >= p_msc->data_len, TUSB_ERROR_INVALID_PARA ); // cannot return more than host expect
           TU_ASSERT( sizeof(p_msc->scsi_data) >= p_msc->data_len, TUSB_ERROR_NOT_ENOUGH_MEMORY); // needs to increase size for scsi_data
@@ -257,7 +254,7 @@ tusb_error_t mscd_xfer_cb(uint8_t rhport, uint8_t ep_addr, tusb_event_t event, u
         // Invoke callback if it is not READ10, WRITE10
         if ( ! ((SCSI_CMD_READ_10 == p_cbw->command[0]) || (SCSI_CMD_WRITE_10 == p_cbw->command[0])) )
         {
-          p_csw->status = tud_msc_scsi_cb(rhport, p_cbw->lun, p_cbw->command, p_msc->scsi_data, &p_msc->data_len);
+          p_csw->status = tud_msc_scsi_cb(rhport, p_cbw->lun, p_cbw->command, p_msc->scsi_data, &p_msc->data_len) ? MSC_CSW_STATUS_PASSED : MSC_CSW_STATUS_FAILED;
         }
 
         p_msc->stage = MSC_STAGE_STATUS;
@@ -308,10 +305,10 @@ static bool read10_write10_data_xfer(uint8_t rhport, mscd_interface_t* p_msc)
 
   if (SCSI_CMD_READ_10 == p_cbw->command[0])
   {
-    xfer_block = tud_msc_read10_cb (rhport, p_cbw->lun, &p_buffer, lba, block_count);
+    xfer_block = tud_msc_read10_cb (rhport, p_cbw->lun, lba, block_count, &p_buffer);
   }else
   {
-    xfer_block = tud_msc_write10_cb(rhport, p_cbw->lun, &p_buffer, lba, block_count);
+    xfer_block = tud_msc_write10_cb(rhport, p_cbw->lun, lba, block_count, &p_buffer);
   }
 
   xfer_block = min16_of(xfer_block, block_count);
