@@ -199,37 +199,38 @@ tusb_error_t mscd_xfer_cb(uint8_t rhport, uint8_t ep_addr, tusb_event_t event, u
       }
       else
       {
-        // If not read10 & write10, invoke application callback
-        void const *p_buffer = NULL;
-
-        // TODO SCSI data out transfer is not yet supported
-        TU_ASSERT( !(p_cbw->xfer_bytes > 0 && !BIT_TEST_(p_cbw->dir, 7)), TUSB_ERROR_NOT_SUPPORTED_YET);
-
-        // Invoke callback
-        p_csw->status = tud_msc_scsi_cb(rhport, p_cbw->lun, p_cbw->command, p_msc->scsi_data, &p_msc->data_len);
+        // For other SCSI commands
+        // 1. Zero : Invoke app callback, skip DATA and move to STATUS stage
+        // 2. OUT  : queue transfer (invoke app callback there)
+        // 3. IN   : invoke app callback to get response
 
         if ( p_cbw->xfer_bytes == 0)
         {
-          // There is no DATA, move to Status Stage
-          p_msc->stage = MSC_STAGE_STATUS;
+          p_csw->status = tud_msc_scsi_cb(rhport, p_cbw->lun, p_cbw->command, p_msc->scsi_data, &p_msc->data_len);
+          p_msc->stage  = MSC_STAGE_STATUS;
+        }
+        else if ( !BIT_TEST_(p_cbw->dir, 7) )
+        {
+          TU_ASSERT( sizeof(p_msc->scsi_data) >= p_msc->data_len, TUSB_ERROR_NOT_ENOUGH_MEMORY); // needs to increase size for scsi_data
+          TU_ASSERT( dcd_edpt_xfer(rhport, p_msc->ep_out, p_msc->scsi_data, p_msc->data_len), TUSB_ERROR_DCD_EDPT_XFER );
         }
         else
         {
-          // Data Phase (non READ10, WRITE10)
+          p_csw->status = tud_msc_scsi_cb(rhport, p_cbw->lun, p_cbw->command, p_msc->scsi_data, &p_msc->data_len);
+
           TU_ASSERT( p_cbw->xfer_bytes >= p_msc->data_len, TUSB_ERROR_INVALID_PARA ); // cannot return more than host expect
           TU_ASSERT( sizeof(p_msc->scsi_data) >= p_msc->data_len, TUSB_ERROR_NOT_ENOUGH_MEMORY); // needs to increase size for scsi_data
 
-          uint8_t const ep = BIT_TEST_(p_cbw->dir, 7) ? p_msc->ep_in : p_msc->ep_out;
-
           if ( p_msc->data_len )
           {
-            TU_ASSERT( dcd_edpt_xfer(rhport, ep, p_msc->scsi_data, p_msc->data_len), TUSB_ERROR_DCD_EDPT_XFER );
+            TU_ASSERT( dcd_edpt_xfer(rhport, p_msc->ep_in, p_msc->scsi_data, p_msc->data_len), TUSB_ERROR_DCD_EDPT_XFER );
           }else
           {
             // application does not provide data to response --> possibly unsupported SCSI command
-            dcd_edpt_stall(rhport, ep);
+            dcd_edpt_stall(rhport, p_msc->ep_in);
+
             p_csw->status = MSC_CSW_STATUS_FAILED;
-            p_msc->stage = MSC_STAGE_STATUS;
+            p_msc->stage  = MSC_STAGE_STATUS;
           }
         }
       }
@@ -238,23 +239,32 @@ tusb_error_t mscd_xfer_cb(uint8_t rhport, uint8_t ep_addr, tusb_event_t event, u
     case MSC_STAGE_DATA:
       p_msc->xferred_len += xferred_bytes;
 
-      // Data Stage is complete
-      if ( p_msc->xferred_len == p_msc->data_len )
+      // Still transferring
+      if ( p_msc->xferred_len < p_msc->data_len )
       {
-        p_msc->stage = MSC_STAGE_STATUS;
+        if ( (SCSI_CMD_READ_10 == p_cbw->command[0]) || (SCSI_CMD_WRITE_10 == p_cbw->command[0]) )
+        {
+          // Can be executed several times e.g write 8K bytes (several flash write)
+          read10_write10_data_xfer(rhport, p_msc);
+        }else
+        {
+          verify_breakpoint(); // unexpected error
+        }
       }
-      else if ( (SCSI_CMD_READ_10 == p_cbw->command[0]) || (SCSI_CMD_WRITE_10 == p_cbw->command[0]) )
+      // Data Stage is complete
+      else
       {
-        // Can be executed several times e.g write 8K bytes (several flash write)
-        read10_write10_data_xfer(rhport, p_msc);
-      }else
-      {
-        // unlikely error
-        verify_breakpoint();
+        // Invoke callback if it is not READ10, WRITE10
+        if ( ! ((SCSI_CMD_READ_10 == p_cbw->command[0]) || (SCSI_CMD_WRITE_10 == p_cbw->command[0])) )
+        {
+          p_csw->status = tud_msc_scsi_cb(rhport, p_cbw->lun, p_cbw->command, p_msc->scsi_data, &p_msc->data_len);
+        }
+
+        p_msc->stage = MSC_STAGE_STATUS;
       }
     break;
 
-    case MSC_STAGE_STATUS: break; // is processed immediately
+    case MSC_STAGE_STATUS: break; // processed immediately after this switch
     default : break;
   }
 

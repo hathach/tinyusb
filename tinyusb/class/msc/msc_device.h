@@ -107,7 +107,7 @@ uint16_t tud_msc_write10_cb(uint8_t rhport, uint8_t lun, void** pp_buffer, uint3
  * \param[in]		scsi_cmd    SCSI command contents, application should examine this command block to know which command host requested
  * \param[out]	buffer      Pointer to buffer which application need to update with the address to transfer data with host.
  *                          The buffer address can be anywhere since the stack will copy its contents to a internal USB-accessible buffer.
- * \param[in]		p_length    Expected length from host, Application could update to actual data, but could not larger than original value.
+ * \param[in]		p_len       Expected length from host, Application could update to actual data, but could not larger than original value.
  * \retval      non-zero    Actual number of block that application can receive and must be less than or equal to \a \b block_count.
  * \retval      zero        Indicate error in retrieving data from application. Tinyusb device stack will \b STALL the corresponding
  *                          endpoint and return failed status in command status wrapper phase.
