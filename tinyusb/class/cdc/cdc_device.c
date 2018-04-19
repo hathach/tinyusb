@@ -54,8 +54,8 @@
 CFG_TUSB_ATTR_USBRAM STATIC_VAR cdc_line_coding_t cdcd_line_coding[CONTROLLER_DEVICE_NUMBER];
 
 typedef struct {
-  uint8_t interface_number;
-  cdc_acm_capability_t acm_capability;
+  uint8_t itf_num;
+  cdc_acm_capability_t acm_cap;
 
   // Bit 0:  DTR (Data Terminal Ready), Bit 1: RTS (Request to Send)
   uint8_t line_state;
@@ -63,7 +63,7 @@ typedef struct {
   uint8_t ep_notif;
   uint8_t ep_in;
   uint8_t ep_out;
-}cdcd_data_t;
+}cdcd_interface_t;
 
 // TODO multiple rhport
 #if CFG_TUSB_MCU == OPT_MCU_NRF5X
@@ -81,7 +81,7 @@ FIFO_DEF(_tx_ff, CFG_TUD_CDC_BUFSIZE, uint8_t, false);
 //--------------------------------------------------------------------+
 // INTERNAL OBJECT & FUNCTION DECLARATION
 //--------------------------------------------------------------------+
-STATIC_VAR cdcd_data_t cdcd_data[CONTROLLER_DEVICE_NUMBER];
+STATIC_VAR cdcd_interface_t _cdcd_itf[CONTROLLER_DEVICE_NUMBER];
 
 //--------------------------------------------------------------------+
 // APPLICATION API
@@ -89,12 +89,12 @@ STATIC_VAR cdcd_data_t cdcd_data[CONTROLLER_DEVICE_NUMBER];
 bool tud_n_cdc_connected(uint8_t rhport)
 {
   // DTR (bit 0) active  isconsidered as connected
-  return BIT_TEST_(cdcd_data[rhport].line_state, 0);
+  return BIT_TEST_(_cdcd_itf[rhport].line_state, 0);
 }
 
 uint8_t tud_n_cdc_get_line_state (uint8_t rhport)
 {
-  return cdcd_data[rhport].line_state;
+  return _cdcd_itf[rhport].line_state;
 }
 
 void tud_n_cdc_get_line_coding (uint8_t rhport, cdc_line_coding_t* coding)
@@ -138,7 +138,7 @@ uint32_t tud_n_cdc_write(uint8_t rhport, void const* buffer, uint32_t bufsize)
 
 bool tud_n_cdc_flush (uint8_t rhport)
 {
-  uint8_t  edpt = cdcd_data[rhport].ep_in;
+  uint8_t  edpt = _cdcd_itf[rhport].ep_in;
   VERIFY( !dcd_edpt_busy(rhport, edpt) ); // skip if previous transfer not complete
 
   uint16_t count = fifo_read_n(&_tx_ff, _tmp_tx_buf, sizeof(_tmp_tx_buf));
@@ -156,7 +156,7 @@ bool tud_n_cdc_flush (uint8_t rhport)
 //--------------------------------------------------------------------+
 void cdcd_init(void)
 {
-  memclr_(cdcd_data, sizeof(cdcd_data_t)*CONTROLLER_DEVICE_NUMBER);
+  memclr_(_cdcd_itf, sizeof(cdcd_interface_t)*CONTROLLER_DEVICE_NUMBER);
 
   // default line coding is : stop bit = 1, parity = none, data bits = 8
   memclr_(cdcd_line_coding, sizeof(cdc_line_coding_t)*CONTROLLER_DEVICE_NUMBER);
@@ -180,7 +180,7 @@ tusb_error_t cdcd_open(uint8_t rhport, tusb_desc_interface_t const * p_interface
   }
 
   uint8_t const * p_desc = descriptor_next ( (uint8_t const *) p_interface_desc );
-  cdcd_data_t * p_cdc = &cdcd_data[rhport];
+  cdcd_interface_t * p_cdc = &_cdcd_itf[rhport];
 
   //------------- Communication Interface -------------//
   (*p_length) = sizeof(tusb_desc_interface_t);
@@ -190,7 +190,7 @@ tusb_error_t cdcd_open(uint8_t rhport, tusb_desc_interface_t const * p_interface
   {
     if ( CDC_FUNC_DESC_ABSTRACT_CONTROL_MANAGEMENT == cdc_functional_desc_typeof(p_desc) )
     { // save ACM bmCapabilities
-      p_cdc->acm_capability = ((cdc_desc_func_acm_t const *) p_desc)->bmCapabilities;
+      p_cdc->acm_cap = ((cdc_desc_func_acm_t const *) p_desc)->bmCapabilities;
     }
 
     (*p_length) += p_desc[DESCRIPTOR_OFFSET_LENGTH];
@@ -236,7 +236,7 @@ tusb_error_t cdcd_open(uint8_t rhport, tusb_desc_interface_t const * p_interface
     }
   }
 
-  p_cdc->interface_number   = p_interface_desc->bInterfaceNumber;
+  p_cdc->itf_num   = p_interface_desc->bInterfaceNumber;
 
   // Prepare for incoming data
   TU_ASSERT( dcd_edpt_xfer(rhport, p_cdc->ep_out, _tmp_rx_buf, sizeof(_tmp_rx_buf)), TUSB_ERROR_DCD_EDPT_XFER);
@@ -248,7 +248,7 @@ tusb_error_t cdcd_open(uint8_t rhport, tusb_desc_interface_t const * p_interface
 void cdcd_close(uint8_t rhport)
 {
   // no need to close opened pipe, dcd bus reset will put controller's endpoints to default state
-  memclr_(&cdcd_data[rhport], sizeof(cdcd_data_t));
+  memclr_(&_cdcd_itf[rhport], sizeof(cdcd_interface_t));
 
   fifo_clear(&_rx_ff);
   fifo_clear(&_tx_ff);
@@ -279,7 +279,7 @@ tusb_error_t cdcd_control_request_st(uint8_t rhport, tusb_control_request_t cons
     //        This signal corresponds to V.24 signal 108/2 and RS-232 signal DTR (Data Terminal Ready)
     // Bit 1: Carrier control for half-duplex modems.
     //        This signal corresponds to V.24 signal 105 and RS-232 signal RTS (Request to Send)
-    cdcd_data_t * p_cdc = &cdcd_data[rhport];
+    cdcd_interface_t * p_cdc = &_cdcd_itf[rhport];
 
     p_cdc->line_state = (uint8_t) p_request->wValue;
 
@@ -298,7 +298,7 @@ tusb_error_t cdcd_control_request_st(uint8_t rhport, tusb_control_request_t cons
 
 tusb_error_t cdcd_xfer_cb(uint8_t rhport, uint8_t ep_addr, tusb_event_t event, uint32_t xferred_bytes)
 {
-  cdcd_data_t const * p_cdc = &cdcd_data[rhport];
+  cdcd_interface_t const * p_cdc = &_cdcd_itf[rhport];
 
   if ( ep_addr == p_cdc->ep_out )
   {

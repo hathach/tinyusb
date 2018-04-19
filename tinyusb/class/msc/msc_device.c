@@ -67,7 +67,7 @@ typedef struct {
 
   CFG_TUSB_MEM_ALIGN msc_csw_t csw;
 
-  uint8_t  interface_num;
+  uint8_t  itf_num;
   uint8_t  ep_in;
   uint8_t  ep_out;
 
@@ -76,7 +76,7 @@ typedef struct {
   uint16_t xferred_len; // numbered of bytes transferred so far in the Data Stage
 }mscd_interface_t;
 
-CFG_TUSB_ATTR_USBRAM CFG_TUSB_MEM_ALIGN STATIC_VAR mscd_interface_t mscd_data;
+CFG_TUSB_ATTR_USBRAM CFG_TUSB_MEM_ALIGN static mscd_interface_t _mscd_itf;
 CFG_TUSB_ATTR_USBRAM CFG_TUSB_MEM_ALIGN static uint8_t _mscd_buf[CFG_TUD_MSC_BUFSIZE];
 
 //--------------------------------------------------------------------+
@@ -89,12 +89,12 @@ static void proc_read10_write10(uint8_t rhport, mscd_interface_t* p_msc);
 //--------------------------------------------------------------------+
 void mscd_init(void)
 {
-  memclr_(&mscd_data, sizeof(mscd_interface_t));
+  memclr_(&_mscd_itf, sizeof(mscd_interface_t));
 }
 
 void mscd_close(uint8_t rhport)
 {
-  memclr_(&mscd_data, sizeof(mscd_interface_t));
+  memclr_(&_mscd_itf, sizeof(mscd_interface_t));
 }
 
 tusb_error_t mscd_open(uint8_t rhport, tusb_desc_interface_t const * p_interface_desc, uint16_t *p_length)
@@ -102,7 +102,7 @@ tusb_error_t mscd_open(uint8_t rhport, tusb_desc_interface_t const * p_interface
   VERIFY( ( MSC_SUBCLASS_SCSI == p_interface_desc->bInterfaceSubClass &&
             MSC_PROTOCOL_BOT  == p_interface_desc->bInterfaceProtocol ), TUSB_ERROR_MSC_UNSUPPORTED_PROTOCOL );
 
-  mscd_interface_t * p_msc = &mscd_data;
+  mscd_interface_t * p_msc = &_mscd_itf;
 
   //------------- Open Data Pipe -------------//
   tusb_desc_endpoint_t const *p_endpoint = (tusb_desc_endpoint_t const *) descriptor_next( (uint8_t const*) p_interface_desc );
@@ -124,7 +124,7 @@ tusb_error_t mscd_open(uint8_t rhport, tusb_desc_interface_t const * p_interface
     p_endpoint = (tusb_desc_endpoint_t const *) descriptor_next( (uint8_t const*)  p_endpoint );
   }
 
-  p_msc->interface_num = p_interface_desc->bInterfaceNumber;
+  p_msc->itf_num = p_interface_desc->bInterfaceNumber;
 
   (*p_length) += sizeof(tusb_desc_interface_t) + 2*sizeof(tusb_desc_endpoint_t);
 
@@ -142,7 +142,7 @@ tusb_error_t mscd_control_request_st(uint8_t rhport, tusb_control_request_t cons
 
   TU_ASSERT(p_request->bmRequestType_bit.type == TUSB_REQ_TYPE_CLASS, TUSB_ERROR_DCD_CONTROL_REQUEST_NOT_SUPPORT);
 
-  mscd_interface_t * p_msc = &mscd_data;
+  mscd_interface_t * p_msc = &_mscd_itf;
 
   if(MSC_REQUEST_RESET == p_request->bRequest)
   {
@@ -163,7 +163,7 @@ tusb_error_t mscd_control_request_st(uint8_t rhport, tusb_control_request_t cons
 
 tusb_error_t mscd_xfer_cb(uint8_t rhport, uint8_t ep_addr, tusb_event_t event, uint32_t xferred_bytes)
 {
-  mscd_interface_t* const p_msc = &mscd_data;
+  mscd_interface_t* const p_msc = &_mscd_itf;
   msc_cbw_t*        const p_cbw = &p_msc->cbw;
   msc_csw_t*        const p_csw = &p_msc->csw;
 
@@ -319,13 +319,10 @@ static void proc_read10_write10(uint8_t rhport, mscd_interface_t* p_msc)
 
   uint32_t xfer_bytes = min32_of(sizeof(_mscd_buf), p_cbw->xfer_bytes-p_msc->xferred_len);
 
+  // Write10 callback will be called later when usb transfer complete
   if (SCSI_CMD_READ_10 == p_cbw->command[0])
   {
     xfer_bytes = tud_msc_read10_cb (rhport, p_cbw->lun, lba, p_msc->xferred_len, _mscd_buf, xfer_bytes);
-  }else
-  {
-    // call later after write transfer complete
-//    xfer_block = tud_msc_write10_cb(rhport, p_cbw->lun, lba, block_count, &p_buffer);
   }
 
   if ( 0 == xfer_bytes  )
