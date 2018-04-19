@@ -91,27 +91,22 @@ const uint8_t msc_device_app_rommdisk[DISK_BLOCK_NUM][DISK_BLOCK_SIZE] =
   [3] = README_CONTENTS
 };
 
-CFG_TUSB_ATTR_USBRAM
-static uint8_t sector_buffer[DISK_BLOCK_SIZE];
-
 //--------------------------------------------------------------------+
 // IMPLEMENTATION
 //--------------------------------------------------------------------+
-uint16_t tusbd_msc_read10_cb (uint8_t rhport, uint8_t lun, uint32_t lba, uint16_t block_count, void** pp_buffer)
+uint32_t tud_msc_read10_cb (uint8_t rhport, uint8_t lun, uint32_t lba, uint32_t offset, void* buffer, uint32_t bufsize)
 {
-  memcpy(sector_buffer, msc_device_app_rommdisk[lba], DISK_BLOCK_SIZE);
-  (*pp_buffer) = sector_buffer;
+  uint8_t* addr = msc_device_ramdisk[lba] + offset;
+  memcpy(buffer, addr, bufsize);
 
-  return 1;
+  return bufsize;
 }
 
 // Stall write10 by return 0, as this is readonly disk
-uint16_t tusbd_msc_write10_cb(uint8_t rhport, uint8_t lun, uint32_t lba, uint16_t block_count, void** pp_buffer)
+uint32_t tud_msc_write10_cb (uint8_t rhport, uint8_t lun, uint32_t lba, uint32_t offset, void* buffer, uint32_t bufsize)
 {
-  (*pp_buffer) = NULL;
-
-  mscd_sense_data.sense_key = SCSI_SENSEKEY_DATA_PROTECT; // let host know that this is read-only disk
-
+  // let host know that this is read-only disk
+  mscd_sense_data.sense_key = SCSI_SENSEKEY_DATA_PROTECT;
   return 0;
 }
 
