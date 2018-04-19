@@ -237,8 +237,12 @@ tusb_error_t mscd_xfer_cb(uint8_t rhport, uint8_t ep_addr, tusb_event_t event, u
       {
         if ( SCSI_CMD_WRITE_10 == p_cbw->command[0] )
         {
+          // LBA and Block count are in Big Endian. Use memcpy first to prevent mis-aligned access
           scsi_read10_t* p_write10 = (scsi_read10_t*) &p_cbw->command;
-          uint32_t lba             = __be2n(p_write10->lba);
+
+          uint32_t lba;
+          memcpy(&lba, &p_write10->lba, 4);
+          lba = __be2n(lba);
 
           tud_msc_write10_cb(rhport, p_cbw->lun, lba, p_msc->xferred_len, _mscd_buf, xferred_bytes);
         }
@@ -310,12 +314,15 @@ static void proc_read10_write10(uint8_t rhport, mscd_interface_t* p_msc)
 
   uint8_t const ep_data = BIT_TEST_(p_cbw->dir, 7) ? p_msc->ep_in : p_msc->ep_out;
 
-  // LBA and Block count are in Big Endian
-  // FIXME Mis-aligned memory access with M0 !!!
-  uint32_t lba              = __be2n(p_readwrite->lba);
-  uint16_t block_count      = __be2n_16(p_readwrite->block_count);
+  // LBA and Block count are in Big Endian. Use memcpy first to prevent mis-aligned access
+  uint32_t lba;
+  uint16_t block_count;
 
-  uint16_t const block_size = p_cbw->xfer_bytes / block_count;
+  memcpy(&lba, &p_readwrite->lba, 4);
+  lba = __be2n(lba);
+
+  memcpy(&block_count, &p_readwrite->block_count, 2);
+  block_count = __be2n_16(block_count);
 
   uint32_t xfer_bytes = min32_of(sizeof(_mscd_buf), p_cbw->xfer_bytes-p_msc->xferred_len);
 
