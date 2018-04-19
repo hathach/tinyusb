@@ -134,14 +134,6 @@
 #define CFG_TUSB_OS OPT_OS_NONE
 #endif
 
-#if (CFG_TUSB_OS != OPT_OS_NONE) && !defined (CFG_TUD_TASK_PRIO)
-  #error CFG_TUD_TASK_PRIO need to be defined (hint: use the highest if possible)
-#endif
-
-//#ifndef CFG_TUSB_CONFIGURATION_MAX
-//  #define CFG_TUSB_CONFIGURATION_MAX 1
-//  #warning CFG_TUSB_CONFIGURATION_MAX is not defined, default value is 1
-//#endif
 
 #ifndef tu_malloc
 #include <stdlib.h>
@@ -161,11 +153,6 @@
 
   #ifndef CFG_TUD_ENDOINT0_SIZE
     #define CFG_TUD_ENDOINT0_SIZE    64
-  #endif
-
-
-  #if CFG_TUD_ENDOINT0_SIZE > 64
-    #error Control Endpoint Max Package Size cannot larger than 64
   #endif
 
   #ifndef CFG_TUD_ENUM_BUFFER_SIZE
@@ -200,6 +187,26 @@
 
   //------------- CLASS -------------//
 #endif // MODE_HOST_SUPPORTED
+
+
+/*------------------------------------------------------------------*/
+/* Config Verification
+ *------------------------------------------------------------------*/
+
+#if (CFG_TUSB_OS != OPT_OS_NONE) && !defined (CFG_TUD_TASK_PRIO)
+  #error CFG_TUD_TASK_PRIO need to be defined (hint: use the highest if possible)
+#endif
+
+#if CFG_TUD_ENDOINT0_SIZE > 64
+  #error Control Endpoint Max Package Size cannot larger than 64
+#endif
+
+#if CFG_TUD_MSC_MAXLUN == 0 || CFG_TUD_MSC_MAXLUN > 16
+  #error MSC Device: Incorrect setting of MAX LUN
+#endif
+
+//#if CFG_TUD_MSC_BUFSIZE
+
 
 #endif /* _TUSB_OPTION_H_ */
 

@@ -40,10 +40,6 @@
 
 #if (MODE_DEVICE_SUPPORTED && CFG_TUD_MSC)
 
-#if CFG_TUD_MSC_MAXLUN == 0 || CFG_TUD_MSC_MAXLUN > 16
-#error MSC Device: Incorrect setting of MAX LUN
-#endif
-
 #define _TINY_USB_SOURCE_FILE_
 //--------------------------------------------------------------------+
 // INCLUDE
@@ -63,9 +59,6 @@ enum
 };
 
 typedef struct {
-  // buffer for scsi's response other than read10 & write10.
-  // NOTE should be multiple of 64 to be compatible with lpc11/13u
-  uint8_t scsi_data[64];
   CFG_TUSB_MEM_ALIGN msc_cbw_t  cbw;
 
 #if defined (__ICCARM__) && (CFG_TUSB_MCU == OPT_MCU_LPC11UXX || CFG_TUSB_MCU == OPT_MCU_LPC13UXX)
@@ -74,10 +67,11 @@ typedef struct {
 
   CFG_TUSB_MEM_ALIGN msc_csw_t csw;
 
-  uint8_t interface_num;
-  uint8_t ep_in, ep_out;
+  uint8_t  interface_num;
+  uint8_t  ep_in;
+  uint8_t  ep_out;
 
-  uint8_t stage;
+  uint8_t  stage;
   uint16_t data_len;
   uint16_t xferred_len; // numbered of bytes transferred so far in the Data Stage
 }mscd_interface_t;
@@ -156,10 +150,9 @@ tusb_error_t mscd_control_request_st(uint8_t rhport, tusb_control_request_t cons
   }
   else if (MSC_REQUEST_GET_MAX_LUN == p_request->bRequest)
   {
-    // Note: lpc11/13u need xfer data's address to be aligned 64 -> make use of scsi_data instead of using max_lun directly
     // returned MAX LUN is minus 1 by specs
-    p_msc->scsi_data[0] = CFG_TUD_MSC_MAXLUN-1;
-    usbd_control_xfer_st(rhport, p_request->bmRequestType_bit.direction, p_msc->scsi_data, 1);
+    _mscd_buf[0] = CFG_TUD_MSC_MAXLUN-1;
+    usbd_control_xfer_st(rhport, p_request->bmRequestType_bit.direction, _mscd_buf, 1);
   }else
   {
     dcd_control_stall(rhport); // stall unsupported request
@@ -209,24 +202,23 @@ tusb_error_t mscd_xfer_cb(uint8_t rhport, uint8_t ep_addr, tusb_event_t event, u
 
         if ( p_cbw->xfer_bytes == 0)
         {
-          p_csw->status = tud_msc_scsi_cb(rhport, p_cbw->lun, p_cbw->command, p_msc->scsi_data, &p_msc->data_len) ? MSC_CSW_STATUS_PASSED : MSC_CSW_STATUS_FAILED;
+          p_csw->status = tud_msc_scsi_cb(rhport, p_cbw->lun, p_cbw->command, NULL, &p_msc->data_len) ? MSC_CSW_STATUS_PASSED : MSC_CSW_STATUS_FAILED;
           p_msc->stage  = MSC_STAGE_STATUS;
         }
         else if ( !BIT_TEST_(p_cbw->dir, 7) )
         {
-          TU_ASSERT( sizeof(p_msc->scsi_data) >= p_msc->data_len, TUSB_ERROR_NOT_ENOUGH_MEMORY); // needs to increase size for scsi_data
-          TU_ASSERT( dcd_edpt_xfer(rhport, p_msc->ep_out, p_msc->scsi_data, p_msc->data_len), TUSB_ERROR_DCD_EDPT_XFER );
+          // OUT transfer
+          TU_ASSERT( dcd_edpt_xfer(rhport, p_msc->ep_out, _mscd_buf, p_msc->data_len), TUSB_ERROR_DCD_EDPT_XFER );
         }
         else
         {
-          p_csw->status = tud_msc_scsi_cb(rhport, p_cbw->lun, p_cbw->command, p_msc->scsi_data, &p_msc->data_len) ? MSC_CSW_STATUS_PASSED : MSC_CSW_STATUS_FAILED;
+          p_csw->status = tud_msc_scsi_cb(rhport, p_cbw->lun, p_cbw->command, _mscd_buf, &p_msc->data_len) ? MSC_CSW_STATUS_PASSED : MSC_CSW_STATUS_FAILED;
 
           TU_ASSERT( p_cbw->xfer_bytes >= p_msc->data_len, TUSB_ERROR_INVALID_PARA ); // cannot return more than host expect
-          TU_ASSERT( sizeof(p_msc->scsi_data) >= p_msc->data_len, TUSB_ERROR_NOT_ENOUGH_MEMORY); // needs to increase size for scsi_data
 
           if ( p_msc->data_len )
           {
-            TU_ASSERT( dcd_edpt_xfer(rhport, p_msc->ep_in, p_msc->scsi_data, p_msc->data_len), TUSB_ERROR_DCD_EDPT_XFER );
+            TU_ASSERT( dcd_edpt_xfer(rhport, p_msc->ep_in, _mscd_buf, p_msc->data_len), TUSB_ERROR_DCD_EDPT_XFER );
           }else
           {
             // application does not provide data to response --> possibly unsupported SCSI command
@@ -252,7 +244,7 @@ tusb_error_t mscd_xfer_cb(uint8_t rhport, uint8_t ep_addr, tusb_event_t event, u
         }
         else
         {
-          p_csw->status = tud_msc_scsi_cb(rhport, p_cbw->lun, p_cbw->command, p_msc->scsi_data, &p_msc->data_len) ? MSC_CSW_STATUS_PASSED : MSC_CSW_STATUS_FAILED;
+          p_csw->status = tud_msc_scsi_cb(rhport, p_cbw->lun, p_cbw->command, _mscd_buf, &p_msc->data_len) ? MSC_CSW_STATUS_PASSED : MSC_CSW_STATUS_FAILED;
         }
       }
 
