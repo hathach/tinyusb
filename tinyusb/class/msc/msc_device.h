@@ -78,7 +78,7 @@
  *              \n\n Although this callback is called by tinyusb device task (non-isr context), however as all the classes share
  *              the same task (to save resource), any delay in this callback will cause delay in response on other classes.
  */
-uint16_t tud_msc_read10_cb (uint8_t rhport, uint8_t lun, uint32_t lba, uint16_t block_count, void** pp_buffer);
+uint32_t tud_msc_read10_cb (uint8_t rhport, uint8_t lun, uint32_t lba, uint32_t offset, void* buffer, uint32_t bufsize);
 
 /** \brief 			Callback invoked when received \ref SCSI_CMD_WRITE_10 command
  * \param[in]		rhport	    Root hub port
@@ -98,7 +98,7 @@ uint16_t tud_msc_read10_cb (uint8_t rhport, uint8_t lun, uint32_t lba, uint16_t 
  *              \n\n Although this callback is called by tinyusb device task (non-isr context), however as all the classes share
  *              the same task (to save resource), any delay in this callback will cause delay in response on other classes.
  */
-uint16_t tud_msc_write10_cb (uint8_t rhport, uint8_t lun, uint32_t lba, uint16_t block_count, void** pp_buffer);
+uint32_t tud_msc_write10_cb (uint8_t rhport, uint8_t lun, uint32_t lba, uint32_t offset, void* buffer, uint32_t bufsize);
 
 
 /** \brief 			  Callback invoked when received an SCSI command other than \ref SCSI_CMD_WRITE_10 and \ref SCSI_CMD_READ_10

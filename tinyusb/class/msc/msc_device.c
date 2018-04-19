@@ -40,6 +40,10 @@
 
 #if (MODE_DEVICE_SUPPORTED && CFG_TUD_MSC)
 
+#if CFG_TUD_MSC_MAXLUN == 0 || CFG_TUD_MSC_MAXLUN > 16
+#error MSC Device: Incorrect setting of MAX LUN
+#endif
+
 #define _TINY_USB_SOURCE_FILE_
 //--------------------------------------------------------------------+
 // INCLUDE
@@ -70,7 +74,6 @@ typedef struct {
 
   CFG_TUSB_MEM_ALIGN msc_csw_t csw;
 
-  uint8_t max_lun;
   uint8_t interface_num;
   uint8_t ep_in, ep_out;
 
@@ -80,10 +83,12 @@ typedef struct {
 }mscd_interface_t;
 
 CFG_TUSB_ATTR_USBRAM CFG_TUSB_MEM_ALIGN STATIC_VAR mscd_interface_t mscd_data;
+CFG_TUSB_ATTR_USBRAM CFG_TUSB_MEM_ALIGN static uint8_t _mscd_buf[CFG_TUD_MSC_BUFSIZE];
+
 //--------------------------------------------------------------------+
 // INTERNAL OBJECT & FUNCTION DECLARATION
 //--------------------------------------------------------------------+
-static void read10_write10_data_xfer(uint8_t rhport, mscd_interface_t* p_msc);
+static void proc_read10_write10(uint8_t rhport, mscd_interface_t* p_msc);
 
 //--------------------------------------------------------------------+
 // USBD-CLASS API
@@ -152,7 +157,8 @@ tusb_error_t mscd_control_request_st(uint8_t rhport, tusb_control_request_t cons
   else if (MSC_REQUEST_GET_MAX_LUN == p_request->bRequest)
   {
     // Note: lpc11/13u need xfer data's address to be aligned 64 -> make use of scsi_data instead of using max_lun directly
-    p_msc->scsi_data[0] = p_msc->max_lun;
+    // returned MAX LUN is minus 1 by specs
+    p_msc->scsi_data[0] = CFG_TUD_MSC_MAXLUN-1;
     usbd_control_xfer_st(rhport, p_request->bmRequestType_bit.direction, p_msc->scsi_data, 1);
   }else
   {
@@ -172,8 +178,9 @@ tusb_error_t mscd_xfer_cb(uint8_t rhport, uint8_t ep_addr, tusb_event_t event, u
 
   switch (p_msc->stage)
   {
-    //------------- new CBW received -------------//
     case MSC_STAGE_CMD:
+      //------------- new CBW received -------------//
+
       // Complete IN while waiting for CMD is usually Status of previous SCSI op, ignore it
       if(ep_addr != p_msc->ep_out) return TUSB_ERROR_NONE;
 
@@ -191,14 +198,13 @@ tusb_error_t mscd_xfer_cb(uint8_t rhport, uint8_t ep_addr, tusb_event_t event, u
 
       if ( (SCSI_CMD_READ_10 == p_cbw->command[0]) || (SCSI_CMD_WRITE_10 == p_cbw->command[0]) )
       {
-        // Read10 & Write10 data len is same as CBW's xfer bytes
-        read10_write10_data_xfer(rhport, p_msc);
+        proc_read10_write10(rhport, p_msc);
       }
       else
       {
         // For other SCSI commands
         // 1. Zero : Invoke app callback, skip DATA and move to STATUS stage
-        // 2. OUT  : queue transfer (invoke app callback there)
+        // 2. OUT  : queue transfer (invoke app callback after done)
         // 3. IN   : invoke app callback to get response
 
         if ( p_cbw->xfer_bytes == 0)
@@ -234,30 +240,41 @@ tusb_error_t mscd_xfer_cb(uint8_t rhport, uint8_t ep_addr, tusb_event_t event, u
     break;
 
     case MSC_STAGE_DATA:
+      // OUT transfer, invoke callback if needed
+      if ( !BIT_TEST_(p_cbw->dir, 7) )
+      {
+        if ( SCSI_CMD_WRITE_10 == p_cbw->command[0] )
+        {
+          scsi_read10_t* p_write10 = (scsi_read10_t*) &p_cbw->command;
+          uint32_t lba             = __be2n(p_write10->lba);
+
+          tud_msc_write10_cb(rhport, p_cbw->lun, lba, p_msc->xferred_len, _mscd_buf, xferred_bytes);
+        }
+        else
+        {
+          p_csw->status = tud_msc_scsi_cb(rhport, p_cbw->lun, p_cbw->command, p_msc->scsi_data, &p_msc->data_len) ? MSC_CSW_STATUS_PASSED : MSC_CSW_STATUS_FAILED;
+        }
+      }
+
+      /*------------- Prepare for DATA transfer if not complete yet -------------*/
       p_msc->xferred_len += xferred_bytes;
 
-      // Still transferring
-      if ( p_msc->xferred_len < p_msc->data_len )
+      if ( p_msc->xferred_len >= p_msc->data_len )
+      {
+        // Data Stage is complete
+        p_msc->stage = MSC_STAGE_STATUS;
+      }
+      else
       {
         if ( (SCSI_CMD_READ_10 == p_cbw->command[0]) || (SCSI_CMD_WRITE_10 == p_cbw->command[0]) )
         {
           // Can be executed several times e.g write 8K bytes (several flash write)
-          read10_write10_data_xfer(rhport, p_msc);
+          proc_read10_write10(rhport, p_msc);
         }else
         {
-          verify_breakpoint(); // unexpected error
+          // No other command take more than one transfer yet -> unlikely error
+          verify_breakpoint();
         }
-      }
-      // Data Stage is complete
-      else
-      {
-        // Invoke callback if it is not READ10, WRITE10
-        if ( ! ((SCSI_CMD_READ_10 == p_cbw->command[0]) || (SCSI_CMD_WRITE_10 == p_cbw->command[0])) )
-        {
-          p_csw->status = tud_msc_scsi_cb(rhport, p_cbw->lun, p_cbw->command, p_msc->scsi_data, &p_msc->data_len) ? MSC_CSW_STATUS_PASSED : MSC_CSW_STATUS_FAILED;
-        }
-
-        p_msc->stage = MSC_STAGE_STATUS;
       }
     break;
 
@@ -291,7 +308,7 @@ tusb_error_t mscd_xfer_cb(uint8_t rhport, uint8_t ep_addr, tusb_event_t event, u
   return TUSB_ERROR_NONE;
 }
 
-static void read10_write10_data_xfer(uint8_t rhport, mscd_interface_t* p_msc)
+static void proc_read10_write10(uint8_t rhport, mscd_interface_t* p_msc)
 {
   msc_cbw_t* const p_cbw = &p_msc->cbw;
   msc_csw_t* const p_csw = &p_msc->csw;
@@ -302,29 +319,24 @@ static void read10_write10_data_xfer(uint8_t rhport, mscd_interface_t* p_msc)
   uint8_t const ep_data = BIT_TEST_(p_cbw->dir, 7) ? p_msc->ep_in : p_msc->ep_out;
 
   // LBA and Block count are in Big Endian
+  // FIXME Mis-aligned memory access with M0 !!!
   uint32_t lba              = __be2n(p_readwrite->lba);
   uint16_t block_count      = __be2n_16(p_readwrite->block_count);
 
   uint16_t const block_size = p_cbw->xfer_bytes / block_count;
 
-  // Adjust lba and block count according to byte transferred so far
-  lba         += (p_msc->xferred_len / block_size);
-  block_count -= (p_msc->xferred_len / block_size);
-
-  void *p_buffer = NULL;
-  uint16_t xfer_block;
+  uint32_t xfer_bytes = min32_of(sizeof(_mscd_buf), p_cbw->xfer_bytes-p_msc->xferred_len);
 
   if (SCSI_CMD_READ_10 == p_cbw->command[0])
   {
-    xfer_block = tud_msc_read10_cb (rhport, p_cbw->lun, lba, block_count, &p_buffer);
+    xfer_bytes = tud_msc_read10_cb (rhport, p_cbw->lun, lba, p_msc->xferred_len, _mscd_buf, xfer_bytes);
   }else
   {
-    xfer_block = tud_msc_write10_cb(rhport, p_cbw->lun, lba, block_count, &p_buffer);
+    // call later after write transfer complete
+//    xfer_block = tud_msc_write10_cb(rhport, p_cbw->lun, lba, block_count, &p_buffer);
   }
 
-  xfer_block = min16_of(xfer_block, block_count);
-
-  if ( 0 == xfer_block  )
+  if ( 0 == xfer_bytes  )
   {
     // xferred_block is zero will cause pipe is stalled & status in CSW set to failed
     p_csw->data_residue = p_cbw->xfer_bytes;
@@ -333,7 +345,7 @@ static void read10_write10_data_xfer(uint8_t rhport, mscd_interface_t* p_msc)
     dcd_edpt_stall(rhport, ep_data);
   }else
   {
-    TU_ASSERT( dcd_edpt_xfer(rhport, ep_data, p_buffer, xfer_block * block_size) );
+    TU_ASSERT( dcd_edpt_xfer(rhport, ep_data, _mscd_buf, xfer_bytes) );
   }
 }
 
