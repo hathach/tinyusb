@@ -94,12 +94,12 @@ bool tusb_hal_init(void)
 
     if (usb_reg & POWER_USBREGSTATUS_VBUSDETECT_Msk )
     {
-      power_usb_event_handler(POWER_DETECT);
+      power_usb_event_handler(NRF_EVT_POWER_USB_DETECTED);
     }
 
     if (usb_reg & POWER_USBREGSTATUS_OUTPUTRDY_Msk )
     {
-      power_usb_event_handler(POWER_READY);
+      power_usb_event_handler(NRF_EVT_POWER_USB_POWER_READY);
     }
 
     // power_usb_event_handler must be called by SOC event hanlder
@@ -107,12 +107,14 @@ bool tusb_hal_init(void)
   }else
 #endif
   {
+#if 0
     // USB Power detection
     const nrf_drv_power_usbevt_config_t config =
     {
         .handler = (nrf_drv_power_usb_event_handler_t) power_usb_event_handler
     };
     return ( NRF_SUCCESS == nrf_drv_power_usbevt_init(&config) );
+#endif
   }
 }
 
@@ -192,9 +194,11 @@ void power_usb_event_handler(uint32_t event)
   }else
 #endif
   {
+    #if 0
     POWER_DETECT = NRF_DRV_POWER_USB_EVT_DETECTED;
     POWER_READY  = NRF_DRV_POWER_USB_EVT_READY;
     POWER_REMOVE = NRF_DRV_POWER_USB_EVT_REMOVED;
+    #endif
   }
 
   if ( POWER_DETECT == event )
