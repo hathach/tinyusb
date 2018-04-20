@@ -114,6 +114,8 @@ bool tusb_hal_init(void)
         .handler = (nrf_drv_power_usb_event_handler_t) power_usb_event_handler
     };
     return ( NRF_SUCCESS == nrf_drv_power_usbevt_init(&config) );
+#else
+    return true;
 #endif
   }
 }

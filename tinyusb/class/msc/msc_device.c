@@ -138,11 +138,7 @@ tusb_error_t mscd_control_request_st(uint8_t rhport, tusb_control_request_t cons
 {
   OSAL_SUBTASK_BEGIN
 
-  tusb_error_t err;
-
   TU_ASSERT(p_request->bmRequestType_bit.type == TUSB_REQ_TYPE_CLASS, TUSB_ERROR_DCD_CONTROL_REQUEST_NOT_SUPPORT);
-
-  mscd_interface_t * p_msc = &_mscd_itf;
 
   if(MSC_REQUEST_RESET == p_request->bRequest)
   {
@@ -341,7 +337,7 @@ static void proc_read10_write10(uint8_t rhport, mscd_interface_t* p_msc)
     dcd_edpt_stall(rhport, ep_data);
   }else
   {
-    TU_ASSERT( dcd_edpt_xfer(rhport, ep_data, _mscd_buf, xfer_bytes) );
+    TU_ASSERT( dcd_edpt_xfer(rhport, ep_data, _mscd_buf, xfer_bytes), );
   }
 }
 
