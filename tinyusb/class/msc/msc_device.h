@@ -65,11 +65,18 @@
  * \param[in]		lun         Targeted Logical Unit
  *                          Must be accessible by USB controller (see \ref CFG_TUSB_ATTR_USBRAM)
  * \param[in]		lba         Starting Logical Block Address to be read
- * \param[in]		block_count Number of requested block
- * \param[out]	pp_buffer   Pointer to buffer which application need to update with the response data's address.
+ * \param[in]		offset      Byte offset from LBA for reading
+ * \param[out]	buffer      Buffer which application need to update with the response data.
+ * \param[in]   bufsize     Max bytes can be copied. Application must not return more than this value.
  *
- * \retval      non-zero    Actual number of block that application processed, must be less than or equal to \a \b block_count.
- * \retval      zero        Indicate error in retrieving data from application. Tinyusb device stack will \b STALL the corresponding
+ * \retval      positive    Actual bytes returned, must not be more than \a \b bufsize.
+ *                          If value less than bufsize is returned, Tinyusb will transfer this amount and afterwards
+ *                          invoke this callback again with adjusted offset.
+ *
+ * \retval      zero        Indicate application is not ready yet to response e.g disk I/O is not complete.
+ *                          Tinyusb will invoke this callback with the same params again some time later.
+ *
+ * \retval      negative    Indicate error reading disk I/O. Tinyusb will \b STALL the corresponding
  *                          endpoint and return failed status in command status wrapper phase.
  *
  * \note        Host can request dozens of Kbytes in one command e.g \a \b block_count = 128, it is insufficient to require
@@ -78,18 +85,24 @@
  *              \n\n Although this callback is called by tinyusb device task (non-isr context), however as all the classes share
  *              the same task (to save resource), any delay in this callback will cause delay in response on other classes.
  */
-uint32_t tud_msc_read10_cb (uint8_t rhport, uint8_t lun, uint32_t lba, uint32_t offset, void* buffer, uint32_t bufsize);
+int32_t tud_msc_read10_cb (uint8_t rhport, uint8_t lun, uint32_t lba, uint32_t offset, void* buffer, uint32_t bufsize);
 
 /** \brief 			Callback invoked when received \ref SCSI_CMD_WRITE_10 command
  * \param[in]		rhport	    Root hub port
  * \param[in]		lun         Targeted Logical Unit
  *                          Must be accessible by USB controller (see \ref CFG_TUSB_ATTR_USBRAM)
  * \param[in]		lba         Starting Logical Block Address to be write
- * \param[in]		block_count Number of requested block
- * \param[out]	pp_buffer   Pointer to buffer which application need to update with the address to hold data from host
+ * \param[out]	buffer      Buffer which holds written data.
+ * \param[in]   bufsize     Max bytes in buffer. Application must not return more than this value.
  *
- * \retval      non-zero    Actual number of block that application can receive and must be less than or equal to \a \b block_count.
- * \retval      zero        Indicate error in retrieving data from application. Tinyusb device stack will \b STALL the corresponding
+ * \retval      positive    Actual bytes written, must not be more than \a \b bufsize.
+ *                          If value less than bufsize is returned, Tinyusb will trim off this amount and
+ *                          invoke this callback again with adjusted offset some time later.
+ *
+ * \retval      zero        Indicate application is not ready yet e.g disk I/O is not complete.
+ *                          Tinyusb will invoke this callback with the same params again some time later.
+ *
+ * \retval      negative    Indicate error writing disk I/O. Tinyusb will \b STALL the corresponding
  *                          endpoint and return failed status in command status wrapper phase.
  *
  * \note        Host can request dozens of Kbytes in one command e.g \a \b block_count = 128, it is insufficient to require
@@ -98,21 +111,23 @@ uint32_t tud_msc_read10_cb (uint8_t rhport, uint8_t lun, uint32_t lba, uint32_t 
  *              \n\n Although this callback is called by tinyusb device task (non-isr context), however as all the classes share
  *              the same task (to save resource), any delay in this callback will cause delay in response on other classes.
  */
-uint32_t tud_msc_write10_cb (uint8_t rhport, uint8_t lun, uint32_t lba, uint32_t offset, void* buffer, uint32_t bufsize);
+int32_t tud_msc_write10_cb (uint8_t rhport, uint8_t lun, uint32_t lba, uint32_t offset, void* buffer, uint32_t bufsize);
 
 
-/** \brief 			  Callback invoked when received an SCSI command other than \ref SCSI_CMD_WRITE_10 and \ref SCSI_CMD_READ_10
- * \param[in]		  rhport	    Root hub port
- * \param[in]		  lun         Targeted Logical Unit
- * \param[in]		  scsi_cmd    SCSI command contents, application should examine this command block to know which command host requested
- * \param[out]    buffer      Pointer to buffer which application need to update with the address to transfer data with host.
- *                            The buffer address can be anywhere since the stack will copy its contents to a internal USB-accessible buffer.
- * \param[in,out] p_len       Expected length from host, Application could update to actual data, but could not larger than original value.
+/** \brief 			Callback invoked when received an SCSI command other than \ref SCSI_CMD_WRITE_10 and \ref SCSI_CMD_READ_10
+ * \param[in]		rhport	    Root hub port
+ * \param[in]		lun         Targeted Logical Unit
+ * \param[in]		scsi_cmd    SCSI command contents, application should examine this command block to know which command host requested
+ * \param[out]  buffer      Buffer for SCSI Data Stage.
+ *                            - For INPUT: application must fill this with response.
+ *                            - For OUTPUT it holds the Data from host
+ * \param[in]   bufsize     Buffer's length.
  *
- * \retval        true if successful, false otherwise. Tinyusb will then \b STALL the corresponding endpoint and return
- *                failed status in command status wrapper stage.
+ * \retval      negative    Indicate error e.g accessing disk I/O. Tinyusb will \b STALL the corresponding
+ *                          endpoint and return failed status in command status wrapper phase.
+ * \retval      otherwise   Actual bytes processed, must not be more than \a \b bufsize. Can be zero for no-data command.
  */
-bool tud_msc_scsi_cb (uint8_t rhport, uint8_t lun, uint8_t scsi_cmd[16], void* buffer, uint16_t* p_len);
+int32_t tud_msc_scsi_cb (uint8_t rhport, uint8_t lun, uint8_t scsi_cmd[16], void* buffer, uint16_t bufsize);
 
 /*------------- Optional callbacks : Could be used by application to free up resources -------------*/
 ATTR_WEAK void tud_msc_read10_complete_cb(uint8_t rhport, uint8_t lun);

@@ -159,9 +159,9 @@ tusb_error_t mscd_control_request_st(uint8_t rhport, tusb_control_request_t cons
 
 tusb_error_t mscd_xfer_cb(uint8_t rhport, uint8_t ep_addr, tusb_event_t event, uint32_t xferred_bytes)
 {
-  mscd_interface_t* const p_msc = &_mscd_itf;
-  msc_cbw_t*        const p_cbw = &p_msc->cbw;
-  msc_csw_t*        const p_csw = &p_msc->csw;
+  mscd_interface_t* p_msc = &_mscd_itf;
+  msc_cbw_t const * p_cbw = &p_msc->cbw;
+  msc_csw_t       * p_csw = &p_msc->csw;
 
   VERIFY( (ep_addr == p_msc->ep_out) || (ep_addr == p_msc->ep_in), TUSB_ERROR_INVALID_PARA);
 
@@ -198,8 +198,11 @@ tusb_error_t mscd_xfer_cb(uint8_t rhport, uint8_t ep_addr, tusb_event_t event, u
 
         if ( p_cbw->xfer_bytes == 0)
         {
-          p_csw->status = tud_msc_scsi_cb(rhport, p_cbw->lun, p_cbw->command, NULL, &p_msc->data_len) ? MSC_CSW_STATUS_PASSED : MSC_CSW_STATUS_FAILED;
-          p_msc->stage  = MSC_STAGE_STATUS;
+          p_msc->data_len = tud_msc_scsi_cb(rhport, p_cbw->lun, p_cbw->command, NULL, 0);
+          p_csw->status   = (p_msc->data_len == 0) ? MSC_CSW_STATUS_PASSED : MSC_CSW_STATUS_FAILED;
+          p_msc->stage    = MSC_STAGE_STATUS;
+
+          TU_ASSERT( p_msc->data_len == 0, TUSB_ERROR_INVALID_PARA);
         }
         else if ( !BIT_TEST_(p_cbw->dir, 7) )
         {
@@ -208,7 +211,8 @@ tusb_error_t mscd_xfer_cb(uint8_t rhport, uint8_t ep_addr, tusb_event_t event, u
         }
         else
         {
-          p_csw->status = tud_msc_scsi_cb(rhport, p_cbw->lun, p_cbw->command, _mscd_buf, &p_msc->data_len) ? MSC_CSW_STATUS_PASSED : MSC_CSW_STATUS_FAILED;
+          p_msc->data_len = tud_msc_scsi_cb(rhport, p_cbw->lun, p_cbw->command, _mscd_buf, &p_msc->data_len);
+          p_csw->status   = (p_msc->data_len >= 0) ? MSC_CSW_STATUS_PASSED : MSC_CSW_STATUS_FAILED;
 
           TU_ASSERT( p_cbw->xfer_bytes >= p_msc->data_len, TUSB_ERROR_INVALID_PARA ); // cannot return more than host expect
 
@@ -244,7 +248,7 @@ tusb_error_t mscd_xfer_cb(uint8_t rhport, uint8_t ep_addr, tusb_event_t event, u
         }
         else
         {
-          p_csw->status = tud_msc_scsi_cb(rhport, p_cbw->lun, p_cbw->command, _mscd_buf, &p_msc->data_len) ? MSC_CSW_STATUS_PASSED : MSC_CSW_STATUS_FAILED;
+          p_csw->status = (tud_msc_scsi_cb(rhport, p_cbw->lun, p_cbw->command, _mscd_buf, p_msc->data_len) >= 0 ) ? MSC_CSW_STATUS_PASSED : MSC_CSW_STATUS_FAILED;
         }
       }
 
@@ -302,8 +306,8 @@ tusb_error_t mscd_xfer_cb(uint8_t rhport, uint8_t ep_addr, tusb_event_t event, u
 
 static void proc_read10_write10(uint8_t rhport, mscd_interface_t* p_msc)
 {
-  msc_cbw_t* const p_cbw = &p_msc->cbw;
-  msc_csw_t* const p_csw = &p_msc->csw;
+  msc_cbw_t const * p_cbw = &p_msc->cbw;
+  msc_csw_t       * p_csw = &p_msc->csw;
 
   // read10 & write10 has the same format
   scsi_read10_t* p_readwrite = (scsi_read10_t*) &p_cbw->command;
@@ -320,22 +324,28 @@ static void proc_read10_write10(uint8_t rhport, mscd_interface_t* p_msc)
   memcpy(&block_count, &p_readwrite->block_count, 2);
   block_count = __be2n_16(block_count);
 
-  uint32_t xfer_bytes = min32_of(sizeof(_mscd_buf), p_cbw->xfer_bytes-p_msc->xferred_len);
+  int32_t xfer_bytes = (int32_t) min32_of(sizeof(_mscd_buf), p_cbw->xfer_bytes-p_msc->xferred_len);
 
   // Write10 callback will be called later when usb transfer complete
   if (SCSI_CMD_READ_10 == p_cbw->command[0])
   {
-    xfer_bytes = tud_msc_read10_cb (rhport, p_cbw->lun, lba, p_msc->xferred_len, _mscd_buf, xfer_bytes);
+    int32_t rd_cnt = tud_msc_read10_cb (rhport, p_cbw->lun, lba, p_msc->xferred_len, _mscd_buf, (uint32_t) xfer_bytes);
   }
 
-  if ( 0 == xfer_bytes  )
+  if ( xfer_bytes < 0 )
   {
-    // xferred_block is zero will cause pipe is stalled & status in CSW set to failed
-    p_csw->data_residue = p_cbw->xfer_bytes;
+    // negative is error -> pipe is stalled & status in CSW set to failed
+    p_csw->data_residue = p_cbw->xfer_bytes - p_msc->xferred_len;
     p_csw->status       = MSC_CSW_STATUS_FAILED;
 
     dcd_edpt_stall(rhport, ep_data);
-  }else
+  }
+  else if ( xfer_bytes == 0 )
+  {
+    // zero is not ready -> try again later by simulate an transfer complete
+    dcd_xfer_complete(rhport, ep_data, 0, true);
+  }
+  else
   {
     TU_ASSERT( dcd_edpt_xfer(rhport, ep_data, _mscd_buf, xfer_bytes), );
   }

@@ -100,6 +100,8 @@ static inline void osal_queue_receive (osal_queue_t const queue_hdl, void *p_dat
 
 static inline bool osal_queue_send(osal_queue_t const queue_hdl, void const * data)
 {
+  // queue send used by msc device for retrying read10/write10
+  verify_breakpoint();
   return xQueueSendToFrontFromISR(queue_hdl, data, NULL);
 }
 
