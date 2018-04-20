@@ -94,17 +94,22 @@ const uint8_t msc_device_app_rommdisk[DISK_BLOCK_NUM][DISK_BLOCK_SIZE] =
 //--------------------------------------------------------------------+
 // IMPLEMENTATION
 //--------------------------------------------------------------------+
-uint32_t tud_msc_read10_cb (uint8_t rhport, uint8_t lun, uint32_t lba, uint32_t offset, void* buffer, uint32_t bufsize)
+int32_t tud_msc_read10_cb (uint8_t rhport, uint8_t lun, uint32_t lba, uint32_t offset, void* buffer, uint32_t bufsize)
 {
+  (void) rhport; (void) lun;
+
   uint8_t* addr = msc_device_ramdisk[lba] + offset;
-  memcpy(buffer, addr, bufsize);
+  memcpy(buffer, (uint8_t*) addr, bufsize);
 
   return bufsize;
 }
 
+
 // Stall write10 by return 0, as this is readonly disk
-uint32_t tud_msc_write10_cb (uint8_t rhport, uint8_t lun, uint32_t lba, uint32_t offset, void* buffer, uint32_t bufsize)
+int32_t tud_msc_write10_cb (uint8_t rhport, uint8_t lun, uint32_t lba, uint32_t offset, void* buffer, uint32_t bufsize)
 {
+  (void) rhport; (void) lun;
+
   // let host know that this is read-only disk
   mscd_sense_data.sense_key = SCSI_SENSEKEY_DATA_PROTECT;
   return 0;
