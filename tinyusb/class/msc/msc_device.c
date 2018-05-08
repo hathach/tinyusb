@@ -211,7 +211,7 @@ tusb_error_t mscd_xfer_cb(uint8_t rhport, uint8_t ep_addr, tusb_event_t event, u
         }
         else
         {
-          p_msc->data_len = tud_msc_scsi_cb(rhport, p_cbw->lun, p_cbw->command, _mscd_buf, &p_msc->data_len);
+          p_msc->data_len = tud_msc_scsi_cb(rhport, p_cbw->lun, p_cbw->command, _mscd_buf, p_msc->data_len);
           p_csw->status   = (p_msc->data_len >= 0) ? MSC_CSW_STATUS_PASSED : MSC_CSW_STATUS_FAILED;
 
           TU_ASSERT( p_cbw->xfer_bytes >= p_msc->data_len, TUSB_ERROR_INVALID_PARA ); // cannot return more than host expect
@@ -329,7 +329,7 @@ static void proc_read10_write10(uint8_t rhport, mscd_interface_t* p_msc)
   // Write10 callback will be called later when usb transfer complete
   if (SCSI_CMD_READ_10 == p_cbw->command[0])
   {
-    int32_t rd_cnt = tud_msc_read10_cb (rhport, p_cbw->lun, lba, p_msc->xferred_len, _mscd_buf, (uint32_t) xfer_bytes);
+    xfer_bytes = tud_msc_read10_cb (rhport, p_cbw->lun, lba, p_msc->xferred_len, _mscd_buf, (uint32_t) xfer_bytes);
   }
 
   if ( xfer_bytes < 0 )

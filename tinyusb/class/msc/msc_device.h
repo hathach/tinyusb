@@ -127,12 +127,12 @@ int32_t tud_msc_write10_cb (uint8_t rhport, uint8_t lun, uint32_t lba, uint32_t 
  *                          endpoint and return failed status in command status wrapper phase.
  * \retval      otherwise   Actual bytes processed, must not be more than \a \b bufsize. Can be zero for no-data command.
  */
-int32_t tud_msc_scsi_cb (uint8_t rhport, uint8_t lun, uint8_t scsi_cmd[16], void* buffer, uint16_t bufsize);
+int32_t tud_msc_scsi_cb (uint8_t rhport, uint8_t lun, uint8_t const scsi_cmd[16], void* buffer, uint16_t bufsize);
 
 /*------------- Optional callbacks : Could be used by application to free up resources -------------*/
 ATTR_WEAK void tud_msc_read10_complete_cb(uint8_t rhport, uint8_t lun);
 ATTR_WEAK void tud_msc_write10_complete_cb(uint8_t rhport, uint8_t lun);
-ATTR_WEAK void tud_msc_scsi_complete_cb(uint8_t rhport, uint8_t lun, uint8_t scsi_cmd[16]);
+ATTR_WEAK void tud_msc_scsi_complete_cb(uint8_t rhport, uint8_t lun, uint8_t const scsi_cmd[16]);
 
 /** @} */
 /** @} */
