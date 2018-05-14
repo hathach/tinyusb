@@ -62,7 +62,7 @@
 // TODO switch to use nrfx_power.h in sdk15
 enum
 {
-  NRFX_POWER_USB_EVT_DETECTED,
+  NRFX_POWER_USB_EVT_DETECTED = 0,
   NRFX_POWER_USB_EVT_REMOVED,
   NRFX_POWER_USB_EVT_READY
 };
@@ -146,21 +146,21 @@ bool tusb_hal_init(void)
     sd_power_usbremoved_enable(true);
 
     // USB power may already be ready at this time -> no event generated
-    // We need to execute the hanlder based on the status
+    // We need to execute the handler based on the status
     uint32_t usb_reg;
     sd_power_usbregstatus_get(&usb_reg);
 
     if (usb_reg & POWER_USBREGSTATUS_VBUSDETECT_Msk )
     {
-      tusb_hal_nrf_power_event(NRF_EVT_POWER_USB_DETECTED);
+      tusb_hal_nrf_power_event(NRFX_POWER_USB_EVT_DETECTED);
     }
 
     if (usb_reg & POWER_USBREGSTATUS_OUTPUTRDY_Msk )
     {
-      tusb_hal_nrf_power_event(NRF_EVT_POWER_USB_POWER_READY);
+      tusb_hal_nrf_power_event(NRFX_POWER_USB_EVT_READY);
     }
 
-    // tusb_hal_nrf_power_event must be called by SOC event hanlder
+    // tusb_hal_nrf_power_event must be called by SOC event handler
     return true;
   }else
 #endif
