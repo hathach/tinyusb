@@ -50,6 +50,8 @@
 // MACRO CONSTANT TYPEDEF
 //--------------------------------------------------------------------+
 typedef struct {
+  uint8_t class_code;
+
   void (* init) (void);
   tusb_error_t (* open)(uint8_t rhport, tusb_desc_interface_t const * desc_intf, uint16_t* p_length);
   tusb_error_t (* control_request_st) (uint8_t rhport, tusb_control_request_t const *);
@@ -78,51 +80,46 @@ CFG_TUSB_ATTR_USBRAM CFG_TUSB_MEM_ALIGN uint8_t usbd_enum_buffer[CFG_TUD_ENUM_BU
 tud_desc_init_t _usbd_descs[CONTROLLER_DEVICE_NUMBER];
 usbd_device_info_t usbd_devices[CONTROLLER_DEVICE_NUMBER];
 
-
-
 static usbd_class_driver_t const usbd_class_drivers[] =
 {
-  #if DEVICE_CLASS_HID
-    [TUSB_CLASS_HID] =
+  #if CFG_TUD_CDC
     {
-        .init                    = hidd_init,
-        .open                    = hidd_open,
+        .class_code         = TUSB_CLASS_CDC,
+        .init               = cdcd_init,
+        .open               = cdcd_open,
+        .control_request_st = cdcd_control_request_st,
+        .xfer_cb            = cdcd_xfer_cb,
+        .sof                = cdcd_sof,
+        .close              = cdcd_close
+    },
+  #endif
+
+  #if DEVICE_CLASS_HID
+    {
+        .class_code         = TUSB_CLASS_HID,
+        .init               = hidd_init,
+        .open               = hidd_open,
         .control_request_st = hidd_control_request_st,
-        .xfer_cb                 = hidd_xfer_cb,
-        .sof                     = NULL,
-        .close                   = hidd_close
+        .xfer_cb            = hidd_xfer_cb,
+        .sof                = NULL,
+        .close              = hidd_close
     },
   #endif
 
   #if CFG_TUD_MSC
-    [TUSB_CLASS_MSC] =
     {
-        .init                    = mscd_init,
-        .open                    = mscd_open,
+        .class_code         = TUSB_CLASS_MSC,
+        .init               = mscd_init,
+        .open               = mscd_open,
         .control_request_st = mscd_control_request_st,
-        .xfer_cb                 = mscd_xfer_cb,
-        .sof                     = NULL,
-        .close                   = mscd_close
+        .xfer_cb            = mscd_xfer_cb,
+        .sof                = NULL,
+        .close              = mscd_close
     },
   #endif
-
-  #if CFG_TUD_CDC
-    [TUSB_CLASS_CDC] =
-    {
-        .init                    = cdcd_init,
-        .open                    = cdcd_open,
-        .control_request_st = cdcd_control_request_st,
-        .xfer_cb                 = cdcd_xfer_cb,
-        .sof                     = cdcd_sof,
-        .close                   = cdcd_close
-    },
-  #endif
-
 };
 
 enum { USBD_CLASS_DRIVER_COUNT = sizeof(usbd_class_drivers) / sizeof(usbd_class_driver_t) };
-
-
 
 //tusb_desc_device_qualifier_t _device_qual =
 //{
@@ -227,12 +224,9 @@ tusb_error_t usbd_init (void)
   arrclr_( _usbd_descs );
 
   //------------- class init -------------//
-  for (uint8_t class_code = TUSB_CLASS_AUDIO; class_code < USBD_CLASS_DRIVER_COUNT; class_code++)
+  for (uint8_t i = 0; i < USBD_CLASS_DRIVER_COUNT; i++)
   {
-    if ( usbd_class_drivers[class_code].init )
-    {
-      usbd_class_drivers[class_code].init();
-    }
+    usbd_class_drivers[i].init();
   }
 
   return TUSB_ERROR_NONE;
@@ -270,22 +264,22 @@ static tusb_error_t usbd_main_st(void)
   else if (USBD_EVENTID_XFER_DONE == event.event_id)
   {
     // TODO only call respective interface callback
-    // Call class handling function. Those doest not own the endpoint should check and return
-    for (uint8_t class_code = TUSB_CLASS_AUDIO; class_code < USBD_CLASS_DRIVER_COUNT; class_code++)
+    // Call class handling function. Those does not own the endpoint should check and return
+    for (uint8_t i = 0; i < USBD_CLASS_DRIVER_COUNT; i++)
     {
-      if ( usbd_class_drivers[class_code].xfer_cb )
+      if ( usbd_class_drivers[i].xfer_cb )
       {
-        usbd_class_drivers[class_code].xfer_cb( event.rhport, event.xfer_done.ep_addr, (tusb_event_t) event.sub_event_id, event.xfer_done.xferred_byte);
+        usbd_class_drivers[i].xfer_cb( event.rhport, event.xfer_done.ep_addr, (tusb_event_t) event.sub_event_id, event.xfer_done.xferred_byte);
       }
     }
   }
   else if (USBD_EVENTID_SOF == event.event_id)
   {
-    for (uint8_t class_code = TUSB_CLASS_AUDIO; class_code < USBD_CLASS_DRIVER_COUNT; class_code++)
+    for (uint8_t i = 0; i < USBD_CLASS_DRIVER_COUNT; i++)
     {
-      if ( usbd_class_drivers[class_code].sof )
+      if ( usbd_class_drivers[i].sof )
       {
-        usbd_class_drivers[class_code].sof( event.rhport );
+        usbd_class_drivers[i].sof( event.rhport );
       }
     }
   }
@@ -352,15 +346,17 @@ static tusb_error_t proc_control_request_st(uint8_t rhport, tusb_control_request
   //------------- Class/Interface Specific Request -------------//
   else if ( TUSB_REQ_RCPT_INTERFACE == p_request->bmRequestType_bit.recipient)
   {
-    static uint8_t class_code;
+    static uint8_t drid;
+    uint8_t const class_code = usbd_devices[rhport].interface2class[ u16_low_u8(p_request->wIndex) ];
 
-    class_code = usbd_devices[rhport].interface2class[ u16_low_u8(p_request->wIndex) ];
-
-    // TODO [Custom] TUSB_CLASS_DIAGNOSTIC, vendor etc ...
-    if ( (class_code > 0) && (class_code < USBD_CLASS_DRIVER_COUNT) &&
-         usbd_class_drivers[class_code].control_request_st )
+    for (drid = 0; drid < USBD_CLASS_DRIVER_COUNT; drid++)
     {
-      STASK_INVOKE( usbd_class_drivers[class_code].control_request_st(rhport, p_request), error );
+      if ( usbd_class_drivers[drid].class_code == class_code ) break;
+    }
+
+    if ( (drid < USBD_CLASS_DRIVER_COUNT) && usbd_class_drivers[drid].control_request_st )
+    {
+      STASK_INVOKE( usbd_class_drivers[drid].control_request_st(rhport, p_request), error );
     }else
     {
       dcd_control_stall(rhport); // Stall unsupported request
@@ -416,18 +412,23 @@ static tusb_error_t proc_set_config_req(uint8_t rhport, uint8_t config_number)
     {
       TU_ASSERT( TUSB_DESC_INTERFACE == p_desc[DESCRIPTOR_OFFSET_TYPE], TUSB_ERROR_NOT_SUPPORTED_YET );
 
-      uint8_t class_index;
-      tusb_desc_interface_t* p_desc_interface = (tusb_desc_interface_t*) p_desc;
+      tusb_desc_interface_t* p_desc_itf = (tusb_desc_interface_t*) p_desc;
+      uint8_t const class_code = p_desc_itf->bInterfaceClass;
 
-      class_index = p_desc_interface->bInterfaceClass;
+      // Check if class is supported
+      uint8_t drid;
+      for (drid = 0; drid < USBD_CLASS_DRIVER_COUNT; drid++)
+      {
+        if ( usbd_class_drivers[drid].class_code == class_code ) break;
+      }
+      TU_ASSERT( drid < USBD_CLASS_DRIVER_COUNT, TUSB_ERROR_NOT_SUPPORTED_YET );
 
-      TU_ASSERT( class_index != 0 && class_index < USBD_CLASS_DRIVER_COUNT && usbd_class_drivers[class_index].open != NULL, TUSB_ERROR_NOT_SUPPORTED_YET );
-      TU_ASSERT( 0 == usbd_devices[rhport].interface2class[p_desc_interface->bInterfaceNumber], TUSB_ERROR_FAILED); // duplicate interface number TODO alternate setting
-
-      usbd_devices[rhport].interface2class[p_desc_interface->bInterfaceNumber] = class_index;
+      // duplicate interface number TODO support alternate setting
+      TU_ASSERT( 0 == usbd_devices[rhport].interface2class[p_desc_itf->bInterfaceNumber], TUSB_ERROR_FAILED);
+      usbd_devices[rhport].interface2class[p_desc_itf->bInterfaceNumber] = class_code;
 
       uint16_t length=0;
-      TU_ASSERT_ERR( usbd_class_drivers[class_index].open( rhport, p_desc_interface, &length ) );
+      TU_ASSERT_ERR( usbd_class_drivers[drid].open( rhport, p_desc_itf, &length ) );
 
       TU_ASSERT( length >= sizeof(tusb_desc_interface_t), TUSB_ERROR_FAILED );
       p_desc += length;
@@ -509,9 +510,9 @@ void dcd_bus_event(uint8_t rhport, usbd_bus_event_type_t bus_event)
       memclr_(&usbd_devices[rhport], sizeof(usbd_device_info_t));
       osal_queue_flush(_usbd_q);
       osal_semaphore_reset(_usbd_ctrl_sem);
-      for (uint8_t class_code = TUSB_CLASS_AUDIO; class_code < USBD_CLASS_DRIVER_COUNT; class_code++)
+      for (uint8_t i = 0; i < USBD_CLASS_DRIVER_COUNT; i++)
       {
-        if ( usbd_class_drivers[class_code].close ) usbd_class_drivers[class_code].close( rhport );
+        if ( usbd_class_drivers[i].close ) usbd_class_drivers[i].close( rhport );
       }
     break;
 
