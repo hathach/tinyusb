@@ -75,10 +75,26 @@ void board_init(void)
   NRF_CLOCK->LFCLKSRC = (uint32_t)((CLOCK_CONFIG_LF_SRC << CLOCK_LFCLKSRC_SRC_Pos) & CLOCK_LFCLKSRC_SRC_Msk);
   NRF_CLOCK->TASKS_LFCLKSTART = 1UL;
 
-  nrf_drv_power_init(NULL);
-
   nrf_gpio_cfg_output(LED_1);
 
+#ifdef SOFTDEVICE_PRESENT
+  // TODO support Softdevice config
+#else
+  // Softdevice is not present, init power module and register tusb power event function
+  // for vusb detect, ready, removed
+  extern void tusb_hal_nrf_power_event(uint32_t event);
+
+  nrf_drv_power_init(NULL);
+
+  // USB Power detection
+  const nrf_drv_power_usbevt_config_t config =
+  {
+      .handler = (nrf_drv_power_usb_event_handler_t) tusb_hal_nrf_power_event
+  };
+  TU_ASSERT( NRF_SUCCESS == nrf_drv_power_usbevt_init(&config) );
+#endif
+
+  // Tick init
   SysTick_Config(SystemCoreClock/1000);
   NVIC_EnableIRQ(SysTick_IRQn);
 }

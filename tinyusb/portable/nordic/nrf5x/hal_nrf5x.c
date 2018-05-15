@@ -136,6 +136,8 @@ static void hfclk_disable(void)
 /*------------------------------------------------------------------*/
 /* TUSB HAL
  *------------------------------------------------------------------*/
+
+// tusb_hal_nrf_power_event must be called by SOC event handler
 bool tusb_hal_init(void)
 {
 #ifdef SOFTDEVICE_PRESENT
@@ -159,23 +161,10 @@ bool tusb_hal_init(void)
     {
       tusb_hal_nrf_power_event(NRFX_POWER_USB_EVT_READY);
     }
-
-    // tusb_hal_nrf_power_event must be called by SOC event handler
-    return true;
-  }else
-#endif
-  {
-#if 0
-    // USB Power detection
-    const nrf_drv_power_usbevt_config_t config =
-    {
-        .handler = (nrf_drv_power_usb_event_handler_t) tusb_hal_nrf_power_event
-    };
-    return ( NRF_SUCCESS == nrf_drv_power_usbevt_init(&config) );
-#else
-    return true;
-#endif
   }
+#endif
+
+  return true;
 }
 
 void tusb_hal_int_enable(uint8_t rhport)
