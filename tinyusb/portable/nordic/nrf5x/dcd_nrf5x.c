@@ -86,7 +86,9 @@ typedef struct
   struct
   {
     uint8_t* buffer;
-    uint16_t len;
+    uint16_t total_len;
+    uint16_t actual_len;
+
     uint8_t  dir;
   }control;
 
@@ -173,7 +175,7 @@ static void edpt_dma_end(void)
 static void control_xact_start(void)
 {
   // Each transaction is up to 64 bytes
-  uint8_t const xact_len = min16_of(_dcd.control.len, MAX_PACKET_SIZE);
+  uint8_t const xact_len = min16_of(_dcd.control.total_len-_dcd.control.actual_len, MAX_PACKET_SIZE);
 
   if ( _dcd.control.dir == TUSB_DIR_OUT )
   {
@@ -191,8 +193,8 @@ static void control_xact_start(void)
     edpt_dma_start(0, TUSB_DIR_IN);
   }
 
-  _dcd.control.buffer += xact_len;
-  _dcd.control.len    -= xact_len;
+  _dcd.control.buffer     += xact_len;
+  _dcd.control.actual_len += xact_len;
 }
 
 bool dcd_control_xfer (uint8_t rhport, tusb_dir_t dir, uint8_t * buffer, uint16_t length)
@@ -202,9 +204,10 @@ bool dcd_control_xfer (uint8_t rhport, tusb_dir_t dir, uint8_t * buffer, uint16_
   if ( length )
   {
     // Data Phase
-    _dcd.control.len    = length;
-    _dcd.control.buffer = buffer;
-    _dcd.control.dir    = (uint8_t) dir;
+    _dcd.control.total_len  = length;
+    _dcd.control.actual_len = 0;
+    _dcd.control.buffer     = buffer;
+    _dcd.control.dir        = (uint8_t) dir;
 
     control_xact_start();
   }else
@@ -424,13 +427,13 @@ void USBD_IRQHandler(void)
     }else
     {
       // IN: data transferred from Endpoint -> Host
-      if ( _dcd.control.len > 0 )
+      if ( _dcd.control.actual_len < _dcd.control.total_len )
       {
         control_xact_start();
       }else
       {
         // Control IN complete
-        dcd_xfer_complete(0, 0, 0, true);
+        dcd_control_complete(0, _dcd.control.actual_len);
       }
     }
   }
@@ -438,13 +441,13 @@ void USBD_IRQHandler(void)
   // OUT data moved from Endpoint -> SRAM
   if ( int_status & USBD_INTEN_ENDEPOUT0_Msk)
   {
-    if ( _dcd.control.len > 0 )
+    if ( _dcd.control.actual_len < _dcd.control.total_len )
     {
       control_xact_start();
     }else
     {
       // Control OUT complete
-      dcd_xfer_complete(0, 0, 0, true);
+      dcd_control_complete(0, _dcd.control.actual_len);
     }
   }
 
