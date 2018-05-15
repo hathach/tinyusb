@@ -76,10 +76,10 @@ void dcd_bus_event        (uint8_t rhport, usbd_bus_event_type_t bus_event);
 void dcd_setup_received   (uint8_t rhport, uint8_t const* p_request);
 void dcd_xfer_complete    (uint8_t rhport, uint8_t ep_addr, uint32_t xferred_bytes, bool succeeded);
 
-static inline void dcd_control_complete(uint8_t rhport)
+static inline void dcd_control_complete(uint8_t rhport, uint32_t xferred_bytes)
 {
   // all control complete is successful !!
-  dcd_xfer_complete(rhport, 0, 0, true);
+  dcd_xfer_complete(rhport, 0, xferred_bytes, true);
 }
 
 /*------------------------------------------------------------------*/

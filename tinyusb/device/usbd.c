@@ -556,12 +556,12 @@ void dcd_xfer_complete(uint8_t rhport, uint8_t ep_addr, uint32_t xferred_bytes, 
 {
   if (ep_addr == 0 )
   {
+    // Control Transfer
     (void) rhport;
-    (void) xferred_bytes;
     (void) succeeded;
 
-    // Control Transfer
-    osal_semaphore_post( _usbd_ctrl_sem );
+    // only signal data stage, skip status (zero byte)
+    if (xferred_bytes) osal_semaphore_post( _usbd_ctrl_sem );
   }else
   {
     usbd_task_event_t task_event =

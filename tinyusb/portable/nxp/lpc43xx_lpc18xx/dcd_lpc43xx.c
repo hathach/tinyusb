@@ -475,7 +475,7 @@ void hal_dcd_isr(uint8_t rhport)
         bool succeeded = ( p_qtd->xact_err || p_qtd->halted || p_qtd->buffer_err ) ? false : true;
         (void) succeeded;
 
-        dcd_control_complete(rhport);
+        dcd_control_complete(rhport, p_qtd->expected_bytes - p_qtd->total_bytes);
       }
     }
 
