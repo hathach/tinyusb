@@ -523,7 +523,7 @@ void dcd_bus_event(uint8_t rhport, usbd_bus_event_type_t bus_event)
           .rhport          = rhport,
           .event_id        = USBD_EVENTID_SOF,
       };
-      osal_queue_send(_usbd_q, &task_event);
+      osal_queue_send_isr(_usbd_q, &task_event);
     }
     break;
 
@@ -549,7 +549,7 @@ void dcd_setup_received(uint8_t rhport, uint8_t const* p_request)
   };
 
   memcpy(&task_event.setup_received, p_request, sizeof(tusb_control_request_t));
-  osal_queue_send(_usbd_q, &task_event);
+  osal_queue_send_isr(_usbd_q, &task_event);
 }
 
 void dcd_xfer_complete(uint8_t rhport, uint8_t ep_addr, uint32_t xferred_bytes, bool succeeded)
@@ -561,7 +561,7 @@ void dcd_xfer_complete(uint8_t rhport, uint8_t ep_addr, uint32_t xferred_bytes, 
     (void) succeeded;
 
     // only signal data stage, skip status (zero byte)
-    if (xferred_bytes) osal_semaphore_post( _usbd_ctrl_sem );
+    if (xferred_bytes) osal_semaphore_post_isr( _usbd_ctrl_sem );
   }else
   {
     usbd_task_event_t task_event =
@@ -574,7 +574,7 @@ void dcd_xfer_complete(uint8_t rhport, uint8_t ep_addr, uint32_t xferred_bytes, 
     task_event.xfer_done.ep_addr      = ep_addr;
     task_event.xfer_done.xferred_byte = xferred_bytes;
 
-    osal_queue_send(_usbd_q, &task_event);
+    osal_queue_send_isr(_usbd_q, &task_event);
   }
 
   TU_ASSERT(succeeded, );

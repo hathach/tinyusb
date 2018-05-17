@@ -146,7 +146,7 @@ static inline osal_queue_t osal_queue_create(uint32_t depth, uint32_t item_size)
 }
 
 
-static inline bool osal_queue_send(osal_queue_t const queue_hdl, void const * data)
+static inline bool osal_queue_send_isr(osal_queue_t const queue_hdl, void const * data)
 {
   return fifo_write( (fifo_t*) queue_hdl, data);
 }
@@ -196,6 +196,8 @@ static inline osal_semaphore_t osal_semaphore_create(uint32_t max_count, uint32_
 
   return sem_data;
 }
+
+#define osal_semaphore_post_isr osal_semaphore_post
 
 static inline  bool osal_semaphore_post(osal_semaphore_t sem_hdl)
 {
