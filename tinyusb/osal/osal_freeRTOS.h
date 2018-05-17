@@ -83,11 +83,20 @@ static inline void osal_task_delay(uint32_t msec)
 //--------------------------------------------------------------------+
 // QUEUE API
 //--------------------------------------------------------------------+
+typedef struct
+{
+  uint16_t queue_sz;
+  uint16_t item_sz;
+  void*    pool;
+
+  StaticQueue_t sq;
+}osal_queue_def_t;
+
 typedef QueueHandle_t osal_queue_t;
 
-static inline osal_queue_t osal_queue_create(uint32_t depth, uint32_t item_size)
+static inline osal_queue_t osal_queue_create(osal_queue_def_t* qdef)
 {
-  return xQueueCreate(depth, item_size);
+  return xQueueCreateStatic(qdef->queue_sz, qdef->item_sz, qdef->pool, &qdef->sq);
 }
 
 static inline void osal_queue_receive (osal_queue_t const queue_hdl, void *p_data, uint32_t msec, tusb_error_t *p_error)
@@ -98,12 +107,12 @@ static inline void osal_queue_receive (osal_queue_t const queue_hdl, void *p_dat
 
 static inline bool osal_queue_send_isr(osal_queue_t const queue_hdl, void const * data)
 {
-  return xQueueSendToFrontFromISR(queue_hdl, data, NULL);
+  return xQueueSendToBackFromISR(queue_hdl, data, NULL);
 }
 
 static inline bool osal_queue_send(osal_queue_t const queue_hdl, void const * data)
 {
-  return xQueueSendToFront(queue_hdl, data, OSAL_TIMEOUT_WAIT_FOREVER) == pdTRUE;
+  return xQueueSendToBack(queue_hdl, data, OSAL_TIMEOUT_WAIT_FOREVER) == pdTRUE;
 }
 
 static inline void osal_queue_flush(osal_queue_t const queue_hdl)
@@ -115,14 +124,14 @@ static inline void osal_queue_flush(osal_queue_t const queue_hdl)
 //--------------------------------------------------------------------+
 // Semaphore API
 //--------------------------------------------------------------------+
+typedef StaticSemaphore_t osal_semaphore_def_t;
 typedef SemaphoreHandle_t osal_semaphore_t;
 
-static inline osal_semaphore_t osal_semaphore_create(uint32_t max, uint32_t init)
+static inline osal_semaphore_t osal_semaphore_create(osal_semaphore_def_t* semdef)
 {
-  return xSemaphoreCreateCounting(max, init);
+  return xSemaphoreCreateBinaryStatic(semdef);
 }
 
-// TODO add timeout (with instant return from ISR option) for semaphore post & queue send
 static inline bool osal_semaphore_post_isr(osal_semaphore_t sem_hdl)
 {
   return xSemaphoreGiveFromISR(sem_hdl, NULL) == pdTRUE;
@@ -133,15 +142,13 @@ static inline bool osal_semaphore_post(osal_semaphore_t sem_hdl)
   return xSemaphoreGive(sem_hdl) == pdTRUE;
 }
 
-
 static inline void osal_semaphore_wait(osal_semaphore_t sem_hdl, uint32_t msec, tusb_error_t *p_error)
 {
   uint32_t const ticks = (msec == OSAL_TIMEOUT_WAIT_FOREVER) ? portMAX_DELAY : pdMS_TO_TICKS(msec);
   (*p_error) = (xSemaphoreTake(sem_hdl, ticks) ? TUSB_ERROR_NONE : TUSB_ERROR_OSAL_TIMEOUT);
 }
 
-// TODO remove
-static inline void osal_semaphore_reset(osal_semaphore_t const sem_hdl)
+static inline void osal_semaphore_reset_isr(osal_semaphore_t const sem_hdl)
 {
   xSemaphoreTakeFromISR(sem_hdl, NULL);
 }
