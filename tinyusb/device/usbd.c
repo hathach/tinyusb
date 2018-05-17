@@ -46,6 +46,16 @@
 #include "usbd.h"
 #include "device/usbd_pvt.h"
 
+#define USBD_TASK_QUEUE_DEPTH   16
+
+#ifndef CFG_TUD_TASK_STACKSIZE
+#define CFG_TUD_TASK_STACKSIZE 150
+#endif
+
+#ifndef CFG_TUD_TASK_PRIO
+#define CFG_TUD_TASK_PRIO 0
+#endif
+
 //--------------------------------------------------------------------+
 // MACRO CONSTANT TYPEDEF
 //--------------------------------------------------------------------+
@@ -73,7 +83,7 @@ typedef struct {
 }usbd_device_info_t;
 
 //--------------------------------------------------------------------+
-// INTERNAL VARIABLE
+// Class & Device Driver
 //--------------------------------------------------------------------+
 CFG_TUSB_ATTR_USBRAM CFG_TUSB_MEM_ALIGN uint8_t usbd_enum_buffer[CFG_TUD_ENUM_BUFFER_SIZE];
 
@@ -129,34 +139,10 @@ enum { USBD_CLASS_DRIVER_COUNT = sizeof(usbd_class_drivers) / sizeof(usbd_class_
 //    .bDeviceClass =
 //};
 
-//--------------------------------------------------------------------+
-// INTERNAL FUNCTION
-//--------------------------------------------------------------------+
-static tusb_error_t proc_set_config_req(uint8_t rhport, uint8_t config_number);
-static uint16_t get_descriptor(uint8_t rhport, tusb_control_request_t const * const p_request, uint8_t const ** pp_buffer);
 
 //--------------------------------------------------------------------+
-// APPLICATION API
+// DCD Event
 //--------------------------------------------------------------------+
-bool tud_n_mounted(uint8_t rhport)
-{
-  return usbd_devices[rhport].state == TUSB_DEVICE_STATE_CONFIGURED;
-}
-
-bool tud_n_set_descriptors(uint8_t rhport, tud_desc_init_t const* desc_cfg)
-{
-  _usbd_descs[rhport] = *desc_cfg;
-  return true;
-}
-
-
-//--------------------------------------------------------------------+
-// IMPLEMENTATION
-//--------------------------------------------------------------------+
-
-//------------- OSAL Task -------------//
-enum { USBD_TASK_QUEUE_DEPTH = 16 };
-
 typedef enum
 {
   USBD_EVENTID_SETUP_RECEIVED = 1,
@@ -183,17 +169,33 @@ typedef struct ATTR_ALIGNED(4)
 
 VERIFY_STATIC(sizeof(usbd_task_event_t) <= 12, "size is not correct");
 
-#ifndef CFG_TUD_TASK_STACKSIZE
-#define CFG_TUD_TASK_STACKSIZE 150
-#endif
+/*------------- event queue -------------*/
+OSAL_QUEUE_DEF(_usbd_qdef, USBD_TASK_QUEUE_DEPTH, usbd_task_event_t);
+static osal_queue_t _usbd_q;
 
-#ifndef CFG_TUD_TASK_PRIO
-#define CFG_TUD_TASK_PRIO 0
-#endif
-
-
-static osal_queue_t     _usbd_q;
+/*------------- control transfer semaphore -------------*/
+static osal_semaphore_def_t _usbd_sem_def;
 /*static*/ osal_semaphore_t _usbd_ctrl_sem;
+
+//--------------------------------------------------------------------+
+// INTERNAL FUNCTION
+//--------------------------------------------------------------------+
+static tusb_error_t proc_set_config_req(uint8_t rhport, uint8_t config_number);
+static uint16_t get_descriptor(uint8_t rhport, tusb_control_request_t const * const p_request, uint8_t const ** pp_buffer);
+
+//--------------------------------------------------------------------+
+// APPLICATION API
+//--------------------------------------------------------------------+
+bool tud_n_mounted(uint8_t rhport)
+{
+  return usbd_devices[rhport].state == TUSB_DEVICE_STATE_CONFIGURED;
+}
+
+bool tud_n_set_descriptors(uint8_t rhport, tud_desc_init_t const* desc_cfg)
+{
+  _usbd_descs[rhport] = *desc_cfg;
+  return true;
+}
 
 //--------------------------------------------------------------------+
 // IMPLEMENTATION
@@ -212,10 +214,10 @@ tusb_error_t usbd_init (void)
   #endif
 
   //------------- Task init -------------//
-  _usbd_q = osal_queue_create(USBD_TASK_QUEUE_DEPTH, sizeof(usbd_task_event_t));
+  _usbd_q = osal_queue_create(&_usbd_qdef);
   VERIFY(_usbd_q, TUSB_ERROR_OSAL_QUEUE_FAILED);
 
-  _usbd_ctrl_sem = osal_semaphore_create(1, 0);
+  _usbd_ctrl_sem = osal_semaphore_create(&_usbd_sem_def);
   VERIFY(_usbd_q, TUSB_ERROR_OSAL_SEMAPHORE_FAILED);
 
   osal_task_create(usbd_task, "usbd", CFG_TUD_TASK_STACKSIZE, NULL, CFG_TUD_TASK_PRIO);
@@ -509,7 +511,7 @@ void dcd_bus_event(uint8_t rhport, usbd_bus_event_type_t bus_event)
     case USBD_BUS_EVENT_RESET     :
       memclr_(&usbd_devices[rhport], sizeof(usbd_device_info_t));
       osal_queue_flush(_usbd_q);
-      osal_semaphore_reset(_usbd_ctrl_sem);
+      osal_semaphore_reset_isr(_usbd_ctrl_sem);
       for (uint8_t i = 0; i < USBD_CLASS_DRIVER_COUNT; i++)
       {
         if ( usbd_class_drivers[i].close ) usbd_class_drivers[i].close( rhport );

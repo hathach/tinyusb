@@ -83,11 +83,15 @@ static inline void osal_task_delay(uint32_t msec)
 //--------------------------------------------------------------------+
 // QUEUE API
 //--------------------------------------------------------------------+
+#define OSAL_QUEUE_DEF(_name, _depth, _type) \
+  uint8_t _name##_##buf[_depth*sizeof(_type)];\
+  osal_queue_def_t _name = { .depth = _depth, .item_sz = sizeof(_type), .buf = _name##_##buf };\
+
 typedef struct
 {
-  uint16_t queue_sz;
+  uint16_t depth;
   uint16_t item_sz;
-  void*    pool;
+  void*    buf;
 
   StaticQueue_t sq;
 }osal_queue_def_t;
@@ -96,7 +100,7 @@ typedef QueueHandle_t osal_queue_t;
 
 static inline osal_queue_t osal_queue_create(osal_queue_def_t* qdef)
 {
-  return xQueueCreateStatic(qdef->queue_sz, qdef->item_sz, qdef->pool, &qdef->sq);
+  return xQueueCreateStatic(qdef->depth, qdef->item_sz, qdef->buf, &qdef->sq);
 }
 
 static inline void osal_queue_receive (osal_queue_t const queue_hdl, void *p_data, uint32_t msec, tusb_error_t *p_error)
