@@ -65,14 +65,27 @@ static inline bool in_isr(void)
 //--------------------------------------------------------------------+
 // TASK API
 //--------------------------------------------------------------------+
-typedef void (*osal_func_t)(void *param);
-typedef void* osal_task_t;
+#define OSAL_TASK_DEF(_name, _str, _func, _prio, _stack_sz) \
+  uint8_t _name##_##buf[_stack_sz*sizeof(StackType_t)]; \
+  osal_task_def_t _name = { .func = _func, .prio = _prio, .stack_sz = _stack_sz, .buf = _name##_##buf, .strname = _str };
 
-static inline osal_task_t osal_task_create(osal_func_t code, const char* name, uint32_t stack_size, void* param, uint32_t prio)
+typedef struct
 {
-  osal_task_t task_hdl;
-  xTaskCreate(code, (const char*) name, stack_size, param, prio, &task_hdl);
-  return task_hdl;
+  void (*func)(void *param);
+
+  uint16_t prio;
+  uint16_t stack_sz;
+  void*    buf;
+  const char* strname;
+
+  StaticTask_t stask;
+}osal_task_def_t;
+
+typedef TaskHandle_t osal_task_t;
+
+static inline osal_task_t osal_task_create(osal_task_def_t* taskdef)
+{
+  return xTaskCreateStatic(taskdef->func, taskdef->strname, taskdef->stack_sz, NULL, taskdef->prio, taskdef->buf, &taskdef->stask);
 }
 
 static inline void osal_task_delay(uint32_t msec)
@@ -85,7 +98,7 @@ static inline void osal_task_delay(uint32_t msec)
 //--------------------------------------------------------------------+
 #define OSAL_QUEUE_DEF(_name, _depth, _type) \
   uint8_t _name##_##buf[_depth*sizeof(_type)];\
-  osal_queue_def_t _name = { .depth = _depth, .item_sz = sizeof(_type), .buf = _name##_##buf };\
+  osal_queue_def_t _name = { .depth = _depth, .item_sz = sizeof(_type), .buf = _name##_##buf };
 
 typedef struct
 {

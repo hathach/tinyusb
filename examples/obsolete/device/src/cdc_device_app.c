@@ -44,17 +44,16 @@
 #include "app_os_prio.h"
 
 //--------------------------------------------------------------------+
-// INCLUDE
+// MACRO CONSTANT TYPEDEF
 //--------------------------------------------------------------------+
 enum { SERIAL_BUFFER_SIZE = 64 };
 
 //--------------------------------------------------------------------+
-// MACRO CONSTANT TYPEDEF
-//--------------------------------------------------------------------+
-
-//--------------------------------------------------------------------+
 // INTERNAL OBJECT & FUNCTION DECLARATION
 //--------------------------------------------------------------------+
+void cdc_serial_app_task(void* param);
+
+OSAL_TASK_DEF(cdc_task_def, "blinky", cdc_serial_app_task, CDC_SERIAL_APP_TASK_PRIO, 128);
 
 //--------------------------------------------------------------------+
 // tinyusb callbacks
@@ -78,6 +77,7 @@ void tud_cdc_rx_cb(uint8_t rhport)
 //--------------------------------------------------------------------+
 void cdc_serial_app_init(void)
 {
+  osal_task_create(&cdc_task_def);
 }
 
 tusb_error_t cdc_serial_subtask(void);
