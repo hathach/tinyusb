@@ -65,13 +65,15 @@
 //
 // NOTE: no switch statement is allowed in Task and subtask
 //--------------------------------------------------------------------+
-typedef void (*osal_func_t)(void *param);
+#define OSAL_TASK_DEF(_name, _str, _func, _prio, _stack_sz)  osal_task_def_t _name;
+
+typedef uint8_t osal_task_def_t;
 typedef void* osal_task_t;
 
-static inline osal_task_t osal_task_create(osal_func_t code, const char* name, uint32_t stack_size, void* param, uint32_t prio)
+static inline osal_task_t osal_task_create(osal_task_def_t* taskdef)
 {
-  (void) code; (void) name; (void) stack_size; (void) param; (void) prio;
-  return (osal_task_t) 1;
+  (void) taskdef;
+  return (osal_task_t) 1; // return non zero
 }
 
 #define TASK_RESTART                             \

@@ -169,6 +169,8 @@ typedef struct ATTR_ALIGNED(4)
 
 VERIFY_STATIC(sizeof(usbd_task_event_t) <= 12, "size is not correct");
 
+OSAL_TASK_DEF(_usbd_task_def, "usbd", usbd_task, CFG_TUD_TASK_PRIO, CFG_TUD_TASK_STACKSIZE);
+
 /*------------- event queue -------------*/
 OSAL_QUEUE_DEF(_usbd_qdef, USBD_TASK_QUEUE_DEPTH, usbd_task_event_t);
 static osal_queue_t _usbd_q;
@@ -220,7 +222,7 @@ tusb_error_t usbd_init (void)
   _usbd_ctrl_sem = osal_semaphore_create(&_usbd_sem_def);
   VERIFY(_usbd_q, TUSB_ERROR_OSAL_SEMAPHORE_FAILED);
 
-  osal_task_create(usbd_task, "usbd", CFG_TUD_TASK_STACKSIZE, NULL, CFG_TUD_TASK_PRIO);
+  osal_task_create(&_usbd_task_def);
 
   //------------- Core init -------------//
   arrclr_( _usbd_descs );
