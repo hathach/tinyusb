@@ -56,8 +56,6 @@ extern "C" {
 
 #if 0
 // Helper to determine if we are in ISR to use ISR API (only cover ARM Cortex)
-// Note: Actually we don't need this since any event signal (queue send, semaphore post)
-// is done in ISR, other event receive (queue receive, semaphore wait ) in in thread
 static inline bool in_isr(void)
 {
   return (SCB->ICSR & SCB_ICSR_VECTACTIVE_Msk);
@@ -98,11 +96,14 @@ static inline void osal_queue_receive (osal_queue_t const queue_hdl, void *p_dat
   (*p_error) = ( xQueueReceive(queue_hdl, p_data, ticks) ? TUSB_ERROR_NONE : TUSB_ERROR_OSAL_TIMEOUT);
 }
 
+static inline bool osal_queue_send_isr(osal_queue_t const queue_hdl, void const * data)
+{
+  return xQueueSendToFrontFromISR(queue_hdl, data, NULL);
+}
+
 static inline bool osal_queue_send(osal_queue_t const queue_hdl, void const * data)
 {
-  // queue send used by msc device for retrying read10/write10
-  verify_breakpoint();
-  return xQueueSendToFrontFromISR(queue_hdl, data, NULL);
+  return xQueueSendToFront(queue_hdl, data, OSAL_TIMEOUT_WAIT_FOREVER) == pdTRUE;
 }
 
 static inline void osal_queue_flush(osal_queue_t const queue_hdl)
@@ -122,10 +123,16 @@ static inline osal_semaphore_t osal_semaphore_create(uint32_t max, uint32_t init
 }
 
 // TODO add timeout (with instant return from ISR option) for semaphore post & queue send
+static inline bool osal_semaphore_post_isr(osal_semaphore_t sem_hdl)
+{
+  return xSemaphoreGiveFromISR(sem_hdl, NULL) == pdTRUE;
+}
+
 static inline bool osal_semaphore_post(osal_semaphore_t sem_hdl)
 {
-  return xSemaphoreGiveFromISR(sem_hdl, NULL);
+  return xSemaphoreGive(sem_hdl) == pdTRUE;
 }
+
 
 static inline void osal_semaphore_wait(osal_semaphore_t sem_hdl, uint32_t msec, tusb_error_t *p_error)
 {
