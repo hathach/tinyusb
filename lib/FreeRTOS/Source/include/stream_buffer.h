@@ -1,5 +1,5 @@
 /*
- * FreeRTOS Kernel V10.0.0
+ * FreeRTOS Kernel V10.0.1
  * Copyright (C) 2017 Amazon.com, Inc. or its affiliates.  All Rights Reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy of
@@ -10,8 +10,7 @@
  * subject to the following conditions:
  *
  * The above copyright notice and this permission notice shall be included in all
- * copies or substantial portions of the Software. If you wish to use our Amazon
- * FreeRTOS name, please do so in a fair use way that does not cause confusion.
+ * copies or substantial portions of the Software.
  *
  * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
  * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS
@@ -51,6 +50,10 @@
 
 #ifndef STREAM_BUFFER_H
 #define STREAM_BUFFER_H
+
+#if defined( __cplusplus )
+extern "C" {
+#endif
 
 /**
  * Type by which stream buffers are referenced.  For example, a call to
@@ -843,7 +846,7 @@ StreamBufferHandle_t xStreamBufferGenericCreateStatic( size_t xBufferSizeBytes,
 #endif
 
 #if defined( __cplusplus )
-extern "C" {
+}
 #endif
 
 #endif	/* !defined( STREAM_BUFFER_H ) */
