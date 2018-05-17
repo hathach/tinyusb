@@ -81,9 +81,9 @@
 	</natures>
 	<linkedResources>
 		<link>
-			<name>freertos</name>
+			<name>FreeRTOS</name>
 			<type>2</type>
-			<locationURI>PARENT-4-PROJECT_LOC/vendor/freertos</locationURI>
+			<locationURI>PARENT-4-PROJECT_LOC/lib/FreeRTOS</locationURI>
 		</link>
 		<link>
 			<name>hw</name>
