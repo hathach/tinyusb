@@ -314,11 +314,11 @@ tusb_error_t cdcd_xfer_cb(uint8_t rhport, uint8_t ep_addr, tusb_event_t event, u
   return TUSB_ERROR_NONE;
 }
 
+#if CFG_TUD_CDC_FLUSH_ON_SOF
 void cdcd_sof(uint8_t rhport)
 {
-#if CFG_TUD_CDC_FLUSH_ON_SOF
   tud_n_cdc_flush(rhport);
-#endif
 }
+#endif
 
 #endif

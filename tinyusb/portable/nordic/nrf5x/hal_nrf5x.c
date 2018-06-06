@@ -45,6 +45,8 @@
 #include "nrf_usbd.h"
 #include "nrf_drv_usbd_errata.h"
 
+#include "app_util_platform.h"
+
 #ifdef SOFTDEVICE_PRESENT
 #include "nrf_sdm.h"
 #include "nrf_soc.h"
@@ -182,7 +184,7 @@ void tusb_hal_int_disable(uint8_t rhport)
 /*------------------------------------------------------------------*/
 /* Controller Start up Sequence (USBD 51.4 specs)
  *------------------------------------------------------------------*/
-void tusb_hal_nrf_power_event(uint32_t event)
+void tusb_hal_nrf_power_event (uint32_t event)
 {
   switch ( event )
   {
@@ -193,38 +195,41 @@ void tusb_hal_nrf_power_event(uint32_t event)
         nrf_usbd_eventcause_clear(NRF_USBD_EVENTCAUSE_READY_MASK);
 
         /* Enable the peripheral */
-        // ERRATA 171, 187
-
-        if (nrf_drv_usbd_errata_187())
+        // ERRATA 171, 187, 166
+        if ( nrf_drv_usbd_errata_187() )
         {
-  //          CRITICAL_REGION_ENTER();
-          if (*((volatile uint32_t *)(0x4006EC00)) == 0x00000000)
+          CRITICAL_REGION_ENTER()
+          ;
+          if ( *((volatile uint32_t *) (0x4006EC00)) == 0x00000000 )
           {
-            *((volatile uint32_t *)(0x4006EC00)) = 0x00009375;
-            *((volatile uint32_t *)(0x4006ED14)) = 0x00000003;
-            *((volatile uint32_t *)(0x4006EC00)) = 0x00009375;
+            *((volatile uint32_t *) (0x4006EC00)) = 0x00009375;
+            *((volatile uint32_t *) (0x4006ED14)) = 0x00000003;
+            *((volatile uint32_t *) (0x4006EC00)) = 0x00009375;
           }
           else
           {
-            *((volatile uint32_t *)(0x4006ED14)) = 0x00000003;
+            *((volatile uint32_t *) (0x4006ED14)) = 0x00000003;
           }
-  //          CRITICAL_REGION_EXIT();
+          CRITICAL_REGION_EXIT()
+          ;
         }
 
-        if (nrf_drv_usbd_errata_171())
+        if ( nrf_drv_usbd_errata_171() )
         {
-  //          CRITICAL_REGION_ENTER();
-          if (*((volatile uint32_t *)(0x4006EC00)) == 0x00000000)
+          CRITICAL_REGION_ENTER()
+          ;
+          if ( *((volatile uint32_t *) (0x4006EC00)) == 0x00000000 )
           {
-            *((volatile uint32_t *)(0x4006EC00)) = 0x00009375;
-            *((volatile uint32_t *)(0x4006EC14)) = 0x000000C0;
-            *((volatile uint32_t *)(0x4006EC00)) = 0x00009375;
+            *((volatile uint32_t *) (0x4006EC00)) = 0x00009375;
+            *((volatile uint32_t *) (0x4006EC14)) = 0x000000C0;
+            *((volatile uint32_t *) (0x4006EC00)) = 0x00009375;
           }
           else
           {
-            *((volatile uint32_t *)(0x4006EC14)) = 0x000000C0;
+            *((volatile uint32_t *) (0x4006EC14)) = 0x000000C0;
           }
-  //          CRITICAL_REGION_EXIT();
+          CRITICAL_REGION_EXIT()
+          ;
         }
 
         nrf_usbd_enable();
@@ -236,41 +241,47 @@ void tusb_hal_nrf_power_event(uint32_t event)
 
     case NRFX_POWER_USB_EVT_READY:
       /* Waiting for USBD peripheral enabled */
-      while ( !(NRF_USBD_EVENTCAUSE_READY_MASK & NRF_USBD->EVENTCAUSE) ) { }
+      while ( !(NRF_USBD_EVENTCAUSE_READY_MASK & NRF_USBD->EVENTCAUSE) )
+      {
+      }
       nrf_usbd_eventcause_clear(NRF_USBD_EVENTCAUSE_READY_MASK);
       nrf_usbd_event_clear(NRF_USBD_EVENT_USBEVENT);
 
-      if (nrf_drv_usbd_errata_171())
+      if ( nrf_drv_usbd_errata_171() )
       {
-  //          CRITICAL_REGION_ENTER();
-          if (*((volatile uint32_t *)(0x4006EC00)) == 0x00000000)
-          {
-              *((volatile uint32_t *)(0x4006EC00)) = 0x00009375;
-              *((volatile uint32_t *)(0x4006EC14)) = 0x00000000;
-              *((volatile uint32_t *)(0x4006EC00)) = 0x00009375;
-          }
-          else
-          {
-              *((volatile uint32_t *)(0x4006EC14)) = 0x00000000;
-          }
+        CRITICAL_REGION_ENTER()
+        ;
+        if ( *((volatile uint32_t *) (0x4006EC00)) == 0x00000000 )
+        {
+          *((volatile uint32_t *) (0x4006EC00)) = 0x00009375;
+          *((volatile uint32_t *) (0x4006EC14)) = 0x00000000;
+          *((volatile uint32_t *) (0x4006EC00)) = 0x00009375;
+        }
+        else
+        {
+          *((volatile uint32_t *) (0x4006EC14)) = 0x00000000;
+        }
 
-  //          CRITICAL_REGION_EXIT();
+        CRITICAL_REGION_EXIT()
+        ;
       }
 
-      if (nrf_drv_usbd_errata_187())
+      if ( nrf_drv_usbd_errata_187() )
       {
-  //          CRITICAL_REGION_ENTER();
-          if (*((volatile uint32_t *)(0x4006EC00)) == 0x00000000)
-          {
-              *((volatile uint32_t *)(0x4006EC00)) = 0x00009375;
-              *((volatile uint32_t *)(0x4006ED14)) = 0x00000000;
-              *((volatile uint32_t *)(0x4006EC00)) = 0x00009375;
-          }
-          else
-          {
-              *((volatile uint32_t *)(0x4006ED14)) = 0x00000000;
-          }
-  //          CRITICAL_REGION_EXIT();
+        CRITICAL_REGION_ENTER()
+        ;
+        if ( *((volatile uint32_t *) (0x4006EC00)) == 0x00000000 )
+        {
+          *((volatile uint32_t *) (0x4006EC00)) = 0x00009375;
+          *((volatile uint32_t *) (0x4006ED14)) = 0x00000000;
+          *((volatile uint32_t *) (0x4006EC00)) = 0x00009375;
+        }
+        else
+        {
+          *((volatile uint32_t *) (0x4006ED14)) = 0x00000000;
+        }
+        CRITICAL_REGION_EXIT()
+        ;
       }
 
       if ( nrf_drv_usbd_errata_166() )
@@ -278,19 +289,16 @@ void tusb_hal_nrf_power_event(uint32_t event)
         *((volatile uint32_t *) (NRF_USBD_BASE + 0x800)) = 0x7E3;
         *((volatile uint32_t *) (NRF_USBD_BASE + 0x804)) = 0x40;
 
-        __ISB(); __DSB();
+        __ISB();
+        __DSB();
       }
 
       nrf_usbd_isosplit_set(NRF_USBD_ISOSPLIT_Half);
 
       // Enable interrupt. SOF is used as CDC auto flush
       NRF_USBD->INTENSET = USBD_INTEN_USBRESET_Msk | USBD_INTEN_USBEVENT_Msk | USBD_INTEN_ACCESSFAULT_Msk |
-                           USBD_INTEN_EP0SETUP_Msk | USBD_INTEN_EP0DATADONE_Msk | USBD_INTEN_ENDEPIN0_Msk |  USBD_INTEN_ENDEPOUT0_Msk |
-                           USBD_INTEN_EPDATA_Msk   | USBD_INTEN_SOF_Msk;
-
-      // FIXME Errata 104: USB complete event is not generated (happedn randomly).
-      // Requires to enable SOF to perform clean up task.
-      // nrf_drv_usbd_errata_104()
+      USBD_INTEN_EP0SETUP_Msk | USBD_INTEN_EP0DATADONE_Msk | USBD_INTEN_ENDEPIN0_Msk | USBD_INTEN_ENDEPOUT0_Msk |
+      USBD_INTEN_EPDATA_Msk | ((CFG_TUD_CDC && CFG_TUD_CDC_FLUSH_ON_SOF) ? USBD_INTEN_SOF_Msk : 0);
 
       // Enable interrupt, Priorities 0,1,4,5 (nRF52) are reserved for SoftDevice
       NVIC_SetPriority(USBD_IRQn, USB_NVIC_PRIO);
@@ -298,7 +306,9 @@ void tusb_hal_nrf_power_event(uint32_t event)
       NVIC_EnableIRQ(USBD_IRQn);
 
       // Wait for HFCLK
-      while ( !hfclk_running() ) {}
+      while ( !hfclk_running() )
+      {
+      }
 
       // Enable pull up
       nrf_usbd_pullup_enable();
