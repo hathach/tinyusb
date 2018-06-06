@@ -196,10 +196,11 @@ void tusb_hal_nrf_power_event (uint32_t event)
 
         /* Enable the peripheral */
         // ERRATA 171, 187, 166
-        if ( nrf_drv_usbd_errata_187() )
+
+        // Somehow Errata 187 check failed for pca10056 1.0.0 (2018.19)
+        //if ( nrf_drv_usbd_errata_187() )
         {
-          CRITICAL_REGION_ENTER()
-          ;
+          CRITICAL_REGION_ENTER();
           if ( *((volatile uint32_t *) (0x4006EC00)) == 0x00000000 )
           {
             *((volatile uint32_t *) (0x4006EC00)) = 0x00009375;
@@ -210,14 +211,12 @@ void tusb_hal_nrf_power_event (uint32_t event)
           {
             *((volatile uint32_t *) (0x4006ED14)) = 0x00000003;
           }
-          CRITICAL_REGION_EXIT()
-          ;
+          CRITICAL_REGION_EXIT();
         }
 
         if ( nrf_drv_usbd_errata_171() )
         {
-          CRITICAL_REGION_ENTER()
-          ;
+          CRITICAL_REGION_ENTER();
           if ( *((volatile uint32_t *) (0x4006EC00)) == 0x00000000 )
           {
             *((volatile uint32_t *) (0x4006EC00)) = 0x00009375;
@@ -228,8 +227,7 @@ void tusb_hal_nrf_power_event (uint32_t event)
           {
             *((volatile uint32_t *) (0x4006EC14)) = 0x000000C0;
           }
-          CRITICAL_REGION_EXIT()
-          ;
+          CRITICAL_REGION_EXIT();
         }
 
         nrf_usbd_enable();
@@ -241,16 +239,14 @@ void tusb_hal_nrf_power_event (uint32_t event)
 
     case NRFX_POWER_USB_EVT_READY:
       /* Waiting for USBD peripheral enabled */
-      while ( !(NRF_USBD_EVENTCAUSE_READY_MASK & NRF_USBD->EVENTCAUSE) )
-      {
-      }
-      nrf_usbd_eventcause_clear(NRF_USBD_EVENTCAUSE_READY_MASK);
-      nrf_usbd_event_clear(NRF_USBD_EVENT_USBEVENT);
+      while ( !(USBD_EVENTCAUSE_READY_Msk & NRF_USBD->EVENTCAUSE) ) { }
+
+      nrf_usbd_eventcause_clear(USBD_EVENTCAUSE_READY_Msk);
+      nrf_usbd_event_clear(USBD_EVENTCAUSE_READY_Msk);
 
       if ( nrf_drv_usbd_errata_171() )
       {
-        CRITICAL_REGION_ENTER()
-        ;
+        CRITICAL_REGION_ENTER();
         if ( *((volatile uint32_t *) (0x4006EC00)) == 0x00000000 )
         {
           *((volatile uint32_t *) (0x4006EC00)) = 0x00009375;
@@ -262,14 +258,13 @@ void tusb_hal_nrf_power_event (uint32_t event)
           *((volatile uint32_t *) (0x4006EC14)) = 0x00000000;
         }
 
-        CRITICAL_REGION_EXIT()
-        ;
+        CRITICAL_REGION_EXIT();
       }
 
-      if ( nrf_drv_usbd_errata_187() )
+      // Somehow Errata 187 check failed for pca10056 1.0.0 (2018.19)
+      //if ( nrf_drv_usbd_errata_187() )
       {
-        CRITICAL_REGION_ENTER()
-        ;
+        CRITICAL_REGION_ENTER();
         if ( *((volatile uint32_t *) (0x4006EC00)) == 0x00000000 )
         {
           *((volatile uint32_t *) (0x4006EC00)) = 0x00009375;
@@ -280,8 +275,7 @@ void tusb_hal_nrf_power_event (uint32_t event)
         {
           *((volatile uint32_t *) (0x4006ED14)) = 0x00000000;
         }
-        CRITICAL_REGION_EXIT()
-        ;
+        CRITICAL_REGION_EXIT();
       }
 
       if ( nrf_drv_usbd_errata_166() )
