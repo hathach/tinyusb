@@ -84,6 +84,31 @@ CFG_TUSB_ATTR_USBRAM CFG_TUSB_MEM_ALIGN static uint8_t _mscd_buf[CFG_TUD_MSC_BUF
 //--------------------------------------------------------------------+
 static void proc_read10_write10(uint8_t rhport, mscd_interface_t* p_msc);
 
+static inline uint32_t rdwr10_get_lba(uint8_t const command[])
+{
+  // read10 & write10 has the same format
+  scsi_write10_t* p_rdwr10 = (scsi_write10_t*) command;
+
+  // copy first to prevent mis-aligned access
+  uint32_t lba;
+  memcpy(&lba, &p_rdwr10->lba, 4);
+
+  return  __be2n(lba);
+}
+
+static inline uint16_t rdwr10_get_blockcount(uint8_t const command[])
+{
+  // read10 & write10 has the same format
+  scsi_write10_t* p_rdwr10 = (scsi_write10_t*) command;
+
+  // copy first to prevent mis-aligned access
+  uint16_t block_count;
+  memcpy(&block_count, &p_rdwr10->block_count, 2);
+
+  return __be2n(block_count);
+}
+
+
 //--------------------------------------------------------------------+
 // USBD-CLASS API
 //--------------------------------------------------------------------+
@@ -237,12 +262,7 @@ tusb_error_t mscd_xfer_cb(uint8_t rhport, uint8_t ep_addr, tusb_event_t event, u
       {
         if ( SCSI_CMD_WRITE_10 == p_cbw->command[0] )
         {
-          // LBA and Block count are in Big Endian. Use memcpy first to prevent mis-aligned access
-          scsi_read10_t* p_write10 = (scsi_read10_t*) &p_cbw->command;
-
-          uint32_t lba;
-          memcpy(&lba, &p_write10->lba, 4);
-          lba = __be2n(lba);
+          uint32_t lba = rdwr10_get_lba(p_cbw->command);
 
           tud_msc_write10_cb(rhport, p_cbw->lun, lba, p_msc->xferred_len, _mscd_buf, xferred_bytes);
         }
@@ -309,20 +329,11 @@ static void proc_read10_write10(uint8_t rhport, mscd_interface_t* p_msc)
   msc_cbw_t const * p_cbw = &p_msc->cbw;
   msc_csw_t       * p_csw = &p_msc->csw;
 
-  // read10 & write10 has the same format
-  scsi_read10_t* p_readwrite = (scsi_read10_t*) &p_cbw->command;
-
   uint8_t const ep_data = BIT_TEST_(p_cbw->dir, 7) ? p_msc->ep_in : p_msc->ep_out;
 
   // LBA and Block count are in Big Endian. Use memcpy first to prevent mis-aligned access
-  uint32_t lba;
-  uint16_t block_count;
-
-  memcpy(&lba, &p_readwrite->lba, 4);
-  lba = __be2n(lba);
-
-  memcpy(&block_count, &p_readwrite->block_count, 2);
-  block_count = __be2n_16(block_count);
+  uint32_t lba = rdwr10_get_lba(p_cbw->command);
+  uint16_t block_count = rdwr10_get_blockcount(p_cbw->command);
 
   int32_t xfer_bytes = (int32_t) min32_of(sizeof(_mscd_buf), p_cbw->xfer_bytes-p_msc->xferred_len);
 
