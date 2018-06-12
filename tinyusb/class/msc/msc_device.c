@@ -372,7 +372,6 @@ static void proc_read10_cmd(uint8_t rhport, mscd_interface_t* p_msc)
   msc_csw_t       * p_csw = &p_msc->csw;
 
   uint32_t lba = rdwr10_get_lba(p_cbw->command);
-  uint16_t block_count = rdwr10_get_blockcount(p_cbw->command);
 
   // remaining bytes capped at class buffer
   int32_t nbytes = (int32_t) min32_of(sizeof(_mscd_buf), p_cbw->xfer_bytes-p_msc->xferred_len);
@@ -402,10 +401,6 @@ static void proc_read10_cmd(uint8_t rhport, mscd_interface_t* p_msc)
 static void proc_write10_cmd(uint8_t rhport, mscd_interface_t* p_msc)
 {
   msc_cbw_t const * p_cbw = &p_msc->cbw;
-  msc_csw_t       * p_csw = &p_msc->csw;
-
-  uint32_t lba = rdwr10_get_lba(p_cbw->command);
-  uint16_t block_count = rdwr10_get_blockcount(p_cbw->command);
 
   // remaining bytes capped at class buffer
   int32_t nbytes = (int32_t) min32_of(sizeof(_mscd_buf), p_cbw->xfer_bytes-p_msc->xferred_len);

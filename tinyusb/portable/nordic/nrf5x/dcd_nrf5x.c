@@ -224,20 +224,9 @@ static void normal_xact_start(uint8_t epnum, uint8_t dir)
 {
   if ( dir == TUSB_DIR_OUT )
   {
-    // Errata : HW issue on nrf5284 sample, SIZE.EPOUT won't trigger ACK as spec
-    // use the back door interface as sdk for walk around
-    if ( nrf_drv_usbd_errata_sizeepout_rw() )
-    {
-      *((volatile uint32_t *)(NRF_USBD_BASE + 0x800)) = 0x7C5 + 2*epnum;
-      *((volatile uint32_t *)(NRF_USBD_BASE + 0x804)) = 0;
-      (void) (((volatile uint32_t *)(NRF_USBD_BASE + 0x804)));
-    }
-    else
-    {
-      // Overwrite size will allow hw to accept data
-      NRF_USBD->SIZE.EPOUT[epnum] = 0;
-      __ISB(); __DSB();
-    }
+    // Overwrite size will allow hw to accept data
+    NRF_USBD->SIZE.EPOUT[epnum] = 0;
+    __ISB(); __DSB();
   }else
   {
     nom_xfer_t* xfer = get_td(epnum, dir);
