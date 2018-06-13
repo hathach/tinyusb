@@ -70,6 +70,9 @@ typedef struct
   uint16_t actual_len;
   uint8_t  mps; // max packet size
 
+  // FIXME nrf52840 does not NAK OUT packet properly
+  bool     data_received;
+
 } nom_xfer_t;
 
 /*static*/ struct
@@ -163,7 +166,7 @@ static void edpt_dma_end(void)
   _dcd.dma_running = false;
 }
 
-static void control_xact_start(void)
+static void xact_control_start(void)
 {
   // Each transaction is up to 64 bytes
   uint8_t const xact_len = min16_of(_dcd.control.total_len-_dcd.control.actual_len, MAX_PACKET_SIZE);
@@ -200,7 +203,7 @@ bool dcd_control_xfer (uint8_t rhport, tusb_dir_t dir, uint8_t * buffer, uint16_
     _dcd.control.buffer     = buffer;
     _dcd.control.dir        = (uint8_t) dir;
 
-    control_xact_start();
+    xact_control_start();
   }else
   {
     // Status Phase
@@ -220,27 +223,55 @@ static inline nom_xfer_t* get_td(uint8_t epnum, uint8_t dir)
   return &_dcd.xfer[epnum-1][dir];
 }
 
-static void normal_xact_start(uint8_t epnum, uint8_t dir)
+/*------------- Bulk/Int OUT transfer -------------*/
+
+/**
+ * Prepare Bulk/Int out transaction, Endpoint start to accept/ACK Data
+ * @param epnum
+ */
+static void xact_out_prepare(uint8_t epnum)
 {
-  if ( dir == TUSB_DIR_OUT )
-  {
-    // Overwrite size will allow hw to accept data
-    NRF_USBD->SIZE.EPOUT[epnum] = 0;
-    __ISB(); __DSB();
-  }else
-  {
-    nom_xfer_t* xfer = get_td(epnum, dir);
+  // Write any value to size will allow hw to ACK (accept data)
+  NRF_USBD->SIZE.EPOUT[epnum] = 0;
+  __ISB(); __DSB();
+}
 
-    // Each transaction is up to Max Packet Size
-    uint8_t const xact_len = min16_of(xfer->total_len - xfer->actual_len, xfer->mps);
+static void xact_out_dma(uint8_t epnum)
+{
+  nom_xfer_t* xfer = get_td(epnum, TUSB_DIR_OUT);
 
-    NRF_USBD->EPIN[epnum].PTR    = (uint32_t) xfer->buffer;
-    NRF_USBD->EPIN[epnum].MAXCNT = xact_len;
+  uint8_t const xact_len = NRF_USBD->SIZE.EPOUT[epnum];
 
-    xfer->buffer += xact_len;
+  // Trigger DMA move data from Endpoint -> SRAM
+  NRF_USBD->EPOUT[epnum].PTR    = (uint32_t) xfer->buffer;
+  NRF_USBD->EPOUT[epnum].MAXCNT = xact_len;
 
-    edpt_dma_start(epnum, TUSB_DIR_IN);
-  }
+  edpt_dma_start(epnum, TUSB_DIR_OUT);
+
+  xfer->buffer     += xact_len;
+  xfer->actual_len += xact_len;
+}
+
+
+/*------------- Bulk/Int IN transfer -------------*/
+
+/**
+ * Prepare Bulk/Int in transaction, transfer data from Memory -> Endpoint
+ * @param epnum
+ */
+static void xact_in_prepare(uint8_t epnum)
+{
+  nom_xfer_t* xfer = get_td(epnum, TUSB_DIR_IN);
+
+  // Each transaction is up to Max Packet Size
+  uint8_t const xact_len = min16_of(xfer->total_len - xfer->actual_len, xfer->mps);
+
+  NRF_USBD->EPIN[epnum].PTR    = (uint32_t) xfer->buffer;
+  NRF_USBD->EPIN[epnum].MAXCNT = xact_len;
+
+  xfer->buffer += xact_len;
+
+  edpt_dma_start(epnum, TUSB_DIR_IN);
 }
 
 bool dcd_edpt_open (uint8_t rhport, tusb_desc_endpoint_t const * desc_edpt)
@@ -279,7 +310,23 @@ bool dcd_edpt_xfer (uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t 
   xfer->total_len  = total_bytes;
   xfer->actual_len = 0;
 
-  normal_xact_start(epnum, dir);
+  if ( dir == TUSB_DIR_OUT )
+  {
+    if ( xfer->data_received )
+    {
+      xfer->data_received = false;
+
+      // FIXME nrf52840 does not NAK OUT packet properly
+      // Data already received preivously
+      xact_out_dma(epnum);
+    }else
+    {
+      xact_out_prepare(epnum);
+    }
+  }else
+  {
+    xact_in_prepare(epnum);
+  }
 
   return true;
 }
@@ -382,7 +429,7 @@ void USBD_IRQHandler(void)
       // IN: data transferred from Endpoint -> Host
       if ( _dcd.control.actual_len < _dcd.control.total_len )
       {
-        control_xact_start();
+        xact_control_start();
       }else
       {
         // Control IN complete
@@ -396,7 +443,7 @@ void USBD_IRQHandler(void)
   {
     if ( _dcd.control.actual_len < _dcd.control.total_len )
     {
-      control_xact_start();
+      xact_control_start();
     }else
     {
       // Control OUT complete
@@ -423,7 +470,7 @@ void USBD_IRQHandler(void)
         if ( xfer->actual_len < xfer->total_len )
         {
           // more to xfer
-          normal_xact_start(epnum, TUSB_DIR_IN);
+          xact_in_prepare(epnum);
         } else
         {
           // BULK/INT IN complete
@@ -439,19 +486,17 @@ void USBD_IRQHandler(void)
       {
         nom_xfer_t* xfer = get_td(epnum, TUSB_DIR_OUT);
 
-        uint8_t const xact_len = NRF_USBD->SIZE.EPOUT[epnum];
+        if (xfer->actual_len < xfer->total_len)
+        {
+          xact_out_dma(epnum);
+        }else
+        {
+          // FIXME nrf52840 does not NAK OUT packet properly
+          // It will always ACK next package although we haven't write to SIZE yet
 
-        // FIXME nrf52840 rev A does not NAK OUT packet properly
-        TU_ASSERT(xfer->actual_len < xfer->total_len, );
-
-        // Trigger DMA move data from Endpoint -> SRAM
-        NRF_USBD->EPOUT[epnum].PTR    = (uint32_t) xfer->buffer;
-        NRF_USBD->EPOUT[epnum].MAXCNT = xact_len;
-
-        edpt_dma_start(epnum, TUSB_DIR_OUT);
-
-        xfer->buffer     += xact_len;
-        xfer->actual_len += xact_len;
+          // Mark this endpoint with data received
+          xfer->data_received = true;
+        }
       }
     }
   }
@@ -469,7 +514,7 @@ void USBD_IRQHandler(void)
       if ( (xact_len == xfer->mps) && (xfer->actual_len < xfer->total_len) )
       {
         // Prepare for more data from Host -> Endpoint
-        normal_xact_start(epnum, TUSB_DIR_OUT);
+        xact_out_prepare(epnum);
       }else
       {
         xfer->total_len = xfer->actual_len;
