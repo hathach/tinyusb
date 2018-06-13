@@ -198,7 +198,7 @@ void tusb_hal_nrf_power_event (uint32_t event)
         // ERRATA 171, 187, 166
 
         // Somehow Errata 187 check failed for pca10056 1.0.0 (2018.19)
-        //if ( nrf_drv_usbd_errata_187() )
+        if ( nrf_drv_usbd_errata_187() )
         {
           CRITICAL_REGION_ENTER();
           if ( *((volatile uint32_t *) (0x4006EC00)) == 0x00000000 )
@@ -262,7 +262,7 @@ void tusb_hal_nrf_power_event (uint32_t event)
       }
 
       // Somehow Errata 187 check failed for pca10056 1.0.0 (2018.19)
-      //if ( nrf_drv_usbd_errata_187() )
+      if ( nrf_drv_usbd_errata_187() )
       {
         CRITICAL_REGION_ENTER();
         if ( *((volatile uint32_t *) (0x4006EC00)) == 0x00000000 )

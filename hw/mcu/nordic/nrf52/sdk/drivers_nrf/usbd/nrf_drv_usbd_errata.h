@@ -94,7 +94,7 @@ static inline bool nrf_drv_usbd_errata_type_52840_proto1(void)
 static inline bool nrf_drv_usbd_errata_type_52840_fp1(void)
 {
     return ( nrf_drv_usbd_errata_type_52840() &&
-               ( ((*(uint32_t *)0xF0000FE8) & 0xF0) == 0x10 ) &&
+               ( ((*(uint32_t *)0xF0000FE8) & 0xF0) == 0x20 ) &&
                ( ((*(uint32_t *)0xF0000FEC) & 0xF0) == 0x00 ) );
 }
 
