@@ -1,13 +1,13 @@
 /**************************************************************************/
 /*!
-    @file     usbd_pvt.h
-    @author   hathach
+    @file     custom_device.h
+    @author   hathach (tinyusb.org)
 
     @section LICENSE
 
     Software License Agreement (BSD License)
 
-    Copyright (c) 2018, hathach (tinyusb.org)
+    Copyright (c) 2018, Adafruit Industries (adafruit.com)
     All rights reserved.
 
     Redistribution and use in source and binary forms, with or without
@@ -33,49 +33,39 @@
     SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
 /**************************************************************************/
-#ifndef USBD_PVT_H_
-#define USBD_PVT_H_
 
+#ifndef _TUSB_CUSTOM_DEVICE_H_
+#define _TUSB_CUSTOM_DEVICE_H_
 
-#ifdef __cplusplus
- extern "C" {
-#endif
-
-// for used by usbd_control_xfer_st() only, must not be used directly
-extern osal_semaphore_t _usbd_ctrl_sem;
+#include "common/tusb_common.h"
+#include "device/usbd.h"
 
 //--------------------------------------------------------------------+
-// INTERNAL API
+// APPLICATION API (Multiple Root Ports)
+// Should be used only with MCU that support more than 1 ports
 //--------------------------------------------------------------------+
-tusb_error_t usbd_init(void);
-void         usbd_task( void* param);
 
-// helper to parse an pair of In and Out endpoint descriptors. They must be consecutive
-tusb_error_t usbd_open_edpt_pair(uint8_t rhport, tusb_desc_endpoint_t const* p_desc_ep, uint8_t xfer_type, uint8_t* ep_out, uint8_t* ep_in);
-
-// Carry out Data and Status stage of control transfer
-//tusb_error_t usbd_control_xfer_st(uint8_t rhport, tusb_dir_t dir, uint8_t * buffer, uint16_t length);
-
-// Carry out Data and Status stage of control transfer
-// Must be call in a subtask (_st) function
-#define usbd_control_xfer_st(_rhport, _dir, _buffer, _len) \
-  do {\
-    if (_len) { \
-      tusb_error_t err;\
-      dcd_control_xfer(_rhport, _dir, _buffer, _len);\
-      osal_semaphore_wait( _usbd_ctrl_sem, OSAL_TIMEOUT_CONTROL_XFER, &err );\
-      STASK_ASSERT_ERR( err );\
-    }\
-    /* No need to wait for status to complete therefore */ \
-    /* status phase must not call dcd_control_complete/dcd_xfer_complete*/ \
-    dcd_control_status(_rhport, _dir);\
-  }while(0)
+//--------------------------------------------------------------------+
+// APPLICATION API (Single Port)
+// Should be used with MCU supporting only 1 USB port for code simplicity
+//--------------------------------------------------------------------+
 
 
+//--------------------------------------------------------------------+
+// APPLICATION CALLBACK API (WEAK is optional)
+//--------------------------------------------------------------------+
 
+//--------------------------------------------------------------------+
+// USBD-CLASS DRIVER API
+//--------------------------------------------------------------------+
+#ifdef _TINY_USB_SOURCE_FILE_
 
-#ifdef __cplusplus
- }
+void cusd_init(void);
+tusb_error_t cusd_open(uint8_t rhport, tusb_desc_interface_t const * p_interface_desc, uint16_t *p_length);
+tusb_error_t cusd_control_request_st(uint8_t rhport, tusb_control_request_t const * p_request);
+tusb_error_t cusd_xfer_cb(uint8_t rhport, uint8_t edpt_addr, tusb_event_t event, uint32_t xferred_bytes);
+void cusd_close(uint8_t rhport);
 #endif
 
-#endif /* USBD_PVT_H_ */
+
+#endif /* _TUSB_CUSTOM_DEVICE_H_ */

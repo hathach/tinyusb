@@ -55,14 +55,14 @@ CFG_TUSB_ATTR_USBRAM STATIC_VAR cdc_line_coding_t cdcd_line_coding[CONTROLLER_DE
 
 typedef struct {
   uint8_t itf_num;
+  uint8_t ep_notif;
+  uint8_t ep_in;
+  uint8_t ep_out;
+
   cdc_acm_capability_t acm_cap;
 
   // Bit 0:  DTR (Data Terminal Ready), Bit 1: RTS (Request to Send)
   uint8_t line_state;
-
-  uint8_t ep_notif;
-  uint8_t ep_in;
-  uint8_t ep_out;
 }cdcd_interface_t;
 
 // TODO multiple rhport
@@ -203,38 +203,22 @@ tusb_error_t cdcd_open(uint8_t rhport, tusb_desc_interface_t const * p_interface
 
   //------------- Data Interface (if any) -------------//
   if ( (TUSB_DESC_INTERFACE == p_desc[DESCRIPTOR_OFFSET_TYPE]) &&
-       (TUSB_CLASS_CDC_DATA      == ((tusb_desc_interface_t const *) p_desc)->bInterfaceClass) )
+       (TUSB_CLASS_CDC_DATA == ((tusb_desc_interface_t const *) p_desc)->bInterfaceClass) )
   {
     (*p_length) += p_desc[DESCRIPTOR_OFFSET_LENGTH];
     p_desc = descriptor_next(p_desc);
 
-    // data endpoints expected to be in pairs
-    for(uint32_t i=0; i<2; i++)
-    {
-      tusb_desc_endpoint_t const *p_endpoint = (tusb_desc_endpoint_t const *) p_desc;
-      TU_ASSERT(TUSB_DESC_ENDPOINT == p_endpoint->bDescriptorType, TUSB_ERROR_DESCRIPTOR_CORRUPTED);
-      TU_ASSERT(TUSB_XFER_BULK == p_endpoint->bmAttributes.xfer, TUSB_ERROR_DESCRIPTOR_CORRUPTED);
+    // Open endpoint pair with usbd helper
+    tusb_desc_endpoint_t const *p_desc_ep = (tusb_desc_endpoint_t const *) p_desc;
+    TU_ASSERT_ERR( usbd_open_edpt_pair(rhport, p_desc_ep, TUSB_XFER_BULK, &p_cdc->ep_out, &p_cdc->ep_in) );
 
-      TU_ASSERT( dcd_edpt_open(rhport, p_endpoint), TUSB_ERROR_DCD_OPEN_PIPE_FAILED);
-
-      if ( p_endpoint->bEndpointAddress &  TUSB_DIR_IN_MASK )
-      {
-        p_cdc->ep_in = p_endpoint->bEndpointAddress;
-      }else
-      {
-        p_cdc->ep_out = p_endpoint->bEndpointAddress;
-      }
-
-      (*p_length) += p_desc[DESCRIPTOR_OFFSET_LENGTH];
-      p_desc = descriptor_next( p_desc );
-    }
+    (*p_length) += 2*sizeof(tusb_desc_endpoint_t);
   }
 
   p_cdc->itf_num   = p_interface_desc->bInterfaceNumber;
 
   // Prepare for incoming data
   TU_ASSERT( dcd_edpt_xfer(rhport, p_cdc->ep_out, _tmp_rx_buf, sizeof(_tmp_rx_buf)), TUSB_ERROR_DCD_EDPT_XFER);
-
 
   return TUSB_ERROR_NONE;
 }

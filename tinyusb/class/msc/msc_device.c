@@ -123,36 +123,20 @@ void mscd_close(uint8_t rhport)
   memclr_(&_mscd_itf, sizeof(mscd_interface_t));
 }
 
-tusb_error_t mscd_open(uint8_t rhport, tusb_desc_interface_t const * p_interface_desc, uint16_t *p_length)
+tusb_error_t mscd_open(uint8_t rhport, tusb_desc_interface_t const * p_desc_itf, uint16_t *p_len)
 {
-  VERIFY( ( MSC_SUBCLASS_SCSI == p_interface_desc->bInterfaceSubClass &&
-            MSC_PROTOCOL_BOT  == p_interface_desc->bInterfaceProtocol ), TUSB_ERROR_MSC_UNSUPPORTED_PROTOCOL );
+  // only support SCSI's BOT protocol
+  VERIFY( ( MSC_SUBCLASS_SCSI == p_desc_itf->bInterfaceSubClass &&
+            MSC_PROTOCOL_BOT  == p_desc_itf->bInterfaceProtocol ), TUSB_ERROR_MSC_UNSUPPORTED_PROTOCOL );
 
   mscd_interface_t * p_msc = &_mscd_itf;
 
-  //------------- Open Data Pipe -------------//
-  tusb_desc_endpoint_t const *p_endpoint = (tusb_desc_endpoint_t const *) descriptor_next( (uint8_t const*) p_interface_desc );
-  for(int i=0; i<2; i++)
-  {
-    TU_ASSERT(TUSB_DESC_ENDPOINT == p_endpoint->bDescriptorType &&
-              TUSB_XFER_BULK == p_endpoint->bmAttributes.xfer, TUSB_ERROR_DESCRIPTOR_CORRUPTED);
+  // Open endpoint pair with usbd helper
+  tusb_desc_endpoint_t const *p_desc_ep = (tusb_desc_endpoint_t const *) descriptor_next( (uint8_t const*) p_desc_itf );
+  TU_ASSERT_ERR( usbd_open_edpt_pair(rhport, p_desc_ep, TUSB_XFER_BULK, &p_msc->ep_out, &p_msc->ep_in) );
 
-    TU_ASSERT( dcd_edpt_open(rhport, p_endpoint), TUSB_ERROR_DCD_FAILED );
-
-    if ( p_endpoint->bEndpointAddress &  TUSB_DIR_IN_MASK )
-    {
-      p_msc->ep_in = p_endpoint->bEndpointAddress;
-    }else
-    {
-      p_msc->ep_out = p_endpoint->bEndpointAddress;
-    }
-
-    p_endpoint = (tusb_desc_endpoint_t const *) descriptor_next( (uint8_t const*)  p_endpoint );
-  }
-
-  p_msc->itf_num = p_interface_desc->bInterfaceNumber;
-
-  (*p_length) += sizeof(tusb_desc_interface_t) + 2*sizeof(tusb_desc_endpoint_t);
+  p_msc->itf_num = p_desc_itf->bInterfaceNumber;
+  (*p_len) = sizeof(tusb_desc_interface_t) + 2*sizeof(tusb_desc_endpoint_t);
 
   //------------- Queue Endpoint OUT for Command Block Wrapper -------------//
   TU_ASSERT( dcd_edpt_xfer(rhport, p_msc->ep_out, (uint8_t*) &p_msc->cbw, sizeof(msc_cbw_t)), TUSB_ERROR_DCD_EDPT_XFER );

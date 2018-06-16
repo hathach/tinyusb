@@ -87,6 +87,10 @@
   #if CFG_TUD_MSC
     #include "class/msc/msc_device.h"
   #endif
+
+  #if CFG_TUD_CUSTOM_CLASS
+    #include "class/custom/custom_device.h"
+  #endif
 #endif
 
 

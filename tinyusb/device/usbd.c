@@ -62,12 +62,12 @@
 typedef struct {
   uint8_t class_code;
 
-  void (* init) (void);
-  tusb_error_t (* open)(uint8_t rhport, tusb_desc_interface_t const * desc_intf, uint16_t* p_length);
-  tusb_error_t (* control_request_st) (uint8_t rhport, tusb_control_request_t const *);
-  tusb_error_t (* xfer_cb) (uint8_t rhport, uint8_t ep_addr, tusb_event_t, uint32_t);
-  void (* sof)(uint8_t rhport);
-  void (* close) (uint8_t);
+  void         (* init           ) (void);
+  tusb_error_t (* open           ) (uint8_t rhport, tusb_desc_interface_t const * desc_intf, uint16_t* p_length);
+  tusb_error_t (* control_req_st ) (uint8_t rhport, tusb_control_request_t const *);
+  tusb_error_t (* xfer_cb        ) (uint8_t rhport, uint8_t ep_addr, tusb_event_t, uint32_t);
+  void         (* sof            ) (uint8_t rhport);
+  void         (* close          ) (uint8_t);
 } usbd_class_driver_t;
 
 
@@ -94,37 +94,49 @@ static usbd_class_driver_t const usbd_class_drivers[] =
 {
   #if CFG_TUD_CDC
     {
-        .class_code         = TUSB_CLASS_CDC,
-        .init               = cdcd_init,
-        .open               = cdcd_open,
-        .control_request_st = cdcd_control_request_st,
-        .xfer_cb            = cdcd_xfer_cb,
-        .sof                = cdcd_sof,
-        .close              = cdcd_close
+        .class_code     = TUSB_CLASS_CDC,
+        .init           = cdcd_init,
+        .open           = cdcd_open,
+        .control_req_st = cdcd_control_request_st,
+        .xfer_cb        = cdcd_xfer_cb,
+        .sof            = cdcd_sof,
+        .close          = cdcd_close
     },
   #endif
 
   #if DEVICE_CLASS_HID
     {
-        .class_code         = TUSB_CLASS_HID,
-        .init               = hidd_init,
-        .open               = hidd_open,
-        .control_request_st = hidd_control_request_st,
-        .xfer_cb            = hidd_xfer_cb,
-        .sof                = NULL,
-        .close              = hidd_close
+        .class_code     = TUSB_CLASS_HID,
+        .init           = hidd_init,
+        .open           = hidd_open,
+        .control_req_st = hidd_control_request_st,
+        .xfer_cb        = hidd_xfer_cb,
+        .sof            = NULL,
+        .close          = hidd_close
     },
   #endif
 
   #if CFG_TUD_MSC
     {
-        .class_code         = TUSB_CLASS_MSC,
-        .init               = mscd_init,
-        .open               = mscd_open,
-        .control_request_st = mscd_control_request_st,
-        .xfer_cb            = mscd_xfer_cb,
-        .sof                = NULL,
-        .close              = mscd_close
+        .class_code     = TUSB_CLASS_MSC,
+        .init           = mscd_init,
+        .open           = mscd_open,
+        .control_req_st = mscd_control_request_st,
+        .xfer_cb        = mscd_xfer_cb,
+        .sof            = NULL,
+        .close          = mscd_close
+    },
+  #endif
+
+  #if CFG_TUD_CUSTOM_CLASS
+    {
+        .class_code     = TUSB_CLASS_VENDOR_SPECIFIC,
+        .init           = cusd_init,
+        .open           = cusd_open,
+        .control_req_st = cusd_control_request_st,
+        .xfer_cb        = cusd_xfer_cb,
+        .sof            = NULL,
+        .close          = cusd_close
     },
   #endif
 };
@@ -358,9 +370,9 @@ static tusb_error_t proc_control_request_st(uint8_t rhport, tusb_control_request
       if ( usbd_class_drivers[drid].class_code == class_code ) break;
     }
 
-    if ( (drid < USBD_CLASS_DRIVER_COUNT) && usbd_class_drivers[drid].control_request_st )
+    if ( (drid < USBD_CLASS_DRIVER_COUNT) && usbd_class_drivers[drid].control_req_st )
     {
-      STASK_INVOKE( usbd_class_drivers[drid].control_request_st(rhport, p_request), error );
+      STASK_INVOKE( usbd_class_drivers[drid].control_req_st(rhport, p_request), error );
     }else
     {
       dcd_control_stall(rhport); // Stall unsupported request
@@ -427,7 +439,7 @@ static tusb_error_t proc_set_config_req(uint8_t rhport, uint8_t config_number)
       }
       TU_ASSERT( drid < USBD_CLASS_DRIVER_COUNT, TUSB_ERROR_NOT_SUPPORTED_YET );
 
-      // duplicate interface number TODO support alternate setting
+      // Check duplicate interface number TODO support alternate setting
       TU_ASSERT( 0 == usbd_devices[rhport].interface2class[p_desc_itf->bInterfaceNumber], TUSB_ERROR_FAILED);
       usbd_devices[rhport].interface2class[p_desc_itf->bInterfaceNumber] = class_code;
 
@@ -587,5 +599,26 @@ void dcd_xfer_complete(uint8_t rhport, uint8_t ep_addr, uint32_t xferred_bytes, 
 //--------------------------------------------------------------------+
 // HELPER
 //--------------------------------------------------------------------+
+tusb_error_t usbd_open_edpt_pair(uint8_t rhport, tusb_desc_endpoint_t const* p_desc_ep, uint8_t xfer_type, uint8_t* ep_out, uint8_t* ep_in)
+{
+  for(int i=0; i<2; i++)
+  {
+    TU_ASSERT(TUSB_DESC_ENDPOINT == p_desc_ep->bDescriptorType &&
+              xfer_type          == p_desc_ep->bmAttributes.xfer, TUSB_ERROR_DESCRIPTOR_CORRUPTED);
 
+    TU_ASSERT( dcd_edpt_open(rhport, p_desc_ep), TUSB_ERROR_DCD_OPEN_PIPE_FAILED );
+
+    if ( p_desc_ep->bEndpointAddress &  TUSB_DIR_IN_MASK )
+    {
+      (*ep_in) = p_desc_ep->bEndpointAddress;
+    }else
+    {
+      (*ep_out) = p_desc_ep->bEndpointAddress;
+    }
+
+    p_desc_ep = (tusb_desc_endpoint_t const *) descriptor_next( (uint8_t const*)  p_desc_ep );
+  }
+
+  return TUSB_ERROR_NONE;
+}
 #endif
