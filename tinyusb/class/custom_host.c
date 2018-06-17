@@ -1,6 +1,6 @@
 /**************************************************************************/
 /*!
-    @file     custom_class_host.c
+    @file     custom_host.c
     @author   hathach (tinyusb.org)
 
     @section LICENSE
@@ -46,7 +46,7 @@
 // INCLUDE
 //--------------------------------------------------------------------+
 #include "common/tusb_common.h"
-#include "custom_class.h"
+#include "custom_host.h"
 
 //--------------------------------------------------------------------+
 // MACRO CONSTANT TYPEDEF

@@ -67,7 +67,7 @@
   #endif
 
   #if CFG_TUSB_HOST_CUSTOM_CLASS
-    #include "class/custom_class.h"
+    #include "class/custom_host.h"
   #endif
 
 #endif
