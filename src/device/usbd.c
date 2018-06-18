@@ -608,7 +608,7 @@ tusb_error_t usbd_open_edpt_pair(uint8_t rhport, tusb_desc_endpoint_t const* p_d
 
     TU_ASSERT( dcd_edpt_open(rhport, p_desc_ep), TUSB_ERROR_DCD_OPEN_PIPE_FAILED );
 
-    if ( p_desc_ep->bEndpointAddress &  TUSB_DIR_IN_MASK )
+    if ( edpt_dir(p_desc_ep->bEndpointAddress) ==  TUSB_DIR_IN )
     {
       (*ep_in) = p_desc_ep->bEndpointAddress;
     }else

@@ -242,6 +242,16 @@ static inline tusb_error_t usbh_pipe_control_close(uint8_t dev_addr)
 //  return TUSB_INTERFACE_STATUS_BUSY;
 //}
 
+static inline uint8_t std_class_code_to_index(uint8_t std_class_code)
+{
+  return  (std_class_code <= TUSB_CLASS_AUDIO_VIDEO          ) ? std_class_code                    :
+          (std_class_code == TUSB_CLASS_DIAGNOSTIC           ) ? TUSB_CLASS_MAPPED_INDEX_START     :
+          (std_class_code == TUSB_CLASS_WIRELESS_CONTROLLER  ) ? TUSB_CLASS_MAPPED_INDEX_START + 1 :
+          (std_class_code == TUSB_CLASS_MISC                 ) ? TUSB_CLASS_MAPPED_INDEX_START + 2 :
+          (std_class_code == TUSB_CLASS_APPLICATION_SPECIFIC ) ? TUSB_CLASS_MAPPED_INDEX_START + 3 :
+          (std_class_code == TUSB_CLASS_VENDOR_SPECIFIC      ) ? TUSB_CLASS_MAPPED_INDEX_START + 4 : 0;
+}
+
 //--------------------------------------------------------------------+
 // USBH-HCD ISR/Callback API
 //--------------------------------------------------------------------+
