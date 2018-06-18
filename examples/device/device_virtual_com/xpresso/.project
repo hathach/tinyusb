@@ -37,7 +37,7 @@
 		<link>
 			<name>tinyusb</name>
 			<type>2</type>
-			<locationURI>PARENT-4-PROJECT_LOC/tinyusb</locationURI>
+			<locationURI>PARENT-4-PROJECT_LOC/src</locationURI>
 		</link>
 	</linkedResources>
 	<filteredResources>

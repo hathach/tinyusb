@@ -87,6 +87,15 @@
 							</tool>
 						</toolChain>
 					</folderInfo>
+					<folderInfo id="com.crt.advproject.config.exe.debug.1203173668.586387399.181780209" name="/" resourcePath="tinyusb">
+						<toolChain id="com.crt.advproject.toolchain.exe.debug.1275173732" name="NXP MCU Tools" superClass="com.crt.advproject.toolchain.exe.debug" unusedChildren="">
+							<tool id="com.crt.advproject.cpp.exe.debug.193507715" name="MCU C++ Compiler" superClass="com.crt.advproject.cpp.exe.debug.1902983438"/>
+							<tool id="com.crt.advproject.gcc.exe.debug.1649905087" name="MCU C Compiler" superClass="com.crt.advproject.gcc.exe.debug.1115700323"/>
+							<tool id="com.crt.advproject.gas.exe.debug.857784671" name="MCU Assembler" superClass="com.crt.advproject.gas.exe.debug.922965957"/>
+							<tool id="com.crt.advproject.link.cpp.exe.debug.1802949954" name="MCU C++ Linker" superClass="com.crt.advproject.link.cpp.exe.debug.844358431"/>
+							<tool id="com.crt.advproject.link.exe.debug.238323235" name="MCU Linker" superClass="com.crt.advproject.link.exe.debug.1844250132"/>
+						</toolChain>
+					</folderInfo>
 					<sourceEntries>
 						<entry excluding="hw/bsp/hitex|hw/bsp/keil|hw/mcu/nordic|hw/bsp/lpcxpresso|hw/mcu/nxp/lpc13uxx|hw/bsp/lpcxpresso1347|hw/mcu/nxp/lpc11uxx|hw/bsp/lpcxpresso1769|hw/mcu/nxp/lpc175x_6x|hw/bsp/pca10056|hw/bsp/ngx|hw/bsp/lpcxpresso11u68" flags="VALUE_WORKSPACE_PATH|RESOLVED" kind="sourcePath" name=""/>
 					</sourceEntries>
