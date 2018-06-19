@@ -255,10 +255,13 @@ tusb_error_t mscd_xfer_cb(uint8_t rhport, uint8_t ep_addr, tusb_event_t event, u
         }
         else
         {
-          uint32_t lba = rdwr10_get_lba(p_cbw->command);
+          uint16_t const block_sz = p_cbw->xfer_bytes / rdwr10_get_blockcount(p_cbw->command);
+
+          // Adjust lba with transferred bytes
+          uint32_t const lba = rdwr10_get_lba(p_cbw->command) + (p_msc->xferred_len / block_sz);
 
           // Application can consume smaller bytes
-          int32_t nbytes = tud_msc_write10_cb(rhport, p_cbw->lun, lba, p_msc->xferred_len, _mscd_buf, xferred_bytes);
+          int32_t nbytes = tud_msc_write10_cb(rhport, p_cbw->lun, lba, p_msc->xferred_len % block_sz, _mscd_buf, xferred_bytes);
 
           if ( nbytes < 0 )
           {
@@ -355,13 +358,16 @@ static void proc_read10_cmd(uint8_t rhport, mscd_interface_t* p_msc)
   msc_cbw_t const * p_cbw = &p_msc->cbw;
   msc_csw_t       * p_csw = &p_msc->csw;
 
-  uint32_t lba = rdwr10_get_lba(p_cbw->command);
+  uint16_t const block_sz = p_cbw->xfer_bytes / rdwr10_get_blockcount(p_cbw->command);
+
+  // Adjust lba with transferred bytes
+  uint32_t const lba = rdwr10_get_lba(p_cbw->command) + (p_msc->xferred_len / block_sz);
 
   // remaining bytes capped at class buffer
   int32_t nbytes = (int32_t) min32_of(sizeof(_mscd_buf), p_cbw->xfer_bytes-p_msc->xferred_len);
 
   // Application can consume smaller bytes
-  nbytes = tud_msc_read10_cb (rhport, p_cbw->lun, lba, p_msc->xferred_len, _mscd_buf, (uint32_t) nbytes);
+  nbytes = tud_msc_read10_cb (rhport, p_cbw->lun, lba, p_msc->xferred_len % block_sz, _mscd_buf, (uint32_t) nbytes);
 
   if ( nbytes < 0 )
   {
