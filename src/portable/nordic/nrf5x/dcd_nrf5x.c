@@ -70,7 +70,7 @@ typedef struct
   uint16_t actual_len;
   uint8_t  mps; // max packet size
 
-  // FIXME nrf52840 does not NAK OUT packet properly
+  // FIXME nrf52840 auto ACK OUT packet after DMA is done
   bool     data_received;
 
 } nom_xfer_t;
@@ -316,7 +316,7 @@ bool dcd_edpt_xfer (uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t 
     {
       xfer->data_received = false;
 
-      // FIXME nrf52840 does not NAK OUT packet properly
+      // FIXME nrf52840 auto ACK OUT packet after DMA is done
       // Data already received preivously
       xact_out_dma(epnum);
     }else
@@ -491,8 +491,7 @@ void USBD_IRQHandler(void)
           xact_out_dma(epnum);
         }else
         {
-          // FIXME nrf52840 does not NAK OUT packet properly
-          // It will always ACK next package although we haven't write to SIZE yet
+          // FIXME nrf52840 auto ACK OUT packet after DMA is done
 
           // Mark this endpoint with data received
           xfer->data_received = true;
