@@ -86,12 +86,4 @@ If you find my little USB stack is useful and want to give something back
 
 You can contribute your time by helping with programming, testing and filing bug reports, improving documentation. Or simply by using tinyusb, giving me some feedback on how to improve it and telling others about it. 
 
-### Donate Money ###
-
-If you don't have time but still want to help, then please consider making a financial donation. This will help to pay the (mostly coffee) bills and motivate me to continue working on tinyusb. You can do so using the donation button, or contact me for other payment methods.
-
-[//]: # (\htmlonly)
-<a href="https://pledgie.com/campaigns/24694"><img alt="Click here to lend your support to tinyusb donation and make a donation at pledgie.com" src="https://pledgie.com/campaigns/24694.png?skin_name=chrome" border="0"></a>
-[//]: # (\endhtmlonly)
-
 
