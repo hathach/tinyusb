@@ -106,7 +106,7 @@ static inline uint16_t rdwr10_get_blockcount(uint8_t const command[])
   uint16_t block_count;
   memcpy(&block_count, &p_rdwr10->block_count, 2);
 
-  return __be2n(block_count);
+  return __be2n_16(block_count);
 }
 
 
