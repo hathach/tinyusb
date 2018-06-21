@@ -157,9 +157,11 @@ enum { USBD_CLASS_DRIVER_COUNT = sizeof(usbd_class_drivers) / sizeof(usbd_class_
 //--------------------------------------------------------------------+
 typedef enum
 {
-  USBD_EVENTID_SETUP_RECEIVED = 1,
-  USBD_EVENTID_XFER_DONE,
-  USBD_EVENTID_SOF
+  USBD_EVT_SETUP_RECEIVED = 1,
+  USBD_EVT_XFER_DONE,
+  USBD_EVT_SOF,
+
+
 }usbd_eventid_t;
 
 typedef struct ATTR_ALIGNED(4)
@@ -273,11 +275,11 @@ static tusb_error_t usbd_main_st(void)
 
   osal_queue_receive(_usbd_q, &event, OSAL_TIMEOUT_WAIT_FOREVER, &err);
 
-  if ( USBD_EVENTID_SETUP_RECEIVED == event.event_id )
+  if ( USBD_EVT_SETUP_RECEIVED == event.event_id )
   {
     STASK_INVOKE( proc_control_request_st(event.rhport, &event.setup_received), err );
   }
-  else if (USBD_EVENTID_XFER_DONE == event.event_id)
+  else if (USBD_EVT_XFER_DONE == event.event_id)
   {
     // TODO only call respective interface callback
     // Call class handling function. Those does not own the endpoint should check and return
@@ -289,7 +291,7 @@ static tusb_error_t usbd_main_st(void)
       }
     }
   }
-  else if (USBD_EVENTID_SOF == event.event_id)
+  else if (USBD_EVT_SOF == event.event_id)
   {
     for (uint8_t i = 0; i < USBD_CLASS_DRIVER_COUNT; i++)
     {
@@ -537,7 +539,7 @@ void dcd_bus_event(uint8_t rhport, usbd_bus_event_type_t bus_event)
       usbd_task_event_t task_event =
       {
           .rhport          = rhport,
-          .event_id        = USBD_EVENTID_SOF,
+          .event_id        = USBD_EVT_SOF,
       };
       osal_queue_send_isr(_usbd_q, &task_event);
     }
@@ -561,7 +563,7 @@ void dcd_setup_received(uint8_t rhport, uint8_t const* p_request)
   usbd_task_event_t task_event =
   {
       .rhport          = rhport,
-      .event_id        = USBD_EVENTID_SETUP_RECEIVED,
+      .event_id        = USBD_EVT_SETUP_RECEIVED,
   };
 
   memcpy(&task_event.setup_received, p_request, sizeof(tusb_control_request_t));
@@ -583,7 +585,7 @@ void dcd_xfer_complete(uint8_t rhport, uint8_t ep_addr, uint32_t xferred_bytes, 
     usbd_task_event_t task_event =
     {
         .rhport         = rhport,
-        .event_id     = USBD_EVENTID_XFER_DONE,
+        .event_id     = USBD_EVT_XFER_DONE,
         .sub_event_id = succeeded ? TUSB_EVENT_XFER_COMPLETE : TUSB_EVENT_XFER_ERROR
     };
 
