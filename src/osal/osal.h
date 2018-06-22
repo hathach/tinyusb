@@ -58,6 +58,7 @@ enum
 
 #define OSAL_TIMEOUT_CONTROL_XFER  OSAL_TIMEOUT_WAIT_FOREVER
 
+typedef void (*osal_task_func_t)( void * );
 
 #if CFG_TUSB_OS == OPT_OS_NONE
   #include "osal_none.h"

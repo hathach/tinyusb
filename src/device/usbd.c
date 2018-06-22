@@ -182,7 +182,7 @@ typedef struct ATTR_ALIGNED(4)
 
     // USBD_EVT_FUNC_CALL
     struct {
-      void (*func)(void*);
+      osal_task_func_t func;
       void* param;
     }func_call;
   };
@@ -307,6 +307,10 @@ static tusb_error_t usbd_main_st(void)
         usbd_class_drivers[i].sof( event.rhport );
       }
     }
+  }
+  else if ( USBD_EVT_FUNC_CALL == event.event_id )
+  {
+    if ( event.func_call.func ) event.func_call.func(event.func_call.param);
   }
   else
   {
@@ -631,7 +635,7 @@ tusb_error_t usbd_open_edpt_pair(uint8_t rhport, tusb_desc_endpoint_t const* p_d
   return TUSB_ERROR_NONE;
 }
 
-void usbd_defer_func(void (*func)(void*), void* param, bool isr )
+void usbd_defer_func(osal_task_func_t func, void* param, bool isr )
 {
   usbd_task_event_t event =
   {

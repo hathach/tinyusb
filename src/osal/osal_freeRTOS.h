@@ -71,7 +71,7 @@ static inline bool in_isr(void)
 
 typedef struct
 {
-  void (*func)(void *param);
+  osal_task_func_t func;
 
   uint16_t prio;
   uint16_t stack_sz;
