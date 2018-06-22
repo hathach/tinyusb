@@ -146,6 +146,8 @@ static inline bool osal_queue_send_isr(osal_queue_t const queue_hdl, void const 
   return fifo_write( (fifo_t*) queue_hdl, data);
 }
 
+#define osal_queue_send osal_queue_send_isr
+
 static inline void osal_queue_flush(osal_queue_t const queue_hdl)
 {
   queue_hdl->count = queue_hdl->rd_idx = queue_hdl->wr_idx = 0;

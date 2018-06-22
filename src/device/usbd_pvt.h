@@ -36,6 +36,7 @@
 #ifndef USBD_PVT_H_
 #define USBD_PVT_H_
 
+#include "osal/osal.h"
 
 #ifdef __cplusplus
  extern "C" {
@@ -45,16 +46,16 @@
 extern osal_semaphore_t _usbd_ctrl_sem;
 
 //--------------------------------------------------------------------+
-// INTERNAL API
+// INTERNAL API for stack management
 //--------------------------------------------------------------------+
-tusb_error_t usbd_init(void);
-void         usbd_task( void* param);
+tusb_error_t usbd_init (void);
+void         usbd_task (void* param);
 
+/*------------------------------------------------------------------*/
+/* Endpoint helper
+ *------------------------------------------------------------------*/
 // helper to parse an pair of In and Out endpoint descriptors. They must be consecutive
 tusb_error_t usbd_open_edpt_pair(uint8_t rhport, tusb_desc_endpoint_t const* p_desc_ep, uint8_t xfer_type, uint8_t* ep_out, uint8_t* ep_in);
-
-// Carry out Data and Status stage of control transfer
-//tusb_error_t usbd_control_xfer_st(uint8_t rhport, tusb_dir_t dir, uint8_t * buffer, uint16_t length);
 
 // Carry out Data and Status stage of control transfer
 // Must be call in a subtask (_st) function
@@ -72,6 +73,10 @@ tusb_error_t usbd_open_edpt_pair(uint8_t rhport, tusb_desc_endpoint_t const* p_d
   }while(0)
 
 
+/*------------------------------------------------------------------*/
+/* Other Helpers
+ *------------------------------------------------------------------*/
+void usbd_defer_func( void (*func)(void*), void* param, bool isr );
 
 
 #ifdef __cplusplus

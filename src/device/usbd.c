@@ -161,23 +161,30 @@ typedef enum
   USBD_EVT_XFER_DONE,
   USBD_EVT_SOF,
 
-
+  USBD_EVT_FUNC_CALL
 }usbd_eventid_t;
 
 typedef struct ATTR_ALIGNED(4)
 {
   uint8_t rhport;
   uint8_t event_id;
-  uint8_t sub_event_id;
-  uint8_t reserved;
 
   union {
+    // USBD_EVT_SETUP_RECEIVED
     tusb_control_request_t setup_received;
 
-    struct { // USBD_EVENTID_XFER_DONE
+    // USBD_EVT_XFER_DONE
+    struct {
       uint8_t  ep_addr;
+      uint8_t  result;
       uint32_t xferred_byte;
     }xfer_done;
+
+    // USBD_EVT_FUNC_CALL
+    struct {
+      void (*func)(void*);
+      void* param;
+    }func_call;
   };
 } usbd_task_event_t;
 
@@ -287,7 +294,7 @@ static tusb_error_t usbd_main_st(void)
     {
       if ( usbd_class_drivers[i].xfer_cb )
       {
-        usbd_class_drivers[i].xfer_cb( event.rhport, event.xfer_done.ep_addr, (tusb_event_t) event.sub_event_id, event.xfer_done.xferred_byte);
+        usbd_class_drivers[i].xfer_cb( event.rhport, event.xfer_done.ep_addr, (tusb_event_t) event.xfer_done.result, event.xfer_done.xferred_byte);
       }
     }
   }
@@ -582,24 +589,24 @@ void dcd_xfer_complete(uint8_t rhport, uint8_t ep_addr, uint32_t xferred_bytes, 
     if (xferred_bytes) osal_semaphore_post_isr( _usbd_ctrl_sem );
   }else
   {
-    usbd_task_event_t task_event =
+    usbd_task_event_t event =
     {
         .rhport         = rhport,
         .event_id     = USBD_EVT_XFER_DONE,
-        .sub_event_id = succeeded ? TUSB_EVENT_XFER_COMPLETE : TUSB_EVENT_XFER_ERROR
     };
 
-    task_event.xfer_done.ep_addr      = ep_addr;
-    task_event.xfer_done.xferred_byte = xferred_bytes;
+    event.xfer_done.ep_addr      = ep_addr;
+    event.xfer_done.xferred_byte = xferred_bytes;
+    event.xfer_done.result       = succeeded ? TUSB_EVENT_XFER_COMPLETE : TUSB_EVENT_XFER_ERROR;
 
-    osal_queue_send_isr(_usbd_q, &task_event);
+    osal_queue_send_isr(_usbd_q, &event);
   }
 
   TU_ASSERT(succeeded, );
 }
 
 //--------------------------------------------------------------------+
-// HELPER
+// Helper
 //--------------------------------------------------------------------+
 tusb_error_t usbd_open_edpt_pair(uint8_t rhport, tusb_desc_endpoint_t const* p_desc_ep, uint8_t xfer_type, uint8_t* ep_out, uint8_t* ep_in)
 {
@@ -623,4 +630,25 @@ tusb_error_t usbd_open_edpt_pair(uint8_t rhport, tusb_desc_endpoint_t const* p_d
 
   return TUSB_ERROR_NONE;
 }
+
+void usbd_defer_func(void (*func)(void*), void* param, bool isr )
+{
+  usbd_task_event_t event =
+  {
+      .rhport       = 0,
+      .event_id     = USBD_EVT_FUNC_CALL,
+  };
+
+  event.func_call.func  = func;
+  event.func_call.param = param;
+
+  if ( isr )
+  {
+    osal_queue_send_isr(_usbd_q, &event);
+  }else
+  {
+    osal_queue_send(_usbd_q, &event);
+  }
+}
+
 #endif
