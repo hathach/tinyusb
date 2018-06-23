@@ -72,8 +72,8 @@ typedef struct {
   uint8_t  ep_out;
 
   uint8_t  stage;
-  uint16_t data_len;
-  uint16_t xferred_len; // numbered of bytes transferred so far in the Data Stage
+  uint32_t data_len;
+  uint32_t xferred_len; // numbered of bytes transferred so far in the Data Stage
 }mscd_interface_t;
 
 CFG_TUSB_ATTR_USBRAM CFG_TUSB_MEM_ALIGN static mscd_interface_t _mscd_itf;
@@ -225,8 +225,10 @@ tusb_error_t mscd_xfer_cb(uint8_t rhport, uint8_t ep_addr, tusb_event_t event, u
         }
         else
         {
-          p_msc->data_len = tud_msc_scsi_cb(rhport, p_cbw->lun, p_cbw->command, _mscd_buf, p_msc->data_len);
-          p_csw->status   = (p_msc->data_len >= 0) ? MSC_CSW_STATUS_PASSED : MSC_CSW_STATUS_FAILED;
+          int32_t const cb_result = tud_msc_scsi_cb(rhport, p_cbw->lun, p_cbw->command, _mscd_buf, p_msc->data_len);
+
+          p_csw->status   = (cb_result >= 0) ? MSC_CSW_STATUS_PASSED : MSC_CSW_STATUS_FAILED;
+          p_msc->data_len = (uint32_t) cb_result;
 
           TU_ASSERT( p_cbw->xfer_bytes >= p_msc->data_len, TUSB_ERROR_INVALID_PARA ); // cannot return more than host expect
 
@@ -329,14 +331,16 @@ tusb_error_t mscd_xfer_cb(uint8_t rhport, uint8_t ep_addr, tusb_event_t event, u
 
   if ( p_msc->stage == MSC_STAGE_STATUS )
   {
-    // Invoke Complete Callback if defined
+    // Invoke complete callback if defined
     if ( SCSI_CMD_READ_10 == p_cbw->command[0])
     {
       if ( tud_msc_read10_complete_cb ) tud_msc_read10_complete_cb(rhport, p_cbw->lun);
-    }else if ( SCSI_CMD_WRITE_10 == p_cbw->command[0] )
+    }
+    else if ( SCSI_CMD_WRITE_10 == p_cbw->command[0] )
     {
       if ( tud_msc_write10_complete_cb ) tud_msc_write10_complete_cb(rhport, p_cbw->lun);
-    }else
+    }
+    else
     {
       if ( tud_msc_scsi_complete_cb ) tud_msc_scsi_complete_cb(rhport, p_cbw->lun, p_cbw->command);
     }

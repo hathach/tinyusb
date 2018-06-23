@@ -263,7 +263,7 @@ static void xact_out_dma(uint8_t epnum)
 /*------------- Bulk/Int IN transfer -------------*/
 
 /**
- * Prepare Bulk/Int in transaction, transfer data from Memory -> Endpoint
+ * Prepare Bulk/Int in transaction, use DMA to transfer data from Memory -> Endpoint
  * @param epnum
  */
 static void xact_in_prepare(uint8_t epnum)
@@ -415,8 +415,8 @@ void USBD_IRQHandler(void)
   if ( int_status & USBD_INTEN_EP0SETUP_Msk )
   {
     uint8_t setup[8] = {
-        NRF_USBD->BMREQUESTTYPE, NRF_USBD->BREQUEST, NRF_USBD->WVALUEL, NRF_USBD->WVALUEH,
-        NRF_USBD->WINDEXL, NRF_USBD->WINDEXH, NRF_USBD->WLENGTHL, NRF_USBD->WLENGTHH
+        NRF_USBD->BMREQUESTTYPE , NRF_USBD->BREQUEST, NRF_USBD->WVALUEL , NRF_USBD->WVALUEH,
+        NRF_USBD->WINDEXL       , NRF_USBD->WINDEXH , NRF_USBD->WLENGTHL, NRF_USBD->WLENGTHH
     };
 
     dcd_setup_received(0, setup);
@@ -486,6 +486,8 @@ void USBD_IRQHandler(void)
         dcd_xfer_complete(0, epnum, xfer->actual_len, true);
       }
     }
+
+    // Ended event for Bulk/Int : nothing to do
   }
 
   if ( int_status & USBD_INTEN_EPDATA_Msk)
