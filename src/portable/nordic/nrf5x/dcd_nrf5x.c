@@ -47,6 +47,7 @@
 #include "nrf_drv_usbd_errata.h"
 
 #include "device/dcd.h"
+#include "device/usbd_pvt.h" // to use defer function helper
 
 /*------------------------------------------------------------------*/
 /* MACRO TYPEDEF CONSTANT ENUM
@@ -70,8 +71,8 @@ typedef struct
   uint16_t actual_len;
   uint8_t  mps; // max packet size
 
-  // FIXME nrf52840 auto ACK OUT packet after DMA is done
-  bool     data_received;
+  // nrf52840 will auto ACK OUT packet after DMA is done
+  volatile bool data_received; // indicate packet is already ACK
 
 } nom_xfer_t;
 
@@ -140,29 +141,34 @@ void dcd_set_config (uint8_t rhport, uint8_t config_num)
 /*------------------------------------------------------------------*/
 /* Control
  *------------------------------------------------------------------*/
-static void edpt_dma_start(uint8_t epnum, uint8_t dir)
+static void edpt_dma_start(volatile uint32_t* reg_startep)
 {
-  // Only one dma could be active, TODO resolve when this is called in ISR and dma is running
-  while ( _dcd.dma_running ) 
+  // Only one dma can be active
+  if ( _dcd.dma_running )
   {
-    TU_ASSERT ( 0 == (SCB->ICSR & SCB_ICSR_VECTACTIVE_Msk), );
+    if (SCB->ICSR & SCB_ICSR_VECTACTIVE_Msk)
+    {
+      // If called within ISR, use usbd task to defer later
+      usbd_defer_func( (osal_task_func_t) edpt_dma_start, (void*) reg_startep, true );
+      return;
+    }
+    else
+    {
+      // Otherwise simply block wait
+      while ( _dcd.dma_running )  { }
+    }
   }
 
   _dcd.dma_running = true;
 
-  if ( dir == TUSB_DIR_OUT )
-  {
-    NRF_USBD->TASKS_STARTEPOUT[epnum] = 1;
-  } else
-  {
-    NRF_USBD->TASKS_STARTEPIN[epnum] = 1;
-  }
-
+  (*reg_startep) = 1;
   __ISB(); __DSB();
 }
 
 static void edpt_dma_end(void)
 {
+  TU_ASSERT(_dcd.dma_running, );
+
   _dcd.dma_running = false;
 }
 
@@ -184,7 +190,7 @@ static void xact_control_start(void)
     NRF_USBD->EPIN[0].PTR        = (uint32_t) _dcd.control.buffer;
     NRF_USBD->EPIN[0].MAXCNT     = xact_len;
 
-    edpt_dma_start(0, TUSB_DIR_IN);
+    edpt_dma_start(&NRF_USBD->TASKS_STARTEPIN[0]);
   }
 
   _dcd.control.buffer     += xact_len;
@@ -231,7 +237,8 @@ static inline nom_xfer_t* get_td(uint8_t epnum, uint8_t dir)
  */
 static void xact_out_prepare(uint8_t epnum)
 {
-  // Write any value to size will allow hw to ACK (accept data)
+  // Write zero value to SIZE register will allow hw to ACK (accept data)
+  // If it is not already done by DMA
   NRF_USBD->SIZE.EPOUT[epnum] = 0;
   __ISB(); __DSB();
 }
@@ -246,7 +253,7 @@ static void xact_out_dma(uint8_t epnum)
   NRF_USBD->EPOUT[epnum].PTR    = (uint32_t) xfer->buffer;
   NRF_USBD->EPOUT[epnum].MAXCNT = xact_len;
 
-  edpt_dma_start(epnum, TUSB_DIR_OUT);
+  edpt_dma_start(&NRF_USBD->TASKS_STARTEPOUT[epnum]);
 
   xfer->buffer     += xact_len;
   xfer->actual_len += xact_len;
@@ -271,7 +278,7 @@ static void xact_in_prepare(uint8_t epnum)
 
   xfer->buffer += xact_len;
 
-  edpt_dma_start(epnum, TUSB_DIR_IN);
+  edpt_dma_start(&NRF_USBD->TASKS_STARTEPIN[epnum]);
 }
 
 bool dcd_edpt_open (uint8_t rhport, tusb_desc_endpoint_t const * desc_edpt)
@@ -314,10 +321,8 @@ bool dcd_edpt_xfer (uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t 
   {
     if ( xfer->data_received )
     {
-      xfer->data_received = false;
-
-      // FIXME nrf52840 auto ACK OUT packet after DMA is done
-      // Data already received preivously
+      // nrf52840 auto ACK OUT packet after DMA is done
+      // Data already received previously --> trigger DMA to copy to SRAM
       xact_out_dma(epnum);
     }else
     {
@@ -421,12 +426,12 @@ void USBD_IRQHandler(void)
   {
     if ( _dcd.control.dir == TUSB_DIR_OUT )
     {
-      // OUT data from Host -> Endpoint
+      // Control OUT: data from Host -> Endpoint
       // Trigger DMA to move Endpoint -> SRAM
-      edpt_dma_start(0, TUSB_DIR_OUT);
+      edpt_dma_start(&NRF_USBD->TASKS_STARTEPOUT[0]);
     }else
     {
-      // IN: data transferred from Endpoint -> Host
+      // Control IN: data transferred from Endpoint -> Host
       if ( _dcd.control.actual_len < _dcd.control.total_len )
       {
         xact_control_start();
@@ -438,7 +443,7 @@ void USBD_IRQHandler(void)
     }
   }
 
-  // OUT data moved from Endpoint -> SRAM
+  // Control OUT: data from Endpoint -> SRAM
   if ( int_status & USBD_INTEN_ENDEPOUT0_Msk)
   {
     if ( _dcd.control.actual_len < _dcd.control.total_len )
@@ -452,55 +457,12 @@ void USBD_IRQHandler(void)
   }
 
   /*------------- Bulk/Interrupt Transfer -------------*/
-  if ( int_status & USBD_INTEN_EPDATA_Msk)
-  {
-    uint32_t data_status = NRF_USBD->EPDATASTATUS;
 
-    nrf_usbd_epdatastatus_clear(data_status);
-
-    // In: data from Endpoint -> Host
-    for(uint8_t epnum=1; epnum<8; epnum++)
-    {
-      if ( BIT_TEST_(data_status, epnum ) )
-      {
-        nom_xfer_t* xfer = get_td(epnum, TUSB_DIR_IN);
-
-        xfer->actual_len += NRF_USBD->EPIN[epnum].MAXCNT;
-
-        if ( xfer->actual_len < xfer->total_len )
-        {
-          // more to xfer
-          xact_in_prepare(epnum);
-        } else
-        {
-          // BULK/INT IN complete
-          dcd_xfer_complete(0, epnum | TUSB_DIR_IN_MASK, xfer->actual_len, true);
-        }
-      }
-    }
-
-    // OUT: data from Host -> Endpoint
-    for(uint8_t epnum=1; epnum<8; epnum++)
-    {
-      if ( BIT_TEST_(data_status, 16+epnum ) )
-      {
-        nom_xfer_t* xfer = get_td(epnum, TUSB_DIR_OUT);
-
-        if (xfer->actual_len < xfer->total_len)
-        {
-          xact_out_dma(epnum);
-        }else
-        {
-          // FIXME nrf52840 auto ACK OUT packet after DMA is done
-
-          // Mark this endpoint with data received
-          xfer->data_received = true;
-        }
-      }
-    }
-  }
-
-  // OUT: data from DMA -> SRAM
+  /* Bulk/Int OUT: data from DMA -> SRAM
+   * Note: Since nrf controller auto ACK next packet without SW awareness
+   * We must handle this stage before Host -> Endpoint just in case
+   * 2 event happens at once
+   */
   for(uint8_t epnum=1; epnum<8; epnum++)
   {
     if ( BIT_TEST_(int_status, USBD_INTEN_ENDEPOUT0_Pos+epnum) )
@@ -509,10 +471,12 @@ void USBD_IRQHandler(void)
 
       uint8_t const xact_len = NRF_USBD->EPOUT[epnum].AMOUNT;
 
+      xfer->data_received = false;
+
       // Transfer complete if transaction len < Max Packet Size or total len is transferred
       if ( (xact_len == xfer->mps) && (xfer->actual_len < xfer->total_len) )
       {
-        // Prepare for more data from Host -> Endpoint
+        // Prepare for next transaction
         xact_out_prepare(epnum);
       }else
       {
@@ -524,6 +488,52 @@ void USBD_IRQHandler(void)
     }
   }
 
+  if ( int_status & USBD_INTEN_EPDATA_Msk)
+  {
+    uint32_t data_status = NRF_USBD->EPDATASTATUS;
+
+    nrf_usbd_epdatastatus_clear(data_status);
+
+    // Bulk/Int In: data from Endpoint -> Host
+    for(uint8_t epnum=1; epnum<8; epnum++)
+    {
+      if ( BIT_TEST_(data_status, epnum ) )
+      {
+        nom_xfer_t* xfer = get_td(epnum, TUSB_DIR_IN);
+
+        xfer->actual_len += NRF_USBD->EPIN[epnum].MAXCNT;
+
+        if ( xfer->actual_len < xfer->total_len )
+        {
+          // prepare next transaction
+          xact_in_prepare(epnum);
+        } else
+        {
+          // Bulk/Int IN complete
+          dcd_xfer_complete(0, epnum | TUSB_DIR_IN_MASK, xfer->actual_len, true);
+        }
+      }
+    }
+
+    // Bulk/Int OUT: data from Host -> Endpoint
+    for(uint8_t epnum=1; epnum<8; epnum++)
+    {
+      if ( BIT_TEST_(data_status, 16+epnum ) )
+      {
+        nom_xfer_t* xfer = get_td(epnum, TUSB_DIR_OUT);
+
+        if (xfer->actual_len < xfer->total_len)
+        {
+          xact_out_dma(epnum);
+        }else
+        {
+          // Data overflow !!! Nah, nrf52840 will auto ACK OUT packet after DMA is done
+          // Mark this endpoint with data received
+          xfer->data_received = true;
+        }
+      }
+    }
+  }
 
   // SOF interrupt
   if ( int_status & USBD_INTEN_SOF_Msk )
