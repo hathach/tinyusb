@@ -77,7 +77,9 @@
  *------------------------------------------------------------------*/
 
 // FIFO size of CDC TX and RX
-#define CFG_TUD_CDC_BUFSIZE       128
+#define CFG_TUD_CDC_RX_BUFSIZE    128
+#define CFG_TUD_CDC_TX_BUFSIZE    128
+
 
 // TX is sent automatically in Start of Frame event.
 // If not enabled, application must call tud_cdc_flush() periodically

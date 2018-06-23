@@ -37,6 +37,7 @@
 /**************************************************************************/
 
 #include "tusb_fifo.h"
+#include "common/tusb_verify.h" // for ASSERT
 
 /*------------------------------------------------------------------*/
 /*
@@ -207,7 +208,9 @@ bool fifo_peek_at(fifo_t* f, uint16_t position, void * p_buffer)
 bool fifo_write(fifo_t* f, void const * p_data)
 {
   if ( !fifo_initalized(f) ) return false;
-  if ( fifo_full(f) && !f->overwritable ) return false;
+
+//  if ( fifo_full(f) && !f->overwritable ) return false;
+  TU_ASSERT( !(fifo_full(f) && !f->overwritable) );
 
   mutex_lock_if_needed(f);
 

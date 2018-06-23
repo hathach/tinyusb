@@ -46,10 +46,12 @@
 #include "usbd.h"
 #include "device/usbd_pvt.h"
 
-#define USBD_TASK_QUEUE_DEPTH   16
+#ifndef CFG_TUD_TASK_QUEUE_SZ
+#define CFG_TUD_TASK_QUEUE_SZ   16
+#endif
 
-#ifndef CFG_TUD_TASK_STACKSIZE
-#define CFG_TUD_TASK_STACKSIZE 150
+#ifndef CFG_TUD_TASK_STACK_SZ
+#define CFG_TUD_TASK_STACK_SZ 150
 #endif
 
 #ifndef CFG_TUD_TASK_PRIO
@@ -190,10 +192,10 @@ typedef struct ATTR_ALIGNED(4)
 
 VERIFY_STATIC(sizeof(usbd_task_event_t) <= 12, "size is not correct");
 
-OSAL_TASK_DEF(_usbd_task_def, "usbd", usbd_task, CFG_TUD_TASK_PRIO, CFG_TUD_TASK_STACKSIZE);
+OSAL_TASK_DEF(_usbd_task_def, "usbd", usbd_task, CFG_TUD_TASK_PRIO, CFG_TUD_TASK_STACK_SZ);
 
 /*------------- event queue -------------*/
-OSAL_QUEUE_DEF(_usbd_qdef, USBD_TASK_QUEUE_DEPTH, usbd_task_event_t);
+OSAL_QUEUE_DEF(_usbd_qdef, CFG_TUD_TASK_QUEUE_SZ, usbd_task_event_t);
 static osal_queue_t _usbd_q;
 
 /*------------- control transfer semaphore -------------*/
@@ -547,12 +549,14 @@ void dcd_bus_event(uint8_t rhport, usbd_bus_event_type_t bus_event)
 
     case USBD_BUS_EVENT_SOF:
     {
+      #if CFG_TUD_CDC_FLUSH_ON_SOF
       usbd_task_event_t task_event =
       {
           .rhport          = rhport,
           .event_id        = USBD_EVT_SOF,
       };
       osal_queue_send_isr(_usbd_q, &task_event);
+      #endif
     }
     break;
 
