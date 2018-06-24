@@ -86,7 +86,7 @@
 #define CFG_TUD_CDC_FLUSH_ON_SOF  1
 
 
-// Number of supported Logical Unit Number
+// Number of supported Logical Unit Number (At least 1)
 #define CFG_TUD_MSC_MAXLUN        1
 
 // Buffer size of Device Mass storage

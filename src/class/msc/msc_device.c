@@ -48,6 +48,12 @@
 #include "msc_device.h"
 #include "device/usbd_pvt.h"
 
+VERIFY_STATIC(CFG_TUD_MSC_BUFSIZE < UINT16_MAX, "Size is not correct");
+
+#ifndef CFG_TUD_MSC_MAXLUN
+#define CFG_TUD_MSC_MAXLUN 1
+#endif
+
 //--------------------------------------------------------------------+
 // MACRO CONSTANT TYPEDEF
 //--------------------------------------------------------------------+
