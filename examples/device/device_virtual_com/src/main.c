@@ -45,7 +45,6 @@
 
 #include "bsp/board.h"
 #include "tusb.h"
-#include "tusb_descriptors.h"
 
 //--------------------------------------------------------------------+
 // MACRO CONSTANT TYPEDEF
@@ -65,7 +64,6 @@ int main(void)
   print_greeting();
 
   tusb_init();
-  tud_set_descriptors(&usb_desc_init);
 
   while (1)
   {

@@ -205,13 +205,6 @@
   #error Control Endpoint Max Package Size cannot larger than 64
 #endif
 
-#if CFG_TUD_MSC_MAXLUN == 0 || CFG_TUD_MSC_MAXLUN > 16
-  #error MSC Device: Incorrect setting of MAX LUN
-#endif
-
-//#if CFG_TUD_MSC_BUFSIZE
-
-
 #endif /* _TUSB_OPTION_H_ */
 
 /** @} */

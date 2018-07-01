@@ -44,7 +44,7 @@
 #endif
 
 //--------------------------------------------------------------------+
-// CONTROLLER CONFIGURATION
+// COMMON CONFIGURATION
 //--------------------------------------------------------------------+
 #define CFG_TUSB_MCU              OPT_MCU_NRF5X
 #define CFG_TUSB_RHPORT0_MODE     OPT_MODE_DEVICE
