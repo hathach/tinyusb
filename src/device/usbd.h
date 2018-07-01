@@ -59,20 +59,22 @@
 
 /// \brief Descriptor pointer collector to all the needed.
 typedef struct {
-  uint8_t const * device;              ///< pointer to device descriptor \ref tusb_desc_device_t
-  uint8_t const * configuration;       ///< pointer to the whole configuration descriptor, starting by \ref tusb_desc_configuration_t
-  uint8_t const** string_arr;          ///< a array of pointers to string descriptors
+  uint8_t const * device;     ///< pointer to device descriptor \ref tusb_desc_device_t
+  uint8_t const * config;     ///< pointer to the whole configuration descriptor, starting by \ref tusb_desc_configuration_t
+  uint8_t const** string_arr; ///< a array of pointers to string descriptors
+  uint8_t const * hid_report; ///< pointer to HID report descriptor only needed if CFG_TUD_HID_* is enabled
+}tud_desc_set_t;
 
-  uint8_t const * p_hid_keyboard_report; ///< pointer to HID report descriptor of Keyboard interface. Only needed if CFG_TUD_HID_KEYBOARD is enabled
-  uint8_t const * p_hid_mouse_report;    ///< pointer to HID report descriptor of Mouse interface. Only needed if CFG_TUD_HID_MOUSE is enabled
-}tud_desc_init_t;
+
+// Must be defined by application
+extern tud_desc_set_t tud_desc_set;
+
 
 //--------------------------------------------------------------------+
 // APPLICATION API (Multiple Root Ports)
 // Should be used only with MCU that support more than 1 ports
 //--------------------------------------------------------------------+
 bool tud_n_mounted(uint8_t rhport);
-bool tud_n_set_descriptors(uint8_t rhport, tud_desc_init_t const* desc_cfg);
 
 //--------------------------------------------------------------------+
 // APPLICATION API (Single Port)
@@ -81,11 +83,6 @@ bool tud_n_set_descriptors(uint8_t rhport, tud_desc_init_t const* desc_cfg);
 static inline bool tud_mounted(void)
 {
   return tud_n_mounted(0);
-}
-
-static inline bool tud_set_descriptors(tud_desc_init_t const* desc_cfg)
-{
-  return tud_n_set_descriptors(0, desc_cfg);
 }
 
 //--------------------------------------------------------------------+

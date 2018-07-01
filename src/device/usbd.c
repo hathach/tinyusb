@@ -72,24 +72,17 @@ typedef struct {
   void         (* close          ) (uint8_t);
 } usbd_class_driver_t;
 
-
-enum {
-  USBD_INTERFACE_NUM_MAX = 16 // USB specs specify up to 16 endpoints per device
-};
-
 typedef struct {
   volatile uint8_t state;
   uint8_t  config_num;
 
-  uint8_t interface2class[USBD_INTERFACE_NUM_MAX]; // determine interface number belongs to which class
+  uint8_t itf2class[16]; // determine interface number belongs to which class
 }usbd_device_info_t;
 
 //--------------------------------------------------------------------+
 // Class & Device Driver
 //--------------------------------------------------------------------+
 CFG_TUSB_ATTR_USBRAM CFG_TUSB_MEM_ALIGN uint8_t usbd_enum_buffer[CFG_TUD_ENUM_BUFFER_SIZE];
-
-tud_desc_init_t _usbd_descs[CONTROLLER_DEVICE_NUMBER];
 usbd_device_info_t usbd_devices[CONTROLLER_DEVICE_NUMBER];
 
 static usbd_class_driver_t const usbd_class_drivers[] =
@@ -144,14 +137,6 @@ static usbd_class_driver_t const usbd_class_drivers[] =
 };
 
 enum { USBD_CLASS_DRIVER_COUNT = sizeof(usbd_class_drivers) / sizeof(usbd_class_driver_t) };
-
-//tusb_desc_device_qualifier_t _device_qual =
-//{
-//    .bLength = sizeof(tusb_desc_device_qualifier_t),
-//    .bDescriptorType = TUSB_DESC_DEVICE_QUALIFIER,
-//    .bcdUSB = 0x0200,
-//    .bDeviceClass =
-//};
 
 
 //--------------------------------------------------------------------+
@@ -216,12 +201,6 @@ bool tud_n_mounted(uint8_t rhport)
   return usbd_devices[rhport].state == TUSB_DEVICE_STATE_CONFIGURED;
 }
 
-bool tud_n_set_descriptors(uint8_t rhport, tud_desc_init_t const* desc_cfg)
-{
-  _usbd_descs[rhport] = *desc_cfg;
-  return true;
-}
-
 //--------------------------------------------------------------------+
 // IMPLEMENTATION
 //--------------------------------------------------------------------+
@@ -248,7 +227,6 @@ tusb_error_t usbd_init (void)
   osal_task_create(&_usbd_task_def);
 
   //------------- Core init -------------//
-  arrclr_( _usbd_descs );
 
   //------------- class init -------------//
   for (uint8_t i = 0; i < USBD_CLASS_DRIVER_COUNT; i++)
@@ -378,7 +356,7 @@ static tusb_error_t proc_control_request_st(uint8_t rhport, tusb_control_request
   else if ( TUSB_REQ_RCPT_INTERFACE == p_request->bmRequestType_bit.recipient)
   {
     static uint8_t drid;
-    uint8_t const class_code = usbd_devices[rhport].interface2class[ u16_low_u8(p_request->wIndex) ];
+    uint8_t const class_code = usbd_devices[rhport].itf2class[ u16_low_u8(p_request->wIndex) ];
 
     for (drid = 0; drid < USBD_CLASS_DRIVER_COUNT; drid++)
     {
@@ -427,14 +405,19 @@ static tusb_error_t proc_set_config_req(uint8_t rhport, uint8_t config_number)
   usbd_devices[rhport].config_num = config_number;
 
   //------------- parse configuration & open drivers -------------//
-  uint8_t const * p_desc_config = _usbd_descs[rhport].configuration;
-  TU_ASSERT(p_desc_config != NULL, TUSB_ERROR_DESCRIPTOR_CORRUPTED);
+#if CFG_TUD_DESC_AUTO
+  extern uint8_t const * const _desc_auto_config;
+  uint8_t const * desc_cfg = _desc_auto_config;
+#else
+  uint8_t const * desc_cfg = tud_desc_set.config;
+  TU_ASSERT(desc_cfg != NULL, TUSB_ERROR_DESCRIPTOR_CORRUPTED);
+#endif
 
-  uint8_t const * p_desc = p_desc_config + sizeof(tusb_desc_configuration_t);
+  uint8_t const * p_desc = desc_cfg + sizeof(tusb_desc_configuration_t);
 
-  uint16_t const config_len = ((tusb_desc_configuration_t*)p_desc_config)->wTotalLength;
+  uint16_t const cfg_len = ((tusb_desc_configuration_t*)desc_cfg)->wTotalLength;
 
-  while( p_desc < p_desc_config + config_len )
+  while( p_desc < desc_cfg + cfg_len )
   {
     if ( TUSB_DESC_INTERFACE_ASSOCIATION == p_desc[DESCRIPTOR_OFFSET_TYPE])
     {
@@ -455,8 +438,8 @@ static tusb_error_t proc_set_config_req(uint8_t rhport, uint8_t config_number)
       TU_ASSERT( drid < USBD_CLASS_DRIVER_COUNT, TUSB_ERROR_NOT_SUPPORTED_YET );
 
       // Check duplicate interface number TODO support alternate setting
-      TU_ASSERT( 0 == usbd_devices[rhport].interface2class[p_desc_itf->bInterfaceNumber], TUSB_ERROR_FAILED);
-      usbd_devices[rhport].interface2class[p_desc_itf->bInterfaceNumber] = class_code;
+      TU_ASSERT( 0 == usbd_devices[rhport].itf2class[p_desc_itf->bInterfaceNumber], TUSB_ERROR_FAILED);
+      usbd_devices[rhport].itf2class[p_desc_itf->bInterfaceNumber] = class_code;
 
       uint16_t length=0;
       TU_ASSERT_ERR( usbd_class_drivers[drid].open( rhport, p_desc_itf, &length ) );
@@ -480,26 +463,33 @@ static uint16_t get_descriptor(uint8_t rhport, tusb_control_request_t const * co
   uint8_t const * desc_data = NULL ;
   uint16_t len = 0;
 
-  //------------- Descriptor Check -------------//
-  tud_desc_init_t const* descs = &_usbd_descs[rhport];
+  tud_desc_set_t descs = tud_desc_set;
+
+#if CFG_TUD_DESC_AUTO
+  extern tusb_desc_device_t const _desc_auto_device;
+  extern uint8_t const * const    _desc_auto_config;
+
+  descs.device        = (uint8_t const*) &_desc_auto_device;
+  descs.config = _desc_auto_config;
+#endif
 
   switch(desc_type)
   {
     case TUSB_DESC_DEVICE:
-      desc_data = descs->device;
+      desc_data = descs.device;
       len       = sizeof(tusb_desc_device_t);
     break;
 
     case TUSB_DESC_CONFIGURATION:
-      desc_data = descs->configuration;
-      len       = ((tusb_desc_configuration_t*)descs->configuration)->wTotalLength;
+      desc_data = descs.config;
+      len       = ((tusb_desc_configuration_t const*) desc_data)->wTotalLength;
     break;
 
     case TUSB_DESC_STRING:
       // windows sometimes ask for string at index 238 !!!
       if ( !(desc_index < 100) ) return 0;
 
-      desc_data = descs->string_arr[desc_index];
+      desc_data = descs.string_arr[desc_index];
       VERIFY( desc_data != NULL, 0 );
 
       len  = desc_data[0];  // first byte of descriptor is its size
@@ -538,7 +528,7 @@ void dcd_bus_event(uint8_t rhport, usbd_bus_event_type_t bus_event)
   switch(bus_event)
   {
     case USBD_BUS_EVENT_RESET     :
-      memclr_(&usbd_devices[rhport], sizeof(usbd_device_info_t));
+      varclr_(&usbd_devices[rhport]);
       osal_queue_flush(_usbd_q);
       osal_semaphore_reset_isr(_usbd_ctrl_sem);
       for (uint8_t i = 0; i < USBD_CLASS_DRIVER_COUNT; i++)
@@ -561,8 +551,8 @@ void dcd_bus_event(uint8_t rhport, usbd_bus_event_type_t bus_event)
     break;
 
     case USBD_BUS_EVENT_UNPLUGGED:
-      // invoke callback
-      tud_umount_cb(rhport);
+      varclr_(&usbd_devices[rhport]);
+      tud_umount_cb(rhport); // invoke callback
     break;
 
     case USBD_BUS_EVENT_SUSPENDED:

@@ -202,7 +202,7 @@ app_descriptor_configuration_t const desc_configuration =
 #define ENDIAN_BE16_FROM( high, low) ENDIAN_BE16(high << 8 | low)
 
 // array of pointer to string descriptors
-uint16_t const * const string_descriptor_arr [] =
+uint16_t const * const string_desc_arr [] =
 {
     [0] = (uint16_t []) { // supported language
         ENDIAN_BE16_FROM( STRING_LEN_UNICODE(1), TUSB_DESC_STRING ),
@@ -247,9 +247,9 @@ uint16_t const * const string_descriptor_arr [] =
 
 
 /*------------- Variable used by tud_set_descriptors -------------*/
-tud_desc_init_t usb_desc_init =
+tud_desc_set_t usb_desc_init =
 {
     .device              = (uint8_t const * ) &desc_device,
     .configuration       = (uint8_t const * ) &desc_configuration,
-    .string_arr          = (uint8_t const **) string_descriptor_arr,
+    .string_arr          = (uint8_t const **) string_desc_arr,
 };

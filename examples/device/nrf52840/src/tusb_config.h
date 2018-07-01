@@ -50,22 +50,25 @@
 #define CFG_TUSB_RHPORT0_MODE     OPT_MODE_DEVICE
 
 #define CFG_TUSB_DEBUG            2
-
 #define CFG_TUSB_OS               OPT_OS_NONE // be passed from IDE/command line for easy project switching
-//#define CFG_TUD_TASK_PRIO         0              // be passed from IDE/command line for easy project switching
-
 
 //--------------------------------------------------------------------+
 // DEVICE CONFIGURATION
 //--------------------------------------------------------------------+
-#define CFG_TUD_ENDOINT0_SIZE     64
+//#define CFG_TUD_TASK_PRIO         0              // be passed from IDE/command line for easy project switching
+
+#define CFG_TUD_DESC_AUTO         1
+
+// #define CFG_TUD_DESC_VID          0xCAFE
+// #define CFG_TUD_DESC_PID          0x0001
 
 //------------- CLASS -------------//
-#define CFG_TUD_HID_KEYBOARD      0
-#define CFG_TUD_HID_MOUSE         0
-#define CFG_TUD_HID_GENERIC       0 // not supported yet
-#define CFG_TUD_MSC               1
 #define CFG_TUD_CDC               1
+#define CFG_TUD_MSC               1
+
+#define CFG_TUD_HID_KEYBOARD      0 // TODO need update
+#define CFG_TUD_HID_MOUSE         0 // TODO need update
+#define CFG_TUD_HID_GENERIC       0 // TODO need update
 
 /*------------------------------------------------------------------*/
 /* CLASS DRIVER

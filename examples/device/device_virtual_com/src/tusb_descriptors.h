@@ -100,6 +100,6 @@ typedef struct ATTR_PACKED
 
 
 
-extern tud_desc_init_t usb_desc_init;
+extern tud_desc_set_t usb_desc_init;
 
 #endif

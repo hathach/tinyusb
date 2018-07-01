@@ -65,7 +65,6 @@ int main(void)
   print_greeting();
 
   tusb_init();
-  tud_set_descriptors(&usb_desc_init);
 
   while (1)
   {
