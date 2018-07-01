@@ -45,7 +45,6 @@
 
 #include "bsp/board.h"
 #include "tusb.h"
-#include "tusb_descriptors.h"
 
 //--------------------------------------------------------------------+
 // MACRO CONSTANT TYPEDEF

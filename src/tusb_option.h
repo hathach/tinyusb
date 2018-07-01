@@ -159,6 +159,10 @@
     #define CFG_TUD_ENUM_BUFFER_SIZE 256
   #endif
 
+  #ifndef CFG_TUD_DESC_AUTO
+    #define CFG_TUD_DESC_AUTO 0
+  #endif
+
 #endif // MODE_DEVICE_SUPPORTED
 
 //--------------------------------------------------------------------+

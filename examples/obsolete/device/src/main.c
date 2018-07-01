@@ -46,7 +46,6 @@
 #include "bsp/board.h"
 #include "app_os_prio.h"
 #include "tusb.h"
-#include "tusb_descriptors.h"
 
 #include "msc_device_app.h"
 #include "keyboard_device_app.h"
@@ -88,7 +87,6 @@ int main(void)
   print_greeting();
 
   tusb_init();
-  tud_set_descriptors(&usb_desc_init);
 
   //------------- application task init -------------//
   led_blinking_init();

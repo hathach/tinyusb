@@ -91,7 +91,7 @@ void board_init(void)
   {
       .handler = (nrf_drv_power_usb_event_handler_t) tusb_hal_nrf_power_event
   };
-  TU_ASSERT( NRF_SUCCESS == nrf_drv_power_usbevt_init(&config) );
+  TU_ASSERT( NRF_SUCCESS == nrf_drv_power_usbevt_init(&config), );
 #endif
 
   // Tick init

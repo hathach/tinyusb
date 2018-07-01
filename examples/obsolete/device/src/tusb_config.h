@@ -51,9 +51,24 @@
 #define CFG_TUSB_RHPORT0_MODE  (OPT_MODE_DEVICE)
 //#define CFG_TUSB_RHPORT1_MODE  (OPT_MODE_DEVICE)
 
+#define CFG_TUSB_DEBUG            2
+
+/*------------- RTOS -------------*/
+//#define CFG_TUSB_OS               OPT_OS_NONE // be passed from IDE/command line for easy project switching
+//#define CFG_TUD_TASK_PRIO         0
+//#define CFG_TUD_TASK_QUEUE_SZ     16
+//#define CFG_TUD_TASK_STACK_SZ     150
+
 //--------------------------------------------------------------------+
 // DEVICE CONFIGURATION
 //--------------------------------------------------------------------+
+
+/*------------- Core -------------*/
+#define CFG_TUD_DESC_AUTO         1
+
+// #define CFG_TUD_DESC_VID          0xCAFE
+// #define CFG_TUD_DESC_PID          0x0001
+
 #define CFG_TUD_ENDOINT0_SIZE     64
 
 //------------- CLASS -------------//
@@ -63,17 +78,8 @@
 #define CFG_TUD_MSC               1
 #define CFG_TUD_CDC               1
 
-//--------------------------------------------------------------------+
-// COMMON CONFIGURATION
-//--------------------------------------------------------------------+
-#define CFG_TUSB_DEBUG            2
-
-//#define CFG_TUSB_OS                   OPT_OS_NONE // be passed from IDE/command line for easy project switching
-//#define CFG_TUD_TASK_PRIO         0            // be passed from IDE/command line for easy project switching
-
-
 /*------------------------------------------------------------------*/
-/* CLASS
+/* CLASS DRIVER
  *------------------------------------------------------------------*/
 
 // FIFO size of CDC TX and RX
