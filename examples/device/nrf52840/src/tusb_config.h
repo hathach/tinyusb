@@ -55,8 +55,13 @@
 //--------------------------------------------------------------------+
 // DEVICE CONFIGURATION
 //--------------------------------------------------------------------+
-//#define CFG_TUD_TASK_PRIO         0              // be passed from IDE/command line for easy project switching
 
+/*------------- RTOS -------------*/
+//#define CFG_TUD_TASK_QUEUE_SZ     16
+//#define CFG_TUD_TASK_STACK_SZ     150
+//#define CFG_TUD_TASK_PRIO         0
+
+/*------------- Core -------------*/
 #define CFG_TUD_DESC_AUTO         1
 
 // #define CFG_TUD_DESC_VID          0xCAFE
