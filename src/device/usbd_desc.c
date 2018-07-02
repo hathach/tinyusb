@@ -324,7 +324,7 @@ desc_auto_cfg_t const _desc_auto_config_struct =
           .bEndpointAddress = EP_CDC_OUT,
           .bmAttributes     = { .xfer = TUSB_XFER_BULK },
           .wMaxPacketSize   = { .size = EP_CDC_SIZE },
-      .bInterval        = 0
+          .bInterval        = 0
       },
 
       .ep_in =
@@ -352,7 +352,7 @@ desc_auto_cfg_t const _desc_auto_config_struct =
           .bInterfaceClass    = TUSB_CLASS_MSC,
           .bInterfaceSubClass = MSC_SUBCLASS_SCSI,
           .bInterfaceProtocol = MSC_PROTOCOL_BOT,
-          .iInterface         = 0x05
+          .iInterface         = 0 // ITF_NUM_MSC + 3
       },
 
       .ep_out =
@@ -390,7 +390,7 @@ desc_auto_cfg_t const _desc_auto_config_struct =
         .bInterfaceClass    = TUSB_CLASS_HID,
         .bInterfaceSubClass = HID_SUBCLASS_BOOT,
         .bInterfaceProtocol = HID_PROTOCOL_KEYBOARD,
-        .iInterface         = 0x05
+        .iInterface         = ITF_NUM_HID_KEYBOARD + 3,
     },
 
     .keyboard_hid =
@@ -427,7 +427,7 @@ desc_auto_cfg_t const _desc_auto_config_struct =
         .bInterfaceClass    = TUSB_CLASS_HID,
         .bInterfaceSubClass = HID_SUBCLASS_BOOT,
         .bInterfaceProtocol = HID_PROTOCOL_MOUSE,
-        .iInterface         = 0x06
+        .iInterface         = ITF_NUM_HID_MOUSE+3
     },
 
     .mouse_hid =

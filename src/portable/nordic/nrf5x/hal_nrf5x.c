@@ -74,17 +74,15 @@ void tusb_hal_nrf_power_event(uint32_t event);
 /* HFCLK helper
  *------------------------------------------------------------------*/
 
+#ifdef SOFTDEVICE_PRESENT
 // check if SD is present and enabled
 static bool is_sd_enabled(void)
 {
   uint8_t sd_en = false;
-
-#ifdef SOFTDEVICE_PRESENT
   (void) sd_softdevice_is_enabled(&sd_en);
-#endif
-
   return sd_en;
 }
+#endif
 
 static bool hfclk_running(void)
 {
@@ -285,9 +283,12 @@ void tusb_hal_nrf_power_event (uint32_t event)
       nrf_usbd_isosplit_set(NRF_USBD_ISOSPLIT_Half);
 
       // Enable interrupt. SOF is used as CDC auto flush
-      NRF_USBD->INTENSET = USBD_INTEN_USBRESET_Msk | USBD_INTEN_USBEVENT_Msk |
-          USBD_INTEN_EP0SETUP_Msk | USBD_INTEN_EP0DATADONE_Msk | USBD_INTEN_ENDEPIN0_Msk | USBD_INTEN_ENDEPOUT0_Msk |
-          USBD_INTEN_EPDATA_Msk | ((CFG_TUD_CDC && CFG_TUD_CDC_FLUSH_ON_SOF) ? USBD_INTEN_SOF_Msk : 0);
+      NRF_USBD->INTENSET = USBD_INTEN_USBRESET_Msk | USBD_INTEN_USBEVENT_Msk | USBD_INTEN_EPDATA_Msk |
+          USBD_INTEN_EP0SETUP_Msk | USBD_INTEN_EP0DATADONE_Msk | USBD_INTEN_ENDEPIN0_Msk | USBD_INTEN_ENDEPOUT0_Msk;
+
+#if CFG_TUD_CDC && CFG_TUD_CDC_FLUSH_ON_SOF
+      NRF_USBD->INTENSET |= USBD_INTEN_SOF_Msk;
+#endif
 
       // Enable interrupt, Priorities 0,1,4,5 (nRF52) are reserved for SoftDevice
       NVIC_SetPriority(USBD_IRQn, USB_NVIC_PRIO);
