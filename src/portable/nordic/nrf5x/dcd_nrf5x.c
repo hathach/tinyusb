@@ -38,12 +38,10 @@
 
 #if MODE_DEVICE_SUPPORTED && CFG_TUSB_MCU == OPT_MCU_NRF5X
 
-// TODO remove
 #include "nrf.h"
 #include "nrf_power.h"
 #include "nrf_usbd.h"
 #include "nrf_clock.h"
-
 #include "nrf_drv_usbd_errata.h"
 
 #include "device/dcd.h"

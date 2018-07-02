@@ -1,0 +1,3 @@
+[submodule "hw/mcu/nordic/nrfx"]
+	path = hw/mcu/nordic/nrfx
+	url = git@github.com:NordicSemiconductor/nrfx.git

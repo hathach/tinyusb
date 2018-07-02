@@ -38,7 +38,7 @@
 #include "board_pca10056.h"
 #include "nrf_gpio.h"
 
-#include "nrf_drv_power.h"
+#include "nrfx_power.h"
 
 /*------------------------------------------------------------------*/
 /* MACRO TYPEDEF CONSTANT ENUM
@@ -72,7 +72,7 @@ uint32_t tusb_hal_millis(void)
 void board_init(void)
 {
   // Config clock source: XTAL or RC in sdk_config.h
-  NRF_CLOCK->LFCLKSRC = (uint32_t)((CLOCK_CONFIG_LF_SRC << CLOCK_LFCLKSRC_SRC_Pos) & CLOCK_LFCLKSRC_SRC_Msk);
+  NRF_CLOCK->LFCLKSRC = (uint32_t)((CLOCK_LFCLKSRC_SRC_Xtal << CLOCK_LFCLKSRC_SRC_Pos) & CLOCK_LFCLKSRC_SRC_Msk);
   NRF_CLOCK->TASKS_LFCLKSTART = 1UL;
 
   nrf_gpio_cfg_output(LED_1);
@@ -84,14 +84,15 @@ void board_init(void)
   // for vusb detect, ready, removed
   extern void tusb_hal_nrf_power_event(uint32_t event);
 
-  nrf_drv_power_init(NULL);
+  // Power module init
+  const nrfx_power_config_t pwr_cfg = { 0 }; 
+  nrfx_power_init(&pwr_cfg);
 
   // USB Power detection
-  const nrf_drv_power_usbevt_config_t config =
-  {
-      .handler = (nrf_drv_power_usb_event_handler_t) tusb_hal_nrf_power_event
-  };
-  TU_ASSERT( NRF_SUCCESS == nrf_drv_power_usbevt_init(&config), );
+  const nrfx_power_usbevt_config_t config = { .handler = (nrfx_power_usb_event_handler_t) tusb_hal_nrf_power_event };
+  nrfx_power_usbevt_init(&config);
+
+  nrfx_power_usbevt_enable();
 #endif
 
   // Tick init

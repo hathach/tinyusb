@@ -38,20 +38,17 @@
 
 #if MODE_DEVICE_SUPPORTED && CFG_TUSB_MCU == OPT_MCU_NRF5X
 
-#include <stdbool.h>
 #include "nrf.h"
 #include "nrf_gpio.h"
 #include "nrf_clock.h"
 #include "nrf_usbd.h"
 #include "nrf_drv_usbd_errata.h"
 
-#include "app_util_platform.h"
-
 #ifdef SOFTDEVICE_PRESENT
 #include "nrf_sdm.h"
 #include "nrf_soc.h"
 #else
-#include "nrf_drv_power.h"
+#include "nrfx_power.h"
 #endif
 
 #include "tusb_hal.h"
@@ -60,14 +57,6 @@
 /* MACRO TYPEDEF CONSTANT ENUM
  *------------------------------------------------------------------*/
 #define USB_NVIC_PRIO   7
-
-// TODO switch to use nrfx_power.h in sdk15
-enum
-{
-  NRFX_POWER_USB_EVT_DETECTED = 0,
-  NRFX_POWER_USB_EVT_REMOVED,
-  NRFX_POWER_USB_EVT_READY
-};
 
 /*------------------------------------------------------------------*/
 /* FUNCTION DECLARATION
@@ -138,8 +127,6 @@ static void hfclk_disable(void)
 /*------------------------------------------------------------------*/
 /* TUSB HAL
  *------------------------------------------------------------------*/
-
-// tusb_hal_nrf_power_event must be called by SOC event handler
 bool tusb_hal_init(void)
 {
 #ifdef SOFTDEVICE_PRESENT
@@ -184,6 +171,7 @@ void tusb_hal_int_disable(uint8_t rhport)
 /*------------------------------------------------------------------*/
 /* Controller Start up Sequence (USBD 51.4 specs)
  *------------------------------------------------------------------*/
+// tusb_hal_nrf_power_event must be called by SOC event handler
 void tusb_hal_nrf_power_event (uint32_t event)
 {
   switch ( event )
@@ -200,7 +188,7 @@ void tusb_hal_nrf_power_event (uint32_t event)
         // Somehow Errata 187 check failed for pca10056 1.0.0 (2018.19)
         if ( nrf_drv_usbd_errata_187() )
         {
-          CRITICAL_REGION_ENTER();
+          // CRITICAL_REGION_ENTER();
           if ( *((volatile uint32_t *) (0x4006EC00)) == 0x00000000 )
           {
             *((volatile uint32_t *) (0x4006EC00)) = 0x00009375;
@@ -211,12 +199,12 @@ void tusb_hal_nrf_power_event (uint32_t event)
           {
             *((volatile uint32_t *) (0x4006ED14)) = 0x00000003;
           }
-          CRITICAL_REGION_EXIT();
+          // CRITICAL_REGION_EXIT();
         }
 
         if ( nrf_drv_usbd_errata_171() )
         {
-          CRITICAL_REGION_ENTER();
+          // CRITICAL_REGION_ENTER();
           if ( *((volatile uint32_t *) (0x4006EC00)) == 0x00000000 )
           {
             *((volatile uint32_t *) (0x4006EC00)) = 0x00009375;
@@ -227,7 +215,7 @@ void tusb_hal_nrf_power_event (uint32_t event)
           {
             *((volatile uint32_t *) (0x4006EC14)) = 0x000000C0;
           }
-          CRITICAL_REGION_EXIT();
+          // CRITICAL_REGION_EXIT();
         }
 
         nrf_usbd_enable();
@@ -246,7 +234,7 @@ void tusb_hal_nrf_power_event (uint32_t event)
 
       if ( nrf_drv_usbd_errata_171() )
       {
-        CRITICAL_REGION_ENTER();
+        // CRITICAL_REGION_ENTER();
         if ( *((volatile uint32_t *) (0x4006EC00)) == 0x00000000 )
         {
           *((volatile uint32_t *) (0x4006EC00)) = 0x00009375;
@@ -258,13 +246,13 @@ void tusb_hal_nrf_power_event (uint32_t event)
           *((volatile uint32_t *) (0x4006EC14)) = 0x00000000;
         }
 
-        CRITICAL_REGION_EXIT();
+        // CRITICAL_REGION_EXIT();
       }
 
       // Somehow Errata 187 check failed for pca10056 1.0.0 (2018.19)
       if ( nrf_drv_usbd_errata_187() )
       {
-        CRITICAL_REGION_ENTER();
+        // CRITICAL_REGION_ENTER();
         if ( *((volatile uint32_t *) (0x4006EC00)) == 0x00000000 )
         {
           *((volatile uint32_t *) (0x4006EC00)) = 0x00009375;
@@ -275,7 +263,7 @@ void tusb_hal_nrf_power_event (uint32_t event)
         {
           *((volatile uint32_t *) (0x4006ED14)) = 0x00000000;
         }
-        CRITICAL_REGION_EXIT();
+        // CRITICAL_REGION_EXIT();
       }
 
       if ( nrf_drv_usbd_errata_166() )
@@ -290,9 +278,9 @@ void tusb_hal_nrf_power_event (uint32_t event)
       nrf_usbd_isosplit_set(NRF_USBD_ISOSPLIT_Half);
 
       // Enable interrupt. SOF is used as CDC auto flush
-      NRF_USBD->INTENSET = USBD_INTEN_USBRESET_Msk | USBD_INTEN_USBEVENT_Msk | USBD_INTEN_ACCESSFAULT_Msk |
-      USBD_INTEN_EP0SETUP_Msk | USBD_INTEN_EP0DATADONE_Msk | USBD_INTEN_ENDEPIN0_Msk | USBD_INTEN_ENDEPOUT0_Msk |
-      USBD_INTEN_EPDATA_Msk | ((CFG_TUD_CDC && CFG_TUD_CDC_FLUSH_ON_SOF) ? USBD_INTEN_SOF_Msk : 0);
+      NRF_USBD->INTENSET = USBD_INTEN_USBRESET_Msk | USBD_INTEN_USBEVENT_Msk |
+          USBD_INTEN_EP0SETUP_Msk | USBD_INTEN_EP0DATADONE_Msk | USBD_INTEN_ENDEPIN0_Msk | USBD_INTEN_ENDEPOUT0_Msk |
+          USBD_INTEN_EPDATA_Msk | ((CFG_TUD_CDC && CFG_TUD_CDC_FLUSH_ON_SOF) ? USBD_INTEN_SOF_Msk : 0);
 
       // Enable interrupt, Priorities 0,1,4,5 (nRF52) are reserved for SoftDevice
       NVIC_SetPriority(USBD_IRQn, USB_NVIC_PRIO);
