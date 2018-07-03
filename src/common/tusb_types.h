@@ -394,6 +394,10 @@ static inline uint8_t edpt_addr(uint8_t num, tusb_dir_t dir)
   return num | (dir == TUSB_DIR_IN ? TUSB_DIR_IN_MASK : 0);
 }
 
+
+// Convert comma-separated string to descriptor unicode format
+#define TUD_DESC_STRCONV( ... )  (const uint16_t[]) { (TUSB_DESC_STRING << 8 ) | (2*VA_ARGS_NUM_(__VA_ARGS__) + 2), __VA_ARGS__ }
+
 #ifdef __cplusplus
  }
 #endif
