@@ -1,6 +1,6 @@
 /**************************************************************************/
 /*!
-    @file     fifo.c
+    @file     tusb_fifo.c
     @author   hathach (tinyusb.org)
 
     @section LICENSE
@@ -44,8 +44,8 @@
  *------------------------------------------------------------------*/
 #if CFG_FIFO_MUTEX
 
-#define mutex_lock_if_needed(_ff)     if (_ff->mutex) fifo_mutex_lock(_ff->mutex)
-#define mutex_unlock_if_needed(_ff)   if (_ff->mutex) fifo_mutex_unlock(_ff->mutex)
+#define mutex_lock_if_needed(_ff)     if (_ff->mutex) tu_fifo_mutex_lock(_ff->mutex)
+#define mutex_unlock_if_needed(_ff)   if (_ff->mutex) tu_fifo_mutex_unlock(_ff->mutex)
 
 #else
 
@@ -59,13 +59,13 @@ static inline uint16_t min16_of(uint16_t x, uint16_t y)
   return (x < y) ? x : y;
 }
 
-static inline bool fifo_initalized(fifo_t* f)
+static inline bool tu_fifo_initalized(tu_fifo_t* f)
 {
   return (f->buffer != NULL) && (f->depth > 0) && (f->item_size > 0);
 }
 
 
-void fifo_config(fifo_t *f, void* buffer, uint16_t depth, uint16_t item_size, bool overwritable)
+void tu_fifo_config(tu_fifo_t *f, void* buffer, uint16_t depth, uint16_t item_size, bool overwritable)
 {
   mutex_lock_if_needed(f);
 
@@ -96,10 +96,10 @@ void fifo_config(fifo_t *f, void* buffer, uint16_t depth, uint16_t item_size, bo
     @returns TRUE if the queue is not empty
 */
 /******************************************************************************/
-bool fifo_read(fifo_t* f, void * p_buffer)
+bool tu_fifo_read(tu_fifo_t* f, void * p_buffer)
 {
-  if( !fifo_initalized(f) ) return false;
-  if( fifo_empty(f) ) return false;
+  if( !tu_fifo_initalized(f) ) return false;
+  if( tu_fifo_empty(f) ) return false;
 
   mutex_lock_if_needed(f);
 
@@ -130,10 +130,10 @@ bool fifo_read(fifo_t* f, void * p_buffer)
     @returns number of items read from the FIFO
 */
 /******************************************************************************/
-uint16_t fifo_read_n (fifo_t* f, void * p_buffer, uint16_t count)
+uint16_t tu_fifo_read_n (tu_fifo_t* f, void * p_buffer, uint16_t count)
 {
-  if( !fifo_initalized(f) ) return 0;
-  if( fifo_empty(f) ) return 0;
+  if( !tu_fifo_initalized(f) ) return 0;
+  if( tu_fifo_empty(f) ) return 0;
 
   /* Limit up to fifo's count */
   count = min16_of(count, f->count);
@@ -149,7 +149,7 @@ uint16_t fifo_read_n (fifo_t* f, void * p_buffer, uint16_t count)
 
   uint8_t* p_buf = (uint8_t*) p_buffer;
   uint16_t len = 0;
-  while( (len < count) && fifo_read(f, p_buf) )
+  while( (len < count) && tu_fifo_read(f, p_buf) )
   {
     len++;
     p_buf += f->item_size;
@@ -174,9 +174,9 @@ uint16_t fifo_read_n (fifo_t* f, void * p_buffer, uint16_t count)
     @returns TRUE if the queue is not empty
 */
 /******************************************************************************/
-bool fifo_peek_at(fifo_t* f, uint16_t position, void * p_buffer)
+bool tu_fifo_peek_at(tu_fifo_t* f, uint16_t position, void * p_buffer)
 {
-  if ( !fifo_initalized(f) ) return false;
+  if ( !tu_fifo_initalized(f) ) return false;
   if ( position >= f->count ) return false;
 
   // rd_idx is position=0
@@ -205,12 +205,12 @@ bool fifo_peek_at(fifo_t* f, uint16_t position, void * p_buffer)
              FIFO will always return TRUE)
 */
 /******************************************************************************/
-bool fifo_write(fifo_t* f, void const * p_data)
+bool tu_fifo_write(tu_fifo_t* f, void const * p_data)
 {
-  if ( !fifo_initalized(f) ) return false;
+  if ( !tu_fifo_initalized(f) ) return false;
 
-//  if ( fifo_full(f) && !f->overwritable ) return false;
-  TU_ASSERT( !(fifo_full(f) && !f->overwritable) );
+//  if ( tu_fifo_full(f) && !f->overwritable ) return false;
+  TU_ASSERT( !(tu_fifo_full(f) && !f->overwritable) );
 
   mutex_lock_if_needed(f);
 
@@ -220,7 +220,7 @@ bool fifo_write(fifo_t* f, void const * p_data)
 
   f->wr_idx = (f->wr_idx + 1) % f->depth;
 
-  if (fifo_full(f))
+  if (tu_fifo_full(f))
   {
     f->rd_idx = f->wr_idx; // keep the full state (rd == wr && len = size)
   }
@@ -249,14 +249,14 @@ bool fifo_write(fifo_t* f, void const * p_data)
     @return Number of written elements
 */
 /******************************************************************************/
-uint16_t fifo_write_n(fifo_t* f, void const * p_data, uint16_t count)
+uint16_t tu_fifo_write_n(tu_fifo_t* f, void const * p_data, uint16_t count)
 {
   if ( count == 0 ) return 0;
 
   uint8_t* p_buf = (uint8_t*) p_data;
 
   uint16_t len = 0;
-  while( (len < count) && fifo_write(f, p_buf) )
+  while( (len < count) && tu_fifo_write(f, p_buf) )
   {
     len++;
     p_buf += f->item_size;
@@ -273,7 +273,7 @@ uint16_t fifo_write_n(fifo_t* f, void const * p_data, uint16_t count)
                 Pointer to the FIFO buffer to manipulate
 */
 /******************************************************************************/
-void fifo_clear(fifo_t *f)
+void tu_fifo_clear(tu_fifo_t *f)
 {
   mutex_lock_if_needed(f);
 

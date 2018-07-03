@@ -71,8 +71,8 @@ typedef struct {
 CFG_TUSB_ATTR_USBRAM CFG_TUSB_MEM_ALIGN uint8_t _tmp_rx_buf[64];
 CFG_TUSB_ATTR_USBRAM CFG_TUSB_MEM_ALIGN uint8_t _tmp_tx_buf[64];
 
-FIFO_DEF(_rx_ff, CFG_TUD_CDC_RX_BUFSIZE, uint8_t, true);
-FIFO_DEF(_tx_ff, CFG_TUD_CDC_TX_BUFSIZE, uint8_t, false);
+TU_FIFO_DEF(_rx_ff, CFG_TUD_CDC_RX_BUFSIZE, uint8_t, true);
+TU_FIFO_DEF(_tx_ff, CFG_TUD_CDC_TX_BUFSIZE, uint8_t, false);
 
 //--------------------------------------------------------------------+
 // INTERNAL OBJECT & FUNCTION DECLARATION
@@ -104,18 +104,18 @@ void tud_n_cdc_get_line_coding (uint8_t rhport, cdc_line_coding_t* coding)
 //--------------------------------------------------------------------+
 uint32_t tud_n_cdc_available(uint8_t rhport)
 {
-  return fifo_count(&_rx_ff);
+  return tu_fifo_count(&_rx_ff);
 }
 
 int8_t tud_n_cdc_read_char(uint8_t rhport)
 {
   int8_t ch;
-  return fifo_read(&_rx_ff, &ch) ? ch : (-1);
+  return tu_fifo_read(&_rx_ff, &ch) ? ch : (-1);
 }
 
 uint32_t tud_n_cdc_read(uint8_t rhport, void* buffer, uint32_t bufsize)
 {
-  return fifo_read_n(&_rx_ff, buffer, bufsize);
+  return tu_fifo_read_n(&_rx_ff, buffer, bufsize);
 }
 
 //--------------------------------------------------------------------+
@@ -124,12 +124,12 @@ uint32_t tud_n_cdc_read(uint8_t rhport, void* buffer, uint32_t bufsize)
 
 uint32_t tud_n_cdc_write_char(uint8_t rhport, char ch)
 {
-  return fifo_write(&_tx_ff, &ch) ? 1 : 0;
+  return tu_fifo_write(&_tx_ff, &ch) ? 1 : 0;
 }
 
 uint32_t tud_n_cdc_write(uint8_t rhport, void const* buffer, uint32_t bufsize)
 {
-  return fifo_write_n(&_tx_ff, buffer, bufsize);
+  return tu_fifo_write_n(&_tx_ff, buffer, bufsize);
 }
 
 bool tud_n_cdc_flush (uint8_t rhport)
@@ -137,7 +137,7 @@ bool tud_n_cdc_flush (uint8_t rhport)
   uint8_t  edpt = _cdcd_itf[rhport].ep_in;
   VERIFY( !dcd_edpt_busy(rhport, edpt) ); // skip if previous transfer not complete
 
-  uint16_t count = fifo_read_n(&_tx_ff, _tmp_tx_buf, sizeof(_tmp_tx_buf));
+  uint16_t count = tu_fifo_read_n(&_tx_ff, _tmp_tx_buf, sizeof(_tmp_tx_buf));
 
   VERIFY( tud_n_cdc_connected(rhport) ); // fifo is empty if not connected
 
@@ -230,8 +230,8 @@ void cdcd_close(uint8_t rhport)
   // no need to close opened pipe, dcd bus reset will put controller's endpoints to default state
   memclr_(&_cdcd_itf[rhport], sizeof(cdcd_interface_t));
 
-  fifo_clear(&_rx_ff);
-  fifo_clear(&_tx_ff);
+  tu_fifo_clear(&_rx_ff);
+  tu_fifo_clear(&_tx_ff);
 }
 
 tusb_error_t cdcd_control_request_st(uint8_t rhport, tusb_control_request_t const * p_request)
@@ -282,7 +282,7 @@ tusb_error_t cdcd_xfer_cb(uint8_t rhport, uint8_t ep_addr, tusb_event_t event, u
 
   if ( ep_addr == p_cdc->ep_out )
   {
-    fifo_write_n(&_rx_ff, _tmp_rx_buf, xferred_bytes);
+    tu_fifo_write_n(&_rx_ff, _tmp_rx_buf, xferred_bytes);
 
     // preparing for next
     TU_ASSERT( dcd_edpt_xfer(rhport, p_cdc->ep_out, _tmp_rx_buf, sizeof(_tmp_rx_buf)), TUSB_ERROR_DCD_EDPT_XFER );

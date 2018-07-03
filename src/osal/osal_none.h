@@ -130,20 +130,20 @@ static inline osal_task_t osal_task_create(osal_task_def_t* taskdef)
 //--------------------------------------------------------------------+
 // QUEUE API
 //--------------------------------------------------------------------+
-#define OSAL_QUEUE_DEF(_name, _depth, _type)    FIFO_DEF(_name, _depth, _type, false)
+#define OSAL_QUEUE_DEF(_name, _depth, _type)    TU_FIFO_DEF(_name, _depth, _type, false)
 
-typedef fifo_t  osal_queue_def_t;
-typedef fifo_t* osal_queue_t;
+typedef tu_fifo_t  osal_queue_def_t;
+typedef tu_fifo_t* osal_queue_t;
 
 static inline osal_queue_t osal_queue_create(osal_queue_def_t* qdef)
 {
-  fifo_clear(qdef);
+  tu_fifo_clear(qdef);
   return (osal_queue_t) qdef;
 }
 
 static inline bool osal_queue_send_isr(osal_queue_t const queue_hdl, void const * data)
 {
-  return fifo_write( (fifo_t*) queue_hdl, data);
+  return tu_fifo_write( (tu_fifo_t*) queue_hdl, data);
 }
 
 #define osal_queue_send osal_queue_send_isr
@@ -164,7 +164,7 @@ static inline void osal_queue_flush(osal_queue_t const queue_hdl)
         return TUSB_ERROR_OSAL_WAITING;                                                     \
     } else{                                                                                 \
       /*tusb_hal_int_disable_all();*/                                                       \
-      fifo_read(queue_hdl, p_data);                                                         \
+      tu_fifo_read(queue_hdl, p_data);                                                         \
       /*tusb_hal_int_enable_all();*/                                                            \
       *(p_error) = TUSB_ERROR_NONE;                                                         \
     }                                                                                       \
