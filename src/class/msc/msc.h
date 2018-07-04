@@ -226,9 +226,9 @@ typedef struct ATTR_PACKED
   uint8_t wbus16                     : 1;
   uint8_t                            : 2;
 
-  uint8_t vendor_id[8]        ; ///< 8 bytes of ASCII data identifying the vendor of the product. The T10 vendor identification shall be one assigned by INCITS. A list of assigned T10 vendor identifications is in Annex E and on the T10 web site (http://www.t10.org).
-  uint8_t product_id[16]      ; ///< 16 bytes of ASCII data defined by the vendor.
-  uint8_t product_revision[4] ; ///< 4 bytes of ASCII data defined by the vendor.
+  uint8_t vendor_id[8]  ; ///< 8 bytes of ASCII data identifying the vendor of the product.
+  uint8_t product_id[16]; ///< 16 bytes of ASCII data defined by the vendor.
+  uint8_t product_rev[4]; ///< 4 bytes of ASCII data defined by the vendor.
 } scsi_inquiry_data_t;
 
 VERIFY_STATIC(sizeof(scsi_inquiry_data_t) == 36, "size is not correct");

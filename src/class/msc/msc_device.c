@@ -71,6 +71,18 @@ VERIFY_STATIC(CFG_TUD_MSC_BUFSIZE < UINT16_MAX, "Size is not correct");
   #error CFG_TUD_MSC_BUFSIZE must be defined, value of CFG_TUD_MSC_BLOCK_SZ should work well, the more the better
 #endif
 
+#ifndef CFG_TUD_MSC_VENDOR
+  #error CFG_TUD_MSC_VENDOR 8-byte name must be defined
+#endif
+
+#ifndef CFG_TUD_MSC_PRODUCT
+  #error CFG_TUD_MSC_PRODUCT 16-byte name must be defined
+#endif
+
+#ifndef CFG_TUD_MSC_PRODUCT_REV
+  #error CFG_TUD_MSC_PRODUCT_REV 4-byte string must be defined
+#endif
+
 //--------------------------------------------------------------------+
 // MACRO CONSTANT TYPEDEF
 //--------------------------------------------------------------------+
@@ -252,6 +264,7 @@ tusb_error_t mscd_xfer_cb(uint8_t rhport, uint8_t ep_addr, tusb_event_t event, u
 
           int32_t cb_result;
 
+          // TODO refactor later
           if (SCSI_CMD_READ_CAPACITY_10 == p_cbw->command[0])
           {
             scsi_read_capacity10_data_t read_capa10 =
@@ -269,12 +282,31 @@ tusb_error_t mscd_xfer_cb(uint8_t rhport, uint8_t ep_addr, tusb_event_t event, u
             {
                 .list_length     = 8,
                 .block_num       = ENDIAN_BE(CFG_TUD_MSC_BLOCK_NUM),  // write capacity
-                .descriptor_type = 2,                             // formatted media
+                .descriptor_type = 2,                                 // formatted media
                 .block_size_u16  = ENDIAN_BE16(CFG_TUD_MSC_BLOCK_SZ)
             };
 
             cb_result = sizeof(read_fmt_capa);
             memcpy(_mscd_buf, &read_fmt_capa, cb_result);
+          }
+          else if (SCSI_CMD_INQUIRY == p_cbw->command[0])
+          {
+            scsi_inquiry_data_t inquiry_rsp =
+            {
+                .is_removable         = 1,
+                .version              = 2,
+                .response_data_format = 2,
+                .vendor_id            = "Adafruit",
+                .product_id           = "Feather52840",
+                .product_rev          = "1.0"
+            };
+
+            strncpy((char*) inquiry_rsp.vendor_id  , CFG_TUD_MSC_VENDOR     , sizeof(inquiry_rsp.vendor_id));
+            strncpy((char*) inquiry_rsp.product_id , CFG_TUD_MSC_PRODUCT    , sizeof(inquiry_rsp.product_id));
+            strncpy((char*) inquiry_rsp.product_rev, CFG_TUD_MSC_PRODUCT_REV, sizeof(inquiry_rsp.product_rev));
+
+            cb_result = sizeof(inquiry_rsp);
+            memcpy(_mscd_buf, &inquiry_rsp, cb_result);
           }
           else
           {
