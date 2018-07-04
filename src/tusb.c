@@ -41,8 +41,14 @@
 #include "tusb.h"
 #include "device/usbd_pvt.h"
 
+static bool _initialized = false;
+
+
 tusb_error_t tusb_init(void)
 {
+  // skip if already initialized
+  if (_initialized) return TUSB_ERROR_NONE;
+
   VERIFY( tusb_hal_init(), TUSB_ERROR_FAILED ) ; // hardware init
 
 #if MODE_HOST_SUPPORTED
@@ -52,6 +58,8 @@ tusb_error_t tusb_init(void)
 #if MODE_DEVICE_SUPPORTED
   TU_ASSERT_ERR ( usbd_init() ); // device stack init
 #endif
+
+  _initialized = true;
 
   return TUSB_ERROR_NONE;
 }

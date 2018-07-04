@@ -134,6 +134,12 @@ static void hfclk_disable(void)
  *------------------------------------------------------------------*/
 bool tusb_hal_init(void)
 {
+  // TODO may move to application
+
+  // USB power may already be ready at this time -> no event generated
+  // We need to execute the handler based on the status
+  uint32_t usb_reg;
+
 #ifdef SOFTDEVICE_PRESENT
   if ( is_sd_enabled() )
   {
@@ -141,22 +147,22 @@ bool tusb_hal_init(void)
     sd_power_usbpwrrdy_enable(true);
     sd_power_usbremoved_enable(true);
 
-    // USB power may already be ready at this time -> no event generated
-    // We need to execute the handler based on the status
-    uint32_t usb_reg;
     sd_power_usbregstatus_get(&usb_reg);
-
-    if (usb_reg & POWER_USBREGSTATUS_VBUSDETECT_Msk )
-    {
-      tusb_hal_nrf_power_event(NRFX_POWER_USB_EVT_DETECTED);
-    }
-
-    if (usb_reg & POWER_USBREGSTATUS_OUTPUTRDY_Msk )
-    {
-      tusb_hal_nrf_power_event(NRFX_POWER_USB_EVT_READY);
-    }
-  }
+  }else
 #endif
+  {
+    usb_reg = NRF_POWER->USBREGSTATUS;
+  }
+
+  if (usb_reg & POWER_USBREGSTATUS_VBUSDETECT_Msk )
+  {
+    tusb_hal_nrf_power_event(NRFX_POWER_USB_EVT_DETECTED);
+  }
+
+  if (usb_reg & POWER_USBREGSTATUS_OUTPUTRDY_Msk )
+  {
+    tusb_hal_nrf_power_event(NRFX_POWER_USB_EVT_READY);
+  }
 
   return true;
 }
