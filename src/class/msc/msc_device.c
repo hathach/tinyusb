@@ -40,20 +40,35 @@
 
 #if (MODE_DEVICE_SUPPORTED && CFG_TUD_MSC)
 
-#define _TINY_USB_SOURCE_FILE_
 //--------------------------------------------------------------------+
 // INCLUDE
 //--------------------------------------------------------------------+
+#define _TINY_USB_SOURCE_FILE_
 #include "common/tusb_common.h"
 #include "msc_device.h"
 #include "device/usbd_pvt.h"
 
+//--------------------------------------------------------------------+
+// Config Verification
+//--------------------------------------------------------------------+
 VERIFY_STATIC(CFG_TUD_MSC_BUFSIZE < UINT16_MAX, "Size is not correct");
 
 #ifndef CFG_TUD_MSC_MAXLUN
   #define CFG_TUD_MSC_MAXLUN 1
 #elif CFG_TUD_MSC_MAXLUN == 0 || CFG_TUD_MSC_MAXLUN > 16
   #error MSC Device: Incorrect setting of MAX LUN
+#endif
+
+#ifndef CFG_TUD_MSC_BLOCK_NUM
+  #error CFG_TUD_MSC_BLOCK_NUM must be defined
+#endif
+
+#ifndef CFG_TUD_MSC_BLOCK_SZ
+  #error CFG_TUD_MSC_BLOCK_SZ must be defined
+#endif
+
+#ifndef CFG_TUD_MSC_BUFSIZE
+  #error CFG_TUD_MSC_BUFSIZE must be defined, value of CFG_TUD_MSC_BLOCK_SZ should work well, the more the better
 #endif
 
 //--------------------------------------------------------------------+
@@ -233,7 +248,38 @@ tusb_error_t mscd_xfer_cb(uint8_t rhport, uint8_t ep_addr, tusb_event_t event, u
         }
         else
         {
-          int32_t const cb_result = tud_msc_scsi_cb(rhport, p_cbw->lun, p_cbw->command, _mscd_buf, p_msc->data_len);
+          // IN Transfer
+
+          int32_t cb_result;
+
+          if (SCSI_CMD_READ_CAPACITY_10 == p_cbw->command[0])
+          {
+            scsi_read_capacity10_data_t read_capa10 =
+            {
+                .last_lba   = ENDIAN_BE(CFG_TUD_MSC_BLOCK_NUM-1), // read capacity
+                .block_size = ENDIAN_BE(CFG_TUD_MSC_BLOCK_SZ)
+            };
+
+            cb_result = sizeof(read_capa10);
+            memcpy(_mscd_buf, &read_capa10, cb_result);
+          }
+          else if (SCSI_CMD_READ_FORMAT_CAPACITY == p_cbw->command[0])
+          {
+            scsi_read_format_capacity_data_t read_fmt_capa =
+            {
+                .list_length     = 8,
+                .block_num       = ENDIAN_BE(CFG_TUD_MSC_BLOCK_NUM),  // write capacity
+                .descriptor_type = 2,                             // formatted media
+                .block_size_u16  = ENDIAN_BE16(CFG_TUD_MSC_BLOCK_SZ)
+            };
+
+            cb_result = sizeof(read_fmt_capa);
+            memcpy(_mscd_buf, &read_fmt_capa, cb_result);
+          }
+          else
+          {
+            cb_result = tud_msc_scsi_cb(rhport, p_cbw->lun, p_cbw->command, _mscd_buf, p_msc->data_len);
+          }
 
           p_csw->status   = (cb_result >= 0) ? MSC_CSW_STATUS_PASSED : MSC_CSW_STATUS_FAILED;
           p_msc->data_len = (uint32_t) cb_result;
@@ -365,6 +411,9 @@ tusb_error_t mscd_xfer_cb(uint8_t rhport, uint8_t ep_addr, tusb_event_t event, u
   return TUSB_ERROR_NONE;
 }
 
+/*------------------------------------------------------------------*/
+/* SCSI Command Process
+ *------------------------------------------------------------------*/
 static void proc_read10_cmd(uint8_t rhport, mscd_interface_t* p_msc)
 {
   msc_cbw_t const * p_cbw = &p_msc->cbw;

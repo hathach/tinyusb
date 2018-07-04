@@ -163,6 +163,14 @@
     #define CFG_TUD_DESC_AUTO 0
   #endif
 
+  #ifndef CFG_TUD_CDC
+    #define CFG_TUD_CDC            0
+  #endif
+
+  #ifndef CFG_TUD_MSC
+    #define CFG_TUD_MSC          0
+  #endif
+
 #endif // MODE_DEVICE_SUPPORTED
 
 //--------------------------------------------------------------------+
