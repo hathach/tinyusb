@@ -68,7 +68,6 @@ tusb_error_t usbd_open_edpt_pair(uint8_t rhport, tusb_desc_endpoint_t const* p_d
       STASK_ASSERT_ERR( err );\
     }\
     /* No need to wait for status to complete therefore */ \
-    /* status phase must not call dcd_control_complete/dcd_xfer_complete*/ \
     dcd_control_status(_rhport, _dir);\
   }while(0)
 

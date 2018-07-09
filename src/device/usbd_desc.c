@@ -254,7 +254,7 @@ desc_auto_cfg_t const _desc_auto_config_struct =
           .bInterfaceClass    = TUSB_CLASS_CDC,
           .bInterfaceSubClass = CDC_COMM_SUBCLASS_ABSTRACT_CONTROL_MODEL,
           .bInterfaceProtocol = CDC_COMM_PROTOCOL_ATCOMMAND,
-          .iInterface         = 0x04
+          .iInterface         = 4
       },
 
       .header =
@@ -352,7 +352,7 @@ desc_auto_cfg_t const _desc_auto_config_struct =
           .bInterfaceClass    = TUSB_CLASS_MSC,
           .bInterfaceSubClass = MSC_SUBCLASS_SCSI,
           .bInterfaceProtocol = MSC_PROTOCOL_BOT,
-          .iInterface         = 0 // ITF_NUM_MSC + 3
+          .iInterface         = 4 + CFG_TUD_CDC
       },
 
       .ep_out =
