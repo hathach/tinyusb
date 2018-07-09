@@ -75,7 +75,7 @@
 #define ITF_NUM_HID_MOUSE    (ITF_NUM_HID_KEYBOARD + CFG_TUD_HID_KEYBOARD )
 #define ITF_NUM_HID_GENERIC  (ITF_NUM_HID_MOUSE    + CFG_TUD_HID_MOUSE    )
 
-#define ITF_TOTAL            (CFG_TUD_HID_GENERIC + CFG_TUD_HID_GENERIC)
+#define ITF_TOTAL            (ITF_NUM_HID_GENERIC + CFG_TUD_HID_GENERIC)
 
 
 /*------------- Endpoint Numbering & Size -------------*/
