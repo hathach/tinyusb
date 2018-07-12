@@ -77,13 +77,13 @@ typedef struct {
   uint8_t  config_num;
 
   uint8_t itf2class[16]; // determine interface number belongs to which class
-}usbd_device_info_t;
+}usbd_device_t;
 
 //--------------------------------------------------------------------+
 // Class & Device Driver
 //--------------------------------------------------------------------+
 CFG_TUSB_ATTR_USBRAM CFG_TUSB_MEM_ALIGN uint8_t _usbd_ctrl_buf[CFG_TUD_CTRL_BUFSIZE];
-static usbd_device_info_t _usbd_dev;
+static usbd_device_t _usbd_dev;
 
 static usbd_class_driver_t const usbd_class_drivers[] =
 {
@@ -459,6 +459,8 @@ static tusb_error_t proc_set_config_req(uint8_t rhport, uint8_t config_number)
 
 static uint16_t get_descriptor(uint8_t rhport, tusb_control_request_t const * const p_request, uint8_t const ** pp_buffer)
 {
+  (void) rhport;
+
   tusb_desc_type_t const desc_type = (tusb_desc_type_t) u16_high_u8(p_request->wValue);
   uint8_t const desc_index = u16_low_u8( p_request->wValue );
 
