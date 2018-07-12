@@ -528,6 +528,8 @@ void dcd_bus_event(uint8_t rhport, usbd_bus_event_type_t bus_event)
       varclr_(&_usbd_dev);
       osal_queue_flush(_usbd_q);
       osal_semaphore_reset_isr(_usbd_ctrl_sem);
+
+      // TODO move to unplugged
       for (uint8_t i = 0; i < USBD_CLASS_DRIVER_COUNT; i++)
       {
         if ( usbd_class_drivers[i].close ) usbd_class_drivers[i].close( rhport );
