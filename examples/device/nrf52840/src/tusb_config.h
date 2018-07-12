@@ -78,23 +78,41 @@
 #define CFG_TUD_HID_GENERIC       0 // TODO need update
 
 /*------------------------------------------------------------------*/
-/* CLASS DRIVER
+/* CDC DEVICE
  *------------------------------------------------------------------*/
 
 // FIFO size of CDC TX and RX
 #define CFG_TUD_CDC_RX_BUFSIZE    64
 #define CFG_TUD_CDC_TX_BUFSIZE    64
 
-
 // TX is sent automatically every Start of Frame event.
 // If not enabled, application must call tud_cdc_flush() periodically
-#define CFG_TUD_CDC_FLUSH_ON_SOF    1
+#define CFG_TUD_CDC_FLUSH_ON_SOF    0
+
+/*------------------------------------------------------------------*/
+/* MSC DEVICE
+ *------------------------------------------------------------------*/
 
 // Number of supported Logical Unit Number (At least 1)
 #define CFG_TUD_MSC_MAXLUN        1
 
 // Buffer size of Device Mass storage
 #define CFG_TUD_MSC_BUFSIZE       512
+
+// Number of Blocks
+#define CFG_TUD_MSC_BLOCK_NUM       16
+
+// Block size
+#define CFG_TUD_MSC_BLOCK_SZ        512
+
+// Vendor name included in Inquiry response, max 8 bytes
+#define CFG_TUD_MSC_VENDOR          "tinyusb"
+
+// Product name included in Inquiry response, max 16 bytes
+#define CFG_TUD_MSC_PRODUCT         "tusb msc"
+
+// Product revision string included in Inquiry response, max 4 bytes
+#define CFG_TUD_MSC_PRODUCT_REV     "1.0"
 
 //--------------------------------------------------------------------+
 // USB RAM PLACEMENT

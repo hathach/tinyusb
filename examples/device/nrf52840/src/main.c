@@ -87,6 +87,7 @@ void virtual_com_task(void)
     uint32_t count = tud_cdc_read(buf, sizeof(buf));
 
     tud_cdc_write(buf, count);
+    tud_cdc_flush();
   }
 }
 

@@ -41,51 +41,27 @@
 //--------------------------------------------------------------------+
 // STRING DESCRIPTORS
 //--------------------------------------------------------------------+
-#define STRING_LEN_UNICODE(n) (2 + (2*(n))) // also includes 2 byte header
-#define ENDIAN_BE16_FROM( high, low) ENDIAN_BE16(high << 8 | low)
 
 // array of pointer to string descriptors
 uint16_t const * const string_desc_arr [] =
 {
-    [0] = (uint16_t []) { // supported language
-        ENDIAN_BE16_FROM( STRING_LEN_UNICODE(1), TUSB_DESC_STRING ),
-        0x0409 // English
-    },
+    // 0: is supported language = English
+    TUD_DESC_STRCONV(0x0409),
 
-    [1] = (uint16_t []) { // manufacturer
-        ENDIAN_BE16_FROM( STRING_LEN_UNICODE(11), TUSB_DESC_STRING),
-        't', 'i', 'n', 'y', 'u', 's', 'b', '.', 'o', 'r', 'g' // len = 11
-    },
+    // 1: Manufacturer
+    TUD_DESC_STRCONV('t', 'i', 'n', 'y', 'u', 's', 'b', '.', 'o', 'r', 'g'),
 
-    [2] = (uint16_t []) { // product
-        ENDIAN_BE16_FROM( STRING_LEN_UNICODE(14), TUSB_DESC_STRING),
-        't', 'i', 'n', 'y', 'u', 's', 'b', ' ', 'd', 'e', 'v', 'i', 'c', 'e' // len = 14
-    },
+    // 2: Product
+    TUD_DESC_STRCONV('t', 'i', 'n', 'y', 'u', 's', 'b', ' ', 'd', 'e', 'v', 'i', 'c', 'e'),
 
-    [3] = (uint16_t []) { // serials
-        ENDIAN_BE16_FROM( STRING_LEN_UNICODE(4), TUSB_DESC_STRING),
-        '1', '2', '3', '4' // len = 4
-    },
+    // 3: Serials TODO use chip ID
+    TUD_DESC_STRCONV('1', '2', '3', '4', '5', '6'),
 
-    [4] = (uint16_t []) { // CDC Interface
-        ENDIAN_BE16_FROM( STRING_LEN_UNICODE(3), TUSB_DESC_STRING),
-        'c', 'd', 'c' // len = 3
-    },
+    // 4: CDC Interface
+    TUD_DESC_STRCONV('t','u','s','b',' ','c','d','c'),
 
-    [5] = (uint16_t []) { // Keyboard Interface
-        ENDIAN_BE16_FROM( STRING_LEN_UNICODE(5), TUSB_DESC_STRING),
-        'm', 'o', 'u', 's', 'e' // len = 5
-    },
-
-    [6] = (uint16_t []) { // Keyboard Interface
-        ENDIAN_BE16_FROM( STRING_LEN_UNICODE(8), TUSB_DESC_STRING),
-        'k', 'e', 'y', 'b', 'o', 'a', 'r', 'd' // len = 8
-    },
-
-    [7] = (uint16_t []) { // MSC Interface
-        ENDIAN_BE16_FROM( STRING_LEN_UNICODE(3), TUSB_DESC_STRING),
-        'm', 's', 'c' // len = 3
-    }
+    // 5: MSC Interface
+    TUD_DESC_STRCONV('t','u','s','b',' ','m','s','c'),
 };
 
 // tud_desc_set is required by tinyusb stack

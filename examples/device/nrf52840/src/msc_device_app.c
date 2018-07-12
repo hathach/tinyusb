@@ -46,35 +46,11 @@
 //--------------------------------------------------------------------+
 // MACRO CONSTANT TYPEDEF
 //--------------------------------------------------------------------+
-static scsi_inquiry_data_t const mscd_inquiry_data =
-{
-    .is_removable         = 1,
-    .version              = 2,
-    .response_data_format = 2,
-    .vendor_id            = "tinyusb",
-    .product_id           = "MSC Example",
-    .product_revision     = "0.01"
-};
-
-static scsi_read_capacity10_data_t const mscd_read_capacity10_data =
-{
-    .last_lba   = ENDIAN_BE(DISK_BLOCK_NUM-1), // read capacity
-    .block_size = ENDIAN_BE(DISK_BLOCK_SIZE)
-};
-
 scsi_sense_fixed_data_t mscd_sense_data =
 {
     .response_code        = 0x70,
     .sense_key            = 0, // no errors
     .additional_sense_len = sizeof(scsi_sense_fixed_data_t) - 8
-};
-
-static scsi_read_format_capacity_data_t const mscd_format_capacity_data =
-{
-    .list_length     = 8,
-    .block_num       = ENDIAN_BE(DISK_BLOCK_NUM), // write capacity
-    .descriptor_type = 2, // TODO formatted media, refractor to const
-    .block_size_u16  = ENDIAN_BE16(DISK_BLOCK_SIZE)
 };
 
 static scsi_mode_parameters_t const msc_dev_mode_para =
@@ -110,24 +86,9 @@ int32_t tud_msc_scsi_cb (uint8_t rhport, uint8_t lun, uint8_t const scsi_cmd[16]
 
   switch (scsi_cmd[0])
   {
-    case SCSI_CMD_INQUIRY:
-      ptr = &mscd_inquiry_data;
-      len = sizeof(scsi_inquiry_data_t);
-    break;
-
-    case SCSI_CMD_READ_CAPACITY_10:
-      ptr = &mscd_read_capacity10_data;
-      len = sizeof(scsi_read_capacity10_data_t);
-    break;
-
     case SCSI_CMD_REQUEST_SENSE:
       ptr = &mscd_sense_data;
       len = sizeof(scsi_sense_fixed_data_t);
-    break;
-
-    case SCSI_CMD_READ_FORMAT_CAPACITY:
-      ptr = &mscd_format_capacity_data;
-      len = sizeof(scsi_read_format_capacity_data_t);
     break;
 
     case SCSI_CMD_MODE_SENSE_6:
@@ -173,23 +134,6 @@ int32_t tud_msc_scsi_cb (uint8_t rhport, uint8_t lun, uint8_t const scsi_cmd[16]
   }
 
   return len;
-}
-
-//--------------------------------------------------------------------+
-// APPLICATION CODE
-//--------------------------------------------------------------------+
-void msc_app_task(void* param)
-{ // no need to implement the task yet
-  (void) param;
-
-  OSAL_TASK_BEGIN
-
-  OSAL_TASK_END
-}
-
-void msc_app_init (void)
-{
-
 }
 
 
