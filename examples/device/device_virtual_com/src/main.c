@@ -103,7 +103,7 @@ void tud_umount_cb(uint8_t port)
 {
 }
 
-void tud_cdc_rx_cb(uint8_t port)
+void tud_cdc_rx_cb(uint8_t itf)
 {
 }
 

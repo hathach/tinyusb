@@ -95,16 +95,16 @@ void virtual_com_task(void)
 //--------------------------------------------------------------------+
 // tinyusb callbacks
 //--------------------------------------------------------------------+
-void tud_mount_cb(uint8_t port)
+void tud_mount_cb(uint8_t rhport)
 {
 
 }
 
-void tud_umount_cb(uint8_t port)
+void tud_umount_cb(uint8_t rhport)
 {
 }
 
-void tud_cdc_rx_cb(uint8_t port)
+void tud_cdc_rx_cb(uint8_t itf)
 {
 }
 
