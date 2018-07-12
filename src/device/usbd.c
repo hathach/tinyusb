@@ -83,7 +83,7 @@ typedef struct {
 // Class & Device Driver
 //--------------------------------------------------------------------+
 CFG_TUSB_ATTR_USBRAM CFG_TUSB_MEM_ALIGN uint8_t usbd_enum_buffer[CFG_TUD_ENUM_BUFFER_SIZE];
-usbd_device_info_t usbd_devices[CONTROLLER_DEVICE_NUMBER];
+static usbd_device_info_t _usbd_dev;
 
 static usbd_class_driver_t const usbd_class_drivers[] =
 {
@@ -196,9 +196,9 @@ static uint16_t get_descriptor(uint8_t rhport, tusb_control_request_t const * co
 //--------------------------------------------------------------------+
 // APPLICATION API
 //--------------------------------------------------------------------+
-bool tud_n_mounted(uint8_t rhport)
+bool tud_mounted(void)
 {
-  return usbd_devices[rhport].state == TUSB_DEVICE_STATE_CONFIGURED;
+  return _usbd_dev.state == TUSB_DEVICE_STATE_CONFIGURED;
 }
 
 //--------------------------------------------------------------------+
@@ -329,13 +329,13 @@ static tusb_error_t proc_control_request_st(uint8_t rhport, tusb_control_request
     }
     else if (TUSB_REQ_GET_CONFIGURATION == p_request->bRequest )
     {
-      memcpy(usbd_enum_buffer, &usbd_devices[rhport].config_num, 1);
+      memcpy(usbd_enum_buffer, &_usbd_dev.config_num, 1);
       usbd_control_xfer_st(rhport, p_request->bmRequestType_bit.direction, (uint8_t*) usbd_enum_buffer, 1);
     }
     else if ( TUSB_REQ_SET_ADDRESS == p_request->bRequest )
     {
       dcd_set_address(rhport, (uint8_t) p_request->wValue);
-      usbd_devices[rhport].state = TUSB_DEVICE_STATE_ADDRESSED;
+      _usbd_dev.state = TUSB_DEVICE_STATE_ADDRESSED;
 
       #if CFG_TUSB_MCU != OPT_MCU_NRF5X // nrf5x auto handle set address, we must not return status
       dcd_control_status(rhport, p_request->bmRequestType_bit.direction);
@@ -356,7 +356,7 @@ static tusb_error_t proc_control_request_st(uint8_t rhport, tusb_control_request
   else if ( TUSB_REQ_RCPT_INTERFACE == p_request->bmRequestType_bit.recipient)
   {
     static uint8_t drid;
-    uint8_t const class_code = usbd_devices[rhport].itf2class[ u16_low_u8(p_request->wIndex) ];
+    uint8_t const class_code = _usbd_dev.itf2class[ u16_low_u8(p_request->wIndex) ];
 
     for (drid = 0; drid < USBD_CLASS_DRIVER_COUNT; drid++)
     {
@@ -401,8 +401,8 @@ static tusb_error_t proc_set_config_req(uint8_t rhport, uint8_t config_number)
 {
   dcd_set_config(rhport, config_number);
 
-  usbd_devices[rhport].state = TUSB_DEVICE_STATE_CONFIGURED;
-  usbd_devices[rhport].config_num = config_number;
+  _usbd_dev.state = TUSB_DEVICE_STATE_CONFIGURED;
+  _usbd_dev.config_num = config_number;
 
   //------------- parse configuration & open drivers -------------//
 #if CFG_TUD_DESC_AUTO
@@ -438,8 +438,8 @@ static tusb_error_t proc_set_config_req(uint8_t rhport, uint8_t config_number)
       TU_ASSERT( drid < USBD_CLASS_DRIVER_COUNT, TUSB_ERROR_NOT_SUPPORTED_YET );
 
       // Check duplicate interface number TODO support alternate setting
-      TU_ASSERT( 0 == usbd_devices[rhport].itf2class[p_desc_itf->bInterfaceNumber], TUSB_ERROR_FAILED);
-      usbd_devices[rhport].itf2class[p_desc_itf->bInterfaceNumber] = class_code;
+      TU_ASSERT( 0 == _usbd_dev.itf2class[p_desc_itf->bInterfaceNumber], TUSB_ERROR_FAILED);
+      _usbd_dev.itf2class[p_desc_itf->bInterfaceNumber] = class_code;
 
       uint16_t length=0;
       TU_ASSERT_ERR( usbd_class_drivers[drid].open( rhport, p_desc_itf, &length ) );
@@ -528,7 +528,7 @@ void dcd_bus_event(uint8_t rhport, usbd_bus_event_type_t bus_event)
   switch(bus_event)
   {
     case USBD_BUS_EVENT_RESET     :
-      varclr_(&usbd_devices[rhport]);
+      varclr_(&_usbd_dev);
       osal_queue_flush(_usbd_q);
       osal_semaphore_reset_isr(_usbd_ctrl_sem);
       for (uint8_t i = 0; i < USBD_CLASS_DRIVER_COUNT; i++)
@@ -551,12 +551,12 @@ void dcd_bus_event(uint8_t rhport, usbd_bus_event_type_t bus_event)
     break;
 
     case USBD_BUS_EVENT_UNPLUGGED:
-      varclr_(&usbd_devices[rhport]);
+      varclr_(&_usbd_dev);
       tud_umount_cb(rhport); // invoke callback
     break;
 
     case USBD_BUS_EVENT_SUSPENDED:
-      usbd_devices[rhport].state = TUSB_DEVICE_STATE_SUSPENDED;
+      _usbd_dev.state = TUSB_DEVICE_STATE_SUSPENDED;
     break;
 
     default: break;

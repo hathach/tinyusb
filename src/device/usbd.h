@@ -69,21 +69,10 @@ typedef struct {
 // Must be defined by application
 extern tud_desc_set_t tud_desc_set;
 
-
 //--------------------------------------------------------------------+
-// APPLICATION API (Multiple Root Ports)
-// Should be used only with MCU that support more than 1 ports
+// APPLICATION API
 //--------------------------------------------------------------------+
-bool tud_n_mounted(uint8_t rhport);
-
-//--------------------------------------------------------------------+
-// APPLICATION API (Single Port)
-// Should be used with MCU supporting only 1 USB port for code simplicity
-//--------------------------------------------------------------------+
-static inline bool tud_mounted(void)
-{
-  return tud_n_mounted(0);
-}
+bool tud_mounted(void);
 
 //--------------------------------------------------------------------+
 // APPLICATION CALLBACK
