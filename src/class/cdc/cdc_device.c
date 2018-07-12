@@ -51,9 +51,9 @@
 //--------------------------------------------------------------------+
 // MACRO CONSTANT TYPEDEF
 //--------------------------------------------------------------------+
-CFG_TUSB_ATTR_USBRAM STATIC_VAR cdc_line_coding_t cdcd_line_coding[CONTROLLER_DEVICE_NUMBER];
-
 typedef struct {
+  CFG_TUSB_MEM_ALIGN cdc_line_coding_t line_coding;
+
   uint8_t itf_num;
   uint8_t ep_notif;
   uint8_t ep_in;
@@ -65,55 +65,53 @@ typedef struct {
   uint8_t line_state;
 }cdcd_interface_t;
 
-// TODO multiple rhport
-
-
-CFG_TUSB_ATTR_USBRAM CFG_TUSB_MEM_ALIGN uint8_t _tmp_rx_buf[64];
-CFG_TUSB_ATTR_USBRAM CFG_TUSB_MEM_ALIGN uint8_t _tmp_tx_buf[64];
+//--------------------------------------------------------------------+
+// INTERNAL OBJECT & FUNCTION DECLARATION
+//--------------------------------------------------------------------+
+CFG_TUSB_ATTR_USBRAM CFG_TUSB_MEM_ALIGN static uint8_t _tmp_rx_buf[64];
+CFG_TUSB_ATTR_USBRAM CFG_TUSB_MEM_ALIGN static uint8_t _tmp_tx_buf[64];
 
 TU_FIFO_DEF(_rx_ff, CFG_TUD_CDC_RX_BUFSIZE, uint8_t, true);
 TU_FIFO_DEF(_tx_ff, CFG_TUD_CDC_TX_BUFSIZE, uint8_t, false);
 
-//--------------------------------------------------------------------+
-// INTERNAL OBJECT & FUNCTION DECLARATION
-//--------------------------------------------------------------------+
-STATIC_VAR cdcd_interface_t _cdcd_itf[CONTROLLER_DEVICE_NUMBER];
+CFG_TUSB_ATTR_USBRAM
+static cdcd_interface_t _cdcd_itf[CFG_TUD_CDC];
 
 //--------------------------------------------------------------------+
 // APPLICATION API
 //--------------------------------------------------------------------+
-bool tud_n_cdc_connected(uint8_t rhport)
+bool tud_cdc_n_connected(uint8_t rhport)
 {
   // DTR (bit 0) active  isconsidered as connected
   return BIT_TEST_(_cdcd_itf[rhport].line_state, 0);
 }
 
-uint8_t tud_n_cdc_get_line_state (uint8_t rhport)
+uint8_t tud_cdc_n_get_line_state (uint8_t rhport)
 {
   return _cdcd_itf[rhport].line_state;
 }
 
-void tud_n_cdc_get_line_coding (uint8_t rhport, cdc_line_coding_t* coding)
+void tud_cdc_n_get_line_coding (uint8_t rhport, cdc_line_coding_t* coding)
 {
-  (*coding) = cdcd_line_coding[rhport];
+  (*coding) = _cdcd_itf[0].line_coding;
 }
 
 
 //--------------------------------------------------------------------+
 // READ API
 //--------------------------------------------------------------------+
-uint32_t tud_n_cdc_available(uint8_t rhport)
+uint32_t tud_cdc_n_available(uint8_t rhport)
 {
   return tu_fifo_count(&_rx_ff);
 }
 
-int8_t tud_n_cdc_read_char(uint8_t rhport)
+int8_t tud_cdc_n_read_char(uint8_t rhport)
 {
   int8_t ch;
   return tu_fifo_read(&_rx_ff, &ch) ? ch : (-1);
 }
 
-uint32_t tud_n_cdc_read(uint8_t rhport, void* buffer, uint32_t bufsize)
+uint32_t tud_cdc_n_read(uint8_t rhport, void* buffer, uint32_t bufsize)
 {
   return tu_fifo_read_n(&_rx_ff, buffer, bufsize);
 }
@@ -122,24 +120,24 @@ uint32_t tud_n_cdc_read(uint8_t rhport, void* buffer, uint32_t bufsize)
 // WRITE API
 //--------------------------------------------------------------------+
 
-uint32_t tud_n_cdc_write_char(uint8_t rhport, char ch)
+uint32_t tud_cdc_n_write_char(uint8_t rhport, char ch)
 {
   return tu_fifo_write(&_tx_ff, &ch) ? 1 : 0;
 }
 
-uint32_t tud_n_cdc_write(uint8_t rhport, void const* buffer, uint32_t bufsize)
+uint32_t tud_cdc_n_write(uint8_t rhport, void const* buffer, uint32_t bufsize)
 {
   return tu_fifo_write_n(&_tx_ff, buffer, bufsize);
 }
 
-bool tud_n_cdc_flush (uint8_t rhport)
+bool tud_cdc_n_flush (uint8_t rhport)
 {
   uint8_t  edpt = _cdcd_itf[rhport].ep_in;
   VERIFY( !dcd_edpt_busy(rhport, edpt) ); // skip if previous transfer not complete
 
   uint16_t count = tu_fifo_read_n(&_tx_ff, _tmp_tx_buf, sizeof(_tmp_tx_buf));
 
-  VERIFY( tud_n_cdc_connected(rhport) ); // fifo is empty if not connected
+  VERIFY( tud_cdc_n_connected(rhport) ); // fifo is empty if not connected
 
   if ( count ) TU_ASSERT( dcd_edpt_xfer(rhport, edpt, _tmp_tx_buf, count) );
 
@@ -152,16 +150,15 @@ bool tud_n_cdc_flush (uint8_t rhport)
 //--------------------------------------------------------------------+
 void cdcd_init(void)
 {
-  memclr_(_cdcd_itf, sizeof(cdcd_interface_t)*CONTROLLER_DEVICE_NUMBER);
+  arrclr_(_cdcd_itf);
 
   // default line coding is : stop bit = 1, parity = none, data bits = 8
-  memclr_(cdcd_line_coding, sizeof(cdc_line_coding_t)*CONTROLLER_DEVICE_NUMBER);
-  for(uint8_t i=0; i<CONTROLLER_DEVICE_NUMBER; i++)
+  for(uint8_t i=0; i<CFG_TUD_CDC; i++)
   {
-    cdcd_line_coding[i].bit_rate  = 115200;
-    cdcd_line_coding[i].stop_bits = 0;
-    cdcd_line_coding[i].parity    = 0;
-    cdcd_line_coding[i].data_bits = 8;
+    _cdcd_itf[i].line_coding.bit_rate  = 115200;
+    _cdcd_itf[i].line_coding.stop_bits = 0;
+    _cdcd_itf[i].line_coding.parity    = 0;
+    _cdcd_itf[i].line_coding.data_bits = 8;
   }
 }
 
@@ -241,15 +238,16 @@ tusb_error_t cdcd_control_request_st(uint8_t rhport, tusb_control_request_t cons
   //------------- Class Specific Request -------------//
   if (p_request->bmRequestType_bit.type != TUSB_REQ_TYPE_CLASS) return TUSB_ERROR_DCD_CONTROL_REQUEST_NOT_SUPPORT;
 
+  // TODO Support multiple interface
   if ( (CDC_REQUEST_GET_LINE_CODING == p_request->bRequest) || (CDC_REQUEST_SET_LINE_CODING == p_request->bRequest) )
   {
     uint16_t len = min16_of(sizeof(cdc_line_coding_t), p_request->wLength);
-    usbd_control_xfer_st(rhport, p_request->bmRequestType_bit.direction, (uint8_t*) &cdcd_line_coding[rhport], len);
+    usbd_control_xfer_st(rhport, p_request->bmRequestType_bit.direction, (uint8_t*) &_cdcd_itf[0].line_coding, len);
 
     // Invoke callback
     if (CDC_REQUEST_SET_LINE_CODING == p_request->bRequest)
     {
-      if ( tud_cdc_line_coding_cb ) tud_cdc_line_coding_cb(rhport, &cdcd_line_coding[rhport]);
+      if ( tud_cdc_line_coding_cb ) tud_cdc_line_coding_cb(rhport, &_cdcd_itf[0].line_coding);
     }
   }
   else if (CDC_REQUEST_SET_CONTROL_LINE_STATE == p_request->bRequest )
@@ -297,7 +295,7 @@ tusb_error_t cdcd_xfer_cb(uint8_t rhport, uint8_t ep_addr, tusb_event_t event, u
 #if CFG_TUD_CDC_FLUSH_ON_SOF
 void cdcd_sof(uint8_t rhport)
 {
-  tud_n_cdc_flush(rhport);
+  tud_cdc_n_flush(rhport);
 }
 #endif
 
