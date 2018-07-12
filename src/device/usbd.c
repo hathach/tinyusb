@@ -82,7 +82,7 @@ typedef struct {
 //--------------------------------------------------------------------+
 // Class & Device Driver
 //--------------------------------------------------------------------+
-CFG_TUSB_ATTR_USBRAM CFG_TUSB_MEM_ALIGN uint8_t usbd_enum_buffer[CFG_TUD_ENUM_BUFFER_SIZE];
+CFG_TUSB_ATTR_USBRAM CFG_TUSB_MEM_ALIGN uint8_t _usbd_ctrl_buf[CFG_TUD_CTRL_BUFSIZE];
 static usbd_device_info_t _usbd_dev;
 
 static usbd_class_driver_t const usbd_class_drivers[] =
@@ -321,7 +321,9 @@ static tusb_error_t proc_control_request_st(uint8_t rhport, tusb_control_request
 
       if ( len )
       {
-        usbd_control_xfer_st(rhport, p_request->bmRequestType_bit.direction, (uint8_t*) buffer, len );
+        TU_ASSERT( len <= CFG_TUD_CTRL_BUFSIZE, TUSB_ERROR_NOT_ENOUGH_MEMORY);
+        memcpy(_usbd_ctrl_buf, buffer, len);
+        usbd_control_xfer_st(rhport, p_request->bmRequestType_bit.direction, (uint8_t*) _usbd_ctrl_buf, len );
       }else
       {
         dcd_control_stall(rhport); // stall unsupported descriptor
@@ -329,8 +331,8 @@ static tusb_error_t proc_control_request_st(uint8_t rhport, tusb_control_request
     }
     else if (TUSB_REQ_GET_CONFIGURATION == p_request->bRequest )
     {
-      memcpy(usbd_enum_buffer, &_usbd_dev.config_num, 1);
-      usbd_control_xfer_st(rhport, p_request->bmRequestType_bit.direction, (uint8_t*) usbd_enum_buffer, 1);
+      memcpy(_usbd_ctrl_buf, &_usbd_dev.config_num, 1);
+      usbd_control_xfer_st(rhport, p_request->bmRequestType_bit.direction, (uint8_t*) _usbd_ctrl_buf, 1);
     }
     else if ( TUSB_REQ_SET_ADDRESS == p_request->bRequest )
     {
@@ -469,7 +471,7 @@ static uint16_t get_descriptor(uint8_t rhport, tusb_control_request_t const * co
   extern tusb_desc_device_t const _desc_auto_device;
   extern uint8_t const * const    _desc_auto_config;
 
-  descs.device        = (uint8_t const*) &_desc_auto_device;
+  descs.device = (uint8_t const*) &_desc_auto_device;
   descs.config = _desc_auto_config;
 #endif
 
@@ -508,11 +510,7 @@ static uint16_t get_descriptor(uint8_t rhport, tusb_control_request_t const * co
 
   // up to Host's length
   len = min16_of(p_request->wLength, len );
-  TU_ASSERT( len <= CFG_TUD_ENUM_BUFFER_SIZE, 0);
-
-  // FIXME copy data to enum buffer
-  memcpy(usbd_enum_buffer, desc_data, len);
-  (*pp_buffer) = usbd_enum_buffer;
+  (*pp_buffer) = desc_data;
 
   return len;
 }
