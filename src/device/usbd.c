@@ -323,7 +323,7 @@ static tusb_error_t proc_control_request_st(uint8_t rhport, tusb_control_request
       {
         TU_ASSERT( len <= CFG_TUD_CTRL_BUFSIZE, TUSB_ERROR_NOT_ENOUGH_MEMORY);
         memcpy(_usbd_ctrl_buf, buffer, len);
-        usbd_control_xfer_st(rhport, p_request->bmRequestType_bit.direction, (uint8_t*) _usbd_ctrl_buf, len );
+        usbd_control_xfer_st(rhport, p_request->bmRequestType_bit.direction, _usbd_ctrl_buf, len );
       }else
       {
         dcd_control_stall(rhport); // stall unsupported descriptor
@@ -332,7 +332,7 @@ static tusb_error_t proc_control_request_st(uint8_t rhport, tusb_control_request
     else if (TUSB_REQ_GET_CONFIGURATION == p_request->bRequest )
     {
       memcpy(_usbd_ctrl_buf, &_usbd_dev.config_num, 1);
-      usbd_control_xfer_st(rhport, p_request->bmRequestType_bit.direction, (uint8_t*) _usbd_ctrl_buf, 1);
+      usbd_control_xfer_st(rhport, p_request->bmRequestType_bit.direction, _usbd_ctrl_buf, 1);
     }
     else if ( TUSB_REQ_SET_ADDRESS == p_request->bRequest )
     {
@@ -452,7 +452,7 @@ static tusb_error_t proc_set_config_req(uint8_t rhport, uint8_t config_number)
   }
 
   // invoke callback
-  tud_mount_cb(rhport);
+  tud_mount_cb();
 
   return TUSB_ERROR_NONE;
 }
@@ -551,7 +551,7 @@ void dcd_bus_event(uint8_t rhport, usbd_bus_event_type_t bus_event)
 
     case USBD_BUS_EVENT_UNPLUGGED:
       varclr_(&_usbd_dev);
-      tud_umount_cb(rhport); // invoke callback
+      tud_umount_cb(); // invoke callback
     break;
 
     case USBD_BUS_EVENT_SUSPENDED:
@@ -632,8 +632,8 @@ void usbd_defer_func(osal_task_func_t func, void* param, bool isr )
 {
   usbd_task_event_t event =
   {
-      .rhport       = 0,
-      .event_id     = USBD_EVT_FUNC_CALL,
+      .rhport   = 0,
+      .event_id = USBD_EVT_FUNC_CALL,
   };
 
   event.func_call.func  = func;

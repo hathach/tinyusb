@@ -111,15 +111,17 @@ int main(void)
 //--------------------------------------------------------------------+
 // tinyusb callbacks
 //--------------------------------------------------------------------+
-void tud_mount_cb(uint8_t rhport)
+void tud_mount_cb(void)
 {
+  uint8_t rhport = 0; // TODO remove
   cdc_serial_app_mount(rhport);
   keyboard_app_mount(rhport);
   msc_app_mount(rhport);
 }
 
-void tud_umount_cb(uint8_t rhport)
+void tud_umount_cb(void)
 {
+  uint8_t rhport = 0; // TODO remove
   cdc_serial_app_umount(rhport);
   keyboard_app_umount(rhport);
   msc_app_umount(rhport);
