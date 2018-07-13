@@ -232,7 +232,7 @@ tusb_error_t cdcd_open(uint8_t rhport, tusb_desc_interface_t const * p_interface
   return TUSB_ERROR_NONE;
 }
 
-void cdcd_close(uint8_t rhport)
+void cdcd_reset(uint8_t rhport)
 {
   // no need to close opened pipe, dcd bus reset will put controller's endpoints to default state
   (void) rhport;

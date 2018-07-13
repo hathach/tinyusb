@@ -81,7 +81,7 @@ typedef struct {
   tusb_error_t (* control_req_st ) (uint8_t rhport, tusb_control_request_t const *);
   tusb_error_t (* xfer_cb        ) (uint8_t rhport, uint8_t ep_addr, tusb_event_t, uint32_t);
   void         (* sof            ) (uint8_t rhport);
-  void         (* close          ) (uint8_t);
+  void         (* reset          ) (uint8_t);
 } usbd_class_driver_t;
 
 static usbd_class_driver_t const usbd_class_drivers[] =
@@ -94,7 +94,7 @@ static usbd_class_driver_t const usbd_class_drivers[] =
         .control_req_st = cdcd_control_request_st,
         .xfer_cb        = cdcd_xfer_cb,
         .sof            = cdcd_sof,
-        .close          = cdcd_close
+        .reset          = cdcd_reset
     },
   #endif
 
@@ -106,7 +106,7 @@ static usbd_class_driver_t const usbd_class_drivers[] =
         .control_req_st = hidd_control_request_st,
         .xfer_cb        = hidd_xfer_cb,
         .sof            = NULL,
-        .close          = hidd_close
+        .reset          = hidd_reset
     },
   #endif
 
@@ -118,7 +118,7 @@ static usbd_class_driver_t const usbd_class_drivers[] =
         .control_req_st = mscd_control_request_st,
         .xfer_cb        = mscd_xfer_cb,
         .sof            = NULL,
-        .close          = mscd_close
+        .reset          = mscd_reset
     },
   #endif
 
@@ -130,7 +130,7 @@ static usbd_class_driver_t const usbd_class_drivers[] =
         .control_req_st = cusd_control_request_st,
         .xfer_cb        = cusd_xfer_cb,
         .sof            = NULL,
-        .close          = cusd_close
+        .reset          = cusd_reset
     },
   #endif
 };
@@ -525,6 +525,12 @@ void dcd_bus_event(uint8_t rhport, usbd_bus_event_type_t bus_event)
   switch(bus_event)
   {
     case USBD_BUS_EVENT_RESET:
+      varclr_(&_usbd_dev);
+      for (uint8_t i = 0; i < USBD_CLASS_DRIVER_COUNT; i++)
+      {
+        if ( usbd_class_drivers[i].reset ) usbd_class_drivers[i].reset( rhport );
+      }
+
       osal_queue_flush(_usbd_q);
       osal_semaphore_reset_isr(_usbd_ctrl_sem);
     break;
@@ -546,7 +552,7 @@ void dcd_bus_event(uint8_t rhport, usbd_bus_event_type_t bus_event)
       varclr_(&_usbd_dev);
       for (uint8_t i = 0; i < USBD_CLASS_DRIVER_COUNT; i++)
       {
-        if ( usbd_class_drivers[i].close ) usbd_class_drivers[i].close( rhport );
+        if ( usbd_class_drivers[i].reset ) usbd_class_drivers[i].reset( rhport );
       }
 
       tud_umount_cb(); // invoke callback

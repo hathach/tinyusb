@@ -64,7 +64,7 @@ void cusd_init(void);
 tusb_error_t cusd_open(uint8_t rhport, tusb_desc_interface_t const * p_interface_desc, uint16_t *p_length);
 tusb_error_t cusd_control_request_st(uint8_t rhport, tusb_control_request_t const * p_request);
 tusb_error_t cusd_xfer_cb(uint8_t rhport, uint8_t edpt_addr, tusb_event_t event, uint32_t xferred_bytes);
-void cusd_close(uint8_t rhport);
+void cusd_reset(uint8_t rhport);
 #endif
 
 

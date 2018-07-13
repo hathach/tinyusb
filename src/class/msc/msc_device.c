@@ -153,7 +153,7 @@ void mscd_init(void)
   memclr_(&_mscd_itf, sizeof(mscd_interface_t));
 }
 
-void mscd_close(uint8_t rhport)
+void mscd_reset(uint8_t rhport)
 {
   memclr_(&_mscd_itf, sizeof(mscd_interface_t));
 }

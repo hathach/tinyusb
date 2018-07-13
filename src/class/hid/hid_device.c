@@ -168,7 +168,7 @@ void hidd_init(void)
   }
 }
 
-void hidd_close(uint8_t rhport)
+void hidd_reset(uint8_t rhport)
 {
   for(uint8_t i=0; i<HIDD_NUMBER_OF_SUBCLASS; i++)
   {

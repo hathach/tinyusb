@@ -97,7 +97,7 @@ tusb_error_t cusd_xfer_cb(uint8_t rhport, uint8_t edpt_addr, tusb_event_t event,
   return TUSB_ERROR_NONE;
 }
 
-void cusd_close(uint8_t rhport)
+void cusd_reset(uint8_t rhport)
 {
 
 }
