@@ -297,6 +297,7 @@ tusb_error_t cdcd_xfer_cb(uint8_t rhport, uint8_t ep_addr, tusb_event_t event, u
   uint8_t const itf = 0;
   cdcd_interface_t const * p_cdc = &_cdcd_itf[itf];
 
+  // receive new data
   if ( ep_addr == p_cdc->ep_out )
   {
     tu_fifo_write_n(&_rx_ff[itf], _tmp_rx_buf, xferred_bytes);
@@ -307,6 +308,8 @@ tusb_error_t cdcd_xfer_cb(uint8_t rhport, uint8_t ep_addr, tusb_event_t event, u
     // fire callback
     if (tud_cdc_rx_cb) tud_cdc_rx_cb(itf);
   }
+
+  // nothing to do with in and notif endpoint
 
   return TUSB_ERROR_NONE;
 }

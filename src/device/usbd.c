@@ -269,14 +269,13 @@ static tusb_error_t usbd_main_st(void)
   }
   else if (USBD_EVT_XFER_DONE == event.event_id)
   {
-    // TODO only call respective interface callback
-    // Call class handling function. Those does not own the endpoint should check and return
-    for (uint8_t i = 0; i < USBD_CLASS_DRIVER_COUNT; i++)
+    // Invoke the class callback associated with the endpoint address
+    uint8_t const ep_addr = event.xfer_done.ep_addr;
+    uint8_t const drv_id  = _usbd_dev.ep2drv[ edpt_dir(ep_addr) ][ edpt_number(ep_addr) ];
+
+    if (drv_id < USBD_CLASS_DRIVER_COUNT)
     {
-      if ( usbd_class_drivers[i].xfer_cb )
-      {
-        usbd_class_drivers[i].xfer_cb( event.rhport, event.xfer_done.ep_addr, (tusb_event_t) event.xfer_done.result, event.xfer_done.xferred_byte);
-      }
+      usbd_class_drivers[drv_id].xfer_cb( event.rhport, ep_addr, (tusb_event_t) event.xfer_done.result, event.xfer_done.xferred_byte);
     }
   }
   else if (USBD_EVT_SOF == event.event_id)
