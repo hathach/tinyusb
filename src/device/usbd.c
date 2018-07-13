@@ -58,8 +58,20 @@
 #define CFG_TUD_TASK_PRIO 0
 #endif
 
+
 //--------------------------------------------------------------------+
-// MACRO CONSTANT TYPEDEF
+// Device Data
+//--------------------------------------------------------------------+
+typedef struct {
+  uint8_t config_num;
+  uint8_t itf2class[16]; // determine interface number belongs to which class
+}usbd_device_t;
+
+CFG_TUSB_ATTR_USBRAM CFG_TUSB_MEM_ALIGN uint8_t _usbd_ctrl_buf[CFG_TUD_CTRL_BUFSIZE];
+static usbd_device_t _usbd_dev;
+
+//--------------------------------------------------------------------+
+// Class Driver
 //--------------------------------------------------------------------+
 typedef struct {
   uint8_t class_code;
@@ -71,19 +83,6 @@ typedef struct {
   void         (* sof            ) (uint8_t rhport);
   void         (* close          ) (uint8_t);
 } usbd_class_driver_t;
-
-typedef struct {
-  volatile uint8_t state;
-  uint8_t  config_num;
-
-  uint8_t itf2class[16]; // determine interface number belongs to which class
-}usbd_device_t;
-
-//--------------------------------------------------------------------+
-// Class & Device Driver
-//--------------------------------------------------------------------+
-CFG_TUSB_ATTR_USBRAM CFG_TUSB_MEM_ALIGN uint8_t _usbd_ctrl_buf[CFG_TUD_CTRL_BUFSIZE];
-static usbd_device_t _usbd_dev;
 
 static usbd_class_driver_t const usbd_class_drivers[] =
 {
@@ -198,7 +197,7 @@ static uint16_t get_descriptor(uint8_t rhport, tusb_control_request_t const * co
 //--------------------------------------------------------------------+
 bool tud_mounted(void)
 {
-  return _usbd_dev.state == TUSB_DEVICE_STATE_CONFIGURED;
+  return _usbd_dev.config_num > 0;
 }
 
 //--------------------------------------------------------------------+
@@ -227,6 +226,7 @@ tusb_error_t usbd_init (void)
   osal_task_create(&_usbd_task_def);
 
   //------------- Core init -------------//
+  varclr_(&_usbd_dev);
 
   //------------- class init -------------//
   for (uint8_t i = 0; i < USBD_CLASS_DRIVER_COUNT; i++)
@@ -337,7 +337,6 @@ static tusb_error_t proc_control_request_st(uint8_t rhport, tusb_control_request
     else if ( TUSB_REQ_SET_ADDRESS == p_request->bRequest )
     {
       dcd_set_address(rhport, (uint8_t) p_request->wValue);
-      _usbd_dev.state = TUSB_DEVICE_STATE_ADDRESSED;
 
       #if CFG_TUSB_MCU != OPT_MCU_NRF5X // nrf5x auto handle set address, we must not return status
       dcd_control_status(rhport, p_request->bmRequestType_bit.direction);
@@ -403,7 +402,6 @@ static tusb_error_t proc_set_config_req(uint8_t rhport, uint8_t config_number)
 {
   dcd_set_config(rhport, config_number);
 
-  _usbd_dev.state = TUSB_DEVICE_STATE_CONFIGURED;
   _usbd_dev.config_num = config_number;
 
   //------------- parse configuration & open drivers -------------//
@@ -439,9 +437,11 @@ static tusb_error_t proc_set_config_req(uint8_t rhport, uint8_t config_number)
       }
       TU_ASSERT( drid < USBD_CLASS_DRIVER_COUNT, TUSB_ERROR_NOT_SUPPORTED_YET );
 
-      // Check duplicate interface number TODO support alternate setting
-      TU_ASSERT( 0 == _usbd_dev.itf2class[p_desc_itf->bInterfaceNumber], TUSB_ERROR_FAILED);
-      _usbd_dev.itf2class[p_desc_itf->bInterfaceNumber] = class_code;
+      // Check duplicate interface number -> alternate setting
+      if( 0 == _usbd_dev.itf2class[p_desc_itf->bInterfaceNumber])
+      {
+        _usbd_dev.itf2class[p_desc_itf->bInterfaceNumber] = class_code;
+      }
 
       uint16_t length=0;
       TU_ASSERT_ERR( usbd_class_drivers[drid].open( rhport, p_desc_itf, &length ) );
@@ -524,16 +524,9 @@ void dcd_bus_event(uint8_t rhport, usbd_bus_event_type_t bus_event)
 {
   switch(bus_event)
   {
-    case USBD_BUS_EVENT_RESET     :
-      varclr_(&_usbd_dev);
+    case USBD_BUS_EVENT_RESET:
       osal_queue_flush(_usbd_q);
       osal_semaphore_reset_isr(_usbd_ctrl_sem);
-
-      // TODO move to unplugged
-      for (uint8_t i = 0; i < USBD_CLASS_DRIVER_COUNT; i++)
-      {
-        if ( usbd_class_drivers[i].close ) usbd_class_drivers[i].close( rhport );
-      }
     break;
 
     case USBD_BUS_EVENT_SOF:
@@ -551,11 +544,16 @@ void dcd_bus_event(uint8_t rhport, usbd_bus_event_type_t bus_event)
 
     case USBD_BUS_EVENT_UNPLUGGED:
       varclr_(&_usbd_dev);
+      for (uint8_t i = 0; i < USBD_CLASS_DRIVER_COUNT; i++)
+      {
+        if ( usbd_class_drivers[i].close ) usbd_class_drivers[i].close( rhport );
+      }
+
       tud_umount_cb(); // invoke callback
     break;
 
     case USBD_BUS_EVENT_SUSPENDED:
-      _usbd_dev.state = TUSB_DEVICE_STATE_SUSPENDED;
+      // TODO support suspended
     break;
 
     default: break;
