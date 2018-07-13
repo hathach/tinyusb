@@ -64,7 +64,9 @@
 //--------------------------------------------------------------------+
 typedef struct {
   uint8_t config_num;
-  uint8_t itf2class[16]; // determine interface number belongs to which class
+
+  // map interface number to driver (0xff is invalid)
+  uint8_t  itf2drv[16];
 }usbd_device_t;
 
 CFG_TUSB_ATTR_USBRAM CFG_TUSB_MEM_ALIGN uint8_t _usbd_ctrl_buf[CFG_TUD_CTRL_BUFSIZE];
@@ -225,14 +227,8 @@ tusb_error_t usbd_init (void)
 
   osal_task_create(&_usbd_task_def);
 
-  //------------- Core init -------------//
-  varclr_(&_usbd_dev);
-
   //------------- class init -------------//
-  for (uint8_t i = 0; i < USBD_CLASS_DRIVER_COUNT; i++)
-  {
-    usbd_class_drivers[i].init();
-  }
+  for (uint8_t i = 0; i < USBD_CLASS_DRIVER_COUNT; i++) usbd_class_drivers[i].init();
 
   return TUSB_ERROR_NONE;
 }
@@ -300,6 +296,17 @@ static tusb_error_t usbd_main_st(void)
   OSAL_SUBTASK_END
 }
 
+static void usbd_reset(uint8_t rhport)
+{
+  varclr_(&_usbd_dev);
+  memset(_usbd_dev.itf2drv, 0xff, sizeof(_usbd_dev.itf2drv)); // invalid mapping
+
+  for (uint8_t i = 0; i < USBD_CLASS_DRIVER_COUNT; i++)
+  {
+    if ( usbd_class_drivers[i].reset ) usbd_class_drivers[i].reset( rhport );
+  }
+}
+
 //--------------------------------------------------------------------+
 // CONTROL REQUEST
 //--------------------------------------------------------------------+
@@ -321,7 +328,7 @@ static tusb_error_t proc_control_request_st(uint8_t rhport, tusb_control_request
 
       if ( len )
       {
-        TU_ASSERT( len <= CFG_TUD_CTRL_BUFSIZE, TUSB_ERROR_NOT_ENOUGH_MEMORY);
+        STASK_ASSERT( len <= CFG_TUD_CTRL_BUFSIZE );
         memcpy(_usbd_ctrl_buf, buffer, len);
         usbd_control_xfer_st(rhport, p_request->bmRequestType_bit.direction, _usbd_ctrl_buf, len );
       }else
@@ -356,17 +363,9 @@ static tusb_error_t proc_control_request_st(uint8_t rhport, tusb_control_request
   //------------- Class/Interface Specific Request -------------//
   else if ( TUSB_REQ_RCPT_INTERFACE == p_request->bmRequestType_bit.recipient)
   {
-    static uint8_t drid;
-    uint8_t const class_code = _usbd_dev.itf2class[ u16_low_u8(p_request->wIndex) ];
-
-    for (drid = 0; drid < USBD_CLASS_DRIVER_COUNT; drid++)
+    if (_usbd_dev.itf2drv[ u16_low_u8(p_request->wIndex) ] < USBD_CLASS_DRIVER_COUNT)
     {
-      if ( usbd_class_drivers[drid].class_code == class_code ) break;
-    }
-
-    if ( (drid < USBD_CLASS_DRIVER_COUNT) && usbd_class_drivers[drid].control_req_st )
-    {
-      STASK_INVOKE( usbd_class_drivers[drid].control_req_st(rhport, p_request), error );
+      STASK_INVOKE( usbd_class_drivers[ _usbd_dev.itf2drv[ u16_low_u8(p_request->wIndex) ] ].control_req_st(rhport, p_request), error );
     }else
     {
       dcd_control_stall(rhport); // Stall unsupported request
@@ -437,11 +436,9 @@ static tusb_error_t proc_set_config_req(uint8_t rhport, uint8_t config_number)
       }
       TU_ASSERT( drid < USBD_CLASS_DRIVER_COUNT, TUSB_ERROR_NOT_SUPPORTED_YET );
 
-      // Check duplicate interface number -> alternate setting
-      if( 0 == _usbd_dev.itf2class[p_desc_itf->bInterfaceNumber])
-      {
-        _usbd_dev.itf2class[p_desc_itf->bInterfaceNumber] = class_code;
-      }
+      // Interface number must not be used
+      TU_ASSERT( 0xff == _usbd_dev.itf2drv[p_desc_itf->bInterfaceNumber], TUSB_ERROR_FAILED);
+      _usbd_dev.itf2drv[p_desc_itf->bInterfaceNumber] = drid;
 
       uint16_t length=0;
       TU_ASSERT_ERR( usbd_class_drivers[drid].open( rhport, p_desc_itf, &length ) );
@@ -525,11 +522,7 @@ void dcd_bus_event(uint8_t rhport, usbd_bus_event_type_t bus_event)
   switch(bus_event)
   {
     case USBD_BUS_EVENT_RESET:
-      varclr_(&_usbd_dev);
-      for (uint8_t i = 0; i < USBD_CLASS_DRIVER_COUNT; i++)
-      {
-        if ( usbd_class_drivers[i].reset ) usbd_class_drivers[i].reset( rhport );
-      }
+      usbd_reset(rhport);
 
       osal_queue_flush(_usbd_q);
       osal_semaphore_reset_isr(_usbd_ctrl_sem);
@@ -549,12 +542,7 @@ void dcd_bus_event(uint8_t rhport, usbd_bus_event_type_t bus_event)
     break;
 
     case USBD_BUS_EVENT_UNPLUGGED:
-      varclr_(&_usbd_dev);
-      for (uint8_t i = 0; i < USBD_CLASS_DRIVER_COUNT; i++)
-      {
-        if ( usbd_class_drivers[i].reset ) usbd_class_drivers[i].reset( rhport );
-      }
-
+      usbd_reset(rhport);
       tud_umount_cb(); // invoke callback
     break;
 
