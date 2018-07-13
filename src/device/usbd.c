@@ -66,7 +66,10 @@ typedef struct {
   uint8_t config_num;
 
   // map interface number to driver (0xff is invalid)
-  uint8_t  itf2drv[16];
+  uint8_t itf2drv[16];
+
+  // map endpoint to driver ( 0xff is invalid )
+  uint8_t ep2drv[2][8];
 }usbd_device_t;
 
 CFG_TUSB_ATTR_USBRAM CFG_TUSB_MEM_ALIGN uint8_t _usbd_ctrl_buf[CFG_TUD_CTRL_BUFSIZE];
@@ -100,18 +103,6 @@ static usbd_class_driver_t const usbd_class_drivers[] =
     },
   #endif
 
-  #if DEVICE_CLASS_HID
-    {
-        .class_code     = TUSB_CLASS_HID,
-        .init           = hidd_init,
-        .open           = hidd_open,
-        .control_req_st = hidd_control_request_st,
-        .xfer_cb        = hidd_xfer_cb,
-        .sof            = NULL,
-        .reset          = hidd_reset
-    },
-  #endif
-
   #if CFG_TUD_MSC
     {
         .class_code     = TUSB_CLASS_MSC,
@@ -121,6 +112,19 @@ static usbd_class_driver_t const usbd_class_drivers[] =
         .xfer_cb        = mscd_xfer_cb,
         .sof            = NULL,
         .reset          = mscd_reset
+    },
+  #endif
+
+
+  #if DEVICE_CLASS_HID
+    {
+        .class_code     = TUSB_CLASS_HID,
+        .init           = hidd_init,
+        .open           = hidd_open,
+        .control_req_st = hidd_control_request_st,
+        .xfer_cb        = hidd_xfer_cb,
+        .sof            = NULL,
+        .reset          = hidd_reset
     },
   #endif
 
@@ -191,6 +195,7 @@ static osal_semaphore_def_t _usbd_sem_def;
 //--------------------------------------------------------------------+
 // INTERNAL FUNCTION
 //--------------------------------------------------------------------+
+static void mark_interface_endpoint(uint8_t const* p_desc, uint16_t desc_len, uint8_t driver_id);
 static tusb_error_t proc_set_config_req(uint8_t rhport, uint8_t config_number);
 static uint16_t get_descriptor(uint8_t rhport, tusb_control_request_t const * const p_request, uint8_t const ** pp_buffer);
 
@@ -300,6 +305,7 @@ static void usbd_reset(uint8_t rhport)
 {
   varclr_(&_usbd_dev);
   memset(_usbd_dev.itf2drv, 0xff, sizeof(_usbd_dev.itf2drv)); // invalid mapping
+  memset(_usbd_dev.ep2drv , 0xff, sizeof(_usbd_dev.ep2drv )); // invalid mapping
 
   for (uint8_t i = 0; i < USBD_CLASS_DRIVER_COUNT; i++)
   {
@@ -395,6 +401,7 @@ static tusb_error_t proc_control_request_st(uint8_t rhport, tusb_control_request
   OSAL_SUBTASK_END
 }
 
+// Process Set Configure Request
 // TODO Host (windows) can get HID report descriptor before set configured
 // may need to open interface before set configured
 static tusb_error_t proc_set_config_req(uint8_t rhport, uint8_t config_number)
@@ -418,33 +425,35 @@ static tusb_error_t proc_set_config_req(uint8_t rhport, uint8_t config_number)
 
   while( p_desc < desc_cfg + cfg_len )
   {
-    if ( TUSB_DESC_INTERFACE_ASSOCIATION == p_desc[DESCRIPTOR_OFFSET_TYPE])
+    if ( TUSB_DESC_INTERFACE_ASSOCIATION == descriptor_type(p_desc) )
     {
-      p_desc += p_desc[DESCRIPTOR_OFFSET_LENGTH]; // ignore Interface Association
+      p_desc = descriptor_next(p_desc); // ignore Interface Association
     }else
     {
-      TU_ASSERT( TUSB_DESC_INTERFACE == p_desc[DESCRIPTOR_OFFSET_TYPE], TUSB_ERROR_NOT_SUPPORTED_YET );
+      TU_ASSERT( TUSB_DESC_INTERFACE == descriptor_type(p_desc), TUSB_ERROR_NOT_SUPPORTED_YET );
 
       tusb_desc_interface_t* p_desc_itf = (tusb_desc_interface_t*) p_desc;
       uint8_t const class_code = p_desc_itf->bInterfaceClass;
 
       // Check if class is supported
-      uint8_t drid;
-      for (drid = 0; drid < USBD_CLASS_DRIVER_COUNT; drid++)
+      uint8_t drv_id;
+      for (drv_id = 0; drv_id < USBD_CLASS_DRIVER_COUNT; drv_id++)
       {
-        if ( usbd_class_drivers[drid].class_code == class_code ) break;
+        if ( usbd_class_drivers[drv_id].class_code == class_code ) break;
       }
-      TU_ASSERT( drid < USBD_CLASS_DRIVER_COUNT, TUSB_ERROR_NOT_SUPPORTED_YET );
+      TU_ASSERT( drv_id < USBD_CLASS_DRIVER_COUNT, TUSB_ERROR_NOT_SUPPORTED_YET );
 
       // Interface number must not be used
       TU_ASSERT( 0xff == _usbd_dev.itf2drv[p_desc_itf->bInterfaceNumber], TUSB_ERROR_FAILED);
-      _usbd_dev.itf2drv[p_desc_itf->bInterfaceNumber] = drid;
+      _usbd_dev.itf2drv[p_desc_itf->bInterfaceNumber] = drv_id;
 
-      uint16_t length=0;
-      TU_ASSERT_ERR( usbd_class_drivers[drid].open( rhport, p_desc_itf, &length ) );
+      uint16_t len=0;
+      TU_ASSERT_ERR( usbd_class_drivers[drv_id].open( rhport, p_desc_itf, &len ) );
+      TU_ASSERT( len >= sizeof(tusb_desc_interface_t), TUSB_ERROR_FAILED );
 
-      TU_ASSERT( length >= sizeof(tusb_desc_interface_t), TUSB_ERROR_FAILED );
-      p_desc += length;
+      mark_interface_endpoint(p_desc, len, drv_id);
+
+      p_desc += len; // next interface
     }
   }
 
@@ -454,6 +463,7 @@ static tusb_error_t proc_set_config_req(uint8_t rhport, uint8_t config_number)
   return TUSB_ERROR_NONE;
 }
 
+// return len of descriptor and change pointer to descriptor's buffer
 static uint16_t get_descriptor(uint8_t rhport, tusb_control_request_t const * const p_request, uint8_t const ** pp_buffer)
 {
   (void) rhport;
@@ -512,6 +522,25 @@ static uint16_t get_descriptor(uint8_t rhport, tusb_control_request_t const * co
   (*pp_buffer) = desc_data;
 
   return len;
+}
+
+// Helper marking endpoint of interface belongs to class driver
+static void mark_interface_endpoint(uint8_t const* p_desc, uint16_t desc_len, uint8_t driver_id)
+{
+  uint16_t len = 0;
+
+  while( len < desc_len )
+  {
+    if ( TUSB_DESC_ENDPOINT == descriptor_type(p_desc) )
+    {
+      uint8_t const ep_addr = ((tusb_desc_endpoint_t const*) p_desc)->bEndpointAddress;
+
+      _usbd_dev.ep2drv[ edpt_dir(ep_addr) ][ edpt_number(ep_addr) ] = driver_id;
+    }
+
+    len   += descriptor_len(p_desc);
+    p_desc = descriptor_next(p_desc);
+  }
 }
 
 //--------------------------------------------------------------------+

@@ -186,12 +186,12 @@ tusb_error_t hidh_open_subtask(uint8_t dev_addr, tusb_desc_interface_t const *p_
   uint8_t const *p_desc = (uint8_t const *) p_interface_desc;
 
   //------------- HID descriptor -------------//
-  p_desc += p_desc[DESCRIPTOR_OFFSET_LENGTH];
+  p_desc += p_desc[DESC_OFFSET_LEN];
   tusb_hid_descriptor_hid_t const *p_desc_hid = (tusb_hid_descriptor_hid_t const *) p_desc;
   TU_ASSERT(HID_DESC_TYPE_HID == p_desc_hid->bDescriptorType, TUSB_ERROR_INVALID_PARA);
 
   //------------- Endpoint Descriptor -------------//
-  p_desc += p_desc[DESCRIPTOR_OFFSET_LENGTH];
+  p_desc += p_desc[DESC_OFFSET_LEN];
   tusb_desc_endpoint_t const * p_endpoint_desc = (tusb_desc_endpoint_t const *) p_desc;
   TU_ASSERT(TUSB_DESC_ENDPOINT == p_endpoint_desc->bDescriptorType, TUSB_ERROR_INVALID_PARA);
 

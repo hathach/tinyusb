@@ -572,9 +572,9 @@ tusb_error_t enumeration_body_subtask(void)
   while( p_desc < enum_data_buffer + ((tusb_desc_configuration_t*)enum_data_buffer)->wTotalLength )
   {
     // skip until we see interface descriptor
-    if ( TUSB_DESC_INTERFACE != p_desc[DESCRIPTOR_OFFSET_TYPE] )
+    if ( TUSB_DESC_INTERFACE != p_desc[DESC_OFFSET_TYPE] )
     {
-      p_desc += p_desc[DESCRIPTOR_OFFSET_LENGTH]; // skip the descriptor, increase by the descriptor's length
+      p_desc += p_desc[DESC_OFFSET_LEN]; // skip the descriptor, increase by the descriptor's length
     }else
     {
       static uint8_t class_index; // has to be static as it is used to call class's open_subtask
@@ -600,11 +600,11 @@ tusb_error_t enumeration_body_subtask(void)
           p_desc += length;
         }else  // Interface open failed, for example a subclass is not supported
         {
-          p_desc += p_desc[DESCRIPTOR_OFFSET_LENGTH]; // skip this interface, the rest will be skipped by the above loop
+          p_desc += p_desc[DESC_OFFSET_LEN]; // skip this interface, the rest will be skipped by the above loop
         }
       } else // unsupported class (not enable or yet implemented)
       {
-        p_desc += p_desc[DESCRIPTOR_OFFSET_LENGTH]; // skip this interface, the rest will be skipped by the above loop
+        p_desc += p_desc[DESC_OFFSET_LEN]; // skip this interface, the rest will be skipped by the above loop
       }
     }
   }

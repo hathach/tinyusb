@@ -144,12 +144,17 @@
 
 static inline uint8_t const * descriptor_next(uint8_t const p_desc[])
 {
-  return p_desc + p_desc[DESCRIPTOR_OFFSET_LENGTH];
+  return p_desc + p_desc[DESC_OFFSET_LEN];
 }
 
-static inline uint8_t descriptor_typeof(uint8_t const p_desc[])
+static inline uint8_t descriptor_type(uint8_t const p_desc[])
 {
-  return p_desc[DESCRIPTOR_OFFSET_TYPE];
+  return p_desc[DESC_OFFSET_TYPE];
+}
+
+static inline uint8_t descriptor_len(uint8_t const p_desc[])
+{
+  return p_desc[DESC_OFFSET_LEN];
 }
 
 //------------- Conversion -------------//

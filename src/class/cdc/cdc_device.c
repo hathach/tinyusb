@@ -192,31 +192,31 @@ tusb_error_t cdcd_open(uint8_t rhport, tusb_desc_interface_t const * p_interface
   (*p_length) = sizeof(tusb_desc_interface_t);
 
   // Communication Functional Descriptors
-  while( TUSB_DESC_CLASS_SPECIFIC == p_desc[DESCRIPTOR_OFFSET_TYPE] )
+  while( TUSB_DESC_CLASS_SPECIFIC == p_desc[DESC_OFFSET_TYPE] )
   {
-    (*p_length) += p_desc[DESCRIPTOR_OFFSET_LENGTH];
+    (*p_length) += p_desc[DESC_OFFSET_LEN];
     p_desc = descriptor_next(p_desc);
   }
 
-  if ( TUSB_DESC_ENDPOINT == p_desc[DESCRIPTOR_OFFSET_TYPE])
+  if ( TUSB_DESC_ENDPOINT == p_desc[DESC_OFFSET_TYPE])
   { // notification endpoint if any
     TU_ASSERT( dcd_edpt_open(rhport, (tusb_desc_endpoint_t const *) p_desc), TUSB_ERROR_DCD_OPEN_PIPE_FAILED);
 
     p_cdc->ep_notif = ((tusb_desc_endpoint_t const *) p_desc)->bEndpointAddress;
 
-    (*p_length) += p_desc[DESCRIPTOR_OFFSET_LENGTH];
+    (*p_length) += p_desc[DESC_OFFSET_LEN];
     p_desc = descriptor_next(p_desc);
   }
 
   //------------- Data Interface (if any) -------------//
-  if ( (TUSB_DESC_INTERFACE == p_desc[DESCRIPTOR_OFFSET_TYPE]) &&
+  if ( (TUSB_DESC_INTERFACE == p_desc[DESC_OFFSET_TYPE]) &&
        (TUSB_CLASS_CDC_DATA == ((tusb_desc_interface_t const *) p_desc)->bInterfaceClass) )
   {
     // p_cdc->itf_num  =
     p_cdc->ep_count += ((tusb_desc_interface_t const *) p_desc)->bNumEndpoints;
 
     // next to endpoint descritpor
-    (*p_length) += p_desc[DESCRIPTOR_OFFSET_LENGTH];
+    (*p_length) += p_desc[DESC_OFFSET_LEN];
     p_desc = descriptor_next(p_desc);
 
     // Open endpoint pair with usbd helper

@@ -259,12 +259,12 @@ tusb_error_t hidd_open(uint8_t rhport, tusb_desc_interface_t const * p_interface
   uint8_t const *p_desc = (uint8_t const *) p_interface_desc;
 
   //------------- HID descriptor -------------//
-  p_desc += p_desc[DESCRIPTOR_OFFSET_LENGTH];
+  p_desc += p_desc[DESC_OFFSET_LEN];
   tusb_hid_descriptor_hid_t const *p_desc_hid = (tusb_hid_descriptor_hid_t const *) p_desc;
   TU_ASSERT(HID_DESC_TYPE_HID == p_desc_hid->bDescriptorType, TUSB_ERROR_HIDD_DESCRIPTOR_INTERFACE);
 
   //------------- Endpoint Descriptor -------------//
-  p_desc += p_desc[DESCRIPTOR_OFFSET_LENGTH];
+  p_desc += p_desc[DESC_OFFSET_LEN];
   tusb_desc_endpoint_t const *p_desc_endpoint = (tusb_desc_endpoint_t const *) p_desc;
   TU_ASSERT(TUSB_DESC_ENDPOINT == p_desc_endpoint->bDescriptorType, TUSB_ERROR_HIDD_DESCRIPTOR_INTERFACE);
 

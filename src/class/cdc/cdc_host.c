@@ -167,32 +167,32 @@ tusb_error_t cdch_open_subtask(uint8_t dev_addr, tusb_desc_interface_t const *p_
   //------------- Communication Interface -------------//
   (*p_length) = sizeof(tusb_desc_interface_t);
 
-  while( TUSB_DESC_CLASS_SPECIFIC == p_desc[DESCRIPTOR_OFFSET_TYPE] )
+  while( TUSB_DESC_CLASS_SPECIFIC == p_desc[DESC_OFFSET_TYPE] )
   { // Communication Functional Descriptors
     if ( CDC_FUNC_DESC_ABSTRACT_CONTROL_MANAGEMENT == cdc_functional_desc_typeof(p_desc) )
     { // save ACM bmCapabilities
       p_cdc->acm_capability = ((cdc_desc_func_acm_t const *) p_desc)->bmCapabilities;
     }
 
-    (*p_length) += p_desc[DESCRIPTOR_OFFSET_LENGTH];
+    (*p_length) += p_desc[DESC_OFFSET_LEN];
     p_desc = descriptor_next(p_desc);
   }
 
-  if ( TUSB_DESC_ENDPOINT == p_desc[DESCRIPTOR_OFFSET_TYPE])
+  if ( TUSB_DESC_ENDPOINT == p_desc[DESC_OFFSET_TYPE])
   { // notification endpoint if any
     p_cdc->pipe_notification = hcd_pipe_open(dev_addr, (tusb_desc_endpoint_t const *) p_desc, TUSB_CLASS_CDC);
 
-    (*p_length) += p_desc[DESCRIPTOR_OFFSET_LENGTH];
+    (*p_length) += p_desc[DESC_OFFSET_LEN];
     p_desc = descriptor_next(p_desc);
 
     TU_ASSERT(pipehandle_is_valid(p_cdc->pipe_notification), TUSB_ERROR_HCD_OPEN_PIPE_FAILED);
   }
 
   //------------- Data Interface (if any) -------------//
-  if ( (TUSB_DESC_INTERFACE == p_desc[DESCRIPTOR_OFFSET_TYPE]) &&
+  if ( (TUSB_DESC_INTERFACE == p_desc[DESC_OFFSET_TYPE]) &&
        (TUSB_CLASS_CDC_DATA      == ((tusb_desc_interface_t const *) p_desc)->bInterfaceClass) )
   {
-    (*p_length) += p_desc[DESCRIPTOR_OFFSET_LENGTH];
+    (*p_length) += p_desc[DESC_OFFSET_LEN];
     p_desc = descriptor_next(p_desc);
 
     // data endpoints expected to be in pairs
@@ -208,7 +208,7 @@ tusb_error_t cdch_open_subtask(uint8_t dev_addr, tusb_desc_interface_t const *p_
       (*p_pipe_hdl) = hcd_pipe_open(dev_addr, p_endpoint, TUSB_CLASS_CDC);
       TU_ASSERT ( pipehandle_is_valid(*p_pipe_hdl), TUSB_ERROR_HCD_OPEN_PIPE_FAILED );
 
-      (*p_length) += p_desc[DESCRIPTOR_OFFSET_LENGTH];
+      (*p_length) += p_desc[DESC_OFFSET_LEN];
       p_desc = descriptor_next( p_desc );
     }
   }

@@ -203,8 +203,8 @@ typedef enum
 }tusb_event_t;
 
 enum {
-  DESCRIPTOR_OFFSET_LENGTH = 0,
-  DESCRIPTOR_OFFSET_TYPE   = 1
+  DESC_OFFSET_LEN  = 0,
+  DESC_OFFSET_TYPE = 1
 };
 
 enum {
