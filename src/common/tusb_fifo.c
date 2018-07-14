@@ -166,7 +166,7 @@ uint16_t tu_fifo_read_n (tu_fifo_t* f, void * p_buffer, uint16_t count)
 
     @param[in]  f
                 Pointer to the FIFO buffer to manipulate
-    @param[in]  position
+    @param[in]  pos
                 Position to read from in the FIFO buffer
     @param[in]  p_buffer
                 Pointer to the place holder for data read from the buffer
@@ -174,13 +174,13 @@ uint16_t tu_fifo_read_n (tu_fifo_t* f, void * p_buffer, uint16_t count)
     @returns TRUE if the queue is not empty
 */
 /******************************************************************************/
-bool tu_fifo_peek_at(tu_fifo_t* f, uint16_t position, void * p_buffer)
+bool tu_fifo_peek_at(tu_fifo_t* f, uint16_t pos, void * p_buffer)
 {
   if ( !tu_fifo_initalized(f) ) return false;
-  if ( position >= f->count ) return false;
+  if ( pos >= f->count ) return false;
 
-  // rd_idx is position=0
-  uint16_t index = (f->rd_idx + position) % f->depth;
+  // rd_idx is pos=0
+  uint16_t index = (f->rd_idx + pos) % f->depth;
   memcpy(p_buffer,
          f->buffer + (index * f->item_size),
          f->item_size);

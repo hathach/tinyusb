@@ -123,7 +123,7 @@ uint16_t tu_fifo_write_n (tu_fifo_t* f, void const * p_data, uint16_t count);
 bool     tu_fifo_read    (tu_fifo_t* f, void * p_buffer);
 uint16_t tu_fifo_read_n  (tu_fifo_t* f, void * p_buffer, uint16_t count);
 
-bool     tu_fifo_peek_at (tu_fifo_t* f, uint16_t position, void * p_buffer);
+bool     tu_fifo_peek_at (tu_fifo_t* f, uint16_t pos, void * p_buffer);
 
 static inline bool tu_fifo_peek(tu_fifo_t* f, void * p_buffer)
 {

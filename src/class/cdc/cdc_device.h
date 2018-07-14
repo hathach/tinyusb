@@ -64,6 +64,7 @@ void     tud_cdc_n_set_wanted_char (uint8_t itf, char wanted);
 uint32_t tud_cdc_n_available       (uint8_t itf);
 char     tud_cdc_n_read_char       (uint8_t itf);
 uint32_t tud_cdc_n_read            (uint8_t itf, void* buffer, uint32_t bufsize);
+char     tud_cdc_n_peek            (uint8_t itf, int pos);
 
 uint32_t tud_cdc_n_write_char      (uint8_t itf, char ch);
 uint32_t tud_cdc_n_write           (uint8_t itf, void const* buffer, uint32_t bufsize);
@@ -80,6 +81,7 @@ static inline void     tud_cdc_set_wanted_char (char wanted)                    
 static inline uint32_t tud_cdc_available       (void)                                 { return tud_cdc_n_available(0);              }
 static inline char     tud_cdc_read_char       (void)                                 { return tud_cdc_n_read_char(0);              }
 static inline uint32_t tud_cdc_read            (void* buffer, uint32_t bufsize)       { return tud_cdc_n_read(0, buffer, bufsize);  }
+static inline char     tud_cdc_peek            (int pos)                              { return tud_cdc_n_peek(0, pos);              }
 
 static inline uint32_t tud_cdc_write_char      (char ch)                              { return tud_cdc_n_write_char(0, ch);         }
 static inline uint32_t tud_cdc_write           (void const* buffer, uint32_t bufsize) { return tud_cdc_n_write(0, buffer, bufsize); }
@@ -89,6 +91,7 @@ static inline bool     tud_cdc_flush           (void)                           
 // APPLICATION CALLBACK API (WEAK is optional)
 //--------------------------------------------------------------------+
 ATTR_WEAK void tud_cdc_rx_cb(uint8_t itf);
+ATTR_WEAK void tud_cdc_rx_wanted_cb(uint8_t itf, char wanted_char);
 ATTR_WEAK void tud_cdc_line_state_cb(uint8_t itf, bool dtr, bool rts);
 ATTR_WEAK void tud_cdc_line_coding_cb(uint8_t itf, cdc_line_coding_t const* p_line_coding);
 

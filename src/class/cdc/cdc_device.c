@@ -79,8 +79,10 @@ typedef struct
 //--------------------------------------------------------------------+
 // INTERNAL OBJECT & FUNCTION DECLARATION
 //--------------------------------------------------------------------+
-CFG_TUSB_ATTR_USBRAM CFG_TUSB_MEM_ALIGN static uint8_t _tmp_rx_buf[64];
-CFG_TUSB_ATTR_USBRAM CFG_TUSB_MEM_ALIGN static uint8_t _tmp_tx_buf[64];
+
+// TODO multiple interfaces
+CFG_TUSB_ATTR_USBRAM CFG_TUSB_MEM_ALIGN static uint8_t _rx_buf[64];
+CFG_TUSB_ATTR_USBRAM CFG_TUSB_MEM_ALIGN static uint8_t _tx_buf[64];
 
 static cdcd_interface_t _cdcd_itf[CFG_TUD_CDC];
 
@@ -105,7 +107,7 @@ void tud_cdc_n_get_line_coding (uint8_t itf, cdc_line_coding_t* coding)
 
 void tud_cdc_n_set_wanted_char (uint8_t itf, char wanted)
 {
-
+  _cdcd_itf[itf].intact.wanted_char = wanted;
 }
 
 
@@ -128,6 +130,12 @@ uint32_t tud_cdc_n_read(uint8_t itf, void* buffer, uint32_t bufsize)
   return tu_fifo_read_n(&_cdcd_itf[itf].intact.rx_ff, buffer, bufsize);
 }
 
+char tud_cdc_n_peek(uint8_t itf, int pos)
+{
+  char ch;
+  return tu_fifo_peek_at(&_cdcd_itf[itf].intact.rx_ff, pos, &ch) ? ch : (-1);
+}
+
 //--------------------------------------------------------------------+
 // WRITE API
 //--------------------------------------------------------------------+
@@ -147,11 +155,11 @@ bool tud_cdc_n_flush (uint8_t itf)
   uint8_t  edpt = _cdcd_itf[itf].ep_in;
   VERIFY( !dcd_edpt_busy(TUD_RHPORT, edpt) ); // skip if previous transfer not complete
 
-  uint16_t count = tu_fifo_read_n(&_cdcd_itf[itf].intact.tx_ff, _tmp_tx_buf, sizeof(_tmp_tx_buf));
+  uint16_t count = tu_fifo_read_n(&_cdcd_itf[itf].intact.tx_ff, _tx_buf, sizeof(_tx_buf));
 
   VERIFY( tud_cdc_n_connected(itf) ); // fifo is empty if not connected
 
-  if ( count ) TU_ASSERT( dcd_edpt_xfer(TUD_RHPORT, edpt, _tmp_tx_buf, count) );
+  if ( count ) TU_ASSERT( dcd_edpt_xfer(TUD_RHPORT, edpt, _tx_buf, count) );
 
   return true;
 }
@@ -166,6 +174,15 @@ void cdcd_init(void)
 
   for(uint8_t i=0; i<CFG_TUD_CDC; i++)
   {
+    _cdcd_itf[i].intact.wanted_char = -1;
+
+    // default line coding is : stop bit = 1, parity = none, data bits = 8
+    _cdcd_itf[i].intact.line_coding.bit_rate = 115200;
+    _cdcd_itf[i].intact.line_coding.stop_bits = 0;
+    _cdcd_itf[i].intact.line_coding.parity    = 0;
+    _cdcd_itf[i].intact.line_coding.data_bits = 8;
+
+    // config fifo
     tu_fifo_config(&_cdcd_itf[i].intact.rx_ff, _cdcd_itf[i].intact.rx_ff_buf, CFG_TUD_CDC_RX_BUFSIZE, 1, true);
     tu_fifo_config(&_cdcd_itf[i].intact.tx_ff, _cdcd_itf[i].intact.tx_ff_buf, CFG_TUD_CDC_TX_BUFSIZE, 1, false);
   }
@@ -243,7 +260,7 @@ tusb_error_t cdcd_open(uint8_t rhport, tusb_desc_interface_t const * p_interface
   }
 
   // Prepare for incoming data
-  TU_ASSERT( dcd_edpt_xfer(rhport, p_cdc->ep_out, _tmp_rx_buf, sizeof(_tmp_rx_buf)), TUSB_ERROR_DCD_EDPT_XFER);
+  TU_ASSERT( dcd_edpt_xfer(rhport, p_cdc->ep_out, _rx_buf, sizeof(_rx_buf)), TUSB_ERROR_DCD_EDPT_XFER);
 
   return TUSB_ERROR_NONE;
 }
@@ -297,18 +314,30 @@ tusb_error_t cdcd_xfer_cb(uint8_t rhport, uint8_t ep_addr, tusb_event_t event, u
 {
   // TODO Support multiple interfaces
   uint8_t const itf = 0;
-  cdcd_interface_t const * p_cdc = &_cdcd_itf[itf];
+  cdcd_interface_t* p_cdc = &_cdcd_itf[itf];
 
   // receive new data
   if ( ep_addr == p_cdc->ep_out )
   {
-    tu_fifo_write_n(&_cdcd_itf[itf].intact.rx_ff, _tmp_rx_buf, xferred_bytes);
+    char const wanted = p_cdc->intact.wanted_char;
 
-    // preparing for next
-    TU_ASSERT( dcd_edpt_xfer(rhport, p_cdc->ep_out, _tmp_rx_buf, sizeof(_tmp_rx_buf)), TUSB_ERROR_DCD_EDPT_XFER );
+    for(uint32_t i=0; i<xferred_bytes; i++)
+    {
+      // Check for wanted char and invoke callback if needed
+      if ( tud_cdc_rx_wanted_cb && ( wanted != -1 ) && ( wanted == _rx_buf[i] ) )
+      {
+        tud_cdc_rx_wanted_cb(itf, wanted);
+      }else
+      {
+        tu_fifo_write(&p_cdc->intact.rx_ff, &_rx_buf[i]);
+      }
+    }
 
-    // fire callback
-    if (tud_cdc_rx_cb) tud_cdc_rx_cb(itf);
+    // invoke receive callback (if there is still data)
+    if (tud_cdc_rx_cb && tu_fifo_count(&p_cdc->intact.rx_ff) ) tud_cdc_rx_cb(itf);
+
+    // prepare for next
+    TU_ASSERT( dcd_edpt_xfer(rhport, p_cdc->ep_out, _rx_buf, sizeof(_rx_buf)), TUSB_ERROR_DCD_EDPT_XFER );
   }
 
   // nothing to do with in and notif endpoint
