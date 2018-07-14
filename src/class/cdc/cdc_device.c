@@ -53,9 +53,7 @@
 //--------------------------------------------------------------------+
 typedef struct
 {
-  /*------------- usbd_itf_t compatible -------------*/
   uint8_t itf_num;
-  uint8_t ep_count;
   uint8_t ep_notif;
   uint8_t ep_in;
   uint8_t ep_out;
@@ -63,7 +61,19 @@ typedef struct
   // Bit 0:  DTR (Data Terminal Ready), Bit 1: RTS (Request to Send)
   uint8_t line_state;
 
-  CFG_TUSB_MEM_ALIGN cdc_line_coding_t line_coding;
+  // Data that is not cleared by usb bus reset
+  struct {
+    cdc_line_coding_t line_coding;
+
+    char    wanted_char;
+
+    uint8_t rx_ff_buf[CFG_TUD_CDC_RX_BUFSIZE];
+    uint8_t tx_ff_buf[CFG_TUD_CDC_RX_BUFSIZE];
+
+    tu_fifo_t rx_ff;
+    tu_fifo_t tx_ff;
+  }intact;
+
 }cdcd_interface_t;
 
 //--------------------------------------------------------------------+
@@ -72,13 +82,6 @@ typedef struct
 CFG_TUSB_ATTR_USBRAM CFG_TUSB_MEM_ALIGN static uint8_t _tmp_rx_buf[64];
 CFG_TUSB_ATTR_USBRAM CFG_TUSB_MEM_ALIGN static uint8_t _tmp_tx_buf[64];
 
-uint8_t _rx_ff_buf[CFG_TUD_CDC][CFG_TUD_CDC_RX_BUFSIZE];
-uint8_t _tx_ff_buf[CFG_TUD_CDC][CFG_TUD_CDC_RX_BUFSIZE];
-
-tu_fifo_t _rx_ff[CFG_TUD_CDC];
-tu_fifo_t _tx_ff[CFG_TUD_CDC];
-
-CFG_TUSB_ATTR_USBRAM
 static cdcd_interface_t _cdcd_itf[CFG_TUD_CDC];
 
 //--------------------------------------------------------------------+
@@ -97,7 +100,12 @@ uint8_t tud_cdc_n_get_line_state (uint8_t itf)
 
 void tud_cdc_n_get_line_coding (uint8_t itf, cdc_line_coding_t* coding)
 {
-  (*coding) = _cdcd_itf[itf].line_coding;
+  (*coding) = _cdcd_itf[itf].intact.line_coding;
+}
+
+void tud_cdc_n_set_wanted_char (uint8_t itf, char wanted)
+{
+
 }
 
 
@@ -106,18 +114,18 @@ void tud_cdc_n_get_line_coding (uint8_t itf, cdc_line_coding_t* coding)
 //--------------------------------------------------------------------+
 uint32_t tud_cdc_n_available(uint8_t itf)
 {
-  return tu_fifo_count(&_rx_ff[itf]);
+  return tu_fifo_count(&_cdcd_itf[itf].intact.rx_ff);
 }
 
-int8_t tud_cdc_n_read_char(uint8_t itf)
+char tud_cdc_n_read_char(uint8_t itf)
 {
-  int8_t ch;
-  return tu_fifo_read(&_rx_ff[itf], &ch) ? ch : (-1);
+  char ch;
+  return tu_fifo_read(&_cdcd_itf[itf].intact.rx_ff, &ch) ? ch : (-1);
 }
 
 uint32_t tud_cdc_n_read(uint8_t itf, void* buffer, uint32_t bufsize)
 {
-  return tu_fifo_read_n(&_rx_ff[itf], buffer, bufsize);
+  return tu_fifo_read_n(&_cdcd_itf[itf].intact.rx_ff, buffer, bufsize);
 }
 
 //--------------------------------------------------------------------+
@@ -126,12 +134,12 @@ uint32_t tud_cdc_n_read(uint8_t itf, void* buffer, uint32_t bufsize)
 
 uint32_t tud_cdc_n_write_char(uint8_t itf, char ch)
 {
-  return tu_fifo_write(&_tx_ff[itf], &ch) ? 1 : 0;
+  return tu_fifo_write(&_cdcd_itf[itf].intact.tx_ff, &ch) ? 1 : 0;
 }
 
 uint32_t tud_cdc_n_write(uint8_t itf, void const* buffer, uint32_t bufsize)
 {
-  return tu_fifo_write_n(&_tx_ff[itf], buffer, bufsize);
+  return tu_fifo_write_n(&_cdcd_itf[itf].intact.tx_ff, buffer, bufsize);
 }
 
 bool tud_cdc_n_flush (uint8_t itf)
@@ -139,7 +147,7 @@ bool tud_cdc_n_flush (uint8_t itf)
   uint8_t  edpt = _cdcd_itf[itf].ep_in;
   VERIFY( !dcd_edpt_busy(TUD_RHPORT, edpt) ); // skip if previous transfer not complete
 
-  uint16_t count = tu_fifo_read_n(&_tx_ff[itf], _tmp_tx_buf, sizeof(_tmp_tx_buf));
+  uint16_t count = tu_fifo_read_n(&_cdcd_itf[itf].intact.tx_ff, _tmp_tx_buf, sizeof(_tmp_tx_buf));
 
   VERIFY( tud_cdc_n_connected(itf) ); // fifo is empty if not connected
 
@@ -154,12 +162,24 @@ bool tud_cdc_n_flush (uint8_t itf)
 //--------------------------------------------------------------------+
 void cdcd_init(void)
 {
-  arrclr_(_cdcd_itf);
+  arrclr_( _cdcd_itf );
 
   for(uint8_t i=0; i<CFG_TUD_CDC; i++)
   {
-    tu_fifo_config(&_rx_ff[i], _rx_ff_buf[i], CFG_TUD_CDC_RX_BUFSIZE, 1, true);
-    tu_fifo_config(&_tx_ff[i], _tx_ff_buf[i], CFG_TUD_CDC_TX_BUFSIZE, 1, false);
+    tu_fifo_config(&_cdcd_itf[i].intact.rx_ff, _cdcd_itf[i].intact.rx_ff_buf, CFG_TUD_CDC_RX_BUFSIZE, 1, true);
+    tu_fifo_config(&_cdcd_itf[i].intact.tx_ff, _cdcd_itf[i].intact.tx_ff_buf, CFG_TUD_CDC_TX_BUFSIZE, 1, false);
+  }
+}
+
+void cdcd_reset(uint8_t rhport)
+{
+  (void) rhport;
+
+  for(uint8_t i=0; i<CFG_TUD_CDC; i++)
+  {
+    memclr_(&_cdcd_itf[i], offsetof(cdcd_interface_t, intact));
+    tu_fifo_clear(&_cdcd_itf[i].intact.rx_ff);
+    tu_fifo_clear(&_cdcd_itf[i].intact.tx_ff);
   }
 }
 
@@ -177,7 +197,7 @@ tusb_error_t cdcd_open(uint8_t rhport, tusb_desc_interface_t const * p_interface
   cdcd_interface_t * p_cdc = NULL;
   for(uint8_t i=0; i<CFG_TUD_CDC; i++)
   {
-    if ( _cdcd_itf[i].ep_count == 0 )
+    if ( _cdcd_itf[i].ep_in == 0 )
     {
       p_cdc = &_cdcd_itf[i];
       break;
@@ -186,7 +206,6 @@ tusb_error_t cdcd_open(uint8_t rhport, tusb_desc_interface_t const * p_interface
 
   //------------- Control Interface -------------//
   p_cdc->itf_num  = p_interface_desc->bInterfaceNumber;
-  p_cdc->ep_count = p_interface_desc->bNumEndpoints;
 
   uint8_t const * p_desc = descriptor_next ( (uint8_t const *) p_interface_desc );
   (*p_length) = sizeof(tusb_desc_interface_t);
@@ -212,9 +231,6 @@ tusb_error_t cdcd_open(uint8_t rhport, tusb_desc_interface_t const * p_interface
   if ( (TUSB_DESC_INTERFACE == p_desc[DESC_OFFSET_TYPE]) &&
        (TUSB_CLASS_CDC_DATA == ((tusb_desc_interface_t const *) p_desc)->bInterfaceClass) )
   {
-    // p_cdc->itf_num  =
-    p_cdc->ep_count += ((tusb_desc_interface_t const *) p_desc)->bNumEndpoints;
-
     // next to endpoint descritpor
     (*p_length) += p_desc[DESC_OFFSET_LEN];
     p_desc = descriptor_next(p_desc);
@@ -232,20 +248,6 @@ tusb_error_t cdcd_open(uint8_t rhport, tusb_desc_interface_t const * p_interface
   return TUSB_ERROR_NONE;
 }
 
-void cdcd_reset(uint8_t rhport)
-{
-  // no need to close opened pipe, dcd bus reset will put controller's endpoints to default state
-  (void) rhport;
-
-  arrclr_(_cdcd_itf);
-
-  for(uint8_t i=0; i<CFG_TUD_CDC; i++)
-  {
-    tu_fifo_clear(&_rx_ff[i]);
-    tu_fifo_clear(&_tx_ff[i]);
-  }
-}
-
 tusb_error_t cdcd_control_request_st(uint8_t rhport, tusb_control_request_t const * p_request)
 {
   OSAL_SUBTASK_BEGIN
@@ -260,12 +262,12 @@ tusb_error_t cdcd_control_request_st(uint8_t rhport, tusb_control_request_t cons
   if ( (CDC_REQUEST_GET_LINE_CODING == p_request->bRequest) || (CDC_REQUEST_SET_LINE_CODING == p_request->bRequest) )
   {
     uint16_t len = min16_of(sizeof(cdc_line_coding_t), p_request->wLength);
-    usbd_control_xfer_st(rhport, p_request->bmRequestType_bit.direction, &p_cdc->line_coding, len);
+    usbd_control_xfer_st(rhport, p_request->bmRequestType_bit.direction, &p_cdc->intact.line_coding, len);
 
     // Invoke callback
     if (CDC_REQUEST_SET_LINE_CODING == p_request->bRequest)
     {
-      if ( tud_cdc_line_coding_cb ) tud_cdc_line_coding_cb(itf, &p_cdc->line_coding);
+      if ( tud_cdc_line_coding_cb ) tud_cdc_line_coding_cb(itf, &p_cdc->intact.line_coding);
     }
   }
   else if (CDC_REQUEST_SET_CONTROL_LINE_STATE == p_request->bRequest )
@@ -300,7 +302,7 @@ tusb_error_t cdcd_xfer_cb(uint8_t rhport, uint8_t ep_addr, tusb_event_t event, u
   // receive new data
   if ( ep_addr == p_cdc->ep_out )
   {
-    tu_fifo_write_n(&_rx_ff[itf], _tmp_rx_buf, xferred_bytes);
+    tu_fifo_write_n(&_cdcd_itf[itf].intact.rx_ff, _tmp_rx_buf, xferred_bytes);
 
     // preparing for next
     TU_ASSERT( dcd_edpt_xfer(rhport, p_cdc->ep_out, _tmp_rx_buf, sizeof(_tmp_rx_buf)), TUSB_ERROR_DCD_EDPT_XFER );

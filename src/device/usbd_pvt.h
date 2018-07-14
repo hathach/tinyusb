@@ -44,14 +44,7 @@
 
 // for used by usbd_control_xfer_st() only, must not be used directly
 extern osal_semaphore_t _usbd_ctrl_sem;
-
-
-typedef struct
-{
-  uint8_t  itf_num;
-  uint8_t  ep_count;
-  uint8_t  ep_arr[1];
-}usbd_itf_t;
+extern uint8_t _usbd_ctrl_buf[CFG_TUD_CTRL_BUFSIZE];
 
 //--------------------------------------------------------------------+
 // INTERNAL API for stack management
@@ -67,16 +60,18 @@ tusb_error_t usbd_open_edpt_pair(uint8_t rhport, tusb_desc_endpoint_t const* p_d
 
 // Carry out Data and Status stage of control transfer
 // Must be call in a subtask (_st) function
-#define usbd_control_xfer_st(_rhport, _dir, _buffer, _len) \
-  do {\
-    if (_len) { \
-      tusb_error_t err;\
-      dcd_control_xfer(_rhport, _dir, (uint8_t*) _buffer, _len);\
-      osal_semaphore_wait( _usbd_ctrl_sem, OSAL_TIMEOUT_CONTROL_XFER, &err );\
-      STASK_ASSERT_ERR( err );\
-    }\
-    /* No need to wait for status to complete therefore */ \
-    dcd_control_status(_rhport, _dir);\
+#define usbd_control_xfer_st(_rhport, _dir, _buffer, _len)                    \
+  do {                                                                        \
+    if (_len) {                                                               \
+      tusb_error_t err;                                                       \
+      if ( _dir ) memcpy(_usbd_ctrl_buf, _buffer, _len);                      \
+      dcd_control_xfer(_rhport, _dir, _usbd_ctrl_buf, _len);                  \
+      osal_semaphore_wait( _usbd_ctrl_sem, OSAL_TIMEOUT_CONTROL_XFER, &err ); \
+      STASK_ASSERT_ERR( err );                                                \
+      if (!_dir) memcpy((uint8_t*) _buffer, _usbd_ctrl_buf, _len);            \
+    }                                                                         \
+    dcd_control_status(_rhport, _dir);                                        \
+    /* No need to wait for status phase to complete */                        \
   }while(0)
 
 

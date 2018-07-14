@@ -44,6 +44,7 @@
 // INCLUDE
 //--------------------------------------------------------------------+
 #define _TINY_USB_SOURCE_FILE_
+
 #include "common/tusb_common.h"
 #include "msc_device.h"
 #include "device/usbd_pvt.h"
@@ -192,8 +193,8 @@ tusb_error_t mscd_control_request_st(uint8_t rhport, tusb_control_request_t cons
   else if (MSC_REQUEST_GET_MAX_LUN == p_request->bRequest)
   {
     // returned MAX LUN is minus 1 by specs
-    _mscd_buf[0] = CFG_TUD_MSC_MAXLUN-1;
-    usbd_control_xfer_st(rhport, p_request->bmRequestType_bit.direction, _mscd_buf, 1);
+    uint8_t lun = CFG_TUD_MSC_MAXLUN-1;
+    usbd_control_xfer_st(rhport, p_request->bmRequestType_bit.direction, &lun, 1);
   }else
   {
     dcd_control_stall(rhport); // stall unsupported request

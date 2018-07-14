@@ -334,8 +334,7 @@ static tusb_error_t proc_control_request_st(uint8_t rhport, tusb_control_request
       if ( len )
       {
         STASK_ASSERT( len <= CFG_TUD_CTRL_BUFSIZE );
-        memcpy(_usbd_ctrl_buf, buffer, len);
-        usbd_control_xfer_st(rhport, p_request->bmRequestType_bit.direction, _usbd_ctrl_buf, len );
+        usbd_control_xfer_st(rhport, p_request->bmRequestType_bit.direction, buffer, len );
       }else
       {
         dcd_control_stall(rhport); // stall unsupported descriptor
@@ -343,8 +342,7 @@ static tusb_error_t proc_control_request_st(uint8_t rhport, tusb_control_request
     }
     else if (TUSB_REQ_GET_CONFIGURATION == p_request->bRequest )
     {
-      memcpy(_usbd_ctrl_buf, &_usbd_dev.config_num, 1);
-      usbd_control_xfer_st(rhport, p_request->bmRequestType_bit.direction, _usbd_ctrl_buf, 1);
+      usbd_control_xfer_st(rhport, p_request->bmRequestType_bit.direction, &_usbd_dev.config_num, 1);
     }
     else if ( TUSB_REQ_SET_ADDRESS == p_request->bRequest )
     {
