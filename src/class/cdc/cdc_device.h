@@ -64,11 +64,12 @@ void     tud_cdc_n_set_wanted_char (uint8_t itf, char wanted);
 uint32_t tud_cdc_n_available       (uint8_t itf);
 char     tud_cdc_n_read_char       (uint8_t itf);
 uint32_t tud_cdc_n_read            (uint8_t itf, void* buffer, uint32_t bufsize);
+void     tud_cdc_n_read_flush      (uint8_t itf);
 char     tud_cdc_n_peek            (uint8_t itf, int pos);
 
 uint32_t tud_cdc_n_write_char      (uint8_t itf, char ch);
 uint32_t tud_cdc_n_write           (uint8_t itf, void const* buffer, uint32_t bufsize);
-bool     tud_cdc_n_flush           (uint8_t itf);
+bool     tud_cdc_n_write_flush     (uint8_t itf);
 
 //--------------------------------------------------------------------+
 // APPLICATION API (Interface0)
@@ -85,7 +86,7 @@ static inline char     tud_cdc_peek            (int pos)                        
 
 static inline uint32_t tud_cdc_write_char      (char ch)                              { return tud_cdc_n_write_char(0, ch);         }
 static inline uint32_t tud_cdc_write           (void const* buffer, uint32_t bufsize) { return tud_cdc_n_write(0, buffer, bufsize); }
-static inline bool     tud_cdc_flush           (void)                                 { return tud_cdc_n_flush(0);                  }
+static inline bool     tud_cdc_write_flush     (void)                                 { return tud_cdc_n_write_flush(0);            }
 
 //--------------------------------------------------------------------+
 // APPLICATION CALLBACK API (WEAK is optional)

@@ -136,6 +136,11 @@ char tud_cdc_n_peek(uint8_t itf, int pos)
   return tu_fifo_peek_at(&_cdcd_itf[itf].intact.rx_ff, pos, &ch) ? ch : (-1);
 }
 
+void tud_cdc_n_read_flush (uint8_t itf)
+{
+  tu_fifo_clear(&_cdcd_itf[itf].intact.rx_ff);
+}
+
 //--------------------------------------------------------------------+
 // WRITE API
 //--------------------------------------------------------------------+
@@ -150,7 +155,7 @@ uint32_t tud_cdc_n_write(uint8_t itf, void const* buffer, uint32_t bufsize)
   return tu_fifo_write_n(&_cdcd_itf[itf].intact.tx_ff, buffer, bufsize);
 }
 
-bool tud_cdc_n_flush (uint8_t itf)
+bool tud_cdc_n_write_flush (uint8_t itf)
 {
   uint8_t  edpt = _cdcd_itf[itf].ep_in;
   VERIFY( !dcd_edpt_busy(TUD_RHPORT, edpt) ); // skip if previous transfer not complete

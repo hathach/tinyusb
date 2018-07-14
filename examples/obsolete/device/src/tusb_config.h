@@ -88,7 +88,7 @@
 
 
 // TX is sent automatically in Start of Frame event.
-// If not enabled, application must call tud_cdc_flush() periodically
+// If not enabled, application must call tud_cdc_write_flush() periodically
 #define CFG_TUD_CDC_FLUSH_ON_SOF  1
 
 
