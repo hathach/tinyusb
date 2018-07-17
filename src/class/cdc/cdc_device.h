@@ -90,6 +90,7 @@ static inline void     tud_cdc_set_wanted_char (char wanted)                    
 static inline uint32_t tud_cdc_available       (void)                                 { return tud_cdc_n_available(0);              }
 static inline char     tud_cdc_read_char       (void)                                 { return tud_cdc_n_read_char(0);              }
 static inline uint32_t tud_cdc_read            (void* buffer, uint32_t bufsize)       { return tud_cdc_n_read(0, buffer, bufsize);  }
+static inline void     tud_cdc_read_flush      (void)                                 { tud_cdc_n_read_flush(0);                    }
 static inline char     tud_cdc_peek            (int pos)                              { return tud_cdc_n_peek(0, pos);              }
 
 static inline uint32_t tud_cdc_write_char      (char ch)                              { return tud_cdc_n_write_char(0, ch);         }
