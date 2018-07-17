@@ -88,12 +88,10 @@
 
 #define EP_CDC_OUT          _EP_OUT(ITF_NUM_CDC+2)
 #define EP_CDC_IN           _EP_IN (ITF_NUM_CDC+2)
-#define EP_CDC_SIZE         64
 
 // Mass Storage
 #define EP_MSC_OUT          _EP_OUT(ITF_NUM_MSC+1)
 #define EP_MSC_IN           _EP_IN (ITF_NUM_MSC+1)
-#define EP_MSC_SIZE         64    // TODO usb highspeed is 512
 
 #if 0
 // HID Keyboard
@@ -323,7 +321,7 @@ desc_auto_cfg_t const _desc_auto_config_struct =
           .bDescriptorType  = TUSB_DESC_ENDPOINT,
           .bEndpointAddress = EP_CDC_OUT,
           .bmAttributes     = { .xfer = TUSB_XFER_BULK },
-          .wMaxPacketSize   = { .size = EP_CDC_SIZE },
+          .wMaxPacketSize   = { .size = CFG_TUD_CDC_EPSIZE },
           .bInterval        = 0
       },
 
@@ -333,7 +331,7 @@ desc_auto_cfg_t const _desc_auto_config_struct =
           .bDescriptorType  = TUSB_DESC_ENDPOINT,
           .bEndpointAddress = EP_CDC_IN,
           .bmAttributes     = { .xfer = TUSB_XFER_BULK },
-          .wMaxPacketSize   = { .size = EP_CDC_SIZE },
+          .wMaxPacketSize   = { .size = CFG_TUD_CDC_EPSIZE },
           .bInterval        = 0
       },
     },
@@ -361,7 +359,7 @@ desc_auto_cfg_t const _desc_auto_config_struct =
           .bDescriptorType  = TUSB_DESC_ENDPOINT,
           .bEndpointAddress = EP_MSC_OUT,
           .bmAttributes     = { .xfer = TUSB_XFER_BULK },
-          .wMaxPacketSize   = { .size = EP_MSC_SIZE},
+          .wMaxPacketSize   = { .size = CFG_TUD_MSC_EPSIZE},
           .bInterval        = 1
       },
 
@@ -371,7 +369,7 @@ desc_auto_cfg_t const _desc_auto_config_struct =
           .bDescriptorType  = TUSB_DESC_ENDPOINT,
           .bEndpointAddress = EP_MSC_IN,
           .bmAttributes     = { .xfer = TUSB_XFER_BULK },
-          .wMaxPacketSize   = { .size = EP_MSC_SIZE},
+          .wMaxPacketSize   = { .size = CFG_TUD_MSC_EPSIZE},
           .bInterval        = 1
       }
     },

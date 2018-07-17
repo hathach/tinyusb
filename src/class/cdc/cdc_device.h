@@ -43,6 +43,14 @@
 #include "device/usbd.h"
 #include "cdc.h"
 
+//--------------------------------------------------------------------+
+// Class Driver Configuration
+//--------------------------------------------------------------------+
+#ifndef CFG_TUD_CDC_EPSIZE
+#define CFG_TUD_CDC_EPSIZE 64
+#endif
+
+
 #ifdef __cplusplus
  extern "C" {
 #endif

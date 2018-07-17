@@ -43,6 +43,48 @@
 #include "device/usbd.h"
 #include "msc.h"
 
+
+//--------------------------------------------------------------------+
+// Class Driver Configuration
+//--------------------------------------------------------------------+
+VERIFY_STATIC(CFG_TUD_MSC_BUFSIZE < UINT16_MAX, "Size is not correct");
+
+#ifndef CFG_TUD_MSC_MAXLUN
+  #define CFG_TUD_MSC_MAXLUN 1
+#elif CFG_TUD_MSC_MAXLUN == 0 || CFG_TUD_MSC_MAXLUN > 16
+  #error MSC Device: Incorrect setting of MAX LUN
+#endif
+
+#ifndef CFG_TUD_MSC_BLOCK_NUM
+  #error CFG_TUD_MSC_BLOCK_NUM must be defined
+#endif
+
+#ifndef CFG_TUD_MSC_BLOCK_SZ
+  #error CFG_TUD_MSC_BLOCK_SZ must be defined
+#endif
+
+#ifndef CFG_TUD_MSC_BUFSIZE
+  #error CFG_TUD_MSC_BUFSIZE must be defined, value of CFG_TUD_MSC_BLOCK_SZ should work well, the more the better
+#endif
+
+#ifndef CFG_TUD_MSC_VENDOR
+  #error CFG_TUD_MSC_VENDOR 8-byte name must be defined
+#endif
+
+#ifndef CFG_TUD_MSC_PRODUCT
+  #error CFG_TUD_MSC_PRODUCT 16-byte name must be defined
+#endif
+
+#ifndef CFG_TUD_MSC_PRODUCT_REV
+  #error CFG_TUD_MSC_PRODUCT_REV 4-byte string must be defined
+#endif
+
+// TODO highspeed device is 512
+#ifndef CFG_TUD_MSC_EPSIZE
+#define CFG_TUD_MSC_EPSIZE 64
+#endif
+
+
 #ifdef __cplusplus
  extern "C" {
 #endif
@@ -51,11 +93,6 @@
  *  @{
  * \defgroup MSC_Device Device
  *  @{ */
-
-//--------------------------------------------------------------------+
-// APPLICATION API (Multiple Root Hub Ports)
-// Should be used only with MCU that support more than 1 ports
-//--------------------------------------------------------------------+
 
 //--------------------------------------------------------------------+
 // APPLICATION CALLBACK API (WEAK is optional)

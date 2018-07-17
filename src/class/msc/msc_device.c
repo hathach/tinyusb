@@ -50,41 +50,6 @@
 #include "device/usbd_pvt.h"
 
 //--------------------------------------------------------------------+
-// Config Verification
-//--------------------------------------------------------------------+
-VERIFY_STATIC(CFG_TUD_MSC_BUFSIZE < UINT16_MAX, "Size is not correct");
-
-#ifndef CFG_TUD_MSC_MAXLUN
-  #define CFG_TUD_MSC_MAXLUN 1
-#elif CFG_TUD_MSC_MAXLUN == 0 || CFG_TUD_MSC_MAXLUN > 16
-  #error MSC Device: Incorrect setting of MAX LUN
-#endif
-
-#ifndef CFG_TUD_MSC_BLOCK_NUM
-  #error CFG_TUD_MSC_BLOCK_NUM must be defined
-#endif
-
-#ifndef CFG_TUD_MSC_BLOCK_SZ
-  #error CFG_TUD_MSC_BLOCK_SZ must be defined
-#endif
-
-#ifndef CFG_TUD_MSC_BUFSIZE
-  #error CFG_TUD_MSC_BUFSIZE must be defined, value of CFG_TUD_MSC_BLOCK_SZ should work well, the more the better
-#endif
-
-#ifndef CFG_TUD_MSC_VENDOR
-  #error CFG_TUD_MSC_VENDOR 8-byte name must be defined
-#endif
-
-#ifndef CFG_TUD_MSC_PRODUCT
-  #error CFG_TUD_MSC_PRODUCT 16-byte name must be defined
-#endif
-
-#ifndef CFG_TUD_MSC_PRODUCT_REV
-  #error CFG_TUD_MSC_PRODUCT_REV 4-byte string must be defined
-#endif
-
-//--------------------------------------------------------------------+
 // MACRO CONSTANT TYPEDEF
 //--------------------------------------------------------------------+
 enum
@@ -193,8 +158,8 @@ tusb_error_t mscd_control_request_st(uint8_t rhport, tusb_control_request_t cons
   else if (MSC_REQUEST_GET_MAX_LUN == p_request->bRequest)
   {
     // returned MAX LUN is minus 1 by specs
-    uint8_t lun = CFG_TUD_MSC_MAXLUN-1;
-    usbd_control_xfer_st(rhport, p_request->bmRequestType_bit.direction, &lun, 1);
+    _usbd_ctrl_buf[0] = CFG_TUD_MSC_MAXLUN-1;
+    usbd_control_xfer_st(rhport, p_request->bmRequestType_bit.direction, _usbd_ctrl_buf, 1);
   }else
   {
     dcd_control_stall(rhport); // stall unsupported request
