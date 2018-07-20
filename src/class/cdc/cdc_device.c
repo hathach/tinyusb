@@ -70,7 +70,7 @@ typedef struct
   tu_fifo_t tx_ff;
 
   uint8_t rx_ff_buf[CFG_TUD_CDC_RX_BUFSIZE];
-  uint8_t tx_ff_buf[CFG_TUD_CDC_RX_BUFSIZE];
+  uint8_t tx_ff_buf[CFG_TUD_CDC_TX_BUFSIZE];
 
   // Endpoint Transfer buffer
   CFG_TUSB_MEM_ALIGN uint8_t epin_buf[CFG_TUD_CDC_EPSIZE];
@@ -327,13 +327,12 @@ tusb_error_t cdcd_xfer_cb(uint8_t rhport, uint8_t ep_addr, tusb_event_t event, u
 
     for(uint32_t i=0; i<xferred_bytes; i++)
     {
+      tu_fifo_write(&p_cdc->rx_ff, &p_cdc->epin_buf[i]);
+
       // Check for wanted char and invoke callback if needed
       if ( tud_cdc_rx_wanted_cb && ( wanted != -1 ) && ( wanted == p_cdc->epin_buf[i] ) )
       {
         tud_cdc_rx_wanted_cb(itf, wanted);
-      }else
-      {
-        tu_fifo_write(&p_cdc->rx_ff, &p_cdc->epin_buf[i]);
       }
     }
 
