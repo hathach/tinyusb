@@ -65,7 +65,7 @@ bool tud_hid_keyboard_busy(void);
 
 /** \brief        Send a keyboard report
  * \param[in,out] p_report Report data, if NULL, an empty report (all zeroes) is used
- * \returns        true on success, false otherwise (not mounted or busy)
+ * \returns       true on success, false otherwise (not mounted or busy)
  */
 bool tud_hid_keyboard_send_report(hid_keyboard_report_t const *p_report);
 
@@ -127,10 +127,10 @@ ATTR_WEAK void tud_hid_keyboard_set_report_cb(hid_report_type_t report_type, uin
 bool tud_hid_mouse_busy(void);
 
 /** \brief        Perform transfer queuing
- * \param[in,out] p_report address that is used to store data from device. Must be accessible by usb controller (see \ref CFG_TUSB_ATTR_USBRAM)
- * \returns        true on success, false otherwise (not mounted or busy)
+ * \param[in,out] p_report Report data, if NULL, an empty report (all zeroes) is used
+ * \returns       true on success, false otherwise (not mounted or busy)
  */
-bool tud_hid_mouse_send(hid_mouse_report_t const *p_report);
+bool tud_hid_mouse_send_report(hid_mouse_report_t const *p_report);
 
 /*------------- Callbacks -------------*/
 

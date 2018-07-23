@@ -98,29 +98,25 @@ void virtual_com_task(void)
 }
 
 //--------------------------------------------------------------------+
-// USB CDC
+// USB HID
 //--------------------------------------------------------------------+
 void usb_hid_task(void)
 {
   if ( tud_mounted() )
   {
+
+
+    /*------------- Keyboard -------------*/
+/*
     if ( !tud_hid_keyboard_busy() )
     {
-      // Poll every 10ms
-      static tu_timeout_t tm = { .start = 0, .interval = 10 };
-
-      if ( !tu_timeout_expired(&tm) ) return; // not enough time
-      tu_timeout_reset(&tm);
-
-      uint32_t bt = board_buttons();
-
-      if ( bt )
+      if ( btn )
       {
         uint8_t keycode[6] = { 0 };
 
         for(uint8_t i=0; i < 6; i++)
         {
-          if ( bt & (1 << i) ) keycode[i] = HID_KEY_A + i;
+          if ( btn & (1 << i) ) keycode[i] = HID_KEY_A + i;
         }
 
         tud_hid_keyboard_send_keycode(0, keycode);
@@ -130,10 +126,24 @@ void usb_hid_task(void)
         tud_hid_keyboard_send_report(NULL);
       }
     }
+*/
 
+    /*------------- Mouse -------------*/
     if ( !tud_hid_mouse_busy() )
     {
+      // Poll every 10ms
+      static tu_timeout_t tm = { .start = 0, .interval = 10 };
 
+      if ( !tu_timeout_expired(&tm) ) return; // not enough time
+      tu_timeout_reset(&tm);
+
+      uint32_t const btn = board_buttons();
+
+      if ( btn )
+      {
+        hid_mouse_report_t report = { .buttons = 0, .x = 10, .y = 0, .wheel = 0 };
+        tud_hid_mouse_send_report(&report);
+      }
     }
 
   }

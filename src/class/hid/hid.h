@@ -167,14 +167,17 @@ typedef struct ATTR_PACKED
   int8_t  x;       /**< Current delta x movement of the mouse. */
   int8_t  y;       /**< Current delta y movement on the mouse. */
   int8_t  wheel;   /**< Current delta wheel movement on the mouse. */
+//  int8_t  pan;
 } hid_mouse_report_t;
 
 /// Standard Mouse Buttons Bitmap
 typedef enum
 {
-	MOUSE_BUTTON_LEFT   = BIT_(0), ///< Left button
-	MOUSE_BUTTON_RIGHT  = BIT_(1), ///< Right button
-	MOUSE_BUTTON_MIDDLE = BIT_(2)  ///< Middle button
+	MOUSE_BUTTON_LEFT     = BIT_(0), ///< Left button
+	MOUSE_BUTTON_RIGHT    = BIT_(1), ///< Right button
+	MOUSE_BUTTON_MIDDLE   = BIT_(2), ///< Middle button
+  MOUSE_BUTTON_BACKWARD = BIT_(3), ///< Backward button,
+  MOUSE_BUTTON_FORWARD  = BIT_(4), ///< Forward button,
 }hid_mouse_button_bm_t;
 
 /// @}

@@ -123,39 +123,45 @@ uint8_t const _desc_auto_hid_kbd_report[] = {
   HID_USAGE      ( HID_USAGE_DESKTOP_KEYBOARD ),
   HID_COLLECTION ( HID_COLLECTION_APPLICATION ),
     HID_USAGE_PAGE ( HID_USAGE_PAGE_KEYBOARD ),
+      // 8 bits Modifier Keys (Shfit, Control, Alt)
       HID_USAGE_MIN    ( 224                                    ),
       HID_USAGE_MAX    ( 231                                    ),
       HID_LOGICAL_MIN  ( 0                                      ),
       HID_LOGICAL_MAX  ( 1                                      ),
 
+      HID_REPORT_COUNT ( 8                                      ),
       HID_REPORT_SIZE  ( 1                                      ),
-      HID_REPORT_COUNT ( 8                                      ), /* 8 bits */
-      HID_INPUT        ( HID_DATA | HID_VARIABLE | HID_ABSOLUTE ), /* maskable modifier key */
+      HID_INPUT        ( HID_DATA | HID_VARIABLE | HID_ABSOLUTE ),
 
-      HID_REPORT_SIZE  ( 8                                      ),
+      // 8 bit reserved
       HID_REPORT_COUNT ( 1                                      ),
-      HID_INPUT        ( HID_CONSTANT                           ), /* reserved */
+      HID_REPORT_SIZE  ( 8                                      ),
+      HID_INPUT        ( HID_CONSTANT                           ),
 
+    // 6-byte Keycodes
+    HID_USAGE_PAGE (HID_USAGE_PAGE_KEYBOARD),
+      HID_USAGE_MIN    ( 0                                   ),
+      HID_USAGE_MAX    ( 255                                 ),
+      HID_LOGICAL_MIN  ( 0                                   ),
+      HID_LOGICAL_MAX  ( 255                                 ),
+
+      HID_REPORT_COUNT ( 6                                   ),
+      HID_REPORT_SIZE  ( 8                                   ),
+      HID_INPUT        ( HID_DATA | HID_ARRAY | HID_ABSOLUTE ),
+
+    // LED Indicator Kana | Compose | Scroll Lock | CapsLock | NumLock
     HID_USAGE_PAGE  ( HID_USAGE_PAGE_LED                   ),
+      /* 5-bit Led report */
       HID_USAGE_MIN    ( 1                                       ),
       HID_USAGE_MAX    ( 5                                       ),
       HID_REPORT_COUNT ( 5                                       ),
       HID_REPORT_SIZE  ( 1                                       ),
-      HID_OUTPUT       ( HID_DATA | HID_VARIABLE | HID_ABSOLUTE  ), /* 5-bit Led report */
+      HID_OUTPUT       ( HID_DATA | HID_VARIABLE | HID_ABSOLUTE  ),
 
-      HID_REPORT_SIZE  ( 3                                       ), /* led padding */
+      /* led padding */
       HID_REPORT_COUNT ( 1                                       ),
+      HID_REPORT_SIZE  ( 3                                       ),
       HID_OUTPUT       ( HID_CONSTANT                            ),
-
-    HID_USAGE_PAGE (HID_USAGE_PAGE_KEYBOARD),
-      HID_USAGE_MIN    ( 0                                   ),
-      HID_USAGE_MAX    ( 101                                 ),
-      HID_LOGICAL_MIN  ( 0                                   ),
-      HID_LOGICAL_MAX  ( 101                                 ),
-
-      HID_REPORT_SIZE  ( 8                                   ),
-      HID_REPORT_COUNT ( 6                                   ),
-      HID_INPUT        ( HID_DATA | HID_ARRAY | HID_ABSOLUTE ), /* keycodes array 6 items */
   HID_COLLECTION_END
 };
 #endif
@@ -173,29 +179,33 @@ uint8_t const _desc_auto_hid_mse_report[] = {
     HID_COLLECTION ( HID_COLLECTION_PHYSICAL ),
       HID_USAGE_PAGE  ( HID_USAGE_PAGE_BUTTON ),
         HID_USAGE_MIN    ( 1                                      ),
-        HID_USAGE_MAX    ( 3                                      ),
+        HID_USAGE_MAX    ( 5                                      ),
         HID_LOGICAL_MIN  ( 0                                      ),
         HID_LOGICAL_MAX  ( 1                                      ),
 
+        // Left, Right, Middle, Backward, Forward mouse buttons
+        HID_REPORT_COUNT ( 5                                      ),
         HID_REPORT_SIZE  ( 1                                      ),
-        HID_REPORT_COUNT ( 3                                      ), /* Left, Right and Middle mouse*/
         HID_INPUT        ( HID_DATA | HID_VARIABLE | HID_ABSOLUTE ),
 
-        HID_REPORT_SIZE  ( 5                                      ),
+        // 3 bit padding
+        HID_REPORT_SIZE  ( 3                                      ),
         HID_REPORT_COUNT ( 1                                      ),
-        HID_INPUT        ( HID_CONSTANT                           ), /* 5 bit padding followed 3 bit buttons */
+        HID_INPUT        ( HID_CONSTANT                           ),
 
       HID_USAGE_PAGE  ( HID_USAGE_PAGE_DESKTOP ),
+        /* X, Y position */
         HID_USAGE        ( HID_USAGE_DESKTOP_X                    ),
         HID_USAGE        ( HID_USAGE_DESKTOP_Y                    ),
         HID_LOGICAL_MIN  ( 0x81                                   ), /* -127 */
         HID_LOGICAL_MAX  ( 0x7f                                   ), /* 127  */
 
+        HID_REPORT_COUNT ( 2                                      ),
         HID_REPORT_SIZE  ( 8                                      ),
-        HID_REPORT_COUNT ( 2                                      ), /* X, Y position */
         HID_INPUT        ( HID_DATA | HID_VARIABLE | HID_RELATIVE ), /* relative values */
 
-        HID_USAGE       ( HID_USAGE_DESKTOP_WHEEL                ), /* mouse scroll */
+        /* mouse scroll */
+        HID_USAGE       ( HID_USAGE_DESKTOP_WHEEL                ),
         HID_LOGICAL_MIN ( 0x81                                   ), /* -127 */
         HID_LOGICAL_MAX ( 0x7f                                   ), /* 127  */
         HID_REPORT_COUNT( 1                                      ),
