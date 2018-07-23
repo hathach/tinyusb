@@ -81,20 +81,20 @@ typedef enum
 /// HID Request Report Type
 typedef enum
 {
-  HID_REQUEST_REPORT_INPUT = 1, ///< Input
-  HID_REQUEST_REPORT_OUTPUT,    ///< Output
-  HID_REQUEST_REPORT_FEATURE    ///< Feature
-}hid_request_report_type_t;
+  HID_REPORT_TYPE_INPUT = 1, ///< Input
+  HID_REPORT_TYPE_OUTPUT,    ///< Output
+  HID_REPORT_TYPE_FEATURE    ///< Feature
+}hid_report_type_t;
 
 /// HID Class Specific Control Request
 typedef enum
 {
-  HID_REQUEST_CONTROL_GET_REPORT   = 0x01, ///< Get Report
-  HID_REQUEST_CONTROL_GET_IDLE     = 0x02, ///< Get Idle
-  HID_REQUEST_CONTROL_GET_PROTOCOL = 0x03, ///< Get Protocol
-  HID_REQUEST_CONTROL_SET_REPORT   = 0x09, ///< Set Report
-  HID_REQUEST_CONTROL_SET_IDLE     = 0x0a, ///< Set Idle
-  HID_REQUEST_CONTROL_SET_PROTOCOL = 0x0b  ///< Set Protocol
+  HID_REQ_CONTROL_GET_REPORT   = 0x01, ///< Get Report
+  HID_REQ_CONTROL_GET_IDLE     = 0x02, ///< Get Idle
+  HID_REQ_CONTROL_GET_PROTOCOL = 0x03, ///< Get Protocol
+  HID_REQ_CONTROL_SET_REPORT   = 0x09, ///< Set Report
+  HID_REQ_CONTROL_SET_IDLE     = 0x0a, ///< Set Idle
+  HID_REQ_CONTROL_SET_PROTOCOL = 0x0b  ///< Set Protocol
 }hid_request_type_t;
 
 /// USB HID Descriptor

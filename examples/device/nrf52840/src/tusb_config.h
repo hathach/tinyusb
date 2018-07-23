@@ -43,61 +43,60 @@
  extern "C" {
 #endif
 
-//--------------------------------------------------------------------+
+//--------------------------------------------------------------------
 // COMMON CONFIGURATION
-//--------------------------------------------------------------------+
-#define CFG_TUSB_MCU              OPT_MCU_NRF5X
-#define CFG_TUSB_RHPORT0_MODE     OPT_MODE_DEVICE
+//--------------------------------------------------------------------
+#define CFG_TUSB_MCU                OPT_MCU_NRF5X
+#define CFG_TUSB_RHPORT0_MODE       OPT_MODE_DEVICE
 
-#define CFG_TUSB_DEBUG            2
+#define CFG_TUSB_DEBUG              2
 
 /*------------- RTOS -------------*/
-#define CFG_TUSB_OS               OPT_OS_NONE // be passed from IDE/command line for easy project switching
+#define CFG_TUSB_OS                 OPT_OS_NONE // be passed from IDE/command line for easy project switching
 //#define CFG_TUD_TASK_PRIO         0
 //#define CFG_TUD_TASK_QUEUE_SZ     16
 //#define CFG_TUD_TASK_STACK_SZ     150
 
-//--------------------------------------------------------------------+
+//--------------------------------------------------------------------
 // DEVICE CONFIGURATION
-//--------------------------------------------------------------------+
+//--------------------------------------------------------------------
 
 /*------------- Core -------------*/
-#define CFG_TUD_DESC_AUTO         1
+#define CFG_TUD_DESC_AUTO           1
 
 // #define CFG_TUD_DESC_VID          0xCAFE
 // #define CFG_TUD_DESC_PID          0x0001
 
-#define CFG_TUD_ENDOINT0_SIZE     64
+#define CFG_TUD_ENDOINT0_SIZE       64
 
 //------------- CLASS -------------//
-#define CFG_TUD_CDC               1
-#define CFG_TUD_MSC               1
+#define CFG_TUD_CDC                 1
+#define CFG_TUD_MSC                 1
 
-#define CFG_TUD_HID_KEYBOARD      0 // TODO need update
-#define CFG_TUD_HID_MOUSE         0 // TODO need update
-#define CFG_TUD_HID_GENERIC       0 // TODO need update
+#define CFG_TUD_HID_KEYBOARD        1
+#define CFG_TUD_HID_MOUSE           1
 
-/*------------------------------------------------------------------*/
-/* CDC DEVICE
- *------------------------------------------------------------------*/
+//--------------------------------------------------------------------
+// CDC
+//--------------------------------------------------------------------
 
 // FIFO size of CDC TX and RX
-#define CFG_TUD_CDC_RX_BUFSIZE    64
-#define CFG_TUD_CDC_TX_BUFSIZE    64
+#define CFG_TUD_CDC_RX_BUFSIZE      64
+#define CFG_TUD_CDC_TX_BUFSIZE      64
 
 // TX is sent automatically every Start of Frame event.
 // If not enabled, application must call tud_cdc_write_flush() periodically
 #define CFG_TUD_CDC_FLUSH_ON_SOF    0
 
-/*------------------------------------------------------------------*/
-/* MSC DEVICE
- *------------------------------------------------------------------*/
+//--------------------------------------------------------------------
+// MSC
+//--------------------------------------------------------------------
 
 // Number of supported Logical Unit Number (At least 1)
-#define CFG_TUD_MSC_MAXLUN        1
+#define CFG_TUD_MSC_MAXLUN          1
 
 // Buffer size of Device Mass storage
-#define CFG_TUD_MSC_BUFSIZE       512
+#define CFG_TUD_MSC_BUFSIZE         512
 
 // Number of Blocks
 #define CFG_TUD_MSC_BLOCK_NUM       16
@@ -114,9 +113,22 @@
 // Product revision string included in Inquiry response, max 4 bytes
 #define CFG_TUD_MSC_PRODUCT_REV     "1.0"
 
-//--------------------------------------------------------------------+
+//--------------------------------------------------------------------
+// HID
+//--------------------------------------------------------------------
+
+/* Enable boot protocol will create separated HID interface for Keyboard,
+ * Consumer Key and Mouse --> require more In endpoints. Otherwise they
+ * are all packed into a single Multiple Report Interface.
+ *
+ * Note: If your device is meant to work with simple host running on
+ * an MCU (e.g with tinyusb host), boot protocol should be enabled.
+ */
+#define CFG_TUD_HID_BOOT_PROTOCOL   1
+
+//--------------------------------------------------------------------
 // USB RAM PLACEMENT
-//--------------------------------------------------------------------+
+//--------------------------------------------------------------------
 #define CFG_TUSB_ATTR_USBRAM
 #define CFG_TUSB_MEM_ALIGN          ATTR_ALIGNED(4)
 

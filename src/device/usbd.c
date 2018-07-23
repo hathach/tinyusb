@@ -38,7 +38,7 @@
 
 #include "tusb_option.h"
 
-#if MODE_DEVICE_SUPPORTED
+#if TUSB_OPT_DEVICE_ENABLED
 
 #define _TINY_USB_SOURCE_FILE_
 
@@ -116,7 +116,7 @@ static usbd_class_driver_t const usbd_class_drivers[] =
   #endif
 
 
-  #if DEVICE_CLASS_HID
+  #if TUD_OPT_HID_ENABLED
     {
         .class_code     = TUSB_CLASS_HID,
         .init           = hidd_init,

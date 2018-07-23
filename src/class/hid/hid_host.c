@@ -200,7 +200,7 @@ tusb_error_t hidh_open_subtask(uint8_t dev_addr, tusb_desc_interface_t const *p_
   //------------- SET IDLE (0) request -------------//
   STASK_INVOKE(
     usbh_control_xfer_subtask( dev_addr, bm_request_type(TUSB_DIR_OUT, TUSB_REQ_TYPE_CLASS, TUSB_REQ_RCPT_INTERFACE),
-                               HID_REQUEST_CONTROL_SET_IDLE, 0, p_interface_desc->bInterfaceNumber,
+                               HID_REQ_CONTROL_SET_IDLE, 0, p_interface_desc->bInterfaceNumber,
                                0, NULL ),
     error
   );

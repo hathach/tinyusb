@@ -73,10 +73,10 @@
 #endif
 
 //------------- DEVICE -------------//
-#if MODE_DEVICE_SUPPORTED
+#if TUSB_OPT_DEVICE_ENABLED
   #include "device/usbd.h"
 
-  #if DEVICE_CLASS_HID
+  #if TUD_OPT_HID_ENABLED
     #include "class/hid/hid_device.h"
   #endif
 

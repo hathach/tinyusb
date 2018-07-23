@@ -77,7 +77,7 @@ void board_init(void)
   //------------- BUTTON -------------//
   for(uint8_t i=0; i<BOARD_BUTTON_COUNT; i++) GPIO_SetDir(buttons[i].port, BIT_(buttons[i].pin), 0);
 
-#if MODE_DEVICE_SUPPORTED
+#if TUSB_OPT_DEVICE_ENABLED
   //------------- USB Device -------------//
   // VBUS sense is wrongly connected to P0_5 (instead of P1_30). So we need to always pull P1_30 to high
   // so that USB device block can work. However, Device Controller (thus tinyusb) cannot able to determine

@@ -55,7 +55,7 @@ tusb_error_t tusb_init(void)
   TU_ASSERT_ERR( usbh_init() ); // host stack init
 #endif
 
-#if MODE_DEVICE_SUPPORTED
+#if TUSB_OPT_DEVICE_ENABLED
   TU_ASSERT_ERR ( usbd_init() ); // device stack init
 #endif
 
@@ -71,7 +71,7 @@ void tusb_task(void)
   usbh_enumeration_task(NULL);
   #endif
 
-  #if MODE_DEVICE_SUPPORTED
+  #if TUSB_OPT_DEVICE_ENABLED
   usbd_task(NULL);
   #endif
 }

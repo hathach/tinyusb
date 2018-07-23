@@ -77,7 +77,6 @@
 #define CFG_TUD_MSC               0
 #define CFG_TUD_HID_KEYBOARD      0
 #define CFG_TUD_HID_MOUSE         0
-#define CFG_TUD_HID_GENERIC       0 // not supported yet
 
 
 /*------------------------------------------------------------------*/

@@ -36,7 +36,7 @@
 
 #include "tusb_option.h"
 
-#if (MODE_DEVICE_SUPPORTED && CFG_TUD_CUSTOM_CLASS)
+#if (TUSB_OPT_DEVICE_ENABLED && CFG_TUD_CUSTOM_CLASS)
 
 #define _TINY_USB_SOURCE_FILE_
 

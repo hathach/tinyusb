@@ -127,7 +127,7 @@ tusb_error_t stub_set_idle_request(uint8_t address, tusb_control_request_t const
   TEST_ASSERT_EQUAL(TUSB_DIR_HOST_TO_DEV                   , p_request->bmRequestType_bit.direction);
   TEST_ASSERT_EQUAL(TUSB_REQ_TYPE_CLASS                , p_request->bmRequestType_bit.type);
   TEST_ASSERT_EQUAL(TUSB_REQ_RECIPIENT_INTERFACE       , p_request->bmRequestType_bit.recipient);
-  TEST_ASSERT_EQUAL(HID_REQUEST_CONTROL_SET_IDLE           , p_request->bRequest);
+  TEST_ASSERT_EQUAL(HID_REQ_CONTROL_SET_IDLE           , p_request->bRequest);
   TEST_ASSERT_EQUAL(0                                      , p_request->wValue);
   TEST_ASSERT_EQUAL(p_kbd_interface_desc->bInterfaceNumber , p_request->wIndex);
 
@@ -144,7 +144,7 @@ void test_keyboard_open_ok(void)
   hidh_init();
 
   usbh_control_xfer_subtask_ExpectAndReturn(dev_addr, bm_request_type(TUSB_DIR_HOST_TO_DEV, TUSB_REQ_TYPE_CLASS, TUSB_REQ_RECIPIENT_INTERFACE),
-                                            HID_REQUEST_CONTROL_SET_IDLE, 0, p_kbd_interface_desc->bInterfaceNumber, 0, NULL,
+                                            HID_REQ_CONTROL_SET_IDLE, 0, p_kbd_interface_desc->bInterfaceNumber, 0, NULL,
                                             TUSB_ERROR_NONE);
   hcd_pipe_open_ExpectAndReturn(dev_addr, p_kdb_endpoint_desc, TUSB_CLASS_HID, pipe_hdl);
   tusbh_hid_keyboard_mounted_cb_Expect(dev_addr);

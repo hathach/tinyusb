@@ -80,7 +80,7 @@ bool tusb_hal_init(void)
   LPC_USB->OTGStCtrl = 0x3;
 #endif
 
-#if MODE_DEVICE_SUPPORTED
+#if TUSB_OPT_DEVICE_ENABLED
   LPC_PINCON->PINSEL4 = bit_set_range(LPC_PINCON->PINSEL4, 18, 19, BIN8(01)); // P2_9 as USB Connect
 
   // P1_30 as VBUS, ignore if it is already in VBUS mode
@@ -106,7 +106,7 @@ void USB_IRQHandler(void)
     hal_hcd_isr(0);
   #endif
 
-  #if MODE_DEVICE_SUPPORTED
+  #if TUSB_OPT_DEVICE_ENABLED
     hal_dcd_isr(0);
   #endif
 }

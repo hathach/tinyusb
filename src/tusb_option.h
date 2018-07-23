@@ -77,9 +77,9 @@
 /** \addtogroup group_configuration
  *  @{ */
 
-//--------------------------------------------------------------------+
+//--------------------------------------------------------------------
 // CONTROLLER
-//--------------------------------------------------------------------+
+//--------------------------------------------------------------------
 /** \defgroup group_mode Controller Mode Selection
  * \brief CFG_TUSB_CONTROLLER_N_MODE must be defined with these
  *  @{ */
@@ -105,11 +105,11 @@
     ((CFG_TUSB_RHPORT1_MODE & OPT_MODE_DEVICE) ? 1 : 0))
 
 #define MODE_HOST_SUPPORTED   (CONTROLLER_HOST_NUMBER > 0)
-#define MODE_DEVICE_SUPPORTED (CONTROLLER_DEVICE_NUMBER > 0)
+#define TUSB_OPT_DEVICE_ENABLED (CONTROLLER_DEVICE_NUMBER > 0)
 
-#define TUD_RHPORT  ((CFG_TUSB_RHPORT0_MODE & OPT_MODE_DEVICE) ? 0 : ((CFG_TUSB_RHPORT1_MODE & OPT_MODE_DEVICE) ? 1 : -1))
+#define TUD_OPT_RHPORT  ((CFG_TUSB_RHPORT0_MODE & OPT_MODE_DEVICE) ? 0 : ((CFG_TUSB_RHPORT1_MODE & OPT_MODE_DEVICE) ? 1 : -1))
 
-#if !MODE_HOST_SUPPORTED && !MODE_DEVICE_SUPPORTED
+#if !MODE_HOST_SUPPORTED && !TUSB_OPT_DEVICE_ENABLED
   #error please configure at least 1 CFG_TUSB_CONTROLLER_N_MODE to OPT_MODE_HOST and/or OPT_MODE_DEVICE
 #endif
 
@@ -146,12 +146,12 @@
 #define tu_free free
 #endif
 
-//--------------------------------------------------------------------+
+//--------------------------------------------------------------------
 // DEVICE OPTIONS
-//--------------------------------------------------------------------+
-#if MODE_DEVICE_SUPPORTED
+//--------------------------------------------------------------------
+#if TUSB_OPT_DEVICE_ENABLED
 
-  #define DEVICE_CLASS_HID ( CFG_TUD_HID_KEYBOARD + CFG_TUD_HID_MOUSE + CFG_TUD_HID_GENERIC )
+  #define TUD_OPT_HID_ENABLED ( CFG_TUD_HID_KEYBOARD + CFG_TUD_HID_MOUSE )
 
   #ifndef CFG_TUD_ENDOINT0_SIZE
     #define CFG_TUD_ENDOINT0_SIZE    64
@@ -173,11 +173,11 @@
     #define CFG_TUD_MSC          0
   #endif
 
-#endif // MODE_DEVICE_SUPPORTED
+#endif // TUSB_OPT_DEVICE_ENABLED
 
-//--------------------------------------------------------------------+
+//--------------------------------------------------------------------
 // HOST OPTIONS
-//--------------------------------------------------------------------+
+//--------------------------------------------------------------------
 #if MODE_HOST_SUPPORTED
   #ifndef CFG_TUSB_HOST_DEVICE_MAX
     #define CFG_TUSB_HOST_DEVICE_MAX 1
@@ -203,9 +203,9 @@
 #endif // MODE_HOST_SUPPORTED
 
 
-/*------------------------------------------------------------------*/
-/* Config Verification
- *------------------------------------------------------------------*/
+//------------------------------------------------------------------
+// Config Verification
+//------------------------------------------------------------------
 
 #if (CFG_TUSB_OS != OPT_OS_NONE) && !defined (CFG_TUD_TASK_PRIO)
   #error CFG_TUD_TASK_PRIO need to be defined (hint: use the highest if possible)

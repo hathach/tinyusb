@@ -36,7 +36,7 @@
 
 #include "tusb_option.h"
 
-#if MODE_DEVICE_SUPPORTED
+#if TUSB_OPT_DEVICE_ENABLED
 
 #define _TINY_USB_SOURCE_FILE_
 
@@ -60,7 +60,7 @@
  */
 #define _PID_MAP(itf, n)    ( (CFG_TUD_##itf) << (n) )
 #define CFG_TUD_DESC_PID    (0x8000 | _PID_MAP(CDC, 0) | _PID_MAP(MSC, 1) | \
-                             _PID_MAP(HID_KEYBOARD, 2) | _PID_MAP(HID_MOUSE, 3) | _PID_MAP(HID_GENERIC, 4) )
+                             _PID_MAP(HID_KEYBOARD, 2) | _PID_MAP(HID_MOUSE, 3) )
 #endif
 
 /*------------- Interface Numbering -------------*/
@@ -69,42 +69,144 @@
  */
 
 #define ITF_NUM_CDC           0
-#define ITF_NUM_MSC          (ITF_NUM_CDC + 2*CFG_TUD_CDC)
+#define ITF_NUM_MSC           (ITF_NUM_CDC + 2*CFG_TUD_CDC)
 
-#define ITF_NUM_HID_KEYBOARD (ITF_NUM_MSC + CFG_TUD_MSC )
-#define ITF_NUM_HID_MOUSE    (ITF_NUM_HID_KEYBOARD + CFG_TUD_HID_KEYBOARD )
-#define ITF_NUM_HID_GENERIC  (ITF_NUM_HID_MOUSE    + CFG_TUD_HID_MOUSE    )
+#define ITF_NUM_HID_KBD       (ITF_NUM_MSC + CFG_TUD_MSC)
+#define ITF_NUM_HID_MSE       (ITF_NUM_HID_KBD + CFG_TUD_HID_KEYBOARD)
 
-#define ITF_TOTAL            (ITF_NUM_HID_GENERIC + CFG_TUD_HID_GENERIC)
+#define ITF_TOTAL             (ITF_NUM_HID_MSE + CFG_TUD_HID_MOUSE)
 
 
 /*------------- Endpoint Numbering & Size -------------*/
-#define _EP_IN(x)           (0x80 | (x))
-#define _EP_OUT(x)          (x)
+#define _EP_IN(x)             (0x80 | (x))
+#define _EP_OUT(x)            (x)
 
 // CDC
-#define EP_CDC_NOTIF        _EP_IN (ITF_NUM_CDC+1)
-#define EP_CDC_NOTIF_SIZE   8
+#define EP_CDC_NOTIF          _EP_IN (ITF_NUM_CDC+1)
+#define EP_CDC_NOTIF_SIZE     8
 
-#define EP_CDC_OUT          _EP_OUT(ITF_NUM_CDC+2)
-#define EP_CDC_IN           _EP_IN (ITF_NUM_CDC+2)
+#define EP_CDC_OUT            _EP_OUT(ITF_NUM_CDC+2)
+#define EP_CDC_IN             _EP_IN (ITF_NUM_CDC+2)
 
 // Mass Storage
-#define EP_MSC_OUT          _EP_OUT(ITF_NUM_MSC+1)
-#define EP_MSC_IN           _EP_IN (ITF_NUM_MSC+1)
+#define EP_MSC_OUT            _EP_OUT(ITF_NUM_MSC+1)
+#define EP_MSC_IN             _EP_IN (ITF_NUM_MSC+1)
 
-#if 0
+// Boot protocol each report has its own interface
+#if CFG_TUD_HID_BOOT_PROTOCOL
 // HID Keyboard
-#define EP_HID_KBD          _EP_IN (INTERFACE_NO_HID_KEYBOARD+1)
-#define EP_HID_KBD_SZIE     8
+#define EP_HID_KBD            _EP_IN (ITF_NUM_HID_KBD+1)
+#define EP_HID_KBD_SIZE       8
 
 // HID Mouse
-#define EP_HID_MSE          _EP_IN (INTERFACE_NO_HID_MOUSE+1)
-#define EP_HID_MSE_SIZE     8
+#define EP_HID_MSE            _EP_IN (ITF_NUM_HID_MSE+1)
+#define EP_HID_MSE_SIZE       8
 
-// HID Generic
+#else
+
+// HID composite = keyboard + mouse
+#define EP_HID_COMP           _EP_IN (ITF_NUM_HID_KBD+1)
+#define EP_HID_COMP_SIZE      16
+
 #endif
 
+
+// TODO HID Generic
+
+
+//--------------------------------------------------------------------+
+// Keyboard Report Descriptor
+//--------------------------------------------------------------------+
+#if CFG_TUD_HID_KEYBOARD
+uint8_t const _desc_auto_hid_kbd_report[] = {
+  HID_USAGE_PAGE ( HID_USAGE_PAGE_DESKTOP     ),
+  HID_USAGE      ( HID_USAGE_DESKTOP_KEYBOARD ),
+  HID_COLLECTION ( HID_COLLECTION_APPLICATION ),
+    HID_USAGE_PAGE ( HID_USAGE_PAGE_KEYBOARD ),
+      HID_USAGE_MIN    ( 224                                    ),
+      HID_USAGE_MAX    ( 231                                    ),
+      HID_LOGICAL_MIN  ( 0                                      ),
+      HID_LOGICAL_MAX  ( 1                                      ),
+
+      HID_REPORT_SIZE  ( 1                                      ),
+      HID_REPORT_COUNT ( 8                                      ), /* 8 bits */
+      HID_INPUT        ( HID_DATA | HID_VARIABLE | HID_ABSOLUTE ), /* maskable modifier key */
+
+      HID_REPORT_SIZE  ( 8                                      ),
+      HID_REPORT_COUNT ( 1                                      ),
+      HID_INPUT        ( HID_CONSTANT                           ), /* reserved */
+
+    HID_USAGE_PAGE  ( HID_USAGE_PAGE_LED                   ),
+      HID_USAGE_MIN    ( 1                                       ),
+      HID_USAGE_MAX    ( 5                                       ),
+      HID_REPORT_COUNT ( 5                                       ),
+      HID_REPORT_SIZE  ( 1                                       ),
+      HID_OUTPUT       ( HID_DATA | HID_VARIABLE | HID_ABSOLUTE  ), /* 5-bit Led report */
+
+      HID_REPORT_SIZE  ( 3                                       ), /* led padding */
+      HID_REPORT_COUNT ( 1                                       ),
+      HID_OUTPUT       ( HID_CONSTANT                            ),
+
+    HID_USAGE_PAGE (HID_USAGE_PAGE_KEYBOARD),
+      HID_USAGE_MIN    ( 0                                   ),
+      HID_USAGE_MAX    ( 101                                 ),
+      HID_LOGICAL_MIN  ( 0                                   ),
+      HID_LOGICAL_MAX  ( 101                                 ),
+
+      HID_REPORT_SIZE  ( 8                                   ),
+      HID_REPORT_COUNT ( 6                                   ),
+      HID_INPUT        ( HID_DATA | HID_ARRAY | HID_ABSOLUTE ), /* keycodes array 6 items */
+  HID_COLLECTION_END
+};
+#endif
+
+//--------------------------------------------------------------------+
+// Mouse Report Descriptor
+//--------------------------------------------------------------------+
+#if CFG_TUD_HID_MOUSE
+uint8_t const _desc_auto_hid_mse_report[] = {
+  HID_USAGE_PAGE ( HID_USAGE_PAGE_DESKTOP     ),
+  HID_USAGE      ( HID_USAGE_DESKTOP_MOUSE    ),
+  HID_COLLECTION ( HID_COLLECTION_APPLICATION ),
+    HID_USAGE      (HID_USAGE_DESKTOP_POINTER),
+
+    HID_COLLECTION ( HID_COLLECTION_PHYSICAL ),
+      HID_USAGE_PAGE  ( HID_USAGE_PAGE_BUTTON ),
+        HID_USAGE_MIN    ( 1                                      ),
+        HID_USAGE_MAX    ( 3                                      ),
+        HID_LOGICAL_MIN  ( 0                                      ),
+        HID_LOGICAL_MAX  ( 1                                      ),
+
+        HID_REPORT_SIZE  ( 1                                      ),
+        HID_REPORT_COUNT ( 3                                      ), /* Left, Right and Middle mouse*/
+        HID_INPUT        ( HID_DATA | HID_VARIABLE | HID_ABSOLUTE ),
+
+        HID_REPORT_SIZE  ( 5                                      ),
+        HID_REPORT_COUNT ( 1                                      ),
+        HID_INPUT        ( HID_CONSTANT                           ), /* 5 bit padding followed 3 bit buttons */
+
+      HID_USAGE_PAGE  ( HID_USAGE_PAGE_DESKTOP ),
+        HID_USAGE        ( HID_USAGE_DESKTOP_X                    ),
+        HID_USAGE        ( HID_USAGE_DESKTOP_Y                    ),
+        HID_LOGICAL_MIN  ( 0x81                                   ), /* -127 */
+        HID_LOGICAL_MAX  ( 0x7f                                   ), /* 127  */
+
+        HID_REPORT_SIZE  ( 8                                      ),
+        HID_REPORT_COUNT ( 2                                      ), /* X, Y position */
+        HID_INPUT        ( HID_DATA | HID_VARIABLE | HID_RELATIVE ), /* relative values */
+
+        HID_USAGE       ( HID_USAGE_DESKTOP_WHEEL                ), /* mouse scroll */
+        HID_LOGICAL_MIN ( 0x81                                   ), /* -127 */
+        HID_LOGICAL_MAX ( 0x7f                                   ), /* 127  */
+        HID_REPORT_COUNT( 1                                      ),
+        HID_REPORT_SIZE ( 8                                      ), /* 8-bit value */
+        HID_INPUT       ( HID_DATA | HID_VARIABLE | HID_RELATIVE ), /* relative values */
+
+    HID_COLLECTION_END,
+
+  HID_COLLECTION_END
+};
+#endif
 
 
 /*------------------------------------------------------------------*/
@@ -179,30 +281,52 @@ typedef struct ATTR_PACKED
   }cdc;
 #endif
 
-//------------- Mass Storage -------------//
+  //------------- Mass Storage -------------//
 #if CFG_TUD_MSC
   struct ATTR_PACKED
   {
     tusb_desc_interface_t             itf;
     tusb_desc_endpoint_t              ep_out;
     tusb_desc_endpoint_t              ep_in;
-  }msc;
+  } msc;
 #endif
 
-#if 0
-  //------------- HID Keyboard -------------//
+  //------------- HID -------------//
+#if CFG_TUD_HID_BOOT_PROTOCOL
+
 #if CFG_TUD_HID_KEYBOARD
-  tusb_desc_interface_t                    keyboard_interface;
-  tusb_hid_descriptor_hid_t                      keyboard_hid;
-  tusb_desc_endpoint_t                     keyboard_endpoint;
+  struct ATTR_PACKED
+  {
+    tusb_desc_interface_t             itf;
+    tusb_hid_descriptor_hid_t         hid_desc;
+    tusb_desc_endpoint_t              ep_in;
+  } hid_kbd;
 #endif
 
-//------------- HID Mouse -------------//
 #if CFG_TUD_HID_MOUSE
-  tusb_desc_interface_t                    mouse_interface;
-  tusb_hid_descriptor_hid_t                      mouse_hid;
-  tusb_desc_endpoint_t                     mouse_endpoint;
+  struct ATTR_PACKED
+  {
+    tusb_desc_interface_t             itf;
+    tusb_hid_descriptor_hid_t         hid_desc;
+    tusb_desc_endpoint_t              ep_in;
+  } hid_mse;
 #endif
+
+#else
+
+#if CFG_TUD_HID_KEYBOARD || CFG_TUD_HID_MOUSE
+  struct ATTR_PACKED
+  {
+    tusb_desc_interface_t             itf;
+    tusb_hid_descriptor_hid_t         hid_desc;
+    tusb_desc_endpoint_t              ep_in;
+
+    #if CFG_TUD_HID_KEYBOARD
+    tusb_desc_endpoint_t              ep_out;
+    #endif
+  } hid_composite;
+#endif
+
 #endif
 
 } desc_auto_cfg_t;
@@ -338,6 +462,7 @@ desc_auto_cfg_t const _desc_auto_config_struct =
 #endif
 
 #if CFG_TUD_MSC
+    //------------- Mass Storage-------------//
     .msc =
     {
       .itf =
@@ -375,179 +500,137 @@ desc_auto_cfg_t const _desc_auto_config_struct =
     },
 #endif
 
-#if 0
-    //------------- HID Keyboard -------------//
-    #if CFG_TUD_HID_KEYBOARD
-    .keyboard_interface =
+#if CFG_TUD_HID_BOOT_PROTOCOL
+
+#if CFG_TUD_HID_KEYBOARD
+    .hid_kbd =
     {
-        .bLength            = sizeof(tusb_desc_interface_t),
-        .bDescriptorType    = TUSB_DESC_INTERFACE,
-        .bInterfaceNumber   = ITF_NUM_HID_KEYBOARD,
-        .bAlternateSetting  = 0x00,
-        .bNumEndpoints      = 1,
-        .bInterfaceClass    = TUSB_CLASS_HID,
-        .bInterfaceSubClass = HID_SUBCLASS_BOOT,
-        .bInterfaceProtocol = HID_PROTOCOL_KEYBOARD,
-        .iInterface         = ITF_NUM_HID_KEYBOARD + 3,
+        .itf =
+        {
+          .bLength            = sizeof(tusb_desc_interface_t),
+          .bDescriptorType    = TUSB_DESC_INTERFACE,
+          .bInterfaceNumber   = ITF_NUM_HID_KBD,
+          .bAlternateSetting  = 0x00,
+          .bNumEndpoints      = 2,
+          .bInterfaceClass    = TUSB_CLASS_HID,
+          .bInterfaceSubClass = HID_SUBCLASS_BOOT,
+          .bInterfaceProtocol = HID_PROTOCOL_KEYBOARD,
+          .iInterface         = 4 + CFG_TUD_CDC + CFG_TUD_MSC
+        },
+
+        .hid_desc =
+        {
+          .bLength         = sizeof(tusb_hid_descriptor_hid_t),
+          .bDescriptorType = HID_DESC_TYPE_HID,
+          .bcdHID          = 0x0111,
+          .bCountryCode    = HID_Local_NotSupported,
+          .bNumDescriptors = 1,
+          .bReportType     = HID_DESC_TYPE_REPORT,
+          .wReportLength   = sizeof(_desc_auto_hid_kbd_report)
+        },
+
+        .ep_in =
+        {
+          .bLength          = sizeof(tusb_desc_endpoint_t),
+          .bDescriptorType  = TUSB_DESC_ENDPOINT,
+          .bEndpointAddress = EP_HID_KBD,
+          .bmAttributes     = { .xfer = TUSB_XFER_INTERRUPT },
+          .wMaxPacketSize   = { .size = EP_HID_KBD_SIZE },
+          .bInterval        = 0x0A
+        }
+    },
+#endif // keyboard
+
+  //------------- HID Mouse -------------//
+#if CFG_TUD_HID_MOUSE
+    .hid_mse =
+    {
+        .itf =
+        {
+          .bLength            = sizeof(tusb_desc_interface_t),
+          .bDescriptorType    = TUSB_DESC_INTERFACE,
+          .bInterfaceNumber   = ITF_NUM_HID_MSE,
+          .bAlternateSetting  = 0x00,
+          .bNumEndpoints      = 1,
+          .bInterfaceClass    = TUSB_CLASS_HID,
+          .bInterfaceSubClass = HID_SUBCLASS_BOOT,
+          .bInterfaceProtocol = HID_PROTOCOL_MOUSE,
+          .iInterface         = 4 + CFG_TUD_CDC + CFG_TUD_MSC + CFG_TUD_HID_KEYBOARD
+        },
+
+        .hid_desc =
+        {
+          .bLength         = sizeof(tusb_hid_descriptor_hid_t),
+          .bDescriptorType = HID_DESC_TYPE_HID,
+          .bcdHID          = 0x0111,
+          .bCountryCode    = HID_Local_NotSupported,
+          .bNumDescriptors = 1,
+          .bReportType     = HID_DESC_TYPE_REPORT,
+          .wReportLength   = sizeof(_desc_auto_hid_mse_report)
+        },
+
+        .ep_in =
+        {
+          .bLength          = sizeof(tusb_desc_endpoint_t),
+          .bDescriptorType  = TUSB_DESC_ENDPOINT,
+          .bEndpointAddress = EP_HID_MSE,
+          .bmAttributes     = { .xfer = TUSB_XFER_INTERRUPT },
+          .wMaxPacketSize   = { .size = EP_HID_MSE_SIZE },
+          .bInterval        = 0x0A
+        },
     },
 
-    .keyboard_hid =
-    {
-        .bLength           = sizeof(tusb_hid_descriptor_hid_t),
-        .bDescriptorType   = HID_DESC_TYPE_HID,
-        .bcdHID            = 0x0111,
-        .bCountryCode      = HID_Local_NotSupported,
-        .bNumDescriptors   = 1,
-        .bReportType       = HID_DESC_TYPE_REPORT,
-        .wReportLength     = sizeof(desc_keyboard_report)
-    },
+#endif // mouse
 
-    .keyboard_endpoint =
-    {
-        .bLength          = sizeof(tusb_desc_endpoint_t),
-        .bDescriptorType  = TUSB_DESC_ENDPOINT,
-        .bEndpointAddress = EP_HID_KBD,
-        .bmAttributes     = { .xfer = TUSB_XFER_INTERRUPT },
-        .wMaxPacketSize   = { .size = EP_HID_KBD_SZIE },
-        .bInterval        = 0x0A
-    },
-    #endif
+#else
 
-    //------------- HID Mouse -------------//
-    #if CFG_TUD_HID_MOUSE
-    .mouse_interface =
+#if CFG_TUD_HID_KEYBOARD || CFG_TUD_HID_MOUSE
+    //------------- HID Keyboard + Mouse 9multiple reports) -------------//
+    .hid_composite =
     {
-        .bLength            = sizeof(tusb_desc_interface_t),
-        .bDescriptorType    = TUSB_DESC_INTERFACE,
-        .bInterfaceNumber   = ITF_NUM_HID_MOUSE,
-        .bAlternateSetting  = 0x00,
-        .bNumEndpoints      = 1,
-        .bInterfaceClass    = TUSB_CLASS_HID,
-        .bInterfaceSubClass = HID_SUBCLASS_BOOT,
-        .bInterfaceProtocol = HID_PROTOCOL_MOUSE,
-        .iInterface         = ITF_NUM_HID_MOUSE+3
-    },
+        .itf =
+        {
+            .bLength            = sizeof(tusb_desc_interface_t),
+            .bDescriptorType    = TUSB_DESC_INTERFACE,
+            .bInterfaceNumber   = ITF_NUM_HID_KBD,
+            .bAlternateSetting  = 0x00,
+            .bNumEndpoints      = 2,
+            .bInterfaceClass    = TUSB_CLASS_HID,
+            .bInterfaceSubClass = 0,
+            .bInterfaceProtocol = 0,
+            .iInterface         = 4 + CFG_TUD_CDC + CFG_TUD_MSC,
+        },
 
-    .mouse_hid =
-    {
-        .bLength           = sizeof(tusb_hid_descriptor_hid_t),
-        .bDescriptorType   = HID_DESC_TYPE_HID,
-        .bcdHID            = 0x0111,
-        .bCountryCode      = HID_Local_NotSupported,
-        .bNumDescriptors   = 1,
-        .bReportType       = HID_DESC_TYPE_REPORT,
-        .wReportLength     = sizeof(desc_mouse_report)
-    },
+        .hid_desc =
+        {
+            .bLength           = sizeof(tusb_hid_descriptor_hid_t),
+            .bDescriptorType   = HID_DESC_TYPE_HID,
+            .bcdHID            = 0x0111,
+            .bCountryCode      = HID_Local_NotSupported,
+            .bNumDescriptors   = 1,
+            .bReportType       = HID_DESC_TYPE_REPORT,
+            .wReportLength     = sizeof(_desc_auto_hid_composite_report)
+        },
 
-    .mouse_endpoint =
-    {
-        .bLength          = sizeof(tusb_desc_endpoint_t),
-        .bDescriptorType  = TUSB_DESC_ENDPOINT,
-        .bEndpointAddress = EP_HID_MSE, // TODO
-        .bmAttributes     = { .xfer = TUSB_XFER_INTERRUPT },
-        .wMaxPacketSize   = { .size = EP_HID_MSE_SIZE },
-        .bInterval        = 0x0A
-    },
-    #endif
+        .ep_in =
+        {
+            .bLength          = sizeof(tusb_desc_endpoint_t),
+            .bDescriptorType  = TUSB_DESC_ENDPOINT,
+            .bEndpointAddress = EP_HID_COMP,
+            .bmAttributes     = { .xfer = TUSB_XFER_INTERRUPT },
+            .wMaxPacketSize   = { .size = EP_HID_COMP_SIZE },
+            .bInterval        = 0x0A
+        }
+    }
 #endif
+
+#endif // boot protocol
 };
 
 uint8_t const * const _desc_auto_config = (uint8_t const*) &_desc_auto_config_struct;
 
 
-//--------------------------------------------------------------------+
-// Keyboard Report Descriptor
-//--------------------------------------------------------------------+
-#if CFG_TUD_HID_KEYBOARD
-uint8_t const desc_keyboard_report[] = {
-  HID_USAGE_PAGE ( HID_USAGE_PAGE_DESKTOP     ),
-  HID_USAGE      ( HID_USAGE_DESKTOP_KEYBOARD ),
-  HID_COLLECTION ( HID_COLLECTION_APPLICATION ),
-    HID_USAGE_PAGE ( HID_USAGE_PAGE_KEYBOARD ),
-      HID_USAGE_MIN    ( 224                                    ),
-      HID_USAGE_MAX    ( 231                                    ),
-      HID_LOGICAL_MIN  ( 0                                      ),
-      HID_LOGICAL_MAX  ( 1                                      ),
 
-      HID_REPORT_SIZE  ( 1                                      ),
-      HID_REPORT_COUNT ( 8                                      ), /* 8 bits */
-      HID_INPUT        ( HID_DATA | HID_VARIABLE | HID_ABSOLUTE ), /* maskable modifier key */
-
-      HID_REPORT_SIZE  ( 8                                      ),
-      HID_REPORT_COUNT ( 1                                      ),
-      HID_INPUT        ( HID_CONSTANT                           ), /* reserved */
-
-    HID_USAGE_PAGE  ( HID_USAGE_PAGE_LED                   ),
-      HID_USAGE_MIN    ( 1                                       ),
-      HID_USAGE_MAX    ( 5                                       ),
-      HID_REPORT_COUNT ( 5                                       ),
-      HID_REPORT_SIZE  ( 1                                       ),
-      HID_OUTPUT       ( HID_DATA | HID_VARIABLE | HID_ABSOLUTE  ), /* 5-bit Led report */
-
-      HID_REPORT_SIZE  ( 3                                       ), /* led padding */
-      HID_REPORT_COUNT ( 1                                       ),
-      HID_OUTPUT       ( HID_CONSTANT                            ),
-
-    HID_USAGE_PAGE (HID_USAGE_PAGE_KEYBOARD),
-      HID_USAGE_MIN    ( 0                                   ),
-      HID_USAGE_MAX    ( 101                                 ),
-      HID_LOGICAL_MIN  ( 0                                   ),
-      HID_LOGICAL_MAX  ( 101                                 ),
-
-      HID_REPORT_SIZE  ( 8                                   ),
-      HID_REPORT_COUNT ( 6                                   ),
-      HID_INPUT        ( HID_DATA | HID_ARRAY | HID_ABSOLUTE ), /* keycodes array 6 items */
-  HID_COLLECTION_END
-};
-#endif
-
-//--------------------------------------------------------------------+
-// Mouse Report Descriptor
-//--------------------------------------------------------------------+
-#if CFG_TUD_HID_MOUSE
-uint8_t const desc_mouse_report[] = {
-  HID_USAGE_PAGE ( HID_USAGE_PAGE_DESKTOP     ),
-  HID_USAGE      ( HID_USAGE_DESKTOP_MOUSE    ),
-  HID_COLLECTION ( HID_COLLECTION_APPLICATION ),
-    HID_USAGE      (HID_USAGE_DESKTOP_POINTER),
-
-    HID_COLLECTION ( HID_COLLECTION_PHYSICAL ),
-      HID_USAGE_PAGE  ( HID_USAGE_PAGE_BUTTON ),
-        HID_USAGE_MIN    ( 1                                      ),
-        HID_USAGE_MAX    ( 3                                      ),
-        HID_LOGICAL_MIN  ( 0                                      ),
-        HID_LOGICAL_MAX  ( 1                                      ),
-
-        HID_REPORT_SIZE  ( 1                                      ),
-        HID_REPORT_COUNT ( 3                                      ), /* Left, Right and Middle mouse*/
-        HID_INPUT        ( HID_DATA | HID_VARIABLE | HID_ABSOLUTE ),
-
-        HID_REPORT_SIZE  ( 5                                      ),
-        HID_REPORT_COUNT ( 1                                      ),
-        HID_INPUT        ( HID_CONSTANT                           ), /* 5 bit padding followed 3 bit buttons */
-
-      HID_USAGE_PAGE  ( HID_USAGE_PAGE_DESKTOP ),
-        HID_USAGE        ( HID_USAGE_DESKTOP_X                    ),
-        HID_USAGE        ( HID_USAGE_DESKTOP_Y                    ),
-        HID_LOGICAL_MIN  ( 0x81                                   ), /* -127 */
-        HID_LOGICAL_MAX  ( 0x7f                                   ), /* 127  */
-
-        HID_REPORT_SIZE  ( 8                                      ),
-        HID_REPORT_COUNT ( 2                                      ), /* X, Y position */
-        HID_INPUT        ( HID_DATA | HID_VARIABLE | HID_RELATIVE ), /* relative values */
-
-        HID_USAGE       ( HID_USAGE_DESKTOP_WHEEL                ), /* mouse scroll */
-        HID_LOGICAL_MIN ( 0x81                                   ), /* -127 */
-        HID_LOGICAL_MAX ( 0x7f                                   ), /* 127  */
-        HID_REPORT_COUNT( 1                                      ),
-        HID_REPORT_SIZE ( 8                                      ), /* 8-bit value */
-        HID_INPUT       ( HID_DATA | HID_VARIABLE | HID_RELATIVE ), /* relative values */
-
-    HID_COLLECTION_END,
-
-  HID_COLLECTION_END
-};
-#endif
 
 #endif
 

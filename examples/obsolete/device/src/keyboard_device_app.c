@@ -77,21 +77,21 @@ void tud_hid_keyboard_cb(uint8_t rhport, tusb_event_t event, uint32_t xferred_by
   }
 }
 
-uint16_t tud_hid_keyboard_get_report_cb(uint8_t rhport, hid_request_report_type_t report_type, void** pp_report, uint16_t requested_length)
+uint16_t tud_hid_keyboard_get_report_cb(hid_report_type_t report_type, uint8_t* buffer, uint16_t reqlen)
 {
   // get other than input report is not supported by this keyboard demo
-  if ( report_type != HID_REQUEST_REPORT_INPUT ) return 0;
+  if ( report_type != HID_REPORT_TYPE_INPUT ) return 0;
 
-  (*pp_report) = &keyboard_report;
-  return requested_length;
+  memcpy(buffer, &keyboard_report, reqlen);
+  return reqlen;
 }
 
-void tud_hid_keyboard_set_report_cb(uint8_t rhport, hid_request_report_type_t report_type, uint8_t p_report_data[], uint16_t length)
+void tud_hid_keyboard_set_report_cb(hid_report_type_t report_type, uint8_t* buffer, uint16_t reqlen)
 {
   // set other than output report is not supported by this keyboard demo
-  if ( report_type != HID_REQUEST_REPORT_OUTPUT ) return;
+  if ( report_type != HID_REPORT_TYPE_OUTPUT ) return;
 
-  uint8_t kbd_led = p_report_data[0];
+  uint8_t kbd_led = buffer[0];
   uint32_t interval_divider = 1; // each LED will reduce blinking interval by a half
 
   if (kbd_led & KEYBOARD_LED_NUMLOCK   ) interval_divider *= 2;

@@ -77,17 +77,12 @@ void tud_hid_mouse_cb(uint8_t rhport, tusb_event_t event, uint32_t xferred_bytes
   }
 }
 
-uint16_t tud_hid_mouse_get_report_cb(uint8_t rhport, hid_request_report_type_t report_type, void** pp_report, uint16_t requested_length)
+uint16_t tud_hid_mouse_get_report_cb(hid_report_type_t report_type, uint8_t* buffer, uint16_t reqlen)
 {
-  if ( report_type != HID_REQUEST_REPORT_INPUT ) return 0; // not support other report type for this mouse demo
+  if ( report_type != HID_REPORT_TYPE_INPUT ) return 0; // not support other report type for this mouse demo
 
-  (*pp_report) =  &mouse_report;
-  return requested_length;
-}
-
-void tud_hid_mouse_set_report_cb(uint8_t rhport, hid_request_report_type_t report_type, uint8_t report_data[], uint16_t length)
-{
-  // mouse demo does not support set report --> do nothing
+  memcpy(buffer, &mouse_report, reqlen);
+  return reqlen;
 }
 
 //--------------------------------------------------------------------+

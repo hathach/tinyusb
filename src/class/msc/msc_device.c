@@ -38,7 +38,7 @@
 
 #include "tusb_option.h"
 
-#if (MODE_DEVICE_SUPPORTED && CFG_TUD_MSC)
+#if (TUSB_OPT_DEVICE_ENABLED && CFG_TUD_MSC)
 
 //--------------------------------------------------------------------+
 // INCLUDE

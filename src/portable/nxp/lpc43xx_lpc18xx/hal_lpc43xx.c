@@ -136,7 +136,7 @@ void USB0_IRQHandler(void)
     hal_hcd_isr(0);
   #endif
 
-  #if MODE_DEVICE_SUPPORTED
+  #if TUSB_OPT_DEVICE_ENABLED
     hal_dcd_isr(0);
   #endif
 }
@@ -149,7 +149,7 @@ void USB1_IRQHandler(void)
     hal_hcd_isr(1);
   #endif
 
-  #if MODE_DEVICE_SUPPORTED
+  #if TUSB_OPT_DEVICE_ENABLED
     hal_dcd_isr(1);
   #endif
 }

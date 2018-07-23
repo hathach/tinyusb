@@ -57,11 +57,15 @@ uint16_t const * const string_desc_arr [] =
     // 3: Serials TODO use chip ID
     TUD_DESC_STRCONV('1', '2', '3', '4', '5', '6'),
 
+#if CFG_TUD_CDC
     // 4: CDC Interface
     TUD_DESC_STRCONV('t','u','s','b',' ','c','d','c'),
+#endif
 
+#if CFG_TUD_MSC
     // 5: MSC Interface
     TUD_DESC_STRCONV('t','u','s','b',' ','m','s','c'),
+#endif
 };
 
 // tud_desc_set is required by tinyusb stack
@@ -71,5 +75,11 @@ tud_desc_set_t tud_desc_set =
     .device     = NULL,
     .config     = NULL,
     .string_arr = (uint8_t const **) string_desc_arr,
-    .hid_report = NULL
+
+    .hid_report =
+    {
+        .composite     = NULL,
+        .boot_keyboard = NULL,
+        .boot_mouse    = NULL
+    }
 };

@@ -59,10 +59,16 @@
 
 /// \brief Descriptor pointer collector to all the needed.
 typedef struct {
-  uint8_t const * device;     ///< pointer to device descriptor \ref tusb_desc_device_t
+  void const * device;     ///< pointer to device descriptor \ref tusb_desc_device_t
   uint8_t const * config;     ///< pointer to the whole configuration descriptor, starting by \ref tusb_desc_configuration_t
   uint8_t const** string_arr; ///< a array of pointers to string descriptors
-  uint8_t const * hid_report; ///< pointer to HID report descriptor only needed if CFG_TUD_HID_* is enabled
+
+  struct {
+    uint8_t const* composite;
+    uint8_t const* boot_keyboard;
+    uint8_t const* boot_mouse;
+  } hid_report;
+
 }tud_desc_set_t;
 
 

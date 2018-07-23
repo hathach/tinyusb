@@ -38,7 +38,7 @@
 
 #include "tusb_option.h"
 
-#if MODE_DEVICE_SUPPORTED && (CFG_TUSB_MCU == OPT_MCU_LPC175X_6X)
+#if TUSB_OPT_DEVICE_ENABLED && (CFG_TUSB_MCU == OPT_MCU_LPC175X_6X)
 
 #define _TINY_USB_SOURCE_FILE_
 //--------------------------------------------------------------------+
