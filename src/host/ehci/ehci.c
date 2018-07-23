@@ -268,14 +268,14 @@ static tusb_error_t hcd_controller_init(uint8_t hostid)
 static tusb_error_t hcd_controller_stop(uint8_t hostid)
 {
   ehci_registers_t* const regs = get_operational_register(hostid);
-  timeout_timer_t timeout;
+  tu_timeout_t timeout;
 
   regs->usb_cmd_bit.run_stop = 0;
 
-  timeout_set(&timeout, 2); // USB Spec: controller has to stop within 16 uframe = 2 frames
-  while( regs->usb_sts_bit.hc_halted == 0 && !timeout_expired(&timeout)) {}
+  tu_timeout_set(&timeout, 2); // USB Spec: controller has to stop within 16 uframe = 2 frames
+  while( regs->usb_sts_bit.hc_halted == 0 && !tu_timeout_expired(&timeout)) {}
 
-  return timeout_expired(&timeout) ? TUSB_ERROR_OSAL_TIMEOUT : TUSB_ERROR_NONE;
+  return tu_timeout_expired(&timeout) ? TUSB_ERROR_OSAL_TIMEOUT : TUSB_ERROR_NONE;
 }
 
 //--------------------------------------------------------------------+

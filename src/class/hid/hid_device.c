@@ -142,14 +142,14 @@ bool tud_hid_keyboard_send_string(const char* str, uint32_t interval_ms)
     tud_hid_keyboard_send_char(ch);
 
     // Blocking delay
-    timeout_blocking_wait(interval_ms);
+    tu_timeout_wait(interval_ms);
 
     /* Only need to empty report if the next character is NULL or the same with
      * the current one, else no need to send */
     if ( lookahead == ch || lookahead == 0 )
     {
       tud_hid_keyboard_send_report(NULL);
-      timeout_blocking_wait(interval_ms);
+      tu_timeout_wait(interval_ms);
     }
   }
 
@@ -170,7 +170,7 @@ bool tud_hid_mouse_busy(void)
 
 bool tud_hid_mouse_send(hid_mouse_report_t const *p_report)
 {
-  VERIFY( tud_mounted() && !tud_hid_mouse_is_busy() );
+  VERIFY( tud_mounted() && !tud_hid_mouse_busy() );
 
   hidd_interface_t * p_hid = &_mse_itf;
   memcpy(p_hid->report_buf, p_report, sizeof(hid_mouse_report_t));

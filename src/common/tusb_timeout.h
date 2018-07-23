@@ -54,26 +54,26 @@ extern "C" {
 typedef struct {
   uint32_t start;
   uint32_t interval;
-}timeout_timer_t;
+}tu_timeout_t;
 
-static inline void timeout_set(timeout_timer_t* tt, uint32_t msec)
+static inline void tu_timeout_set(tu_timeout_t* tt, uint32_t msec)
 {
   tt->interval = msec;
   tt->start    = tusb_hal_millis();
 }
 
-static inline bool timeout_expired(timeout_timer_t* tt)
+static inline bool tu_timeout_expired(tu_timeout_t* tt)
 {
   return ( tusb_hal_millis() - tt->start ) >= tt->interval;
 }
 
-static inline void timeout_blocking_wait(uint32_t msec)
+static inline void tu_timeout_wait(uint32_t msec)
 {
-  timeout_timer_t tt;
-  timeout_set(&tt, msec);
+  tu_timeout_t tt;
+  tu_timeout_set(&tt, msec);
 
   // blocking delay
-  while ( !timeout_expired(&tt) ) { }
+  while ( !tu_timeout_expired(&tt) ) { }
 }
 
 #ifdef __cplusplus

@@ -72,11 +72,11 @@ static void hal_controller_reset(uint8_t rhport)
 // NXP chip powered with non-host mode --> sts bit is not correctly reflected
   (*p_reg_usbcmd) |= BIT_(1);
 
-//  timeout_timer_t timeout;
-//  timeout_set(&timeout, 2); // should not take longer the time to stop controller
-  while( ((*p_reg_usbcmd) & BIT_(1)) /*&& !timeout_expired(&timeout)*/) {}
+//  tu_timeout_t timeout;
+//  tu_timeout_set(&timeout, 2); // should not take longer the time to stop controller
+  while( ((*p_reg_usbcmd) & BIT_(1)) /*&& !tu_timeout_expired(&timeout)*/) {}
 //
-//  return timeout_expired(&timeout) ? TUSB_ERROR_OSAL_TIMEOUT : TUSB_ERROR_NONE;
+//  return tu_timeout_expired(&timeout) ? TUSB_ERROR_OSAL_TIMEOUT : TUSB_ERROR_NONE;
 }
 
 bool tusb_hal_init(void)
