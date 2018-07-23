@@ -76,6 +76,9 @@ int main(void)
   return 0;
 }
 
+//--------------------------------------------------------------------+
+// USB CDC
+//--------------------------------------------------------------------+
 void virtual_com_task(void)
 {
   // connected and there are data available
@@ -90,6 +93,30 @@ void virtual_com_task(void)
     tud_cdc_write_flush();
   }
 }
+
+//--------------------------------------------------------------------+
+// USB CDC
+//--------------------------------------------------------------------+
+void usb_hid_task(void)
+{
+  if ( tud_mounted() )
+  {
+    if ( !tud_hid_keyboard_busy() )
+    {
+      static bool toggle = false; // send either A or B
+
+      tud_hid_keyboard_send_char( toggle ? 'A' : 'B' );
+      toggle = !toggle;
+    }
+
+    if ( !tud_hid_mouse_busy() )
+    {
+
+    }
+
+  }
+}
+
 
 
 //--------------------------------------------------------------------+

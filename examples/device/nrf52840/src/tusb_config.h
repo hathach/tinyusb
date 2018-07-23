@@ -126,6 +126,13 @@
  */
 #define CFG_TUD_HID_BOOT_PROTOCOL   1
 
+/* Use the HID_ASCII_TO_KEYCODE lookup if CFG_TUD_HID_KEYBOARD is enabled.
+ * This will occupies 256 bytes of ROM. It will also enable the use of 2 extra APIs
+ * - tud_hid_keyboard_send_char()
+ * - tud_hid_keyboard_send_string()
+ */
+#define CFG_TUD_HID_ASCII_TO_KEYCODE_LOOKUP 1
+
 //--------------------------------------------------------------------
 // USB RAM PLACEMENT
 //--------------------------------------------------------------------

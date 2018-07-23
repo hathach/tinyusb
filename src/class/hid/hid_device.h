@@ -63,22 +63,26 @@
  */
 bool tud_hid_keyboard_busy(void);
 
-/** \brief        Submit USB transfer
- * \param[in]		  rhport USB Controller ID
- * \param[in,out] p_report address that is used to store data from device. Must be accessible by usb controller (see \ref CFG_TUSB_ATTR_USBRAM)
- * \returns       \ref tusb_error_t type to indicate success or error condition.
- * \retval        TUSB_ERROR_NONE on success
- * \retval        TUSB_ERROR_INTERFACE_IS_BUSY if the interface is already transferring data with device
- * \retval        TUSB_ERROR_DEVICE_NOT_READY if device is not yet configured (by SET CONFIGURED request)
- * \retval        TUSB_ERROR_INVALID_PARA if input parameters are not correct
- * \note          This function is non-blocking and returns immediately. Data will be transferred when USB Host work with this interface.
- *                The result of usb transfer will be reported by the interface's callback function
+/** \brief        Send a keyboard report
+ * \param[in,out] p_report Report data, if NULL, an empty report (all zeroes) is used
+ * \returns        true on success, false otherwise (not mounted or busy)
  */
-tusb_error_t tud_hid_keyboard_send(hid_keyboard_report_t const *p_report);
+bool tud_hid_keyboard_send_report(hid_keyboard_report_t const *p_report);
 
-//--------------------------------------------------------------------+
-// APPLICATION CALLBACK API
-//--------------------------------------------------------------------+
+bool tud_hid_keyboard_send_keycode(uint8_t modifier, uint8_t keycode[6]);
+
+#if CFG_TUD_HID_ASCII_TO_KEYCODE_LOOKUP
+bool tud_hid_keyboard_send_char(char ch);
+bool tud_hid_keyboard_send_string(const char* str, uint32_t interval_ms);
+
+typedef struct{
+  uint8_t shift;
+  uint8_t keycode;
+}hid_ascii_to_keycode_entry_t;
+extern const hid_ascii_to_keycode_entry_t HID_ASCII_TO_KEYCODE[128];
+#endif
+
+/*------------- Callbacks -------------*/
 
 /** \brief      Callback function that is invoked when USB host request \ref HID_REQUEST_CONTROL_GET_REPORT
  *              via control endpoint.
@@ -120,23 +124,15 @@ ATTR_WEAK void tud_hid_keyboard_set_report_cb(hid_report_type_t report_type, uin
  * \retval      false if the interface is not busy meaning the stack successfully transferred data from/to host
  * \note        This function is primarily used for polling/waiting result after \ref tusbd_hid_mouse_send.
  */
-bool tud_hid_mouse_is_busy(void);
+bool tud_hid_mouse_busy(void);
 
 /** \brief        Perform transfer queuing
  * \param[in,out] p_report address that is used to store data from device. Must be accessible by usb controller (see \ref CFG_TUSB_ATTR_USBRAM)
- * \returns       \ref tusb_error_t type to indicate success or error condition.
- * \retval        TUSB_ERROR_NONE on success
- * \retval        TUSB_ERROR_INTERFACE_IS_BUSY if the interface is already transferring data with device
- * \retval        TUSB_ERROR_DEVICE_NOT_READY if device is not yet configured (by SET CONFIGURED request)
- * \retval        TUSB_ERROR_INVALID_PARA if input parameters are not correct
- * \note          This function is non-blocking and returns immediately. Data will be transferred when USB Host work with this interface.
- *                The result of usb transfer will be reported by the interface's callback function
+ * \returns        true on success, false otherwise (not mounted or busy)
  */
-tusb_error_t tud_hid_mouse_send(hid_mouse_report_t const *p_report);
+bool tud_hid_mouse_send(hid_mouse_report_t const *p_report);
 
-//--------------------------------------------------------------------+
-// APPLICATION CALLBACK API
-//--------------------------------------------------------------------+
+/*------------- Callbacks -------------*/
 
 /** \brief      Callback function that is invoked when USB host request \ref HID_REQUEST_CONTROL_GET_REPORT
  *              via control endpoint.

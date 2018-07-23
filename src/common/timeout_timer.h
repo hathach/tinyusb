@@ -67,6 +67,15 @@ static inline bool timeout_expired(timeout_timer_t* tt)
   return ( tusb_hal_millis() - tt->start ) >= tt->interval;
 }
 
+static inline void timeout_blocking_wait(uint32_t msec)
+{
+  timeout_timer_t tt;
+  timeout_set(&tt, msec);
+
+  // blocking delay
+  while ( !timeout_expired(&tt) ) { }
+}
+
 #ifdef __cplusplus
  }
 #endif
