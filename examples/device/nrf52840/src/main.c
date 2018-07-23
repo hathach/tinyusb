@@ -106,10 +106,29 @@ void usb_hid_task(void)
   {
     if ( !tud_hid_keyboard_busy() )
     {
-      static bool toggle = false; // send either A or B
+      // Poll every 10ms
+      static tu_timeout_t tm = { .start = 0, .interval = 10 };
 
-      tud_hid_keyboard_send_char( toggle ? 'A' : 'B' );
-      toggle = !toggle;
+      if ( !tu_timeout_expired(&tm) ) return; // not enough time
+      tu_timeout_reset(&tm);
+
+      uint32_t bt = board_buttons();
+
+      if ( bt )
+      {
+        uint8_t keycode[6] = { 0 };
+
+        for(uint8_t i=0; i < 6; i++)
+        {
+          if ( bt & (1 << i) ) keycode[i] = HID_KEY_A + i;
+        }
+
+        tud_hid_keyboard_send_keycode(0, keycode);
+      }else
+      {
+        // Null means empty (all zeroes) report
+        tud_hid_keyboard_send_report(NULL);
+      }
     }
 
     if ( !tud_hid_mouse_busy() )
@@ -143,15 +162,11 @@ void tud_cdc_rx_cb(uint8_t itf)
 //--------------------------------------------------------------------+
 void led_blinking_task(void)
 {
-  enum { BLINK_INTEVAL = 1000 };
-
+  static tu_timeout_t tm = { .start = 0, .interval = 1000 }; // Blink every 1000 ms
   static bool led_state = false;
-  static uint32_t last_blink = 0;
 
-  // not enough time
-  if ( last_blink + BLINK_INTEVAL > tusb_hal_millis() ) return;
-
-  last_blink += BLINK_INTEVAL;
+  if ( !tu_timeout_expired(&tm) ) return; // not enough time
+  tu_timeout_reset(&tm);
 
   board_led_control(BOARD_LED0, led_state);
   led_state = 1 - led_state; // toggle

@@ -150,7 +150,6 @@ static inline void board_led_off(uint32_t led_id)
   board_led_control(led_id, false);
 }
 
-
 /** \brief Get the current state of the buttons on the board
  * \return Bitmask where a '1' means active (pressed), a '0' means inactive.
  */
