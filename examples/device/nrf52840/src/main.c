@@ -56,6 +56,7 @@
 void print_greeting(void);
 void led_blinking_task(void);
 void virtual_com_task(void);
+void usb_hid_task(void);
 
 /*------------- MAIN -------------*/
 int main(void)
@@ -71,6 +72,8 @@ int main(void)
 
     led_blinking_task();
     virtual_com_task();
+
+    usb_hid_task();
   }
 
   return 0;

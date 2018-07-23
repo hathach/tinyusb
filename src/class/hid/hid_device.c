@@ -163,7 +163,7 @@ bool tud_hid_keyboard_send_string(const char* str, uint32_t interval_ms)
 // MOUSE APPLICATION API
 //--------------------------------------------------------------------+
 #if CFG_TUD_HID_MOUSE
-bool tud_hid_mouse_is_busy(void)
+bool tud_hid_mouse_busy(void)
 {
   return dcd_edpt_busy(TUD_OPT_RHPORT, _mse_itf.ep_in);
 }
