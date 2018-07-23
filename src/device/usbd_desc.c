@@ -511,7 +511,7 @@ desc_auto_cfg_t const _desc_auto_config_struct =
           .bDescriptorType    = TUSB_DESC_INTERFACE,
           .bInterfaceNumber   = ITF_NUM_HID_KBD,
           .bAlternateSetting  = 0x00,
-          .bNumEndpoints      = 2,
+          .bNumEndpoints      = 1,
           .bInterfaceClass    = TUSB_CLASS_HID,
           .bInterfaceSubClass = HID_SUBCLASS_BOOT,
           .bInterfaceProtocol = HID_PROTOCOL_KEYBOARD,
@@ -628,9 +628,6 @@ desc_auto_cfg_t const _desc_auto_config_struct =
 };
 
 uint8_t const * const _desc_auto_config = (uint8_t const*) &_desc_auto_config_struct;
-
-
-
 
 #endif
 

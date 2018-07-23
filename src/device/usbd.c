@@ -310,6 +310,36 @@ static void usbd_reset(uint8_t rhport)
   {
     if ( usbd_class_drivers[i].reset ) usbd_class_drivers[i].reset( rhport );
   }
+
+#if CFG_TUD_DESC_AUTO
+  extern tusb_desc_device_t const _desc_auto_device;
+  extern uint8_t const * const    _desc_auto_config;
+
+  tud_desc_set.device = &_desc_auto_device;
+  tud_desc_set.config = _desc_auto_config;
+
+#if CFG_TUD_HID_BOOT_PROTOCOL
+
+  #if CFG_TUD_HID_KEYBOARD
+  extern uint8_t const _desc_auto_hid_kbd_report[];
+  tud_desc_set.hid_report.boot_keyboard = _desc_auto_hid_kbd_report;
+  #endif
+
+  #if CFG_TUD_HID_MOUSE && CFG_TUD_HID_BOOT_PROTOCOL
+  extern uint8_t const _desc_auto_hid_mse_report[];
+  tud_desc_set.hid_report.boot_mouse = _desc_auto_hid_kbd_report;
+  #endif
+
+#else
+
+  #if CFG_TUD_HID_KEYBOARD + CFG_TUD_HID_MOUSE
+  tud_desc_set.hid_report.composite = ;
+  #endif
+
+#endif
+
+#endif // CFG_TUD_DESC_AUTO
+
 }
 
 //--------------------------------------------------------------------+
@@ -410,16 +440,9 @@ static tusb_error_t proc_set_config_req(uint8_t rhport, uint8_t config_number)
   _usbd_dev.config_num = config_number;
 
   //------------- parse configuration & open drivers -------------//
-#if CFG_TUD_DESC_AUTO
-  extern uint8_t const * const _desc_auto_config;
-  uint8_t const * desc_cfg = _desc_auto_config;
-#else
   uint8_t const * desc_cfg = tud_desc_set.config;
   TU_ASSERT(desc_cfg != NULL, TUSB_ERROR_DESCRIPTOR_CORRUPTED);
-#endif
-
   uint8_t const * p_desc = desc_cfg + sizeof(tusb_desc_configuration_t);
-
   uint16_t const cfg_len = ((tusb_desc_configuration_t*)desc_cfg)->wTotalLength;
 
   while( p_desc < desc_cfg + cfg_len )
@@ -473,25 +496,15 @@ static uint16_t get_descriptor(uint8_t rhport, tusb_control_request_t const * co
   uint8_t const * desc_data = NULL ;
   uint16_t len = 0;
 
-  tud_desc_set_t descs = tud_desc_set;
-
-#if CFG_TUD_DESC_AUTO
-  extern tusb_desc_device_t const _desc_auto_device;
-  extern uint8_t const * const    _desc_auto_config;
-
-  descs.device = (uint8_t const*) &_desc_auto_device;
-  descs.config = _desc_auto_config;
-#endif
-
   switch(desc_type)
   {
     case TUSB_DESC_DEVICE:
-      desc_data = descs.device;
+      desc_data = tud_desc_set.device;
       len       = sizeof(tusb_desc_device_t);
     break;
 
     case TUSB_DESC_CONFIGURATION:
-      desc_data = descs.config;
+      desc_data = tud_desc_set.config;
       len       = ((tusb_desc_configuration_t const*) desc_data)->wTotalLength;
     break;
 
@@ -499,7 +512,7 @@ static uint16_t get_descriptor(uint8_t rhport, tusb_control_request_t const * co
       // windows sometimes ask for string at index 238 !!!
       if ( !(desc_index < 100) ) return 0;
 
-      desc_data = descs.string_arr[desc_index];
+      desc_data = tud_desc_set.string_arr[desc_index];
       VERIFY( desc_data != NULL, 0 );
 
       len  = desc_data[0];  // first byte of descriptor is its size

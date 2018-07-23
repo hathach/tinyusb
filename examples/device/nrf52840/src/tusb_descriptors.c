@@ -66,6 +66,17 @@ uint16_t const * const string_desc_arr [] =
     // 5: MSC Interface
     TUD_DESC_STRCONV('t','u','s','b',' ','m','s','c'),
 #endif
+
+#if CFG_TUD_HID_KEYBOARD
+    // 6: Keyboard
+    TUD_DESC_STRCONV('t','u','s','b',' ','k','e','y','b','o','a','r','d'),
+#endif
+
+#if CFG_TUD_HID_MOUSE
+    // 7: Mouse
+    TUD_DESC_STRCONV('t','u','s','b',' ','m', 'o','u','s','e'),
+#endif
+
 };
 
 // tud_desc_set is required by tinyusb stack
