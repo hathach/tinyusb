@@ -61,15 +61,13 @@
 //------------- TUSB Option Header -------------//
 #include "tusb_option.h"
 
-//------------- General Header -------------//
+//------------- Common Header -------------//
 #include "tusb_compiler.h"
 #include "tusb_verify.h"
 #include "binary.h"
 #include "tusb_error.h"
-#include "tusb_hal.h"
 #include "tusb_fifo.h"
-
-//------------- TUSB Header -------------//
+#include "tusb_timeout.h"
 #include "tusb_types.h"
 
 //--------------------------------------------------------------------+

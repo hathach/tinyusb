@@ -46,7 +46,6 @@
 #include "common/tusb_common.h"
 #include "tusb_hal.h"
 #include "osal/osal.h"
-#include "common/tusb_timeout.h"
 
 #include "device/dcd.h"
 #include "dcd_lpc43xx.h"

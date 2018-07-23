@@ -45,7 +45,6 @@
 #define _TUSB_TIMEOUT_H_
 
 #include "tusb_compiler.h"
-#include "tusb_hal.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -55,6 +54,8 @@ typedef struct {
   uint32_t start;
   uint32_t interval;
 }tu_timeout_t;
+
+extern uint32_t tusb_hal_millis(void);
 
 static inline void tu_timeout_set(tu_timeout_t* tt, uint32_t msec)
 {
@@ -66,6 +67,18 @@ static inline bool tu_timeout_expired(tu_timeout_t* tt)
 {
   return ( tusb_hal_millis() - tt->start ) >= tt->interval;
 }
+
+// For used with periodic event to prevent drift
+static inline void tu_timeout_reset(tu_timeout_t* tt)
+{
+  tt->start += tt->interval;
+}
+
+static inline void tu_timeout_restart(tu_timeout_t* tt)
+{
+  tt->start = tusb_hal_millis();
+}
+
 
 static inline void tu_timeout_wait(uint32_t msec)
 {

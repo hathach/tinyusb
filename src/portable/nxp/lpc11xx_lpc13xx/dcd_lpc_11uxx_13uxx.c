@@ -51,7 +51,6 @@
 #include "common/tusb_common.h"
 #include "hal/hal.h"
 #include "osal/osal.h"
-#include "common/tusb_timeout.h"
 
 #include "device/dcd.h"
 #include "usbd_dcd.h"
