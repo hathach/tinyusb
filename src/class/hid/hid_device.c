@@ -45,7 +45,7 @@
 // INCLUDE
 //--------------------------------------------------------------------+
 #include "common/tusb_common.h"
-#include "common/timeout_timer.h"
+#include "common/tusb_timeout.h"
 #include "hid_device.h"
 #include "device/usbd_pvt.h"
 

@@ -44,7 +44,7 @@
 //--------------------------------------------------------------------+
 #include "hal/hal.h"
 #include "osal/osal.h"
-#include "common/timeout_timer.h"
+#include "common/tusb_timeout.h"
 
 #include "../hcd.h"
 #include "../usbh_hcd.h"

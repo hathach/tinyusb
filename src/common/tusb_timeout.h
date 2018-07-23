@@ -1,6 +1,6 @@
 /**************************************************************************/
 /*!
-    @file     timeout_timer.h
+    @file     tusb_timeout.h
     @author   hathach (tinyusb.org)
 
     @section LICENSE
@@ -41,8 +41,8 @@
  *  @{ */
 
 
-#ifndef _TUSB_TIMEOUT_TTIMER_H_
-#define _TUSB_TIMEOUT_TTIMER_H_
+#ifndef _TUSB_TIMEOUT_H_
+#define _TUSB_TIMEOUT_H_
 
 #include "tusb_compiler.h"
 #include "tusb_hal.h"
@@ -80,6 +80,6 @@ static inline void timeout_blocking_wait(uint32_t msec)
  }
 #endif
 
-#endif /* _TUSB_TIMEOUT_TTIMER_H_ */
+#endif /* _TUSB_TIMEOUT_H_ */
 
 /** @} */
