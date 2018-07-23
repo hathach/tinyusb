@@ -85,7 +85,9 @@ tud_desc_set_t tud_desc_set =
 {
     .device     = NULL,
     .config     = NULL,
-    .string_arr = (uint8_t const **) string_desc_arr,
+
+    .string_arr   = (uint8_t const **) string_desc_arr,
+    .string_count = sizeof(string_desc_arr)/sizeof(string_desc_arr[0]),
 
     .hid_report =
     {

@@ -315,7 +315,7 @@ static void usbd_reset(uint8_t rhport)
   extern tusb_desc_device_t const _desc_auto_device;
   extern uint8_t const * const    _desc_auto_config;
 
-  tud_desc_set.device = &_desc_auto_device;
+  tud_desc_set.device = (uint8_t const*) &_desc_auto_device;
   tud_desc_set.config = _desc_auto_config;
 
 #if CFG_TUD_HID_BOOT_PROTOCOL
@@ -509,13 +509,17 @@ static uint16_t get_descriptor(uint8_t rhport, tusb_control_request_t const * co
     break;
 
     case TUSB_DESC_STRING:
-      // windows sometimes ask for string at index 238 !!!
-      if ( !(desc_index < 100) ) return 0;
+      if ( desc_index < tud_desc_set.string_count )
+      {
+        desc_data = tud_desc_set.string_arr[desc_index];
+        VERIFY( desc_data != NULL, 0 );
 
-      desc_data = tud_desc_set.string_arr[desc_index];
-      VERIFY( desc_data != NULL, 0 );
-
-      len  = desc_data[0];  // first byte of descriptor is its size
+        len  = desc_data[0];  // first byte of descriptor is its size
+      }else
+      {
+        // out of range
+        return 0;
+      }
     break;
 
     case TUSB_DESC_DEVICE_QUALIFIER:
