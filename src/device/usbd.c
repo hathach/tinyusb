@@ -325,9 +325,9 @@ static void usbd_reset(uint8_t rhport)
   tud_desc_set.hid_report.boot_keyboard = _desc_auto_hid_kbd_report;
   #endif
 
-  #if CFG_TUD_HID_MOUSE && CFG_TUD_HID_BOOT_PROTOCOL
+  #if CFG_TUD_HID_MOUSE
   extern uint8_t const _desc_auto_hid_mse_report[];
-  tud_desc_set.hid_report.boot_mouse = _desc_auto_hid_kbd_report;
+  tud_desc_set.hid_report.boot_mouse = _desc_auto_hid_mse_report;
   #endif
 
 #else
@@ -353,6 +353,8 @@ static tusb_error_t proc_control_request_st(uint8_t rhport, tusb_control_request
   error = TUSB_ERROR_NONE;
 
   //------------- Standard Request e.g in enumeration -------------//
+  /* Microsoft Windows will awkwardly get HID Report Descriptor with
+   * Recipient = Device instead of Interface */
   if( TUSB_REQ_RCPT_DEVICE    == p_request->bmRequestType_bit.recipient &&
       TUSB_REQ_TYPE_STANDARD  == p_request->bmRequestType_bit.type )
   {
@@ -518,6 +520,9 @@ static uint16_t get_descriptor(uint8_t rhport, tusb_control_request_t const * co
       }else
       {
         // out of range
+        /* The 0xee string is indeed a Microsoft USB extension.
+         * It can be used to tell Windows what driver it should use for the device !!!
+         */
         return 0;
       }
     break;

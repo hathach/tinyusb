@@ -118,7 +118,7 @@
 // Keyboard Report Descriptor
 //--------------------------------------------------------------------+
 #if CFG_TUD_HID_KEYBOARD
-uint8_t const _desc_auto_hid_kbd_report[] = {
+ATTR_PACKED uint8_t const _desc_auto_hid_kbd_report[] = {
   HID_USAGE_PAGE ( HID_USAGE_PAGE_DESKTOP     ),
   HID_USAGE      ( HID_USAGE_DESKTOP_KEYBOARD ),
   HID_COLLECTION ( HID_COLLECTION_APPLICATION ),
@@ -170,7 +170,7 @@ uint8_t const _desc_auto_hid_kbd_report[] = {
 // Mouse Report Descriptor
 //--------------------------------------------------------------------+
 #if CFG_TUD_HID_MOUSE
-uint8_t const _desc_auto_hid_mse_report[] = {
+ATTR_PACKED uint8_t const _desc_auto_hid_mse_report[] = {
   HID_USAGE_PAGE ( HID_USAGE_PAGE_DESKTOP     ),
   HID_USAGE      ( HID_USAGE_DESKTOP_MOUSE    ),
   HID_COLLECTION ( HID_COLLECTION_APPLICATION ),
@@ -189,8 +189,8 @@ uint8_t const _desc_auto_hid_mse_report[] = {
         HID_INPUT        ( HID_DATA | HID_VARIABLE | HID_ABSOLUTE ),
 
         // 3 bit padding
-        HID_REPORT_SIZE  ( 3                                      ),
         HID_REPORT_COUNT ( 1                                      ),
+        HID_REPORT_SIZE  ( 3                                      ),
         HID_INPUT        ( HID_CONSTANT                           ),
 
       HID_USAGE_PAGE  ( HID_USAGE_PAGE_DESKTOP ),
@@ -202,18 +202,17 @@ uint8_t const _desc_auto_hid_mse_report[] = {
 
         HID_REPORT_COUNT ( 2                                      ),
         HID_REPORT_SIZE  ( 8                                      ),
-        HID_INPUT        ( HID_DATA | HID_VARIABLE | HID_RELATIVE ), /* relative values */
+        HID_INPUT        ( HID_DATA | HID_VARIABLE | HID_RELATIVE ),
 
         /* mouse scroll */
         HID_USAGE       ( HID_USAGE_DESKTOP_WHEEL                ),
         HID_LOGICAL_MIN ( 0x81                                   ), /* -127 */
         HID_LOGICAL_MAX ( 0x7f                                   ), /* 127  */
         HID_REPORT_COUNT( 1                                      ),
-        HID_REPORT_SIZE ( 8                                      ), /* 8-bit value */
-        HID_INPUT       ( HID_DATA | HID_VARIABLE | HID_RELATIVE ), /* relative values */
+        HID_REPORT_SIZE ( 8                                      ),
+        HID_INPUT       ( HID_DATA | HID_VARIABLE | HID_RELATIVE ),
 
     HID_COLLECTION_END,
-
   HID_COLLECTION_END
 };
 #endif
@@ -595,7 +594,7 @@ desc_auto_cfg_t const _desc_auto_config_struct =
 #else
 
 #if CFG_TUD_HID_KEYBOARD || CFG_TUD_HID_MOUSE
-    //------------- HID Keyboard + Mouse 9multiple reports) -------------//
+    //------------- HID Keyboard + Mouse (multiple reports) -------------//
     .hid_composite =
     {
         .itf =
