@@ -122,10 +122,19 @@ ATTR_WEAK void tud_hid_keyboard_set_report_cb(hid_report_type_t report_type, uin
 bool tud_hid_mouse_ready(void);
 
 bool tud_hid_mouse_data(uint8_t buttons, int8_t x, int8_t y, int8_t scroll, int8_t pan);
-bool tud_hid_mouse_move(int8_t x, int8_t y, int8_t scroll, int8_t pan);
 
-bool tud_hid_mouse_button_press(uint8_t buttons);
-bool tud_hid_mouse_button_release(uint8_t buttons);
+bool tud_hid_mouse_move(int8_t x, int8_t y);
+bool tud_hid_mouse_scroll(int8_t vertical, int8_t horizontal);
+
+static inline bool tud_hid_mouse_button_press(uint8_t buttons)
+{
+  return tud_hid_mouse_data(buttons, 0, 0, 0, 0);
+}
+
+static inline bool tud_hid_mouse_button_release(void)
+{
+  return tud_hid_mouse_data(0, 0, 0, 0, 0);
+}
 
 /*------------- Callbacks -------------*/
 

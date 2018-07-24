@@ -188,6 +188,37 @@ static bool hidd_mouse_report(hid_mouse_report_t const *p_report)
 
   return dcd_edpt_xfer(TUD_OPT_RHPORT, p_hid->ep_in, p_hid->report_buf, sizeof(hid_mouse_report_t));
 }
+
+bool tud_hid_mouse_data(uint8_t buttons, int8_t x, int8_t y, int8_t scroll, int8_t pan)
+{
+  hid_mouse_report_t report =
+  {
+      .buttons = buttons,
+      .x       = x,
+      .y       = y,
+      .wheel   = scroll,
+//      .pan     = pan
+  };
+
+  return hidd_mouse_report( &report );
+}
+
+bool tud_hid_mouse_move(int8_t x, int8_t y)
+{
+  hidd_interface_t * p_hid = &_mse_itf;
+  uint8_t prev_buttons = p_hid->report_buf[0];
+
+  return tud_hid_mouse_data(prev_buttons, x, y, 0, 0);
+}
+
+bool tud_hid_mouse_scroll(int8_t vertical, int8_t horizontal)
+{
+  hidd_interface_t * p_hid = &_mse_itf;
+  uint8_t prev_buttons = p_hid->report_buf[0];
+
+  return tud_hid_mouse_data(prev_buttons, 0, 0, vertical, horizontal);
+}
+
 #endif
 
 static inline hidd_interface_t* get_interface_by_edpt(uint8_t ep_addr)
