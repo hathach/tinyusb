@@ -118,7 +118,7 @@
 // Keyboard Report Descriptor
 //--------------------------------------------------------------------+
 #if CFG_TUD_HID_KEYBOARD
-ATTR_PACKED uint8_t const _desc_auto_hid_kbd_report[] = {
+uint8_t const _desc_auto_hid_kbd_report[] = {
   HID_USAGE_PAGE ( HID_USAGE_PAGE_DESKTOP     ),
   HID_USAGE      ( HID_USAGE_DESKTOP_KEYBOARD ),
   HID_COLLECTION ( HID_COLLECTION_APPLICATION ),
@@ -170,7 +170,7 @@ ATTR_PACKED uint8_t const _desc_auto_hid_kbd_report[] = {
 // Mouse Report Descriptor
 //--------------------------------------------------------------------+
 #if CFG_TUD_HID_MOUSE
-ATTR_PACKED uint8_t const _desc_auto_hid_mse_report[] = {
+uint8_t const _desc_auto_hid_mse_report[] = {
   HID_USAGE_PAGE ( HID_USAGE_PAGE_DESKTOP     ),
   HID_USAGE      ( HID_USAGE_DESKTOP_MOUSE    ),
   HID_COLLECTION ( HID_COLLECTION_APPLICATION ),
@@ -179,18 +179,18 @@ ATTR_PACKED uint8_t const _desc_auto_hid_mse_report[] = {
     HID_COLLECTION ( HID_COLLECTION_PHYSICAL ),
       HID_USAGE_PAGE  ( HID_USAGE_PAGE_BUTTON ),
         HID_USAGE_MIN    ( 1                                      ),
-        HID_USAGE_MAX    ( 5                                      ),
+        HID_USAGE_MAX    ( 3                                      ),
         HID_LOGICAL_MIN  ( 0                                      ),
         HID_LOGICAL_MAX  ( 1                                      ),
 
         // Left, Right, Middle, Backward, Forward mouse buttons
-        HID_REPORT_COUNT ( 5                                      ),
+        HID_REPORT_COUNT ( 3                                      ),
         HID_REPORT_SIZE  ( 1                                      ),
         HID_INPUT        ( HID_DATA | HID_VARIABLE | HID_ABSOLUTE ),
 
         // 3 bit padding
         HID_REPORT_COUNT ( 1                                      ),
-        HID_REPORT_SIZE  ( 3                                      ),
+        HID_REPORT_SIZE  ( 5                                      ),
         HID_INPUT        ( HID_CONSTANT                           ),
 
       HID_USAGE_PAGE  ( HID_USAGE_PAGE_DESKTOP ),

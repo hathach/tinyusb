@@ -353,8 +353,6 @@ static tusb_error_t proc_control_request_st(uint8_t rhport, tusb_control_request
   error = TUSB_ERROR_NONE;
 
   //------------- Standard Request e.g in enumeration -------------//
-  /* Microsoft Windows will awkwardly get HID Report Descriptor with
-   * Recipient = Device instead of Interface */
   if( TUSB_REQ_RCPT_DEVICE    == p_request->bmRequestType_bit.recipient &&
       TUSB_REQ_TYPE_STANDARD  == p_request->bmRequestType_bit.type )
   {
@@ -398,7 +396,7 @@ static tusb_error_t proc_control_request_st(uint8_t rhport, tusb_control_request
   }
 
   //------------- Class/Interface Specific Request -------------//
-  else if ( TUSB_REQ_RCPT_INTERFACE == p_request->bmRequestType_bit.recipient)
+  else if ( TUSB_REQ_RCPT_INTERFACE == p_request->bmRequestType_bit.recipient )
   {
     if (_usbd_dev.itf2drv[ u16_low_u8(p_request->wIndex) ] < USBD_CLASS_DRIVER_COUNT)
     {
