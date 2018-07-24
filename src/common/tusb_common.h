@@ -137,23 +137,15 @@
 #define memclr_(buffer, size)  memset((buffer), 0, (size))
 #define varclr_(_var)          memclr_(_var, sizeof(*(_var)))
 #define arrclr_(_arr)          memclr_(_arr, sizeof(_arr))
-
 #define arrcount_(_arr)       ( sizeof(_arr) / sizeof(_arr[0]) )
 
-static inline uint8_t const * descriptor_next(uint8_t const p_desc[])
+static inline bool mem_all_zero(void const* buffer, uint32_t size)
 {
-  return p_desc + p_desc[DESC_OFFSET_LEN];
+  uint8_t const* p_mem = (uint8_t const*) buffer;
+  for(uint32_t i=0; i<size; i++) if (p_mem[i] != 0)  return false;
+  return true;
 }
 
-static inline uint8_t descriptor_type(uint8_t const p_desc[])
-{
-  return p_desc[DESC_OFFSET_TYPE];
-}
-
-static inline uint8_t descriptor_len(uint8_t const p_desc[])
-{
-  return p_desc[DESC_OFFSET_LEN];
-}
 
 //------------- Conversion -------------//
 /// form an uint32_t from 4 x uint8_t

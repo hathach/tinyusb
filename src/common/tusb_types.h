@@ -377,6 +377,10 @@ static inline uint8_t bm_request_type(uint8_t direction, uint8_t type, uint8_t r
   return ((uint8_t) (direction << 7)) | ((uint8_t) (type << 5)) | (recipient);
 }
 
+//--------------------------------------------------------------------+
+// Endpoint helper
+//--------------------------------------------------------------------+
+
 // Get direction from Endpoint address
 static inline tusb_dir_t edpt_dir(uint8_t addr)
 {
@@ -392,6 +396,24 @@ static inline uint8_t edpt_number(uint8_t addr)
 static inline uint8_t edpt_addr(uint8_t num, tusb_dir_t dir)
 {
   return num | (dir == TUSB_DIR_IN ? TUSB_DIR_IN_MASK : 0);
+}
+
+//--------------------------------------------------------------------+
+// Descriptor helper
+//--------------------------------------------------------------------+
+static inline uint8_t const * descriptor_next(uint8_t const p_desc[])
+{
+  return p_desc + p_desc[DESC_OFFSET_LEN];
+}
+
+static inline uint8_t descriptor_type(uint8_t const p_desc[])
+{
+  return p_desc[DESC_OFFSET_TYPE];
+}
+
+static inline uint8_t descriptor_len(uint8_t const p_desc[])
+{
+  return p_desc[DESC_OFFSET_LEN];
 }
 
 
