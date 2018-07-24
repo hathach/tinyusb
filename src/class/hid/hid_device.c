@@ -91,7 +91,7 @@ bool tud_hid_keyboard_busy(void)
   return dcd_edpt_busy(TUD_OPT_RHPORT, _kbd_itf.ep_in);
 }
 
-bool tud_hid_keyboard_send_report(hid_keyboard_report_t const *p_report)
+bool tud_hid_keyboard_report(hid_keyboard_report_t const *p_report)
 {
   VERIFY( tud_mounted() && !tud_hid_keyboard_busy() );
 
@@ -109,17 +109,17 @@ bool tud_hid_keyboard_send_report(hid_keyboard_report_t const *p_report)
   return dcd_edpt_xfer(TUD_OPT_RHPORT, p_hid->ep_in, p_hid->report_buf, sizeof(hid_keyboard_report_t));
 }
 
-bool tud_hid_keyboard_send_keycode(uint8_t modifier, uint8_t keycode[6])
+bool tud_hid_keyboard_keycode(uint8_t modifier, uint8_t keycode[6])
 {
   hid_keyboard_report_t report = { .modifier = modifier };
   memcpy(report.keycode, keycode, 6);
 
-  return tud_hid_keyboard_send_report(&report);
+  return tud_hid_keyboard_report(&report);
 }
 
 #if CFG_TUD_HID_ASCII_TO_KEYCODE_LOOKUP
 
-bool tud_hid_keyboard_send_char(char ch)
+bool tud_hid_keyboard_key_press(char ch)
 {
   hid_keyboard_report_t report;
   varclr_(&report);
@@ -127,10 +127,15 @@ bool tud_hid_keyboard_send_char(char ch)
   report.modifier   = ( HID_ASCII_TO_KEYCODE[(uint8_t)ch].shift ) ? KEYBOARD_MODIFIER_LEFTSHIFT : 0;
   report.keycode[0] = HID_ASCII_TO_KEYCODE[(uint8_t)ch].keycode;
 
-  return tud_hid_keyboard_send_report(&report);
+  return tud_hid_keyboard_report(&report);
 }
 
-bool tud_hid_keyboard_send_string(const char* str, uint32_t interval_ms)
+bool tud_hid_keyboard_key_release(void)
+{
+  return tud_hid_keyboard_report(NULL);
+}
+
+bool tud_hid_keyboard_key_sequence(const char* str, uint32_t interval_ms)
 {
   // Send each key in string
   char ch;
@@ -138,7 +143,7 @@ bool tud_hid_keyboard_send_string(const char* str, uint32_t interval_ms)
   {
     char lookahead = *str;
 
-    tud_hid_keyboard_send_char(ch);
+    tud_hid_keyboard_key_press(ch);
 
     // Blocking delay
     tu_timeout_wait(interval_ms);
@@ -147,7 +152,7 @@ bool tud_hid_keyboard_send_string(const char* str, uint32_t interval_ms)
      * the current one, else no need to send */
     if ( lookahead == ch || lookahead == 0 )
     {
-      tud_hid_keyboard_send_report(NULL);
+      tud_hid_keyboard_report(NULL);
       tu_timeout_wait(interval_ms);
     }
   }

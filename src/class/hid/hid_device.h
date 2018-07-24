@@ -67,13 +67,13 @@ bool tud_hid_keyboard_busy(void);
  * \param[in,out] p_report Report data, if NULL, an empty report (all zeroes) is used
  * \returns       true on success, false otherwise (not mounted or busy)
  */
-bool tud_hid_keyboard_send_report(hid_keyboard_report_t const *p_report);
-
-bool tud_hid_keyboard_send_keycode(uint8_t modifier, uint8_t keycode[6]);
+bool tud_hid_keyboard_report(hid_keyboard_report_t const *p_report);
+bool tud_hid_keyboard_keycode(uint8_t modifier, uint8_t keycode[6]);
 
 #if CFG_TUD_HID_ASCII_TO_KEYCODE_LOOKUP
-bool tud_hid_keyboard_send_char(char ch);
-bool tud_hid_keyboard_send_string(const char* str, uint32_t interval_ms);
+bool tud_hid_keyboard_key_press(char ch);
+bool tud_hid_keyboard_key_release(void);
+bool tud_hid_keyboard_key_sequence(const char* str, uint32_t interval_ms);
 
 typedef struct{
   uint8_t shift;
