@@ -132,7 +132,7 @@ void usb_hid_task(void)
 
 
   /*------------- Mouse -------------*/
-  //    if ( !tud_hid_mouse_busy() )
+  //    if ( tud_hid_mouse_ready() )
   //    {
   //      // Poll every 10ms
   //      static tu_timeout_t tm = { .start = 0, .interval = 10 };

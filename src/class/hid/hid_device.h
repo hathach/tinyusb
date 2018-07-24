@@ -119,15 +119,9 @@ ATTR_WEAK void tud_hid_keyboard_set_report_cb(hid_report_type_t report_type, uin
  * \retval      false if the interface is not busy meaning the stack successfully transferred data from/to host
  * \note        This function is primarily used for polling/waiting result after \ref tusbd_hid_mouse_send.
  */
-bool tud_hid_mouse_busy(void);
+bool tud_hid_mouse_ready(void);
 
-/** \brief        Perform transfer queuing
- * \param[in,out] p_report Report data, if NULL, an empty report (all zeroes) is used
- * \returns       true on success, false otherwise (not mounted or busy)
- */
-bool tud_hid_mouse_report(hid_mouse_report_t const *p_report);
 bool tud_hid_mouse_data(uint8_t buttons, int8_t x, int8_t y, int8_t scroll, int8_t pan);
-
 bool tud_hid_mouse_move(int8_t x, int8_t y, int8_t scroll, int8_t pan);
 
 bool tud_hid_mouse_button_press(uint8_t buttons);

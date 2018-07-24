@@ -173,14 +173,15 @@ bool tud_hid_keyboard_key_sequence(const char* str, uint32_t interval_ms)
 // MOUSE APPLICATION API
 //--------------------------------------------------------------------+
 #if CFG_TUD_HID_MOUSE
-bool tud_hid_mouse_busy(void)
+bool tud_hid_mouse_ready(void)
 {
-  return dcd_edpt_busy(TUD_OPT_RHPORT, _mse_itf.ep_in);
+  VERIFY( _mse_itf.ep_in != 0 );
+  return !dcd_edpt_busy(TUD_OPT_RHPORT, _mse_itf.ep_in);
 }
 
-bool tud_hid_mouse_report(hid_mouse_report_t const *p_report)
+static bool hidd_mouse_report(hid_mouse_report_t const *p_report)
 {
-  VERIFY( tud_mounted() && !tud_hid_mouse_busy() );
+  VERIFY( tud_hid_mouse_ready() );
 
   hidd_interface_t * p_hid = &_mse_itf;
   memcpy(p_hid->report_buf, p_report, sizeof(hid_mouse_report_t));
