@@ -86,14 +86,15 @@ CFG_TUSB_ATTR_USBRAM static hidd_interface_t _composite_itf;
 // KEYBOARD APPLICATION API
 //--------------------------------------------------------------------+
 #if CFG_TUD_HID_KEYBOARD
-bool tud_hid_keyboard_busy(void)
+bool tud_hid_keyboard_ready(void)
 {
-  return dcd_edpt_busy(TUD_OPT_RHPORT, _kbd_itf.ep_in);
+  VERIFY( _kbd_itf.ep_in != 0 );
+  return !dcd_edpt_busy(TUD_OPT_RHPORT, _kbd_itf.ep_in);
 }
 
-bool tud_hid_keyboard_report(hid_keyboard_report_t const *p_report)
+static bool hidd_kbd_report(hid_keyboard_report_t const *p_report)
 {
-  VERIFY( tud_mounted() && !tud_hid_keyboard_busy() );
+  VERIFY( tud_hid_keyboard_ready() );
 
   hidd_interface_t * p_hid = &_kbd_itf;
 
@@ -102,7 +103,10 @@ bool tud_hid_keyboard_report(hid_keyboard_report_t const *p_report)
     memcpy(p_hid->report_buf, p_report, sizeof(hid_keyboard_report_t));
   }else
   {
-    // empty report
+    // only send empty report if previous report is not empty
+    // TODO idle rate
+    if ( mem_all_zero(p_hid->report_buf, sizeof(hid_keyboard_report_t)) ) return true;
+
     arrclr_(p_hid->report_buf);
   }
 
@@ -112,27 +116,29 @@ bool tud_hid_keyboard_report(hid_keyboard_report_t const *p_report)
 bool tud_hid_keyboard_keycode(uint8_t modifier, uint8_t keycode[6])
 {
   hid_keyboard_report_t report = { .modifier = modifier };
-  memcpy(report.keycode, keycode, 6);
 
-  return tud_hid_keyboard_report(&report);
+  if ( keycode )
+  {
+    memcpy(report.keycode, keycode, 6);
+  }else
+  {
+    memclr_(report.keycode, 6);
+  }
+
+  return hidd_kbd_report(&report);
 }
 
 #if CFG_TUD_HID_ASCII_TO_KEYCODE_LOOKUP
 
 bool tud_hid_keyboard_key_press(char ch)
 {
-  hid_keyboard_report_t report;
-  varclr_(&report);
+  uint8_t keycode[6] = { 0 };
+  uint8_t modifier   = 0;
 
-  report.modifier   = ( HID_ASCII_TO_KEYCODE[(uint8_t)ch].shift ) ? KEYBOARD_MODIFIER_LEFTSHIFT : 0;
-  report.keycode[0] = HID_ASCII_TO_KEYCODE[(uint8_t)ch].keycode;
+  if ( HID_ASCII_TO_KEYCODE[(uint8_t)ch].shift ) modifier = KEYBOARD_MODIFIER_LEFTSHIFT;
+  keycode[0] = HID_ASCII_TO_KEYCODE[(uint8_t)ch].keycode;
 
-  return tud_hid_keyboard_report(&report);
-}
-
-bool tud_hid_keyboard_key_release(void)
-{
-  return tud_hid_keyboard_report(NULL);
+  return tud_hid_keyboard_keycode(modifier, keycode);
 }
 
 bool tud_hid_keyboard_key_sequence(const char* str, uint32_t interval_ms)
@@ -152,7 +158,7 @@ bool tud_hid_keyboard_key_sequence(const char* str, uint32_t interval_ms)
      * the current one, else no need to send */
     if ( lookahead == ch || lookahead == 0 )
     {
-      tud_hid_keyboard_report(NULL);
+      tud_hid_keyboard_key_release();
       tu_timeout_wait(interval_ms);
     }
   }

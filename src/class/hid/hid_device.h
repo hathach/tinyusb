@@ -56,23 +56,18 @@
 /** \defgroup Keyboard_Device Device
  *  @{ */
 
-/** \brief      Check if the interface is currently busy or not
- * \retval      true if the interface is busy meaning the stack is still transferring/waiting data from/to host
- * \retval      false if the interface is not busy meaning the stack successfully transferred data from/to host
- * \note        This function is primarily used for polling/waiting result after \ref tusbd_hid_keyboard_send.
+/** Check if the interface is ready to use
+ * \returns true if ready, otherwise interface may not be mounted or still busy transferring data
+ * \note    Application must not perform any action if the interface is not ready
  */
-bool tud_hid_keyboard_busy(void);
+bool tud_hid_keyboard_ready(void);
 
-/** \brief        Send a keyboard report
- * \param[in,out] p_report Report data, if NULL, an empty report (all zeroes) is used
- * \returns       true on success, false otherwise (not mounted or busy)
- */
-bool tud_hid_keyboard_report(hid_keyboard_report_t const *p_report);
 bool tud_hid_keyboard_keycode(uint8_t modifier, uint8_t keycode[6]);
+
+static inline bool tud_hid_keyboard_key_release(void) { return tud_hid_keyboard_keycode(0, NULL); }
 
 #if CFG_TUD_HID_ASCII_TO_KEYCODE_LOOKUP
 bool tud_hid_keyboard_key_press(char ch);
-bool tud_hid_keyboard_key_release(void);
 bool tud_hid_keyboard_key_sequence(const char* str, uint32_t interval_ms);
 
 typedef struct{
@@ -131,6 +126,12 @@ bool tud_hid_mouse_busy(void);
  * \returns       true on success, false otherwise (not mounted or busy)
  */
 bool tud_hid_mouse_report(hid_mouse_report_t const *p_report);
+bool tud_hid_mouse_data(uint8_t buttons, int8_t x, int8_t y, int8_t scroll, int8_t pan);
+
+bool tud_hid_mouse_move(int8_t x, int8_t y, int8_t scroll, int8_t pan);
+
+bool tud_hid_mouse_button_press(uint8_t buttons);
+bool tud_hid_mouse_button_release(uint8_t buttons);
 
 /*------------- Callbacks -------------*/
 

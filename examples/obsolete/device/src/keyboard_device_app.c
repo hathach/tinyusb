@@ -128,7 +128,7 @@ tusb_error_t keyboard_device_subtask(void)
 
   osal_task_delay(50);
 
-  if ( tud_mounted() && !tud_hid_keyboard_busy(0) )
+  if ( tud_mounted() && tud_hid_keyboard_ready(0) )
   {
     static uint32_t button_mask = 0;
     uint32_t new_button_mask = board_buttons();
