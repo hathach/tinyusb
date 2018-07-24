@@ -130,7 +130,7 @@ bool tud_hid_mouse_busy(void);
  * \param[in,out] p_report Report data, if NULL, an empty report (all zeroes) is used
  * \returns       true on success, false otherwise (not mounted or busy)
  */
-bool tud_hid_mouse_send_report(hid_mouse_report_t const *p_report);
+bool tud_hid_mouse_report(hid_mouse_report_t const *p_report);
 
 /*------------- Callbacks -------------*/
 

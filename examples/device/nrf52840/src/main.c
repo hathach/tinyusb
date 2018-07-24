@@ -142,7 +142,7 @@ void usb_hid_task(void)
       if ( btn )
       {
         hid_mouse_report_t report = { .buttons = 0, .x = 10, .y = 0, .wheel = 0 };
-        tud_hid_mouse_send_report(&report);
+        tud_hid_mouse_report(&report);
       }
     }
 

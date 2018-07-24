@@ -172,7 +172,7 @@ bool tud_hid_mouse_busy(void)
   return dcd_edpt_busy(TUD_OPT_RHPORT, _mse_itf.ep_in);
 }
 
-bool tud_hid_mouse_send_report(hid_mouse_report_t const *p_report)
+bool tud_hid_mouse_report(hid_mouse_report_t const *p_report)
 {
   VERIFY( tud_mounted() && !tud_hid_mouse_busy() );
 
