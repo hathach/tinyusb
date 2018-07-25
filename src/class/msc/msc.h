@@ -237,25 +237,25 @@ VERIFY_STATIC(sizeof(scsi_inquiry_data_t) == 36, "size is not correct");
 
 typedef struct ATTR_PACKED
 {
-  uint8_t response_code           : 7; ///< 70h - current errors, Fixed Format 71h - deferred errors, Fixed Format
-  uint8_t valid                   : 1;
+  uint8_t response_code : 7; ///< 70h - current errors, Fixed Format 71h - deferred errors, Fixed Format
+  uint8_t valid         : 1;
 
-  uint8_t reserved; ///< Obsolete
+  uint8_t TU_RESERVED;
 
-  uint8_t sense_key               : 4;
-  uint8_t                         : 1;
-  uint8_t incorrect_len_idicatior : 1;
-  uint8_t end_of_medium           : 1;
-  uint8_t filemark                : 1;
+  uint8_t sense_key     : 4;
+  uint8_t               : 1;
+  uint8_t ili           : 1; ///< Incorrect length indicator
+  uint8_t end_of_medium : 1;
+  uint8_t filemark      : 1;
 
   uint32_t information;
-  uint8_t  additional_sense_len;
+  uint8_t  add_sense_len;
   uint32_t command_specific_info;
-  uint8_t additional_sense_code;
-  uint8_t additional_sense_qualifier;
-  uint8_t field_replaceable_unit_code;
+  uint8_t  add_sense_code;
+  uint8_t  add_sense_qualifier;
+  uint8_t  field_replaceable_unit_code;
 
-  uint8_t sense_key_specific[3]; ///< sense key specific valid bit is bit 7 of key[0], aka MSB in Big Endian layout
+  uint8_t  sense_key_specific[3]; ///< sense key specific valid bit is bit 7 of key[0], aka MSB in Big Endian layout
 
 } scsi_sense_fixed_data_t;
 

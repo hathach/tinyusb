@@ -67,7 +67,7 @@ static scsi_sense_fixed_data_t mscd_sense_data =
 {
     .response_code        = 0x70,
     .sense_key            = 0, // no errors
-    .additional_sense_len = sizeof(scsi_sense_fixed_data_t) - 8
+    .add_sense_len = sizeof(scsi_sense_fixed_data_t) - 8
 };
 
 static scsi_read_format_capacity_data_t const mscd_format_capacity_data =
@@ -169,8 +169,8 @@ int32_t tud_msc_scsi_cb (uint8_t lun, uint8_t const scsi_cmd[16], void* buffer, 
   if ( SCSI_CMD_REQUEST_SENSE != scsi_cmd[0] )
   {
     mscd_sense_data.sense_key                  = SCSI_SENSEKEY_NONE;
-    mscd_sense_data.additional_sense_code      = 0;
-    mscd_sense_data.additional_sense_qualifier = 0;
+    mscd_sense_data.add_sense_code      = 0;
+    mscd_sense_data.add_sense_qualifier = 0;
   }
 
   return len;
