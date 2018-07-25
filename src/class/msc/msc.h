@@ -240,7 +240,7 @@ typedef struct ATTR_PACKED
   uint8_t response_code : 7; ///< 70h - current errors, Fixed Format 71h - deferred errors, Fixed Format
   uint8_t valid         : 1;
 
-  uint8_t TU_RESERVED;
+  uint8_t reserved;
 
   uint8_t sense_key     : 4;
   uint8_t               : 1;

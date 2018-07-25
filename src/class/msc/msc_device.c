@@ -72,9 +72,15 @@ typedef struct {
   uint8_t  ep_in;
   uint8_t  ep_out;
 
+  // Bulk Only Transfer (BOT) Protocol
   uint8_t  stage;
   uint32_t data_len;
   uint32_t xferred_len; // numbered of bytes transferred so far in the Data Stage
+
+  // Sense Response Data
+  uint8_t sense_key;
+  uint8_t add_sense_code;
+  uint8_t add_sense_qualifier;
 }mscd_interface_t;
 
 CFG_TUSB_ATTR_USBRAM CFG_TUSB_MEM_ALIGN static mscd_interface_t _mscd_itf;
@@ -173,6 +179,91 @@ tusb_error_t mscd_control_request_st(uint8_t rhport, tusb_control_request_t cons
   OSAL_SUBTASK_END
 }
 
+// return length of response (copied to buffer), -1 if it is not an built-in commands
+int32_t proc_builtin_scsi(msc_cbw_t const * p_cbw, uint8_t* buffer, uint32_t bufsize)
+{
+  int32_t ret;
+
+  switch ( p_cbw->command[0] )
+  {
+    case SCSI_CMD_READ_CAPACITY_10:
+    {
+      scsi_read_capacity10_data_t read_capa10 =
+      {
+          .last_lba   = ENDIAN_BE(CFG_TUD_MSC_BLOCK_NUM-1), // read capacity
+          .block_size = ENDIAN_BE(CFG_TUD_MSC_BLOCK_SZ)
+      };
+
+      ret = sizeof(read_capa10);
+      memcpy(buffer, &read_capa10, ret);
+    }
+    break;
+
+    case SCSI_CMD_READ_FORMAT_CAPACITY:
+    {
+      scsi_read_format_capacity_data_t read_fmt_capa =
+      {
+          .list_length     = 8,
+          .block_num       = ENDIAN_BE(CFG_TUD_MSC_BLOCK_NUM),  // write capacity
+          .descriptor_type = 2,                                 // formatted media
+          .block_size_u16  = ENDIAN_BE16(CFG_TUD_MSC_BLOCK_SZ)
+      };
+
+      ret = sizeof(read_fmt_capa);
+      memcpy(buffer, &read_fmt_capa, ret);
+    }
+    break;
+
+    case SCSI_CMD_INQUIRY:
+    {
+      scsi_inquiry_data_t inquiry_rsp =
+      {
+          .is_removable         = 1,
+          .version              = 2,
+          .response_data_format = 2,
+          .vendor_id            = "Adafruit",
+          .product_id           = "Feather52840",
+          .product_rev          = "1.0"
+      };
+
+      strncpy((char*) inquiry_rsp.vendor_id  , CFG_TUD_MSC_VENDOR     , sizeof(inquiry_rsp.vendor_id));
+      strncpy((char*) inquiry_rsp.product_id , CFG_TUD_MSC_PRODUCT    , sizeof(inquiry_rsp.product_id));
+      strncpy((char*) inquiry_rsp.product_rev, CFG_TUD_MSC_PRODUCT_REV, sizeof(inquiry_rsp.product_rev));
+
+      ret = sizeof(inquiry_rsp);
+      memcpy(buffer, &inquiry_rsp, ret);
+    }
+    break;
+
+    case SCSI_CMD_REQUEST_SENSE:
+    {
+      scsi_sense_fixed_data_t sense_rsp =
+      {
+          .response_code = 0x70,
+          .valid         = 1
+      };
+
+      sense_rsp.add_sense_len = sizeof(scsi_sense_fixed_data_t) - 8;
+
+      ret = sizeof(sense_rsp);
+      memcpy(buffer, &sense_rsp, ret);
+    }
+    break;
+
+    default: ret = -1; break;
+  }
+
+  //------------- clear sense data if it is not request sense command -------------//
+//  if ( SCSI_CMD_REQUEST_SENSE != p_cbw->command[0])
+//  {
+//    sense_rsp.sense_key           = SCSI_SENSEKEY_NONE;
+//    sense_rsp.add_sense_code      = 0;
+//    sense_rsp.add_sense_qualifier = 0;
+//  }
+
+  return ret;
+}
+
 tusb_error_t mscd_xfer_cb(uint8_t rhport, uint8_t ep_addr, tusb_event_t event, uint32_t xferred_bytes)
 {
   mscd_interface_t* p_msc = &_mscd_itf;
@@ -232,51 +323,11 @@ tusb_error_t mscd_xfer_cb(uint8_t rhport, uint8_t ep_addr, tusb_event_t event, u
           // IN Transfer
           int32_t cb_result;
 
-          // TODO refactor later
-          if (SCSI_CMD_READ_CAPACITY_10 == p_cbw->command[0])
-          {
-            scsi_read_capacity10_data_t read_capa10 =
-            {
-                .last_lba   = ENDIAN_BE(CFG_TUD_MSC_BLOCK_NUM-1), // read capacity
-                .block_size = ENDIAN_BE(CFG_TUD_MSC_BLOCK_SZ)
-            };
+          // first process if it is a built-in commands
+          cb_result = proc_builtin_scsi(p_cbw, _mscd_buf, sizeof(_mscd_buf));
 
-            cb_result = sizeof(read_capa10);
-            memcpy(_mscd_buf, &read_capa10, cb_result);
-          }
-          else if (SCSI_CMD_READ_FORMAT_CAPACITY == p_cbw->command[0])
-          {
-            scsi_read_format_capacity_data_t read_fmt_capa =
-            {
-                .list_length     = 8,
-                .block_num       = ENDIAN_BE(CFG_TUD_MSC_BLOCK_NUM),  // write capacity
-                .descriptor_type = 2,                                 // formatted media
-                .block_size_u16  = ENDIAN_BE16(CFG_TUD_MSC_BLOCK_SZ)
-            };
-
-            cb_result = sizeof(read_fmt_capa);
-            memcpy(_mscd_buf, &read_fmt_capa, cb_result);
-          }
-          else if (SCSI_CMD_INQUIRY == p_cbw->command[0])
-          {
-            scsi_inquiry_data_t inquiry_rsp =
-            {
-                .is_removable         = 1,
-                .version              = 2,
-                .response_data_format = 2,
-                .vendor_id            = "Adafruit",
-                .product_id           = "Feather52840",
-                .product_rev          = "1.0"
-            };
-
-            strncpy((char*) inquiry_rsp.vendor_id  , CFG_TUD_MSC_VENDOR     , sizeof(inquiry_rsp.vendor_id));
-            strncpy((char*) inquiry_rsp.product_id , CFG_TUD_MSC_PRODUCT    , sizeof(inquiry_rsp.product_id));
-            strncpy((char*) inquiry_rsp.product_rev, CFG_TUD_MSC_PRODUCT_REV, sizeof(inquiry_rsp.product_rev));
-
-            cb_result = sizeof(inquiry_rsp);
-            memcpy(_mscd_buf, &inquiry_rsp, cb_result);
-          }
-          else
+          // Not an built-in command, invoke user callback
+          if ( cb_result < 0 )
           {
             cb_result = tud_msc_scsi_cb(p_cbw->lun, p_cbw->command, _mscd_buf, p_msc->data_len);
           }

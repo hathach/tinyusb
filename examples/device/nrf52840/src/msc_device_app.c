@@ -46,15 +46,6 @@
 //--------------------------------------------------------------------+
 // MACRO CONSTANT TYPEDEF
 //--------------------------------------------------------------------+
-scsi_sense_fixed_data_t mscd_sense_data =
-{
-    .response_code        = 0x70,
-    .valid                = 1,
-
-    .sense_key            = 0, // no errors
-    .add_sense_len = sizeof(scsi_sense_fixed_data_t) - 8
-};
-
 static scsi_mode_parameters_t const msc_dev_mode_para =
 {
     .mode_data_length        = 3,
@@ -88,11 +79,6 @@ int32_t tud_msc_scsi_cb (uint8_t lun, uint8_t const scsi_cmd[16], void* buffer, 
 
   switch (scsi_cmd[0])
   {
-    case SCSI_CMD_REQUEST_SENSE:
-      ptr = &mscd_sense_data;
-      len = sizeof(scsi_sense_fixed_data_t);
-    break;
-
     case SCSI_CMD_MODE_SENSE_6:
       ptr = &msc_dev_mode_para;
       len = sizeof(msc_dev_mode_para);
@@ -131,14 +117,6 @@ int32_t tud_msc_scsi_cb (uint8_t lun, uint8_t const scsi_cmd[16], void* buffer, 
     {
       // SCSI output
     }
-  }
-
-  //------------- clear sense data if it is not request sense command -------------//
-  if ( SCSI_CMD_REQUEST_SENSE != scsi_cmd[0] )
-  {
-    mscd_sense_data.sense_key                  = SCSI_SENSEKEY_NONE;
-    mscd_sense_data.add_sense_code      = 0;
-    mscd_sense_data.add_sense_qualifier = 0;
   }
 
   return len;
