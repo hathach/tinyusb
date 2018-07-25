@@ -102,50 +102,42 @@ void virtual_com_task(void)
 //--------------------------------------------------------------------+
 void usb_hid_task(void)
 {
+  // Poll every 10ms
+  static tu_timeout_t tm = { .start = 0, .interval = 10 };
+
+  if ( !tu_timeout_expired(&tm) ) return; // not enough time
+  tu_timeout_reset(&tm);
+
+  uint32_t const btn = board_buttons();
+
   /*------------- Keyboard -------------*/
-//  if ( tud_hid_keyboard_ready() )
-//  {
-//    // Poll every 10ms
-//    static tu_timeout_t tm = { .start = 0, .interval = 10 };
-//
-//    if ( !tu_timeout_expired(&tm) ) return; // not enough time
-//    tu_timeout_reset(&tm);
-//
-//    uint32_t const btn = board_buttons();
-//
-//    if ( btn )
-//    {
-//      uint8_t keycode[6] = { 0 };
-//
-//      for(uint8_t i=0; i < 6; i++)
-//      {
-//        if ( btn & (1 << i) ) keycode[i] = HID_KEY_A + i;
-//      }
-//
-//      tud_hid_keyboard_keycode(0, keycode);
-//    }else
-//    {
-//      // Null means all zeroes keycodes
-//      tud_hid_keyboard_keycode(0, NULL);
-//    }
-//  }
+  if ( tud_hid_keyboard_ready() )
+  {
+    if ( btn )
+    {
+      uint8_t keycode[6] = { 0 };
+
+      for(uint8_t i=0; i < 6; i++)
+      {
+        if ( btn & (1 << i) ) keycode[i] = HID_KEY_A + i;
+      }
+
+      tud_hid_keyboard_keycode(0, keycode);
+    }else
+    {
+      // Null means all zeroes keycodes
+      tud_hid_keyboard_keycode(0, NULL);
+    }
+  }
 
 
   /*------------- Mouse -------------*/
   if ( tud_hid_mouse_ready() )
   {
-    // Poll every 10ms
-    static tu_timeout_t tm = { .start = 0, .interval = 10 };
-
-    if ( !tu_timeout_expired(&tm) ) return; // not enough time
-    tu_timeout_reset(&tm);
-
-    uint32_t const btn = board_buttons();
-
-    if ( btn )
-    {
-      tud_hid_mouse_data(0, 10, 0, 0, 0);
-    }
+    if     ( btn & 0x01 ) tud_hid_mouse_move(-10, 0  ); // left
+    else if( btn & 0x02 ) tud_hid_mouse_move( 10, 0  ); // right
+    else if( btn & 0x04 ) tud_hid_mouse_move(  0, -10); // up
+    else if( btn & 0x08 ) tud_hid_mouse_move(  0,  10); // down
   }
 }
 
