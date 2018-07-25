@@ -411,11 +411,26 @@ static tusb_error_t proc_control_request_st(uint8_t rhport, tusb_control_request
   else if ( TUSB_REQ_RCPT_ENDPOINT == p_request->bmRequestType_bit.recipient &&
             TUSB_REQ_TYPE_STANDARD == p_request->bmRequestType_bit.type)
   {
-    if (TUSB_REQ_CLEAR_FEATURE == p_request->bRequest )
+    if (TUSB_REQ_GET_STATUS == p_request->bRequest )
     {
-      dcd_edpt_clear_stall(rhport, u16_low_u8(p_request->wIndex) );
+      uint16_t status = dcd_edpt_stalled(rhport, u16_low_u8(p_request->wIndex)) ? 0x0001 : 0x0000;
+      memcpy(_usbd_ctrl_buf, &status, 2);
+
+      usbd_control_xfer_st(rhport, p_request->bmRequestType_bit.direction, _usbd_ctrl_buf, 2);
+    }
+    else if (TUSB_REQ_CLEAR_FEATURE == p_request->bRequest )
+    {
+      // only endpoint feature is halted/stalled
+      dcd_edpt_clear_stall(rhport, u16_low_u8(p_request->wIndex));
       dcd_control_status(rhport, p_request->bmRequestType_bit.direction);
-    } else
+    }
+    else if (TUSB_REQ_SET_FEATURE == p_request->bRequest )
+    {
+      // only endpoint feature is halted/stalled
+      dcd_edpt_stall(rhport, u16_low_u8(p_request->wIndex));
+      dcd_control_status(rhport, p_request->bmRequestType_bit.direction);
+    }
+    else
     {
       dcd_control_stall(rhport); // Stall unsupported request
     }

@@ -93,6 +93,7 @@ bool dcd_edpt_busy        (uint8_t rhport, uint8_t ep_addr);
 
 void dcd_edpt_stall       (uint8_t rhport, uint8_t ep_addr);
 void dcd_edpt_clear_stall (uint8_t rhport, uint8_t ep_addr);
+bool dcd_edpt_stalled     (uint8_t rhport, uint8_t ep_addr);
 
 //------------- Control Endpoint -------------//
 bool dcd_control_xfer     (uint8_t rhport, tusb_dir_t dir, uint8_t * buffer, uint16_t length);
