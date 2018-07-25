@@ -221,9 +221,6 @@ tusb_error_t mscd_xfer_cb(uint8_t rhport, uint8_t ep_addr, tusb_event_t event, u
           p_csw->status   = (cb_result == 0) ? MSC_CSW_STATUS_PASSED : MSC_CSW_STATUS_FAILED;
           p_msc->data_len = 0;
           p_msc->stage    = MSC_STAGE_STATUS;
-
-          // stall request since callback return negative
-          if ( cb_result < 0 ) dcd_edpt_stall(rhport, p_msc->ep_in);
         }
         else if ( !BIT_TEST_(p_cbw->dir, 7) )
         {
