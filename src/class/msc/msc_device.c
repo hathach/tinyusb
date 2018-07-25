@@ -348,7 +348,7 @@ tusb_error_t mscd_xfer_cb(uint8_t rhport, uint8_t ep_addr, tusb_event_t event, u
                 memmove(_mscd_buf, _mscd_buf+nbytes, xferred_bytes-nbytes);
               }
 
-              // simulate an transfer complete with adjusted params
+              // simulate an transfer complete with adjusted parameters --> this driver callback will fired again
               dcd_xfer_complete(rhport, p_msc->ep_out, xferred_bytes-nbytes, true);
 
               return TUSB_ERROR_NONE; // skip the rest
@@ -395,27 +395,36 @@ tusb_error_t mscd_xfer_cb(uint8_t rhport, uint8_t ep_addr, tusb_event_t event, u
 
   if ( p_msc->stage == MSC_STAGE_STATUS )
   {
-    // Invoke complete callback if defined
-    if ( SCSI_CMD_READ_10 == p_cbw->command[0])
+    // Either endpoints is stalled, need to wait until it is cleared by host
+    if ( dcd_edpt_stalled(rhport,  p_msc->ep_in) || dcd_edpt_stalled(rhport,  p_msc->ep_out) )
     {
-      if ( tud_msc_read10_complete_cb ) tud_msc_read10_complete_cb(p_cbw->lun);
-    }
-    else if ( SCSI_CMD_WRITE_10 == p_cbw->command[0] )
-    {
-      if ( tud_msc_write10_complete_cb ) tud_msc_write10_complete_cb(p_cbw->lun);
+      // simulate an transfer complete with adjusted parameters --> this driver callback will fired again
+      dcd_xfer_complete(rhport, p_msc->ep_out, 0, true);
     }
     else
     {
-      if ( tud_msc_scsi_complete_cb ) tud_msc_scsi_complete_cb(p_cbw->lun, p_cbw->command);
+      // Invoke complete callback if defined
+      if ( SCSI_CMD_READ_10 == p_cbw->command[0])
+      {
+        if ( tud_msc_read10_complete_cb ) tud_msc_read10_complete_cb(p_cbw->lun);
+      }
+      else if ( SCSI_CMD_WRITE_10 == p_cbw->command[0] )
+      {
+        if ( tud_msc_write10_complete_cb ) tud_msc_write10_complete_cb(p_cbw->lun);
+      }
+      else
+      {
+        if ( tud_msc_scsi_complete_cb ) tud_msc_scsi_complete_cb(p_cbw->lun, p_cbw->command);
+      }
+
+      // Move to default CMD stage after sending status
+      p_msc->stage         = MSC_STAGE_CMD;
+
+      TU_ASSERT( dcd_edpt_xfer(rhport, p_msc->ep_in , (uint8_t*) &p_msc->csw, sizeof(msc_csw_t)) );
+
+      //------------- Queue the next CBW -------------//
+      TU_ASSERT( dcd_edpt_xfer(rhport, p_msc->ep_out, (uint8_t*) &p_msc->cbw, sizeof(msc_cbw_t)) );
     }
-
-    // Move to default CMD stage after sending status
-    p_msc->stage         = MSC_STAGE_CMD;
-
-    TU_ASSERT( dcd_edpt_xfer(rhport, p_msc->ep_in , (uint8_t*) &p_msc->csw, sizeof(msc_csw_t)) );
-
-    //------------- Queue the next CBW -------------//
-    TU_ASSERT( dcd_edpt_xfer(rhport, p_msc->ep_out, (uint8_t*) &p_msc->cbw, sizeof(msc_cbw_t)) );
   }
 
   return TUSB_ERROR_NONE;
@@ -450,7 +459,7 @@ static void proc_read10_cmd(uint8_t rhport, mscd_interface_t* p_msc)
   }
   else if ( nbytes == 0 )
   {
-    // zero means not ready -> try again later by simulate an transfer complete
+    // zero means not ready -> simulate an transfer complete so that this driver callback will fired again
     dcd_xfer_complete(rhport, p_msc->ep_in, 0, true);
   }
   else
