@@ -110,6 +110,11 @@ static inline uint16_t rdwr10_get_blockcount(uint8_t const command[])
   return __be2n_16(block_count);
 }
 
+bool tud_msc_ready(void)
+{
+  return ( _mscd_itf.ep_in != 0 ) && ( _mscd_itf.ep_out != 0 ) ;
+}
+
 
 //--------------------------------------------------------------------+
 // USBD-CLASS API

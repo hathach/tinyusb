@@ -94,6 +94,10 @@ VERIFY_STATIC(CFG_TUD_MSC_BUFSIZE < UINT16_MAX, "Size is not correct");
  * \defgroup MSC_Device Device
  *  @{ */
 
+
+// Check if MSC interface is ready to use
+bool tud_msc_ready(void);
+
 //--------------------------------------------------------------------+
 // APPLICATION CALLBACK API (WEAK is optional)
 //--------------------------------------------------------------------+
