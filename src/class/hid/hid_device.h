@@ -61,6 +61,7 @@
  * \note    Application must not perform any action if the interface is not ready
  */
 bool tud_hid_keyboard_ready(void);
+bool tud_hid_keyboard_is_boot_protocol(void);
 
 bool tud_hid_keyboard_keycode(uint8_t modifier, uint8_t keycode[6]);
 
@@ -77,10 +78,9 @@ typedef struct{
 extern const hid_ascii_to_keycode_entry_t HID_ASCII_TO_KEYCODE[128];
 #endif
 
-/*------------- Callbacks -------------*/
+/*------------- Callbacks, ATTR_WEAK means optional -------------*/
 
-/** \brief      Callback function that is invoked when USB host request \ref HID_REQUEST_CONTROL_GET_REPORT
- *              via control endpoint.
+/** Callback invoked when USB host request \ref HID_REQ_CONTROL_GET_REPORT.
  * \param[in]   report_type specify which report (INPUT, OUTPUT, FEATURE) that host requests
  * \param[out]  buffer data that application need to update, value must be accessible by USB controller (see \ref CFG_TUSB_ATTR_USBRAM)
  * \param[in]   reqlen  number of bytes that host requested
@@ -93,8 +93,7 @@ extern const hid_ascii_to_keycode_entry_t HID_ASCII_TO_KEYCODE[128];
  */
 ATTR_WEAK uint16_t tud_hid_keyboard_get_report_cb(hid_report_type_t report_type, uint8_t* buffer, uint16_t reqlen);
 
-/** \brief      Callback function that is invoked when USB host request \ref HID_REQUEST_CONTROL_SET_REPORT
- *              via control endpoint.
+/** Callback invoked when USB host request \ref HID_REQ_CONTROL_SET_REPORT.
  * \param[in]   report_type specify which report (INPUT, OUTPUT, FEATURE) that host requests
  * \param[in]   buffer  containing the report's data
  * \param[in]   bufsize  number of bytes in the \a buffer
@@ -102,6 +101,9 @@ ATTR_WEAK uint16_t tud_hid_keyboard_get_report_cb(hid_report_type_t report_type,
  *              Application are free to handle data at its own will.
  */
 ATTR_WEAK void tud_hid_keyboard_set_report_cb(hid_report_type_t report_type, uint8_t const* buffer, uint16_t bufsize);
+
+
+//ATTR_WEAK void tud_hid_keyboard_set_protocol_cb(bool boot_protocol);
 
 /** @} */
 /** @} */
@@ -120,6 +122,7 @@ ATTR_WEAK void tud_hid_keyboard_set_report_cb(hid_report_type_t report_type, uin
  * \note        This function is primarily used for polling/waiting result after \ref tusbd_hid_mouse_send.
  */
 bool tud_hid_mouse_ready(void);
+bool tud_hid_mouse_is_boot_protocol(void);
 
 bool tud_hid_mouse_data(uint8_t buttons, int8_t x, int8_t y, int8_t scroll, int8_t pan);
 
@@ -160,6 +163,8 @@ ATTR_WEAK uint16_t tud_hid_mouse_get_report_cb(hid_report_type_t report_type, ui
  *              Application are free to handle data at its own will.
  */
 ATTR_WEAK void tud_hid_mouse_set_report_cb(hid_report_type_t report_type, uint8_t const* buffer, uint16_t bufsize);
+
+//ATTR_WEAK void tud_hid_mouse_set_protocol_cb(bool boot_protocol);
 
 /** @} */
 /** @} */

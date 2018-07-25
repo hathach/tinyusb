@@ -134,10 +134,12 @@ void usb_hid_task(void)
   /*------------- Mouse -------------*/
   if ( tud_hid_mouse_ready() )
   {
-    if     ( btn & 0x01 ) tud_hid_mouse_move(-10, 0  ); // left
-    else if( btn & 0x02 ) tud_hid_mouse_move( 10, 0  ); // right
-    else if( btn & 0x04 ) tud_hid_mouse_move(  0, -10); // up
-    else if( btn & 0x08 ) tud_hid_mouse_move(  0,  10); // down
+    enum { DELTA  = 5 };
+
+    if ( btn & 0x01 ) tud_hid_mouse_move(-DELTA,      0); // left
+    if ( btn & 0x02 ) tud_hid_mouse_move( DELTA,      0); // right
+    if ( btn & 0x04 ) tud_hid_mouse_move(  0   , -DELTA); // up
+    if ( btn & 0x08 ) tud_hid_mouse_move(  0   ,  DELTA); // down
   }
 }
 

@@ -58,7 +58,9 @@
 typedef struct {
   uint8_t itf_num;
   uint8_t ep_in;
-  uint8_t idle_rate;
+
+  uint8_t idle_rate; // in unit of 4 ms
+  bool    boot_protocol;
 
   uint8_t  report_id;
   uint16_t report_len;
@@ -92,24 +94,30 @@ bool tud_hid_keyboard_ready(void)
   return !dcd_edpt_busy(TUD_OPT_RHPORT, _kbd_itf.ep_in);
 }
 
+bool tud_hid_keyboard_is_boot_protocol(void)
+{
+  return _kbd_itf.boot_protocol;
+}
+
 static bool hidd_kbd_report(hid_keyboard_report_t const *p_report)
 {
   VERIFY( tud_hid_keyboard_ready() );
 
   hidd_interface_t * p_hid = &_kbd_itf;
 
-  if ( p_report )
-  {
-    memcpy(p_hid->report_buf, p_report, sizeof(hid_keyboard_report_t));
-  }else
-  {
-    // only send empty report if previous report is not empty
-    // TODO idle rate
-    if ( mem_all_zero(p_hid->report_buf, sizeof(hid_keyboard_report_t)) ) return true;
+  // Idle Rate = 0 : only send report if there is changes, i.e skip duplication
+  // Idle Rate > 0 : skip duplication, but send at least 1 report every idle rate (in unit of 4 ms).
+  //                 If idle time is less than interrupt polling then use the polling.
+  static tu_timeout_t idle_tm = { 0, 0 };
 
-    arrclr_(p_hid->report_buf);
+  if ( (p_hid->idle_rate == 0) || !tu_timeout_expired(&idle_tm) )
+  {
+    if ( 0 == memcmp(p_hid->report_buf, p_report, sizeof(hid_keyboard_report_t)) ) return true;
   }
 
+  tu_timeout_restart(&idle_tm);
+
+  memcpy(p_hid->report_buf, p_report, sizeof(hid_keyboard_report_t));
   return dcd_edpt_xfer(TUD_OPT_RHPORT, p_hid->ep_in, p_hid->report_buf, sizeof(hid_keyboard_report_t));
 }
 
@@ -173,10 +181,16 @@ bool tud_hid_keyboard_key_sequence(const char* str, uint32_t interval_ms)
 // MOUSE APPLICATION API
 //--------------------------------------------------------------------+
 #if CFG_TUD_HID_MOUSE
+
 bool tud_hid_mouse_ready(void)
 {
   VERIFY( _mse_itf.ep_in != 0 );
   return !dcd_edpt_busy(TUD_OPT_RHPORT, _mse_itf.ep_in);
+}
+
+bool tud_hid_mouse_is_boot_protocol(void)
+{
+  return _mse_itf.boot_protocol;
 }
 
 static bool hidd_mouse_report(hid_mouse_report_t const *p_report)
@@ -302,10 +316,11 @@ tusb_error_t hidd_open(uint8_t rhport, tusb_desc_interface_t const * desc_itf, u
 
       TU_ASSERT( dcd_edpt_open(rhport, desc_edpt), TUSB_ERROR_DCD_FAILED );
 
-      p_hid->report_len = desc_hid->wReportLength;
-      p_hid->itf_num    = desc_itf->bInterfaceNumber;
-      p_hid->ep_in      = desc_edpt->bEndpointAddress;
-      p_hid->report_id  = 0;
+      p_hid->boot_protocol = true; // default to boot mode when mounted
+      p_hid->report_len    = desc_hid->wReportLength;
+      p_hid->itf_num       = desc_itf->bInterfaceNumber;
+      p_hid->ep_in         = desc_edpt->bEndpointAddress;
+      p_hid->report_id     = 0;
 
       *p_length = sizeof(tusb_desc_interface_t) + sizeof(tusb_hid_descriptor_hid_t) + sizeof(tusb_desc_endpoint_t);
     }
@@ -402,12 +417,15 @@ tusb_error_t hidd_control_request_st(uint8_t rhport, tusb_control_request_t cons
     }
     else if (HID_REQ_CONTROL_GET_PROTOCOL == p_request->bRequest )
     {
-      _usbd_ctrl_buf[0] = 1 - CFG_TUD_HID_BOOT_PROTOCOL; // 0 is Boot, 1 is Report protocol
+      _usbd_ctrl_buf[0] = 1-p_hid->boot_protocol;   // 0 is Boot, 1 is Report protocol
       usbd_control_xfer_st(rhport, p_request->bmRequestType_bit.direction, _usbd_ctrl_buf, 1);
     }
-    else
+    else if (HID_REQ_CONTROL_SET_PROTOCOL == p_request->bRequest )
     {
-//      HID_REQ_CONTROL_SET_PROTOCOL:
+      p_hid->boot_protocol = 1 - p_request->wValue; // 0 is Boot, 1 is Report protocol
+      dcd_control_status(rhport, p_request->bmRequestType_bit.direction);
+    }else
+    {
       dcd_control_stall(rhport);
     }
   }else
