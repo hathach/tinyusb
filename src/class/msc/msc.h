@@ -298,6 +298,29 @@ typedef struct ATTR_PACKED
 
 VERIFY_STATIC( sizeof(scsi_prevent_allow_medium_removal_t) == 6, "size is not correct");
 
+typedef struct ATTR_PACKED
+{
+  uint8_t cmd_code;
+
+  uint8_t immded : 1;
+  uint8_t        : 7;
+
+  uint8_t TU_RESERVED;
+
+  uint8_t power_condition_mod : 4;
+  uint8_t                     : 4;
+
+  uint8_t start           : 1;
+  uint8_t load_eject      : 1;
+  uint8_t no_flush        : 1;
+  uint8_t                 : 1;
+  uint8_t power_condition : 4;
+
+  uint8_t control;
+} scsi_start_stop_unit_t;
+
+VERIFY_STATIC( sizeof(scsi_start_stop_unit_t) == 6, "size is not correct");
+
 //--------------------------------------------------------------------+
 // SCSI MMC
 //--------------------------------------------------------------------+

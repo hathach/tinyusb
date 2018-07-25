@@ -101,6 +101,9 @@
 #endif
 
 
+// for declaration of reserved field, make use of _TU_COUNTER_
+#define TU_RESERVED   XSTRING_CONCAT_(reserved, _TU_COUNTER_)
+
 /*------------------------------------------------------------------*/
 /* Count number of arguments of __VA_ARGS__
  * - reference https://groups.google.com/forum/#!topic/comp.std.c/d-6Mj5Lko_s

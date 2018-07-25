@@ -216,11 +216,14 @@ tusb_error_t mscd_xfer_cb(uint8_t rhport, uint8_t ep_addr, tusb_event_t event, u
 
         if ( p_cbw->xfer_bytes == 0)
         {
-          p_msc->data_len = tud_msc_scsi_cb(rhport, p_cbw->lun, p_cbw->command, NULL, 0);
-          p_csw->status   = (p_msc->data_len == 0) ? MSC_CSW_STATUS_PASSED : MSC_CSW_STATUS_FAILED;
+          int32_t const cb_result = tud_msc_scsi_cb(rhport, p_cbw->lun, p_cbw->command, NULL, 0);
+
+          p_csw->status   = (cb_result == 0) ? MSC_CSW_STATUS_PASSED : MSC_CSW_STATUS_FAILED;
+          p_msc->data_len = 0;
           p_msc->stage    = MSC_STAGE_STATUS;
 
-          TU_ASSERT( p_msc->data_len == 0, TUSB_ERROR_INVALID_PARA);
+          // stall request since callback return negative
+          if ( cb_result < 0 ) dcd_edpt_stall(rhport, p_msc->ep_in);
         }
         else if ( !BIT_TEST_(p_cbw->dir, 7) )
         {
@@ -230,7 +233,6 @@ tusb_error_t mscd_xfer_cb(uint8_t rhport, uint8_t ep_addr, tusb_event_t event, u
         else
         {
           // IN Transfer
-
           int32_t cb_result;
 
           // TODO refactor later
@@ -282,8 +284,15 @@ tusb_error_t mscd_xfer_cb(uint8_t rhport, uint8_t ep_addr, tusb_event_t event, u
             cb_result = tud_msc_scsi_cb(rhport, p_cbw->lun, p_cbw->command, _mscd_buf, p_msc->data_len);
           }
 
-          p_csw->status   = (cb_result >= 0) ? MSC_CSW_STATUS_PASSED : MSC_CSW_STATUS_FAILED;
-          p_msc->data_len = (uint32_t) cb_result;
+          if ( cb_result > 0 )
+          {
+            p_csw->status   = MSC_CSW_STATUS_PASSED;
+            p_msc->data_len = (uint32_t) cb_result;
+          }else
+          {
+            p_csw->status = MSC_CSW_STATUS_FAILED;
+            p_msc->data_len = 0;
+          }
 
           TU_ASSERT( p_cbw->xfer_bytes >= p_msc->data_len, TUSB_ERROR_INVALID_PARA ); // cannot return more than host expect
 
@@ -292,11 +301,11 @@ tusb_error_t mscd_xfer_cb(uint8_t rhport, uint8_t ep_addr, tusb_event_t event, u
             TU_ASSERT( dcd_edpt_xfer(rhport, p_msc->ep_in, _mscd_buf, p_msc->data_len), TUSB_ERROR_DCD_EDPT_XFER );
           }else
           {
-            // application does not provide data to response --> possibly unsupported SCSI command
-            dcd_edpt_stall(rhport, p_msc->ep_in);
-
+            // callback does not provide response's data --> possibly unsupported SCSI command
             p_csw->status = MSC_CSW_STATUS_FAILED;
             p_msc->stage  = MSC_STAGE_STATUS;
+
+            dcd_edpt_stall(rhport, p_msc->ep_in);
           }
         }
       }

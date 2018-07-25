@@ -49,19 +49,19 @@
 #define STRING_CONCAT_(a, b)  a##b                 ///< concat without expand
 #define XSTRING_CONCAT_(a, b) STRING_CONCAT_(a, b) ///< expand then concat
 
+#if defined __COUNTER__ && __COUNTER__ != __COUNTER__
+  #define _TU_COUNTER_ __COUNTER__
+#else
+  #define _TU_COUNTER_ __LINE__
+#endif
+
 //--------------------------------------------------------------------+
 // Compile-time Assert (use VERIFY_STATIC to avoid name conflict)
 //--------------------------------------------------------------------+
 #if defined(__ICCARM__) || (__STDC_VERSION__ >= 201112L )
   #define VERIFY_STATIC   static_assert
 #else
-  #if defined __COUNTER__ && __COUNTER__ != __COUNTER__
-    #define _VERIFY_COUNTER __COUNTER__
-  #else
-    #define _VERIFY_COUNTER __LINE__
-  #endif
-
-  #define VERIFY_STATIC(const_expr, _mess) enum { XSTRING_CONCAT_(_verify_static_, _VERIFY_COUNTER) = 1/(!!(const_expr)) }
+  #define VERIFY_STATIC(const_expr, _mess) enum { XSTRING_CONCAT_(_verify_static_, _TU_COUNTER_) = 1/(!!(const_expr)) }
 #endif
 
 // allow debugger to watch any module-wide variables anywhere

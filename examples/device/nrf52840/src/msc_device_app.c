@@ -112,7 +112,7 @@ int32_t tud_msc_scsi_cb (uint8_t rhport, uint8_t lun, uint8_t const scsi_cmd[16]
   }
 
   // return len must not larger than bufsize
-  TU_ASSERT( bufsize >= len );
+  if ( len > bufsize ) len = bufsize;
 
   if ( ptr && len )
   {
