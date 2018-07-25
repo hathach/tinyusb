@@ -99,7 +99,7 @@ void msc_app_umount(uint8_t rhport)
 
 }
 
-int32_t tud_msc_scsi_cb (uint8_t rhport, uint8_t lun, uint8_t const scsi_cmd[16], void* buffer, uint16_t bufsize)
+int32_t tud_msc_scsi_cb (uint8_t lun, uint8_t const scsi_cmd[16], void* buffer, uint16_t bufsize)
 {
   // read10 & write10 has their own callback and MUST not be handled here
 

@@ -102,7 +102,6 @@ bool tud_msc_ready(void);
 // APPLICATION CALLBACK API (WEAK is optional)
 //--------------------------------------------------------------------+
 /** \brief Callback invoked when received \ref SCSI_CMD_READ_10 command
- * \param[in]		\rhport     Root hub port
  * \param[in]		lun         Targeted Logical Unit
  *                          Must be accessible by USB controller (see \ref CFG_TUSB_ATTR_USBRAM)
  * \param[in]		lba         Starting Logical Block Address to be read
@@ -126,10 +125,9 @@ bool tud_msc_ready(void);
  *              \n\n Although this callback is called by tinyusb device task (non-isr context), however as all the classes share
  *              the same task (to save resource), any delay in this callback will cause delay in response on other classes.
  */
-int32_t tud_msc_read10_cb (uint8_t rhport, uint8_t lun, uint32_t lba, uint32_t offset, void* buffer, uint32_t bufsize);
+int32_t tud_msc_read10_cb (uint8_t lun, uint32_t lba, uint32_t offset, void* buffer, uint32_t bufsize);
 
 /** \brief 			Callback invoked when received \ref SCSI_CMD_WRITE_10 command
- * \param[in]		rhport	    Root hub port
  * \param[in]		lun         Targeted Logical Unit
  *                          Must be accessible by USB controller (see \ref CFG_TUSB_ATTR_USBRAM)
  * \param[in]		lba         Starting Logical Block Address to be write
@@ -152,11 +150,10 @@ int32_t tud_msc_read10_cb (uint8_t rhport, uint8_t lun, uint32_t lba, uint32_t o
  *              \n\n Although this callback is called by tinyusb device task (non-isr context), however as all the classes share
  *              the same task (to save resource), any delay in this callback will cause delay in response on other classes.
  */
-int32_t tud_msc_write10_cb (uint8_t rhport, uint8_t lun, uint32_t lba, uint32_t offset, void* buffer, uint32_t bufsize);
+int32_t tud_msc_write10_cb (uint8_t lun, uint32_t lba, uint32_t offset, void* buffer, uint32_t bufsize);
 
 
 /** \brief 			Callback invoked when received an SCSI command other than \ref SCSI_CMD_WRITE_10 and \ref SCSI_CMD_READ_10
- * \param[in]		rhport	    Root hub port
  * \param[in]		lun         Targeted Logical Unit
  * \param[in]		scsi_cmd    SCSI command contents, application should examine this command block to know which command host requested
  * \param[out]  buffer      Buffer for SCSI Data Stage.
@@ -168,12 +165,12 @@ int32_t tud_msc_write10_cb (uint8_t rhport, uint8_t lun, uint32_t lba, uint32_t 
  *                          endpoint and return failed status in command status wrapper phase.
  * \retval      otherwise   Actual bytes processed, must not be more than \a \b bufsize. Can be zero for no-data command.
  */
-int32_t tud_msc_scsi_cb (uint8_t rhport, uint8_t lun, uint8_t const scsi_cmd[16], void* buffer, uint16_t bufsize);
+int32_t tud_msc_scsi_cb (uint8_t lun, uint8_t const scsi_cmd[16], void* buffer, uint16_t bufsize);
 
 /*------------- Optional callbacks : Could be used by application to free up resources -------------*/
-ATTR_WEAK void tud_msc_read10_complete_cb(uint8_t rhport, uint8_t lun);
-ATTR_WEAK void tud_msc_write10_complete_cb(uint8_t rhport, uint8_t lun);
-ATTR_WEAK void tud_msc_scsi_complete_cb(uint8_t rhport, uint8_t lun, uint8_t const scsi_cmd[16]);
+ATTR_WEAK void tud_msc_read10_complete_cb(uint8_t lun);
+ATTR_WEAK void tud_msc_write10_complete_cb(uint8_t lun);
+ATTR_WEAK void tud_msc_scsi_complete_cb(uint8_t lun, uint8_t const scsi_cmd[16]);
 
 /** @} */
 /** @} */

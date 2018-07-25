@@ -216,7 +216,7 @@ tusb_error_t mscd_xfer_cb(uint8_t rhport, uint8_t ep_addr, tusb_event_t event, u
 
         if ( p_cbw->xfer_bytes == 0)
         {
-          int32_t const cb_result = tud_msc_scsi_cb(rhport, p_cbw->lun, p_cbw->command, NULL, 0);
+          int32_t const cb_result = tud_msc_scsi_cb(p_cbw->lun, p_cbw->command, NULL, 0);
 
           p_csw->status   = (cb_result == 0) ? MSC_CSW_STATUS_PASSED : MSC_CSW_STATUS_FAILED;
           p_msc->data_len = 0;
@@ -281,7 +281,7 @@ tusb_error_t mscd_xfer_cb(uint8_t rhport, uint8_t ep_addr, tusb_event_t event, u
           }
           else
           {
-            cb_result = tud_msc_scsi_cb(rhport, p_cbw->lun, p_cbw->command, _mscd_buf, p_msc->data_len);
+            cb_result = tud_msc_scsi_cb(p_cbw->lun, p_cbw->command, _mscd_buf, p_msc->data_len);
           }
 
           if ( cb_result > 0 )
@@ -317,7 +317,7 @@ tusb_error_t mscd_xfer_cb(uint8_t rhport, uint8_t ep_addr, tusb_event_t event, u
       {
         if ( SCSI_CMD_WRITE_10 != p_cbw->command[0] )
         {
-          p_csw->status = (tud_msc_scsi_cb(rhport, p_cbw->lun, p_cbw->command, _mscd_buf, p_msc->data_len) >= 0 ) ? MSC_CSW_STATUS_PASSED : MSC_CSW_STATUS_FAILED;
+          p_csw->status = (tud_msc_scsi_cb(p_cbw->lun, p_cbw->command, _mscd_buf, p_msc->data_len) >= 0 ) ? MSC_CSW_STATUS_PASSED : MSC_CSW_STATUS_FAILED;
         }
         else
         {
@@ -327,7 +327,7 @@ tusb_error_t mscd_xfer_cb(uint8_t rhport, uint8_t ep_addr, tusb_event_t event, u
           uint32_t const lba = rdwr10_get_lba(p_cbw->command) + (p_msc->xferred_len / block_sz);
 
           // Application can consume smaller bytes
-          int32_t nbytes = tud_msc_write10_cb(rhport, p_cbw->lun, lba, p_msc->xferred_len % block_sz, _mscd_buf, xferred_bytes);
+          int32_t nbytes = tud_msc_write10_cb(p_cbw->lun, lba, p_msc->xferred_len % block_sz, _mscd_buf, xferred_bytes);
 
           if ( nbytes < 0 )
           {
@@ -398,15 +398,15 @@ tusb_error_t mscd_xfer_cb(uint8_t rhport, uint8_t ep_addr, tusb_event_t event, u
     // Invoke complete callback if defined
     if ( SCSI_CMD_READ_10 == p_cbw->command[0])
     {
-      if ( tud_msc_read10_complete_cb ) tud_msc_read10_complete_cb(rhport, p_cbw->lun);
+      if ( tud_msc_read10_complete_cb ) tud_msc_read10_complete_cb(p_cbw->lun);
     }
     else if ( SCSI_CMD_WRITE_10 == p_cbw->command[0] )
     {
-      if ( tud_msc_write10_complete_cb ) tud_msc_write10_complete_cb(rhport, p_cbw->lun);
+      if ( tud_msc_write10_complete_cb ) tud_msc_write10_complete_cb(p_cbw->lun);
     }
     else
     {
-      if ( tud_msc_scsi_complete_cb ) tud_msc_scsi_complete_cb(rhport, p_cbw->lun, p_cbw->command);
+      if ( tud_msc_scsi_complete_cb ) tud_msc_scsi_complete_cb(p_cbw->lun, p_cbw->command);
     }
 
     // Move to default CMD stage after sending status
@@ -438,7 +438,7 @@ static void proc_read10_cmd(uint8_t rhport, mscd_interface_t* p_msc)
   int32_t nbytes = (int32_t) min32_of(sizeof(_mscd_buf), p_cbw->xfer_bytes-p_msc->xferred_len);
 
   // Application can consume smaller bytes
-  nbytes = tud_msc_read10_cb (rhport, p_cbw->lun, lba, p_msc->xferred_len % block_sz, _mscd_buf, (uint32_t) nbytes);
+  nbytes = tud_msc_read10_cb(p_cbw->lun, lba, p_msc->xferred_len % block_sz, _mscd_buf, (uint32_t) nbytes);
 
   if ( nbytes < 0 )
   {
