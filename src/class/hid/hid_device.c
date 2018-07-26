@@ -115,7 +115,7 @@ static bool hidd_kbd_report(hid_keyboard_report_t const *p_report)
     if ( 0 == memcmp(p_hid->report_buf, p_report, sizeof(hid_keyboard_report_t)) ) return true;
   }
 
-  tu_timeout_restart(&idle_tm);
+  tu_timeout_set(&idle_tm, p_hid->idle_rate *4);
 
   memcpy(p_hid->report_buf, p_report, sizeof(hid_keyboard_report_t));
   return dcd_edpt_xfer(TUD_OPT_RHPORT, p_hid->ep_in, p_hid->report_buf, sizeof(hid_keyboard_report_t));
