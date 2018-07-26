@@ -100,71 +100,62 @@ bool tud_msc_ready(void);
 bool tud_msc_set_sense(uint8_t lun, uint8_t sense_key, uint8_t add_sense_code, uint8_t add_sense_qualifier);
 
 //--------------------------------------------------------------------+
-// APPLICATION CALLBACK API (WEAK is optional)
+// APPLICATION CALLBACK (WEAK is optional)
 //--------------------------------------------------------------------+
-/** \brief Callback invoked when received \ref SCSI_CMD_READ_10 command
- * \param[in]		lun         Targeted Logical Unit
- *                          Must be accessible by USB controller (see \ref CFG_TUSB_ATTR_USBRAM)
- * \param[in]		lba         Starting Logical Block Address to be read
- * \param[in]		offset      Byte offset from LBA for reading
+/**
+ * Callback invoked when received \ref SCSI_CMD_READ_10 command
+ * \param[in]	lun         Logical unit number
+ * \param[in]	lba         Logical Block Address to be read
+ * \param[in]	offset      Byte offset from LBA
  * \param[out]	buffer      Buffer which application need to update with the response data.
- * \param[in]   bufsize     Max bytes can be copied. Application must not return more than this value.
+ * \param[in]   bufsize     Requested bytes
  *
- * \retval      positive    Actual bytes returned, must not be more than \a \b bufsize.
- *                          If value less than bufsize is returned, Tinyusb will transfer this amount and afterwards
- *                          invoke this callback again with adjusted offset.
+ * \return      Number of byte read, if it is less than requested bytes by \a \b bufsize. Tinyusb will transfer
+ *              this amount first and invoked this again for remaining data.
  *
  * \retval      zero        Indicate application is not ready yet to response e.g disk I/O is not complete.
- *                          Tinyusb will invoke this callback with the same params again some time later.
+ *                          tinyusb will invoke this callback with the same parameters again some time later.
  *
- * \retval      negative    Indicate error reading disk I/O. Tinyusb will \b STALL the corresponding
+ * \retval      negative    Indicate error e.g reading disk I/O. tinyusb will \b STALL the corresponding
  *                          endpoint and return failed status in command status wrapper phase.
- *
- * \note        Host can request dozens of Kbytes in one command e.g \a \b block_count = 128, it is insufficient to require
- *              application to have that much of buffer. Instead, application can return the number of blocks it can processed,
- *              the stack after transferred that amount of data will continue to invoke this callback with adjusted \a \b lba and \a \b block_count.
- *              \n\n Although this callback is called by tinyusb device task (non-isr context), however as all the classes share
- *              the same task (to save resource), any delay in this callback will cause delay in response on other classes.
  */
 int32_t tud_msc_read10_cb (uint8_t lun, uint32_t lba, uint32_t offset, void* buffer, uint32_t bufsize);
 
-/** \brief 			Callback invoked when received \ref SCSI_CMD_WRITE_10 command
- * \param[in]		lun         Targeted Logical Unit
- *                          Must be accessible by USB controller (see \ref CFG_TUSB_ATTR_USBRAM)
- * \param[in]		lba         Starting Logical Block Address to be write
+/**
+ * Callback invoked when received \ref SCSI_CMD_WRITE_10 command
+ * \param[in]	lun         Logical unit number
+ * \param[in]	lba         Logical Block Address to be write
+ * \param[in]	offset      Byte offset from LBA
  * \param[out]	buffer      Buffer which holds written data.
- * \param[in]   bufsize     Max bytes in buffer. Application must not return more than this value.
+ * \param[in]   bufsize     Requested bytes
  *
- * \retval      positive    Actual bytes written, must not be more than \a \b bufsize.
- *                          If value less than bufsize is returned, Tinyusb will trim off this amount and
- *                          invoke this callback again with adjusted offset some time later.
+ * \return      Number of byte written, if it is less than requested bytes by \a \b bufsize. Tinyusb will proceed with
+ *              other work and invoked this again with adjusted parameters.
  *
  * \retval      zero        Indicate application is not ready yet e.g disk I/O is not complete.
- *                          Tinyusb will invoke this callback with the same params again some time later.
+ *                          Tinyusb will invoke this callback with the same parameters again some time later.
  *
  * \retval      negative    Indicate error writing disk I/O. Tinyusb will \b STALL the corresponding
  *                          endpoint and return failed status in command status wrapper phase.
- *
- * \note        Host can request dozens of Kbytes in one command e.g \a \b block_count = 128, it is insufficient to require
- *              application to have that much of buffer. Instead, application can return the number of blocks it can processed,
- *              the stack after transferred that amount of data will continue to invoke this callback with adjusted \a \b lba and \a \b block_count.
- *              \n\n Although this callback is called by tinyusb device task (non-isr context), however as all the classes share
- *              the same task (to save resource), any delay in this callback will cause delay in response on other classes.
  */
 int32_t tud_msc_write10_cb (uint8_t lun, uint32_t lba, uint32_t offset, void* buffer, uint32_t bufsize);
 
-
-/** \brief 			Callback invoked when received an SCSI command other than \ref SCSI_CMD_WRITE_10 and \ref SCSI_CMD_READ_10
- * \param[in]		lun         Targeted Logical Unit
- * \param[in]		scsi_cmd    SCSI command contents, application should examine this command block to know which command host requested
+/**
+ * Callback invoked when received an SCSI command not in built-in list below.
+ * \param[in]	lun         Logical unit number
+ * \param[in]	scsi_cmd    SCSI command contents which application must examine to response accordingly
  * \param[out]  buffer      Buffer for SCSI Data Stage.
  *                            - For INPUT: application must fill this with response.
  *                            - For OUTPUT it holds the Data from host
  * \param[in]   bufsize     Buffer's length.
  *
- * \retval      negative    Indicate error e.g accessing disk I/O. Tinyusb will \b STALL the corresponding
+ * \return      Actual bytes processed, can be zero for no-data command.
+ * \retval      negative    Indicate error e.g unsupported command, tinyusb will \b STALL the corresponding
  *                          endpoint and return failed status in command status wrapper phase.
- * \retval      otherwise   Actual bytes processed, must not be more than \a \b bufsize. Can be zero for no-data command.
+ *
+ * \note        Following command is automatically handled by tinyusb stack, callback should not be worried:
+ *              - READ_CAPACITY10, READ_FORMAT_CAPACITY, INQUIRY, MODE_SENSE6, REQUEST_SENSE
+ *              - READ10 and WRITE10 has their own callbacks
  */
 int32_t tud_msc_scsi_cb (uint8_t lun, uint8_t const scsi_cmd[16], void* buffer, uint16_t bufsize);
 
