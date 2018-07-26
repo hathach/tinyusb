@@ -39,20 +39,10 @@
 #include "msc_device_app.h"
 
 #if CFG_TUD_MSC
-//--------------------------------------------------------------------+
-// INCLUDE
-//--------------------------------------------------------------------+
 
 //--------------------------------------------------------------------+
 // MACRO CONSTANT TYPEDEF
 //--------------------------------------------------------------------+
-static scsi_mode_parameters_t const msc_dev_mode_para =
-{
-    .mode_data_length        = 3,
-    .medium_type             = 0,
-    .device_specific_para    = 0,
-    .block_descriptor_length = 0
-};
 
 //--------------------------------------------------------------------+
 // tinyusb callbacks
@@ -79,11 +69,6 @@ int32_t tud_msc_scsi_cb (uint8_t lun, uint8_t const scsi_cmd[16], void* buffer, 
 
   switch (scsi_cmd[0])
   {
-    case SCSI_CMD_MODE_SENSE_6:
-      ptr = &msc_dev_mode_para;
-      len = sizeof(msc_dev_mode_para);
-    break;
-
     case SCSI_CMD_TEST_UNIT_READY:
       // Command that host uses to check our readiness before sending other commands
       len = 0;
@@ -100,9 +85,8 @@ int32_t tud_msc_scsi_cb (uint8_t lun, uint8_t const scsi_cmd[16], void* buffer, 
       len = 0;
     break;
 
-    default:
-      // negative is error -> Data stage is STALL, status = failed
-      return -1;
+    // negative is error -> Data stage is STALL, status = failed
+    default: return -1;
   }
 
   // return len must not larger than bufsize

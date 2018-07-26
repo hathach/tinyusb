@@ -202,7 +202,7 @@ int32_t proc_builtin_scsi(msc_cbw_t const * p_cbw, uint8_t* buffer, uint32_t buf
   {
     case SCSI_CMD_READ_CAPACITY_10:
     {
-      scsi_read_capacity10_data_t read_capa10 =
+      scsi_read_capacity10_resp_t read_capa10 =
       {
           .last_lba   = ENDIAN_BE(CFG_TUD_MSC_BLOCK_NUM-1), // read capacity
           .block_size = ENDIAN_BE(CFG_TUD_MSC_BLOCK_SZ)
@@ -230,7 +230,7 @@ int32_t proc_builtin_scsi(msc_cbw_t const * p_cbw, uint8_t* buffer, uint32_t buf
 
     case SCSI_CMD_INQUIRY:
     {
-      scsi_inquiry_data_t inquiry_rsp =
+      scsi_inquiry_resp_t inquiry_rsp =
       {
           .is_removable         = 1,
           .version              = 2,
@@ -249,15 +249,30 @@ int32_t proc_builtin_scsi(msc_cbw_t const * p_cbw, uint8_t* buffer, uint32_t buf
     }
     break;
 
+    case SCSI_CMD_MODE_SENSE_6:
+    {
+      scsi_mode_sense6_resp_t const mode_resp =
+      {
+          .data_len             = 3,
+          .medium_type          = 0,
+          .device_specific_para = 0,
+          .block_descriptor_len = 0  // no block descriptor are included
+      };
+
+      ret = sizeof(mode_resp);
+      memcpy(buffer, &mode_resp, ret);
+    }
+    break;
+
     case SCSI_CMD_REQUEST_SENSE:
     {
-      scsi_sense_fixed_data_t sense_rsp =
+      scsi_sense_fixed_resp_t sense_rsp =
       {
           .response_code = 0x70,
           .valid         = 1
       };
 
-      sense_rsp.add_sense_len = sizeof(scsi_sense_fixed_data_t) - 8;
+      sense_rsp.add_sense_len = sizeof(scsi_sense_fixed_resp_t) - 8;
 
       sense_rsp.sense_key           = _mscd_itf.sense_key;
       sense_rsp.add_sense_code      = _mscd_itf.add_sense_code;

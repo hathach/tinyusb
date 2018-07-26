@@ -230,9 +230,9 @@ typedef struct ATTR_PACKED
   uint8_t vendor_id[8]  ; ///< 8 bytes of ASCII data identifying the vendor of the product.
   uint8_t product_id[16]; ///< 16 bytes of ASCII data defined by the vendor.
   uint8_t product_rev[4]; ///< 4 bytes of ASCII data defined by the vendor.
-} scsi_inquiry_data_t;
+} scsi_inquiry_resp_t;
 
-VERIFY_STATIC(sizeof(scsi_inquiry_data_t) == 36, "size is not correct");
+VERIFY_STATIC(sizeof(scsi_inquiry_resp_t) == 36, "size is not correct");
 
 
 typedef struct ATTR_PACKED
@@ -257,9 +257,9 @@ typedef struct ATTR_PACKED
 
   uint8_t  sense_key_specific[3]; ///< sense key specific valid bit is bit 7 of key[0], aka MSB in Big Endian layout
 
-} scsi_sense_fixed_data_t;
+} scsi_sense_fixed_resp_t;
 
-VERIFY_STATIC(sizeof(scsi_sense_fixed_data_t) == 18, "size is not correct");
+VERIFY_STATIC(sizeof(scsi_sense_fixed_resp_t) == 18, "size is not correct");
 
 typedef struct ATTR_PACKED
 {
@@ -275,19 +275,19 @@ typedef struct ATTR_PACKED
   uint8_t subpage_code;
   uint8_t alloc_length;
   uint8_t control;
-} scsi_mode_sense_6_t;
+} scsi_mode_sense6_t;
 
-VERIFY_STATIC( sizeof(scsi_mode_sense_6_t) == 6, "size is not correct");
+VERIFY_STATIC( sizeof(scsi_mode_sense6_t) == 6, "size is not correct");
 
 typedef struct ATTR_PACKED
 {
-  uint8_t mode_data_length;
+  uint8_t data_len;
   uint8_t medium_type;
   uint8_t device_specific_para;
-  uint8_t block_descriptor_length;
-} scsi_mode_parameters_t;
+  uint8_t block_descriptor_len;
+} scsi_mode_sense6_resp_t;
 
-VERIFY_STATIC( sizeof(scsi_mode_parameters_t) == 4, "size is not correct");
+VERIFY_STATIC( sizeof(scsi_mode_sense6_resp_t) == 4, "size is not correct");
 
 typedef struct ATTR_PACKED
 {
@@ -372,9 +372,9 @@ VERIFY_STATIC(sizeof(scsi_read_capacity10_t) == 10, "size is not correct");
 typedef struct {
   uint32_t last_lba   ; ///< The last Logical Block Address of the device
   uint32_t block_size ; ///< Block size in bytes
-} scsi_read_capacity10_data_t;
+} scsi_read_capacity10_resp_t;
 
-VERIFY_STATIC(sizeof(scsi_read_capacity10_data_t) == 8, "size is not correct");
+VERIFY_STATIC(sizeof(scsi_read_capacity10_resp_t) == 8, "size is not correct");
 
 /// SCSI Read 10 Command
 typedef struct ATTR_PACKED

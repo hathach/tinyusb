@@ -39,52 +39,11 @@
 #include "msc_device_app.h"
 
 #if CFG_TUD_MSC
-//--------------------------------------------------------------------+
-// INCLUDE
-//--------------------------------------------------------------------+
 #include "app_os_prio.h"
 
 //--------------------------------------------------------------------+
 // MACRO CONSTANT TYPEDEF
 //--------------------------------------------------------------------+
-static scsi_inquiry_data_t const mscd_inquiry_data =
-{
-    .is_removable         = 1,
-    .version              = 2,
-    .response_data_format = 2,
-    .vendor_id            = "tinyusb",
-    .product_id           = "MSC Example",
-    .product_revision     = "0.01"
-};
-
-static scsi_read_capacity10_data_t const mscd_read_capacity10_data =
-{
-    .last_lba   = ENDIAN_BE(DISK_BLOCK_NUM-1), // Big Endian
-    .block_size = ENDIAN_BE(DISK_BLOCK_SIZE)   // Big Endian
-};
-
-static scsi_sense_fixed_data_t mscd_sense_data =
-{
-    .response_code        = 0x70,
-    .sense_key            = 0, // no errors
-    .add_sense_len = sizeof(scsi_sense_fixed_data_t) - 8
-};
-
-static scsi_read_format_capacity_data_t const mscd_format_capacity_data =
-{
-    .list_length     = 8,
-    .block_num       = ENDIAN_BE(DISK_BLOCK_NUM), // write capacity
-    .descriptor_type = 2, // TODO formatted media, refractor to const
-    .block_size_u16  = ENDIAN_BE16(DISK_BLOCK_SIZE)
-};
-
-static scsi_mode_parameters_t const msc_dev_mode_para =
-{
-    .mode_data_length        = 3,
-    .medium_type             = 0,
-    .device_specific_para    = 0,
-    .block_descriptor_length = 0
-};
 
 //--------------------------------------------------------------------+
 // tinyusb callbacks
@@ -111,38 +70,19 @@ int32_t tud_msc_scsi_cb (uint8_t lun, uint8_t const scsi_cmd[16], void* buffer, 
 
   switch (scsi_cmd[0])
   {
-    case SCSI_CMD_INQUIRY:
-      ptr = &mscd_inquiry_data;
-      len = sizeof(scsi_inquiry_data_t);
-    break;
-
-    case SCSI_CMD_READ_CAPACITY_10:
-      ptr = &mscd_read_capacity10_data;
-      len = sizeof(scsi_read_capacity10_data_t);
-    break;
-
-    case SCSI_CMD_REQUEST_SENSE:
-      ptr = &mscd_sense_data;
-      len = sizeof(scsi_sense_fixed_data_t);
-    break;
-
-    case SCSI_CMD_READ_FORMAT_CAPACITY:
-      ptr = &mscd_format_capacity_data;
-      len = sizeof(scsi_read_format_capacity_data_t);
-    break;
-
-    case SCSI_CMD_MODE_SENSE_6:
-      ptr = &msc_dev_mode_para;
-      len = sizeof(msc_dev_mode_para);
-    break;
-
     case SCSI_CMD_TEST_UNIT_READY:
-      ptr = NULL;
+      // Command that host uses to check our readiness before sending other commands
       len = 0;
     break;
 
     case SCSI_CMD_PREVENT_ALLOW_MEDIUM_REMOVAL:
-      ptr = NULL;
+      // Host is about to read/write etc ... better not to disconnect disk
+      len = 0;
+    break;
+
+    case SCSI_CMD_START_STOP_UNIT:
+      // Host try to eject/safe remove/powerof us. We could safely disconnect with disk storage, or go into lower power
+      // scsi_start_stop_unit_t const * cmd_start_stop = (scsi_start_stop_unit_t const *) scsi_cmd
       len = 0;
     break;
 
@@ -163,14 +103,6 @@ int32_t tud_msc_scsi_cb (uint8_t lun, uint8_t const scsi_cmd[16], void* buffer, 
     {
       // SCSI output
     }
-  }
-
-  //------------- clear sense data if it is not request sense command -------------//
-  if ( SCSI_CMD_REQUEST_SENSE != scsi_cmd[0] )
-  {
-    mscd_sense_data.sense_key                  = SCSI_SENSEKEY_NONE;
-    mscd_sense_data.add_sense_code      = 0;
-    mscd_sense_data.add_sense_qualifier = 0;
   }
 
   return len;
