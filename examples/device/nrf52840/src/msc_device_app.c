@@ -94,11 +94,11 @@ int32_t tud_msc_scsi_cb (uint8_t lun, uint8_t const scsi_cmd[16], void* buffer, 
       len = 0;
     break;
 
-//    case SCSI_CMD_START_STOP_UNIT:
-//      // Host try to eject/safe remove/powerof us. We could safely disconnect with disk storage, or go into lower power
-//      // scsi_start_stop_unit_t const * cmd_start_stop = (scsi_start_stop_unit_t const *) scsi_cmd
-//      len = 0;
-//    break;
+    case SCSI_CMD_START_STOP_UNIT:
+      // Host try to eject/safe remove/powerof us. We could safely disconnect with disk storage, or go into lower power
+      // scsi_start_stop_unit_t const * cmd_start_stop = (scsi_start_stop_unit_t const *) scsi_cmd
+      len = 0;
+    break;
 
     default:
       // negative is error -> Data stage is STALL, status = failed
