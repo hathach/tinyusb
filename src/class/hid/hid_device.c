@@ -446,6 +446,8 @@ tusb_error_t hidd_xfer_cb(uint8_t rhport, uint8_t edpt_addr, tusb_event_t event,
 /*------------------------------------------------------------------*/
 /* Ascii to Keycode
  *------------------------------------------------------------------*/
+#if CFG_TUD_HID_ASCII_TO_KEYCODE_LOOKUP
+
 const hid_ascii_to_keycode_entry_t HID_ASCII_TO_KEYCODE[128] =
 {
     {0, 0                     }, // 0x00 Null
@@ -580,5 +582,7 @@ const hid_ascii_to_keycode_entry_t HID_ASCII_TO_KEYCODE[128] =
     {1, HID_KEY_GRAVE         }, // 0x7E ~
     {0, HID_KEY_DELETE        }  // 0x7F Delete
 };
+
+#endif
 
 #endif
