@@ -57,6 +57,9 @@ void msc_app_umount(uint8_t rhport)
 
 }
 
+// Callback invoked when received an SCSI command not in built-in list below
+// - READ_CAPACITY10, READ_FORMAT_CAPACITY, INQUIRY, MODE_SENSE6, REQUEST_SENSE
+// - READ10 and WRITE10 has their own callbacks
 int32_t tud_msc_scsi_cb (uint8_t lun, uint8_t const scsi_cmd[16], void* buffer, uint16_t bufsize)
 {
   // read10 & write10 has their own callback and MUST not be handled here
@@ -80,12 +83,12 @@ int32_t tud_msc_scsi_cb (uint8_t lun, uint8_t const scsi_cmd[16], void* buffer, 
     break;
 
     case SCSI_CMD_START_STOP_UNIT:
-      // Host try to eject/safe remove/powerof us. We could safely disconnect with disk storage, or go into lower power
+      // Host try to eject/safe remove/poweroff us. We could safely disconnect with disk storage, or go into lower power
       // scsi_start_stop_unit_t const * cmd_start_stop = (scsi_start_stop_unit_t const *) scsi_cmd
       len = 0;
     break;
 
-    // negative is error -> Data stage is STALL, status = failed
+    // negative means error -> tusb could stall and/or response with failed status
     default: return -1;
   }
 
