@@ -97,6 +97,7 @@ VERIFY_STATIC(CFG_TUD_MSC_BUFSIZE < UINT16_MAX, "Size is not correct");
 
 // Check if MSC interface is ready to use
 bool tud_msc_ready(void);
+bool tud_msc_set_sense(uint8_t lun, uint8_t sense_key, uint8_t add_sense_code, uint8_t add_sense_qualifier);
 
 //--------------------------------------------------------------------+
 // APPLICATION CALLBACK API (WEAK is optional)

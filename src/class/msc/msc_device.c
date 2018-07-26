@@ -116,9 +116,23 @@ static inline uint16_t rdwr10_get_blockcount(uint8_t const command[])
   return __be2n_16(block_count);
 }
 
+//--------------------------------------------------------------------+
+// APPLICATION API
+//--------------------------------------------------------------------+
 bool tud_msc_ready(void)
 {
   return ( _mscd_itf.ep_in != 0 ) && ( _mscd_itf.ep_out != 0 ) ;
+}
+
+bool tud_msc_set_sense(uint8_t lun, uint8_t sense_key, uint8_t add_sense_code, uint8_t add_sense_qualifier)
+{
+  (void) lun;
+
+  _mscd_itf.sense_key           = sense_key;
+  _mscd_itf.add_sense_code      = add_sense_code;
+  _mscd_itf.add_sense_qualifier = add_sense_qualifier;
+
+  return true;
 }
 
 
@@ -162,11 +176,11 @@ tusb_error_t mscd_control_request_st(uint8_t rhport, tusb_control_request_t cons
 
   TU_ASSERT(p_request->bmRequestType_bit.type == TUSB_REQ_TYPE_CLASS, TUSB_ERROR_DCD_CONTROL_REQUEST_NOT_SUPPORT);
 
-  if(MSC_REQUEST_RESET == p_request->bRequest)
+  if(MSC_REQ_RESET == p_request->bRequest)
   {
     dcd_control_status(rhport, p_request->bmRequestType_bit.direction);
   }
-  else if (MSC_REQUEST_GET_MAX_LUN == p_request->bRequest)
+  else if (MSC_REQ_GET_MAX_LUN == p_request->bRequest)
   {
     // returned MAX LUN is minus 1 by specs
     _usbd_ctrl_buf[0] = CFG_TUD_MSC_MAXLUN-1;
@@ -245,21 +259,20 @@ int32_t proc_builtin_scsi(msc_cbw_t const * p_cbw, uint8_t* buffer, uint32_t buf
 
       sense_rsp.add_sense_len = sizeof(scsi_sense_fixed_data_t) - 8;
 
+      sense_rsp.sense_key           = _mscd_itf.sense_key;
+      sense_rsp.add_sense_code      = _mscd_itf.add_sense_code;
+      sense_rsp.add_sense_qualifier = _mscd_itf.add_sense_qualifier;
+
       ret = sizeof(sense_rsp);
       memcpy(buffer, &sense_rsp, ret);
+
+      // Clear sense data after copy
+      tud_msc_set_sense(p_cbw->lun, 0, 0, 0);
     }
     break;
 
     default: ret = -1; break;
   }
-
-  //------------- clear sense data if it is not request sense command -------------//
-//  if ( SCSI_CMD_REQUEST_SENSE != p_cbw->command[0])
-//  {
-//    sense_rsp.sense_key           = SCSI_SENSEKEY_NONE;
-//    sense_rsp.add_sense_code      = 0;
-//    sense_rsp.add_sense_qualifier = 0;
-//  }
 
   return ret;
 }
@@ -309,9 +322,18 @@ tusb_error_t mscd_xfer_cb(uint8_t rhport, uint8_t ep_addr, tusb_event_t event, u
         {
           int32_t const cb_result = tud_msc_scsi_cb(p_cbw->lun, p_cbw->command, NULL, 0);
 
-          p_csw->status   = (cb_result == 0) ? MSC_CSW_STATUS_PASSED : MSC_CSW_STATUS_FAILED;
           p_msc->data_len = 0;
           p_msc->stage    = MSC_STAGE_STATUS;
+
+          if ( cb_result < 0 )
+          {
+            p_csw->status = MSC_CSW_STATUS_FAILED;
+            tud_msc_set_sense(p_cbw->lun, SCSI_SENSE_ILLEGAL_REQUEST, 0x20, 0x00); // Sense = Invalid Command Operation
+          }
+          else
+          {
+            p_csw->status = MSC_CSW_STATUS_PASSED;
+          }
         }
         else if ( !BIT_TEST_(p_cbw->dir, 7) )
         {
@@ -334,25 +356,18 @@ tusb_error_t mscd_xfer_cb(uint8_t rhport, uint8_t ep_addr, tusb_event_t event, u
 
           if ( cb_result > 0 )
           {
-            p_csw->status   = MSC_CSW_STATUS_PASSED;
             p_msc->data_len = (uint32_t) cb_result;
-          }else
-          {
-            p_csw->status = MSC_CSW_STATUS_FAILED;
-            p_msc->data_len = 0;
-          }
+            p_csw->status   = MSC_CSW_STATUS_PASSED;
 
-          TU_ASSERT( p_cbw->xfer_bytes >= p_msc->data_len, TUSB_ERROR_INVALID_PARA ); // cannot return more than host expect
-
-          if ( p_msc->data_len )
-          {
+            TU_ASSERT( p_cbw->xfer_bytes >= p_msc->data_len, TUSB_ERROR_INVALID_PARA ); // cannot return more than host expect
             TU_ASSERT( dcd_edpt_xfer(rhport, p_msc->ep_in, _mscd_buf, p_msc->data_len), TUSB_ERROR_DCD_EDPT_XFER );
           }else
           {
-            // callback does not provide response's data --> possibly unsupported SCSI command
-            p_csw->status = MSC_CSW_STATUS_FAILED;
-            p_msc->stage  = MSC_STAGE_STATUS;
+            p_msc->data_len = 0;
+            p_csw->status   = MSC_CSW_STATUS_FAILED;
+            p_msc->stage    = MSC_STAGE_STATUS;
 
+            tud_msc_set_sense(p_cbw->lun, SCSI_SENSE_ILLEGAL_REQUEST, 0x20, 0x00); // Sense = Invalid Command Operation
             dcd_edpt_stall(rhport, p_msc->ep_in);
           }
         }
@@ -365,7 +380,16 @@ tusb_error_t mscd_xfer_cb(uint8_t rhport, uint8_t ep_addr, tusb_event_t event, u
       {
         if ( SCSI_CMD_WRITE_10 != p_cbw->command[0] )
         {
-          p_csw->status = (tud_msc_scsi_cb(p_cbw->lun, p_cbw->command, _mscd_buf, p_msc->data_len) >= 0 ) ? MSC_CSW_STATUS_PASSED : MSC_CSW_STATUS_FAILED;
+          int32_t cb_result = tud_msc_scsi_cb(p_cbw->lun, p_cbw->command, _mscd_buf, p_msc->data_len);
+
+          if ( cb_result < 0 )
+          {
+            p_csw->status = MSC_CSW_STATUS_FAILED;
+            tud_msc_set_sense(p_cbw->lun, SCSI_SENSE_ILLEGAL_REQUEST, 0x20, 0x00); // Sense = Invalid Command Operation
+          }else
+          {
+            p_csw->status = MSC_CSW_STATUS_PASSED;
+          }
         }
         else
         {
@@ -382,8 +406,9 @@ tusb_error_t mscd_xfer_cb(uint8_t rhport, uint8_t ep_addr, tusb_event_t event, u
             // negative means error -> skip to status phase, status in CSW set to failed
             p_csw->data_residue = p_cbw->xfer_bytes - p_msc->xferred_len;
             p_csw->status       = MSC_CSW_STATUS_FAILED;
+            p_msc->stage        = MSC_STAGE_STATUS;
 
-            p_msc->stage = MSC_STAGE_STATUS;
+            tud_msc_set_sense(p_cbw->lun, SCSI_SENSE_ILLEGAL_REQUEST, 0x20, 0x00); // Sense = Invalid Command Operation
             break;
           }else
           {
@@ -403,8 +428,7 @@ tusb_error_t mscd_xfer_cb(uint8_t rhport, uint8_t ep_addr, tusb_event_t event, u
             }
             else
             {
-              // Application consume all bytes in our buffer
-              // Nothing to do, process with normal flow
+              // Application consume all bytes in our buffer. Nothing to do, process with normal flow
             }
           }
         }
@@ -503,6 +527,7 @@ static void proc_read10_cmd(uint8_t rhport, mscd_interface_t* p_msc)
     p_csw->data_residue = p_cbw->xfer_bytes - p_msc->xferred_len;
     p_csw->status       = MSC_CSW_STATUS_FAILED;
 
+    tud_msc_set_sense(p_cbw->lun, SCSI_SENSE_ILLEGAL_REQUEST, 0x20, 0x00); // Sense = Invalid Command Operation
     dcd_edpt_stall(rhport, p_msc->ep_in);
   }
   else if ( nbytes == 0 )

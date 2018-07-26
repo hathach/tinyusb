@@ -83,8 +83,8 @@ typedef enum
 /// MassStorage Class-Specific Control Request
 typedef enum
 {
-  MSC_REQUEST_GET_MAX_LUN = 254, ///< The Get Max LUN device request is used to determine the number of logical units supported by the device. Logical Unit Numbers on the device shall be numbered contiguously starting from LUN 0 to a maximum LUN of 15
-  MSC_REQUEST_RESET       = 255  ///< This request is used to reset the mass storage device and its associated interface. This class-specific request shall ready the device for the next CBW from the host.
+  MSC_REQ_GET_MAX_LUN = 254, ///< The Get Max LUN device request is used to determine the number of logical units supported by the device. Logical Unit Numbers on the device shall be numbered contiguously starting from LUN 0 to a maximum LUN of 15
+  MSC_REQ_RESET       = 255  ///< This request is used to reset the mass storage device and its associated interface. This class-specific request shall ready the device for the next CBW from the host.
 }msc_request_type_t;
 
 /// \brief Command Block Status Values
@@ -145,19 +145,19 @@ typedef enum
 /// SCSI Sense Key
 typedef enum
 {
-  SCSI_SENSEKEY_NONE            = 0x00, ///< no specific Sense Key. This would be the case for a successful command
-  SCSI_SENSEKEY_RECOVERED_ERROR = 0x01, ///< ndicates the last command completed successfully with some recovery action performed by the disc drive.
-  SCSI_SENSEKEY_NOT_READY       = 0x02, ///< Indicates the logical unit addressed cannot be accessed.
-  SCSI_SENSEKEY_MEDIUM_ERROR    = 0x03, ///< Indicates the command terminated with a non-recovered error condition.
-  SCSI_SENSEKEY_HARDWARE_ERROR  = 0x04, ///< Indicates the disc drive detected a nonrecoverable hardware failure while performing the command or during a self test.
-  SCSI_SENSEKEY_ILLEGLA_REQUEST = 0x05, ///< Indicates an illegal parameter in the command descriptor block or in the additional parameters
-  SCSI_SENSEKEY_UNIT_ATTENTION  = 0x06, ///< Indicates the disc drive may have been reset.
-  SCSI_SENSEKEY_DATA_PROTECT    = 0x07, ///< Indicates that a command that reads or writes the medium was attempted on a block that is protected from this operation. The read or write operation is not performed.
-  SCSI_SENSEKEY_FIRMWARE_ERROR  = 0x08, ///< Vendor specific sense key.
-  SCSI_SENSEKEY_ABORTED_COMMAND = 0x0b, ///< Indicates the disc drive aborted the command.
-  SCSI_SENSEKEY_EQUAL           = 0x0c, ///< Indicates a SEARCH DATA command has satisfied an equal comparison.
-  SCSI_SENSEKEY_VOLUME_OVERFLOW = 0x0d, ///< Indicates a buffered peripheral device has reached the end of medium partition and data remains in the buffer that has not been written to the medium.
-  SCSI_SENSEKEY_MISCOMPARE      = 0x0e  ///< ndicates that the source data did not match the data read from the medium.
+  SCSI_SENSE_NONE            = 0x00, ///< no specific Sense Key. This would be the case for a successful command
+  SCSI_SENSE_RECOVERED_ERROR = 0x01, ///< ndicates the last command completed successfully with some recovery action performed by the disc drive.
+  SCSI_SENSE_NOT_READY       = 0x02, ///< Indicates the logical unit addressed cannot be accessed.
+  SCSI_SENSE_MEDIUM_ERROR    = 0x03, ///< Indicates the command terminated with a non-recovered error condition.
+  SCSI_SENSE_HARDWARE_ERROR  = 0x04, ///< Indicates the disc drive detected a nonrecoverable hardware failure while performing the command or during a self test.
+  SCSI_SENSE_ILLEGAL_REQUEST = 0x05, ///< Indicates an illegal parameter in the command descriptor block or in the additional parameters
+  SCSI_SENSE_UNIT_ATTENTION  = 0x06, ///< Indicates the disc drive may have been reset.
+  SCSI_SENSE_DATA_PROTECT    = 0x07, ///< Indicates that a command that reads or writes the medium was attempted on a block that is protected from this operation. The read or write operation is not performed.
+  SCSI_SENSE_FIRMWARE_ERROR  = 0x08, ///< Vendor specific sense key.
+  SCSI_SENSE_ABORTED_COMMAND = 0x0b, ///< Indicates the disc drive aborted the command.
+  SCSI_SENSE_EQUAL           = 0x0c, ///< Indicates a SEARCH DATA command has satisfied an equal comparison.
+  SCSI_SENSE_VOLUME_OVERFLOW = 0x0d, ///< Indicates a buffered peripheral device has reached the end of medium partition and data remains in the buffer that has not been written to the medium.
+  SCSI_SENSE_MISCOMPARE      = 0x0e  ///< ndicates that the source data did not match the data read from the medium.
 }scsi_sense_key_type_t;
 
 //--------------------------------------------------------------------+

@@ -329,7 +329,7 @@ tusb_error_t msch_open_subtask(uint8_t dev_addr, tusb_desc_interface_t const *p_
   //------------- Get Max Lun -------------//
   STASK_INVOKE(
     usbh_control_xfer_subtask( dev_addr, bm_request_type(TUSB_DIR_IN, TUSB_REQ_TYPE_CLASS, TUSB_REQ_RCPT_INTERFACE),
-                               MSC_REQUEST_GET_MAX_LUN, 0, msch_data[dev_addr-1].interface_number,
+                               MSC_REQ_GET_MAX_LUN, 0, msch_data[dev_addr-1].interface_number,
                                1, msch_buffer ),
     error
   );
@@ -341,7 +341,7 @@ tusb_error_t msch_open_subtask(uint8_t dev_addr, tusb_desc_interface_t const *p_
   //------------- Reset -------------//
   STASK_INVOKE(
     usbh_control_xfer_subtask( dev_addr, bm_request_type(TUSB_DIR_OUT, TUSB_REQ_TYPE_CLASS, TUSB_REQ_RCPT_INTERFACE),
-                               MSC_REQUEST_RESET, 0, msch_data[dev_addr-1].interface_number,
+                               MSC_REQ_RESET, 0, msch_data[dev_addr-1].interface_number,
                                0, NULL ),
     error
   );

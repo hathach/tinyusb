@@ -105,7 +105,7 @@ tusb_error_t stub_control_xfer(uint8_t dev_addr, uint8_t bmRequestType, uint8_t 
     case 0: // get max lun
       TEST_ASSERT_EQUAL(bm_request_type(TUSB_DIR_DEV_TO_HOST, TUSB_REQ_TYPE_CLASS, TUSB_REQ_RECIPIENT_INTERFACE),
                         bmRequestType);
-      TEST_ASSERT_EQUAL(MSC_REQUEST_GET_MAX_LUN, bRequest);
+      TEST_ASSERT_EQUAL(MSC_REQ_GET_MAX_LUN, bRequest);
       TEST_ASSERT_EQUAL(p_msc_interface_desc->bInterfaceNumber, wIndex);
       TEST_ASSERT_EQUAL(1, wLength);
       *data = 1; // TODO multiple LUN support
