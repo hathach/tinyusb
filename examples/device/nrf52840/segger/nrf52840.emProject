@@ -97,7 +97,6 @@
               <file file_name="../../../../hw/mcu/nordic/nrfx/soc/nrfx_irqs_nrf52840.h" />
             </folder>
           </folder>
-          <file file_name="../../../../hw/mcu/nordic/nrf_drv_usbd_errata.h" />
           <file file_name="../../../../hw/mcu/nordic/nrfx_config.h" />
           <file file_name="../../../../hw/mcu/nordic/nrfx_glue.h" />
         </folder>

@@ -42,6 +42,7 @@
 #include "nrf_gpio.h"
 #include "nrf_clock.h"
 #include "nrf_usbd.h"
+#include "nrf_drv_usbd_errata.h"
 
 #ifdef SOFTDEVICE_PRESENT
 #include "nrf_sdm.h"
@@ -64,54 +65,7 @@ enum {
  *------------------------------------------------------------------*/
 #define USB_NVIC_PRIO   7
 
-/*------------------------------------------------------------------*/
-/* FUNCTION DECLARATION
- *------------------------------------------------------------------*/
 void tusb_hal_nrf_power_event(uint32_t event);
-
-
-/*------------------------------------------------------------------*/
-/* Errata check from nrf_drv_usbd_errata.h
- *------------------------------------------------------------------*/
-
-/**
- * @brief Internal auxiliary function to check if the program is running on NRF52840 chip
- * @retval true  It is NRF52480 chip
- * @retval false It is other chip
- */
-static inline bool nrf_drv_usbd_errata_type_52840(void)
-{
-    return ((((*(uint32_t *)0xF0000FE0) & 0xFF) == 0x08) &&
-        (((*(uint32_t *)0xF0000FE4) & 0x0F) == 0x0));
-}
-
-/**
- * @brief Internal auxiliary function to check if the program is running on first final product of
- *        NRF52840 chip
- * @retval true  It is NRF52480 chip and it is first final product
- * @retval false It is other chip
- */
-static inline bool nrf_drv_usbd_errata_type_52840_fp1(void)
-{
-    return ( nrf_drv_usbd_errata_type_52840() &&
-               ( ((*(uint32_t *)0xF0000FE8) & 0xF0) == 0x20 ) &&
-               ( ((*(uint32_t *)0xF0000FEC) & 0xF0) == 0x00 ) );
-}
-
-static inline bool nrf_drv_usbd_errata_166(void)
-{
-  return true;
-}
-
-static inline bool nrf_drv_usbd_errata_171(void)
-{
-  return true;
-}
-
-static inline bool nrf_drv_usbd_errata_187(void)
-{
-  return nrf_drv_usbd_errata_type_52840_fp1();
-}
 
 /*------------------------------------------------------------------*/
 /* HFCLK helper
