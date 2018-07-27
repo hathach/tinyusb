@@ -64,8 +64,8 @@ int32_t tud_msc_scsi_cb (uint8_t lun, uint8_t const scsi_cmd[16], void* buffer, 
 {
   // read10 & write10 has their own callback and MUST not be handled here
 
-  void const* ptr = NULL;
-  uint16_t len = 0;
+  void const* response = NULL;
+  uint16_t resplen = 0;
 
   // most scsi handled is input
   bool in_xfer = true;
@@ -74,39 +74,44 @@ int32_t tud_msc_scsi_cb (uint8_t lun, uint8_t const scsi_cmd[16], void* buffer, 
   {
     case SCSI_CMD_TEST_UNIT_READY:
       // Command that host uses to check our readiness before sending other commands
-      len = 0;
+      resplen = 0;
     break;
 
     case SCSI_CMD_PREVENT_ALLOW_MEDIUM_REMOVAL:
       // Host is about to read/write etc ... better not to disconnect disk
-      len = 0;
+      resplen = 0;
     break;
 
     case SCSI_CMD_START_STOP_UNIT:
       // Host try to eject/safe remove/poweroff us. We could safely disconnect with disk storage, or go into lower power
-      // scsi_start_stop_unit_t const * cmd_start_stop = (scsi_start_stop_unit_t const *) scsi_cmd
-      len = 0;
+      /* scsi_start_stop_unit_t const * start_stop = (scsi_start_stop_unit_t const *) scsi_cmd;
+        // Start bit = 0 : low power mode, if load_eject = 1 : unmount disk storage as well
+        // Start bit = 1 : Ready mode, if load_eject = 1 : mount disk storage
+        start_stop->start;
+        start_stop->load_eject;
+       */
+      resplen = 0;
     break;
 
     // negative means error -> tusb could stall and/or response with failed status
     default: return -1;
   }
 
-  // return len must not larger than bufsize
-  if ( len > bufsize ) len = bufsize;
+  // return resplen must not larger than bufsize
+  if ( resplen > bufsize ) resplen = bufsize;
 
-  if ( ptr && len )
+  if ( response && resplen )
   {
     if(in_xfer)
     {
-      memcpy(buffer, ptr, len);
+      memcpy(buffer, response, resplen);
     }else
     {
       // SCSI output
     }
   }
 
-  return len;
+  return resplen;
 }
 
 

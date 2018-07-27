@@ -104,10 +104,10 @@ bool tud_msc_set_sense(uint8_t lun, uint8_t sense_key, uint8_t add_sense_code, u
 //--------------------------------------------------------------------+
 /**
  * Callback invoked when received \ref SCSI_CMD_READ_10 command
- * \param[in]	lun         Logical unit number
- * \param[in]	lba         Logical Block Address to be read
- * \param[in]	offset      Byte offset from LBA
- * \param[out]	buffer      Buffer which application need to update with the response data.
+ * \param[in]   lun         Logical unit number
+ * \param[in]   lba         Logical Block Address to be read
+ * \param[in]   offset      Byte offset from LBA
+ * \param[out]  buffer      Buffer which application need to update with the response data.
  * \param[in]   bufsize     Requested bytes
  *
  * \return      Number of byte read, if it is less than requested bytes by \a \b bufsize. Tinyusb will transfer
@@ -123,10 +123,10 @@ int32_t tud_msc_read10_cb (uint8_t lun, uint32_t lba, uint32_t offset, void* buf
 
 /**
  * Callback invoked when received \ref SCSI_CMD_WRITE_10 command
- * \param[in]	lun         Logical unit number
- * \param[in]	lba         Logical Block Address to be write
- * \param[in]	offset      Byte offset from LBA
- * \param[out]	buffer      Buffer which holds written data.
+ * \param[in]   lun         Logical unit number
+ * \param[in]   lba         Logical Block Address to be write
+ * \param[in]   offset      Byte offset from LBA
+ * \param[out]  buffer      Buffer which holds written data.
  * \param[in]   bufsize     Requested bytes
  *
  * \return      Number of byte written, if it is less than requested bytes by \a \b bufsize. Tinyusb will proceed with
@@ -142,8 +142,8 @@ int32_t tud_msc_write10_cb (uint8_t lun, uint32_t lba, uint32_t offset, void* bu
 
 /**
  * Callback invoked when received an SCSI command not in built-in list below.
- * \param[in]	lun         Logical unit number
- * \param[in]	scsi_cmd    SCSI command contents which application must examine to response accordingly
+ * \param[in]   lun         Logical unit number
+ * \param[in]   scsi_cmd    SCSI command contents which application must examine to response accordingly
  * \param[out]  buffer      Buffer for SCSI Data Stage.
  *                            - For INPUT: application must fill this with response.
  *                            - For OUTPUT it holds the Data from host
