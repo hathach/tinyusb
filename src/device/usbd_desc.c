@@ -62,7 +62,7 @@
  */
 #define _PID_MAP(itf, n)    ( (CFG_TUD_##itf) << (n) )
 #define CFG_TUD_DESC_PID    (0x4000 | _PID_MAP(CDC, 0) | _PID_MAP(MSC, 1) | \
-                             _PID_MAP(HID_KEYBOARD, 2) | _PID_MAP(HID_MOUSE, 3) )
+                             _PID_MAP(HID_KEYBOARD, 2) | _PID_MAP(HID_MOUSE, 3) /*|  _PID_MAP(HID_GENERIC, 5)*/ )
 #endif
 
 /*------------- Interface Numbering -------------*/
@@ -94,17 +94,21 @@
 #define EP_MSC_OUT            _EP_OUT(ITF_NUM_MSC+1)
 #define EP_MSC_IN             _EP_IN (ITF_NUM_MSC+1)
 
-// Boot protocol each report has its own interface
-#if CFG_TUD_HID_BOOT_PROTOCOL
-// HID Keyboard
-#define EP_HID_KBD            _EP_IN (ITF_NUM_HID_KBD+1)
-#define EP_HID_KBD_SIZE       8
 
-// HID Mouse
-#define EP_HID_MSE            _EP_IN (ITF_NUM_HID_MSE+1)
-#define EP_HID_MSE_SIZE       8
+// HID Keyboard with boot protocol
+#if CFG_TUD_HID_KEYBOARD && CFG_TUD_HID_KEYBOARD_BOOT
+#define EP_HID_KBD_BOOT       _EP_IN (ITF_NUM_HID_KBD+1)
+#define EP_HID_KBD_BOOT_SZ    8
 
-#else
+#endif
+
+// HID Mouse with boot protocol
+#if CFG_TUD_HID_MOUSE && CFG_TUD_HID_MOUSE_BOOT
+#define EP_HID_MSE_BOOT        _EP_IN (ITF_NUM_HID_MSE+1)
+#define EP_HID_MSE_BOOT_SZ     8
+#endif
+
+#if 0 // CFG_TUD_HID_BOOT_PROTOCOL
 
 // HID composite = keyboard + mouse
 #define EP_HID_COMP           _EP_IN (ITF_NUM_HID_KBD+1)
@@ -303,27 +307,25 @@ typedef struct ATTR_PACKED
 #endif
 
   //------------- HID -------------//
-#if CFG_TUD_HID_BOOT_PROTOCOL
-
-#if CFG_TUD_HID_KEYBOARD
+#if CFG_TUD_HID_KEYBOARD && CFG_TUD_HID_KEYBOARD_BOOT
   struct ATTR_PACKED
   {
     tusb_desc_interface_t             itf;
     tusb_hid_descriptor_hid_t         hid_desc;
     tusb_desc_endpoint_t              ep_in;
-  } hid_kbd;
+  } hid_kbd_boot;
 #endif
 
-#if CFG_TUD_HID_MOUSE
+#if CFG_TUD_HID_MOUSE && CFG_TUD_HID_MOUSE_BOOT
   struct ATTR_PACKED
   {
     tusb_desc_interface_t             itf;
     tusb_hid_descriptor_hid_t         hid_desc;
     tusb_desc_endpoint_t              ep_in;
-  } hid_mse;
+  } hid_mse_boot;
 #endif
 
-#else
+#if 0 // CFG_TUD_HID_BOOT_PROTOCOL
 
 #if CFG_TUD_HID_KEYBOARD || CFG_TUD_HID_MOUSE
   struct ATTR_PACKED
@@ -470,7 +472,7 @@ desc_auto_cfg_t const _desc_auto_config_struct =
           .bInterval        = 0
       },
     },
-#endif
+#endif // cdc
 
 #if CFG_TUD_MSC
     //------------- Mass Storage-------------//
@@ -509,12 +511,10 @@ desc_auto_cfg_t const _desc_auto_config_struct =
           .bInterval        = 1
       }
     },
-#endif
+#endif // msc
 
-#if CFG_TUD_HID_BOOT_PROTOCOL
-
-#if CFG_TUD_HID_KEYBOARD
-    .hid_kbd =
+#if CFG_TUD_HID_KEYBOARD && CFG_TUD_HID_KEYBOARD_BOOT
+    .hid_kbd_boot =
     {
         .itf =
         {
@@ -526,7 +526,7 @@ desc_auto_cfg_t const _desc_auto_config_struct =
           .bInterfaceClass    = TUSB_CLASS_HID,
           .bInterfaceSubClass = HID_SUBCLASS_BOOT,
           .bInterfaceProtocol = HID_PROTOCOL_KEYBOARD,
-          .iInterface         = 4 + CFG_TUD_CDC + CFG_TUD_MSC
+          .iInterface         = 0 //4 + CFG_TUD_CDC + CFG_TUD_MSC
         },
 
         .hid_desc =
@@ -544,17 +544,17 @@ desc_auto_cfg_t const _desc_auto_config_struct =
         {
           .bLength          = sizeof(tusb_desc_endpoint_t),
           .bDescriptorType  = TUSB_DESC_ENDPOINT,
-          .bEndpointAddress = EP_HID_KBD,
+          .bEndpointAddress = EP_HID_KBD_BOOT,
           .bmAttributes     = { .xfer = TUSB_XFER_INTERRUPT },
-          .wMaxPacketSize   = { .size = EP_HID_KBD_SIZE },
+          .wMaxPacketSize   = { .size = EP_HID_KBD_BOOT_SZ },
           .bInterval        = 0x0A
         }
     },
-#endif // keyboard
+#endif // boot keyboard
 
   //------------- HID Mouse -------------//
-#if CFG_TUD_HID_MOUSE
-    .hid_mse =
+#if CFG_TUD_HID_MOUSE && CFG_TUD_HID_MOUSE_BOOT
+    .hid_mse_boot =
     {
         .itf =
         {
@@ -566,7 +566,7 @@ desc_auto_cfg_t const _desc_auto_config_struct =
           .bInterfaceClass    = TUSB_CLASS_HID,
           .bInterfaceSubClass = HID_SUBCLASS_BOOT,
           .bInterfaceProtocol = HID_PROTOCOL_MOUSE,
-          .iInterface         = 4 + CFG_TUD_CDC + CFG_TUD_MSC + CFG_TUD_HID_KEYBOARD
+          .iInterface         = 0 // 4 + CFG_TUD_CDC + CFG_TUD_MSC + CFG_TUD_HID_KEYBOARD
         },
 
         .hid_desc =
@@ -584,16 +584,16 @@ desc_auto_cfg_t const _desc_auto_config_struct =
         {
           .bLength          = sizeof(tusb_desc_endpoint_t),
           .bDescriptorType  = TUSB_DESC_ENDPOINT,
-          .bEndpointAddress = EP_HID_MSE,
+          .bEndpointAddress = EP_HID_MSE_BOOT,
           .bmAttributes     = { .xfer = TUSB_XFER_INTERRUPT },
-          .wMaxPacketSize   = { .size = EP_HID_MSE_SIZE },
+          .wMaxPacketSize   = { .size = EP_HID_MSE_BOOT_SZ },
           .bInterval        = 0x0A
         },
     },
 
-#endif // mouse
+#endif // boot mouse
 
-#else
+#if 0
 
 #if CFG_TUD_HID_KEYBOARD || CFG_TUD_HID_MOUSE
     //------------- HID Keyboard + Mouse (multiple reports) -------------//

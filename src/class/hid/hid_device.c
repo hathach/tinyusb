@@ -73,15 +73,17 @@ typedef struct {
   CFG_TUSB_MEM_ALIGN uint8_t report_buf[REPORT_BUFSIZE];
 }hidd_interface_t;
 
-#if CFG_TUD_HID_BOOT_PROTOCOL
 
+#if CFG_TUD_HID_KEYBOARD
 CFG_TUSB_ATTR_USBRAM static hidd_interface_t _kbd_itf;
+#endif
+
+#if CFG_TUD_HID_MOUSE
 CFG_TUSB_ATTR_USBRAM static hidd_interface_t _mse_itf;
+#endif
 
-#else
-
+#if 0 // CFG_TUD_HID_BOOT_PROTOCOL
 CFG_TUSB_ATTR_USBRAM static hidd_interface_t _composite_itf;
-
 #endif
 
 //--------------------------------------------------------------------+
@@ -282,51 +284,43 @@ tusb_error_t hidd_open(uint8_t rhport, tusb_desc_interface_t const * desc_itf, u
 
   if (desc_itf->bInterfaceSubClass == HID_SUBCLASS_BOOT)
   {
-#if CFG_TUD_HID_BOOT_PROTOCOL
-    if ( (desc_itf->bInterfaceProtocol != HID_PROTOCOL_KEYBOARD) && (desc_itf->bInterfaceProtocol != HID_PROTOCOL_MOUSE) )
+    TU_ASSERT(desc_itf->bInterfaceProtocol == HID_PROTOCOL_KEYBOARD || desc_itf->bInterfaceProtocol == HID_PROTOCOL_MOUSE,  TUSB_ERROR_HIDD_DESCRIPTOR_INTERFACE);
+
+    hidd_interface_t * p_hid = NULL;
+
+    #if CFG_TUD_HID_KEYBOARD
+    if (desc_itf->bInterfaceProtocol == HID_PROTOCOL_KEYBOARD)
     {
-      // unknown, unsupported protocol
-      return TUSB_ERROR_HIDD_DESCRIPTOR_INTERFACE;
-    }else
-    {
-      hidd_interface_t * p_hid = NULL;
-
-      #if CFG_TUD_HID_KEYBOARD
-      if (desc_itf->bInterfaceProtocol == HID_PROTOCOL_KEYBOARD)
-      {
-        p_hid = &_kbd_itf;
-        p_hid->report_desc   = tud_desc_set.hid_report.boot_keyboard;
-        p_hid->get_report_cb = tud_hid_keyboard_get_report_cb;
-        p_hid->set_report_cb = tud_hid_keyboard_set_report_cb;
-      }
-      #endif
-
-      #if CFG_TUD_HID_MOUSE
-      if (desc_itf->bInterfaceProtocol == HID_PROTOCOL_MOUSE)
-      {
-        p_hid = &_mse_itf;
-        p_hid->report_desc   = tud_desc_set.hid_report.boot_mouse;
-        p_hid->get_report_cb = tud_hid_mouse_get_report_cb;
-        p_hid->set_report_cb = tud_hid_mouse_set_report_cb;
-      }
-      #endif
-
-      TU_ASSERT(p_hid, TUSB_ERROR_HIDD_DESCRIPTOR_INTERFACE);
-      VERIFY(p_hid->report_desc, TUSB_ERROR_DESCRIPTOR_CORRUPTED);
-
-      TU_ASSERT( dcd_edpt_open(rhport, desc_edpt), TUSB_ERROR_DCD_FAILED );
-
-      p_hid->boot_protocol = true; // default to boot mode when mounted
-      p_hid->report_len    = desc_hid->wReportLength;
-      p_hid->itf_num       = desc_itf->bInterfaceNumber;
-      p_hid->ep_in         = desc_edpt->bEndpointAddress;
-      p_hid->report_id     = 0;
-
-      *p_length = sizeof(tusb_desc_interface_t) + sizeof(tusb_hid_descriptor_hid_t) + sizeof(tusb_desc_endpoint_t);
+      p_hid = &_kbd_itf;
+      p_hid->report_desc   = tud_desc_set.hid_report.boot_keyboard;
+      p_hid->boot_protocol = CFG_TUD_HID_KEYBOARD_BOOT; // default mode is BOOT if enabled
+      p_hid->get_report_cb = tud_hid_keyboard_get_report_cb;
+      p_hid->set_report_cb = tud_hid_keyboard_set_report_cb;
     }
-#else
-    return TUSB_ERROR_HIDD_DESCRIPTOR_INTERFACE;
-#endif
+    #endif
+
+    #if CFG_TUD_HID_MOUSE
+    if (desc_itf->bInterfaceProtocol == HID_PROTOCOL_MOUSE)
+    {
+      p_hid = &_mse_itf;
+      p_hid->report_desc   = tud_desc_set.hid_report.boot_mouse;
+      p_hid->boot_protocol = CFG_TUD_HID_MOUSE_BOOT; // default mode is BOOT if enabled
+      p_hid->get_report_cb = tud_hid_mouse_get_report_cb;
+      p_hid->set_report_cb = tud_hid_mouse_set_report_cb;
+    }
+    #endif
+
+    TU_ASSERT(p_hid, TUSB_ERROR_HIDD_DESCRIPTOR_INTERFACE);
+    VERIFY(p_hid->report_desc, TUSB_ERROR_DESCRIPTOR_CORRUPTED);
+
+    TU_ASSERT( dcd_edpt_open(rhport, desc_edpt), TUSB_ERROR_DCD_FAILED );
+
+    p_hid->report_len    = desc_hid->wReportLength;
+    p_hid->itf_num       = desc_itf->bInterfaceNumber;
+    p_hid->ep_in         = desc_edpt->bEndpointAddress;
+    p_hid->report_id     = 0;
+
+    *p_length = sizeof(tusb_desc_interface_t) + sizeof(tusb_hid_descriptor_hid_t) + sizeof(tusb_desc_endpoint_t);
   }
   else
   {

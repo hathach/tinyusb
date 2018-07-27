@@ -75,6 +75,19 @@
 
 #define CFG_TUD_HID_KEYBOARD        1
 #define CFG_TUD_HID_MOUSE           1
+//#define CFG_TUD_HID_GENERIC         0
+
+/* Enable boot protocol will create separated HID interface for Keyboard,
+ * Consumer Key and Mouse --> require more In endpoints. Otherwise they
+ * are all packed into a single Multiple Report Interface.
+ *
+ * Note: If your device is meant to work with simple host running on
+ * an MCU (e.g with tinyusb host), boot protocol should be enabled.
+ */
+//#define CFG_TUD_HID_BOOT_PROTOCOL   1
+
+#define CFG_TUD_HID_KEYBOARD_BOOT   1
+#define CFG_TUD_HID_MOUSE_BOOT      1
 
 //--------------------------------------------------------------------
 // CDC
@@ -116,15 +129,6 @@
 //--------------------------------------------------------------------
 // HID
 //--------------------------------------------------------------------
-
-/* Enable boot protocol will create separated HID interface for Keyboard,
- * Consumer Key and Mouse --> require more In endpoints. Otherwise they
- * are all packed into a single Multiple Report Interface.
- *
- * Note: If your device is meant to work with simple host running on
- * an MCU (e.g with tinyusb host), boot protocol should be enabled.
- */
-#define CFG_TUD_HID_BOOT_PROTOCOL   1
 
 /* Use the HID_ASCII_TO_KEYCODE lookup if CFG_TUD_HID_KEYBOARD is enabled.
  * This will occupies 256 bytes of ROM. It will also enable the use of 2 extra APIs
