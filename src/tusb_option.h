@@ -171,6 +171,10 @@
     #define CFG_TUD_MSC          0
   #endif
 
+  // Generic (multiple) Report : Keyboard + Mouse + Gamepad + Joystick
+  #define TUD_OPT_HID_GENERIC    (CFG_TUD_HID && ( (CFG_TUD_HID_KEYBOARD && !CFG_TUD_DESC_BOOT_KEYBOARD) || \
+                                                 (CFG_TUD_HID_MOUSE && !CFG_TUD_DESC_BOOT_MOUSE) ))
+
 #endif // TUSB_OPT_DEVICE_ENABLED
 
 //--------------------------------------------------------------------

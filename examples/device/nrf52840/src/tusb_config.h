@@ -82,8 +82,8 @@
  * require more IN endpoints. If disabled, they they are all packed into a single
  * multiple report interface called "Generic".
  */
-#define CFG_TUD_DESC_BOOT_KEYBOARD   1
-#define CFG_TUD_DESC_BOOT_MOUSE      1
+#define CFG_TUD_DESC_BOOT_KEYBOARD   0
+#define CFG_TUD_DESC_BOOT_MOUSE      0
 
 //------------- CLASS -------------//
 #define CFG_TUD_CDC                 1

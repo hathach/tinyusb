@@ -87,8 +87,9 @@ CFG_TUSB_ATTR_USBRAM static hidd_interface_t _hidd_itf;
 
 static inline hidd_interface_t* get_interface_by_itfnum(uint8_t itf_num)
 {
-  return ( itf_num == _kbd_itf.itf_num ) ? &_kbd_itf :
-         ( itf_num == _mse_itf.itf_num ) ? &_mse_itf : NULL;
+  return ( itf_num == _kbd_itf.itf_num  ) ? &_kbd_itf  :
+         ( itf_num == _mse_itf.itf_num  ) ? &_mse_itf  :
+         ( itf_num == _hidd_itf.itf_num ) ? &_hidd_itf : NULL;
 }
 
 
@@ -333,17 +334,19 @@ tusb_error_t hidd_open(uint8_t rhport, tusb_desc_interface_t const * desc_itf, u
     // TODO HID generic
     hidd_interface_t * p_hid = &_hidd_itf;
 
+    TU_ASSERT( dcd_edpt_open(rhport, desc_edpt), TUSB_ERROR_DCD_FAILED );
+
     p_hid->itf_num       = desc_itf->bInterfaceNumber;
     p_hid->ep_in         = desc_edpt->bEndpointAddress;
 
     // TODO parse report ID for keyboard, mouse
     p_hid->report_id     = 0;
-    p_hid->report_len    = 0;
-    p_hid->report_desc   = NULL;
+    p_hid->report_len    = desc_hid->wReportLength;
+    p_hid->report_desc   = tud_desc_set.hid_report.generic;
     p_hid->get_report_cb = tud_hid_generic_get_report_cb;
     p_hid->set_report_cb = tud_hid_generic_set_report_cb;
 
-    return ERR_TUD_INVALID_DESCRIPTOR;
+    *p_len = sizeof(tusb_desc_interface_t) + sizeof(tusb_hid_descriptor_hid_t) + sizeof(tusb_desc_endpoint_t);
   }
 
   return TUSB_ERROR_NONE;

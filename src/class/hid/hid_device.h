@@ -47,6 +47,17 @@
  extern "C" {
 #endif
 
+//--------------------------------------------------------------------+
+// Class Driver Configuration
+//--------------------------------------------------------------------+
+#if !CFG_TUD_HID_KEYBOARD && CFG_TUD_DESC_BOOT_KEYBOARD
+#error CFG_TUD_HID_KEYBOARD must be enabled
+#endif
+
+#if !CFG_TUD_HID_MOUSE && CFG_TUD_DESC_BOOT_MOUSE
+#error CFG_TUD_HID_MOUSE  must be enabled
+#endif
+
 
 //--------------------------------------------------------------------+
 // HID GENERIC API

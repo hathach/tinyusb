@@ -40,16 +40,10 @@
 
 #if TUSB_OPT_DEVICE_ENABLED
 
-#define _TINY_USB_SOURCE_FILE_
 
 #include "tusb.h"
 
-
 #if CFG_TUD_DESC_AUTO
-
-// Generic (multiple) Report : Keyboard + Mouse + Gamepad + Joystick
-#define HID_GENERIC           (CFG_TUD_HID && ( (CFG_TUD_HID_KEYBOARD && !CFG_TUD_DESC_BOOT_KEYBOARD) || \
-                                                (CFG_TUD_HID_MOUSE && !CFG_TUD_DESC_BOOT_MOUSE) ))
 
 /*------------- VID/PID -------------*/
 #ifndef CFG_TUD_DESC_VID
@@ -66,7 +60,7 @@
  */
 #define _PID_MAP(itf, n)      ( (CFG_TUD_##itf) << (n) )
 #define CFG_TUD_DESC_PID      (0x4000 | _PID_MAP(CDC, 0) | _PID_MAP(MSC, 1) | _PID_MAP(HID, 2) | \
-                               _PID_MAP(HID_KEYBOARD, 2) | _PID_MAP(HID_MOUSE, 3) | (HID_GENERIC << 4) )
+                               _PID_MAP(HID_KEYBOARD, 2) | _PID_MAP(HID_MOUSE, 3) | (TUD_OPT_HID_GENERIC << 4) )
 #endif
 
 /*------------- Interface Numbering -------------*/
@@ -74,56 +68,46 @@
  * If a interface is not enabled, the later will take its place
  */
 
-#define ITF_NUM_CDC           0
-#define ITF_NUM_MSC           (ITF_NUM_CDC + 2*CFG_TUD_CDC)
+#define ITF_NUM_CDC             0
+#define ITF_NUM_MSC             (ITF_NUM_CDC + 2*CFG_TUD_CDC)
 
-#define ITF_NUM_HID_KBD       (ITF_NUM_MSC + CFG_TUD_MSC)
-#define ITF_NUM_HID_MSE       (ITF_NUM_HID_KBD + CFG_TUD_HID_KEYBOARD)
+#define ITF_NUM_HID_BOOT_KBD    (ITF_NUM_MSC + CFG_TUD_MSC)
+#define ITF_NUM_HID_BOOT_MSE    (ITF_NUM_HID_BOOT_KBD + CFG_TUD_DESC_BOOT_KEYBOARD)
+#define ITF_NUM_HID_GEN         (ITF_NUM_HID_BOOT_MSE + CFG_TUD_DESC_BOOT_MOUSE)
 
-#define ITF_NUM_HID_GEN       (ITF_NUM_HID_MSE + CFG_TUD_HID_MOUSE)
-#define ITF_TOTAL             (ITF_NUM_HID_GEN + HID_GENERIC)
+#define ITF_TOTAL               (ITF_NUM_HID_GEN + TUD_OPT_HID_GENERIC)
 
 /*------------- Endpoint Numbering & Size -------------*/
-#define _EP_IN(x)             (0x80 | (x))
-#define _EP_OUT(x)            (x)
+#define _EP_IN(x)               (0x80 | (x))
+#define _EP_OUT(x)              (x)
 
 // CDC
-#define EP_CDC_NOTIF          _EP_IN (ITF_NUM_CDC+1)
-#define EP_CDC_NOTIF_SIZE     8
+#define EP_CDC_NOTIF            _EP_IN ( ITF_NUM_CDC+1 )
+#define EP_CDC_NOTIF_SIZE       8
 
-#define EP_CDC_OUT            _EP_OUT(ITF_NUM_CDC+2)
-#define EP_CDC_IN             _EP_IN (ITF_NUM_CDC+2)
+#define EP_CDC_OUT              _EP_OUT( ITF_NUM_CDC+2 )
+#define EP_CDC_IN               _EP_IN ( ITF_NUM_CDC+2 )
 
 // Mass Storage
-#define EP_MSC_OUT            _EP_OUT(ITF_NUM_MSC+1)
-#define EP_MSC_IN             _EP_IN (ITF_NUM_MSC+1)
+#define EP_MSC_OUT              _EP_OUT( ITF_NUM_MSC+1 )
+#define EP_MSC_IN               _EP_IN ( ITF_NUM_MSC+1 )
 
 
 // HID Keyboard with boot protocol
-#if CFG_TUD_HID_KEYBOARD && CFG_TUD_DESC_BOOT_KEYBOARD
-#define EP_HID_KBD_BOOT       _EP_IN (ITF_NUM_HID_KBD+1)
-#define EP_HID_KBD_BOOT_SZ    8
-#endif
+#define EP_HID_KBD_BOOT         _EP_IN ( ITF_NUM_HID_BOOT_KBD+1 )
+#define EP_HID_KBD_BOOT_SZ      8
 
 // HID Mouse with boot protocol
-#if CFG_TUD_HID_MOUSE && CFG_TUD_DESC_BOOT_MOUSE
-#define EP_HID_MSE_BOOT        _EP_IN (ITF_NUM_HID_MSE+1)
-#define EP_HID_MSE_BOOT_SZ     8
-#endif
+#define EP_HID_MSE_BOOT         _EP_IN ( ITF_NUM_HID_BOOT_MSE+1 )
+#define EP_HID_MSE_BOOT_SZ      8
 
-
-
-#if HID_GENERIC
-
-// HID composite = keyboard + mouse
-#define EP_HID_GEN           _EP_IN (EP_HID_MSE_BOOT+1)
-#define EP_HID_GEN_SIZE      16
-
-#endif
+// HID composite = keyboard + mouse + gamepad + etc ...
+#define EP_HID_GEN              _EP_IN ( ITF_NUM_HID_GEN+1 )
+#define EP_HID_GEN_SIZE         16
 
 
 //--------------------------------------------------------------------+
-// HID Report Descriptors
+// Auto generated HID Report Descriptors
 //--------------------------------------------------------------------+
 
 
@@ -135,6 +119,7 @@
   HID_USAGE      ( HID_USAGE_DESKTOP_KEYBOARD )                    ,\
   HID_COLLECTION ( HID_COLLECTION_APPLICATION )                    ,\
     /* 8 bits Modifier Keys (Shfit, Control, Alt) */ \
+    __VA_ARGS__ \
     HID_USAGE_PAGE ( HID_USAGE_PAGE_KEYBOARD )                     ,\
       HID_USAGE_MIN    ( 224                                    )  ,\
       HID_USAGE_MAX    ( 231                                    )  ,\
@@ -173,7 +158,7 @@
 uint8_t const _desc_auto_hid_boot_kbd_report[] = { HID_REPORT_KEYBOARD() };
 #endif
 
-#endif
+#endif // hid keyboard
 
 /*------------- Mouse Descriptor -------------*/
 #if CFG_TUD_HID_MOUSE
@@ -181,6 +166,7 @@ uint8_t const _desc_auto_hid_boot_kbd_report[] = { HID_REPORT_KEYBOARD() };
   HID_USAGE_PAGE ( HID_USAGE_PAGE_DESKTOP      )                    ,\
   HID_USAGE      ( HID_USAGE_DESKTOP_MOUSE     )                    ,\
   HID_COLLECTION ( HID_COLLECTION_APPLICATION  )                    ,\
+    __VA_ARGS__ \
     HID_USAGE      ( HID_USAGE_DESKTOP_POINTER )                    ,\
     HID_COLLECTION ( HID_COLLECTION_PHYSICAL   )                    ,\
       HID_USAGE_PAGE  ( HID_USAGE_PAGE_BUTTON  )                    ,\
@@ -219,11 +205,29 @@ uint8_t const _desc_auto_hid_boot_kbd_report[] = { HID_REPORT_KEYBOARD() };
 uint8_t const _desc_auto_hid_boot_mse_report[] = { HID_REPORT_MOUSE() };
 #endif
 
+#endif // hid mouse
+
+/*------------- Generic (composite) Descriptor -------------*/
+
+#if TUD_OPT_HID_GENERIC
+
+uint8_t const _desc_auto_hid_generic_report[] =
+{
+#if !CFG_TUD_DESC_BOOT_KEYBOARD
+    HID_REPORT_KEYBOARD( HID_REPORT_ID(1), ),
 #endif
+
+#if !CFG_TUD_DESC_BOOT_MOUSE
+    HID_REPORT_MOUSE( HID_REPORT_ID(2), )
+#endif
+
+};
+
+#endif // hid generic
 
 
 /*------------------------------------------------------------------*/
-/* Auto generate descriptor
+/* Auto generated Device & Configuration descriptor
  *------------------------------------------------------------------*/
 
 // For highspeed device but currently in full speed mode
@@ -323,7 +327,7 @@ typedef struct ATTR_PACKED
   } hid_mse_boot;
 #endif
 
-#if HID_GENERIC
+#if TUD_OPT_HID_GENERIC
 
   struct ATTR_PACKED
   {
@@ -516,7 +520,7 @@ desc_auto_cfg_t const _desc_auto_config_struct =
         {
           .bLength            = sizeof(tusb_desc_interface_t),
           .bDescriptorType    = TUSB_DESC_INTERFACE,
-          .bInterfaceNumber   = ITF_NUM_HID_KBD,
+          .bInterfaceNumber   = ITF_NUM_HID_BOOT_KBD,
           .bAlternateSetting  = 0x00,
           .bNumEndpoints      = 1,
           .bInterfaceClass    = TUSB_CLASS_HID,
@@ -556,7 +560,7 @@ desc_auto_cfg_t const _desc_auto_config_struct =
         {
           .bLength            = sizeof(tusb_desc_interface_t),
           .bDescriptorType    = TUSB_DESC_INTERFACE,
-          .bInterfaceNumber   = ITF_NUM_HID_MSE,
+          .bInterfaceNumber   = ITF_NUM_HID_BOOT_MSE,
           .bAlternateSetting  = 0x00,
           .bNumEndpoints      = 1,
           .bInterfaceClass    = TUSB_CLASS_HID,
@@ -589,10 +593,10 @@ desc_auto_cfg_t const _desc_auto_config_struct =
 
 #endif // boot mouse
 
-#if HID_GENERIC
+#if TUD_OPT_HID_GENERIC
 
     //------------- HID Generic Multiple report -------------//
-    .hid_composite =
+    .hid_generic =
     {
         .itf =
         {
@@ -600,7 +604,7 @@ desc_auto_cfg_t const _desc_auto_config_struct =
             .bDescriptorType    = TUSB_DESC_INTERFACE,
             .bInterfaceNumber   = ITF_NUM_HID_GEN,
             .bAlternateSetting  = 0x00,
-            .bNumEndpoints      = 2,
+            .bNumEndpoints      = 1,
             .bInterfaceClass    = TUSB_CLASS_HID,
             .bInterfaceSubClass = 0,
             .bInterfaceProtocol = 0,

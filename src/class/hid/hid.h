@@ -354,8 +354,8 @@ typedef enum
 #define RI_TYPE_LOCAL  2
 
 //------------- MAIN ITEMS 6.2.2.4 -------------//
-#define HID_INPUT(x)           HID_REPORT_ITEM(x, 8, RI_TYPE_MAIN, 1)
-#define HID_OUTPUT(x)          HID_REPORT_ITEM(x, 9, RI_TYPE_MAIN, 1)
+#define HID_INPUT(x)           HID_REPORT_ITEM(x,  8, RI_TYPE_MAIN, 1)
+#define HID_OUTPUT(x)          HID_REPORT_ITEM(x,  9, RI_TYPE_MAIN, 1)
 #define HID_COLLECTION(x)      HID_REPORT_ITEM(x, 10, RI_TYPE_MAIN, 1)
 #define HID_FEATURE(x)         HID_REPORT_ITEM(x, 11, RI_TYPE_MAIN, 1)
 #define HID_COLLECTION_END     HID_REPORT_ITEM(x, 12, RI_TYPE_MAIN, 0)
