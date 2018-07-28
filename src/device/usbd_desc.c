@@ -47,9 +47,13 @@
 
 #if CFG_TUD_DESC_AUTO
 
+// Generic (multiple) Report : Keyboard + Mouse + Gamepad + Joystick
+#define HID_GENERIC           (CFG_TUD_HID && ( (CFG_TUD_HID_KEYBOARD && !CFG_TUD_DESC_BOOT_KEYBOARD) || \
+                                                (CFG_TUD_HID_MOUSE && !CFG_TUD_DESC_BOOT_MOUSE) ))
+
 /*------------- VID/PID -------------*/
 #ifndef CFG_TUD_DESC_VID
-#define CFG_TUD_DESC_VID          0xCAFE
+#define CFG_TUD_DESC_VID       0xCAFE
 #endif
 
 #ifndef CFG_TUD_DESC_PID
@@ -58,11 +62,11 @@
  * Same VID/PID with different interface e.g MSC (first), then CDC (later) will possibly cause system error on PC.
  *
  * Auto ProductID layout's Bitmap:
- *   [MSB]         HID Generic | HID Composite | HID Mouse | HID Keyboard | MSC | CDC          [LSB]
+ *   [MSB]         HID Generic | Boot Mouse | Boot Keyboard | MSC | CDC          [LSB]
  */
-#define _PID_MAP(itf, n)    ( (CFG_TUD_##itf) << (n) )
-#define CFG_TUD_DESC_PID    (0x4000 | _PID_MAP(CDC, 0) | _PID_MAP(MSC, 1) | \
-                             _PID_MAP(HID_KEYBOARD, 2) | _PID_MAP(HID_MOUSE, 3) /*|  _PID_MAP(HID_GENERIC, 5)*/ )
+#define _PID_MAP(itf, n)      ( (CFG_TUD_##itf) << (n) )
+#define CFG_TUD_DESC_PID      (0x4000 | _PID_MAP(CDC, 0) | _PID_MAP(MSC, 1) | _PID_MAP(HID, 2) | \
+                               _PID_MAP(HID_KEYBOARD, 2) | _PID_MAP(HID_MOUSE, 3) | (HID_GENERIC << 4) )
 #endif
 
 /*------------- Interface Numbering -------------*/
@@ -76,8 +80,8 @@
 #define ITF_NUM_HID_KBD       (ITF_NUM_MSC + CFG_TUD_MSC)
 #define ITF_NUM_HID_MSE       (ITF_NUM_HID_KBD + CFG_TUD_HID_KEYBOARD)
 
-#define ITF_TOTAL             (ITF_NUM_HID_MSE + CFG_TUD_HID_MOUSE)
-
+#define ITF_NUM_HID_GEN       (ITF_NUM_HID_MSE + CFG_TUD_HID_MOUSE)
+#define ITF_TOTAL             (ITF_NUM_HID_GEN + HID_GENERIC)
 
 /*------------- Endpoint Numbering & Size -------------*/
 #define _EP_IN(x)             (0x80 | (x))
@@ -96,23 +100,24 @@
 
 
 // HID Keyboard with boot protocol
-#if CFG_TUD_HID_KEYBOARD && CFG_TUD_HID_KEYBOARD_BOOT
+#if CFG_TUD_HID_KEYBOARD && CFG_TUD_DESC_BOOT_KEYBOARD
 #define EP_HID_KBD_BOOT       _EP_IN (ITF_NUM_HID_KBD+1)
 #define EP_HID_KBD_BOOT_SZ    8
-
 #endif
 
 // HID Mouse with boot protocol
-#if CFG_TUD_HID_MOUSE && CFG_TUD_HID_MOUSE_BOOT
+#if CFG_TUD_HID_MOUSE && CFG_TUD_DESC_BOOT_MOUSE
 #define EP_HID_MSE_BOOT        _EP_IN (ITF_NUM_HID_MSE+1)
 #define EP_HID_MSE_BOOT_SZ     8
 #endif
 
-#if 0 // CFG_TUD_HID_BOOT_PROTOCOL
+
+
+#if HID_GENERIC
 
 // HID composite = keyboard + mouse
-#define EP_HID_COMP           _EP_IN (ITF_NUM_HID_KBD+1)
-#define EP_HID_COMP_SIZE      16
+#define EP_HID_GEN           _EP_IN (EP_HID_MSE_BOOT+1)
+#define EP_HID_GEN_SIZE      16
 
 #endif
 
@@ -307,7 +312,7 @@ typedef struct ATTR_PACKED
 #endif
 
   //------------- HID -------------//
-#if CFG_TUD_HID_KEYBOARD && CFG_TUD_HID_KEYBOARD_BOOT
+#if CFG_TUD_HID_KEYBOARD && CFG_TUD_DESC_BOOT_KEYBOARD
   struct ATTR_PACKED
   {
     tusb_desc_interface_t             itf;
@@ -316,7 +321,7 @@ typedef struct ATTR_PACKED
   } hid_kbd_boot;
 #endif
 
-#if CFG_TUD_HID_MOUSE && CFG_TUD_HID_MOUSE_BOOT
+#if CFG_TUD_HID_MOUSE && CFG_TUD_DESC_BOOT_MOUSE
   struct ATTR_PACKED
   {
     tusb_desc_interface_t             itf;
@@ -325,20 +330,18 @@ typedef struct ATTR_PACKED
   } hid_mse_boot;
 #endif
 
-#if 0 // CFG_TUD_HID_BOOT_PROTOCOL
+#if HID_GENERIC
 
-#if CFG_TUD_HID_KEYBOARD || CFG_TUD_HID_MOUSE
   struct ATTR_PACKED
   {
     tusb_desc_interface_t             itf;
     tusb_hid_descriptor_hid_t         hid_desc;
     tusb_desc_endpoint_t              ep_in;
 
-    #if CFG_TUD_HID_KEYBOARD
+    #if 0 //  CFG_TUD_HID_KEYBOARD
     tusb_desc_endpoint_t              ep_out;
     #endif
-  } hid_composite;
-#endif
+  } hid_generic;
 
 #endif
 
@@ -513,7 +516,7 @@ desc_auto_cfg_t const _desc_auto_config_struct =
     },
 #endif // msc
 
-#if CFG_TUD_HID_KEYBOARD && CFG_TUD_HID_KEYBOARD_BOOT
+#if CFG_TUD_HID_KEYBOARD && CFG_TUD_DESC_BOOT_KEYBOARD
     .hid_kbd_boot =
     {
         .itf =
@@ -553,7 +556,7 @@ desc_auto_cfg_t const _desc_auto_config_struct =
 #endif // boot keyboard
 
   //------------- HID Mouse -------------//
-#if CFG_TUD_HID_MOUSE && CFG_TUD_HID_MOUSE_BOOT
+#if CFG_TUD_HID_MOUSE && CFG_TUD_DESC_BOOT_MOUSE
     .hid_mse_boot =
     {
         .itf =
@@ -593,23 +596,22 @@ desc_auto_cfg_t const _desc_auto_config_struct =
 
 #endif // boot mouse
 
-#if 0
+#if HID_GENERIC
 
-#if CFG_TUD_HID_KEYBOARD || CFG_TUD_HID_MOUSE
-    //------------- HID Keyboard + Mouse (multiple reports) -------------//
+    //------------- HID Generic Multiple report -------------//
     .hid_composite =
     {
         .itf =
         {
             .bLength            = sizeof(tusb_desc_interface_t),
             .bDescriptorType    = TUSB_DESC_INTERFACE,
-            .bInterfaceNumber   = ITF_NUM_HID_KBD,
+            .bInterfaceNumber   = ITF_NUM_HID_GEN,
             .bAlternateSetting  = 0x00,
             .bNumEndpoints      = 2,
             .bInterfaceClass    = TUSB_CLASS_HID,
             .bInterfaceSubClass = 0,
             .bInterfaceProtocol = 0,
-            .iInterface         = 4 + CFG_TUD_CDC + CFG_TUD_MSC,
+            .iInterface         = 0, // 4 + CFG_TUD_CDC + CFG_TUD_MSC,
         },
 
         .hid_desc =
@@ -620,41 +622,26 @@ desc_auto_cfg_t const _desc_auto_config_struct =
             .bCountryCode      = HID_Local_NotSupported,
             .bNumDescriptors   = 1,
             .bReportType       = HID_DESC_TYPE_REPORT,
-            .wReportLength     = sizeof(_desc_auto_hid_composite_report)
+            .wReportLength     = sizeof(_desc_auto_hid_generic_report)
         },
 
         .ep_in =
         {
             .bLength          = sizeof(tusb_desc_endpoint_t),
             .bDescriptorType  = TUSB_DESC_ENDPOINT,
-            .bEndpointAddress = EP_HID_COMP,
+            .bEndpointAddress = EP_HID_GEN,
             .bmAttributes     = { .xfer = TUSB_XFER_INTERRUPT },
-            .wMaxPacketSize   = { .size = EP_HID_COMP_SIZE },
+            .wMaxPacketSize   = { .size = EP_HID_GEN_SIZE },
             .bInterval        = 0x0A
         }
     }
-#endif
 
-#endif // boot protocol
+#endif // hid generic
 };
 
 uint8_t const * const _desc_auto_config = (uint8_t const*) &_desc_auto_config_struct;
 
 #endif
-
-/*------------------------------------------------------------------*/
-/* MACRO TYPEDEF CONSTANT ENUM
- *------------------------------------------------------------------*/
-
-/*------------------------------------------------------------------*/
-/* VARIABLE DECLARATION
- *------------------------------------------------------------------*/
-
-/*------------------------------------------------------------------*/
-/* FUNCTION DECLARATION
- *------------------------------------------------------------------*/
-
-
 
 
 #endif

@@ -91,6 +91,8 @@
     ENTRY(TUSB_ERROR_USBD_DEVICE_NOT_CONFIGURED      )\
     ENTRY(TUSB_ERROR_NOT_ENOUGH_MEMORY               )\
     ENTRY(TUSB_ERROR_FAILED                          )\
+    \
+    ENTRY(ERR_TUD_INVALID_DESCRIPTOR)
 
 
 /// \brief Error Code returned

@@ -116,7 +116,7 @@ static usbd_class_driver_t const usbd_class_drivers[] =
   #endif
 
 
-  #if TUD_OPT_HID_ENABLED
+  #if CFG_TUD_HID
     {
         .class_code     = TUSB_CLASS_HID,
         .init           = hidd_init,
@@ -318,12 +318,12 @@ static void usbd_reset(uint8_t rhport)
   tud_desc_set.device = (uint8_t const*) &_desc_auto_device;
   tud_desc_set.config = _desc_auto_config;
 
-  #if CFG_TUD_HID_KEYBOARD && CFG_TUD_HID_KEYBOARD_BOOT
+  #if CFG_TUD_HID_KEYBOARD && CFG_TUD_DESC_BOOT_KEYBOARD
   extern uint8_t const _desc_auto_hid_kbd_report[];
   tud_desc_set.hid_report.boot_keyboard = _desc_auto_hid_kbd_report;
   #endif
 
-  #if CFG_TUD_HID_MOUSE && CFG_TUD_HID_MOUSE_BOOT
+  #if CFG_TUD_HID_MOUSE && CFG_TUD_DESC_BOOT_MOUSE
   extern uint8_t const _desc_auto_hid_mse_report[];
   tud_desc_set.hid_report.boot_mouse = _desc_auto_hid_mse_report;
   #endif

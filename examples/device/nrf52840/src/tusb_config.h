@@ -61,33 +61,38 @@
 // DEVICE CONFIGURATION
 //--------------------------------------------------------------------
 
-/*------------- Core -------------*/
+#define CFG_TUD_ENDOINT0_SIZE       64
+
+/*------------- Descriptors -------------*/
+
+/* Enable auto generated descriptor, tinyusb will try its best to create
+ * descriptor ( device, configuration, hid ) that matches enabled CFG_* in this file
+ *
+ * Note: All CFG_TUD_DESC_* are relevant only if CFG_TUD_DESC_AUTO is enabled
+ */
 #define CFG_TUD_DESC_AUTO           1
 
+/* USB VID/PID if not defined, tinyusb to use default value
+ * Note: different class combination e.g CDC and (CDC + MSC) should have different
+ * PID since Host OS will "remembered" device driver after the first plug */
 // #define CFG_TUD_DESC_VID          0xCAFE
 // #define CFG_TUD_DESC_PID          0x0001
 
-#define CFG_TUD_ENDOINT0_SIZE       64
+/* Use Boot Protocol for Keyboard, Mouse. Enable this will create separated HID interface
+ * require more IN endpoints. If disabled, they they are all packed into a single
+ * multiple report interface called "Generic".
+ */
+#define CFG_TUD_DESC_BOOT_KEYBOARD   1
+#define CFG_TUD_DESC_BOOT_MOUSE      1
 
 //------------- CLASS -------------//
 #define CFG_TUD_CDC                 1
 #define CFG_TUD_MSC                 1
 
+#define CFG_TUD_HID                 1
 #define CFG_TUD_HID_KEYBOARD        1
 #define CFG_TUD_HID_MOUSE           1
-//#define CFG_TUD_HID_GENERIC         0
 
-/* Enable boot protocol will create separated HID interface for Keyboard,
- * Consumer Key and Mouse --> require more In endpoints. Otherwise they
- * are all packed into a single Multiple Report Interface.
- *
- * Note: If your device is meant to work with simple host running on
- * an MCU (e.g with tinyusb host), boot protocol should be enabled.
- */
-//#define CFG_TUD_HID_BOOT_PROTOCOL   1
-
-#define CFG_TUD_HID_KEYBOARD_BOOT   1
-#define CFG_TUD_HID_MOUSE_BOOT      1
 
 //--------------------------------------------------------------------
 // CDC

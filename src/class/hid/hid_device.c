@@ -38,7 +38,7 @@
 
 #include "tusb_option.h"
 
-#if (TUSB_OPT_DEVICE_ENABLED && TUD_OPT_HID_ENABLED)
+#if (TUSB_OPT_DEVICE_ENABLED && CFG_TUD_HID)
 
 #define _TINY_USB_SOURCE_FILE_
 //--------------------------------------------------------------------+
@@ -82,9 +82,16 @@ CFG_TUSB_ATTR_USBRAM static hidd_interface_t _kbd_itf;
 CFG_TUSB_ATTR_USBRAM static hidd_interface_t _mse_itf;
 #endif
 
-#if 0 // CFG_TUD_HID_BOOT_PROTOCOL
-CFG_TUSB_ATTR_USBRAM static hidd_interface_t _composite_itf;
-#endif
+CFG_TUSB_ATTR_USBRAM static hidd_interface_t _hidd_itf;
+
+
+//--------------------------------------------------------------------+
+// HID GENERIC API
+//--------------------------------------------------------------------+
+bool tud_hid_generic_ready(void)
+{
+
+}
 
 //--------------------------------------------------------------------+
 // KEYBOARD APPLICATION API
@@ -173,6 +180,7 @@ bool tud_hid_keyboard_key_sequence(const char* str, uint32_t interval_ms)
     }
   }
 
+  return true;
 }
 
 #endif // CFG_TUD_HID_ASCII_TO_KEYCODE_LOOKUP
@@ -268,23 +276,25 @@ void hidd_reset(uint8_t rhport)
   #endif
 }
 
-tusb_error_t hidd_open(uint8_t rhport, tusb_desc_interface_t const * desc_itf, uint16_t *p_length)
+tusb_error_t hidd_open(uint8_t rhport, tusb_desc_interface_t const * desc_itf, uint16_t *p_len)
 {
   uint8_t const *p_desc = (uint8_t const *) desc_itf;
 
   //------------- HID descriptor -------------//
   p_desc += p_desc[DESC_OFFSET_LEN];
   tusb_hid_descriptor_hid_t const *desc_hid = (tusb_hid_descriptor_hid_t const *) p_desc;
-  TU_ASSERT(HID_DESC_TYPE_HID == desc_hid->bDescriptorType, TUSB_ERROR_HIDD_DESCRIPTOR_INTERFACE);
+  TU_ASSERT(HID_DESC_TYPE_HID == desc_hid->bDescriptorType, ERR_TUD_INVALID_DESCRIPTOR);
 
   //------------- Endpoint Descriptor -------------//
   p_desc += p_desc[DESC_OFFSET_LEN];
   tusb_desc_endpoint_t const *desc_edpt = (tusb_desc_endpoint_t const *) p_desc;
-  TU_ASSERT(TUSB_DESC_ENDPOINT == desc_edpt->bDescriptorType, TUSB_ERROR_HIDD_DESCRIPTOR_INTERFACE);
+  TU_ASSERT(TUSB_DESC_ENDPOINT == desc_edpt->bDescriptorType, ERR_TUD_INVALID_DESCRIPTOR);
+
+  *p_len = 0;
 
   if (desc_itf->bInterfaceSubClass == HID_SUBCLASS_BOOT)
   {
-    TU_ASSERT(desc_itf->bInterfaceProtocol == HID_PROTOCOL_KEYBOARD || desc_itf->bInterfaceProtocol == HID_PROTOCOL_MOUSE,  TUSB_ERROR_HIDD_DESCRIPTOR_INTERFACE);
+    TU_ASSERT(desc_itf->bInterfaceProtocol == HID_PROTOCOL_KEYBOARD || desc_itf->bInterfaceProtocol == HID_PROTOCOL_MOUSE,  ERR_TUD_INVALID_DESCRIPTOR);
 
     hidd_interface_t * p_hid = NULL;
 
@@ -293,7 +303,6 @@ tusb_error_t hidd_open(uint8_t rhport, tusb_desc_interface_t const * desc_itf, u
     {
       p_hid = &_kbd_itf;
       p_hid->report_desc   = tud_desc_set.hid_report.boot_keyboard;
-      p_hid->boot_protocol = CFG_TUD_HID_KEYBOARD_BOOT; // default mode is BOOT if enabled
       p_hid->get_report_cb = tud_hid_keyboard_get_report_cb;
       p_hid->set_report_cb = tud_hid_keyboard_set_report_cb;
     }
@@ -304,13 +313,12 @@ tusb_error_t hidd_open(uint8_t rhport, tusb_desc_interface_t const * desc_itf, u
     {
       p_hid = &_mse_itf;
       p_hid->report_desc   = tud_desc_set.hid_report.boot_mouse;
-      p_hid->boot_protocol = CFG_TUD_HID_MOUSE_BOOT; // default mode is BOOT if enabled
       p_hid->get_report_cb = tud_hid_mouse_get_report_cb;
       p_hid->set_report_cb = tud_hid_mouse_set_report_cb;
     }
     #endif
 
-    TU_ASSERT(p_hid, TUSB_ERROR_HIDD_DESCRIPTOR_INTERFACE);
+    TU_ASSERT(p_hid, ERR_TUD_INVALID_DESCRIPTOR);
     VERIFY(p_hid->report_desc, TUSB_ERROR_DESCRIPTOR_CORRUPTED);
 
     TU_ASSERT( dcd_edpt_open(rhport, desc_edpt), TUSB_ERROR_DCD_FAILED );
@@ -319,15 +327,26 @@ tusb_error_t hidd_open(uint8_t rhport, tusb_desc_interface_t const * desc_itf, u
     p_hid->itf_num       = desc_itf->bInterfaceNumber;
     p_hid->ep_in         = desc_edpt->bEndpointAddress;
     p_hid->report_id     = 0;
+    p_hid->boot_protocol = true; // default mode is BOOT
 
-    *p_length = sizeof(tusb_desc_interface_t) + sizeof(tusb_hid_descriptor_hid_t) + sizeof(tusb_desc_endpoint_t);
+    *p_len = sizeof(tusb_desc_interface_t) + sizeof(tusb_hid_descriptor_hid_t) + sizeof(tusb_desc_endpoint_t);
   }
   else
   {
     // TODO HID generic
+    hidd_interface_t * p_hid = &_hidd_itf;
+
+    p_hid->itf_num       = desc_itf->bInterfaceNumber;
+    p_hid->ep_in         = desc_edpt->bEndpointAddress;
+
     // TODO parse report ID for keyboard, mouse
-    *p_length = 0;
-    return TUSB_ERROR_HIDD_DESCRIPTOR_INTERFACE;
+    p_hid->report_id     = 0;
+    p_hid->report_len    = 0;
+    p_hid->report_desc   = NULL;
+    //p_hid->get_report_cb = tud_hid_get_report_cb;
+    //p_hid->set_report_cb = tud_hid_set_report_cb;
+
+    return ERR_TUD_INVALID_DESCRIPTOR;
   }
 
   return TUSB_ERROR_NONE;
@@ -352,7 +371,7 @@ tusb_error_t hidd_control_request_st(uint8_t rhport, tusb_control_request_t cons
     {
       STASK_ASSERT ( p_hid->report_len <= CFG_TUD_CTRL_BUFSIZE );
 
-      // use device control buffer (in USB SRAM)
+      // use device control buffer
       memcpy(_usbd_ctrl_buf, p_hid->report_desc, p_hid->report_len);
 
       usbd_control_xfer_st(rhport, p_request->bmRequestType_bit.direction, _usbd_ctrl_buf, p_hid->report_len);

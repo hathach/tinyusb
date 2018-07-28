@@ -151,8 +151,6 @@
 //--------------------------------------------------------------------
 #if TUSB_OPT_DEVICE_ENABLED
 
-  #define TUD_OPT_HID_ENABLED ( CFG_TUD_HID_KEYBOARD + CFG_TUD_HID_MOUSE )
-
   #ifndef CFG_TUD_ENDOINT0_SIZE
     #define CFG_TUD_ENDOINT0_SIZE    64
   #endif

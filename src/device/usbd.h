@@ -66,7 +66,7 @@ typedef struct {
   uint16_t        string_count;
 
   struct {
-    uint8_t const* composite;
+    uint8_t const* generic;
     uint8_t const* boot_keyboard;
     uint8_t const* boot_mouse;
   } hid_report;

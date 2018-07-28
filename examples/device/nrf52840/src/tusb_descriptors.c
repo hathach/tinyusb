@@ -91,7 +91,7 @@ tud_desc_set_t tud_desc_set =
 
     .hid_report =
     {
-        .composite     = NULL,
+        .generic       = NULL,
         .boot_keyboard = NULL,
         .boot_mouse    = NULL
     }

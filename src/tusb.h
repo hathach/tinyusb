@@ -76,7 +76,7 @@
 #if TUSB_OPT_DEVICE_ENABLED
   #include "device/usbd.h"
 
-  #if TUD_OPT_HID_ENABLED
+  #if CFG_TUD_HID
     #include "class/hid/hid_device.h"
   #endif
 
