@@ -59,7 +59,8 @@ typedef struct {
   uint8_t itf_num;
   uint8_t ep_in;
 
-  uint8_t idle_rate; // in unit of 4 ms
+  uint8_t idle_rate;      // in unit of 4 ms
+  uint8_t usage;          // HID_USAGE_*
   bool    boot_protocol;
 
   uint8_t  report_id;
@@ -67,8 +68,8 @@ typedef struct {
   uint8_t const * report_desc;
 
   // class specific control request
-  uint16_t (*get_report_cb) (hid_report_type_t type, uint8_t* buffer, uint16_t reqlen);
-  void     (*set_report_cb) (hid_report_type_t type, uint8_t const* buffer, uint16_t bufsize);
+  uint16_t (*get_report_cb) (uint8_t report_id, hid_report_type_t type, uint8_t* buffer, uint16_t reqlen);
+  void     (*set_report_cb) (uint8_t report_id, hid_report_type_t type, uint8_t const* buffer, uint16_t bufsize);
 
   CFG_TUSB_MEM_ALIGN uint8_t report_buf[REPORT_BUFSIZE];
 }hidd_interface_t;
@@ -83,6 +84,12 @@ CFG_TUSB_ATTR_USBRAM static hidd_interface_t _mse_itf;
 #endif
 
 CFG_TUSB_ATTR_USBRAM static hidd_interface_t _hidd_itf;
+
+static inline hidd_interface_t* get_interface_by_itfnum(uint8_t itf_num)
+{
+  return ( itf_num == _kbd_itf.itf_num ) ? &_kbd_itf :
+         ( itf_num == _mse_itf.itf_num ) ? &_mse_itf : NULL;
+}
 
 
 //--------------------------------------------------------------------+
@@ -245,18 +252,6 @@ bool tud_hid_mouse_scroll(int8_t vertical, int8_t horizontal)
 
 #endif
 
-static inline hidd_interface_t* get_interface_by_edpt(uint8_t ep_addr)
-{
-  return ( ep_addr == _kbd_itf.ep_in ) ? &_kbd_itf :
-         ( ep_addr == _mse_itf.ep_in ) ? &_mse_itf : NULL;
-}
-
-static inline hidd_interface_t* get_interface_by_number(uint8_t itf_num)
-{
-  return ( itf_num == _kbd_itf.itf_num ) ? &_kbd_itf :
-         ( itf_num == _mse_itf.itf_num ) ? &_mse_itf : NULL;
-}
-
 //--------------------------------------------------------------------+
 // USBD-CLASS API
 //--------------------------------------------------------------------+
@@ -343,8 +338,8 @@ tusb_error_t hidd_open(uint8_t rhport, tusb_desc_interface_t const * desc_itf, u
     p_hid->report_id     = 0;
     p_hid->report_len    = 0;
     p_hid->report_desc   = NULL;
-    //p_hid->get_report_cb = tud_hid_get_report_cb;
-    //p_hid->set_report_cb = tud_hid_set_report_cb;
+    p_hid->get_report_cb = tud_hid_generic_get_report_cb;
+    p_hid->set_report_cb = tud_hid_generic_set_report_cb;
 
     return ERR_TUD_INVALID_DESCRIPTOR;
   }
@@ -354,7 +349,7 @@ tusb_error_t hidd_open(uint8_t rhport, tusb_desc_interface_t const * desc_itf, u
 
 tusb_error_t hidd_control_request_st(uint8_t rhport, tusb_control_request_t const * p_request)
 {
-  hidd_interface_t* p_hid = get_interface_by_number( (uint8_t) p_request->wIndex );
+  hidd_interface_t* p_hid = get_interface_by_itfnum( (uint8_t) p_request->wIndex );
   TU_ASSERT(p_hid, TUSB_ERROR_FAILED);
 
   OSAL_SUBTASK_BEGIN
@@ -364,14 +359,12 @@ tusb_error_t hidd_control_request_st(uint8_t rhport, tusb_control_request_t cons
   {
     uint8_t const desc_type  = u16_high_u8(p_request->wValue);
     uint8_t const desc_index = u16_low_u8 (p_request->wValue);
-
     (void) desc_index;
 
     if (p_request->bRequest == TUSB_REQ_GET_DESCRIPTOR && desc_type == HID_DESC_TYPE_REPORT)
     {
-      STASK_ASSERT ( p_hid->report_len <= CFG_TUD_CTRL_BUFSIZE );
-
       // use device control buffer
+      STASK_ASSERT ( p_hid->report_len <= CFG_TUD_CTRL_BUFSIZE );
       memcpy(_usbd_ctrl_buf, p_hid->report_desc, p_hid->report_len);
 
       usbd_control_xfer_st(rhport, p_request->bmRequestType_bit.direction, _usbd_ctrl_buf, p_hid->report_len);
@@ -389,16 +382,10 @@ tusb_error_t hidd_control_request_st(uint8_t rhport, tusb_control_request_t cons
       uint8_t const report_type = u16_high_u8(p_request->wValue);
       uint8_t const report_id   = u16_low_u8(p_request->wValue);
 
-      // Composite interface need to determine it is Keyboard, Mouse or Gamepad
-      if ( report_id > 0 )
-      {
-
-      }
-
       uint16_t xferlen;
       if ( p_hid->get_report_cb )
       {
-        xferlen = p_hid->get_report_cb((hid_report_type_t) report_type, p_hid->report_buf, p_request->wLength);
+        xferlen = p_hid->get_report_cb(p_hid->report_id, (hid_report_type_t) report_type, p_hid->report_buf, p_request->wLength);
       }else
       {
         xferlen = p_request->wLength;
@@ -411,11 +398,14 @@ tusb_error_t hidd_control_request_st(uint8_t rhport, tusb_control_request_t cons
     else if ( HID_REQ_CONTROL_SET_REPORT == p_request->bRequest )
     {
       // wValue = Report Type | Report ID
+      uint8_t const report_type = u16_high_u8(p_request->wValue);
+      uint8_t const report_id   = u16_low_u8(p_request->wValue);
+
       usbd_control_xfer_st(rhport, p_request->bmRequestType_bit.direction, _usbd_ctrl_buf, p_request->wLength);
 
       if ( p_hid->set_report_cb )
       {
-        p_hid->set_report_cb(u16_high_u8(p_request->wValue), _usbd_ctrl_buf, p_request->wLength);
+        p_hid->set_report_cb(report_id, (hid_report_type_t) report_type, _usbd_ctrl_buf, p_request->wLength);
       }
     }
     else if (HID_REQ_CONTROL_SET_IDLE == p_request->bRequest)

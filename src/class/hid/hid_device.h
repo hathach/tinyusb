@@ -55,8 +55,8 @@ bool tud_hid_generic_ready(void);
 bool tud_hid_generic_report(void);
 
 /*------------- Callbacks -------------*/
-ATTR_WEAK uint16_t tud_hid_get_report_cb(uint8_t report_id, hid_report_type_t report_type, uint8_t* buffer, uint16_t reqlen);
-ATTR_WEAK void     tud_hid_set_report_cb(uint8_t report_id, hid_report_type_t report_type, uint8_t const* buffer, uint16_t bufsize);
+ATTR_WEAK uint16_t tud_hid_generic_get_report_cb(uint8_t report_id, hid_report_type_t report_type, uint8_t* buffer, uint16_t reqlen);
+ATTR_WEAK void     tud_hid_generic_set_report_cb(uint8_t report_id, hid_report_type_t report_type, uint8_t const* buffer, uint16_t bufsize);
 
 //--------------------------------------------------------------------+
 // KEYBOARD API
@@ -104,7 +104,7 @@ extern const hid_ascii_to_keycode_entry_t HID_ASCII_TO_KEYCODE[128];
  *              the completion of this control request will not be reported to application.
  *              For Keyboard, USB host often uses this to turn on/off the LED for CAPLOCKS, NUMLOCK (\ref hid_keyboard_led_bm_t)
  */
-ATTR_WEAK uint16_t tud_hid_keyboard_get_report_cb(hid_report_type_t report_type, uint8_t* buffer, uint16_t reqlen);
+ATTR_WEAK uint16_t tud_hid_keyboard_get_report_cb(uint8_t report_id, hid_report_type_t report_type, uint8_t* buffer, uint16_t reqlen);
 
 /** Callback invoked when USB host request \ref HID_REQ_CONTROL_SET_REPORT.
  * \param[in]   report_type specify which report (INPUT, OUTPUT, FEATURE) that host requests
@@ -113,7 +113,7 @@ ATTR_WEAK uint16_t tud_hid_keyboard_get_report_cb(hid_report_type_t report_type,
  * \note        By the time this callback is invoked, the USB control transfer is already completed in the hardware side.
  *              Application are free to handle data at its own will.
  */
-ATTR_WEAK void tud_hid_keyboard_set_report_cb(hid_report_type_t report_type, uint8_t const* buffer, uint16_t bufsize);
+ATTR_WEAK void tud_hid_keyboard_set_report_cb(uint8_t report_id, hid_report_type_t report_type, uint8_t const* buffer, uint16_t bufsize);
 
 
 //ATTR_WEAK void tud_hid_keyboard_set_protocol_cb(bool boot_protocol);
@@ -166,7 +166,7 @@ static inline bool tud_hid_mouse_button_release(void)
  * \note        After this callback, the request is silently executed by the tinyusb stack, thus
  *              the completion of this control request will not be reported to application
  */
-ATTR_WEAK uint16_t tud_hid_mouse_get_report_cb(hid_report_type_t report_type, uint8_t* buffer, uint16_t reqlen);
+ATTR_WEAK uint16_t tud_hid_mouse_get_report_cb(uint8_t report_id, hid_report_type_t report_type, uint8_t* buffer, uint16_t reqlen);
 
 /**
  * Callback function that is invoked when USB host request \ref HID_REQ_CONTROL_SET_REPORT.
@@ -176,7 +176,7 @@ ATTR_WEAK uint16_t tud_hid_mouse_get_report_cb(hid_report_type_t report_type, ui
  * \note        By the time this callback is invoked, the USB control transfer is already completed in the hardware side.
  *              Application are free to handle data at its own will.
  */
-ATTR_WEAK void tud_hid_mouse_set_report_cb(hid_report_type_t report_type, uint8_t const* buffer, uint16_t bufsize);
+ATTR_WEAK void tud_hid_mouse_set_report_cb(uint8_t report_id, hid_report_type_t report_type, uint8_t const* buffer, uint16_t bufsize);
 
 //ATTR_WEAK void tud_hid_mouse_set_protocol_cb(bool boot_protocol);
 
