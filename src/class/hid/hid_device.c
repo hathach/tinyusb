@@ -287,6 +287,7 @@ tusb_error_t hidd_open(uint8_t rhport, tusb_desc_interface_t const * desc_itf, u
 
   *p_len = 0;
 
+  /*------------- Boot protocol only keyboard & mouse -------------*/
   if (desc_itf->bInterfaceSubClass == HID_SUBCLASS_BOOT)
   {
     TU_ASSERT(desc_itf->bInterfaceProtocol == HID_PROTOCOL_KEYBOARD || desc_itf->bInterfaceProtocol == HID_PROTOCOL_MOUSE,  ERR_TUD_INVALID_DESCRIPTOR);
@@ -326,6 +327,7 @@ tusb_error_t hidd_open(uint8_t rhport, tusb_desc_interface_t const * desc_itf, u
 
     *p_len = sizeof(tusb_desc_interface_t) + sizeof(tusb_hid_descriptor_hid_t) + sizeof(tusb_desc_endpoint_t);
   }
+  /*------------- Generic (multiple report) -------------*/
   else
   {
     // TODO HID generic
