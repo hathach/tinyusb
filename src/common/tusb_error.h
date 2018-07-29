@@ -92,7 +92,8 @@
     ENTRY(TUSB_ERROR_NOT_ENOUGH_MEMORY               )\
     ENTRY(TUSB_ERROR_FAILED                          )\
     \
-    ENTRY(ERR_TUD_INVALID_DESCRIPTOR)
+    ENTRY(ERR_TUD_INVALID_DESCRIPTOR) \
+    ENTRY(ERR_TUD_EDPT_OPEN_FAILED) \
 
 
 /// \brief Error Code returned

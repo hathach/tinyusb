@@ -45,6 +45,10 @@
 
 #if CFG_TUD_DESC_AUTO
 
+//--------------------------------------------------------------------+
+// Auto Description Default Configure & Validation
+//--------------------------------------------------------------------+
+
 /*------------- VID/PID -------------*/
 #ifndef CFG_TUD_DESC_VID
 #define CFG_TUD_DESC_VID       0xCAFE
@@ -63,17 +67,20 @@
                                _PID_MAP(HID_KEYBOARD, 2) | _PID_MAP(HID_MOUSE, 3) | (TUD_OPT_HID_GENERIC << 4) )
 #endif
 
+//--------------------------------------------------------------------+
+// Interface & Endpoint mapping
+//--------------------------------------------------------------------+
+
 /*------------- Interface Numbering -------------*/
-/* The order as follows: CDC, MSC, HID
- * If a interface is not enabled, the later will take its place
- */
+/* The order as follows: CDC, MSC, Boot Keyboard, Boot Mouse, HID Generic
+ * If an interface is not enabled, the later will take its place */
 
 #define ITF_NUM_CDC             0
 #define ITF_NUM_MSC             (ITF_NUM_CDC + 2*CFG_TUD_CDC)
 
 #define ITF_NUM_HID_BOOT_KBD    (ITF_NUM_MSC + CFG_TUD_MSC)
-#define ITF_NUM_HID_BOOT_MSE    (ITF_NUM_HID_BOOT_KBD + CFG_TUD_DESC_BOOT_KEYBOARD)
-#define ITF_NUM_HID_GEN         (ITF_NUM_HID_BOOT_MSE + CFG_TUD_DESC_BOOT_MOUSE)
+#define ITF_NUM_HID_BOOT_MSE    (ITF_NUM_HID_BOOT_KBD + CFG_TUD_HID_KEYBOARD_BOOT)
+#define ITF_NUM_HID_GEN         (ITF_NUM_HID_BOOT_MSE + CFG_TUD_HID_MOUSE_BOOT)
 
 #define ITF_TOTAL               (ITF_NUM_HID_GEN + TUD_OPT_HID_GENERIC)
 
@@ -112,8 +119,6 @@
 
 
 /*------------- Keyboard Descriptor -------------*/
-#if CFG_TUD_HID_KEYBOARD
-
 #define HID_REPORT_KEYBOARD(...) \
   HID_USAGE_PAGE ( HID_USAGE_PAGE_DESKTOP     )                    ,\
   HID_USAGE      ( HID_USAGE_DESKTOP_KEYBOARD )                    ,\
@@ -154,14 +159,7 @@
       HID_OUTPUT       ( HID_CONSTANT                            ) ,\
   HID_COLLECTION_END \
 
-#if CFG_TUD_DESC_BOOT_KEYBOARD
-uint8_t const _desc_auto_hid_boot_kbd_report[] = { HID_REPORT_KEYBOARD() };
-#endif
-
-#endif // hid keyboard
-
 /*------------- Mouse Descriptor -------------*/
-#if CFG_TUD_HID_MOUSE
 #define HID_REPORT_MOUSE(...) \
   HID_USAGE_PAGE ( HID_USAGE_PAGE_DESKTOP      )                    ,\
   HID_USAGE      ( HID_USAGE_DESKTOP_MOUSE     )                    ,\
@@ -201,23 +199,26 @@ uint8_t const _desc_auto_hid_boot_kbd_report[] = { HID_REPORT_KEYBOARD() };
     HID_COLLECTION_END                                              ,\
   HID_COLLECTION_END \
 
-#if CFG_TUD_DESC_BOOT_MOUSE
+
+/*------------- Generic (composite) Descriptor -------------*/
+#if CFG_TUD_HID_KEYBOARD && CFG_TUD_HID_KEYBOARD_BOOT
+uint8_t const _desc_auto_hid_boot_kbd_report[] = { HID_REPORT_KEYBOARD() };
+#endif
+
+#if CFG_TUD_HID_MOUSE && CFG_TUD_HID_MOUSE_BOOT
 uint8_t const _desc_auto_hid_boot_mse_report[] = { HID_REPORT_MOUSE() };
 #endif
 
-#endif // hid mouse
-
-/*------------- Generic (composite) Descriptor -------------*/
-
 #if TUD_OPT_HID_GENERIC
 
+// TODO report ID
 uint8_t const _desc_auto_hid_generic_report[] =
 {
-#if !CFG_TUD_DESC_BOOT_KEYBOARD
+#if CFG_TUD_HID_KEYBOARD && !CFG_TUD_HID_KEYBOARD_BOOT
     HID_REPORT_KEYBOARD( HID_REPORT_ID(1), ),
 #endif
 
-#if !CFG_TUD_DESC_BOOT_MOUSE
+#if CFG_TUD_HID_MOUSE && !CFG_TUD_HID_MOUSE_BOOT
     HID_REPORT_MOUSE( HID_REPORT_ID(2), )
 #endif
 
@@ -309,7 +310,7 @@ typedef struct ATTR_PACKED
 #endif
 
   //------------- HID -------------//
-#if CFG_TUD_HID_KEYBOARD && CFG_TUD_DESC_BOOT_KEYBOARD
+#if CFG_TUD_HID_KEYBOARD && CFG_TUD_HID_KEYBOARD_BOOT
   struct ATTR_PACKED
   {
     tusb_desc_interface_t             itf;
@@ -318,7 +319,7 @@ typedef struct ATTR_PACKED
   } hid_kbd_boot;
 #endif
 
-#if CFG_TUD_HID_MOUSE && CFG_TUD_DESC_BOOT_MOUSE
+#if CFG_TUD_HID_MOUSE && CFG_TUD_HID_MOUSE_BOOT
   struct ATTR_PACKED
   {
     tusb_desc_interface_t             itf;
@@ -513,7 +514,7 @@ desc_auto_cfg_t const _desc_auto_config_struct =
     },
 #endif // msc
 
-#if CFG_TUD_HID_KEYBOARD && CFG_TUD_DESC_BOOT_KEYBOARD
+#if CFG_TUD_HID_KEYBOARD && CFG_TUD_HID_KEYBOARD_BOOT
     .hid_kbd_boot =
     {
         .itf =
@@ -553,7 +554,7 @@ desc_auto_cfg_t const _desc_auto_config_struct =
 #endif // boot keyboard
 
   //------------- HID Mouse -------------//
-#if CFG_TUD_HID_MOUSE && CFG_TUD_DESC_BOOT_MOUSE
+#if CFG_TUD_HID_MOUSE && CFG_TUD_HID_MOUSE_BOOT
     .hid_mse_boot =
     {
         .itf =

@@ -78,13 +78,6 @@
 // #define CFG_TUD_DESC_VID          0xCAFE
 // #define CFG_TUD_DESC_PID          0x0001
 
-/* Use Boot Protocol for Keyboard, Mouse. Enable this will create separated HID interface
- * require more IN endpoints. If disabled, they they are all packed into a single
- * multiple report interface called "Generic".
- */
-#define CFG_TUD_DESC_BOOT_KEYBOARD   0
-#define CFG_TUD_DESC_BOOT_MOUSE      0
-
 //------------- CLASS -------------//
 #define CFG_TUD_CDC                 1
 #define CFG_TUD_MSC                 1
@@ -92,6 +85,12 @@
 #define CFG_TUD_HID                 1
 #define CFG_TUD_HID_KEYBOARD        1
 #define CFG_TUD_HID_MOUSE           1
+
+/* Use Boot Protocol for Keyboard, Mouse. Enable this will create separated HID interface
+ * require more IN endpoints. If disabled, they they are all packed into a single
+ * multiple report interface called "Generic". */
+#define CFG_TUD_HID_KEYBOARD_BOOT   1
+#define CFG_TUD_HID_MOUSE_BOOT      1
 
 
 //--------------------------------------------------------------------

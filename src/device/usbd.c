@@ -318,12 +318,13 @@ static void usbd_reset(uint8_t rhport)
   tud_desc_set.device = (uint8_t const*) &_desc_auto_device;
   tud_desc_set.config = _desc_auto_config;
 
-  #if CFG_TUD_HID_KEYBOARD && CFG_TUD_DESC_BOOT_KEYBOARD
+#if CFG_TUD_HID
+  #if CFG_TUD_HID_KEYBOARD && CFG_TUD_HID_KEYBOARD_BOOT
   extern uint8_t const _desc_auto_hid_boot_kbd_report[];
   tud_desc_set.hid_report.boot_keyboard = _desc_auto_hid_boot_kbd_report;
   #endif
 
-  #if CFG_TUD_HID_MOUSE && CFG_TUD_DESC_BOOT_MOUSE
+  #if CFG_TUD_HID_MOUSE && CFG_TUD_HID_MOUSE_BOOT
   extern uint8_t const _desc_auto_hid_boot_mse_report[];
   tud_desc_set.hid_report.boot_mouse = _desc_auto_hid_boot_mse_report;
   #endif
@@ -332,6 +333,7 @@ static void usbd_reset(uint8_t rhport)
   extern uint8_t const _desc_auto_hid_generic_report[];
   tud_desc_set.hid_report.generic = _desc_auto_hid_generic_report;
   #endif
+#endif // CFG_TUD_HID
 
 #endif // CFG_TUD_DESC_AUTO
 
