@@ -118,7 +118,7 @@
 //--------------------------------------------------------------------+
 
 
-/*------------- Keyboard Descriptor -------------*/
+/*------------- Keyboard Descriptor Template -------------*/
 #define HID_REPORT_KEYBOARD(...) \
   HID_USAGE_PAGE ( HID_USAGE_PAGE_DESKTOP     )                    ,\
   HID_USAGE      ( HID_USAGE_DESKTOP_KEYBOARD )                    ,\
@@ -159,7 +159,7 @@
       HID_OUTPUT       ( HID_CONSTANT                            ) ,\
   HID_COLLECTION_END \
 
-/*------------- Mouse Descriptor -------------*/
+/*------------- Mouse Descriptor Template -------------*/
 #define HID_REPORT_MOUSE(...) \
   HID_USAGE_PAGE ( HID_USAGE_PAGE_DESKTOP      )                    ,\
   HID_USAGE      ( HID_USAGE_DESKTOP_MOUSE     )                    ,\
@@ -200,7 +200,7 @@
   HID_COLLECTION_END \
 
 
-/*------------- Generic (composite) Descriptor -------------*/
+/*------------- Boot Protocol Report Descriptor -------------*/
 #if CFG_TUD_HID_KEYBOARD && CFG_TUD_HID_KEYBOARD_BOOT
 uint8_t const _desc_auto_hid_boot_kbd_report[] = { HID_REPORT_KEYBOARD() };
 #endif
@@ -209,7 +209,13 @@ uint8_t const _desc_auto_hid_boot_kbd_report[] = { HID_REPORT_KEYBOARD() };
 uint8_t const _desc_auto_hid_boot_mse_report[] = { HID_REPORT_MOUSE() };
 #endif
 
+
+/*------------- Generic (composite) Descriptor -------------*/
 #if TUD_OPT_HID_GENERIC
+
+// Report ID: 0 if there is only 1 report
+// starting from 1 if there is multiple reports
+#define _REPORT_ID_KBD
 
 // TODO report ID
 uint8_t const _desc_auto_hid_generic_report[] =
