@@ -46,6 +46,9 @@
 #include "nrf_clock.h"
 
 #include "device/dcd.h"
+
+// TODO remove later
+#include "device/usbd.h"
 #include "device/usbd_pvt.h" // to use defer function helper
 
 /*------------------------------------------------------------------*/

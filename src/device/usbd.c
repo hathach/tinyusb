@@ -75,6 +75,15 @@ typedef struct {
 CFG_TUSB_ATTR_USBRAM CFG_TUSB_MEM_ALIGN uint8_t _usbd_ctrl_buf[CFG_TUD_CTRL_BUFSIZE];
 static usbd_device_t _usbd_dev;
 
+
+// Auto descriptor is enabled, descriptor set point to auto generated one
+#if CFG_TUD_DESC_AUTO
+extern tud_desc_set_t const _usbd_auto_desc_set;
+tud_desc_set_t const* usbd_desc_set = &_usbd_auto_desc_set;
+#else
+tud_desc_set_t const* usbd_desc_set = &tud_desc_set;
+#endif
+
 //--------------------------------------------------------------------+
 // Class Driver
 //--------------------------------------------------------------------+
@@ -310,33 +319,6 @@ static void usbd_reset(uint8_t rhport)
   {
     if ( usbd_class_drivers[i].reset ) usbd_class_drivers[i].reset( rhport );
   }
-
-#if CFG_TUD_DESC_AUTO
-  extern tusb_desc_device_t const _desc_auto_device;
-  extern uint8_t const * const    _desc_auto_config;
-
-  tud_desc_set.device = (uint8_t const*) &_desc_auto_device;
-  tud_desc_set.config = _desc_auto_config;
-
-#if CFG_TUD_HID
-  #if CFG_TUD_HID_KEYBOARD && CFG_TUD_HID_KEYBOARD_BOOT
-  extern uint8_t const _desc_auto_hid_boot_kbd_report[];
-  tud_desc_set.hid_report.boot_keyboard = _desc_auto_hid_boot_kbd_report;
-  #endif
-
-  #if CFG_TUD_HID_MOUSE && CFG_TUD_HID_MOUSE_BOOT
-  extern uint8_t const _desc_auto_hid_boot_mse_report[];
-  tud_desc_set.hid_report.boot_mouse = _desc_auto_hid_boot_mse_report;
-  #endif
-
-  #if TUD_OPT_HID_GENERIC
-  extern uint8_t const _desc_auto_hid_generic_report[];
-  tud_desc_set.hid_report.generic = _desc_auto_hid_generic_report;
-  #endif
-#endif // CFG_TUD_HID
-
-#endif // CFG_TUD_DESC_AUTO
-
 }
 
 //--------------------------------------------------------------------+
@@ -452,7 +434,7 @@ static tusb_error_t proc_set_config_req(uint8_t rhport, uint8_t config_number)
   _usbd_dev.config_num = config_number;
 
   //------------- parse configuration & open drivers -------------//
-  uint8_t const * desc_cfg = tud_desc_set.config;
+  uint8_t const * desc_cfg = (uint8_t const *) usbd_desc_set->config;
   TU_ASSERT(desc_cfg != NULL, TUSB_ERROR_DESCRIPTOR_CORRUPTED);
   uint8_t const * p_desc = desc_cfg + sizeof(tusb_desc_configuration_t);
   uint16_t const cfg_len = ((tusb_desc_configuration_t*)desc_cfg)->wTotalLength;
@@ -511,16 +493,17 @@ static uint16_t get_descriptor(uint8_t rhport, tusb_control_request_t const * co
   switch(desc_type)
   {
     case TUSB_DESC_DEVICE:
-      desc_data = tud_desc_set.device;
+      desc_data = (uint8_t const *) usbd_desc_set->device;
       len       = sizeof(tusb_desc_device_t);
     break;
 
     case TUSB_DESC_CONFIGURATION:
-      desc_data = tud_desc_set.config;
+      desc_data = (uint8_t const *) usbd_desc_set->config;
       len       = ((tusb_desc_configuration_t const*) desc_data)->wTotalLength;
     break;
 
     case TUSB_DESC_STRING:
+      // String Descriptor always uses the desc set from user
       if ( desc_index < tud_desc_set.string_count )
       {
         desc_data = tud_desc_set.string_arr[desc_index];

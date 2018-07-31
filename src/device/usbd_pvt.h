@@ -48,6 +48,9 @@
 extern osal_semaphore_t _usbd_ctrl_sem;
 extern uint8_t _usbd_ctrl_buf[CFG_TUD_CTRL_BUFSIZE];
 
+// Either point to tud_desc_set or usbd_auto_desc_set depending on CFG_TUD_DESC_AUTO
+extern tud_desc_set_t const* usbd_desc_set;
+
 //--------------------------------------------------------------------+
 // INTERNAL API for stack management
 //--------------------------------------------------------------------+

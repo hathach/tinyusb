@@ -49,8 +49,8 @@
 // Auto Description Default Configure & Validation
 //--------------------------------------------------------------------+
 
-// IF HID Generic is required, it is multiple Report : Keyboard + Mouse + Gamepad + Joystick
-#define TUD_OPT_HID_GENERIC    (CFG_TUD_HID && ((CFG_TUD_HID_KEYBOARD && !CFG_TUD_HID_KEYBOARD_BOOT) || \
+// If HID Generic interface is generated
+#define AUTO_DESC_HID_GENERIC    (CFG_TUD_HID && ((CFG_TUD_HID_KEYBOARD && !CFG_TUD_HID_KEYBOARD_BOOT) || \
                                                 (CFG_TUD_HID_MOUSE && !CFG_TUD_HID_MOUSE_BOOT)) )
 /*------------- VID/PID -------------*/
 #ifndef CFG_TUD_DESC_VID
@@ -67,7 +67,7 @@
  */
 #define _PID_MAP(itf, n)      ( (CFG_TUD_##itf) << (n) )
 #define CFG_TUD_DESC_PID      (0x4000 | _PID_MAP(CDC, 0) | _PID_MAP(MSC, 1) | _PID_MAP(HID, 2) | \
-                               _PID_MAP(HID_KEYBOARD, 2) | _PID_MAP(HID_MOUSE, 3) | (TUD_OPT_HID_GENERIC << 4) )
+                               _PID_MAP(HID_KEYBOARD, 2) | _PID_MAP(HID_MOUSE, 3) | (AUTO_DESC_HID_GENERIC << 4) )
 #endif
 
 //--------------------------------------------------------------------+
@@ -85,7 +85,7 @@
 #define ITF_NUM_HID_BOOT_MSE    (ITF_NUM_HID_BOOT_KBD + CFG_TUD_HID_KEYBOARD_BOOT)
 #define ITF_NUM_HID_GEN         (ITF_NUM_HID_BOOT_MSE + CFG_TUD_HID_MOUSE_BOOT)
 
-#define ITF_TOTAL               (ITF_NUM_HID_GEN + TUD_OPT_HID_GENERIC)
+#define ITF_TOTAL               (ITF_NUM_HID_GEN + AUTO_DESC_HID_GENERIC)
 
 /*------------- Endpoint Numbering & Size -------------*/
 #define _EP_IN(x)               (0x80 | (x))
@@ -132,7 +132,7 @@ uint8_t const _desc_auto_hid_boot_mse_report[] = { HID_REPORT_DESC_MOUSE() };
 
 
 /*------------- Generic (composite) Descriptor -------------*/
-#if TUD_OPT_HID_GENERIC
+#if AUTO_DESC_HID_GENERIC
 
 // Report ID: 0 if there is only 1 report
 // starting from 1 if there is multiple reports
@@ -255,7 +255,7 @@ typedef struct ATTR_PACKED
   } hid_mse_boot;
 #endif
 
-#if TUD_OPT_HID_GENERIC
+#if AUTO_DESC_HID_GENERIC
 
   struct ATTR_PACKED
   {
@@ -521,7 +521,7 @@ desc_auto_cfg_t const _desc_auto_config_struct =
 
 #endif // boot mouse
 
-#if TUD_OPT_HID_GENERIC
+#if AUTO_DESC_HID_GENERIC
 
     //------------- HID Generic Multiple report -------------//
     .hid_generic =
@@ -565,6 +565,29 @@ desc_auto_cfg_t const _desc_auto_config_struct =
 };
 
 uint8_t const * const _desc_auto_config = (uint8_t const*) &_desc_auto_config_struct;
+
+tud_desc_set_t const _usbd_auto_desc_set =
+{
+    .device = &_desc_auto_device,
+    .config = &_desc_auto_config_struct,
+
+    .hid_report =
+    {
+#if AUTO_DESC_HID_GENERIC
+        .generic = _desc_auto_hid_generic_report,
+#else
+        .generic = NULL,
+#endif
+
+#if CFG_TUD_HID_KEYBOARD && CFG_TUD_HID_KEYBOARD_BOOT
+        .boot_keyboard = _desc_auto_hid_boot_kbd_report,
+#endif
+
+#if CFG_TUD_HID_MOUSE && CFG_TUD_HID_MOUSE_BOOT
+        .boot_mouse = _desc_auto_hid_boot_mse_report
+#endif
+    }
+};
 
 #endif
 

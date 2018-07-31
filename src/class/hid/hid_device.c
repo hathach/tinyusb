@@ -346,7 +346,7 @@ tusb_error_t hidd_open(uint8_t rhport, tusb_desc_interface_t const * desc_itf, u
     if (desc_itf->bInterfaceProtocol == HID_PROTOCOL_KEYBOARD)
     {
       p_hid = &_hidd_itf[ITF_IDX_BOOT_KBD];
-      p_hid->desc_report   = tud_desc_set.hid_report.boot_keyboard;
+      p_hid->desc_report   = usbd_desc_set->hid_report.boot_keyboard;
       p_hid->get_report_cb = tud_hid_keyboard_get_report_cb;
       p_hid->set_report_cb = tud_hid_keyboard_set_report_cb;
 
@@ -362,7 +362,7 @@ tusb_error_t hidd_open(uint8_t rhport, tusb_desc_interface_t const * desc_itf, u
     if (desc_itf->bInterfaceProtocol == HID_PROTOCOL_MOUSE)
     {
       p_hid = &_hidd_itf[ITF_IDX_BOOT_MSE];
-      p_hid->desc_report   = tud_desc_set.hid_report.boot_mouse;
+      p_hid->desc_report   = usbd_desc_set->hid_report.boot_mouse;
       p_hid->get_report_cb = tud_hid_mouse_get_report_cb;
       p_hid->set_report_cb = tud_hid_mouse_set_report_cb;
 
@@ -383,7 +383,7 @@ tusb_error_t hidd_open(uint8_t rhport, tusb_desc_interface_t const * desc_itf, u
     // TODO parse report ID for keyboard, mouse
     p_hid = &_hidd_itf[ITF_IDX_GENERIC];
 
-    p_hid->desc_report   = tud_desc_set.hid_report.generic;
+    p_hid->desc_report   = usbd_desc_set->hid_report.generic;
     p_hid->get_report_cb = tud_hid_generic_get_report_cb;
     p_hid->set_report_cb = tud_hid_generic_set_report_cb;
 
