@@ -1,6 +1,6 @@
 /**************************************************************************/
 /*!
-    @file     usbd_desc.c
+    @file     usbd_auto_desc.c
     @author   hathach (tinyusb.org)
 
     @section LICENSE
@@ -198,6 +198,20 @@
         HID_INPUT       ( HID_DATA | HID_VARIABLE | HID_RELATIVE )  ,\
     HID_COLLECTION_END                                              ,\
   HID_COLLECTION_END \
+
+//------------- Consumer Control Report Template -------------//
+//  HID_USAGE_PAGE ( HID_USAGE_PAGE_CONSUMER    ),
+//  HID_USAGE      ( HID_USAGE_CONSUMER_CONTROL ),
+//  HID_COLLECTION ( HID_COLLECTION_APPLICATION ),
+//    HID_REPORT_ID( REPORT_ID_CONSUMER_CONTROL ),
+//    HID_LOGICAL_MIN  ( 0x00                                ),
+//    HID_LOGICAL_MAX_N( 0x03FF, 2                           ),
+//    HID_USAGE_MIN    ( 0x00                                ),
+//    HID_USAGE_MAX_N  ( 0x03FF, 2                           ),
+//    HID_REPORT_COUNT ( 1                                   ),
+//    HID_REPORT_SIZE  ( 16                                  ),
+//    HID_INPUT        ( HID_DATA | HID_ARRAY | HID_ABSOLUTE ),
+//  HID_COLLECTION_END,
 
 
 /*------------- Boot Protocol Report Descriptor -------------*/
