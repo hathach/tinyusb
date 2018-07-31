@@ -59,7 +59,7 @@
 #define ITF_IDX_BOOT_KBD   0
 #define ITF_IDX_BOOT_MSE   ( ITF_IDX_BOOT_KBD + (CFG_TUD_HID_KEYBOARD && CFG_TUD_HID_KEYBOARD_BOOT) )
 #define ITF_IDX_GENERIC    ( ITF_IDX_BOOT_MSE + (CFG_TUD_HID_MOUSE && CFG_TUD_HID_MOUSE_BOOT) )
-#define ITF_COUNT          ( ITF_IDX_GENERIC + TUD_OPT_HID_GENERIC )
+#define ITF_COUNT          ( ITF_IDX_GENERIC + 1 )
 
 typedef struct
 {
@@ -118,8 +118,6 @@ static inline hidd_interface_t* get_interface_by_itfnum(uint8_t itf_num)
 //--------------------------------------------------------------------+
 // HID GENERIC API
 //--------------------------------------------------------------------+
-#if TUD_OPT_HID_GENERIC
-
 bool tud_hid_generic_ready(void)
 {
   return (_hidd_itf[ITF_IDX_GENERIC].ep_in != 0) && !dcd_edpt_busy(TUD_OPT_RHPORT, _hidd_itf[ITF_IDX_GENERIC].ep_in);
@@ -144,8 +142,6 @@ bool tud_hid_generic_report(uint8_t report_id, void const* report, uint8_t len)
   // TODO idle rate
   return dcd_edpt_xfer(TUD_OPT_RHPORT, p_hid->ep_in, p_hid->report_buf, len + ( report_id ? 1 : 0) );
 }
-
-#endif // TUD_OPT_HID_GENERIC
 
 //--------------------------------------------------------------------+
 // KEYBOARD APPLICATION API
@@ -384,14 +380,12 @@ tusb_error_t hidd_open(uint8_t rhport, tusb_desc_interface_t const * desc_itf, u
   /*------------- Generic (multiple report) -------------*/
   else
   {
-    #if TUD_OPT_HID_GENERIC
     // TODO parse report ID for keyboard, mouse
     p_hid = &_hidd_itf[ITF_IDX_GENERIC];
 
     p_hid->desc_report   = tud_desc_set.hid_report.generic;
     p_hid->get_report_cb = tud_hid_generic_get_report_cb;
     p_hid->set_report_cb = tud_hid_generic_set_report_cb;
-    #endif
 
     TU_ASSERT(p_hid, ERR_TUD_INVALID_DESCRIPTOR);
   }

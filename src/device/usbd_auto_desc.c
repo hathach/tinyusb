@@ -49,6 +49,9 @@
 // Auto Description Default Configure & Validation
 //--------------------------------------------------------------------+
 
+// IF HID Generic is required, it is multiple Report : Keyboard + Mouse + Gamepad + Joystick
+#define TUD_OPT_HID_GENERIC    (CFG_TUD_HID && ((CFG_TUD_HID_KEYBOARD && !CFG_TUD_HID_KEYBOARD_BOOT) || \
+                                                (CFG_TUD_HID_MOUSE && !CFG_TUD_HID_MOUSE_BOOT)) )
 /*------------- VID/PID -------------*/
 #ifndef CFG_TUD_DESC_VID
 #define CFG_TUD_DESC_VID       0xCAFE
