@@ -73,9 +73,9 @@
 bool tud_hid_generic_ready(void);
 bool tud_hid_generic_report(uint8_t report_id, void const* report, uint8_t len);
 
-/*------------- Callbacks -------------*/
-ATTR_WEAK uint16_t tud_hid_generic_get_report_cb(uint8_t report_id, hid_report_type_t report_type, uint8_t* buffer, uint16_t reqlen);
-ATTR_WEAK void     tud_hid_generic_set_report_cb(uint8_t report_id, hid_report_type_t report_type, uint8_t const* buffer, uint16_t bufsize);
+/*------------- Callbacks (Weak is optional) -------------*/
+uint16_t tud_hid_generic_get_report_cb(uint8_t report_id, hid_report_type_t report_type, uint8_t* buffer, uint16_t reqlen);
+void     tud_hid_generic_set_report_cb(uint8_t report_id, hid_report_type_t report_type, uint8_t const* buffer, uint16_t bufsize);
 
 //--------------------------------------------------------------------+
 // KEYBOARD API
@@ -110,7 +110,7 @@ extern const hid_ascii_to_keycode_entry_t HID_ASCII_TO_KEYCODE[128];
 
 #endif
 
-/*------------- Callbacks -------------*/
+/*------------- Callbacks (Weak is optional) -------------*/
 
 /** Callback invoked when USB host request \ref HID_REQ_CONTROL_GET_REPORT.
  * \param[in]   report_type specify which report (INPUT, OUTPUT, FEATURE) that host requests
@@ -172,7 +172,7 @@ static inline bool tud_hid_mouse_button_release(void)
   return tud_hid_mouse_data(0, 0, 0, 0, 0);
 }
 
-/*------------- Callbacks -------------*/
+/*------------- Callbacks (Weak is optional) -------------*/
 
 /**
  * Callback function that is invoked when USB host request \ref HID_REQ_CONTROL_GET_REPORT.

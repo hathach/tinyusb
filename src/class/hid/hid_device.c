@@ -449,8 +449,8 @@ tusb_error_t hidd_control_request_st(uint8_t rhport, tusb_control_request_t cons
         xferlen = p_hid->get_report_cb(report_id, (hid_report_type_t) report_type, p_hid->report_buf, p_request->wLength);
       }else
       {
+        // For boot Interface only: re-use report_buf -> report has no change
         xferlen = p_request->wLength;
-        // re-use report_buf -> report has no change
       }
 
       STASK_ASSERT( xferlen > 0 );
