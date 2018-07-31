@@ -50,6 +50,10 @@
 //--------------------------------------------------------------------+
 // Class Driver Default Configure & Validation
 //--------------------------------------------------------------------+
+#ifndef CFG_TUD_HID_ASCII_TO_KEYCODE_LOOKUP
+#define CFG_TUD_HID_ASCII_TO_KEYCODE_LOOKUP 0
+#endif
+
 #if !CFG_TUD_HID_KEYBOARD && CFG_TUD_HID_KEYBOARD_BOOT
 #error CFG_TUD_HID_KEYBOARD must be enabled
 #endif

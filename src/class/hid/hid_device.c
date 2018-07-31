@@ -458,11 +458,11 @@ tusb_error_t hidd_control_request_st(uint8_t rhport, tusb_control_request_t cons
     }
     else if ( HID_REQ_CONTROL_SET_REPORT == p_request->bRequest )
     {
+      usbd_control_xfer_st(rhport, p_request->bmRequestType_bit.direction, _usbd_ctrl_buf, p_request->wLength);
+
       // wValue = Report Type | Report ID
       uint8_t const report_type = u16_high_u8(p_request->wValue);
       uint8_t const report_id   = u16_low_u8(p_request->wValue);
-
-      usbd_control_xfer_st(rhport, p_request->bmRequestType_bit.direction, _usbd_ctrl_buf, p_request->wLength);
 
       if ( p_hid->set_report_cb )
       {
