@@ -71,7 +71,7 @@
 // HID GENERIC API
 //--------------------------------------------------------------------+
 bool tud_hid_generic_ready(void);
-bool tud_hid_generic_report(void);
+bool tud_hid_generic_report(uint8_t report_id, void const* report, uint8_t len);
 
 /*------------- Callbacks -------------*/
 ATTR_WEAK uint16_t tud_hid_generic_get_report_cb(uint8_t report_id, hid_report_type_t report_type, uint8_t* buffer, uint16_t reqlen);

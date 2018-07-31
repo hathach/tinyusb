@@ -53,7 +53,13 @@
 //--------------------------------------------------------------------+
 
 // Max report len is keyboard's one with 8 byte + 1 byte report id
-#define REPORT_BUFSIZE      9
+#define REPORT_BUFSIZE      12
+
+
+#define ITF_IDX_BOOT_KBD   0
+#define ITF_IDX_BOOT_MSE   ( ITF_IDX_BOOT_KBD + (CFG_TUD_HID_KEYBOARD && CFG_TUD_HID_KEYBOARD_BOOT) )
+#define ITF_IDX_GENERIC    ( ITF_IDX_BOOT_MSE + (CFG_TUD_HID_MOUSE && CFG_TUD_HID_MOUSE_BOOT) )
+#define ITF_COUNT          ( ITF_IDX_GENERIC + TUD_OPT_HID_GENERIC )
 
 typedef struct
 {
@@ -85,12 +91,6 @@ typedef struct
   hidd_interface_t* itf;
 } hidd_report_t ;
 
-
-#define ITF_IDX_BOOT_KBD   0
-#define ITF_IDX_BOOT_MSE   ( ITF_IDX_BOOT_KBD + (CFG_TUD_HID_KEYBOARD && CFG_TUD_HID_KEYBOARD_BOOT) )
-#define ITF_IDX_GENERIC    ( ITF_IDX_BOOT_MSE + (CFG_TUD_HID_MOUSE && CFG_TUD_HID_MOUSE_BOOT) )
-#define ITF_COUNT          ( ITF_IDX_GENERIC + TUD_OPT_HID_GENERIC )
-
 CFG_TUSB_ATTR_USBRAM static hidd_interface_t _hidd_itf[ITF_COUNT];
 
 
@@ -102,7 +102,7 @@ static hidd_report_t _kbd_rpt;
 static hidd_report_t _mse_rpt;
 #endif
 
-/*-------------  -------------*/
+/*------------- Helpers -------------*/
 
 static inline hidd_interface_t* get_interface_by_itfnum(uint8_t itf_num)
 {
@@ -118,14 +118,34 @@ static inline hidd_interface_t* get_interface_by_itfnum(uint8_t itf_num)
 //--------------------------------------------------------------------+
 // HID GENERIC API
 //--------------------------------------------------------------------+
+#if TUD_OPT_HID_GENERIC
+
 bool tud_hid_generic_ready(void)
 {
-#if TUD_OPT_HID_GENERIC
   return (_hidd_itf[ITF_IDX_GENERIC].ep_in != 0) && !dcd_edpt_busy(TUD_OPT_RHPORT, _hidd_itf[ITF_IDX_GENERIC].ep_in);
-#else
-  return false;
-#endif
 }
+
+bool tud_hid_generic_report(uint8_t report_id, void const* report, uint8_t len)
+{
+  VERIFY( tud_hid_generic_ready() && (len < REPORT_BUFSIZE) );
+
+  hidd_interface_t * p_hid = &_hidd_itf[ITF_IDX_GENERIC];
+
+  // If report id = 0, skip ID field
+  if (report_id)
+  {
+    p_hid->report_buf[0] = report_id;
+    memcpy(p_hid->report_buf+1, report, len);
+  }else
+  {
+    memcpy(p_hid->report_buf, report, len);
+  }
+
+  // TODO idle rate
+  return dcd_edpt_xfer(TUD_OPT_RHPORT, p_hid->ep_in, p_hid->report_buf, len + ( report_id ? 1 : 0) );
+}
+
+#endif // TUD_OPT_HID_GENERIC
 
 //--------------------------------------------------------------------+
 // KEYBOARD APPLICATION API
