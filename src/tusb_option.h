@@ -171,6 +171,14 @@
     #define CFG_TUD_MSC          0
   #endif
 
+  #ifndef CFG_TUD_HID_KEYBOARD_BOOT
+    #define CFG_TUD_HID_KEYBOARD_BOOT 0
+  #endif
+
+  #ifndef CFG_TUD_HID_MOUSE_BOOT
+    #define CFG_TUD_HID_MOUSE_BOOT 0
+  #endif
+
   // IF HID Generic is required, it is multiple Report : Keyboard + Mouse + Gamepad + Joystick
   #define TUD_OPT_HID_GENERIC    ( (CFG_TUD_HID_KEYBOARD && !CFG_TUD_HID_KEYBOARD_BOOT) || \
                                    (CFG_TUD_HID_MOUSE && !CFG_TUD_HID_MOUSE_BOOT) )
