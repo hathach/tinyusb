@@ -78,14 +78,58 @@
 /* The order as follows: CDC, MSC, Boot Keyboard, Boot Mouse, HID Generic
  * If an interface is not enabled, the later will take its place */
 
-#define ITF_NUM_CDC             0
-#define ITF_NUM_MSC             (ITF_NUM_CDC + 2*CFG_TUD_CDC)
+enum
+{
+#if CFG_TUD_CDC
+  ITF_NUM_CDC,
+  ITF_NUM_CDC_DATA,
+#endif
 
-#define ITF_NUM_HID_BOOT_KBD    (ITF_NUM_MSC + CFG_TUD_MSC)
-#define ITF_NUM_HID_BOOT_MSE    (ITF_NUM_HID_BOOT_KBD + CFG_TUD_HID_KEYBOARD_BOOT)
-#define ITF_NUM_HID_GEN         (ITF_NUM_HID_BOOT_MSE + CFG_TUD_HID_MOUSE_BOOT)
+#if CFG_TUD_MSC
+  ITF_NUM_MSC,
+#endif
 
-#define ITF_TOTAL               (ITF_NUM_HID_GEN + AUTO_DESC_HID_GENERIC)
+#if CFG_TUD_HID_KEYBOARD && CFG_TUD_HID_KEYBOARD_BOOT
+  ITF_NUM_HID_BOOT_KBD,
+#endif
+
+#if CFG_TUD_HID_MOUSE && CFG_TUD_HID_MOUSE_BOOT
+  ITF_NUM_HID_BOOT_MSE,
+#endif
+
+#if AUTO_DESC_HID_GENERIC
+  ITF_NUM_HID_GEN,
+#endif
+
+  ITF_NUM_TOTAL
+};
+
+enum {
+    ITF_STR_LANGUAGE = 0 ,
+    ITF_STR_MANUFACTURER ,
+    ITF_STR_PRODUCT      ,
+    ITF_STR_SERIAL       ,
+
+#if CFG_TUD_CDC
+    ITF_STR_CDC          ,
+#endif
+
+#if CFG_TUD_MSC
+    ITF_STR_MSC          ,
+#endif
+
+#if CFG_TUD_HID_KEYBOARD && CFG_TUD_HID_KEYBOARD_BOOT
+  ITF_STR_HID_BOOT_KBD,
+#endif
+
+#if CFG_TUD_HID_MOUSE && CFG_TUD_HID_MOUSE_BOOT
+  ITF_STR_HID_BOOT_MSE,
+#endif
+
+#if AUTO_DESC_HID_GENERIC
+  ITF_STR_HID_GEN,
+#endif
+};
 
 /*------------- Endpoint Numbering & Size -------------*/
 #define _EP_IN(x)               (0x80 | (x))
@@ -280,7 +324,7 @@ desc_auto_cfg_t const _desc_auto_config_struct =
         .bDescriptorType     = TUSB_DESC_CONFIGURATION,
 
         .wTotalLength        = sizeof(desc_auto_cfg_t),
-        .bNumInterfaces      = ITF_TOTAL,
+        .bNumInterfaces      = ITF_NUM_TOTAL,
 
         .bConfigurationValue = 1,
         .iConfiguration      = 0x00,
