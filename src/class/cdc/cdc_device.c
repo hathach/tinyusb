@@ -157,11 +157,11 @@ uint32_t tud_cdc_n_write(uint8_t itf, void const* buffer, uint32_t bufsize)
 bool tud_cdc_n_write_flush (uint8_t itf)
 {
   cdcd_interface_t* p_cdc = &_cdcd_itf[itf];
-  VERIFY( !dcd_edpt_busy(TUD_OPT_RHPORT, p_cdc->ep_in) ); // skip if previous transfer not complete
+  TU_VERIFY( !dcd_edpt_busy(TUD_OPT_RHPORT, p_cdc->ep_in) ); // skip if previous transfer not complete
 
   uint16_t count = tu_fifo_read_n(&_cdcd_itf[itf].tx_ff, p_cdc->epout_buf, CFG_TUD_CDC_EPSIZE);
 
-  VERIFY( tud_cdc_n_connected(itf) ); // fifo is empty if not connected
+  TU_VERIFY( tud_cdc_n_connected(itf) ); // fifo is empty if not connected
 
   if ( count ) TU_ASSERT( dcd_edpt_xfer(TUD_OPT_RHPORT, p_cdc->ep_in, p_cdc->epout_buf, count) );
 

@@ -86,7 +86,7 @@ bool tusb_hal_init(void)
   //------------- USB0 -------------//
 #if CFG_TUSB_RHPORT0_MODE
   CGU_EnableEntity(CGU_CLKSRC_PLL0, DISABLE); /* Disable PLL first */
-  VERIFY( CGU_ERROR_SUCCESS == CGU_SetPLL0()); /* the usb core require output clock = 480MHz */
+  TU_VERIFY( CGU_ERROR_SUCCESS == CGU_SetPLL0()); /* the usb core require output clock = 480MHz */
   CGU_EntityConnect(CGU_CLKSRC_XTAL_OSC, CGU_CLKSRC_PLL0);
   CGU_EnableEntity(CGU_CLKSRC_PLL0, ENABLE);   /* Enable PLL after all setting is done */
 

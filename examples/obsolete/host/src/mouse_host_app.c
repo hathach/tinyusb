@@ -106,7 +106,7 @@ void mouse_host_app_init(void)
   queue_mouse_hdl = osal_queue_create( QUEUE_MOUSE_REPORT_DEPTH, sizeof(hid_mouse_report_t) );
   TU_ASSERT( queue_mouse_hdl, VOID_RETURN);
 
-  VERIFY( osal_task_create(mouse_host_app_task, "mouse", 128, NULL, MOUSE_APP_TASK_PRIO), );
+  TU_VERIFY( osal_task_create(mouse_host_app_task, "mouse", 128, NULL, MOUSE_APP_TASK_PRIO), );
 }
 
 //------------- main task -------------//

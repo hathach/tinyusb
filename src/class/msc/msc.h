@@ -109,7 +109,7 @@ typedef struct ATTR_PACKED
   uint8_t  command[16] ; ///< The command block to be executed by the device. The device shall interpret the first cmd_len bytes in this field as a command block
 }msc_cbw_t;
 
-VERIFY_STATIC(sizeof(msc_cbw_t) == 31, "size is not correct");
+TU_VERIFY_STATIC(sizeof(msc_cbw_t) == 31, "size is not correct");
 
 /// Command Status Wrapper
 typedef struct ATTR_PACKED
@@ -120,7 +120,7 @@ typedef struct ATTR_PACKED
   uint8_t  status       ; ///< indicates the success or failure of the command. Values from \ref msc_csw_status_t
 }msc_csw_t;
 
-VERIFY_STATIC(sizeof(msc_csw_t) == 13, "size is not correct");
+TU_VERIFY_STATIC(sizeof(msc_csw_t) == 13, "size is not correct");
 
 //--------------------------------------------------------------------+
 // SCSI Constant
@@ -173,7 +173,7 @@ typedef struct ATTR_PACKED
   uint8_t control     ;
 } scsi_test_unit_ready_t;
 
-VERIFY_STATIC(sizeof(scsi_test_unit_ready_t) == 6, "size is not correct");
+TU_VERIFY_STATIC(sizeof(scsi_test_unit_ready_t) == 6, "size is not correct");
 
 /// SCSI Inquiry Command
 typedef struct ATTR_PACKED
@@ -186,7 +186,7 @@ typedef struct ATTR_PACKED
   uint8_t control      ;
 } scsi_inquiry_t, scsi_request_sense_t;
 
-VERIFY_STATIC(sizeof(scsi_inquiry_t) == 6, "size is not correct");
+TU_VERIFY_STATIC(sizeof(scsi_inquiry_t) == 6, "size is not correct");
 
 /// SCSI Inquiry Response Data
 typedef struct ATTR_PACKED
@@ -232,7 +232,7 @@ typedef struct ATTR_PACKED
   uint8_t product_rev[4]; ///< 4 bytes of ASCII data defined by the vendor.
 } scsi_inquiry_resp_t;
 
-VERIFY_STATIC(sizeof(scsi_inquiry_resp_t) == 36, "size is not correct");
+TU_VERIFY_STATIC(sizeof(scsi_inquiry_resp_t) == 36, "size is not correct");
 
 
 typedef struct ATTR_PACKED
@@ -259,7 +259,7 @@ typedef struct ATTR_PACKED
 
 } scsi_sense_fixed_resp_t;
 
-VERIFY_STATIC(sizeof(scsi_sense_fixed_resp_t) == 18, "size is not correct");
+TU_VERIFY_STATIC(sizeof(scsi_sense_fixed_resp_t) == 18, "size is not correct");
 
 typedef struct ATTR_PACKED
 {
@@ -277,7 +277,7 @@ typedef struct ATTR_PACKED
   uint8_t control;
 } scsi_mode_sense6_t;
 
-VERIFY_STATIC( sizeof(scsi_mode_sense6_t) == 6, "size is not correct");
+TU_VERIFY_STATIC( sizeof(scsi_mode_sense6_t) == 6, "size is not correct");
 
 typedef struct ATTR_PACKED
 {
@@ -287,7 +287,7 @@ typedef struct ATTR_PACKED
   uint8_t block_descriptor_len;
 } scsi_mode_sense6_resp_t;
 
-VERIFY_STATIC( sizeof(scsi_mode_sense6_resp_t) == 4, "size is not correct");
+TU_VERIFY_STATIC( sizeof(scsi_mode_sense6_resp_t) == 4, "size is not correct");
 
 typedef struct ATTR_PACKED
 {
@@ -297,7 +297,7 @@ typedef struct ATTR_PACKED
   uint8_t control;
 } scsi_prevent_allow_medium_removal_t;
 
-VERIFY_STATIC( sizeof(scsi_prevent_allow_medium_removal_t) == 6, "size is not correct");
+TU_VERIFY_STATIC( sizeof(scsi_prevent_allow_medium_removal_t) == 6, "size is not correct");
 
 typedef struct ATTR_PACKED
 {
@@ -320,7 +320,7 @@ typedef struct ATTR_PACKED
   uint8_t control;
 } scsi_start_stop_unit_t;
 
-VERIFY_STATIC( sizeof(scsi_start_stop_unit_t) == 6, "size is not correct");
+TU_VERIFY_STATIC( sizeof(scsi_start_stop_unit_t) == 6, "size is not correct");
 
 //--------------------------------------------------------------------+
 // SCSI MMC
@@ -334,7 +334,7 @@ typedef struct ATTR_PACKED
   uint8_t control;
 } scsi_read_format_capacity_t;
 
-VERIFY_STATIC( sizeof(scsi_read_format_capacity_t) == 10, "size is not correct");
+TU_VERIFY_STATIC( sizeof(scsi_read_format_capacity_t) == 10, "size is not correct");
 
 typedef struct ATTR_PACKED{
   uint8_t reserved[3];
@@ -348,7 +348,7 @@ typedef struct ATTR_PACKED{
 
 } scsi_read_format_capacity_data_t;
 
-VERIFY_STATIC( sizeof(scsi_read_format_capacity_data_t) == 12, "size is not correct");
+TU_VERIFY_STATIC( sizeof(scsi_read_format_capacity_data_t) == 12, "size is not correct");
 
 //--------------------------------------------------------------------+
 // SCSI Block Command (SBC-3)
@@ -366,7 +366,7 @@ typedef struct ATTR_PACKED
   uint8_t  control                  ;
 } scsi_read_capacity10_t;
 
-VERIFY_STATIC(sizeof(scsi_read_capacity10_t) == 10, "size is not correct");
+TU_VERIFY_STATIC(sizeof(scsi_read_capacity10_t) == 10, "size is not correct");
 
 /// SCSI Read Capacity 10 Response Data
 typedef struct {
@@ -374,7 +374,7 @@ typedef struct {
   uint32_t block_size ; ///< Block size in bytes
 } scsi_read_capacity10_resp_t;
 
-VERIFY_STATIC(sizeof(scsi_read_capacity10_resp_t) == 8, "size is not correct");
+TU_VERIFY_STATIC(sizeof(scsi_read_capacity10_resp_t) == 8, "size is not correct");
 
 /// SCSI Read 10 Command
 typedef struct ATTR_PACKED
@@ -387,8 +387,8 @@ typedef struct ATTR_PACKED
   uint8_t  control     ;
 } scsi_read10_t, scsi_write10_t;
 
-VERIFY_STATIC(sizeof(scsi_read10_t) == 10, "size is not correct");
-VERIFY_STATIC(sizeof(scsi_write10_t) == 10, "size is not correct");
+TU_VERIFY_STATIC(sizeof(scsi_read10_t) == 10, "size is not correct");
+TU_VERIFY_STATIC(sizeof(scsi_write10_t) == 10, "size is not correct");
 
 #ifdef __cplusplus
  }

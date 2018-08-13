@@ -244,7 +244,7 @@ bool dcd_control_xfer(uint8_t rhport, tusb_dir_t dir, uint8_t * p_buffer, uint16
   // wait until ENDPTSETUPSTAT before priming data/status in response TODO add time out
   while(lpc_usb->ENDPTSETUPSTAT & BIT_(0)) {}
 
-  VERIFY( !qhd->qtd_overlay.active );
+  TU_VERIFY( !qhd->qtd_overlay.active );
 
   dcd_qtd_t* qtd = &p_dcd->qtd[0];
   qtd_init(qtd, p_buffer, length);
@@ -295,7 +295,7 @@ bool dcd_edpt_open(uint8_t rhport, tusb_desc_endpoint_t const * p_endpoint_desc)
 {
   // TODO USB1 only has 4 non-control enpoint (USB0 has 5)
   // TODO not support ISO yet
-  VERIFY ( p_endpoint_desc->bmAttributes.xfer != TUSB_XFER_ISOCHRONOUS);
+  TU_VERIFY ( p_endpoint_desc->bmAttributes.xfer != TUSB_XFER_ISOCHRONOUS);
 
   tusb_dir_t dir = (p_endpoint_desc->bEndpointAddress & TUSB_DIR_IN_MASK) ? TUSB_DIR_IN : TUSB_DIR_OUT;
 
@@ -313,7 +313,7 @@ bool dcd_edpt_open(uint8_t rhport, tusb_desc_endpoint_t const * p_endpoint_desc)
   volatile uint32_t * reg_control = get_reg_control_addr(rhport, ep_idx);
 
   // endpoint must not be already enabled
-  VERIFY( !( (*reg_control) &  (ENDPTCTRL_MASK_ENABLE << (dir ? 16 : 0)) ) );
+  TU_VERIFY( !( (*reg_control) &  (ENDPTCTRL_MASK_ENABLE << (dir ? 16 : 0)) ) );
 
   (*reg_control) |= ((p_endpoint_desc->bmAttributes.xfer << 2) | ENDPTCTRL_MASK_ENABLE | ENDPTCTRL_MASK_TOGGLE_RESET) << (dir ? 16 : 0);
 
@@ -363,7 +363,7 @@ bool  dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t 
 {
   uint8_t ep_idx = edpt_addr2phy(ep_addr);
 
-  VERIFY ( pipe_add_xfer(rhport, ep_idx, buffer, total_bytes, true) );
+  TU_VERIFY ( pipe_add_xfer(rhport, ep_idx, buffer, total_bytes, true) );
 
   dcd_qhd_t* p_qhd = &dcd_data_ptr[rhport]->qhd[ ep_idx ];
   dcd_qtd_t* p_qtd = &dcd_data_ptr[rhport]->qtd[ p_qhd->list_qtd_idx[0] ];

@@ -125,7 +125,7 @@ bool tud_hid_generic_ready(void)
 
 bool tud_hid_generic_report(uint8_t report_id, void const* report, uint8_t len)
 {
-  VERIFY( tud_hid_generic_ready() && (len < REPORT_BUFSIZE) );
+  TU_VERIFY( tud_hid_generic_ready() && (len < REPORT_BUFSIZE) );
 
   hidd_interface_t * p_hid = &_hidd_itf[ITF_IDX_GENERIC];
 
@@ -159,7 +159,7 @@ bool tud_hid_keyboard_is_boot_protocol(void)
 
 static bool hidd_kbd_report(hid_keyboard_report_t const *p_report)
 {
-  VERIFY( tud_hid_keyboard_ready() );
+  TU_VERIFY( tud_hid_keyboard_ready() );
 
   hidd_interface_t * p_hid = _kbd_rpt.itf;
 
@@ -253,7 +253,7 @@ bool tud_hid_mouse_is_boot_protocol(void)
 
 static bool hidd_mouse_report(hid_mouse_report_t const *p_report)
 {
-  VERIFY( tud_hid_mouse_ready() );
+  TU_VERIFY( tud_hid_mouse_ready() );
 
   hidd_interface_t * p_hid = _mse_rpt.itf;
   memcpy(p_hid->report_buf, p_report, sizeof(hid_mouse_report_t));
@@ -277,7 +277,7 @@ bool tud_hid_mouse_data(uint8_t buttons, int8_t x, int8_t y, int8_t scroll, int8
 
 bool tud_hid_mouse_move(int8_t x, int8_t y)
 {
-  VERIFY( tud_hid_mouse_ready() );
+  TU_VERIFY( tud_hid_mouse_ready() );
 
   hidd_interface_t * p_hid = _mse_rpt.itf;
   uint8_t prev_buttons = p_hid->report_buf[0];
@@ -287,7 +287,7 @@ bool tud_hid_mouse_move(int8_t x, int8_t y)
 
 bool tud_hid_mouse_scroll(int8_t vertical, int8_t horizontal)
 {
-  VERIFY( tud_hid_mouse_ready() );
+  TU_VERIFY( tud_hid_mouse_ready() );
 
   hidd_interface_t * p_hid =  _mse_rpt.itf;
   uint8_t prev_buttons = p_hid->report_buf[0];
@@ -390,7 +390,7 @@ tusb_error_t hidd_open(uint8_t rhport, tusb_desc_interface_t const * desc_itf, u
     TU_ASSERT(p_hid, ERR_TUD_INVALID_DESCRIPTOR);
   }
 
-  VERIFY(p_hid->desc_report, ERR_TUD_INVALID_DESCRIPTOR);
+  TU_VERIFY(p_hid->desc_report, ERR_TUD_INVALID_DESCRIPTOR);
   TU_ASSERT( dcd_edpt_open(rhport, desc_edpt), ERR_TUD_EDPT_OPEN_FAILED );
 
   p_hid->itf_num   = desc_itf->bInterfaceNumber;

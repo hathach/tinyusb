@@ -122,7 +122,7 @@ typedef struct
   uint8_t reserved;
 } dcd_qtd_t;
 
-VERIFY_STATIC( sizeof(dcd_qtd_t) == 32, "size is not correct");
+TU_VERIFY_STATIC( sizeof(dcd_qtd_t) == 32, "size is not correct");
 
 typedef struct
 {
@@ -153,7 +153,7 @@ typedef struct
 	uint8_t reserved[16-DCD_QTD_PER_QHD_MAX];
 }  dcd_qhd_t;
 
-VERIFY_STATIC( sizeof(dcd_qhd_t) == 64, "size is not correct");
+TU_VERIFY_STATIC( sizeof(dcd_qhd_t) == 64, "size is not correct");
 
 
 #ifdef __cplusplus

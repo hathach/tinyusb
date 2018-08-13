@@ -49,7 +49,7 @@ tusb_error_t tusb_init(void)
   // skip if already initialized
   if (_initialized) return TUSB_ERROR_NONE;
 
-  VERIFY( tusb_hal_init(), TUSB_ERROR_FAILED ) ; // hardware init
+  TU_VERIFY( tusb_hal_init(), TUSB_ERROR_FAILED ) ; // hardware init
 
 #if MODE_HOST_SUPPORTED
   TU_ASSERT_ERR( usbh_init() ); // host stack init

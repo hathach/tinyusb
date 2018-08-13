@@ -152,7 +152,7 @@ void mscd_reset(uint8_t rhport)
 tusb_error_t mscd_open(uint8_t rhport, tusb_desc_interface_t const * p_desc_itf, uint16_t *p_len)
 {
   // only support SCSI's BOT protocol
-  VERIFY( ( MSC_SUBCLASS_SCSI == p_desc_itf->bInterfaceSubClass &&
+  TU_VERIFY( ( MSC_SUBCLASS_SCSI == p_desc_itf->bInterfaceSubClass &&
             MSC_PROTOCOL_BOT  == p_desc_itf->bInterfaceProtocol ), TUSB_ERROR_MSC_UNSUPPORTED_PROTOCOL );
 
   mscd_interface_t * p_msc = &_mscd_itf;

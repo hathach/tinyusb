@@ -189,7 +189,7 @@ typedef struct ATTR_ALIGNED(4)
   };
 } usbd_task_event_t;
 
-VERIFY_STATIC(sizeof(usbd_task_event_t) <= 12, "size is not correct");
+TU_VERIFY_STATIC(sizeof(usbd_task_event_t) <= 12, "size is not correct");
 
 OSAL_TASK_DEF(_usbd_task_def, "usbd", usbd_task, CFG_TUD_TASK_PRIO, CFG_TUD_TASK_STACK_SZ);
 
@@ -234,10 +234,10 @@ tusb_error_t usbd_init (void)
 
   //------------- Task init -------------//
   _usbd_q = osal_queue_create(&_usbd_qdef);
-  VERIFY(_usbd_q, TUSB_ERROR_OSAL_QUEUE_FAILED);
+  TU_VERIFY(_usbd_q, TUSB_ERROR_OSAL_QUEUE_FAILED);
 
   _usbd_ctrl_sem = osal_semaphore_create(&_usbd_sem_def);
-  VERIFY(_usbd_q, TUSB_ERROR_OSAL_SEMAPHORE_FAILED);
+  TU_VERIFY(_usbd_q, TUSB_ERROR_OSAL_SEMAPHORE_FAILED);
 
   osal_task_create(&_usbd_task_def);
 
@@ -507,7 +507,7 @@ static uint16_t get_descriptor(uint8_t rhport, tusb_control_request_t const * co
       if ( desc_index < tud_desc_set.string_count )
       {
         desc_data = tud_desc_set.string_arr[desc_index];
-        VERIFY( desc_data != NULL, 0 );
+        TU_VERIFY( desc_data != NULL, 0 );
 
         len  = desc_data[0];  // first byte of descriptor is its size
       }else

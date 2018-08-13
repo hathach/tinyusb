@@ -105,7 +105,7 @@ void keyboard_host_app_init(void)
   queue_kbd_hdl = osal_queue_create( QUEUE_KEYBOARD_REPORT_DEPTH, sizeof(hid_keyboard_report_t) );
   TU_ASSERT( queue_kbd_hdl, VOID_RETURN );
 
-  VERIFY( osal_task_create(keyboard_host_app_task, "kbd", 128, NULL, KEYBOARD_APP_TASK_PRIO), );
+  TU_VERIFY( osal_task_create(keyboard_host_app_task, "kbd", 128, NULL, KEYBOARD_APP_TASK_PRIO), );
 }
 
 //------------- main task -------------//

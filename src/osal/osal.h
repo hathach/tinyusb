@@ -81,11 +81,11 @@ typedef void (*osal_task_func_t)( void * );
   #define STASK_INVOKE(_subtask, _status)     (_status) = _subtask
 
   //------------- Sub Task Assert -------------//
-  #define STASK_ASSERT_ERR(_err)              VERIFY_ERR(_err)
-  #define STASK_ASSERT_ERR_HDLR(_err, _func)  VERIFY_ERR_HDLR(_err, _func)
+  #define STASK_ASSERT_ERR(_err)              TU_VERIFY_ERR(_err)
+  #define STASK_ASSERT_ERR_HDLR(_err, _func)  TU_VERIFY_ERR_HDLR(_err, _func)
 
-  #define STASK_ASSERT(_cond)                 VERIFY(_cond, TUSB_ERROR_OSAL_TASK_FAILED)
-  #define STASK_ASSERT_HDLR(_cond, _func)     VERIFY_HDLR(_cond, _func)
+  #define STASK_ASSERT(_cond)                 TU_VERIFY(_cond, TUSB_ERROR_OSAL_TASK_FAILED)
+  #define STASK_ASSERT_HDLR(_cond, _func)     TU_VERIFY_HDLR(_cond, _func)
 #endif
 
 #ifdef __cplusplus

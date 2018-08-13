@@ -56,12 +56,12 @@
 #endif
 
 //--------------------------------------------------------------------+
-// Compile-time Assert (use VERIFY_STATIC to avoid name conflict)
+// Compile-time Assert (use TU_VERIFY_STATIC to avoid name conflict)
 //--------------------------------------------------------------------+
 #if defined(__ICCARM__) || (__STDC_VERSION__ >= 201112L )
-  #define VERIFY_STATIC   static_assert
+  #define TU_VERIFY_STATIC   static_assert
 #else
-  #define VERIFY_STATIC(const_expr, _mess) enum { XSTRING_CONCAT_(_verify_static_, _TU_COUNTER_) = 1/(!!(const_expr)) }
+  #define TU_VERIFY_STATIC(const_expr, _mess) enum { XSTRING_CONCAT_(_verify_static_, _TU_COUNTER_) = 1/(!!(const_expr)) }
 #endif
 
 // allow debugger to watch any module-wide variables anywhere

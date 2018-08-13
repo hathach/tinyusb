@@ -50,8 +50,8 @@
  *
  * e.g
  *
- * - VERIFY( cond ) will return false if cond is false
- * - VERIFY( cond, err) will return err instead if cond is false
+ * - TU_VERIFY( cond ) will return false if cond is false
+ * - TU_VERIFY( cond, err) will return err instead if cond is false
  *------------------------------------------------------------------*/
 
 #ifdef __cplusplus
@@ -60,7 +60,7 @@
 
 
 //--------------------------------------------------------------------+
-// VERIFY Helper
+// TU_VERIFY Helper
 //--------------------------------------------------------------------+
 #if CFG_TUSB_DEBUG >= 1
   #include <stdio.h>
@@ -88,21 +88,21 @@
 /* Macro Generator
  *------------------------------------------------------------------*/
 
-// Helper to implement optional parameter for VERIFY Macro family
+// Helper to implement optional parameter for TU_VERIFY Macro family
 #define GET_3RD_ARG(arg1, arg2, arg3, ...)        arg3
 #define GET_4TH_ARG(arg1, arg2, arg3, arg4, ...)  arg4
 
-/*------------- Generator for VERIFY and VERIFY_HDLR -------------*/
-#define VERIFY_DEFINE(_cond, _handler, _ret)  do { if ( !(_cond) ) { _handler; return _ret;  } } while(0)
+/*------------- Generator for TU_VERIFY and TU_VERIFY_HDLR -------------*/
+#define TU_VERIFY_DEFINE(_cond, _handler, _ret)  do { if ( !(_cond) ) { _handler; return _ret;  } } while(0)
 
-/*------------- Generator for VERIFY_ERR and VERIFY_ERR_HDLR -------------*/
-#define VERIFY_ERR_DEF2(_error, _handler)  \
+/*------------- Generator for TU_VERIFY_ERR and TU_VERIFY_ERR_HDLR -------------*/
+#define TU_VERIFY_ERR_DEF2(_error, _handler)  \
     do {                                              \
       uint32_t _err = (uint32_t)(_error);             \
       if ( 0 != _err ) { _MESS_ERR(_err); _handler; return _err; }\
     } while(0)
 
-#define VERIFY_ERR_DEF3(_error, _handler, _ret)  \
+#define TU_VERIFY_ERR_DEF3(_error, _handler, _ret)  \
     do {                                              \
       uint32_t _err = (uint32_t)(_error);             \
       if ( 0 != _err ) { _MESS_ERR(_err); _handler; return _ret; }\
@@ -112,66 +112,66 @@
 
 
 /*------------------------------------------------------------------*/
-/* VERIFY
- * - VERIFY_1ARGS : return false if failed
- * - VERIFY_2ARGS : return provided value if failed
+/* TU_VERIFY
+ * - TU_VERIFY_1ARGS : return false if failed
+ * - TU_VERIFY_2ARGS : return provided value if failed
  *------------------------------------------------------------------*/
-#define VERIFY_1ARGS(_cond)                         VERIFY_DEFINE(_cond, , false)
-#define VERIFY_2ARGS(_cond, _ret)                   VERIFY_DEFINE(_cond, , _ret)
+#define TU_VERIFY_1ARGS(_cond)                         TU_VERIFY_DEFINE(_cond, , false)
+#define TU_VERIFY_2ARGS(_cond, _ret)                   TU_VERIFY_DEFINE(_cond, , _ret)
 
-#define VERIFY(...)                   GET_3RD_ARG(__VA_ARGS__, VERIFY_2ARGS, VERIFY_1ARGS)(__VA_ARGS__)
+#define TU_VERIFY(...)                   GET_3RD_ARG(__VA_ARGS__, TU_VERIFY_2ARGS, TU_VERIFY_1ARGS)(__VA_ARGS__)
 
 
 /*------------------------------------------------------------------*/
-/* VERIFY WITH HANDLER
- * - VERIFY_HDLR_2ARGS : execute handler, return false if failed
- * - VERIFY_HDLR_3ARGS : execute handler, return provided error if failed
+/* TU_VERIFY WITH HANDLER
+ * - TU_VERIFY_HDLR_2ARGS : execute handler, return false if failed
+ * - TU_VERIFY_HDLR_3ARGS : execute handler, return provided error if failed
  *------------------------------------------------------------------*/
-#define VERIFY_HDLR_2ARGS(_cond, _handler)           VERIFY_DEFINE(_cond, _handler, false)
-#define VERIFY_HDLR_3ARGS(_cond, _handler, _ret)     VERIFY_DEFINE(_cond, _handler, _ret)
+#define TU_VERIFY_HDLR_2ARGS(_cond, _handler)           TU_VERIFY_DEFINE(_cond, _handler, false)
+#define TU_VERIFY_HDLR_3ARGS(_cond, _handler, _ret)     TU_VERIFY_DEFINE(_cond, _handler, _ret)
 
-#define VERIFY_HDLR(...)              GET_4TH_ARG(__VA_ARGS__, VERIFY_HDLR_3ARGS, VERIFY_HDLR_2ARGS)(__VA_ARGS__)
+#define TU_VERIFY_HDLR(...)              GET_4TH_ARG(__VA_ARGS__, TU_VERIFY_HDLR_3ARGS, TU_VERIFY_HDLR_2ARGS)(__VA_ARGS__)
 
 
 /*------------------------------------------------------------------*/
-/* VERIFY STATUS
- * - VERIFY_ERR_1ARGS : return status of condition if failed
- * - VERIFY_ERR_2ARGS : return provided status code if failed
+/* TU_VERIFY STATUS
+ * - TU_VERIFY_ERR_1ARGS : return status of condition if failed
+ * - TU_VERIFY_ERR_2ARGS : return provided status code if failed
  *------------------------------------------------------------------*/
-#define VERIFY_ERR_1ARGS(_error)                       VERIFY_ERR_DEF2(_error, )
-#define VERIFY_ERR_2ARGS(_error, _ret)                 VERIFY_ERR_DEF3(_error, ,_ret)
+#define TU_VERIFY_ERR_1ARGS(_error)                       TU_VERIFY_ERR_DEF2(_error, )
+#define TU_VERIFY_ERR_2ARGS(_error, _ret)                 TU_VERIFY_ERR_DEF3(_error, ,_ret)
 
-#define VERIFY_ERR(...)            GET_3RD_ARG(__VA_ARGS__, VERIFY_ERR_2ARGS, VERIFY_ERR_1ARGS)(__VA_ARGS__)
+#define TU_VERIFY_ERR(...)            GET_3RD_ARG(__VA_ARGS__, TU_VERIFY_ERR_2ARGS, TU_VERIFY_ERR_1ARGS)(__VA_ARGS__)
 
 /*------------------------------------------------------------------*/
-/* VERIFY STATUS WITH HANDLER
- * - VERIFY_ERR_HDLR_2ARGS : execute handler, return status if failed
- * - VERIFY_ERR_HDLR_3ARGS : execute handler, return provided error if failed
+/* TU_VERIFY STATUS WITH HANDLER
+ * - TU_VERIFY_ERR_HDLR_2ARGS : execute handler, return status if failed
+ * - TU_VERIFY_ERR_HDLR_3ARGS : execute handler, return provided error if failed
  *------------------------------------------------------------------*/
-#define VERIFY_ERR_HDLR_2ARGS(_error, _handler)        VERIFY_ERR_DEF2(_error, _handler)
-#define VERIFY_ERR_HDLR_3ARGS(_error, _handler, _ret)  VERIFY_ERR_DEF3(_error, _handler, _ret)
+#define TU_VERIFY_ERR_HDLR_2ARGS(_error, _handler)        TU_VERIFY_ERR_DEF2(_error, _handler)
+#define TU_VERIFY_ERR_HDLR_3ARGS(_error, _handler, _ret)  TU_VERIFY_ERR_DEF3(_error, _handler, _ret)
 
-#define VERIFY_ERR_HDLR(...)       GET_4TH_ARG(__VA_ARGS__, VERIFY_ERR_HDLR_3ARGS, VERIFY_ERR_HDLR_2ARGS)(__VA_ARGS__)
+#define TU_VERIFY_ERR_HDLR(...)       GET_4TH_ARG(__VA_ARGS__, TU_VERIFY_ERR_HDLR_3ARGS, TU_VERIFY_ERR_HDLR_2ARGS)(__VA_ARGS__)
 
 
 
 /*------------------------------------------------------------------*/
 /* ASSERT
- * basically VERIFY with verify_breakpoint() as handler
+ * basically TU_VERIFY with verify_breakpoint() as handler
  * - 1 arg : return false if failed
  * - 2 arg : return error if failed
  *------------------------------------------------------------------*/
-#define ASSERT_1ARGS(_cond)            VERIFY_DEFINE(_cond, _MESS_FAILED(); verify_breakpoint(), false)
-#define ASSERT_2ARGS(_cond, _ret)      VERIFY_DEFINE(_cond, _MESS_FAILED(); verify_breakpoint(), _ret)
+#define ASSERT_1ARGS(_cond)            TU_VERIFY_DEFINE(_cond, _MESS_FAILED(); verify_breakpoint(), false)
+#define ASSERT_2ARGS(_cond, _ret)      TU_VERIFY_DEFINE(_cond, _MESS_FAILED(); verify_breakpoint(), _ret)
 
 #define TU_ASSERT(...)             GET_3RD_ARG(__VA_ARGS__, ASSERT_2ARGS, ASSERT_1ARGS)(__VA_ARGS__)
 
 /*------------------------------------------------------------------*/
 /* ASSERT Error
- * basically VERIFY Error with verify_breakpoint() as handler
+ * basically TU_VERIFY Error with verify_breakpoint() as handler
  *------------------------------------------------------------------*/
-#define ASERT_ERR_1ARGS(_error)         VERIFY_ERR_DEF2(_error, verify_breakpoint())
-#define ASERT_ERR_2ARGS(_error, _ret)   VERIFY_ERR_DEF3(_error, verify_breakpoint(), _ret)
+#define ASERT_ERR_1ARGS(_error)         TU_VERIFY_ERR_DEF2(_error, verify_breakpoint())
+#define ASERT_ERR_2ARGS(_error, _ret)   TU_VERIFY_ERR_DEF3(_error, verify_breakpoint(), _ret)
 
 #define TU_ASSERT_ERR(...)         GET_3RD_ARG(__VA_ARGS__, ASERT_ERR_2ARGS, ASERT_ERR_1ARGS)(__VA_ARGS__)
 

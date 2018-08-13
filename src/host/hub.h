@@ -104,7 +104,7 @@ typedef struct ATTR_PACKED{
   uint8_t  PortPwrCtrlMask; // just for compatibility, should be 0xff
 } descriptor_hub_desc_t;
 
-VERIFY_STATIC( sizeof(descriptor_hub_desc_t) == 9, "size is not correct");
+TU_VERIFY_STATIC( sizeof(descriptor_hub_desc_t) == 9, "size is not correct");
 
 enum {
   HUB_REQUEST_GET_STATUS      = 0  ,
@@ -157,7 +157,7 @@ typedef struct {
   } status, status_change;
 } hub_status_response_t;
 
-VERIFY_STATIC( sizeof(hub_status_response_t) == 4, "size is not correct");
+TU_VERIFY_STATIC( sizeof(hub_status_response_t) == 4, "size is not correct");
 
 // data in response of HUB_REQUEST_GET_STATUS, wIndex = Port num
 typedef struct {
@@ -182,7 +182,7 @@ typedef struct {
   } status_current, status_change;
 } hub_port_status_response_t;
 
-VERIFY_STATIC( sizeof(hub_port_status_response_t) == 4, "size is not correct");
+TU_VERIFY_STATIC( sizeof(hub_port_status_response_t) == 4, "size is not correct");
 
 tusb_error_t hub_port_reset_subtask(uint8_t hub_addr, uint8_t hub_port);
 tusb_error_t hub_port_clear_feature_subtask(uint8_t hub_addr, uint8_t hub_port, uint8_t feature);

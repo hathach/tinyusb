@@ -121,11 +121,11 @@ static inline osal_task_t osal_task_create(osal_task_def_t* taskdef)
 //------------- Sub Task Assert -------------//
 #define STASK_RETURN(error)     do { TASK_RESTART; return error; } while(0)
 
-#define STASK_ASSERT_ERR(_err)                VERIFY_ERR_HDLR(_err, verify_breakpoint(); TASK_RESTART, TUSB_ERROR_FAILED)
-#define STASK_ASSERT_ERR_HDLR(_err, _func)    VERIFY_ERR_HDLR(_err, verify_breakpoint(); _func; TASK_RESTART, TUSB_ERROR_FAILED )
+#define STASK_ASSERT_ERR(_err)                TU_VERIFY_ERR_HDLR(_err, verify_breakpoint(); TASK_RESTART, TUSB_ERROR_FAILED)
+#define STASK_ASSERT_ERR_HDLR(_err, _func)    TU_VERIFY_ERR_HDLR(_err, verify_breakpoint(); _func; TASK_RESTART, TUSB_ERROR_FAILED )
 
-#define STASK_ASSERT(_cond)                   VERIFY_HDLR(_cond, verify_breakpoint(); TASK_RESTART, TUSB_ERROR_FAILED)
-#define STASK_ASSERT_HDLR(_cond, _func)       VERIFY_HDLR(_cond, verify_breakpoint(); _func; TASK_RESTART, TUSB_ERROR_FAILED)
+#define STASK_ASSERT(_cond)                   TU_VERIFY_HDLR(_cond, verify_breakpoint(); TASK_RESTART, TUSB_ERROR_FAILED)
+#define STASK_ASSERT_HDLR(_cond, _func)       TU_VERIFY_HDLR(_cond, verify_breakpoint(); _func; TASK_RESTART, TUSB_ERROR_FAILED)
 
 //--------------------------------------------------------------------+
 // QUEUE API

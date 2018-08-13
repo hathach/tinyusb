@@ -79,7 +79,7 @@ typedef struct {
   uint8_t reserved[116+4];  // TODO try to make use of this area if possible, extra 4 byte to make the whole struct size = 256
 }ohci_hcca_t; // ATTR_ALIGNED(256)
 
-VERIFY_STATIC( sizeof(ohci_hcca_t) == 256, "size is not correct" );
+TU_VERIFY_STATIC( sizeof(ohci_hcca_t) == 256, "size is not correct" );
 
 typedef struct {
   uint32_t reserved[2];
@@ -112,7 +112,7 @@ typedef struct ATTR_ALIGNED(16) {
 	uint8_t* buffer_end;
 } ohci_gtd_t;
 
-VERIFY_STATIC( sizeof(ohci_gtd_t) == 16, "size is not correct" );
+TU_VERIFY_STATIC( sizeof(ohci_gtd_t) == 16, "size is not correct" );
 
 typedef struct ATTR_ALIGNED(16) {
   //------------- Word 0 -------------//
@@ -153,7 +153,7 @@ typedef struct ATTR_ALIGNED(16) {
 	uint32_t next_ed; // 4 lsb bits are free to use
 } ohci_ed_t;
 
-VERIFY_STATIC( sizeof(ohci_ed_t) == 16, "size is not correct" );
+TU_VERIFY_STATIC( sizeof(ohci_ed_t) == 16, "size is not correct" );
 
 typedef struct ATTR_ALIGNED(32) {
 	/*---------- Word 1 ----------*/
@@ -178,7 +178,7 @@ typedef struct ATTR_ALIGNED(32) {
 	volatile uint16_t offset_packetstatus[8];
 } ochi_itd_t;
 
-VERIFY_STATIC( sizeof(ochi_itd_t) == 32, "size is not correct" );
+TU_VERIFY_STATIC( sizeof(ochi_itd_t) == 32, "size is not correct" );
 
 // structure with member alignment required from large to small
 typedef struct ATTR_ALIGNED(256) {
@@ -298,7 +298,7 @@ typedef volatile struct
   };
 }ohci_registers_t;
 
-VERIFY_STATIC( sizeof(ohci_registers_t) == 0x5c, "size is not correct");
+TU_VERIFY_STATIC( sizeof(ohci_registers_t) == 0x5c, "size is not correct");
 
 #ifdef __cplusplus
  }

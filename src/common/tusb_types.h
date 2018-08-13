@@ -369,7 +369,7 @@ typedef struct ATTR_PACKED{
   uint16_t wLength;
 } tusb_control_request_t;
 
-VERIFY_STATIC( sizeof(tusb_control_request_t) == 8, "mostly compiler option issue");
+TU_VERIFY_STATIC( sizeof(tusb_control_request_t) == 8, "mostly compiler option issue");
 
 // TODO move to somewhere suitable
 static inline uint8_t bm_request_type(uint8_t direction, uint8_t type, uint8_t recipient)
