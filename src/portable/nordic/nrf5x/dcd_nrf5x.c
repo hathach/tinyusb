@@ -70,11 +70,12 @@ typedef struct
 {
   uint8_t* buffer;
   uint16_t total_len;
-  uint16_t actual_len;
+  volatile uint16_t actual_len;
   uint8_t  mps; // max packet size
 
   // nrf52840 will auto ACK OUT packet after DMA is done
-  volatile bool data_received; // indicate packet is already ACK
+  // indicate packet is already ACK
+  volatile bool data_received;
 
 } nom_xfer_t;
 
