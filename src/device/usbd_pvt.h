@@ -69,7 +69,7 @@ tusb_error_t usbd_open_edpt_pair(uint8_t rhport, tusb_desc_endpoint_t const* p_d
   do {                                                                        \
     if (_len) {                                                               \
       tusb_error_t err;                                                       \
-      dcd_control_xfer(_rhport, _dir, _usbd_ctrl_buf, _len);                  \
+      dcd_control_xfer(_rhport, _dir, (uint8_t*) _buffer, _len);              \
       osal_semaphore_wait( _usbd_ctrl_sem, OSAL_TIMEOUT_CONTROL_XFER, &err ); \
       STASK_ASSERT_ERR( err );                                                \
     }                                                                         \
