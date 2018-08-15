@@ -62,8 +62,8 @@ typedef struct
   uint8_t line_state;
 
   /*------------- From this point, data is not cleared by bus reset -------------*/
-  cdc_line_coding_t line_coding;
   char    wanted_char;
+  CFG_TUSB_MEM_ALIGN cdc_line_coding_t line_coding;
 
   // FIFO
   tu_fifo_t rx_ff;
@@ -78,7 +78,7 @@ typedef struct
 
 }cdcd_interface_t;
 
-#define ITF_BUS_RESET_SZ   offsetof(cdcd_interface_t, line_coding)
+#define ITF_BUS_RESET_SZ   offsetof(cdcd_interface_t, wanted_char)
 
 //--------------------------------------------------------------------+
 // INTERNAL OBJECT & FUNCTION DECLARATION
