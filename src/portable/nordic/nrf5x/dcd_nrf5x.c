@@ -200,7 +200,7 @@ static void xact_control_start(void)
   _dcd.control.actual_len += xact_len;
 }
 
-bool dcd_control_xfer (uint8_t rhport, tusb_dir_t dir, uint8_t * buffer, uint16_t length)
+bool dcd_control_xfer (uint8_t rhport, uint8_t dir, uint8_t * buffer, uint16_t length)
 {
   (void) rhport;
 
@@ -210,7 +210,7 @@ bool dcd_control_xfer (uint8_t rhport, tusb_dir_t dir, uint8_t * buffer, uint16_
     _dcd.control.total_len  = length;
     _dcd.control.actual_len = 0;
     _dcd.control.buffer     = buffer;
-    _dcd.control.dir        = (uint8_t) dir;
+    _dcd.control.dir        = dir;
 
     xact_control_start();
   }else

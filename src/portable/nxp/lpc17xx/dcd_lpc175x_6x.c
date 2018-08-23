@@ -380,7 +380,7 @@ void dcd_control_stall(uint8_t rhport)
   sie_write(SIE_CMDCODE_ENDPOINT_SET_STATUS+0, 1, SIE_SET_ENDPOINT_STALLED_MASK | SIE_SET_ENDPOINT_CONDITION_STALLED_MASK);
 }
 
-bool dcd_control_xfer(uint8_t rhport, tusb_dir_t dir, uint8_t * p_buffer, uint16_t length, bool int_on_complete)
+bool dcd_control_xfer(uint8_t rhport, uint8_t dir, uint8_t * p_buffer, uint16_t length, bool int_on_complete)
 {
   (void) rhport;
 

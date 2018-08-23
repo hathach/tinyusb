@@ -85,7 +85,7 @@ typedef TaskHandle_t osal_task_t;
 
 static inline osal_task_t osal_task_create(osal_task_def_t* taskdef)
 {
-  return xTaskCreateStatic(taskdef->func, taskdef->strname, taskdef->stack_sz, NULL, taskdef->prio, taskdef->buf, &taskdef->stask);
+  return xTaskCreateStatic(taskdef->func, taskdef->strname, taskdef->stack_sz, NULL, taskdef->prio, (StackType_t*) taskdef->buf, &taskdef->stask);
 }
 
 static inline void osal_task_delay(uint32_t msec)
@@ -113,7 +113,7 @@ typedef QueueHandle_t osal_queue_t;
 
 static inline osal_queue_t osal_queue_create(osal_queue_def_t* qdef)
 {
-  return xQueueCreateStatic(qdef->depth, qdef->item_sz, qdef->buf, &qdef->sq);
+  return xQueueCreateStatic(qdef->depth, qdef->item_sz, (uint8_t*) qdef->buf, &qdef->sq);
 }
 
 static inline void osal_queue_receive (osal_queue_t const queue_hdl, void *p_data, uint32_t msec, tusb_error_t *p_error)

@@ -381,7 +381,7 @@ void dcd_control_stall(uint8_t rhport)
   dcd_data.qhd[0][0].stall = dcd_data.qhd[1][0].stall = 1;
 }
 
-bool dcd_control_xfer(uint8_t rhport, tusb_dir_t dir, uint8_t * p_buffer, uint16_t length, bool int_on_complete)
+bool dcd_control_xfer(uint8_t rhport, uint8_t dir, uint8_t * p_buffer, uint16_t length, bool int_on_complete)
 {
   (void) rhport;
 

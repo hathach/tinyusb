@@ -232,7 +232,7 @@ static inline uint8_t qtd_find_free(uint8_t rhport)
 
 // control transfer does not need to use qtd find function
 // follows UM 24.10.8.1.1 Setup packet handling using setup lockout mechanism
-bool dcd_control_xfer(uint8_t rhport, tusb_dir_t dir, uint8_t * p_buffer, uint16_t length)
+bool dcd_control_xfer(uint8_t rhport, uint8_t dir, uint8_t * p_buffer, uint16_t length)
 {
   LPC_USB0_Type* const lpc_usb = LPC_USB[rhport];
   dcd_data_t* const p_dcd      = dcd_data_ptr[rhport];
