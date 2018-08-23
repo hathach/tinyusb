@@ -59,6 +59,7 @@
 // Compile-time Assert (use TU_VERIFY_STATIC to avoid name conflict)
 //--------------------------------------------------------------------+
 #if defined(__ICCARM__) || (__STDC_VERSION__ >= 201112L )
+  #include <assert.h>
   #define TU_VERIFY_STATIC   static_assert
 #else
   #define TU_VERIFY_STATIC(const_expr, _mess) enum { XSTRING_CONCAT_(_verify_static_, _TU_COUNTER_) = 1/(!!(const_expr)) }
