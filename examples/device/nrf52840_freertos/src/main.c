@@ -61,8 +61,8 @@
 //--------------------------------------------------------------------+
 void print_greeting(void);
 void led_blinky_cb(TimerHandle_t xTimer);
-void virtual_com_task(void);
-void usb_hid_task(void);
+void cdc_task(void* params);
+void usb_hid_task(void* params);
 
 
 /*------------- MAIN -------------*/
@@ -71,22 +71,18 @@ int main(void)
   board_init();
   print_greeting();
 
-  //tusb_init();
-
   // soft timer for blinky
   TimerHandle_t tm_hdl = xTimerCreate(NULL, pdMS_TO_TICKS(1000), true, NULL, led_blinky_cb);
-  xTimerStart(tm_hdl, 0); 
+  xTimerStart(tm_hdl, 0);
+
+  tusb_init();
+
+  // Create task
+  xTaskCreate( cdc_task, "cdc", 256, NULL, 2, NULL);
 
   vTaskStartScheduler();
 
   NVIC_SystemReset();
-
-//  while (1)
-//  {
-//    virtual_com_task();
-//
-//    usb_hid_task();
-//  }
 
   return 0;
 }
@@ -94,26 +90,35 @@ int main(void)
 //--------------------------------------------------------------------+
 // USB CDC
 //--------------------------------------------------------------------+
-void virtual_com_task(void)
+void cdc_task(void* params)
 {
-  // connected and there are data available
-  if ( tud_mounted() && tud_cdc_available() )
+  (void) params;
+
+  while ( 1 )
   {
-    uint8_t buf[64];
+    // connected and there are data available
+    if ( tud_mounted() && tud_cdc_available() )
+    {
+      uint8_t buf[64];
 
-    // read and echo back
-    uint32_t count = tud_cdc_read(buf, sizeof(buf));
+      // read and echo back
+      uint32_t count = tud_cdc_read(buf, sizeof(buf));
 
-    tud_cdc_write(buf, count);
-    tud_cdc_write_flush();
+      tud_cdc_write(buf, count);
+      tud_cdc_write_flush();
+    }
+
+    taskYIELD();
   }
 }
 
 //--------------------------------------------------------------------+
 // USB HID
 //--------------------------------------------------------------------+
-void usb_hid_task(void)
+void usb_hid_task(void* params)
 {
+  (void) params;
+
   // Poll every 10ms
   static tu_timeout_t tm = { .start = 0, .interval = 10 };
 
