@@ -151,119 +151,94 @@ static inline bool mem_all_zero(void const* buffer, uint32_t size)
 
 
 //------------- Conversion -------------//
-/// form an uint32_t from 4 x uint8_t
-static inline uint32_t u32_from_u8(uint8_t b1, uint8_t b2, uint8_t b3, uint8_t b4) ATTR_ALWAYS_INLINE ATTR_CONST;
-static inline uint32_t u32_from_u8(uint8_t b1, uint8_t b2, uint8_t b3, uint8_t b4)
+static inline uint32_t tu_u32_from_u8(uint8_t b1, uint8_t b2, uint8_t b3, uint8_t b4)
 {
   return ( ((uint32_t) b1) << 24) + ( ((uint32_t) b2) << 16) + ( ((uint32_t) b3) << 8) + b4;
 }
 
-static inline uint8_t u16_high_u8(uint16_t u16) ATTR_CONST ATTR_ALWAYS_INLINE;
-static inline uint8_t u16_high_u8(uint16_t u16)
+static inline uint8_t tu_u16_high(uint16_t u16)
 {
   return (uint8_t) ( ((uint16_t) (u16 >> 8)) & 0x00ff);
 }
 
-static inline uint8_t u16_low_u8(uint16_t u16) ATTR_CONST ATTR_ALWAYS_INLINE;
-static inline uint8_t u16_low_u8(uint16_t u16)
+static inline uint8_t tu_u16_low(uint16_t u16)
 {
   return (uint8_t) (u16 & 0x00ff);
 }
 
-static inline uint16_t u16_le2be(uint16_t u16) ATTR_CONST ATTR_ALWAYS_INLINE;
-static inline uint16_t u16_le2be(uint16_t u16)
+static inline uint16_t tu_u16_le2be(uint16_t u16)
 {
-  return ((uint16_t)(u16_low_u8(u16) << 8)) | u16_high_u8(u16);
+  return ((uint16_t)(tu_u16_low(u16) << 8)) | tu_u16_high(u16);
 }
 
 //------------- Min -------------//
-static inline uint8_t min8_of(uint8_t x, uint8_t y) ATTR_ALWAYS_INLINE ATTR_CONST;
-static inline uint8_t min8_of(uint8_t x, uint8_t y)
+static inline uint8_t tu_min8(uint8_t x, uint8_t y)
 {
   return (x < y) ? x : y;
 }
 
-static inline uint16_t min16_of(uint16_t x, uint16_t y) ATTR_ALWAYS_INLINE ATTR_CONST;
-static inline uint16_t min16_of(uint16_t x, uint16_t y)
+static inline uint16_t tu_min16(uint16_t x, uint16_t y)
 {
   return (x < y) ? x : y;
 }
 
-static inline uint32_t min32_of(uint32_t x, uint32_t y) ATTR_ALWAYS_INLINE ATTR_CONST;
-static inline uint32_t min32_of(uint32_t x, uint32_t y)
+static inline uint32_t tu_min32(uint32_t x, uint32_t y)
 {
   return (x < y) ? x : y;
 }
 
 //------------- Max -------------//
-static inline uint32_t max32_of(uint32_t x, uint32_t y) ATTR_ALWAYS_INLINE ATTR_CONST;
-static inline uint32_t max32_of(uint32_t x, uint32_t y)
+static inline uint32_t tu_max32(uint32_t x, uint32_t y)
 {
   return (x > y) ? x : y;
 }
 
-static inline uint16_t max16_of(uint16_t x, uint16_t y) ATTR_ALWAYS_INLINE ATTR_CONST;
-static inline uint16_t max16_of(uint16_t x, uint16_t y)
+static inline uint16_t tu_max16(uint16_t x, uint16_t y)
 {
   return (x > y) ? x : y;
 }
 
 //------------- Align -------------//
-static inline uint32_t align32 (uint32_t value) ATTR_ALWAYS_INLINE ATTR_CONST;
-static inline uint32_t align32 (uint32_t value)
+static inline uint32_t tu_align32 (uint32_t value)
 {
 	return (value & 0xFFFFFFE0UL);
 }
 
-static inline uint32_t align16 (uint32_t value) ATTR_ALWAYS_INLINE ATTR_CONST;
-static inline uint32_t align16 (uint32_t value)
+static inline uint32_t tu_align16 (uint32_t value)
 {
 	return (value & 0xFFFFFFF0UL);
 }
 
-static inline uint32_t align_n (uint32_t alignment, uint32_t value) ATTR_ALWAYS_INLINE ATTR_CONST;
-static inline uint32_t align_n (uint32_t alignment, uint32_t value)
+static inline uint32_t tu_align_n (uint32_t alignment, uint32_t value)
 {
 	return value & ((uint32_t) ~(alignment-1));
 }
 
-static inline uint32_t align4k (uint32_t value) ATTR_ALWAYS_INLINE ATTR_CONST;
-static inline uint32_t align4k (uint32_t value)
+static inline uint32_t tu_align4k (uint32_t value)
 {
 	return (value & 0xFFFFF000UL);
 }
 
-static inline uint32_t offset4k(uint32_t value) ATTR_ALWAYS_INLINE ATTR_CONST;
-static inline uint32_t offset4k(uint32_t value)
+static inline uint32_t tu_offset4k(uint32_t value)
 {
 	return (value & 0xFFFUL);
 }
 
 //------------- Mathematics -------------//
-static inline uint32_t abs_of(int32_t value) ATTR_ALWAYS_INLINE ATTR_CONST;
-static inline uint32_t abs_of(int32_t value)
+static inline uint32_t tu_abs(int32_t value)
 {
   return (value < 0) ? (-value) : value;
 }
 
 
 /// inclusive range checking
-static inline bool is_in_range(uint32_t lower, uint32_t value, uint32_t upper) ATTR_ALWAYS_INLINE ATTR_CONST;
-static inline bool is_in_range(uint32_t lower, uint32_t value, uint32_t upper)
+static inline bool tu_within(uint32_t lower, uint32_t value, uint32_t upper)
 {
   return (lower <= value) && (value <= upper);
 }
 
-/// exclusive range checking
-static inline bool is_in_range_exclusive(uint32_t lower, uint32_t value, uint32_t upper) ATTR_ALWAYS_INLINE ATTR_CONST;
-static inline bool is_in_range_exclusive(uint32_t lower, uint32_t value, uint32_t upper)
-{
-  return (lower < value) && (value < upper);
-}
-
 // TODO use clz
-static inline uint8_t log2_of(uint32_t value) ATTR_ALWAYS_INLINE ATTR_CONST;
-static inline uint8_t log2_of(uint32_t value)
+static inline uint8_t tu_log2(uint32_t value)
 {
   uint8_t result = 0; // log2 of a value is its MSB's position
 
@@ -275,8 +250,7 @@ static inline uint8_t log2_of(uint32_t value)
 }
 
 // return the number of set bits in value
-static inline uint8_t cardinality_of(uint32_t value) ATTR_ALWAYS_INLINE ATTR_CONST;
-static inline uint8_t cardinality_of(uint32_t value)
+static inline uint8_t tu_cardof(uint32_t value)
 {
   // Brian Kernighan's method goes through as many iterations as there are set bits. So if we have a 32-bit word with only
   // the high bit set, then it will only go once through the loop

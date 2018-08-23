@@ -142,7 +142,7 @@ void test_control_open_qhd_data(void)
   TEST_ASSERT_FALSE(p_control_qhd->head_list_flag);
 
   //------------- async list check -------------//
-  TEST_ASSERT_EQUAL_HEX((uint32_t) p_control_qhd, align32(async_head->next.address));
+  TEST_ASSERT_EQUAL_HEX((uint32_t) p_control_qhd, tu_align32(async_head->next.address));
   TEST_ASSERT_FALSE(async_head->next.terminate);
   TEST_ASSERT_EQUAL(EHCI_QUEUE_ELEMENT_QHD, async_head->next.type);
 }
@@ -191,6 +191,6 @@ void test_control_close(void)
   TEST_ASSERT(p_control_qhd->is_removing);
   TEST_ASSERT(p_control_qhd->used);
 
-  TEST_ASSERT( align32(get_async_head(hostid)->next.address) != (uint32_t) p_control_qhd );
-  TEST_ASSERT_EQUAL( get_async_head(hostid), align32(p_control_qhd->next.address));
+  TEST_ASSERT( tu_align32(get_async_head(hostid)->next.address) != (uint32_t) p_control_qhd );
+  TEST_ASSERT_EQUAL( get_async_head(hostid), tu_align32(p_control_qhd->next.address));
 }

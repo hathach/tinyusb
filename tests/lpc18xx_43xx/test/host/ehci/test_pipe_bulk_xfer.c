@@ -140,7 +140,7 @@ void verify_qtd(ehci_qtd_t *p_qtd, uint8_t p_data[], uint16_t length)
   TEST_ASSERT_EQUAL_HEX( p_data, p_qtd->buffer[0] );
   for(uint8_t i=1; i<5; i++)
   {
-    TEST_ASSERT_EQUAL_HEX( align4k((uint32_t) (p_data+4096*i)), align4k(p_qtd->buffer[i]) );
+    TEST_ASSERT_EQUAL_HEX( tu_align4k((uint32_t) (p_data+4096*i)), tu_align4k(p_qtd->buffer[i]) );
   }
 }
 
@@ -193,7 +193,7 @@ void test_bulk_xfer_double(void)
   //------------- list tail -------------//
   TEST_ASSERT_NOT_NULL(p_tail);
   verify_qtd(p_tail, data2, sizeof(data2));
-  TEST_ASSERT_EQUAL_HEX( align32(p_head->next.address), p_tail);
+  TEST_ASSERT_EQUAL_HEX( tu_align32(p_head->next.address), p_tail);
   TEST_ASSERT_EQUAL(EHCI_PID_IN, p_tail->pid);
   TEST_ASSERT_TRUE(p_tail->next.terminate);
   TEST_ASSERT_TRUE(p_tail->int_on_complete);

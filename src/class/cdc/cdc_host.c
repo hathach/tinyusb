@@ -149,7 +149,7 @@ tusb_error_t cdch_open_subtask(uint8_t dev_addr, tusb_desc_interface_t const *p_
 
   if ( CDC_COMM_SUBCLASS_ABSTRACT_CONTROL_MODEL != p_interface_desc->bInterfaceSubClass) return TUSB_ERROR_CDC_UNSUPPORTED_SUBCLASS;
 
-  if ( !(is_in_range(CDC_COMM_PROTOCOL_ATCOMMAND, p_interface_desc->bInterfaceProtocol, CDC_COMM_PROTOCOL_ATCOMMAND_CDMA) ||
+  if ( !(tu_within(CDC_COMM_PROTOCOL_ATCOMMAND, p_interface_desc->bInterfaceProtocol, CDC_COMM_PROTOCOL_ATCOMMAND_CDMA) ||
          0xff == p_interface_desc->bInterfaceProtocol) )
   {
     return TUSB_ERROR_CDC_UNSUPPORTED_PROTOCOL;

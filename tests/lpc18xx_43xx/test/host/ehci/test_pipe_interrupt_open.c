@@ -136,7 +136,7 @@ void verify_int_qhd(ehci_qhd_t *p_qhd, tusb_desc_endpoint_t const * desc_endpoin
 void check_int_endpoint_link(ehci_qhd_t *p_prev, ehci_qhd_t *p_qhd)
 {
   //------------- period list check -------------//
-  TEST_ASSERT_EQUAL_HEX((uint32_t) p_qhd, align32(p_prev->next.address));
+  TEST_ASSERT_EQUAL_HEX((uint32_t) p_qhd, tu_align32(p_prev->next.address));
   TEST_ASSERT_FALSE(p_prev->next.terminate);
   TEST_ASSERT_EQUAL(EHCI_QUEUE_ELEMENT_QHD, p_prev->next.type);
 }
@@ -181,7 +181,7 @@ void test_open_interrupt_hs_interval_2(void)
   p_int_qhd = &ehci_data.device[ pipe_hdl.dev_addr-1].qhd[ pipe_hdl.index ];
 
   TEST_ASSERT_EQUAL(0 , p_int_qhd->interval_ms);
-  TEST_ASSERT_EQUAL(4 , cardinality_of(p_int_qhd->interrupt_smask)); // either 10101010 or 01010101
+  TEST_ASSERT_EQUAL(4 , tu_cardof(p_int_qhd->interrupt_smask)); // either 10101010 or 01010101
   check_int_endpoint_link(period_head_arr, p_int_qhd);
 }
 
@@ -195,7 +195,7 @@ void test_open_interrupt_hs_interval_3(void)
   p_int_qhd = &ehci_data.device[ pipe_hdl.dev_addr-1].qhd[ pipe_hdl.index ];
 
   TEST_ASSERT_EQUAL(0, p_int_qhd->interval_ms);
-  TEST_ASSERT_EQUAL(2, cardinality_of(p_int_qhd->interrupt_smask) );
+  TEST_ASSERT_EQUAL(2, tu_cardof(p_int_qhd->interrupt_smask) );
   check_int_endpoint_link(period_head_arr, p_int_qhd);
 }
 
@@ -209,7 +209,7 @@ void test_open_interrupt_hs_interval_4(void)
   p_int_qhd = &ehci_data.device[ pipe_hdl.dev_addr-1].qhd[ pipe_hdl.index ];
 
   TEST_ASSERT_EQUAL(1, p_int_qhd->interval_ms);
-  TEST_ASSERT_EQUAL(1, cardinality_of(p_int_qhd->interrupt_smask) );
+  TEST_ASSERT_EQUAL(1, tu_cardof(p_int_qhd->interrupt_smask) );
   check_int_endpoint_link(period_head_arr, p_int_qhd);
 }
 
@@ -223,7 +223,7 @@ void test_open_interrupt_hs_interval_5(void)
   p_int_qhd = &ehci_data.device[ pipe_hdl.dev_addr-1].qhd[ pipe_hdl.index ];
 
   TEST_ASSERT_EQUAL(2, p_int_qhd->interval_ms);
-  TEST_ASSERT_EQUAL(1, cardinality_of(p_int_qhd->interrupt_smask) );
+  TEST_ASSERT_EQUAL(1, tu_cardof(p_int_qhd->interrupt_smask) );
   check_int_endpoint_link( get_period_head(hostid, 2), p_int_qhd );
 }
 
@@ -237,7 +237,7 @@ void test_open_interrupt_hs_interval_6(void)
   p_int_qhd = &ehci_data.device[ pipe_hdl.dev_addr-1].qhd[ pipe_hdl.index ];
 
   TEST_ASSERT_EQUAL(4, p_int_qhd->interval_ms);
-  TEST_ASSERT_EQUAL(1, cardinality_of(p_int_qhd->interrupt_smask) );
+  TEST_ASSERT_EQUAL(1, tu_cardof(p_int_qhd->interrupt_smask) );
   check_int_endpoint_link( get_period_head(hostid, 4), p_int_qhd);
 }
 
@@ -251,7 +251,7 @@ void test_open_interrupt_hs_interval_7(void)
   p_int_qhd = &ehci_data.device[ pipe_hdl.dev_addr-1].qhd[ pipe_hdl.index ];
 
   TEST_ASSERT_EQUAL(8, p_int_qhd->interval_ms);
-  TEST_ASSERT_EQUAL(1, cardinality_of(p_int_qhd->interrupt_smask) );
+  TEST_ASSERT_EQUAL(1, tu_cardof(p_int_qhd->interrupt_smask) );
   check_int_endpoint_link( get_period_head(hostid, 8), p_int_qhd);
 }
 
@@ -265,7 +265,7 @@ void test_open_interrupt_hs_interval_8(void)
   p_int_qhd = &ehci_data.device[ pipe_hdl.dev_addr-1].qhd[ pipe_hdl.index ];
 
   TEST_ASSERT_EQUAL(255, p_int_qhd->interval_ms);
-  TEST_ASSERT_EQUAL(1, cardinality_of(p_int_qhd->interrupt_smask) );
+  TEST_ASSERT_EQUAL(1, tu_cardof(p_int_qhd->interrupt_smask) );
   check_int_endpoint_link( get_period_head(hostid, 255), p_int_qhd);
   check_int_endpoint_link( get_period_head(hostid, 8) , p_int_qhd);
 }
@@ -318,8 +318,8 @@ void test_interrupt_close(void)
                     hcd_pipe_close(pipe_hdl) );
 
   TEST_ASSERT(p_int_qhd->is_removing);
-  TEST_ASSERT( align32(period_head_arr->next.address) != (uint32_t) p_int_qhd );
-  TEST_ASSERT_EQUAL_HEX( (uint32_t) period_head_arr, align32(p_int_qhd->next.address ) );
+  TEST_ASSERT( tu_align32(period_head_arr->next.address) != (uint32_t) p_int_qhd );
+  TEST_ASSERT_EQUAL_HEX( (uint32_t) period_head_arr, tu_align32(p_int_qhd->next.address ) );
   TEST_ASSERT_EQUAL(EHCI_QUEUE_ELEMENT_QHD, p_int_qhd->next.type);
 }
 
@@ -336,7 +336,7 @@ void test_interrupt_256ms_close(void)
                     hcd_pipe_close(pipe_hdl) );
 
   TEST_ASSERT(p_int_qhd->is_removing);
-  TEST_ASSERT( align32(get_period_head(hostid, 8)->address) != (uint32_t) p_int_qhd );
-  TEST_ASSERT_EQUAL_HEX( (uint32_t) get_period_head(hostid, 8), align32(p_int_qhd->next.address ) );
+  TEST_ASSERT( tu_align32(get_period_head(hostid, 8)->address) != (uint32_t) p_int_qhd );
+  TEST_ASSERT_EQUAL_HEX( (uint32_t) get_period_head(hostid, 8), tu_align32(p_int_qhd->next.address ) );
   TEST_ASSERT_EQUAL(EHCI_QUEUE_ELEMENT_QHD, p_int_qhd->next.type);
 }

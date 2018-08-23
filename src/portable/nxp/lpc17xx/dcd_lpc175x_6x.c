@@ -312,7 +312,7 @@ static inline uint16_t length_byte2dword(uint16_t length_in_bytes)
 
 static tusb_error_t pipe_control_xfer(uint8_t ep_id, uint8_t* p_buffer, uint16_t length)
 {
-  uint16_t const packet_len = min16_of(length, CFG_TUD_ENDOINT0_SIZE);
+  uint16_t const packet_len = tu_min16(length, CFG_TUD_ENDOINT0_SIZE);
 
   if (ep_id)
   {
@@ -355,7 +355,7 @@ static tusb_error_t pipe_control_read(void * buffer, uint16_t length)
   LPC_USB->USBCtrl = USBCTRL_READ_ENABLE_MASK; // logical endpoint = 0
   while ((LPC_USB->USBRxPLen & USBRXPLEN_PACKET_READY_MASK) == 0) {} // TODO blocking, should have timeout
 
-  uint16_t actual_length = min16_of(length, (uint16_t) (LPC_USB->USBRxPLen & USBRXPLEN_PACKET_LENGTH_MASK) );
+  uint16_t actual_length = tu_min16(length, (uint16_t) (LPC_USB->USBRxPLen & USBRXPLEN_PACKET_LENGTH_MASK) );
   uint32_t *p_read_data = (uint32_t*) buffer;
   for( uint16_t count=0; count < length_byte2dword(actual_length); count++)
   {

@@ -143,7 +143,7 @@ void verify_bulk_open_qhd(ehci_qhd_t *p_qhd, tusb_desc_endpoint_t const * desc_e
 
   TEST_ASSERT_EQUAL(class_code, p_qhd->class_code);
   //------------- async list check -------------//
-  TEST_ASSERT_EQUAL_HEX((uint32_t) p_qhd, align32(async_head->next.address));
+  TEST_ASSERT_EQUAL_HEX((uint32_t) p_qhd, tu_align32(async_head->next.address));
   TEST_ASSERT_FALSE(async_head->next.terminate);
   TEST_ASSERT_EQUAL(EHCI_QUEUE_ELEMENT_QHD, async_head->next.type);
 }
@@ -164,7 +164,7 @@ void test_open_bulk_qhd_data(void)
   verify_bulk_open_qhd(p_qhd, desc_endpoint, TUSB_CLASS_MSC);
 
   //------------- async list check -------------//
-  TEST_ASSERT_EQUAL_HEX((uint32_t) p_qhd, align32(async_head->next.address));
+  TEST_ASSERT_EQUAL_HEX((uint32_t) p_qhd, tu_align32(async_head->next.address));
   TEST_ASSERT_FALSE(async_head->next.terminate);
   TEST_ASSERT_EQUAL(EHCI_QUEUE_ELEMENT_QHD, async_head->next.type);
 }
@@ -194,7 +194,7 @@ void test_bulk_close(void)
   hcd_pipe_close(pipe_hdl);
 
   TEST_ASSERT(p_qhd->is_removing);
-  TEST_ASSERT( align32(async_head->next.address) != (uint32_t) p_qhd );
-  TEST_ASSERT_EQUAL_HEX( (uint32_t) async_head, align32(p_qhd->next.address) );
+  TEST_ASSERT( tu_align32(async_head->next.address) != (uint32_t) p_qhd );
+  TEST_ASSERT_EQUAL_HEX( (uint32_t) async_head, tu_align32(p_qhd->next.address) );
   TEST_ASSERT_EQUAL(EHCI_QUEUE_ELEMENT_QHD, p_qhd->next.type);
 }

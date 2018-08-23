@@ -497,7 +497,7 @@ bool dcd_edpt_busy(edpt_hdl_t edpt_hdl)
 
 static void queue_xfer_to_buffer(uint8_t ep_id, uint8_t buff_idx, uint16_t buff_addr_offset, uint16_t total_bytes)
 {
-  uint16_t const queued_bytes = min16_of(total_bytes, DCD_11U_13U_MAX_BYTE_PER_TD);
+  uint16_t const queued_bytes = tu_min16(total_bytes, DCD_11U_13U_MAX_BYTE_PER_TD);
 
   dcd_data.current_td[ep_id].queued_bytes_in_buff[buff_idx] = queued_bytes;
   dcd_data.current_td[ep_id].remaining_bytes               -= queued_bytes;

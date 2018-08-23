@@ -178,7 +178,7 @@ static void edpt_dma_end(void)
 static void xact_control_start(void)
 {
   // Each transaction is up to 64 bytes
-  uint8_t const xact_len = min16_of(_dcd.control.total_len-_dcd.control.actual_len, MAX_PACKET_SIZE);
+  uint8_t const xact_len = tu_min16(_dcd.control.total_len-_dcd.control.actual_len, MAX_PACKET_SIZE);
 
   if ( _dcd.control.dir == TUSB_DIR_OUT )
   {
@@ -274,7 +274,7 @@ static void xact_in_prepare(uint8_t epnum)
   nom_xfer_t* xfer = get_td(epnum, TUSB_DIR_IN);
 
   // Each transaction is up to Max Packet Size
-  uint8_t const xact_len = min16_of(xfer->total_len - xfer->actual_len, xfer->mps);
+  uint8_t const xact_len = tu_min16(xfer->total_len - xfer->actual_len, xfer->mps);
 
   NRF_USBD->EPIN[epnum].PTR    = (uint32_t) xfer->buffer;
   NRF_USBD->EPIN[epnum].MAXCNT = xact_len;

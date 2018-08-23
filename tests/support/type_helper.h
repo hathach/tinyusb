@@ -70,7 +70,7 @@
 #define TEST_ASSERT_STATUS( actual )\
   TEST_ASSERT_EQUAL( TUSB_ERROR_NONE, (actual) )
 
-// log2_of a value is equivalent to its highest set bit's position
+// tu_log2 a value is equivalent to its highest set bit's position
 #define BITFIELD_OFFSET_OF_MEMBER(struct_type, member, bitfield_member) \
   ({\
     uint32_t value=0;\
@@ -78,7 +78,7 @@
     memclr_((void*)&str, sizeof(struct_type));\
     str.member.bitfield_member = 1;\
     memcpy(&value, (void*)&str.member, sizeof(str.member));\
-    log2_of( value );\
+    tu_log2( value );\
   })
 
 #define BITFIELD_OFFSET_OF_UINT32(struct_type, offset, bitfield_member) \
@@ -86,7 +86,7 @@
     struct_type str;\
     memclr_(&str, sizeof(struct_type));\
     str.bitfield_member = 1;\
-    log2_of( ((uint32_t*) &str)[offset] );\
+    tu_log2( ((uint32_t*) &str)[offset] );\
   })
 
 #ifdef __cplusplus

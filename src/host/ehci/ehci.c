@@ -604,14 +604,14 @@ static void period_list_xfer_complete_isr(uint8_t hostid, uint8_t interval_ms)
 
   // TODO abstract max loop guard for period
   while( !next_item.terminate &&
-      !(interval_ms > 1 && period_1ms_addr == align32(next_item.address)) &&
+      !(interval_ms > 1 && period_1ms_addr == tu_align32(next_item.address)) &&
       max_loop < (HCD_MAX_ENDPOINT + EHCI_MAX_ITD + EHCI_MAX_SITD)*CFG_TUSB_HOST_DEVICE_MAX)
   {
     switch ( next_item.type )
     {
       case EHCI_QUEUE_ELEMENT_QHD:
       {
-        ehci_qhd_t *p_qhd_int = (ehci_qhd_t *) align32(next_item.address);
+        ehci_qhd_t *p_qhd_int = (ehci_qhd_t *) tu_align32(next_item.address);
         if ( !p_qhd_int->qtd_overlay.halted )
         {
           qhd_xfer_complete_isr(p_qhd_int);
@@ -653,7 +653,7 @@ static void qhd_xfer_error_isr(ehci_qhd_t * p_qhd)
 
     if ( TUSB_XFER_CONTROL == xfer_type )
     {
-      p_qhd->total_xferred_bytes -= min8_of(8, p_qhd->total_xferred_bytes); // subtract setup size
+      p_qhd->total_xferred_bytes -= tu_min8(8, p_qhd->total_xferred_bytes); // subtract setup size
 
       // control cannot be halted --> clear all qtd list
       p_qhd->p_qtd_list_head = NULL;
@@ -702,14 +702,14 @@ static void xfer_error_isr(uint8_t hostid)
 
     // TODO abstract max loop guard for period
     while( !next_item.terminate &&
-        !(interval_ms > 1 && period_1ms_addr == align32(next_item.address)) &&
+        !(interval_ms > 1 && period_1ms_addr == tu_align32(next_item.address)) &&
         period_max_loop < (HCD_MAX_ENDPOINT + EHCI_MAX_ITD + EHCI_MAX_SITD)*CFG_TUSB_HOST_DEVICE_MAX)
     {
       switch ( next_item.type )
       {
         case EHCI_QUEUE_ELEMENT_QHD:
         {
-          ehci_qhd_t *p_qhd_int = (ehci_qhd_t *) align32(next_item.address);
+          ehci_qhd_t *p_qhd_int = (ehci_qhd_t *) tu_align32(next_item.address);
           qhd_xfer_error_isr(p_qhd_int);
         }
         break;
@@ -828,7 +828,7 @@ static inline ehci_qhd_t* get_async_head(uint8_t hostid)
 static inline ehci_link_t* get_period_head(uint8_t hostid, uint8_t interval_ms)
 {
   return (ehci_link_t*) (&ehci_data.period_head_arr[ hostid_to_data_idx(hostid) ]
-                                                    [ log2_of( min8_of(EHCI_FRAMELIST_SIZE, interval_ms) ) ] );
+                                                    [ tu_log2( tu_min8(EHCI_FRAMELIST_SIZE, interval_ms) ) ] );
 }
 #endif
 
@@ -869,7 +869,7 @@ static inline tusb_xfer_type_t qhd_get_xfer_type(ehci_qhd_t const * p_qhd)
 
 static inline ehci_qhd_t* qhd_next(ehci_qhd_t const * p_qhd)
 {
-  return (ehci_qhd_t*) align32(p_qhd->next.address);
+  return (ehci_qhd_t*) tu_align32(p_qhd->next.address);
 }
 
 static inline ehci_qhd_t* qhd_get_from_pipe_handle(pipe_handle_t pipe_hdl)
@@ -907,7 +907,7 @@ static inline ehci_qtd_t* qtd_find_free(uint8_t dev_addr)
 
 static inline ehci_qtd_t* qtd_next(ehci_qtd_t const * p_qtd )
 {
-  return (ehci_qtd_t*) align32(p_qtd->next.address);
+  return (ehci_qtd_t*) tu_align32(p_qtd->next.address);
 }
 
 static inline void qtd_remove_1st_from_qhd(ehci_qhd_t *p_qhd)
@@ -965,7 +965,7 @@ static void qhd_init(ehci_qhd_t *p_qhd, uint8_t dev_addr, uint16_t max_packet_si
                                  (interval == 2) ? BIN8(10101010) : BIN8(01000100);
       }else
       {
-        p_qhd->interval_ms     = (uint8_t) min16_of( 1 << (interval-4), 255 );
+        p_qhd->interval_ms     = (uint8_t) tu_min16( 1 << (interval-4), 255 );
         p_qhd->interrupt_smask = BIT_(interval % 8);
       }
     }else
@@ -1019,7 +1019,7 @@ static void qtd_init(ehci_qtd_t* p_qtd, uint32_t data_ptr, uint16_t total_bytes)
   p_qtd->buffer[0]           = data_ptr;
   for(uint8_t i=1; i<5; i++)
   {
-    p_qtd->buffer[i] |= align4k( p_qtd->buffer[i-1] ) + 4096;
+    p_qtd->buffer[i] |= tu_align4k( p_qtd->buffer[i-1] ) + 4096;
   }
 }
 
@@ -1032,15 +1032,15 @@ static inline void list_insert(ehci_link_t *current, ehci_link_t *new, uint8_t n
 
 static inline ehci_link_t* list_next(ehci_link_t *p_link_pointer)
 {
-  return (ehci_link_t*) align32(p_link_pointer->address);
+  return (ehci_link_t*) tu_align32(p_link_pointer->address);
 }
 
 static ehci_link_t* list_find_previous_item(ehci_link_t* p_head, ehci_link_t* p_current)
 {
   ehci_link_t *p_prev = p_head;
   uint32_t max_loop = 0;
-  while( (align32(p_prev->address) != (uint32_t) p_head)    && // not loop around
-         (align32(p_prev->address) != (uint32_t) p_current) && // not found yet
+  while( (tu_align32(p_prev->address) != (uint32_t) p_head)    && // not loop around
+         (tu_align32(p_prev->address) != (uint32_t) p_current) && // not found yet
          !p_prev->terminate                                 && // not advanceable
          max_loop < HCD_MAX_ENDPOINT)
   {
@@ -1048,7 +1048,7 @@ static ehci_link_t* list_find_previous_item(ehci_link_t* p_head, ehci_link_t* p_
     max_loop++;
   }
 
-  return  (align32(p_prev->address) != (uint32_t) p_head) ? p_prev : NULL;
+  return  (tu_align32(p_prev->address) != (uint32_t) p_head) ? p_prev : NULL;
 }
 
 static tusb_error_t list_remove_qhd(ehci_link_t* p_head, ehci_link_t* p_remove)

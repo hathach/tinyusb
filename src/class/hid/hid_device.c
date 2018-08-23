@@ -412,8 +412,8 @@ tusb_error_t hidd_control_request_st(uint8_t rhport, tusb_control_request_t cons
   //------------- STD Request -------------//
   if (p_request->bmRequestType_bit.type == TUSB_REQ_TYPE_STANDARD)
   {
-    uint8_t const desc_type  = u16_high_u8(p_request->wValue);
-    uint8_t const desc_index = u16_low_u8 (p_request->wValue);
+    uint8_t const desc_type  = tu_u16_high(p_request->wValue);
+    uint8_t const desc_index = tu_u16_low (p_request->wValue);
     (void) desc_index;
 
     if (p_request->bRequest == TUSB_REQ_GET_DESCRIPTOR && desc_type == HID_DESC_TYPE_REPORT)
@@ -434,8 +434,8 @@ tusb_error_t hidd_control_request_st(uint8_t rhport, tusb_control_request_t cons
     if( HID_REQ_CONTROL_GET_REPORT == p_request->bRequest )
     {
       // wValue = Report Type | Report ID
-      uint8_t const report_type = u16_high_u8(p_request->wValue);
-      uint8_t const report_id   = u16_low_u8(p_request->wValue);
+      uint8_t const report_type = tu_u16_high(p_request->wValue);
+      uint8_t const report_id   = tu_u16_low(p_request->wValue);
 
       uint16_t xferlen;
       if ( p_hid->get_report_cb )
@@ -455,8 +455,8 @@ tusb_error_t hidd_control_request_st(uint8_t rhport, tusb_control_request_t cons
       usbd_control_xfer_st(rhport, p_request->bmRequestType_bit.direction, _usbd_ctrl_buf, p_request->wLength);
 
       // wValue = Report Type | Report ID
-      uint8_t const report_type = u16_high_u8(p_request->wValue);
-      uint8_t const report_id   = u16_low_u8(p_request->wValue);
+      uint8_t const report_type = tu_u16_high(p_request->wValue);
+      uint8_t const report_id   = tu_u16_low(p_request->wValue);
 
       if ( p_hid->set_report_cb )
       {
@@ -466,7 +466,7 @@ tusb_error_t hidd_control_request_st(uint8_t rhport, tusb_control_request_t cons
     else if (HID_REQ_CONTROL_SET_IDLE == p_request->bRequest)
     {
       // TODO idle rate of report
-      p_hid->idle_rate = u16_high_u8(p_request->wValue);
+      p_hid->idle_rate = tu_u16_high(p_request->wValue);
       dcd_control_status(rhport, p_request->bmRequestType_bit.direction);
     }
     else if (HID_REQ_CONTROL_GET_IDLE == p_request->bRequest)

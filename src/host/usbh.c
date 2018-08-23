@@ -643,7 +643,7 @@ static inline uint8_t get_configure_number_for_device(tusb_desc_device_t* dev_de
   // invoke callback to ask user which configuration to select
   if (tuh_device_attached_cb)
   {
-    config_num = min8_of(1, tuh_device_attached_cb(dev_desc) );
+    config_num = tu_min8(1, tuh_device_attached_cb(dev_desc) );
   }
 
   return config_num;

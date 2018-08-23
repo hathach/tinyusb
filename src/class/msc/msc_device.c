@@ -531,7 +531,7 @@ static void proc_read10_cmd(uint8_t rhport, mscd_interface_t* p_msc)
   uint32_t const lba = rdwr10_get_lba(p_cbw->command) + (p_msc->xferred_len / block_sz);
 
   // remaining bytes capped at class buffer
-  int32_t nbytes = (int32_t) min32_of(sizeof(_mscd_buf), p_cbw->xfer_bytes-p_msc->xferred_len);
+  int32_t nbytes = (int32_t) tu_min32(sizeof(_mscd_buf), p_cbw->xfer_bytes-p_msc->xferred_len);
 
   // Application can consume smaller bytes
   nbytes = tud_msc_read10_cb(p_cbw->lun, lba, p_msc->xferred_len % block_sz, _mscd_buf, (uint32_t) nbytes);
@@ -561,7 +561,7 @@ static void proc_write10_cmd(uint8_t rhport, mscd_interface_t* p_msc)
   msc_cbw_t const * p_cbw = &p_msc->cbw;
 
   // remaining bytes capped at class buffer
-  int32_t nbytes = (int32_t) min32_of(sizeof(_mscd_buf), p_cbw->xfer_bytes-p_msc->xferred_len);
+  int32_t nbytes = (int32_t) tu_min32(sizeof(_mscd_buf), p_cbw->xfer_bytes-p_msc->xferred_len);
 
   // Write10 callback will be called later when usb transfer complete
   TU_ASSERT( dcd_edpt_xfer(rhport, p_msc->ep_out, _mscd_buf, nbytes), );

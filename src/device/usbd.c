@@ -377,9 +377,9 @@ static tusb_error_t proc_control_request_st(uint8_t rhport, tusb_control_request
   //------------- Class/Interface Specific Request -------------//
   else if ( TUSB_REQ_RCPT_INTERFACE == p_request->bmRequestType_bit.recipient )
   {
-    if (_usbd_dev.itf2drv[ u16_low_u8(p_request->wIndex) ] < USBD_CLASS_DRIVER_COUNT)
+    if (_usbd_dev.itf2drv[ tu_u16_low(p_request->wIndex) ] < USBD_CLASS_DRIVER_COUNT)
     {
-      STASK_INVOKE( usbd_class_drivers[ _usbd_dev.itf2drv[ u16_low_u8(p_request->wIndex) ] ].control_req_st(rhport, p_request), error );
+      STASK_INVOKE( usbd_class_drivers[ _usbd_dev.itf2drv[ tu_u16_low(p_request->wIndex) ] ].control_req_st(rhport, p_request), error );
     }else
     {
       dcd_control_stall(rhport); // Stall unsupported request
@@ -392,7 +392,7 @@ static tusb_error_t proc_control_request_st(uint8_t rhport, tusb_control_request
   {
     if (TUSB_REQ_GET_STATUS == p_request->bRequest )
     {
-      uint16_t status = dcd_edpt_stalled(rhport, u16_low_u8(p_request->wIndex)) ? 0x0001 : 0x0000;
+      uint16_t status = dcd_edpt_stalled(rhport, tu_u16_low(p_request->wIndex)) ? 0x0001 : 0x0000;
       memcpy(_usbd_ctrl_buf, &status, 2);
 
       usbd_control_xfer_st(rhport, p_request->bmRequestType_bit.direction, _usbd_ctrl_buf, 2);
@@ -400,13 +400,13 @@ static tusb_error_t proc_control_request_st(uint8_t rhport, tusb_control_request
     else if (TUSB_REQ_CLEAR_FEATURE == p_request->bRequest )
     {
       // only endpoint feature is halted/stalled
-      dcd_edpt_clear_stall(rhport, u16_low_u8(p_request->wIndex));
+      dcd_edpt_clear_stall(rhport, tu_u16_low(p_request->wIndex));
       dcd_control_status(rhport, p_request->bmRequestType_bit.direction);
     }
     else if (TUSB_REQ_SET_FEATURE == p_request->bRequest )
     {
       // only endpoint feature is halted/stalled
-      dcd_edpt_stall(rhport, u16_low_u8(p_request->wIndex));
+      dcd_edpt_stall(rhport, tu_u16_low(p_request->wIndex));
       dcd_control_status(rhport, p_request->bmRequestType_bit.direction);
     }
     else
@@ -484,8 +484,8 @@ static uint16_t get_descriptor(uint8_t rhport, tusb_control_request_t const * co
 {
   (void) rhport;
 
-  tusb_desc_type_t const desc_type = (tusb_desc_type_t) u16_high_u8(p_request->wValue);
-  uint8_t const desc_index = u16_low_u8( p_request->wValue );
+  tusb_desc_type_t const desc_type = (tusb_desc_type_t) tu_u16_high(p_request->wValue);
+  uint8_t const desc_index = tu_u16_low( p_request->wValue );
 
   uint8_t const * desc_data = NULL ;
   uint16_t len = 0;
@@ -532,7 +532,7 @@ static uint16_t get_descriptor(uint8_t rhport, tusb_control_request_t const * co
   TU_ASSERT( desc_data != NULL, 0);
 
   // up to Host's length
-  len = min16_of(p_request->wLength, len );
+  len = tu_min16(p_request->wLength, len );
   (*pp_buffer) = desc_data;
 
   return len;

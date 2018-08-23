@@ -209,7 +209,7 @@ static void qtd_init(dcd_qtd_t* p_qtd, void * data_ptr, uint16_t total_bytes)
     p_qtd->buffer[0]   = (uint32_t) data_ptr;
     for(uint8_t i=1; i<5; i++)
     {
-      p_qtd->buffer[i] |= align4k( p_qtd->buffer[i-1] ) + 4096;
+      p_qtd->buffer[i] |= tu_align4k( p_qtd->buffer[i-1] ) + 4096;
     }
   }
 }

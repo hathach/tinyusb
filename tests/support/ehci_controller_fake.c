@@ -95,7 +95,7 @@ void complete_qtd_in_qhd(ehci_qhd_t *p_qhd)
   {
     while(!p_qhd->qtd_overlay.next.terminate)
     {
-      ehci_qtd_t* p_qtd = (ehci_qtd_t*) align32(p_qhd->qtd_overlay.next.address);
+      ehci_qtd_t* p_qtd = (ehci_qtd_t*) tu_align32(p_qhd->qtd_overlay.next.address);
       p_qtd->active = 0;
       p_qtd->total_bytes = 0;
       p_qhd->qtd_overlay = *p_qtd;
@@ -110,7 +110,7 @@ bool complete_all_qtd_in_async(ehci_qhd_t *head)
   do
   {
     complete_qtd_in_qhd(p_qhd);
-    p_qhd = (ehci_qhd_t*) align32(p_qhd->next.address);
+    p_qhd = (ehci_qhd_t*) tu_align32(p_qhd->next.address);
   }while(p_qhd != head); // stop if loop around
 
   return true;
@@ -121,7 +121,7 @@ bool complete_all_qtd_in_period(ehci_link_t *head)
   while(!head->terminate)
   {
     uint32_t queue_type = head->type;
-    head = (ehci_link_t*) align32(head->address);
+    head = (ehci_link_t*) tu_align32(head->address);
 
     if ( queue_type == EHCI_QUEUE_ELEMENT_QHD)
     {
@@ -153,7 +153,7 @@ void complete_1st_qtd_with_error(ehci_qhd_t* p_qhd, bool halted, bool xact_err)
   {
     if(!p_qhd->qtd_overlay.next.terminate) // TODO add active check
     {
-      ehci_qtd_t* p_qtd = (ehci_qtd_t*) align32(p_qhd->qtd_overlay.next.address);
+      ehci_qtd_t* p_qtd = (ehci_qtd_t*) tu_align32(p_qhd->qtd_overlay.next.address);
       p_qtd->active   = 0;
       p_qtd->halted   = halted ? 1 : 0;
       p_qtd->xact_err = xact_err ? 1 : 0;
@@ -172,7 +172,7 @@ void complete_list_with_error(uint8_t hostid, bool halted, bool xact_err)
   do
   {
     complete_1st_qtd_with_error(p_qhd, halted, xact_err);
-    p_qhd = (ehci_qhd_t*) align32(p_qhd->next.address);
+    p_qhd = (ehci_qhd_t*) tu_align32(p_qhd->next.address);
   }while(p_qhd != get_async_head(hostid)); // stop if loop around
 
   //------------- Period List -------------//
@@ -183,7 +183,7 @@ void complete_list_with_error(uint8_t hostid, bool halted, bool xact_err)
     while(!head->terminate)
     {
       uint32_t queue_type = head->type;
-      head = (ehci_link_t*) align32(head->address);
+      head = (ehci_link_t*) tu_align32(head->address);
 
       if ( queue_type == EHCI_QUEUE_ELEMENT_QHD)
       {

@@ -208,7 +208,7 @@ tusb_error_t cdcd_open(uint8_t rhport, tusb_desc_interface_t const * p_interface
 {
   if ( CDC_COMM_SUBCLASS_ABSTRACT_CONTROL_MODEL != p_interface_desc->bInterfaceSubClass) return TUSB_ERROR_CDC_UNSUPPORTED_SUBCLASS;
 
-  if ( !(is_in_range(CDC_COMM_PROTOCOL_ATCOMMAND, p_interface_desc->bInterfaceProtocol, CDC_COMM_PROTOCOL_ATCOMMAND_CDMA) ||
+  if ( !(tu_within(CDC_COMM_PROTOCOL_ATCOMMAND, p_interface_desc->bInterfaceProtocol, CDC_COMM_PROTOCOL_ATCOMMAND_CDMA) ||
          0xff == p_interface_desc->bInterfaceProtocol) )
   {
     return TUSB_ERROR_CDC_UNSUPPORTED_PROTOCOL;
@@ -282,7 +282,7 @@ tusb_error_t cdcd_control_request_st(uint8_t rhport, tusb_control_request_t cons
 
   if ( (CDC_REQUEST_GET_LINE_CODING == p_request->bRequest) || (CDC_REQUEST_SET_LINE_CODING == p_request->bRequest) )
   {
-    uint16_t len = min16_of(sizeof(cdc_line_coding_t), p_request->wLength);
+    uint16_t len = tu_min16(sizeof(cdc_line_coding_t), p_request->wLength);
     usbd_control_xfer_st(rhport, p_request->bmRequestType_bit.direction, &p_cdc->line_coding, len);
 
     // Invoke callback

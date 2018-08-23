@@ -54,7 +54,7 @@
 
 #endif
 
-static inline uint16_t min16_of(uint16_t x, uint16_t y)
+static inline uint16_t tu_min16(uint16_t x, uint16_t y)
 {
   return (x < y) ? x : y;
 }
@@ -136,7 +136,7 @@ uint16_t tu_fifo_read_n (tu_fifo_t* f, void * p_buffer, uint16_t count)
   if( tu_fifo_empty(f) ) return 0;
 
   /* Limit up to fifo's count */
-  count = min16_of(count, f->count);
+  count = tu_min16(count, f->count);
   if( count == 0 ) return 0;
 
   mutex_lock_if_needed(f);
@@ -145,7 +145,7 @@ uint16_t tu_fifo_read_n (tu_fifo_t* f, void * p_buffer, uint16_t count)
    * case 1: ....RxxxxW.......
    * case 2: xxxxxW....Rxxxxxx
    */
-//  uint16_t index2upper = min16_of(count, f->count-f->rd_idx);
+//  uint16_t index2upper = tu_min16(count, f->count-f->rd_idx);
 
   uint8_t* p_buf = (uint8_t*) p_buffer;
   uint16_t len = 0;

@@ -389,15 +389,15 @@ static ohci_ed_t * ed_list_find_previous(ohci_ed_t const * p_head, ohci_ed_t con
 
   TU_ASSERT(p_prev, NULL);
 
-  while ( align16(p_prev->next_ed) != 0               && /* not reach null */
-          align16(p_prev->next_ed) != (uint32_t) p_ed && /* not found yet */
+  while ( tu_align16(p_prev->next_ed) != 0               && /* not reach null */
+          tu_align16(p_prev->next_ed) != (uint32_t) p_ed && /* not found yet */
           max_loop > 0)
   {
-    p_prev = (ohci_ed_t const *) align16(p_prev->next_ed);
+    p_prev = (ohci_ed_t const *) tu_align16(p_prev->next_ed);
     max_loop--;
   }
 
-  return ( align16(p_prev->next_ed) == (uint32_t) p_ed ) ? (ohci_ed_t*) p_prev : NULL;
+  return ( tu_align16(p_prev->next_ed) == (uint32_t) p_ed ) ? (ohci_ed_t*) p_prev : NULL;
 }
 
 static void ed_list_insert(ohci_ed_t * p_pre, ohci_ed_t * p_ed)
@@ -410,7 +410,7 @@ static void ed_list_remove(ohci_ed_t * p_head, ohci_ed_t * p_ed)
 {
   ohci_ed_t * const p_prev  = ed_list_find_previous(p_head, p_ed);
 
-  p_prev->next_ed = (p_prev->next_ed & 0x0fUL) | align16(p_ed->next_ed);
+  p_prev->next_ed = (p_prev->next_ed & 0x0fUL) | tu_align16(p_ed->next_ed);
   // point the removed ED's next pointer to list head to make sure HC can always safely move away from this ED
   p_ed->next_ed   = (uint32_t) p_head;
   p_ed->used      = 0; // free ED
@@ -457,13 +457,13 @@ static ohci_gtd_t * gtd_find_free(uint8_t dev_addr)
 static void td_insert_to_ed(ohci_ed_t* p_ed, ohci_gtd_t * p_gtd)
 {
   // tail is always NULL
-  if ( align16(p_ed->td_head.address) == 0 )
+  if ( tu_align16(p_ed->td_head.address) == 0 )
   { // TD queue is empty --> head = TD
     p_ed->td_head.address |= (uint32_t) p_gtd;
   }
   else
   { // TODO currently only support queue up to 2 TD each endpoint at a time
-    ((ohci_gtd_t*) align16(p_ed->td_head.address))->next_td = (uint32_t) p_gtd;
+    ((ohci_gtd_t*) tu_align16(p_ed->td_head.address))->next_td = (uint32_t) p_gtd;
   }
 }
 
@@ -520,7 +520,7 @@ tusb_error_t  hcd_pipe_close(pipe_handle_t pipe_hdl)
 bool hcd_pipe_is_busy(pipe_handle_t pipe_hdl)
 {
   ohci_ed_t const * const p_ed = ed_from_pipe_handle(pipe_hdl);
-  return align16(p_ed->td_head.address) != align16(p_ed->td_tail.address);
+  return tu_align16(p_ed->td_head.address) != tu_align16(p_ed->td_tail.address);
 }
 
 bool hcd_pipe_is_error(pipe_handle_t pipe_hdl)
@@ -601,8 +601,8 @@ static inline ohci_ed_t* gtd_get_ed(ohci_gtd_t const * const p_qtd)
 static inline uint32_t gtd_xfer_byte_left(uint32_t buffer_end, uint32_t current_buffer) ATTR_CONST ATTR_ALWAYS_INLINE;
 static inline uint32_t gtd_xfer_byte_left(uint32_t buffer_end, uint32_t current_buffer)
 { // 5.2.9 OHCI sample code
-  return (align4k(buffer_end ^ current_buffer) ? 0x1000 : 0) +
-      offset4k(buffer_end) - offset4k(current_buffer) + 1;
+  return (tu_align4k(buffer_end ^ current_buffer) ? 0x1000 : 0) +
+      tu_offset4k(buffer_end) - tu_offset4k(current_buffer) + 1;
 }
 
 static void done_queue_isr(uint8_t hostid)
@@ -610,7 +610,7 @@ static void done_queue_isr(uint8_t hostid)
   uint8_t max_loop = (CFG_TUSB_HOST_DEVICE_MAX+1)*(HCD_MAX_XFER+OHCI_MAX_ITD);
 
   // done head is written in reversed order of completion --> need to reverse the done queue first
-  ohci_td_item_t* td_head = list_reverse ( (ohci_td_item_t*) align16(ohci_data.hcca.done_head) );
+  ohci_td_item_t* td_head = list_reverse ( (ohci_td_item_t*) tu_align16(ohci_data.hcca.done_head) );
 
   while( td_head != NULL && max_loop > 0)
   {
@@ -637,7 +637,7 @@ static void done_queue_isr(uint8_t hostid)
       if ((event != TUSB_EVENT_XFER_COMPLETE))
       {
         p_ed->td_tail.address &= 0x0Ful;
-        p_ed->td_tail.address |= align16(p_ed->td_head.address); // mark halted EP as empty queue
+        p_ed->td_tail.address |= tu_align16(p_ed->td_head.address); // mark halted EP as empty queue
         if ( event == TUSB_EVENT_XFER_STALLED ) p_ed->is_stalled = 1;
       }
 
