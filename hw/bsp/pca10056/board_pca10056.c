@@ -59,6 +59,7 @@ uint8_t _button_pins[] = { 11, 12, 24, 25 };
 /*------------------------------------------------------------------*/
 /* TUSB HAL MILLISECOND
  *------------------------------------------------------------------*/
+#if CFG_TUSB_OS  == OPT_OS_NONE
 volatile uint32_t system_ticks = 0;
 
 void SysTick_Handler (void)
@@ -70,6 +71,7 @@ uint32_t tusb_hal_millis(void)
 {
   return board_tick2ms(system_ticks);
 }
+#endif
 
 /*------------------------------------------------------------------*/
 /* BOARD API
@@ -92,9 +94,10 @@ void board_init(void)
   // Button
   for(uint8_t i=0; i<BOARD_BUTTON_COUNT; i++) nrf_gpio_cfg_input(_button_pins[i], NRF_GPIO_PIN_PULLUP);
 
+#if CFG_TUSB_OS  == OPT_OS_NONE
   // Tick init
   SysTick_Config(SystemCoreClock/1000);
-  NVIC_EnableIRQ(SysTick_IRQn);
+#endif
 
   // USB power may already be ready at this time -> no event generated
   // We need to invoke the handler based on the status initially

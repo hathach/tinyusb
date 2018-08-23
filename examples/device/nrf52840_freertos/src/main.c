@@ -43,6 +43,12 @@
 #include <stdio.h>
 #include <string.h>
 
+#include "FreeRTOS.h"
+#include "task.h"
+#include "timers.h"
+#include "queue.h"
+#include "semphr.h"
+
 #include "bsp/board.h"
 #include "tusb.h"
 
@@ -54,9 +60,10 @@
 // INTERNAL OBJECT & FUNCTION DECLARATION
 //--------------------------------------------------------------------+
 void print_greeting(void);
-void led_blinking_task(void);
+void led_blinky_cb(TimerHandle_t xTimer);
 void virtual_com_task(void);
 void usb_hid_task(void);
+
 
 /*------------- MAIN -------------*/
 int main(void)
@@ -64,17 +71,22 @@ int main(void)
   board_init();
   print_greeting();
 
-  tusb_init();
+  //tusb_init();
 
-  while (1)
-  {
-    tusb_task();
+  // soft timer for blinky
+  TimerHandle_t tm_hdl = xTimerCreate(NULL, pdMS_TO_TICKS(1000), true, NULL, led_blinky_cb);
+  xTimerStart(tm_hdl, 0); 
 
-    led_blinking_task();
-    virtual_com_task();
+  vTaskStartScheduler();
 
-    usb_hid_task();
-  }
+  NVIC_SystemReset();
+
+//  while (1)
+//  {
+//    virtual_com_task();
+//
+//    usb_hid_task();
+//  }
 
   return 0;
 }
@@ -173,13 +185,10 @@ void tud_cdc_rx_cb(uint8_t itf)
 //--------------------------------------------------------------------+
 // BLINKING TASK
 //--------------------------------------------------------------------+
-void led_blinking_task(void)
+void led_blinky_cb(TimerHandle_t xTimer)
 {
-  static tu_timeout_t tm = { .start = 0, .interval = 1000 }; // Blink every 1000 ms
+  (void) xTimer;
   static bool led_state = false;
-
-  if ( !tu_timeout_expired(&tm) ) return; // not enough time
-  tu_timeout_reset(&tm);
 
   board_led_control(BOARD_LED0, led_state);
   led_state = 1 - led_state; // toggle

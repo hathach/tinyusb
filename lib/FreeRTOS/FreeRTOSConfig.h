@@ -4,13 +4,18 @@
 //--------------------------------------------------------------------+
 // See http://www.freertos.org/a00110.html.
 //--------------------------------------------------------------------+
+//#include "bsp/board.h"
+#include "nrf.h"
+
+#if 0
 #if CFG_TUSB_MCU == OPT_MCU_LPC43XX
   // TODO remove
   #include "lpc43xx_cgu.h"
   #define configCPU_CLOCK_HZ                   CGU_GetPCLKFrequency(CGU_PERIPHERAL_M4CORE)
-#else
-  #define configCPU_CLOCK_HZ                   SystemCoreClock
 #endif
+#endif
+
+#define configCPU_CLOCK_HZ                   SystemCoreClock
 
 #define configUSE_PREEMPTION                    1
 #define configUSE_PORT_OPTIMISED_TASK_SELECTION 0
@@ -31,9 +36,10 @@
 #define configENABLE_BACKWARD_COMPATIBILITY     1
 
 #define configSUPPORT_STATIC_ALLOCATION         1
+#define configSUPPORT_DYNAMIC_ALLOCATION        1
 
 /* Hook function related definitions. */
-#define configUSE_IDLE_HOOK                    1
+#define configUSE_IDLE_HOOK                    0
 #define configUSE_TICK_HOOK                    0
 #define configUSE_MALLOC_FAILED_HOOK           1
 #define configCHECK_FOR_STACK_OVERFLOW         2
@@ -48,7 +54,7 @@
 #define configMAX_CO_ROUTINE_PRIORITIES        2
 
 /* Software timer related definitions. */
-#define configUSE_TIMERS                       0
+#define configUSE_TIMERS                       1
 #define configTIMER_TASK_PRIORITY              ( configMAX_PRIORITIES - 3 )
 #define configTIMER_QUEUE_LENGTH               10
 #define configTIMER_TASK_STACK_DEPTH	         configMINIMAL_STACK_SIZE

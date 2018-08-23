@@ -50,12 +50,6 @@ void vApplicationMallocFailedHook(void)
 	TU_ASSERT(false, );
 }
 
-void vApplicationIdleHook(void)
-{
-  // no freeRTOS blocking API should be called here
-	__WFI(); // sleep until next interrupt
-}
-
 void vApplicationStackOverflowHook(xTaskHandle pxTask, signed char *pcTaskName)
 {
 	(void) pxTask;
