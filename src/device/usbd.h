@@ -83,17 +83,14 @@ extern tud_desc_set_t tud_desc_set;
 bool tud_mounted(void);
 
 //--------------------------------------------------------------------+
-// APPLICATION CALLBACK
+// APPLICATION CALLBACK (WEAK is optional)
 //--------------------------------------------------------------------+
-/** \brief 			Callback function that will be invoked device is mounted (configured) by USB host
- * \note        This callback should be used by Application to \b set-up application data
- */
-void tud_mount_cb(void);
 
-/** \brief 			Callback function that will be invoked when device is unmounted (bus reset/unplugged)
- * \note        This callback should be used by Application to \b tear-down application data
- */
-void tud_umount_cb(void);
+/** Callback invoked when device is mounted (configured) */
+ATTR_WEAK void tud_mount_cb(void);
+
+/** Callback invoked when device is unmounted (bus reset/unplugged) */
+ATTR_WEAK void tud_umount_cb(void);
 
 //void tud_device_suspended_cb(void);
 
