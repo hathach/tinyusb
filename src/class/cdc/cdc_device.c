@@ -73,8 +73,8 @@ typedef struct
   uint8_t tx_ff_buf[CFG_TUD_CDC_TX_BUFSIZE];
 
   // Endpoint Transfer buffer
-  CFG_TUSB_MEM_ALIGN uint8_t epin_buf[CFG_TUD_CDC_EPSIZE];
   CFG_TUSB_MEM_ALIGN uint8_t epout_buf[CFG_TUD_CDC_EPSIZE];
+  CFG_TUSB_MEM_ALIGN uint8_t epin_buf[CFG_TUD_CDC_EPSIZE];
 
 }cdcd_interface_t;
 
@@ -159,11 +159,12 @@ bool tud_cdc_n_write_flush (uint8_t itf)
   cdcd_interface_t* p_cdc = &_cdcd_itf[itf];
   TU_VERIFY( !dcd_edpt_busy(TUD_OPT_RHPORT, p_cdc->ep_in) ); // skip if previous transfer not complete
 
-  uint16_t count = tu_fifo_read_n(&_cdcd_itf[itf].tx_ff, p_cdc->epout_buf, CFG_TUD_CDC_EPSIZE);
-
-  TU_VERIFY( tud_cdc_n_connected(itf) ); // fifo is empty if not connected
-
-  if ( count ) TU_ASSERT( dcd_edpt_xfer(TUD_OPT_RHPORT, p_cdc->ep_in, p_cdc->epout_buf, count) );
+  uint16_t count = tu_fifo_read_n(&_cdcd_itf[itf].tx_ff, p_cdc->epin_buf, CFG_TUD_CDC_EPSIZE);
+  if ( count )
+  {
+    TU_VERIFY( tud_cdc_n_connected(itf) ); // fifo is empty if not connected
+    TU_ASSERT( dcd_edpt_xfer(TUD_OPT_RHPORT, p_cdc->ep_in, p_cdc->epin_buf, count) );
+  }
 
   return true;
 }
@@ -264,7 +265,7 @@ tusb_error_t cdcd_open(uint8_t rhport, tusb_desc_interface_t const * p_interface
   }
 
   // Prepare for incoming data
-  TU_ASSERT( dcd_edpt_xfer(rhport, p_cdc->ep_out, p_cdc->epin_buf, CFG_TUD_CDC_EPSIZE), TUSB_ERROR_DCD_EDPT_XFER);
+  TU_ASSERT( dcd_edpt_xfer(rhport, p_cdc->ep_out, p_cdc->epout_buf, CFG_TUD_CDC_EPSIZE), TUSB_ERROR_DCD_EDPT_XFER);
 
   return TUSB_ERROR_NONE;
 }
@@ -326,10 +327,10 @@ tusb_error_t cdcd_xfer_cb(uint8_t rhport, uint8_t ep_addr, tusb_event_t event, u
 
     for(uint32_t i=0; i<xferred_bytes; i++)
     {
-      tu_fifo_write(&p_cdc->rx_ff, &p_cdc->epin_buf[i]);
+      tu_fifo_write(&p_cdc->rx_ff, &p_cdc->epout_buf[i]);
 
       // Check for wanted char and invoke callback if needed
-      if ( tud_cdc_rx_wanted_cb && ( wanted != -1 ) && ( wanted == p_cdc->epin_buf[i] ) )
+      if ( tud_cdc_rx_wanted_cb && ( wanted != -1 ) && ( wanted == p_cdc->epout_buf[i] ) )
       {
         tud_cdc_rx_wanted_cb(itf, wanted);
       }
@@ -339,7 +340,7 @@ tusb_error_t cdcd_xfer_cb(uint8_t rhport, uint8_t ep_addr, tusb_event_t event, u
     if (tud_cdc_rx_cb && tu_fifo_count(&p_cdc->rx_ff) ) tud_cdc_rx_cb(itf);
 
     // prepare for next
-    TU_ASSERT( dcd_edpt_xfer(rhport, p_cdc->ep_out, p_cdc->epin_buf, CFG_TUD_CDC_EPSIZE), TUSB_ERROR_DCD_EDPT_XFER );
+    TU_ASSERT( dcd_edpt_xfer(rhport, p_cdc->ep_out, p_cdc->epout_buf, CFG_TUD_CDC_EPSIZE), TUSB_ERROR_DCD_EDPT_XFER );
   }
 
   // nothing to do with in and notif endpoint
