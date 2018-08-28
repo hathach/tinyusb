@@ -265,45 +265,49 @@ static tusb_error_t usbd_main_st(void)
 
   OSAL_SUBTASK_BEGIN
 
-  tusb_error_t err;
-  err = TUSB_ERROR_NONE;
-
-  memclr_(&event, sizeof(usbd_task_event_t));
-
-  osal_queue_receive(_usbd_q, &event, OSAL_TIMEOUT_WAIT_FOREVER, &err);
-
-  if ( USBD_EVT_SETUP_RECEIVED == event.event_id )
+  // Loop until there is no more events in the queue
+  while (1)
   {
-    STASK_INVOKE( proc_control_request_st(event.rhport, &event.setup_received), err );
-  }
-  else if (USBD_EVT_XFER_DONE == event.event_id)
-  {
-    // Invoke the class callback associated with the endpoint address
-    uint8_t const ep_addr = event.xfer_done.ep_addr;
-    uint8_t const drv_id  = _usbd_dev.ep2drv[ edpt_dir(ep_addr) ][ edpt_number(ep_addr) ];
+    tusb_error_t err;
+    err = TUSB_ERROR_NONE;
 
-    if (drv_id < USBD_CLASS_DRIVER_COUNT)
+    memclr_(&event, sizeof(usbd_task_event_t));
+
+    osal_queue_receive(_usbd_q, &event, OSAL_TIMEOUT_WAIT_FOREVER, &err);
+
+    if ( USBD_EVT_SETUP_RECEIVED == event.event_id )
     {
-      usbd_class_drivers[drv_id].xfer_cb( event.rhport, ep_addr, (tusb_event_t) event.xfer_done.result, event.xfer_done.xferred_byte);
+      STASK_INVOKE( proc_control_request_st(event.rhport, &event.setup_received), err );
     }
-  }
-  else if (USBD_EVT_SOF == event.event_id)
-  {
-    for (uint8_t i = 0; i < USBD_CLASS_DRIVER_COUNT; i++)
+    else if (USBD_EVT_XFER_DONE == event.event_id)
     {
-      if ( usbd_class_drivers[i].sof )
+      // Invoke the class callback associated with the endpoint address
+      uint8_t const ep_addr = event.xfer_done.ep_addr;
+      uint8_t const drv_id  = _usbd_dev.ep2drv[ edpt_dir(ep_addr) ][ edpt_number(ep_addr) ];
+
+      if (drv_id < USBD_CLASS_DRIVER_COUNT)
       {
-        usbd_class_drivers[i].sof( event.rhport );
+        usbd_class_drivers[drv_id].xfer_cb( event.rhport, ep_addr, (tusb_event_t) event.xfer_done.result, event.xfer_done.xferred_byte);
       }
     }
-  }
-  else if ( USBD_EVT_FUNC_CALL == event.event_id )
-  {
-    if ( event.func_call.func ) event.func_call.func(event.func_call.param);
-  }
-  else
-  {
-    STASK_ASSERT(false);
+    else if (USBD_EVT_SOF == event.event_id)
+    {
+      for (uint8_t i = 0; i < USBD_CLASS_DRIVER_COUNT; i++)
+      {
+        if ( usbd_class_drivers[i].sof )
+        {
+          usbd_class_drivers[i].sof( event.rhport );
+        }
+      }
+    }
+    else if ( USBD_EVT_FUNC_CALL == event.event_id )
+    {
+      if ( event.func_call.func ) event.func_call.func(event.func_call.param);
+    }
+    else
+    {
+      STASK_ASSERT(false);
+    }
   }
 
   OSAL_SUBTASK_END
@@ -601,8 +605,8 @@ void dcd_setup_received(uint8_t rhport, uint8_t const* p_request)
 {
   usbd_task_event_t task_event =
   {
-      .rhport          = rhport,
-      .event_id        = USBD_EVT_SETUP_RECEIVED,
+      .rhport   = rhport,
+      .event_id = USBD_EVT_SETUP_RECEIVED,
   };
 
   memcpy(&task_event.setup_received, p_request, sizeof(tusb_control_request_t));
