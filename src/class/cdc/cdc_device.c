@@ -293,15 +293,14 @@ tusb_error_t cdcd_control_request_st(uint8_t rhport, tusb_control_request_t cons
   }
   else if (CDC_REQUEST_SET_CONTROL_LINE_STATE == p_request->bRequest )
   {
+    dcd_control_status(rhport, p_request->bmRequestType_bit.direction); // ACK control request
+
     // CDC PSTN v1.2 section 6.3.12
     // Bit 0: Indicates if DTE is present or not.
     //        This signal corresponds to V.24 signal 108/2 and RS-232 signal DTR (Data Terminal Ready)
     // Bit 1: Carrier control for half-duplex modems.
     //        This signal corresponds to V.24 signal 105 and RS-232 signal RTS (Request to Send)
-
     p_cdc->line_state = (uint8_t) p_request->wValue;
-
-    dcd_control_status(rhport, p_request->bmRequestType_bit.direction); // ACK control request
 
     // Invoke callback
     if ( tud_cdc_line_state_cb) tud_cdc_line_state_cb(itf, BIT_TEST_(p_request->wValue, 0), BIT_TEST_(p_request->wValue, 1));

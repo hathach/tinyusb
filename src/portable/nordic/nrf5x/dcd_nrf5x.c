@@ -60,7 +60,8 @@ enum
   MAX_PACKET_SIZE   = 64,
 
   // Mask of all END event (IN & OUT) for all endpoints. ENDEPIN0-7, ENDEPOUT0-7, ENDISOIN, ENDISOOUT
-  EDPT_END_ALL_MASK = 0x1FFBFCUL
+  EDPT_END_ALL_MASK = (0xff << USBD_INTEN_ENDEPIN0_Pos) | (0xff << USBD_INTEN_ENDEPOUT0_Pos) |
+                      USBD_INTENCLR_ENDISOIN_Msk | USBD_INTEN_ENDISOOUT_Msk
 };
 
 /*------------------------------------------------------------------*/
@@ -401,7 +402,7 @@ void USBD_IRQHandler(void)
 
   volatile uint32_t* regevt = &NRF_USBD->EVENTS_USBRESET;
 
-  for(int i=0; i<32; i++)
+  for(int i=0; i<USBD_INTEN_EPDATA_Pos+1; i++)
   {
     if ( BIT_TEST_(inten, i) && regevt[i]  )
     {
