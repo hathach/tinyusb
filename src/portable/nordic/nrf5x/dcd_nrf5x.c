@@ -86,7 +86,7 @@ typedef struct
   {
     uint8_t* buffer;
     uint16_t total_len;
-    uint16_t actual_len;
+    volatile uint16_t actual_len;
 
     uint8_t  dir;
   }control;
@@ -216,9 +216,9 @@ bool dcd_control_xfer (uint8_t rhport, uint8_t dir, uint8_t * buffer, uint16_t l
     xact_control_start();
   }else
   {
-    // Status Phase
-    NRF_USBD->TASKS_EP0STATUS = 1;
-    __ISB(); __DSB();
+    // Status Phase also require Easy DMA has to be free as well !!!!
+    edpt_dma_start(&NRF_USBD->TASKS_EP0STATUS);
+    edpt_dma_end();
   }
 
   return true;
@@ -418,7 +418,6 @@ void USBD_IRQHandler(void)
   if ( int_status & USBD_INTEN_USBRESET_Msk )
   {
     bus_reset();
-
     dcd_bus_event(0, USBD_BUS_EVENT_RESET);
   }
 
@@ -559,8 +558,6 @@ void USBD_IRQHandler(void)
   {
     dcd_bus_event(0, USBD_BUS_EVENT_SOF);
   }
-
-
 }
 
 #endif
