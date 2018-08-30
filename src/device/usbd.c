@@ -107,7 +107,7 @@ static usbd_class_driver_t const usbd_class_drivers[] =
         .open           = cdcd_open,
         .control_req_st = cdcd_control_request_st,
         .xfer_cb        = cdcd_xfer_cb,
-        .sof            = cdcd_sof,
+        .sof            = NULL,
         .reset          = cdcd_reset
     },
   #endif
@@ -250,6 +250,9 @@ tusb_error_t usbd_init (void)
 // To enable the TASK_ASSERT style (quick return on false condition) in a real RTOS, a task must act as a wrapper
 // and is used mainly to call subtasks. Within a subtask return statement can be called freely, the task with
 // forever loop cannot have any return at all.
+
+// Within tinyusb stack, all task's code must be placed in subtask to be able to support multiple RTOS
+// including none.
 void usbd_task( void* param)
 {
   (void) param;
@@ -306,7 +309,7 @@ static tusb_error_t usbd_main_st(void)
     }
     else
     {
-      STASK_ASSERT(false);
+      verify_breakpoint();
     }
   }
 
@@ -577,7 +580,7 @@ void dcd_bus_event(uint8_t rhport, usbd_bus_event_type_t bus_event)
 
     case USBD_BUS_EVENT_SOF:
     {
-      #if CFG_TUD_CDC_FLUSH_ON_SOF
+      #if 0
       usbd_task_event_t task_event =
       {
           .rhport          = rhport,

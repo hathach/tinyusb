@@ -79,18 +79,6 @@ static inline osal_task_t osal_task_create(osal_task_def_t* taskdef)
 #define TASK_RESTART                             \
   _state = 0
 
-#define OSAL_TASK_BEGIN                          \
-  static uint16_t _state = 0;                    \
-  ATTR_UNUSED static uint32_t _timeout = 0;      \
-  (void) _timeout;                               \
-  switch(_state) {                               \
-    case 0: {
-
-#define OSAL_TASK_END                            \
-  default:  TASK_RESTART; break;                 \
-  }}                                             \
-  return;
-
 #define osal_task_delay(msec)                    \
   do {                                           \
     _timeout = tusb_hal_millis();                \
@@ -102,11 +90,16 @@ static inline osal_task_t osal_task_create(osal_task_def_t* taskdef)
 //--------------------------------------------------------------------+
 // SUBTASK (a sub function that uses OS blocking services & called by a task
 //--------------------------------------------------------------------+
-#define OSAL_SUBTASK_BEGIN  OSAL_TASK_BEGIN
+#define OSAL_SUBTASK_BEGIN                       \
+  static uint16_t _state = 0;                    \
+  ATTR_UNUSED static uint32_t _timeout = 0;      \
+  (void) _timeout;                               \
+  switch(_state) {                               \
+    case 0: {
 
-#define OSAL_SUBTASK_END                                                        \
-  default: TASK_RESTART; break;                                                 \
-  }}                                                                            \
+#define OSAL_SUBTASK_END                         \
+  default: TASK_RESTART; break;                  \
+  }}                                             \
   return TUSB_ERROR_NONE;
 
 #define STASK_INVOKE(_subtask, _status)                                         \

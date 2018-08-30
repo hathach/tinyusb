@@ -61,8 +61,10 @@ enum
 typedef void (*osal_task_func_t)( void * );
 
 #if CFG_TUSB_OS == OPT_OS_NONE
-  #include "osal_none.h"
+  #define OSAL_TASK_BEGIN
+  #define OSAL_TASK_END
 
+  #include "osal_none.h"
 #else
    #if CFG_TUSB_OS == OPT_OS_FREERTOS
     #include "osal_freeRTOS.h"
