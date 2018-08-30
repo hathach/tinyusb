@@ -38,12 +38,9 @@
 
 #include "tusb_option.h"
 
-#if TUSB_OPT_DEVICE_ENABLED
-
+#if TUSB_OPT_DEVICE_ENABLED && CFG_TUD_DESC_AUTO
 
 #include "tusb.h"
-
-#if CFG_TUD_DESC_AUTO
 
 //--------------------------------------------------------------------+
 // Auto Description Default Configure & Validation
@@ -632,8 +629,5 @@ tud_desc_set_t const _usbd_auto_desc_set =
 #endif
     }
 };
-
-#endif
-
 
 #endif

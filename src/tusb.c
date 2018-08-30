@@ -36,6 +36,10 @@
 */
 /**************************************************************************/
 
+#include "tusb_option.h"
+
+#if TUSB_OPT_HOST_ENABLED || TUSB_OPT_DEVICE_ENABLED
+
 #define _TINY_USB_SOURCE_FILE_
 
 #include "tusb.h"
@@ -82,10 +86,7 @@ void tusb_task(void)
 /* Debug
  *------------------------------------------------------------------*/
 #if CFG_TUSB_DEBUG
-
-char const* const tusb_strerr[TUSB_ERROR_COUNT] =
-{
- ERROR_TABLE(ERROR_STRING)
-};
-
+char const* const tusb_strerr[TUSB_ERROR_COUNT] = { ERROR_TABLE(ERROR_STRING) };
 #endif
+
+#endif // host or device enabled

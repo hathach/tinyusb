@@ -100,17 +100,16 @@
     ((CFG_TUSB_RHPORT0_MODE & OPT_MODE_HOST) ? 1 : 0) + \
     ((CFG_TUSB_RHPORT1_MODE & OPT_MODE_HOST) ? 1 : 0))
 
-#define CONTROLLER_DEVICE_NUMBER (\
-    ((CFG_TUSB_RHPORT0_MODE & OPT_MODE_DEVICE) ? 1 : 0) + \
-    ((CFG_TUSB_RHPORT1_MODE & OPT_MODE_DEVICE) ? 1 : 0))
+#define MODE_HOST_SUPPORTED     (CONTROLLER_HOST_NUMBER > 0)
 
-#define MODE_HOST_SUPPORTED   (CONTROLLER_HOST_NUMBER > 0)
-#define TUSB_OPT_DEVICE_ENABLED (CONTROLLER_DEVICE_NUMBER > 0)
+#define TUH_OPT_RHPORT          ( (CFG_TUSB_RHPORT0_MODE & OPT_MODE_HOST) ? 0 : ((CFG_TUSB_RHPORT1_MODE & OPT_MODE_HOST) ? 1 : -1) )
+#define TUSB_OPT_HOST_ENABLED   ( TUH_OPT_RHPORT >= 0 )
 
-#define TUD_OPT_RHPORT  ((CFG_TUSB_RHPORT0_MODE & OPT_MODE_DEVICE) ? 0 : ((CFG_TUSB_RHPORT1_MODE & OPT_MODE_DEVICE) ? 1 : -1))
+#define TUD_OPT_RHPORT          ( (CFG_TUSB_RHPORT0_MODE & OPT_MODE_DEVICE) ? 0 : ((CFG_TUSB_RHPORT1_MODE & OPT_MODE_DEVICE) ? 1 : -1) )
+#define TUSB_OPT_DEVICE_ENABLED ( TUD_OPT_RHPORT >= 0 )
 
-#if !MODE_HOST_SUPPORTED && !TUSB_OPT_DEVICE_ENABLED
-  #error please configure at least 1 CFG_TUSB_CONTROLLER_N_MODE to OPT_MODE_HOST and/or OPT_MODE_DEVICE
+#if ((CFG_TUSB_RHPORT0_MODE & OPT_MODE_HOST) && (CFG_TUSB_RHPORT1_MODE & OPT_MODE_HOST)) || ((CFG_TUSB_RHPORT0_MODE & OPT_MODE_DEVICE) && (CFG_TUSB_RHPORT1_MODE & OPT_MODE_DEVICE))
+  #error "tinyusb does not support same modes on more than 1 roothub port"
 #endif
 
 //--------------------------------------------------------------------+
@@ -134,16 +133,6 @@
 
 #ifndef CFG_TUSB_OS
 #define CFG_TUSB_OS OPT_OS_NONE
-#endif
-
-
-#ifndef tu_malloc
-#include <stdlib.h>
-#define tu_malloc malloc
-#endif
-
-#ifndef tu_free
-#define tu_free free
 #endif
 
 //--------------------------------------------------------------------
