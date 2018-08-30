@@ -146,12 +146,20 @@ void tud_cdc_n_read_flush (uint8_t itf)
 
 uint32_t tud_cdc_n_write_char(uint8_t itf, char ch)
 {
-  return tu_fifo_write(&_cdcd_itf[itf].tx_ff, &ch) ? 1 : 0;
+  return tud_cdc_n_write(itf, &ch, 1);
 }
 
 uint32_t tud_cdc_n_write(uint8_t itf, void const* buffer, uint32_t bufsize)
 {
-  return tu_fifo_write_n(&_cdcd_itf[itf].tx_ff, buffer, bufsize);
+  uint16_t ret = tu_fifo_write_n(&_cdcd_itf[itf].tx_ff, buffer, bufsize);
+
+  // flush if queue more than endpoint size
+  if ( tu_fifo_count(&_cdcd_itf[itf].tx_ff) >= CFG_TUD_CDC_EPSIZE )
+  {
+    tud_cdc_n_write_flush(itf);
+  }
+
+  return ret;
 }
 
 bool tud_cdc_n_write_flush (uint8_t itf)
