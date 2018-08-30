@@ -90,7 +90,7 @@ CFG_TUSB_ATTR_USBRAM static cdcd_interface_t _cdcd_itf[CFG_TUD_CDC];
 //--------------------------------------------------------------------+
 bool tud_cdc_n_connected(uint8_t itf)
 {
-  // DTR (bit 0) active  isconsidered as connected
+  // DTR (bit 0) active  is considered as connected
   return BIT_TEST_(_cdcd_itf[itf].line_state, 0);
 }
 
@@ -347,15 +347,5 @@ tusb_error_t cdcd_xfer_cb(uint8_t rhport, uint8_t ep_addr, tusb_event_t event, u
 
   return TUSB_ERROR_NONE;
 }
-
-#if CFG_TUD_CDC_FLUSH_ON_SOF
-void cdcd_sof(uint8_t rhport)
-{
-  for(uint8_t i=0; i<CFG_TUD_CDC; i++)
-  {
-    tud_cdc_n_flush(i);
-  }
-}
-#endif
 
 #endif

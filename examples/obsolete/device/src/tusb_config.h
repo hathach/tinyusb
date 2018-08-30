@@ -85,12 +85,6 @@
 #define CFG_TUD_CDC_RX_BUFSIZE    128
 #define CFG_TUD_CDC_TX_BUFSIZE    128
 
-
-// TX is sent automatically in Start of Frame event.
-// If not enabled, application must call tud_cdc_write_flush() periodically
-#define CFG_TUD_CDC_FLUSH_ON_SOF  1
-
-
 // Number of supported Logical Unit Number (At least 1)
 #define CFG_TUD_MSC_MAXLUN        1
 

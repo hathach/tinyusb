@@ -116,12 +116,6 @@ tusb_error_t cdcd_control_request_st (uint8_t rhport, tusb_control_request_t con
 tusb_error_t cdcd_xfer_cb            (uint8_t rhport, uint8_t edpt_addr, tusb_event_t event, uint32_t xferred_bytes);
 void         cdcd_reset              (uint8_t rhport);
 
-#if CFG_TUD_CDC_FLUSH_ON_SOF
-void cdcd_sof(uint8_t rhport);
-#else
-#define cdcd_sof    NULL
-#endif
-
 #endif
 
 #ifdef __cplusplus

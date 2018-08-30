@@ -261,10 +261,6 @@ void tusb_hal_nrf_power_event (uint32_t event)
       NRF_USBD->INTENSET = USBD_INTEN_USBRESET_Msk | USBD_INTEN_USBEVENT_Msk | USBD_INTEN_EPDATA_Msk |
           USBD_INTEN_EP0SETUP_Msk | USBD_INTEN_EP0DATADONE_Msk | USBD_INTEN_ENDEPIN0_Msk | USBD_INTEN_ENDEPOUT0_Msk;
 
-#if CFG_TUD_CDC && CFG_TUD_CDC_FLUSH_ON_SOF
-      NRF_USBD->INTENSET |= USBD_INTEN_SOF_Msk;
-#endif
-
       // Enable interrupt, Priorities 0,1,4,5 (nRF52) are reserved for SoftDevice
       NVIC_SetPriority(USBD_IRQn, USB_NVIC_PRIO);
       NVIC_ClearPendingIRQ(USBD_IRQn);

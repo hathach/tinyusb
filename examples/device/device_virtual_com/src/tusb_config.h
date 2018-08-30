@@ -87,11 +87,6 @@
 #define CFG_TUD_CDC_RX_BUFSIZE    64
 #define CFG_TUD_CDC_TX_BUFSIZE    64
 
-
-// TX is sent automatically every Start of Frame event.
-// If not enabled, application must call tud_cdc_write_flush() periodically
-#define CFG_TUD_CDC_FLUSH_ON_SOF    1
-
 //--------------------------------------------------------------------+
 // USB RAM PLACEMENT
 //--------------------------------------------------------------------+
