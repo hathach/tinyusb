@@ -1,0 +1,3 @@
+# Newt uses this file to determine the version of a checked out repo.
+# This should always be 0.0.0 in the master branch.
+repo.version: 0.0.0

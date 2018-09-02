@@ -1,0 +1,6 @@
+repo.name: tinyusb
+repo.versions:
+    "0.0.0": "master"
+    "0.0.1": "develop"
+
+    "0-dev": "0.0.1"
