@@ -67,7 +67,7 @@ typedef void (*osal_task_func_t)( void * );
   #include "osal_none.h"
 #else
    #if CFG_TUSB_OS == OPT_OS_FREERTOS
-    #include "osal_freeRTOS.h"
+    #include "osal_freertos.h"
   #else
     #error CFG_TUSB_OS is not defined or OS is not supported yet
   #endif
