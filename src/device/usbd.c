@@ -335,7 +335,7 @@ static tusb_error_t proc_control_request_st(uint8_t rhport, tusb_control_request
 {
   OSAL_SUBTASK_BEGIN
 
-  tusb_error_t error;
+  ATTR_UNUSED tusb_error_t error;
   error = TUSB_ERROR_NONE;
 
   //------------- Standard Request e.g in enumeration -------------//

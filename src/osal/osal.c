@@ -50,5 +50,12 @@ uint32_t tusb_hal_millis(void)
   return ( ( ((uint64_t) xTaskGetTickCount()) * 1000) / configTICK_RATE_HZ );
 }
 
+#elif CFG_TUSB_OS == OPT_OS_MYNEWT
+
+uint32_t tusb_hal_millis(void)
+{
+  return os_time_ticks_to_ms32( os_time_get() );
+}
+
 #endif
 

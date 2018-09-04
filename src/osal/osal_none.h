@@ -68,12 +68,11 @@
 #define OSAL_TASK_DEF(_name, _str, _func, _prio, _stack_sz)  osal_task_def_t _name;
 
 typedef uint8_t osal_task_def_t;
-typedef void*   osal_task_t;
 
-static inline osal_task_t osal_task_create(osal_task_def_t* taskdef)
+static inline bool osal_task_create(osal_task_def_t* taskdef)
 {
   (void) taskdef;
-  return (osal_task_t) 1; // return non zero
+  return true;
 }
 
 #define TASK_RESTART                             \
