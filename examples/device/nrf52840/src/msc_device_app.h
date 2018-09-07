@@ -50,8 +50,6 @@
  extern "C" {
 #endif
 
-#if CFG_TUD_MSC
-
 enum
 {
   DISK_BLOCK_NUM  = 16, // 8KB is the smallest size that windows allow to mount
@@ -67,21 +65,6 @@ issue at github.com/hathach/tinyusb"
   #define MSCD_APP_ROMDISK
 #else // defaults is ram disk
   #define MSCD_APP_RAMDISK
-#endif
-
-void msc_app_init(void);
-void msc_app_task(void* param);
-
-void msc_app_mount(uint8_t rhport);
-void msc_app_umount(uint8_t rhport);
-
-#else
-
-#define msc_app_init()
-#define msc_app_task(x)
-#define msc_app_mount(x)
-#define msc_app_umount(x)
-
 #endif
 
 #ifdef __cplusplus

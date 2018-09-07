@@ -47,15 +47,6 @@
 //--------------------------------------------------------------------+
 // tinyusb callbacks
 //--------------------------------------------------------------------+
-void msc_app_mount(uint8_t rhport)
-{
-
-}
-
-void msc_app_umount(uint8_t rhport)
-{
-
-}
 
 // Callback invoked when received an SCSI command not in built-in list below
 // - READ_CAPACITY10, READ_FORMAT_CAPACITY, INQUIRY, MODE_SENSE6, REQUEST_SENSE

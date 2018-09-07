@@ -74,13 +74,22 @@
         <folder Name="nordic">
           <folder Name="nrfx">
             <folder Name="drivers">
-              <folder Name="include" />
+              <folder Name="include">
+                <file file_name="../../../../hw/mcu/nordic/nrfx/drivers/include/nrfx_power_clock.h" />
+                <file file_name="../../../../hw/mcu/nordic/nrfx/drivers/include/nrfx_power.h" />
+                <file file_name="../../../../hw/mcu/nordic/nrfx/drivers/include/nrfx_qspi.h" />
+              </folder>
               <folder Name="src">
                 <file file_name="../../../../hw/mcu/nordic/nrfx/drivers/src/nrfx_power.c" />
                 <file file_name="../../../../hw/mcu/nordic/nrfx/drivers/src/nrfx_power_clock.c" />
+                <file file_name="../../../../hw/mcu/nordic/nrfx/drivers/src/nrfx_qspi.c" />
               </folder>
             </folder>
-            <folder Name="hal" />
+            <folder Name="hal">
+              <file file_name="../../../../hw/mcu/nordic/nrfx/hal/nrf_power.h" />
+              <file file_name="../../../../hw/mcu/nordic/nrfx/hal/nrf_qspi.h" />
+              <file file_name="../../../../hw/mcu/nordic/nrfx/hal/nrf_usbd.h" />
+            </folder>
             <folder Name="mdk">
               <file file_name="../../../../hw/mcu/nordic/nrfx/mdk/nrf51_to_nrf52840.h" />
               <file file_name="../../../../hw/mcu/nordic/nrfx/mdk/nrf52840_bitfields.h" />
