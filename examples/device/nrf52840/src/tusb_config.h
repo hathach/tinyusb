@@ -39,6 +39,8 @@
 #ifndef _TUSB_CONFIG_H_
 #define _TUSB_CONFIG_H_
 
+#include "bsp/board.h"
+
 #ifdef __cplusplus
  extern "C" {
 #endif
@@ -79,12 +81,12 @@
 // #define CFG_TUD_DESC_PID          0x0001
 
 //------------- CLASS -------------//
-#define CFG_TUD_CDC                 1
+#define CFG_TUD_CDC                 0
 #define CFG_TUD_MSC                 1
 
-#define CFG_TUD_HID                 1
-#define CFG_TUD_HID_KEYBOARD        1
-#define CFG_TUD_HID_MOUSE           1
+#define CFG_TUD_HID                 0
+#define CFG_TUD_HID_KEYBOARD        0
+#define CFG_TUD_HID_MOUSE           0
 
 /* Use Boot Protocol for Keyboard, Mouse. Enable this will create separated HID interface
  * require more IN endpoints. If disabled, they they are all packed into a single
@@ -112,7 +114,7 @@
 #define CFG_TUD_MSC_BUFSIZE         512
 
 // Number of Blocks
-#define CFG_TUD_MSC_BLOCK_NUM       16
+#define CFG_TUD_MSC_BLOCK_NUM       BOARD_MSC_FLASH_SIZE/CFG_TUD_MSC_BLOCK_SZ
 
 // Block size
 #define CFG_TUD_MSC_BLOCK_SZ        512

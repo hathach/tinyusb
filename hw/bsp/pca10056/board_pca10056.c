@@ -37,10 +37,10 @@
 /**************************************************************************/
 
 #include "bsp/board.h"
-#include "board_pca10056.h"
 #include "nrf_gpio.h"
 
 #include "nrfx_power.h"
+#include "nrfx_qspi.h"
 
 /*------------------------------------------------------------------*/
 /* MACRO TYPEDEF CONSTANT ENUM
@@ -53,7 +53,7 @@
 
 uint8_t _button_pins[] = { 11, 12, 24, 25 };
 
-#define BOARD_BUTTON_COUNT  arrcount_(_button_pins)
+#define BOARD_BUTTON_COUNT  sizeof(_button_pins)
 
 
 /*------------------------------------------------------------------*/
@@ -76,6 +76,9 @@ uint32_t tusb_hal_millis(void)
 /*------------------------------------------------------------------*/
 /* BOARD API
  *------------------------------------------------------------------*/
+#define QSPI_STD_CMD_RSTEN  0x66
+#define QSPI_STD_CMD_RST    0x99
+#define QSPI_STD_CMD_WRSR   0x01
 
 /* tinyusb function that handles power event (detected, ready, removed)
  * We must call it within SD's SOC event handler, or set it as power event handler if SD is not enabled.
@@ -97,6 +100,63 @@ void board_init(void)
 #if CFG_TUSB_OS  == OPT_OS_NONE
   // Tick init
   SysTick_Config(SystemCoreClock/1000);
+#endif
+
+// 64 Mbit qspi flash
+#ifdef BOARD_MSC_FLASH_QSPI
+  nrfx_qspi_config_t qspi_cfg =
+  {
+    .xip_offset  = 0,
+    .pins = {
+       .sck_pin     = 19,
+       .csn_pin     = 17,
+       .io0_pin     = 20,
+       .io1_pin     = 21,
+       .io2_pin     = 22,
+       .io3_pin     = 23,
+    },
+    .prot_if = {
+        .readoc     = NRF_QSPI_READOC_FASTREAD,
+        .writeoc    = NRF_QSPI_WRITEOC_PP,
+        .addrmode   = NRF_QSPI_ADDRMODE_24BIT,
+        .dpmconfig  = false, // deep power down
+    },
+    .phy_if = {
+        .sck_freq   = NRF_QSPI_FREQ_32MDIV16,
+        .sck_delay  = 1,
+        .spi_mode   = NRF_QSPI_MODE_0,
+        .dpmen      = false
+    },
+    .irq_priority   = 7,
+  };
+
+  // callback = NULL --> blocking
+  nrfx_qspi_init(&qspi_cfg, NULL, NULL);
+
+  nrf_qspi_cinstr_conf_t cinstr_cfg = {
+      .opcode = 0,
+      .length = 0,
+      .io2_level = true,
+      .io3_level = true,
+      .wipwait   = true,
+      .wren      = true
+  };
+
+  // Send reset enable
+  cinstr_cfg.opcode = QSPI_STD_CMD_RSTEN;
+  cinstr_cfg.length = NRF_QSPI_CINSTR_LEN_1B;
+  nrfx_qspi_cinstr_xfer(&cinstr_cfg, NULL, NULL);
+
+  // Send reset command
+  cinstr_cfg.opcode = QSPI_STD_CMD_RST;
+  cinstr_cfg.length = NRF_QSPI_CINSTR_LEN_1B;
+  nrfx_qspi_cinstr_xfer(&cinstr_cfg, NULL, NULL);
+
+  // Switch to qspi mode
+  uint8_t sr_quad_en = 0x40;
+  cinstr_cfg.opcode = QSPI_STD_CMD_WRSR;
+  cinstr_cfg.length = NRF_QSPI_CINSTR_LEN_2B;
+  nrfx_qspi_cinstr_xfer(&cinstr_cfg, &sr_quad_en, NULL);
 #endif
 
   // USB power may already be ready at this time -> no event generated
@@ -152,7 +212,7 @@ uint32_t board_buttons(void)
   for(uint8_t i=0; i<BOARD_BUTTON_COUNT; i++)
   {
     // button is active LOW
-    ret |= ( nrf_gpio_pin_read(_button_pins[i]) ? 0 : BIT_(i));
+    ret |= ( nrf_gpio_pin_read(_button_pins[i]) ? 0 : (1 << i));
   }
 
   return ret;

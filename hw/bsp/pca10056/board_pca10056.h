@@ -38,7 +38,8 @@
 #ifndef BOARD_PCA10056_H_
 #define BOARD_PCA10056_H_
 
-#include "nrf.h"
+#include "nrfx.h"
+#include "nrfx_qspi.h"
 
 #ifdef __cplusplus
  extern "C" {
@@ -47,8 +48,11 @@
 #define BOARD_LED_NUM     1
 
 // Flash type used for MSC example
-//#define BOARD_FLASH_QSPI
-#define BOARD_MSC_FLASH_RAM
+#define BOARD_MSC_FLASH_QSPI
+#define BOARD_MSC_FLASH_SIZE    (16*1024*1024)
+
+//#define BOARD_MSC_FLASH_RAM
+// #define BOARD_MSC_FLASH_SIZE    (8*1024) // 8KB is the smallest size that windows allow to mount
 
 #ifdef __cplusplus
  }

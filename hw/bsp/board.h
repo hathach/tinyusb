@@ -51,7 +51,6 @@
 #include <stdbool.h>
 
 #include "ansi_escape.h"
-#include "tusb.h"
 
 //--------------------------------------------------------------------+
 // BOARD DEFINE

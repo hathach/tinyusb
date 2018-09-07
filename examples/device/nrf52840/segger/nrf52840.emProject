@@ -60,6 +60,7 @@
       <file file_name="../src/msc_app.c" />
       <file file_name="../src/msc_app.h" />
       <file file_name="../src/msc_flash_ram.c" />
+      <file file_name="../src/msc_flash_qspi.c" />
     </folder>
     <folder Name="hw">
       <folder Name="bsp">
