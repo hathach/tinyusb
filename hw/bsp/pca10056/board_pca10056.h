@@ -44,7 +44,11 @@
  extern "C" {
 #endif
 
-#define BOARD_LED_NUM   1
+#define BOARD_LED_NUM     1
+
+// Flash type used for MSC example
+//#define BOARD_FLASH_QSPI
+#define BOARD_MSC_FLASH_RAM
 
 #ifdef __cplusplus
  }
