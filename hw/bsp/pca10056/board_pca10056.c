@@ -127,12 +127,12 @@ void board_init(void)
     },
     .prot_if = {
       .readoc    = NRF_QSPI_READOC_READ4IO,
-      .writeoc   = NRF_QSPI_WRITEOC_PP,
+      .writeoc = NRF_QSPI_WRITEOC_PP4IO,
       .addrmode  = NRF_QSPI_ADDRMODE_24BIT,
       .dpmconfig = false,  // deep power down
     },
     .phy_if = {
-      .sck_freq  = NRF_QSPI_FREQ_32MDIV4,
+      .sck_freq = NRF_QSPI_FREQ_32MDIV1,
       .sck_delay = 1,
       .spi_mode  = NRF_QSPI_MODE_0,
       .dpmen     = false
@@ -140,8 +140,7 @@ void board_init(void)
     .irq_priority   = 7,
   };
 
-  nrfx_qspi_init(&qspi_cfg, NULL, NULL);
-//  nrfx_qspi_init(&qspi_cfg, qflash_hdl, NULL);
+  nrfx_qspi_init(&qspi_cfg, qflash_hdl, NULL);
 
   nrf_qspi_cinstr_conf_t cinstr_cfg = {
     .opcode    = 0,
