@@ -32,16 +32,13 @@
     INCLUDING NEGLIGENCE OR OTHERWISE ARISING IN ANY WAY OUT OF THE USE OF THIS
     SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-	This file is part of the tinyusb stack.
-*/
+ This file is part of the tinyusb stack.
+ */
 /**************************************************************************/
 
 #include "tusb_fifo.h"
 #include "common/tusb_verify.h" // for ASSERT
 
-/*------------------------------------------------------------------*/
-/*
- *------------------------------------------------------------------*/
 #if CFG_FIFO_MUTEX
 
 #define mutex_lock_if_needed(_ff)     if (_ff->mutex) tu_fifo_mutex_lock(_ff->mutex)
@@ -53,17 +50,6 @@
 #define mutex_unlock_if_needed(_ff)
 
 #endif
-
-static inline uint16_t tu_min16(uint16_t x, uint16_t y)
-{
-  return (x < y) ? x : y;
-}
-
-static inline bool tu_fifo_initalized(tu_fifo_t* f)
-{
-  return (f->buffer != NULL) && (f->depth > 0) && (f->item_size > 0);
-}
-
 
 void tu_fifo_config(tu_fifo_t *f, void* buffer, uint16_t depth, uint16_t item_size, bool overwritable)
 {
@@ -98,7 +84,6 @@ void tu_fifo_config(tu_fifo_t *f, void* buffer, uint16_t depth, uint16_t item_si
 /******************************************************************************/
 bool tu_fifo_read(tu_fifo_t* f, void * p_buffer)
 {
-  if( !tu_fifo_initalized(f) ) return false;
   if( tu_fifo_empty(f) ) return false;
 
   mutex_lock_if_needed(f);
@@ -132,12 +117,10 @@ bool tu_fifo_read(tu_fifo_t* f, void * p_buffer)
 /******************************************************************************/
 uint16_t tu_fifo_read_n (tu_fifo_t* f, void * p_buffer, uint16_t count)
 {
-  if( !tu_fifo_initalized(f) ) return 0;
   if( tu_fifo_empty(f) ) return 0;
 
   /* Limit up to fifo's count */
-  count = tu_min16(count, f->count);
-  if( count == 0 ) return 0;
+  if ( count > f->count ) count = f->count;
 
   mutex_lock_if_needed(f);
 
@@ -176,7 +159,6 @@ uint16_t tu_fifo_read_n (tu_fifo_t* f, void * p_buffer, uint16_t count)
 /******************************************************************************/
 bool tu_fifo_peek_at(tu_fifo_t* f, uint16_t pos, void * p_buffer)
 {
-  if ( !tu_fifo_initalized(f) ) return false;
   if ( pos >= f->count ) return false;
 
   // rd_idx is pos=0
@@ -205,10 +187,8 @@ bool tu_fifo_peek_at(tu_fifo_t* f, uint16_t pos, void * p_buffer)
              FIFO will always return TRUE)
 */
 /******************************************************************************/
-bool tu_fifo_write(tu_fifo_t* f, void const * p_data)
+bool tu_fifo_write (tu_fifo_t* f, const void * p_data)
 {
-  if ( !tu_fifo_initalized(f) ) return false;
-
 //  if ( tu_fifo_full(f) && !f->overwritable ) return false;
   TU_ASSERT( !(tu_fifo_full(f) && !f->overwritable) );
 
@@ -249,7 +229,7 @@ bool tu_fifo_write(tu_fifo_t* f, void const * p_data)
     @return Number of written elements
 */
 /******************************************************************************/
-uint16_t tu_fifo_write_n(tu_fifo_t* f, void const * p_data, uint16_t count)
+uint16_t tu_fifo_write_n (tu_fifo_t* f, const void * p_data, uint16_t count)
 {
   if ( count == 0 ) return 0;
 
