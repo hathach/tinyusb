@@ -83,36 +83,36 @@
  *  -  means the macro is not available
  *  s  means the macro is available but is slow (runs in O(n) time)
  *
- *				            SLIST	LIST	STAILQ	TAILQ
- * _HEAD			+	+	+	+
- * _CLASS_HEAD			+	+	+	+
- * _HEAD_INITIALIZER		+	+	+	+
- * _ENTRY			+	+	+	+
- * _CLASS_ENTRY			+	+	+	+
- * _INIT			+	+	+	+
- * _EMPTY			+	+	+	+
- * _FIRST			+	+	+	+
- * _NEXT			+	+	+	+
- * _PREV			-	+	-	+
- * _LAST			-	-	+	+
- * _LAST_FAST			-	-	-	+
- * _FOREACH			+	+	+	+
- * _FOREACH_FROM		+	+	+	+
- * _FOREACH_SAFE		+	+	+	+
- * _FOREACH_FROM_SAFE		+	+	+	+
- * _FOREACH_REVERSE		-	-	-	+
- * _FOREACH_REVERSE_FROM	-	-	-	+
- * _FOREACH_REVERSE_SAFE	-	-	-	+
- * _FOREACH_REVERSE_FROM_SAFE	-	-	-	+
- * _INSERT_HEAD			+	+	+	+
- * _INSERT_BEFORE		-	+	-	+
- * _INSERT_AFTER		+	+	+	+
- * _INSERT_TAIL			-	-	+	+
- * _CONCAT			s	s	+	+
- * _REMOVE_AFTER		+	-	+	-
- * _REMOVE_HEAD			+	-	+	-
- * _REMOVE			s	+	s	+
- * _SWAP			+	+	+	+
+ *                              SLIST    LIST     STAILQ   TAILQ
+ * _HEAD                        +        +        +        +
+ * _CLASS_HEAD                  +        +        +        +
+ * _HEAD_INITIALIZER            +        +        +        +
+ * _ENTRY                       +        +        +        +
+ * _CLASS_ENTRY                 +        +        +        +
+ * _INIT                        +        +        +        +
+ * _EMPTY                       +        +        +        +
+ * _FIRST                       +        +        +        +
+ * _NEXT                        +        +        +        +
+ * _PREV                        -        +        -        +
+ * _LAST                        -        -        +        +
+ * _LAST_FAST                   -        -        -        +
+ * _FOREACH                     +        +        +        +
+ * _FOREACH_FROM                +        +        +        +
+ * _FOREACH_SAFE                +        +        +        +
+ * _FOREACH_FROM_SAFE           +        +        +        +
+ * _FOREACH_REVERSE             -        -        -        +
+ * _FOREACH_REVERSE_FROM        -        -        -        +
+ * _FOREACH_REVERSE_SAFE        -        -        -        +
+ * _FOREACH_REVERSE_FROM_SAFE   -        -        -        +
+ * _INSERT_HEAD                 +        +        +        +
+ * _INSERT_BEFORE               -        +        -        +
+ * _INSERT_AFTER                +        +        +        +
+ * _INSERT_TAIL                 -        -        +        +
+ * _CONCAT                      s        s        +        +
+ * _REMOVE_AFTER                +        -        +        -
+ * _REMOVE_HEAD                 +        -        +        -
+ * _REMOVE                      s        +        s        +
+ * _SWAP                        +        +        +        +
  *
  */
 #ifdef QUEUE_MACRO_DEBUG
