@@ -49,7 +49,7 @@
 
 // Flash type used for MSC example
 #define BOARD_MSC_FLASH_QSPI
-#define BOARD_MSC_FLASH_SIZE    (16*1024*1024)
+#define BOARD_MSC_FLASH_SIZE    (8*1024*1024)
 
 //#define BOARD_MSC_FLASH_RAM
 // #define BOARD_MSC_FLASH_SIZE    (8*1024) // 8KB is the smallest size that windows allow to mount

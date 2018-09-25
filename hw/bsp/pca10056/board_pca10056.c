@@ -38,9 +38,9 @@
 
 #include "bsp/board.h"
 #include "nrf_gpio.h"
-
 #include "nrfx_power.h"
 #include "nrfx_qspi.h"
+#include "tusb.h"
 
 /*------------------------------------------------------------------*/
 /* MACRO TYPEDEF CONSTANT ENUM
@@ -76,9 +76,12 @@ uint32_t tusb_hal_millis(void)
 /*------------------------------------------------------------------*/
 /* BOARD API
  *------------------------------------------------------------------*/
-#define QSPI_STD_CMD_RSTEN  0x66
-#define QSPI_STD_CMD_RST    0x99
-#define QSPI_STD_CMD_WRSR   0x01
+enum {
+    QSPI_CMD_RSTEN = 0x66,
+    QSPI_CMD_RST = 0x99,
+    QSPI_CMD_WRSR = 0x01,
+    QSPI_CMD_READID = 0x90
+};
 
 extern void qspi_flash_complete (void);
 
@@ -147,24 +150,41 @@ void board_init(void)
     .length    = 0,
     .io2_level = true,
     .io3_level = true,
-    .wipwait   = true,
-    .wren      = true
+    .wipwait   = false,
+    .wren      = false
   };
 
   // Send reset enable
-  cinstr_cfg.opcode = QSPI_STD_CMD_RSTEN;
+  cinstr_cfg.opcode = QSPI_CMD_RSTEN;
   cinstr_cfg.length = NRF_QSPI_CINSTR_LEN_1B;
   nrfx_qspi_cinstr_xfer(&cinstr_cfg, NULL, NULL);
 
   // Send reset command
-  cinstr_cfg.opcode = QSPI_STD_CMD_RST;
+  cinstr_cfg.opcode = QSPI_CMD_RST;
   cinstr_cfg.length = NRF_QSPI_CINSTR_LEN_1B;
   nrfx_qspi_cinstr_xfer(&cinstr_cfg, NULL, NULL);
 
+  NRFX_DELAY_US(100); // wait for flash reset
+
+  // Send (Read ID + 3 dummy bytes) + Receive 2 bytes of Manufacture + Device ID
+  uint8_t dummy[6] = { 0 };
+  uint8_t id_resp[6] = { 0 };
+  cinstr_cfg.opcode = QSPI_CMD_READID;
+  cinstr_cfg.length = 6;
+
+  // Bug with -nrf_qspi_cinstrdata_get() didn't combine data.
+  // https://devzone.nordicsemi.com/f/nordic-q-a/38540/bug-nrf_qspi_cinstrdata_get-didn-t-collect-data-from-both-cinstrdat1-and-cinstrdat0
+  nrfx_qspi_cinstr_xfer(&cinstr_cfg, dummy, id_resp);
+
+  // Due to the bug, we collect data manually
+  uint8_t dev_id = (uint8_t) NRF_QSPI->CINSTRDAT1;
+  uint8_t mfgr_id = (uint8_t) ( NRF_QSPI->CINSTRDAT0 >> 24 );
+
   // Switch to qspi mode
   uint8_t sr_quad_en = 0x40;
-  cinstr_cfg.opcode = QSPI_STD_CMD_WRSR;
+  cinstr_cfg.opcode = QSPI_CMD_WRSR;
   cinstr_cfg.length = NRF_QSPI_CINSTR_LEN_2B;
+  cinstr_cfg.wipwait = cinstr_cfg.wren = true;
   nrfx_qspi_cinstr_xfer(&cinstr_cfg, &sr_quad_en, NULL);
 #endif
 

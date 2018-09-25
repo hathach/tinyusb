@@ -255,7 +255,7 @@ void tusb_hal_nrf_power_event (uint32_t event)
         __DSB();
       }
 
-      nrf_usbd_isosplit_set(NRF_USBD_ISOSPLIT_Half);
+      nrf_usbd_isosplit_set(USBD_ISOSPLIT_SPLIT_HalfIN);
 
       // Enable interrupt. SOF is used as CDC auto flush
       NRF_USBD->INTENSET = USBD_INTEN_USBRESET_Msk | USBD_INTEN_USBEVENT_Msk | USBD_INTEN_EPDATA_Msk |

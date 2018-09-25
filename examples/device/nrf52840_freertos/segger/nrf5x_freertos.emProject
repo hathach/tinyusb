@@ -77,7 +77,7 @@
               <folder Name="include" />
               <folder Name="src">
                 <file file_name="../../../../hw/mcu/nordic/nrfx/drivers/src/nrfx_power.c" />
-                <file file_name="../../../../hw/mcu/nordic/nrfx/drivers/src/nrfx_power_clock.c" />
+                <file file_name="../../../../hw/mcu/nordic/nrfx/drivers/src/nrfx_qspi.c" />
               </folder>
             </folder>
             <folder Name="hal" />
