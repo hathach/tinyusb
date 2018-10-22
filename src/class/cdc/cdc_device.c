@@ -153,11 +153,13 @@ uint32_t tud_cdc_n_write(uint8_t itf, void const* buffer, uint32_t bufsize)
 {
   uint16_t ret = tu_fifo_write_n(&_cdcd_itf[itf].tx_ff, buffer, bufsize);
 
+#if 0 // TODO issue with circuitpython's REPL
   // flush if queue more than endpoint size
   if ( tu_fifo_count(&_cdcd_itf[itf].tx_ff) >= CFG_TUD_CDC_EPSIZE )
   {
     tud_cdc_n_write_flush(itf);
   }
+#endif
 
   return ret;
 }
