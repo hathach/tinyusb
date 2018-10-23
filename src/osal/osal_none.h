@@ -133,12 +133,11 @@ static inline osal_queue_t osal_queue_create(osal_queue_def_t* qdef)
   return (osal_queue_t) qdef;
 }
 
-static inline bool osal_queue_send_isr(osal_queue_t const queue_hdl, void const * data)
+static inline bool osal_queue_send(osal_queue_t const queue_hdl, void const * data, bool in_isr)
 {
+  (void) in_isr;
   return tu_fifo_write( (tu_fifo_t*) queue_hdl, data);
 }
-
-#define osal_queue_send osal_queue_send_isr
 
 static inline void osal_queue_flush(osal_queue_t const queue_hdl)
 {
@@ -182,10 +181,9 @@ static inline osal_semaphore_t osal_semaphore_create(osal_semaphore_def_t* semde
   return semdef;
 }
 
-#define osal_semaphore_post_isr osal_semaphore_post
-
-static inline  bool osal_semaphore_post(osal_semaphore_t sem_hdl)
+static inline  bool osal_semaphore_post(osal_semaphore_t sem_hdl, bool in_isr)
 {
+  (void) in_isr;
   if (sem_hdl->count < sem_hdl->max_count ) sem_hdl->count++;
   return true;
 }

@@ -129,10 +129,10 @@ static inline void osal_queue_receive (osal_queue_t const queue_hdl, void *p_dat
   *p_error = TUSB_ERROR_NONE;
 }
 
-#define osal_queue_send_isr   osal_queue_send
-
-static inline bool osal_queue_send(osal_queue_t const queue_hdl, void const * data)
+static inline bool osal_queue_send(osal_queue_t const queue_hdl, void const * data, bool in_isr)
 {
+  (void) in_isr;
+
   // get a block from mem pool for data
   void* ptr = os_memblock_get(&queue_hdl->mpool);
   if (!ptr) return false;
@@ -169,10 +169,9 @@ static inline osal_semaphore_t osal_semaphore_create(osal_semaphore_def_t* semde
   return (os_sem_init(semdef, 0) == OS_OK) ? (osal_semaphore_t) semdef : NULL;
 }
 
-#define osal_semaphore_post_isr   osal_semaphore_post
-
-static inline bool osal_semaphore_post(osal_semaphore_t sem_hdl)
+static inline bool osal_semaphore_post(osal_semaphore_t sem_hdl, bool in_isr)
 {
+  (void) in_isr;
   return os_sem_release(sem_hdl) == OS_OK;
 }
 

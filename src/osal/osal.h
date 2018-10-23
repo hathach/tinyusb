@@ -80,15 +80,13 @@ typedef void (*osal_task_func_t)( void * );
    *     osal_queue_def_t, osal_queue_t
    *     osal_queue_t osal_queue_create(osal_queue_def_t* qdef)
    *     osal_queue_receive (osal_queue_t const queue_hdl, void *p_data, uint32_t msec, tusb_error_t *p_error)
-   *     bool osal_queue_send_isr(osal_queue_t const queue_hdl, void const * data)
-   *     bool osal_queue_send(osal_queue_t const queue_hdl, void const * data)
+   *     bool osal_queue_send(osal_queue_t const queue_hdl, void const * data, bool in_isr)
    *     osal_queue_flush()  TODO remove
    *
    * Semaphore
    *    osal_semaphore_def_t, osal_semaphore_t
    *    osal_semaphore_t osal_semaphore_create(osal_semaphore_def_t* semdef)
-   *    bool osal_semaphore_post_isr(osal_semaphore_t sem_hdl)
-   *    bool osal_semaphore_post(osal_semaphore_t sem_hdl)
+   *    bool osal_semaphore_post(osal_semaphore_t sem_hdl, bool in_isr)
    *    void osal_semaphore_wait(osal_semaphore_t sem_hdl, uint32_t msec, tusb_error_t *p_error)
    *    void osal_semaphore_reset_isr(osal_semaphore_t const sem_hdl)
    *

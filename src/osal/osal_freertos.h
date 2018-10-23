@@ -120,14 +120,9 @@ static inline void osal_queue_receive (osal_queue_t const queue_hdl, void *p_dat
   (*p_error) = ( xQueueReceive(queue_hdl, p_data, ticks) ? TUSB_ERROR_NONE : TUSB_ERROR_OSAL_TIMEOUT);
 }
 
-static inline bool osal_queue_send_isr(osal_queue_t const queue_hdl, void const * data)
+static inline bool osal_queue_send(osal_queue_t const queue_hdl, void const * data, bool in_isr)
 {
-  return xQueueSendToBackFromISR(queue_hdl, data, NULL);
-}
-
-static inline bool osal_queue_send(osal_queue_t const queue_hdl, void const * data)
-{
-  return xQueueSendToBack(queue_hdl, data, OSAL_TIMEOUT_WAIT_FOREVER) == pdTRUE;
+  return in_isr ? xQueueSendToBackFromISR(queue_hdl, data, NULL) : xQueueSendToBack(queue_hdl, data, OSAL_TIMEOUT_WAIT_FOREVER);
 }
 
 static inline void osal_queue_flush(osal_queue_t const queue_hdl)
@@ -147,14 +142,9 @@ static inline osal_semaphore_t osal_semaphore_create(osal_semaphore_def_t* semde
   return xSemaphoreCreateBinaryStatic(semdef);
 }
 
-static inline bool osal_semaphore_post_isr(osal_semaphore_t sem_hdl)
+static inline bool osal_semaphore_post(osal_semaphore_t sem_hdl, bool in_isr)
 {
-  return xSemaphoreGiveFromISR(sem_hdl, NULL) == pdTRUE;
-}
-
-static inline bool osal_semaphore_post(osal_semaphore_t sem_hdl)
-{
-  return xSemaphoreGive(sem_hdl) == pdTRUE;
+  return in_isr ?  xSemaphoreGiveFromISR(sem_hdl, NULL) : xSemaphoreGive(sem_hdl);
 }
 
 static inline void osal_semaphore_wait(osal_semaphore_t sem_hdl, uint32_t msec, tusb_error_t *p_error)
