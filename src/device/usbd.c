@@ -156,45 +156,10 @@ enum { USBD_CLASS_DRIVER_COUNT = sizeof(usbd_class_drivers) / sizeof(usbd_class_
 //--------------------------------------------------------------------+
 // DCD Event
 //--------------------------------------------------------------------+
-typedef enum
-{
-  USBD_EVT_SETUP_RECEIVED = 1,
-  USBD_EVT_XFER_COMPLETE,
-  USBD_EVT_SOF,
-
-  USBD_EVT_FUNC_CALL
-}usbd_eventid_t;
-
-typedef struct ATTR_ALIGNED(4)
-{
-  uint8_t rhport;
-  uint8_t event_id;
-
-  union {
-    // USBD_EVT_SETUP_RECEIVED
-    tusb_control_request_t setup_received;
-
-    // USBD_EVT_XFER_COMPLETE
-    struct {
-      uint8_t  ep_addr;
-      uint8_t  result;
-      uint32_t len;
-    }xfer_complete;
-
-    // USBD_EVT_FUNC_CALL
-    struct {
-      osal_task_func_t func;
-      void* param;
-    }func_call;
-  };
-} usbd_event_t;
-
-TU_VERIFY_STATIC(sizeof(usbd_event_t) <= 12, "size is not correct");
-
 OSAL_TASK_DEF(_usbd_task_def, "usbd", usbd_task, CFG_TUD_TASK_PRIO, CFG_TUD_TASK_STACK_SZ);
 
 /*------------- event queue -------------*/
-OSAL_QUEUE_DEF(_usbd_qdef, CFG_TUD_TASK_QUEUE_SZ, usbd_event_t);
+OSAL_QUEUE_DEF(_usbd_qdef, CFG_TUD_TASK_QUEUE_SZ, dcd_event_t);
 static osal_queue_t _usbd_q;
 
 /*------------- control transfer semaphore -------------*/
@@ -264,7 +229,7 @@ void usbd_task( void* param)
 
 static tusb_error_t usbd_main_st(void)
 {
-  static usbd_event_t event;
+  static dcd_event_t event;
 
   OSAL_SUBTASK_BEGIN
 
@@ -274,7 +239,7 @@ static tusb_error_t usbd_main_st(void)
     tusb_error_t err;
     err = TUSB_ERROR_NONE;
 
-    tu_memclr(&event, sizeof(usbd_event_t));
+    tu_memclr(&event, sizeof(dcd_event_t));
 
     osal_queue_receive(_usbd_q, &event, OSAL_TIMEOUT_WAIT_FOREVER, &err);
 
@@ -581,7 +546,7 @@ void dcd_bus_event(uint8_t rhport, usbd_bus_event_type_t bus_event)
     case USBD_BUS_EVENT_SOF:
     {
       #if 0
-      usbd_event_t task_event =
+      dcd_event_t task_event =
       {
           .rhport          = rhport,
           .event_id        = USBD_EVT_SOF,
@@ -606,7 +571,7 @@ void dcd_bus_event(uint8_t rhport, usbd_bus_event_type_t bus_event)
 
 void dcd_setup_received(uint8_t rhport, uint8_t const* p_request)
 {
-  usbd_event_t task_event =
+  dcd_event_t task_event =
   {
       .rhport   = rhport,
       .event_id = USBD_EVT_SETUP_RECEIVED,
@@ -628,7 +593,7 @@ void dcd_xfer_complete(uint8_t rhport, uint8_t ep_addr, uint32_t xferred_bytes, 
     if (xferred_bytes) osal_semaphore_post_isr( _usbd_ctrl_sem );
   }else
   {
-    usbd_event_t event =
+    dcd_event_t event =
     {
         .rhport   = rhport,
         .event_id = USBD_EVT_XFER_COMPLETE,
@@ -642,6 +607,49 @@ void dcd_xfer_complete(uint8_t rhport, uint8_t ep_addr, uint32_t xferred_bytes, 
   }
 
   TU_ASSERT(succeeded, );
+}
+
+void dcd_event_handler(dcd_event_t const * event, bool in_isr)
+{
+  uint8_t const rhport = event->rhport;
+
+  switch (event->event_id)
+  {
+    case USBD_EVT_BUS_RESET:
+      usbd_reset(rhport);
+
+      osal_queue_flush(_usbd_q);
+      osal_semaphore_reset_isr(_usbd_ctrl_sem);
+    break;
+
+    case USBD_EVT_SOF:
+    {
+      #if 0
+      dcd_event_t task_event =
+      {
+          .rhport          = rhport,
+          .event_id        = USBD_EVT_SOF,
+      };
+      osal_queue_send_isr(_usbd_q, &task_event);
+      #endif
+    }
+    break;
+
+    case USBD_EVT_UNPLUGGED:
+      usbd_reset(rhport);
+      tud_umount_cb(); // invoke callback
+    break;
+
+    case USBD_EVT_SUSPENDED:
+      // TODO support suspended
+    break;
+
+    case USBD_EVT_RESUME:
+      // TODO support resume
+    break;
+
+
+  }
 }
 
 //--------------------------------------------------------------------+
@@ -672,7 +680,7 @@ tusb_error_t usbd_open_edpt_pair(uint8_t rhport, tusb_desc_endpoint_t const* p_d
 
 void usbd_defer_func(osal_task_func_t func, void* param, bool isr )
 {
-  usbd_event_t event =
+  dcd_event_t event =
   {
       .rhport   = 0,
       .event_id = USBD_EVT_FUNC_CALL,

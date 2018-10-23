@@ -58,6 +58,46 @@ typedef enum
   USBD_BUS_EVENT_RESUME
 }usbd_bus_event_type_t;
 
+typedef enum
+{
+  USBD_EVT_BUS_RESET = 1,
+  USBD_EVT_UNPLUGGED,
+  USBD_EVT_SOF,
+  USBD_EVT_SUSPENDED,
+  USBD_EVT_RESUME,
+
+  USBD_EVT_SETUP_RECEIVED,
+  USBD_EVT_XFER_COMPLETE,
+
+  USBD_EVT_FUNC_CALL
+}usbd_eventid_t;
+
+typedef struct ATTR_ALIGNED(4)
+{
+  uint8_t rhport;
+  uint8_t event_id;
+
+  union {
+    // USBD_EVT_SETUP_RECEIVED
+    tusb_control_request_t setup_received;
+
+    // USBD_EVT_XFER_COMPLETE
+    struct {
+      uint8_t  ep_addr;
+      uint8_t  result;
+      uint32_t len;
+    }xfer_complete;
+
+    // USBD_EVT_FUNC_CALL
+    struct {
+      void (*func) (void*);
+      void* param;
+    }func_call;
+  };
+} dcd_event_t;
+
+TU_VERIFY_STATIC(sizeof(dcd_event_t) <= 12, "size is not correct");
+
 /*------------------------------------------------------------------*/
 /* Device API (Weak is optional)
  *------------------------------------------------------------------*/
@@ -81,6 +121,8 @@ static inline void dcd_control_complete(uint8_t rhport, uint32_t xferred_bytes)
   // all control complete is successful !!
   dcd_xfer_complete(rhport, 0, xferred_bytes, true);
 }
+
+void dcd_event_handler(dcd_event_t const * event, bool in_isr);
 
 /*------------------------------------------------------------------*/
 /* Endpoint API
