@@ -243,11 +243,11 @@ static tusb_error_t usbd_main_st(void)
 
     osal_queue_receive(_usbd_q, &event, OSAL_TIMEOUT_WAIT_FOREVER, &err);
 
-    if ( USBD_EVT_SETUP_RECEIVED == event.event_id )
+    if ( DCD_EVENT_SETUP_RECEIVED == event.event_id )
     {
       STASK_INVOKE( proc_control_request_st(event.rhport, &event.setup_received), err );
     }
-    else if (USBD_EVT_XFER_COMPLETE == event.event_id)
+    else if (DCD_EVENT_XFER_COMPLETE == event.event_id)
     {
       // Invoke the class callback associated with the endpoint address
       uint8_t const ep_addr = event.xfer_complete.ep_addr;
@@ -258,7 +258,7 @@ static tusb_error_t usbd_main_st(void)
         usbd_class_drivers[drv_id].xfer_cb( event.rhport, ep_addr, (tusb_event_t) event.xfer_complete.result, event.xfer_complete.len);
       }
     }
-    else if (USBD_EVT_SOF == event.event_id)
+    else if (DCD_EVENT_SOF == event.event_id)
     {
       for (uint8_t i = 0; i < USBD_CLASS_DRIVER_COUNT; i++)
       {
@@ -549,7 +549,7 @@ void dcd_bus_event(uint8_t rhport, usbd_bus_event_type_t bus_event)
       dcd_event_t task_event =
       {
           .rhport          = rhport,
-          .event_id        = USBD_EVT_SOF,
+          .event_id        = DCD_EVENT_SOF,
       };
       osal_queue_send_isr(_usbd_q, &task_event);
       #endif
@@ -574,7 +574,7 @@ void dcd_setup_received(uint8_t rhport, uint8_t const* p_request)
   dcd_event_t task_event =
   {
       .rhport   = rhport,
-      .event_id = USBD_EVT_SETUP_RECEIVED,
+      .event_id = DCD_EVENT_SETUP_RECEIVED,
   };
 
   memcpy(&task_event.setup_received, p_request, sizeof(tusb_control_request_t));
@@ -596,7 +596,7 @@ void dcd_xfer_complete(uint8_t rhport, uint8_t ep_addr, uint32_t xferred_bytes, 
     dcd_event_t event =
     {
         .rhport   = rhport,
-        .event_id = USBD_EVT_XFER_COMPLETE,
+        .event_id = DCD_EVENT_XFER_COMPLETE,
     };
 
     event.xfer_complete.ep_addr = ep_addr;
@@ -615,36 +615,36 @@ void dcd_event_handler(dcd_event_t const * event, bool in_isr)
 
   switch (event->event_id)
   {
-    case USBD_EVT_BUS_RESET:
+    case DCD_EVENT_BUS_RESET:
       usbd_reset(rhport);
 
       osal_queue_flush(_usbd_q);
       osal_semaphore_reset_isr(_usbd_ctrl_sem);
     break;
 
-    case USBD_EVT_SOF:
+    case DCD_EVENT_SOF:
     {
       #if 0
       dcd_event_t task_event =
       {
           .rhport          = rhport,
-          .event_id        = USBD_EVT_SOF,
+          .event_id        = DCD_EVENT_SOF,
       };
       osal_queue_send_isr(_usbd_q, &task_event);
       #endif
     }
     break;
 
-    case USBD_EVT_UNPLUGGED:
+    case DCD_EVENT_UNPLUGGED:
       usbd_reset(rhport);
       tud_umount_cb(); // invoke callback
     break;
 
-    case USBD_EVT_SUSPENDED:
+    case DCD_EVENT_SUSPENDED:
       // TODO support suspended
     break;
 
-    case USBD_EVT_RESUME:
+    case DCD_EVENT_RESUME:
       // TODO support resume
     break;
 
