@@ -398,10 +398,11 @@ void xfer_complete_isr(uint8_t rhport, uint32_t reg_complete)
 
         if (p_qtd->int_on_complete)
         {
-          bool succeeded = ( p_qtd->xact_err || p_qtd->halted || p_qtd->buffer_err ) ? false : true;
+          uint8_t result = p_qtd->halted  ? DCD_XFER_STALLED :
+                           ( p_qtd->xact_err ||p_qtd->buffer_err ) ? DCD_XFER_FAILED : DCD_XFER_SUCCESS;
 
           uint8_t ep_addr = edpt_phy2addr(ep_idx);
-          dcd_xfer_complete(rhport, ep_addr, p_qtd->expected_bytes - p_qtd->total_bytes, succeeded); // only number of bytes in the IOC qtd
+          dcd_event_xfer_complete(rhport, ep_addr, p_qtd->expected_bytes - p_qtd->total_bytes, result, true); // only number of bytes in the IOC qtd
         }
       }
     }
@@ -418,13 +419,12 @@ void hal_dcd_isr(uint8_t rhport)
 
   if (int_status == 0) return;// disabled interrupt sources
 
-  dcd_event_t event = { .rhport = rhport };
 
   if (int_status & INT_MASK_RESET)
   {
     bus_reset(rhport);
 
-    event.event_id = DCD_EVENT_BUS_RESET;
+    dcd_event_t event = { .rhport = rhport, .event_id = DCD_EVENT_BUS_RESET };
     dcd_event_handler(&event, true);
   }
 
@@ -434,7 +434,7 @@ void hal_dcd_isr(uint8_t rhport)
     { // Note: Host may delay more than 3 ms before and/or after bus reset before doing enumeration.
       if ((lpc_usb->DEVICEADDR >> 25) & 0x0f)
       {
-        event.event_id = DCD_EVENT_SUSPENDED;
+        dcd_event_t event = { .rhport = rhport, .event_id = DCD_EVENT_SUSPENDED };
         dcd_event_handler(&event, true);
       }
     }
@@ -445,7 +445,7 @@ void hal_dcd_isr(uint8_t rhport)
 //	{
 //	  if ( !(lpc_usb->PORTSC1_D & PORTSC_CURRENT_CONNECT_STATUS_MASK) )
 //	  {
-//      event.event_id = DCD_EVENT_UNPLUGGED;
+//      dcd_event_t event = { .rhport = rhport, .event_id = DCD_EVENT_UNPLUGGED };
 //      dcd_event_handler(&event, true);
 //	  }
 //	}
@@ -463,7 +463,7 @@ void hal_dcd_isr(uint8_t rhport)
       // 23.10.10.2 Operational model for setup transfers
       lpc_usb->ENDPTSETUPSTAT = lpc_usb->ENDPTSETUPSTAT;// acknowledge
 
-      event.event_id = DCD_EVENT_SETUP_RECEIVED;
+      dcd_event_t event = { .rhport = rhport, .event_id = DCD_EVENT_SETUP_RECEIVED };
       event.setup_received = p_dcd->qhd[0].setup_request;
 
       dcd_event_handler(&event, true);
@@ -480,10 +480,10 @@ void hal_dcd_isr(uint8_t rhport)
 
       if ( p_qtd->int_on_complete )
       {
-        bool succeeded = ( p_qtd->xact_err || p_qtd->halted || p_qtd->buffer_err ) ? false : true;
-        (void) succeeded;
+        uint8_t result = p_qtd->halted  ? DCD_XFER_STALLED :
+                        ( p_qtd->xact_err ||p_qtd->buffer_err ) ? DCD_XFER_FAILED : DCD_XFER_SUCCESS;
 
-        dcd_control_complete(rhport, p_qtd->expected_bytes - p_qtd->total_bytes);
+        dcd_event_xfer_complete(rhport, 0, p_qtd->expected_bytes - p_qtd->total_bytes, result, true);
       }
     }
 
@@ -496,7 +496,7 @@ void hal_dcd_isr(uint8_t rhport)
 
   if (int_status & INT_MASK_SOF)
   {
-    event.event_id = DCD_EVENT_SOF;
+    dcd_event_t event = { .rhport = rhport, .event_id = DCD_EVENT_SOF };
     dcd_event_handler(&event, true);
   }
 

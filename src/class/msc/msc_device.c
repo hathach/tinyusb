@@ -304,7 +304,7 @@ tusb_error_t mscd_xfer_cb(uint8_t rhport, uint8_t ep_addr, tusb_event_t event, u
       // Complete IN while waiting for CMD is usually Status of previous SCSI op, ignore it
       if(ep_addr != p_msc->ep_out) return TUSB_ERROR_NONE;
 
-      TU_ASSERT( event == TUSB_EVENT_XFER_COMPLETE  &&
+      TU_ASSERT( event == DCD_XFER_SUCCESS  &&
                  xferred_bytes == sizeof(msc_cbw_t) && p_cbw->signature == MSC_CBW_SIGNATURE, TUSB_ERROR_INVALID_PARA );
 
       p_csw->signature    = MSC_CSW_SIGNATURE;
@@ -434,7 +434,7 @@ tusb_error_t mscd_xfer_cb(uint8_t rhport, uint8_t ep_addr, tusb_event_t event, u
               }
 
               // simulate an transfer complete with adjusted parameters --> this driver callback will fired again
-              dcd_xfer_complete(rhport, p_msc->ep_out, xferred_bytes-nbytes, true);
+              dcd_event_xfer_complete(rhport, p_msc->ep_out, xferred_bytes-nbytes, DCD_XFER_SUCCESS, false);
 
               return TUSB_ERROR_NONE; // skip the rest
             }
@@ -483,7 +483,7 @@ tusb_error_t mscd_xfer_cb(uint8_t rhport, uint8_t ep_addr, tusb_event_t event, u
     if ( dcd_edpt_stalled(rhport,  p_msc->ep_in) || dcd_edpt_stalled(rhport,  p_msc->ep_out) )
     {
       // simulate an transfer complete with adjusted parameters --> this driver callback will fired again
-      dcd_xfer_complete(rhport, p_msc->ep_out, 0, true);
+      dcd_event_xfer_complete(rhport, p_msc->ep_out, 0, DCD_XFER_SUCCESS, false);
     }
     else
     {
@@ -545,7 +545,7 @@ static void proc_read10_cmd(uint8_t rhport, mscd_interface_t* p_msc)
   else if ( nbytes == 0 )
   {
     // zero means not ready -> simulate an transfer complete so that this driver callback will fired again
-    dcd_xfer_complete(rhport, p_msc->ep_in, 0, true);
+    dcd_event_xfer_complete(rhport, p_msc->ep_in, 0, DCD_XFER_SUCCESS, false);
   }
   else
   {

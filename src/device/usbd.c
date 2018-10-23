@@ -164,7 +164,7 @@ static osal_queue_t _usbd_q;
 
 /*------------- control transfer semaphore -------------*/
 static osal_semaphore_def_t _usbd_sem_def;
-/*static*/ osal_semaphore_t _usbd_ctrl_sem;
+osal_semaphore_t _usbd_ctrl_sem;
 
 //--------------------------------------------------------------------+
 // INTERNAL FUNCTION
@@ -532,34 +532,6 @@ static void mark_interface_endpoint(uint8_t const* p_desc, uint16_t desc_len, ui
 //--------------------------------------------------------------------+
 // USBD-DCD Callback API
 //--------------------------------------------------------------------+
-void dcd_xfer_complete(uint8_t rhport, uint8_t ep_addr, uint32_t xferred_bytes, bool succeeded)
-{
-  if (ep_addr == 0 )
-  {
-    // Control Transfer
-    (void) rhport;
-    (void) succeeded;
-
-    // only signal data stage, skip status (zero byte)
-    if (xferred_bytes) osal_semaphore_post( _usbd_ctrl_sem, true);
-  }else
-  {
-    dcd_event_t event =
-    {
-        .rhport   = rhport,
-        .event_id = DCD_EVENT_XFER_COMPLETE,
-    };
-
-    event.xfer_complete.ep_addr = ep_addr;
-    event.xfer_complete.len     = xferred_bytes;
-    event.xfer_complete.result  = succeeded ? TUSB_EVENT_XFER_COMPLETE : TUSB_EVENT_XFER_ERROR;
-
-    osal_queue_send(_usbd_q, &event, true);
-  }
-
-  TU_ASSERT(succeeded, );
-}
-
 void dcd_event_handler(dcd_event_t const * event, bool in_isr)
 {
   uint8_t const rhport = event->rhport;
@@ -601,6 +573,22 @@ void dcd_event_handler(dcd_event_t const * event, bool in_isr)
 
     case DCD_EVENT_SETUP_RECEIVED:
       osal_queue_send(_usbd_q, event, in_isr);
+    break;
+
+    case DCD_EVENT_XFER_COMPLETE:
+      if (event->xfer_complete.ep_addr == 0)
+      {
+        // only signal data stage, skip status (zero byte)
+        if (event->xfer_complete.len)
+        {
+          (void) event->xfer_complete.result; // TODO handle control error/stalled
+          osal_semaphore_post( _usbd_ctrl_sem, true);
+        }
+      }else
+      {
+        osal_queue_send(_usbd_q, event, true);
+      }
+      TU_ASSERT(event->xfer_complete.result == DCD_XFER_SUCCESS,);
     break;
 
     default: break;

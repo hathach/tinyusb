@@ -49,6 +49,13 @@
  extern "C" {
 #endif
 
+enum
+{
+  DCD_XFER_SUCCESS = 0,
+  DCD_XFER_FAILED,
+  DCD_XFER_STALLED
+};
+
 typedef enum
 {
   DCD_EVENT_BUS_RESET = 1,
@@ -103,15 +110,22 @@ void dcd_disconnect       (uint8_t rhport) ATTR_WEAK;
 /* Event Function
  * Called by DCD to notify USBD
  *------------------------------------------------------------------*/
-void dcd_xfer_complete    (uint8_t rhport, uint8_t ep_addr, uint32_t xferred_bytes, bool succeeded);
-
-static inline void dcd_control_complete(uint8_t rhport, uint32_t xferred_bytes)
-{
-  // all control complete is successful !!
-  dcd_xfer_complete(rhport, 0, xferred_bytes, true);
-}
-
 void dcd_event_handler(dcd_event_t const * event, bool in_isr);
+
+static inline void dcd_event_xfer_complete(uint8_t rhport, uint8_t ep_addr, uint32_t xferred_bytes, uint8_t result, bool in_isr)
+{
+  dcd_event_t event =
+  {
+   .rhport   = 0,
+   .event_id = DCD_EVENT_XFER_COMPLETE,
+  };
+
+  event.xfer_complete.ep_addr = ep_addr;
+  event.xfer_complete.len     = xferred_bytes;
+  event.xfer_complete.result  = result;
+
+  dcd_event_handler(&event, true);
+}
 
 /*------------------------------------------------------------------*/
 /* Endpoint API
