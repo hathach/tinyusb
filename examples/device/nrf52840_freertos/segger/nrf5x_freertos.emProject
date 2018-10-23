@@ -57,9 +57,9 @@
       <file file_name="../src/tusb_config.h" />
       <file file_name="../src/tusb_descriptors.c" />
       <file file_name="../src/tusb_descriptors.h" />
-      <file file_name="../src/msc_device_app.c" />
-      <file file_name="../src/msc_device_app.h" />
-      <file file_name="../src/msc_device_ramdisk.c" />
+      <file file_name="../src/msc_flash_qspi.c" />
+      <file file_name="../src/msc_app.c" />
+      <file file_name="../src/msc_app.h" />
     </folder>
     <folder Name="hw">
       <folder Name="bsp">
