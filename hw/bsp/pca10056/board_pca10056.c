@@ -77,22 +77,11 @@ uint32_t tusb_hal_millis(void)
 /* BOARD API
  *------------------------------------------------------------------*/
 enum {
-    QSPI_CMD_RSTEN = 0x66,
-    QSPI_CMD_RST = 0x99,
-    QSPI_CMD_WRSR = 0x01,
-    QSPI_CMD_READID = 0x90
+  QSPI_CMD_RSTEN = 0x66,
+  QSPI_CMD_RST = 0x99,
+  QSPI_CMD_WRSR = 0x01,
+  QSPI_CMD_READID = 0x90
 };
-
-extern void qspi_flash_complete (void);
-
-void qflash_hdl (nrfx_qspi_evt_t event, void * p_context)
-{
-  (void) p_context;
-  (void) event;
-
-  qspi_flash_complete();
-}
-
 
 /* tinyusb function that handles power event (detected, ready, removed)
  * We must call it within SD's SOC event handler, or set it as power event handler if SD is not enabled.
@@ -143,7 +132,8 @@ void board_init(void)
     .irq_priority   = 7,
   };
 
-  nrfx_qspi_init(&qspi_cfg, qflash_hdl, NULL);
+  // NULL callback for blocking API
+  nrfx_qspi_init(&qspi_cfg, NULL, NULL);
 
   nrf_qspi_cinstr_conf_t cinstr_cfg = {
     .opcode    = 0,
@@ -180,10 +170,10 @@ void board_init(void)
   uint8_t dev_id = (uint8_t) NRF_QSPI->CINSTRDAT1;
   uint8_t mfgr_id = (uint8_t) ( NRF_QSPI->CINSTRDAT0 >> 24 );
 
-  // Switch to qspi mode
-  uint8_t sr_quad_en = 0x40;
+  // Switch to quad mode
+  uint16_t sr_quad_en = 0x40;
   cinstr_cfg.opcode = QSPI_CMD_WRSR;
-  cinstr_cfg.length = NRF_QSPI_CINSTR_LEN_2B;
+  cinstr_cfg.length = 3;
   cinstr_cfg.wipwait = cinstr_cfg.wren = true;
   nrfx_qspi_cinstr_xfer(&cinstr_cfg, &sr_quad_en, NULL);
 #endif

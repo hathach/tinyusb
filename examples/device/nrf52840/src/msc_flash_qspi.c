@@ -47,19 +47,6 @@ void flash_flush (void);
 //--------------------------------------------------------------------+
 // MACRO TYPEDEF CONSTANT ENUM DECLARATION
 //--------------------------------------------------------------------+
-enum
-{
-  FLASH_STATE_IDLE,
-  FLASH_STATE_BUSY,
-  FLASH_STATE_COMPLETE
-};
-
-volatile uint8_t _fl_state = FLASH_STATE_IDLE;
-
-void qspi_flash_complete (void)
-{
-  _fl_state = FLASH_STATE_COMPLETE;
-}
 
 //------------- IMPLEMENTATION -------------//
 // Callback invoked when received READ10 command.
@@ -68,24 +55,8 @@ int32_t tud_msc_read10_cb(uint8_t lun, uint32_t lba, uint32_t offset, void* buff
 {
   uint32_t addr = lba * CFG_TUD_MSC_BLOCK_SZ + offset;
 
-  switch ( _fl_state )
-  {
-    case FLASH_STATE_IDLE:
-      _fl_state = FLASH_STATE_BUSY;
-      flash_read(buffer, addr, bufsize);
-      return 0;    // data not ready
-
-    case FLASH_STATE_BUSY:
-      return 0;    // data not ready
-
-    case FLASH_STATE_COMPLETE:
-      _fl_state = FLASH_STATE_IDLE;
-      return bufsize;
-
-    default:
-      _fl_state = FLASH_STATE_IDLE;
-      return -1;
-  }
+  flash_read(buffer, addr, bufsize);
+  return bufsize;
 }
 
 // Callback invoked when received WRITE10 command.
@@ -124,16 +95,7 @@ void flash_flush (void)
   if ( _fl_addr == NO_CACHE ) return;
 
   TU_ASSERT(NRFX_SUCCESS == nrfx_qspi_erase(NRF_QSPI_ERASE_LEN_4KB, _fl_addr),);
-  while ( _fl_state != FLASH_STATE_COMPLETE )
-  {
-  }
-  _fl_state = FLASH_STATE_IDLE;
-
   TU_ASSERT(NRFX_SUCCESS == nrfx_qspi_write(_fl_buf, FLASH_PAGE_SIZE, _fl_addr),);
-  while ( _fl_state != FLASH_STATE_COMPLETE )
-  {
-  }
-  _fl_state = FLASH_STATE_IDLE;
 
   _fl_addr = NO_CACHE;
 }
