@@ -188,7 +188,7 @@ bool tud_hid_keyboard_keycode(uint8_t modifier, uint8_t keycode[6])
     memcpy(report.keycode, keycode, 6);
   }else
   {
-    memclr_(report.keycode, 6);
+    tu_memclr(report.keycode, 6);
   }
 
   return hidd_kbd_report(&report);
@@ -307,14 +307,14 @@ void hidd_init(void)
 
 void hidd_reset(uint8_t rhport)
 {
-  arrclr_(_hidd_itf);
+  tu_memclr(_hidd_itf, sizeof(_hidd_itf));
 
   #if CFG_TUD_HID_KEYBOARD
-  varclr_(&_kbd_rpt);
+  tu_varclr(&_kbd_rpt);
   #endif
 
   #if CFG_TUD_HID_MOUSE
-  varclr_(&_mse_rpt);
+  tu_varclr(&_mse_rpt);
   #endif
 }
 

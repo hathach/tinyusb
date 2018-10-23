@@ -101,7 +101,7 @@ void tuh_hid_mouse_isr(uint8_t dev_addr, tusb_event_t event)
 //--------------------------------------------------------------------+
 void mouse_host_app_init(void)
 {
-  memclr_(&usb_mouse_report, sizeof(hid_mouse_report_t));
+  tu_memclr(&usb_mouse_report, sizeof(hid_mouse_report_t));
 
   queue_mouse_hdl = osal_queue_create( QUEUE_MOUSE_REPORT_DEPTH, sizeof(hid_mouse_report_t) );
   TU_ASSERT( queue_mouse_hdl, VOID_RETURN);

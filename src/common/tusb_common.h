@@ -73,8 +73,7 @@
 //--------------------------------------------------------------------+
 // MACROS
 //--------------------------------------------------------------------+
-#define MAX_OF(a, b)  ( (a) > (b) ? (a) : (b) )
-#define MIN_OF(a, b)  ( (a) < (b) ? (a) : (b) )
+#define TU_ARRAY_SZIE(_arr)      ( sizeof(_arr) / sizeof(_arr[0]) )
 
 #define U16_HIGH_U8(u16) ((uint8_t) (((u16) >> 8) & 0x00ff))
 #define U16_LOW_U8(u16)  ((uint8_t) ((u16)       & 0x00ff))
@@ -137,12 +136,10 @@
 //--------------------------------------------------------------------+
 // INLINE FUNCTION
 //--------------------------------------------------------------------+
-#define memclr_(buffer, size)  memset((buffer), 0, (size))
-#define varclr_(_var)          memclr_(_var, sizeof(*(_var)))
-#define arrclr_(_arr)          memclr_(_arr, sizeof(_arr))
-#define arrcount_(_arr)       ( sizeof(_arr) / sizeof(_arr[0]) )
+#define tu_memclr(buffer, size)  memset((buffer), 0, (size))
+#define tu_varclr(_var)          tu_memclr(_var, sizeof(*(_var)))
 
-static inline bool mem_all_zero(void const* buffer, uint32_t size)
+static inline bool tu_mem_test_zero (void const* buffer, uint32_t size)
 {
   uint8_t const* p_mem = (uint8_t const*) buffer;
   for(uint32_t i=0; i<size; i++) if (p_mem[i] != 0)  return false;
@@ -189,11 +186,6 @@ static inline uint32_t tu_min32(uint32_t x, uint32_t y)
 
 //------------- Max -------------//
 static inline uint32_t tu_max32(uint32_t x, uint32_t y)
-{
-  return (x > y) ? x : y;
-}
-
-static inline uint16_t tu_max16(uint16_t x, uint16_t y)
 {
   return (x > y) ? x : y;
 }
@@ -247,24 +239,6 @@ static inline uint8_t tu_log2(uint32_t value)
     result++;
   }
   return result;
-}
-
-// return the number of set bits in value
-static inline uint8_t tu_cardof(uint32_t value)
-{
-  // Brian Kernighan's method goes through as many iterations as there are set bits. So if we have a 32-bit word with only
-  // the high bit set, then it will only go once through the loop
-  // Published in 1988, the C Programming Language 2nd Ed. (by Brian W. Kernighan and Dennis M. Ritchie)
-  // mentions this in exercise 2-9. On April 19, 2006 Don Knuth pointed out to me that this method
-  // "was first published by Peter Wegner in CACM 3 (1960), 322. (Also discovered independently by Derrick Lehmer and
-  // published in 1964 in a book edited by Beckenbach.)"
-  uint8_t count;
-  for (count = 0; value; count++)
-  {
-    value &= value - 1; // clear the least significant bit set
-  }
-
-  return count;
 }
 
 #ifdef __cplusplus

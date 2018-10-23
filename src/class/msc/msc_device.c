@@ -62,9 +62,9 @@ enum
 typedef struct {
   CFG_TUSB_MEM_ALIGN msc_cbw_t  cbw;
 
-#if defined (__ICCARM__) && (CFG_TUSB_MCU == OPT_MCU_LPC11UXX || CFG_TUSB_MCU == OPT_MCU_LPC13UXX)
-  uint8_t padding1[64-sizeof(msc_cbw_t)]; // IAR cannot align struct's member
-#endif
+//#if defined (__ICCARM__) && (CFG_TUSB_MCU == OPT_MCU_LPC11UXX || CFG_TUSB_MCU == OPT_MCU_LPC13UXX)
+//  uint8_t padding1[64-sizeof(msc_cbw_t)]; // IAR cannot align struct's member
+//#endif
 
   CFG_TUSB_MEM_ALIGN msc_csw_t csw;
 
@@ -141,12 +141,12 @@ bool tud_msc_set_sense(uint8_t lun, uint8_t sense_key, uint8_t add_sense_code, u
 //--------------------------------------------------------------------+
 void mscd_init(void)
 {
-  memclr_(&_mscd_itf, sizeof(mscd_interface_t));
+  tu_memclr(&_mscd_itf, sizeof(mscd_interface_t));
 }
 
 void mscd_reset(uint8_t rhport)
 {
-  memclr_(&_mscd_itf, sizeof(mscd_interface_t));
+  tu_memclr(&_mscd_itf, sizeof(mscd_interface_t));
 }
 
 tusb_error_t mscd_open(uint8_t rhport, tusb_desc_interface_t const * p_desc_itf, uint16_t *p_len)
@@ -302,7 +302,6 @@ tusb_error_t mscd_xfer_cb(uint8_t rhport, uint8_t ep_addr, tusb_event_t event, u
   {
     case MSC_STAGE_CMD:
       //------------- new CBW received -------------//
-
       // Complete IN while waiting for CMD is usually Status of previous SCSI op, ignore it
       if(ep_addr != p_msc->ep_out) return TUSB_ERROR_NONE;
 
@@ -332,7 +331,6 @@ tusb_error_t mscd_xfer_cb(uint8_t rhport, uint8_t ep_addr, tusb_event_t event, u
         // 1. Zero : Invoke app callback, skip DATA and move to STATUS stage
         // 2. OUT  : queue transfer (invoke app callback after done)
         // 3. IN   : invoke app callback to get response
-
         if ( p_cbw->xfer_bytes == 0)
         {
           int32_t const cb_result = tud_msc_scsi_cb(p_cbw->lun, p_cbw->command, NULL, 0);

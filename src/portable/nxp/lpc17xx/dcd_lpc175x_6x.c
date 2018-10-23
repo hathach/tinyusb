@@ -119,7 +119,7 @@ static void bus_reset(void)
 	LPC_USB->USBNDDRIntClr   = 0xFFFFFFFF;
 	LPC_USB->USBSysErrIntClr = 0xFFFFFFFF;
 
-	memclr_(&dcd_data, sizeof(dcd_data_t));
+	tu_memclr(&dcd_data, sizeof(dcd_data_t));
 }
 
 bool dcd_init(uint8_t rhport)
@@ -432,7 +432,7 @@ edpt_hdl_t dcd_edpt_open(uint8_t rhport, tusb_desc_endpoint_t const * p_endpoint
 
 	//------------- first DD prepare -------------//
 	dcd_dma_descriptor_t* const p_dd = &dcd_data.dd[ep_id][0];
-	memclr_(p_dd, sizeof(dcd_dma_descriptor_t));
+	tu_memclr(p_dd, sizeof(dcd_dma_descriptor_t));
 
 	p_dd->is_isochronous  = (p_endpoint_desc->bmAttributes.xfer == TUSB_XFER_ISOCHRONOUS) ? 1 : 0;
 	p_dd->max_packet_size = p_endpoint_desc->wMaxPacketSize.size;
@@ -498,7 +498,7 @@ tusb_error_t dcd_edpt_xfer(edpt_hdl_t edpt_hdl, uint8_t* buffer, uint16_t total_
   {
     // setup new dd
     dcd_dma_descriptor_t* const p_dd = &dcd_data.dd[ edpt_hdl.index ][1];
-    memclr_(p_dd, sizeof(dcd_dma_descriptor_t));
+    tu_memclr(p_dd, sizeof(dcd_dma_descriptor_t));
 
     dd_xfer_init(p_dd, buffer, total_bytes);
 

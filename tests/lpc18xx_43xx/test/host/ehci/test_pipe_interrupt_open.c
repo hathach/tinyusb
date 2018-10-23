@@ -67,7 +67,7 @@ static pipe_handle_t pipe_hdl;
 //--------------------------------------------------------------------+
 void setUp(void)
 {
-  memclr_(usbh_devices, sizeof(usbh_device_info_t)*(CFG_TUSB_HOST_DEVICE_MAX+1));
+  tu_memclr(usbh_devices, sizeof(usbh_device_info_t)*(CFG_TUSB_HOST_DEVICE_MAX+1));
 
   hcd_init();
 
@@ -78,7 +78,7 @@ void setUp(void)
 
   period_head_arr = get_period_head( hostid, 1 );
   p_int_qhd = NULL;
-  memclr_(&pipe_hdl, sizeof(pipe_handle_t));
+  tu_memclr(&pipe_hdl, sizeof(pipe_handle_t));
 }
 
 void tearDown(void)

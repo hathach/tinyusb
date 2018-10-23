@@ -201,7 +201,7 @@ bool dcd_init(uint8_t rhport)
 
 static void bus_reset(void)
 {
-  memclr_(&dcd_data, sizeof(dcd_11u_13u_data_t));
+  tu_memclr(&dcd_data, sizeof(dcd_11u_13u_data_t));
   for(uint8_t ep_id = 2; ep_id < DCD_11U_13U_QHD_COUNT; ep_id++)
   { // disable all non-control endpoints on bus reset
     dcd_data.qhd[ep_id][0].disable = dcd_data.qhd[ep_id][1].disable = 1;
@@ -473,7 +473,7 @@ edpt_hdl_t dcd_edpt_open(uint8_t rhport, tusb_desc_endpoint_t const * p_endpoint
 
   TU_ASSERT( dcd_data.qhd[ep_id][0].disable && dcd_data.qhd[ep_id][1].disable, null_handle ); // endpoint must not previously opened, normally this means running out of endpoints
 
-  memclr_(dcd_data.qhd[ep_id], 2*sizeof(dcd_11u_13u_qhd_t));
+  tu_memclr(dcd_data.qhd[ep_id], 2*sizeof(dcd_11u_13u_qhd_t));
   dcd_data.qhd[ep_id][0].is_isochronous = dcd_data.qhd[ep_id][1].is_isochronous = (p_endpoint_desc->bmAttributes.xfer == TUSB_XFER_ISOCHRONOUS);
   dcd_data.class_code[ep_id] = class_code;
 

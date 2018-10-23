@@ -68,7 +68,7 @@ static cusd_interface_t _cusd_itf;
  *------------------------------------------------------------------*/
 void cusd_init(void)
 {
-  varclr_(&_cusd_itf);
+  tu_varclr(&_cusd_itf);
 }
 
 tusb_error_t cusd_open(uint8_t rhport, tusb_desc_interface_t const * p_desc_itf, uint16_t *p_len)

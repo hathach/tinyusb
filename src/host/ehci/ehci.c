@@ -130,7 +130,7 @@ static tusb_error_t hcd_controller_stop(uint8_t hostid) ATTR_WARN_UNUSED_RESULT 
 tusb_error_t hcd_init(void)
 {
   //------------- Data Structure init -------------//
-  memclr_(&ehci_data, sizeof(ehci_data_t));
+  tu_memclr(&ehci_data, sizeof(ehci_data_t));
 
   #if (CFG_TUSB_RHPORT0_MODE & OPT_MODE_HOST)
     TU_ASSERT_ERR (hcd_controller_init(0));
@@ -192,7 +192,7 @@ static tusb_error_t hcd_controller_init(uint8_t hostid)
 
   //------------- Asynchronous List -------------//
   ehci_qhd_t * const async_head = get_async_head(hostid);
-  memclr_(async_head, sizeof(ehci_qhd_t));
+  tu_memclr(async_head, sizeof(ehci_qhd_t));
 
   async_head->next.address                    = (uint32_t) async_head; // circular list, next is itself
   async_head->next.type                       = EHCI_QUEUE_ELEMENT_QHD;
@@ -938,7 +938,7 @@ static void qhd_init(ehci_qhd_t *p_qhd, uint8_t dev_addr, uint16_t max_packet_si
   // address 0 is used as async head, which always on the list --> cannot be cleared (ehci halted otherwise)
   if (dev_addr != 0)
   {
-    memclr_(p_qhd, sizeof(ehci_qhd_t));
+    tu_memclr(p_qhd, sizeof(ehci_qhd_t));
   }
 
   p_qhd->device_address                   = dev_addr;
@@ -1004,7 +1004,7 @@ static void qhd_init(ehci_qhd_t *p_qhd, uint8_t dev_addr, uint16_t max_packet_si
 
 static void qtd_init(ehci_qtd_t* p_qtd, uint32_t data_ptr, uint16_t total_bytes)
 {
-  memclr_(p_qtd, sizeof(ehci_qtd_t));
+  tu_memclr(p_qtd, sizeof(ehci_qtd_t));
 
   p_qtd->used                = 1;
 

@@ -274,7 +274,7 @@ static tusb_error_t usbd_main_st(void)
     tusb_error_t err;
     err = TUSB_ERROR_NONE;
 
-    memclr_(&event, sizeof(usbd_task_event_t));
+    tu_memclr(&event, sizeof(usbd_task_event_t));
 
     osal_queue_receive(_usbd_q, &event, OSAL_TIMEOUT_WAIT_FOREVER, &err);
 
@@ -318,7 +318,7 @@ static tusb_error_t usbd_main_st(void)
 
 static void usbd_reset(uint8_t rhport)
 {
-  varclr_(&_usbd_dev);
+  tu_varclr(&_usbd_dev);
   memset(_usbd_dev.itf2drv, 0xff, sizeof(_usbd_dev.itf2drv)); // invalid mapping
   memset(_usbd_dev.ep2drv , 0xff, sizeof(_usbd_dev.ep2drv )); // invalid mapping
 

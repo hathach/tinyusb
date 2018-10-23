@@ -61,8 +61,8 @@ void tuh_cdc_mounted_cb(uint8_t dev_addr)
 { // application set-up
   printf("\na CDC device  (address %d) is mounted\n", dev_addr);
 
-  memclr_(serial_in_buffer, sizeof(serial_in_buffer));
-  memclr_(serial_out_buffer, sizeof(serial_out_buffer));
+  tu_memclr(serial_in_buffer, sizeof(serial_in_buffer));
+  tu_memclr(serial_out_buffer, sizeof(serial_out_buffer));
   received_bytes = 0;
 
   osal_semaphore_reset(sem_hdl);

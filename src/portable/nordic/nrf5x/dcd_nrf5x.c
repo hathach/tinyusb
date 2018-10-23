@@ -108,7 +108,7 @@ void bus_reset(void)
   NRF_USBD->TASKS_STARTISOIN  = 0;
   NRF_USBD->TASKS_STARTISOOUT = 0;
 
-  varclr_(&_dcd);
+  tu_varclr(&_dcd);
 }
 
 /*------------------------------------------------------------------*/

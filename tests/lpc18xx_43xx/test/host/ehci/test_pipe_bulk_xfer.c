@@ -90,8 +90,8 @@ tusb_desc_endpoint_t const desc_ept_bulk_out =
 void setUp(void)
 {
   ehci_controller_init();
-  memclr_(xfer_data, sizeof(xfer_data));
-  memclr_(usbh_devices, sizeof(usbh_device_info_t)*(CFG_TUSB_HOST_DEVICE_MAX+1));
+  tu_memclr(xfer_data, sizeof(xfer_data));
+  tu_memclr(usbh_devices, sizeof(usbh_device_info_t)*(CFG_TUSB_HOST_DEVICE_MAX+1));
 
   TEST_ASSERT_STATUS( hcd_init() );
 

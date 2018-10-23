@@ -164,7 +164,7 @@ static ohci_ed_t * ed_list_find_previous(ohci_ed_t const * p_head, ohci_ed_t con
 tusb_error_t hcd_init(void)
 {
   //------------- Data Structure init -------------//
-  memclr_(&ohci_data, sizeof(ohci_data_t));
+  tu_memclr(&ohci_data, sizeof(ohci_data_t));
   for(uint8_t i=0; i<32; i++)
   { // assign all interrupt pointes to period head ed
     ohci_data.hcca.interrupt_table[i] = (uint32_t) &ohci_data.period_head_ed;
@@ -245,7 +245,7 @@ static void ed_init(ohci_ed_t *p_ed, uint8_t dev_addr, uint16_t max_packet_size,
   // address 0 is used as async head, which always on the list --> cannot be cleared
   if (dev_addr != 0)
   {
-    memclr_(p_ed, sizeof(ohci_ed_t));
+    tu_memclr(p_ed, sizeof(ohci_ed_t));
   }
 
   p_ed->device_address    = dev_addr;
@@ -261,7 +261,7 @@ static void ed_init(ohci_ed_t *p_ed, uint8_t dev_addr, uint16_t max_packet_size,
 
 static void gtd_init(ohci_gtd_t* p_td, void* data_ptr, uint16_t total_bytes)
 {
-  memclr_(p_td, sizeof(ohci_gtd_t));
+  tu_memclr(p_td, sizeof(ohci_gtd_t));
 
   p_td->used                   = 1;
   p_td->expected_bytes         = total_bytes;

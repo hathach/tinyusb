@@ -61,8 +61,8 @@ extern usbh_device_info_t usbh_devices[CFG_TUSB_HOST_DEVICE_MAX+1];
 //--------------------------------------------------------------------+
 void ehci_controller_init(void)
 {
-  memclr_(&lpc_usb0, sizeof(LPC_USB0_Type));
-  memclr_(&lpc_usb1, sizeof(LPC_USB1_Type));
+  tu_memclr(&lpc_usb0, sizeof(LPC_USB0_Type));
+  tu_memclr(&lpc_usb1, sizeof(LPC_USB1_Type));
 }
 
 void ehci_controller_control_xfer_proceed(uint8_t dev_addr, uint8_t p_data[])

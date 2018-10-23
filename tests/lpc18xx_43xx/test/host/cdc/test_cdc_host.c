@@ -71,7 +71,7 @@ void setUp(void)
   length = 0;
   dev_addr = 1;
 
-  memclr_(cdch_data, sizeof(cdch_data_t)*CFG_TUSB_HOST_DEVICE_MAX);
+  tu_memclr(cdch_data, sizeof(cdch_data_t)*CFG_TUSB_HOST_DEVICE_MAX);
 }
 
 void tearDown(void)

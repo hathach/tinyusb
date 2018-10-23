@@ -104,7 +104,7 @@ tusb_error_t tusbh_custom_write(uint8_t dev_addr, uint16_t vendor_id, uint16_t p
 //--------------------------------------------------------------------+
 void cush_init(void)
 {
-  memclr_(&custom_interface, sizeof(custom_interface_info_t) * CFG_TUSB_HOST_DEVICE_MAX);
+  tu_memclr(&custom_interface, sizeof(custom_interface_info_t) * CFG_TUSB_HOST_DEVICE_MAX);
 }
 
 tusb_error_t cush_open_subtask(uint8_t dev_addr, tusb_desc_interface_t const *p_interface_desc, uint16_t *p_length)
@@ -152,7 +152,7 @@ void cush_close(uint8_t dev_addr)
     err2 = hcd_pipe_close( p_interface->pipe_out );
   }
 
-  memclr_(p_interface, sizeof(custom_interface_info_t));
+  tu_memclr(p_interface, sizeof(custom_interface_info_t));
 
   TU_ASSERT(err1 == TUSB_ERROR_NONE && err2 == TUSB_ERROR_NONE, (void) 0 );
 }

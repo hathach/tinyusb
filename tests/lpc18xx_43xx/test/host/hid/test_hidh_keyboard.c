@@ -73,7 +73,7 @@ tusb_desc_endpoint_t  const *p_kdb_endpoint_desc  = &desc_configuration.keyboard
 void setUp(void)
 {
   hidh_init();
-  memclr_(&report, sizeof(hid_keyboard_report_t));
+  tu_memclr(&report, sizeof(hid_keyboard_report_t));
   dev_addr = RANDOM(CFG_TUSB_HOST_DEVICE_MAX)+1;
 
   p_hidh_kbd = &keyboardh_data[dev_addr-1];

@@ -62,7 +62,7 @@ void setUp(void)
 {
   hidh_init();
 
-  memclr_(&report, sizeof(hid_mouse_report_t));
+  tu_memclr(&report, sizeof(hid_mouse_report_t));
   dev_addr = RANDOM(CFG_TUSB_HOST_DEVICE_MAX)+1;
 
   p_hidh_mouse = &mouseh_data[dev_addr-1];

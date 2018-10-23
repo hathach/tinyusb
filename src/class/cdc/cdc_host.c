@@ -139,7 +139,7 @@ tusb_error_t tuh_cdc_receive(uint8_t dev_addr, void * p_buffer, uint32_t length,
 //--------------------------------------------------------------------+
 void cdch_init(void)
 {
-  memclr_(cdch_data, sizeof(cdch_data_t)*CFG_TUSB_HOST_DEVICE_MAX);
+  tu_memclr(cdch_data, sizeof(cdch_data_t)*CFG_TUSB_HOST_DEVICE_MAX);
 }
 
 tusb_error_t cdch_open_subtask(uint8_t dev_addr, tusb_desc_interface_t const *p_interface_desc, uint16_t *p_length)
@@ -234,7 +234,7 @@ void cdch_close(uint8_t dev_addr)
   (void) hcd_pipe_close(p_cdc->pipe_in);
   (void) hcd_pipe_close(p_cdc->pipe_out);
 
-  memclr_(p_cdc, sizeof(cdch_data_t));
+  tu_memclr(p_cdc, sizeof(cdch_data_t));
 
   tuh_cdc_unmounted_cb(dev_addr);
 

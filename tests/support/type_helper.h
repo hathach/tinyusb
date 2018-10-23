@@ -75,7 +75,7 @@
   ({\
     uint32_t value=0;\
     struct_type str;\
-    memclr_((void*)&str, sizeof(struct_type));\
+    tu_memclr((void*)&str, sizeof(struct_type));\
     str.member.bitfield_member = 1;\
     memcpy(&value, (void*)&str.member, sizeof(str.member));\
     tu_log2( value );\
@@ -84,7 +84,7 @@
 #define BITFIELD_OFFSET_OF_UINT32(struct_type, offset, bitfield_member) \
   ({\
     struct_type str;\
-    memclr_(&str, sizeof(struct_type));\
+    tu_memclr(&str, sizeof(struct_type));\
     str.bitfield_member = 1;\
     tu_log2( ((uint32_t*) &str)[offset] );\
   })

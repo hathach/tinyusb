@@ -142,7 +142,7 @@ uint32_t tuh_device_get_mounted_class_flag(uint8_t dev_addr)
 //--------------------------------------------------------------------+
 tusb_error_t usbh_init(void)
 {
-  memclr_(usbh_devices, sizeof(usbh_device_info_t)*(CFG_TUSB_HOST_DEVICE_MAX+1));
+  tu_memclr(usbh_devices, sizeof(usbh_device_info_t)*(CFG_TUSB_HOST_DEVICE_MAX+1));
 
   TU_ASSERT_ERR( hcd_init() );
 

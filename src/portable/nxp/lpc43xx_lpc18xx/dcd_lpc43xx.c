@@ -133,7 +133,7 @@ static void bus_reset(uint8_t rhport)
   //------------- Queue Head & Queue TD -------------//
   dcd_data_t* p_dcd = dcd_data_ptr[rhport];
 
-  memclr_(p_dcd, sizeof(dcd_data_t));
+  tu_memclr(p_dcd, sizeof(dcd_data_t));
 
   //------------- Set up Control Endpoints (0 OUT, 1 IN) -------------//
 	p_dcd->qhd[0].zero_length_termination = p_dcd->qhd[1].zero_length_termination = 1;
@@ -149,7 +149,7 @@ bool dcd_init(uint8_t rhport)
   LPC_USB0_Type* const lpc_usb = LPC_USB[rhport];
   dcd_data_t* p_dcd = dcd_data_ptr[rhport];
 
-  memclr_(p_dcd, sizeof(dcd_data_t));
+  tu_memclr(p_dcd, sizeof(dcd_data_t));
 
   lpc_usb->ENDPOINTLISTADDR = (uint32_t) p_dcd->qhd; // Endpoint List Address has to be 2K alignment
   lpc_usb->USBSTS_D  = lpc_usb->USBSTS_D;
@@ -196,7 +196,7 @@ static inline uint8_t edpt_phy2log(uint8_t physical_endpoint)
 
 static void qtd_init(dcd_qtd_t* p_qtd, void * data_ptr, uint16_t total_bytes)
 {
-  memclr_(p_qtd, sizeof(dcd_qtd_t));
+  tu_memclr(p_qtd, sizeof(dcd_qtd_t));
 
   p_qtd->used        = 1;
 
@@ -303,7 +303,7 @@ bool dcd_edpt_open(uint8_t rhport, tusb_desc_endpoint_t const * p_endpoint_desc)
   uint8_t ep_idx    = edpt_addr2phy(p_endpoint_desc->bEndpointAddress);
   dcd_qhd_t * p_qhd = &dcd_data_ptr[rhport]->qhd[ep_idx];
 
-  memclr_(p_qhd, sizeof(dcd_qhd_t));
+  tu_memclr(p_qhd, sizeof(dcd_qhd_t));
 
   p_qhd->zero_length_termination = 1;
   p_qhd->max_package_size        = p_endpoint_desc->wMaxPacketSize.size;

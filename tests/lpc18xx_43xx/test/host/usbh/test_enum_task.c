@@ -73,7 +73,7 @@ enum {
 
 void setUp(void)
 {
-  memclr_(usbh_devices, sizeof(usbh_device_info_t)*(CFG_TUSB_HOST_DEVICE_MAX+1));
+  tu_memclr(usbh_devices, sizeof(usbh_device_info_t)*(CFG_TUSB_HOST_DEVICE_MAX+1));
 
   osal_queue_receive_StubWithCallback(queue_recv_stub);
   osal_semaphore_wait_StubWithCallback(semaphore_wait_success_stub);

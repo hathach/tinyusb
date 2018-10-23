@@ -74,8 +74,8 @@ void setUp(void)
 {
   ehci_controller_init();
 
-  memclr_(usbh_devices, sizeof(usbh_device_info_t)*(CFG_TUSB_HOST_DEVICE_MAX+1));
-  memclr_(xfer_data, sizeof(xfer_data));
+  tu_memclr(usbh_devices, sizeof(usbh_device_info_t)*(CFG_TUSB_HOST_DEVICE_MAX+1));
+  tu_memclr(xfer_data, sizeof(xfer_data));
 
   TEST_ASSERT_STATUS( hcd_init() );
 

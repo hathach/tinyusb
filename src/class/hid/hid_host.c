@@ -68,7 +68,7 @@ static inline tusb_error_t hidh_interface_open(uint8_t dev_addr, uint8_t interfa
 static inline void hidh_interface_close(hidh_interface_info_t *p_hid)
 {
   (void) hcd_pipe_close(p_hid->pipe_hdl);
-  memclr_(p_hid, sizeof(hidh_interface_info_t));
+  tu_memclr(p_hid, sizeof(hidh_interface_info_t));
 }
 
 // called from public API need to validate parameters
@@ -164,11 +164,11 @@ tusb_error_t tuh_hid_mouse_get_report(uint8_t dev_addr, void * report)
 void hidh_init(void)
 {
 #if CFG_TUSB_HOST_HID_KEYBOARD
-  memclr_(&keyboardh_data, sizeof(hidh_interface_info_t)*CFG_TUSB_HOST_DEVICE_MAX);
+  tu_memclr(&keyboardh_data, sizeof(hidh_interface_info_t)*CFG_TUSB_HOST_DEVICE_MAX);
 #endif
 
 #if CFG_TUSB_HOST_HID_MOUSE
-  memclr_(&mouseh_data, sizeof(hidh_interface_info_t)*CFG_TUSB_HOST_DEVICE_MAX);
+  tu_memclr(&mouseh_data, sizeof(hidh_interface_info_t)*CFG_TUSB_HOST_DEVICE_MAX);
 #endif
 
 #if CFG_TUSB_HOST_HID_GENERIC

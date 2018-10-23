@@ -152,7 +152,7 @@ tusb_speed_t hub_port_get_speed(void)
 //--------------------------------------------------------------------+
 void hub_init(void)
 {
-  memclr_(hub_data, CFG_TUSB_HOST_DEVICE_MAX*sizeof(usbh_hub_t));
+  tu_memclr(hub_data, CFG_TUSB_HOST_DEVICE_MAX*sizeof(usbh_hub_t));
 //  hub_enum_sem_hdl = osal_semaphore_create( OSAL_SEM_REF(hub_enum_semaphore) );
 }
 
@@ -237,7 +237,7 @@ void hub_isr(pipe_handle_t pipe_hdl, tusb_event_t event, uint32_t xferred_bytes)
 void hub_close(uint8_t dev_addr)
 {
   (void) hcd_pipe_close(hub_data[dev_addr-1].pipe_status);
-  memclr_(&hub_data[dev_addr-1], sizeof(usbh_hub_t));
+  tu_memclr(&hub_data[dev_addr-1], sizeof(usbh_hub_t));
 
 //  osal_semaphore_reset(hub_enum_sem_hdl);
 }

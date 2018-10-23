@@ -145,7 +145,7 @@ static inline bool osal_queue_send(osal_queue_t const queue_hdl, void const * da
     os_memblock_put(&queue_hdl->mpool, ptr);
     return false;
   }
-  memclr_(ev, sizeof(struct os_event));
+  tu_memclr(ev, sizeof(struct os_event));
   ev->ev_arg = ptr;
 
   os_eventq_put(&queue_hdl->evq, ev);

@@ -126,7 +126,7 @@ void mouse_app_subtask(void)
     enum { MOUSE_RESOLUTION  = 5 };
 
     uint32_t button_mask = board_buttons();
-    memclr_(&mouse_report, sizeof(hid_mouse_report_t));
+    tu_memclr(&mouse_report, sizeof(hid_mouse_report_t));
 
     if ( BIT_TEST_(button_mask, BUTTON_UP           ) ) mouse_report.y = -MOUSE_RESOLUTION;
     if ( BIT_TEST_(button_mask, BUTTON_DOWN         ) ) mouse_report.y = MOUSE_RESOLUTION;

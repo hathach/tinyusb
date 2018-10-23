@@ -100,7 +100,7 @@ void tuh_hid_keyboard_isr(uint8_t dev_addr, tusb_event_t event)
 //--------------------------------------------------------------------+
 void keyboard_host_app_init(void)
 {
-  memclr_(&usb_keyboard_report, sizeof(hid_keyboard_report_t));
+  tu_memclr(&usb_keyboard_report, sizeof(hid_keyboard_report_t));
 
   queue_kbd_hdl = osal_queue_create( QUEUE_KEYBOARD_REPORT_DEPTH, sizeof(hid_keyboard_report_t) );
   TU_ASSERT( queue_kbd_hdl, VOID_RETURN );

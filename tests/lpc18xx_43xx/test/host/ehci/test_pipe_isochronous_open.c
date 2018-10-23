@@ -63,7 +63,7 @@ static ehci_qhd_t *period_head_arr;
 //--------------------------------------------------------------------+
 void setUp(void)
 {
-  memclr_(usbh_devices, sizeof(usbh_device_info_t)*(CFG_TUSB_HOST_DEVICE_MAX+1));
+  tu_memclr(usbh_devices, sizeof(usbh_device_info_t)*(CFG_TUSB_HOST_DEVICE_MAX+1));
 
   hcd_init();
 

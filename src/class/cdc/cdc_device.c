@@ -185,7 +185,7 @@ bool tud_cdc_n_write_flush (uint8_t itf)
 //--------------------------------------------------------------------+
 void cdcd_init(void)
 {
-  arrclr_( _cdcd_itf );
+  tu_memclr(_cdcd_itf, sizeof(_cdcd_itf));
 
   for(uint8_t i=0; i<CFG_TUD_CDC; i++)
   {
@@ -209,7 +209,7 @@ void cdcd_reset(uint8_t rhport)
 
   for(uint8_t i=0; i<CFG_TUD_CDC; i++)
   {
-    memclr_(&_cdcd_itf[i], ITF_BUS_RESET_SZ);
+    tu_memclr(&_cdcd_itf[i], ITF_BUS_RESET_SZ);
     tu_fifo_clear(&_cdcd_itf[i].rx_ff);
     tu_fifo_clear(&_cdcd_itf[i].tx_ff);
   }

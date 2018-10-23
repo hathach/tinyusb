@@ -176,12 +176,12 @@ void cli_command_prompt(void)
          (volume_label[0] !=0) ? volume_label : "No Label",
          cli_buffer);
 
-  memclr_(cli_buffer, CLI_MAX_BUFFER);
+  tu_memclr(cli_buffer, CLI_MAX_BUFFER);
 }
 
 void cli_init(void)
 {
-  memclr_(cli_buffer, CLI_MAX_BUFFER);
+  tu_memclr(cli_buffer, CLI_MAX_BUFFER);
   f_getlabel(NULL, volume_label, NULL);
   cli_command_prompt();
 }
@@ -197,7 +197,7 @@ void cli_poll(char ch)
     }else
     {
       puts("cli buffer overflows");
-      memclr_(cli_buffer, CLI_MAX_BUFFER);
+      tu_memclr(cli_buffer, CLI_MAX_BUFFER);
     }
   }
   else if ( ch == ASCII_BACKSPACE && strlen(cli_buffer))

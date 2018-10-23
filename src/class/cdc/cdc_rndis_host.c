@@ -117,7 +117,7 @@ static tusb_error_t rndis_body_subtask(void)
 //--------------------------------------------------------------------+
 void rndish_init(void)
 {
-  memclr_(rndish_data, sizeof(rndish_data_t)*CFG_TUSB_HOST_DEVICE_MAX);
+  tu_memclr(rndish_data, sizeof(rndish_data_t)*CFG_TUSB_HOST_DEVICE_MAX);
 
   //------------- Task creation -------------//
 
@@ -131,7 +131,7 @@ void rndish_init(void)
 void rndish_close(uint8_t dev_addr)
 {
   osal_semaphore_reset( rndish_data[dev_addr-1].sem_notification_hdl );
-//  memclr_(&rndish_data[dev_addr-1], sizeof(rndish_data_t)); TODO need to move semaphore & its handle out before memclr
+//  tu_memclr(&rndish_data[dev_addr-1], sizeof(rndish_data_t)); TODO need to move semaphore & its handle out before memclr
 }
 
 
@@ -189,7 +189,7 @@ tusb_error_t rndish_open_subtask(uint8_t dev_addr, cdch_data_t *p_cdc)
 
   //------------- Message Query 802.3 Permanent Address -------------//
   memcpy(msg_payload, &msg_query_permanent_addr, sizeof(rndis_msg_query_t));
-  memclr_(msg_payload + sizeof(rndis_msg_query_t), 6); // 6 bytes for MAC address
+  tu_memclr(msg_payload + sizeof(rndis_msg_query_t), 6); // 6 bytes for MAC address
 
   STASK_INVOKE(
       send_message_get_response_subtask( dev_addr, p_cdc,
@@ -205,7 +205,7 @@ tusb_error_t rndish_open_subtask(uint8_t dev_addr, cdch_data_t *p_cdc)
 
   //------------- Set OID_GEN_CURRENT_PACKET_FILTER to (DIRECTED | MULTICAST | BROADCAST) -------------//
   memcpy(msg_payload, &msg_set_packet_filter, sizeof(rndis_msg_set_t));
-  memclr_(msg_payload + sizeof(rndis_msg_set_t), 4); // 4 bytes for filter flags
+  tu_memclr(msg_payload + sizeof(rndis_msg_set_t), 4); // 4 bytes for filter flags
   ((rndis_msg_set_t*) msg_payload)->oid_buffer[0] = (RNDIS_PACKET_TYPE_DIRECTED | RNDIS_PACKET_TYPE_MULTICAST | RNDIS_PACKET_TYPE_BROADCAST);
 
   STASK_INVOKE(

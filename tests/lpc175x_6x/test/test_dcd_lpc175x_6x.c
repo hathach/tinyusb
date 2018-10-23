@@ -51,9 +51,9 @@ extern dcd_dma_descriptor_t  dcd_dd[DCD_MAX_DD];
 
 void setUp(void)
 {
-  memclr_(dcd_udca, 32*4);
-  memclr_(dcd_dd, sizeof(dcd_dma_descriptor_t)*DCD_MAX_DD);
-  memclr_(&lpc_usb, sizeof(LPC_USB_TypeDef));
+  tu_memclr(dcd_udca, 32*4);
+  tu_memclr(dcd_dd, sizeof(dcd_dma_descriptor_t)*DCD_MAX_DD);
+  tu_memclr(&lpc_usb, sizeof(LPC_USB_TypeDef));
 }
 
 void tearDown(void)
@@ -129,7 +129,7 @@ void test_dcd_configure_endpoint_in(void)
   };
 
   dcd_init();
-  memclr_(&lpc_usb, sizeof(LPC_USB_TypeDef)); // clear to examine register after CUT
+  tu_memclr(&lpc_usb, sizeof(LPC_USB_TypeDef)); // clear to examine register after CUT
 
   //------------- Code Under Test -------------//
   dcd_pipe_open(0, &desc_endpoint);

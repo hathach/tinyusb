@@ -288,7 +288,7 @@ tusb_error_t tuh_msc_write10(uint8_t dev_addr, uint8_t lun, void const * p_buffe
 //--------------------------------------------------------------------+
 void msch_init(void)
 {
-  memclr_(msch_data, sizeof(msch_interface_t)*CFG_TUSB_HOST_DEVICE_MAX);
+  tu_memclr(msch_data, sizeof(msch_interface_t)*CFG_TUSB_HOST_DEVICE_MAX);
   msch_sem_hdl = osal_semaphore_create(1, 0);
 }
 
@@ -416,7 +416,7 @@ void msch_close(uint8_t dev_addr)
   (void) hcd_pipe_close(msch_data[dev_addr-1].bulk_in);
   (void) hcd_pipe_close(msch_data[dev_addr-1].bulk_out);
 
-  memclr_(&msch_data[dev_addr-1], sizeof(msch_interface_t));
+  tu_memclr(&msch_data[dev_addr-1], sizeof(msch_interface_t));
   osal_semaphore_reset(msch_sem_hdl);
 
   tuh_msc_unmounted_cb(dev_addr); // invoke Application Callback
