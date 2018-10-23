@@ -414,11 +414,15 @@ void USBD_IRQHandler(void)
     }
   }
 
+  dcd_event_t event = { .rhport = 0 };
+
   /*------------- Interrupt Processing -------------*/
   if ( int_status & USBD_INTEN_USBRESET_Msk )
   {
     bus_reset();
-    dcd_bus_event(0, USBD_BUS_EVENT_RESET);
+
+    event.event_id = DCD_EVENT_BUS_RESET;
+    dcd_event_handler(&event, true);
   }
 
   if ( int_status & EDPT_END_ALL_MASK )
@@ -435,7 +439,10 @@ void USBD_IRQHandler(void)
         NRF_USBD->WINDEXL       , NRF_USBD->WINDEXH , NRF_USBD->WLENGTHL, NRF_USBD->WLENGTHH
     };
 
-    dcd_setup_received(0, setup);
+    event.event_id = DCD_EVENT_SETUP_RECEIVED;
+    memcpy(&event.setup_received, setup, 8);
+
+    dcd_event_handler(&event, true);
   }
 
   if ( int_status & USBD_INTEN_EP0DATADONE_Msk )
@@ -556,7 +563,8 @@ void USBD_IRQHandler(void)
   // SOF interrupt
   if ( int_status & USBD_INTEN_SOF_Msk )
   {
-    dcd_bus_event(0, USBD_BUS_EVENT_SOF);
+    event.event_id = DCD_EVENT_SOF;
+    dcd_event_handler(&event, true);
   }
 }
 

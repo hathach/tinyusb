@@ -309,6 +309,8 @@ void hal_dcd_isr(uint8_t rhport)
 
   uint32_t const dev_cmd_stat = LPC_USB->DEVCMDSTAT;
 
+  dcd_event_t event = { .rhport = rhport };
+
   //------------- Device Status -------------//
   if ( int_status & INT_MASK_DEVICE_STATUS )
   {
@@ -316,14 +318,17 @@ void hal_dcd_isr(uint8_t rhport)
     if ( dev_cmd_stat & CMDSTAT_RESET_CHANGE_MASK) // bus reset
     {
       bus_reset();
-      dcd_bus_event(0, USBD_BUS_EVENT_RESET);
+
+      event.event_id = DCD_EVENT_BUS_RESET;
+      dcd_event_handler(&event, true);
     }
 
     if (dev_cmd_stat & CMDSTAT_CONNECT_CHANGE_MASK)
     { // device disconnect
       if (dev_cmd_stat & CMDSTAT_DEVICE_ADDR_MASK)
       { // debouncing as this can be set when device is powering
-        dcd_bus_event(0, USBD_BUS_EVENT_UNPLUGGED);
+        event.event_id = DCD_EVENT_UNPLUGGED;
+        dcd_event_handler(&event, true);
       }
     }
 
@@ -335,13 +340,15 @@ void hal_dcd_isr(uint8_t rhport)
         // Note: Host may delay more than 3 ms before and/or after bus reset before doing enumeration.
         if (dev_cmd_stat & CMDSTAT_DEVICE_ADDR_MASK)
         {
-          dcd_bus_event(0, USBD_BUS_EVENT_SUSPENDED);
+          event.event_id = DCD_EVENT_SUSPENDED;
+          dcd_event_handler(&event, true);
         }
       }
     }
 //        else
 //      { // resume signal
-//        dcd_bus_event(0, USBD_BUS_EVENT_RESUME);
+//        event.event_id = DCD_EVENT_RESUME;
+//        dcd_event_handler(&event, true);
 //      }
 //    }
   }
@@ -350,7 +357,10 @@ void hal_dcd_isr(uint8_t rhport)
   if ( BIT_TEST_(int_status, 0) && (dev_cmd_stat & CMDSTAT_SETUP_RECEIVED_MASK) )
   { // received control request from host
     // copy setup request & acknowledge so that the next setup can be received by hw
-    dcd_setup_received(rhport, (uint8_t*)&dcd_data.setup_request);
+    event.event_id = DCD_EVENT_SETUP_RECEIVED;
+    event.setup_received = dcd_data.setup_request;
+
+    dcd_event_handler(&event, true);
 
     // NXP control flowchart clear Active & Stall on both Control IN/OUT endpoints
     dcd_data.qhd[0][0].stall = dcd_data.qhd[1][0].stall = 0;

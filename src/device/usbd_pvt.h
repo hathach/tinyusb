@@ -81,7 +81,7 @@ tusb_error_t usbd_open_edpt_pair(uint8_t rhport, tusb_desc_endpoint_t const* p_d
 /*------------------------------------------------------------------*/
 /* Other Helpers
  *------------------------------------------------------------------*/
-void usbd_defer_func( osal_task_func_t func, void* param, bool isr );
+void usbd_defer_func( osal_task_func_t func, void* param, bool in_isr );
 
 
 #ifdef __cplusplus

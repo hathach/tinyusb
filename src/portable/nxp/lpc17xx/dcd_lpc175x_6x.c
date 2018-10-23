@@ -182,15 +182,18 @@ static void endpoint_control_isr(void)
   uint32_t const endpoint_int_status = LPC_USB->USBEpIntSt & interrupt_enable;
 //  LPC_USB->USBEpIntClr = endpoint_int_status; // acknowledge interrupt TODO cannot immediately acknowledge setup packet
 
+  dcd_event_t event = { .rhport = 0 };
+
   //------------- Setup Recieved-------------//
   if ( (endpoint_int_status & BIT_(0)) &&
        (sie_read(SIE_CMDCODE_ENDPOINT_SELECT+0, 1) & SIE_SELECT_ENDPOINT_SETUP_RECEIVED_MASK) )
   {
     (void) sie_read(SIE_CMDCODE_ENDPOINT_SELECT_CLEAR_INTERRUPT+0, 1); // clear setup bit
 
-    tusb_control_request_t control_request;
-    pipe_control_read(&control_request, 8); // TODO read before clear setup above
-    dcd_setup_received(0, (uint8_t*) &control_request);
+    event.event_id = DCD_EVENT_SETUP_RECEIVED;
+    pipe_control_read(&event.setup_received, 8); // TODO read before clear setup above
+
+    dcd_event_handler(&event, true);
   }
   else if (endpoint_int_status & 0x03)
   {
@@ -225,6 +228,8 @@ void hal_dcd_isr(uint8_t rhport)
   uint32_t const device_int_status = LPC_USB->USBDevIntSt & device_int_enable;
   LPC_USB->USBDevIntClr = device_int_status;// Acknowledge handled interrupt
 
+  dcd_event_t event = { .rhport = rhport };
+
   //------------- usb bus event -------------//
   if (device_int_status & DEV_INT_DEVICE_STATUS_MASK)
   {
@@ -232,24 +237,30 @@ void hal_dcd_isr(uint8_t rhport)
     if (dev_status_reg & SIE_DEV_STATUS_RESET_MASK)
     {
       bus_reset();
-      dcd_bus_event(0, USBD_BUS_EVENT_RESET);
+
+      event.event_id = DCD_EVENT_BUS_RESET;
+      dcd_event_handler(&event, true);
     }
 
     if (dev_status_reg & SIE_DEV_STATUS_CONNECT_CHANGE_MASK)
     { // device is disconnected, require using VBUS (P1_30)
-      dcd_bus_event(0, USBD_BUS_EVENT_UNPLUGGED);
+      event.event_id = DCD_EVENT_UNPLUGGED;
+      dcd_event_handler(&event, true);
     }
 
     if (dev_status_reg & SIE_DEV_STATUS_SUSPEND_CHANGE_MASK)
     {
       if (dev_status_reg & SIE_DEV_STATUS_SUSPEND_MASK)
       {
-        dcd_bus_event(0, USBD_BUS_EVENT_SUSPENDED);
+        event.event_id = DCD_EVENT_SUSPENDED;
+        dcd_event_handler(&event, true);
       }
-//      else
-//      {
-//        dcd_bus_event(0, USBD_BUS_EVENT_RESUME);
+//        else
+//      { // resume signal
+//        event.event_id = DCD_EVENT_RESUME;
+//        dcd_event_handler(&event, true);
 //      }
+//    }
     }
   }
 

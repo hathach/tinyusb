@@ -418,10 +418,14 @@ void hal_dcd_isr(uint8_t rhport)
 
   if (int_status == 0) return;// disabled interrupt sources
 
+  dcd_event_t event = { .rhport = rhport };
+
   if (int_status & INT_MASK_RESET)
   {
     bus_reset(rhport);
-    dcd_bus_event(rhport, USBD_BUS_EVENT_RESET);
+
+    event.event_id = DCD_EVENT_BUS_RESET;
+    dcd_event_handler(&event, true);
   }
 
   if (int_status & INT_MASK_SUSPEND)
@@ -430,7 +434,8 @@ void hal_dcd_isr(uint8_t rhport)
     { // Note: Host may delay more than 3 ms before and/or after bus reset before doing enumeration.
       if ((lpc_usb->DEVICEADDR >> 25) & 0x0f)
       {
-        dcd_bus_event(0, USBD_BUS_EVENT_SUSPENDED);
+        event.event_id = DCD_EVENT_SUSPENDED;
+        dcd_event_handler(&event, true);
       }
     }
   }
@@ -440,7 +445,8 @@ void hal_dcd_isr(uint8_t rhport)
 //	{
 //	  if ( !(lpc_usb->PORTSC1_D & PORTSC_CURRENT_CONNECT_STATUS_MASK) )
 //	  {
-//	    dcd_bus_event(0, USBD_BUS_EVENT_UNPLUGGED);
+//      event.event_id = DCD_EVENT_UNPLUGGED;
+//      dcd_event_handler(&event, true);
 //	  }
 //	}
 
@@ -457,7 +463,10 @@ void hal_dcd_isr(uint8_t rhport)
       // 23.10.10.2 Operational model for setup transfers
       lpc_usb->ENDPTSETUPSTAT = lpc_usb->ENDPTSETUPSTAT;// acknowledge
 
-      dcd_setup_received(rhport, (uint8_t*) &p_dcd->qhd[0].setup_request);
+      event.event_id = DCD_EVENT_SETUP_RECEIVED;
+      event.setup_received = p_dcd->qhd[0].setup_request;
+
+      dcd_event_handler(&event, true);
     }
 
     //------------- Control Request Completed -------------//
@@ -487,7 +496,8 @@ void hal_dcd_isr(uint8_t rhport)
 
   if (int_status & INT_MASK_SOF)
   {
-    dcd_bus_event(rhport, USBD_BUS_EVENT_SOF);
+    event.event_id = DCD_EVENT_SOF;
+    dcd_event_handler(&event, true);
   }
 
   if (int_status & INT_MASK_NAK) {}
