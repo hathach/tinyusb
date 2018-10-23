@@ -51,15 +51,6 @@
 
 typedef enum
 {
-  USBD_BUS_EVENT_RESET = 1,
-  USBD_BUS_EVENT_UNPLUGGED,
-  USBD_BUS_EVENT_SOF,
-  USBD_BUS_EVENT_SUSPENDED,
-  USBD_BUS_EVENT_RESUME
-}usbd_bus_event_type_t;
-
-typedef enum
-{
   DCD_EVENT_BUS_RESET = 1,
   DCD_EVENT_UNPLUGGED,
   DCD_EVENT_SOF,
@@ -112,8 +103,6 @@ void dcd_disconnect       (uint8_t rhport) ATTR_WEAK;
 /* Event Function
  * Called by DCD to notify USBD
  *------------------------------------------------------------------*/
-void dcd_bus_event        (uint8_t rhport, usbd_bus_event_type_t bus_event);
-void dcd_setup_received   (uint8_t rhport, uint8_t const* p_request);
 void dcd_xfer_complete    (uint8_t rhport, uint8_t ep_addr, uint32_t xferred_bytes, bool succeeded);
 
 static inline void dcd_control_complete(uint8_t rhport, uint32_t xferred_bytes)
