@@ -74,7 +74,7 @@ typedef struct {
 
   // Bulk Only Transfer (BOT) Protocol
   uint8_t  stage;
-  uint32_t data_len;
+  uint32_t total_len;
   uint32_t xferred_len; // numbered of bytes transferred so far in the Data Stage
 
   // Sense Response Data
@@ -251,12 +251,11 @@ int32_t proc_builtin_scsi(msc_cbw_t const * p_cbw, uint8_t* buffer, uint32_t buf
 
     case SCSI_CMD_MODE_SENSE_6:
     {
-      scsi_mode_sense6_resp_t const mode_resp =
-      {
-          .data_len             = 3,
-          .medium_type          = 0,
-          .device_specific_para = 0,
-          .block_descriptor_len = 0  // no block descriptor are included
+      scsi_mode_sense6_resp_t const mode_resp = {
+        .data_len = 3,
+        .medium_type = 0,
+        .device_specific_para = 0,
+        .block_descriptor_len = 0    // no block descriptor are included
       };
 
       ret = sizeof(mode_resp);
@@ -313,8 +312,8 @@ tusb_error_t mscd_xfer_cb(uint8_t rhport, uint8_t ep_addr, tusb_event_t event, u
       p_csw->data_residue = 0;
 
       /*------------- Parse command and prepare DATA -------------*/
-      p_msc->stage       = MSC_STAGE_DATA;
-      p_msc->data_len    = p_cbw->xfer_bytes;
+      p_msc->stage = MSC_STAGE_DATA;
+      p_msc->total_len = p_cbw->total_bytes;
       p_msc->xferred_len = 0;
 
       if (SCSI_CMD_READ_10 == p_cbw->command[0])
@@ -331,12 +330,12 @@ tusb_error_t mscd_xfer_cb(uint8_t rhport, uint8_t ep_addr, tusb_event_t event, u
         // 1. Zero : Invoke app callback, skip DATA and move to STATUS stage
         // 2. OUT  : queue transfer (invoke app callback after done)
         // 3. IN   : invoke app callback to get response
-        if ( p_cbw->xfer_bytes == 0)
+        if ( p_cbw->total_bytes == 0)
         {
           int32_t const cb_result = tud_msc_scsi_cb(p_cbw->lun, p_cbw->command, NULL, 0);
 
-          p_msc->data_len = 0;
-          p_msc->stage    = MSC_STAGE_STATUS;
+          p_msc->total_len = 0;
+          p_msc->stage = MSC_STAGE_STATUS;
 
           if ( cb_result < 0 )
           {
@@ -351,7 +350,7 @@ tusb_error_t mscd_xfer_cb(uint8_t rhport, uint8_t ep_addr, tusb_event_t event, u
         else if ( !BIT_TEST_(p_cbw->dir, 7) )
         {
           // OUT transfer
-          TU_ASSERT( dcd_edpt_xfer(rhport, p_msc->ep_out, _mscd_buf, p_msc->data_len), TUSB_ERROR_DCD_EDPT_XFER );
+          TU_ASSERT( dcd_edpt_xfer(rhport, p_msc->ep_out, _mscd_buf, p_msc->total_len), TUSB_ERROR_DCD_EDPT_XFER );
         }
         else
         {
@@ -364,21 +363,21 @@ tusb_error_t mscd_xfer_cb(uint8_t rhport, uint8_t ep_addr, tusb_event_t event, u
           // Not an built-in command, invoke user callback
           if ( cb_result < 0 )
           {
-            cb_result = tud_msc_scsi_cb(p_cbw->lun, p_cbw->command, _mscd_buf, p_msc->data_len);
+            cb_result = tud_msc_scsi_cb(p_cbw->lun, p_cbw->command, _mscd_buf, p_msc->total_len);
           }
 
           if ( cb_result > 0 )
           {
-            p_msc->data_len = (uint32_t) cb_result;
-            p_csw->status   = MSC_CSW_STATUS_PASSED;
+            p_msc->total_len = (uint32_t) cb_result;
+            p_csw->status = MSC_CSW_STATUS_PASSED;
 
-            TU_ASSERT( p_cbw->xfer_bytes >= p_msc->data_len, TUSB_ERROR_INVALID_PARA ); // cannot return more than host expect
-            TU_ASSERT( dcd_edpt_xfer(rhport, p_msc->ep_in, _mscd_buf, p_msc->data_len), TUSB_ERROR_DCD_EDPT_XFER );
+            TU_ASSERT( p_cbw->total_bytes >= p_msc->total_len, TUSB_ERROR_INVALID_PARA ); // cannot return more than host expect
+            TU_ASSERT( dcd_edpt_xfer(rhport, p_msc->ep_in, _mscd_buf, p_msc->total_len), TUSB_ERROR_DCD_EDPT_XFER );
           }else
           {
-            p_msc->data_len = 0;
-            p_csw->status   = MSC_CSW_STATUS_FAILED;
-            p_msc->stage    = MSC_STAGE_STATUS;
+            p_msc->total_len = 0;
+            p_csw->status = MSC_CSW_STATUS_FAILED;
+            p_msc->stage = MSC_STAGE_STATUS;
 
             tud_msc_set_sense(p_cbw->lun, SCSI_SENSE_ILLEGAL_REQUEST, 0x20, 0x00); // Sense = Invalid Command Operation
             dcd_edpt_stall(rhport, p_msc->ep_in);
@@ -393,7 +392,7 @@ tusb_error_t mscd_xfer_cb(uint8_t rhport, uint8_t ep_addr, tusb_event_t event, u
       {
         if ( SCSI_CMD_WRITE_10 != p_cbw->command[0] )
         {
-          int32_t cb_result = tud_msc_scsi_cb(p_cbw->lun, p_cbw->command, _mscd_buf, p_msc->data_len);
+          int32_t cb_result = tud_msc_scsi_cb(p_cbw->lun, p_cbw->command, _mscd_buf, p_msc->total_len);
 
           if ( cb_result < 0 )
           {
@@ -406,7 +405,7 @@ tusb_error_t mscd_xfer_cb(uint8_t rhport, uint8_t ep_addr, tusb_event_t event, u
         }
         else
         {
-          uint16_t const block_sz = p_cbw->xfer_bytes / rdwr10_get_blockcount(p_cbw->command);
+          uint16_t const block_sz = p_cbw->total_bytes / rdwr10_get_blockcount(p_cbw->command);
 
           // Adjust lba with transferred bytes
           uint32_t const lba = rdwr10_get_lba(p_cbw->command) + (p_msc->xferred_len / block_sz);
@@ -417,7 +416,7 @@ tusb_error_t mscd_xfer_cb(uint8_t rhport, uint8_t ep_addr, tusb_event_t event, u
           if ( nbytes < 0 )
           {
             // negative means error -> skip to status phase, status in CSW set to failed
-            p_csw->data_residue = p_cbw->xfer_bytes - p_msc->xferred_len;
+            p_csw->data_residue = p_cbw->total_bytes - p_msc->xferred_len;
             p_csw->status       = MSC_CSW_STATUS_FAILED;
             p_msc->stage        = MSC_STAGE_STATUS;
 
@@ -450,7 +449,7 @@ tusb_error_t mscd_xfer_cb(uint8_t rhport, uint8_t ep_addr, tusb_event_t event, u
       // Accumulate data so far
       p_msc->xferred_len += xferred_bytes;
 
-      if ( p_msc->xferred_len >= p_msc->data_len )
+      if ( p_msc->xferred_len >= p_msc->total_len )
       {
         // Data Stage is complete
         p_msc->stage = MSC_STAGE_STATUS;
@@ -523,13 +522,13 @@ static void proc_read10_cmd(uint8_t rhport, mscd_interface_t* p_msc)
   msc_cbw_t const * p_cbw = &p_msc->cbw;
   msc_csw_t       * p_csw = &p_msc->csw;
 
-  uint16_t const block_sz = p_cbw->xfer_bytes / rdwr10_get_blockcount(p_cbw->command);
+  uint16_t const block_sz = p_cbw->total_bytes / rdwr10_get_blockcount(p_cbw->command);
 
   // Adjust lba with transferred bytes
   uint32_t const lba = rdwr10_get_lba(p_cbw->command) + (p_msc->xferred_len / block_sz);
 
   // remaining bytes capped at class buffer
-  int32_t nbytes = (int32_t) tu_min32(sizeof(_mscd_buf), p_cbw->xfer_bytes-p_msc->xferred_len);
+  int32_t nbytes = (int32_t) tu_min32(sizeof(_mscd_buf), p_cbw->total_bytes-p_msc->xferred_len);
 
   // Application can consume smaller bytes
   nbytes = tud_msc_read10_cb(p_cbw->lun, lba, p_msc->xferred_len % block_sz, _mscd_buf, (uint32_t) nbytes);
@@ -537,7 +536,7 @@ static void proc_read10_cmd(uint8_t rhport, mscd_interface_t* p_msc)
   if ( nbytes < 0 )
   {
     // negative means error -> pipe is stalled & status in CSW set to failed
-    p_csw->data_residue = p_cbw->xfer_bytes - p_msc->xferred_len;
+    p_csw->data_residue = p_cbw->total_bytes - p_msc->xferred_len;
     p_csw->status       = MSC_CSW_STATUS_FAILED;
 
     tud_msc_set_sense(p_cbw->lun, SCSI_SENSE_ILLEGAL_REQUEST, 0x20, 0x00); // Sense = Invalid Command Operation
@@ -559,7 +558,7 @@ static void proc_write10_cmd(uint8_t rhport, mscd_interface_t* p_msc)
   msc_cbw_t const * p_cbw = &p_msc->cbw;
 
   // remaining bytes capped at class buffer
-  int32_t nbytes = (int32_t) tu_min32(sizeof(_mscd_buf), p_cbw->xfer_bytes-p_msc->xferred_len);
+  int32_t nbytes = (int32_t) tu_min32(sizeof(_mscd_buf), p_cbw->total_bytes-p_msc->xferred_len);
 
   // Write10 callback will be called later when usb transfer complete
   TU_ASSERT( dcd_edpt_xfer(rhport, p_msc->ep_out, _mscd_buf, nbytes), );

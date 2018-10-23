@@ -100,13 +100,13 @@ typedef enum
 /// Command Block Wrapper
 typedef struct ATTR_PACKED
 {
-  uint32_t signature   ; ///< Signature that helps identify this data packet as a CBW. The signature field shall contain the value 43425355h (little endian), indicating a CBW.
-  uint32_t tag         ; ///< Tag sent by the host. The device shall echo the contents of this field back to the host in the dCSWTagfield of the associated CSW. The dCSWTagpositively associates a CSW with the corresponding CBW.
-  uint32_t xfer_bytes  ; ///< The number of bytes of data that the host expects to transfer on the Bulk-In or Bulk-Out endpoint (as indicated by the Direction bit) during the execution of this command. If this field is zero, the device and the host shall transfer no data between the CBW and the associated CSW, and the device shall ignore the value of the Direction bit in bmCBWFlags.
-  uint8_t  dir         ; ///< Bit 7 of this field define transfer direction \n - 0 : Data-Out from host to the device. \n - 1 : Data-In from the device to the host.
-  uint8_t  lun         ; ///< The device Logical Unit Number (LUN) to which the command block is being sent. For devices that support multiple LUNs, the host shall place into this field the LUN to which this command block is addressed. Otherwise, the host shall set this field to zero.
-  uint8_t  cmd_len     ; ///< The valid length of the CBWCBin bytes. This defines the valid length of the command block. The only legal values are 1 through 16
-  uint8_t  command[16] ; ///< The command block to be executed by the device. The device shall interpret the first cmd_len bytes in this field as a command block
+  uint32_t signature;   ///< Signature that helps identify this data packet as a CBW. The signature field shall contain the value 43425355h (little endian), indicating a CBW.
+  uint32_t tag;         ///< Tag sent by the host. The device shall echo the contents of this field back to the host in the dCSWTagfield of the associated CSW. The dCSWTagpositively associates a CSW with the corresponding CBW.
+  uint32_t total_bytes; ///< The number of bytes of data that the host expects to transfer on the Bulk-In or Bulk-Out endpoint (as indicated by the Direction bit) during the execution of this command. If this field is zero, the device and the host shall transfer no data between the CBW and the associated CSW, and the device shall ignore the value of the Direction bit in bmCBWFlags.
+  uint8_t dir;          ///< Bit 7 of this field define transfer direction \n - 0 : Data-Out from host to the device. \n - 1 : Data-In from the device to the host.
+  uint8_t lun;          ///< The device Logical Unit Number (LUN) to which the command block is being sent. For devices that support multiple LUNs, the host shall place into this field the LUN to which this command block is addressed. Otherwise, the host shall set this field to zero.
+  uint8_t cmd_len;      ///< The valid length of the CBWCBin bytes. This defines the valid length of the command block. The only legal values are 1 through 16
+  uint8_t command[16];  ///< The command block to be executed by the device. The device shall interpret the first cmd_len bytes in this field as a command block
 }msc_cbw_t;
 
 TU_VERIFY_STATIC(sizeof(msc_cbw_t) == 31, "size is not correct");
