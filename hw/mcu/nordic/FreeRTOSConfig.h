@@ -112,7 +112,10 @@
   do {\
     if ( !(_exp) ) { \
       volatile uint32_t* ARM_CM_DHCSR =  ((volatile uint32_t*) 0xE000EDF0UL); /* Cortex M CoreDebug->DHCSR */ \
-      if ( (*ARM_CM_DHCSR) & 1UL ) __asm("BKPT #0\n"); /* Only halt mcu if debugger is attached */\
+      if ( (*ARM_CM_DHCSR) & 1UL ) {  /* Only halt mcu if debugger is attached */ \
+        taskDISABLE_INTERRUPTS(); \
+         __asm("BKPT #0\n"); \
+      }\
     }\
   } while(0)
 #else
@@ -136,7 +139,7 @@
 
 /* The lowest interrupt priority that can be used in a call to a "set priority"
 function. */
-#define configLIBRARY_LOWEST_INTERRUPT_PRIORITY			  0x0f
+#define configLIBRARY_LOWEST_INTERRUPT_PRIORITY			  ((1<<configPRIO_BITS) - 1)
 
 /* The highest interrupt priority that can be used by any interrupt service
 routine that makes calls to interrupt safe FreeRTOS API functions.  DO NOT CALL
@@ -155,10 +158,10 @@ PRIORITY THAN THIS! (higher priorities are lower numeric values. */
 
 /* Interrupt priorities used by the kernel port layer itself.  These are generic
 to all Cortex-M ports, and do not rely on any particular library functions. */
-#define configKERNEL_INTERRUPT_PRIORITY 		          configLIBRARY_LOWEST_INTERRUPT_PRIORITY
+#define configKERNEL_INTERRUPT_PRIORITY 		          ( configLIBRARY_LOWEST_INTERRUPT_PRIORITY << (8 - configPRIO_BITS) )
 
 /* !!!! configMAX_SYSCALL_INTERRUPT_PRIORITY must not be set to zero !!!!
 See http://www.FreeRTOS.org/RTOS-Cortex-M3-M4.html. */
-#define configMAX_SYSCALL_INTERRUPT_PRIORITY 	        configLIBRARY_MAX_SYSCALL_INTERRUPT_PRIORITY
+#define configMAX_SYSCALL_INTERRUPT_PRIORITY 	        ( configLIBRARY_MAX_SYSCALL_INTERRUPT_PRIORITY << (8 - configPRIO_BITS) )
 
 #endif /* __FREERTOS_CONFIG__H */

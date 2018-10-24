@@ -553,7 +553,7 @@ void dcd_event_handler(dcd_event_t const * event, bool in_isr)
           .rhport          = rhport,
           .event_id        = DCD_EVENT_SOF,
       };
-      osal_queue_send(_usbd_q, &task_event, true);
+      osal_queue_send(_usbd_q, &task_event, in_isr);
       #endif
     }
     break;
@@ -582,11 +582,11 @@ void dcd_event_handler(dcd_event_t const * event, bool in_isr)
         if (event->xfer_complete.len)
         {
           (void) event->xfer_complete.result; // TODO handle control error/stalled
-          osal_semaphore_post( _usbd_ctrl_sem, true);
+          osal_semaphore_post( _usbd_ctrl_sem, in_isr);
         }
       }else
       {
-        osal_queue_send(_usbd_q, event, true);
+        osal_queue_send(_usbd_q, event, in_isr);
       }
       TU_ASSERT(event->xfer_complete.result == DCD_XFER_SUCCESS,);
     break;
