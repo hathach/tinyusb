@@ -81,7 +81,7 @@
 // #define CFG_TUD_DESC_PID          0x0001
 
 //------------- CLASS -------------//
-#define CFG_TUD_CDC                 0
+#define CFG_TUD_CDC                 1
 #define CFG_TUD_MSC                 1
 
 #define CFG_TUD_HID                 0
