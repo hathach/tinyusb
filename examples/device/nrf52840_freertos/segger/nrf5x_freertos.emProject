@@ -20,7 +20,7 @@
       arm_target_interface_type="SWD"
       build_treat_warnings_as_errors="Yes"
       c_preprocessor_definitions="NRF52840_XXAA;__nRF_FAMILY;ARM_MATH_CM4;FLASH_PLACEMENT=1;BOARD_PCA10056"
-      c_user_include_directories="../src;$(tusbDir)/hw/cmsis/Include;$(tusbDir)/hw;$(tusbDir)/src;$(nrfxDir)/..;$(nrfxDir);$(nrfxDir)/mdk;$(nrfxDir)/hal;$(nrfxDir)/drivers/include;$(freertosDir);$(freertosDir)/Source/include;$(freertosDir)/Source/portable/GCC/ARM_CM4F"
+      c_user_include_directories="../src;$(tusbDir)/hw/cmsis/Include;$(tusbDir)/hw;$(tusbDir)/src;$(nrfxDir)/..;$(nrfxDir);$(nrfxDir)/mdk;$(nrfxDir)/hal;$(nrfxDir)/drivers/include;$(freertosDir)/Source/include;$(freertosDir)/Source/portable/GCC/ARM_CM4F"
       debug_register_definition_file="$(ProjectDir)/nrf52840_Registers.xml"
       debug_target_connection="J-Link"
       gcc_entry_point="Reset_Handler"
@@ -102,7 +102,10 @@
         </folder>
       </folder>
     </folder>
-    <configuration Name="Debug" build_treat_warnings_as_errors="Yes" />
+    <configuration
+      Name="Debug"
+      build_treat_warnings_as_errors="Yes"
+      debug_threads_script="$(freertosDir)/FreeRTOS_ThreadScripts_ES/threads_CM4F.js" />
     <folder Name="lib">
       <folder Name="FreeRTOS">
         <folder Name="Source">
