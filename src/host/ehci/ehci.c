@@ -646,7 +646,7 @@ static void qhd_xfer_error_isr(ehci_qhd_t * p_qhd)
     p_qhd->total_xferred_bytes += p_qhd->p_qtd_list_head->expected_bytes - p_qhd->p_qtd_list_head->total_bytes;
 
 
-//    if ( TUSB_EVENT_XFER_ERROR == error_event )    verify_breakpoint(); // TODO skip unplugged device
+//    if ( TUSB_EVENT_XFER_ERROR == error_event )    TU_BREAKPOINT(); // TODO skip unplugged device
 
     p_qhd->p_qtd_list_head->used = 0; // free QTD
     qtd_remove_1st_from_qhd(p_qhd);

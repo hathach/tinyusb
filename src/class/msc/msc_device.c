@@ -468,7 +468,7 @@ tusb_error_t mscd_xfer_cb(uint8_t rhport, uint8_t ep_addr, tusb_event_t event, u
         }else
         {
           // No other command take more than one transfer yet -> unlikely error
-          verify_breakpoint();
+          TU_BREAKPOINT();
         }
       }
     break;

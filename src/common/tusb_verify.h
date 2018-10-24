@@ -74,14 +74,14 @@
 // Halt CPU (breakpoint) when hitting error, only apply for Cortex M3, M4, M7
 #if defined(__ARM_ARCH_7M__) || defined (__ARM_ARCH_7EM__)
 
-#define verify_breakpoint() \
+#define TU_BREAKPOINT() \
   do {\
     volatile uint32_t* ARM_CM_DHCSR =  ((volatile uint32_t*) 0xE000EDF0UL); /* Cortex M CoreDebug->DHCSR */ \
     if ( (*ARM_CM_DHCSR) & 1UL ) __asm("BKPT #0\n"); /* Only halt mcu if debugger is attached */\
   } while(0)
 
 #else
-#define verify_breakpoint()
+#define TU_BREAKPOINT()
 #endif
 
 /*------------------------------------------------------------------*/
@@ -157,21 +157,21 @@
 
 /*------------------------------------------------------------------*/
 /* ASSERT
- * basically TU_VERIFY with verify_breakpoint() as handler
+ * basically TU_VERIFY with TU_BREAKPOINT() as handler
  * - 1 arg : return false if failed
  * - 2 arg : return error if failed
  *------------------------------------------------------------------*/
-#define ASSERT_1ARGS(_cond)            TU_VERIFY_DEFINE(_cond, _MESS_FAILED(); verify_breakpoint(), false)
-#define ASSERT_2ARGS(_cond, _ret)      TU_VERIFY_DEFINE(_cond, _MESS_FAILED(); verify_breakpoint(), _ret)
+#define ASSERT_1ARGS(_cond)            TU_VERIFY_DEFINE(_cond, _MESS_FAILED(); TU_BREAKPOINT(), false)
+#define ASSERT_2ARGS(_cond, _ret)      TU_VERIFY_DEFINE(_cond, _MESS_FAILED(); TU_BREAKPOINT(), _ret)
 
 #define TU_ASSERT(...)             GET_3RD_ARG(__VA_ARGS__, ASSERT_2ARGS, ASSERT_1ARGS)(__VA_ARGS__)
 
 /*------------------------------------------------------------------*/
 /* ASSERT Error
- * basically TU_VERIFY Error with verify_breakpoint() as handler
+ * basically TU_VERIFY Error with TU_BREAKPOINT() as handler
  *------------------------------------------------------------------*/
-#define ASERT_ERR_1ARGS(_error)         TU_VERIFY_ERR_DEF2(_error, verify_breakpoint())
-#define ASERT_ERR_2ARGS(_error, _ret)   TU_VERIFY_ERR_DEF3(_error, verify_breakpoint(), _ret)
+#define ASERT_ERR_1ARGS(_error)         TU_VERIFY_ERR_DEF2(_error, TU_BREAKPOINT())
+#define ASERT_ERR_2ARGS(_error, _ret)   TU_VERIFY_ERR_DEF3(_error, TU_BREAKPOINT(), _ret)
 
 #define TU_ASSERT_ERR(...)         GET_3RD_ARG(__VA_ARGS__, ASERT_ERR_2ARGS, ASERT_ERR_1ARGS)(__VA_ARGS__)
 

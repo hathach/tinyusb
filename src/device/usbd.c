@@ -274,7 +274,7 @@ static tusb_error_t usbd_main_st(void)
     }
     else
     {
-      verify_breakpoint();
+      TU_BREAKPOINT();
     }
   }
 
