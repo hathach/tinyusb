@@ -61,9 +61,6 @@
 //--------------------------------------------------------------------+
 void print_greeting(void);
 void led_blinky_cb(TimerHandle_t xTimer);
-void cdc_task(void* params);
-void usb_hid_task(void* params);
-
 
 /*------------- MAIN -------------*/
 int main(void)
@@ -78,10 +75,16 @@ int main(void)
   tusb_init();
 
   // Create task
+#if CFG_TUD_CDC
+  extern void cdc_task(void* params);
   xTaskCreate( cdc_task, "cdc", 256, NULL, 2, NULL);
+#endif
+
+#if CFG_TUD_HID
+  extern void usb_hid_task(void* params);
+#endif
 
   vTaskStartScheduler();
-
   NVIC_SystemReset();
 
   return 0;
@@ -90,6 +93,7 @@ int main(void)
 //--------------------------------------------------------------------+
 // USB CDC
 //--------------------------------------------------------------------+
+#if CFG_TUD_CDC
 void cdc_task(void* params)
 {
   (void) params;
@@ -111,10 +115,12 @@ void cdc_task(void* params)
     taskYIELD();
   }
 }
+#endif
 
 //--------------------------------------------------------------------+
 // USB HID
 //--------------------------------------------------------------------+
+#if CFG_TUD_HID
 void usb_hid_task(void* params)
 {
   (void) params;
@@ -170,6 +176,7 @@ void tud_hid_generic_set_report_cb(uint8_t report_id, hid_report_type_t report_t
 {
   // TODO not Implemented
 }
+#endif
 
 //--------------------------------------------------------------------+
 // tinyusb callbacks
