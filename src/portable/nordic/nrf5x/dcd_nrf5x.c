@@ -418,9 +418,7 @@ void USBD_IRQHandler(void)
   if ( int_status & USBD_INTEN_USBRESET_Msk )
   {
     bus_reset();
-
-    dcd_event_t event = { .rhport = 0, .event_id = DCD_EVENT_BUS_RESET };
-    dcd_event_handler(&event, true);
+    dcd_event_bus_signal(0, DCD_EVENT_BUS_RESET, true);
   }
 
   if ( int_status & EDPT_END_ALL_MASK )
@@ -436,11 +434,7 @@ void USBD_IRQHandler(void)
         NRF_USBD->BMREQUESTTYPE , NRF_USBD->BREQUEST, NRF_USBD->WVALUEL , NRF_USBD->WVALUEH,
         NRF_USBD->WINDEXL       , NRF_USBD->WINDEXH , NRF_USBD->WLENGTHL, NRF_USBD->WLENGTHH
     };
-
-    dcd_event_t event = { .rhport = 0, .event_id = DCD_EVENT_SETUP_RECEIVED };
-    memcpy(&event.setup_received, setup, 8);
-
-    dcd_event_handler(&event, true);
+    dcd_event_setup_recieved(0, setup, true);
   }
 
   if ( int_status & USBD_INTEN_EP0DATADONE_Msk )
@@ -561,8 +555,7 @@ void USBD_IRQHandler(void)
   // SOF interrupt
   if ( int_status & USBD_INTEN_SOF_Msk )
   {
-    dcd_event_t event = { .rhport = 0, .event_id = DCD_EVENT_SOF };
-    dcd_event_handler(&event, true);
+    dcd_event_bus_signal(0, DCD_EVENT_SOF, true);
   }
 }
 
