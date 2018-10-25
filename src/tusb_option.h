@@ -147,6 +147,8 @@
 
   #ifndef CFG_TUD_ENUM_BUFFER_SIZE
     #define CFG_TUD_CTRL_BUFSIZE 256
+  #else
+    #define CFG_TUD_CTRL_BUFSIZE CFG_TUD_ENUM_BUFFER_SIZE
   #endif
 
   #ifndef CFG_TUD_DESC_AUTO

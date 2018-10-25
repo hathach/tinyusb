@@ -183,4 +183,3 @@ static inline void osal_queue_reset(osal_queue_t const queue_hdl)
 
 /** @} */
 /** @} */
-

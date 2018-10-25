@@ -289,8 +289,6 @@ tusb_error_t cdcd_open(uint8_t rhport, tusb_desc_interface_t const * p_interface
 
 tusb_error_t cdcd_control_request_st(uint8_t rhport, tusb_control_request_t const * p_request)
 {
-  OSAL_SUBTASK_BEGIN
-
   //------------- Class Specific Request -------------//
   if (p_request->bmRequestType_bit.type != TUSB_REQ_TYPE_CLASS) return TUSB_ERROR_DCD_CONTROL_REQUEST_NOT_SUPPORT;
 
@@ -301,7 +299,7 @@ tusb_error_t cdcd_control_request_st(uint8_t rhport, tusb_control_request_t cons
   if ( (CDC_REQUEST_GET_LINE_CODING == p_request->bRequest) || (CDC_REQUEST_SET_LINE_CODING == p_request->bRequest) )
   {
     uint16_t len = tu_min16(sizeof(cdc_line_coding_t), p_request->wLength);
-    usbd_control_xfer_st(rhport, p_request->bmRequestType_bit.direction, &p_cdc->line_coding, len);
+    usbd_control_xfer_st(rhport, p_request->bmRequestType_bit.direction, (uint8_t*) &p_cdc->line_coding, len);
 
     // Invoke callback
     if (CDC_REQUEST_SET_LINE_CODING == p_request->bRequest)
@@ -327,8 +325,7 @@ tusb_error_t cdcd_control_request_st(uint8_t rhport, tusb_control_request_t cons
   {
     dcd_control_stall(rhport); // stall unsupported request
   }
-
-  OSAL_SUBTASK_END
+  return TUSB_ERROR_NONE;
 }
 
 tusb_error_t cdcd_xfer_cb(uint8_t rhport, uint8_t ep_addr, tusb_event_t event, uint32_t xferred_bytes)

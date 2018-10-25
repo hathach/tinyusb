@@ -1,6 +1,6 @@
 /**************************************************************************/
 /*!
-    @file     usbd_pvt.h
+    @file     hal_nrf5x.c
     @author   hathach
 
     @section LICENSE
@@ -35,45 +35,54 @@
     This file is part of the tinyusb stack.
 */
 /**************************************************************************/
-#ifndef USBD_PVT_H_
-#define USBD_PVT_H_
 
-#include "osal/osal.h"
-#include "common/tusb_fifo.h"
+#include "tusb_option.h"
 
-#ifdef __cplusplus
- extern "C" {
-#endif
+#if TUSB_OPT_DEVICE_ENABLED && CFG_TUSB_MCU == OPT_MCU_SAMD51
 
-// for used by usbd_control_xfer_st() only, must not be used directly
-extern osal_semaphore_t _usbd_ctrl_sem;
-extern uint8_t _usbd_ctrl_buf[CFG_TUD_CTRL_BUFSIZE];
+#include "sam.h"
 
-// Either point to tud_desc_set or usbd_auto_desc_set depending on CFG_TUD_DESC_AUTO
-extern tud_desc_set_t const* usbd_desc_set;
-
-//--------------------------------------------------------------------+
-// INTERNAL API for stack management
-//--------------------------------------------------------------------+
-tusb_error_t usbd_init (void);
-void         usbd_task (void* param);
+#include "tusb_hal.h"
 
 /*------------------------------------------------------------------*/
-/* Endpoint helper
+/* MACRO TYPEDEF CONSTANT ENUM
  *------------------------------------------------------------------*/
-// helper to parse an pair of In and Out endpoint descriptors. They must be consecutive
-tusb_error_t usbd_open_edpt_pair(uint8_t rhport, tusb_desc_endpoint_t const* p_desc_ep, uint8_t xfer_type, uint8_t* ep_out, uint8_t* ep_in);
+#define USB_NVIC_PRIO   7
 
-uint32_t usbd_control_xfer_st(uint8_t _rhport, uint8_t _dir, uint8_t* _buffer, uint16_t _len);
+void tusb_hal_nrf_power_event(uint32_t event);
 
 /*------------------------------------------------------------------*/
-/* Other Helpers
+/* TUSB HAL
  *------------------------------------------------------------------*/
-void usbd_defer_func( osal_task_func_t func, void* param, bool in_isr );
+bool tusb_hal_init(void)
+{
+  USB->DEVICE.PADCAL.bit.TRANSP = (*((uint32_t*) USB_FUSES_TRANSP_ADDR) & USB_FUSES_TRANSP_Msk) >> USB_FUSES_TRANSP_Pos;
+  USB->DEVICE.PADCAL.bit.TRANSN = (*((uint32_t*) USB_FUSES_TRANSN_ADDR) & USB_FUSES_TRANSN_Msk) >> USB_FUSES_TRANSN_Pos;
+  USB->DEVICE.PADCAL.bit.TRIM = (*((uint32_t*) USB_FUSES_TRIM_ADDR) & USB_FUSES_TRIM_Msk) >> USB_FUSES_TRIM_Pos;
 
+  USB->DEVICE.QOSCTRL.bit.CQOS = 3;
+  USB->DEVICE.QOSCTRL.bit.DQOS = 3;
 
-#ifdef __cplusplus
- }
+  tusb_hal_int_enable(0);
+  return true;
+}
+
+void tusb_hal_int_enable(uint8_t rhport)
+{
+  (void) rhport;
+  NVIC_EnableIRQ(USB_0_IRQn);
+  NVIC_EnableIRQ(USB_1_IRQn);
+  NVIC_EnableIRQ(USB_2_IRQn);
+  NVIC_EnableIRQ(USB_3_IRQn);
+}
+
+void tusb_hal_int_disable(uint8_t rhport)
+{
+  (void) rhport;
+  NVIC_DisableIRQ(USB_3_IRQn);
+  NVIC_DisableIRQ(USB_2_IRQn);
+  NVIC_DisableIRQ(USB_1_IRQn);
+  NVIC_DisableIRQ(USB_0_IRQn);
+}
+
 #endif
-
-#endif /* USBD_PVT_H_ */

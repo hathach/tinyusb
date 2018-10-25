@@ -59,31 +59,7 @@ enum
   MSC_STAGE_STATUS
 };
 
-typedef struct {
-  CFG_TUSB_MEM_ALIGN msc_cbw_t  cbw;
-
-//#if defined (__ICCARM__) && (CFG_TUSB_MCU == OPT_MCU_LPC11UXX || CFG_TUSB_MCU == OPT_MCU_LPC13UXX)
-//  uint8_t padding1[64-sizeof(msc_cbw_t)]; // IAR cannot align struct's member
-//#endif
-
-  CFG_TUSB_MEM_ALIGN msc_csw_t csw;
-
-  uint8_t  itf_num;
-  uint8_t  ep_in;
-  uint8_t  ep_out;
-
-  // Bulk Only Transfer (BOT) Protocol
-  uint8_t  stage;
-  uint32_t total_len;
-  uint32_t xferred_len; // numbered of bytes transferred so far in the Data Stage
-
-  // Sense Response Data
-  uint8_t sense_key;
-  uint8_t add_sense_code;
-  uint8_t add_sense_qualifier;
-}mscd_interface_t;
-
-CFG_TUSB_ATTR_USBRAM CFG_TUSB_MEM_ALIGN static mscd_interface_t _mscd_itf;
+CFG_TUSB_ATTR_USBRAM CFG_TUSB_MEM_ALIGN mscd_interface_t _mscd_itf;
 CFG_TUSB_ATTR_USBRAM CFG_TUSB_MEM_ALIGN static uint8_t _mscd_buf[CFG_TUD_MSC_BUFSIZE];
 
 //--------------------------------------------------------------------+
@@ -172,8 +148,6 @@ tusb_error_t mscd_open(uint8_t rhport, tusb_desc_interface_t const * p_desc_itf,
 
 tusb_error_t mscd_control_request_st(uint8_t rhport, tusb_control_request_t const * p_request)
 {
-  OSAL_SUBTASK_BEGIN
-
   TU_ASSERT(p_request->bmRequestType_bit.type == TUSB_REQ_TYPE_CLASS, TUSB_ERROR_DCD_CONTROL_REQUEST_NOT_SUPPORT);
 
   if(MSC_REQ_RESET == p_request->bRequest)
@@ -189,9 +163,18 @@ tusb_error_t mscd_control_request_st(uint8_t rhport, tusb_control_request_t cons
   {
     dcd_control_stall(rhport); // stall unsupported request
   }
-
-  OSAL_SUBTASK_END
+  return TUSB_ERROR_NONE;
 }
+
+// For backwards compatibility we support static block counts.
+#if defined(CFG_TUD_MSC_BLOCK_NUM) && defined(CFG_TUD_MSC_BLOCK_SZ)
+ATTR_WEAK bool tud_lun_capacity_cb(uint8_t lun, uint32_t* last_valid_sector, uint16_t* block_size) {
+    (void) lun;
+    *last_valid_sector = CFG_TUD_MSC_BLOCK_NUM-1;
+    *block_size = CFG_TUD_MSC_BLOCK_SZ;
+    return true;
+}
+#endif
 
 // return length of response (copied to buffer), -1 if it is not an built-in commands
 int32_t proc_builtin_scsi(msc_cbw_t const * p_cbw, uint8_t* buffer, uint32_t bufsize)
@@ -202,11 +185,13 @@ int32_t proc_builtin_scsi(msc_cbw_t const * p_cbw, uint8_t* buffer, uint32_t buf
   {
     case SCSI_CMD_READ_CAPACITY_10:
     {
-      scsi_read_capacity10_resp_t read_capa10 =
-      {
-          .last_lba   = ENDIAN_BE(CFG_TUD_MSC_BLOCK_NUM-1), // read capacity
-          .block_size = ENDIAN_BE(CFG_TUD_MSC_BLOCK_SZ)
-      };
+      scsi_read_capacity10_resp_t read_capa10;
+
+      uint32_t last_valid_sector;
+      uint16_t block_size;
+      tud_lun_capacity_cb(p_cbw->lun, &last_valid_sector, &block_size);
+      read_capa10.last_lba = ENDIAN_BE(last_valid_sector); // read capacity
+      read_capa10.block_size = ENDIAN_BE(block_size);
 
       ret = sizeof(read_capa10);
       memcpy(buffer, &read_capa10, ret);
@@ -218,10 +203,16 @@ int32_t proc_builtin_scsi(msc_cbw_t const * p_cbw, uint8_t* buffer, uint32_t buf
       scsi_read_format_capacity_data_t read_fmt_capa =
       {
           .list_length     = 8,
-          .block_num       = ENDIAN_BE(CFG_TUD_MSC_BLOCK_NUM),  // write capacity
+          .block_num       = 0,
           .descriptor_type = 2,                                 // formatted media
-          .block_size_u16  = ENDIAN_BE16(CFG_TUD_MSC_BLOCK_SZ)
+          .block_size_u16  = 0
       };
+
+      uint32_t last_valid_sector;
+      uint16_t block_size;
+      tud_lun_capacity_cb(p_cbw->lun, &last_valid_sector, &block_size);
+      read_fmt_capa.block_num = ENDIAN_BE(last_valid_sector+1);
+      read_fmt_capa.block_size_u16 = ENDIAN_BE16(block_size);
 
       ret = sizeof(read_fmt_capa);
       memcpy(buffer, &read_fmt_capa, ret);
@@ -251,12 +242,20 @@ int32_t proc_builtin_scsi(msc_cbw_t const * p_cbw, uint8_t* buffer, uint32_t buf
 
     case SCSI_CMD_MODE_SENSE_6:
     {
-      scsi_mode_sense6_resp_t const mode_resp = {
-        .data_len = 3,
-        .medium_type = 0,
-        .device_specific_para = 0,
-        .block_descriptor_len = 0    // no block descriptor are included
+      scsi_mode_sense6_resp_t mode_resp =
+      {
+          .data_len = 3,
+          .medium_type = 0,
+          .write_protected = false,
+          .reserved = 0,
+          .block_descriptor_len = 0  // no block descriptor are included
       };
+
+      bool writable = true;
+      if (tud_msc_is_writable_cb) {
+          writable = tud_msc_is_writable_cb(p_cbw->lun);
+      }
+      mode_resp.write_protected = !writable;
 
       ret = sizeof(mode_resp);
       memcpy(buffer, &mode_resp, ret);
@@ -291,7 +290,7 @@ int32_t proc_builtin_scsi(msc_cbw_t const * p_cbw, uint8_t* buffer, uint32_t buf
   return ret;
 }
 
-tusb_error_t mscd_xfer_cb(uint8_t rhport, uint8_t ep_addr, tusb_event_t event, uint32_t xferred_bytes)
+tusb_error_t mscd_xfer_cb(uint8_t rhport, uint8_t ep_addr, uint8_t event, uint32_t xferred_bytes)
 {
   mscd_interface_t* p_msc = &_mscd_itf;
   msc_cbw_t const * p_cbw = &p_msc->cbw;
@@ -425,7 +424,7 @@ tusb_error_t mscd_xfer_cb(uint8_t rhport, uint8_t ep_addr, tusb_event_t event, u
           }else
           {
             // Application consume less than what we got (including zero)
-            if ( nbytes < xferred_bytes )
+            if ( nbytes < (int32_t) xferred_bytes )
             {
               if ( nbytes > 0 )
               {

@@ -407,8 +407,6 @@ tusb_error_t hidd_control_request_st(uint8_t rhport, tusb_control_request_t cons
   hidd_interface_t* p_hid = get_interface_by_itfnum( (uint8_t) p_request->wIndex );
   TU_ASSERT(p_hid, TUSB_ERROR_FAILED);
 
-  OSAL_SUBTASK_BEGIN
-
   //------------- STD Request -------------//
   if (p_request->bmRequestType_bit.type == TUSB_REQ_TYPE_STANDARD)
   {
@@ -419,7 +417,7 @@ tusb_error_t hidd_control_request_st(uint8_t rhport, tusb_control_request_t cons
     if (p_request->bRequest == TUSB_REQ_GET_DESCRIPTOR && desc_type == HID_DESC_TYPE_REPORT)
     {
       // use device control buffer
-      STASK_ASSERT ( p_hid->desc_len <= CFG_TUD_CTRL_BUFSIZE );
+      TU_ASSERT ( p_hid->desc_len <= CFG_TUD_CTRL_BUFSIZE );
       memcpy(_usbd_ctrl_buf, p_hid->desc_report, p_hid->desc_len);
 
       usbd_control_xfer_st(rhport, p_request->bmRequestType_bit.direction, _usbd_ctrl_buf, p_hid->desc_len);
@@ -447,7 +445,7 @@ tusb_error_t hidd_control_request_st(uint8_t rhport, tusb_control_request_t cons
         xferlen = p_request->wLength;
       }
 
-      STASK_ASSERT( xferlen > 0 );
+      TU_ASSERT( xferlen > 0 );
       usbd_control_xfer_st(rhport, p_request->bmRequestType_bit.direction, p_hid->report_buf, xferlen);
     }
     else if ( HID_REQ_CONTROL_SET_REPORT == p_request->bRequest )
@@ -492,8 +490,7 @@ tusb_error_t hidd_control_request_st(uint8_t rhport, tusb_control_request_t cons
   {
     dcd_control_stall(rhport);
   }
-
-  OSAL_SUBTASK_END
+  return TUSB_ERROR_NONE;
 }
 
 tusb_error_t hidd_xfer_cb(uint8_t rhport, uint8_t edpt_addr, tusb_event_t event, uint32_t xferred_bytes)

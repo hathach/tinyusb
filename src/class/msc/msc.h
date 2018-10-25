@@ -279,11 +279,13 @@ typedef struct ATTR_PACKED
 
 TU_VERIFY_STATIC( sizeof(scsi_mode_sense6_t) == 6, "size is not correct");
 
+// This is only a Mode parameter header(6).
 typedef struct ATTR_PACKED
 {
   uint8_t data_len;
   uint8_t medium_type;
-  uint8_t device_specific_para;
+  bool write_protected : 1;
+  uint8_t reserved : 7;
   uint8_t block_descriptor_len;
 } scsi_mode_sense6_resp_t;
 

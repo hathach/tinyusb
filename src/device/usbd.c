@@ -239,25 +239,25 @@ void usbd_task( void* param)
   OSAL_TASK_END
 }
 
+extern uint32_t setup_count;
+
 static tusb_error_t usbd_main_st(void)
 {
-  static dcd_event_t event;
-
-  OSAL_SUBTASK_BEGIN
-
+  dcd_event_t event;
+  tusb_error_t err = TUSB_ERROR_NONE;
   // Loop until there is no more events in the queue
-  while (1)
+  while (_usbd_q->count > 0)
   {
-    uint32_t err;
-
-    err = TUSB_ERROR_NONE;
     tu_memclr(&event, sizeof(dcd_event_t));
 
-    osal_queue_receive(_usbd_q, &event, OSAL_TIMEOUT_WAIT_FOREVER, &err);
+    err = osal_queue_receive(_usbd_q, &event);
+    if (err != TUSB_ERROR_NONE) {
+        break;
+    }
 
     if ( DCD_EVENT_SETUP_RECEIVED == event.event_id )
     {
-      STASK_INVOKE( proc_control_request_st(event.rhport, &event.setup_received), err );
+      proc_control_request_st(event.rhport, &event.setup_received);
     }
     else if (DCD_EVENT_XFER_COMPLETE == event.event_id)
     {
@@ -267,7 +267,7 @@ static tusb_error_t usbd_main_st(void)
 
       if (drv_id < USBD_CLASS_DRIVER_COUNT)
       {
-        usbd_class_drivers[drv_id].xfer_cb( event.rhport, ep_addr, (tusb_event_t) event.xfer_complete.result, event.xfer_complete.len);
+        usbd_class_drivers[drv_id].xfer_cb( event.rhport, ep_addr, event.xfer_complete.result, event.xfer_complete.len);
       }
     }
     else if (DCD_EVENT_BUS_RESET == event.event_id)
@@ -304,7 +304,7 @@ static tusb_error_t usbd_main_st(void)
     }
   }
 
-  OSAL_SUBTASK_END
+    return err;
 }
 
 //--------------------------------------------------------------------+
@@ -312,10 +312,7 @@ static tusb_error_t usbd_main_st(void)
 //--------------------------------------------------------------------+
 static tusb_error_t proc_control_request_st(uint8_t rhport, tusb_control_request_t const * const p_request)
 {
-  OSAL_SUBTASK_BEGIN
-
-  ATTR_UNUSED tusb_error_t error;
-  error = TUSB_ERROR_NONE;
+  tusb_error_t error = TUSB_ERROR_NONE;
 
   //------------- Standard Request e.g in enumeration -------------//
   if( TUSB_REQ_RCPT_DEVICE    == p_request->bmRequestType_bit.recipient &&
@@ -326,9 +323,10 @@ static tusb_error_t proc_control_request_st(uint8_t rhport, tusb_control_request
       uint8_t  const * buffer = NULL;
       uint16_t const   len    = get_descriptor(rhport, p_request, &buffer);
 
+
       if ( len )
       {
-        STASK_ASSERT( len <= CFG_TUD_CTRL_BUFSIZE );
+        TU_ASSERT( len <= CFG_TUD_CTRL_BUFSIZE );
         memcpy(_usbd_ctrl_buf, buffer, len);
         usbd_control_xfer_st(rhport, p_request->bmRequestType_bit.direction, _usbd_ctrl_buf, len);
       }else
@@ -365,7 +363,7 @@ static tusb_error_t proc_control_request_st(uint8_t rhport, tusb_control_request
   {
     if (_usbd_dev.itf2drv[ tu_u16_low(p_request->wIndex) ] < USBD_CLASS_DRIVER_COUNT)
     {
-      STASK_INVOKE( usbd_class_drivers[ _usbd_dev.itf2drv[ tu_u16_low(p_request->wIndex) ] ].control_req_st(rhport, p_request), error );
+      error = usbd_class_drivers[ _usbd_dev.itf2drv[ tu_u16_low(p_request->wIndex) ] ].control_req_st(rhport, p_request);
     }else
     {
       dcd_control_stall(rhport); // Stall unsupported request
@@ -406,8 +404,10 @@ static tusb_error_t proc_control_request_st(uint8_t rhport, tusb_control_request
   {
     dcd_control_stall(rhport); // Stall unsupported request
   }
-
-  OSAL_SUBTASK_END
+  if (error != TUSB_ERROR_NONE) {
+    dcd_control_stall(rhport); // Stall errored requests
+  }
+  return error;
 }
 
 // Process Set Configure Request
@@ -548,8 +548,6 @@ static void mark_interface_endpoint(uint8_t const* p_desc, uint16_t desc_len, ui
 //--------------------------------------------------------------------+
 void dcd_event_handler(dcd_event_t const * event, bool in_isr)
 {
-  uint8_t const rhport = event->rhport;
-
   switch (event->event_id)
   {
     case DCD_EVENT_BUS_RESET:
@@ -590,9 +588,49 @@ void dcd_event_handler(dcd_event_t const * event, bool in_isr)
   }
 }
 
+void dcd_event_handler(dcd_event_t const * event, bool in_isr);
+
+// helper to send bus signal event
+void dcd_event_bus_signal (uint8_t rhport, dcd_eventid_t eid, bool in_isr)
+{
+  dcd_event_t event = { .rhport = 0, .event_id = eid, };
+  dcd_event_handler(&event, in_isr);
+}
+
+// helper to send setup received
+void dcd_event_setup_received(uint8_t rhport, uint8_t const * setup, bool in_isr)
+{
+  dcd_event_t event = { .rhport = 0, .event_id = DCD_EVENT_SETUP_RECEIVED };
+  memcpy(&event.setup_received, setup, 8);
+
+  dcd_event_handler(&event, true);
+}
+
+// helper to send transfer complete event
+void dcd_event_xfer_complete (uint8_t rhport, uint8_t ep_addr, uint32_t xferred_bytes, uint8_t result, bool in_isr)
+{
+  dcd_event_t event = { .rhport = 0, .event_id = DCD_EVENT_XFER_COMPLETE };
+
+  event.xfer_complete.ep_addr = ep_addr;
+  event.xfer_complete.len     = xferred_bytes;
+  event.xfer_complete.result  = result;
+
+  dcd_event_handler(&event, in_isr);
+}
+
 //--------------------------------------------------------------------+
 // Helper
 //--------------------------------------------------------------------+
+uint32_t usbd_control_xfer_st(uint8_t _rhport, uint8_t _dir, uint8_t* _buffer, uint16_t _len) {
+    uint32_t err = TUSB_ERROR_NONE;
+    if (_len) {
+      dcd_control_xfer(_rhport, _dir, (uint8_t*) _buffer, _len);
+    }
+
+    dcd_control_status(_rhport, _dir);
+    return err;
+}
+
 tusb_error_t usbd_open_edpt_pair(uint8_t rhport, tusb_desc_endpoint_t const* p_desc_ep, uint8_t xfer_type, uint8_t* ep_out, uint8_t* ep_in)
 {
   for(int i=0; i<2; i++)

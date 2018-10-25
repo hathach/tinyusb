@@ -203,7 +203,9 @@ static void xact_control_start(void)
 
 bool dcd_control_xfer (uint8_t rhport, uint8_t dir, uint8_t * buffer, uint16_t length)
 {
+
   (void) rhport;
+  osal_semaphore_wait( _usbd_ctrl_sem, OSAL_TIMEOUT_CONTROL_XFER);
 
   if ( length )
   {
@@ -216,9 +218,11 @@ bool dcd_control_xfer (uint8_t rhport, uint8_t dir, uint8_t * buffer, uint16_t l
     xact_control_start();
   }else
   {
+    NRF_USBD->EPIN[0].PTR        = 0;
+    NRF_USBD->EPIN[0].MAXCNT     = 0;
     // Status Phase also require Easy DMA has to be free as well !!!!
-    edpt_dma_start(&NRF_USBD->TASKS_EP0STATUS);
-    edpt_dma_end();
+    NRF_USBD->TASKS_EP0STATUS = 1;
+    osal_semaphore_post(_usbd_ctrl_sem, false);
   }
 
   return true;
@@ -434,7 +438,7 @@ void USBD_IRQHandler(void)
         NRF_USBD->BMREQUESTTYPE , NRF_USBD->BREQUEST, NRF_USBD->WVALUEL , NRF_USBD->WVALUEH,
         NRF_USBD->WINDEXL       , NRF_USBD->WINDEXH , NRF_USBD->WLENGTHL, NRF_USBD->WLENGTHH
     };
-    dcd_event_setup_recieved(0, setup, true);
+    dcd_event_setup_received(0, setup, true);
   }
 
   if ( int_status & USBD_INTEN_EP0DATADONE_Msk )
