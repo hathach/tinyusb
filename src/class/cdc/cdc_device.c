@@ -44,7 +44,6 @@
 //--------------------------------------------------------------------+
 // INCLUDE
 //--------------------------------------------------------------------+
-#include "common/tusb_common.h"
 #include "cdc_device.h"
 #include "device/usbd_pvt.h"
 
@@ -72,13 +71,16 @@ typedef struct
   uint8_t rx_ff_buf[CFG_TUD_CDC_RX_BUFSIZE];
   uint8_t tx_ff_buf[CFG_TUD_CDC_TX_BUFSIZE];
 
+  osal_mutex_def_t rx_ff_mutex;
+  osal_mutex_def_t tx_ff_mutex;
+
   // Endpoint Transfer buffer
   CFG_TUSB_MEM_ALIGN uint8_t epout_buf[CFG_TUD_CDC_EPSIZE];
   CFG_TUSB_MEM_ALIGN uint8_t epin_buf[CFG_TUD_CDC_EPSIZE];
 
 }cdcd_interface_t;
 
-#define ITF_BUS_RESET_SZ   offsetof(cdcd_interface_t, wanted_char)
+#define ITF_MEM_RESET_SIZE   offsetof(cdcd_interface_t, wanted_char)
 
 //--------------------------------------------------------------------+
 // INTERNAL OBJECT & FUNCTION DECLARATION
@@ -189,17 +191,22 @@ void cdcd_init(void)
 
   for(uint8_t i=0; i<CFG_TUD_CDC; i++)
   {
-    _cdcd_itf[i].wanted_char = -1;
+    cdcd_interface_t* ser = &_cdcd_itf[i];
+
+    ser->wanted_char = -1;
 
     // default line coding is : stop bit = 1, parity = none, data bits = 8
-    _cdcd_itf[i].line_coding.bit_rate = 115200;
-    _cdcd_itf[i].line_coding.stop_bits = 0;
-    _cdcd_itf[i].line_coding.parity    = 0;
-    _cdcd_itf[i].line_coding.data_bits = 8;
+    ser->line_coding.bit_rate = 115200;
+    ser->line_coding.stop_bits = 0;
+    ser->line_coding.parity    = 0;
+    ser->line_coding.data_bits = 8;
 
     // config fifo
-    tu_fifo_config(&_cdcd_itf[i].rx_ff, _cdcd_itf[i].rx_ff_buf, CFG_TUD_CDC_RX_BUFSIZE, 1, true);
-    tu_fifo_config(&_cdcd_itf[i].tx_ff, _cdcd_itf[i].tx_ff_buf, CFG_TUD_CDC_TX_BUFSIZE, 1, false);
+    tu_fifo_config(&ser->rx_ff, ser->rx_ff_buf, CFG_TUD_CDC_RX_BUFSIZE, 1, true);
+    tu_fifo_config_mutex(&ser->rx_ff, osal_mutex_create(&ser->rx_ff_mutex));
+
+    tu_fifo_config(&ser->tx_ff, ser->tx_ff_buf, CFG_TUD_CDC_TX_BUFSIZE, 1, false);
+    tu_fifo_config_mutex(&ser->tx_ff, osal_mutex_create(&ser->tx_ff_mutex));
   }
 }
 
@@ -209,7 +216,7 @@ void cdcd_reset(uint8_t rhport)
 
   for(uint8_t i=0; i<CFG_TUD_CDC; i++)
   {
-    tu_memclr(&_cdcd_itf[i], ITF_BUS_RESET_SZ);
+    tu_memclr(&_cdcd_itf[i], ITF_MEM_RESET_SIZE);
     tu_fifo_clear(&_cdcd_itf[i].rx_ff);
     tu_fifo_clear(&_cdcd_itf[i].tx_ff);
   }
