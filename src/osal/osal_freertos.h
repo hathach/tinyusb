@@ -114,10 +114,10 @@ static inline osal_queue_t osal_queue_create(osal_queue_def_t* qdef)
   return xQueueCreateStatic(qdef->depth, qdef->item_sz, (uint8_t*) qdef->buf, &qdef->sq);
 }
 
-static inline void osal_queue_receive (osal_queue_t const queue_hdl, void *p_data, uint32_t msec, tusb_error_t *p_error)
+static inline void osal_queue_receive (osal_queue_t const queue_hdl, void *p_data, uint32_t msec, tusb_error_t *err)
 {
   uint32_t const ticks = (msec == OSAL_TIMEOUT_WAIT_FOREVER) ? portMAX_DELAY : pdMS_TO_TICKS(msec);
-  (*p_error) = ( xQueueReceive(queue_hdl, p_data, ticks) ? TUSB_ERROR_NONE : TUSB_ERROR_OSAL_TIMEOUT);
+  (*err) = ( xQueueReceive(queue_hdl, p_data, ticks) ? TUSB_ERROR_NONE : TUSB_ERROR_OSAL_TIMEOUT);
 }
 
 static inline bool osal_queue_send(osal_queue_t const queue_hdl, void const * data, bool in_isr)
@@ -125,10 +125,9 @@ static inline bool osal_queue_send(osal_queue_t const queue_hdl, void const * da
   return in_isr ? xQueueSendToBackFromISR(queue_hdl, data, NULL) : xQueueSendToBack(queue_hdl, data, OSAL_TIMEOUT_WAIT_FOREVER);
 }
 
-static inline void osal_queue_flush(osal_queue_t const queue_hdl)
+static inline void osal_queue_reset(osal_queue_t const queue_hdl)
 {
-  // TODO move to thread context
-//  xQueueReset(queue_hdl);
+  xQueueReset(queue_hdl);
 }
 
 //--------------------------------------------------------------------+
@@ -147,33 +146,33 @@ static inline bool osal_semaphore_post(osal_semaphore_t sem_hdl, bool in_isr)
   return in_isr ?  xSemaphoreGiveFromISR(sem_hdl, NULL) : xSemaphoreGive(sem_hdl);
 }
 
-static inline void osal_semaphore_wait(osal_semaphore_t sem_hdl, uint32_t msec, tusb_error_t *p_error)
+static inline void osal_semaphore_wait(osal_semaphore_t sem_hdl, uint32_t msec, tusb_error_t *err)
 {
   uint32_t const ticks = (msec == OSAL_TIMEOUT_WAIT_FOREVER) ? portMAX_DELAY : pdMS_TO_TICKS(msec);
-  (*p_error) = (xSemaphoreTake(sem_hdl, ticks) ? TUSB_ERROR_NONE : TUSB_ERROR_OSAL_TIMEOUT);
+  (*err) = (xSemaphoreTake(sem_hdl, ticks) ? TUSB_ERROR_NONE : TUSB_ERROR_OSAL_TIMEOUT);
 }
 
-static inline void osal_semaphore_reset_isr(osal_semaphore_t const sem_hdl)
+static inline void osal_semaphore_reset(osal_semaphore_t const sem_hdl)
 {
-  xSemaphoreTakeFromISR(sem_hdl, NULL);
+  xQueueReset(sem_hdl);
 }
 
 //--------------------------------------------------------------------+
 // MUTEX API (priority inheritance)
 //--------------------------------------------------------------------+
+typedef StaticSemaphore_t osal_mutex_def_t;
 typedef SemaphoreHandle_t osal_mutex_t;
 
-#define osal_mutex_create(x) xSemaphoreCreateMutex()
-
-static inline bool osal_mutex_release(osal_mutex_t mutex_hdl)
+static inline osal_mutex_t osal_mutex_create(osal_mutex_def_t* mdef)
 {
-  return xSemaphoreGive(mutex_hdl);
+  return xSemaphoreCreateMutexStatic(mdef);
 }
 
-static inline void osal_mutex_wait(osal_mutex_t mutex_hdl, uint32_t msec, tusb_error_t *p_error)
+#define osal_mutex_lock     osal_semaphore_wait
+
+static inline bool osal_mutex_unlock(osal_mutex_t mutex_hdl)
 {
-  uint32_t const ticks = (msec == OSAL_TIMEOUT_WAIT_FOREVER) ? portMAX_DELAY : pdMS_TO_TICKS(msec);
-  (*p_error) = (xSemaphoreTake(mutex_hdl, ticks) ? TUSB_ERROR_NONE : TUSB_ERROR_OSAL_TIMEOUT);
+  return xSemaphoreGive(mutex_hdl);
 }
 
 

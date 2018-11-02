@@ -81,20 +81,20 @@ typedef void (*osal_task_func_t)( void * );
    *     osal_queue_t osal_queue_create(osal_queue_def_t* qdef)
    *     osal_queue_receive (osal_queue_t const queue_hdl, void *p_data, uint32_t msec, tusb_error_t *p_error)
    *     bool osal_queue_send(osal_queue_t const queue_hdl, void const * data, bool in_isr)
-   *     osal_queue_flush()  TODO remove
+   *     osal_queue_reset()
    *
    * Semaphore
    *    osal_semaphore_def_t, osal_semaphore_t
    *    osal_semaphore_t osal_semaphore_create(osal_semaphore_def_t* semdef)
    *    bool osal_semaphore_post(osal_semaphore_t sem_hdl, bool in_isr)
    *    void osal_semaphore_wait(osal_semaphore_t sem_hdl, uint32_t msec, tusb_error_t *p_error)
-   *    void osal_semaphore_reset_isr(osal_semaphore_t const sem_hdl)
+   *    void osal_semaphore_reset(osal_semaphore_t const sem_hdl)
    *
    * Mutex
    *    osal_mutex_t
-   *    osal_mutex_create()
-   *    bool osal_mutex_release(osal_mutex_t mutex_hdl)
-   *    void osal_mutex_wait(osal_mutex_t mutex_hdl, uint32_t msec, tusb_error_t *p_error)
+   *    osal_mutex_create(osal_mutex_def_t* mdef)
+   *    bool osal_mutex_unlock(osal_mutex_t mutex_hdl)
+   *    void osal_mutex_lock(osal_mutex_t mutex_hdl, uint32_t msec, tusb_error_t *p_error)
    */
 
   #if CFG_TUSB_OS == OPT_OS_FREERTOS

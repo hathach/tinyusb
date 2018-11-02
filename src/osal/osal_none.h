@@ -78,12 +78,12 @@ static inline bool osal_task_create(osal_task_def_t* taskdef)
 #define TASK_RESTART                             \
   _state = 0
 
-#define osal_task_delay(msec)                    \
-  do {                                           \
-    _timeout = tusb_hal_millis();                \
-    _state = __LINE__; case __LINE__:            \
-      if ( _timeout + msec > tusb_hal_millis() ) \
-        return TUSB_ERROR_OSAL_WAITING;          \
+#define osal_task_delay(_msec)                      \
+  do {                                              \
+    _timeout = tusb_hal_millis();                   \
+    _state = __LINE__; case __LINE__:               \
+      if ( _timeout + (_msec) > tusb_hal_millis() ) \
+        return TUSB_ERROR_OSAL_WAITING;             \
   }while(0)
 
 //--------------------------------------------------------------------+
@@ -139,26 +139,26 @@ static inline bool osal_queue_send(osal_queue_t const queue_hdl, void const * da
   return tu_fifo_write( (tu_fifo_t*) queue_hdl, data);
 }
 
-static inline void osal_queue_flush(osal_queue_t const queue_hdl)
+static inline void osal_queue_reset(osal_queue_t const queue_hdl)
 {
   queue_hdl->count = queue_hdl->rd_idx = queue_hdl->wr_idx = 0;
 }
 
-#define osal_queue_receive(queue_hdl, p_data, msec, p_error)                                \
-  do {                                                                                      \
-    _timeout = tusb_hal_millis();                                                           \
-    _state = __LINE__; case __LINE__:                                                       \
-    if( queue_hdl->count == 0 ) {                                                           \
-      if ( (msec != OSAL_TIMEOUT_WAIT_FOREVER) && ( _timeout + msec <= tusb_hal_millis()) ) \
-        *(p_error) = TUSB_ERROR_OSAL_TIMEOUT;                                               \
-      else                                                                                  \
-        return TUSB_ERROR_OSAL_WAITING;                                                     \
-    } else{                                                                                 \
-      /*tusb_hal_int_disable_all();*/                                                       \
-      tu_fifo_read(queue_hdl, p_data);                                                         \
-      /*tusb_hal_int_enable_all();*/                                                            \
-      *(p_error) = TUSB_ERROR_NONE;                                                         \
-    }                                                                                       \
+#define osal_queue_receive(_q_hdl, p_data, _msec, _err)                                           \
+  do {                                                                                            \
+    _timeout = tusb_hal_millis();                                                                 \
+    _state = __LINE__; case __LINE__:                                                             \
+    if( (_q_hdl)->count == 0 ) {                                                                  \
+      if ( ((_msec) != OSAL_TIMEOUT_WAIT_FOREVER) && ( _timeout + (_msec) <= tusb_hal_millis()) ) \
+        *(_err) = TUSB_ERROR_OSAL_TIMEOUT;                                                        \
+      else                                                                                        \
+        return TUSB_ERROR_OSAL_WAITING;                                                           \
+    } else{                                                                                       \
+      /* Enter critical ? */                                                                      \
+      tu_fifo_read(queue_hdl, p_data);                                                            \
+      /* Exit critical ? */                                                                       \
+      *(_err) = TUSB_ERROR_NONE;                                                                  \
+    }                                                                                             \
   }while(0)
 
 
@@ -168,66 +168,73 @@ static inline void osal_queue_flush(osal_queue_t const queue_hdl)
 typedef struct
 {
   volatile uint16_t count;
-           uint16_t max_count;
 }osal_semaphore_def_t;
 
 typedef osal_semaphore_def_t* osal_semaphore_t;
 
-
 static inline osal_semaphore_t osal_semaphore_create(osal_semaphore_def_t* semdef)
 {
-  semdef->count     = 0;
-  semdef->max_count = 1;
+  semdef->count = 0;
   return semdef;
 }
 
-static inline  bool osal_semaphore_post(osal_semaphore_t sem_hdl, bool in_isr)
+static inline bool osal_semaphore_post(osal_semaphore_t sem_hdl, bool in_isr)
 {
   (void) in_isr;
-  if (sem_hdl->count < sem_hdl->max_count ) sem_hdl->count++;
+  sem_hdl->count++;
   return true;
 }
 
-static inline void osal_semaphore_reset_isr(osal_semaphore_t sem_hdl)
+static inline void osal_semaphore_reset(osal_semaphore_t sem_hdl)
 {
   sem_hdl->count = 0;
 }
 
-#define osal_semaphore_wait(sem_hdl, msec, p_error)                                        \
-  do {                                                                                     \
-    _timeout = tusb_hal_millis();                                                          \
-    _state = __LINE__; case __LINE__:                                                      \
-    if( sem_hdl->count == 0 ) {                                                            \
-      if ( (msec != OSAL_TIMEOUT_WAIT_FOREVER) && (_timeout + msec <= tusb_hal_millis()) ) \
-        *(p_error) = TUSB_ERROR_OSAL_TIMEOUT;                                              \
-      else                                                                                 \
-        return TUSB_ERROR_OSAL_WAITING;                                                    \
-    } else{                                                                                \
-      /*tusb_hal_int_disable_all();*/                                                          \
-      sem_hdl->count--;                                                                    \
-      /*tusb_hal_int_enable_all();*/                                                           \
-      *(p_error) = TUSB_ERROR_NONE;                                                        \
-    }                                                                                      \
+#define osal_semaphore_wait(_sem_hdl, _msec, _err)                                               \
+  do {                                                                                           \
+    _timeout = tusb_hal_millis();                                                                \
+    _state = __LINE__; case __LINE__:                                                            \
+    if( (_sem_hdl)->count == 0 ) {                                                               \
+      if ( ((_msec) != OSAL_TIMEOUT_WAIT_FOREVER) && (_timeout + (_msec) <= tusb_hal_millis()) ) \
+        *(_err) = TUSB_ERROR_OSAL_TIMEOUT;                                                       \
+      else                                                                                       \
+        return TUSB_ERROR_OSAL_WAITING;                                                          \
+    } else{                                                                                      \
+      /* Enter critical ? */                                                                     \
+      (_sem_hdl)->count--;                                                                       \
+      /* Exit critical ? */                                                                      \
+      *(_err) = TUSB_ERROR_NONE;                                                                 \
+    }                                                                                            \
   }while(0)
 
 //--------------------------------------------------------------------+
-// MUTEX API (priority inheritance)
+// MUTEX API
+// Within tinyusb, mutex is never used in ISR context
 //--------------------------------------------------------------------+
-#if 0
+typedef osal_semaphore_def_t osal_mutex_def_t;
 typedef osal_semaphore_t osal_mutex_t;
 
-static inline osal_mutex_t osal_mutex_create(void)
+static inline osal_mutex_t osal_mutex_create(osal_mutex_def_t* mdef)
 {
-  return osal_semaphore_create(1, 0);
+  mdef->count = 1;
+  return mdef;
 }
 
-static inline bool osal_mutex_release(osal_mutex_t mutex_hdl)
-{
-  return osal_semaphore_post(mutex_hdl);
-}
+#define osal_mutex_unlock(_mutex_hdl)   osal_semaphore_post(_mutex_hdl, false)
+#define osal_mutex_lock                 osal_semaphore_wait
 
-#define osal_mutex_wait osal_semaphore_wait
-#endif
+// check if mutex is available for non-thread/substask usage in some cases
+static inline bool osal_mutex_lock_notask(osal_mutex_t mutex_hdl)
+{
+  if (mutex_hdl->count)
+  {
+    mutex_hdl->count--;
+    return true;
+  }else
+  {
+    return false;
+  }
+}
 
 
 #ifdef __cplusplus
