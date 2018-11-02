@@ -212,6 +212,18 @@ tusb_error_t usbd_init (void)
   return TUSB_ERROR_NONE;
 }
 
+static void usbd_reset(uint8_t rhport)
+{
+  tu_varclr(&_usbd_dev);
+  memset(_usbd_dev.itf2drv, 0xff, sizeof(_usbd_dev.itf2drv)); // invalid mapping
+  memset(_usbd_dev.ep2drv , 0xff, sizeof(_usbd_dev.ep2drv )); // invalid mapping
+
+  for (uint8_t i = 0; i < USBD_CLASS_DRIVER_COUNT; i++)
+  {
+    if ( usbd_class_drivers[i].reset ) usbd_class_drivers[i].reset( rhport );
+  }
+}
+
 // To enable the TASK_ASSERT style (quick return on false condition) in a real RTOS, a task must act as a wrapper
 // and is used mainly to call subtasks. Within a subtask return statement can be called freely, the task with
 // forever loop cannot have any return at all.
@@ -236,9 +248,9 @@ static tusb_error_t usbd_main_st(void)
   // Loop until there is no more events in the queue
   while (1)
   {
-    tusb_error_t err;
-    err = TUSB_ERROR_NONE;
+    uint32_t err;
 
+    err = TUSB_ERROR_NONE;
     tu_memclr(&event, sizeof(dcd_event_t));
 
     osal_queue_receive(_usbd_q, &event, OSAL_TIMEOUT_WAIT_FOREVER, &err);
@@ -257,6 +269,20 @@ static tusb_error_t usbd_main_st(void)
       {
         usbd_class_drivers[drv_id].xfer_cb( event.rhport, ep_addr, (tusb_event_t) event.xfer_complete.result, event.xfer_complete.len);
       }
+    }
+    else if (DCD_EVENT_BUS_RESET == event.event_id)
+    {
+      usbd_reset(event.rhport);
+      osal_queue_reset(_usbd_q);
+      osal_semaphore_reset(_usbd_ctrl_sem);
+    }
+    else if (DCD_EVENT_UNPLUGGED == event.event_id)
+    {
+      usbd_reset(event.rhport);
+      osal_queue_reset(_usbd_q);
+      osal_semaphore_reset(_usbd_ctrl_sem);
+
+      tud_umount_cb(); // invoke callback
     }
     else if (DCD_EVENT_SOF == event.event_id)
     {
@@ -279,18 +305,6 @@ static tusb_error_t usbd_main_st(void)
   }
 
   OSAL_SUBTASK_END
-}
-
-static void usbd_reset(uint8_t rhport)
-{
-  tu_varclr(&_usbd_dev);
-  memset(_usbd_dev.itf2drv, 0xff, sizeof(_usbd_dev.itf2drv)); // invalid mapping
-  memset(_usbd_dev.ep2drv , 0xff, sizeof(_usbd_dev.ep2drv )); // invalid mapping
-
-  for (uint8_t i = 0; i < USBD_CLASS_DRIVER_COUNT; i++)
-  {
-    if ( usbd_class_drivers[i].reset ) usbd_class_drivers[i].reset( rhport );
-  }
 }
 
 //--------------------------------------------------------------------+
@@ -539,28 +553,9 @@ void dcd_event_handler(dcd_event_t const * event, bool in_isr)
   switch (event->event_id)
   {
     case DCD_EVENT_BUS_RESET:
-      usbd_reset(rhport);
-
-      osal_queue_flush(_usbd_q);
-      osal_semaphore_reset_isr(_usbd_ctrl_sem);
-    break;
-
-    case DCD_EVENT_SOF:
-    {
-      #if 0
-      dcd_event_t task_event =
-      {
-          .rhport          = rhport,
-          .event_id        = DCD_EVENT_SOF,
-      };
-      osal_queue_send(_usbd_q, &task_event, in_isr);
-      #endif
-    }
-    break;
-
     case DCD_EVENT_UNPLUGGED:
-      usbd_reset(rhport);
-      tud_umount_cb(); // invoke callback
+    case DCD_EVENT_SOF:
+      osal_queue_send(_usbd_q, event, in_isr);
     break;
 
     case DCD_EVENT_SUSPENDED:
