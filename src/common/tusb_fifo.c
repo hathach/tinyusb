@@ -36,24 +36,51 @@
  */
 /**************************************************************************/
 
-#include "tusb_fifo.h"
-#include "common/tusb_verify.h" // for ASSERT
+#include <string.h>
 
+#include "osal/osal.h"
+#include "tusb_fifo.h"
+
+// implement mutex lock and unlock
+// For OSAL_NONE: if mutex is locked by other, function return immediately (since there is no task context)
+// For Real RTOS: fifo lock is a blocking API
 #if CFG_FIFO_MUTEX
 
-#define mutex_lock_if_needed(_ff)     if (_ff->mutex) tu_fifo_mutex_lock(_ff->mutex)
-#define mutex_unlock_if_needed(_ff)   if (_ff->mutex) tu_fifo_mutex_unlock(_ff->mutex)
+static bool tu_fifo_lock(tu_fifo_t *f)
+{
+  if (f->mutex)
+  {
+#if CFG_TUSB_OS == OPT_OS_NONE
+    // There is no subtask context for blocking mutex, we will check and return if cannot lock the mutex
+    if ( !osal_mutex_lock_notask(f->mutex) ) return false;
+#else
+    uint32_t err;
+    (void) err;
+    osal_mutex_lock(f->mutex, OSAL_TIMEOUT_WAIT_FOREVER, &err);
+#endif
+  }
+
+  return true;
+}
+
+static void tu_fifo_unlock(tu_fifo_t *f)
+{
+  if (f->mutex)
+  {
+    osal_mutex_unlock(f->mutex);
+  }
+}
 
 #else
 
-#define mutex_lock_if_needed(_ff)
-#define mutex_unlock_if_needed(_ff)
+#define tu_fifo_lock(_ff)       true
+#define tu_fifo_unlock(_ff)
 
 #endif
 
-void tu_fifo_config(tu_fifo_t *f, void* buffer, uint16_t depth, uint16_t item_size, bool overwritable)
+bool tu_fifo_config(tu_fifo_t *f, void* buffer, uint16_t depth, uint16_t item_size, bool overwritable)
 {
-  mutex_lock_if_needed(f);
+  if ( !tu_fifo_lock(f) ) return false;
 
   f->buffer = (uint8_t*) buffer;
   f->depth  = depth;
@@ -62,7 +89,9 @@ void tu_fifo_config(tu_fifo_t *f, void* buffer, uint16_t depth, uint16_t item_si
 
   f->rd_idx = f->wr_idx = f->count = 0;
 
-  mutex_unlock_if_needed(f);
+  tu_fifo_unlock(f);
+
+  return true;
 }
 
 
@@ -86,7 +115,7 @@ bool tu_fifo_read(tu_fifo_t* f, void * p_buffer)
 {
   if( tu_fifo_empty(f) ) return false;
 
-  mutex_lock_if_needed(f);
+  if ( !tu_fifo_lock(f) ) return false;
 
   memcpy(p_buffer,
          f->buffer + (f->rd_idx * f->item_size),
@@ -94,7 +123,7 @@ bool tu_fifo_read(tu_fifo_t* f, void * p_buffer)
   f->rd_idx = (f->rd_idx + 1) % f->depth;
   f->count--;
 
-  mutex_unlock_if_needed(f);
+  tu_fifo_unlock(f);
 
   return true;
 }
@@ -122,8 +151,6 @@ uint16_t tu_fifo_read_n (tu_fifo_t* f, void * p_buffer, uint16_t count)
   /* Limit up to fifo's count */
   if ( count > f->count ) count = f->count;
 
-  mutex_lock_if_needed(f);
-
   /* Could copy up to 2 portions marked as 'x' if queue is wrapped around
    * case 1: ....RxxxxW.......
    * case 2: xxxxxW....Rxxxxxx
@@ -137,8 +164,6 @@ uint16_t tu_fifo_read_n (tu_fifo_t* f, void * p_buffer, uint16_t count)
     len++;
     p_buf += f->item_size;
   }
-
-  mutex_unlock_if_needed(f);
 
   return len;
 }
@@ -189,10 +214,9 @@ bool tu_fifo_peek_at(tu_fifo_t* f, uint16_t pos, void * p_buffer)
 /******************************************************************************/
 bool tu_fifo_write (tu_fifo_t* f, const void * p_data)
 {
-//  if ( tu_fifo_full(f) && !f->overwritable ) return false;
-  TU_ASSERT( !(tu_fifo_full(f) && !f->overwritable) );
+  if ( tu_fifo_full(f) && !f->overwritable ) return false;
 
-  mutex_lock_if_needed(f);
+  if ( !tu_fifo_lock(f) ) return false;
 
   memcpy( f->buffer + (f->wr_idx * f->item_size),
           p_data,
@@ -209,7 +233,7 @@ bool tu_fifo_write (tu_fifo_t* f, const void * p_data)
     f->count++;
   }
 
-  mutex_unlock_if_needed(f);
+  tu_fifo_unlock(f);
 
   return true;
 }
@@ -233,7 +257,7 @@ uint16_t tu_fifo_write_n (tu_fifo_t* f, const void * p_data, uint16_t count)
 {
   if ( count == 0 ) return 0;
 
-  uint8_t* p_buf = (uint8_t*) p_data;
+  uint8_t const* p_buf = (uint8_t const*) p_data;
 
   uint16_t len = 0;
   while( (len < count) && tu_fifo_write(f, p_buf) )
@@ -253,11 +277,13 @@ uint16_t tu_fifo_write_n (tu_fifo_t* f, const void * p_data, uint16_t count)
                 Pointer to the FIFO buffer to manipulate
 */
 /******************************************************************************/
-void tu_fifo_clear(tu_fifo_t *f)
+bool tu_fifo_clear(tu_fifo_t *f)
 {
-  mutex_lock_if_needed(f);
+  if ( !tu_fifo_lock(f) ) return false;
 
   f->rd_idx = f->wr_idx = f->count = 0;
 
-  mutex_unlock_if_needed(f);
+  tu_fifo_unlock(f);
+
+  return true;
 }
