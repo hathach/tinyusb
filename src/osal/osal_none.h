@@ -43,8 +43,6 @@
 #ifndef _TUSB_OSAL_NONE_H_
 #define _TUSB_OSAL_NONE_H_
 
-#include "common/tusb_fifo.h"
-
 #ifdef __cplusplus
  extern "C" {
 #endif
@@ -120,49 +118,6 @@ static inline bool osal_task_create(osal_task_def_t* taskdef)
 #define STASK_ASSERT_HDLR(_cond, _func)       TU_VERIFY_HDLR(_cond, TU_BREAKPOINT(); _func; TASK_RESTART, TUSB_ERROR_FAILED)
 
 //--------------------------------------------------------------------+
-// QUEUE API
-//--------------------------------------------------------------------+
-#define OSAL_QUEUE_DEF(_name, _depth, _type)    TU_FIFO_DEF(_name, _depth, _type, false)
-
-typedef tu_fifo_t  osal_queue_def_t;
-typedef tu_fifo_t* osal_queue_t;
-
-static inline osal_queue_t osal_queue_create(osal_queue_def_t* qdef)
-{
-  tu_fifo_clear(qdef);
-  return (osal_queue_t) qdef;
-}
-
-static inline bool osal_queue_send(osal_queue_t const queue_hdl, void const * data, bool in_isr)
-{
-  (void) in_isr;
-  return tu_fifo_write( (tu_fifo_t*) queue_hdl, data);
-}
-
-static inline void osal_queue_reset(osal_queue_t const queue_hdl)
-{
-  queue_hdl->count = queue_hdl->rd_idx = queue_hdl->wr_idx = 0;
-}
-
-#define osal_queue_receive(_q_hdl, p_data, _msec, _err)                                           \
-  do {                                                                                            \
-    _timeout = tusb_hal_millis();                                                                 \
-    _state = __LINE__; case __LINE__:                                                             \
-    if( (_q_hdl)->count == 0 ) {                                                                  \
-      if ( ((_msec) != OSAL_TIMEOUT_WAIT_FOREVER) && ( _timeout + (_msec) <= tusb_hal_millis()) ) \
-        *(_err) = TUSB_ERROR_OSAL_TIMEOUT;                                                        \
-      else                                                                                        \
-        return TUSB_ERROR_OSAL_WAITING;                                                           \
-    } else{                                                                                       \
-      /* Enter critical ? */                                                                      \
-      tu_fifo_read(queue_hdl, p_data);                                                            \
-      /* Exit critical ? */                                                                       \
-      *(_err) = TUSB_ERROR_NONE;                                                                  \
-    }                                                                                             \
-  }while(0)
-
-
-//--------------------------------------------------------------------+
 // Semaphore API
 //--------------------------------------------------------------------+
 typedef struct
@@ -236,6 +191,49 @@ static inline bool osal_mutex_lock_notask(osal_mutex_t mutex_hdl)
   }
 }
 
+//--------------------------------------------------------------------+
+// QUEUE API
+//--------------------------------------------------------------------+
+#include "common/tusb_fifo.h"
+
+#define OSAL_QUEUE_DEF(_name, _depth, _type)    TU_FIFO_DEF(_name, _depth, _type, false)
+
+typedef tu_fifo_t  osal_queue_def_t;
+typedef tu_fifo_t* osal_queue_t;
+
+static inline osal_queue_t osal_queue_create(osal_queue_def_t* qdef)
+{
+  tu_fifo_clear(qdef);
+  return (osal_queue_t) qdef;
+}
+
+static inline bool osal_queue_send(osal_queue_t const queue_hdl, void const * data, bool in_isr)
+{
+  (void) in_isr;
+  return tu_fifo_write( (tu_fifo_t*) queue_hdl, data);
+}
+
+static inline void osal_queue_reset(osal_queue_t const queue_hdl)
+{
+  queue_hdl->count = queue_hdl->rd_idx = queue_hdl->wr_idx = 0;
+}
+
+#define osal_queue_receive(_q_hdl, p_data, _msec, _err)                                           \
+  do {                                                                                            \
+    _timeout = tusb_hal_millis();                                                                 \
+    _state = __LINE__; case __LINE__:                                                             \
+    if( (_q_hdl)->count == 0 ) {                                                                  \
+      if ( ((_msec) != OSAL_TIMEOUT_WAIT_FOREVER) && ( _timeout + (_msec) <= tusb_hal_millis()) ) \
+        *(_err) = TUSB_ERROR_OSAL_TIMEOUT;                                                        \
+      else                                                                                        \
+        return TUSB_ERROR_OSAL_WAITING;                                                           \
+    } else{                                                                                       \
+      /* Enter critical ? */                                                                      \
+      tu_fifo_read(_q_hdl, p_data);                                                               \
+      /* Exit critical ? */                                                                       \
+      *(_err) = TUSB_ERROR_NONE;                                                                  \
+    }                                                                                             \
+  }while(0)
 
 #ifdef __cplusplus
  }

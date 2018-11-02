@@ -39,6 +39,7 @@
 #define USBD_PVT_H_
 
 #include "osal/osal.h"
+#include "common/tusb_fifo.h"
 
 #ifdef __cplusplus
  extern "C" {
@@ -68,7 +69,7 @@ tusb_error_t usbd_open_edpt_pair(uint8_t rhport, tusb_desc_endpoint_t const* p_d
 #define usbd_control_xfer_st(_rhport, _dir, _buffer, _len)                    \
   do {                                                                        \
     if (_len) {                                                               \
-      tusb_error_t err;                                                       \
+      uint32_t err;                                                           \
       dcd_control_xfer(_rhport, _dir, (uint8_t*) _buffer, _len);              \
       osal_semaphore_wait( _usbd_ctrl_sem, OSAL_TIMEOUT_CONTROL_XFER, &err ); \
       STASK_ASSERT_ERR( err );                                                \

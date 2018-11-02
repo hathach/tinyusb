@@ -92,45 +92,6 @@ static inline void osal_task_delay(uint32_t msec)
 }
 
 //--------------------------------------------------------------------+
-// QUEUE API
-//--------------------------------------------------------------------+
-#define OSAL_QUEUE_DEF(_name, _depth, _type) \
-  static _type _name##_##buf[_depth];\
-  osal_queue_def_t _name = { .depth = _depth, .item_sz = sizeof(_type), .buf = _name##_##buf };
-
-typedef struct
-{
-  uint16_t depth;
-  uint16_t item_sz;
-  void*    buf;
-
-  StaticQueue_t sq;
-}osal_queue_def_t;
-
-typedef QueueHandle_t osal_queue_t;
-
-static inline osal_queue_t osal_queue_create(osal_queue_def_t* qdef)
-{
-  return xQueueCreateStatic(qdef->depth, qdef->item_sz, (uint8_t*) qdef->buf, &qdef->sq);
-}
-
-static inline void osal_queue_receive (osal_queue_t const queue_hdl, void *p_data, uint32_t msec, tusb_error_t *err)
-{
-  uint32_t const ticks = (msec == OSAL_TIMEOUT_WAIT_FOREVER) ? portMAX_DELAY : pdMS_TO_TICKS(msec);
-  (*err) = ( xQueueReceive(queue_hdl, p_data, ticks) ? TUSB_ERROR_NONE : TUSB_ERROR_OSAL_TIMEOUT);
-}
-
-static inline bool osal_queue_send(osal_queue_t const queue_hdl, void const * data, bool in_isr)
-{
-  return in_isr ? xQueueSendToBackFromISR(queue_hdl, data, NULL) : xQueueSendToBack(queue_hdl, data, OSAL_TIMEOUT_WAIT_FOREVER);
-}
-
-static inline void osal_queue_reset(osal_queue_t const queue_hdl)
-{
-  xQueueReset(queue_hdl);
-}
-
-//--------------------------------------------------------------------+
 // Semaphore API
 //--------------------------------------------------------------------+
 typedef StaticSemaphore_t osal_semaphore_def_t;
@@ -146,7 +107,7 @@ static inline bool osal_semaphore_post(osal_semaphore_t sem_hdl, bool in_isr)
   return in_isr ?  xSemaphoreGiveFromISR(sem_hdl, NULL) : xSemaphoreGive(sem_hdl);
 }
 
-static inline void osal_semaphore_wait(osal_semaphore_t sem_hdl, uint32_t msec, tusb_error_t *err)
+static inline void osal_semaphore_wait(osal_semaphore_t sem_hdl, uint32_t msec, uint32_t *err)
 {
   uint32_t const ticks = (msec == OSAL_TIMEOUT_WAIT_FOREVER) ? portMAX_DELAY : pdMS_TO_TICKS(msec);
   (*err) = (xSemaphoreTake(sem_hdl, ticks) ? TUSB_ERROR_NONE : TUSB_ERROR_OSAL_TIMEOUT);
@@ -175,6 +136,44 @@ static inline bool osal_mutex_unlock(osal_mutex_t mutex_hdl)
   return xSemaphoreGive(mutex_hdl);
 }
 
+//--------------------------------------------------------------------+
+// QUEUE API
+//--------------------------------------------------------------------+
+#define OSAL_QUEUE_DEF(_name, _depth, _type) \
+  static _type _name##_##buf[_depth];\
+  osal_queue_def_t _name = { .depth = _depth, .item_sz = sizeof(_type), .buf = _name##_##buf };
+
+typedef struct
+{
+  uint16_t depth;
+  uint16_t item_sz;
+  void*    buf;
+
+  StaticQueue_t sq;
+}osal_queue_def_t;
+
+typedef QueueHandle_t osal_queue_t;
+
+static inline osal_queue_t osal_queue_create(osal_queue_def_t* qdef)
+{
+  return xQueueCreateStatic(qdef->depth, qdef->item_sz, (uint8_t*) qdef->buf, &qdef->sq);
+}
+
+static inline void osal_queue_receive (osal_queue_t const queue_hdl, void *p_data, uint32_t msec, uint32_t *err)
+{
+  uint32_t const ticks = (msec == OSAL_TIMEOUT_WAIT_FOREVER) ? portMAX_DELAY : pdMS_TO_TICKS(msec);
+  (*err) = ( xQueueReceive(queue_hdl, p_data, ticks) ? TUSB_ERROR_NONE : TUSB_ERROR_OSAL_TIMEOUT);
+}
+
+static inline bool osal_queue_send(osal_queue_t const queue_hdl, void const * data, bool in_isr)
+{
+  return in_isr ? xQueueSendToBackFromISR(queue_hdl, data, NULL) : xQueueSendToBack(queue_hdl, data, OSAL_TIMEOUT_WAIT_FOREVER);
+}
+
+static inline void osal_queue_reset(osal_queue_t const queue_hdl)
+{
+  xQueueReset(queue_hdl);
+}
 
 #ifdef __cplusplus
  }
