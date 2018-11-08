@@ -68,6 +68,9 @@ tusb_error_t controld_process_setup_request(uint8_t rhport, tusb_control_request
 // Callback when the configuration of the device is changed.
 tusb_error_t tud_control_set_config_cb(uint8_t rhport, uint8_t config_number);
 
+// Called when the DATA stage of a control transaction is complete.
+void tud_control_interface_control_complete_cb(uint8_t rhport, uint8_t interface, tusb_control_request_t const * const p_request);
+
 tusb_error_t tud_control_interface_control_cb(uint8_t rhport, uint8_t interface, tusb_control_request_t const * const p_request, uint16_t bytes_already_sent);
 
 //--------------------------------------------------------------------+

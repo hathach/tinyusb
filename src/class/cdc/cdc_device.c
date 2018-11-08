@@ -288,6 +288,21 @@ tusb_error_t cdcd_open(uint8_t rhport, tusb_desc_interface_t const * p_interface
   return TUSB_ERROR_NONE;
 }
 
+void cdcd_control_request_complete(uint8_t rhport, tusb_control_request_t const * p_request)
+{
+  //------------- Class Specific Request -------------//
+  if (p_request->bmRequestType_bit.type != TUSB_REQ_TYPE_CLASS) return;
+
+  // TODO Support multiple interfaces
+  uint8_t const itf = 0;
+  cdcd_interface_t* p_cdc = &_cdcd_itf[itf];
+
+  // Invoke callback
+  if (CDC_REQUEST_SET_LINE_CODING == p_request->bRequest) {
+    if ( tud_cdc_line_coding_cb ) tud_cdc_line_coding_cb(itf, &p_cdc->line_coding);
+  }
+}
+
 tusb_error_t cdcd_control_request(uint8_t rhport, tusb_control_request_t const * p_request, uint16_t bytes_already_sent)
 {
   //------------- Class Specific Request -------------//
@@ -297,16 +312,15 @@ tusb_error_t cdcd_control_request(uint8_t rhport, tusb_control_request_t const *
   uint8_t const itf = 0;
   cdcd_interface_t* p_cdc = &_cdcd_itf[itf];
 
-  if ( (CDC_REQUEST_GET_LINE_CODING == p_request->bRequest) || (CDC_REQUEST_SET_LINE_CODING == p_request->bRequest) )
+  if ((CDC_REQUEST_SET_LINE_CODING == p_request->bRequest) )
+  {
+    uint16_t len = tu_min16(sizeof(cdc_line_coding_t), p_request->wLength);
+    dcd_edpt_xfer(rhport, 0, (uint8_t*) &p_cdc->line_coding, len);
+  }
+  else if ( (CDC_REQUEST_GET_LINE_CODING == p_request->bRequest))
   {
     uint16_t len = tu_min16(sizeof(cdc_line_coding_t), p_request->wLength);
     dcd_edpt_xfer(rhport, TUSB_DIR_IN_MASK, (uint8_t*) &p_cdc->line_coding, len);
-
-    // Invoke callback
-    if (CDC_REQUEST_SET_LINE_CODING == p_request->bRequest)
-    {
-      if ( tud_cdc_line_coding_cb ) tud_cdc_line_coding_cb(itf, &p_cdc->line_coding);
-    }
   }
   else if (CDC_REQUEST_SET_CONTROL_LINE_STATE == p_request->bRequest )
   {

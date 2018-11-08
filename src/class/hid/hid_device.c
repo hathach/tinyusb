@@ -455,15 +455,6 @@ tusb_error_t hidd_control_request(uint8_t rhport, tusb_control_request_t const *
     else if ( HID_REQ_CONTROL_SET_REPORT == p_request->bRequest )
     {
       dcd_edpt_xfer(rhport, 0, _shared_control_buffer, p_request->wLength);
-
-      // wValue = Report Type | Report ID
-      uint8_t const report_type = tu_u16_high(p_request->wValue);
-      uint8_t const report_id   = tu_u16_low(p_request->wValue);
-
-      if ( p_hid->set_report_cb )
-      {
-        p_hid->set_report_cb(report_id, (hid_report_type_t) report_type, _shared_control_buffer, p_request->wLength);
-      }
     }
     else if (HID_REQ_CONTROL_SET_IDLE == p_request->bRequest)
     {
@@ -493,6 +484,29 @@ tusb_error_t hidd_control_request(uint8_t rhport, tusb_control_request_t const *
     return TUSB_ERROR_FAILED;
   }
   return TUSB_ERROR_NONE;
+}
+
+void hidd_control_request_complete(uint8_t rhport, tusb_control_request_t const * p_request)
+{
+  hidd_interface_t* p_hid = get_interface_by_itfnum( (uint8_t) p_request->wIndex );
+  if (p_hid == NULL) {
+      return;
+  }
+
+  if (p_request->bmRequestType_bit.type == TUSB_REQ_TYPE_CLASS)
+  {
+    if ( HID_REQ_CONTROL_SET_REPORT == p_request->bRequest )
+    {
+      // wValue = Report Type | Report ID
+      uint8_t const report_type = tu_u16_high(p_request->wValue);
+      uint8_t const report_id   = tu_u16_low(p_request->wValue);
+
+      if ( p_hid->set_report_cb )
+      {
+        p_hid->set_report_cb(report_id, (hid_report_type_t) report_type, _shared_control_buffer, p_request->wLength);
+      }
+    }
+  }
 }
 
 tusb_error_t hidd_xfer_cb(uint8_t rhport, uint8_t edpt_addr, tusb_event_t event, uint32_t xferred_bytes)

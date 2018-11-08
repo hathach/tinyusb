@@ -167,6 +167,11 @@ tusb_error_t mscd_control_request(uint8_t rhport, tusb_control_request_t const *
   return TUSB_ERROR_NONE;
 }
 
+void mscd_control_request_complete(uint8_t rhport, tusb_control_request_t const * p_request)
+{
+  return;
+}
+
 // For backwards compatibility we support static block counts.
 #if defined(CFG_TUD_MSC_BLOCK_NUM) && defined(CFG_TUD_MSC_BLOCK_SZ)
 ATTR_WEAK bool tud_lun_capacity_cb(uint8_t lun, uint32_t* last_valid_sector, uint16_t* block_size) {

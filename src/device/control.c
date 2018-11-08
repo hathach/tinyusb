@@ -59,8 +59,13 @@ void controld_init(void) {
 // Note dir is value of direction bit in setup packet (i.e DATA stage direction)
 static inline bool dcd_control_status(uint8_t rhport, uint8_t dir)
 {
+  uint8_t ep_addr = 0;
+  // Invert the direction.
+  if (dir == TUSB_DIR_OUT) {
+    ep_addr |= TUSB_DIR_IN_MASK;
+  }
   // status direction is reversed to one in the setup packet
-  return dcd_edpt_xfer(rhport, 1-dir, NULL, 0);
+  return dcd_edpt_xfer(rhport, ep_addr, NULL, 0);
 }
 
 static inline void dcd_control_stall(uint8_t rhport)
@@ -140,6 +145,12 @@ tusb_error_t controld_xfer_cb(uint8_t rhport, uint8_t edpt_addr, tusb_event_t ev
     if (p_request->wLength == control_state.total_transferred || xferred_bytes < 64) {
         control_state.current_stage = CONTROL_STAGE_STATUS;
         dcd_control_status(rhport, p_request->bmRequestType_bit.direction);
+
+        // Do the user callback after queueing the STATUS packet because the callback could be slow.
+        if ( TUSB_REQ_RCPT_INTERFACE == p_request->bmRequestType_bit.recipient )
+        {
+          tud_control_interface_control_complete_cb(rhport, tu_u16_low(p_request->wIndex), p_request);
+        }
     } else {
         if (TUSB_REQ_RCPT_INTERFACE == p_request->bmRequestType_bit.recipient) {
           error = tud_control_interface_control_cb(rhport, tu_u16_low(p_request->wIndex), p_request, control_state.total_transferred);
@@ -160,7 +171,6 @@ tusb_error_t controld_process_setup_request(uint8_t rhport, tusb_control_request
       control_state.current_stage = CONTROL_STAGE_DATA;
       control_state.total_transferred = 0;
   }
-
 
   if ( TUSB_REQ_RCPT_INTERFACE == p_request->bmRequestType_bit.recipient )
   {

@@ -96,6 +96,7 @@ typedef struct {
   tusb_error_t (* open           ) (uint8_t rhport, tusb_desc_interface_t const * desc_intf, uint16_t* p_length);
   // Control request is called one or more times for a request and can queue multiple data packets.
   tusb_error_t (* control_request ) (uint8_t rhport, tusb_control_request_t const *, uint16_t bytes_already_sent);
+  void (* control_request_complete ) (uint8_t rhport, tusb_control_request_t const *);
   tusb_error_t (* xfer_cb        ) (uint8_t rhport, uint8_t ep_addr, tusb_event_t, uint32_t);
   void         (* sof            ) (uint8_t rhport);
   void         (* reset          ) (uint8_t);
@@ -108,6 +109,7 @@ static usbd_class_driver_t const usbd_class_drivers[] =
         .init            = controld_init,
         .open            = NULL,
         .control_request = NULL,
+        .control_request_complete = NULL,
         .xfer_cb         = controld_xfer_cb,
         .sof             = NULL,
         .reset           = controld_reset
@@ -118,6 +120,7 @@ static usbd_class_driver_t const usbd_class_drivers[] =
         .init            = cdcd_init,
         .open            = cdcd_open,
         .control_request = cdcd_control_request,
+        .control_request_complete = cdcd_control_request_complete,
         .xfer_cb         = cdcd_xfer_cb,
         .sof             = NULL,
         .reset           = cdcd_reset
@@ -130,6 +133,7 @@ static usbd_class_driver_t const usbd_class_drivers[] =
         .init            = mscd_init,
         .open            = mscd_open,
         .control_request = mscd_control_request,
+        .control_request_complete = mscd_control_request_complete,
         .xfer_cb         = mscd_xfer_cb,
         .sof             = NULL,
         .reset           = mscd_reset
@@ -143,6 +147,7 @@ static usbd_class_driver_t const usbd_class_drivers[] =
         .init            = hidd_init,
         .open            = hidd_open,
         .control_request = hidd_control_request,
+        .control_request_complete = hidd_control_request_complete,
         .xfer_cb         = hidd_xfer_cb,
         .sof             = NULL,
         .reset           = hidd_reset
@@ -155,6 +160,7 @@ static usbd_class_driver_t const usbd_class_drivers[] =
         .init            = cusd_init,
         .open            = cusd_open,
         .control_request = cusd_control_request,
+        .control_request_complete = cusd_control_request_complete,
         .xfer_cb         = cusd_xfer_cb,
         .sof             = NULL,
         .reset           = cusd_reset
@@ -307,6 +313,16 @@ static tusb_error_t usbd_main_st(void)
   }
 
     return err;
+}
+
+void tud_control_interface_control_complete_cb(uint8_t rhport, uint8_t interface, tusb_control_request_t const * const p_request) {
+    if (_usbd_dev.itf2drv[ interface ] < USBD_CLASS_DRIVER_COUNT)
+    {
+      const usbd_class_driver_t *driver = &usbd_class_drivers[_usbd_dev.itf2drv[interface]];
+      if (driver->control_request_complete != NULL) {
+        driver->control_request_complete(rhport, p_request);
+      }
+    }
 }
 
 tusb_error_t tud_control_interface_control_cb(uint8_t rhport, uint8_t interface, tusb_control_request_t const * const p_request, uint16_t bytes_already_sent) {
