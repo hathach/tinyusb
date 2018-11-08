@@ -203,9 +203,7 @@ static void xact_control_start(void)
 
 bool dcd_control_xfer (uint8_t rhport, uint8_t dir, uint8_t * buffer, uint16_t length)
 {
-
   (void) rhport;
-  osal_semaphore_wait( _usbd_ctrl_sem, OSAL_TIMEOUT_CONTROL_XFER);
 
   if ( length )
   {
@@ -222,7 +220,9 @@ bool dcd_control_xfer (uint8_t rhport, uint8_t dir, uint8_t * buffer, uint16_t l
     NRF_USBD->EPIN[0].MAXCNT     = 0;
     // Status Phase also require Easy DMA has to be free as well !!!!
     NRF_USBD->TASKS_EP0STATUS = 1;
-    osal_semaphore_post(_usbd_ctrl_sem, false);
+
+    // The nRF doesn't interrupt on status transmit so we queue up a success response.
+    dcd_event_xfer_complete(0, 0, 0, DCD_XFER_SUCCESS, false);
   }
 
   return true;

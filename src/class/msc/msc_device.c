@@ -47,6 +47,7 @@
 
 #include "common/tusb_common.h"
 #include "msc_device.h"
+#include "device/control.h"
 #include "device/usbd_pvt.h"
 
 //--------------------------------------------------------------------+
@@ -146,22 +147,22 @@ tusb_error_t mscd_open(uint8_t rhport, tusb_desc_interface_t const * p_desc_itf,
   return TUSB_ERROR_NONE;
 }
 
-tusb_error_t mscd_control_request_st(uint8_t rhport, tusb_control_request_t const * p_request)
+tusb_error_t mscd_control_request(uint8_t rhport, tusb_control_request_t const * p_request, uint16_t bytes_already_sent)
 {
   TU_ASSERT(p_request->bmRequestType_bit.type == TUSB_REQ_TYPE_CLASS, TUSB_ERROR_DCD_CONTROL_REQUEST_NOT_SUPPORT);
 
   if(MSC_REQ_RESET == p_request->bRequest)
   {
-    dcd_control_status(rhport, p_request->bmRequestType_bit.direction);
+    // TODO: Actually reset.
   }
   else if (MSC_REQ_GET_MAX_LUN == p_request->bRequest)
   {
     // returned MAX LUN is minus 1 by specs
-    _usbd_ctrl_buf[0] = CFG_TUD_MSC_MAXLUN-1;
-    usbd_control_xfer_st(rhport, p_request->bmRequestType_bit.direction, _usbd_ctrl_buf, 1);
+    _shared_control_buffer[0] = CFG_TUD_MSC_MAXLUN-1;
+    dcd_edpt_xfer(rhport, TUSB_DIR_IN_MASK, _shared_control_buffer, 1);
   }else
   {
-    dcd_control_stall(rhport); // stall unsupported request
+    return TUSB_ERROR_FAILED; // stall unsupported request
   }
   return TUSB_ERROR_NONE;
 }

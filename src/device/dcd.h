@@ -135,22 +135,6 @@ void dcd_edpt_stall       (uint8_t rhport, uint8_t ep_addr);
 void dcd_edpt_clear_stall (uint8_t rhport, uint8_t ep_addr);
 bool dcd_edpt_stalled     (uint8_t rhport, uint8_t ep_addr);
 
-//------------- Control Endpoint -------------//
-bool dcd_control_xfer     (uint8_t rhport, uint8_t dir, uint8_t * buffer, uint16_t length);
-
-// Helper to send STATUS (zero length) packet
-// Note dir is value of direction bit in setup packet (i.e DATA stage direction)
-static inline bool dcd_control_status(uint8_t rhport, uint8_t dir)
-{
-  // status direction is reversed to one in the setup packet
-  return dcd_control_xfer(rhport, 1-dir, NULL, 0);
-}
-
-static inline void dcd_control_stall(uint8_t rhport)
-{
-  dcd_edpt_stall(rhport, 0 | TUSB_DIR_IN_MASK);
-}
-
 #ifdef __cplusplus
  }
 #endif

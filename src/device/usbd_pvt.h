@@ -45,10 +45,6 @@
  extern "C" {
 #endif
 
-// for used by usbd_control_xfer_st() only, must not be used directly
-extern osal_semaphore_t _usbd_ctrl_sem;
-extern uint8_t _usbd_ctrl_buf[CFG_TUD_CTRL_BUFSIZE];
-
 // Either point to tud_desc_set or usbd_auto_desc_set depending on CFG_TUD_DESC_AUTO
 extern tud_desc_set_t const* usbd_desc_set;
 
@@ -63,8 +59,6 @@ void         usbd_task (void* param);
  *------------------------------------------------------------------*/
 // helper to parse an pair of In and Out endpoint descriptors. They must be consecutive
 tusb_error_t usbd_open_edpt_pair(uint8_t rhport, tusb_desc_endpoint_t const* p_desc_ep, uint8_t xfer_type, uint8_t* ep_out, uint8_t* ep_in);
-
-uint32_t usbd_control_xfer_st(uint8_t _rhport, uint8_t _dir, uint8_t* _buffer, uint16_t _len);
 
 /*------------------------------------------------------------------*/
 /* Other Helpers
