@@ -90,7 +90,8 @@ typedef enum
 /// Communication Interface Protocol Codes
 typedef enum
 {
-  CDC_COMM_PROTOCOL_ATCOMMAND              = 0x01 , ///< AT Commands: V.250 etc
+  CDC_COMM_PROTOCOL_NONE                   = 0x00 , ///< No specific protocol
+  CDC_COMM_PROTOCOL_ATCOMMAND                     , ///< AT Commands: V.250 etc
   CDC_COMM_PROTOCOL_ATCOMMAND_PCCA_101            , ///< AT Commands defined by PCCA-101
   CDC_COMM_PROTOCOL_ATCOMMAND_PCCA_101_AND_ANNEXO , ///< AT Commands defined by PCCA-101 & Annex O
   CDC_COMM_PROTOCOL_ATCOMMAND_GSM_707             , ///< AT Commands defined by GSM 07.07

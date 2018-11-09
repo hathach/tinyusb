@@ -227,8 +227,10 @@ tusb_error_t cdcd_open(uint8_t rhport, tusb_desc_interface_t const * p_interface
 {
   if ( CDC_COMM_SUBCLASS_ABSTRACT_CONTROL_MODEL != p_interface_desc->bInterfaceSubClass) return TUSB_ERROR_CDC_UNSUPPORTED_SUBCLASS;
 
+  // Only support AT commands, no protocol and vendor specific commands.
   if ( !(tu_within(CDC_COMM_PROTOCOL_ATCOMMAND, p_interface_desc->bInterfaceProtocol, CDC_COMM_PROTOCOL_ATCOMMAND_CDMA) ||
-         0xff == p_interface_desc->bInterfaceProtocol) )
+         p_interface_desc->bInterfaceProtocol == CDC_COMM_PROTOCOL_NONE ||
+         p_interface_desc->bInterfaceProtocol == 0xff ) )
   {
     return TUSB_ERROR_CDC_UNSUPPORTED_PROTOCOL;
   }
