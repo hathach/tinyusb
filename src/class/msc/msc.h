@@ -52,6 +52,10 @@
  extern "C" {
 #endif
 
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wpacked"
+#pragma GCC diagnostic ignored "-Wattributes"
+
 //--------------------------------------------------------------------+
 // Mass Storage Class Constant
 //--------------------------------------------------------------------+
@@ -391,6 +395,8 @@ typedef struct ATTR_PACKED
 
 TU_VERIFY_STATIC(sizeof(scsi_read10_t) == 10, "size is not correct");
 TU_VERIFY_STATIC(sizeof(scsi_write10_t) == 10, "size is not correct");
+
+#pragma GCC diagnostic pop
 
 #ifdef __cplusplus
  }
