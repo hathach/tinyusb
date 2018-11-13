@@ -3,4 +3,7 @@
 	url = https://github.com/NordicSemiconductor/nrfx.git
 [submodule "hw/mcu/microchip/samd/asf4"]
 	path = hw/mcu/microchip/samd/asf4
-	url = git@github.com:adafruit/asf4.git
+	url = https://github.com/adafruit/asf4.git
+[submodule "hw/mcu/microchip/samd/samd-peripherals"]
+	path = hw/mcu/microchip/samd/samd-peripherals
+	url = https://github.com/adafruit/samd-peripherals.git

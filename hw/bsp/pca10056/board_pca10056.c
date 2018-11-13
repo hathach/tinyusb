@@ -35,6 +35,7 @@
     This file is part of the tinyusb stack.
 */
 /**************************************************************************/
+#ifdef BOARD_PCA10056
 
 #include "bsp/board.h"
 #include "nrfx/hal/nrf_gpio.h"
@@ -251,3 +252,5 @@ void board_uart_putchar(uint8_t c)
 {
 
 }
+
+#endif

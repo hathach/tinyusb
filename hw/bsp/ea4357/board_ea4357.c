@@ -38,7 +38,7 @@
 
 #include "../board.h"
 
-#if BOARD == BOARD_EA4357
+#ifdef BOARD_EA4357
 
 #define BOARD_UART_PORT           LPC_USART0
 #define BOARD_UART_PIN_PORT       0x0f

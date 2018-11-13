@@ -80,8 +80,6 @@
   #include "ea4357/board_ea4357.h"
 #elif defined BOARD_MCB4300
   #include "keil/board_mcb4300.h"
-#elif defined BOARD_HITEX4350
-  #include "hitex/board_hitex4350.h"
 #elif defined BOARD_LPCLINK2
   #include "lpcxpresso/board_lpclink2.h"
 #elif defined BOARD_PCA10056

@@ -38,7 +38,7 @@
 
 #include "../board.h"
 
-#if BOARD == BOARD_NGX4330
+#ifdef BOARD_NGX4330
 
 #define BOARD_UART_PORT           LPC_USART0
 

@@ -38,7 +38,7 @@
 
 #include "../board.h"
 
-#if BOARD == BOARD_MCB4300
+#ifdef BOARD_MCB4300
 
 //--------------------------------------------------------------------+
 // INCLUDE

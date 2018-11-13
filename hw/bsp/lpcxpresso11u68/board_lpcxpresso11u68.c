@@ -38,7 +38,7 @@
 
 #include "../board.h"
 
-#if BOARD == BOARD_LPCXPRESSO11U68
+#ifdef BOARD_LPCXPRESSO11U68
 
 #define LED_PORT                  (1)
 #define LED_PIN                   (31)
