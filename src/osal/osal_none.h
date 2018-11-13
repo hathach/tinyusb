@@ -178,19 +178,6 @@ static inline osal_mutex_t osal_mutex_create(osal_mutex_def_t* mdef)
 #define osal_mutex_unlock(_mutex_hdl)   osal_semaphore_post(_mutex_hdl, false)
 #define osal_mutex_lock                 osal_semaphore_wait
 
-// check if mutex is available for non-thread/substask usage in some cases
-static inline bool osal_mutex_lock_notask(osal_mutex_t mutex_hdl)
-{
-  if (mutex_hdl->count)
-  {
-    mutex_hdl->count--;
-    return true;
-  }else
-  {
-    return false;
-  }
-}
-
 //--------------------------------------------------------------------+
 // QUEUE API
 //--------------------------------------------------------------------+

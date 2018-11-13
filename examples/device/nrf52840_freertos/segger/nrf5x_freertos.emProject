@@ -32,12 +32,6 @@
       target_reset_script="Reset();"
       target_script_file="$(ProjectDir)/nRF_Target.js"
       target_trace_initialize_script="EnableTrace(&quot;$(TraceInterfaceType)&quot;)" />
-    <folder Name="RTT Files">
-      <file file_name="SEGGER_RTT.c" />
-      <file file_name="SEGGER_RTT.h" />
-      <file file_name="SEGGER_RTT_Conf.h" />
-      <file file_name="SEGGER_RTT_SES.c" />
-    </folder>
     <folder Name="Script Files">
       <file file_name="nRF_Target.js">
         <configuration Name="Common" file_type="Reset Script" />
@@ -60,6 +54,12 @@
       <file file_name="../src/msc_flash_qspi.c" />
       <file file_name="../src/msc_app.c" />
       <file file_name="../src/msc_app.h" />
+      <folder Name="segger_rtt">
+        <file file_name="../src/segger_rtt/SEGGER_RTT.c" />
+        <file file_name="../src/segger_rtt/SEGGER_RTT_Conf.h" />
+        <file file_name="../src/segger_rtt/SEGGER_RTT.h" />
+        <file file_name="../src/segger_rtt/SEGGER_RTT_SES.c" />
+      </folder>
     </folder>
     <folder Name="hw">
       <folder Name="bsp">

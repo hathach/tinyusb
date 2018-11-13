@@ -101,18 +101,32 @@ void cdc_task(void* params)
   while ( 1 )
   {
     // connected and there are data available
-    if ( tud_mounted() && tud_cdc_available() )
+    if ( tud_cdc_connected() )
     {
-      uint8_t buf[64];
+      if ( tud_cdc_available() )
+      {
+        uint8_t buf[64];
 
-      // read and echo back
-      uint32_t count = tud_cdc_read(buf, sizeof(buf));
+        // read and echo back
+        uint32_t count = tud_cdc_read(buf, sizeof(buf));
 
-      tud_cdc_write(buf, count);
+        tud_cdc_write(buf, count);
+      }
+
       tud_cdc_write_flush();
     }
+  }
+}
 
-    taskYIELD();
+void tud_cdc_line_state_cb(uint8_t itf, bool dtr, bool rts)
+{
+  (void) itf;
+
+  // connected
+  if ( dtr && rts )
+  {
+    // print greeting
+    tud_cdc_write_str("tinyusb usb cdc\n");
   }
 }
 #endif

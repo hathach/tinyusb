@@ -55,56 +55,51 @@
 //--------------------------------------------------------------------+
 void print_greeting(void);
 void led_blinking_task(void);
-void virtual_com_task(void);
-void usb_hid_task(void);
-
-/*------------- MAIN -------------*/
-int main(void)
-{
-  board_init();
-  print_greeting();
-
-  tusb_init();
-
-  while (1)
-  {
-    tusb_task();
-
-    led_blinking_task();
-    virtual_com_task();
-
-    usb_hid_task();
-  }
-
-  return 0;
-}
 
 //--------------------------------------------------------------------+
 // USB CDC
 //--------------------------------------------------------------------+
+#if CFG_TUD_CDC
 void virtual_com_task(void)
 {
-#if CFG_TUD_CDC
   // connected and there are data available
-  if ( tud_mounted() && tud_cdc_available() )
+  if ( tud_cdc_connected() )
   {
-    uint8_t buf[64];
+    if ( tud_cdc_available() )
+    {
+      uint8_t buf[64];
 
-    // read and echo back
-    uint32_t count = tud_cdc_read(buf, sizeof(buf));
+      // read and echo back
+      uint32_t count = tud_cdc_read(buf, sizeof(buf));
 
-    tud_cdc_write(buf, count);
+      tud_cdc_write(buf, count);
+    }
+
     tud_cdc_write_flush();
   }
-#endif
 }
+
+void tud_cdc_line_state_cb(uint8_t itf, bool dtr, bool rts)
+{
+  (void) itf;
+
+  // connected
+  if ( dtr && rts )
+  {
+    // print greeting
+    tud_cdc_write_str("tinyusb usb cdc\n");
+  }
+}
+#else
+#define virtual_com_task()
+#endif
 
 //--------------------------------------------------------------------+
 // USB HID
 //--------------------------------------------------------------------+
+#if CFG_TUD_HID
 void usb_hid_task(void)
 {
-#if CFG_TUD_HID
   // Poll every 10ms
   static tu_timeout_t tm = { .start = 0, .interval = 10 };
 
@@ -144,10 +139,8 @@ void usb_hid_task(void)
     if ( btn & 0x04 ) tud_hid_mouse_move(  0   , -DELTA); // up
     if ( btn & 0x08 ) tud_hid_mouse_move(  0   ,  DELTA); // down
   }
-#endif
 }
 
-#if CFG_TUD_HID
 uint16_t tud_hid_generic_get_report_cb(uint8_t report_id, hid_report_type_t report_type, uint8_t* buffer, uint16_t reqlen)
 {
   // TODO not Implemented
@@ -158,7 +151,31 @@ void tud_hid_generic_set_report_cb(uint8_t report_id, hid_report_type_t report_t
 {
   // TODO not Implemented
 }
+
+#else
+#define usb_hid_task()
 #endif
+
+
+/*------------- MAIN -------------*/
+int main(void)
+{
+  board_init();
+  print_greeting();
+
+  tusb_init();
+
+  while (1)
+  {
+    tusb_task();
+
+    led_blinking_task();
+    virtual_com_task();
+    usb_hid_task();
+  }
+
+  return 0;
+}
 
 //--------------------------------------------------------------------+
 // tinyusb callbacks

@@ -77,6 +77,7 @@ char     tud_cdc_n_peek            (uint8_t itf, int pos);
 
 uint32_t tud_cdc_n_write_char      (uint8_t itf, char ch);
 uint32_t tud_cdc_n_write           (uint8_t itf, void const* buffer, uint32_t bufsize);
+uint32_t tud_cdc_n_write_str       (uint8_t itf, char const* str);
 bool     tud_cdc_n_write_flush     (uint8_t itf);
 
 //--------------------------------------------------------------------+
@@ -95,6 +96,7 @@ static inline char     tud_cdc_peek            (int pos)                        
 
 static inline uint32_t tud_cdc_write_char      (char ch)                              { return tud_cdc_n_write_char(0, ch);         }
 static inline uint32_t tud_cdc_write           (void const* buffer, uint32_t bufsize) { return tud_cdc_n_write(0, buffer, bufsize); }
+static inline uint32_t tud_cdc_write_str       (char const* str)                      { return tud_cdc_n_write_str(0, str);         }
 static inline bool     tud_cdc_write_flush     (void)                                 { return tud_cdc_n_write_flush(0);            }
 
 //--------------------------------------------------------------------+

@@ -42,25 +42,16 @@
 #include "tusb_fifo.h"
 
 // implement mutex lock and unlock
-// For OSAL_NONE: if mutex is locked by other, function return immediately (since there is no task context)
-// For Real RTOS: fifo lock is a blocking API
 #if CFG_FIFO_MUTEX
 
-static bool tu_fifo_lock(tu_fifo_t *f)
+static void tu_fifo_lock(tu_fifo_t *f)
 {
   if (f->mutex)
   {
-#if CFG_TUSB_OS == OPT_OS_NONE
-    // There is no subtask context for blocking mutex, we will check and return if cannot lock the mutex
-    if ( !osal_mutex_lock_notask(f->mutex) ) return false;
-#else
     uint32_t err;
     (void) err;
     osal_mutex_lock(f->mutex, OSAL_TIMEOUT_WAIT_FOREVER, &err);
-#endif
   }
-
-  return true;
 }
 
 static void tu_fifo_unlock(tu_fifo_t *f)
@@ -73,14 +64,14 @@ static void tu_fifo_unlock(tu_fifo_t *f)
 
 #else
 
-#define tu_fifo_lock(_ff)       true
+#define tu_fifo_lock(_ff)
 #define tu_fifo_unlock(_ff)
 
 #endif
 
 bool tu_fifo_config(tu_fifo_t *f, void* buffer, uint16_t depth, uint16_t item_size, bool overwritable)
 {
-  if ( !tu_fifo_lock(f) ) return false;
+  tu_fifo_lock(f);
 
   f->buffer = (uint8_t*) buffer;
   f->depth  = depth;
@@ -115,7 +106,7 @@ bool tu_fifo_read(tu_fifo_t* f, void * p_buffer)
 {
   if( tu_fifo_empty(f) ) return false;
 
-  if ( !tu_fifo_lock(f) ) return false;
+  tu_fifo_lock(f);
 
   memcpy(p_buffer,
          f->buffer + (f->rd_idx * f->item_size),
@@ -216,7 +207,7 @@ bool tu_fifo_write (tu_fifo_t* f, const void * p_data)
 {
   if ( tu_fifo_full(f) && !f->overwritable ) return false;
 
-  if ( !tu_fifo_lock(f) ) return false;
+  tu_fifo_lock(f);
 
   memcpy( f->buffer + (f->wr_idx * f->item_size),
           p_data,
@@ -279,7 +270,7 @@ uint16_t tu_fifo_write_n (tu_fifo_t* f, const void * p_data, uint16_t count)
 /******************************************************************************/
 bool tu_fifo_clear(tu_fifo_t *f)
 {
-  if ( !tu_fifo_lock(f) ) return false;
+  tu_fifo_lock(f);
 
   f->rd_idx = f->wr_idx = f->count = 0;
 

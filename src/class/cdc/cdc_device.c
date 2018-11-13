@@ -71,8 +71,10 @@ typedef struct
   uint8_t rx_ff_buf[CFG_TUD_CDC_RX_BUFSIZE];
   uint8_t tx_ff_buf[CFG_TUD_CDC_TX_BUFSIZE];
 
+#if CFG_FIFO_MUTEX
   osal_mutex_def_t rx_ff_mutex;
   osal_mutex_def_t tx_ff_mutex;
+#endif
 
   // Endpoint Transfer buffer
   CFG_TUSB_MEM_ALIGN uint8_t epout_buf[CFG_TUD_CDC_EPSIZE];
@@ -151,6 +153,11 @@ uint32_t tud_cdc_n_write_char(uint8_t itf, char ch)
   return tud_cdc_n_write(itf, &ch, 1);
 }
 
+uint32_t tud_cdc_n_write_str (uint8_t itf, char const* str)
+{
+  return tud_cdc_n_write(itf, str, strlen(str));
+}
+
 uint32_t tud_cdc_n_write(uint8_t itf, void const* buffer, uint32_t bufsize)
 {
   uint16_t ret = tu_fifo_write_n(&_cdcd_itf[itf].tx_ff, buffer, bufsize);
@@ -203,10 +210,12 @@ void cdcd_init(void)
 
     // config fifo
     tu_fifo_config(&ser->rx_ff, ser->rx_ff_buf, CFG_TUD_CDC_RX_BUFSIZE, 1, true);
-    tu_fifo_config_mutex(&ser->rx_ff, osal_mutex_create(&ser->rx_ff_mutex));
-
     tu_fifo_config(&ser->tx_ff, ser->tx_ff_buf, CFG_TUD_CDC_TX_BUFSIZE, 1, false);
+
+#if CFG_FIFO_MUTEX
+    tu_fifo_config_mutex(&ser->rx_ff, osal_mutex_create(&ser->rx_ff_mutex));
     tu_fifo_config_mutex(&ser->tx_ff, osal_mutex_create(&ser->tx_ff_mutex));
+#endif
   }
 }
 

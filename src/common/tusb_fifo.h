@@ -43,7 +43,9 @@
 #ifndef _TUSB_FIFO_H_
 #define _TUSB_FIFO_H_
 
-#define CFG_FIFO_MUTEX      1
+// mutex is only needed for RTOS
+// for OS None, we don't get preempted
+#define CFG_FIFO_MUTEX      (CFG_TUSB_OS != OPT_OS_NONE)
 
 #include <stdint.h>
 #include <stdbool.h>

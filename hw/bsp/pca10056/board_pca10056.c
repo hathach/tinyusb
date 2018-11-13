@@ -98,6 +98,11 @@ void board_init(void)
   nrf_gpio_cfg_output(BOARD_LED2);
   nrf_gpio_cfg_output(BOARD_LED3);
 
+  board_led_control(BOARD_LED0, false);
+  board_led_control(BOARD_LED1, false);
+  board_led_control(BOARD_LED2, false);
+  board_led_control(BOARD_LED3, false);
+
   // Button
   for(uint8_t i=0; i<BOARD_BUTTON_COUNT; i++) nrf_gpio_cfg_input(_button_pins[i], NRF_GPIO_PIN_PULLUP);
 
