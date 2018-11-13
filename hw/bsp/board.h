@@ -40,8 +40,8 @@
  * \defgroup group_board Boards Abstraction Layer
  *  @{ */
 
-#ifndef _TUSB_BOARD_H_
-#define _TUSB_BOARD_H_
+#ifndef _BSP_BOARD_H_
+#define _BSP_BOARD_H_
 
 #ifdef __cplusplus
  extern "C" {
@@ -51,26 +51,6 @@
 #include <stdbool.h>
 
 #include "ansi_escape.h"
-
-//--------------------------------------------------------------------+
-// BOARD DEFINE
-//--------------------------------------------------------------------+
-/** \defgroup group_supported_board Supported Boards
- *  @{ */
-#define BOARD_LPCXPRESSO11U14       1114 ///< LPCXpresso 11u14, some APIs requires the base board
-#define BOARD_LPCXPRESSO11U68       1168 ///< LPC11U37 from microbuilder http://www.microbuilder.eu/Blog/13-03-14/LPC1xxx_1GHZ_Wireless_Board_Preview.aspx
-#define BOARD_LPCXPRESSO1347        1347 ///< LPCXpresso 1347, some APIs requires the base board
-#define BOARD_LPCXPRESSO1769        1769 ///< LPCXpresso 1769, some APIs requires the base board
-
-#define BOARD_NGX4330               4330 ///< NGX 4330 Xplorer
-#define BOARD_EA4357                4357 ///< Embedded Artists LPC4357 developer kit
-#define BOARD_MCB4300               4300 ///< Keil MCB4300
-#define BOARD_HITEX4350             4350 ///< Hitex 4350
-
-#define BOARD_LPC4357USB            4304 ///< microbuilder.eu
-
-#define BOARD_LPCLINK2              4370 ///< LPClink2 uses as LPC4370 development board
-/** @} */
 
 //--------------------------------------------------------------------+
 // PRINTF TARGET DEFINE
@@ -86,28 +66,25 @@
 
 #define PRINTF(...) printf(__VA_ARGS__)
 
-//--------------------------------------------------------------------+
-// BOARD INCLUDE
-//--------------------------------------------------------------------+
-#if BOARD == BOARD_LPCXPRESSO11U14
+#if defined BOARD_LPCXPRESSO11U14
   #include "lpcxpresso11u14/board_lpcxpresso11u14.h"
-#elif BOARD == BOARD_LPCXPRESSO11U68
+#elif defined BOARD_LPCXPRESSO11U68
   #include "lpcxpresso11u68/board_lpcxpresso11u68.h"
-#elif BOARD == BOARD_LPCXPRESSO1347
+#elif defined BOARD_LPCXPRESSO1347
   #include "lpcxpresso1347/board_lpcxpresso1347.h"
-#elif BOARD == BOARD_LPCXPRESSO1769
+#elif defined BOARD_LPCXPRESSO1769
   #include "lpcxpresso1769/board_lpcxpresso1769.h"
-#elif BOARD == BOARD_NGX4330
+#elif defined BOARD_NGX4330
   #include "ngx/board_ngx4330.h"
-#elif BOARD == BOARD_EA4357
+#elif defined BOARD_EA4357
   #include "ea4357/board_ea4357.h"
-#elif BOARD == BOARD_MCB4300
+#elif defined BOARD_MCB4300
   #include "keil/board_mcb4300.h"
-#elif BOARD == BOARD_HITEX4350
+#elif defined BOARD_HITEX4350
   #include "hitex/board_hitex4350.h"
-#elif BOARD == BOARD_LPC4357USB
+#elif defined BOARD_LPC4357USB
   #include "microbuilder/board_lpc4357usb.h"
-#elif BOARD == BOARD_LPCLINK2
+#elif defined BOARD_LPCLINK2
  #include "lpcxpresso/board_lpclink2.h"
 #elif defined BOARD_PCA10056
  #include "pca10056/board_pca10056.h"
@@ -115,28 +92,20 @@
   #error BOARD is not defined or supported yet
 #endif
 
-//--------------------------------------------------------------------+
-// Common Configuration
-//--------------------------------------------------------------------+
-#define CFG_UART_BAUDRATE    115200 ///< Baudrate for UART
-
+#define CFG_UART_BAUDRATE    115200
 #define BOARD_TICKS_HZ       1000
+#define board_tick2ms(tck)   ( ( ((uint64_t)(tck)) * 1000) / BOARD_TICKS_HZ )
 
-#define board_tick2ms(tck)         ( ( ((uint64_t)(tck)) * 1000) / BOARD_TICKS_HZ )
 
-//--------------------------------------------------------------------+
-// Board Common API
-//--------------------------------------------------------------------+
-/** \defgroup group_board_api Board API
- * \brief All the board must support these APIs.
- *  @{ */
-
-/// Initialize all required peripherals on board including uart, led, buttons etc ...
+/// Initialize on-board peripherals
 void board_init(void);
 
-
-#define BOARD_LED0    0
-
+//--------------------------------------------------------------------+
+// LED
+// Board variant must defined following
+// - BOARD_LED_NUM : number of LEDs
+// - BOARD_LEDn : where n is 0,1 etc ...
+//--------------------------------------------------------------------+
 void board_led_control(uint32_t led_id, bool state);
 
 static inline void board_led_on(uint32_t led_id)
@@ -149,27 +118,30 @@ static inline void board_led_off(uint32_t led_id)
   board_led_control(led_id, false);
 }
 
-/** \brief Get the current state of the buttons on the board
+//--------------------------------------------------------------------+
+// Buttons
+// TODO refractor later
+//--------------------------------------------------------------------+
+/** Get the current state of the buttons on the board
  * \return Bitmask where a '1' means active (pressed), a '0' means inactive.
  */
 uint32_t board_buttons(void);
 
-/** \brief Get a character input from UART
+/** Get a character input from UART
  * \return ASCII code of the input character or zero if none.
  */
 uint8_t  board_uart_getchar(void);
 
-/** \brief Send a character to UART
+/** Send a character to UART
  * \param[in]  c the character to be sent
  */
 void board_uart_putchar(uint8_t c);
 
-/** @} */
 
 #ifdef __cplusplus
  }
 #endif
 
-#endif /* _TUSB_BOARD_H_ */
+#endif /* _BSP_BOARD_H_ */
 
 /** @} */

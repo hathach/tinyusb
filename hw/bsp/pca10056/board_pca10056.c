@@ -37,16 +37,14 @@
 /**************************************************************************/
 
 #include "bsp/board.h"
-#include "nrf_gpio.h"
-#include "nrfx_power.h"
-#include "nrfx_qspi.h"
+#include "nrfx/hal/nrf_gpio.h"
+#include "nrfx/drivers/include/nrfx_power.h"
+#include "nrfx/drivers/include/nrfx_qspi.h"
 #include "tusb.h"
 
 /*------------------------------------------------------------------*/
 /* MACRO TYPEDEF CONSTANT ENUM
  *------------------------------------------------------------------*/
-#define LED_1           13
-
 #define LED_STATE_ON    0
 #define LED_STATE_OFF   (1-LED_STATE_ON)
 
@@ -94,8 +92,11 @@ void board_init(void)
   NRF_CLOCK->LFCLKSRC = (uint32_t)((CLOCK_LFCLKSRC_SRC_Xtal << CLOCK_LFCLKSRC_SRC_Pos) & CLOCK_LFCLKSRC_SRC_Msk);
   NRF_CLOCK->TASKS_LFCLKSTART = 1UL;
 
-  // LED
-  nrf_gpio_cfg_output(LED_1);
+  // LEDs
+  nrf_gpio_cfg_output(BOARD_LED0);
+  nrf_gpio_cfg_output(BOARD_LED1);
+  nrf_gpio_cfg_output(BOARD_LED2);
+  nrf_gpio_cfg_output(BOARD_LED3);
 
   // Button
   for(uint8_t i=0; i<BOARD_BUTTON_COUNT; i++) nrf_gpio_cfg_input(_button_pins[i], NRF_GPIO_PIN_PULLUP);
@@ -220,8 +221,7 @@ void board_init(void)
 
 void board_led_control(uint32_t led_id, bool state)
 {
-  (void) led_id;
-  nrf_gpio_pin_write(LED_1, state ? LED_STATE_ON : LED_STATE_OFF);
+  nrf_gpio_pin_write(led_id, state ? LED_STATE_ON : (1-LED_STATE_ON));
 }
 
 uint32_t board_buttons(void)
