@@ -1,6 +1,6 @@
 <!DOCTYPE CrossStudio_Project_File>
-<solution Name="nrf52840" target="8" version="2">
-  <project Name="nrf52840">
+<solution Name="nrf5x" target="8" version="2">
+  <project Name="nrf5x">
     <configuration
       Name="Common"
       Placement="Flash"
