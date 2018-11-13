@@ -82,12 +82,14 @@
   #include "keil/board_mcb4300.h"
 #elif defined BOARD_HITEX4350
   #include "hitex/board_hitex4350.h"
-#elif defined BOARD_LPC4357USB
-  #include "microbuilder/board_lpc4357usb.h"
 #elif defined BOARD_LPCLINK2
- #include "lpcxpresso/board_lpclink2.h"
+  #include "lpcxpresso/board_lpclink2.h"
 #elif defined BOARD_PCA10056
- #include "pca10056/board_pca10056.h"
+  #include "pca10056/board_pca10056.h"
+#elif defined BOARD_METRO_M4_EXPRESS
+  #include "metro_m4_express/board_metro_m4_express.h"
+#elif defined BOARD_METRO_M0_EXPRESS
+  #include "metro_m4_express/board_metro_m0_express.h"
 #else
   #error BOARD is not defined or supported yet
 #endif
