@@ -61,7 +61,7 @@ typedef struct {
     uint8_t config;
 } control_t;
 
-CFG_TUSB_ATTR_USBRAM CFG_TUSB_MEM_ALIGN uint8_t _shared_control_buffer[64];
+extern uint8_t _shared_control_buffer[64];
 
 tusb_error_t controld_process_setup_request(uint8_t rhport, tusb_control_request_t const * const p_request);
 

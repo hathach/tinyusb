@@ -48,6 +48,8 @@
 
 control_t control_state;
 
+CFG_TUSB_ATTR_USBRAM CFG_TUSB_MEM_ALIGN uint8_t _shared_control_buffer[64];
+
 void controld_reset(uint8_t rhport) {
     control_state.current_stage = CONTROL_STAGE_SETUP;
 }
