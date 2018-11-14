@@ -1,0 +1,5 @@
+<!DOCTYPE Board_Memory_Definition_File>
+<root name="ATSAME51J19A">
+  <MemorySegment name="FLASH" start="0x00004000" size="0x0007C000" access="ReadOnly" />
+  <MemorySegment name="RAM" start="0x20000000" size="0x00030000" access="Read/Write" />
+</root>

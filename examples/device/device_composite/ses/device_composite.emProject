@@ -179,6 +179,7 @@
       <file file_name="ses_samd51/flash_placement.xml" />
       <file file_name="ses_samd51/thumb_crt0.s" />
       <file file_name="ses_samd51/SAME51_Startup.s" />
+      <file file_name="ses_samd51/SAME51_Target.js" />
     </folder>
   </project>
 </solution>
