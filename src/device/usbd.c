@@ -475,7 +475,6 @@ void dcd_event_xfer_complete (uint8_t rhport, uint8_t ep_addr, uint32_t xferred_
 //--------------------------------------------------------------------+
 // Helper
 //--------------------------------------------------------------------+
-
 tusb_error_t usbd_open_edpt_pair(uint8_t rhport, tusb_desc_endpoint_t const* p_desc_ep, uint8_t xfer_type, uint8_t* ep_out, uint8_t* ep_in)
 {
   for(int i=0; i<2; i++)

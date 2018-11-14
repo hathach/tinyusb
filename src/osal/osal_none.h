@@ -49,20 +49,9 @@
 
 //--------------------------------------------------------------------+
 // TASK API
-// NOTES: Each blocking OSAL_NONE services such as semaphore wait,
-// queue receive embedded return statement, therefore local variable
-// retain value before/after such services needed to declare as static
-// OSAL_TASK_LOOP
-// {
-//   OSAL_TASK_BEGIN
-//
-//   task body statements
-//
-//   OSAL_TASK_LOOP_ENG
-// }
+// Virtually do nothing in osal none
 //--------------------------------------------------------------------+
 #define OSAL_TASK_DEF(_name, _str, _func, _prio, _stack_sz)  osal_task_def_t _name;
-
 typedef uint8_t osal_task_def_t;
 
 static inline bool osal_task_create(osal_task_def_t* taskdef)
@@ -104,13 +93,10 @@ static inline tusb_error_t osal_semaphore_wait(osal_semaphore_t sem_hdl, uint32_
   while (true) {
       while (sem_hdl->count == 0) {
       }
-      // tusb_hal_int_disable_all();
       if (sem_hdl->count == 0) {
           sem_hdl->count--;
-          // tusb_hal_int_enable_all();
           break;
       }
-      // tusb_hal_int_enable_all();
   }
   return TUSB_ERROR_NONE;
 }
