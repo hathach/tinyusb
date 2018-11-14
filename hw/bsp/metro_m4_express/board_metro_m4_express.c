@@ -36,12 +36,22 @@
 */
 /**************************************************************************/
 
+#include "bsp/board.h"
+#include "hal/include/hal_gpio.h"
+
 //--------------------------------------------------------------------+
 // MACRO TYPEDEF CONSTANT ENUM DECLARATION
 //--------------------------------------------------------------------+
-
+#define LED_STATE_ON  1
 
 void board_init(void)
 {
-
+  gpio_set_pin_direction(BOARD_LED0, GPIO_DIRECTION_OUT);
+  gpio_set_pin_level(BOARD_LED0, 1-LED_STATE_ON);
 }
+
+void board_led_control(uint32_t led_id, bool state)
+{
+  gpio_set_pin_level(led_id, state ? LED_STATE_ON : (1-LED_STATE_ON));
+}
+

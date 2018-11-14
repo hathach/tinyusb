@@ -47,8 +47,6 @@
 /* MACRO TYPEDEF CONSTANT ENUM
  *------------------------------------------------------------------*/
 #define LED_STATE_ON    0
-#define LED_STATE_OFF   (1-LED_STATE_ON)
-
 
 uint8_t _button_pins[] = { 11, 12, 24, 25 };
 
