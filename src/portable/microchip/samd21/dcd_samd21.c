@@ -164,6 +164,12 @@ bool dcd_edpt_xfer (uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t 
   UsbDeviceDescBank* bank = &sram_registers[epnum][dir];
   UsbDeviceEndpoint* ep = &USB->DEVICE.DeviceEndpoint[epnum];
 
+  // A setup token can occur immediately after an OUT STATUS packet so make sure we have a valid
+  // buffer for the control endpoint.
+  if (epnum == 0 && dir == 0 && buffer == NULL) {
+      buffer = _setup_packet;
+  }
+
   bank->ADDR.reg = (uint32_t) buffer;
   if ( dir == TUSB_DIR_OUT )
   {
