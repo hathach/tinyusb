@@ -27,7 +27,7 @@
       link_use_linker_script_file="No"
       linker_memory_map_file="ses_nrf5x/nRF52840_xxAA_MemoryMap.xml"
       linker_section_placement_file="ses_nrf5x/flash_placement.xml"
-      macros="DeviceHeaderFile=$(PackagesDir)/nRF/CMSIS/Device/Include/nrf.h;DeviceLibraryIdentifier=M4lf;DeviceSystemFile=$(PackagesDir)/nRF/CMSIS/Device/Source/system_nrf52840.c;DeviceVectorsFile=$(PackagesDir)/nRF/Source/ses_nrf52840_Vectors.s;DeviceFamily=nRF;Target=nRF52840_xxAA;Placement=Flash;rootDir=../../../..;nrfxDir=../../../../hw/mcu/nordic/nrfx"
+      macros="DeviceFamily=nRF;Target=nRF52840_xxAA;Placement=Flash;rootDir=../../../..;nrfxDir=../../../../hw/mcu/nordic/nrfx"
       project_directory=""
       project_type="Executable"
       target_reset_script="Reset();"
@@ -98,5 +98,87 @@
       filter="*.c;*.h"
       path="../src"
       recurse="Yes" />
+  </project>
+  <project Name="Microchip samd51">
+    <configuration
+      Name="Common"
+      Placement="Flash"
+      Target="nRF52840_xxAA"
+      arm_architecture="v7EM"
+      arm_core_type="Cortex-M4"
+      arm_endian="Little"
+      arm_fp_abi="Hard"
+      arm_fpu_type="FPv4-SP-D16"
+      arm_interwork="No"
+      arm_linker_heap_size="1024"
+      arm_linker_process_stack_size="0"
+      arm_linker_stack_size="1024"
+      arm_simulator_memory_simulation_parameter="RX 00000000,00080000,FFFFFFFF;RWX 20000000,00030000,CDCDCDCD"
+      arm_target_debug_interface_type="ADIv5"
+      arm_target_device_name="ATSAMD51J19"
+      arm_target_interface_type="SWD"
+      build_treat_warnings_as_errors="Yes"
+      c_preprocessor_definitions="__SAME51_FAMILY;__SAMD51J19A__;ARM_MATH_CM4;FLASH_PLACEMENT=1;BOARD_METRO_M4_EXPRESS;USE_SIMPLE_ASSERT"
+      c_user_include_directories="../src;$(rootDir)/hw/cmsis/Include;$(rootDir)/hw;$(rootDir)/src;$(asf4Dir);$(asf4Dir)/include;$(asf4Dir)/hri;$(asf4Dir)/hal/include;$(asf4Dir)/hal/utils/include;$(asf4Dir)/hpl/port"
+      debug_register_definition_file="ses_samd51/ATSAME51J19A_Registers.xml"
+      debug_target_connection="J-Link"
+      gcc_entry_point="Reset_Handler"
+      link_use_linker_script_file="No"
+      linker_memory_map_file="ses_samd51/ATSAME51J19A_MemoryMap.xml"
+      linker_section_placement_file="ses_samd51/flash_placement.xml"
+      linker_section_placements_segments="FLASH RX 0x00000000 0x00080000;RAM RWX 0x20000000 0x00030000"
+      macros="DeviceFamily=SAME51;Target=ATSAME51J19A;Placement=Flash;rootDir=../../../..;asf4Dir=../../../../hw/mcu/microchip/samd/asf4/samd51"
+      project_directory=""
+      project_type="Executable"
+      target_reset_script="Reset();"
+      target_script_file="$(ProjectDir)/ses_samd51/SAME51_Target.js"
+      target_trace_initialize_script="EnableTrace(&quot;$(TraceInterfaceType)&quot;)" />
+    <folder
+      Name="tinyusb"
+      exclude=""
+      filter="*.c;*.h"
+      path="../../../../src"
+      recurse="Yes" />
+    <folder Name="hw">
+      <folder Name="bsp">
+        <file file_name="../../../../hw/bsp/ansi_escape.h" />
+        <file file_name="../../../../hw/bsp/board.h" />
+        <folder Name="metro_m4_express">
+          <file file_name="../../../../hw/bsp/metro_m4_express/board_metro_m4_express.c" />
+          <file file_name="../../../../hw/bsp/metro_m4_express/board_metro_m4_express.h" />
+        </folder>
+      </folder>
+      <folder Name="mcu">
+        <folder Name="microchip">
+          <folder Name="samd">
+            <folder Name="asf4">
+              <folder Name="samd51">
+                <folder Name="gcc">
+                  <file file_name="../../../../hw/mcu/microchip/samd/asf4/samd51/gcc/system_samd51.c" />
+                </folder>
+              </folder>
+            </folder>
+          </folder>
+        </folder>
+      </folder>
+    </folder>
+    <configuration Name="Debug" build_treat_warnings_as_errors="Yes" />
+    <folder Name="src">
+      <file file_name="../src/main.c" />
+      <folder Name="segger_rtt">
+        <file file_name="../src/segger_rtt/SEGGER_RTT.c" />
+        <file file_name="../src/segger_rtt/SEGGER_RTT.h" />
+        <file file_name="../src/segger_rtt/SEGGER_RTT_Conf.h" />
+        <file file_name="../src/segger_rtt/SEGGER_RTT_SES.c" />
+      </folder>
+    </folder>
+    <folder Name="ses_samd51">
+      <file file_name="ses_samd51/ATSAME51J19A_MemoryMap.xml" />
+      <file file_name="ses_samd51/ATSAME51J19A_Registers.xml" />
+      <file file_name="ses_samd51/ATSAME51J19A_Vectors.s" />
+      <file file_name="ses_samd51/flash_placement.xml" />
+      <file file_name="ses_samd51/thumb_crt0.s" />
+      <file file_name="ses_samd51/SAME51_Startup.s" />
+    </folder>
   </project>
 </solution>

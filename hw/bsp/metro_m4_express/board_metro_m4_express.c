@@ -48,6 +48,11 @@ void board_init(void)
 {
   gpio_set_pin_direction(BOARD_LED0, GPIO_DIRECTION_OUT);
   gpio_set_pin_level(BOARD_LED0, 1-LED_STATE_ON);
+
+#if CFG_TUSB_OS  == OPT_OS_NONE
+  // Tick init
+  SysTick_Config(SystemCoreClock/1000);
+#endif
 }
 
 void board_led_control(uint32_t led_id, bool state)
@@ -55,3 +60,20 @@ void board_led_control(uint32_t led_id, bool state)
   gpio_set_pin_level(led_id, state ? LED_STATE_ON : (1-LED_STATE_ON));
 }
 
+
+/*------------------------------------------------------------------*/
+/* TUSB HAL MILLISECOND
+ *------------------------------------------------------------------*/
+#if CFG_TUSB_OS  == OPT_OS_NONE
+volatile uint32_t system_ticks = 0;
+
+void SysTick_Handler (void)
+{
+  system_ticks++;
+}
+
+uint32_t tusb_hal_millis(void)
+{
+  return board_tick2ms(system_ticks);
+}
+#endif
