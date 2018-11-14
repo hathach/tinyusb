@@ -245,24 +245,25 @@ void usbd_task( void* param)
 {
   (void) param;
 
-  OSAL_TASK_BEGIN
+#if CFG_TUSB_OS != OPT_OS_NONE
+  while (1) {
+#endif
+
   usbd_main_st();
-  OSAL_TASK_END
+
+#if CFG_TUSB_OS != OPT_OS_NONE
+  }
+#endif
 }
 
 static tusb_error_t usbd_main_st(void)
 {
   dcd_event_t event;
-  tusb_error_t err = TUSB_ERROR_NONE;
-  // Loop until there is no more events in the queue
-  while (_usbd_q->count > 0)
-  {
-    tu_memclr(&event, sizeof(dcd_event_t));
 
-    err = osal_queue_receive(_usbd_q, &event);
-    if (err != TUSB_ERROR_NONE) {
-        break;
-    }
+  // Loop until there is no more events in the queue
+  while (1)
+  {
+    if ( !osal_queue_receive(_usbd_q, &event) ) return TUSB_ERROR_NONE;
 
     if ( DCD_EVENT_SETUP_RECEIVED == event.event_id )
     {
@@ -312,7 +313,7 @@ static tusb_error_t usbd_main_st(void)
     }
   }
 
-    return err;
+  return TUSB_ERROR_NONE;
 }
 
 void tud_control_interface_control_complete_cb(uint8_t rhport, uint8_t interface, tusb_control_request_t const * const p_request) {

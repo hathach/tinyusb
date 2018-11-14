@@ -1,0 +1,16 @@
+/.metadata
+html
+latex
+test_old
+tests/build
+*.d
+*.o
+*.mk
+*.ld
+*.launch
+*.map
+*.axf
+/tests/lpc175x_6x/build/
+/tests/lpc18xx_43xx/build/
+/demos/*/*/Board_*
+/demos/*/*/KeilBuild/

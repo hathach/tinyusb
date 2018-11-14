@@ -361,9 +361,15 @@ void usbh_enumeration_task(void* param)
 {
   (void) param;
 
-  OSAL_TASK_BEGIN
+#if CFG_TUSB_OS != OPT_OS_NONE
+  while (1) {
+#endif
+
   enumeration_body_subtask();
-  OSAL_TASK_END
+
+#if CFG_TUSB_OS != OPT_OS_NONE
+  }
+#endif
 }
 
 tusb_error_t enumeration_body_subtask(void)

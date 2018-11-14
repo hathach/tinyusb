@@ -89,6 +89,7 @@ static inline osal_semaphore_t osal_semaphore_create(osal_semaphore_def_t* semde
 
 static inline bool osal_semaphore_post(osal_semaphore_t sem_hdl, bool in_isr)
 {
+  (void) in_isr;
   sem_hdl->count++;
   return true;
 }
@@ -157,11 +158,11 @@ static inline void osal_queue_reset(osal_queue_t const queue_hdl)
   queue_hdl->count = queue_hdl->rd_idx = queue_hdl->wr_idx = 0;
 }
 
-static inline tusb_error_t osal_queue_receive(osal_queue_t const queue_hdl, void* data) {
-  if (!tu_fifo_read(queue_hdl, data)) {
-    return TUSB_ERROR_OSAL_WAITING;
-  }
-  return TUSB_ERROR_NONE;
+
+static inline bool osal_queue_receive(osal_queue_t const queue_hdl, void* data)
+{
+  // osal none return immediately without blocking
+  return tu_fifo_read(queue_hdl, data);
 }
 
 

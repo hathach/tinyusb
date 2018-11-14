@@ -125,8 +125,6 @@ void dcd_event_xfer_complete (uint8_t rhport, uint8_t ep_addr, uint32_t xferred_
 /*------------------------------------------------------------------*/
 /* Endpoint API
  *------------------------------------------------------------------*/
-
-//------------- Non-control Endpoints -------------//
 bool dcd_edpt_open        (uint8_t rhport, tusb_desc_endpoint_t const * p_endpoint_desc);
 bool dcd_edpt_xfer        (uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t total_bytes);
 bool dcd_edpt_busy        (uint8_t rhport, uint8_t ep_addr);

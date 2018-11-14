@@ -62,10 +62,6 @@ typedef void (*osal_task_func_t)( void * );
 
 #if CFG_TUSB_OS == OPT_OS_NONE
   #include "osal_none.h"
-
-  #define OSAL_TASK_BEGIN
-  #define OSAL_TASK_END
-
 #else
   /* RTOS Porting API
    *
@@ -105,8 +101,7 @@ typedef void (*osal_task_func_t)( void * );
     #error CFG_TUSB_OS is not defined or OS is not supported yet
   #endif
 
-  #define OSAL_TASK_BEGIN while(1) {
-  #define OSAL_TASK_END   }
+  // TODO remove subtask related macros later
 
   //------------- Sub Task -------------//
   #define OSAL_SUBTASK_BEGIN

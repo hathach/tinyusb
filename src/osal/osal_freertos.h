@@ -159,10 +159,9 @@ static inline osal_queue_t osal_queue_create(osal_queue_def_t* qdef)
   return xQueueCreateStatic(qdef->depth, qdef->item_sz, (uint8_t*) qdef->buf, &qdef->sq);
 }
 
-static inline void osal_queue_receive (osal_queue_t const queue_hdl, void *p_data, uint32_t msec, uint32_t *err)
+static inline bool osal_queue_receive(osal_queue_t const queue_hdl, void* data)
 {
-  uint32_t const ticks = (msec == OSAL_TIMEOUT_WAIT_FOREVER) ? portMAX_DELAY : pdMS_TO_TICKS(msec);
-  (*err) = ( xQueueReceive(queue_hdl, p_data, ticks) ? TUSB_ERROR_NONE : TUSB_ERROR_OSAL_TIMEOUT);
+  return xQueueReceive(queue_hdl, data, portMAX_DELAY);
 }
 
 static inline bool osal_queue_send(osal_queue_t const queue_hdl, void const * data, bool in_isr)
