@@ -76,8 +76,6 @@ tusb_error_t tud_control_interface_control_cb(uint8_t rhport, uint8_t interface,
 //--------------------------------------------------------------------+
 // INTERNAL API
 //--------------------------------------------------------------------+
-
-void controld_init(void);
 tusb_error_t controld_open(uint8_t rhport, tusb_desc_interface_t const * p_interface_desc, uint16_t *p_length);
 
 // This tracks the state of a control request.

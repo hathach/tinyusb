@@ -104,16 +104,6 @@ typedef struct {
 
 static usbd_class_driver_t const usbd_class_drivers[] =
 {
-    {
-        .class_code      = TUSB_CLASS_UNSPECIFIED,
-        .init            = controld_init,
-        .open            = NULL,
-        .control_request = NULL,
-        .control_request_complete = NULL,
-        .xfer_cb         = controld_xfer_cb,
-        .sof             = NULL,
-        .reset           = controld_reset
-    },
   #if CFG_TUD_CDC
     {
         .class_code      = TUSB_CLASS_CDC,
@@ -223,9 +213,8 @@ static void usbd_reset(uint8_t rhport)
   tu_varclr(&_usbd_dev);
   memset(_usbd_dev.itf2drv, 0xff, sizeof(_usbd_dev.itf2drv)); // invalid mapping
   memset(_usbd_dev.ep2drv , 0xff, sizeof(_usbd_dev.ep2drv )); // invalid mapping
-  // Always map the 0th endpoint to the control driver.
-  _usbd_dev.ep2drv[TUSB_DIR_IN][0] = 0;
-  _usbd_dev.ep2drv[TUSB_DIR_OUT][0] = 0;
+
+  controld_reset(rhport);
 
   for (uint8_t i = 0; i < USBD_CLASS_DRIVER_COUNT; i++)
   {
@@ -253,10 +242,17 @@ static void usbd_task_body(void)
       {
         // Invoke the class callback associated with the endpoint address
         uint8_t const ep_addr = event.xfer_complete.ep_addr;
-        uint8_t const drv_id = _usbd_dev.ep2drv[edpt_dir(ep_addr)][edpt_number(ep_addr)];
 
-        if ( drv_id < USBD_CLASS_DRIVER_COUNT )
+        if ( 0 == edpt_number(ep_addr) )
         {
+          // control transfer
+          controld_xfer_cb(event.rhport, ep_addr, event.xfer_complete.result, event.xfer_complete.len);
+        }
+        else
+        {
+          uint8_t const drv_id = _usbd_dev.ep2drv[edpt_dir(ep_addr)][edpt_number(ep_addr)];
+          TU_ASSERT(drv_id < USBD_CLASS_DRIVER_COUNT,);
+
           usbd_class_drivers[drv_id].xfer_cb(event.rhport, ep_addr, event.xfer_complete.result, event.xfer_complete.len);
         }
       }

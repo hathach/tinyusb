@@ -54,9 +54,6 @@ void controld_reset(uint8_t rhport) {
     control_state.current_stage = CONTROL_STAGE_SETUP;
 }
 
-void controld_init(void) {
-}
-
 // Helper to send STATUS (zero length) packet
 // Note dir is value of direction bit in setup packet (i.e DATA stage direction)
 static inline bool dcd_control_status(uint8_t rhport, uint8_t dir)
