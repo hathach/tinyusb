@@ -30,16 +30,16 @@ In addition to running without an RTOS, tinyusb is an OS-awared stack that can r
 
 - HID Mouse
 - HID Keyboard
-- HID Generic (comming soon)
+- HID Generic (coming soon)
 - Communication Device Class (CDC)
 - Mass Storage Class (MSC)
-- Hub currnetly only support 1 level of hub (due to my laziness)
+- Hub currently only support 1 level of hub (due to my laziness)
 
 ### Device ###
 
 - HID Mouse
 - HID Keyboard
-- HID Generic (comming soon)
+- HID Generic (coming soon)
 - Communication Class (CDC)
 - Mass Storage Class (MSC)
 
@@ -84,7 +84,7 @@ If you find my little USB stack is useful and want to give something back
 
 ### Donate Time ###
 
-You can contribute your time by helping with programming, testing and filing bug reports, improving documentation. Or simply by using tinyusb, giving me some feedback on how to improve it and telling others about it. 
+You can contribute your time by helping with programming, testing and filing bug reports, improving documentation. Or simply by using tinyusb, giving me some feedback on how to improve it and telling others about it.
 
 ### Donate Money ###
 
