@@ -136,21 +136,33 @@ static inline osal_queue_t osal_queue_create(osal_queue_def_t* qdef)
 static inline bool osal_queue_send(osal_queue_t const queue_hdl, void const * data, bool in_isr)
 {
   (void) in_isr;
-  return tu_fifo_write( (tu_fifo_t*) queue_hdl, data);
+//  if (!in_isr) tusb_hal_int_disable_all();
+
+  bool rc = tu_fifo_write( (tu_fifo_t*) queue_hdl, data);
+
+//  if (!in_isr) tusb_hal_int_enable_all();
+
+  return rc;
 }
 
 static inline void osal_queue_reset(osal_queue_t const queue_hdl)
 {
-  queue_hdl->count = queue_hdl->rd_idx = queue_hdl->wr_idx = 0;
+  // tusb_hal_int_disable_all();
+  tu_fifo_clear( (tu_fifo_t*) queue_hdl);
+  // tusb_hal_int_enable_all();
 }
 
 
 static inline bool osal_queue_receive(osal_queue_t const queue_hdl, void* data)
 {
   // osal none return immediately without blocking
-  return tu_fifo_read(queue_hdl, data);
-}
 
+  // tusb_hal_int_disable_all();
+  bool rc = tu_fifo_read(queue_hdl, data);
+  // tusb_hal_int_enable_all();
+
+  return rc;
+}
 
 #ifdef __cplusplus
  }

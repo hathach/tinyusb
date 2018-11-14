@@ -196,8 +196,6 @@ bool tud_mounted(void)
 //--------------------------------------------------------------------+
 // IMPLEMENTATION
 //--------------------------------------------------------------------+
-static tusb_error_t usbd_main_st(void);
-
 tusb_error_t usbd_init (void)
 {
   #if (CFG_TUSB_RHPORT0_MODE & OPT_MODE_DEVICE)
@@ -235,12 +233,74 @@ static void usbd_reset(uint8_t rhport)
   }
 }
 
-// To enable the TASK_ASSERT style (quick return on false condition) in a real RTOS, a task must act as a wrapper
-// and is used mainly to call subtasks. Within a subtask return statement can be called freely, the task with
-// forever loop cannot have any return at all.
+static void usbd_task_body(void)
+{
+  dcd_event_t event;
 
-// Within tinyusb stack, all task's code must be placed in subtask to be able to support multiple RTOS
-// including none.
+  // Loop until there is no more events in the queue
+  while (1)
+  {
+    if ( !osal_queue_receive(_usbd_q, &event) ) return;
+
+    switch ( event.event_id )
+    {
+      case DCD_EVENT_SETUP_RECEIVED:
+        // Setup tokens are unique to the Control endpoint so we delegate to it directly.
+        controld_process_setup_request(event.rhport, &event.setup_received);
+      break;
+
+      case DCD_EVENT_XFER_COMPLETE:
+      {
+        // Invoke the class callback associated with the endpoint address
+        uint8_t const ep_addr = event.xfer_complete.ep_addr;
+        uint8_t const drv_id = _usbd_dev.ep2drv[edpt_dir(ep_addr)][edpt_number(ep_addr)];
+
+        if ( drv_id < USBD_CLASS_DRIVER_COUNT )
+        {
+          usbd_class_drivers[drv_id].xfer_cb(event.rhport, ep_addr, event.xfer_complete.result, event.xfer_complete.len);
+        }
+      }
+      break;
+
+      case DCD_EVENT_BUS_RESET:
+        // note: if task is too slow, we could clear the event of the new attached
+        usbd_reset(event.rhport);
+        osal_queue_reset(_usbd_q);
+      break;
+
+      case DCD_EVENT_UNPLUGGED:
+        // note: if task is too slow, we could clear the event of the new attached
+        usbd_reset(event.rhport);
+        osal_queue_reset(_usbd_q);
+
+        tud_umount_cb();    // invoke callback
+      break;
+
+      case DCD_EVENT_SOF:
+        for ( uint8_t i = 0; i < USBD_CLASS_DRIVER_COUNT; i++ )
+        {
+          if ( usbd_class_drivers[i].sof )
+          {
+            usbd_class_drivers[i].sof(event.rhport);
+          }
+        }
+      break;
+
+      case USBD_EVT_FUNC_CALL:
+        if ( event.func_call.func ) event.func_call.func(event.func_call.param);
+      break;
+
+      default:
+        TU_BREAKPOINT();
+      break;
+    }
+  }
+}
+
+/* USB device task
+ * Thread that handles all device events. With an real RTOS, the task must be a forever loop and never return.
+ * For codign convenience with no RTOS, we use wrapped sub-function for processing to easily return at any time.
+ */
 void usbd_task( void* param)
 {
   (void) param;
@@ -249,71 +309,11 @@ void usbd_task( void* param)
   while (1) {
 #endif
 
-  usbd_main_st();
+  usbd_task_body();
 
 #if CFG_TUSB_OS != OPT_OS_NONE
   }
 #endif
-}
-
-static tusb_error_t usbd_main_st(void)
-{
-  dcd_event_t event;
-
-  // Loop until there is no more events in the queue
-  while (1)
-  {
-    if ( !osal_queue_receive(_usbd_q, &event) ) return TUSB_ERROR_NONE;
-
-    if ( DCD_EVENT_SETUP_RECEIVED == event.event_id )
-    {
-      // Setup tokens are unique to the Control endpointso we delegate to it directly.
-      controld_process_setup_request(event.rhport, &event.setup_received);
-    }
-    else if (DCD_EVENT_XFER_COMPLETE == event.event_id)
-    {
-      // Invoke the class callback associated with the endpoint address
-      uint8_t const ep_addr = event.xfer_complete.ep_addr;
-      uint8_t const drv_id  = _usbd_dev.ep2drv[ edpt_dir(ep_addr) ][ edpt_number(ep_addr) ];
-
-      if (drv_id < USBD_CLASS_DRIVER_COUNT)
-      {
-        usbd_class_drivers[drv_id].xfer_cb( event.rhport, ep_addr, event.xfer_complete.result, event.xfer_complete.len);
-      }
-    }
-    else if (DCD_EVENT_BUS_RESET == event.event_id)
-    {
-      usbd_reset(event.rhport);
-      osal_queue_reset(_usbd_q);
-    }
-    else if (DCD_EVENT_UNPLUGGED == event.event_id)
-    {
-      usbd_reset(event.rhport);
-      osal_queue_reset(_usbd_q);
-
-      tud_umount_cb(); // invoke callback
-    }
-    else if (DCD_EVENT_SOF == event.event_id)
-    {
-      for (uint8_t i = 0; i < USBD_CLASS_DRIVER_COUNT; i++)
-      {
-        if ( usbd_class_drivers[i].sof )
-        {
-          usbd_class_drivers[i].sof( event.rhport );
-        }
-      }
-    }
-    else if ( USBD_EVT_FUNC_CALL == event.event_id )
-    {
-      if ( event.func_call.func ) event.func_call.func(event.func_call.param);
-    }
-    else
-    {
-      TU_BREAKPOINT();
-    }
-  }
-
-  return TUSB_ERROR_NONE;
 }
 
 void tud_control_interface_control_complete_cb(uint8_t rhport, uint8_t interface, tusb_control_request_t const * const p_request) {
