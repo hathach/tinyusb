@@ -60,8 +60,6 @@
 //
 //   OSAL_TASK_LOOP_ENG
 // }
-//
-// NOTE: no switch statement is allowed in Task and subtask
 //--------------------------------------------------------------------+
 #define OSAL_TASK_DEF(_name, _str, _func, _prio, _stack_sz)  osal_task_def_t _name;
 
@@ -73,52 +71,8 @@ static inline bool osal_task_create(osal_task_def_t* taskdef)
   return true;
 }
 
-#define TASK_RESTART                             \
-  _state = 0
-
-#define osal_task_delay(_msec)                      \
-  do {                                              \
-    _timeout = tusb_hal_millis();                   \
-    _state = __LINE__; case __LINE__:               \
-      if ( _timeout + (_msec) > tusb_hal_millis() ) \
-        return TUSB_ERROR_OSAL_WAITING;             \
-  }while(0)
-
 //--------------------------------------------------------------------+
-// SUBTASK (a sub function that uses OS blocking services & called by a task
-//--------------------------------------------------------------------+
-#define OSAL_SUBTASK_BEGIN                       \
-  static uint16_t _state = 0;                    \
-  ATTR_UNUSED static uint32_t _timeout = 0;      \
-  (void) _timeout;                               \
-  switch(_state) {                               \
-    case 0: {
-
-#define OSAL_SUBTASK_END                         \
-  default: TASK_RESTART; break;                  \
-  }}                                             \
-  return TUSB_ERROR_NONE;
-
-#define STASK_INVOKE(_subtask, _status)                                         \
-  do {                                                                          \
-    _state = __LINE__; case __LINE__:                                           \
-    {                                                                           \
-      (_status) = _subtask; /* invoke sub task */                               \
-      if (TUSB_ERROR_OSAL_WAITING == (_status)) return TUSB_ERROR_OSAL_WAITING; \
-    }                                                                           \
-  }while(0)
-
-//------------- Sub Task Assert -------------//
-#define STASK_RETURN(error)     do { TASK_RESTART; return error; } while(0)
-
-#define STASK_ASSERT_ERR(_err)                TU_VERIFY_ERR_HDLR(_err, TU_BREAKPOINT(); TASK_RESTART, TUSB_ERROR_FAILED)
-#define STASK_ASSERT_ERR_HDLR(_err, _func)    TU_VERIFY_ERR_HDLR(_err, TU_BREAKPOINT(); _func; TASK_RESTART, TUSB_ERROR_FAILED )
-
-#define STASK_ASSERT(_cond)                   TU_VERIFY_HDLR(_cond, TU_BREAKPOINT(); TASK_RESTART, TUSB_ERROR_FAILED)
-#define STASK_ASSERT_HDLR(_cond, _func)       TU_VERIFY_HDLR(_cond, TU_BREAKPOINT(); _func; TASK_RESTART, TUSB_ERROR_FAILED)
-
-//--------------------------------------------------------------------+
-// Semaphore API
+// Binary Semaphore API
 //--------------------------------------------------------------------+
 typedef struct
 {
@@ -135,7 +89,6 @@ static inline osal_semaphore_t osal_semaphore_create(osal_semaphore_def_t* semde
 
 static inline bool osal_semaphore_post(osal_semaphore_t sem_hdl, bool in_isr)
 {
-  (void) in_isr;
   sem_hdl->count++;
   return true;
 }
@@ -145,22 +98,21 @@ static inline void osal_semaphore_reset(osal_semaphore_t sem_hdl)
   sem_hdl->count = 0;
 }
 
-#define osal_semaphore_wait(_sem_hdl, _msec, _err)                                               \
-  do {                                                                                           \
-    _timeout = tusb_hal_millis();                                                                \
-    _state = __LINE__; case __LINE__:                                                            \
-    if( (_sem_hdl)->count == 0 ) {                                                               \
-      if ( ((_msec) != OSAL_TIMEOUT_WAIT_FOREVER) && (_timeout + (_msec) <= tusb_hal_millis()) ) \
-        *(_err) = TUSB_ERROR_OSAL_TIMEOUT;                                                       \
-      else                                                                                       \
-        return TUSB_ERROR_OSAL_WAITING;                                                          \
-    } else{                                                                                      \
-      /* Enter critical ? */                                                                     \
-      (_sem_hdl)->count--;                                                                       \
-      /* Exit critical ? */                                                                      \
-      *(_err) = TUSB_ERROR_NONE;                                                                 \
-    }                                                                                            \
-  }while(0)
+static inline tusb_error_t osal_semaphore_wait(osal_semaphore_t sem_hdl, uint32_t msec) {
+  (void) msec;
+  while (true) {
+      while (sem_hdl->count == 0) {
+      }
+      // tusb_hal_int_disable_all();
+      if (sem_hdl->count == 0) {
+          sem_hdl->count--;
+          // tusb_hal_int_enable_all();
+          break;
+      }
+      // tusb_hal_int_enable_all();
+  }
+  return TUSB_ERROR_NONE;
+}
 
 //--------------------------------------------------------------------+
 // MUTEX API
@@ -205,22 +157,13 @@ static inline void osal_queue_reset(osal_queue_t const queue_hdl)
   queue_hdl->count = queue_hdl->rd_idx = queue_hdl->wr_idx = 0;
 }
 
-#define osal_queue_receive(_q_hdl, p_data, _msec, _err)                                           \
-  do {                                                                                            \
-    _timeout = tusb_hal_millis();                                                                 \
-    _state = __LINE__; case __LINE__:                                                             \
-    if( (_q_hdl)->count == 0 ) {                                                                  \
-      if ( ((_msec) != OSAL_TIMEOUT_WAIT_FOREVER) && ( _timeout + (_msec) <= tusb_hal_millis()) ) \
-        *(_err) = TUSB_ERROR_OSAL_TIMEOUT;                                                        \
-      else                                                                                        \
-        return TUSB_ERROR_OSAL_WAITING;                                                           \
-    } else{                                                                                       \
-      /* Enter critical ? */                                                                      \
-      tu_fifo_read(_q_hdl, p_data);                                                               \
-      /* Exit critical ? */                                                                       \
-      *(_err) = TUSB_ERROR_NONE;                                                                  \
-    }                                                                                             \
-  }while(0)
+static inline tusb_error_t osal_queue_receive(osal_queue_t const queue_hdl, void* data) {
+  if (!tu_fifo_read(queue_hdl, data)) {
+    return TUSB_ERROR_OSAL_WAITING;
+  }
+  return TUSB_ERROR_NONE;
+}
+
 
 #ifdef __cplusplus
  }

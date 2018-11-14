@@ -1,7 +1,7 @@
 /**************************************************************************/
 /*!
-    @file     custom_device.h
-    @author   hathach (tinyusb.org)
+    @file     hal_nrf5x.c
+    @author   hathach
 
     @section LICENSE
 
@@ -36,39 +36,53 @@
 */
 /**************************************************************************/
 
-#ifndef _TUSB_CUSTOM_DEVICE_H_
-#define _TUSB_CUSTOM_DEVICE_H_
+#include "tusb_option.h"
 
-#include "common/tusb_common.h"
-#include "device/usbd.h"
+#if TUSB_OPT_DEVICE_ENABLED && CFG_TUSB_MCU == OPT_MCU_SAMD51
 
-//--------------------------------------------------------------------+
-// APPLICATION API (Multiple Root Ports)
-// Should be used only with MCU that support more than 1 ports
-//--------------------------------------------------------------------+
+#include "sam.h"
 
-//--------------------------------------------------------------------+
-// APPLICATION API (Single Port)
-// Should be used with MCU supporting only 1 USB port for code simplicity
-//--------------------------------------------------------------------+
+#include "tusb_hal.h"
 
+/*------------------------------------------------------------------*/
+/* MACRO TYPEDEF CONSTANT ENUM
+ *------------------------------------------------------------------*/
+#define USB_NVIC_PRIO   7
 
-//--------------------------------------------------------------------+
-// APPLICATION CALLBACK API (WEAK is optional)
-//--------------------------------------------------------------------+
+void tusb_hal_nrf_power_event(uint32_t event);
 
-//--------------------------------------------------------------------+
-// USBD-CLASS DRIVER API
-//--------------------------------------------------------------------+
-#ifdef _TINY_USB_SOURCE_FILE_
+/*------------------------------------------------------------------*/
+/* TUSB HAL
+ *------------------------------------------------------------------*/
+bool tusb_hal_init(void)
+{
+  USB->DEVICE.PADCAL.bit.TRANSP = (*((uint32_t*) USB_FUSES_TRANSP_ADDR) & USB_FUSES_TRANSP_Msk) >> USB_FUSES_TRANSP_Pos;
+  USB->DEVICE.PADCAL.bit.TRANSN = (*((uint32_t*) USB_FUSES_TRANSN_ADDR) & USB_FUSES_TRANSN_Msk) >> USB_FUSES_TRANSN_Pos;
+  USB->DEVICE.PADCAL.bit.TRIM = (*((uint32_t*) USB_FUSES_TRIM_ADDR) & USB_FUSES_TRIM_Msk) >> USB_FUSES_TRIM_Pos;
 
-void cusd_init(void);
-tusb_error_t cusd_open(uint8_t rhport, tusb_desc_interface_t const * p_interface_desc, uint16_t *p_length);
-tusb_error_t cusd_control_request_st(uint8_t rhport, tusb_control_request_t const * p_request);
-void cusd_control_request_complete (uint8_t rhport, tusb_control_request_t const * p_request);
-tusb_error_t cusd_xfer_cb(uint8_t rhport, uint8_t edpt_addr, tusb_event_t event, uint32_t xferred_bytes);
-void cusd_reset(uint8_t rhport);
+  USB->DEVICE.QOSCTRL.bit.CQOS = 3;
+  USB->DEVICE.QOSCTRL.bit.DQOS = 3;
+
+  tusb_hal_int_enable(0);
+  return true;
+}
+
+void tusb_hal_int_enable(uint8_t rhport)
+{
+  (void) rhport;
+  NVIC_EnableIRQ(USB_0_IRQn);
+  NVIC_EnableIRQ(USB_1_IRQn);
+  NVIC_EnableIRQ(USB_2_IRQn);
+  NVIC_EnableIRQ(USB_3_IRQn);
+}
+
+void tusb_hal_int_disable(uint8_t rhport)
+{
+  (void) rhport;
+  NVIC_DisableIRQ(USB_3_IRQn);
+  NVIC_DisableIRQ(USB_2_IRQn);
+  NVIC_DisableIRQ(USB_1_IRQn);
+  NVIC_DisableIRQ(USB_0_IRQn);
+}
+
 #endif
-
-
-#endif /* _TUSB_CUSTOM_DEVICE_H_ */

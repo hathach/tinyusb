@@ -45,6 +45,7 @@
 // INCLUDE
 //--------------------------------------------------------------------+
 #include "cdc_device.h"
+#include "device/control.h"
 #include "device/usbd_pvt.h"
 
 //--------------------------------------------------------------------+
@@ -235,8 +236,10 @@ tusb_error_t cdcd_open(uint8_t rhport, tusb_desc_interface_t const * p_interface
 {
   if ( CDC_COMM_SUBCLASS_ABSTRACT_CONTROL_MODEL != p_interface_desc->bInterfaceSubClass) return TUSB_ERROR_CDC_UNSUPPORTED_SUBCLASS;
 
+  // Only support AT commands, no protocol and vendor specific commands.
   if ( !(tu_within(CDC_COMM_PROTOCOL_ATCOMMAND, p_interface_desc->bInterfaceProtocol, CDC_COMM_PROTOCOL_ATCOMMAND_CDMA) ||
-         0xff == p_interface_desc->bInterfaceProtocol) )
+         p_interface_desc->bInterfaceProtocol == CDC_COMM_PROTOCOL_NONE ||
+         p_interface_desc->bInterfaceProtocol == 0xff ) )
   {
     return TUSB_ERROR_CDC_UNSUPPORTED_PROTOCOL;
   }
@@ -296,10 +299,23 @@ tusb_error_t cdcd_open(uint8_t rhport, tusb_desc_interface_t const * p_interface
   return TUSB_ERROR_NONE;
 }
 
-tusb_error_t cdcd_control_request_st(uint8_t rhport, tusb_control_request_t const * p_request)
+void cdcd_control_request_complete(uint8_t rhport, tusb_control_request_t const * p_request)
 {
-  OSAL_SUBTASK_BEGIN
+  //------------- Class Specific Request -------------//
+  if (p_request->bmRequestType_bit.type != TUSB_REQ_TYPE_CLASS) return;
 
+  // TODO Support multiple interfaces
+  uint8_t const itf = 0;
+  cdcd_interface_t* p_cdc = &_cdcd_itf[itf];
+
+  // Invoke callback
+  if (CDC_REQUEST_SET_LINE_CODING == p_request->bRequest) {
+    if ( tud_cdc_line_coding_cb ) tud_cdc_line_coding_cb(itf, &p_cdc->line_coding);
+  }
+}
+
+tusb_error_t cdcd_control_request(uint8_t rhport, tusb_control_request_t const * p_request, uint16_t bytes_already_sent)
+{
   //------------- Class Specific Request -------------//
   if (p_request->bmRequestType_bit.type != TUSB_REQ_TYPE_CLASS) return TUSB_ERROR_DCD_CONTROL_REQUEST_NOT_SUPPORT;
 
@@ -307,21 +323,18 @@ tusb_error_t cdcd_control_request_st(uint8_t rhport, tusb_control_request_t cons
   uint8_t const itf = 0;
   cdcd_interface_t* p_cdc = &_cdcd_itf[itf];
 
-  if ( (CDC_REQUEST_GET_LINE_CODING == p_request->bRequest) || (CDC_REQUEST_SET_LINE_CODING == p_request->bRequest) )
+  if ((CDC_REQUEST_SET_LINE_CODING == p_request->bRequest) )
   {
     uint16_t len = tu_min16(sizeof(cdc_line_coding_t), p_request->wLength);
-    usbd_control_xfer_st(rhport, p_request->bmRequestType_bit.direction, &p_cdc->line_coding, len);
-
-    // Invoke callback
-    if (CDC_REQUEST_SET_LINE_CODING == p_request->bRequest)
-    {
-      if ( tud_cdc_line_coding_cb ) tud_cdc_line_coding_cb(itf, &p_cdc->line_coding);
-    }
+    dcd_edpt_xfer(rhport, 0, (uint8_t*) &p_cdc->line_coding, len);
+  }
+  else if ( (CDC_REQUEST_GET_LINE_CODING == p_request->bRequest))
+  {
+    uint16_t len = tu_min16(sizeof(cdc_line_coding_t), p_request->wLength);
+    dcd_edpt_xfer(rhport, TUSB_DIR_IN_MASK, (uint8_t*) &p_cdc->line_coding, len);
   }
   else if (CDC_REQUEST_SET_CONTROL_LINE_STATE == p_request->bRequest )
   {
-    dcd_control_status(rhport, p_request->bmRequestType_bit.direction); // ACK control request
-
     // CDC PSTN v1.2 section 6.3.12
     // Bit 0: Indicates if DTE is present or not.
     //        This signal corresponds to V.24 signal 108/2 and RS-232 signal DTR (Data Terminal Ready)
@@ -334,10 +347,9 @@ tusb_error_t cdcd_control_request_st(uint8_t rhport, tusb_control_request_t cons
   }
   else
   {
-    dcd_control_stall(rhport); // stall unsupported request
+    return TUSB_ERROR_FAILED; // stall unsupported request
   }
-
-  OSAL_SUBTASK_END
+  return TUSB_ERROR_NONE;
 }
 
 tusb_error_t cdcd_xfer_cb(uint8_t rhport, uint8_t ep_addr, tusb_event_t event, uint32_t xferred_bytes)

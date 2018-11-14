@@ -51,6 +51,10 @@
  extern "C" {
 #endif
 
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wpacked"
+#pragma GCC diagnostic ignored "-Wattributes"
+
 /*------------------------------------------------------------------*/
 /* CONSTANTS
  *------------------------------------------------------------------*/
@@ -421,6 +425,8 @@ static inline uint8_t descriptor_len(uint8_t const p_desc[])
 
 // Convert comma-separated string to descriptor unicode format
 #define TUD_DESC_STRCONV( ... )     (const uint16_t[]) { TUD_DESC_STR_HEADER(VA_ARGS_NUM_(__VA_ARGS__)), __VA_ARGS__ }
+
+#pragma GCC diagnostic pop
 
 #ifdef __cplusplus
  }

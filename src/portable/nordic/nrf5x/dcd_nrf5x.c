@@ -82,17 +82,8 @@ typedef struct
 
 /*static*/ struct
 {
-  struct
-  {
-    uint8_t* buffer;
-    uint16_t total_len;
-    volatile uint16_t actual_len;
-
-    uint8_t  dir;
-  }control;
-
-  // Non control: 7 endpoints IN & OUT (offset 1)
-  nom_xfer_t xfer[7][2];
+  // All 8 endpoints including control IN & OUT (offset 1)
+  nom_xfer_t xfer[8][2];
 
   volatile bool dma_running;
 }_dcd;
@@ -109,6 +100,8 @@ void bus_reset(void)
   NRF_USBD->TASKS_STARTISOOUT = 0;
 
   tu_varclr(&_dcd);
+  _dcd.xfer[0][TUSB_DIR_IN].mps = MAX_PACKET_SIZE;
+  _dcd.xfer[0][TUSB_DIR_OUT].mps = MAX_PACKET_SIZE;
 }
 
 /*------------------------------------------------------------------*/
@@ -176,61 +169,13 @@ static void edpt_dma_end(void)
   _dcd.dma_running = false;
 }
 
-static void xact_control_start(void)
-{
-  // Each transaction is up to 64 bytes
-  uint8_t const xact_len = tu_min16(_dcd.control.total_len-_dcd.control.actual_len, MAX_PACKET_SIZE);
-
-  if ( _dcd.control.dir == TUSB_DIR_OUT )
-  {
-    // TODO control out
-    NRF_USBD->EPOUT[0].PTR    = (uint32_t) _dcd.control.buffer;
-    NRF_USBD->EPOUT[0].MAXCNT = xact_len;
-
-    NRF_USBD->TASKS_EP0RCVOUT = 1;
-    __ISB(); __DSB();
-  }else
-  {
-    NRF_USBD->EPIN[0].PTR        = (uint32_t) _dcd.control.buffer;
-    NRF_USBD->EPIN[0].MAXCNT     = xact_len;
-
-    edpt_dma_start(&NRF_USBD->TASKS_STARTEPIN[0]);
-  }
-
-  _dcd.control.buffer     += xact_len;
-  _dcd.control.actual_len += xact_len;
-}
-
-bool dcd_control_xfer (uint8_t rhport, uint8_t dir, uint8_t * buffer, uint16_t length)
-{
-  (void) rhport;
-
-  if ( length )
-  {
-    // Data Phase
-    _dcd.control.total_len  = length;
-    _dcd.control.actual_len = 0;
-    _dcd.control.buffer     = buffer;
-    _dcd.control.dir        = dir;
-
-    xact_control_start();
-  }else
-  {
-    // Status Phase also require Easy DMA has to be free as well !!!!
-    edpt_dma_start(&NRF_USBD->TASKS_EP0STATUS);
-    edpt_dma_end();
-  }
-
-  return true;
-}
-
 /*------------------------------------------------------------------*/
 /*
  *------------------------------------------------------------------*/
 
 static inline nom_xfer_t* get_td(uint8_t epnum, uint8_t dir)
 {
-  return &_dcd.xfer[epnum-1][dir];
+  return &_dcd.xfer[epnum][dir];
 }
 
 /*------------- Bulk/Int OUT transfer -------------*/
@@ -292,7 +237,7 @@ bool dcd_edpt_open (uint8_t rhport, tusb_desc_endpoint_t const * desc_edpt)
   uint8_t const epnum = edpt_number(desc_edpt->bEndpointAddress);
   uint8_t const dir   = edpt_dir(desc_edpt->bEndpointAddress);
 
-  _dcd.xfer[epnum-1][dir].mps = desc_edpt->wMaxPacketSize.size;
+  _dcd.xfer[epnum][dir].mps = desc_edpt->wMaxPacketSize.size;
 
   if ( dir == TUSB_DIR_OUT )
   {
@@ -308,6 +253,16 @@ bool dcd_edpt_open (uint8_t rhport, tusb_desc_endpoint_t const * desc_edpt)
   return true;
 }
 
+void control_status_token(uint8_t addr) {
+  NRF_USBD->EPIN[0].PTR        = 0;
+  NRF_USBD->EPIN[0].MAXCNT     = 0;
+  // Status Phase also require Easy DMA has to be free as well !!!!
+  NRF_USBD->TASKS_EP0STATUS = 1;
+
+  // The nRF doesn't interrupt on status transmit so we queue up a success response.
+  dcd_event_xfer_complete(0, addr, 0, DCD_XFER_SUCCESS, false);
+}
+
 bool dcd_edpt_xfer (uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t total_bytes)
 {
   (void) rhport;
@@ -321,7 +276,10 @@ bool dcd_edpt_xfer (uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t 
   xfer->total_len  = total_bytes;
   xfer->actual_len = 0;
 
-  if ( dir == TUSB_DIR_OUT )
+  // How does the control endpoint handle a ZLP in the data phase?
+  if (epnum == 0 && total_bytes == 0) {
+      control_status_token(ep_addr);
+  } else if ( dir == TUSB_DIR_OUT )
   {
     if ( xfer->data_received )
     {
@@ -427,47 +385,15 @@ void USBD_IRQHandler(void)
     edpt_dma_end();
   }
 
-  /*------------- Control Transfer -------------*/
+  // Setup tokens are specific to the Control endpoint.
   if ( int_status & USBD_INTEN_EP0SETUP_Msk )
   {
     uint8_t setup[8] = {
         NRF_USBD->BMREQUESTTYPE , NRF_USBD->BREQUEST, NRF_USBD->WVALUEL , NRF_USBD->WVALUEH,
         NRF_USBD->WINDEXL       , NRF_USBD->WINDEXH , NRF_USBD->WLENGTHL, NRF_USBD->WLENGTHH
     };
-    dcd_event_setup_recieved(0, setup, true);
-  }
-
-  if ( int_status & USBD_INTEN_EP0DATADONE_Msk )
-  {
-    if ( _dcd.control.dir == TUSB_DIR_OUT )
-    {
-      // Control OUT: data from Host -> Endpoint
-      // Trigger DMA to move Endpoint -> SRAM
-      edpt_dma_start(&NRF_USBD->TASKS_STARTEPOUT[0]);
-    }else
-    {
-      // Control IN: data transferred from Endpoint -> Host
-      if ( _dcd.control.actual_len < _dcd.control.total_len )
-      {
-        xact_control_start();
-      }else
-      {
-        // Control IN complete
-        dcd_event_xfer_complete(0, 0, _dcd.control.actual_len, DCD_XFER_SUCCESS, true);
-      }
-    }
-  }
-
-  // Control OUT: data from Endpoint -> SRAM
-  if ( int_status & USBD_INTEN_ENDEPOUT0_Msk)
-  {
-    if ( _dcd.control.actual_len < _dcd.control.total_len )
-    {
-      xact_control_start();
-    }else
-    {
-      // Control OUT complete
-      dcd_event_xfer_complete(0, 0, _dcd.control.actual_len, DCD_XFER_SUCCESS, true);
+    if (setup[1] != TUSB_REQ_SET_ADDRESS) {
+      dcd_event_setup_received(0, setup, true);
     }
   }
 
@@ -478,9 +404,9 @@ void USBD_IRQHandler(void)
    * We must handle this stage before Host -> Endpoint just in case
    * 2 event happens at once
    */
-  for(uint8_t epnum=1; epnum<8; epnum++)
+  for(uint8_t epnum=0; epnum<8; epnum++)
   {
-    if ( BIT_TEST_(int_status, USBD_INTEN_ENDEPOUT0_Pos+epnum) )
+    if ( BIT_TEST_(int_status, USBD_INTEN_ENDEPOUT0_Pos+epnum))
     {
       nom_xfer_t* xfer = get_td(epnum, TUSB_DIR_OUT);
 
@@ -505,16 +431,16 @@ void USBD_IRQHandler(void)
     // Ended event for Bulk/Int : nothing to do
   }
 
-  if ( int_status & USBD_INTEN_EPDATA_Msk)
+  if ( int_status & USBD_INTEN_EPDATA_Msk || int_status & USBD_INTEN_EP0DATADONE_Msk)
   {
     uint32_t data_status = NRF_USBD->EPDATASTATUS;
 
     nrf_usbd_epdatastatus_clear(data_status);
 
     // Bulk/Int In: data from Endpoint -> Host
-    for(uint8_t epnum=1; epnum<8; epnum++)
+    for(uint8_t epnum=0; epnum<8; epnum++)
     {
-      if ( BIT_TEST_(data_status, epnum ) )
+      if ( BIT_TEST_(data_status, epnum ) || (epnum == 0 && BIT_TEST_(int_status, USBD_INTEN_EP0DATADONE_Pos)))
       {
         nom_xfer_t* xfer = get_td(epnum, TUSB_DIR_IN);
 
@@ -533,7 +459,7 @@ void USBD_IRQHandler(void)
     }
 
     // Bulk/Int OUT: data from Host -> Endpoint
-    for(uint8_t epnum=1; epnum<8; epnum++)
+    for(uint8_t epnum=0; epnum<8; epnum++)
     {
       if ( BIT_TEST_(data_status, 16+epnum ) )
       {

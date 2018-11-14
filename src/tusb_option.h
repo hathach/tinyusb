@@ -57,6 +57,9 @@
 #define OPT_MCU_LPC43XX        7 ///< NXP LPC43xx series
 
 #define OPT_MCU_NRF5X        100 ///< Nordic nRF5x series
+
+#define OPT_MCU_SAMD21        200 ///< MicroChip SAMD21
+#define OPT_MCU_SAMD51        201 ///< MicroChip SAMD51
 /** @} */
 
 /** \defgroup group_supported_os Supported RTOS
@@ -147,6 +150,8 @@
 
   #ifndef CFG_TUD_ENUM_BUFFER_SIZE
     #define CFG_TUD_CTRL_BUFSIZE 256
+  #else
+    #define CFG_TUD_CTRL_BUFSIZE CFG_TUD_ENUM_BUFFER_SIZE
   #endif
 
   #ifndef CFG_TUD_DESC_AUTO

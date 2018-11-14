@@ -36,12 +36,15 @@
 */
 /**************************************************************************/
 
+// This top level class manages the bus state and delegates events to class-specific drivers.
+
 #include "tusb_option.h"
 
 #if TUSB_OPT_DEVICE_ENABLED
 
 #define _TINY_USB_SOURCE_FILE_
 
+#include "control.h"
 #include "tusb.h"
 #include "usbd.h"
 #include "device/usbd_pvt.h"
@@ -72,7 +75,6 @@ typedef struct {
   uint8_t ep2drv[2][8];
 }usbd_device_t;
 
-CFG_TUSB_ATTR_USBRAM CFG_TUSB_MEM_ALIGN uint8_t _usbd_ctrl_buf[CFG_TUD_CTRL_BUFSIZE];
 static usbd_device_t _usbd_dev;
 
 
@@ -92,7 +94,9 @@ typedef struct {
 
   void         (* init           ) (void);
   tusb_error_t (* open           ) (uint8_t rhport, tusb_desc_interface_t const * desc_intf, uint16_t* p_length);
-  tusb_error_t (* control_req_st ) (uint8_t rhport, tusb_control_request_t const *);
+  // Control request is called one or more times for a request and can queue multiple data packets.
+  tusb_error_t (* control_request ) (uint8_t rhport, tusb_control_request_t const *, uint16_t bytes_already_sent);
+  void (* control_request_complete ) (uint8_t rhport, tusb_control_request_t const *);
   tusb_error_t (* xfer_cb        ) (uint8_t rhport, uint8_t ep_addr, tusb_event_t, uint32_t);
   void         (* sof            ) (uint8_t rhport);
   void         (* reset          ) (uint8_t);
@@ -100,52 +104,66 @@ typedef struct {
 
 static usbd_class_driver_t const usbd_class_drivers[] =
 {
+    {
+        .class_code      = TUSB_CLASS_UNSPECIFIED,
+        .init            = controld_init,
+        .open            = NULL,
+        .control_request = NULL,
+        .control_request_complete = NULL,
+        .xfer_cb         = controld_xfer_cb,
+        .sof             = NULL,
+        .reset           = controld_reset
+    },
   #if CFG_TUD_CDC
     {
-        .class_code     = TUSB_CLASS_CDC,
-        .init           = cdcd_init,
-        .open           = cdcd_open,
-        .control_req_st = cdcd_control_request_st,
-        .xfer_cb        = cdcd_xfer_cb,
-        .sof            = NULL,
-        .reset          = cdcd_reset
+        .class_code      = TUSB_CLASS_CDC,
+        .init            = cdcd_init,
+        .open            = cdcd_open,
+        .control_request = cdcd_control_request,
+        .control_request_complete = cdcd_control_request_complete,
+        .xfer_cb         = cdcd_xfer_cb,
+        .sof             = NULL,
+        .reset           = cdcd_reset
     },
   #endif
 
   #if CFG_TUD_MSC
     {
-        .class_code     = TUSB_CLASS_MSC,
-        .init           = mscd_init,
-        .open           = mscd_open,
-        .control_req_st = mscd_control_request_st,
-        .xfer_cb        = mscd_xfer_cb,
-        .sof            = NULL,
-        .reset          = mscd_reset
+        .class_code      = TUSB_CLASS_MSC,
+        .init            = mscd_init,
+        .open            = mscd_open,
+        .control_request = mscd_control_request,
+        .control_request_complete = mscd_control_request_complete,
+        .xfer_cb         = mscd_xfer_cb,
+        .sof             = NULL,
+        .reset           = mscd_reset
     },
   #endif
 
 
   #if CFG_TUD_HID
     {
-        .class_code     = TUSB_CLASS_HID,
-        .init           = hidd_init,
-        .open           = hidd_open,
-        .control_req_st = hidd_control_request_st,
-        .xfer_cb        = hidd_xfer_cb,
-        .sof            = NULL,
-        .reset          = hidd_reset
+        .class_code      = TUSB_CLASS_HID,
+        .init            = hidd_init,
+        .open            = hidd_open,
+        .control_request = hidd_control_request,
+        .control_request_complete = hidd_control_request_complete,
+        .xfer_cb         = hidd_xfer_cb,
+        .sof             = NULL,
+        .reset           = hidd_reset
     },
   #endif
 
   #if CFG_TUD_CUSTOM_CLASS
     {
-        .class_code     = TUSB_CLASS_VENDOR_SPECIFIC,
-        .init           = cusd_init,
-        .open           = cusd_open,
-        .control_req_st = cusd_control_request_st,
-        .xfer_cb        = cusd_xfer_cb,
-        .sof            = NULL,
-        .reset          = cusd_reset
+        .class_code      = TUSB_CLASS_VENDOR_SPECIFIC,
+        .init            = cusd_init,
+        .open            = cusd_open,
+        .control_request = cusd_control_request,
+        .control_request_complete = cusd_control_request_complete,
+        .xfer_cb         = cusd_xfer_cb,
+        .sof             = NULL,
+        .reset           = cusd_reset
     },
   #endif
 };
@@ -162,16 +180,10 @@ OSAL_TASK_DEF(_usbd_task_def, "usbd", usbd_task, CFG_TUD_TASK_PRIO, CFG_TUD_TASK
 OSAL_QUEUE_DEF(_usbd_qdef, CFG_TUD_TASK_QUEUE_SZ, dcd_event_t);
 static osal_queue_t _usbd_q;
 
-/*------------- control transfer semaphore -------------*/
-static osal_semaphore_def_t _usbd_sem_def;
-osal_semaphore_t _usbd_ctrl_sem;
-
 //--------------------------------------------------------------------+
 // INTERNAL FUNCTION
 //--------------------------------------------------------------------+
 static void mark_interface_endpoint(uint8_t const* p_desc, uint16_t desc_len, uint8_t driver_id);
-static tusb_error_t proc_set_config_req(uint8_t rhport, uint8_t config_number);
-static uint16_t get_descriptor(uint8_t rhport, tusb_control_request_t const * const p_request, uint8_t const ** pp_buffer);
 
 //--------------------------------------------------------------------+
 // APPLICATION API
@@ -184,7 +196,6 @@ bool tud_mounted(void)
 //--------------------------------------------------------------------+
 // IMPLEMENTATION
 //--------------------------------------------------------------------+
-static tusb_error_t proc_control_request_st(uint8_t rhport, tusb_control_request_t const * const p_request);
 static tusb_error_t usbd_main_st(void);
 
 tusb_error_t usbd_init (void)
@@ -201,9 +212,6 @@ tusb_error_t usbd_init (void)
   _usbd_q = osal_queue_create(&_usbd_qdef);
   TU_VERIFY(_usbd_q, TUSB_ERROR_OSAL_QUEUE_FAILED);
 
-  _usbd_ctrl_sem = osal_semaphore_create(&_usbd_sem_def);
-  TU_VERIFY(_usbd_q, TUSB_ERROR_OSAL_SEMAPHORE_FAILED);
-
   osal_task_create(&_usbd_task_def);
 
   //------------- class init -------------//
@@ -217,6 +225,9 @@ static void usbd_reset(uint8_t rhport)
   tu_varclr(&_usbd_dev);
   memset(_usbd_dev.itf2drv, 0xff, sizeof(_usbd_dev.itf2drv)); // invalid mapping
   memset(_usbd_dev.ep2drv , 0xff, sizeof(_usbd_dev.ep2drv )); // invalid mapping
+  // Always map the 0th endpoint to the control driver.
+  _usbd_dev.ep2drv[TUSB_DIR_IN][0] = 0;
+  _usbd_dev.ep2drv[TUSB_DIR_OUT][0] = 0;
 
   for (uint8_t i = 0; i < USBD_CLASS_DRIVER_COUNT; i++)
   {
@@ -241,23 +252,22 @@ void usbd_task( void* param)
 
 static tusb_error_t usbd_main_st(void)
 {
-  static dcd_event_t event;
-
-  OSAL_SUBTASK_BEGIN
-
+  dcd_event_t event;
+  tusb_error_t err = TUSB_ERROR_NONE;
   // Loop until there is no more events in the queue
-  while (1)
+  while (_usbd_q->count > 0)
   {
-    uint32_t err;
-
-    err = TUSB_ERROR_NONE;
     tu_memclr(&event, sizeof(dcd_event_t));
 
-    osal_queue_receive(_usbd_q, &event, OSAL_TIMEOUT_WAIT_FOREVER, &err);
+    err = osal_queue_receive(_usbd_q, &event);
+    if (err != TUSB_ERROR_NONE) {
+        break;
+    }
 
     if ( DCD_EVENT_SETUP_RECEIVED == event.event_id )
     {
-      STASK_INVOKE( proc_control_request_st(event.rhport, &event.setup_received), err );
+      // Setup tokens are unique to the Control endpointso we delegate to it directly.
+      controld_process_setup_request(event.rhport, &event.setup_received);
     }
     else if (DCD_EVENT_XFER_COMPLETE == event.event_id)
     {
@@ -267,20 +277,18 @@ static tusb_error_t usbd_main_st(void)
 
       if (drv_id < USBD_CLASS_DRIVER_COUNT)
       {
-        usbd_class_drivers[drv_id].xfer_cb( event.rhport, ep_addr, (tusb_event_t) event.xfer_complete.result, event.xfer_complete.len);
+        usbd_class_drivers[drv_id].xfer_cb( event.rhport, ep_addr, event.xfer_complete.result, event.xfer_complete.len);
       }
     }
     else if (DCD_EVENT_BUS_RESET == event.event_id)
     {
       usbd_reset(event.rhport);
       osal_queue_reset(_usbd_q);
-      osal_semaphore_reset(_usbd_ctrl_sem);
     }
     else if (DCD_EVENT_UNPLUGGED == event.event_id)
     {
       usbd_reset(event.rhport);
       osal_queue_reset(_usbd_q);
-      osal_semaphore_reset(_usbd_ctrl_sem);
 
       tud_umount_cb(); // invoke callback
     }
@@ -304,116 +312,31 @@ static tusb_error_t usbd_main_st(void)
     }
   }
 
-  OSAL_SUBTASK_END
+    return err;
 }
 
-//--------------------------------------------------------------------+
-// CONTROL REQUEST
-//--------------------------------------------------------------------+
-static tusb_error_t proc_control_request_st(uint8_t rhport, tusb_control_request_t const * const p_request)
-{
-  OSAL_SUBTASK_BEGIN
-
-  ATTR_UNUSED tusb_error_t error;
-  error = TUSB_ERROR_NONE;
-
-  //------------- Standard Request e.g in enumeration -------------//
-  if( TUSB_REQ_RCPT_DEVICE    == p_request->bmRequestType_bit.recipient &&
-      TUSB_REQ_TYPE_STANDARD  == p_request->bmRequestType_bit.type )
-  {
-    if ( TUSB_REQ_GET_DESCRIPTOR == p_request->bRequest )
+void tud_control_interface_control_complete_cb(uint8_t rhport, uint8_t interface, tusb_control_request_t const * const p_request) {
+    if (_usbd_dev.itf2drv[ interface ] < USBD_CLASS_DRIVER_COUNT)
     {
-      uint8_t  const * buffer = NULL;
-      uint16_t const   len    = get_descriptor(rhport, p_request, &buffer);
-
-      if ( len )
-      {
-        STASK_ASSERT( len <= CFG_TUD_CTRL_BUFSIZE );
-        memcpy(_usbd_ctrl_buf, buffer, len);
-        usbd_control_xfer_st(rhport, p_request->bmRequestType_bit.direction, _usbd_ctrl_buf, len);
-      }else
-      {
-        dcd_control_stall(rhport); // stall unsupported descriptor
+      const usbd_class_driver_t *driver = &usbd_class_drivers[_usbd_dev.itf2drv[interface]];
+      if (driver->control_request_complete != NULL) {
+        driver->control_request_complete(rhport, p_request);
       }
     }
-    else if (TUSB_REQ_GET_CONFIGURATION == p_request->bRequest )
-    {
-      memcpy(_usbd_ctrl_buf, &_usbd_dev.config_num, 1);
-      usbd_control_xfer_st(rhport, p_request->bmRequestType_bit.direction, _usbd_ctrl_buf, 1);
-    }
-    else if ( TUSB_REQ_SET_ADDRESS == p_request->bRequest )
-    {
-      dcd_set_address(rhport, (uint8_t) p_request->wValue);
+}
 
-      #if CFG_TUSB_MCU != OPT_MCU_NRF5X // nrf5x auto handle set address, we must not return status
-      dcd_control_status(rhport, p_request->bmRequestType_bit.direction);
-      #endif
-    }
-    else if ( TUSB_REQ_SET_CONFIGURATION == p_request->bRequest )
+tusb_error_t tud_control_interface_control_cb(uint8_t rhport, uint8_t interface, tusb_control_request_t const * const p_request, uint16_t bytes_already_sent) {
+    if (_usbd_dev.itf2drv[ interface ] < USBD_CLASS_DRIVER_COUNT)
     {
-      proc_set_config_req(rhport, (uint8_t) p_request->wValue);
-      dcd_control_status(rhport, p_request->bmRequestType_bit.direction);
+      return usbd_class_drivers[_usbd_dev.itf2drv[interface]].control_request(rhport, p_request, bytes_already_sent);
     }
-    else
-    {
-      dcd_control_stall(rhport); // Stall unsupported request
-    }
-  }
-
-  //------------- Class/Interface Specific Request -------------//
-  else if ( TUSB_REQ_RCPT_INTERFACE == p_request->bmRequestType_bit.recipient )
-  {
-    if (_usbd_dev.itf2drv[ tu_u16_low(p_request->wIndex) ] < USBD_CLASS_DRIVER_COUNT)
-    {
-      STASK_INVOKE( usbd_class_drivers[ _usbd_dev.itf2drv[ tu_u16_low(p_request->wIndex) ] ].control_req_st(rhport, p_request), error );
-    }else
-    {
-      dcd_control_stall(rhport); // Stall unsupported request
-    }
-  }
-
-  //------------- Endpoint Request -------------//
-  else if ( TUSB_REQ_RCPT_ENDPOINT == p_request->bmRequestType_bit.recipient &&
-            TUSB_REQ_TYPE_STANDARD == p_request->bmRequestType_bit.type)
-  {
-    if (TUSB_REQ_GET_STATUS == p_request->bRequest )
-    {
-      uint16_t status = dcd_edpt_stalled(rhport, tu_u16_low(p_request->wIndex)) ? 0x0001 : 0x0000;
-      memcpy(_usbd_ctrl_buf, &status, 2);
-
-      usbd_control_xfer_st(rhport, p_request->bmRequestType_bit.direction, _usbd_ctrl_buf, 2);
-    }
-    else if (TUSB_REQ_CLEAR_FEATURE == p_request->bRequest )
-    {
-      // only endpoint feature is halted/stalled
-      dcd_edpt_clear_stall(rhport, tu_u16_low(p_request->wIndex));
-      dcd_control_status(rhport, p_request->bmRequestType_bit.direction);
-    }
-    else if (TUSB_REQ_SET_FEATURE == p_request->bRequest )
-    {
-      // only endpoint feature is halted/stalled
-      dcd_edpt_stall(rhport, tu_u16_low(p_request->wIndex));
-      dcd_control_status(rhport, p_request->bmRequestType_bit.direction);
-    }
-    else
-    {
-      dcd_control_stall(rhport); // Stall unsupported request
-    }
-  }
-
-  //------------- Unsupported Request -------------//
-  else
-  {
-    dcd_control_stall(rhport); // Stall unsupported request
-  }
-
-  OSAL_SUBTASK_END
+    return TUSB_ERROR_FAILED;
 }
 
 // Process Set Configure Request
 // TODO Host (windows) can get HID report descriptor before set configured
 // may need to open interface before set configured
-static tusb_error_t proc_set_config_req(uint8_t rhport, uint8_t config_number)
+tusb_error_t tud_control_set_config_cb(uint8_t rhport, uint8_t config_number)
 {
   dcd_set_config(rhport, config_number);
 
@@ -465,65 +388,6 @@ static tusb_error_t proc_set_config_req(uint8_t rhport, uint8_t config_number)
   return TUSB_ERROR_NONE;
 }
 
-// return len of descriptor and change pointer to descriptor's buffer
-static uint16_t get_descriptor(uint8_t rhport, tusb_control_request_t const * const p_request, uint8_t const ** pp_buffer)
-{
-  (void) rhport;
-
-  tusb_desc_type_t const desc_type = (tusb_desc_type_t) tu_u16_high(p_request->wValue);
-  uint8_t const desc_index = tu_u16_low( p_request->wValue );
-
-  uint8_t const * desc_data = NULL ;
-  uint16_t len = 0;
-
-  switch(desc_type)
-  {
-    case TUSB_DESC_DEVICE:
-      desc_data = (uint8_t const *) usbd_desc_set->device;
-      len       = sizeof(tusb_desc_device_t);
-    break;
-
-    case TUSB_DESC_CONFIGURATION:
-      desc_data = (uint8_t const *) usbd_desc_set->config;
-      len       = ((tusb_desc_configuration_t const*) desc_data)->wTotalLength;
-    break;
-
-    case TUSB_DESC_STRING:
-      // String Descriptor always uses the desc set from user
-      if ( desc_index < tud_desc_set.string_count )
-      {
-        desc_data = tud_desc_set.string_arr[desc_index];
-        TU_VERIFY( desc_data != NULL, 0 );
-
-        len  = desc_data[0];  // first byte of descriptor is its size
-      }else
-      {
-        // out of range
-        /* The 0xee string is indeed a Microsoft USB extension.
-         * It can be used to tell Windows what driver it should use for the device !!!
-         */
-        return 0;
-      }
-    break;
-
-    case TUSB_DESC_DEVICE_QUALIFIER:
-      // TODO If not highspeed capable stall this request otherwise
-      // return the descriptor that could work in highspeed
-      return 0;
-    break;
-
-    default: return 0;
-  }
-
-  TU_ASSERT( desc_data != NULL, 0);
-
-  // up to Host's length
-  len = tu_min16(p_request->wLength, len );
-  (*pp_buffer) = desc_data;
-
-  return len;
-}
-
 // Helper marking endpoint of interface belongs to class driver
 static void mark_interface_endpoint(uint8_t const* p_desc, uint16_t desc_len, uint8_t driver_id)
 {
@@ -548,8 +412,6 @@ static void mark_interface_endpoint(uint8_t const* p_desc, uint16_t desc_len, ui
 //--------------------------------------------------------------------+
 void dcd_event_handler(dcd_event_t const * event, bool in_isr)
 {
-  uint8_t const rhport = event->rhport;
-
   switch (event->event_id)
   {
     case DCD_EVENT_BUS_RESET:
@@ -571,18 +433,7 @@ void dcd_event_handler(dcd_event_t const * event, bool in_isr)
     break;
 
     case DCD_EVENT_XFER_COMPLETE:
-      if (event->xfer_complete.ep_addr == 0)
-      {
-        // only signal data stage, skip status (zero byte)
-        if (event->xfer_complete.len)
-        {
-          (void) event->xfer_complete.result; // TODO handle control error/stalled
-          osal_semaphore_post( _usbd_ctrl_sem, in_isr);
-        }
-      }else
-      {
-        osal_queue_send(_usbd_q, event, in_isr);
-      }
+      osal_queue_send(_usbd_q, event, in_isr);
       TU_ASSERT(event->xfer_complete.result == DCD_XFER_SUCCESS,);
     break;
 
@@ -590,9 +441,40 @@ void dcd_event_handler(dcd_event_t const * event, bool in_isr)
   }
 }
 
+void dcd_event_handler(dcd_event_t const * event, bool in_isr);
+
+// helper to send bus signal event
+void dcd_event_bus_signal (uint8_t rhport, dcd_eventid_t eid, bool in_isr)
+{
+  dcd_event_t event = { .rhport = 0, .event_id = eid, };
+  dcd_event_handler(&event, in_isr);
+}
+
+// helper to send setup received
+void dcd_event_setup_received(uint8_t rhport, uint8_t const * setup, bool in_isr)
+{
+  dcd_event_t event = { .rhport = 0, .event_id = DCD_EVENT_SETUP_RECEIVED };
+  memcpy(&event.setup_received, setup, 8);
+
+  dcd_event_handler(&event, true);
+}
+
+// helper to send transfer complete event
+void dcd_event_xfer_complete (uint8_t rhport, uint8_t ep_addr, uint32_t xferred_bytes, uint8_t result, bool in_isr)
+{
+  dcd_event_t event = { .rhport = 0, .event_id = DCD_EVENT_XFER_COMPLETE };
+
+  event.xfer_complete.ep_addr = ep_addr;
+  event.xfer_complete.len     = xferred_bytes;
+  event.xfer_complete.result  = result;
+
+  dcd_event_handler(&event, in_isr);
+}
+
 //--------------------------------------------------------------------+
 // Helper
 //--------------------------------------------------------------------+
+
 tusb_error_t usbd_open_edpt_pair(uint8_t rhport, tusb_desc_endpoint_t const* p_desc_ep, uint8_t xfer_type, uint8_t* ep_out, uint8_t* ep_in)
 {
   for(int i=0; i<2; i++)

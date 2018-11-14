@@ -46,6 +46,7 @@
 //--------------------------------------------------------------------+
 #include "common/tusb_common.h"
 #include "hid_device.h"
+#include "device/control.h"
 #include "device/usbd_pvt.h"
 
 //--------------------------------------------------------------------+
@@ -402,12 +403,10 @@ tusb_error_t hidd_open(uint8_t rhport, tusb_desc_interface_t const * desc_itf, u
   return TUSB_ERROR_NONE;
 }
 
-tusb_error_t hidd_control_request_st(uint8_t rhport, tusb_control_request_t const * p_request)
+tusb_error_t hidd_control_request(uint8_t rhport, tusb_control_request_t const * p_request, uint16_t bytes_already_sent)
 {
   hidd_interface_t* p_hid = get_interface_by_itfnum( (uint8_t) p_request->wIndex );
   TU_ASSERT(p_hid, TUSB_ERROR_FAILED);
-
-  OSAL_SUBTASK_BEGIN
 
   //------------- STD Request -------------//
   if (p_request->bmRequestType_bit.type == TUSB_REQ_TYPE_STANDARD)
@@ -418,14 +417,17 @@ tusb_error_t hidd_control_request_st(uint8_t rhport, tusb_control_request_t cons
 
     if (p_request->bRequest == TUSB_REQ_GET_DESCRIPTOR && desc_type == HID_DESC_TYPE_REPORT)
     {
-      // use device control buffer
-      STASK_ASSERT ( p_hid->desc_len <= CFG_TUD_CTRL_BUFSIZE );
-      memcpy(_usbd_ctrl_buf, p_hid->desc_report, p_hid->desc_len);
+      // TODO: Handle zero length packet.
+      uint16_t remaining_bytes = p_hid->desc_len - bytes_already_sent;
+      if (remaining_bytes > 64) {
+          remaining_bytes = 64;
+      }
+      memcpy(_shared_control_buffer, p_hid->desc_report + bytes_already_sent, remaining_bytes);
 
-      usbd_control_xfer_st(rhport, p_request->bmRequestType_bit.direction, _usbd_ctrl_buf, p_hid->desc_len);
+      dcd_edpt_xfer(rhport, TUSB_DIR_IN_MASK, _shared_control_buffer, remaining_bytes);
     }else
     {
-      dcd_control_stall(rhport);
+      return TUSB_ERROR_FAILED;
     }
   }
   //------------- Class Specific Request -------------//
@@ -447,53 +449,64 @@ tusb_error_t hidd_control_request_st(uint8_t rhport, tusb_control_request_t cons
         xferlen = p_request->wLength;
       }
 
-      STASK_ASSERT( xferlen > 0 );
-      usbd_control_xfer_st(rhport, p_request->bmRequestType_bit.direction, p_hid->report_buf, xferlen);
+      TU_ASSERT( xferlen > 0 );
+      dcd_edpt_xfer(rhport, TUSB_DIR_IN_MASK, _shared_control_buffer, xferlen);
     }
     else if ( HID_REQ_CONTROL_SET_REPORT == p_request->bRequest )
     {
-      usbd_control_xfer_st(rhport, p_request->bmRequestType_bit.direction, _usbd_ctrl_buf, p_request->wLength);
+      dcd_edpt_xfer(rhport, 0, _shared_control_buffer, p_request->wLength);
+    }
+    else if (HID_REQ_CONTROL_SET_IDLE == p_request->bRequest)
+    {
+      // TODO idle rate of report
+      p_hid->idle_rate = tu_u16_high(p_request->wValue);
+    }
+    else if (HID_REQ_CONTROL_GET_IDLE == p_request->bRequest)
+    {
+      // TODO idle rate of report
+      _shared_control_buffer[0] = p_hid->idle_rate;
+      dcd_edpt_xfer(rhport, TUSB_DIR_IN_MASK, _shared_control_buffer, 1);
+    }
+    else if (HID_REQ_CONTROL_GET_PROTOCOL == p_request->bRequest )
+    {
+      _shared_control_buffer[0] = 1-p_hid->boot_protocol;   // 0 is Boot, 1 is Report protocol
+      dcd_edpt_xfer(rhport, TUSB_DIR_IN_MASK, _shared_control_buffer, 1);
+    }
+    else if (HID_REQ_CONTROL_SET_PROTOCOL == p_request->bRequest )
+    {
+      p_hid->boot_protocol = 1 - p_request->wValue; // 0 is Boot, 1 is Report protocol
+    }else
+    {
+      return TUSB_ERROR_FAILED;
+    }
+  }else
+  {
+    return TUSB_ERROR_FAILED;
+  }
+  return TUSB_ERROR_NONE;
+}
 
+void hidd_control_request_complete(uint8_t rhport, tusb_control_request_t const * p_request)
+{
+  hidd_interface_t* p_hid = get_interface_by_itfnum( (uint8_t) p_request->wIndex );
+  if (p_hid == NULL) {
+      return;
+  }
+
+  if (p_request->bmRequestType_bit.type == TUSB_REQ_TYPE_CLASS)
+  {
+    if ( HID_REQ_CONTROL_SET_REPORT == p_request->bRequest )
+    {
       // wValue = Report Type | Report ID
       uint8_t const report_type = tu_u16_high(p_request->wValue);
       uint8_t const report_id   = tu_u16_low(p_request->wValue);
 
       if ( p_hid->set_report_cb )
       {
-        p_hid->set_report_cb(report_id, (hid_report_type_t) report_type, _usbd_ctrl_buf, p_request->wLength);
+        p_hid->set_report_cb(report_id, (hid_report_type_t) report_type, _shared_control_buffer, p_request->wLength);
       }
     }
-    else if (HID_REQ_CONTROL_SET_IDLE == p_request->bRequest)
-    {
-      // TODO idle rate of report
-      p_hid->idle_rate = tu_u16_high(p_request->wValue);
-      dcd_control_status(rhport, p_request->bmRequestType_bit.direction);
-    }
-    else if (HID_REQ_CONTROL_GET_IDLE == p_request->bRequest)
-    {
-      // TODO idle rate of report
-      _usbd_ctrl_buf[0] = p_hid->idle_rate;
-      usbd_control_xfer_st(rhport, p_request->bmRequestType_bit.direction, _usbd_ctrl_buf, 1);
-    }
-    else if (HID_REQ_CONTROL_GET_PROTOCOL == p_request->bRequest )
-    {
-      _usbd_ctrl_buf[0] = 1-p_hid->boot_protocol;   // 0 is Boot, 1 is Report protocol
-      usbd_control_xfer_st(rhport, p_request->bmRequestType_bit.direction, _usbd_ctrl_buf, 1);
-    }
-    else if (HID_REQ_CONTROL_SET_PROTOCOL == p_request->bRequest )
-    {
-      p_hid->boot_protocol = 1 - p_request->wValue; // 0 is Boot, 1 is Report protocol
-      dcd_control_status(rhport, p_request->bmRequestType_bit.direction);
-    }else
-    {
-      dcd_control_stall(rhport);
-    }
-  }else
-  {
-    dcd_control_stall(rhport);
   }
-
-  OSAL_SUBTASK_END
 }
 
 tusb_error_t hidd_xfer_cb(uint8_t rhport, uint8_t edpt_addr, tusb_event_t event, uint32_t xferred_bytes)

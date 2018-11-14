@@ -50,6 +50,10 @@
  extern "C" {
 #endif
 
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wpacked"
+#pragma GCC diagnostic ignored "-Wattributes"
+
 /** \defgroup ClassDriver_CDC_Common Common Definitions
  *  @{ */
 
@@ -86,7 +90,8 @@ typedef enum
 /// Communication Interface Protocol Codes
 typedef enum
 {
-  CDC_COMM_PROTOCOL_ATCOMMAND              = 0x01 , ///< AT Commands: V.250 etc
+  CDC_COMM_PROTOCOL_NONE                   = 0x00 , ///< No specific protocol
+  CDC_COMM_PROTOCOL_ATCOMMAND                     , ///< AT Commands: V.250 etc
   CDC_COMM_PROTOCOL_ATCOMMAND_PCCA_101            , ///< AT Commands defined by PCCA-101
   CDC_COMM_PROTOCOL_ATCOMMAND_PCCA_101_AND_ANNEXO , ///< AT Commands defined by PCCA-101 & Annex O
   CDC_COMM_PROTOCOL_ATCOMMAND_GSM_707             , ///< AT Commands defined by GSM 07.07
@@ -400,6 +405,8 @@ typedef struct ATTR_PACKED
 } cdc_line_control_state_t;
 
 TU_VERIFY_STATIC(sizeof(cdc_line_control_state_t) == 2, "size is not correct");
+
+#pragma GCC diagnostic pop
 
 /** @} */
 

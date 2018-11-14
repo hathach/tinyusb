@@ -55,14 +55,6 @@ TU_VERIFY_STATIC(CFG_TUD_MSC_BUFSIZE < UINT16_MAX, "Size is not correct");
   #error MSC Device: Incorrect setting of MAX LUN
 #endif
 
-#ifndef CFG_TUD_MSC_BLOCK_NUM
-  #error CFG_TUD_MSC_BLOCK_NUM must be defined
-#endif
-
-#ifndef CFG_TUD_MSC_BLOCK_SZ
-  #error CFG_TUD_MSC_BLOCK_SZ must be defined
-#endif
-
 #ifndef CFG_TUD_MSC_BUFSIZE
   #error CFG_TUD_MSC_BUFSIZE must be defined, value of CFG_TUD_MSC_BLOCK_SZ should work well, the more the better
 #endif
@@ -88,6 +80,32 @@ TU_VERIFY_STATIC(CFG_TUD_MSC_BUFSIZE < UINT16_MAX, "Size is not correct");
 #ifdef __cplusplus
  extern "C" {
 #endif
+
+typedef struct {
+  CFG_TUSB_MEM_ALIGN msc_cbw_t  cbw;
+
+//#if defined (__ICCARM__) && (CFG_TUSB_MCU == OPT_MCU_LPC11UXX || CFG_TUSB_MCU == OPT_MCU_LPC13UXX)
+//  uint8_t padding1[64-sizeof(msc_cbw_t)]; // IAR cannot align struct's member
+//#endif
+
+  CFG_TUSB_MEM_ALIGN msc_csw_t csw;
+
+  uint8_t  itf_num;
+  uint8_t  ep_in;
+  uint8_t  ep_out;
+
+  // Bulk Only Transfer (BOT) Protocol
+  uint8_t  stage;
+  uint32_t total_len;
+  uint32_t xferred_len; // numbered of bytes transferred so far in the Data Stage
+
+  // Sense Response Data
+  uint8_t sense_key;
+  uint8_t add_sense_code;
+  uint8_t add_sense_qualifier;
+}mscd_interface_t;
+
+extern mscd_interface_t _mscd_itf;
 
 /** \addtogroup ClassDriver_MSC
  *  @{
@@ -138,7 +156,7 @@ int32_t tud_msc_read10_cb (uint8_t lun, uint32_t lba, uint32_t offset, void* buf
  * \retval      negative    Indicate error writing disk I/O. Tinyusb will \b STALL the corresponding
  *                          endpoint and return failed status in command status wrapper phase.
  */
-int32_t tud_msc_write10_cb (uint8_t lun, uint32_t lba, uint32_t offset, void* buffer, uint32_t bufsize);
+int32_t tud_msc_write10_cb (uint8_t lun, uint32_t lba, uint32_t offset, uint8_t* buffer, uint32_t bufsize);
 
 /**
  * Callback invoked when received an SCSI command not in built-in list below.
@@ -164,6 +182,12 @@ ATTR_WEAK void tud_msc_read10_complete_cb(uint8_t lun);
 ATTR_WEAK void tud_msc_write10_complete_cb(uint8_t lun);
 ATTR_WEAK void tud_msc_scsi_complete_cb(uint8_t lun, uint8_t const scsi_cmd[16]);
 
+// Hook to make a mass storage device read-only.
+ATTR_WEAK bool tud_msc_is_writable_cb(uint8_t lun);
+
+// Override for dynamic LUN sizes.
+ATTR_WEAK bool tud_lun_capacity_cb(uint8_t lun, uint32_t* last_valid_sector, uint16_t* block_size);
+
 /** @} */
 /** @} */
 
@@ -174,7 +198,8 @@ ATTR_WEAK void tud_msc_scsi_complete_cb(uint8_t lun, uint8_t const scsi_cmd[16])
 
 void mscd_init(void);
 tusb_error_t mscd_open(uint8_t rhport, tusb_desc_interface_t const * p_interface_desc, uint16_t *p_length);
-tusb_error_t mscd_control_request_st(uint8_t rhport, tusb_control_request_t const * p_request);
+tusb_error_t mscd_control_request(uint8_t rhport, tusb_control_request_t const * p_request, uint16_t bytes_already_sent);
+void mscd_control_request_complete (uint8_t rhport, tusb_control_request_t const * p_request);
 tusb_error_t mscd_xfer_cb(uint8_t rhport, uint8_t edpt_addr, tusb_event_t event, uint32_t xferred_bytes);
 void mscd_reset(uint8_t rhport);
 
@@ -185,4 +210,3 @@ void mscd_reset(uint8_t rhport);
 #endif
 
 #endif /* _TUSB_MSC_DEVICE_H_ */
-
