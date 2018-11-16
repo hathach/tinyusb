@@ -51,23 +51,24 @@ enum
   EDPT_CTRL_IN  = 0x80
 };
 
-typedef struct {
-    tusb_control_request_t request;
+typedef struct
+{
+  tusb_control_request_t request;
 
-    void* buffer;
-    uint16_t total_len;
-    uint16_t total_transferred;
+  void* buffer;
+  uint16_t total_len;
+  uint16_t total_transferred;
 
-    bool (*complete_cb) (uint8_t, tusb_control_request_t const * );
-} control_t;
+  bool (*complete_cb) (uint8_t, tusb_control_request_t const *);
+} usbd_control_xfer_t;
 
-control_t control_state;
+static usbd_control_xfer_t _control_state;
 
 CFG_TUSB_ATTR_USBRAM CFG_TUSB_MEM_ALIGN uint8_t _usbd_ctrl_buf[CFG_TUD_ENDOINT0_SIZE];
 
 void usbd_control_reset (uint8_t rhport)
 {
-  tu_varclr(&control_state);
+  tu_varclr(&_control_state);
 }
 
 void usbd_control_stall(uint8_t rhport)
@@ -85,14 +86,14 @@ bool usbd_control_status(uint8_t rhport, tusb_control_request_t const * request)
 // Each transaction is up to endpoint0's max packet size
 static bool start_control_data_xact(uint8_t rhport)
 {
-  uint16_t const xact_len = tu_min16(control_state.total_len - control_state.total_transferred, CFG_TUD_ENDOINT0_SIZE);
+  uint16_t const xact_len = tu_min16(_control_state.total_len - _control_state.total_transferred, CFG_TUD_ENDOINT0_SIZE);
 
   uint8_t ep_addr = EDPT_CTRL_OUT;
 
-  if ( control_state.request.bmRequestType_bit.direction == TUSB_DIR_IN )
+  if ( _control_state.request.bmRequestType_bit.direction == TUSB_DIR_IN )
   {
     ep_addr = EDPT_CTRL_IN;
-    memcpy(_usbd_ctrl_buf, control_state.buffer, xact_len);
+    memcpy(_usbd_ctrl_buf, _control_state.buffer, xact_len);
   }
 
   return dcd_edpt_xfer(rhport, ep_addr, _usbd_ctrl_buf, xact_len);
@@ -101,15 +102,15 @@ static bool start_control_data_xact(uint8_t rhport)
 // TODO may find a better way
 void usbd_control_set_complete_callback( bool (*fp) (uint8_t, tusb_control_request_t const * ) )
 {
-  control_state.complete_cb = fp;
+  _control_state.complete_cb = fp;
 }
 
 bool usbd_control_xfer(uint8_t rhport, tusb_control_request_t const * request, void* buffer, uint16_t len)
 {
-  control_state.request = (*request);
-  control_state.buffer = buffer;
-  control_state.total_len = tu_min16(len, request->wLength);
-  control_state.total_transferred = 0;
+  _control_state.request = (*request);
+  _control_state.buffer = buffer;
+  _control_state.total_len = tu_min16(len, request->wLength);
+  _control_state.total_transferred = 0;
 
   if ( buffer != NULL && len )
   {
@@ -127,30 +128,30 @@ bool usbd_control_xfer(uint8_t rhport, tusb_control_request_t const * request, v
 // callback when a transaction complete on DATA stage of control endpoint
 tusb_error_t usbd_control_xfer_cb (uint8_t rhport, uint8_t ep_addr, tusb_event_t event, uint32_t xferred_bytes)
 {
-  if ( control_state.request.bmRequestType_bit.direction == TUSB_DIR_OUT )
+  if ( _control_state.request.bmRequestType_bit.direction == TUSB_DIR_OUT )
   {
-    memcpy(control_state.buffer, _usbd_ctrl_buf, xferred_bytes);
+    memcpy(_control_state.buffer, _usbd_ctrl_buf, xferred_bytes);
   }
 
-  control_state.total_transferred += xferred_bytes;
-  control_state.buffer += xferred_bytes;
+  _control_state.total_transferred += xferred_bytes;
+  _control_state.buffer += xferred_bytes;
 
-  if ( control_state.total_len == control_state.total_transferred || xferred_bytes < CFG_TUD_ENDOINT0_SIZE )
+  if ( _control_state.total_len == _control_state.total_transferred || xferred_bytes < CFG_TUD_ENDOINT0_SIZE )
   {
     // DATA stage is complete
     bool is_ok = true;
 
     // invoke complete callback if set
     // callback can still stall control in status phase e.g out data does not make sense
-    if ( control_state.complete_cb )
+    if ( _control_state.complete_cb )
     {
-      is_ok = control_state.complete_cb(rhport, &control_state.request);
+      is_ok = _control_state.complete_cb(rhport, &_control_state.request);
     }
 
     if ( is_ok )
     {
       // Send status
-      TU_ASSERT( usbd_control_status(rhport, &control_state.request), TUSB_ERROR_FAILED );
+      TU_ASSERT( usbd_control_status(rhport, &_control_state.request), TUSB_ERROR_FAILED );
     }else
     {
       // stall due to callback
