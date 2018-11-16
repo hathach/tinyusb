@@ -46,216 +46,125 @@
 #include "control.h"
 #include "device/usbd_pvt.h"
 
+enum
+{
+  EDPT_CTRL_OUT = 0x00,
+  EDPT_CTRL_IN  = 0x80
+};
+
+typedef struct {
+    tusb_control_request_t request;
+
+    void* buffer;
+    uint16_t total_len;
+    uint16_t total_transferred;
+
+    bool (*complete_cb) (uint8_t, tusb_control_request_t const * );
+} control_t;
+
 control_t control_state;
 
-CFG_TUSB_ATTR_USBRAM CFG_TUSB_MEM_ALIGN uint8_t _shared_control_buffer[64];
+CFG_TUSB_ATTR_USBRAM CFG_TUSB_MEM_ALIGN uint8_t _usbd_ctrl_buf[CFG_TUD_ENDOINT0_SIZE];
 
-void controld_reset(uint8_t rhport) {
-    control_state.current_stage = CONTROL_STAGE_SETUP;
+void usbd_control_reset (uint8_t rhport)
+{
+  tu_varclr(&control_state);
 }
 
-// Helper to send STATUS (zero length) packet
-// Note dir is value of direction bit in setup packet (i.e DATA stage direction)
-static inline bool dcd_control_status(uint8_t rhport, uint8_t dir)
+void usbd_control_stall(uint8_t rhport)
 {
-  uint8_t ep_addr = 0;
-  // Invert the direction.
-  if (dir == TUSB_DIR_OUT) {
-    ep_addr |= TUSB_DIR_IN_MASK;
-  }
+  dcd_edpt_stall(rhport, 0);
+}
+
+bool usbd_control_status(uint8_t rhport, tusb_control_request_t const * request)
+{
   // status direction is reversed to one in the setup packet
-  return dcd_edpt_xfer(rhport, ep_addr, NULL, 0);
-}
-
-static inline void dcd_control_stall(uint8_t rhport)
-{
-  dcd_edpt_stall(rhport, 0 | TUSB_DIR_IN_MASK);
+  return dcd_edpt_xfer(rhport, request->bmRequestType_bit.direction ? EDPT_CTRL_OUT : EDPT_CTRL_IN, NULL, 0);
 }
 
 
-// return len of descriptor and change pointer to descriptor's buffer
-static uint16_t get_descriptor(uint8_t rhport, tusb_control_request_t const * const p_request, uint8_t const ** pp_buffer)
+// Each transaction is up to endpoint0's max packet size
+static bool start_control_data_xact(uint8_t rhport)
 {
-  (void) rhport;
+  uint16_t const xact_len = tu_min16(control_state.total_len - control_state.total_transferred, CFG_TUD_ENDOINT0_SIZE);
 
-  tusb_desc_type_t const desc_type = (tusb_desc_type_t) tu_u16_high(p_request->wValue);
-  uint8_t const desc_index = tu_u16_low( p_request->wValue );
+  uint8_t ep_addr = EDPT_CTRL_OUT;
 
-  uint8_t const * desc_data = NULL ;
-  uint16_t len = 0;
-
-  switch(desc_type)
+  if ( control_state.request.bmRequestType_bit.direction == TUSB_DIR_IN )
   {
-    case TUSB_DESC_DEVICE:
-      desc_data = (uint8_t const *) usbd_desc_set->device;
-      len       = sizeof(tusb_desc_device_t);
-    break;
-
-    case TUSB_DESC_CONFIGURATION:
-      desc_data = (uint8_t const *) usbd_desc_set->config;
-      len       = ((tusb_desc_configuration_t const*) desc_data)->wTotalLength;
-    break;
-
-    case TUSB_DESC_STRING:
-      // String Descriptor always uses the desc set from user
-      if ( desc_index < tud_desc_set.string_count )
-      {
-        desc_data = tud_desc_set.string_arr[desc_index];
-        TU_VERIFY( desc_data != NULL, 0 );
-
-        len  = desc_data[0];  // first byte of descriptor is its size
-      }else
-      {
-        // out of range
-        /* The 0xee string is indeed a Microsoft USB extension.
-         * It can be used to tell Windows what driver it should use for the device !!!
-         */
-        return 0;
-      }
-    break;
-
-    case TUSB_DESC_DEVICE_QUALIFIER:
-      // TODO If not highspeed capable stall this request otherwise
-      // return the descriptor that could work in highspeed
-      return 0;
-    break;
-
-    default: return 0;
+    ep_addr = EDPT_CTRL_IN;
+    memcpy(_usbd_ctrl_buf, control_state.buffer, xact_len);
   }
 
-  TU_ASSERT( desc_data != NULL, 0);
-
-  // up to Host's length
-  len = tu_min16(p_request->wLength, len );
-  (*pp_buffer) = desc_data;
-
-  return len;
+  return dcd_edpt_xfer(rhport, ep_addr, _usbd_ctrl_buf, xact_len);
 }
 
-tusb_error_t controld_xfer_cb(uint8_t rhport, uint8_t edpt_addr, tusb_event_t event, uint32_t xferred_bytes) {
-    if (control_state.current_stage == CONTROL_STAGE_STATUS && xferred_bytes == 0) {
-        control_state.current_stage = CONTROL_STAGE_SETUP;
-        return TUSB_ERROR_NONE;
-    }
-    tusb_error_t error = TUSB_ERROR_NONE;
-    control_state.total_transferred += xferred_bytes;
-    tusb_control_request_t const *p_request = &control_state.current_request;
-
-    if (p_request->wLength == control_state.total_transferred || xferred_bytes < 64) {
-        control_state.current_stage = CONTROL_STAGE_STATUS;
-        dcd_control_status(rhport, p_request->bmRequestType_bit.direction);
-
-        // Do the user callback after queueing the STATUS packet because the callback could be slow.
-        if ( TUSB_REQ_RCPT_INTERFACE == p_request->bmRequestType_bit.recipient )
-        {
-          tud_control_interface_control_complete_cb(rhport, tu_u16_low(p_request->wIndex), p_request);
-        }
-    } else {
-        if (TUSB_REQ_RCPT_INTERFACE == p_request->bmRequestType_bit.recipient) {
-          error = tud_control_interface_control_cb(rhport, tu_u16_low(p_request->wIndex), p_request, control_state.total_transferred);
-        } else {
-          error = controld_process_control_request(rhport, p_request, control_state.total_transferred);
-        }
-    }
-    return error;
-}
-
-// This tracks the state of a control request.
-tusb_error_t controld_process_setup_request(uint8_t rhport, tusb_control_request_t const * p_request) {
-  tusb_error_t error = TUSB_ERROR_NONE;
-  memcpy(&control_state.current_request, p_request, sizeof(tusb_control_request_t));
-  if (p_request->wLength == 0) {
-      control_state.current_stage = CONTROL_STAGE_STATUS;
-  } else {
-      control_state.current_stage = CONTROL_STAGE_DATA;
-      control_state.total_transferred = 0;
-  }
-
-  if ( TUSB_REQ_RCPT_INTERFACE == p_request->bmRequestType_bit.recipient )
-  {
-    error = tud_control_interface_control_cb(rhport, tu_u16_low(p_request->wIndex), p_request, 0);
-  } else {
-    error = controld_process_control_request(rhport, p_request, 0);
-  }
-
-  if (error != TUSB_ERROR_NONE) {
-    dcd_control_stall(rhport); // Stall errored requests
-  } else if (control_state.current_stage == CONTROL_STAGE_STATUS) {
-    dcd_control_status(rhport, p_request->bmRequestType_bit.direction);
-  }
-  return error;
-}
-
-// This handles the actual request and its response.
-tusb_error_t controld_process_control_request(uint8_t rhport, tusb_control_request_t const * p_request, uint16_t bytes_already_sent)
+// TODO may find a better way
+void usbd_control_set_complete_callback( bool (*fp) (uint8_t, tusb_control_request_t const * ) )
 {
-  tusb_error_t error = TUSB_ERROR_NONE;
-  uint8_t ep_addr = 0;
-  if (p_request->bmRequestType_bit.direction == TUSB_DIR_IN) {
-      ep_addr |= TUSB_DIR_IN_MASK;
+  control_state.complete_cb = fp;
+}
+
+bool usbd_control_xfer(uint8_t rhport, tusb_control_request_t const * request, void* buffer, uint16_t len)
+{
+  control_state.request = (*request);
+  control_state.buffer = buffer;
+  control_state.total_len = tu_min16(len, request->wLength);
+  control_state.total_transferred = 0;
+
+  if ( buffer != NULL && len )
+  {
+    // Data stage
+    TU_ASSERT( start_control_data_xact(rhport) );
+  }else
+  {
+    // Status stage
+    TU_ASSERT( usbd_control_status(rhport, request) );
   }
 
-  //------------- Standard Request e.g in enumeration -------------//
-  if( TUSB_REQ_RCPT_DEVICE    == p_request->bmRequestType_bit.recipient &&
-      TUSB_REQ_TYPE_STANDARD  == p_request->bmRequestType_bit.type ) {
-    switch (p_request->bRequest) {
-      case TUSB_REQ_GET_DESCRIPTOR: {
-        uint8_t  const * buffer = NULL;
-        uint16_t const   len    = get_descriptor(rhport, p_request, &buffer);
+  return true;
+}
 
-        if (len) {
-          uint16_t remaining_bytes = len - bytes_already_sent;
-          if (remaining_bytes > 64) {
-              remaining_bytes = 64;
-          }
-          memcpy(_shared_control_buffer, buffer + bytes_already_sent, remaining_bytes);
-          dcd_edpt_xfer(rhport, ep_addr, _shared_control_buffer, remaining_bytes);
-        } else {
-          return TUSB_ERROR_FAILED;
-        }
-        break;
-      }
-      case TUSB_REQ_GET_CONFIGURATION:
-        memcpy(_shared_control_buffer, &control_state.config, 1);
-        dcd_edpt_xfer(rhport, ep_addr, _shared_control_buffer, 1);
-        break;
-      case TUSB_REQ_SET_ADDRESS:
-        dcd_set_address(rhport, (uint8_t) p_request->wValue);
-        break;
-      case TUSB_REQ_SET_CONFIGURATION:
-        control_state.config = p_request->wValue;
-        tud_control_set_config_cb (rhport, control_state.config);
-        break;
-      default:
-        return TUSB_ERROR_FAILED;
-    }
-  } else if (p_request->bmRequestType_bit.recipient == TUSB_REQ_RCPT_ENDPOINT &&
-             p_request->bmRequestType_bit.type == TUSB_REQ_TYPE_STANDARD) {
-    //------------- Endpoint Request -------------//
-    switch (p_request->bRequest) {
-      case TUSB_REQ_GET_STATUS: {
-        uint16_t status = dcd_edpt_stalled(rhport, tu_u16_low(p_request->wIndex)) ? 0x0001 : 0x0000;
-        memcpy(_shared_control_buffer, &status, 2);
-
-        dcd_edpt_xfer(rhport, ep_addr, _shared_control_buffer, 2);
-        break;
-      }
-      case TUSB_REQ_CLEAR_FEATURE:
-        // only endpoint feature is halted/stalled
-        dcd_edpt_clear_stall(rhport, tu_u16_low(p_request->wIndex));
-        break;
-      case TUSB_REQ_SET_FEATURE:
-        // only endpoint feature is halted/stalled
-        dcd_edpt_stall(rhport, tu_u16_low(p_request->wIndex));
-        break;
-      default:
-        return TUSB_ERROR_FAILED;
-    }
-  } else {
-    //------------- Unsupported Request -------------//
-    return TUSB_ERROR_FAILED;
+// callback when a transaction complete on DATA stage of control endpoint
+tusb_error_t usbd_control_xfer_cb (uint8_t rhport, uint8_t ep_addr, tusb_event_t event, uint32_t xferred_bytes)
+{
+  if ( control_state.request.bmRequestType_bit.direction == TUSB_DIR_OUT )
+  {
+    memcpy(control_state.buffer, _usbd_ctrl_buf, xferred_bytes);
   }
-  return error;
+
+  control_state.total_transferred += xferred_bytes;
+  control_state.buffer += xferred_bytes;
+
+  if ( control_state.total_len == control_state.total_transferred || xferred_bytes < CFG_TUD_ENDOINT0_SIZE )
+  {
+    // DATA stage is complete
+    bool is_ok = true;
+
+    // invoke complete callback if set
+    // callback can still stall control in status phase e.g out data does not make sense
+    if ( control_state.complete_cb )
+    {
+      is_ok = control_state.complete_cb(rhport, &control_state.request);
+    }
+
+    if ( is_ok )
+    {
+      // Send status
+      TU_ASSERT( usbd_control_status(rhport, &control_state.request), TUSB_ERROR_FAILED );
+    }else
+    {
+      // stall due to callback
+      usbd_control_stall(rhport);
+    }
+  }
+  else
+  {
+    // More data to transfer
+    TU_ASSERT(start_control_data_xact(rhport), TUSB_ERROR_FAILED);
+  }
+
+  return TUSB_ERROR_NONE;
 }
 
 #endif

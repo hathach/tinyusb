@@ -47,7 +47,6 @@
 
 #include "common/tusb_common.h"
 #include "msc_device.h"
-#include "device/control.h"
 #include "device/usbd_pvt.h"
 
 //--------------------------------------------------------------------+
@@ -60,7 +59,31 @@ enum
   MSC_STAGE_STATUS
 };
 
-CFG_TUSB_ATTR_USBRAM CFG_TUSB_MEM_ALIGN mscd_interface_t _mscd_itf;
+typedef struct {
+  CFG_TUSB_MEM_ALIGN msc_cbw_t  cbw;
+
+//#if defined (__ICCARM__) && (CFG_TUSB_MCU == OPT_MCU_LPC11UXX || CFG_TUSB_MCU == OPT_MCU_LPC13UXX)
+//  uint8_t padding1[64-sizeof(msc_cbw_t)]; // IAR cannot align struct's member
+//#endif
+
+  CFG_TUSB_MEM_ALIGN msc_csw_t csw;
+
+  uint8_t  itf_num;
+  uint8_t  ep_in;
+  uint8_t  ep_out;
+
+  // Bulk Only Transfer (BOT) Protocol
+  uint8_t  stage;
+  uint32_t total_len;
+  uint32_t xferred_len; // numbered of bytes transferred so far in the Data Stage
+
+  // Sense Response Data
+  uint8_t sense_key;
+  uint8_t add_sense_code;
+  uint8_t add_sense_qualifier;
+}mscd_interface_t;
+
+CFG_TUSB_ATTR_USBRAM CFG_TUSB_MEM_ALIGN static mscd_interface_t _mscd_itf;
 CFG_TUSB_ATTR_USBRAM CFG_TUSB_MEM_ALIGN static uint8_t _mscd_buf[CFG_TUD_MSC_BUFSIZE];
 
 //--------------------------------------------------------------------+
@@ -147,29 +170,39 @@ tusb_error_t mscd_open(uint8_t rhport, tusb_desc_interface_t const * p_desc_itf,
   return TUSB_ERROR_NONE;
 }
 
-tusb_error_t mscd_control_request(uint8_t rhport, tusb_control_request_t const * p_request, uint16_t bytes_already_sent)
+// Handle class control request
+// return false to stall control endpoint (e.g unsupported request)
+bool mscd_control_request(uint8_t rhport, tusb_control_request_t const * p_request)
 {
-  TU_ASSERT(p_request->bmRequestType_bit.type == TUSB_REQ_TYPE_CLASS, TUSB_ERROR_DCD_CONTROL_REQUEST_NOT_SUPPORT);
+  TU_ASSERT(p_request->bmRequestType_bit.type == TUSB_REQ_TYPE_CLASS);
 
-  if(MSC_REQ_RESET == p_request->bRequest)
+  switch ( p_request->bRequest )
   {
-    // TODO: Actually reset.
+    case MSC_REQ_RESET:
+      // TODO: Actually reset interface.
+      usbd_control_status(rhport, p_request);
+    break;
+
+    case MSC_REQ_GET_MAX_LUN:
+    {
+      // returned MAX LUN is minus 1 by specs
+      uint8_t maxlun = CFG_TUD_MSC_MAXLUN-1;
+      usbd_control_xfer(rhport, p_request, &maxlun, 1);
+    }
+    break;
+
+    default: return false; // stall unsupported request
   }
-  else if (MSC_REQ_GET_MAX_LUN == p_request->bRequest)
-  {
-    // returned MAX LUN is minus 1 by specs
-    _shared_control_buffer[0] = CFG_TUD_MSC_MAXLUN-1;
-    dcd_edpt_xfer(rhport, TUSB_DIR_IN_MASK, _shared_control_buffer, 1);
-  }else
-  {
-    return TUSB_ERROR_FAILED; // stall unsupported request
-  }
-  return TUSB_ERROR_NONE;
+
+  return true;
 }
 
-void mscd_control_request_complete(uint8_t rhport, tusb_control_request_t const * p_request)
+// Invoked when class request DATA stage is finished.
+// return false to stall control endpoint (e.g Host send non-sense DATA)
+bool mscd_control_request_complete(uint8_t rhport, tusb_control_request_t const * p_request)
 {
-  return;
+  // nothing to do
+  return true;
 }
 
 // For backwards compatibility we support static block counts.
@@ -296,7 +329,7 @@ int32_t proc_builtin_scsi(msc_cbw_t const * p_cbw, uint8_t* buffer, uint32_t buf
   return ret;
 }
 
-tusb_error_t mscd_xfer_cb(uint8_t rhport, uint8_t ep_addr, uint8_t event, uint32_t xferred_bytes)
+tusb_error_t mscd_xfer_cb(uint8_t rhport, uint8_t ep_addr, tusb_event_t event, uint32_t xferred_bytes)
 {
   mscd_interface_t* p_msc = &_mscd_itf;
   msc_cbw_t const * p_cbw = &p_msc->cbw;

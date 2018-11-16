@@ -203,12 +203,14 @@ typedef enum
   TUSB_EVENT_XFER_STALLED,
 }tusb_event_t;
 
-enum {
+enum
+{
   DESC_OFFSET_LEN  = 0,
   DESC_OFFSET_TYPE = 1
 };
 
-enum {
+enum
+{
   INTERFACE_INVALID_NUMBER = 0xff
 };
 

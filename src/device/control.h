@@ -48,44 +48,6 @@
 
 #include "tusb.h"
 
-typedef enum {
-    CONTROL_STAGE_SETUP, // Waiting for a setup token.
-    CONTROL_STAGE_DATA, // In the process of sending or receiving data.
-    CONTROL_STAGE_STATUS // In the process of transmitting the STATUS ZLP.
-} control_stage_t;
-
-typedef struct {
-    control_stage_t current_stage;
-    tusb_control_request_t current_request;
-    uint16_t total_transferred;
-    uint8_t config;
-} control_t;
-
-extern uint8_t _shared_control_buffer[64];
-
-tusb_error_t controld_process_setup_request(uint8_t rhport, tusb_control_request_t const * const p_request);
-
-// Callback when the configuration of the device is changed.
-tusb_error_t tud_control_set_config_cb(uint8_t rhport, uint8_t config_number);
-
-// Called when the DATA stage of a control transaction is complete.
-void tud_control_interface_control_complete_cb(uint8_t rhport, uint8_t interface, tusb_control_request_t const * const p_request);
-
-tusb_error_t tud_control_interface_control_cb(uint8_t rhport, uint8_t interface, tusb_control_request_t const * const p_request, uint16_t bytes_already_sent);
-
-//--------------------------------------------------------------------+
-// INTERNAL API
-//--------------------------------------------------------------------+
-tusb_error_t controld_open(uint8_t rhport, tusb_desc_interface_t const * p_interface_desc, uint16_t *p_length);
-
-// This tracks the state of a control request.
-tusb_error_t controld_process_setup_request(uint8_t rhport, tusb_control_request_t const * p_request);
-
-// This handles the actual request and its response.
-tusb_error_t controld_process_control_request(uint8_t rhport, tusb_control_request_t const * p_request, uint16_t bytes_already_sent);
-
-tusb_error_t controld_xfer_cb(uint8_t rhport, uint8_t edpt_addr, tusb_event_t event, uint32_t xferred_bytes);
-void controld_reset(uint8_t rhport);
 
 #ifdef __cplusplus
  }

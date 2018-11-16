@@ -89,9 +89,9 @@ tusb_error_t cusd_open(uint8_t rhport, tusb_desc_interface_t const * p_desc_itf,
   return TUSB_ERROR_NONE;
 }
 
-tusb_error_t cusd_control_request(uint8_t rhport, tusb_control_request_t const * p_request)
+bool cusd_control_request(uint8_t rhport, tusb_control_request_t const * p_request)
 {
-  return TUSB_ERROR_DCD_CONTROL_REQUEST_NOT_SUPPORT;
+  return false;
 }
 
 tusb_error_t cusd_xfer_cb(uint8_t rhport, uint8_t edpt_addr, tusb_event_t event, uint32_t xferred_bytes)

@@ -45,7 +45,6 @@
 // INCLUDE
 //--------------------------------------------------------------------+
 #include "cdc_device.h"
-#include "device/control.h"
 #include "device/usbd_pvt.h"
 
 //--------------------------------------------------------------------+
@@ -63,7 +62,7 @@ typedef struct
 
   /*------------- From this point, data is not cleared by bus reset -------------*/
   char    wanted_char;
-  CFG_TUSB_MEM_ALIGN cdc_line_coding_t line_coding;
+  cdc_line_coding_t line_coding;
 
   // FIFO
   tu_fifo_t rx_ff;
@@ -199,23 +198,23 @@ void cdcd_init(void)
 
   for(uint8_t i=0; i<CFG_TUD_CDC; i++)
   {
-    cdcd_interface_t* ser = &_cdcd_itf[i];
+    cdcd_interface_t* p_cdc = &_cdcd_itf[i];
 
-    ser->wanted_char = -1;
+    p_cdc->wanted_char = -1;
 
     // default line coding is : stop bit = 1, parity = none, data bits = 8
-    ser->line_coding.bit_rate = 115200;
-    ser->line_coding.stop_bits = 0;
-    ser->line_coding.parity    = 0;
-    ser->line_coding.data_bits = 8;
+    p_cdc->line_coding.bit_rate = 115200;
+    p_cdc->line_coding.stop_bits = 0;
+    p_cdc->line_coding.parity    = 0;
+    p_cdc->line_coding.data_bits = 8;
 
     // config fifo
-    tu_fifo_config(&ser->rx_ff, ser->rx_ff_buf, CFG_TUD_CDC_RX_BUFSIZE, 1, true);
-    tu_fifo_config(&ser->tx_ff, ser->tx_ff_buf, CFG_TUD_CDC_TX_BUFSIZE, 1, false);
+    tu_fifo_config(&p_cdc->rx_ff, p_cdc->rx_ff_buf, CFG_TUD_CDC_RX_BUFSIZE, 1, true);
+    tu_fifo_config(&p_cdc->tx_ff, p_cdc->tx_ff_buf, CFG_TUD_CDC_TX_BUFSIZE, 1, false);
 
 #if CFG_FIFO_MUTEX
-    tu_fifo_config_mutex(&ser->rx_ff, osal_mutex_create(&ser->rx_ff_mutex));
-    tu_fifo_config_mutex(&ser->tx_ff, osal_mutex_create(&ser->tx_ff_mutex));
+    tu_fifo_config_mutex(&p_cdc->rx_ff, osal_mutex_create(&p_cdc->rx_ff_mutex));
+    tu_fifo_config_mutex(&p_cdc->tx_ff, osal_mutex_create(&p_cdc->tx_ff_mutex));
 #endif
   }
 }
@@ -299,57 +298,64 @@ tusb_error_t cdcd_open(uint8_t rhport, tusb_desc_interface_t const * p_interface
   return TUSB_ERROR_NONE;
 }
 
-void cdcd_control_request_complete(uint8_t rhport, tusb_control_request_t const * p_request)
+// Invoked when class request DATA stage is finished.
+// return false to stall control endpoint (e.g Host send non-sense DATA)
+bool cdcd_control_request_complete(uint8_t rhport, tusb_control_request_t const * request)
 {
   //------------- Class Specific Request -------------//
-  if (p_request->bmRequestType_bit.type != TUSB_REQ_TYPE_CLASS) return;
+  TU_VERIFY (request->bmRequestType_bit.type == TUSB_REQ_TYPE_CLASS);
 
   // TODO Support multiple interfaces
   uint8_t const itf = 0;
   cdcd_interface_t* p_cdc = &_cdcd_itf[itf];
 
   // Invoke callback
-  if (CDC_REQUEST_SET_LINE_CODING == p_request->bRequest) {
+  if ( CDC_REQUEST_SET_LINE_CODING == request->bRequest )
+  {
     if ( tud_cdc_line_coding_cb ) tud_cdc_line_coding_cb(itf, &p_cdc->line_coding);
   }
+
+  return true;
 }
 
-tusb_error_t cdcd_control_request(uint8_t rhport, tusb_control_request_t const * p_request, uint16_t bytes_already_sent)
+// Handle class control request
+// return false to stall control endpoint (e.g unsupported request)
+bool cdcd_control_request(uint8_t rhport, tusb_control_request_t const * request)
 {
   //------------- Class Specific Request -------------//
-  if (p_request->bmRequestType_bit.type != TUSB_REQ_TYPE_CLASS) return TUSB_ERROR_DCD_CONTROL_REQUEST_NOT_SUPPORT;
+  TU_ASSERT(request->bmRequestType_bit.type == TUSB_REQ_TYPE_CLASS);
 
   // TODO Support multiple interfaces
   uint8_t const itf = 0;
   cdcd_interface_t* p_cdc = &_cdcd_itf[itf];
 
-  if ((CDC_REQUEST_SET_LINE_CODING == p_request->bRequest) )
+  switch ( request->bRequest )
   {
-    uint16_t len = tu_min16(sizeof(cdc_line_coding_t), p_request->wLength);
-    dcd_edpt_xfer(rhport, 0, (uint8_t*) &p_cdc->line_coding, len);
-  }
-  else if ( (CDC_REQUEST_GET_LINE_CODING == p_request->bRequest))
-  {
-    uint16_t len = tu_min16(sizeof(cdc_line_coding_t), p_request->wLength);
-    dcd_edpt_xfer(rhport, TUSB_DIR_IN_MASK, (uint8_t*) &p_cdc->line_coding, len);
-  }
-  else if (CDC_REQUEST_SET_CONTROL_LINE_STATE == p_request->bRequest )
-  {
-    // CDC PSTN v1.2 section 6.3.12
-    // Bit 0: Indicates if DTE is present or not.
-    //        This signal corresponds to V.24 signal 108/2 and RS-232 signal DTR (Data Terminal Ready)
-    // Bit 1: Carrier control for half-duplex modems.
-    //        This signal corresponds to V.24 signal 105 and RS-232 signal RTS (Request to Send)
-    p_cdc->line_state = (uint8_t) p_request->wValue;
+    case CDC_REQUEST_SET_LINE_CODING:
+      usbd_control_xfer(rhport, request, &p_cdc->line_coding, sizeof(cdc_line_coding_t));
+    break;
 
-    // Invoke callback
-    if ( tud_cdc_line_state_cb) tud_cdc_line_state_cb(itf, BIT_TEST_(p_request->wValue, 0), BIT_TEST_(p_request->wValue, 1));
+    case CDC_REQUEST_GET_LINE_CODING:
+      usbd_control_xfer(rhport, request, &p_cdc->line_coding, sizeof(cdc_line_coding_t));
+    break;
+
+    case CDC_REQUEST_SET_CONTROL_LINE_STATE:
+      // CDC PSTN v1.2 section 6.3.12
+      // Bit 0: Indicates if DTE is present or not.
+      //        This signal corresponds to V.24 signal 108/2 and RS-232 signal DTR (Data Terminal Ready)
+      // Bit 1: Carrier control for half-duplex modems.
+      //        This signal corresponds to V.24 signal 105 and RS-232 signal RTS (Request to Send)
+      p_cdc->line_state = (uint8_t) request->wValue;
+
+      // Invoke callback
+      if ( tud_cdc_line_state_cb) tud_cdc_line_state_cb(itf, BIT_TEST_(request->wValue, 0), BIT_TEST_(request->wValue, 1));
+      usbd_control_status(rhport, request);
+    break;
+
+    default: return false; // stall unsupported request
   }
-  else
-  {
-    return TUSB_ERROR_FAILED; // stall unsupported request
-  }
-  return TUSB_ERROR_NONE;
+
+  return true;
 }
 
 tusb_error_t cdcd_xfer_cb(uint8_t rhport, uint8_t ep_addr, tusb_event_t event, uint32_t xferred_bytes)

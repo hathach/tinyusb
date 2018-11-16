@@ -81,32 +81,6 @@ TU_VERIFY_STATIC(CFG_TUD_MSC_BUFSIZE < UINT16_MAX, "Size is not correct");
  extern "C" {
 #endif
 
-typedef struct {
-  CFG_TUSB_MEM_ALIGN msc_cbw_t  cbw;
-
-//#if defined (__ICCARM__) && (CFG_TUSB_MCU == OPT_MCU_LPC11UXX || CFG_TUSB_MCU == OPT_MCU_LPC13UXX)
-//  uint8_t padding1[64-sizeof(msc_cbw_t)]; // IAR cannot align struct's member
-//#endif
-
-  CFG_TUSB_MEM_ALIGN msc_csw_t csw;
-
-  uint8_t  itf_num;
-  uint8_t  ep_in;
-  uint8_t  ep_out;
-
-  // Bulk Only Transfer (BOT) Protocol
-  uint8_t  stage;
-  uint32_t total_len;
-  uint32_t xferred_len; // numbered of bytes transferred so far in the Data Stage
-
-  // Sense Response Data
-  uint8_t sense_key;
-  uint8_t add_sense_code;
-  uint8_t add_sense_qualifier;
-}mscd_interface_t;
-
-extern mscd_interface_t _mscd_itf;
-
 /** \addtogroup ClassDriver_MSC
  *  @{
  * \defgroup MSC_Device Device
@@ -198,8 +172,8 @@ ATTR_WEAK bool tud_lun_capacity_cb(uint8_t lun, uint32_t* last_valid_sector, uin
 
 void mscd_init(void);
 tusb_error_t mscd_open(uint8_t rhport, tusb_desc_interface_t const * p_interface_desc, uint16_t *p_length);
-tusb_error_t mscd_control_request(uint8_t rhport, tusb_control_request_t const * p_request, uint16_t bytes_already_sent);
-void mscd_control_request_complete (uint8_t rhport, tusb_control_request_t const * p_request);
+bool mscd_control_request(uint8_t rhport, tusb_control_request_t const * p_request);
+bool mscd_control_request_complete (uint8_t rhport, tusb_control_request_t const * p_request);
 tusb_error_t mscd_xfer_cb(uint8_t rhport, uint8_t edpt_addr, tusb_event_t event, uint32_t xferred_bytes);
 void mscd_reset(uint8_t rhport);
 
