@@ -44,7 +44,6 @@
 
 #define _TINY_USB_SOURCE_FILE_
 
-#include "control.h"
 #include "tusb.h"
 #include "usbd.h"
 #include "device/usbd_pvt.h"

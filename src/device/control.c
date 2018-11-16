@@ -43,7 +43,6 @@
 #define _TINY_USB_SOURCE_FILE_
 
 #include "tusb.h"
-#include "control.h"
 #include "device/usbd_pvt.h"
 
 enum
