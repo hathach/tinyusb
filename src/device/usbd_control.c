@@ -1,6 +1,6 @@
 /**************************************************************************/
 /*!
-    @file     usbd.c
+    @file     usbd_control.c
     @author   hathach (tinyusb.org)
 
     @section LICENSE
