@@ -64,9 +64,7 @@ enum
                       USBD_INTENCLR_ENDISOIN_Msk | USBD_INTEN_ENDISOOUT_Msk
 };
 
-/*------------------------------------------------------------------*/
-/* VARIABLE DECLARATION
- *------------------------------------------------------------------*/
+// Transfer descriptor
 typedef struct
 {
   uint8_t* buffer;
@@ -78,35 +76,119 @@ typedef struct
   // indicate packet is already ACK
   volatile bool data_received;
 
-} nom_xfer_t;
+} xfer_td_t;
 
-/*static*/ struct
+// Data for managing dcd
+static struct
 {
   // All 8 endpoints including control IN & OUT (offset 1)
-  nom_xfer_t xfer[8][2];
+  xfer_td_t xfer[8][2];
 
+  // Only one DMA can run at a time
   volatile bool dma_running;
 }_dcd;
 
-void bus_reset(void)
+/*------------------------------------------------------------------*/
+/* Control / Bulk / Interrupt (CBI) Transfer
+ *------------------------------------------------------------------*/
+
+// helper to start DMA
+static void edpt_dma_start(volatile uint32_t* reg_startep)
 {
-  for(int i=0; i<8; i++)
+  // Only one dma can be active
+  if ( _dcd.dma_running )
   {
-    NRF_USBD->TASKS_STARTEPIN[i] = 0;
-    NRF_USBD->TASKS_STARTEPOUT[i] = 0;
+    if (SCB->ICSR & SCB_ICSR_VECTACTIVE_Msk)
+    {
+      // If called within ISR, use usbd task to defer later
+      usbd_defer_func( (osal_task_func_t) edpt_dma_start, (void*) reg_startep, true );
+      return;
+    }
+    else
+    {
+      // Otherwise simply block wait
+      while ( _dcd.dma_running )  { }
+    }
   }
 
-  NRF_USBD->TASKS_STARTISOIN  = 0;
-  NRF_USBD->TASKS_STARTISOOUT = 0;
+  _dcd.dma_running = true;
 
-  tu_varclr(&_dcd);
-  _dcd.xfer[0][TUSB_DIR_IN].mps = MAX_PACKET_SIZE;
-  _dcd.xfer[0][TUSB_DIR_OUT].mps = MAX_PACKET_SIZE;
+  (*reg_startep) = 1;
+  __ISB(); __DSB();
 }
 
-/*------------------------------------------------------------------*/
-/* Controller API
- *------------------------------------------------------------------*/
+// DMA is complete
+static void edpt_dma_end(void)
+{
+  TU_ASSERT(_dcd.dma_running, );
+  _dcd.dma_running = false;
+}
+
+// helper getting td
+static inline xfer_td_t* get_td(uint8_t epnum, uint8_t dir)
+{
+  return &_dcd.xfer[epnum][dir];
+}
+
+/*------------- CBI OUT Transfer -------------*/
+
+// Prepare for a CBI transaction OUT, call at the start
+// Allow ACK incoming data
+static void xact_out_prepare(uint8_t epnum)
+{
+  if ( epnum == 0 )
+  {
+    NRF_USBD->TASKS_EP0RCVOUT = 1;
+  }
+  else
+  {
+    // Write zero value to SIZE register will allow hw to ACK (accept data)
+    // If it is not already done by DMA
+    NRF_USBD->SIZE.EPOUT[epnum] = 0;
+  }
+
+  __ISB(); __DSB();
+}
+
+// Start DMA to move data from Endpoint -> RAM
+static void xact_out_dma(uint8_t epnum)
+{
+  xfer_td_t* xfer = get_td(epnum, TUSB_DIR_OUT);
+
+  uint8_t const xact_len = NRF_USBD->SIZE.EPOUT[epnum];
+
+  // Trigger DMA move data from Endpoint -> SRAM
+  NRF_USBD->EPOUT[epnum].PTR    = (uint32_t) xfer->buffer;
+  NRF_USBD->EPOUT[epnum].MAXCNT = xact_len;
+
+  edpt_dma_start(&NRF_USBD->TASKS_STARTEPOUT[epnum]);
+
+  xfer->buffer     += xact_len;
+  xfer->actual_len += xact_len;
+}
+
+/*------------- CBI IN Transfer -------------*/
+
+// Prepare for a CBI transaction IN, call at the start
+// it start DMA to transfer data from RAM -> Endpoint
+static void xact_in_prepare(uint8_t epnum)
+{
+  xfer_td_t* xfer = get_td(epnum, TUSB_DIR_IN);
+
+  // Each transaction is up to Max Packet Size
+  uint8_t const xact_len = tu_min16(xfer->total_len - xfer->actual_len, xfer->mps);
+
+  NRF_USBD->EPIN[epnum].PTR    = (uint32_t) xfer->buffer;
+  NRF_USBD->EPIN[epnum].MAXCNT = xact_len;
+
+  xfer->buffer += xact_len;
+
+  edpt_dma_start(&NRF_USBD->TASKS_STARTEPIN[epnum]);
+}
+
+//--------------------------------------------------------------------+
+// Tinyusb DCD API
+//--------------------------------------------------------------------+
 bool dcd_init (uint8_t rhport)
 {
   (void) rhport;
@@ -133,109 +215,6 @@ void dcd_set_config (uint8_t rhport, uint8_t config_num)
   (void) rhport;
   (void) config_num;
   // Nothing to do
-}
-
-/*------------------------------------------------------------------*/
-/* Control
- *------------------------------------------------------------------*/
-static void edpt_dma_start(volatile uint32_t* reg_startep)
-{
-  // Only one dma can be active
-  if ( _dcd.dma_running )
-  {
-    if (SCB->ICSR & SCB_ICSR_VECTACTIVE_Msk)
-    {
-      // If called within ISR, use usbd task to defer later
-      usbd_defer_func( (osal_task_func_t) edpt_dma_start, (void*) reg_startep, true );
-      return;
-    }
-    else
-    {
-      // Otherwise simply block wait
-      while ( _dcd.dma_running )  { }
-    }
-  }
-
-  _dcd.dma_running = true;
-
-  (*reg_startep) = 1;
-  __ISB(); __DSB();
-}
-
-static void edpt_dma_end(void)
-{
-  TU_ASSERT(_dcd.dma_running, );
-
-  _dcd.dma_running = false;
-}
-
-/*------------------------------------------------------------------*/
-/*
- *------------------------------------------------------------------*/
-
-static inline nom_xfer_t* get_td(uint8_t epnum, uint8_t dir)
-{
-  return &_dcd.xfer[epnum][dir];
-}
-
-/*------------- Bulk/Int OUT transfer -------------*/
-
-/**
- * Prepare Bulk/Int out transaction, Endpoint start to accept/ACK Data
- * @param epnum
- */
-static void xact_out_prepare(uint8_t epnum)
-{
-  if ( epnum == 0 )
-  {
-    NRF_USBD->TASKS_EP0RCVOUT = 1;
-  }
-  else
-  {
-    // Write zero value to SIZE register will allow hw to ACK (accept data)
-    // If it is not already done by DMA
-    NRF_USBD->SIZE.EPOUT[epnum] = 0;
-  }
-
-  __ISB(); __DSB();
-}
-
-static void xact_out_dma(uint8_t epnum)
-{
-  nom_xfer_t* xfer = get_td(epnum, TUSB_DIR_OUT);
-
-  uint8_t const xact_len = NRF_USBD->SIZE.EPOUT[epnum];
-
-  // Trigger DMA move data from Endpoint -> SRAM
-  NRF_USBD->EPOUT[epnum].PTR    = (uint32_t) xfer->buffer;
-  NRF_USBD->EPOUT[epnum].MAXCNT = xact_len;
-
-  edpt_dma_start(&NRF_USBD->TASKS_STARTEPOUT[epnum]);
-
-  xfer->buffer     += xact_len;
-  xfer->actual_len += xact_len;
-}
-
-
-/*------------- Bulk/Int IN transfer -------------*/
-
-/**
- * Prepare Bulk/Int in transaction, use DMA to transfer data from Memory -> Endpoint
- * @param epnum
- */
-static void xact_in_prepare(uint8_t epnum)
-{
-  nom_xfer_t* xfer = get_td(epnum, TUSB_DIR_IN);
-
-  // Each transaction is up to Max Packet Size
-  uint8_t const xact_len = tu_min16(xfer->total_len - xfer->actual_len, xfer->mps);
-
-  NRF_USBD->EPIN[epnum].PTR    = (uint32_t) xfer->buffer;
-  NRF_USBD->EPIN[epnum].MAXCNT = xact_len;
-
-  xfer->buffer += xact_len;
-
-  edpt_dma_start(&NRF_USBD->TASKS_STARTEPIN[epnum]);
 }
 
 bool dcd_edpt_open (uint8_t rhport, tusb_desc_endpoint_t const * desc_edpt)
@@ -268,7 +247,7 @@ bool dcd_edpt_xfer (uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t 
   uint8_t const epnum = edpt_number(ep_addr);
   uint8_t const dir   = edpt_dir(ep_addr);
 
-  nom_xfer_t* xfer = get_td(epnum, dir);
+  xfer_td_t* xfer = get_td(epnum, dir);
 
   xfer->buffer     = buffer;
   xfer->total_len  = total_bytes;
@@ -352,14 +331,30 @@ bool dcd_edpt_busy (uint8_t rhport, uint8_t ep_addr)
   uint8_t const epnum = edpt_number(ep_addr);
   uint8_t const dir   = edpt_dir(ep_addr);
 
-  nom_xfer_t* xfer = get_td(epnum, dir);
+  xfer_td_t* xfer = get_td(epnum, dir);
 
   return xfer->actual_len < xfer->total_len;
 }
 
 /*------------------------------------------------------------------*/
-/*
+/* Interrupt Handler
  *------------------------------------------------------------------*/
+void bus_reset(void)
+{
+  for(int i=0; i<8; i++)
+  {
+    NRF_USBD->TASKS_STARTEPIN[i] = 0;
+    NRF_USBD->TASKS_STARTEPOUT[i] = 0;
+  }
+
+  NRF_USBD->TASKS_STARTISOIN  = 0;
+  NRF_USBD->TASKS_STARTISOOUT = 0;
+
+  tu_varclr(&_dcd);
+  _dcd.xfer[0][TUSB_DIR_IN].mps = MAX_PACKET_SIZE;
+  _dcd.xfer[0][TUSB_DIR_OUT].mps = MAX_PACKET_SIZE;
+}
+
 void USBD_IRQHandler(void)
 {
   uint32_t const inten  = NRF_USBD->INTEN;
@@ -448,7 +443,7 @@ void USBD_IRQHandler(void)
   {
     if ( BIT_TEST_(int_status, USBD_INTEN_ENDEPOUT0_Pos+epnum))
     {
-      nom_xfer_t* xfer = get_td(epnum, TUSB_DIR_OUT);
+      xfer_td_t* xfer = get_td(epnum, TUSB_DIR_OUT);
       uint8_t const xact_len = NRF_USBD->EPOUT[epnum].AMOUNT;
 
       // Data in endpoint has been consumed
@@ -488,7 +483,7 @@ void USBD_IRQHandler(void)
     {
       if ( BIT_TEST_(data_status, epnum ) || ( epnum == 0 && is_control_in) )
       {
-        nom_xfer_t* xfer = get_td(epnum, TUSB_DIR_IN);
+        xfer_td_t* xfer = get_td(epnum, TUSB_DIR_IN);
 
         xfer->actual_len += NRF_USBD->EPIN[epnum].MAXCNT;
 
@@ -509,7 +504,7 @@ void USBD_IRQHandler(void)
     {
       if ( BIT_TEST_(data_status, 16+epnum ) || ( epnum == 0 && is_control_out) )
       {
-        nom_xfer_t* xfer = get_td(epnum, TUSB_DIR_OUT);
+        xfer_td_t* xfer = get_td(epnum, TUSB_DIR_OUT);
 
         if (xfer->actual_len < xfer->total_len)
         {

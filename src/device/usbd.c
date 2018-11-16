@@ -70,11 +70,9 @@ typedef struct {
   uint8_t itf2drv[16];  // map interface number to driver (0xff is invalid)
   uint8_t ep2drv[2][8]; // map endpoint to driver ( 0xff is invalid )
 
-
 }usbd_device_t;
 
 static usbd_device_t _usbd_dev;
-
 
 // Auto descriptor is enabled, descriptor set point to auto generated one
 #if CFG_TUD_DESC_AUTO
