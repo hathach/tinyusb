@@ -186,9 +186,17 @@ static inline nom_xfer_t* get_td(uint8_t epnum, uint8_t dir)
  */
 static void xact_out_prepare(uint8_t epnum)
 {
-  // Write zero value to SIZE register will allow hw to ACK (accept data)
-  // If it is not already done by DMA
-  NRF_USBD->SIZE.EPOUT[epnum] = 0;
+  if ( epnum == 0 )
+  {
+    NRF_USBD->TASKS_EP0RCVOUT = 1;
+  }
+  else
+  {
+    // Write zero value to SIZE register will allow hw to ACK (accept data)
+    // If it is not already done by DMA
+    NRF_USBD->SIZE.EPOUT[epnum] = 0;
+  }
+
   __ISB(); __DSB();
 }
 
@@ -253,16 +261,6 @@ bool dcd_edpt_open (uint8_t rhport, tusb_desc_endpoint_t const * desc_edpt)
   return true;
 }
 
-void control_status_token(uint8_t addr) {
-  NRF_USBD->EPIN[0].PTR        = 0;
-  NRF_USBD->EPIN[0].MAXCNT     = 0;
-  // Status Phase also require Easy DMA has to be free as well !!!!
-  NRF_USBD->TASKS_EP0STATUS = 1;
-
-  // The nRF doesn't interrupt on status transmit so we queue up a success response.
-  dcd_event_xfer_complete(0, addr, 0, DCD_XFER_SUCCESS, false);
-}
-
 bool dcd_edpt_xfer (uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t total_bytes)
 {
   (void) rhport;
@@ -276,21 +274,30 @@ bool dcd_edpt_xfer (uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t 
   xfer->total_len  = total_bytes;
   xfer->actual_len = 0;
 
-  // How does the control endpoint handle a ZLP in the data phase?
-  if (epnum == 0 && total_bytes == 0) {
-      control_status_token(ep_addr);
-  } else if ( dir == TUSB_DIR_OUT )
+  // Control endpoint with zero-length packet --> status stage
+  if ( epnum == 0 && total_bytes == 0 )
+  {
+    // Status Phase also require Easy DMA has to be free as well !!!!
+    edpt_dma_start(&NRF_USBD->TASKS_EP0STATUS);
+    edpt_dma_end();
+
+    // The nRF doesn't interrupt on status transmit so we queue up a success response.
+    dcd_event_xfer_complete(0, ep_addr, 0, DCD_XFER_SUCCESS, false);
+  }
+  else if ( dir == TUSB_DIR_OUT )
   {
     if ( xfer->data_received )
     {
       // nrf52840 auto ACK OUT packet after DMA is done
       // Data already received previously --> trigger DMA to copy to SRAM
       xact_out_dma(epnum);
-    }else
+    }
+    else
     {
       xact_out_prepare(epnum);
     }
-  }else
+  }
+  else
   {
     xact_in_prepare(epnum);
   }
@@ -313,7 +320,7 @@ void dcd_edpt_stall (uint8_t rhport, uint8_t ep_addr)
 {
   (void) rhport;
 
-  if ( ep_addr == 0)
+  if ( edpt_number(ep_addr) == 0 )
   {
     NRF_USBD->TASKS_EP0STALL = 1;
   }else
@@ -328,7 +335,7 @@ void dcd_edpt_clear_stall (uint8_t rhport, uint8_t ep_addr)
 {
   (void) rhport;
 
-  if ( ep_addr )
+  if ( edpt_number(ep_addr)  )
   {
     NRF_USBD->EPSTALL = (USBD_EPSTALL_STALL_UnStall << USBD_EPSTALL_STALL_Pos) | ep_addr;
     __ISB(); __DSB();
@@ -340,7 +347,7 @@ bool dcd_edpt_busy (uint8_t rhport, uint8_t ep_addr)
   (void) rhport;
 
   // USBD shouldn't check control endpoint state
-  if ( 0 == ep_addr ) return false;
+  if ( 0 == edpt_number(ep_addr) ) return false;
 
   uint8_t const epnum = edpt_number(ep_addr);
   uint8_t const dir   = edpt_dir(ep_addr);
@@ -388,19 +395,52 @@ void USBD_IRQHandler(void)
   // Setup tokens are specific to the Control endpoint.
   if ( int_status & USBD_INTEN_EP0SETUP_Msk )
   {
-    uint8_t setup[8] = {
+    uint8_t const setup[8] = {
         NRF_USBD->BMREQUESTTYPE , NRF_USBD->BREQUEST, NRF_USBD->WVALUEL , NRF_USBD->WVALUEH,
         NRF_USBD->WINDEXL       , NRF_USBD->WINDEXH , NRF_USBD->WLENGTHL, NRF_USBD->WLENGTHH
     };
-    if (setup[1] != TUSB_REQ_SET_ADDRESS) {
+
+    // nrf5x hw auto handle set address, there is no need to inform usb stack
+    tusb_control_request_t const * request = (tusb_control_request_t const *) setup;
+
+    if ( !(TUSB_REQ_RCPT_DEVICE == request->bmRequestType_bit.recipient &&
+           TUSB_REQ_TYPE_STANDARD == request->bmRequestType_bit.type &&
+           TUSB_REQ_SET_ADDRESS == request->bRequest) )
+    {
       dcd_event_setup_received(0, setup, true);
     }
   }
 
-  /*------------- Bulk/Interrupt Transfer -------------*/
+  //--------------------------------------------------------------------+
+  /* Control/Bulk/Interrupt (CBI) Transfer
+   *
+   * Data flow is:
+   *           (bus)              (dma)
+   *    Host <-------> Endpoint <-------> RAM
+   *
+   * For CBI OUT:
+   *  - Host -> Endpoint
+   *      EPDATA (or EP0DATADONE) interrupted, check EPDATASTATUS.EPOUT[i]
+   *      to start DMA. This step can occur automatically (without sw),
+   *      which means data may or may not ready (data_received flag).
+   *  - Endpoint -> RAM
+   *      ENDEPOUT[i] interrupted, transaction complete, sw prepare next transaction
+   *
+   * For CBI IN:
+   *  - RAM -> Endpoint
+   *      ENDEPIN[i] interrupted indicate DMA is complete. HW will start
+   *      to move daat to host
+   *  - Endpoint -> Host
+   *      EPDATA (or EP0DATADONE) interrupted, check EPDATASTATUS.EPIN[i].
+   *      Transaction is complete, sw prepare next transaction
+   *
+   * Note: in both Control In and Out of Data stage from Host <-> Endpoint
+   * EP0DATADONE will be set as interrupt source
+   */
+  //--------------------------------------------------------------------+
 
-  /* Bulk/Int OUT: data from DMA -> SRAM
-   * Note: Since nrf controller auto ACK next packet without SW awareness
+  /* CBI OUT: Endpoint -> SRAM (aka transaction complete)
+   * Note: Since nRF controller auto ACK next packet without SW awareness
    * We must handle this stage before Host -> Endpoint just in case
    * 2 event happens at once
    */
@@ -409,9 +449,9 @@ void USBD_IRQHandler(void)
     if ( BIT_TEST_(int_status, USBD_INTEN_ENDEPOUT0_Pos+epnum))
     {
       nom_xfer_t* xfer = get_td(epnum, TUSB_DIR_OUT);
-
       uint8_t const xact_len = NRF_USBD->EPOUT[epnum].AMOUNT;
 
+      // Data in endpoint has been consumed
       xfer->data_received = false;
 
       // Transfer complete if transaction len < Max Packet Size or total len is transferred
@@ -428,19 +468,25 @@ void USBD_IRQHandler(void)
       }
     }
 
-    // Ended event for Bulk/Int : nothing to do
+    // Ended event for CBI IN : nothing to do
   }
 
-  if ( int_status & USBD_INTEN_EPDATA_Msk || int_status & USBD_INTEN_EP0DATADONE_Msk)
+  // Endpoint <-> Host
+  if ( int_status & (USBD_INTEN_EPDATA_Msk | USBD_INTEN_EP0DATADONE_Msk) )
   {
     uint32_t data_status = NRF_USBD->EPDATASTATUS;
-
     nrf_usbd_epdatastatus_clear(data_status);
 
-    // Bulk/Int In: data from Endpoint -> Host
+    // EP0DATADONE is set with either Control Out on IN Data
+    // Since EPDATASTATUS cannot be used to determine whether it is control OUT or IN.
+    // We will use BMREQUESTTYPE in setup packet to determine the direction
+    bool const is_control_in = (int_status & USBD_INTEN_EP0DATADONE_Msk) && (NRF_USBD->BMREQUESTTYPE & TUSB_DIR_IN_MASK);
+    bool const is_control_out = (int_status & USBD_INTEN_EP0DATADONE_Msk) && !(NRF_USBD->BMREQUESTTYPE & TUSB_DIR_IN_MASK);
+
+    // CBI In: Endpoint -> Host (transaction complete)
     for(uint8_t epnum=0; epnum<8; epnum++)
     {
-      if ( BIT_TEST_(data_status, epnum ) || (epnum == 0 && BIT_TEST_(int_status, USBD_INTEN_EP0DATADONE_Pos)))
+      if ( BIT_TEST_(data_status, epnum ) || ( epnum == 0 && is_control_in) )
       {
         nom_xfer_t* xfer = get_td(epnum, TUSB_DIR_IN);
 
@@ -458,10 +504,10 @@ void USBD_IRQHandler(void)
       }
     }
 
-    // Bulk/Int OUT: data from Host -> Endpoint
+    // CBI OUT: Host -> Endpoint
     for(uint8_t epnum=0; epnum<8; epnum++)
     {
-      if ( BIT_TEST_(data_status, 16+epnum ) )
+      if ( BIT_TEST_(data_status, 16+epnum ) || ( epnum == 0 && is_control_out) )
       {
         nom_xfer_t* xfer = get_td(epnum, TUSB_DIR_OUT);
 
