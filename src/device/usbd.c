@@ -128,6 +128,19 @@ static usbd_class_driver_t const usbd_class_drivers[] =
     },
   #endif
 
+  #if CFG_TUD_MIDI
+    {
+        .class_code      = TUSB_CLASS_AUDIO,
+        .init            = midid_init,
+        .open            = midid_open,
+        .control_request = midid_control_request,
+        .control_request_complete = midid_control_request_complete,
+        .xfer_cb         = midid_xfer_cb,
+        .sof             = NULL,
+        .reset           = midid_reset
+    },
+  #endif
+
   #if CFG_TUD_CUSTOM_CLASS
     {
         .class_code      = TUSB_CLASS_VENDOR_SPECIFIC,
