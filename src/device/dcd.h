@@ -124,6 +124,10 @@ void dcd_event_xfer_complete (uint8_t rhport, uint8_t ep_addr, uint32_t xferred_
 
 /*------------------------------------------------------------------*/
 /* Endpoint API
+ * Note:
+ * - Address of control endpoint OUT is 0x00, In is 0x80
+ * - When stalling control endpoint both control OUT and IN must be stalled
+ * (according to USB spec, stalled control is only recovered with setup token)
  *------------------------------------------------------------------*/
 bool dcd_edpt_open        (uint8_t rhport, tusb_desc_endpoint_t const * p_endpoint_desc);
 bool dcd_edpt_xfer        (uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t total_bytes);

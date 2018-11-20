@@ -36,9 +36,6 @@
 */
 /**************************************************************************/
 
-//--------------------------------------------------------------------+
-// INCLUDE
-//--------------------------------------------------------------------+
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
@@ -47,14 +44,38 @@
 #include "tusb.h"
 
 //--------------------------------------------------------------------+
-// MACRO CONSTANT TYPEDEF
-//--------------------------------------------------------------------+
-
-//--------------------------------------------------------------------+
-// INTERNAL OBJECT & FUNCTION DECLARATION
+// MACRO CONSTANT TYPEDEF PROTYPES
 //--------------------------------------------------------------------+
 void print_greeting(void);
 void led_blinking_task(void);
+
+/*------------- MAIN -------------*/
+int main(void)
+{
+  board_init();
+  print_greeting();
+
+  tusb_init();
+
+  while (1)
+  {
+    tusb_task();
+
+    led_blinking_task();
+
+#if CFG_TUD_CDC
+    extern void virtual_com_task(void);
+    virtual_com_task();
+#endif
+
+#if CFG_TUD_HID
+    extern void usb_hid_task(void);
+    usb_hid_task();
+#endif
+  }
+
+  return 0;
+}
 
 //--------------------------------------------------------------------+
 // USB CDC
@@ -90,8 +111,6 @@ void tud_cdc_line_state_cb(uint8_t itf, bool dtr, bool rts)
     tud_cdc_write_str("tinyusb usb cdc\n");
   }
 }
-#else
-#define virtual_com_task()
 #endif
 
 //--------------------------------------------------------------------+
@@ -151,31 +170,7 @@ void tud_hid_generic_set_report_cb(uint8_t report_id, hid_report_type_t report_t
 {
   // TODO not Implemented
 }
-
-#else
-#define usb_hid_task()
 #endif
-
-
-/*------------- MAIN -------------*/
-int main(void)
-{
-  board_init();
-  print_greeting();
-
-  tusb_init();
-
-  while (1)
-  {
-    tusb_task();
-
-    led_blinking_task();
-    virtual_com_task();
-    usb_hid_task();
-  }
-
-  return 0;
-}
 
 //--------------------------------------------------------------------+
 // tinyusb callbacks

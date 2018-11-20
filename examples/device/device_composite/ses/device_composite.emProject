@@ -19,7 +19,7 @@
       arm_target_device_name="nRF52840_xxAA"
       arm_target_interface_type="SWD"
       build_treat_warnings_as_errors="Yes"
-      c_preprocessor_definitions="NRF52840_XXAA;__nRF_FAMILY;ARM_MATH_CM4;FLASH_PLACEMENT=1;BOARD_PCA10056"
+      c_preprocessor_definitions="NRF52840_XXAA;__nRF_FAMILY;ARM_MATH_CM4;FLASH_PLACEMENT=1;BOARD_PCA10056;CFG_TUSB_MCU=OPT_MCU_NRF5X"
       c_user_include_directories="../src;$(rootDir)/hw/cmsis/Include;$(rootDir)/hw;$(rootDir)/src;$(nrfxDir)/..;$(nrfxDir);$(nrfxDir)/mdk;$(nrfxDir)/hal;$(nrfxDir)/drivers/include"
       debug_register_definition_file="ses_nrf5x/nrf52840_Registers.xml"
       debug_target_connection="J-Link"
@@ -118,8 +118,8 @@
       arm_target_device_name="ATSAMD51J19"
       arm_target_interface_type="SWD"
       build_treat_warnings_as_errors="Yes"
-      c_preprocessor_definitions="__SAME51_FAMILY;__SAMD51J19A__;ARM_MATH_CM4;FLASH_PLACEMENT=1;BOARD_METRO_M4_EXPRESS;USE_SIMPLE_ASSERT"
-      c_user_include_directories="../src;$(rootDir)/hw/cmsis/Include;$(rootDir)/hw;$(rootDir)/src;$(asf4Dir);$(asf4Dir)/include;$(asf4Dir)/hri;$(asf4Dir)/hal/include;$(asf4Dir)/hal/utils/include;$(asf4Dir)/hpl/port"
+      c_preprocessor_definitions="__SAME51_FAMILY;__SAMD51J19A__;ARM_MATH_CM4;FLASH_PLACEMENT=1;USE_SIMPLE_ASSERT;BOARD_METRO_M4_EXPRESS;CIRCUITPY_GCLK_INIT_1ST=0xffff;CFG_TUSB_MCU=OPT_MCU_SAMD51"
+      c_user_include_directories="../src;$(rootDir)/hw/cmsis/Include;$(rootDir)/hw;$(rootDir)/src;$(asf4Dir);$(asf4Dir)/include;$(asf4Dir)/config;$(asf4Dir)/hri;$(asf4Dir)/hal/include;$(asf4Dir)/hal/utils/include;$(asf4Dir)/hpl/port;$(asf4Dir)/hpl/gclk"
       debug_register_definition_file="ses_samd51/ATSAME51J19A_Registers.xml"
       debug_target_connection="J-Link"
       gcc_entry_point="Reset_Handler"
@@ -156,6 +156,23 @@
                 <folder Name="gcc">
                   <file file_name="../../../../hw/mcu/microchip/samd/asf4/samd51/gcc/system_samd51.c" />
                 </folder>
+                <folder Name="hpl">
+                  <folder Name="core">
+                    <file file_name="../../../../../../../adafruit/circuitpython/thach_cp/ports/atmel-samd/asf4/samd51/hpl/core/hpl_init.c" />
+                  </folder>
+                  <folder Name="osc32kctrl">
+                    <file file_name="../../../../hw/mcu/microchip/samd/asf4/samd51/hpl/osc32kctrl/hpl_osc32kctrl.c" />
+                  </folder>
+                  <folder Name="oscctrl">
+                    <file file_name="../../../../hw/mcu/microchip/samd/asf4/samd51/hpl/oscctrl/hpl_oscctrl.c" />
+                  </folder>
+                  <folder Name="mclk">
+                    <file file_name="../../../../hw/mcu/microchip/samd/asf4/samd51/hpl/mclk/hpl_mclk.c" />
+                  </folder>
+                  <folder Name="gclk">
+                    <file file_name="../../../../hw/mcu/microchip/samd/asf4/samd51/hpl/gclk/hpl_gclk.c" />
+                  </folder>
+                </folder>
               </folder>
             </folder>
           </folder>
@@ -163,15 +180,6 @@
       </folder>
     </folder>
     <configuration Name="Debug" build_treat_warnings_as_errors="Yes" />
-    <folder Name="src">
-      <file file_name="../src/main.c" />
-      <folder Name="segger_rtt">
-        <file file_name="../src/segger_rtt/SEGGER_RTT.c" />
-        <file file_name="../src/segger_rtt/SEGGER_RTT.h" />
-        <file file_name="../src/segger_rtt/SEGGER_RTT_Conf.h" />
-        <file file_name="../src/segger_rtt/SEGGER_RTT_SES.c" />
-      </folder>
-    </folder>
     <folder Name="ses_samd51">
       <file file_name="ses_samd51/ATSAME51J19A_MemoryMap.xml" />
       <file file_name="ses_samd51/ATSAME51J19A_Registers.xml" />
@@ -181,5 +189,11 @@
       <file file_name="ses_samd51/SAME51_Startup.s" />
       <file file_name="ses_samd51/SAME51_Target.js" />
     </folder>
+    <folder
+      Name="src"
+      exclude=""
+      filter="*.c;*.h"
+      path="../src"
+      recurse="Yes" />
   </project>
 </solution>
