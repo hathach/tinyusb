@@ -1,11 +1,11 @@
 /*****************************************************************************
- * Copyright (c) 2018 Rowley Associates Limited.                             *
+ *                   SEGGER Microcontroller GmbH & Co. KG                    *
+ *            Solutions for real time microcontroller applications           *
+ *****************************************************************************
  *                                                                           *
- * This file may be distributed under the terms of the License Agreement     *
- * provided with this software.                                              *
+ *               (c) 2017 SEGGER Microcontroller GmbH & Co. KG               *
  *                                                                           *
- * THIS FILE IS PROVIDED AS IS WITH NO WARRANTY OF ANY KIND, INCLUDING THE   *
- * WARRANTY OF DESIGN, MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE. *
+ *           Internet: www.segger.com   Support: support@segger.com          *
  *                                                                           *
  *****************************************************************************/
 
