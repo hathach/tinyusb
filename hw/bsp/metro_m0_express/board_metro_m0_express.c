@@ -41,9 +41,11 @@
 #include "sam.h"
 #include "hal/include/hal_gpio.h"
 #include "hal/include/hal_init.h"
-#include <hpl_gclk_base.h>
-#include <hpl_pm_config.h>
-#include <hpl_pm_base.h>
+#include "hri/hri_nvmctrl_d21.h"
+
+#include "hpl/gclk/hpl_gclk_base.h"
+#include "hpl_pm_config.h"
+#include "hpl/pm/hpl_pm_base.h"
 #include "peripheral_clk_config.h"
 
 
@@ -61,8 +63,7 @@
 void board_init(void)
 {
   // Clock init ( follow hpl_init.c )
-
-  // hri_nvmctrl_set_CTRLA_RWS_bf(NVMCTRL, CONF_NVM_WAIT_STATE);
+  hri_nvmctrl_set_CTRLB_RWS_bf(NVMCTRL, 2);
 
   _pm_init();
   _sysctrl_init_sources();
@@ -72,6 +73,7 @@ void board_init(void)
   _sysctrl_init_referenced_generators();
   _gclk_init_generators_by_fref(_GCLK_INIT_LAST);
 
+  // Led init
   gpio_set_pin_direction(BOARD_LED0, GPIO_DIRECTION_OUT);
   gpio_set_pin_level(BOARD_LED0, 1-LED_STATE_ON);
 
