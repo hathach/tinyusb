@@ -43,7 +43,7 @@
 #endif
 
 #define BOARD_LED_NUM   1
-#define BOARD_LED0      13
+#define BOARD_LED0      17
 
 #ifdef __cplusplus
  }

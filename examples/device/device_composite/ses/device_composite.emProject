@@ -158,7 +158,7 @@
                 </folder>
                 <folder Name="hpl">
                   <folder Name="core">
-                    <file file_name="../../../../../../../adafruit/circuitpython/thach_cp/ports/atmel-samd/asf4/samd51/hpl/core/hpl_init.c" />
+                    <file file_name="../../../../hw/mcu/microchip/samd/asf4/samd51/hpl/core/hpl_init.c" />
                   </folder>
                   <folder Name="osc32kctrl">
                     <file file_name="../../../../hw/mcu/microchip/samd/asf4/samd51/hpl/osc32kctrl/hpl_osc32kctrl.c" />
@@ -201,22 +201,21 @@
       Name="Common"
       Placement="Flash"
       Target="nRF52840_xxAA"
-      arm_architecture="v7EM"
-      arm_core_type="Cortex-M4"
+      arm_architecture="v6M"
+      arm_core_type="Cortex-M0+"
       arm_endian="Little"
-      arm_fp_abi="Hard"
-      arm_fpu_type="FPv4-SP-D16"
+      arm_fpu_type="None"
       arm_interwork="No"
       arm_linker_heap_size="1024"
       arm_linker_process_stack_size="0"
       arm_linker_stack_size="1024"
       arm_simulator_memory_simulation_parameter="RX 00000000,00080000,FFFFFFFF;RWX 20000000,00030000,CDCDCDCD"
       arm_target_debug_interface_type="ADIv5"
-      arm_target_device_name="ATSAMD51J19"
+      arm_target_device_name="ATSAMD21G18A"
       arm_target_interface_type="SWD"
       build_treat_warnings_as_errors="Yes"
       c_preprocessor_definitions="__SAMD21G18A__;__SAMD21_FAMILY;__SAM_D21_SUBFAMILY;ARM_MATH_CM0PLUS;FLASH_PLACEMENT=1;USE_SIMPLE_ASSERT;CIRCUITPY_GCLK_INIT_1ST=0xffff;BOARD_METRO_M0_EXPRESS;CFG_TUSB_MCU=OPT_MCU_SAMD21"
-      c_user_include_directories="../src;$(rootDir)/hw/cmsis/Include;$(rootDir)/hw;$(rootDir)/src;$(asf4Dir);$(asf4Dir)/include;$(asf4Dir)/config;$(asf4Dir)/hri;$(asf4Dir)/hal/include;$(asf4Dir)/hal/utils/include;$(asf4Dir)/hpl/port;$(asf4Dir)/hpl/gclk"
+      c_user_include_directories="../src;$(rootDir)/hw/cmsis/Include;$(rootDir)/hw;$(rootDir)/src;$(asf4Dir);$(asf4Dir)/include;$(asf4Dir)/config;$(asf4Dir)/hri;$(asf4Dir)/hal/include;$(asf4Dir)/hal/utils/include;$(asf4Dir)/hpl/port;$(asf4Dir)/hpl/gclk;$(asf4Dir)/hpl/pm"
       debug_register_definition_file="ses_samd21/ATSAMD21G18A_Registers.xml"
       debug_target_connection="J-Link"
       gcc_entry_point="Reset_Handler"
@@ -228,7 +227,7 @@
       project_directory=""
       project_type="Executable"
       target_reset_script="Reset();"
-      target_script_file="$(ProjectDir)/ses_samd51/SAMD51_Target.js"
+      target_script_file="$(ProjectDir)/ses_samd21/SAMD21_Target.js"
       target_trace_initialize_script="EnableTrace(&quot;$(TraceInterfaceType)&quot;)" />
     <folder
       Name="tinyusb"
@@ -249,25 +248,22 @@
         <folder Name="microchip">
           <folder Name="samd">
             <folder Name="asf4">
-              <folder Name="samd51">
+              <folder Name="samd21">
                 <folder Name="gcc">
-                  <file file_name="../../../../hw/mcu/microchip/samd/asf4/samd51/gcc/system_samd51.c" />
+                  <file file_name="../../../../hw/mcu/microchip/samd/asf4/samd21/gcc/system_samd21.c" />
                 </folder>
                 <folder Name="hpl">
                   <folder Name="core">
-                    <file file_name="../../../../../../../adafruit/circuitpython/thach_cp/ports/atmel-samd/asf4/samd51/hpl/core/hpl_init.c" />
-                  </folder>
-                  <folder Name="osc32kctrl">
-                    <file file_name="../../../../hw/mcu/microchip/samd/asf4/samd51/hpl/osc32kctrl/hpl_osc32kctrl.c" />
-                  </folder>
-                  <folder Name="oscctrl">
-                    <file file_name="../../../../hw/mcu/microchip/samd/asf4/samd51/hpl/oscctrl/hpl_oscctrl.c" />
-                  </folder>
-                  <folder Name="mclk">
-                    <file file_name="../../../../hw/mcu/microchip/samd/asf4/samd51/hpl/mclk/hpl_mclk.c" />
+                    <file file_name="../../../../hw/mcu/microchip/samd/asf4/samd21/hpl/core/hpl_init.c" />
                   </folder>
                   <folder Name="gclk">
-                    <file file_name="../../../../hw/mcu/microchip/samd/asf4/samd51/hpl/gclk/hpl_gclk.c" />
+                    <file file_name="../../../../hw/mcu/microchip/samd/asf4/samd21/hpl/gclk/hpl_gclk.c" />
+                  </folder>
+                  <folder Name="pm">
+                    <file file_name="../../../../hw/mcu/microchip/samd/asf4/samd21/hpl/pm/hpl_pm.c" />
+                  </folder>
+                  <folder Name="sysctrl">
+                    <file file_name="../../../../hw/mcu/microchip/samd/asf4/samd21/hpl/sysctrl/hpl_sysctrl.c" />
                   </folder>
                 </folder>
               </folder>
@@ -283,7 +279,7 @@
       filter="*.c;*.h"
       path="../src"
       recurse="Yes" />
-    <folder Name="samd21">
+    <folder Name="ses_samd21">
       <file file_name="ses_samd21/ATSAMD21G18A_MemoryMap.xml" />
       <file file_name="ses_samd21/ATSAMD21G18A_Registers.xml" />
       <file file_name="ses_samd21/ATSAMD21G18A_Vectors.s" />

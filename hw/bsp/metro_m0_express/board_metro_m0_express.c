@@ -36,12 +36,71 @@
 */
 /**************************************************************************/
 
+#include "bsp/board.h"
+
+#include "sam.h"
+#include "hal/include/hal_gpio.h"
+#include "hal/include/hal_init.h"
+#include "peripheral_clk_config.h"
+
+
 //--------------------------------------------------------------------+
 // MACRO TYPEDEF CONSTANT ENUM DECLARATION
 //--------------------------------------------------------------------+
-
+#define LED_STATE_ON  1
 
 void board_init(void)
 {
+  //init_mcu();
 
+  gpio_set_pin_direction(BOARD_LED0, GPIO_DIRECTION_OUT);
+  gpio_set_pin_level(BOARD_LED0, 1-LED_STATE_ON);
+
+#if CFG_TUSB_OS  == OPT_OS_NONE
+  // Tick init
+  SysTick_Config(SystemCoreClock/1000);
+#endif
+
+#if 0
+  /* USB Clock init
+   * The USB module requires a GCLK_USB of 48 MHz ~ 0.25% clock
+   * for low speed and full speed operation. */
+  hri_gclk_write_PCHCTRL_reg(GCLK, USB_GCLK_ID, CONF_GCLK_USB_SRC | GCLK_PCHCTRL_CHEN);
+  hri_mclk_set_AHBMASK_USB_bit(MCLK);
+  hri_mclk_set_APBBMASK_USB_bit(MCLK);
+
+  // USB Pin Init
+  gpio_set_pin_direction(PIN_PA24, GPIO_DIRECTION_OUT);
+  gpio_set_pin_level(PIN_PA24, false);
+  gpio_set_pin_pull_mode(PIN_PA24, GPIO_PULL_OFF);
+  gpio_set_pin_direction(PIN_PA25, GPIO_DIRECTION_OUT);
+  gpio_set_pin_level(PIN_PA25, false);
+  gpio_set_pin_pull_mode(PIN_PA25, GPIO_PULL_OFF);
+
+  gpio_set_pin_function(PIN_PA24, PINMUX_PA24H_USB_DM);
+  gpio_set_pin_function(PIN_PA25, PINMUX_PA25H_USB_DP);
+#endif
 }
+
+void board_led_control(uint32_t led_id, bool state)
+{
+  gpio_set_pin_level(led_id, state ? LED_STATE_ON : (1-LED_STATE_ON));
+}
+
+
+/*------------------------------------------------------------------*/
+/* TUSB HAL MILLISECOND
+ *------------------------------------------------------------------*/
+#if CFG_TUSB_OS  == OPT_OS_NONE
+volatile uint32_t system_ticks = 0;
+
+void SysTick_Handler (void)
+{
+  system_ticks++;
+}
+
+uint32_t tusb_hal_millis(void)
+{
+  return board_tick2ms(system_ticks);
+}
+#endif
