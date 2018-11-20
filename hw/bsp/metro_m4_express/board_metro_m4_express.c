@@ -41,6 +41,8 @@
 #include "sam.h"
 #include "hal/include/hal_gpio.h"
 #include "hal/include/hal_init.h"
+#include "hpl/gclk/hpl_gclk_base.h"
+#include "hpl_mclk_config.h"
 #include "peripheral_clk_config.h"
 
 
@@ -49,16 +51,34 @@
 //--------------------------------------------------------------------+
 #define LED_STATE_ON  1
 
+/* Referenced GCLKs, should be initialized firstly */
+#define _GCLK_INIT_1ST 0xFFFFFFFF
+
+/* Not referenced GCLKs, initialized last */
+#define _GCLK_INIT_LAST (~_GCLK_INIT_1ST)
+
 void board_init(void)
 {
-  init_mcu();
+  // Clock init ( follow hpl_init.c )
+  //hri_nvmctrl_set_CTRLA_RWS_bf(NVMCTRL, CONF_NVM_WAIT_STATE);
 
+  _osc32kctrl_init_sources();
+  _oscctrl_init_sources();
+  _mclk_init();
+#if _GCLK_INIT_1ST
+  _gclk_init_generators_by_fref(_GCLK_INIT_1ST);
+#endif
+  _oscctrl_init_referenced_generators();
+  _gclk_init_generators_by_fref(_GCLK_INIT_LAST);
+
+  // Led init
   gpio_set_pin_direction(BOARD_LED0, GPIO_DIRECTION_OUT);
-  gpio_set_pin_level(BOARD_LED0, 1-LED_STATE_ON);
+  gpio_set_pin_level(BOARD_LED0, 1 - LED_STATE_ON);
 
+  // Systick init
 #if CFG_TUSB_OS  == OPT_OS_NONE
   // Tick init
-  SysTick_Config(SystemCoreClock/1000);
+  SysTick_Config(SystemCoreClock / 1000);
 #endif
 
   /* USB Clock init
