@@ -60,7 +60,7 @@
 void board_init(void)
 {
   // Clock init ( follow hpl_init.c )
-  //hri_nvmctrl_set_CTRLA_RWS_bf(NVMCTRL, CONF_NVM_WAIT_STATE);
+  // hri_nvmctrl_set_CTRLA_RWS_bf(NVMCTRL, CONF_NVM_WAIT_STATE);
 
   _osc32kctrl_init_sources();
   _oscctrl_init_sources();
