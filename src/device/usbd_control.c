@@ -126,7 +126,7 @@ bool usbd_control_xfer(uint8_t rhport, tusb_control_request_t const * request, v
 }
 
 // callback when a transaction complete on DATA stage of control endpoint
-tusb_error_t usbd_control_xfer_cb (uint8_t rhport, uint8_t ep_addr, tusb_event_t event, uint32_t xferred_bytes)
+bool usbd_control_xfer_cb (uint8_t rhport, uint8_t ep_addr, tusb_event_t event, uint32_t xferred_bytes)
 {
   if ( _control_state.request.bmRequestType_bit.direction == TUSB_DIR_OUT )
   {
@@ -151,7 +151,7 @@ tusb_error_t usbd_control_xfer_cb (uint8_t rhport, uint8_t ep_addr, tusb_event_t
     if ( is_ok )
     {
       // Send status
-      TU_ASSERT( usbd_control_status(rhport, &_control_state.request), TUSB_ERROR_FAILED );
+      TU_ASSERT( usbd_control_status(rhport, &_control_state.request) );
     }else
     {
       // stall due to callback
@@ -161,10 +161,10 @@ tusb_error_t usbd_control_xfer_cb (uint8_t rhport, uint8_t ep_addr, tusb_event_t
   else
   {
     // More data to transfer
-    TU_ASSERT(start_control_data_xact(rhport), TUSB_ERROR_FAILED);
+    TU_ASSERT( start_control_data_xact(rhport) );
   }
 
-  return TUSB_ERROR_NONE;
+  return true;
 }
 
 #endif

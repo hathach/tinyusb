@@ -174,7 +174,7 @@ static bool process_set_config(uint8_t rhport, uint8_t config_number);
 static void const* get_descriptor(tusb_control_request_t const * p_request, uint16_t* desc_len);
 
 void usbd_control_reset (uint8_t rhport);
-tusb_error_t usbd_control_xfer_cb (uint8_t rhport, uint8_t ep_addr, tusb_event_t event, uint32_t xferred_bytes);
+bool usbd_control_xfer_cb (uint8_t rhport, uint8_t ep_addr, tusb_event_t event, uint32_t xferred_bytes);
 void usbd_control_set_complete_callback( bool (*fp) (uint8_t, tusb_control_request_t const * ) );
 
 //--------------------------------------------------------------------+
@@ -338,7 +338,10 @@ static bool process_control_request(uint8_t rhport, tusb_control_request_t const
     switch ( p_request->bRequest )
     {
       case TUSB_REQ_SET_ADDRESS:
+        // response with status first before changing device address
+        usbd_control_status(rhport, p_request);
         dcd_set_address(rhport, (uint8_t) p_request->wValue);
+        return true; // skip the rest
       break;
 
       case TUSB_REQ_GET_CONFIGURATION:
@@ -362,7 +365,9 @@ static bool process_control_request(uint8_t rhport, tusb_control_request_t const
         if ( data_buf == NULL || data_len == 0 ) return false;
       break;
 
-      default: return false;
+      default:
+        TU_BREAKPOINT();
+      return false;
     }
 
     usbd_control_xfer(rhport, p_request, data_buf, data_len);
@@ -405,12 +410,15 @@ static bool process_control_request(uint8_t rhport, tusb_control_request_t const
         usbd_control_status(rhport, p_request);
       break;
 
-      default: return false;
+      default:
+        TU_BREAKPOINT();
+      return false;
     }
   }
   else
   {
     //------------- Unsupported Request -------------//
+    TU_BREAKPOINT();
     return false;
   }
 
@@ -549,8 +557,11 @@ void dcd_event_handler(dcd_event_t const * event, bool in_isr)
   {
     case DCD_EVENT_BUS_RESET:
     case DCD_EVENT_UNPLUGGED:
-    case DCD_EVENT_SOF:
       osal_queue_send(_usbd_q, event, in_isr);
+    break;
+
+    case DCD_EVENT_SOF:
+      // nothing to do now
     break;
 
     case DCD_EVENT_SUSPENDED:
