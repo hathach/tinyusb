@@ -20,7 +20,7 @@
       arm_target_interface_type="SWD"
       build_treat_warnings_as_errors="Yes"
       c_preprocessor_definitions="__SAMD51_FAMILY;__SAMD51J19A__;ARM_MATH_CM4;FLASH_PLACEMENT=1;USE_SIMPLE_ASSERT;BOARD_METRO_M4_EXPRESS;CFG_TUSB_MCU=OPT_MCU_SAMD51"
-      c_user_include_directories="../../src;$(rootDir)/hw/cmsis/Include;$(rootDir)/hw;$(rootDir)/src;$(asf4Dir);$(asf4Dir)/include;$(asf4Dir)/config;$(asf4Dir)/hri;$(asf4Dir)/hal/include;$(asf4Dir)/hal/utils/include;$(asf4Dir)/hpl/port;$(asf4Dir)/hpl/gclk"
+      c_user_include_directories="./;../../src;$(rootDir)/hw/cmsis/Include;$(rootDir)/hw;$(rootDir)/src;$(asf4Dir);$(asf4Dir)/include;$(asf4Dir)/config;$(asf4Dir)/hri;$(asf4Dir)/hal/include;$(asf4Dir)/hal/utils/include;$(asf4Dir)/hpl/port;$(asf4Dir)/hpl/gclk;$(freertosDir)/Source/include;$(freertosDir)/Source/portable/GCC/ARM_CM4F"
       debug_register_definition_file="ATSAMD51J19A_Registers.xml"
       debug_target_connection="J-Link"
       gcc_entry_point="Reset_Handler"
@@ -28,7 +28,7 @@
       linker_memory_map_file="ATSAMD51J19A_MemoryMap.xml"
       linker_section_placement_file="flash_placement.xml"
       linker_section_placements_segments="FLASH RX 0x00000000 0x00080000;RAM RWX 0x20000000 0x00030000"
-      macros="DeviceFamily=SAMD51;Target=ATSAMD51J19A;Placement=Flash;rootDir=../../../..;asf4Dir=../../../../hw/mcu/microchip/samd/asf4/samd51"
+      macros="DeviceFamily=SAMD51;Target=ATSAMD51J19A;Placement=Flash;rootDir=../../../..;asf4Dir=../../../../hw/mcu/microchip/samd/asf4/samd51;freertosDir=../../../../lib/FreeRTOS"
       project_directory=""
       project_type="Executable"
       target_reset_script="Reset();"
@@ -102,6 +102,49 @@
       filter="*.c;*.h"
       path="../../../../lib/segger_rtt"
       recurse="No" />
+    <folder Name="lib">
+      <folder Name="FreeRTOS">
+        <folder Name="Source">
+          <folder Name="include">
+            <file file_name="../../../../lib/FreeRTOS/Source/include/croutine.h" />
+            <file file_name="../../../../lib/FreeRTOS/Source/include/deprecated_definitions.h" />
+            <file file_name="../../../../lib/FreeRTOS/Source/include/event_groups.h" />
+            <file file_name="../../../../lib/FreeRTOS/Source/include/FreeRTOS.h" />
+            <file file_name="../../../../lib/FreeRTOS/Source/include/list.h" />
+            <file file_name="../../../../lib/FreeRTOS/Source/include/message_buffer.h" />
+            <file file_name="../../../../lib/FreeRTOS/Source/include/mpu_prototypes.h" />
+            <file file_name="../../../../lib/FreeRTOS/Source/include/mpu_wrappers.h" />
+            <file file_name="../../../../lib/FreeRTOS/Source/include/portable.h" />
+            <file file_name="../../../../lib/FreeRTOS/Source/include/projdefs.h" />
+            <file file_name="../../../../lib/FreeRTOS/Source/include/queue.h" />
+            <file file_name="../../../../lib/FreeRTOS/Source/include/semphr.h" />
+            <file file_name="../../../../lib/FreeRTOS/Source/include/stack_macros.h" />
+            <file file_name="../../../../lib/FreeRTOS/Source/include/StackMacros.h" />
+            <file file_name="../../../../lib/FreeRTOS/Source/include/stream_buffer.h" />
+            <file file_name="../../../../lib/FreeRTOS/Source/include/task.h" />
+            <file file_name="../../../../lib/FreeRTOS/Source/include/timers.h" />
+          </folder>
+          <folder Name="portable">
+            <folder Name="Common" />
+            <folder Name="GCC">
+              <folder Name="ARM_CM4F">
+                <file file_name="../../../../lib/FreeRTOS/Source/portable/GCC/ARM_CM4F/port.c" />
+                <file file_name="../../../../lib/FreeRTOS/Source/portable/GCC/ARM_CM4F/portmacro.h" />
+              </folder>
+            </folder>
+            <folder Name="MemMang">
+              <file file_name="../../../../lib/FreeRTOS/Source/portable/MemMang/heap_4.c" />
+            </folder>
+          </folder>
+          <file file_name="../../../../lib/FreeRTOS/Source/list.c" />
+          <file file_name="../../../../lib/FreeRTOS/Source/queue.c" />
+          <file file_name="../../../../lib/FreeRTOS/Source/tasks.c" />
+          <file file_name="../../../../lib/FreeRTOS/Source/timers.c" />
+        </folder>
+        <file file_name="../../../../lib/FreeRTOS/FreeRTOSConfig.h" />
+        <file file_name="../../../../lib/FreeRTOS/freertos_hook.c" />
+      </folder>
+    </folder>
   </project>
   <configuration Name="Metro M4 Express" />
 </solution>

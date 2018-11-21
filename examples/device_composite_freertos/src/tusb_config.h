@@ -48,7 +48,11 @@
 //--------------------------------------------------------------------
 // COMMON CONFIGURATION
 //--------------------------------------------------------------------
-#define CFG_TUSB_MCU                OPT_MCU_NRF5X
+// defined by compiler flags for flexibility
+#ifndef CFG_TUSB_MCU
+  #error CFG_TUSB_MCU should be defined using compiler flags
+#endif
+
 #define CFG_TUSB_RHPORT0_MODE       OPT_MODE_DEVICE
 
 #define CFG_TUSB_DEBUG              2
