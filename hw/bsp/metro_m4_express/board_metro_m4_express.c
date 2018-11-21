@@ -75,7 +75,7 @@ void board_init(void)
 
   // Systick init
 #if CFG_TUSB_OS  == OPT_OS_NONE
-  // Tick init
+  // Tick init, samd SystemCoreClock may not correct
   SysTick_Config(SystemCoreClock / 1000);
 #endif
 

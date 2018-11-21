@@ -41,21 +41,11 @@
 #if TUSB_OPT_DEVICE_ENABLED && CFG_TUSB_MCU == OPT_MCU_SAMD21
 
 #include "device/dcd.h"
-
-#include "device/usbd.h"
-#include "device/usbd_pvt.h" // to use defer function helper
-
 #include "sam.h"
 
 /*------------------------------------------------------------------*/
 /* MACRO TYPEDEF CONSTANT ENUM
  *------------------------------------------------------------------*/
-enum
-{
-  // Max allowed by USB specs
-  MAX_PACKET_SIZE   = 64,
-};
-
 static ATTR_ALIGNED(4) UsbDeviceDescBank sram_registers[8][2];
 static ATTR_ALIGNED(4) uint8_t _setup_packet[8];
 
@@ -134,6 +124,10 @@ bool dcd_edpt_open (uint8_t rhport, tusb_desc_endpoint_t const * desc_edpt)
     }
     size_value++;
   }
+
+  // unsupported endpoint size
+  if ( size_value == 7 && desc_edpt->wMaxPacketSize.size != 1023 ) return false;
+
   bank->PCKSIZE.bit.SIZE = size_value;
 
   UsbDeviceEndpoint* ep = &USB->DEVICE.DeviceEndpoint[epnum];

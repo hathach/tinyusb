@@ -76,7 +76,7 @@ void board_init(void)
   gpio_set_pin_level(BOARD_LED0, 1-LED_STATE_ON);
 
 #if CFG_TUSB_OS  == OPT_OS_NONE
-  // Tick init
+  // Tick init, samd SystemCoreClock may not correct
   SysTick_Config(SystemCoreClock/1000);
 #endif
 
