@@ -56,10 +56,8 @@ enum
   MAX_PACKET_SIZE   = 64,
 };
 
-static UsbDeviceDescBank sram_registers[8][2];
+static ATTR_ALIGNED(4) UsbDeviceDescBank sram_registers[8][2];
 static ATTR_ALIGNED(4) uint8_t _setup_packet[8];
-
-volatile uint32_t setup_count = 0;
 
 // Setup the control endpoint 0.
 static void bus_reset(void) {
@@ -75,7 +73,6 @@ static void bus_reset(void) {
 
     // Prepare for setup packet
     dcd_edpt_xfer(0, 0, _setup_packet, sizeof(_setup_packet));
-    setup_count = 0;
 }
 
 
@@ -255,7 +252,6 @@ static bool maybe_handle_setup_packet(void) {
 
         // This copies the data elsewhere so we can reuse the buffer.
         dcd_event_setup_received(0, (uint8_t*) sram_registers[0][0].ADDR.reg, true);
-        setup_count += 1;
         return true;
     }
     return false;

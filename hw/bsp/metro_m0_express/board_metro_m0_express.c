@@ -46,8 +46,6 @@
 #include "hpl/gclk/hpl_gclk_base.h"
 #include "hpl_pm_config.h"
 #include "hpl/pm/hpl_pm_base.h"
-#include "peripheral_clk_config.h"
-
 
 //--------------------------------------------------------------------+
 // MACRO TYPEDEF CONSTANT ENUM DECLARATION
