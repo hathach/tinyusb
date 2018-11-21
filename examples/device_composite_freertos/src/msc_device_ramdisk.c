@@ -36,7 +36,7 @@
 */
 /**************************************************************************/
 
-#include "msc_device_app.h"
+#include "msc_app.h"
 
 #if CFG_TUD_MSC && defined (MSCD_APP_RAMDISK)
 

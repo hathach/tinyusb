@@ -1,0 +1,6 @@
+<!DOCTYPE CrossStudio_Project_File>
+<solution Name="device_composite" target="8" version="2">
+  <import file_name="nrf5x/nrf5x.emProject" />
+  <import file_name="samd21/samd21.emProject" />
+  <import file_name="samd51/samd51.emProject" />
+</solution>
