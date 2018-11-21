@@ -57,9 +57,7 @@ enum
 };
 
 static UsbDeviceDescBank sram_registers[8][2];
-static ATTR_ALIGNED(4) uint8_t setup_packet[8];
-
-volatile uint32_t setup_count = 0;
+static ATTR_ALIGNED(4) uint8_t _setup_packet[8];
 
 // Setup the control endpoint 0.
 static void bus_reset(void) {
@@ -74,8 +72,7 @@ static void bus_reset(void) {
     ep->EPINTENSET.reg = USB_DEVICE_EPINTENSET_TRCPT0 | USB_DEVICE_EPINTENSET_TRCPT1 | USB_DEVICE_EPINTENSET_RXSTP;
 
     // Prepare for setup packet
-    dcd_edpt_xfer(0, 0, setup_packet, sizeof(setup_packet));
-    setup_count = 0;
+    dcd_edpt_xfer(0, 0, _setup_packet, sizeof(_setup_packet));
 }
 
 
@@ -119,7 +116,7 @@ void dcd_set_config (uint8_t rhport, uint8_t config_num)
 }
 
 /*------------------------------------------------------------------*/
-/* DCD Endpoint
+/* DCD Endpoint port
  *------------------------------------------------------------------*/
 
 bool dcd_edpt_open (uint8_t rhport, tusb_desc_endpoint_t const * desc_edpt)
@@ -252,12 +249,8 @@ static bool maybe_handle_setup_packet(void) {
     {
         USB->DEVICE.DeviceEndpoint[0].EPINTFLAG.reg = USB_DEVICE_EPINTFLAG_RXSTP;
 
-        // uint8_t* buf = (uint8_t*) sram_registers[0][0].ADDR.reg;
-        //
-        // if (buf[6] == 0x12) asm("bkpt");
         // This copies the data elsewhere so we can reuse the buffer.
         dcd_event_setup_received(0, (uint8_t*) sram_registers[0][0].ADDR.reg, true);
-        setup_count += 1;
         return true;
     }
     return false;
@@ -299,9 +292,6 @@ void USB_1_Handler(void) {
 }
 
 void transfer_complete(uint8_t direction) {
-        // uint8_t* buf = (uint8_t*) sram_registers[0][0].ADDR.reg;
-        //
-        // if (buf[6] == 0x12 || setup_count == 2) asm("bkpt");
     uint32_t epints = USB->DEVICE.EPINTSMRY.reg;
     for (uint8_t epnum = 0; epnum < USB_EPT_NUM; epnum++) {
         if ((epints & (1 << epnum)) == 0) {
@@ -324,7 +314,7 @@ void transfer_complete(uint8_t direction) {
 
         // just finished status stage (total size = 0), prepare for next setup packet
         if (epnum == 0 && total_transfer_size == 0) {
-            dcd_edpt_xfer(0, 0, setup_packet, sizeof(setup_packet));
+            dcd_edpt_xfer(0, 0, _setup_packet, sizeof(_setup_packet));
         }
 
         if (direction == TUSB_DIR_IN) {

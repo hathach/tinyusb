@@ -43,8 +43,6 @@
 #include "hal/include/hal_init.h"
 #include "hpl/gclk/hpl_gclk_base.h"
 #include "hpl_mclk_config.h"
-#include "peripheral_clk_config.h"
-
 
 //--------------------------------------------------------------------+
 // MACRO TYPEDEF CONSTANT ENUM DECLARATION
@@ -60,7 +58,7 @@
 void board_init(void)
 {
   // Clock init ( follow hpl_init.c )
-  // hri_nvmctrl_set_CTRLA_RWS_bf(NVMCTRL, CONF_NVM_WAIT_STATE);
+  hri_nvmctrl_set_CTRLA_RWS_bf(NVMCTRL, 0);
 
   _osc32kctrl_init_sources();
   _oscctrl_init_sources();
@@ -84,7 +82,7 @@ void board_init(void)
   /* USB Clock init
    * The USB module requires a GCLK_USB of 48 MHz ~ 0.25% clock
    * for low speed and full speed operation. */
-  hri_gclk_write_PCHCTRL_reg(GCLK, USB_GCLK_ID, CONF_GCLK_USB_SRC | GCLK_PCHCTRL_CHEN);
+  hri_gclk_write_PCHCTRL_reg(GCLK, USB_GCLK_ID, GCLK_PCHCTRL_GEN_GCLK1_Val | GCLK_PCHCTRL_CHEN);
   hri_mclk_set_AHBMASK_USB_bit(MCLK);
   hri_mclk_set_APBBMASK_USB_bit(MCLK);
 
