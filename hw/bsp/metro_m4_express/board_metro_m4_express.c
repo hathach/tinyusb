@@ -41,30 +41,48 @@
 #include "sam.h"
 #include "hal/include/hal_gpio.h"
 #include "hal/include/hal_init.h"
-#include "peripheral_clk_config.h"
-
+#include "hpl/gclk/hpl_gclk_base.h"
+#include "hpl_mclk_config.h"
 
 //--------------------------------------------------------------------+
 // MACRO TYPEDEF CONSTANT ENUM DECLARATION
 //--------------------------------------------------------------------+
 #define LED_STATE_ON  1
 
+/* Referenced GCLKs, should be initialized firstly */
+#define _GCLK_INIT_1ST 0xFFFFFFFF
+
+/* Not referenced GCLKs, initialized last */
+#define _GCLK_INIT_LAST (~_GCLK_INIT_1ST)
+
 void board_init(void)
 {
-  init_mcu();
+  // Clock init ( follow hpl_init.c )
+  hri_nvmctrl_set_CTRLA_RWS_bf(NVMCTRL, 0);
 
+  _osc32kctrl_init_sources();
+  _oscctrl_init_sources();
+  _mclk_init();
+#if _GCLK_INIT_1ST
+  _gclk_init_generators_by_fref(_GCLK_INIT_1ST);
+#endif
+  _oscctrl_init_referenced_generators();
+  _gclk_init_generators_by_fref(_GCLK_INIT_LAST);
+
+  // Led init
   gpio_set_pin_direction(BOARD_LED0, GPIO_DIRECTION_OUT);
-  gpio_set_pin_level(BOARD_LED0, 1-LED_STATE_ON);
+  gpio_set_pin_level(BOARD_LED0, 1 - LED_STATE_ON);
 
+  // Systick init
 #if CFG_TUSB_OS  == OPT_OS_NONE
-  // Tick init
-  SysTick_Config(SystemCoreClock/1000);
+  // Tick init, samd SystemCoreClock may not correct
+  SysTick_Config(SystemCoreClock / 1000);
 #endif
 
   /* USB Clock init
    * The USB module requires a GCLK_USB of 48 MHz ~ 0.25% clock
    * for low speed and full speed operation. */
-  hri_gclk_write_PCHCTRL_reg(GCLK, USB_GCLK_ID, CONF_GCLK_USB_SRC | GCLK_PCHCTRL_CHEN);
+  hri_gclk_write_PCHCTRL_reg(GCLK, USB_GCLK_ID, GCLK_PCHCTRL_GEN_GCLK1_Val | GCLK_PCHCTRL_CHEN);
   hri_mclk_set_AHBMASK_USB_bit(MCLK);
   hri_mclk_set_APBBMASK_USB_bit(MCLK);
 

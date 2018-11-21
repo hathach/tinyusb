@@ -41,26 +41,13 @@
 #if TUSB_OPT_DEVICE_ENABLED && CFG_TUSB_MCU == OPT_MCU_SAMD51
 
 #include "device/dcd.h"
-
-#include "device/usbd.h"
-#include "device/usbd_pvt.h" // to use defer function helper
-
 #include "sam.h"
 
 /*------------------------------------------------------------------*/
 /* MACRO TYPEDEF CONSTANT ENUM
  *------------------------------------------------------------------*/
-enum
-{
-  // Max allowed by USB specs
-  MAX_PACKET_SIZE   = 64,
-};
-
-UsbDeviceDescBank sram_registers[8][2];
-ATTR_ALIGNED(4) uint8_t control_out_buffer[64];
-ATTR_ALIGNED(4) uint8_t control_in_buffer[64];
-
-volatile uint32_t setup_count = 0;
+static UsbDeviceDescBank sram_registers[8][2];
+static ATTR_ALIGNED(4) uint8_t _setup_packet[8];
 
 // Setup the control endpoint 0.
 static void bus_reset(void) {
@@ -74,8 +61,8 @@ static void bus_reset(void) {
     ep->EPCFG.reg = USB_DEVICE_EPCFG_EPTYPE0(0x1) | USB_DEVICE_EPCFG_EPTYPE1(0x1);
     ep->EPINTENSET.reg = USB_DEVICE_EPINTENSET_TRCPT0 | USB_DEVICE_EPINTENSET_TRCPT1 | USB_DEVICE_EPINTENSET_RXSTP;
 
-    dcd_edpt_xfer(0, 0, control_out_buffer, 64);
-    setup_count = 0;
+    // Prepare for setup packet
+    dcd_edpt_xfer(0, 0, _setup_packet, sizeof(_setup_packet));
 }
 
 
@@ -105,7 +92,7 @@ void dcd_disconnect (uint8_t rhport)
 void dcd_set_address (uint8_t rhport, uint8_t dev_addr)
 {
   (void) rhport;
-  dcd_edpt_xfer (0, TUSB_DIR_IN_MASK, NULL, 0);
+
   // Wait for EP0 to finish before switching the address.
   while (USB->DEVICE.DeviceEndpoint[0].EPSTATUS.bit.BK1RDY == 1) {}
   USB->DEVICE.DADD.reg = USB_DEVICE_DADD_DADD(dev_addr) | USB_DEVICE_DADD_ADDEN;
@@ -119,19 +106,8 @@ void dcd_set_config (uint8_t rhport, uint8_t config_num)
 }
 
 /*------------------------------------------------------------------*/
-/* Control
+/* DCD Endpoint port
  *------------------------------------------------------------------*/
-
-bool dcd_control_xfer (uint8_t rhport, uint8_t dir, uint8_t * buffer, uint16_t length)
-{
-  (void) rhport;
-  uint8_t ep_addr = 0;
-  if (dir == TUSB_DIR_IN) {
-      ep_addr |= TUSB_DIR_IN_MASK;
-  }
-
-  return dcd_edpt_xfer (rhport, ep_addr, buffer, length);
-}
 
 bool dcd_edpt_open (uint8_t rhport, tusb_desc_endpoint_t const * desc_edpt)
 {
@@ -148,6 +124,10 @@ bool dcd_edpt_open (uint8_t rhport, tusb_desc_endpoint_t const * desc_edpt)
     }
     size_value++;
   }
+
+  // unsupported endpoint size
+  if ( size_value == 7 && desc_edpt->wMaxPacketSize.size != 1023 ) return false;
+
   bank->PCKSIZE.bit.SIZE = size_value;
 
   UsbDeviceEndpoint* ep = &USB->DEVICE.DeviceEndpoint[epnum];
@@ -161,7 +141,6 @@ bool dcd_edpt_open (uint8_t rhport, tusb_desc_endpoint_t const * desc_edpt)
     ep->EPCFG.bit.EPTYPE1 = desc_edpt->bmAttributes.xfer + 1;
     ep->EPINTENSET.bit.TRCPT1 = true;
   }
-  __ISB(); __DSB();
 
   return true;
 }
@@ -219,9 +198,12 @@ void dcd_edpt_stall (uint8_t rhport, uint8_t ep_addr)
       ep->EPSTATUSSET.reg = USB_DEVICE_EPSTATUSSET_STALLRQ1;
   } else {
       ep->EPSTATUSSET.reg = USB_DEVICE_EPSTATUSSET_STALLRQ0;
-  }
 
-  __ISB(); __DSB();
+      // for control, stall both IN & OUT
+      if (ep_addr == 0) {
+        ep->EPSTATUSSET.reg = USB_DEVICE_EPSTATUSSET_STALLRQ1;
+      }
+  }
 }
 
 void dcd_edpt_clear_stall (uint8_t rhport, uint8_t ep_addr)
@@ -260,13 +242,9 @@ static bool maybe_handle_setup_packet(void) {
     if (USB->DEVICE.DeviceEndpoint[0].EPINTFLAG.bit.RXSTP)
     {
         USB->DEVICE.DeviceEndpoint[0].EPINTFLAG.reg = USB_DEVICE_EPINTFLAG_RXSTP;
-        // uint8_t* buf = (uint8_t*) sram_registers[0][0].ADDR.reg;
-        //
-        // if (buf[6] == 0x12) asm("bkpt");
+
         // This copies the data elsewhere so we can reuse the buffer.
         dcd_event_setup_received(0, (uint8_t*) sram_registers[0][0].ADDR.reg, true);
-        dcd_edpt_xfer(0, 0, control_out_buffer, 64);
-        setup_count += 1;
         return true;
     }
     return false;
@@ -308,9 +286,6 @@ void USB_1_Handler(void) {
 }
 
 void transfer_complete(uint8_t direction) {
-        // uint8_t* buf = (uint8_t*) sram_registers[0][0].ADDR.reg;
-        //
-        // if (buf[6] == 0x12 || setup_count == 2) asm("bkpt");
     uint32_t epints = USB->DEVICE.EPINTSMRY.reg;
     for (uint8_t epnum = 0; epnum < USB_EPT_NUM; epnum++) {
         if ((epints & (1 << epnum)) == 0) {
@@ -330,9 +305,12 @@ void transfer_complete(uint8_t direction) {
             ep_addr |= TUSB_DIR_IN_MASK;
         }
         dcd_event_xfer_complete(0, ep_addr, total_transfer_size, DCD_XFER_SUCCESS, true);
-        if (epnum == 0 && direction == TUSB_DIR_OUT) {
-            dcd_edpt_xfer(0, 0, control_out_buffer, 64);
+
+        // just finished status stage (total size = 0), prepare for next setup packet
+        if (epnum == 0 && total_transfer_size == 0) {
+            dcd_edpt_xfer(0, 0, _setup_packet, sizeof(_setup_packet));
         }
+
         if (direction == TUSB_DIR_IN) {
             ep->EPINTFLAG.reg = USB_DEVICE_EPINTFLAG_TRCPT1;
         } else {

@@ -124,10 +124,14 @@ void dcd_event_xfer_complete (uint8_t rhport, uint8_t ep_addr, uint32_t xferred_
 
 /*------------------------------------------------------------------*/
 /* Endpoint API
- * Note:
- * - Address of control endpoint OUT is 0x00, In is 0x80
- * - When stalling control endpoint both control OUT and IN must be stalled
- * (according to USB spec, stalled control is only recovered with setup token)
+ *  - open        : Configure endpoint's registers
+ *  - xfer        : Submit a transfer. When complete dcd_event_xfer_complete
+ *                  must be called to notify the stack
+ *  - busy        : Check if endpoint transferring is complete (TODO remove)
+ *  - stall       : stall ep. When control endpoint (addr = 0) is stalled,
+ *                  both direction (IN & OUT) of control ep must be stalled.
+ *  - clear_stall : clear stall
+ *  - stalled     : check if stalled ( TODO remove )
  *------------------------------------------------------------------*/
 bool dcd_edpt_open        (uint8_t rhport, tusb_desc_endpoint_t const * p_endpoint_desc);
 bool dcd_edpt_xfer        (uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t total_bytes);
