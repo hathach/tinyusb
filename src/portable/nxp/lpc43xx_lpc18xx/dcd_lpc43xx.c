@@ -66,19 +66,30 @@ typedef struct {
   dcd_qtd_t qtd[DCD_QTD_MAX] ATTR_ALIGNED(32);
 }dcd_data_t;
 
-extern ATTR_WEAK dcd_data_t dcd_data0;
-extern ATTR_WEAK dcd_data_t dcd_data1;
-
 #if (CFG_TUSB_RHPORT0_MODE & OPT_MODE_DEVICE)
-CFG_TUSB_ATTR_USBRAM ATTR_ALIGNED(2048) STATIC_VAR dcd_data_t dcd_data0;
+CFG_TUSB_MEM_SECTION ATTR_ALIGNED(2048) static dcd_data_t dcd_data0;
 #endif
 
 #if (CFG_TUSB_RHPORT1_MODE & OPT_MODE_DEVICE)
-CFG_TUSB_ATTR_USBRAM ATTR_ALIGNED(2048) STATIC_VAR dcd_data_t dcd_data1;
+CFG_TUSB_MEM_SECTION ATTR_ALIGNED(2048) static dcd_data_t dcd_data1;
 #endif
 
 static LPC_USB0_Type * const LPC_USB[2] = { LPC_USB0, ((LPC_USB0_Type*) LPC_USB1_BASE) };
-static dcd_data_t* const dcd_data_ptr[2] = { &dcd_data0, &dcd_data1 };
+
+static dcd_data_t* const dcd_data_ptr[2] =
+{
+#if (CFG_TUSB_RHPORT0_MODE & OPT_MODE_DEVICE)
+  &dcd_data0,
+#else
+  NULL,
+#endif
+
+#if (CFG_TUSB_RHPORT1_MODE & OPT_MODE_DEVICE)
+  &dcd_data1
+#else
+  NULL
+#endif
+};
 
 //--------------------------------------------------------------------+
 // CONTROLLER API
@@ -104,12 +115,11 @@ static void bus_reset(uint8_t rhport)
   LPC_USB0_Type* const lpc_usb = LPC_USB[rhport];
 
   // The reset value for all endpoint types is the control endpoint. If one endpoint
-  //direction is enabled and the paired endpoint of opposite direction is disabled, then the
-  //endpoint type of the unused direction must bechanged from the control type to any other
-  //type (e.g. bulk). Leaving an unconfigured endpoint control will cause undefined behavior
-  //for the data PID tracking on the active endpoint.
-  lpc_usb->ENDPTCTRL1 = lpc_usb->ENDPTCTRL2 = lpc_usb->ENDPTCTRL3 =
-      (TUSB_XFER_BULK << 2) | (TUSB_XFER_BULK << 18);
+  // direction is enabled and the paired endpoint of opposite direction is disabled, then the
+  // endpoint type of the unused direction must bechanged from the control type to any other
+  // type (e.g. bulk). Leaving an unconfigured endpoint control will cause undefined behavior
+  // for the data PID tracking on the active endpoint.
+  lpc_usb->ENDPTCTRL1 = lpc_usb->ENDPTCTRL2 = lpc_usb->ENDPTCTRL3 = (TUSB_XFER_BULK << 2) | (TUSB_XFER_BULK << 18);
 
   // USB1 only has 3 non-control endpoints
   if ( rhport == 0)
@@ -282,6 +292,12 @@ void dcd_edpt_stall(uint8_t rhport, uint8_t ep_addr)
   }
 }
 
+// TOOD implement later
+bool dcd_edpt_stalled (uint8_t rhport, uint8_t ep_addr)
+{
+  return false;
+}
+
 void dcd_edpt_clear_stall(uint8_t rhport, uint8_t ep_addr)
 {
   volatile uint32_t * reg_control = get_reg_control_addr(rhport, edpt_addr2phy(ep_addr));
@@ -375,7 +391,9 @@ bool  dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t 
 	return true;
 }
 
-//------------- Device Controller Driver's Interrupt Handler -------------//
+//--------------------------------------------------------------------+
+// ISR
+//--------------------------------------------------------------------+
 void xfer_complete_isr(uint8_t rhport, uint32_t reg_complete)
 {
   for(uint8_t ep_idx = 2; ep_idx < DCD_QHD_MAX; ep_idx++)
@@ -504,7 +522,4 @@ void hal_dcd_isr(uint8_t rhport)
   if (int_status & INT_MASK_ERROR) TU_ASSERT(false, );
 }
 
-//--------------------------------------------------------------------+
-// HELPER
-//--------------------------------------------------------------------+
 #endif

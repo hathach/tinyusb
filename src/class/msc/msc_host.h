@@ -104,7 +104,7 @@ tusb_error_t tuh_msc_get_capacity(uint8_t dev_addr, uint32_t* p_last_lba, uint32
 /** \brief 			Perform SCSI READ 10 command to read data from MassStorage device
  * \param[in]		dev_addr	device address
  * \param[in]		lun       Targeted Logical Unit
- * \param[out]	p_buffer  Buffer used to store data read from device. Must be accessible by USB controller (see \ref CFG_TUSB_ATTR_USBRAM)
+ * \param[out]	p_buffer  Buffer used to store data read from device. Must be accessible by USB controller (see \ref CFG_TUSB_MEM_SECTION)
  * \param[in]		lba       Starting Logical Block Address to be read
  * \param[in]		block_count Number of Block to be read
  * \retval      TUSB_ERROR_NONE on success
@@ -118,7 +118,7 @@ tusb_error_t tuh_msc_read10 (uint8_t dev_addr, uint8_t lun, void * p_buffer, uin
 /** \brief 			Perform SCSI WRITE 10 command to write data to MassStorage device
  * \param[in]		dev_addr	device address
  * \param[in]		lun       Targeted Logical Unit
- * \param[in]	  p_buffer  Buffer containing data. Must be accessible by USB controller (see \ref CFG_TUSB_ATTR_USBRAM)
+ * \param[in]	  p_buffer  Buffer containing data. Must be accessible by USB controller (see \ref CFG_TUSB_MEM_SECTION)
  * \param[in]		lba       Starting Logical Block Address to be written
  * \param[in]		block_count Number of Block to be written
  * \retval      TUSB_ERROR_NONE on success
@@ -132,7 +132,7 @@ tusb_error_t tuh_msc_write10(uint8_t dev_addr, uint8_t lun, void const * p_buffe
 /** \brief 			Perform SCSI REQUEST SENSE command, used to retrieve sense data from MassStorage device
  * \param[in]		dev_addr	device address
  * \param[in]		lun       Targeted Logical Unit
- * \param[in]	  p_data    Buffer to store response's data from device. Must be accessible by USB controller (see \ref CFG_TUSB_ATTR_USBRAM)
+ * \param[in]	  p_data    Buffer to store response's data from device. Must be accessible by USB controller (see \ref CFG_TUSB_MEM_SECTION)
  * \retval      TUSB_ERROR_NONE on success
  * \retval      TUSB_ERROR_INTERFACE_IS_BUSY if the interface is already transferring data with device
  * \retval      TUSB_ERROR_DEVICE_NOT_READY if device is not yet configured (by SET CONFIGURED request)

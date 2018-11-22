@@ -49,8 +49,8 @@
 static osal_semaphore_t sem_hdl;
 
 enum { SERIAL_BUFFER_SIZE = 64 };
-CFG_TUSB_ATTR_USBRAM static uint8_t serial_in_buffer[SERIAL_BUFFER_SIZE];
-CFG_TUSB_ATTR_USBRAM static uint8_t serial_out_buffer[SERIAL_BUFFER_SIZE];
+CFG_TUSB_MEM_SECTION static uint8_t serial_in_buffer[SERIAL_BUFFER_SIZE];
+CFG_TUSB_MEM_SECTION static uint8_t serial_out_buffer[SERIAL_BUFFER_SIZE];
 
 static uint8_t received_bytes; // set by transfer complete callback
 

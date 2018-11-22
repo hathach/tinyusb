@@ -80,7 +80,7 @@ bool          tuh_hid_keyboard_is_busy(uint8_t dev_addr) ATTR_PURE ATTR_WARN_UNU
 
 /** \brief        Perform a get report from Keyboard interface
  * \param[in]		  dev_addr device address
- * \param[in,out] p_report address that is used to store data from device. Must be accessible by usb controller (see \ref CFG_TUSB_ATTR_USBRAM)
+ * \param[in,out] p_report address that is used to store data from device. Must be accessible by usb controller (see \ref CFG_TUSB_MEM_SECTION)
  * \returns       \ref tusb_error_t type to indicate success or error condition.
  * \retval        TUSB_ERROR_NONE on success
  * \retval        TUSB_ERROR_INTERFACE_IS_BUSY if the interface is already transferring data with device
@@ -145,7 +145,7 @@ bool          tuh_hid_mouse_is_busy(uint8_t dev_addr) ATTR_PURE ATTR_WARN_UNUSED
 
 /** \brief        Perform a get report from Mouse interface
  * \param[in]		  dev_addr device address
- * \param[in,out] p_report address that is used to store data from device. Must be accessible by usb controller (see \ref CFG_TUSB_ATTR_USBRAM)
+ * \param[in,out] p_report address that is used to store data from device. Must be accessible by usb controller (see \ref CFG_TUSB_MEM_SECTION)
  * \returns       \ref tusb_error_t type to indicate success or error condition.
  * \retval        TUSB_ERROR_NONE on success
  * \retval        TUSB_ERROR_INTERFACE_IS_BUSY if the interface is already transferring data with device

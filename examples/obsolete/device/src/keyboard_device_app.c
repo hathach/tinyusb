@@ -51,7 +51,7 @@
 //--------------------------------------------------------------------+
 // INTERNAL OBJECT & FUNCTION DECLARATION
 //--------------------------------------------------------------------+
-CFG_TUSB_ATTR_USBRAM hid_keyboard_report_t keyboard_report;
+CFG_TUSB_MEM_SECTION hid_keyboard_report_t keyboard_report;
 
 //--------------------------------------------------------------------+
 // tinyusb callbacks

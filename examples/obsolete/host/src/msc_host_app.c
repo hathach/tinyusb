@@ -55,7 +55,7 @@
 //--------------------------------------------------------------------+
 // INTERNAL OBJECT & FUNCTION DECLARATION
 //--------------------------------------------------------------------+
-CFG_TUSB_ATTR_USBRAM static FATFS fatfs[CFG_TUSB_HOST_DEVICE_MAX];
+CFG_TUSB_MEM_SECTION static FATFS fatfs[CFG_TUSB_HOST_DEVICE_MAX];
 
 //--------------------------------------------------------------------+
 // tinyusb callbacks

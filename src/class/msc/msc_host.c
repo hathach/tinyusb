@@ -51,13 +51,13 @@
 //--------------------------------------------------------------------+
 // MACRO CONSTANT TYPEDEF
 //--------------------------------------------------------------------+
-CFG_TUSB_ATTR_USBRAM STATIC_VAR msch_interface_t msch_data[CFG_TUSB_HOST_DEVICE_MAX];
+CFG_TUSB_MEM_SECTION STATIC_VAR msch_interface_t msch_data[CFG_TUSB_HOST_DEVICE_MAX];
 
 //------------- Initalization Data -------------//
 static osal_semaphore_t msch_sem_hdl;
 
 // buffer used to read scsi information when mounted, largest response data currently is inquiry
-CFG_TUSB_ATTR_USBRAM ATTR_ALIGNED(4) STATIC_VAR uint8_t msch_buffer[sizeof(scsi_inquiry_data_t)];
+CFG_TUSB_MEM_SECTION ATTR_ALIGNED(4) STATIC_VAR uint8_t msch_buffer[sizeof(scsi_inquiry_data_t)];
 
 //--------------------------------------------------------------------+
 // INTERNAL OBJECT & FUNCTION DECLARATION

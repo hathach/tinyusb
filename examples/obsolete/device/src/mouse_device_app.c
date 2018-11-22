@@ -51,7 +51,7 @@
 //--------------------------------------------------------------------+
 // INTERNAL OBJECT & FUNCTION DECLARATION
 //--------------------------------------------------------------------+
-CFG_TUSB_ATTR_USBRAM hid_mouse_report_t mouse_report;
+CFG_TUSB_MEM_SECTION hid_mouse_report_t mouse_report;
 
 //--------------------------------------------------------------------+
 // tinyusb callbacks

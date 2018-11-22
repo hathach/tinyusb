@@ -59,6 +59,12 @@
 #define CFG_TUSB_OS                 OPT_OS_NONE
 
 //--------------------------------------------------------------------
+// USB RAM PLACEMENT
+//--------------------------------------------------------------------
+#define CFG_TUSB_ATTR_USBRAM
+#define CFG_TUSB_MEM_ALIGN          ATTR_ALIGNED(4)
+
+//--------------------------------------------------------------------
 // DEVICE CONFIGURATION
 //--------------------------------------------------------------------
 
@@ -131,12 +137,6 @@
  * - tud_hid_keyboard_send_string()
  */
 #define CFG_TUD_HID_ASCII_TO_KEYCODE_LOOKUP 1
-
-//--------------------------------------------------------------------
-// USB RAM PLACEMENT
-//--------------------------------------------------------------------
-#define CFG_TUSB_ATTR_USBRAM
-#define CFG_TUSB_MEM_ALIGN          ATTR_ALIGNED(4)
 
 
 #ifdef __cplusplus

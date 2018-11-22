@@ -177,7 +177,7 @@ void hidh_init(void)
 }
 
 #if 0
-CFG_TUSB_ATTR_USBRAM uint8_t report_descriptor[256];
+CFG_TUSB_MEM_SECTION uint8_t report_descriptor[256];
 #endif
 
 tusb_error_t hidh_open_subtask(uint8_t dev_addr, tusb_desc_interface_t const *p_interface_desc, uint16_t *p_length)
