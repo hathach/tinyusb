@@ -36,7 +36,8 @@
 */
 /**************************************************************************/
 
-#include "../board.h"
+#include "bsp/board.h"
+#include "tusb.h"
 
 #ifdef BOARD_EA4357
 

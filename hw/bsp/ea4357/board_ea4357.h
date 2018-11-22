@@ -54,6 +54,7 @@
 #include "oem_base_board/pca9532.h" // LEDs
 
 #define BOARD_LED_NUM   1
+#define BOARD_LED0      0
 
 
 //#define CFG_PRINTF_TARGET       PRINTF_TARGET_SWO
