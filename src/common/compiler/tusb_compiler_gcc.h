@@ -66,10 +66,8 @@
 
 /// The packed attribute specifies that a variable or structure field should have the smallest possible alignment—one byte for a variable, and one bit for a field, unless you specify a larger value with the aligned attribute
 #define ATTR_PACKED                __attribute__ ((packed))
-
 #define ATTR_PREPACKED
 
-#define ATTR_PACKED_STRUCT(x)     x __attribute__ ((packed))
 /** @} */
 
 /** \defgroup Group_FuncAttr Function Attributes

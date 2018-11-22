@@ -53,8 +53,6 @@
 #endif
 
 #define ALIGN_OF(x)     __ALIGNOF__(x)
-
-#define ATTR_PACKED_STRUCT(x)     __packed x
 #define ATTR_PREPACKED  __packed
 #define ATTR_PACKED
 //#define ATTR_SECTION(section)      _Pragma((#section))

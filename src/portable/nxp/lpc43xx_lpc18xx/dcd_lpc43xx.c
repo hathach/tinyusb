@@ -237,40 +237,7 @@ static inline uint8_t qtd_find_free(uint8_t rhport)
 }
 
 //--------------------------------------------------------------------+
-// CONTROL PIPE API
-//--------------------------------------------------------------------+
-
-// control transfer does not need to use qtd find function
-// follows UM 24.10.8.1.1 Setup packet handling using setup lockout mechanism
-bool dcd_control_xfer(uint8_t rhport, uint8_t dir, uint8_t * p_buffer, uint16_t length)
-{
-  LPC_USB0_Type* const lpc_usb = LPC_USB[rhport];
-  dcd_data_t* const p_dcd      = dcd_data_ptr[rhport];
-
-  uint8_t const ep_phy = (dir == TUSB_DIR_IN) ? 1 : 0;
-
-  dcd_qhd_t* qhd = &p_dcd->qhd[ep_phy];
-
-  // wait until ENDPTSETUPSTAT before priming data/status in response TODO add time out
-  while(lpc_usb->ENDPTSETUPSTAT & BIT_(0)) {}
-
-  TU_VERIFY( !qhd->qtd_overlay.active );
-
-  dcd_qtd_t* qtd = &p_dcd->qtd[0];
-  qtd_init(qtd, p_buffer, length);
-
-  // skip xfer complete for Status
-  qtd->int_on_complete = (length > 0 ? 1 : 0);
-
-  qhd->qtd_overlay.next = (uint32_t) qtd;
-
-  lpc_usb->ENDPTPRIME = BIT_(edpt_phy2pos(ep_phy));
-
-  return true;
-}
-
-//--------------------------------------------------------------------+
-// BULK/INTERRUPT/ISOCHRONOUS PIPE API
+// DCD Endpoint Port
 //--------------------------------------------------------------------+
 static inline volatile uint32_t * get_reg_control_addr(uint8_t rhport, uint8_t physical_endpoint)
 {
@@ -345,6 +312,36 @@ bool dcd_edpt_busy(uint8_t rhport, uint8_t ep_addr)
 //  return !p_qhd->qtd_overlay.halted && p_qhd->qtd_overlay.active;
 }
 
+// control transfer does not need to use qtd find function
+// follows UM 24.10.8.1.1 Setup packet handling using setup lockout mechanism
+bool dcd_control_xfer(uint8_t rhport, uint8_t dir, uint8_t * p_buffer, uint16_t length)
+{
+  LPC_USB0_Type* const lpc_usb = LPC_USB[rhport];
+  dcd_data_t* const p_dcd      = dcd_data_ptr[rhport];
+
+  uint8_t const ep_phy = (dir == TUSB_DIR_IN) ? 1 : 0;
+
+  dcd_qhd_t* qhd = &p_dcd->qhd[ep_phy];
+
+  // wait until ENDPTSETUPSTAT before priming data/status in response TODO add time out
+  while(lpc_usb->ENDPTSETUPSTAT & BIT_(0)) {}
+
+  TU_VERIFY( !qhd->qtd_overlay.active );
+
+  dcd_qtd_t* qtd = &p_dcd->qtd[0];
+  qtd_init(qtd, p_buffer, length);
+
+  // skip xfer complete for Status
+  qtd->int_on_complete = (length > 0 ? 1 : 0);
+
+  qhd->qtd_overlay.next = (uint32_t) qtd;
+
+  lpc_usb->ENDPTPRIME = BIT_(edpt_phy2pos(ep_phy));
+
+  return true;
+}
+
+
 // add only, controller virtually cannot know
 // TODO remove and merge to dcd_edpt_xfer
 static bool pipe_add_xfer(uint8_t rhport, uint8_t ed_idx, void * buffer, uint16_t total_bytes, bool int_on_complete)
@@ -377,6 +374,11 @@ static bool pipe_add_xfer(uint8_t rhport, uint8_t ed_idx, void * buffer, uint16_
 
 bool  dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t total_bytes)
 {
+  if ( edpt_number(ep_addr) == 0 )
+  {
+    return dcd_control_xfer(rhport, edpt_dir(ep_addr), buffer, total_bytes);
+  }
+
   uint8_t ep_idx = edpt_addr2phy(ep_addr);
 
   TU_VERIFY ( pipe_add_xfer(rhport, ep_idx, buffer, total_bytes, true) );
@@ -390,6 +392,7 @@ bool  dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t 
 
 	return true;
 }
+
 
 //--------------------------------------------------------------------+
 // ISR
