@@ -54,7 +54,6 @@
 //--------------------------------------------------------------------+
 #define DCD_QHD_MAX 12
 #define DCD_QTD_MAX 12
-#define DCD_QTD_PER_QHD_MAX 2 // maximum number of qtd that are linked into one queue head at a time
 
 #define QTD_NEXT_INVALID 0x01
 
@@ -91,7 +90,6 @@ enum {
   PORTSC_CURRENT_CONNECT_STATUS_MASK = BIT_(0),
   PORTSC_FORCE_PORT_RESUME_MASK      = BIT_(6),
   PORTSC_SUSPEND_MASK                = BIT_(7)
-
 };
 
 typedef struct
@@ -118,8 +116,7 @@ typedef struct
 
   //------------- DCD Area -------------//
   uint16_t expected_bytes;
-  uint8_t used;
-  uint8_t reserved;
+  uint8_t reserved[2];
 } dcd_qtd_t;
 
 TU_VERIFY_STATIC( sizeof(dcd_qtd_t) == 32, "size is not correct");
@@ -148,9 +145,7 @@ typedef struct
   /// Due to the fact QHD is 64 bytes aligned but occupies only 48 bytes
 	/// thus there are 16 bytes padding free that we can make use of.
   //--------------------------------------------------------------------+
-  volatile uint8_t list_qtd_idx[DCD_QTD_PER_QHD_MAX];
-
-	uint8_t reserved[16-DCD_QTD_PER_QHD_MAX];
+	uint8_t reserved[16];
 }  dcd_qhd_t;
 
 TU_VERIFY_STATIC( sizeof(dcd_qhd_t) == 64, "size is not correct");

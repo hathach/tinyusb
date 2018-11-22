@@ -175,40 +175,17 @@ bool dcd_init(uint8_t rhport)
 }
 
 //--------------------------------------------------------------------+
-// PIPE HELPER
+// HELPER
 //--------------------------------------------------------------------+
-#if 0
-static inline uint8_t edpt_pos2phy(uint8_t pos)
-{ // 0-5 --> OUT, 16-21 IN
-  return (pos < DCD_QHD_MAX/2) ? (2*pos) : (2*(pos-16)+1);
-}
-#endif
-
-static inline uint8_t edpt_phy2pos(uint8_t physical_endpoint)
+// index to bit position in register
+static inline uint8_t ep_idx2bit(uint8_t ep_idx)
 {
-  return physical_endpoint/2 + ( (physical_endpoint%2) ? 16 : 0);
-}
-
-static inline uint8_t edpt_addr2phy(uint8_t endpoint_addr)
-{
-  return 2*(endpoint_addr & 0x0F) + ((endpoint_addr & TUSB_DIR_IN_MASK) ? 1 : 0);
-}
-
-static inline uint8_t edpt_phy2addr(uint8_t ep_idx)
-{
-  return (ep_idx/2) | ( ep_idx & 0x01 ? TUSB_DIR_IN_MASK : 0 );
-}
-
-static inline uint8_t edpt_phy2log(uint8_t physical_endpoint)
-{
-  return physical_endpoint/2;
+  return ep_idx/2 + ( (ep_idx%2) ? 16 : 0);
 }
 
 static void qtd_init(dcd_qtd_t* p_qtd, void * data_ptr, uint16_t total_bytes)
 {
   tu_memclr(p_qtd, sizeof(dcd_qtd_t));
-
-  p_qtd->used        = 1;
 
   p_qtd->next        = QTD_NEXT_INVALID;
   p_qtd->active      = 1;
@@ -224,38 +201,29 @@ static void qtd_init(dcd_qtd_t* p_qtd, void * data_ptr, uint16_t total_bytes)
   }
 }
 
-// retval 0: invalid
-static inline uint8_t qtd_find_free(uint8_t rhport)
+static inline volatile uint32_t * get_endpt_ctrl_reg(uint8_t rhport, uint8_t ep_idx)
 {
-  // QTD0 is reserved for control transfer
-  for(uint8_t i=1; i<DCD_QTD_MAX; i++)
-  {
-    if ( dcd_data_ptr[rhport]->qtd[i].used == 0) return i;
-  }
-
-  return 0;
+ return &(LPC_USB[rhport]->ENDPTCTRL0) + ep_idx/2;
 }
 
 //--------------------------------------------------------------------+
 // DCD Endpoint Port
 //--------------------------------------------------------------------+
-static inline volatile uint32_t * get_endpt_ctrl_reg(uint8_t rhport, uint8_t physical_endpoint)
-{
- return &(LPC_USB[rhport]->ENDPTCTRL0) + edpt_phy2log(physical_endpoint);
-}
-
 void dcd_edpt_stall(uint8_t rhport, uint8_t ep_addr)
 {
-  uint8_t ep_idx    = edpt_addr2phy(ep_addr);
-  volatile uint32_t * reg_control = get_endpt_ctrl_reg(rhport, ep_idx);
+  uint8_t const epnum  = edpt_number(ep_addr);
+  uint8_t const dir    = edpt_dir(ep_addr);
+  uint8_t const ep_idx = 2*epnum + dir;
 
-  if ( ep_addr == 0)
+  volatile uint32_t * endpt_ctrl = get_endpt_ctrl_reg(rhport, ep_idx);
+
+  if ( epnum == 0)
   {
     // Stall both Control IN and OUT
-    (*reg_control) |= ( (ENDPTCTRL_MASK_STALL << 16) || (ENDPTCTRL_MASK_STALL << 0) );
+    (*endpt_ctrl) |= ( (ENDPTCTRL_MASK_STALL << 16) || (ENDPTCTRL_MASK_STALL << 0) );
   }else
   {
-    (*reg_control) |= ENDPTCTRL_MASK_STALL << (ep_idx & 0x01 ? 16 : 0);
+    (*endpt_ctrl) |= ENDPTCTRL_MASK_STALL << (ep_idx & 0x01 ? 16 : 0);
   }
 }
 
@@ -267,11 +235,15 @@ bool dcd_edpt_stalled (uint8_t rhport, uint8_t ep_addr)
 
 void dcd_edpt_clear_stall(uint8_t rhport, uint8_t ep_addr)
 {
-  volatile uint32_t * reg_control = get_endpt_ctrl_reg(rhport, edpt_addr2phy(ep_addr));
+  uint8_t const epnum  = edpt_number(ep_addr);
+  uint8_t const dir    = edpt_dir(ep_addr);
+  uint8_t const ep_idx = 2*epnum + dir;
+
+  volatile uint32_t * endpt_ctrl = get_endpt_ctrl_reg(rhport, ep_idx);
 
   // data toggle also need to be reset
-  (*reg_control) |= ENDPTCTRL_MASK_TOGGLE_RESET << ((ep_addr & TUSB_DIR_IN_MASK) ? 16 : 0);
-  (*reg_control) &= ~(ENDPTCTRL_MASK_STALL << ((ep_addr & TUSB_DIR_IN_MASK) ? 16 : 0));
+  (*endpt_ctrl) |= ENDPTCTRL_MASK_TOGGLE_RESET << ((ep_addr & TUSB_DIR_IN_MASK) ? 16 : 0);
+  (*endpt_ctrl) &= ~(ENDPTCTRL_MASK_STALL << ((ep_addr & TUSB_DIR_IN_MASK) ? 16 : 0));
 }
 
 bool dcd_edpt_open(uint8_t rhport, tusb_desc_endpoint_t const * p_endpoint_desc)
@@ -339,7 +311,7 @@ bool  dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t 
   p_qhd->qtd_overlay.next = (uint32_t) p_qtd; // link qtd to qhd
 
   // start transfer
-	LPC_USB[rhport]->ENDPTPRIME = BIT_( edpt_phy2pos(ep_idx) ) ;
+	LPC_USB[rhport]->ENDPTPRIME = BIT_( ep_idx2bit(ep_idx) ) ;
 
 	return true;
 }
@@ -412,7 +384,7 @@ void hal_dcd_isr(uint8_t rhport)
     {
       for(uint8_t ep_idx = 0; ep_idx < DCD_QHD_MAX; ep_idx++)
       {
-        if ( BIT_TEST_(edpt_complete, edpt_phy2pos(ep_idx)) )
+        if ( BIT_TEST_(edpt_complete, ep_idx2bit(ep_idx)) )
         {
           // 23.10.12.3 Failed QTD also get ENDPTCOMPLETE set
           dcd_qhd_t * p_qhd = &dcd_data_ptr[rhport]->qhd[ep_idx];
@@ -421,7 +393,7 @@ void hal_dcd_isr(uint8_t rhport)
           uint8_t result = p_qtd->halted  ? DCD_XFER_STALLED :
               ( p_qtd->xact_err ||p_qtd->buffer_err ) ? DCD_XFER_FAILED : DCD_XFER_SUCCESS;
 
-          uint8_t ep_addr = edpt_phy2addr(ep_idx);
+          uint8_t ep_addr = (ep_idx/2) | ( (ep_idx & 0x01) ? TUSB_DIR_IN_MASK : 0 );
           dcd_event_xfer_complete(rhport, ep_addr, p_qtd->expected_bytes - p_qtd->total_bytes, result, true); // only number of bytes in the IOC qtd
         }
       }
