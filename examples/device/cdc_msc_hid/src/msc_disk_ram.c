@@ -1,6 +1,6 @@
 /**************************************************************************/
 /*!
- @file    msc_flash_ram.c
+ @file    msc_disk_ram.c
  @author  hathach (tinyusb.org)
 
  @section LICENSE
@@ -38,16 +38,14 @@
 
 #include "msc_app.h"
 
-#if CFG_TUD_MSC && defined (BOARD_MSC_FLASH_RAM)
+#if CFG_TUD_MSC
 
-//--------------------------------------------------------------------+
-// MACRO CONSTANT TYPEDEF
-//--------------------------------------------------------------------+
+enum
+{
+  DISK_BLOCK_NUM  = 16, // 8KB is the smallest size that windows allow to mount
+  DISK_BLOCK_SIZE = 512
+};
 
-//--------------------------------------------------------------------+
-// INTERNAL OBJECT & FUNCTION DECLARATION
-//--------------------------------------------------------------------+
-CFG_TUSB_ATTR_USBRAM CFG_TUSB_MEM_ALIGN
 uint8_t msc_device_ramdisk[DISK_BLOCK_NUM][DISK_BLOCK_SIZE] =
 {
   //------------- Boot Sector -------------//
@@ -81,7 +79,7 @@ uint8_t msc_device_ramdisk[DISK_BLOCK_NUM][DISK_BLOCK_SIZE] =
       // second entry is readme file
       'R' , 'E' , 'A' , 'D' , 'M' , 'E' , ' ' , ' ' , 'T' , 'X' , 'T' , 0x20, 0x00, 0xC6, 0x52, 0x6D,
       0x65, 0x43, 0x65, 0x43, 0x00, 0x00, 0x88, 0x6D, 0x65, 0x43, 0x02, 0x00,
-      sizeof(README_CONTENTS)-1, 0x00, 0x00, 0x00 // readme's filesize (4 Bytes)
+      sizeof(README_CONTENTS)-1, 0x00, 0x00, 0x00 // readme's files ize (4 Bytes)
   },
 
   //------------- Readme Content -------------//
@@ -101,7 +99,7 @@ int32_t tud_msc_read10_cb(uint8_t lun, uint32_t lba, uint32_t offset, void* buff
 
 // Callback invoked when received WRITE10 command.
 // Process data in buffer to disk's storage and return number of written bytes
-int32_t tud_msc_write10_cb(uint8_t lun, uint32_t lba, uint32_t offset, void* buffer, uint32_t bufsize)
+int32_t tud_msc_write10_cb(uint8_t lun, uint32_t lba, uint32_t offset, uint8_t* buffer, uint32_t bufsize)
 {
   uint8_t* addr = msc_device_ramdisk[lba] + offset;
   memcpy(addr, buffer, bufsize);

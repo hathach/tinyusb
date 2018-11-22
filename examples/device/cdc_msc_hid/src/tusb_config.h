@@ -87,7 +87,7 @@
 
 //------------- CLASS -------------//
 #define CFG_TUD_CDC                 1
-#define CFG_TUD_MSC                 0
+#define CFG_TUD_MSC                 1
 
 #define CFG_TUD_HID                 0
 #define CFG_TUD_HID_KEYBOARD        0
@@ -119,7 +119,7 @@
 #define CFG_TUD_MSC_BUFSIZE         512
 
 // Number of Blocks
-#define CFG_TUD_MSC_BLOCK_NUM       BOARD_MSC_FLASH_SIZE/CFG_TUD_MSC_BLOCK_SZ
+#define CFG_TUD_MSC_BLOCK_NUM       16
 
 // Block size
 #define CFG_TUD_MSC_BLOCK_SZ        512
