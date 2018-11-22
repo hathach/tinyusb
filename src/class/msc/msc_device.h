@@ -132,6 +132,9 @@ int32_t tud_msc_read10_cb (uint8_t lun, uint32_t lba, uint32_t offset, void* buf
  */
 int32_t tud_msc_write10_cb (uint8_t lun, uint32_t lba, uint32_t offset, uint8_t* buffer, uint32_t bufsize);
 
+// Invoked to determine the disk size
+void tud_msc_capacity_cb(uint8_t lun, uint32_t* block_count, uint16_t* block_size);
+
 /**
  * Callback invoked when received an SCSI command not in built-in list below.
  * \param[in]   lun         Logical unit number
@@ -152,15 +155,18 @@ int32_t tud_msc_write10_cb (uint8_t lun, uint32_t lba, uint32_t offset, uint8_t*
 int32_t tud_msc_scsi_cb (uint8_t lun, uint8_t const scsi_cmd[16], void* buffer, uint16_t bufsize);
 
 /*------------- Optional callbacks : Could be used by application to free up resources -------------*/
+
+// Invoked when Read10 command is complete
 ATTR_WEAK void tud_msc_read10_complete_cb(uint8_t lun);
+
+// Invoke when Write10 command is complete
 ATTR_WEAK void tud_msc_write10_complete_cb(uint8_t lun);
+
+// Invoked when command in tud_msc_scsi_cb is complete
 ATTR_WEAK void tud_msc_scsi_complete_cb(uint8_t lun, uint8_t const scsi_cmd[16]);
 
-// Hook to make a mass storage device read-only.
+// Hook to make a mass storage device read-only. TODO remove
 ATTR_WEAK bool tud_msc_is_writable_cb(uint8_t lun);
-
-// Override for dynamic LUN sizes.
-ATTR_WEAK bool tud_lun_capacity_cb(uint8_t lun, uint32_t* last_valid_sector, uint16_t* block_size);
 
 /** @} */
 /** @} */

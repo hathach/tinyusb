@@ -117,12 +117,6 @@
 // Buffer size of Device Mass storage
 #define CFG_TUD_MSC_BUFSIZE         512
 
-// Number of Blocks
-#define CFG_TUD_MSC_BLOCK_NUM       BOARD_MSC_FLASH_SIZE/CFG_TUD_MSC_BLOCK_SZ
-
-// Block size
-#define CFG_TUD_MSC_BLOCK_SZ        512
-
 // Vendor name included in Inquiry response, max 8 bytes
 #define CFG_TUD_MSC_VENDOR          "tinyusb"
 

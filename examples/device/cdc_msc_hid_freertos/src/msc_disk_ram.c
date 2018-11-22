@@ -36,18 +36,22 @@
 */
 /**************************************************************************/
 
-#include "msc_app.h"
+#include "bsp/board.h"
+#include "tusb.h"
 
-#if CFG_TUD_MSC && defined (MSCD_APP_RAMDISK)
+#if CFG_TUD_MSC
 
-//--------------------------------------------------------------------+
-// MACRO CONSTANT TYPEDEF
-//--------------------------------------------------------------------+
+#define README_CONTENTS \
+"This is tinyusb's MassStorage Class demo.\r\n\r\n\
+If you find any bugs or get any questions, feel free to file an\r\n\
+issue at github.com/hathach/tinyusb"
 
-//--------------------------------------------------------------------+
-// INTERNAL OBJECT & FUNCTION DECLARATION
-//--------------------------------------------------------------------+
-CFG_TUSB_ATTR_USBRAM CFG_TUSB_MEM_ALIGN
+enum
+{
+  DISK_BLOCK_NUM  = 16, // 8KB is the smallest size that windows allow to mount
+  DISK_BLOCK_SIZE = 512
+};
+
 uint8_t msc_device_ramdisk[DISK_BLOCK_NUM][DISK_BLOCK_SIZE] =
 {
   //------------- Boot Sector -------------//
@@ -101,7 +105,7 @@ int32_t tud_msc_read10_cb(uint8_t lun, uint32_t lba, uint32_t offset, void* buff
 
 // Callback invoked when received WRITE10 command.
 // Process data in buffer to disk's storage and return number of written bytes
-int32_t tud_msc_write10_cb(uint8_t lun, uint32_t lba, uint32_t offset, void* buffer, uint32_t bufsize)
+int32_t tud_msc_write10_cb(uint8_t lun, uint32_t lba, uint32_t offset, uint8_t* buffer, uint32_t bufsize)
 {
   uint8_t* addr = msc_device_ramdisk[lba] + offset;
   memcpy(addr, buffer, bufsize);
@@ -109,8 +113,10 @@ int32_t tud_msc_write10_cb(uint8_t lun, uint32_t lba, uint32_t offset, void* buf
   return bufsize;
 }
 
-//--------------------------------------------------------------------+
-// HELPER
-//--------------------------------------------------------------------+
+void tud_msc_capacity_cb(uint8_t lun, uint32_t* block_count, uint16_t* block_size)
+{
+  *block_count = DISK_BLOCK_NUM;
+  *block_size  = DISK_BLOCK_SIZE;
+}
 
 #endif

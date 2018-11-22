@@ -205,16 +205,6 @@ bool mscd_control_request_complete(uint8_t rhport, tusb_control_request_t const 
   return true;
 }
 
-// For backwards compatibility we support static block counts.
-#if defined(CFG_TUD_MSC_BLOCK_NUM) && defined(CFG_TUD_MSC_BLOCK_SZ)
-ATTR_WEAK bool tud_lun_capacity_cb(uint8_t lun, uint32_t* last_valid_sector, uint16_t* block_size) {
-    (void) lun;
-    *last_valid_sector = CFG_TUD_MSC_BLOCK_NUM-1;
-    *block_size = CFG_TUD_MSC_BLOCK_SZ;
-    return true;
-}
-#endif
-
 // return length of response (copied to buffer), -1 if it is not an built-in commands
 int32_t proc_builtin_scsi(msc_cbw_t const * p_cbw, uint8_t* buffer, uint32_t bufsize)
 {
@@ -226,10 +216,14 @@ int32_t proc_builtin_scsi(msc_cbw_t const * p_cbw, uint8_t* buffer, uint32_t buf
     {
       scsi_read_capacity10_resp_t read_capa10;
 
-      uint32_t last_valid_sector;
-      uint16_t block_size;
-      tud_lun_capacity_cb(p_cbw->lun, &last_valid_sector, &block_size);
-      read_capa10.last_lba = ENDIAN_BE(last_valid_sector); // read capacity
+      uint32_t block_count;
+      uint32_t block_size;
+      uint16_t block_size_u16;
+
+      tud_msc_capacity_cb(p_cbw->lun, &block_count, &block_size_u16);
+      block_size = (uint32_t) block_size_u16;
+
+      read_capa10.last_lba = ENDIAN_BE(block_count-1);
       read_capa10.block_size = ENDIAN_BE(block_size);
 
       ret = sizeof(read_capa10);
@@ -243,14 +237,15 @@ int32_t proc_builtin_scsi(msc_cbw_t const * p_cbw, uint8_t* buffer, uint32_t buf
       {
           .list_length     = 8,
           .block_num       = 0,
-          .descriptor_type = 2,                                 // formatted media
+          .descriptor_type = 2, // formatted media
           .block_size_u16  = 0
       };
 
-      uint32_t last_valid_sector;
+      uint32_t block_count;
       uint16_t block_size;
-      tud_lun_capacity_cb(p_cbw->lun, &last_valid_sector, &block_size);
-      read_fmt_capa.block_num = ENDIAN_BE(last_valid_sector+1);
+
+      tud_msc_capacity_cb(p_cbw->lun, &block_count, &block_size);
+      read_fmt_capa.block_num = ENDIAN_BE(block_count);
       read_fmt_capa.block_size_u16 = ENDIAN_BE16(block_size);
 
       ret = sizeof(read_fmt_capa);

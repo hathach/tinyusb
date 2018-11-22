@@ -36,7 +36,8 @@
  */
 /**************************************************************************/
 
-#include "msc_app.h"
+#include "bsp/board.h"
+#include "tusb.h"
 
 #if CFG_TUD_MSC
 

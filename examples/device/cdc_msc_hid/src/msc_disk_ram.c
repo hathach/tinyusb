@@ -97,6 +97,8 @@ uint8_t msc_device_ramdisk[DISK_BLOCK_NUM][DISK_BLOCK_SIZE] =
 // Copy disk's data to buffer (up to bufsize) and return number of copied bytes.
 int32_t tud_msc_read10_cb(uint8_t lun, uint32_t lba, uint32_t offset, void* buffer, uint32_t bufsize)
 {
+  (void) lun;
+
   uint8_t* addr = msc_device_ramdisk[lba] + offset;
   memcpy(buffer, addr, bufsize);
 
@@ -107,14 +109,20 @@ int32_t tud_msc_read10_cb(uint8_t lun, uint32_t lba, uint32_t offset, void* buff
 // Process data in buffer to disk's storage and return number of written bytes
 int32_t tud_msc_write10_cb(uint8_t lun, uint32_t lba, uint32_t offset, uint8_t* buffer, uint32_t bufsize)
 {
+  (void) lun;
+
   uint8_t* addr = msc_device_ramdisk[lba] + offset;
   memcpy(addr, buffer, bufsize);
 
   return bufsize;
 }
 
-//--------------------------------------------------------------------+
-// HELPER
-//--------------------------------------------------------------------+
+void tud_msc_capacity_cb(uint8_t lun, uint32_t* block_count, uint16_t* block_size)
+{
+  (void) lun;
+
+  *block_count = DISK_BLOCK_NUM;
+  *block_size  = DISK_BLOCK_SIZE;
+}
 
 #endif
