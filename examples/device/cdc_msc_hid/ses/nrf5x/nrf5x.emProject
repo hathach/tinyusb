@@ -27,7 +27,7 @@
       link_use_linker_script_file="No"
       linker_memory_map_file="nRF52840_xxAA_MemoryMap.xml"
       linker_section_placement_file="flash_placement.xml"
-      macros="DeviceFamily=nRF;Target=nRF52840_xxAA;Placement=Flash;rootDir=../../../..;nrfxDir=../../../../hw/mcu/nordic/nrfx"
+      macros="DeviceFamily=nRF;Target=nRF52840_xxAA;Placement=Flash;rootDir=../../../../..;nrfxDir=../../../../../hw/mcu/nordic/nrfx"
       project_directory=""
       project_type="Executable"
       target_reset_script="Reset();"
@@ -37,50 +37,50 @@
       Name="tinyusb"
       exclude=""
       filter="*.c;*.h"
-      path="../../../../src"
+      path="../../../../../src"
       recurse="Yes" />
     <folder Name="hw">
       <folder Name="bsp">
         <folder Name="pca10056">
-          <file file_name="../../../../hw/bsp/pca10056/board_pca10056.c" />
-          <file file_name="../../../../hw/bsp/pca10056/board_pca10056.h" />
+          <file file_name="../../../../../hw/bsp/pca10056/board_pca10056.c" />
+          <file file_name="../../../../../hw/bsp/pca10056/board_pca10056.h" />
         </folder>
-        <file file_name="../../../../hw/bsp/ansi_escape.h" />
-        <file file_name="../../../../hw/bsp/board.h" />
+        <file file_name="../../../../../hw/bsp/ansi_escape.h" />
+        <file file_name="../../../../../hw/bsp/board.h" />
       </folder>
       <folder Name="mcu">
         <folder Name="nordic">
           <folder Name="nrfx">
             <folder Name="drivers">
               <folder Name="include">
-                <file file_name="../../../../hw/mcu/nordic/nrfx/drivers/include/nrfx_power_clock.h" />
-                <file file_name="../../../../hw/mcu/nordic/nrfx/drivers/include/nrfx_power.h" />
-                <file file_name="../../../../hw/mcu/nordic/nrfx/drivers/include/nrfx_qspi.h" />
+                <file file_name="../../../../../hw/mcu/nordic/nrfx/drivers/include/nrfx_power_clock.h" />
+                <file file_name="../../../../../hw/mcu/nordic/nrfx/drivers/include/nrfx_power.h" />
+                <file file_name="../../../../../hw/mcu/nordic/nrfx/drivers/include/nrfx_qspi.h" />
               </folder>
               <folder Name="src">
-                <file file_name="../../../../hw/mcu/nordic/nrfx/drivers/src/nrfx_power.c" />
-                <file file_name="../../../../hw/mcu/nordic/nrfx/drivers/src/nrfx_qspi.c" />
+                <file file_name="../../../../../hw/mcu/nordic/nrfx/drivers/src/nrfx_power.c" />
+                <file file_name="../../../../../hw/mcu/nordic/nrfx/drivers/src/nrfx_qspi.c" />
               </folder>
             </folder>
             <folder Name="hal">
-              <file file_name="../../../../hw/mcu/nordic/nrfx/hal/nrf_power.h" />
-              <file file_name="../../../../hw/mcu/nordic/nrfx/hal/nrf_qspi.h" />
-              <file file_name="../../../../hw/mcu/nordic/nrfx/hal/nrf_usbd.h" />
+              <file file_name="../../../../../hw/mcu/nordic/nrfx/hal/nrf_power.h" />
+              <file file_name="../../../../../hw/mcu/nordic/nrfx/hal/nrf_qspi.h" />
+              <file file_name="../../../../../hw/mcu/nordic/nrfx/hal/nrf_usbd.h" />
             </folder>
             <folder Name="mdk">
-              <file file_name="../../../../hw/mcu/nordic/nrfx/mdk/nrf51_to_nrf52840.h" />
-              <file file_name="../../../../hw/mcu/nordic/nrfx/mdk/nrf52840_bitfields.h" />
-              <file file_name="../../../../hw/mcu/nordic/nrfx/mdk/nrf52840.h" />
-              <file file_name="../../../../hw/mcu/nordic/nrfx/mdk/nrf52840_peripherals.h" />
-              <file file_name="../../../../hw/mcu/nordic/nrfx/mdk/nrf52_to_nrf52840.h" />
-              <file file_name="../../../../hw/mcu/nordic/nrfx/mdk/ses_startup_nrf52840.s" />
-              <file file_name="../../../../hw/mcu/nordic/nrfx/mdk/ses_startup_nrf_common.s" />
-              <file file_name="../../../../hw/mcu/nordic/nrfx/mdk/system_nrf52840.c" />
-              <file file_name="../../../../hw/mcu/nordic/nrfx/mdk/system_nrf52840.h" />
+              <file file_name="../../../../../hw/mcu/nordic/nrfx/mdk/nrf51_to_nrf52840.h" />
+              <file file_name="../../../../../hw/mcu/nordic/nrfx/mdk/nrf52840_bitfields.h" />
+              <file file_name="../../../../../hw/mcu/nordic/nrfx/mdk/nrf52840.h" />
+              <file file_name="../../../../../hw/mcu/nordic/nrfx/mdk/nrf52840_peripherals.h" />
+              <file file_name="../../../../../hw/mcu/nordic/nrfx/mdk/nrf52_to_nrf52840.h" />
+              <file file_name="../../../../../hw/mcu/nordic/nrfx/mdk/ses_startup_nrf52840.s" />
+              <file file_name="../../../../../hw/mcu/nordic/nrfx/mdk/ses_startup_nrf_common.s" />
+              <file file_name="../../../../../hw/mcu/nordic/nrfx/mdk/system_nrf52840.c" />
+              <file file_name="../../../../../hw/mcu/nordic/nrfx/mdk/system_nrf52840.h" />
             </folder>
           </folder>
-          <file file_name="../../../../hw/mcu/nordic/nrfx_config.h" />
-          <file file_name="../../../../hw/mcu/nordic/nrfx_glue.h" />
+          <file file_name="../../../../../hw/mcu/nordic/nrfx_config.h" />
+          <file file_name="../../../../../hw/mcu/nordic/nrfx_glue.h" />
         </folder>
       </folder>
     </folder>
@@ -102,7 +102,7 @@
       Name="segger_rtt"
       exclude=""
       filter="*.c;*.h"
-      path="../../../../lib/segger_rtt"
+      path="../../../../../lib/segger_rtt"
       recurse="No" />
   </project>
   <configuration Name="pca10056" />
