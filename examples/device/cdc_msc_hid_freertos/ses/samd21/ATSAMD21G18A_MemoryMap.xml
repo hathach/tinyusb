@@ -1,0 +1,5 @@
+<!DOCTYPE Board_Memory_Definition_File>
+<root name="ATSAMD21G18A">
+  <MemorySegment name="FLASH" start="0x00002000" size="0x0003E000" access="ReadOnly" />
+  <MemorySegment name="RAM" start="0x20000000" size="0x00008000" access="Read/Write" />
+</root>

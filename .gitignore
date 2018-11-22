@@ -10,6 +10,10 @@ tests/build
 *.launch
 *.map
 *.axf
+*.jlink
+*.emSession
+*.elf
+*.ind
 /tests/lpc175x_6x/build/
 /tests/lpc18xx_43xx/build/
 /demos/*/*/Board_*
