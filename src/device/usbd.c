@@ -581,7 +581,7 @@ void dcd_event_handler(dcd_event_t const * event, bool in_isr)
       if ( 0 == edpt_number(event->xfer_complete.ep_addr) && event->xfer_complete.len == 0) break;
 
       osal_queue_send(_usbd_q, event, in_isr);
-      TU_ASSERT(event->xfer_complete.result == DCD_XFER_SUCCESS,);
+      TU_ASSERT(event->xfer_complete.result == XFER_RESULT_SUCCESS,);
     break;
 
     default: break;

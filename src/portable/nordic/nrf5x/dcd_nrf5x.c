@@ -261,7 +261,7 @@ bool dcd_edpt_xfer (uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t 
     edpt_dma_end();
 
     // The nRF doesn't interrupt on status transmit so we queue up a success response.
-    dcd_event_xfer_complete(0, ep_addr, 0, DCD_XFER_SUCCESS, false);
+    dcd_event_xfer_complete(0, ep_addr, 0, XFER_RESULT_SUCCESS, false);
   }
   else if ( dir == TUSB_DIR_OUT )
   {
@@ -459,7 +459,7 @@ void USBD_IRQHandler(void)
         xfer->total_len = xfer->actual_len;
 
         // BULK/INT OUT complete
-        dcd_event_xfer_complete(0, epnum, xfer->actual_len, DCD_XFER_SUCCESS, true);
+        dcd_event_xfer_complete(0, epnum, xfer->actual_len, XFER_RESULT_SUCCESS, true);
       }
     }
 
@@ -494,7 +494,7 @@ void USBD_IRQHandler(void)
         } else
         {
           // Bulk/Int IN complete
-          dcd_event_xfer_complete(0, epnum | TUSB_DIR_IN_MASK, xfer->actual_len, DCD_XFER_SUCCESS, true);
+          dcd_event_xfer_complete(0, epnum | TUSB_DIR_IN_MASK, xfer->actual_len, XFER_RESULT_SUCCESS, true);
         }
       }
     }

@@ -304,7 +304,7 @@ void transfer_complete(uint8_t direction) {
         if (direction == TUSB_DIR_IN) {
             ep_addr |= TUSB_DIR_IN_MASK;
         }
-        dcd_event_xfer_complete(0, ep_addr, total_transfer_size, DCD_XFER_SUCCESS, true);
+        dcd_event_xfer_complete(0, ep_addr, total_transfer_size, XFER_RESULT_SUCCESS, true);
 
         // just finished status stage (total size = 0), prepare for next setup packet
         if (epnum == 0 && total_transfer_size == 0) {

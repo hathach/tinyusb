@@ -311,9 +311,9 @@ bool  dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t 
   p_qhd->qtd_overlay.next = (uint32_t) p_qtd; // link qtd to qhd
 
   // start transfer
-	LPC_USB[rhport]->ENDPTPRIME = BIT_( ep_idx2bit(ep_idx) ) ;
+  LPC_USB[rhport]->ENDPTPRIME = BIT_( ep_idx2bit(ep_idx) ) ;
 
-	return true;
+  return true;
 }
 
 
@@ -390,8 +390,8 @@ void hal_dcd_isr(uint8_t rhport)
           dcd_qhd_t * p_qhd = &dcd_data_ptr[rhport]->qhd[ep_idx];
           dcd_qtd_t * p_qtd = &dcd_data_ptr[rhport]->qtd[ep_idx];
 
-          uint8_t result = p_qtd->halted  ? DCD_XFER_STALLED :
-              ( p_qtd->xact_err ||p_qtd->buffer_err ) ? DCD_XFER_FAILED : DCD_XFER_SUCCESS;
+          uint8_t result = p_qtd->halted  ? XFER_RESULT_STALLED :
+              ( p_qtd->xact_err ||p_qtd->buffer_err ) ? XFER_RESULT_FAILED : XFER_RESULT_SUCCESS;
 
           uint8_t ep_addr = (ep_idx/2) | ( (ep_idx & 0x01) ? TUSB_DIR_IN_MASK : 0 );
           dcd_event_xfer_complete(rhport, ep_addr, p_qtd->expected_bytes - p_qtd->total_bytes, result, true); // only number of bytes in the IOC qtd
