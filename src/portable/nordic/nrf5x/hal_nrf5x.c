@@ -61,6 +61,7 @@ enum {
 #endif
 
 #include "tusb_hal.h"
+#include "device/dcd.h"
 
 /*------------------------------------------------------------------*/
 /* MACRO TYPEDEF CONSTANT ENUM
@@ -291,6 +292,8 @@ void tusb_hal_nrf_power_event (uint32_t event)
 
         nrf_usbd_disable();
         hfclk_disable();
+
+        dcd_event_bus_signal(0, DCD_EVENT_UNPLUGGED, true);
       }
     break;
 
