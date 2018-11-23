@@ -215,7 +215,7 @@ void hub_isr(pipe_handle_t pipe_hdl, xfer_result_t event, uint32_t xferred_bytes
 
   usbh_hub_t * p_hub = &hub_data[pipe_hdl.dev_addr-1];
 
-  if ( event == TUSB_EVENT_XFER_COMPLETE )
+  if ( event == XFER_RESULT_SUCCESS )
   {
     for (uint8_t port=1; port <= p_hub->port_number; port++)
     { // TODO HUB ignore bit0 hub_status_change

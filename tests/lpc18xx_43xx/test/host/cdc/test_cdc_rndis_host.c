@@ -188,7 +188,7 @@ static tusb_error_t  stub_pipe_notification_xfer(pipe_handle_t pipe_hdl, uint8_t
 
   buffer[0] = 1; // response available
 
-  cdch_isr(pipe_hdl, TUSB_EVENT_XFER_COMPLETE, 8);
+  cdch_isr(pipe_hdl, XFER_RESULT_SUCCESS, 8);
 
   return TUSB_ERROR_NONE;
 }

@@ -201,7 +201,7 @@ void test_interrupt_xfer_complete_isr_interval_less_than_1ms(void)
 
   TEST_ASSERT_STATUS( hcd_pipe_xfer(pipe_hdl_interrupt, data2, sizeof(data2), true) );
 
-  usbh_xfer_isr_Expect(pipe_hdl_interrupt, TUSB_CLASS_HID, TUSB_EVENT_XFER_COMPLETE, sizeof(xfer_data)+sizeof(data2));
+  usbh_xfer_isr_Expect(pipe_hdl_interrupt, TUSB_CLASS_HID, XFER_RESULT_SUCCESS, sizeof(xfer_data)+sizeof(data2));
 
   ehci_qtd_t* p_head = p_qhd_interrupt->p_qtd_list_head;
   ehci_qtd_t* p_tail = p_qhd_interrupt->p_qtd_list_tail;
@@ -242,7 +242,7 @@ void test_interrupt_xfer_error_isr(void)
 {
   TEST_ASSERT_STATUS( hcd_pipe_xfer(pipe_hdl_interrupt, xfer_data, sizeof(xfer_data), true) );
 
-  usbh_xfer_isr_Expect(pipe_hdl_interrupt, TUSB_CLASS_HID, TUSB_EVENT_XFER_ERROR, 0);
+  usbh_xfer_isr_Expect(pipe_hdl_interrupt, TUSB_CLASS_HID, XFER_RESULT_FAILED, 0);
 
   //------------- Code Under TEST -------------//
   ehci_controller_run_error(hostid);
@@ -254,7 +254,7 @@ void test_interrupt_xfer_error_stall(void)
 {
   TEST_ASSERT_STATUS( hcd_pipe_xfer(pipe_hdl_interrupt, xfer_data, sizeof(xfer_data), true) );
 
-  usbh_xfer_isr_Expect(pipe_hdl_interrupt, TUSB_CLASS_HID, TUSB_EVENT_XFER_STALLED, 0);
+  usbh_xfer_isr_Expect(pipe_hdl_interrupt, TUSB_CLASS_HID, XFER_RESULT_STALLED, 0);
 
   //------------- Code Under TEST -------------//
   ehci_controller_run_stall(hostid);

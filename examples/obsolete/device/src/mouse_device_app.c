@@ -70,9 +70,9 @@ void tud_hid_mouse_cb(uint8_t rhport, xfer_result_t event, uint32_t xferred_byte
 {
   switch(event)
   {
-    case TUSB_EVENT_XFER_COMPLETE:
-    case TUSB_EVENT_XFER_ERROR:
-    case TUSB_EVENT_XFER_STALLED:
+    case XFER_RESULT_SUCCESS:
+    case XFER_RESULT_FAILED:
+    case XFER_RESULT_STALLED:
     default: break;
   }
 }

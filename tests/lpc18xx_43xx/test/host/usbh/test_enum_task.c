@@ -181,7 +181,7 @@ tusb_error_t control_xfer_stub(uint8_t dev_addr, const tusb_control_request_t * 
 
   usbh_xfer_isr(
       (pipe_handle_t) { .dev_addr = (num_call > 1 ? 1 : 0), .xfer_type = TUSB_XFER_CONTROL },
-      0, TUSB_EVENT_XFER_COMPLETE, 0);
+      0, XFER_RESULT_SUCCESS, 0);
 
   return TUSB_ERROR_NONE;
 }

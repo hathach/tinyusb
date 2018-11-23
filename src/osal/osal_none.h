@@ -156,10 +156,12 @@ static inline void osal_queue_reset(osal_queue_t const queue_hdl)
 static inline bool osal_queue_receive(osal_queue_t const queue_hdl, void* data)
 {
   // osal none return immediately without blocking
+  // extern void tusb_hal_int_disable(uint8_t rhport);
+  // extern void tusb_hal_int_enable(uint8_t rhport);
 
-  // tusb_hal_int_disable_all();
+//  tusb_hal_int_disable(0);
   bool rc = tu_fifo_read(queue_hdl, data);
-  // tusb_hal_int_enable_all();
+//  tusb_hal_int_enable(0);
 
   return rc;
 }

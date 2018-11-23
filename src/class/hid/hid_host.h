@@ -95,9 +95,9 @@ tusb_error_t  tuh_hid_keyboard_get_report(uint8_t dev_addr, void * p_report) /*A
  * \param[in]		dev_addr	Address of device
  * \param[in]   event an value from \ref xfer_result_t
  * \note        event can be one of following
- *              - TUSB_EVENT_XFER_COMPLETE : previously scheduled transfer completes successfully.
- *              - TUSB_EVENT_XFER_ERROR   : previously scheduled transfer encountered a transaction error.
- *              - TUSB_EVENT_XFER_STALLED : previously scheduled transfer is stalled by device.
+ *              - XFER_RESULT_SUCCESS : previously scheduled transfer completes successfully.
+ *              - XFER_RESULT_FAILED   : previously scheduled transfer encountered a transaction error.
+ *              - XFER_RESULT_STALLED : previously scheduled transfer is stalled by device.
  * \note        Application should schedule the next report by calling \ref tuh_hid_keyboard_get_report within this callback
  */
 void tuh_hid_keyboard_isr(uint8_t dev_addr, xfer_result_t event);
@@ -160,9 +160,9 @@ tusb_error_t  tuh_hid_mouse_get_report(uint8_t dev_addr, void* p_report) /*ATTR_
  * \param[in]		dev_addr	Address of device
  * \param[in]   event an value from \ref xfer_result_t
  * \note        event can be one of following
- *              - TUSB_EVENT_XFER_COMPLETE : previously scheduled transfer completes successfully.
- *              - TUSB_EVENT_XFER_ERROR   : previously scheduled transfer encountered a transaction error.
- *              - TUSB_EVENT_XFER_STALLED : previously scheduled transfer is stalled by device.
+ *              - XFER_RESULT_SUCCESS : previously scheduled transfer completes successfully.
+ *              - XFER_RESULT_FAILED   : previously scheduled transfer encountered a transaction error.
+ *              - XFER_RESULT_STALLED : previously scheduled transfer is stalled by device.
  * \note        Application should schedule the next report by calling \ref tuh_hid_mouse_get_report within this callback
  */
 void tuh_hid_mouse_isr(uint8_t dev_addr, xfer_result_t event);

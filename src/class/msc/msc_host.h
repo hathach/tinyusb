@@ -174,9 +174,9 @@ void tuh_msc_unmounted_cb(uint8_t dev_addr);
  * \param[in]   event an value from \ref xfer_result_t
  * \param[in]   xferred_bytes Number of bytes transferred via USB bus
  * \note        event can be one of following
- *              - TUSB_EVENT_XFER_COMPLETE : previously scheduled transfer completes successfully.
- *              - TUSB_EVENT_XFER_ERROR   : previously scheduled transfer encountered a transaction error.
- *              - TUSB_EVENT_XFER_STALLED : previously scheduled transfer is stalled by device.
+ *              - XFER_RESULT_SUCCESS : previously scheduled transfer completes successfully.
+ *              - XFER_RESULT_FAILED   : previously scheduled transfer encountered a transaction error.
+ *              - XFER_RESULT_STALLED : previously scheduled transfer is stalled by device.
  * \note
  */
 void tuh_msc_isr(uint8_t dev_addr, xfer_result_t event, uint32_t xferred_bytes);

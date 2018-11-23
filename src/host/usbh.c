@@ -199,7 +199,7 @@ tusb_error_t usbh_control_xfer_subtask(uint8_t dev_addr, uint8_t bmRequestType, 
 #ifndef _TEST_
   usbh_devices[dev_addr].control.pipe_status = 0;
 #else
-  usbh_devices[dev_addr].control.pipe_status = TUSB_EVENT_XFER_COMPLETE; // in Test project, mark as complete immediately
+  usbh_devices[dev_addr].control.pipe_status = XFER_RESULT_SUCCESS; // in Test project, mark as complete immediately
 #endif
 
   error = hcd_pipe_control_xfer(dev_addr, &usbh_devices[dev_addr].control.request, data);
@@ -207,11 +207,11 @@ tusb_error_t usbh_control_xfer_subtask(uint8_t dev_addr, uint8_t bmRequestType, 
   osal_mutex_release(usbh_devices[dev_addr].control.mutex_hdl);
 
   STASK_ASSERT_ERR(error);
-  if (TUSB_EVENT_XFER_STALLED == usbh_devices[dev_addr].control.pipe_status) STASK_RETURN(TUSB_ERROR_USBH_XFER_STALLED);
-  if (TUSB_EVENT_XFER_ERROR   == usbh_devices[dev_addr].control.pipe_status) STASK_RETURN(TUSB_ERROR_USBH_XFER_FAILED);
+  if (XFER_RESULT_STALLED == usbh_devices[dev_addr].control.pipe_status) STASK_RETURN(TUSB_ERROR_USBH_XFER_STALLED);
+  if (XFER_RESULT_FAILED   == usbh_devices[dev_addr].control.pipe_status) STASK_RETURN(TUSB_ERROR_USBH_XFER_FAILED);
 
 //  STASK_ASSERT_HDLR(TUSB_ERROR_NONE == error &&
-//                              TUSB_EVENT_XFER_COMPLETE == usbh_devices[dev_addr].control.pipe_status,
+//                              XFER_RESULT_SUCCESS == usbh_devices[dev_addr].control.pipe_status,
 //                              tuh_device_mount_failed_cb(TUSB_ERROR_USBH_MOUNT_DEVICE_NOT_RESPOND, NULL) );
 
   OSAL_SUBTASK_END

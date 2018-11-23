@@ -617,11 +617,11 @@ static void done_queue_isr(uint8_t hostid)
     // TODO check if td_head is iso td
     //------------- Non ISO transfer -------------//
     ohci_gtd_t * const p_qtd = (ohci_gtd_t *) td_head;
-    xfer_result_t const event = (p_qtd->condition_code == OHCI_CCODE_NO_ERROR) ? TUSB_EVENT_XFER_COMPLETE :
-                               (p_qtd->condition_code == OHCI_CCODE_STALL) ? TUSB_EVENT_XFER_STALLED : TUSB_EVENT_XFER_ERROR;
+    xfer_result_t const event = (p_qtd->condition_code == OHCI_CCODE_NO_ERROR) ? XFER_RESULT_SUCCESS :
+                               (p_qtd->condition_code == OHCI_CCODE_STALL) ? XFER_RESULT_STALLED : XFER_RESULT_FAILED;
 
     p_qtd->used = 0; // free TD
-    if ( (p_qtd->delay_interrupt == OHCI_INT_ON_COMPLETE_YES) || (event != TUSB_EVENT_XFER_COMPLETE) )
+    if ( (p_qtd->delay_interrupt == OHCI_INT_ON_COMPLETE_YES) || (event != XFER_RESULT_SUCCESS) )
     {
       ohci_ed_t * const p_ed  = gtd_get_ed(p_qtd);
 
@@ -634,11 +634,11 @@ static void done_queue_isr(uint8_t hostid)
       // --> HC will not process Control list (due to service ratio when Bulk list not empty)
       // To walk-around this, the halted ED will have TailP = HeadP (empty list condition), when clearing halt
       // the TailP must be set back to NULL for processing remaining TDs
-      if ((event != TUSB_EVENT_XFER_COMPLETE))
+      if ((event != XFER_RESULT_SUCCESS))
       {
         p_ed->td_tail.address &= 0x0Ful;
         p_ed->td_tail.address |= tu_align16(p_ed->td_head.address); // mark halted EP as empty queue
-        if ( event == TUSB_EVENT_XFER_STALLED ) p_ed->is_stalled = 1;
+        if ( event == XFER_RESULT_STALLED ) p_ed->is_stalled = 1;
       }
 
       pipe_handle_t pipe_hdl =

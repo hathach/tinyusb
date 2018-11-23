@@ -81,12 +81,12 @@ void tuh_hid_keyboard_isr(uint8_t dev_addr, xfer_result_t event)
 {
   switch(event)
   {
-    case TUSB_EVENT_XFER_COMPLETE:
+    case XFER_RESULT_SUCCESS:
       osal_queue_send(queue_kbd_hdl, &usb_keyboard_report);
       tuh_hid_keyboard_get_report(dev_addr, (uint8_t*) &usb_keyboard_report);
     break;
 
-    case TUSB_EVENT_XFER_ERROR:
+    case XFER_RESULT_FAILED:
       tuh_hid_keyboard_get_report(dev_addr, (uint8_t*) &usb_keyboard_report); // ignore & continue
     break;
 

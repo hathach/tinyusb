@@ -84,17 +84,17 @@ void tuh_cdc_xfer_isr(uint8_t dev_addr, xfer_result_t event, cdc_pipeid_t pipe_i
     case CDC_PIPE_DATA_IN:
       switch(event)
       {
-        case TUSB_EVENT_XFER_COMPLETE:
+        case XFER_RESULT_SUCCESS:
           received_bytes = xferred_bytes;
           osal_semaphore_post(sem_hdl);  // notify main task
         break;
 
-        case TUSB_EVENT_XFER_ERROR:
+        case XFER_RESULT_FAILED:
           received_bytes = 0; // ignore
           tuh_cdc_receive(dev_addr, serial_in_buffer, SERIAL_BUFFER_SIZE, true); // waiting for next data
         break;
 
-        case TUSB_EVENT_XFER_STALLED:
+        case XFER_RESULT_STALLED:
         default :
         break;
       }
