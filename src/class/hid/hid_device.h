@@ -110,7 +110,7 @@ extern const hid_ascii_to_keycode_entry_t HID_ASCII_TO_KEYCODE[128];
 
 /** Callback invoked when USB host request \ref HID_REQ_CONTROL_GET_REPORT.
  * \param[in]   report_type specify which report (INPUT, OUTPUT, FEATURE) that host requests
- * \param[out]  buffer data that application need to update, value must be accessible by USB controller (see \ref CFG_TUSB_ATTR_USBRAM)
+ * \param[out]  buffer data that application need to update, value must be accessible by USB controller (see \ref CFG_TUSB_MEM_SECTION)
  * \param[in]   reqlen  number of bytes that host requested
  * \retval      non-zero Actual number of bytes in the response's buffer.
  * \retval      zero  indicates the current request is not supported. Tinyusb device stack will reject the request by
@@ -173,7 +173,7 @@ static inline bool tud_hid_mouse_button_release(void)
 /**
  * Callback function that is invoked when USB host request \ref HID_REQ_CONTROL_GET_REPORT.
  * \param[in]   report_type specify which report (INPUT, OUTPUT, FEATURE) that host requests
- * \param[out]  buffer  buffer that application need to update, value must be accessible by USB controller (see \ref CFG_TUSB_ATTR_USBRAM)
+ * \param[out]  buffer  buffer that application need to update, value must be accessible by USB controller (see \ref CFG_TUSB_MEM_SECTION)
  * \param[in]   reqlen  number of bytes that host requested
  * \retval      non-zero Actual number of bytes in the response's buffer.
  * \retval      zero  indicates the current request is not supported. Tinyusb device stack will reject the request by
@@ -380,7 +380,7 @@ void hidd_init(void);
 tusb_error_t hidd_open(uint8_t rhport, tusb_desc_interface_t const * p_interface_desc, uint16_t *p_length);
 bool hidd_control_request(uint8_t rhport, tusb_control_request_t const * p_request);
 bool hidd_control_request_complete (uint8_t rhport, tusb_control_request_t const * p_request);
-tusb_error_t hidd_xfer_cb(uint8_t rhport, uint8_t edpt_addr, tusb_event_t event, uint32_t xferred_bytes);
+tusb_error_t hidd_xfer_cb(uint8_t rhport, uint8_t edpt_addr, xfer_result_t event, uint32_t xferred_bytes);
 void hidd_reset(uint8_t rhport);
 
 #endif

@@ -73,7 +73,7 @@ tusb_error_t tusbh_custom_write(uint8_t dev_addr, uint16_t vendor_id, uint16_t p
 
 void         cush_init(void);
 tusb_error_t cush_open_subtask(uint8_t dev_addr, tusb_desc_interface_t const *p_interface_desc, uint16_t *p_length) ATTR_WARN_UNUSED_RESULT;
-void         cush_isr(pipe_handle_t pipe_hdl, tusb_event_t event);
+void         cush_isr(pipe_handle_t pipe_hdl, xfer_result_t event);
 void         cush_close(uint8_t dev_addr);
 
 #endif

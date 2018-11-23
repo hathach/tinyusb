@@ -275,7 +275,7 @@ void maybe_transfer_complete(void) {
             total_transfer_size = bank->PCKSIZE.bit.BYTE_COUNT;
 
             uint8_t ep_addr = epnum | TUSB_DIR_IN_MASK;
-            dcd_event_xfer_complete(0, ep_addr, total_transfer_size, DCD_XFER_SUCCESS, true);
+            dcd_event_xfer_complete(0, ep_addr, total_transfer_size, XFER_RESULT_SUCCESS, true);
         }
 
         // Handle OUT completions
@@ -286,7 +286,7 @@ void maybe_transfer_complete(void) {
             total_transfer_size = bank->PCKSIZE.bit.BYTE_COUNT;
 
             uint8_t ep_addr = epnum;
-            dcd_event_xfer_complete(0, ep_addr, total_transfer_size, DCD_XFER_SUCCESS, true);
+            dcd_event_xfer_complete(0, ep_addr, total_transfer_size, XFER_RESULT_SUCCESS, true);
         }
 
         // just finished status stage (total size = 0), prepare for next setup packet

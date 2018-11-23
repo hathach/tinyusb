@@ -131,7 +131,7 @@ tusb_error_t cush_open_subtask(uint8_t dev_addr, tusb_desc_interface_t const *p_
   return TUSB_ERROR_NONE;
 }
 
-void cush_isr(pipe_handle_t pipe_hdl, tusb_event_t event)
+void cush_isr(pipe_handle_t pipe_hdl, xfer_result_t event)
 {
 
 }

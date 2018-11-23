@@ -104,7 +104,7 @@ tusb_error_t tuh_msc_get_capacity(uint8_t dev_addr, uint32_t* p_last_lba, uint32
 /** \brief 			Perform SCSI READ 10 command to read data from MassStorage device
  * \param[in]		dev_addr	device address
  * \param[in]		lun       Targeted Logical Unit
- * \param[out]	p_buffer  Buffer used to store data read from device. Must be accessible by USB controller (see \ref CFG_TUSB_ATTR_USBRAM)
+ * \param[out]	p_buffer  Buffer used to store data read from device. Must be accessible by USB controller (see \ref CFG_TUSB_MEM_SECTION)
  * \param[in]		lba       Starting Logical Block Address to be read
  * \param[in]		block_count Number of Block to be read
  * \retval      TUSB_ERROR_NONE on success
@@ -118,7 +118,7 @@ tusb_error_t tuh_msc_read10 (uint8_t dev_addr, uint8_t lun, void * p_buffer, uin
 /** \brief 			Perform SCSI WRITE 10 command to write data to MassStorage device
  * \param[in]		dev_addr	device address
  * \param[in]		lun       Targeted Logical Unit
- * \param[in]	  p_buffer  Buffer containing data. Must be accessible by USB controller (see \ref CFG_TUSB_ATTR_USBRAM)
+ * \param[in]	  p_buffer  Buffer containing data. Must be accessible by USB controller (see \ref CFG_TUSB_MEM_SECTION)
  * \param[in]		lba       Starting Logical Block Address to be written
  * \param[in]		block_count Number of Block to be written
  * \retval      TUSB_ERROR_NONE on success
@@ -132,7 +132,7 @@ tusb_error_t tuh_msc_write10(uint8_t dev_addr, uint8_t lun, void const * p_buffe
 /** \brief 			Perform SCSI REQUEST SENSE command, used to retrieve sense data from MassStorage device
  * \param[in]		dev_addr	device address
  * \param[in]		lun       Targeted Logical Unit
- * \param[in]	  p_data    Buffer to store response's data from device. Must be accessible by USB controller (see \ref CFG_TUSB_ATTR_USBRAM)
+ * \param[in]	  p_data    Buffer to store response's data from device. Must be accessible by USB controller (see \ref CFG_TUSB_MEM_SECTION)
  * \retval      TUSB_ERROR_NONE on success
  * \retval      TUSB_ERROR_INTERFACE_IS_BUSY if the interface is already transferring data with device
  * \retval      TUSB_ERROR_DEVICE_NOT_READY if device is not yet configured (by SET CONFIGURED request)
@@ -171,15 +171,15 @@ void tuh_msc_unmounted_cb(uint8_t dev_addr);
 
 /** \brief      Callback function that is invoked when an transferring event occurred
  * \param[in]		dev_addr	Address of device
- * \param[in]   event an value from \ref tusb_event_t
+ * \param[in]   event an value from \ref xfer_result_t
  * \param[in]   xferred_bytes Number of bytes transferred via USB bus
  * \note        event can be one of following
- *              - TUSB_EVENT_XFER_COMPLETE : previously scheduled transfer completes successfully.
- *              - TUSB_EVENT_XFER_ERROR   : previously scheduled transfer encountered a transaction error.
- *              - TUSB_EVENT_XFER_STALLED : previously scheduled transfer is stalled by device.
+ *              - XFER_RESULT_SUCCESS : previously scheduled transfer completes successfully.
+ *              - XFER_RESULT_FAILED   : previously scheduled transfer encountered a transaction error.
+ *              - XFER_RESULT_STALLED : previously scheduled transfer is stalled by device.
  * \note
  */
-void tuh_msc_isr(uint8_t dev_addr, tusb_event_t event, uint32_t xferred_bytes);
+void tuh_msc_isr(uint8_t dev_addr, xfer_result_t event, uint32_t xferred_bytes);
 
 
 //--------------------------------------------------------------------+
@@ -205,7 +205,7 @@ typedef struct {
 
 void         msch_init(void);
 tusb_error_t msch_open_subtask(uint8_t dev_addr, tusb_desc_interface_t const *p_interface_desc, uint16_t *p_length) ATTR_WARN_UNUSED_RESULT;
-void         msch_isr(pipe_handle_t pipe_hdl, tusb_event_t event, uint32_t xferred_bytes);
+void         msch_isr(pipe_handle_t pipe_hdl, xfer_result_t event, uint32_t xferred_bytes);
 void         msch_close(uint8_t dev_addr);
 #endif
 

@@ -53,7 +53,7 @@
 // INTERNAL OBJECT & FUNCTION DECLARATION
 //--------------------------------------------------------------------+
 static osal_queue_t queue_kbd_hdl;
-CFG_TUSB_ATTR_USBRAM static hid_keyboard_report_t usb_keyboard_report;
+CFG_TUSB_MEM_SECTION static hid_keyboard_report_t usb_keyboard_report;
 
 static inline uint8_t keycode_to_ascii(uint8_t modifier, uint8_t keycode) ATTR_CONST ATTR_ALWAYS_INLINE;
 static inline void process_kbd_report(hid_keyboard_report_t const * report);
@@ -77,16 +77,16 @@ void tuh_hid_keyboard_unmounted_cb(uint8_t dev_addr)
 }
 
 // invoked ISR context
-void tuh_hid_keyboard_isr(uint8_t dev_addr, tusb_event_t event)
+void tuh_hid_keyboard_isr(uint8_t dev_addr, xfer_result_t event)
 {
   switch(event)
   {
-    case TUSB_EVENT_XFER_COMPLETE:
+    case XFER_RESULT_SUCCESS:
       osal_queue_send(queue_kbd_hdl, &usb_keyboard_report);
       tuh_hid_keyboard_get_report(dev_addr, (uint8_t*) &usb_keyboard_report);
     break;
 
-    case TUSB_EVENT_XFER_ERROR:
+    case XFER_RESULT_FAILED:
       tuh_hid_keyboard_get_report(dev_addr, (uint8_t*) &usb_keyboard_report); // ignore & continue
     break;
 

@@ -10,13 +10,13 @@
 #define CFG_TUSB_RHPORT0_MODE
 
 /** USB controller in MCU often has limited access to specific RAM section. The Stack will use this macro to place internal variables
-  into the USB RAM section as follows. if your mcu's usb controller has no such limit, define CFG_TUSB_ATTR_USBRAM as empty macro.
+  into the USB RAM section as follows. if your mcu's usb controller has no such limit, define CFG_TUSB_MEM_SECTION as empty macro.
 
   @code
-  CFG_TUSB_ATTR_USBRAM uint8_t usb_xfer_buffer[10];
+  CFG_TUSB_MEM_SECTION uint8_t usb_xfer_buffer[10];
   @endcode
  */
-#define CFG_TUSB_ATTR_USBRAM
+#define CFG_TUSB_MEM_SECTION
 
 #define CFG_TUSB_MCU          ///< Select one of the supported MCU, the value must be from \ref group_mcu
 #define CFG_TUSB_OS           ///< Select one of the supported RTOS, the value must be from \ref group_supported_os.

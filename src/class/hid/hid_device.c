@@ -91,7 +91,7 @@ typedef struct
   hidd_interface_t* itf;
 } hidd_report_t ;
 
-CFG_TUSB_ATTR_USBRAM static hidd_interface_t _hidd_itf[ITF_COUNT];
+CFG_TUSB_MEM_SECTION static hidd_interface_t _hidd_itf[ITF_COUNT];
 
 
 #if CFG_TUD_HID_KEYBOARD
@@ -510,7 +510,7 @@ bool hidd_control_request_complete(uint8_t rhport, tusb_control_request_t const 
   return true;
 }
 
-tusb_error_t hidd_xfer_cb(uint8_t rhport, uint8_t edpt_addr, tusb_event_t event, uint32_t xferred_bytes)
+tusb_error_t hidd_xfer_cb(uint8_t rhport, uint8_t edpt_addr, xfer_result_t event, uint32_t xferred_bytes)
 {
   // nothing to do
   return TUSB_ERROR_NONE;

@@ -251,10 +251,10 @@ void test_cdc_xfer_notification_pipe(void)
   cdch_data[dev_addr-1].pipe_out          = pipe_out;
   cdch_data[dev_addr-1].pipe_in           = pipe_in;
 
-  tusbh_cdc_xfer_isr_Expect(dev_addr, TUSB_EVENT_XFER_COMPLETE, CDC_PIPE_NOTIFICATION, 10);
+  tusbh_cdc_xfer_isr_Expect(dev_addr, XFER_RESULT_SUCCESS, CDC_PIPE_NOTIFICATION, 10);
 
   //------------- CUT -------------//
-  cdch_isr(pipe_notification, TUSB_EVENT_XFER_COMPLETE, 10);
+  cdch_isr(pipe_notification, XFER_RESULT_SUCCESS, 10);
 }
 
 void test_cdc_xfer_pipe_out(void)
@@ -267,10 +267,10 @@ void test_cdc_xfer_pipe_out(void)
   cdch_data[dev_addr-1].pipe_out          = pipe_out;
   cdch_data[dev_addr-1].pipe_in           = pipe_in;
 
-  tusbh_cdc_xfer_isr_Expect(dev_addr, TUSB_EVENT_XFER_ERROR, CDC_PIPE_DATA_OUT, 20);
+  tusbh_cdc_xfer_isr_Expect(dev_addr, XFER_RESULT_FAILED, CDC_PIPE_DATA_OUT, 20);
 
   //------------- CUT -------------//
-  cdch_isr(pipe_out, TUSB_EVENT_XFER_ERROR, 20);
+  cdch_isr(pipe_out, XFER_RESULT_FAILED, 20);
 }
 
 void test_cdc_xfer_pipe_in(void)
@@ -283,8 +283,8 @@ void test_cdc_xfer_pipe_in(void)
   cdch_data[dev_addr-1].pipe_out          = pipe_out;
   cdch_data[dev_addr-1].pipe_in           = pipe_in;
 
-  tusbh_cdc_xfer_isr_Expect(dev_addr, TUSB_EVENT_XFER_STALLED, CDC_PIPE_DATA_IN, 0);
+  tusbh_cdc_xfer_isr_Expect(dev_addr, XFER_RESULT_STALLED, CDC_PIPE_DATA_IN, 0);
 
   //------------- CUT -------------//
-  cdch_isr(pipe_in, TUSB_EVENT_XFER_STALLED, 0);
+  cdch_isr(pipe_in, XFER_RESULT_STALLED, 0);
 }

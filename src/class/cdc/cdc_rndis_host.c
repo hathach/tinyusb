@@ -54,8 +54,8 @@
 //--------------------------------------------------------------------+
 #define RNDIS_MSG_PAYLOAD_MAX   (1024*4)
 
-CFG_TUSB_ATTR_USBRAM static uint8_t msg_notification[CFG_TUSB_HOST_DEVICE_MAX][8];
-CFG_TUSB_ATTR_USBRAM ATTR_ALIGNED(4) static uint8_t msg_payload[RNDIS_MSG_PAYLOAD_MAX];
+CFG_TUSB_MEM_SECTION static uint8_t msg_notification[CFG_TUSB_HOST_DEVICE_MAX][8];
+CFG_TUSB_MEM_SECTION ATTR_ALIGNED(4) static uint8_t msg_payload[RNDIS_MSG_PAYLOAD_MAX];
 
 STATIC_VAR rndish_data_t rndish_data[CFG_TUSB_HOST_DEVICE_MAX];
 
@@ -224,7 +224,7 @@ tusb_error_t rndish_open_subtask(uint8_t dev_addr, cdch_data_t *p_cdc)
   OSAL_SUBTASK_END
 }
 
-void rndish_xfer_isr(cdch_data_t *p_cdc, pipe_handle_t pipe_hdl, tusb_event_t event, uint32_t xferred_bytes)
+void rndish_xfer_isr(cdch_data_t *p_cdc, pipe_handle_t pipe_hdl, xfer_result_t event, uint32_t xferred_bytes)
 {
   if ( pipehandle_is_equal(pipe_hdl, p_cdc->pipe_notification) )
   {

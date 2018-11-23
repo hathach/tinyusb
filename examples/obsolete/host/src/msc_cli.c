@@ -141,7 +141,7 @@ static cli_cmdfunc_t cli_command_tbl[] =
 //--------------------------------------------------------------------+
 // INTERNAL OBJECT & FUNCTION DECLARATION
 //--------------------------------------------------------------------+
-CFG_TUSB_ATTR_USBRAM uint8_t fileread_buffer[CLI_FILE_READ_BUFFER];
+CFG_TUSB_MEM_SECTION uint8_t fileread_buffer[CLI_FILE_READ_BUFFER];
 static char cli_buffer[CLI_MAX_BUFFER];
 static char volume_label[20];
 

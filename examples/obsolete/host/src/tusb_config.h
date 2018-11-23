@@ -77,26 +77,26 @@
 #ifdef __CODE_RED // make use of code red's support for ram region macros
 
   #if CFG_TUSB_MCU == OPT_MCU_LPC175X_6X
-    #define CFG_TUSB_ATTR_USBRAM // LPC17xx USB DMA can access all address
+    #define CFG_TUSB_MEM_SECTION // LPC17xx USB DMA can access all address
   #elif  (CFG_TUSB_MCU == OPT_MCU_LPC43XX)
-    #define CFG_TUSB_ATTR_USBRAM  ATTR_SECTION(.data.$RAM3)
+    #define CFG_TUSB_MEM_SECTION  ATTR_SECTION(.data.$RAM3)
   #endif
 
 #elif defined __CC_ARM // Compiled with Keil armcc
 
   #if (CFG_TUSB_MCU == OPT_MCU_LPC175X_6X)
-    #define CFG_TUSB_ATTR_USBRAM  // LPC17xx USB DMA can access all address
+    #define CFG_TUSB_MEM_SECTION  // LPC17xx USB DMA can access all address
   #elif  (CFG_TUSB_MCU == OPT_MCU_LPC43XX)
-    #define CFG_TUSB_ATTR_USBRAM // Use keil tool configure to have AHB SRAM as default memory
+    #define CFG_TUSB_MEM_SECTION // Use keil tool configure to have AHB SRAM as default memory
   #endif
 
 #elif defined __ICCARM__ // compiled with IAR
 
   #if (CFG_TUSB_MCU == OPT_MCU_LPC175X_6X)
     // LP175x_6x can access all but CMSIS-RTX causes overflow in 32KB SRAM --> move to AHB ram
-    #define CFG_TUSB_ATTR_USBRAM _Pragma("location=\".sram\"")
+    #define CFG_TUSB_MEM_SECTION _Pragma("location=\".sram\"")
   #elif  (CFG_TUSB_MCU == OPT_MCU_LPC43XX)
-    #define CFG_TUSB_ATTR_USBRAM _Pragma("location=\".ahb_sram1\"")
+    #define CFG_TUSB_MEM_SECTION _Pragma("location=\".ahb_sram1\"")
   #endif
 
 #else

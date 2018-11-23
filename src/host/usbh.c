@@ -109,13 +109,13 @@ enum { USBH_CLASS_DRIVER_COUNT = sizeof(usbh_class_drivers) / sizeof(host_class_
 //--------------------------------------------------------------------+
 // INTERNAL OBJECT & FUNCTION DECLARATION
 //--------------------------------------------------------------------+
-CFG_TUSB_ATTR_USBRAM usbh_device_info_t usbh_devices[CFG_TUSB_HOST_DEVICE_MAX+1]; // including zero-address
+CFG_TUSB_MEM_SECTION usbh_device_info_t usbh_devices[CFG_TUSB_HOST_DEVICE_MAX+1]; // including zero-address
 
 //------------- Enumeration Task Data -------------/
 enum { ENUM_QUEUE_DEPTH = 16 };
 
 STATIC_VAR osal_queue_t enum_queue_hdl;
-CFG_TUSB_ATTR_USBRAM ATTR_ALIGNED(4) STATIC_VAR uint8_t enum_data_buffer[CFG_TUSB_HOST_ENUM_BUFFER_SIZE];
+CFG_TUSB_MEM_SECTION ATTR_ALIGNED(4) STATIC_VAR uint8_t enum_data_buffer[CFG_TUSB_HOST_ENUM_BUFFER_SIZE];
 
 //------------- Reporter Task Data -------------//
 
@@ -199,7 +199,7 @@ tusb_error_t usbh_control_xfer_subtask(uint8_t dev_addr, uint8_t bmRequestType, 
 #ifndef _TEST_
   usbh_devices[dev_addr].control.pipe_status = 0;
 #else
-  usbh_devices[dev_addr].control.pipe_status = TUSB_EVENT_XFER_COMPLETE; // in Test project, mark as complete immediately
+  usbh_devices[dev_addr].control.pipe_status = XFER_RESULT_SUCCESS; // in Test project, mark as complete immediately
 #endif
 
   error = hcd_pipe_control_xfer(dev_addr, &usbh_devices[dev_addr].control.request, data);
@@ -207,11 +207,11 @@ tusb_error_t usbh_control_xfer_subtask(uint8_t dev_addr, uint8_t bmRequestType, 
   osal_mutex_release(usbh_devices[dev_addr].control.mutex_hdl);
 
   STASK_ASSERT_ERR(error);
-  if (TUSB_EVENT_XFER_STALLED == usbh_devices[dev_addr].control.pipe_status) STASK_RETURN(TUSB_ERROR_USBH_XFER_STALLED);
-  if (TUSB_EVENT_XFER_ERROR   == usbh_devices[dev_addr].control.pipe_status) STASK_RETURN(TUSB_ERROR_USBH_XFER_FAILED);
+  if (XFER_RESULT_STALLED == usbh_devices[dev_addr].control.pipe_status) STASK_RETURN(TUSB_ERROR_USBH_XFER_STALLED);
+  if (XFER_RESULT_FAILED   == usbh_devices[dev_addr].control.pipe_status) STASK_RETURN(TUSB_ERROR_USBH_XFER_FAILED);
 
 //  STASK_ASSERT_HDLR(TUSB_ERROR_NONE == error &&
-//                              TUSB_EVENT_XFER_COMPLETE == usbh_devices[dev_addr].control.pipe_status,
+//                              XFER_RESULT_SUCCESS == usbh_devices[dev_addr].control.pipe_status,
 //                              tuh_device_mount_failed_cb(TUSB_ERROR_USBH_MOUNT_DEVICE_NOT_RESPOND, NULL) );
 
   OSAL_SUBTASK_END
@@ -256,7 +256,7 @@ static inline uint8_t std_class_code_to_index(uint8_t std_class_code)
 // USBH-HCD ISR/Callback API
 //--------------------------------------------------------------------+
 // interrupt caused by a TD (with IOC=1) in pipe of class class_code
-void usbh_xfer_isr(pipe_handle_t pipe_hdl, uint8_t class_code, tusb_event_t event, uint32_t xferred_bytes)
+void usbh_xfer_isr(pipe_handle_t pipe_hdl, uint8_t class_code, xfer_result_t event, uint32_t xferred_bytes)
 {
   uint8_t class_index = std_class_code_to_index(class_code);
   if (TUSB_XFER_CONTROL == pipe_hdl.xfer_type)

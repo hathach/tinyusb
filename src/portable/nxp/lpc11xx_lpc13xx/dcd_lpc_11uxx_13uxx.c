@@ -141,11 +141,11 @@ typedef struct {
 //--------------------------------------------------------------------+
 // INTERNAL OBJECT & FUNCTION DECLARATION
 //--------------------------------------------------------------------+
-// CFG_TUSB_ATTR_USBRAM must have ATTR_ALIGNED(64) for lpc11u & lpc13u
+// CFG_TUSB_MEM_SECTION must have ATTR_ALIGNED(64) for lpc11u & lpc13u
 #ifdef __ICCARM__
-ATTR_ALIGNED(256) CFG_TUSB_ATTR_USBRAM // for IAR the first ATTR_ALIGNED takes effect
+ATTR_ALIGNED(256) CFG_TUSB_MEM_SECTION // for IAR the first ATTR_ALIGNED takes effect
 #else
-CFG_TUSB_ATTR_USBRAM ATTR_ALIGNED(256) // GCC & Keil the last ATTR_ALIGNED takes effect
+CFG_TUSB_MEM_SECTION ATTR_ALIGNED(256) // GCC & Keil the last ATTR_ALIGNED takes effect
 #endif
 STATIC_VAR dcd_11u_13u_data_t dcd_data;
 

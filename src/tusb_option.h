@@ -131,8 +131,9 @@
   #warning CFG_TUSB_DEBUG is not defined, default value is 0
 #endif
 
-#ifndef CFG_TUSB_ATTR_USBRAM
- #error CFG_TUSB_ATTR_USBRAM is not defined, please help me know how to place data in accessible RAM for usb controller
+// place data in accessible RAM for usb controller
+#ifndef CFG_TUSB_MEM_SECTION
+#define CFG_TUSB_MEM_SECTION
 #endif
 
 #ifndef CFG_TUSB_OS

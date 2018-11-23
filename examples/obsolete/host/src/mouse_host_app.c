@@ -53,7 +53,7 @@
 // INTERNAL OBJECT & FUNCTION DECLARATION
 //--------------------------------------------------------------------+
 static osal_queue_t queue_mouse_hdl;
-CFG_TUSB_ATTR_USBRAM static hid_mouse_report_t usb_mouse_report;
+CFG_TUSB_MEM_SECTION static hid_mouse_report_t usb_mouse_report;
 
 static inline void process_mouse_report(hid_mouse_report_t const * p_report);
 
@@ -76,16 +76,16 @@ void tuh_hid_mouse_unmounted_cb(uint8_t dev_addr)
 }
 
 // invoked ISR context
-void tuh_hid_mouse_isr(uint8_t dev_addr, tusb_event_t event)
+void tuh_hid_mouse_isr(uint8_t dev_addr, xfer_result_t event)
 {
   switch(event)
   {
-    case TUSB_EVENT_XFER_COMPLETE:
+    case XFER_RESULT_SUCCESS:
       osal_queue_send(queue_mouse_hdl, &usb_mouse_report);
       (void) tuh_hid_mouse_get_report(dev_addr, (uint8_t*) &usb_mouse_report);
     break;
 
-    case TUSB_EVENT_XFER_ERROR:
+    case XFER_RESULT_FAILED:
       (void) tuh_hid_mouse_get_report(dev_addr, (uint8_t*) &usb_mouse_report); // ignore & continue
     break;
 

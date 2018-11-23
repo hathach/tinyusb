@@ -80,20 +80,14 @@
 								<option id="com.crt.advproject.link.crpenable.983788363" name="Enable automatic placement of Code Read Protection field in image" superClass="com.crt.advproject.link.crpenable" useByScannerDiscovery="false" value="false" valueType="boolean"/>
 								<option id="com.crt.advproject.link.gcc.multicore.slave.312914823" name="Multicore configuration" superClass="com.crt.advproject.link.gcc.multicore.slave" useByScannerDiscovery="false"/>
 								<option defaultValue="com.crt.advproject.heapAndStack.lpcXpressoStyle" id="com.crt.advproject.link.memory.heapAndStack.style.848801259" name="Heap and Stack placement" superClass="com.crt.advproject.link.memory.heapAndStack.style" useByScannerDiscovery="false" valueType="enumerated"/>
+								<option id="com.crt.advproject.link.memory.load.image.959137799" superClass="com.crt.advproject.link.memory.load.image" value="" valueType="string"/>
+								<option id="com.crt.advproject.link.memory.data.296058697" superClass="com.crt.advproject.link.memory.data" value="" valueType="string"/>
+								<option id="com.crt.advproject.link.memory.sections.459230125" superClass="com.crt.advproject.link.memory.sections" valueType="stringList"/>
 								<inputType id="cdt.managedbuild.tool.gnu.c.linker.input.1952169203" superClass="cdt.managedbuild.tool.gnu.c.linker.input">
 									<additionalInput kind="additionalinputdependency" paths="$(USER_OBJS)"/>
 									<additionalInput kind="additionalinput" paths="$(LIBS)"/>
 								</inputType>
 							</tool>
-						</toolChain>
-					</folderInfo>
-					<folderInfo id="com.crt.advproject.config.exe.debug.1203173668.586387399.181780209" name="/" resourcePath="tinyusb">
-						<toolChain id="com.crt.advproject.toolchain.exe.debug.1275173732" name="NXP MCU Tools" superClass="com.crt.advproject.toolchain.exe.debug" unusedChildren="">
-							<tool id="com.crt.advproject.cpp.exe.debug.193507715" name="MCU C++ Compiler" superClass="com.crt.advproject.cpp.exe.debug.1902983438"/>
-							<tool id="com.crt.advproject.gcc.exe.debug.1649905087" name="MCU C Compiler" superClass="com.crt.advproject.gcc.exe.debug.1115700323"/>
-							<tool id="com.crt.advproject.gas.exe.debug.857784671" name="MCU Assembler" superClass="com.crt.advproject.gas.exe.debug.922965957"/>
-							<tool id="com.crt.advproject.link.cpp.exe.debug.1802949954" name="MCU C++ Linker" superClass="com.crt.advproject.link.cpp.exe.debug.844358431"/>
-							<tool id="com.crt.advproject.link.exe.debug.238323235" name="MCU Linker" superClass="com.crt.advproject.link.exe.debug.1844250132"/>
 						</toolChain>
 					</folderInfo>
 					<sourceEntries>
@@ -114,7 +108,7 @@
 	<storageModule moduleId="com.crt.config">
 		<projectStorage>&lt;?xml version="1.0" encoding="UTF-8"?&gt;
 &lt;TargetConfig&gt;
-&lt;Properties property_0="None" property_2="LPC18x7_43x7_2x512_BootA.cfx" property_3="NXP" property_4="LPC4357" property_count="5" version="70200"/&gt;
+&lt;Properties property_0="None" property_2="LPC18x7_43x7_2x512_BootA.cfx" property_3="NXP" property_4="LPC4357" property_count="5" version="100200"/&gt;
 &lt;infoList vendor="NXP"&gt;&lt;info chip="LPC4357" flash_driver="LPC18x7_43x7_2x512_BootA.cfx" match_id="0x0" name="LPC4357" resetscript="LPC18LPC43InternalFLASHBootResetscript.scp" stub="crt_emu_lpc18_43_nxp"&gt;&lt;chip&gt;&lt;name&gt;LPC4357&lt;/name&gt;
 &lt;family&gt;LPC43xx&lt;/family&gt;
 &lt;vendor&gt;NXP (formerly Philips)&lt;/vendor&gt;

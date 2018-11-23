@@ -49,13 +49,6 @@
  extern "C" {
 #endif
 
-enum
-{
-  DCD_XFER_SUCCESS = 0,
-  DCD_XFER_FAILED,
-  DCD_XFER_STALLED
-};
-
 typedef enum
 {
   DCD_EVENT_BUS_RESET = 1,

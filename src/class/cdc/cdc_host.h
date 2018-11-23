@@ -77,27 +77,27 @@ bool tuh_cdc_is_busy(uint8_t dev_addr, cdc_pipeid_t pipeid)  ATTR_PURE ATTR_WARN
 
 /** \brief 			Perform USB OUT transfer to device
  * \param[in]		dev_addr	device address
- * \param[in]	  p_data    Buffer containing data. Must be accessible by USB controller (see \ref CFG_TUSB_ATTR_USBRAM)
+ * \param[in]	  p_data    Buffer containing data. Must be accessible by USB controller (see \ref CFG_TUSB_MEM_SECTION)
  * \param[in]		length    Number of bytes to be transferred via USB bus
  * \retval      TUSB_ERROR_NONE on success
  * \retval      TUSB_ERROR_INTERFACE_IS_BUSY if the interface is already transferring data with device
  * \retval      TUSB_ERROR_DEVICE_NOT_READY if device is not yet configured (by SET CONFIGURED request)
  * \retval      TUSB_ERROR_INVALID_PARA if input parameters are not correct
  * \note        This function is non-blocking and returns immediately. The result of USB transfer will be reported by the
- *              interface's callback function. \a p_data must be declared with \ref CFG_TUSB_ATTR_USBRAM.
+ *              interface's callback function. \a p_data must be declared with \ref CFG_TUSB_MEM_SECTION.
  */
 tusb_error_t tuh_cdc_send(uint8_t dev_addr, void const * p_data, uint32_t length, bool is_notify);
 
 /** \brief 			Perform USB IN transfer to get data from device
  * \param[in]		dev_addr	device address
- * \param[in]	  p_buffer  Buffer containing received data. Must be accessible by USB controller (see \ref CFG_TUSB_ATTR_USBRAM)
+ * \param[in]	  p_buffer  Buffer containing received data. Must be accessible by USB controller (see \ref CFG_TUSB_MEM_SECTION)
  * \param[in]		length    Number of bytes to be transferred via USB bus
  * \retval      TUSB_ERROR_NONE on success
  * \retval      TUSB_ERROR_INTERFACE_IS_BUSY if the interface is already transferring data with device
  * \retval      TUSB_ERROR_DEVICE_NOT_READY if device is not yet configured (by SET CONFIGURED request)
  * \retval      TUSB_ERROR_INVALID_PARA if input parameters are not correct
  * \note        This function is non-blocking and returns immediately. The result of USB transfer will be reported by the
- *              interface's callback function. \a p_data must be declared with \ref CFG_TUSB_ATTR_USBRAM.
+ *              interface's callback function. \a p_data must be declared with \ref CFG_TUSB_MEM_SECTION.
  */
 tusb_error_t tuh_cdc_receive(uint8_t dev_addr, void * p_buffer, uint32_t length, bool is_notify);
 
@@ -118,16 +118,16 @@ void tuh_cdc_unmounted_cb(uint8_t dev_addr);
 
 /** \brief      Callback function that is invoked when an transferring event occurred
  * \param[in]		dev_addr	Address of device
- * \param[in]   event an value from \ref tusb_event_t
+ * \param[in]   event an value from \ref xfer_result_t
  * \param[in]   pipe_id value from \ref cdc_pipeid_t indicate the pipe
  * \param[in]   xferred_bytes Number of bytes transferred via USB bus
  * \note        event can be one of following
- *              - TUSB_EVENT_XFER_COMPLETE : previously scheduled transfer completes successfully.
- *              - TUSB_EVENT_XFER_ERROR   : previously scheduled transfer encountered a transaction error.
- *              - TUSB_EVENT_XFER_STALLED : previously scheduled transfer is stalled by device.
+ *              - XFER_RESULT_SUCCESS : previously scheduled transfer completes successfully.
+ *              - XFER_RESULT_FAILED   : previously scheduled transfer encountered a transaction error.
+ *              - XFER_RESULT_STALLED : previously scheduled transfer is stalled by device.
  * \note
  */
-void tuh_cdc_xfer_isr(uint8_t dev_addr, tusb_event_t event, cdc_pipeid_t pipe_id, uint32_t xferred_bytes);
+void tuh_cdc_xfer_isr(uint8_t dev_addr, xfer_result_t event, cdc_pipeid_t pipe_id, uint32_t xferred_bytes);
 
 /// @} // group CDC_Serial_Host
 /// @}
@@ -151,7 +151,7 @@ extern cdch_data_t cdch_data[CFG_TUSB_HOST_DEVICE_MAX]; // TODO consider to move
 
 void         cdch_init(void);
 tusb_error_t cdch_open_subtask(uint8_t dev_addr, tusb_desc_interface_t const *p_interface_desc, uint16_t *p_length) ATTR_WARN_UNUSED_RESULT;
-void         cdch_isr(pipe_handle_t pipe_hdl, tusb_event_t event, uint32_t xferred_bytes);
+void         cdch_isr(pipe_handle_t pipe_hdl, xfer_result_t event, uint32_t xferred_bytes);
 void         cdch_close(uint8_t dev_addr);
 
 #endif

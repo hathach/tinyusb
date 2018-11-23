@@ -49,8 +49,8 @@
 static osal_semaphore_t sem_hdl;
 
 enum { SERIAL_BUFFER_SIZE = 64 };
-CFG_TUSB_ATTR_USBRAM static uint8_t serial_in_buffer[SERIAL_BUFFER_SIZE];
-CFG_TUSB_ATTR_USBRAM static uint8_t serial_out_buffer[SERIAL_BUFFER_SIZE];
+CFG_TUSB_MEM_SECTION static uint8_t serial_in_buffer[SERIAL_BUFFER_SIZE];
+CFG_TUSB_MEM_SECTION static uint8_t serial_out_buffer[SERIAL_BUFFER_SIZE];
 
 static uint8_t received_bytes; // set by transfer complete callback
 
@@ -75,7 +75,7 @@ void tuh_cdc_unmounted_cb(uint8_t dev_addr)
 }
 
 // invoked ISR context
-void tuh_cdc_xfer_isr(uint8_t dev_addr, tusb_event_t event, cdc_pipeid_t pipe_id, uint32_t xferred_bytes)
+void tuh_cdc_xfer_isr(uint8_t dev_addr, xfer_result_t event, cdc_pipeid_t pipe_id, uint32_t xferred_bytes)
 {
   (void) dev_addr; // compiler warnings
 
@@ -84,17 +84,17 @@ void tuh_cdc_xfer_isr(uint8_t dev_addr, tusb_event_t event, cdc_pipeid_t pipe_id
     case CDC_PIPE_DATA_IN:
       switch(event)
       {
-        case TUSB_EVENT_XFER_COMPLETE:
+        case XFER_RESULT_SUCCESS:
           received_bytes = xferred_bytes;
           osal_semaphore_post(sem_hdl);  // notify main task
         break;
 
-        case TUSB_EVENT_XFER_ERROR:
+        case XFER_RESULT_FAILED:
           received_bytes = 0; // ignore
           tuh_cdc_receive(dev_addr, serial_in_buffer, SERIAL_BUFFER_SIZE, true); // waiting for next data
         break;
 
-        case TUSB_EVENT_XFER_STALLED:
+        case XFER_RESULT_STALLED:
         default :
         break;
       }

@@ -51,7 +51,7 @@
 //--------------------------------------------------------------------+
 // INTERNAL OBJECT & FUNCTION DECLARATION
 //--------------------------------------------------------------------+
-CFG_TUSB_ATTR_USBRAM hid_keyboard_report_t keyboard_report;
+CFG_TUSB_MEM_SECTION hid_keyboard_report_t keyboard_report;
 
 //--------------------------------------------------------------------+
 // tinyusb callbacks
@@ -66,13 +66,13 @@ void keyboard_app_umount(uint8_t rhport)
 
 }
 
-void tud_hid_keyboard_cb(uint8_t rhport, tusb_event_t event, uint32_t xferred_bytes)
+void tud_hid_keyboard_cb(uint8_t rhport, xfer_result_t event, uint32_t xferred_bytes)
 {
   switch(event)
   {
-    case TUSB_EVENT_XFER_COMPLETE:
-    case TUSB_EVENT_XFER_ERROR:
-    case TUSB_EVENT_XFER_STALLED:
+    case XFER_RESULT_SUCCESS:
+    case XFER_RESULT_FAILED:
+    case XFER_RESULT_STALLED:
     default: break;
   }
 }

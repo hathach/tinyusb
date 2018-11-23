@@ -55,7 +55,7 @@
 
 void tusbh_cdc_mounted_cb(uint8_t dev_addr);
 void tusbh_cdc_unmounted_cb(uint8_t dev_addr);
-void tusbh_cdc_xfer_isr(uint8_t dev_addr, tusb_event_t event, cdc_pipeid_t pipe_id, uint32_t xferred_bytes);
+void tusbh_cdc_xfer_isr(uint8_t dev_addr, xfer_result_t event, cdc_pipeid_t pipe_id, uint32_t xferred_bytes);
 
 void tusbh_cdc_rndis_mounted_cb(uint8_t dev_addr);
 void tusbh_cdc_rndis_unmounted_isr(uint8_t dev_addr);

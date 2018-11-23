@@ -80,7 +80,7 @@ bool          tuh_hid_keyboard_is_busy(uint8_t dev_addr) ATTR_PURE ATTR_WARN_UNU
 
 /** \brief        Perform a get report from Keyboard interface
  * \param[in]		  dev_addr device address
- * \param[in,out] p_report address that is used to store data from device. Must be accessible by usb controller (see \ref CFG_TUSB_ATTR_USBRAM)
+ * \param[in,out] p_report address that is used to store data from device. Must be accessible by usb controller (see \ref CFG_TUSB_MEM_SECTION)
  * \returns       \ref tusb_error_t type to indicate success or error condition.
  * \retval        TUSB_ERROR_NONE on success
  * \retval        TUSB_ERROR_INTERFACE_IS_BUSY if the interface is already transferring data with device
@@ -93,14 +93,14 @@ tusb_error_t  tuh_hid_keyboard_get_report(uint8_t dev_addr, void * p_report) /*A
 //------------- Application Callback -------------//
 /** \brief      Callback function that is invoked when an transferring event occurred
  * \param[in]		dev_addr	Address of device
- * \param[in]   event an value from \ref tusb_event_t
+ * \param[in]   event an value from \ref xfer_result_t
  * \note        event can be one of following
- *              - TUSB_EVENT_XFER_COMPLETE : previously scheduled transfer completes successfully.
- *              - TUSB_EVENT_XFER_ERROR   : previously scheduled transfer encountered a transaction error.
- *              - TUSB_EVENT_XFER_STALLED : previously scheduled transfer is stalled by device.
+ *              - XFER_RESULT_SUCCESS : previously scheduled transfer completes successfully.
+ *              - XFER_RESULT_FAILED   : previously scheduled transfer encountered a transaction error.
+ *              - XFER_RESULT_STALLED : previously scheduled transfer is stalled by device.
  * \note        Application should schedule the next report by calling \ref tuh_hid_keyboard_get_report within this callback
  */
-void tuh_hid_keyboard_isr(uint8_t dev_addr, tusb_event_t event);
+void tuh_hid_keyboard_isr(uint8_t dev_addr, xfer_result_t event);
 
 /** \brief 			Callback function that will be invoked when a device with Keyboard interface is mounted
  * \param[in] 	dev_addr Address of newly mounted device
@@ -145,7 +145,7 @@ bool          tuh_hid_mouse_is_busy(uint8_t dev_addr) ATTR_PURE ATTR_WARN_UNUSED
 
 /** \brief        Perform a get report from Mouse interface
  * \param[in]		  dev_addr device address
- * \param[in,out] p_report address that is used to store data from device. Must be accessible by usb controller (see \ref CFG_TUSB_ATTR_USBRAM)
+ * \param[in,out] p_report address that is used to store data from device. Must be accessible by usb controller (see \ref CFG_TUSB_MEM_SECTION)
  * \returns       \ref tusb_error_t type to indicate success or error condition.
  * \retval        TUSB_ERROR_NONE on success
  * \retval        TUSB_ERROR_INTERFACE_IS_BUSY if the interface is already transferring data with device
@@ -158,14 +158,14 @@ tusb_error_t  tuh_hid_mouse_get_report(uint8_t dev_addr, void* p_report) /*ATTR_
 //------------- Application Callback -------------//
 /** \brief      Callback function that is invoked when an transferring event occurred
  * \param[in]		dev_addr	Address of device
- * \param[in]   event an value from \ref tusb_event_t
+ * \param[in]   event an value from \ref xfer_result_t
  * \note        event can be one of following
- *              - TUSB_EVENT_XFER_COMPLETE : previously scheduled transfer completes successfully.
- *              - TUSB_EVENT_XFER_ERROR   : previously scheduled transfer encountered a transaction error.
- *              - TUSB_EVENT_XFER_STALLED : previously scheduled transfer is stalled by device.
+ *              - XFER_RESULT_SUCCESS : previously scheduled transfer completes successfully.
+ *              - XFER_RESULT_FAILED   : previously scheduled transfer encountered a transaction error.
+ *              - XFER_RESULT_STALLED : previously scheduled transfer is stalled by device.
  * \note        Application should schedule the next report by calling \ref tuh_hid_mouse_get_report within this callback
  */
-void tuh_hid_mouse_isr(uint8_t dev_addr, tusb_event_t event);
+void tuh_hid_mouse_isr(uint8_t dev_addr, xfer_result_t event);
 
 /** \brief 			Callback function that will be invoked when a device with Mouse interface is mounted
  * \param[in]	  dev_addr Address of newly mounted device
@@ -199,7 +199,7 @@ tusb_interface_status_t tuh_hid_generic_get_status(uint8_t dev_addr) ATTR_WARN_U
 tusb_interface_status_t tuh_hid_generic_set_status(uint8_t dev_addr) ATTR_WARN_UNUSED_RESULT;
 
 //------------- Application Callback -------------//
-void tuh_hid_generic_isr(uint8_t dev_addr, tusb_event_t event);
+void tuh_hid_generic_isr(uint8_t dev_addr, xfer_result_t event);
 
 /** @} */ // Generic_Host
 /** @} */ // ClassDriver_HID_Generic
@@ -217,7 +217,7 @@ typedef struct {
 
 void         hidh_init(void);
 tusb_error_t hidh_open_subtask(uint8_t dev_addr, tusb_desc_interface_t const *p_interface_desc, uint16_t *p_length) ATTR_WARN_UNUSED_RESULT;
-void         hidh_isr(pipe_handle_t pipe_hdl, tusb_event_t event, uint32_t xferred_bytes);
+void         hidh_isr(pipe_handle_t pipe_hdl, xfer_result_t event, uint32_t xferred_bytes);
 void         hidh_close(uint8_t dev_addr);
 
 #endif

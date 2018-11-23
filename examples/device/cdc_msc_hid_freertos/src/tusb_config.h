@@ -140,7 +140,7 @@
 //--------------------------------------------------------------------
 // USB RAM PLACEMENT
 //--------------------------------------------------------------------
-#define CFG_TUSB_ATTR_USBRAM
+#define CFG_TUSB_MEM_SECTION
 #define CFG_TUSB_MEM_ALIGN          ATTR_ALIGNED(4)
 
 

@@ -39,7 +39,7 @@
 #include "tusb_option.h"
 #include "descriptor_test.h"
 
-CFG_TUSB_ATTR_USBRAM ATTR_ALIGNED(4)
+CFG_TUSB_MEM_SECTION ATTR_ALIGNED(4)
 const uint8_t keyboard_report_descriptor[] = {
   HID_USAGE_PAGE ( HID_USAGE_PAGE_DESKTOP     ),
   HID_USAGE      ( HID_USAGE_DESKTOP_KEYBOARD ),
@@ -81,7 +81,7 @@ const uint8_t keyboard_report_descriptor[] = {
   HID_COLLECTION_END
 };
 
-CFG_TUSB_ATTR_USBRAM ATTR_ALIGNED(4)
+CFG_TUSB_MEM_SECTION ATTR_ALIGNED(4)
 const uint8_t mouse_report_descriptor[] = {
   HID_USAGE_PAGE ( HID_USAGE_PAGE_DESKTOP     ),
   HID_USAGE      ( HID_USAGE_DESKTOP_MOUSE    ),
@@ -118,7 +118,7 @@ const uint8_t mouse_report_descriptor[] = {
 };
 
 
-CFG_TUSB_ATTR_USBRAM ATTR_ALIGNED(4)
+CFG_TUSB_MEM_SECTION ATTR_ALIGNED(4)
 tusb_desc_device_t const desc_device =
 {
     .bLength            = sizeof(tusb_desc_device_t),
@@ -142,7 +142,7 @@ tusb_desc_device_t const desc_device =
 } ;
 
 
-CFG_TUSB_ATTR_USBRAM ATTR_ALIGNED(4)
+CFG_TUSB_MEM_SECTION ATTR_ALIGNED(4)
 const app_configuration_desc_t desc_configuration =
 {
     .configuration =

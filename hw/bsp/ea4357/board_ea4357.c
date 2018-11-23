@@ -36,7 +36,8 @@
 */
 /**************************************************************************/
 
-#include "../board.h"
+#include "bsp/board.h"
+#include "tusb.h"
 
 #ifdef BOARD_EA4357
 
@@ -119,6 +120,7 @@ void board_init(void)
     GPIO_SetDir(buttons[i].gpio_port, BIT_(buttons[i].gpio_pin), 0);
   }
 
+#if 0
   //------------- UART -------------//
   scu_pinmux(BOARD_UART_PIN_PORT, BOARD_UART_PIN_TX, MD_PDN, FUNC1);
   scu_pinmux(BOARD_UART_PIN_PORT, BOARD_UART_PIN_RX, MD_PLN | MD_EZI | MD_ZI, FUNC1);
@@ -130,6 +132,7 @@ void board_init(void)
 
   UART_Init(BOARD_UART_PORT, &UARTConfigStruct);
   UART_TxCmd(BOARD_UART_PORT, ENABLE); // Enable UART Transmit
+#endif
 
   //------------- NAND Flash (K9FXX) Size = 128M, Page Size = 2K, Block Size = 128K, Number of Block = 1024 -------------//
 //  nand_init();
@@ -167,11 +170,11 @@ uint32_t board_buttons(void)
 //--------------------------------------------------------------------+
 uint8_t  board_uart_getchar(void)
 {
-  return UART_ReceiveByte(BOARD_UART_PORT);
+  //return UART_ReceiveByte(BOARD_UART_PORT);
 }
 void board_uart_putchar(uint8_t c)
 {
-  UART_Send(BOARD_UART_PORT, &c, 1, BLOCKING);
+  //UART_Send(BOARD_UART_PORT, &c, 1, BLOCKING);
 }
 
 #endif

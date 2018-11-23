@@ -101,7 +101,7 @@ extern usbh_device_info_t usbh_devices[CFG_TUSB_HOST_DEVICE_MAX+1]; // including
 //--------------------------------------------------------------------+
 // callback from HCD ISR
 //--------------------------------------------------------------------+
-void usbh_xfer_isr(pipe_handle_t pipe_hdl, uint8_t class_code, tusb_event_t event, uint32_t xferred_bytes);
+void usbh_xfer_isr(pipe_handle_t pipe_hdl, uint8_t class_code, xfer_result_t event, uint32_t xferred_bytes);
 void usbh_hcd_rhport_plugged_isr(uint8_t hostid);
 void usbh_hcd_rhport_unplugged_isr(uint8_t hostid);
 

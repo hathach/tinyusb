@@ -56,12 +56,12 @@
 //--------------------------------------------------------------------+
 // INTERNAL OBJECT & FUNCTION DECLARATION
 //--------------------------------------------------------------------+
-CFG_TUSB_ATTR_USBRAM STATIC_VAR ehci_data_t ehci_data;
+CFG_TUSB_MEM_SECTION STATIC_VAR ehci_data_t ehci_data;
 
 #if EHCI_PERIODIC_LIST
 
   #if (CFG_TUSB_RHPORT0_MODE & OPT_MODE_HOST)
-  CFG_TUSB_ATTR_USBRAM ATTR_ALIGNED(4096) STATIC_VAR ehci_link_t period_frame_list0[EHCI_FRAMELIST_SIZE];
+  CFG_TUSB_MEM_SECTION ATTR_ALIGNED(4096) STATIC_VAR ehci_link_t period_frame_list0[EHCI_FRAMELIST_SIZE];
 
     #ifndef __ICCARM__ // IAR cannot able to determine the alignment with datalignment pragma
     TU_VERIFY_STATIC( ALIGN_OF(period_frame_list0) == 4096, "Period Framelist must be 4k alginment"); // validation
@@ -69,7 +69,7 @@ CFG_TUSB_ATTR_USBRAM STATIC_VAR ehci_data_t ehci_data;
   #endif
 
   #if (CFG_TUSB_RHPORT1_MODE & OPT_MODE_HOST)
-  CFG_TUSB_ATTR_USBRAM ATTR_ALIGNED(4096) STATIC_VAR ehci_link_t period_frame_list1[EHCI_FRAMELIST_SIZE];
+  CFG_TUSB_MEM_SECTION ATTR_ALIGNED(4096) STATIC_VAR ehci_link_t period_frame_list1[EHCI_FRAMELIST_SIZE];
 
     #ifndef __ICCARM__ // IAR cannot able to determine the alignment with datalignment pragma
     TU_VERIFY_STATIC( ALIGN_OF(period_frame_list1) == 4096, "Period Framelist must be 4k alginment"); // validation
@@ -570,7 +570,7 @@ static void qhd_xfer_complete_isr(ehci_qhd_t * p_qhd)
     if (is_ioc) // end of request
     { // call USBH callback
       usbh_xfer_isr( qhd_create_pipe_handle(p_qhd, xfer_type),
-                     p_qhd->class_code, TUSB_EVENT_XFER_COMPLETE,
+                     p_qhd->class_code, XFER_RESULT_SUCCESS,
                      p_qhd->total_xferred_bytes - (xfer_type == TUSB_XFER_CONTROL ? 8 : 0) ); // subtract setup packet size if control,
       p_qhd->total_xferred_bytes = 0;
     }
@@ -638,15 +638,15 @@ static void qhd_xfer_error_isr(ehci_qhd_t * p_qhd)
         qhd_has_xact_error(p_qhd) )
   { // current qhd has error in transaction
     tusb_xfer_type_t const xfer_type = qhd_get_xfer_type(p_qhd);
-    tusb_event_t error_event;
+    xfer_result_t error_event;
 
     // no error bits are set, endpoint is halted due to STALL
-    error_event = qhd_has_xact_error(p_qhd) ? TUSB_EVENT_XFER_ERROR : TUSB_EVENT_XFER_STALLED;
+    error_event = qhd_has_xact_error(p_qhd) ? XFER_RESULT_FAILED : XFER_RESULT_STALLED;
 
     p_qhd->total_xferred_bytes += p_qhd->p_qtd_list_head->expected_bytes - p_qhd->p_qtd_list_head->total_bytes;
 
 
-//    if ( TUSB_EVENT_XFER_ERROR == error_event )    TU_BREAKPOINT(); // TODO skip unplugged device
+//    if ( XFER_RESULT_FAILED == error_event )    TU_BREAKPOINT(); // TODO skip unplugged device
 
     p_qhd->p_qtd_list_head->used = 0; // free QTD
     qtd_remove_1st_from_qhd(p_qhd);

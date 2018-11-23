@@ -51,10 +51,6 @@
  extern "C" {
 #endif
 
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wpacked"
-#pragma GCC diagnostic ignored "-Wattributes"
-
 /*------------------------------------------------------------------*/
 /* CONSTANTS
  *------------------------------------------------------------------*/
@@ -197,11 +193,10 @@ typedef enum
 
 typedef enum
 {
-  TUSB_EVENT_NONE = 0,
-  TUSB_EVENT_XFER_COMPLETE,
-  TUSB_EVENT_XFER_ERROR,
-  TUSB_EVENT_XFER_STALLED,
-}tusb_event_t;
+  XFER_RESULT_SUCCESS,
+  XFER_RESULT_FAILED,
+  XFER_RESULT_STALLED,
+}xfer_result_t;
 
 enum
 {
@@ -427,8 +422,6 @@ static inline uint8_t descriptor_len(uint8_t const p_desc[])
 
 // Convert comma-separated string to descriptor unicode format
 #define TUD_DESC_STRCONV( ... )     (const uint16_t[]) { TUD_DESC_STR_HEADER(VA_ARGS_NUM_(__VA_ARGS__)), __VA_ARGS__ }
-
-#pragma GCC diagnostic pop
 
 #ifdef __cplusplus
  }

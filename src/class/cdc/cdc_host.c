@@ -221,7 +221,7 @@ tusb_error_t cdch_open_subtask(uint8_t dev_addr, tusb_desc_interface_t const *p_
   OSAL_SUBTASK_END
 }
 
-void cdch_isr(pipe_handle_t pipe_hdl, tusb_event_t event, uint32_t xferred_bytes)
+void cdch_isr(pipe_handle_t pipe_hdl, xfer_result_t event, uint32_t xferred_bytes)
 {
   tuh_cdc_xfer_isr( pipe_hdl.dev_addr, event, get_app_pipeid(pipe_hdl), xferred_bytes );
 }

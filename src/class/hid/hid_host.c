@@ -177,7 +177,7 @@ void hidh_init(void)
 }
 
 #if 0
-CFG_TUSB_ATTR_USBRAM uint8_t report_descriptor[256];
+CFG_TUSB_MEM_SECTION uint8_t report_descriptor[256];
 #endif
 
 tusb_error_t hidh_open_subtask(uint8_t dev_addr, tusb_desc_interface_t const *p_interface_desc, uint16_t *p_length)
@@ -251,7 +251,7 @@ tusb_error_t hidh_open_subtask(uint8_t dev_addr, tusb_desc_interface_t const *p_
   OSAL_SUBTASK_END
 }
 
-void hidh_isr(pipe_handle_t pipe_hdl, tusb_event_t event, uint32_t xferred_bytes)
+void hidh_isr(pipe_handle_t pipe_hdl, xfer_result_t event, uint32_t xferred_bytes)
 {
   (void) xferred_bytes; // TODO may need to use this para later
 

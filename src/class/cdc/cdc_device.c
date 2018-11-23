@@ -87,7 +87,7 @@ typedef struct
 //--------------------------------------------------------------------+
 // INTERNAL OBJECT & FUNCTION DECLARATION
 //--------------------------------------------------------------------+
-CFG_TUSB_ATTR_USBRAM static cdcd_interface_t _cdcd_itf[CFG_TUD_CDC];
+CFG_TUSB_MEM_SECTION static cdcd_interface_t _cdcd_itf[CFG_TUD_CDC];
 
 //--------------------------------------------------------------------+
 // APPLICATION API
@@ -358,7 +358,7 @@ bool cdcd_control_request(uint8_t rhport, tusb_control_request_t const * request
   return true;
 }
 
-tusb_error_t cdcd_xfer_cb(uint8_t rhport, uint8_t ep_addr, tusb_event_t event, uint32_t xferred_bytes)
+tusb_error_t cdcd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t event, uint32_t xferred_bytes)
 {
   // TODO Support multiple interfaces
   uint8_t const itf = 0;
