@@ -617,7 +617,7 @@ static void done_queue_isr(uint8_t hostid)
     // TODO check if td_head is iso td
     //------------- Non ISO transfer -------------//
     ohci_gtd_t * const p_qtd = (ohci_gtd_t *) td_head;
-    tusb_event_t const event = (p_qtd->condition_code == OHCI_CCODE_NO_ERROR) ? TUSB_EVENT_XFER_COMPLETE :
+    xfer_result_t const event = (p_qtd->condition_code == OHCI_CCODE_NO_ERROR) ? TUSB_EVENT_XFER_COMPLETE :
                                (p_qtd->condition_code == OHCI_CCODE_STALL) ? TUSB_EVENT_XFER_STALLED : TUSB_EVENT_XFER_ERROR;
 
     p_qtd->used = 0; // free TD

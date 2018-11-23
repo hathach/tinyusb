@@ -171,7 +171,7 @@ void tuh_msc_unmounted_cb(uint8_t dev_addr);
 
 /** \brief      Callback function that is invoked when an transferring event occurred
  * \param[in]		dev_addr	Address of device
- * \param[in]   event an value from \ref tusb_event_t
+ * \param[in]   event an value from \ref xfer_result_t
  * \param[in]   xferred_bytes Number of bytes transferred via USB bus
  * \note        event can be one of following
  *              - TUSB_EVENT_XFER_COMPLETE : previously scheduled transfer completes successfully.
@@ -179,7 +179,7 @@ void tuh_msc_unmounted_cb(uint8_t dev_addr);
  *              - TUSB_EVENT_XFER_STALLED : previously scheduled transfer is stalled by device.
  * \note
  */
-void tuh_msc_isr(uint8_t dev_addr, tusb_event_t event, uint32_t xferred_bytes);
+void tuh_msc_isr(uint8_t dev_addr, xfer_result_t event, uint32_t xferred_bytes);
 
 
 //--------------------------------------------------------------------+
@@ -205,7 +205,7 @@ typedef struct {
 
 void         msch_init(void);
 tusb_error_t msch_open_subtask(uint8_t dev_addr, tusb_desc_interface_t const *p_interface_desc, uint16_t *p_length) ATTR_WARN_UNUSED_RESULT;
-void         msch_isr(pipe_handle_t pipe_hdl, tusb_event_t event, uint32_t xferred_bytes);
+void         msch_isr(pipe_handle_t pipe_hdl, xfer_result_t event, uint32_t xferred_bytes);
 void         msch_close(uint8_t dev_addr);
 #endif
 

@@ -66,7 +66,7 @@ void mouse_app_umount(uint8_t rhport)
 
 }
 
-void tud_hid_mouse_cb(uint8_t rhport, tusb_event_t event, uint32_t xferred_bytes)
+void tud_hid_mouse_cb(uint8_t rhport, xfer_result_t event, uint32_t xferred_bytes)
 {
   switch(event)
   {

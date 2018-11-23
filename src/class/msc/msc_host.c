@@ -397,7 +397,7 @@ tusb_error_t msch_open_subtask(uint8_t dev_addr, tusb_desc_interface_t const *p_
   OSAL_SUBTASK_END
 }
 
-void msch_isr(pipe_handle_t pipe_hdl, tusb_event_t event, uint32_t xferred_bytes)
+void msch_isr(pipe_handle_t pipe_hdl, xfer_result_t event, uint32_t xferred_bytes)
 {
   if ( pipehandle_is_equal(pipe_hdl, msch_data[pipe_hdl.dev_addr-1].bulk_in) )
   {

@@ -197,11 +197,10 @@ typedef enum
 
 typedef enum
 {
-  TUSB_EVENT_NONE = 0,
   TUSB_EVENT_XFER_COMPLETE,
   TUSB_EVENT_XFER_ERROR,
   TUSB_EVENT_XFER_STALLED,
-}tusb_event_t;
+}xfer_result_t;
 
 enum
 {

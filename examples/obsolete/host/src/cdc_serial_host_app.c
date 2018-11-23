@@ -75,7 +75,7 @@ void tuh_cdc_unmounted_cb(uint8_t dev_addr)
 }
 
 // invoked ISR context
-void tuh_cdc_xfer_isr(uint8_t dev_addr, tusb_event_t event, cdc_pipeid_t pipe_id, uint32_t xferred_bytes)
+void tuh_cdc_xfer_isr(uint8_t dev_addr, xfer_result_t event, cdc_pipeid_t pipe_id, uint32_t xferred_bytes)
 {
   (void) dev_addr; // compiler warnings
 

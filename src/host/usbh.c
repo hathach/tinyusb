@@ -256,7 +256,7 @@ static inline uint8_t std_class_code_to_index(uint8_t std_class_code)
 // USBH-HCD ISR/Callback API
 //--------------------------------------------------------------------+
 // interrupt caused by a TD (with IOC=1) in pipe of class class_code
-void usbh_xfer_isr(pipe_handle_t pipe_hdl, uint8_t class_code, tusb_event_t event, uint32_t xferred_bytes)
+void usbh_xfer_isr(pipe_handle_t pipe_hdl, uint8_t class_code, xfer_result_t event, uint32_t xferred_bytes)
 {
   uint8_t class_index = std_class_code_to_index(class_code);
   if (TUSB_XFER_CONTROL == pipe_hdl.xfer_type)

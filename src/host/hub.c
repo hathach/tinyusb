@@ -209,7 +209,7 @@ tusb_error_t hub_open_subtask(uint8_t dev_addr, tusb_desc_interface_t const *p_i
 }
 
 // is the response of interrupt endpoint polling
-void hub_isr(pipe_handle_t pipe_hdl, tusb_event_t event, uint32_t xferred_bytes)
+void hub_isr(pipe_handle_t pipe_hdl, xfer_result_t event, uint32_t xferred_bytes)
 {
   (void) xferred_bytes; // TODO can be more than 1 for hub with lots of ports
 

@@ -129,7 +129,7 @@ void tuh_msc_unmounted_cb(uint8_t dev_addr)
 }
 
 // invoked ISR context
-void tuh_msc_isr(uint8_t dev_addr, tusb_event_t event, uint32_t xferred_bytes)
+void tuh_msc_isr(uint8_t dev_addr, xfer_result_t event, uint32_t xferred_bytes)
 {
   (void) dev_addr;
   (void) event;

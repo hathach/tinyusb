@@ -76,7 +76,7 @@ void tuh_hid_mouse_unmounted_cb(uint8_t dev_addr)
 }
 
 // invoked ISR context
-void tuh_hid_mouse_isr(uint8_t dev_addr, tusb_event_t event)
+void tuh_hid_mouse_isr(uint8_t dev_addr, xfer_result_t event)
 {
   switch(event)
   {

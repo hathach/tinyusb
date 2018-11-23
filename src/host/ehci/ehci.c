@@ -638,7 +638,7 @@ static void qhd_xfer_error_isr(ehci_qhd_t * p_qhd)
         qhd_has_xact_error(p_qhd) )
   { // current qhd has error in transaction
     tusb_xfer_type_t const xfer_type = qhd_get_xfer_type(p_qhd);
-    tusb_event_t error_event;
+    xfer_result_t error_event;
 
     // no error bits are set, endpoint is halted due to STALL
     error_event = qhd_has_xact_error(p_qhd) ? TUSB_EVENT_XFER_ERROR : TUSB_EVENT_XFER_STALLED;

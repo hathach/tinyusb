@@ -324,7 +324,7 @@ int32_t proc_builtin_scsi(msc_cbw_t const * p_cbw, uint8_t* buffer, uint32_t buf
   return ret;
 }
 
-tusb_error_t mscd_xfer_cb(uint8_t rhport, uint8_t ep_addr, tusb_event_t event, uint32_t xferred_bytes)
+tusb_error_t mscd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t event, uint32_t xferred_bytes)
 {
   mscd_interface_t* p_msc = &_mscd_itf;
   msc_cbw_t const * p_cbw = &p_msc->cbw;
@@ -337,7 +337,7 @@ tusb_error_t mscd_xfer_cb(uint8_t rhport, uint8_t ep_addr, tusb_event_t event, u
       // Complete IN while waiting for CMD is usually Status of previous SCSI op, ignore it
       if(ep_addr != p_msc->ep_out) return TUSB_ERROR_NONE;
 
-      TU_ASSERT( event == DCD_XFER_SUCCESS  &&
+      TU_ASSERT( ((uint8_t) event) == DCD_XFER_SUCCESS &&
                  xferred_bytes == sizeof(msc_cbw_t) && p_cbw->signature == MSC_CBW_SIGNATURE, TUSB_ERROR_INVALID_PARA );
 
       p_csw->signature    = MSC_CSW_SIGNATURE;

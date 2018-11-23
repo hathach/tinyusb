@@ -59,11 +59,11 @@
 #include "common/common.h"
 
 //------------- hidh -------------//
-void tusbh_hid_keyboard_isr(uint8_t dev_addr, tusb_event_t event);
+void tusbh_hid_keyboard_isr(uint8_t dev_addr, xfer_result_t event);
 void tusbh_hid_keyboard_mounted_cb(uint8_t dev_addr);
 void tusbh_hid_keyboard_unmounted_cb(uint8_t dev_addr);
 
-void tusbh_hid_mouse_isr(uint8_t dev_addr, tusb_event_t event);
+void tusbh_hid_mouse_isr(uint8_t dev_addr, xfer_result_t event);
 void tusbh_hid_mouse_mounted_cb(uint8_t dev_addr);
 void tusbh_hid_mouse_unmounted_cb(uint8_t dev_addr);
 

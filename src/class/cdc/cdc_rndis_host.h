@@ -65,7 +65,7 @@ typedef struct {
 
 void rndish_init(void);
 tusb_error_t rndish_open_subtask(uint8_t dev_addr, cdch_data_t *p_cdc) ATTR_WARN_UNUSED_RESULT;
-void rndish_xfer_isr(cdch_data_t *p_cdc, pipe_handle_t pipe_hdl, tusb_event_t event, uint32_t xferred_bytes);
+void rndish_xfer_isr(cdch_data_t *p_cdc, pipe_handle_t pipe_hdl, xfer_result_t event, uint32_t xferred_bytes);
 void rndish_close(uint8_t dev_addr);
 
 #endif

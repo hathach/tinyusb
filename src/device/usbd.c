@@ -92,7 +92,7 @@ typedef struct {
   tusb_error_t (* open           ) (uint8_t rhport, tusb_desc_interface_t const * desc_intf, uint16_t* p_length);
   bool         (* control_request ) (uint8_t rhport, tusb_control_request_t const * request);
   bool (* control_request_complete ) (uint8_t rhport, tusb_control_request_t const * request);
-  tusb_error_t (* xfer_cb        ) (uint8_t rhport, uint8_t ep_addr, tusb_event_t, uint32_t);
+  tusb_error_t (* xfer_cb        ) (uint8_t rhport, uint8_t ep_addr, xfer_result_t, uint32_t);
   void         (* sof            ) (uint8_t rhport);
   void         (* reset          ) (uint8_t);
 } usbd_class_driver_t;
@@ -174,7 +174,7 @@ static bool process_set_config(uint8_t rhport, uint8_t config_number);
 static void const* get_descriptor(tusb_control_request_t const * p_request, uint16_t* desc_len);
 
 void usbd_control_reset (uint8_t rhport);
-bool usbd_control_xfer_cb (uint8_t rhport, uint8_t ep_addr, tusb_event_t event, uint32_t xferred_bytes);
+bool usbd_control_xfer_cb (uint8_t rhport, uint8_t ep_addr, xfer_result_t event, uint32_t xferred_bytes);
 void usbd_control_set_complete_callback( bool (*fp) (uint8_t, tusb_control_request_t const * ) );
 
 //--------------------------------------------------------------------+
