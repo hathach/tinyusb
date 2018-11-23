@@ -50,10 +50,6 @@
  extern "C" {
 #endif
 
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wpacked"
-#pragma GCC diagnostic ignored "-Wattributes"
-
 /** \defgroup ClassDriver_CDC_Common Common Definitions
  *  @{ */
 
@@ -405,8 +401,6 @@ typedef struct ATTR_PACKED
 } cdc_line_control_state_t;
 
 TU_VERIFY_STATIC(sizeof(cdc_line_control_state_t) == 2, "size is not correct");
-
-#pragma GCC diagnostic pop
 
 /** @} */
 

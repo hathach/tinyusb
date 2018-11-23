@@ -49,10 +49,6 @@
  extern "C" {
 #endif
 
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wpacked"
-#pragma GCC diagnostic ignored "-Wattributes"
-
 //--------------------------------------------------------------------+
 // Common Definitions
 //--------------------------------------------------------------------+
@@ -612,8 +608,6 @@ enum
   // Mouse Horizontal scroll
   HID_USAGE_CONSUMER_AC_PAN                            = 0x0238,
 };
-
-#pragma GCC diagnostic pop
 
 #ifdef __cplusplus
  }
