@@ -71,10 +71,19 @@ static void bus_reset(void) {
  *------------------------------------------------------------------*/
 bool dcd_init (uint8_t rhport)
 {
+  // Reset to get in a clean state.
+  USB->DEVICE.CTRLA.bit.SWRST = true;
+  while (USB->DEVICE.SYNCBUSY.bit.SWRST == 0) {
+
+  }
+  while (USB->DEVICE.SYNCBUSY.bit.SWRST == 1) {}
+
   (void) rhport;
   USB->DEVICE.DESCADD.reg = (uint32_t) &sram_registers;
   USB->DEVICE.CTRLB.reg = USB_DEVICE_CTRLB_SPDCONF_FS;
-  USB->DEVICE.CTRLA.reg = USB_CTRLA_MODE_DEVICE | USB_CTRLA_ENABLE;
+  USB->DEVICE.CTRLA.reg = USB_CTRLA_MODE_DEVICE | USB_CTRLA_ENABLE | USB_CTRLA_RUNSTDBY;
+  while (USB->DEVICE.SYNCBUSY.bit.ENABLE == 1) {}
+
   USB->DEVICE.INTENSET.reg = USB_DEVICE_INTENSET_SOF | USB_DEVICE_INTENSET_EORST;
 
   return true;
@@ -154,6 +163,12 @@ bool dcd_edpt_xfer (uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t 
 
   UsbDeviceDescBank* bank = &sram_registers[epnum][dir];
   UsbDeviceEndpoint* ep = &USB->DEVICE.DeviceEndpoint[epnum];
+
+  // A setup token can occur immediately after an OUT STATUS packet so make sure we have a valid
+  // buffer for the control endpoint.
+  if (epnum == 0 && dir == 0 && buffer == NULL) {
+      buffer = _setup_packet;
+  }
 
   bank->ADDR.reg = (uint32_t) buffer;
   if ( dir == TUSB_DIR_OUT )
