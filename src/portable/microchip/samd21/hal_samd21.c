@@ -50,6 +50,11 @@
  *------------------------------------------------------------------*/
 bool tusb_hal_init(void)
 {
+  // Reset to get in a clean state.
+  USB->DEVICE.CTRLA.bit.SWRST = true;
+  while (USB->DEVICE.SYNCBUSY.bit.SWRST == 0) {}
+  while (USB->DEVICE.SYNCBUSY.bit.SWRST == 1) {}
+
   USB->DEVICE.PADCAL.bit.TRANSP = (*((uint32_t*) USB_FUSES_TRANSP_ADDR) & USB_FUSES_TRANSP_Msk) >> USB_FUSES_TRANSP_Pos;
   USB->DEVICE.PADCAL.bit.TRANSN = (*((uint32_t*) USB_FUSES_TRANSN_ADDR) & USB_FUSES_TRANSN_Msk) >> USB_FUSES_TRANSN_Pos;
   USB->DEVICE.PADCAL.bit.TRIM = (*((uint32_t*) USB_FUSES_TRIM_ADDR) & USB_FUSES_TRIM_Msk) >> USB_FUSES_TRIM_Pos;
