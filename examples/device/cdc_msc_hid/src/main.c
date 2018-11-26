@@ -187,6 +187,7 @@ void tud_umount_cb(void)
 
 void tud_cdc_rx_cb(uint8_t itf)
 {
+  (void) itf;
 }
 
 //--------------------------------------------------------------------+

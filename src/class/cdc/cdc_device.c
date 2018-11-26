@@ -302,6 +302,8 @@ tusb_error_t cdcd_open(uint8_t rhport, tusb_desc_interface_t const * p_interface
 // return false to stall control endpoint (e.g Host send non-sense DATA)
 bool cdcd_control_request_complete(uint8_t rhport, tusb_control_request_t const * request)
 {
+  (void) rhport;
+
   //------------- Class Specific Request -------------//
   TU_VERIFY (request->bmRequestType_bit.type == TUSB_REQ_TYPE_CLASS);
 
@@ -358,8 +360,10 @@ bool cdcd_control_request(uint8_t rhport, tusb_control_request_t const * request
   return true;
 }
 
-tusb_error_t cdcd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t event, uint32_t xferred_bytes)
+tusb_error_t cdcd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint32_t xferred_bytes)
 {
+  (void) result;
+
   // TODO Support multiple interfaces
   uint8_t const itf = 0;
   cdcd_interface_t* p_cdc = &_cdcd_itf[itf];
@@ -367,16 +371,14 @@ tusb_error_t cdcd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t event, 
   // receive new data
   if ( ep_addr == p_cdc->ep_out )
   {
-    char const wanted = p_cdc->wanted_char;
-
     for(uint32_t i=0; i<xferred_bytes; i++)
     {
       tu_fifo_write(&p_cdc->rx_ff, &p_cdc->epout_buf[i]);
 
       // Check for wanted char and invoke callback if needed
-      if ( tud_cdc_rx_wanted_cb && ( wanted != -1 ) && ( wanted == p_cdc->epout_buf[i] ) )
+      if ( tud_cdc_rx_wanted_cb && ( ((signed char) p_cdc->wanted_char) != -1 ) && ( p_cdc->wanted_char == p_cdc->epout_buf[i] ) )
       {
-        tud_cdc_rx_wanted_cb(itf, wanted);
+        tud_cdc_rx_wanted_cb(itf, p_cdc->wanted_char);
       }
     }
 

@@ -57,9 +57,7 @@
                   <file file_name="../../../../../hw/mcu/microchip/samd/asf4/samd21/gcc/system_samd21.c" />
                 </folder>
                 <folder Name="hpl">
-                  <folder Name="core">
-                    <file file_name="../../../../../hw/mcu/microchip/samd/asf4/samd21/hpl/core/hpl_init.c" />
-                  </folder>
+                  <folder Name="core" />
                   <folder Name="gclk">
                     <file file_name="../../../../../hw/mcu/microchip/samd/asf4/samd21/hpl/gclk/hpl_gclk.c" />
                   </folder>

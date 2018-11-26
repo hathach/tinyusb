@@ -248,7 +248,6 @@ uint8_t  board_uart_getchar(void)
 
 void board_uart_putchar(uint8_t c)
 {
-
 }
 
 #endif
