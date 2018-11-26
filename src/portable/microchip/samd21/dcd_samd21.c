@@ -71,13 +71,6 @@ static void bus_reset(void) {
  *------------------------------------------------------------------*/
 bool dcd_init (uint8_t rhport)
 {
-  // Reset to get in a clean state.
-  USB->DEVICE.CTRLA.bit.SWRST = true;
-  while (USB->DEVICE.SYNCBUSY.bit.SWRST == 0) {
-
-  }
-  while (USB->DEVICE.SYNCBUSY.bit.SWRST == 1) {}
-
   (void) rhport;
   USB->DEVICE.DESCADD.reg = (uint32_t) &sram_registers;
   USB->DEVICE.CTRLB.reg = USB_DEVICE_CTRLB_SPDCONF_FS;

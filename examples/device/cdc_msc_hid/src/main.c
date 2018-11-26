@@ -49,6 +49,9 @@
 void print_greeting(void);
 void led_blinking_task(void);
 
+extern void virtual_com_task(void);
+extern void usb_hid_task(void);
+
 /*------------- MAIN -------------*/
 int main(void)
 {
@@ -64,12 +67,10 @@ int main(void)
     led_blinking_task();
 
 #if CFG_TUD_CDC
-    extern void virtual_com_task(void);
     virtual_com_task();
 #endif
 
 #if CFG_TUD_HID
-    extern void usb_hid_task(void);
     usb_hid_task();
 #endif
   }

@@ -39,6 +39,7 @@
 #ifndef _TUSB_CONFIG_H_
 #define _TUSB_CONFIG_H_
 
+#include "tusb_option.h"
 #include "bsp/board.h"
 
 #ifdef __cplusplus
@@ -96,6 +97,7 @@
 //------------- CLASS -------------//
 #define CFG_TUD_CDC                 1
 #define CFG_TUD_MSC                 1
+#define CFG_TUD_CUSTOM_CLASS        0
 
 #define CFG_TUD_HID                 0
 #define CFG_TUD_HID_KEYBOARD        0

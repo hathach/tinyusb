@@ -47,6 +47,8 @@
 #include "hpl_pm_config.h"
 #include "hpl/pm/hpl_pm_base.h"
 
+#include "tusb_option.h"
+
 //--------------------------------------------------------------------+
 // MACRO TYPEDEF CONSTANT ENUM DECLARATION
 //--------------------------------------------------------------------+
@@ -77,7 +79,7 @@ void board_init(void)
 
 #if CFG_TUSB_OS  == OPT_OS_NONE
   // Tick init, samd SystemCoreClock may not correct
-  SysTick_Config(SystemCoreClock/1000);
+  SysTick_Config(CONF_CPU_FREQUENCY/1000);
 #endif
 
   /* USB Clock init
@@ -97,6 +99,15 @@ void board_init(void)
 
   gpio_set_pin_function(PIN_PA24, PINMUX_PA24G_USB_DM);
   gpio_set_pin_function(PIN_PA25, PINMUX_PA25G_USB_DP);
+
+  // Output 500hz PWM on D12 (PA19 - TCC0 WO[3]) so we can validate the GCLK0 clock speed with a Saleae.
+  _pm_enable_bus_clock(PM_BUS_APBC, TCC0);
+  TCC0->PER.bit.PER = 48000000 / 1000;
+  TCC0->CC[3].bit.CC = 48000000 / 2000;
+  TCC0->CTRLA.bit.ENABLE = true;
+
+  gpio_set_pin_function(PIN_PA19, PINMUX_PA19F_TCC0_WO3);
+  _gclk_enable_channel(TCC0_GCLK_ID, GCLK_CLKCTRL_GEN_GCLK0_Val);
 }
 
 void board_led_control(uint32_t led_id, bool state)

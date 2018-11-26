@@ -44,6 +44,8 @@
 #include "hpl/gclk/hpl_gclk_base.h"
 #include "hpl_mclk_config.h"
 
+#include "tusb_option.h"
+
 //--------------------------------------------------------------------+
 // MACRO TYPEDEF CONSTANT ENUM DECLARATION
 //--------------------------------------------------------------------+
