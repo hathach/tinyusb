@@ -288,7 +288,7 @@ bool dcd_edpt_busy(uint8_t rhport, uint8_t ep_addr)
 //  return !p_qhd->qtd_overlay.halted && p_qhd->qtd_overlay.active;
 }
 
-bool  dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t total_bytes)
+bool dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t total_bytes)
 {
   uint8_t const epnum = edpt_number(ep_addr);
   uint8_t const dir   = edpt_dir(ep_addr);
@@ -301,9 +301,8 @@ bool  dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t 
     while(LPC_USB[rhport]->ENDPTSETUPSTAT & BIT_(0)) {}
   }
 
-  dcd_data_t* p_dcd = dcd_data_ptr[rhport];
-  dcd_qhd_t * p_qhd = &p_dcd->qhd[ep_idx];
-  dcd_qtd_t * p_qtd = &p_dcd->qtd[ep_idx];
+  dcd_qhd_t * p_qhd = &dcd_data_ptr[rhport]->qhd[ep_idx];
+  dcd_qtd_t * p_qtd = &dcd_data_ptr[rhport]->qtd[ep_idx];
 
   //------------- Prepare qtd -------------//
   qtd_init(p_qtd, buffer, total_bytes);

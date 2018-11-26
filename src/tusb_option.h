@@ -83,13 +83,16 @@
 
 //--------------------------------------------------------------------
 // CONTROLLER
+// Only 1 roothub port can be configured to be device and/or host.
+// tinyusb does not support dual devices or dual host configuration
 //--------------------------------------------------------------------
 /** \defgroup group_mode Controller Mode Selection
  * \brief CFG_TUSB_CONTROLLER_N_MODE must be defined with these
  *  @{ */
-#define OPT_MODE_HOST    0x02 ///< Host Mode
-#define OPT_MODE_DEVICE  0x01 ///< Device Mode
-#define OPT_MODE_NONE    0x00 ///< Disabled
+#define OPT_MODE_NONE         0x00 ///< Disabled
+#define OPT_MODE_DEVICE       0x01 ///< Device Mode
+#define OPT_MODE_HOST         0x02 ///< Host Mode
+#define OPT_MODE_HIGH_SPEED   0x10 ///< Highspeed
 /** @} */
 
 #ifndef CFG_TUSB_RHPORT0_MODE
@@ -100,21 +103,28 @@
   #define CFG_TUSB_RHPORT1_MODE OPT_MODE_NONE
 #endif
 
+#if ((CFG_TUSB_RHPORT0_MODE & OPT_MODE_HOST) && (CFG_TUSB_RHPORT1_MODE & OPT_MODE_HOST)) || \
+    ((CFG_TUSB_RHPORT0_MODE & OPT_MODE_DEVICE) && (CFG_TUSB_RHPORT1_MODE & OPT_MODE_DEVICE))
+  #error "tinyusb does not support same modes on more than 1 roothub port"
+#endif
+
+// TODO remove
 #define CONTROLLER_HOST_NUMBER (\
     ((CFG_TUSB_RHPORT0_MODE & OPT_MODE_HOST) ? 1 : 0) + \
     ((CFG_TUSB_RHPORT1_MODE & OPT_MODE_HOST) ? 1 : 0))
 
 #define MODE_HOST_SUPPORTED     (CONTROLLER_HOST_NUMBER > 0)
 
+// Which roothub port is configured as host
 #define TUH_OPT_RHPORT          ( (CFG_TUSB_RHPORT0_MODE & OPT_MODE_HOST) ? 0 : ((CFG_TUSB_RHPORT1_MODE & OPT_MODE_HOST) ? 1 : -1) )
 #define TUSB_OPT_HOST_ENABLED   ( TUH_OPT_RHPORT >= 0 )
 
+// Which roothub port is configured as device
 #define TUD_OPT_RHPORT          ( (CFG_TUSB_RHPORT0_MODE & OPT_MODE_DEVICE) ? 0 : ((CFG_TUSB_RHPORT1_MODE & OPT_MODE_DEVICE) ? 1 : -1) )
+#define TUD_OPT_HIGH_SPEED      ( (CFG_TUSB_RHPORT0_MODE & (OPT_MODE_DEVICE | OPT_MODE_HIGH_SPEED)) || (CFG_TUSB_RHPORT1_MODE & (OPT_MODE_DEVICE | OPT_MODE_HIGH_SPEED)) )
+
 #define TUSB_OPT_DEVICE_ENABLED ( TUD_OPT_RHPORT >= 0 )
 
-#if ((CFG_TUSB_RHPORT0_MODE & OPT_MODE_HOST) && (CFG_TUSB_RHPORT1_MODE & OPT_MODE_HOST)) || ((CFG_TUSB_RHPORT0_MODE & OPT_MODE_DEVICE) && (CFG_TUSB_RHPORT1_MODE & OPT_MODE_DEVICE))
-  #error "tinyusb does not support same modes on more than 1 roothub port"
-#endif
 
 //--------------------------------------------------------------------+
 // COMMON OPTIONS

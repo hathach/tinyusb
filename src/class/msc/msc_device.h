@@ -73,7 +73,11 @@ TU_VERIFY_STATIC(CFG_TUD_MSC_BUFSIZE < UINT16_MAX, "Size is not correct");
 
 // TODO highspeed device is 512
 #ifndef CFG_TUD_MSC_EPSIZE
+#if TUD_OPT_HIGH_SPEED
+#define CFG_TUD_MSC_EPSIZE 512
+#else
 #define CFG_TUD_MSC_EPSIZE 64
+#endif
 #endif
 
 

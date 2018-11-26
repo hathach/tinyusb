@@ -55,7 +55,12 @@
   #error CFG_TUSB_MCU should be defined using compiler flags
 #endif
 
+#if CFG_TUSB_MCU == OPT_MCU_LPC43XX || CFG_TUSB_MCU == OPT_MCU_LPC18XX
+#define CFG_TUSB_RHPORT0_MODE       (OPT_MODE_DEVICE | OPT_MODE_HIGH_SPEED)
+#else
 #define CFG_TUSB_RHPORT0_MODE       OPT_MODE_DEVICE
+#endif
+
 #define CFG_TUSB_DEBUG              2
 #define CFG_TUSB_OS                 OPT_OS_NONE
 
@@ -121,7 +126,6 @@
 //--------------------------------------------------------------------
 // MSC
 //--------------------------------------------------------------------
-
 // Number of supported Logical Unit Number (At least 1)
 #define CFG_TUD_MSC_MAXLUN          1
 
