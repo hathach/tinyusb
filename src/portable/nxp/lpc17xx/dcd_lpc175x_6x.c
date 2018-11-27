@@ -93,12 +93,12 @@ typedef struct
 
   struct
   {
-    uint8_t* p_data;
-    uint16_t remaining_bytes;
-    bool     out_received; //
+    uint8_t* out_buffer;
+    uint8_t  out_bytes;
+    volatile bool out_received; // indicate if data is already received in endpoint
 
-    uint8_t in_bytes;
-  } control_dma;
+    uint8_t  in_bytes;
+  } control;
 
 } dcd_data_t;
 
@@ -139,11 +139,6 @@ static uint32_t sie_read (uint8_t cmd_code, uint8_t data_len)
 }
 
 //--------------------------------------------------------------------+
-// INTERNAL OBJECT & FUNCTION DECLARATION
-//--------------------------------------------------------------------+
-static void bus_reset(void);
-
-//--------------------------------------------------------------------+
 // PIPE HELPER
 //--------------------------------------------------------------------+
 static inline uint8_t edpt_addr2phy(uint8_t ep_addr)
@@ -164,7 +159,7 @@ static inline void edpt_set_max_packet_size(uint8_t ep_id, uint16_t max_packet_s
 
 
 //--------------------------------------------------------------------+
-// USBD-DCD API
+// CONTROLLER API
 //--------------------------------------------------------------------+
 static void bus_reset(void)
 {
@@ -206,9 +201,6 @@ bool dcd_init(uint8_t rhport)
   return TUSB_ERROR_NONE;
 }
 
-//--------------------------------------------------------------------+
-// USBD API - CONTROLLER
-//--------------------------------------------------------------------+
 void dcd_connect(uint8_t rhport)
 {
   (void) rhport;
@@ -229,64 +221,46 @@ void dcd_set_config(uint8_t rhport, uint8_t config_num)
 }
 
 //--------------------------------------------------------------------+
-// PIPE CONTROL HELPER
+// CONTROL HELPER
 //--------------------------------------------------------------------+
-static inline uint16_t length_byte2dword(uint16_t length_in_bytes) ATTR_ALWAYS_INLINE ATTR_CONST;
-static inline uint16_t length_byte2dword(uint16_t length_in_bytes)
+static inline uint8_t byte2dword(uint8_t bytes)
 {
-  return (length_in_bytes + 3) / 4; // length_in_dword
+  // length in dwords
+  return (bytes + 3) / 4;
 }
 
-//static tusb_error_t pipe_control_xfer(uint8_t ep_id, uint8_t* p_buffer, uint16_t length)
-//{
-//  uint16_t const packet_len = tu_min16(length, CFG_TUD_ENDOINT0_SIZE);
-//
-//  if (ep_id)
-//  {
-//    TU_ASSERT_ERR ( pipe_control_write(p_buffer, packet_len) );
-//  }else
-//  {
-//    TU_ASSERT_ERR ( pipe_control_read(p_buffer, packet_len) );
-//  }
-//
-//  dcd_data.control_dma.remaining_bytes -= packet_len;
-//  dcd_data.control_dma.p_data          += packet_len;
-//
-//  return TUSB_ERROR_NONE;
-//}
-
-static void pipe_control_write(void const * buffer, uint16_t length)
+static void control_ep_write(void const * buffer, uint8_t len)
 {
-  uint32_t const * p_write_data = (uint32_t const *) buffer;
+  uint32_t const * buf32 = (uint32_t const *) buffer;
 
   LPC_USB->USBCtrl   = USBCTRL_WRITE_ENABLE_MASK; // logical endpoint = 0
-	LPC_USB->USBTxPLen = length;
+	LPC_USB->USBTxPLen = (uint32_t) len;
 
-	for (uint16_t count = 0; count < length_byte2dword(length); count++)
+	for (uint8_t count = 0; count < byte2dword(len); count++)
 	{
-		LPC_USB->USBTxData = *p_write_data; // NOTE: cortex M3 have no problem with alignment
-		p_write_data++;
+		LPC_USB->USBTxData = *buf32; // NOTE: cortex M3 have no problem with alignment
+		buf32++;
 	}
 
-	LPC_USB->USBCtrl   = 0;
+	LPC_USB->USBCtrl = 0;
 
 	// select control IN & validate the endpoint
 	sie_write(SIE_CMDCODE_ENDPOINT_SELECT+1, 0, 0);
 	sie_write(SIE_CMDCODE_BUFFER_VALIDATE  , 0, 0);
 }
 
-static uint8_t pipe_control_read(void * buffer, uint16_t length)
+static uint8_t control_ep_read(void * buffer, uint8_t len)
 {
   LPC_USB->USBCtrl = USBCTRL_READ_ENABLE_MASK; // logical endpoint = 0
   while ((LPC_USB->USBRxPLen & USBRXPLEN_PACKET_READY_MASK) == 0) {} // TODO blocking, should have timeout
 
-  uint16_t actual_length = tu_min16(length, (uint16_t) (LPC_USB->USBRxPLen & USBRXPLEN_PACKET_LENGTH_MASK) );
-  uint32_t *p_read_data = (uint32_t*) buffer;
+  len = tu_min8(len, (uint8_t) (LPC_USB->USBRxPLen & USBRXPLEN_PACKET_LENGTH_MASK) );
+  uint32_t *buf32 = (uint32_t*) buffer;
 
-  for( uint16_t count=0; count < length_byte2dword(actual_length); count++)
+  for (uint8_t count=0; count < byte2dword(len); count++)
   {
-    *p_read_data = LPC_USB->USBRxData;
-    p_read_data++; // increase by 4 ( sizeof(uint32_t) )
+    *buf32 = LPC_USB->USBRxData;
+    buf32++;
   }
 
   LPC_USB->USBCtrl = 0;
@@ -295,7 +269,7 @@ static uint8_t pipe_control_read(void * buffer, uint16_t length)
   sie_write(SIE_CMDCODE_ENDPOINT_SELECT+0, 0, 0);
   sie_write(SIE_CMDCODE_BUFFER_CLEAR     , 0, 0);
 
-  return actual_length;
+  return len;
 }
 
 //--------------------------------------------------------------------+
@@ -341,10 +315,9 @@ void dcd_edpt_stall(uint8_t rhport, uint8_t ep_addr)
 {
   (void) rhport;
 
-  if ( ep_addr == 0)
+  if ( edpt_number(ep_addr) == 0 )
   {
     sie_write(SIE_CMDCODE_ENDPOINT_SET_STATUS+0, 1, SIE_SET_ENDPOINT_STALLED_MASK | SIE_SET_ENDPOINT_CONDITION_STALLED_MASK);
-//    sie_write(SIE_CMDCODE_ENDPOINT_SET_STATUS+0, 1, SIE_SET_ENDPOINT_STALLED_MASK | SIE_SET_ENDPOINT_CONDITION_STALLED_MASK);
   }else
   {
     uint8_t ep_id = edpt_addr2phy( ep_addr );
@@ -387,40 +360,44 @@ void dd_xfer_init(dcd_dma_descriptor_t* p_dd, void* buffer, uint16_t total_bytes
 //  return TUSB_ERROR_NONE;
 //}
 
-bool dcd_control_xfer(uint8_t rhport, uint8_t dir, uint8_t * buffer, uint16_t len)
+static bool control_xact(uint8_t rhport, uint8_t dir, uint8_t * buffer, uint8_t len)
 {
   (void) rhport;
 
-  uint8_t const ep_idx   = (dir == TUSB_DIR_IN) ? 1 : 0;
-
   if ( dir )
   {
-    dcd_data.control_dma.in_bytes = len;
-    pipe_control_write(buffer, len);
+    dcd_data.control.in_bytes = len;
+    control_ep_write(buffer, len);
   }else
   {
-    dcd_data.control_dma.p_data          = buffer;
-    dcd_data.control_dma.remaining_bytes = len;
+    if ( dcd_data.control.out_received )
+    {
+      // Already received the DATA OUT packet
+      dcd_data.control.out_received = false;
+      dcd_data.control.out_buffer = NULL;
+      dcd_data.control.out_bytes  = 0;
 
-    // lpc17xx already received the first DATA OUT packet by now
-    pipe_control_read(buffer, len);
-
-    dcd_event_xfer_complete(0, 0, len, XFER_RESULT_SUCCESS, true);
+      uint8_t received = control_ep_read(buffer, len);
+      dcd_event_xfer_complete(0, 0, received, XFER_RESULT_SUCCESS, true);
+    }else
+    {
+      dcd_data.control.out_buffer = buffer;
+      dcd_data.control.out_bytes  = len;
+    }
   }
 
   return true;
 }
 
-
 bool dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t* buffer, uint16_t total_bytes)
 {
-  uint8_t const epnum  = edpt_number(ep_addr);
-  uint8_t const dir    = edpt_dir(ep_addr);
+  uint8_t const epnum = edpt_number(ep_addr);
+  uint8_t const dir   = edpt_dir(ep_addr);
 
   // Control transfer is not DMA support, and must be done in slave mode
   if ( epnum == 0 )
   {
-    return dcd_control_xfer(rhport, dir, buffer, total_bytes);
+    return control_xact(rhport, dir, buffer, (uint8_t) total_bytes);
   }
 
   uint8_t ep_id = edpt_addr2phy(ep_addr);
@@ -435,12 +412,12 @@ bool dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t* buffer, uint16_t to
 
     dd_xfer_init(p_dd, buffer, total_bytes);
 
-    p_dd->max_packet_size     = p_first_dd->max_packet_size;
+    p_dd->max_packet_size  = p_first_dd->max_packet_size;
     p_dd->isochronous      = p_first_dd->isochronous;
-    p_dd->int_on_complete     = true;
+    p_dd->int_on_complete  = true;
 
     // hook to fixed dd
-    p_first_dd->next          = (uint32_t) p_dd;
+    p_first_dd->next       = (uint32_t) p_dd;
     p_first_dd->next_valid = 1;
   }
   //------------- fixed DD is free -------------//
@@ -509,22 +486,35 @@ static void endpoint_control_isr(void)
     (void) sie_read(SIE_CMDCODE_ENDPOINT_SELECT_CLEAR_INTERRUPT+0, 1); // clear setup bit
 
     uint8_t setup_packet[8];
-    pipe_control_read(setup_packet, 8); // TODO read before clear setup above
+    control_ep_read(setup_packet, 8); // TODO read before clear setup above
 
     dcd_event_setup_received(0, setup_packet, true);
   }
   else if (endpoint_int_status & 0x03)
   {
-    uint8_t const ep_id = ( endpoint_int_status & BIT_(0) ) ? 0 : 1;
+    // Control out complete
+    if ( endpoint_int_status & BIT_(0) )
+    {
+      if ( dcd_data.control.out_buffer )
+      {
+        // software queued transfer previously
+        uint8_t received = control_ep_read(dcd_data.control.out_buffer, dcd_data.control.out_bytes);
 
-    if ( ep_id )
+        dcd_data.control.out_buffer = NULL;
+        dcd_data.control.out_bytes = 0;
+
+        dcd_event_xfer_complete(0, 0, received, XFER_RESULT_SUCCESS, true);
+      }else
+      {
+        // mark as received
+        dcd_data.control.out_received = true;
+      }
+    }
+
+    // Control In complete
+    if ( endpoint_int_status & BIT_(1) )
     {
-      // Control In
-      dcd_event_xfer_complete(0, ep_id ? TUSB_DIR_IN_MASK : 0 , dcd_data.control_dma.in_bytes, XFER_RESULT_SUCCESS, true);
-    }else
-    {
-      // Control Out
-      dcd_data.control_dma.out_received = true;
+      dcd_event_xfer_complete(0, TUSB_DIR_IN_MASK, dcd_data.control.in_bytes, XFER_RESULT_SUCCESS, true);
     }
   }
 
