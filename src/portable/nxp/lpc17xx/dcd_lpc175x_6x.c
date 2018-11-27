@@ -102,7 +102,7 @@ typedef struct
 
 } dcd_data_t;
 
-CFG_TUSB_MEM_SECTION ATTR_ALIGNED(128) static dcd_data_t dcd_data;
+CFG_TUSB_MEM_SECTION ATTR_ALIGNED(128) static dcd_data_t _dcd;
 
 
 //--------------------------------------------------------------------+
@@ -176,7 +176,7 @@ static void bus_reset(void)
 	LPC_USB->USBNDDRIntClr   = 0xFFFFFFFF;
 	LPC_USB->USBSysErrIntClr = 0xFFFFFFFF;
 
-	tu_memclr(&dcd_data, sizeof(dcd_data_t));
+	tu_memclr(&_dcd, sizeof(dcd_data_t));
 }
 
 bool dcd_init(uint8_t rhport)
@@ -191,7 +191,7 @@ bool dcd_init(uint8_t rhport)
   bus_reset();
 
   LPC_USB->USBDevIntEn = (DEV_INT_DEVICE_STATUS_MASK | DEV_INT_ENDPOINT_SLOW_MASK | DEV_INT_ERROR_MASK);
-	LPC_USB->USBUDCAH    = (uint32_t) dcd_data.udca;
+	LPC_USB->USBUDCAH    = (uint32_t) _dcd.udca;
 	LPC_USB->USBDMAIntEn = (DMA_INT_END_OF_XFER_MASK | DMA_INT_ERROR_MASK );
 
 	sie_write(SIE_CMDCODE_DEVICE_STATUS, 1, 1); // connect
@@ -289,14 +289,14 @@ bool dcd_edpt_open(uint8_t rhport, tusb_desc_endpoint_t const * p_endpoint_desc)
   edpt_set_max_packet_size(ep_id, p_endpoint_desc->wMaxPacketSize.size);
 
 	//------------- first DD prepare -------------//
-	dcd_dma_descriptor_t* const p_dd = &dcd_data.dd[ep_id][0];
+	dcd_dma_descriptor_t* const p_dd = &_dcd.dd[ep_id][0];
 	tu_memclr(p_dd, sizeof(dcd_dma_descriptor_t));
 
 	p_dd->isochronous  = (p_endpoint_desc->bmAttributes.xfer == TUSB_XFER_ISOCHRONOUS) ? 1 : 0;
 	p_dd->max_packet_size = p_endpoint_desc->wMaxPacketSize.size;
 	p_dd->retired      = 1; // inactive at first
 
-	dcd_data.udca[ ep_id ] = p_dd; // hook to UDCA
+	_dcd.udca[ ep_id ] = p_dd; // hook to UDCA
 
 	sie_write(SIE_CMDCODE_ENDPOINT_SET_STATUS+ep_id, 1, 0); // clear all endpoint status
 
@@ -308,7 +308,7 @@ bool dcd_edpt_busy(uint8_t rhport, uint8_t ep_addr)
   (void) rhport;
 
   uint8_t ep_id = edpt_addr2phy( ep_addr );
-  return (dcd_data.udca[ep_id] != NULL && !dcd_data.udca[ep_id]->retired);
+  return (_dcd.udca[ep_id] != NULL && !_dcd.udca[ep_id]->retired);
 }
 
 void dcd_edpt_stall(uint8_t rhport, uint8_t ep_addr)
@@ -366,23 +366,23 @@ static bool control_xact(uint8_t rhport, uint8_t dir, uint8_t * buffer, uint8_t 
 
   if ( dir )
   {
-    dcd_data.control.in_bytes = len;
+    _dcd.control.in_bytes = len;
     control_ep_write(buffer, len);
   }else
   {
-    if ( dcd_data.control.out_received )
+    if ( _dcd.control.out_received )
     {
       // Already received the DATA OUT packet
-      dcd_data.control.out_received = false;
-      dcd_data.control.out_buffer = NULL;
-      dcd_data.control.out_bytes  = 0;
+      _dcd.control.out_received = false;
+      _dcd.control.out_buffer = NULL;
+      _dcd.control.out_bytes  = 0;
 
       uint8_t received = control_ep_read(buffer, len);
       dcd_event_xfer_complete(0, 0, received, XFER_RESULT_SUCCESS, true);
     }else
     {
-      dcd_data.control.out_buffer = buffer;
-      dcd_data.control.out_bytes  = len;
+      _dcd.control.out_buffer = buffer;
+      _dcd.control.out_bytes  = len;
     }
   }
 
@@ -401,13 +401,13 @@ bool dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t* buffer, uint16_t to
   }
 
   uint8_t ep_id = edpt_addr2phy(ep_addr);
-  dcd_dma_descriptor_t* const p_first_dd = &dcd_data.dd[ep_id][0];
+  dcd_dma_descriptor_t* const p_first_dd = &_dcd.dd[ep_id][0];
 
   //------------- fixed DD is already queued a xfer -------------//
   if ( p_first_dd->buffer_length )
   {
     // setup new dd
-    dcd_dma_descriptor_t* const p_dd = &dcd_data.dd[ ep_id ][1];
+    dcd_dma_descriptor_t* const p_dd = &_dcd.dd[ ep_id ][1];
     tu_memclr(p_dd, sizeof(dcd_dma_descriptor_t));
 
     dd_xfer_init(p_dd, buffer, total_bytes);
@@ -428,7 +428,7 @@ bool dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t* buffer, uint16_t to
   }
 
   p_first_dd->retired = 0; // activate xfer
-  dcd_data.udca[ep_id] = p_first_dd;
+  _dcd.udca[ep_id] = p_first_dd;
   LPC_USB->USBEpDMAEn = BIT_(ep_id);
 
   if ( ep_id % 2 )
@@ -449,13 +449,13 @@ static void endpoint_non_control_isr(uint32_t eot_int)
   {
     if ( BIT_TEST_(eot_int, ep_id) )
     {
-      dcd_dma_descriptor_t* const p_first_dd = &dcd_data.dd[ep_id][0];
-      dcd_dma_descriptor_t* const p_last_dd  = dcd_data.dd[ep_id] + (p_first_dd->next_valid ? 1 : 0); // Maximum is 2 QTD are queued in an endpoint
+      dcd_dma_descriptor_t* const p_first_dd = &_dcd.dd[ep_id][0];
+      dcd_dma_descriptor_t* const p_last_dd  = _dcd.dd[ep_id] + (p_first_dd->next_valid ? 1 : 0); // Maximum is 2 QTD are queued in an endpoint
 
       // only handle when Controller already finished the last DD
-      if ( dcd_data.udca[ep_id] == p_last_dd )
+      if ( _dcd.udca[ep_id] == p_last_dd )
       {
-        dcd_data.udca[ep_id] = p_first_dd; // UDCA currently points to the last DD, change to the fixed DD
+        _dcd.udca[ep_id] = p_first_dd; // UDCA currently points to the last DD, change to the fixed DD
         p_first_dd->buffer_length = 0; // buffer length is used to determined if first dd is queued in pipe xfer function
 
         if ( p_last_dd->int_on_complete )
@@ -495,26 +495,26 @@ static void endpoint_control_isr(void)
     // Control out complete
     if ( endpoint_int_status & BIT_(0) )
     {
-      if ( dcd_data.control.out_buffer )
+      if ( _dcd.control.out_buffer )
       {
         // software queued transfer previously
-        uint8_t received = control_ep_read(dcd_data.control.out_buffer, dcd_data.control.out_bytes);
+        uint8_t received = control_ep_read(_dcd.control.out_buffer, _dcd.control.out_bytes);
 
-        dcd_data.control.out_buffer = NULL;
-        dcd_data.control.out_bytes = 0;
+        _dcd.control.out_buffer = NULL;
+        _dcd.control.out_bytes = 0;
 
         dcd_event_xfer_complete(0, 0, received, XFER_RESULT_SUCCESS, true);
       }else
       {
         // mark as received
-        dcd_data.control.out_received = true;
+        _dcd.control.out_received = true;
       }
     }
 
     // Control In complete
     if ( endpoint_int_status & BIT_(1) )
     {
-      dcd_event_xfer_complete(0, TUSB_DIR_IN_MASK, dcd_data.control.in_bytes, XFER_RESULT_SUCCESS, true);
+      dcd_event_xfer_complete(0, TUSB_DIR_IN_MASK, _dcd.control.in_bytes, XFER_RESULT_SUCCESS, true);
     }
   }
 
