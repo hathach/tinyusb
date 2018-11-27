@@ -36,52 +36,14 @@
 */
 /**************************************************************************/
 
-/** \ingroup group_dcd
- *  \defgroup group_dcd_lpc175x_6x LPC175x_6x
- *  @{ */
-
 #ifndef _TUSB_DCD_LPC175X_6X_H_
 #define _TUSB_DCD_LPC175X_6X_H_
 
-#include <common/tusb_common.h>
+#include "common/tusb_common.h"
 
 #ifdef __cplusplus
  extern "C" {
 #endif
-
-
-typedef struct ATTR_ALIGNED(4)
-{
-	//------------- Word 0 -------------//
-	uint32_t next;
-
-	//------------- Word 1 -------------//
-	uint16_t mode            : 2; // either 00 normal or 01 ATLE(auto length extraction)
-	uint16_t is_next_valid   : 1;
-	uint16_t int_on_complete : 1; ///< make use of reserved bit
-	uint16_t is_isochronous  : 1; // is an iso endpoint
-	uint16_t max_packet_size : 11;
-	volatile uint16_t buffer_length;
-
-	//------------- Word 2 -------------//
-	volatile uint32_t buffer_addr;
-
-	//------------- Word 3 -------------//
-	volatile uint16_t is_retired                   : 1; // initialized to zero
-	volatile uint16_t status                       : 4;
-	volatile uint16_t iso_last_packet_valid        : 1;
-	volatile uint16_t atle_is_lsb_extracted        : 1;	// used in ATLE mode
-	volatile uint16_t atle_is_msb_extracted        : 1;	// used in ATLE mode
-	volatile uint16_t atle_message_length_position : 6; // used in ATLE mode
-	uint16_t                                       : 2;
-	volatile uint16_t present_count; // The number of bytes transferred by the DMA engine. The DMA engine updates this field after completing each packet transfer.
-
-	//------------- Word 4 -------------//
-//	uint32_t iso_packet_size_addr;		// iso only, can be omitted for non-iso
-}dcd_dma_descriptor_t;
-
-TU_VERIFY_STATIC( sizeof(dcd_dma_descriptor_t) == 16, "size is not correct"); // TODO not support ISO for now
-
 
 //--------------------------------------------------------------------+
 // Register Interface
@@ -195,46 +157,8 @@ enum {
   DD_STATUS_SYSTEM_ERROR
 };
 
-//--------------------------------------------------------------------+
-// SIE Command
-//--------------------------------------------------------------------+
-static inline void sie_cmd_code (sie_cmdphase_t phase, uint8_t code_data) ATTR_ALWAYS_INLINE;
-static inline void sie_cmd_code (sie_cmdphase_t phase, uint8_t code_data)
-{
-  LPC_USB->USBDevIntClr = (DEV_INT_COMMAND_CODE_EMPTY_MASK | DEV_INT_COMMAND_DATA_FULL_MASK);
-  LPC_USB->USBCmdCode   = (phase << 8) | (code_data << 16);
-
-  uint32_t const wait_flag = (phase == SIE_CMDPHASE_READ) ? DEV_INT_COMMAND_DATA_FULL_MASK : DEV_INT_COMMAND_CODE_EMPTY_MASK;
-#ifndef _TEST_
-  while ((LPC_USB->USBDevIntSt & wait_flag) == 0); // TODO blocking forever potential
-#endif
-  LPC_USB->USBDevIntClr = wait_flag;
-}
-
-static inline void sie_write (uint8_t cmd_code, uint8_t data_len, uint8_t data) ATTR_ALWAYS_INLINE;
-static inline void sie_write (uint8_t cmd_code, uint8_t data_len, uint8_t data)
-{
-  sie_cmd_code(SIE_CMDPHASE_COMMAND, cmd_code);
-
-  if (data_len)
-  {
-    sie_cmd_code(SIE_CMDPHASE_WRITE, data);
-  }
-}
-
-static inline uint32_t sie_read (uint8_t cmd_code, uint8_t data_len) ATTR_ALWAYS_INLINE;
-static inline uint32_t sie_read (uint8_t cmd_code, uint8_t data_len)
-{
-  // TODO multiple read
-  sie_cmd_code(SIE_CMDPHASE_COMMAND , cmd_code);
-  sie_cmd_code(SIE_CMDPHASE_READ    , cmd_code);
-  return LPC_USB->USBCmdData;
-}
-
 #ifdef __cplusplus
  }
 #endif
 
 #endif /* _TUSB_DCD_LPC175X_6X_H_ */
-
-/** @} */

@@ -32,7 +32,7 @@
       project_directory=""
       project_type="Executable"
       target_reset_script="Reset();"
-      target_script_file="$(ProjectDir)/LPC4300_Target.js"
+      target_script_file="$(ProjectDir)/LPC1700_Target.js"
       target_trace_initialize_script="EnableTrace(&quot;$(TraceInterfaceType)&quot;)" />
     <folder
       Name="tinyusb"
@@ -65,6 +65,7 @@
               <folder Name="include" />
               <folder Name="source">
                 <file file_name="../../../../../hw/mcu/nxp/lpc175x_6x/LPC17xx_DriverLib/source/lpc17xx_gpio.c" />
+                <file file_name="../../../../../hw/mcu/nxp/lpc175x_6x/LPC17xx_DriverLib/source/lpc17xx_pinsel.c" />
               </folder>
             </folder>
           </folder>

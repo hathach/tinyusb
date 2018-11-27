@@ -40,13 +40,9 @@
 
 #if TUSB_OPT_DEVICE_ENABLED && (CFG_TUSB_MCU == OPT_MCU_LPC175X_6X)
 
-#define _TINY_USB_SOURCE_FILE_
-//--------------------------------------------------------------------+
-// INCLUDE
-//--------------------------------------------------------------------+
 #include "device/dcd.h"
 #include "dcd_lpc175x_6x.h"
-#include "usbd_dcd.h"
+#include "LPC17xx.h"
 
 //--------------------------------------------------------------------+
 // MACRO CONSTANT TYPEDEF
@@ -54,52 +50,118 @@
 #define DCD_QHD_MAX 32
 #define DCD_QTD_MAX  32 // TODO scale with configure
 
-typedef struct {
-  volatile dcd_dma_descriptor_t* udca[DCD_QHD_MAX]; // must be 128 byte aligned
-  dcd_dma_descriptor_t dd[DCD_QTD_MAX][2]; // each endpoints can have up to 2 DD queued at a time TODO 0-1 are not used, offset to reduce memory
+typedef struct ATTR_ALIGNED(4)
+{
+	//------------- Word 0 -------------//
+	uint32_t next;
 
-  uint8_t class_code[DCD_QHD_MAX];
+	//------------- Word 1 -------------//
+	uint16_t mode            : 2; // either 00 normal or 01 ATLE(auto length extraction)
+	uint16_t next_valid      : 1;
+	uint16_t int_on_complete : 1; ///< make use of reserved bit
+	uint16_t isochronous     : 1; // is an iso endpoint
+	uint16_t max_packet_size : 11;
+	volatile uint16_t buffer_length;
 
-  struct {
+	//------------- Word 2 -------------//
+	volatile uint32_t buffer_addr;
+
+	//------------- Word 3 -------------//
+	volatile uint16_t retired                      : 1; // initialized to zero
+	volatile uint16_t status                       : 4;
+	volatile uint16_t iso_last_packet_valid        : 1;
+	volatile uint16_t atle_lsb_extracted           : 1;	// used in ATLE mode
+	volatile uint16_t atle_msb_extracted           : 1;	// used in ATLE mode
+	volatile uint16_t atle_message_length_position : 6; // used in ATLE mode
+	uint16_t                                       : 2;
+	volatile uint16_t present_count; // The number of bytes transferred by the DMA engine. The DMA engine updates this field after completing each packet transfer.
+
+	//------------- Word 4 -------------//
+//	uint32_t iso_packet_size_addr;		// iso only, can be omitted for non-iso
+}dcd_dma_descriptor_t;
+
+TU_VERIFY_STATIC( sizeof(dcd_dma_descriptor_t) == 16, "size is not correct"); // TODO not support ISO for now
+
+typedef struct
+{
+  // must be 128 byte aligned
+  volatile dcd_dma_descriptor_t* udca[DCD_QHD_MAX];
+
+  // each endpoints can have up to 2 DD queued at a time
+  // TODO DMA does not support control transfer (0-1 are not used, offset to reduce memory)
+  dcd_dma_descriptor_t dd[DCD_QTD_MAX][2];
+
+  struct
+  {
     uint8_t* p_data;
     uint16_t remaining_bytes;
-    uint8_t  int_on_complete;
-  }control_dma;
+    bool     out_received; //
 
-}dcd_data_t;
+    uint8_t in_bytes;
+  } control_dma;
 
-CFG_TUSB_MEM_SECTION ATTR_ALIGNED(128) STATIC_VAR dcd_data_t dcd_data;
+} dcd_data_t;
+
+CFG_TUSB_MEM_SECTION ATTR_ALIGNED(128) static dcd_data_t dcd_data;
+
+
+//--------------------------------------------------------------------+
+// SIE Command
+//--------------------------------------------------------------------+
+static void sie_cmd_code (sie_cmdphase_t phase, uint8_t code_data)
+{
+  LPC_USB->USBDevIntClr = (DEV_INT_COMMAND_CODE_EMPTY_MASK | DEV_INT_COMMAND_DATA_FULL_MASK);
+  LPC_USB->USBCmdCode   = (phase << 8) | (code_data << 16);
+
+  uint32_t const wait_flag = (phase == SIE_CMDPHASE_READ) ? DEV_INT_COMMAND_DATA_FULL_MASK : DEV_INT_COMMAND_CODE_EMPTY_MASK;
+#ifndef _TEST_
+  while ((LPC_USB->USBDevIntSt & wait_flag) == 0); // TODO blocking forever potential
+#endif
+  LPC_USB->USBDevIntClr = wait_flag;
+}
+
+static void sie_write (uint8_t cmd_code, uint8_t data_len, uint8_t data)
+{
+  sie_cmd_code(SIE_CMDPHASE_COMMAND, cmd_code);
+
+  if (data_len)
+  {
+    sie_cmd_code(SIE_CMDPHASE_WRITE, data);
+  }
+}
+
+static uint32_t sie_read (uint8_t cmd_code, uint8_t data_len)
+{
+  // TODO multiple read
+  sie_cmd_code(SIE_CMDPHASE_COMMAND , cmd_code);
+  sie_cmd_code(SIE_CMDPHASE_READ    , cmd_code);
+  return LPC_USB->USBCmdData;
+}
 
 //--------------------------------------------------------------------+
 // INTERNAL OBJECT & FUNCTION DECLARATION
 //--------------------------------------------------------------------+
 static void bus_reset(void);
-static tusb_error_t pipe_control_read(void * buffer, uint16_t length);
-static tusb_error_t pipe_control_write(void const * buffer, uint16_t length);
-static tusb_error_t pipe_control_xfer(uint8_t ep_id, uint8_t* p_buffer, uint16_t length);
 
 //--------------------------------------------------------------------+
 // PIPE HELPER
 //--------------------------------------------------------------------+
-static inline uint8_t edpt_addr2phy(uint8_t endpoint_addr) ATTR_CONST ATTR_ALWAYS_INLINE;
-static inline uint8_t edpt_addr2phy(uint8_t endpoint_addr)
+static inline uint8_t edpt_addr2phy(uint8_t ep_addr)
 {
-  return 2*(endpoint_addr & 0x0F) + ((endpoint_addr & TUSB_DIR_IN_MASK) ? 1 : 0);
+  return 2*(ep_addr & 0x0F) + ((ep_addr & TUSB_DIR_IN_MASK) ? 1 : 0);
 }
 
-static inline void edpt_set_max_packet_size(uint8_t ep_id, uint16_t max_packet_size) ATTR_ALWAYS_INLINE;
 static inline void edpt_set_max_packet_size(uint8_t ep_id, uint16_t max_packet_size)
-{ // follows example in 11.10.4.2
+{
+  // follows example in 11.10.4.2
   LPC_USB->USBReEp    |= BIT_(ep_id);
   LPC_USB->USBEpInd    = ep_id; // select index before setting packet size
   LPC_USB->USBMaxPSize = max_packet_size;
 
-#ifndef _TEST_
   while ((LPC_USB->USBDevIntSt & DEV_INT_ENDPOINT_REALIZED_MASK) == 0) {} // TODO can be omitted
   LPC_USB->USBDevIntClr = DEV_INT_ENDPOINT_REALIZED_MASK;
-#endif
-
 }
+
 
 //--------------------------------------------------------------------+
 // USBD-DCD API
@@ -144,152 +206,6 @@ bool dcd_init(uint8_t rhport)
   return TUSB_ERROR_NONE;
 }
 
-static void endpoint_non_control_isr(uint32_t eot_int)
-{
-  for(uint8_t ep_id = 2; ep_id < DCD_QHD_MAX; ep_id++ )
-  {
-    if ( BIT_TEST_(eot_int, ep_id) )
-    {
-      dcd_dma_descriptor_t* const p_first_dd = &dcd_data.dd[ep_id][0];
-      dcd_dma_descriptor_t* const p_last_dd  = dcd_data.dd[ep_id] + (p_first_dd->is_next_valid ? 1 : 0); // Maximum is 2 QTD are queued in an endpoint
-
-      // only handle when Controller already finished the last DD
-      if ( dcd_data.udca[ep_id] == p_last_dd )
-      {
-        dcd_data.udca[ep_id] = p_first_dd; // UDCA currently points to the last DD, change to the fixed DD
-        p_first_dd->buffer_length = 0; // buffer length is used to determined if first dd is queued in pipe xfer function
-
-        if ( p_last_dd->int_on_complete )
-        {
-          edpt_hdl_t edpt_hdl =
-          {
-              .rhport     = 0,
-              .index      = ep_id,
-              .class_code = dcd_data.class_code[ep_id]
-          };
-          bool succeeded = (p_last_dd->status == DD_STATUS_NORMAL || p_last_dd->status == DD_STATUS_DATA_UNDERUN) ? true : false;
-
-          dcd_xfer_complete(edpt_hdl, p_last_dd->present_count, succeeded); // report only xferred bytes in the IOC qtd
-        }
-      }
-    }
-  }
-}
-
-static void endpoint_control_isr(void)
-{
-  uint32_t const interrupt_enable = LPC_USB->USBEpIntEn;
-  uint32_t const endpoint_int_status = LPC_USB->USBEpIntSt & interrupt_enable;
-//  LPC_USB->USBEpIntClr = endpoint_int_status; // acknowledge interrupt TODO cannot immediately acknowledge setup packet
-
-  dcd_event_t event = { .rhport = 0 };
-
-  //------------- Setup Recieved-------------//
-  if ( (endpoint_int_status & BIT_(0)) &&
-       (sie_read(SIE_CMDCODE_ENDPOINT_SELECT+0, 1) & SIE_SELECT_ENDPOINT_SETUP_RECEIVED_MASK) )
-  {
-    (void) sie_read(SIE_CMDCODE_ENDPOINT_SELECT_CLEAR_INTERRUPT+0, 1); // clear setup bit
-
-    event.event_id = DCD_EVENT_SETUP_RECEIVED;
-    pipe_control_read(&event.setup_received, 8); // TODO read before clear setup above
-
-    dcd_event_handler(&event, true);
-  }
-  else if (endpoint_int_status & 0x03)
-  {
-    uint8_t const ep_id = ( endpoint_int_status & BIT_(0) ) ? 0 : 1;
-
-    if ( dcd_data.control_dma.remaining_bytes > 0 )
-    { // there are still data to transfer
-      pipe_control_xfer(ep_id, dcd_data.control_dma.p_data, dcd_data.control_dma.remaining_bytes);
-    }
-    else
-    {
-      dcd_data.control_dma.remaining_bytes = 0;
-
-      if ( BIT_TEST_(dcd_data.control_dma.int_on_complete, ep_id) )
-      {
-        edpt_hdl_t edpt_hdl = { .rhport = 0, .class_code = 0 };
-        dcd_data.control_dma.int_on_complete = 0;
-
-        // FIXME xferred_byte for control xfer is not needed now !!!
-        dcd_xfer_complete(edpt_hdl, 0, true);
-      }
-    }
-  }
-
-  LPC_USB->USBEpIntClr = endpoint_int_status; // acknowledge interrupt TODO cannot immediately acknowledge setup packet
-}
-
-void hal_dcd_isr(uint8_t rhport)
-{
-  (void) rhport;
-  uint32_t const device_int_enable = LPC_USB->USBDevIntEn;
-  uint32_t const device_int_status = LPC_USB->USBDevIntSt & device_int_enable;
-  LPC_USB->USBDevIntClr = device_int_status;// Acknowledge handled interrupt
-
-  dcd_event_t event = { .rhport = rhport };
-
-  //------------- usb bus event -------------//
-  if (device_int_status & DEV_INT_DEVICE_STATUS_MASK)
-  {
-    uint8_t const dev_status_reg = sie_read(SIE_CMDCODE_DEVICE_STATUS, 1);
-    if (dev_status_reg & SIE_DEV_STATUS_RESET_MASK)
-    {
-      bus_reset();
-
-      event.event_id = DCD_EVENT_BUS_RESET;
-      dcd_event_handler(&event, true);
-    }
-
-    if (dev_status_reg & SIE_DEV_STATUS_CONNECT_CHANGE_MASK)
-    { // device is disconnected, require using VBUS (P1_30)
-      event.event_id = DCD_EVENT_UNPLUGGED;
-      dcd_event_handler(&event, true);
-    }
-
-    if (dev_status_reg & SIE_DEV_STATUS_SUSPEND_CHANGE_MASK)
-    {
-      if (dev_status_reg & SIE_DEV_STATUS_SUSPEND_MASK)
-      {
-        event.event_id = DCD_EVENT_SUSPENDED;
-        dcd_event_handler(&event, true);
-      }
-//        else
-//      { // resume signal
-//        event.event_id = DCD_EVENT_RESUME;
-//        dcd_event_handler(&event, true);
-//      }
-//    }
-    }
-  }
-
-  //------------- Control Endpoint (Slave Mode) -------------//
-  if (device_int_status & DEV_INT_ENDPOINT_SLOW_MASK)
-  {
-    endpoint_control_isr();
-  }
-
-  //------------- Non-Control Endpoint (DMA Mode) -------------//
-  uint32_t const dma_int_enable = LPC_USB->USBDMAIntEn;
-  uint32_t const dma_int_status = LPC_USB->USBDMAIntSt & dma_int_enable;
-
-  if (dma_int_status & DMA_INT_END_OF_XFER_MASK)
-  {
-    uint32_t eot_int = LPC_USB->USBEoTIntSt;
-    LPC_USB->USBEoTIntClr = eot_int; // acknowledge interrupt source
-
-    endpoint_non_control_isr(eot_int);
-  }
-
-  if (device_int_status & DEV_INT_ERROR_MASK || dma_int_status & DMA_INT_ERROR_MASK)
-  {
-    uint32_t error_status = sie_read(SIE_CMDCODE_READ_ERROR_STATUS, 1);
-    (void) error_status;
-//    TU_ASSERT(false, (void) 0);
-  }
-}
-
 //--------------------------------------------------------------------+
 // USBD API - CONTROLLER
 //--------------------------------------------------------------------+
@@ -321,25 +237,25 @@ static inline uint16_t length_byte2dword(uint16_t length_in_bytes)
   return (length_in_bytes + 3) / 4; // length_in_dword
 }
 
-static tusb_error_t pipe_control_xfer(uint8_t ep_id, uint8_t* p_buffer, uint16_t length)
-{
-  uint16_t const packet_len = tu_min16(length, CFG_TUD_ENDOINT0_SIZE);
+//static tusb_error_t pipe_control_xfer(uint8_t ep_id, uint8_t* p_buffer, uint16_t length)
+//{
+//  uint16_t const packet_len = tu_min16(length, CFG_TUD_ENDOINT0_SIZE);
+//
+//  if (ep_id)
+//  {
+//    TU_ASSERT_ERR ( pipe_control_write(p_buffer, packet_len) );
+//  }else
+//  {
+//    TU_ASSERT_ERR ( pipe_control_read(p_buffer, packet_len) );
+//  }
+//
+//  dcd_data.control_dma.remaining_bytes -= packet_len;
+//  dcd_data.control_dma.p_data          += packet_len;
+//
+//  return TUSB_ERROR_NONE;
+//}
 
-  if (ep_id)
-  {
-    TU_ASSERT_ERR ( pipe_control_write(p_buffer, packet_len) );
-  }else
-  {
-    TU_ASSERT_ERR ( pipe_control_read(p_buffer, packet_len) );
-  }
-
-  dcd_data.control_dma.remaining_bytes -= packet_len;
-  dcd_data.control_dma.p_data          += packet_len;
-
-  return TUSB_ERROR_NONE;
-}
-
-static tusb_error_t pipe_control_write(void const * buffer, uint16_t length)
+static void pipe_control_write(void const * buffer, uint16_t length)
 {
   uint32_t const * p_write_data = (uint32_t const *) buffer;
 
@@ -357,17 +273,16 @@ static tusb_error_t pipe_control_write(void const * buffer, uint16_t length)
 	// select control IN & validate the endpoint
 	sie_write(SIE_CMDCODE_ENDPOINT_SELECT+1, 0, 0);
 	sie_write(SIE_CMDCODE_BUFFER_VALIDATE  , 0, 0);
-
-  return TUSB_ERROR_NONE;
 }
 
-static tusb_error_t pipe_control_read(void * buffer, uint16_t length)
+static uint8_t pipe_control_read(void * buffer, uint16_t length)
 {
   LPC_USB->USBCtrl = USBCTRL_READ_ENABLE_MASK; // logical endpoint = 0
   while ((LPC_USB->USBRxPLen & USBRXPLEN_PACKET_READY_MASK) == 0) {} // TODO blocking, should have timeout
 
   uint16_t actual_length = tu_min16(length, (uint16_t) (LPC_USB->USBRxPLen & USBRXPLEN_PACKET_LENGTH_MASK) );
   uint32_t *p_read_data = (uint32_t*) buffer;
+
   for( uint16_t count=0; count < length_byte2dword(actual_length); count++)
   {
     *p_read_data = LPC_USB->USBRxData;
@@ -380,108 +295,80 @@ static tusb_error_t pipe_control_read(void * buffer, uint16_t length)
   sie_write(SIE_CMDCODE_ENDPOINT_SELECT+0, 0, 0);
   sie_write(SIE_CMDCODE_BUFFER_CLEAR     , 0, 0);
 
-  return TUSB_ERROR_NONE;
+  return actual_length;
 }
 
 //--------------------------------------------------------------------+
-// CONTROL PIPE API
+// DCD Endpoint Port
 //--------------------------------------------------------------------+
-void dcd_control_stall(uint8_t rhport)
-{
-  sie_write(SIE_CMDCODE_ENDPOINT_SET_STATUS+0, 1, SIE_SET_ENDPOINT_STALLED_MASK | SIE_SET_ENDPOINT_CONDITION_STALLED_MASK);
-}
-
-bool dcd_control_xfer(uint8_t rhport, uint8_t dir, uint8_t * p_buffer, uint16_t length, bool int_on_complete)
+bool dcd_edpt_open(uint8_t rhport, tusb_desc_endpoint_t const * p_endpoint_desc)
 {
   (void) rhport;
-
-  TU_VERIFY( !(length != 0 && p_buffer == NULL) );
-
-  // determine Endpoint where Data & Status phase occurred (IN or OUT)
-  uint8_t const ep_data   = (dir == TUSB_DIR_IN) ? 1 : 0;
-  uint8_t const ep_status = 1 - ep_data;
-
-  dcd_data.control_dma.int_on_complete = int_on_complete ? BIT_(ep_status) : 0;
-
-  //------------- Data Phase -------------//
-  if ( length )
-  {
-    dcd_data.control_dma.p_data          = (uint8_t*) p_buffer;
-    dcd_data.control_dma.remaining_bytes = length;
-
-    // lpc17xx already received the first DATA OUT packet by now
-    TU_VERIFY_ERR ( pipe_control_xfer(ep_data, p_buffer, length), false );
-  }
-
-  //------------- Status Phase (opposite direct to Data) -------------//
-  if (dir == TUSB_DIR_OUT)
-  { // only write for CONTROL OUT, CONTROL IN data will be retrieved in hal_dcd_isr // TODO ????
-    TU_VERIFY_ERR ( pipe_control_write(NULL, 0), false );
-  }
-
-  return true;
-}
-
-//--------------------------------------------------------------------+
-// BULK/INTERRUPT/ISO PIPE API
-//--------------------------------------------------------------------+
-edpt_hdl_t dcd_edpt_open(uint8_t rhport, tusb_desc_endpoint_t const * p_endpoint_desc, uint8_t class_code)
-{
-  (void) rhport;
-
-  edpt_hdl_t const null_handle = { 0 };
 
   // TODO refractor to universal pipe open validation function
-  if (p_endpoint_desc->bmAttributes.xfer == TUSB_XFER_ISOCHRONOUS) return null_handle; // TODO not support ISO yet
-  TU_ASSERT (p_endpoint_desc->wMaxPacketSize.size <= 64, null_handle); // TODO ISO can be 1023, but ISO not supported now
+//  if (p_endpoint_desc->bmAttributes.xfer == TUSB_XFER_ISOCHRONOUS) return null_handle; // TODO not support ISO yet
+//  TU_ASSERT (p_endpoint_desc->wMaxPacketSize.size <= 64, null_handle); // TODO ISO can be 1023, but ISO not supported now
 
   uint8_t ep_id = edpt_addr2phy( p_endpoint_desc->bEndpointAddress );
 
   //------------- Realize Endpoint with Max Packet Size -------------//
   edpt_set_max_packet_size(ep_id, p_endpoint_desc->wMaxPacketSize.size);
-	dcd_data.class_code[ep_id] = class_code;
 
 	//------------- first DD prepare -------------//
 	dcd_dma_descriptor_t* const p_dd = &dcd_data.dd[ep_id][0];
 	tu_memclr(p_dd, sizeof(dcd_dma_descriptor_t));
 
-	p_dd->is_isochronous  = (p_endpoint_desc->bmAttributes.xfer == TUSB_XFER_ISOCHRONOUS) ? 1 : 0;
+	p_dd->isochronous  = (p_endpoint_desc->bmAttributes.xfer == TUSB_XFER_ISOCHRONOUS) ? 1 : 0;
 	p_dd->max_packet_size = p_endpoint_desc->wMaxPacketSize.size;
-	p_dd->is_retired      = 1; // inactive at first
+	p_dd->retired      = 1; // inactive at first
 
 	dcd_data.udca[ ep_id ] = p_dd; // hook to UDCA
 
 	sie_write(SIE_CMDCODE_ENDPOINT_SET_STATUS+ep_id, 1, 0); // clear all endpoint status
 
-  return (edpt_hdl_t)
-      {
-          .rhport     = 0,
-          .index      = ep_id,
-          .class_code = class_code
-      };
+  return true;
 }
 
-bool dcd_edpt_busy(edpt_hdl_t edpt_hdl)
+bool dcd_edpt_busy(uint8_t rhport, uint8_t ep_addr)
 {
-  return (dcd_data.udca[edpt_hdl.index] != NULL && !dcd_data.udca[edpt_hdl.index]->is_retired);
+  (void) rhport;
+
+  uint8_t ep_id = edpt_addr2phy( ep_addr );
+  return (dcd_data.udca[ep_id] != NULL && !dcd_data.udca[ep_id]->retired);
 }
 
-void dcd_edpt_stall(edpt_hdl_t edpt_hdl)
+void dcd_edpt_stall(uint8_t rhport, uint8_t ep_addr)
 {
-  sie_write(SIE_CMDCODE_ENDPOINT_SET_STATUS+edpt_hdl.index, 1, SIE_SET_ENDPOINT_STALLED_MASK);
+  (void) rhport;
+
+  if ( ep_addr == 0)
+  {
+    sie_write(SIE_CMDCODE_ENDPOINT_SET_STATUS+0, 1, SIE_SET_ENDPOINT_STALLED_MASK | SIE_SET_ENDPOINT_CONDITION_STALLED_MASK);
+//    sie_write(SIE_CMDCODE_ENDPOINT_SET_STATUS+0, 1, SIE_SET_ENDPOINT_STALLED_MASK | SIE_SET_ENDPOINT_CONDITION_STALLED_MASK);
+  }else
+  {
+    uint8_t ep_id = edpt_addr2phy( ep_addr );
+    sie_write(SIE_CMDCODE_ENDPOINT_SET_STATUS+ep_id, 1, SIE_SET_ENDPOINT_STALLED_MASK);
+  }
 }
 
 void dcd_edpt_clear_stall(uint8_t rhport, uint8_t ep_addr)
 {
-  uint8_t ep_id = ep_addr2phy(ep_addr);
+  uint8_t ep_id = edpt_addr2phy(ep_addr);
 
   sie_write(SIE_CMDCODE_ENDPOINT_SET_STATUS+ep_id, 1, 0);
+}
+
+bool dcd_edpt_stalled (uint8_t rhport, uint8_t ep_addr)
+{
+  // TODO implement later
+  return false;
 }
 
 void dd_xfer_init(dcd_dma_descriptor_t* p_dd, void* buffer, uint16_t total_bytes)
 {
   p_dd->next                  = 0;
-  p_dd->is_next_valid         = 0;
+  p_dd->next_valid         = 0;
   p_dd->buffer_addr           = (uint32_t) buffer;
   p_dd->buffer_length         = total_bytes;
   p_dd->status                = DD_STATUS_NOT_SERVICED;
@@ -489,55 +376,222 @@ void dd_xfer_init(dcd_dma_descriptor_t* p_dd, void* buffer, uint16_t total_bytes
   p_dd->present_count         = 0;
 }
 
-tusb_error_t dcd_edpt_queue_xfer(edpt_hdl_t edpt_hdl, uint8_t * buffer, uint16_t total_bytes)
-{ // NOTE for sure the qhd has no dds
-  dcd_dma_descriptor_t* const p_fixed_dd = &dcd_data.dd[edpt_hdl.index][0]; // always queue with the fixed DD
+//tusb_error_t dcd_edpt_queue_xfer(edpt_hdl_t edpt_hdl, uint8_t * buffer, uint16_t total_bytes)
+//{ // NOTE for sure the qhd has no dds
+//  dcd_dma_descriptor_t* const p_fixed_dd = &dcd_data.dd[edpt_hdl.index][0]; // always queue with the fixed DD
+//
+//  dd_xfer_init(p_fixed_dd, buffer, total_bytes);
+//  p_fixed_dd->is_retired      = 1;
+//  p_fixed_dd->int_on_complete = 0;
+//
+//  return TUSB_ERROR_NONE;
+//}
 
-  dd_xfer_init(p_fixed_dd, buffer, total_bytes);
-  p_fixed_dd->is_retired      = 1;
-  p_fixed_dd->int_on_complete = 0;
+bool dcd_control_xfer(uint8_t rhport, uint8_t dir, uint8_t * buffer, uint16_t len)
+{
+  (void) rhport;
 
-  return TUSB_ERROR_NONE;
+  uint8_t const ep_idx   = (dir == TUSB_DIR_IN) ? 1 : 0;
+
+  if ( dir )
+  {
+    dcd_data.control_dma.in_bytes = len;
+    pipe_control_write(buffer, len);
+  }else
+  {
+    dcd_data.control_dma.p_data          = buffer;
+    dcd_data.control_dma.remaining_bytes = len;
+
+    // lpc17xx already received the first DATA OUT packet by now
+    pipe_control_read(buffer, len);
+
+    dcd_event_xfer_complete(0, 0, len, XFER_RESULT_SUCCESS, true);
+  }
+
+  return true;
 }
 
-tusb_error_t dcd_edpt_xfer(edpt_hdl_t edpt_hdl, uint8_t* buffer, uint16_t total_bytes, bool int_on_complete)
+
+bool dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t* buffer, uint16_t total_bytes)
 {
-  dcd_dma_descriptor_t* const p_first_dd = &dcd_data.dd[edpt_hdl.index][0];
+  uint8_t const epnum  = edpt_number(ep_addr);
+  uint8_t const dir    = edpt_dir(ep_addr);
+
+  // Control transfer is not DMA support, and must be done in slave mode
+  if ( epnum == 0 )
+  {
+    return dcd_control_xfer(rhport, dir, buffer, total_bytes);
+  }
+
+  uint8_t ep_id = edpt_addr2phy(ep_addr);
+  dcd_dma_descriptor_t* const p_first_dd = &dcd_data.dd[ep_id][0];
 
   //------------- fixed DD is already queued a xfer -------------//
   if ( p_first_dd->buffer_length )
   {
     // setup new dd
-    dcd_dma_descriptor_t* const p_dd = &dcd_data.dd[ edpt_hdl.index ][1];
+    dcd_dma_descriptor_t* const p_dd = &dcd_data.dd[ ep_id ][1];
     tu_memclr(p_dd, sizeof(dcd_dma_descriptor_t));
 
     dd_xfer_init(p_dd, buffer, total_bytes);
 
     p_dd->max_packet_size     = p_first_dd->max_packet_size;
-    p_dd->is_isochronous      = p_first_dd->is_isochronous;
-    p_dd->int_on_complete     = int_on_complete;
+    p_dd->isochronous      = p_first_dd->isochronous;
+    p_dd->int_on_complete     = true;
 
     // hook to fixed dd
     p_first_dd->next          = (uint32_t) p_dd;
-    p_first_dd->is_next_valid = 1;
+    p_first_dd->next_valid = 1;
   }
   //------------- fixed DD is free -------------//
   else
   {
     dd_xfer_init(p_first_dd, buffer, total_bytes);
-    p_first_dd->int_on_complete = int_on_complete;
+    p_first_dd->int_on_complete = true;
   }
 
-  p_first_dd->is_retired = 0; // activate xfer
-  dcd_data.udca[edpt_hdl.index] = p_first_dd;
-  LPC_USB->USBEpDMAEn = BIT_(edpt_hdl.index);
+  p_first_dd->retired = 0; // activate xfer
+  dcd_data.udca[ep_id] = p_first_dd;
+  LPC_USB->USBEpDMAEn = BIT_(ep_id);
 
-  if ( edpt_hdl.index % 2 )
-  { // endpoint IN need to actively raise DMA request
-    LPC_USB->USBDMARSet = BIT_(edpt_hdl.index);
+  if ( ep_id % 2 )
+  {
+    // endpoint IN need to actively raise DMA request
+    LPC_USB->USBDMARSet = BIT_(ep_id);
   }
 
-  return TUSB_ERROR_NONE;
+  return true;
+}
+
+//--------------------------------------------------------------------+
+// ISR
+//--------------------------------------------------------------------+
+static void endpoint_non_control_isr(uint32_t eot_int)
+{
+  for(uint8_t ep_id = 2; ep_id < DCD_QHD_MAX; ep_id++ )
+  {
+    if ( BIT_TEST_(eot_int, ep_id) )
+    {
+      dcd_dma_descriptor_t* const p_first_dd = &dcd_data.dd[ep_id][0];
+      dcd_dma_descriptor_t* const p_last_dd  = dcd_data.dd[ep_id] + (p_first_dd->next_valid ? 1 : 0); // Maximum is 2 QTD are queued in an endpoint
+
+      // only handle when Controller already finished the last DD
+      if ( dcd_data.udca[ep_id] == p_last_dd )
+      {
+        dcd_data.udca[ep_id] = p_first_dd; // UDCA currently points to the last DD, change to the fixed DD
+        p_first_dd->buffer_length = 0; // buffer length is used to determined if first dd is queued in pipe xfer function
+
+        if ( p_last_dd->int_on_complete )
+        {
+          uint8_t result = (p_last_dd->status == DD_STATUS_NORMAL || p_last_dd->status == DD_STATUS_DATA_UNDERUN) ? XFER_RESULT_SUCCESS : XFER_RESULT_FAILED;
+
+          // report only xferred bytes in the IOC qtd
+          uint8_t const ep_addr = (ep_id/2) | ( (ep_id & 0x01) ? TUSB_DIR_IN_MASK : 0 );
+          dcd_event_xfer_complete(0, ep_addr, p_last_dd->present_count, result, true);
+        }
+      }
+    }
+  }
+}
+
+static void endpoint_control_isr(void)
+{
+  uint32_t const interrupt_enable = LPC_USB->USBEpIntEn;
+  uint32_t const endpoint_int_status = LPC_USB->USBEpIntSt & interrupt_enable;
+//  LPC_USB->USBEpIntClr = endpoint_int_status; // acknowledge interrupt TODO cannot immediately acknowledge setup packet
+
+  dcd_event_t event = { .rhport = 0 };
+
+  //------------- Setup Received-------------//
+  if ( (endpoint_int_status & BIT_(0)) &&
+       (sie_read(SIE_CMDCODE_ENDPOINT_SELECT+0, 1) & SIE_SELECT_ENDPOINT_SETUP_RECEIVED_MASK) )
+  {
+    (void) sie_read(SIE_CMDCODE_ENDPOINT_SELECT_CLEAR_INTERRUPT+0, 1); // clear setup bit
+
+    uint8_t setup_packet[8];
+    pipe_control_read(setup_packet, 8); // TODO read before clear setup above
+
+    dcd_event_setup_received(0, setup_packet, true);
+  }
+  else if (endpoint_int_status & 0x03)
+  {
+    uint8_t const ep_id = ( endpoint_int_status & BIT_(0) ) ? 0 : 1;
+
+    if ( ep_id )
+    {
+      // Control In
+      dcd_event_xfer_complete(0, ep_id ? TUSB_DIR_IN_MASK : 0 , dcd_data.control_dma.in_bytes, XFER_RESULT_SUCCESS, true);
+    }else
+    {
+      // Control Out
+      dcd_data.control_dma.out_received = true;
+    }
+  }
+
+  LPC_USB->USBEpIntClr = endpoint_int_status; // acknowledge interrupt TODO cannot immediately acknowledge setup packet
+}
+
+void hal_dcd_isr(uint8_t rhport)
+{
+  (void) rhport;
+
+  uint32_t const device_int_enable = LPC_USB->USBDevIntEn;
+  uint32_t const device_int_status = LPC_USB->USBDevIntSt & device_int_enable;
+  LPC_USB->USBDevIntClr = device_int_status;// Acknowledge handled interrupt
+
+  //------------- usb bus event -------------//
+  if (device_int_status & DEV_INT_DEVICE_STATUS_MASK)
+  {
+    uint8_t const dev_status_reg = sie_read(SIE_CMDCODE_DEVICE_STATUS, 1);
+    if (dev_status_reg & SIE_DEV_STATUS_RESET_MASK)
+    {
+      bus_reset();
+      dcd_event_bus_signal(rhport, DCD_EVENT_BUS_RESET, true);
+    }
+
+    if (dev_status_reg & SIE_DEV_STATUS_CONNECT_CHANGE_MASK)
+    { // device is disconnected, require using VBUS (P1_30)
+      dcd_event_bus_signal(rhport, DCD_EVENT_UNPLUGGED, true);
+    }
+
+    if (dev_status_reg & SIE_DEV_STATUS_SUSPEND_CHANGE_MASK)
+    {
+      if (dev_status_reg & SIE_DEV_STATUS_SUSPEND_MASK)
+      {
+        dcd_event_bus_signal(rhport, DCD_EVENT_SUSPENDED, true);
+      }
+//        else
+//      { // resume signal
+//        dcd_event_bus_signal(rhport, DCD_EVENT_RESUME, true);
+//      }
+//    }
+    }
+  }
+
+  //------------- Control Endpoint (Slave Mode) -------------//
+  if (device_int_status & DEV_INT_ENDPOINT_SLOW_MASK)
+  {
+    endpoint_control_isr();
+  }
+
+  //------------- Non-Control Endpoint (DMA Mode) -------------//
+  uint32_t const dma_int_enable = LPC_USB->USBDMAIntEn;
+  uint32_t const dma_int_status = LPC_USB->USBDMAIntSt & dma_int_enable;
+
+  if (dma_int_status & DMA_INT_END_OF_XFER_MASK)
+  {
+    uint32_t eot_int = LPC_USB->USBEoTIntSt;
+    LPC_USB->USBEoTIntClr = eot_int; // acknowledge interrupt source
+
+    endpoint_non_control_isr(eot_int);
+  }
+
+  if (device_int_status & DEV_INT_ERROR_MASK || dma_int_status & DMA_INT_ERROR_MASK)
+  {
+    uint32_t error_status = sie_read(SIE_CMDCODE_READ_ERROR_STATUS, 1);
+    (void) error_status;
+//    TU_ASSERT(false, (void) 0);
+  }
 }
 
 #endif
