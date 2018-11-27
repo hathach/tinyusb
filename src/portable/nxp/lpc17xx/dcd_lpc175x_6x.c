@@ -191,12 +191,12 @@ bool dcd_init(uint8_t rhport)
   bus_reset();
 
   LPC_USB->USBDevIntEn = (DEV_INT_DEVICE_STATUS_MASK | DEV_INT_ENDPOINT_SLOW_MASK | DEV_INT_ERROR_MASK);
-	LPC_USB->USBUDCAH    = (uint32_t) _dcd.udca;
-	LPC_USB->USBDMAIntEn = (DMA_INT_END_OF_XFER_MASK | DMA_INT_ERROR_MASK );
+  LPC_USB->USBUDCAH = (uint32_t) _dcd.udca;
+  LPC_USB->USBDMAIntEn = (DMA_INT_END_OF_XFER_MASK | DMA_INT_ERROR_MASK);
 
-	sie_write(SIE_CMDCODE_DEVICE_STATUS, 1, 1); // connect
+  sie_write(SIE_CMDCODE_DEVICE_STATUS, 1, 1);    // connect
 
-	NVIC_EnableIRQ(USB_IRQn);
+  NVIC_EnableIRQ(USB_IRQn);
 
   return TUSB_ERROR_NONE;
 }
@@ -327,6 +327,7 @@ void dcd_edpt_stall(uint8_t rhport, uint8_t ep_addr)
 
 void dcd_edpt_clear_stall(uint8_t rhport, uint8_t ep_addr)
 {
+  (void) rhport;
   uint8_t ep_id = edpt_addr2phy(ep_addr);
 
   sie_write(SIE_CMDCODE_ENDPOINT_SET_STATUS+ep_id, 1, 0);
@@ -334,6 +335,7 @@ void dcd_edpt_clear_stall(uint8_t rhport, uint8_t ep_addr)
 
 bool dcd_edpt_stalled (uint8_t rhport, uint8_t ep_addr)
 {
+  (void) rhport;
   // TODO implement later
   return false;
 }
@@ -471,16 +473,13 @@ static void endpoint_non_control_isr(uint32_t eot_int)
   }
 }
 
-static void endpoint_control_isr(void)
+static void control_xfer_isr(uint8_t rhport)
 {
-  uint32_t const interrupt_enable = LPC_USB->USBEpIntEn;
-  uint32_t const endpoint_int_status = LPC_USB->USBEpIntSt & interrupt_enable;
-//  LPC_USB->USBEpIntClr = endpoint_int_status; // acknowledge interrupt TODO cannot immediately acknowledge setup packet
-
-  dcd_event_t event = { .rhport = 0 };
+  uint32_t const ep_int_status = LPC_USB->USBEpIntSt & LPC_USB->USBEpIntEn;
+//  LPC_USB->USBEpIntClr = ep_int_status; // acknowledge interrupt TODO cannot immediately acknowledge setup packet
 
   //------------- Setup Received-------------//
-  if ( (endpoint_int_status & BIT_(0)) &&
+  if ( (ep_int_status & BIT_(0)) &&
        (sie_read(SIE_CMDCODE_ENDPOINT_SELECT+0, 1) & SIE_SELECT_ENDPOINT_SETUP_RECEIVED_MASK) )
   {
     (void) sie_read(SIE_CMDCODE_ENDPOINT_SELECT_CLEAR_INTERRUPT+0, 1); // clear setup bit
@@ -488,12 +487,12 @@ static void endpoint_control_isr(void)
     uint8_t setup_packet[8];
     control_ep_read(setup_packet, 8); // TODO read before clear setup above
 
-    dcd_event_setup_received(0, setup_packet, true);
+    dcd_event_setup_received(rhport, setup_packet, true);
   }
-  else if (endpoint_int_status & 0x03)
+  else if (ep_int_status & 0x03)
   {
     // Control out complete
-    if ( endpoint_int_status & BIT_(0) )
+    if ( ep_int_status & BIT_(0) )
     {
       if ( _dcd.control.out_buffer )
       {
@@ -503,7 +502,7 @@ static void endpoint_control_isr(void)
         _dcd.control.out_buffer = NULL;
         _dcd.control.out_bytes = 0;
 
-        dcd_event_xfer_complete(0, 0, received, XFER_RESULT_SUCCESS, true);
+        dcd_event_xfer_complete(rhport, 0, received, XFER_RESULT_SUCCESS, true);
       }else
       {
         // mark as received
@@ -512,13 +511,13 @@ static void endpoint_control_isr(void)
     }
 
     // Control In complete
-    if ( endpoint_int_status & BIT_(1) )
+    if ( ep_int_status & BIT_(1) )
     {
-      dcd_event_xfer_complete(0, TUSB_DIR_IN_MASK, _dcd.control.in_bytes, XFER_RESULT_SUCCESS, true);
+      dcd_event_xfer_complete(rhport, TUSB_DIR_IN_MASK, _dcd.control.in_bytes, XFER_RESULT_SUCCESS, true);
     }
   }
 
-  LPC_USB->USBEpIntClr = endpoint_int_status; // acknowledge interrupt TODO cannot immediately acknowledge setup packet
+  LPC_USB->USBEpIntClr = ep_int_status; // acknowledge interrupt TODO cannot immediately acknowledge setup packet
 }
 
 void hal_dcd_isr(uint8_t rhport)
@@ -561,7 +560,7 @@ void hal_dcd_isr(uint8_t rhport)
   //------------- Control Endpoint (Slave Mode) -------------//
   if (device_int_status & DEV_INT_ENDPOINT_SLOW_MASK)
   {
-    endpoint_control_isr();
+    control_xfer_isr(rhport);
   }
 
   //------------- Non-Control Endpoint (DMA Mode) -------------//

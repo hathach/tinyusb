@@ -47,7 +47,7 @@
 #define BOARD_LED_PORT                  (0)
 #define BOARD_LED_PIN                   (22)
 
-const static struct {
+static const struct {
   uint8_t port;
   uint8_t pin;
 } buttons[] =
