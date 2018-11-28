@@ -66,13 +66,13 @@ typedef struct ATTR_ALIGNED(4)
   volatile uint32_t buffer;
 
   //------------- Word 3 -------------//
-  volatile uint16_t retired                      : 1; // initialized to zero
-  volatile uint16_t status                       : 4;
-  volatile uint16_t iso_last_packet_valid        : 1;
-  volatile uint16_t atle_lsb_extracted           : 1;	// used in ATLE mode
-  volatile uint16_t atle_msb_extracted           : 1;	// used in ATLE mode
-  volatile uint16_t atle_message_length_position : 6; // used in ATLE mode
-  uint16_t                                       : 2;
+  volatile uint16_t retired                : 1; // initialized to zero
+  volatile uint16_t status                 : 4;
+  volatile uint16_t iso_last_packet_valid  : 1;
+  volatile uint16_t atle_lsb_extracted     : 1;	// used in ATLE mode
+  volatile uint16_t atle_msb_extracted     : 1;	// used in ATLE mode
+  volatile uint16_t atle_mess_len_position : 6; // used in ATLE mode
+  uint16_t                                 : 2;
   volatile uint16_t present_count;  // For non-iso : The number of bytes transferred by the DMA engine
                                     // For iso : number of packets
 
@@ -101,7 +101,7 @@ typedef struct
 
 } dcd_data_t;
 
-CFG_TUSB_MEM_SECTION ATTR_ALIGNED(128) static dcd_data_t _dcd;
+ATTR_ALIGNED(128) static dcd_data_t _dcd;
 
 
 //--------------------------------------------------------------------+
@@ -144,7 +144,7 @@ static inline uint8_t ep_addr2idx(uint8_t ep_addr)
   return 2*(ep_addr & 0x0F) + ((ep_addr & TUSB_DIR_IN_MASK) ? 1 : 0);
 }
 
-static inline void set_ep_size(uint8_t ep_id, uint16_t max_packet_size)
+static void set_ep_size(uint8_t ep_id, uint16_t max_packet_size)
 {
   // follows example in 11.10.4.2
   LPC_USB->USBReEp    |= BIT_(ep_id);
@@ -277,7 +277,7 @@ bool dcd_edpt_open(uint8_t rhport, tusb_desc_endpoint_t const * p_endpoint_desc)
   (void) rhport;
 
   uint8_t const epnum = edpt_number(p_endpoint_desc->bEndpointAddress);
-  uint8_t ep_id = ep_addr2idx(p_endpoint_desc->bEndpointAddress);
+  uint8_t const ep_id = ep_addr2idx(p_endpoint_desc->bEndpointAddress);
 
   // Endpoint type is fixed to endpoint number
   // 1: interrupt, 2: Bulk, 3: Iso and so on
@@ -308,9 +308,6 @@ bool dcd_edpt_open(uint8_t rhport, tusb_desc_endpoint_t const * p_endpoint_desc)
 
   dd->isochronous = (p_endpoint_desc->bmAttributes.xfer == TUSB_XFER_ISOCHRONOUS) ? 1 : 0;
   dd->max_packet_size = p_endpoint_desc->wMaxPacketSize.size;
-  dd->retired = 1;    // inactive at first
-
-  _dcd.udca[ep_id] = dd;    // hook to UDCA
 
   sie_write(SIE_CMDCODE_ENDPOINT_SET_STATUS + ep_id, 1, 0);    // clear all endpoint status
 
@@ -354,17 +351,6 @@ bool dcd_edpt_stalled (uint8_t rhport, uint8_t ep_addr)
   return false;
 }
 
-void dd_xfer_init(dma_desc_t* p_dd, void* buffer, uint16_t total_bytes)
-{
-  p_dd->next                  = 0;
-  p_dd->next_valid            = 0;
-  p_dd->buffer                = (uint32_t) buffer;
-  p_dd->buflen                = total_bytes;
-  p_dd->status                = DD_STATUS_NOT_SERVICED;
-  p_dd->iso_last_packet_valid = 0;
-  p_dd->present_count         = 0;
-}
-
 static bool control_xact(uint8_t rhport, uint8_t dir, uint8_t * buffer, uint8_t len)
 {
   (void) rhport;
@@ -404,12 +390,22 @@ bool dcd_edpt_xfer (uint8_t rhport, uint8_t ep_addr, uint8_t* buffer, uint16_t t
   else
   {
     uint8_t ep_id = ep_addr2idx(ep_addr);
-    dma_desc_t* const dd = &_dcd.dd[ep_id];
+    dma_desc_t* dd = &_dcd.dd[ep_id];
 
-    dd_xfer_init(dd, buffer, total_bytes);
-    dd->retired = 0;    // activate xfer
+    // Isochronous & max packet size must be preserved
+    // Other fields of dd should be clear
+    uint16_t const ep_size = dd->max_packet_size;
+    uint8_t  is_iso = dd->isochronous;
+
+    tu_memclr(dd, sizeof(dma_desc_t));
+    dd->isochronous = is_iso;
+    dd->max_packet_size = ep_size;
+    dd->buffer = buffer;
+    dd->buflen = total_bytes;
 
     _dcd.udca[ep_id] = dd;
+
+    // Enable DMA
     LPC_USB->USBEpDMAEn = BIT_(ep_id);
 
     if ( ep_id % 2 )
@@ -485,8 +481,6 @@ static void control_xfer_isr(uint8_t rhport)
 
 void hal_dcd_isr(uint8_t rhport)
 {
-  (void) rhport;
-
   uint32_t const dev_int_status = LPC_USB->USBDevIntSt & LPC_USB->USBDevIntEn;
   LPC_USB->USBDevIntClr = dev_int_status;// Acknowledge handled interrupt
 
