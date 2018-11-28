@@ -60,10 +60,10 @@ typedef struct ATTR_ALIGNED(4)
   uint16_t                 : 1; ///< reserved
   uint16_t isochronous     : 1; // is an iso endpoint
   uint16_t max_packet_size : 11;
-  volatile uint16_t buffer_length; // bytes for non-iso, number of packets for iso endpoint
+  volatile uint16_t buflen; // bytes for non-iso, number of packets for iso endpoint
 
   //------------- Word 2 -------------//
-  volatile uint32_t buffer_addr;
+  volatile uint32_t buffer;
 
   //------------- Word 3 -------------//
   volatile uint16_t retired                      : 1; // initialized to zero
@@ -358,8 +358,8 @@ void dd_xfer_init(dma_desc_t* p_dd, void* buffer, uint16_t total_bytes)
 {
   p_dd->next                  = 0;
   p_dd->next_valid            = 0;
-  p_dd->buffer_addr           = (uint32_t) buffer;
-  p_dd->buffer_length         = total_bytes;
+  p_dd->buffer                = (uint32_t) buffer;
+  p_dd->buflen                = total_bytes;
   p_dd->status                = DD_STATUS_NOT_SERVICED;
   p_dd->iso_last_packet_valid = 0;
   p_dd->present_count         = 0;
@@ -445,43 +445,39 @@ static void control_xfer_isr(uint8_t rhport)
   uint32_t const ep_int_status = LPC_USB->USBEpIntSt & LPC_USB->USBEpIntEn;
 //  LPC_USB->USBEpIntClr = ep_int_status; // acknowledge interrupt TODO cannot immediately acknowledge setup packet
 
-  //------------- Setup Received-------------//
-  if ( (ep_int_status & BIT_(0)) &&
-       (sie_read(SIE_CMDCODE_ENDPOINT_SELECT+0, 1) & SIE_SELECT_ENDPOINT_SETUP_RECEIVED_MASK) )
+  // Control out complete
+  if ( ep_int_status & BIT_(0) )
   {
-    (void) sie_read(SIE_CMDCODE_ENDPOINT_SELECT_CLEAR_INTERRUPT+0, 1); // clear setup bit
-
-    uint8_t setup_packet[8];
-    control_ep_read(setup_packet, 8); // TODO read before clear setup above
-
-    dcd_event_setup_received(rhport, setup_packet, true);
-  }
-  else if (ep_int_status & 0x03)
-  {
-    // Control out complete
-    if ( ep_int_status & BIT_(0) )
+    if (sie_read(SIE_CMDCODE_ENDPOINT_SELECT+0, 1) & SIE_SELECT_ENDPOINT_SETUP_RECEIVED_MASK)
     {
-      if ( _dcd.control.out_buffer )
-      {
-        // software queued transfer previously
-        uint8_t received = control_ep_read(_dcd.control.out_buffer, _dcd.control.out_bytes);
+      // Setup received
+      (void) sie_read(SIE_CMDCODE_ENDPOINT_SELECT_CLEAR_INTERRUPT+0, 1); // clear setup bit
 
-        _dcd.control.out_buffer = NULL;
-        _dcd.control.out_bytes = 0;
+      uint8_t setup_packet[8];
+      control_ep_read(setup_packet, 8); // TODO read before clear setup above
 
-        dcd_event_xfer_complete(rhport, 0, received, XFER_RESULT_SUCCESS, true);
-      }else
-      {
-        // mark as received
-        _dcd.control.out_received = true;
-      }
+      dcd_event_setup_received(rhport, setup_packet, true);
     }
+    else if ( _dcd.control.out_buffer )
+    {
+      // software queued transfer previously
+      uint8_t received = control_ep_read(_dcd.control.out_buffer, _dcd.control.out_bytes);
+
+      _dcd.control.out_buffer = NULL;
+      _dcd.control.out_bytes = 0;
+
+      dcd_event_xfer_complete(rhport, 0, received, XFER_RESULT_SUCCESS, true);
+    }else
+    {
+      // hardware auto ack packet -> mark as received
+      _dcd.control.out_received = true;
+    }
+  }
 
     // Control In complete
-    if ( ep_int_status & BIT_(1) )
-    {
-      dcd_event_xfer_complete(rhport, TUSB_DIR_IN_MASK, _dcd.control.in_bytes, XFER_RESULT_SUCCESS, true);
-    }
+  if ( ep_int_status & BIT_(1) )
+  {
+    dcd_event_xfer_complete(rhport, TUSB_DIR_IN_MASK, _dcd.control.in_bytes, XFER_RESULT_SUCCESS, true);
   }
 
   LPC_USB->USBEpIntClr = ep_int_status; // acknowledge interrupt TODO cannot immediately acknowledge setup packet
@@ -491,27 +487,28 @@ void hal_dcd_isr(uint8_t rhport)
 {
   (void) rhport;
 
-  uint32_t const device_int_status = LPC_USB->USBDevIntSt & LPC_USB->USBDevIntEn;
-  LPC_USB->USBDevIntClr = device_int_status;// Acknowledge handled interrupt
+  uint32_t const dev_int_status = LPC_USB->USBDevIntSt & LPC_USB->USBDevIntEn;
+  LPC_USB->USBDevIntClr = dev_int_status;// Acknowledge handled interrupt
 
   // Bus event
-  if (device_int_status & DEV_INT_DEVICE_STATUS_MASK)
+  if (dev_int_status & DEV_INT_DEVICE_STATUS_MASK)
   {
-    uint8_t const dev_status_reg = sie_read(SIE_CMDCODE_DEVICE_STATUS, 1);
-    if (dev_status_reg & SIE_DEV_STATUS_RESET_MASK)
+    uint8_t const dev_status = sie_read(SIE_CMDCODE_DEVICE_STATUS, 1);
+    if (dev_status & SIE_DEV_STATUS_RESET_MASK)
     {
       bus_reset();
       dcd_event_bus_signal(rhport, DCD_EVENT_BUS_RESET, true);
     }
 
-    if (dev_status_reg & SIE_DEV_STATUS_CONNECT_CHANGE_MASK)
-    { // device is disconnected, require using VBUS (P1_30)
+    if (dev_status & SIE_DEV_STATUS_CONNECT_CHANGE_MASK)
+    {
+      // device is disconnected, require using VBUS (P1_30)
       dcd_event_bus_signal(rhport, DCD_EVENT_UNPLUGGED, true);
     }
 
-    if (dev_status_reg & SIE_DEV_STATUS_SUSPEND_CHANGE_MASK)
+    if (dev_status & SIE_DEV_STATUS_SUSPEND_CHANGE_MASK)
     {
-      if (dev_status_reg & SIE_DEV_STATUS_SUSPEND_MASK)
+      if (dev_status & SIE_DEV_STATUS_SUSPEND_MASK)
       {
         dcd_event_bus_signal(rhport, DCD_EVENT_SUSPENDED, true);
       }
@@ -524,7 +521,7 @@ void hal_dcd_isr(uint8_t rhport)
   }
 
   // Control Endpoint
-  if (device_int_status & DEV_INT_ENDPOINT_SLOW_MASK)
+  if (dev_int_status & DEV_INT_ENDPOINT_SLOW_MASK)
   {
     control_xfer_isr(rhport);
   }
@@ -534,13 +531,13 @@ void hal_dcd_isr(uint8_t rhport)
 
   if (dma_int_status & DMA_INT_END_OF_XFER_MASK)
   {
-    uint32_t eot_int = LPC_USB->USBEoTIntSt;
+    uint32_t const eot_int = LPC_USB->USBEoTIntSt;
     LPC_USB->USBEoTIntClr = eot_int; // acknowledge interrupt source
 
     normal_xfer_isr(rhport, eot_int);
   }
 
-  if ( (device_int_status & DEV_INT_ERROR_MASK) || (dma_int_status & DMA_INT_ERROR_MASK) )
+  if ( (dev_int_status & DEV_INT_ERROR_MASK) || (dma_int_status & DMA_INT_ERROR_MASK) )
   {
     uint32_t error_status = sie_read(SIE_CMDCODE_READ_ERROR_STATUS, 1);
     (void) error_status;
