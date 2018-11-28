@@ -55,7 +55,7 @@ typedef struct ATTR_ALIGNED(4)
   uint32_t next;
 
   //------------- Word 1 -------------//
-  uint16_t mode            : 2; // either 00 normal or 01 ATLE(auto length extraction)
+  uint16_t atle_mode       : 2; // 00: normal, 01: ATLE (auto length extraction)
   uint16_t next_valid      : 1;
   uint16_t                 : 1; ///< reserved
   uint16_t isochronous     : 1; // is an iso endpoint
