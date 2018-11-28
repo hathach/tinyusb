@@ -52,7 +52,7 @@
 
 // defined by compiler flags for flexibility
 #ifndef CFG_TUSB_MCU
-  #error CFG_TUSB_MCU should be defined using compiler flags
+  #error CFG_TUSB_MCU must be defined
 #endif
 
 #if CFG_TUSB_MCU == OPT_MCU_LPC43XX || CFG_TUSB_MCU == OPT_MCU_LPC18XX
@@ -93,11 +93,21 @@
  */
 #define CFG_TUD_DESC_AUTO           1
 
-/* USB VID/PID if not defined, tinyusb to use default value
+/* If USB VID/PID is not defined, tinyusb will use default value
  * Note: different class combination e.g CDC and (CDC + MSC) should have different
  * PID since Host OS will "remembered" device driver after the first plug */
 // #define CFG_TUD_DESC_VID          0xCAFE
 // #define CFG_TUD_DESC_PID          0x0001
+
+// LPC175x_6x's endpoint type (bulk/interrupt/iso) are fixed by its number
+// Therefor we need to force endpoint number to correct type on lpc17xx
+#if CFG_TUSB_MCU == OPT_MCU_LPC175X_6X
+#define CFG_TUD_DESC_CDC_EPNUM_NOTIF      1
+#define CFG_TUD_DESC_CDC_EPNUM            2
+#define CFG_TUD_DESC_MSC_EPNUM            5
+#define CFG_TUD_DESC_HID_KEYBOARD_EPNUM   4
+#define CFG_TUD_DESC_HID_MOUSE_EPNUM      7
+#endif
 
 //------------- CLASS -------------//
 #define CFG_TUD_CDC                 1
@@ -113,7 +123,6 @@
  * multiple report interface called "Generic". */
 #define CFG_TUD_HID_KEYBOARD_BOOT   1
 #define CFG_TUD_HID_MOUSE_BOOT      1
-
 
 //--------------------------------------------------------------------
 // CDC

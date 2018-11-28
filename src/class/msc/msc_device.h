@@ -71,16 +71,6 @@ TU_VERIFY_STATIC(CFG_TUD_MSC_BUFSIZE < UINT16_MAX, "Size is not correct");
   #error CFG_TUD_MSC_PRODUCT_REV 4-byte string must be defined
 #endif
 
-// TODO highspeed device is 512
-#ifndef CFG_TUD_MSC_EPSIZE
-#if TUD_OPT_HIGH_SPEED
-#define CFG_TUD_MSC_EPSIZE 512
-#else
-#define CFG_TUD_MSC_EPSIZE 64
-#endif
-#endif
-
-
 #ifdef __cplusplus
  extern "C" {
 #endif

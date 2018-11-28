@@ -101,18 +101,19 @@ enum
   ITF_NUM_TOTAL
 };
 
-enum {
-    ITF_STR_LANGUAGE = 0 ,
-    ITF_STR_MANUFACTURER ,
-    ITF_STR_PRODUCT      ,
-    ITF_STR_SERIAL       ,
+enum
+{
+  ITF_STR_LANGUAGE = 0 ,
+  ITF_STR_MANUFACTURER ,
+  ITF_STR_PRODUCT      ,
+  ITF_STR_SERIAL       ,
 
 #if CFG_TUD_CDC
-    ITF_STR_CDC          ,
+  ITF_STR_CDC          ,
 #endif
 
 #if CFG_TUD_MSC
-    ITF_STR_MSC          ,
+  ITF_STR_MSC          ,
 #endif
 
 #if CFG_TUD_HID_KEYBOARD && CFG_TUD_HID_KEYBOARD_BOOT
@@ -133,23 +134,51 @@ enum {
 #define _EP_OUT(x)              (x)
 
 // CDC
-#define EP_CDC_NOTIF            _EP_IN ( ITF_NUM_CDC+1 )
+#ifdef CFG_TUD_DESC_CDC_EPNUM_NOTIF
+  #define EP_CDC_NOTIF            _EP_IN (CFG_TUD_DESC_CDC_EPNUM_NOTIF)
+#else
+  #define EP_CDC_NOTIF            _EP_IN ( ITF_NUM_CDC+1 )
+#endif
 #define EP_CDC_NOTIF_SIZE       8
 
-#define EP_CDC_OUT              _EP_OUT( ITF_NUM_CDC+2 )
-#define EP_CDC_IN               _EP_IN ( ITF_NUM_CDC+2 )
+#ifdef CFG_TUD_DESC_CDC_EPNUM
+  #define EP_CDC_OUT              _EP_OUT( CFG_TUD_DESC_CDC_EPNUM )
+  #define EP_CDC_IN               _EP_IN ( CFG_TUD_DESC_CDC_EPNUM )
+#else
+  #define EP_CDC_OUT              _EP_OUT( ITF_NUM_CDC+2 )
+  #define EP_CDC_IN               _EP_IN ( ITF_NUM_CDC+2 )
+#endif
 
 // Mass Storage
-#define EP_MSC_OUT              _EP_OUT( ITF_NUM_MSC+1 )
-#define EP_MSC_IN               _EP_IN ( ITF_NUM_MSC+1 )
+#ifdef CFG_TUD_DESC_MSC_EPNUM
+  #define EP_MSC_OUT              _EP_OUT( CFG_TUD_DESC_MSC_EPNUM )
+  #define EP_MSC_IN               _EP_IN ( CFG_TUD_DESC_MSC_EPNUM )
+#else
+  #define EP_MSC_OUT              _EP_OUT( ITF_NUM_MSC+1 )
+  #define EP_MSC_IN               _EP_IN ( ITF_NUM_MSC+1 )
+#endif
+
+#if TUD_OPT_HIGH_SPEED
+#define EP_MSC_SIZE 512
+#else
+#define EP_MSC_SIZE 64
+#endif
 
 
 // HID Keyboard with boot protocol
-#define EP_HID_KBD_BOOT         _EP_IN ( ITF_NUM_HID_BOOT_KBD+1 )
+#ifdef CFG_TUD_DESC_HID_KEYBOARD_EPNUM
+  #define EP_HID_KBD_BOOT         _EP_IN ( CFG_TUD_DESC_HID_KEYBOARD_EPNUM )
+#else
+  #define EP_HID_KBD_BOOT         _EP_IN ( ITF_NUM_HID_BOOT_KBD+1 )
+#endif
 #define EP_HID_KBD_BOOT_SZ      8
 
 // HID Mouse with boot protocol
-#define EP_HID_MSE_BOOT         _EP_IN ( ITF_NUM_HID_BOOT_MSE+1 )
+#ifdef CFG_TUD_DESC_HID_MOUSE_EPNUM
+  #define EP_HID_MSE_BOOT         _EP_IN ( CFG_TUD_DESC_HID_MOUSE_EPNUM )
+#else
+  #define EP_HID_MSE_BOOT         _EP_IN ( ITF_NUM_HID_BOOT_MSE+1 )
+#endif
 #define EP_HID_MSE_BOOT_SZ      8
 
 // HID composite = keyboard + mouse + gamepad + etc ...
@@ -466,7 +495,7 @@ desc_auto_cfg_t const _desc_auto_config_struct =
           .bDescriptorType  = TUSB_DESC_ENDPOINT,
           .bEndpointAddress = EP_MSC_OUT,
           .bmAttributes     = { .xfer = TUSB_XFER_BULK },
-          .wMaxPacketSize   = { .size = CFG_TUD_MSC_EPSIZE},
+          .wMaxPacketSize   = { .size = EP_MSC_SIZE},
           .bInterval        = 1
       },
 
@@ -476,7 +505,7 @@ desc_auto_cfg_t const _desc_auto_config_struct =
           .bDescriptorType  = TUSB_DESC_ENDPOINT,
           .bEndpointAddress = EP_MSC_IN,
           .bmAttributes     = { .xfer = TUSB_XFER_BULK },
-          .wMaxPacketSize   = { .size = CFG_TUD_MSC_EPSIZE},
+          .wMaxPacketSize   = { .size = EP_MSC_SIZE},
           .bInterval        = 1
       }
     },
@@ -563,7 +592,6 @@ desc_auto_cfg_t const _desc_auto_config_struct =
 #endif // boot mouse
 
 #if AUTO_DESC_HID_GENERIC
-
     //------------- HID Generic Multiple report -------------//
     .hid_generic =
     {
@@ -601,7 +629,6 @@ desc_auto_cfg_t const _desc_auto_config_struct =
             .bInterval        = 0x0A
         }
     }
-
 #endif // hid generic
 };
 
