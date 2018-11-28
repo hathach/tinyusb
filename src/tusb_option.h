@@ -60,6 +60,9 @@
 
 #define OPT_MCU_SAMD21        200 ///< MicroChip SAMD21
 #define OPT_MCU_SAMD51        201 ///< MicroChip SAMD51
+
+#define OPT_MCU_STM32F4       300 ///< ST STM32F4
+
 /** @} */
 
 /** \defgroup group_supported_os Supported RTOS

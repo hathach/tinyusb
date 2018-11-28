@@ -24,6 +24,7 @@ MKDIR = mkdir
 SED = sed
 CP = cp
 RM = rm
+AS = $(CROSS_COMPILE)as
 
 INC += -Isrc \
 	-I$(TOP)/hw \
@@ -57,7 +58,7 @@ else
   CFLAGS += -flto -Os
 endif
 
-CFLAGS += $(INC) -Wall -Werror -std=gnu11 -nostdlib -DBOARD_$(shell echo $(BOARD) | tr a-z A-Z)
+CFLAGS += $(INC) -Wall -Werror -std=gnu11 -nostdlib -DBOARD_$(shell echo $(BOARD) | tr a-z\- A-Z_)
 
 LDFLAGS += $(CFLAGS) -nostartfiles -fshort-enums -Wl,-T,$(TOP)/$(LD_FILE) -Wl,-Map=$@.map -Wl,-cref -Wl,-gc-sections -specs=nosys.specs -specs=nano.specs
 LIBS := -lgcc -lc -lm -lnosys
@@ -117,6 +118,11 @@ $(BUILD)/obj/%.o: %.c
 	  $(SED) -e 's/#.*//' -e 's/^.*:  *//' -e 's/ *\\$$//' \
 	      -e '/^$$/ d' -e 's/$$/ :/' < $(@:.o=.d) >> $(@:.o=.P); \
 	  $(RM) $(@:.o=.d)
+
+vpath %.s . $(TOP)
+$(BUILD)/obj/%.o: %.s
+	@echo "AS $<"
+	@$(AS) -o $@ $<
 
 clean:
 	rm -rf build-$(BOARD)
