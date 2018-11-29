@@ -41,6 +41,7 @@
 #if CFG_TUSB_MCU == OPT_MCU_LPC175X_6X
 
 #include "LPC17xx.h"
+#include "lpc17xx_pinsel.h"
 
 void tusb_hal_int_enable(uint8_t rhport)
 {

@@ -42,7 +42,6 @@
 #include "LPC17xx.h"
 
 #include "lpc17xx_clkpwr.h"
-#include "lpc17xx_pinsel.h"
 #include "lpc17xx_gpio.h"
 #include "lpc17xx_uart.h"
 

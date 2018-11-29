@@ -44,6 +44,8 @@
 #include "dcd_lpc175x_6x.h"
 #include "LPC17xx.h"
 
+#include "osal/osal.h"
+
 //--------------------------------------------------------------------+
 // MACRO CONSTANT TYPEDEF
 //--------------------------------------------------------------------+
@@ -196,6 +198,16 @@ bool dcd_init(uint8_t rhport)
 
   sie_write(SIE_CMDCODE_DEVICE_STATUS, 1, 1);    // connect
 
+  // USB IRQ priority should be set by application previously
+  // If freeRTOS is used, IRQ priority is limit by max syscall ( smaller is higher )
+#if CFG_TUSB_OS == OPT_OS_FREERTOS
+  if ( NVIC_GetPriority(USB_IRQn) < configLIBRARY_MAX_SYSCALL_INTERRUPT_PRIORITY )
+  {
+    NVIC_SetPriority(USB_IRQn, configLIBRARY_MAX_SYSCALL_INTERRUPT_PRIORITY );
+  }
+#endif
+
+  NVIC_ClearPendingIRQ(USB_IRQn);
   NVIC_EnableIRQ(USB_IRQn);
 
   return TUSB_ERROR_NONE;
