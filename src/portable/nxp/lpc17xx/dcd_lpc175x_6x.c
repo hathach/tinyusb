@@ -350,8 +350,10 @@ void dcd_edpt_clear_stall(uint8_t rhport, uint8_t ep_addr)
 bool dcd_edpt_stalled (uint8_t rhport, uint8_t ep_addr)
 {
   (void) rhport;
-  // TODO implement later
-  return false;
+
+  uint32_t const ep_state = sie_read(SIE_CMDCODE_ENDPOINT_SELECT +  ep_addr2idx(ep_addr), 1);
+
+  return (ep_state & SIE_SELECT_ENDPOINT_STALL_MASK) ? true : false;
 }
 
 static bool control_xact(uint8_t rhport, uint8_t dir, uint8_t * buffer, uint8_t len)
