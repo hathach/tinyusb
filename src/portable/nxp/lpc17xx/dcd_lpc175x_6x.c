@@ -60,6 +60,7 @@ typedef struct ATTR_ALIGNED(4)
   uint16_t                 : 1; ///< reserved
   uint16_t isochronous     : 1; // is an iso endpoint
   uint16_t max_packet_size : 11;
+
   volatile uint16_t buflen; // bytes for non-iso, number of packets for iso endpoint
 
   //------------- Word 2 -------------//
@@ -73,6 +74,7 @@ typedef struct ATTR_ALIGNED(4)
   volatile uint16_t atle_msb_extracted     : 1;	// used in ATLE mode
   volatile uint16_t atle_mess_len_position : 6; // used in ATLE mode
   uint16_t                                 : 2;
+
   volatile uint16_t present_count;  // For non-iso : The number of bytes transferred by the DMA engine
                                     // For iso : number of packets
 
@@ -151,7 +153,7 @@ static void set_ep_size(uint8_t ep_id, uint16_t max_packet_size)
   LPC_USB->USBEpInd    = ep_id; // select index before setting packet size
   LPC_USB->USBMaxPSize = max_packet_size;
 
-  while ((LPC_USB->USBDevIntSt & DEV_INT_ENDPOINT_REALIZED_MASK) == 0) {} // TODO can be omitted
+  while ((LPC_USB->USBDevIntSt & DEV_INT_ENDPOINT_REALIZED_MASK) == 0) {}
   LPC_USB->USBDevIntClr = DEV_INT_ENDPOINT_REALIZED_MASK;
 }
 
@@ -162,10 +164,10 @@ static void set_ep_size(uint8_t ep_id, uint16_t max_packet_size)
 static void bus_reset(void)
 {
   // step 7 : slave mode set up
-  LPC_USB->USBEpIntClr     = 0xFFFFFFFF;          // clear all pending interrupt
-  LPC_USB->USBDevIntClr    = 0xFFFFFFFF;          // clear all pending interrupt
-  LPC_USB->USBEpIntEn      = (uint32_t) BIN8(11); // control endpoint cannot use DMA, non-control all use DMA
-  LPC_USB->USBEpIntPri     = 0;                   // same priority for all endpoint
+  LPC_USB->USBEpIntClr     = 0xFFFFFFFF; // clear all pending interrupt
+  LPC_USB->USBDevIntClr    = 0xFFFFFFFF; // clear all pending interrupt
+  LPC_USB->USBEpIntEn      = 0x03UL;     // control endpoint cannot use DMA, non-control all use DMA
+  LPC_USB->USBEpIntPri     = 0;          // same priority for all endpoint
 
   // step 8 : DMA set up
   LPC_USB->USBEpDMADis     = 0xFFFFFFFF; // firstly disable all dma
@@ -190,7 +192,7 @@ bool dcd_init(uint8_t rhport)
 
   LPC_USB->USBDevIntEn = (DEV_INT_DEVICE_STATUS_MASK | DEV_INT_ENDPOINT_SLOW_MASK | DEV_INT_ERROR_MASK);
   LPC_USB->USBUDCAH = (uint32_t) _dcd.udca;
-  LPC_USB->USBDMAIntEn = (DMA_INT_END_OF_XFER_MASK | DMA_INT_ERROR_MASK);
+  LPC_USB->USBDMAIntEn = (DMA_INT_END_OF_XFER_MASK /*| DMA_INT_NEW_DD_REQUEST_MASK*/ | DMA_INT_ERROR_MASK);
 
   sie_write(SIE_CMDCODE_DEVICE_STATUS, 1, 1);    // connect
 
@@ -308,6 +310,7 @@ bool dcd_edpt_open(uint8_t rhport, tusb_desc_endpoint_t const * p_endpoint_desc)
 
   dd->isochronous = (p_endpoint_desc->bmAttributes.xfer == TUSB_XFER_ISOCHRONOUS) ? 1 : 0;
   dd->max_packet_size = p_endpoint_desc->wMaxPacketSize.size;
+  dd->retired = 1; // invalid at first
 
   sie_write(SIE_CMDCODE_ENDPOINT_SET_STATUS + ep_id, 1, 0);    // clear all endpoint status
 
@@ -392,8 +395,8 @@ bool dcd_edpt_xfer (uint8_t rhport, uint8_t ep_addr, uint8_t* buffer, uint16_t t
     uint8_t ep_id = ep_addr2idx(ep_addr);
     dma_desc_t* dd = &_dcd.dd[ep_id];
 
-    // Isochronous & max packet size must be preserved
-    // Other fields of dd should be clear
+    // Prepare DMA descriptor
+    // Isochronous & max packet size must be preserved, Other fields of dd should be clear
     uint16_t const ep_size = dd->max_packet_size;
     uint8_t  is_iso = dd->isochronous;
 
@@ -405,13 +408,18 @@ bool dcd_edpt_xfer (uint8_t rhport, uint8_t ep_addr, uint8_t* buffer, uint16_t t
 
     _dcd.udca[ep_id] = dd;
 
-    // Enable DMA
-    LPC_USB->USBEpDMAEn = BIT_(ep_id);
-
     if ( ep_id % 2 )
     {
+      // Clear EP interrupt before Enable DMA
+      LPC_USB->USBEpIntEn &= ~BIT_(ep_id);
+      LPC_USB->USBEpDMAEn = BIT_(ep_id);
+
       // endpoint IN need to actively raise DMA request
       LPC_USB->USBDMARSet = BIT_(ep_id);
+    }else
+    {
+      // Enable DMA
+      LPC_USB->USBEpDMAEn = BIT_(ep_id);
     }
 
     return true;
@@ -421,26 +429,36 @@ bool dcd_edpt_xfer (uint8_t rhport, uint8_t ep_addr, uint8_t* buffer, uint16_t t
 //--------------------------------------------------------------------+
 // ISR
 //--------------------------------------------------------------------+
+static void dd_complete_isr(uint8_t rhport, uint8_t ep_id)
+{
+  dma_desc_t* const dd = &_dcd.dd[ep_id];
+  uint8_t result = (dd->status == DD_STATUS_NORMAL || dd->status == DD_STATUS_DATA_UNDERUN) ? XFER_RESULT_SUCCESS : XFER_RESULT_FAILED;
+  uint8_t const ep_addr = (ep_id / 2) | ((ep_id & 0x01) ? TUSB_DIR_IN_MASK : 0);
+
+  dcd_event_xfer_complete(rhport, ep_addr, dd->present_count, result, true);
+}
+
 static void normal_xfer_isr (uint8_t rhport, uint32_t eot_int)
 {
   for ( uint8_t ep_id = 2; ep_id < DCD_ENDPOINT_MAX; ep_id++ )
   {
     if ( BIT_TEST_(eot_int, ep_id) )
     {
-      dma_desc_t* const dd = &_dcd.dd[ep_id];
-      uint8_t result = (dd->status == DD_STATUS_NORMAL || dd->status == DD_STATUS_DATA_UNDERUN) ? XFER_RESULT_SUCCESS : XFER_RESULT_FAILED;
-      uint8_t const ep_addr = (ep_id / 2) | ((ep_id & 0x01) ? TUSB_DIR_IN_MASK : 0);
-
-      dcd_event_xfer_complete(rhport, ep_addr, dd->present_count, result, true);
+      if ( ep_id & 0x01 )
+      {
+        // IN
+        LPC_USB->USBEpIntEn |= BIT_(ep_id);
+      }else
+      {
+        // OUT
+        dd_complete_isr(rhport, ep_id);
+      }
     }
   }
 }
 
-static void control_xfer_isr(uint8_t rhport)
+static void control_xfer_isr(uint8_t rhport, uint32_t ep_int_status)
 {
-  uint32_t const ep_int_status = LPC_USB->USBEpIntSt & LPC_USB->USBEpIntEn;
-//  LPC_USB->USBEpIntClr = ep_int_status; // acknowledge interrupt TODO cannot immediately acknowledge setup packet
-
   // Control out complete
   if ( ep_int_status & BIT_(0) )
   {
@@ -470,13 +488,40 @@ static void control_xfer_isr(uint8_t rhport)
     }
   }
 
-    // Control In complete
+  // Control In complete
   if ( ep_int_status & BIT_(1) )
   {
     dcd_event_xfer_complete(rhport, TUSB_DIR_IN_MASK, _dcd.control.in_bytes, XFER_RESULT_SUCCESS, true);
   }
+}
 
-  LPC_USB->USBEpIntClr = ep_int_status; // acknowledge interrupt TODO cannot immediately acknowledge setup packet
+static void bus_event_isr(uint8_t rhport)
+{
+  uint8_t const dev_status = sie_read(SIE_CMDCODE_DEVICE_STATUS, 1);
+  if (dev_status & SIE_DEV_STATUS_RESET_MASK)
+  {
+    bus_reset();
+    dcd_event_bus_signal(rhport, DCD_EVENT_BUS_RESET, true);
+  }
+
+  if (dev_status & SIE_DEV_STATUS_CONNECT_CHANGE_MASK)
+  {
+    // device is disconnected, require using VBUS (P1_30)
+    dcd_event_bus_signal(rhport, DCD_EVENT_UNPLUGGED, true);
+  }
+
+  if (dev_status & SIE_DEV_STATUS_SUSPEND_CHANGE_MASK)
+  {
+    if (dev_status & SIE_DEV_STATUS_SUSPEND_MASK)
+    {
+      dcd_event_bus_signal(rhport, DCD_EVENT_SUSPENDED, true);
+    }
+    //        else
+    //      { // resume signal
+    //        dcd_event_bus_signal(rhport, DCD_EVENT_RESUME, true);
+    //      }
+    //    }
+  }
 }
 
 void hal_dcd_isr(uint8_t rhport)
@@ -487,55 +532,49 @@ void hal_dcd_isr(uint8_t rhport)
   // Bus event
   if (dev_int_status & DEV_INT_DEVICE_STATUS_MASK)
   {
-    uint8_t const dev_status = sie_read(SIE_CMDCODE_DEVICE_STATUS, 1);
-    if (dev_status & SIE_DEV_STATUS_RESET_MASK)
-    {
-      bus_reset();
-      dcd_event_bus_signal(rhport, DCD_EVENT_BUS_RESET, true);
-    }
-
-    if (dev_status & SIE_DEV_STATUS_CONNECT_CHANGE_MASK)
-    {
-      // device is disconnected, require using VBUS (P1_30)
-      dcd_event_bus_signal(rhport, DCD_EVENT_UNPLUGGED, true);
-    }
-
-    if (dev_status & SIE_DEV_STATUS_SUSPEND_CHANGE_MASK)
-    {
-      if (dev_status & SIE_DEV_STATUS_SUSPEND_MASK)
-      {
-        dcd_event_bus_signal(rhport, DCD_EVENT_SUSPENDED, true);
-      }
-//        else
-//      { // resume signal
-//        dcd_event_bus_signal(rhport, DCD_EVENT_RESUME, true);
-//      }
-//    }
-    }
+    bus_event_isr(rhport);
   }
 
-  // Control Endpoint
+  // Control Endpoint and Non-control IN transfer complete
   if (dev_int_status & DEV_INT_ENDPOINT_SLOW_MASK)
   {
-    control_xfer_isr(rhport);
+    uint32_t const ep_int_status = LPC_USB->USBEpIntSt & LPC_USB->USBEpIntEn;
+
+    control_xfer_isr(rhport, ep_int_status);
+
+    // Note clear USBEpIntClr will also clear the setup received bit --> clear after handle setup packet
+    LPC_USB->USBEpIntClr = ep_int_status;
+
+    for ( uint8_t ep_id = 3; ep_id < DCD_ENDPOINT_MAX; ep_id += 2 )
+    {
+      if ( BIT_TEST_(ep_int_status, ep_id) )
+      {
+        // Clear Ep interrupt for next DMA
+        LPC_USB->USBEpIntEn &= ~BIT_(ep_id);
+
+        dd_complete_isr(rhport, ep_id);
+      }
+    }
   }
 
-  // Non-Control Endpoint (DMA Mode)
+  // DMA transfer complete (RAM <-> EP) for Non-Control
+  // OUT: USB transfer is complete
+  // IN : UBS transfer is on-going -> enable EpIntEn to know when it is complete
   uint32_t const dma_int_status = LPC_USB->USBDMAIntSt & LPC_USB->USBDMAIntEn;
-
   if (dma_int_status & DMA_INT_END_OF_XFER_MASK)
   {
-    uint32_t const eot_int = LPC_USB->USBEoTIntSt;
-    LPC_USB->USBEoTIntClr = eot_int; // acknowledge interrupt source
+    uint32_t const eot = LPC_USB->USBEoTIntSt;
+    LPC_USB->USBEoTIntClr = eot; // acknowledge interrupt source
 
-    normal_xfer_isr(rhport, eot_int);
+    normal_xfer_isr(rhport, eot);
   }
 
+  // Errors
   if ( (dev_int_status & DEV_INT_ERROR_MASK) || (dma_int_status & DMA_INT_ERROR_MASK) )
   {
     uint32_t error_status = sie_read(SIE_CMDCODE_READ_ERROR_STATUS, 1);
     (void) error_status;
-//    TU_ASSERT(false, (void) 0);
+    TU_BREAKPOINT();
   }
 }
 
