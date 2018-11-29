@@ -52,20 +52,6 @@
 
 #include "ansi_escape.h"
 
-//--------------------------------------------------------------------+
-// PRINTF TARGET DEFINE
-//--------------------------------------------------------------------+
-/** \defgroup group_printf Printf Retarget
- * \brief Retarget the standard stdio printf/getchar to other IOs
- *  @{ */
-#define PRINTF_TARGET_SEMIHOST      1 ///< Using the semihost support from toolchain, requires no hardware but is the slowest
-#define PRINTF_TARGET_UART          2 ///< Using UART as stdio, this is the default for most of the board
-#define PRINTF_TARGET_SWO           3 ///< Using non-instructive serial wire output (SWO), is the best option since it does not slow down MCU but requires supported from debugger and IDE
-#define PRINTF_TARGET_NONE          4 ///< Using none at all.
-/** @} */
-
-#define PRINTF(...) printf(__VA_ARGS__)
-
 #if defined BOARD_LPCXPRESSO11U14
   #include "lpcxpresso11u14/board_lpcxpresso11u14.h"
 #elif defined BOARD_LPCXPRESSO11U68

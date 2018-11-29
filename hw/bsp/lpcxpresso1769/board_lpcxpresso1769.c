@@ -37,15 +37,18 @@
 /**************************************************************************/
 
 #include "bsp/board.h"
-#include "tusb.h"
 
 #ifdef BOARD_LPCXPRESSO1769
 
 #include "LPC17xx.h"
+#include "lpc17xx_clkpwr.h"
+#include "lpc17xx_gpio.h"
+#include "lpc17xx_uart.h"
 #include "lpc17xx_pinsel.h"
 
-#define BOARD_LED_PORT                  (0)
-#define BOARD_LED_PIN                   (22)
+#include "tusb.h"
+
+#define BOARD_LED0_PORT                  (0)
 
 static const struct {
   uint8_t port;
@@ -73,10 +76,13 @@ void board_init(void)
 
 #if CFG_TUSB_OS == OPT_OS_NONE // TODO may move to main.c
   SysTick_Config(SystemCoreClock / BOARD_TICKS_HZ); // 1 msec tick timer
+#elif CFG_TUSB_OS == OPT_OS_FREERTOS
+  // If freeRTOS is used, IRQ priority is limit by max syscall ( smaller is higher )
+  NVIC_SetPriority(USB_IRQn, configLIBRARY_MAX_SYSCALL_INTERRUPT_PRIORITY );
 #endif
 
   //------------- LED -------------//
-  GPIO_SetDir(BOARD_LED_PORT, BIT_(BOARD_LED_PIN), 1);
+  GPIO_SetDir(BOARD_LED0_PORT, BIT_(BOARD_LED0), 1);
 
   //------------- BUTTON -------------//
   for(uint8_t i=0; i<BOARD_BUTTON_COUNT; i++) GPIO_SetDir(buttons[i].port, BIT_(buttons[i].pin), 0);
@@ -146,10 +152,10 @@ void board_led_control(uint32_t id, bool state)
 
   if (state)
   {
-    GPIO_SetValue(BOARD_LED_PORT, BIT_(BOARD_LED_PIN));
+    GPIO_SetValue(BOARD_LED0_PORT, BIT_(BOARD_LED0));
   }else
   {
-    GPIO_ClearValue(BOARD_LED_PORT, BIT_(BOARD_LED_PIN));
+    GPIO_ClearValue(BOARD_LED0_PORT, BIT_(BOARD_LED0));
   }
 
 }
