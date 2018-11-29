@@ -197,16 +197,17 @@ bool dcd_init (uint8_t rhport)
 
 void dcd_connect (uint8_t rhport)
 {
-
+  (void) rhport;
 }
 void dcd_disconnect (uint8_t rhport)
 {
-
+  (void) rhport;
 }
 
 void dcd_set_address (uint8_t rhport, uint8_t dev_addr)
 {
   (void) rhport;
+  (void) dev_addr;
   // Set Address is automatically update by hw controller
 }
 
@@ -362,7 +363,7 @@ void USBD_IRQHandler(void)
 
   volatile uint32_t* regevt = &NRF_USBD->EVENTS_USBRESET;
 
-  for(int i=0; i<USBD_INTEN_EPDATA_Pos+1; i++)
+  for(uint8_t i=0; i<USBD_INTEN_EPDATA_Pos+1; i++)
   {
     if ( BIT_TEST_(inten, i) && regevt[i]  )
     {

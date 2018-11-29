@@ -146,6 +146,7 @@ void mscd_init(void)
 
 void mscd_reset(uint8_t rhport)
 {
+  (void) rhport;
   tu_memclr(&_mscd_itf, sizeof(mscd_interface_t));
 }
 
@@ -201,6 +202,9 @@ bool mscd_control_request(uint8_t rhport, tusb_control_request_t const * p_reque
 // return false to stall control endpoint (e.g Host send non-sense DATA)
 bool mscd_control_request_complete(uint8_t rhport, tusb_control_request_t const * p_request)
 {
+  (void) rhport;
+  (void) p_request;
+
   // nothing to do
   return true;
 }
@@ -208,6 +212,7 @@ bool mscd_control_request_complete(uint8_t rhport, tusb_control_request_t const 
 // return length of response (copied to buffer), -1 if it is not an built-in commands
 int32_t proc_builtin_scsi(msc_cbw_t const * p_cbw, uint8_t* buffer, uint32_t bufsize)
 {
+  (void) bufsize; // TODO refractor later
   int32_t ret;
 
   switch ( p_cbw->command[0] )

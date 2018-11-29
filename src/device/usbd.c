@@ -170,7 +170,7 @@ static osal_queue_t _usbd_q;
 //--------------------------------------------------------------------+
 static void mark_interface_endpoint(uint8_t const* p_desc, uint16_t desc_len, uint8_t driver_id);
 static bool process_control_request(uint8_t rhport, tusb_control_request_t const * p_request);
-static bool process_set_config(uint8_t rhport, uint8_t config_number);
+static bool process_set_config(uint8_t rhport);
 static void const* get_descriptor(tusb_control_request_t const * p_request, uint16_t* desc_len);
 
 void usbd_control_reset (uint8_t rhport);
@@ -356,7 +356,7 @@ static bool process_control_request(uint8_t rhport, tusb_control_request_t const
         dcd_set_config(rhport, config);
         _usbd_dev.config_num = config;
 
-        TU_ASSERT( TUSB_ERROR_NONE == process_set_config(rhport, config) );
+        TU_ASSERT( TUSB_ERROR_NONE == process_set_config(rhport) );
       }
       break;
 
@@ -427,7 +427,7 @@ static bool process_control_request(uint8_t rhport, tusb_control_request_t const
 
 // Process Set Configure Request
 // This function parse configuration descriptor & open drivers accordingly
-static bool process_set_config(uint8_t rhport, uint8_t config_number)
+static bool process_set_config(uint8_t rhport)
 {
   uint8_t const * desc_cfg = (uint8_t const *) usbd_desc_set->config;
   TU_ASSERT(desc_cfg != NULL);
@@ -591,23 +591,23 @@ void dcd_event_handler(dcd_event_t const * event, bool in_isr)
 // helper to send bus signal event
 void dcd_event_bus_signal (uint8_t rhport, dcd_eventid_t eid, bool in_isr)
 {
-  dcd_event_t event = { .rhport = 0, .event_id = eid, };
+  dcd_event_t event = { .rhport = rhport, .event_id = eid, };
   dcd_event_handler(&event, in_isr);
 }
 
 // helper to send setup received
 void dcd_event_setup_received(uint8_t rhport, uint8_t const * setup, bool in_isr)
 {
-  dcd_event_t event = { .rhport = 0, .event_id = DCD_EVENT_SETUP_RECEIVED };
+  dcd_event_t event = { .rhport = rhport, .event_id = DCD_EVENT_SETUP_RECEIVED };
   memcpy(&event.setup_received, setup, 8);
 
-  dcd_event_handler(&event, true);
+  dcd_event_handler(&event, in_isr);
 }
 
 // helper to send transfer complete event
 void dcd_event_xfer_complete (uint8_t rhport, uint8_t ep_addr, uint32_t xferred_bytes, uint8_t result, bool in_isr)
 {
-  dcd_event_t event = { .rhport = 0, .event_id = DCD_EVENT_XFER_COMPLETE };
+  dcd_event_t event = { .rhport = rhport, .event_id = DCD_EVENT_XFER_COMPLETE };
 
   event.xfer_complete.ep_addr = ep_addr;
   event.xfer_complete.len     = xferred_bytes;

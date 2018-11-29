@@ -84,11 +84,11 @@ bool dcd_init (uint8_t rhport)
 
 void dcd_connect (uint8_t rhport)
 {
-
+  (void) rhport;
 }
 void dcd_disconnect (uint8_t rhport)
 {
-
+  (void) rhport;
 }
 
 void dcd_set_address (uint8_t rhport, uint8_t dev_addr)

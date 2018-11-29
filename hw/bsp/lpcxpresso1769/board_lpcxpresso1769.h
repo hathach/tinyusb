@@ -42,7 +42,6 @@
 #include "LPC17xx.h"
 
 #include "lpc17xx_clkpwr.h"
-#include "lpc17xx_pinsel.h"
 #include "lpc17xx_gpio.h"
 #include "lpc17xx_uart.h"
 
@@ -52,6 +51,9 @@
 
 #define CFG_PRINTF_TARGET             PRINTF_TARGET_UART
 //#define CFG_PRINTF_TARGET             PRINTF_TARGET_SWO
+
+#define BOARD_LED_NUM   1
+#define BOARD_LED0      0
 
 
 #ifdef __cplusplus

@@ -37,9 +37,11 @@
 /**************************************************************************/
 
 #include "common/tusb_common.h"
-#if CFG_TUSB_MCU == OPT_MCU_LPC175X_6X
-#include "hal_usb.h"
 
+#if CFG_TUSB_MCU == OPT_MCU_LPC175X_6X
+
+#include "LPC17xx.h"
+#include "lpc17xx_pinsel.h"
 
 void tusb_hal_int_enable(uint8_t rhport)
 {
@@ -102,6 +104,8 @@ bool tusb_hal_init(void)
 
 void USB_IRQHandler(void)
 {
+  extern void hal_dcd_isr(uint8_t rhport);
+
   #if MODE_HOST_SUPPORTED
     hal_hcd_isr(0);
   #endif

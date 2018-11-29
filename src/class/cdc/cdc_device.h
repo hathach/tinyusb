@@ -116,7 +116,7 @@ void         cdcd_init               (void);
 tusb_error_t cdcd_open               (uint8_t rhport, tusb_desc_interface_t const * p_interface_desc, uint16_t *p_length);
 bool cdcd_control_request (uint8_t rhport, tusb_control_request_t const * p_request);
 bool cdcd_control_request_complete (uint8_t rhport, tusb_control_request_t const * p_request);
-tusb_error_t cdcd_xfer_cb            (uint8_t rhport, uint8_t edpt_addr, xfer_result_t event, uint32_t xferred_bytes);
+tusb_error_t cdcd_xfer_cb            (uint8_t rhport, uint8_t edpt_addr, xfer_result_t result, uint32_t xferred_bytes);
 void         cdcd_reset              (uint8_t rhport);
 
 #endif

@@ -4,8 +4,9 @@
 //--------------------------------------------------------------------+
 // See http://www.freertos.org/a00110.html.
 //--------------------------------------------------------------------+
-//#include "bsp/board.h"
-#include "nrf.h"
+#include "LPC17xx.h"
+
+#define configCPU_CLOCK_HZ                   SystemCoreClock
 
 #if 0
 #if CFG_TUSB_MCU == OPT_MCU_LPC43XX
@@ -15,12 +16,10 @@
 #endif
 #endif
 
-#define configCPU_CLOCK_HZ                   SystemCoreClock
-
 #define configUSE_PREEMPTION                    1
 #define configUSE_PORT_OPTIMISED_TASK_SELECTION 0
 #define configTICK_RATE_HZ                      ( 1000 )
-#define configMAX_PRIORITIES                    (5)
+#define configMAX_PRIORITIES                    (8)
 #define configMINIMAL_STACK_SIZE                (128 )
 #define configTOTAL_HEAP_SIZE                   ( ( size_t ) ( 16*1024 ) )
 #define configMAX_TASK_NAME_LEN                 32
@@ -106,12 +105,13 @@ static inline void configASSERT_breakpoint(void)
 //--------------------------------------------------------------------+
 // Interrupt nesting behaviour configuration.
 //--------------------------------------------------------------------+
-/* Cortex-M specific definitions. __NVIC_PRIO_BITS is defined in core_cmx.h */
+/* Cortex-M specific definitions. __NVIC_PRIO_BITS is defined in mcu_variant.h */
 #ifdef __NVIC_PRIO_BITS
 	#define configPRIO_BITS       __NVIC_PRIO_BITS
 #else
-	#define configPRIO_BITS       5        // 32 priority levels
+  #error "This port requires __NVIC_PRIO_BITS to be defined"
 #endif
+
 
 /* The lowest interrupt priority that can be used in a call to a "set priority"
 function. */
@@ -121,14 +121,14 @@ function. */
 routine that makes calls to interrupt safe FreeRTOS API functions.  DO NOT CALL
 INTERRUPT SAFE FREERTOS API FUNCTIONS FROM ANY INTERRUPT THAT HAS A HIGHER
 PRIORITY THAN THIS! (higher priorities are lower numeric values. */
-#define configLIBRARY_MAX_SYSCALL_INTERRUPT_PRIORITY	5
+#define configLIBRARY_MAX_SYSCALL_INTERRUPT_PRIORITY	2
 
 /* Interrupt priorities used by the kernel port layer itself.  These are generic
 to all Cortex-M ports, and do not rely on any particular library functions. */
-#define configKERNEL_INTERRUPT_PRIORITY 		          configLIBRARY_LOWEST_INTERRUPT_PRIORITY // ( configLIBRARY_LOWEST_INTERRUPT_PRIORITY << (8 - configPRIO_BITS) )
+#define configKERNEL_INTERRUPT_PRIORITY 		          ( configLIBRARY_LOWEST_INTERRUPT_PRIORITY << (8 - configPRIO_BITS) )
 
 /* !!!! configMAX_SYSCALL_INTERRUPT_PRIORITY must not be set to zero !!!!
 See http://www.FreeRTOS.org/RTOS-Cortex-M3-M4.html. */
-#define configMAX_SYSCALL_INTERRUPT_PRIORITY 	        configLIBRARY_MAX_SYSCALL_INTERRUPT_PRIORITY //( configLIBRARY_MAX_SYSCALL_INTERRUPT_PRIORITY << (8 - configPRIO_BITS) )
+#define configMAX_SYSCALL_INTERRUPT_PRIORITY 	        ( configLIBRARY_MAX_SYSCALL_INTERRUPT_PRIORITY << (8 - configPRIO_BITS) )
 
 #endif /* __FREERTOS_CONFIG__H */

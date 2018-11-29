@@ -418,7 +418,6 @@ bool hidd_control_request(uint8_t rhport, tusb_control_request_t const * p_reque
 
     if (p_request->bRequest == TUSB_REQ_GET_DESCRIPTOR && desc_type == HID_DESC_TYPE_REPORT)
     {
-      // Cast away the const on p_hid->desc_report because we know it won't be modified.
       usbd_control_xfer(rhport, p_request, (void *)p_hid->desc_report, p_hid->desc_len);
     }else
     {

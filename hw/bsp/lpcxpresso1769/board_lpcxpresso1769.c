@@ -36,14 +36,18 @@
 */
 /**************************************************************************/
 
-#include "../board.h"
+#include "bsp/board.h"
+#include "tusb.h"
 
 #ifdef BOARD_LPCXPRESSO1769
+
+#include "LPC17xx.h"
+#include "lpc17xx_pinsel.h"
 
 #define BOARD_LED_PORT                  (0)
 #define BOARD_LED_PIN                   (22)
 
-const static struct {
+static const struct {
   uint8_t port;
   uint8_t pin;
 } buttons[] =
@@ -89,6 +93,7 @@ void board_init(void)
   //P0_21 instead of P2_9 as USB connect
 #endif
 
+#if 0
   //------------- UART -------------//
   PINSEL_CFG_Type PinCfg =
   {
@@ -110,20 +115,43 @@ void board_init(void)
 
 	UART_Init(BOARD_UART_PORT, &UARTConfigStruct);
 	UART_TxCmd(BOARD_UART_PORT, ENABLE); // Enable UART Transmit
+#endif
 }
+
+/*------------------------------------------------------------------*/
+/* TUSB HAL MILLISECOND
+ *------------------------------------------------------------------*/
+#if CFG_TUSB_OS == OPT_OS_NONE
+
+volatile uint32_t system_ticks = 0;
+
+void SysTick_Handler (void)
+{
+  system_ticks++;
+}
+
+uint32_t tusb_hal_millis(void)
+{
+  return board_tick2ms(system_ticks);
+}
+
+#endif
 
 //--------------------------------------------------------------------+
 // LEDS
 //--------------------------------------------------------------------+
-void board_leds(uint32_t on_mask, uint32_t off_mask)
+void board_led_control(uint32_t id, bool state)
 {
-  if (on_mask & BIT_(0))
+  (void) id;
+
+  if (state)
   {
     GPIO_SetValue(BOARD_LED_PORT, BIT_(BOARD_LED_PIN));
-  }else if (off_mask & BIT_(0))
+  }else
   {
     GPIO_ClearValue(BOARD_LED_PORT, BIT_(BOARD_LED_PIN));
   }
+
 }
 
 //--------------------------------------------------------------------+
@@ -148,12 +176,12 @@ uint32_t board_buttons(void)
 //--------------------------------------------------------------------+
 void board_uart_putchar(uint8_t c)
 {
-  UART_Send(BOARD_UART_PORT, &c, 1, BLOCKING);
+//  UART_Send(BOARD_UART_PORT, &c, 1, BLOCKING);
 }
 
 uint8_t  board_uart_getchar(void)
 {
-  return UART_ReceiveByte(BOARD_UART_PORT);
+//  return UART_ReceiveByte(BOARD_UART_PORT);
 }
 
 #endif
