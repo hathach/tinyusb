@@ -41,10 +41,6 @@
 
 #include "LPC17xx.h"
 
-#include "lpc17xx_clkpwr.h"
-#include "lpc17xx_gpio.h"
-#include "lpc17xx_uart.h"
-
 #ifdef __cplusplus
  extern "C" {
 #endif
