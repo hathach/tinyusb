@@ -96,4 +96,5 @@
       path="../../../../../lib/segger_rtt"
       recurse="No" />
   </project>
+  <configuration Name="LPCXpresso 1769" />
 </solution>

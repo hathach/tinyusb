@@ -4,4 +4,5 @@
   <import file_name="samd21/samd21.emProject" />
   <import file_name="samd51/samd51.emProject" />
   <import file_name="lpc43xx/lpc43xx.emProject" />
+  <import file_name="lpc175x_6x/lpc175x_6x.emProject" />
 </solution>
