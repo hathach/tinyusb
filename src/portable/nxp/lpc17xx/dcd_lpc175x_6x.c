@@ -167,7 +167,7 @@ static void bus_reset(void)
   LPC_USB->USBEpIntClr     = 0xFFFFFFFF; // clear all pending interrupt
   LPC_USB->USBDevIntClr    = 0xFFFFFFFF; // clear all pending interrupt
   LPC_USB->USBEpIntEn      = 0x03UL;     // control endpoint cannot use DMA, non-control all use DMA
-  LPC_USB->USBEpIntPri     = 0;          // same priority for all endpoint
+  LPC_USB->USBEpIntPri     = 0x03UL;     // fast for control endpoint
 
   // step 8 : DMA set up
   LPC_USB->USBEpDMADis     = 0xFFFFFFFF; // firstly disable all dma
@@ -190,7 +190,7 @@ bool dcd_init(uint8_t rhport)
 
   bus_reset();
 
-  LPC_USB->USBDevIntEn = (DEV_INT_DEVICE_STATUS_MASK | DEV_INT_ENDPOINT_SLOW_MASK | DEV_INT_ERROR_MASK);
+  LPC_USB->USBDevIntEn = (DEV_INT_DEVICE_STATUS_MASK | DEV_INT_ENDPOINT_FAST_MASK | DEV_INT_ENDPOINT_SLOW_MASK | DEV_INT_ERROR_MASK);
   LPC_USB->USBUDCAH = (uint32_t) _dcd.udca;
   LPC_USB->USBDMAIntEn = (DMA_INT_END_OF_XFER_MASK /*| DMA_INT_NEW_DD_REQUEST_MASK*/ | DMA_INT_ERROR_MASK);
 
@@ -429,34 +429,8 @@ bool dcd_edpt_xfer (uint8_t rhport, uint8_t ep_addr, uint8_t* buffer, uint16_t t
 //--------------------------------------------------------------------+
 // ISR
 //--------------------------------------------------------------------+
-static void dd_complete_isr(uint8_t rhport, uint8_t ep_id)
-{
-  dma_desc_t* const dd = &_dcd.dd[ep_id];
-  uint8_t result = (dd->status == DD_STATUS_NORMAL || dd->status == DD_STATUS_DATA_UNDERUN) ? XFER_RESULT_SUCCESS : XFER_RESULT_FAILED;
-  uint8_t const ep_addr = (ep_id / 2) | ((ep_id & 0x01) ? TUSB_DIR_IN_MASK : 0);
 
-  dcd_event_xfer_complete(rhport, ep_addr, dd->present_count, result, true);
-}
-
-static void normal_xfer_isr (uint8_t rhport, uint32_t eot_int)
-{
-  for ( uint8_t ep_id = 2; ep_id < DCD_ENDPOINT_MAX; ep_id++ )
-  {
-    if ( BIT_TEST_(eot_int, ep_id) )
-    {
-      if ( ep_id & 0x01 )
-      {
-        // IN
-        LPC_USB->USBEpIntEn |= BIT_(ep_id);
-      }else
-      {
-        // OUT
-        dd_complete_isr(rhport, ep_id);
-      }
-    }
-  }
-}
-
+// handle control xfer (slave mode)
 static void control_xfer_isr(uint8_t rhport, uint32_t ep_int_status)
 {
   // Control out complete
@@ -497,6 +471,7 @@ static void control_xfer_isr(uint8_t rhport, uint32_t ep_int_status)
   }
 }
 
+// handle bus event signal
 static void bus_event_isr(uint8_t rhport)
 {
   uint8_t const dev_status = sie_read(SIE_CMDCODE_DEVICE_STATUS, 1);
@@ -525,6 +500,17 @@ static void bus_event_isr(uint8_t rhport)
   }
 }
 
+// Helper to complete a DMA descriptor for non-control transfer
+static void dd_complete_isr(uint8_t rhport, uint8_t ep_id)
+{
+  dma_desc_t* const dd = &_dcd.dd[ep_id];
+  uint8_t result = (dd->status == DD_STATUS_NORMAL || dd->status == DD_STATUS_DATA_UNDERUN) ? XFER_RESULT_SUCCESS : XFER_RESULT_FAILED;
+  uint8_t const ep_addr = (ep_id / 2) | ((ep_id & 0x01) ? TUSB_DIR_IN_MASK : 0);
+
+  dcd_event_xfer_complete(rhport, ep_addr, dd->present_count, result, true);
+}
+
+// main USB IRQ handler
 void hal_dcd_isr(uint8_t rhport)
 {
   uint32_t const dev_int_status = LPC_USB->USBDevIntSt & LPC_USB->USBDevIntEn;
@@ -536,16 +522,20 @@ void hal_dcd_isr(uint8_t rhport)
     bus_event_isr(rhport);
   }
 
-  // Control Endpoint and Non-control IN transfer complete
-  if (dev_int_status & DEV_INT_ENDPOINT_SLOW_MASK)
+  // Endpoint interrupt
+  uint32_t const ep_int_status = LPC_USB->USBEpIntSt & LPC_USB->USBEpIntEn;
+
+  // Control Endpoint are fast
+  if (dev_int_status & DEV_INT_ENDPOINT_FAST_MASK)
   {
-    uint32_t const ep_int_status = LPC_USB->USBEpIntSt & LPC_USB->USBEpIntEn;
     // Note clear USBEpIntClr will also clear the setup received bit --> clear after handle setup packet
     // Only clear USBEpIntClr 1 endpoint each, and should wait for CDFULL bit set
-
     control_xfer_isr(rhport, ep_int_status);
+  }
 
-    // For non-control only IN transfer is enabled
+  // non-control IN are slow
+  if (dev_int_status & DEV_INT_ENDPOINT_SLOW_MASK)
+  {
     for ( uint8_t ep_id = 3; ep_id < DCD_ENDPOINT_MAX; ep_id += 2 )
     {
       if ( BIT_TEST_(ep_int_status, ep_id) )
@@ -575,7 +565,7 @@ void hal_dcd_isr(uint8_t rhport)
       {
         if ( ep_id & 0x01 )
         {
-          // IN
+          // IN enable EpInt for end of usb transfer
           LPC_USB->USBEpIntEn |= BIT_(ep_id);
         }else
         {
