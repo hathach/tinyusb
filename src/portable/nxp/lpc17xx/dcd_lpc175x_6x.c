@@ -462,11 +462,12 @@ static void control_xfer_isr(uint8_t rhport, uint32_t ep_int_status)
   // Control out complete
   if ( ep_int_status & BIT_(0) )
   {
-    if (sie_read(SIE_CMDCODE_ENDPOINT_SELECT+0, 1) & SIE_SELECT_ENDPOINT_SETUP_RECEIVED_MASK)
-    {
-      // Setup received
-      (void) sie_read(SIE_CMDCODE_ENDPOINT_SELECT_CLEAR_INTERRUPT+0, 1); // clear setup bit
+    bool is_setup = sie_read(SIE_CMDCODE_ENDPOINT_SELECT+0, 1) & SIE_SELECT_ENDPOINT_SETUP_RECEIVED_MASK;
 
+    LPC_USB->USBEpIntClr = BIT_(0);
+
+    if (is_setup)
+    {
       uint8_t setup_packet[8];
       control_ep_read(setup_packet, 8); // TODO read before clear setup above
 
@@ -491,6 +492,7 @@ static void control_xfer_isr(uint8_t rhport, uint32_t ep_int_status)
   // Control In complete
   if ( ep_int_status & BIT_(1) )
   {
+    LPC_USB->USBEpIntClr = BIT_(1);
     dcd_event_xfer_complete(rhport, TUSB_DIR_IN_MASK, _dcd.control.in_bytes, XFER_RESULT_SUCCESS, true);
   }
 }
@@ -516,11 +518,10 @@ static void bus_event_isr(uint8_t rhport)
     {
       dcd_event_bus_signal(rhport, DCD_EVENT_SUSPENDED, true);
     }
-    //        else
-    //      { // resume signal
-    //        dcd_event_bus_signal(rhport, DCD_EVENT_RESUME, true);
-    //      }
-    //    }
+    else
+    {
+      dcd_event_bus_signal(rhport, DCD_EVENT_RESUME, true);
+    }
   }
 }
 
@@ -539,16 +540,18 @@ void hal_dcd_isr(uint8_t rhport)
   if (dev_int_status & DEV_INT_ENDPOINT_SLOW_MASK)
   {
     uint32_t const ep_int_status = LPC_USB->USBEpIntSt & LPC_USB->USBEpIntEn;
+    // Note clear USBEpIntClr will also clear the setup received bit --> clear after handle setup packet
+    // Only clear USBEpIntClr 1 endpoint each, and should wait for CDFULL bit set
 
     control_xfer_isr(rhport, ep_int_status);
 
-    // Note clear USBEpIntClr will also clear the setup received bit --> clear after handle setup packet
-    LPC_USB->USBEpIntClr = ep_int_status;
-
+    // For non-control only IN transfer is enabled
     for ( uint8_t ep_id = 3; ep_id < DCD_ENDPOINT_MAX; ep_id += 2 )
     {
       if ( BIT_TEST_(ep_int_status, ep_id) )
       {
+        LPC_USB->USBEpIntClr = BIT_(ep_id);
+
         // Clear Ep interrupt for next DMA
         LPC_USB->USBEpIntEn &= ~BIT_(ep_id);
 
@@ -558,15 +561,29 @@ void hal_dcd_isr(uint8_t rhport)
   }
 
   // DMA transfer complete (RAM <-> EP) for Non-Control
-  // OUT: USB transfer is complete
-  // IN : UBS transfer is on-going -> enable EpIntEn to know when it is complete
+  // OUT: USB transfer is fully complete
+  // IN : UBS transfer is still on-going -> enable EpIntEn to know when it is complete
   uint32_t const dma_int_status = LPC_USB->USBDMAIntSt & LPC_USB->USBDMAIntEn;
   if (dma_int_status & DMA_INT_END_OF_XFER_MASK)
   {
     uint32_t const eot = LPC_USB->USBEoTIntSt;
     LPC_USB->USBEoTIntClr = eot; // acknowledge interrupt source
 
-    normal_xfer_isr(rhport, eot);
+    for ( uint8_t ep_id = 2; ep_id < DCD_ENDPOINT_MAX; ep_id++ )
+    {
+      if ( BIT_TEST_(eot, ep_id) )
+      {
+        if ( ep_id & 0x01 )
+        {
+          // IN
+          LPC_USB->USBEpIntEn |= BIT_(ep_id);
+        }else
+        {
+          // OUT
+          dd_complete_isr(rhport, ep_id);
+        }
+      }
+    }
   }
 
   // Errors
