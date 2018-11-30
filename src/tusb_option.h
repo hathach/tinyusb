@@ -48,12 +48,12 @@
 /** \defgroup group_mcu Supported MCU
  * \ref CFG_TUSB_MCU must be defined to one of these
  *  @{ */
-#define OPT_MCU_LPC11UXX       1 ///< NXP LPC11Uxx series
+#define OPT_MCU_LPC11UXX       1 ///< NXP LPC11Uxx
 
-#define OPT_MCU_LPC13XX       3 ///< NXP LPC13xx 12 bit ADC series
-#define OPT_MCU_LPC175X_6X     4 ///< NXP LPC175x, LPC176x series
-#define OPT_MCU_LPC177X_8X     5 ///< NXP LPC177x, LPC178x series (not supported yet)
-#define OPT_MCU_LPC18XX        6 ///< NXP LPC18xx series (not supported yet)
+#define OPT_MCU_LPC13XX        3 ///< NXP LPC13xx
+#define OPT_MCU_LPC175X_6X     4 ///< NXP LPC175x, LPC176x
+#define OPT_MCU_LPC177X_8X     5 ///< NXP LPC177x, LPC178x
+#define OPT_MCU_LPC18XX        6 ///< NXP LPC18xx series
 #define OPT_MCU_LPC43XX        7 ///< NXP LPC43xx series
 
 #define OPT_MCU_NRF5X        100 ///< Nordic nRF5x series
