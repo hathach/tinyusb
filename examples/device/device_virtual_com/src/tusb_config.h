@@ -92,7 +92,7 @@
 //--------------------------------------------------------------------+
 #ifdef __CODE_RED // compiled with lpcxpresso
 
-  #if (CFG_TUSB_MCU == OPT_MCU_LPC11UXX) || (CFG_TUSB_MCU == OPT_MCU_LPC13UXX)
+  #if (CFG_TUSB_MCU == OPT_MCU_LPC11UXX) || (CFG_TUSB_MCU == OPT_MCU_LPC13XX)
     #define CFG_TUSB_MEM_SECTION  ATTR_SECTION(.data.$RAM2) ATTR_ALIGNED(64) // lp11u & lp13u requires data to be 64 byte aligned
   #elif CFG_TUSB_MCU == OPT_MCU_LPC175X_6X
     #define CFG_TUSB_MEM_SECTION // LPC17xx USB DMA can access all
@@ -102,7 +102,7 @@
 
 #elif defined  __CC_ARM // Compiled with Keil armcc, USBRAM_SECTION is defined in scatter files
 
-  #if (CFG_TUSB_MCU == OPT_MCU_LPC11UXX) || (CFG_TUSB_MCU == OPT_MCU_LPC13UXX)
+  #if (CFG_TUSB_MCU == OPT_MCU_LPC11UXX) || (CFG_TUSB_MCU == OPT_MCU_LPC13XX)
     #define CFG_TUSB_MEM_SECTION  ATTR_SECTION(USBRAM_SECTION) ATTR_ALIGNED(64) // lp11u & lp13u requires data to be 64 byte aligned
   #elif (CFG_TUSB_MCU == OPT_MCU_LPC175X_6X)
     #define CFG_TUSB_MEM_SECTION  // LPC17xx USB DMA can access all address
@@ -112,7 +112,7 @@
 
 #elif defined __ICCARM__ // compiled with IAR
 
-  #if (CFG_TUSB_MCU == OPT_MCU_LPC11UXX) || (CFG_TUSB_MCU == OPT_MCU_LPC13UXX)
+  #if (CFG_TUSB_MCU == OPT_MCU_LPC11UXX) || (CFG_TUSB_MCU == OPT_MCU_LPC13XX)
     #define CFG_TUSB_MEM_SECTION _Pragma("location=\"USB_PACKET_MEMORY\"") ATTR_ALIGNED(64)
   #elif (CFG_TUSB_MCU == OPT_MCU_LPC175X_6X)
     #define CFG_TUSB_MEM_SECTION
@@ -132,7 +132,7 @@
 
 
 // LPC11uxx and LPC13uxx requires each buffer has to be 64-byte alignment
-#if CFG_TUSB_MCU == OPT_MCU_LPC11UXX || CFG_TUSB_MCU == OPT_MCU_LPC13UXX
+#if CFG_TUSB_MCU == OPT_MCU_LPC11UXX || CFG_TUSB_MCU == OPT_MCU_LPC13XX
  #define CFG_TUSB_MEM_ALIGN   ATTR_ALIGNED(64)
 #elif CFG_TUSB_MCU == OPT_MCU_NRF5X
  #define CFG_TUSB_MEM_ALIGN   ATTR_ALIGNED(4)
