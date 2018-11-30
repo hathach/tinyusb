@@ -1,0 +1,105 @@
+<!DOCTYPE CrossStudio_Project_File>
+<solution Name="lpc13xx" target="8" version="2">
+  <project Name="lpc13xx">
+    <configuration
+      Name="Common"
+      Placement="Flash"
+      Target="LPC1347FBD64"
+      arm_architecture="v7M"
+      arm_core_type="Cortex-M3"
+      arm_endian="Little"
+      arm_fpu_type="None"
+      arm_interwork="No"
+      arm_linker_heap_size="256"
+      arm_linker_process_stack_size="0"
+      arm_linker_stack_size="256"
+      arm_simulator_memory_simulation_parameter="ROM;0x00000000;0x00010000;RAM;0x10000000;0x00002000;RAM;0x20000000;0x00000800"
+      arm_target_debug_interface_type="ADIv5"
+      arm_target_device_name="LPC1347"
+      arm_target_interface_type="SWD"
+      c_preprocessor_definitions="__LPC1347FBD64__;__LPC1300_FAMILY;__LPC134x_SUBFAMILY;ARM_MATH_CM3;FLASH_PLACEMENT=1;BOARD_LPCXPRESSO1347;CFG_TUSB_MCU=OPT_MCU_LPC13XX"
+      c_user_include_directories="../../src;$(rootDir)/hw/cmsis/Include;$(rootDir)/hw;$(rootDir)/src;$(lpcDir)"
+      debug_register_definition_file="$(ProjectDir)/LPC13Uxx_Registers.xml"
+      debug_target_connection="J-Link"
+      gcc_entry_point="Reset_Handler"
+      linker_memory_map_file="$(ProjectDir)/LPC1347FBD64_MemoryMap.xml"
+      linker_section_placement_file="$(ProjectDir)/flash_placement.xml"
+      macros="DeviceFamily=LPC1300;DeviceSubFamily=LPC134x;Target=LPC1347FBD64;Placement=Flash;rootDir=../../../../..;lpcDir=../../../../../hw/mcu/nxp/lpc13xx"
+      package_dependencies="LPC1300"
+      project_directory=""
+      project_type="Executable"
+      target_reset_script="Reset();"
+      target_trace_initialize_script="EnableTrace(&quot;$(TraceInterfaceType)&quot;)" />
+    <folder Name="System Files">
+      <file file_name="thumb_crt0.s" />
+      <file file_name="LPC1300_Startup.s" />
+      <file file_name="LPC13Uxx_Vectors.s">
+        <configuration Name="Common" file_type="Assembly" />
+      </file>
+      <file file_name="LPC1300_Target.js">
+        <configuration Name="Common" file_type="Reset Script" />
+      </file>
+      <file file_name="LPC1347FBD64_MemoryMap.xml" />
+      <file file_name="flash_placement.xml" />
+    </folder>
+    <configuration
+      Name="Debug"
+      link_use_linker_script_file="No"
+      linker_section_placement_file="flash_placement.xml" />
+    <folder Name="hw">
+      <folder Name="bsp">
+        <file file_name="../../../../../hw/bsp/ansi_escape.h" />
+        <file file_name="../../../../../hw/bsp/board.h" />
+        <folder Name="lpcxpresso1769">
+          <file file_name="../../../../../hw/bsp/lpcxpresso1769/board_lpcxpresso1769.c" />
+          <file file_name="../../../../../hw/bsp/lpcxpresso1769/board_lpcxpresso1769.h" />
+        </folder>
+      </folder>
+      <folder Name="mcu">
+        <folder Name="nxp">
+          <folder Name="lpc175x_6x">
+            <folder Name="CMSIS_CORE_LPC17xx">
+              <folder Name="inc">
+                <file file_name="../../../../../hw/mcu/nxp/lpc175x_6x/CMSIS_CORE_LPC17xx/inc/LPC17xx.h" />
+                <file file_name="../../../../../hw/mcu/nxp/lpc175x_6x/CMSIS_CORE_LPC17xx/inc/system_LPC17xx.h" />
+              </folder>
+              <folder Name="src">
+                <file file_name="../../../../../hw/mcu/nxp/lpc175x_6x/CMSIS_CORE_LPC17xx/src/system_LPC17xx.c" />
+              </folder>
+            </folder>
+            <folder Name="LPC17xx_DriverLib">
+              <folder Name="include" />
+              <folder Name="source">
+                <file file_name="../../../../../hw/mcu/nxp/lpc175x_6x/LPC17xx_DriverLib/source/lpc17xx_gpio.c" />
+                <file file_name="../../../../../hw/mcu/nxp/lpc175x_6x/LPC17xx_DriverLib/source/lpc17xx_pinsel.c" />
+              </folder>
+            </folder>
+          </folder>
+        </folder>
+      </folder>
+    </folder>
+    <folder
+      Name="src"
+      exclude=""
+      filter="*.c;*.h"
+      path="../../src"
+      recurse="Yes" />
+    <folder
+      Name="tinyusb"
+      exclude=""
+      filter="*.c;*.h"
+      path="../../../../../src"
+      recurse="Yes" />
+    <folder
+      Name="segger_rtt"
+      exclude=""
+      filter="*.c;*.h"
+      path="../../../../../lib/segger_rtt"
+      recurse="No" />
+  </project>
+  <configuration
+    Name="LPCXpresso 1347"
+    c_preprocessor_definitions="DEBUG"
+    gcc_debugging_level="Level 3"
+    gcc_optimization_level="None" />
+</solution>

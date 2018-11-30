@@ -92,7 +92,7 @@
 #define OPT_MODE_NONE         0x00 ///< Disabled
 #define OPT_MODE_DEVICE       0x01 ///< Device Mode
 #define OPT_MODE_HOST         0x02 ///< Host Mode
-#define OPT_MODE_HIGH_SPEED   0x10 ///< Highspeed
+#define OPT_MODE_HIGH_SPEED   0x10 ///< High speed
 /** @} */
 
 #ifndef CFG_TUSB_RHPORT0_MODE
@@ -236,7 +236,7 @@
 #endif
 
 #if CFG_TUD_ENDOINT0_SIZE > 64
-  #error Control Endpoint Max Package Size cannot larger than 64
+  #error Control Endpoint Max Packet Size cannot be larger than 64
 #endif
 
 #endif /* _TUSB_OPTION_H_ */
