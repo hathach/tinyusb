@@ -43,9 +43,9 @@
  extern "C" {
 #endif
 
-#include "LPC11Uxx.h"
-#include "lpc11uxx_gpio.h"
-#include "lpc11uxx_uart.h"
+#include "chip.h"
+
+#define BOARD_LED0      7
 
 #ifdef __cplusplus
  }

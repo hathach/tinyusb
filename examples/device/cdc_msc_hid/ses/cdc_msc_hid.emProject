@@ -6,4 +6,5 @@
   <import file_name="lpc43xx/lpc43xx.emProject" />
   <import file_name="lpc175x_6x/lpc175x_6x.emProject" />
   <import file_name="lpc13xx/lpc13xx.emProject" />
+  <import file_name="lpc11u6x/lpc11u6x.emProject" />
 </solution>

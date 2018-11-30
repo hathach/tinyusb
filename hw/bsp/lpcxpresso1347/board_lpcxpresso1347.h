@@ -43,8 +43,6 @@
  extern "C" {
 #endif
 
-//#include "LPC13Uxx.h"
-
 #include "chip.h"
 
 #define BOARD_LED0      7

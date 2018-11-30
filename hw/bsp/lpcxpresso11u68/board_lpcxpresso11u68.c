@@ -36,12 +36,13 @@
 */
 /**************************************************************************/
 
-#include "../board.h"
-
 #ifdef BOARD_LPCXPRESSO11U68
+
+#include "../board.h"
 
 #define LED_PORT                  (1)
 #define LED_PIN                   (31)
+
 #define LED_ON                    (0)
 #define LED_OFF                   (1)
 
@@ -54,6 +55,16 @@ enum {
   BOARD_BUTTON_COUNT = sizeof(buttons) / sizeof(buttons[0])
 };
 
+// required by lpcopen chip layer
+uint32_t const OscRateIn = 0;
+uint32_t const RTCOscRateIn = 0;
+
+// required by startup
+void SystemInit(void)
+{
+  Chip_SystemInit();
+}
+
 void board_init(void)
 {
   SystemInit();
@@ -62,29 +73,48 @@ void board_init(void)
   SysTick_Config(SystemCoreClock / BOARD_TICKS_HZ); // 1 msec tick timer
 #endif
 
-  GPIOInit();
+  Chip_GPIO_Init(LPC_GPIO);
 
   //------------- LED -------------//
-  GPIOSetDir(LED_PORT, LED_PIN, 1);
+  Chip_GPIO_SetPinDIROutput(LPC_GPIO, LED_PORT, BOARD_LED0);
 
   //------------- BUTTON -------------//
-  for(uint8_t i=0; i<BOARD_BUTTON_COUNT; i++) GPIOSetDir(buttons[i].port, buttons[i].pin, 0);
+  //for(uint8_t i=0; i<BOARD_BUTTON_COUNT; i++) GPIOSetDir(buttons[i].port, buttons[i].pin, 0);
 
   //------------- UART -------------//
-  UARTInit(CFG_UART_BAUDRATE);
+  //UARTInit(CFG_UART_BAUDRATE);
 }
+
+/*------------------------------------------------------------------*/
+/* TUSB HAL MILLISECOND
+ *------------------------------------------------------------------*/
+#if CFG_TUSB_OS == OPT_OS_NONE
+
+volatile uint32_t system_ticks = 0;
+
+void SysTick_Handler (void)
+{
+  system_ticks++;
+}
+
+uint32_t tusb_hal_millis(void)
+{
+  return board_tick2ms(system_ticks);
+}
+
+#endif
 
 //--------------------------------------------------------------------+
 // LEDS
 //--------------------------------------------------------------------+
-void board_leds(uint32_t on_mask, uint32_t off_mask)
+void board_led_control(uint32_t id, bool state)
 {
-  if (on_mask & BIT_(0))
+  if (state)
   {
-    GPIOSetBitValue(LED_PORT, LED_PIN, LED_ON);
-  }else if (off_mask & BIT_(0))
+    Chip_GPIO_SetValue(LPC_GPIO, LED_PORT, 1 << id);
+  }else
   {
-    GPIOSetBitValue(LED_PORT, LED_PIN, LED_OFF);
+    Chip_GPIO_ClearValue(LPC_GPIO, LED_PORT, 1 << id);
   }
 }
 
@@ -94,7 +124,7 @@ void board_leds(uint32_t on_mask, uint32_t off_mask)
 uint32_t board_buttons(void)
 {
 //  for(uint8_t i=0; i<BOARD_BUTTON_COUNT; i++) GPIOGetPinValue(buttons[i].port, buttons[i].pin);
-  return GPIOGetPinValue(buttons[0].port, buttons[0].pin) ? 0 : 1; // button is active low
+//  return GPIOGetPinValue(buttons[0].port, buttons[0].pin) ? 0 : 1; // button is active low
 }
 
 //--------------------------------------------------------------------+
@@ -102,7 +132,7 @@ uint32_t board_buttons(void)
 //--------------------------------------------------------------------+
 void board_uart_putchar(uint8_t c)
 {
-  UARTSend(&c, 1);
+  //UARTSend(&c, 1);
 }
 
 uint8_t  board_uart_getchar(void)
