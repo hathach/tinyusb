@@ -157,7 +157,6 @@ void board_led_control(uint32_t id, bool state)
   {
     GPIO_ClearValue(BOARD_LED0_PORT, BIT_(BOARD_LED0));
   }
-
 }
 
 //--------------------------------------------------------------------+

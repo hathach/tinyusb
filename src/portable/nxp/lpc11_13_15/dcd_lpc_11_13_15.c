@@ -40,21 +40,12 @@
 
 #if TUSB_OPT_DEVICE_ENABLED && (CFG_TUSB_MCU == OPT_MCU_LPC11UXX || CFG_TUSB_MCU == OPT_MCU_LPC13XX)
 
-#define _TINY_USB_SOURCE_FILE_
-
 // NOTE: despite of being very the same to lpc13uxx controller, lpc11u's controller cannot queue transfer more than
 // endpoint's max packet size and need some soft DMA helper
 
-//--------------------------------------------------------------------+
-// INCLUDE
-//--------------------------------------------------------------------+
-#include "common/tusb_common.h"
-#include "hal/hal.h"
-#include "osal/osal.h"
-
+#include "chip.h"
 #include "device/dcd.h"
-#include "usbd_dcd.h"
-#include "dcd_lpc_11uxx_13uxx.h"
+#include "dcd_lpc11_13_15.h"
 
 //--------------------------------------------------------------------+
 // MACRO CONSTANT TYPEDEF
@@ -134,8 +125,6 @@ typedef struct {
     uint16_t queued_bytes_in_buff[2]; ///< expected bytes that are queued for each buffer
   }current_td[DCD_11U_13U_QHD_COUNT];
 
-  uint8_t  class_code[DCD_11U_13U_QHD_COUNT]; ///< class where the endpoints belongs to TODO no need for control endpoints
-
 }dcd_11u_13u_data_t;
 
 //--------------------------------------------------------------------+
@@ -194,7 +183,7 @@ bool dcd_init(uint8_t rhport)
   LPC_USB->DEVCMDSTAT  |= CMDSTAT_DEVICE_ENABLE_MASK | CMDSTAT_DEVICE_CONNECT_MASK |
                           CMDSTAT_RESET_CHANGE_MASK | CMDSTAT_CONNECT_CHANGE_MASK | CMDSTAT_SUSPEND_CHANGE_MASK;
 
-  NVIC_EnableIRQ(USB_IRQn);
+  NVIC_EnableIRQ(USB0_IRQn);
 
   return true;
 }
@@ -247,17 +236,12 @@ static void endpoint_non_control_isr(uint32_t int_status)
 
         if ( BIT_TEST_(dcd_data.current_ioc, ep_id) )
         {
-          edpt_hdl_t edpt_hdl =
-          {
-              .rhport     = 0,
-              .index      = ep_id,
-              .class_code = dcd_data.class_code[ep_id]
-          };
+          dcd_data.current_ioc = BIT_CLR_(dcd_data.current_ioc, ep_id);
 
-          dcd_data.current_ioc = BIT_CLR_(dcd_data.current_ioc, edpt_hdl.index);
+          uint8_t const ep_addr = (ep_id / 2) | ((ep_id & 0x01) ? TUSB_DIR_IN_MASK : 0);
 
           // TODO no way determine if the transfer is failed or not
-          dcd_xfer_complete(edpt_hdl, dcd_data.current_td[ep_id].xferred_total, true);
+          dcd_event_xfer_complete(0, ep_addr, dcd_data.current_td[ep_id].xferred_total, XFER_RESULT_SUCCESS, true);
         }
 
         //------------- Next TD is available -------------//
@@ -287,97 +271,11 @@ static void endpoint_control_isr(uint32_t int_status)
 
     if ( BIT_TEST_(dcd_data.current_ioc, ep_id) )
     {
-      edpt_hdl_t edpt_hdl = { .rhport = 0 };
-
       dcd_data.current_ioc = BIT_CLR_(dcd_data.current_ioc, ep_id);
 
-      // FIXME xferred_byte for control xfer is not needed now !!!
-      dcd_xfer_complete(edpt_hdl, 0, true);
+      // FIXME control xferred bytes
+      dcd_event_xfer_complete(0, ep_id ? TUSB_DIR_IN_MASK : 0, 0, XFER_RESULT_SUCCESS, true);
     }
-  }
-}
-
-void hal_dcd_isr(uint8_t rhport)
-{
-  (void) rhport;
-
-  uint32_t const int_enable = LPC_USB->INTEN;
-  uint32_t const int_status = LPC_USB->INTSTAT & int_enable;
-  LPC_USB->INTSTAT = int_status; // Acknowledge handled interrupt
-
-  if (int_status == 0) return;
-
-  uint32_t const dev_cmd_stat = LPC_USB->DEVCMDSTAT;
-
-  dcd_event_t event = { .rhport = rhport };
-
-  //------------- Device Status -------------//
-  if ( int_status & INT_MASK_DEVICE_STATUS )
-  {
-    LPC_USB->DEVCMDSTAT |= CMDSTAT_RESET_CHANGE_MASK | CMDSTAT_CONNECT_CHANGE_MASK | CMDSTAT_SUSPEND_CHANGE_MASK;
-    if ( dev_cmd_stat & CMDSTAT_RESET_CHANGE_MASK) // bus reset
-    {
-      bus_reset();
-
-      event.event_id = DCD_EVENT_BUS_RESET;
-      dcd_event_handler(&event, true);
-    }
-
-    if (dev_cmd_stat & CMDSTAT_CONNECT_CHANGE_MASK)
-    { // device disconnect
-      if (dev_cmd_stat & CMDSTAT_DEVICE_ADDR_MASK)
-      { // debouncing as this can be set when device is powering
-        event.event_id = DCD_EVENT_UNPLUGGED;
-        dcd_event_handler(&event, true);
-      }
-    }
-
-    // TODO support suspend & resume
-    if (dev_cmd_stat & CMDSTAT_SUSPEND_CHANGE_MASK)
-    {
-      if (dev_cmd_stat & CMDSTAT_DEVICE_SUSPEND_MASK)
-      { // suspend signal, bus idle for more than 3ms
-        // Note: Host may delay more than 3 ms before and/or after bus reset before doing enumeration.
-        if (dev_cmd_stat & CMDSTAT_DEVICE_ADDR_MASK)
-        {
-          event.event_id = DCD_EVENT_SUSPENDED;
-          dcd_event_handler(&event, true);
-        }
-      }
-    }
-//        else
-//      { // resume signal
-//        event.event_id = DCD_EVENT_RESUME;
-//        dcd_event_handler(&event, true);
-//      }
-//    }
-  }
-
-  //------------- Setup Received -------------//
-  if ( BIT_TEST_(int_status, 0) && (dev_cmd_stat & CMDSTAT_SETUP_RECEIVED_MASK) )
-  { // received control request from host
-    // copy setup request & acknowledge so that the next setup can be received by hw
-    event.event_id = DCD_EVENT_SETUP_RECEIVED;
-    event.setup_received = dcd_data.setup_request;
-
-    dcd_event_handler(&event, true);
-
-    // NXP control flowchart clear Active & Stall on both Control IN/OUT endpoints
-    dcd_data.qhd[0][0].stall = dcd_data.qhd[1][0].stall = 0;
-
-    LPC_USB->DEVCMDSTAT |= CMDSTAT_SETUP_RECEIVED_MASK;
-    dcd_data.qhd[0][1].buff_addr_offset = addr_offset(&dcd_data.setup_request);
-  }
-  //------------- Control Endpoint -------------//
-  else if ( int_status & 0x03 )
-  {
-    endpoint_control_isr(int_status);
-  }
-
-  //------------- Non-Control Endpoints -------------//
-  if( int_status & ~(0x03UL) )
-  {
-    endpoint_non_control_isr(int_status);
   }
 }
 
@@ -439,19 +337,21 @@ static inline uint8_t edpt_phy2log(uint8_t physical_endpoint)
 //--------------------------------------------------------------------+
 // BULK/INTERRUPT/ISOCHRONOUS PIPE API
 //--------------------------------------------------------------------+
-void dcd_edpt_stall(edpt_hdl_t edpt_hdl)
+void dcd_edpt_stall(uint8_t rhport, uint8_t ep_addr)
 {
-  dcd_data.qhd[edpt_hdl.index][0].stall = dcd_data.qhd[edpt_hdl.index][1].stall = 1;
+  uint8_t const ep_id = edpt_addr2phy(edpt_addr);
+  dcd_data.qhd[ep_id][0].stall = dcd_data.qhd[ep_id][1].stall = 1;
 }
 
-bool dcd_pipe_is_stalled(edpt_hdl_t edpt_hdl)
+bool dcd_edpt_stalled(uint8_t rhport, uint8_t ep_addr)
 {
-  return dcd_data.qhd[edpt_hdl.index][0].stall || dcd_data.qhd[edpt_hdl.index][1].stall;
+  uint8_t const ep_id = edpt_addr2phy(edpt_addr);
+  return dcd_data.qhd[ep_id][0].stall || dcd_data.qhd[ep_id][1].stall;
 }
 
 void dcd_edpt_clear_stall(uint8_t rhport, uint8_t edpt_addr)
 {
-  uint8_t ep_id = edpt_addr2phy(edpt_addr);
+  uint8_t const ep_id = edpt_addr2phy(edpt_addr);
 //  uint8_t active_buffer = BIT_TEST_(LPC_USB->EPINUSE, ep_id) ? 1 : 0;
 
   dcd_data.qhd[ep_id][0].stall = dcd_data.qhd[ep_id][1].stall = 0;
@@ -467,42 +367,33 @@ void dcd_edpt_clear_stall(uint8_t rhport, uint8_t edpt_addr)
   }
 }
 
-edpt_hdl_t dcd_edpt_open(uint8_t rhport, tusb_desc_endpoint_t const * p_endpoint_desc, uint8_t class_code)
+bool dcd_edpt_open(uint8_t rhport, tusb_desc_endpoint_t const * p_endpoint_desc)
 {
   (void) rhport;
-  edpt_hdl_t const null_handle = { 0 };
 
-  if (p_endpoint_desc->bmAttributes.xfer == TUSB_XFER_ISOCHRONOUS) return null_handle; // TODO not support ISO yet
-
-  TU_ASSERT (p_endpoint_desc->wMaxPacketSize.size <= 64, null_handle); // TODO ISO can be 1023, but ISO not supported now
-
-  // TODO prevent to open if endpoint size is not 64
+  // TODO not support ISO yet
+  if (p_endpoint_desc->bmAttributes.xfer == TUSB_XFER_ISOCHRONOUS) return false;
 
   //------------- Prepare Queue Head -------------//
   uint8_t ep_id = edpt_addr2phy(p_endpoint_desc->bEndpointAddress);
 
-  TU_ASSERT( dcd_data.qhd[ep_id][0].disable && dcd_data.qhd[ep_id][1].disable, null_handle ); // endpoint must not previously opened, normally this means running out of endpoints
+  // endpoint must not previously opened, normally this means running out of endpoints
+  TU_ASSERT( dcd_data.qhd[ep_id][0].disable && dcd_data.qhd[ep_id][1].disable );
 
   tu_memclr(dcd_data.qhd[ep_id], 2*sizeof(dcd_11u_13u_qhd_t));
   dcd_data.qhd[ep_id][0].is_isochronous = dcd_data.qhd[ep_id][1].is_isochronous = (p_endpoint_desc->bmAttributes.xfer == TUSB_XFER_ISOCHRONOUS);
-  dcd_data.class_code[ep_id] = class_code;
-
   dcd_data.qhd[ep_id][0].disable = dcd_data.qhd[ep_id][1].disable = 0;
 
   LPC_USB->EPBUFCFG |= BIT_(ep_id);
   LPC_USB->INTEN    |= BIT_(ep_id);
 
-  return (edpt_hdl_t)
-      {
-          .rhport     = 0,
-          .index      = ep_id,
-          .class_code = class_code
-      };
+  return true;
 }
 
-bool dcd_edpt_busy(edpt_hdl_t edpt_hdl)
+bool dcd_edpt_busy(uint8_t rhport, uint8_t ep_addr)
 {
-  return dcd_data.qhd[edpt_hdl.index][0].active || dcd_data.qhd[edpt_hdl.index][1].active;
+  uint8_t const ep_id = edpt_addr2phy(ep_addr);
+  return dcd_data.qhd[ep_id][0].active || dcd_data.qhd[ep_id][1].active;
 }
 
 static void queue_xfer_to_buffer(uint8_t ep_id, uint8_t buff_idx, uint16_t buff_addr_offset, uint16_t total_bytes)
@@ -546,33 +437,138 @@ static void queue_xfer_in_next_td(uint8_t ep_id)
   dcd_data.next_td[ep_id].total_bytes = 0; // clear this field as it is used to indicate whehther next TD available
 }
 
-tusb_error_t dcd_edpt_queue_xfer(edpt_hdl_t edpt_hdl, uint8_t * buffer, uint16_t total_bytes)
+tusb_error_t dcd_edpt_queue_xfer(uint8_t ep_id , uint8_t * buffer, uint16_t total_bytes)
 {
-  TU_ASSERT( !dcd_edpt_busy(edpt_hdl), TUSB_ERROR_INTERFACE_IS_BUSY); // endpoint must not in transferring
-
-  dcd_data.current_ioc = BIT_CLR_(dcd_data.current_ioc, edpt_hdl.index);
-
-  pipe_queue_xfer(edpt_hdl.index, addr_offset(buffer), total_bytes);
-
+  dcd_data.current_ioc = BIT_CLR_(dcd_data.current_ioc, ep_id);
+  pipe_queue_xfer(ep_id, addr_offset(buffer), total_bytes);
   return TUSB_ERROR_NONE;
 }
 
-tusb_error_t  dcd_edpt_xfer(edpt_hdl_t edpt_hdl, uint8_t* buffer, uint16_t total_bytes, bool int_on_complete)
+bool dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t* buffer, uint16_t total_bytes)
 {
-  if( dcd_edpt_busy(edpt_hdl) || dcd_pipe_is_stalled(edpt_hdl) )
-  { // save this transfer data to next td if pipe is busy or already been stalled
-    dcd_data.next_td[edpt_hdl.index].buff_addr_offset = addr_offset(buffer);
-    dcd_data.next_td[edpt_hdl.index].total_bytes      = total_bytes;
+  uint8_t const ep_id = edpt_addr2phy(ep_addr);
 
-    dcd_data.next_ioc = int_on_complete ? BIT_SET_(dcd_data.next_ioc, edpt_hdl.index) : BIT_CLR_(dcd_data.next_ioc, edpt_hdl.index);
-  }else
+//  if( dcd_edpt_busy(ep_addr) || dcd_edpt_stalled(ep_addr) )
+//  { // save this transfer data to next td if pipe is busy or already been stalled
+//    dcd_data.next_td[ep_id].buff_addr_offset = addr_offset(buffer);
+//    dcd_data.next_td[ep_id].total_bytes      = total_bytes;
+//
+//    dcd_data.next_ioc = BIT_SET_(dcd_data.next_ioc, ep_id);
+//  }else
   {
-    dcd_data.current_ioc = int_on_complete ? BIT_SET_(dcd_data.current_ioc, edpt_hdl.index) : BIT_CLR_(dcd_data.current_ioc, edpt_hdl.index);
+    dcd_data.current_ioc = BIT_SET_(dcd_data.current_ioc, ep_id);
 
-    pipe_queue_xfer(edpt_hdl.index, addr_offset(buffer), total_bytes);
+    pipe_queue_xfer(ep_id, addr_offset(buffer), total_bytes);
   }
 
-	return TUSB_ERROR_NONE;
+	return true;
+}
+
+void tusb_hal_int_enable(uint8_t rhport)
+{
+  (void) rhport; // discard compiler's warning
+  NVIC_EnableIRQ(USB0_IRQn);
+}
+
+void tusb_hal_int_disable(uint8_t rhport)
+{
+  (void) rhport; // discard compiler's warning
+  NVIC_DisableIRQ(USB0_IRQn);
+}
+
+bool tusb_hal_init(void)
+{
+#if 0 // FIXME
+	// TODO remove magic number
+  LPC_SYSCON->SYSAHBCLKCTRL |= ((0x1<<14) | (0x1<<27)); /* Enable AHB clock to the USB block and USB RAM. */
+  LPC_SYSCON->PDRUNCFG &= ~( BIT_(8) | BIT_(10) ); // enable USB PLL & USB transceiver
+
+  /* Pull-down is needed, or internally, VBUS will be floating. This is to
+  address the wrong status in VBUSDebouncing bit in CmdStatus register.  */
+  // set PIO0_3 as USB_VBUS
+  LPC_IOCON->PIO0_3   &= ~0x1F;
+  LPC_IOCON->PIO0_3   |= (0x01<<0) | (1 << 3);            /* Secondary function VBUS */
+
+  // set PIO0_6 as usb connect
+  LPC_IOCON->PIO0_6   &= ~0x07;
+  LPC_IOCON->PIO0_6   |= (0x01<<0);            /* Secondary function SoftConn */
+#endif
+  return true;
+}
+
+void USB_IRQHandler(void)
+{
+  uint32_t const int_enable = LPC_USB->INTEN;
+  uint32_t const int_status = LPC_USB->INTSTAT & int_enable;
+  LPC_USB->INTSTAT = int_status; // Acknowledge handled interrupt
+
+  if (int_status == 0) return;
+
+  uint32_t const dev_cmd_stat = LPC_USB->DEVCMDSTAT;
+
+  //------------- Device Status -------------//
+  if ( int_status & INT_MASK_DEVICE_STATUS )
+  {
+    LPC_USB->DEVCMDSTAT |= CMDSTAT_RESET_CHANGE_MASK | CMDSTAT_CONNECT_CHANGE_MASK | CMDSTAT_SUSPEND_CHANGE_MASK;
+    if ( dev_cmd_stat & CMDSTAT_RESET_CHANGE_MASK) // bus reset
+    {
+      bus_reset();
+      dcd_event_bus_signal(0, DCD_EVENT_BUS_RESET, true);
+    }
+
+    if (dev_cmd_stat & CMDSTAT_CONNECT_CHANGE_MASK)
+    {
+      // device disconnect
+      if (dev_cmd_stat & CMDSTAT_DEVICE_ADDR_MASK)
+      {
+        // debouncing as this can be set when device is powering
+        dcd_event_bus_signal(0, DCD_EVENT_UNPLUGGED, true);
+      }
+    }
+
+    // TODO support suspend & resume
+    if (dev_cmd_stat & CMDSTAT_SUSPEND_CHANGE_MASK)
+    {
+      if (dev_cmd_stat & CMDSTAT_DEVICE_SUSPEND_MASK)
+      { // suspend signal, bus idle for more than 3ms
+        // Note: Host may delay more than 3 ms before and/or after bus reset before doing enumeration.
+        if (dev_cmd_stat & CMDSTAT_DEVICE_ADDR_MASK)
+        {
+          dcd_event_bus_signal(0, DCD_EVENT_SUSPENDED, true);
+        }
+      }
+    }
+//        else
+//      { // resume signal
+//    dcd_event_bus_signal(0, DCD_EVENT_RESUME, true);
+//      }
+//    }
+  }
+
+  //------------- Setup Received -------------//
+  if ( BIT_TEST_(int_status, 0) && (dev_cmd_stat & CMDSTAT_SETUP_RECEIVED_MASK) )
+  {
+    // received control request from host
+    // copy setup request & acknowledge so that the next setup can be received by hw
+    dcd_event_setup_received(0, (uint8_t*) &dcd_data.setup_request, true);
+
+    // NXP control flowchart clear Active & Stall on both Control IN/OUT endpoints
+    dcd_data.qhd[0][0].stall = dcd_data.qhd[1][0].stall = 0;
+
+    LPC_USB->DEVCMDSTAT |= CMDSTAT_SETUP_RECEIVED_MASK;
+    dcd_data.qhd[0][1].buff_addr_offset = addr_offset(&dcd_data.setup_request);
+  }
+  //------------- Control Endpoint -------------//
+  else if ( int_status & 0x03 )
+  {
+    endpoint_control_isr(int_status);
+  }
+
+  //------------- Non-Control Endpoints -------------//
+  if( int_status & ~(0x03UL) )
+  {
+    endpoint_non_control_isr(int_status);
+  }
 }
 
 #endif
