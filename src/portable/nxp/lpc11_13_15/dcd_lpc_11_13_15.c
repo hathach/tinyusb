@@ -1,6 +1,6 @@
 /**************************************************************************/
 /*!
-    @file     dcd_lpc_11uxx_13uxx.c
+    @file     dcd_lpc11_13_15.c
     @author   hathach (tinyusb.org)
 
     @section LICENSE

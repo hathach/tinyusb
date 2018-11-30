@@ -1,6 +1,6 @@
 /**************************************************************************/
 /*!
-    @file     dcd_lpc13xx_12adc.h
+    @file     dcd_lpc11_13_15.h
     @author   hathach (tinyusb.org)
 
     @section LICENSE
@@ -36,12 +36,8 @@
 */
 /**************************************************************************/
 
-/** \ingroup group_dcd
- *  \defgroup group_dcd_lpc11_13u LPC11uxx LPC13uxx
- *  @{ */
-
-#ifndef _TUSB_DCD_LPC13XX_12ADC_H_
-#define _TUSB_DCD_LPC13XX_12ADC_H_
+#ifndef _TUSB_DCD_LPC11_13_15_H_
+#define _TUSB_DCD_LPC11_13_15_H_
 
 #ifdef __cplusplus
  extern "C" {
@@ -52,6 +48,4 @@
  }
 #endif
 
-#endif /* _TUSB_DCD_LPC13XX_12ADC_H_ */
-
-/** @} */
+#endif /* _TUSB_DCD_LPC11_13_15_H_ */
