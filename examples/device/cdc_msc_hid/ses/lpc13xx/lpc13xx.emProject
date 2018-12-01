@@ -99,6 +99,7 @@
                 <file file_name="../../../../../hw/mcu/nxp/lpc13xx/lpc_chip_13xx/src/sysctl_13xx.c" />
                 <file file_name="../../../../../hw/mcu/nxp/lpc13xx/lpc_chip_13xx/src/sysinit_13xx.c" />
                 <file file_name="../../../../../hw/mcu/nxp/lpc13xx/lpc_chip_13xx/src/uart_13xx.c" />
+                <file file_name="../../../../../hw/mcu/nxp/lpc13xx/lpc_chip_13xx/src/iocon_13xx.c" />
               </folder>
             </folder>
           </folder>
