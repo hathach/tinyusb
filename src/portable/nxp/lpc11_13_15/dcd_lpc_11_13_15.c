@@ -152,6 +152,24 @@ static void queue_xfer_in_next_td(uint8_t ep_id);
 //--------------------------------------------------------------------+
 // CONTROLLER API
 //--------------------------------------------------------------------+
+void tusb_hal_int_enable(uint8_t rhport)
+{
+  (void) rhport; // discard compiler's warning
+  NVIC_EnableIRQ(USB0_IRQn);
+}
+
+void tusb_hal_int_disable(uint8_t rhport)
+{
+  (void) rhport; // discard compiler's warning
+  NVIC_DisableIRQ(USB0_IRQn);
+}
+
+bool tusb_hal_init(void)
+{
+  // TODO remove
+  return true;
+}
+
 void dcd_connect(uint8_t rhport)
 {
   (void) rhport;
@@ -174,6 +192,8 @@ void dcd_set_address(uint8_t rhport, uint8_t dev_addr)
 bool dcd_init(uint8_t rhport)
 {
   (void) rhport;
+
+  Chip_USB_Init();
 
   LPC_USB->EPLISTSTART  = (uint32_t) dcd_data.qhd;
   LPC_USB->DATABUFSTART = 0x20000000; // only SRAM1 & USB RAM can be used for transfer
@@ -205,78 +225,6 @@ static void bus_reset(void)
   LPC_USB->INTSTAT      = LPC_USB->INTSTAT; // clear all pending interrupt
   LPC_USB->DEVCMDSTAT  |= CMDSTAT_SETUP_RECEIVED_MASK; // clear setup received interrupt
   LPC_USB->INTEN        = INT_MASK_DEVICE_STATUS | BIT_(0) | BIT_(1); // enable device status & control endpoints
-}
-
-static void endpoint_non_control_isr(uint32_t int_status)
-{
-  for(uint8_t ep_id = 2; ep_id < DCD_11U_13U_QHD_COUNT; ep_id++ )
-  {
-    if ( BIT_TEST_(int_status, ep_id) )
-    {
-      dcd_11u_13u_qhd_t * const arr_qhd = dcd_data.qhd[ep_id];
-
-      // when double buffering, the complete buffer is opposed to the current active buffer in EPINUSE
-      uint8_t const buff_idx = LPC_USB->EPINUSE & BIT_(ep_id) ? 0 : 1;
-      uint16_t const xferred_bytes = dcd_data.current_td[ep_id].queued_bytes_in_buff[buff_idx] - arr_qhd[buff_idx].nbytes;
-
-      dcd_data.current_td[ep_id].xferred_total += xferred_bytes;
-
-      // there are still data to transfer.
-      if ( (arr_qhd[buff_idx].nbytes == 0) && (dcd_data.current_td[ep_id].remaining_bytes > 0) )
-      { // NOTE although buff_addr_offset has been increased when xfer is completed
-        // but we still need to increase it one more as we are using double buffering.
-        queue_xfer_to_buffer(ep_id, buff_idx, arr_qhd[buff_idx].buff_addr_offset+1, dcd_data.current_td[ep_id].remaining_bytes);
-      }
-      // short packet or (no more byte and both buffers are finished)
-      else if ( (arr_qhd[buff_idx].nbytes > 0) || !arr_qhd[1-buff_idx].active  )
-      { // current TD (request) is completed
-        LPC_USB->EPSKIP   = BIT_SET_(LPC_USB->EPSKIP, ep_id); // skip other endpoint in case of short-package
-
-        dcd_data.current_td[ep_id].remaining_bytes = 0;
-
-        if ( BIT_TEST_(dcd_data.current_ioc, ep_id) )
-        {
-          dcd_data.current_ioc = BIT_CLR_(dcd_data.current_ioc, ep_id);
-
-          uint8_t const ep_addr = (ep_id / 2) | ((ep_id & 0x01) ? TUSB_DIR_IN_MASK : 0);
-
-          // TODO no way determine if the transfer is failed or not
-          dcd_event_xfer_complete(0, ep_addr, dcd_data.current_td[ep_id].xferred_total, XFER_RESULT_SUCCESS, true);
-        }
-
-        //------------- Next TD is available -------------//
-        if ( dcd_data.next_td[ep_id].total_bytes != 0 )
-        {
-          queue_xfer_in_next_td(ep_id);
-        }
-      }else
-      {
-        // transfer complete, there is no more remaining bytes, but this buffer is not the last transaction (the other is)
-      }
-    }
-  }
-}
-
-static void endpoint_control_isr(uint32_t int_status)
-{
-  uint8_t const ep_id = ( int_status & BIT_(0) ) ? 0 : 1;
-
-  // there are still data to transfer.
-  if ( (dcd_data.qhd[ep_id][0].nbytes == 0) && (dcd_data.current_td[ep_id].remaining_bytes > 0) )
-  {
-    queue_xfer_to_buffer(ep_id, 0, dcd_data.qhd[ep_id][0].buff_addr_offset, dcd_data.current_td[ep_id].remaining_bytes);
-  }else
-  {
-    dcd_data.current_td[ep_id].remaining_bytes = 0;
-
-    if ( BIT_TEST_(dcd_data.current_ioc, ep_id) )
-    {
-      dcd_data.current_ioc = BIT_CLR_(dcd_data.current_ioc, ep_id);
-
-      // FIXME control xferred bytes
-      dcd_event_xfer_complete(0, ep_id ? TUSB_DIR_IN_MASK : 0, 0, XFER_RESULT_SUCCESS, true);
-    }
-  }
 }
 
 //--------------------------------------------------------------------+
@@ -464,36 +412,80 @@ bool dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t* buffer, uint16_t to
 	return true;
 }
 
-void tusb_hal_int_enable(uint8_t rhport)
+//--------------------------------------------------------------------+
+// IRQ
+//--------------------------------------------------------------------+
+
+static void endpoint_non_control_isr(uint32_t int_status)
 {
-  (void) rhport; // discard compiler's warning
-  NVIC_EnableIRQ(USB0_IRQn);
+  for(uint8_t ep_id = 2; ep_id < DCD_11U_13U_QHD_COUNT; ep_id++ )
+  {
+    if ( BIT_TEST_(int_status, ep_id) )
+    {
+      dcd_11u_13u_qhd_t * const arr_qhd = dcd_data.qhd[ep_id];
+
+      // when double buffering, the complete buffer is opposed to the current active buffer in EPINUSE
+      uint8_t const buff_idx = LPC_USB->EPINUSE & BIT_(ep_id) ? 0 : 1;
+      uint16_t const xferred_bytes = dcd_data.current_td[ep_id].queued_bytes_in_buff[buff_idx] - arr_qhd[buff_idx].nbytes;
+
+      dcd_data.current_td[ep_id].xferred_total += xferred_bytes;
+
+      // there are still data to transfer.
+      if ( (arr_qhd[buff_idx].nbytes == 0) && (dcd_data.current_td[ep_id].remaining_bytes > 0) )
+      { // NOTE although buff_addr_offset has been increased when xfer is completed
+        // but we still need to increase it one more as we are using double buffering.
+        queue_xfer_to_buffer(ep_id, buff_idx, arr_qhd[buff_idx].buff_addr_offset+1, dcd_data.current_td[ep_id].remaining_bytes);
+      }
+      // short packet or (no more byte and both buffers are finished)
+      else if ( (arr_qhd[buff_idx].nbytes > 0) || !arr_qhd[1-buff_idx].active  )
+      { // current TD (request) is completed
+        LPC_USB->EPSKIP   = BIT_SET_(LPC_USB->EPSKIP, ep_id); // skip other endpoint in case of short-package
+
+        dcd_data.current_td[ep_id].remaining_bytes = 0;
+
+        if ( BIT_TEST_(dcd_data.current_ioc, ep_id) )
+        {
+          dcd_data.current_ioc = BIT_CLR_(dcd_data.current_ioc, ep_id);
+
+          uint8_t const ep_addr = (ep_id / 2) | ((ep_id & 0x01) ? TUSB_DIR_IN_MASK : 0);
+
+          // TODO no way determine if the transfer is failed or not
+          dcd_event_xfer_complete(0, ep_addr, dcd_data.current_td[ep_id].xferred_total, XFER_RESULT_SUCCESS, true);
+        }
+
+        //------------- Next TD is available -------------//
+        if ( dcd_data.next_td[ep_id].total_bytes != 0 )
+        {
+          queue_xfer_in_next_td(ep_id);
+        }
+      }else
+      {
+        // transfer complete, there is no more remaining bytes, but this buffer is not the last transaction (the other is)
+      }
+    }
+  }
 }
 
-void tusb_hal_int_disable(uint8_t rhport)
+static void endpoint_control_isr(uint32_t int_status)
 {
-  (void) rhport; // discard compiler's warning
-  NVIC_DisableIRQ(USB0_IRQn);
-}
+  uint8_t const ep_id = ( int_status & BIT_(0) ) ? 0 : 1;
 
-bool tusb_hal_init(void)
-{
-#if 0 // FIXME
-	// TODO remove magic number
-  LPC_SYSCON->SYSAHBCLKCTRL |= ((0x1<<14) | (0x1<<27)); /* Enable AHB clock to the USB block and USB RAM. */
-  LPC_SYSCON->PDRUNCFG &= ~( BIT_(8) | BIT_(10) ); // enable USB PLL & USB transceiver
+  // there are still data to transfer.
+  if ( (dcd_data.qhd[ep_id][0].nbytes == 0) && (dcd_data.current_td[ep_id].remaining_bytes > 0) )
+  {
+    queue_xfer_to_buffer(ep_id, 0, dcd_data.qhd[ep_id][0].buff_addr_offset, dcd_data.current_td[ep_id].remaining_bytes);
+  }else
+  {
+    dcd_data.current_td[ep_id].remaining_bytes = 0;
 
-  /* Pull-down is needed, or internally, VBUS will be floating. This is to
-  address the wrong status in VBUSDebouncing bit in CmdStatus register.  */
-  // set PIO0_3 as USB_VBUS
-  LPC_IOCON->PIO0_3   &= ~0x1F;
-  LPC_IOCON->PIO0_3   |= (0x01<<0) | (1 << 3);            /* Secondary function VBUS */
+    if ( BIT_TEST_(dcd_data.current_ioc, ep_id) )
+    {
+      dcd_data.current_ioc = BIT_CLR_(dcd_data.current_ioc, ep_id);
 
-  // set PIO0_6 as usb connect
-  LPC_IOCON->PIO0_6   &= ~0x07;
-  LPC_IOCON->PIO0_6   |= (0x01<<0);            /* Secondary function SoftConn */
-#endif
-  return true;
+      // FIXME control xferred bytes
+      dcd_event_xfer_complete(0, ep_id ? TUSB_DIR_IN_MASK : 0, 0, XFER_RESULT_SUCCESS, true);
+    }
+  }
 }
 
 void USB_IRQHandler(void)

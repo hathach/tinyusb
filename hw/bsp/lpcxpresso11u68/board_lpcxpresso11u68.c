@@ -166,20 +166,17 @@ static const PINMUX_GRP_T pinmuxing[] = {
 	/* PIO2_23					-                           - GPIO */
 };
 
-// required by startup
+// invoked by startup code
 void SystemInit(void)
 {
-
+  /* Enable IOCON clock */
+  Chip_Clock_EnablePeriphClock(SYSCTL_CLOCK_IOCON);
+  Chip_IOCON_SetPinMuxing(LPC_IOCON, pinmuxing, sizeof(pinmuxing) / sizeof(PINMUX_GRP_T));
+  Chip_SetupXtalClocking();
 }
 
 void board_init(void)
 {
-    	/* Enable IOCON clock */
-	Chip_Clock_EnablePeriphClock(SYSCTL_CLOCK_IOCON);
-
-	Chip_IOCON_SetPinMuxing(LPC_IOCON, pinmuxing, sizeof(pinmuxing) / sizeof(PINMUX_GRP_T));
-
-Chip_SetupXtalClocking();
 
 #if CFG_TUSB_OS == OPT_OS_NONE // TODO may move to main.c
   SysTick_Config(SystemCoreClock / BOARD_TICKS_HZ); // 1 msec tick timer
