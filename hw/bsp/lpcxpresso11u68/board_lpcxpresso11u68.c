@@ -166,7 +166,7 @@ static const PINMUX_GRP_T pinmuxing[] = {
 	/* PIO2_23					-                           - GPIO */
 };
 
-// invoked by startup code
+// Invoked by startup code
 void SystemInit(void)
 {
   /* Enable IOCON clock */

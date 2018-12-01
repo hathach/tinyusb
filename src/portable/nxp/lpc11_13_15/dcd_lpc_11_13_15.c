@@ -50,24 +50,21 @@
 //--------------------------------------------------------------------+
 // MACRO CONSTANT TYPEDEF
 //--------------------------------------------------------------------+
-#define DCD_11U_13U_QHD_COUNT 10
+
+// Number of endpoints
+#define EP_COUNT 10
+
+// only SRAM1 & USB RAM can be used for transfer
+#define SRAM_REGION   0x20000000
 
 enum {
   DCD_11U_13U_MAX_BYTE_PER_TD = (CFG_TUSB_MCU == OPT_MCU_LPC11UXX ? 64 : 1023)
 };
 
-#ifdef __CC_ARM
-#pragma diag_suppress 66 // Suppress Keil warnings #66-D: enumeration value is out of "int" range
-#endif
-
 enum {
-  INT_MASK_SOF           = BIT_(30),
-  INT_MASK_DEVICE_STATUS = BIT_(31)
+  INT_SOF_MASK           = BIT_(30),
+  INT_DEVICE_STATUS_MASK = BIT_(31)
 };
-
-#ifdef __CC_ARM
-#pragma diag_suppress 66 // Suppress Keil warnings #66-D: enumeration value is out of "int" range
-#endif
 
 enum {
   CMDSTAT_DEVICE_ADDR_MASK    = BIT_(7 )-1,
@@ -81,21 +78,21 @@ enum {
   CMDSTAT_VBUS_DEBOUNCED_MASK = BIT_(28),
 };
 
-// buffer input must be 64 byte alignment
 typedef struct ATTR_PACKED
 {
-  volatile uint16_t buff_addr_offset ; ///< The address offset is updated by hardware after each successful reception/transmission of a packet. Hardware increments the original value with the integer value when the packet size is divided by 64.
+  // Bits 21:6 (aligned 64) used in conjunction with bit 31:22 of DATABUFSTART
+  volatile uint16_t buffer_offset ;
 
-  volatile uint16_t nbytes      : 10 ; ///< For OUT endpoints this is the number of bytes that can be received in this buffer. For IN endpoints this is the number of bytes that must be transmitted. HW decrements this value with the packet size every time when a packet is successfully transferred. Note: If a short packet is received on an OUT endpoint, the active bit will be cleared and the NBytes value indicates the remaining buffer space that is not used. Software calculates the received number of bytes by subtracting the remaining NBytes from the programmed value.
-  uint16_t is_isochronous       : 1  ;
-  uint16_t feedback_toggle      : 1  ; ///< For bulk endpoints and isochronous endpoints this bit is reserved and must be set to zero. For the control endpoint zero this bit is used as the toggle value. When the toggle reset bit is set, the data toggle is updated with the value programmed in this bit. When the endpoint is used as an interrupt endpoint, it can be set to the following values. 0: Interrupt endpoint in ‘toggle mode’ 1: Interrupt endpoint in ‘rate feedback mode’. This means that the data toggle is fixed to zero for all data packets. When the interrupt endpoint is in ‘rate feedback mode’, the TR bit must always be set to zero.
-  uint16_t toggle_reset         : 1  ; ///< When software sets this bit to one, the HW will set the toggle value equal to the value indicated in the “toggle value” (TV) bit. For the control endpoint zero, this is not needed to be used because the hardware resets the endpoint toggle to one for both directions when a setup token is received. For the other endpoints, the toggle can only be reset to zero when the endpoint is reset.
-  uint16_t stall                : 1  ; ///< 0: The selected endpoint is not stalled 1: The selected endpoint is stalled The Active bit has always higher priority than the Stall bit. This means that a Stall handshake is only sent when the active bit is zero and the stall bit is one. Software can only modify this bit when the active bit is zero.
-  uint16_t disable              : 1  ; ///< 0: The selected endpoint is enabled. 1: The selected endpoint is disabled. If a USB token is received for an endpoint that has the disabled bit set, hardware will ignore the token and not return any data or handshake. When a bus reset is received, software must set the disable bit of all endpoints to 1. Software can only modify this bit when the active bit is zero.
-  volatile uint16_t active      : 1  ; ///< The buffer is enabled. HW can use the buffer to store received OUT data or to transmit data on the IN endpoint. Software can only set this bit to ‘1’. As long as this bit is set to one, software is not allowed to update any of the values in this 32-bit word. In case software wants to deactivate the buffer, it must write a one to the corresponding “skip” bit in the USB Endpoint skip register. Hardware can only write this bit to zero. It will do this when it receives a short packet or when the NBytes field transitions to zero or when software has written a one to the “skip” bit.
-}dcd_11u_13u_qhd_t;
+  volatile uint16_t nbytes : 10 ;
+  uint16_t is_iso          : 1  ;
+  uint16_t toggle_mode     : 1  ;
+  uint16_t toggle_reset    : 1  ;
+  uint16_t stall           : 1  ;
+  uint16_t disable         : 1  ;
+  volatile uint16_t active : 1  ;
+}ep_cmd_sts_t;
 
-TU_VERIFY_STATIC( sizeof(dcd_11u_13u_qhd_t) == 4, "size is not correct" );
+TU_VERIFY_STATIC( sizeof(ep_cmd_sts_t) == 4, "size is not correct" );
 
 // NOTE data will be transferred as soon as dcd get request by dcd_pipe(_queue)_xfer using double buffering.
 // If there is another dcd_edpt_xfer request, the new request will be saved and executed when the first is done.
@@ -104,45 +101,41 @@ TU_VERIFY_STATIC( sizeof(dcd_11u_13u_qhd_t) == 4, "size is not correct" );
 // queued_bytes_in_buff keep track of number of bytes queued to each buffer (in case of short packet)
 
 typedef struct {
-  dcd_11u_13u_qhd_t qhd[DCD_11U_13U_QHD_COUNT][2]; ///< must be 256 byte alignment, 2 for double buffer
+  ep_cmd_sts_t qhd[EP_COUNT][2]; ///< 256 byte aligned, 2 for double buffer
 
   // start at 80, the size should not exceed 48 (for setup_request align at 128)
   struct {
     uint16_t buff_addr_offset;
     uint16_t total_bytes;
-  }next_td[DCD_11U_13U_QHD_COUNT];
+  }next_td[EP_COUNT];
 
   uint32_t current_ioc;          ///< interrupt on complete mask for current TD
   uint32_t next_ioc;             ///< interrupt on complete mask for next TD
 
   // must start from 128
-  ATTR_ALIGNED(64) tusb_control_request_t setup_request;
+  ATTR_ALIGNED(64) uint8_t setup_packet[8];
 
   struct {
     uint16_t remaining_bytes;        ///< expected bytes of the queued transfer
     uint16_t xferred_total;          ///< xferred bytes of the current transfer
 
     uint16_t queued_bytes_in_buff[2]; ///< expected bytes that are queued for each buffer
-  }current_td[DCD_11U_13U_QHD_COUNT];
+  }current_td[EP_COUNT];
 
-}dcd_11u_13u_data_t;
+}dcd_data_t;
 
 //--------------------------------------------------------------------+
 // INTERNAL OBJECT & FUNCTION DECLARATION
 //--------------------------------------------------------------------+
-// CFG_TUSB_MEM_SECTION must have ATTR_ALIGNED(64) for lpc11u & lpc13u
-#ifdef __ICCARM__
-ATTR_ALIGNED(256) CFG_TUSB_MEM_SECTION // for IAR the first ATTR_ALIGNED takes effect
-#else
-CFG_TUSB_MEM_SECTION ATTR_ALIGNED(256) // GCC & Keil the last ATTR_ALIGNED takes effect
-#endif
-STATIC_VAR dcd_11u_13u_data_t dcd_data;
 
-static inline uint16_t addr_offset(void const * p_buffer) ATTR_CONST ATTR_ALWAYS_INLINE;
-static inline uint16_t addr_offset(void const * p_buffer)
+// EP list must be 256-byte aligned
+CFG_TUSB_MEM_SECTION ATTR_ALIGNED(256) static dcd_data_t _dcd;
+
+static inline uint16_t addr_offset(void const * buffer)
 {
-  TU_ASSERT( (((uint32_t) p_buffer) & 0x3f) == 0, 0 );
-  return (uint16_t) ( (((uint32_t) p_buffer) >> 6 ) & 0xFFFF) ;
+  uint32_t addr = (uint32_t) buffer;
+  TU_ASSERT( (addr & 0x3f) == 0, 0 );
+  return ( (addr >> 6) & 0xFFFFUL ) ;
 }
 
 static void queue_xfer_to_buffer(uint8_t ep_id, uint8_t buff_idx, uint16_t buff_addr_offset, uint16_t total_bytes);
@@ -193,13 +186,14 @@ bool dcd_init(uint8_t rhport)
 {
   (void) rhport;
 
+  // Setup PLL clock, and power
   Chip_USB_Init();
 
-  LPC_USB->EPLISTSTART  = (uint32_t) dcd_data.qhd;
-  LPC_USB->DATABUFSTART = 0x20000000; // only SRAM1 & USB RAM can be used for transfer
+  LPC_USB->EPLISTSTART  = (uint32_t) _dcd.qhd;
+  LPC_USB->DATABUFSTART = SRAM_REGION;
 
   LPC_USB->INTSTAT      = LPC_USB->INTSTAT; // clear all pending interrupt
-  LPC_USB->INTEN        = INT_MASK_DEVICE_STATUS;
+  LPC_USB->INTEN        = INT_DEVICE_STATUS_MASK;
   LPC_USB->DEVCMDSTAT  |= CMDSTAT_DEVICE_ENABLE_MASK | CMDSTAT_DEVICE_CONNECT_MASK |
                           CMDSTAT_RESET_CHANGE_MASK | CMDSTAT_CONNECT_CHANGE_MASK | CMDSTAT_SUSPEND_CHANGE_MASK;
 
@@ -208,67 +202,9 @@ bool dcd_init(uint8_t rhport)
   return true;
 }
 
-static void bus_reset(void)
-{
-  tu_memclr(&dcd_data, sizeof(dcd_11u_13u_data_t));
-  for(uint8_t ep_id = 2; ep_id < DCD_11U_13U_QHD_COUNT; ep_id++)
-  { // disable all non-control endpoints on bus reset
-    dcd_data.qhd[ep_id][0].disable = dcd_data.qhd[ep_id][1].disable = 1;
-  }
-
-  dcd_data.qhd[0][1].buff_addr_offset = addr_offset(&dcd_data.setup_request);
-
-  LPC_USB->EPINUSE      = 0;
-  LPC_USB->EPBUFCFG     = 0; // all start with single buffer
-  LPC_USB->EPSKIP       = 0xFFFFFFFF;
-
-  LPC_USB->INTSTAT      = LPC_USB->INTSTAT; // clear all pending interrupt
-  LPC_USB->DEVCMDSTAT  |= CMDSTAT_SETUP_RECEIVED_MASK; // clear setup received interrupt
-  LPC_USB->INTEN        = INT_MASK_DEVICE_STATUS | BIT_(0) | BIT_(1); // enable device status & control endpoints
-}
-
-//--------------------------------------------------------------------+
-// CONTROL PIPE API
-//--------------------------------------------------------------------+
-void dcd_control_stall(uint8_t rhport)
-{
-  (void) rhport;
-  // TODO cannot able to STALL Control OUT endpoint !!!!! FIXME try some walk-around
-  dcd_data.qhd[0][0].stall = dcd_data.qhd[1][0].stall = 1;
-}
-
-bool dcd_control_xfer(uint8_t rhport, uint8_t dir, uint8_t * p_buffer, uint16_t length, bool int_on_complete)
-{
-  (void) rhport;
-
-  // determine Endpoint where Data & Status phase occurred (IN or OUT)
-  uint8_t const ep_data   = (dir == TUSB_DIR_IN) ? 1 : 0;
-  uint8_t const ep_status = 1 - ep_data;
-
-  dcd_data.current_ioc = int_on_complete ? BIT_SET_(dcd_data.current_ioc, ep_status) : BIT_CLR_(dcd_data.current_ioc, ep_status);
-
-  //------------- Data Phase -------------//
-  if (length)
-  {
-    dcd_data.current_td[ep_data].remaining_bytes = length;
-    dcd_data.current_td[ep_data].xferred_total   = 0;
-
-    queue_xfer_to_buffer(ep_data, 0, addr_offset(p_buffer), length);
-  }
-
-  //------------- Status Phase -------------//
-  dcd_data.current_td[ep_status].remaining_bytes = 0;
-  dcd_data.current_td[ep_status].xferred_total   = 0;
-
-  queue_xfer_to_buffer(ep_status, 0, 0, 0);
-
-  return true;
-}
-
 //--------------------------------------------------------------------+
 // PIPE HELPER
 //--------------------------------------------------------------------+
-static inline uint8_t edpt_addr2phy(uint8_t endpoint_addr) ATTR_CONST ATTR_ALWAYS_INLINE;
 static inline uint8_t edpt_addr2phy(uint8_t endpoint_addr)
 {
   return 2*(endpoint_addr & 0x0F) + ((endpoint_addr & TUSB_DIR_IN_MASK) ? 1 : 0);
@@ -287,14 +223,22 @@ static inline uint8_t edpt_phy2log(uint8_t physical_endpoint)
 //--------------------------------------------------------------------+
 void dcd_edpt_stall(uint8_t rhport, uint8_t ep_addr)
 {
-  uint8_t const ep_id = edpt_addr2phy(edpt_addr);
-  dcd_data.qhd[ep_id][0].stall = dcd_data.qhd[ep_id][1].stall = 1;
+  if ( edpt_number(ep_addr) == 0 )
+  {
+    // TODO cannot able to STALL Control OUT endpoint !!!!! FIXME try some walk-around
+    _dcd.qhd[0][0].stall = _dcd.qhd[1][0].stall = 1;
+  }
+  else
+  {
+    uint8_t const ep_id = edpt_addr2phy(edpt_addr);
+    _dcd.qhd[ep_id][0].stall = _dcd.qhd[ep_id][1].stall = 1;
+  }
 }
 
 bool dcd_edpt_stalled(uint8_t rhport, uint8_t ep_addr)
 {
   uint8_t const ep_id = edpt_addr2phy(edpt_addr);
-  return dcd_data.qhd[ep_id][0].stall || dcd_data.qhd[ep_id][1].stall;
+  return _dcd.qhd[ep_id][0].stall || _dcd.qhd[ep_id][1].stall;
 }
 
 void dcd_edpt_clear_stall(uint8_t rhport, uint8_t edpt_addr)
@@ -302,14 +246,14 @@ void dcd_edpt_clear_stall(uint8_t rhport, uint8_t edpt_addr)
   uint8_t const ep_id = edpt_addr2phy(edpt_addr);
 //  uint8_t active_buffer = BIT_TEST_(LPC_USB->EPINUSE, ep_id) ? 1 : 0;
 
-  dcd_data.qhd[ep_id][0].stall = dcd_data.qhd[ep_id][1].stall = 0;
+  _dcd.qhd[ep_id][0].stall = _dcd.qhd[ep_id][1].stall = 0;
 
   // since the next transfer always take place on buffer0 --> clear buffer0 toggle
-  dcd_data.qhd[ep_id][0].toggle_reset    = 1;
-  dcd_data.qhd[ep_id][0].feedback_toggle = 0;
+  _dcd.qhd[ep_id][0].toggle_reset    = 1;
+  _dcd.qhd[ep_id][0].toggle_mode = 0;
 
   //------------- clear stall must carry on any previously queued transfer -------------//
-  if ( dcd_data.next_td[ep_id].total_bytes != 0 )
+  if ( _dcd.next_td[ep_id].total_bytes != 0 )
   {
     queue_xfer_in_next_td(ep_id);
   }
@@ -326,11 +270,11 @@ bool dcd_edpt_open(uint8_t rhport, tusb_desc_endpoint_t const * p_endpoint_desc)
   uint8_t ep_id = edpt_addr2phy(p_endpoint_desc->bEndpointAddress);
 
   // endpoint must not previously opened, normally this means running out of endpoints
-  TU_ASSERT( dcd_data.qhd[ep_id][0].disable && dcd_data.qhd[ep_id][1].disable );
+  TU_ASSERT( _dcd.qhd[ep_id][0].disable && _dcd.qhd[ep_id][1].disable );
 
-  tu_memclr(dcd_data.qhd[ep_id], 2*sizeof(dcd_11u_13u_qhd_t));
-  dcd_data.qhd[ep_id][0].is_isochronous = dcd_data.qhd[ep_id][1].is_isochronous = (p_endpoint_desc->bmAttributes.xfer == TUSB_XFER_ISOCHRONOUS);
-  dcd_data.qhd[ep_id][0].disable = dcd_data.qhd[ep_id][1].disable = 0;
+  tu_memclr(_dcd.qhd[ep_id], 2*sizeof(ep_cmd_sts_t));
+  _dcd.qhd[ep_id][0].is_iso = _dcd.qhd[ep_id][1].is_iso = (p_endpoint_desc->bmAttributes.xfer == TUSB_XFER_ISOCHRONOUS);
+  _dcd.qhd[ep_id][0].disable = _dcd.qhd[ep_id][1].disable = 0;
 
   LPC_USB->EPBUFCFG |= BIT_(ep_id);
   LPC_USB->INTEN    |= BIT_(ep_id);
@@ -341,28 +285,28 @@ bool dcd_edpt_open(uint8_t rhport, tusb_desc_endpoint_t const * p_endpoint_desc)
 bool dcd_edpt_busy(uint8_t rhport, uint8_t ep_addr)
 {
   uint8_t const ep_id = edpt_addr2phy(ep_addr);
-  return dcd_data.qhd[ep_id][0].active || dcd_data.qhd[ep_id][1].active;
+  return _dcd.qhd[ep_id][0].active || _dcd.qhd[ep_id][1].active;
 }
 
 static void queue_xfer_to_buffer(uint8_t ep_id, uint8_t buff_idx, uint16_t buff_addr_offset, uint16_t total_bytes)
 {
   uint16_t const queued_bytes = tu_min16(total_bytes, DCD_11U_13U_MAX_BYTE_PER_TD);
 
-  dcd_data.current_td[ep_id].queued_bytes_in_buff[buff_idx] = queued_bytes;
-  dcd_data.current_td[ep_id].remaining_bytes               -= queued_bytes;
+  _dcd.current_td[ep_id].queued_bytes_in_buff[buff_idx] = queued_bytes;
+  _dcd.current_td[ep_id].remaining_bytes               -= queued_bytes;
 
-  dcd_data.qhd[ep_id][buff_idx].buff_addr_offset            = buff_addr_offset;
-  dcd_data.qhd[ep_id][buff_idx].nbytes                      = queued_bytes;
+  _dcd.qhd[ep_id][buff_idx].buffer_offset            = buff_addr_offset;
+  _dcd.qhd[ep_id][buff_idx].nbytes                      = queued_bytes;
 
-  dcd_data.qhd[ep_id][buff_idx].active = 1;
+  _dcd.qhd[ep_id][buff_idx].active = 1;
 }
 
 static void pipe_queue_xfer(uint8_t ep_id, uint16_t buff_addr_offset, uint16_t total_bytes)
 {
-  dcd_data.current_td[ep_id].remaining_bytes         = total_bytes;
-  dcd_data.current_td[ep_id].xferred_total           = 0;
-  dcd_data.current_td[ep_id].queued_bytes_in_buff[0] = 0;
-  dcd_data.current_td[ep_id].queued_bytes_in_buff[1] = 0;
+  _dcd.current_td[ep_id].remaining_bytes         = total_bytes;
+  _dcd.current_td[ep_id].xferred_total           = 0;
+  _dcd.current_td[ep_id].queued_bytes_in_buff[0] = 0;
+  _dcd.current_td[ep_id].queued_bytes_in_buff[1] = 0;
 
   LPC_USB->EPINUSE  = BIT_CLR_(LPC_USB->EPINUSE , ep_id); // force HW to use buffer0
 
@@ -378,23 +322,43 @@ static void pipe_queue_xfer(uint8_t ep_id, uint16_t buff_addr_offset, uint16_t t
 
 static void queue_xfer_in_next_td(uint8_t ep_id)
 {
-  dcd_data.current_ioc |= ( dcd_data.next_ioc & BIT_(ep_id) ); // copy next IOC to current IOC
+  _dcd.current_ioc |= ( _dcd.next_ioc & BIT_(ep_id) ); // copy next IOC to current IOC
 
-  pipe_queue_xfer(ep_id, dcd_data.next_td[ep_id].buff_addr_offset, dcd_data.next_td[ep_id].total_bytes);
+  pipe_queue_xfer(ep_id, _dcd.next_td[ep_id].buff_addr_offset, _dcd.next_td[ep_id].total_bytes);
 
-  dcd_data.next_td[ep_id].total_bytes = 0; // clear this field as it is used to indicate whehther next TD available
+  _dcd.next_td[ep_id].total_bytes = 0; // clear this field as it is used to indicate whehther next TD available
 }
 
 tusb_error_t dcd_edpt_queue_xfer(uint8_t ep_id , uint8_t * buffer, uint16_t total_bytes)
 {
-  dcd_data.current_ioc = BIT_CLR_(dcd_data.current_ioc, ep_id);
+  _dcd.current_ioc = BIT_CLR_(_dcd.current_ioc, ep_id);
   pipe_queue_xfer(ep_id, addr_offset(buffer), total_bytes);
   return TUSB_ERROR_NONE;
+}
+
+
+bool dcd_control_xfer(uint8_t rhport, uint8_t ep_id, uint8_t * p_buffer, uint16_t length)
+{
+  (void) rhport;
+
+  _dcd.current_ioc = BIT_SET_(_dcd.current_ioc, ep_id);
+
+  _dcd.current_td[ep_id].remaining_bytes = length;
+  _dcd.current_td[ep_id].xferred_total   = 0;
+
+  queue_xfer_to_buffer(ep_id, 0, addr_offset(p_buffer), length);
+
+  return true;
 }
 
 bool dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t* buffer, uint16_t total_bytes)
 {
   uint8_t const ep_id = edpt_addr2phy(ep_addr);
+
+  if ( edpt_number(ep_addr) == 0 )
+  {
+    return dcd_control_xfer(rhport, ep_id, buffer, (uint8_t) total_bytes);
+  }
 
 //  if( dcd_edpt_busy(ep_addr) || dcd_edpt_stalled(ep_addr) )
 //  { // save this transfer data to next td if pipe is busy or already been stalled
@@ -404,7 +368,7 @@ bool dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t* buffer, uint16_t to
 //    dcd_data.next_ioc = BIT_SET_(dcd_data.next_ioc, ep_id);
 //  }else
   {
-    dcd_data.current_ioc = BIT_SET_(dcd_data.current_ioc, ep_id);
+    _dcd.current_ioc = BIT_SET_(_dcd.current_ioc, ep_id);
 
     pipe_queue_xfer(ep_id, addr_offset(buffer), total_bytes);
   }
@@ -415,46 +379,66 @@ bool dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t* buffer, uint16_t to
 //--------------------------------------------------------------------+
 // IRQ
 //--------------------------------------------------------------------+
+static void bus_reset(void)
+{
+  tu_memclr(&_dcd, sizeof(dcd_data_t));
+
+  // disable all non-control endpoints on bus reset
+  for(uint8_t ep_id = 2; ep_id < EP_COUNT; ep_id++)
+  {
+    _dcd.qhd[ep_id][0].disable = _dcd.qhd[ep_id][1].disable = 1;
+  }
+
+  _dcd.qhd[0][1].buffer_offset = addr_offset(_dcd.setup_packet);
+
+  LPC_USB->EPINUSE      = 0;
+  LPC_USB->EPBUFCFG     = 0; // all start with single buffer
+  LPC_USB->EPSKIP       = 0xFFFFFFFF;
+
+  LPC_USB->INTSTAT      = LPC_USB->INTSTAT; // clear all pending interrupt
+  LPC_USB->DEVCMDSTAT  |= CMDSTAT_SETUP_RECEIVED_MASK; // clear setup received interrupt
+  LPC_USB->INTEN        = INT_DEVICE_STATUS_MASK | BIT_(0) | BIT_(1); // enable device status & control endpoints
+}
 
 static void endpoint_non_control_isr(uint32_t int_status)
 {
-  for(uint8_t ep_id = 2; ep_id < DCD_11U_13U_QHD_COUNT; ep_id++ )
+  for(uint8_t ep_id = 2; ep_id < EP_COUNT; ep_id++ )
   {
     if ( BIT_TEST_(int_status, ep_id) )
     {
-      dcd_11u_13u_qhd_t * const arr_qhd = dcd_data.qhd[ep_id];
+      ep_cmd_sts_t * const arr_qhd = _dcd.qhd[ep_id];
 
       // when double buffering, the complete buffer is opposed to the current active buffer in EPINUSE
       uint8_t const buff_idx = LPC_USB->EPINUSE & BIT_(ep_id) ? 0 : 1;
-      uint16_t const xferred_bytes = dcd_data.current_td[ep_id].queued_bytes_in_buff[buff_idx] - arr_qhd[buff_idx].nbytes;
+      uint16_t const xferred_bytes = _dcd.current_td[ep_id].queued_bytes_in_buff[buff_idx] - arr_qhd[buff_idx].nbytes;
 
-      dcd_data.current_td[ep_id].xferred_total += xferred_bytes;
+      _dcd.current_td[ep_id].xferred_total += xferred_bytes;
 
       // there are still data to transfer.
-      if ( (arr_qhd[buff_idx].nbytes == 0) && (dcd_data.current_td[ep_id].remaining_bytes > 0) )
+      if ( (arr_qhd[buff_idx].nbytes == 0) && (_dcd.current_td[ep_id].remaining_bytes > 0) )
       { // NOTE although buff_addr_offset has been increased when xfer is completed
         // but we still need to increase it one more as we are using double buffering.
-        queue_xfer_to_buffer(ep_id, buff_idx, arr_qhd[buff_idx].buff_addr_offset+1, dcd_data.current_td[ep_id].remaining_bytes);
+        queue_xfer_to_buffer(ep_id, buff_idx, arr_qhd[buff_idx].buffer_offset+1, _dcd.current_td[ep_id].remaining_bytes);
       }
       // short packet or (no more byte and both buffers are finished)
       else if ( (arr_qhd[buff_idx].nbytes > 0) || !arr_qhd[1-buff_idx].active  )
       { // current TD (request) is completed
         LPC_USB->EPSKIP   = BIT_SET_(LPC_USB->EPSKIP, ep_id); // skip other endpoint in case of short-package
 
-        dcd_data.current_td[ep_id].remaining_bytes = 0;
+        _dcd.current_td[ep_id].remaining_bytes = 0;
 
-        if ( BIT_TEST_(dcd_data.current_ioc, ep_id) )
+        if ( BIT_TEST_(_dcd.current_ioc, ep_id) )
         {
-          dcd_data.current_ioc = BIT_CLR_(dcd_data.current_ioc, ep_id);
+          _dcd.current_ioc = BIT_CLR_(_dcd.current_ioc, ep_id);
 
           uint8_t const ep_addr = (ep_id / 2) | ((ep_id & 0x01) ? TUSB_DIR_IN_MASK : 0);
 
           // TODO no way determine if the transfer is failed or not
-          dcd_event_xfer_complete(0, ep_addr, dcd_data.current_td[ep_id].xferred_total, XFER_RESULT_SUCCESS, true);
+          dcd_event_xfer_complete(0, ep_addr, _dcd.current_td[ep_id].xferred_total, XFER_RESULT_SUCCESS, true);
         }
 
         //------------- Next TD is available -------------//
-        if ( dcd_data.next_td[ep_id].total_bytes != 0 )
+        if ( _dcd.next_td[ep_id].total_bytes != 0 )
         {
           queue_xfer_in_next_td(ep_id);
         }
@@ -471,16 +455,16 @@ static void endpoint_control_isr(uint32_t int_status)
   uint8_t const ep_id = ( int_status & BIT_(0) ) ? 0 : 1;
 
   // there are still data to transfer.
-  if ( (dcd_data.qhd[ep_id][0].nbytes == 0) && (dcd_data.current_td[ep_id].remaining_bytes > 0) )
+  if ( (_dcd.qhd[ep_id][0].nbytes == 0) && (_dcd.current_td[ep_id].remaining_bytes > 0) )
   {
-    queue_xfer_to_buffer(ep_id, 0, dcd_data.qhd[ep_id][0].buff_addr_offset, dcd_data.current_td[ep_id].remaining_bytes);
+    queue_xfer_to_buffer(ep_id, 0, _dcd.qhd[ep_id][0].buffer_offset, _dcd.current_td[ep_id].remaining_bytes);
   }else
   {
-    dcd_data.current_td[ep_id].remaining_bytes = 0;
+    _dcd.current_td[ep_id].remaining_bytes = 0;
 
-    if ( BIT_TEST_(dcd_data.current_ioc, ep_id) )
+    if ( BIT_TEST_(_dcd.current_ioc, ep_id) )
     {
-      dcd_data.current_ioc = BIT_CLR_(dcd_data.current_ioc, ep_id);
+      _dcd.current_ioc = BIT_CLR_(_dcd.current_ioc, ep_id);
 
       // FIXME control xferred bytes
       dcd_event_xfer_complete(0, ep_id ? TUSB_DIR_IN_MASK : 0, 0, XFER_RESULT_SUCCESS, true);
@@ -499,7 +483,7 @@ void USB_IRQHandler(void)
   uint32_t const dev_cmd_stat = LPC_USB->DEVCMDSTAT;
 
   //------------- Device Status -------------//
-  if ( int_status & INT_MASK_DEVICE_STATUS )
+  if ( int_status & INT_DEVICE_STATUS_MASK )
   {
     LPC_USB->DEVCMDSTAT |= CMDSTAT_RESET_CHANGE_MASK | CMDSTAT_CONNECT_CHANGE_MASK | CMDSTAT_SUSPEND_CHANGE_MASK;
     if ( dev_cmd_stat & CMDSTAT_RESET_CHANGE_MASK) // bus reset
@@ -542,13 +526,13 @@ void USB_IRQHandler(void)
   {
     // received control request from host
     // copy setup request & acknowledge so that the next setup can be received by hw
-    dcd_event_setup_received(0, (uint8_t*) &dcd_data.setup_request, true);
+    dcd_event_setup_received(0, _dcd.setup_packet, true);
 
     // NXP control flowchart clear Active & Stall on both Control IN/OUT endpoints
-    dcd_data.qhd[0][0].stall = dcd_data.qhd[1][0].stall = 0;
+    _dcd.qhd[0][0].stall = _dcd.qhd[1][0].stall = 0;
 
     LPC_USB->DEVCMDSTAT |= CMDSTAT_SETUP_RECEIVED_MASK;
-    dcd_data.qhd[0][1].buff_addr_offset = addr_offset(&dcd_data.setup_request);
+    _dcd.qhd[0][1].buffer_offset = addr_offset(_dcd.setup_packet);
   }
   //------------- Control Endpoint -------------//
   else if ( int_status & 0x03 )

@@ -34,4 +34,8 @@
     <ProgramSection alignment="4" load="No" name=".data2_run" />
     <ProgramSection alignment="4" load="No" name=".bss2" />
   </MemorySegment>
+  <MemorySegment name="$(RAM3_NAME:RAM3)">
+    <ProgramSection alignment="4" load="No" name=".data3_run" />
+    <ProgramSection alignment="4" load="No" name=".bss3" />
+  </MemorySegment>
 </Root>
