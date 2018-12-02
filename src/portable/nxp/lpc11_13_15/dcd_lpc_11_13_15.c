@@ -103,6 +103,8 @@ TU_VERIFY_STATIC( sizeof(ep_cmd_sts_t) == 4, "size is not correct" );
 typedef struct {
   ep_cmd_sts_t qhd[EP_COUNT][2]; ///< 256 byte aligned, 2 for double buffer
 
+  uint16_t expected_len[EP_COUNT];
+
   // start at 80, the size should not exceed 48 (for setup_request align at 128)
   struct {
     uint16_t buff_addr_offset;
@@ -295,10 +297,12 @@ static void queue_xfer_to_buffer(uint8_t ep_id, uint8_t buff_idx, uint16_t buff_
   _dcd.current_td[ep_id].queued_bytes_in_buff[buff_idx] = queued_bytes;
   _dcd.current_td[ep_id].remaining_bytes               -= queued_bytes;
 
-  _dcd.qhd[ep_id][buff_idx].buffer_offset            = buff_addr_offset;
-  _dcd.qhd[ep_id][buff_idx].nbytes                      = queued_bytes;
+  _dcd.expected_len[ep_id] = total_bytes;
 
-  _dcd.qhd[ep_id][buff_idx].active = 1;
+  _dcd.qhd[ep_id][buff_idx].buffer_offset = buff_addr_offset;
+  _dcd.qhd[ep_id][buff_idx].nbytes        = queued_bytes;
+
+  _dcd.qhd[ep_id][buff_idx].active        = 1;
 }
 
 static void pipe_queue_xfer(uint8_t ep_id, uint16_t buff_addr_offset, uint16_t total_bytes)
@@ -416,13 +420,15 @@ static void endpoint_non_control_isr(uint32_t int_status)
 
       // there are still data to transfer.
       if ( (arr_qhd[buff_idx].nbytes == 0) && (_dcd.current_td[ep_id].remaining_bytes > 0) )
-      { // NOTE although buff_addr_offset has been increased when xfer is completed
+      {
+        // NOTE although buff_addr_offset has been increased when xfer is completed
         // but we still need to increase it one more as we are using double buffering.
         queue_xfer_to_buffer(ep_id, buff_idx, arr_qhd[buff_idx].buffer_offset+1, _dcd.current_td[ep_id].remaining_bytes);
       }
-      // short packet or (no more byte and both buffers are finished)
       else if ( (arr_qhd[buff_idx].nbytes > 0) || !arr_qhd[1-buff_idx].active  )
-      { // current TD (request) is completed
+      {
+        // short packet or (no more byte and both buffers are finished)
+        // current TD (request) is completed
         LPC_USB->EPSKIP   = BIT_SET_(LPC_USB->EPSKIP, ep_id); // skip other endpoint in case of short-package
 
         _dcd.current_td[ep_id].remaining_bytes = 0;
@@ -454,22 +460,7 @@ static void endpoint_control_isr(uint32_t int_status)
 {
   uint8_t const ep_id = ( int_status & BIT_(0) ) ? 0 : 1;
 
-  // there are still data to transfer.
-  if ( (_dcd.qhd[ep_id][0].nbytes == 0) && (_dcd.current_td[ep_id].remaining_bytes > 0) )
-  {
-    queue_xfer_to_buffer(ep_id, 0, _dcd.qhd[ep_id][0].buffer_offset, _dcd.current_td[ep_id].remaining_bytes);
-  }else
-  {
-    _dcd.current_td[ep_id].remaining_bytes = 0;
-
-    if ( BIT_TEST_(_dcd.current_ioc, ep_id) )
-    {
-      _dcd.current_ioc = BIT_CLR_(_dcd.current_ioc, ep_id);
-
-      // FIXME control xferred bytes
-      dcd_event_xfer_complete(0, ep_id ? TUSB_DIR_IN_MASK : 0, 0, XFER_RESULT_SUCCESS, true);
-    }
-  }
+  dcd_event_xfer_complete(0, ep_id ? TUSB_DIR_IN_MASK : 0, _dcd.expected_len[ep_id] - _dcd.qhd[ep_id][0].nbytes, XFER_RESULT_SUCCESS, true);
 }
 
 void USB_IRQHandler(void)
