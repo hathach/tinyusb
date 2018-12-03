@@ -45,7 +45,6 @@
 //--------------------------------------------------------------------+
 #include "common/tusb_common.h"
 #include "tusb_hal.h"
-#include "osal/osal.h"
 
 #include "device/dcd.h"
 #include "dcd_lpc43xx.h"
@@ -198,11 +197,6 @@ static void qtd_init(dcd_qtd_t* p_qtd, void * data_ptr, uint16_t total_bytes)
   }
 }
 
-static inline volatile uint32_t * get_endpt_ctrl_reg(uint8_t rhport, uint8_t ep_idx)
-{
- return &(LPC_USB[rhport]->ENDPTCTRL[0]) + ep_idx/2;
-}
-
 //--------------------------------------------------------------------+
 // DCD Endpoint Port
 //--------------------------------------------------------------------+
@@ -212,15 +206,13 @@ void dcd_edpt_stall(uint8_t rhport, uint8_t ep_addr)
   uint8_t const dir    = edpt_dir(ep_addr);
   uint8_t const ep_idx = 2*epnum + dir;
 
-  volatile uint32_t * endpt_ctrl = get_endpt_ctrl_reg(rhport, ep_idx);
-
   if ( epnum == 0)
   {
     // Stall both Control IN and OUT
-    (*endpt_ctrl) |= ( (ENDPTCTRL_MASK_STALL << 16) || (ENDPTCTRL_MASK_STALL << 0) );
+    LPC_USB[rhport]->ENDPTCTRL[epnum] |= ( (ENDPTCTRL_MASK_STALL << 16) || (ENDPTCTRL_MASK_STALL << 0) );
   }else
   {
-    (*endpt_ctrl) |= ENDPTCTRL_MASK_STALL << (ep_idx & 0x01 ? 16 : 0);
+    LPC_USB[rhport]->ENDPTCTRL[epnum] |= ENDPTCTRL_MASK_STALL << (ep_idx & 0x01 ? 16 : 0);
   }
 }
 
@@ -236,11 +228,9 @@ void dcd_edpt_clear_stall(uint8_t rhport, uint8_t ep_addr)
   uint8_t const dir    = edpt_dir(ep_addr);
   uint8_t const ep_idx = 2*epnum + dir;
 
-  volatile uint32_t * endpt_ctrl = get_endpt_ctrl_reg(rhport, ep_idx);
-
   // data toggle also need to be reset
-  (*endpt_ctrl) |= ENDPTCTRL_MASK_TOGGLE_RESET << ((ep_addr & TUSB_DIR_IN_MASK) ? 16 : 0);
-  (*endpt_ctrl) &= ~(ENDPTCTRL_MASK_STALL << ((ep_addr & TUSB_DIR_IN_MASK) ? 16 : 0));
+  LPC_USB[rhport]->ENDPTCTRL[epnum] |= ENDPTCTRL_MASK_TOGGLE_RESET << ((ep_addr & TUSB_DIR_IN_MASK) ? 16 : 0);
+  LPC_USB[rhport]->ENDPTCTRL[epnum] &= ~(ENDPTCTRL_MASK_STALL << ((ep_addr & TUSB_DIR_IN_MASK) ? 16 : 0));
 }
 
 bool dcd_edpt_open(uint8_t rhport, tusb_desc_endpoint_t const * p_endpoint_desc)
@@ -261,13 +251,8 @@ bool dcd_edpt_open(uint8_t rhport, tusb_desc_endpoint_t const * p_endpoint_desc)
   p_qhd->max_package_size        = p_endpoint_desc->wMaxPacketSize.size;
   p_qhd->qtd_overlay.next        = QTD_NEXT_INVALID;
 
-  //------------- Endpoint Control Register -------------//
-  volatile uint32_t * endpt_ctrl = get_endpt_ctrl_reg(rhport, ep_idx);
-
-  // endpoint must not be already enabled
-  TU_VERIFY( !( (*endpt_ctrl) &  (ENDPTCTRL_MASK_ENABLE << (dir ? 16 : 0)) ) );
-
-  (*endpt_ctrl) |= ((p_endpoint_desc->bmAttributes.xfer << 2) | ENDPTCTRL_MASK_ENABLE | ENDPTCTRL_MASK_TOGGLE_RESET) << (dir ? 16 : 0);
+  // Enable EP Control
+  LPC_USB[rhport]->ENDPTCTRL[epnum] |= ((p_endpoint_desc->bmAttributes.xfer << 2) | ENDPTCTRL_MASK_ENABLE | ENDPTCTRL_MASK_TOGGLE_RESET) << (dir ? 16 : 0);
 
   return true;
 }
