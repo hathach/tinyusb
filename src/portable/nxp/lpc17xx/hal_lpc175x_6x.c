@@ -40,8 +40,7 @@
 
 #if CFG_TUSB_MCU == OPT_MCU_LPC175X_6X
 
-#include "LPC17xx.h"
-#include "lpc17xx_pinsel.h"
+#include "chip.h"
 
 void tusb_hal_int_enable(uint8_t rhport)
 {
@@ -63,15 +62,14 @@ bool tusb_hal_init(void)
   enum {
     USBCLK_DEVCIE = 0x12,     // AHB + Device
     USBCLK_HOST   = 0x19,     // AHB + Host + OTG (!)
-
-    PCONP_PCUSB   = BIT_(31)
   };
 
-  LPC_SC->PCONP |= PCONP_PCUSB; // enable USB Peripherals
+  Chip_USB_Init();
 
   //------------- user manual 11.13 usb device controller initialization -------------//
-  PINSEL_ConfigPin( &(PINSEL_CFG_Type) { .Portnum = 0, .Pinnum = 29, .Funcnum = 1} ); // P0.29 as D+
-  PINSEL_ConfigPin( &(PINSEL_CFG_Type) { .Portnum = 0, .Pinnum = 30, .Funcnum = 1} ); // P0.30 as D-
+  /* Configure P0.29 as D+, P0.30 as D- */
+  Chip_IOCON_PinMux(LPC_IOCON, 0, 29, IOCON_MODE_INACT, IOCON_FUNC1);
+  Chip_IOCON_PinMux(LPC_IOCON, 0, 30, IOCON_MODE_INACT, IOCON_FUNC1);
 
 #if MODE_HOST_SUPPORTED
   PINSEL_ConfigPin( &(PINSEL_CFG_Type) { .Portnum = 1, .Pinnum = 22, .Funcnum = 2} ); // P1.22 as USB_PWRD
@@ -83,8 +81,10 @@ bool tusb_hal_init(void)
 #endif
 
 #if TUSB_OPT_DEVICE_ENABLED
-  LPC_PINCON->PINSEL4 = bit_set_range(LPC_PINCON->PINSEL4, 18, 19, BIN8(01)); // P2_9 as USB Connect
+//  LPC_PINCON->PINSEL4 = bit_set_range(LPC_PINCON->PINSEL4, 18, 19, BIN8(01)); // P2_9 as USB Connect
+  Chip_IOCON_PinMux(LPC_IOCON, 2, 9, IOCON_MODE_INACT, IOCON_FUNC1);
 
+#if 0
   // P1_30 as VBUS, ignore if it is already in VBUS mode
   if ( !(!BIT_TEST_(LPC_PINCON->PINSEL3, 28) && BIT_TEST_(LPC_PINCON->PINSEL3, 29)) )
   {
@@ -94,6 +94,7 @@ bool tusb_hal_init(void)
       .Portnum = 1, .Pinnum = 30,
       .Funcnum = 2, .Pinmode = PINSEL_PINMODE_PULLDOWN} );
   }
+#endif
 
   LPC_USB->USBClkCtrl = USBCLK_DEVCIE;
   while ((LPC_USB->USBClkSt & USBCLK_DEVCIE) != USBCLK_DEVCIE);
@@ -113,12 +114,6 @@ void USB_IRQHandler(void)
   #if TUSB_OPT_DEVICE_ENABLED
     hal_dcd_isr(0);
   #endif
-}
-
-void check_failed(uint8_t *file, uint32_t line)
-{
-  (void) file;
-  (void) line;
 }
 
 #endif

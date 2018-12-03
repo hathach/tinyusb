@@ -42,7 +42,7 @@
 
 #include "device/dcd.h"
 #include "dcd_lpc175x_6x.h"
-#include "LPC17xx.h"
+#include "chip.h"
 
 //--------------------------------------------------------------------+
 // MACRO CONSTANT TYPEDEF
@@ -111,13 +111,13 @@ ATTR_ALIGNED(128) static dcd_data_t _dcd;
 //--------------------------------------------------------------------+
 static void sie_cmd_code (sie_cmdphase_t phase, uint8_t code_data)
 {
-  LPC_USB->USBDevIntClr = (DEV_INT_COMMAND_CODE_EMPTY_MASK | DEV_INT_COMMAND_DATA_FULL_MASK);
-  LPC_USB->USBCmdCode   = (phase << 8) | (code_data << 16);
+  LPC_USB->DevIntClr = (DEV_INT_COMMAND_CODE_EMPTY_MASK | DEV_INT_COMMAND_DATA_FULL_MASK);
+  LPC_USB->CmdCode   = (phase << 8) | (code_data << 16);
 
   uint32_t const wait_flag = (phase == SIE_CMDPHASE_READ) ? DEV_INT_COMMAND_DATA_FULL_MASK : DEV_INT_COMMAND_CODE_EMPTY_MASK;
-  while ((LPC_USB->USBDevIntSt & wait_flag) == 0) {}
+  while ((LPC_USB->DevIntSt & wait_flag) == 0) {}
 
-  LPC_USB->USBDevIntClr = wait_flag;
+  LPC_USB->DevIntClr = wait_flag;
 }
 
 static void sie_write (uint8_t cmd_code, uint8_t data_len, uint8_t data)
@@ -135,7 +135,7 @@ static uint32_t sie_read (uint8_t cmd_code, uint8_t data_len)
   // TODO multiple read
   sie_cmd_code(SIE_CMDPHASE_COMMAND , cmd_code);
   sie_cmd_code(SIE_CMDPHASE_READ    , cmd_code);
-  return LPC_USB->USBCmdData;
+  return LPC_USB->CmdData;
 }
 
 //--------------------------------------------------------------------+
@@ -149,12 +149,12 @@ static inline uint8_t ep_addr2idx(uint8_t ep_addr)
 static void set_ep_size(uint8_t ep_id, uint16_t max_packet_size)
 {
   // follows example in 11.10.4.2
-  LPC_USB->USBReEp    |= BIT_(ep_id);
-  LPC_USB->USBEpInd    = ep_id; // select index before setting packet size
-  LPC_USB->USBMaxPSize = max_packet_size;
+  LPC_USB->ReEp    |= BIT_(ep_id);
+  LPC_USB->EpInd    = ep_id; // select index before setting packet size
+  LPC_USB->MaxPSize = max_packet_size;
 
-  while ((LPC_USB->USBDevIntSt & DEV_INT_ENDPOINT_REALIZED_MASK) == 0) {}
-  LPC_USB->USBDevIntClr = DEV_INT_ENDPOINT_REALIZED_MASK;
+  while ((LPC_USB->DevIntSt & DEV_INT_ENDPOINT_REALIZED_MASK) == 0) {}
+  LPC_USB->DevIntClr = DEV_INT_ENDPOINT_REALIZED_MASK;
 }
 
 
@@ -164,17 +164,17 @@ static void set_ep_size(uint8_t ep_id, uint16_t max_packet_size)
 static void bus_reset(void)
 {
   // step 7 : slave mode set up
-  LPC_USB->USBEpIntClr     = 0xFFFFFFFF; // clear all pending interrupt
-  LPC_USB->USBDevIntClr    = 0xFFFFFFFF; // clear all pending interrupt
-  LPC_USB->USBEpIntEn      = 0x03UL;     // control endpoint cannot use DMA, non-control all use DMA
-  LPC_USB->USBEpIntPri     = 0x03UL;     // fast for control endpoint
+  LPC_USB->EpIntClr     = 0xFFFFFFFF; // clear all pending interrupt
+  LPC_USB->DevIntClr    = 0xFFFFFFFF; // clear all pending interrupt
+  LPC_USB->EpIntEn      = 0x03UL;     // control endpoint cannot use DMA, non-control all use DMA
+  LPC_USB->EpIntPri     = 0x03UL;     // fast for control endpoint
 
   // step 8 : DMA set up
-  LPC_USB->USBEpDMADis     = 0xFFFFFFFF; // firstly disable all dma
-  LPC_USB->USBDMARClr      = 0xFFFFFFFF; // clear all pending interrupt
-  LPC_USB->USBEoTIntClr    = 0xFFFFFFFF;
-  LPC_USB->USBNDDRIntClr   = 0xFFFFFFFF;
-  LPC_USB->USBSysErrIntClr = 0xFFFFFFFF;
+  LPC_USB->EpDMADis     = 0xFFFFFFFF; // firstly disable all dma
+  LPC_USB->DMARClr      = 0xFFFFFFFF; // clear all pending interrupt
+  LPC_USB->EoTIntClr    = 0xFFFFFFFF;
+  LPC_USB->NDDRIntClr   = 0xFFFFFFFF;
+  LPC_USB->SysErrIntClr = 0xFFFFFFFF;
 
   tu_memclr(&_dcd, sizeof(dcd_data_t));
 }
@@ -183,16 +183,16 @@ bool dcd_init(uint8_t rhport)
 {
   (void) rhport;
 
-  //------------- user manual 11.13 usb device controller initialization -------------//  LPC_USB->USBEpInd = 0;
+  //------------- user manual 11.13 usb device controller initialization -------------//
   // step 6 : set up control endpoint
   set_ep_size(0, CFG_TUD_ENDOINT0_SIZE);
   set_ep_size(1, CFG_TUD_ENDOINT0_SIZE);
 
   bus_reset();
 
-  LPC_USB->USBDevIntEn = (DEV_INT_DEVICE_STATUS_MASK | DEV_INT_ENDPOINT_FAST_MASK | DEV_INT_ENDPOINT_SLOW_MASK | DEV_INT_ERROR_MASK);
-  LPC_USB->USBUDCAH = (uint32_t) _dcd.udca;
-  LPC_USB->USBDMAIntEn = (DMA_INT_END_OF_XFER_MASK /*| DMA_INT_NEW_DD_REQUEST_MASK*/ | DMA_INT_ERROR_MASK);
+  LPC_USB->DevIntEn = (DEV_INT_DEVICE_STATUS_MASK | DEV_INT_ENDPOINT_FAST_MASK | DEV_INT_ENDPOINT_SLOW_MASK | DEV_INT_ERROR_MASK);
+  LPC_USB->UDCAH = (uint32_t) _dcd.udca;
+  LPC_USB->DMAIntEn = (DMA_INT_END_OF_XFER_MASK /*| DMA_INT_NEW_DD_REQUEST_MASK*/ | DMA_INT_ERROR_MASK);
 
   sie_write(SIE_CMDCODE_DEVICE_STATUS, 1, 1);    // connect
 
@@ -234,16 +234,16 @@ static void control_ep_write(void const * buffer, uint8_t len)
 {
   uint32_t const * buf32 = (uint32_t const *) buffer;
 
-  LPC_USB->USBCtrl   = USBCTRL_WRITE_ENABLE_MASK; // logical endpoint = 0
-  LPC_USB->USBTxPLen = (uint32_t) len;
+  LPC_USB->Ctrl   = USBCTRL_WRITE_ENABLE_MASK; // logical endpoint = 0
+  LPC_USB->TxPLen = (uint32_t) len;
 
   for (uint8_t count = 0; count < byte2dword(len); count++)
   {
-    LPC_USB->USBTxData = *buf32; // NOTE: cortex M3 have no problem with alignment
+    LPC_USB->TxData = *buf32; // NOTE: cortex M3 have no problem with alignment
     buf32++;
   }
 
-  LPC_USB->USBCtrl = 0;
+  LPC_USB->Ctrl = 0;
 
   // select control IN & validate the endpoint
   sie_write(SIE_CMDCODE_ENDPOINT_SELECT+1, 0, 0);
@@ -252,19 +252,19 @@ static void control_ep_write(void const * buffer, uint8_t len)
 
 static uint8_t control_ep_read(void * buffer, uint8_t len)
 {
-  LPC_USB->USBCtrl = USBCTRL_READ_ENABLE_MASK; // logical endpoint = 0
-  while ((LPC_USB->USBRxPLen & USBRXPLEN_PACKET_READY_MASK) == 0) {} // TODO blocking, should have timeout
+  LPC_USB->Ctrl = USBCTRL_READ_ENABLE_MASK; // logical endpoint = 0
+  while ((LPC_USB->RxPLen & USBRXPLEN_PACKET_READY_MASK) == 0) {} // TODO blocking, should have timeout
 
-  len = tu_min8(len, (uint8_t) (LPC_USB->USBRxPLen & USBRXPLEN_PACKET_LENGTH_MASK) );
+  len = tu_min8(len, (uint8_t) (LPC_USB->RxPLen & USBRXPLEN_PACKET_LENGTH_MASK) );
   uint32_t *buf32 = (uint32_t*) buffer;
 
   for (uint8_t count=0; count < byte2dword(len); count++)
   {
-    *buf32 = LPC_USB->USBRxData;
+    *buf32 = LPC_USB->RxData;
     buf32++;
   }
 
-  LPC_USB->USBCtrl = 0;
+  LPC_USB->Ctrl = 0;
 
   // select control OUT & clear the endpoint
   sie_write(SIE_CMDCODE_ENDPOINT_SELECT+0, 0, 0);
@@ -415,15 +415,15 @@ bool dcd_edpt_xfer (uint8_t rhport, uint8_t ep_addr, uint8_t* buffer, uint16_t t
     if ( ep_id % 2 )
     {
       // Clear EP interrupt before Enable DMA
-      LPC_USB->USBEpIntEn &= ~BIT_(ep_id);
-      LPC_USB->USBEpDMAEn = BIT_(ep_id);
+      LPC_USB->EpIntEn &= ~BIT_(ep_id);
+      LPC_USB->EpDMAEn = BIT_(ep_id);
 
       // endpoint IN need to actively raise DMA request
-      LPC_USB->USBDMARSet = BIT_(ep_id);
+      LPC_USB->DMARSet = BIT_(ep_id);
     }else
     {
       // Enable DMA
-      LPC_USB->USBEpDMAEn = BIT_(ep_id);
+      LPC_USB->EpDMAEn = BIT_(ep_id);
     }
 
     return true;
@@ -442,7 +442,7 @@ static void control_xfer_isr(uint8_t rhport, uint32_t ep_int_status)
   {
     bool is_setup = sie_read(SIE_CMDCODE_ENDPOINT_SELECT+0, 1) & SIE_SELECT_ENDPOINT_SETUP_RECEIVED_MASK;
 
-    LPC_USB->USBEpIntClr = BIT_(0);
+    LPC_USB->EpIntClr = BIT_(0);
 
     if (is_setup)
     {
@@ -470,7 +470,7 @@ static void control_xfer_isr(uint8_t rhport, uint32_t ep_int_status)
   // Control In complete
   if ( ep_int_status & BIT_(1) )
   {
-    LPC_USB->USBEpIntClr = BIT_(1);
+    LPC_USB->EpIntClr = BIT_(1);
     dcd_event_xfer_complete(rhport, TUSB_DIR_IN_MASK, _dcd.control.in_bytes, XFER_RESULT_SUCCESS, true);
   }
 }
@@ -517,8 +517,8 @@ static void dd_complete_isr(uint8_t rhport, uint8_t ep_id)
 // main USB IRQ handler
 void hal_dcd_isr(uint8_t rhport)
 {
-  uint32_t const dev_int_status = LPC_USB->USBDevIntSt & LPC_USB->USBDevIntEn;
-  LPC_USB->USBDevIntClr = dev_int_status;// Acknowledge handled interrupt
+  uint32_t const dev_int_status = LPC_USB->DevIntSt & LPC_USB->DevIntEn;
+  LPC_USB->DevIntClr = dev_int_status;// Acknowledge handled interrupt
 
   // Bus event
   if (dev_int_status & DEV_INT_DEVICE_STATUS_MASK)
@@ -527,7 +527,7 @@ void hal_dcd_isr(uint8_t rhport)
   }
 
   // Endpoint interrupt
-  uint32_t const ep_int_status = LPC_USB->USBEpIntSt & LPC_USB->USBEpIntEn;
+  uint32_t const ep_int_status = LPC_USB->EpIntSt & LPC_USB->EpIntEn;
 
   // Control Endpoint are fast
   if (dev_int_status & DEV_INT_ENDPOINT_FAST_MASK)
@@ -544,10 +544,10 @@ void hal_dcd_isr(uint8_t rhport)
     {
       if ( BIT_TEST_(ep_int_status, ep_id) )
       {
-        LPC_USB->USBEpIntClr = BIT_(ep_id);
+        LPC_USB->EpIntClr = BIT_(ep_id);
 
         // Clear Ep interrupt for next DMA
-        LPC_USB->USBEpIntEn &= ~BIT_(ep_id);
+        LPC_USB->EpIntEn &= ~BIT_(ep_id);
 
         dd_complete_isr(rhport, ep_id);
       }
@@ -557,11 +557,11 @@ void hal_dcd_isr(uint8_t rhport)
   // DMA transfer complete (RAM <-> EP) for Non-Control
   // OUT: USB transfer is fully complete
   // IN : UBS transfer is still on-going -> enable EpIntEn to know when it is complete
-  uint32_t const dma_int_status = LPC_USB->USBDMAIntSt & LPC_USB->USBDMAIntEn;
+  uint32_t const dma_int_status = LPC_USB->DMAIntSt & LPC_USB->DMAIntEn;
   if (dma_int_status & DMA_INT_END_OF_XFER_MASK)
   {
-    uint32_t const eot = LPC_USB->USBEoTIntSt;
-    LPC_USB->USBEoTIntClr = eot; // acknowledge interrupt source
+    uint32_t const eot = LPC_USB->EoTIntSt;
+    LPC_USB->EoTIntClr = eot; // acknowledge interrupt source
 
     for ( uint8_t ep_id = 2; ep_id < DCD_ENDPOINT_MAX; ep_id++ )
     {
@@ -570,7 +570,7 @@ void hal_dcd_isr(uint8_t rhport)
         if ( ep_id & 0x01 )
         {
           // IN enable EpInt for end of usb transfer
-          LPC_USB->USBEpIntEn |= BIT_(ep_id);
+          LPC_USB->EpIntEn |= BIT_(ep_id);
         }else
         {
           // OUT
