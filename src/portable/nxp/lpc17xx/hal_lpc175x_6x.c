@@ -44,13 +44,13 @@
 
 void tusb_hal_int_enable(uint8_t rhport)
 {
-  (void) rhport; // discard compiler's warning
+  (void) rhport;
   NVIC_EnableIRQ(USB_IRQn);
 }
 
 void tusb_hal_int_disable(uint8_t rhport)
 {
-  (void) rhport; // discard compiler's warning
+  (void) rhport;
   NVIC_DisableIRQ(USB_IRQn);
 }
 
@@ -66,7 +66,6 @@ bool tusb_hal_init(void)
 
   Chip_USB_Init();
 
-  //------------- user manual 11.13 usb device controller initialization -------------//
   /* Configure P0.29 as D+, P0.30 as D- */
   Chip_IOCON_PinMux(LPC_IOCON, 0, 29, IOCON_MODE_INACT, IOCON_FUNC1);
   Chip_IOCON_PinMux(LPC_IOCON, 0, 30, IOCON_MODE_INACT, IOCON_FUNC1);
@@ -75,27 +74,17 @@ bool tusb_hal_init(void)
   PINSEL_ConfigPin( &(PINSEL_CFG_Type) { .Portnum = 1, .Pinnum = 22, .Funcnum = 2} ); // P1.22 as USB_PWRD
   PINSEL_ConfigPin( &(PINSEL_CFG_Type) { .Portnum = 1, .Pinnum = 19, .Funcnum = 2} ); // P1.19 as USB_PPWR
 
+  // Enable host
   LPC_USB->USBClkCtrl = USBCLK_HOST;
   while ((LPC_USB->USBClkSt & USBCLK_HOST) != USBCLK_HOST);
   LPC_USB->OTGStCtrl = 0x3;
 #endif
 
 #if TUSB_OPT_DEVICE_ENABLED
-//  LPC_PINCON->PINSEL4 = bit_set_range(LPC_PINCON->PINSEL4, 18, 19, BIN8(01)); // P2_9 as USB Connect
+  // P2_9 as USB Connect
   Chip_IOCON_PinMux(LPC_IOCON, 2, 9, IOCON_MODE_INACT, IOCON_FUNC1);
 
-#if 0
-  // P1_30 as VBUS, ignore if it is already in VBUS mode
-  if ( !(!BIT_TEST_(LPC_PINCON->PINSEL3, 28) && BIT_TEST_(LPC_PINCON->PINSEL3, 29)) )
-  {
-    // some board like lpcxpresso1769 does not connect VBUS signal to pin P1_30, this allow those board to overwrite
-    // by always pulling P1_30 to high
-    PINSEL_ConfigPin( &(PINSEL_CFG_Type) {
-      .Portnum = 1, .Pinnum = 30,
-      .Funcnum = 2, .Pinmode = PINSEL_PINMODE_PULLDOWN} );
-  }
-#endif
-
+  // Enable Device
   LPC_USB->USBClkCtrl = USBCLK_DEVCIE;
   while ((LPC_USB->USBClkSt & USBCLK_DEVCIE) != USBCLK_DEVCIE);
 #endif
