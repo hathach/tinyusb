@@ -43,15 +43,7 @@
  extern "C" {
 #endif
 
-#include "LPC43xx.h"
-#include "lpc43xx_scu.h"
-#include "lpc43xx_cgu.h"
-#include "lpc43xx_gpio.h"
-#include "lpc43xx_uart.h"
-#include "lpc43xx_i2c.h"
-
-// For LEDs
-#include "oem_base_board/pca9532.h"
+#include "chip.h"
 
 #ifdef __cplusplus
  }

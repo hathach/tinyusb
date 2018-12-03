@@ -40,8 +40,7 @@
 
 #if CFG_TUSB_MCU == OPT_MCU_LPC43XX
 
-#include "LPC43xx.h"
-#include "lpc43xx_cgu.h"
+#include "chip.h"
 
 enum {
   LPC43XX_USBMODE_DEVICE = 2,
