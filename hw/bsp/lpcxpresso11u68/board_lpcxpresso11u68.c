@@ -40,8 +40,9 @@
 
 #include "../board.h"
 
-#define LED_PORT    2
-#define LED_PIN     17
+#define LED_PORT      2
+#define LED_PIN       17
+#define LED_STATE_ON  0
 
 const static struct {
   uint8_t port;
@@ -120,7 +121,7 @@ uint32_t tusb_hal_millis(void)
 //--------------------------------------------------------------------+
 void board_led_control(bool state)
 {
-  Chip_GPIO_SetPinState(LPC_GPIO, LED_PORT, LED_PIN, state);
+  Chip_GPIO_SetPinState(LPC_GPIO, LED_PORT, LED_PIN, state ? LED_STATE_ON : (1-LED_STATE_ON));
 }
 
 //--------------------------------------------------------------------+

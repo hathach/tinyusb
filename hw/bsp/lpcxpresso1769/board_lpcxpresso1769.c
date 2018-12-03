@@ -41,50 +41,17 @@
 
 #include "bsp/board.h"
 
-#define LED_PORT               0
-
-static const struct {
-  uint8_t port;
-  uint8_t pin;
-} buttons[] =
-{
-    {2, 3  }, // Joystick up
-    {0, 15 }, // Joystick down
-    {2, 4  }, // Joystick left
-    {0, 16 }, // Joystick right
-    {0, 17 }, // Joystick press
-    {0, 4  }, // SW3
-//    {1, 31 }, // SW4 (require to remove J28)
-};
-
-enum {
-  BOARD_BUTTON_COUNT = sizeof(buttons) / sizeof(buttons[0])
-};
+#define LED_PORT      0
+#define LED_PIN       22
 
 #define BOARD_UART_PORT   LPC_UART3
 
 /* Pin muxing configuration */
-static const PINMUX_GRP_T pinmuxing[] = {
+static const PINMUX_GRP_T pinmuxing[] =
+{
 	{0,  0,   IOCON_MODE_INACT | IOCON_FUNC2},	/* TXD3 */
 	{0,  1,   IOCON_MODE_INACT | IOCON_FUNC2},	/* RXD3 */
-	{0,  4,   IOCON_MODE_INACT | IOCON_FUNC2},	/* CAN-RD2 */
-	{0,  5,   IOCON_MODE_INACT | IOCON_FUNC2},	/* CAN-TD2 */
 	{0,  22,  IOCON_MODE_INACT | IOCON_FUNC0},	/* Led 0 */
-	{0,  23,  IOCON_MODE_INACT | IOCON_FUNC1},	/* ADC 0 */
-	{0,  26,  IOCON_MODE_INACT | IOCON_FUNC2},	/* DAC */
-
-	/* ENET */
-	{0x1, 0,  IOCON_MODE_INACT | IOCON_FUNC1},	/* ENET_TXD0 */
-	{0x1, 1,  IOCON_MODE_INACT | IOCON_FUNC1},	/* ENET_TXD1 */
-	{0x1, 4,  IOCON_MODE_INACT | IOCON_FUNC1},	/* ENET_TX_EN */
-	{0x1, 8,  IOCON_MODE_INACT | IOCON_FUNC1},	/* ENET_CRS */
-	{0x1, 9,  IOCON_MODE_INACT | IOCON_FUNC1},	/* ENET_RXD0 */
-	{0x1, 10, IOCON_MODE_INACT | IOCON_FUNC1},	/* ENET_RXD1 */
-	{0x1, 14, IOCON_MODE_INACT | IOCON_FUNC1},	/* ENET_RX_ER */
-	{0x1, 15, IOCON_MODE_INACT | IOCON_FUNC1},	/* ENET_REF_CLK */
-	{0x1, 16, IOCON_MODE_INACT | IOCON_FUNC1},	/* ENET_MDC */
-	{0x1, 17, IOCON_MODE_INACT | IOCON_FUNC1},	/* ENET_MDIO */
-	{0x1, 27, IOCON_MODE_INACT | IOCON_FUNC1},	/* CLKOUT */
 
 	/* Joystick buttons. */
 	{2, 3,  IOCON_MODE_INACT | IOCON_FUNC0},	/* JOYSTICK_UP */
@@ -92,7 +59,10 @@ static const PINMUX_GRP_T pinmuxing[] = {
 	{2, 4,  IOCON_MODE_INACT | IOCON_FUNC0},	/* JOYSTICK_LEFT */
 	{0, 16, IOCON_MODE_INACT | IOCON_FUNC0},	/* JOYSTICK_RIGHT */
 	{0, 17, IOCON_MODE_INACT | IOCON_FUNC0},	/* JOYSTICK_PRESS */
+};
 
+enum {
+  BOARD_BUTTON_COUNT = 5
 };
 
 /* System oscillator rate and RTC oscillator rate */
@@ -102,9 +72,8 @@ const uint32_t RTCOscRateIn = 32768;
 // Invoked by startup code
 void SystemInit(void)
 {
-	/* Enable IOCON clock */
-  Chip_IOCON_Init(LPC_IOCON);
-	Chip_IOCON_SetPinMuxing(LPC_IOCON, pinmuxing, sizeof(pinmuxing) / sizeof(PINMUX_GRP_T));
+  /* Enable IOCON clock */
+  Chip_IOCON_SetPinMuxing(LPC_IOCON, pinmuxing, sizeof(pinmuxing) / sizeof(PINMUX_GRP_T));
   Chip_SetupXtalClocking();
 }
 
@@ -122,7 +91,7 @@ void board_init(void)
   Chip_GPIO_Init(LPC_GPIO);
 
   //------------- LED -------------//
-  Chip_GPIO_SetPinDIROutput(LPC_GPIO, LED_PORT, BOARD_LED0);
+  Chip_GPIO_SetPinDIROutput(LPC_GPIO, LED_PORT, LED_PIN);
 
   //------------- BUTTON -------------//
 //  for(uint8_t i=0; i<BOARD_BUTTON_COUNT; i++) GPIO_SetDir(buttons[i].port, BIT_(buttons[i].pin), 0);
@@ -162,6 +131,9 @@ void board_init(void)
 	UART_Init(BOARD_UART_PORT, &UARTConfigStruct);
 	UART_TxCmd(BOARD_UART_PORT, ENABLE); // Enable UART Transmit
 #endif
+
+	/* VBUS is not connected on the NXP LPCXpresso LPC1769, so leave the pin at default setting. */
+	/*Chip_IOCON_PinMux(LPC_IOCON, 1, 30, IOCON_MODE_INACT, IOCON_FUNC2);*/ /* USB VBUS */
 }
 
 /*------------------------------------------------------------------*/
@@ -186,10 +158,9 @@ uint32_t tusb_hal_millis(void)
 //--------------------------------------------------------------------+
 // LEDS
 //--------------------------------------------------------------------+
-void board_led_control(uint32_t id, bool state)
+void board_led_control(bool state)
 {
-  (void) id;
-  Chip_GPIO_SetPinState(LPC_GPIO, LED_PORT, BOARD_LED0, state);
+  Chip_GPIO_SetPinState(LPC_GPIO, LED_PORT, LED_PIN, state);
 }
 
 //--------------------------------------------------------------------+
