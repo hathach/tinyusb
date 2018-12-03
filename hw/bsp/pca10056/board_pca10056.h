@@ -45,12 +45,6 @@
  extern "C" {
 #endif
 
-#define BOARD_LED_NUM   4
-#define BOARD_LED0      13
-#define BOARD_LED1      14
-#define BOARD_LED2      15
-#define BOARD_LED3      16
-
 // Flash type used for MSC example
 #define BOARD_MSC_FLASH_QSPI
 #define BOARD_MSC_FLASH_SIZE    (8*1024*1024)
