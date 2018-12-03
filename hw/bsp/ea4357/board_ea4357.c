@@ -141,11 +141,15 @@ void board_init(void)
 //--------------------------------------------------------------------+
 // LEDS
 //--------------------------------------------------------------------+
-void board_led_control(uint32_t id, bool state)
+void board_led_control(bool state)
 {
-  uint16_t on_mask  = state ? (1 << id) : 0;
-  uint16_t off_mask = state ? 0 : (1 << id);
-  pca9532_setLeds( on_mask << 8, off_mask << 8 );
+  if (state)
+  {
+    pca9532_setLeds( LED1, 0 );
+  }else
+  {
+    pca9532_setLeds( 0, LED1);
+  }
 }
 
 //--------------------------------------------------------------------+

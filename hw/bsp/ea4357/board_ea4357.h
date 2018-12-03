@@ -50,15 +50,8 @@
 #include "lpc43xx_uart.h"
 #include "lpc43xx_i2c.h"
 
-
-#include "oem_base_board/pca9532.h" // LEDs
-
-#define BOARD_LED_NUM   1
-#define BOARD_LED0      0
-
-
-//#define CFG_PRINTF_TARGET       PRINTF_TARGET_SWO
-#define CFG_PRINTF_TARGET       PRINTF_TARGET_UART
+// For LEDs
+#include "oem_base_board/pca9532.h"
 
 #ifdef __cplusplus
  }
