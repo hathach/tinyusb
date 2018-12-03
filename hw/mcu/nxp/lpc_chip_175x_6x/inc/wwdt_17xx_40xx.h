@@ -101,7 +101,7 @@ void Chip_WWDT_Init(LPC_WWDT_T *pWWDT);
  * @param	pWWDT	: The base of WatchDog Timer peripheral on the chip
  * @return	None
  */
-STATIC INLINE void Chip_WWDT_DeInit(LPC_WWDT_T *pWWDT) {}
+STATIC INLINE void Chip_WWDT_DeInit(LPC_WWDT_T *pWWDT) { (void) pWWDT;}
 
 /**
  * @brief	Set WDT timeout constant value used for feed
