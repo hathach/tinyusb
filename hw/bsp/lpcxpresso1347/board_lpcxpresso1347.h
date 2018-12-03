@@ -45,8 +45,6 @@
 
 #include "chip.h"
 
-#define BOARD_LED0      7
-
 #ifdef __cplusplus
  }
 #endif
