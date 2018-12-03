@@ -41,8 +41,6 @@
 #include "bsp/board.h"
 #include "pca9532.h"
 
-#include "tusb.h"
-
 #define BOARD_UART_PORT           LPC_USART0
 #define BOARD_UART_PIN_PORT       0x0f
 #define BOARD_UART_PIN_TX         10 // PF.10 : UART0_TXD
@@ -97,16 +95,7 @@ const uint32_t OscRateIn = 12000000;
 
 static const PINMUX_GRP_T pinmuxing[] =
 {
-  /* RMII pin group */
-  {0x1, 19, (SCU_MODE_HIGHSPEEDSLEW_EN | SCU_MODE_INACT | SCU_MODE_INBUFF_EN | SCU_MODE_ZIF_DIS | SCU_MODE_FUNC0)}, //ENET_REF_CLK
-  {0x0,  1, (SCU_MODE_HIGHSPEEDSLEW_EN | SCU_MODE_INACT | SCU_MODE_ZIF_DIS | SCU_MODE_FUNC6)}, //ENET_TXEN
-  {0x1, 18, (SCU_MODE_HIGHSPEEDSLEW_EN | SCU_MODE_INACT | SCU_MODE_ZIF_DIS | SCU_MODE_FUNC3)}, //ENET_TXD0
-  {0x1, 20, (SCU_MODE_HIGHSPEEDSLEW_EN | SCU_MODE_INACT | SCU_MODE_ZIF_DIS | SCU_MODE_FUNC3)}, //ENET_TXD1
-  {0x1, 17, (SCU_MODE_HIGHSPEEDSLEW_EN | SCU_MODE_INACT | SCU_MODE_INBUFF_EN | SCU_MODE_ZIF_DIS | SCU_MODE_FUNC3)}, //ENET_MDIO
-  {0xC,  1, (SCU_MODE_HIGHSPEEDSLEW_EN | SCU_MODE_INACT | SCU_MODE_ZIF_DIS | SCU_MODE_FUNC3)}, //ENET_MDC
-  {0x1, 16, (SCU_MODE_HIGHSPEEDSLEW_EN | SCU_MODE_INACT | SCU_MODE_INBUFF_EN | SCU_MODE_ZIF_DIS | SCU_MODE_FUNC7)}, //ENET_RX_DV
-  {0x1, 15, (SCU_MODE_HIGHSPEEDSLEW_EN | SCU_MODE_INACT | SCU_MODE_INBUFF_EN | SCU_MODE_ZIF_DIS | SCU_MODE_FUNC3)}, //ENET_RXD0
-  {0x0,  0, (SCU_MODE_HIGHSPEEDSLEW_EN | SCU_MODE_INACT | SCU_MODE_INBUFF_EN | SCU_MODE_ZIF_DIS | SCU_MODE_FUNC2)}, //ENET_RXD1
+  // USB
 
   /*  I2S  */
   {0x3,  0,  (SCU_PINIO_FAST | SCU_MODE_FUNC2)}, //I2S0_TX_CLK
@@ -181,16 +170,15 @@ void board_init(void)
   UART_TxCmd(BOARD_UART_PORT, ENABLE); // Enable UART Transmit
 #endif
 
-#if 0
   //------------- USB -------------//
-  // USB0 Power: EA4357 channel B U20 GPIO26 active low (base board), P2_3 on LPC4357
-  scu_pinmux(0x02, 3, MD_PUP | MD_EZI, FUNC7);		// USB0 VBus Power
+  // USB0 Vbus Power: P2_3 on EA4357 channel B U20 GPIO26 active low (base board)
+  Chip_SCU_PinMuxSet(2, 3, SCU_MODE_PULLUP | SCU_MODE_INBUFF_EN | SCU_MODE_FUNC7);
 
   #if CFG_TUSB_RHPORT0_MODE & OPT_MODE_DEVICE
-  scu_pinmux(0x09, 5, GPIO_PDN, FUNC4); // P9_5 (GPIO5[18]) (GPIO28 on oem base) as USB connect, active low.
-  GPIO_SetDir(5, BIT_(18), 1);
+  // P9_5 (GPIO5[18]) (GPIO28 on oem base) as USB connect, active low.
+  Chip_SCU_PinMuxSet(9, 5, SCU_MODE_PULLDOWN | SCU_MODE_FUNC4);
+  Chip_GPIO_SetPinDIROutput(LPC_GPIO_PORT, 5, 18);
   #endif
-#endif
 
   // USB1 Power: EA4357 channel A U20 is enabled by SJ5 connected to pad 1-2, no more action required
   // TODO Remove R170, R171, solder a pair of 15K to USB1 D+/D- to test with USB1 Host

@@ -80,14 +80,9 @@ static void hal_controller_reset(uint8_t rhport)
 
 bool tusb_hal_init(void)
 {
-  LPC_CREG->CREG0 &= ~(1<<5); /* Turn on the phy */
-
-  //------------- USB0 -------------//
+  // USB0
 #if CFG_TUSB_RHPORT0_MODE
-  CGU_EnableEntity(CGU_CLKSRC_PLL0, DISABLE); /* Disable PLL first */
-  TU_VERIFY( CGU_ERROR_SUCCESS == CGU_SetPLL0()); /* the usb core require output clock = 480MHz */
-  CGU_EntityConnect(CGU_CLKSRC_XTAL_OSC, CGU_CLKSRC_PLL0);
-  CGU_EnableEntity(CGU_CLKSRC_PLL0, ENABLE);   /* Enable PLL after all setting is done */
+  Chip_USB0_Init();
 
   // reset controller & set role
   hal_controller_reset(0);
@@ -103,14 +98,9 @@ bool tusb_hal_init(void)
   #endif
 #endif
 
-  //------------- USB1 -------------//
+  // USB1
 #if CFG_TUSB_RHPORT1_MODE
-  // Host require to config P2_5, TODO confirm whether device mode require P2_5 or not
-  scu_pinmux(0x2, 5, MD_PLN | MD_EZI | MD_ZI, FUNC2);	// USB1_VBUS monitor presence, must be high for bus reset occur
-
-  /* connect CLK_USB1 to 60 MHz clock */
-  CGU_EntityConnect(CGU_CLKSRC_PLL1, CGU_BASE_USB1); /* FIXME Run base BASE_USB1_CLK clock from PLL1 (assume PLL1 is 60 MHz, no division required) */
-  LPC_SCU->SFSUSB = (CFG_TUSB_RHPORT1_MODE & OPT_MODE_HOST) ? 0x16 : 0x12; // enable USB1 with on-chip FS PHY
+  Chip_USB1_Init();
 
   hal_controller_reset(1);
 

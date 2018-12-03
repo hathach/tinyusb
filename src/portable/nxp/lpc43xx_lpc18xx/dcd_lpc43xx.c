@@ -50,9 +50,7 @@
 #include "device/dcd.h"
 #include "dcd_lpc43xx.h"
 
-#include "LPC43xx.h"
-#include "lpc43xx_cgu.h"
-
+#include "chip.h"
 
 //--------------------------------------------------------------------+
 // MACRO CONSTANT TYPEDEF
@@ -74,7 +72,7 @@ CFG_TUSB_MEM_SECTION ATTR_ALIGNED(2048) static dcd_data_t dcd_data0;
 CFG_TUSB_MEM_SECTION ATTR_ALIGNED(2048) static dcd_data_t dcd_data1;
 #endif
 
-static LPC_USB0_Type * const LPC_USB[2] = { LPC_USB0, ((LPC_USB0_Type*) LPC_USB1_BASE) };
+static LPC_USBHS_T * const LPC_USB[2] = { LPC_USB0, LPC_USB1 };
 
 static dcd_data_t* const dcd_data_ptr[2] =
 {
@@ -112,19 +110,18 @@ void dcd_set_config(uint8_t rhport, uint8_t config_num)
 /// follows LPC43xx User Manual 23.10.3
 static void bus_reset(uint8_t rhport)
 {
-  LPC_USB0_Type* const lpc_usb = LPC_USB[rhport];
+  LPC_USBHS_T* const lpc_usb = LPC_USB[rhport];
 
   // The reset value for all endpoint types is the control endpoint. If one endpoint
   // direction is enabled and the paired endpoint of opposite direction is disabled, then the
   // endpoint type of the unused direction must bechanged from the control type to any other
   // type (e.g. bulk). Leaving an unconfigured endpoint control will cause undefined behavior
   // for the data PID tracking on the active endpoint.
-  lpc_usb->ENDPTCTRL1 = lpc_usb->ENDPTCTRL2 = lpc_usb->ENDPTCTRL3 = (TUSB_XFER_BULK << 2) | (TUSB_XFER_BULK << 18);
 
-  // USB1 only has 3 non-control endpoints
-  if ( rhport == 0)
+  // USB0 has 5 but USB1 only has 3 non-control endpoints
+  for( int i=1; i < (rhport ? 6 : 4); i++)
   {
-    lpc_usb->ENDPTCTRL4 = lpc_usb->ENDPTCTRL5 = (TUSB_XFER_BULK << 2) | (TUSB_XFER_BULK << 18);
+    lpc_usb->ENDPTCTRL[i] = (TUSB_XFER_BULK << 2) | (TUSB_XFER_BULK << 18);
   }
 
   //------------- Clear All Registers -------------//
@@ -156,7 +153,7 @@ static void bus_reset(uint8_t rhport)
 
 bool dcd_init(uint8_t rhport)
 {
-  LPC_USB0_Type* const lpc_usb = LPC_USB[rhport];
+  LPC_USBHS_T* const lpc_usb = LPC_USB[rhport];
   dcd_data_t* p_dcd = dcd_data_ptr[rhport];
 
   tu_memclr(p_dcd, sizeof(dcd_data_t));
@@ -203,7 +200,7 @@ static void qtd_init(dcd_qtd_t* p_qtd, void * data_ptr, uint16_t total_bytes)
 
 static inline volatile uint32_t * get_endpt_ctrl_reg(uint8_t rhport, uint8_t ep_idx)
 {
- return &(LPC_USB[rhport]->ENDPTCTRL0) + ep_idx/2;
+ return &(LPC_USB[rhport]->ENDPTCTRL[0]) + ep_idx/2;
 }
 
 //--------------------------------------------------------------------+
@@ -321,7 +318,7 @@ bool dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t t
 //--------------------------------------------------------------------+
 void hal_dcd_isr(uint8_t rhport)
 {
-  LPC_USB0_Type* const lpc_usb = LPC_USB[rhport];
+  LPC_USBHS_T* const lpc_usb = LPC_USB[rhport];
 
   uint32_t const int_enable = lpc_usb->USBINTR_D;
   uint32_t const int_status = lpc_usb->USBSTS_D & int_enable;
