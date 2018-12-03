@@ -6,12 +6,11 @@ This code base already had supported for a handful of boards. However due to my 
 
 ### NXP MCU ###
 
-- [LPCXpresso 11u14](http://www.embeddedartists.com/products/lpcxpresso/lpc11U14_xpr.php) with base board (for some peripherals to work)
+- LPCXpresso 11U68
 - [**LPCXpresso 1347**](http://www.embeddedartists.com/products/lpcxpresso/lpc1347_xpr.php) with base board (for some peripherals to work)
 - [**LPCXpresso 1769**](http://www.embeddedartists.com/products/lpcxpresso/lpc1347_xpr.php) with base board (for some peripherals to work)
+- [Keil MCB1800 Evaluation Board](http://www.keil.com/mcb1800)
 - [**Embedded Artists LPC4357 OEM & Base board**](http://www.embeddedartists.com/products/kits/lpc4357_kit.php)
-- [**NGX LPC4330 Explorer**](http://shop.ngxtechnologies.com/product_info.php?products_id=104)
-- [Keil MCB4357 Evaluation Board](http://www.keil.com/mcb4300)
 
 ### MicroChip SAMD ###
 
