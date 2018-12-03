@@ -88,20 +88,18 @@ void board_init(void);
 
 //--------------------------------------------------------------------+
 // LED
-// Board variant must defined following
-// - BOARD_LED_NUM : number of LEDs
-// - BOARD_LEDn : where n is 0,1 etc ...
+// Board layer use only 1 LED for indicator
 //--------------------------------------------------------------------+
-void board_led_control(uint32_t led_id, bool state);
+void board_led_control(bool state);
 
-static inline void board_led_on(uint32_t led_id)
+static inline void board_led_on(void)
 {
-  board_led_control(led_id, true);
+  board_led_control(true);
 }
 
-static inline void board_led_off(uint32_t led_id)
+static inline void board_led_off(void)
 {
-  board_led_control(led_id, false);
+  board_led_control(false);
 }
 
 //--------------------------------------------------------------------+
