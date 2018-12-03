@@ -130,12 +130,11 @@ static void sie_write (uint8_t cmd_code, uint8_t data_len, uint8_t data)
   }
 }
 
-static uint32_t sie_read (uint8_t cmd_code, uint8_t data_len)
+static uint8_t sie_read (uint8_t cmd_code)
 {
-  // TODO multiple read
   sie_cmd_code(SIE_CMDPHASE_COMMAND , cmd_code);
   sie_cmd_code(SIE_CMDPHASE_READ    , cmd_code);
-  return LPC_USB->CmdData;
+  return (uint8_t) LPC_USB->CmdData;
 }
 
 //--------------------------------------------------------------------+
@@ -353,8 +352,7 @@ bool dcd_edpt_stalled (uint8_t rhport, uint8_t ep_addr)
 {
   (void) rhport;
 
-  uint32_t const ep_state = sie_read(SIE_CMDCODE_ENDPOINT_SELECT +  ep_addr2idx(ep_addr), 1);
-
+  uint8_t const ep_state = sie_read(SIE_CMDCODE_ENDPOINT_SELECT +  ep_addr2idx(ep_addr));
   return (ep_state & SIE_SELECT_ENDPOINT_STALL_MASK) ? true : false;
 }
 
@@ -407,7 +405,7 @@ bool dcd_edpt_xfer (uint8_t rhport, uint8_t ep_addr, uint8_t* buffer, uint16_t t
     tu_memclr(dd, sizeof(dma_desc_t));
     dd->isochronous = is_iso;
     dd->max_packet_size = ep_size;
-    dd->buffer = buffer;
+    dd->buffer = (uint32_t) buffer;
     dd->buflen = total_bytes;
 
     _dcd.udca[ep_id] = dd;
@@ -440,7 +438,7 @@ static void control_xfer_isr(uint8_t rhport, uint32_t ep_int_status)
   // Control out complete
   if ( ep_int_status & BIT_(0) )
   {
-    bool is_setup = sie_read(SIE_CMDCODE_ENDPOINT_SELECT+0, 1) & SIE_SELECT_ENDPOINT_SETUP_RECEIVED_MASK;
+    bool is_setup = sie_read(SIE_CMDCODE_ENDPOINT_SELECT+0) & SIE_SELECT_ENDPOINT_SETUP_RECEIVED_MASK;
 
     LPC_USB->EpIntClr = BIT_(0);
 
@@ -478,7 +476,7 @@ static void control_xfer_isr(uint8_t rhport, uint32_t ep_int_status)
 // handle bus event signal
 static void bus_event_isr(uint8_t rhport)
 {
-  uint8_t const dev_status = sie_read(SIE_CMDCODE_DEVICE_STATUS, 1);
+  uint8_t const dev_status = sie_read(SIE_CMDCODE_DEVICE_STATUS);
   if (dev_status & SIE_DEV_STATUS_RESET_MASK)
   {
     bus_reset();
@@ -583,7 +581,7 @@ void hal_dcd_isr(uint8_t rhport)
   // Errors
   if ( (dev_int_status & DEV_INT_ERROR_MASK) || (dma_int_status & DMA_INT_ERROR_MASK) )
   {
-    uint32_t error_status = sie_read(SIE_CMDCODE_READ_ERROR_STATUS, 1);
+    uint32_t error_status = sie_read(SIE_CMDCODE_READ_ERROR_STATUS);
     (void) error_status;
     TU_BREAKPOINT();
   }
