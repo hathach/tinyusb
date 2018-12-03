@@ -54,10 +54,13 @@
 // only SRAM1 & USB RAM can be used for transfer
 #define SRAM_REGION   0x20000000
 
-// NOTE: despite of being very the same to lpc13uxx controller, lpc11u's controller cannot queue transfer more than
-// endpoint's max packet size and need some soft DMA helper
+/* Although device controller are the same. DMA of
+ * - LPC11u can only transfer up to nbytes = 64
+ * - LPC13 can transfer nbytes = 1023 (maximum)
+ * - LPC15 can ???
+ */
 enum {
-  DCD_11U_13U_MAX_BYTE_PER_TD = (CFG_TUSB_MCU == OPT_MCU_LPC11UXX ? 64 : 1023)
+  DMA_NBYTES_MAX = (CFG_TUSB_MCU == OPT_MCU_LPC11UXX ? 64 : 1023)
 };
 
 enum {
@@ -80,7 +83,7 @@ enum {
 typedef struct ATTR_PACKED
 {
   // Bits 21:6 (aligned 64) used in conjunction with bit 31:22 of DATABUFSTART
-  volatile uint16_t buffer_offset ;
+  volatile uint16_t buffer_offset;
 
   volatile uint16_t nbytes : 10 ;
   uint16_t is_iso          : 1  ;
@@ -93,21 +96,23 @@ typedef struct ATTR_PACKED
 
 TU_VERIFY_STATIC( sizeof(ep_cmd_sts_t) == 4, "size is not correct" );
 
+typedef struct
+{
+  uint16_t total_bytes;
+  uint16_t xferred_bytes;
+
+  uint16_t nbytes;
+}xfer_dma_t;
+
 // NOTE data will be transferred as soon as dcd get request by dcd_pipe(_queue)_xfer using double buffering.
 // current_td is used to keep track of number of remaining & xferred bytes of the current request.
 typedef struct
 {
   // 256 byte aligned, 2 for double buffer (not used)
-  // Each cmd_sts can only transfer up to 1023 bytes each pass
-  //
+  // Each cmd_sts can only transfer up to DMA_NBYTES_MAX bytes each
   ep_cmd_sts_t ep[EP_COUNT][2];
 
-  struct {
-    uint16_t remaining_bytes;        ///< expected bytes of the queued transfer
-    uint16_t xferred_bytes;          ///< xferred bytes of the current transfer
-
-    uint16_t nbytes; // Set nbytes, to determine transferred bytes each pass
-  }current_td[EP_COUNT];
+  xfer_dma_t dma[EP_COUNT];
 
   ATTR_ALIGNED(64) uint8_t setup_packet[8];
 }dcd_data_t;
@@ -119,7 +124,7 @@ typedef struct
 // EP list must be 256-byte aligned
 CFG_TUSB_MEM_SECTION ATTR_ALIGNED(256) static dcd_data_t _dcd;
 
-static inline uint16_t addr_offset(void const * buffer)
+static inline uint16_t get_buf_offset(void const * buffer)
 {
   uint32_t addr = (uint32_t) buffer;
   TU_ASSERT( (addr & 0x3f) == 0, 0 );
@@ -204,26 +209,23 @@ void dcd_edpt_stall(uint8_t rhport, uint8_t ep_addr)
   else
   {
     uint8_t const ep_id = ep_addr2id(ep_addr);
-    _dcd.ep[ep_id][0].stall = _dcd.ep[ep_id][1].stall = 1;
+    _dcd.ep[ep_id][0].stall = 1;
   }
 }
 
 bool dcd_edpt_stalled(uint8_t rhport, uint8_t ep_addr)
 {
   uint8_t const ep_id = ep_addr2id(ep_addr);
-  return _dcd.ep[ep_id][0].stall || _dcd.ep[ep_id][1].stall;
+  return _dcd.ep[ep_id][0].stall;
 }
 
 void dcd_edpt_clear_stall(uint8_t rhport, uint8_t edpt_addr)
 {
   uint8_t const ep_id = ep_addr2id(edpt_addr);
-//  uint8_t active_buffer = BIT_TEST_(LPC_USB->EPINUSE, ep_id) ? 1 : 0;
 
-  _dcd.ep[ep_id][0].stall = _dcd.ep[ep_id][1].stall = 0;
-
-  // since the next transfer always take place on buffer0 --> clear buffer0 toggle
-  _dcd.ep[ep_id][0].toggle_reset    = 1;
-  _dcd.ep[ep_id][0].toggle_mode = 0;
+  _dcd.ep[ep_id][0].stall        = 0;
+  _dcd.ep[ep_id][0].toggle_reset = 1;
+  _dcd.ep[ep_id][0].toggle_mode  = 0;
 }
 
 bool dcd_edpt_open(uint8_t rhport, tusb_desc_endpoint_t const * p_endpoint_desc)
@@ -240,7 +242,7 @@ bool dcd_edpt_open(uint8_t rhport, tusb_desc_endpoint_t const * p_endpoint_desc)
   TU_ASSERT( _dcd.ep[ep_id][0].disable && _dcd.ep[ep_id][1].disable );
 
   tu_memclr(_dcd.ep[ep_id], 2*sizeof(ep_cmd_sts_t));
-  _dcd.ep[ep_id][0].is_iso = _dcd.ep[ep_id][1].is_iso = (p_endpoint_desc->bmAttributes.xfer == TUSB_XFER_ISOCHRONOUS);
+  _dcd.ep[ep_id][0].is_iso = (p_endpoint_desc->bmAttributes.xfer == TUSB_XFER_ISOCHRONOUS);
 
   // Enable EP interrupt
   LPC_USB->INTEN |= BIT_(ep_id);
@@ -251,32 +253,28 @@ bool dcd_edpt_open(uint8_t rhport, tusb_desc_endpoint_t const * p_endpoint_desc)
 bool dcd_edpt_busy(uint8_t rhport, uint8_t ep_addr)
 {
   uint8_t const ep_id = ep_addr2id(ep_addr);
-  return _dcd.ep[ep_id][0].active || _dcd.ep[ep_id][1].active;
+  return _dcd.ep[ep_id][0].active;
 }
 
-static void prepare_ep_xfer(uint8_t ep_id, uint16_t buff_addr_offset, uint16_t total_bytes)
+static void prepare_ep_xfer(uint8_t ep_id, uint16_t buf_offset, uint16_t total_bytes)
 {
-  uint16_t const queued_bytes = tu_min16(total_bytes, DCD_11U_13U_MAX_BYTE_PER_TD);
+  uint16_t const nbytes = tu_min16(total_bytes, DMA_NBYTES_MAX);
 
-  _dcd.current_td[ep_id].nbytes = queued_bytes;
-  _dcd.current_td[ep_id].remaining_bytes     -= queued_bytes;
+  _dcd.dma[ep_id].nbytes = nbytes;
 
-  _dcd.ep[ep_id][0].buffer_offset = buff_addr_offset;
-  _dcd.ep[ep_id][0].nbytes        = queued_bytes;
-
+  _dcd.ep[ep_id][0].buffer_offset = buf_offset;
+  _dcd.ep[ep_id][0].nbytes        = nbytes;
   _dcd.ep[ep_id][0].active        = 1;
 }
 
 bool dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t* buffer, uint16_t total_bytes)
 {
   uint8_t const ep_id = ep_addr2id(ep_addr);
-  uint16_t buf_offset = addr_offset(buffer);
 
-  _dcd.current_td[ep_id].remaining_bytes = total_bytes;
-  _dcd.current_td[ep_id].xferred_bytes   = 0;
-  _dcd.current_td[ep_id].nbytes          = 0;
+  tu_varclr(&_dcd.dma[ep_id]);
+  _dcd.dma[ep_id].total_bytes = total_bytes;
 
-  prepare_ep_xfer(ep_id, buf_offset, total_bytes);
+  prepare_ep_xfer(ep_id, get_buf_offset(buffer), total_bytes);
 
 	return true;
 }
@@ -294,7 +292,7 @@ static void bus_reset(void)
     _dcd.ep[ep_id][0].disable = _dcd.ep[ep_id][1].disable = 1;
   }
 
-  _dcd.ep[0][1].buffer_offset = addr_offset(_dcd.setup_packet);
+  _dcd.ep[0][1].buffer_offset = get_buf_offset(_dcd.setup_packet);
 
   LPC_USB->EPINUSE      = 0;
   LPC_USB->EPBUFCFG     = 0;
@@ -312,23 +310,24 @@ static void process_xfer_isr(uint32_t int_status)
     if ( BIT_TEST_(int_status, ep_id) )
     {
       ep_cmd_sts_t * ep_cs = &_dcd.ep[ep_id][0];
+      xfer_dma_t* xfer_dma = &_dcd.dma[ep_id];
 
-      _dcd.current_td[ep_id].xferred_bytes += _dcd.current_td[ep_id].nbytes - ep_cs->nbytes;
+      xfer_dma->xferred_bytes += xfer_dma->nbytes - ep_cs->nbytes;
 
-      if ( (ep_cs->nbytes == 0) && (_dcd.current_td[ep_id].remaining_bytes > 0) )
+      if ( (ep_cs->nbytes == 0) && (xfer_dma->total_bytes > xfer_dma->xferred_bytes) )
       {
         // There is more data to transfer
         // buff_offset has been already increased by hw to correct value for next transfer
-        prepare_ep_xfer(ep_id, ep_cs->buffer_offset, _dcd.current_td[ep_id].remaining_bytes);
+        prepare_ep_xfer(ep_id, ep_cs->buffer_offset, xfer_dma->total_bytes - xfer_dma->xferred_bytes);
       }
       else
       {
-        _dcd.current_td[ep_id].remaining_bytes = 0;
+        xfer_dma->total_bytes = xfer_dma->xferred_bytes;
 
         uint8_t const ep_addr = (ep_id / 2) | ((ep_id & 0x01) ? TUSB_DIR_IN_MASK : 0);
 
         // TODO no way determine if the transfer is failed or not
-        dcd_event_xfer_complete(0, ep_addr, _dcd.current_td[ep_id].xferred_bytes, XFER_RESULT_SUCCESS, true);
+        dcd_event_xfer_complete(0, ep_addr, xfer_dma->xferred_bytes, XFER_RESULT_SUCCESS, true);
       }
     }
   }
@@ -394,7 +393,7 @@ void USB_IRQHandler(void)
     dcd_event_setup_received(0, _dcd.setup_packet, true);
 
     // keep waiting for next setup
-    _dcd.ep[0][1].buffer_offset = addr_offset(_dcd.setup_packet);
+    _dcd.ep[0][1].buffer_offset = get_buf_offset(_dcd.setup_packet);
 
     // clear bit0
     int_status = BIT_CLR_(int_status, 0);
