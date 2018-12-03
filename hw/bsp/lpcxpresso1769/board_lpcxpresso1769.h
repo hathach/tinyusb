@@ -39,11 +39,11 @@
 #ifndef _TUSB_BOARD_LPCXPRESSO1769_H_
 #define _TUSB_BOARD_LPCXPRESSO1769_H_
 
-#include "LPC17xx.h"
-
 #ifdef __cplusplus
  extern "C" {
 #endif
+
+#include "chip.h"
 
 #define BOARD_LED_NUM   1
 #define BOARD_LED0      22

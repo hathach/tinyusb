@@ -36,19 +36,12 @@
 */
 /**************************************************************************/
 
-#include "bsp/board.h"
 
 #ifdef BOARD_LPCXPRESSO1769
 
-#include "LPC17xx.h"
-#include "lpc17xx_clkpwr.h"
-#include "lpc17xx_gpio.h"
-#include "lpc17xx_uart.h"
-#include "lpc17xx_pinsel.h"
+#include "bsp/board.h"
 
-#include "tusb.h"
-
-#define BOARD_LED0_PORT                  (0)
+#define LED_PORT               0
 
 static const struct {
   uint8_t port;
@@ -70,22 +63,69 @@ enum {
 
 #define BOARD_UART_PORT   LPC_UART3
 
+/* Pin muxing configuration */
+static const PINMUX_GRP_T pinmuxing[] = {
+	{0,  0,   IOCON_MODE_INACT | IOCON_FUNC2},	/* TXD3 */
+	{0,  1,   IOCON_MODE_INACT | IOCON_FUNC2},	/* RXD3 */
+	{0,  4,   IOCON_MODE_INACT | IOCON_FUNC2},	/* CAN-RD2 */
+	{0,  5,   IOCON_MODE_INACT | IOCON_FUNC2},	/* CAN-TD2 */
+	{0,  22,  IOCON_MODE_INACT | IOCON_FUNC0},	/* Led 0 */
+	{0,  23,  IOCON_MODE_INACT | IOCON_FUNC1},	/* ADC 0 */
+	{0,  26,  IOCON_MODE_INACT | IOCON_FUNC2},	/* DAC */
+
+	/* ENET */
+	{0x1, 0,  IOCON_MODE_INACT | IOCON_FUNC1},	/* ENET_TXD0 */
+	{0x1, 1,  IOCON_MODE_INACT | IOCON_FUNC1},	/* ENET_TXD1 */
+	{0x1, 4,  IOCON_MODE_INACT | IOCON_FUNC1},	/* ENET_TX_EN */
+	{0x1, 8,  IOCON_MODE_INACT | IOCON_FUNC1},	/* ENET_CRS */
+	{0x1, 9,  IOCON_MODE_INACT | IOCON_FUNC1},	/* ENET_RXD0 */
+	{0x1, 10, IOCON_MODE_INACT | IOCON_FUNC1},	/* ENET_RXD1 */
+	{0x1, 14, IOCON_MODE_INACT | IOCON_FUNC1},	/* ENET_RX_ER */
+	{0x1, 15, IOCON_MODE_INACT | IOCON_FUNC1},	/* ENET_REF_CLK */
+	{0x1, 16, IOCON_MODE_INACT | IOCON_FUNC1},	/* ENET_MDC */
+	{0x1, 17, IOCON_MODE_INACT | IOCON_FUNC1},	/* ENET_MDIO */
+	{0x1, 27, IOCON_MODE_INACT | IOCON_FUNC1},	/* CLKOUT */
+
+	/* Joystick buttons. */
+	{2, 3,  IOCON_MODE_INACT | IOCON_FUNC0},	/* JOYSTICK_UP */
+	{0, 15, IOCON_MODE_INACT | IOCON_FUNC0},	/* JOYSTICK_DOWN */
+	{2, 4,  IOCON_MODE_INACT | IOCON_FUNC0},	/* JOYSTICK_LEFT */
+	{0, 16, IOCON_MODE_INACT | IOCON_FUNC0},	/* JOYSTICK_RIGHT */
+	{0, 17, IOCON_MODE_INACT | IOCON_FUNC0},	/* JOYSTICK_PRESS */
+
+};
+
+/* System oscillator rate and RTC oscillator rate */
+const uint32_t OscRateIn = 12000000;
+const uint32_t RTCOscRateIn = 32768;
+
+// Invoked by startup code
+void SystemInit(void)
+{
+	/* Enable IOCON clock */
+  Chip_IOCON_Init(LPC_IOCON);
+	Chip_IOCON_SetPinMuxing(LPC_IOCON, pinmuxing, sizeof(pinmuxing) / sizeof(PINMUX_GRP_T));
+  Chip_SetupXtalClocking();
+}
+
 void board_init(void)
 {
-  SystemInit();
+  SystemCoreClockUpdate();
 
-#if CFG_TUSB_OS == OPT_OS_NONE // TODO may move to main.c
-  SysTick_Config(SystemCoreClock / BOARD_TICKS_HZ); // 1 msec tick timer
+#if CFG_TUSB_OS == OPT_OS_NONE
+  SysTick_Config(SystemCoreClock / BOARD_TICKS_HZ);
 #elif CFG_TUSB_OS == OPT_OS_FREERTOS
   // If freeRTOS is used, IRQ priority is limit by max syscall ( smaller is higher )
   NVIC_SetPriority(USB_IRQn, configLIBRARY_MAX_SYSCALL_INTERRUPT_PRIORITY );
 #endif
 
+  Chip_GPIO_Init(LPC_GPIO);
+
   //------------- LED -------------//
-  GPIO_SetDir(BOARD_LED0_PORT, BIT_(BOARD_LED0), 1);
+  Chip_GPIO_SetPinDIROutput(LPC_GPIO, LED_PORT, BOARD_LED0);
 
   //------------- BUTTON -------------//
-  for(uint8_t i=0; i<BOARD_BUTTON_COUNT; i++) GPIO_SetDir(buttons[i].port, BIT_(buttons[i].pin), 0);
+//  for(uint8_t i=0; i<BOARD_BUTTON_COUNT; i++) GPIO_SetDir(buttons[i].port, BIT_(buttons[i].pin), 0);
 
 #if TUSB_OPT_DEVICE_ENABLED
   //------------- USB Device -------------//
@@ -149,14 +189,7 @@ uint32_t tusb_hal_millis(void)
 void board_led_control(uint32_t id, bool state)
 {
   (void) id;
-
-  if (state)
-  {
-    GPIO_SetValue(BOARD_LED0_PORT, BIT_(BOARD_LED0));
-  }else
-  {
-    GPIO_ClearValue(BOARD_LED0_PORT, BIT_(BOARD_LED0));
-  }
+  Chip_GPIO_SetPinState(LPC_GPIO, LED_PORT, BOARD_LED0, state);
 }
 
 //--------------------------------------------------------------------+
@@ -164,14 +197,15 @@ void board_led_control(uint32_t id, bool state)
 //--------------------------------------------------------------------+
 static bool button_read(uint8_t id)
 {
-  return !BIT_TEST_( GPIO_ReadValue(buttons[id].port), buttons[id].pin ); // button is active low
+//  return !BIT_TEST_( GPIO_ReadValue(buttons[id].port), buttons[id].pin ); // button is active low
+  return false;
 }
 
 uint32_t board_buttons(void)
 {
   uint32_t result = 0;
 
-  for(uint8_t i=0; i<BOARD_BUTTON_COUNT; i++) result |= (button_read(i) ? BIT_(i) : 0);
+//  for(uint8_t i=0; i<BOARD_BUTTON_COUNT; i++) result |= (button_read(i) ? BIT_(i) : 0);
 
   return result;
 }
