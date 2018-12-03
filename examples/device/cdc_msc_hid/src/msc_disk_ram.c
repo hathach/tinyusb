@@ -108,7 +108,7 @@ int32_t tud_msc_read10_cb(uint8_t lun, uint32_t lba, uint32_t offset, void* buff
 {
   (void) lun;
 
-  uint8_t* addr = msc_disk[lba] + offset;
+  uint8_t const* addr = msc_disk[lba] + offset;
   memcpy(buffer, addr, bufsize);
 
   return bufsize;
