@@ -54,10 +54,6 @@
 //--------------------------------------------------------------------+
 // MACRO CONSTANT TYPEDEF
 //--------------------------------------------------------------------+
-
-//--------------------------------------------------------------------+
-// INTERNAL OBJECT & FUNCTION DECLARATION
-//--------------------------------------------------------------------+
 typedef struct {
   dcd_qhd_t qhd[DCD_QHD_MAX] ATTR_ALIGNED(64); ///< Must be at 2K alignment
   dcd_qtd_t qtd[DCD_QTD_MAX] ATTR_ALIGNED(32);
@@ -103,7 +99,7 @@ void dcd_set_address(uint8_t rhport, uint8_t dev_addr)
 
 void dcd_set_config(uint8_t rhport, uint8_t config_num)
 {
-
+  // nothing to do
 }
 
 /// follows LPC43xx User Manual 23.10.3
@@ -147,7 +143,6 @@ static void bus_reset(uint8_t rhport)
 	p_dcd->qhd[0].qtd_overlay.next = p_dcd->qhd[1].qtd_overlay.next = QTD_NEXT_INVALID;
 
 	p_dcd->qhd[0].int_on_setup = 1; // OUT only
-
 }
 
 bool dcd_init(uint8_t rhport)
@@ -204,7 +199,6 @@ void dcd_edpt_stall(uint8_t rhport, uint8_t ep_addr)
 {
   uint8_t const epnum  = edpt_number(ep_addr);
   uint8_t const dir    = edpt_dir(ep_addr);
-  uint8_t const ep_idx = 2*epnum + dir;
 
   if ( epnum == 0)
   {
@@ -212,25 +206,26 @@ void dcd_edpt_stall(uint8_t rhport, uint8_t ep_addr)
     LPC_USB[rhport]->ENDPTCTRL[epnum] |= ( (ENDPTCTRL_MASK_STALL << 16) || (ENDPTCTRL_MASK_STALL << 0) );
   }else
   {
-    LPC_USB[rhport]->ENDPTCTRL[epnum] |= ENDPTCTRL_MASK_STALL << (ep_idx & 0x01 ? 16 : 0);
+    LPC_USB[rhport]->ENDPTCTRL[epnum] |= ENDPTCTRL_MASK_STALL << (dir ? 16 : 0);
   }
 }
 
-// TOOD implement later
 bool dcd_edpt_stalled (uint8_t rhport, uint8_t ep_addr)
 {
-  return false;
+  uint8_t const epnum  = edpt_number(ep_addr);
+  uint8_t const dir    = edpt_dir(ep_addr);
+
+  return LPC_USB[rhport]->ENDPTCTRL[epnum] & (ENDPTCTRL_MASK_STALL << (dir ? 16 : 0));
 }
 
 void dcd_edpt_clear_stall(uint8_t rhport, uint8_t ep_addr)
 {
   uint8_t const epnum  = edpt_number(ep_addr);
   uint8_t const dir    = edpt_dir(ep_addr);
-  uint8_t const ep_idx = 2*epnum + dir;
 
   // data toggle also need to be reset
-  LPC_USB[rhport]->ENDPTCTRL[epnum] |= ENDPTCTRL_MASK_TOGGLE_RESET << ((ep_addr & TUSB_DIR_IN_MASK) ? 16 : 0);
-  LPC_USB[rhport]->ENDPTCTRL[epnum] &= ~(ENDPTCTRL_MASK_STALL << ((ep_addr & TUSB_DIR_IN_MASK) ? 16 : 0));
+  LPC_USB[rhport]->ENDPTCTRL[epnum] |= ENDPTCTRL_MASK_TOGGLE_RESET << ( dir ? 16 : 0 );
+  LPC_USB[rhport]->ENDPTCTRL[epnum] &= ~(ENDPTCTRL_MASK_STALL << ( dir  ? 16 : 0));
 }
 
 bool dcd_edpt_open(uint8_t rhport, tusb_desc_endpoint_t const * p_endpoint_desc)
@@ -297,7 +292,6 @@ bool dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t t
   return true;
 }
 
-
 //--------------------------------------------------------------------+
 // ISR
 //--------------------------------------------------------------------+
@@ -315,19 +309,17 @@ void hal_dcd_isr(uint8_t rhport)
   if (int_status & INT_MASK_RESET)
   {
     bus_reset(rhport);
-
-    dcd_event_t event = { .rhport = rhport, .event_id = DCD_EVENT_BUS_RESET };
-    dcd_event_handler(&event, true);
+    dcd_event_bus_signal(rhport, DCD_EVENT_BUS_RESET, true);
   }
 
   if (int_status & INT_MASK_SUSPEND)
   {
     if (lpc_usb->PORTSC1_D & PORTSC_SUSPEND_MASK)
-    { // Note: Host may delay more than 3 ms before and/or after bus reset before doing enumeration.
+    {
+      // Note: Host may delay more than 3 ms before and/or after bus reset before doing enumeration.
       if ((lpc_usb->DEVICEADDR >> 25) & 0x0f)
       {
-        dcd_event_t event = { .rhport = rhport, .event_id = DCD_EVENT_SUSPENDED };
-        dcd_event_handler(&event, true);
+        dcd_event_bus_signal(rhport, DCD_EVENT_SUSPENDED, true);
       }
     }
   }
@@ -355,10 +347,7 @@ void hal_dcd_isr(uint8_t rhport)
       // 23.10.10.2 Operational model for setup transfers
       lpc_usb->ENDPTSETUPSTAT = lpc_usb->ENDPTSETUPSTAT;// acknowledge
 
-      dcd_event_t event = { .rhport = rhport, .event_id = DCD_EVENT_SETUP_RECEIVED };
-      event.setup_received = p_dcd->qhd[0].setup_request;
-
-      dcd_event_handler(&event, true);
+      dcd_event_setup_received(rhport, (uint8_t*) &p_dcd->qhd[0].setup_request, true);
     }
 
     if ( edpt_complete )
@@ -383,8 +372,7 @@ void hal_dcd_isr(uint8_t rhport)
 
   if (int_status & INT_MASK_SOF)
   {
-    dcd_event_t event = { .rhport = rhport, .event_id = DCD_EVENT_SOF };
-    dcd_event_handler(&event, true);
+    dcd_event_bus_signal(rhport, DCD_EVENT_SOF, true);
   }
 
   if (int_status & INT_MASK_NAK) {}
