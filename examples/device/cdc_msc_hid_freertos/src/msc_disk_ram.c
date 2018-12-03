@@ -41,6 +41,12 @@
 
 #if CFG_TUD_MSC
 
+// Some MCU doesn't have enough 8KB SRAM to store the whole disk
+// We will use Flash as read-only disk
+#if CFG_TUSB_MCU == OPT_MCU_LPC13XX
+#define DISK_READONLY   1
+#endif
+
 #define README_CONTENTS \
 "This is tinyusb's MassStorage Class demo.\r\n\r\n\
 If you find any bugs or get any questions, feel free to file an\r\n\
@@ -52,7 +58,10 @@ enum
   DISK_BLOCK_SIZE = 512
 };
 
-uint8_t msc_device_ramdisk[DISK_BLOCK_NUM][DISK_BLOCK_SIZE] =
+#if DISK_READONLY
+const
+#endif
+static uint8_t msc_disk[DISK_BLOCK_NUM][DISK_BLOCK_SIZE] =
 {
   //------------- Boot Sector -------------//
   // byte_per_sector    = DISK_BLOCK_SIZE; fat12_sector_num_16  = DISK_BLOCK_NUM;
@@ -97,7 +106,9 @@ uint8_t msc_device_ramdisk[DISK_BLOCK_NUM][DISK_BLOCK_SIZE] =
 // Copy disk's data to buffer (up to bufsize) and return number of copied bytes.
 int32_t tud_msc_read10_cb(uint8_t lun, uint32_t lba, uint32_t offset, void* buffer, uint32_t bufsize)
 {
-  uint8_t* addr = msc_device_ramdisk[lba] + offset;
+  (void) lun;
+
+  uint8_t* addr = msc_disk[lba] + offset;
   memcpy(buffer, addr, bufsize);
 
   return bufsize;
@@ -107,14 +118,20 @@ int32_t tud_msc_read10_cb(uint8_t lun, uint32_t lba, uint32_t offset, void* buff
 // Process data in buffer to disk's storage and return number of written bytes
 int32_t tud_msc_write10_cb(uint8_t lun, uint32_t lba, uint32_t offset, uint8_t* buffer, uint32_t bufsize)
 {
-  uint8_t* addr = msc_device_ramdisk[lba] + offset;
+  (void) lun;
+
+#if !DISK_READONLY
+  uint8_t* addr = msc_disk[lba] + offset;
   memcpy(addr, buffer, bufsize);
+#endif
 
   return bufsize;
 }
 
 void tud_msc_capacity_cb(uint8_t lun, uint32_t* block_count, uint16_t* block_size)
 {
+  (void) lun;
+
   *block_count = DISK_BLOCK_NUM;
   *block_size  = DISK_BLOCK_SIZE;
 }
