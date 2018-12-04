@@ -54,9 +54,14 @@
 //--------------------------------------------------------------------+
 // MACRO CONSTANT TYPEDEF
 //--------------------------------------------------------------------+
+
+#define QHD_MAX          12
+#define QTD_NEXT_INVALID 0x01
+
 typedef struct {
-  dcd_qhd_t qhd[DCD_QHD_MAX] ATTR_ALIGNED(64); ///< Must be at 2K alignment
-  dcd_qtd_t qtd[DCD_QTD_MAX] ATTR_ALIGNED(32);
+  // Must be at 2K alignment
+  dcd_qhd_t qhd[QHD_MAX] ATTR_ALIGNED(64);
+  dcd_qtd_t qtd[QHD_MAX] ATTR_ALIGNED(32);
 }dcd_data_t;
 
 #if (CFG_TUSB_RHPORT0_MODE & OPT_MODE_DEVICE)
@@ -229,13 +234,15 @@ void dcd_edpt_clear_stall(uint8_t rhport, uint8_t ep_addr)
 
 bool dcd_edpt_open(uint8_t rhport, tusb_desc_endpoint_t const * p_endpoint_desc)
 {
-  // TODO USB1 only has 4 non-control enpoint (USB0 has 5)
   // TODO not support ISO yet
   TU_VERIFY ( p_endpoint_desc->bmAttributes.xfer != TUSB_XFER_ISOCHRONOUS);
 
   uint8_t const epnum  = edpt_number(p_endpoint_desc->bEndpointAddress);
   uint8_t const dir    = edpt_dir(p_endpoint_desc->bEndpointAddress);
   uint8_t const ep_idx = 2*epnum + dir;
+
+  // USB0 has 5, USB1 has 3 non-control endpoints
+  TU_ASSERT( epnum <= (rhport ? 3 : 5) );
 
   //------------- Prepare Queue Head -------------//
   dcd_qhd_t * p_qhd = &dcd_data_ptr[rhport]->qhd[ep_idx];
@@ -351,7 +358,7 @@ void hal_dcd_isr(uint8_t rhport)
 
     if ( edpt_complete )
     {
-      for(uint8_t ep_idx = 0; ep_idx < DCD_QHD_MAX; ep_idx++)
+      for(uint8_t ep_idx = 0; ep_idx < QHD_MAX; ep_idx++)
       {
         if ( BIT_TEST_(edpt_complete, ep_idx2bit(ep_idx)) )
         {

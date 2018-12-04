@@ -39,7 +39,7 @@
 
 #ifdef BOARD_LPCXPRESSO1769
 
-#include "bsp/board.h"
+#include "../board.h"
 
 #define LED_PORT      0
 #define LED_PIN       22
