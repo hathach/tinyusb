@@ -63,6 +63,8 @@
   #include "lpcxpresso1769/board_lpcxpresso1769.h"
 #elif defined BOARD_MCB1800
   #include "mcb1800/board_mcb1800.h"
+#elif defined BOARD_EA4088QS
+  #include "ea4088qs/board_ea4088qs.h"
 #elif defined BOARD_EA4357
   #include "ea4357/board_ea4357.h"
 

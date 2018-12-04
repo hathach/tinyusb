@@ -46,6 +46,10 @@
 
 #define BOARD_UART_PORT   LPC_UART3
 
+/* System oscillator rate and RTC oscillator rate */
+const uint32_t OscRateIn = 12000000;
+const uint32_t RTCOscRateIn = 32768;
+
 /* Pin muxing configuration */
 static const PINMUX_GRP_T pinmuxing[] =
 {
@@ -64,10 +68,6 @@ static const PINMUX_GRP_T pinmuxing[] =
 enum {
   BOARD_BUTTON_COUNT = 5
 };
-
-/* System oscillator rate and RTC oscillator rate */
-const uint32_t OscRateIn = 12000000;
-const uint32_t RTCOscRateIn = 32768;
 
 // Invoked by startup code
 void SystemInit(void)

@@ -145,6 +145,7 @@ void board_init(void)
   //------------- USB -------------//
 }
 
+//------------- LED -------------//
 void board_led_control(bool state)
 {
   Chip_GPIO_SetPinState(LPC_GPIO_PORT, LED_PORT, LED_PIN, state);

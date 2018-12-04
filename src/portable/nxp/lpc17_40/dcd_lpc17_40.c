@@ -41,7 +41,7 @@
 #if TUSB_OPT_DEVICE_ENABLED && (CFG_TUSB_MCU == OPT_MCU_LPC175X_6X || CFG_TUSB_MCU == OPT_MCU_LPC40XX)
 
 #include "device/dcd.h"
-#include "dcd_lpc175x_6x.h"
+#include "dcd_lpc17_40.h"
 #include "chip.h"
 
 //--------------------------------------------------------------------+

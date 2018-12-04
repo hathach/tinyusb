@@ -40,14 +40,109 @@
 
 #include "../board.h"
 
-#define LED_PORT      0
-#define LED_PIN       22
+#define LED_PORT      2
+#define LED_PIN       19
 
 //--------------------------------------------------------------------+
 // MACRO TYPEDEF CONSTANT ENUM DECLARATION
 //--------------------------------------------------------------------+
 
+/* System oscillator rate and RTC oscillator rate */
+const uint32_t OscRateIn = 12000000;
+const uint32_t RTCOscRateIn = 32768;
 
-//------------- IMPLEMENTATION -------------//
+/* Pin muxing configuration */
+static const PINMUX_GRP_T pinmuxing[] =
+{
+	/* LEDs */
+	{0x2, 19, (IOCON_FUNC0 | IOCON_MODE_INACT)},
+};
+
+
+// Invoked by startup code
+void SystemInit(void)
+{
+  /* Enable IOCON clock */
+  Chip_IOCON_SetPinMuxing(LPC_IOCON, pinmuxing, sizeof(pinmuxing) / sizeof(PINMUX_GRP_T));
+  Chip_SetupXtalClocking();
+}
+
+void board_init(void)
+{
+  SystemCoreClockUpdate();
+
+#if CFG_TUSB_OS == OPT_OS_NONE
+  SysTick_Config(SystemCoreClock / BOARD_TICKS_HZ);
+#elif CFG_TUSB_OS == OPT_OS_FREERTOS
+  // If freeRTOS is used, IRQ priority is limit by max syscall ( smaller is higher )
+  NVIC_SetPriority(USB_IRQn, configLIBRARY_MAX_SYSCALL_INTERRUPT_PRIORITY );
+#endif
+
+  Chip_GPIO_Init(LPC_GPIO);
+
+  //------------- LED -------------//
+  Chip_GPIO_SetPinDIROutput(LPC_GPIO, LED_PORT, LED_PIN);
+
+  //------------- BUTTON -------------//
+//  for(uint8_t i=0; i<BOARD_BUTTON_COUNT; i++) GPIO_SetDir(buttons[i].port, BIT_(buttons[i].pin), 0);
+
+
+  //------------- UART -------------//
+
+	//------------- USB -------------//
+}
+
+
+//------------- LED -------------//
+void board_led_control(bool state)
+{
+  Chip_GPIO_SetPinState(LPC_GPIO, LED_PORT, LED_PIN, state);
+}
+
+//------------- Buttons -------------//
+static bool button_read(uint8_t id)
+{
+//  return !BIT_TEST_( GPIO_ReadValue(buttons[id].gpio_port), buttons[id].gpio_pin ); // button is active low
+}
+
+uint32_t board_buttons(void)
+{
+  uint32_t result = 0;
+
+//  for(uint8_t i=0; i<BOARD_BUTTON_COUNT; i++) result |= (button_read(i) ? BIT_(i) : 0);
+
+  return result;
+}
+
+
+//------------- UART -------------//
+uint8_t  board_uart_getchar(void)
+{
+  //return UART_ReceiveByte(BOARD_UART_PORT);
+}
+void board_uart_putchar(uint8_t c)
+{
+  //UART_Send(BOARD_UART_PORT, &c, 1, BLOCKING);
+}
+
+
+/*------------------------------------------------------------------*/
+/* TUSB HAL MILLISECOND
+ *------------------------------------------------------------------*/
+#if CFG_TUSB_OS == OPT_OS_NONE
+
+volatile uint32_t system_ticks = 0;
+
+void SysTick_Handler (void)
+{
+  system_ticks++;
+}
+
+uint32_t tusb_hal_millis(void)
+{
+  return board_tick2ms(system_ticks);
+}
+
+#endif
 
 #endif
