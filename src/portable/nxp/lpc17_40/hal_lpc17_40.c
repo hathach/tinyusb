@@ -66,24 +66,18 @@ bool tusb_hal_init(void)
 
   Chip_USB_Init();
 
-  /* Configure P0.29 as D+, P0.30 as D- */
-  Chip_IOCON_PinMux(LPC_IOCON, 0, 29, IOCON_MODE_INACT, IOCON_FUNC1);
-  Chip_IOCON_PinMux(LPC_IOCON, 0, 30, IOCON_MODE_INACT, IOCON_FUNC1);
-
 #if MODE_HOST_SUPPORTED
+  // TODO move pin config to BSP
   PINSEL_ConfigPin( &(PINSEL_CFG_Type) { .Portnum = 1, .Pinnum = 22, .Funcnum = 2} ); // P1.22 as USB_PWRD
   PINSEL_ConfigPin( &(PINSEL_CFG_Type) { .Portnum = 1, .Pinnum = 19, .Funcnum = 2} ); // P1.19 as USB_PPWR
 
   // Enable host
   LPC_USB->USBClkCtrl = USBCLK_HOST;
   while ((LPC_USB->USBClkSt & USBCLK_HOST) != USBCLK_HOST);
-  LPC_USB->OTGStCtrl = 0x3;
+  LPC_USB->OTGClkSt = 0x3;
 #endif
 
 #if TUSB_OPT_DEVICE_ENABLED
-  // P2_9 as USB Connect
-  Chip_IOCON_PinMux(LPC_IOCON, 2, 9, IOCON_MODE_INACT, IOCON_FUNC1);
-
   // Enable Device
   LPC_USB->USBClkCtrl = USBCLK_DEVCIE;
   while ((LPC_USB->USBClkSt & USBCLK_DEVCIE) != USBCLK_DEVCIE);
