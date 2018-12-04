@@ -38,7 +38,7 @@
 
 #ifdef BOARD_EA4357
 
-#include "bsp/board.h"
+#include "../board.h"
 #include "pca9532.h"
 
 #define BOARD_UART_PORT           LPC_USART0
@@ -184,9 +184,7 @@ void board_init(void)
   // TODO Remove R170, R171, solder a pair of 15K to USB1 D+/D- to test with USB1 Host
 }
 
-//--------------------------------------------------------------------+
-// LEDS
-//--------------------------------------------------------------------+
+// LED
 void board_led_control(bool state)
 {
   if (state)

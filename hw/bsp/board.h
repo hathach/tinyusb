@@ -52,24 +52,25 @@
 
 #include "ansi_escape.h"
 
+// NXP LPC
 #if defined BOARD_LPCXPRESSO11U14
   #include "lpcxpresso11u14/board_lpcxpresso11u14.h"
-#elif defined BOARD_LPCXPRESSO11U68
-  #include "lpcxpresso11u68/board_lpcxpresso11u68.h"
 #elif defined BOARD_LPCXPRESSO1347
   #include "lpcxpresso1347/board_lpcxpresso1347.h"
+#elif defined BOARD_LPCXPRESSO11U68
+  #include "lpcxpresso11u68/board_lpcxpresso11u68.h"
 #elif defined BOARD_LPCXPRESSO1769
   #include "lpcxpresso1769/board_lpcxpresso1769.h"
-#elif defined BOARD_NGX4330
-  #include "ngx/board_ngx4330.h"
+#elif defined BOARD_MCB1800
+  #include "mcb1800/board_mcb1800.h"
 #elif defined BOARD_EA4357
   #include "ea4357/board_ea4357.h"
-#elif defined BOARD_MCB4300
-  #include "keil/board_mcb4300.h"
-#elif defined BOARD_LPCLINK2
-  #include "lpcxpresso/board_lpclink2.h"
+
+// Nordic nRF
 #elif defined BOARD_PCA10056
   #include "pca10056/board_pca10056.h"
+
+// Atmel SAM
 #elif defined BOARD_METRO_M4_EXPRESS
   #include "metro_m4_express/board_metro_m4_express.h"
 #elif defined BOARD_METRO_M0_EXPRESS

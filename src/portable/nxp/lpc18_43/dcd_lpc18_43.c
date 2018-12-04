@@ -38,7 +38,7 @@
 
 #include "tusb_option.h"
 
-#if TUSB_OPT_DEVICE_ENABLED && CFG_TUSB_MCU == OPT_MCU_LPC43XX
+#if TUSB_OPT_DEVICE_ENABLED && (CFG_TUSB_MCU == OPT_MCU_LPC18XX || CFG_TUSB_MCU == OPT_MCU_LPC43XX)
 
 //--------------------------------------------------------------------+
 // INCLUDE
@@ -47,7 +47,7 @@
 #include "tusb_hal.h"
 
 #include "device/dcd.h"
-#include "dcd_lpc43xx.h"
+#include "dcd_lpc18_43.h"
 
 #include "chip.h"
 

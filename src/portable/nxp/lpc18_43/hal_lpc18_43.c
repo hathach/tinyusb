@@ -38,7 +38,7 @@
 
 #include "tusb.h"
 
-#if CFG_TUSB_MCU == OPT_MCU_LPC43XX
+#if (CFG_TUSB_MCU == OPT_MCU_LPC18XX || CFG_TUSB_MCU == OPT_MCU_LPC43XX)
 
 #include "chip.h"
 
@@ -143,12 +143,5 @@ void USB1_IRQHandler(void)
   #endif
 }
 #endif
-
-
-void check_failed(uint8_t *file, uint32_t line)
-{
-  (void) file;
-  (void) line;
-}
 
 #endif

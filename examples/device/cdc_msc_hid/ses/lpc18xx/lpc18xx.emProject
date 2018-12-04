@@ -1,0 +1,129 @@
+<!DOCTYPE CrossStudio_Project_File>
+<solution Name="lpc18xx" target="8" version="2">
+  <project Name="lpc18xx">
+    <configuration
+      Name="Common"
+      Placement="Flash"
+      Target="LPC1857"
+      arm_architecture="v7M"
+      arm_core_type="Cortex-M3"
+      arm_endian="Little"
+      arm_fpu_type="None"
+      arm_interwork="No"
+      arm_linker_heap_size="256"
+      arm_linker_process_stack_size="0"
+      arm_linker_stack_size="256"
+      arm_simulator_memory_simulation_parameter="RAM;0x10000000;0x00008000;ROM;0x1A000000;0x00080000;ROM;0x1B000000;0x00080000;RAM;0x20000000;0x00010000"
+      arm_target_debug_interface_type="ADIv5"
+      arm_target_device_name="LPC1857"
+      arm_target_interface_type="SWD"
+      c_preprocessor_definitions="LPC18xx;__LPC1800_FAMILY;__LPC185x_SUBFAMILY;ARM_MATH_CM3;FLASH_PLACEMENT=1;CORE_M3;BOARD_MCB1800;CFG_TUSB_MCU=OPT_MCU_LPC18XX;CFG_TUSB_MEM_SECTION= __attribute__((section(&quot;.bss2&quot;)))"
+      c_user_include_directories="../../src;$(rootDir)/hw;$(rootDir)/src;$(lpcDir)//inc;$(lpcDir)//inc/config_18xx"
+      debug_register_definition_file="$(ProjectDir)/LPC18xx_Registers.xml"
+      debug_target_connection="J-Link"
+      gcc_entry_point="Reset_Handler"
+      linker_memory_map_file="$(ProjectDir)/LPC1857_MemoryMap.xml"
+      linker_section_placement_file="$(ProjectDir)/flash_placement.xml"
+      macros="DeviceFamily=LPC1800;DeviceSubFamily=LPC185x;Target=LPC1857;Placement=Flash;rootDir=../../../../..;lpcDir=../../../../../hw/mcu/nxp/lpc_chip_18xx"
+      package_dependencies="LPC1800"
+      project_directory=""
+      project_type="Executable"
+      target_reset_script="Reset();"
+      target_trace_initialize_script="EnableTrace(&quot;$(TraceInterfaceType)&quot;)" />
+    <folder Name="System Files">
+      <file file_name="thumb_crt0.s" />
+      <file file_name="LPC1800_Startup.s" />
+      <file file_name="LPC18xx_Vectors.s">
+        <configuration Name="Common" file_type="Assembly" />
+      </file>
+      <file file_name="LPC1857_MemoryMap.xml" />
+      <file file_name="flash_placement.xml" />
+      <file file_name="LPC1800_Target.js">
+        <configuration Name="Common" file_type="Reset Script" />
+      </file>
+    </folder>
+    <configuration
+      Name="Debug"
+      link_use_linker_script_file="No"
+      linker_section_placement_file="flash_placement.xml" />
+    <folder Name="hw">
+      <folder Name="bsp">
+        <file file_name="../../../../../hw/bsp/ansi_escape.h" />
+        <file file_name="../../../../../hw/bsp/board.h" />
+        <folder Name="mcb1800">
+          <file file_name="../../../../../hw/bsp/mcb1800/board_mcb1800.c" />
+          <file file_name="../../../../../hw/bsp/mcb1800/board_mcb1800.h" />
+        </folder>
+      </folder>
+      <folder Name="mcu">
+        <folder Name="nxp">
+          <folder Name="lpc_chip_18xx">
+            <folder Name="inc">
+              <file file_name="../../../../../hw/mcu/nxp/lpc_chip_18xx/inc/arm_common_tables.h" />
+              <file file_name="../../../../../hw/mcu/nxp/lpc_chip_18xx/inc/arm_math.h" />
+              <file file_name="../../../../../hw/mcu/nxp/lpc_chip_18xx/inc/cguccu_18xx_43xx.h" />
+              <file file_name="../../../../../hw/mcu/nxp/lpc_chip_18xx/inc/chip.h" />
+              <file file_name="../../../../../hw/mcu/nxp/lpc_chip_18xx/inc/chip_clocks.h" />
+              <file file_name="../../../../../hw/mcu/nxp/lpc_chip_18xx/inc/chip_lpc18xx.h" />
+              <file file_name="../../../../../hw/mcu/nxp/lpc_chip_18xx/inc/chip_lpc43xx.h" />
+              <file file_name="../../../../../hw/mcu/nxp/lpc_chip_18xx/inc/clock_18xx_43xx.h" />
+              <file file_name="../../../../../hw/mcu/nxp/lpc_chip_18xx/inc/cmsis.h" />
+              <file file_name="../../../../../hw/mcu/nxp/lpc_chip_18xx/inc/cmsis_18xx.h" />
+              <file file_name="../../../../../hw/mcu/nxp/lpc_chip_18xx/inc/cmsis_43xx.h" />
+              <file file_name="../../../../../hw/mcu/nxp/lpc_chip_18xx/inc/cmsis_43xx_m0app.h" />
+              <file file_name="../../../../../hw/mcu/nxp/lpc_chip_18xx/inc/cmsis_43xx_m0sub.h" />
+              <file file_name="../../../../../hw/mcu/nxp/lpc_chip_18xx/inc/core_cm0.h" />
+              <file file_name="../../../../../hw/mcu/nxp/lpc_chip_18xx/inc/core_cm0plus.h" />
+              <file file_name="../../../../../hw/mcu/nxp/lpc_chip_18xx/inc/core_cm3.h" />
+              <file file_name="../../../../../hw/mcu/nxp/lpc_chip_18xx/inc/core_cm4.h" />
+              <file file_name="../../../../../hw/mcu/nxp/lpc_chip_18xx/inc/core_cm4_simd.h" />
+              <file file_name="../../../../../hw/mcu/nxp/lpc_chip_18xx/inc/core_cmFunc.h" />
+              <file file_name="../../../../../hw/mcu/nxp/lpc_chip_18xx/inc/core_cmInstr.h" />
+              <file file_name="../../../../../hw/mcu/nxp/lpc_chip_18xx/inc/core_sc000.h" />
+              <file file_name="../../../../../hw/mcu/nxp/lpc_chip_18xx/inc/core_sc300.h" />
+              <file file_name="../../../../../hw/mcu/nxp/lpc_chip_18xx/inc/creg_18xx_43xx.h" />
+              <file file_name="../../../../../hw/mcu/nxp/lpc_chip_18xx/inc/gpio_18xx_43xx.h" />
+              <file file_name="../../../../../hw/mcu/nxp/lpc_chip_18xx/inc/lpc_types.h" />
+              <file file_name="../../../../../hw/mcu/nxp/lpc_chip_18xx/inc/uart_18xx_43xx.h" />
+              <file file_name="../../../../../hw/mcu/nxp/lpc_chip_18xx/inc/usbhs_18xx_43xx.h" />
+              <folder Name="config_18xx">
+                <file file_name="../../../../../hw/mcu/nxp/lpc_chip_18xx/inc/config_18xx/cmsis_18xx.h" />
+                <file file_name="../../../../../hw/mcu/nxp/lpc_chip_18xx/inc/config_18xx/sys_config.h" />
+              </folder>
+            </folder>
+            <folder Name="src">
+              <file file_name="../../../../../hw/mcu/nxp/lpc_chip_18xx/src/chip_18xx_43xx.c" />
+              <file file_name="../../../../../hw/mcu/nxp/lpc_chip_18xx/src/clock_18xx_43xx.c" />
+              <file file_name="../../../../../hw/mcu/nxp/lpc_chip_18xx/src/gpio_18xx_43xx.c" />
+              <file file_name="../../../../../hw/mcu/nxp/lpc_chip_18xx/src/sysinit_18xx_43xx.c" />
+              <file file_name="../../../../../hw/mcu/nxp/lpc_chip_18xx/src/uart_18xx_43xx.c" />
+            </folder>
+          </folder>
+        </folder>
+      </folder>
+    </folder>
+    <folder
+      Name="segger_rtt"
+      exclude=""
+      filter="*.c;*.h"
+      path="../../../../../lib/segger_rtt"
+      recurse="No" />
+    <folder
+      Name="src"
+      exclude=""
+      filter="*.c;*.h"
+      path="../../src"
+      recurse="Yes" />
+    <folder
+      Name="tinyusb"
+      exclude=""
+      filter="*.c;*.h"
+      path="../../../../../src"
+      recurse="Yes" />
+  </project>
+  <configuration
+    Name="MCB1800"
+    c_preprocessor_definitions="DEBUG"
+    gcc_debugging_level="Level 3"
+    gcc_optimization_level="None" />
+</solution>
