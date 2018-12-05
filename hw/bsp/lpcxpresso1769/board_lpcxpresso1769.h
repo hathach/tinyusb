@@ -39,22 +39,11 @@
 #ifndef _TUSB_BOARD_LPCXPRESSO1769_H_
 #define _TUSB_BOARD_LPCXPRESSO1769_H_
 
-#include "LPC17xx.h"
-
-#include "lpc17xx_clkpwr.h"
-#include "lpc17xx_gpio.h"
-#include "lpc17xx_uart.h"
-
 #ifdef __cplusplus
  extern "C" {
 #endif
 
-#define CFG_PRINTF_TARGET             PRINTF_TARGET_UART
-//#define CFG_PRINTF_TARGET             PRINTF_TARGET_SWO
-
-#define BOARD_LED_NUM   1
-#define BOARD_LED0      0
-
+#include "chip.h"
 
 #ifdef __cplusplus
  }

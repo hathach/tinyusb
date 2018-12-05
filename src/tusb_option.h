@@ -48,13 +48,14 @@
 /** \defgroup group_mcu Supported MCU
  * \ref CFG_TUSB_MCU must be defined to one of these
  *  @{ */
-#define OPT_MCU_LPC11UXX       1 ///< NXP LPC11Uxx series
-#define OPT_MCU_LPC13XX        2 ///< NXP LPC13xx (not supported yet)
-#define OPT_MCU_LPC13UXX       3 ///< NXP LPC13xx 12 bit ADC series
-#define OPT_MCU_LPC175X_6X     4 ///< NXP LPC175x, LPC176x series
-#define OPT_MCU_LPC177X_8X     5 ///< NXP LPC177x, LPC178x series (not supported yet)
-#define OPT_MCU_LPC18XX        6 ///< NXP LPC18xx series (not supported yet)
-#define OPT_MCU_LPC43XX        7 ///< NXP LPC43xx series
+#define OPT_MCU_LPC11UXX       1 ///< NXP LPC11Uxx
+
+#define OPT_MCU_LPC13XX        3 ///< NXP LPC13xx
+#define OPT_MCU_LPC175X_6X     4 ///< NXP LPC175x, LPC176x
+#define OPT_MCU_LPC177X_8X     5 ///< NXP LPC177x, LPC178x
+#define OPT_MCU_LPC18XX        6 ///< NXP LPC18xx
+#define OPT_MCU_LPC40XX        7 ///< NXP LPC40xx
+#define OPT_MCU_LPC43XX        8 ///< NXP LPC43xx
 
 #define OPT_MCU_NRF5X        100 ///< Nordic nRF5x series
 
@@ -92,7 +93,7 @@
 #define OPT_MODE_NONE         0x00 ///< Disabled
 #define OPT_MODE_DEVICE       0x01 ///< Device Mode
 #define OPT_MODE_HOST         0x02 ///< Host Mode
-#define OPT_MODE_HIGH_SPEED   0x10 ///< Highspeed
+#define OPT_MODE_HIGH_SPEED   0x10 ///< High speed
 /** @} */
 
 #ifndef CFG_TUSB_RHPORT0_MODE
@@ -150,6 +151,10 @@
 // place data in accessible RAM for usb controller
 #ifndef CFG_TUSB_MEM_SECTION
 #define CFG_TUSB_MEM_SECTION
+#endif
+
+#ifndef CFG_TUSB_MEM_ALIGN
+#define CFG_TUSB_MEM_ALIGN          ATTR_ALIGNED(4)
 #endif
 
 #ifndef CFG_TUSB_OS
@@ -236,7 +241,7 @@
 #endif
 
 #if CFG_TUD_ENDOINT0_SIZE > 64
-  #error Control Endpoint Max Package Size cannot larger than 64
+  #error Control Endpoint Max Packet Size cannot be larger than 64
 #endif
 
 #endif /* _TUSB_OPTION_H_ */

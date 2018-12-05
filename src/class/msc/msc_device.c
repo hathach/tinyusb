@@ -62,7 +62,7 @@ enum
 typedef struct {
   CFG_TUSB_MEM_ALIGN msc_cbw_t  cbw;
 
-//#if defined (__ICCARM__) && (CFG_TUSB_MCU == OPT_MCU_LPC11UXX || CFG_TUSB_MCU == OPT_MCU_LPC13UXX)
+//#if defined (__ICCARM__) && (CFG_TUSB_MCU == OPT_MCU_LPC11UXX || CFG_TUSB_MCU == OPT_MCU_LPC13XX)
 //  uint8_t padding1[64-sizeof(msc_cbw_t)]; // IAR cannot align struct's member
 //#endif
 

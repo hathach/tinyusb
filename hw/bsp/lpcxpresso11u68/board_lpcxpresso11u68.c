@@ -36,14 +36,13 @@
 */
 /**************************************************************************/
 
-#include "../board.h"
-
 #ifdef BOARD_LPCXPRESSO11U68
 
-#define LED_PORT                  (1)
-#define LED_PIN                   (31)
-#define LED_ON                    (0)
-#define LED_OFF                   (1)
+#include "../board.h"
+
+#define LED_PORT      2
+#define LED_PIN       17
+#define LED_STATE_ON  0
 
 const static struct {
   uint8_t port;
@@ -54,38 +53,78 @@ enum {
   BOARD_BUTTON_COUNT = sizeof(buttons) / sizeof(buttons[0])
 };
 
+/* System oscillator rate and RTC oscillator rate */
+const uint32_t OscRateIn = 12000000;
+const uint32_t RTCOscRateIn = 32768;
+
+/* Pin muxing table, only items that need changing from their default pin
+   state are in this table. Not every pin is mapped. */
+static const PINMUX_GRP_T pinmuxing[] =
+{
+  {0, 3,  (IOCON_FUNC1 | IOCON_MODE_INACT | IOCON_DIGMODE_EN)}, // USB VBUS
+  {0, 18, (IOCON_FUNC1 | IOCON_MODE_INACT | IOCON_DIGMODE_EN)}, // UART0 RX
+  {0, 19, (IOCON_FUNC1 | IOCON_MODE_INACT | IOCON_DIGMODE_EN)}, // UART0 TX
+  {2, 0,  (IOCON_FUNC1 | IOCON_MODE_INACT)}, // XTALIN
+  {2, 1,  (IOCON_FUNC1 | IOCON_MODE_INACT)}, // XTALOUT
+};
+
+// Invoked by startup code
+void SystemInit(void)
+{
+  /* Enable IOCON clock */
+  Chip_Clock_EnablePeriphClock(SYSCTL_CLOCK_IOCON);
+  Chip_IOCON_SetPinMuxing(LPC_IOCON, pinmuxing, sizeof(pinmuxing) / sizeof(PINMUX_GRP_T));
+  Chip_SetupXtalClocking();
+}
+
 void board_init(void)
 {
-  SystemInit();
+  SystemCoreClockUpdate();
 
-#if CFG_TUSB_OS == OPT_OS_NONE // TODO may move to main.c
+#if CFG_TUSB_OS == OPT_OS_NONE
   SysTick_Config(SystemCoreClock / BOARD_TICKS_HZ); // 1 msec tick timer
 #endif
 
-  GPIOInit();
+  Chip_GPIO_Init(LPC_GPIO);
 
   //------------- LED -------------//
-  GPIOSetDir(LED_PORT, LED_PIN, 1);
+  Chip_GPIO_SetPinDIROutput(LPC_GPIO, LED_PORT, LED_PIN);
 
   //------------- BUTTON -------------//
-  for(uint8_t i=0; i<BOARD_BUTTON_COUNT; i++) GPIOSetDir(buttons[i].port, buttons[i].pin, 0);
+  //for(uint8_t i=0; i<BOARD_BUTTON_COUNT; i++) GPIOSetDir(buttons[i].port, buttons[i].pin, 0);
 
   //------------- UART -------------//
-  UARTInit(CFG_UART_BAUDRATE);
+  //UARTInit(CFG_UART_BAUDRATE);
+
+  // USB
+  Chip_USB_Init(); // Setup PLL clock, and power
 }
+
+/*------------------------------------------------------------------*/
+/* TUSB HAL MILLISECOND
+ *------------------------------------------------------------------*/
+#if CFG_TUSB_OS == OPT_OS_NONE
+
+volatile uint32_t system_ticks = 0;
+
+void SysTick_Handler (void)
+{
+  system_ticks++;
+}
+
+uint32_t tusb_hal_millis(void)
+{
+  return board_tick2ms(system_ticks);
+}
+
+#endif
 
 //--------------------------------------------------------------------+
 // LEDS
 //--------------------------------------------------------------------+
-void board_leds(uint32_t on_mask, uint32_t off_mask)
+void board_led_control(bool state)
 {
-  if (on_mask & BIT_(0))
-  {
-    GPIOSetBitValue(LED_PORT, LED_PIN, LED_ON);
-  }else if (off_mask & BIT_(0))
-  {
-    GPIOSetBitValue(LED_PORT, LED_PIN, LED_OFF);
-  }
+  Chip_GPIO_SetPinState(LPC_GPIO, LED_PORT, LED_PIN, state ? LED_STATE_ON : (1-LED_STATE_ON));
 }
 
 //--------------------------------------------------------------------+
@@ -94,7 +133,7 @@ void board_leds(uint32_t on_mask, uint32_t off_mask)
 uint32_t board_buttons(void)
 {
 //  for(uint8_t i=0; i<BOARD_BUTTON_COUNT; i++) GPIOGetPinValue(buttons[i].port, buttons[i].pin);
-  return GPIOGetPinValue(buttons[0].port, buttons[0].pin) ? 0 : 1; // button is active low
+//  return GPIOGetPinValue(buttons[0].port, buttons[0].pin) ? 0 : 1; // button is active low
 }
 
 //--------------------------------------------------------------------+
@@ -102,7 +141,7 @@ uint32_t board_buttons(void)
 //--------------------------------------------------------------------+
 void board_uart_putchar(uint8_t c)
 {
-  UARTSend(&c, 1);
+  //UARTSend(&c, 1);
 }
 
 uint8_t  board_uart_getchar(void)

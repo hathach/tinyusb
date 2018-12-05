@@ -52,7 +52,7 @@
 //--------------------------------------------------------------------+
 // MACRO TYPEDEF CONSTANT ENUM DECLARATION
 //--------------------------------------------------------------------+
-#define LED_STATE_ON  1
+#define LED_PIN      17
 
 /* Referenced GCLKs, should be initialized firstly */
 #define _GCLK_INIT_1ST (1 << 0 | 1 << 1)
@@ -74,8 +74,8 @@ void board_init(void)
   _gclk_init_generators_by_fref(_GCLK_INIT_LAST);
 
   // Led init
-  gpio_set_pin_direction(BOARD_LED0, GPIO_DIRECTION_OUT);
-  gpio_set_pin_level(BOARD_LED0, 1-LED_STATE_ON);
+  gpio_set_pin_direction(LED_PIN, GPIO_DIRECTION_OUT);
+  gpio_set_pin_level(LED_PIN, 0);
 
 #if CFG_TUSB_OS  == OPT_OS_NONE
   // Tick init, samd SystemCoreClock may not correct
@@ -110,9 +110,9 @@ void board_init(void)
   _gclk_enable_channel(TCC0_GCLK_ID, GCLK_CLKCTRL_GEN_GCLK0_Val);
 }
 
-void board_led_control(uint32_t led_id, bool state)
+void board_led_control(bool state)
 {
-  gpio_set_pin_level(led_id, state ? LED_STATE_ON : (1-LED_STATE_ON));
+  gpio_set_pin_level(LED_PIN, state);
 }
 
 

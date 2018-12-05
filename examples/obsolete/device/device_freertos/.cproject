@@ -34,7 +34,7 @@
 									<listOptionValue builtIn="false" value="__REDLIB__"/>
 									<listOptionValue builtIn="false" value="CFG_TUSB_OS=OPT_OS_FREERTOS"/>
 									<listOptionValue builtIn="false" value="CFG_TUD_TASK_PRIO=configMAX_PRIORITIES-5"/>
-									<listOptionValue builtIn="false" value="CFG_TUSB_MCU=OPT_MCU_LPC13UXX"/>
+									<listOptionValue builtIn="false" value="CFG_TUSB_MCU=OPT_MCU_LPC13XX"/>
 									<listOptionValue builtIn="false" value="BOARD=BOARD_LPCXPRESSO1347"/>
 									<listOptionValue builtIn="false" value="DEBUG"/>
 									<listOptionValue builtIn="false" value="__CODE_RED"/>

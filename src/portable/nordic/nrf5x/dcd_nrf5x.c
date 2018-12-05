@@ -195,13 +195,16 @@ bool dcd_init (uint8_t rhport)
   return true;
 }
 
-void dcd_connect (uint8_t rhport)
+void dcd_int_enable(uint8_t rhport)
 {
   (void) rhport;
+  NVIC_EnableIRQ(USBD_IRQn);
 }
-void dcd_disconnect (uint8_t rhport)
+
+void dcd_int_disable(uint8_t rhport)
 {
   (void) rhport;
+  NVIC_DisableIRQ(USBD_IRQn);
 }
 
 void dcd_set_address (uint8_t rhport, uint8_t dev_addr)

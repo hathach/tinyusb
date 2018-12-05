@@ -59,19 +59,6 @@ The OPT_OS_NONE option is the only option which requires an MCU specific functio
 
 `tusb_hal_millis` is also provided in `hw/bsp/<board name>/board_<board name>.c` because it may vary with MCU use.
 
-### Hardware Abstraction Layer (HAL)
-The hardware abstraction layer is a minimal set of abstractions used in both Device and Host USB modes.
-
-The HAL implementations are located in `src/portable/<vendor>/<chip family>/hal_<chip family>.c`.
-
-#### tusb_hal_init
-
-The HAL init is responsible for configuring common settings of USB peripheral such as pad calibration.
-
-#### tusb_hal_int_enable / tusb_hal_int_disable
-
-Enables or disables the USB interrupt(s). May be used to prevent concurrency issues when mutating data structures shared between main code and the interrupt handler.
-
 ### Device API
 
 After the USB device is setup, the USB device code works by processing events on the main thread (by calling `tusb_task`). These events are queued by the USB interrupt handler. So, there are three parts to the device low-level API: device setup, endpoint setup and interrupt processing.
@@ -79,15 +66,21 @@ After the USB device is setup, the USB device code works by processing events on
 All of the code for the low-level device API is in `src/portable/<vendor>/<chip family>/dcd_<chip family>.c`.
 
 #### Device Setup
-`dcd_connect`, `dcd_disconnect` and `dcd_set_config` are not currently used and can be left empty.
 
 ##### dcd_init
 Initializes the USB peripheral for device mode and enables it.
+
+#### dcd_int_enable / dcd_int_disable
+
+Enables or disables the USB device interrupt(s). May be used to prevent concurrency issues when mutating data structures shared between main code and the interrupt handler.
 
 ##### dcd_set_address
 Called when the device is given a new bus address.
 
 If your peripheral automatically changes address during enumeration (like the nrf52) you may leave this empty and also no queue an event for the corresponding SETUP packet.
+
+##### dcd_set_config
+Called when the device received SET_CONFIG request, you can leave this empty if your peripheral does not require any specific action.
 
 #### Special events
 You must let TinyUSB know when certain events occur so that it can continue its work. There are a few methods you can call to queue events for TinyUSB to process.

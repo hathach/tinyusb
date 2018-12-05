@@ -72,6 +72,20 @@ static void bus_reset(void) {
 bool dcd_init (uint8_t rhport)
 {
   (void) rhport;
+
+  // Reset to get in a clean state.
+  USB->DEVICE.CTRLA.bit.SWRST = true;
+  while (USB->DEVICE.SYNCBUSY.bit.SWRST == 0) {}
+  while (USB->DEVICE.SYNCBUSY.bit.SWRST == 1) {}
+
+  USB->DEVICE.PADCAL.bit.TRANSP = (*((uint32_t*) USB_FUSES_TRANSP_ADDR) & USB_FUSES_TRANSP_Msk) >> USB_FUSES_TRANSP_Pos;
+  USB->DEVICE.PADCAL.bit.TRANSN = (*((uint32_t*) USB_FUSES_TRANSN_ADDR) & USB_FUSES_TRANSN_Msk) >> USB_FUSES_TRANSN_Pos;
+  USB->DEVICE.PADCAL.bit.TRIM = (*((uint32_t*) USB_FUSES_TRIM_ADDR) & USB_FUSES_TRIM_Msk) >> USB_FUSES_TRIM_Pos;
+
+  USB->DEVICE.QOSCTRL.bit.CQOS = USB_QOSCTRL_CQOS_HIGH_Val;
+  USB->DEVICE.QOSCTRL.bit.DQOS = USB_QOSCTRL_DQOS_HIGH_Val;
+
+  // Configure registers
   USB->DEVICE.DESCADD.reg = (uint32_t) &sram_registers;
   USB->DEVICE.CTRLB.reg = USB_DEVICE_CTRLB_SPDCONF_FS;
   USB->DEVICE.CTRLA.reg = USB_CTRLA_MODE_DEVICE | USB_CTRLA_ENABLE | USB_CTRLA_RUNSTDBY;
@@ -82,13 +96,16 @@ bool dcd_init (uint8_t rhport)
   return true;
 }
 
-void dcd_connect (uint8_t rhport)
+void dcd_int_enable(uint8_t rhport)
 {
-
+  (void) rhport;
+  NVIC_EnableIRQ(USB_IRQn);
 }
-void dcd_disconnect (uint8_t rhport)
-{
 
+void dcd_int_disable(uint8_t rhport)
+{
+  (void) rhport;
+  NVIC_DisableIRQ(USB_IRQn);
 }
 
 void dcd_set_address (uint8_t rhport, uint8_t dev_addr)

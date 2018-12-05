@@ -46,6 +46,7 @@
 /*------------------------------------------------------------------*/
 /* MACRO TYPEDEF CONSTANT ENUM
  *------------------------------------------------------------------*/
+#define LED_PIN         13
 #define LED_STATE_ON    0
 
 uint8_t _button_pins[] = { 11, 12, 24, 25 };
@@ -92,15 +93,8 @@ void board_init(void)
   NRF_CLOCK->TASKS_LFCLKSTART = 1UL;
 
   // LEDs
-  nrf_gpio_cfg_output(BOARD_LED0);
-  nrf_gpio_cfg_output(BOARD_LED1);
-  nrf_gpio_cfg_output(BOARD_LED2);
-  nrf_gpio_cfg_output(BOARD_LED3);
-
-  board_led_control(BOARD_LED0, false);
-  board_led_control(BOARD_LED1, false);
-  board_led_control(BOARD_LED2, false);
-  board_led_control(BOARD_LED3, false);
+  nrf_gpio_cfg_output(LED_PIN);
+  board_led_control(false);
 
   // Button
   for(uint8_t i=0; i<BOARD_BUTTON_COUNT; i++) nrf_gpio_cfg_input(_button_pins[i], NRF_GPIO_PIN_PULLUP);
@@ -223,9 +217,9 @@ void board_init(void)
   }
 }
 
-void board_led_control(uint32_t led_id, bool state)
+void board_led_control(bool state)
 {
-  nrf_gpio_pin_write(led_id, state ? LED_STATE_ON : (1-LED_STATE_ON));
+  nrf_gpio_pin_write(LED_PIN, state ? LED_STATE_ON : (1-LED_STATE_ON));
 }
 
 uint32_t board_buttons(void)

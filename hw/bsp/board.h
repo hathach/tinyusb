@@ -52,38 +52,27 @@
 
 #include "ansi_escape.h"
 
-//--------------------------------------------------------------------+
-// PRINTF TARGET DEFINE
-//--------------------------------------------------------------------+
-/** \defgroup group_printf Printf Retarget
- * \brief Retarget the standard stdio printf/getchar to other IOs
- *  @{ */
-#define PRINTF_TARGET_SEMIHOST      1 ///< Using the semihost support from toolchain, requires no hardware but is the slowest
-#define PRINTF_TARGET_UART          2 ///< Using UART as stdio, this is the default for most of the board
-#define PRINTF_TARGET_SWO           3 ///< Using non-instructive serial wire output (SWO), is the best option since it does not slow down MCU but requires supported from debugger and IDE
-#define PRINTF_TARGET_NONE          4 ///< Using none at all.
-/** @} */
-
-#define PRINTF(...) printf(__VA_ARGS__)
-
+// NXP LPC
 #if defined BOARD_LPCXPRESSO11U14
   #include "lpcxpresso11u14/board_lpcxpresso11u14.h"
-#elif defined BOARD_LPCXPRESSO11U68
-  #include "lpcxpresso11u68/board_lpcxpresso11u68.h"
 #elif defined BOARD_LPCXPRESSO1347
   #include "lpcxpresso1347/board_lpcxpresso1347.h"
+#elif defined BOARD_LPCXPRESSO11U68
+  #include "lpcxpresso11u68/board_lpcxpresso11u68.h"
 #elif defined BOARD_LPCXPRESSO1769
   #include "lpcxpresso1769/board_lpcxpresso1769.h"
-#elif defined BOARD_NGX4330
-  #include "ngx/board_ngx4330.h"
+#elif defined BOARD_MCB1800
+  #include "mcb1800/board_mcb1800.h"
+#elif defined BOARD_EA4088QS
+  #include "ea4088qs/board_ea4088qs.h"
 #elif defined BOARD_EA4357
   #include "ea4357/board_ea4357.h"
-#elif defined BOARD_MCB4300
-  #include "keil/board_mcb4300.h"
-#elif defined BOARD_LPCLINK2
-  #include "lpcxpresso/board_lpclink2.h"
+
+// Nordic nRF
 #elif defined BOARD_PCA10056
   #include "pca10056/board_pca10056.h"
+
+// Atmel SAM
 #elif defined BOARD_METRO_M4_EXPRESS
   #include "metro_m4_express/board_metro_m4_express.h"
 #elif defined BOARD_METRO_M0_EXPRESS
@@ -102,20 +91,18 @@ void board_init(void);
 
 //--------------------------------------------------------------------+
 // LED
-// Board variant must defined following
-// - BOARD_LED_NUM : number of LEDs
-// - BOARD_LEDn : where n is 0,1 etc ...
+// Board layer use only 1 LED for indicator
 //--------------------------------------------------------------------+
-void board_led_control(uint32_t led_id, bool state);
+void board_led_control(bool state);
 
-static inline void board_led_on(uint32_t led_id)
+static inline void board_led_on(void)
 {
-  board_led_control(led_id, true);
+  board_led_control(true);
 }
 
-static inline void board_led_off(uint32_t led_id)
+static inline void board_led_off(void)
 {
-  board_led_control(led_id, false);
+  board_led_control(false);
 }
 
 //--------------------------------------------------------------------+

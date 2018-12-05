@@ -36,10 +36,11 @@
 */
 /**************************************************************************/
 
-#include "bsp/board.h"
-#include "tusb.h"
-
 #ifdef BOARD_EA4357
+
+#include "../board.h"
+#include "pca9532.h"
+#include "tusb.h"
 
 #define BOARD_UART_PORT           LPC_USART0
 #define BOARD_UART_PIN_PORT       0x0f
@@ -88,31 +89,68 @@ uint32_t tusb_hal_millis(void)
 /*------------------------------------------------------------------*/
 /* BOARD API
  *------------------------------------------------------------------*/
+
+/* System configuration variables used by chip driver */
+const uint32_t ExtRateIn = 0;
+const uint32_t OscRateIn = 12000000;
+
+static const PINMUX_GRP_T pinmuxing[] =
+{
+  // USB
+
+  /*  I2S  */
+  {0x3,  0,  (SCU_PINIO_FAST | SCU_MODE_FUNC2)}, //I2S0_TX_CLK
+  {0xC, 12,  (SCU_PINIO_FAST | SCU_MODE_FUNC6)}, //I2S0_TX_SDA
+  {0xC, 13,  (SCU_PINIO_FAST | SCU_MODE_FUNC6)}, //I2S0_TX_WS
+  {0x6,  0,  (SCU_PINIO_FAST | SCU_MODE_FUNC4)}, //I2S0_RX_SCK
+  {0x6,  1,  (SCU_PINIO_FAST | SCU_MODE_FUNC3)}, //I2S0_RX_WS
+  {0x6,  2,  (SCU_PINIO_FAST | SCU_MODE_FUNC3)}, //I2S0_RX_SDA
+};
+
+/* Pin clock mux values, re-used structure, value in first index is meaningless */
+static const PINMUX_GRP_T pinclockmuxing[] =
+{
+  {0, 0,  (SCU_MODE_INACT | SCU_MODE_INBUFF_EN | SCU_MODE_ZIF_DIS | SCU_MODE_HIGHSPEEDSLEW_EN | SCU_MODE_FUNC0)},
+  {0, 1,  (SCU_MODE_INACT | SCU_MODE_INBUFF_EN | SCU_MODE_ZIF_DIS | SCU_MODE_HIGHSPEEDSLEW_EN | SCU_MODE_FUNC0)},
+  {0, 2,  (SCU_MODE_INACT | SCU_MODE_INBUFF_EN | SCU_MODE_ZIF_DIS | SCU_MODE_HIGHSPEEDSLEW_EN | SCU_MODE_FUNC0)},
+  {0, 3,  (SCU_MODE_INACT | SCU_MODE_INBUFF_EN | SCU_MODE_ZIF_DIS | SCU_MODE_HIGHSPEEDSLEW_EN | SCU_MODE_FUNC0)},
+};
+
+// Invoked by startup code
+void SystemInit(void)
+{
+	/* Setup system level pin muxing */
+	Chip_SCU_SetPinMuxing(pinmuxing, sizeof(pinmuxing) / sizeof(PINMUX_GRP_T));
+
+	/* Clock pins only, group field not used */
+	for (int i = 0; i < (sizeof(pinclockmuxing) / sizeof(pinclockmuxing[0])); i++)
+	{
+		Chip_SCU_ClockPinMuxSet(pinclockmuxing[i].pinnum, pinclockmuxing[i].modefunc);
+	}
+
+  Chip_SetupXtalClocking();
+}
+
 void board_init(void)
 {
-  CGU_Init();
+  SystemCoreClockUpdate();
 
-#if CFG_TUSB_OS == OPT_OS_NONE // TODO may move to main.c
-  SysTick_Config(CGU_GetPCLKFrequency(CGU_PERIPHERAL_M4CORE) / BOARD_TICKS_HZ); // 1 msec tick timer
+#if CFG_TUSB_OS == OPT_OS_NONE
+  SysTick_Config( SystemCoreClock / BOARD_TICKS_HZ );
 #endif
 
-  //------------- USB -------------//
-  // USB0 Power: EA4357 channel B U20 GPIO26 active low (base board), P2_3 on LPC4357
-  scu_pinmux(0x02, 3, MD_PUP | MD_EZI, FUNC7);		// USB0 VBus Power
-
-  #if CFG_TUSB_RHPORT0_MODE & OPT_MODE_DEVICE
-  scu_pinmux(0x09, 5, GPIO_PDN, FUNC4); // P9_5 (GPIO5[18]) (GPIO28 on oem base) as USB connect, active low.
-  GPIO_SetDir(5, BIT_(18), 1);
-  #endif
-
-  // USB1 Power: EA4357 channel A U20 is enabled by SJ5 connected to pad 1-2, no more action required
-  // TODO Remove R170, R171, solder a pair of 15K to USB1 D+/D- to test with USB1 Host
+  Chip_GPIO_Init(LPC_GPIO_PORT);
 
   //------------- LED -------------//
-  I2C_Init(LPC_I2C0, 100000);
-  I2C_Cmd(LPC_I2C0, ENABLE);
+  /* Init I2C */
+  Chip_SCU_I2C0PinConfig(I2C0_STANDARD_FAST_MODE);
+  Chip_I2C_Init(I2C0);
+  Chip_I2C_SetClockRate(I2C0, 100000);
+  Chip_I2C_SetMasterEventHandler(I2C0, Chip_I2C_EventHandlerPolling);
+
   pca9532_init();
 
+#if 0
   //------------- BUTTON -------------//
   for(uint8_t i=0; i<BOARD_BUTTON_COUNT; i++)
   {
@@ -120,7 +158,6 @@ void board_init(void)
     GPIO_SetDir(buttons[i].gpio_port, BIT_(buttons[i].gpio_pin), 0);
   }
 
-#if 0
   //------------- UART -------------//
   scu_pinmux(BOARD_UART_PIN_PORT, BOARD_UART_PIN_TX, MD_PDN, FUNC1);
   scu_pinmux(BOARD_UART_PIN_PORT, BOARD_UART_PIN_RX, MD_PLN | MD_EZI | MD_ZI, FUNC1);
@@ -134,18 +171,76 @@ void board_init(void)
   UART_TxCmd(BOARD_UART_PORT, ENABLE); // Enable UART Transmit
 #endif
 
-  //------------- NAND Flash (K9FXX) Size = 128M, Page Size = 2K, Block Size = 128K, Number of Block = 1024 -------------//
-//  nand_init();
+  //------------- USB -------------//
+  enum {
+    USBMODE_DEVICE = 2,
+    USBMODE_HOST   = 3
+  };
+
+  enum {
+    USBMODE_VBUS_LOW  = 0,
+    USBMODE_VBUS_HIGH = 1
+  };
+
+  // USB0
+#if CFG_TUSB_RHPORT0_MODE
+  Chip_USB0_Init();
+
+  // Reset controller
+  LPC_USB0->USBCMD_D |= 0x02;
+  while( LPC_USB0->USBCMD_D & 0x02 ) {}
+
+  // Set mode
+  #if CFG_TUSB_RHPORT0_MODE & OPT_MODE_HOST
+    LPC_USB0->USBMODE_H = USBMODE_HOST | (USBMODE_VBUS_HIGH << 5);
+  #else // TODO OTG
+    LPC_USB0->USBMODE_D = USBMODE_DEVICE;
+    LPC_USB0->OTGSC = (1<<3) | (1<<0) /*| (1<<16)| (1<<24)| (1<<25)| (1<<26)| (1<<27)| (1<<28)| (1<<29)| (1<<30)*/;
+  #endif
+#endif
+
+  // USB1
+#if CFG_TUSB_RHPORT1_MODE
+  Chip_USB1_Init();
+
+  // Reset controller
+  LPC_USB1->USBCMD_D |= 0x02;
+  while( LPC_USB1->USBCMD_D & 0x02 ) {}
+
+  // Set mode
+  #if CFG_TUSB_RHPORT1_MODE & OPT_MODE_HOST
+    LPC_USB1->USBMODE_H = USBMODE_HOST | (USBMODE_VBUS_HIGH << 5);
+  #else // TODO OTG
+    LPC_USB1->USBMODE_D = USBMODE_DEVICE;
+  #endif
+
+  // USB1 as fullspeed
+  LPC_USB1->PORTSC1_D |= (1<<24);
+#endif
+
+  // USB0 Vbus Power: P2_3 on EA4357 channel B U20 GPIO26 active low (base board)
+  Chip_SCU_PinMuxSet(2, 3, SCU_MODE_PULLUP | SCU_MODE_INBUFF_EN | SCU_MODE_FUNC7);
+
+  #if CFG_TUSB_RHPORT0_MODE & OPT_MODE_DEVICE
+  // P9_5 (GPIO5[18]) (GPIO28 on oem base) as USB connect, active low.
+  Chip_SCU_PinMuxSet(9, 5, SCU_MODE_PULLDOWN | SCU_MODE_FUNC4);
+  Chip_GPIO_SetPinDIROutput(LPC_GPIO_PORT, 5, 18);
+  #endif
+
+  // USB1 Power: EA4357 channel A U20 is enabled by SJ5 connected to pad 1-2, no more action required
+  // TODO Remove R170, R171, solder a pair of 15K to USB1 D+/D- to test with USB1 Host
 }
 
-//--------------------------------------------------------------------+
-// LEDS
-//--------------------------------------------------------------------+
-void board_led_control(uint32_t id, bool state)
+// LED
+void board_led_control(bool state)
 {
-  uint16_t on_mask  = state ? (1 << id) : 0;
-  uint16_t off_mask = state ? 0 : (1 << id);
-  pca9532_setLeds( on_mask << 8, off_mask << 8 );
+  if (state)
+  {
+    pca9532_setLeds( LED1, 0 );
+  }else
+  {
+    pca9532_setLeds( 0, LED1);
+  }
 }
 
 //--------------------------------------------------------------------+
@@ -153,14 +248,14 @@ void board_led_control(uint32_t id, bool state)
 //--------------------------------------------------------------------+
 static bool button_read(uint8_t id)
 {
-  return !BIT_TEST_( GPIO_ReadValue(buttons[id].gpio_port), buttons[id].gpio_pin ); // button is active low
+//  return !BIT_TEST_( GPIO_ReadValue(buttons[id].gpio_port), buttons[id].gpio_pin ); // button is active low
 }
 
 uint32_t board_buttons(void)
 {
   uint32_t result = 0;
 
-  for(uint8_t i=0; i<BOARD_BUTTON_COUNT; i++) result |= (button_read(i) ? BIT_(i) : 0);
+//  for(uint8_t i=0; i<BOARD_BUTTON_COUNT; i++) result |= (button_read(i) ? BIT_(i) : 0);
 
   return result;
 }

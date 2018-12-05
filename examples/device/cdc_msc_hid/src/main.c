@@ -201,7 +201,7 @@ void led_blinking_task(void)
   if ( !tu_timeout_expired(&tm) ) return; // not enough time
   tu_timeout_reset(&tm);
 
-  board_led_control(BOARD_LED0, led_state);
+  board_led_control(led_state);
   led_state = 1 - led_state; // toggle
 }
 
