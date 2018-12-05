@@ -145,7 +145,6 @@ void tusb_hal_nrf_power_event (uint32_t event)
         /* Enable the peripheral */
         // ERRATA 171, 187, 166
 
-        // Somehow Errata 187 check failed for pca10056 1.0.0 (2018.19)
         if ( nrf_drv_usbd_errata_187() )
         {
           // CRITICAL_REGION_ENTER();
@@ -209,7 +208,6 @@ void tusb_hal_nrf_power_event (uint32_t event)
         // CRITICAL_REGION_EXIT();
       }
 
-      // Somehow Errata 187 check failed for pca10056 1.0.0 (2018.19)
       if ( nrf_drv_usbd_errata_187() )
       {
         // CRITICAL_REGION_ENTER();
@@ -247,9 +245,7 @@ void tusb_hal_nrf_power_event (uint32_t event)
       NVIC_EnableIRQ(USBD_IRQn);
 
       // Wait for HFCLK
-      while ( !hfclk_running() )
-      {
-      }
+      while ( !hfclk_running() ) { }
 
       // Enable pull up
       nrf_usbd_pullup_enable();
