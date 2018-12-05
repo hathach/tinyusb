@@ -42,16 +42,6 @@
 
 #include "chip.h"
 
-enum {
-  LPC43XX_USBMODE_DEVICE = 2,
-  LPC43XX_USBMODE_HOST   = 3
-};
-
-enum {
-  LPC43XX_USBMODE_VBUS_LOW  = 0,
-  LPC43XX_USBMODE_VBUS_HIGH = 1
-};
-
 void tusb_hal_int_enable(uint8_t rhport)
 {
   NVIC_EnableIRQ(rhport ? USB1_IRQn : USB0_IRQn);
@@ -62,57 +52,8 @@ void tusb_hal_int_disable(uint8_t rhport)
   NVIC_DisableIRQ(rhport ? USB1_IRQn : USB0_IRQn);
 }
 
-
-static void hal_controller_reset(uint8_t rhport)
-{ // TODO timeout expired to prevent trap
-  volatile uint32_t * p_reg_usbcmd;
-
-  p_reg_usbcmd = (rhport ? &LPC_USB1->USBCMD_D : &LPC_USB0->USBCMD_D);
-// NXP chip powered with non-host mode --> sts bit is not correctly reflected
-  (*p_reg_usbcmd) |= BIT_(1);
-
-//  tu_timeout_t timeout;
-//  tu_timeout_set(&timeout, 2); // should not take longer the time to stop controller
-  while( ((*p_reg_usbcmd) & BIT_(1)) /*&& !tu_timeout_expired(&timeout)*/) {}
-//
-//  return tu_timeout_expired(&timeout) ? TUSB_ERROR_OSAL_TIMEOUT : TUSB_ERROR_NONE;
-}
-
 bool tusb_hal_init(void)
 {
-  // USB0
-#if CFG_TUSB_RHPORT0_MODE
-  Chip_USB0_Init();
-
-  // reset controller & set role
-  hal_controller_reset(0);
-
-  #if CFG_TUSB_RHPORT0_MODE & OPT_MODE_HOST
-    LPC_USB0->USBMODE_H = LPC43XX_USBMODE_HOST | (LPC43XX_USBMODE_VBUS_HIGH << 5);
-  #else // TODO OTG
-    LPC_USB0->USBMODE_D = LPC43XX_USBMODE_DEVICE;
-    LPC_USB0->OTGSC = (1<<3) | (1<<0) /*| (1<<16)| (1<<24)| (1<<25)| (1<<26)| (1<<27)| (1<<28)| (1<<29)| (1<<30)*/;
-    #if CFG_TUD_FULLSPEED // TODO for easy testing
-      LPC_USB0->PORTSC1_D |= (1<<24); // force full speed
-    #endif
-  #endif
-#endif
-
-  // USB1
-#if CFG_TUSB_RHPORT1_MODE
-  Chip_USB1_Init();
-
-  hal_controller_reset(1);
-
-  #if CFG_TUSB_RHPORT1_MODE & OPT_MODE_HOST
-    LPC_USB1->USBMODE_H = LPC43XX_USBMODE_HOST | (LPC43XX_USBMODE_VBUS_HIGH << 5);
-  #else // TODO OTG
-    LPC_USB1->USBMODE_D = LPC43XX_USBMODE_DEVICE;
-  #endif
-
-  LPC_USB1->PORTSC1_D |= (1<<24); // TODO abstract, force rhport to fullspeed
-#endif
-
   return true;
 }
 

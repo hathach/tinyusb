@@ -72,8 +72,6 @@ static const PINMUX_GRP_T pinmuxing[] =
   {0,  1,  (IOCON_FUNC1 | IOCON_RESERVED_BIT_7 | IOCON_MODE_INACT)},	/* PIO0_1 used for CLKOUT */
   {0,  2,  (IOCON_FUNC1 | IOCON_RESERVED_BIT_7 | IOCON_MODE_PULLUP)},	/* PIO0_2 used for SSEL */
   {0,  3,  (IOCON_FUNC1 | IOCON_RESERVED_BIT_7 | IOCON_MODE_INACT)},	/* PIO0_3 used for USB_VBUS */
-  {0,  4,  (IOCON_FUNC1 | IOCON_FASTI2C_EN)},							/* PIO0_4 used for SCL */
-  {0,  5,  (IOCON_FUNC1 | IOCON_FASTI2C_EN)},							/* PIO0_5 used for SDA */
   {0,  6,  (IOCON_FUNC1 | IOCON_RESERVED_BIT_7 | IOCON_MODE_INACT)},	/* PIO0_6 used for USB_CONNECT */
   {0,  8,  (IOCON_FUNC1 | IOCON_RESERVED_BIT_7 | IOCON_MODE_INACT)},	/* PIO0_8 used for MISO0 */
   {0,  9,  (IOCON_FUNC1 | IOCON_RESERVED_BIT_7 | IOCON_MODE_INACT)},	/* PIO0_9 used for MOSI0 */
@@ -111,6 +109,8 @@ void board_init(void)
   //------------- UART -------------//
   //UARTInit(CFG_UART_BAUDRATE);
 
+  // USB
+  Chip_USB_Init(); // Setup PLL clock, and power
 }
 
 /*------------------------------------------------------------------*/

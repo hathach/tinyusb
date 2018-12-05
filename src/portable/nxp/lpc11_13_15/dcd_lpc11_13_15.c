@@ -180,9 +180,6 @@ bool dcd_init(uint8_t rhport)
 {
   (void) rhport;
 
-  // Setup PLL clock, and power
-  Chip_USB_Init();
-
   LPC_USB->EPLISTSTART  = (uint32_t) _dcd.ep;
   LPC_USB->DATABUFSTART = SRAM_REGION;
 

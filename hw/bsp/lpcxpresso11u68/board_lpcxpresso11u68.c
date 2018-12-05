@@ -95,6 +95,9 @@ void board_init(void)
 
   //------------- UART -------------//
   //UARTInit(CFG_UART_BAUDRATE);
+
+  // USB
+  Chip_USB_Init(); // Setup PLL clock, and power
 }
 
 /*------------------------------------------------------------------*/

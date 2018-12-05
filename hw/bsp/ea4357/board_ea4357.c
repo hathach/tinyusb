@@ -40,6 +40,7 @@
 
 #include "../board.h"
 #include "pca9532.h"
+#include "tusb.h"
 
 #define BOARD_UART_PORT           LPC_USART0
 #define BOARD_UART_PIN_PORT       0x0f
@@ -171,6 +172,50 @@ void board_init(void)
 #endif
 
   //------------- USB -------------//
+  enum {
+    USBMODE_DEVICE = 2,
+    USBMODE_HOST   = 3
+  };
+
+  enum {
+    USBMODE_VBUS_LOW  = 0,
+    USBMODE_VBUS_HIGH = 1
+  };
+
+  // USB0
+#if CFG_TUSB_RHPORT0_MODE
+  Chip_USB0_Init();
+
+  // Reset controller
+  LPC_USB0->USBCMD_D |= 0x02;
+
+  // Set mode
+  #if CFG_TUSB_RHPORT0_MODE & OPT_MODE_HOST
+    LPC_USB0->USBMODE_H = USBMODE_HOST | (USBMODE_VBUS_HIGH << 5);
+  #else // TODO OTG
+    LPC_USB0->USBMODE_D = USBMODE_DEVICE;
+    LPC_USB0->OTGSC = (1<<3) | (1<<0) /*| (1<<16)| (1<<24)| (1<<25)| (1<<26)| (1<<27)| (1<<28)| (1<<29)| (1<<30)*/;
+  #endif
+#endif
+
+  // USB1
+#if CFG_TUSB_RHPORT1_MODE
+  Chip_USB1_Init();
+
+  // Reset controller
+  LPC_USB1->USBCMD_D |= 0x02;
+
+  // Set mode
+  #if CFG_TUSB_RHPORT1_MODE & OPT_MODE_HOST
+    LPC_USB1->USBMODE_H = USBMODE_HOST | (USBMODE_VBUS_HIGH << 5);
+  #else // TODO OTG
+    LPC_USB1->USBMODE_D = USBMODE_DEVICE;
+  #endif
+
+  // USB1 as fullspeed
+  LPC_USB1->PORTSC1_D |= (1<<24);
+#endif
+
   // USB0 Vbus Power: P2_3 on EA4357 channel B U20 GPIO26 active low (base board)
   Chip_SCU_PinMuxSet(2, 3, SCU_MODE_PULLUP | SCU_MODE_INBUFF_EN | SCU_MODE_FUNC7);
 
