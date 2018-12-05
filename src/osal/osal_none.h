@@ -93,12 +93,11 @@ static inline void osal_semaphore_reset(osal_semaphore_t sem_hdl)
 static inline tusb_error_t osal_semaphore_wait(osal_semaphore_t sem_hdl, uint32_t msec) {
   (void) msec;
   while (true) {
-      while (sem_hdl->count == 0) {
-      }
-      if (sem_hdl->count == 0) {
-          sem_hdl->count--;
-          break;
-      }
+    while (sem_hdl->count == 0) { }
+    if (sem_hdl->count == 0) {
+      sem_hdl->count--;
+      break;
+    }
   }
   return TUSB_ERROR_NONE;
 }
@@ -124,40 +123,97 @@ static inline osal_mutex_t osal_mutex_create(osal_mutex_def_t* mdef)
 //--------------------------------------------------------------------+
 #include "common/tusb_fifo.h"
 
-#define OSAL_QUEUE_DEF(_name, _depth, _type)    TU_FIFO_DEF(_name, _depth, _type, false)
+// extern to avoid including dcd.h and hcd.h
+#if TUSB_OPT_DEVICE_ENABLED
+extern void dcd_int_disable(uint8_t rhport);
+extern void dcd_int_enable(uint8_t rhport);
+#endif
 
-typedef tu_fifo_t  osal_queue_def_t;
-typedef tu_fifo_t* osal_queue_t;
+#if MODE_HOST_SUPPORTED
+extern void hcd_int_disable(uint8_t rhport);
+extern void hcd_int_enable(uint8_t rhport);
+#endif
+
+typedef struct
+{
+    uint8_t role; // device or host
+    tu_fifo_t ff;
+}osal_queue_def_t;
+
+typedef osal_queue_def_t* osal_queue_t;
+
+// role device/host is used by OS NONE for mutex (disable usb isr) only
+#define OSAL_QUEUE_DEF(_role, _name, _depth, _type) \
+  uint8_t _name##_buf[_depth*sizeof(_type)];        \
+  osal_queue_def_t _name = {                        \
+    .role = _role,                                  \
+    .ff = {                                         \
+      .buffer       = _name##_buf,                  \
+      .depth        = _depth,                       \
+      .item_size    = sizeof(_type),                \
+      .overwritable = false,                        \
+    }\
+  }
+
+// lock queue by disable usb isr
+static inline void _osal_q_lock(osal_queue_t qhdl)
+{
+#if TUSB_OPT_DEVICE_ENABLED
+  if (qhdl->role == OPT_MODE_DEVICE) dcd_int_disable(TUD_OPT_RHPORT);
+#endif
+
+#if MODE_HOST_SUPPORTED
+  if (qhdl->role == OPT_MODE_HOST) hcd_int_disable(TUH_OPT_RHPORT);
+#endif
+}
+
+// unlock queue
+static inline void _osal_q_unlock(osal_queue_t qhdl)
+{
+#if TUSB_OPT_DEVICE_ENABLED
+  if (qhdl->role == OPT_MODE_DEVICE) dcd_int_enable(TUD_OPT_RHPORT);
+#endif
+
+#if MODE_HOST_SUPPORTED
+  if (qhdl->role == OPT_MODE_HOST) hcd_int_enable(TUH_OPT_RHPORT);
+#endif
+}
 
 static inline osal_queue_t osal_queue_create(osal_queue_def_t* qdef)
 {
-  tu_fifo_clear(qdef);
+  tu_fifo_clear(&qdef->ff);
   return (osal_queue_t) qdef;
 }
 
-static inline bool osal_queue_send(osal_queue_t const queue_hdl, void const * data, bool in_isr)
+static inline bool osal_queue_send(osal_queue_t const qhdl, void const * data, bool in_isr)
 {
   if (!in_isr) {
-    tusb_hal_int_disable_all();
+    _osal_q_lock(qhdl);
   }
-  bool success = tu_fifo_write( (tu_fifo_t*) queue_hdl, data);
+
+  bool success = tu_fifo_write(&qhdl->ff, data);
+
   if (!in_isr) {
-    tusb_hal_int_enable_all();
+    _osal_q_unlock(qhdl);
   }
+
   return success;
 }
 
-static inline void osal_queue_reset(osal_queue_t const queue_hdl)
+static inline void osal_queue_reset(osal_queue_t const qhdl)
 {
   // tusb_hal_int_disable_all();
-  tu_fifo_clear( (tu_fifo_t*) queue_hdl);
+  tu_fifo_clear(&qhdl->ff);
   // tusb_hal_int_enable_all();
 }
 
-static inline bool osal_queue_receive(osal_queue_t const queue_hdl, void* data) {
-  tusb_hal_int_disable_all();
-  bool success = tu_fifo_read(queue_hdl, data);
-  tusb_hal_int_enable_all();
+// non blocking
+static inline bool osal_queue_receive(osal_queue_t const qhdl, void* data)
+{
+  _osal_q_lock(qhdl);
+  bool success = tu_fifo_read(&qhdl->ff, data);
+  _osal_q_unlock(qhdl);
+
   return success;
 }
 

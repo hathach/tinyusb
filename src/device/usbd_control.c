@@ -83,7 +83,6 @@ bool usbd_control_status(uint8_t rhport, tusb_control_request_t const * request)
   return dcd_edpt_xfer(rhport, request->bmRequestType_bit.direction ? EDPT_CTRL_OUT : EDPT_CTRL_IN, NULL, 0);
 }
 
-
 // Each transaction is up to endpoint0's max packet size
 static bool start_control_data_xact(uint8_t rhport)
 {

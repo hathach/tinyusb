@@ -75,7 +75,9 @@ static inline void osal_task_delay(uint32_t msec)
 //--------------------------------------------------------------------+
 // QUEUE API
 //--------------------------------------------------------------------+
-#define OSAL_QUEUE_DEF(_name, _depth, _type) \
+
+// role device/host is used by OS NONE for mutex (disable usb isr) only
+#define OSAL_QUEUE_DEF(_role, _name, _depth, _type) \
   static _type _name##_##buf[_depth];\
   static struct os_event* _name##_##evbuf[_depth];\
   osal_queue_def_t _name = { .depth = _depth, .item_sz = sizeof(_type), .buf = _name##_##buf, .evbuf =  _name##_##evbuf};\
