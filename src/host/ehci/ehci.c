@@ -180,9 +180,8 @@ static tusb_error_t hcd_controller_init(uint8_t hostid)
   //------------- CTRLDSSEGMENT Register (skip) -------------//
   //------------- USB INT Register -------------//
   regs->usb_int_enable = 0;                 // 1. disable all the interrupt
-#ifndef _TEST_ // the fake controller does not have write-to-clear behavior
   regs->usb_sts        = EHCI_INT_MASK_ALL; // 2. clear all status
-#endif
+
   regs->usb_int_enable = EHCI_INT_MASK_ERROR | EHCI_INT_MASK_PORT_CHANGE |
 #if EHCI_PERIODIC_LIST
                          EHCI_INT_MASK_NXP_PERIODIC |

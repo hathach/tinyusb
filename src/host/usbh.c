@@ -152,13 +152,13 @@ uint32_t tuh_device_get_mounted_class_flag(uint8_t dev_addr)
 //--------------------------------------------------------------------+
 // CLASS-USBD API (don't require to verify parameters)
 //--------------------------------------------------------------------+
-tusb_error_t usbh_init(void)
+bool usbh_init(void)
 {
   tu_memclr(usbh_devices, sizeof(usbh_device_info_t)*(CFG_TUSB_HOST_DEVICE_MAX+1));
 
   //------------- Enumeration & Reporter Task init -------------//
   _usbh_q = osal_queue_create( &_usbh_qdef );
-  TU_ASSERT(_usbh_q, TUSB_ERROR_OSAL_QUEUE_FAILED);
+  TU_ASSERT(_usbh_q != NULL);
 
   osal_task_create(&_usbh_task_def);
 
@@ -168,10 +168,10 @@ tusb_error_t usbh_init(void)
     usbh_device_info_t * const p_device = &usbh_devices[i];
 
     p_device->control.sem_hdl = osal_semaphore_create(&p_device->control.sem_def);
-    TU_ASSERT(p_device->control.sem_hdl, TUSB_ERROR_OSAL_SEMAPHORE_FAILED);
+    TU_ASSERT(p_device->control.sem_hdl != NULL);
 
     p_device->control.mutex_hdl = osal_mutex_create(&p_device->control.mutex_def);
-    TU_ASSERT(p_device->control.mutex_hdl, TUSB_ERROR_OSAL_MUTEX_FAILED);
+    TU_ASSERT(p_device->control.mutex_hdl != NULL);
   }
 
   //------------- class init -------------//
@@ -183,9 +183,10 @@ tusb_error_t usbh_init(void)
     }
   }
 
-  TU_ASSERT_ERR( hcd_init() );
+  TU_ASSERT( hcd_init() == TUSB_ERROR_NONE );
+  hcd_int_enable(TUH_OPT_RHPORT);
 
-  return TUSB_ERROR_NONE;
+  return true;
 }
 
 //------------- USBH control transfer -------------//
@@ -199,7 +200,7 @@ tusb_error_t usbh_control_xfer_subtask(uint8_t dev_addr, uint8_t bmRequestType, 
 //  OSAL_SUBTASK_BEGIN
 
   error = osal_mutex_lock(usbh_devices[dev_addr].control.mutex_hdl, OSAL_TIMEOUT_NORMAL);
-  STASK_ASSERT_ERR_HDLR(error, osal_mutex_unlock(usbh_devices[dev_addr].control.mutex_hdl));
+  TU_VERIFY_ERR_HDLR(error, osal_mutex_unlock(usbh_devices[dev_addr].control.mutex_hdl));
 
   usbh_devices[dev_addr].control.request = (tusb_control_request_t) {
                                                   {.bmRequestType = bmRequestType},
@@ -214,9 +215,9 @@ tusb_error_t usbh_control_xfer_subtask(uint8_t dev_addr, uint8_t bmRequestType, 
   if ( TUSB_ERROR_NONE == error ) error = osal_semaphore_wait(usbh_devices[dev_addr].control.sem_hdl, OSAL_TIMEOUT_NORMAL);
   osal_mutex_unlock(usbh_devices[dev_addr].control.mutex_hdl);
 
-  STASK_ASSERT_ERR(error);
-  if (XFER_RESULT_STALLED == usbh_devices[dev_addr].control.pipe_status) STASK_RETURN(TUSB_ERROR_USBH_XFER_STALLED);
-  if (XFER_RESULT_FAILED   == usbh_devices[dev_addr].control.pipe_status) STASK_RETURN(TUSB_ERROR_USBH_XFER_FAILED);
+  TU_ASSERT_ERR(error);
+  if (XFER_RESULT_STALLED == usbh_devices[dev_addr].control.pipe_status) return (TUSB_ERROR_USBH_XFER_STALLED);
+  if (XFER_RESULT_FAILED   == usbh_devices[dev_addr].control.pipe_status) return (TUSB_ERROR_USBH_XFER_FAILED);
 
 //  STASK_ASSERT_HDLR(TUSB_ERROR_NONE == error &&
 //                              XFER_RESULT_SUCCESS == usbh_devices[dev_addr].control.pipe_status,
@@ -228,7 +229,7 @@ tusb_error_t usbh_control_xfer_subtask(uint8_t dev_addr, uint8_t bmRequestType, 
 tusb_error_t usbh_pipe_control_open(uint8_t dev_addr, uint8_t max_packet_size)
 {
   osal_semaphore_reset( usbh_devices[dev_addr].control.sem_hdl );
-  osal_mutex_reset( usbh_devices[dev_addr].control.mutex_hdl );
+  //osal_mutex_reset( usbh_devices[dev_addr].control.mutex_hdl );
 
   TU_ASSERT_ERR( hcd_pipe_control_open(dev_addr, max_packet_size) );
 
@@ -373,7 +374,7 @@ tusb_error_t usbh_task_body(void)
   static uint8_t configure_selected = 1; // TODO move
   static uint8_t *p_desc = NULL; // TODO move
 
-  if ( !osal_queue_receive(_usbh_q, &enum_entry) ) return;
+  if ( !osal_queue_receive(_usbh_q, &enum_entry) ) return TUSB_ERROR_NONE;
 
   usbh_devices[0].core_id  = enum_entry.core_id; // TODO refractor integrate to device_pool
   usbh_devices[0].hub_addr = enum_entry.hub_addr;

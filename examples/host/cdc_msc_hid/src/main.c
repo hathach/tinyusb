@@ -58,11 +58,11 @@ int main(void)
   board_init();
   print_greeting();
 
-  //tusb_init();
+  tusb_init();
 
   while (1)
   {
-    //tusb_task();
+    tusb_task();
 
     led_blinking_task();
 

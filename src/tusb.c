@@ -56,7 +56,7 @@ bool tusb_init(void)
   if (_initialized) return true;
 
 #if MODE_HOST_SUPPORTED
-  TU_VERIFY( usbh_init() == TUSB_ERROR_NONE ); // init host stack
+  TU_VERIFY( usbh_init() ); // init host stack
 #endif
 
 #if TUSB_OPT_DEVICE_ENABLED

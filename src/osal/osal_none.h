@@ -62,6 +62,12 @@ static inline bool osal_task_create(osal_task_def_t* taskdef)
   return true;
 }
 
+static inline void osal_task_delay(uint32_t msec)
+{
+  uint32_t start = tusb_hal_millis();
+  while ( ( tusb_hal_millis() - start ) < msec ) {}
+}
+
 //--------------------------------------------------------------------+
 // Binary Semaphore API
 //--------------------------------------------------------------------+
