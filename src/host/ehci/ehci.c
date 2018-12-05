@@ -956,7 +956,7 @@ static void qhd_init(ehci_qhd_t *p_qhd, uint8_t dev_addr, uint16_t max_packet_si
   {
     if (TUSB_SPEED_HIGH == p_qhd->endpoint_speed)
     {
-      TU_ASSERT( interval <= 16, VOID_RETURN);
+      TU_ASSERT( interval <= 16, );
       if ( interval < 4) // sub milisecond interval
       {
         p_qhd->interval_ms     = 0;
@@ -969,7 +969,7 @@ static void qhd_init(ehci_qhd_t *p_qhd, uint8_t dev_addr, uint16_t max_packet_si
       }
     }else
     {
-      TU_ASSERT( 0 != interval, VOID_RETURN);
+      TU_ASSERT( 0 != interval, );
       // Full/Low: 4.12.2.1 (EHCI) case 1 schedule start split at 1 us & complete split at 2,3,4 uframes
       p_qhd->interrupt_smask        = 0x01;
       p_qhd->non_hs_interrupt_cmask = BIN8(11100);

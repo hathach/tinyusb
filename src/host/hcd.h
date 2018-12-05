@@ -87,6 +87,9 @@ static inline bool pipehandle_is_equal(pipe_handle_t x, pipe_handle_t y)
 tusb_error_t hcd_init(void) ATTR_WARN_UNUSED_RESULT;
 void hal_hcd_isr(uint8_t hostid);
 
+void hcd_int_enable (uint8_t rhport);
+void hcd_int_disable(uint8_t rhport);
+
 //--------------------------------------------------------------------+
 // PIPE API
 //--------------------------------------------------------------------+
