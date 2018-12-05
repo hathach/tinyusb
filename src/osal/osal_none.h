@@ -123,6 +123,17 @@ static inline osal_mutex_t osal_mutex_create(osal_mutex_def_t* mdef)
 //--------------------------------------------------------------------+
 #include "common/tusb_fifo.h"
 
+// extern to avoid including dcd.h and hcd.h
+#if TUSB_OPT_DEVICE_ENABLED
+extern void dcd_int_disable(uint8_t rhport);
+extern void dcd_int_enable(uint8_t rhport);
+#endif
+
+#if MODE_HOST_SUPPORTED
+extern void hcd_int_disable(uint8_t rhport);
+extern void hcd_int_enable(uint8_t rhport);
+#endif
+
 typedef struct
 {
     uint8_t role; // device or host
@@ -148,12 +159,10 @@ typedef osal_queue_def_t* osal_queue_t;
 static inline void _osal_q_lock(osal_queue_t qhdl)
 {
 #if TUSB_OPT_DEVICE_ENABLED
-  extern void dcd_int_disable(uint8_t rhport);
   if (qhdl->role == OPT_MODE_DEVICE) dcd_int_disable(TUD_OPT_RHPORT);
 #endif
 
 #if MODE_HOST_SUPPORTED
-  extern void hcd_int_disable(uint8_t rhport);
   if (qhdl->role == OPT_MODE_HOST) hcd_int_disable(TUH_OPT_RHPORT);
 #endif
 }
@@ -162,12 +171,10 @@ static inline void _osal_q_lock(osal_queue_t qhdl)
 static inline void _osal_q_unlock(osal_queue_t qhdl)
 {
 #if TUSB_OPT_DEVICE_ENABLED
-  extern void dcd_int_enable(uint8_t rhport);
   if (qhdl->role == OPT_MODE_DEVICE) dcd_int_enable(TUD_OPT_RHPORT);
 #endif
 
 #if MODE_HOST_SUPPORTED
-  extern void hcd_int_enable(uint8_t rhport);
   if (qhdl->role == OPT_MODE_HOST) hcd_int_enable(TUH_OPT_RHPORT);
 #endif
 }
