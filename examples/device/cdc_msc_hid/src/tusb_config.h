@@ -99,9 +99,9 @@
 // #define CFG_TUD_DESC_VID          0xCAFE
 // #define CFG_TUD_DESC_PID          0x0001
 
-// LPC175x_6x's endpoint type (bulk/interrupt/iso) are fixed by its number
+// LPC 17xx and 40xx endpoint type (bulk/interrupt/iso) are fixed by its number
 // Therefor we need to force endpoint number to correct type on lpc17xx
-#if CFG_TUSB_MCU == OPT_MCU_LPC175X_6X
+#if CFG_TUSB_MCU == OPT_MCU_LPC175X_6X || CFG_TUSB_MCU == OPT_MCU_LPC177X_8X || CFG_TUSB_MCU == OPT_MCU_LPC40XX
 #define CFG_TUD_DESC_CDC_EPNUM_NOTIF      1
 #define CFG_TUD_DESC_CDC_EPNUM            2
 #define CFG_TUD_DESC_MSC_EPNUM            5

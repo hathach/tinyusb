@@ -59,30 +59,6 @@ void tusb_hal_int_disable(uint8_t rhport)
 //--------------------------------------------------------------------+
 bool tusb_hal_init(void)
 {
-  enum {
-    USBCLK_DEVCIE = 0x12,     // AHB + Device
-    USBCLK_HOST   = 0x19,     // AHB + Host + OTG (!)
-  };
-
-  Chip_USB_Init();
-
-#if MODE_HOST_SUPPORTED
-  // TODO move pin config to BSP
-  PINSEL_ConfigPin( &(PINSEL_CFG_Type) { .Portnum = 1, .Pinnum = 22, .Funcnum = 2} ); // P1.22 as USB_PWRD
-  PINSEL_ConfigPin( &(PINSEL_CFG_Type) { .Portnum = 1, .Pinnum = 19, .Funcnum = 2} ); // P1.19 as USB_PPWR
-
-  // Enable host
-  LPC_USB->USBClkCtrl = USBCLK_HOST;
-  while ((LPC_USB->USBClkSt & USBCLK_HOST) != USBCLK_HOST);
-  LPC_USB->OTGClkSt = 0x3;
-#endif
-
-#if TUSB_OPT_DEVICE_ENABLED
-  // Enable Device
-  LPC_USB->USBClkCtrl = USBCLK_DEVCIE;
-  while ((LPC_USB->USBClkSt & USBCLK_DEVCIE) != USBCLK_DEVCIE);
-#endif
-
   return true;
 }
 

@@ -40,6 +40,7 @@
 #ifdef BOARD_LPCXPRESSO1769
 
 #include "../board.h"
+#include "tusb.h"
 
 #define LED_PORT      0
 #define LED_PIN       22
@@ -63,11 +64,19 @@ static const PINMUX_GRP_T pinmuxing[] =
   {2, 4,  IOCON_MODE_INACT | IOCON_FUNC0},	/* JOYSTICK_LEFT */
   {0, 16, IOCON_MODE_INACT | IOCON_FUNC0},	/* JOYSTICK_RIGHT */
   {0, 17, IOCON_MODE_INACT | IOCON_FUNC0},	/* JOYSTICK_PRESS */
+};
 
-  // USB
+static const PINMUX_GRP_T pin_usb_mux[] =
+{
   {0, 29, IOCON_MODE_INACT | IOCON_FUNC1}, // D+
   {0, 30, IOCON_MODE_INACT | IOCON_FUNC1}, // D-
   {2,  9, IOCON_MODE_INACT | IOCON_FUNC1}, // Connect
+
+  {1, 19, IOCON_MODE_INACT | IOCON_FUNC2}, // USB_PPWR
+  {1, 22, IOCON_MODE_INACT | IOCON_FUNC2}, // USB_PWRD
+
+	/* VBUS is not connected on this board, so leave the pin at default setting. */
+	/*Chip_IOCON_PinMux(LPC_IOCON, 1, 30, IOCON_MODE_INACT, IOCON_FUNC2);*/ /* USB VBUS */
 };
 
 enum {
@@ -101,18 +110,6 @@ void board_init(void)
   //------------- BUTTON -------------//
 //  for(uint8_t i=0; i<BOARD_BUTTON_COUNT; i++) GPIO_SetDir(buttons[i].port, BIT_(buttons[i].pin), 0);
 
-#if TUSB_OPT_DEVICE_ENABLED
-  //------------- USB Device -------------//
-  // VBUS sense is wrongly connected to P0_5 (instead of P1_30). So we need to always pull P1_30 to high
-  // so that USB device block can work. However, Device Controller (thus tinyusb) cannot able to determine
-  // if device is disconnected or not
-  PINSEL_ConfigPin( &(PINSEL_CFG_Type) {
-      .Portnum = 1, .Pinnum = 30,
-      .Funcnum = 2, .Pinmode = PINSEL_PINMODE_PULLUP} );
-
-  //P0_21 instead of P2_9 as USB connect
-#endif
-
 #if 0
   //------------- UART -------------//
   PINSEL_CFG_Type PinCfg =
@@ -137,8 +134,26 @@ void board_init(void)
 	UART_TxCmd(BOARD_UART_PORT, ENABLE); // Enable UART Transmit
 #endif
 
-	/* VBUS is not connected on the NXP LPCXpresso LPC1769, so leave the pin at default setting. */
-	/*Chip_IOCON_PinMux(LPC_IOCON, 1, 30, IOCON_MODE_INACT, IOCON_FUNC2);*/ /* USB VBUS */
+	//------------- USB -------------//
+	Chip_USB_Init();
+
+  enum {
+    USBCLK_DEVCIE = 0x12,     // AHB + Device
+    USBCLK_HOST   = 0x19,     // AHB + Host + OTG
+//    0x1B // Host + Device + OTG + AHB
+  };
+
+  uint32_t const clk_en = TUSB_OPT_DEVICE_ENABLED ? USBCLK_DEVCIE : USBCLK_HOST;
+
+  LPC_USB->OTGClkCtrl = clk_en;
+  while ( (LPC_USB->OTGClkSt & clk_en) != clk_en );
+
+#if MODE_HOST_SUPPORTED
+  // set portfunc to host !!!
+  LPC_USB->StCtrl = 0x3; // should be 1
+#endif
+
+  Chip_IOCON_SetPinMuxing(LPC_IOCON, pin_usb_mux, sizeof(pin_usb_mux) / sizeof(PINMUX_GRP_T));
 }
 
 /*------------------------------------------------------------------*/

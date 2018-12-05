@@ -103,7 +103,7 @@ typedef struct
 
 } dcd_data_t;
 
-ATTR_ALIGNED(128) static dcd_data_t _dcd;
+CFG_TUSB_MEM_SECTION ATTR_ALIGNED(128) static dcd_data_t _dcd;
 
 
 //--------------------------------------------------------------------+
