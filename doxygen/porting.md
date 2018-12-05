@@ -79,7 +79,6 @@ After the USB device is setup, the USB device code works by processing events on
 All of the code for the low-level device API is in `src/portable/<vendor>/<chip family>/dcd_<chip family>.c`.
 
 #### Device Setup
-`dcd_connect`, `dcd_disconnect` and `dcd_set_config` are not currently used and can be left empty.
 
 ##### dcd_init
 Initializes the USB peripheral for device mode and enables it.
@@ -88,6 +87,9 @@ Initializes the USB peripheral for device mode and enables it.
 Called when the device is given a new bus address.
 
 If your peripheral automatically changes address during enumeration (like the nrf52) you may leave this empty and also no queue an event for the corresponding SETUP packet.
+
+##### dcd_set_config
+Called when the device received SET_CONFIG request, you can leave this empty if your peripheral does not require any specific action.
 
 #### Special events
 You must let TinyUSB know when certain events occur so that it can continue its work. There are a few methods you can call to queue events for TinyUSB to process.

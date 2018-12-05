@@ -92,11 +92,6 @@ static dcd_data_t* const dcd_data_ptr[2] =
 //--------------------------------------------------------------------+
 // CONTROLLER API
 //--------------------------------------------------------------------+
-void dcd_connect(uint8_t rhport)
-{
-  LPC_USB[rhport]->USBCMD_D |= BIT_(0);
-}
-
 void dcd_set_address(uint8_t rhport, uint8_t dev_addr)
 {
   LPC_USB[rhport]->DEVICEADDR = (dev_addr << 25) | BIT_(24);
