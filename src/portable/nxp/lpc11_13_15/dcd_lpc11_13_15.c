@@ -139,22 +139,16 @@ static inline uint8_t ep_addr2id(uint8_t endpoint_addr)
 //--------------------------------------------------------------------+
 // CONTROLLER API
 //--------------------------------------------------------------------+
-void tusb_hal_int_enable(uint8_t rhport)
+void dcd_int_enable(uint8_t rhport)
 {
-  (void) rhport; // discard compiler's warning
+  (void) rhport;
   NVIC_EnableIRQ(USB0_IRQn);
 }
 
-void tusb_hal_int_disable(uint8_t rhport)
+void dcd_int_disable(uint8_t rhport)
 {
-  (void) rhport; // discard compiler's warning
+  (void) rhport;
   NVIC_DisableIRQ(USB0_IRQn);
-}
-
-bool tusb_hal_init(void)
-{
-  // TODO remove
-  return true;
 }
 
 void dcd_set_config(uint8_t rhport, uint8_t config_num)

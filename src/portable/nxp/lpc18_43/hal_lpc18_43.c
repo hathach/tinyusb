@@ -42,21 +42,6 @@
 
 #include "chip.h"
 
-void tusb_hal_int_enable(uint8_t rhport)
-{
-  NVIC_EnableIRQ(rhport ? USB1_IRQn : USB0_IRQn);
-}
-
-void tusb_hal_int_disable(uint8_t rhport)
-{
-  NVIC_DisableIRQ(rhport ? USB1_IRQn : USB0_IRQn);
-}
-
-bool tusb_hal_init(void)
-{
-  return true;
-}
-
 void hal_dcd_isr(uint8_t rhport);
 
 #if CFG_TUSB_RHPORT0_MODE

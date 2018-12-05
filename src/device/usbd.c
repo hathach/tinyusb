@@ -190,22 +190,25 @@ bool tud_mounted(void)
 //--------------------------------------------------------------------+
 tusb_error_t usbd_init (void)
 {
-  #if (CFG_TUSB_RHPORT0_MODE & OPT_MODE_DEVICE)
-  dcd_init(0);
-  #endif
-
-  #if (CFG_TUSB_RHPORT1_MODE & OPT_MODE_DEVICE)
-  dcd_init(1);
-  #endif
-
-  //------------- Task init -------------//
+  // Init device queue & task
   _usbd_q = osal_queue_create(&_usbd_qdef);
   TU_VERIFY(_usbd_q, TUSB_ERROR_OSAL_QUEUE_FAILED);
 
   osal_task_create(&_usbd_task_def);
 
-  //------------- class init -------------//
+  // Init class drivers
   for (uint8_t i = 0; i < USBD_CLASS_DRIVER_COUNT; i++) usbd_class_drivers[i].init();
+
+  // Init device controller driver
+  #if (CFG_TUSB_RHPORT0_MODE & OPT_MODE_DEVICE)
+  dcd_init(0);
+  dcd_int_enable(0);
+  #endif
+
+  #if (CFG_TUSB_RHPORT1_MODE & OPT_MODE_DEVICE)
+  dcd_init(1);
+  dcd_int_enable(1);
+  #endif
 
   return TUSB_ERROR_NONE;
 }

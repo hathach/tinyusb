@@ -59,19 +59,6 @@ The OPT_OS_NONE option is the only option which requires an MCU specific functio
 
 `tusb_hal_millis` is also provided in `hw/bsp/<board name>/board_<board name>.c` because it may vary with MCU use.
 
-### Hardware Abstraction Layer (HAL)
-The hardware abstraction layer is a minimal set of abstractions used in both Device and Host USB modes.
-
-The HAL implementations are located in `src/portable/<vendor>/<chip family>/hal_<chip family>.c`.
-
-#### tusb_hal_init
-
-The HAL init is responsible for configuring common settings of USB peripheral such as pad calibration.
-
-#### tusb_hal_int_enable / tusb_hal_int_disable
-
-Enables or disables the USB interrupt(s). May be used to prevent concurrency issues when mutating data structures shared between main code and the interrupt handler.
-
 ### Device API
 
 After the USB device is setup, the USB device code works by processing events on the main thread (by calling `tusb_task`). These events are queued by the USB interrupt handler. So, there are three parts to the device low-level API: device setup, endpoint setup and interrupt processing.
@@ -82,6 +69,10 @@ All of the code for the low-level device API is in `src/portable/<vendor>/<chip 
 
 ##### dcd_init
 Initializes the USB peripheral for device mode and enables it.
+
+#### dcd_int_enable / dcd_int_disable
+
+Enables or disables the USB device interrupt(s). May be used to prevent concurrency issues when mutating data structures shared between main code and the interrupt handler.
 
 ##### dcd_set_address
 Called when the device is given a new bus address.

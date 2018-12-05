@@ -158,10 +158,17 @@ bool dcd_init(uint8_t rhport)
   lpc_usb->USBCMD_D &= ~0x00FF0000; // Interrupt Threshold Interval = 0
   lpc_usb->USBCMD_D |= BIT_(0); // connect
 
-  // enable interrupt
-  NVIC_EnableIRQ(rhport ? USB1_IRQn : USB0_IRQn);
-
   return true;
+}
+
+void dcd_int_enable(uint8_t rhport)
+{
+  NVIC_EnableIRQ(rhport ? USB1_IRQn : USB0_IRQn);
+}
+
+void dcd_int_disable(uint8_t rhport)
+{
+  NVIC_DisableIRQ(rhport ? USB1_IRQn : USB0_IRQn);
 }
 
 //--------------------------------------------------------------------+

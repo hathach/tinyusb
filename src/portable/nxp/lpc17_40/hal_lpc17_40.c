@@ -42,26 +42,6 @@
 
 #include "chip.h"
 
-void tusb_hal_int_enable(uint8_t rhport)
-{
-  (void) rhport;
-  NVIC_EnableIRQ(USB_IRQn);
-}
-
-void tusb_hal_int_disable(uint8_t rhport)
-{
-  (void) rhport;
-  NVIC_DisableIRQ(USB_IRQn);
-}
-
-//--------------------------------------------------------------------+
-// IMPLEMENTATION
-//--------------------------------------------------------------------+
-bool tusb_hal_init(void)
-{
-  return true;
-}
-
 void USB_IRQHandler(void)
 {
   extern void hal_dcd_isr(uint8_t rhport);

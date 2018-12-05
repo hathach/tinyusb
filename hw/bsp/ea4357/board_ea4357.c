@@ -188,6 +188,7 @@ void board_init(void)
 
   // Reset controller
   LPC_USB0->USBCMD_D |= 0x02;
+  while( LPC_USB0->USBCMD_D & 0x02 ) {}
 
   // Set mode
   #if CFG_TUSB_RHPORT0_MODE & OPT_MODE_HOST
@@ -204,6 +205,7 @@ void board_init(void)
 
   // Reset controller
   LPC_USB1->USBCMD_D |= 0x02;
+  while( LPC_USB1->USBCMD_D & 0x02 ) {}
 
   // Set mode
   #if CFG_TUSB_RHPORT1_MODE & OPT_MODE_HOST
