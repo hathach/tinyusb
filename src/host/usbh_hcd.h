@@ -91,7 +91,10 @@ typedef struct {
 //    uint8_t xferred_bytes; TODO not yet necessary
     tusb_control_request_t request;
 
+    osal_semaphore_def_t sem_def;
     osal_semaphore_t sem_hdl;  // used to synchronize with HCD when control xfer complete
+
+    osal_mutex_def_t mutex_def;
     osal_mutex_t mutex_hdl;    // used to exclusively occupy control pipe
   } control;
 } usbh_device_info_t;

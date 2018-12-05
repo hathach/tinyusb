@@ -298,7 +298,7 @@ static void usbd_task_body(void)
 
 /* USB device task
  * Thread that handles all device events. With an real RTOS, the task must be a forever loop and never return.
- * For codign convenience with no RTOS, we use wrapped sub-function for processing to easily return at any time.
+ * For coding convenience with no RTOS, we use wrapped sub-function for processing to easily return at any time.
  */
 void usbd_task( void* param)
 {

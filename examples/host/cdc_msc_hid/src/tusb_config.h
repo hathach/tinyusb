@@ -56,7 +56,7 @@
 #endif
 
 #if CFG_TUSB_MCU == OPT_MCU_LPC43XX || CFG_TUSB_MCU == OPT_MCU_LPC18XX
-#define CFG_TUSB_RHPORT0_MODE       (OPT_MODE_NONE | OPT_MODE_HIGH_SPEED)
+#define CFG_TUSB_RHPORT0_MODE       (OPT_MODE_HOST | OPT_MODE_HIGH_SPEED)
 #else
 #define CFG_TUSB_RHPORT0_MODE       OPT_MODE_DEVICE
 #endif
@@ -82,32 +82,15 @@
 //--------------------------------------------------------------------
 // DEVICE CONFIGURATION
 //--------------------------------------------------------------------
-#define CFG_TUD_ENDOINT0_SIZE       64
 
-/*------------- Descriptors -------------*/
+#define CFG_TUSB_HOST_HUB               0
+#define CFG_TUSB_HOST_HID_KEYBOARD      0
+#define CFG_TUSB_HOST_HID_MOUSE         0
+#define CFG_TUSB_HOST_HID_GENERIC       0 // (not yet supported)
+#define CFG_TUSB_HOST_MSC               0
+#define CFG_TUSB_HOST_CDC               0
 
-/* Enable auto generated descriptor, tinyusb will try its best to create
- * descriptor ( device, configuration, hid ) that matches enabled CFG_* in this file
- *
- * Note: All CFG_TUD_DESC_* are relevant only if CFG_TUD_DESC_AUTO is enabled
- */
-#define CFG_TUD_DESC_AUTO           1
-
-/* If USB VID/PID is not defined, tinyusb will use default value
- * Note: different class combination e.g CDC and (CDC + MSC) should have different
- * PID since Host OS will "remembered" device driver after the first plug */
-// #define CFG_TUD_DESC_VID          0xCAFE
-// #define CFG_TUD_DESC_PID          0x0001
-
-// LPC 17xx and 40xx endpoint type (bulk/interrupt/iso) are fixed by its number
-// Therefor we need to force endpoint number to correct type on lpc17xx
-#if CFG_TUSB_MCU == OPT_MCU_LPC175X_6X || CFG_TUSB_MCU == OPT_MCU_LPC177X_8X || CFG_TUSB_MCU == OPT_MCU_LPC40XX
-#define CFG_TUD_DESC_CDC_EPNUM_NOTIF      1
-#define CFG_TUD_DESC_CDC_EPNUM            2
-#define CFG_TUD_DESC_MSC_EPNUM            5
-#define CFG_TUD_DESC_HID_KEYBOARD_EPNUM   4
-#define CFG_TUD_DESC_HID_MOUSE_EPNUM      7
-#endif
+#define CFG_TUSB_HOST_DEVICE_MAX        (CFG_TUSB_HOST_HUB ? 5 : 1) // normal hub has 4 ports
 
 //------------- CLASS -------------//
 #define CFG_TUD_CDC                 0

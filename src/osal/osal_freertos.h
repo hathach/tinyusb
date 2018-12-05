@@ -107,10 +107,10 @@ static inline bool osal_semaphore_post(osal_semaphore_t sem_hdl, bool in_isr)
   return in_isr ?  xSemaphoreGiveFromISR(sem_hdl, NULL) : xSemaphoreGive(sem_hdl);
 }
 
-static inline void osal_semaphore_wait(osal_semaphore_t sem_hdl, uint32_t msec, uint32_t *err)
+static inline tusb_error_t osal_semaphore_wait(osal_semaphore_t sem_hdl, uint32_t msec)
 {
   uint32_t const ticks = (msec == OSAL_TIMEOUT_WAIT_FOREVER) ? portMAX_DELAY : pdMS_TO_TICKS(msec);
-  (*err) = (xSemaphoreTake(sem_hdl, ticks) ? TUSB_ERROR_NONE : TUSB_ERROR_OSAL_TIMEOUT);
+  return (xSemaphoreTake(sem_hdl, ticks) ? TUSB_ERROR_NONE : TUSB_ERROR_OSAL_TIMEOUT);
 }
 
 static inline void osal_semaphore_reset(osal_semaphore_t const sem_hdl)

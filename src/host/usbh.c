@@ -42,9 +42,18 @@
 
 #define _TINY_USB_SOURCE_FILE_
 
-#ifndef CFG_TUD_TASK_PRIO
-#define CFG_TUD_TASK_PRIO 0
+#ifndef CFG_TUH_TASK_QUEUE_SZ
+#define CFG_TUH_TASK_QUEUE_SZ   16
 #endif
+
+#ifndef CFG_TUH_TASK_STACK_SZ
+#define CFG_TUH_TASK_STACK_SZ 200
+#endif
+
+#ifndef CFG_TUH_TASK_PRIO
+#define CFG_TUH_TASK_PRIO 0
+#endif
+
 
 //--------------------------------------------------------------------+
 // INCLUDE
@@ -111,10 +120,13 @@ enum { USBH_CLASS_DRIVER_COUNT = sizeof(usbh_class_drivers) / sizeof(host_class_
 //--------------------------------------------------------------------+
 CFG_TUSB_MEM_SECTION usbh_device_info_t usbh_devices[CFG_TUSB_HOST_DEVICE_MAX+1]; // including zero-address
 
-//------------- Enumeration Task Data -------------/
-enum { ENUM_QUEUE_DEPTH = 16 };
+OSAL_TASK_DEF(_usbh_task_def, "usbh", usbh_task, CFG_TUH_TASK_PRIO, CFG_TUH_TASK_STACK_SZ);
 
-STATIC_VAR osal_queue_t enum_queue_hdl;
+// Event queue
+// role device/host is used by OS NONE for mutex (disable usb isr) only
+OSAL_QUEUE_DEF(OPT_MODE_HOST, _usbh_qdef, CFG_TUH_TASK_QUEUE_SZ, uint32_t);
+static osal_queue_t _usbh_q;
+
 CFG_TUSB_MEM_SECTION ATTR_ALIGNED(4) STATIC_VAR uint8_t enum_data_buffer[CFG_TUSB_HOST_ENUM_BUFFER_SIZE];
 
 //------------- Reporter Task Data -------------//
@@ -144,23 +156,21 @@ tusb_error_t usbh_init(void)
 {
   tu_memclr(usbh_devices, sizeof(usbh_device_info_t)*(CFG_TUSB_HOST_DEVICE_MAX+1));
 
-  TU_ASSERT_ERR( hcd_init() );
-
   //------------- Enumeration & Reporter Task init -------------//
-  enum_queue_hdl = osal_queue_create( ENUM_QUEUE_DEPTH, sizeof(uint32_t) );
-  TU_ASSERT(enum_queue_hdl, TUSB_ERROR_OSAL_QUEUE_FAILED);
+  _usbh_q = osal_queue_create( &_usbh_qdef );
+  TU_ASSERT(_usbh_q, TUSB_ERROR_OSAL_QUEUE_FAILED);
 
-  osal_task_create(usbh_enumeration_task, "usbh", 200, NULL, CFG_TUD_TASK_PRIO);
+  osal_task_create(&_usbh_task_def);
 
   //------------- Semaphore, Mutex for Control Pipe -------------//
   for(uint8_t i=0; i<CFG_TUSB_HOST_DEVICE_MAX+1; i++) // including address zero
   {
     usbh_device_info_t * const p_device = &usbh_devices[i];
 
-    p_device->control.sem_hdl = osal_semaphore_create(1, 0);
+    p_device->control.sem_hdl = osal_semaphore_create(&p_device->control.sem_def);
     TU_ASSERT(p_device->control.sem_hdl, TUSB_ERROR_OSAL_SEMAPHORE_FAILED);
 
-    p_device->control.mutex_hdl = osal_mutex_create();
+    p_device->control.mutex_hdl = osal_mutex_create(&p_device->control.mutex_def);
     TU_ASSERT(p_device->control.mutex_hdl, TUSB_ERROR_OSAL_MUTEX_FAILED);
   }
 
@@ -173,6 +183,8 @@ tusb_error_t usbh_init(void)
     }
   }
 
+  TU_ASSERT_ERR( hcd_init() );
+
   return TUSB_ERROR_NONE;
 }
 
@@ -181,12 +193,13 @@ tusb_error_t usbh_init(void)
 tusb_error_t usbh_control_xfer_subtask(uint8_t dev_addr, uint8_t bmRequestType, uint8_t bRequest,
                                        uint16_t wValue, uint16_t wIndex, uint16_t wLength, uint8_t* data)
 {
-  static tusb_error_t error; // FIXME [CMSIS-RTX] use svc for OS API, error value changed after mutex release at the end of function
+  // FIXME [CMSIS-RTX] use svc for OS API, error value changed after mutex release at the end of function
+  static tusb_error_t error;
 
-  OSAL_SUBTASK_BEGIN
+//  OSAL_SUBTASK_BEGIN
 
-  osal_mutex_wait(usbh_devices[dev_addr].control.mutex_hdl, OSAL_TIMEOUT_NORMAL, &error);
-  STASK_ASSERT_ERR_HDLR(error, osal_mutex_release(usbh_devices[dev_addr].control.mutex_hdl));
+  error = osal_mutex_lock(usbh_devices[dev_addr].control.mutex_hdl, OSAL_TIMEOUT_NORMAL);
+  STASK_ASSERT_ERR_HDLR(error, osal_mutex_unlock(usbh_devices[dev_addr].control.mutex_hdl));
 
   usbh_devices[dev_addr].control.request = (tusb_control_request_t) {
                                                   {.bmRequestType = bmRequestType},
@@ -195,16 +208,11 @@ tusb_error_t usbh_control_xfer_subtask(uint8_t dev_addr, uint8_t bmRequestType, 
                                                   .wIndex        = wIndex,
                                                   .wLength       = wLength
                                            };
-
-#ifndef _TEST_
   usbh_devices[dev_addr].control.pipe_status = 0;
-#else
-  usbh_devices[dev_addr].control.pipe_status = XFER_RESULT_SUCCESS; // in Test project, mark as complete immediately
-#endif
 
   error = hcd_pipe_control_xfer(dev_addr, &usbh_devices[dev_addr].control.request, data);
-  if ( TUSB_ERROR_NONE == error ) osal_semaphore_wait(usbh_devices[dev_addr].control.sem_hdl, OSAL_TIMEOUT_NORMAL, &error);
-  osal_mutex_release(usbh_devices[dev_addr].control.mutex_hdl);
+  if ( TUSB_ERROR_NONE == error ) error = osal_semaphore_wait(usbh_devices[dev_addr].control.sem_hdl, OSAL_TIMEOUT_NORMAL);
+  osal_mutex_unlock(usbh_devices[dev_addr].control.mutex_hdl);
 
   STASK_ASSERT_ERR(error);
   if (XFER_RESULT_STALLED == usbh_devices[dev_addr].control.pipe_status) STASK_RETURN(TUSB_ERROR_USBH_XFER_STALLED);
@@ -214,10 +222,9 @@ tusb_error_t usbh_control_xfer_subtask(uint8_t dev_addr, uint8_t bmRequestType, 
 //                              XFER_RESULT_SUCCESS == usbh_devices[dev_addr].control.pipe_status,
 //                              tuh_device_mount_failed_cb(TUSB_ERROR_USBH_MOUNT_DEVICE_NOT_RESPOND, NULL) );
 
-  OSAL_SUBTASK_END
+//  OSAL_SUBTASK_END
 }
 
-tusb_error_t usbh_pipe_control_open(uint8_t dev_addr, uint8_t max_packet_size) ATTR_ALWAYS_INLINE;
 tusb_error_t usbh_pipe_control_open(uint8_t dev_addr, uint8_t max_packet_size)
 {
   osal_semaphore_reset( usbh_devices[dev_addr].control.sem_hdl );
@@ -228,7 +235,6 @@ tusb_error_t usbh_pipe_control_open(uint8_t dev_addr, uint8_t max_packet_size)
   return TUSB_ERROR_NONE;
 }
 
-static inline tusb_error_t usbh_pipe_control_close(uint8_t dev_addr) ATTR_ALWAYS_INLINE;
 static inline tusb_error_t usbh_pipe_control_close(uint8_t dev_addr)
 {
   TU_ASSERT_ERR( hcd_pipe_control_close(dev_addr) );
@@ -263,13 +269,13 @@ void usbh_xfer_isr(pipe_handle_t pipe_hdl, uint8_t class_code, xfer_result_t eve
   {
     usbh_devices[ pipe_hdl.dev_addr ].control.pipe_status   = event;
 //    usbh_devices[ pipe_hdl.dev_addr ].control.xferred_bytes = xferred_bytes; not yet neccessary
-    osal_semaphore_post( usbh_devices[ pipe_hdl.dev_addr ].control.sem_hdl );
+    osal_semaphore_post( usbh_devices[ pipe_hdl.dev_addr ].control.sem_hdl, true );
   }else if (usbh_class_drivers[class_index].isr)
   {
     usbh_class_drivers[class_index].isr(pipe_hdl, event, xferred_bytes);
   }else
   {
-    TU_ASSERT(false); // something wrong, no one claims the isr's source
+    TU_ASSERT(false, ); // something wrong, no one claims the isr's source
   }
 }
 
@@ -282,7 +288,7 @@ void usbh_hub_port_plugged_isr(uint8_t hub_addr, uint8_t hub_port)
       .hub_port = hub_port
   };
 
-  osal_queue_send(enum_queue_hdl, &enum_entry);
+  osal_queue_send(_usbh_q, &enum_entry, true);
 }
 
 void usbh_hcd_rhport_plugged_isr(uint8_t hostid)
@@ -294,7 +300,7 @@ void usbh_hcd_rhport_plugged_isr(uint8_t hostid)
       .hub_port = 0
   };
 
-  osal_queue_send(enum_queue_hdl, &enum_entry);
+  osal_queue_send(_usbh_q, &enum_entry, true);
 }
 
 // a device unplugged on hostid, hub_addr, hub_port
@@ -346,33 +352,13 @@ void usbh_hcd_rhport_unplugged_isr(uint8_t hostid)
       .hub_port = 0
   };
 
-  osal_queue_send(enum_queue_hdl, &enum_entry);
+  osal_queue_send(_usbh_q, &enum_entry, true);
 }
 
 //--------------------------------------------------------------------+
 // ENUMERATION TASK
 //--------------------------------------------------------------------+
-static tusb_error_t enumeration_body_subtask(void);
-
-// To enable the TASK_ASSERT style (quick return on false condition) in a real RTOS, a task must act as a wrapper
-// and is used mainly to call subtasks. Within a subtask return statement can be called freely, the task with
-// forever loop cannot have any return at all.
-void usbh_enumeration_task(void* param)
-{
-  (void) param;
-
-#if CFG_TUSB_OS != OPT_OS_NONE
-  while (1) {
-#endif
-
-  enumeration_body_subtask();
-
-#if CFG_TUSB_OS != OPT_OS_NONE
-  }
-#endif
-}
-
-tusb_error_t enumeration_body_subtask(void)
+tusb_error_t usbh_task_body(void)
 {
   enum {
     POWER_STABLE_DELAY = 500,
@@ -387,10 +373,9 @@ tusb_error_t enumeration_body_subtask(void)
   static uint8_t configure_selected = 1; // TODO move
   static uint8_t *p_desc = NULL; // TODO move
 
-  OSAL_SUBTASK_BEGIN
+//  OSAL_SUBTASK_BEGIN
 
-  osal_queue_receive(enum_queue_hdl, &enum_entry, OSAL_TIMEOUT_WAIT_FOREVER, &error);
-  STASK_ASSERT_ERR(error);
+  if ( !osal_queue_receive(_usbh_q, &enum_entry) ) return;
 
   usbh_devices[0].core_id  = enum_entry.core_id; // TODO refractor integrate to device_pool
   usbh_devices[0].hub_addr = enum_entry.hub_addr;
@@ -617,7 +602,27 @@ tusb_error_t enumeration_body_subtask(void)
 
   tuh_device_mount_succeed_cb(new_addr);
 
-  OSAL_SUBTASK_END
+//  OSAL_SUBTASK_END
+}
+
+
+/* USB Host task
+ * Thread that handles all device events. With an real RTOS, the task must be a forever loop and never return.
+ * For coding convenience with no RTOS, we use wrapped sub-function for processing to easily return at any time.
+ */
+void usbh_task(void* param)
+{
+  (void) param;
+
+#if CFG_TUSB_OS != OPT_OS_NONE
+  while (1) {
+#endif
+
+  usbh_task_body();
+
+#if CFG_TUSB_OS != OPT_OS_NONE
+  }
+#endif
 }
 
 //--------------------------------------------------------------------+

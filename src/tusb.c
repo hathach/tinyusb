@@ -39,13 +39,16 @@
 #include "tusb_option.h"
 
 #if TUSB_OPT_HOST_ENABLED || TUSB_OPT_DEVICE_ENABLED
-
 #define _TINY_USB_SOURCE_FILE_
 
 #include "tusb.h"
-#include "device/usbd_pvt.h"
 
 static bool _initialized = false;
+
+// TODO clean up
+#if TUSB_OPT_DEVICE_ENABLED
+#include "device/usbd_pvt.h"
+#endif
 
 bool tusb_init(void)
 {
@@ -69,7 +72,7 @@ bool tusb_init(void)
 void tusb_task(void)
 {
   #if MODE_HOST_SUPPORTED
-  usbh_enumeration_task(NULL);
+  usbh_task(NULL);
   #endif
 
   #if TUSB_OPT_DEVICE_ENABLED
