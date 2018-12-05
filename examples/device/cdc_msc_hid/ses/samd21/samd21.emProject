@@ -22,6 +22,7 @@
       c_user_include_directories="../../src;$(rootDir)/hw/cmsis/Include;$(rootDir)/hw;$(rootDir)/src;$(asf4Dir);$(asf4Dir)/include;$(asf4Dir)/config;$(asf4Dir)/hri;$(asf4Dir)/hal/include;$(asf4Dir)/hal/utils/include;$(asf4Dir)/hpl/port;$(asf4Dir)/hpl/gclk;$(asf4Dir)/hpl/pm"
       debug_register_definition_file="ATSAMD21G18A_Registers.xml"
       debug_target_connection="J-Link"
+      gcc_enable_all_warnings="Yes"
       gcc_entry_point="Reset_Handler"
       link_use_linker_script_file="No"
       linker_memory_map_file="$(ProjectDir)/ATSAMD21G18A_MemoryMap.xml"

@@ -55,38 +55,6 @@ extern "C" {
 // Only required to implement if using No RTOS (osal_none)
 uint32_t tusb_hal_millis(void);
 
-// TODO remove
-extern void dcd_int_enable (uint8_t rhport);
-extern void dcd_int_disable(uint8_t rhport);
-
-// Enable all ports' interrupt
-// TODO remove
-static inline void tusb_hal_int_enable_all(void)
-{
-#ifdef CFG_TUSB_RHPORT0_MODE
-  dcd_int_enable(0);
-#endif
-
-#ifdef CFG_TUSB_RHPORT0_MODE
-  dcd_int_enable(1);
-#endif
-}
-
-// Disable all ports' interrupt
-// TODO remove
-static inline void tusb_hal_int_disable_all(void)
-{
-#ifdef CFG_TUSB_RHPORT0_MODE
-  dcd_int_disable(0);
-#endif
-
-#ifdef CFG_TUSB_RHPORT0_MODE
-  dcd_int_disable(1);
-#endif
-}
-
-
-
 #ifdef __cplusplus
  }
 #endif

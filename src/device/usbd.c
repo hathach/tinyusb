@@ -161,8 +161,9 @@ enum { USBD_CLASS_DRIVER_COUNT = sizeof(usbd_class_drivers) / sizeof(usbd_class_
 //--------------------------------------------------------------------+
 OSAL_TASK_DEF(_usbd_task_def, "usbd", usbd_task, CFG_TUD_TASK_PRIO, CFG_TUD_TASK_STACK_SZ);
 
-/*------------- event queue -------------*/
-OSAL_QUEUE_DEF(_usbd_qdef, CFG_TUD_TASK_QUEUE_SZ, dcd_event_t);
+// Event queue
+// role device/host is used by OS NONE for mutex (disable usb isr) only
+OSAL_QUEUE_DEF(OPT_MODE_DEVICE, _usbd_qdef, CFG_TUD_TASK_QUEUE_SZ, dcd_event_t);
 static osal_queue_t _usbd_q;
 
 //--------------------------------------------------------------------+
@@ -200,15 +201,8 @@ tusb_error_t usbd_init (void)
   for (uint8_t i = 0; i < USBD_CLASS_DRIVER_COUNT; i++) usbd_class_drivers[i].init();
 
   // Init device controller driver
-  #if (CFG_TUSB_RHPORT0_MODE & OPT_MODE_DEVICE)
-  dcd_init(0);
-  dcd_int_enable(0);
-  #endif
-
-  #if (CFG_TUSB_RHPORT1_MODE & OPT_MODE_DEVICE)
-  dcd_init(1);
-  dcd_int_enable(1);
-  #endif
+  dcd_init(TUD_OPT_RHPORT);
+  dcd_int_enable(TUD_OPT_RHPORT);
 
   return TUSB_ERROR_NONE;
 }
@@ -268,14 +262,14 @@ static void usbd_task_body(void)
       break;
 
       case DCD_EVENT_BUS_RESET:
-        // note: if task is too slow, we could clear the event of the new attached
         usbd_reset(event.rhport);
+        // TODO remove since if task is too slow, we could clear the event of the new attached
         osal_queue_reset(_usbd_q);
       break;
 
       case DCD_EVENT_UNPLUGGED:
-        // note: if task is too slow, we could clear the event of the new attached
         usbd_reset(event.rhport);
+        // TODO remove since if task is too slow, we could clear the event of the new attached
         osal_queue_reset(_usbd_q);
 
         tud_umount_cb();    // invoke callback
@@ -587,6 +581,11 @@ void dcd_event_handler(dcd_event_t const * event, bool in_isr)
       TU_ASSERT(event->xfer_complete.result == XFER_RESULT_SUCCESS,);
     break;
 
+    // Not an DCD event, just a convenient way to defer ISR function should we need
+    case USBD_EVT_FUNC_CALL:
+      osal_queue_send(_usbd_q, event, in_isr);
+    break;
+
     default: break;
   }
 }
@@ -622,6 +621,8 @@ void dcd_event_xfer_complete (uint8_t rhport, uint8_t ep_addr, uint32_t xferred_
 //--------------------------------------------------------------------+
 // Helper
 //--------------------------------------------------------------------+
+
+// Helper to parse an pair of endpoint descriptors (IN & OUT)
 tusb_error_t usbd_open_edpt_pair(uint8_t rhport, tusb_desc_endpoint_t const* p_desc_ep, uint8_t xfer_type, uint8_t* ep_out, uint8_t* ep_in)
 {
   for(int i=0; i<2; i++)
@@ -645,7 +646,8 @@ tusb_error_t usbd_open_edpt_pair(uint8_t rhport, tusb_desc_endpoint_t const* p_d
   return TUSB_ERROR_NONE;
 }
 
-void usbd_defer_func(osal_task_func_t func, void* param, bool in_isr )
+// Helper to defer an isr function
+void usbd_defer_func(osal_task_func_t func, void* param, bool in_isr)
 {
   dcd_event_t event =
   {
@@ -656,7 +658,7 @@ void usbd_defer_func(osal_task_func_t func, void* param, bool in_isr )
   event.func_call.func  = func;
   event.func_call.param = param;
 
-  osal_queue_send(_usbd_q, &event, in_isr);
+  dcd_event_handler(&event, in_isr);
 }
 
 #endif
