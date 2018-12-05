@@ -144,7 +144,7 @@ void cdch_init(void)
 
 tusb_error_t cdch_open_subtask(uint8_t dev_addr, tusb_desc_interface_t const *p_interface_desc, uint16_t *p_length)
 {
-  OSAL_SUBTASK_BEGIN
+  //OSAL_SUBTASK_BEGIN
   // TODO change following assert to subtask_assert
 
   if ( CDC_COMM_SUBCLASS_ABSTRACT_CONTROL_MODEL != p_interface_desc->bInterfaceSubClass) return TUSB_ERROR_CDC_UNSUPPORTED_SUBCLASS;
@@ -218,7 +218,7 @@ tusb_error_t cdch_open_subtask(uint8_t dev_addr, tusb_desc_interface_t const *p_
     tuh_cdc_mounted_cb(dev_addr);
   }
 
-  OSAL_SUBTASK_END
+  //OSAL_SUBTASK_END
 }
 
 void cdch_isr(pipe_handle_t pipe_hdl, xfer_result_t event, uint32_t xferred_bytes)

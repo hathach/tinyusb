@@ -96,15 +96,14 @@ static inline void osal_semaphore_reset(osal_semaphore_t sem_hdl)
   sem_hdl->count = 0;
 }
 
-static inline tusb_error_t osal_semaphore_wait(osal_semaphore_t sem_hdl, uint32_t msec) {
+static inline tusb_error_t osal_semaphore_wait(osal_semaphore_t sem_hdl, uint32_t msec)
+{
   (void) msec;
-  while (true) {
-    while (sem_hdl->count == 0) { }
-    if (sem_hdl->count == 0) {
-      sem_hdl->count--;
-      break;
-    }
-  }
+
+  // TODO blocking for now
+  while (sem_hdl->count == 0) { }
+  sem_hdl->count--;
+
   return TUSB_ERROR_NONE;
 }
 

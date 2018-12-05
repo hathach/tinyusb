@@ -66,7 +66,7 @@ int main(void)
 
     led_blinking_task();
 
-#if CFG_TUD_CDC
+#if CFG_TUSB_HOST_CDC
     virtual_com_task();
 #endif
 
@@ -81,7 +81,26 @@ int main(void)
 //--------------------------------------------------------------------+
 // USB CDC
 //--------------------------------------------------------------------+
-#if CFG_TUD_CDC
+#if CFG_TUSB_HOST_CDC
+
+void tuh_cdc_mounted_cb(uint8_t dev_addr)
+{
+  // application set-up
+  printf("\na CDC device  (address %d) is mounted\n", dev_addr);
+}
+
+void tuh_cdc_unmounted_cb(uint8_t dev_addr)
+{
+  // application tear-down
+  printf("\na CDC device (address %d) is unmounted \n", dev_addr);
+}
+
+// invoked ISR context
+void tuh_cdc_xfer_isr(uint8_t dev_addr, xfer_result_t event, cdc_pipeid_t pipe_id, uint32_t xferred_bytes)
+{
+
+}
+
 void virtual_com_task(void)
 {
 
