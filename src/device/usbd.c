@@ -189,11 +189,11 @@ bool tud_mounted(void)
 //--------------------------------------------------------------------+
 // USBD Task
 //--------------------------------------------------------------------+
-tusb_error_t usbd_init (void)
+bool usbd_init (void)
 {
   // Init device queue & task
   _usbd_q = osal_queue_create(&_usbd_qdef);
-  TU_VERIFY(_usbd_q, TUSB_ERROR_OSAL_QUEUE_FAILED);
+  TU_ASSERT(_usbd_q != NULL);
 
   osal_task_create(&_usbd_task_def);
 
@@ -201,10 +201,10 @@ tusb_error_t usbd_init (void)
   for (uint8_t i = 0; i < USBD_CLASS_DRIVER_COUNT; i++) usbd_class_drivers[i].init();
 
   // Init device controller driver
-  dcd_init(TUD_OPT_RHPORT);
+  TU_ASSERT(dcd_init(TUD_OPT_RHPORT));
   dcd_int_enable(TUD_OPT_RHPORT);
 
-  return TUSB_ERROR_NONE;
+  return true;
 }
 
 static void usbd_reset(uint8_t rhport)

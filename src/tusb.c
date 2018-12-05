@@ -47,17 +47,17 @@
 
 static bool _initialized = false;
 
-tusb_error_t tusb_init(void)
+bool tusb_init(void)
 {
   // skip if already initialized
-  if (_initialized) return TUSB_ERROR_NONE;
+  if (_initialized) return true;
 
 #if MODE_HOST_SUPPORTED
-  TU_ASSERT_ERR( usbh_init() ); // host stack init
+  TU_VERIFY( usbh_init() == TUSB_ERROR_NONE ); // init host stack
 #endif
 
 #if TUSB_OPT_DEVICE_ENABLED
-  TU_ASSERT_ERR ( usbd_init() ); // device stack init
+  TU_VERIFY ( usbd_init() ); // init device stack
 #endif
 
   _initialized = true;
