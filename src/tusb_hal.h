@@ -53,6 +53,7 @@ extern "C" {
 //--------------------------------------------------------------------+
 
 // Only required to implement if using No RTOS (osal_none)
+// TODO could be remove
 uint32_t tusb_hal_millis(void);
 
 #ifdef __cplusplus
