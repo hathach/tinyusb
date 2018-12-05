@@ -44,7 +44,7 @@
 // Some MCU doesn't have enough 8KB SRAM to store the whole disk
 // We will use Flash as read-only disk
 #if CFG_TUSB_MCU == OPT_MCU_LPC13XX
-#define DISK_READONLY   1
+#define DISK_READONLY
 #endif
 
 #define README_CONTENTS \
@@ -58,7 +58,7 @@ enum
   DISK_BLOCK_SIZE = 512
 };
 
-#if DISK_READONLY
+#ifdef DISK_READONLY
 const
 #endif
 static uint8_t msc_disk[DISK_BLOCK_NUM][DISK_BLOCK_SIZE] =
@@ -120,7 +120,7 @@ int32_t tud_msc_write10_cb(uint8_t lun, uint32_t lba, uint32_t offset, uint8_t* 
 {
   (void) lun;
 
-#if !DISK_READONLY
+#ifndef DISK_READONLY
   uint8_t* addr = msc_disk[lba] + offset;
   memcpy(addr, buffer, bufsize);
 #endif
