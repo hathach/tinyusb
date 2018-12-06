@@ -86,9 +86,9 @@ typedef struct {
     osal_mutex_def_t mutex_def;
     osal_mutex_t mutex_hdl;    // used to exclusively occupy control pipe
   } control;
-} usbh_device_info_t;
+} usbh_device_t;
 
-extern usbh_device_info_t usbh_devices[CFG_TUSB_HOST_DEVICE_MAX+1]; // including zero-address
+extern usbh_device_t _usbh_devices[CFG_TUSB_HOST_DEVICE_MAX+1]; // including zero-address
 
 //--------------------------------------------------------------------+
 // callback from HCD ISR

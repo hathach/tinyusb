@@ -51,7 +51,7 @@
 #include "mock_osal.h"
 #include "mock_usbh_hcd.h"
 
-usbh_device_info_t usbh_devices[CFG_TUSB_HOST_DEVICE_MAX+1];
+usbh_device_t _usbh_devices[CFG_TUSB_HOST_DEVICE_MAX+1];
 
 static uint8_t hostid;
 

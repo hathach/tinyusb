@@ -54,7 +54,7 @@
 LPC_USB0_Type lpc_usb0;
 LPC_USB1_Type lpc_usb1;
 
-extern usbh_device_info_t usbh_devices[CFG_TUSB_HOST_DEVICE_MAX+1];
+extern usbh_device_t _usbh_devices[CFG_TUSB_HOST_DEVICE_MAX+1];
 
 //--------------------------------------------------------------------+
 // IMPLEMENTATION
@@ -67,7 +67,7 @@ void ehci_controller_init(void)
 
 void ehci_controller_control_xfer_proceed(uint8_t dev_addr, uint8_t p_data[])
 {
-  ehci_registers_t* const regs = get_operational_register( usbh_devices[dev_addr].core_id );
+  ehci_registers_t* const regs = get_operational_register( _usbh_devices[dev_addr].core_id );
   ehci_qhd_t * p_qhd = get_control_qhd(dev_addr);
   ehci_qtd_t * p_qtd_setup = get_control_qtds(dev_addr);
   ehci_qtd_t * p_qtd_data  = p_qtd_setup + 1;
@@ -86,7 +86,7 @@ void ehci_controller_control_xfer_proceed(uint8_t dev_addr, uint8_t p_data[])
 
   regs->usb_sts = EHCI_INT_MASK_NXP_ASYNC | EHCI_INT_MASK_NXP_PERIODIC;
 
-  hcd_isr( usbh_devices[dev_addr].core_id );
+  hcd_isr( _usbh_devices[dev_addr].core_id );
 }
 
 void complete_qtd_in_qhd(ehci_qhd_t *p_qhd)

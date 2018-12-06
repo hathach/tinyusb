@@ -51,7 +51,7 @@
 #include "ehci_controller_fake.h"
 #include "host_helper.h"
 
-usbh_device_info_t usbh_devices[CFG_TUSB_HOST_DEVICE_MAX+1];
+usbh_device_t _usbh_devices[CFG_TUSB_HOST_DEVICE_MAX+1];
 
 static uint8_t hub_addr = 2;
 static uint8_t hub_port = 2;
@@ -91,7 +91,7 @@ void setUp(void)
 {
   ehci_controller_init();
   tu_memclr(xfer_data, sizeof(xfer_data));
-  tu_memclr(usbh_devices, sizeof(usbh_device_info_t)*(CFG_TUSB_HOST_DEVICE_MAX+1));
+  tu_memclr(_usbh_devices, sizeof(usbh_device_t)*(CFG_TUSB_HOST_DEVICE_MAX+1));
 
   TEST_ASSERT_STATUS( hcd_init() );
 
@@ -146,7 +146,7 @@ void verify_qtd(ehci_qtd_t *p_qtd, uint8_t p_data[], uint16_t length)
 
 void test_bulk_xfer_hs_ping_out(void)
 {
-  usbh_devices[dev_addr].speed    = TUSB_SPEED_HIGH;
+  _usbh_devices[dev_addr].speed    = TUSB_SPEED_HIGH;
 
   pipe_handle_t pipe_hdl = hcd_pipe_open(dev_addr, &desc_ept_bulk_out, TUSB_CLASS_MSC);
   ehci_qhd_t *p_qhd = qhd_get_from_pipe_handle(pipe_hdl);

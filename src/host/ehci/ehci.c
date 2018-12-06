@@ -287,7 +287,7 @@ tusb_error_t  hcd_pipe_control_open(uint8_t dev_addr, uint8_t max_packet_size)
   if (dev_addr != 0)
   {
     //------------- insert to async list -------------//
-    list_insert( (ehci_link_t*) get_async_head(usbh_devices[dev_addr].core_id),
+    list_insert( (ehci_link_t*) get_async_head(_usbh_devices[dev_addr].core_id),
                  (ehci_link_t*) p_qhd, EHCI_QUEUE_ELEMENT_QHD);
   }
 
@@ -344,7 +344,7 @@ tusb_error_t  hcd_pipe_control_close(uint8_t dev_addr)
 
   if (dev_addr != 0)
   {
-    TU_ASSERT_ERR( list_remove_qhd( (ehci_link_t*) get_async_head( usbh_devices[dev_addr].core_id ),
+    TU_ASSERT_ERR( list_remove_qhd( (ehci_link_t*) get_async_head( _usbh_devices[dev_addr].core_id ),
                                     (ehci_link_t*) p_qhd) );
   }
 
@@ -376,12 +376,12 @@ pipe_handle_t hcd_pipe_open(uint8_t dev_addr, tusb_desc_endpoint_t const * p_end
 
   if (p_endpoint_desc->bmAttributes.xfer == TUSB_XFER_BULK)
   {
-    list_head = (ehci_link_t*) get_async_head(usbh_devices[dev_addr].core_id);
+    list_head = (ehci_link_t*) get_async_head(_usbh_devices[dev_addr].core_id);
   }
   #if EHCI_PERIODIC_LIST // TODO refractor/group this together
   else if (p_endpoint_desc->bmAttributes.xfer == TUSB_XFER_INTERRUPT)
   {
-    list_head = get_period_head(usbh_devices[dev_addr].core_id, p_qhd->interval_ms);
+    list_head = get_period_head(_usbh_devices[dev_addr].core_id, p_qhd->interval_ms);
   }
   #endif
 
@@ -443,14 +443,14 @@ tusb_error_t  hcd_pipe_close(pipe_handle_t pipe_hdl)
   if ( pipe_hdl.xfer_type == TUSB_XFER_BULK )
   {
     TU_ASSERT_ERR( list_remove_qhd(
-        (ehci_link_t*) get_async_head( usbh_devices[pipe_hdl.dev_addr].core_id ),
+        (ehci_link_t*) get_async_head( _usbh_devices[pipe_hdl.dev_addr].core_id ),
         (ehci_link_t*) p_qhd) );
   }
   #if EHCI_PERIODIC_LIST // TODO refractor/group this together
   else
   {
     TU_ASSERT_ERR( list_remove_qhd(
-        get_period_head( usbh_devices[pipe_hdl.dev_addr].core_id, p_qhd->interval_ms ),
+        get_period_head( _usbh_devices[pipe_hdl.dev_addr].core_id, p_qhd->interval_ms ),
         (ehci_link_t*) p_qhd) );
   }
   #endif
@@ -505,7 +505,7 @@ static void async_advance_isr(ehci_qhd_t * const async_head)
     async_head->p_qtd_list_head    = async_head->p_qtd_list_tail = NULL;
     async_head->qtd_overlay.halted = 1;
 
-    usbh_devices[0].state          = TUSB_DEVICE_STATE_UNPLUG;
+    _usbh_devices[0].state          = TUSB_DEVICE_STATE_UNPLUG;
   }
 
   for(uint8_t relative_dev_addr=0; relative_dev_addr < CFG_TUSB_HOST_DEVICE_MAX; relative_dev_addr++)
@@ -518,7 +518,7 @@ static void async_advance_isr(ehci_qhd_t * const async_head)
       p_control_qhd->used        = 0;
 
       // Host Controller has cleaned up its cached data for this device, set state to unplug
-      usbh_devices[relative_dev_addr+1].state = TUSB_DEVICE_STATE_UNPLUG;
+      _usbh_devices[relative_dev_addr+1].state = TUSB_DEVICE_STATE_UNPLUG;
 
       for (uint8_t i=0; i<HCD_MAX_ENDPOINT; i++) // free all qhd
       {
@@ -833,7 +833,7 @@ static inline ehci_link_t* get_period_head(uint8_t hostid, uint8_t interval_ms)
 static inline ehci_qhd_t* get_control_qhd(uint8_t dev_addr)
 {
   return (dev_addr == 0) ?
-      get_async_head( usbh_devices[dev_addr].core_id ) :
+      get_async_head( _usbh_devices[dev_addr].core_id ) :
       &ehci_data.device[dev_addr-1].control.qhd;
 }
 static inline ehci_qtd_t* get_control_qtds(uint8_t dev_addr)
@@ -942,7 +942,7 @@ static void qhd_init(ehci_qhd_t *p_qhd, uint8_t dev_addr, uint16_t max_packet_si
   p_qhd->device_address                   = dev_addr;
   p_qhd->non_hs_period_inactive_next_xact = 0;
   p_qhd->endpoint_number                  = endpoint_addr & 0x0F;
-  p_qhd->endpoint_speed                   = usbh_devices[dev_addr].speed;
+  p_qhd->endpoint_speed                   = _usbh_devices[dev_addr].speed;
   p_qhd->data_toggle_control              = (xfer_type == TUSB_XFER_CONTROL) ? 1 : 0;
   p_qhd->head_list_flag                   = (dev_addr == 0) ? 1 : 0; // addr0's endpoint is the static asyn list head
   p_qhd->max_package_size                 = max_packet_size;
@@ -979,8 +979,8 @@ static void qhd_init(ehci_qhd_t *p_qhd, uint8_t dev_addr, uint16_t max_packet_si
     p_qhd->interrupt_smask = p_qhd->non_hs_interrupt_cmask = 0;
   }
 
-  p_qhd->hub_address             = usbh_devices[dev_addr].hub_addr;
-  p_qhd->hub_port                = usbh_devices[dev_addr].hub_port;
+  p_qhd->hub_address             = _usbh_devices[dev_addr].hub_addr;
+  p_qhd->hub_port                = _usbh_devices[dev_addr].hub_port;
   p_qhd->mult                    = 1; // TODO not use high bandwidth/park mode yet
 
   //------------- HCD Management Data -------------//
