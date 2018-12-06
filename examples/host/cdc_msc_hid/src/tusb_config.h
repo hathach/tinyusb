@@ -83,7 +83,7 @@
 // DEVICE CONFIGURATION
 //--------------------------------------------------------------------
 
-#define CFG_TUH_HUB               1
+#define CFG_TUH_HUB               1 // not tested
 #define CFG_TUH_CDC               1
 #define CFG_TUSB_HOST_HID_KEYBOARD      0
 #define CFG_TUSB_HOST_HID_MOUSE         0

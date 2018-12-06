@@ -142,11 +142,9 @@ void cdch_init(void)
   tu_memclr(cdch_data, sizeof(cdch_data_t)*CFG_TUSB_HOST_DEVICE_MAX);
 }
 
-tusb_error_t cdch_open_subtask(uint8_t dev_addr, tusb_desc_interface_t const *p_interface_desc, uint16_t *p_length)
+bool cdch_open_subtask(uint8_t dev_addr, tusb_desc_interface_t const *p_interface_desc, uint16_t *p_length)
 {
-  //OSAL_SUBTASK_BEGIN
   // TODO change following assert to subtask_assert
-
   if ( CDC_COMM_SUBCLASS_ABSTRACT_CONTROL_MODEL != p_interface_desc->bInterfaceSubClass) return TUSB_ERROR_CDC_UNSUPPORTED_SUBCLASS;
 
   if ( !(tu_within(CDC_COMM_PROTOCOL_ATCOMMAND, p_interface_desc->bInterfaceProtocol, CDC_COMM_PROTOCOL_ATCOMMAND_CDMA) ||
@@ -185,7 +183,7 @@ tusb_error_t cdch_open_subtask(uint8_t dev_addr, tusb_desc_interface_t const *p_
     (*p_length) += p_desc[DESC_OFFSET_LEN];
     p_desc = descriptor_next(p_desc);
 
-    TU_ASSERT(pipehandle_is_valid(p_cdc->pipe_notification), TUSB_ERROR_HCD_OPEN_PIPE_FAILED);
+    TU_ASSERT(pipehandle_is_valid(p_cdc->pipe_notification));
   }
 
   //------------- Data Interface (if any) -------------//
@@ -199,14 +197,14 @@ tusb_error_t cdch_open_subtask(uint8_t dev_addr, tusb_desc_interface_t const *p_
     for(uint32_t i=0; i<2; i++)
     {
       tusb_desc_endpoint_t const *p_endpoint = (tusb_desc_endpoint_t const *) p_desc;
-      TU_ASSERT(TUSB_DESC_ENDPOINT == p_endpoint->bDescriptorType, TUSB_ERROR_USBH_DESCRIPTOR_CORRUPTED);
-      TU_ASSERT(TUSB_XFER_BULK == p_endpoint->bmAttributes.xfer, TUSB_ERROR_USBH_DESCRIPTOR_CORRUPTED);
+      TU_ASSERT(TUSB_DESC_ENDPOINT == p_endpoint->bDescriptorType);
+      TU_ASSERT(TUSB_XFER_BULK == p_endpoint->bmAttributes.xfer);
 
       pipe_handle_t * p_pipe_hdl =  ( p_endpoint->bEndpointAddress &  TUSB_DIR_IN_MASK ) ?
           &p_cdc->pipe_in : &p_cdc->pipe_out;
 
       (*p_pipe_hdl) = hcd_pipe_open(dev_addr, p_endpoint, TUSB_CLASS_CDC);
-      TU_ASSERT ( pipehandle_is_valid(*p_pipe_hdl), TUSB_ERROR_HCD_OPEN_PIPE_FAILED );
+      TU_ASSERT ( pipehandle_is_valid(*p_pipe_hdl) );
 
       (*p_length) += p_desc[DESC_OFFSET_LEN];
       p_desc = descriptor_next( p_desc );
@@ -218,7 +216,7 @@ tusb_error_t cdch_open_subtask(uint8_t dev_addr, tusb_desc_interface_t const *p_
     tuh_cdc_mounted_cb(dev_addr);
   }
 
-  //OSAL_SUBTASK_END
+  return true;
 }
 
 void cdch_isr(pipe_handle_t pipe_hdl, xfer_result_t event, uint32_t xferred_bytes)

@@ -76,7 +76,7 @@ static host_class_driver_t const usbh_class_drivers[] =
     },
   #endif
 
-  #if CFG_TUSB_HOST_CDC
+  #if CFG_TUH_CDC
     [TUSB_CLASS_CDC] = {
         .init         = cdch_init,
         .open_subtask = cdch_open_subtask,
@@ -85,7 +85,7 @@ static host_class_driver_t const usbh_class_drivers[] =
     },
   #endif
 
-  #if CFG_TUSB_HOST_MSC
+  #if CFG_TUH_MSC
     [TUSB_CLASS_MSC] = {
         .init         = msch_init,
         .open_subtask = msch_open_subtask,
@@ -404,40 +404,37 @@ bool usbh_task_body(void)
   else
   {
     //------------- Get Port Status -------------//
-    STASK_INVOKE(
-        usbh_control_xfer_subtask( usbh_devices[0].hub_addr, bm_request_type(TUSB_DIR_IN, TUSB_REQ_TYPE_CLASS, TUSB_REQ_RCPT_OTHER),
-                                   HUB_REQUEST_GET_STATUS, 0, usbh_devices[0].hub_port,
-                                   4, enum_data_buffer ),
-        error
-    );
-//    STASK_ASSERT_ERR( error );
-    STASK_ASSERT_ERR_HDLR(error, hub_status_pipe_queue( usbh_devices[0].hub_addr) ); // TODO hub refractor
+    TU_VERIFY_HDLR( usbh_control_xfer_subtask( usbh_devices[0].hub_addr, bm_request_type(TUSB_DIR_IN, TUSB_REQ_TYPE_CLASS, TUSB_REQ_RCPT_OTHER),
+                                               HUB_REQUEST_GET_STATUS, 0, usbh_devices[0].hub_port,
+                                               4, enum_data_buffer )
+                    , hub_status_pipe_queue( usbh_devices[0].hub_addr) ); // TODO hub refractor
 
     // Acknowledge Port Connection Change
-    STASK_INVOKE( hub_port_clear_feature_subtask(usbh_devices[0].hub_addr, usbh_devices[0].hub_port, HUB_FEATURE_PORT_CONNECTION_CHANGE), error );
+    hub_port_clear_feature_subtask(usbh_devices[0].hub_addr, usbh_devices[0].hub_port, HUB_FEATURE_PORT_CONNECTION_CHANGE);
 
     hub_port_status_response_t * p_port_status;
     p_port_status = ((hub_port_status_response_t *) enum_data_buffer);
 
-    if ( ! p_port_status->status_change.connect_status )   STASK_RETURN(TUSB_ERROR_NONE); // only handle connection change
+    if ( ! p_port_status->status_change.connect_status )   return true; // only handle connection change
 
     if ( ! p_port_status->status_current.connect_status )
-    { // Disconnection event
+    {
+      // Disconnection event
       usbh_device_unplugged(usbh_devices[0].core_id, usbh_devices[0].hub_addr, usbh_devices[0].hub_port);
 
       (void) hub_status_pipe_queue( usbh_devices[0].hub_addr ); // done with hub, waiting for next data on status pipe
-      STASK_RETURN(TUSB_ERROR_NONE); // restart task
+      return true; // restart task
     }
     else
-    { // Connection Event
-      STASK_INVOKE ( hub_port_reset_subtask(usbh_devices[0].hub_addr, usbh_devices[0].hub_port), error );
-//      STASK_ASSERT_ERR( error );
-      STASK_ASSERT_ERR_HDLR(error, hub_status_pipe_queue( usbh_devices[0].hub_addr) ); // TODO hub refractor
+    {
+      // Connection Event
+      TU_VERIFY_HDLR(hub_port_reset_subtask(usbh_devices[0].hub_addr, usbh_devices[0].hub_port),
+                     hub_status_pipe_queue( usbh_devices[0].hub_addr) ); // TODO hub refractor
 
       usbh_devices[0].speed = hub_port_get_speed();
 
       // Acknowledge Port Reset Change
-      STASK_INVOKE( hub_port_clear_feature_subtask(usbh_devices[0].hub_addr, usbh_devices[0].hub_port, HUB_FEATURE_PORT_RESET_CHANGE), error );
+      hub_port_clear_feature_subtask(usbh_devices[0].hub_addr, usbh_devices[0].hub_port, HUB_FEATURE_PORT_RESET_CHANGE);
     }
   }
   #endif
@@ -446,27 +443,28 @@ bool usbh_task_body(void)
   usbh_devices[0].state = TUSB_DEVICE_STATE_ADDRESSED;
 
   //------------- Get first 8 bytes of device descriptor to get Control Endpoint Size -------------//
-  // TODO some slow device is observed to fail the very fist controller xfer, can try more times
-  TU_ASSERT(usbh_control_xfer_subtask(0, bm_request_type(TUSB_DIR_IN, TUSB_REQ_TYPE_STANDARD, TUSB_REQ_RCPT_DEVICE),
-                                      TUSB_REQ_GET_DESCRIPTOR,
-                                      (TUSB_DESC_DEVICE << 8), 0, 8, enum_data_buffer));
+  bool is_ok = usbh_control_xfer_subtask(0, bm_request_type(TUSB_DIR_IN, TUSB_REQ_TYPE_STANDARD, TUSB_REQ_RCPT_DEVICE),
+                                         TUSB_REQ_GET_DESCRIPTOR,
+                                         (TUSB_DESC_DEVICE << 8), 0, 8, enum_data_buffer);
 
   //------------- Reset device again before Set Address -------------//
   if (usbh_devices[0].hub_addr == 0)
   {
     // connected directly to roothub
+    TU_ASSERT(is_ok); // TODO some slow device is observed to fail the very fist controller xfer, can try more times
     hcd_port_reset( usbh_devices[0].core_id ); // reset port after 8 byte descriptor
     osal_task_delay(RESET_DELAY);
   }
   #if CFG_TUH_HUB
   else
-  { // connected via a hub
-    STASK_ASSERT_ERR_HDLR(error, hub_status_pipe_queue( usbh_devices[0].hub_addr) ); // TODO hub refractor
-    STASK_INVOKE ( hub_port_reset_subtask(usbh_devices[0].hub_addr, usbh_devices[0].hub_port), error );
+  {
+    // connected via a hub
+    TU_VERIFY_HDLR(is_ok, hub_status_pipe_queue( usbh_devices[0].hub_addr) ); // TODO hub refractor
 
-    if ( TUSB_ERROR_NONE == error )
-    { // Acknowledge Port Reset Change if Reset Successful
-      STASK_INVOKE( hub_port_clear_feature_subtask(usbh_devices[0].hub_addr, usbh_devices[0].hub_port, HUB_FEATURE_PORT_RESET_CHANGE), error );
+    if ( hub_port_reset_subtask(usbh_devices[0].hub_addr, usbh_devices[0].hub_port) )
+    {
+      // Acknowledge Port Reset Change if Reset Successful
+      hub_port_clear_feature_subtask(usbh_devices[0].hub_addr, usbh_devices[0].hub_port, HUB_FEATURE_PORT_RESET_CHANGE);
     }
 
     (void) hub_status_pipe_queue( usbh_devices[0].hub_addr ); // done with hub, waiting for next data on status pipe
@@ -560,9 +558,7 @@ bool usbh_task_body(void)
         static uint16_t length;
         length = 0;
 
-        error = usbh_class_drivers[class_index].open_subtask( new_addr, (tusb_desc_interface_t*) p_desc, &length );
-
-        if (error == TUSB_ERROR_NONE)
+        if ( usbh_class_drivers[class_index].open_subtask(new_addr, (tusb_desc_interface_t*) p_desc, &length) )
         {
           TU_ASSERT( length >= sizeof(tusb_desc_interface_t) );
           usbh_devices[new_addr].flag_supported_class |= BIT_(class_index);
