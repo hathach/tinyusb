@@ -38,7 +38,7 @@
 
 #include "tusb.h"
 
-#if CFG_TUSB_HOST_MSC
+#if CFG_TUH_MSC
 //--------------------------------------------------------------------+
 // INCLUDE
 //--------------------------------------------------------------------+
@@ -204,4 +204,4 @@ DWORD get_fattime (void)
   return timestamp.value;
 }
 
-#endif // CFG_TUSB_HOST_MSC
+#endif // CFG_TUH_MSC

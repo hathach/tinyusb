@@ -66,7 +66,7 @@ int main(void)
 
     led_blinking_task();
 
-#if CFG_TUSB_HOST_CDC
+#if CFG_TUH_CDC
     virtual_com_task();
 #endif
 
@@ -81,7 +81,7 @@ int main(void)
 //--------------------------------------------------------------------+
 // USB CDC
 //--------------------------------------------------------------------+
-#if CFG_TUSB_HOST_CDC
+#if CFG_TUH_CDC
 
 void tuh_cdc_mounted_cb(uint8_t dev_addr)
 {

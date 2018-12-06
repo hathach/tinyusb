@@ -53,7 +53,7 @@
  extern "C" {
 #endif
 
-#if CFG_TUSB_HOST_CDC && CFG_TUSB_HOST_CDC_RNDIS
+#if CFG_TUH_CDC && CFG_TUH_CDC_RNDIS
 
 void rndis_host_app_init(void);
 void rndis_host_app_task(void* param);

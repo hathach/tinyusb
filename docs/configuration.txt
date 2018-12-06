@@ -44,8 +44,8 @@
 #define CFG_TUSB_HOST_HID_KEYBOARD  ///< Enable HID Class for Keyboard
 #define CFG_TUSB_HOST_HID_MOUSE     ///< Enable HID Class for Mouse
 #define CFG_TUSB_HOST_HID_GENERIC   ///< Enable HID Class for Generic (not supported yet)
-#define CFG_TUSB_HOST_MSC           ///< Enable Mass Storage Class (SCSI subclass only)
-#define CFG_TUSB_HOST_CDC           ///< Enable Virtual Serial (Communication Device Class)
+#define CFG_TUH_MSC           ///< Enable Mass Storage Class (SCSI subclass only)
+#define CFG_TUH_CDC           ///< Enable Virtual Serial (Communication Device Class)
 /** @} */
 
 /** @} */ // group Host

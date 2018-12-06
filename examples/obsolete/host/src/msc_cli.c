@@ -39,7 +39,7 @@
 #include "msc_cli.h"
 #include "ctype.h"
 
-#if CFG_TUSB_HOST_MSC
+#if CFG_TUH_MSC
 
 #include "ff.h"
 #include "diskio.h"

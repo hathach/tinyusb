@@ -59,11 +59,11 @@
     #include "class/hid/hid_host.h"
   #endif
 
-  #if CFG_TUSB_HOST_MSC
+  #if CFG_TUH_MSC
     #include "class/msc/msc_host.h"
   #endif
 
-  #if CFG_TUSB_HOST_CDC
+  #if CFG_TUH_CDC
     #include "class/cdc/cdc_host.h"
   #endif
 

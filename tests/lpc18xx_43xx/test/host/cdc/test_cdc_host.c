@@ -51,7 +51,7 @@
 #include "descriptor_cdc.h"
 #include "cdc_host.h"
 
-#if CFG_TUSB_HOST_CDC_RNDIS // TODO enable
+#if CFG_TUH_CDC_RNDIS // TODO enable
 #include "cdc_rndis_host.h"
 #endif
 
