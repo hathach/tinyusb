@@ -69,13 +69,7 @@ static inline cdc_pipeid_t get_app_pipeid(pipe_handle_t pipe_hdl)
 
 static inline bool tusbh_cdc_is_mounted(uint8_t dev_addr)
 {
-// FIXME cannot use mounted class flag as at the point _open_sublass is called, the flag is not set yet
-#ifdef _TEST_
- return (tusbh_device_get_mounted_class_flag(dev_addr) & BIT_(TUSB_CLASS_CDC)) != 0;
-#else
-  return pipehandle_is_valid(cdch_data[dev_addr-1].pipe_in) &&
-      pipehandle_is_valid(cdch_data[dev_addr-1].pipe_out);
-#endif
+  return pipehandle_is_valid(cdch_data[dev_addr-1].pipe_in) && pipehandle_is_valid(cdch_data[dev_addr-1].pipe_out);
 }
 
 bool tuh_cdc_is_busy(uint8_t dev_addr, cdc_pipeid_t pipeid)
@@ -99,7 +93,6 @@ bool tuh_cdc_is_busy(uint8_t dev_addr, cdc_pipeid_t pipeid)
       return false;
   }
 }
-
 
 //--------------------------------------------------------------------+
 // APPLICATION API (parameter validation needed)

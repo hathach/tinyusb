@@ -361,7 +361,6 @@ bool usbh_task_body(void)
     RESET_DELAY        = 200 // USB specs say only 50ms but many devices require much longer
   };
 
-  tusb_error_t error;
   usbh_enumerate_t enum_entry;
 
   // for OSAL_NONE local variable won't retain value after blocking service sem_wait/queue_recv
@@ -371,31 +370,33 @@ bool usbh_task_body(void)
 
   if ( !osal_queue_receive(_usbh_q, &enum_entry) ) return false;
 
-  usbh_devices[0].core_id  = enum_entry.core_id; // TODO refractor integrate to device_pool
-  usbh_devices[0].hub_addr = enum_entry.hub_addr;
-  usbh_devices[0].hub_port = enum_entry.hub_port;
-  usbh_devices[0].state    = TUSB_DEVICE_STATE_UNPLUG;
+  usbh_device_info_t* dev0 = &usbh_devices[0];
+
+  dev0->core_id  = enum_entry.core_id; // TODO refractor integrate to device_pool
+  dev0->hub_addr = enum_entry.hub_addr;
+  dev0->hub_port = enum_entry.hub_port;
+  dev0->state    = TUSB_DEVICE_STATE_UNPLUG;
 
   //------------- connected/disconnected directly with roothub -------------//
-  if ( usbh_devices[0].hub_addr == 0)
+  if ( dev0->hub_addr == 0)
   {
-    if( hcd_port_connect_status(usbh_devices[0].core_id) )
+    if( hcd_port_connect_status(dev0->core_id) )
     {
       // connection event
       osal_task_delay(POWER_STABLE_DELAY); // wait until device is stable. Increase this if the first 8 bytes is failed to get
 
       // exit if device unplugged while delaying
-      if ( !hcd_port_connect_status(usbh_devices[0].core_id) ) return true;
+      if ( !hcd_port_connect_status(dev0->core_id) ) return true;
 
-      hcd_port_reset( usbh_devices[0].core_id ); // port must be reset to have correct speed operation
+      hcd_port_reset( dev0->core_id ); // port must be reset to have correct speed operation
       osal_task_delay(RESET_DELAY);
 
-      usbh_devices[0].speed = hcd_port_speed_get( usbh_devices[0].core_id );
+      dev0->speed = hcd_port_speed_get( dev0->core_id );
     }
     else
     {
       // disconnection event
-      usbh_device_unplugged(usbh_devices[0].core_id, 0, 0);
+      usbh_device_unplugged(dev0->core_id, 0, 0);
       return true; // restart task
     }
   }
@@ -404,13 +405,13 @@ bool usbh_task_body(void)
   else
   {
     //------------- Get Port Status -------------//
-    TU_VERIFY_HDLR( usbh_control_xfer_subtask( usbh_devices[0].hub_addr, bm_request_type(TUSB_DIR_IN, TUSB_REQ_TYPE_CLASS, TUSB_REQ_RCPT_OTHER),
-                                               HUB_REQUEST_GET_STATUS, 0, usbh_devices[0].hub_port,
+    TU_VERIFY_HDLR( usbh_control_xfer_subtask( dev0->hub_addr, bm_request_type(TUSB_DIR_IN, TUSB_REQ_TYPE_CLASS, TUSB_REQ_RCPT_OTHER),
+                                               HUB_REQUEST_GET_STATUS, 0, dev0->hub_port,
                                                4, enum_data_buffer )
-                    , hub_status_pipe_queue( usbh_devices[0].hub_addr) ); // TODO hub refractor
+                    , hub_status_pipe_queue( dev0->hub_addr) ); // TODO hub refractor
 
     // Acknowledge Port Connection Change
-    hub_port_clear_feature_subtask(usbh_devices[0].hub_addr, usbh_devices[0].hub_port, HUB_FEATURE_PORT_CONNECTION_CHANGE);
+    hub_port_clear_feature_subtask(dev0->hub_addr, dev0->hub_port, HUB_FEATURE_PORT_CONNECTION_CHANGE);
 
     hub_port_status_response_t * p_port_status;
     p_port_status = ((hub_port_status_response_t *) enum_data_buffer);
@@ -420,27 +421,27 @@ bool usbh_task_body(void)
     if ( ! p_port_status->status_current.connect_status )
     {
       // Disconnection event
-      usbh_device_unplugged(usbh_devices[0].core_id, usbh_devices[0].hub_addr, usbh_devices[0].hub_port);
+      usbh_device_unplugged(dev0->core_id, dev0->hub_addr, dev0->hub_port);
 
-      (void) hub_status_pipe_queue( usbh_devices[0].hub_addr ); // done with hub, waiting for next data on status pipe
+      (void) hub_status_pipe_queue( dev0->hub_addr ); // done with hub, waiting for next data on status pipe
       return true; // restart task
     }
     else
     {
       // Connection Event
-      TU_VERIFY_HDLR(hub_port_reset_subtask(usbh_devices[0].hub_addr, usbh_devices[0].hub_port),
-                     hub_status_pipe_queue( usbh_devices[0].hub_addr) ); // TODO hub refractor
+      TU_VERIFY_HDLR(hub_port_reset_subtask(dev0->hub_addr, dev0->hub_port),
+                     hub_status_pipe_queue( dev0->hub_addr) ); // TODO hub refractor
 
-      usbh_devices[0].speed = hub_port_get_speed();
+      dev0->speed = hub_port_get_speed();
 
       // Acknowledge Port Reset Change
-      hub_port_clear_feature_subtask(usbh_devices[0].hub_addr, usbh_devices[0].hub_port, HUB_FEATURE_PORT_RESET_CHANGE);
+      hub_port_clear_feature_subtask(dev0->hub_addr, dev0->hub_port, HUB_FEATURE_PORT_RESET_CHANGE);
     }
   }
   #endif
 
   TU_ASSERT_ERR( usbh_pipe_control_open(0, 8) );
-  usbh_devices[0].state = TUSB_DEVICE_STATE_ADDRESSED;
+  dev0->state = TUSB_DEVICE_STATE_ADDRESSED;
 
   //------------- Get first 8 bytes of device descriptor to get Control Endpoint Size -------------//
   bool is_ok = usbh_control_xfer_subtask(0, bm_request_type(TUSB_DIR_IN, TUSB_REQ_TYPE_STANDARD, TUSB_REQ_RCPT_DEVICE),
@@ -448,26 +449,26 @@ bool usbh_task_body(void)
                                          (TUSB_DESC_DEVICE << 8), 0, 8, enum_data_buffer);
 
   //------------- Reset device again before Set Address -------------//
-  if (usbh_devices[0].hub_addr == 0)
+  if (dev0->hub_addr == 0)
   {
     // connected directly to roothub
     TU_ASSERT(is_ok); // TODO some slow device is observed to fail the very fist controller xfer, can try more times
-    hcd_port_reset( usbh_devices[0].core_id ); // reset port after 8 byte descriptor
+    hcd_port_reset( dev0->core_id ); // reset port after 8 byte descriptor
     osal_task_delay(RESET_DELAY);
   }
   #if CFG_TUH_HUB
   else
   {
     // connected via a hub
-    TU_VERIFY_HDLR(is_ok, hub_status_pipe_queue( usbh_devices[0].hub_addr) ); // TODO hub refractor
+    TU_VERIFY_HDLR(is_ok, hub_status_pipe_queue( dev0->hub_addr) ); // TODO hub refractor
 
-    if ( hub_port_reset_subtask(usbh_devices[0].hub_addr, usbh_devices[0].hub_port) )
+    if ( hub_port_reset_subtask(dev0->hub_addr, dev0->hub_port) )
     {
       // Acknowledge Port Reset Change if Reset Successful
-      hub_port_clear_feature_subtask(usbh_devices[0].hub_addr, usbh_devices[0].hub_port, HUB_FEATURE_PORT_RESET_CHANGE);
+      hub_port_clear_feature_subtask(dev0->hub_addr, dev0->hub_port, HUB_FEATURE_PORT_RESET_CHANGE);
     }
 
-    (void) hub_status_pipe_queue( usbh_devices[0].hub_addr ); // done with hub, waiting for next data on status pipe
+    (void) hub_status_pipe_queue( dev0->hub_addr ); // done with hub, waiting for next data on status pipe
   }
   #endif
 
@@ -480,14 +481,14 @@ bool usbh_task_body(void)
             0, NULL ));
 
   //------------- update port info & close control pipe of addr0 -------------//
-  usbh_devices[new_addr].core_id  = usbh_devices[0].core_id;
-  usbh_devices[new_addr].hub_addr = usbh_devices[0].hub_addr;
-  usbh_devices[new_addr].hub_port = usbh_devices[0].hub_port;
-  usbh_devices[new_addr].speed    = usbh_devices[0].speed;
+  usbh_devices[new_addr].core_id  = dev0->core_id;
+  usbh_devices[new_addr].hub_addr = dev0->hub_addr;
+  usbh_devices[new_addr].hub_port = dev0->hub_port;
+  usbh_devices[new_addr].speed    = dev0->speed;
   usbh_devices[new_addr].state    = TUSB_DEVICE_STATE_ADDRESSED;
 
   usbh_pipe_control_close(0);
-  usbh_devices[0].state = TUSB_DEVICE_STATE_UNPLUG;
+  dev0->state = TUSB_DEVICE_STATE_UNPLUG;
 
   // open control pipe for new address
   TU_ASSERT_ERR ( usbh_pipe_control_open(new_addr, ((tusb_desc_device_t*) enum_data_buffer)->bMaxPacketSize0 ) );
@@ -598,14 +599,6 @@ void usbh_task(void* param)
   }
 #endif
 }
-
-//--------------------------------------------------------------------+
-// REPORTER TASK & ITS DATA
-//--------------------------------------------------------------------+
-
-
-
-
 
 //--------------------------------------------------------------------+
 // INTERNAL HELPER

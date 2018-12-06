@@ -52,10 +52,6 @@
 #include "common/tusb_common.h"
 #include "osal/osal.h"
 
-#ifdef _TEST_
-#include "hcd.h"
-#endif
-
 //--------------------------------------------------------------------+
 // USBH-HCD common data structure
 //--------------------------------------------------------------------+
