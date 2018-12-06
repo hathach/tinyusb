@@ -76,6 +76,7 @@ typedef struct
       uint32_t len;
     } xfer_complete;
   };
+
 } hcd_event_t;
 
 #if MODE_HOST_SUPPORTED
@@ -116,6 +117,11 @@ void hal_hcd_isr(uint8_t hostid);
 
 void hcd_int_enable (uint8_t rhport);
 void hcd_int_disable(uint8_t rhport);
+
+//--------------------------------------------------------------------+
+// Event function
+//--------------------------------------------------------------------+
+void hcd_event_handler(hcd_event_t const* event, bool in_isr);
 
 //--------------------------------------------------------------------+
 // PIPE API

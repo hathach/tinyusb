@@ -124,7 +124,7 @@ OSAL_TASK_DEF(_usbh_task_def, "usbh", usbh_task, CFG_TUH_TASK_PRIO, CFG_TUH_TASK
 
 // Event queue
 // role device/host is used by OS NONE for mutex (disable usb isr) only
-OSAL_QUEUE_DEF(OPT_MODE_HOST, _usbh_qdef, CFG_TUH_TASK_QUEUE_SZ, uint32_t);
+OSAL_QUEUE_DEF(OPT_MODE_HOST, _usbh_qdef, CFG_TUH_TASK_QUEUE_SZ, hcd_event_t);
 static osal_queue_t _usbh_q;
 
 CFG_TUSB_MEM_SECTION ATTR_ALIGNED(4) STATIC_VAR uint8_t enum_data_buffer[CFG_TUSB_HOST_ENUM_BUFFER_SIZE];
@@ -277,26 +277,40 @@ void usbh_xfer_isr(pipe_handle_t pipe_hdl, uint8_t class_code, xfer_result_t eve
 
 void usbh_hub_port_plugged_isr(uint8_t hub_addr, uint8_t hub_port)
 {
-  usbh_enumerate_t enum_entry =
+  hcd_event_t event =
   {
-      .core_id  = usbh_devices[hub_addr].core_id,
-      .hub_addr = hub_addr,
-      .hub_port = hub_port
+    .rhport = usbh_devices[hub_addr].core_id,
+    .event_id = HCD_EVENT_DEVICE_PLUG
   };
 
-  osal_queue_send(_usbh_q, &enum_entry, true);
+  event.plug.hub_addr = hub_addr;
+  event.plug.hub_port = hub_port;
+
+  hcd_event_handler(&event, true);
 }
 
 void usbh_hcd_rhport_plugged_isr(uint8_t hostid)
 {
-  usbh_enumerate_t enum_entry =
+  hcd_event_t event =
   {
-      .core_id  = hostid,
-      .hub_addr = 0,
-      .hub_port = 0
+    .rhport = hostid,
+    .event_id = HCD_EVENT_DEVICE_PLUG
   };
 
-  osal_queue_send(_usbh_q, &enum_entry, true);
+  event.plug.hub_addr = 0;
+  event.plug.hub_port = 0;
+
+  hcd_event_handler(&event, true);
+}
+
+void hcd_event_handler(hcd_event_t const* event, bool in_isr)
+{
+  switch (event->event_id)
+  {
+    default:
+      osal_queue_send(_usbh_q, event, in_isr);
+    break;
+  }
 }
 
 // a device unplugged on hostid, hub_addr, hub_port
@@ -341,14 +355,16 @@ static void usbh_device_unplugged(uint8_t hostid, uint8_t hub_addr, uint8_t hub_
 
 void usbh_hcd_rhport_unplugged_isr(uint8_t hostid)
 {
-  usbh_enumerate_t enum_entry =
+  hcd_event_t event =
   {
-      .core_id = hostid,
-      .hub_addr = 0,
-      .hub_port = 0
+    .rhport = hostid,
+    .event_id = HCD_EVENT_DEVICE_UNPLUG
   };
 
-  osal_queue_send(_usbh_q, &enum_entry, true);
+  event.plug.hub_addr = 0;
+  event.plug.hub_port = 0;
+
+  hcd_event_handler(&event, true);
 }
 
 //--------------------------------------------------------------------+
@@ -361,20 +377,22 @@ bool usbh_task_body(void)
     RESET_DELAY        = 200 // USB specs say only 50ms but many devices require much longer
   };
 
-  usbh_enumerate_t enum_entry;
-
   // for OSAL_NONE local variable won't retain value after blocking service sem_wait/queue_recv
   static uint8_t new_addr;
   static uint8_t configure_selected = 1; // TODO move
   static uint8_t *p_desc = NULL; // TODO move
 
-  if ( !osal_queue_receive(_usbh_q, &enum_entry) ) return false;
+  hcd_event_t event;
+  if ( !osal_queue_receive(_usbh_q, &event) ) return false;
+
+  // FIXME remove later
+  if ( !(event.event_id == HCD_EVENT_DEVICE_PLUG || event.event_id == HCD_EVENT_DEVICE_UNPLUG) ) return false;
 
   usbh_device_info_t* dev0 = &usbh_devices[0];
 
-  dev0->core_id  = enum_entry.core_id; // TODO refractor integrate to device_pool
-  dev0->hub_addr = enum_entry.hub_addr;
-  dev0->hub_port = enum_entry.hub_port;
+  dev0->core_id  = event.rhport; // TODO refractor integrate to device_pool
+  dev0->hub_addr = event.plug.hub_addr;
+  dev0->hub_port = event.plug.hub_port;
   dev0->state    = TUSB_DEVICE_STATE_UNPLUG;
 
   //------------- connected/disconnected directly with roothub -------------//
