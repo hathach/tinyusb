@@ -43,16 +43,45 @@
 #ifndef _TUSB_HCD_H_
 #define _TUSB_HCD_H_
 
+#include <common/tusb_common.h>
+
 #ifdef __cplusplus
  extern "C" {
 #endif
 
-#include <common/tusb_common.h>
+typedef enum
+{
+  HCD_EVENT_DEVICE_PLUG,
+  HCD_EVENT_DEVICE_UNPLUG,
+  HCD_EVENT_XFER_COMPLETE,
+} hcd_eventid_t;
+
+typedef struct
+{
+  uint8_t rhport;
+  uint8_t event_id;
+
+  union
+  {
+    struct
+    {
+      uint8_t hub_addr;
+      uint8_t hub_port;
+    } plug, unplug;
+
+    struct
+    {
+      uint8_t ep_addr;
+      uint8_t result;
+      uint32_t len;
+    } xfer_complete;
+  };
+} hcd_event_t;
 
 #if MODE_HOST_SUPPORTED
 // Max number of endpoints per device
 enum {
-  HCD_MAX_ENDPOINT = CFG_TUSB_HOST_HUB + CFG_TUSB_HOST_HID_KEYBOARD + CFG_TUSB_HOST_HID_MOUSE + CFG_TUSB_HOST_HID_GENERIC +
+  HCD_MAX_ENDPOINT = CFG_TUH_HUB + CFG_TUSB_HOST_HID_KEYBOARD + CFG_TUSB_HOST_HID_MOUSE + CFG_TUSB_HOST_HID_GENERIC +
                      CFG_TUSB_HOST_MSC*2 + CFG_TUSB_HOST_CDC*3,
 
   HCD_MAX_XFER     = HCD_MAX_ENDPOINT*2,
@@ -69,13 +98,11 @@ typedef struct {
   uint8_t reserved;
 } pipe_handle_t;
 
-static inline bool pipehandle_is_valid(pipe_handle_t pipe_hdl) ATTR_CONST ATTR_ALWAYS_INLINE ATTR_WARN_UNUSED_RESULT;
 static inline bool pipehandle_is_valid(pipe_handle_t pipe_hdl)
 {
   return pipe_hdl.dev_addr > 0;
 }
 
-static inline bool pipehandle_is_equal(pipe_handle_t x, pipe_handle_t y) ATTR_CONST ATTR_ALWAYS_INLINE ATTR_WARN_UNUSED_RESULT;
 static inline bool pipehandle_is_equal(pipe_handle_t x, pipe_handle_t y)
 {
   return (x.dev_addr == y.dev_addr) && (x.xfer_type == y.xfer_type) && (x.index == y.index);

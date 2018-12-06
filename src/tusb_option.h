@@ -213,7 +213,7 @@
   #endif
 
   //------------- HUB CLASS -------------//
-  #if CFG_TUSB_HOST_HUB && (CFG_TUSB_HOST_DEVICE_MAX == 1)
+  #if CFG_TUH_HUB && (CFG_TUSB_HOST_DEVICE_MAX == 1)
     #error there is no benefit enable hub with max device is 1. Please disable hub or increase CFG_TUSB_HOST_DEVICE_MAX
   #endif
 

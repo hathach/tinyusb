@@ -40,7 +40,7 @@
 /** \defgroup config_host_class Class Driver
  * \brief For each Class Driver a value of 1 means enable, value of 0 mean disable
  * @{ */
-#define CFG_TUSB_HOST_HUB           ///< Enable Hub Class
+#define CFG_TUH_HUB           ///< Enable Hub Class
 #define CFG_TUSB_HOST_HID_KEYBOARD  ///< Enable HID Class for Keyboard
 #define CFG_TUSB_HOST_HID_MOUSE     ///< Enable HID Class for Mouse
 #define CFG_TUSB_HOST_HID_GENERIC   ///< Enable HID Class for Generic (not supported yet)
