@@ -65,6 +65,7 @@ void Chip_UART0_Init(LPC_USART0_T *pUART)
 /* De-initializes the pUART peripheral */
 void Chip_UART0_DeInit(LPC_USART0_T *pUART)
 {
+  (void) pUART;
 	Chip_Clock_DisablePeriphClock(SYSCTL_CLOCK_UART0);
 }
 

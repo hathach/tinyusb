@@ -194,6 +194,7 @@ static uint32_t Chip_Clock_TestMainPLLMultiplier(uint32_t InputHz, uint32_t Test
 /* Returns clock rate out of a divider */
 static uint32_t Chip_Clock_GetDivRate(CHIP_CGU_CLKIN_T clock, CHIP_CGU_IDIV_T divider)
 {
+  (void) clock;
 	CHIP_CGU_CLKIN_T input;
 	uint32_t div;
 

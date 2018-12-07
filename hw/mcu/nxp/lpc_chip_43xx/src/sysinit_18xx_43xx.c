@@ -133,7 +133,7 @@ void Chip_SetupCoreClock(CHIP_CGU_CLKIN_T clkin, uint32_t core_freq, bool setbas
 		/* Setup system base clocks and initial states. This won't enable and
 		   disable individual clocks, but sets up the base clock sources for
 		   each individual peripheral clock. */
-		for (i = 0; i < (sizeof(InitClkStates) / sizeof(InitClkStates[0])); i++) {
+		for (i = 0; i < (int) (sizeof(InitClkStates) / sizeof(InitClkStates[0])); i++) {
 			Chip_Clock_SetBaseClock(InitClkStates[i].clk, InitClkStates[i].clkin,
 									InitClkStates[i].autoblock_enab, InitClkStates[i].powerdn);
 		}

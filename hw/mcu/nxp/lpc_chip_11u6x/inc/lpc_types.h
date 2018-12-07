@@ -82,10 +82,10 @@ typedef enum {
 } TRANSFER_BLOCK_T;
 
 /** Pointer to Function returning Void (any number of parameters) */
-typedef void (*PFV)();
+//typedef void (*PFV)();
 
 /** Pointer to Function returning int32_t (any number of parameters) */
-typedef int32_t (*PFI)();
+//typedef int32_t (*PFI)();
 
 /**
  * @}

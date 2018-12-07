@@ -207,6 +207,7 @@ STATIC INLINE void Chip_RTC_DisableWakeup(LPC_RTC_T *pRTC, uint32_t ints)
  */
 STATIC INLINE uint32_t Chip_RTC_ClearStatus(LPC_RTC_T *pRTC, uint32_t stsMask)
 {
+  (void) stsMask;
 	return pRTC->CTRL;
 }
 

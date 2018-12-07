@@ -132,6 +132,8 @@ void Chip_UART_Init(LPC_USART_T *pUART)
 
 	/* Disable fractional divider */
 	pUART->FDR = 0x10;
+
+        (void) tmp;
 }
 
 /* De-initializes the pUART peripheral */
