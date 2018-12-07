@@ -62,7 +62,7 @@
  * \retval      true if device supports
  * \retval      false if device does not support or is not mounted
  */
-bool tuh_cdc_serial_is_mounted(uint8_t dev_addr) ATTR_PURE ATTR_WARN_UNUSED_RESULT;
+bool tuh_cdc_serial_is_mounted(uint8_t dev_addr);
 
 /** \brief      Check if the interface is currently busy or not
  * \param[in]   dev_addr device address
@@ -73,7 +73,7 @@ bool tuh_cdc_serial_is_mounted(uint8_t dev_addr) ATTR_PURE ATTR_WARN_UNUSED_RESU
  *              can be scheduled. User needs to make sure the corresponding interface is mounted
  *              (by \ref tuh_cdc_serial_is_mounted) before calling this function.
  */
-bool tuh_cdc_is_busy(uint8_t dev_addr, cdc_pipeid_t pipeid)  ATTR_PURE ATTR_WARN_UNUSED_RESULT;
+bool tuh_cdc_is_busy(uint8_t dev_addr, cdc_pipeid_t pipeid);
 
 /** \brief 			Perform USB OUT transfer to device
  * \param[in]		dev_addr	device address
