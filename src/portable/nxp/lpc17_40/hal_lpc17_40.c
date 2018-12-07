@@ -47,7 +47,7 @@ extern void hal_dcd_isr(uint8_t rhport);
 
 void USB_IRQHandler(void)
 {
-  #if MODE_HOST_SUPPORTED
+  #if TUSB_OPT_HOST_ENABLED
     hal_hcd_isr(0);
   #endif
 

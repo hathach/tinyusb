@@ -52,7 +52,7 @@
 #include "common/tusb_fifo.h"
 
 //------------- HOST -------------//
-#if MODE_HOST_SUPPORTED
+#if TUSB_OPT_HOST_ENABLED
   #include "host/usbh.h"
 
   #if HOST_CLASS_HID

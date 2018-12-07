@@ -38,7 +38,7 @@
 
 #include "common/tusb_common.h"
 
-#if MODE_HOST_SUPPORTED
+#if TUSB_OPT_HOST_ENABLED
 
 #define _TINY_USB_SOURCE_FILE_
 

@@ -55,7 +55,7 @@ bool tusb_init(void)
   // skip if already initialized
   if (_initialized) return true;
 
-#if MODE_HOST_SUPPORTED
+#if TUSB_OPT_HOST_ENABLED
   TU_VERIFY( usbh_init() ); // init host stack
 #endif
 
@@ -71,7 +71,7 @@ bool tusb_init(void)
 #if CFG_TUSB_OS == OPT_OS_NONE
 void tusb_task(void)
 {
-  #if MODE_HOST_SUPPORTED
+  #if TUSB_OPT_HOST_ENABLED
   usbh_task(NULL);
   #endif
 

@@ -38,7 +38,7 @@
 
 #include "tusb_option.h"
 
-#if (MODE_HOST_SUPPORTED && HOST_CLASS_HID)
+#if (TUSB_OPT_HOST_ENABLED && HOST_CLASS_HID)
 
 #define _TINY_USB_SOURCE_FILE_
 //--------------------------------------------------------------------+

@@ -48,7 +48,7 @@ extern void hal_hcd_isr(uint8_t hostid);
 #if CFG_TUSB_RHPORT0_MODE
 void USB0_IRQHandler(void)
 {
-  #if MODE_HOST_SUPPORTED
+  #if TUSB_OPT_HOST_ENABLED
     hal_hcd_isr(0);
   #endif
 
@@ -61,7 +61,7 @@ void USB0_IRQHandler(void)
 #if CFG_TUSB_RHPORT1_MODE
 void USB1_IRQHandler(void)
 {
-  #if MODE_HOST_SUPPORTED
+  #if TUSB_OPT_HOST_ENABLED
     hal_hcd_isr(1);
   #endif
 

@@ -148,7 +148,7 @@ void board_init(void)
   LPC_USB->OTGClkCtrl = clk_en;
   while ( (LPC_USB->OTGClkSt & clk_en) != clk_en );
 
-#if MODE_HOST_SUPPORTED
+#if TUSB_OPT_HOST_ENABLED
   // set portfunc to host !!!
   LPC_USB->StCtrl = 0x3; // should be 1
 #endif

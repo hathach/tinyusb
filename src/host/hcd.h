@@ -79,7 +79,7 @@ typedef struct
 
 } hcd_event_t;
 
-#if MODE_HOST_SUPPORTED
+#if TUSB_OPT_HOST_ENABLED
 // Max number of endpoints per device
 enum {
   HCD_MAX_ENDPOINT = CFG_TUH_HUB + CFG_TUH_HID_KEYBOARD + CFG_TUH_HID_MOUSE + CFG_TUSB_HOST_HID_GENERIC +

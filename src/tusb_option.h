@@ -109,13 +109,6 @@
   #error "tinyusb does not support same modes on more than 1 roothub port"
 #endif
 
-// TODO remove
-#define CONTROLLER_HOST_NUMBER (\
-    ((CFG_TUSB_RHPORT0_MODE & OPT_MODE_HOST) ? 1 : 0) + \
-    ((CFG_TUSB_RHPORT1_MODE & OPT_MODE_HOST) ? 1 : 0))
-
-#define MODE_HOST_SUPPORTED     (CONTROLLER_HOST_NUMBER > 0)
-
 // Which roothub port is configured as host
 #define TUH_OPT_RHPORT          ( (CFG_TUSB_RHPORT0_MODE & OPT_MODE_HOST) ? 0 : ((CFG_TUSB_RHPORT1_MODE & OPT_MODE_HOST) ? 1 : -1) )
 #define TUSB_OPT_HOST_ENABLED   ( TUH_OPT_RHPORT >= 0 )
@@ -206,7 +199,7 @@
 //--------------------------------------------------------------------
 // HOST OPTIONS
 //--------------------------------------------------------------------
-#if MODE_HOST_SUPPORTED
+#if TUSB_OPT_HOST_ENABLED
   #ifndef CFG_TUSB_HOST_DEVICE_MAX
     #define CFG_TUSB_HOST_DEVICE_MAX 1
     #warning CFG_TUSB_HOST_DEVICE_MAX is not defined, default value is 1
@@ -228,7 +221,7 @@
   #endif
 
   //------------- CLASS -------------//
-#endif // MODE_HOST_SUPPORTED
+#endif // TUSB_OPT_HOST_ENABLED
 
 
 //------------------------------------------------------------------

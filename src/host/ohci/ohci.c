@@ -38,7 +38,7 @@
 
 #include <common/tusb_common.h>
 
-#if MODE_HOST_SUPPORTED && (CFG_TUSB_MCU == OPT_MCU_LPC175X_6X || CFG_TUSB_MCU == OPT_MCU_LPC40XX)
+#if TUSB_OPT_HOST_ENABLED && (CFG_TUSB_MCU == OPT_MCU_LPC175X_6X || CFG_TUSB_MCU == OPT_MCU_LPC40XX)
 //--------------------------------------------------------------------+
 // INCLUDE
 //--------------------------------------------------------------------+

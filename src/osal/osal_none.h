@@ -134,7 +134,7 @@ extern void dcd_int_disable(uint8_t rhport);
 extern void dcd_int_enable(uint8_t rhport);
 #endif
 
-#if MODE_HOST_SUPPORTED
+#if TUSB_OPT_HOST_ENABLED
 extern void hcd_int_disable(uint8_t rhport);
 extern void hcd_int_enable(uint8_t rhport);
 #endif
@@ -167,7 +167,7 @@ static inline void _osal_q_lock(osal_queue_t qhdl)
   if (qhdl->role == OPT_MODE_DEVICE) dcd_int_disable(TUD_OPT_RHPORT);
 #endif
 
-#if MODE_HOST_SUPPORTED
+#if TUSB_OPT_HOST_ENABLED
   if (qhdl->role == OPT_MODE_HOST) hcd_int_disable(TUH_OPT_RHPORT);
 #endif
 }
@@ -179,7 +179,7 @@ static inline void _osal_q_unlock(osal_queue_t qhdl)
   if (qhdl->role == OPT_MODE_DEVICE) dcd_int_enable(TUD_OPT_RHPORT);
 #endif
 
-#if MODE_HOST_SUPPORTED
+#if TUSB_OPT_HOST_ENABLED
   if (qhdl->role == OPT_MODE_HOST) hcd_int_enable(TUH_OPT_RHPORT);
 #endif
 }
