@@ -291,7 +291,7 @@ tusb_error_t  hcd_pipe_control_open(uint8_t dev_addr, uint8_t max_packet_size)
   return TUSB_ERROR_NONE;
 }
 
-tusb_error_t  hcd_pipe_control_xfer(uint8_t dev_addr, tusb_control_request_t const * p_request, uint8_t data[])
+bool  hcd_pipe_control_xfer(uint8_t dev_addr, tusb_control_request_t const * p_request, uint8_t data[])
 {
   ohci_ed_t* const p_ed = &ohci_data.control[dev_addr].ed;
 
@@ -331,7 +331,7 @@ tusb_error_t  hcd_pipe_control_xfer(uint8_t dev_addr, tusb_control_request_t con
 
   OHCI_REG->command_status_bit.control_list_filled = 1;
 
-  return TUSB_ERROR_NONE;
+  return true;
 }
 
 tusb_error_t  hcd_pipe_control_close(uint8_t dev_addr)

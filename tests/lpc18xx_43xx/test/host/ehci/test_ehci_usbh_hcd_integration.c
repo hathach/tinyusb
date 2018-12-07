@@ -100,7 +100,7 @@ void test_addr0_control_close(void)
 
   TEST_ASSERT_STATUS( hcd_pipe_control_open(dev_addr, control_max_packet_size) );
 
-  TEST_ASSERT_STATUS( hcd_pipe_control_xfer(dev_addr,
+  TEST_ASSERT( hcd_pipe_control_xfer(dev_addr,
                         &(tusb_control_request_t) {
                               .bmRequestType_bit = { .direction = TUSB_DIR_HOST_TO_DEV, .type = TUSB_REQ_TYPE_STANDARD, .recipient = TUSB_REQ_RECIPIENT_DEVICE },
                               .bRequest = TUSB_REQ_SET_ADDRESS,
@@ -126,7 +126,7 @@ void test_isr_disconnect_then_async_advance_control_pipe(void)
 {
   TEST_ASSERT_STATUS( hcd_pipe_control_open(dev_addr, control_max_packet_size) );
 
-  TEST_ASSERT_STATUS( hcd_pipe_control_xfer(dev_addr,
+  TEST_ASSERT( hcd_pipe_control_xfer(dev_addr,
                         &(tusb_control_request_t) {
                               .bmRequestType_bit = { .direction = TUSB_DIR_HOST_TO_DEV, .type = TUSB_REQ_TYPE_STANDARD, .recipient = TUSB_REQ_RECIPIENT_DEVICE },
                               .bRequest = TUSB_REQ_SET_ADDRESS,

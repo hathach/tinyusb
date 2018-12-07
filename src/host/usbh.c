@@ -199,7 +199,7 @@ bool usbh_control_xfer (uint8_t dev_addr, tusb_control_request_t* request, uint8
   dev->control.request = *request;
   dev->control.pipe_status = 0;
 
-  TU_ASSERT_ERR(hcd_pipe_control_xfer(dev_addr, &dev->control.request, data), false);
+  TU_ASSERT(hcd_pipe_control_xfer(dev_addr, &dev->control.request, data));
   TU_ASSERT(osal_semaphore_wait(dev->control.sem_hdl, OSAL_TIMEOUT_NORMAL));
 
   osal_mutex_unlock(dev->control.mutex_hdl);

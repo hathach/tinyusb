@@ -128,7 +128,7 @@ void hcd_event_handler(hcd_event_t const* event, bool in_isr);
 //--------------------------------------------------------------------+
 // TODO control xfer should be used via usbh layer
 tusb_error_t  hcd_pipe_control_open(uint8_t dev_addr, uint8_t max_packet_size) ATTR_WARN_UNUSED_RESULT;
-tusb_error_t  hcd_pipe_control_xfer(uint8_t dev_addr, tusb_control_request_t const * p_request, uint8_t data[]) ATTR_WARN_UNUSED_RESULT;
+bool  hcd_pipe_control_xfer(uint8_t dev_addr, tusb_control_request_t const * p_request, uint8_t data[]) ATTR_WARN_UNUSED_RESULT;
 tusb_error_t  hcd_pipe_control_close(uint8_t dev_addr) ATTR_WARN_UNUSED_RESULT;
 
 pipe_handle_t hcd_pipe_open(uint8_t dev_addr, tusb_desc_endpoint_t const * endpoint_desc, uint8_t class_code) ATTR_WARN_UNUSED_RESULT;

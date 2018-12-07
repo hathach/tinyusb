@@ -149,7 +149,7 @@ void test_control_addr0_xfer_get_check_qhd_qtd_mapping(void)
   TEST_ASSERT_STATUS( hcd_pipe_control_open(dev_addr, control_max_packet_size) );
 
   //------------- Code Under TEST -------------//
-  TEST_ASSERT_STATUS( hcd_pipe_control_xfer(dev_addr, &request_get_dev_desc, xfer_data) );
+  TEST_ASSERT( hcd_pipe_control_xfer(dev_addr, &request_get_dev_desc, xfer_data) );
 
   p_setup  = &ehci_data.addr0_qtd[0];
   p_data   = &ehci_data.addr0_qtd[1];
@@ -171,7 +171,7 @@ void test_control_addr0_xfer_get_check_qhd_qtd_mapping(void)
 void test_control_xfer_get(void)
 {
   //------------- Code Under TEST -------------//
-  TEST_ASSERT_STATUS( hcd_pipe_control_xfer(dev_addr, &request_get_dev_desc, xfer_data) );
+  TEST_ASSERT( hcd_pipe_control_xfer(dev_addr, &request_get_dev_desc, xfer_data) );
 
   TEST_ASSERT_EQUAL_HEX( p_setup, p_control_qhd->qtd_overlay.next.address );
   TEST_ASSERT_EQUAL_HEX( p_setup  , p_control_qhd->p_qtd_list_head);
@@ -206,7 +206,7 @@ void test_control_xfer_get(void)
 void test_control_xfer_set(void)
 {
   //------------- Code Under TEST -------------//
-  TEST_ASSERT_STATUS( hcd_pipe_control_xfer(dev_addr, &request_set_dev_addr, xfer_data) );
+  TEST_ASSERT( hcd_pipe_control_xfer(dev_addr, &request_set_dev_addr, xfer_data) );
 
   TEST_ASSERT_EQUAL_HEX( p_setup, p_control_qhd->qtd_overlay.next.address );
   TEST_ASSERT_EQUAL_HEX( p_setup  , p_control_qhd->p_qtd_list_head);
@@ -226,7 +226,7 @@ void test_control_xfer_set(void)
 
 void test_control_xfer_complete_isr(void)
 {
-  TEST_ASSERT_STATUS( hcd_pipe_control_xfer(dev_addr, &request_get_dev_desc, xfer_data) );
+  TEST_ASSERT( hcd_pipe_control_xfer(dev_addr, &request_get_dev_desc, xfer_data) );
 
   usbh_xfer_isr_Expect(((pipe_handle_t){.dev_addr = dev_addr}), 0, XFER_RESULT_SUCCESS, 18);
 
@@ -245,7 +245,7 @@ void test_control_xfer_complete_isr(void)
 
 void test_control_xfer_error_isr(void)
 {
-  TEST_ASSERT_STATUS( hcd_pipe_control_xfer(dev_addr, &request_get_dev_desc, xfer_data) );
+  TEST_ASSERT( hcd_pipe_control_xfer(dev_addr, &request_get_dev_desc, xfer_data) );
 
   usbh_xfer_isr_Expect(((pipe_handle_t){.dev_addr = dev_addr}), 0, XFER_RESULT_FAILED, 0);
 
@@ -264,7 +264,7 @@ void test_control_xfer_error_isr(void)
 
 void test_control_xfer_error_stall(void)
 {
-  TEST_ASSERT_STATUS( hcd_pipe_control_xfer(dev_addr, &request_get_dev_desc, xfer_data) );
+  TEST_ASSERT( hcd_pipe_control_xfer(dev_addr, &request_get_dev_desc, xfer_data) );
 
   usbh_xfer_isr_Expect(((pipe_handle_t){.dev_addr = dev_addr}), 0, XFER_RESULT_STALLED, 0);
 
