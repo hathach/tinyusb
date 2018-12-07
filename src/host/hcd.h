@@ -113,8 +113,6 @@ static inline bool pipehandle_is_equal(pipe_handle_t x, pipe_handle_t y)
 // USBH-HCD API
 //--------------------------------------------------------------------+
 bool hcd_init(void);
-void hal_hcd_isr(uint8_t hostid);
-
 void hcd_int_enable (uint8_t rhport);
 void hcd_int_disable(uint8_t rhport);
 
@@ -128,9 +126,8 @@ void hcd_event_handler(hcd_event_t const* event, bool in_isr);
 //--------------------------------------------------------------------+
 bool hcd_edpt_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_endpoint_t const* ep_desc);
 bool hcd_edpt_close(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr);
-bool hcd_edpt_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr, uint8_t * buffer, uint16_t buflen);
-
 bool hcd_setup_send(uint8_t rhport, uint8_t dev_addr, uint8_t const setup_packet[8]);
+bool hcd_edpt_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr, uint8_t * buffer, uint16_t buflen);
 
 //--------------------------------------------------------------------+
 // PIPE API

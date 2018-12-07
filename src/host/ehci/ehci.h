@@ -450,12 +450,12 @@ typedef volatile struct {
 //--------------------------------------------------------------------+
 typedef struct {
   //------------- Static Async/Period List Head, Each for one controller -------------//
-  ehci_qhd_t async_head[CONTROLLER_HOST_NUMBER]; /// head qhd of async list, also is used as control endpoint for address 0
+  ehci_qhd_t async_head; /// head qhd of async list, also is used as control endpoint for address 0
 
 #if EHCI_PERIODIC_LIST
   // for NXP ECHI, only implement 1 ms & 2 ms & 4 ms, 8 ms (framelist)
   // [0] : 1ms, [1] : 2ms, [2] : 4ms, [3] : 8 ms
-  ehci_qhd_t period_head_arr[CONTROLLER_HOST_NUMBER][4];
+  ehci_qhd_t period_head_arr[4];
 #endif
 
   //------------- Data for Address 0 (use async head as its queue head) -------------//

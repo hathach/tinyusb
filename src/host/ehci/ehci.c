@@ -209,8 +209,8 @@ static bool ehci_init(uint8_t hostid)
 
   for(uint32_t i=0; i<4; i++)
   {
-    ehci_data.period_head_arr[ hostid_to_data_idx(hostid) ][i].interrupt_smask    = 1; // queue head in period list must have smask non-zero
-    ehci_data.period_head_arr[ hostid_to_data_idx(hostid) ][i].qtd_overlay.halted = 1; // dummy node, always inactive
+    ehci_data.period_head_arr[i].interrupt_smask    = 1; // queue head in period list must have smask non-zero
+    ehci_data.period_head_arr[i].qtd_overlay.halted = 1; // dummy node, always inactive
   }
 
   ehci_link_t * const framelist  = get_period_frame_list(hostid);
@@ -873,27 +873,16 @@ static inline ehci_link_t* get_period_frame_list(uint8_t hostid)
 }
 #endif
 
-static inline uint8_t hostid_to_data_idx(uint8_t hostid)
-{
-  #if (CONTROLLER_HOST_NUMBER == 1) && (CFG_TUSB_RHPORT1_MODE & OPT_MODE_HOST)
-    (void) hostid;
-    return 0;
-  #else
-    return hostid;
-  #endif
-}
-
 //------------- queue head helper -------------//
 static inline ehci_qhd_t* get_async_head(uint8_t hostid)
 {
-  return &ehci_data.async_head[ hostid_to_data_idx(hostid) ];
+  return &ehci_data.async_head;
 }
 
 #if EHCI_PERIODIC_LIST // TODO refractor/group this together
 static inline ehci_link_t* get_period_head(uint8_t hostid, uint8_t interval_ms)
 {
-  return (ehci_link_t*) (&ehci_data.period_head_arr[ hostid_to_data_idx(hostid) ]
-                                                    [ tu_log2( tu_min8(EHCI_FRAMELIST_SIZE, interval_ms) ) ] );
+  return (ehci_link_t*) &ehci_data.period_head_arr[ tu_log2( tu_min8(EHCI_FRAMELIST_SIZE, interval_ms) ) ];
 }
 #endif
 
