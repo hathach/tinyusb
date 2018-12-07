@@ -155,7 +155,7 @@ static ohci_ed_t * ed_list_find_previous(ohci_ed_t const * p_head, ohci_ed_t con
 // USBH-HCD API
 //--------------------------------------------------------------------+
 // Initialization according to 5.1.1.4
-tusb_error_t hcd_init(void)
+bool hcd_init(void)
 {
   //------------- Data Structure init -------------//
   tu_memclr(&ohci_data, sizeof(ohci_data_t));
@@ -192,7 +192,7 @@ tusb_error_t hcd_init(void)
   OHCI_REG->control_bit.hc_functional_state = OHCI_CONTROL_FUNCSTATE_OPERATIONAL; // make HC's state to operational state TODO use this to suspend (save power)
   OHCI_REG->rh_status_bit.local_power_status_change = 1; // set global power for ports
 
-  return TUSB_ERROR_NONE;
+  return true;
 }
 
 //--------------------------------------------------------------------+
@@ -273,6 +273,85 @@ static void gtd_init(ohci_gtd_t* p_td, void* data_ptr, uint16_t total_bytes)
   p_td->buffer_end             = total_bytes ? (((uint8_t*) data_ptr) + total_bytes-1) : NULL;
 }
 
+
+bool  hcd_pipe_control_open(uint8_t dev_addr, uint8_t max_packet_size)
+{
+  ohci_ed_t* p_ed = &ohci_data.control[dev_addr].ed;
+
+  ed_init(p_ed, dev_addr, max_packet_size, 0, TUSB_XFER_CONTROL, 0); // TODO binterval of control is ignored
+
+  if ( dev_addr != 0 )
+  { // insert to control head
+    ed_list_insert( p_ed_head[TUSB_XFER_CONTROL], p_ed);
+  }else
+  {
+    p_ed->skip = 0; // addr0 is used as static control head --> only need to clear skip bit
+  }
+
+  return true;
+}
+
+//bool  hcd_pipe_control_xfer(uint8_t dev_addr, tusb_control_request_t const * p_request, uint8_t data[])
+//{
+//  ohci_ed_t* const p_ed = &ohci_data.control[dev_addr].ed;
+//
+//  ohci_gtd_t *p_setup      = &ohci_data.control[dev_addr].gtd[0];
+//  ohci_gtd_t *p_data       = p_setup + 1;
+//  ohci_gtd_t *p_status     = p_setup + 2;
+//
+//  //------------- SETUP Phase -------------//
+//  gtd_init(p_setup, (void*) p_request, 8);
+//  p_setup->index       = dev_addr;
+//  p_setup->pid         = OHCI_PID_SETUP;
+//  p_setup->data_toggle = BIN8(10); // DATA0
+//  p_setup->next_td     = (uint32_t) p_data;
+//
+//  //------------- DATA Phase -------------//
+//  if (p_request->wLength > 0)
+//  {
+//    gtd_init(p_data, data, p_request->wLength);
+//    p_data->index       = dev_addr;
+//    p_data->pid         = p_request->bmRequestType_bit.direction ? OHCI_PID_IN : OHCI_PID_OUT;
+//    p_data->data_toggle = BIN8(11); // DATA1
+//  }else
+//  {
+//    p_data = p_setup;
+//  }
+//  p_data->next_td = (uint32_t) p_status;
+//
+//  //------------- STATUS Phase -------------//
+//  gtd_init(p_status, NULL, 0); // zero-length data
+//  p_status->index           = dev_addr;
+//  p_status->pid             = p_request->bmRequestType_bit.direction ? OHCI_PID_OUT : OHCI_PID_IN; // reverse direction of data phase
+//  p_status->data_toggle     = BIN8(11); // DATA1
+//  p_status->delay_interrupt = OHCI_INT_ON_COMPLETE_YES;
+//
+//  //------------- Attach TDs list to Control Endpoint -------------//
+//  p_ed->td_head.address = (uint32_t) p_setup;
+//
+//  OHCI_REG->command_status_bit.control_list_filled = 1;
+//
+//  return true;
+//}
+
+bool hcd_pipe_control_close(uint8_t dev_addr)
+{
+  ohci_ed_t* const p_ed = &ohci_data.control[dev_addr].ed;
+
+  if ( dev_addr == 0 )
+  { // addr0 serves as static head --> only set skip bitx
+    p_ed->skip = 1;
+  }else
+  {
+    ed_list_remove( p_ed_head[ ed_get_xfer_type(p_ed)], p_ed );
+
+    // TODO refractor to be USBH
+    _usbh_devices[dev_addr].state = TUSB_DEVICE_STATE_UNPLUG;
+  }
+
+  return true;
+}
+
 bool hcd_edpt_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_endpoint_t const* ep_desc)
 {
   // FIXME control only for now
@@ -336,84 +415,6 @@ bool hcd_edpt_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr, uint8_t * 
   }
 
   return true;
-}
-
-tusb_error_t  hcd_pipe_control_open(uint8_t dev_addr, uint8_t max_packet_size)
-{
-  ohci_ed_t* p_ed = &ohci_data.control[dev_addr].ed;
-
-  ed_init(p_ed, dev_addr, max_packet_size, 0, TUSB_XFER_CONTROL, 0); // TODO binterval of control is ignored
-
-  if ( dev_addr != 0 )
-  { // insert to control head
-    ed_list_insert( p_ed_head[TUSB_XFER_CONTROL], p_ed);
-  }else
-  {
-    p_ed->skip = 0; // addr0 is used as static control head --> only need to clear skip bit
-  }
-
-  return TUSB_ERROR_NONE;
-}
-
-//bool  hcd_pipe_control_xfer(uint8_t dev_addr, tusb_control_request_t const * p_request, uint8_t data[])
-//{
-//  ohci_ed_t* const p_ed = &ohci_data.control[dev_addr].ed;
-//
-//  ohci_gtd_t *p_setup      = &ohci_data.control[dev_addr].gtd[0];
-//  ohci_gtd_t *p_data       = p_setup + 1;
-//  ohci_gtd_t *p_status     = p_setup + 2;
-//
-//  //------------- SETUP Phase -------------//
-//  gtd_init(p_setup, (void*) p_request, 8);
-//  p_setup->index       = dev_addr;
-//  p_setup->pid         = OHCI_PID_SETUP;
-//  p_setup->data_toggle = BIN8(10); // DATA0
-//  p_setup->next_td     = (uint32_t) p_data;
-//
-//  //------------- DATA Phase -------------//
-//  if (p_request->wLength > 0)
-//  {
-//    gtd_init(p_data, data, p_request->wLength);
-//    p_data->index       = dev_addr;
-//    p_data->pid         = p_request->bmRequestType_bit.direction ? OHCI_PID_IN : OHCI_PID_OUT;
-//    p_data->data_toggle = BIN8(11); // DATA1
-//  }else
-//  {
-//    p_data = p_setup;
-//  }
-//  p_data->next_td = (uint32_t) p_status;
-//
-//  //------------- STATUS Phase -------------//
-//  gtd_init(p_status, NULL, 0); // zero-length data
-//  p_status->index           = dev_addr;
-//  p_status->pid             = p_request->bmRequestType_bit.direction ? OHCI_PID_OUT : OHCI_PID_IN; // reverse direction of data phase
-//  p_status->data_toggle     = BIN8(11); // DATA1
-//  p_status->delay_interrupt = OHCI_INT_ON_COMPLETE_YES;
-//
-//  //------------- Attach TDs list to Control Endpoint -------------//
-//  p_ed->td_head.address = (uint32_t) p_setup;
-//
-//  OHCI_REG->command_status_bit.control_list_filled = 1;
-//
-//  return true;
-//}
-
-tusb_error_t  hcd_pipe_control_close(uint8_t dev_addr)
-{
-  ohci_ed_t* const p_ed = &ohci_data.control[dev_addr].ed;
-
-  if ( dev_addr == 0 )
-  { // addr0 serves as static head --> only set skip bitx
-    p_ed->skip = 1;
-  }else
-  {
-    ed_list_remove( p_ed_head[ ed_get_xfer_type(p_ed)], p_ed );
-
-    // TODO refractor to be USBH
-    _usbh_devices[dev_addr].state = TUSB_DEVICE_STATE_UNPLUG;
-  }
-
-  return TUSB_ERROR_NONE;
 }
 
 //--------------------------------------------------------------------+

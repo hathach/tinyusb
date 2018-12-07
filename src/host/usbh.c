@@ -183,7 +183,7 @@ bool usbh_init(void)
     }
   }
 
-  TU_ASSERT( hcd_init() == TUSB_ERROR_NONE );
+  TU_ASSERT(hcd_init());
   hcd_int_enable(TUH_OPT_RHPORT);
 
   return true;

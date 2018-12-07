@@ -112,7 +112,7 @@ static inline bool pipehandle_is_equal(pipe_handle_t x, pipe_handle_t y)
 //--------------------------------------------------------------------+
 // USBH-HCD API
 //--------------------------------------------------------------------+
-tusb_error_t hcd_init(void) ATTR_WARN_UNUSED_RESULT;
+bool hcd_init(void);
 void hal_hcd_isr(uint8_t hostid);
 
 void hcd_int_enable (uint8_t rhport);
@@ -136,9 +136,6 @@ bool hcd_setup_send(uint8_t rhport, uint8_t dev_addr, uint8_t const setup_packet
 // PIPE API
 //--------------------------------------------------------------------+
 // TODO control xfer should be used via usbh layer
-tusb_error_t  hcd_pipe_control_open(uint8_t dev_addr, uint8_t max_packet_size) ATTR_WARN_UNUSED_RESULT;
-bool  hcd_pipe_control_xfer(uint8_t dev_addr, tusb_control_request_t const * p_request, uint8_t data[]) ATTR_WARN_UNUSED_RESULT;
-tusb_error_t  hcd_pipe_control_close(uint8_t dev_addr) ATTR_WARN_UNUSED_RESULT;
 
 pipe_handle_t hcd_pipe_open(uint8_t dev_addr, tusb_desc_endpoint_t const * endpoint_desc, uint8_t class_code) ATTR_WARN_UNUSED_RESULT;
 tusb_error_t  hcd_pipe_queue_xfer(pipe_handle_t pipe_hdl, uint8_t buffer[], uint16_t total_bytes) ATTR_WARN_UNUSED_RESULT; // only queue, not transferring yet

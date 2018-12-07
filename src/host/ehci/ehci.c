@@ -123,26 +123,26 @@ static inline ehci_link_t* list_next(ehci_link_t *p_link_pointer) ATTR_PURE ATTR
 static ehci_link_t*  list_find_previous_item(ehci_link_t* p_head, ehci_link_t* p_current);
 static tusb_error_t list_remove_qhd(ehci_link_t* p_head, ehci_link_t* p_remove);
 
-static tusb_error_t hcd_controller_init(uint8_t hostid) ATTR_WARN_UNUSED_RESULT;
+static bool ehci_init(uint8_t hostid);
 static tusb_error_t hcd_controller_stop(uint8_t hostid) ATTR_WARN_UNUSED_RESULT ATTR_UNUSED;
 
 //--------------------------------------------------------------------+
 // USBH-HCD API
 //--------------------------------------------------------------------+
-tusb_error_t hcd_init(void)
+bool hcd_init(void)
 {
   //------------- Data Structure init -------------//
   tu_memclr(&ehci_data, sizeof(ehci_data_t));
 
   #if (CFG_TUSB_RHPORT0_MODE & OPT_MODE_HOST)
-    TU_ASSERT_ERR (hcd_controller_init(0));
+    TU_VERIFY(ehci_init(0));
   #endif
 
   #if (CFG_TUSB_RHPORT1_MODE & OPT_MODE_HOST)
-    TU_ASSERT_ERR (hcd_controller_init(1));
+    TU_VERIFY(ehci_init(1));
   #endif
 
-  return TUSB_ERROR_NONE;
+  return true;
 }
 
 //--------------------------------------------------------------------+
@@ -176,7 +176,7 @@ void hcd_port_unplug(uint8_t hostid)
 //--------------------------------------------------------------------+
 // Controller API
 //--------------------------------------------------------------------+
-static tusb_error_t hcd_controller_init(uint8_t hostid)
+static bool ehci_init(uint8_t hostid)
 {
   ehci_registers_t* const regs = get_operational_register(hostid);
 
@@ -262,7 +262,7 @@ static tusb_error_t hcd_controller_init(uint8_t hostid)
 
   regs->portsc_bit.port_power = 1; // enable port power
 
-  return TUSB_ERROR_NONE;
+  return true;
 }
 
 static tusb_error_t hcd_controller_stop(uint8_t hostid)
@@ -281,22 +281,91 @@ static tusb_error_t hcd_controller_stop(uint8_t hostid)
 //--------------------------------------------------------------------+
 // CONTROL PIPE API
 //--------------------------------------------------------------------+
+bool hcd_pipe_control_open(uint8_t dev_addr, uint8_t max_packet_size)
+{
+  ehci_qhd_t * const p_qhd = get_control_qhd(dev_addr);
+
+  qhd_init(p_qhd, dev_addr, max_packet_size, 0, TUSB_XFER_CONTROL, 1); // TODO binterval of control is ignored
+
+  if (dev_addr != 0)
+  {
+    //------------- insert to async list -------------//
+    list_insert( (ehci_link_t*) get_async_head(_usbh_devices[dev_addr].core_id),
+                 (ehci_link_t*) p_qhd, EHCI_QUEUE_ELEMENT_QHD);
+  }
+
+  return true;
+}
+
+//bool  hcd_pipe_control_xfer(uint8_t dev_addr, tusb_control_request_t const * p_request, uint8_t data[])
+//{
+//  ehci_qhd_t * const p_qhd = get_control_qhd(dev_addr);
+//
+//  ehci_qtd_t *p_setup      = get_control_qtds(dev_addr);
+//  ehci_qtd_t *p_data       = p_setup + 1;
+//  ehci_qtd_t *p_status     = p_setup + 2;
+//
+//  //------------- SETUP Phase -------------//
+//  qtd_init(p_setup, (uint32_t) p_request, 8);
+//  p_setup->pid          = EHCI_PID_SETUP;
+//  p_setup->next.address = (uint32_t) p_data;
+//
+//  //------------- DATA Phase -------------//
+//  if (p_request->wLength > 0)
+//  {
+//    qtd_init(p_data, (uint32_t) data, p_request->wLength);
+//    p_data->data_toggle = 1;
+//    p_data->pid         = p_request->bmRequestType_bit.direction ? EHCI_PID_IN : EHCI_PID_OUT;
+//  }else
+//  {
+//    p_data = p_setup;
+//  }
+//  p_data->next.address = (uint32_t) p_status;
+//
+//  //------------- STATUS Phase -------------//
+//  qtd_init(p_status, 0, 0); // zero-length data
+//  p_status->int_on_complete = 1;
+//  p_status->data_toggle     = 1;
+//  p_status->pid             = p_request->bmRequestType_bit.direction ? EHCI_PID_OUT : EHCI_PID_IN; // reverse direction of data phase
+//  p_status->next.terminate  = 1;
+//
+//  //------------- Attach TDs list to Control Endpoint -------------//
+//  p_qhd->p_qtd_list_head = p_setup;
+//  p_qhd->p_qtd_list_tail = p_status;
+//
+//  p_qhd->qtd_overlay.next.address = (uint32_t) p_setup;
+//
+//  return true;
+//}
+
+bool hcd_pipe_control_close(uint8_t dev_addr)
+{
+  //------------- TODO pipe handle validate -------------//
+  ehci_qhd_t * const p_qhd = get_control_qhd(dev_addr);
+
+  p_qhd->is_removing = 1;
+
+  if (dev_addr != 0)
+  {
+    TU_ASSERT_ERR( list_remove_qhd( (ehci_link_t*) get_async_head( _usbh_devices[dev_addr].core_id ),
+                                    (ehci_link_t*) p_qhd) );
+  }
+
+  return true;
+}
+
 bool hcd_edpt_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_endpoint_t const* ep_desc)
 {
   // FIXME control only for now
   (void) rhport;
-  hcd_pipe_control_open(dev_addr, ep_desc->wMaxPacketSize.size);
-
-  return true;
+  return hcd_pipe_control_open(dev_addr, ep_desc->wMaxPacketSize.size);
 }
 
 bool hcd_edpt_close(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr)
 {
   // FIXME control only for now
 
-  hcd_pipe_control_close(dev_addr);
-
-  return true;
+  return hcd_pipe_control_close(dev_addr);
 }
 
 bool hcd_edpt_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr, uint8_t * buffer, uint16_t buflen)
@@ -347,79 +416,6 @@ bool hcd_setup_send(uint8_t rhport, uint8_t dev_addr, uint8_t const setup_packet
   p_qhd->qtd_overlay.next.address = (uint32_t) p_setup;
 
   return true;
-}
-
-tusb_error_t  hcd_pipe_control_open(uint8_t dev_addr, uint8_t max_packet_size)
-{
-  ehci_qhd_t * const p_qhd = get_control_qhd(dev_addr);
-
-  qhd_init(p_qhd, dev_addr, max_packet_size, 0, TUSB_XFER_CONTROL, 1); // TODO binterval of control is ignored
-
-  if (dev_addr != 0)
-  {
-    //------------- insert to async list -------------//
-    list_insert( (ehci_link_t*) get_async_head(_usbh_devices[dev_addr].core_id),
-                 (ehci_link_t*) p_qhd, EHCI_QUEUE_ELEMENT_QHD);
-  }
-
-  return TUSB_ERROR_NONE;
-}
-
-//bool  hcd_pipe_control_xfer(uint8_t dev_addr, tusb_control_request_t const * p_request, uint8_t data[])
-//{
-//  ehci_qhd_t * const p_qhd = get_control_qhd(dev_addr);
-//
-//  ehci_qtd_t *p_setup      = get_control_qtds(dev_addr);
-//  ehci_qtd_t *p_data       = p_setup + 1;
-//  ehci_qtd_t *p_status     = p_setup + 2;
-//
-//  //------------- SETUP Phase -------------//
-//  qtd_init(p_setup, (uint32_t) p_request, 8);
-//  p_setup->pid          = EHCI_PID_SETUP;
-//  p_setup->next.address = (uint32_t) p_data;
-//
-//  //------------- DATA Phase -------------//
-//  if (p_request->wLength > 0)
-//  {
-//    qtd_init(p_data, (uint32_t) data, p_request->wLength);
-//    p_data->data_toggle = 1;
-//    p_data->pid         = p_request->bmRequestType_bit.direction ? EHCI_PID_IN : EHCI_PID_OUT;
-//  }else
-//  {
-//    p_data = p_setup;
-//  }
-//  p_data->next.address = (uint32_t) p_status;
-//
-//  //------------- STATUS Phase -------------//
-//  qtd_init(p_status, 0, 0); // zero-length data
-//  p_status->int_on_complete = 1;
-//  p_status->data_toggle     = 1;
-//  p_status->pid             = p_request->bmRequestType_bit.direction ? EHCI_PID_OUT : EHCI_PID_IN; // reverse direction of data phase
-//  p_status->next.terminate  = 1;
-//
-//  //------------- Attach TDs list to Control Endpoint -------------//
-//  p_qhd->p_qtd_list_head = p_setup;
-//  p_qhd->p_qtd_list_tail = p_status;
-//
-//  p_qhd->qtd_overlay.next.address = (uint32_t) p_setup;
-//
-//  return true;
-//}
-
-tusb_error_t  hcd_pipe_control_close(uint8_t dev_addr)
-{
-  //------------- TODO pipe handle validate -------------//
-  ehci_qhd_t * const p_qhd = get_control_qhd(dev_addr);
-
-  p_qhd->is_removing = 1;
-
-  if (dev_addr != 0)
-  {
-    TU_ASSERT_ERR( list_remove_qhd( (ehci_link_t*) get_async_head( _usbh_devices[dev_addr].core_id ),
-                                    (ehci_link_t*) p_qhd) );
-  }
-
-  return TUSB_ERROR_NONE;
 }
 
 //--------------------------------------------------------------------+
