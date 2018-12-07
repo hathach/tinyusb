@@ -71,15 +71,27 @@ bool hub_port_clear_feature_subtask(uint8_t hub_addr, uint8_t hub_port, uint8_t 
 {
   TU_ASSERT(HUB_FEATURE_PORT_CONNECTION_CHANGE <= feature && feature <= HUB_FEATURE_PORT_RESET_CHANGE);
 
+  tusb_control_request_t request = {
+          .bmRequestType_bit = { .recipient = TUSB_REQ_RCPT_OTHER, .type = TUSB_REQ_TYPE_CLASS, .direction = TUSB_DIR_OUT },
+          .bRequest = HUB_REQUEST_CLEAR_FEATURE,
+          .wValue = feature,
+          .wIndex = hub_port,
+          .wLength = 0
+  };
+
   //------------- Clear Port Feature request -------------//
-  TU_ASSERT( usbh_control_xfer_subtask( hub_addr, bm_request_type(TUSB_DIR_OUT, TUSB_REQ_TYPE_CLASS, TUSB_REQ_RCPT_OTHER),
-                                        HUB_REQUEST_CLEAR_FEATURE, feature, hub_port,
-                                        0, NULL ) );
+  TU_ASSERT( usbh_control_xfer( hub_addr, &request, NULL ) );
 
   //------------- Get Port Status to check if feature is cleared -------------//
-  TU_ASSERT( usbh_control_xfer_subtask( hub_addr, bm_request_type(TUSB_DIR_IN, TUSB_REQ_TYPE_CLASS, TUSB_REQ_RCPT_OTHER),
-                                        HUB_REQUEST_GET_STATUS, 0, hub_port,
-                                        4, hub_enum_buffer ) );
+  request = (tusb_control_request_t ) {
+        .bmRequestType_bit = { .recipient = TUSB_REQ_RCPT_OTHER, .type = TUSB_REQ_TYPE_CLASS, .direction = TUSB_DIR_IN },
+        .bRequest = HUB_REQUEST_GET_STATUS,
+        .wValue = 0,
+        .wIndex = hub_port,
+        .wLength = 4
+  };
+
+  TU_ASSERT( usbh_control_xfer( hub_addr, &request, hub_enum_buffer ) );
 
   //------------- Check if feature is cleared -------------//
   hub_port_status_response_t * p_port_status;
@@ -96,16 +108,28 @@ bool hub_port_reset_subtask(uint8_t hub_addr, uint8_t hub_port)
   tusb_error_t error;
 
   //------------- Set Port Reset -------------//
-  TU_ASSERT( usbh_control_xfer_subtask( hub_addr, bm_request_type(TUSB_DIR_OUT, TUSB_REQ_TYPE_CLASS, TUSB_REQ_RCPT_OTHER),
-                                 HUB_REQUEST_SET_FEATURE, HUB_FEATURE_PORT_RESET, hub_port,
-                                 0, NULL ) );
+  tusb_control_request_t request = {
+          .bmRequestType_bit = { .recipient = TUSB_REQ_RCPT_OTHER, .type = TUSB_REQ_TYPE_CLASS, .direction = TUSB_DIR_OUT },
+          .bRequest = HUB_REQUEST_SET_FEATURE,
+          .wValue = HUB_FEATURE_PORT_RESET,
+          .wIndex = hub_port,
+          .wLength = 0
+  };
+
+  TU_ASSERT( usbh_control_xfer( hub_addr, &request, NULL ) );
 
   osal_task_delay(RESET_DELAY); // TODO Hub wait for Status Endpoint on Reset Change
 
   //------------- Get Port Status to check if port is enabled, powered and reset_change -------------//
-  TU_ASSERT( usbh_control_xfer_subtask( hub_addr, bm_request_type(TUSB_DIR_IN, TUSB_REQ_TYPE_CLASS, TUSB_REQ_RCPT_OTHER),
-                                        HUB_REQUEST_GET_STATUS, 0, hub_port,
-                                        4, hub_enum_buffer ) );
+  request = (tusb_control_request_t ) {
+        .bmRequestType_bit = { .recipient = TUSB_REQ_RCPT_OTHER, .type = TUSB_REQ_TYPE_CLASS, .direction = TUSB_DIR_IN },
+        .bRequest = HUB_REQUEST_GET_STATUS,
+        .wValue = 0,
+        .wIndex = hub_port,
+        .wLength = 4
+  };
+
+  TU_ASSERT( usbh_control_xfer( hub_addr, &request, hub_enum_buffer ) );
 
   hub_port_status_response_t * p_port_status;
   p_port_status = (hub_port_status_response_t *) hub_enum_buffer;
@@ -152,20 +176,33 @@ bool hub_open_subtask(uint8_t dev_addr, tusb_desc_interface_t const *p_interface
   (*p_length) = sizeof(tusb_desc_interface_t) + sizeof(tusb_desc_endpoint_t);
 
   //------------- Get Hub Descriptor -------------//
-  TU_ASSERT( usbh_control_xfer_subtask( dev_addr, bm_request_type(TUSB_DIR_IN, TUSB_REQ_TYPE_CLASS, TUSB_REQ_RCPT_DEVICE),
-                                        HUB_REQUEST_GET_DESCRIPTOR, 0, 0,
-                                        sizeof(descriptor_hub_desc_t), hub_enum_buffer ) );
+  tusb_control_request_t request = {
+          .bmRequestType_bit = { .recipient = TUSB_REQ_RCPT_DEVICE, .type = TUSB_REQ_TYPE_CLASS, .direction = TUSB_DIR_IN },
+          .bRequest = HUB_REQUEST_GET_DESCRIPTOR,
+          .wValue = 0,
+          .wIndex = 0,
+          .wLength = sizeof(descriptor_hub_desc_t)
+  };
+
+  TU_ASSERT( usbh_control_xfer( dev_addr, &request, hub_enum_buffer ) );
 
   // only care about this field in hub descriptor
   hub_data[dev_addr-1].port_number = ((descriptor_hub_desc_t*) hub_enum_buffer)->bNbrPorts;
 
   //------------- Set Port_Power on all ports -------------//
-  static uint8_t i;
-  for(i=1; i <= hub_data[dev_addr-1].port_number; i++)
+  // TODO may only power port with attached
+  request = (tusb_control_request_t ) {
+          .bmRequestType_bit = { .recipient = TUSB_REQ_RCPT_OTHER, .type = TUSB_REQ_TYPE_CLASS, .direction = TUSB_DIR_OUT },
+          .bRequest = HUB_REQUEST_SET_FEATURE,
+          .wValue = HUB_FEATURE_PORT_POWER,
+          .wIndex = 0,
+          .wLength = 0
+  };
+
+  for(uint8_t i=1; i <= hub_data[dev_addr-1].port_number; i++)
   {
-    TU_ASSERT( usbh_control_xfer_subtask( dev_addr, bm_request_type(TUSB_DIR_OUT, TUSB_REQ_TYPE_CLASS, TUSB_REQ_RCPT_OTHER),
-                                          HUB_REQUEST_SET_FEATURE, HUB_FEATURE_PORT_POWER, i,
-                                          0, NULL ) );
+    request.wIndex = i;
+    TU_ASSERT( usbh_control_xfer( dev_addr, &request, NULL ) );
   }
 
   //------------- Queue the initial Status endpoint transfer -------------//

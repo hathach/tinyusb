@@ -222,7 +222,7 @@ void test_usbh_control_xfer_mutex_failed(void)
   osal_mutex_release_ExpectAndReturn(_usbh_devices[dev_addr].control.mutex_hdl, TUSB_ERROR_NONE);
 
   //------------- Code Under Test -------------//
-  usbh_control_xfer_subtask(dev_addr, 1, 2, 3, 4, 0, NULL);
+  usbh_control_xfer(dev_addr, 1, 2, 3, 4, 0, NULL);
 }
 
 void test_usbh_control_xfer_ok(void)
@@ -244,7 +244,7 @@ void test_usbh_control_xfer_ok(void)
   osal_mutex_release_ExpectAndReturn(_usbh_devices[dev_addr].control.mutex_hdl, TUSB_ERROR_NONE);
 
   //------------- Code Under Test -------------//
-  usbh_control_xfer_subtask(dev_addr, 1, 2, 3, 4, 0, NULL);
+  usbh_control_xfer(dev_addr, 1, 2, 3, 4, 0, NULL);
 }
 
 //void test_usbh_xfer_isr_non_control_stalled(void) // do nothing for stall on control

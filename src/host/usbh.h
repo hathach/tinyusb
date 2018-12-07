@@ -100,8 +100,8 @@ ATTR_WEAK void    tuh_device_mount_failed_cb(tusb_error_t error, tusb_desc_devic
 bool usbh_init(void);
 void usbh_task(void* param);
 
-bool usbh_control_xfer_subtask(uint8_t dev_addr, uint8_t bmRequestType, uint8_t bRequest,
-                                       uint16_t wValue, uint16_t wIndex, uint16_t wLength, uint8_t* data);
+bool usbh_control_xfer (uint8_t dev_addr, tusb_control_request_t* request, uint8_t* data);
+
 #endif
 
 #ifdef __cplusplus
