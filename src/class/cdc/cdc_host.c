@@ -66,7 +66,6 @@ static inline cdc_pipeid_t get_app_pipeid(pipe_handle_t pipe_hdl)
          pipehandle_is_equal( pipe_hdl, p_cdc->pipe_out          ) ? CDC_PIPE_DATA_OUT     : CDC_PIPE_ERROR;
 }
 
-
 static inline bool tusbh_cdc_is_mounted(uint8_t dev_addr)
 {
   return pipehandle_is_valid(cdch_data[dev_addr-1].pipe_in) && pipehandle_is_valid(cdch_data[dev_addr-1].pipe_out);
@@ -204,10 +203,20 @@ bool cdch_open_subtask(uint8_t dev_addr, tusb_desc_interface_t const *p_interfac
     }
   }
 
+  // FIXME mounted class flag is not set yet
+  tuh_cdc_mounted_cb(dev_addr);
+
+  // FIXME move to seperate API : connect
+  tusb_control_request_t request =
   {
-    // FIXME mounted class flag is not set yet
-    tuh_cdc_mounted_cb(dev_addr);
-  }
+    .bmRequestType_bit = { .recipient = TUSB_REQ_RCPT_INTERFACE, .type = TUSB_REQ_TYPE_CLASS, .direction = TUSB_DIR_OUT },
+    .bRequest = CDC_REQUEST_SET_CONTROL_LINE_STATE,
+    .wValue = 0x03, // dtr on, cst on
+    .wIndex = p_cdc->interface_number,
+    .wLength = 0
+  };
+
+  TU_ASSERT( usbh_control_xfer(dev_addr, &request, NULL) );
 
   return true;
 }
