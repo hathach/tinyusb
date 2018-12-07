@@ -51,8 +51,8 @@
 
 typedef enum
 {
-  HCD_EVENT_DEVICE_PLUG,
-  HCD_EVENT_DEVICE_UNPLUG,
+  HCD_EVENT_DEVICE_ATTACH,
+  HCD_EVENT_DEVICE_REMOVE,
   HCD_EVENT_XFER_COMPLETE,
 } hcd_eventid_t;
 
@@ -67,7 +67,7 @@ typedef struct
     {
       uint8_t hub_addr;
       uint8_t hub_port;
-    } plug, unplug;
+    } attach, remove;
 
     struct
     {

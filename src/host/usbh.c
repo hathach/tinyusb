@@ -193,13 +193,17 @@ bool usbh_init(void)
 bool usbh_control_xfer (uint8_t dev_addr, tusb_control_request_t* request, uint8_t* data)
 {
   usbh_device_t* dev = &_usbh_devices[dev_addr];
-  const uint8_t rhport = dev->core_id;
+  //const uint8_t rhport = dev->core_id;
 
   TU_ASSERT(osal_mutex_lock(dev->control.mutex_hdl, OSAL_TIMEOUT_NORMAL));
 
   dev->control.request = *request;
   dev->control.pipe_status = 0;
 
+#if 1
+  TU_ASSERT(hcd_pipe_control_xfer(dev_addr, &dev->control.request, data));
+  TU_ASSERT(osal_semaphore_wait(dev->control.sem_hdl, OSAL_TIMEOUT_NORMAL));
+#else
   // Setup Stage
   hcd_setup_send(rhport, dev_addr, (uint8_t*) &dev->control.request);
   TU_VERIFY(osal_semaphore_wait(dev->control.sem_hdl, OSAL_TIMEOUT_NORMAL));
@@ -214,6 +218,7 @@ bool usbh_control_xfer (uint8_t dev_addr, tusb_control_request_t* request, uint8
   // Status : data toggle is always 1
   hcd_edpt_xfer(rhport, dev_addr, edpt_addr(0, 1-request->bmRequestType_bit.direction), NULL, 0);
   TU_VERIFY(osal_semaphore_wait(dev->control.sem_hdl, OSAL_TIMEOUT_NORMAL));
+#endif
 
   osal_mutex_unlock(dev->control.mutex_hdl);
 
@@ -231,7 +236,7 @@ tusb_error_t usbh_pipe_control_open(uint8_t dev_addr, uint8_t max_packet_size)
 {
   osal_semaphore_reset( _usbh_devices[dev_addr].control.sem_hdl );
   //osal_mutex_reset( usbh_devices[dev_addr].control.mutex_hdl );
-
+      
   tusb_desc_endpoint_t ep0_desc =
   {
     .bLength          = sizeof(tusb_desc_endpoint_t),
@@ -296,11 +301,11 @@ void usbh_hub_port_plugged_isr(uint8_t hub_addr, uint8_t hub_port)
   hcd_event_t event =
   {
     .rhport = _usbh_devices[hub_addr].core_id,
-    .event_id = HCD_EVENT_DEVICE_PLUG
+    .event_id = HCD_EVENT_DEVICE_ATTACH
   };
 
-  event.plug.hub_addr = hub_addr;
-  event.plug.hub_port = hub_port;
+  event.attach.hub_addr = hub_addr;
+  event.attach.hub_port = hub_port;
 
   hcd_event_handler(&event, true);
 }
@@ -310,11 +315,11 @@ void usbh_hcd_rhport_plugged_isr(uint8_t hostid)
   hcd_event_t event =
   {
     .rhport = hostid,
-    .event_id = HCD_EVENT_DEVICE_PLUG
+    .event_id = HCD_EVENT_DEVICE_ATTACH
   };
 
-  event.plug.hub_addr = 0;
-  event.plug.hub_port = 0;
+  event.attach.hub_addr = 0;
+  event.attach.hub_port = 0;
 
   hcd_event_handler(&event, true);
 }
@@ -374,11 +379,11 @@ void usbh_hcd_rhport_unplugged_isr(uint8_t hostid)
   hcd_event_t event =
   {
     .rhport = hostid,
-    .event_id = HCD_EVENT_DEVICE_UNPLUG
+    .event_id = HCD_EVENT_DEVICE_REMOVE
   };
 
-  event.plug.hub_addr = 0;
-  event.plug.hub_port = 0;
+  event.attach.hub_addr = 0;
+  event.attach.hub_port = 0;
 
   hcd_event_handler(&event, true);
 }
@@ -402,8 +407,8 @@ bool enum_task(hcd_event_t* event)
   tusb_control_request_t request;
 
   dev0->core_id  = event->rhport; // TODO refractor integrate to device_pool
-  dev0->hub_addr = event->plug.hub_addr;
-  dev0->hub_port = event->plug.hub_port;
+  dev0->hub_addr = event->attach.hub_addr;
+  dev0->hub_port = event->attach.hub_port;
   dev0->state    = TUSB_DEVICE_STATE_UNPLUG;
 
   //------------- connected/disconnected directly with roothub -------------//
@@ -644,8 +649,8 @@ bool usbh_task_body(void)
 
     switch (event.event_id)
     {
-      case HCD_EVENT_DEVICE_PLUG:
-      case HCD_EVENT_DEVICE_UNPLUG:
+      case HCD_EVENT_DEVICE_ATTACH:
+      case HCD_EVENT_DEVICE_REMOVE:
         enum_task(&event);
       break;
 

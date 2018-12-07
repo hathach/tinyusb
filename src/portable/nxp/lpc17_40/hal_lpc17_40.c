@@ -42,10 +42,11 @@
 
 #include "chip.h"
 
+extern void hal_hcd_isr(uint8_t hostid);
+extern void hal_dcd_isr(uint8_t rhport);
+
 void USB_IRQHandler(void)
 {
-  extern void hal_dcd_isr(uint8_t rhport);
-
   #if MODE_HOST_SUPPORTED
     hal_hcd_isr(0);
   #endif
@@ -54,5 +55,19 @@ void USB_IRQHandler(void)
     hal_dcd_isr(0);
   #endif
 }
+
+//FIXME move later
+void hcd_int_enable(uint8_t rhport)
+{
+  (void) rhport;
+  NVIC_EnableIRQ(USB_IRQn);
+}
+
+void hcd_int_disable(uint8_t rhport)
+{
+  (void) rhport;
+  NVIC_DisableIRQ(USB_IRQn);
+}
+
 
 #endif

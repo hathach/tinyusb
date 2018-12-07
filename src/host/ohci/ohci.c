@@ -42,12 +42,14 @@
 //--------------------------------------------------------------------+
 // INCLUDE
 //--------------------------------------------------------------------+
-#include "hal/hal.h"
 #include "osal/osal.h"
 
 #include "../hcd.h"
 #include "../usbh_hcd.h"
 #include "ohci.h"
+
+// TODO remove
+#include "chip.h"
 
 //--------------------------------------------------------------------+
 // MACRO CONSTANT TYPEDEF
@@ -206,16 +208,19 @@ tusb_error_t hcd_init(void)
 //--------------------------------------------------------------------+
 void hcd_port_reset(uint8_t hostid)
 {
+  (void) hostid;
   OHCI_REG->rhport_status[0] = OHCI_RHPORT_PORT_RESET_STATUS_MASK;
 }
 
 bool hcd_port_connect_status(uint8_t hostid)
 {
+  (void) hostid;
   return OHCI_REG->rhport_status_bit[0].current_connect_status;
 }
 
 tusb_speed_t hcd_port_speed_get(uint8_t hostid)
 {
+  (void) hostid;
   return OHCI_REG->rhport_status_bit[0].low_speed_device_attached ? TUSB_SPEED_LOW : TUSB_SPEED_FULL;
 }
 
@@ -223,6 +228,7 @@ tusb_speed_t hcd_port_speed_get(uint8_t hostid)
 void hcd_port_unplug(uint8_t hostid)
 {
   // TODO OHCI
+  (void) hostid;
 }
 
 //--------------------------------------------------------------------+
@@ -242,6 +248,8 @@ static inline tusb_xfer_type_t ed_get_xfer_type(ohci_ed_t const * const p_ed)
 
 static void ed_init(ohci_ed_t *p_ed, uint8_t dev_addr, uint16_t max_packet_size, uint8_t endpoint_addr, uint8_t xfer_type, uint8_t interval)
 {
+  (void) interval;
+
   // address 0 is used as async head, which always on the list --> cannot be cleared
   if (dev_addr != 0)
   {
@@ -251,7 +259,7 @@ static void ed_init(ohci_ed_t *p_ed, uint8_t dev_addr, uint16_t max_packet_size,
   p_ed->device_address    = dev_addr;
   p_ed->endpoint_number   = endpoint_addr & 0x0F;
   p_ed->direction         = (xfer_type == TUSB_XFER_CONTROL) ? OHCI_PID_SETUP : ( (endpoint_addr & TUSB_DIR_IN_MASK) ? OHCI_PID_IN : OHCI_PID_OUT );
-  p_ed->speed             = usbh_devices[dev_addr].speed;
+  p_ed->speed             = _usbh_devices[dev_addr].speed;
   p_ed->is_iso            = (xfer_type == TUSB_XFER_ISOCHRONOUS) ? 1 : 0;
   p_ed->max_package_size  = max_packet_size;
 
@@ -272,6 +280,22 @@ static void gtd_init(ohci_gtd_t* p_td, void* data_ptr, uint16_t total_bytes)
 
   p_td->current_buffer_pointer = data_ptr;
   p_td->buffer_end             = total_bytes ? (((uint8_t*) data_ptr) + total_bytes-1) : NULL;
+}
+
+bool hcd_edpt_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_endpoint_t const* ep_desc)
+{
+  // FIXME control only for now
+  (void) rhport;
+  return hcd_pipe_control_open(dev_addr, ep_desc->wMaxPacketSize.size);
+}
+
+bool hcd_edpt_close(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr)
+{
+  // FIXME control only for now
+  (void) rhport;
+  (void) ep_addr;
+
+  return hcd_pipe_control_close(dev_addr);
 }
 
 tusb_error_t  hcd_pipe_control_open(uint8_t dev_addr, uint8_t max_packet_size)
@@ -346,7 +370,7 @@ tusb_error_t  hcd_pipe_control_close(uint8_t dev_addr)
     ed_list_remove( p_ed_head[ ed_get_xfer_type(p_ed)], p_ed );
 
     // TODO refractor to be USBH
-    usbh_devices[dev_addr].state = TUSB_DEVICE_STATE_UNPLUG;
+    _usbh_devices[dev_addr].state = TUSB_DEVICE_STATE_UNPLUG;
   }
 
   return TUSB_ERROR_NONE;
@@ -496,6 +520,7 @@ tusb_error_t  hcd_pipe_queue_xfer(pipe_handle_t pipe_hdl, uint8_t buffer[], uint
 
 tusb_error_t  hcd_pipe_xfer(pipe_handle_t pipe_hdl, uint8_t buffer[], uint16_t total_bytes, bool int_on_complete)
 {
+  (void) int_on_complete;
   TU_ASSERT_ERR( pipe_queue_xfer(pipe_hdl, buffer, total_bytes, true) );
 
   tusb_xfer_type_t xfer_type = ed_get_xfer_type( ed_from_pipe_handle(pipe_hdl) );
@@ -607,6 +632,8 @@ static inline uint32_t gtd_xfer_byte_left(uint32_t buffer_end, uint32_t current_
 
 static void done_queue_isr(uint8_t hostid)
 {
+  (void) hostid;
+
   uint8_t max_loop = (CFG_TUSB_HOST_DEVICE_MAX+1)*(HCD_MAX_XFER+OHCI_MAX_ITD);
 
   // done head is written in reversed order of completion --> need to reverse the done queue first
