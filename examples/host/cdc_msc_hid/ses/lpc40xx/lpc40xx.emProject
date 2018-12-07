@@ -1,0 +1,119 @@
+<!DOCTYPE CrossStudio_Project_File>
+<solution Name="lpc40xx" target="8" version="2">
+  <project Name="lpc40xx">
+    <configuration
+      Name="Common"
+      Placement="Flash"
+      Target="LPC4088FBD208"
+      arm_architecture="v7EM"
+      arm_core_type="Cortex-M4"
+      arm_endian="Little"
+      arm_fp_abi="Hard"
+      arm_fpu_type="FPv4-SP-D16"
+      arm_interwork="No"
+      arm_linker_heap_size="256"
+      arm_linker_process_stack_size="0"
+      arm_linker_stack_size="256"
+      arm_simulator_memory_simulation_parameter="ROM;0x00000000;0x00080000;RAM;0x10000000;0x00010000;RAM;0x20000000;0x00008000"
+      arm_target_debug_interface_type="ADIv5"
+      arm_target_device_name="LPC4088"
+      arm_target_interface_type="SWD"
+      c_preprocessor_definitions="CORE_M4;__LPC4000_FAMILY;__LPC408x_SUBFAMILY;ARM_MATH_CM4;FLASH_PLACEMENT=1;BOARD_EA4088QS;CFG_TUSB_MCU=OPT_MCU_LPC40XX;CFG_TUSB_MEM_SECTION= __attribute__((section(&quot;.bss2&quot;)))"
+      c_user_include_directories="../../src;$(rootDir)/hw;$(rootDir)/src;$(lpcDir)/inc"
+      debug_register_definition_file="$(ProjectDir)/LPC408x_7x_Registers.xml"
+      debug_target_connection="J-Link"
+      gcc_enable_all_warnings="Yes"
+      gcc_entry_point="Reset_Handler"
+      linker_memory_map_file="$(ProjectDir)/LPC4088FBD208_MemoryMap.xml"
+      linker_section_placement_file="$(ProjectDir)/flash_placement.xml"
+      macros="DeviceFamily=LPC4000;DeviceSubFamily=LPC408x;Target=LPC4088FBD208;Placement=Flash;rootDir=../../../../..;lpcDir=../../../../../hw/mcu/nxp/lpc_chip_40xx"
+      package_dependencies="LPC4000"
+      project_directory=""
+      project_type="Executable"
+      target_reset_script="Reset();"
+      target_trace_initialize_script="EnableTrace(&quot;$(TraceInterfaceType)&quot;)" />
+    <folder Name="System Files">
+      <file file_name="thumb_crt0.s" />
+      <file file_name="LPC4000_Startup.s" />
+      <file file_name="LPC408x_7x_Vectors.s">
+        <configuration Name="Common" file_type="Assembly" />
+      </file>
+      <file file_name="LPC4088FBD208_MemoryMap.xml" />
+      <file file_name="flash_placement.xml" />
+      <file file_name="LPC4000_Target.js">
+        <configuration Name="Common" file_type="Reset Script" />
+      </file>
+    </folder>
+    <configuration
+      Name="EA4088 QuickStart"
+      link_use_linker_script_file="No"
+      linker_section_placement_file="flash_placement.xml" />
+    <folder Name="hw">
+      <folder Name="bsp">
+        <file file_name="../../../../../hw/bsp/ansi_escape.h" />
+        <file file_name="../../../../../hw/bsp/board.h" />
+        <folder Name="ea4088qs">
+          <file file_name="../../../../../hw/bsp/ea4088qs/board_ea4088qs.c" />
+          <file file_name="../../../../../hw/bsp/ea4088qs/board_ea4088qs.h" />
+        </folder>
+      </folder>
+      <folder Name="mcu">
+        <folder Name="nxp">
+          <folder Name="lpc_chip_40xx">
+            <folder Name="inc">
+              <file file_name="../../../../../hw/mcu/nxp/lpc_chip_40xx/inc/chip.h" />
+              <file file_name="../../../../../hw/mcu/nxp/lpc_chip_40xx/inc/chip_lpc175x_6x.h" />
+              <file file_name="../../../../../hw/mcu/nxp/lpc_chip_40xx/inc/chip_lpc177x_8x.h" />
+              <file file_name="../../../../../hw/mcu/nxp/lpc_chip_40xx/inc/chip_lpc407x_8x.h" />
+              <file file_name="../../../../../hw/mcu/nxp/lpc_chip_40xx/inc/clock_17xx_40xx.h" />
+              <file file_name="../../../../../hw/mcu/nxp/lpc_chip_40xx/inc/cmsis.h" />
+              <file file_name="../../../../../hw/mcu/nxp/lpc_chip_40xx/inc/cmsis_40xx.h" />
+              <file file_name="../../../../../hw/mcu/nxp/lpc_chip_40xx/inc/core_cm4.h" />
+              <file file_name="../../../../../hw/mcu/nxp/lpc_chip_40xx/inc/core_cm4_simd.h" />
+              <file file_name="../../../../../hw/mcu/nxp/lpc_chip_40xx/inc/core_cmFunc.h" />
+              <file file_name="../../../../../hw/mcu/nxp/lpc_chip_40xx/inc/core_cmInstr.h" />
+              <file file_name="../../../../../hw/mcu/nxp/lpc_chip_40xx/inc/gpio_17xx_40xx.h" />
+              <file file_name="../../../../../hw/mcu/nxp/lpc_chip_40xx/inc/sys_config.h" />
+              <file file_name="../../../../../hw/mcu/nxp/lpc_chip_40xx/inc/sysctl_17xx_40xx.h" />
+              <file file_name="../../../../../hw/mcu/nxp/lpc_chip_40xx/inc/uart_17xx_40xx.h" />
+              <file file_name="../../../../../hw/mcu/nxp/lpc_chip_40xx/inc/usb_17xx_40xx.h" />
+              <file file_name="../../../../../hw/mcu/nxp/lpc_chip_40xx/inc/iocon_17xx_40xx.h" />
+            </folder>
+            <folder Name="src">
+              <file file_name="../../../../../hw/mcu/nxp/lpc_chip_40xx/src/chip_17xx_40xx.c" />
+              <file file_name="../../../../../hw/mcu/nxp/lpc_chip_40xx/src/clock_17xx_40xx.c" />
+              <file file_name="../../../../../hw/mcu/nxp/lpc_chip_40xx/src/gpio_17xx_40xx.c" />
+              <file file_name="../../../../../hw/mcu/nxp/lpc_chip_40xx/src/iocon_17xx_40xx.c" />
+              <file file_name="../../../../../hw/mcu/nxp/lpc_chip_40xx/src/sysctl_17xx_40xx.c" />
+              <file file_name="../../../../../hw/mcu/nxp/lpc_chip_40xx/src/sysinit_17xx_40xx.c" />
+              <file file_name="../../../../../hw/mcu/nxp/lpc_chip_40xx/src/uart_17xx_40xx.c" />
+            </folder>
+          </folder>
+        </folder>
+      </folder>
+    </folder>
+    <folder
+      Name="segger_rtt"
+      exclude=""
+      filter="*.c;*.h"
+      path="../../../../../lib/segger_rtt"
+      recurse="No" />
+    <folder
+      Name="src"
+      exclude=""
+      filter="*.c;*.h"
+      path="../../src"
+      recurse="Yes" />
+    <folder
+      Name="tinyusb"
+      exclude=""
+      filter="*.c;*.h"
+      path="../../../../../src"
+      recurse="Yes" />
+  </project>
+  <configuration
+    Name="EA4088 QuickStart"
+    c_preprocessor_definitions="DEBUG"
+    gcc_debugging_level="Level 3"
+    gcc_optimization_level="None" />
+</solution>
