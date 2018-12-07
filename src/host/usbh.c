@@ -200,10 +200,6 @@ bool usbh_control_xfer (uint8_t dev_addr, tusb_control_request_t* request, uint8
   dev->control.request = *request;
   dev->control.pipe_status = 0;
 
-#if 0
-  TU_ASSERT(hcd_pipe_control_xfer(dev_addr, &dev->control.request, data));
-  TU_ASSERT(osal_semaphore_wait(dev->control.sem_hdl, OSAL_TIMEOUT_NORMAL));
-#else
   // Setup Stage
   hcd_setup_send(rhport, dev_addr, (uint8_t*) &dev->control.request);
   TU_VERIFY(osal_semaphore_wait(dev->control.sem_hdl, OSAL_TIMEOUT_NORMAL));
@@ -218,7 +214,6 @@ bool usbh_control_xfer (uint8_t dev_addr, tusb_control_request_t* request, uint8
   // Status : data toggle is always 1
   hcd_edpt_xfer(rhport, dev_addr, edpt_addr(0, 1-request->bmRequestType_bit.direction), NULL, 0);
   TU_VERIFY(osal_semaphore_wait(dev->control.sem_hdl, OSAL_TIMEOUT_NORMAL));
-#endif
 
   osal_mutex_unlock(dev->control.mutex_hdl);
 
@@ -395,8 +390,14 @@ void usbh_hcd_rhport_unplugged_isr(uint8_t hostid)
 bool enum_task(hcd_event_t* event)
 {
   enum {
+#if 1
+    // FIXME ohci LPC1769 xpresso + debugging to have 1st control xfer to work, some kind of timing or ohci driver issue !!!
+    POWER_STABLE_DELAY = 100,
+    RESET_DELAY        = 500
+#else
     POWER_STABLE_DELAY = 500,
-    RESET_DELAY        = 200 // USB specs say only 50ms but many devices require much longer
+    RESET_DELAY        = 200, // USB specs say only 50ms but many devices require much longer
+#endif
   };
 
   // for OSAL_NONE local variable won't retain value after blocking service sem_wait/queue_recv

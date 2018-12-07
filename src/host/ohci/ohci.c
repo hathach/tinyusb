@@ -328,7 +328,6 @@ bool hcd_edpt_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr, uint8_t * 
     p_data->index       = dev_addr;
     p_data->pid         = dir ? OHCI_PID_IN : OHCI_PID_OUT;
     p_data->data_toggle = BIN8(11); // DATA1
-
     p_data->delay_interrupt = OHCI_INT_ON_COMPLETE_YES;
 
     p_ed->td_head.address = (uint32_t) p_data;
@@ -336,7 +335,7 @@ bool hcd_edpt_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr, uint8_t * 
     OHCI_REG->command_status_bit.control_list_filled = 1;
   }
 
-  return false;
+  return true;
 }
 
 tusb_error_t  hcd_pipe_control_open(uint8_t dev_addr, uint8_t max_packet_size)
@@ -356,48 +355,48 @@ tusb_error_t  hcd_pipe_control_open(uint8_t dev_addr, uint8_t max_packet_size)
   return TUSB_ERROR_NONE;
 }
 
-bool  hcd_pipe_control_xfer(uint8_t dev_addr, tusb_control_request_t const * p_request, uint8_t data[])
-{
-  ohci_ed_t* const p_ed = &ohci_data.control[dev_addr].ed;
-
-  ohci_gtd_t *p_setup      = &ohci_data.control[dev_addr].gtd[0];
-  ohci_gtd_t *p_data       = p_setup + 1;
-  ohci_gtd_t *p_status     = p_setup + 2;
-
-  //------------- SETUP Phase -------------//
-  gtd_init(p_setup, (void*) p_request, 8);
-  p_setup->index       = dev_addr;
-  p_setup->pid         = OHCI_PID_SETUP;
-  p_setup->data_toggle = BIN8(10); // DATA0
-  p_setup->next_td     = (uint32_t) p_data;
-
-  //------------- DATA Phase -------------//
-  if (p_request->wLength > 0)
-  {
-    gtd_init(p_data, data, p_request->wLength);
-    p_data->index       = dev_addr;
-    p_data->pid         = p_request->bmRequestType_bit.direction ? OHCI_PID_IN : OHCI_PID_OUT;
-    p_data->data_toggle = BIN8(11); // DATA1
-  }else
-  {
-    p_data = p_setup;
-  }
-  p_data->next_td = (uint32_t) p_status;
-
-  //------------- STATUS Phase -------------//
-  gtd_init(p_status, NULL, 0); // zero-length data
-  p_status->index           = dev_addr;
-  p_status->pid             = p_request->bmRequestType_bit.direction ? OHCI_PID_OUT : OHCI_PID_IN; // reverse direction of data phase
-  p_status->data_toggle     = BIN8(11); // DATA1
-  p_status->delay_interrupt = OHCI_INT_ON_COMPLETE_YES;
-
-  //------------- Attach TDs list to Control Endpoint -------------//
-  p_ed->td_head.address = (uint32_t) p_setup;
-
-  OHCI_REG->command_status_bit.control_list_filled = 1;
-
-  return true;
-}
+//bool  hcd_pipe_control_xfer(uint8_t dev_addr, tusb_control_request_t const * p_request, uint8_t data[])
+//{
+//  ohci_ed_t* const p_ed = &ohci_data.control[dev_addr].ed;
+//
+//  ohci_gtd_t *p_setup      = &ohci_data.control[dev_addr].gtd[0];
+//  ohci_gtd_t *p_data       = p_setup + 1;
+//  ohci_gtd_t *p_status     = p_setup + 2;
+//
+//  //------------- SETUP Phase -------------//
+//  gtd_init(p_setup, (void*) p_request, 8);
+//  p_setup->index       = dev_addr;
+//  p_setup->pid         = OHCI_PID_SETUP;
+//  p_setup->data_toggle = BIN8(10); // DATA0
+//  p_setup->next_td     = (uint32_t) p_data;
+//
+//  //------------- DATA Phase -------------//
+//  if (p_request->wLength > 0)
+//  {
+//    gtd_init(p_data, data, p_request->wLength);
+//    p_data->index       = dev_addr;
+//    p_data->pid         = p_request->bmRequestType_bit.direction ? OHCI_PID_IN : OHCI_PID_OUT;
+//    p_data->data_toggle = BIN8(11); // DATA1
+//  }else
+//  {
+//    p_data = p_setup;
+//  }
+//  p_data->next_td = (uint32_t) p_status;
+//
+//  //------------- STATUS Phase -------------//
+//  gtd_init(p_status, NULL, 0); // zero-length data
+//  p_status->index           = dev_addr;
+//  p_status->pid             = p_request->bmRequestType_bit.direction ? OHCI_PID_OUT : OHCI_PID_IN; // reverse direction of data phase
+//  p_status->data_toggle     = BIN8(11); // DATA1
+//  p_status->delay_interrupt = OHCI_INT_ON_COMPLETE_YES;
+//
+//  //------------- Attach TDs list to Control Endpoint -------------//
+//  p_ed->td_head.address = (uint32_t) p_setup;
+//
+//  OHCI_REG->command_status_bit.control_list_filled = 1;
+//
+//  return true;
+//}
 
 tusb_error_t  hcd_pipe_control_close(uint8_t dev_addr)
 {
