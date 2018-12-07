@@ -193,14 +193,14 @@ bool usbh_init(void)
 bool usbh_control_xfer (uint8_t dev_addr, tusb_control_request_t* request, uint8_t* data)
 {
   usbh_device_t* dev = &_usbh_devices[dev_addr];
-  //const uint8_t rhport = dev->core_id;
+  const uint8_t rhport = dev->core_id;
 
   TU_ASSERT(osal_mutex_lock(dev->control.mutex_hdl, OSAL_TIMEOUT_NORMAL));
 
   dev->control.request = *request;
   dev->control.pipe_status = 0;
 
-#if 1
+#if 0
   TU_ASSERT(hcd_pipe_control_xfer(dev_addr, &dev->control.request, data));
   TU_ASSERT(osal_semaphore_wait(dev->control.sem_hdl, OSAL_TIMEOUT_NORMAL));
 #else

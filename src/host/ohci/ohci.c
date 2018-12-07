@@ -38,7 +38,7 @@
 
 #include <common/tusb_common.h>
 
-#if MODE_HOST_SUPPORTED && (CFG_TUSB_MCU == OPT_MCU_LPC175X_6X)
+#if MODE_HOST_SUPPORTED && (CFG_TUSB_MCU == OPT_MCU_LPC175X_6X || CFG_TUSB_MCU == OPT_MCU_LPC40XX)
 //--------------------------------------------------------------------+
 // INCLUDE
 //--------------------------------------------------------------------+
@@ -80,10 +80,6 @@ enum {
   OHCI_PERIODIC_START = 0x3E67
 };
 
-#ifdef __CC_ARM
-#pragma diag_suppress 66 // Suppress Keil warnings #66-D: enumeration value is out of "int" range
-#endif
-
 enum {
   OHCI_INT_SCHEDULING_OVERUN_MASK    = BIT_(0),
   OHCI_INT_WRITEBACK_DONEHEAD_MASK   = BIT_(1),
@@ -96,10 +92,6 @@ enum {
   OHCI_INT_OWNERSHIP_CHANGE_MASK     = BIT_(30),
   OHCI_INT_MASTER_ENABLE_MASK        = BIT_(31),
 };
-
-#ifdef __CC_ARM
-#pragma diag_default 66 // return Keil 66 to normal severity
-#endif
 
 enum {
   OHCI_RHPORT_CURRENT_CONNECT_STATUS_MASK      = BIT_(0),
@@ -238,7 +230,6 @@ void hcd_port_unplug(uint8_t hostid)
 //--------------------------------------------------------------------+
 // CONTROL PIPE API
 //--------------------------------------------------------------------+
-static inline tusb_xfer_type_t ed_get_xfer_type(ohci_ed_t const * const p_ed) ATTR_PURE ATTR_ALWAYS_INLINE;
 static inline tusb_xfer_type_t ed_get_xfer_type(ohci_ed_t const * const p_ed)
 {
   return (p_ed->endpoint_number == 0 ) ? TUSB_XFER_CONTROL     :
@@ -298,9 +289,59 @@ bool hcd_edpt_close(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr)
   return hcd_pipe_control_close(dev_addr);
 }
 
+bool hcd_setup_send(uint8_t rhport, uint8_t dev_addr, uint8_t const setup_packet[8])
+{
+  (void) rhport;
+
+  ohci_ed_t* p_ed = &ohci_data.control[dev_addr].ed;
+  ohci_gtd_t *p_setup  = &ohci_data.control[dev_addr].gtd[0];
+
+  gtd_init(p_setup, (void*) setup_packet, 8);
+  p_setup->index       = dev_addr;
+  p_setup->pid         = OHCI_PID_SETUP;
+  p_setup->data_toggle = BIN8(10); // DATA0
+  p_setup->delay_interrupt = OHCI_INT_ON_COMPLETE_YES;
+
+  //------------- Attach TDs list to Control Endpoint -------------//
+  p_ed->td_head.address = (uint32_t) p_setup;
+
+  OHCI_REG->command_status_bit.control_list_filled = 1;
+
+  return true;
+}
+
+bool hcd_edpt_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr, uint8_t * buffer, uint16_t buflen)
+{
+  (void) rhport;
+
+  uint8_t const epnum = edpt_number(ep_addr);
+  uint8_t const dir   = edpt_dir(ep_addr);
+
+  // FIXME control only for now
+  if ( epnum == 0 )
+  {
+    ohci_ed_t* const p_ed = &ohci_data.control[dev_addr].ed;
+    ohci_gtd_t *p_data  = &ohci_data.control[dev_addr].gtd[0];
+
+    gtd_init(p_data, buffer, buflen);
+
+    p_data->index       = dev_addr;
+    p_data->pid         = dir ? OHCI_PID_IN : OHCI_PID_OUT;
+    p_data->data_toggle = BIN8(11); // DATA1
+
+    p_data->delay_interrupt = OHCI_INT_ON_COMPLETE_YES;
+
+    p_ed->td_head.address = (uint32_t) p_data;
+
+    OHCI_REG->command_status_bit.control_list_filled = 1;
+  }
+
+  return false;
+}
+
 tusb_error_t  hcd_pipe_control_open(uint8_t dev_addr, uint8_t max_packet_size)
 {
-  ohci_ed_t* const p_ed = &ohci_data.control[dev_addr].ed;
+  ohci_ed_t* p_ed = &ohci_data.control[dev_addr].ed;
 
   ed_init(p_ed, dev_addr, max_packet_size, 0, TUSB_XFER_CONTROL, 0); // TODO binterval of control is ignored
 
