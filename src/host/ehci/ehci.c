@@ -281,6 +281,74 @@ static tusb_error_t hcd_controller_stop(uint8_t hostid)
 //--------------------------------------------------------------------+
 // CONTROL PIPE API
 //--------------------------------------------------------------------+
+bool hcd_edpt_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_endpoint_t const* ep_desc)
+{
+  // FIXME control only for now
+  (void) rhport;
+  hcd_pipe_control_open(dev_addr, ep_desc->wMaxPacketSize.size);
+
+  return true;
+}
+
+bool hcd_edpt_close(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr)
+{
+  // FIXME control only for now
+
+  hcd_pipe_control_close(dev_addr);
+
+  return true;
+}
+
+bool hcd_edpt_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr, uint8_t * buffer, uint16_t buflen)
+{
+  uint8_t const epnum = edpt_number(ep_addr);
+  uint8_t const dir   = edpt_dir(ep_addr);
+
+  // FIXME control only for now
+  if ( epnum == 0 )
+  {
+    ehci_qhd_t * const p_qhd = get_control_qhd(dev_addr);
+    ehci_qtd_t *p_data       = get_control_qtds(dev_addr);
+
+    qtd_init(p_data, (uint32_t) buffer, buflen);
+
+    // first first data toggle is always 1 (data & setup stage)
+    p_data->data_toggle = 1;
+    p_data->pid         = dir ? EHCI_PID_IN : EHCI_PID_OUT;
+    p_data->int_on_complete = 1;
+    p_data->next.terminate  = 1;
+
+    // sw region
+    p_qhd->p_qtd_list_head = p_data;
+    p_qhd->p_qtd_list_tail = p_data;
+
+    // attach TD
+    p_qhd->qtd_overlay.next.address = (uint32_t) p_data;
+  }
+
+  return true;
+}
+
+bool hcd_setup_send(uint8_t rhport, uint8_t dev_addr, uint8_t const setup_packet[8])
+{
+  ehci_qhd_t * const p_qhd = get_control_qhd(dev_addr);
+  ehci_qtd_t *p_setup      = get_control_qtds(dev_addr);
+
+  qtd_init(p_setup, (uint32_t) setup_packet, 8);
+  p_setup->pid          = EHCI_PID_SETUP;
+  p_setup->int_on_complete = 1;
+  p_setup->next.terminate  = 1;
+
+  // sw region
+  p_qhd->p_qtd_list_head = p_setup;
+  p_qhd->p_qtd_list_tail = p_setup;
+
+  // attach TD
+  p_qhd->qtd_overlay.next.address = (uint32_t) p_setup;
+
+  return true;
+}
+
 tusb_error_t  hcd_pipe_control_open(uint8_t dev_addr, uint8_t max_packet_size)
 {
   ehci_qhd_t * const p_qhd = get_control_qhd(dev_addr);
@@ -297,46 +365,46 @@ tusb_error_t  hcd_pipe_control_open(uint8_t dev_addr, uint8_t max_packet_size)
   return TUSB_ERROR_NONE;
 }
 
-bool  hcd_pipe_control_xfer(uint8_t dev_addr, tusb_control_request_t const * p_request, uint8_t data[])
-{
-  ehci_qhd_t * const p_qhd = get_control_qhd(dev_addr);
-
-  ehci_qtd_t *p_setup      = get_control_qtds(dev_addr);
-  ehci_qtd_t *p_data       = p_setup + 1;
-  ehci_qtd_t *p_status     = p_setup + 2;
-
-  //------------- SETUP Phase -------------//
-  qtd_init(p_setup, (uint32_t) p_request, 8);
-  p_setup->pid          = EHCI_PID_SETUP;
-  p_setup->next.address = (uint32_t) p_data;
-
-  //------------- DATA Phase -------------//
-  if (p_request->wLength > 0)
-  {
-    qtd_init(p_data, (uint32_t) data, p_request->wLength);
-    p_data->data_toggle = 1;
-    p_data->pid         = p_request->bmRequestType_bit.direction ? EHCI_PID_IN : EHCI_PID_OUT;
-  }else
-  {
-    p_data = p_setup;
-  }
-  p_data->next.address = (uint32_t) p_status;
-
-  //------------- STATUS Phase -------------//
-  qtd_init(p_status, 0, 0); // zero-length data
-  p_status->int_on_complete = 1;
-  p_status->data_toggle     = 1;
-  p_status->pid             = p_request->bmRequestType_bit.direction ? EHCI_PID_OUT : EHCI_PID_IN; // reverse direction of data phase
-  p_status->next.terminate  = 1;
-
-  //------------- Attach TDs list to Control Endpoint -------------//
-  p_qhd->p_qtd_list_head = p_setup;
-  p_qhd->p_qtd_list_tail = p_status;
-
-  p_qhd->qtd_overlay.next.address = (uint32_t) p_setup;
-
-  return true;
-}
+//bool  hcd_pipe_control_xfer(uint8_t dev_addr, tusb_control_request_t const * p_request, uint8_t data[])
+//{
+//  ehci_qhd_t * const p_qhd = get_control_qhd(dev_addr);
+//
+//  ehci_qtd_t *p_setup      = get_control_qtds(dev_addr);
+//  ehci_qtd_t *p_data       = p_setup + 1;
+//  ehci_qtd_t *p_status     = p_setup + 2;
+//
+//  //------------- SETUP Phase -------------//
+//  qtd_init(p_setup, (uint32_t) p_request, 8);
+//  p_setup->pid          = EHCI_PID_SETUP;
+//  p_setup->next.address = (uint32_t) p_data;
+//
+//  //------------- DATA Phase -------------//
+//  if (p_request->wLength > 0)
+//  {
+//    qtd_init(p_data, (uint32_t) data, p_request->wLength);
+//    p_data->data_toggle = 1;
+//    p_data->pid         = p_request->bmRequestType_bit.direction ? EHCI_PID_IN : EHCI_PID_OUT;
+//  }else
+//  {
+//    p_data = p_setup;
+//  }
+//  p_data->next.address = (uint32_t) p_status;
+//
+//  //------------- STATUS Phase -------------//
+//  qtd_init(p_status, 0, 0); // zero-length data
+//  p_status->int_on_complete = 1;
+//  p_status->data_toggle     = 1;
+//  p_status->pid             = p_request->bmRequestType_bit.direction ? EHCI_PID_OUT : EHCI_PID_IN; // reverse direction of data phase
+//  p_status->next.terminate  = 1;
+//
+//  //------------- Attach TDs list to Control Endpoint -------------//
+//  p_qhd->p_qtd_list_head = p_setup;
+//  p_qhd->p_qtd_list_tail = p_status;
+//
+//  p_qhd->qtd_overlay.next.address = (uint32_t) p_setup;
+//
+//  return true;
+//}
 
 tusb_error_t  hcd_pipe_control_close(uint8_t dev_addr)
 {

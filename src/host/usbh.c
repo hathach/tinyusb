@@ -193,14 +193,27 @@ bool usbh_init(void)
 bool usbh_control_xfer (uint8_t dev_addr, tusb_control_request_t* request, uint8_t* data)
 {
   usbh_device_t* dev = &_usbh_devices[dev_addr];
+  const uint8_t rhport = dev->core_id;
 
   TU_ASSERT(osal_mutex_lock(dev->control.mutex_hdl, OSAL_TIMEOUT_NORMAL));
 
   dev->control.request = *request;
   dev->control.pipe_status = 0;
 
-  TU_ASSERT(hcd_pipe_control_xfer(dev_addr, &dev->control.request, data));
-  TU_ASSERT(osal_semaphore_wait(dev->control.sem_hdl, OSAL_TIMEOUT_NORMAL));
+  // Setup Stage
+  hcd_setup_send(rhport, dev_addr, (uint8_t*) &dev->control.request);
+  TU_VERIFY(osal_semaphore_wait(dev->control.sem_hdl, OSAL_TIMEOUT_NORMAL));
+
+  // Data stage : first data toggle is always 1
+  if ( request->wLength )
+  {
+    hcd_edpt_xfer(rhport, dev_addr, edpt_addr(0, request->bmRequestType_bit.direction), data, request->wLength);
+    TU_VERIFY(osal_semaphore_wait(dev->control.sem_hdl, OSAL_TIMEOUT_NORMAL));
+  }
+
+  // Status : data toggle is always 1
+  hcd_edpt_xfer(rhport, dev_addr, edpt_addr(0, 1-request->bmRequestType_bit.direction), NULL, 0);
+  TU_VERIFY(osal_semaphore_wait(dev->control.sem_hdl, OSAL_TIMEOUT_NORMAL));
 
   osal_mutex_unlock(dev->control.mutex_hdl);
 
@@ -219,14 +232,24 @@ tusb_error_t usbh_pipe_control_open(uint8_t dev_addr, uint8_t max_packet_size)
   osal_semaphore_reset( _usbh_devices[dev_addr].control.sem_hdl );
   //osal_mutex_reset( usbh_devices[dev_addr].control.mutex_hdl );
 
-  TU_ASSERT_ERR( hcd_pipe_control_open(dev_addr, max_packet_size) );
+  tusb_desc_endpoint_t ep0_desc =
+  {
+    .bLength          = sizeof(tusb_desc_endpoint_t),
+    .bDescriptorType  = TUSB_DESC_ENDPOINT,
+    .bEndpointAddress = 0,
+    .bmAttributes     = { .xfer = TUSB_XFER_CONTROL },
+    .wMaxPacketSize   = { .size = max_packet_size },
+    .bInterval        = 0
+  };
+
+  hcd_edpt_open(_usbh_devices[dev_addr].core_id, dev_addr, &ep0_desc);
 
   return TUSB_ERROR_NONE;
 }
 
 static inline tusb_error_t usbh_pipe_control_close(uint8_t dev_addr)
 {
-  TU_ASSERT_ERR( hcd_pipe_control_close(dev_addr) );
+  hcd_edpt_close(_usbh_devices[dev_addr].core_id, dev_addr, 0);
 
   return TUSB_ERROR_NONE;
 }
