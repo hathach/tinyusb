@@ -39,9 +39,6 @@
 #ifndef _TUSB_CONFIG_H_
 #define _TUSB_CONFIG_H_
 
-#include "tusb_option.h"
-#include "bsp/board.h"
-
 #ifdef __cplusplus
  extern "C" {
 #endif
@@ -85,8 +82,8 @@
 
 #define CFG_TUH_HUB               1 // not tested
 #define CFG_TUH_CDC               1
-#define CFG_TUSB_HOST_HID_KEYBOARD      0
-#define CFG_TUSB_HOST_HID_MOUSE         0
+#define CFG_TUH_HID_KEYBOARD      1
+#define CFG_TUH_HID_MOUSE         1
 #define CFG_TUSB_HOST_HID_GENERIC       0 // (not yet supported)
 #define CFG_TUH_MSC               1
 

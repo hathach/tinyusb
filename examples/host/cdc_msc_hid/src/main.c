@@ -111,12 +111,49 @@ void virtual_com_task(void)
 //--------------------------------------------------------------------+
 // USB HID
 //--------------------------------------------------------------------+
-#if CFG_TUD_HID
+#if CFG_TUH_HID_KEYBOARD
 void usb_hid_task(void)
 {
 
 }
 
+void tuh_hid_keyboard_mounted_cb(uint8_t dev_addr)
+{
+  // application set-up
+  printf("\na Keyboard device (address %d) is mounted\n", dev_addr);
+}
+
+void tuh_hid_keyboard_unmounted_cb(uint8_t dev_addr)
+{
+  // application tear-down
+  printf("\na Keyboard device (address %d) is unmounted\n", dev_addr);
+}
+
+// invoked ISR context
+void tuh_hid_keyboard_isr(uint8_t dev_addr, xfer_result_t event)
+{
+
+}
+
+#endif
+
+#if CFG_TUH_HID_MOUSE
+void tuh_hid_mouse_mounted_cb(uint8_t dev_addr)
+{
+  // application set-up
+  printf("\na Mouse device (address %d) is mounted\n", dev_addr);
+}
+
+void tuh_hid_mouse_unmounted_cb(uint8_t dev_addr)
+{
+  // application tear-down
+  printf("\na Mouse device (address %d) is unmounted\n", dev_addr);
+}
+
+// invoked ISR context
+void tuh_hid_mouse_isr(uint8_t dev_addr, xfer_result_t event)
+{
+}
 #endif
 
 //--------------------------------------------------------------------+

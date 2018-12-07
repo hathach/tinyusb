@@ -295,8 +295,6 @@ void msch_init(void)
 
 bool msch_open_subtask(uint8_t dev_addr, tusb_desc_interface_t const *p_interface_desc, uint16_t *p_length)
 {
-  tusb_error_t error;
-
   if (! ( MSC_SUBCLASS_SCSI == p_interface_desc->bInterfaceSubClass &&
           MSC_PROTOCOL_BOT  == p_interface_desc->bInterfaceProtocol ) )
   {
@@ -393,6 +391,8 @@ bool msch_open_subtask(uint8_t dev_addr, tusb_desc_interface_t const *p_interfac
 
   msch_data[dev_addr-1].is_initialized = true;
   tuh_msc_mounted_cb(dev_addr);
+
+  return true;
 }
 
 void msch_isr(pipe_handle_t pipe_hdl, xfer_result_t event, uint32_t xferred_bytes)

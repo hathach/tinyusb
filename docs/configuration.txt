@@ -41,8 +41,8 @@
  * \brief For each Class Driver a value of 1 means enable, value of 0 mean disable
  * @{ */
 #define CFG_TUH_HUB           ///< Enable Hub Class
-#define CFG_TUSB_HOST_HID_KEYBOARD  ///< Enable HID Class for Keyboard
-#define CFG_TUSB_HOST_HID_MOUSE     ///< Enable HID Class for Mouse
+#define CFG_TUH_HID_KEYBOARD  ///< Enable HID Class for Keyboard
+#define CFG_TUH_HID_MOUSE     ///< Enable HID Class for Mouse
 #define CFG_TUSB_HOST_HID_GENERIC   ///< Enable HID Class for Generic (not supported yet)
 #define CFG_TUH_MSC           ///< Enable Mass Storage Class (SCSI subclass only)
 #define CFG_TUH_CDC           ///< Enable Virtual Serial (Communication Device Class)

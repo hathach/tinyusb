@@ -105,7 +105,6 @@ bool hub_port_clear_feature_subtask(uint8_t hub_addr, uint8_t hub_port, uint8_t 
 bool hub_port_reset_subtask(uint8_t hub_addr, uint8_t hub_port)
 {
   enum { RESET_DELAY = 200 }; // USB specs say only 50ms but many devices require much longer
-  tusb_error_t error;
 
   //------------- Set Port Reset -------------//
   tusb_control_request_t request = {
