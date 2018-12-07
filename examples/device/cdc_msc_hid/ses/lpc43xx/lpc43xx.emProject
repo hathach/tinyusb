@@ -23,6 +23,7 @@
       c_user_include_directories="../../src;$(rootDir)/hw;$(rootDir)/src;$(lpcDir)//inc;$(lpcDir)//inc/config_43xx"
       debug_register_definition_file="LPC43xx_Registers.xml"
       debug_target_connection="J-Link"
+      gcc_enable_all_warnings="Yes"
       gcc_entry_point="Reset_Handler"
       link_use_linker_script_file="No"
       linker_memory_map_file="LPC4357 Cortex-M4_MemoryMap.xml"

@@ -123,7 +123,7 @@ void SystemInit(void)
 	Chip_SCU_SetPinMuxing(pinmuxing, sizeof(pinmuxing) / sizeof(PINMUX_GRP_T));
 
 	/* Clock pins only, group field not used */
-	for (int i = 0; i < (sizeof(pinclockmuxing) / sizeof(pinclockmuxing[0])); i++)
+	for (int i = 0; i <(int)  (sizeof(pinclockmuxing) / sizeof(pinclockmuxing[0])); i++)
 	{
 		Chip_SCU_ClockPinMuxSet(pinclockmuxing[i].pinnum, pinclockmuxing[i].modefunc);
 	}
@@ -275,10 +275,12 @@ void board_led_control(bool state)
 //--------------------------------------------------------------------+
 // BUTTONS
 //--------------------------------------------------------------------+
+#if 0
 static bool button_read(uint8_t id)
 {
 //  return !BIT_TEST_( GPIO_ReadValue(buttons[id].gpio_port), buttons[id].gpio_pin ); // button is active low
 }
+#endif
 
 uint32_t board_buttons(void)
 {
@@ -295,10 +297,13 @@ uint32_t board_buttons(void)
 uint8_t  board_uart_getchar(void)
 {
   //return UART_ReceiveByte(BOARD_UART_PORT);
+  return 0;
 }
+
 void board_uart_putchar(uint8_t c)
 {
   //UART_Send(BOARD_UART_PORT, &c, 1, BLOCKING);
+  (void) c;
 }
 
 #endif

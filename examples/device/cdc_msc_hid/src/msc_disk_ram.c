@@ -61,7 +61,7 @@ enum
 #ifdef DISK_READONLY
 const
 #endif
-static uint8_t msc_disk[DISK_BLOCK_NUM][DISK_BLOCK_SIZE] =
+uint8_t msc_disk[DISK_BLOCK_NUM][DISK_BLOCK_SIZE] =
 {
   //------------- Boot Sector -------------//
   // byte_per_sector    = DISK_BLOCK_SIZE; fat12_sector_num_16  = DISK_BLOCK_NUM;
@@ -123,6 +123,8 @@ int32_t tud_msc_write10_cb(uint8_t lun, uint32_t lba, uint32_t offset, uint8_t* 
 #ifndef DISK_READONLY
   uint8_t* addr = msc_disk[lba] + offset;
   memcpy(addr, buffer, bufsize);
+#else
+  (void) lba; (void) offset; (void) buffer;
 #endif
 
   return bufsize;

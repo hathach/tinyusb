@@ -43,7 +43,7 @@
 #define LED_PORT    0
 #define LED_PIN     7
 
-const static struct {
+static const struct {
   uint8_t port;
   uint8_t pin;
 } buttons[] =
@@ -140,13 +140,18 @@ void board_led_control(bool state)
   Chip_GPIO_SetPinState(LPC_GPIO_PORT, LED_PORT, LED_PIN, state);
 }
 
+
 //--------------------------------------------------------------------+
 // BUTTONS
 //--------------------------------------------------------------------+
+#if 0
 static bool button_read(uint8_t id)
 {
+  (void) id;
 //  return !GPIOGetPinValue(buttons[id].port, buttons[id].pin); // button is active low
+  return 0;
 }
+#endif
 
 uint32_t board_buttons(void)
 {
@@ -162,6 +167,7 @@ uint32_t board_buttons(void)
 //--------------------------------------------------------------------+
 void board_uart_putchar(uint8_t c)
 {
+  (void) c;
 //  UARTSend(&c, 1);
 }
 

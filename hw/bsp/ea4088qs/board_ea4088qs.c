@@ -131,10 +131,12 @@ void board_led_control(bool state)
 }
 
 //------------- Buttons -------------//
+#if 0
 static bool button_read(uint8_t id)
 {
 //  return !BIT_TEST_( GPIO_ReadValue(buttons[id].gpio_port), buttons[id].gpio_pin ); // button is active low
 }
+#endif
 
 uint32_t board_buttons(void)
 {
@@ -150,10 +152,13 @@ uint32_t board_buttons(void)
 uint8_t  board_uart_getchar(void)
 {
   //return UART_ReceiveByte(BOARD_UART_PORT);
+  return 0;
 }
+
 void board_uart_putchar(uint8_t c)
 {
   //UART_Send(BOARD_UART_PORT, &c, 1, BLOCKING);
+  (void) c;
 }
 
 
