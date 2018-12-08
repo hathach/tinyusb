@@ -448,23 +448,23 @@ typedef volatile struct {
 //--------------------------------------------------------------------+
 // EHCI Data Organization
 //--------------------------------------------------------------------+
-typedef struct {
-  //------------- Static Async/Period List Head, Each for one controller -------------//
-  ehci_qhd_t async_head; /// head qhd of async list, also is used as control endpoint for address 0
-
+typedef struct
+{
 #if EHCI_PERIODIC_LIST
   // for NXP ECHI, only implement 1 ms & 2 ms & 4 ms, 8 ms (framelist)
   // [0] : 1ms, [1] : 2ms, [2] : 4ms, [3] : 8 ms
   ehci_qhd_t period_head_arr[4];
 #endif
 
-  //------------- Data for Address 0 (use async head as its queue head) -------------//
-  ehci_qtd_t addr0_qtd[3];
+  struct {
+      ehci_qhd_t qhd; // also used as head of async list (each for 1 controller), always exists
+      ehci_qtd_t qtd;
+  }dev0;
 
   struct {
     struct {
       ehci_qhd_t qhd;
-      ehci_qtd_t qtd[3];
+      ehci_qtd_t qtd;
     }control;
 
     ehci_qhd_t  qhd[HCD_MAX_ENDPOINT]                  ; ///< Queue Head Pool

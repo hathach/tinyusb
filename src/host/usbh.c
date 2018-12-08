@@ -361,7 +361,6 @@ static void usbh_device_unplugged(uint8_t hostid, uint8_t hub_addr, uint8_t hub_
 
       usbh_pipe_control_close(dev_addr);
 
-
       is_found = true;
     }
   }

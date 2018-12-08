@@ -58,12 +58,12 @@
 //--------------------------------------------------------------------+
 // INTERNAL OBJECT & FUNCTION DECLARATION
 //--------------------------------------------------------------------+
-CFG_TUSB_MEM_SECTION STATIC_VAR ehci_data_t ehci_data;
+CFG_TUSB_MEM_SECTION static ehci_data_t ehci_data;
 
 #if EHCI_PERIODIC_LIST
 
   #if (CFG_TUSB_RHPORT0_MODE & OPT_MODE_HOST)
-  CFG_TUSB_MEM_SECTION ATTR_ALIGNED(4096) STATIC_VAR ehci_link_t period_frame_list0[EHCI_FRAMELIST_SIZE];
+  CFG_TUSB_MEM_SECTION ATTR_ALIGNED(4096) static ehci_link_t period_frame_list0[EHCI_FRAMELIST_SIZE];
 
     #ifndef __ICCARM__ // IAR cannot able to determine the alignment with datalignment pragma
     TU_VERIFY_STATIC( ALIGN_OF(period_frame_list0) == 4096, "Period Framelist must be 4k alginment"); // validation
@@ -87,7 +87,6 @@ CFG_TUSB_MEM_SECTION STATIC_VAR ehci_data_t ehci_data;
 //--------------------------------------------------------------------+
 static inline ehci_registers_t*  get_operational_register(uint8_t hostid) ATTR_PURE ATTR_ALWAYS_INLINE ATTR_WARN_UNUSED_RESULT;
 static inline ehci_link_t*       get_period_frame_list(uint8_t hostid) ATTR_PURE ATTR_ALWAYS_INLINE ATTR_WARN_UNUSED_RESULT;
-static inline uint8_t            hostid_to_data_idx(uint8_t hostid) ATTR_ALWAYS_INLINE ATTR_CONST ATTR_WARN_UNUSED_RESULT;
 
 static inline ehci_qhd_t*  get_async_head(uint8_t hostid) ATTR_ALWAYS_INLINE ATTR_PURE ATTR_WARN_UNUSED_RESULT;
 static inline ehci_link_t* get_period_head(uint8_t hostid, uint8_t interval_ms) ATTR_ALWAYS_INLINE ATTR_PURE ATTR_WARN_UNUSED_RESULT;
@@ -259,7 +258,6 @@ static bool ehci_init(uint8_t hostid)
                   | ((EHCI_CFG_FRAMELIST_SIZE_BITS >> 2) << EHCI_USBCMD_POS_NXP_FRAMELIST_SIZE_MSB);
 
   //------------- ConfigFlag Register (skip) -------------//
-
   regs->portsc_bit.port_power = 1; // enable port power
 
   return true;
@@ -364,7 +362,6 @@ bool hcd_edpt_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_endpoint_t const*
 bool hcd_edpt_close(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr)
 {
   // FIXME control only for now
-
   return hcd_pipe_control_close(dev_addr);
 }
 
@@ -710,7 +707,6 @@ static void qhd_xfer_error_isr(ehci_qhd_t * p_qhd)
 
     p_qhd->total_xferred_bytes += p_qhd->p_qtd_list_head->expected_bytes - p_qhd->p_qtd_list_head->total_bytes;
 
-
 //    if ( XFER_RESULT_FAILED == error_event )    TU_BREAKPOINT(); // TODO skip unplugged device
 
     p_qhd->p_qtd_list_head->used = 0; // free QTD
@@ -728,11 +724,8 @@ static void qhd_xfer_error_isr(ehci_qhd_t * p_qhd)
       p_qhd->qtd_overlay.alternate.terminate = 1;
       p_qhd->qtd_overlay.halted              = 0;
 
-      ehci_qtd_t *p_setup  = get_control_qtds(p_qhd->device_address);
-      ehci_qtd_t *p_data   = p_setup + 1;
-      ehci_qtd_t *p_status = p_setup + 2;
-
-      p_setup->used = p_data->used = p_status->used = 0;
+      ehci_qtd_t *p_setup = get_control_qtds(p_qhd->device_address);
+      p_setup->used = 0;
     }
 
     // call USBH callback
@@ -876,7 +869,7 @@ static inline ehci_link_t* get_period_frame_list(uint8_t hostid)
 //------------- queue head helper -------------//
 static inline ehci_qhd_t* get_async_head(uint8_t hostid)
 {
-  return &ehci_data.async_head;
+  return &ehci_data.dev0.qhd;
 }
 
 #if EHCI_PERIODIC_LIST // TODO refractor/group this together
@@ -894,10 +887,7 @@ static inline ehci_qhd_t* get_control_qhd(uint8_t dev_addr)
 }
 static inline ehci_qtd_t* get_control_qtds(uint8_t dev_addr)
 {
-  return (dev_addr == 0) ?
-      ehci_data.addr0_qtd :
-      ehci_data.device[ dev_addr-1 ].control.qtd;
-
+  return (dev_addr == 0) ? &ehci_data.dev0.qtd : &ehci_data.device[ dev_addr-1 ].control.qtd;
 }
 
 static inline ehci_qhd_t* qhd_find_free (uint8_t dev_addr)
@@ -915,6 +905,7 @@ static inline uint8_t qhd_get_index(ehci_qhd_t const * p_qhd)
 {
   return p_qhd - ehci_data.device[p_qhd->device_address-1].qhd;
 }
+
 static inline tusb_xfer_type_t qhd_get_xfer_type(ehci_qhd_t const * p_qhd)
 {
   return  ( p_qhd->endpoint_number == 0 ) ? TUSB_XFER_CONTROL :
