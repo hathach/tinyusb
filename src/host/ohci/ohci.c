@@ -745,10 +745,10 @@ void hal_hcd_isr(uint8_t hostid)
       {
         // TODO reset port immediately, without this controller will got 2-3 (debouncing connection status change)
         OHCI_REG->rhport_status[0] = OHCI_RHPORT_PORT_RESET_STATUS_MASK;
-        usbh_hcd_rhport_plugged_isr(0);
+        hcd_event_device_attach(0);
       }else
       {
-        usbh_hcd_rhport_unplugged_isr(0);
+        hcd_event_device_remove(0);
       }
     }
 

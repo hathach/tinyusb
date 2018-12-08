@@ -142,7 +142,7 @@ void test_usbh_init_ok(void)
 
 #if 0 // TODO TEST enable this
 // device is not mounted before, even the control pipe is not open, do nothing
-void test_usbh_hcd_rhport_unplugged_isr_device_not_previously_mounted(void)
+void test_hcd_event_device_remove_device_not_previously_mounted(void)
 {
   uint8_t dev_addr = 1;
 
@@ -151,10 +151,10 @@ void test_usbh_hcd_rhport_unplugged_isr_device_not_previously_mounted(void)
   _usbh_devices[dev_addr].hub_addr = 0;
   _usbh_devices[dev_addr].hub_port = 0;
 
-  usbh_hcd_rhport_unplugged_isr(0);
+  hcd_event_device_remove(0);
 }
 
-void test_usbh_hcd_rhport_unplugged_isr(void)
+void test_hcd_event_device_remove(void)
 {
   uint8_t dev_addr = 1;
 
@@ -168,7 +168,7 @@ void test_usbh_hcd_rhport_unplugged_isr(void)
   hcd_pipe_control_close_ExpectAndReturn(dev_addr, TUSB_ERROR_NONE);
 
   //------------- Code Under Test -------------//
-  usbh_hcd_rhport_unplugged_isr(0);
+  hcd_event_device_remove(0);
 
   TEST_ASSERT_EQUAL(TUSB_DEVICE_STATE_REMOVING, _usbh_devices[dev_addr].state);
 }
@@ -190,7 +190,7 @@ void test_usbh_device_unplugged_multple_class(void)
   hcd_pipe_control_close_ExpectAndReturn(dev_addr, TUSB_ERROR_NONE);
 
   //------------- Code Under Test -------------//
-  usbh_hcd_rhport_unplugged_isr(0);
+  hcd_event_device_remove(0);
 
   TEST_ASSERT_EQUAL(TUSB_DEVICE_STATE_REMOVING, _usbh_devices[dev_addr].state);
 

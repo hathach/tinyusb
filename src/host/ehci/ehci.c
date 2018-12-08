@@ -609,10 +609,10 @@ static void port_connect_status_change_isr(uint8_t hostid)
   if (regs->portsc_bit.current_connect_status)
   {
     hcd_port_reset(hostid);
-    usbh_hcd_rhport_plugged_isr(hostid);
+    hcd_event_device_attach(hostid);
   }else // device unplugged
   {
-    usbh_hcd_rhport_unplugged_isr(hostid);
+    hcd_event_device_remove(hostid);
   }
 }
 

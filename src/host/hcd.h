@@ -121,6 +121,12 @@ void hcd_int_disable(uint8_t rhport);
 //--------------------------------------------------------------------+
 void hcd_event_handler(hcd_event_t const* event, bool in_isr);
 
+// Helper to send device attach event
+void hcd_event_device_attach(uint8_t rhport);
+
+// Helper to send device removal event
+void hcd_event_device_remove(uint8_t hostid);
+
 //--------------------------------------------------------------------+
 // Endpoints API
 //--------------------------------------------------------------------+

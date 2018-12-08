@@ -305,11 +305,11 @@ void usbh_hub_port_plugged_isr(uint8_t hub_addr, uint8_t hub_port)
   hcd_event_handler(&event, true);
 }
 
-void usbh_hcd_rhport_plugged_isr(uint8_t hostid)
+void hcd_event_device_attach(uint8_t rhport)
 {
   hcd_event_t event =
   {
-    .rhport = hostid,
+    .rhport = rhport,
     .event_id = HCD_EVENT_DEVICE_ATTACH
   };
 
@@ -328,6 +328,21 @@ void hcd_event_handler(hcd_event_t const* event, bool in_isr)
     break;
   }
 }
+
+void hcd_event_device_remove(uint8_t hostid)
+{
+  hcd_event_t event =
+  {
+    .rhport = hostid,
+    .event_id = HCD_EVENT_DEVICE_REMOVE
+  };
+
+  event.attach.hub_addr = 0;
+  event.attach.hub_port = 0;
+
+  hcd_event_handler(&event, true);
+}
+
 
 // a device unplugged on hostid, hub_addr, hub_port
 // return true if found and unmounted device, false if cannot find
@@ -367,20 +382,6 @@ static void usbh_device_unplugged(uint8_t hostid, uint8_t hub_addr, uint8_t hub_
 
   if (is_found) hcd_port_unplug(_usbh_devices[0].core_id); // TODO hack
 
-}
-
-void usbh_hcd_rhport_unplugged_isr(uint8_t hostid)
-{
-  hcd_event_t event =
-  {
-    .rhport = hostid,
-    .event_id = HCD_EVENT_DEVICE_REMOVE
-  };
-
-  event.attach.hub_addr = 0;
-  event.attach.hub_port = 0;
-
-  hcd_event_handler(&event, true);
 }
 
 //--------------------------------------------------------------------+
