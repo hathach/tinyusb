@@ -291,20 +291,6 @@ void usbh_xfer_isr(pipe_handle_t pipe_hdl, uint8_t class_code, xfer_result_t eve
   }
 }
 
-void usbh_hub_port_plugged_isr(uint8_t hub_addr, uint8_t hub_port)
-{
-  hcd_event_t event =
-  {
-    .rhport = _usbh_devices[hub_addr].core_id,
-    .event_id = HCD_EVENT_DEVICE_ATTACH
-  };
-
-  event.attach.hub_addr = hub_addr;
-  event.attach.hub_port = hub_port;
-
-  hcd_event_handler(&event, true);
-}
-
 void hcd_event_device_attach(uint8_t rhport)
 {
   hcd_event_t event =

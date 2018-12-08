@@ -46,7 +46,6 @@
 // INCLUDE
 //--------------------------------------------------------------------+
 #include "hub.h"
-#include "usbh_hub.h"
 
 //--------------------------------------------------------------------+
 // MACRO CONSTANT TYPEDEF
@@ -211,6 +210,7 @@ bool hub_open_subtask(uint8_t dev_addr, tusb_desc_interface_t const *p_interface
 }
 
 // is the response of interrupt endpoint polling
+#include "usbh_hcd.h" // FIXME remove
 void hub_isr(pipe_handle_t pipe_hdl, xfer_result_t event, uint32_t xferred_bytes)
 {
   (void) xferred_bytes; // TODO can be more than 1 for hub with lots of ports
@@ -220,10 +220,20 @@ void hub_isr(pipe_handle_t pipe_hdl, xfer_result_t event, uint32_t xferred_bytes
   if ( event == XFER_RESULT_SUCCESS )
   {
     for (uint8_t port=1; port <= p_hub->port_number; port++)
-    { // TODO HUB ignore bit0 hub_status_change
+    {
+      // TODO HUB ignore bit0 hub_status_change
       if ( BIT_TEST_(p_hub->status_change, port) )
       {
-        usbh_hub_port_plugged_isr(pipe_hdl.dev_addr, port);
+        hcd_event_t event =
+        {
+          .rhport = _usbh_devices[pipe_hdl.dev_addr].core_id,
+          .event_id = HCD_EVENT_DEVICE_ATTACH
+        };
+
+        event.attach.hub_addr = pipe_hdl.dev_addr;
+        event.attach.hub_port = port;
+
+        hcd_event_handler(&event, true);
         break; // handle one port at a time, next port if any will be handled in the next cycle
       }
     }
