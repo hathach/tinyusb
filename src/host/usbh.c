@@ -139,7 +139,7 @@ CFG_TUSB_MEM_SECTION ATTR_ALIGNED(4) static uint8_t _usbh_ctrl_buf[CFG_TUSB_HOST
 //------------- Helper Function Prototypes -------------//
 static inline uint8_t get_new_address(void) ATTR_ALWAYS_INLINE;
 static inline uint8_t get_configure_number_for_device(tusb_desc_device_t* dev_desc) ATTR_ALWAYS_INLINE;
-static void mark_interface_endpoint(int8_t ep2drv[8][2], uint8_t const* p_desc, uint16_t desc_len, uint8_t driver_id);
+static void mark_interface_endpoint(uint8_t ep2drv[8][2], uint8_t const* p_desc, uint16_t desc_len, uint8_t driver_id);
 
 //--------------------------------------------------------------------+
 // PUBLIC API (Parameter Verification is required)
@@ -174,8 +174,8 @@ bool usbh_init(void)
     dev->control.mutex_hdl = osal_mutex_create(&dev->control.mutex_def);
     TU_ASSERT(dev->control.mutex_hdl != NULL);
 
-    memset(dev->itf2drv, -1, sizeof(dev->itf2drv)); // invalid mapping
-    memset(dev->ep2drv , -1, sizeof(dev->ep2drv )); // invalid mapping
+    memset(dev->itf2drv, 0xff, sizeof(dev->itf2drv)); // invalid mapping
+    memset(dev->ep2drv , 0xff, sizeof(dev->ep2drv )); // invalid mapping
   }
 
   // Class drivers init
@@ -268,8 +268,8 @@ void usbh_xfer_isr(pipe_handle_t pipe_hdl, uint8_t class_code, xfer_result_t eve
   }
   else
   {
-    int8_t drv_id = dev->ep2drv[edpt_number(pipe_hdl.ep_addr)][edpt_dir(pipe_hdl.ep_addr)];
-    TU_ASSERT(drv_id >= 0, );
+    uint8_t drv_id = dev->ep2drv[edpt_number(pipe_hdl.ep_addr)][edpt_dir(pipe_hdl.ep_addr)];
+    TU_ASSERT(drv_id < USBH_CLASS_DRIVER_COUNT, );
 
     if (usbh_class_drivers[drv_id].isr)
     {
@@ -345,8 +345,8 @@ static void usbh_device_unplugged(uint8_t hostid, uint8_t hub_addr, uint8_t hub_
       // HCD must set this device's state to TUSB_DEVICE_STATE_UNPLUG when done
       dev->state = TUSB_DEVICE_STATE_REMOVING;
 
-      memset(dev->itf2drv, -1, sizeof(dev->itf2drv)); // invalid mapping
-      memset(dev->ep2drv , -1, sizeof(dev->ep2drv )); // invalid mapping
+      memset(dev->itf2drv, 0xff, sizeof(dev->itf2drv)); // invalid mapping
+      memset(dev->ep2drv , 0xff, sizeof(dev->ep2drv )); // invalid mapping
 
       usbh_pipe_control_close(dev_addr);
 
@@ -599,7 +599,7 @@ bool enum_task(hcd_event_t* event)
       else
       {
         // Interface number must not be used already TODO alternate interface
-        TU_ASSERT( new_dev->itf2drv[desc_itf->bInterfaceNumber] < 0 );
+        TU_ASSERT( new_dev->itf2drv[desc_itf->bInterfaceNumber] == 0xff );
         new_dev->itf2drv[desc_itf->bInterfaceNumber] = drv_id;
 
         if (desc_itf->bInterfaceClass == TUSB_CLASS_HUB && new_dev->hub_addr != 0)
@@ -696,7 +696,7 @@ static inline uint8_t get_configure_number_for_device(tusb_desc_device_t* dev_de
 
 // Helper marking endpoint of interface belongs to class driver
 // TODO merge with usbd
-static void mark_interface_endpoint(int8_t ep2drv[8][2], uint8_t const* p_desc, uint16_t desc_len, uint8_t driver_id)
+static void mark_interface_endpoint(uint8_t ep2drv[8][2], uint8_t const* p_desc, uint16_t desc_len, uint8_t driver_id)
 {
   uint16_t len = 0;
 

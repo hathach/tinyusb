@@ -68,7 +68,7 @@ typedef struct {
   uint8_t config_num;
 
   uint8_t itf2drv[16];  // map interface number to driver (0xff is invalid)
-  uint8_t ep2drv[2][8]; // map endpoint to driver ( 0xff is invalid )
+  uint8_t ep2drv[8][2]; // map endpoint to driver ( 0xff is invalid )
 
 }usbd_device_t;
 
@@ -169,7 +169,7 @@ static osal_queue_t _usbd_q;
 //--------------------------------------------------------------------+
 // Prototypes
 //--------------------------------------------------------------------+
-static void mark_interface_endpoint(uint8_t const* p_desc, uint16_t desc_len, uint8_t driver_id);
+static void mark_interface_endpoint(uint8_t ep2drv[8][2], uint8_t const* p_desc, uint16_t desc_len, uint8_t driver_id);
 static bool process_control_request(uint8_t rhport, tusb_control_request_t const * p_request);
 static bool process_set_config(uint8_t rhport);
 static void const* get_descriptor(tusb_control_request_t const * p_request, uint16_t* desc_len);
@@ -253,7 +253,7 @@ static void usbd_task_body(void)
         }
         else
         {
-          uint8_t const drv_id = _usbd_dev.ep2drv[edpt_dir(ep_addr)][edpt_number(ep_addr)];
+          uint8_t const drv_id = _usbd_dev.ep2drv[edpt_number(ep_addr)][edpt_dir(ep_addr)];
           TU_ASSERT(drv_id < USBD_CLASS_DRIVER_COUNT,);
 
           usbd_class_drivers[drv_id].xfer_cb(event.rhport, ep_addr, event.xfer_complete.result, event.xfer_complete.len);
@@ -375,7 +375,7 @@ static bool process_control_request(uint8_t rhport, tusb_control_request_t const
     uint8_t const itf = tu_u16_low(p_request->wIndex);
     uint8_t const drvid = _usbd_dev.itf2drv[ itf ];
 
-    TU_VERIFY (drvid < USBD_CLASS_DRIVER_COUNT );
+    TU_VERIFY(drvid < USBD_CLASS_DRIVER_COUNT);
 
     usbd_control_set_complete_callback(usbd_class_drivers[drvid].control_request_complete );
 
@@ -460,7 +460,7 @@ static bool process_set_config(uint8_t rhport)
       TU_ASSERT_ERR( usbd_class_drivers[drv_id].open( rhport, desc_itf, &itf_len ), false );
       TU_ASSERT( itf_len >= sizeof(tusb_desc_interface_t) );
 
-      mark_interface_endpoint(p_desc, itf_len, drv_id);
+      mark_interface_endpoint(_usbd_dev.ep2drv, p_desc, itf_len, drv_id);
 
       p_desc += itf_len; // next interface
     }
@@ -473,7 +473,7 @@ static bool process_set_config(uint8_t rhport)
 }
 
 // Helper marking endpoint of interface belongs to class driver
-static void mark_interface_endpoint(uint8_t const* p_desc, uint16_t desc_len, uint8_t driver_id)
+static void mark_interface_endpoint(uint8_t ep2drv[8][2], uint8_t const* p_desc, uint16_t desc_len, uint8_t driver_id)
 {
   uint16_t len = 0;
 
@@ -483,7 +483,7 @@ static void mark_interface_endpoint(uint8_t const* p_desc, uint16_t desc_len, ui
     {
       uint8_t const ep_addr = ((tusb_desc_endpoint_t const*) p_desc)->bEndpointAddress;
 
-      _usbd_dev.ep2drv[ edpt_dir(ep_addr) ][ edpt_number(ep_addr) ] = driver_id;
+      ep2drv[edpt_number(ep_addr)][edpt_dir(ep_addr)] = driver_id;
     }
 
     len   += descriptor_len(p_desc);

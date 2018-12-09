@@ -87,8 +87,8 @@ typedef struct {
     osal_mutex_t mutex_hdl;    // used to exclusively occupy control pipe
   } control;
 
-  int8_t itf2drv[16];  // map interface number to driver (negative is invalid)
-  int8_t ep2drv[8][2]; // map endpoint to driver ( negative is invalid )
+  uint8_t itf2drv[16];  // map interface number to driver (0xff is invalid)
+  uint8_t ep2drv[8][2]; // map endpoint to driver ( 0xff is invalid )
 } usbh_device_t;
 
 extern usbh_device_t _usbh_devices[CFG_TUSB_HOST_DEVICE_MAX+1]; // including zero-address
