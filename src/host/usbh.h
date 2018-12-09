@@ -68,7 +68,7 @@ typedef struct {
 
   void (* const init) (void);
   bool (* const open_subtask)(uint8_t rhport, uint8_t dev_addr, tusb_desc_interface_t const *, uint16_t* outlen);
-  void (* const isr) (pipe_handle_t, xfer_result_t, uint32_t);
+  void (* const isr) (uint8_t dev_addr, xfer_result_t, uint32_t);
   void (* const close) (uint8_t);
 } host_class_driver_t;
 //--------------------------------------------------------------------+

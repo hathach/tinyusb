@@ -256,10 +256,9 @@ static inline tusb_error_t usbh_pipe_control_close(uint8_t dev_addr)
 // USBH-HCD ISR/Callback API
 //--------------------------------------------------------------------+
 // interrupt caused by a TD (with IOC=1) in pipe of class class_code
-void usbh_xfer_isr(pipe_handle_t pipe_hdl, xfer_result_t event, uint32_t xferred_bytes)
+void usbh_xfer_isr(uint8_t dev_addr, uint8_t ep_addr, xfer_result_t event, uint32_t xferred_bytes)
 {
-  usbh_device_t* dev = &_usbh_devices[ pipe_hdl.dev_addr ];
-  uint8_t ep_addr = pipe_hdl.ep_addr;
+  usbh_device_t* dev = &_usbh_devices[ dev_addr ];
 
   if (0 == edpt_number(ep_addr))
   {
@@ -274,7 +273,7 @@ void usbh_xfer_isr(pipe_handle_t pipe_hdl, xfer_result_t event, uint32_t xferred
 
     if (usbh_class_drivers[drv_id].isr)
     {
-      usbh_class_drivers[drv_id].isr(pipe_hdl, event, xferred_bytes);
+      usbh_class_drivers[drv_id].isr(dev_addr , event, xferred_bytes);
     }
     else
     {

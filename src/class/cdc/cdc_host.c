@@ -57,15 +57,6 @@
 //--------------------------------------------------------------------+
 STATIC_VAR cdch_data_t cdch_data[CFG_TUSB_HOST_DEVICE_MAX]; // TODO to be static
 
-static inline cdc_pipeid_t get_app_pipeid(pipe_handle_t pipe_hdl)
-{
-  cdch_data_t const * p_cdc = &cdch_data[pipe_hdl.dev_addr-1];
-
-  return pipehandle_is_equal( pipe_hdl, p_cdc->pipe_notification ) ? CDC_PIPE_NOTIFICATION :
-         pipehandle_is_equal( pipe_hdl, p_cdc->pipe_in           ) ? CDC_PIPE_DATA_IN      :
-         pipehandle_is_equal( pipe_hdl, p_cdc->pipe_out          ) ? CDC_PIPE_DATA_OUT     : CDC_PIPE_ERROR;
-}
-
 static inline bool tusbh_cdc_is_mounted(uint8_t dev_addr)
 {
   return pipehandle_is_valid(cdch_data[dev_addr-1].pipe_in) && pipehandle_is_valid(cdch_data[dev_addr-1].pipe_out);
@@ -221,9 +212,9 @@ bool cdch_open_subtask(uint8_t rhport, uint8_t dev_addr, tusb_desc_interface_t c
   return true;
 }
 
-void cdch_isr(pipe_handle_t pipe_hdl, xfer_result_t event, uint32_t xferred_bytes)
+void cdch_isr(uint8_t dev_addr, xfer_result_t event, uint32_t xferred_bytes)
 {
-  tuh_cdc_xfer_isr( pipe_hdl.dev_addr, event, get_app_pipeid(pipe_hdl), xferred_bytes );
+  tuh_cdc_xfer_isr( dev_addr, event, 0, xferred_bytes );
 }
 
 void cdch_close(uint8_t dev_addr)

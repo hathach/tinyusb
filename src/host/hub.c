@@ -211,11 +211,11 @@ bool hub_open_subtask(uint8_t rhport, uint8_t dev_addr, tusb_desc_interface_t co
 
 // is the response of interrupt endpoint polling
 #include "usbh_hcd.h" // FIXME remove
-void hub_isr(pipe_handle_t pipe_hdl, xfer_result_t event, uint32_t xferred_bytes)
+void hub_isr(uint8_t dev_addr, xfer_result_t event, uint32_t xferred_bytes)
 {
   (void) xferred_bytes; // TODO can be more than 1 for hub with lots of ports
 
-  usbh_hub_t * p_hub = &hub_data[pipe_hdl.dev_addr-1];
+  usbh_hub_t * p_hub = &hub_data[dev_addr-1];
 
   if ( event == XFER_RESULT_SUCCESS )
   {
@@ -226,11 +226,11 @@ void hub_isr(pipe_handle_t pipe_hdl, xfer_result_t event, uint32_t xferred_bytes
       {
         hcd_event_t event =
         {
-          .rhport = _usbh_devices[pipe_hdl.dev_addr].rhport,
+          .rhport = _usbh_devices[dev_addr].rhport,
           .event_id = HCD_EVENT_DEVICE_ATTACH
         };
 
-        event.attach.hub_addr = pipe_hdl.dev_addr;
+        event.attach.hub_addr = dev_addr;
         event.attach.hub_port = port;
 
         hcd_event_handler(&event, true);
