@@ -647,7 +647,7 @@ static void qhd_xfer_complete_isr(ehci_qhd_t * p_qhd)
     {
       // end of request
       // call USBH callback
-      usbh_xfer_isr(p_qhd->device_address, edpt_addr(p_qhd->endpoint_number, p_qhd->pid_non_control == EHCI_PID_IN ? 1 : 0), XFER_RESULT_SUCCESS, p_qhd->total_xferred_bytes);
+      hcd_event_xfer_complete(p_qhd->device_address, edpt_addr(p_qhd->endpoint_number, p_qhd->pid_non_control == EHCI_PID_IN ? 1 : 0), XFER_RESULT_SUCCESS, p_qhd->total_xferred_bytes);
       p_qhd->total_xferred_bytes = 0;
     }
 
@@ -741,7 +741,7 @@ static void qhd_xfer_error_isr(ehci_qhd_t * p_qhd)
     }
 
     // call USBH callback
-    usbh_xfer_isr(p_qhd->device_address, edpt_addr(p_qhd->endpoint_number, p_qhd->pid_non_control == EHCI_PID_IN ? 1 : 0), error_event, p_qhd->total_xferred_bytes);
+    hcd_event_xfer_complete(p_qhd->device_address, edpt_addr(p_qhd->endpoint_number, p_qhd->pid_non_control == EHCI_PID_IN ? 1 : 0), error_event, p_qhd->total_xferred_bytes);
 
     p_qhd->total_xferred_bytes = 0;
   }

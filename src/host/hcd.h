@@ -127,6 +127,9 @@ void hcd_event_device_attach(uint8_t rhport);
 // Helper to send device removal event
 void hcd_event_device_remove(uint8_t hostid);
 
+// Helper to send USB transfer event
+void hcd_event_xfer_complete(uint8_t dev_addr, uint8_t ep_addr, xfer_result_t event, uint32_t xferred_bytes);
+
 //--------------------------------------------------------------------+
 // Endpoints API
 //--------------------------------------------------------------------+

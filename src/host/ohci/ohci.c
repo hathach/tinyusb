@@ -717,7 +717,7 @@ static void done_queue_isr(uint8_t hostid)
 
       if ( pipe_hdl.xfer_type != TUSB_XFER_CONTROL) pipe_hdl.index = ed_get_index(p_ed);
 
-      usbh_xfer_isr(pipe_hdl, p_ed->td_tail.class_code, event, xferred_bytes);
+      hcd_event_xfer_complete(pipe_hdl, p_ed->td_tail.class_code, event, xferred_bytes);
     }
 
     td_head = (ohci_td_item_t*) td_head->next_td;
