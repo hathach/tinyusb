@@ -94,7 +94,7 @@ enum {
 //--------------------------------------------------------------------+
 typedef struct {
   uint8_t dev_addr;
-  uint8_t xfer_type;
+  uint8_t reserved;
   uint8_t index;
   uint8_t ep_addr;
 } pipe_handle_t;
@@ -106,7 +106,7 @@ static inline bool pipehandle_is_valid(pipe_handle_t pipe_hdl)
 
 static inline bool pipehandle_is_equal(pipe_handle_t x, pipe_handle_t y)
 {
-  return (x.dev_addr == y.dev_addr) && (x.xfer_type == y.xfer_type) && (x.index == y.index);
+  return (x.dev_addr == y.dev_addr) && (x.index == y.index);
 }
 
 //--------------------------------------------------------------------+

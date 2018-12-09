@@ -99,7 +99,7 @@ static inline ehci_qhd_t*    qhd_next(ehci_qhd_t const * p_qhd) ATTR_ALWAYS_INLI
 static inline ehci_qhd_t*    qhd_find_free (uint8_t dev_addr) ATTR_PURE ATTR_ALWAYS_INLINE;
 static inline tusb_xfer_type_t qhd_get_xfer_type(ehci_qhd_t const * p_qhd) ATTR_ALWAYS_INLINE ATTR_PURE;
 static inline ehci_qhd_t*  qhd_get_from_pipe_handle(pipe_handle_t pipe_hdl) ATTR_PURE ATTR_ALWAYS_INLINE;
-static inline pipe_handle_t  qhd_create_pipe_handle(ehci_qhd_t const * p_qhd, tusb_xfer_type_t xfer_type) ATTR_PURE ATTR_ALWAYS_INLINE;
+static inline pipe_handle_t  qhd_create_pipe_handle(ehci_qhd_t const * p_qhd);
 
 // determine if a queue head has bus-related error
 static inline bool qhd_has_xact_error(ehci_qhd_t * p_qhd)
@@ -421,7 +421,7 @@ bool hcd_setup_send(uint8_t rhport, uint8_t dev_addr, uint8_t const setup_packet
 //--------------------------------------------------------------------+
 pipe_handle_t hcd_pipe_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_endpoint_t const * ep_desc, uint8_t class_code)
 {
-  pipe_handle_t const null_handle = { .dev_addr = 0, .xfer_type = 0, .index = 0 };
+  pipe_handle_t const null_handle = { .dev_addr = 0, .index = 0 };
 
   // TODO not support ISO yet
   if (ep_desc->bmAttributes.xfer == TUSB_XFER_ISOCHRONOUS) return null_handle;
@@ -470,7 +470,7 @@ pipe_handle_t hcd_pipe_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_endpoint
   // TODO might need to disable async/period list
   list_insert( list_head, (ehci_link_t*) p_qhd, EHCI_QUEUE_ELEMENT_QHD);
 
-  return (pipe_handle_t) { .dev_addr = dev_addr, .xfer_type = ep_desc->bmAttributes.xfer, .index = qhd_get_index(p_qhd) };
+  return (pipe_handle_t) { .dev_addr = dev_addr, .index = qhd_get_index(p_qhd) };
 }
 
 tusb_error_t  hcd_pipe_queue_xfer(pipe_handle_t pipe_hdl, uint8_t buffer[], uint16_t total_bytes)
@@ -512,8 +512,6 @@ tusb_error_t  hcd_pipe_close(pipe_handle_t pipe_hdl)
 {
   TU_ASSERT(pipe_hdl.dev_addr > 0, TUSB_ERROR_INVALID_PARA);
 
-  TU_ASSERT(pipe_hdl.xfer_type != TUSB_XFER_ISOCHRONOUS, TUSB_ERROR_INVALID_PARA);
-
   ehci_qhd_t *p_qhd = qhd_get_from_pipe_handle( pipe_hdl );
 
   // async list needs async advance handshake to make sure host controller has released cached data
@@ -521,7 +519,7 @@ tusb_error_t  hcd_pipe_close(pipe_handle_t pipe_hdl)
   // period list queue element is guarantee to be free in the next frame (1 ms)
   p_qhd->is_removing = 1; // TODO redundant, only apply to control queue head
 
-  if ( pipe_hdl.xfer_type == TUSB_XFER_BULK )
+  if ( p_qhd->xfer_type == TUSB_XFER_BULK )
   {
     TU_ASSERT_ERR( list_remove_qhd(
         (ehci_link_t*) get_async_head( _usbh_devices[pipe_hdl.dev_addr].rhport ),
@@ -633,7 +631,6 @@ static void port_connect_status_change_isr(uint8_t hostid)
 static void qhd_xfer_complete_isr(ehci_qhd_t * p_qhd)
 {
   uint8_t max_loop = 0;
-  tusb_xfer_type_t const xfer_type = qhd_get_xfer_type(p_qhd);
 
   // free all TDs from the head td to the first active TD
   while(p_qhd->p_qtd_list_head != NULL && !p_qhd->p_qtd_list_head->active
@@ -646,10 +643,11 @@ static void qhd_xfer_complete_isr(ehci_qhd_t * p_qhd)
     p_qhd->p_qtd_list_head->used = 0; // free QTD
     qtd_remove_1st_from_qhd(p_qhd);
 
-    if (is_ioc) // end of request
-    { // call USBH callback
-      usbh_xfer_isr( qhd_create_pipe_handle(p_qhd, xfer_type), XFER_RESULT_SUCCESS,
-                     p_qhd->total_xferred_bytes - (xfer_type == TUSB_XFER_CONTROL ? 8 : 0) ); // subtract setup packet size if control,
+    if (is_ioc)
+    {
+      // end of request
+      // call USBH callback
+      usbh_xfer_isr( qhd_create_pipe_handle(p_qhd), XFER_RESULT_SUCCESS, p_qhd->total_xferred_bytes);
       p_qhd->total_xferred_bytes = 0;
     }
 
@@ -728,10 +726,8 @@ static void qhd_xfer_error_isr(ehci_qhd_t * p_qhd)
     p_qhd->p_qtd_list_head->used = 0; // free QTD
     qtd_remove_1st_from_qhd(p_qhd);
 
-    if ( TUSB_XFER_CONTROL == xfer_type )
+    if ( 0 == p_qhd->endpoint_number )
     {
-      p_qhd->total_xferred_bytes -= tu_min8(8, p_qhd->total_xferred_bytes); // subtract setup size
-
       // control cannot be halted --> clear all qtd list
       p_qhd->p_qtd_list_head = NULL;
       p_qhd->p_qtd_list_tail = NULL;
@@ -745,7 +741,7 @@ static void qhd_xfer_error_isr(ehci_qhd_t * p_qhd)
     }
 
     // call USBH callback
-    usbh_xfer_isr( qhd_create_pipe_handle(p_qhd, xfer_type), error_event, p_qhd->total_xferred_bytes);
+    usbh_xfer_isr( qhd_create_pipe_handle(p_qhd), error_event, p_qhd->total_xferred_bytes);
 
     p_qhd->total_xferred_bytes = 0;
   }
@@ -936,15 +932,14 @@ static inline ehci_qhd_t* qhd_get_from_pipe_handle(pipe_handle_t pipe_hdl)
   return &ehci_data.device[ pipe_hdl.dev_addr-1 ].qhd[ pipe_hdl.index ];
 }
 
-static inline pipe_handle_t qhd_create_pipe_handle(ehci_qhd_t const * p_qhd, tusb_xfer_type_t xfer_type)
+static inline pipe_handle_t qhd_create_pipe_handle(ehci_qhd_t const * p_qhd)
 {
   pipe_handle_t pipe_hdl = {
       .dev_addr  = p_qhd->device_address,
-      .xfer_type = xfer_type
   };
 
   // TODO Isochronous transfer support
-  if (TUSB_XFER_CONTROL != xfer_type) // qhd index for control is meaningless
+  if (TUSB_XFER_CONTROL != p_qhd->xfer_type) // qhd index for control is meaningless
   {
     pipe_hdl.index = qhd_get_index(p_qhd);
     pipe_hdl.ep_addr = edpt_addr(p_qhd->endpoint_number, p_qhd->pid_non_control == EHCI_PID_IN ? 1 : 0);
@@ -1054,6 +1049,7 @@ static void qhd_init(ehci_qhd_t *p_qhd, uint8_t dev_addr, tusb_desc_endpoint_t c
   p_qhd->p_qtd_list_head = NULL;
   p_qhd->p_qtd_list_tail = NULL;
   p_qhd->pid_non_control = edpt_dir(ep_desc->bEndpointAddress) ? EHCI_PID_IN : EHCI_PID_OUT; // PID for TD under this endpoint
+  p_qhd->xfer_type       = xfer_type;
 
   //------------- active, but no TD list -------------//
   p_qhd->qtd_overlay.halted              = 0;

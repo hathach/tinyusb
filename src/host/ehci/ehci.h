@@ -192,7 +192,7 @@ typedef struct ATTR_ALIGNED(32) {
 	uint8_t used;
 	uint8_t is_removing;
 	uint8_t pid_non_control;
-	uint8_t reserved1;
+	uint8_t xfer_type;
 
 	uint16_t total_xferred_bytes; // number of bytes xferred until a qtd with ioc bit set
 	uint8_t interval_ms; // polling interval in frames (or milisecond)

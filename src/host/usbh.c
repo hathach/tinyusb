@@ -259,8 +259,9 @@ static inline tusb_error_t usbh_pipe_control_close(uint8_t dev_addr)
 void usbh_xfer_isr(pipe_handle_t pipe_hdl, xfer_result_t event, uint32_t xferred_bytes)
 {
   usbh_device_t* dev = &_usbh_devices[ pipe_hdl.dev_addr ];
+  uint8_t ep_addr = pipe_hdl.ep_addr;
 
-  if (TUSB_XFER_CONTROL == pipe_hdl.xfer_type)
+  if (0 == edpt_number(ep_addr))
   {
     dev->control.pipe_status   = event;
 //    usbh_devices[ pipe_hdl.dev_addr ].control.xferred_bytes = xferred_bytes; not yet neccessary
@@ -268,7 +269,7 @@ void usbh_xfer_isr(pipe_handle_t pipe_hdl, xfer_result_t event, uint32_t xferred
   }
   else
   {
-    uint8_t drv_id = dev->ep2drv[edpt_number(pipe_hdl.ep_addr)][edpt_dir(pipe_hdl.ep_addr)];
+    uint8_t drv_id = dev->ep2drv[edpt_number(ep_addr)][edpt_dir(ep_addr)];
     TU_ASSERT(drv_id < USBH_CLASS_DRIVER_COUNT, );
 
     if (usbh_class_drivers[drv_id].isr)
