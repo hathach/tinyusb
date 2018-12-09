@@ -96,7 +96,7 @@ typedef struct {
   uint8_t dev_addr;
   uint8_t xfer_type;
   uint8_t index;
-  uint8_t reserved;
+  uint8_t ep_addr;
 } pipe_handle_t;
 
 static inline bool pipehandle_is_valid(pipe_handle_t pipe_hdl)

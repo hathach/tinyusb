@@ -951,6 +951,7 @@ static inline pipe_handle_t qhd_create_pipe_handle(ehci_qhd_t const * p_qhd, tus
   if (TUSB_XFER_CONTROL != xfer_type) // qhd index for control is meaningless
   {
     pipe_hdl.index = qhd_get_index(p_qhd);
+    pipe_hdl.ep_addr = edpt_addr(p_qhd->endpoint_number, p_qhd->pid_non_control == EHCI_PID_IN ? 1 : 0);
   }
 
   return pipe_hdl;

@@ -64,6 +64,8 @@ typedef enum tusb_interface_status_{
 } tusb_interface_status_t;
 
 typedef struct {
+  uint8_t class_code;
+
   void (* const init) (void);
   bool (* const open_subtask)(uint8_t rhport, uint8_t dev_addr, tusb_desc_interface_t const *, uint16_t* outlen);
   void (* const isr) (pipe_handle_t, xfer_result_t, uint32_t);
@@ -83,7 +85,6 @@ static inline bool tuh_device_is_configured(uint8_t dev_addr)
 {
   return tuh_device_get_state(dev_addr) == TUSB_DEVICE_STATE_CONFIGURED;
 }
-uint32_t tuh_device_get_mounted_class_flag(uint8_t dev_addr);
 
 //--------------------------------------------------------------------+
 // APPLICATION CALLBACK

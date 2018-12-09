@@ -450,19 +450,19 @@ static bool process_set_config(uint8_t rhport)
       {
         if ( usbd_class_drivers[drv_id].class_code == desc_itf->bInterfaceClass ) break;
       }
-      TU_ASSERT( drv_id < USBD_CLASS_DRIVER_COUNT ); // unsupported class
+      TU_ASSERT( drv_id < USBD_CLASS_DRIVER_COUNT );
 
       // Interface number must not be used already TODO alternate interface
       TU_ASSERT( 0xff == _usbd_dev.itf2drv[desc_itf->bInterfaceNumber] );
       _usbd_dev.itf2drv[desc_itf->bInterfaceNumber] = drv_id;
 
-      uint16_t len=0;
-      TU_ASSERT_ERR( usbd_class_drivers[drv_id].open( rhport, desc_itf, &len ), false );
-      TU_ASSERT( len >= sizeof(tusb_desc_interface_t) );
+      uint16_t itf_len=0;
+      TU_ASSERT_ERR( usbd_class_drivers[drv_id].open( rhport, desc_itf, &itf_len ), false );
+      TU_ASSERT( itf_len >= sizeof(tusb_desc_interface_t) );
 
-      mark_interface_endpoint(p_desc, len, drv_id);
+      mark_interface_endpoint(p_desc, itf_len, drv_id);
 
-      p_desc += len; // next interface
+      p_desc += itf_len; // next interface
     }
   }
 
