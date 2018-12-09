@@ -55,16 +55,16 @@
 //--------------------------------------------------------------------+
 // INTERNAL OBJECT & FUNCTION DECLARATION
 //--------------------------------------------------------------------+
-STATIC_VAR cdch_data_t cdch_data[CFG_TUSB_HOST_DEVICE_MAX]; // TODO to be static
+static cdch_data_t cdch_data[CFG_TUSB_HOST_DEVICE_MAX]; // TODO to be static
 
-static inline bool tusbh_cdc_is_mounted(uint8_t dev_addr)
+static inline bool tuh_cdc_mounted(uint8_t dev_addr)
 {
   return pipehandle_is_valid(cdch_data[dev_addr-1].pipe_in) && pipehandle_is_valid(cdch_data[dev_addr-1].pipe_out);
 }
 
 bool tuh_cdc_is_busy(uint8_t dev_addr, cdc_pipeid_t pipeid)
 {
-  if ( !tusbh_cdc_is_mounted(dev_addr) ) return false;
+  if ( !tuh_cdc_mounted(dev_addr) ) return false;
 
   cdch_data_t const * p_cdc = &cdch_data[dev_addr-1];
 
@@ -90,14 +90,14 @@ bool tuh_cdc_is_busy(uint8_t dev_addr, cdc_pipeid_t pipeid)
 bool tuh_cdc_serial_is_mounted(uint8_t dev_addr)
 {
   // TODO consider all AT Command as serial candidate
-  return tusbh_cdc_is_mounted(dev_addr)                                         &&
+  return tuh_cdc_mounted(dev_addr)                                         &&
       (CDC_COMM_PROTOCOL_ATCOMMAND <= cdch_data[dev_addr-1].interface_protocol) &&
       (cdch_data[dev_addr-1].interface_protocol <= CDC_COMM_PROTOCOL_ATCOMMAND_CDMA);
 }
 
 tusb_error_t tuh_cdc_send(uint8_t dev_addr, void const * p_data, uint32_t length, bool is_notify)
 {
-  TU_ASSERT( tusbh_cdc_is_mounted(dev_addr),  TUSB_ERROR_CDCH_DEVICE_NOT_MOUNTED);
+  TU_ASSERT( tuh_cdc_mounted(dev_addr),  TUSB_ERROR_CDCH_DEVICE_NOT_MOUNTED);
   TU_ASSERT( p_data != NULL && length, TUSB_ERROR_INVALID_PARA);
 
   pipe_handle_t pipe_out = cdch_data[dev_addr-1].pipe_out;
@@ -108,7 +108,7 @@ tusb_error_t tuh_cdc_send(uint8_t dev_addr, void const * p_data, uint32_t length
 
 tusb_error_t tuh_cdc_receive(uint8_t dev_addr, void * p_buffer, uint32_t length, bool is_notify)
 {
-  TU_ASSERT( tusbh_cdc_is_mounted(dev_addr),  TUSB_ERROR_CDCH_DEVICE_NOT_MOUNTED);
+  TU_ASSERT( tuh_cdc_mounted(dev_addr),  TUSB_ERROR_CDCH_DEVICE_NOT_MOUNTED);
   TU_ASSERT( p_buffer != NULL && length, TUSB_ERROR_INVALID_PARA);
 
   pipe_handle_t pipe_in = cdch_data[dev_addr-1].pipe_in;
@@ -212,7 +212,7 @@ bool cdch_open_subtask(uint8_t rhport, uint8_t dev_addr, tusb_desc_interface_t c
   return true;
 }
 
-void cdch_isr(uint8_t dev_addr, xfer_result_t event, uint32_t xferred_bytes)
+void cdch_isr(uint8_t dev_addr, uint8_t ep_addr, xfer_result_t event, uint32_t xferred_bytes)
 {
   tuh_cdc_xfer_isr( dev_addr, event, 0, xferred_bytes );
 }
