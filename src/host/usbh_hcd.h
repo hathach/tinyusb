@@ -96,7 +96,7 @@ extern usbh_device_t _usbh_devices[CFG_TUSB_HOST_DEVICE_MAX+1]; // including zer
 //--------------------------------------------------------------------+
 // callback from HCD ISR
 //--------------------------------------------------------------------+
-void usbh_xfer_isr(pipe_handle_t pipe_hdl, uint8_t class_code, xfer_result_t event, uint32_t xferred_bytes);
+void usbh_xfer_isr(pipe_handle_t pipe_hdl, xfer_result_t event, uint32_t xferred_bytes);
 
 
 #ifdef __cplusplus

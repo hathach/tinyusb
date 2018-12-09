@@ -192,11 +192,11 @@ typedef struct ATTR_ALIGNED(32) {
 	uint8_t used;
 	uint8_t is_removing;
 	uint8_t pid_non_control;
-	uint8_t class_code;
+	uint8_t reserved1;
 
 	uint16_t total_xferred_bytes; // number of bytes xferred until a qtd with ioc bit set
 	uint8_t interval_ms; // polling interval in frames (or milisecond)
-	uint8_t reserved;
+	uint8_t reserved2;
 
 	ehci_qtd_t * volatile p_qtd_list_head;	// head of the scheduled TD list
 	ehci_qtd_t * volatile p_qtd_list_tail;	// tail of the scheduled TD list

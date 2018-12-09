@@ -439,7 +439,6 @@ pipe_handle_t hcd_pipe_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_endpoint
   TU_ASSERT(p_qhd, null_handle);
 
   qhd_init( p_qhd, dev_addr, ep_desc);
-  p_qhd->class_code = class_code;
 
   //------------- Insert to Async List -------------//
   ehci_link_t * list_head;
@@ -649,8 +648,7 @@ static void qhd_xfer_complete_isr(ehci_qhd_t * p_qhd)
 
     if (is_ioc) // end of request
     { // call USBH callback
-      usbh_xfer_isr( qhd_create_pipe_handle(p_qhd, xfer_type),
-                     p_qhd->class_code, XFER_RESULT_SUCCESS,
+      usbh_xfer_isr( qhd_create_pipe_handle(p_qhd, xfer_type), XFER_RESULT_SUCCESS,
                      p_qhd->total_xferred_bytes - (xfer_type == TUSB_XFER_CONTROL ? 8 : 0) ); // subtract setup packet size if control,
       p_qhd->total_xferred_bytes = 0;
     }
@@ -747,9 +745,7 @@ static void qhd_xfer_error_isr(ehci_qhd_t * p_qhd)
     }
 
     // call USBH callback
-    usbh_xfer_isr( qhd_create_pipe_handle(p_qhd, xfer_type),
-                   p_qhd->class_code, error_event,
-                   p_qhd->total_xferred_bytes);
+    usbh_xfer_isr( qhd_create_pipe_handle(p_qhd, xfer_type), error_event, p_qhd->total_xferred_bytes);
 
     p_qhd->total_xferred_bytes = 0;
   }
