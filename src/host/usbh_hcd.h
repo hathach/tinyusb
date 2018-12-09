@@ -57,7 +57,7 @@
 //--------------------------------------------------------------------+
 typedef struct {
   //------------- port -------------//
-  uint8_t core_id;
+  uint8_t rhport;
   uint8_t hub_addr;
   uint8_t hub_port;
   uint8_t speed;

@@ -467,7 +467,7 @@ typedef struct
       ehci_qtd_t qtd;
     }control;
 
-    ehci_qhd_t  qhd[HCD_MAX_ENDPOINT]                  ; ///< Queue Head Pool
+    ehci_qhd_t  qhd[HCD_MAX_ENDPOINT]              ; ///< Queue Head Pool
     ehci_qtd_t  qtd[HCD_MAX_XFER] ATTR_ALIGNED(32) ; ///< Queue Element Transfer Pool
 //  ehci_itd_t  itd[EHCI_MAX_ITD]                  ; ///< Iso Transfer Pool
 //  ehci_sitd_t sitd[EHCI_MAX_SITD]                ; ///< Split (FS) Isochronous Transfer Pool

@@ -155,7 +155,7 @@ void hub_init(void)
 //  hub_enum_sem_hdl = osal_semaphore_create( OSAL_SEM_REF(hub_enum_semaphore) );
 }
 
-bool hub_open_subtask(uint8_t dev_addr, tusb_desc_interface_t const *p_interface_desc, uint16_t *p_length)
+bool hub_open_subtask(uint8_t rhport, uint8_t dev_addr, tusb_desc_interface_t const *p_interface_desc, uint16_t *p_length)
 {
   // not support multiple TT yet
   if ( p_interface_desc->bInterfaceProtocol > 1 ) return false;
@@ -167,7 +167,7 @@ bool hub_open_subtask(uint8_t dev_addr, tusb_desc_interface_t const *p_interface
   TU_ASSERT(TUSB_DESC_ENDPOINT == p_endpoint->bDescriptorType);
   TU_ASSERT(TUSB_XFER_INTERRUPT == p_endpoint->bmAttributes.xfer);
 
-  hub_data[dev_addr-1].pipe_status = hcd_pipe_open(dev_addr, p_endpoint, TUSB_CLASS_HUB);
+  hub_data[dev_addr-1].pipe_status = hcd_pipe_open(rhport, dev_addr, p_endpoint, TUSB_CLASS_HUB);
   TU_ASSERT( pipehandle_is_valid(hub_data[dev_addr-1].pipe_status) );
   hub_data[dev_addr-1].interface_number = p_interface_desc->bInterfaceNumber;
 
@@ -226,7 +226,7 @@ void hub_isr(pipe_handle_t pipe_hdl, xfer_result_t event, uint32_t xferred_bytes
       {
         hcd_event_t event =
         {
-          .rhport = _usbh_devices[pipe_hdl.dev_addr].core_id,
+          .rhport = _usbh_devices[pipe_hdl.dev_addr].rhport,
           .event_id = HCD_EVENT_DEVICE_ATTACH
         };
 

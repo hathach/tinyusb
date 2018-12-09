@@ -134,7 +134,7 @@ void cdch_init(void)
   tu_memclr(cdch_data, sizeof(cdch_data_t)*CFG_TUSB_HOST_DEVICE_MAX);
 }
 
-bool cdch_open_subtask(uint8_t dev_addr, tusb_desc_interface_t const *p_interface_desc, uint16_t *p_length)
+bool cdch_open_subtask(uint8_t rhport, uint8_t dev_addr, tusb_desc_interface_t const *p_interface_desc, uint16_t *p_length)
 {
   // TODO change following assert to subtask_assert
   if ( CDC_COMM_SUBCLASS_ABSTRACT_CONTROL_MODEL != p_interface_desc->bInterfaceSubClass) return TUSB_ERROR_CDC_UNSUPPORTED_SUBCLASS;
@@ -170,7 +170,7 @@ bool cdch_open_subtask(uint8_t dev_addr, tusb_desc_interface_t const *p_interfac
 
   if ( TUSB_DESC_ENDPOINT == p_desc[DESC_OFFSET_TYPE])
   { // notification endpoint if any
-    p_cdc->pipe_notification = hcd_pipe_open(dev_addr, (tusb_desc_endpoint_t const *) p_desc, TUSB_CLASS_CDC);
+    p_cdc->pipe_notification = hcd_pipe_open(rhport, dev_addr, (tusb_desc_endpoint_t const *) p_desc, TUSB_CLASS_CDC);
 
     (*p_length) += p_desc[DESC_OFFSET_LEN];
     p_desc = descriptor_next(p_desc);
@@ -195,7 +195,7 @@ bool cdch_open_subtask(uint8_t dev_addr, tusb_desc_interface_t const *p_interfac
       pipe_handle_t * p_pipe_hdl =  ( p_endpoint->bEndpointAddress &  TUSB_DIR_IN_MASK ) ?
           &p_cdc->pipe_in : &p_cdc->pipe_out;
 
-      (*p_pipe_hdl) = hcd_pipe_open(dev_addr, p_endpoint, TUSB_CLASS_CDC);
+      (*p_pipe_hdl) = hcd_pipe_open(rhport, dev_addr, p_endpoint, TUSB_CLASS_CDC);
       TU_ASSERT ( pipehandle_is_valid(*p_pipe_hdl) );
 
       (*p_length) += p_desc[DESC_OFFSET_LEN];

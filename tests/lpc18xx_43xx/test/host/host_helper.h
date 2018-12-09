@@ -69,7 +69,7 @@ static inline void helper_usbh_init_expect(void)
 
 static inline void helper_usbh_device_emulate(uint8_t dev_addr, uint8_t hub_addr, uint8_t hub_port, uint8_t hostid, tusb_speed_t speed)
 {
-  _usbh_devices[dev_addr].core_id  = hostid;
+  _usbh_devices[dev_addr].rhport  = hostid;
   _usbh_devices[dev_addr].hub_addr = hub_addr;
   _usbh_devices[dev_addr].hub_port = hub_port;
   _usbh_devices[dev_addr].speed    = speed;

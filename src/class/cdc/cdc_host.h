@@ -150,7 +150,7 @@ typedef struct {
 extern cdch_data_t cdch_data[CFG_TUSB_HOST_DEVICE_MAX]; // TODO consider to move to cdch internal header file
 
 void cdch_init(void);
-bool cdch_open_subtask(uint8_t dev_addr, tusb_desc_interface_t const *p_interface_desc, uint16_t *p_length) ATTR_WARN_UNUSED_RESULT;
+bool cdch_open_subtask(uint8_t rhport, uint8_t dev_addr, tusb_desc_interface_t const *p_interface_desc, uint16_t *p_length) ATTR_WARN_UNUSED_RESULT;
 void cdch_isr(pipe_handle_t pipe_hdl, xfer_result_t event, uint32_t xferred_bytes);
 void cdch_close(uint8_t dev_addr);
 
