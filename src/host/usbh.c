@@ -71,7 +71,7 @@ static host_class_driver_t const usbh_class_drivers[] =
     {
       .class_code   = TUSB_CLASS_CDC,
       .init         = cdch_init,
-      .open_subtask = cdch_open,
+      .open = cdch_open,
       .isr          = cdch_isr,
       .close        = cdch_close
     },
@@ -81,7 +81,7 @@ static host_class_driver_t const usbh_class_drivers[] =
     {
       .class_code   = TUSB_CLASS_MSC,
       .init         = msch_init,
-      .open_subtask = msch_open,
+      .open = msch_open,
       .isr          = msch_isr,
       .close        = msch_close
     },
@@ -91,7 +91,7 @@ static host_class_driver_t const usbh_class_drivers[] =
     {
       .class_code   = TUSB_CLASS_HID,
       .init         = hidh_init,
-      .open_subtask = hidh_open_subtask,
+      .open = hidh_open_subtask,
       .isr          = hidh_isr,
       .close        = hidh_close
     },
@@ -101,7 +101,7 @@ static host_class_driver_t const usbh_class_drivers[] =
     {
       .class_code   = TUSB_CLASS_HUB,
       .init         = hub_init,
-      .open_subtask = hub_open_subtask,
+      .open = hub_open,
       .isr          = hub_isr,
       .close        = hub_close
     },
@@ -111,7 +111,7 @@ static host_class_driver_t const usbh_class_drivers[] =
     {
         .class_code   = TUSB_CLASS_VENDOR_SPECIFIC,
         .init         = cush_init,
-        .open_subtask = cush_open_subtask,
+        .open = cush_open_subtask,
         .isr          = cush_isr,
         .close        = cush_close
     }
@@ -611,7 +611,7 @@ bool enum_task(hcd_event_t* event)
         {
           uint16_t itf_len = 0;
 
-          if ( usbh_class_drivers[drv_id].open_subtask(new_dev->rhport, new_addr, desc_itf, &itf_len) )
+          if ( usbh_class_drivers[drv_id].open(new_dev->rhport, new_addr, desc_itf, &itf_len) )
           {
             mark_interface_endpoint(new_dev->ep2drv, p_desc, itf_len, drv_id);
           }

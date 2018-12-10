@@ -106,24 +106,24 @@ bool tuh_cdc_serial_is_mounted(uint8_t dev_addr)
       (cdch_data[dev_addr-1].itf_protocol <= CDC_COMM_PROTOCOL_ATCOMMAND_CDMA);
 }
 
-tusb_error_t tuh_cdc_send(uint8_t dev_addr, void const * p_data, uint32_t length, bool is_notify)
+bool tuh_cdc_send(uint8_t dev_addr, void const * p_data, uint32_t length, bool is_notify)
 {
-  TU_ASSERT( tuh_cdc_mounted(dev_addr),  TUSB_ERROR_CDCH_DEVICE_NOT_MOUNTED);
-  TU_ASSERT( p_data != NULL && length, TUSB_ERROR_INVALID_PARA);
+  TU_VERIFY( tuh_cdc_mounted(dev_addr) );
+  TU_VERIFY( p_data != NULL && length, TUSB_ERROR_INVALID_PARA);
 
   pipe_handle_t pipe_out = cdch_data[dev_addr-1].pipe_out;
-  if ( hcd_pipe_is_busy(dev_addr, pipe_out) ) return TUSB_ERROR_INTERFACE_IS_BUSY;
+  if ( hcd_pipe_is_busy(dev_addr, pipe_out) ) return false;
 
   return hcd_pipe_xfer(dev_addr, pipe_out, (void *) p_data, length, is_notify);
 }
 
-tusb_error_t tuh_cdc_receive(uint8_t dev_addr, void * p_buffer, uint32_t length, bool is_notify)
+bool tuh_cdc_receive(uint8_t dev_addr, void * p_buffer, uint32_t length, bool is_notify)
 {
-  TU_ASSERT( tuh_cdc_mounted(dev_addr),  TUSB_ERROR_CDCH_DEVICE_NOT_MOUNTED);
-  TU_ASSERT( p_buffer != NULL && length, TUSB_ERROR_INVALID_PARA);
+  TU_VERIFY( tuh_cdc_mounted(dev_addr) );
+  TU_VERIFY( p_buffer != NULL && length, TUSB_ERROR_INVALID_PARA);
 
   pipe_handle_t pipe_in = cdch_data[dev_addr-1].pipe_in;
-  if ( hcd_pipe_is_busy(dev_addr, pipe_in) ) return TUSB_ERROR_INTERFACE_IS_BUSY;
+  if ( hcd_pipe_is_busy(dev_addr, pipe_in) ) return false;
 
   return hcd_pipe_xfer(dev_addr, pipe_in, p_buffer, length, is_notify);
 }

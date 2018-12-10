@@ -155,7 +155,7 @@ void hub_init(void)
 //  hub_enum_sem_hdl = osal_semaphore_create( OSAL_SEM_REF(hub_enum_semaphore) );
 }
 
-bool hub_open_subtask(uint8_t rhport, uint8_t dev_addr, tusb_desc_interface_t const *p_interface_desc, uint16_t *p_length)
+bool hub_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_interface_t const *p_interface_desc, uint16_t *p_length)
 {
   // not support multiple TT yet
   if ( p_interface_desc->bInterfaceProtocol > 1 ) return false;
@@ -204,7 +204,7 @@ bool hub_open_subtask(uint8_t rhport, uint8_t dev_addr, tusb_desc_interface_t co
   }
 
   //------------- Queue the initial Status endpoint transfer -------------//
-  TU_ASSERT( TUSB_ERROR_NONE == hcd_pipe_xfer(dev_addr, hub_data[dev_addr-1].pipe_status, &hub_data[dev_addr-1].status_change, 1, true) );
+  TU_ASSERT( hcd_pipe_xfer(dev_addr, hub_data[dev_addr-1].pipe_status, &hub_data[dev_addr-1].status_change, 1, true) );
 
   return true;
 }
@@ -254,7 +254,7 @@ void hub_close(uint8_t dev_addr)
 //  osal_semaphore_reset(hub_enum_sem_hdl);
 }
 
-tusb_error_t hub_status_pipe_queue(uint8_t dev_addr)
+bool hub_status_pipe_queue(uint8_t dev_addr)
 {
   return hcd_pipe_xfer(dev_addr, hub_data[dev_addr-1].pipe_status, &hub_data[dev_addr-1].status_change, 1, true);
 }

@@ -116,16 +116,16 @@ static tusb_error_t msch_command_xfer(uint8_t dev_addr, msch_interface_t * p_msc
   { // there is data phase
     if (p_msch->cbw.dir & TUSB_DIR_IN_MASK)
     {
-      TU_ASSERT_ERR( hcd_pipe_xfer(dev_addr, p_msch->bulk_out, (uint8_t*) &p_msch->cbw, sizeof(msc_cbw_t), false) );
-      TU_ASSERT_ERR( hcd_pipe_queue_xfer(dev_addr, p_msch->bulk_in , p_buffer, p_msch->cbw.total_bytes) );
+      TU_ASSERT( hcd_pipe_xfer(dev_addr, p_msch->bulk_out, (uint8_t*) &p_msch->cbw, sizeof(msc_cbw_t), false), TUSB_ERROR_FAILED );
+      TU_ASSERT( hcd_pipe_queue_xfer(dev_addr, p_msch->bulk_in , p_buffer, p_msch->cbw.total_bytes), TUSB_ERROR_FAILED );
     }else
     {
-      TU_ASSERT_ERR( hcd_pipe_queue_xfer(dev_addr, p_msch->bulk_out, (uint8_t*) &p_msch->cbw, sizeof(msc_cbw_t)) );
-      TU_ASSERT_ERR( hcd_pipe_xfer(dev_addr, p_msch->bulk_out , p_buffer, p_msch->cbw.total_bytes, false) );
+      TU_ASSERT( hcd_pipe_queue_xfer(dev_addr, p_msch->bulk_out, (uint8_t*) &p_msch->cbw, sizeof(msc_cbw_t)), TUSB_ERROR_FAILED );
+      TU_ASSERT( hcd_pipe_xfer(dev_addr, p_msch->bulk_out , p_buffer, p_msch->cbw.total_bytes, false), TUSB_ERROR_FAILED );
     }
   }
 
-  TU_ASSERT_ERR( hcd_pipe_xfer(dev_addr, p_msch->bulk_in , (uint8_t*) &p_msch->csw, sizeof(msc_csw_t), true) );
+  TU_ASSERT( hcd_pipe_xfer(dev_addr, p_msch->bulk_in , (uint8_t*) &p_msch->csw, sizeof(msc_csw_t), true), TUSB_ERROR_FAILED);
 
   return TUSB_ERROR_NONE;
 }
@@ -225,8 +225,8 @@ tusb_error_t tuh_msc_test_unit_ready(uint8_t dev_addr, uint8_t lun,  msc_csw_t *
   memcpy(p_msch->cbw.command, &cmd_test_unit_ready, p_msch->cbw.cmd_len);
 
   // TODO MSCH refractor test uinit ready
-  TU_ASSERT_ERR( hcd_pipe_xfer(dev_addr, p_msch->bulk_out, (uint8_t*) &p_msch->cbw, sizeof(msc_cbw_t), false) );
-  TU_ASSERT_ERR( hcd_pipe_xfer(dev_addr, p_msch->bulk_in , (uint8_t*) p_csw, sizeof(msc_csw_t), true) );
+  TU_ASSERT( hcd_pipe_xfer(dev_addr, p_msch->bulk_out, (uint8_t*) &p_msch->cbw, sizeof(msc_cbw_t), false), TUSB_ERROR_FAILED );
+  TU_ASSERT( hcd_pipe_xfer(dev_addr, p_msch->bulk_in , (uint8_t*) p_csw, sizeof(msc_csw_t), true), TUSB_ERROR_FAILED );
 
   return TUSB_ERROR_NONE;
 }

@@ -187,7 +187,7 @@ TU_VERIFY_STATIC( sizeof(hub_port_status_response_t) == 4, "size is not correct"
 bool hub_port_reset_subtask(uint8_t hub_addr, uint8_t hub_port);
 bool hub_port_clear_feature_subtask(uint8_t hub_addr, uint8_t hub_port, uint8_t feature);
 tusb_speed_t hub_port_get_speed(void);
-tusb_error_t hub_status_pipe_queue(uint8_t dev_addr);
+bool hub_status_pipe_queue(uint8_t dev_addr);
 
 //--------------------------------------------------------------------+
 // USBH-CLASS DRIVER API
@@ -195,7 +195,7 @@ tusb_error_t hub_status_pipe_queue(uint8_t dev_addr);
 #ifdef _TINY_USB_SOURCE_FILE_
 
 void hub_init(void);
-bool hub_open_subtask(uint8_t rhport, uint8_t dev_addr, tusb_desc_interface_t const *p_interface_desc, uint16_t *p_length) ATTR_WARN_UNUSED_RESULT;
+bool hub_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_interface_t const *itf_desc, uint16_t *p_length) ATTR_WARN_UNUSED_RESULT;
 void hub_isr(uint8_t dev_addr, xfer_result_t event, uint32_t xferred_bytes);
 void hub_close(uint8_t dev_addr);
 

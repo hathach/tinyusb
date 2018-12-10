@@ -86,7 +86,7 @@ bool tuh_cdc_is_busy(uint8_t dev_addr, cdc_pipeid_t pipeid);
  * \note        This function is non-blocking and returns immediately. The result of USB transfer will be reported by the
  *              interface's callback function. \a p_data must be declared with \ref CFG_TUSB_MEM_SECTION.
  */
-tusb_error_t tuh_cdc_send(uint8_t dev_addr, void const * p_data, uint32_t length, bool is_notify);
+bool tuh_cdc_send(uint8_t dev_addr, void const * p_data, uint32_t length, bool is_notify);
 
 /** \brief 			Perform USB IN transfer to get data from device
  * \param[in]		dev_addr	device address
@@ -99,7 +99,7 @@ tusb_error_t tuh_cdc_send(uint8_t dev_addr, void const * p_data, uint32_t length
  * \note        This function is non-blocking and returns immediately. The result of USB transfer will be reported by the
  *              interface's callback function. \a p_data must be declared with \ref CFG_TUSB_MEM_SECTION.
  */
-tusb_error_t tuh_cdc_receive(uint8_t dev_addr, void * p_buffer, uint32_t length, bool is_notify);
+bool tuh_cdc_receive(uint8_t dev_addr, void * p_buffer, uint32_t length, bool is_notify);
 
 //--------------------------------------------------------------------+
 // CDC APPLICATION CALLBACKS

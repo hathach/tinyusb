@@ -443,7 +443,7 @@ pipe_handle_t hcd_pipe_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_endpoint
   return (pipe_handle_t) { .index = qhd_get_index(p_qhd) };
 }
 
-tusb_error_t  hcd_pipe_queue_xfer(uint8_t dev_addr, pipe_handle_t pipe_hdl, uint8_t buffer[], uint16_t total_bytes)
+bool hcd_pipe_queue_xfer(uint8_t dev_addr, pipe_handle_t pipe_hdl, uint8_t buffer[], uint16_t total_bytes)
 {
   //------------- TODO pipe handle validate -------------//
 
@@ -451,7 +451,7 @@ tusb_error_t  hcd_pipe_queue_xfer(uint8_t dev_addr, pipe_handle_t pipe_hdl, uint
   ehci_qhd_t *p_qhd = qhd_get_from_pipe_handle(dev_addr, pipe_hdl);
   ehci_qtd_t *p_qtd = qtd_find_free(dev_addr);
 
-  TU_ASSERT(p_qtd, TUSB_ERROR_EHCI_NOT_ENOUGH_QTD);
+  TU_ASSERT(p_qtd);
 
   qtd_init(p_qtd, (uint32_t) buffer, total_bytes);
   p_qtd->pid = p_qhd->pid_non_control;
@@ -459,12 +459,12 @@ tusb_error_t  hcd_pipe_queue_xfer(uint8_t dev_addr, pipe_handle_t pipe_hdl, uint
   //------------- insert TD to TD list -------------//
   qtd_insert_to_qhd(p_qhd, p_qtd);
 
-  return TUSB_ERROR_NONE;
+  return true;
 }
 
-tusb_error_t  hcd_pipe_xfer(uint8_t dev_addr, pipe_handle_t pipe_hdl, uint8_t buffer[], uint16_t total_bytes, bool int_on_complete)
+bool hcd_pipe_xfer(uint8_t dev_addr, pipe_handle_t pipe_hdl, uint8_t buffer[], uint16_t total_bytes, bool int_on_complete)
 {
-  TU_ASSERT_ERR ( hcd_pipe_queue_xfer(dev_addr, pipe_hdl, buffer, total_bytes) );
+  TU_ASSERT ( hcd_pipe_queue_xfer(dev_addr, pipe_hdl, buffer, total_bytes) );
 
   ehci_qhd_t *p_qhd = qhd_get_from_pipe_handle(dev_addr, pipe_hdl);
 
@@ -474,7 +474,7 @@ tusb_error_t  hcd_pipe_xfer(uint8_t dev_addr, pipe_handle_t pipe_hdl, uint8_t bu
   }
   p_qhd->qtd_overlay.next.address = (uint32_t) p_qhd->p_qtd_list_head; // attach head QTD to QHD start transferring
 
-  return TUSB_ERROR_NONE;
+  return true;
 }
 
 /// pipe_close should only be called as a part of unmount/safe-remove process
