@@ -462,12 +462,8 @@ typedef struct
     ehci_qtd_t qtd;
   }control[CFG_TUSB_HOST_DEVICE_MAX+1];
 
-  struct {
-    ehci_qhd_t  qhd[HCD_MAX_ENDPOINT]              ; ///< Queue Head Pool
-    ehci_qtd_t  qtd[HCD_MAX_XFER] ATTR_ALIGNED(32) ; ///< Queue Element Transfer Pool
-//  ehci_itd_t  itd[EHCI_MAX_ITD]                  ; ///< Iso Transfer Pool
-//  ehci_sitd_t sitd[EHCI_MAX_SITD]                ; ///< Split (FS) Isochronous Transfer Pool
-  }device[CFG_TUSB_HOST_DEVICE_MAX];
+  ehci_qhd_t qhd_pool[HCD_MAX_ENDPOINT];
+  ehci_qtd_t qtd_pool[HCD_MAX_XFER] ATTR_ALIGNED(32);
 
   ehci_registers_t* regs;
 }ehci_data_t;

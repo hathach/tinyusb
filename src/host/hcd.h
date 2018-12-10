@@ -82,8 +82,8 @@ typedef struct
 #if TUSB_OPT_HOST_ENABLED
 // Max number of endpoints per device
 enum {
-  HCD_MAX_ENDPOINT = CFG_TUH_HUB + CFG_TUH_HID_KEYBOARD + CFG_TUH_HID_MOUSE + CFG_TUSB_HOST_HID_GENERIC +
-                     CFG_TUH_MSC*2 + CFG_TUH_CDC*3,
+  HCD_MAX_ENDPOINT = CFG_TUSB_HOST_DEVICE_MAX*(CFG_TUH_HUB + CFG_TUH_HID_KEYBOARD + CFG_TUH_HID_MOUSE + CFG_TUSB_HOST_HID_GENERIC +
+                     CFG_TUH_MSC*2 + CFG_TUH_CDC*3),
 
   HCD_MAX_XFER     = HCD_MAX_ENDPOINT*2,
 };
@@ -96,19 +96,8 @@ enum {
 // MACRO CONSTANT TYPEDEF
 //--------------------------------------------------------------------+
 typedef struct {
-  uint8_t index;
-  uint8_t reserved[3];
+  uint8_t reserved[4];
 } pipe_handle_t;
-
-static inline bool pipehandle_is_valid(pipe_handle_t pipe_hdl)
-{
-  return true ; // pipe_hdl.dev_addr > 0;
-}
-
-static inline bool pipehandle_is_equal(pipe_handle_t x, pipe_handle_t y)
-{
-  return (x.index == y.index);
-}
 
 //--------------------------------------------------------------------+
 // USBH-HCD API
@@ -134,7 +123,6 @@ void hcd_event_xfer_complete(uint8_t dev_addr, uint8_t ep_addr, xfer_result_t ev
 //--------------------------------------------------------------------+
 // Endpoints API
 //--------------------------------------------------------------------+
-bool hcd_edpt_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_endpoint_t const* ep_desc);
 bool hcd_edpt_close(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr);
 bool hcd_setup_send(uint8_t rhport, uint8_t dev_addr, uint8_t const setup_packet[8]);
 bool hcd_edpt_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr, uint8_t * buffer, uint16_t buflen);
@@ -144,14 +132,14 @@ bool hcd_edpt_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr, uint8_t * 
 //--------------------------------------------------------------------+
 // TODO control xfer should be used via usbh layer
 
-pipe_handle_t hcd_pipe_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_endpoint_t const * ep_desc);
-bool  hcd_pipe_queue_xfer(uint8_t dev_addr, pipe_handle_t pipe_hdl, uint8_t buffer[], uint16_t total_bytes) ATTR_WARN_UNUSED_RESULT; // only queue, not transferring yet
-bool  hcd_pipe_xfer(uint8_t dev_addr, pipe_handle_t pipe_hdl, uint8_t buffer[], uint16_t total_bytes, bool int_on_complete)  ATTR_WARN_UNUSED_RESULT;
-bool  hcd_pipe_close(uint8_t rhport, uint8_t dev_addr, pipe_handle_t pipe_hdl);
+bool hcd_pipe_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_endpoint_t const * ep_desc);
+bool hcd_pipe_queue_xfer(uint8_t dev_addr, uint8_t ep_addr, uint8_t buffer[], uint16_t total_bytes); // only queue, not transferring yet
+bool hcd_pipe_xfer(uint8_t dev_addr, uint8_t ep_addr, uint8_t buffer[], uint16_t total_bytes, bool int_on_complete);
+bool hcd_pipe_close(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr); // TODO remove
 
-bool hcd_pipe_is_busy(uint8_t dev_addr, pipe_handle_t pipe_hdl);
-bool hcd_pipe_is_stalled(uint8_t dev_addr, pipe_handle_t pipe_hdl); // stalled also counted as error
-tusb_error_t hcd_pipe_clear_stall(uint8_t dev_addr, pipe_handle_t pipe_hdl);
+bool hcd_pipe_is_busy(uint8_t dev_addr, uint8_t ep_addr);
+bool hcd_pipe_is_stalled(uint8_t dev_addr, uint8_t ep_addr); // stalled also counted as error
+tusb_error_t hcd_pipe_clear_stall(uint8_t dev_addr, uint8_t ep_addr);
 
 #if 0
 tusb_error_t hcd_pipe_cancel()ATTR_WARN_UNUSED_RESULT;

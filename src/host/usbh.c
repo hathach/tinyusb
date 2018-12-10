@@ -236,7 +236,7 @@ tusb_error_t usbh_pipe_control_open(uint8_t dev_addr, uint8_t max_packet_size)
     .bInterval        = 0
   };
 
-  hcd_edpt_open(_usbh_devices[dev_addr].rhport, dev_addr, &ep0_desc);
+  hcd_pipe_open(_usbh_devices[dev_addr].rhport, dev_addr, &ep0_desc);
 
   return TUSB_ERROR_NONE;
 }

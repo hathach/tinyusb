@@ -50,9 +50,10 @@
 //--------------------------------------------------------------------+
 // MACRO CONSTANT TYPEDEF
 //--------------------------------------------------------------------+
-typedef struct {
-  pipe_handle_t pipe_status;
-  uint8_t interface_number;
+typedef struct
+{
+  uint8_t itf_num;
+  uint8_t ep_status;
   uint8_t port_number;
   uint8_t status_change; // data from status change interrupt endpoint
 }usbh_hub_t;
@@ -161,15 +162,16 @@ bool hub_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_interface_t const *p_i
   if ( p_interface_desc->bInterfaceProtocol > 1 ) return false;
 
   //------------- Open Interrupt Status Pipe -------------//
-  tusb_desc_endpoint_t const *p_endpoint;
-  p_endpoint = (tusb_desc_endpoint_t const *) descriptor_next( (uint8_t const*) p_interface_desc );
-  
-  TU_ASSERT(TUSB_DESC_ENDPOINT == p_endpoint->bDescriptorType);
-  TU_ASSERT(TUSB_XFER_INTERRUPT == p_endpoint->bmAttributes.xfer);
+  tusb_desc_endpoint_t const *ep_desc;
+  ep_desc = (tusb_desc_endpoint_t const *) descriptor_next( (uint8_t const*) p_interface_desc );
 
-  hub_data[dev_addr-1].pipe_status = hcd_pipe_open(rhport, dev_addr, p_endpoint);
-  TU_ASSERT( pipehandle_is_valid(hub_data[dev_addr-1].pipe_status) );
-  hub_data[dev_addr-1].interface_number = p_interface_desc->bInterfaceNumber;
+  TU_ASSERT(TUSB_DESC_ENDPOINT == ep_desc->bDescriptorType);
+  TU_ASSERT(TUSB_XFER_INTERRUPT == ep_desc->bmAttributes.xfer);
+  
+  TU_ASSERT(hcd_pipe_open(rhport, dev_addr, ep_desc));
+
+  hub_data[dev_addr-1].itf_num = p_interface_desc->bInterfaceNumber;
+  hub_data[dev_addr-1].ep_status = ep_desc->bEndpointAddress;
 
   (*p_length) = sizeof(tusb_desc_interface_t) + sizeof(tusb_desc_endpoint_t);
 
@@ -204,16 +206,17 @@ bool hub_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_interface_t const *p_i
   }
 
   //------------- Queue the initial Status endpoint transfer -------------//
-  TU_ASSERT( hcd_pipe_xfer(dev_addr, hub_data[dev_addr-1].pipe_status, &hub_data[dev_addr-1].status_change, 1, true) );
+  TU_ASSERT( hcd_pipe_xfer(dev_addr, hub_data[dev_addr-1].ep_status, &hub_data[dev_addr-1].status_change, 1, true) );
 
   return true;
 }
 
 // is the response of interrupt endpoint polling
 #include "usbh_hcd.h" // FIXME remove
-void hub_isr(uint8_t dev_addr, xfer_result_t event, uint32_t xferred_bytes)
+void hub_isr(uint8_t dev_addr, uint8_t ep_addr, xfer_result_t event, uint32_t xferred_bytes)
 {
   (void) xferred_bytes; // TODO can be more than 1 for hub with lots of ports
+  (void) ep_addr;
 
   usbh_hub_t * p_hub = &hub_data[dev_addr-1];
 
@@ -248,7 +251,7 @@ void hub_isr(uint8_t dev_addr, xfer_result_t event, uint32_t xferred_bytes)
 
 void hub_close(uint8_t dev_addr)
 {
-  hcd_pipe_close(TUH_OPT_RHPORT, dev_addr, hub_data[dev_addr-1].pipe_status);
+  hcd_pipe_close(TUH_OPT_RHPORT, dev_addr, hub_data[dev_addr-1].ep_status);
   tu_memclr(&hub_data[dev_addr-1], sizeof(usbh_hub_t));
 
 //  osal_semaphore_reset(hub_enum_sem_hdl);
@@ -256,7 +259,7 @@ void hub_close(uint8_t dev_addr)
 
 bool hub_status_pipe_queue(uint8_t dev_addr)
 {
-  return hcd_pipe_xfer(dev_addr, hub_data[dev_addr-1].pipe_status, &hub_data[dev_addr-1].status_change, 1, true);
+  return hcd_pipe_xfer(dev_addr, hub_data[dev_addr-1].ep_status, &hub_data[dev_addr-1].status_change, 1, true);
 }
 
 

@@ -52,13 +52,11 @@ typedef struct {
   uint8_t itf_num;
   uint8_t itf_protocol;
 
-  cdc_acm_capability_t acm_capability;
-
-  pipe_handle_t pipe_notification, pipe_out, pipe_in;
-
   uint8_t ep_notif;
   uint8_t ep_in;
   uint8_t ep_out;
+
+  cdc_acm_capability_t acm_capability;
 
 } cdch_data_t;
 
@@ -82,13 +80,13 @@ bool tuh_cdc_is_busy(uint8_t dev_addr, cdc_pipeid_t pipeid)
   switch (pipeid)
   {
     case CDC_PIPE_NOTIFICATION:
-      return hcd_pipe_is_busy(dev_addr, p_cdc->pipe_notification );
+      return hcd_pipe_is_busy(dev_addr, p_cdc->ep_notif );
 
     case CDC_PIPE_DATA_IN:
-      return hcd_pipe_is_busy(dev_addr, p_cdc->pipe_in );
+      return hcd_pipe_is_busy(dev_addr, p_cdc->ep_in );
 
     case CDC_PIPE_DATA_OUT:
-      return hcd_pipe_is_busy(dev_addr, p_cdc->pipe_out );
+      return hcd_pipe_is_busy(dev_addr, p_cdc->ep_out );
 
     default:
       return false;
@@ -111,10 +109,10 @@ bool tuh_cdc_send(uint8_t dev_addr, void const * p_data, uint32_t length, bool i
   TU_VERIFY( tuh_cdc_mounted(dev_addr) );
   TU_VERIFY( p_data != NULL && length, TUSB_ERROR_INVALID_PARA);
 
-  pipe_handle_t pipe_out = cdch_data[dev_addr-1].pipe_out;
-  if ( hcd_pipe_is_busy(dev_addr, pipe_out) ) return false;
+  uint8_t const ep_out = cdch_data[dev_addr-1].ep_out;
+  if ( hcd_pipe_is_busy(dev_addr, ep_out) ) return false;
 
-  return hcd_pipe_xfer(dev_addr, pipe_out, (void *) p_data, length, is_notify);
+  return hcd_pipe_xfer(dev_addr, ep_out, (void *) p_data, length, is_notify);
 }
 
 bool tuh_cdc_receive(uint8_t dev_addr, void * p_buffer, uint32_t length, bool is_notify)
@@ -122,10 +120,10 @@ bool tuh_cdc_receive(uint8_t dev_addr, void * p_buffer, uint32_t length, bool is
   TU_VERIFY( tuh_cdc_mounted(dev_addr) );
   TU_VERIFY( p_buffer != NULL && length, TUSB_ERROR_INVALID_PARA);
 
-  pipe_handle_t pipe_in = cdch_data[dev_addr-1].pipe_in;
-  if ( hcd_pipe_is_busy(dev_addr, pipe_in) ) return false;
+  uint8_t const ep_in = cdch_data[dev_addr-1].ep_in;
+  if ( hcd_pipe_is_busy(dev_addr, ep_in) ) return false;
 
-  return hcd_pipe_xfer(dev_addr, pipe_in, p_buffer, length, is_notify);
+  return hcd_pipe_xfer(dev_addr, ep_in, p_buffer, length, is_notify);
 }
 
 //--------------------------------------------------------------------+
@@ -172,21 +170,19 @@ bool cdch_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_interface_t const *it
 
   if ( TUSB_DESC_ENDPOINT == p_desc[DESC_OFFSET_TYPE])
   {
-    // notification endpoint if any
+    // notification endpoint
     tusb_desc_endpoint_t const * ep_desc = (tusb_desc_endpoint_t const *) p_desc;
-    p_cdc->pipe_notification = hcd_pipe_open(rhport, dev_addr, ep_desc);
 
+    TU_ASSERT( hcd_pipe_open(rhport, dev_addr, ep_desc) );
     p_cdc->ep_notif = ep_desc->bEndpointAddress;
 
     (*p_length) += p_desc[DESC_OFFSET_LEN];
     p_desc = descriptor_next(p_desc);
-
-    TU_ASSERT(pipehandle_is_valid(p_cdc->pipe_notification));
   }
 
   //------------- Data Interface (if any) -------------//
   if ( (TUSB_DESC_INTERFACE == p_desc[DESC_OFFSET_TYPE]) &&
-       (TUSB_CLASS_CDC_DATA      == ((tusb_desc_interface_t const *) p_desc)->bInterfaceClass) )
+       (TUSB_CLASS_CDC_DATA == ((tusb_desc_interface_t const *) p_desc)->bInterfaceClass) )
   {
     (*p_length) += p_desc[DESC_OFFSET_LEN];
     p_desc = descriptor_next(p_desc);
@@ -198,11 +194,7 @@ bool cdch_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_interface_t const *it
       TU_ASSERT(TUSB_DESC_ENDPOINT == ep_desc->bDescriptorType);
       TU_ASSERT(TUSB_XFER_BULK == ep_desc->bmAttributes.xfer);
 
-      pipe_handle_t * p_pipe_hdl =  ( ep_desc->bEndpointAddress &  TUSB_DIR_IN_MASK ) ?
-          &p_cdc->pipe_in : &p_cdc->pipe_out;
-
-      (*p_pipe_hdl) = hcd_pipe_open(rhport, dev_addr, ep_desc);
-      TU_ASSERT ( pipehandle_is_valid(*p_pipe_hdl) );
+      TU_ASSERT(hcd_pipe_open(rhport, dev_addr, ep_desc));
 
       if ( edpt_dir(ep_desc->bEndpointAddress) ==  TUSB_DIR_IN )
       {
@@ -241,9 +233,9 @@ void cdch_close(uint8_t dev_addr)
 {
   cdch_data_t * p_cdc = &cdch_data[dev_addr-1];
 
-  hcd_pipe_close(TUH_OPT_RHPORT, dev_addr, p_cdc->pipe_notification);
-  hcd_pipe_close(TUH_OPT_RHPORT, dev_addr, p_cdc->pipe_in);
-  hcd_pipe_close(TUH_OPT_RHPORT, dev_addr, p_cdc->pipe_out);
+  hcd_pipe_close(TUH_OPT_RHPORT, dev_addr, p_cdc->ep_notif);
+  hcd_pipe_close(TUH_OPT_RHPORT, dev_addr, p_cdc->ep_in);
+  hcd_pipe_close(TUH_OPT_RHPORT, dev_addr, p_cdc->ep_out);
 
   tu_memclr(p_cdc, sizeof(cdch_data_t));
 }

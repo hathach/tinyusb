@@ -77,9 +77,9 @@ static inline ehci_qtd_t* get_control_qtds(uint8_t dev_addr) ATTR_ALWAYS_INLINE 
 
 static inline uint8_t        qhd_get_index(ehci_qhd_t const * p_qhd) ATTR_ALWAYS_INLINE ATTR_PURE;
 static inline ehci_qhd_t*    qhd_next(ehci_qhd_t const * p_qhd) ATTR_ALWAYS_INLINE ATTR_PURE;
-static inline ehci_qhd_t*    qhd_find_free (uint8_t dev_addr) ATTR_PURE ATTR_ALWAYS_INLINE;
+static inline ehci_qhd_t*    qhd_find_free (void);
 static inline tusb_xfer_type_t qhd_get_xfer_type(ehci_qhd_t const * p_qhd) ATTR_ALWAYS_INLINE ATTR_PURE;
-static inline ehci_qhd_t* qhd_get_from_pipe_handle(uint8_t dev_addr, pipe_handle_t pipe_hdl);
+static inline ehci_qhd_t* qhd_get_from_pipe_handle(uint8_t dev_addr, uint8_t ep_addr);
 
 // determine if a queue head has bus-related error
 static inline bool qhd_has_xact_error(ehci_qhd_t * p_qhd)
@@ -321,15 +321,6 @@ bool hcd_pipe_control_close(uint8_t dev_addr)
   return true;
 }
 
-bool hcd_edpt_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_endpoint_t const* ep_desc)
-{
-  // FIXME control only for now
-  (void) rhport;
-  hcd_pipe_open(rhport, dev_addr, ep_desc);
-
-  return true;
-}
-
 bool hcd_edpt_close(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr)
 {
   // FIXME control only for now
@@ -389,12 +380,10 @@ bool hcd_setup_send(uint8_t rhport, uint8_t dev_addr, uint8_t const setup_packet
 //--------------------------------------------------------------------+
 // BULK/INT/ISO PIPE API
 //--------------------------------------------------------------------+
-pipe_handle_t hcd_pipe_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_endpoint_t const * ep_desc)
+bool hcd_pipe_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_endpoint_t const * ep_desc)
 {
-  pipe_handle_t const null_handle = { .index = 0 };
-
   // TODO not support ISO yet
-  if (ep_desc->bmAttributes.xfer == TUSB_XFER_ISOCHRONOUS) return null_handle;
+  TU_ASSERT (ep_desc->bmAttributes.xfer != TUSB_XFER_ISOCHRONOUS);
 
   //------------- Prepare Queue Head -------------//
   ehci_qhd_t * p_qhd;
@@ -404,11 +393,11 @@ pipe_handle_t hcd_pipe_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_endpoint
     p_qhd = get_control_qhd(dev_addr);
   }else
   {
-    p_qhd = qhd_find_free(dev_addr);
+    p_qhd = qhd_find_free();
   }
-  TU_ASSERT(p_qhd, null_handle);
+  TU_ASSERT(p_qhd);
 
-  qhd_init( p_qhd, dev_addr, ep_desc);
+  qhd_init(p_qhd, dev_addr, ep_desc);
 
   //------------- Insert to Async List -------------//
   ehci_link_t * list_head;
@@ -440,15 +429,13 @@ pipe_handle_t hcd_pipe_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_endpoint
   // TODO might need to disable async/period list
   list_insert( list_head, (ehci_link_t*) p_qhd, EHCI_QUEUE_ELEMENT_QHD);
 
-  return (pipe_handle_t) { .index = qhd_get_index(p_qhd) };
+  return true;
 }
 
-bool hcd_pipe_queue_xfer(uint8_t dev_addr, pipe_handle_t pipe_hdl, uint8_t buffer[], uint16_t total_bytes)
+bool hcd_pipe_queue_xfer(uint8_t dev_addr, uint8_t ep_addr, uint8_t buffer[], uint16_t total_bytes)
 {
-  //------------- TODO pipe handle validate -------------//
-
   //------------- set up QTD -------------//
-  ehci_qhd_t *p_qhd = qhd_get_from_pipe_handle(dev_addr, pipe_hdl);
+  ehci_qhd_t *p_qhd = qhd_get_from_pipe_handle(dev_addr, ep_addr);
   ehci_qtd_t *p_qtd = qtd_find_free(dev_addr);
 
   TU_ASSERT(p_qtd);
@@ -462,11 +449,11 @@ bool hcd_pipe_queue_xfer(uint8_t dev_addr, pipe_handle_t pipe_hdl, uint8_t buffe
   return true;
 }
 
-bool hcd_pipe_xfer(uint8_t dev_addr, pipe_handle_t pipe_hdl, uint8_t buffer[], uint16_t total_bytes, bool int_on_complete)
+bool hcd_pipe_xfer(uint8_t dev_addr, uint8_t ep_addr, uint8_t buffer[], uint16_t total_bytes, bool int_on_complete)
 {
-  TU_ASSERT ( hcd_pipe_queue_xfer(dev_addr, pipe_hdl, buffer, total_bytes) );
+  TU_ASSERT ( hcd_pipe_queue_xfer(dev_addr, ep_addr, buffer, total_bytes) );
 
-  ehci_qhd_t *p_qhd = qhd_get_from_pipe_handle(dev_addr, pipe_hdl);
+  ehci_qhd_t *p_qhd = qhd_get_from_pipe_handle(dev_addr, ep_addr);
 
   if ( int_on_complete )
   { // the just added qtd is pointed by list_tail
@@ -478,9 +465,9 @@ bool hcd_pipe_xfer(uint8_t dev_addr, pipe_handle_t pipe_hdl, uint8_t buffer[], u
 }
 
 /// pipe_close should only be called as a part of unmount/safe-remove process
-bool hcd_pipe_close(uint8_t rhport, uint8_t dev_addr, pipe_handle_t pipe_hdl)
+bool hcd_pipe_close(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr)
 {
-  ehci_qhd_t *p_qhd = qhd_get_from_pipe_handle(dev_addr, pipe_hdl);
+  ehci_qhd_t *p_qhd = qhd_get_from_pipe_handle(dev_addr, ep_addr);
 
   // async list needs async advance handshake to make sure host controller has released cached data
   // non-control does not use async advance, it will eventually free by control pipe close
@@ -505,21 +492,21 @@ bool hcd_pipe_close(uint8_t rhport, uint8_t dev_addr, pipe_handle_t pipe_hdl)
   return true;
 }
 
-bool hcd_pipe_is_busy(uint8_t dev_addr, pipe_handle_t pipe_hdl)
+bool hcd_pipe_is_busy(uint8_t dev_addr, uint8_t ep_addr)
 {
-  ehci_qhd_t *p_qhd = qhd_get_from_pipe_handle(dev_addr, pipe_hdl);
+  ehci_qhd_t *p_qhd = qhd_get_from_pipe_handle(dev_addr, ep_addr);
   return !p_qhd->qtd_overlay.halted && (p_qhd->p_qtd_list_head != NULL);
 }
 
-bool hcd_pipe_is_stalled(uint8_t dev_addr, pipe_handle_t pipe_hdl)
+bool hcd_pipe_is_stalled(uint8_t dev_addr, uint8_t ep_addr)
 {
-  ehci_qhd_t *p_qhd = qhd_get_from_pipe_handle(dev_addr, pipe_hdl);
+  ehci_qhd_t *p_qhd = qhd_get_from_pipe_handle(dev_addr, ep_addr);
   return p_qhd->qtd_overlay.halted && !qhd_has_xact_error(p_qhd);
 }
 
-tusb_error_t hcd_pipe_clear_stall(uint8_t dev_addr, pipe_handle_t pipe_hdl)
+tusb_error_t hcd_pipe_clear_stall(uint8_t dev_addr, uint8_t ep_addr)
 {
-  ehci_qhd_t *p_qhd = qhd_get_from_pipe_handle(dev_addr, pipe_hdl);
+  ehci_qhd_t *p_qhd = qhd_get_from_pipe_handle(dev_addr, ep_addr);
   p_qhd->qtd_overlay.halted = 0;
   // TODO reset data toggle ?
   return TUSB_ERROR_NONE;
@@ -553,18 +540,22 @@ static void async_advance_isr(ehci_qhd_t * const async_head)
       p_control_qhd->used        = 0;
 
       // Host Controller has cleaned up its cached data for this device, set state to unplug
-      _usbh_devices[dev_addr+1].state = TUSB_DEVICE_STATE_UNPLUG;
+      _usbh_devices[dev_addr].state = TUSB_DEVICE_STATE_UNPLUG;
 
       for (uint8_t i=0; i<HCD_MAX_ENDPOINT; i++) // free all qhd
       {
-        ehci_data.device[dev_addr].qhd[i].used        = 0;
-        ehci_data.device[dev_addr].qhd[i].is_removing = 0;
+        if (ehci_data.qhd_pool[i].device_address == dev_addr)
+        {
+          ehci_data.qhd_pool[i].used        = 0;
+          ehci_data.qhd_pool[i].is_removing = 0;
+        }
       }
-      for (uint8_t i=0; i<HCD_MAX_XFER; i++) // free all qtd
-      {
-        ehci_data.device[dev_addr].qtd[i].used = 0;
-      }
-      // TODO free all itd & sitd
+
+//      for (uint8_t i=0; i<HCD_MAX_XFER; i++) // free all qtd
+//      {
+//        ehci_data.device[dev_addr].qtd[i].used = 0;
+//      }
+//      // TODO free all itd & sitd
     }
   }
 }
@@ -827,20 +818,14 @@ static inline ehci_qtd_t* get_control_qtds(uint8_t dev_addr)
   return &ehci_data.control[dev_addr].qtd;
 }
 
-static inline ehci_qhd_t* qhd_find_free (uint8_t dev_addr)
+static inline ehci_qhd_t* qhd_find_free (void)
 {
-  uint8_t relative_addr = dev_addr-1;
-  uint8_t index=0;
-  while( index<HCD_MAX_ENDPOINT && ehci_data.device[relative_addr].qhd[index].used )
+  for (uint32_t i=0; i<HCD_MAX_ENDPOINT; i++)
   {
-    index++;
+    if ( !ehci_data.qhd_pool[i].used ) return &ehci_data.qhd_pool[i];
   }
-  return (index < HCD_MAX_ENDPOINT) ? &ehci_data.device[relative_addr].qhd[index] : NULL;
-}
 
-static inline uint8_t qhd_get_index(ehci_qhd_t const * p_qhd)
-{
-  return p_qhd - ehci_data.device[p_qhd->device_address-1].qhd;
+  return NULL;
 }
 
 static inline tusb_xfer_type_t qhd_get_xfer_type(ehci_qhd_t const * p_qhd)
@@ -854,21 +839,31 @@ static inline ehci_qhd_t* qhd_next(ehci_qhd_t const * p_qhd)
   return (ehci_qhd_t*) tu_align32(p_qhd->next.address);
 }
 
-static inline ehci_qhd_t* qhd_get_from_pipe_handle(uint8_t dev_addr, pipe_handle_t pipe_hdl)
+static inline ehci_qhd_t* qhd_get_from_pipe_handle(uint8_t dev_addr, uint8_t ep_addr)
 {
-  return &ehci_data.device[dev_addr-1].qhd[pipe_hdl.index];
+  ehci_qhd_t* qhd_pool = ehci_data.qhd_pool;
+
+  for(uint32_t i=0; i<HCD_MAX_ENDPOINT; i++)
+  {
+    if ( (qhd_pool[i].device_address == dev_addr) &&
+          ep_addr == edpt_addr(qhd_pool[i].endpoint_number, qhd_pool[i].pid_non_control) )
+    {
+      return &qhd_pool[i];
+    }
+  }
+
+  return NULL;
 }
 
 //------------- TD helper -------------//
 static inline ehci_qtd_t* qtd_find_free(uint8_t dev_addr)
 {
-  uint8_t index=0;
-  while( index<HCD_MAX_XFER && ehci_data.device[dev_addr-1].qtd[index].used )
+  for (uint32_t i=0; i<HCD_MAX_XFER; i++)
   {
-    index++;
+    if ( !ehci_data.qtd_pool[i].used ) return &ehci_data.qtd_pool[i];
   }
 
-  return (index < HCD_MAX_XFER) ? &ehci_data.device[dev_addr-1].qtd[index] : NULL;
+  return NULL;
 }
 
 static inline ehci_qtd_t* qtd_next(ehci_qtd_t const * p_qtd )
