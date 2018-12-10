@@ -69,51 +69,51 @@ static host_class_driver_t const usbh_class_drivers[] =
 {
   #if CFG_TUH_CDC
     {
-      .class_code   = TUSB_CLASS_CDC,
-      .init         = cdch_init,
-      .open = cdch_open,
-      .isr          = cdch_isr,
-      .close        = cdch_close
+      .class_code = TUSB_CLASS_CDC,
+      .init       = cdch_init,
+      .open       = cdch_open,
+      .isr        = cdch_isr,
+      .close      = cdch_close
     },
   #endif
 
   #if CFG_TUH_MSC
     {
-      .class_code   = TUSB_CLASS_MSC,
-      .init         = msch_init,
-      .open = msch_open,
-      .isr          = msch_isr,
-      .close        = msch_close
+      .class_code = TUSB_CLASS_MSC,
+      .init       = msch_init,
+      .open       = msch_open,
+      .isr        = msch_isr,
+      .close      = msch_close
     },
   #endif
 
   #if HOST_CLASS_HID
     {
-      .class_code   = TUSB_CLASS_HID,
-      .init         = hidh_init,
-      .open = hidh_open_subtask,
-      .isr          = hidh_isr,
-      .close        = hidh_close
+      .class_code = TUSB_CLASS_HID,
+      .init       = hidh_init,
+      .open       = hidh_open_subtask,
+      .isr        = hidh_isr,
+      .close      = hidh_close
     },
   #endif
 
   #if CFG_TUH_HUB
     {
-      .class_code   = TUSB_CLASS_HUB,
-      .init         = hub_init,
-      .open = hub_open,
-      .isr          = hub_isr,
-      .close        = hub_close
+      .class_code = TUSB_CLASS_HUB,
+      .init       = hub_init,
+      .open       = hub_open,
+      .isr        = hub_isr,
+      .close      = hub_close
     },
   #endif
 
   #if CFG_TUSB_HOST_CUSTOM_CLASS
     {
-        .class_code   = TUSB_CLASS_VENDOR_SPECIFIC,
-        .init         = cush_init,
-        .open = cush_open_subtask,
-        .isr          = cush_isr,
-        .close        = cush_close
+      .class_code = TUSB_CLASS_VENDOR_SPECIFIC,
+      .init       = cush_init,
+      .open       = cush_open_subtask,
+      .isr        = cush_isr,
+      .close      = cush_close
     }
   #endif
 };

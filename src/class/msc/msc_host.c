@@ -310,7 +310,7 @@ bool msch_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_interface_t const *it
     pipe_handle_t * p_pipe_hdl =  ( ep_desc->bEndpointAddress &  TUSB_DIR_IN_MASK ) ?
         &p_msc->bulk_in : &p_msc->bulk_out;
 
-    (*p_pipe_hdl) = hcd_pipe_open(dev_addr, ep_desc, TUSB_CLASS_MSC);
+    (*p_pipe_hdl) = hcd_pipe_open(rhport, dev_addr, ep_desc);
     TU_ASSERT( pipehandle_is_valid(*p_pipe_hdl) );
 
     if ( edpt_dir(ep_desc->bEndpointAddress) ==  TUSB_DIR_IN )

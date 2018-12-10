@@ -829,13 +829,13 @@ static inline ehci_qtd_t* get_control_qtds(uint8_t dev_addr)
 
 static inline ehci_qhd_t* qhd_find_free (uint8_t dev_addr)
 {
-  uint8_t relative_address = dev_addr-1;
+  uint8_t relative_addr = dev_addr-1;
   uint8_t index=0;
-  while( index<HCD_MAX_ENDPOINT && ehci_data.device[relative_address].qhd[index].used )
+  while( index<HCD_MAX_ENDPOINT && ehci_data.device[relative_addr].qhd[index].used )
   {
     index++;
   }
-  return (index < HCD_MAX_ENDPOINT) ? &ehci_data.device[relative_address].qhd[index] : NULL;
+  return (index < HCD_MAX_ENDPOINT) ? &ehci_data.device[relative_addr].qhd[index] : NULL;
 }
 
 static inline uint8_t qhd_get_index(ehci_qhd_t const * p_qhd)
