@@ -93,20 +93,19 @@ enum {
 // MACRO CONSTANT TYPEDEF
 //--------------------------------------------------------------------+
 typedef struct {
-  uint8_t dev_addr;
-  uint8_t reserved;
-  uint8_t index;
   uint8_t ep_addr;
+  uint8_t index;
+  uint8_t reserved[2];
 } pipe_handle_t;
 
 static inline bool pipehandle_is_valid(pipe_handle_t pipe_hdl)
 {
-  return pipe_hdl.dev_addr > 0;
+  return true ; // pipe_hdl.dev_addr > 0;
 }
 
 static inline bool pipehandle_is_equal(pipe_handle_t x, pipe_handle_t y)
 {
-  return (x.dev_addr == y.dev_addr) && (x.index == y.index);
+  return (x.index == y.index);
 }
 
 //--------------------------------------------------------------------+
@@ -144,16 +143,16 @@ bool hcd_edpt_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr, uint8_t * 
 // TODO control xfer should be used via usbh layer
 
 pipe_handle_t hcd_pipe_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_endpoint_t const * endpoint_desc, uint8_t class_code) ATTR_WARN_UNUSED_RESULT;
-tusb_error_t  hcd_pipe_queue_xfer(pipe_handle_t pipe_hdl, uint8_t buffer[], uint16_t total_bytes) ATTR_WARN_UNUSED_RESULT; // only queue, not transferring yet
-tusb_error_t  hcd_pipe_xfer(pipe_handle_t pipe_hdl, uint8_t buffer[], uint16_t total_bytes, bool int_on_complete)  ATTR_WARN_UNUSED_RESULT;
-tusb_error_t  hcd_pipe_close(pipe_handle_t pipe_hdl) /*ATTR_WARN_UNUSED_RESULT*/;
+tusb_error_t  hcd_pipe_queue_xfer(uint8_t dev_addr, pipe_handle_t pipe_hdl, uint8_t buffer[], uint16_t total_bytes) ATTR_WARN_UNUSED_RESULT; // only queue, not transferring yet
+tusb_error_t  hcd_pipe_xfer(uint8_t dev_addr, pipe_handle_t pipe_hdl, uint8_t buffer[], uint16_t total_bytes, bool int_on_complete)  ATTR_WARN_UNUSED_RESULT;
+bool  hcd_pipe_close(uint8_t rhport, uint8_t dev_addr, pipe_handle_t pipe_hdl);
 
-bool hcd_pipe_is_busy(pipe_handle_t pipe_hdl) ATTR_PURE;
-bool hcd_pipe_is_error(pipe_handle_t pipe_hdl) ATTR_PURE;
-bool hcd_pipe_is_stalled(pipe_handle_t pipe_hdl) ATTR_PURE; // stalled also counted as error
+bool hcd_pipe_is_busy(uint8_t dev_addr, pipe_handle_t pipe_hdl);
+bool hcd_pipe_is_error(uint8_t dev_addr, pipe_handle_t pipe_hdl);
+bool hcd_pipe_is_stalled(uint8_t dev_addr, pipe_handle_t pipe_hdl); // stalled also counted as error
+tusb_error_t hcd_pipe_clear_stall(uint8_t dev_addr, pipe_handle_t pipe_hdl);
 
-uint8_t hcd_pipe_get_endpoint_addr(pipe_handle_t pipe_hdl) ATTR_PURE;
-tusb_error_t hcd_pipe_clear_stall(pipe_handle_t pipe_hdl);
+uint8_t hcd_pipe_get_endpoint_addr(uint8_t dev_addr, pipe_handle_t pipe_hdl);
 
 #if 0
 tusb_error_t hcd_pipe_cancel()ATTR_WARN_UNUSED_RESULT;

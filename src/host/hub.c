@@ -204,7 +204,7 @@ bool hub_open_subtask(uint8_t rhport, uint8_t dev_addr, tusb_desc_interface_t co
   }
 
   //------------- Queue the initial Status endpoint transfer -------------//
-  TU_ASSERT( TUSB_ERROR_NONE == hcd_pipe_xfer(hub_data[dev_addr-1].pipe_status, &hub_data[dev_addr-1].status_change, 1, true) );
+  TU_ASSERT( TUSB_ERROR_NONE == hcd_pipe_xfer(dev_addr, hub_data[dev_addr-1].pipe_status, &hub_data[dev_addr-1].status_change, 1, true) );
 
   return true;
 }
@@ -248,7 +248,7 @@ void hub_isr(uint8_t dev_addr, xfer_result_t event, uint32_t xferred_bytes)
 
 void hub_close(uint8_t dev_addr)
 {
-  (void) hcd_pipe_close(hub_data[dev_addr-1].pipe_status);
+  hcd_pipe_close(TUH_OPT_RHPORT, dev_addr, hub_data[dev_addr-1].pipe_status);
   tu_memclr(&hub_data[dev_addr-1], sizeof(usbh_hub_t));
 
 //  osal_semaphore_reset(hub_enum_sem_hdl);
@@ -256,7 +256,7 @@ void hub_close(uint8_t dev_addr)
 
 tusb_error_t hub_status_pipe_queue(uint8_t dev_addr)
 {
-  return hcd_pipe_xfer(hub_data[dev_addr-1].pipe_status, &hub_data[dev_addr-1].status_change, 1, true);
+  return hcd_pipe_xfer(dev_addr, hub_data[dev_addr-1].pipe_status, &hub_data[dev_addr-1].status_change, 1, true);
 }
 
 
