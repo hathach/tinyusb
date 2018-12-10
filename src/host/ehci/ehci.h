@@ -352,7 +352,7 @@ typedef volatile struct {
       uint32_t framelist_size         : 2 ; ///< This field is R/W only if Programmable Frame List Flagin the HCCPARAMS registers is set to a one. This field specifies the size of the frame list.00b  1024 elements (4096 bytes) Default value 01b  512 elements (2048 bytes) 10b 256 elements (1024 bytes)
       uint32_t periodic_enable        : 1 ; ///< This bit controls whether the host controller skips processing the Periodic Schedule. Values mean: 0b Do not process the Periodic Schedule 1b Use the PERIODICLISTBASE register to access the Periodic Schedule.
       uint32_t async_enable           : 1 ; ///< This bit controls whether the host controller skips processing the Asynchronous Schedule. Values mean: 0b Do not process the Asynchronous Schedule 1b Use the ASYNCLISTADDR register to access the Asynchronous Schedule.
-      uint32_t advacne_async          : 1 ; ///< This bit is used as a doorbell by software to tell the host controller to issue an interrupt the next time it advances asynchronous schedule. Software must write a 1 to this bit to ringthe doorbell. When the host controller has evicted all appropriate cached schedule state, it sets the Interrupt on Async Advancestatus bit in the USBSTS register. If the Interrupt on Async Advance Enablebit in the USBINTR register is a one then the host controller will assert an interrupt at the next interrupt threshold. See Section 4.8.2 for operational details. The host controller sets this bit to a zero after it has set the Interrupt on Async Advance status bit in the USBSTS register to a one. Software should not write a one to this bit when the asynchronous schedule is disabled. Doing so will yield undefined results.
+      uint32_t advance_async          : 1 ; ///< This bit is used as a doorbell by software to tell the host controller to issue an interrupt the next time it advances asynchronous schedule. Software must write a 1 to this bit to ringthe doorbell. When the host controller has evicted all appropriate cached schedule state, it sets the Interrupt on Async Advancestatus bit in the USBSTS register. If the Interrupt on Async Advance Enablebit in the USBINTR register is a one then the host controller will assert an interrupt at the next interrupt threshold. See Section 4.8.2 for operational details. The host controller sets this bit to a zero after it has set the Interrupt on Async Advance status bit in the USBSTS register to a one. Software should not write a one to this bit when the asynchronous schedule is disabled. Doing so will yield undefined results.
       uint32_t light_reset            : 1 ; ///< This control bit is not required. If implemented, it allows the driver to reset the EHCI controller without affecting the state of the ports or the relationship to the companion host controllers. For example, the PORSTC registers should not be reset to their default values and the CF bit setting should not go to zero (retaining port ownership relationships). A host software read of this bit as zero indicates the Light Host Controller Reset has completed and it is safe for host software to re-initialize the host controller. A host software read of this bit as a one indicates the Light Host Controller Reset has not yet completed.
       uint32_t async_park             : 2 ; ///< It contains a count of the number of successive transactions the host controller is allowed to execute from a high-speed queue head on the Asynchronous schedule before continuing traversal of the Asynchronous schedule. See Section 4.10.3.2 for full operational details. Valid values are 1h to 3h. Software must not write a zero to this bit when Park Mode Enableis a one as this will result in undefined behavior.
       uint32_t                        : 1 ; ///< reserved
@@ -450,11 +450,11 @@ typedef volatile struct {
 //--------------------------------------------------------------------+
 typedef struct
 {
-#if EHCI_PERIODIC_LIST
+  ehci_link_t period_framelist[EHCI_FRAMELIST_SIZE];
+
   // for NXP ECHI, only implement 1 ms & 2 ms & 4 ms, 8 ms (framelist)
   // [0] : 1ms, [1] : 2ms, [2] : 4ms, [3] : 8 ms
   ehci_qhd_t period_head_arr[4];
-#endif
 
   struct {
       ehci_qhd_t qhd; // also used as head of async list (each for 1 controller), always exists
@@ -472,6 +472,8 @@ typedef struct
 //  ehci_itd_t  itd[EHCI_MAX_ITD]                  ; ///< Iso Transfer Pool
 //  ehci_sitd_t sitd[EHCI_MAX_SITD]                ; ///< Split (FS) Isochronous Transfer Pool
   }device[CFG_TUSB_HOST_DEVICE_MAX];
+
+  ehci_registers_t* regs;
 }ehci_data_t;
 
 #ifdef __cplusplus

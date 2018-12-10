@@ -73,6 +73,8 @@
 // MACROS
 //--------------------------------------------------------------------+
 #define TU_ARRAY_SZIE(_arr)      ( sizeof(_arr) / sizeof(_arr[0]) )
+#define TU_MIN(_x, _y)           ( (_x) < (_y) ) ? (_x) : (_y) )
+#define TU_MAX(_x, _y)           ( (_x) > (_y) ) ? (_x) : (_y) )
 
 #define U16_HIGH_U8(u16) ((uint8_t) (((u16) >> 8) & 0x00ff))
 #define U16_LOW_U8(u16)  ((uint8_t) ((u16)       & 0x00ff))
@@ -167,60 +169,29 @@ static inline uint16_t tu_u16_le2be(uint16_t u16)
   return ((uint16_t)(tu_u16_low(u16) << 8)) | tu_u16_high(u16);
 }
 
-//------------- Min -------------//
-static inline uint8_t tu_min8(uint8_t x, uint8_t y)
-{
-  return (x < y) ? x : y;
-}
+// Min
+static inline uint8_t  tu_min8(uint8_t x, uint8_t y) { return (x < y) ? x : y; }
+static inline uint16_t tu_min16(uint16_t x, uint16_t y) { return (x < y) ? x : y; }
+static inline uint32_t tu_min32(uint32_t x, uint32_t y) { return (x < y) ? x : y; }
 
-static inline uint16_t tu_min16(uint16_t x, uint16_t y)
-{
-  return (x < y) ? x : y;
-}
+// Max
+static inline uint8_t  tu_max8(uint8_t x, uint8_t y) { return (x > y) ? x : y; }
+static inline uint16_t tu_max16(uint16_t x, uint16_t y) { return (x > y) ? x : y; }
+static inline uint32_t tu_max32(uint32_t x, uint32_t y) { return (x > y) ? x : y; }
 
-static inline uint32_t tu_min32(uint32_t x, uint32_t y)
-{
-  return (x < y) ? x : y;
-}
+// Align
+static inline uint32_t tu_align32 (uint32_t value) { return (value & 0xFFFFFFE0UL); }
+static inline uint32_t tu_align16 (uint32_t value) { return (value & 0xFFFFFFF0UL); }
+static inline uint32_t tu_align_n (uint32_t alignment, uint32_t value) { return value & ((uint32_t) ~(alignment-1)); }
+static inline uint32_t tu_align4k (uint32_t value) { return (value & 0xFFFFF000UL); }
 
-//------------- Max -------------//
-static inline uint32_t tu_max32(uint32_t x, uint32_t y)
-{
-  return (x > y) ? x : y;
-}
-
-//------------- Align -------------//
-static inline uint32_t tu_align32 (uint32_t value)
-{
-	return (value & 0xFFFFFFE0UL);
-}
-
-static inline uint32_t tu_align16 (uint32_t value)
-{
-	return (value & 0xFFFFFFF0UL);
-}
-
-static inline uint32_t tu_align_n (uint32_t alignment, uint32_t value)
-{
-	return value & ((uint32_t) ~(alignment-1));
-}
-
-static inline uint32_t tu_align4k (uint32_t value)
-{
-	return (value & 0xFFFFF000UL);
-}
-
-static inline uint32_t tu_offset4k(uint32_t value)
-{
-	return (value & 0xFFFUL);
-}
+static inline uint32_t tu_offset4k(uint32_t value) { return (value & 0xFFFUL); }
 
 //------------- Mathematics -------------//
 static inline uint32_t tu_abs(int32_t value)
 {
   return (value < 0) ? (-value) : value;
 }
-
 
 /// inclusive range checking
 static inline bool tu_within(uint32_t lower, uint32_t value, uint32_t upper)

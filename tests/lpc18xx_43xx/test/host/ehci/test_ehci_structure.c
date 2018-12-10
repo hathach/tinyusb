@@ -225,7 +225,7 @@ void test_register_usbcmd(void)
   TEST_ASSERT_EQUAL( 2  , BITFIELD_OFFSET_OF_MEMBER(ehci_registers_t, usb_cmd_bit, framelist_size) );
   TEST_ASSERT_EQUAL( 4  , BITFIELD_OFFSET_OF_MEMBER(ehci_registers_t, usb_cmd_bit, periodic_enable) );
   TEST_ASSERT_EQUAL( 5  , BITFIELD_OFFSET_OF_MEMBER(ehci_registers_t, usb_cmd_bit, async_enable) );
-  TEST_ASSERT_EQUAL( 6  , BITFIELD_OFFSET_OF_MEMBER(ehci_registers_t, usb_cmd_bit, advacne_async) );
+  TEST_ASSERT_EQUAL( 6  , BITFIELD_OFFSET_OF_MEMBER(ehci_registers_t, usb_cmd_bit, advance_async) );
   TEST_ASSERT_EQUAL( 7  , BITFIELD_OFFSET_OF_MEMBER(ehci_registers_t, usb_cmd_bit, light_reset) );
   TEST_ASSERT_EQUAL( 8  , BITFIELD_OFFSET_OF_MEMBER(ehci_registers_t, usb_cmd_bit, async_park) );
   TEST_ASSERT_EQUAL( 11 , BITFIELD_OFFSET_OF_MEMBER(ehci_registers_t, usb_cmd_bit, async_park_enable) );

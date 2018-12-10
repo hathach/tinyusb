@@ -58,26 +58,8 @@
 //--------------------------------------------------------------------+
 // INTERNAL OBJECT & FUNCTION DECLARATION
 //--------------------------------------------------------------------+
-CFG_TUSB_MEM_SECTION static ehci_data_t ehci_data;
-
-#if EHCI_PERIODIC_LIST
-
-  #if (CFG_TUSB_RHPORT0_MODE & OPT_MODE_HOST)
-  CFG_TUSB_MEM_SECTION ATTR_ALIGNED(4096) static ehci_link_t period_frame_list0[EHCI_FRAMELIST_SIZE];
-
-    #ifndef __ICCARM__ // IAR cannot able to determine the alignment with datalignment pragma
-    TU_VERIFY_STATIC( ALIGN_OF(period_frame_list0) == 4096, "Period Framelist must be 4k alginment"); // validation
-    #endif
-  #endif
-
-  #if (CFG_TUSB_RHPORT1_MODE & OPT_MODE_HOST)
-  CFG_TUSB_MEM_SECTION ATTR_ALIGNED(4096) STATIC_VAR ehci_link_t period_frame_list1[EHCI_FRAMELIST_SIZE];
-
-    #ifndef __ICCARM__ // IAR cannot able to determine the alignment with datalignment pragma
-    TU_VERIFY_STATIC( ALIGN_OF(period_frame_list1) == 4096, "Period Framelist must be 4k alginment"); // validation
-    #endif
-  #endif
-#endif
+// Periodic frame list must be 4K alignment
+CFG_TUSB_MEM_SECTION ATTR_ALIGNED(4096) static ehci_data_t ehci_data;
 
 //------------- Validation -------------//
 // TODO static assert for memory placement on some known MCU such as lpc43xx
@@ -86,7 +68,6 @@ CFG_TUSB_MEM_SECTION static ehci_data_t ehci_data;
 // PROTOTYPE
 //--------------------------------------------------------------------+
 static inline ehci_registers_t*  get_operational_register(uint8_t hostid) ATTR_PURE ATTR_ALWAYS_INLINE ATTR_WARN_UNUSED_RESULT;
-static inline ehci_link_t*       get_period_frame_list(uint8_t hostid) ATTR_PURE ATTR_ALWAYS_INLINE ATTR_WARN_UNUSED_RESULT;
 
 static inline ehci_qhd_t*  get_async_head(uint8_t hostid) ATTR_ALWAYS_INLINE ATTR_PURE ATTR_WARN_UNUSED_RESULT;
 static inline ehci_link_t* get_period_head(uint8_t hostid, uint8_t interval_ms) ATTR_ALWAYS_INLINE ATTR_PURE ATTR_WARN_UNUSED_RESULT;
@@ -112,9 +93,9 @@ static void qhd_init(ehci_qhd_t *p_qhd, uint8_t dev_addr, tusb_desc_endpoint_t c
 
 
 static inline ehci_qtd_t*  qtd_find_free(uint8_t dev_addr) ATTR_PURE ATTR_ALWAYS_INLINE;
-static inline ehci_qtd_t*    qtd_next(ehci_qtd_t const * p_qtd ) ATTR_PURE ATTR_ALWAYS_INLINE;
-static inline void           qtd_insert_to_qhd(ehci_qhd_t *p_qhd, ehci_qtd_t *p_qtd_new) ATTR_ALWAYS_INLINE;
-static inline void           qtd_remove_1st_from_qhd(ehci_qhd_t *p_qhd) ATTR_ALWAYS_INLINE;
+static inline ehci_qtd_t*  qtd_next(ehci_qtd_t const * p_qtd ) ATTR_PURE ATTR_ALWAYS_INLINE;
+static inline void         qtd_insert_to_qhd(ehci_qhd_t *p_qhd, ehci_qtd_t *p_qtd_new) ATTR_ALWAYS_INLINE;
+static inline void         qtd_remove_1st_from_qhd(ehci_qhd_t *p_qhd) ATTR_ALWAYS_INLINE;
 static void qtd_init(ehci_qtd_t* p_qtd, uint32_t data_ptr, uint16_t total_bytes);
 
 static inline void  list_insert(ehci_link_t *current, ehci_link_t *new, uint8_t new_type) ATTR_ALWAYS_INLINE;
@@ -129,18 +110,8 @@ static bool ehci_init(uint8_t hostid);
 //--------------------------------------------------------------------+
 bool hcd_init(void)
 {
-  //------------- Data Structure init -------------//
   tu_memclr(&ehci_data, sizeof(ehci_data_t));
-
-  #if (CFG_TUSB_RHPORT0_MODE & OPT_MODE_HOST)
-    TU_VERIFY(ehci_init(0));
-  #endif
-
-  #if (CFG_TUSB_RHPORT1_MODE & OPT_MODE_HOST)
-    TU_VERIFY(ehci_init(1));
-  #endif
-
-  return true;
+  return ehci_init(TUH_OPT_RHPORT);
 }
 
 //--------------------------------------------------------------------+
@@ -148,7 +119,7 @@ bool hcd_init(void)
 //--------------------------------------------------------------------+
 void hcd_port_reset(uint8_t hostid)
 {
-  ehci_registers_t* const regs = get_operational_register(hostid);
+  ehci_registers_t* regs = ehci_data.regs;
 
   regs->portsc_bit.port_enable = 0; // disable port before reset
   regs->portsc_bit.port_reset = 1;
@@ -156,19 +127,18 @@ void hcd_port_reset(uint8_t hostid)
 
 bool hcd_port_connect_status(uint8_t hostid)
 {
-  return get_operational_register(hostid)->portsc_bit.current_connect_status;
+  return ehci_data.regs->portsc_bit.current_connect_status;
 }
 
 tusb_speed_t hcd_port_speed_get(uint8_t hostid)
 {
-  return (tusb_speed_t) get_operational_register(hostid)->portsc_bit.nxp_port_speed; // NXP specific port speed
+  return (tusb_speed_t) ehci_data.regs->portsc_bit.nxp_port_speed; // NXP specific port speed
 }
 
 // TODO refractor abtract later
 void hcd_port_unplug(uint8_t hostid)
 {
-	ehci_registers_t* const regs = get_operational_register(hostid);
-  regs->usb_cmd_bit.advacne_async = 1; // Async doorbell check EHCI 4.8.2 for operational details
+  ehci_data.regs->usb_cmd_bit.advance_async = 1; // Async doorbell check EHCI 4.8.2 for operational details
 }
 
 //--------------------------------------------------------------------+
@@ -176,7 +146,9 @@ void hcd_port_unplug(uint8_t hostid)
 //--------------------------------------------------------------------+
 static bool ehci_init(uint8_t hostid)
 {
-  ehci_registers_t* const regs = get_operational_register(hostid);
+  ehci_data.regs = get_operational_register(hostid);
+
+  ehci_registers_t* regs = ehci_data.regs;
 
   //------------- CTRLDSSEGMENT Register (skip) -------------//
   //------------- USB INT Register -------------//
@@ -211,7 +183,7 @@ static bool ehci_init(uint8_t hostid)
     ehci_data.period_head_arr[i].qtd_overlay.halted = 1; // dummy node, always inactive
   }
 
-  ehci_link_t * const framelist  = get_period_frame_list(hostid);
+  ehci_link_t * const framelist  = ehci_data.period_framelist;
   ehci_link_t * const period_1ms = get_period_head(hostid, 1);
   // all links --> period_head_arr[0] (1ms)
   // 0, 2, 4, 6 etc --> period_head_arr[1] (2ms)
@@ -264,11 +236,11 @@ static bool ehci_init(uint8_t hostid)
 
 static tusb_error_t hcd_controller_stop(uint8_t hostid)
 {
-  ehci_registers_t* const regs = get_operational_register(hostid);
-  tu_timeout_t timeout;
+  ehci_registers_t* regs = ehci_data.regs;
 
   regs->usb_cmd_bit.run_stop = 0;
 
+  tu_timeout_t timeout;
   tu_timeout_set(&timeout, 2); // USB Spec: controller has to stop within 16 uframe = 2 frames
   while( regs->usb_sts_bit.hc_halted == 0 && !tu_timeout_expired(&timeout)) {}
 
@@ -613,10 +585,8 @@ static void async_advance_isr(ehci_qhd_t * const async_head)
 
 static void port_connect_status_change_isr(uint8_t hostid)
 {
-  ehci_registers_t* const regs = get_operational_register(hostid);
-
   // NOTE There is an sequence plug->unplug->…..-> plug if device is powering with pre-plugged device
-  if (regs->portsc_bit.current_connect_status)
+  if (ehci_data.regs->portsc_bit.current_connect_status)
   {
     hcd_port_reset(hostid);
     hcd_event_device_attach(hostid);
@@ -797,7 +767,7 @@ static void xfer_error_isr(uint8_t hostid)
 //------------- Host Controller Driver's Interrupt Handler -------------//
 void hal_hcd_isr(uint8_t hostid)
 {
-  ehci_registers_t* const regs = get_operational_register(hostid);
+  ehci_registers_t* regs = ehci_data.regs;
 
   uint32_t int_status = regs->usb_sts;
   int_status &= regs->usb_int_enable;
@@ -853,26 +823,6 @@ static inline ehci_registers_t* get_operational_register(uint8_t hostid)
 {
   return (ehci_registers_t*) (hostid ? (&LPC_USB1->USBCMD_H) : (&LPC_USB0->USBCMD_H) );
 }
-
-#if EHCI_PERIODIC_LIST // TODO refractor/group this together
-static inline ehci_link_t* get_period_frame_list(uint8_t hostid)
-{
-  switch(hostid)
-  {
-#if (CFG_TUSB_RHPORT0_MODE & OPT_MODE_HOST)
-    case 0:
-      return period_frame_list0;
-#endif
-
-#if (CFG_TUSB_RHPORT1_MODE & OPT_MODE_HOST)
-    case 1:
-      return period_frame_list1;
-#endif
-	 
-    default: return NULL;
-  }
-}
-#endif
 
 //------------- queue head helper -------------//
 static inline ehci_qhd_t* get_async_head(uint8_t hostid)

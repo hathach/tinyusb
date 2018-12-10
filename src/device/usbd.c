@@ -623,24 +623,24 @@ void dcd_event_xfer_complete (uint8_t rhport, uint8_t ep_addr, uint32_t xferred_
 //--------------------------------------------------------------------+
 
 // Helper to parse an pair of endpoint descriptors (IN & OUT)
-tusb_error_t usbd_open_edpt_pair(uint8_t rhport, tusb_desc_endpoint_t const* p_desc_ep, uint8_t xfer_type, uint8_t* ep_out, uint8_t* ep_in)
+tusb_error_t usbd_open_edpt_pair(uint8_t rhport, tusb_desc_endpoint_t const* ep_desc, uint8_t xfer_type, uint8_t* ep_out, uint8_t* ep_in)
 {
   for(int i=0; i<2; i++)
   {
-    TU_ASSERT(TUSB_DESC_ENDPOINT == p_desc_ep->bDescriptorType &&
-              xfer_type          == p_desc_ep->bmAttributes.xfer, TUSB_ERROR_DESCRIPTOR_CORRUPTED);
+    TU_ASSERT(TUSB_DESC_ENDPOINT == ep_desc->bDescriptorType &&
+              xfer_type          == ep_desc->bmAttributes.xfer, TUSB_ERROR_DESCRIPTOR_CORRUPTED);
 
-    TU_ASSERT( dcd_edpt_open(rhport, p_desc_ep), TUSB_ERROR_DCD_OPEN_PIPE_FAILED );
+    TU_ASSERT( dcd_edpt_open(rhport, ep_desc), TUSB_ERROR_DCD_OPEN_PIPE_FAILED );
 
-    if ( edpt_dir(p_desc_ep->bEndpointAddress) ==  TUSB_DIR_IN )
+    if ( edpt_dir(ep_desc->bEndpointAddress) ==  TUSB_DIR_IN )
     {
-      (*ep_in) = p_desc_ep->bEndpointAddress;
+      (*ep_in) = ep_desc->bEndpointAddress;
     }else
     {
-      (*ep_out) = p_desc_ep->bEndpointAddress;
+      (*ep_out) = ep_desc->bEndpointAddress;
     }
 
-    p_desc_ep = (tusb_desc_endpoint_t const *) descriptor_next( (uint8_t const*)  p_desc_ep );
+    ep_desc = (tusb_desc_endpoint_t const *) descriptor_next( (uint8_t const*)  ep_desc );
   }
 
   return TUSB_ERROR_NONE;

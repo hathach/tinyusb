@@ -137,18 +137,8 @@ void tuh_cdc_xfer_isr(uint8_t dev_addr, xfer_result_t event, cdc_pipeid_t pipe_i
 //--------------------------------------------------------------------+
 #ifdef _TINY_USB_SOURCE_FILE_
 
-typedef struct {
-  uint8_t interface_number;
-  uint8_t interface_protocol;
-
-  cdc_acm_capability_t acm_capability;
-
-  pipe_handle_t pipe_notification, pipe_out, pipe_in;
-
-} cdch_data_t;
-
 void cdch_init(void);
-bool cdch_open_subtask(uint8_t rhport, uint8_t dev_addr, tusb_desc_interface_t const *p_interface_desc, uint16_t *p_length) ATTR_WARN_UNUSED_RESULT;
+bool cdch_open_subtask(uint8_t rhport, uint8_t dev_addr, tusb_desc_interface_t const *p_interface_desc, uint16_t *p_length);
 void cdch_isr(uint8_t dev_addr, uint8_t ep_addr, xfer_result_t event, uint32_t xferred_bytes);
 void cdch_close(uint8_t dev_addr);
 
