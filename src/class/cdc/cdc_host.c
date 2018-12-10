@@ -136,7 +136,7 @@ void cdch_init(void)
   tu_memclr(cdch_data, sizeof(cdch_data_t)*CFG_TUSB_HOST_DEVICE_MAX);
 }
 
-bool cdch_open_subtask(uint8_t rhport, uint8_t dev_addr, tusb_desc_interface_t const *itf_desc, uint16_t *p_length)
+bool cdch_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_interface_t const *itf_desc, uint16_t *p_length)
 {
   // Only support ACM
   TU_VERIFY( CDC_COMM_SUBCLASS_ABSTRACT_CONTROL_MODEL == itf_desc->bInterfaceSubClass);
@@ -217,9 +217,6 @@ bool cdch_open_subtask(uint8_t rhport, uint8_t dev_addr, tusb_desc_interface_t c
     }
   }
 
-  // FIXME mounted class flag is not set yet
-  tuh_cdc_mounted_cb(dev_addr);
-
   // FIXME move to seperate API : connect
   tusb_control_request_t request =
   {
@@ -249,9 +246,6 @@ void cdch_close(uint8_t dev_addr)
   hcd_pipe_close(TUH_OPT_RHPORT, dev_addr, p_cdc->pipe_out);
 
   tu_memclr(p_cdc, sizeof(cdch_data_t));
-
-  tuh_cdc_unmounted_cb(dev_addr);
-
 }
 
 #endif

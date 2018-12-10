@@ -71,7 +71,7 @@ static host_class_driver_t const usbh_class_drivers[] =
     {
       .class_code   = TUSB_CLASS_CDC,
       .init         = cdch_init,
-      .open_subtask = cdch_open_subtask,
+      .open_subtask = cdch_open,
       .isr          = cdch_isr,
       .close        = cdch_close
     },
@@ -218,10 +218,6 @@ bool usbh_control_xfer (uint8_t dev_addr, tusb_control_request_t* request, uint8
   if ( XFER_RESULT_STALLED == dev->control.pipe_status ) return false;
   if ( XFER_RESULT_FAILED == dev->control.pipe_status ) return false;
 
-//  STASK_ASSERT_HDLR(TUSB_ERROR_NONE == error &&
-//                              XFER_RESULT_SUCCESS == dev->control.pipe_status,
-//                              tuh_device_mount_failed_cb(TUSB_ERROR_USBH_MOUNT_DEVICE_NOT_RESPOND, NULL) );
-
   return true;
 }
 
@@ -336,6 +332,9 @@ static void usbh_device_unplugged(uint8_t hostid, uint8_t hub_addr, uint8_t hub_
         (hub_port == 0 || dev->hub_port == hub_port) &&
         dev->state    != TUSB_DEVICE_STATE_UNPLUG)
     {
+      // Invoke callback before close driver
+      if (tuh_umount_cb) tuh_umount_cb(dev_addr);
+
       // TODO Hub multiple level
       // Close class driver
       for (uint8_t drv_id = 0; drv_id < USBH_CLASS_DRIVER_COUNT; drv_id++) usbh_class_drivers[drv_id].close(dev_addr);
@@ -624,7 +623,7 @@ bool enum_task(hcd_event_t* event)
     }
   }
 
-  tuh_device_mount_succeed_cb(new_addr);
+  if (tuh_mount_cb) tuh_mount_cb(new_addr);
 
   return true;
 }

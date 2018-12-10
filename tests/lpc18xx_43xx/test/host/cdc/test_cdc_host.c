@@ -89,7 +89,7 @@ void test_cdch_open_failed_to_open_notification_endpoint(void)
   hcd_pipe_open_ExpectAndReturn(dev_addr, p_endpoint_notification, TUSB_CLASS_CDC, null_hdl);
 
   //------------- CUT -------------//
-  TEST_ASSERT_EQUAL(TUSB_ERROR_HCD_OPEN_PIPE_FAILED, cdch_open_subtask(dev_addr, p_comm_interface, &length));
+  TEST_ASSERT_EQUAL(TUSB_ERROR_HCD_OPEN_PIPE_FAILED, cdch_open(dev_addr, p_comm_interface, &length));
 
 }
 
@@ -102,7 +102,7 @@ void test_cdch_open_failed_to_open_data_endpoint_out(void)
   hcd_pipe_open_ExpectAndReturn(dev_addr, p_endpoint_out, TUSB_CLASS_CDC, null_hdl);
 
   //------------- CUT -------------//
-  TEST_ASSERT_EQUAL(TUSB_ERROR_HCD_OPEN_PIPE_FAILED, cdch_open_subtask(dev_addr, p_comm_interface, &length));
+  TEST_ASSERT_EQUAL(TUSB_ERROR_HCD_OPEN_PIPE_FAILED, cdch_open(dev_addr, p_comm_interface, &length));
 
 }
 
@@ -116,7 +116,7 @@ void test_cdch_open_failed_to_open_data_endpoint_in(void)
   hcd_pipe_open_ExpectAndReturn(dev_addr, p_endpoint_in, TUSB_CLASS_CDC, null_hdl);
 
   //------------- CUT -------------//
-  TEST_ASSERT_EQUAL(TUSB_ERROR_HCD_OPEN_PIPE_FAILED, cdch_open_subtask(dev_addr, p_comm_interface, &length));
+  TEST_ASSERT_EQUAL(TUSB_ERROR_HCD_OPEN_PIPE_FAILED, cdch_open(dev_addr, p_comm_interface, &length));
 
 }
 
@@ -135,7 +135,7 @@ void test_cdch_open_length_check(void)
   tusbh_cdc_mounted_cb_Expect(dev_addr);
 
   //------------- CUT -------------//
-  TEST_ASSERT_EQUAL( TUSB_ERROR_NONE, cdch_open_subtask(dev_addr, p_comm_interface, &length) );
+  TEST_ASSERT_EQUAL( TUSB_ERROR_NONE, cdch_open(dev_addr, p_comm_interface, &length) );
 
   TEST_ASSERT_EQUAL(expected_length, length);
 }
@@ -147,7 +147,7 @@ void test_cdch_open_interface_number_check(void)
   tusbh_cdc_mounted_cb_Expect(dev_addr);
 
   //------------- CUT -------------//
-  TEST_ASSERT_EQUAL( TUSB_ERROR_NONE, cdch_open_subtask(dev_addr, p_comm_interface, &length) );
+  TEST_ASSERT_EQUAL( TUSB_ERROR_NONE, cdch_open(dev_addr, p_comm_interface, &length) );
 
   TEST_ASSERT_EQUAL(1, p_cdc->interface_number);
 
@@ -160,7 +160,7 @@ void test_cdch_open_protocol_check(void)
   tusbh_cdc_mounted_cb_Expect(dev_addr);
 
   //------------- CUT -------------//
-  TEST_ASSERT_EQUAL( TUSB_ERROR_NONE, cdch_open_subtask(dev_addr, p_comm_interface, &length) );
+  TEST_ASSERT_EQUAL( TUSB_ERROR_NONE, cdch_open(dev_addr, p_comm_interface, &length) );
 
   TEST_ASSERT_EQUAL(p_comm_interface->bInterfaceProtocol, p_cdc->interface_protocol);
 
@@ -173,7 +173,7 @@ void test_cdch_open_acm_capacity_check(void)
   tusbh_cdc_mounted_cb_Expect(dev_addr);
 
   //------------- CUT -------------//
-  TEST_ASSERT_EQUAL( TUSB_ERROR_NONE, cdch_open_subtask(dev_addr, p_comm_interface, &length) );
+  TEST_ASSERT_EQUAL( TUSB_ERROR_NONE, cdch_open(dev_addr, p_comm_interface, &length) );
 
   TEST_ASSERT_EQUAL_MEMORY(&cdc_config_descriptor.cdc_acm.bmCapabilities, &p_cdc->acm_capability, 1);
 }
@@ -192,7 +192,7 @@ void test_cdch_close_device(void)
   hcd_pipe_open_ExpectAndReturn(dev_addr, p_endpoint_in, TUSB_CLASS_CDC, pipe_int);
   tusbh_cdc_mounted_cb_Expect(dev_addr);
 
-  TEST_ASSERT_EQUAL( TUSB_ERROR_NONE, cdch_open_subtask(dev_addr, p_comm_interface, &length) );
+  TEST_ASSERT_EQUAL( TUSB_ERROR_NONE, cdch_open(dev_addr, p_comm_interface, &length) );
 
   hcd_pipe_close_ExpectAndReturn(pipe_notification , TUSB_ERROR_NONE);
   hcd_pipe_close_ExpectAndReturn(pipe_int          , TUSB_ERROR_NONE);

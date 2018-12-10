@@ -272,7 +272,8 @@ static void usbd_task_body(void)
         // TODO remove since if task is too slow, we could clear the event of the new attached
         osal_queue_reset(_usbd_q);
 
-        tud_umount_cb();    // invoke callback
+        // invoke callback
+        if (tud_umount_cb) tud_umount_cb();
       break;
 
       case DCD_EVENT_SOF:
@@ -467,7 +468,7 @@ static bool process_set_config(uint8_t rhport)
   }
 
   // invoke callback
-  tud_mount_cb();
+  if (tud_mount_cb) tud_mount_cb();
 
   return TUSB_ERROR_NONE;
 }

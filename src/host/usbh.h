@@ -90,8 +90,12 @@ static inline bool tuh_device_is_configured(uint8_t dev_addr)
 // APPLICATION CALLBACK
 //--------------------------------------------------------------------+
 ATTR_WEAK uint8_t tuh_device_attached_cb (tusb_desc_device_t const *p_desc_device)  ATTR_WARN_UNUSED_RESULT;
-ATTR_WEAK void    tuh_device_mount_succeed_cb (uint8_t dev_addr);
-ATTR_WEAK void    tuh_device_mount_failed_cb(tusb_error_t error, tusb_desc_device_t const *p_desc_device); // TODO refractor remove desc_device
+
+/** Callback invoked when device is mounted (configured) */
+ATTR_WEAK void tuh_mount_cb (uint8_t dev_addr);
+
+/** Callback invoked when device is unmounted (bus reset/unplugged) */
+ATTR_WEAK void tuh_umount_cb(uint8_t dev_addr);
 
 //--------------------------------------------------------------------+
 // CLASS-USBH & INTERNAL API

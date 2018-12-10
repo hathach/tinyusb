@@ -104,17 +104,6 @@ tusb_error_t tuh_cdc_receive(uint8_t dev_addr, void * p_buffer, uint32_t length,
 //--------------------------------------------------------------------+
 // CDC APPLICATION CALLBACKS
 //--------------------------------------------------------------------+
-/** \brief 			Callback function that will be invoked when a device with CDC Abstract Control Model interface is mounted
- * \param[in]	  dev_addr Address of newly mounted device
- * \note        This callback should be used by Application to set-up interface-related data
- */
-void tuh_cdc_mounted_cb(uint8_t dev_addr);
-
-/** \brief 			Callback function that will be invoked when a device with CDC Abstract Control Model interface is unmounted
- * \param[in] 	dev_addr Address of newly unmounted device
- * \note        This callback should be used by Application to tear-down interface-related data
- */
-void tuh_cdc_unmounted_cb(uint8_t dev_addr);
 
 /** \brief      Callback function that is invoked when an transferring event occurred
  * \param[in]		dev_addr	Address of device
@@ -138,7 +127,7 @@ void tuh_cdc_xfer_isr(uint8_t dev_addr, xfer_result_t event, cdc_pipeid_t pipe_i
 #ifdef _TINY_USB_SOURCE_FILE_
 
 void cdch_init(void);
-bool cdch_open_subtask(uint8_t rhport, uint8_t dev_addr, tusb_desc_interface_t const *p_interface_desc, uint16_t *p_length);
+bool cdch_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_interface_t const *p_interface_desc, uint16_t *p_length);
 void cdch_isr(uint8_t dev_addr, uint8_t ep_addr, xfer_result_t event, uint32_t xferred_bytes);
 void cdch_close(uint8_t dev_addr);
 
