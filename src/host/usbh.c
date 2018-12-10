@@ -273,7 +273,7 @@ void hcd_event_xfer_complete(uint8_t dev_addr, uint8_t ep_addr, xfer_result_t ev
     }
     else
     {
-      TU_ASSERT(false, ); // something wrong, no one claims the isr's source
+      TU_BREAKPOINT(); // something wrong, no one claims the isr's source
     }
   }
 }

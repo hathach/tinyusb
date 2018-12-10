@@ -80,7 +80,6 @@ static inline ehci_qhd_t*    qhd_next(ehci_qhd_t const * p_qhd) ATTR_ALWAYS_INLI
 static inline ehci_qhd_t*    qhd_find_free (uint8_t dev_addr) ATTR_PURE ATTR_ALWAYS_INLINE;
 static inline tusb_xfer_type_t qhd_get_xfer_type(ehci_qhd_t const * p_qhd) ATTR_ALWAYS_INLINE ATTR_PURE;
 static inline ehci_qhd_t* qhd_get_from_pipe_handle(uint8_t dev_addr, pipe_handle_t pipe_hdl);
-static inline pipe_handle_t  qhd_create_pipe_handle(ehci_qhd_t const * p_qhd);
 
 // determine if a queue head has bus-related error
 static inline bool qhd_has_xact_error(ehci_qhd_t * p_qhd)
@@ -90,7 +89,6 @@ static inline bool qhd_has_xact_error(ehci_qhd_t * p_qhd)
 }
 
 static void qhd_init(ehci_qhd_t *p_qhd, uint8_t dev_addr, tusb_desc_endpoint_t const * ep_desc);
-
 
 static inline ehci_qtd_t*  qtd_find_free(uint8_t dev_addr) ATTR_PURE ATTR_ALWAYS_INLINE;
 static inline ehci_qtd_t*  qtd_next(ehci_qtd_t const * p_qtd ) ATTR_PURE ATTR_ALWAYS_INLINE;
@@ -557,30 +555,30 @@ static void async_advance_isr(ehci_qhd_t * const async_head)
     _usbh_devices[0].state          = TUSB_DEVICE_STATE_UNPLUG;
   }
 
-  for(uint8_t relative_dev_addr=0; relative_dev_addr < CFG_TUSB_HOST_DEVICE_MAX; relative_dev_addr++)
+  for(uint8_t dev_addr=1; dev_addr < CFG_TUSB_HOST_DEVICE_MAX; dev_addr++)
   {
     // check if control endpoint is removing
-    ehci_qhd_t *p_control_qhd = &ehci_data.device[relative_dev_addr].control.qhd;
+    ehci_qhd_t *p_control_qhd = get_control_qhd(dev_addr);
     if ( p_control_qhd->is_removing )
     {
       p_control_qhd->is_removing = 0;
       p_control_qhd->used        = 0;
 
       // Host Controller has cleaned up its cached data for this device, set state to unplug
-      _usbh_devices[relative_dev_addr+1].state = TUSB_DEVICE_STATE_UNPLUG;
+      _usbh_devices[dev_addr+1].state = TUSB_DEVICE_STATE_UNPLUG;
 
       for (uint8_t i=0; i<HCD_MAX_ENDPOINT; i++) // free all qhd
       {
-        ehci_data.device[relative_dev_addr].qhd[i].used        = 0;
-        ehci_data.device[relative_dev_addr].qhd[i].is_removing = 0;
+        ehci_data.device[dev_addr].qhd[i].used        = 0;
+        ehci_data.device[dev_addr].qhd[i].is_removing = 0;
       }
       for (uint8_t i=0; i<HCD_MAX_XFER; i++) // free all qtd
       {
-        ehci_data.device[relative_dev_addr].qtd[i].used = 0;
+        ehci_data.device[dev_addr].qtd[i].used = 0;
       }
       // TODO free all itd & sitd
     }
-  } // end for device[] loop
+  }
 }
 
 static void port_connect_status_change_isr(uint8_t hostid)
@@ -827,7 +825,7 @@ static inline ehci_registers_t* get_operational_register(uint8_t hostid)
 //------------- queue head helper -------------//
 static inline ehci_qhd_t* get_async_head(uint8_t hostid)
 {
-  return &ehci_data.dev0.qhd;
+  return get_control_qhd(0);
 }
 
 #if EHCI_PERIODIC_LIST // TODO refractor/group this together
@@ -839,13 +837,11 @@ static inline ehci_link_t* get_period_head(uint8_t hostid, uint8_t interval_ms)
 
 static inline ehci_qhd_t* get_control_qhd(uint8_t dev_addr)
 {
-  return (dev_addr == 0) ?
-      get_async_head( _usbh_devices[dev_addr].rhport ) :
-      &ehci_data.device[dev_addr-1].control.qhd;
+  return &ehci_data.control[dev_addr].qhd;
 }
 static inline ehci_qtd_t* get_control_qtds(uint8_t dev_addr)
 {
-  return (dev_addr == 0) ? &ehci_data.dev0.qtd : &ehci_data.device[ dev_addr-1 ].control.qtd;
+  return &ehci_data.control[dev_addr].qtd;
 }
 
 static inline ehci_qhd_t* qhd_find_free (uint8_t dev_addr)
@@ -878,20 +874,6 @@ static inline ehci_qhd_t* qhd_next(ehci_qhd_t const * p_qhd)
 static inline ehci_qhd_t* qhd_get_from_pipe_handle(uint8_t dev_addr, pipe_handle_t pipe_hdl)
 {
   return &ehci_data.device[dev_addr-1].qhd[pipe_hdl.index];
-}
-
-static inline pipe_handle_t qhd_create_pipe_handle(ehci_qhd_t const * p_qhd)
-{
-  pipe_handle_t pipe_hdl = { };
-
-  // TODO Isochronous transfer support
-  if (TUSB_XFER_CONTROL != p_qhd->xfer_type) // qhd index for control is meaningless
-  {
-    pipe_hdl.index = qhd_get_index(p_qhd);
-    pipe_hdl.ep_addr = edpt_addr(p_qhd->endpoint_number, p_qhd->pid_non_control == EHCI_PID_IN ? 1 : 0);
-  }
-
-  return pipe_hdl;
 }
 
 //------------- TD helper -------------//

@@ -456,17 +456,13 @@ typedef struct
   // [0] : 1ms, [1] : 2ms, [2] : 4ms, [3] : 8 ms
   ehci_qhd_t period_head_arr[4];
 
+  // Note control qhd of dev0 is used as head of async list, always exists
   struct {
-      ehci_qhd_t qhd; // also used as head of async list (each for 1 controller), always exists
-      ehci_qtd_t qtd;
-  }dev0;
-
-  struct {
-    struct {
       ehci_qhd_t qhd;
       ehci_qtd_t qtd;
-    }control;
+  }control[CFG_TUSB_HOST_DEVICE_MAX+1];
 
+  struct {
     ehci_qhd_t  qhd[HCD_MAX_ENDPOINT]              ; ///< Queue Head Pool
     ehci_qtd_t  qtd[HCD_MAX_XFER] ATTR_ALIGNED(32) ; ///< Queue Element Transfer Pool
 //  ehci_itd_t  itd[EHCI_MAX_ITD]                  ; ///< Iso Transfer Pool

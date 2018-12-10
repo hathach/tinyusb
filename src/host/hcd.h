@@ -87,15 +87,17 @@ enum {
 
   HCD_MAX_XFER     = HCD_MAX_ENDPOINT*2,
 };
+
+//#define HCD_MAX_ENDPOINT 16
+//#define HCD_MAX_XFER 16
 #endif
 
 //--------------------------------------------------------------------+
 // MACRO CONSTANT TYPEDEF
 //--------------------------------------------------------------------+
 typedef struct {
-  uint8_t ep_addr;
   uint8_t index;
-  uint8_t reserved[2];
+  uint8_t reserved[3];
 } pipe_handle_t;
 
 static inline bool pipehandle_is_valid(pipe_handle_t pipe_hdl)
