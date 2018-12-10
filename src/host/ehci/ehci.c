@@ -75,11 +75,10 @@ static inline ehci_link_t* get_period_head(uint8_t hostid, uint8_t interval_ms) 
 static inline ehci_qhd_t* get_control_qhd(uint8_t dev_addr) ATTR_ALWAYS_INLINE ATTR_PURE ATTR_WARN_UNUSED_RESULT;
 static inline ehci_qtd_t* get_control_qtds(uint8_t dev_addr) ATTR_ALWAYS_INLINE ATTR_PURE ATTR_WARN_UNUSED_RESULT;
 
-static inline uint8_t        qhd_get_index(ehci_qhd_t const * p_qhd) ATTR_ALWAYS_INLINE ATTR_PURE;
 static inline ehci_qhd_t*    qhd_next(ehci_qhd_t const * p_qhd) ATTR_ALWAYS_INLINE ATTR_PURE;
 static inline ehci_qhd_t*    qhd_find_free (void);
 static inline tusb_xfer_type_t qhd_get_xfer_type(ehci_qhd_t const * p_qhd) ATTR_ALWAYS_INLINE ATTR_PURE;
-static inline ehci_qhd_t* qhd_get_from_pipe_handle(uint8_t dev_addr, uint8_t ep_addr);
+static inline ehci_qhd_t* qhd_get_from_addr(uint8_t dev_addr, uint8_t ep_addr);
 
 // determine if a queue head has bus-related error
 static inline bool qhd_has_xact_error(ehci_qhd_t * p_qhd)
@@ -435,7 +434,7 @@ bool hcd_pipe_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_endpoint_t const 
 bool hcd_pipe_queue_xfer(uint8_t dev_addr, uint8_t ep_addr, uint8_t buffer[], uint16_t total_bytes)
 {
   //------------- set up QTD -------------//
-  ehci_qhd_t *p_qhd = qhd_get_from_pipe_handle(dev_addr, ep_addr);
+  ehci_qhd_t *p_qhd = qhd_get_from_addr(dev_addr, ep_addr);
   ehci_qtd_t *p_qtd = qtd_find_free(dev_addr);
 
   TU_ASSERT(p_qtd);
@@ -453,7 +452,7 @@ bool hcd_pipe_xfer(uint8_t dev_addr, uint8_t ep_addr, uint8_t buffer[], uint16_t
 {
   TU_ASSERT ( hcd_pipe_queue_xfer(dev_addr, ep_addr, buffer, total_bytes) );
 
-  ehci_qhd_t *p_qhd = qhd_get_from_pipe_handle(dev_addr, ep_addr);
+  ehci_qhd_t *p_qhd = qhd_get_from_addr(dev_addr, ep_addr);
 
   if ( int_on_complete )
   { // the just added qtd is pointed by list_tail
@@ -467,7 +466,7 @@ bool hcd_pipe_xfer(uint8_t dev_addr, uint8_t ep_addr, uint8_t buffer[], uint16_t
 /// pipe_close should only be called as a part of unmount/safe-remove process
 bool hcd_pipe_close(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr)
 {
-  ehci_qhd_t *p_qhd = qhd_get_from_pipe_handle(dev_addr, ep_addr);
+  ehci_qhd_t *p_qhd = qhd_get_from_addr(dev_addr, ep_addr);
 
   // async list needs async advance handshake to make sure host controller has released cached data
   // non-control does not use async advance, it will eventually free by control pipe close
@@ -494,19 +493,19 @@ bool hcd_pipe_close(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr)
 
 bool hcd_pipe_is_busy(uint8_t dev_addr, uint8_t ep_addr)
 {
-  ehci_qhd_t *p_qhd = qhd_get_from_pipe_handle(dev_addr, ep_addr);
+  ehci_qhd_t *p_qhd = qhd_get_from_addr(dev_addr, ep_addr);
   return !p_qhd->qtd_overlay.halted && (p_qhd->p_qtd_list_head != NULL);
 }
 
 bool hcd_pipe_is_stalled(uint8_t dev_addr, uint8_t ep_addr)
 {
-  ehci_qhd_t *p_qhd = qhd_get_from_pipe_handle(dev_addr, ep_addr);
+  ehci_qhd_t *p_qhd = qhd_get_from_addr(dev_addr, ep_addr);
   return p_qhd->qtd_overlay.halted && !qhd_has_xact_error(p_qhd);
 }
 
 tusb_error_t hcd_pipe_clear_stall(uint8_t dev_addr, uint8_t ep_addr)
 {
-  ehci_qhd_t *p_qhd = qhd_get_from_pipe_handle(dev_addr, ep_addr);
+  ehci_qhd_t *p_qhd = qhd_get_from_addr(dev_addr, ep_addr);
   p_qhd->qtd_overlay.halted = 0;
   // TODO reset data toggle ?
   return TUSB_ERROR_NONE;
@@ -839,7 +838,7 @@ static inline ehci_qhd_t* qhd_next(ehci_qhd_t const * p_qhd)
   return (ehci_qhd_t*) tu_align32(p_qhd->next.address);
 }
 
-static inline ehci_qhd_t* qhd_get_from_pipe_handle(uint8_t dev_addr, uint8_t ep_addr)
+static inline ehci_qhd_t* qhd_get_from_addr(uint8_t dev_addr, uint8_t ep_addr)
 {
   ehci_qhd_t* qhd_pool = ehci_data.qhd_pool;
 

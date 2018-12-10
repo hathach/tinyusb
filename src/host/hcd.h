@@ -49,6 +49,9 @@
  extern "C" {
 #endif
 
+ //--------------------------------------------------------------------+
+// MACRO CONSTANT TYPEDEF
+//--------------------------------------------------------------------+
 typedef enum
 {
   HCD_EVENT_DEVICE_ATTACH,
@@ -93,13 +96,6 @@ enum {
 #endif
 
 //--------------------------------------------------------------------+
-// MACRO CONSTANT TYPEDEF
-//--------------------------------------------------------------------+
-typedef struct {
-  uint8_t reserved[4];
-} pipe_handle_t;
-
-//--------------------------------------------------------------------+
 // USBH-HCD API
 //--------------------------------------------------------------------+
 bool hcd_init(void);
@@ -131,7 +127,6 @@ bool hcd_edpt_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr, uint8_t * 
 // PIPE API
 //--------------------------------------------------------------------+
 // TODO control xfer should be used via usbh layer
-
 bool hcd_pipe_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_endpoint_t const * ep_desc);
 bool hcd_pipe_queue_xfer(uint8_t dev_addr, uint8_t ep_addr, uint8_t buffer[], uint16_t total_bytes); // only queue, not transferring yet
 bool hcd_pipe_xfer(uint8_t dev_addr, uint8_t ep_addr, uint8_t buffer[], uint16_t total_bytes, bool int_on_complete);

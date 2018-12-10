@@ -76,7 +76,7 @@ bool tuh_msc_is_mounted(uint8_t dev_addr)
 bool tuh_msc_is_busy(uint8_t dev_addr)
 {
   return  msch_data[dev_addr-1].is_initialized &&
-          hcd_pipe_is_busy(dev_addr, msch_data[dev_addr-1].bulk_in);
+          hcd_pipe_is_busy(dev_addr, msch_data[dev_addr-1].ep_in);
 }
 
 uint8_t const* tuh_msc_get_vendor_name(uint8_t dev_addr)
@@ -116,16 +116,16 @@ static tusb_error_t msch_command_xfer(uint8_t dev_addr, msch_interface_t * p_msc
   { // there is data phase
     if (p_msch->cbw.dir & TUSB_DIR_IN_MASK)
     {
-      TU_ASSERT( hcd_pipe_xfer(dev_addr, p_msch->bulk_out, (uint8_t*) &p_msch->cbw, sizeof(msc_cbw_t), false), TUSB_ERROR_FAILED );
-      TU_ASSERT( hcd_pipe_queue_xfer(dev_addr, p_msch->bulk_in , p_buffer, p_msch->cbw.total_bytes), TUSB_ERROR_FAILED );
+      TU_ASSERT( hcd_pipe_xfer(dev_addr, p_msch->ep_out, (uint8_t*) &p_msch->cbw, sizeof(msc_cbw_t), false), TUSB_ERROR_FAILED );
+      TU_ASSERT( hcd_pipe_queue_xfer(dev_addr, p_msch->ep_in , p_buffer, p_msch->cbw.total_bytes), TUSB_ERROR_FAILED );
     }else
     {
-      TU_ASSERT( hcd_pipe_queue_xfer(dev_addr, p_msch->bulk_out, (uint8_t*) &p_msch->cbw, sizeof(msc_cbw_t)), TUSB_ERROR_FAILED );
-      TU_ASSERT( hcd_pipe_xfer(dev_addr, p_msch->bulk_out , p_buffer, p_msch->cbw.total_bytes, false), TUSB_ERROR_FAILED );
+      TU_ASSERT( hcd_pipe_queue_xfer(dev_addr, p_msch->ep_out, (uint8_t*) &p_msch->cbw, sizeof(msc_cbw_t)), TUSB_ERROR_FAILED );
+      TU_ASSERT( hcd_pipe_xfer(dev_addr, p_msch->ep_out , p_buffer, p_msch->cbw.total_bytes, false), TUSB_ERROR_FAILED );
     }
   }
 
-  TU_ASSERT( hcd_pipe_xfer(dev_addr, p_msch->bulk_in , (uint8_t*) &p_msch->csw, sizeof(msc_csw_t), true), TUSB_ERROR_FAILED);
+  TU_ASSERT( hcd_pipe_xfer(dev_addr, p_msch->ep_in , (uint8_t*) &p_msch->csw, sizeof(msc_csw_t), true), TUSB_ERROR_FAILED);
 
   return TUSB_ERROR_NONE;
 }
@@ -225,8 +225,8 @@ tusb_error_t tuh_msc_test_unit_ready(uint8_t dev_addr, uint8_t lun,  msc_csw_t *
   memcpy(p_msch->cbw.command, &cmd_test_unit_ready, p_msch->cbw.cmd_len);
 
   // TODO MSCH refractor test uinit ready
-  TU_ASSERT( hcd_pipe_xfer(dev_addr, p_msch->bulk_out, (uint8_t*) &p_msch->cbw, sizeof(msc_cbw_t), false), TUSB_ERROR_FAILED );
-  TU_ASSERT( hcd_pipe_xfer(dev_addr, p_msch->bulk_in , (uint8_t*) p_csw, sizeof(msc_csw_t), true), TUSB_ERROR_FAILED );
+  TU_ASSERT( hcd_pipe_xfer(dev_addr, p_msch->ep_out, (uint8_t*) &p_msch->cbw, sizeof(msc_cbw_t), false), TUSB_ERROR_FAILED );
+  TU_ASSERT( hcd_pipe_xfer(dev_addr, p_msch->ep_in , (uint8_t*) p_csw, sizeof(msc_csw_t), true), TUSB_ERROR_FAILED );
 
   return TUSB_ERROR_NONE;
 }
@@ -307,11 +307,7 @@ bool msch_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_interface_t const *it
     TU_ASSERT(TUSB_DESC_ENDPOINT == ep_desc->bDescriptorType);
     TU_ASSERT(TUSB_XFER_BULK == ep_desc->bmAttributes.xfer);
 
-    pipe_handle_t * p_pipe_hdl =  ( ep_desc->bEndpointAddress &  TUSB_DIR_IN_MASK ) ?
-        &p_msc->bulk_in : &p_msc->bulk_out;
-
-    (*p_pipe_hdl) = hcd_pipe_open(rhport, dev_addr, ep_desc);
-    TU_ASSERT( pipehandle_is_valid(*p_pipe_hdl) );
+    TU_ASSERT(hcd_pipe_open(rhport, dev_addr, ep_desc));
 
     if ( edpt_dir(ep_desc->bEndpointAddress) ==  TUSB_DIR_IN )
     {
@@ -365,7 +361,7 @@ bool msch_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_interface_t const *it
 
   // NOTE: my toshiba thumb-drive stall the first Read Capacity and require the sequence
   // Read Capacity --> Stalled --> Clear Stall --> Request Sense --> Read Capacity (2) to work
-  if ( hcd_pipe_is_stalled(dev_addr, p_msc->bulk_in) )
+  if ( hcd_pipe_is_stalled(dev_addr, p_msc->ep_in) )
   {
     // clear stall TODO abstract clear stall function
     request = (tusb_control_request_t) {
@@ -378,7 +374,7 @@ bool msch_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_interface_t const *it
 
     TU_ASSERT(usbh_control_xfer( dev_addr, &request, NULL ));
 
-    hcd_pipe_clear_stall(dev_addr, p_msc->bulk_in);
+    hcd_pipe_clear_stall(dev_addr, p_msc->ep_in);
     TU_ASSERT( osal_semaphore_wait(msch_sem_hdl, SCSI_XFER_TIMEOUT) ); // wait for SCSI status
 
     //------------- SCSI Request Sense -------------//
@@ -417,8 +413,8 @@ void msch_isr(uint8_t dev_addr, uint8_t ep_addr, xfer_result_t event, uint32_t x
 
 void msch_close(uint8_t dev_addr)
 {
-  (void) hcd_pipe_close(TUH_OPT_RHPORT, dev_addr, msch_data[dev_addr-1].bulk_in);
-  (void) hcd_pipe_close(TUH_OPT_RHPORT, dev_addr, msch_data[dev_addr-1].bulk_out);
+  (void) hcd_pipe_close(TUH_OPT_RHPORT, dev_addr, msch_data[dev_addr-1].ep_in);
+  (void) hcd_pipe_close(TUH_OPT_RHPORT, dev_addr, msch_data[dev_addr-1].ep_out);
 
   tu_memclr(&msch_data[dev_addr-1], sizeof(msch_interface_t));
   osal_semaphore_reset(msch_sem_hdl);
