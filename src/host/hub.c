@@ -167,7 +167,7 @@ bool hub_open_subtask(uint8_t rhport, uint8_t dev_addr, tusb_desc_interface_t co
   TU_ASSERT(TUSB_DESC_ENDPOINT == p_endpoint->bDescriptorType);
   TU_ASSERT(TUSB_XFER_INTERRUPT == p_endpoint->bmAttributes.xfer);
 
-  hub_data[dev_addr-1].pipe_status = hcd_pipe_open(rhport, dev_addr, p_endpoint, TUSB_CLASS_HUB);
+  hub_data[dev_addr-1].pipe_status = hcd_pipe_open(rhport, dev_addr, p_endpoint);
   TU_ASSERT( pipehandle_is_valid(hub_data[dev_addr-1].pipe_status) );
   hub_data[dev_addr-1].interface_number = p_interface_desc->bInterfaceNumber;
 

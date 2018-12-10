@@ -368,7 +368,7 @@ bool msch_open_subtask(uint8_t dev_addr, tusb_desc_interface_t const *p_interfac
       .bmRequestType_bit = { .recipient = TUSB_REQ_RCPT_ENDPOINT, .type = TUSB_REQ_TYPE_STANDARD, .direction = TUSB_DIR_OUT },
           .bRequest = TUSB_REQ_CLEAR_FEATURE,
           .wValue = 0,
-          .wIndex = hcd_pipe_get_endpoint_addr(msch_data[dev_addr-1].bulk_in),
+          .wIndex = hcd_pipe_get_endpoint_addr(msch_data[dev_addr-1].bulk_in), // FIXME use ep addr
           .wLength = 0
     };
 

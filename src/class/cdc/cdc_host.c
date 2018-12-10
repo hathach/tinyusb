@@ -174,7 +174,7 @@ bool cdch_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_interface_t const *it
   {
     // notification endpoint if any
     tusb_desc_endpoint_t const * ep_desc = (tusb_desc_endpoint_t const *) p_desc;
-    p_cdc->pipe_notification = hcd_pipe_open(rhport, dev_addr, ep_desc, TUSB_CLASS_CDC);
+    p_cdc->pipe_notification = hcd_pipe_open(rhport, dev_addr, ep_desc);
 
     p_cdc->ep_notif = ep_desc->bEndpointAddress;
 
@@ -201,7 +201,7 @@ bool cdch_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_interface_t const *it
       pipe_handle_t * p_pipe_hdl =  ( ep_desc->bEndpointAddress &  TUSB_DIR_IN_MASK ) ?
           &p_cdc->pipe_in : &p_cdc->pipe_out;
 
-      (*p_pipe_hdl) = hcd_pipe_open(rhport, dev_addr, ep_desc, TUSB_CLASS_CDC);
+      (*p_pipe_hdl) = hcd_pipe_open(rhport, dev_addr, ep_desc);
       TU_ASSERT ( pipehandle_is_valid(*p_pipe_hdl) );
 
       if ( edpt_dir(ep_desc->bEndpointAddress) ==  TUSB_DIR_IN )

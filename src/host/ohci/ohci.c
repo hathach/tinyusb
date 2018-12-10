@@ -589,22 +589,10 @@ bool hcd_pipe_is_busy(pipe_handle_t pipe_hdl)
   return tu_align16(p_ed->td_head.address) != tu_align16(p_ed->td_tail.address);
 }
 
-bool hcd_pipe_is_error(pipe_handle_t pipe_hdl)
-{
-  ohci_ed_t const * const p_ed = ed_from_pipe_handle(pipe_hdl);
-  return p_ed->td_head.halted;
-}
-
 bool hcd_pipe_is_stalled(pipe_handle_t pipe_hdl)
 {
   ohci_ed_t const * const p_ed = ed_from_pipe_handle(pipe_hdl);
   return p_ed->td_head.halted && p_ed->is_stalled;
-}
-
-uint8_t hcd_pipe_get_endpoint_addr(pipe_handle_t pipe_hdl)
-{
-  ohci_ed_t const * const p_ed = ed_from_pipe_handle(pipe_hdl);
-  return p_ed->endpoint_number | (p_ed->direction == OHCI_PID_IN ? TUSB_DIR_IN_MASK : 0 );
 }
 
 tusb_error_t hcd_pipe_clear_stall(pipe_handle_t pipe_hdl)

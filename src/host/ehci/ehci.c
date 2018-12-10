@@ -325,7 +325,7 @@ bool hcd_edpt_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_endpoint_t const*
 {
   // FIXME control only for now
   (void) rhport;
-  hcd_pipe_open(rhport, dev_addr, ep_desc, 0);
+  hcd_pipe_open(rhport, dev_addr, ep_desc);
 
   return true;
 }
@@ -344,23 +344,23 @@ bool hcd_edpt_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr, uint8_t * 
   // FIXME control only for now
   if ( epnum == 0 )
   {
-    ehci_qhd_t * const p_qhd = get_control_qhd(dev_addr);
-    ehci_qtd_t *p_data       = get_control_qtds(dev_addr);
+    ehci_qhd_t* qhd = get_control_qhd(dev_addr);
+    ehci_qtd_t* qtd = get_control_qtds(dev_addr);
 
-    qtd_init(p_data, (uint32_t) buffer, buflen);
+    qtd_init(qtd, (uint32_t) buffer, buflen);
 
     // first first data toggle is always 1 (data & setup stage)
-    p_data->data_toggle = 1;
-    p_data->pid         = dir ? EHCI_PID_IN : EHCI_PID_OUT;
-    p_data->int_on_complete = 1;
-    p_data->next.terminate  = 1;
+    qtd->data_toggle = 1;
+    qtd->pid         = dir ? EHCI_PID_IN : EHCI_PID_OUT;
+    qtd->int_on_complete = 1;
+    qtd->next.terminate  = 1;
 
     // sw region
-    p_qhd->p_qtd_list_head = p_data;
-    p_qhd->p_qtd_list_tail = p_data;
+    qhd->p_qtd_list_head = qtd;
+    qhd->p_qtd_list_tail = qtd;
 
     // attach TD
-    p_qhd->qtd_overlay.next.address = (uint32_t) p_data;
+    qhd->qtd_overlay.next.address = (uint32_t) qtd;
   }
 
   return true;
@@ -389,7 +389,7 @@ bool hcd_setup_send(uint8_t rhport, uint8_t dev_addr, uint8_t const setup_packet
 //--------------------------------------------------------------------+
 // BULK/INT/ISO PIPE API
 //--------------------------------------------------------------------+
-pipe_handle_t hcd_pipe_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_endpoint_t const * ep_desc, uint8_t class_code)
+pipe_handle_t hcd_pipe_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_endpoint_t const * ep_desc)
 {
   pipe_handle_t const null_handle = { .index = 0 };
 
@@ -511,22 +511,10 @@ bool hcd_pipe_is_busy(uint8_t dev_addr, pipe_handle_t pipe_hdl)
   return !p_qhd->qtd_overlay.halted && (p_qhd->p_qtd_list_head != NULL);
 }
 
-bool hcd_pipe_is_error(uint8_t dev_addr, pipe_handle_t pipe_hdl)
-{
-  ehci_qhd_t *p_qhd = qhd_get_from_pipe_handle(dev_addr, pipe_hdl);
-  return p_qhd->qtd_overlay.halted;
-}
-
 bool hcd_pipe_is_stalled(uint8_t dev_addr, pipe_handle_t pipe_hdl)
 {
   ehci_qhd_t *p_qhd = qhd_get_from_pipe_handle(dev_addr, pipe_hdl);
   return p_qhd->qtd_overlay.halted && !qhd_has_xact_error(p_qhd);
-}
-
-uint8_t hcd_pipe_get_endpoint_addr(uint8_t dev_addr, pipe_handle_t pipe_hdl)
-{
-  ehci_qhd_t *p_qhd = qhd_get_from_pipe_handle(dev_addr, pipe_hdl);
-  return p_qhd->endpoint_number + ( (p_qhd->pid_non_control == EHCI_PID_IN) ? TUSB_DIR_IN_MASK : 0);
 }
 
 tusb_error_t hcd_pipe_clear_stall(uint8_t dev_addr, pipe_handle_t pipe_hdl)
@@ -596,11 +584,8 @@ static void port_connect_status_change_isr(uint8_t hostid)
 
 static void qhd_xfer_complete_isr(ehci_qhd_t * p_qhd)
 {
-  uint8_t max_loop = 0;
-
   // free all TDs from the head td to the first active TD
-  while(p_qhd->p_qtd_list_head != NULL && !p_qhd->p_qtd_list_head->active
-      && max_loop < HCD_MAX_XFER)
+  while(p_qhd->p_qtd_list_head != NULL && !p_qhd->p_qtd_list_head->active)
   {
     // TD need to be freed and removed from qhd, before invoking callback
     bool is_ioc = (p_qhd->p_qtd_list_head->int_on_complete != 0);
@@ -616,8 +601,6 @@ static void qhd_xfer_complete_isr(ehci_qhd_t * p_qhd)
       hcd_event_xfer_complete(p_qhd->device_address, edpt_addr(p_qhd->endpoint_number, p_qhd->pid_non_control == EHCI_PID_IN ? 1 : 0), XFER_RESULT_SUCCESS, p_qhd->total_xferred_bytes);
       p_qhd->total_xferred_bytes = 0;
     }
-
-    max_loop++;
   }
 }
 
