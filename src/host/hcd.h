@@ -134,7 +134,7 @@ bool hcd_pipe_close(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr); // TODO 
 
 bool hcd_pipe_is_busy(uint8_t dev_addr, uint8_t ep_addr);
 bool hcd_pipe_is_stalled(uint8_t dev_addr, uint8_t ep_addr); // stalled also counted as error
-tusb_error_t hcd_pipe_clear_stall(uint8_t dev_addr, uint8_t ep_addr);
+bool hcd_pipe_clear_stall(uint8_t dev_addr, uint8_t ep_addr);
 
 #if 0
 tusb_error_t hcd_pipe_cancel()ATTR_WARN_UNUSED_RESULT;

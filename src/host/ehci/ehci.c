@@ -503,12 +503,12 @@ bool hcd_pipe_is_stalled(uint8_t dev_addr, uint8_t ep_addr)
   return p_qhd->qtd_overlay.halted && !qhd_has_xact_error(p_qhd);
 }
 
-tusb_error_t hcd_pipe_clear_stall(uint8_t dev_addr, uint8_t ep_addr)
+bool hcd_pipe_clear_stall(uint8_t dev_addr, uint8_t ep_addr)
 {
   ehci_qhd_t *p_qhd = qhd_get_from_addr(dev_addr, ep_addr);
   p_qhd->qtd_overlay.halted = 0;
   // TODO reset data toggle ?
-  return TUSB_ERROR_NONE;
+  return true;
 }
 
 //--------------------------------------------------------------------+
