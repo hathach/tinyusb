@@ -458,8 +458,8 @@ typedef struct
 
   // Note control qhd of dev0 is used as head of async list, always exists
   struct {
-      ehci_qhd_t qhd;
-      ehci_qtd_t qtd;
+    ehci_qhd_t qhd;
+    ehci_qtd_t qtd;
   }control[CFG_TUSB_HOST_DEVICE_MAX+1];
 
   struct {

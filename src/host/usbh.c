@@ -81,7 +81,7 @@ static host_class_driver_t const usbh_class_drivers[] =
     {
       .class_code   = TUSB_CLASS_MSC,
       .init         = msch_init,
-      .open_subtask = msch_open_subtask,
+      .open_subtask = msch_open,
       .isr          = msch_isr,
       .close        = msch_close
     },
