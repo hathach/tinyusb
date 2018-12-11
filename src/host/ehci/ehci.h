@@ -81,15 +81,17 @@ TU_VERIFY_STATIC(EHCI_CFG_FRAMELIST_SIZE_BITS <= 7, "incorrect value");
 //--------------------------------------------------------------------+
 // EHCI Data Structure
 //--------------------------------------------------------------------+
-enum ehci_queue_element_type_{
-  EHCI_QUEUE_ELEMENT_ITD = 0 , ///< 0
-  EHCI_QUEUE_ELEMENT_QHD     , ///< 1
-  EHCI_QUEUE_ELEMENT_SITD    , ///< 2
-  EHCI_QUEUE_ELEMENT_FSTN      ///< 3
+enum
+{
+  EHCI_QTYPE_ITD = 0 ,
+  EHCI_QTYPE_QHD     ,
+  EHCI_QTYPE_SITD    ,
+  EHCI_QTYPE_FSTN
 };
 
 /// EHCI PID
-enum tusb_pid_{
+enum
+{
   EHCI_PID_OUT = 0 ,
   EHCI_PID_IN      ,
   EHCI_PID_SETUP
@@ -183,11 +185,10 @@ typedef struct ATTR_ALIGNED(32)
 	uint8_t used;
 	uint8_t is_removing;
 	uint8_t pid_non_control;
-	uint8_t xfer_type;
+	uint8_t interval_ms; // polling interval in frames (or milisecond)
 
 	uint16_t total_xferred_bytes; // number of bytes xferred until a qtd with ioc bit set
-	uint8_t interval_ms; // polling interval in frames (or milisecond)
-	uint8_t reserved2;
+	uint8_t reserved2[2];
 
 	ehci_qtd_t * volatile p_qtd_list_head;	// head of the scheduled TD list
 	ehci_qtd_t * volatile p_qtd_list_tail;	// tail of the scheduled TD list
@@ -444,7 +445,7 @@ typedef struct
   // [0] : 1ms, [1] : 2ms, [2] : 4ms, [3] : 8 ms
   ehci_qhd_t period_head_arr[4];
 
-  // Note control qhd of dev0 is used as head of async list, always exists
+  // Note control qhd of dev0 is used as head of async list
   struct {
     ehci_qhd_t qhd;
     ehci_qtd_t qtd;
