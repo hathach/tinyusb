@@ -232,7 +232,7 @@ void hcd_device_remove(uint8_t rhport, uint8_t dev_addr)
 //--------------------------------------------------------------------+
 static inline tusb_xfer_type_t ed_get_xfer_type(ohci_ed_t const * const p_ed)
 {
-  return (p_ed->endpoint_number == 0 ) ? TUSB_XFER_CONTROL     :
+  return (p_ed->ep_number == 0 ) ? TUSB_XFER_CONTROL     :
          (p_ed->is_iso               ) ? TUSB_XFER_ISOCHRONOUS :
          (p_ed->is_interrupt_xfer    ) ? TUSB_XFER_INTERRUPT   : TUSB_XFER_BULK;
 }
@@ -247,12 +247,12 @@ static void ed_init(ohci_ed_t *p_ed, uint8_t dev_addr, uint16_t max_packet_size,
     tu_memclr(p_ed, sizeof(ohci_ed_t));
   }
 
-  p_ed->device_address    = dev_addr;
-  p_ed->endpoint_number   = endpoint_addr & 0x0F;
-  p_ed->direction         = (xfer_type == TUSB_XFER_CONTROL) ? OHCI_PID_SETUP : ( (endpoint_addr & TUSB_DIR_IN_MASK) ? OHCI_PID_IN : OHCI_PID_OUT );
+  p_ed->dev_addr    = dev_addr;
+  p_ed->ep_number   = endpoint_addr & 0x0F;
+  p_ed->pid         = (xfer_type == TUSB_XFER_CONTROL) ? OHCI_PID_SETUP : ( (endpoint_addr & TUSB_DIR_IN_MASK) ? OHCI_PID_IN : OHCI_PID_OUT );
   p_ed->speed             = _usbh_devices[dev_addr].speed;
   p_ed->is_iso            = (xfer_type == TUSB_XFER_ISOCHRONOUS) ? 1 : 0;
-  p_ed->max_package_size  = max_packet_size;
+  p_ed->max_packet_size  = max_packet_size;
 
   p_ed->used              = 1;
   p_ed->is_interrupt_xfer = (xfer_type == TUSB_XFER_INTERRUPT ? 1 : 0);
@@ -360,8 +360,8 @@ static inline ohci_ed_t * ed_from_addr(uint8_t dev_addr, uint8_t ep_addr)
 
   for(uint32_t i=0; i<HCD_MAX_ENDPOINT; i++)
   {
-    if ( (ed_pool[i].device_address == dev_addr) &&
-          ep_addr == edpt_addr(ed_pool[i].endpoint_number, ed_pool[i].direction == OHCI_PID_IN) )
+    if ( (ed_pool[i].dev_addr == dev_addr) &&
+          ep_addr == edpt_addr(ed_pool[i].ep_number, ed_pool[i].pid == OHCI_PID_IN) )
     {
       return &ed_pool[i];
     }
@@ -390,30 +390,30 @@ static ohci_ed_t * ed_list_find_previous(ohci_ed_t const * p_head, ohci_ed_t con
 
   TU_ASSERT(p_prev, NULL);
 
-  while ( tu_align16(p_prev->next_ed) != 0               && /* not reach null */
-          tu_align16(p_prev->next_ed) != (uint32_t) p_ed && /* not found yet */
+  while ( tu_align16(p_prev->next) != 0               && /* not reach null */
+          tu_align16(p_prev->next) != (uint32_t) p_ed && /* not found yet */
           max_loop > 0)
   {
-    p_prev = (ohci_ed_t const *) tu_align16(p_prev->next_ed);
+    p_prev = (ohci_ed_t const *) tu_align16(p_prev->next);
     max_loop--;
   }
 
-  return ( tu_align16(p_prev->next_ed) == (uint32_t) p_ed ) ? (ohci_ed_t*) p_prev : NULL;
+  return ( tu_align16(p_prev->next) == (uint32_t) p_ed ) ? (ohci_ed_t*) p_prev : NULL;
 }
 
 static void ed_list_insert(ohci_ed_t * p_pre, ohci_ed_t * p_ed)
 {
-  p_ed->next_ed |= p_pre->next_ed; // to reserve 4 lsb bits
-  p_pre->next_ed = (p_pre->next_ed & 0x0FUL)  | ((uint32_t) p_ed);
+  p_ed->next |= p_pre->next; // to reserve 4 lsb bits
+  p_pre->next = (p_pre->next & 0x0FUL)  | ((uint32_t) p_ed);
 }
 
 static void ed_list_remove(ohci_ed_t * p_head, ohci_ed_t * p_ed)
 {
   ohci_ed_t * const p_prev  = ed_list_find_previous(p_head, p_ed);
 
-  p_prev->next_ed = (p_prev->next_ed & 0x0fUL) | tu_align16(p_ed->next_ed);
+  p_prev->next = (p_prev->next & 0x0fUL) | tu_align16(p_ed->next);
   // point the removed ED's next pointer to list head to make sure HC can always safely move away from this ED
-  p_ed->next_ed   = (uint32_t) p_head;
+  p_ed->next   = (uint32_t) p_head;
   p_ed->used      = 0; // free ED
 }
 
@@ -470,7 +470,7 @@ static void td_insert_to_ed(ohci_ed_t* p_ed, ohci_gtd_t * p_gtd)
   }
   else
   { // TODO currently only support queue up to 2 TD each endpoint at a time
-    ((ohci_gtd_t*) tu_align16(p_ed->td_head.address))->next_td = (uint32_t) p_gtd;
+    ((ohci_gtd_t*) tu_align16(p_ed->td_head.address))->next = (uint32_t) p_gtd;
   }
 }
 
@@ -527,7 +527,7 @@ bool hcd_pipe_close(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr)
 bool hcd_edpt_busy(uint8_t dev_addr, uint8_t ep_addr)
 {
   ohci_ed_t const * const p_ed = ed_from_addr(dev_addr, ep_addr);
-  return tu_align16(p_ed->td_head.address) != tu_align16(p_ed->td_tail.address);
+  return tu_align16(p_ed->td_head.address) != tu_align16(p_ed->td_tail);
 }
 
 bool hcd_edpt_stalled(uint8_t dev_addr, uint8_t ep_addr)
@@ -540,11 +540,11 @@ bool hcd_edpt_clear_stall(uint8_t dev_addr, uint8_t ep_addr)
 {
   ohci_ed_t * const p_ed = ed_from_addr(dev_addr, ep_addr);
 
-  p_ed->is_stalled        = 0;
-  p_ed->td_tail.address  &= 0x0Ful; // set tail pointer back to NULL
+  p_ed->is_stalled = 0;
+  p_ed->td_tail    &= 0x0Ful; // set tail pointer back to NULL
 
-  p_ed->td_head.toggle            = 0; // reset data toggle
-  p_ed->td_head.halted            = 0;
+  p_ed->td_head.toggle = 0; // reset data toggle
+  p_ed->td_head.halted = 0;
 
   if ( TUSB_XFER_BULK == ed_get_xfer_type(p_ed) ) OHCI_REG->command_status_bit.bulk_list_filled = 1;
 
@@ -561,10 +561,10 @@ static ohci_td_item_t* list_reverse(ohci_td_item_t* td_head)
 
   while(td_head != NULL)
   {
-    uint32_t next = td_head->next_td;
+    uint32_t next = td_head->next;
 
     // make current's item become reverse's first item
-    td_head->next_td = (uint32_t) td_reverse_head;
+    td_head->next = (uint32_t) td_reverse_head;
     td_reverse_head  = td_head;
 
     td_head = (ohci_td_item_t*) next; // advance to next item
@@ -626,17 +626,17 @@ static void done_queue_isr(uint8_t hostid)
       // the TailP must be set back to NULL for processing remaining TDs
       if ((event != XFER_RESULT_SUCCESS))
       {
-        p_ed->td_tail.address &= 0x0Ful;
-        p_ed->td_tail.address |= tu_align16(p_ed->td_head.address); // mark halted EP as empty queue
+        p_ed->td_tail &= 0x0Ful;
+        p_ed->td_tail |= tu_align16(p_ed->td_head.address); // mark halted EP as empty queue
         if ( event == XFER_RESULT_STALLED ) p_ed->is_stalled = 1;
       }
 
-      hcd_event_xfer_complete(p_ed->device_address,
-                              edpt_addr(p_ed->endpoint_number, p_ed->direction == OHCI_PID_IN),
+      hcd_event_xfer_complete(p_ed->dev_addr,
+                              edpt_addr(p_ed->ep_number, p_ed->pid == OHCI_PID_IN),
                               event, xferred_bytes);
     }
 
-    td_head = (ohci_td_item_t*) td_head->next_td;
+    td_head = (ohci_td_item_t*) td_head->next;
   }
 }
 

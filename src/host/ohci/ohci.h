@@ -83,7 +83,7 @@ TU_VERIFY_STATIC( sizeof(ohci_hcca_t) == 256, "size is not correct" );
 
 typedef struct {
   uint32_t reserved[2];
-  volatile uint32_t next_td;
+  volatile uint32_t next;
   uint32_t reserved2;
 }ohci_td_item_t;
 
@@ -105,8 +105,8 @@ typedef struct ATTR_ALIGNED(16)
 	// Word 1
 	volatile uint8_t* current_buffer_pointer;
 
-	// Word 2
-	volatile uint32_t next_td;
+	// Word 2 : next TD
+	volatile uint32_t next;
 
 	// Word 3
 	uint8_t* buffer_end;
@@ -114,28 +114,26 @@ typedef struct ATTR_ALIGNED(16)
 
 TU_VERIFY_STATIC( sizeof(ohci_gtd_t) == 16, "size is not correct" );
 
-typedef struct ATTR_ALIGNED(16) {
-  //------------- Word 0 -------------//
-	uint32_t device_address   : 7;
-	uint32_t endpoint_number  : 4;
-	uint32_t direction        : 2;
-	uint32_t speed            : 1;
-	uint32_t skip             : 1;
-	uint32_t is_iso           : 1;
-	uint32_t max_package_size : 11;
-
-	uint32_t used              : 1; // HCD
+typedef struct ATTR_ALIGNED(16)
+{
+  // Word 0
+	uint32_t dev_addr          : 7;
+	uint32_t ep_number         : 4;
+	uint32_t pid               : 2; // 00b from TD, 01b Out, 10b In
+	uint32_t speed             : 1;
+	uint32_t skip              : 1;
+	uint32_t is_iso            : 1;
+	uint32_t max_packet_size   : 11;
+	      // HCD: make use of 5 reserved bits
+	uint32_t used              : 1;
 	uint32_t is_interrupt_xfer : 1;
 	uint32_t is_stalled        : 1;
 	uint32_t                   : 2;
 
+	// Word 1
+	uint32_t td_tail;
 
-	//------------- Word 1 -------------//
-	union {
-	  uint32_t address;
-	}td_tail;
-
-	//------------- Word 2 -------------//
+	// Word 2
 	volatile union {
 		uint32_t address;
 		struct {
@@ -145,13 +143,14 @@ typedef struct ATTR_ALIGNED(16) {
 		};
 	}td_head;
 
-	//------------- Word 3 -------------//
-	uint32_t next_ed; // 4 lsb bits are free to use
+	// Word 3: next ED (4 lsb bits are free to use )
+	uint32_t next;
 } ohci_ed_t;
 
 TU_VERIFY_STATIC( sizeof(ohci_ed_t) == 16, "size is not correct" );
 
-typedef struct ATTR_ALIGNED(32) {
+typedef struct ATTR_ALIGNED(32)
+{
 	/*---------- Word 1 ----------*/
   uint32_t starting_frame          : 16;
   uint32_t                         : 5; // can be used
@@ -159,13 +158,12 @@ typedef struct ATTR_ALIGNED(32) {
   uint32_t frame_count             : 3;
   uint32_t                         : 1; // can be used
   volatile uint32_t condition_code : 4;
-	/*---------- End Word 1 ----------*/
 
 	/*---------- Word 2 ----------*/
 	uint32_t buffer_page0;	// 12 lsb bits can be used
 
 	/*---------- Word 3 ----------*/
-	volatile uint32_t next_td;
+	volatile uint32_t next;
 
 	/*---------- Word 4 ----------*/
 	uint32_t buffer_end;
