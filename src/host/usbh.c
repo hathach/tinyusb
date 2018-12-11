@@ -515,7 +515,7 @@ bool enum_task(hcd_event_t* event)
   new_dev->speed    = dev0->speed;
   new_dev->state    = TUSB_DEVICE_STATE_ADDRESSED;
 
-  usbh_pipe_control_close(0);
+  usbh_pipe_control_close(0); // hcd_device_remove(rhport, 0); // close device 0
   dev0->state = TUSB_DEVICE_STATE_UNPLUG;
 
   // open control pipe for new address

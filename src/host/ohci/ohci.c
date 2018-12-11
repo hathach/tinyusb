@@ -136,7 +136,7 @@ enum {
 //--------------------------------------------------------------------+
 // INTERNAL OBJECT & FUNCTION DECLARATION
 //--------------------------------------------------------------------+
-CFG_TUSB_MEM_SECTION ATTR_ALIGNED(256) STATIC_VAR ohci_data_t ohci_data;
+CFG_TUSB_MEM_SECTION ATTR_ALIGNED(256) static ohci_data_t ohci_data;
 
 static ohci_ed_t * const p_ed_head[] =
 {
@@ -216,11 +216,11 @@ tusb_speed_t hcd_port_speed_get(uint8_t hostid)
   return OHCI_REG->rhport_status_bit[0].low_speed_device_attached ? TUSB_SPEED_LOW : TUSB_SPEED_FULL;
 }
 
-// TODO refractor abtract later
-void hcd_port_unplug(uint8_t hostid)
+void hcd_device_remove(uint8_t rhport, uint8_t dev_addr)
 {
   // TODO OHCI
-  (void) hostid;
+  (void) rhport;
+  (void) dev_addr;
 }
 
 //--------------------------------------------------------------------+
@@ -273,67 +273,6 @@ static void gtd_init(ohci_gtd_t* p_td, void* data_ptr, uint16_t total_bytes)
   p_td->buffer_end             = total_bytes ? (((uint8_t*) data_ptr) + total_bytes-1) : NULL;
 }
 
-
-bool  hcd_pipe_control_open(uint8_t dev_addr, uint8_t max_packet_size)
-{
-  ohci_ed_t* p_ed = &ohci_data.control[dev_addr].ed;
-
-  ed_init(p_ed, dev_addr, max_packet_size, 0, TUSB_XFER_CONTROL, 0); // TODO binterval of control is ignored
-
-  if ( dev_addr != 0 )
-  { // insert to control head
-    ed_list_insert( p_ed_head[TUSB_XFER_CONTROL], p_ed);
-  }else
-  {
-    p_ed->skip = 0; // addr0 is used as static control head --> only need to clear skip bit
-  }
-
-  return true;
-}
-
-//bool  hcd_pipe_control_xfer(uint8_t dev_addr, tusb_control_request_t const * p_request, uint8_t data[])
-//{
-//  ohci_ed_t* const p_ed = &ohci_data.control[dev_addr].ed;
-//
-//  ohci_gtd_t *p_setup      = &ohci_data.control[dev_addr].gtd[0];
-//  ohci_gtd_t *p_data       = p_setup + 1;
-//  ohci_gtd_t *p_status     = p_setup + 2;
-//
-//  //------------- SETUP Phase -------------//
-//  gtd_init(p_setup, (void*) p_request, 8);
-//  p_setup->index       = dev_addr;
-//  p_setup->pid         = OHCI_PID_SETUP;
-//  p_setup->data_toggle = BIN8(10); // DATA0
-//  p_setup->next_td     = (uint32_t) p_data;
-//
-//  //------------- DATA Phase -------------//
-//  if (p_request->wLength > 0)
-//  {
-//    gtd_init(p_data, data, p_request->wLength);
-//    p_data->index       = dev_addr;
-//    p_data->pid         = p_request->bmRequestType_bit.direction ? OHCI_PID_IN : OHCI_PID_OUT;
-//    p_data->data_toggle = BIN8(11); // DATA1
-//  }else
-//  {
-//    p_data = p_setup;
-//  }
-//  p_data->next_td = (uint32_t) p_status;
-//
-//  //------------- STATUS Phase -------------//
-//  gtd_init(p_status, NULL, 0); // zero-length data
-//  p_status->index           = dev_addr;
-//  p_status->pid             = p_request->bmRequestType_bit.direction ? OHCI_PID_OUT : OHCI_PID_IN; // reverse direction of data phase
-//  p_status->data_toggle     = BIN8(11); // DATA1
-//  p_status->delay_interrupt = OHCI_INT_ON_COMPLETE_YES;
-//
-//  //------------- Attach TDs list to Control Endpoint -------------//
-//  p_ed->td_head.address = (uint32_t) p_setup;
-//
-//  OHCI_REG->command_status_bit.control_list_filled = 1;
-//
-//  return true;
-//}
-
 bool hcd_pipe_control_close(uint8_t dev_addr)
 {
   ohci_ed_t* const p_ed = &ohci_data.control[dev_addr].ed;
@@ -352,13 +291,6 @@ bool hcd_pipe_control_close(uint8_t dev_addr)
   return true;
 }
 
-bool hcd_edpt_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_endpoint_t const* ep_desc)
-{
-  // FIXME control only for now
-  (void) rhport;
-  return hcd_pipe_control_open(dev_addr, ep_desc->wMaxPacketSize.size);
-}
-
 bool hcd_edpt_close(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr)
 {
   // FIXME control only for now
@@ -373,7 +305,7 @@ bool hcd_setup_send(uint8_t rhport, uint8_t dev_addr, uint8_t const setup_packet
   (void) rhport;
 
   ohci_ed_t* p_ed = &ohci_data.control[dev_addr].ed;
-  ohci_gtd_t *p_setup  = &ohci_data.control[dev_addr].gtd[0];
+  ohci_gtd_t *p_setup  = &ohci_data.control[dev_addr].gtd;
 
   gtd_init(p_setup, (void*) setup_packet, 8);
   p_setup->index       = dev_addr;
@@ -400,7 +332,7 @@ bool hcd_edpt_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr, uint8_t * 
   if ( epnum == 0 )
   {
     ohci_ed_t* const p_ed = &ohci_data.control[dev_addr].ed;
-    ohci_gtd_t *p_data  = &ohci_data.control[dev_addr].gtd[0];
+    ohci_gtd_t *p_data  = &ohci_data.control[dev_addr].gtd;
 
     gtd_init(p_data, buffer, buflen);
 
@@ -420,27 +352,31 @@ bool hcd_edpt_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr, uint8_t * 
 //--------------------------------------------------------------------+
 // BULK/INT/ISO PIPE API
 //--------------------------------------------------------------------+
-static inline uint8_t ed_get_index(ohci_ed_t const * const p_ed) ATTR_PURE ATTR_ALWAYS_INLINE;
-static inline uint8_t ed_get_index(ohci_ed_t const * const p_ed)
+static inline ohci_ed_t * ed_from_addr(uint8_t dev_addr, uint8_t ep_addr)
 {
-  return p_ed - ohci_data.device[p_ed->device_address-1].ed;
+  if ( edpt_number(ep_addr) == 0 ) return &ohci_data.control[dev_addr].ed;
+
+  ohci_ed_t* ed_pool = ohci_data.ed_pool;
+
+  for(uint32_t i=0; i<HCD_MAX_ENDPOINT; i++)
+  {
+    if ( (ed_pool[i].device_address == dev_addr) &&
+          ep_addr == edpt_addr(ed_pool[i].endpoint_number, ed_pool[i].direction == OHCI_PID_IN) )
+    {
+      return &ed_pool[i];
+    }
+  }
+
+  return NULL;
 }
 
-static inline ohci_ed_t * ed_from_pipe_handle(pipe_handle_t pipe_hdl) ATTR_PURE ATTR_ALWAYS_INLINE;
-static inline ohci_ed_t * ed_from_pipe_handle(pipe_handle_t pipe_hdl)
+static inline ohci_ed_t * ed_find_free(void)
 {
-  return &ohci_data.device[pipe_hdl.dev_addr-1].ed[pipe_hdl.index];
-}
+  ohci_ed_t* ed_pool = ohci_data.ed_pool;
 
-static inline ohci_ed_t * ed_find_free(uint8_t dev_addr) ATTR_PURE ATTR_ALWAYS_INLINE;
-static inline ohci_ed_t * ed_find_free(uint8_t dev_addr)
-{
   for(uint8_t i = 0; i < HCD_MAX_ENDPOINT; i++)
   {
-    if ( !ohci_data.device[dev_addr-1].ed[i].used )
-    {
-      return &ohci_data.device[dev_addr-1].ed[i];
-    }
+    if ( !ed_pool[i].used ) return &ed_pool[i];
   }
 
   return NULL;
@@ -481,39 +417,45 @@ static void ed_list_remove(ohci_ed_t * p_head, ohci_ed_t * p_ed)
   p_ed->used      = 0; // free ED
 }
 
-pipe_handle_t hcd_edpt_open(uint8_t dev_addr, tusb_desc_endpoint_t const * p_endpoint_desc, uint8_t class_code)
+bool hcd_edpt_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_endpoint_t const * ep_desc)
 {
-  pipe_handle_t const null_handle = { .dev_addr = 0, .xfer_type = 0, .index = 0 };
+  (void) rhport; 
 
   // TODO iso support
-  TU_ASSERT(p_endpoint_desc->bmAttributes.xfer != TUSB_XFER_ISOCHRONOUS, null_handle );
+  TU_ASSERT(ep_desc->bmAttributes.xfer != TUSB_XFER_ISOCHRONOUS);
 
   //------------- Prepare Queue Head -------------//
-  ohci_ed_t * const p_ed = ed_find_free(dev_addr);
-  TU_ASSERT(p_ed, null_handle);
+  ohci_ed_t * p_ed;
 
-  ed_init( p_ed, dev_addr, p_endpoint_desc->wMaxPacketSize.size, p_endpoint_desc->bEndpointAddress,
-            p_endpoint_desc->bmAttributes.xfer, p_endpoint_desc->bInterval );
-  p_ed->td_tail.class_code = class_code;
-
-  ed_list_insert( p_ed_head[p_endpoint_desc->bmAttributes.xfer], p_ed );
-
-  return (pipe_handle_t)
+  if ( ep_desc->bEndpointAddress == 0 )
   {
-    .dev_addr  = dev_addr,
-    .xfer_type = p_endpoint_desc->bmAttributes.xfer,
-    .index     = ed_get_index(p_ed)
-  };
+    p_ed = &ohci_data.control[dev_addr].ed;
+  }else
+  {
+    p_ed = ed_find_free();
+  }
+  TU_ASSERT(p_ed);
+
+  ed_init( p_ed, dev_addr, ep_desc->wMaxPacketSize.size, ep_desc->bEndpointAddress,
+            ep_desc->bmAttributes.xfer, ep_desc->bInterval );
+
+  // control of dev0 is used as static async head
+  if ( dev_addr == 0 )
+  {
+    p_ed->skip = 0; // only need to clear skip bit
+    return true;
+  }
+
+  ed_list_insert( p_ed_head[ep_desc->bmAttributes.xfer], p_ed );
+
+  return true;
 }
 
-static ohci_gtd_t * gtd_find_free(uint8_t dev_addr)
+static ohci_gtd_t * gtd_find_free(void)
 {
   for(uint8_t i=0; i < HCD_MAX_XFER; i++)
   {
-    if (!ohci_data.device[dev_addr-1].gtd[i].used)
-    {
-      return &ohci_data.device[dev_addr-1].gtd[i];
-    }
+    if ( !ohci_data.gtd_pool[i].used ) return &ohci_data.gtd_pool[i];
   }
 
   return NULL;
@@ -532,72 +474,71 @@ static void td_insert_to_ed(ohci_ed_t* p_ed, ohci_gtd_t * p_gtd)
   }
 }
 
-static tusb_error_t  pipe_queue_xfer(pipe_handle_t pipe_hdl, uint8_t buffer[], uint16_t total_bytes, bool int_on_complete)
+static bool pipe_queue_xfer(uint8_t dev_addr, uint8_t ep_addr, uint8_t buffer[], uint16_t total_bytes, bool int_on_complete)
 {
-  ohci_ed_t* const p_ed = ed_from_pipe_handle(pipe_hdl);
+  ohci_ed_t* const p_ed = ed_from_addr(dev_addr, ep_addr);
 
-  if ( !p_ed->is_iso )
-  {
-    ohci_gtd_t * const p_gtd = gtd_find_free(pipe_hdl.dev_addr);
-    TU_ASSERT(p_gtd, TUSB_ERROR_EHCI_NOT_ENOUGH_QTD); // TODO refractor error code
+  // not support ISO yet
+  TU_VERIFY ( !p_ed->is_iso );
 
-    gtd_init(p_gtd, buffer, total_bytes);
-    p_gtd->index           = pipe_hdl.index;
-    if ( int_on_complete )  p_gtd->delay_interrupt = OHCI_INT_ON_COMPLETE_YES;
+  ohci_gtd_t * const p_gtd = gtd_find_free();
+  TU_ASSERT(p_gtd); // not enough gtd
 
-    td_insert_to_ed(p_ed, p_gtd);
-  }else
-  {
-    TU_ASSERT_ERR(TUSB_ERROR_NOT_SUPPORTED_YET);
-  }
+  gtd_init(p_gtd, buffer, total_bytes);
+  p_gtd->index = p_ed-ohci_data.ed_pool;
 
-  return TUSB_ERROR_NONE;
+  if ( int_on_complete )  p_gtd->delay_interrupt = OHCI_INT_ON_COMPLETE_YES;
+
+  td_insert_to_ed(p_ed, p_gtd);
+
+  return true;
 }
 
-tusb_error_t  hcd_pipe_queue_xfer(pipe_handle_t pipe_hdl, uint8_t buffer[], uint16_t total_bytes)
+bool hcd_pipe_queue_xfer(uint8_t dev_addr, uint8_t ep_addr, uint8_t buffer[], uint16_t total_bytes)
 {
-  return pipe_queue_xfer(pipe_hdl, buffer, total_bytes, false);
+  return pipe_queue_xfer(dev_addr, ep_addr, buffer, total_bytes, false);
 }
 
-tusb_error_t  hcd_pipe_xfer(pipe_handle_t pipe_hdl, uint8_t buffer[], uint16_t total_bytes, bool int_on_complete)
+bool  hcd_pipe_xfer(uint8_t dev_addr, uint8_t ep_addr, uint8_t buffer[], uint16_t total_bytes, bool int_on_complete)
 {
   (void) int_on_complete;
-  TU_ASSERT_ERR( pipe_queue_xfer(pipe_hdl, buffer, total_bytes, true) );
+  TU_ASSERT( pipe_queue_xfer(dev_addr, ep_addr, buffer, total_bytes, true) );
 
-  tusb_xfer_type_t xfer_type = ed_get_xfer_type( ed_from_pipe_handle(pipe_hdl) );
+  tusb_xfer_type_t xfer_type = ed_get_xfer_type( ed_from_addr(dev_addr, ep_addr) );
 
   if (TUSB_XFER_BULK == xfer_type) OHCI_REG->command_status_bit.bulk_list_filled = 1;
 
-  return TUSB_ERROR_NONE;
+  return true;
 }
 
 /// pipe_close should only be called as a part of unmount/safe-remove process
 // endpoints are tied to an address, which only reclaim after a long delay when enumerating
 // thus there is no need to make sure ED is not in HC's cahed as it will not for sure
-tusb_error_t  hcd_pipe_close(pipe_handle_t pipe_hdl)
+bool hcd_pipe_close(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr)
 {
-  ohci_ed_t * const p_ed = ed_from_pipe_handle(pipe_hdl);
+  (void) rhport;
+  ohci_ed_t * const p_ed = ed_from_addr(dev_addr, ep_addr);
 
   ed_list_remove( p_ed_head[ ed_get_xfer_type(p_ed)], p_ed );
 
-  return TUSB_ERROR_FAILED;
+  return true;
 }
 
-bool hcd_edpt_busy(pipe_handle_t pipe_hdl)
+bool hcd_edpt_busy(uint8_t dev_addr, uint8_t ep_addr)
 {
-  ohci_ed_t const * const p_ed = ed_from_pipe_handle(pipe_hdl);
+  ohci_ed_t const * const p_ed = ed_from_addr(dev_addr, ep_addr);
   return tu_align16(p_ed->td_head.address) != tu_align16(p_ed->td_tail.address);
 }
 
-bool hcd_edpt_stalled(pipe_handle_t pipe_hdl)
+bool hcd_edpt_stalled(uint8_t dev_addr, uint8_t ep_addr)
 {
-  ohci_ed_t const * const p_ed = ed_from_pipe_handle(pipe_hdl);
+  ohci_ed_t const * const p_ed = ed_from_addr(dev_addr, ep_addr);
   return p_ed->td_head.halted && p_ed->is_stalled;
 }
 
-tusb_error_t hcd_edpt_clear_stall(pipe_handle_t pipe_hdl)
+bool hcd_edpt_clear_stall(uint8_t dev_addr, uint8_t ep_addr)
 {
-  ohci_ed_t * const p_ed = ed_from_pipe_handle(pipe_hdl);
+  ohci_ed_t * const p_ed = ed_from_addr(dev_addr, ep_addr);
 
   p_ed->is_stalled        = 0;
   p_ed->td_tail.address  &= 0x0Ful; // set tail pointer back to NULL
@@ -607,7 +548,7 @@ tusb_error_t hcd_edpt_clear_stall(pipe_handle_t pipe_hdl)
 
   if ( TUSB_XFER_BULK == ed_get_xfer_type(p_ed) ) OHCI_REG->command_status_bit.bulk_list_filled = 1;
 
-  return TUSB_ERROR_NONE;
+  return true;
 }
 
 
@@ -632,13 +573,11 @@ static ohci_td_item_t* list_reverse(ohci_td_item_t* td_head)
   return td_reverse_head;
 }
 
-static inline bool gtd_is_control(ohci_gtd_t const * const p_qtd) ATTR_CONST ATTR_ALWAYS_INLINE;
 static inline bool gtd_is_control(ohci_gtd_t const * const p_qtd)
 {
-  return ((uint32_t) p_qtd) < ((uint32_t) ohci_data.device); // check ohci_data_t for memory layout
+  return ((uint32_t) p_qtd) < ((uint32_t) ohci_data.gtd_pool); // check ohci_data_t for memory layout
 }
 
-static inline ohci_ed_t* gtd_get_ed(ohci_gtd_t const * const p_qtd) ATTR_PURE ATTR_ALWAYS_INLINE;
 static inline ohci_ed_t* gtd_get_ed(ohci_gtd_t const * const p_qtd)
 {
   if ( gtd_is_control(p_qtd) )
@@ -646,13 +585,10 @@ static inline ohci_ed_t* gtd_get_ed(ohci_gtd_t const * const p_qtd)
     return &ohci_data.control[p_qtd->index].ed;
   }else
   {
-    uint8_t dev_addr_idx = (((uint32_t)p_qtd) - ((uint32_t)ohci_data.device)) / sizeof(ohci_data.device[0]);
-
-    return &ohci_data.device[dev_addr_idx].ed[p_qtd->index];
+    return &ohci_data.ed_pool[p_qtd->index];
   }
 }
 
-static inline uint32_t gtd_xfer_byte_left(uint32_t buffer_end, uint32_t current_buffer) ATTR_CONST ATTR_ALWAYS_INLINE;
 static inline uint32_t gtd_xfer_byte_left(uint32_t buffer_end, uint32_t current_buffer)
 { // 5.2.9 OHCI sample code
   return (tu_align4k(buffer_end ^ current_buffer) ? 0x1000 : 0) +
@@ -663,18 +599,16 @@ static void done_queue_isr(uint8_t hostid)
 {
   (void) hostid;
 
-  uint8_t max_loop = (CFG_TUSB_HOST_DEVICE_MAX+1)*(HCD_MAX_XFER+OHCI_MAX_ITD);
-
   // done head is written in reversed order of completion --> need to reverse the done queue first
   ohci_td_item_t* td_head = list_reverse ( (ohci_td_item_t*) tu_align16(ohci_data.hcca.done_head) );
 
-  while( td_head != NULL && max_loop > 0)
+  while( td_head != NULL )
   {
     // TODO check if td_head is iso td
     //------------- Non ISO transfer -------------//
     ohci_gtd_t * const p_qtd = (ohci_gtd_t *) td_head;
     xfer_result_t const event = (p_qtd->condition_code == OHCI_CCODE_NO_ERROR) ? XFER_RESULT_SUCCESS :
-                               (p_qtd->condition_code == OHCI_CCODE_STALL) ? XFER_RESULT_STALLED : XFER_RESULT_FAILED;
+                                (p_qtd->condition_code == OHCI_CCODE_STALL) ? XFER_RESULT_STALLED : XFER_RESULT_FAILED;
 
     p_qtd->used = 0; // free TD
     if ( (p_qtd->delay_interrupt == OHCI_INT_ON_COMPLETE_YES) || (event != XFER_RESULT_SUCCESS) )
@@ -697,19 +631,12 @@ static void done_queue_isr(uint8_t hostid)
         if ( event == XFER_RESULT_STALLED ) p_ed->is_stalled = 1;
       }
 
-      pipe_handle_t pipe_hdl =
-      {
-          .dev_addr  = p_ed->device_address,
-          .xfer_type = ed_get_xfer_type(p_ed),
-      };
-
-      if ( pipe_hdl.xfer_type != TUSB_XFER_CONTROL) pipe_hdl.index = ed_get_index(p_ed);
-
-      hcd_event_xfer_complete(pipe_hdl, p_ed->td_tail.class_code, event, xferred_bytes);
+      hcd_event_xfer_complete(p_ed->device_address,
+                              edpt_addr(p_ed->endpoint_number, p_ed->direction == OHCI_PID_IN),
+                              event, xferred_bytes);
     }
 
     td_head = (ohci_td_item_t*) td_head->next_td;
-    max_loop--;
   }
 }
 

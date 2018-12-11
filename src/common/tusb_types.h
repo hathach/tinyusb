@@ -392,9 +392,9 @@ static inline uint8_t edpt_number(uint8_t addr)
   return addr & (~TUSB_DIR_IN_MASK);
 }
 
-static inline uint8_t edpt_addr(uint8_t num, tusb_dir_t dir)
+static inline uint8_t edpt_addr(uint8_t num, uint8_t dir)
 {
-  return num | (dir == TUSB_DIR_IN ? TUSB_DIR_IN_MASK : 0);
+  return num | (dir ? TUSB_DIR_IN_MASK : 0);
 }
 
 //--------------------------------------------------------------------+
