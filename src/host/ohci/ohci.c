@@ -495,19 +495,6 @@ bool  hcd_pipe_xfer(uint8_t dev_addr, uint8_t ep_addr, uint8_t buffer[], uint16_
   return true;
 }
 
-/// pipe_close should only be called as a part of unmount/safe-remove process
-// endpoints are tied to an address, which only reclaim after a long delay when enumerating
-// thus there is no need to make sure ED is not in HC's cahed as it will not for sure
-//bool hcd_pipe_close(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr)
-//{
-//  (void) rhport;
-//  ohci_ed_t * const p_ed = ed_from_addr(dev_addr, ep_addr);
-//
-//  ed_list_remove( p_ed_head[ ed_get_xfer_type(p_ed)], p_ed );
-//
-//  return true;
-//}
-
 bool hcd_edpt_busy(uint8_t dev_addr, uint8_t ep_addr)
 {
   ohci_ed_t const * const p_ed = ed_from_addr(dev_addr, ep_addr);
