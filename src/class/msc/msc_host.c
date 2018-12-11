@@ -76,7 +76,7 @@ bool tuh_msc_is_mounted(uint8_t dev_addr)
 bool tuh_msc_is_busy(uint8_t dev_addr)
 {
   return  msch_data[dev_addr-1].is_initialized &&
-          hcd_pipe_is_busy(dev_addr, msch_data[dev_addr-1].ep_in);
+          hcd_edpt_busy(dev_addr, msch_data[dev_addr-1].ep_in);
 }
 
 uint8_t const* tuh_msc_get_vendor_name(uint8_t dev_addr)
@@ -361,7 +361,7 @@ bool msch_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_interface_t const *it
 
   // NOTE: my toshiba thumb-drive stall the first Read Capacity and require the sequence
   // Read Capacity --> Stalled --> Clear Stall --> Request Sense --> Read Capacity (2) to work
-  if ( hcd_pipe_is_stalled(dev_addr, p_msc->ep_in) )
+  if ( hcd_edpt_stalled(dev_addr, p_msc->ep_in) )
   {
     // clear stall TODO abstract clear stall function
     request = (tusb_control_request_t) {
@@ -374,7 +374,7 @@ bool msch_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_interface_t const *it
 
     TU_ASSERT(usbh_control_xfer( dev_addr, &request, NULL ));
 
-    hcd_pipe_clear_stall(dev_addr, p_msc->ep_in);
+    hcd_edpt_clear_stall(dev_addr, p_msc->ep_in);
     TU_ASSERT( osal_semaphore_wait(msch_sem_hdl, SCSI_XFER_TIMEOUT) ); // wait for SCSI status
 
     //------------- SCSI Request Sense -------------//

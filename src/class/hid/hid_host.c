@@ -78,7 +78,7 @@ tusb_error_t hidh_interface_get_report(uint8_t dev_addr, void * report, hidh_int
   // TODO change to use is configured function
   TU_ASSERT (TUSB_DEVICE_STATE_CONFIGURED == tuh_device_get_state(dev_addr), TUSB_ERROR_DEVICE_NOT_READY);
   TU_VERIFY (report, TUSB_ERROR_INVALID_PARA);
-  TU_ASSERT (!hcd_pipe_is_busy(p_hid->pipe_hdl), TUSB_ERROR_INTERFACE_IS_BUSY);
+  TU_ASSERT (!hcd_edpt_busy(p_hid->pipe_hdl), TUSB_ERROR_INTERFACE_IS_BUSY);
 
   TU_ASSERT_ERR( hcd_pipe_xfer(p_hid->pipe_hdl, report, p_hid->report_size, true) ) ;
 
@@ -118,7 +118,7 @@ tusb_error_t tuh_hid_keyboard_get_report(uint8_t dev_addr, void* p_report)
 bool tuh_hid_keyboard_is_busy(uint8_t dev_addr)
 {
   return  tuh_hid_keyboard_is_mounted(dev_addr) &&
-          hcd_pipe_is_busy( keyboardh_data[dev_addr-1].pipe_hdl );
+          hcd_edpt_busy( keyboardh_data[dev_addr-1].pipe_hdl );
 }
 
 #endif
@@ -139,7 +139,7 @@ bool tuh_hid_mouse_is_mounted(uint8_t dev_addr)
 bool tuh_hid_mouse_is_busy(uint8_t dev_addr)
 {
   return  tuh_hid_mouse_is_mounted(dev_addr) &&
-          hcd_pipe_is_busy( mouseh_data[dev_addr-1].pipe_hdl );
+          hcd_edpt_busy( mouseh_data[dev_addr-1].pipe_hdl );
 }
 
 tusb_error_t tuh_hid_mouse_get_report(uint8_t dev_addr, void * report)

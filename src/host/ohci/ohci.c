@@ -583,19 +583,19 @@ tusb_error_t  hcd_pipe_close(pipe_handle_t pipe_hdl)
   return TUSB_ERROR_FAILED;
 }
 
-bool hcd_pipe_is_busy(pipe_handle_t pipe_hdl)
+bool hcd_edpt_busy(pipe_handle_t pipe_hdl)
 {
   ohci_ed_t const * const p_ed = ed_from_pipe_handle(pipe_hdl);
   return tu_align16(p_ed->td_head.address) != tu_align16(p_ed->td_tail.address);
 }
 
-bool hcd_pipe_is_stalled(pipe_handle_t pipe_hdl)
+bool hcd_edpt_stalled(pipe_handle_t pipe_hdl)
 {
   ohci_ed_t const * const p_ed = ed_from_pipe_handle(pipe_hdl);
   return p_ed->td_head.halted && p_ed->is_stalled;
 }
 
-tusb_error_t hcd_pipe_clear_stall(pipe_handle_t pipe_hdl)
+tusb_error_t hcd_edpt_clear_stall(pipe_handle_t pipe_hdl)
 {
   ohci_ed_t * const p_ed = ed_from_pipe_handle(pipe_hdl);
 

@@ -80,13 +80,13 @@ bool tuh_cdc_is_busy(uint8_t dev_addr, cdc_pipeid_t pipeid)
   switch (pipeid)
   {
     case CDC_PIPE_NOTIFICATION:
-      return hcd_pipe_is_busy(dev_addr, p_cdc->ep_notif );
+      return hcd_edpt_busy(dev_addr, p_cdc->ep_notif );
 
     case CDC_PIPE_DATA_IN:
-      return hcd_pipe_is_busy(dev_addr, p_cdc->ep_in );
+      return hcd_edpt_busy(dev_addr, p_cdc->ep_in );
 
     case CDC_PIPE_DATA_OUT:
-      return hcd_pipe_is_busy(dev_addr, p_cdc->ep_out );
+      return hcd_edpt_busy(dev_addr, p_cdc->ep_out );
 
     default:
       return false;
@@ -110,7 +110,7 @@ bool tuh_cdc_send(uint8_t dev_addr, void const * p_data, uint32_t length, bool i
   TU_VERIFY( p_data != NULL && length, TUSB_ERROR_INVALID_PARA);
 
   uint8_t const ep_out = cdch_data[dev_addr-1].ep_out;
-  if ( hcd_pipe_is_busy(dev_addr, ep_out) ) return false;
+  if ( hcd_edpt_busy(dev_addr, ep_out) ) return false;
 
   return hcd_pipe_xfer(dev_addr, ep_out, (void *) p_data, length, is_notify);
 }
@@ -121,7 +121,7 @@ bool tuh_cdc_receive(uint8_t dev_addr, void * p_buffer, uint32_t length, bool is
   TU_VERIFY( p_buffer != NULL && length, TUSB_ERROR_INVALID_PARA);
 
   uint8_t const ep_in = cdch_data[dev_addr-1].ep_in;
-  if ( hcd_pipe_is_busy(dev_addr, ep_in) ) return false;
+  if ( hcd_edpt_busy(dev_addr, ep_in) ) return false;
 
   return hcd_pipe_xfer(dev_addr, ep_in, p_buffer, length, is_notify);
 }
