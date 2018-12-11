@@ -257,7 +257,7 @@ bool hcd_pipe_control_close(uint8_t dev_addr)
   //------------- TODO pipe handle validate -------------//
   ehci_qhd_t* p_qhd = qhd_control(dev_addr);
 
-  p_qhd->is_removing = 1;
+  p_qhd->removing = 1;
 
   if (dev_addr != 0)
   {
@@ -289,7 +289,7 @@ bool hcd_edpt_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr, uint8_t * 
 
     // first first data toggle is always 1 (data & setup stage)
     qtd->data_toggle = 1;
-    qtd->pid         = dir ? EHCI_PID_IN : EHCI_PID_OUT;
+    qtd->pid = dir ? EHCI_PID_IN : EHCI_PID_OUT;
     qtd->int_on_complete = 1;
     qtd->next.terminate  = 1;
 
@@ -416,7 +416,7 @@ bool hcd_pipe_close(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr)
   // async list needs async advance handshake to make sure host controller has released cached data
   // non-control does not use async advance, it will eventually free by control pipe close
   // period list queue element is guarantee to be free in the next frame (1 ms)
-  p_qhd->is_removing = 1; // TODO redundant, only apply to control queue head
+  p_qhd->removing = 1; // TODO redundant, only apply to control queue head
 
   if ( p_qhd->int_smask == 0 )
   {
@@ -462,9 +462,9 @@ bool hcd_edpt_clear_stall(uint8_t dev_addr, uint8_t ep_addr)
 static void async_advance_isr(ehci_qhd_t * const async_head)
 {
   // TODO do we need to close addr0
-  if (async_head->is_removing) // closing control pipe of addr0
+  if (async_head->removing) // closing control pipe of addr0
   {
-    async_head->is_removing        = 0;
+    async_head->removing           = 0;
     async_head->p_qtd_list_head    = async_head->p_qtd_list_tail = NULL;
     async_head->qtd_overlay.halted = 1;
 
@@ -476,10 +476,10 @@ static void async_advance_isr(ehci_qhd_t * const async_head)
     // check if control endpoint is removing
     ehci_qhd_t *p_control_qhd = qhd_control(dev_addr);
 
-    if ( p_control_qhd->is_removing )
+    if ( p_control_qhd->removing )
     {
-      p_control_qhd->is_removing = 0;
-      p_control_qhd->used        = 0;
+      p_control_qhd->removing = 0;
+      p_control_qhd->used     = 0;
 
       // Host Controller has cleaned up its cached data for this device, set state to unplug
       _usbh_devices[dev_addr].state = TUSB_DEVICE_STATE_UNPLUG;
@@ -488,8 +488,8 @@ static void async_advance_isr(ehci_qhd_t * const async_head)
       {
         if (ehci_data.qhd_pool[i].dev_addr == dev_addr)
         {
-          ehci_data.qhd_pool[i].used        = 0;
-          ehci_data.qhd_pool[i].is_removing = 0;
+          ehci_data.qhd_pool[i].used     = 0;
+          ehci_data.qhd_pool[i].removing = 0;
         }
       }
 
@@ -730,9 +730,6 @@ void hal_hcd_isr(uint8_t hostid)
 
 
 //------------- queue head helper -------------//
-
-
-
 static inline ehci_qhd_t* qhd_find_free (void)
 {
   for (uint32_t i=0; i<HCD_MAX_ENDPOINT; i++)
@@ -821,10 +818,10 @@ static void qhd_init(ehci_qhd_t *p_qhd, uint8_t dev_addr, tusb_desc_endpoint_t c
   uint8_t const interval = ep_desc->bInterval;
 
   p_qhd->dev_addr           = dev_addr;
-  p_qhd->inactive_next_xact = 0;
+  p_qhd->fl_inactive_next_xact = 0;
   p_qhd->ep_number          = edpt_number(ep_desc->bEndpointAddress);
   p_qhd->ep_speed           = _usbh_devices[dev_addr].speed;
-  p_qhd->data_toggle        = (xfer_type == TUSB_XFER_CONTROL) ? 1 : 0;
+  p_qhd->data_toggle_control= (xfer_type == TUSB_XFER_CONTROL) ? 1 : 0;
   p_qhd->head_list_flag     = (dev_addr == 0) ? 1 : 0; // addr0's endpoint is the static asyn list head
   p_qhd->max_packet_size    = ep_desc->wMaxPacketSize.size;
   p_qhd->fl_ctrl_ep_flag    = ((xfer_type == TUSB_XFER_CONTROL) && (p_qhd->ep_speed != TUSB_SPEED_HIGH))  ? 1 : 0;
@@ -866,7 +863,7 @@ static void qhd_init(ehci_qhd_t *p_qhd, uint8_t dev_addr, tusb_desc_endpoint_t c
 
   //------------- HCD Management Data -------------//
   p_qhd->used            = 1;
-  p_qhd->is_removing     = 0;
+  p_qhd->removing        = 0;
   p_qhd->p_qtd_list_head = NULL;
   p_qhd->p_qtd_list_tail = NULL;
   p_qhd->pid_non_control = edpt_dir(ep_desc->bEndpointAddress) ? EHCI_PID_IN : EHCI_PID_OUT; // PID for TD under this endpoint

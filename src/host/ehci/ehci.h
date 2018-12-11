@@ -155,22 +155,22 @@ typedef struct ATTR_ALIGNED(32)
 	ehci_link_t next;
 
 	// Word 1: Endpoint Characteristics
-	uint32_t dev_addr           : 7  ; ///< device address
-	uint32_t inactive_next_xact : 1  ; ///< request HC to set the Active bit to zero (only valid for Periodic with Full/Slow speed)
-	uint32_t ep_number          : 4  ; ///< EP number
-	uint32_t ep_speed           : 2  ; ///< 0: Full, 1: Low, 2: High
-	uint32_t data_toggle        : 1  ; ///< 0: use DT in qHD, 1: use DT in qTD
-	uint32_t head_list_flag     : 1  ; ///< Head of the queue
-	uint32_t max_packet_size    : 11 ; ///< Max packet size
-	uint32_t fl_ctrl_ep_flag    : 1  ; ///< 1 if is Full/Low speed control endpoint
-	uint32_t nak_reload         : 4  ; ///< Used by HC
+	uint32_t dev_addr              : 7  ; ///< device address
+	uint32_t fl_inactive_next_xact : 1  ; ///< Only valid for Periodic with Full/Slow speed
+	uint32_t ep_number             : 4  ; ///< EP number
+	uint32_t ep_speed              : 2  ; ///< 0: Full, 1: Low, 2: High
+	uint32_t data_toggle_control   : 1  ; ///< 0: use DT in qHD, 1: use DT in qTD
+	uint32_t head_list_flag        : 1  ; ///< Head of the queue
+	uint32_t max_packet_size       : 11 ; ///< Max packet size
+	uint32_t fl_ctrl_ep_flag       : 1  ; ///< 1 if is Full/Low speed control endpoint
+	uint32_t nak_reload            : 4  ; ///< Used by HC
 
 	// Word 2: Endpoint Capabilities
-	uint32_t int_smask          : 8  ; ///< Interrupt Schedule Mask
-	uint32_t fl_int_cmask       : 8  ; ///< Split Completion Mask for Full/Slow speed
-	uint32_t fl_hub_addr        : 7  ; ///< Hub Address for Full/Slow speed
-	uint32_t fl_hub_port        : 7  ; ///< Hub Port for Full/Slow speed
-	uint32_t mult               : 2  ; ///< Transaction per micro frame
+	uint32_t int_smask             : 8  ; ///< Interrupt Schedule Mask
+	uint32_t fl_int_cmask          : 8  ; ///< Split Completion Mask for Full/Slow speed
+	uint32_t fl_hub_addr           : 7  ; ///< Hub Address for Full/Slow speed
+	uint32_t fl_hub_port           : 7  ; ///< Hub Port for Full/Slow speed
+	uint32_t mult                  : 2  ; ///< Transaction per micro frame
 
 	// Word 3: Current qTD Pointer
 	volatile uint32_t qtd_addr;
@@ -183,7 +183,7 @@ typedef struct ATTR_ALIGNED(32)
 	/// thus there are 16 bytes padding free that we can make use of.
   //--------------------------------------------------------------------+
 	uint8_t used;
-	uint8_t is_removing;
+	uint8_t removing; // removed from asyn list, waiting for async advance
 	uint8_t pid_non_control;
 	uint8_t interval_ms; // polling interval in frames (or milisecond)
 
