@@ -147,9 +147,7 @@ static ohci_ed_t * const p_ed_head[] =
 };
 
 static void ed_list_insert(ohci_ed_t * p_pre, ohci_ed_t * p_ed);
-static void ed_list_remove(ohci_ed_t * p_head, ohci_ed_t * p_ed);
-
-static ohci_ed_t * ed_list_find_previous(ohci_ed_t const * p_head, ohci_ed_t const * p_ed);
+static void ed_list_remove_by_addr(ohci_ed_t * p_head, uint8_t dev_addr);
 
 //--------------------------------------------------------------------+
 // USBH-HCD API
@@ -216,11 +214,30 @@ tusb_speed_t hcd_port_speed_get(uint8_t hostid)
   return OHCI_REG->rhport_status_bit[0].low_speed_device_attached ? TUSB_SPEED_LOW : TUSB_SPEED_FULL;
 }
 
+// endpoints are tied to an address, which only reclaim after a long delay when enumerating
+// thus there is no need to make sure ED is not in HC's cahed as it will not for sure
 void hcd_device_remove(uint8_t rhport, uint8_t dev_addr)
 {
   // TODO OHCI
   (void) rhport;
-  (void) dev_addr;
+
+  // addr0 serves as static head --> only set skip bit
+  if ( dev_addr == 0 )
+  {
+    ohci_data.control[0].ed.skip = 1;
+  }else
+  {
+    // remove control
+    ed_list_remove_by_addr( p_ed_head[TUSB_XFER_CONTROL], dev_addr);
+
+    // remove bulk
+    ed_list_remove_by_addr(p_ed_head[TUSB_XFER_BULK], dev_addr);
+
+    // remove interrupt
+    ed_list_remove_by_addr(p_ed_head[TUSB_XFER_INTERRUPT], dev_addr);
+
+    // TODO remove ISO
+  }
 }
 
 //--------------------------------------------------------------------+
@@ -271,33 +288,6 @@ static void gtd_init(ohci_gtd_t* p_td, void* data_ptr, uint16_t total_bytes)
 
   p_td->current_buffer_pointer = data_ptr;
   p_td->buffer_end             = total_bytes ? (((uint8_t*) data_ptr) + total_bytes-1) : NULL;
-}
-
-bool hcd_pipe_control_close(uint8_t dev_addr)
-{
-  ohci_ed_t* const p_ed = &ohci_data.control[dev_addr].ed;
-
-  if ( dev_addr == 0 )
-  { // addr0 serves as static head --> only set skip bitx
-    p_ed->skip = 1;
-  }else
-  {
-    ed_list_remove( p_ed_head[ ed_get_xfer_type(p_ed)], p_ed );
-
-    // TODO refractor to be USBH
-    _usbh_devices[dev_addr].state = TUSB_DEVICE_STATE_UNPLUG;
-  }
-
-  return true;
-}
-
-bool hcd_edpt_close(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr)
-{
-  // FIXME control only for now
-  (void) rhport;
-  (void) ep_addr;
-
-  return hcd_pipe_control_close(dev_addr);
 }
 
 bool hcd_setup_send(uint8_t rhport, uint8_t dev_addr, uint8_t const setup_packet[8])
@@ -382,39 +372,33 @@ static inline ohci_ed_t * ed_find_free(void)
   return NULL;
 }
 
-static ohci_ed_t * ed_list_find_previous(ohci_ed_t const * p_head, ohci_ed_t const * p_ed)
-{
-  uint32_t max_loop = HCD_MAX_ENDPOINT*CFG_TUSB_HOST_DEVICE_MAX;
-
-  ohci_ed_t const * p_prev = p_head;
-
-  TU_ASSERT(p_prev, NULL);
-
-  while ( tu_align16(p_prev->next) != 0               && /* not reach null */
-          tu_align16(p_prev->next) != (uint32_t) p_ed && /* not found yet */
-          max_loop > 0)
-  {
-    p_prev = (ohci_ed_t const *) tu_align16(p_prev->next);
-    max_loop--;
-  }
-
-  return ( tu_align16(p_prev->next) == (uint32_t) p_ed ) ? (ohci_ed_t*) p_prev : NULL;
-}
-
 static void ed_list_insert(ohci_ed_t * p_pre, ohci_ed_t * p_ed)
 {
-  p_ed->next |= p_pre->next; // to reserve 4 lsb bits
-  p_pre->next = (p_pre->next & 0x0FUL)  | ((uint32_t) p_ed);
+  p_ed->next = p_pre->next;
+  p_pre->next = (uint32_t) p_ed;
 }
 
-static void ed_list_remove(ohci_ed_t * p_head, ohci_ed_t * p_ed)
+static void ed_list_remove_by_addr(ohci_ed_t * p_head, uint8_t dev_addr)
 {
-  ohci_ed_t * const p_prev  = ed_list_find_previous(p_head, p_ed);
+  ohci_ed_t* p_prev = p_head;
 
-  p_prev->next = (p_prev->next & 0x0fUL) | tu_align16(p_ed->next);
-  // point the removed ED's next pointer to list head to make sure HC can always safely move away from this ED
-  p_ed->next   = (uint32_t) p_head;
-  p_ed->used      = 0; // free ED
+  while( p_prev->next )
+  {
+    ohci_ed_t* ed = (ohci_ed_t*) p_prev->next;
+
+    if (ed->dev_addr == dev_addr)
+    {
+      // unlink ed
+      p_prev->next = ed->next;
+
+      // point the removed ED's next pointer to list head to make sure HC can always safely move away from this ED
+      ed->next = (uint32_t) p_head;
+      ed->used = 0;
+    }
+
+    // check next valid since we could remove it
+    if (p_prev->next) p_prev = (ohci_ed_t*) p_prev->next;
+  }
 }
 
 bool hcd_edpt_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_endpoint_t const * ep_desc)
@@ -514,15 +498,15 @@ bool  hcd_pipe_xfer(uint8_t dev_addr, uint8_t ep_addr, uint8_t buffer[], uint16_
 /// pipe_close should only be called as a part of unmount/safe-remove process
 // endpoints are tied to an address, which only reclaim after a long delay when enumerating
 // thus there is no need to make sure ED is not in HC's cahed as it will not for sure
-bool hcd_pipe_close(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr)
-{
-  (void) rhport;
-  ohci_ed_t * const p_ed = ed_from_addr(dev_addr, ep_addr);
-
-  ed_list_remove( p_ed_head[ ed_get_xfer_type(p_ed)], p_ed );
-
-  return true;
-}
+//bool hcd_pipe_close(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr)
+//{
+//  (void) rhport;
+//  ohci_ed_t * const p_ed = ed_from_addr(dev_addr, ep_addr);
+//
+//  ed_list_remove( p_ed_head[ ed_get_xfer_type(p_ed)], p_ed );
+//
+//  return true;
+//}
 
 bool hcd_edpt_busy(uint8_t dev_addr, uint8_t ep_addr)
 {

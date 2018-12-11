@@ -143,7 +143,7 @@ typedef struct ATTR_ALIGNED(16)
 		};
 	}td_head;
 
-	// Word 3: next ED (4 lsb bits are free to use )
+	// Word 3: next ED
 	uint32_t next;
 } ohci_ed_t;
 
@@ -175,7 +175,8 @@ typedef struct ATTR_ALIGNED(32)
 TU_VERIFY_STATIC( sizeof(ochi_itd_t) == 32, "size is not correct" );
 
 // structure with member alignment required from large to small
-typedef struct ATTR_ALIGNED(256) {
+typedef struct ATTR_ALIGNED(256)
+{
   ohci_hcca_t hcca;
 
   ohci_ed_t bulk_head_ed; // static bulk head (dummy)
