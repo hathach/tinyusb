@@ -413,9 +413,6 @@ void msch_isr(uint8_t dev_addr, uint8_t ep_addr, xfer_result_t event, uint32_t x
 
 void msch_close(uint8_t dev_addr)
 {
-  (void) hcd_pipe_close(TUH_OPT_RHPORT, dev_addr, msch_data[dev_addr-1].ep_in);
-  (void) hcd_pipe_close(TUH_OPT_RHPORT, dev_addr, msch_data[dev_addr-1].ep_out);
-
   tu_memclr(&msch_data[dev_addr-1], sizeof(msch_interface_t));
   osal_semaphore_reset(msch_sem_hdl);
 

@@ -251,9 +251,7 @@ void hub_isr(uint8_t dev_addr, uint8_t ep_addr, xfer_result_t event, uint32_t xf
 
 void hub_close(uint8_t dev_addr)
 {
-  hcd_pipe_close(TUH_OPT_RHPORT, dev_addr, hub_data[dev_addr-1].ep_status);
   tu_memclr(&hub_data[dev_addr-1], sizeof(usbh_hub_t));
-
 //  osal_semaphore_reset(hub_enum_sem_hdl);
 }
 

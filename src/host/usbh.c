@@ -118,7 +118,7 @@ static host_class_driver_t const usbh_class_drivers[] =
   #endif
 };
 
-enum { USBH_CLASS_DRIVER_COUNT = sizeof(usbh_class_drivers) / sizeof(host_class_driver_t) };
+enum { USBH_CLASS_DRIVER_COUNT = TU_ARRAY_SZIE(usbh_class_drivers) };
 
 //--------------------------------------------------------------------+
 // INTERNAL OBJECT & FUNCTION DECLARATION
@@ -146,7 +146,7 @@ static void mark_interface_endpoint(uint8_t ep2drv[8][2], uint8_t const* p_desc,
 //--------------------------------------------------------------------+
 tusb_device_state_t tuh_device_get_state (uint8_t const dev_addr)
 {
-  TU_ASSERT( dev_addr <= CFG_TUSB_HOST_DEVICE_MAX, TUSB_DEVICE_STATE_INVALID_PARAMETER);
+  TU_ASSERT( dev_addr <= CFG_TUSB_HOST_DEVICE_MAX, TUSB_DEVICE_STATE_UNPLUG);
   return (tusb_device_state_t) _usbh_devices[dev_addr].state;
 }
 
@@ -241,13 +241,6 @@ tusb_error_t usbh_pipe_control_open(uint8_t dev_addr, uint8_t max_packet_size)
   return TUSB_ERROR_NONE;
 }
 
-static inline tusb_error_t usbh_pipe_control_close(uint8_t dev_addr)
-{
-  hcd_edpt_close(_usbh_devices[dev_addr].rhport, dev_addr, 0);
-
-  return TUSB_ERROR_NONE;
-}
-
 //--------------------------------------------------------------------+
 // USBH-HCD ISR/Callback API
 //--------------------------------------------------------------------+
@@ -321,13 +314,12 @@ void hcd_event_device_remove(uint8_t hostid)
 // return true if found and unmounted device, false if cannot find
 static void usbh_device_unplugged(uint8_t rhport, uint8_t hub_addr, uint8_t hub_port)
 {
-  bool is_found = false;
-
   //------------- find the all devices (star-network) under port that is unplugged -------------//
   for (uint8_t dev_addr = 0; dev_addr <= CFG_TUSB_HOST_DEVICE_MAX; dev_addr ++)
   {
     usbh_device_t* dev = &_usbh_devices[dev_addr];
 
+    // TODO Hub multiple level
     if (dev->rhport == rhport   &&
         (hub_addr == 0 || dev->hub_addr == hub_addr) && // hub_addr == 0 & hub_port == 0 means roothub
         (hub_port == 0 || dev->hub_port == hub_port) &&
@@ -336,29 +328,17 @@ static void usbh_device_unplugged(uint8_t rhport, uint8_t hub_addr, uint8_t hub_
       // Invoke callback before close driver
       if (tuh_umount_cb) tuh_umount_cb(dev_addr);
 
-      // TODO Hub multiple level
       // Close class driver
       for (uint8_t drv_id = 0; drv_id < USBH_CLASS_DRIVER_COUNT; drv_id++) usbh_class_drivers[drv_id].close(dev_addr);
-
-      // TODO refractor
-      // set to REMOVING to allow HCD to clean up its cached data for this device
-      // HCD must set this device's state to TUSB_DEVICE_STATE_UNPLUG when done
-      dev->state = TUSB_DEVICE_STATE_REMOVING;
 
       memset(dev->itf2drv, 0xff, sizeof(dev->itf2drv)); // invalid mapping
       memset(dev->ep2drv , 0xff, sizeof(dev->ep2drv )); // invalid mapping
 
-      usbh_pipe_control_close(dev_addr);
+      hcd_device_remove(rhport, dev_addr);
 
-//      hcd_device_remove(rhport, dev_addr);
-
-      is_found = true;
+      dev->state = TUSB_DEVICE_STATE_UNPLUG;
     }
   }
-
-  // FIXME remove
-  if (is_found) hcd_device_remove(_usbh_devices[0].rhport, 0);
-
 }
 
 //--------------------------------------------------------------------+
@@ -515,7 +495,7 @@ bool enum_task(hcd_event_t* event)
   new_dev->speed    = dev0->speed;
   new_dev->state    = TUSB_DEVICE_STATE_ADDRESSED;
 
-  usbh_pipe_control_close(0); // hcd_device_remove(rhport, 0); // close device 0
+  hcd_device_remove(dev0->rhport, 0); // close device 0
   dev0->state = TUSB_DEVICE_STATE_UNPLUG;
 
   // open control pipe for new address

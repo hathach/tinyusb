@@ -184,7 +184,7 @@ typedef struct ATTR_ALIGNED(32)
   //--------------------------------------------------------------------+
 	uint8_t used;
 	uint8_t removing; // removed from asyn list, waiting for async advance
-	uint8_t pid_non_control;
+	uint8_t pid;
 	uint8_t interval_ms; // polling interval in frames (or milisecond)
 
 	uint16_t total_xferred_bytes; // number of bytes xferred until a qtd with ioc bit set
@@ -229,7 +229,8 @@ typedef struct ATTR_ALIGNED(32) {
 TU_VERIFY_STATIC( sizeof(ehci_itd_t) == 64, "size is not correct" );
 
 /// Split (Full-Speed) Isochronous Transfer Descriptor
-typedef struct ATTR_ALIGNED(32) {
+typedef struct ATTR_ALIGNED(32)
+{
   // Word 0: Next Link Pointer
 	ehci_link_t next;
 
@@ -332,7 +333,8 @@ enum ehci_portsc_change_mask_{
       EHCI_PORTSC_MASK_OVER_CURRENT_CHANGE
 };
 
-typedef volatile struct {
+typedef volatile struct
+{
   union {
     uint32_t command;
 

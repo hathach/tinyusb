@@ -67,7 +67,6 @@ static inline bool hidh_interface_open(uint8_t dev_addr, uint8_t interface_numbe
 
 static inline void hidh_interface_close(hidh_interface_info_t *p_hid)
 {
-  (void) hcd_pipe_close(p_hid->pipe_hdl);
   tu_memclr(p_hid, sizeof(hidh_interface_info_t));
 }
 

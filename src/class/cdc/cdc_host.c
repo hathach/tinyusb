@@ -233,11 +233,6 @@ void cdch_isr(uint8_t dev_addr, uint8_t ep_addr, xfer_result_t event, uint32_t x
 void cdch_close(uint8_t dev_addr)
 {
   cdch_data_t * p_cdc = &cdch_data[dev_addr-1];
-
-  hcd_pipe_close(TUH_OPT_RHPORT, dev_addr, p_cdc->ep_notif);
-  hcd_pipe_close(TUH_OPT_RHPORT, dev_addr, p_cdc->ep_in);
-  hcd_pipe_close(TUH_OPT_RHPORT, dev_addr, p_cdc->ep_out);
-
   tu_memclr(p_cdc, sizeof(cdch_data_t));
 }
 

@@ -108,7 +108,7 @@ bool hcd_port_connect_status(uint8_t hostid) ATTR_PURE ATTR_WARN_UNUSED_RESULT; 
 void hcd_port_reset(uint8_t hostid);
 tusb_speed_t hcd_port_speed_get(uint8_t hostid) ATTR_PURE ATTR_WARN_UNUSED_RESULT; // TODO make inline if possible
 
-// Call by USBH after event device remove
+// HCD closs all opened endpoints belong to this device
 void hcd_device_remove(uint8_t rhport, uint8_t dev_addr);
 
 //--------------------------------------------------------------------+
@@ -135,8 +135,7 @@ bool hcd_edpt_busy(uint8_t dev_addr, uint8_t ep_addr);
 bool hcd_edpt_stalled(uint8_t dev_addr, uint8_t ep_addr);
 bool hcd_edpt_clear_stall(uint8_t dev_addr, uint8_t ep_addr);
 
-// TODO remove
-bool hcd_edpt_close(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr);
+
 bool hcd_edpt_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr, uint8_t * buffer, uint16_t buflen);
 
 //--------------------------------------------------------------------+
@@ -145,7 +144,6 @@ bool hcd_edpt_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr, uint8_t * 
 // TODO control xfer should be used via usbh layer
 bool hcd_pipe_queue_xfer(uint8_t dev_addr, uint8_t ep_addr, uint8_t buffer[], uint16_t total_bytes); // only queue, not transferring yet
 bool hcd_pipe_xfer(uint8_t dev_addr, uint8_t ep_addr, uint8_t buffer[], uint16_t total_bytes, bool int_on_complete);
-bool hcd_pipe_close(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr); // TODO remove
 
 #if 0
 tusb_error_t hcd_pipe_cancel()ATTR_WARN_UNUSED_RESULT;
