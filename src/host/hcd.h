@@ -96,11 +96,20 @@ enum {
 #endif
 
 //--------------------------------------------------------------------+
-// USBH-HCD API
+// HCD API
 //--------------------------------------------------------------------+
 bool hcd_init(void);
 void hcd_int_enable (uint8_t rhport);
 void hcd_int_disable(uint8_t rhport);
+
+// PORT API
+/// return the current connect status of roothub port
+bool hcd_port_connect_status(uint8_t hostid) ATTR_PURE ATTR_WARN_UNUSED_RESULT; // TODO make inline if possible
+void hcd_port_reset(uint8_t hostid);
+tusb_speed_t hcd_port_speed_get(uint8_t hostid) ATTR_PURE ATTR_WARN_UNUSED_RESULT; // TODO make inline if possible
+
+// Call by USBH after event device remove
+void hcd_device_remove(uint8_t rhport, uint8_t dev_addr);
 
 //--------------------------------------------------------------------+
 // Event function
@@ -111,7 +120,7 @@ void hcd_event_handler(hcd_event_t const* event, bool in_isr);
 void hcd_event_device_attach(uint8_t rhport);
 
 // Helper to send device removal event
-void hcd_event_device_remove(uint8_t hostid);
+void hcd_event_device_remove(uint8_t rhport);
 
 // Helper to send USB transfer event
 void hcd_event_xfer_complete(uint8_t dev_addr, uint8_t ep_addr, xfer_result_t event, uint32_t xferred_bytes);
@@ -139,15 +148,6 @@ bool hcd_pipe_clear_stall(uint8_t dev_addr, uint8_t ep_addr);
 #if 0
 tusb_error_t hcd_pipe_cancel()ATTR_WARN_UNUSED_RESULT;
 #endif
-
-//--------------------------------------------------------------------+
-// PORT API
-//--------------------------------------------------------------------+
-/// return the current connect status of roothub port
-bool hcd_port_connect_status(uint8_t hostid) ATTR_PURE ATTR_WARN_UNUSED_RESULT; // TODO make inline if possible
-void hcd_port_reset(uint8_t hostid);
-tusb_speed_t hcd_port_speed_get(uint8_t hostid) ATTR_PURE ATTR_WARN_UNUSED_RESULT; // TODO make inline if possible
-void hcd_port_unplug(uint8_t hostid); // called by usbh to instruct hcd that it can execute unplug procedure
 
 #ifdef __cplusplus
  }

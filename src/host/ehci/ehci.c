@@ -133,7 +133,7 @@ tusb_speed_t hcd_port_speed_get(uint8_t hostid)
 }
 
 // TODO refractor abtract later
-void hcd_port_unplug(uint8_t hostid)
+void hcd_device_remove(uint8_t rhport, uint8_t dev_addr)
 {
   ehci_data.regs->usb_cmd_bit.advance_async = 1; // Async doorbell check EHCI 4.8.2 for operational details
 }
@@ -153,9 +153,7 @@ static bool ehci_init(uint8_t hostid)
   regs->usb_sts        = EHCI_INT_MASK_ALL; // 2. clear all status
 
   regs->usb_int_enable = EHCI_INT_MASK_ERROR | EHCI_INT_MASK_PORT_CHANGE |
-#if EHCI_PERIODIC_LIST
                          EHCI_INT_MASK_NXP_PERIODIC |
-#endif
                          EHCI_INT_MASK_ASYNC_ADVANCE | EHCI_INT_MASK_NXP_ASYNC;
 
   //------------- Asynchronous List -------------//
@@ -170,7 +168,6 @@ static bool ehci_init(uint8_t hostid)
 
   regs->async_list_base = (uint32_t) async_head;
 
-#if EHCI_PERIODIC_LIST
   //------------- Periodic List -------------//
   // Build the polling interval tree with 1 ms, 2 ms, 4 ms and 8 ms (framesize) only
 
@@ -209,19 +206,13 @@ static bool ehci_init(uint8_t hostid)
   period_1ms->terminate    = 1;
 
   regs->periodic_list_base = (uint32_t) framelist;
-#else
-  regs->periodic_list_base = 0;
-#endif
 
   //------------- TT Control (NXP only) -------------//
   regs->tt_control = 0;
 
   //------------- USB CMD Register -------------//
-
   regs->usb_cmd |= BIT_(EHCI_USBCMD_POS_RUN_STOP) | BIT_(EHCI_USBCMD_POS_ASYNC_ENABLE)
-#if EHCI_PERIODIC_LIST
                   | BIT_(EHCI_USBCMD_POS_PERIOD_ENABLE) // TODO enable period list only there is int/iso endpoint
-#endif
                   | ((EHCI_CFG_FRAMELIST_SIZE_BITS & BIN8(011)) << EHCI_USBCMD_POS_FRAMELIST_SZIE)
                   | ((EHCI_CFG_FRAMELIST_SIZE_BITS >> 2) << EHCI_USBCMD_POS_NXP_FRAMELIST_SIZE_MSB);
 
@@ -411,11 +402,9 @@ bool hcd_pipe_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_endpoint_t const 
       list_head = (ehci_link_t*) get_async_head(_usbh_devices[dev_addr].rhport);
     break;
 
-    #if EHCI_PERIODIC_LIST // TODO refractor/group this together
     case TUSB_XFER_INTERRUPT:
       list_head = get_period_head(_usbh_devices[dev_addr].rhport, p_qhd->interval_ms);
     break;
-    #endif
 
     case TUSB_XFER_ISOCHRONOUS:
       // TODO iso is not supported
@@ -479,14 +468,12 @@ bool hcd_pipe_close(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr)
         (ehci_link_t*) get_async_head( _usbh_devices[dev_addr].rhport ),
         (ehci_link_t*) p_qhd), false );
   }
-  #if EHCI_PERIODIC_LIST // TODO refractor/group this together
   else
   {
     TU_ASSERT_ERR( list_remove_qhd(
         get_period_head( _usbh_devices[dev_addr].rhport, p_qhd->interval_ms ),
         (ehci_link_t*) p_qhd), false );
   }
-  #endif
 
   return true;
 }
@@ -610,7 +597,6 @@ static void async_list_xfer_complete_isr(ehci_qhd_t * const async_head)
   // TODO abstract max loop guard for async
 }
 
-#if EHCI_PERIODIC_LIST // TODO refractor/group this together
 static void period_list_xfer_complete_isr(uint8_t hostid, uint8_t interval_ms)
 {
   uint8_t max_loop = 0;
@@ -645,7 +631,6 @@ static void period_list_xfer_complete_isr(uint8_t hostid, uint8_t interval_ms)
     max_loop++;
   }
 }
-#endif
 
 static void qhd_xfer_error_isr(ehci_qhd_t * p_qhd)
 {
@@ -699,7 +684,6 @@ static void xfer_error_isr(uint8_t hostid)
     max_loop++;
   }while(p_qhd != async_head && max_loop < HCD_MAX_ENDPOINT*CFG_TUSB_HOST_DEVICE_MAX); // async list traversal, stop if loop around
 
-  #if EHCI_PERIODIC_LIST
   //------------- TODO refractor period list -------------//
   uint32_t const period_1ms_addr = (uint32_t) get_period_head(hostid, 1);
   for (uint8_t interval_ms=1; interval_ms <= EHCI_FRAMELIST_SIZE; interval_ms *= 2)
@@ -732,7 +716,6 @@ static void xfer_error_isr(uint8_t hostid)
       period_max_loop++;
     }
   }
-  #endif
 }
 
 //------------- Host Controller Driver's Interrupt Handler -------------//
@@ -770,7 +753,6 @@ void hal_hcd_isr(uint8_t hostid)
     async_list_xfer_complete_isr( get_async_head(hostid) );
   }
 
-#if EHCI_PERIODIC_LIST // TODO refractor/group this together
   if (int_status & EHCI_INT_MASK_NXP_PERIODIC)
   {
     for (uint8_t i=1; i <= EHCI_FRAMELIST_SIZE; i *= 2)
@@ -778,7 +760,6 @@ void hal_hcd_isr(uint8_t hostid)
       period_list_xfer_complete_isr( hostid, i );
     }
   }
-#endif
 
   //------------- There is some removed async previously -------------//
   if (int_status & EHCI_INT_MASK_ASYNC_ADVANCE) // need to place after EHCI_INT_MASK_NXP_ASYNC
@@ -801,12 +782,10 @@ static inline ehci_qhd_t* get_async_head(uint8_t hostid)
   return get_control_qhd(0);
 }
 
-#if EHCI_PERIODIC_LIST // TODO refractor/group this together
 static inline ehci_link_t* get_period_head(uint8_t hostid, uint8_t interval_ms)
 {
   return (ehci_link_t*) &ehci_data.period_head_arr[ tu_log2( tu_min8(EHCI_FRAMELIST_SIZE, interval_ms) ) ];
 }
-#endif
 
 static inline ehci_qhd_t* get_control_qhd(uint8_t dev_addr)
 {

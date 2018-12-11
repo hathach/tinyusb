@@ -125,7 +125,6 @@ void check_qhd_endpoint_link(ehci_link_t *p_prev, ehci_qhd_t *p_qhd)
 
 void test_hcd_init_period_list(void)
 {
-#if EHCI_PERIODIC_LIST
   ehci_registers_t* const regs            = get_operational_register(hostid);
   ehci_qhd_t *      const period_head_arr = get_period_head(hostid, 1);
   ehci_link_t *     const framelist       = get_period_frame_list(hostid);
@@ -153,7 +152,6 @@ void test_hcd_init_period_list(void)
   }
 
   TEST_ASSERT_TRUE(period_head_arr[0].next.terminate);
-#endif
 }
 
 void test_hcd_init_tt_control(void)
@@ -166,12 +164,7 @@ void test_hcd_init_usbcmd(void)
   ehci_registers_t* const regs        = get_operational_register(hostid);
 
   TEST_ASSERT(regs->usb_cmd_bit.async_enable);
-
-#if EHCI_PERIODIC_LIST
   TEST_ASSERT(regs->usb_cmd_bit.periodic_enable);
-#else
-  TEST_ASSERT_FALSE(regs->usb_cmd_bit.periodic_enable);
-#endif
 
   //------------- Framelist size (NXP specific) -------------//
   TEST_ASSERT_BITS(BIN8(11), EHCI_CFG_FRAMELIST_SIZE_BITS, regs->usb_cmd_bit.framelist_size);

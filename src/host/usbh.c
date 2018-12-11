@@ -319,15 +319,16 @@ void hcd_event_device_remove(uint8_t hostid)
 
 // a device unplugged on hostid, hub_addr, hub_port
 // return true if found and unmounted device, false if cannot find
-static void usbh_device_unplugged(uint8_t hostid, uint8_t hub_addr, uint8_t hub_port)
+static void usbh_device_unplugged(uint8_t rhport, uint8_t hub_addr, uint8_t hub_port)
 {
   bool is_found = false;
+
   //------------- find the all devices (star-network) under port that is unplugged -------------//
   for (uint8_t dev_addr = 0; dev_addr <= CFG_TUSB_HOST_DEVICE_MAX; dev_addr ++)
   {
     usbh_device_t* dev = &_usbh_devices[dev_addr];
 
-    if (dev->rhport  == hostid   &&
+    if (dev->rhport == rhport   &&
         (hub_addr == 0 || dev->hub_addr == hub_addr) && // hub_addr == 0 & hub_port == 0 means roothub
         (hub_port == 0 || dev->hub_port == hub_port) &&
         dev->state    != TUSB_DEVICE_STATE_UNPLUG)
@@ -349,11 +350,14 @@ static void usbh_device_unplugged(uint8_t hostid, uint8_t hub_addr, uint8_t hub_
 
       usbh_pipe_control_close(dev_addr);
 
+//      hcd_device_remove(rhport, dev_addr);
+
       is_found = true;
     }
   }
 
-  if (is_found) hcd_port_unplug(_usbh_devices[0].rhport); // TODO hack
+  // FIXME remove
+  if (is_found) hcd_device_remove(_usbh_devices[0].rhport, 0);
 
 }
 

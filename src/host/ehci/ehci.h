@@ -68,9 +68,6 @@
 //--------------------------------------------------------------------+
 // EHCI CONFIGURATION & CONSTANTS
 //--------------------------------------------------------------------+
-#define HOST_HCD_XFER_INTERRUPT // TODO interrupt is used widely, should always be enalbed
-#define EHCI_PERIODIC_LIST (defined HOST_HCD_XFER_INTERRUPT || defined HOST_HCD_XFER_ISOCHRONOUS)
-
 #define	EHCI_CFG_FRAMELIST_SIZE_BITS			7			/// Framelist Size (NXP specific) (0:1024) - (1:512) - (2:256) - (3:128) - (4:64) - (5:32) - (6:16) - (7:8)
 #define EHCI_FRAMELIST_SIZE  (1024 >> EHCI_CFG_FRAMELIST_SIZE_BITS)
 
