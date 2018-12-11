@@ -74,7 +74,7 @@ uint32_t hcd_ehci_register_addr(uint8_t rhport)
 //--------------------------------------------------------------------+
 static inline ehci_link_t* get_period_head(uint8_t rhport, uint8_t interval_ms)
 {
-  (uint8_t) rhport;
+  (void) rhport;
   return (ehci_link_t*) &ehci_data.period_head_arr[ tu_log2( tu_min8(EHCI_FRAMELIST_SIZE, interval_ms) ) ];
 }
 
@@ -95,32 +95,29 @@ static inline ehci_qtd_t* qtd_control(uint8_t dev_addr)
 }
 
 
-static inline ehci_qhd_t*    qhd_next(ehci_qhd_t const * p_qhd) ATTR_ALWAYS_INLINE ATTR_PURE;
-static inline ehci_qhd_t*    qhd_find_free (void);
-static inline tusb_xfer_type_t qhd_get_xfer_type(ehci_qhd_t const * p_qhd) ATTR_ALWAYS_INLINE ATTR_PURE;
-static inline ehci_qhd_t* qhd_get_from_addr(uint8_t dev_addr, uint8_t ep_addr);
+static inline ehci_qhd_t* qhd_next (ehci_qhd_t const * p_qhd);
+static inline ehci_qhd_t* qhd_find_free (void);
+static inline ehci_qhd_t* qhd_get_from_addr (uint8_t dev_addr, uint8_t ep_addr);
 
 // determine if a queue head has bus-related error
-static inline bool qhd_has_xact_error(ehci_qhd_t * p_qhd)
+static inline bool qhd_has_xact_error (ehci_qhd_t * p_qhd)
 {
-  return ( p_qhd->qtd_overlay.buffer_err ||p_qhd->qtd_overlay.babble_err || p_qhd->qtd_overlay.xact_err );
+  return (p_qhd->qtd_overlay.buffer_err || p_qhd->qtd_overlay.babble_err || p_qhd->qtd_overlay.xact_err);
   //p_qhd->qtd_overlay.non_hs_period_missed_uframe || p_qhd->qtd_overlay.pingstate_err TODO split transaction error
 }
 
-static void qhd_init(ehci_qhd_t *p_qhd, uint8_t dev_addr, tusb_desc_endpoint_t const * ep_desc);
+static void qhd_init (ehci_qhd_t *p_qhd, uint8_t dev_addr, tusb_desc_endpoint_t const * ep_desc);
 
-static inline ehci_qtd_t*  qtd_find_free(uint8_t dev_addr) ATTR_PURE ATTR_ALWAYS_INLINE;
-static inline ehci_qtd_t*  qtd_next(ehci_qtd_t const * p_qtd ) ATTR_PURE ATTR_ALWAYS_INLINE;
-static inline void         qtd_insert_to_qhd(ehci_qhd_t *p_qhd, ehci_qtd_t *p_qtd_new) ATTR_ALWAYS_INLINE;
-static inline void         qtd_remove_1st_from_qhd(ehci_qhd_t *p_qhd) ATTR_ALWAYS_INLINE;
+static inline ehci_qtd_t* qtd_find_free (void);
+static inline ehci_qtd_t* qtd_next (ehci_qtd_t const * p_qtd);
+static inline void qtd_insert_to_qhd (ehci_qhd_t *p_qhd, ehci_qtd_t *p_qtd_new);
+static inline void qtd_remove_1st_from_qhd (ehci_qhd_t *p_qhd);
 static void qtd_init (ehci_qtd_t* p_qtd, void* buffer, uint16_t total_bytes);
 
-static inline void  list_insert(ehci_link_t *current, ehci_link_t *new, uint8_t new_type) ATTR_ALWAYS_INLINE;
-static inline ehci_link_t* list_next(ehci_link_t *p_link_pointer) ATTR_PURE ATTR_ALWAYS_INLINE;
-static ehci_link_t*  list_find_previous_item(ehci_link_t* p_head, ehci_link_t* p_current);
-static bool list_remove_qhd(ehci_link_t* p_head, ehci_link_t* p_remove);
+static inline void list_insert (ehci_link_t *current, ehci_link_t *new, uint8_t new_type);
+static inline ehci_link_t* list_next (ehci_link_t *p_link_pointer);
 
-static bool ehci_init(uint8_t hostid);
+static bool ehci_init (uint8_t hostid);
 
 //--------------------------------------------------------------------+
 // HCD API
@@ -131,21 +128,25 @@ bool hcd_init(void)
   return ehci_init(TUH_OPT_RHPORT);
 }
 
-void hcd_port_reset(uint8_t hostid)
+void hcd_port_reset(uint8_t rhport)
 {
+  (void) rhport;
+
   ehci_registers_t* regs = ehci_data.regs;
 
   regs->portsc_bm.port_enabled = 0; // disable port before reset
   regs->portsc_bm.port_reset = 1;
 }
 
-bool hcd_port_connect_status(uint8_t hostid)
+bool hcd_port_connect_status(uint8_t rhport)
 {
+  (void) rhport;
   return ehci_data.regs->portsc_bm.current_connect_status;
 }
 
-tusb_speed_t hcd_port_speed_get(uint8_t hostid)
+tusb_speed_t hcd_port_speed_get(uint8_t rhport)
 {
+  (void) rhport;
   return (tusb_speed_t) ehci_data.regs->portsc_bm.nxp_port_speed; // NXP specific port speed
 }
 
@@ -278,17 +279,16 @@ static bool ehci_init(uint8_t hostid)
   return true;
 }
 
-static tusb_error_t hcd_controller_stop(uint8_t hostid)
+static void hcd_controller_stop(uint8_t rhport)
 {
+  (void) rhport;
+
   ehci_registers_t* regs = ehci_data.regs;
 
   regs->command_bm.run_stop = 0;
 
-  tu_timeout_t timeout;
-  tu_timeout_set(&timeout, 2); // USB Spec: controller has to stop within 16 uframe = 2 frames
-  while( regs->status_bm.hc_halted == 0 && !tu_timeout_expired(&timeout)) {}
-
-  return tu_timeout_expired(&timeout) ? TUSB_ERROR_OSAL_TIMEOUT : TUSB_ERROR_NONE;
+  // USB Spec: controller has to stop within 16 uframe = 2 frames
+  while( regs->status_bm.hc_halted == 0 ) {}
 }
 
 //--------------------------------------------------------------------+
@@ -296,6 +296,8 @@ static tusb_error_t hcd_controller_stop(uint8_t hostid)
 //--------------------------------------------------------------------+
 bool hcd_edpt_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr, uint8_t * buffer, uint16_t buflen)
 {
+  (void) rhport;
+
   uint8_t const epnum = edpt_number(ep_addr);
   uint8_t const dir   = edpt_dir(ep_addr);
 
@@ -326,10 +328,12 @@ bool hcd_edpt_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr, uint8_t * 
 
 bool hcd_setup_send(uint8_t rhport, uint8_t dev_addr, uint8_t const setup_packet[8])
 {
+  (void) rhport;
+
   ehci_qhd_t* qhd = &ehci_data.control[dev_addr].qhd;
   ehci_qtd_t* td  = &ehci_data.control[dev_addr].qtd;
 
-  qtd_init(td, setup_packet, 8);
+  qtd_init(td, (void*) setup_packet, 8);
   td->pid          = EHCI_PID_SETUP;
   td->int_on_complete = 1;
   td->next.terminate  = 1;
@@ -349,6 +353,8 @@ bool hcd_setup_send(uint8_t rhport, uint8_t dev_addr, uint8_t const setup_packet
 //--------------------------------------------------------------------+
 bool hcd_edpt_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_endpoint_t const * ep_desc)
 {
+  (void) rhport;
+
   // TODO not support ISO yet
   TU_ASSERT (ep_desc->bmAttributes.xfer != TUSB_XFER_ISOCHRONOUS);
 
@@ -400,7 +406,7 @@ bool hcd_pipe_queue_xfer(uint8_t dev_addr, uint8_t ep_addr, uint8_t buffer[], ui
 {
   //------------- set up QTD -------------//
   ehci_qhd_t *p_qhd = qhd_get_from_addr(dev_addr, ep_addr);
-  ehci_qtd_t *p_qtd = qtd_find_free(dev_addr);
+  ehci_qtd_t *p_qtd = qtd_find_free();
 
   TU_ASSERT(p_qtd);
 
@@ -507,7 +513,6 @@ static void qhd_xfer_complete_isr(ehci_qhd_t * p_qhd)
 
 static void async_list_xfer_complete_isr(ehci_qhd_t * const async_head)
 {
-  uint8_t max_loop = 0;
   ehci_qhd_t *p_qhd = async_head;
   do
   {
@@ -516,9 +521,7 @@ static void async_list_xfer_complete_isr(ehci_qhd_t * const async_head)
       qhd_xfer_complete_isr(p_qhd);
     }
     p_qhd = qhd_next(p_qhd);
-    max_loop++;
-  }while(p_qhd != async_head && max_loop < HCD_MAX_ENDPOINT*CFG_TUSB_HOST_DEVICE_MAX); // async list traversal, stop if loop around
-  // TODO abstract max loop guard for async
+  }while(p_qhd != async_head); // async list traversal, stop if loop around
 }
 
 static void period_list_xfer_complete_isr(uint8_t hostid, uint8_t interval_ms)
@@ -560,8 +563,8 @@ static void qhd_xfer_error_isr(ehci_qhd_t * p_qhd)
 {
   if ( (p_qhd->dev_addr != 0 && p_qhd->qtd_overlay.halted) || // addr0 cannot be protocol STALL
         qhd_has_xact_error(p_qhd) )
-  { // current qhd has error in transaction
-    tusb_xfer_type_t const xfer_type = qhd_get_xfer_type(p_qhd);
+  {
+    // current qhd has error in transaction
     xfer_result_t error_event;
 
     // no error bits are set, endpoint is halted due to STALL
@@ -598,27 +601,23 @@ static void qhd_xfer_error_isr(ehci_qhd_t * p_qhd)
 static void xfer_error_isr(uint8_t hostid)
 {
   //------------- async list -------------//
-  uint8_t max_loop = 0;
   ehci_qhd_t * const async_head = qhd_async_head(hostid);
   ehci_qhd_t *p_qhd = async_head;
   do
   {
     qhd_xfer_error_isr( p_qhd );
     p_qhd = qhd_next(p_qhd);
-    max_loop++;
-  }while(p_qhd != async_head && max_loop < HCD_MAX_ENDPOINT*CFG_TUSB_HOST_DEVICE_MAX); // async list traversal, stop if loop around
+  }while(p_qhd != async_head); // async list traversal, stop if loop around
 
   //------------- TODO refractor period list -------------//
   uint32_t const period_1ms_addr = (uint32_t) get_period_head(hostid, 1);
   for (uint8_t interval_ms=1; interval_ms <= EHCI_FRAMELIST_SIZE; interval_ms *= 2)
   {
-    uint8_t period_max_loop = 0;
     ehci_link_t next_item = * get_period_head(hostid, interval_ms);
 
     // TODO abstract max loop guard for period
     while( !next_item.terminate &&
-        !(interval_ms > 1 && period_1ms_addr == tu_align32(next_item.address)) &&
-        period_max_loop < (HCD_MAX_ENDPOINT + EHCI_MAX_ITD + EHCI_MAX_SITD)*CFG_TUSB_HOST_DEVICE_MAX)
+           !(interval_ms > 1 && period_1ms_addr == tu_align32(next_item.address)) )
     {
       switch ( next_item.type )
       {
@@ -637,7 +636,6 @@ static void xfer_error_isr(uint8_t hostid)
       }
 
       next_item = *list_next(&next_item);
-      period_max_loop++;
     }
   }
 }
@@ -708,12 +706,6 @@ static inline ehci_qhd_t* qhd_find_free (void)
   return NULL;
 }
 
-static inline tusb_xfer_type_t qhd_get_xfer_type(ehci_qhd_t const * p_qhd)
-{
-  return  ( p_qhd->ep_number == 0 ) ? TUSB_XFER_CONTROL :
-          ( p_qhd->int_smask != 0 ) ? TUSB_XFER_INTERRUPT : TUSB_XFER_BULK;
-}
-
 static inline ehci_qhd_t* qhd_next(ehci_qhd_t const * p_qhd)
 {
   return (ehci_qhd_t*) tu_align32(p_qhd->next.address);
@@ -736,7 +728,7 @@ static inline ehci_qhd_t* qhd_get_from_addr(uint8_t dev_addr, uint8_t ep_addr)
 }
 
 //------------- TD helper -------------//
-static inline ehci_qtd_t* qtd_find_free(uint8_t dev_addr)
+static inline ehci_qtd_t* qtd_find_free(void)
 {
   for (uint32_t i=0; i<HCD_MAX_XFER; i++)
   {

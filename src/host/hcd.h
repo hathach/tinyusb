@@ -104,9 +104,9 @@ void hcd_int_disable(uint8_t rhport);
 
 // PORT API
 /// return the current connect status of roothub port
-bool hcd_port_connect_status(uint8_t hostid) ATTR_PURE ATTR_WARN_UNUSED_RESULT; // TODO make inline if possible
+bool hcd_port_connect_status(uint8_t hostid);
 void hcd_port_reset(uint8_t hostid);
-tusb_speed_t hcd_port_speed_get(uint8_t hostid) ATTR_PURE ATTR_WARN_UNUSED_RESULT; // TODO make inline if possible
+tusb_speed_t hcd_port_speed_get(uint8_t hostid);
 
 // HCD closs all opened endpoints belong to this device
 void hcd_device_remove(uint8_t rhport, uint8_t dev_addr);
