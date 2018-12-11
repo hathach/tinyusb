@@ -238,63 +238,6 @@ static tusb_error_t hcd_controller_stop(uint8_t hostid)
 //--------------------------------------------------------------------+
 // CONTROL PIPE API
 //--------------------------------------------------------------------+
-//bool hcd_pipe_control_open(uint8_t dev_addr, uint8_t max_packet_size)
-//{
-//  ehci_qhd_t * const p_qhd = get_control_qhd(dev_addr);
-//
-//  qhd_init(p_qhd, dev_addr, max_packet_size, 0, TUSB_XFER_CONTROL, 1); // TODO binterval of control is ignored
-//
-//  if (dev_addr != 0)
-//  {
-//    //------------- insert to async list -------------//
-//    list_insert( (ehci_link_t*) get_async_head(_usbh_devices[dev_addr].core_id),
-//                 (ehci_link_t*) p_qhd, EHCI_QUEUE_ELEMENT_QHD);
-//  }
-//
-//  return true;
-//}
-
-//bool  hcd_pipe_control_xfer(uint8_t dev_addr, tusb_control_request_t const * p_request, uint8_t data[])
-//{
-//  ehci_qhd_t * const p_qhd = get_control_qhd(dev_addr);
-//
-//  ehci_qtd_t *p_setup      = get_control_qtds(dev_addr);
-//  ehci_qtd_t *p_data       = p_setup + 1;
-//  ehci_qtd_t *p_status     = p_setup + 2;
-//
-//  //------------- SETUP Phase -------------//
-//  qtd_init(p_setup, (uint32_t) p_request, 8);
-//  p_setup->pid          = EHCI_PID_SETUP;
-//  p_setup->next.address = (uint32_t) p_data;
-//
-//  //------------- DATA Phase -------------//
-//  if (p_request->wLength > 0)
-//  {
-//    qtd_init(p_data, (uint32_t) data, p_request->wLength);
-//    p_data->data_toggle = 1;
-//    p_data->pid         = p_request->bmRequestType_bit.direction ? EHCI_PID_IN : EHCI_PID_OUT;
-//  }else
-//  {
-//    p_data = p_setup;
-//  }
-//  p_data->next.address = (uint32_t) p_status;
-//
-//  //------------- STATUS Phase -------------//
-//  qtd_init(p_status, 0, 0); // zero-length data
-//  p_status->int_on_complete = 1;
-//  p_status->data_toggle     = 1;
-//  p_status->pid             = p_request->bmRequestType_bit.direction ? EHCI_PID_OUT : EHCI_PID_IN; // reverse direction of data phase
-//  p_status->next.terminate  = 1;
-//
-//  //------------- Attach TDs list to Control Endpoint -------------//
-//  p_qhd->p_qtd_list_head = p_setup;
-//  p_qhd->p_qtd_list_tail = p_status;
-//
-//  p_qhd->qtd_overlay.next.address = (uint32_t) p_setup;
-//
-//  return true;
-//}
-
 bool hcd_pipe_control_close(uint8_t dev_addr)
 {
   //------------- TODO pipe handle validate -------------//
@@ -389,15 +332,15 @@ bool hcd_pipe_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_endpoint_t const 
 
   qhd_init(p_qhd, dev_addr, ep_desc);
 
-  //------------- Insert to Async List -------------//
+  // control of dev0 is always present as async head
+  if ( dev_addr == 0 ) return true;
+
+  // Insert to list
   ehci_link_t * list_head;
 
   switch (ep_desc->bmAttributes.xfer)
   {
     case TUSB_XFER_CONTROL:
-      list_head = (ehci_link_t*) get_async_head(_usbh_devices[dev_addr].rhport);
-    break;
-
     case TUSB_XFER_BULK:
       list_head = (ehci_link_t*) get_async_head(_usbh_devices[dev_addr].rhport);
     break;
@@ -413,7 +356,6 @@ bool hcd_pipe_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_endpoint_t const 
     default: break;
   }
 
-  //------------- insert to async/period list -------------//
   // TODO might need to disable async/period list
   list_insert( list_head, (ehci_link_t*) p_qhd, EHCI_QUEUE_ELEMENT_QHD);
 
