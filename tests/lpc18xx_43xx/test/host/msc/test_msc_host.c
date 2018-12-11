@@ -84,17 +84,17 @@ void tearDown(void)
 
 void test_open_pipe_in_failed(void)
 {
-  hcd_pipe_open_ExpectAndReturn(dev_addr, p_edp_in, TUSB_CLASS_MSC, pipe_null);
+  hcd_edpt_open_ExpectAndReturn(dev_addr, p_edp_in, TUSB_CLASS_MSC, pipe_null);
 
-  TEST_ASSERT(TUSB_ERROR_NONE != msch_open_subtask(dev_addr, p_msc_interface_desc, &length));
+  TEST_ASSERT(TUSB_ERROR_NONE != msch_open(dev_addr, p_msc_interface_desc, &length));
 }
 
 void test_open_pipe_out_failed(void)
 {
-  hcd_pipe_open_ExpectAndReturn(dev_addr, p_edp_in, TUSB_CLASS_MSC, (pipe_handle_t) {1} );
-  hcd_pipe_open_ExpectAndReturn(dev_addr, p_edp_out, TUSB_CLASS_MSC, pipe_null);
+  hcd_edpt_open_ExpectAndReturn(dev_addr, p_edp_in, TUSB_CLASS_MSC, (pipe_handle_t) {1} );
+  hcd_edpt_open_ExpectAndReturn(dev_addr, p_edp_out, TUSB_CLASS_MSC, pipe_null);
 
-  TEST_ASSERT(TUSB_ERROR_NONE != msch_open_subtask(dev_addr, p_msc_interface_desc, &length));
+  TEST_ASSERT(TUSB_ERROR_NONE != msch_open(dev_addr, p_msc_interface_desc, &length));
 }
 
 tusb_error_t stub_control_xfer(uint8_t dev_addr, uint8_t bmRequestType, uint8_t bRequest,
@@ -121,15 +121,15 @@ tusb_error_t stub_control_xfer(uint8_t dev_addr, uint8_t bmRequestType, uint8_t 
 #if 0 // TODO TEST enable this
 void test_open_desc_length(void)
 {
-  hcd_pipe_open_ExpectAndReturn(dev_addr, p_edp_in, TUSB_CLASS_MSC, pipe_in);
-  hcd_pipe_open_ExpectAndReturn(dev_addr, p_edp_out, TUSB_CLASS_MSC, pipe_out);
+  hcd_edpt_open_ExpectAndReturn(dev_addr, p_edp_in, TUSB_CLASS_MSC, pipe_in);
+  hcd_edpt_open_ExpectAndReturn(dev_addr, p_edp_out, TUSB_CLASS_MSC, pipe_out);
 
   usbh_control_xfer_subtask_IgnoreAndReturn(TUSB_ERROR_NONE);
   hcd_pipe_xfer_IgnoreAndReturn(TUSB_ERROR_NONE);
   hcd_pipe_queue_xfer_IgnoreAndReturn(TUSB_ERROR_NONE);
 
   //------------- Code Under Test -------------//
-  TEST_ASSERT_STATUS( msch_open_subtask(dev_addr, p_msc_interface_desc, &length) );
+  TEST_ASSERT_STATUS( msch_open(dev_addr, p_msc_interface_desc, &length) );
 
   TEST_ASSERT_EQUAL(sizeof(tusb_desc_interface_t) + 2*sizeof(tusb_desc_endpoint_t),
                     length);
@@ -137,14 +137,14 @@ void test_open_desc_length(void)
 
 void test_open_ok(void)
 {
-  hcd_pipe_open_ExpectAndReturn(dev_addr, p_edp_in, TUSB_CLASS_MSC, pipe_in);
-  hcd_pipe_open_ExpectAndReturn(dev_addr, p_edp_out, TUSB_CLASS_MSC, pipe_out);
+  hcd_edpt_open_ExpectAndReturn(dev_addr, p_edp_in, TUSB_CLASS_MSC, pipe_in);
+  hcd_edpt_open_ExpectAndReturn(dev_addr, p_edp_out, TUSB_CLASS_MSC, pipe_out);
 
   //------------- get max lun -------------//
   usbh_control_xfer_subtask_StubWithCallback(stub_control_xfer);
 
   //------------- Code Under Test -------------//
-  TEST_ASSERT_STATUS( msch_open_subtask(dev_addr, p_msc_interface_desc, &length) );
+  TEST_ASSERT_STATUS( msch_open(dev_addr, p_msc_interface_desc, &length) );
 
   TEST_ASSERT_EQUAL(p_msc_interface_desc->bInterfaceNumber, p_msc->interface_number);
 }

@@ -1,0 +1,22 @@
+// define all the modules group to have the desired ordering since doxygen order module group by
+// the order of files it is feed
+
+/// \defgroup group_demo Demos
+
+/// \defgroup group_class Application - Class Driver API
+
+/// \defgroup group_application_api Application - Stack API
+/// \brief Non-Class driver API
+
+/// \defgroup group_configuration Configuration tusb_config.h
+
+/// \defgroup group_usbd USB Device Core (USBD)
+
+/// \defgroup group_usbh USB Host Core (USBH)
+
+/// \defgroup group_osal OS Abstraction Layer (OSAL)
+
+/// \defgroup  group_usb_definitions USB Definitions
+
+/// \defgroup Group_Common Common Files
+

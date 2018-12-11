@@ -50,12 +50,14 @@
 /* Initialize GPIO block */
 void Chip_GPIO_Init(LPC_GPIO_T *pGPIO)
 {
+  (void) pGPIO;
 	Chip_Clock_EnablePeriphClock(SYSCTL_CLOCK_GPIO);
 }
 
 /* De-Initialize GPIO block */
 void Chip_GPIO_DeInit(LPC_GPIO_T *pGPIO)
 {
+  (void) pGPIO;
 	Chip_Clock_DisablePeriphClock(SYSCTL_CLOCK_GPIO);
 }
 

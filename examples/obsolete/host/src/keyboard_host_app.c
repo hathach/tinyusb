@@ -42,7 +42,7 @@
 #include "keyboard_host_app.h"
 #include "app_os_prio.h"
 
-#if CFG_TUSB_HOST_HID_KEYBOARD
+#if CFG_TUH_HID_KEYBOARD
 
 //--------------------------------------------------------------------+
 // MACRO CONSTANT TYPEDEF

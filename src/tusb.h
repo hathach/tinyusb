@@ -52,18 +52,18 @@
 #include "common/tusb_fifo.h"
 
 //------------- HOST -------------//
-#if MODE_HOST_SUPPORTED
+#if TUSB_OPT_HOST_ENABLED
   #include "host/usbh.h"
 
   #if HOST_CLASS_HID
     #include "class/hid/hid_host.h"
   #endif
 
-  #if CFG_TUSB_HOST_MSC
+  #if CFG_TUH_MSC
     #include "class/msc/msc_host.h"
   #endif
 
-  #if CFG_TUSB_HOST_CDC
+  #if CFG_TUH_CDC
     #include "class/cdc/cdc_host.h"
   #endif
 

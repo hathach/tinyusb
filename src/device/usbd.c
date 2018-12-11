@@ -68,7 +68,7 @@ typedef struct {
   uint8_t config_num;
 
   uint8_t itf2drv[16];  // map interface number to driver (0xff is invalid)
-  uint8_t ep2drv[2][8]; // map endpoint to driver ( 0xff is invalid )
+  uint8_t ep2drv[8][2]; // map endpoint to driver ( 0xff is invalid )
 
 }usbd_device_t;
 
@@ -169,7 +169,7 @@ static osal_queue_t _usbd_q;
 //--------------------------------------------------------------------+
 // Prototypes
 //--------------------------------------------------------------------+
-static void mark_interface_endpoint(uint8_t const* p_desc, uint16_t desc_len, uint8_t driver_id);
+static void mark_interface_endpoint(uint8_t ep2drv[8][2], uint8_t const* p_desc, uint16_t desc_len, uint8_t driver_id);
 static bool process_control_request(uint8_t rhport, tusb_control_request_t const * p_request);
 static bool process_set_config(uint8_t rhport);
 static void const* get_descriptor(tusb_control_request_t const * p_request, uint16_t* desc_len);
@@ -253,7 +253,7 @@ static void usbd_task_body(void)
         }
         else
         {
-          uint8_t const drv_id = _usbd_dev.ep2drv[edpt_dir(ep_addr)][edpt_number(ep_addr)];
+          uint8_t const drv_id = _usbd_dev.ep2drv[edpt_number(ep_addr)][edpt_dir(ep_addr)];
           TU_ASSERT(drv_id < USBD_CLASS_DRIVER_COUNT,);
 
           usbd_class_drivers[drv_id].xfer_cb(event.rhport, ep_addr, event.xfer_complete.result, event.xfer_complete.len);
@@ -272,7 +272,8 @@ static void usbd_task_body(void)
         // TODO remove since if task is too slow, we could clear the event of the new attached
         osal_queue_reset(_usbd_q);
 
-        tud_umount_cb();    // invoke callback
+        // invoke callback
+        if (tud_umount_cb) tud_umount_cb();
       break;
 
       case DCD_EVENT_SOF:
@@ -298,7 +299,7 @@ static void usbd_task_body(void)
 
 /* USB device task
  * Thread that handles all device events. With an real RTOS, the task must be a forever loop and never return.
- * For codign convenience with no RTOS, we use wrapped sub-function for processing to easily return at any time.
+ * For coding convenience with no RTOS, we use wrapped sub-function for processing to easily return at any time.
  */
 void usbd_task( void* param)
 {
@@ -375,7 +376,7 @@ static bool process_control_request(uint8_t rhport, tusb_control_request_t const
     uint8_t const itf = tu_u16_low(p_request->wIndex);
     uint8_t const drvid = _usbd_dev.itf2drv[ itf ];
 
-    TU_VERIFY (drvid < USBD_CLASS_DRIVER_COUNT );
+    TU_VERIFY(drvid < USBD_CLASS_DRIVER_COUNT);
 
     usbd_control_set_complete_callback(usbd_class_drivers[drvid].control_request_complete );
 
@@ -450,30 +451,30 @@ static bool process_set_config(uint8_t rhport)
       {
         if ( usbd_class_drivers[drv_id].class_code == desc_itf->bInterfaceClass ) break;
       }
-      TU_ASSERT( drv_id < USBD_CLASS_DRIVER_COUNT ); // unsupported class
+      TU_ASSERT( drv_id < USBD_CLASS_DRIVER_COUNT );
 
       // Interface number must not be used already TODO alternate interface
       TU_ASSERT( 0xff == _usbd_dev.itf2drv[desc_itf->bInterfaceNumber] );
       _usbd_dev.itf2drv[desc_itf->bInterfaceNumber] = drv_id;
 
-      uint16_t len=0;
-      TU_ASSERT_ERR( usbd_class_drivers[drv_id].open( rhport, desc_itf, &len ), false );
-      TU_ASSERT( len >= sizeof(tusb_desc_interface_t) );
+      uint16_t itf_len=0;
+      TU_ASSERT_ERR( usbd_class_drivers[drv_id].open( rhport, desc_itf, &itf_len ), false );
+      TU_ASSERT( itf_len >= sizeof(tusb_desc_interface_t) );
 
-      mark_interface_endpoint(p_desc, len, drv_id);
+      mark_interface_endpoint(_usbd_dev.ep2drv, p_desc, itf_len, drv_id);
 
-      p_desc += len; // next interface
+      p_desc += itf_len; // next interface
     }
   }
 
   // invoke callback
-  tud_mount_cb();
+  if (tud_mount_cb) tud_mount_cb();
 
   return TUSB_ERROR_NONE;
 }
 
 // Helper marking endpoint of interface belongs to class driver
-static void mark_interface_endpoint(uint8_t const* p_desc, uint16_t desc_len, uint8_t driver_id)
+static void mark_interface_endpoint(uint8_t ep2drv[8][2], uint8_t const* p_desc, uint16_t desc_len, uint8_t driver_id)
 {
   uint16_t len = 0;
 
@@ -483,7 +484,7 @@ static void mark_interface_endpoint(uint8_t const* p_desc, uint16_t desc_len, ui
     {
       uint8_t const ep_addr = ((tusb_desc_endpoint_t const*) p_desc)->bEndpointAddress;
 
-      _usbd_dev.ep2drv[ edpt_dir(ep_addr) ][ edpt_number(ep_addr) ] = driver_id;
+      ep2drv[edpt_number(ep_addr)][edpt_dir(ep_addr)] = driver_id;
     }
 
     len   += descriptor_len(p_desc);
@@ -623,24 +624,24 @@ void dcd_event_xfer_complete (uint8_t rhport, uint8_t ep_addr, uint32_t xferred_
 //--------------------------------------------------------------------+
 
 // Helper to parse an pair of endpoint descriptors (IN & OUT)
-tusb_error_t usbd_open_edpt_pair(uint8_t rhport, tusb_desc_endpoint_t const* p_desc_ep, uint8_t xfer_type, uint8_t* ep_out, uint8_t* ep_in)
+tusb_error_t usbd_open_edpt_pair(uint8_t rhport, tusb_desc_endpoint_t const* ep_desc, uint8_t xfer_type, uint8_t* ep_out, uint8_t* ep_in)
 {
   for(int i=0; i<2; i++)
   {
-    TU_ASSERT(TUSB_DESC_ENDPOINT == p_desc_ep->bDescriptorType &&
-              xfer_type          == p_desc_ep->bmAttributes.xfer, TUSB_ERROR_DESCRIPTOR_CORRUPTED);
+    TU_ASSERT(TUSB_DESC_ENDPOINT == ep_desc->bDescriptorType &&
+              xfer_type          == ep_desc->bmAttributes.xfer, TUSB_ERROR_DESCRIPTOR_CORRUPTED);
 
-    TU_ASSERT( dcd_edpt_open(rhport, p_desc_ep), TUSB_ERROR_DCD_OPEN_PIPE_FAILED );
+    TU_ASSERT( dcd_edpt_open(rhport, ep_desc), TUSB_ERROR_DCD_OPEN_PIPE_FAILED );
 
-    if ( edpt_dir(p_desc_ep->bEndpointAddress) ==  TUSB_DIR_IN )
+    if ( edpt_dir(ep_desc->bEndpointAddress) ==  TUSB_DIR_IN )
     {
-      (*ep_in) = p_desc_ep->bEndpointAddress;
+      (*ep_in) = ep_desc->bEndpointAddress;
     }else
     {
-      (*ep_out) = p_desc_ep->bEndpointAddress;
+      (*ep_out) = ep_desc->bEndpointAddress;
     }
 
-    p_desc_ep = (tusb_desc_endpoint_t const *) descriptor_next( (uint8_t const*)  p_desc_ep );
+    ep_desc = (tusb_desc_endpoint_t const *) descriptor_next( (uint8_t const*)  ep_desc );
   }
 
   return TUSB_ERROR_NONE;

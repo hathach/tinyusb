@@ -79,6 +79,7 @@ typedef enum {
  */
 STATIC INLINE void Chip_GPIOINT_Init(LPC_GPIOINT_T *pGPIOINT)
 {
+  (void) pGPIOINT;
 	Chip_Clock_EnablePeriphClock(SYSCTL_CLOCK_GPIO);
 }
 
@@ -92,6 +93,7 @@ STATIC INLINE void Chip_GPIOINT_Init(LPC_GPIOINT_T *pGPIOINT)
  */
 STATIC INLINE void Chip_GPIOINT_DeInit(LPC_GPIOINT_T *pGPIOINT)
 {
+  (void) pGPIOINT;
 	Chip_Clock_DisablePeriphClock(SYSCTL_CLOCK_GPIO);
 }
 

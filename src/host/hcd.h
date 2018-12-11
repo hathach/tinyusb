@@ -43,82 +43,111 @@
 #ifndef _TUSB_HCD_H_
 #define _TUSB_HCD_H_
 
+#include <common/tusb_common.h>
+
 #ifdef __cplusplus
  extern "C" {
 #endif
 
-#include <common/tusb_common.h>
+ //--------------------------------------------------------------------+
+// MACRO CONSTANT TYPEDEF
+//--------------------------------------------------------------------+
+typedef enum
+{
+  HCD_EVENT_DEVICE_ATTACH,
+  HCD_EVENT_DEVICE_REMOVE,
+  HCD_EVENT_XFER_COMPLETE,
+} hcd_eventid_t;
 
-#if MODE_HOST_SUPPORTED
+typedef struct
+{
+  uint8_t rhport;
+  uint8_t event_id;
+
+  union
+  {
+    struct
+    {
+      uint8_t hub_addr;
+      uint8_t hub_port;
+    } attach, remove;
+
+    struct
+    {
+      uint8_t ep_addr;
+      uint8_t result;
+      uint32_t len;
+    } xfer_complete;
+  };
+
+} hcd_event_t;
+
+#if TUSB_OPT_HOST_ENABLED
 // Max number of endpoints per device
 enum {
-  HCD_MAX_ENDPOINT = CFG_TUSB_HOST_HUB + CFG_TUSB_HOST_HID_KEYBOARD + CFG_TUSB_HOST_HID_MOUSE + CFG_TUSB_HOST_HID_GENERIC +
-                     CFG_TUSB_HOST_MSC*2 + CFG_TUSB_HOST_CDC*3,
+  HCD_MAX_ENDPOINT = CFG_TUSB_HOST_DEVICE_MAX*(CFG_TUH_HUB + CFG_TUH_HID_KEYBOARD + CFG_TUH_HID_MOUSE + CFG_TUSB_HOST_HID_GENERIC +
+                     CFG_TUH_MSC*2 + CFG_TUH_CDC*3),
 
   HCD_MAX_XFER     = HCD_MAX_ENDPOINT*2,
 };
+
+//#define HCD_MAX_ENDPOINT 16
+//#define HCD_MAX_XFER 16
 #endif
 
 //--------------------------------------------------------------------+
-// MACRO CONSTANT TYPEDEF
+// HCD API
 //--------------------------------------------------------------------+
-typedef struct {
-  uint8_t dev_addr;
-  uint8_t xfer_type;
-  uint8_t index;
-  uint8_t reserved;
-} pipe_handle_t;
+bool hcd_init(void);
+void hcd_int_enable (uint8_t rhport);
+void hcd_int_disable(uint8_t rhport);
 
-static inline bool pipehandle_is_valid(pipe_handle_t pipe_hdl) ATTR_CONST ATTR_ALWAYS_INLINE ATTR_WARN_UNUSED_RESULT;
-static inline bool pipehandle_is_valid(pipe_handle_t pipe_hdl)
-{
-  return pipe_hdl.dev_addr > 0;
-}
+// PORT API
+/// return the current connect status of roothub port
+bool hcd_port_connect_status(uint8_t hostid);
+void hcd_port_reset(uint8_t hostid);
+tusb_speed_t hcd_port_speed_get(uint8_t hostid);
 
-static inline bool pipehandle_is_equal(pipe_handle_t x, pipe_handle_t y) ATTR_CONST ATTR_ALWAYS_INLINE ATTR_WARN_UNUSED_RESULT;
-static inline bool pipehandle_is_equal(pipe_handle_t x, pipe_handle_t y)
-{
-  return (x.dev_addr == y.dev_addr) && (x.xfer_type == y.xfer_type) && (x.index == y.index);
-}
+// HCD closs all opened endpoints belong to this device
+void hcd_device_remove(uint8_t rhport, uint8_t dev_addr);
 
 //--------------------------------------------------------------------+
-// USBH-HCD API
+// Event function
 //--------------------------------------------------------------------+
-tusb_error_t hcd_init(void) ATTR_WARN_UNUSED_RESULT;
-void hal_hcd_isr(uint8_t hostid);
+void hcd_event_handler(hcd_event_t const* event, bool in_isr);
+
+// Helper to send device attach event
+void hcd_event_device_attach(uint8_t rhport);
+
+// Helper to send device removal event
+void hcd_event_device_remove(uint8_t rhport);
+
+// Helper to send USB transfer event
+void hcd_event_xfer_complete(uint8_t dev_addr, uint8_t ep_addr, xfer_result_t event, uint32_t xferred_bytes);
+
+//--------------------------------------------------------------------+
+// Endpoints API
+//--------------------------------------------------------------------+
+bool hcd_setup_send(uint8_t rhport, uint8_t dev_addr, uint8_t const setup_packet[8]);
+bool hcd_edpt_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_endpoint_t const * ep_desc);
+
+bool hcd_edpt_busy(uint8_t dev_addr, uint8_t ep_addr);
+bool hcd_edpt_stalled(uint8_t dev_addr, uint8_t ep_addr);
+bool hcd_edpt_clear_stall(uint8_t dev_addr, uint8_t ep_addr);
+
+
+bool hcd_edpt_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr, uint8_t * buffer, uint16_t buflen);
 
 //--------------------------------------------------------------------+
 // PIPE API
 //--------------------------------------------------------------------+
 // TODO control xfer should be used via usbh layer
-tusb_error_t  hcd_pipe_control_open(uint8_t dev_addr, uint8_t max_packet_size) ATTR_WARN_UNUSED_RESULT;
-tusb_error_t  hcd_pipe_control_xfer(uint8_t dev_addr, tusb_control_request_t const * p_request, uint8_t data[]) ATTR_WARN_UNUSED_RESULT;
-tusb_error_t  hcd_pipe_control_close(uint8_t dev_addr) ATTR_WARN_UNUSED_RESULT;
-
-pipe_handle_t hcd_pipe_open(uint8_t dev_addr, tusb_desc_endpoint_t const * endpoint_desc, uint8_t class_code) ATTR_WARN_UNUSED_RESULT;
-tusb_error_t  hcd_pipe_queue_xfer(pipe_handle_t pipe_hdl, uint8_t buffer[], uint16_t total_bytes) ATTR_WARN_UNUSED_RESULT; // only queue, not transferring yet
-tusb_error_t  hcd_pipe_xfer(pipe_handle_t pipe_hdl, uint8_t buffer[], uint16_t total_bytes, bool int_on_complete)  ATTR_WARN_UNUSED_RESULT;
-tusb_error_t  hcd_pipe_close(pipe_handle_t pipe_hdl) /*ATTR_WARN_UNUSED_RESULT*/;
-
-bool hcd_pipe_is_busy(pipe_handle_t pipe_hdl) ATTR_PURE;
-bool hcd_pipe_is_error(pipe_handle_t pipe_hdl) ATTR_PURE;
-bool hcd_pipe_is_stalled(pipe_handle_t pipe_hdl) ATTR_PURE; // stalled also counted as error
-
-uint8_t hcd_pipe_get_endpoint_addr(pipe_handle_t pipe_hdl) ATTR_PURE;
-tusb_error_t hcd_pipe_clear_stall(pipe_handle_t pipe_hdl);
+bool hcd_pipe_queue_xfer(uint8_t dev_addr, uint8_t ep_addr, uint8_t buffer[], uint16_t total_bytes); // only queue, not transferring yet
+bool hcd_pipe_xfer(uint8_t dev_addr, uint8_t ep_addr, uint8_t buffer[], uint16_t total_bytes, bool int_on_complete);
 
 #if 0
 tusb_error_t hcd_pipe_cancel()ATTR_WARN_UNUSED_RESULT;
 #endif
-
-//--------------------------------------------------------------------+
-// PORT API
-//--------------------------------------------------------------------+
-/// return the current connect status of roothub port
-bool hcd_port_connect_status(uint8_t hostid) ATTR_PURE ATTR_WARN_UNUSED_RESULT; // TODO make inline if possible
-void hcd_port_reset(uint8_t hostid);
-tusb_speed_t hcd_port_speed_get(uint8_t hostid) ATTR_PURE ATTR_WARN_UNUSED_RESULT; // TODO make inline if possible
-void hcd_port_unplug(uint8_t hostid); // called by usbh to instruct hcd that it can execute unplug procedure
 
 #ifdef __cplusplus
  }

@@ -62,6 +62,12 @@ static inline bool osal_task_create(osal_task_def_t* taskdef)
   return true;
 }
 
+static inline void osal_task_delay(uint32_t msec)
+{
+  uint32_t start = tusb_hal_millis();
+  while ( ( tusb_hal_millis() - start ) < msec ) {}
+}
+
 //--------------------------------------------------------------------+
 // Binary Semaphore API
 //--------------------------------------------------------------------+
@@ -90,16 +96,15 @@ static inline void osal_semaphore_reset(osal_semaphore_t sem_hdl)
   sem_hdl->count = 0;
 }
 
-static inline tusb_error_t osal_semaphore_wait(osal_semaphore_t sem_hdl, uint32_t msec) {
+// TODO blocking for now
+static inline bool osal_semaphore_wait (osal_semaphore_t sem_hdl, uint32_t msec)
+{
   (void) msec;
-  while (true) {
-    while (sem_hdl->count == 0) { }
-    if (sem_hdl->count == 0) {
-      sem_hdl->count--;
-      break;
-    }
-  }
-  return TUSB_ERROR_NONE;
+
+  while (sem_hdl->count == 0) { }
+  sem_hdl->count--;
+
+  return true;
 }
 
 //--------------------------------------------------------------------+
@@ -129,7 +134,7 @@ extern void dcd_int_disable(uint8_t rhport);
 extern void dcd_int_enable(uint8_t rhport);
 #endif
 
-#if MODE_HOST_SUPPORTED
+#if TUSB_OPT_HOST_ENABLED
 extern void hcd_int_disable(uint8_t rhport);
 extern void hcd_int_enable(uint8_t rhport);
 #endif
@@ -162,7 +167,7 @@ static inline void _osal_q_lock(osal_queue_t qhdl)
   if (qhdl->role == OPT_MODE_DEVICE) dcd_int_disable(TUD_OPT_RHPORT);
 #endif
 
-#if MODE_HOST_SUPPORTED
+#if TUSB_OPT_HOST_ENABLED
   if (qhdl->role == OPT_MODE_HOST) hcd_int_disable(TUH_OPT_RHPORT);
 #endif
 }
@@ -174,7 +179,7 @@ static inline void _osal_q_unlock(osal_queue_t qhdl)
   if (qhdl->role == OPT_MODE_DEVICE) dcd_int_enable(TUD_OPT_RHPORT);
 #endif
 
-#if MODE_HOST_SUPPORTED
+#if TUSB_OPT_HOST_ENABLED
   if (qhdl->role == OPT_MODE_HOST) hcd_int_enable(TUH_OPT_RHPORT);
 #endif
 }

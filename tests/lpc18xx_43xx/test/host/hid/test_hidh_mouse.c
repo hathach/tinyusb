@@ -117,7 +117,7 @@ void test_mouse_open_ok(void)
   usbh_control_xfer_subtask_ExpectAndReturn(dev_addr, bm_request_type(TUSB_DIR_HOST_TO_DEV, TUSB_REQ_TYPE_CLASS, TUSB_REQ_RECIPIENT_INTERFACE),
                                             HID_REQ_CONTROL_SET_IDLE, 0, p_mouse_interface_desc->bInterfaceNumber, 0, NULL,
                                             TUSB_ERROR_NONE);
-  hcd_pipe_open_ExpectAndReturn(dev_addr, p_mouse_endpoint_desc, TUSB_CLASS_HID, pipe_hdl);
+  hcd_edpt_open_ExpectAndReturn(dev_addr, p_mouse_endpoint_desc, TUSB_CLASS_HID, pipe_hdl);
   tusbh_hid_mouse_mounted_cb_Expect(dev_addr);
 
   //------------- Code Under TEST -------------//
@@ -159,7 +159,7 @@ void test_mouse_get_device_not_ready(void)
 void test_mouse_get_report_xfer_failed()
 {
   tusbh_device_get_state_IgnoreAndReturn(TUSB_DEVICE_STATE_CONFIGURED);
-  hcd_pipe_is_busy_ExpectAndReturn(p_hidh_mouse->pipe_hdl, false);
+  hcd_edpt_busy_ExpectAndReturn(p_hidh_mouse->pipe_hdl, false);
   hcd_pipe_xfer_ExpectAndReturn(p_hidh_mouse->pipe_hdl, (uint8_t*) &report, p_hidh_mouse->report_size, true, TUSB_ERROR_INVALID_PARA);
 
   //------------- Code Under TEST -------------//
@@ -169,7 +169,7 @@ void test_mouse_get_report_xfer_failed()
 void test_mouse_get_report_xfer_failed_busy()
 {
   tusbh_device_get_state_IgnoreAndReturn(TUSB_DEVICE_STATE_CONFIGURED);
-  hcd_pipe_is_busy_ExpectAndReturn(p_hidh_mouse->pipe_hdl, true);
+  hcd_edpt_busy_ExpectAndReturn(p_hidh_mouse->pipe_hdl, true);
 
   TEST_ASSERT_EQUAL(TUSB_ERROR_INTERFACE_IS_BUSY, tusbh_hid_mouse_get_report(dev_addr, &report));
 }
@@ -178,7 +178,7 @@ void test_mouse_get_ok()
 {
   tusbh_device_get_state_IgnoreAndReturn(TUSB_DEVICE_STATE_CONFIGURED);
 //  TEST_ASSERT_EQUAL(TUSB_INTERFACE_STATUS_READY, tusbh_hid_mouse_status(dev_addr));
-  hcd_pipe_is_busy_ExpectAndReturn(p_hidh_mouse->pipe_hdl, false);
+  hcd_edpt_busy_ExpectAndReturn(p_hidh_mouse->pipe_hdl, false);
   hcd_pipe_xfer_ExpectAndReturn(p_hidh_mouse->pipe_hdl, (uint8_t*) &report, p_hidh_mouse->report_size, true, TUSB_ERROR_NONE);
 
   //------------- Code Under TEST -------------//

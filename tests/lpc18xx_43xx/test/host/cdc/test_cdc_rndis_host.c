@@ -103,9 +103,9 @@ void setUp(void)
   osal_mutex_wait_StubWithCallback(stub_mutex_wait);
   osal_mutex_release_IgnoreAndReturn(TUSB_ERROR_NONE);
 
-  hcd_pipe_open_ExpectAndReturn(dev_addr, p_endpoint_notification, TUSB_CLASS_CDC, pipe_notification);
-  hcd_pipe_open_ExpectAndReturn(dev_addr, p_endpoint_out, TUSB_CLASS_CDC, pipe_out);
-  hcd_pipe_open_ExpectAndReturn(dev_addr, p_endpoint_in, TUSB_CLASS_CDC, pipe_in);
+  hcd_edpt_open_ExpectAndReturn(dev_addr, p_endpoint_notification, TUSB_CLASS_CDC, pipe_notification);
+  hcd_edpt_open_ExpectAndReturn(dev_addr, p_endpoint_out, TUSB_CLASS_CDC, pipe_out);
+  hcd_edpt_open_ExpectAndReturn(dev_addr, p_endpoint_in, TUSB_CLASS_CDC, pipe_in);
 }
 
 void tearDown(void)

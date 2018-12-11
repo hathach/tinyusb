@@ -135,9 +135,9 @@ void print_greeting(void)
 
   puts("This HOST demo is configured to support:");
   printf("  - RTOS = %s\n", rtos_name[CFG_TUSB_OS]);
-  if (CFG_TUSB_HOST_HUB          ) puts("  - Hub (1 level only)");
-  if (CFG_TUSB_HOST_HID_MOUSE    ) puts("  - HID Mouse");
-  if (CFG_TUSB_HOST_HID_KEYBOARD ) puts("  - HID Keyboard");
-  if (CFG_TUSB_HOST_MSC          ) puts("  - Mass Storage");
-  if (CFG_TUSB_HOST_CDC          ) puts("  - Communication Device Class");
+  if (CFG_TUH_HUB          ) puts("  - Hub (1 level only)");
+  if (CFG_TUH_HID_MOUSE    ) puts("  - HID Mouse");
+  if (CFG_TUH_HID_KEYBOARD ) puts("  - HID Keyboard");
+  if (CFG_TUH_MSC          ) puts("  - Mass Storage");
+  if (CFG_TUH_CDC          ) puts("  - Communication Device Class");
 }

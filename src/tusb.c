@@ -39,21 +39,24 @@
 #include "tusb_option.h"
 
 #if TUSB_OPT_HOST_ENABLED || TUSB_OPT_DEVICE_ENABLED
-
 #define _TINY_USB_SOURCE_FILE_
 
 #include "tusb.h"
-#include "device/usbd_pvt.h"
 
 static bool _initialized = false;
+
+// TODO clean up
+#if TUSB_OPT_DEVICE_ENABLED
+#include "device/usbd_pvt.h"
+#endif
 
 bool tusb_init(void)
 {
   // skip if already initialized
   if (_initialized) return true;
 
-#if MODE_HOST_SUPPORTED
-  TU_VERIFY( usbh_init() == TUSB_ERROR_NONE ); // init host stack
+#if TUSB_OPT_HOST_ENABLED
+  TU_VERIFY( usbh_init() ); // init host stack
 #endif
 
 #if TUSB_OPT_DEVICE_ENABLED
@@ -68,8 +71,8 @@ bool tusb_init(void)
 #if CFG_TUSB_OS == OPT_OS_NONE
 void tusb_task(void)
 {
-  #if MODE_HOST_SUPPORTED
-  usbh_enumeration_task(NULL);
+  #if TUSB_OPT_HOST_ENABLED
+  usbh_task(NULL);
   #endif
 
   #if TUSB_OPT_DEVICE_ENABLED

@@ -62,7 +62,7 @@
  * \retval      true if device supports
  * \retval      false if device does not support or is not mounted
  */
-bool tuh_cdc_serial_is_mounted(uint8_t dev_addr) ATTR_PURE ATTR_WARN_UNUSED_RESULT;
+bool tuh_cdc_serial_is_mounted(uint8_t dev_addr);
 
 /** \brief      Check if the interface is currently busy or not
  * \param[in]   dev_addr device address
@@ -73,7 +73,7 @@ bool tuh_cdc_serial_is_mounted(uint8_t dev_addr) ATTR_PURE ATTR_WARN_UNUSED_RESU
  *              can be scheduled. User needs to make sure the corresponding interface is mounted
  *              (by \ref tuh_cdc_serial_is_mounted) before calling this function.
  */
-bool tuh_cdc_is_busy(uint8_t dev_addr, cdc_pipeid_t pipeid)  ATTR_PURE ATTR_WARN_UNUSED_RESULT;
+bool tuh_cdc_is_busy(uint8_t dev_addr, cdc_pipeid_t pipeid);
 
 /** \brief 			Perform USB OUT transfer to device
  * \param[in]		dev_addr	device address
@@ -86,7 +86,7 @@ bool tuh_cdc_is_busy(uint8_t dev_addr, cdc_pipeid_t pipeid)  ATTR_PURE ATTR_WARN
  * \note        This function is non-blocking and returns immediately. The result of USB transfer will be reported by the
  *              interface's callback function. \a p_data must be declared with \ref CFG_TUSB_MEM_SECTION.
  */
-tusb_error_t tuh_cdc_send(uint8_t dev_addr, void const * p_data, uint32_t length, bool is_notify);
+bool tuh_cdc_send(uint8_t dev_addr, void const * p_data, uint32_t length, bool is_notify);
 
 /** \brief 			Perform USB IN transfer to get data from device
  * \param[in]		dev_addr	device address
@@ -99,22 +99,11 @@ tusb_error_t tuh_cdc_send(uint8_t dev_addr, void const * p_data, uint32_t length
  * \note        This function is non-blocking and returns immediately. The result of USB transfer will be reported by the
  *              interface's callback function. \a p_data must be declared with \ref CFG_TUSB_MEM_SECTION.
  */
-tusb_error_t tuh_cdc_receive(uint8_t dev_addr, void * p_buffer, uint32_t length, bool is_notify);
+bool tuh_cdc_receive(uint8_t dev_addr, void * p_buffer, uint32_t length, bool is_notify);
 
 //--------------------------------------------------------------------+
 // CDC APPLICATION CALLBACKS
 //--------------------------------------------------------------------+
-/** \brief 			Callback function that will be invoked when a device with CDC Abstract Control Model interface is mounted
- * \param[in]	  dev_addr Address of newly mounted device
- * \note        This callback should be used by Application to set-up interface-related data
- */
-void tuh_cdc_mounted_cb(uint8_t dev_addr);
-
-/** \brief 			Callback function that will be invoked when a device with CDC Abstract Control Model interface is unmounted
- * \param[in] 	dev_addr Address of newly unmounted device
- * \note        This callback should be used by Application to tear-down interface-related data
- */
-void tuh_cdc_unmounted_cb(uint8_t dev_addr);
 
 /** \brief      Callback function that is invoked when an transferring event occurred
  * \param[in]		dev_addr	Address of device
@@ -137,22 +126,10 @@ void tuh_cdc_xfer_isr(uint8_t dev_addr, xfer_result_t event, cdc_pipeid_t pipe_i
 //--------------------------------------------------------------------+
 #ifdef _TINY_USB_SOURCE_FILE_
 
-typedef struct {
-  uint8_t interface_number;
-  uint8_t interface_protocol;
-
-  cdc_acm_capability_t acm_capability;
-
-  pipe_handle_t pipe_notification, pipe_out, pipe_in;
-
-} cdch_data_t;
-
-extern cdch_data_t cdch_data[CFG_TUSB_HOST_DEVICE_MAX]; // TODO consider to move to cdch internal header file
-
-void         cdch_init(void);
-tusb_error_t cdch_open_subtask(uint8_t dev_addr, tusb_desc_interface_t const *p_interface_desc, uint16_t *p_length) ATTR_WARN_UNUSED_RESULT;
-void         cdch_isr(pipe_handle_t pipe_hdl, xfer_result_t event, uint32_t xferred_bytes);
-void         cdch_close(uint8_t dev_addr);
+void cdch_init(void);
+bool cdch_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_interface_t const *itf_desc, uint16_t *p_length);
+void cdch_isr(uint8_t dev_addr, uint8_t ep_addr, xfer_result_t event, uint32_t xferred_bytes);
+void cdch_close(uint8_t dev_addr);
 
 #endif
 

@@ -38,7 +38,7 @@
 
 #include "tusb_option.h"
 
-#if (MODE_HOST_SUPPORTED && CFG_TUSB_HOST_CUSTOM_CLASS)
+#if (TUSB_OPT_HOST_ENABLED && CFG_TUSB_HOST_CUSTOM_CLASS)
 
 #define _TINY_USB_SOURCE_FILE_
 
@@ -121,7 +121,7 @@ tusb_error_t cush_open_subtask(uint8_t dev_addr, tusb_desc_interface_t const *p_
 
     pipe_handle_t * p_pipe_hdl =  ( p_endpoint->bEndpointAddress &  TUSB_DIR_IN_MASK ) ?
                          &custom_interface[dev_addr-1].pipe_in : &custom_interface[dev_addr-1].pipe_out;
-    *p_pipe_hdl = hcd_pipe_open(dev_addr, p_endpoint, TUSB_CLASS_VENDOR_SPECIFIC);
+    *p_pipe_hdl = hcd_edpt_open(dev_addr, p_endpoint, TUSB_CLASS_VENDOR_SPECIFIC);
     TU_ASSERT ( pipehandle_is_valid(*p_pipe_hdl), TUSB_ERROR_HCD_OPEN_PIPE_FAILED );
 
     p_desc = descriptor_next(p_desc);

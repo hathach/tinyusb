@@ -42,7 +42,7 @@
 #include "mouse_host_app.h"
 #include "app_os_prio.h"
 
-#if CFG_TUSB_HOST_HID_MOUSE
+#if CFG_TUH_HID_MOUSE
 
 //--------------------------------------------------------------------+
 // MACRO CONSTANT TYPEDEF

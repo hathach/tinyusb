@@ -50,11 +50,13 @@
 /* Initialize GPIO block */
 void Chip_GPIO_Init(LPC_GPIO_T *pGPIO)
 {
+  (void) pGPIO;
 }
 
 /* De-Initialize GPIO block */
 void Chip_GPIO_DeInit(LPC_GPIO_T *pGPIO)
 {
+  (void) pGPIO;
 }
 
 

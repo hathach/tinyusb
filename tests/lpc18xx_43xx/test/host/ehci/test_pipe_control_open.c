@@ -51,7 +51,7 @@
 #include "ehci_controller_fake.h"
 #include "host_helper.h"
 
-usbh_device_info_t usbh_devices[CFG_TUSB_HOST_DEVICE_MAX+1];
+usbh_device_t _usbh_devices[CFG_TUSB_HOST_DEVICE_MAX+1];
 
 static uint8_t const control_max_packet_size = 64;
 static uint8_t const hub_addr = 2;
@@ -67,7 +67,7 @@ static ehci_qhd_t *p_control_qhd;
 //--------------------------------------------------------------------+
 void setUp(void)
 {
-  tu_memclr(usbh_devices, sizeof(usbh_device_info_t)*(CFG_TUSB_HOST_DEVICE_MAX+1));
+  tu_memclr(_usbh_devices, sizeof(usbh_device_t)*(CFG_TUSB_HOST_DEVICE_MAX+1));
 
   TEST_ASSERT_STATUS( hcd_init() );
 
@@ -90,7 +90,7 @@ void verify_open_qhd(ehci_qhd_t *p_qhd, uint8_t endpoint_addr, uint16_t max_pack
   TEST_ASSERT_EQUAL(dev_addr, p_qhd->device_address);
   TEST_ASSERT_FALSE(p_qhd->non_hs_period_inactive_next_xact);
   TEST_ASSERT_EQUAL(endpoint_addr & 0x0F, p_qhd->endpoint_number);
-  TEST_ASSERT_EQUAL(usbh_devices[dev_addr].speed, p_qhd->endpoint_speed);
+  TEST_ASSERT_EQUAL(_usbh_devices[dev_addr].speed, p_qhd->endpoint_speed);
   TEST_ASSERT_EQUAL(max_packet_size, p_qhd->max_package_size);
   TEST_ASSERT_EQUAL(0, p_qhd->nak_count_reload); // TDD NAK Reload disable
 
@@ -149,7 +149,7 @@ void test_control_open_qhd_data(void)
 
 void test_control_open_highspeed(void)
 {
-  usbh_devices[dev_addr].speed   = TUSB_SPEED_HIGH;
+  _usbh_devices[dev_addr].speed   = TUSB_SPEED_HIGH;
 
   //------------- Code Under TEST -------------//
   TEST_ASSERT_STATUS( hcd_pipe_control_open(dev_addr, control_max_packet_size) );
@@ -158,7 +158,7 @@ void test_control_open_highspeed(void)
 
 void test_control_open_non_highspeed(void)
 {
-  usbh_devices[dev_addr].speed   = TUSB_SPEED_FULL;
+  _usbh_devices[dev_addr].speed   = TUSB_SPEED_FULL;
 
   //------------- Code Under TEST -------------//
   TEST_ASSERT_STATUS( hcd_pipe_control_open(dev_addr, control_max_packet_size) );

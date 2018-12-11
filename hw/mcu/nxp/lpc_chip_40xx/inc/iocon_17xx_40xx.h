@@ -150,6 +150,7 @@ typedef struct {
  */
 STATIC INLINE void Chip_IOCON_Init(LPC_IOCON_T *pIOCON)
 {
+  (void) pIOCON;
 	Chip_Clock_EnablePeriphClock(SYSCTL_CLOCK_GPIO);
 }
 

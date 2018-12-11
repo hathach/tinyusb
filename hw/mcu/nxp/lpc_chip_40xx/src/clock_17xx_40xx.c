@@ -328,6 +328,7 @@ uint32_t Chip_Clock_GetSYSCLKRate(void)
 	case (uint32_t) SYSCTL_PLLCLKSRC_RTC:
 		return Chip_Clock_GetRTCOscRate();
 #endif
+        default: break;
 	}
 	return 0;
 }

@@ -153,7 +153,8 @@ void dcd_int_disable(uint8_t rhport)
 
 void dcd_set_config(uint8_t rhport, uint8_t config_num)
 {
-
+  (void) rhport;
+  (void) config_num;
 }
 
 void dcd_set_address(uint8_t rhport, uint8_t dev_addr)
@@ -186,6 +187,8 @@ bool dcd_init(uint8_t rhport)
 //--------------------------------------------------------------------+
 void dcd_edpt_stall(uint8_t rhport, uint8_t ep_addr)
 {
+  (void) rhport;
+
   if ( edpt_number(ep_addr) == 0 )
   {
     // TODO cannot able to STALL Control OUT endpoint !!!!! FIXME try some walk-around
@@ -200,12 +203,16 @@ void dcd_edpt_stall(uint8_t rhport, uint8_t ep_addr)
 
 bool dcd_edpt_stalled(uint8_t rhport, uint8_t ep_addr)
 {
+  (void) rhport;
+
   uint8_t const ep_id = ep_addr2id(ep_addr);
   return _dcd.ep[ep_id][0].stall;
 }
 
 void dcd_edpt_clear_stall(uint8_t rhport, uint8_t edpt_addr)
 {
+  (void) rhport;
+
   uint8_t const ep_id = ep_addr2id(edpt_addr);
 
   _dcd.ep[ep_id][0].stall        = 0;
@@ -237,6 +244,8 @@ bool dcd_edpt_open(uint8_t rhport, tusb_desc_endpoint_t const * p_endpoint_desc)
 
 bool dcd_edpt_busy(uint8_t rhport, uint8_t ep_addr)
 {
+  (void) rhport;
+
   uint8_t const ep_id = ep_addr2id(ep_addr);
   return _dcd.ep[ep_id][0].active;
 }
@@ -254,6 +263,8 @@ static void prepare_ep_xfer(uint8_t ep_id, uint16_t buf_offset, uint16_t total_b
 
 bool dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t* buffer, uint16_t total_bytes)
 {
+  (void) rhport;
+
   uint8_t const ep_id = ep_addr2id(ep_addr);
 
   tu_varclr(&_dcd.dma[ep_id]);

@@ -1,0 +1,9 @@
+<!DOCTYPE CrossStudio_Project_File>
+<solution Name="cdc_msc_hid" target="8" version="2">
+  <import file_name="samd21/samd21.emProject" />
+  <import file_name="samd51/samd51.emProject" />
+  <import file_name="lpc175x_6x/lpc175x_6x.emProject" />
+  <import file_name="lpc18xx/lpc18xx.emProject" />
+  <import file_name="lpc40xx/lpc40xx.emProject" />
+  <import file_name="lpc43xx/lpc43xx.emProject" />  
+</solution>

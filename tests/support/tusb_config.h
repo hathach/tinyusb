@@ -55,13 +55,13 @@
 #define CFG_TUSB_HOST_DEVICE_MAX          5 // TODO be a part of HUB config
 
 //------------- CLASS -------------//
-#define CFG_TUSB_HOST_HUB                 0
-#define CFG_TUSB_HOST_HID_KEYBOARD        1
-#define CFG_TUSB_HOST_HID_MOUSE           1
-#define CFG_TUSB_HOST_MSC                 1
+#define CFG_TUH_HUB                 0
+#define CFG_TUH_HID_KEYBOARD        1
+#define CFG_TUH_HID_MOUSE           1
+#define CFG_TUH_MSC                 1
 #define CFG_TUSB_HOST_HID_GENERIC         0
-#define CFG_TUSB_HOST_CDC                 1
-#define CFG_TUSB_HOST_CDC_RNDIS           0
+#define CFG_TUH_CDC                 1
+#define CFG_TUH_CDC_RNDIS           0
 
 // Test support
 #define TEST_CONTROLLER_HOST_START_INDEX \

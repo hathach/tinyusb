@@ -148,7 +148,7 @@ void board_init(void)
   LPC_USB->OTGClkCtrl = clk_en;
   while ( (LPC_USB->OTGClkSt & clk_en) != clk_en );
 
-#if MODE_HOST_SUPPORTED
+#if TUSB_OPT_HOST_ENABLED
   // set portfunc to host !!!
   LPC_USB->StCtrl = 0x3; // should be 1
 #endif
@@ -186,11 +186,13 @@ void board_led_control(bool state)
 //--------------------------------------------------------------------+
 // BUTTONS
 //--------------------------------------------------------------------+
+#if 0
 static bool button_read(uint8_t id)
 {
 //  return !BIT_TEST_( GPIO_ReadValue(buttons[id].port), buttons[id].pin ); // button is active low
   return false;
 }
+#endif
 
 uint32_t board_buttons(void)
 {
@@ -206,12 +208,14 @@ uint32_t board_buttons(void)
 //--------------------------------------------------------------------+
 void board_uart_putchar(uint8_t c)
 {
+  (void) c;
 //  UART_Send(BOARD_UART_PORT, &c, 1, BLOCKING);
 }
 
 uint8_t  board_uart_getchar(void)
 {
 //  return UART_ReceiveByte(BOARD_UART_PORT);
+  return 0;
 }
 
 #endif

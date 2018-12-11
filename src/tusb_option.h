@@ -109,13 +109,6 @@
   #error "tinyusb does not support same modes on more than 1 roothub port"
 #endif
 
-// TODO remove
-#define CONTROLLER_HOST_NUMBER (\
-    ((CFG_TUSB_RHPORT0_MODE & OPT_MODE_HOST) ? 1 : 0) + \
-    ((CFG_TUSB_RHPORT1_MODE & OPT_MODE_HOST) ? 1 : 0))
-
-#define MODE_HOST_SUPPORTED     (CONTROLLER_HOST_NUMBER > 0)
-
 // Which roothub port is configured as host
 #define TUH_OPT_RHPORT          ( (CFG_TUSB_RHPORT0_MODE & OPT_MODE_HOST) ? 0 : ((CFG_TUSB_RHPORT1_MODE & OPT_MODE_HOST) ? 1 : -1) )
 #define TUSB_OPT_HOST_ENABLED   ( TUH_OPT_RHPORT >= 0 )
@@ -206,29 +199,26 @@
 //--------------------------------------------------------------------
 // HOST OPTIONS
 //--------------------------------------------------------------------
-#if MODE_HOST_SUPPORTED
+#if TUSB_OPT_HOST_ENABLED
   #ifndef CFG_TUSB_HOST_DEVICE_MAX
     #define CFG_TUSB_HOST_DEVICE_MAX 1
     #warning CFG_TUSB_HOST_DEVICE_MAX is not defined, default value is 1
   #endif
 
   //------------- HUB CLASS -------------//
-  #if CFG_TUSB_HOST_HUB && (CFG_TUSB_HOST_DEVICE_MAX == 1)
+  #if CFG_TUH_HUB && (CFG_TUSB_HOST_DEVICE_MAX == 1)
     #error there is no benefit enable hub with max device is 1. Please disable hub or increase CFG_TUSB_HOST_DEVICE_MAX
   #endif
 
   //------------- HID CLASS -------------//
-  #define HOST_CLASS_HID   ( CFG_TUSB_HOST_HID_KEYBOARD + CFG_TUSB_HOST_HID_MOUSE + CFG_TUSB_HOST_HID_GENERIC )
-//  #if HOST_CLASS_HID
-//    #define HOST_HCD_XFER_INTERRUPT
-//  #endif
+  #define HOST_CLASS_HID   ( CFG_TUH_HID_KEYBOARD + CFG_TUH_HID_MOUSE + CFG_TUSB_HOST_HID_GENERIC )
 
   #ifndef CFG_TUSB_HOST_ENUM_BUFFER_SIZE
     #define CFG_TUSB_HOST_ENUM_BUFFER_SIZE 256
   #endif
 
   //------------- CLASS -------------//
-#endif // MODE_HOST_SUPPORTED
+#endif // TUSB_OPT_HOST_ENABLED
 
 
 //------------------------------------------------------------------

@@ -38,7 +38,7 @@
 
 #include "tusb_option.h"
 
-#if MODE_HOST_SUPPORTED & CFG_TUSB_HOST_MSC
+#if TUSB_OPT_HOST_ENABLED & CFG_TUH_MSC
 
 #define _TINY_USB_SOURCE_FILE_
 
@@ -51,13 +51,14 @@
 //--------------------------------------------------------------------+
 // MACRO CONSTANT TYPEDEF
 //--------------------------------------------------------------------+
-CFG_TUSB_MEM_SECTION STATIC_VAR msch_interface_t msch_data[CFG_TUSB_HOST_DEVICE_MAX];
+CFG_TUSB_MEM_SECTION static msch_interface_t msch_data[CFG_TUSB_HOST_DEVICE_MAX];
 
 //------------- Initalization Data -------------//
+static osal_semaphore_def_t msch_sem_def;
 static osal_semaphore_t msch_sem_hdl;
 
 // buffer used to read scsi information when mounted, largest response data currently is inquiry
-CFG_TUSB_MEM_SECTION ATTR_ALIGNED(4) STATIC_VAR uint8_t msch_buffer[sizeof(scsi_inquiry_data_t)];
+CFG_TUSB_MEM_SECTION ATTR_ALIGNED(4) static uint8_t msch_buffer[sizeof(scsi_inquiry_resp_t)];
 
 //--------------------------------------------------------------------+
 // INTERNAL OBJECT & FUNCTION DECLARATION
@@ -75,7 +76,7 @@ bool tuh_msc_is_mounted(uint8_t dev_addr)
 bool tuh_msc_is_busy(uint8_t dev_addr)
 {
   return  msch_data[dev_addr-1].is_initialized &&
-          hcd_pipe_is_busy(msch_data[dev_addr-1].bulk_in);
+          hcd_edpt_busy(dev_addr, msch_data[dev_addr-1].ep_in);
 }
 
 uint8_t const* tuh_msc_get_vendor_name(uint8_t dev_addr)
@@ -109,23 +110,22 @@ static inline void msc_cbw_add_signature(msc_cbw_t *p_cbw, uint8_t lun)
   p_cbw->lun        = lun;
 }
 
-static tusb_error_t msch_command_xfer(msch_interface_t * p_msch, void* p_buffer) ATTR_WARN_UNUSED_RESULT;
-static tusb_error_t msch_command_xfer(msch_interface_t * p_msch, void* p_buffer)
+static tusb_error_t msch_command_xfer(uint8_t dev_addr, msch_interface_t * p_msch, void* p_buffer)
 {
   if ( NULL != p_buffer)
   { // there is data phase
     if (p_msch->cbw.dir & TUSB_DIR_IN_MASK)
     {
-      TU_ASSERT_ERR( hcd_pipe_xfer(p_msch->bulk_out, (uint8_t*) &p_msch->cbw, sizeof(msc_cbw_t), false) );
-      TU_ASSERT_ERR( hcd_pipe_queue_xfer(p_msch->bulk_in , p_buffer, p_msch->cbw.xfer_bytes) );
+      TU_ASSERT( hcd_pipe_xfer(dev_addr, p_msch->ep_out, (uint8_t*) &p_msch->cbw, sizeof(msc_cbw_t), false), TUSB_ERROR_FAILED );
+      TU_ASSERT( hcd_pipe_queue_xfer(dev_addr, p_msch->ep_in , p_buffer, p_msch->cbw.total_bytes), TUSB_ERROR_FAILED );
     }else
     {
-      TU_ASSERT_ERR( hcd_pipe_queue_xfer(p_msch->bulk_out, (uint8_t*) &p_msch->cbw, sizeof(msc_cbw_t)) );
-      TU_ASSERT_ERR( hcd_pipe_xfer(p_msch->bulk_out , p_buffer, p_msch->cbw.xfer_bytes, false) );
+      TU_ASSERT( hcd_pipe_queue_xfer(dev_addr, p_msch->ep_out, (uint8_t*) &p_msch->cbw, sizeof(msc_cbw_t)), TUSB_ERROR_FAILED );
+      TU_ASSERT( hcd_pipe_xfer(dev_addr, p_msch->ep_out , p_buffer, p_msch->cbw.total_bytes, false), TUSB_ERROR_FAILED );
     }
   }
 
-  TU_ASSERT_ERR( hcd_pipe_xfer(p_msch->bulk_in , (uint8_t*) &p_msch->csw, sizeof(msc_csw_t), true) );
+  TU_ASSERT( hcd_pipe_xfer(dev_addr, p_msch->ep_in , (uint8_t*) &p_msch->csw, sizeof(msc_csw_t), true), TUSB_ERROR_FAILED);
 
   return TUSB_ERROR_NONE;
 }
@@ -136,7 +136,7 @@ tusb_error_t tusbh_msc_inquiry(uint8_t dev_addr, uint8_t lun, uint8_t *p_data)
 
   //------------- Command Block Wrapper -------------//
   msc_cbw_add_signature(&p_msch->cbw, lun);
-  p_msch->cbw.xfer_bytes = sizeof(scsi_inquiry_data_t);
+  p_msch->cbw.total_bytes = sizeof(scsi_inquiry_resp_t);
   p_msch->cbw.dir        = TUSB_DIR_IN_MASK;
   p_msch->cbw.cmd_len    = sizeof(scsi_inquiry_t);
 
@@ -144,12 +144,12 @@ tusb_error_t tusbh_msc_inquiry(uint8_t dev_addr, uint8_t lun, uint8_t *p_data)
   scsi_inquiry_t cmd_inquiry =
   {
       .cmd_code     = SCSI_CMD_INQUIRY,
-      .alloc_length = sizeof(scsi_inquiry_data_t)
+      .alloc_length = sizeof(scsi_inquiry_resp_t)
   };
 
   memcpy(p_msch->cbw.command, &cmd_inquiry, p_msch->cbw.cmd_len);
 
-  TU_ASSERT_ERR ( msch_command_xfer(p_msch, p_data) );
+  TU_ASSERT_ERR ( msch_command_xfer(dev_addr, p_msch, p_data) );
 
   return TUSB_ERROR_NONE;
 }
@@ -160,7 +160,7 @@ tusb_error_t tusbh_msc_read_capacity10(uint8_t dev_addr, uint8_t lun, uint8_t *p
 
   //------------- Command Block Wrapper -------------//
   msc_cbw_add_signature(&p_msch->cbw, lun);
-  p_msch->cbw.xfer_bytes = sizeof(scsi_read_capacity10_data_t);
+  p_msch->cbw.total_bytes = sizeof(scsi_read_capacity10_resp_t);
   p_msch->cbw.dir        = TUSB_DIR_IN_MASK;
   p_msch->cbw.cmd_len    = sizeof(scsi_read_capacity10_t);
 
@@ -174,7 +174,7 @@ tusb_error_t tusbh_msc_read_capacity10(uint8_t dev_addr, uint8_t lun, uint8_t *p
 
   memcpy(p_msch->cbw.command, &cmd_read_capacity10, p_msch->cbw.cmd_len);
 
-  TU_ASSERT_ERR ( msch_command_xfer(p_msch, p_data) );
+  TU_ASSERT_ERR ( msch_command_xfer(dev_addr, p_msch, p_data) );
 
   return TUSB_ERROR_NONE;
 }
@@ -186,7 +186,7 @@ tusb_error_t tuh_msc_request_sense(uint8_t dev_addr, uint8_t lun, uint8_t *p_dat
   msch_interface_t* p_msch = &msch_data[dev_addr-1];
 
   //------------- Command Block Wrapper -------------//
-  p_msch->cbw.xfer_bytes = 18;
+  p_msch->cbw.total_bytes = 18;
   p_msch->cbw.dir        = TUSB_DIR_IN_MASK;
   p_msch->cbw.cmd_len    = sizeof(scsi_request_sense_t);
 
@@ -199,7 +199,7 @@ tusb_error_t tuh_msc_request_sense(uint8_t dev_addr, uint8_t lun, uint8_t *p_dat
 
   memcpy(p_msch->cbw.command, &cmd_request_sense, p_msch->cbw.cmd_len);
 
-  TU_ASSERT_ERR ( msch_command_xfer(p_msch, p_data) );
+  TU_ASSERT_ERR ( msch_command_xfer(dev_addr, p_msch, p_data) );
 
   return TUSB_ERROR_NONE;
 }
@@ -211,7 +211,7 @@ tusb_error_t tuh_msc_test_unit_ready(uint8_t dev_addr, uint8_t lun,  msc_csw_t *
   //------------- Command Block Wrapper -------------//
   msc_cbw_add_signature(&p_msch->cbw, lun);
 
-  p_msch->cbw.xfer_bytes = 0; // Number of bytes
+  p_msch->cbw.total_bytes = 0; // Number of bytes
   p_msch->cbw.dir        = TUSB_DIR_OUT;
   p_msch->cbw.cmd_len    = sizeof(scsi_test_unit_ready_t);
 
@@ -225,8 +225,8 @@ tusb_error_t tuh_msc_test_unit_ready(uint8_t dev_addr, uint8_t lun,  msc_csw_t *
   memcpy(p_msch->cbw.command, &cmd_test_unit_ready, p_msch->cbw.cmd_len);
 
   // TODO MSCH refractor test uinit ready
-  TU_ASSERT_ERR( hcd_pipe_xfer(p_msch->bulk_out, (uint8_t*) &p_msch->cbw, sizeof(msc_cbw_t), false) );
-  TU_ASSERT_ERR( hcd_pipe_xfer(p_msch->bulk_in , (uint8_t*) p_csw, sizeof(msc_csw_t), true) );
+  TU_ASSERT( hcd_pipe_xfer(dev_addr, p_msch->ep_out, (uint8_t*) &p_msch->cbw, sizeof(msc_cbw_t), false), TUSB_ERROR_FAILED );
+  TU_ASSERT( hcd_pipe_xfer(dev_addr, p_msch->ep_in , (uint8_t*) p_csw, sizeof(msc_csw_t), true), TUSB_ERROR_FAILED );
 
   return TUSB_ERROR_NONE;
 }
@@ -238,7 +238,7 @@ tusb_error_t  tuh_msc_read10(uint8_t dev_addr, uint8_t lun, void * p_buffer, uin
   //------------- Command Block Wrapper -------------//
   msc_cbw_add_signature(&p_msch->cbw, lun);
 
-  p_msch->cbw.xfer_bytes = p_msch->block_size*block_count; // Number of bytes
+  p_msch->cbw.total_bytes = p_msch->block_size*block_count; // Number of bytes
   p_msch->cbw.dir        = TUSB_DIR_IN_MASK;
   p_msch->cbw.cmd_len    = sizeof(scsi_read10_t);
 
@@ -247,12 +247,12 @@ tusb_error_t  tuh_msc_read10(uint8_t dev_addr, uint8_t lun, void * p_buffer, uin
   {
       .cmd_code    = SCSI_CMD_READ_10,
       .lba         = __n2be(lba),
-      .block_count = u16_le2be(block_count)
+      .block_count = tu_u16_le2be(block_count)
   };
 
   memcpy(p_msch->cbw.command, &cmd_read10, p_msch->cbw.cmd_len);
 
-  TU_ASSERT_ERR ( msch_command_xfer(p_msch, p_buffer));
+  TU_ASSERT_ERR ( msch_command_xfer(dev_addr, p_msch, p_buffer));
 
   return TUSB_ERROR_NONE;
 }
@@ -264,7 +264,7 @@ tusb_error_t tuh_msc_write10(uint8_t dev_addr, uint8_t lun, void const * p_buffe
   //------------- Command Block Wrapper -------------//
   msc_cbw_add_signature(&p_msch->cbw, lun);
 
-  p_msch->cbw.xfer_bytes = p_msch->block_size*block_count; // Number of bytes
+  p_msch->cbw.total_bytes = p_msch->block_size*block_count; // Number of bytes
   p_msch->cbw.dir        = TUSB_DIR_OUT;
   p_msch->cbw.cmd_len    = sizeof(scsi_write10_t);
 
@@ -273,12 +273,12 @@ tusb_error_t tuh_msc_write10(uint8_t dev_addr, uint8_t lun, void const * p_buffe
   {
       .cmd_code    = SCSI_CMD_WRITE_10,
       .lba         = __n2be(lba),
-      .block_count = u16_le2be(block_count)
+      .block_count = tu_u16_le2be(block_count)
   };
 
   memcpy(p_msch->cbw.command, &cmd_write10, p_msch->cbw.cmd_len);
 
-  TU_ASSERT_ERR ( msch_command_xfer(p_msch, (void*) p_buffer));
+  TU_ASSERT_ERR ( msch_command_xfer(dev_addr, p_msch, (void*) p_buffer));
 
   return TUSB_ERROR_NONE;
 }
@@ -289,133 +289,130 @@ tusb_error_t tuh_msc_write10(uint8_t dev_addr, uint8_t lun, void const * p_buffe
 void msch_init(void)
 {
   tu_memclr(msch_data, sizeof(msch_interface_t)*CFG_TUSB_HOST_DEVICE_MAX);
-  msch_sem_hdl = osal_semaphore_create(1, 0);
+  msch_sem_hdl = osal_semaphore_create(&msch_sem_def);
 }
 
-tusb_error_t msch_open_subtask(uint8_t dev_addr, tusb_desc_interface_t const *p_interface_desc, uint16_t *p_length)
+bool msch_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_interface_t const *itf_desc, uint16_t *p_length)
 {
-  tusb_error_t error;
+  TU_VERIFY (MSC_SUBCLASS_SCSI == itf_desc->bInterfaceSubClass &&
+             MSC_PROTOCOL_BOT  == itf_desc->bInterfaceProtocol);
 
-  OSAL_SUBTASK_BEGIN
-
-  if (! ( MSC_SUBCLASS_SCSI == p_interface_desc->bInterfaceSubClass &&
-          MSC_PROTOCOL_BOT  == p_interface_desc->bInterfaceProtocol ) )
-  {
-    return TUSB_ERROR_MSC_UNSUPPORTED_PROTOCOL;
-  }
+  msch_interface_t* p_msc = &msch_data[dev_addr-1];
 
   //------------- Open Data Pipe -------------//
-  tusb_desc_endpoint_t const *p_endpoint;
-  p_endpoint = (tusb_desc_endpoint_t const *) descriptor_next( (uint8_t const*) p_interface_desc );
+  tusb_desc_endpoint_t const * ep_desc = (tusb_desc_endpoint_t const *) descriptor_next( (uint8_t const*) itf_desc );
 
   for(uint32_t i=0; i<2; i++)
   {
-    STASK_ASSERT(TUSB_DESC_ENDPOINT == p_endpoint->bDescriptorType);
-    STASK_ASSERT(TUSB_XFER_BULK == p_endpoint->bmAttributes.xfer);
+    TU_ASSERT(TUSB_DESC_ENDPOINT == ep_desc->bDescriptorType);
+    TU_ASSERT(TUSB_XFER_BULK == ep_desc->bmAttributes.xfer);
 
-    pipe_handle_t * p_pipe_hdl =  ( p_endpoint->bEndpointAddress &  TUSB_DIR_IN_MASK ) ?
-        &msch_data[dev_addr-1].bulk_in : &msch_data[dev_addr-1].bulk_out;
+    TU_ASSERT(hcd_edpt_open(rhport, dev_addr, ep_desc));
 
-    (*p_pipe_hdl) = hcd_pipe_open(dev_addr, p_endpoint, TUSB_CLASS_MSC);
-    STASK_ASSERT( pipehandle_is_valid(*p_pipe_hdl) );
+    if ( edpt_dir(ep_desc->bEndpointAddress) ==  TUSB_DIR_IN )
+    {
+      p_msc->ep_in = ep_desc->bEndpointAddress;
+    }else
+    {
+      p_msc->ep_out = ep_desc->bEndpointAddress;
+    }
 
-    p_endpoint = (tusb_desc_endpoint_t const *) descriptor_next( (uint8_t const*)  p_endpoint );
+    ep_desc = (tusb_desc_endpoint_t const *) descriptor_next( (uint8_t const*)  ep_desc );
   }
 
-  msch_data[dev_addr-1].interface_number = p_interface_desc->bInterfaceNumber;
+  p_msc->itf_numr = itf_desc->bInterfaceNumber;
   (*p_length) += sizeof(tusb_desc_interface_t) + 2*sizeof(tusb_desc_endpoint_t);
 
-
   //------------- Get Max Lun -------------//
-  STASK_INVOKE(
-    usbh_control_xfer_subtask( dev_addr, bm_request_type(TUSB_DIR_IN, TUSB_REQ_TYPE_CLASS, TUSB_REQ_RCPT_INTERFACE),
-                               MSC_REQ_GET_MAX_LUN, 0, msch_data[dev_addr-1].interface_number,
-                               1, msch_buffer ),
-    error
-  );
-
-  STASK_ASSERT( TUSB_ERROR_NONE == error /* && TODO STALL means zero */);
-  msch_data[dev_addr-1].max_lun = msch_buffer[0];
+  tusb_control_request_t request = {
+        .bmRequestType_bit = { .recipient = TUSB_REQ_RCPT_INTERFACE, .type = TUSB_REQ_TYPE_CLASS, .direction = TUSB_DIR_IN },
+        .bRequest = MSC_REQ_GET_MAX_LUN,
+        .wValue = 0,
+        .wIndex = p_msc->itf_numr,
+        .wLength = 1
+  };
+  // TODO STALL means zero
+  TU_ASSERT( usbh_control_xfer( dev_addr, &request, msch_buffer ) );
+  p_msc->max_lun = msch_buffer[0];
 
 #if 0
   //------------- Reset -------------//
-  STASK_INVOKE(
-    usbh_control_xfer_subtask( dev_addr, bm_request_type(TUSB_DIR_OUT, TUSB_REQ_TYPE_CLASS, TUSB_REQ_RCPT_INTERFACE),
-                               MSC_REQ_RESET, 0, msch_data[dev_addr-1].interface_number,
-                               0, NULL ),
-    error
-  );
+  request = (tusb_control_request_t) {
+        .bmRequestType_bit = { .recipient = TUSB_REQ_RCPT_INTERFACE, .type = TUSB_REQ_TYPE_CLASS, .direction = TUSB_DIR_OUT },
+        .bRequest = MSC_REQ_RESET,
+        .wValue = 0,
+        .wIndex = p_msc->itf_numr,
+        .wLength = 0
+  };
+  TU_ASSERT( usbh_control_xfer( dev_addr, &request, NULL ) );
 #endif
 
   enum { SCSI_XFER_TIMEOUT = 2000 };
   //------------- SCSI Inquiry -------------//
   tusbh_msc_inquiry(dev_addr, 0, msch_buffer);
-  osal_semaphore_wait(msch_sem_hdl, SCSI_XFER_TIMEOUT, &error);
-  STASK_ASSERT_ERR(error);
+  TU_ASSERT( osal_semaphore_wait(msch_sem_hdl, SCSI_XFER_TIMEOUT) );
 
-  memcpy(msch_data[dev_addr-1].vendor_id , ((scsi_inquiry_data_t*) msch_buffer)->vendor_id , 8);
-  memcpy(msch_data[dev_addr-1].product_id, ((scsi_inquiry_data_t*) msch_buffer)->product_id, 16);
+  memcpy(p_msc->vendor_id , ((scsi_inquiry_resp_t*) msch_buffer)->vendor_id , 8);
+  memcpy(p_msc->product_id, ((scsi_inquiry_resp_t*) msch_buffer)->product_id, 16);
 
   //------------- SCSI Read Capacity 10 -------------//
   tusbh_msc_read_capacity10(dev_addr, 0, msch_buffer);
-  osal_semaphore_wait(msch_sem_hdl, SCSI_XFER_TIMEOUT, &error);
-  STASK_ASSERT_ERR(error);
+  TU_ASSERT( osal_semaphore_wait(msch_sem_hdl, SCSI_XFER_TIMEOUT));
 
   // NOTE: my toshiba thumb-drive stall the first Read Capacity and require the sequence
   // Read Capacity --> Stalled --> Clear Stall --> Request Sense --> Read Capacity (2) to work
-  if ( hcd_pipe_is_stalled(msch_data[dev_addr-1].bulk_in) )
-  { // clear stall TODO abstract clear stall function
-    STASK_INVOKE(
-      usbh_control_xfer_subtask( dev_addr, bm_request_type(TUSB_DIR_OUT, TUSB_REQ_TYPE_STANDARD, TUSB_REQ_RCPT_ENDPOINT),
-                                 TUSB_REQ_CLEAR_FEATURE, 0, hcd_pipe_get_endpoint_addr(msch_data[dev_addr-1].bulk_in),
-                                 0, NULL ),
-      error
-    );
-    STASK_ASSERT_ERR(error);
+  if ( hcd_edpt_stalled(dev_addr, p_msc->ep_in) )
+  {
+    // clear stall TODO abstract clear stall function
+    request = (tusb_control_request_t) {
+      .bmRequestType_bit = { .recipient = TUSB_REQ_RCPT_ENDPOINT, .type = TUSB_REQ_TYPE_STANDARD, .direction = TUSB_DIR_OUT },
+          .bRequest = TUSB_REQ_CLEAR_FEATURE,
+          .wValue = 0,
+          .wIndex = p_msc->ep_in,
+          .wLength = 0
+    };
 
-    hcd_pipe_clear_stall(msch_data[dev_addr-1].bulk_in);
-    osal_semaphore_wait(msch_sem_hdl, SCSI_XFER_TIMEOUT, &error); // wait for SCSI status
-    STASK_ASSERT_ERR(error);
+    TU_ASSERT(usbh_control_xfer( dev_addr, &request, NULL ));
+
+    hcd_edpt_clear_stall(dev_addr, p_msc->ep_in);
+    TU_ASSERT( osal_semaphore_wait(msch_sem_hdl, SCSI_XFER_TIMEOUT) ); // wait for SCSI status
 
     //------------- SCSI Request Sense -------------//
     (void) tuh_msc_request_sense(dev_addr, 0, msch_buffer);
-    osal_semaphore_wait(msch_sem_hdl, SCSI_XFER_TIMEOUT, &error);
-    STASK_ASSERT_ERR(error);
+    TU_ASSERT(osal_semaphore_wait(msch_sem_hdl, SCSI_XFER_TIMEOUT));
 
     //------------- Re-read SCSI Read Capactity -------------//
     tusbh_msc_read_capacity10(dev_addr, 0, msch_buffer);
-    osal_semaphore_wait(msch_sem_hdl, SCSI_XFER_TIMEOUT, &error);
-    STASK_ASSERT_ERR(error);
+    TU_ASSERT(osal_semaphore_wait(msch_sem_hdl, SCSI_XFER_TIMEOUT));
   }
 
-  msch_data[dev_addr-1].last_lba   = __be2n( ((scsi_read_capacity10_data_t*)msch_buffer)->last_lba );
-  msch_data[dev_addr-1].block_size = (uint16_t) __be2n( ((scsi_read_capacity10_data_t*)msch_buffer)->block_size );
+  p_msc->last_lba   = __be2n( ((scsi_read_capacity10_resp_t*)msch_buffer)->last_lba );
+  p_msc->block_size = (uint16_t) __be2n( ((scsi_read_capacity10_resp_t*)msch_buffer)->block_size );
 
-  msch_data[dev_addr-1].is_initialized = true;
+  p_msc->is_initialized = true;
+
   tuh_msc_mounted_cb(dev_addr);
 
-  OSAL_SUBTASK_END
+  return true;
 }
 
-void msch_isr(pipe_handle_t pipe_hdl, xfer_result_t event, uint32_t xferred_bytes)
+void msch_isr(uint8_t dev_addr, uint8_t ep_addr, xfer_result_t event, uint32_t xferred_bytes)
 {
-  if ( pipehandle_is_equal(pipe_hdl, msch_data[pipe_hdl.dev_addr-1].bulk_in) )
+  msch_interface_t* p_msc = &msch_data[dev_addr-1];
+  if ( ep_addr == p_msc->ep_in )
   {
-    if (msch_data[pipe_hdl.dev_addr-1].is_initialized)
+    if (p_msc->is_initialized)
     {
-      tuh_msc_isr(pipe_hdl.dev_addr, event, xferred_bytes);
+      tuh_msc_isr(dev_addr, event, xferred_bytes);
     }else
     { // still initializing under open subtask
-      osal_semaphore_post(msch_sem_hdl);
+      osal_semaphore_post(msch_sem_hdl, true);
     }
   }
 }
 
 void msch_close(uint8_t dev_addr)
 {
-  (void) hcd_pipe_close(msch_data[dev_addr-1].bulk_in);
-  (void) hcd_pipe_close(msch_data[dev_addr-1].bulk_out);
-
   tu_memclr(&msch_data[dev_addr-1], sizeof(msch_interface_t));
   osal_semaphore_reset(msch_sem_hdl);
 

@@ -99,6 +99,8 @@ void dcd_set_address(uint8_t rhport, uint8_t dev_addr)
 
 void dcd_set_config(uint8_t rhport, uint8_t config_num)
 {
+  (void) rhport;
+  (void) config_num;
   // nothing to do
 }
 
@@ -266,7 +268,6 @@ bool dcd_edpt_busy(uint8_t rhport, uint8_t ep_addr)
   uint8_t const dir    = edpt_dir(ep_addr);
   uint8_t const ep_idx = 2*epnum + dir;
 
-  dcd_qhd_t const * p_qhd = &dcd_data_ptr[rhport]->qhd[ep_idx];
   dcd_qtd_t * p_qtd = &dcd_data_ptr[rhport]->qtd[ep_idx];
 
   return p_qtd->active;
@@ -365,7 +366,6 @@ void hal_dcd_isr(uint8_t rhport)
         if ( BIT_TEST_(edpt_complete, ep_idx2bit(ep_idx)) )
         {
           // 23.10.12.3 Failed QTD also get ENDPTCOMPLETE set
-          dcd_qhd_t * p_qhd = &dcd_data_ptr[rhport]->qhd[ep_idx];
           dcd_qtd_t * p_qtd = &dcd_data_ptr[rhport]->qtd[ep_idx];
 
           uint8_t result = p_qtd->halted  ? XFER_RESULT_STALLED :

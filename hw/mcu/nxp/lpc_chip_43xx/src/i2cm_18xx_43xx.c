@@ -100,7 +100,7 @@ uint32_t Chip_I2CM_XferHandler(LPC_I2C_T *pI2C, I2CM_XFER_T *xfer)
 			cclr &= ~I2C_CON_STO;
 			break;
 		}
-
+                /* FALLTHRU */
 	case 0x18:		/* SLA+W sent and ACK received */
 	case 0x28:		/* DATA sent and ACK received */
 		if (!xfer->txSz) {
@@ -124,7 +124,7 @@ uint32_t Chip_I2CM_XferHandler(LPC_I2C_T *pI2C, I2CM_XFER_T *xfer)
 	case 0x50:		/* Data Received and ACK sent */
 		*xfer->rxBuff++ = pI2C->DAT;
 		xfer->rxSz--;
-
+                /* FALLTHRU */
 	case 0x40:		/* SLA+R sent and ACK received */
 		if ((xfer->rxSz > 1) || (xfer->options & I2CM_XFER_OPTION_LAST_RX_ACK)) {
 			cclr &= ~I2C_CON_AA;

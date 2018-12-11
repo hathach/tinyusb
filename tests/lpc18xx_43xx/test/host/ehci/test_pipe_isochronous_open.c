@@ -50,7 +50,7 @@
 #include "ehci_controller_fake.h"
 #include "host_helper.h"
 
-usbh_device_info_t usbh_devices[CFG_TUSB_HOST_DEVICE_MAX+1];
+usbh_device_t _usbh_devices[CFG_TUSB_HOST_DEVICE_MAX+1];
 
 static uint8_t const hub_addr = 2;
 static uint8_t const hub_port = 2;
@@ -63,7 +63,7 @@ static ehci_qhd_t *period_head_arr;
 //--------------------------------------------------------------------+
 void setUp(void)
 {
-  tu_memclr(usbh_devices, sizeof(usbh_device_info_t)*(CFG_TUSB_HOST_DEVICE_MAX+1));
+  tu_memclr(_usbh_devices, sizeof(usbh_device_t)*(CFG_TUSB_HOST_DEVICE_MAX+1));
 
   hcd_init();
 
@@ -94,6 +94,6 @@ tusb_desc_endpoint_t const desc_ept_iso_in =
 
 void test_open_isochronous(void)
 {
-  pipe_handle_t pipe_hdl = hcd_pipe_open(dev_addr, &desc_ept_iso_in, TUSB_CLASS_AUDIO);
+  pipe_handle_t pipe_hdl = hcd_edpt_open(dev_addr, &desc_ept_iso_in, TUSB_CLASS_AUDIO);
   TEST_ASSERT_EQUAL(0, pipe_hdl.dev_addr);
 }

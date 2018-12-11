@@ -39,9 +39,6 @@
 #ifndef _TUSB_CONFIG_H_
 #define _TUSB_CONFIG_H_
 
-#include "tusb_option.h"
-#include "bsp/board.h"
-
 #ifdef __cplusplus
  extern "C" {
 #endif

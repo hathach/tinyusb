@@ -187,9 +187,11 @@ void tuh_msc_isr(uint8_t dev_addr, xfer_result_t event, uint32_t xferred_bytes);
 //--------------------------------------------------------------------+
 #ifdef _TINY_USB_SOURCE_FILE_
 
-typedef struct {
-  pipe_handle_t bulk_in, bulk_out;
-  uint8_t  interface_number;
+typedef struct
+{
+  uint8_t itf_numr;
+  uint8_t  ep_in;
+  uint8_t  ep_out;
 
   uint8_t  max_lun;
   uint16_t block_size;
@@ -203,10 +205,11 @@ typedef struct {
   msc_csw_t csw;
 }msch_interface_t;
 
-void         msch_init(void);
-tusb_error_t msch_open_subtask(uint8_t dev_addr, tusb_desc_interface_t const *p_interface_desc, uint16_t *p_length) ATTR_WARN_UNUSED_RESULT;
-void         msch_isr(pipe_handle_t pipe_hdl, xfer_result_t event, uint32_t xferred_bytes);
-void         msch_close(uint8_t dev_addr);
+void msch_init(void);
+bool msch_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_interface_t const *itf_desc, uint16_t *p_length);
+void msch_isr(uint8_t dev_addr, uint8_t ep_addr, xfer_result_t event, uint32_t xferred_bytes);
+void msch_close(uint8_t dev_addr);
+
 #endif
 
 #ifdef __cplusplus

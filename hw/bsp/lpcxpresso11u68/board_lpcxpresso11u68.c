@@ -44,7 +44,7 @@
 #define LED_PIN       17
 #define LED_STATE_ON  0
 
-const static struct {
+static const struct {
   uint8_t port;
   uint8_t pin;
 } buttons[] = { { 0, 1 } };
@@ -134,6 +134,7 @@ uint32_t board_buttons(void)
 {
 //  for(uint8_t i=0; i<BOARD_BUTTON_COUNT; i++) GPIOGetPinValue(buttons[i].port, buttons[i].pin);
 //  return GPIOGetPinValue(buttons[0].port, buttons[0].pin) ? 0 : 1; // button is active low
+  return 0;
 }
 
 //--------------------------------------------------------------------+
@@ -141,6 +142,7 @@ uint32_t board_buttons(void)
 //--------------------------------------------------------------------+
 void board_uart_putchar(uint8_t c)
 {
+  (void) c;
   //UARTSend(&c, 1);
 }
 
