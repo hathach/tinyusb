@@ -102,7 +102,7 @@ void setUp(void)
   async_head =  get_async_head( hostid );
 
   //------------- pipe open -------------//
-  pipe_hdl_bulk = hcd_pipe_open(dev_addr, &desc_ept_bulk_in, TUSB_CLASS_MSC);
+  pipe_hdl_bulk = hcd_edpt_open(dev_addr, &desc_ept_bulk_in, TUSB_CLASS_MSC);
 
   TEST_ASSERT_EQUAL(dev_addr, pipe_hdl_bulk.dev_addr);
   TEST_ASSERT_EQUAL(TUSB_XFER_BULK, pipe_hdl_bulk.xfer_type);
@@ -148,7 +148,7 @@ void test_bulk_xfer_hs_ping_out(void)
 {
   _usbh_devices[dev_addr].speed    = TUSB_SPEED_HIGH;
 
-  pipe_handle_t pipe_hdl = hcd_pipe_open(dev_addr, &desc_ept_bulk_out, TUSB_CLASS_MSC);
+  pipe_handle_t pipe_hdl = hcd_edpt_open(dev_addr, &desc_ept_bulk_out, TUSB_CLASS_MSC);
   ehci_qhd_t *p_qhd = qhd_get_from_pipe_handle(pipe_hdl);
 
   //------------- Code Under Test -------------//

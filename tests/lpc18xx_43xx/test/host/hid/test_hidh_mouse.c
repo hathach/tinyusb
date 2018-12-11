@@ -117,7 +117,7 @@ void test_mouse_open_ok(void)
   usbh_control_xfer_subtask_ExpectAndReturn(dev_addr, bm_request_type(TUSB_DIR_HOST_TO_DEV, TUSB_REQ_TYPE_CLASS, TUSB_REQ_RECIPIENT_INTERFACE),
                                             HID_REQ_CONTROL_SET_IDLE, 0, p_mouse_interface_desc->bInterfaceNumber, 0, NULL,
                                             TUSB_ERROR_NONE);
-  hcd_pipe_open_ExpectAndReturn(dev_addr, p_mouse_endpoint_desc, TUSB_CLASS_HID, pipe_hdl);
+  hcd_edpt_open_ExpectAndReturn(dev_addr, p_mouse_endpoint_desc, TUSB_CLASS_HID, pipe_hdl);
   tusbh_hid_mouse_mounted_cb_Expect(dev_addr);
 
   //------------- Code Under TEST -------------//

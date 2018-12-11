@@ -104,7 +104,7 @@ void setUp(void)
   period_head_arr = (ehci_qhd_t*) get_period_head( hostid, 1 );
 
   //------------- pipe open -------------//
-  pipe_hdl_interrupt = hcd_pipe_open(dev_addr, &desc_ept_interrupt_in, TUSB_CLASS_HID);
+  pipe_hdl_interrupt = hcd_edpt_open(dev_addr, &desc_ept_interrupt_in, TUSB_CLASS_HID);
 
   TEST_ASSERT_EQUAL(dev_addr, pipe_hdl_interrupt.dev_addr);
   TEST_ASSERT_EQUAL(TUSB_XFER_INTERRUPT, pipe_hdl_interrupt.xfer_type);
@@ -220,7 +220,7 @@ void test_interrupt_xfer_complete_isr_interval_2ms(void)
   tusb_desc_endpoint_t desc_endpoint_2ms = desc_ept_interrupt_in;
   desc_endpoint_2ms.bInterval = 5;
 
-  pipe_handle_t pipe_hdl_2ms = hcd_pipe_open(dev_addr, &desc_endpoint_2ms, TUSB_CLASS_HID);
+  pipe_handle_t pipe_hdl_2ms = hcd_edpt_open(dev_addr, &desc_endpoint_2ms, TUSB_CLASS_HID);
   ehci_qhd_t * p_qhd_2ms = &ehci_data.device[ dev_addr -1].qhd[ pipe_hdl_2ms.index ];
 
   TEST_ASSERT_STATUS( hcd_pipe_xfer(pipe_hdl_2ms, xfer_data, sizeof(xfer_data), false) );

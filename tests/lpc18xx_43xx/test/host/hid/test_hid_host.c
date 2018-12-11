@@ -75,7 +75,7 @@ void tearDown(void)
 //  uint16_t length=0;
 //
 //  // TODO expect get HID report descriptor
-//  hcd_pipe_open_IgnoreAndReturn( pipe_hdl );
+//  hcd_edpt_open_IgnoreAndReturn( pipe_hdl );
 //
 //  //------------- Code Under TEST -------------//
 //  TEST_ASSERT_EQUAL(TUSB_ERROR_NONE, hidh_open_subtask(dev_addr, p_kbd_interface_desc, &length) );

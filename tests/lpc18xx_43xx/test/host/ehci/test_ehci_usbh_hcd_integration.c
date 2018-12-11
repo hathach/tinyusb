@@ -168,7 +168,7 @@ void test_bulk_pipe_close(void)
   };
 
   uint8_t xfer_data[100];
-  pipe_handle_t pipe_hdl = hcd_pipe_open(dev_addr, &desc_ept_bulk_in, TUSB_CLASS_MSC);
+  pipe_handle_t pipe_hdl = hcd_edpt_open(dev_addr, &desc_ept_bulk_in, TUSB_CLASS_MSC);
 
   TEST_ASSERT_STATUS( hcd_pipe_xfer(pipe_hdl, xfer_data, sizeof(xfer_data), 100) );
   TEST_ASSERT_STATUS( hcd_pipe_xfer(pipe_hdl, xfer_data, sizeof(xfer_data), 50) );

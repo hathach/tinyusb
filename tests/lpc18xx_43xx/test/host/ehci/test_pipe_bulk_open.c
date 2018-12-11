@@ -155,7 +155,7 @@ void test_open_bulk_qhd_data(void)
   tusb_desc_endpoint_t const * desc_endpoint = &desc_ept_bulk_in;
 
   //------------- Code Under TEST -------------//
-  pipe_hdl = hcd_pipe_open(dev_addr, desc_endpoint, TUSB_CLASS_MSC);
+  pipe_hdl = hcd_edpt_open(dev_addr, desc_endpoint, TUSB_CLASS_MSC);
 
   TEST_ASSERT_EQUAL(dev_addr, pipe_hdl.dev_addr);
   TEST_ASSERT_EQUAL(TUSB_XFER_BULK, pipe_hdl.xfer_type);
@@ -175,7 +175,7 @@ void test_open_bulk_hs_out_pingstate(void)
   pipe_handle_t pipe_hdl;
 
   //------------- Code Under TEST -------------//
-  pipe_hdl = hcd_pipe_open(dev_addr, &desc_ept_bulk_out, TUSB_CLASS_MSC);
+  pipe_hdl = hcd_edpt_open(dev_addr, &desc_ept_bulk_out, TUSB_CLASS_MSC);
 
   p_qhd = &ehci_data.device[ pipe_hdl.dev_addr-1 ].qhd[ pipe_hdl.index ];
   TEST_ASSERT(p_qhd->qtd_overlay.pingstate_err);
@@ -187,7 +187,7 @@ void test_open_bulk_hs_out_pingstate(void)
 void test_bulk_close(void)
 {
   tusb_desc_endpoint_t const * desc_endpoint = &desc_ept_bulk_in;
-  pipe_handle_t pipe_hdl = hcd_pipe_open(dev_addr, desc_endpoint, TUSB_CLASS_MSC);
+  pipe_handle_t pipe_hdl = hcd_edpt_open(dev_addr, desc_endpoint, TUSB_CLASS_MSC);
   ehci_qhd_t *p_qhd = &ehci_data.device[ pipe_hdl.dev_addr-1].qhd[ pipe_hdl.index ];
 
   //------------- Code Under TEST -------------//

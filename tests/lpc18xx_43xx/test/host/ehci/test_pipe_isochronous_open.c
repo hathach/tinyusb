@@ -94,6 +94,6 @@ tusb_desc_endpoint_t const desc_ept_iso_in =
 
 void test_open_isochronous(void)
 {
-  pipe_handle_t pipe_hdl = hcd_pipe_open(dev_addr, &desc_ept_iso_in, TUSB_CLASS_AUDIO);
+  pipe_handle_t pipe_hdl = hcd_edpt_open(dev_addr, &desc_ept_iso_in, TUSB_CLASS_AUDIO);
   TEST_ASSERT_EQUAL(0, pipe_hdl.dev_addr);
 }

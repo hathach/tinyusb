@@ -313,7 +313,7 @@ bool hcd_setup_send(uint8_t rhport, uint8_t dev_addr, uint8_t const setup_packet
 //--------------------------------------------------------------------+
 // BULK/INT/ISO PIPE API
 //--------------------------------------------------------------------+
-bool hcd_pipe_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_endpoint_t const * ep_desc)
+bool hcd_edpt_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_endpoint_t const * ep_desc)
 {
   // TODO not support ISO yet
   TU_ASSERT (ep_desc->bmAttributes.xfer != TUSB_XFER_ISOCHRONOUS);

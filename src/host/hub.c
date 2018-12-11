@@ -168,7 +168,7 @@ bool hub_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_interface_t const *p_i
   TU_ASSERT(TUSB_DESC_ENDPOINT == ep_desc->bDescriptorType);
   TU_ASSERT(TUSB_XFER_INTERRUPT == ep_desc->bmAttributes.xfer);
   
-  TU_ASSERT(hcd_pipe_open(rhport, dev_addr, ep_desc));
+  TU_ASSERT(hcd_edpt_open(rhport, dev_addr, ep_desc));
 
   hub_data[dev_addr-1].itf_num = p_interface_desc->bInterfaceNumber;
   hub_data[dev_addr-1].ep_status = ep_desc->bEndpointAddress;
