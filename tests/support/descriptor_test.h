@@ -63,60 +63,60 @@
 
 typedef struct
 {
-  tusb_descriptor_configuration_t                configuration;
+  tusb_desc_configuration_t                configuration;
 
 #if 0 //&& IAD_DESC_REQUIRED
-  tusb_descriptor_interface_association_t     CDC_IAD;
+  tusb_desc_interface_assoc_t     CDC_IAD;
 #endif
 
-#if 0 //&& TUSB_CFG_DEVICE_CDC
+#if 0 //&& CFG_TUD_CDC
   //CDC - Serial
   //CDC Control Interface
-  tusb_descriptor_interface_t                 CDC_CCI_Interface;
+  tusb_desc_interface_t                 CDC_CCI_Interface;
   CDC_HEADER_DESCRIPTOR                       CDC_Header;
   CDC_ABSTRACT_CONTROL_MANAGEMENT_DESCRIPTOR  CDC_ACM;
   CDC_UNION_1SLAVE_DESCRIPTOR                 CDC_Union;
-  tusb_descriptor_endpoint_t                  CDC_NotificationEndpoint;
+  tusb_desc_endpoint_t                  CDC_NotificationEndpoint;
 
   //CDC Data Interface
-  tusb_descriptor_interface_t                 CDC_DCI_Interface;
-  tusb_descriptor_endpoint_t                  CDC_DataOutEndpoint;
-  tusb_descriptor_endpoint_t                  CDC_DataInEndpoint;
+  tusb_desc_interface_t                 CDC_DCI_Interface;
+  tusb_desc_endpoint_t                  CDC_DataOutEndpoint;
+  tusb_desc_endpoint_t                  CDC_DataInEndpoint;
 #endif
 
   //------------- HID Keyboard -------------//
-  tusb_descriptor_interface_t                    keyboard_interface;
+  tusb_desc_interface_t                    keyboard_interface;
   tusb_hid_descriptor_hid_t                      keyboard_hid;
-  tusb_descriptor_endpoint_t                     keyboard_endpoint;
+  tusb_desc_endpoint_t                     keyboard_endpoint;
 
   //------------- HID Mouse -------------//
-  tusb_descriptor_interface_t                    mouse_interface;
+  tusb_desc_interface_t                    mouse_interface;
   tusb_hid_descriptor_hid_t                      mouse_hid;
-  tusb_descriptor_endpoint_t                     mouse_endpoint;
+  tusb_desc_endpoint_t                     mouse_endpoint;
 
   //------------- Mass Storage -------------//
-  tusb_descriptor_interface_t                    msc_interface;
-  tusb_descriptor_endpoint_t                     msc_endpoint_in;
-  tusb_descriptor_endpoint_t                     msc_endpoint_out;
+  tusb_desc_interface_t                    msc_interface;
+  tusb_desc_endpoint_t                     msc_endpoint_in;
+  tusb_desc_endpoint_t                     msc_endpoint_out;
 
   //------------- CDC Serial -------------//
   //CDC Control Interface
-  tusb_descriptor_interface_t                  cdc_comm_interface;
+  tusb_desc_interface_t                  cdc_comm_interface;
   cdc_desc_func_header_t                       cdc_header;
-  cdc_desc_func_abstract_control_management_t  cdc_acm;
+  cdc_desc_func_acm_t  cdc_acm;
   cdc_desc_func_union_t                        cdc_union;
-  tusb_descriptor_endpoint_t                   cdc_endpoint_notification;
+  tusb_desc_endpoint_t                   cdc_endpoint_notification;
 
   //CDC Data Interface
-  tusb_descriptor_interface_t                  cdc_data_interface;
-  tusb_descriptor_endpoint_t                   cdc_endpoint_out;
-  tusb_descriptor_endpoint_t                   cdc_endpoint_in;
+  tusb_desc_interface_t                  cdc_data_interface;
+  tusb_desc_endpoint_t                   cdc_endpoint_out;
+  tusb_desc_endpoint_t                   cdc_endpoint_in;
 
 
   unsigned char                               ConfigDescTermination;
 } app_configuration_desc_t;
 
-extern tusb_descriptor_device_t const desc_device;
+extern tusb_desc_device_t const desc_device;
 extern app_configuration_desc_t const desc_configuration;
 extern const uint8_t keyboard_report_descriptor[];
 

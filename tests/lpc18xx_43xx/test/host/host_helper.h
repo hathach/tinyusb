@@ -42,7 +42,7 @@
 
 static inline void helper_class_init_expect(void)
 { // class code number order
-#if TUSB_CFG_HOST_CDC
+#if CFG_TUH_CDC
   cdch_init_Expect();
 #endif
 
@@ -50,7 +50,7 @@ static inline void helper_class_init_expect(void)
   hidh_init_Expect();
 #endif
 
-#if TUSB_CFG_HOST_MSC
+#if CFG_TUH_MSC
   msch_init_Expect();
 #endif
 
@@ -69,11 +69,11 @@ static inline void helper_usbh_init_expect(void)
 
 static inline void helper_usbh_device_emulate(uint8_t dev_addr, uint8_t hub_addr, uint8_t hub_port, uint8_t hostid, tusb_speed_t speed)
 {
-  usbh_devices[dev_addr].core_id  = hostid;
-  usbh_devices[dev_addr].hub_addr = hub_addr;
-  usbh_devices[dev_addr].hub_port = hub_port;
-  usbh_devices[dev_addr].speed    = speed;
-  usbh_devices[dev_addr].state    = dev_addr ? TUSB_DEVICE_STATE_CONFIGURED : TUSB_DEVICE_STATE_UNPLUG;
+  _usbh_devices[dev_addr].rhport  = hostid;
+  _usbh_devices[dev_addr].hub_addr = hub_addr;
+  _usbh_devices[dev_addr].hub_port = hub_port;
+  _usbh_devices[dev_addr].speed    = speed;
+  _usbh_devices[dev_addr].state    = dev_addr ? TUSB_DEVICE_STATE_CONFIGURED : TUSB_DEVICE_STATE_UNPLUG;
 }
 
 

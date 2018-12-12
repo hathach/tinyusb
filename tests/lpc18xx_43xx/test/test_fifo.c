@@ -40,11 +40,11 @@
 #include "fifo.h"
 
 #define FIFO_SIZE 10
-FIFO_DEF(ff, FIFO_SIZE, uint8_t, false);
+TU_FIFO_DEF(ff, FIFO_SIZE, uint8_t, false);
 
 void setUp(void)
 {
-  fifo_clear(&ff);
+  tu_fifo_clear(&ff);
 }
 
 void tearDown(void)
@@ -57,13 +57,13 @@ void test_normal(void)
 
   for(i=0; i < FIFO_SIZE; i++)
   {
-    fifo_write(&ff, &i);
+    tu_fifo_write(&ff, &i);
   }
 
   for(i=0; i < FIFO_SIZE; i++)
   {
     uint8_t c;
-    fifo_read(&ff, &c);
+    tu_fifo_read(&ff, &c);
     TEST_ASSERT_EQUAL(i, c);
   }
 }
@@ -71,21 +71,21 @@ void test_normal(void)
 void test_is_empty(void)
 {
   uint8_t temp;
-  TEST_ASSERT_TRUE(fifo_is_empty(&ff));
-  fifo_write(&ff, &temp);
-  TEST_ASSERT_FALSE(fifo_is_empty(&ff));
+  TEST_ASSERT_TRUE(tu_fifo_is_empty(&ff));
+  tu_fifo_write(&ff, &temp);
+  TEST_ASSERT_FALSE(tu_fifo_is_empty(&ff));
 }
 
 void test_is_full(void)
 {
   uint8_t i;
 
-  TEST_ASSERT_FALSE(fifo_is_full(&ff));
+  TEST_ASSERT_FALSE(tu_fifo_is_full(&ff));
 
   for(i=0; i < FIFO_SIZE; i++)
   {
-    fifo_write(&ff, &i);
+    tu_fifo_write(&ff, &i);
   }
 
-  TEST_ASSERT_TRUE(fifo_is_full(&ff));
+  TEST_ASSERT_TRUE(tu_fifo_is_full(&ff));
 }

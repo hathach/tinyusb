@@ -56,7 +56,7 @@
 //
 void setUp(void)
 {
-//  dev_addr = RANDOM(TUSB_CFG_HOST_DEVICE_MAX)+1;
+//  dev_addr = RANDOM(CFG_TUSB_HOST_DEVICE_MAX)+1;
 //  hostid = RANDOM(CONTROLLER_HOST_NUMBER) + TEST_CONTROLLER_HOST_START_INDEX;
 //
 ////  ehci_controller_init();

@@ -63,17 +63,17 @@ void tearDown(void)
 static uint8_t dev_addr;
 static uint16_t length;
 
-static tusb_descriptor_interface_t const * p_comm_interface = &rndis_config_descriptor.cdc_comm_interface;
-static tusb_descriptor_endpoint_t const * p_endpoint_notification = &rndis_config_descriptor.cdc_endpoint_notification;
-static tusb_descriptor_endpoint_t const * p_endpoint_out = &rndis_config_descriptor.cdc_endpoint_out;
-static tusb_descriptor_endpoint_t const * p_endpoint_in = &rndis_config_descriptor.cdc_endpoint_in;
+static tusb_desc_interface_t const * p_comm_interface = &rndis_config_descriptor.cdc_comm_interface;
+static tusb_desc_endpoint_t const * p_endpoint_notification = &rndis_config_descriptor.cdc_endpoint_notification;
+static tusb_desc_endpoint_t const * p_endpoint_out = &rndis_config_descriptor.cdc_endpoint_out;
+static tusb_desc_endpoint_t const * p_endpoint_in = &rndis_config_descriptor.cdc_endpoint_in;
 
 static pipe_handle_t pipe_notification = { .dev_addr = 1, .xfer_type = TUSB_XFER_INTERRUPT };
 static pipe_handle_t pipe_out          = { .dev_addr  = 1, .xfer_type = TUSB_XFER_BULK, .index = 0 };
 static pipe_handle_t pipe_in          = { .dev_addr  = 1, .xfer_type = TUSB_XFER_BULK, .index = 1 };
 
-extern cdch_data_t cdch_data[TUSB_CFG_HOST_DEVICE_MAX];
-extern rndish_data_t rndish_data[TUSB_CFG_HOST_DEVICE_MAX];
+extern cdch_data_t cdch_data[CFG_TUSB_HOST_DEVICE_MAX];
+extern rndish_data_t rndish_data[CFG_TUSB_HOST_DEVICE_MAX];
 
 static cdch_data_t * p_cdc = &cdch_data[0];
 static rndish_data_t * p_rndis = &rndish_data[0];
@@ -93,7 +93,7 @@ void setUp(void)
   length = 0;
   dev_addr = 1;
 
-  for (uint8_t i=0; i<TUSB_CFG_HOST_DEVICE_MAX; i++)
+  for (uint8_t i=0; i<CFG_TUSB_HOST_DEVICE_MAX; i++)
   {
     osal_semaphore_create_ExpectAndReturn( &rndish_data[i].semaphore_notification, &rndish_data[i].semaphore_notification);
   }
@@ -103,9 +103,9 @@ void setUp(void)
   osal_mutex_wait_StubWithCallback(stub_mutex_wait);
   osal_mutex_release_IgnoreAndReturn(TUSB_ERROR_NONE);
 
-  hcd_pipe_open_ExpectAndReturn(dev_addr, p_endpoint_notification, TUSB_CLASS_CDC, pipe_notification);
-  hcd_pipe_open_ExpectAndReturn(dev_addr, p_endpoint_out, TUSB_CLASS_CDC, pipe_out);
-  hcd_pipe_open_ExpectAndReturn(dev_addr, p_endpoint_in, TUSB_CLASS_CDC, pipe_in);
+  hcd_edpt_open_ExpectAndReturn(dev_addr, p_endpoint_notification, TUSB_CLASS_CDC, pipe_notification);
+  hcd_edpt_open_ExpectAndReturn(dev_addr, p_endpoint_out, TUSB_CLASS_CDC, pipe_out);
+  hcd_edpt_open_ExpectAndReturn(dev_addr, p_endpoint_in, TUSB_CLASS_CDC, pipe_in);
 }
 
 void tearDown(void)
@@ -188,7 +188,7 @@ static tusb_error_t  stub_pipe_notification_xfer(pipe_handle_t pipe_hdl, uint8_t
 
   buffer[0] = 1; // response available
 
-  cdch_isr(pipe_hdl, TUSB_EVENT_XFER_COMPLETE, 8);
+  cdch_isr(pipe_hdl, XFER_RESULT_SUCCESS, 8);
 
   return TUSB_ERROR_NONE;
 }

@@ -48,7 +48,7 @@
 #include "mock_hidh_callback.h"
 #include "descriptor_test.h"
 
-extern hidh_interface_info_t keyboardh_data[TUSB_CFG_HOST_DEVICE_MAX];
+extern hidh_interface_info_t keyboardh_data[CFG_TUSB_HOST_DEVICE_MAX];
 
 hid_keyboard_report_t sample_key[2] =
 {
@@ -67,14 +67,14 @@ hidh_interface_info_t *p_hidh_kbd;
 
 hid_keyboard_report_t report;
 
-tusb_descriptor_interface_t const *p_kbd_interface_desc = &desc_configuration.keyboard_interface;
-tusb_descriptor_endpoint_t  const *p_kdb_endpoint_desc  = &desc_configuration.keyboard_endpoint;
+tusb_desc_interface_t const *p_kbd_interface_desc = &desc_configuration.keyboard_interface;
+tusb_desc_endpoint_t  const *p_kdb_endpoint_desc  = &desc_configuration.keyboard_endpoint;
 
 void setUp(void)
 {
   hidh_init();
-  memclr_(&report, sizeof(hid_keyboard_report_t));
-  dev_addr = RANDOM(TUSB_CFG_HOST_DEVICE_MAX)+1;
+  tu_memclr(&report, sizeof(hid_keyboard_report_t));
+  dev_addr = RANDOM(CFG_TUSB_HOST_DEVICE_MAX)+1;
 
   p_hidh_kbd = &keyboardh_data[dev_addr-1];
 
@@ -95,7 +95,7 @@ void test_keyboard_init(void)
 {
   hidh_init();
 
-  TEST_ASSERT_MEM_ZERO(keyboardh_data, sizeof(hidh_interface_info_t)*TUSB_CFG_HOST_DEVICE_MAX);
+  TEST_ASSERT_MEM_ZERO(keyboardh_data, sizeof(hidh_interface_info_t)*CFG_TUSB_HOST_DEVICE_MAX);
 }
 
 //------------- is supported -------------//
@@ -125,9 +125,9 @@ tusb_error_t stub_set_idle_request(uint8_t address, tusb_control_request_t const
   //------------- expecting Set Idle with value = 0 -------------//
   TEST_ASSERT_NOT_NULL( p_request );
   TEST_ASSERT_EQUAL(TUSB_DIR_HOST_TO_DEV                   , p_request->bmRequestType_bit.direction);
-  TEST_ASSERT_EQUAL(TUSB_REQUEST_TYPE_CLASS                , p_request->bmRequestType_bit.type);
-  TEST_ASSERT_EQUAL(TUSB_REQUEST_RECIPIENT_INTERFACE       , p_request->bmRequestType_bit.recipient);
-  TEST_ASSERT_EQUAL(HID_REQUEST_CONTROL_SET_IDLE           , p_request->bRequest);
+  TEST_ASSERT_EQUAL(TUSB_REQ_TYPE_CLASS                , p_request->bmRequestType_bit.type);
+  TEST_ASSERT_EQUAL(TUSB_REQ_RECIPIENT_INTERFACE       , p_request->bmRequestType_bit.recipient);
+  TEST_ASSERT_EQUAL(HID_REQ_CONTROL_SET_IDLE           , p_request->bRequest);
   TEST_ASSERT_EQUAL(0                                      , p_request->wValue);
   TEST_ASSERT_EQUAL(p_kbd_interface_desc->bInterfaceNumber , p_request->wIndex);
 
@@ -143,10 +143,10 @@ void test_keyboard_open_ok(void)
 
   hidh_init();
 
-  usbh_control_xfer_subtask_ExpectAndReturn(dev_addr, bm_request_type(TUSB_DIR_HOST_TO_DEV, TUSB_REQUEST_TYPE_CLASS, TUSB_REQUEST_RECIPIENT_INTERFACE),
-                                            HID_REQUEST_CONTROL_SET_IDLE, 0, p_kbd_interface_desc->bInterfaceNumber, 0, NULL,
+  usbh_control_xfer_subtask_ExpectAndReturn(dev_addr, bm_request_type(TUSB_DIR_HOST_TO_DEV, TUSB_REQ_TYPE_CLASS, TUSB_REQ_RECIPIENT_INTERFACE),
+                                            HID_REQ_CONTROL_SET_IDLE, 0, p_kbd_interface_desc->bInterfaceNumber, 0, NULL,
                                             TUSB_ERROR_NONE);
-  hcd_pipe_open_ExpectAndReturn(dev_addr, p_kdb_endpoint_desc, TUSB_CLASS_HID, pipe_hdl);
+  hcd_edpt_open_ExpectAndReturn(dev_addr, p_kdb_endpoint_desc, TUSB_CLASS_HID, pipe_hdl);
   tusbh_hid_keyboard_mounted_cb_Expect(dev_addr);
 
   //------------- Code Under TEST -------------//
@@ -154,7 +154,7 @@ void test_keyboard_open_ok(void)
 
   TEST_ASSERT_PIPE_HANDLE(pipe_hdl, p_hidh_kbd->pipe_hdl);
   TEST_ASSERT_EQUAL(8, p_hidh_kbd->report_size);
-  TEST_ASSERT_EQUAL(sizeof(tusb_descriptor_interface_t) + sizeof(tusb_hid_descriptor_hid_t) + sizeof(tusb_descriptor_endpoint_t),
+  TEST_ASSERT_EQUAL(sizeof(tusb_desc_interface_t) + sizeof(tusb_hid_descriptor_hid_t) + sizeof(tusb_desc_endpoint_t),
                     length);
   TEST_ASSERT_EQUAL(p_kbd_interface_desc->bInterfaceNumber, p_hidh_kbd->interface_number);
 
@@ -187,7 +187,7 @@ void test_keyboard_get_device_not_ready(void)
 void test_keyboard_get_report_xfer_failed()
 {
   tusbh_device_get_state_IgnoreAndReturn(TUSB_DEVICE_STATE_CONFIGURED);
-  hcd_pipe_is_busy_ExpectAndReturn(p_hidh_kbd->pipe_hdl, false);
+  hcd_edpt_busy_ExpectAndReturn(p_hidh_kbd->pipe_hdl, false);
   hcd_pipe_xfer_ExpectAndReturn(p_hidh_kbd->pipe_hdl, (uint8_t*) &report, p_hidh_kbd->report_size, true, TUSB_ERROR_INVALID_PARA);
 
   //------------- Code Under TEST -------------//
@@ -197,7 +197,7 @@ void test_keyboard_get_report_xfer_failed()
 void test_keyboard_get_report_xfer_failed_busy()
 {
   tusbh_device_get_state_IgnoreAndReturn(TUSB_DEVICE_STATE_CONFIGURED);
-  hcd_pipe_is_busy_ExpectAndReturn(p_hidh_kbd->pipe_hdl, true);
+  hcd_edpt_busy_ExpectAndReturn(p_hidh_kbd->pipe_hdl, true);
 
   TEST_ASSERT_EQUAL(TUSB_ERROR_INTERFACE_IS_BUSY, tusbh_hid_keyboard_get_report(dev_addr, &report));
 }
@@ -206,7 +206,7 @@ void test_keyboard_get_ok()
 {
   tusbh_device_get_state_IgnoreAndReturn(TUSB_DEVICE_STATE_CONFIGURED);
 //  TEST_ASSERT_EQUAL(TUSB_INTERFACE_STATUS_READY, tusbh_hid_keyboard_status(dev_addr));
-  hcd_pipe_is_busy_ExpectAndReturn(p_hidh_kbd->pipe_hdl, false);
+  hcd_edpt_busy_ExpectAndReturn(p_hidh_kbd->pipe_hdl, false);
   hcd_pipe_xfer_ExpectAndReturn(p_hidh_kbd->pipe_hdl, (uint8_t*) &report, p_hidh_kbd->report_size, true, TUSB_ERROR_NONE);
 
   //------------- Code Under TEST -------------//
@@ -216,10 +216,10 @@ void test_keyboard_get_ok()
 
 void test_keyboard_isr_event_complete(void)
 {
-  tusbh_hid_keyboard_isr_Expect(dev_addr, TUSB_EVENT_XFER_COMPLETE);
+  tusbh_hid_keyboard_isr_Expect(dev_addr, XFER_RESULT_SUCCESS);
 
   //------------- Code Under TEST -------------//
-  hidh_isr(p_hidh_kbd->pipe_hdl, TUSB_EVENT_XFER_COMPLETE, 8);
+  hidh_isr(p_hidh_kbd->pipe_hdl, XFER_RESULT_SUCCESS, 8);
 
 //  tusbh_device_get_state_IgnoreAndReturn(TUSB_DEVICE_STATE_CONFIGURED);
 //  TEST_ASSERT_EQUAL(TUSB_INTERFACE_STATUS_COMPLETE, tusbh_hid_keyboard_status(dev_addr));

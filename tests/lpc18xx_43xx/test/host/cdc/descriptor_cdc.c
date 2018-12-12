@@ -42,12 +42,12 @@
 //--------------------------------------------------------------------+
 // CDC Serials
 //--------------------------------------------------------------------+
-TUSB_CFG_ATTR_USBRAM
+CFG_TUSB_MEM_SECTION
 const cdc_configuration_desc_t cdc_config_descriptor =
 {
     .configuration =
     {
-        .bLength             = sizeof(tusb_descriptor_configuration_t),
+        .bLength             = sizeof(tusb_desc_configuration_t),
         .bDescriptorType     = TUSB_DESC_TYPE_CONFIGURATION,
 
         .wTotalLength        = sizeof(cdc_configuration_desc_t),
@@ -62,7 +62,7 @@ const cdc_configuration_desc_t cdc_config_descriptor =
     // IAD points to CDC Interfaces
     .cdc_iad =
     {
-        .bLength           = sizeof(tusb_descriptor_interface_association_t),
+        .bLength           = sizeof(tusb_desc_interface_assoc_t),
         .bDescriptorType   = TUSB_DESC_TYPE_INTERFACE_ASSOCIATION,
 
         .bFirstInterface   = 1,
@@ -80,7 +80,7 @@ const cdc_configuration_desc_t cdc_config_descriptor =
     //------------- CDC Communication Interface -------------//
     .cdc_comm_interface =
     {
-        .bLength            = sizeof(tusb_descriptor_interface_t),
+        .bLength            = sizeof(tusb_desc_interface_t),
         .bDescriptorType    = TUSB_DESC_TYPE_INTERFACE,
         .bInterfaceNumber   = 1,
         .bAlternateSetting  = 0,
@@ -101,7 +101,7 @@ const cdc_configuration_desc_t cdc_config_descriptor =
 
     .cdc_acm =
     {
-        .bLength            = sizeof(cdc_desc_func_abstract_control_management_t),
+        .bLength            = sizeof(cdc_desc_func_acm_t),
         .bDescriptorType    = TUSB_DESC_TYPE_INTERFACE_CLASS_SPECIFIC,
         .bDescriptorSubType = CDC_FUNC_DESC_ABSTRACT_CONTROL_MANAGEMENT,
         .bmCapabilities     = { // 0x06
@@ -121,7 +121,7 @@ const cdc_configuration_desc_t cdc_config_descriptor =
 
     .cdc_endpoint_notification =
     {
-        .bLength          = sizeof(tusb_descriptor_endpoint_t),
+        .bLength          = sizeof(tusb_desc_endpoint_t),
         .bDescriptorType  = TUSB_DESC_TYPE_ENDPOINT,
         .bEndpointAddress = 0x81,
         .bmAttributes     = { .xfer = TUSB_XFER_INTERRUPT },
@@ -132,7 +132,7 @@ const cdc_configuration_desc_t cdc_config_descriptor =
     //------------- CDC Data Interface -------------//
     .cdc_data_interface =
     {
-        .bLength            = sizeof(tusb_descriptor_interface_t),
+        .bLength            = sizeof(tusb_desc_interface_t),
         .bDescriptorType    = TUSB_DESC_TYPE_INTERFACE,
         .bInterfaceNumber   = 2,
         .bAlternateSetting  = 0x00,
@@ -145,7 +145,7 @@ const cdc_configuration_desc_t cdc_config_descriptor =
 
     .cdc_endpoint_out =
     {
-        .bLength          = sizeof(tusb_descriptor_endpoint_t),
+        .bLength          = sizeof(tusb_desc_endpoint_t),
         .bDescriptorType  = TUSB_DESC_TYPE_ENDPOINT,
         .bEndpointAddress = 2,
         .bmAttributes     = { .xfer = TUSB_XFER_BULK },
@@ -155,7 +155,7 @@ const cdc_configuration_desc_t cdc_config_descriptor =
 
     .cdc_endpoint_in =
     {
-        .bLength          = sizeof(tusb_descriptor_endpoint_t),
+        .bLength          = sizeof(tusb_desc_endpoint_t),
         .bDescriptorType  = TUSB_DESC_TYPE_ENDPOINT,
         .bEndpointAddress = 0x82,
         .bmAttributes     = { .xfer = TUSB_XFER_BULK },
@@ -168,12 +168,12 @@ const cdc_configuration_desc_t cdc_config_descriptor =
 // CDC RNSID
 //--------------------------------------------------------------------+
 
-TUSB_CFG_ATTR_USBRAM
+CFG_TUSB_MEM_SECTION
 const cdc_configuration_desc_t rndis_config_descriptor =
 {
     .configuration =
     {
-        .bLength             = sizeof(tusb_descriptor_configuration_t),
+        .bLength             = sizeof(tusb_desc_configuration_t),
         .bDescriptorType     = TUSB_DESC_TYPE_CONFIGURATION,
 
         .wTotalLength        = sizeof(cdc_configuration_desc_t),
@@ -188,7 +188,7 @@ const cdc_configuration_desc_t rndis_config_descriptor =
     // IAD points to CDC Interfaces
     .cdc_iad =
     {
-        .bLength           = sizeof(tusb_descriptor_interface_association_t),
+        .bLength           = sizeof(tusb_desc_interface_assoc_t),
         .bDescriptorType   = TUSB_DESC_TYPE_INTERFACE_ASSOCIATION,
 
         .bFirstInterface   = 1,
@@ -206,7 +206,7 @@ const cdc_configuration_desc_t rndis_config_descriptor =
     //------------- CDC Communication Interface -------------//
     .cdc_comm_interface =
     {
-        .bLength            = sizeof(tusb_descriptor_interface_t),
+        .bLength            = sizeof(tusb_desc_interface_t),
         .bDescriptorType    = TUSB_DESC_TYPE_INTERFACE,
         .bInterfaceNumber   = 1,
         .bAlternateSetting  = 0,
@@ -227,7 +227,7 @@ const cdc_configuration_desc_t rndis_config_descriptor =
 
     .cdc_acm =
     {
-        .bLength            = sizeof(cdc_desc_func_abstract_control_management_t),
+        .bLength            = sizeof(cdc_desc_func_acm_t),
         .bDescriptorType    = TUSB_DESC_TYPE_INTERFACE_CLASS_SPECIFIC,
         .bDescriptorSubType = CDC_FUNC_DESC_ABSTRACT_CONTROL_MANAGEMENT,
         .bmCapabilities     = { 0 }
@@ -244,7 +244,7 @@ const cdc_configuration_desc_t rndis_config_descriptor =
 
     .cdc_endpoint_notification =
     {
-        .bLength          = sizeof(tusb_descriptor_endpoint_t),
+        .bLength          = sizeof(tusb_desc_endpoint_t),
         .bDescriptorType  = TUSB_DESC_TYPE_ENDPOINT,
         .bEndpointAddress = 0x81,
         .bmAttributes     = { .xfer = TUSB_XFER_INTERRUPT },
@@ -255,7 +255,7 @@ const cdc_configuration_desc_t rndis_config_descriptor =
     //------------- CDC Data Interface -------------//
     .cdc_data_interface =
     {
-        .bLength            = sizeof(tusb_descriptor_interface_t),
+        .bLength            = sizeof(tusb_desc_interface_t),
         .bDescriptorType    = TUSB_DESC_TYPE_INTERFACE,
         .bInterfaceNumber   = 2,
         .bAlternateSetting  = 0x00,
@@ -268,7 +268,7 @@ const cdc_configuration_desc_t rndis_config_descriptor =
 
     .cdc_endpoint_out =
     {
-        .bLength          = sizeof(tusb_descriptor_endpoint_t),
+        .bLength          = sizeof(tusb_desc_endpoint_t),
         .bDescriptorType  = TUSB_DESC_TYPE_ENDPOINT,
         .bEndpointAddress = 2,
         .bmAttributes     = { .xfer = TUSB_XFER_BULK },
@@ -278,7 +278,7 @@ const cdc_configuration_desc_t rndis_config_descriptor =
 
     .cdc_endpoint_in =
     {
-        .bLength          = sizeof(tusb_descriptor_endpoint_t),
+        .bLength          = sizeof(tusb_desc_endpoint_t),
         .bDescriptorType  = TUSB_DESC_TYPE_ENDPOINT,
         .bEndpointAddress = 0x82,
         .bmAttributes     = { .xfer = TUSB_XFER_BULK },

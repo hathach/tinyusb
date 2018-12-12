@@ -51,7 +51,7 @@
 #include "ehci_controller_fake.h"
 #include "host_helper.h"
 
-usbh_device_info_t usbh_devices[TUSB_CFG_HOST_DEVICE_MAX+1];
+usbh_device_t _usbh_devices[CFG_TUSB_HOST_DEVICE_MAX+1];
 
 static uint8_t hub_addr = 2;
 static uint8_t hub_port = 2;
@@ -64,9 +64,9 @@ static ehci_qhd_t *async_head;
 static ehci_qhd_t *p_qhd_bulk;
 static pipe_handle_t pipe_hdl_bulk;
 
-tusb_descriptor_endpoint_t const desc_ept_bulk_in =
+tusb_desc_endpoint_t const desc_ept_bulk_in =
 {
-    .bLength          = sizeof(tusb_descriptor_endpoint_t),
+    .bLength          = sizeof(tusb_desc_endpoint_t),
     .bDescriptorType  = TUSB_DESC_TYPE_ENDPOINT,
     .bEndpointAddress = 0x81,
     .bmAttributes     = { .xfer = TUSB_XFER_BULK },
@@ -74,9 +74,9 @@ tusb_descriptor_endpoint_t const desc_ept_bulk_in =
     .bInterval        = 0
 };
 
-tusb_descriptor_endpoint_t const desc_ept_bulk_out =
+tusb_desc_endpoint_t const desc_ept_bulk_out =
 {
-    .bLength          = sizeof(tusb_descriptor_endpoint_t),
+    .bLength          = sizeof(tusb_desc_endpoint_t),
     .bDescriptorType  = TUSB_DESC_TYPE_ENDPOINT,
     .bEndpointAddress = 0x01,
     .bmAttributes     = { .xfer = TUSB_XFER_BULK },
@@ -90,8 +90,8 @@ tusb_descriptor_endpoint_t const desc_ept_bulk_out =
 void setUp(void)
 {
   ehci_controller_init();
-  memclr_(xfer_data, sizeof(xfer_data));
-  memclr_(usbh_devices, sizeof(usbh_device_info_t)*(TUSB_CFG_HOST_DEVICE_MAX+1));
+  tu_memclr(xfer_data, sizeof(xfer_data));
+  tu_memclr(_usbh_devices, sizeof(usbh_device_t)*(CFG_TUSB_HOST_DEVICE_MAX+1));
 
   TEST_ASSERT_STATUS( hcd_init() );
 
@@ -102,7 +102,7 @@ void setUp(void)
   async_head =  get_async_head( hostid );
 
   //------------- pipe open -------------//
-  pipe_hdl_bulk = hcd_pipe_open(dev_addr, &desc_ept_bulk_in, TUSB_CLASS_MSC);
+  pipe_hdl_bulk = hcd_edpt_open(dev_addr, &desc_ept_bulk_in, TUSB_CLASS_MSC);
 
   TEST_ASSERT_EQUAL(dev_addr, pipe_hdl_bulk.dev_addr);
   TEST_ASSERT_EQUAL(TUSB_XFER_BULK, pipe_hdl_bulk.xfer_type);
@@ -140,15 +140,15 @@ void verify_qtd(ehci_qtd_t *p_qtd, uint8_t p_data[], uint16_t length)
   TEST_ASSERT_EQUAL_HEX( p_data, p_qtd->buffer[0] );
   for(uint8_t i=1; i<5; i++)
   {
-    TEST_ASSERT_EQUAL_HEX( align4k((uint32_t) (p_data+4096*i)), align4k(p_qtd->buffer[i]) );
+    TEST_ASSERT_EQUAL_HEX( tu_align4k((uint32_t) (p_data+4096*i)), tu_align4k(p_qtd->buffer[i]) );
   }
 }
 
 void test_bulk_xfer_hs_ping_out(void)
 {
-  usbh_devices[dev_addr].speed    = TUSB_SPEED_HIGH;
+  _usbh_devices[dev_addr].speed    = TUSB_SPEED_HIGH;
 
-  pipe_handle_t pipe_hdl = hcd_pipe_open(dev_addr, &desc_ept_bulk_out, TUSB_CLASS_MSC);
+  pipe_handle_t pipe_hdl = hcd_edpt_open(dev_addr, &desc_ept_bulk_out, TUSB_CLASS_MSC);
   ehci_qhd_t *p_qhd = qhd_get_from_pipe_handle(pipe_hdl);
 
   //------------- Code Under Test -------------//
@@ -193,7 +193,7 @@ void test_bulk_xfer_double(void)
   //------------- list tail -------------//
   TEST_ASSERT_NOT_NULL(p_tail);
   verify_qtd(p_tail, data2, sizeof(data2));
-  TEST_ASSERT_EQUAL_HEX( align32(p_head->next.address), p_tail);
+  TEST_ASSERT_EQUAL_HEX( tu_align32(p_head->next.address), p_tail);
   TEST_ASSERT_EQUAL(EHCI_PID_IN, p_tail->pid);
   TEST_ASSERT_TRUE(p_tail->next.terminate);
   TEST_ASSERT_TRUE(p_tail->int_on_complete);
@@ -208,7 +208,7 @@ void test_bulk_xfer_complete_isr(void)
   ehci_qtd_t* p_head = p_qhd_bulk->p_qtd_list_head;
   ehci_qtd_t* p_tail = p_qhd_bulk->p_qtd_list_tail;
 
-  usbh_xfer_isr_Expect(pipe_hdl_bulk, TUSB_CLASS_MSC, TUSB_EVENT_XFER_COMPLETE, sizeof(data2)+sizeof(xfer_data));
+  hcd_event_xfer_complete_Expect(pipe_hdl_bulk, TUSB_CLASS_MSC, XFER_RESULT_SUCCESS, sizeof(data2)+sizeof(xfer_data));
 
   //------------- Code Under Test -------------//
   ehci_controller_run(hostid);

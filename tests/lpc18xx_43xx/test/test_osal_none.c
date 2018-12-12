@@ -36,8 +36,8 @@
 */
 /**************************************************************************/
 
-#ifdef TUSB_CFG_OS
-#undef TUSB_CFG_OS
+#ifdef CFG_TUSB_OS
+#undef CFG_TUSB_OS
 #endif
 
 void setUp(void)
@@ -180,7 +180,7 @@ void test_task_with_semaphore(void)
   TEST_ASSERT_EQUAL(1, statements[3]);
 
   // timeout
-  for(uint32_t i=0; i<(OSAL_TIMEOUT_NORMAL*TUSB_CFG_OS_TICKS_PER_SECOND)/1000 - 1  ; i++) // not enough time
+  for(uint32_t i=0; i<(OSAL_TIMEOUT_NORMAL*CFG_TUSB_OS_TICKS_PER_SECOND)/1000 - 1  ; i++) // not enough time
     osal_tick_tock();
   sample_task_semaphore();
   TEST_ASSERT_EQUAL(0, statements[4]);
@@ -251,7 +251,7 @@ void test_task_with_mutex(void)
   TEST_ASSERT_EQUAL(0, statements[5]);
 
   // timeout
-  for(uint32_t i=0; i<(OSAL_TIMEOUT_NORMAL*TUSB_CFG_OS_TICKS_PER_SECOND)/1000 - 1 ; i++){ // one tick less
+  for(uint32_t i=0; i<(OSAL_TIMEOUT_NORMAL*CFG_TUSB_OS_TICKS_PER_SECOND)/1000 - 1 ; i++){ // one tick less
     osal_tick_tock();
   }
   mutex_sample_task2();
@@ -321,7 +321,7 @@ void test_task_with_queue(void)
   TEST_ASSERT_EQUAL(1, statements[3]);
 
   // timeout
-  for(uint32_t i=0; i<(OSAL_TIMEOUT_NORMAL*TUSB_CFG_OS_TICKS_PER_SECOND)/1000 - 1 ; i++) // not enough time
+  for(uint32_t i=0; i<(OSAL_TIMEOUT_NORMAL*CFG_TUSB_OS_TICKS_PER_SECOND)/1000 - 1 ; i++) // not enough time
     osal_tick_tock();
   sample_task_with_queue();
   TEST_ASSERT_EQUAL(0, statements[4]);
@@ -354,7 +354,7 @@ void test_task_with_delay(void)
   sample_task_with_delay();
   TEST_ASSERT_EQUAL(0, statements[0]);
 
-  for(uint32_t i=0; i<TUSB_CFG_OS_TICKS_PER_SECOND*1000; i++) // not enough time
+  for(uint32_t i=0; i<CFG_TUSB_OS_TICKS_PER_SECOND*1000; i++) // not enough time
     osal_tick_tock();
 
   sample_task_with_delay();
@@ -386,7 +386,7 @@ tusb_error_t sample_flow_control_subtask2(void)
   statements[2]++;
 
   osal_semaphore_wait(sem_hdl, OSAL_TIMEOUT_NORMAL, &error);
-  SUBTASK_ASSERT_STATUS_WITH_HANDLER(error, flow_control_error_handler());
+  SUBTASK_ASSERT_STATUS_HDLR(error, flow_control_error_handler());
   statements[3]++;
 
   OSAL_SUBTASK_END
@@ -413,7 +413,7 @@ tusb_error_t sample_task_flow_control(void)
 void test_task_flow_control_assert(void)
 {
   sample_task_flow_control();
-  for(uint32_t i=0; i<(OSAL_TIMEOUT_NORMAL*TUSB_CFG_OS_TICKS_PER_SECOND)/1000 + 1; i++) osal_tick_tock();
+  for(uint32_t i=0; i<(OSAL_TIMEOUT_NORMAL*CFG_TUSB_OS_TICKS_PER_SECOND)/1000 + 1; i++) osal_tick_tock();
   sample_task_flow_control();
   TEST_ASSERT_EQUAL(0, statements[1]);
 }
@@ -424,7 +424,7 @@ void test_task_flow_control_assert_status(void)
 
   sample_task_flow_control();
 
-  for(uint32_t i=0; i<(OSAL_TIMEOUT_NORMAL*TUSB_CFG_OS_TICKS_PER_SECOND)/1000 + 1; i++) osal_tick_tock();
+  for(uint32_t i=0; i<(OSAL_TIMEOUT_NORMAL*CFG_TUSB_OS_TICKS_PER_SECOND)/1000 + 1; i++) osal_tick_tock();
   sample_task_flow_control();
 
   TEST_ASSERT_EQUAL(0, statements[2]);
@@ -436,7 +436,7 @@ void test_task_flow_control_assert_status_hanlder(void)
 
   sample_task_flow_control();
 
-  for(uint32_t i=0; i<(OSAL_TIMEOUT_NORMAL*TUSB_CFG_OS_TICKS_PER_SECOND)/1000 + 1; i++) osal_tick_tock();
+  for(uint32_t i=0; i<(OSAL_TIMEOUT_NORMAL*CFG_TUSB_OS_TICKS_PER_SECOND)/1000 + 1; i++) osal_tick_tock();
   sample_task_flow_control();
 
   TEST_ASSERT_EQUAL(0, statements[3]);

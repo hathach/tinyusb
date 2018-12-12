@@ -36,8 +36,8 @@
 */
 /**************************************************************************/
 
-#ifndef _TUSB_TUSB_CONFIG_H_
-#define _TUSB_TUSB_CONFIG_H_
+#ifndef _TUSB_CONFIG_H_
+#define _TUSB_CONFIG_H_
 
 #ifdef __cplusplus
  extern "C" {
@@ -46,49 +46,47 @@
 //--------------------------------------------------------------------+
 // CONTROLLER CONFIGURATION
 //--------------------------------------------------------------------+
-#define TUSB_CFG_CONTROLLER_0_MODE  (TUSB_MODE_HOST | TUSB_MODE_DEVICE)
-#define TUSB_CFG_CONTROLLER_1_MODE  (TUSB_MODE_NONE)
+#define CFG_TUSB_RHPORT0_MODE        (OPT_MODE_HOST | OPT_MODE_DEVICE)
+#define CFG_TUSB_RHPORT1_MODE        (OPT_MODE_NONE)
 
 //--------------------------------------------------------------------+
 // HOST CONFIGURATION
 //--------------------------------------------------------------------+
-#define TUSB_CFG_HOST_DEVICE_MAX                5 // TODO be a part of HUB config
+#define CFG_TUSB_HOST_DEVICE_MAX          5 // TODO be a part of HUB config
 
 //------------- CLASS -------------//
-#define TUSB_CFG_HOST_HUB                        0
-#define TUSB_CFG_HOST_HID_KEYBOARD               1
-#define TUSB_CFG_HOST_HID_MOUSE                  1
-#define TUSB_CFG_HOST_HID_GENERIC                0
-#define TUSB_CFG_HOST_MSC                        1
-#define TUSB_CFG_HOST_CDC                        1
-#define TUSB_CFG_HOST_CDC_RNDIS                  0
+#define CFG_TUH_HUB                 1
+#define CFG_TUH_HID_KEYBOARD        1
+#define CFG_TUH_HID_MOUSE           1
+#define CFG_TUH_MSC                 1
+#define CFG_TUSB_HOST_HID_GENERIC         0
+#define CFG_TUH_CDC                 1
+#define CFG_TUH_CDC_RNDIS           0
 
 // Test support
 #define TEST_CONTROLLER_HOST_START_INDEX \
- ( ((CONTROLLER_HOST_NUMBER == 1) && (TUSB_CFG_CONTROLLER_1_MODE & TUSB_MODE_HOST)) ? 1 : 0)
+ ( ((CONTROLLER_HOST_NUMBER == 1) && (CFG_TUSB_RHPORT1_MODE & OPT_MODE_HOST)) ? 1 : 0)
 
 //--------------------------------------------------------------------+
 // DEVICE CONFIGURATION
 //--------------------------------------------------------------------+
-#define TUSB_CFG_DEVICE_CONTROL_ENDOINT_SIZE   64
+#define CFG_TUD_ENDOINT0_SIZE     64
 
 //------------- CLASS -------------//
-#define TUSB_CFG_DEVICE_HID_KEYBOARD  1
-#define TUSB_CFG_DEVICE_HID_MOUSE     1
-#define TUSB_CFG_DEVICE_HID_GENERIC   0
-#define TUSB_CFG_DEVICE_MSC           1
-#define TUSB_CFG_DEVICE_CDC           1
+#define CFG_TUD_CDC               1
+#define CFG_TUD_MSC               1
+#define CFG_TUD_HID_KEYBOARD      1
+#define CFG_TUD_HID_MOUSE         1
 
 
 //--------------------------------------------------------------------+
 // COMMON CONFIGURATION
 //--------------------------------------------------------------------+
 
-#define TUSB_CFG_DEBUG 3
+#define CFG_TUSB_DEBUG 3
 
-#define TUSB_CFG_OS TUSB_OS_NONE
-#define TUSB_CFG_TICKS_HZ 1000 // 1 ms tick
-#define TUSB_CFG_ATTR_USBRAM
+#define CFG_TUSB_OS OPT_OS_NONE
+#define CFG_TUSB_MEM_SECTION
 
 #ifdef __cplusplus
  }
@@ -97,6 +95,6 @@
 
 #define RANDOM(n) (rand()%(n))
 
-#endif /* _TUSB_TUSB_CONFIG_H_ */
+#endif /* _TUSB_CONFIG_H_ */
 
 /** @} */

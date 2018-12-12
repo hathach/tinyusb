@@ -39,7 +39,7 @@
 #include "tusb_option.h"
 #include "descriptor_test.h"
 
-TUSB_CFG_ATTR_USBRAM ATTR_ALIGNED(4)
+CFG_TUSB_MEM_SECTION ATTR_ALIGNED(4)
 const uint8_t keyboard_report_descriptor[] = {
   HID_USAGE_PAGE ( HID_USAGE_PAGE_DESKTOP     ),
   HID_USAGE      ( HID_USAGE_DESKTOP_KEYBOARD ),
@@ -81,7 +81,7 @@ const uint8_t keyboard_report_descriptor[] = {
   HID_COLLECTION_END
 };
 
-TUSB_CFG_ATTR_USBRAM ATTR_ALIGNED(4)
+CFG_TUSB_MEM_SECTION ATTR_ALIGNED(4)
 const uint8_t mouse_report_descriptor[] = {
   HID_USAGE_PAGE ( HID_USAGE_PAGE_DESKTOP     ),
   HID_USAGE      ( HID_USAGE_DESKTOP_MOUSE    ),
@@ -118,10 +118,10 @@ const uint8_t mouse_report_descriptor[] = {
 };
 
 
-TUSB_CFG_ATTR_USBRAM ATTR_ALIGNED(4)
-tusb_descriptor_device_t const desc_device =
+CFG_TUSB_MEM_SECTION ATTR_ALIGNED(4)
+tusb_desc_device_t const desc_device =
 {
-    .bLength            = sizeof(tusb_descriptor_device_t),
+    .bLength            = sizeof(tusb_desc_device_t),
     .bDescriptorType    = TUSB_DESC_TYPE_DEVICE,
     .bcdUSB             = 0x0200,
     .bDeviceClass       = 0x00,
@@ -142,12 +142,12 @@ tusb_descriptor_device_t const desc_device =
 } ;
 
 
-TUSB_CFG_ATTR_USBRAM ATTR_ALIGNED(4)
+CFG_TUSB_MEM_SECTION ATTR_ALIGNED(4)
 const app_configuration_desc_t desc_configuration =
 {
     .configuration =
     {
-        .bLength             = sizeof(tusb_descriptor_configuration_t),
+        .bLength             = sizeof(tusb_desc_configuration_t),
         .bDescriptorType     = TUSB_DESC_TYPE_CONFIGURATION,
 
         .wTotalLength        = sizeof(app_configuration_desc_t) - 1, // exclude termination
@@ -162,7 +162,7 @@ const app_configuration_desc_t desc_configuration =
     //------------- HID Keyboard -------------//
     .keyboard_interface =
     {
-        .bLength            = sizeof(tusb_descriptor_interface_t),
+        .bLength            = sizeof(tusb_desc_interface_t),
         .bDescriptorType    = TUSB_DESC_TYPE_INTERFACE,
         .bInterfaceNumber   = 1,
         .bAlternateSetting  = 0x00,
@@ -186,7 +186,7 @@ const app_configuration_desc_t desc_configuration =
 
     .keyboard_endpoint =
     {
-        .bLength          = sizeof(tusb_descriptor_endpoint_t),
+        .bLength          = sizeof(tusb_desc_endpoint_t),
         .bDescriptorType  = TUSB_DESC_TYPE_ENDPOINT,
         .bEndpointAddress = 0x81,
         .bmAttributes     = { .xfer = TUSB_XFER_INTERRUPT },
@@ -197,7 +197,7 @@ const app_configuration_desc_t desc_configuration =
     //------------- HID Mouse -------------//
     .mouse_interface =
     {
-        .bLength            = sizeof(tusb_descriptor_interface_t),
+        .bLength            = sizeof(tusb_desc_interface_t),
         .bDescriptorType    = TUSB_DESC_TYPE_INTERFACE,
         .bInterfaceNumber   = 2,
         .bAlternateSetting  = 0x00,
@@ -221,7 +221,7 @@ const app_configuration_desc_t desc_configuration =
 
     .mouse_endpoint =
     {
-        .bLength          = sizeof(tusb_descriptor_endpoint_t),
+        .bLength          = sizeof(tusb_desc_endpoint_t),
         .bDescriptorType  = TUSB_DESC_TYPE_ENDPOINT,
         .bEndpointAddress = 0x82,
         .bmAttributes     = { .xfer = TUSB_XFER_INTERRUPT },
@@ -232,7 +232,7 @@ const app_configuration_desc_t desc_configuration =
     //------------- Mass Storage -------------//
     .msc_interface =
     {
-        .bLength            = sizeof(tusb_descriptor_interface_t),
+        .bLength            = sizeof(tusb_desc_interface_t),
         .bDescriptorType    = TUSB_DESC_TYPE_INTERFACE,
         .bInterfaceNumber   = 3,
         .bAlternateSetting  = 0x00,
@@ -245,7 +245,7 @@ const app_configuration_desc_t desc_configuration =
 
     .msc_endpoint_in =
     {
-        .bLength          = sizeof(tusb_descriptor_endpoint_t),
+        .bLength          = sizeof(tusb_desc_endpoint_t),
         .bDescriptorType  = TUSB_DESC_TYPE_ENDPOINT,
         .bEndpointAddress = 0x83,
         .bmAttributes     = { .xfer = TUSB_XFER_BULK },
@@ -255,7 +255,7 @@ const app_configuration_desc_t desc_configuration =
 
     .msc_endpoint_out =
     {
-        .bLength          = sizeof(tusb_descriptor_endpoint_t),
+        .bLength          = sizeof(tusb_desc_endpoint_t),
         .bDescriptorType  = TUSB_DESC_TYPE_ENDPOINT,
         .bEndpointAddress = 0x03,
         .bmAttributes     = { .xfer = TUSB_XFER_BULK },
@@ -266,7 +266,7 @@ const app_configuration_desc_t desc_configuration =
     //------------- CDC Serial -------------//
     .cdc_comm_interface =
     {
-        .bLength            = sizeof(tusb_descriptor_interface_t),
+        .bLength            = sizeof(tusb_desc_interface_t),
         .bDescriptorType    = TUSB_DESC_TYPE_INTERFACE,
         .bInterfaceNumber   = 4,
         .bAlternateSetting  = 0,
@@ -287,7 +287,7 @@ const app_configuration_desc_t desc_configuration =
 
     .cdc_acm =
     {
-        .bLength            = sizeof(cdc_desc_func_abstract_control_management_t),
+        .bLength            = sizeof(cdc_desc_func_acm_t),
         .bDescriptorType    = TUSB_DESC_TYPE_INTERFACE_CLASS_SPECIFIC,
         .bDescriptorSubType = CDC_FUNC_DESC_ABSTRACT_CONTROL_MANAGEMENT,
         .bmCapabilities     = { // 0x06
@@ -307,7 +307,7 @@ const app_configuration_desc_t desc_configuration =
 
     .cdc_endpoint_notification =
     {
-        .bLength          = sizeof(tusb_descriptor_endpoint_t),
+        .bLength          = sizeof(tusb_desc_endpoint_t),
         .bDescriptorType  = TUSB_DESC_TYPE_ENDPOINT,
         .bEndpointAddress = 0x84,
         .bmAttributes     = { .xfer = TUSB_XFER_INTERRUPT },
@@ -318,7 +318,7 @@ const app_configuration_desc_t desc_configuration =
     //------------- CDC Data Interface -------------//
     .cdc_data_interface =
     {
-        .bLength            = sizeof(tusb_descriptor_interface_t),
+        .bLength            = sizeof(tusb_desc_interface_t),
         .bDescriptorType    = TUSB_DESC_TYPE_INTERFACE,
         .bInterfaceNumber   = 5,
         .bAlternateSetting  = 0x00,
@@ -331,7 +331,7 @@ const app_configuration_desc_t desc_configuration =
 
     .cdc_endpoint_out =
     {
-        .bLength          = sizeof(tusb_descriptor_endpoint_t),
+        .bLength          = sizeof(tusb_desc_endpoint_t),
         .bDescriptorType  = TUSB_DESC_TYPE_ENDPOINT,
         .bEndpointAddress = 5,
         .bmAttributes     = { .xfer = TUSB_XFER_BULK },
@@ -341,7 +341,7 @@ const app_configuration_desc_t desc_configuration =
 
     .cdc_endpoint_in =
     {
-        .bLength          = sizeof(tusb_descriptor_endpoint_t),
+        .bLength          = sizeof(tusb_desc_endpoint_t),
         .bDescriptorType  = TUSB_DESC_TYPE_ENDPOINT,
         .bEndpointAddress = 0x85,
         .bmAttributes     = { .xfer = TUSB_XFER_BULK },

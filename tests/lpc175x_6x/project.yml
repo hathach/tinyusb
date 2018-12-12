@@ -42,7 +42,7 @@
   #  1) remove the trailing [] from the :common: section
   #  2) add entries to the :common: section (e.g. :test: has TEST defined)
   :commmon: &common_defines 
-    - TUSB_CFG_MCU=MCU_LPC175X_6X -std=gnu99 
+    - CFG_TUSB_MCU=MCU_LPC175X_6X -std=gnu99 
 #    - -mx32
     - CORE_M4
     - __CODE_RED

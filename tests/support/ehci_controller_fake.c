@@ -54,20 +54,20 @@
 LPC_USB0_Type lpc_usb0;
 LPC_USB1_Type lpc_usb1;
 
-extern usbh_device_info_t usbh_devices[TUSB_CFG_HOST_DEVICE_MAX+1];
+extern usbh_device_t _usbh_devices[CFG_TUSB_HOST_DEVICE_MAX+1];
 
 //--------------------------------------------------------------------+
 // IMPLEMENTATION
 //--------------------------------------------------------------------+
 void ehci_controller_init(void)
 {
-  memclr_(&lpc_usb0, sizeof(LPC_USB0_Type));
-  memclr_(&lpc_usb1, sizeof(LPC_USB1_Type));
+  tu_memclr(&lpc_usb0, sizeof(LPC_USB0_Type));
+  tu_memclr(&lpc_usb1, sizeof(LPC_USB1_Type));
 }
 
 void ehci_controller_control_xfer_proceed(uint8_t dev_addr, uint8_t p_data[])
 {
-  ehci_registers_t* const regs = get_operational_register( usbh_devices[dev_addr].core_id );
+  ehci_registers_t* const regs = get_operational_register( _usbh_devices[dev_addr].rhport );
   ehci_qhd_t * p_qhd = get_control_qhd(dev_addr);
   ehci_qtd_t * p_qtd_setup = get_control_qtds(dev_addr);
   ehci_qtd_t * p_qtd_data  = p_qtd_setup + 1;
@@ -86,7 +86,7 @@ void ehci_controller_control_xfer_proceed(uint8_t dev_addr, uint8_t p_data[])
 
   regs->usb_sts = EHCI_INT_MASK_NXP_ASYNC | EHCI_INT_MASK_NXP_PERIODIC;
 
-  hcd_isr( usbh_devices[dev_addr].core_id );
+  hcd_isr( _usbh_devices[dev_addr].rhport );
 }
 
 void complete_qtd_in_qhd(ehci_qhd_t *p_qhd)
@@ -95,7 +95,7 @@ void complete_qtd_in_qhd(ehci_qhd_t *p_qhd)
   {
     while(!p_qhd->qtd_overlay.next.terminate)
     {
-      ehci_qtd_t* p_qtd = (ehci_qtd_t*) align32(p_qhd->qtd_overlay.next.address);
+      ehci_qtd_t* p_qtd = (ehci_qtd_t*) tu_align32(p_qhd->qtd_overlay.next.address);
       p_qtd->active = 0;
       p_qtd->total_bytes = 0;
       p_qhd->qtd_overlay = *p_qtd;
@@ -110,7 +110,7 @@ bool complete_all_qtd_in_async(ehci_qhd_t *head)
   do
   {
     complete_qtd_in_qhd(p_qhd);
-    p_qhd = (ehci_qhd_t*) align32(p_qhd->next.address);
+    p_qhd = (ehci_qhd_t*) tu_align32(p_qhd->next.address);
   }while(p_qhd != head); // stop if loop around
 
   return true;
@@ -121,7 +121,7 @@ bool complete_all_qtd_in_period(ehci_link_t *head)
   while(!head->terminate)
   {
     uint32_t queue_type = head->type;
-    head = (ehci_link_t*) align32(head->address);
+    head = (ehci_link_t*) tu_align32(head->address);
 
     if ( queue_type == EHCI_QUEUE_ELEMENT_QHD)
     {
@@ -153,7 +153,7 @@ void complete_1st_qtd_with_error(ehci_qhd_t* p_qhd, bool halted, bool xact_err)
   {
     if(!p_qhd->qtd_overlay.next.terminate) // TODO add active check
     {
-      ehci_qtd_t* p_qtd = (ehci_qtd_t*) align32(p_qhd->qtd_overlay.next.address);
+      ehci_qtd_t* p_qtd = (ehci_qtd_t*) tu_align32(p_qhd->qtd_overlay.next.address);
       p_qtd->active   = 0;
       p_qtd->halted   = halted ? 1 : 0;
       p_qtd->xact_err = xact_err ? 1 : 0;
@@ -172,7 +172,7 @@ void complete_list_with_error(uint8_t hostid, bool halted, bool xact_err)
   do
   {
     complete_1st_qtd_with_error(p_qhd, halted, xact_err);
-    p_qhd = (ehci_qhd_t*) align32(p_qhd->next.address);
+    p_qhd = (ehci_qhd_t*) tu_align32(p_qhd->next.address);
   }while(p_qhd != get_async_head(hostid)); // stop if loop around
 
   //------------- Period List -------------//
@@ -183,7 +183,7 @@ void complete_list_with_error(uint8_t hostid, bool halted, bool xact_err)
     while(!head->terminate)
     {
       uint32_t queue_type = head->type;
-      head = (ehci_link_t*) align32(head->address);
+      head = (ehci_link_t*) tu_align32(head->address);
 
       if ( queue_type == EHCI_QUEUE_ELEMENT_QHD)
       {
