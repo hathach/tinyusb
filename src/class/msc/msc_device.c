@@ -150,25 +150,25 @@ void mscd_reset(uint8_t rhport)
   tu_memclr(&_mscd_itf, sizeof(mscd_interface_t));
 }
 
-tusb_error_t mscd_open(uint8_t rhport, tusb_desc_interface_t const * itf_desc, uint16_t *p_len)
+bool mscd_open(uint8_t rhport, tusb_desc_interface_t const * itf_desc, uint16_t *p_len)
 {
   // only support SCSI's BOT protocol
-  TU_VERIFY( ( MSC_SUBCLASS_SCSI == itf_desc->bInterfaceSubClass &&
-            MSC_PROTOCOL_BOT  == itf_desc->bInterfaceProtocol ), TUSB_ERROR_MSC_UNSUPPORTED_PROTOCOL );
+  TU_ASSERT(MSC_SUBCLASS_SCSI == itf_desc->bInterfaceSubClass &&
+            MSC_PROTOCOL_BOT  == itf_desc->bInterfaceProtocol);
 
   mscd_interface_t * p_msc = &_mscd_itf;
 
   // Open endpoint pair with usbd helper
   tusb_desc_endpoint_t const *p_desc_ep = (tusb_desc_endpoint_t const *) tu_desc_next( itf_desc );
-  TU_ASSERT_ERR( usbd_open_edpt_pair(rhport, p_desc_ep, TUSB_XFER_BULK, &p_msc->ep_out, &p_msc->ep_in) );
+  TU_ASSERT( usbd_open_edpt_pair(rhport, p_desc_ep, TUSB_XFER_BULK, &p_msc->ep_out, &p_msc->ep_in) );
 
   p_msc->itf_num = itf_desc->bInterfaceNumber;
   (*p_len) = sizeof(tusb_desc_interface_t) + 2*sizeof(tusb_desc_endpoint_t);
 
-  //------------- Queue Endpoint OUT for Command Block Wrapper -------------//
-  TU_ASSERT( dcd_edpt_xfer(rhport, p_msc->ep_out, (uint8_t*) &p_msc->cbw, sizeof(msc_cbw_t)), TUSB_ERROR_DCD_EDPT_XFER );
+  // Prepare for Command Block Wrapper
+  TU_ASSERT( dcd_edpt_xfer(rhport, p_msc->ep_out, (uint8_t*) &p_msc->cbw, sizeof(msc_cbw_t)) );
 
-  return TUSB_ERROR_NONE;
+  return true;
 }
 
 // Handle class control request

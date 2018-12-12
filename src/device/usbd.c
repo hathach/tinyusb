@@ -88,13 +88,13 @@ tud_desc_set_t const* usbd_desc_set = &tud_desc_set;
 typedef struct {
   uint8_t class_code;
 
-  void         (* init           ) (void);
-  tusb_error_t (* open           ) (uint8_t rhport, tusb_desc_interface_t const * desc_intf, uint16_t* p_length);
-  bool         (* control_request ) (uint8_t rhport, tusb_control_request_t const * request);
+  void (* init           ) (void);
+  bool (* open           ) (uint8_t rhport, tusb_desc_interface_t const * desc_intf, uint16_t* p_length);
+  bool (* control_request ) (uint8_t rhport, tusb_control_request_t const * request);
   bool (* control_request_complete ) (uint8_t rhport, tusb_control_request_t const * request);
   tusb_error_t (* xfer_cb        ) (uint8_t rhport, uint8_t ep_addr, xfer_result_t, uint32_t);
-  void         (* sof            ) (uint8_t rhport);
-  void         (* reset          ) (uint8_t);
+  void (* sof            ) (uint8_t rhport);
+  void (* reset          ) (uint8_t);
 } usbd_class_driver_t;
 
 static usbd_class_driver_t const usbd_class_drivers[] =
@@ -458,7 +458,7 @@ static bool process_set_config(uint8_t rhport)
       _usbd_dev.itf2drv[desc_itf->bInterfaceNumber] = drv_id;
 
       uint16_t itf_len=0;
-      TU_ASSERT_ERR( usbd_class_drivers[drv_id].open( rhport, desc_itf, &itf_len ), false );
+      TU_ASSERT( usbd_class_drivers[drv_id].open( rhport, desc_itf, &itf_len ) );
       TU_ASSERT( itf_len >= sizeof(tusb_desc_interface_t) );
 
       mark_interface_endpoint(_usbd_dev.ep2drv, p_desc, itf_len, drv_id);
@@ -624,14 +624,14 @@ void dcd_event_xfer_complete (uint8_t rhport, uint8_t ep_addr, uint32_t xferred_
 //--------------------------------------------------------------------+
 
 // Helper to parse an pair of endpoint descriptors (IN & OUT)
-tusb_error_t usbd_open_edpt_pair(uint8_t rhport, tusb_desc_endpoint_t const* ep_desc, uint8_t xfer_type, uint8_t* ep_out, uint8_t* ep_in)
+bool usbd_open_edpt_pair(uint8_t rhport, tusb_desc_endpoint_t const* ep_desc, uint8_t xfer_type, uint8_t* ep_out, uint8_t* ep_in)
 {
   for(int i=0; i<2; i++)
   {
     TU_ASSERT(TUSB_DESC_ENDPOINT == ep_desc->bDescriptorType &&
-              xfer_type          == ep_desc->bmAttributes.xfer, TUSB_ERROR_DESCRIPTOR_CORRUPTED);
+              xfer_type          == ep_desc->bmAttributes.xfer );
 
-    TU_ASSERT( dcd_edpt_open(rhport, ep_desc), TUSB_ERROR_DCD_OPEN_PIPE_FAILED );
+    TU_ASSERT(dcd_edpt_open(rhport, ep_desc));
 
     if ( tu_edpt_dir(ep_desc->bEndpointAddress) == TUSB_DIR_IN )
     {
@@ -644,7 +644,7 @@ tusb_error_t usbd_open_edpt_pair(uint8_t rhport, tusb_desc_endpoint_t const* ep_
     ep_desc = (tusb_desc_endpoint_t const *) tu_desc_next(ep_desc);
   }
 
-  return TUSB_ERROR_NONE;
+  return true;
 }
 
 // Helper to defer an isr function

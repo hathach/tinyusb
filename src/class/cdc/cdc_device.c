@@ -229,16 +229,14 @@ void cdcd_reset(uint8_t rhport)
   }
 }
 
-tusb_error_t cdcd_open(uint8_t rhport, tusb_desc_interface_t const * itf_desc, uint16_t *p_length)
+bool cdcd_open(uint8_t rhport, tusb_desc_interface_t const * itf_desc, uint16_t *p_length)
 {
-  if ( CDC_COMM_SUBCLASS_ABSTRACT_CONTROL_MODEL != itf_desc->bInterfaceSubClass) return TUSB_ERROR_CDC_UNSUPPORTED_SUBCLASS;
+  // Only support ACM subclass
+  TU_ASSERT ( CDC_COMM_SUBCLASS_ABSTRACT_CONTROL_MODEL == itf_desc->bInterfaceSubClass);
 
   // Only support AT commands, no protocol and vendor specific commands.
-  if ( !(tu_within(CDC_COMM_PROTOCOL_NONE, itf_desc->bInterfaceProtocol, CDC_COMM_PROTOCOL_ATCOMMAND_CDMA) ||
-         itf_desc->bInterfaceProtocol == 0xff ) )
-  {
-    return TUSB_ERROR_CDC_UNSUPPORTED_PROTOCOL;
-  }
+  TU_ASSERT(tu_within(CDC_COMM_PROTOCOL_NONE, itf_desc->bInterfaceProtocol, CDC_COMM_PROTOCOL_ATCOMMAND_CDMA) ||
+            itf_desc->bInterfaceProtocol == 0xff);
 
   // Find available interface
   cdcd_interface_t * p_cdc = NULL;
@@ -250,23 +248,25 @@ tusb_error_t cdcd_open(uint8_t rhport, tusb_desc_interface_t const * itf_desc, u
       break;
     }
   }
+  TU_ASSERT(p_cdc);
 
   //------------- Control Interface -------------//
-  p_cdc->itf_num  = itf_desc->bInterfaceNumber;
+  p_cdc->itf_num = itf_desc->bInterfaceNumber;
 
   uint8_t const * p_desc = tu_desc_next( itf_desc );
   (*p_length) = sizeof(tusb_desc_interface_t);
 
   // Communication Functional Descriptors
-  while( TUSB_DESC_CLASS_SPECIFIC == p_desc[DESC_OFFSET_TYPE] )
+  while ( TUSB_DESC_CLASS_SPECIFIC == tu_desc_type(p_desc) )
   {
-    (*p_length) += p_desc[DESC_OFFSET_LEN];
+    (*p_length) += tu_desc_len(p_desc);
     p_desc = tu_desc_next(p_desc);
   }
 
-  if ( TUSB_DESC_ENDPOINT == p_desc[DESC_OFFSET_TYPE])
-  { // notification endpoint if any
-    TU_ASSERT( dcd_edpt_open(rhport, (tusb_desc_endpoint_t const *) p_desc), TUSB_ERROR_DCD_OPEN_PIPE_FAILED);
+  if ( TUSB_DESC_ENDPOINT == tu_desc_type(p_desc) )
+  {
+    // notification endpoint if any
+    TU_ASSERT( dcd_edpt_open(rhport, (tusb_desc_endpoint_t const *) p_desc) );
 
     p_cdc->ep_notif = ((tusb_desc_endpoint_t const *) p_desc)->bEndpointAddress;
 
@@ -278,21 +278,21 @@ tusb_error_t cdcd_open(uint8_t rhport, tusb_desc_interface_t const * itf_desc, u
   if ( (TUSB_DESC_INTERFACE == p_desc[DESC_OFFSET_TYPE]) &&
        (TUSB_CLASS_CDC_DATA == ((tusb_desc_interface_t const *) p_desc)->bInterfaceClass) )
   {
-    // next to endpoint descritpor
-    (*p_length) += p_desc[DESC_OFFSET_LEN];
+    // next to endpoint descriptor
+    (*p_length) += tu_desc_len(p_desc);
     p_desc = tu_desc_next(p_desc);
 
     // Open endpoint pair with usbd helper
     tusb_desc_endpoint_t const *p_desc_ep = (tusb_desc_endpoint_t const *) p_desc;
-    TU_ASSERT_ERR( usbd_open_edpt_pair(rhport, p_desc_ep, TUSB_XFER_BULK, &p_cdc->ep_out, &p_cdc->ep_in) );
+    TU_ASSERT( usbd_open_edpt_pair(rhport, p_desc_ep, TUSB_XFER_BULK, &p_cdc->ep_out, &p_cdc->ep_in) );
 
     (*p_length) += 2*sizeof(tusb_desc_endpoint_t);
   }
 
   // Prepare for incoming data
-  TU_ASSERT( dcd_edpt_xfer(rhport, p_cdc->ep_out, p_cdc->epout_buf, CFG_TUD_CDC_EPSIZE), TUSB_ERROR_DCD_EDPT_XFER);
+  TU_ASSERT( dcd_edpt_xfer(rhport, p_cdc->ep_out, p_cdc->epout_buf, CFG_TUD_CDC_EPSIZE) );
 
-  return TUSB_ERROR_NONE;
+  return true;
 }
 
 // Invoked when class request DATA stage is finished.
