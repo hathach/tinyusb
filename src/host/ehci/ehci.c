@@ -109,7 +109,7 @@ static void qtd_init (ehci_qtd_t* p_qtd, void* buffer, uint16_t total_bytes);
 static inline void list_insert (ehci_link_t *current, ehci_link_t *new, uint8_t new_type);
 static inline ehci_link_t* list_next (ehci_link_t *p_link_pointer);
 
-static bool ehci_init (uint8_t hostid);
+static bool ehci_init (uint8_t rhport);
 
 //--------------------------------------------------------------------+
 // HCD API
@@ -192,9 +192,9 @@ void hcd_device_close(uint8_t rhport, uint8_t dev_addr)
 }
 
 // EHCI controller init
-static bool ehci_init(uint8_t hostid)
+static bool ehci_init(uint8_t rhport)
 {
-  ehci_data.regs = (ehci_registers_t* ) hcd_ehci_register_addr(hostid);
+  ehci_data.regs = (ehci_registers_t* ) hcd_ehci_register_addr(rhport);
 
   ehci_registers_t* regs = ehci_data.regs;
 
@@ -207,7 +207,7 @@ static bool ehci_init(uint8_t hostid)
                  EHCI_INT_MASK_NXP_PERIODIC | EHCI_INT_MASK_NXP_ASYNC ;
 
   //------------- Asynchronous List -------------//
-  ehci_qhd_t * const async_head = qhd_async_head(hostid);
+  ehci_qhd_t * const async_head = qhd_async_head(rhport);
   tu_memclr(async_head, sizeof(ehci_qhd_t));
 
   async_head->next.address                    = (uint32_t) async_head; // circular list, next is itself
@@ -227,7 +227,7 @@ static bool ehci_init(uint8_t hostid)
   }
 
   ehci_link_t * const framelist  = ehci_data.period_framelist;
-  ehci_link_t * const period_1ms = get_period_head(hostid, 1);
+  ehci_link_t * const period_1ms = get_period_head(rhport, 1);
   // all links --> period_head_arr[0] (1ms)
   // 0, 2, 4, 6 etc --> period_head_arr[1] (2ms)
   // 1, 5 --> period_head_arr[2] (4ms)
@@ -242,15 +242,15 @@ static bool ehci_init(uint8_t hostid)
 
   for(uint32_t i=0; i<EHCI_FRAMELIST_SIZE; i+=2)
   {
-    list_insert(framelist + i, get_period_head(hostid, 2), EHCI_QTYPE_QHD);
+    list_insert(framelist + i, get_period_head(rhport, 2), EHCI_QTYPE_QHD);
   }
 
   for(uint32_t i=1; i<EHCI_FRAMELIST_SIZE; i+=4)
   {
-    list_insert(framelist + i, get_period_head(hostid, 4), EHCI_QTYPE_QHD);
+    list_insert(framelist + i, get_period_head(rhport, 4), EHCI_QTYPE_QHD);
   }
 
-  list_insert(framelist+3, get_period_head(hostid, 8), EHCI_QTYPE_QHD);
+  list_insert(framelist+3, get_period_head(rhport, 8), EHCI_QTYPE_QHD);
 
   period_1ms->terminate    = 1;
 
@@ -376,11 +376,11 @@ bool hcd_edpt_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_endpoint_t const 
   {
     case TUSB_XFER_CONTROL:
     case TUSB_XFER_BULK:
-      list_head = (ehci_link_t*) qhd_async_head(_usbh_devices[dev_addr].rhport);
+      list_head = (ehci_link_t*) qhd_async_head(rhport);
     break;
 
     case TUSB_XFER_INTERRUPT:
-      list_head = get_period_head(_usbh_devices[dev_addr].rhport, p_qhd->interval_ms);
+      list_head = get_period_head(rhport, p_qhd->interval_ms);
     break;
 
     case TUSB_XFER_ISOCHRONOUS:

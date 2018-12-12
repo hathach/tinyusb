@@ -245,7 +245,7 @@ void hub_isr(uint8_t dev_addr, uint8_t ep_addr, xfer_result_t event, uint32_t xf
   else
   {
     // TODO [HUB] check if hub is still plugged before polling status endpoint since failed usually mean hub unplugged
-//    TU_ASSERT ( TUSB_ERROR_NONE == hcd_pipe_xfer(pipe_hdl, &p_hub->status_change, 1, true) );
+//    TU_ASSERT ( hub_status_pipe_queue(dev_addr) );
   }
 }
 
