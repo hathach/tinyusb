@@ -376,18 +376,18 @@ static inline uint8_t bm_request_type(uint8_t direction, uint8_t type, uint8_t r
 //--------------------------------------------------------------------+
 
 // Get direction from Endpoint address
-static inline tusb_dir_t edpt_dir(uint8_t addr)
+static inline tusb_dir_t tu_edpt_dir(uint8_t addr)
 {
   return (addr & TUSB_DIR_IN_MASK) ? TUSB_DIR_IN : TUSB_DIR_OUT;
 }
 
 // Get Endpoint number from address
-static inline uint8_t edpt_number(uint8_t addr)
+static inline uint8_t tu_edpt_number(uint8_t addr)
 {
   return addr & (~TUSB_DIR_IN_MASK);
 }
 
-static inline uint8_t edpt_addr(uint8_t num, uint8_t dir)
+static inline uint8_t tu_edpt_addr(uint8_t num, uint8_t dir)
 {
   return num | (dir ? TUSB_DIR_IN_MASK : 0);
 }

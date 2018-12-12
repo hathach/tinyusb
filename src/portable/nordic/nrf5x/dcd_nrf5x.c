@@ -225,8 +225,8 @@ bool dcd_edpt_open (uint8_t rhport, tusb_desc_endpoint_t const * desc_edpt)
 {
   (void) rhport;
 
-  uint8_t const epnum = edpt_number(desc_edpt->bEndpointAddress);
-  uint8_t const dir   = edpt_dir(desc_edpt->bEndpointAddress);
+  uint8_t const epnum = tu_edpt_number(desc_edpt->bEndpointAddress);
+  uint8_t const dir   = tu_edpt_dir(desc_edpt->bEndpointAddress);
 
   _dcd.xfer[epnum][dir].mps = desc_edpt->wMaxPacketSize.size;
 
@@ -248,8 +248,8 @@ bool dcd_edpt_xfer (uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t 
 {
   (void) rhport;
 
-  uint8_t const epnum = edpt_number(ep_addr);
-  uint8_t const dir   = edpt_dir(ep_addr);
+  uint8_t const epnum = tu_edpt_number(ep_addr);
+  uint8_t const dir   = tu_edpt_dir(ep_addr);
 
   xfer_td_t* xfer = get_td(epnum, dir);
 
@@ -295,15 +295,15 @@ bool dcd_edpt_stalled (uint8_t rhport, uint8_t ep_addr)
   // control is never got halted
   if ( ep_addr == 0 ) return false;
 
-  uint8_t const epnum = edpt_number(ep_addr);
-  return (edpt_dir(ep_addr) == TUSB_DIR_IN ) ? NRF_USBD->HALTED.EPIN[epnum] : NRF_USBD->HALTED.EPOUT[epnum];
+  uint8_t const epnum = tu_edpt_number(ep_addr);
+  return (tu_edpt_dir(ep_addr) == TUSB_DIR_IN ) ? NRF_USBD->HALTED.EPIN[epnum] : NRF_USBD->HALTED.EPOUT[epnum];
 }
 
 void dcd_edpt_stall (uint8_t rhport, uint8_t ep_addr)
 {
   (void) rhport;
 
-  if ( edpt_number(ep_addr) == 0 )
+  if ( tu_edpt_number(ep_addr) == 0 )
   {
     NRF_USBD->TASKS_EP0STALL = 1;
   }else
@@ -318,7 +318,7 @@ void dcd_edpt_clear_stall (uint8_t rhport, uint8_t ep_addr)
 {
   (void) rhport;
 
-  if ( edpt_number(ep_addr)  )
+  if ( tu_edpt_number(ep_addr)  )
   {
     NRF_USBD->EPSTALL = (USBD_EPSTALL_STALL_UnStall << USBD_EPSTALL_STALL_Pos) | ep_addr;
     __ISB(); __DSB();
@@ -330,10 +330,10 @@ bool dcd_edpt_busy (uint8_t rhport, uint8_t ep_addr)
   (void) rhport;
 
   // USBD shouldn't check control endpoint state
-  if ( 0 == edpt_number(ep_addr) ) return false;
+  if ( 0 == tu_edpt_number(ep_addr) ) return false;
 
-  uint8_t const epnum = edpt_number(ep_addr);
-  uint8_t const dir   = edpt_dir(ep_addr);
+  uint8_t const epnum = tu_edpt_number(ep_addr);
+  uint8_t const dir   = tu_edpt_dir(ep_addr);
 
   xfer_td_t* xfer = get_td(epnum, dir);
 

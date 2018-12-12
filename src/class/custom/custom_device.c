@@ -94,7 +94,7 @@ bool cusd_control_request(uint8_t rhport, tusb_control_request_t const * p_reque
   return false;
 }
 
-tusb_error_t cusd_xfer_cb(uint8_t rhport, uint8_t edpt_addr, xfer_result_t event, uint32_t xferred_bytes)
+tusb_error_t cusd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t event, uint32_t xferred_bytes)
 {
   return TUSB_ERROR_NONE;
 }

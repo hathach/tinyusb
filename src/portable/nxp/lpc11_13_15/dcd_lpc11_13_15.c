@@ -189,7 +189,7 @@ void dcd_edpt_stall(uint8_t rhport, uint8_t ep_addr)
 {
   (void) rhport;
 
-  if ( edpt_number(ep_addr) == 0 )
+  if ( tu_edpt_number(ep_addr) == 0 )
   {
     // TODO cannot able to STALL Control OUT endpoint !!!!! FIXME try some walk-around
     _dcd.ep[0][0].stall = _dcd.ep[1][0].stall = 1;
@@ -209,11 +209,11 @@ bool dcd_edpt_stalled(uint8_t rhport, uint8_t ep_addr)
   return _dcd.ep[ep_id][0].stall;
 }
 
-void dcd_edpt_clear_stall(uint8_t rhport, uint8_t edpt_addr)
+void dcd_edpt_clear_stall(uint8_t rhport, uint8_t ep_addr)
 {
   (void) rhport;
 
-  uint8_t const ep_id = ep_addr2id(edpt_addr);
+  uint8_t const ep_id = ep_addr2id(ep_addr);
 
   _dcd.ep[ep_id][0].stall        = 0;
   _dcd.ep[ep_id][0].toggle_reset = 1;

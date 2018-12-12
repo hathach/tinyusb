@@ -285,7 +285,7 @@ bool dcd_edpt_open(uint8_t rhport, tusb_desc_endpoint_t const * p_endpoint_desc)
 {
   (void) rhport;
 
-  uint8_t const epnum = edpt_number(p_endpoint_desc->bEndpointAddress);
+  uint8_t const epnum = tu_edpt_number(p_endpoint_desc->bEndpointAddress);
   uint8_t const ep_id = ep_addr2idx(p_endpoint_desc->bEndpointAddress);
 
   // Endpoint type is fixed to endpoint number
@@ -336,7 +336,7 @@ void dcd_edpt_stall(uint8_t rhport, uint8_t ep_addr)
 {
   (void) rhport;
 
-  if ( edpt_number(ep_addr) == 0 )
+  if ( tu_edpt_number(ep_addr) == 0 )
   {
     sie_write(SIE_CMDCODE_ENDPOINT_SET_STATUS+0, 1, SIE_SET_ENDPOINT_STALLED_MASK | SIE_SET_ENDPOINT_CONDITION_STALLED_MASK);
   }else
@@ -394,9 +394,9 @@ static bool control_xact(uint8_t rhport, uint8_t dir, uint8_t * buffer, uint8_t 
 bool dcd_edpt_xfer (uint8_t rhport, uint8_t ep_addr, uint8_t* buffer, uint16_t total_bytes)
 {
   // Control transfer is not DMA support, and must be done in slave mode
-  if ( edpt_number(ep_addr) == 0 )
+  if ( tu_edpt_number(ep_addr) == 0 )
   {
-    return control_xact(rhport, edpt_dir(ep_addr), buffer, (uint8_t) total_bytes);
+    return control_xact(rhport, tu_edpt_dir(ep_addr), buffer, (uint8_t) total_bytes);
   }
   else
   {

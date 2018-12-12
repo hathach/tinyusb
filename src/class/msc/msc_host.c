@@ -309,7 +309,7 @@ bool msch_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_interface_t const *it
 
     TU_ASSERT(hcd_edpt_open(rhport, dev_addr, ep_desc));
 
-    if ( edpt_dir(ep_desc->bEndpointAddress) ==  TUSB_DIR_IN )
+    if ( tu_edpt_dir(ep_desc->bEndpointAddress) == TUSB_DIR_IN )
     {
       p_msc->ep_in = ep_desc->bEndpointAddress;
     }else

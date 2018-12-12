@@ -48,9 +48,6 @@
 #include "../usbh_hcd.h"
 #include "ehci.h"
 
-// TODO remove
-#include "chip.h"
-
 //--------------------------------------------------------------------+
 // MACRO CONSTANT TYPEDEF
 //--------------------------------------------------------------------+
@@ -61,13 +58,8 @@
 // Periodic frame list must be 4K alignment
 CFG_TUSB_MEM_SECTION ATTR_ALIGNED(4096) static ehci_data_t ehci_data;
 
-//------------- Validation -------------//
-// TODO static assert for memory placement on some known MCU such as lpc43xx
-
-uint32_t hcd_ehci_register_addr(uint8_t rhport)
-{
-  return (uint32_t) (rhport ? &LPC_USB1->USBCMD_H : &LPC_USB0->USBCMD_H );
-}
+// EHCI portable
+uint32_t hcd_ehci_register_addr(uint8_t rhport);
 
 //--------------------------------------------------------------------+
 // PROTOTYPE
@@ -279,7 +271,8 @@ static bool ehci_init(uint8_t hostid)
   return true;
 }
 
-static void hcd_controller_stop(uint8_t rhport)
+#if 0
+static void ehci_stop(uint8_t rhport)
 {
   (void) rhport;
 
@@ -290,6 +283,7 @@ static void hcd_controller_stop(uint8_t rhport)
   // USB Spec: controller has to stop within 16 uframe = 2 frames
   while( regs->status_bm.hc_halted == 0 ) {}
 }
+#endif
 
 //--------------------------------------------------------------------+
 // CONTROL PIPE API
@@ -298,8 +292,8 @@ bool hcd_edpt_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr, uint8_t * 
 {
   (void) rhport;
 
-  uint8_t const epnum = edpt_number(ep_addr);
-  uint8_t const dir   = edpt_dir(ep_addr);
+  uint8_t const epnum = tu_edpt_number(ep_addr);
+  uint8_t const dir   = tu_edpt_dir(ep_addr);
 
   // FIXME control only for now
   if ( epnum == 0 )
@@ -505,7 +499,7 @@ static void qhd_xfer_complete_isr(ehci_qhd_t * p_qhd)
     {
       // end of request
       // call USBH callback
-      hcd_event_xfer_complete(p_qhd->dev_addr, edpt_addr(p_qhd->ep_number, p_qhd->pid == EHCI_PID_IN ? 1 : 0), XFER_RESULT_SUCCESS, p_qhd->total_xferred_bytes);
+      hcd_event_xfer_complete(p_qhd->dev_addr, tu_edpt_addr(p_qhd->ep_number, p_qhd->pid == EHCI_PID_IN ? 1 : 0), XFER_RESULT_SUCCESS, p_qhd->total_xferred_bytes);
       p_qhd->total_xferred_bytes = 0;
     }
   }
@@ -592,7 +586,7 @@ static void qhd_xfer_error_isr(ehci_qhd_t * p_qhd)
     }
 
     // call USBH callback
-    hcd_event_xfer_complete(p_qhd->dev_addr, edpt_addr(p_qhd->ep_number, p_qhd->pid == EHCI_PID_IN ? 1 : 0), error_event, p_qhd->total_xferred_bytes);
+    hcd_event_xfer_complete(p_qhd->dev_addr, tu_edpt_addr(p_qhd->ep_number, p_qhd->pid == EHCI_PID_IN ? 1 : 0), error_event, p_qhd->total_xferred_bytes);
 
     p_qhd->total_xferred_bytes = 0;
   }
@@ -718,7 +712,7 @@ static inline ehci_qhd_t* qhd_get_from_addr(uint8_t dev_addr, uint8_t ep_addr)
   for(uint32_t i=0; i<HCD_MAX_ENDPOINT; i++)
   {
     if ( (qhd_pool[i].dev_addr == dev_addr) &&
-          ep_addr == edpt_addr(qhd_pool[i].ep_number, qhd_pool[i].pid) )
+          ep_addr == tu_edpt_addr(qhd_pool[i].ep_number, qhd_pool[i].pid) )
     {
       return &qhd_pool[i];
     }
@@ -779,7 +773,7 @@ static void qhd_init(ehci_qhd_t *p_qhd, uint8_t dev_addr, tusb_desc_endpoint_t c
 
   p_qhd->dev_addr           = dev_addr;
   p_qhd->fl_inactive_next_xact = 0;
-  p_qhd->ep_number          = edpt_number(ep_desc->bEndpointAddress);
+  p_qhd->ep_number          = tu_edpt_number(ep_desc->bEndpointAddress);
   p_qhd->ep_speed           = _usbh_devices[dev_addr].speed;
   p_qhd->data_toggle_control= (xfer_type == TUSB_XFER_CONTROL) ? 1 : 0;
   p_qhd->head_list_flag     = (dev_addr == 0) ? 1 : 0; // addr0's endpoint is the static asyn list head
@@ -826,7 +820,7 @@ static void qhd_init(ehci_qhd_t *p_qhd, uint8_t dev_addr, tusb_desc_endpoint_t c
   p_qhd->removing        = 0;
   p_qhd->p_qtd_list_head = NULL;
   p_qhd->p_qtd_list_tail = NULL;
-  p_qhd->pid = edpt_dir(ep_desc->bEndpointAddress) ? EHCI_PID_IN : EHCI_PID_OUT; // PID for TD under this endpoint
+  p_qhd->pid = tu_edpt_dir(ep_desc->bEndpointAddress) ? EHCI_PID_IN : EHCI_PID_OUT; // PID for TD under this endpoint
 
   //------------- active, but no TD list -------------//
   p_qhd->qtd_overlay.halted              = 0;

@@ -205,12 +205,12 @@ bool usbh_control_xfer (uint8_t dev_addr, tusb_control_request_t* request, uint8
   // Data stage : first data toggle is always 1
   if ( request->wLength )
   {
-    hcd_edpt_xfer(rhport, dev_addr, edpt_addr(0, request->bmRequestType_bit.direction), data, request->wLength);
+    hcd_edpt_xfer(rhport, dev_addr, tu_edpt_addr(0, request->bmRequestType_bit.direction), data, request->wLength);
     TU_VERIFY(osal_semaphore_wait(dev->control.sem_hdl, OSAL_TIMEOUT_NORMAL));
   }
 
   // Status : data toggle is always 1
-  hcd_edpt_xfer(rhport, dev_addr, edpt_addr(0, 1-request->bmRequestType_bit.direction), NULL, 0);
+  hcd_edpt_xfer(rhport, dev_addr, tu_edpt_addr(0, 1-request->bmRequestType_bit.direction), NULL, 0);
   TU_VERIFY(osal_semaphore_wait(dev->control.sem_hdl, OSAL_TIMEOUT_NORMAL));
 
   osal_mutex_unlock(dev->control.mutex_hdl);
@@ -249,7 +249,7 @@ void hcd_event_xfer_complete(uint8_t dev_addr, uint8_t ep_addr, xfer_result_t ev
 {
   usbh_device_t* dev = &_usbh_devices[ dev_addr ];
 
-  if (0 == edpt_number(ep_addr))
+  if (0 == tu_edpt_number(ep_addr))
   {
     dev->control.pipe_status   = event;
 //    usbh_devices[ pipe_hdl.dev_addr ].control.xferred_bytes = xferred_bytes; not yet neccessary
@@ -257,7 +257,7 @@ void hcd_event_xfer_complete(uint8_t dev_addr, uint8_t ep_addr, xfer_result_t ev
   }
   else
   {
-    uint8_t drv_id = dev->ep2drv[edpt_number(ep_addr)][edpt_dir(ep_addr)];
+    uint8_t drv_id = dev->ep2drv[tu_edpt_number(ep_addr)][tu_edpt_dir(ep_addr)];
     TU_ASSERT(drv_id < USBH_CLASS_DRIVER_COUNT, );
 
     if (usbh_class_drivers[drv_id].isr)
@@ -689,7 +689,7 @@ static void mark_interface_endpoint(uint8_t ep2drv[8][2], uint8_t const* p_desc,
     {
       uint8_t const ep_addr = ((tusb_desc_endpoint_t const*) p_desc)->bEndpointAddress;
 
-      ep2drv[ edpt_number(ep_addr) ][ edpt_dir(ep_addr) ] = driver_id;
+      ep2drv[ tu_edpt_number(ep_addr) ][ tu_edpt_dir(ep_addr) ] = driver_id;
     }
 
     len   += descriptor_len(p_desc);

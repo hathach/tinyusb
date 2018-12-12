@@ -246,14 +246,14 @@ static void usbd_task_body(void)
         // Invoke the class callback associated with the endpoint address
         uint8_t const ep_addr = event.xfer_complete.ep_addr;
 
-        if ( 0 == edpt_number(ep_addr) )
+        if ( 0 == tu_edpt_number(ep_addr) )
         {
           // control transfer DATA stage callback
           usbd_control_xfer_cb(event.rhport, ep_addr, event.xfer_complete.result, event.xfer_complete.len);
         }
         else
         {
-          uint8_t const drv_id = _usbd_dev.ep2drv[edpt_number(ep_addr)][edpt_dir(ep_addr)];
+          uint8_t const drv_id = _usbd_dev.ep2drv[tu_edpt_number(ep_addr)][tu_edpt_dir(ep_addr)];
           TU_ASSERT(drv_id < USBD_CLASS_DRIVER_COUNT,);
 
           usbd_class_drivers[drv_id].xfer_cb(event.rhport, ep_addr, event.xfer_complete.result, event.xfer_complete.len);
@@ -484,7 +484,7 @@ static void mark_interface_endpoint(uint8_t ep2drv[8][2], uint8_t const* p_desc,
     {
       uint8_t const ep_addr = ((tusb_desc_endpoint_t const*) p_desc)->bEndpointAddress;
 
-      ep2drv[edpt_number(ep_addr)][edpt_dir(ep_addr)] = driver_id;
+      ep2drv[tu_edpt_number(ep_addr)][tu_edpt_dir(ep_addr)] = driver_id;
     }
 
     len   += descriptor_len(p_desc);
@@ -576,7 +576,7 @@ void dcd_event_handler(dcd_event_t const * event, bool in_isr)
 
     case DCD_EVENT_XFER_COMPLETE:
       // skip zero-length control status complete event, should dcd notifies us.
-      if ( 0 == edpt_number(event->xfer_complete.ep_addr) && event->xfer_complete.len == 0) break;
+      if ( 0 == tu_edpt_number(event->xfer_complete.ep_addr) && event->xfer_complete.len == 0) break;
 
       osal_queue_send(_usbd_q, event, in_isr);
       TU_ASSERT(event->xfer_complete.result == XFER_RESULT_SUCCESS,);
@@ -633,7 +633,7 @@ tusb_error_t usbd_open_edpt_pair(uint8_t rhport, tusb_desc_endpoint_t const* ep_
 
     TU_ASSERT( dcd_edpt_open(rhport, ep_desc), TUSB_ERROR_DCD_OPEN_PIPE_FAILED );
 
-    if ( edpt_dir(ep_desc->bEndpointAddress) ==  TUSB_DIR_IN )
+    if ( tu_edpt_dir(ep_desc->bEndpointAddress) == TUSB_DIR_IN )
     {
       (*ep_in) = ep_desc->bEndpointAddress;
     }else

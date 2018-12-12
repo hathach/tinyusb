@@ -315,8 +315,8 @@ bool hcd_edpt_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr, uint8_t * 
 {
   (void) rhport;
 
-  uint8_t const epnum = edpt_number(ep_addr);
-  uint8_t const dir   = edpt_dir(ep_addr);
+  uint8_t const epnum = tu_edpt_number(ep_addr);
+  uint8_t const dir   = tu_edpt_dir(ep_addr);
 
   // FIXME control only for now
   if ( epnum == 0 )
@@ -344,14 +344,14 @@ bool hcd_edpt_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr, uint8_t * 
 //--------------------------------------------------------------------+
 static inline ohci_ed_t * ed_from_addr(uint8_t dev_addr, uint8_t ep_addr)
 {
-  if ( edpt_number(ep_addr) == 0 ) return &ohci_data.control[dev_addr].ed;
+  if ( tu_edpt_number(ep_addr) == 0 ) return &ohci_data.control[dev_addr].ed;
 
   ohci_ed_t* ed_pool = ohci_data.ed_pool;
 
   for(uint32_t i=0; i<HCD_MAX_ENDPOINT; i++)
   {
     if ( (ed_pool[i].dev_addr == dev_addr) &&
-          ep_addr == edpt_addr(ed_pool[i].ep_number, ed_pool[i].pid == OHCI_PID_IN) )
+          ep_addr == tu_edpt_addr(ed_pool[i].ep_number, ed_pool[i].pid == OHCI_PID_IN) )
     {
       return &ed_pool[i];
     }
@@ -603,7 +603,7 @@ static void done_queue_isr(uint8_t hostid)
       }
 
       hcd_event_xfer_complete(p_ed->dev_addr,
-                              edpt_addr(p_ed->ep_number, p_ed->pid == OHCI_PID_IN),
+                              tu_edpt_addr(p_ed->ep_number, p_ed->pid == OHCI_PID_IN),
                               event, xferred_bytes);
     }
 

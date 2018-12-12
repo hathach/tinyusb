@@ -205,8 +205,8 @@ static void qtd_init(dcd_qtd_t* p_qtd, void * data_ptr, uint16_t total_bytes)
 //--------------------------------------------------------------------+
 void dcd_edpt_stall(uint8_t rhport, uint8_t ep_addr)
 {
-  uint8_t const epnum  = edpt_number(ep_addr);
-  uint8_t const dir    = edpt_dir(ep_addr);
+  uint8_t const epnum  = tu_edpt_number(ep_addr);
+  uint8_t const dir    = tu_edpt_dir(ep_addr);
 
   if ( epnum == 0)
   {
@@ -220,16 +220,16 @@ void dcd_edpt_stall(uint8_t rhport, uint8_t ep_addr)
 
 bool dcd_edpt_stalled (uint8_t rhport, uint8_t ep_addr)
 {
-  uint8_t const epnum  = edpt_number(ep_addr);
-  uint8_t const dir    = edpt_dir(ep_addr);
+  uint8_t const epnum  = tu_edpt_number(ep_addr);
+  uint8_t const dir    = tu_edpt_dir(ep_addr);
 
   return LPC_USB[rhport]->ENDPTCTRL[epnum] & (ENDPTCTRL_MASK_STALL << (dir ? 16 : 0));
 }
 
 void dcd_edpt_clear_stall(uint8_t rhport, uint8_t ep_addr)
 {
-  uint8_t const epnum  = edpt_number(ep_addr);
-  uint8_t const dir    = edpt_dir(ep_addr);
+  uint8_t const epnum  = tu_edpt_number(ep_addr);
+  uint8_t const dir    = tu_edpt_dir(ep_addr);
 
   // data toggle also need to be reset
   LPC_USB[rhport]->ENDPTCTRL[epnum] |= ENDPTCTRL_MASK_TOGGLE_RESET << ( dir ? 16 : 0 );
@@ -241,8 +241,8 @@ bool dcd_edpt_open(uint8_t rhport, tusb_desc_endpoint_t const * p_endpoint_desc)
   // TODO not support ISO yet
   TU_VERIFY ( p_endpoint_desc->bmAttributes.xfer != TUSB_XFER_ISOCHRONOUS);
 
-  uint8_t const epnum  = edpt_number(p_endpoint_desc->bEndpointAddress);
-  uint8_t const dir    = edpt_dir(p_endpoint_desc->bEndpointAddress);
+  uint8_t const epnum  = tu_edpt_number(p_endpoint_desc->bEndpointAddress);
+  uint8_t const dir    = tu_edpt_dir(p_endpoint_desc->bEndpointAddress);
   uint8_t const ep_idx = 2*epnum + dir;
 
   // USB0 has 5, USB1 has 3 non-control endpoints
@@ -264,8 +264,8 @@ bool dcd_edpt_open(uint8_t rhport, tusb_desc_endpoint_t const * p_endpoint_desc)
 
 bool dcd_edpt_busy(uint8_t rhport, uint8_t ep_addr)
 {
-  uint8_t const epnum  = edpt_number(ep_addr);
-  uint8_t const dir    = edpt_dir(ep_addr);
+  uint8_t const epnum  = tu_edpt_number(ep_addr);
+  uint8_t const dir    = tu_edpt_dir(ep_addr);
   uint8_t const ep_idx = 2*epnum + dir;
 
   dcd_qtd_t * p_qtd = &dcd_data_ptr[rhport]->qtd[ep_idx];
@@ -276,8 +276,8 @@ bool dcd_edpt_busy(uint8_t rhport, uint8_t ep_addr)
 
 bool dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t total_bytes)
 {
-  uint8_t const epnum = edpt_number(ep_addr);
-  uint8_t const dir   = edpt_dir(ep_addr);
+  uint8_t const epnum = tu_edpt_number(ep_addr);
+  uint8_t const dir   = tu_edpt_dir(ep_addr);
   uint8_t const ep_idx = 2*epnum + dir;
 
   if ( epnum == 0 )

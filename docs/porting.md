@@ -113,10 +113,10 @@ As before with `dcd_event_bus_signal` the first argument is the USB peripheral n
 
 Endpoints are the core of the USB data transfer process. They come in a few forms such as control, isochronous, bulk, and interrupt. We won't cover the details here except with some caveats in open below. In general, data is transferred by setting up a buffer of a given length to be transferred on a given endpoint address and then waiting for an interrupt to signal that the transfer is finished. Further details below.
 
-Endpoints within USB have an address which encodes both the number and direction of an endpoint. TinyUSB provides `edpt_number` and `edpt_dir` to unpack this data from the address. Here is a snippet that does it.
+Endpoints within USB have an address which encodes both the number and direction of an endpoint. TinyUSB provides `tu_edpt_number` and `tu_edpt_dir` to unpack this data from the address. Here is a snippet that does it.
 
-    uint8_t epnum = edpt_number(ep_addr);
-    uint8_t dir   = edpt_dir(ep_addr);
+    uint8_t epnum = tu_edpt_number(ep_addr);
+    uint8_t dir   = tu_edpt_dir(ep_addr);
 
 ##### dcd_edpt_open
 
