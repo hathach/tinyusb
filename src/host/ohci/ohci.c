@@ -216,7 +216,7 @@ tusb_speed_t hcd_port_speed_get(uint8_t hostid)
 
 // endpoints are tied to an address, which only reclaim after a long delay when enumerating
 // thus there is no need to make sure ED is not in HC's cahed as it will not for sure
-void hcd_device_remove(uint8_t rhport, uint8_t dev_addr)
+void hcd_device_close(uint8_t rhport, uint8_t dev_addr)
 {
   // TODO OHCI
   (void) rhport;

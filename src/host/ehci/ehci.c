@@ -181,7 +181,7 @@ static void list_remove_qhd_by_addr(ehci_link_t* list_head, uint8_t dev_addr)
 }
 
 // Close all opened endpoint belong to this device
-void hcd_device_remove(uint8_t rhport, uint8_t dev_addr)
+void hcd_device_close(uint8_t rhport, uint8_t dev_addr)
 {
   // skip dev0
   if (dev_addr == 0) return;

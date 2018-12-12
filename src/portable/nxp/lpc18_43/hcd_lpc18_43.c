@@ -42,10 +42,6 @@
 
 #include "chip.h"
 
-//--------------------------------------------------------------------+
-// MACRO TYPEDEF CONSTANT ENUM DECLARATION
-//--------------------------------------------------------------------+
-
 void hcd_int_enable(uint8_t rhport)
 {
   NVIC_EnableIRQ(rhport ? USB1_IRQn : USB0_IRQn);
@@ -55,4 +51,5 @@ void hcd_int_disable(uint8_t rhport)
 {
   NVIC_DisableIRQ(rhport ? USB1_IRQn : USB0_IRQn);
 }
+
 #endif

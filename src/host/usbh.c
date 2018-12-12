@@ -334,7 +334,7 @@ static void usbh_device_unplugged(uint8_t rhport, uint8_t hub_addr, uint8_t hub_
       memset(dev->itf2drv, 0xff, sizeof(dev->itf2drv)); // invalid mapping
       memset(dev->ep2drv , 0xff, sizeof(dev->ep2drv )); // invalid mapping
 
-      hcd_device_remove(rhport, dev_addr);
+      hcd_device_close(rhport, dev_addr);
 
       dev->state = TUSB_DEVICE_STATE_UNPLUG;
     }
@@ -495,7 +495,7 @@ bool enum_task(hcd_event_t* event)
   new_dev->speed    = dev0->speed;
   new_dev->state    = TUSB_DEVICE_STATE_ADDRESSED;
 
-  hcd_device_remove(dev0->rhport, 0); // close device 0
+  hcd_device_close(dev0->rhport, 0); // close device 0
   dev0->state = TUSB_DEVICE_STATE_UNPLUG;
 
   // open control pipe for new address
