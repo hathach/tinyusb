@@ -357,7 +357,7 @@ bool cdcd_control_request(uint8_t rhport, tusb_control_request_t const * request
   return true;
 }
 
-tusb_error_t cdcd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint32_t xferred_bytes)
+bool cdcd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint32_t xferred_bytes)
 {
   (void) result;
 
@@ -382,13 +382,13 @@ tusb_error_t cdcd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result,
     // invoke receive callback (if there is still data)
     if (tud_cdc_rx_cb && tu_fifo_count(&p_cdc->rx_ff) ) tud_cdc_rx_cb(itf);
 
-    // prepare for next
-    TU_ASSERT( dcd_edpt_xfer(rhport, p_cdc->ep_out, p_cdc->epout_buf, CFG_TUD_CDC_EPSIZE), TUSB_ERROR_DCD_EDPT_XFER );
+    // prepare for incoming data
+    TU_ASSERT( dcd_edpt_xfer(rhport, p_cdc->ep_out, p_cdc->epout_buf, CFG_TUD_CDC_EPSIZE) );
   }
 
   // nothing to do with in and notif endpoint
 
-  return TUSB_ERROR_NONE;
+  return true;
 }
 
 #endif
