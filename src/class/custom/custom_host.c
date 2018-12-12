@@ -111,7 +111,7 @@ tusb_error_t cush_open_subtask(uint8_t dev_addr, tusb_desc_interface_t const *p_
 {
   // FIXME quick hack to test lpc1k custom class with 2 bulk endpoints
   uint8_t const *p_desc = (uint8_t const *) p_interface_desc;
-  p_desc = descriptor_next(p_desc);
+  p_desc = tu_desc_next(p_desc);
 
   //------------- Bulk Endpoints Descriptor -------------//
   for(uint32_t i=0; i<2; i++)
@@ -124,7 +124,7 @@ tusb_error_t cush_open_subtask(uint8_t dev_addr, tusb_desc_interface_t const *p_
     *p_pipe_hdl = hcd_edpt_open(dev_addr, p_endpoint, TUSB_CLASS_VENDOR_SPECIFIC);
     TU_ASSERT ( pipehandle_is_valid(*p_pipe_hdl), TUSB_ERROR_HCD_OPEN_PIPE_FAILED );
 
-    p_desc = descriptor_next(p_desc);
+    p_desc = tu_desc_next(p_desc);
   }
 
   (*p_length) = sizeof(tusb_desc_interface_t) + 2*sizeof(tusb_desc_endpoint_t);

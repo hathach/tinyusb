@@ -229,13 +229,13 @@ void cdcd_reset(uint8_t rhport)
   }
 }
 
-tusb_error_t cdcd_open(uint8_t rhport, tusb_desc_interface_t const * p_interface_desc, uint16_t *p_length)
+tusb_error_t cdcd_open(uint8_t rhport, tusb_desc_interface_t const * itf_desc, uint16_t *p_length)
 {
-  if ( CDC_COMM_SUBCLASS_ABSTRACT_CONTROL_MODEL != p_interface_desc->bInterfaceSubClass) return TUSB_ERROR_CDC_UNSUPPORTED_SUBCLASS;
+  if ( CDC_COMM_SUBCLASS_ABSTRACT_CONTROL_MODEL != itf_desc->bInterfaceSubClass) return TUSB_ERROR_CDC_UNSUPPORTED_SUBCLASS;
 
   // Only support AT commands, no protocol and vendor specific commands.
-  if ( !(tu_within(CDC_COMM_PROTOCOL_NONE, p_interface_desc->bInterfaceProtocol, CDC_COMM_PROTOCOL_ATCOMMAND_CDMA) ||
-         p_interface_desc->bInterfaceProtocol == 0xff ) )
+  if ( !(tu_within(CDC_COMM_PROTOCOL_NONE, itf_desc->bInterfaceProtocol, CDC_COMM_PROTOCOL_ATCOMMAND_CDMA) ||
+         itf_desc->bInterfaceProtocol == 0xff ) )
   {
     return TUSB_ERROR_CDC_UNSUPPORTED_PROTOCOL;
   }
@@ -252,16 +252,16 @@ tusb_error_t cdcd_open(uint8_t rhport, tusb_desc_interface_t const * p_interface
   }
 
   //------------- Control Interface -------------//
-  p_cdc->itf_num  = p_interface_desc->bInterfaceNumber;
+  p_cdc->itf_num  = itf_desc->bInterfaceNumber;
 
-  uint8_t const * p_desc = descriptor_next ( (uint8_t const *) p_interface_desc );
+  uint8_t const * p_desc = tu_desc_next( itf_desc );
   (*p_length) = sizeof(tusb_desc_interface_t);
 
   // Communication Functional Descriptors
   while( TUSB_DESC_CLASS_SPECIFIC == p_desc[DESC_OFFSET_TYPE] )
   {
     (*p_length) += p_desc[DESC_OFFSET_LEN];
-    p_desc = descriptor_next(p_desc);
+    p_desc = tu_desc_next(p_desc);
   }
 
   if ( TUSB_DESC_ENDPOINT == p_desc[DESC_OFFSET_TYPE])
@@ -271,7 +271,7 @@ tusb_error_t cdcd_open(uint8_t rhport, tusb_desc_interface_t const * p_interface
     p_cdc->ep_notif = ((tusb_desc_endpoint_t const *) p_desc)->bEndpointAddress;
 
     (*p_length) += p_desc[DESC_OFFSET_LEN];
-    p_desc = descriptor_next(p_desc);
+    p_desc = tu_desc_next(p_desc);
   }
 
   //------------- Data Interface (if any) -------------//
@@ -280,7 +280,7 @@ tusb_error_t cdcd_open(uint8_t rhport, tusb_desc_interface_t const * p_interface
   {
     // next to endpoint descritpor
     (*p_length) += p_desc[DESC_OFFSET_LEN];
-    p_desc = descriptor_next(p_desc);
+    p_desc = tu_desc_next(p_desc);
 
     // Open endpoint pair with usbd helper
     tusb_desc_endpoint_t const *p_desc_ep = (tusb_desc_endpoint_t const *) p_desc;

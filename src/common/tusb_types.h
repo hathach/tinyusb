@@ -395,19 +395,20 @@ static inline uint8_t tu_edpt_addr(uint8_t num, uint8_t dir)
 //--------------------------------------------------------------------+
 // Descriptor helper
 //--------------------------------------------------------------------+
-static inline uint8_t const * descriptor_next(uint8_t const p_desc[])
+static inline uint8_t const * tu_desc_next(void const* desc)
 {
-  return p_desc + p_desc[DESC_OFFSET_LEN];
+  uint8_t const* desc8 = (uint8_t const*) desc;
+  return desc8 + desc8[DESC_OFFSET_LEN];
 }
 
-static inline uint8_t descriptor_type(uint8_t const p_desc[])
+static inline uint8_t tu_desc_type(void const* desc)
 {
-  return p_desc[DESC_OFFSET_TYPE];
+  return ((uint8_t const*) desc)[DESC_OFFSET_TYPE];
 }
 
-static inline uint8_t descriptor_len(uint8_t const p_desc[])
+static inline uint8_t tu_desc_len(void const* desc)
 {
-  return p_desc[DESC_OFFSET_LEN];
+  return ((uint8_t const*) desc)[DESC_OFFSET_LEN];
 }
 
 // Length of the string descriptors in bytes with slen characters

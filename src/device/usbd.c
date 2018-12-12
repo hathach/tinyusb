@@ -436,12 +436,12 @@ static bool process_set_config(uint8_t rhport)
   while( p_desc < desc_cfg + cfg_len )
   {
     // Each interface always starts with Interface or Association descriptor
-    if ( TUSB_DESC_INTERFACE_ASSOCIATION == descriptor_type(p_desc) )
+    if ( TUSB_DESC_INTERFACE_ASSOCIATION == tu_desc_type(p_desc) )
     {
-      p_desc = descriptor_next(p_desc); // ignore Interface Association
+      p_desc = tu_desc_next(p_desc); // ignore Interface Association
     }else
     {
-      TU_ASSERT( TUSB_DESC_INTERFACE == descriptor_type(p_desc) );
+      TU_ASSERT( TUSB_DESC_INTERFACE == tu_desc_type(p_desc) );
 
       tusb_desc_interface_t* desc_itf = (tusb_desc_interface_t*) p_desc;
 
@@ -480,15 +480,15 @@ static void mark_interface_endpoint(uint8_t ep2drv[8][2], uint8_t const* p_desc,
 
   while( len < desc_len )
   {
-    if ( TUSB_DESC_ENDPOINT == descriptor_type(p_desc) )
+    if ( TUSB_DESC_ENDPOINT == tu_desc_type(p_desc) )
     {
       uint8_t const ep_addr = ((tusb_desc_endpoint_t const*) p_desc)->bEndpointAddress;
 
       ep2drv[tu_edpt_number(ep_addr)][tu_edpt_dir(ep_addr)] = driver_id;
     }
 
-    len   += descriptor_len(p_desc);
-    p_desc = descriptor_next(p_desc);
+    len   += tu_desc_len(p_desc);
+    p_desc = tu_desc_next(p_desc);
   }
 }
 
@@ -641,7 +641,7 @@ tusb_error_t usbd_open_edpt_pair(uint8_t rhport, tusb_desc_endpoint_t const* ep_
       (*ep_out) = ep_desc->bEndpointAddress;
     }
 
-    ep_desc = (tusb_desc_endpoint_t const *) descriptor_next( (uint8_t const*)  ep_desc );
+    ep_desc = (tusb_desc_endpoint_t const *) tu_desc_next(ep_desc);
   }
 
   return TUSB_ERROR_NONE;

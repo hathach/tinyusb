@@ -560,9 +560,9 @@ bool enum_task(hcd_event_t* event)
   while( p_desc < _usbh_ctrl_buf + ((tusb_desc_configuration_t*)_usbh_ctrl_buf)->wTotalLength )
   {
     // skip until we see interface descriptor
-    if ( TUSB_DESC_INTERFACE != descriptor_type(p_desc) )
+    if ( TUSB_DESC_INTERFACE != tu_desc_type(p_desc) )
     {
-      p_desc = descriptor_next(p_desc); // skip the descriptor, increase by the descriptor's length
+      p_desc = tu_desc_next(p_desc); // skip the descriptor, increase by the descriptor's length
     }else
     {
       tusb_desc_interface_t* desc_itf = (tusb_desc_interface_t*) p_desc;
@@ -577,7 +577,7 @@ bool enum_task(hcd_event_t* event)
       if( drv_id >= USBH_CLASS_DRIVER_COUNT )
       {
         // skip unsupported class
-        p_desc = descriptor_next(p_desc);
+        p_desc = tu_desc_next(p_desc);
       }
       else
       {
@@ -589,7 +589,7 @@ bool enum_task(hcd_event_t* event)
         {
           // TODO Attach hub to Hub is not currently supported
           // skip this interface
-          p_desc = descriptor_next(p_desc);
+          p_desc = tu_desc_next(p_desc);
         }
         else
         {
@@ -685,15 +685,15 @@ static void mark_interface_endpoint(uint8_t ep2drv[8][2], uint8_t const* p_desc,
 
   while( len < desc_len )
   {
-    if ( TUSB_DESC_ENDPOINT == descriptor_type(p_desc) )
+    if ( TUSB_DESC_ENDPOINT == tu_desc_type(p_desc) )
     {
       uint8_t const ep_addr = ((tusb_desc_endpoint_t const*) p_desc)->bEndpointAddress;
 
       ep2drv[ tu_edpt_number(ep_addr) ][ tu_edpt_dir(ep_addr) ] = driver_id;
     }
 
-    len   += descriptor_len(p_desc);
-    p_desc = descriptor_next(p_desc);
+    len   += tu_desc_len(p_desc);
+    p_desc = tu_desc_next(p_desc);
   }
 }
 

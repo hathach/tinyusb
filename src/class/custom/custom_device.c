@@ -76,7 +76,7 @@ tusb_error_t cusd_open(uint8_t rhport, tusb_desc_interface_t const * p_desc_itf,
   cusd_interface_t* p_itf = &_cusd_itf;
 
   // Open endpoint pair with usbd helper
-  tusb_desc_endpoint_t const *p_desc_ep = (tusb_desc_endpoint_t const *) descriptor_next( (uint8_t const*) p_desc_itf );
+  tusb_desc_endpoint_t const *p_desc_ep = (tusb_desc_endpoint_t const *) tu_desc_next( (uint8_t const*) p_desc_itf );
   TU_ASSERT_ERR( usbd_open_edpt_pair(rhport, p_desc_ep, TUSB_XFER_BULK, &p_itf->ep_out, &p_itf->ep_in) );
 
   p_itf->itf_num = p_desc_itf->bInterfaceNumber;
