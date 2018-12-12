@@ -318,22 +318,22 @@ void hidd_reset(uint8_t rhport)
   #endif
 }
 
-tusb_error_t hidd_open(uint8_t rhport, tusb_desc_interface_t const * desc_itf, uint16_t *p_len)
+bool hidd_open(uint8_t rhport, tusb_desc_interface_t const * desc_itf, uint16_t *p_len)
 {
   uint8_t const *p_desc = (uint8_t const *) desc_itf;
 
-  // TODO not support HID OUT Endpoint
-  TU_ASSERT(desc_itf->bNumEndpoints == 1, ERR_TUD_INVALID_DESCRIPTOR);
+  // TODO support HID OUT Endpoint
+  TU_ASSERT(desc_itf->bNumEndpoints == 1);
 
   //------------- HID descriptor -------------//
-  p_desc += p_desc[DESC_OFFSET_LEN];
+  p_desc = tu_desc_next(p_desc);
   tusb_hid_descriptor_hid_t const *desc_hid = (tusb_hid_descriptor_hid_t const *) p_desc;
-  TU_ASSERT(HID_DESC_TYPE_HID == desc_hid->bDescriptorType, ERR_TUD_INVALID_DESCRIPTOR);
+  TU_ASSERT(HID_DESC_TYPE_HID == desc_hid->bDescriptorType);
 
   //------------- Endpoint Descriptor -------------//
-  p_desc += p_desc[DESC_OFFSET_LEN];
+  p_desc = tu_desc_next(p_desc);
   tusb_desc_endpoint_t const *desc_edpt = (tusb_desc_endpoint_t const *) p_desc;
-  TU_ASSERT(TUSB_DESC_ENDPOINT == desc_edpt->bDescriptorType, ERR_TUD_INVALID_DESCRIPTOR);
+  TU_ASSERT(TUSB_DESC_ENDPOINT == desc_edpt->bDescriptorType);
 
   hidd_interface_t * p_hid = NULL;
 
@@ -374,7 +374,7 @@ tusb_error_t hidd_open(uint8_t rhport, tusb_desc_interface_t const * desc_itf, u
     }
     #endif
 
-    TU_ASSERT(p_hid, ERR_TUD_INVALID_DESCRIPTOR);
+    TU_ASSERT(p_hid);
     p_hid->boot_protocol = true; // default mode is BOOT
   }
   /*------------- Generic (multiple report) -------------*/
@@ -386,12 +386,10 @@ tusb_error_t hidd_open(uint8_t rhport, tusb_desc_interface_t const * desc_itf, u
     p_hid->desc_report   = usbd_desc_set->hid_report.generic;
     p_hid->get_report_cb = tud_hid_generic_get_report_cb;
     p_hid->set_report_cb = tud_hid_generic_set_report_cb;
-
-    TU_ASSERT(p_hid, ERR_TUD_INVALID_DESCRIPTOR);
   }
 
-  TU_VERIFY(p_hid->desc_report, ERR_TUD_INVALID_DESCRIPTOR);
-  TU_ASSERT( dcd_edpt_open(rhport, desc_edpt), ERR_TUD_EDPT_OPEN_FAILED );
+  TU_ASSERT(p_hid->desc_report);
+  TU_ASSERT(dcd_edpt_open(rhport, desc_edpt));
 
   p_hid->itf_num   = desc_itf->bInterfaceNumber;
   p_hid->ep_in     = desc_edpt->bEndpointAddress;
@@ -399,7 +397,7 @@ tusb_error_t hidd_open(uint8_t rhport, tusb_desc_interface_t const * desc_itf, u
 
   *p_len = sizeof(tusb_desc_interface_t) + sizeof(tusb_hid_descriptor_hid_t) + desc_itf->bNumEndpoints*sizeof(tusb_desc_endpoint_t);
 
-  return TUSB_ERROR_NONE;
+  return true;
 }
 
 // Handle class control request
@@ -510,10 +508,10 @@ bool hidd_control_request_complete(uint8_t rhport, tusb_control_request_t const 
   return true;
 }
 
-tusb_error_t hidd_xfer_cb(uint8_t rhport, uint8_t edpt_addr, xfer_result_t event, uint32_t xferred_bytes)
+bool hidd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t event, uint32_t xferred_bytes)
 {
   // nothing to do
-  return TUSB_ERROR_NONE;
+  return true;
 }
 
 

@@ -70,7 +70,7 @@ void usbd_control_stall(uint8_t rhport);
 /* Helper
  *------------------------------------------------------------------*/
 // helper to parse an pair of In and Out endpoint descriptors. They must be consecutive
-tusb_error_t usbd_open_edpt_pair(uint8_t rhport, tusb_desc_endpoint_t const* p_desc_ep, uint8_t xfer_type, uint8_t* ep_out, uint8_t* ep_in);
+bool usbd_open_edpt_pair(uint8_t rhport, tusb_desc_endpoint_t const* p_desc_ep, uint8_t xfer_type, uint8_t* ep_out, uint8_t* ep_in);
 
 void usbd_defer_func( osal_task_func_t func, void* param, bool in_isr );
 

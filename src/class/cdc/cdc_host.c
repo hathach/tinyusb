@@ -146,7 +146,7 @@ bool cdch_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_interface_t const *it
   uint8_t const * p_desc;
   cdch_data_t * p_cdc;
 
-  p_desc = descriptor_next ( (uint8_t const *) itf_desc );
+  p_desc = tu_desc_next(itf_desc);
   p_cdc  = &cdch_data[dev_addr-1];
 
   p_cdc->itf_num   = itf_desc->bInterfaceNumber;
@@ -165,7 +165,7 @@ bool cdch_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_interface_t const *it
     }
 
     (*p_length) += p_desc[DESC_OFFSET_LEN];
-    p_desc = descriptor_next(p_desc);
+    p_desc = tu_desc_next(p_desc);
   }
 
   if ( TUSB_DESC_ENDPOINT == p_desc[DESC_OFFSET_TYPE])
@@ -177,7 +177,7 @@ bool cdch_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_interface_t const *it
     p_cdc->ep_notif = ep_desc->bEndpointAddress;
 
     (*p_length) += p_desc[DESC_OFFSET_LEN];
-    p_desc = descriptor_next(p_desc);
+    p_desc = tu_desc_next(p_desc);
   }
 
   //------------- Data Interface (if any) -------------//
@@ -185,7 +185,7 @@ bool cdch_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_interface_t const *it
        (TUSB_CLASS_CDC_DATA == ((tusb_desc_interface_t const *) p_desc)->bInterfaceClass) )
   {
     (*p_length) += p_desc[DESC_OFFSET_LEN];
-    p_desc = descriptor_next(p_desc);
+    p_desc = tu_desc_next(p_desc);
 
     // data endpoints expected to be in pairs
     for(uint32_t i=0; i<2; i++)
@@ -196,7 +196,7 @@ bool cdch_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_interface_t const *it
 
       TU_ASSERT(hcd_edpt_open(rhport, dev_addr, ep_desc));
 
-      if ( edpt_dir(ep_desc->bEndpointAddress) ==  TUSB_DIR_IN )
+      if ( tu_edpt_dir(ep_desc->bEndpointAddress) ==  TUSB_DIR_IN )
       {
         p_cdc->ep_in = ep_desc->bEndpointAddress;
       }else
@@ -205,7 +205,7 @@ bool cdch_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_interface_t const *it
       }
 
       (*p_length) += p_desc[DESC_OFFSET_LEN];
-      p_desc = descriptor_next( p_desc );
+      p_desc = tu_desc_next( p_desc );
     }
   }
 

@@ -156,21 +156,21 @@ void hub_init(void)
 //  hub_enum_sem_hdl = osal_semaphore_create( OSAL_SEM_REF(hub_enum_semaphore) );
 }
 
-bool hub_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_interface_t const *p_interface_desc, uint16_t *p_length)
+bool hub_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_interface_t const *itf_desc, uint16_t *p_length)
 {
   // not support multiple TT yet
-  if ( p_interface_desc->bInterfaceProtocol > 1 ) return false;
+  if ( itf_desc->bInterfaceProtocol > 1 ) return false;
 
   //------------- Open Interrupt Status Pipe -------------//
   tusb_desc_endpoint_t const *ep_desc;
-  ep_desc = (tusb_desc_endpoint_t const *) descriptor_next( (uint8_t const*) p_interface_desc );
+  ep_desc = (tusb_desc_endpoint_t const *) tu_desc_next(itf_desc);
 
   TU_ASSERT(TUSB_DESC_ENDPOINT == ep_desc->bDescriptorType);
   TU_ASSERT(TUSB_XFER_INTERRUPT == ep_desc->bmAttributes.xfer);
   
   TU_ASSERT(hcd_edpt_open(rhport, dev_addr, ep_desc));
 
-  hub_data[dev_addr-1].itf_num = p_interface_desc->bInterfaceNumber;
+  hub_data[dev_addr-1].itf_num = itf_desc->bInterfaceNumber;
   hub_data[dev_addr-1].ep_status = ep_desc->bEndpointAddress;
 
   (*p_length) = sizeof(tusb_desc_interface_t) + sizeof(tusb_desc_endpoint_t);
@@ -245,7 +245,7 @@ void hub_isr(uint8_t dev_addr, uint8_t ep_addr, xfer_result_t event, uint32_t xf
   else
   {
     // TODO [HUB] check if hub is still plugged before polling status endpoint since failed usually mean hub unplugged
-//    TU_ASSERT ( TUSB_ERROR_NONE == hcd_pipe_xfer(pipe_hdl, &p_hub->status_change, 1, true) );
+//    TU_ASSERT ( hub_status_pipe_queue(dev_addr) );
   }
 }
 

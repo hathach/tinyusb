@@ -94,10 +94,19 @@ void virtual_com_task(void)
       // read and echo back
       uint32_t count = tud_cdc_read(buf, sizeof(buf));
 
-      tud_cdc_write(buf, count);
-    }
+      for(uint32_t i=0; i<count; i++)
+      {
+        tud_cdc_write_char(buf[i]);
 
-    tud_cdc_write_flush();
+        if ( buf[i] == '\r' )
+        {
+          tud_cdc_write_char('\n');
+          tud_cdc_write_str("tinyusb cdc: ");
+        }
+      }
+
+      tud_cdc_write_flush();
+    }
   }
 }
 
@@ -109,7 +118,7 @@ void tud_cdc_line_state_cb(uint8_t itf, bool dtr, bool rts)
   if ( dtr && rts )
   {
     // print greeting
-    tud_cdc_write_str("tinyusb usb cdc\n");
+    tud_cdc_write_str("tinyusb cdc: ");
   }
 }
 #endif

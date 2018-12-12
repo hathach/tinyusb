@@ -71,22 +71,22 @@ void cusd_init(void)
   tu_varclr(&_cusd_itf);
 }
 
-tusb_error_t cusd_open(uint8_t rhport, tusb_desc_interface_t const * p_desc_itf, uint16_t *p_len)
+bool cusd_open(uint8_t rhport, tusb_desc_interface_t const * p_desc_itf, uint16_t *p_len)
 {
   cusd_interface_t* p_itf = &_cusd_itf;
 
   // Open endpoint pair with usbd helper
-  tusb_desc_endpoint_t const *p_desc_ep = (tusb_desc_endpoint_t const *) descriptor_next( (uint8_t const*) p_desc_itf );
-  TU_ASSERT_ERR( usbd_open_edpt_pair(rhport, p_desc_ep, TUSB_XFER_BULK, &p_itf->ep_out, &p_itf->ep_in) );
+  tusb_desc_endpoint_t const *p_desc_ep = (tusb_desc_endpoint_t const *) tu_desc_next(p_desc_itf);
+  TU_ASSERT( usbd_open_edpt_pair(rhport, p_desc_ep, TUSB_XFER_BULK, &p_itf->ep_out, &p_itf->ep_in) );
 
   p_itf->itf_num = p_desc_itf->bInterfaceNumber;
 
   (*p_len) = sizeof(tusb_desc_interface_t) + 2*sizeof(tusb_desc_endpoint_t);
 
   // TODO Prepare for incoming data
-//  TU_ASSERT( dcd_edpt_xfer(rhport, p_itf->ep_out, (uint8_t*) &p_msc->cbw, sizeof(msc_cbw_t)), TUSB_ERROR_DCD_EDPT_XFER );
+//  TU_ASSERT( dcd_edpt_xfer(rhport, p_itf->ep_out, (uint8_t*) &p_msc->cbw, sizeof(msc_cbw_t)) );
 
-  return TUSB_ERROR_NONE;
+  return true;
 }
 
 bool cusd_control_request(uint8_t rhport, tusb_control_request_t const * p_request)
@@ -94,9 +94,9 @@ bool cusd_control_request(uint8_t rhport, tusb_control_request_t const * p_reque
   return false;
 }
 
-tusb_error_t cusd_xfer_cb(uint8_t rhport, uint8_t edpt_addr, xfer_result_t event, uint32_t xferred_bytes)
+bool cusd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t event, uint32_t xferred_bytes)
 {
-  return TUSB_ERROR_NONE;
+  return true;
 }
 
 void cusd_reset(uint8_t rhport)

@@ -88,13 +88,13 @@ tud_desc_set_t const* usbd_desc_set = &tud_desc_set;
 typedef struct {
   uint8_t class_code;
 
-  void         (* init           ) (void);
-  tusb_error_t (* open           ) (uint8_t rhport, tusb_desc_interface_t const * desc_intf, uint16_t* p_length);
-  bool         (* control_request ) (uint8_t rhport, tusb_control_request_t const * request);
+  void (* init           ) (void);
+  bool (* open           ) (uint8_t rhport, tusb_desc_interface_t const * desc_intf, uint16_t* p_length);
+  bool (* control_request ) (uint8_t rhport, tusb_control_request_t const * request);
   bool (* control_request_complete ) (uint8_t rhport, tusb_control_request_t const * request);
-  tusb_error_t (* xfer_cb        ) (uint8_t rhport, uint8_t ep_addr, xfer_result_t, uint32_t);
-  void         (* sof            ) (uint8_t rhport);
-  void         (* reset          ) (uint8_t);
+  bool (* xfer_cb        ) (uint8_t rhport, uint8_t ep_addr, xfer_result_t, uint32_t);
+  void (* sof            ) (uint8_t rhport);
+  void (* reset          ) (uint8_t);
 } usbd_class_driver_t;
 
 static usbd_class_driver_t const usbd_class_drivers[] =
@@ -246,14 +246,14 @@ static void usbd_task_body(void)
         // Invoke the class callback associated with the endpoint address
         uint8_t const ep_addr = event.xfer_complete.ep_addr;
 
-        if ( 0 == edpt_number(ep_addr) )
+        if ( 0 == tu_edpt_number(ep_addr) )
         {
           // control transfer DATA stage callback
           usbd_control_xfer_cb(event.rhport, ep_addr, event.xfer_complete.result, event.xfer_complete.len);
         }
         else
         {
-          uint8_t const drv_id = _usbd_dev.ep2drv[edpt_number(ep_addr)][edpt_dir(ep_addr)];
+          uint8_t const drv_id = _usbd_dev.ep2drv[tu_edpt_number(ep_addr)][tu_edpt_dir(ep_addr)];
           TU_ASSERT(drv_id < USBD_CLASS_DRIVER_COUNT,);
 
           usbd_class_drivers[drv_id].xfer_cb(event.rhport, ep_addr, event.xfer_complete.result, event.xfer_complete.len);
@@ -436,12 +436,12 @@ static bool process_set_config(uint8_t rhport)
   while( p_desc < desc_cfg + cfg_len )
   {
     // Each interface always starts with Interface or Association descriptor
-    if ( TUSB_DESC_INTERFACE_ASSOCIATION == descriptor_type(p_desc) )
+    if ( TUSB_DESC_INTERFACE_ASSOCIATION == tu_desc_type(p_desc) )
     {
-      p_desc = descriptor_next(p_desc); // ignore Interface Association
+      p_desc = tu_desc_next(p_desc); // ignore Interface Association
     }else
     {
-      TU_ASSERT( TUSB_DESC_INTERFACE == descriptor_type(p_desc) );
+      TU_ASSERT( TUSB_DESC_INTERFACE == tu_desc_type(p_desc) );
 
       tusb_desc_interface_t* desc_itf = (tusb_desc_interface_t*) p_desc;
 
@@ -458,7 +458,7 @@ static bool process_set_config(uint8_t rhport)
       _usbd_dev.itf2drv[desc_itf->bInterfaceNumber] = drv_id;
 
       uint16_t itf_len=0;
-      TU_ASSERT_ERR( usbd_class_drivers[drv_id].open( rhport, desc_itf, &itf_len ), false );
+      TU_ASSERT( usbd_class_drivers[drv_id].open( rhport, desc_itf, &itf_len ) );
       TU_ASSERT( itf_len >= sizeof(tusb_desc_interface_t) );
 
       mark_interface_endpoint(_usbd_dev.ep2drv, p_desc, itf_len, drv_id);
@@ -480,15 +480,15 @@ static void mark_interface_endpoint(uint8_t ep2drv[8][2], uint8_t const* p_desc,
 
   while( len < desc_len )
   {
-    if ( TUSB_DESC_ENDPOINT == descriptor_type(p_desc) )
+    if ( TUSB_DESC_ENDPOINT == tu_desc_type(p_desc) )
     {
       uint8_t const ep_addr = ((tusb_desc_endpoint_t const*) p_desc)->bEndpointAddress;
 
-      ep2drv[edpt_number(ep_addr)][edpt_dir(ep_addr)] = driver_id;
+      ep2drv[tu_edpt_number(ep_addr)][tu_edpt_dir(ep_addr)] = driver_id;
     }
 
-    len   += descriptor_len(p_desc);
-    p_desc = descriptor_next(p_desc);
+    len   += tu_desc_len(p_desc);
+    p_desc = tu_desc_next(p_desc);
   }
 }
 
@@ -576,7 +576,7 @@ void dcd_event_handler(dcd_event_t const * event, bool in_isr)
 
     case DCD_EVENT_XFER_COMPLETE:
       // skip zero-length control status complete event, should dcd notifies us.
-      if ( 0 == edpt_number(event->xfer_complete.ep_addr) && event->xfer_complete.len == 0) break;
+      if ( 0 == tu_edpt_number(event->xfer_complete.ep_addr) && event->xfer_complete.len == 0) break;
 
       osal_queue_send(_usbd_q, event, in_isr);
       TU_ASSERT(event->xfer_complete.result == XFER_RESULT_SUCCESS,);
@@ -624,16 +624,16 @@ void dcd_event_xfer_complete (uint8_t rhport, uint8_t ep_addr, uint32_t xferred_
 //--------------------------------------------------------------------+
 
 // Helper to parse an pair of endpoint descriptors (IN & OUT)
-tusb_error_t usbd_open_edpt_pair(uint8_t rhport, tusb_desc_endpoint_t const* ep_desc, uint8_t xfer_type, uint8_t* ep_out, uint8_t* ep_in)
+bool usbd_open_edpt_pair(uint8_t rhport, tusb_desc_endpoint_t const* ep_desc, uint8_t xfer_type, uint8_t* ep_out, uint8_t* ep_in)
 {
   for(int i=0; i<2; i++)
   {
     TU_ASSERT(TUSB_DESC_ENDPOINT == ep_desc->bDescriptorType &&
-              xfer_type          == ep_desc->bmAttributes.xfer, TUSB_ERROR_DESCRIPTOR_CORRUPTED);
+              xfer_type          == ep_desc->bmAttributes.xfer );
 
-    TU_ASSERT( dcd_edpt_open(rhport, ep_desc), TUSB_ERROR_DCD_OPEN_PIPE_FAILED );
+    TU_ASSERT(dcd_edpt_open(rhport, ep_desc));
 
-    if ( edpt_dir(ep_desc->bEndpointAddress) ==  TUSB_DIR_IN )
+    if ( tu_edpt_dir(ep_desc->bEndpointAddress) == TUSB_DIR_IN )
     {
       (*ep_in) = ep_desc->bEndpointAddress;
     }else
@@ -641,10 +641,10 @@ tusb_error_t usbd_open_edpt_pair(uint8_t rhport, tusb_desc_endpoint_t const* ep_
       (*ep_out) = ep_desc->bEndpointAddress;
     }
 
-    ep_desc = (tusb_desc_endpoint_t const *) descriptor_next( (uint8_t const*)  ep_desc );
+    ep_desc = (tusb_desc_endpoint_t const *) tu_desc_next(ep_desc);
   }
 
-  return TUSB_ERROR_NONE;
+  return true;
 }
 
 // Helper to defer an isr function

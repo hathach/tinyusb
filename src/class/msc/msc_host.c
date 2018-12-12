@@ -300,7 +300,7 @@ bool msch_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_interface_t const *it
   msch_interface_t* p_msc = &msch_data[dev_addr-1];
 
   //------------- Open Data Pipe -------------//
-  tusb_desc_endpoint_t const * ep_desc = (tusb_desc_endpoint_t const *) descriptor_next( (uint8_t const*) itf_desc );
+  tusb_desc_endpoint_t const * ep_desc = (tusb_desc_endpoint_t const *) tu_desc_next(itf_desc);
 
   for(uint32_t i=0; i<2; i++)
   {
@@ -309,7 +309,7 @@ bool msch_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_interface_t const *it
 
     TU_ASSERT(hcd_edpt_open(rhport, dev_addr, ep_desc));
 
-    if ( edpt_dir(ep_desc->bEndpointAddress) ==  TUSB_DIR_IN )
+    if ( tu_edpt_dir(ep_desc->bEndpointAddress) == TUSB_DIR_IN )
     {
       p_msc->ep_in = ep_desc->bEndpointAddress;
     }else
@@ -317,7 +317,7 @@ bool msch_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_interface_t const *it
       p_msc->ep_out = ep_desc->bEndpointAddress;
     }
 
-    ep_desc = (tusb_desc_endpoint_t const *) descriptor_next( (uint8_t const*)  ep_desc );
+    ep_desc = (tusb_desc_endpoint_t const *) tu_desc_next(ep_desc);
   }
 
   p_msc->itf_numr = itf_desc->bInterfaceNumber;

@@ -42,9 +42,7 @@
 
 #include "chip.h"
 
-//--------------------------------------------------------------------+
-// MACRO TYPEDEF CONSTANT ENUM DECLARATION
-//--------------------------------------------------------------------+
+// LPC18xx and 43xx use EHCI driver
 
 void hcd_int_enable(uint8_t rhport)
 {
@@ -55,4 +53,10 @@ void hcd_int_disable(uint8_t rhport)
 {
   NVIC_DisableIRQ(rhport ? USB1_IRQn : USB0_IRQn);
 }
+
+uint32_t hcd_ehci_register_addr(uint8_t rhport)
+{
+  return (uint32_t) (rhport ? &LPC_USB1->USBCMD_H : &LPC_USB0->USBCMD_H );
+}
+
 #endif

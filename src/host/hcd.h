@@ -108,8 +108,8 @@ bool hcd_port_connect_status(uint8_t hostid);
 void hcd_port_reset(uint8_t hostid);
 tusb_speed_t hcd_port_speed_get(uint8_t hostid);
 
-// HCD closs all opened endpoints belong to this device
-void hcd_device_remove(uint8_t rhport, uint8_t dev_addr);
+// HCD closes all opened endpoints belong to this device
+void hcd_device_close(uint8_t rhport, uint8_t dev_addr);
 
 //--------------------------------------------------------------------+
 // Event function
@@ -135,7 +135,7 @@ bool hcd_edpt_busy(uint8_t dev_addr, uint8_t ep_addr);
 bool hcd_edpt_stalled(uint8_t dev_addr, uint8_t ep_addr);
 bool hcd_edpt_clear_stall(uint8_t dev_addr, uint8_t ep_addr);
 
-
+// TODO merge with pipe_xfer
 bool hcd_edpt_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr, uint8_t * buffer, uint16_t buflen);
 
 //--------------------------------------------------------------------+

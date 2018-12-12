@@ -205,12 +205,12 @@ bool usbh_control_xfer (uint8_t dev_addr, tusb_control_request_t* request, uint8
   // Data stage : first data toggle is always 1
   if ( request->wLength )
   {
-    hcd_edpt_xfer(rhport, dev_addr, edpt_addr(0, request->bmRequestType_bit.direction), data, request->wLength);
+    hcd_edpt_xfer(rhport, dev_addr, tu_edpt_addr(0, request->bmRequestType_bit.direction), data, request->wLength);
     TU_VERIFY(osal_semaphore_wait(dev->control.sem_hdl, OSAL_TIMEOUT_NORMAL));
   }
 
   // Status : data toggle is always 1
-  hcd_edpt_xfer(rhport, dev_addr, edpt_addr(0, 1-request->bmRequestType_bit.direction), NULL, 0);
+  hcd_edpt_xfer(rhport, dev_addr, tu_edpt_addr(0, 1-request->bmRequestType_bit.direction), NULL, 0);
   TU_VERIFY(osal_semaphore_wait(dev->control.sem_hdl, OSAL_TIMEOUT_NORMAL));
 
   osal_mutex_unlock(dev->control.mutex_hdl);
@@ -249,7 +249,7 @@ void hcd_event_xfer_complete(uint8_t dev_addr, uint8_t ep_addr, xfer_result_t ev
 {
   usbh_device_t* dev = &_usbh_devices[ dev_addr ];
 
-  if (0 == edpt_number(ep_addr))
+  if (0 == tu_edpt_number(ep_addr))
   {
     dev->control.pipe_status   = event;
 //    usbh_devices[ pipe_hdl.dev_addr ].control.xferred_bytes = xferred_bytes; not yet neccessary
@@ -257,7 +257,7 @@ void hcd_event_xfer_complete(uint8_t dev_addr, uint8_t ep_addr, xfer_result_t ev
   }
   else
   {
-    uint8_t drv_id = dev->ep2drv[edpt_number(ep_addr)][edpt_dir(ep_addr)];
+    uint8_t drv_id = dev->ep2drv[tu_edpt_number(ep_addr)][tu_edpt_dir(ep_addr)];
     TU_ASSERT(drv_id < USBH_CLASS_DRIVER_COUNT, );
 
     if (usbh_class_drivers[drv_id].isr)
@@ -334,7 +334,7 @@ static void usbh_device_unplugged(uint8_t rhport, uint8_t hub_addr, uint8_t hub_
       memset(dev->itf2drv, 0xff, sizeof(dev->itf2drv)); // invalid mapping
       memset(dev->ep2drv , 0xff, sizeof(dev->ep2drv )); // invalid mapping
 
-      hcd_device_remove(rhport, dev_addr);
+      hcd_device_close(rhport, dev_addr);
 
       dev->state = TUSB_DEVICE_STATE_UNPLUG;
     }
@@ -438,7 +438,6 @@ bool enum_task(hcd_event_t* event)
   #endif
 
   TU_ASSERT_ERR( usbh_pipe_control_open(0, 8) );
-  dev0->state = TUSB_DEVICE_STATE_ADDRESSED;
 
   //------------- Get first 8 bytes of device descriptor to get Control Endpoint Size -------------//
   request = (tusb_control_request_t ) {
@@ -493,9 +492,8 @@ bool enum_task(hcd_event_t* event)
   new_dev->hub_addr = dev0->hub_addr;
   new_dev->hub_port = dev0->hub_port;
   new_dev->speed    = dev0->speed;
-  new_dev->state    = TUSB_DEVICE_STATE_ADDRESSED;
 
-  hcd_device_remove(dev0->rhport, 0); // close device 0
+  hcd_device_close(dev0->rhport, 0); // close device 0
   dev0->state = TUSB_DEVICE_STATE_UNPLUG;
 
   // open control pipe for new address
@@ -560,9 +558,9 @@ bool enum_task(hcd_event_t* event)
   while( p_desc < _usbh_ctrl_buf + ((tusb_desc_configuration_t*)_usbh_ctrl_buf)->wTotalLength )
   {
     // skip until we see interface descriptor
-    if ( TUSB_DESC_INTERFACE != descriptor_type(p_desc) )
+    if ( TUSB_DESC_INTERFACE != tu_desc_type(p_desc) )
     {
-      p_desc = descriptor_next(p_desc); // skip the descriptor, increase by the descriptor's length
+      p_desc = tu_desc_next(p_desc); // skip the descriptor, increase by the descriptor's length
     }else
     {
       tusb_desc_interface_t* desc_itf = (tusb_desc_interface_t*) p_desc;
@@ -577,7 +575,7 @@ bool enum_task(hcd_event_t* event)
       if( drv_id >= USBH_CLASS_DRIVER_COUNT )
       {
         // skip unsupported class
-        p_desc = descriptor_next(p_desc);
+        p_desc = tu_desc_next(p_desc);
       }
       else
       {
@@ -589,7 +587,7 @@ bool enum_task(hcd_event_t* event)
         {
           // TODO Attach hub to Hub is not currently supported
           // skip this interface
-          p_desc = descriptor_next(p_desc);
+          p_desc = tu_desc_next(p_desc);
         }
         else
         {
@@ -655,13 +653,11 @@ void usbh_task(void* param)
 //--------------------------------------------------------------------+
 static inline uint8_t get_new_address(void)
 {
-  uint8_t addr;
-  for (addr=1; addr <= CFG_TUSB_HOST_DEVICE_MAX; addr++)
+  for (uint8_t addr=1; addr <= CFG_TUSB_HOST_DEVICE_MAX; addr++)
   {
-    if (_usbh_devices[addr].state == TUSB_DEVICE_STATE_UNPLUG)
-      break;
+    if (_usbh_devices[addr].state == TUSB_DEVICE_STATE_UNPLUG) return addr;
   }
-  return addr;
+  return CFG_TUSB_HOST_DEVICE_MAX;
 }
 
 static inline uint8_t get_configure_number_for_device(tusb_desc_device_t* dev_desc)
@@ -685,15 +681,15 @@ static void mark_interface_endpoint(uint8_t ep2drv[8][2], uint8_t const* p_desc,
 
   while( len < desc_len )
   {
-    if ( TUSB_DESC_ENDPOINT == descriptor_type(p_desc) )
+    if ( TUSB_DESC_ENDPOINT == tu_desc_type(p_desc) )
     {
       uint8_t const ep_addr = ((tusb_desc_endpoint_t const*) p_desc)->bEndpointAddress;
 
-      ep2drv[ edpt_number(ep_addr) ][ edpt_dir(ep_addr) ] = driver_id;
+      ep2drv[ tu_edpt_number(ep_addr) ][ tu_edpt_dir(ep_addr) ] = driver_id;
     }
 
-    len   += descriptor_len(p_desc);
-    p_desc = descriptor_next(p_desc);
+    len   += tu_desc_len(p_desc);
+    p_desc = tu_desc_next(p_desc);
   }
 }
 

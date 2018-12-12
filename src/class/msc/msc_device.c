@@ -150,25 +150,25 @@ void mscd_reset(uint8_t rhport)
   tu_memclr(&_mscd_itf, sizeof(mscd_interface_t));
 }
 
-tusb_error_t mscd_open(uint8_t rhport, tusb_desc_interface_t const * p_desc_itf, uint16_t *p_len)
+bool mscd_open(uint8_t rhport, tusb_desc_interface_t const * itf_desc, uint16_t *p_len)
 {
   // only support SCSI's BOT protocol
-  TU_VERIFY( ( MSC_SUBCLASS_SCSI == p_desc_itf->bInterfaceSubClass &&
-            MSC_PROTOCOL_BOT  == p_desc_itf->bInterfaceProtocol ), TUSB_ERROR_MSC_UNSUPPORTED_PROTOCOL );
+  TU_ASSERT(MSC_SUBCLASS_SCSI == itf_desc->bInterfaceSubClass &&
+            MSC_PROTOCOL_BOT  == itf_desc->bInterfaceProtocol);
 
   mscd_interface_t * p_msc = &_mscd_itf;
 
   // Open endpoint pair with usbd helper
-  tusb_desc_endpoint_t const *p_desc_ep = (tusb_desc_endpoint_t const *) descriptor_next( (uint8_t const*) p_desc_itf );
-  TU_ASSERT_ERR( usbd_open_edpt_pair(rhport, p_desc_ep, TUSB_XFER_BULK, &p_msc->ep_out, &p_msc->ep_in) );
+  tusb_desc_endpoint_t const *p_desc_ep = (tusb_desc_endpoint_t const *) tu_desc_next( itf_desc );
+  TU_ASSERT( usbd_open_edpt_pair(rhport, p_desc_ep, TUSB_XFER_BULK, &p_msc->ep_out, &p_msc->ep_in) );
 
-  p_msc->itf_num = p_desc_itf->bInterfaceNumber;
+  p_msc->itf_num = itf_desc->bInterfaceNumber;
   (*p_len) = sizeof(tusb_desc_interface_t) + 2*sizeof(tusb_desc_endpoint_t);
 
-  //------------- Queue Endpoint OUT for Command Block Wrapper -------------//
-  TU_ASSERT( dcd_edpt_xfer(rhport, p_msc->ep_out, (uint8_t*) &p_msc->cbw, sizeof(msc_cbw_t)), TUSB_ERROR_DCD_EDPT_XFER );
+  // Prepare for Command Block Wrapper
+  TU_ASSERT( dcd_edpt_xfer(rhport, p_msc->ep_out, (uint8_t*) &p_msc->cbw, sizeof(msc_cbw_t)) );
 
-  return TUSB_ERROR_NONE;
+  return true;
 }
 
 // Handle class control request
@@ -329,7 +329,7 @@ int32_t proc_builtin_scsi(msc_cbw_t const * p_cbw, uint8_t* buffer, uint32_t buf
   return ret;
 }
 
-tusb_error_t mscd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t event, uint32_t xferred_bytes)
+bool mscd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t event, uint32_t xferred_bytes)
 {
   mscd_interface_t* p_msc = &_mscd_itf;
   msc_cbw_t const * p_cbw = &p_msc->cbw;
@@ -340,10 +340,10 @@ tusb_error_t mscd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t event, 
     case MSC_STAGE_CMD:
       //------------- new CBW received -------------//
       // Complete IN while waiting for CMD is usually Status of previous SCSI op, ignore it
-      if(ep_addr != p_msc->ep_out) return TUSB_ERROR_NONE;
+      if(ep_addr != p_msc->ep_out) return true;
 
       TU_ASSERT( event == XFER_RESULT_SUCCESS &&
-                 xferred_bytes == sizeof(msc_cbw_t) && p_cbw->signature == MSC_CBW_SIGNATURE, TUSB_ERROR_INVALID_PARA );
+                 xferred_bytes == sizeof(msc_cbw_t) && p_cbw->signature == MSC_CBW_SIGNATURE );
 
       p_csw->signature    = MSC_CSW_SIGNATURE;
       p_csw->tag          = p_cbw->tag;
@@ -388,7 +388,7 @@ tusb_error_t mscd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t event, 
         else if ( !BIT_TEST_(p_cbw->dir, 7) )
         {
           // OUT transfer
-          TU_ASSERT( dcd_edpt_xfer(rhport, p_msc->ep_out, _mscd_buf, p_msc->total_len), TUSB_ERROR_DCD_EDPT_XFER );
+          TU_ASSERT( dcd_edpt_xfer(rhport, p_msc->ep_out, _mscd_buf, p_msc->total_len) );
         }
         else
         {
@@ -409,8 +409,8 @@ tusb_error_t mscd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t event, 
             p_msc->total_len = (uint32_t) cb_result;
             p_csw->status = MSC_CSW_STATUS_PASSED;
 
-            TU_ASSERT( p_cbw->total_bytes >= p_msc->total_len, TUSB_ERROR_INVALID_PARA ); // cannot return more than host expect
-            TU_ASSERT( dcd_edpt_xfer(rhport, p_msc->ep_in, _mscd_buf, p_msc->total_len), TUSB_ERROR_DCD_EDPT_XFER );
+            TU_ASSERT( p_cbw->total_bytes >= p_msc->total_len ); // cannot return more than host expect
+            TU_ASSERT( dcd_edpt_xfer(rhport, p_msc->ep_in, _mscd_buf, p_msc->total_len) );
           }else
           {
             p_msc->total_len = 0;
@@ -474,7 +474,7 @@ tusb_error_t mscd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t event, 
               // simulate an transfer complete with adjusted parameters --> this driver callback will fired again
               dcd_event_xfer_complete(rhport, p_msc->ep_out, xferred_bytes-nbytes, XFER_RESULT_SUCCESS, false);
 
-              return TUSB_ERROR_NONE; // skip the rest
+              return true; // skip the rest
             }
             else
             {
@@ -549,7 +549,7 @@ tusb_error_t mscd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t event, 
     }
   }
 
-  return TUSB_ERROR_NONE;
+  return true;
 }
 
 /*------------------------------------------------------------------*/

@@ -1,3 +1,0 @@
-# Supported MCUs #
-
-Currently 
