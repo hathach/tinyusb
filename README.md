@@ -23,7 +23,7 @@ tools   | Files used internally
 
 ## Host Stack
 
-** Most active development is on the Device stack. The Host stack is under rework and largely untested.**
+**Most active development is on the Device stack. The Host stack is under rework and largely untested.**
 
 - Human Interface Device (HID): Keyboard, Mouse, Generic
 - Mass Storage Class (MSC)
