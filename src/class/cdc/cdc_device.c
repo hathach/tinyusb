@@ -346,9 +346,10 @@ bool cdcd_control_request(uint8_t rhport, tusb_control_request_t const * request
       //        This signal corresponds to V.24 signal 105 and RS-232 signal RTS (Request to Send)
       p_cdc->line_state = (uint8_t) request->wValue;
 
+      usbd_control_status(rhport, request);
+
       // Invoke callback
       if ( tud_cdc_line_state_cb) tud_cdc_line_state_cb(itf, BIT_TEST_(request->wValue, 0), BIT_TEST_(request->wValue, 1));
-      usbd_control_status(rhport, request);
     break;
 
     default: return false; // stall unsupported request
