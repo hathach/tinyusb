@@ -181,7 +181,6 @@ enum {
 typedef enum
 {
   TUSB_DEVICE_STATE_UNPLUG = 0  ,
-  TUSB_DEVICE_STATE_ADDRESSED   ,
   TUSB_DEVICE_STATE_CONFIGURED  ,
   TUSB_DEVICE_STATE_SUSPENDED   ,
 }tusb_device_state_t;

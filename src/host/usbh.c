@@ -438,7 +438,6 @@ bool enum_task(hcd_event_t* event)
   #endif
 
   TU_ASSERT_ERR( usbh_pipe_control_open(0, 8) );
-  dev0->state = TUSB_DEVICE_STATE_ADDRESSED;
 
   //------------- Get first 8 bytes of device descriptor to get Control Endpoint Size -------------//
   request = (tusb_control_request_t ) {
@@ -493,7 +492,6 @@ bool enum_task(hcd_event_t* event)
   new_dev->hub_addr = dev0->hub_addr;
   new_dev->hub_port = dev0->hub_port;
   new_dev->speed    = dev0->speed;
-  new_dev->state    = TUSB_DEVICE_STATE_ADDRESSED;
 
   hcd_device_close(dev0->rhport, 0); // close device 0
   dev0->state = TUSB_DEVICE_STATE_UNPLUG;
@@ -655,13 +653,11 @@ void usbh_task(void* param)
 //--------------------------------------------------------------------+
 static inline uint8_t get_new_address(void)
 {
-  uint8_t addr;
-  for (addr=1; addr <= CFG_TUSB_HOST_DEVICE_MAX; addr++)
+  for (uint8_t addr=1; addr <= CFG_TUSB_HOST_DEVICE_MAX; addr++)
   {
-    if (_usbh_devices[addr].state == TUSB_DEVICE_STATE_UNPLUG)
-      break;
+    if (_usbh_devices[addr].state == TUSB_DEVICE_STATE_UNPLUG) return addr;
   }
-  return addr;
+  return CFG_TUSB_HOST_DEVICE_MAX;
 }
 
 static inline uint8_t get_configure_number_for_device(tusb_desc_device_t* dev_desc)
