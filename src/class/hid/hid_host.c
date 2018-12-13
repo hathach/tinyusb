@@ -238,12 +238,12 @@ bool hidh_open_subtask(uint8_t dev_addr, tusb_desc_interface_t const *p_interfac
     #endif
 
     {
-      // TUSB_ERROR_HIDH_NOT_SUPPORTED_PROTOCOL
+      // Not supported protocol
       return false;
     }
   }else
   {
-    // TUSB_ERROR_HIDH_NOT_SUPPORTED_SUBCLASS
+    // Not supported subclass
     return false;
   }
 
