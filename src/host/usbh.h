@@ -103,7 +103,7 @@ ATTR_WEAK void tuh_umount_cb(uint8_t dev_addr);
 #ifdef _TINY_USB_SOURCE_FILE_
 
 bool usbh_init(void);
-void usbh_task(void* param);
+void usbh_task(void);
 
 bool usbh_control_xfer (uint8_t dev_addr, tusb_control_request_t* request, uint8_t* data);
 

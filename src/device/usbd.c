@@ -209,10 +209,8 @@ static void usbd_reset(uint8_t rhport)
 /* USB Device Driver task
  * This top level thread manages all device controller event and delegates events to class-specific drivers.
  */
-void usbd_task( void* param)
+void usbd_task (void)
 {
-  (void) param;
-
   // Loop until there is no more events in the queue
   while (1)
   {

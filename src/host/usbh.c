@@ -602,10 +602,8 @@ bool enum_task(hcd_event_t* event)
 /* USB Host Driver task
  * This top level thread manages all host controller event and delegates events to class-specific drivers.
  */
-void usbh_task(void* param)
+void usbh_task(void)
 {
-  (void) param;
-
   // Loop until there is no more events in the queue
   while (1)
   {

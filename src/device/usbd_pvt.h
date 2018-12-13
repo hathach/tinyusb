@@ -52,7 +52,7 @@ extern tud_desc_set_t const* usbd_desc_set;
 // INTERNAL API for stack management
 //--------------------------------------------------------------------+
 bool usbd_init (void);
-void usbd_task (void* param);
+void usbd_task (void);
 
 
 // Carry out Data and Status stage of control transfer
