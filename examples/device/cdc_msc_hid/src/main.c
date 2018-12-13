@@ -85,7 +85,7 @@ void virtual_com_task(void)
 {
   if ( tud_cdc_connected() )
   {
-      // connected and there are data available
+    // connected and there are data available
     if ( tud_cdc_available() )
     {
       uint8_t buf[64];
