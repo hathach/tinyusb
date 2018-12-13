@@ -224,11 +224,6 @@
 //------------------------------------------------------------------
 // Configuration Validation
 //------------------------------------------------------------------
-
-#if (CFG_TUSB_OS != OPT_OS_NONE) && !defined (CFG_TUD_TASK_PRIO)
-  #error CFG_TUD_TASK_PRIO need to be defined (hint: use the highest if possible)
-#endif
-
 #if CFG_TUD_ENDOINT0_SIZE > 64
   #error Control Endpoint Max Packet Size cannot be larger than 64
 #endif

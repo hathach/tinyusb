@@ -68,7 +68,6 @@ bool tusb_init(void)
   return TUSB_ERROR_NONE;
 }
 
-#if CFG_TUSB_OS == OPT_OS_NONE
 void tusb_task(void)
 {
   #if TUSB_OPT_HOST_ENABLED
@@ -79,8 +78,6 @@ void tusb_task(void)
   usbd_task(NULL);
   #endif
 }
-#endif
-
 
 /*------------------------------------------------------------------*/
 /* Debug

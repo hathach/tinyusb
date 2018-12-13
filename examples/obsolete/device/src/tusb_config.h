@@ -55,9 +55,6 @@
 
 /*------------- RTOS -------------*/
 //#define CFG_TUSB_OS               OPT_OS_NONE // be passed from IDE/command line for easy project switching
-//#define CFG_TUD_TASK_PRIO         0
-//#define CFG_TUD_TASK_QUEUE_SZ     16
-//#define CFG_TUD_TASK_STACK_SZ     150
 
 //--------------------------------------------------------------------+
 // DEVICE CONFIGURATION

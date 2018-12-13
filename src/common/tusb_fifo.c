@@ -48,9 +48,7 @@ static void tu_fifo_lock(tu_fifo_t *f)
 {
   if (f->mutex)
   {
-    uint32_t err;
-    (void) err;
-    osal_mutex_lock(f->mutex, OSAL_TIMEOUT_WAIT_FOREVER, &err);
+    osal_mutex_lock(f->mutex, OSAL_TIMEOUT_WAIT_FOREVER);
   }
 }
 

@@ -53,14 +53,8 @@
 #endif
 
 #define CFG_TUSB_RHPORT0_MODE       OPT_MODE_DEVICE
-
-#define CFG_TUSB_DEBUG              2
-
-/*------------- RTOS -------------*/
 #define CFG_TUSB_OS                 OPT_OS_FREERTOS
-#define CFG_TUD_TASK_PRIO           (configMAX_PRIORITIES-1)
-//#define CFG_TUD_TASK_QUEUE_SZ     16
-//#define CFG_TUD_TASK_STACK_SZ     150
+#define CFG_TUSB_DEBUG              2
 
 /* USB DMA on some MCUs can only access a specific SRAM region with restriction on alignment.
  * Tinyusb use follows macros to declare transferring memory so that they can be put

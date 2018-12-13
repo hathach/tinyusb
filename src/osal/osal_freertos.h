@@ -65,27 +65,6 @@ static inline bool in_isr(void)
 //--------------------------------------------------------------------+
 // TASK API
 //--------------------------------------------------------------------+
-#define OSAL_TASK_DEF(_name, _str, _func, _prio, _stack_sz) \
-  static uint8_t _name##_##buf[_stack_sz*sizeof(StackType_t)]; \
-  osal_task_def_t _name = { .func = _func, .prio = _prio, .stack_sz = _stack_sz, .buf = _name##_##buf, .strname = _str };
-
-typedef struct
-{
-  osal_task_func_t func;
-
-  uint16_t prio;
-  uint16_t stack_sz;
-  void*    buf;
-  const char* strname;
-
-  StaticTask_t stask;
-}osal_task_def_t;
-
-static inline bool osal_task_create(osal_task_def_t* taskdef)
-{
-  return NULL != xTaskCreateStatic(taskdef->func, taskdef->strname, taskdef->stack_sz, NULL, taskdef->prio, (StackType_t*) taskdef->buf, &taskdef->stask);
-}
-
 static inline void osal_task_delay(uint32_t msec)
 {
   vTaskDelay( pdMS_TO_TICKS(msec) );
