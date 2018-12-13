@@ -1,6 +1,6 @@
-# tinyusb
+# TinyUSB
 
-tinyusb is an cross-platform open-source USB Host/Device stack for embedded system.
+TinyUSB is an cross-platform open-source USB Host/Device stack for embedded system.
 
 ![tinyusb](https://user-images.githubusercontent.com/249515/49858616-f60c9700-fe27-11e8-8627-e76936352ff7.png)
 

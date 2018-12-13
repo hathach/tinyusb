@@ -61,7 +61,7 @@ The OPT_OS_NONE option is the only option which requires an MCU specific functio
 
 ### Device API
 
-After the USB device is setup, the USB device code works by processing events on the main thread (by calling `tusb_task`). These events are queued by the USB interrupt handler. So, there are three parts to the device low-level API: device setup, endpoint setup and interrupt processing.
+After the USB device is setup, the USB device code works by processing events on the main thread (by calling `tud_task`). These events are queued by the USB interrupt handler. So, there are three parts to the device low-level API: device setup, endpoint setup and interrupt processing.
 
 All of the code for the low-level device API is in `src/portable/<vendor>/<chip family>/dcd_<chip family>.c`.
 
@@ -164,4 +164,4 @@ At this point you should have everything working! ;-) Of course, you may not wri
 Use [WireShark](https://www.wireshark.org/) or [a Beagle](https://www.totalphase.com/protocols/usb/) to sniff the USB traffic. When things aren't working its likely very early in the USB enumeration process. Figuring out where can help clue in where the issue is. For example:
 * If the host sends a SETUP packet and its not ACKed then your USB peripheral probably isn't started correctly.
 * If the peripheral is started correctly but it still didn't work, then verify your usb clock is correct. (You did output a PWM based on it right? ;-) )
-* If the SETUP packet is ACKed but nothing is sent back then you interrupt handler isn't queueing the setup packet correctly. (Also, if you are using your own code instead of an example `tusb_task` may not be called.) If thats OK, the `dcd_xfer_complete` may not be setting up the next transaction correctly.
+* If the SETUP packet is ACKed but nothing is sent back then you interrupt handler isn't queueing the setup packet correctly. (Also, if you are using your own code instead of an example `tud_task` may not be called.) If thats OK, the `dcd_xfer_complete` may not be setting up the next transaction correctly.

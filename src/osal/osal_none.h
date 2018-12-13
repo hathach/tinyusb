@@ -51,17 +51,7 @@
 
 //--------------------------------------------------------------------+
 // TASK API
-// Virtually do nothing in osal none
 //--------------------------------------------------------------------+
-#define OSAL_TASK_DEF(_name, _str, _func, _prio, _stack_sz)  osal_task_def_t _name;
-typedef uint8_t osal_task_def_t;
-
-static inline bool osal_task_create(osal_task_def_t* taskdef)
-{
-  (void) taskdef;
-  return true;
-}
-
 static inline void osal_task_delay(uint32_t msec)
 {
   uint32_t start = tusb_hal_millis();

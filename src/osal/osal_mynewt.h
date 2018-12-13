@@ -46,27 +46,6 @@
 //--------------------------------------------------------------------+
 // TASK API
 //--------------------------------------------------------------------+
-#define OSAL_TASK_DEF(_name, _str, _func, _prio, _stack_sz) \
-  static os_stack_t _name##_##buf[_stack_sz]; \
-  osal_task_def_t _name = { .func = _func, .prio = _prio, .stack_sz = _stack_sz, .buf = _name##_##buf, .strname = _str };
-
-typedef struct
-{
-  struct os_task mynewt_task;
-  osal_task_func_t func;
-
-  uint16_t prio;
-  uint16_t stack_sz;
-  void*    buf;
-  const char* strname;
-}osal_task_def_t;
-
-static inline bool osal_task_create(osal_task_def_t* taskdef)
-{
-  return OS_OK == os_task_init(&taskdef->mynewt_task, taskdef->strname, taskdef->func, NULL, taskdef->prio, OS_WAIT_FOREVER,
-                               (os_stack_t*) taskdef->buf, taskdef->stack_sz);
-}
-
 static inline void osal_task_delay(uint32_t msec)
 {
   os_time_delay( os_time_ms_to_ticks32(msec) );

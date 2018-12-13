@@ -340,7 +340,7 @@ bool hidd_open(uint8_t rhport, tusb_desc_interface_t const * desc_itf, uint16_t 
   /*------------- Boot protocol only keyboard & mouse -------------*/
   if (desc_itf->bInterfaceSubClass == HID_SUBCLASS_BOOT)
   {
-    TU_ASSERT(desc_itf->bInterfaceProtocol == HID_PROTOCOL_KEYBOARD || desc_itf->bInterfaceProtocol == HID_PROTOCOL_MOUSE,  ERR_TUD_INVALID_DESCRIPTOR);
+    TU_ASSERT(desc_itf->bInterfaceProtocol == HID_PROTOCOL_KEYBOARD || desc_itf->bInterfaceProtocol == HID_PROTOCOL_MOUSE);
 
     #if CFG_TUD_HID_KEYBOARD && CFG_TUD_HID_KEYBOARD_BOOT
     if (desc_itf->bInterfaceProtocol == HID_PROTOCOL_KEYBOARD)

@@ -78,9 +78,9 @@ typedef struct {
 //--------------------------------------------------------------------+
 // APPLICATION API
 //--------------------------------------------------------------------+
-//tusb_error_t tusbh_configuration_set     (uint8_t dev_addr, uint8_t configure_number) ATTR_WARN_UNUSED_RESULT;
-tusb_device_state_t tuh_device_get_state (uint8_t dev_addr) ATTR_WARN_UNUSED_RESULT ATTR_PURE;
-static inline bool tuh_device_is_configured(uint8_t dev_addr) ATTR_ALWAYS_INLINE ATTR_WARN_UNUSED_RESULT ATTR_PURE;
+void tuh_task(void);
+
+tusb_device_state_t tuh_device_get_state (uint8_t dev_addr);
 static inline bool tuh_device_is_configured(uint8_t dev_addr)
 {
   return tuh_device_get_state(dev_addr) == TUSB_DEVICE_STATE_CONFIGURED;
@@ -89,7 +89,7 @@ static inline bool tuh_device_is_configured(uint8_t dev_addr)
 //--------------------------------------------------------------------+
 // APPLICATION CALLBACK
 //--------------------------------------------------------------------+
-ATTR_WEAK uint8_t tuh_device_attached_cb (tusb_desc_device_t const *p_desc_device)  ATTR_WARN_UNUSED_RESULT;
+ATTR_WEAK uint8_t tuh_device_attached_cb (tusb_desc_device_t const *p_desc_device);
 
 /** Callback invoked when device is mounted (configured) */
 ATTR_WEAK void tuh_mount_cb (uint8_t dev_addr);
@@ -103,7 +103,6 @@ ATTR_WEAK void tuh_umount_cb(uint8_t dev_addr);
 #ifdef _TINY_USB_SOURCE_FILE_
 
 bool usbh_init(void);
-void usbh_task(void* param);
 
 bool usbh_control_xfer (uint8_t dev_addr, tusb_control_request_t* request, uint8_t* data);
 

@@ -36,8 +36,6 @@
 */
 /**************************************************************************/
 
-// This top level class manages the bus state and delegates events to class-specific drivers.
-
 #include "tusb_option.h"
 
 #if TUSB_OPT_DEVICE_ENABLED
@@ -51,15 +49,6 @@
 #ifndef CFG_TUD_TASK_QUEUE_SZ
 #define CFG_TUD_TASK_QUEUE_SZ   16
 #endif
-
-#ifndef CFG_TUD_TASK_STACK_SZ
-#define CFG_TUD_TASK_STACK_SZ 150
-#endif
-
-#ifndef CFG_TUD_TASK_PRIO
-#define CFG_TUD_TASK_PRIO 0
-#endif
-
 
 //--------------------------------------------------------------------+
 // Device Data
@@ -153,16 +142,14 @@ static usbd_class_driver_t const usbd_class_drivers[] =
   #endif
 };
 
-enum { USBD_CLASS_DRIVER_COUNT = sizeof(usbd_class_drivers) / sizeof(usbd_class_driver_t) };
-
+enum { USBD_CLASS_DRIVER_COUNT = TU_ARRAY_SZIE(usbd_class_drivers) };
 
 //--------------------------------------------------------------------+
 // DCD Event
 //--------------------------------------------------------------------+
-OSAL_TASK_DEF(_usbd_task_def, "usbd", usbd_task, CFG_TUD_TASK_PRIO, CFG_TUD_TASK_STACK_SZ);
 
 // Event queue
-// role device/host is used by OS NONE for mutex (disable usb isr) only
+// OPT_MODE_DEVICE is used by OS NONE for mutex (disable usb isr)
 OSAL_QUEUE_DEF(OPT_MODE_DEVICE, _usbd_qdef, CFG_TUD_TASK_QUEUE_SZ, dcd_event_t);
 static osal_queue_t _usbd_q;
 
@@ -195,8 +182,6 @@ bool usbd_init (void)
   _usbd_q = osal_queue_create(&_usbd_qdef);
   TU_ASSERT(_usbd_q != NULL);
 
-  osal_task_create(&_usbd_task_def);
-
   // Init class drivers
   for (uint8_t i = 0; i < USBD_CLASS_DRIVER_COUNT; i++) usbd_class_drivers[i].init();
 
@@ -221,8 +206,26 @@ static void usbd_reset(uint8_t rhport)
   }
 }
 
-// Main device task implementation
-static void usbd_task_body(void)
+/* USB Device Driver task
+ * This top level thread manages all device controller event and delegates events to class-specific drivers.
+ * This should be called periodically within the mainloop or rtos thread.
+ *
+   @code
+    int main(void)
+    {
+      application_init();
+      tusb_init();
+
+      while(1) // the mainloop
+      {
+        application_code();
+
+        tud_task(); // tinyusb device task
+      }
+    }
+    @endcode
+ */
+void tud_task (void)
 {
   // Loop until there is no more events in the queue
   while (1)
@@ -295,25 +298,6 @@ static void usbd_task_body(void)
       break;
     }
   }
-}
-
-/* USB device task
- * Thread that handles all device events. With an real RTOS, the task must be a forever loop and never return.
- * For coding convenience with no RTOS, we use wrapped sub-function for processing to easily return at any time.
- */
-void usbd_task( void* param)
-{
-  (void) param;
-
-#if CFG_TUSB_OS != OPT_OS_NONE
-  while (1) {
-#endif
-
-  usbd_task_body();
-
-#if CFG_TUSB_OS != OPT_OS_NONE
-  }
-#endif
 }
 
 //--------------------------------------------------------------------+

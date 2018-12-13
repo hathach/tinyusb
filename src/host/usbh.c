@@ -46,15 +46,6 @@
 #define CFG_TUH_TASK_QUEUE_SZ   16
 #endif
 
-#ifndef CFG_TUH_TASK_STACK_SZ
-#define CFG_TUH_TASK_STACK_SZ 200
-#endif
-
-#ifndef CFG_TUH_TASK_PRIO
-#define CFG_TUH_TASK_PRIO 0
-#endif
-
-
 //--------------------------------------------------------------------+
 // INCLUDE
 //--------------------------------------------------------------------+
@@ -123,9 +114,9 @@ enum { USBH_CLASS_DRIVER_COUNT = TU_ARRAY_SZIE(usbh_class_drivers) };
 //--------------------------------------------------------------------+
 // INTERNAL OBJECT & FUNCTION DECLARATION
 //--------------------------------------------------------------------+
-CFG_TUSB_MEM_SECTION usbh_device_t _usbh_devices[CFG_TUSB_HOST_DEVICE_MAX+1]; // including zero-address
 
-OSAL_TASK_DEF(_usbh_task_def, "usbh", usbh_task, CFG_TUH_TASK_PRIO, CFG_TUH_TASK_STACK_SZ);
+// including zero-address
+CFG_TUSB_MEM_SECTION usbh_device_t _usbh_devices[CFG_TUSB_HOST_DEVICE_MAX+1];
 
 // Event queue
 // role device/host is used by OS NONE for mutex (disable usb isr) only
@@ -160,8 +151,6 @@ bool usbh_init(void)
   //------------- Enumeration & Reporter Task init -------------//
   _usbh_q = osal_queue_create( &_usbh_qdef );
   TU_ASSERT(_usbh_q != NULL);
-
-  osal_task_create(&_usbh_task_def);
 
   //------------- Semaphore, Mutex for Control Pipe -------------//
   for(uint8_t i=0; i<CFG_TUSB_HOST_DEVICE_MAX+1; i++) // including address zero
@@ -610,12 +599,32 @@ bool enum_task(hcd_event_t* event)
   return true;
 }
 
-bool usbh_task_body(void)
+/* USB Host Driver task
+ * This top level thread manages all host controller event and delegates events to class-specific drivers.
+ * This should be called periodically within the mainloop or rtos thread.
+ *
+   @code
+    int main(void)
+    {
+      application_init();
+      tusb_init();
+
+      while(1) // the mainloop
+      {
+        application_code();
+
+        tuh_task(); // tinyusb host task
+      }
+    }
+    @endcode
+ */
+void tuh_task(void)
 {
+  // Loop until there is no more events in the queue
   while (1)
   {
     hcd_event_t event;
-    if ( !osal_queue_receive(_usbh_q, &event) ) return false;
+    if ( !osal_queue_receive(_usbh_q, &event) ) return;
 
     switch (event.event_id)
     {
@@ -627,25 +636,6 @@ bool usbh_task_body(void)
       default: break;
     }
   }
-}
-
-/* USB Host task
- * Thread that handles all device events. With an real RTOS, the task must be a forever loop and never return.
- * For coding convenience with no RTOS, we use wrapped sub-function for processing to easily return at any time.
- */
-void usbh_task(void* param)
-{
-  (void) param;
-
-#if CFG_TUSB_OS != OPT_OS_NONE
-  while (1) {
-#endif
-
-  usbh_task_body();
-
-#if CFG_TUSB_OS != OPT_OS_NONE
-  }
-#endif
 }
 
 //--------------------------------------------------------------------+

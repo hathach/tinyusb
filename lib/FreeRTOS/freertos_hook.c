@@ -46,16 +46,17 @@
 
 void vApplicationMallocFailedHook(void)
 {
-	taskDISABLE_INTERRUPTS();
-	TU_ASSERT(false, );
+  taskDISABLE_INTERRUPTS();
+  TU_ASSERT(false, );
 }
 
 void vApplicationStackOverflowHook(xTaskHandle pxTask, signed char *pcTaskName)
 {
-	(void) pxTask;
+  (void) pxTask;
+  (void) pcTaskName;
 
-	taskDISABLE_INTERRUPTS();
-	TU_ASSERT(false, );
+  taskDISABLE_INTERRUPTS();
+  TU_ASSERT(false, );
 }
 
 /* configSUPPORT_STATIC_ALLOCATION is set to 1, so the application must provide an

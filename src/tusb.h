@@ -101,35 +101,24 @@
 /** \ingroup group_application_api
  *  @{ */
 
-// Initialize device/host stack according to tusb_config.h
-// return true if success
+// Initialize device/host stack
 bool tusb_init(void);
 
-#if CFG_TUSB_OS == OPT_OS_NONE
-/** \brief Run all tinyusb's internal tasks (e.g host task, device task).
- * \note   This function is only required when using no RTOS (\ref CFG_TUSB_OS == OPT_OS_NONE). All the stack functions
- *         & callback are invoked within this function. This should be called periodically within the mainloop
- *
-    @code
-    int main(void)
-    {
-      your_init_code();
-      tusb_init();
+// TODO
+// bool tusb_teardown(void);
 
-      // other config code
 
-      while(1) // the mainloop
-      {
-        your_application_code();
+// backward compatible only. TODO remove later
+static inline void tusb_task(void)
+{
+  #if TUSB_OPT_HOST_ENABLED
+  tuh_task();
+  #endif
 
-        tusb_task(); // handle tinyusb event, task etc ...
-      }
-    }
-    @endcode
- *
- */
-void tusb_task(void);
-#endif
+  #if TUSB_OPT_DEVICE_ENABLED
+  tud_task();
+  #endif
+}
 
 /** @} */
 

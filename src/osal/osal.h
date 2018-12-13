@@ -68,8 +68,6 @@ typedef void (*osal_task_func_t)( void * );
    * uint32_t tusb_hal_millis(void)
    *
    * Task
-   *    osal_task_def_t
-   *    bool osal_task_create(osal_task_def_t* taskdef)
    *    void osal_task_delay(uint32_t msec)
    *
    * Queue
