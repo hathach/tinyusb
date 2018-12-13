@@ -101,32 +101,24 @@
 /** \ingroup group_application_api
  *  @{ */
 
-// Initialize device/host stack according to tusb_config.h
-// return true if success
+// Initialize device/host stack
 bool tusb_init(void);
 
-/** Run all tinyusb's internal tasks (e.g host task, device task) and invoke callback
- * This should be called periodically within the mainloop.
+// TODO
+// bool tusb_teardown(void);
 
-    @code
-    int main(void)
-    {
-      your_init_code();
-      tusb_init();
 
-      // other config code
+// backward compatible only. TODO remove later
+static inline void tusb_task(void)
+{
+  #if TUSB_OPT_HOST_ENABLED
+  tuh_task();
+  #endif
 
-      while(1) // the mainloop
-      {
-        your_application_code();
-
-        tusb_task(); // handle tinyusb event, task etc ...
-      }
-    }
-    @endcode
-
- */
-void tusb_task(void);
+  #if TUSB_OPT_DEVICE_ENABLED
+  tud_task();
+  #endif
+}
 
 /** @} */
 

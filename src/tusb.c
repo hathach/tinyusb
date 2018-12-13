@@ -68,17 +68,6 @@ bool tusb_init(void)
   return TUSB_ERROR_NONE;
 }
 
-void tusb_task(void)
-{
-  #if TUSB_OPT_HOST_ENABLED
-  usbh_task();
-  #endif
-
-  #if TUSB_OPT_DEVICE_ENABLED
-  usbd_task();
-  #endif
-}
-
 /*------------------------------------------------------------------*/
 /* Debug
  *------------------------------------------------------------------*/

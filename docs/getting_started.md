@@ -41,7 +41,7 @@ It is relatively simple to incorporate tinyusb to your (existing) project
 5. If you use the device stack, make sure you have created/modified usb descriptors for your own need. Ultimately you need to fill out required pointers in tusbd_descriptor_pointers for that stack to work.
 6. Add tusb_init() call to your reset initialization code.
 7. Implement all enabled classes's callbacks.
-8. If you don't use any RTOSes at all, you need to continuously and/or periodically call tusb_task() function. Most of the callbacks and functionality are handled and invoke within the call of that task runner.
+8. If you don't use any RTOSes at all, you need to continuously and/or periodically call tud_task()/tuh_task() function. Most of the callbacks and functionality are handled and invoke within the call of that task runner.
 
 ~~~{.c}
 int main(void)
@@ -53,7 +53,8 @@ int main(void)
   {
     your_application_code();
 
-    tusb_task(); // handle tinyusb event, task etc ...
+    tud_task(); // tinyusb device task
+    tuh_task(); // tinyusb host task
   }
 }
 ~~~

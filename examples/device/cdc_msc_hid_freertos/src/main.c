@@ -101,7 +101,8 @@ void usb_device_task(void* param)
   // RTOS forever loop
   while (1)
   {
-    tusb_task();
+    // tinyusb device task
+    tud_task();
   }
 }
 

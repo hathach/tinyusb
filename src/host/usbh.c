@@ -601,8 +601,24 @@ bool enum_task(hcd_event_t* event)
 
 /* USB Host Driver task
  * This top level thread manages all host controller event and delegates events to class-specific drivers.
+ * This should be called periodically within the mainloop or rtos thread.
+ *
+   @code
+    int main(void)
+    {
+      application_init();
+      tusb_init();
+
+      while(1) // the mainloop
+      {
+        application_code();
+
+        tuh_task(); // tinyusb host task
+      }
+    }
+    @endcode
  */
-void usbh_task(void)
+void tuh_task(void)
 {
   // Loop until there is no more events in the queue
   while (1)

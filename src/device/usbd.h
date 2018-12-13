@@ -81,6 +81,7 @@ extern tud_desc_set_t tud_desc_set;
 // APPLICATION API
 //--------------------------------------------------------------------+
 bool tud_mounted(void);
+void tud_task (void);
 
 //--------------------------------------------------------------------+
 // APPLICATION CALLBACK (WEAK is optional)

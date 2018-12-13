@@ -208,8 +208,24 @@ static void usbd_reset(uint8_t rhport)
 
 /* USB Device Driver task
  * This top level thread manages all device controller event and delegates events to class-specific drivers.
+ * This should be called periodically within the mainloop or rtos thread.
+ *
+   @code
+    int main(void)
+    {
+      application_init();
+      tusb_init();
+
+      while(1) // the mainloop
+      {
+        application_code();
+
+        tud_task(); // tinyusb device task
+      }
+    }
+    @endcode
  */
-void usbd_task (void)
+void tud_task (void)
 {
   // Loop until there is no more events in the queue
   while (1)
