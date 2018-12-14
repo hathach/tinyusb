@@ -100,10 +100,3 @@ void test_bit_clear(void)
   TEST_ASSERT_EQUAL_HEX32( TU_BIN8(00001001), tu_bit_clear( TU_BIN8(00001101), 2));
   TEST_ASSERT_EQUAL_HEX32( TU_BIN8(00001101), tu_bit_clear( TU_BIN8(10001101), 7));
 }
-
-void test_bit_mask(void)
-{
-  TEST_ASSERT_EQUAL_HEX32(0x0000ffff, tu_bit_mask(16));
-  TEST_ASSERT_EQUAL_HEX32(0x00ffffff, tu_bit_mask(24));
-  TEST_ASSERT_EQUAL_HEX32(0xffffffff, tu_bit_mask(32));
-}
