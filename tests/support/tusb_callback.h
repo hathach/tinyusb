@@ -60,7 +60,7 @@
 #include "usbh.h"
 
 //------------- core -------------//
-uint8_t      tusbh_device_attached_cb (tusb_desc_device_t const *p_desc_device) ATTR_WEAK ATTR_WARN_UNUSED_RESULT;
+uint8_t      tusbh_device_attached_cb (tusb_desc_device_t const *p_desc_device) ATTR_WEAK;
 void         tusbh_device_mount_succeed_cb (uint8_t dev_addr) ATTR_WEAK;
 void         tusbh_device_mount_failed_cb(tusb_error_t error, tusb_desc_device_t const *p_desc_device) ATTR_WEAK;
 

@@ -109,6 +109,7 @@ bool tusb_init(void);
 
 
 // backward compatible only. TODO remove later
+ATTR_DEPRECATED("Please use either tud_task() or tuh_task()")
 static inline void tusb_task(void)
 {
   #if TUSB_OPT_HOST_ENABLED

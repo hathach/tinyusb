@@ -55,7 +55,7 @@
 static osal_queue_t queue_kbd_hdl;
 CFG_TUSB_MEM_SECTION static hid_keyboard_report_t usb_keyboard_report;
 
-static inline uint8_t keycode_to_ascii(uint8_t modifier, uint8_t keycode) ATTR_CONST ATTR_ALWAYS_INLINE;
+static inline uint8_t keycode_to_ascii(uint8_t modifier, uint8_t keycode);
 static inline void process_kbd_report(hid_keyboard_report_t const * report);
 
 //--------------------------------------------------------------------+

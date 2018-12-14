@@ -128,8 +128,8 @@ CFG_TUSB_MEM_SECTION ATTR_ALIGNED(4) static uint8_t _usbh_ctrl_buf[CFG_TUSB_HOST
 //------------- Reporter Task Data -------------//
 
 //------------- Helper Function Prototypes -------------//
-static inline uint8_t get_new_address(void) ATTR_ALWAYS_INLINE;
-static inline uint8_t get_configure_number_for_device(tusb_desc_device_t* dev_desc) ATTR_ALWAYS_INLINE;
+static inline uint8_t get_new_address(void);
+static inline uint8_t get_configure_number_for_device(tusb_desc_device_t* dev_desc);
 static void mark_interface_endpoint(uint8_t ep2drv[8][2], uint8_t const* p_desc, uint16_t desc_len, uint8_t driver_id);
 
 //--------------------------------------------------------------------+
