@@ -167,7 +167,7 @@ void test_hcd_init_usbcmd(void)
   TEST_ASSERT(regs->usb_cmd_bit.periodic_enable);
 
   //------------- Framelist size (NXP specific) -------------//
-  TEST_ASSERT_BITS(BIN8(11), EHCI_CFG_FRAMELIST_SIZE_BITS, regs->usb_cmd_bit.framelist_size);
+  TEST_ASSERT_BITS(TU_BIN8(11), EHCI_CFG_FRAMELIST_SIZE_BITS, regs->usb_cmd_bit.framelist_size);
   TEST_ASSERT_EQUAL(EHCI_CFG_FRAMELIST_SIZE_BITS >> 2, regs->usb_cmd_bit.nxp_framelist_size_msb);
 }
 

@@ -294,17 +294,17 @@ TU_VERIFY_STATIC( sizeof(ehci_sitd_t) == 32, "size is not correct" );
 // EHCI Operational Register
 //--------------------------------------------------------------------+
 enum ehci_interrupt_mask_{
-  EHCI_INT_MASK_USB                   = BIT_(0),
-  EHCI_INT_MASK_ERROR                 = BIT_(1),
-  EHCI_INT_MASK_PORT_CHANGE           = BIT_(2),
+  EHCI_INT_MASK_USB                   = TU_BIT(0),
+  EHCI_INT_MASK_ERROR                 = TU_BIT(1),
+  EHCI_INT_MASK_PORT_CHANGE           = TU_BIT(2),
 
-  EHCI_INT_MASK_FRAMELIST_ROLLOVER    = BIT_(3),
-  EHCI_INT_MASK_PCI_HOST_SYSTEM_ERROR = BIT_(4),
-  EHCI_INT_MASK_ASYNC_ADVANCE         = BIT_(5),
-  EHCI_INT_MASK_NXP_SOF               = BIT_(7),
+  EHCI_INT_MASK_FRAMELIST_ROLLOVER    = TU_BIT(3),
+  EHCI_INT_MASK_PCI_HOST_SYSTEM_ERROR = TU_BIT(4),
+  EHCI_INT_MASK_ASYNC_ADVANCE         = TU_BIT(5),
+  EHCI_INT_MASK_NXP_SOF               = TU_BIT(7),
 
-  EHCI_INT_MASK_NXP_ASYNC             = BIT_(18),
-  EHCI_INT_MASK_NXP_PERIODIC          = BIT_(19),
+  EHCI_INT_MASK_NXP_ASYNC             = TU_BIT(18),
+  EHCI_INT_MASK_NXP_PERIODIC          = TU_BIT(19),
 
   EHCI_INT_MASK_ALL                   =
       EHCI_INT_MASK_USB | EHCI_INT_MASK_ERROR | EHCI_INT_MASK_PORT_CHANGE |
@@ -323,9 +323,9 @@ enum ehci_usbcmd_pos_ {
 };
 
 enum ehci_portsc_change_mask_{
-  EHCI_PORTSC_MASK_CONNECT_STATUS_CHANGE = BIT_(1),
-  EHCI_PORTSC_MASK_PORT_ENABLE_CHAGNE = BIT_(3),
-  EHCI_PORTSC_MASK_OVER_CURRENT_CHANGE = BIT_(5),
+  EHCI_PORTSC_MASK_CONNECT_STATUS_CHANGE = TU_BIT(1),
+  EHCI_PORTSC_MASK_PORT_ENABLE_CHAGNE = TU_BIT(3),
+  EHCI_PORTSC_MASK_OVER_CURRENT_CHANGE = TU_BIT(5),
 
   EHCI_PORTSC_MASK_ALL =
       EHCI_PORTSC_MASK_CONNECT_STATUS_CHANGE |

@@ -62,7 +62,7 @@ static inline bool tusbh_custom_is_mounted(uint8_t dev_addr, uint16_t vendor_id,
 {
   (void) vendor_id; // TODO check this later
   (void) product_id;
-//  return (tusbh_device_get_mounted_class_flag(dev_addr) & BIT_(TUSB_CLASS_MAPPED_INDEX_END-1) ) != 0;
+//  return (tusbh_device_get_mounted_class_flag(dev_addr) & TU_BIT(TUSB_CLASS_MAPPED_INDEX_END-1) ) != 0;
   return false;
 }
 

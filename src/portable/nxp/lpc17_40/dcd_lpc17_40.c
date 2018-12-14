@@ -148,7 +148,7 @@ static inline uint8_t ep_addr2idx(uint8_t ep_addr)
 static void set_ep_size(uint8_t ep_id, uint16_t max_packet_size)
 {
   // follows example in 11.10.4.2
-  LPC_USB->ReEp    |= BIT_(ep_id);
+  LPC_USB->ReEp    |= TU_BIT(ep_id);
   LPC_USB->EpInd    = ep_id; // select index before setting packet size
   LPC_USB->MaxPSize = max_packet_size;
 
@@ -419,15 +419,15 @@ bool dcd_edpt_xfer (uint8_t rhport, uint8_t ep_addr, uint8_t* buffer, uint16_t t
     if ( ep_id % 2 )
     {
       // Clear EP interrupt before Enable DMA
-      LPC_USB->EpIntEn &= ~BIT_(ep_id);
-      LPC_USB->EpDMAEn = BIT_(ep_id);
+      LPC_USB->EpIntEn &= ~TU_BIT(ep_id);
+      LPC_USB->EpDMAEn = TU_BIT(ep_id);
 
       // endpoint IN need to actively raise DMA request
-      LPC_USB->DMARSet = BIT_(ep_id);
+      LPC_USB->DMARSet = TU_BIT(ep_id);
     }else
     {
       // Enable DMA
-      LPC_USB->EpDMAEn = BIT_(ep_id);
+      LPC_USB->EpDMAEn = TU_BIT(ep_id);
     }
 
     return true;
@@ -442,11 +442,11 @@ bool dcd_edpt_xfer (uint8_t rhport, uint8_t ep_addr, uint8_t* buffer, uint16_t t
 static void control_xfer_isr(uint8_t rhport, uint32_t ep_int_status)
 {
   // Control out complete
-  if ( ep_int_status & BIT_(0) )
+  if ( ep_int_status & TU_BIT(0) )
   {
     bool is_setup = sie_read(SIE_CMDCODE_ENDPOINT_SELECT+0) & SIE_SELECT_ENDPOINT_SETUP_RECEIVED_MASK;
 
-    LPC_USB->EpIntClr = BIT_(0);
+    LPC_USB->EpIntClr = TU_BIT(0);
 
     if (is_setup)
     {
@@ -472,9 +472,9 @@ static void control_xfer_isr(uint8_t rhport, uint32_t ep_int_status)
   }
 
   // Control In complete
-  if ( ep_int_status & BIT_(1) )
+  if ( ep_int_status & TU_BIT(1) )
   {
-    LPC_USB->EpIntClr = BIT_(1);
+    LPC_USB->EpIntClr = TU_BIT(1);
     dcd_event_xfer_complete(rhport, TUSB_DIR_IN_MASK, _dcd.control.in_bytes, XFER_RESULT_SUCCESS, true);
   }
 }
@@ -546,12 +546,12 @@ void hal_dcd_isr(uint8_t rhport)
   {
     for ( uint8_t ep_id = 3; ep_id < DCD_ENDPOINT_MAX; ep_id += 2 )
     {
-      if ( BIT_TEST_(ep_int_status, ep_id) )
+      if ( TU_BIT_TEST(ep_int_status, ep_id) )
       {
-        LPC_USB->EpIntClr = BIT_(ep_id);
+        LPC_USB->EpIntClr = TU_BIT(ep_id);
 
         // Clear Ep interrupt for next DMA
-        LPC_USB->EpIntEn &= ~BIT_(ep_id);
+        LPC_USB->EpIntEn &= ~TU_BIT(ep_id);
 
         dd_complete_isr(rhport, ep_id);
       }
@@ -569,12 +569,12 @@ void hal_dcd_isr(uint8_t rhport)
 
     for ( uint8_t ep_id = 2; ep_id < DCD_ENDPOINT_MAX; ep_id++ )
     {
-      if ( BIT_TEST_(eot, ep_id) )
+      if ( TU_BIT_TEST(eot, ep_id) )
       {
         if ( ep_id & 0x01 )
         {
           // IN enable EpInt for end of usb transfer
-          LPC_USB->EpIntEn |= BIT_(ep_id);
+          LPC_USB->EpIntEn |= TU_BIT(ep_id);
         }else
         {
           // OUT

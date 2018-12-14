@@ -173,11 +173,11 @@ typedef struct ATTR_PACKED
 /// Standard Mouse Buttons Bitmap
 typedef enum
 {
-	MOUSE_BUTTON_LEFT     = BIT_(0), ///< Left button
-	MOUSE_BUTTON_RIGHT    = BIT_(1), ///< Right button
-	MOUSE_BUTTON_MIDDLE   = BIT_(2), ///< Middle button
-  MOUSE_BUTTON_BACKWARD = BIT_(3), ///< Backward button,
-  MOUSE_BUTTON_FORWARD  = BIT_(4), ///< Forward button,
+	MOUSE_BUTTON_LEFT     = TU_BIT(0), ///< Left button
+	MOUSE_BUTTON_RIGHT    = TU_BIT(1), ///< Right button
+	MOUSE_BUTTON_MIDDLE   = TU_BIT(2), ///< Middle button
+  MOUSE_BUTTON_BACKWARD = TU_BIT(3), ///< Backward button,
+  MOUSE_BUTTON_FORWARD  = TU_BIT(4), ///< Forward button,
 }hid_mouse_button_bm_t;
 
 /// @}
@@ -199,23 +199,23 @@ typedef struct ATTR_PACKED
 /// Keyboard modifier codes bitmap
 typedef enum
 {
-	KEYBOARD_MODIFIER_LEFTCTRL   = BIT_(0), ///< Left Control
-	KEYBOARD_MODIFIER_LEFTSHIFT  = BIT_(1), ///< Left Shift
-	KEYBOARD_MODIFIER_LEFTALT    = BIT_(2), ///< Left Alt
-	KEYBOARD_MODIFIER_LEFTGUI    = BIT_(3), ///< Left Window
-	KEYBOARD_MODIFIER_RIGHTCTRL  = BIT_(4), ///< Right Control
-	KEYBOARD_MODIFIER_RIGHTSHIFT = BIT_(5), ///< Right Shift
-	KEYBOARD_MODIFIER_RIGHTALT   = BIT_(6), ///< Right Alt
-	KEYBOARD_MODIFIER_RIGHTGUI   = BIT_(7)  ///< Right Window
+	KEYBOARD_MODIFIER_LEFTCTRL   = TU_BIT(0), ///< Left Control
+	KEYBOARD_MODIFIER_LEFTSHIFT  = TU_BIT(1), ///< Left Shift
+	KEYBOARD_MODIFIER_LEFTALT    = TU_BIT(2), ///< Left Alt
+	KEYBOARD_MODIFIER_LEFTGUI    = TU_BIT(3), ///< Left Window
+	KEYBOARD_MODIFIER_RIGHTCTRL  = TU_BIT(4), ///< Right Control
+	KEYBOARD_MODIFIER_RIGHTSHIFT = TU_BIT(5), ///< Right Shift
+	KEYBOARD_MODIFIER_RIGHTALT   = TU_BIT(6), ///< Right Alt
+	KEYBOARD_MODIFIER_RIGHTGUI   = TU_BIT(7)  ///< Right Window
 }hid_keyboard_modifier_bm_t;
 
 typedef enum
 {
-  KEYBOARD_LED_NUMLOCK    = BIT_(0), ///< Num Lock LED
-  KEYBOARD_LED_CAPSLOCK   = BIT_(1), ///< Caps Lock LED
-  KEYBOARD_LED_SCROLLLOCK = BIT_(2), ///< Scroll Lock LED
-  KEYBOARD_LED_COMPOSE    = BIT_(3), ///< Composition Mode
-  KEYBOARD_LED_KANA       = BIT_(4) ///< Kana mode
+  KEYBOARD_LED_NUMLOCK    = TU_BIT(0), ///< Num Lock LED
+  KEYBOARD_LED_CAPSLOCK   = TU_BIT(1), ///< Caps Lock LED
+  KEYBOARD_LED_SCROLLLOCK = TU_BIT(2), ///< Scroll Lock LED
+  KEYBOARD_LED_COMPOSE    = TU_BIT(3), ///< Composition Mode
+  KEYBOARD_LED_KANA       = TU_BIT(4) ///< Kana mode
 }hid_keyboard_led_bm_t;
 
 /// @}

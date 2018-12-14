@@ -93,7 +93,7 @@ CFG_TUSB_MEM_SECTION static cdcd_interface_t _cdcd_itf[CFG_TUD_CDC];
 bool tud_cdc_n_connected(uint8_t itf)
 {
   // DTR (bit 0) active  is considered as connected
-  return BIT_TEST_(_cdcd_itf[itf].line_state, 0);
+  return TU_BIT_TEST(_cdcd_itf[itf].line_state, 0);
 }
 
 uint8_t tud_cdc_n_get_line_state (uint8_t itf)
@@ -349,7 +349,7 @@ bool cdcd_control_request(uint8_t rhport, tusb_control_request_t const * request
       usbd_control_status(rhport, request);
 
       // Invoke callback
-      if ( tud_cdc_line_state_cb) tud_cdc_line_state_cb(itf, BIT_TEST_(request->wValue, 0), BIT_TEST_(request->wValue, 1));
+      if ( tud_cdc_line_state_cb) tud_cdc_line_state_cb(itf, TU_BIT_TEST(request->wValue, 0), TU_BIT_TEST(request->wValue, 1));
     break;
 
     default: return false; // stall unsupported request

@@ -55,37 +55,37 @@
 
 /*---------- ENDPTCTRL ----------*/
 enum {
-  ENDPTCTRL_MASK_STALL          = BIT_(0),
-  ENDPTCTRL_MASK_TOGGLE_INHIBIT = BIT_(5), ///< used for test only
-  ENDPTCTRL_MASK_TOGGLE_RESET   = BIT_(6),
-  ENDPTCTRL_MASK_ENABLE         = BIT_(7)
+  ENDPTCTRL_MASK_STALL          = TU_BIT(0),
+  ENDPTCTRL_MASK_TOGGLE_INHIBIT = TU_BIT(5), ///< used for test only
+  ENDPTCTRL_MASK_TOGGLE_RESET   = TU_BIT(6),
+  ENDPTCTRL_MASK_ENABLE         = TU_BIT(7)
 };
 
 /*---------- USBCMD ----------*/
 enum {
-  USBCMD_MASK_RUN_STOP         = BIT_(0),
-  USBCMD_MASK_RESET            = BIT_(1),
-  USBCMD_MASK_SETUP_TRIPWIRE   = BIT_(13),
-  USBCMD_MASK_ADD_QTD_TRIPWIRE = BIT_(14)  ///< This bit is used as a semaphore to ensure the to proper addition of a new dTD to an active (primed) endpoint’s linked list. This bit is set and cleared by software during the process of adding a new dTD
+  USBCMD_MASK_RUN_STOP         = TU_BIT(0),
+  USBCMD_MASK_RESET            = TU_BIT(1),
+  USBCMD_MASK_SETUP_TRIPWIRE   = TU_BIT(13),
+  USBCMD_MASK_ADD_QTD_TRIPWIRE = TU_BIT(14)  ///< This bit is used as a semaphore to ensure the to proper addition of a new dTD to an active (primed) endpoint’s linked list. This bit is set and cleared by software during the process of adding a new dTD
 };
 // Interrupt Threshold bit 23:16
 
 /*---------- USBSTS, USBINTR ----------*/
 enum {
-  INT_MASK_USB         = BIT_(0),
-  INT_MASK_ERROR       = BIT_(1),
-  INT_MASK_PORT_CHANGE = BIT_(2),
-  INT_MASK_RESET       = BIT_(6),
-  INT_MASK_SOF         = BIT_(7),
-  INT_MASK_SUSPEND     = BIT_(8),
-  INT_MASK_NAK         = BIT_(16)
+  INT_MASK_USB         = TU_BIT(0),
+  INT_MASK_ERROR       = TU_BIT(1),
+  INT_MASK_PORT_CHANGE = TU_BIT(2),
+  INT_MASK_RESET       = TU_BIT(6),
+  INT_MASK_SOF         = TU_BIT(7),
+  INT_MASK_SUSPEND     = TU_BIT(8),
+  INT_MASK_NAK         = TU_BIT(16)
 };
 
 //------------- PORTSC -------------//
 enum {
-  PORTSC_CURRENT_CONNECT_STATUS_MASK = BIT_(0),
-  PORTSC_FORCE_PORT_RESUME_MASK      = BIT_(6),
-  PORTSC_SUSPEND_MASK                = BIT_(7)
+  PORTSC_CURRENT_CONNECT_STATUS_MASK = TU_BIT(0),
+  PORTSC_FORCE_PORT_RESUME_MASK      = TU_BIT(6),
+  PORTSC_SUSPEND_MASK                = TU_BIT(7)
 };
 
 typedef struct

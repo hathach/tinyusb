@@ -260,9 +260,9 @@ static bool ehci_init(uint8_t rhport)
   regs->nxp_tt_control = 0;
 
   //------------- USB CMD Register -------------//
-  regs->command |= BIT_(EHCI_USBCMD_POS_RUN_STOP) | BIT_(EHCI_USBCMD_POS_ASYNC_ENABLE)
-                | BIT_(EHCI_USBCMD_POS_PERIOD_ENABLE) // TODO enable period list only there is int/iso endpoint
-                | ((EHCI_CFG_FRAMELIST_SIZE_BITS & BIN8(011)) << EHCI_USBCMD_POS_FRAMELIST_SZIE)
+  regs->command |= TU_BIT(EHCI_USBCMD_POS_RUN_STOP) | TU_BIT(EHCI_USBCMD_POS_ASYNC_ENABLE)
+                | TU_BIT(EHCI_USBCMD_POS_PERIOD_ENABLE) // TODO enable period list only there is int/iso endpoint
+                | ((EHCI_CFG_FRAMELIST_SIZE_BITS & TU_BIN8(011)) << EHCI_USBCMD_POS_FRAMELIST_SZIE)
                 | ((EHCI_CFG_FRAMELIST_SIZE_BITS >> 2) << EHCI_USBCMD_POS_NXP_FRAMELIST_SIZE_MSB);
 
   //------------- ConfigFlag Register (skip) -------------//
@@ -791,19 +791,19 @@ static void qhd_init(ehci_qhd_t *p_qhd, uint8_t dev_addr, tusb_desc_endpoint_t c
       if ( interval < 4) // sub milisecond interval
       {
         p_qhd->interval_ms = 0;
-        p_qhd->int_smask   = (interval == 1) ? BIN8(11111111) :
-                             (interval == 2) ? BIN8(10101010) : BIN8(01000100);
+        p_qhd->int_smask   = (interval == 1) ? TU_BIN8(11111111) :
+                             (interval == 2) ? TU_BIN8(10101010) : TU_BIN8(01000100);
       }else
       {
         p_qhd->interval_ms = (uint8_t) tu_min16( 1 << (interval-4), 255 );
-        p_qhd->int_smask = BIT_(interval % 8);
+        p_qhd->int_smask = TU_BIT(interval % 8);
       }
     }else
     {
       TU_ASSERT( 0 != interval, );
       // Full/Low: 4.12.2.1 (EHCI) case 1 schedule start split at 1 us & complete split at 2,3,4 uframes
       p_qhd->int_smask    = 0x01;
-      p_qhd->fl_int_cmask = BIN8(11100);
+      p_qhd->fl_int_cmask = TU_BIN8(11100);
       p_qhd->interval_ms  = interval;
     }
   }else

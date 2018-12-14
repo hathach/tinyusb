@@ -166,7 +166,7 @@ void test_open_interrupt_hs_interval_1(void)
   p_int_qhd = &ehci_data.device[ pipe_hdl.dev_addr-1].qhd[ pipe_hdl.index ];
 
   TEST_ASSERT_EQUAL(0              , p_int_qhd->interval_ms);
-  TEST_ASSERT_EQUAL(BIN8(11111111) , p_int_qhd->interrupt_smask);
+  TEST_ASSERT_EQUAL(TU_BIN8(11111111) , p_int_qhd->interrupt_smask);
 
   check_int_endpoint_link(period_head_arr, p_int_qhd);
 }

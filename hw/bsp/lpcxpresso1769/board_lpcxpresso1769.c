@@ -108,7 +108,7 @@ void board_init(void)
   Chip_GPIO_SetPinDIROutput(LPC_GPIO, LED_PORT, LED_PIN);
 
   //------------- BUTTON -------------//
-//  for(uint8_t i=0; i<BOARD_BUTTON_COUNT; i++) GPIO_SetDir(buttons[i].port, BIT_(buttons[i].pin), 0);
+//  for(uint8_t i=0; i<BOARD_BUTTON_COUNT; i++) GPIO_SetDir(buttons[i].port, TU_BIT(buttons[i].pin), 0);
 
 #if 0
   //------------- UART -------------//
@@ -189,7 +189,7 @@ void board_led_control(bool state)
 #if 0
 static bool button_read(uint8_t id)
 {
-//  return !BIT_TEST_( GPIO_ReadValue(buttons[id].port), buttons[id].pin ); // button is active low
+//  return !TU_BIT_TEST( GPIO_ReadValue(buttons[id].port), buttons[id].pin ); // button is active low
   return false;
 }
 #endif
@@ -198,7 +198,7 @@ uint32_t board_buttons(void)
 {
   uint32_t result = 0;
 
-//  for(uint8_t i=0; i<BOARD_BUTTON_COUNT; i++) result |= (button_read(i) ? BIT_(i) : 0);
+//  for(uint8_t i=0; i<BOARD_BUTTON_COUNT; i++) result |= (button_read(i) ? TU_BIT(i) : 0);
 
   return result;
 }

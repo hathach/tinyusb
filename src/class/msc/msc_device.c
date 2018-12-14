@@ -385,7 +385,7 @@ bool mscd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t event, uint32_t
             p_csw->status = MSC_CSW_STATUS_PASSED;
           }
         }
-        else if ( !BIT_TEST_(p_cbw->dir, 7) )
+        else if ( !TU_BIT_TEST(p_cbw->dir, 7) )
         {
           // OUT transfer
           TU_ASSERT( dcd_edpt_xfer(rhport, p_msc->ep_out, _mscd_buf, p_msc->total_len) );
@@ -426,7 +426,7 @@ bool mscd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t event, uint32_t
 
     case MSC_STAGE_DATA:
       // OUT transfer, invoke callback if needed
-      if ( !BIT_TEST_(p_cbw->dir, 7) )
+      if ( !TU_BIT_TEST(p_cbw->dir, 7) )
       {
         if ( SCSI_CMD_WRITE_10 != p_cbw->command[0] )
         {

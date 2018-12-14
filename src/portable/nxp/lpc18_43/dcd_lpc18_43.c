@@ -94,7 +94,7 @@ static dcd_data_t* const dcd_data_ptr[2] =
 //--------------------------------------------------------------------+
 void dcd_set_address(uint8_t rhport, uint8_t dev_addr)
 {
-  LPC_USB[rhport]->DEVICEADDR = (dev_addr << 25) | BIT_(24);
+  LPC_USB[rhport]->DEVICEADDR = (dev_addr << 25) | TU_BIT(24);
 }
 
 void dcd_set_config(uint8_t rhport, uint8_t config_num)
@@ -158,7 +158,7 @@ bool dcd_init(uint8_t rhport)
   lpc_usb->USBINTR_D = INT_MASK_USB | INT_MASK_ERROR | INT_MASK_PORT_CHANGE | INT_MASK_RESET | INT_MASK_SUSPEND | INT_MASK_SOF;
 
   lpc_usb->USBCMD_D &= ~0x00FF0000; // Interrupt Threshold Interval = 0
-  lpc_usb->USBCMD_D |= BIT_(0); // connect
+  lpc_usb->USBCMD_D |= TU_BIT(0); // connect
 
   return true;
 }
@@ -284,7 +284,7 @@ bool dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t t
   {
     // follows UM 24.10.8.1.1 Setup packet handling using setup lockout mechanism
     // wait until ENDPTSETUPSTAT before priming data/status in response TODO add time out
-    while(LPC_USB[rhport]->ENDPTSETUPSTAT & BIT_(0)) {}
+    while(LPC_USB[rhport]->ENDPTSETUPSTAT & TU_BIT(0)) {}
   }
 
   dcd_qhd_t * p_qhd = &dcd_data_ptr[rhport]->qhd[ep_idx];
@@ -296,7 +296,7 @@ bool dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t t
   p_qhd->qtd_overlay.next = (uint32_t) p_qtd; // link qtd to qhd
 
   // start transfer
-  LPC_USB[rhport]->ENDPTPRIME = BIT_( ep_idx2bit(ep_idx) ) ;
+  LPC_USB[rhport]->ENDPTPRIME = TU_BIT( ep_idx2bit(ep_idx) ) ;
 
   return true;
 }
@@ -363,7 +363,7 @@ void hal_dcd_isr(uint8_t rhport)
     {
       for(uint8_t ep_idx = 0; ep_idx < QHD_MAX; ep_idx++)
       {
-        if ( BIT_TEST_(edpt_complete, ep_idx2bit(ep_idx)) )
+        if ( TU_BIT_TEST(edpt_complete, ep_idx2bit(ep_idx)) )
         {
           // 23.10.12.3 Failed QTD also get ENDPTCOMPLETE set
           dcd_qtd_t * p_qtd = &dcd_data_ptr[rhport]->qtd[ep_idx];
