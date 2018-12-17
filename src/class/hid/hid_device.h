@@ -95,7 +95,6 @@ static inline bool tud_hid_keyboard_key_release(void) { return tud_hid_keyboard_
 
 #if CFG_TUD_HID_ASCII_TO_KEYCODE_LOOKUP
 bool tud_hid_keyboard_key_press(char ch);
-bool tud_hid_keyboard_key_sequence(const char* str, uint32_t interval_ms);
 
 typedef struct{
   uint8_t shift;

@@ -92,17 +92,6 @@ static dcd_data_t* const dcd_data_ptr[2] =
 //--------------------------------------------------------------------+
 // CONTROLLER API
 //--------------------------------------------------------------------+
-void dcd_set_address(uint8_t rhport, uint8_t dev_addr)
-{
-  LPC_USB[rhport]->DEVICEADDR = (dev_addr << 25) | TU_BIT(24);
-}
-
-void dcd_set_config(uint8_t rhport, uint8_t config_num)
-{
-  (void) rhport;
-  (void) config_num;
-  // nothing to do
-}
 
 /// follows LPC43xx User Manual 23.10.3
 static void bus_reset(uint8_t rhport)
@@ -171,6 +160,23 @@ void dcd_int_enable(uint8_t rhport)
 void dcd_int_disable(uint8_t rhport)
 {
   NVIC_DisableIRQ(rhport ? USB1_IRQn : USB0_IRQn);
+}
+
+void dcd_set_address(uint8_t rhport, uint8_t dev_addr)
+{
+  LPC_USB[rhport]->DEVICEADDR = (dev_addr << 25) | TU_BIT(24);
+}
+
+void dcd_set_config(uint8_t rhport, uint8_t config_num)
+{
+  (void) rhport;
+  (void) config_num;
+  // nothing to do
+}
+
+uint32_t dcd_get_microframe(uint8_t rhport)
+{
+  return LPC_USB[rhport]->FRINDEX_D;
 }
 
 //--------------------------------------------------------------------+

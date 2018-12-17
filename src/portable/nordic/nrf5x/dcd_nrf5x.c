@@ -187,7 +187,7 @@ static void xact_in_prepare(uint8_t epnum)
 }
 
 //--------------------------------------------------------------------+
-// Tinyusb DCD API
+// Controller API
 //--------------------------------------------------------------------+
 bool dcd_init (uint8_t rhport)
 {
@@ -221,6 +221,15 @@ void dcd_set_config (uint8_t rhport, uint8_t config_num)
   // Nothing to do
 }
 
+uint32_t dcd_get_microframe(uint8_t rhport)
+{
+  (void) rhport;
+  return NRF_USBD->FRAMECNTR << 3;
+}
+
+//--------------------------------------------------------------------+
+// Endpoint API
+//--------------------------------------------------------------------+
 bool dcd_edpt_open (uint8_t rhport, tusb_desc_endpoint_t const * desc_edpt)
 {
   (void) rhport;
