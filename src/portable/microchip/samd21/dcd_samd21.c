@@ -127,7 +127,7 @@ void dcd_set_config (uint8_t rhport, uint8_t config_num)
 uint32_t dcd_get_microframe(uint8_t rhport)
 {
   (void) rhport;
-  return USB->DEVICE.FNUM & (TU_BIT(14) - 1);
+  return USB->DEVICE.FNUM.reg & (TU_BIT(14) - 1);
 }
 
 /*------------------------------------------------------------------*/
