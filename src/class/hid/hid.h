@@ -173,9 +173,9 @@ typedef struct ATTR_PACKED
 /// Standard Mouse Buttons Bitmap
 typedef enum
 {
-	MOUSE_BUTTON_LEFT     = TU_BIT(0), ///< Left button
-	MOUSE_BUTTON_RIGHT    = TU_BIT(1), ///< Right button
-	MOUSE_BUTTON_MIDDLE   = TU_BIT(2), ///< Middle button
+  MOUSE_BUTTON_LEFT     = TU_BIT(0), ///< Left button
+  MOUSE_BUTTON_RIGHT    = TU_BIT(1), ///< Right button
+  MOUSE_BUTTON_MIDDLE   = TU_BIT(2), ///< Middle button
   MOUSE_BUTTON_BACKWARD = TU_BIT(3), ///< Backward button,
   MOUSE_BUTTON_FORWARD  = TU_BIT(4), ///< Forward button,
 }hid_mouse_button_bm_t;
@@ -199,14 +199,14 @@ typedef struct ATTR_PACKED
 /// Keyboard modifier codes bitmap
 typedef enum
 {
-	KEYBOARD_MODIFIER_LEFTCTRL   = TU_BIT(0), ///< Left Control
-	KEYBOARD_MODIFIER_LEFTSHIFT  = TU_BIT(1), ///< Left Shift
-	KEYBOARD_MODIFIER_LEFTALT    = TU_BIT(2), ///< Left Alt
-	KEYBOARD_MODIFIER_LEFTGUI    = TU_BIT(3), ///< Left Window
-	KEYBOARD_MODIFIER_RIGHTCTRL  = TU_BIT(4), ///< Right Control
-	KEYBOARD_MODIFIER_RIGHTSHIFT = TU_BIT(5), ///< Right Shift
-	KEYBOARD_MODIFIER_RIGHTALT   = TU_BIT(6), ///< Right Alt
-	KEYBOARD_MODIFIER_RIGHTGUI   = TU_BIT(7)  ///< Right Window
+  KEYBOARD_MODIFIER_LEFTCTRL   = TU_BIT(0), ///< Left Control
+  KEYBOARD_MODIFIER_LEFTSHIFT  = TU_BIT(1), ///< Left Shift
+  KEYBOARD_MODIFIER_LEFTALT    = TU_BIT(2), ///< Left Alt
+  KEYBOARD_MODIFIER_LEFTGUI    = TU_BIT(3), ///< Left Window
+  KEYBOARD_MODIFIER_RIGHTCTRL  = TU_BIT(4), ///< Right Control
+  KEYBOARD_MODIFIER_RIGHTSHIFT = TU_BIT(5), ///< Right Shift
+  KEYBOARD_MODIFIER_RIGHTALT   = TU_BIT(6), ///< Right Alt
+  KEYBOARD_MODIFIER_RIGHTGUI   = TU_BIT(7)  ///< Right Window
 }hid_keyboard_modifier_bm_t;
 
 typedef enum
