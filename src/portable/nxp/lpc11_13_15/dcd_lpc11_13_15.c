@@ -64,20 +64,20 @@ enum {
 };
 
 enum {
-  INT_SOF_MASK           = BIT_(30),
-  INT_DEVICE_STATUS_MASK = BIT_(31)
+  INT_SOF_MASK           = TU_BIT(30),
+  INT_DEVICE_STATUS_MASK = TU_BIT(31)
 };
 
 enum {
-  CMDSTAT_DEVICE_ADDR_MASK    = BIT_(7 )-1,
-  CMDSTAT_DEVICE_ENABLE_MASK  = BIT_(7 ),
-  CMDSTAT_SETUP_RECEIVED_MASK = BIT_(8 ),
-  CMDSTAT_DEVICE_CONNECT_MASK = BIT_(16), ///< reflect the softconnect only, does not reflect the actual attached state
-  CMDSTAT_DEVICE_SUSPEND_MASK = BIT_(17),
-  CMDSTAT_CONNECT_CHANGE_MASK = BIT_(24),
-  CMDSTAT_SUSPEND_CHANGE_MASK = BIT_(25),
-  CMDSTAT_RESET_CHANGE_MASK   = BIT_(26),
-  CMDSTAT_VBUS_DEBOUNCED_MASK = BIT_(28),
+  CMDSTAT_DEVICE_ADDR_MASK    = TU_BIT(7 )-1,
+  CMDSTAT_DEVICE_ENABLE_MASK  = TU_BIT(7 ),
+  CMDSTAT_SETUP_RECEIVED_MASK = TU_BIT(8 ),
+  CMDSTAT_DEVICE_CONNECT_MASK = TU_BIT(16), ///< reflect the softconnect only, does not reflect the actual attached state
+  CMDSTAT_DEVICE_SUSPEND_MASK = TU_BIT(17),
+  CMDSTAT_CONNECT_CHANGE_MASK = TU_BIT(24),
+  CMDSTAT_SUSPEND_CHANGE_MASK = TU_BIT(25),
+  CMDSTAT_RESET_CHANGE_MASK   = TU_BIT(26),
+  CMDSTAT_VBUS_DEBOUNCED_MASK = TU_BIT(28),
 };
 
 typedef struct ATTR_PACKED
@@ -165,6 +165,13 @@ void dcd_set_address(uint8_t rhport, uint8_t dev_addr)
   LPC_USB->DEVCMDSTAT |= dev_addr;
 }
 
+uint32_t dcd_get_frame_number(uint8_t rhport)
+{
+  (void) rhport;
+
+  return LPC_USB->INFO & (TU_BIT(11) - 1);
+}
+
 bool dcd_init(uint8_t rhport)
 {
   (void) rhport;
@@ -237,7 +244,7 @@ bool dcd_edpt_open(uint8_t rhport, tusb_desc_endpoint_t const * p_endpoint_desc)
   _dcd.ep[ep_id][0].is_iso = (p_endpoint_desc->bmAttributes.xfer == TUSB_XFER_ISOCHRONOUS);
 
   // Enable EP interrupt
-  LPC_USB->INTEN |= BIT_(ep_id);
+  LPC_USB->INTEN |= TU_BIT(ep_id);
 
   return true;
 }
@@ -296,14 +303,14 @@ static void bus_reset(void)
 
   LPC_USB->INTSTAT      = LPC_USB->INTSTAT; // clear all pending interrupt
   LPC_USB->DEVCMDSTAT  |= CMDSTAT_SETUP_RECEIVED_MASK; // clear setup received interrupt
-  LPC_USB->INTEN        = INT_DEVICE_STATUS_MASK | BIT_(0) | BIT_(1); // enable device status & control endpoints
+  LPC_USB->INTEN        = INT_DEVICE_STATUS_MASK | TU_BIT(0) | TU_BIT(1); // enable device status & control endpoints
 }
 
 static void process_xfer_isr(uint32_t int_status)
 {
   for(uint8_t ep_id = 0; ep_id < EP_COUNT; ep_id++ )
   {
-    if ( BIT_TEST_(int_status, ep_id) )
+    if ( TU_BIT_TEST(int_status, ep_id) )
     {
       ep_cmd_sts_t * ep_cs = &_dcd.ep[ep_id][0];
       xfer_dma_t* xfer_dma = &_dcd.dma[ep_id];
@@ -378,7 +385,7 @@ void USB_IRQHandler(void)
   }
 
   // Setup Receive
-  if ( BIT_TEST_(int_status, 0) && (dev_cmd_stat & CMDSTAT_SETUP_RECEIVED_MASK) )
+  if ( TU_BIT_TEST(int_status, 0) && (dev_cmd_stat & CMDSTAT_SETUP_RECEIVED_MASK) )
   {
     // Follow UM flowchart to clear Active & Stall on both Control IN/OUT endpoints
     _dcd.ep[0][0].active = _dcd.ep[1][0].active = 0;
@@ -392,7 +399,7 @@ void USB_IRQHandler(void)
     _dcd.ep[0][1].buffer_offset = get_buf_offset(_dcd.setup_packet);
 
     // clear bit0
-    int_status = BIT_CLR_(int_status, 0);
+    int_status = TU_BIT_CLEAR(int_status, 0);
   }
 
   // Endpoint transfer complete interrupt

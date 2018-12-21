@@ -146,7 +146,7 @@ bool hcd_pipe_queue_xfer(uint8_t dev_addr, uint8_t ep_addr, uint8_t buffer[], ui
 bool hcd_pipe_xfer(uint8_t dev_addr, uint8_t ep_addr, uint8_t buffer[], uint16_t total_bytes, bool int_on_complete);
 
 #if 0
-tusb_error_t hcd_pipe_cancel()ATTR_WARN_UNUSED_RESULT;
+tusb_error_t hcd_pipe_cancel();
 #endif
 
 #ifdef __cplusplus

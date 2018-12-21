@@ -104,7 +104,7 @@ void board_init(void)
   Chip_GPIO_SetPinDIROutput(LPC_GPIO_PORT, LED_PORT, LED_PIN);
 
   //------------- BUTTON -------------//
-//  for(uint8_t i=0; i<BOARD_BUTTON_COUNT; i++) GPIOSetDir(buttons[i].port, BIT_(buttons[i].pin), 0);
+//  for(uint8_t i=0; i<BOARD_BUTTON_COUNT; i++) GPIOSetDir(buttons[i].port, TU_BIT(buttons[i].pin), 0);
 
   //------------- UART -------------//
   //UARTInit(CFG_UART_BAUDRATE);
@@ -157,7 +157,7 @@ uint32_t board_buttons(void)
 {
   uint32_t result = 0;
 
-//  for(uint8_t i=0; i<BOARD_BUTTON_COUNT; i++) result |= (button_read(i) ? BIT_(i) : 0);
+//  for(uint8_t i=0; i<BOARD_BUTTON_COUNT; i++) result |= (button_read(i) ? TU_BIT(i) : 0);
 
   return result;
 }

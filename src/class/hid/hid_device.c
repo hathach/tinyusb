@@ -207,6 +207,7 @@ bool tud_hid_keyboard_key_press(char ch)
   return tud_hid_keyboard_keycode(modifier, keycode);
 }
 
+#if 0 // should be at application
 bool tud_hid_keyboard_key_sequence(const char* str, uint32_t interval_ms)
 {
   // Send each key in string
@@ -231,6 +232,7 @@ bool tud_hid_keyboard_key_sequence(const char* str, uint32_t interval_ms)
 
   return true;
 }
+#endif
 
 #endif // CFG_TUD_HID_ASCII_TO_KEYCODE_LOOKUP
 

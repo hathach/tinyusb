@@ -1,32 +1,12 @@
 # Getting Started #
 
-<!-- START doctoc generated TOC please keep comment here to allow auto update -->
-<!-- DON'T EDIT THIS SECTION, INSTEAD RE-RUN doctoc TO UPDATE -->
-**Table of Contents**
+## Get
 
-- [Download](#download)
-- [Add tinyusb to your project](#add-tinyusb-to-your-project)
-
-<!-- END doctoc generated TOC please keep comment here to allow auto update -->
-
-## Download
-
-tinyusb uses github as online repository https://github.com/hathach/tinyusb since it is the best place for open source project.
-
-If you are using Linux, you already know how to what to do. But If Windows is your OS, I would suggest to install [git](http://git-scm.com/) and front-end gui such as [tortoisegit](http://code.google.com/p/tortoisegit) to begin with.
-
-After downloading/cloning, the code base is composed of
-
-Folder  | Description
------   | -------------
-doxygen | Documentation
-examples| Folder where test examples are kept with Makefile and Segger Embedded build support
-hw/bsp  | Source files of supported boards
-hw/mcu  | Low level mcu core & peripheral drivers (e.g CMSIS )
-lib     | Source files from 3rd party such as freeRTOS, fatfs etc ...
-src     | All sources files for tinyusb stack itself.
-tests   | Unit tests for the stack
-tools   | Files used internally
+```
+git clone git@github.com:hathach/tinyusb.git tinyusb
+cd tinyusb
+git submodule update --init
+```
 
 *examples* is the folder where all the application & project files are located. There are demos for both device and hosts. For each, there are different projects for each of supported RTOS. Click to have more information on how to [build](../examples/readme.md) and run [device](../examples/device/readme.md) demos.
 
@@ -59,6 +39,6 @@ int main(void)
 }
 ~~~
 
-[//]: # (\subpage md_boards_readme)
-[//]: # (\subpage md_doxygen_started_demo)
-[//]: # (\subpage md_tools_readme)
+[//]: # "\subpage md_boards_readme"
+[//]: # "\subpage md_doxygen_started_demo"
+[//]: # "\subpage md_tools_readme"

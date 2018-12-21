@@ -1,6 +1,6 @@
 /**************************************************************************/
 /*!
-    @file     compiler_iar.h
+    @file     tusb_compiler_iar.h
     @author   hathach (tinyusb.org)
 
     @section LICENSE
@@ -36,15 +36,6 @@
 */
 /**************************************************************************/
 
-/** \file
- *  \brief IAR Compiler
- */
-
-/** \ingroup Group_Compiler
- *  \defgroup Group_IAR IAR ARM
- *  @{
- */
-
 #ifndef _TUSB_COMPILER_IAR_H_
 #define _TUSB_COMPILER_IAR_H_
 
@@ -52,24 +43,17 @@
  extern "C" {
 #endif
 
-#define ALIGN_OF(x)     __ALIGNOF__(x)
-#define ATTR_PREPACKED  __packed
-#define ATTR_PACKED
+#define ALIGN_OF(x)               __ALIGNOF__(x)
+#define ATTR_ALIGNED(bytes)       _Pragma(XSTRING_(data_alignment=##bytes))
 //#define ATTR_SECTION(section)      _Pragma((#section))
+#define ATTR_PREPACKED            __packed
+#define ATTR_PACKED
 
-#define ATTR_ALIGNED(bytes)        _Pragma(XSTRING_(data_alignment=##bytes))
-
-#ifndef ATTR_ALWAYS_INLINE
-/// Generally, functions are not inlined unless optimization is specified. For functions declared inline, this attribute inlines the function even if no optimization level is specified
-#define ATTR_ALWAYS_INLINE         error
-#endif
-
-#define ATTR_PURE   // TODO IAR pure function attribute
-#define ATTR_CONST  // TODO IAR const function attribute
+#define ATTR_ALWAYS_INLINE
+#define ATTR_DEPRECATED(mess)
 #define ATTR_WEAK                 __weak
 
 #define ATTR_WARN_UNUSED_RESULT
-#define ATTR_USED
 #define ATTR_UNUSED
 
 // built-in function to convert 32-bit Big-Endian to Little-Endian
@@ -86,4 +70,3 @@
 
 #endif /* _TUSB_COMPILER_IAR_H_ */
 
-/** @} */

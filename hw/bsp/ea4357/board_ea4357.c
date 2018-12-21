@@ -155,7 +155,7 @@ void board_init(void)
   for(uint8_t i=0; i<BOARD_BUTTON_COUNT; i++)
   {
     scu_pinmux(buttons[i].mux_port, buttons[i].mux_pin, GPIO_NOPULL, FUNC0);
-    GPIO_SetDir(buttons[i].gpio_port, BIT_(buttons[i].gpio_pin), 0);
+    GPIO_SetDir(buttons[i].gpio_port, TU_BIT(buttons[i].gpio_pin), 0);
   }
 
   //------------- UART -------------//
@@ -278,7 +278,7 @@ void board_led_control(bool state)
 #if 0
 static bool button_read(uint8_t id)
 {
-//  return !BIT_TEST_( GPIO_ReadValue(buttons[id].gpio_port), buttons[id].gpio_pin ); // button is active low
+//  return !TU_BIT_TEST( GPIO_ReadValue(buttons[id].gpio_port), buttons[id].gpio_pin ); // button is active low
 }
 #endif
 
@@ -286,7 +286,7 @@ uint32_t board_buttons(void)
 {
   uint32_t result = 0;
 
-//  for(uint8_t i=0; i<BOARD_BUTTON_COUNT; i++) result |= (button_read(i) ? BIT_(i) : 0);
+//  for(uint8_t i=0; i<BOARD_BUTTON_COUNT; i++) result |= (button_read(i) ? TU_BIT(i) : 0);
 
   return result;
 }

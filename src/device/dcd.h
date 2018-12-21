@@ -93,11 +93,15 @@ TU_VERIFY_STATIC(sizeof(dcd_event_t) <= 12, "size is not correct");
 /* Device API
  *------------------------------------------------------------------*/
 bool dcd_init       (uint8_t rhport);
+
 void dcd_int_enable (uint8_t rhport);
 void dcd_int_disable(uint8_t rhport);
 
 void dcd_set_address(uint8_t rhport, uint8_t dev_addr);
 void dcd_set_config (uint8_t rhport, uint8_t config_num);
+
+// Get current frame number
+uint32_t dcd_get_frame_number(uint8_t rhport);
 
 /*------------------------------------------------------------------*/
 /* Event Function

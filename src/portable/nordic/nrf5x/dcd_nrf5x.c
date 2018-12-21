@@ -187,7 +187,7 @@ static void xact_in_prepare(uint8_t epnum)
 }
 
 //--------------------------------------------------------------------+
-// Tinyusb DCD API
+// Controller API
 //--------------------------------------------------------------------+
 bool dcd_init (uint8_t rhport)
 {
@@ -221,6 +221,15 @@ void dcd_set_config (uint8_t rhport, uint8_t config_num)
   // Nothing to do
 }
 
+uint32_t dcd_get_frame_number(uint8_t rhport)
+{
+  (void) rhport;
+  return NRF_USBD->FRAMECNTR;
+}
+
+//--------------------------------------------------------------------+
+// Endpoint API
+//--------------------------------------------------------------------+
 bool dcd_edpt_open (uint8_t rhport, tusb_desc_endpoint_t const * desc_edpt)
 {
   (void) rhport;
@@ -232,12 +241,12 @@ bool dcd_edpt_open (uint8_t rhport, tusb_desc_endpoint_t const * desc_edpt)
 
   if ( dir == TUSB_DIR_OUT )
   {
-    NRF_USBD->INTENSET = BIT_(USBD_INTEN_ENDEPOUT0_Pos + epnum);
-    NRF_USBD->EPOUTEN |= BIT_(epnum);
+    NRF_USBD->INTENSET = TU_BIT(USBD_INTEN_ENDEPOUT0_Pos + epnum);
+    NRF_USBD->EPOUTEN |= TU_BIT(epnum);
   }else
   {
-    NRF_USBD->INTENSET = BIT_(USBD_INTEN_ENDEPIN0_Pos + epnum);
-    NRF_USBD->EPINEN  |= BIT_(epnum);
+    NRF_USBD->INTENSET = TU_BIT(USBD_INTEN_ENDEPIN0_Pos + epnum);
+    NRF_USBD->EPINEN  |= TU_BIT(epnum);
   }
   __ISB(); __DSB();
 
@@ -368,9 +377,9 @@ void USBD_IRQHandler(void)
 
   for(uint8_t i=0; i<USBD_INTEN_EPDATA_Pos+1; i++)
   {
-    if ( BIT_TEST_(inten, i) && regevt[i]  )
+    if ( TU_BIT_TEST(inten, i) && regevt[i]  )
     {
-      int_status |= BIT_(i);
+      int_status |= TU_BIT(i);
 
       // event clear
       regevt[i] = 0;
@@ -445,7 +454,7 @@ void USBD_IRQHandler(void)
    */
   for(uint8_t epnum=0; epnum<8; epnum++)
   {
-    if ( BIT_TEST_(int_status, USBD_INTEN_ENDEPOUT0_Pos+epnum))
+    if ( TU_BIT_TEST(int_status, USBD_INTEN_ENDEPOUT0_Pos+epnum))
     {
       xfer_td_t* xfer = get_td(epnum, TUSB_DIR_OUT);
       uint8_t const xact_len = NRF_USBD->EPOUT[epnum].AMOUNT;
@@ -485,7 +494,7 @@ void USBD_IRQHandler(void)
     // CBI In: Endpoint -> Host (transaction complete)
     for(uint8_t epnum=0; epnum<8; epnum++)
     {
-      if ( BIT_TEST_(data_status, epnum ) || ( epnum == 0 && is_control_in) )
+      if ( TU_BIT_TEST(data_status, epnum ) || ( epnum == 0 && is_control_in) )
       {
         xfer_td_t* xfer = get_td(epnum, TUSB_DIR_IN);
 
@@ -506,7 +515,7 @@ void USBD_IRQHandler(void)
     // CBI OUT: Host -> Endpoint
     for(uint8_t epnum=0; epnum<8; epnum++)
     {
-      if ( BIT_TEST_(data_status, 16+epnum ) || ( epnum == 0 && is_control_out) )
+      if ( TU_BIT_TEST(data_status, 16+epnum ) || ( epnum == 0 && is_control_out) )
       {
         xfer_td_t* xfer = get_td(epnum, TUSB_DIR_OUT);
 
