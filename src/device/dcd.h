@@ -100,8 +100,8 @@ void dcd_int_disable(uint8_t rhport);
 void dcd_set_address(uint8_t rhport, uint8_t dev_addr);
 void dcd_set_config (uint8_t rhport, uint8_t config_num);
 
-// Get current micro-frame number
-uint32_t dcd_get_microframe(uint8_t rhport);
+// Get current frame number
+uint32_t dcd_get_frame_number(uint8_t rhport);
 
 /*------------------------------------------------------------------*/
 /* Event Function
