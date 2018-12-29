@@ -1,19 +1,25 @@
 # TinyUSB
 
+[![Build Status](https://travis-ci.org/hathach/tinyusb.svg?branch=master)](https://travis-ci.org/hathach/tinyusb) [![License](https://img.shields.io/badge/License-BSD%203--Clause-brightgreen.svg)](https://opensource.org/licenses/BSD-3-Clause)
+
 TinyUSB is an open-source cross-platform USB Host/Device stack for embedded system.
 
 ![tinyusb](https://user-images.githubusercontent.com/249515/49858616-f60c9700-fe27-11e8-8627-e76936352ff7.png)
 
-Folder  | Description
------   | -------------
-docs    | Documentation
-examples| Sample applications are kept with Makefile and Segger Embedded build support
-hw/bsp  | Source files of supported boards
-hw/mcu  | Low level mcu core & peripheral drivers 
-lib     | Source files from 3rd party such as freeRTOS, fatfs etc ...
-src     | All sources files for TinyUSB stack itself. 
-tests   | Unit tests for the stack
-tools   | Files used internally
+```
+.
+├── docs		# Documentation
+├── examples	# Sample with Makefile and Segger Embedded build support
+├── hw
+│   ├── bsp		# Supported boards source files
+│   └── mcu		# Low level mcu core & peripheral drivers
+├── lib			# Sources from 3rd party such as freeRTOS, fatfs ...
+├── src			# All sources files for TinyUSB stack itself.
+├── tests		# Unit tests for the stack
+└── tools		# Files used internally
+```
+
+
 
 ## Device Stack
 
