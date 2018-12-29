@@ -8,15 +8,15 @@ TinyUSB is an open-source cross-platform USB Host/Device stack for embedded syst
 
 ```
 .
-├── docs        # Documentation
-├── examples    # Sample with Makefile and Segger Embedded build support
+├── docs            # Documentation
+├── examples        # Sample with Makefile and Segger Embedded build support
 ├── hw
-│   ├── bsp     # Supported boards source files
-│   └── mcu     # Low level mcu core & peripheral drivers
-├── lib         # Sources from 3rd party such as freeRTOS, fatfs ...
-├── src         # All sources files for TinyUSB stack itself.
-├── tests       # Unit tests for the stack
-└── tools       # Files used internally
+│   ├── bsp         # Supported boards source files
+│   └── mcu         # Low level mcu core & peripheral drivers
+├── lib             # Sources from 3rd party such as freeRTOS, fatfs ...
+├── src             # All sources files for TinyUSB stack itself.
+├── tests           # Unit tests for the stack
+└── tools           # Files used internally
 ```
 
 
