@@ -105,7 +105,7 @@ void board_init(void)
 #endif
 
 // 64 Mbit qspi flash
-#ifdef BOARD_MSC_FLASH_QSPI
+#if 0 // def BOARD_MSC_FLASH_QSPI
   nrfx_qspi_config_t qspi_cfg = {
     .xip_offset = 0,
     .pins = {

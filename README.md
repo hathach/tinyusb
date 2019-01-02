@@ -19,8 +19,6 @@ TinyUSB is an open-source cross-platform USB Host/Device stack for embedded syst
 └── tools           # Files used internally
 ```
 
-
-
 ## Device Stack
 
 - Human Interface Device (HID): Keyboard, Mouse, Generic
