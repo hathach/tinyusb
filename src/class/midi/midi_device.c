@@ -46,6 +46,7 @@
 //--------------------------------------------------------------------+
 #include "midi_device.h"
 #include "class/audio/audio.h"
+#include "common/tusb_txbuf.h"
 #include "device/usbd_pvt.h"
 
 //--------------------------------------------------------------------+
@@ -68,11 +69,8 @@ typedef struct
 
   // This is a ring buffer that aligns to word boundaries so that it can be transferred directly to
   // the USB peripheral. There are three states to the data: free, transmitting and pending.
-  CFG_TUSB_MEM_ALIGN uint8_t tx_buf[CFG_TUD_MIDI_TX_BUFSIZE];
-  uint16_t tx_buf_len;
-  uint16_t first_free;
-  uint16_t pending_count;
-  uint16_t transmitting_count;
+  CFG_TUSB_MEM_ALIGN uint8_t raw_tx_buffer[CFG_TUD_MIDI_TX_BUFSIZE];
+  tu_txbuf_t txbuf;
 
   // We need to pack messages into words before queueing their transmission so buffer across write
   // calls.
@@ -149,65 +147,6 @@ void midi_rx_done_cb(midid_interface_t* midi, uint8_t const* buffer, uint32_t bu
 // WRITE API
 //--------------------------------------------------------------------+
 
-uint16_t maybe_transmit(midid_interface_t* midi) {
-    if (midi->transmitting_count > 0 || midi->pending_count == 0) {
-        return 0;
-    }
-    midi->transmitting_count = midi->pending_count;
-    uint16_t transmit_start_index;
-    // The pending zone wraps back to the end so we must do two transfers.
-    if (midi->pending_count > midi->first_free) {
-        midi->transmitting_count -= midi->first_free;
-        transmit_start_index = midi->tx_buf_len - midi->transmitting_count;
-    } else {
-        transmit_start_index = midi->first_free - midi->transmitting_count;
-
-        // We are transmitting up to first free so ensure it's word aligned for the next transmit.
-        uint8_t over_aligned = midi->first_free % sizeof(size_t);
-        if (over_aligned != 0) {
-            midi->first_free = (midi->first_free + (sizeof(size_t) - midi->first_free)) % midi->tx_buf_len;
-        }
-    }
-    midi->pending_count -= midi->transmitting_count;
-
-    uint8_t* tx_start = midi->tx_buf + transmit_start_index;
-    if (!dcd_edpt_xfer(0, midi->ep_in, tx_start, midi->transmitting_count)) {
-        return 0;
-    }
-    return midi->transmitting_count;
-}
-
-uint32_t tud_tx_buf_write_done_cb(midid_interface_t* midi, uint32_t bufsize) {
-    midi->transmitting_count -= bufsize;
-
-    uint16_t len = maybe_transmit(midi);
-    return len;
-}
-
-uint32_t tud_tx_buf_write(midid_interface_t* midi, uint8_t const* buffer, uint32_t bufsize) {
-    uint32_t len;
-    int32_t last_free = midi->first_free - midi->pending_count - midi->transmitting_count;
-    if (last_free < 0) {
-        len = (last_free + midi->tx_buf_len) - midi->first_free;
-    } else {
-        len = midi->tx_buf_len - midi->first_free;
-    }
-    if (bufsize < len) {
-        len = bufsize;
-    }
-    memcpy(midi->tx_buf + midi->first_free, buffer, len);
-    // uint32_t remaining_bytes
-    // if (last_free > 0 && len < bufsize) {
-    //     if ()
-    //
-    // }
-    midi->first_free = (midi->first_free + len) % midi->tx_buf_len;
-    midi->pending_count += len;
-
-    maybe_transmit(midi);
-    return len;
-}
-
 uint32_t tud_midi_n_write(uint8_t itf, uint8_t jack_id, uint8_t const* buffer, uint32_t bufsize)
 {
   midid_interface_t* midi = &_midid_itf[itf];
@@ -265,7 +204,7 @@ uint32_t tud_midi_n_write(uint8_t itf, uint8_t jack_id, uint8_t const* buffer, u
     }
 
     if (midi->message_buffer_length == midi->message_target_length) {
-        tud_tx_buf_write(midi, midi->message_buffer, 4);
+        tu_txbuf_write_n(&midi->txbuf, midi->message_buffer, 4);
         midi->message_buffer_length = 0;
     }
     i++;
@@ -291,10 +230,7 @@ void midid_init(void)
     tu_fifo_config_mutex(&midi->rx_ff, osal_mutex_create(&midi->rx_ff_mutex));
     #endif
 
-    midi->tx_buf_len = CFG_TUD_MIDI_TX_BUFSIZE;
-    midi->first_free = 0;
-    midi->pending_count = 0;
-    midi->transmitting_count = 0;
+    tu_txbuf_config(&midi->txbuf, midi->raw_tx_buffer, CFG_TUD_MIDI_TX_BUFSIZE, dcd_edpt_xfer);
   }
 }
 
@@ -307,10 +243,7 @@ void midid_reset(uint8_t rhport)
     midid_interface_t* midi = &_midid_itf[i];
     tu_memclr(midi, ITF_MEM_RESET_SIZE);
     tu_fifo_clear(&midi->rx_ff);
-    midi->tx_buf_len = CFG_TUD_MIDI_TX_BUFSIZE;
-    midi->first_free = 0;
-    midi->pending_count = 0;
-    midi->transmitting_count = 0;
+    tu_txbuf_clear(&midi->txbuf);
   }
 }
 
@@ -356,6 +289,7 @@ bool midid_open(uint8_t rhport, tusb_desc_interface_t const * p_interface_desc, 
         uint8_t ep_addr = ((tusb_desc_endpoint_t const *) p_desc)->bEndpointAddress;
         if (tu_edpt_dir(ep_addr) == TUSB_DIR_IN) {
             p_midi->ep_in = ep_addr;
+            tu_txbuf_set_ep_addr(&p_midi->txbuf, ep_addr);
         } else {
             p_midi->ep_out = ep_addr;
         }
@@ -401,7 +335,7 @@ bool midid_xfer_cb(uint8_t rhport, uint8_t edpt_addr, xfer_result_t result, uint
     // prepare for next
     TU_ASSERT( dcd_edpt_xfer(rhport, p_midi->ep_out, p_midi->epout_buf, CFG_TUD_MIDI_EPSIZE), false );
   } else if ( edpt_addr == p_midi->ep_in ) {
-    tud_tx_buf_write_done_cb(p_midi, xferred_bytes);
+    tu_txbuf_transmit_done_cb(&p_midi->txbuf, xferred_bytes);
   }
 
   // nothing to do with in and notif endpoint
