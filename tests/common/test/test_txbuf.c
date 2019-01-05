@@ -68,7 +68,7 @@ void xfer_callback(void) {
     uint32_t previously_transmitted = freshly_transmitted;
     freshly_transmitted = 0;
 
-    tu_tx_buf_transmit_done_cb(&txbuf, previously_transmitted);
+    tu_txbuf_transmit_done_cb(&txbuf, previously_transmitted);
 }
 
 // Test that we transfer immediately at the start and that the pointer is rounded to a word.
