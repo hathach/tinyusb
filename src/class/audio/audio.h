@@ -1,6 +1,6 @@
 /**************************************************************************/
 /*!
-    @file     tusb.h
+    @file     cdc.h
     @author   hathach (tinyusb.org)
 
     @section LICENSE
@@ -32,98 +32,40 @@
     INCLUDING NEGLIGENCE OR OTHERWISE ARISING IN ANY WAY OUT OF THE USE OF THIS
     SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-	  This file is part of the tinyusb stack.
+    This file is part of the tinyusb stack.
 */
 /**************************************************************************/
 
-#ifndef _TUSB_H_
-#define _TUSB_H_
+/** \ingroup group_class
+ *  \defgroup ClassDriver_Audio Audio
+ *            Currently only MIDI subclass is supported
+ *  @{ */
+
+#ifndef _TUSB_CDC_H__
+#define _TUSB_CDC_H__
+
+#include "common/tusb_common.h"
 
 #ifdef __cplusplus
  extern "C" {
 #endif
 
-//--------------------------------------------------------------------+
-// INCLUDE
-//--------------------------------------------------------------------+
-#include "common/tusb_common.h"
-#include "tusb_hal.h"
-#include "osal/osal.h"
-#include "common/tusb_fifo.h"
-
-//------------- HOST -------------//
-#if TUSB_OPT_HOST_ENABLED
-  #include "host/usbh.h"
-
-  #if HOST_CLASS_HID
-    #include "class/hid/hid_host.h"
-  #endif
-
-  #if CFG_TUH_MSC
-    #include "class/msc/msc_host.h"
-  #endif
-
-  #if CFG_TUH_CDC
-    #include "class/cdc/cdc_host.h"
-  #endif
-
-  #if CFG_TUSB_HOST_CUSTOM_CLASS
-    #include "class/custom_host.h"
-  #endif
-
-#endif
-
-//------------- DEVICE -------------//
-#if TUSB_OPT_DEVICE_ENABLED
-  #include "device/usbd.h"
-
-  #if CFG_TUD_HID
-    #include "class/hid/hid_device.h"
-  #endif
-
-  #if CFG_TUD_CDC
-    #include "class/cdc/cdc_device.h"
-  #endif
-
-  #if CFG_TUD_MSC
-    #include "class/msc/msc_device.h"
-  #endif
-
-  #if CFG_TUD_MIDI
-    #include "class/midi/midi_device.h"
-  #endif
-
-  #if CFG_TUD_CUSTOM_CLASS
-    #include "class/custom/custom_device.h"
-  #endif
-#endif
-
-
-//--------------------------------------------------------------------+
-// APPLICATION API
-//--------------------------------------------------------------------+
-/** \ingroup group_application_api
- *  @{ */
-
-// Initialize device/host stack
-bool tusb_init(void);
-
-// TODO
-// bool tusb_teardown(void);
-
-
-// backward compatible only. TODO remove later
-ATTR_DEPRECATED("Please use either tud_task() or tuh_task()")
-static inline void tusb_task(void)
+/// Audio Interface Subclass Codes
+typedef enum
 {
-  #if TUSB_OPT_HOST_ENABLED
-  tuh_task();
-  #endif
+  AUDIO_SUBCLASS_AUDIO_CONTROL = 0x01  , ///< Audio Control
+  AUDIO_SUBCLASS_AUDIO_STREAMING       , ///< Audio Streaming
+  AUDIO_SUBCLASS_MIDI_STREAMING       ,  ///< MIDI Streaming
+} audio_subclass_type_t;
 
-  #if TUSB_OPT_DEVICE_ENABLED
-  tud_task();
-  #endif
-}
+/// Audio Protocol Codes
+typedef enum
+{
+  AUDIO_PROTOCOL_V1                   = 0x00, ///< Version 1.0
+  AUDIO_PROTOCOL_V2                   = 0x20, ///< Version 2.0
+  AUDIO_PROTOCOL_V3                   = 0x30, ///< Version 3.0
+} audio_protocol_type_t;
+
 
 /** @} */
 
@@ -131,4 +73,6 @@ static inline void tusb_task(void)
  }
 #endif
 
-#endif /* _TUSB_H_ */
+#endif
+
+/** @} */

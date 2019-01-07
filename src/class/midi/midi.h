@@ -1,6 +1,6 @@
 /**************************************************************************/
 /*!
-    @file     tusb.h
+    @file     cdc.h
     @author   hathach (tinyusb.org)
 
     @section LICENSE
@@ -32,98 +32,46 @@
     INCLUDING NEGLIGENCE OR OTHERWISE ARISING IN ANY WAY OUT OF THE USE OF THIS
     SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-	  This file is part of the tinyusb stack.
+    This file is part of the tinyusb stack.
 */
 /**************************************************************************/
 
-#ifndef _TUSB_H_
-#define _TUSB_H_
+/** \ingroup group_class
+ *  \defgroup ClassDriver_CDC Communication Device Class (CDC)
+ *            Currently only Abstract Control Model subclass is supported
+ *  @{ */
+
+#ifndef _TUSB_MIDI_H__
+#define _TUSB_MIDI_H__
+
+#include "common/tusb_common.h"
 
 #ifdef __cplusplus
  extern "C" {
 #endif
 
 //--------------------------------------------------------------------+
-// INCLUDE
+// FUNCTIONAL DESCRIPTOR (COMMUNICATION INTERFACE)
 //--------------------------------------------------------------------+
-#include "common/tusb_common.h"
-#include "tusb_hal.h"
-#include "osal/osal.h"
-#include "common/tusb_fifo.h"
-
-//------------- HOST -------------//
-#if TUSB_OPT_HOST_ENABLED
-  #include "host/usbh.h"
-
-  #if HOST_CLASS_HID
-    #include "class/hid/hid_host.h"
-  #endif
-
-  #if CFG_TUH_MSC
-    #include "class/msc/msc_host.h"
-  #endif
-
-  #if CFG_TUH_CDC
-    #include "class/cdc/cdc_host.h"
-  #endif
-
-  #if CFG_TUSB_HOST_CUSTOM_CLASS
-    #include "class/custom_host.h"
-  #endif
-
-#endif
-
-//------------- DEVICE -------------//
-#if TUSB_OPT_DEVICE_ENABLED
-  #include "device/usbd.h"
-
-  #if CFG_TUD_HID
-    #include "class/hid/hid_device.h"
-  #endif
-
-  #if CFG_TUD_CDC
-    #include "class/cdc/cdc_device.h"
-  #endif
-
-  #if CFG_TUD_MSC
-    #include "class/msc/msc_device.h"
-  #endif
-
-  #if CFG_TUD_MIDI
-    #include "class/midi/midi_device.h"
-  #endif
-
-  #if CFG_TUD_CUSTOM_CLASS
-    #include "class/custom/custom_device.h"
-  #endif
-#endif
-
-
-//--------------------------------------------------------------------+
-// APPLICATION API
-//--------------------------------------------------------------------+
-/** \ingroup group_application_api
- *  @{ */
-
-// Initialize device/host stack
-bool tusb_init(void);
-
-// TODO
-// bool tusb_teardown(void);
-
-
-// backward compatible only. TODO remove later
-ATTR_DEPRECATED("Please use either tud_task() or tuh_task()")
-static inline void tusb_task(void)
+/// Header Functional Descriptor (Communication Interface)
+typedef struct ATTR_PACKED
 {
-  #if TUSB_OPT_HOST_ENABLED
-  tuh_task();
-  #endif
+  uint8_t bLength            ; ///< Size of this descriptor in bytes.
+  uint8_t bDescriptorType    ; ///< Descriptor Type, must be Class-Specific
+  uint8_t bDescriptorSubType ; ///< Descriptor SubType one of above MIDI_FUCN_DESC_
+  uint16_t bcdMSC            ; ///< MidiStreaming SubClass release number in Binary-Coded Decimal
+  uint16_t wTotalLength      ;
+}midi_desc_func_header_t;
 
-  #if TUSB_OPT_DEVICE_ENABLED
-  tud_task();
-  #endif
-}
+/// Union Functional Descriptor (Communication Interface)
+typedef struct ATTR_PACKED
+{
+  uint8_t bLength                  ; ///< Size of this descriptor in bytes.
+  uint8_t bDescriptorType          ; ///< Descriptor Type, must be Class-Specific
+  uint8_t bDescriptorSubType       ; ///< Descriptor SubType one of above CDC_FUCN_DESC_
+  uint8_t bControlInterface        ; ///< Interface number of Communication Interface
+  uint8_t bSubordinateInterface    ; ///< Array of Interface number of Data Interface
+}cdc_desc_func_union_t;
 
 /** @} */
 
@@ -131,4 +79,6 @@ static inline void tusb_task(void)
  }
 #endif
 
-#endif /* _TUSB_H_ */
+#endif
+
+/** @} */
