@@ -1,8 +1,0 @@
-test/test_txbuf.c:140:test_normal:PASS
-test/test_txbuf.c:141:test_nearly_full:PASS
-test/test_txbuf.c:142:test_wrap_around:PASS
-test/test_txbuf.c:143:test_wrap_around_too_much:PASS
-
------------------------
-4 Tests 0 Failures 0 Ignored 
-OK

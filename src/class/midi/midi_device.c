@@ -46,7 +46,6 @@
 //--------------------------------------------------------------------+
 #include "midi_device.h"
 #include "class/audio/audio.h"
-#include "common/tusb_txbuf.h"
 #include "device/usbd_pvt.h"
 
 //--------------------------------------------------------------------+
@@ -60,17 +59,14 @@ typedef struct
 
   // FIFO
   tu_fifo_t rx_ff;
+  tu_fifo_t tx_ff;
   uint8_t rx_ff_buf[CFG_TUD_MIDI_RX_BUFSIZE];
+  uint8_t tx_ff_buf[CFG_TUD_MIDI_TX_BUFSIZE];
+
+  #if CFG_FIFO_MUTEX
   osal_mutex_def_t rx_ff_mutex;
-
-  #if CFG_TUD_MIDI_TX_BUFSIZE % CFG_TUD_MIDI_EPSIZE != 0
-  #error "TX buffer size must be multiple of endpoint size."
+  osal_mutex_def_t tx_ff_mutex;
   #endif
-
-  // This is a ring buffer that aligns to word boundaries so that it can be transferred directly to
-  // the USB peripheral. There are three states to the data: free, transmitting and pending.
-  CFG_TUSB_MEM_ALIGN uint8_t raw_tx_buffer[CFG_TUD_MIDI_TX_BUFSIZE];
-  tu_txbuf_t txbuf;
 
   // We need to pack messages into words before queueing their transmission so buffer across write
   // calls.
@@ -80,6 +76,7 @@ typedef struct
 
   // Endpoint Transfer buffer
   CFG_TUSB_MEM_ALIGN uint8_t epout_buf[CFG_TUD_MIDI_EPSIZE];
+  CFG_TUSB_MEM_ALIGN uint8_t epin_buf[CFG_TUD_MIDI_EPSIZE];
 
 } midid_interface_t;
 
@@ -147,6 +144,19 @@ void midi_rx_done_cb(midid_interface_t* midi, uint8_t const* buffer, uint32_t bu
 // WRITE API
 //--------------------------------------------------------------------+
 
+static bool maybe_transmit(midid_interface_t* midi, uint8_t itf_index)
+{
+    TU_VERIFY( !dcd_edpt_busy(TUD_OPT_RHPORT, midi->ep_in) ); // skip if previous transfer not complete
+
+    uint16_t count = tu_fifo_read_n(&midi->tx_ff, midi->epin_buf, CFG_TUD_MIDI_EPSIZE);
+    if (count > 0)
+    {
+      TU_VERIFY( tud_midi_n_connected(itf_index) ); // fifo is empty if not connected
+      TU_ASSERT( dcd_edpt_xfer(TUD_OPT_RHPORT, midi->ep_in, midi->epin_buf, count) );
+    }
+    return true;
+}
+
 uint32_t tud_midi_n_write(uint8_t itf, uint8_t jack_id, uint8_t const* buffer, uint32_t bufsize)
 {
   midid_interface_t* midi = &_midid_itf[itf];
@@ -204,11 +214,16 @@ uint32_t tud_midi_n_write(uint8_t itf, uint8_t jack_id, uint8_t const* buffer, u
     }
 
     if (midi->message_buffer_length == midi->message_target_length) {
-        tu_txbuf_write_n(&midi->txbuf, midi->message_buffer, 4);
+        uint16_t written = tu_fifo_write_n(&midi->tx_ff, midi->message_buffer, 4);
+        if (written < 4) {
+            TU_ASSERT( written == 0 );
+            break;
+        }
         midi->message_buffer_length = 0;
     }
     i++;
   }
+  maybe_transmit(midi, itf);
 
   return i;
 }
@@ -226,11 +241,11 @@ void midid_init(void)
 
     // config fifo
     tu_fifo_config(&midi->rx_ff, midi->rx_ff_buf, CFG_TUD_MIDI_RX_BUFSIZE, 1, true);
+    tu_fifo_config(&midi->tx_ff, midi->tx_ff_buf, CFG_TUD_MIDI_TX_BUFSIZE, 1, true);
     #if CFG_FIFO_MUTEX
     tu_fifo_config_mutex(&midi->rx_ff, osal_mutex_create(&midi->rx_ff_mutex));
+    tu_fifo_config_mutex(&midi->tx_ff, osal_mutex_create(&midi->tx_ff_mutex));
     #endif
-
-    tu_txbuf_config(&midi->txbuf, midi->raw_tx_buffer, CFG_TUD_MIDI_TX_BUFSIZE, dcd_edpt_xfer);
   }
 }
 
@@ -243,7 +258,7 @@ void midid_reset(uint8_t rhport)
     midid_interface_t* midi = &_midid_itf[i];
     tu_memclr(midi, ITF_MEM_RESET_SIZE);
     tu_fifo_clear(&midi->rx_ff);
-    tu_txbuf_clear(&midi->txbuf);
+    tu_fifo_clear(&midi->tx_ff);
   }
 }
 
@@ -289,7 +304,6 @@ bool midid_open(uint8_t rhport, tusb_desc_interface_t const * p_interface_desc, 
         uint8_t ep_addr = ((tusb_desc_endpoint_t const *) p_desc)->bEndpointAddress;
         if (tu_edpt_dir(ep_addr) == TUSB_DIR_IN) {
             p_midi->ep_in = ep_addr;
-            tu_txbuf_set_ep_addr(&p_midi->txbuf, ep_addr);
         } else {
             p_midi->ep_out = ep_addr;
         }
@@ -335,7 +349,7 @@ bool midid_xfer_cb(uint8_t rhport, uint8_t edpt_addr, xfer_result_t result, uint
     // prepare for next
     TU_ASSERT( dcd_edpt_xfer(rhport, p_midi->ep_out, p_midi->epout_buf, CFG_TUD_MIDI_EPSIZE), false );
   } else if ( edpt_addr == p_midi->ep_in ) {
-    tu_txbuf_transmit_done_cb(&p_midi->txbuf, xferred_bytes);
+    maybe_transmit(p_midi, itf);
   }
 
   // nothing to do with in and notif endpoint
