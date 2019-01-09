@@ -19,4 +19,3 @@ before_script:
 script:
   - make -j2 -C examples/device/cdc_msc_hid BOARD=metro_m0_express
   - make -j2 -C examples/device/cdc_msc_hid BOARD=metro_m4_express
-  - cd tests/common && make
