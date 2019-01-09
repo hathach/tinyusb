@@ -86,8 +86,9 @@ LIB_SOURCE += \
 
 SRC_C += $(LIB_SOURCE)
 
-OBJ = $(addprefix $(BUILD)/obj/, $(SRC_C:.c=.o))
-OBJ += $(addprefix $(BUILD)/obj/, $(SRC_S:.s=.o))
+OBJ = $(addprefix $(BUILD)/obj/, $(SRC_S:.s=.o))
+OBJ += $(addprefix $(BUILD)/obj/, $(SRC_C:.c=.o))
+
 
 all: $(BUILD)/$(BOARD)-firmware.bin
 
