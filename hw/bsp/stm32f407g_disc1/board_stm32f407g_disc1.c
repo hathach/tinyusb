@@ -47,17 +47,6 @@
 //--------------------------------------------------------------------+
 #define LED_STATE_ON  1
 
-static void board_led_init(uint32_t led_id) {
-  uint8_t port_index = led_id / 16;
-  uint8_t pin_index = led_id % 16;
-
-  RCC->AHB1ENR |= RCC_AHB1ENR_GPIOAEN << port_index;
-
-  GPIO_TypeDef * gpio = ((GPIO_TypeDef *) (GPIOA_BASE + (GPIOB_BASE - GPIOA_BASE) * port_index));
-
-  gpio->MODER = 0x01 << (pin_index * 2);
-}
-
 void board_init(void)
 {
 
@@ -68,7 +57,8 @@ void board_init(void)
 #endif
 
   // Init the LED on PD14
-  board_led_init(BOARD_LED0);
+  RCC->AHB1ENR |= RCC_AHB1ENR_GPIODEN;
+  GPIOD->MODER = GPIO_MODER_MODE14_0;
 
   // USB Clock init
 
@@ -78,17 +68,13 @@ void board_init(void)
 
 
 
-void board_led_control(uint32_t led_id, bool state)
+void board_led_control(bool state)
 {
-  uint8_t port_index = led_id / 16;
-  uint8_t pin_index = led_id % 16;
-
-  GPIO_TypeDef * gpio = ((GPIO_TypeDef *) (GPIOA_BASE + (GPIOB_BASE - GPIOA_BASE) * port_index));
-  uint32_t value = 1 << pin_index;
   if (!state) {
-    value <<= 16;
+    GPIOD->BSRR = GPIO_BSRR_BR14;
+  } else {
+    GPIOD->BSRR = GPIO_BSRR_BS14;
   }
-  gpio->BSRR = value;
 }
 
 
