@@ -67,12 +67,11 @@ typedef struct
            uint8_t* buffer    ; ///< buffer pointer
            uint16_t depth     ; ///< max items
            uint16_t item_size ; ///< size of each item
+           bool overwritable  ;
 
   volatile uint16_t count     ; ///< number of items in queue
   volatile uint16_t wr_idx    ; ///< write pointer
   volatile uint16_t rd_idx    ; ///< read pointer
-
-           bool overwritable  ;
 
 #if CFG_FIFO_MUTEX
   tu_fifo_mutex_t mutex;

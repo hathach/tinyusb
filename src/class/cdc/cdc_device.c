@@ -41,9 +41,7 @@
 #if (TUSB_OPT_DEVICE_ENABLED && CFG_TUD_CDC)
 
 #define _TINY_USB_SOURCE_FILE_
-//--------------------------------------------------------------------+
-// INCLUDE
-//--------------------------------------------------------------------+
+
 #include "cdc_device.h"
 #include "device/usbd_pvt.h"
 
@@ -95,7 +93,7 @@ CFG_TUSB_MEM_SECTION static cdcd_interface_t _cdcd_itf[CFG_TUD_CDC];
 bool tud_cdc_n_connected(uint8_t itf)
 {
   // DTR (bit 0) active  is considered as connected
-  return BIT_TEST_(_cdcd_itf[itf].line_state, 0);
+  return TU_BIT_TEST(_cdcd_itf[itf].line_state, 0);
 }
 
 uint8_t tud_cdc_n_get_line_state (uint8_t itf)
@@ -231,17 +229,14 @@ void cdcd_reset(uint8_t rhport)
   }
 }
 
-tusb_error_t cdcd_open(uint8_t rhport, tusb_desc_interface_t const * p_interface_desc, uint16_t *p_length)
+bool cdcd_open(uint8_t rhport, tusb_desc_interface_t const * itf_desc, uint16_t *p_length)
 {
-  if ( CDC_COMM_SUBCLASS_ABSTRACT_CONTROL_MODEL != p_interface_desc->bInterfaceSubClass) return TUSB_ERROR_CDC_UNSUPPORTED_SUBCLASS;
+  // Only support ACM subclass
+  TU_ASSERT ( CDC_COMM_SUBCLASS_ABSTRACT_CONTROL_MODEL == itf_desc->bInterfaceSubClass);
 
   // Only support AT commands, no protocol and vendor specific commands.
-  if ( !(tu_within(CDC_COMM_PROTOCOL_ATCOMMAND, p_interface_desc->bInterfaceProtocol, CDC_COMM_PROTOCOL_ATCOMMAND_CDMA) ||
-         p_interface_desc->bInterfaceProtocol == CDC_COMM_PROTOCOL_NONE ||
-         p_interface_desc->bInterfaceProtocol == 0xff ) )
-  {
-    return TUSB_ERROR_CDC_UNSUPPORTED_PROTOCOL;
-  }
+  TU_ASSERT(tu_within(CDC_COMM_PROTOCOL_NONE, itf_desc->bInterfaceProtocol, CDC_COMM_PROTOCOL_ATCOMMAND_CDMA) ||
+            itf_desc->bInterfaceProtocol == 0xff);
 
   // Find available interface
   cdcd_interface_t * p_cdc = NULL;
@@ -253,55 +248,59 @@ tusb_error_t cdcd_open(uint8_t rhport, tusb_desc_interface_t const * p_interface
       break;
     }
   }
+  TU_ASSERT(p_cdc);
 
   //------------- Control Interface -------------//
-  p_cdc->itf_num  = p_interface_desc->bInterfaceNumber;
+  p_cdc->itf_num = itf_desc->bInterfaceNumber;
 
-  uint8_t const * p_desc = descriptor_next ( (uint8_t const *) p_interface_desc );
+  uint8_t const * p_desc = tu_desc_next( itf_desc );
   (*p_length) = sizeof(tusb_desc_interface_t);
 
   // Communication Functional Descriptors
-  while( TUSB_DESC_CLASS_SPECIFIC == p_desc[DESC_OFFSET_TYPE] )
+  while ( TUSB_DESC_CLASS_SPECIFIC == tu_desc_type(p_desc) )
   {
-    (*p_length) += p_desc[DESC_OFFSET_LEN];
-    p_desc = descriptor_next(p_desc);
+    (*p_length) += tu_desc_len(p_desc);
+    p_desc = tu_desc_next(p_desc);
   }
 
-  if ( TUSB_DESC_ENDPOINT == p_desc[DESC_OFFSET_TYPE])
-  { // notification endpoint if any
-    TU_ASSERT( dcd_edpt_open(rhport, (tusb_desc_endpoint_t const *) p_desc), TUSB_ERROR_DCD_OPEN_PIPE_FAILED);
+  if ( TUSB_DESC_ENDPOINT == tu_desc_type(p_desc) )
+  {
+    // notification endpoint if any
+    TU_ASSERT( dcd_edpt_open(rhport, (tusb_desc_endpoint_t const *) p_desc) );
 
     p_cdc->ep_notif = ((tusb_desc_endpoint_t const *) p_desc)->bEndpointAddress;
 
     (*p_length) += p_desc[DESC_OFFSET_LEN];
-    p_desc = descriptor_next(p_desc);
+    p_desc = tu_desc_next(p_desc);
   }
 
   //------------- Data Interface (if any) -------------//
   if ( (TUSB_DESC_INTERFACE == p_desc[DESC_OFFSET_TYPE]) &&
        (TUSB_CLASS_CDC_DATA == ((tusb_desc_interface_t const *) p_desc)->bInterfaceClass) )
   {
-    // next to endpoint descritpor
-    (*p_length) += p_desc[DESC_OFFSET_LEN];
-    p_desc = descriptor_next(p_desc);
+    // next to endpoint descriptor
+    (*p_length) += tu_desc_len(p_desc);
+    p_desc = tu_desc_next(p_desc);
 
     // Open endpoint pair with usbd helper
     tusb_desc_endpoint_t const *p_desc_ep = (tusb_desc_endpoint_t const *) p_desc;
-    TU_ASSERT_ERR( usbd_open_edpt_pair(rhport, p_desc_ep, TUSB_XFER_BULK, &p_cdc->ep_out, &p_cdc->ep_in) );
+    TU_ASSERT( usbd_open_edpt_pair(rhport, p_desc_ep, TUSB_XFER_BULK, &p_cdc->ep_out, &p_cdc->ep_in) );
 
     (*p_length) += 2*sizeof(tusb_desc_endpoint_t);
   }
 
   // Prepare for incoming data
-  TU_ASSERT( dcd_edpt_xfer(rhport, p_cdc->ep_out, p_cdc->epout_buf, CFG_TUD_CDC_EPSIZE), TUSB_ERROR_DCD_EDPT_XFER);
+  TU_ASSERT( dcd_edpt_xfer(rhport, p_cdc->ep_out, p_cdc->epout_buf, CFG_TUD_CDC_EPSIZE) );
 
-  return TUSB_ERROR_NONE;
+  return true;
 }
 
 // Invoked when class request DATA stage is finished.
 // return false to stall control endpoint (e.g Host send non-sense DATA)
 bool cdcd_control_request_complete(uint8_t rhport, tusb_control_request_t const * request)
 {
+  (void) rhport;
+
   //------------- Class Specific Request -------------//
   TU_VERIFY (request->bmRequestType_bit.type == TUSB_REQ_TYPE_CLASS);
 
@@ -347,9 +346,10 @@ bool cdcd_control_request(uint8_t rhport, tusb_control_request_t const * request
       //        This signal corresponds to V.24 signal 105 and RS-232 signal RTS (Request to Send)
       p_cdc->line_state = (uint8_t) request->wValue;
 
-      // Invoke callback
-      if ( tud_cdc_line_state_cb) tud_cdc_line_state_cb(itf, BIT_TEST_(request->wValue, 0), BIT_TEST_(request->wValue, 1));
       usbd_control_status(rhport, request);
+
+      // Invoke callback
+      if ( tud_cdc_line_state_cb) tud_cdc_line_state_cb(itf, TU_BIT_TEST(request->wValue, 0), TU_BIT_TEST(request->wValue, 1));
     break;
 
     default: return false; // stall unsupported request
@@ -358,8 +358,10 @@ bool cdcd_control_request(uint8_t rhport, tusb_control_request_t const * request
   return true;
 }
 
-tusb_error_t cdcd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t event, uint32_t xferred_bytes)
+bool cdcd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint32_t xferred_bytes)
 {
+  (void) result;
+
   // TODO Support multiple interfaces
   uint8_t const itf = 0;
   cdcd_interface_t* p_cdc = &_cdcd_itf[itf];
@@ -367,29 +369,27 @@ tusb_error_t cdcd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t event, 
   // receive new data
   if ( ep_addr == p_cdc->ep_out )
   {
-    char const wanted = p_cdc->wanted_char;
-
     for(uint32_t i=0; i<xferred_bytes; i++)
     {
       tu_fifo_write(&p_cdc->rx_ff, &p_cdc->epout_buf[i]);
 
       // Check for wanted char and invoke callback if needed
-      if ( tud_cdc_rx_wanted_cb && ( wanted != -1 ) && ( wanted == p_cdc->epout_buf[i] ) )
+      if ( tud_cdc_rx_wanted_cb && ( ((signed char) p_cdc->wanted_char) != -1 ) && ( p_cdc->wanted_char == p_cdc->epout_buf[i] ) )
       {
-        tud_cdc_rx_wanted_cb(itf, wanted);
+        tud_cdc_rx_wanted_cb(itf, p_cdc->wanted_char);
       }
     }
 
     // invoke receive callback (if there is still data)
     if (tud_cdc_rx_cb && tu_fifo_count(&p_cdc->rx_ff) ) tud_cdc_rx_cb(itf);
 
-    // prepare for next
-    TU_ASSERT( dcd_edpt_xfer(rhport, p_cdc->ep_out, p_cdc->epout_buf, CFG_TUD_CDC_EPSIZE), TUSB_ERROR_DCD_EDPT_XFER );
+    // prepare for incoming data
+    TU_ASSERT( dcd_edpt_xfer(rhport, p_cdc->ep_out, p_cdc->epout_buf, CFG_TUD_CDC_EPSIZE) );
   }
 
   // nothing to do with in and notif endpoint
 
-  return TUSB_ERROR_NONE;
+  return true;
 }
 
 #endif

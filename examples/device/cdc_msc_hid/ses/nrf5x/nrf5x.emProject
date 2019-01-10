@@ -23,6 +23,7 @@
       c_user_include_directories="../../src;$(rootDir)/hw/cmsis/Include;$(rootDir)/hw;$(rootDir)/src;$(nrfxDir)/..;$(nrfxDir);$(nrfxDir)/mdk;$(nrfxDir)/hal;$(nrfxDir)/drivers/include"
       debug_register_definition_file="nrf52840_Registers.xml"
       debug_target_connection="J-Link"
+      gcc_enable_all_warnings="Yes"
       gcc_entry_point="Reset_Handler"
       link_use_linker_script_file="No"
       linker_memory_map_file="nRF52840_xxAA_MemoryMap.xml"
@@ -104,6 +105,7 @@
       filter="*.c;*.h"
       path="../../../../../lib/segger_rtt"
       recurse="No" />
+    <configuration Name="pca10056" build_treat_warnings_as_errors="No" />
   </project>
   <configuration Name="pca10056" />
 </solution>

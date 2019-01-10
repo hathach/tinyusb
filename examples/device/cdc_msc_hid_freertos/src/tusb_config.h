@@ -39,8 +39,6 @@
 #ifndef _TUSB_CONFIG_H_
 #define _TUSB_CONFIG_H_
 
-#include "bsp/board.h"
-
 #ifdef __cplusplus
  extern "C" {
 #endif
@@ -48,20 +46,30 @@
 //--------------------------------------------------------------------
 // COMMON CONFIGURATION
 //--------------------------------------------------------------------
+
 // defined by compiler flags for flexibility
 #ifndef CFG_TUSB_MCU
-  #error CFG_TUSB_MCU should be defined using compiler flags
+  #error CFG_TUSB_MCU must be defined
 #endif
 
 #define CFG_TUSB_RHPORT0_MODE       OPT_MODE_DEVICE
-
+#define CFG_TUSB_OS                 OPT_OS_FREERTOS
 #define CFG_TUSB_DEBUG              2
 
-/*------------- RTOS -------------*/
-#define CFG_TUSB_OS                 OPT_OS_FREERTOS
-#define CFG_TUD_TASK_PRIO           (configMAX_PRIORITIES-1)
-//#define CFG_TUD_TASK_QUEUE_SZ     16
-//#define CFG_TUD_TASK_STACK_SZ     150
+/* USB DMA on some MCUs can only access a specific SRAM region with restriction on alignment.
+ * Tinyusb use follows macros to declare transferring memory so that they can be put
+ * into those specific section.
+ * e.g
+ * - CFG_TUSB_MEM SECTION : __attribute__ (( section(".usb_ram") ))
+ * - CFG_TUSB_MEM_ALIGN   : __attribute__ ((aligned(4)))
+ */
+#ifndef CFG_TUSB_MEM_SECTION
+#define CFG_TUSB_MEM_SECTION
+#endif
+
+#ifndef CFG_TUSB_MEM_ALIGN
+#define CFG_TUSB_MEM_ALIGN          ATTR_ALIGNED(4)
+#endif
 
 //--------------------------------------------------------------------
 // DEVICE CONFIGURATION
@@ -78,11 +86,22 @@
  */
 #define CFG_TUD_DESC_AUTO           1
 
-/* USB VID/PID if not defined, tinyusb to use default value
+/* If USB VID/PID is not defined, tinyusb will use default value
  * Note: different class combination e.g CDC and (CDC + MSC) should have different
  * PID since Host OS will "remembered" device driver after the first plug */
 // #define CFG_TUD_DESC_VID          0xCAFE
 // #define CFG_TUD_DESC_PID          0x0001
+
+// LPC175x_6x's endpoint type (bulk/interrupt/iso) are fixed by its number
+// Therefor we need to force endpoint number to correct type on lpc17xx
+#if CFG_TUSB_MCU == OPT_MCU_LPC175X_6X
+#define CFG_TUD_DESC_CDC_EPNUM_NOTIF      1
+#define CFG_TUD_DESC_CDC_EPNUM            2
+#define CFG_TUD_DESC_MSC_EPNUM            5
+#define CFG_TUD_DESC_HID_KEYBOARD_EPNUM   4
+#define CFG_TUD_DESC_HID_MOUSE_EPNUM      7
+#endif
+
 
 //------------- CLASS -------------//
 #define CFG_TUD_CDC                 1
@@ -136,13 +155,6 @@
  * - tud_hid_keyboard_send_string()
  */
 #define CFG_TUD_HID_ASCII_TO_KEYCODE_LOOKUP 1
-
-//--------------------------------------------------------------------
-// USB RAM PLACEMENT
-//--------------------------------------------------------------------
-#define CFG_TUSB_MEM_SECTION
-#define CFG_TUSB_MEM_ALIGN          ATTR_ALIGNED(4)
-
 
 #ifdef __cplusplus
  }

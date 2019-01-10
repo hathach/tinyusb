@@ -43,11 +43,7 @@
  extern "C" {
 #endif
 
-#include "LPC13Uxx.h"
-#include "gpio.h"
-#include "uart.h"
-
-#define CFG_PRINTF_TARGET PRINTF_TARGET_UART
+#include "chip.h"
 
 #ifdef __cplusplus
  }

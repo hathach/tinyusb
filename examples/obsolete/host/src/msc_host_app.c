@@ -42,7 +42,7 @@
 #include "msc_host_app.h"
 #include "app_os_prio.h"
 
-#if CFG_TUSB_HOST_MSC
+#if CFG_TUH_MSC
 
 #include "msc_cli.h"
 #include "ff.h"

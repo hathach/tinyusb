@@ -71,12 +71,6 @@ TU_VERIFY_STATIC(CFG_TUD_MSC_BUFSIZE < UINT16_MAX, "Size is not correct");
   #error CFG_TUD_MSC_PRODUCT_REV 4-byte string must be defined
 #endif
 
-// TODO highspeed device is 512
-#ifndef CFG_TUD_MSC_EPSIZE
-#define CFG_TUD_MSC_EPSIZE 64
-#endif
-
-
 #ifdef __cplusplus
  extern "C" {
 #endif
@@ -177,10 +171,10 @@ ATTR_WEAK bool tud_msc_is_writable_cb(uint8_t lun);
 #ifdef _TINY_USB_SOURCE_FILE_
 
 void mscd_init(void);
-tusb_error_t mscd_open(uint8_t rhport, tusb_desc_interface_t const * p_interface_desc, uint16_t *p_length);
+bool mscd_open(uint8_t rhport, tusb_desc_interface_t const * itf_desc, uint16_t *p_length);
 bool mscd_control_request(uint8_t rhport, tusb_control_request_t const * p_request);
 bool mscd_control_request_complete (uint8_t rhport, tusb_control_request_t const * p_request);
-tusb_error_t mscd_xfer_cb(uint8_t rhport, uint8_t edpt_addr, xfer_result_t event, uint32_t xferred_bytes);
+bool mscd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t event, uint32_t xferred_bytes);
 void mscd_reset(uint8_t rhport);
 
 #endif

@@ -50,7 +50,7 @@
 #include "ehci_controller_fake.h"
 #include "host_helper.h"
 
-usbh_device_info_t usbh_devices[CFG_TUSB_HOST_DEVICE_MAX+1];
+usbh_device_t _usbh_devices[CFG_TUSB_HOST_DEVICE_MAX+1];
 
 static uint8_t const hub_addr = 2;
 static uint8_t const hub_port = 2;
@@ -67,7 +67,7 @@ static pipe_handle_t pipe_hdl;
 //--------------------------------------------------------------------+
 void setUp(void)
 {
-  tu_memclr(usbh_devices, sizeof(usbh_device_info_t)*(CFG_TUSB_HOST_DEVICE_MAX+1));
+  tu_memclr(_usbh_devices, sizeof(usbh_device_t)*(CFG_TUSB_HOST_DEVICE_MAX+1));
 
   hcd_init();
 
@@ -90,7 +90,7 @@ void verify_open_qhd(ehci_qhd_t *p_qhd, uint8_t endpoint_addr, uint16_t max_pack
   TEST_ASSERT_EQUAL(dev_addr, p_qhd->device_address);
   TEST_ASSERT_FALSE(p_qhd->non_hs_period_inactive_next_xact);
   TEST_ASSERT_EQUAL(endpoint_addr & 0x0F, p_qhd->endpoint_number);
-  TEST_ASSERT_EQUAL(usbh_devices[dev_addr].speed, p_qhd->endpoint_speed);
+  TEST_ASSERT_EQUAL(_usbh_devices[dev_addr].speed, p_qhd->endpoint_speed);
   TEST_ASSERT_EQUAL(max_packet_size, p_qhd->max_package_size);
   TEST_ASSERT_EQUAL(0, p_qhd->nak_count_reload); // TDD NAK Reload disable
 
@@ -144,7 +144,7 @@ void check_int_endpoint_link(ehci_qhd_t *p_prev, ehci_qhd_t *p_qhd)
 void test_open_interrupt_qhd_hs(void)
 {
   //------------- Code Under TEST -------------//
-  pipe_hdl = hcd_pipe_open(dev_addr, &desc_ept_interrupt_out, TUSB_CLASS_HID);
+  pipe_hdl = hcd_edpt_open(dev_addr, &desc_ept_interrupt_out, TUSB_CLASS_HID);
 
   TEST_ASSERT_EQUAL(dev_addr, pipe_hdl.dev_addr);
   TEST_ASSERT_EQUAL(TUSB_XFER_INTERRUPT, pipe_hdl.xfer_type);
@@ -162,11 +162,11 @@ void test_open_interrupt_hs_interval_1(void)
   int_edp_interval.bInterval = 1;
 
   //------------- Code Under TEST -------------//
-  pipe_hdl = hcd_pipe_open(dev_addr, &int_edp_interval, TUSB_CLASS_HID);
+  pipe_hdl = hcd_edpt_open(dev_addr, &int_edp_interval, TUSB_CLASS_HID);
   p_int_qhd = &ehci_data.device[ pipe_hdl.dev_addr-1].qhd[ pipe_hdl.index ];
 
   TEST_ASSERT_EQUAL(0              , p_int_qhd->interval_ms);
-  TEST_ASSERT_EQUAL(BIN8(11111111) , p_int_qhd->interrupt_smask);
+  TEST_ASSERT_EQUAL(TU_BIN8(11111111) , p_int_qhd->interrupt_smask);
 
   check_int_endpoint_link(period_head_arr, p_int_qhd);
 }
@@ -177,7 +177,7 @@ void test_open_interrupt_hs_interval_2(void)
   int_edp_interval.bInterval = 2;
 
   //------------- Code Under TEST -------------//
-  pipe_hdl = hcd_pipe_open(dev_addr, &int_edp_interval, TUSB_CLASS_HID);
+  pipe_hdl = hcd_edpt_open(dev_addr, &int_edp_interval, TUSB_CLASS_HID);
   p_int_qhd = &ehci_data.device[ pipe_hdl.dev_addr-1].qhd[ pipe_hdl.index ];
 
   TEST_ASSERT_EQUAL(0 , p_int_qhd->interval_ms);
@@ -191,7 +191,7 @@ void test_open_interrupt_hs_interval_3(void)
   int_edp_interval.bInterval = 3;
 
   //------------- Code Under TEST -------------//
-  pipe_hdl = hcd_pipe_open(dev_addr, &int_edp_interval, TUSB_CLASS_HID);
+  pipe_hdl = hcd_edpt_open(dev_addr, &int_edp_interval, TUSB_CLASS_HID);
   p_int_qhd = &ehci_data.device[ pipe_hdl.dev_addr-1].qhd[ pipe_hdl.index ];
 
   TEST_ASSERT_EQUAL(0, p_int_qhd->interval_ms);
@@ -205,7 +205,7 @@ void test_open_interrupt_hs_interval_4(void)
   int_edp_interval.bInterval = 4;
 
   //------------- Code Under TEST -------------//
-  pipe_hdl = hcd_pipe_open(dev_addr, &int_edp_interval, TUSB_CLASS_HID);
+  pipe_hdl = hcd_edpt_open(dev_addr, &int_edp_interval, TUSB_CLASS_HID);
   p_int_qhd = &ehci_data.device[ pipe_hdl.dev_addr-1].qhd[ pipe_hdl.index ];
 
   TEST_ASSERT_EQUAL(1, p_int_qhd->interval_ms);
@@ -219,7 +219,7 @@ void test_open_interrupt_hs_interval_5(void)
   int_edp_interval.bInterval = 5;
 
   //------------- Code Under TEST -------------//
-  pipe_hdl = hcd_pipe_open(dev_addr, &int_edp_interval, TUSB_CLASS_HID);
+  pipe_hdl = hcd_edpt_open(dev_addr, &int_edp_interval, TUSB_CLASS_HID);
   p_int_qhd = &ehci_data.device[ pipe_hdl.dev_addr-1].qhd[ pipe_hdl.index ];
 
   TEST_ASSERT_EQUAL(2, p_int_qhd->interval_ms);
@@ -233,7 +233,7 @@ void test_open_interrupt_hs_interval_6(void)
   int_edp_interval.bInterval = 6;
 
   //------------- Code Under TEST -------------//
-  pipe_hdl = hcd_pipe_open(dev_addr, &int_edp_interval, TUSB_CLASS_HID);
+  pipe_hdl = hcd_edpt_open(dev_addr, &int_edp_interval, TUSB_CLASS_HID);
   p_int_qhd = &ehci_data.device[ pipe_hdl.dev_addr-1].qhd[ pipe_hdl.index ];
 
   TEST_ASSERT_EQUAL(4, p_int_qhd->interval_ms);
@@ -247,7 +247,7 @@ void test_open_interrupt_hs_interval_7(void)
   int_edp_interval.bInterval = 7;
 
   //------------- Code Under TEST -------------//
-  pipe_hdl = hcd_pipe_open(dev_addr, &int_edp_interval, TUSB_CLASS_HID);
+  pipe_hdl = hcd_edpt_open(dev_addr, &int_edp_interval, TUSB_CLASS_HID);
   p_int_qhd = &ehci_data.device[ pipe_hdl.dev_addr-1].qhd[ pipe_hdl.index ];
 
   TEST_ASSERT_EQUAL(8, p_int_qhd->interval_ms);
@@ -261,7 +261,7 @@ void test_open_interrupt_hs_interval_8(void)
   int_edp_interval.bInterval = 16;
 
   //------------- Code Under TEST -------------//
-  pipe_hdl = hcd_pipe_open(dev_addr, &int_edp_interval, TUSB_CLASS_HID);
+  pipe_hdl = hcd_edpt_open(dev_addr, &int_edp_interval, TUSB_CLASS_HID);
   p_int_qhd = &ehci_data.device[ pipe_hdl.dev_addr-1].qhd[ pipe_hdl.index ];
 
   TEST_ASSERT_EQUAL(255, p_int_qhd->interval_ms);
@@ -272,10 +272,10 @@ void test_open_interrupt_hs_interval_8(void)
 
 void test_open_interrupt_qhd_non_hs(void)
 {
-  usbh_devices[dev_addr].speed = TUSB_SPEED_FULL;
+  _usbh_devices[dev_addr].speed = TUSB_SPEED_FULL;
 
   //------------- Code Under TEST -------------//
-  pipe_hdl = hcd_pipe_open(dev_addr, &desc_ept_interrupt_out, TUSB_CLASS_HID);
+  pipe_hdl = hcd_edpt_open(dev_addr, &desc_ept_interrupt_out, TUSB_CLASS_HID);
 
   TEST_ASSERT_EQUAL(dev_addr, pipe_hdl.dev_addr);
   TEST_ASSERT_EQUAL(TUSB_XFER_INTERRUPT, pipe_hdl.xfer_type);
@@ -294,10 +294,10 @@ void test_open_interrupt_qhd_non_hs_9(void)
   tusb_desc_endpoint_t int_edp_interval = desc_ept_interrupt_out;
   int_edp_interval.bInterval = 32;
 
-  usbh_devices[dev_addr].speed = TUSB_SPEED_FULL;
+  _usbh_devices[dev_addr].speed = TUSB_SPEED_FULL;
 
   //------------- Code Under TEST -------------//
-  pipe_hdl = hcd_pipe_open(dev_addr, &int_edp_interval, TUSB_CLASS_HID);
+  pipe_hdl = hcd_edpt_open(dev_addr, &int_edp_interval, TUSB_CLASS_HID);
   p_int_qhd = &ehci_data.device[ pipe_hdl.dev_addr-1].qhd[ pipe_hdl.index ];
 
   TEST_ASSERT_EQUAL(int_edp_interval.bInterval, p_int_qhd->interval_ms);
@@ -310,7 +310,7 @@ void test_open_interrupt_qhd_non_hs_9(void)
 //--------------------------------------------------------------------+
 void test_interrupt_close(void)
 {
-  pipe_hdl = hcd_pipe_open(dev_addr, &desc_ept_interrupt_out, TUSB_CLASS_HID);
+  pipe_hdl = hcd_edpt_open(dev_addr, &desc_ept_interrupt_out, TUSB_CLASS_HID);
   p_int_qhd = qhd_get_from_pipe_handle(pipe_hdl);
 
   //------------- Code Under TEST -------------//
@@ -328,7 +328,7 @@ void test_interrupt_256ms_close(void)
   tusb_desc_endpoint_t int_edp_interval = desc_ept_interrupt_out;
   int_edp_interval.bInterval = 9;
 
-  pipe_hdl = hcd_pipe_open(dev_addr, &int_edp_interval, TUSB_CLASS_HID);
+  pipe_hdl = hcd_edpt_open(dev_addr, &int_edp_interval, TUSB_CLASS_HID);
   p_int_qhd = qhd_get_from_pipe_handle(pipe_hdl);
 
   //------------- Code Under TEST -------------//

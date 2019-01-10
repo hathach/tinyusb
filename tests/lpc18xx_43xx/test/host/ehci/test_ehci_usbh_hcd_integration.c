@@ -100,7 +100,7 @@ void test_addr0_control_close(void)
 
   TEST_ASSERT_STATUS( hcd_pipe_control_open(dev_addr, control_max_packet_size) );
 
-  TEST_ASSERT_STATUS( hcd_pipe_control_xfer(dev_addr,
+  TEST_ASSERT( hcd_pipe_control_xfer(dev_addr,
                         &(tusb_control_request_t) {
                               .bmRequestType_bit = { .direction = TUSB_DIR_HOST_TO_DEV, .type = TUSB_REQ_TYPE_STANDARD, .recipient = TUSB_REQ_RECIPIENT_DEVICE },
                               .bRequest = TUSB_REQ_SET_ADDRESS,
@@ -126,7 +126,7 @@ void test_isr_disconnect_then_async_advance_control_pipe(void)
 {
   TEST_ASSERT_STATUS( hcd_pipe_control_open(dev_addr, control_max_packet_size) );
 
-  TEST_ASSERT_STATUS( hcd_pipe_control_xfer(dev_addr,
+  TEST_ASSERT( hcd_pipe_control_xfer(dev_addr,
                         &(tusb_control_request_t) {
                               .bmRequestType_bit = { .direction = TUSB_DIR_HOST_TO_DEV, .type = TUSB_REQ_TYPE_STANDARD, .recipient = TUSB_REQ_RECIPIENT_DEVICE },
                               .bRequest = TUSB_REQ_SET_ADDRESS,
@@ -168,7 +168,7 @@ void test_bulk_pipe_close(void)
   };
 
   uint8_t xfer_data[100];
-  pipe_handle_t pipe_hdl = hcd_pipe_open(dev_addr, &desc_ept_bulk_in, TUSB_CLASS_MSC);
+  pipe_handle_t pipe_hdl = hcd_edpt_open(dev_addr, &desc_ept_bulk_in, TUSB_CLASS_MSC);
 
   TEST_ASSERT_STATUS( hcd_pipe_xfer(pipe_hdl, xfer_data, sizeof(xfer_data), 100) );
   TEST_ASSERT_STATUS( hcd_pipe_xfer(pipe_hdl, xfer_data, sizeof(xfer_data), 50) );

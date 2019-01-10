@@ -60,7 +60,7 @@
  * \retval      true if device supports
  * \retval      false if device does not support or is not mounted
  */
-bool          tuh_msc_is_mounted(uint8_t dev_addr) ATTR_PURE ATTR_WARN_UNUSED_RESULT;
+bool          tuh_msc_is_mounted(uint8_t dev_addr);
 
 /** \brief      Check if the interface is currently busy or not
  * \param[in]   dev_addr device address
@@ -70,7 +70,7 @@ bool          tuh_msc_is_mounted(uint8_t dev_addr) ATTR_PURE ATTR_WARN_UNUSED_RE
  *              can be scheduled. User needs to make sure the corresponding interface is mounted (by \ref tuh_msc_is_mounted)
  *              before calling this function
  */
-bool          tuh_msc_is_busy(uint8_t dev_addr) ATTR_PURE ATTR_WARN_UNUSED_RESULT;
+bool          tuh_msc_is_busy(uint8_t dev_addr);
 
 /** \brief      Get SCSI vendor's name of MassStorage device
  * \param[in]   dev_addr device address
@@ -113,7 +113,7 @@ tusb_error_t tuh_msc_get_capacity(uint8_t dev_addr, uint32_t* p_last_lba, uint32
  * \retval      TUSB_ERROR_INVALID_PARA if input parameters are not correct
  * \note        This function is non-blocking and returns immediately. The result of USB transfer will be reported by the interface's callback function
  */
-tusb_error_t tuh_msc_read10 (uint8_t dev_addr, uint8_t lun, void * p_buffer, uint32_t lba, uint16_t block_count) ATTR_WARN_UNUSED_RESULT;
+tusb_error_t tuh_msc_read10 (uint8_t dev_addr, uint8_t lun, void * p_buffer, uint32_t lba, uint16_t block_count);
 
 /** \brief 			Perform SCSI WRITE 10 command to write data to MassStorage device
  * \param[in]		dev_addr	device address
@@ -127,7 +127,7 @@ tusb_error_t tuh_msc_read10 (uint8_t dev_addr, uint8_t lun, void * p_buffer, uin
  * \retval      TUSB_ERROR_INVALID_PARA if input parameters are not correct
  * \note        This function is non-blocking and returns immediately. The result of USB transfer will be reported by the interface's callback function
  */
-tusb_error_t tuh_msc_write10(uint8_t dev_addr, uint8_t lun, void const * p_buffer, uint32_t lba, uint16_t block_count) ATTR_WARN_UNUSED_RESULT;
+tusb_error_t tuh_msc_write10(uint8_t dev_addr, uint8_t lun, void const * p_buffer, uint32_t lba, uint16_t block_count);
 
 /** \brief 			Perform SCSI REQUEST SENSE command, used to retrieve sense data from MassStorage device
  * \param[in]		dev_addr	device address
@@ -150,11 +150,11 @@ tusb_error_t tuh_msc_request_sense(uint8_t dev_addr, uint8_t lun, uint8_t *p_dat
  * \retval      TUSB_ERROR_INVALID_PARA if input parameters are not correct
  * \note        This function is non-blocking and returns immediately. The result of USB transfer will be reported by the interface's callback function
  */
-tusb_error_t tuh_msc_test_unit_ready(uint8_t dev_addr, uint8_t lun, msc_csw_t * p_csw) ATTR_WARN_UNUSED_RESULT; // TODO to be refractor
+tusb_error_t tuh_msc_test_unit_ready(uint8_t dev_addr, uint8_t lun, msc_csw_t * p_csw); // TODO to be refractor
 
 //tusb_error_t  tusbh_msc_scsi_send(uint8_t dev_addr, uint8_t lun, bool is_direction_in,
 //                                  uint8_t const * p_command, uint8_t cmd_len,
-//                                  uint8_t * p_response, uint32_t resp_len) ATTR_WARN_UNUSED_RESULT;
+//                                  uint8_t * p_response, uint32_t resp_len);
 
 //------------- Application Callback -------------//
 /** \brief 			Callback function that will be invoked when a device with MassStorage interface is mounted
@@ -187,9 +187,11 @@ void tuh_msc_isr(uint8_t dev_addr, xfer_result_t event, uint32_t xferred_bytes);
 //--------------------------------------------------------------------+
 #ifdef _TINY_USB_SOURCE_FILE_
 
-typedef struct {
-  pipe_handle_t bulk_in, bulk_out;
-  uint8_t  interface_number;
+typedef struct
+{
+  uint8_t itf_numr;
+  uint8_t  ep_in;
+  uint8_t  ep_out;
 
   uint8_t  max_lun;
   uint16_t block_size;
@@ -203,10 +205,11 @@ typedef struct {
   msc_csw_t csw;
 }msch_interface_t;
 
-void         msch_init(void);
-tusb_error_t msch_open_subtask(uint8_t dev_addr, tusb_desc_interface_t const *p_interface_desc, uint16_t *p_length) ATTR_WARN_UNUSED_RESULT;
-void         msch_isr(pipe_handle_t pipe_hdl, xfer_result_t event, uint32_t xferred_bytes);
-void         msch_close(uint8_t dev_addr);
+void msch_init(void);
+bool msch_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_interface_t const *itf_desc, uint16_t *p_length);
+void msch_isr(uint8_t dev_addr, uint8_t ep_addr, xfer_result_t event, uint32_t xferred_bytes);
+void msch_close(uint8_t dev_addr);
+
 #endif
 
 #ifdef __cplusplus

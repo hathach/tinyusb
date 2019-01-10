@@ -39,7 +39,7 @@
 #include "cdc_serial_host_app.h"
 #include "app_os_prio.h"
 
-#if CFG_TUSB_HOST_CDC
+#if CFG_TUH_CDC
 
 #define QUEUE_SERIAL_DEPTH   100
 

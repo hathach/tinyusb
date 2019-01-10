@@ -64,9 +64,11 @@ typedef enum tusb_interface_status_{
 } tusb_interface_status_t;
 
 typedef struct {
+  uint8_t class_code;
+
   void (* const init) (void);
-  tusb_error_t (* const open_subtask)(uint8_t, tusb_desc_interface_t const *, uint16_t*);
-  void (* const isr) (pipe_handle_t, xfer_result_t, uint32_t);
+  bool (* const open)(uint8_t rhport, uint8_t dev_addr, tusb_desc_interface_t const * itf_desc, uint16_t* outlen);
+  void (* const isr) (uint8_t dev_addr, uint8_t ep_addr, xfer_result_t result, uint32_t len);
   void (* const close) (uint8_t);
 } host_class_driver_t;
 //--------------------------------------------------------------------+
@@ -76,34 +78,33 @@ typedef struct {
 //--------------------------------------------------------------------+
 // APPLICATION API
 //--------------------------------------------------------------------+
-//tusb_error_t tusbh_configuration_set     (uint8_t dev_addr, uint8_t configure_number) ATTR_WARN_UNUSED_RESULT;
-tusb_device_state_t tuh_device_get_state (uint8_t dev_addr) ATTR_WARN_UNUSED_RESULT ATTR_PURE;
-static inline bool tuh_device_is_configured(uint8_t dev_addr) ATTR_ALWAYS_INLINE ATTR_WARN_UNUSED_RESULT ATTR_PURE;
+void tuh_task(void);
+
+tusb_device_state_t tuh_device_get_state (uint8_t dev_addr);
 static inline bool tuh_device_is_configured(uint8_t dev_addr)
 {
   return tuh_device_get_state(dev_addr) == TUSB_DEVICE_STATE_CONFIGURED;
 }
-uint32_t tuh_device_get_mounted_class_flag(uint8_t dev_addr);
 
 //--------------------------------------------------------------------+
 // APPLICATION CALLBACK
 //--------------------------------------------------------------------+
-ATTR_WEAK uint8_t tuh_device_attached_cb (tusb_desc_device_t const *p_desc_device)  ATTR_WARN_UNUSED_RESULT;
-ATTR_WEAK void    tuh_device_mount_succeed_cb (uint8_t dev_addr);
-ATTR_WEAK void    tuh_device_mount_failed_cb(tusb_error_t error, tusb_desc_device_t const *p_desc_device); // TODO refractor remove desc_device
+ATTR_WEAK uint8_t tuh_device_attached_cb (tusb_desc_device_t const *p_desc_device);
+
+/** Callback invoked when device is mounted (configured) */
+ATTR_WEAK void tuh_mount_cb (uint8_t dev_addr);
+
+/** Callback invoked when device is unmounted (bus reset/unplugged) */
+ATTR_WEAK void tuh_umount_cb(uint8_t dev_addr);
 
 //--------------------------------------------------------------------+
 // CLASS-USBH & INTERNAL API
 //--------------------------------------------------------------------+
 #ifdef _TINY_USB_SOURCE_FILE_
 
+bool usbh_init(void);
 
-void usbh_enumeration_task(void* param);
-tusb_error_t usbh_init(void);
-
-tusb_error_t usbh_control_xfer_subtask(uint8_t dev_addr, uint8_t bmRequestType, uint8_t bRequest,
-                                       uint16_t wValue, uint16_t wIndex, uint16_t wLength, uint8_t* data);
-
+bool usbh_control_xfer (uint8_t dev_addr, tusb_control_request_t* request, uint8_t* data);
 
 #endif
 

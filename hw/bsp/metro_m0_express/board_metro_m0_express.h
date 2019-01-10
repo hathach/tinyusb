@@ -42,8 +42,7 @@
  extern "C" {
 #endif
 
-#define BOARD_LED_NUM   1
-#define BOARD_LED0      17
+#include "sam.h"
 
 #ifdef __cplusplus
  }

@@ -39,7 +39,7 @@
 #include "msc_cli.h"
 #include "ctype.h"
 
-#if CFG_TUSB_HOST_MSC
+#if CFG_TUH_MSC
 
 #include "ff.h"
 #include "diskio.h"
@@ -145,7 +145,6 @@ CFG_TUSB_MEM_SECTION uint8_t fileread_buffer[CLI_FILE_READ_BUFFER];
 static char cli_buffer[CLI_MAX_BUFFER];
 static char volume_label[20];
 
-static inline void drive_number2letter(char * p_path) ATTR_ALWAYS_INLINE;
 static inline void drive_number2letter(char * p_path)
 {
   if (p_path[1] == ':')
@@ -154,7 +153,6 @@ static inline void drive_number2letter(char * p_path)
   }
 }
 
-static inline void drive_letter2number(char * p_path) ATTR_ALWAYS_INLINE;
 static inline void drive_letter2number(char * p_path)
 {
   if (p_path[1] == ':')

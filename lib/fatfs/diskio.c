@@ -38,7 +38,7 @@
 
 #include "tusb.h"
 
-#if CFG_TUSB_HOST_MSC
+#if CFG_TUH_MSC
 //--------------------------------------------------------------------+
 // INCLUDE
 //--------------------------------------------------------------------+
@@ -132,7 +132,6 @@ DRESULT disk_ioctl (BYTE pdrv, BYTE cmd, void* buff)
   return RES_OK;
 }
 
-static inline uint8_t month2number(char* p_ch) ATTR_PURE ATTR_ALWAYS_INLINE;
 static inline uint8_t month2number(char* p_ch)
 {
   char const * const month_str[] = { "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec" };
@@ -145,7 +144,6 @@ static inline uint8_t month2number(char* p_ch)
   return 1;
 }
 
-static inline uint8_t c2i(char ch) ATTR_CONST ATTR_ALWAYS_INLINE;
 static inline uint8_t c2i(char ch)
 {
   return ch - '0';
@@ -204,4 +202,4 @@ DWORD get_fattime (void)
   return timestamp.value;
 }
 
-#endif // CFG_TUSB_HOST_MSC
+#endif // CFG_TUH_MSC

@@ -187,7 +187,7 @@ static void xact_in_prepare(uint8_t epnum)
 }
 
 //--------------------------------------------------------------------+
-// Tinyusb DCD API
+// Controller API
 //--------------------------------------------------------------------+
 bool dcd_init (uint8_t rhport)
 {
@@ -195,18 +195,22 @@ bool dcd_init (uint8_t rhport)
   return true;
 }
 
-void dcd_connect (uint8_t rhport)
+void dcd_int_enable(uint8_t rhport)
 {
-
+  (void) rhport;
+  NVIC_EnableIRQ(USBD_IRQn);
 }
-void dcd_disconnect (uint8_t rhport)
-{
 
+void dcd_int_disable(uint8_t rhport)
+{
+  (void) rhport;
+  NVIC_DisableIRQ(USBD_IRQn);
 }
 
 void dcd_set_address (uint8_t rhport, uint8_t dev_addr)
 {
   (void) rhport;
+  (void) dev_addr;
   // Set Address is automatically update by hw controller
 }
 
@@ -217,23 +221,32 @@ void dcd_set_config (uint8_t rhport, uint8_t config_num)
   // Nothing to do
 }
 
+uint32_t dcd_get_frame_number(uint8_t rhport)
+{
+  (void) rhport;
+  return NRF_USBD->FRAMECNTR;
+}
+
+//--------------------------------------------------------------------+
+// Endpoint API
+//--------------------------------------------------------------------+
 bool dcd_edpt_open (uint8_t rhport, tusb_desc_endpoint_t const * desc_edpt)
 {
   (void) rhport;
 
-  uint8_t const epnum = edpt_number(desc_edpt->bEndpointAddress);
-  uint8_t const dir   = edpt_dir(desc_edpt->bEndpointAddress);
+  uint8_t const epnum = tu_edpt_number(desc_edpt->bEndpointAddress);
+  uint8_t const dir   = tu_edpt_dir(desc_edpt->bEndpointAddress);
 
   _dcd.xfer[epnum][dir].mps = desc_edpt->wMaxPacketSize.size;
 
   if ( dir == TUSB_DIR_OUT )
   {
-    NRF_USBD->INTENSET = BIT_(USBD_INTEN_ENDEPOUT0_Pos + epnum);
-    NRF_USBD->EPOUTEN |= BIT_(epnum);
+    NRF_USBD->INTENSET = TU_BIT(USBD_INTEN_ENDEPOUT0_Pos + epnum);
+    NRF_USBD->EPOUTEN |= TU_BIT(epnum);
   }else
   {
-    NRF_USBD->INTENSET = BIT_(USBD_INTEN_ENDEPIN0_Pos + epnum);
-    NRF_USBD->EPINEN  |= BIT_(epnum);
+    NRF_USBD->INTENSET = TU_BIT(USBD_INTEN_ENDEPIN0_Pos + epnum);
+    NRF_USBD->EPINEN  |= TU_BIT(epnum);
   }
   __ISB(); __DSB();
 
@@ -244,8 +257,8 @@ bool dcd_edpt_xfer (uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t 
 {
   (void) rhport;
 
-  uint8_t const epnum = edpt_number(ep_addr);
-  uint8_t const dir   = edpt_dir(ep_addr);
+  uint8_t const epnum = tu_edpt_number(ep_addr);
+  uint8_t const dir   = tu_edpt_dir(ep_addr);
 
   xfer_td_t* xfer = get_td(epnum, dir);
 
@@ -291,15 +304,15 @@ bool dcd_edpt_stalled (uint8_t rhport, uint8_t ep_addr)
   // control is never got halted
   if ( ep_addr == 0 ) return false;
 
-  uint8_t const epnum = edpt_number(ep_addr);
-  return (edpt_dir(ep_addr) == TUSB_DIR_IN ) ? NRF_USBD->HALTED.EPIN[epnum] : NRF_USBD->HALTED.EPOUT[epnum];
+  uint8_t const epnum = tu_edpt_number(ep_addr);
+  return (tu_edpt_dir(ep_addr) == TUSB_DIR_IN ) ? NRF_USBD->HALTED.EPIN[epnum] : NRF_USBD->HALTED.EPOUT[epnum];
 }
 
 void dcd_edpt_stall (uint8_t rhport, uint8_t ep_addr)
 {
   (void) rhport;
 
-  if ( edpt_number(ep_addr) == 0 )
+  if ( tu_edpt_number(ep_addr) == 0 )
   {
     NRF_USBD->TASKS_EP0STALL = 1;
   }else
@@ -314,7 +327,7 @@ void dcd_edpt_clear_stall (uint8_t rhport, uint8_t ep_addr)
 {
   (void) rhport;
 
-  if ( edpt_number(ep_addr)  )
+  if ( tu_edpt_number(ep_addr)  )
   {
     NRF_USBD->EPSTALL = (USBD_EPSTALL_STALL_UnStall << USBD_EPSTALL_STALL_Pos) | ep_addr;
     __ISB(); __DSB();
@@ -326,10 +339,10 @@ bool dcd_edpt_busy (uint8_t rhport, uint8_t ep_addr)
   (void) rhport;
 
   // USBD shouldn't check control endpoint state
-  if ( 0 == edpt_number(ep_addr) ) return false;
+  if ( 0 == tu_edpt_number(ep_addr) ) return false;
 
-  uint8_t const epnum = edpt_number(ep_addr);
-  uint8_t const dir   = edpt_dir(ep_addr);
+  uint8_t const epnum = tu_edpt_number(ep_addr);
+  uint8_t const dir   = tu_edpt_dir(ep_addr);
 
   xfer_td_t* xfer = get_td(epnum, dir);
 
@@ -362,11 +375,11 @@ void USBD_IRQHandler(void)
 
   volatile uint32_t* regevt = &NRF_USBD->EVENTS_USBRESET;
 
-  for(int i=0; i<USBD_INTEN_EPDATA_Pos+1; i++)
+  for(uint8_t i=0; i<USBD_INTEN_EPDATA_Pos+1; i++)
   {
-    if ( BIT_TEST_(inten, i) && regevt[i]  )
+    if ( TU_BIT_TEST(inten, i) && regevt[i]  )
     {
-      int_status |= BIT_(i);
+      int_status |= TU_BIT(i);
 
       // event clear
       regevt[i] = 0;
@@ -441,7 +454,7 @@ void USBD_IRQHandler(void)
    */
   for(uint8_t epnum=0; epnum<8; epnum++)
   {
-    if ( BIT_TEST_(int_status, USBD_INTEN_ENDEPOUT0_Pos+epnum))
+    if ( TU_BIT_TEST(int_status, USBD_INTEN_ENDEPOUT0_Pos+epnum))
     {
       xfer_td_t* xfer = get_td(epnum, TUSB_DIR_OUT);
       uint8_t const xact_len = NRF_USBD->EPOUT[epnum].AMOUNT;
@@ -481,7 +494,7 @@ void USBD_IRQHandler(void)
     // CBI In: Endpoint -> Host (transaction complete)
     for(uint8_t epnum=0; epnum<8; epnum++)
     {
-      if ( BIT_TEST_(data_status, epnum ) || ( epnum == 0 && is_control_in) )
+      if ( TU_BIT_TEST(data_status, epnum ) || ( epnum == 0 && is_control_in) )
       {
         xfer_td_t* xfer = get_td(epnum, TUSB_DIR_IN);
 
@@ -502,7 +515,7 @@ void USBD_IRQHandler(void)
     // CBI OUT: Host -> Endpoint
     for(uint8_t epnum=0; epnum<8; epnum++)
     {
-      if ( BIT_TEST_(data_status, 16+epnum ) || ( epnum == 0 && is_control_out) )
+      if ( TU_BIT_TEST(data_status, 16+epnum ) || ( epnum == 0 && is_control_out) )
       {
         xfer_td_t* xfer = get_td(epnum, TUSB_DIR_OUT);
 

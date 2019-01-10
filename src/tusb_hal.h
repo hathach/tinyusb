@@ -51,59 +51,10 @@ extern "C" {
 //--------------------------------------------------------------------+
 // HAL API
 //--------------------------------------------------------------------+
-/** \ingroup group_mcu
- * \defgroup group_hal Hardware Abtract Layer (HAL)
- * Hardware Abstraction Layer (HAL) is an abstraction layer, between the physical hardware and the tinyusb stack.
- * Its function is to hide differences in hardware from most of MCUs, so that most of the stack code does not need to be changed to
- * run on systems with a different MCU.
- * HAL are sets of routines that emulate some platform-specific details, giving programs direct access to the hardware resources.
- *  @{ */
-
-/** \brief    Initialize USB controller hardware
- * \returns   true if succeeded
- * \note      This function is invoked by \ref tusb_init as part of the initialization.
- */
-bool tusb_hal_init(void);
-
-/** \brief 			Enable USB Interrupt on a specific USB Controller
- * \param[in]		rhport	is a zero-based index to identify USB controller's ID
- */
-void tusb_hal_int_enable(uint8_t rhport);
-
-/** \brief 			Disable USB Interrupt on a specific USB Controller
- * \param[in]		rhport	is a zero-based index to identify USB controller's ID
- */
-void tusb_hal_int_disable(uint8_t rhport);
 
 // Only required to implement if using No RTOS (osal_none)
+// TODO could be remove
 uint32_t tusb_hal_millis(void);
-
-
-// Enable all ports' interrupt
-static inline void tusb_hal_int_enable_all(void)
-{
-#ifdef CFG_TUSB_RHPORT0_MODE
-  tusb_hal_int_enable(0);
-#endif
-
-#ifdef CFG_TUSB_RHPORT0_MODE
-  tusb_hal_int_enable(1);
-#endif
-}
-
-// Disable all ports' interrupt
-static inline void tusb_hal_int_disable_all(void)
-{
-#ifdef CFG_TUSB_RHPORT0_MODE
-  tusb_hal_int_disable(0);
-#endif
-
-#ifdef CFG_TUSB_RHPORT0_MODE
-  tusb_hal_int_disable(1);
-#endif
-}
-
-
 
 #ifdef __cplusplus
  }
@@ -111,4 +62,3 @@ static inline void tusb_hal_int_disable_all(void)
 
 #endif /* _TUSB_HAL_H_ */
 
-/** @} */

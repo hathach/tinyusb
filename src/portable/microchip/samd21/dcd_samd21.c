@@ -72,6 +72,20 @@ static void bus_reset(void) {
 bool dcd_init (uint8_t rhport)
 {
   (void) rhport;
+
+  // Reset to get in a clean state.
+  USB->DEVICE.CTRLA.bit.SWRST = true;
+  while (USB->DEVICE.SYNCBUSY.bit.SWRST == 0) {}
+  while (USB->DEVICE.SYNCBUSY.bit.SWRST == 1) {}
+
+  USB->DEVICE.PADCAL.bit.TRANSP = (*((uint32_t*) USB_FUSES_TRANSP_ADDR) & USB_FUSES_TRANSP_Msk) >> USB_FUSES_TRANSP_Pos;
+  USB->DEVICE.PADCAL.bit.TRANSN = (*((uint32_t*) USB_FUSES_TRANSN_ADDR) & USB_FUSES_TRANSN_Msk) >> USB_FUSES_TRANSN_Pos;
+  USB->DEVICE.PADCAL.bit.TRIM = (*((uint32_t*) USB_FUSES_TRIM_ADDR) & USB_FUSES_TRIM_Msk) >> USB_FUSES_TRIM_Pos;
+
+  USB->DEVICE.QOSCTRL.bit.CQOS = USB_QOSCTRL_CQOS_HIGH_Val;
+  USB->DEVICE.QOSCTRL.bit.DQOS = USB_QOSCTRL_DQOS_HIGH_Val;
+
+  // Configure registers
   USB->DEVICE.DESCADD.reg = (uint32_t) &sram_registers;
   USB->DEVICE.CTRLB.reg = USB_DEVICE_CTRLB_SPDCONF_FS;
   USB->DEVICE.CTRLA.reg = USB_CTRLA_MODE_DEVICE | USB_CTRLA_ENABLE | USB_CTRLA_RUNSTDBY;
@@ -82,13 +96,16 @@ bool dcd_init (uint8_t rhport)
   return true;
 }
 
-void dcd_connect (uint8_t rhport)
+void dcd_int_enable(uint8_t rhport)
 {
-
+  (void) rhport;
+  NVIC_EnableIRQ(USB_IRQn);
 }
-void dcd_disconnect (uint8_t rhport)
-{
 
+void dcd_int_disable(uint8_t rhport)
+{
+  (void) rhport;
+  NVIC_DisableIRQ(USB_IRQn);
 }
 
 void dcd_set_address (uint8_t rhport, uint8_t dev_addr)
@@ -107,6 +124,12 @@ void dcd_set_config (uint8_t rhport, uint8_t config_num)
   // Nothing to do
 }
 
+uint32_t dcd_get_frame_number(uint8_t rhport)
+{
+  (void) rhport;
+  return USB->DEVICE.FNUM.bit.FNUM;
+}
+
 /*------------------------------------------------------------------*/
 /* DCD Endpoint port
  *------------------------------------------------------------------*/
@@ -115,8 +138,8 @@ bool dcd_edpt_open (uint8_t rhport, tusb_desc_endpoint_t const * desc_edpt)
 {
   (void) rhport;
 
-  uint8_t const epnum = edpt_number(desc_edpt->bEndpointAddress);
-  uint8_t const dir   = edpt_dir(desc_edpt->bEndpointAddress);
+  uint8_t const epnum = tu_edpt_number(desc_edpt->bEndpointAddress);
+  uint8_t const dir   = tu_edpt_dir(desc_edpt->bEndpointAddress);
 
   UsbDeviceDescBank* bank = &sram_registers[epnum][dir];
   uint32_t size_value = 0;
@@ -151,8 +174,8 @@ bool dcd_edpt_xfer (uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t 
 {
   (void) rhport;
 
-  uint8_t const epnum = edpt_number(ep_addr);
-  uint8_t const dir   = edpt_dir(ep_addr);
+  uint8_t const epnum = tu_edpt_number(ep_addr);
+  uint8_t const dir   = tu_edpt_dir(ep_addr);
 
   UsbDeviceDescBank* bank = &sram_registers[epnum][dir];
   UsbDeviceEndpoint* ep = &USB->DEVICE.DeviceEndpoint[epnum];
@@ -191,19 +214,19 @@ bool dcd_edpt_stalled (uint8_t rhport, uint8_t ep_addr)
       return false;
   }
 
-  uint8_t const epnum = edpt_number(ep_addr);
+  uint8_t const epnum = tu_edpt_number(ep_addr);
   UsbDeviceEndpoint* ep = &USB->DEVICE.DeviceEndpoint[epnum];
-  return (edpt_dir(ep_addr) == TUSB_DIR_IN ) ? ep->EPINTFLAG.bit.STALL1 : ep->EPINTFLAG.bit.STALL0;
+  return (tu_edpt_dir(ep_addr) == TUSB_DIR_IN ) ? ep->EPINTFLAG.bit.STALL1 : ep->EPINTFLAG.bit.STALL0;
 }
 
 void dcd_edpt_stall (uint8_t rhport, uint8_t ep_addr)
 {
   (void) rhport;
 
-  uint8_t const epnum = edpt_number(ep_addr);
+  uint8_t const epnum = tu_edpt_number(ep_addr);
   UsbDeviceEndpoint* ep = &USB->DEVICE.DeviceEndpoint[epnum];
 
-  if (edpt_dir(ep_addr) == TUSB_DIR_IN) {
+  if (tu_edpt_dir(ep_addr) == TUSB_DIR_IN) {
       ep->EPSTATUSSET.reg = USB_DEVICE_EPSTATUSSET_STALLRQ1;
   } else {
       ep->EPSTATUSSET.reg = USB_DEVICE_EPSTATUSSET_STALLRQ0;
@@ -219,10 +242,10 @@ void dcd_edpt_clear_stall (uint8_t rhport, uint8_t ep_addr)
 {
   (void) rhport;
 
-  uint8_t const epnum = edpt_number(ep_addr);
+  uint8_t const epnum = tu_edpt_number(ep_addr);
   UsbDeviceEndpoint* ep = &USB->DEVICE.DeviceEndpoint[epnum];
 
-  if (edpt_dir(ep_addr) == TUSB_DIR_IN) {
+  if (tu_edpt_dir(ep_addr) == TUSB_DIR_IN) {
     ep->EPSTATUSCLR.reg = USB_DEVICE_EPSTATUSCLR_STALLRQ1;
   } else {
     ep->EPSTATUSCLR.reg = USB_DEVICE_EPSTATUSCLR_STALLRQ0;
@@ -236,10 +259,10 @@ bool dcd_edpt_busy (uint8_t rhport, uint8_t ep_addr)
   // USBD shouldn't check control endpoint state
   if ( 0 == ep_addr ) return false;
 
-  uint8_t const epnum = edpt_number(ep_addr);
+  uint8_t const epnum = tu_edpt_number(ep_addr);
   UsbDeviceEndpoint* ep = &USB->DEVICE.DeviceEndpoint[epnum];
 
-  if (edpt_dir(ep_addr) == TUSB_DIR_IN) {
+  if (tu_edpt_dir(ep_addr) == TUSB_DIR_IN) {
     return ep->EPINTFLAG.bit.TRCPT1 == 0 && ep->EPSTATUS.bit.BK1RDY == 1;
   }
   return ep->EPINTFLAG.bit.TRCPT0 == 0 && ep->EPSTATUS.bit.BK0RDY == 1;

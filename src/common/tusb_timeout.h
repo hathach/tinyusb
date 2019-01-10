@@ -79,16 +79,6 @@ static inline void tu_timeout_restart(tu_timeout_t* tt)
   tt->start = tusb_hal_millis();
 }
 
-
-static inline void tu_timeout_wait(uint32_t msec)
-{
-  tu_timeout_t tt;
-  tu_timeout_set(&tt, msec);
-
-  // blocking delay
-  while ( !tu_timeout_expired(&tt) ) { }
-}
-
 #ifdef __cplusplus
  }
 #endif

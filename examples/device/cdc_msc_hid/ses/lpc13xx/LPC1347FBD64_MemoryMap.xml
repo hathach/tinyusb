@@ -1,0 +1,7 @@
+<!DOCTYPE Board_Memory_Definition_File>
+<root name="LPC1347FBD64">
+  <MemorySegment name="FLASH" start="0x00000000" size="0x00010000" access="ReadOnly" />
+  <MemorySegment name="RAM" start="0x10000000" size="0x00002000" access="Read/Write" />
+  <MemorySegment name="RAM2" start="0x20000000" size="0x00000800" access="Read/Write" />
+  <MemorySegment name="RAM3" start="0x20004000" size="0x00000800" access="Read/Write" />
+</root>

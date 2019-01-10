@@ -19,9 +19,10 @@
       arm_target_interface_type="SWD"
       build_treat_warnings_as_errors="Yes"
       c_preprocessor_definitions="__SAMD21G18A__;__SAMD21_FAMILY;__SAM_D21_SUBFAMILY;ARM_MATH_CM0PLUS;FLASH_PLACEMENT=1;USE_SIMPLE_ASSERT;CONF_XOSC32K_CONFIG=1;CONF_OSC32K_ENABLE=1;CONF_OSC32K_EN32K=1;CONF_XOSC32K_STARTUP=CONF_XOSC32K_STARTUP_TIME_2000092MCS;CONF_DFLL_ONDEMAND=0;CONF_DFLL_OVERWRITE_CALIBRATION=0;BOARD_METRO_M0_EXPRESS;CFG_TUSB_MCU=OPT_MCU_SAMD21"
-      c_user_include_directories="../../src;$(rootDir)/hw/cmsis/Include;$(rootDir)/hw;$(rootDir)/src;$(asf4Dir);$(asf4Dir)/include;$(asf4Dir)/config;$(asf4Dir)/hri;$(asf4Dir)/hal/include;$(asf4Dir)/hal/utils/include;$(asf4Dir)/hpl/port;$(asf4Dir)/hpl/gclk;$(asf4Dir)/hpl/pm"
+      c_user_include_directories="../../src;$(rootDir)/hw;$(rootDir)/src;$(asf4Dir);$(asf4Dir)/CMSIS/Include;$(asf4Dir)/include;$(asf4Dir)/config;$(asf4Dir)/hri;$(asf4Dir)/hal/include;$(asf4Dir)/hal/utils/include;$(asf4Dir)/hpl/port;$(asf4Dir)/hpl/gclk;$(asf4Dir)/hpl/pm"
       debug_register_definition_file="ATSAMD21G18A_Registers.xml"
       debug_target_connection="J-Link"
+      gcc_enable_all_warnings="Yes"
       gcc_entry_point="Reset_Handler"
       link_use_linker_script_file="No"
       linker_memory_map_file="$(ProjectDir)/ATSAMD21G18A_MemoryMap.xml"
@@ -57,9 +58,6 @@
                   <file file_name="../../../../../hw/mcu/microchip/samd/asf4/samd21/gcc/system_samd21.c" />
                 </folder>
                 <folder Name="hpl">
-                  <folder Name="core">
-                    <file file_name="../../../../../hw/mcu/microchip/samd/asf4/samd21/hpl/core/hpl_init.c" />
-                  </folder>
                   <folder Name="gclk">
                     <file file_name="../../../../../hw/mcu/microchip/samd/asf4/samd21/hpl/gclk/hpl_gclk.c" />
                   </folder>

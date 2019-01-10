@@ -81,8 +81,7 @@ LIB_SOURCE += \
 	src/class/cdc/cdc_device.c \
 	src/class/hid/hid_device.c \
 	src/tusb.c \
-	src/portable/$(VENDOR)/$(CHIP_FAMILY)/dcd_$(CHIP_FAMILY).c \
-	src/portable/$(VENDOR)/$(CHIP_FAMILY)/hal_$(CHIP_FAMILY).c
+	src/portable/$(VENDOR)/$(CHIP_FAMILY)/dcd_$(CHIP_FAMILY).c
 
 SRC_C += $(LIB_SOURCE)
 

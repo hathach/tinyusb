@@ -51,7 +51,7 @@
 #include "ehci_controller_fake.h"
 #include "host_helper.h"
 
-usbh_device_info_t usbh_devices[CFG_TUSB_HOST_DEVICE_MAX+1];
+usbh_device_t _usbh_devices[CFG_TUSB_HOST_DEVICE_MAX+1];
 
 static uint8_t const hub_addr = 2;
 static uint8_t const hub_port = 2;
@@ -70,7 +70,7 @@ void setUp(void)
   dev_addr = 1;
   hostid = RANDOM(CONTROLLER_HOST_NUMBER) + TEST_CONTROLLER_HOST_START_INDEX;
 
-  tu_memclr(usbh_devices, sizeof(usbh_device_info_t)*(CFG_TUSB_HOST_DEVICE_MAX+1));
+  tu_memclr(_usbh_devices, sizeof(usbh_device_t)*(CFG_TUSB_HOST_DEVICE_MAX+1));
   helper_usbh_device_emulate(dev_addr, hub_addr, hub_port, hostid, TUSB_SPEED_HIGH);
 
   async_head =  get_async_head( hostid );
@@ -85,7 +85,7 @@ void verify_open_qhd(ehci_qhd_t *p_qhd, uint8_t endpoint_addr, uint16_t max_pack
   TEST_ASSERT_EQUAL(dev_addr, p_qhd->device_address);
   TEST_ASSERT_FALSE(p_qhd->non_hs_period_inactive_next_xact);
   TEST_ASSERT_EQUAL(endpoint_addr & 0x0F, p_qhd->endpoint_number);
-  TEST_ASSERT_EQUAL(usbh_devices[dev_addr].speed, p_qhd->endpoint_speed);
+  TEST_ASSERT_EQUAL(_usbh_devices[dev_addr].speed, p_qhd->endpoint_speed);
   TEST_ASSERT_EQUAL(max_packet_size, p_qhd->max_package_size);
   TEST_ASSERT_EQUAL(0, p_qhd->nak_count_reload); // TDD NAK Reload disable
 
@@ -155,7 +155,7 @@ void test_open_bulk_qhd_data(void)
   tusb_desc_endpoint_t const * desc_endpoint = &desc_ept_bulk_in;
 
   //------------- Code Under TEST -------------//
-  pipe_hdl = hcd_pipe_open(dev_addr, desc_endpoint, TUSB_CLASS_MSC);
+  pipe_hdl = hcd_edpt_open(dev_addr, desc_endpoint, TUSB_CLASS_MSC);
 
   TEST_ASSERT_EQUAL(dev_addr, pipe_hdl.dev_addr);
   TEST_ASSERT_EQUAL(TUSB_XFER_BULK, pipe_hdl.xfer_type);
@@ -175,7 +175,7 @@ void test_open_bulk_hs_out_pingstate(void)
   pipe_handle_t pipe_hdl;
 
   //------------- Code Under TEST -------------//
-  pipe_hdl = hcd_pipe_open(dev_addr, &desc_ept_bulk_out, TUSB_CLASS_MSC);
+  pipe_hdl = hcd_edpt_open(dev_addr, &desc_ept_bulk_out, TUSB_CLASS_MSC);
 
   p_qhd = &ehci_data.device[ pipe_hdl.dev_addr-1 ].qhd[ pipe_hdl.index ];
   TEST_ASSERT(p_qhd->qtd_overlay.pingstate_err);
@@ -187,7 +187,7 @@ void test_open_bulk_hs_out_pingstate(void)
 void test_bulk_close(void)
 {
   tusb_desc_endpoint_t const * desc_endpoint = &desc_ept_bulk_in;
-  pipe_handle_t pipe_hdl = hcd_pipe_open(dev_addr, desc_endpoint, TUSB_CLASS_MSC);
+  pipe_handle_t pipe_hdl = hcd_edpt_open(dev_addr, desc_endpoint, TUSB_CLASS_MSC);
   ehci_qhd_t *p_qhd = &ehci_data.device[ pipe_hdl.dev_addr-1].qhd[ pipe_hdl.index ];
 
   //------------- Code Under TEST -------------//

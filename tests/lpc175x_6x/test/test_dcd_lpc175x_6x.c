@@ -99,7 +99,7 @@ void test_dcd_init(void)
   dcd_init();
 
   //------------- slave check -------------//
-  TEST_ASSERT_EQUAL_HEX( BIN8(11), LPC_USB->USBEpIntEn );
+  TEST_ASSERT_EQUAL_HEX( TU_BIN8(11), LPC_USB->USBEpIntEn );
   TEST_ASSERT_EQUAL_HEX( DEV_INT_DEVICE_STATUS_MASK | DEV_INT_ENDPOINT_SLOW_MASK | DEV_INT_ERROR_MASK,
                          LPC_USB->USBDevIntEn );
   TEST_ASSERT_EQUAL_HEX( 0, LPC_USB->USBEpIntPri);
@@ -135,7 +135,7 @@ void test_dcd_configure_endpoint_in(void)
   dcd_pipe_open(0, &desc_endpoint);
 
   uint8_t const phy_ep = 2*3 + 1;
-  TEST_ASSERT_EQUAL_HEX( BIT_(phy_ep), LPC_USB->USBReEp);
+  TEST_ASSERT_EQUAL_HEX( TU_BIT(phy_ep), LPC_USB->USBReEp);
   TEST_ASSERT_EQUAL_HEX( phy_ep, LPC_USB->USBEpInd);
   TEST_ASSERT_EQUAL( desc_endpoint.wMaxPacketSize.size, LPC_USB->USBMaxPSize);
 

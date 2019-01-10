@@ -65,27 +65,6 @@ static inline bool in_isr(void)
 //--------------------------------------------------------------------+
 // TASK API
 //--------------------------------------------------------------------+
-#define OSAL_TASK_DEF(_name, _str, _func, _prio, _stack_sz) \
-  static uint8_t _name##_##buf[_stack_sz*sizeof(StackType_t)]; \
-  osal_task_def_t _name = { .func = _func, .prio = _prio, .stack_sz = _stack_sz, .buf = _name##_##buf, .strname = _str };
-
-typedef struct
-{
-  osal_task_func_t func;
-
-  uint16_t prio;
-  uint16_t stack_sz;
-  void*    buf;
-  const char* strname;
-
-  StaticTask_t stask;
-}osal_task_def_t;
-
-static inline bool osal_task_create(osal_task_def_t* taskdef)
-{
-  return NULL != xTaskCreateStatic(taskdef->func, taskdef->strname, taskdef->stack_sz, NULL, taskdef->prio, (StackType_t*) taskdef->buf, &taskdef->stask);
-}
-
 static inline void osal_task_delay(uint32_t msec)
 {
   vTaskDelay( pdMS_TO_TICKS(msec) );
@@ -107,10 +86,10 @@ static inline bool osal_semaphore_post(osal_semaphore_t sem_hdl, bool in_isr)
   return in_isr ?  xSemaphoreGiveFromISR(sem_hdl, NULL) : xSemaphoreGive(sem_hdl);
 }
 
-static inline void osal_semaphore_wait(osal_semaphore_t sem_hdl, uint32_t msec, uint32_t *err)
+static inline bool osal_semaphore_wait (osal_semaphore_t sem_hdl, uint32_t msec)
 {
   uint32_t const ticks = (msec == OSAL_TIMEOUT_WAIT_FOREVER) ? portMAX_DELAY : pdMS_TO_TICKS(msec);
-  (*err) = (xSemaphoreTake(sem_hdl, ticks) ? TUSB_ERROR_NONE : TUSB_ERROR_OSAL_TIMEOUT);
+  return xSemaphoreTake(sem_hdl, ticks);
 }
 
 static inline void osal_semaphore_reset(osal_semaphore_t const sem_hdl)
@@ -139,7 +118,9 @@ static inline bool osal_mutex_unlock(osal_mutex_t mutex_hdl)
 //--------------------------------------------------------------------+
 // QUEUE API
 //--------------------------------------------------------------------+
-#define OSAL_QUEUE_DEF(_name, _depth, _type) \
+
+// role device/host is used by OS NONE for mutex (disable usb isr) only
+#define OSAL_QUEUE_DEF(_role, _name, _depth, _type) \
   static _type _name##_##buf[_depth];\
   osal_queue_def_t _name = { .depth = _depth, .item_sz = sizeof(_type), .buf = _name##_##buf };
 

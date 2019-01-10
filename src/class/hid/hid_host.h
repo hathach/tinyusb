@@ -67,7 +67,7 @@ extern uint8_t const hid_keycode_to_ascii_tbl[2][128]; // TODO used weak attr if
  * \retval      true if device supports Keyboard interface
  * \retval      false if device does not support Keyboard interface or is not mounted
  */
-bool          tuh_hid_keyboard_is_mounted(uint8_t dev_addr) ATTR_PURE ATTR_WARN_UNUSED_RESULT;
+bool          tuh_hid_keyboard_is_mounted(uint8_t dev_addr);
 
 /** \brief      Check if the interface is currently busy or not
  * \param[in]   dev_addr device address
@@ -76,7 +76,7 @@ bool          tuh_hid_keyboard_is_mounted(uint8_t dev_addr) ATTR_PURE ATTR_WARN_
  * \note        This function is primarily used for polling/waiting result after \ref tuh_hid_keyboard_get_report.
  *              Alternatively, asynchronous event API can be used
  */
-bool          tuh_hid_keyboard_is_busy(uint8_t dev_addr) ATTR_PURE ATTR_WARN_UNUSED_RESULT;
+bool          tuh_hid_keyboard_is_busy(uint8_t dev_addr);
 
 /** \brief        Perform a get report from Keyboard interface
  * \param[in]		  dev_addr device address
@@ -88,7 +88,7 @@ bool          tuh_hid_keyboard_is_busy(uint8_t dev_addr) ATTR_PURE ATTR_WARN_UNU
  * \retval        TUSB_ERROR_INVALID_PARA if input parameters are not correct
  * \note          This function is non-blocking and returns immediately. The result of usb transfer will be reported by the interface's callback function
  */
-tusb_error_t  tuh_hid_keyboard_get_report(uint8_t dev_addr, void * p_report) /*ATTR_WARN_UNUSED_RESULT*/;
+tusb_error_t  tuh_hid_keyboard_get_report(uint8_t dev_addr, void * p_report);
 
 //------------- Application Callback -------------//
 /** \brief      Callback function that is invoked when an transferring event occurred
@@ -132,7 +132,7 @@ void tuh_hid_keyboard_unmounted_cb(uint8_t dev_addr);
  * \retval      true if device supports Mouse interface
  * \retval      false if device does not support Mouse interface or is not mounted
  */
-bool          tuh_hid_mouse_is_mounted(uint8_t dev_addr) ATTR_PURE ATTR_WARN_UNUSED_RESULT;
+bool          tuh_hid_mouse_is_mounted(uint8_t dev_addr);
 
 /** \brief      Check if the interface is currently busy or not
  * \param[in]   dev_addr device address
@@ -141,7 +141,7 @@ bool          tuh_hid_mouse_is_mounted(uint8_t dev_addr) ATTR_PURE ATTR_WARN_UNU
  * \note        This function is primarily used for polling/waiting result after \ref tuh_hid_mouse_get_report.
  *              Alternatively, asynchronous event API can be used
  */
-bool          tuh_hid_mouse_is_busy(uint8_t dev_addr) ATTR_PURE ATTR_WARN_UNUSED_RESULT;
+bool          tuh_hid_mouse_is_busy(uint8_t dev_addr);
 
 /** \brief        Perform a get report from Mouse interface
  * \param[in]		  dev_addr device address
@@ -153,7 +153,7 @@ bool          tuh_hid_mouse_is_busy(uint8_t dev_addr) ATTR_PURE ATTR_WARN_UNUSED
  * \retval        TUSB_ERROR_INVALID_PARA if input parameters are not correct
  * \note          This function is non-blocking and returns immediately. The result of usb transfer will be reported by the interface's callback function
  */
-tusb_error_t  tuh_hid_mouse_get_report(uint8_t dev_addr, void* p_report) /*ATTR_WARN_UNUSED_RESULT*/;
+tusb_error_t  tuh_hid_mouse_get_report(uint8_t dev_addr, void* p_report);
 
 //------------- Application Callback -------------//
 /** \brief      Callback function that is invoked when an transferring event occurred
@@ -192,11 +192,11 @@ void tuh_hid_mouse_unmounted_cb(uint8_t dev_addr);
  *  The interface API includes status checking function, data transferring function and callback functions
  *  @{ */
 
-bool          tuh_hid_generic_is_mounted(uint8_t dev_addr) ATTR_PURE ATTR_WARN_UNUSED_RESULT;
-tusb_error_t  tuh_hid_generic_get_report(uint8_t dev_addr, void* p_report, bool int_on_complete) ATTR_WARN_UNUSED_RESULT;
-tusb_error_t  tuh_hid_generic_set_report(uint8_t dev_addr, void* p_report, bool int_on_complete) ATTR_WARN_UNUSED_RESULT;
-tusb_interface_status_t tuh_hid_generic_get_status(uint8_t dev_addr) ATTR_WARN_UNUSED_RESULT;
-tusb_interface_status_t tuh_hid_generic_set_status(uint8_t dev_addr) ATTR_WARN_UNUSED_RESULT;
+bool          tuh_hid_generic_is_mounted(uint8_t dev_addr);
+tusb_error_t  tuh_hid_generic_get_report(uint8_t dev_addr, void* p_report, bool int_on_complete);
+tusb_error_t  tuh_hid_generic_set_report(uint8_t dev_addr, void* p_report, bool int_on_complete);
+tusb_interface_status_t tuh_hid_generic_get_status(uint8_t dev_addr);
+tusb_interface_status_t tuh_hid_generic_set_status(uint8_t dev_addr);
 
 //------------- Application Callback -------------//
 void tuh_hid_generic_isr(uint8_t dev_addr, xfer_result_t event);
@@ -215,10 +215,10 @@ typedef struct {
   uint8_t interface_number;
 }hidh_interface_info_t;
 
-void         hidh_init(void);
-tusb_error_t hidh_open_subtask(uint8_t dev_addr, tusb_desc_interface_t const *p_interface_desc, uint16_t *p_length) ATTR_WARN_UNUSED_RESULT;
-void         hidh_isr(pipe_handle_t pipe_hdl, xfer_result_t event, uint32_t xferred_bytes);
-void         hidh_close(uint8_t dev_addr);
+void hidh_init(void);
+bool hidh_open_subtask(uint8_t dev_addr, tusb_desc_interface_t const *p_interface_desc, uint16_t *p_length);
+void hidh_isr(pipe_handle_t pipe_hdl, xfer_result_t event, uint32_t xferred_bytes);
+void hidh_close(uint8_t dev_addr);
 
 #endif
 

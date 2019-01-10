@@ -68,8 +68,6 @@ typedef void (*osal_task_func_t)( void * );
    * uint32_t tusb_hal_millis(void)
    *
    * Task
-   *    osal_task_def_t
-   *    bool osal_task_create(osal_task_def_t* taskdef)
    *    void osal_task_delay(uint32_t msec)
    *
    * Queue
@@ -83,7 +81,7 @@ typedef void (*osal_task_func_t)( void * );
    *    osal_semaphore_def_t, osal_semaphore_t
    *    osal_semaphore_t osal_semaphore_create(osal_semaphore_def_t* semdef)
    *    bool osal_semaphore_post(osal_semaphore_t sem_hdl, bool in_isr)
-   *    void osal_semaphore_wait(osal_semaphore_t sem_hdl, uint32_t msec, uint32_t *p_error)
+ *    bool osal_semaphore_wait(osal_semaphore_t sem_hdl, uint32_t msec)
    *    void osal_semaphore_reset(osal_semaphore_t const sem_hdl)
    *
    * Mutex

@@ -59,14 +59,13 @@
 //--------------------------------------------------------------------+
 // INTERNAL OBJECT & FUNCTION DECLARATION
 //--------------------------------------------------------------------+
-void print_greeting(void);
 void led_blinky_cb(TimerHandle_t xTimer);
+void usb_device_task(void* param);
 
 /*------------- MAIN -------------*/
 int main(void)
 {
   board_init();
-  print_greeting();
 
   // soft timer for blinky
   TimerHandle_t tm_hdl = xTimerCreate(NULL, pdMS_TO_TICKS(1000), true, NULL, led_blinky_cb);
@@ -74,10 +73,13 @@ int main(void)
 
   tusb_init();
 
+  // Create a task for tinyusb device stack
+  xTaskCreate( usb_device_task, "usbd", 150, NULL, configMAX_PRIORITIES-1, NULL);
+
   // Create task
 #if CFG_TUD_CDC
   extern void cdc_task(void* params);
-  xTaskCreate( cdc_task, "cdc", 256, NULL, 2, NULL);
+  xTaskCreate( cdc_task, "cdc", 256, NULL, configMAX_PRIORITIES-2, NULL);
 #endif
 
 #if CFG_TUD_HID
@@ -90,6 +92,20 @@ int main(void)
   return 0;
 }
 
+// USB Device Driver task
+// This top level thread process all usb events and invoke callbacks
+void usb_device_task(void* param)
+{
+  (void) param;
+
+  // RTOS forever loop
+  while (1)
+  {
+    // tinyusb device task
+    tud_task();
+  }
+}
+
 //--------------------------------------------------------------------+
 // USB CDC
 //--------------------------------------------------------------------+
@@ -98,11 +114,12 @@ void cdc_task(void* params)
 {
   (void) params;
 
+  // RTOS forever loop
   while ( 1 )
   {
-    // connected and there are data available
     if ( tud_cdc_connected() )
     {
+      // connected and there are data available
       if ( tud_cdc_available() )
       {
         uint8_t buf[64];
@@ -110,10 +127,15 @@ void cdc_task(void* params)
         // read and echo back
         uint32_t count = tud_cdc_read(buf, sizeof(buf));
 
-        tud_cdc_write(buf, count);
-      }
+        for(uint32_t i=0; i<count; i++)
+        {
+          tud_cdc_write_char(buf[i]);
 
-      tud_cdc_write_flush();
+          if ( buf[i] == '\r' ) tud_cdc_write_char('\n');
+        }
+
+        tud_cdc_write_flush();
+      }
     }
   }
 }
@@ -125,8 +147,8 @@ void tud_cdc_line_state_cb(uint8_t itf, bool dtr, bool rts)
   // connected
   if ( dtr && rts )
   {
-    // print greeting
-    tud_cdc_write_str("tinyusb usb cdc\n");
+    // print initial message when connected
+    tud_cdc_write_str("\r\nTinyUSB CDC MSC HID device with FreeRTOS example\r\n");
   }
 }
 #endif
@@ -206,6 +228,7 @@ void tud_umount_cb(void)
 
 void tud_cdc_rx_cb(uint8_t itf)
 {
+  (void) itf;
 }
 
 //--------------------------------------------------------------------+
@@ -216,31 +239,6 @@ void led_blinky_cb(TimerHandle_t xTimer)
   (void) xTimer;
   static bool led_state = false;
 
-  board_led_control(BOARD_LED0, led_state);
+  board_led_control(led_state);
   led_state = 1 - led_state; // toggle
-}
-
-//--------------------------------------------------------------------+
-// HELPER FUNCTION
-//--------------------------------------------------------------------+
-void print_greeting(void)
-{
-  char const * const rtos_name[] =
-  {
-      [OPT_OS_NONE]      = "None",
-      [OPT_OS_FREERTOS]  = "FreeRTOS",
-  };
-
-  printf("\n--------------------------------------------------------------------\n");
-  printf("-                     Device Demo (a tinyusb example)\n");
-  printf("- if you find any bugs or get any questions, feel free to file an\n");
-  printf("- issue at https://github.com/hathach/tinyusb\n");
-  printf("--------------------------------------------------------------------\n\n");
-
-  printf("This DEVICE demo is configured to support:");
-  printf("  - RTOS = %s\n", rtos_name[CFG_TUSB_OS]);
-  if (CFG_TUD_CDC          ) puts("  - Communication Device Class");
-  if (CFG_TUD_MSC          ) puts("  - Mass Storage");
-  if (CFG_TUD_HID_KEYBOARD ) puts("  - HID Keyboard");
-  if (CFG_TUD_HID_MOUSE    ) puts("  - HID Mouse");
 }

@@ -52,23 +52,12 @@
 #include "common/tusb_common.h"
 #include "osal/osal.h"
 
-#ifdef _TEST_
-#include "hcd.h"
-#endif
-
 //--------------------------------------------------------------------+
 // USBH-HCD common data structure
 //--------------------------------------------------------------------+
-typedef struct ATTR_ALIGNED(4){
-  uint8_t core_id;
-  uint8_t hub_addr;
-  uint8_t hub_port;
-  uint8_t reserve;
-} usbh_enumerate_t;
-
 typedef struct {
   //------------- port -------------//
-  uint8_t core_id;
+  uint8_t rhport;
   uint8_t hub_addr;
   uint8_t hub_port;
   uint8_t speed;
@@ -83,7 +72,6 @@ typedef struct {
 
   //------------- device -------------//
   volatile uint8_t state;             // device state, value from enum tusbh_device_state_t
-  uint32_t flag_supported_class;      // a bitmap of supported class
 
   //------------- control pipe -------------//
   struct {
@@ -91,19 +79,24 @@ typedef struct {
 //    uint8_t xferred_bytes; TODO not yet necessary
     tusb_control_request_t request;
 
+    osal_semaphore_def_t sem_def;
     osal_semaphore_t sem_hdl;  // used to synchronize with HCD when control xfer complete
+
+    osal_mutex_def_t mutex_def;
     osal_mutex_t mutex_hdl;    // used to exclusively occupy control pipe
   } control;
-} usbh_device_info_t;
 
-extern usbh_device_info_t usbh_devices[CFG_TUSB_HOST_DEVICE_MAX+1]; // including zero-address
+  uint8_t itf2drv[16];  // map interface number to driver (0xff is invalid)
+  uint8_t ep2drv[8][2]; // map endpoint to driver ( 0xff is invalid )
+} usbh_device_t;
+
+extern usbh_device_t _usbh_devices[CFG_TUSB_HOST_DEVICE_MAX+1]; // including zero-address
 
 //--------------------------------------------------------------------+
 // callback from HCD ISR
 //--------------------------------------------------------------------+
-void usbh_xfer_isr(pipe_handle_t pipe_hdl, uint8_t class_code, xfer_result_t event, uint32_t xferred_bytes);
-void usbh_hcd_rhport_plugged_isr(uint8_t hostid);
-void usbh_hcd_rhport_unplugged_isr(uint8_t hostid);
+
+
 
 #ifdef __cplusplus
  }

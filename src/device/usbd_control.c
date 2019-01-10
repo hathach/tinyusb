@@ -68,6 +68,7 @@ CFG_TUSB_MEM_SECTION CFG_TUSB_MEM_ALIGN uint8_t _usbd_ctrl_buf[CFG_TUD_ENDOINT0_
 
 void usbd_control_reset (uint8_t rhport)
 {
+  (void) rhport;
   tu_varclr(&_control_state);
 }
 
@@ -81,7 +82,6 @@ bool usbd_control_status(uint8_t rhport, tusb_control_request_t const * request)
   // status direction is reversed to one in the setup packet
   return dcd_edpt_xfer(rhport, request->bmRequestType_bit.direction ? EDPT_CTRL_OUT : EDPT_CTRL_IN, NULL, 0);
 }
-
 
 // Each transaction is up to endpoint0's max packet size
 static bool start_control_data_xact(uint8_t rhport)
@@ -126,8 +126,11 @@ bool usbd_control_xfer(uint8_t rhport, tusb_control_request_t const * request, v
 }
 
 // callback when a transaction complete on DATA stage of control endpoint
-bool usbd_control_xfer_cb (uint8_t rhport, uint8_t ep_addr, xfer_result_t event, uint32_t xferred_bytes)
+bool usbd_control_xfer_cb (uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint32_t xferred_bytes)
 {
+  (void) result;
+  (void) ep_addr;
+
   if ( _control_state.request.bmRequestType_bit.direction == TUSB_DIR_OUT )
   {
     memcpy(_control_state.buffer, _usbd_ctrl_buf, xferred_bytes);
