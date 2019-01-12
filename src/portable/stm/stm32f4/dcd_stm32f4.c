@@ -60,11 +60,25 @@ bool dcd_init (uint8_t rhport)
 {
   (void) rhport;
 
-  // USB->DEVICE.DESCADD.reg = (uint32_t) &sram_registers;
-  // USB->DEVICE.CTRLB.reg = USB_DEVICE_CTRLB_SPDCONF_FS;
-  // USB->DEVICE.CTRLA.reg = USB_CTRLA_MODE_DEVICE | USB_CTRLA_ENABLE | USB_CTRLA_RUNSTDBY;
-  // while (USB->DEVICE.SYNCBUSY.bit.ENABLE == 1) {}
-  // USB->DEVICE.INTENSET.reg = USB_DEVICE_INTENSET_SOF | USB_DEVICE_INTENSET_EORST;
+  // Programming model begins on page 1336 of Rev 17 of reference manual.
+  USB_OTG_FS->GAHBCFG |= USB_OTG_GAHBCFG_TXFELVL | USB_OTG_GAHBCFG_GINT;
+
+  // No HNP/SRP (no OTG support), program timeout later, turnaround
+  // programmed for 18 MHz.
+  USB_OTG_FS->GUSBCFG |= (0x0C << USB_OTG_GUSBCFG_TRDT_Pos);
+
+  // Required as part of core initialization.
+  USB_OTG_FS->GINTMSK |= USB_OTG_GINTMSK_OTGINT | USB_OTG_GINTMSK_MMISM;
+
+  USB_OTG_DeviceTypeDef * dev = ((USB_OTG_DeviceTypeDef *) (USB_OTG_FS_PERIPH_BASE + USB_OTG_DEVICE_BASE));
+
+  // If USB host misbehaves during status portion of control xfer
+  // (non zero-length packet), send STALL back and discard. Full speed.
+  dev->DCFG |=  USB_OTG_DCFG_NZLSOHSK | (3 << USB_OTG_DCFG_DSPD_Pos);
+  USB_OTG_FS->GINTMSK |= USB_OTG_GINTMSK_USBRST | USB_OTG_GINTMSK_ENUMDNEM | \
+    USB_OTG_GINTMSK_ESUSPM | USB_OTG_GINTMSK_USBSUSPM | \
+    USB_OTG_GINTMSK_SOFM;
+  USB_OTG_FS->GCCFG |= USB_OTG_GCCFG_VBUSBSEN; // Enable pullup.
 
   return true;
 }
@@ -273,7 +287,7 @@ USB_TRFAIL0_TRFAIL_5, USB_TRFAIL0_TRFAIL_6, USB_TRFAIL0_TRFAIL_7,
 USB_TRFAIL1_PERR_0, USB_TRFAIL1_PERR_1, USB_TRFAIL1_PERR_2,
 USB_TRFAIL1_PERR_3, USB_TRFAIL1_PERR_4, USB_TRFAIL1_PERR_5,
 USB_TRFAIL1_PERR_6, USB_TRFAIL1_PERR_7, USB_UPRSM, USB_WAKEUP */
-void OTG_FS_Handler(void) {
+void OTG_FS_IRQHandler(void) {
   // uint32_t int_status = USB->DEVICE.INTFLAG.reg;
   //
   // /*------------- Interrupt Processing -------------*/
