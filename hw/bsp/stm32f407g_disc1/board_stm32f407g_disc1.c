@@ -85,13 +85,18 @@ void board_init(void)
   RCC->AHB2ENR |= RCC_AHB2ENR_OTGFSEN;
 
   // USB Pin Init
-  // PA10- ID, PA11- DM, PA12- DP
+  // PA9- VUSB, PA10- ID, PA11- DM, PA12- DP
   // PC0- Power on
   RCC->AHB1ENR |= RCC_AHB1ENR_GPIOAEN;
-  GPIOD->MODER |= GPIO_MODER_MODE10_1 | GPIO_MODER_MODE11_1 | \
-    GPIO_MODER_MODE12_1;
-  GPIOA->AFR[1] |= (10 << GPIO_AFRH_AFSEL10_Pos) | \
-    (10 << GPIO_AFRH_AFSEL11_Pos) | (10 << GPIO_AFRH_AFSEL12_Pos);
+  GPIOA->MODER |= GPIO_MODER_MODE9_1 | GPIO_MODER_MODE10_1 | \
+    GPIO_MODER_MODE11_1 | GPIO_MODER_MODE12_1;
+  GPIOA->AFR[1] |= (10 << GPIO_AFRH_AFSEL9_Pos) | \
+    (10 << GPIO_AFRH_AFSEL10_Pos) | (10 << GPIO_AFRH_AFSEL11_Pos) | \
+    (10 << GPIO_AFRH_AFSEL12_Pos);
+
+  // Pullup required on ID, despite the manual claiming there's an
+  // internal pullup already (page 1245, Rev 17)
+  GPIOA->PUPDR |= GPIO_PUPDR_PUPD10_0;
 }
 
 

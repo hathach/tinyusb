@@ -78,7 +78,9 @@ bool dcd_init (uint8_t rhport)
   USB_OTG_FS->GINTMSK |= USB_OTG_GINTMSK_USBRST | USB_OTG_GINTMSK_ENUMDNEM | \
     USB_OTG_GINTMSK_ESUSPM | USB_OTG_GINTMSK_USBSUSPM | \
     USB_OTG_GINTMSK_SOFM;
-  USB_OTG_FS->GCCFG |= USB_OTG_GCCFG_VBUSBSEN; // Enable pullup.
+
+  // Enable pullup, enable peripheral.
+  USB_OTG_FS->GCCFG |= USB_OTG_GCCFG_VBUSBSEN | USB_OTG_GCCFG_PWRDWN;
 
   return true;
 }
