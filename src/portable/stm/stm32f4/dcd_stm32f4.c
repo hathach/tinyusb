@@ -46,11 +46,48 @@
 /*------------------------------------------------------------------*/
 /* MACRO TYPEDEF CONSTANT ENUM
  *------------------------------------------------------------------*/
-// static ATTR_ALIGNED(4) uint8_t _setup_packet[8];
+#define DEVICE_BASE (USB_OTG_DeviceTypeDef *) (USB_OTG_FS_PERIPH_BASE + USB_OTG_DEVICE_BASE)
+#define OUT_EP_BASE (USB_OTG_OUTEndpointTypeDef *) (USB_OTG_FS_PERIPH_BASE + USB_OTG_OUT_ENDPOINT_BASE)
+#define IN_EP_BASE (USB_OTG_INEndpointTypeDef *) (USB_OTG_FS_PERIPH_BASE + USB_OTG_IN_ENDPOINT_BASE)
+
+
+//static ATTR_ALIGNED(4) uint8_t _setup_packet[8];
 
 // Setup the control endpoint 0.
-// static void bus_reset(void) {
-// }
+static void bus_reset(void) {
+  USB_OTG_DeviceTypeDef * dev = DEVICE_BASE;
+  USB_OTG_OUTEndpointTypeDef * out_ep = OUT_EP_BASE;
+  // USB_OTG_INEndpointTypeDef * in_ep = IN_EP_BASE;
+
+  for(int n = 0; n < 4; n++) {
+    out_ep[n].DOEPCTL |= USB_OTG_DOEPCTL_SNAK;
+  }
+
+  dev->DAINTMSK |= (1 << USB_OTG_DAINTMSK_OEPM_Pos) | (1 << USB_OTG_DAINTMSK_IEPM_Pos);
+  dev->DOEPMSK |= USB_OTG_DOEPMSK_STUPM | USB_OTG_DOEPMSK_XFRCM;
+  dev->DIEPMSK |= USB_OTG_DIEPMSK_TOM | USB_OTG_DIEPMSK_XFRCM;
+
+  // FIFO sizes are set up by the following rules:
+  // OUT FIFO uses:
+  // * 10 locations in hardware for setup packets + setup control words
+  // (up to 3 setup packets).
+  // * 2 locations for OUT endpoint control words.
+  // * 64 bytes for maximum control packet size.
+  // IN FIFO uses 64 words for maximum control packet size.
+  USB_OTG_FS->GRXFSIZ = 19; // 10 + 2 + 64 = 19 32-bit words
+  USB_OTG_FS->DIEPTXF0_HNPTXFSIZ = 16; // 16 32-bit words = 64 bytes
+
+  out_ep[0].DOEPTSIZ |= (3 << USB_OTG_DOEPTSIZ_STUPCNT_Pos);
+}
+
+static void end_of_reset(void) {
+  USB_OTG_DeviceTypeDef * dev = DEVICE_BASE;
+  USB_OTG_INEndpointTypeDef * in_ep = IN_EP_BASE;
+  // On current silicon on the Full Speed core, speed is fixed to Full Speed.
+  // However, keep for debugging and in case Low Speed is ever supported.
+  uint32_t enum_spd = (dev->DSTS & USB_OTG_DSTS_ENUMSPD_Msk) >> USB_OTG_DSTS_ENUMSPD_Pos;
+  in_ep[0].DIEPCTL |= enum_spd;
+}
 
 
 /*------------------------------------------------------------------*/
@@ -67,6 +104,11 @@ bool dcd_init (uint8_t rhport)
   // programmed for 18 MHz.
   USB_OTG_FS->GUSBCFG |= (0x0C << USB_OTG_GUSBCFG_TRDT_Pos);
 
+  // Clear all used interrupts
+  USB_OTG_FS->GINTSTS |= USB_OTG_GINTSTS_OTGINT | USB_OTG_GINTSTS_MMIS | \
+    USB_OTG_GINTSTS_USBRST | USB_OTG_GINTSTS_ENUMDNE | \
+    USB_OTG_GINTSTS_ESUSP | USB_OTG_GINTSTS_USBSUSP | USB_OTG_GINTSTS_SOF;
+
   // Required as part of core initialization.
   USB_OTG_FS->GINTMSK |= USB_OTG_GINTMSK_OTGINT | USB_OTG_GINTMSK_MMISM;
 
@@ -75,9 +117,10 @@ bool dcd_init (uint8_t rhport)
   // If USB host misbehaves during status portion of control xfer
   // (non zero-length packet), send STALL back and discard. Full speed.
   dev->DCFG |=  USB_OTG_DCFG_NZLSOHSK | (3 << USB_OTG_DCFG_DSPD_Pos);
-  USB_OTG_FS->GINTMSK |= USB_OTG_GINTMSK_USBRST | USB_OTG_GINTMSK_ENUMDNEM | \
+  /* USB_OTG_FS->GINTMSK |= USB_OTG_GINTMSK_USBRST | USB_OTG_GINTMSK_ENUMDNEM | \
     USB_OTG_GINTMSK_ESUSPM | USB_OTG_GINTMSK_USBSUSPM | \
-    USB_OTG_GINTMSK_SOFM;
+    USB_OTG_GINTMSK_SOFM; */
+  USB_OTG_FS->GINTMSK |= USB_OTG_GINTMSK_USBRST | USB_OTG_GINTMSK_ENUMDNEM;
 
   // Enable pullup, enable peripheral.
   USB_OTG_FS->GCCFG |= USB_OTG_GCCFG_VBUSBSEN | USB_OTG_GCCFG_PWRDWN;
@@ -290,6 +333,24 @@ USB_TRFAIL1_PERR_0, USB_TRFAIL1_PERR_1, USB_TRFAIL1_PERR_2,
 USB_TRFAIL1_PERR_3, USB_TRFAIL1_PERR_4, USB_TRFAIL1_PERR_5,
 USB_TRFAIL1_PERR_6, USB_TRFAIL1_PERR_7, USB_UPRSM, USB_WAKEUP */
 void OTG_FS_IRQHandler(void) {
+  uint32_t int_status = USB_OTG_FS->GINTSTS;
+
+  if(int_status & USB_OTG_GINTSTS_USBRST) {
+    // USBRST is start of reset.
+    USB_OTG_FS->GINTSTS = USB_OTG_GINTSTS_USBRST;
+    bus_reset();
+  }
+
+  if(int_status & USB_OTG_GINTSTS_ENUMDNE) {
+    // ENUMDNE detects speed of the link. For full-speed, we
+    // always expect the same value. This interrupt is considered
+    // the end of reset.
+    USB_OTG_FS->GINTSTS = USB_OTG_GINTSTS_ENUMDNE;
+    end_of_reset();
+    dcd_event_bus_signal(0, DCD_EVENT_BUS_RESET, true);
+  }
+
+
   // uint32_t int_status = USB->DEVICE.INTFLAG.reg;
   //
   // /*------------- Interrupt Processing -------------*/
