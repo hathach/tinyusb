@@ -53,7 +53,7 @@
 
 
 static ATTR_ALIGNED(4) uint32_t _setup_packet[6];
-static uint8_t _setup_cnt; // We store up to 3 setup packets.
+static uint8_t _setup_offs; // We store up to 3 setup packets.
 
 // Setup the control endpoint 0.
 static void bus_reset(void) {
@@ -80,6 +80,8 @@ static void bus_reset(void) {
   USB_OTG_FS->DIEPTXF0_HNPTXFSIZ = 16; // 16 32-bit words = 64 bytes
 
   out_ep[0].DOEPTSIZ |= (3 << USB_OTG_DOEPTSIZ_STUPCNT_Pos);
+
+  USB_OTG_FS->GINTMSK |= USB_OTG_GINTMSK_OEPINT | USB_OTG_GINTMSK_IEPINT;
 }
 
 static void end_of_reset(void) {
@@ -335,6 +337,7 @@ USB_TRFAIL1_PERR_0, USB_TRFAIL1_PERR_1, USB_TRFAIL1_PERR_2,
 USB_TRFAIL1_PERR_3, USB_TRFAIL1_PERR_4, USB_TRFAIL1_PERR_5,
 USB_TRFAIL1_PERR_6, USB_TRFAIL1_PERR_7, USB_UPRSM, USB_WAKEUP */
 void OTG_FS_IRQHandler(void) {
+  USB_OTG_DeviceTypeDef * dev = DEVICE_BASE;
   USB_OTG_OUTEndpointTypeDef * out_ep = OUT_EP_BASE;
   uint32_t * rx_fifo = FIFO_BASE(0);
 
@@ -355,7 +358,7 @@ void OTG_FS_IRQHandler(void) {
     dcd_event_bus_signal(0, DCD_EVENT_BUS_RESET, true);
   }
 
-  // Read a packet here; the FIFO must be cleared in order for the core
+  // Read a packet here; the RX FIFO must be cleared in order for the core
   // to continue processing. So read into an intermediate buffer.
   if(int_status & USB_OTG_GINTSTS_RXFLVL) {
     USB_OTG_FS->GINTSTS = USB_OTG_GINTSTS_RXFLVL;
@@ -376,7 +379,7 @@ void OTG_FS_IRQHandler(void) {
       case 0x03: // Out packet done (Interrupt)
         break;
       case 0x04: // Setup packet done (Interrupt)
-        _setup_cnt = 3 - ((out_ep[0].DOEPTSIZ & USB_OTG_DOEPTSIZ_STUPCNT_Msk) >> USB_OTG_DOEPTSIZ_STUPCNT_Pos);
+        _setup_offs = 2 - ((out_ep[0].DOEPTSIZ & USB_OTG_DOEPTSIZ_STUPCNT_Msk) >> USB_OTG_DOEPTSIZ_STUPCNT_Pos);
         out_ep[0].DOEPTSIZ |= (3 << USB_OTG_DOEPTSIZ_STUPCNT_Pos);
         break;
       case 0x06: // Setup packet recvd
@@ -396,7 +399,26 @@ void OTG_FS_IRQHandler(void) {
   }
 
   // OUT endpoint interrupt handling.
-  // if(int_status & )
+  if(int_status & USB_OTG_GINTSTS_OEPINT) {
+
+    // DAINT for a given EP clears when DOEPINTx is cleared.
+    // OEPINT will be cleared when DAINT's out bits are cleared.
+    for(int n = 0; n < 4; n++) {
+      if(dev->DAINT & (1 << (USB_OTG_DAINT_OEPINT_Pos + n))) {
+        // SETUP packet Setup Phase done.
+        if(out_ep[n].DOEPINT & USB_OTG_DOEPINT_STUP) {
+          out_ep[n].DOEPINT =  USB_OTG_DOEPINT_STUP;
+          dcd_event_setup_received(0, (uint8_t*) &_setup_packet[2*_setup_offs], true);
+          _setup_offs = 0;
+
+          // TODO: Endpoint zero can't be disabled, but apparently the
+          // ENdpoint ENAble bit being cleared still applies. Check whether
+          // EPENA clear actually disables EP0.
+          // out_ep[n].DOEPCTL |= USB_OTG_DOEPCTL_EPENA;
+        }
+      }
+    }
+  }
 
 
   // uint32_t int_status = USB->DEVICE.INTFLAG.reg;
