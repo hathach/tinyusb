@@ -49,9 +49,11 @@
 #define DEVICE_BASE (USB_OTG_DeviceTypeDef *) (USB_OTG_FS_PERIPH_BASE + USB_OTG_DEVICE_BASE)
 #define OUT_EP_BASE (USB_OTG_OUTEndpointTypeDef *) (USB_OTG_FS_PERIPH_BASE + USB_OTG_OUT_ENDPOINT_BASE)
 #define IN_EP_BASE (USB_OTG_INEndpointTypeDef *) (USB_OTG_FS_PERIPH_BASE + USB_OTG_IN_ENDPOINT_BASE)
+#define FIFO_BASE(_x) (uint32_t *) (USB_OTG_FS_PERIPH_BASE + USB_OTG_FIFO_BASE + _x * USB_OTG_FIFO_SIZE)
 
 
-//static ATTR_ALIGNED(4) uint8_t _setup_packet[8];
+static ATTR_ALIGNED(4) uint32_t _setup_packet[6];
+static uint8_t _setup_cnt; // We store up to 3 setup packets.
 
 // Setup the control endpoint 0.
 static void bus_reset(void) {
@@ -74,7 +76,7 @@ static void bus_reset(void) {
   // * 2 locations for OUT endpoint control words.
   // * 64 bytes for maximum control packet size.
   // IN FIFO uses 64 words for maximum control packet size.
-  USB_OTG_FS->GRXFSIZ = 19; // 10 + 2 + 64 = 19 32-bit words
+  USB_OTG_FS->GRXFSIZ = 28; // 10 + 2 + 16 = 28 32-bit words
   USB_OTG_FS->DIEPTXF0_HNPTXFSIZ = 16; // 16 32-bit words = 64 bytes
 
   out_ep[0].DOEPTSIZ |= (3 << USB_OTG_DOEPTSIZ_STUPCNT_Pos);
@@ -120,7 +122,7 @@ bool dcd_init (uint8_t rhport)
   /* USB_OTG_FS->GINTMSK |= USB_OTG_GINTMSK_USBRST | USB_OTG_GINTMSK_ENUMDNEM | \
     USB_OTG_GINTMSK_ESUSPM | USB_OTG_GINTMSK_USBSUSPM | \
     USB_OTG_GINTMSK_SOFM; */
-  USB_OTG_FS->GINTMSK |= USB_OTG_GINTMSK_USBRST | USB_OTG_GINTMSK_ENUMDNEM;
+  USB_OTG_FS->GINTMSK |= USB_OTG_GINTMSK_USBRST | USB_OTG_GINTMSK_ENUMDNEM | USB_OTG_GINTMSK_RXFLVLM;
 
   // Enable pullup, enable peripheral.
   USB_OTG_FS->GCCFG |= USB_OTG_GCCFG_VBUSBSEN | USB_OTG_GCCFG_PWRDWN;
@@ -333,6 +335,9 @@ USB_TRFAIL1_PERR_0, USB_TRFAIL1_PERR_1, USB_TRFAIL1_PERR_2,
 USB_TRFAIL1_PERR_3, USB_TRFAIL1_PERR_4, USB_TRFAIL1_PERR_5,
 USB_TRFAIL1_PERR_6, USB_TRFAIL1_PERR_7, USB_UPRSM, USB_WAKEUP */
 void OTG_FS_IRQHandler(void) {
+  USB_OTG_OUTEndpointTypeDef * out_ep = OUT_EP_BASE;
+  uint32_t * rx_fifo = FIFO_BASE(0);
+
   uint32_t int_status = USB_OTG_FS->GINTSTS;
 
   if(int_status & USB_OTG_GINTSTS_USBRST) {
@@ -349,6 +354,49 @@ void OTG_FS_IRQHandler(void) {
     end_of_reset();
     dcd_event_bus_signal(0, DCD_EVENT_BUS_RESET, true);
   }
+
+  // Read a packet here; the FIFO must be cleared in order for the core
+  // to continue processing. So read into an intermediate buffer.
+  if(int_status & USB_OTG_GINTSTS_RXFLVL) {
+    USB_OTG_FS->GINTSTS = USB_OTG_GINTSTS_RXFLVL;
+
+    // Receive data before reenabling interrupts.
+    USB_OTG_FS->GINTMSK &= (~USB_OTG_GINTMSK_RXFLVLM);
+
+    // Pop control word off FIFO (completed xfers will have 2 control words,
+    // we only pop one ctl word each interrupt).
+    uint32_t ctl_word = USB_OTG_FS->GRXSTSP;
+    uint8_t pktsts = (ctl_word & USB_OTG_GRXSTSP_PKTSTS_Msk) >> USB_OTG_GRXSTSP_PKTSTS_Pos;
+
+    switch(pktsts) {
+      case 0x01: // Global OUT NAK (Interrupt)
+        break;
+      case 0x02: // Out packet recvd
+        break;
+      case 0x03: // Out packet done (Interrupt)
+        break;
+      case 0x04: // Setup packet done (Interrupt)
+        _setup_cnt = 3 - ((out_ep[0].DOEPTSIZ & USB_OTG_DOEPTSIZ_STUPCNT_Msk) >> USB_OTG_DOEPTSIZ_STUPCNT_Pos);
+        out_ep[0].DOEPTSIZ |= (3 << USB_OTG_DOEPTSIZ_STUPCNT_Pos);
+        break;
+      case 0x06: // Setup packet recvd
+        {
+          uint8_t setup_left = ((out_ep[0].DOEPTSIZ & USB_OTG_DOEPTSIZ_STUPCNT_Msk) >> USB_OTG_DOEPTSIZ_STUPCNT_Pos);
+          // We can receive up to three setup packets in succession, but
+          // only the last one is valid.
+          _setup_packet[4 - 2*setup_left] = (* rx_fifo);
+          _setup_packet[5 - 2*setup_left] = (* rx_fifo);
+        }
+        break;
+      default: // Invalid, do something here?
+        break;
+    }
+
+    USB_OTG_FS->GINTMSK |= USB_OTG_GINTMSK_RXFLVLM;
+  }
+
+  // OUT endpoint interrupt handling.
+  // if(int_status & )
 
 
   // uint32_t int_status = USB->DEVICE.INTFLAG.reg;
