@@ -51,9 +51,20 @@
 #define IN_EP_BASE (USB_OTG_INEndpointTypeDef *) (USB_OTG_FS_PERIPH_BASE + USB_OTG_IN_ENDPOINT_BASE)
 #define FIFO_BASE(_x) (uint32_t *) (USB_OTG_FS_PERIPH_BASE + USB_OTG_FIFO_BASE + _x * USB_OTG_FIFO_SIZE)
 
-
 static ATTR_ALIGNED(4) uint32_t _setup_packet[6];
 static uint8_t _setup_offs; // We store up to 3 setup packets.
+
+typedef struct {
+  uint8_t * buffer;
+  uint16_t total_len;
+  uint16_t queued_len;
+  uint8_t max_size;
+} xfer_ctl_t;
+
+xfer_ctl_t xfer_status[4][2];
+
+#define XFER_CTL_BASE(_ep, _dir) &xfer_status[_ep][_dir]
+
 
 // Setup the control endpoint 0.
 static void bus_reset(void) {
@@ -210,9 +221,35 @@ bool dcd_edpt_open (uint8_t rhport, tusb_desc_endpoint_t const * desc_edpt)
 bool dcd_edpt_xfer (uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t total_bytes)
 {
   (void) rhport;
+  //USB_OTG_DeviceTypeDef * dev = DEVICE_BASE;
+  //USB_OTG_OUTEndpointTypeDef * out_ep = OUT_EP_BASE;
+  USB_OTG_INEndpointTypeDef * in_ep = IN_EP_BASE;
 
-  // uint8_t const epnum = edpt_number(ep_addr);
-  // uint8_t const dir   = edpt_dir(ep_addr);
+  uint8_t const epnum = tu_edpt_number(ep_addr);
+  uint8_t const dir   = tu_edpt_dir(ep_addr);
+
+  xfer_ctl_t * xfer = XFER_CTL_BASE(epnum, dir);
+  xfer->buffer = buffer;
+  xfer->total_len = total_bytes;
+  xfer->queued_len = 0;
+
+  // IN and OUT endpoint xfers are interrupt-driven, we just schedule them
+  // here.
+  if(dir == TUSB_DIR_IN) {
+    uint8_t short_packet_size = total_bytes % xfer->max_size;
+    uint16_t num_packets = (total_bytes / xfer->max_size);
+
+    // Zero-size packet is special case.
+    if(short_packet_size > 0 || (total_bytes == 0)) {
+      num_packets++;
+    }
+
+    in_ep[epnum].DIEPTSIZ = (num_packets << USB_OTG_DIEPTSIZ_PKTCNT_Pos) | \
+        ((total_bytes & USB_OTG_DIEPTSIZ_XFRSIZ_Msk) << USB_OTG_DIEPTSIZ_XFRSIZ_Pos);
+    in_ep[epnum].DIEPCTL |= USB_OTG_DIEPCTL_EPENA | USB_OTG_DIEPCTL_CNAK;
+  } else {
+
+  }
   //
   // UsbDeviceDescBank* bank = &sram_registers[epnum][dir];
   // UsbDeviceEndpoint* ep = &USB->DEVICE.DeviceEndpoint[epnum];
