@@ -421,52 +421,6 @@ void OTG_FS_IRQHandler(void) {
   }
 
 
-  // uint32_t int_status = USB->DEVICE.INTFLAG.reg;
-  //
-  // /*------------- Interrupt Processing -------------*/
-  // if ( int_status & USB_DEVICE_INTFLAG_EORST )
-  // {
-  //   USB->DEVICE.INTFLAG.reg = USB_DEVICE_INTENCLR_EORST;
-  //   bus_reset();
-  //   dcd_event_bus_signal(0, DCD_EVENT_BUS_RESET, true);
-  // }
-  //
-  // // Setup packet received.
-  // maybe_handle_setup_packet();
-  //
-  //   USB->DEVICE.INTFLAG.reg = USB_DEVICE_INTFLAG_SOF;
-  //   dcd_event_bus_signal(0, DCD_EVENT_SOF, true);
-  //   uint32_t epints = USB->DEVICE.EPINTSMRY.reg;
-  //   for (uint8_t epnum = 0; epnum < USB_EPT_NUM; epnum++) {
-  //       if ((epints & (1 << epnum)) == 0) {
-  //           continue;
-  //       }
-  //
-  //       if (direction == TUSB_DIR_OUT && maybe_handle_setup_packet()) {
-  //           continue;
-  //       }
-  //       UsbDeviceEndpoint* ep = &USB->DEVICE.DeviceEndpoint[epnum];
-  //
-  //       UsbDeviceDescBank* bank = &sram_registers[epnum][direction];
-  //       uint16_t total_transfer_size = bank->PCKSIZE.bit.BYTE_COUNT;
-  //
-  //       uint8_t ep_addr = epnum;
-  //       if (direction == TUSB_DIR_IN) {
-  //           ep_addr |= TUSB_DIR_IN_MASK;
-  //       }
-  //       dcd_event_xfer_complete(0, ep_addr, total_transfer_size, XFER_RESULT_SUCCESS, true);
-  //
-  //       // just finished status stage (total size = 0), prepare for next setup packet
-  //       if (epnum == 0 && total_transfer_size == 0) {
-  //           dcd_edpt_xfer(0, 0, _setup_packet, sizeof(_setup_packet));
-  //       }
-  //
-  //       if (direction == TUSB_DIR_IN) {
-  //           ep->EPINTFLAG.reg = USB_DEVICE_EPINTFLAG_TRCPT1;
-  //       } else {
-  //           ep->EPINTFLAG.reg = USB_DEVICE_EPINTFLAG_TRCPT0;
-  //       }
-  //   }
 }
 
 #endif
