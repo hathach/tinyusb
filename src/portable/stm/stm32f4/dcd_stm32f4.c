@@ -104,7 +104,13 @@ static void end_of_reset(void) {
 
   // Maximum packet size for EP 0 is set for both directions by writing
   // DIEPCTL.
-  in_ep[0].DIEPCTL |= enum_spd;
+  if(enum_spd == 0x03) {
+    // 64 bytes
+    in_ep[0].DIEPCTL &= ~(0x03 << USB_OTG_DIEPCTL_MPSIZ_Pos);
+  } else {
+    // 8 bytes
+    in_ep[0].DIEPCTL |= (0x03 << USB_OTG_DIEPCTL_MPSIZ_Pos);
+  }
   xfer_status[0][TUSB_DIR_OUT].max_size = 64;
   xfer_status[0][TUSB_DIR_IN].max_size = 64;
 }
