@@ -484,6 +484,7 @@ void OTG_FS_IRQHandler(void) {
         // IN XFER complete.
         if(in_ep[n].DIEPINT & USB_OTG_DIEPINT_XFRC) {
           in_ep[n].DIEPINT = USB_OTG_DIEPINT_XFRC;
+          dev->DIEPEMPMSK &= ~(1 << n); // Turn off TXFE b/c xfer inactive.
           dcd_event_xfer_complete(0, n | TUSB_DIR_IN_MASK, xfer->total_len, XFER_RESULT_SUCCESS, true);
         }
 
