@@ -385,7 +385,6 @@ void OTG_FS_IRQHandler(void) {
   USB_OTG_INEndpointTypeDef * in_ep = IN_EP_BASE;
   uint32_t * rx_fifo = FIFO_BASE(0);
 
-
   uint32_t int_status = USB_OTG_FS->GINTSTS;
 
   if(int_status & USB_OTG_GINTSTS_USBRST) {
@@ -415,6 +414,7 @@ void OTG_FS_IRQHandler(void) {
     // we only pop one ctl word each interrupt).
     uint32_t ctl_word = USB_OTG_FS->GRXSTSP;
     uint8_t pktsts = (ctl_word & USB_OTG_GRXSTSP_PKTSTS_Msk) >> USB_OTG_GRXSTSP_PKTSTS_Pos;
+    uint8_t epnum = (ctl_word &  USB_OTG_GRXSTSP_EPNUM_Msk) >>  USB_OTG_GRXSTSP_EPNUM_Pos;
 
     switch(pktsts) {
       case 0x01: // Global OUT NAK (Interrupt)
@@ -424,12 +424,12 @@ void OTG_FS_IRQHandler(void) {
       case 0x03: // Out packet done (Interrupt)
         break;
       case 0x04: // Setup packet done (Interrupt)
-        _setup_offs = 2 - ((out_ep[0].DOEPTSIZ & USB_OTG_DOEPTSIZ_STUPCNT_Msk) >> USB_OTG_DOEPTSIZ_STUPCNT_Pos);
-        out_ep[0].DOEPTSIZ |= (3 << USB_OTG_DOEPTSIZ_STUPCNT_Pos);
+        _setup_offs = 2 - ((out_ep[epnum].DOEPTSIZ & USB_OTG_DOEPTSIZ_STUPCNT_Msk) >> USB_OTG_DOEPTSIZ_STUPCNT_Pos);
+        out_ep[epnum].DOEPTSIZ |= (3 << USB_OTG_DOEPTSIZ_STUPCNT_Pos);
         break;
       case 0x06: // Setup packet recvd
         {
-          uint8_t setup_left = ((out_ep[0].DOEPTSIZ & USB_OTG_DOEPTSIZ_STUPCNT_Msk) >> USB_OTG_DOEPTSIZ_STUPCNT_Pos);
+          uint8_t setup_left = ((out_ep[epnum].DOEPTSIZ & USB_OTG_DOEPTSIZ_STUPCNT_Msk) >> USB_OTG_DOEPTSIZ_STUPCNT_Pos);
           // We can receive up to three setup packets in succession, but
           // only the last one is valid.
           _setup_packet[4 - 2*setup_left] = (* rx_fifo);
