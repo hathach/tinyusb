@@ -233,7 +233,7 @@ bool dcd_edpt_xfer (uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t 
 {
   (void) rhport;
   USB_OTG_DeviceTypeDef * dev = DEVICE_BASE;
-  //USB_OTG_OUTEndpointTypeDef * out_ep = OUT_EP_BASE;
+  USB_OTG_OUTEndpointTypeDef * out_ep = OUT_EP_BASE;
   USB_OTG_INEndpointTypeDef * in_ep = IN_EP_BASE;
 
   uint8_t const epnum = tu_edpt_number(ep_addr);
@@ -260,35 +260,10 @@ bool dcd_edpt_xfer (uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t 
     in_ep[epnum].DIEPCTL |= USB_OTG_DIEPCTL_EPENA | USB_OTG_DIEPCTL_CNAK;
     dev->DIEPEMPMSK |= (1 << epnum);
   } else {
-
+    out_ep[epnum].DOEPCTL |= USB_OTG_DOEPCTL_EPENA | USB_OTG_DOEPCTL_CNAK;
   }
-  //
-  // UsbDeviceDescBank* bank = &sram_registers[epnum][dir];
-  // UsbDeviceEndpoint* ep = &USB->DEVICE.DeviceEndpoint[epnum];
-  //
-  // // A setup token can occur immediately after an OUT STATUS packet so make sure we have a valid
-  // // buffer for the control endpoint.
-  // if (epnum == 0 && dir == 0 && buffer == NULL) {
-  //   buffer = _setup_packet;
-  // }
-  //
-  // bank->ADDR.reg = (uint32_t) buffer;
-  // if ( dir == TUSB_DIR_OUT )
-  // {
-  //   bank->PCKSIZE.bit.MULTI_PACKET_SIZE = total_bytes;
-  //   bank->PCKSIZE.bit.BYTE_COUNT = 0;
-  //   ep->EPSTATUSCLR.reg |= USB_DEVICE_EPSTATUSCLR_BK0RDY;
-  //   ep->EPINTFLAG.reg |= USB_DEVICE_EPINTFLAG_TRFAIL0;
-  // } else
-  // {
-  //   bank->PCKSIZE.bit.MULTI_PACKET_SIZE = 0;
-  //   bank->PCKSIZE.bit.BYTE_COUNT = total_bytes;
-  //   ep->EPSTATUSSET.reg |= USB_DEVICE_EPSTATUSSET_BK1RDY;
-  //   ep->EPINTFLAG.reg |= USB_DEVICE_EPINTFLAG_TRFAIL1;
-  // }
 
-  // return true;
-  return false;
+  return true;
 }
 
 bool dcd_edpt_stalled (uint8_t rhport, uint8_t ep_addr)
