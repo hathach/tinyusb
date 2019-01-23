@@ -296,7 +296,7 @@ void maybe_transfer_complete(void) {
 
         uint32_t epintflag = ep->EPINTFLAG.reg;
 
-        uint16_t total_transfer_size;
+        uint16_t total_transfer_size = 0;
 
         // Handle IN completions
         if ((epintflag & USB_DEVICE_EPINTFLAG_TRCPT1) != 0) {
