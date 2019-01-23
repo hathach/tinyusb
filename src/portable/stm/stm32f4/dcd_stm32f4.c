@@ -495,8 +495,31 @@ void OTG_FS_IRQHandler(void) {
           xfer->queued_len = xfer->total_len - remaining;
 
           uint16_t to_xfer_size = (remaining > xfer->max_size) ? xfer->max_size : remaining;
-          for(uint16_t i = 0; i < to_xfer_size; i++) {
-            (* tx_fifo) = xfer->buffer[xfer->queued_len + i];
+          uint8_t to_xfer_rem = to_xfer_size % 4;
+          uint16_t to_xfer_size_aligned = to_xfer_size - to_xfer_rem;
+
+          // Buffer might not be aligned to 32b, so we need to force alignment
+          // by copying to a temp var.
+          uint8_t * base = (xfer->buffer + xfer->queued_len);
+          for(uint16_t i = 0; i < to_xfer_size_aligned; i += 4) {
+            uint32_t tmp = base[i] | (base[i + 1] << 8) | (base[i + 2] << 16) | (base[i + 3] << 24);
+            (* tx_fifo) = tmp;
+          }
+
+          // Do not read beyond end of buffer if not divisible by 4.
+          if(to_xfer_rem != 0) {
+            uint32_t tmp = 0;
+            uint8_t * last_32b_bound = base + to_xfer_size_aligned;
+
+            tmp |= last_32b_bound[0];
+            if(to_xfer_rem > 1) {
+              tmp |= (last_32b_bound[1] << 8);
+            }
+            if(to_xfer_rem > 2) {
+              tmp |= (last_32b_bound[2] << 16);
+            }
+
+            (* tx_fifo) = tmp;
           }
         }
       }
