@@ -101,7 +101,12 @@ static void end_of_reset(void) {
   // On current silicon on the Full Speed core, speed is fixed to Full Speed.
   // However, keep for debugging and in case Low Speed is ever supported.
   uint32_t enum_spd = (dev->DSTS & USB_OTG_DSTS_ENUMSPD_Msk) >> USB_OTG_DSTS_ENUMSPD_Pos;
+
+  // Maximum packet size for EP 0 is set for both directions by writing
+  // DIEPCTL.
   in_ep[0].DIEPCTL |= enum_spd;
+  xfer_status[0][TUSB_DIR_OUT].max_size = 64;
+  xfer_status[0][TUSB_DIR_IN].max_size = 64;
 }
 
 
@@ -221,7 +226,7 @@ bool dcd_edpt_open (uint8_t rhport, tusb_desc_endpoint_t const * desc_edpt)
 bool dcd_edpt_xfer (uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t total_bytes)
 {
   (void) rhport;
-  //USB_OTG_DeviceTypeDef * dev = DEVICE_BASE;
+  USB_OTG_DeviceTypeDef * dev = DEVICE_BASE;
   //USB_OTG_OUTEndpointTypeDef * out_ep = OUT_EP_BASE;
   USB_OTG_INEndpointTypeDef * in_ep = IN_EP_BASE;
 
@@ -247,6 +252,7 @@ bool dcd_edpt_xfer (uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t 
     in_ep[epnum].DIEPTSIZ = (num_packets << USB_OTG_DIEPTSIZ_PKTCNT_Pos) | \
         ((total_bytes & USB_OTG_DIEPTSIZ_XFRSIZ_Msk) << USB_OTG_DIEPTSIZ_XFRSIZ_Pos);
     in_ep[epnum].DIEPCTL |= USB_OTG_DIEPCTL_EPENA | USB_OTG_DIEPCTL_CNAK;
+    dev->DIEPEMPMSK |= (1 << epnum);
   } else {
 
   }
@@ -376,7 +382,9 @@ USB_TRFAIL1_PERR_6, USB_TRFAIL1_PERR_7, USB_UPRSM, USB_WAKEUP */
 void OTG_FS_IRQHandler(void) {
   USB_OTG_DeviceTypeDef * dev = DEVICE_BASE;
   USB_OTG_OUTEndpointTypeDef * out_ep = OUT_EP_BASE;
+  USB_OTG_INEndpointTypeDef * in_ep = IN_EP_BASE;
   uint32_t * rx_fifo = FIFO_BASE(0);
+
 
   uint32_t int_status = USB_OTG_FS->GINTSTS;
 
@@ -452,6 +460,37 @@ void OTG_FS_IRQHandler(void) {
           // ENdpoint ENAble bit being cleared still applies. Check whether
           // EPENA clear actually disables EP0.
           // out_ep[n].DOEPCTL |= USB_OTG_DOEPCTL_EPENA;
+        }
+      }
+    }
+  }
+
+  // IN endpoint interrupt handling.
+  if(int_status & USB_OTG_GINTSTS_IEPINT) {
+
+    // DAINT for a given EP clears when DIEPINTx is cleared.
+    // IEPINT will be cleared when DAINT's out bits are cleared.
+    for(uint8_t n = 0; n < 4; n++) {
+      xfer_ctl_t * xfer = XFER_CTL_BASE(n, TUSB_DIR_IN);
+      uint32_t * tx_fifo = FIFO_BASE(n);
+
+      if(dev->DAINT & (1 << (USB_OTG_DAINT_IEPINT_Pos + n))) {
+        // IN XFER complete.
+        if(in_ep[n].DIEPINT & USB_OTG_DIEPINT_XFRC) {
+          in_ep[n].DIEPINT = USB_OTG_DIEPINT_XFRC;
+          dcd_event_xfer_complete(0, n | TUSB_DIR_IN_MASK, xfer->total_len, XFER_RESULT_SUCCESS, true);
+        }
+
+        // XFER FIFO empty
+        if(in_ep[n].DIEPINT & USB_OTG_DIEPINT_TXFE) {
+          in_ep[n].DIEPINT = USB_OTG_DIEPINT_TXFE;
+
+          uint16_t remaining = (in_ep[n].DIEPTSIZ & USB_OTG_DIEPTSIZ_XFRSIZ_Msk) >> USB_OTG_DIEPTSIZ_XFRSIZ_Pos;
+          xfer->queued_len = xfer->total_len - remaining;
+
+          for(uint8_t i = 0; i < xfer->max_size; i++) {
+            (* tx_fifo) = xfer->buffer[xfer->queued_len + i];
+          }
         }
       }
     }
