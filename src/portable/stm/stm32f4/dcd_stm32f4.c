@@ -488,7 +488,8 @@ void OTG_FS_IRQHandler(void) {
           uint16_t remaining = (in_ep[n].DIEPTSIZ & USB_OTG_DIEPTSIZ_XFRSIZ_Msk) >> USB_OTG_DIEPTSIZ_XFRSIZ_Pos;
           xfer->queued_len = xfer->total_len - remaining;
 
-          for(uint8_t i = 0; i < xfer->max_size; i++) {
+          uint16_t to_xfer_size = (remaining > xfer->max_size) ? xfer->max_size : remaining;
+          for(uint16_t i = 0; i < to_xfer_size; i++) {
             (* tx_fifo) = xfer->buffer[xfer->queued_len + i];
           }
         }
