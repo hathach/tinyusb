@@ -87,8 +87,8 @@ static void bus_reset(void) {
   // * 2 locations for OUT endpoint control words.
   // * 64 bytes for maximum control packet size.
   // IN FIFO uses 64 words for maximum control packet size.
-  USB_OTG_FS->GRXFSIZ = 28; // 10 + 2 + 16 = 28 32-bit words
-  USB_OTG_FS->DIEPTXF0_HNPTXFSIZ = 16; // 16 32-bit words = 64 bytes
+  USB_OTG_FS->GRXFSIZ = 40; // 10 + 2 + 16 = 28 32-bit words
+  USB_OTG_FS->DIEPTXF0_HNPTXFSIZ |= (16 << USB_OTG_TX0FD_Pos); // 16 32-bit words = 64 bytes
 
   out_ep[0].DOEPTSIZ |= (3 << USB_OTG_DOEPTSIZ_STUPCNT_Pos);
 
@@ -244,22 +244,24 @@ bool dcd_edpt_xfer (uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t 
   xfer->total_len = total_bytes;
   xfer->queued_len = 0;
 
+  uint16_t num_packets = (total_bytes / xfer->max_size);
+  uint8_t short_packet_size = total_bytes % xfer->max_size;
+
+  // Zero-size packet is special case.
+  if(short_packet_size > 0 || (total_bytes == 0)) {
+    num_packets++;
+  }
+
   // IN and OUT endpoint xfers are interrupt-driven, we just schedule them
   // here.
   if(dir == TUSB_DIR_IN) {
-    uint8_t short_packet_size = total_bytes % xfer->max_size;
-    uint16_t num_packets = (total_bytes / xfer->max_size);
-
-    // Zero-size packet is special case.
-    if(short_packet_size > 0 || (total_bytes == 0)) {
-      num_packets++;
-    }
-
     in_ep[epnum].DIEPTSIZ = (num_packets << USB_OTG_DIEPTSIZ_PKTCNT_Pos) | \
         ((total_bytes & USB_OTG_DIEPTSIZ_XFRSIZ_Msk) << USB_OTG_DIEPTSIZ_XFRSIZ_Pos);
     in_ep[epnum].DIEPCTL |= USB_OTG_DIEPCTL_EPENA | USB_OTG_DIEPCTL_CNAK;
     dev->DIEPEMPMSK |= (1 << epnum);
   } else {
+    out_ep[epnum].DOEPTSIZ = (num_packets << USB_OTG_DOEPTSIZ_PKTCNT_Pos) | \
+        (((xfer->max_size * num_packets) & USB_OTG_DOEPTSIZ_XFRSIZ_Msk) << USB_OTG_DOEPTSIZ_XFRSIZ_Pos);
     out_ep[epnum].DOEPCTL |= USB_OTG_DOEPCTL_EPENA | USB_OTG_DOEPCTL_CNAK;
   }
 
@@ -430,17 +432,22 @@ void OTG_FS_IRQHandler(void) {
     // DAINT for a given EP clears when DOEPINTx is cleared.
     // OEPINT will be cleared when DAINT's out bits are cleared.
     for(int n = 0; n < 4; n++) {
+      xfer_ctl_t * xfer = XFER_CTL_BASE(n, TUSB_DIR_OUT);
       if(dev->DAINT & (1 << (USB_OTG_DAINT_OEPINT_Pos + n))) {
         // SETUP packet Setup Phase done.
         if(out_ep[n].DOEPINT & USB_OTG_DOEPINT_STUP) {
           out_ep[n].DOEPINT =  USB_OTG_DOEPINT_STUP;
           dcd_event_setup_received(0, (uint8_t*) &_setup_packet[2*_setup_offs], true);
           _setup_offs = 0;
+        }
 
-          // TODO: Endpoint zero can't be disabled, but apparently the
-          // ENdpoint ENAble bit being cleared still applies. Check whether
-          // EPENA clear actually disables EP0.
-          // out_ep[n].DOEPCTL |= USB_OTG_DOEPCTL_EPENA;
+        // OUT XFER complete (either single packet or full transfer).
+        if(out_ep[n].DOEPINT & USB_OTG_DOEPINT_XFRC) {
+          out_ep[n].DOEPINT = USB_OTG_DOEPINT_XFRC;
+
+          // TODO: Endpoint 0 has to be handled specially due to constrained
+          // XFRSIZ.
+          dcd_event_xfer_complete(0, n, xfer->total_len, XFER_RESULT_SUCCESS, true);
         }
       }
     }
