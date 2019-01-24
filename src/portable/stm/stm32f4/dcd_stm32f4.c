@@ -80,14 +80,19 @@ static void bus_reset(void) {
   dev->DOEPMSK |= USB_OTG_DOEPMSK_STUPM | USB_OTG_DOEPMSK_XFRCM;
   dev->DIEPMSK |= USB_OTG_DIEPMSK_TOM | USB_OTG_DIEPMSK_XFRCM;
 
-  // FIFO sizes are set up by the following rules:
-  // OUT FIFO uses:
+  // FIFO sizes are set up by the following rules (each word 32-bits):
+  // OUT FIFO uses (based on page 1354 of Rev 17 of reference manual):
   // * 10 locations in hardware for setup packets + setup control words
   // (up to 3 setup packets).
   // * 2 locations for OUT endpoint control words.
   // * 64 bytes for maximum control packet size.
-  // IN FIFO uses 64 words for maximum control packet size.
-  USB_OTG_FS->GRXFSIZ = 40; // 10 + 2 + 16 = 28 32-bit words
+  // * 1 location for global NAK (not required/used here).
+  // IN FIFO uses 64 bytes for maximum control packet size.
+  //
+  // However, for OUT FIFO, 10 + 2 + 16 = 28 doesn't seem to work (TODO: why?).
+  // Minimum that works in practice is 35, so allocate 40 32-bit locations
+  // as a buffer.
+  USB_OTG_FS->GRXFSIZ = 40;
   USB_OTG_FS->DIEPTXF0_HNPTXFSIZ |= (16 << USB_OTG_TX0FD_Pos); // 16 32-bit words = 64 bytes
 
   out_ep[0].DOEPTSIZ |= (3 << USB_OTG_DOEPTSIZ_STUPCNT_Pos);
