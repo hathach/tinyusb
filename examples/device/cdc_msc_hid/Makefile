@@ -84,8 +84,8 @@ LIB_SOURCE += \
 
 SRC_C += $(LIB_SOURCE)
 
-OBJ = $(addprefix $(BUILD)/obj/, $(SRC_C:.c=.o))
-OBJ += $(addprefix $(BUILD)/obj/, $(SRC_S:.s=.o))
+OBJ += $(addprefix $(BUILD)/obj/, $(SRC_C:.c=.o))
+OBJ += $(addprefix $(BUILD)/obj/, $(SRC_S:.S=.o))
 
 all: $(BUILD)/$(BOARD)-firmware.bin
 
@@ -107,7 +107,7 @@ $(BUILD)/$(BOARD)-firmware.bin: $(BUILD)/$(BOARD)-firmware.elf
 # to be used to compile all .c files.
 vpath %.c . $(TOP)
 $(BUILD)/obj/%.o: %.c
-	@echo CC $@
+	@echo CC $(notdir $@)
 	@$(CC) $(CFLAGS) -c -MD -o $@ $<
 	@# The following fixes the dependency file.
 	@# See http://make.paulandlesley.org/autodep.html for details.
@@ -116,6 +116,12 @@ $(BUILD)/obj/%.o: %.c
 	  $(SED) -e 's/#.*//' -e 's/^.*:  *//' -e 's/ *\\$$//' \
 	      -e '/^$$/ d' -e 's/$$/ :/' < $(@:.o=.d) >> $(@:.o=.P); \
 	  $(RM) $(@:.o=.d)
+
+# ASM sources
+vpath %.S . $(TOP)
+$(BUILD)/obj/%.o: %.S
+	@echo AS $(notdir $@)
+	@$(CC) -x assembler-with-cpp $(ASFLAGS) -c -o $@ $<
 
 clean:
 	rm -rf build-$(BOARD)
