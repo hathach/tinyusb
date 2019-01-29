@@ -84,6 +84,9 @@
           <file file_name="../../../../../hw/mcu/nordic/nrfx_glue.h" />
         </folder>
       </folder>
+      <configuration
+        Name="pca10056 s140v6"
+        build_treat_warnings_as_errors="No" />
     </folder>
     <configuration Name="Debug" build_treat_warnings_as_errors="Yes" />
     <folder
@@ -98,6 +101,7 @@
       <file file_name="nRF52840_xxAA_MemoryMap.xml" />
       <file file_name="nRF_Target.js" />
       <file file_name="thumb_crt0.s" />
+      <file file_name="nRF52840_xxAA_s140v6_MemoryMap.xml" />
     </folder>
     <folder
       Name="segger_rtt"
@@ -105,7 +109,17 @@
       filter="*.c;*.h"
       path="../../../../../lib/segger_rtt"
       recurse="No" />
-    <configuration Name="pca10056" build_treat_warnings_as_errors="No" />
+    <configuration
+      Name="pca10056"
+      build_treat_warnings_as_errors="No"
+      linker_memory_map_file="nRF52840_xxAA_MemoryMap.xml" />
+    <configuration
+      Name="pca10056 s140v6"
+      build_treat_warnings_as_errors="No"
+      c_preprocessor_definitions="SOFTDEVICE_PRESENT"
+      c_user_include_directories="$(nrfxDir)/../nrf5x/s140_nrf52_6.1.1_API/include;$(nrfxDir)/../nrf5x/s140_nrf52_6.1.1_API/include/nrf52"
+      linker_memory_map_file="nRF52840_xxAA_s140v6_MemoryMap.xml" />
   </project>
   <configuration Name="pca10056" />
+  <configuration Name="pca10056 s140v6" />
 </solution>

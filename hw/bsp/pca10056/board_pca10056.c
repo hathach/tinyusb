@@ -41,6 +41,12 @@
 #include "nrfx/hal/nrf_gpio.h"
 #include "nrfx/drivers/include/nrfx_power.h"
 #include "nrfx/drivers/include/nrfx_qspi.h"
+
+#ifdef SOFTDEVICE_PRESENT
+#include "nrf_sdm.h"
+#include "nrf_soc.h"
+#endif
+
 #include "tusb.h"
 
 /*------------------------------------------------------------------*/
