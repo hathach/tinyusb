@@ -118,6 +118,7 @@
       build_treat_warnings_as_errors="No"
       c_preprocessor_definitions="SOFTDEVICE_PRESENT;S140;NO_VTOR_CONFIG"
       c_user_include_directories="$(nrfxDir)/../nrf5x/s140_nrf52_6.1.1_API/include;$(nrfxDir)/../nrf5x/s140_nrf52_6.1.1_API/include/nrf52"
+      debug_start_from_entry_point_symbol="No"
       linker_memory_map_file="nRF52840_xxAA_s140v6_MemoryMap.xml" />
   </project>
   <configuration Name="pca10056" />
