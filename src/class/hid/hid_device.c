@@ -91,7 +91,7 @@ typedef struct
   hidd_interface_t* itf;
 } hidd_report_t ;
 
-CFG_TUSB_MEM_SECTION static hidd_interface_t _hidd_itf[ITF_COUNT];
+CFG_TUSB_MEM_SECTION static hidd_interface_t _hidd_itf[ITF_COUNT] = { { 0 } };
 
 
 #if CFG_TUD_HID_KEYBOARD

@@ -61,7 +61,7 @@ typedef struct {
 
 }usbd_device_t;
 
-static usbd_device_t _usbd_dev;
+static usbd_device_t _usbd_dev = { 0 };
 
 // Auto descriptor is enabled, descriptor set point to auto generated one
 #if CFG_TUD_DESC_AUTO

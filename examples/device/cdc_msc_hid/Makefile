@@ -20,6 +20,7 @@ CC = $(CROSS_COMPILE)gcc
 CXX = $(CROSS_COMPILE)g++
 LD = $(CROSS_COMPILE)ld
 OBJCOPY = $(CROSS_COMPILE)objcopy
+SIZE = $(CROSS_COMPILE)size
 MKDIR = mkdir
 SED = sed
 CP = cp
@@ -87,7 +88,7 @@ SRC_C += $(LIB_SOURCE)
 OBJ += $(addprefix $(BUILD)/obj/, $(SRC_C:.c=.o))
 OBJ += $(addprefix $(BUILD)/obj/, $(SRC_S:.S=.o))
 
-all: $(BUILD)/$(BOARD)-firmware.bin
+all: $(BUILD)/$(BOARD)-firmware.bin size
 
 OBJ_DIRS = $(sort $(dir $(OBJ)))
 $(OBJ): | $(OBJ_DIRS)
@@ -122,6 +123,11 @@ vpath %.S . $(TOP)
 $(BUILD)/obj/%.o: %.S
 	@echo AS $(notdir $@)
 	@$(CC) -x assembler-with-cpp $(ASFLAGS) -c -o $@ $<
+
+size: $(BUILD)/$(BOARD)-firmware.elf
+	-@echo ''
+	@$(SIZE) $<
+	-@echo ''
 
 clean:
 	rm -rf build-$(BOARD)
