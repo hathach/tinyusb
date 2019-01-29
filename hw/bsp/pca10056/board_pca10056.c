@@ -198,7 +198,7 @@ void board_init(void)
 
     sd_power_usbregstatus_get(&usb_reg);
   }else
-#else
+#endif
   {
     // Power module init
     const nrfx_power_config_t pwr_cfg = { 0 };
@@ -212,7 +212,6 @@ void board_init(void)
 
     usb_reg = NRF_POWER->USBREGSTATUS;
   }
-#endif
 
   if ( usb_reg & POWER_USBREGSTATUS_VBUSDETECT_Msk ) {
     tusb_hal_nrf_power_event(NRFX_POWER_USB_EVT_DETECTED);
@@ -250,5 +249,15 @@ void board_uart_putchar(uint8_t c)
 {
   (void) c;
 }
+
+#ifdef SOFTDEVICE_PRESENT
+void SD_EVT_IRQHandler(void)
+{
+}
+
+void SVC_Handler( void )
+{
+}
+#endif
 
 #endif
