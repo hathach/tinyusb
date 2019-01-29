@@ -61,7 +61,7 @@ typedef struct {
 
 }usbd_device_t;
 
-static usbd_device_t _usbd_dev;
+static usbd_device_t _usbd_dev = { 0 };
 
 // Auto descriptor is enabled, descriptor set point to auto generated one
 #if CFG_TUD_DESC_AUTO
@@ -240,6 +240,9 @@ static void usbd_reset(uint8_t rhport)
  */
 void tud_task (void)
 {
+  // Skip if stack is not initialized
+  if ( !tusb_inited() ) return;
+
   // Loop until there is no more events in the queue
   while (1)
   {
