@@ -59,8 +59,6 @@
 /*------------------------------------------------------------------*/
 /* MACRO TYPEDEF CONSTANT ENUM
  *------------------------------------------------------------------*/
-#define USB_NVIC_PRIO   7
-
 void tusb_hal_nrf_power_event(uint32_t event);
 
 /*------------------------------------------------------------------*/
@@ -232,8 +230,7 @@ void tusb_hal_nrf_power_event (uint32_t event)
       NRF_USBD->INTENSET = USBD_INTEN_USBRESET_Msk | USBD_INTEN_USBEVENT_Msk | USBD_INTEN_EPDATA_Msk |
           USBD_INTEN_EP0SETUP_Msk | USBD_INTEN_EP0DATADONE_Msk | USBD_INTEN_ENDEPIN0_Msk | USBD_INTEN_ENDEPOUT0_Msk;
 
-      // Enable interrupt, Priorities 0,1,4,5 (nRF52) are reserved for SoftDevice
-      NVIC_SetPriority(USBD_IRQn, USB_NVIC_PRIO);
+      // Enable interrupt, priorities should be set by application
       NVIC_ClearPendingIRQ(USBD_IRQn);
       NVIC_EnableIRQ(USBD_IRQn);
 
