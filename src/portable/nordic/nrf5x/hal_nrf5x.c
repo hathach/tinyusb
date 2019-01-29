@@ -49,16 +49,9 @@
 #ifdef SOFTDEVICE_PRESENT
 #include "nrf_sdm.h"
 #include "nrf_soc.h"
-
-// TODO fully move to nrfx
-enum {
-    NRFX_POWER_USB_EVT_DETECTED, /**< USB power detected on the connector (plugged in). */
-    NRFX_POWER_USB_EVT_REMOVED,  /**< USB power removed from the connector. */
-    NRFX_POWER_USB_EVT_READY     /**< USB power regulator ready. */
-};
-#else
-#include "nrfx_power.h"
 #endif
+
+#include "nrfx_power.h"
 
 #include "tusb_hal.h"
 #include "device/dcd.h"
