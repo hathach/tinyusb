@@ -260,13 +260,15 @@ bool dcd_edpt_xfer (uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t 
   // IN and OUT endpoint xfers are interrupt-driven, we just schedule them
   // here.
   if(dir == TUSB_DIR_IN) {
+    // A full IN transfer (multiple packets, possibly) triggers XFRC.
     in_ep[epnum].DIEPTSIZ = (num_packets << USB_OTG_DIEPTSIZ_PKTCNT_Pos) | \
         ((total_bytes & USB_OTG_DIEPTSIZ_XFRSIZ_Msk) << USB_OTG_DIEPTSIZ_XFRSIZ_Pos);
     in_ep[epnum].DIEPCTL |= USB_OTG_DIEPCTL_EPENA | USB_OTG_DIEPCTL_CNAK;
     dev->DIEPEMPMSK |= (1 << epnum);
   } else {
-    out_ep[epnum].DOEPTSIZ = (num_packets << USB_OTG_DOEPTSIZ_PKTCNT_Pos) | \
-        (((xfer->max_size * num_packets) & USB_OTG_DOEPTSIZ_XFRSIZ_Msk) << USB_OTG_DOEPTSIZ_XFRSIZ_Pos);
+    // Each complete packet for OUT xfers triggers XFRC.
+    out_ep[epnum].DOEPTSIZ = (1 << USB_OTG_DOEPTSIZ_PKTCNT_Pos) | \
+        ((xfer->max_size & USB_OTG_DOEPTSIZ_XFRSIZ_Msk) << USB_OTG_DOEPTSIZ_XFRSIZ_Pos);
     out_ep[epnum].DOEPCTL |= USB_OTG_DOEPCTL_EPENA | USB_OTG_DOEPCTL_CNAK;
   }
 
@@ -510,7 +512,14 @@ void OTG_FS_IRQHandler(void) {
           // TODO: Because of endpoint 0's constrained size, we handle XFRC
           // on a packet-basis. It would be more efficient to only trigger
           // XFRC on a completed transfer for non-0 endpoints.
-          dcd_event_xfer_complete(0, n, xfer->total_len, XFER_RESULT_SUCCESS, true);
+          if(xfer->total_len >= xfer->queued_len) {
+            dcd_event_xfer_complete(0, n, xfer->total_len, XFER_RESULT_SUCCESS, true);
+          } else {
+            // Schedule another packet to be received.
+            out_ep[n].DOEPTSIZ = (1 << USB_OTG_DOEPTSIZ_PKTCNT_Pos) | \
+                ((xfer->max_size & USB_OTG_DOEPTSIZ_XFRSIZ_Msk) << USB_OTG_DOEPTSIZ_XFRSIZ_Pos);
+            out_ep[n].DOEPCTL |= USB_OTG_DOEPCTL_EPENA | USB_OTG_DOEPCTL_CNAK;
+          }
         }
       }
     }
@@ -525,7 +534,7 @@ void OTG_FS_IRQHandler(void) {
       xfer_ctl_t * xfer = XFER_CTL_BASE(n, TUSB_DIR_IN);
 
       if(dev->DAINT & (1 << (USB_OTG_DAINT_IEPINT_Pos + n))) {
-        // IN XFER complete.
+        // IN XFER complete (entire xfer).
         if(in_ep[n].DIEPINT & USB_OTG_DIEPINT_XFRC) {
           in_ep[n].DIEPINT = USB_OTG_DIEPINT_XFRC;
           dev->DIEPEMPMSK &= ~(1 << n); // Turn off TXFE b/c xfer inactive.
