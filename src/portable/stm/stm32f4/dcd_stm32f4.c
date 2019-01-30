@@ -351,22 +351,42 @@ bool dcd_edpt_busy (uint8_t rhport, uint8_t ep_addr)
     // }
     // return false;
 // }
-/*
- *------------------------------------------------------------------*/
-/* USB_EORSM_DNRSM, USB_EORST_RST, USB_LPMSUSP_DDISC, USB_LPM_DCONN,
-USB_MSOF, USB_RAMACER, USB_RXSTP_TXSTP_0, USB_RXSTP_TXSTP_1,
-USB_RXSTP_TXSTP_2, USB_RXSTP_TXSTP_3, USB_RXSTP_TXSTP_4,
-USB_RXSTP_TXSTP_5, USB_RXSTP_TXSTP_6, USB_RXSTP_TXSTP_7,
-USB_STALL0_STALL_0, USB_STALL0_STALL_1, USB_STALL0_STALL_2,
-USB_STALL0_STALL_3, USB_STALL0_STALL_4, USB_STALL0_STALL_5,
-USB_STALL0_STALL_6, USB_STALL0_STALL_7, USB_STALL1_0, USB_STALL1_1,
-USB_STALL1_2, USB_STALL1_3, USB_STALL1_4, USB_STALL1_5, USB_STALL1_6,
-USB_STALL1_7, USB_SUSPEND, USB_TRFAIL0_TRFAIL_0, USB_TRFAIL0_TRFAIL_1,
-USB_TRFAIL0_TRFAIL_2, USB_TRFAIL0_TRFAIL_3, USB_TRFAIL0_TRFAIL_4,
-USB_TRFAIL0_TRFAIL_5, USB_TRFAIL0_TRFAIL_6, USB_TRFAIL0_TRFAIL_7,
-USB_TRFAIL1_PERR_0, USB_TRFAIL1_PERR_1, USB_TRFAIL1_PERR_2,
-USB_TRFAIL1_PERR_3, USB_TRFAIL1_PERR_4, USB_TRFAIL1_PERR_5,
-USB_TRFAIL1_PERR_6, USB_TRFAIL1_PERR_7, USB_UPRSM, USB_WAKEUP */
+
+static void transmit_packet(xfer_ctl_t * xfer, USB_OTG_INEndpointTypeDef * in_ep, uint8_t fifo_num) {
+  uint32_t * tx_fifo = FIFO_BASE(fifo_num);
+
+  uint16_t remaining = (in_ep->DIEPTSIZ & USB_OTG_DIEPTSIZ_XFRSIZ_Msk) >> USB_OTG_DIEPTSIZ_XFRSIZ_Pos;
+  xfer->queued_len = xfer->total_len - remaining;
+
+  uint16_t to_xfer_size = (remaining > xfer->max_size) ? xfer->max_size : remaining;
+  uint8_t to_xfer_rem = to_xfer_size % 4;
+  uint16_t to_xfer_size_aligned = to_xfer_size - to_xfer_rem;
+
+  // Buffer might not be aligned to 32b, so we need to force alignment
+  // by copying to a temp var.
+  uint8_t * base = (xfer->buffer + xfer->queued_len);
+  for(uint16_t i = 0; i < to_xfer_size_aligned; i += 4) {
+    uint32_t tmp = base[i] | (base[i + 1] << 8) | (base[i + 2] << 16) | (base[i + 3] << 24);
+    (* tx_fifo) = tmp;
+  }
+
+  // Do not read beyond end of buffer if not divisible by 4.
+  if(to_xfer_rem != 0) {
+    uint32_t tmp = 0;
+    uint8_t * last_32b_bound = base + to_xfer_size_aligned;
+
+    tmp |= last_32b_bound[0];
+    if(to_xfer_rem > 1) {
+      tmp |= (last_32b_bound[1] << 8);
+    }
+    if(to_xfer_rem > 2) {
+      tmp |= (last_32b_bound[2] << 16);
+    }
+
+    (* tx_fifo) = tmp;
+  }
+}
+
 void OTG_FS_IRQHandler(void) {
   USB_OTG_DeviceTypeDef * dev = DEVICE_BASE;
   USB_OTG_OUTEndpointTypeDef * out_ep = OUT_EP_BASE;
@@ -465,7 +485,6 @@ void OTG_FS_IRQHandler(void) {
     // IEPINT will be cleared when DAINT's out bits are cleared.
     for(uint8_t n = 0; n < 4; n++) {
       xfer_ctl_t * xfer = XFER_CTL_BASE(n, TUSB_DIR_IN);
-      uint32_t * tx_fifo = FIFO_BASE(n);
 
       if(dev->DAINT & (1 << (USB_OTG_DAINT_IEPINT_Pos + n))) {
         // IN XFER complete.
@@ -478,37 +497,7 @@ void OTG_FS_IRQHandler(void) {
         // XFER FIFO empty
         if(in_ep[n].DIEPINT & USB_OTG_DIEPINT_TXFE) {
           in_ep[n].DIEPINT = USB_OTG_DIEPINT_TXFE;
-
-          uint16_t remaining = (in_ep[n].DIEPTSIZ & USB_OTG_DIEPTSIZ_XFRSIZ_Msk) >> USB_OTG_DIEPTSIZ_XFRSIZ_Pos;
-          xfer->queued_len = xfer->total_len - remaining;
-
-          uint16_t to_xfer_size = (remaining > xfer->max_size) ? xfer->max_size : remaining;
-          uint8_t to_xfer_rem = to_xfer_size % 4;
-          uint16_t to_xfer_size_aligned = to_xfer_size - to_xfer_rem;
-
-          // Buffer might not be aligned to 32b, so we need to force alignment
-          // by copying to a temp var.
-          uint8_t * base = (xfer->buffer + xfer->queued_len);
-          for(uint16_t i = 0; i < to_xfer_size_aligned; i += 4) {
-            uint32_t tmp = base[i] | (base[i + 1] << 8) | (base[i + 2] << 16) | (base[i + 3] << 24);
-            (* tx_fifo) = tmp;
-          }
-
-          // Do not read beyond end of buffer if not divisible by 4.
-          if(to_xfer_rem != 0) {
-            uint32_t tmp = 0;
-            uint8_t * last_32b_bound = base + to_xfer_size_aligned;
-
-            tmp |= last_32b_bound[0];
-            if(to_xfer_rem > 1) {
-              tmp |= (last_32b_bound[1] << 8);
-            }
-            if(to_xfer_rem > 2) {
-              tmp |= (last_32b_bound[2] << 16);
-            }
-
-            (* tx_fifo) = tmp;
-          }
+          transmit_packet(xfer, &in_ep[n], n);
         }
       }
     }
