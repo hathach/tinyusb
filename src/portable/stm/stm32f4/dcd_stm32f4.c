@@ -95,7 +95,7 @@ static void bus_reset(void) {
   USB_OTG_FS->GRXFSIZ = 40;
   USB_OTG_FS->DIEPTXF0_HNPTXFSIZ |= (16 << USB_OTG_TX0FD_Pos); // 16 32-bit words = 64 bytes
 
-  out_ep[0].DOEPTSIZ |= (3 << USB_OTG_DOEPTSIZ_STUPCNT_Pos);
+  out_ep[0].DOEPTSIZ |= (1 << USB_OTG_DOEPTSIZ_STUPCNT_Pos);
 
   USB_OTG_FS->GINTMSK |= USB_OTG_GINTMSK_OEPINT | USB_OTG_GINTMSK_IEPINT;
 }
@@ -475,16 +475,18 @@ void OTG_FS_IRQHandler(void) {
       case 0x03: // Out packet done (Interrupt)
         break;
       case 0x04: // Setup packet done (Interrupt)
-        _setup_offs = 2 - ((out_ep[epnum].DOEPTSIZ & USB_OTG_DOEPTSIZ_STUPCNT_Msk) >> USB_OTG_DOEPTSIZ_STUPCNT_Pos);
-        out_ep[epnum].DOEPTSIZ |= (3 << USB_OTG_DOEPTSIZ_STUPCNT_Pos);
+        out_ep[epnum].DOEPTSIZ |= (1 << USB_OTG_DOEPTSIZ_STUPCNT_Pos);
         break;
       case 0x06: // Setup packet recvd
         {
-          uint8_t setup_left = ((out_ep[epnum].DOEPTSIZ & USB_OTG_DOEPTSIZ_STUPCNT_Msk) >> USB_OTG_DOEPTSIZ_STUPCNT_Pos);
-          // We can receive up to three setup packets in succession, but
-          // only the last one is valid.
-          _setup_packet[4 - 2*setup_left] = (* rx_fifo);
-          _setup_packet[5 - 2*setup_left] = (* rx_fifo);
+          // For some reason, it's possible to get a mismatch between
+          // how many setup packets were received versus the location
+          // of the Setup packet done word. This leads to situations
+          // where stale setup packets are in the RX FIFO that were received
+          // after the core loaded the Setup packet done word. Workaround by
+          // only accepting one setup packet at a time for now.
+          _setup_packet[0] = (* rx_fifo);
+          _setup_packet[1] = (* rx_fifo);
         }
         break;
       default: // Invalid, do something here?
@@ -505,7 +507,7 @@ void OTG_FS_IRQHandler(void) {
         // SETUP packet Setup Phase done.
         if(out_ep[n].DOEPINT & USB_OTG_DOEPINT_STUP) {
           out_ep[n].DOEPINT =  USB_OTG_DOEPINT_STUP;
-          dcd_event_setup_received(0, (uint8_t*) &_setup_packet[2*_setup_offs], true);
+          dcd_event_setup_received(0, (uint8_t*) &_setup_packet[0], true);
           _setup_offs = 0;
         }
 
