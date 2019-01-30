@@ -340,17 +340,49 @@ bool dcd_edpt_busy (uint8_t rhport, uint8_t ep_addr)
 
 /*------------------------------------------------------------------*/
 
-// static bool maybe_handle_setup_packet(void) {
-    // if (USB->DEVICE.DeviceEndpoint[0].EPINTFLAG.bit.RXSTP)
-    // {
-    //     USB->DEVICE.DeviceEndpoint[0].EPINTFLAG.reg = USB_DEVICE_EPINTFLAG_RXSTP;
-    //
-    //     // This copies the data elsewhere so we can reuse the buffer.
-    //     dcd_event_setup_received(0, (uint8_t*) sram_registers[0][0].ADDR.reg, true);
-    //     return true;
-    // }
-    // return false;
-// }
+// TODO: Split into "receive on endpoint 0" and "receive generic"; endpoint 0's
+// DOEPTSIZ register is smaller than the others, and so is insufficient for
+// determining how much of an OUT transfer is actually remaining.
+static void receive_packet(xfer_ctl_t * xfer, /* USB_OTG_OUTEndpointTypeDef * out_ep, */ uint16_t xfer_size) {
+  uint32_t * rx_fifo = FIFO_BASE(0);
+
+  // See above TODO
+  // uint16_t remaining = (out_ep->DOEPTSIZ & USB_OTG_DOEPTSIZ_XFRSIZ_Msk) >> USB_OTG_DOEPTSIZ_XFRSIZ_Pos;
+  // xfer->queued_len = xfer->total_len - remaining;
+
+  uint16_t remaining = xfer->total_len - xfer->queued_len;
+
+  // FIXME: Handle unexpected final packet length.
+  uint16_t to_recv_size = (remaining > xfer->max_size) ? xfer->max_size : remaining;
+  uint8_t to_recv_rem = to_recv_size % 4;
+  uint16_t to_recv_size_aligned = to_recv_size - to_recv_rem;
+
+  // Do not assume xfer buffer is aligned.
+  uint8_t * base = (xfer->buffer + xfer->queued_len);
+  for(uint16_t i = 0; i < to_recv_size_aligned; i += 4) {
+    uint32_t tmp = (* rx_fifo);
+    base[i] = tmp & 0x000000FF;
+    base[i + 1] = (tmp & 0x0000FF00) >> 8;
+    base[i + 2] = (tmp & 0x00FF0000) >> 16;
+    base[i + 3] = (tmp & 0xFF000000) >> 24;
+  }
+
+  // Do not read invalid bytes from RX FIFO.
+  if(to_recv_rem != 0) {
+    uint32_t tmp = (* rx_fifo);
+    uint8_t * last_32b_bound = base + to_recv_size_aligned;
+
+    last_32b_bound[0] = tmp & 0x000000FF;
+    if(to_recv_rem > 1) {
+      last_32b_bound[1] = (tmp & 0x0000FF00) >> 8;
+    }
+    if(to_recv_rem > 2) {
+      last_32b_bound[2] = (tmp & 0x00FF0000) >> 16;
+    }
+  }
+
+  xfer->queued_len += xfer_size;
+}
 
 static void transmit_packet(xfer_ctl_t * xfer, USB_OTG_INEndpointTypeDef * in_ep, uint8_t fifo_num) {
   uint32_t * tx_fifo = FIFO_BASE(fifo_num);
@@ -423,11 +455,16 @@ void OTG_FS_IRQHandler(void) {
     uint32_t ctl_word = USB_OTG_FS->GRXSTSP;
     uint8_t pktsts = (ctl_word & USB_OTG_GRXSTSP_PKTSTS_Msk) >> USB_OTG_GRXSTSP_PKTSTS_Pos;
     uint8_t epnum = (ctl_word &  USB_OTG_GRXSTSP_EPNUM_Msk) >>  USB_OTG_GRXSTSP_EPNUM_Pos;
+    uint16_t bcnt = (ctl_word & USB_OTG_GRXSTSP_BCNT_Msk) >> USB_OTG_GRXSTSP_BCNT_Pos;
 
     switch(pktsts) {
       case 0x01: // Global OUT NAK (Interrupt)
         break;
       case 0x02: // Out packet recvd
+        {
+          xfer_ctl_t * xfer = XFER_CTL_BASE(epnum, TUSB_DIR_OUT);
+          receive_packet(xfer, bcnt);
+        }
         break;
       case 0x03: // Out packet done (Interrupt)
         break;
@@ -466,12 +503,13 @@ void OTG_FS_IRQHandler(void) {
           _setup_offs = 0;
         }
 
-        // OUT XFER complete (either single packet or full transfer).
+        // OUT XFER complete (single packet).
         if(out_ep[n].DOEPINT & USB_OTG_DOEPINT_XFRC) {
           out_ep[n].DOEPINT = USB_OTG_DOEPINT_XFRC;
 
-          // TODO: Endpoint 0 has to be handled specially due to constrained
-          // XFRSIZ.
+          // TODO: Because of endpoint 0's constrained size, we handle XFRC
+          // on a packet-basis. It would be more efficient to only trigger
+          // XFRC on a completed transfer for non-0 endpoints.
           dcd_event_xfer_complete(0, n, xfer->total_len, XFER_RESULT_SUCCESS, true);
         }
       }
