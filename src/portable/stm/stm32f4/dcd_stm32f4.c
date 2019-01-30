@@ -58,7 +58,7 @@ typedef struct {
   uint8_t * buffer;
   uint16_t total_len;
   uint16_t queued_len;
-  uint8_t max_size;
+  uint16_t max_size;
 } xfer_ctl_t;
 
 xfer_ctl_t xfer_status[4][2];
@@ -206,38 +206,38 @@ void dcd_set_config (uint8_t rhport, uint8_t config_num)
 bool dcd_edpt_open (uint8_t rhport, tusb_desc_endpoint_t const * desc_edpt)
 {
   (void) rhport;
+  USB_OTG_OUTEndpointTypeDef * out_ep = OUT_EP_BASE;
+  USB_OTG_INEndpointTypeDef * in_ep = IN_EP_BASE;
 
-  // uint8_t const epnum = edpt_number(desc_edpt->bEndpointAddress);
-  // uint8_t const dir   = edpt_dir(desc_edpt->bEndpointAddress);
-  //
-  // UsbDeviceDescBank* bank = &sram_registers[epnum][dir];
-  // uint32_t size_value = 0;
-  // while (size_value < 7) {
-  //   if (1 << (size_value + 3) == desc_edpt->wMaxPacketSize.size) {
-  //     break;
-  //   }
-  //   size_value++;
-  // }
-  //
-  // // unsupported endpoint size
-  // if ( size_value == 7 && desc_edpt->wMaxPacketSize.size != 1023 ) return false;
-  //
-  // bank->PCKSIZE.bit.SIZE = size_value;
-  //
-  // UsbDeviceEndpoint* ep = &USB->DEVICE.DeviceEndpoint[epnum];
-  //
-  // if ( dir == TUSB_DIR_OUT )
-  // {
-  //   ep->EPCFG.bit.EPTYPE0 = desc_edpt->bmAttributes.xfer + 1;
-  //   ep->EPINTENSET.bit.TRCPT0 = true;
-  // }else
-  // {
-  //   ep->EPCFG.bit.EPTYPE1 = desc_edpt->bmAttributes.xfer + 1;
-  //   ep->EPINTENSET.bit.TRCPT1 = true;
-  // }
+  uint8_t const epnum = tu_edpt_number(desc_edpt->bEndpointAddress);
+  uint8_t const dir   = tu_edpt_dir(desc_edpt->bEndpointAddress);
 
-  // return true;
-  return false;
+  // Unsupported endpoint numbers/size.
+  if((desc_edpt->wMaxPacketSize.size > 64) || (epnum > 3)) {
+    return false;
+  }
+
+  xfer_ctl_t * xfer = XFER_CTL_BASE(epnum, dir);
+  xfer->max_size = desc_edpt->wMaxPacketSize.size;
+
+  bool bulk_or_int = (desc_edpt->bmAttributes.xfer == 0x02 || desc_edpt->bmAttributes.xfer == 0x03);
+
+  if(dir == TUSB_DIR_OUT) {
+    out_ep[epnum].DOEPCTL |= USB_OTG_DOEPCTL_EPENA | \
+      (bulk_or_int ? USB_OTG_DOEPCTL_SD0PID_SEVNFRM : 0uL) | \
+      desc_edpt->bmAttributes.xfer << USB_OTG_DOEPCTL_EPTYP_Pos | \
+      desc_edpt->wMaxPacketSize.size << USB_OTG_DOEPCTL_MPSIZ_Pos;
+  } else {
+    in_ep[epnum].DIEPCTL |= USB_OTG_DIEPCTL_EPENA | \
+      (bulk_or_int ? USB_OTG_DIEPCTL_SD0PID_SEVNFRM : 0uL) | \
+      epnum << USB_OTG_DIEPCTL_TXFNUM_Pos | \
+      desc_edpt->bmAttributes.xfer << USB_OTG_DIEPCTL_EPTYP_Pos | \
+      desc_edpt->wMaxPacketSize.size << USB_OTG_DIEPCTL_MPSIZ_Pos;
+
+    USB_OTG_FS->DIEPTXF[epnum - 1] = (40 << USB_OTG_DIEPTXF_INEPTXFD_Pos) | (epnum * 0x100);
+  }
+
+  return true;
 }
 
 bool dcd_edpt_xfer (uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t total_bytes)
