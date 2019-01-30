@@ -112,12 +112,14 @@ static void end_of_reset(void) {
   if(enum_spd == 0x03) {
     // 64 bytes
     in_ep[0].DIEPCTL &= ~(0x03 << USB_OTG_DIEPCTL_MPSIZ_Pos);
+    xfer_status[0][TUSB_DIR_OUT].max_size = 64;
+    xfer_status[0][TUSB_DIR_IN].max_size = 64;
   } else {
     // 8 bytes
     in_ep[0].DIEPCTL |= (0x03 << USB_OTG_DIEPCTL_MPSIZ_Pos);
+    xfer_status[0][TUSB_DIR_OUT].max_size = 8;
+    xfer_status[0][TUSB_DIR_IN].max_size = 8;
   }
-  xfer_status[0][TUSB_DIR_OUT].max_size = 64;
-  xfer_status[0][TUSB_DIR_IN].max_size = 64;
 }
 
 
@@ -444,8 +446,6 @@ void OTG_FS_IRQHandler(void) {
     dcd_event_bus_signal(0, DCD_EVENT_BUS_RESET, true);
   }
 
-  // Read a packet here; the RX FIFO must be cleared in order for the core
-  // to continue processing. So read into an intermediate buffer.
   if(int_status & USB_OTG_GINTSTS_RXFLVL) {
     USB_OTG_FS->GINTSTS = USB_OTG_GINTSTS_RXFLVL;
 
@@ -549,8 +549,6 @@ void OTG_FS_IRQHandler(void) {
       }
     }
   }
-
-
 }
 
 #endif
