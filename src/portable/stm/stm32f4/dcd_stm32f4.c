@@ -224,13 +224,15 @@ bool dcd_edpt_open (uint8_t rhport, tusb_desc_endpoint_t const * desc_edpt)
 
   if(dir == TUSB_DIR_OUT) {
     out_ep[epnum].DOEPCTL |= USB_OTG_DOEPCTL_EPENA | \
+      (1 << USB_OTG_DOEPCTL_USBAEP_Pos) | \
       (bulk_or_int ? USB_OTG_DOEPCTL_SD0PID_SEVNFRM : 0uL) | \
       desc_edpt->bmAttributes.xfer << USB_OTG_DOEPCTL_EPTYP_Pos | \
       desc_edpt->wMaxPacketSize.size << USB_OTG_DOEPCTL_MPSIZ_Pos;
   } else {
     in_ep[epnum].DIEPCTL |= USB_OTG_DIEPCTL_EPENA | \
+      (1 << USB_OTG_DIEPCTL_USBAEP_Pos) | \
       (bulk_or_int ? USB_OTG_DIEPCTL_SD0PID_SEVNFRM : 0uL) | \
-      epnum << USB_OTG_DIEPCTL_TXFNUM_Pos | \
+      (epnum - 1) << USB_OTG_DIEPCTL_TXFNUM_Pos | \
       desc_edpt->bmAttributes.xfer << USB_OTG_DIEPCTL_EPTYP_Pos | \
       desc_edpt->wMaxPacketSize.size << USB_OTG_DIEPCTL_MPSIZ_Pos;
 
