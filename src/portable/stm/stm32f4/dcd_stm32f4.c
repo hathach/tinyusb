@@ -220,18 +220,12 @@ bool dcd_edpt_open (uint8_t rhport, tusb_desc_endpoint_t const * desc_edpt)
   xfer_ctl_t * xfer = XFER_CTL_BASE(epnum, dir);
   xfer->max_size = desc_edpt->wMaxPacketSize.size;
 
-  bool bulk_or_int = (desc_edpt->bmAttributes.xfer == 0x02 || desc_edpt->bmAttributes.xfer == 0x03);
-
   if(dir == TUSB_DIR_OUT) {
-    out_ep[epnum].DOEPCTL |= USB_OTG_DOEPCTL_EPENA | \
-      (1 << USB_OTG_DOEPCTL_USBAEP_Pos) | \
-      (bulk_or_int ? USB_OTG_DOEPCTL_SD0PID_SEVNFRM : 0uL) | \
+    out_ep[epnum].DOEPCTL |= (1 << USB_OTG_DOEPCTL_USBAEP_Pos) | \
       desc_edpt->bmAttributes.xfer << USB_OTG_DOEPCTL_EPTYP_Pos | \
       desc_edpt->wMaxPacketSize.size << USB_OTG_DOEPCTL_MPSIZ_Pos;
   } else {
-    in_ep[epnum].DIEPCTL |= USB_OTG_DIEPCTL_EPENA | \
-      (1 << USB_OTG_DIEPCTL_USBAEP_Pos) | \
-      (bulk_or_int ? USB_OTG_DIEPCTL_SD0PID_SEVNFRM : 0uL) | \
+    in_ep[epnum].DIEPCTL |= (1 << USB_OTG_DIEPCTL_USBAEP_Pos) | \
       (epnum - 1) << USB_OTG_DIEPCTL_TXFNUM_Pos | \
       desc_edpt->bmAttributes.xfer << USB_OTG_DIEPCTL_EPTYP_Pos | \
       desc_edpt->wMaxPacketSize.size << USB_OTG_DIEPCTL_MPSIZ_Pos;
@@ -334,18 +328,26 @@ void dcd_edpt_clear_stall (uint8_t rhport, uint8_t ep_addr)
 bool dcd_edpt_busy (uint8_t rhport, uint8_t ep_addr)
 {
   (void) rhport;
+  USB_OTG_OUTEndpointTypeDef * out_ep = OUT_EP_BASE;
+  USB_OTG_INEndpointTypeDef * in_ep = IN_EP_BASE;
 
-  // // USBD shouldn't check control endpoint state
-  // if ( 0 == ep_addr ) return false;
-  //
-  // uint8_t const epnum = edpt_number(ep_addr);
-  // UsbDeviceEndpoint* ep = &USB->DEVICE.DeviceEndpoint[epnum];
-  //
-  // if (edpt_dir(ep_addr) == TUSB_DIR_IN) {
-  //   return ep->EPINTFLAG.bit.TRCPT1 == 0 && ep->EPSTATUS.bit.BK1RDY == 1;
-  // }
-  // return ep->EPINTFLAG.bit.TRCPT0 == 0 && ep->EPSTATUS.bit.BK0RDY == 1;
-  return true;
+  // USBD shouldn't check control endpoint state
+  if ( 0 == ep_addr ) return false;
+
+  uint8_t const epnum = tu_edpt_number(ep_addr);
+
+  bool enabled = false;
+  bool xferring = true;
+
+  if (tu_edpt_dir(ep_addr) == TUSB_DIR_IN) {
+    enabled = (in_ep[epnum].DIEPCTL & USB_OTG_DIEPCTL_EPENA_Msk);
+    xferring = (in_ep[epnum].DIEPTSIZ & USB_OTG_DIEPTSIZ_PKTCNT_Msk);
+  } else {
+    enabled = (out_ep[epnum].DOEPCTL & USB_OTG_DOEPCTL_EPENA_Msk);
+    xferring = (out_ep[epnum].DOEPTSIZ & USB_OTG_DOEPTSIZ_PKTCNT_Msk);
+  }
+
+  return (enabled && xferring);
 }
 
 /*------------------------------------------------------------------*/
