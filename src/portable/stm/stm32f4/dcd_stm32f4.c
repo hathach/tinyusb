@@ -59,6 +59,7 @@ typedef struct {
   uint16_t total_len;
   uint16_t queued_len;
   uint16_t max_size;
+  bool short_packet;
 } xfer_ctl_t;
 
 xfer_ctl_t xfer_status[4][2];
@@ -253,6 +254,7 @@ bool dcd_edpt_xfer (uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t 
   xfer->buffer = buffer;
   xfer->total_len = total_bytes;
   xfer->queued_len = 0;
+  xfer->short_packet = false;
 
   uint16_t num_packets = (total_bytes / xfer->max_size);
   uint8_t short_packet_size = total_bytes % xfer->max_size;
@@ -366,20 +368,33 @@ static void receive_packet(xfer_ctl_t * xfer, /* USB_OTG_OUTEndpointTypeDef * ou
   // xfer->queued_len = xfer->total_len - remaining;
 
   uint16_t remaining = xfer->total_len - xfer->queued_len;
+  uint16_t to_recv_size;
 
-  // FIXME: Handle unexpected final packet length.
-  uint16_t to_recv_size = (remaining > xfer->max_size) ? xfer->max_size : remaining;
+  if(remaining <= xfer->max_size) {
+    // Avoid buffer overflow.
+    to_recv_size = (xfer_size > remaining) ? remaining : xfer_size;
+  } else {
+    // Room for full packet, choose recv_size based on what the microcontroller
+    // claims.
+    to_recv_size = (xfer_size > xfer->max_size) ? xfer->max_size : xfer_size;
+  }
+
   uint8_t to_recv_rem = to_recv_size % 4;
   uint16_t to_recv_size_aligned = to_recv_size - to_recv_rem;
 
   // Do not assume xfer buffer is aligned.
   uint8_t * base = (xfer->buffer + xfer->queued_len);
-  for(uint16_t i = 0; i < to_recv_size_aligned; i += 4) {
-    uint32_t tmp = (* rx_fifo);
-    base[i] = tmp & 0x000000FF;
-    base[i + 1] = (tmp & 0x0000FF00) >> 8;
-    base[i + 2] = (tmp & 0x00FF0000) >> 16;
-    base[i + 3] = (tmp & 0xFF000000) >> 24;
+
+  // This for loop always runs at least once- skip if less than 4 bytes
+  // to collect.
+  if(to_recv_size >= 4) {
+    for(uint16_t i = 0; i < to_recv_size_aligned; i += 4) {
+      uint32_t tmp = (* rx_fifo);
+      base[i] = tmp & 0x000000FF;
+      base[i + 1] = (tmp & 0x0000FF00) >> 8;
+      base[i + 2] = (tmp & 0x00FF0000) >> 16;
+      base[i + 3] = (tmp & 0xFF000000) >> 24;
+    }
   }
 
   // Do not read invalid bytes from RX FIFO.
@@ -397,6 +412,7 @@ static void receive_packet(xfer_ctl_t * xfer, /* USB_OTG_OUTEndpointTypeDef * ou
   }
 
   xfer->queued_len += xfer_size;
+  xfer->short_packet = (xfer_size < xfer->max_size);
 }
 
 static void transmit_packet(xfer_ctl_t * xfer, USB_OTG_INEndpointTypeDef * in_ep, uint8_t fifo_num) {
@@ -523,10 +539,12 @@ void OTG_FS_IRQHandler(void) {
           out_ep[n].DOEPINT = USB_OTG_DOEPINT_XFRC;
 
           // TODO: Because of endpoint 0's constrained size, we handle XFRC
-          // on a packet-basis. It would be more efficient to only trigger
-          // XFRC on a completed transfer for non-0 endpoints.
-          if(xfer->total_len >= xfer->queued_len) {
-            dcd_event_xfer_complete(0, n, xfer->total_len, XFER_RESULT_SUCCESS, true);
+          // on a packet-basis. The core can internally handle multiple OUT
+          // packets; it would be more efficient to only trigger XFRC on a
+          // completed transfer for non-0 endpoints.
+          if(xfer->short_packet) {
+            xfer->short_packet = false;
+            dcd_event_xfer_complete(0, n, xfer->queued_len, XFER_RESULT_SUCCESS, true);
           } else {
             // Schedule another packet to be received.
             out_ep[n].DOEPTSIZ = (1 << USB_OTG_DOEPTSIZ_PKTCNT_Pos) | \
