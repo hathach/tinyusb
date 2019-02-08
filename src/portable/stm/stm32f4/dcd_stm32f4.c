@@ -154,7 +154,8 @@ bool dcd_init (uint8_t rhport)
   /* USB_OTG_FS->GINTMSK |= USB_OTG_GINTMSK_USBRST | USB_OTG_GINTMSK_ENUMDNEM | \
     USB_OTG_GINTMSK_ESUSPM | USB_OTG_GINTMSK_USBSUSPM | \
     USB_OTG_GINTMSK_SOFM; */
-  USB_OTG_FS->GINTMSK |= USB_OTG_GINTMSK_USBRST | USB_OTG_GINTMSK_ENUMDNEM | USB_OTG_GINTMSK_RXFLVLM;
+  USB_OTG_FS->GINTMSK |= USB_OTG_GINTMSK_USBRST | USB_OTG_GINTMSK_ENUMDNEM | \
+    USB_OTG_GINTMSK_SOFM | USB_OTG_GINTMSK_RXFLVLM;
 
   // Enable pullup, enable peripheral.
   USB_OTG_FS->GCCFG |= USB_OTG_GCCFG_VBUSBSEN | USB_OTG_GCCFG_PWRDWN;
@@ -412,6 +413,9 @@ static void receive_packet(xfer_ctl_t * xfer, /* USB_OTG_OUTEndpointTypeDef * ou
   }
 
   xfer->queued_len += xfer_size;
+
+  // Per USB spec, a short OUT packet (including length 0) is always
+  // indicative of the end of a transfer (at least for ctl, bulk, int).
   xfer->short_packet = (xfer_size < xfer->max_size);
 }
 
@@ -477,6 +481,11 @@ void OTG_FS_IRQHandler(void) {
     USB_OTG_FS->GINTSTS = USB_OTG_GINTSTS_ENUMDNE;
     end_of_reset();
     dcd_event_bus_signal(0, DCD_EVENT_BUS_RESET, true);
+  }
+
+  if(int_status & USB_OTG_GINTSTS_SOF) {
+    USB_OTG_FS->GINTSTS = USB_OTG_GINTSTS_SOF;
+    dcd_event_bus_signal(0, DCD_EVENT_SOF, true);
   }
 
   if(int_status & USB_OTG_GINTSTS_RXFLVL) {
