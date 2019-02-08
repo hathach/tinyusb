@@ -274,49 +274,110 @@ bool dcd_edpt_xfer (uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t 
 bool dcd_edpt_stalled (uint8_t rhport, uint8_t ep_addr)
 {
   (void) rhport;
+  USB_OTG_OUTEndpointTypeDef * out_ep = OUT_EP_BASE;
+  USB_OTG_INEndpointTypeDef * in_ep = IN_EP_BASE;
 
   // control is never got halted
-  if ( ep_addr == 0 ) {
-      return false;
+  if(ep_addr == 0) {
+    return false;
   }
 
-  // uint8_t const epnum = edpt_number(ep_addr);
-  // UsbDeviceEndpoint* ep = &USB->DEVICE.DeviceEndpoint[epnum];
-  // return (edpt_dir(ep_addr) == TUSB_DIR_IN ) ? ep->EPINTFLAG.bit.STALL1 : ep->EPINTFLAG.bit.STALL0;
-  return true;
+  uint8_t const epnum = tu_edpt_number(ep_addr);
+  uint8_t const dir   = tu_edpt_dir(ep_addr);
+  bool stalled = false;
+
+  if(dir == TUSB_DIR_IN) {
+    stalled = (in_ep[epnum].DIEPCTL & USB_OTG_DIEPCTL_STALL_Msk);
+  } else {
+    stalled = (out_ep[epnum].DOEPCTL & USB_OTG_DOEPCTL_STALL_Msk);
+  }
+
+  return stalled;
 }
 
+// TODO: The logic for STALLing and disabling an endpoint is very similar
+// (send STALL versus NAK handshakes back). Refactor into resuable function.
 void dcd_edpt_stall (uint8_t rhport, uint8_t ep_addr)
 {
   (void) rhport;
+  USB_OTG_DeviceTypeDef * dev = DEVICE_BASE;
+  USB_OTG_OUTEndpointTypeDef * out_ep = OUT_EP_BASE;
+  USB_OTG_INEndpointTypeDef * in_ep = IN_EP_BASE;
 
-  // uint8_t const epnum = edpt_number(ep_addr);
-  // UsbDeviceEndpoint* ep = &USB->DEVICE.DeviceEndpoint[epnum];
-  //
-  // if (edpt_dir(ep_addr) == TUSB_DIR_IN) {
-  //     ep->EPSTATUSSET.reg = USB_DEVICE_EPSTATUSSET_STALLRQ1;
-  // } else {
-  //     ep->EPSTATUSSET.reg = USB_DEVICE_EPSTATUSSET_STALLRQ0;
-  //
-  //     // for control, stall both IN & OUT
-  //     if (ep_addr == 0) {
-  //       ep->EPSTATUSSET.reg = USB_DEVICE_EPSTATUSSET_STALLRQ1;
-  //     }
-  // }
+  uint8_t const epnum = tu_edpt_number(ep_addr);
+  uint8_t const dir   = tu_edpt_dir(ep_addr);
+
+  if(dir == TUSB_DIR_IN) {
+    // Stop transmitting packets and NAK IN xfers.
+    in_ep[epnum].DIEPCTL |= USB_OTG_DIEPCTL_SNAK;
+    while((in_ep[epnum].DIEPINT & USB_OTG_DIEPINT_INEPNE) == 0);
+
+    // Disable the endpoint. Note that both SNAK and STALL are set here.
+    in_ep[epnum].DIEPCTL |= (USB_OTG_DIEPCTL_SNAK | USB_OTG_DIEPCTL_STALL | \
+      USB_OTG_DIEPCTL_EPDIS);
+    while((in_ep[epnum].DIEPINT & USB_OTG_DIEPINT_EPDISD_Msk) == 0);
+    in_ep[epnum].DIEPINT = USB_OTG_DIEPINT_EPDISD;
+
+    // Flush the FIFO, and wait until we have confirmed it cleared.
+    USB_OTG_FS->GRSTCTL |= ((epnum - 1) << USB_OTG_GRSTCTL_TXFNUM_Pos);
+    USB_OTG_FS->GRSTCTL |= USB_OTG_GRSTCTL_TXFFLSH;
+    while((USB_OTG_FS->GRSTCTL & USB_OTG_GRSTCTL_TXFFLSH_Msk) != 0);
+  } else {
+    // Asserting GONAK is required to STALL an OUT endpoint.
+    // Simpler to use polling here, we don't use the "B"OUTNAKEFF interrupt
+    // anyway, and it can't be cleared by user code. If this while loop never
+    // finishes, we have bigger problems than just the stack.
+    dev->DCTL |= USB_OTG_DCTL_SGONAK;
+    while((USB_OTG_FS->GINTSTS & USB_OTG_GINTSTS_BOUTNAKEFF_Msk) == 0);
+
+    // Ditto here- disable the endpoint. Note that only STALL and not SNAK
+    // is set here.
+    out_ep[epnum].DOEPCTL |= (USB_OTG_DOEPCTL_STALL | USB_OTG_DOEPCTL_EPDIS);
+    while((out_ep[epnum].DOEPINT & USB_OTG_DOEPINT_EPDISD_Msk) == 0);
+    out_ep[epnum].DOEPINT = USB_OTG_DOEPINT_EPDISD;
+
+    // Allow other OUT endpoints to keep receiving.
+    dev->DCTL |= USB_OTG_DCTL_CGONAK;
+  }
 }
 
 void dcd_edpt_clear_stall (uint8_t rhport, uint8_t ep_addr)
 {
   (void) rhport;
+  USB_OTG_OUTEndpointTypeDef * out_ep = OUT_EP_BASE;
+  USB_OTG_INEndpointTypeDef * in_ep = IN_EP_BASE;
 
-  // uint8_t const epnum = edpt_number(ep_addr);
-  // UsbDeviceEndpoint* ep = &USB->DEVICE.DeviceEndpoint[epnum];
+  uint8_t const epnum = tu_edpt_number(ep_addr);
+  uint8_t const dir   = tu_edpt_dir(ep_addr);
+
+  // TODO: Figure out what happens when none of EPENA, SNAK, or STALL are
+  // set. Per manual, page 1364 of rev 17, for OUT endpoints,
+  // you set STALL _instead of_ SNAK when disabling an endpoint during a STALL.
+  // This means when stall is cleared, none of the above bits are set?
   //
-  // if (edpt_dir(ep_addr) == TUSB_DIR_IN) {
-  //   ep->EPSTATUSCLR.reg = USB_DEVICE_EPSTATUSCLR_STALLRQ1;
-  // } else {
-  //   ep->EPSTATUSCLR.reg = USB_DEVICE_EPSTATUSCLR_STALLRQ0;
-  // }
+  // Contrast to IN endpoints, where page 1372 instructs you to set STALL
+  // _and_ SNAK when STALLing IN endpoints.
+  if(dir == TUSB_DIR_IN) {
+    in_ep[epnum].DIEPCTL &= ~USB_OTG_DIEPCTL_STALL;
+
+    uint8_t eptype = (in_ep[epnum].DIEPCTL & USB_OTG_DIEPCTL_EPTYP_Msk) >> \
+      USB_OTG_DIEPCTL_EPTYP_Pos;
+    // Required by USB spec to reset DATA toggle bit to DATA0 on interrupt
+    // and bulk endpoints.
+    if(eptype == 2 || eptype == 3) {
+      in_ep[epnum].DIEPCTL |= USB_OTG_DIEPCTL_SD0PID_SEVNFRM;
+    }
+  } else {
+    out_ep[epnum].DOEPCTL &= ~USB_OTG_DOEPCTL_STALL;
+
+    uint8_t eptype = (out_ep[epnum].DOEPCTL & USB_OTG_DOEPCTL_EPTYP_Msk) >> \
+      USB_OTG_DOEPCTL_EPTYP_Pos;
+    // Required by USB spec to reset DATA toggle bit to DATA0 on interrupt
+    // and bulk endpoints.
+    if(eptype == 2 || eptype == 3) {
+      out_ep[epnum].DOEPCTL |= USB_OTG_DOEPCTL_SD0PID_SEVNFRM;
+    }
+  }
 }
 
 bool dcd_edpt_busy (uint8_t rhport, uint8_t ep_addr)
@@ -341,6 +402,7 @@ bool dcd_edpt_busy (uint8_t rhport, uint8_t ep_addr)
     xferring = (out_ep[epnum].DOEPTSIZ & USB_OTG_DOEPTSIZ_PKTCNT_Msk);
   }
 
+  // TODO: Also check that endpoint is active (not just enabled)?
   return (enabled && xferring);
 }
 
