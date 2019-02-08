@@ -7,7 +7,8 @@
 
     Software License Agreement (BSD License)
 
-    Copyright (c) 2018, Scott Shawcroft for Adafruit Industries
+    Copyright (c) 2018, Scott Shawcroft, 2019 William D. Jones for
+    Adafruit Industries
     All rights reserved.
 
     Redistribution and use in source and binary forms, with or without
@@ -63,7 +64,6 @@ typedef struct {
 } xfer_ctl_t;
 
 xfer_ctl_t xfer_status[4][2];
-
 #define XFER_CTL_BASE(_ep, _dir) &xfer_status[_ep][_dir]
 
 
@@ -71,7 +71,6 @@ xfer_ctl_t xfer_status[4][2];
 static void bus_reset(void) {
   USB_OTG_DeviceTypeDef * dev = DEVICE_BASE;
   USB_OTG_OUTEndpointTypeDef * out_ep = OUT_EP_BASE;
-  // USB_OTG_INEndpointTypeDef * in_ep = IN_EP_BASE;
 
   for(int n = 0; n < 4; n++) {
     out_ep[n].DOEPCTL |= USB_OTG_DOEPCTL_SNAK;
@@ -151,11 +150,10 @@ bool dcd_init (uint8_t rhport)
   // If USB host misbehaves during status portion of control xfer
   // (non zero-length packet), send STALL back and discard. Full speed.
   dev->DCFG |=  USB_OTG_DCFG_NZLSOHSK | (3 << USB_OTG_DCFG_DSPD_Pos);
-  /* USB_OTG_FS->GINTMSK |= USB_OTG_GINTMSK_USBRST | USB_OTG_GINTMSK_ENUMDNEM | \
-    USB_OTG_GINTMSK_ESUSPM | USB_OTG_GINTMSK_USBSUSPM | \
-    USB_OTG_GINTMSK_SOFM; */
+
   USB_OTG_FS->GINTMSK |= USB_OTG_GINTMSK_USBRST | USB_OTG_GINTMSK_ENUMDNEM | \
-    USB_OTG_GINTMSK_SOFM | USB_OTG_GINTMSK_RXFLVLM;
+    USB_OTG_GINTMSK_SOFM | USB_OTG_GINTMSK_RXFLVLM /* SB_OTG_GINTMSK_ESUSPM | \
+    USB_OTG_GINTMSK_USBSUSPM */;
 
   // Enable pullup, enable peripheral.
   USB_OTG_FS->GCCFG |= USB_OTG_GCCFG_VBUSBSEN | USB_OTG_GCCFG_PWRDWN;
@@ -173,16 +171,6 @@ void dcd_int_disable (uint8_t rhport)
 {
   (void) rhport;
   NVIC_DisableIRQ(OTG_FS_IRQn);
-}
-
-void dcd_connect (uint8_t rhport)
-{
-
-}
-
-void dcd_disconnect (uint8_t rhport)
-{
-
 }
 
 void dcd_set_address (uint8_t rhport, uint8_t dev_addr)
