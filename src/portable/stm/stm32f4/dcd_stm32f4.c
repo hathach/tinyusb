@@ -206,6 +206,7 @@ void dcd_set_config (uint8_t rhport, uint8_t config_num)
 bool dcd_edpt_open (uint8_t rhport, tusb_desc_endpoint_t const * desc_edpt)
 {
   (void) rhport;
+  USB_OTG_DeviceTypeDef * dev = DEVICE_BASE;
   USB_OTG_OUTEndpointTypeDef * out_ep = OUT_EP_BASE;
   USB_OTG_INEndpointTypeDef * in_ep = IN_EP_BASE;
 
@@ -224,11 +225,13 @@ bool dcd_edpt_open (uint8_t rhport, tusb_desc_endpoint_t const * desc_edpt)
     out_ep[epnum].DOEPCTL |= (1 << USB_OTG_DOEPCTL_USBAEP_Pos) | \
       desc_edpt->bmAttributes.xfer << USB_OTG_DOEPCTL_EPTYP_Pos | \
       desc_edpt->wMaxPacketSize.size << USB_OTG_DOEPCTL_MPSIZ_Pos;
+    dev->DAINTMSK |= (1 << (USB_OTG_DAINTMSK_OEPM_Pos + epnum));
   } else {
     in_ep[epnum].DIEPCTL |= (1 << USB_OTG_DIEPCTL_USBAEP_Pos) | \
       (epnum - 1) << USB_OTG_DIEPCTL_TXFNUM_Pos | \
       desc_edpt->bmAttributes.xfer << USB_OTG_DIEPCTL_EPTYP_Pos | \
       desc_edpt->wMaxPacketSize.size << USB_OTG_DIEPCTL_MPSIZ_Pos;
+    dev->DAINTMSK |= (1 << (USB_OTG_DAINTMSK_IEPM_Pos + epnum));
 
     USB_OTG_FS->DIEPTXF[epnum - 1] = (40 << USB_OTG_DIEPTXF_INEPTXFD_Pos) | (epnum * 0x100);
   }
