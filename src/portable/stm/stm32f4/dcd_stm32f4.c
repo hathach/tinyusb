@@ -428,9 +428,15 @@ static void transmit_packet(xfer_ctl_t * xfer, USB_OTG_INEndpointTypeDef * in_ep
   // Buffer might not be aligned to 32b, so we need to force alignment
   // by copying to a temp var.
   uint8_t * base = (xfer->buffer + xfer->queued_len);
-  for(uint16_t i = 0; i < to_xfer_size_aligned; i += 4) {
-    uint32_t tmp = base[i] | (base[i + 1] << 8) | (base[i + 2] << 16) | (base[i + 3] << 24);
-    (* tx_fifo) = tmp;
+
+  // This for loop always runs at least once- skip if less than 4 bytes
+  // to send off.
+  if(to_xfer_size >= 4) {
+    for(uint16_t i = 0; i < to_xfer_size_aligned; i += 4) {
+      uint32_t tmp = base[i] | (base[i + 1] << 8) | \
+        (base[i + 2] << 16) | (base[i + 3] << 24);
+      (* tx_fifo) = tmp;
+    }
   }
 
   // Do not read beyond end of buffer if not divisible by 4.
