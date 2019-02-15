@@ -142,8 +142,10 @@ bool dcd_init (uint8_t rhport)
     USB_OTG_GINTSTS_USBRST | USB_OTG_GINTSTS_ENUMDNE | \
     USB_OTG_GINTSTS_ESUSP | USB_OTG_GINTSTS_USBSUSP | USB_OTG_GINTSTS_SOF;
 
-  // Required as part of core initialization.
-  USB_OTG_FS->GINTMSK |= USB_OTG_GINTMSK_OTGINT | USB_OTG_GINTMSK_MMISM;
+  // Required as part of core initialization. Disable OTGINT as we don't use
+  // it right now. TODO: How should mode mismatch be handled? It will cause
+  // the core to stop working/require reset.
+  USB_OTG_FS->GINTMSK |= /* USB_OTG_GINTMSK_OTGINT | */ USB_OTG_GINTMSK_MMISM;
 
   USB_OTG_DeviceTypeDef * dev = ((USB_OTG_DeviceTypeDef *) (USB_OTG_FS_PERIPH_BASE + USB_OTG_DEVICE_BASE));
 
@@ -577,7 +579,7 @@ void OTG_FS_IRQHandler(void) {
           _setup_packet[1] = (* rx_fifo);
         }
         break;
-      default: // Invalid, do something here?
+      default: // Invalid, do something here, like breakpoint?
         break;
     }
 
