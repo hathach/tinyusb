@@ -594,6 +594,19 @@ static void proc_read10_cmd(uint8_t rhport, mscd_interface_t* p_msc)
 static void proc_write10_cmd(uint8_t rhport, mscd_interface_t* p_msc)
 {
   msc_cbw_t const * p_cbw = &p_msc->cbw;
+  bool writable = true;
+  if (tud_msc_is_writable_cb) {
+    writable = tud_msc_is_writable_cb(p_cbw->lun);
+  }
+  if (!writable) {
+    msc_csw_t* p_csw = &p_msc->csw;
+    p_csw->data_residue = p_cbw->total_bytes;
+    p_csw->status       = MSC_CSW_STATUS_FAILED;
+
+    tud_msc_set_sense(p_cbw->lun, SCSI_SENSE_DATA_PROTECT, 0x27, 0x00); // Sense = Write protected
+    dcd_edpt_stall(rhport, p_msc->ep_out);
+    return;
+  }
 
   // remaining bytes capped at class buffer
   int32_t nbytes = (int32_t) tu_min32(sizeof(_mscd_buf), p_cbw->total_bytes-p_msc->xferred_len);
