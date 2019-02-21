@@ -525,6 +525,12 @@ bool mscd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t event, uint32_t
     }
     else
     {
+      // Move to default CMD stage when sending status
+      p_msc->stage = MSC_STAGE_CMD;
+
+      // Send SCSI Status
+      TU_ASSERT( dcd_edpt_xfer(rhport, p_msc->ep_in , (uint8_t*) &p_msc->csw, sizeof(msc_csw_t)) );
+
       // Invoke complete callback if defined
       if ( SCSI_CMD_READ_10 == p_cbw->command[0])
       {
@@ -539,12 +545,7 @@ bool mscd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t event, uint32_t
         if ( tud_msc_scsi_complete_cb ) tud_msc_scsi_complete_cb(p_cbw->lun, p_cbw->command);
       }
 
-      // Move to default CMD stage after sending status
-      p_msc->stage         = MSC_STAGE_CMD;
-
-      TU_ASSERT( dcd_edpt_xfer(rhport, p_msc->ep_in , (uint8_t*) &p_msc->csw, sizeof(msc_csw_t)) );
-
-      //------------- Queue the next CBW -------------//
+      // Queue for the next CBW
       TU_ASSERT( dcd_edpt_xfer(rhport, p_msc->ep_out, (uint8_t*) &p_msc->cbw, sizeof(msc_cbw_t)) );
     }
   }
