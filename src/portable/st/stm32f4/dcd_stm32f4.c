@@ -553,6 +553,64 @@ static void read_rx_fifo(USB_OTG_OUTEndpointTypeDef * out_ep) {
   }
 }
 
+static void handle_epout_ints(USB_OTG_DeviceTypeDef * dev, USB_OTG_OUTEndpointTypeDef * out_ep) {
+  // DAINT for a given EP clears when DOEPINTx is cleared.
+  // OEPINT will be cleared when DAINT's out bits are cleared.
+  for(int n = 0; n < 4; n++) {
+    xfer_ctl_t * xfer = XFER_CTL_BASE(n, TUSB_DIR_OUT);
+    if(dev->DAINT & (1 << (USB_OTG_DAINT_OEPINT_Pos + n))) {
+      // SETUP packet Setup Phase done.
+      if(out_ep[n].DOEPINT & USB_OTG_DOEPINT_STUP) {
+        out_ep[n].DOEPINT =  USB_OTG_DOEPINT_STUP;
+        dcd_event_setup_received(0, (uint8_t*) &_setup_packet[0], true);
+        _setup_offs = 0;
+      }
+
+      // OUT XFER complete (single packet).
+      if(out_ep[n].DOEPINT & USB_OTG_DOEPINT_XFRC) {
+        out_ep[n].DOEPINT = USB_OTG_DOEPINT_XFRC;
+
+        // TODO: Because of endpoint 0's constrained size, we handle XFRC
+        // on a packet-basis. The core can internally handle multiple OUT
+        // packets; it would be more efficient to only trigger XFRC on a
+        // completed transfer for non-0 endpoints.
+        if(xfer->short_packet) {
+          xfer->short_packet = false;
+          dcd_event_xfer_complete(0, n, xfer->queued_len, XFER_RESULT_SUCCESS, true);
+        } else {
+          // Schedule another packet to be received.
+          out_ep[n].DOEPTSIZ = (1 << USB_OTG_DOEPTSIZ_PKTCNT_Pos) | \
+              ((xfer->max_size & USB_OTG_DOEPTSIZ_XFRSIZ_Msk) << USB_OTG_DOEPTSIZ_XFRSIZ_Pos);
+          out_ep[n].DOEPCTL |= USB_OTG_DOEPCTL_EPENA | USB_OTG_DOEPCTL_CNAK;
+        }
+      }
+    }
+  }
+}
+
+static void handle_epin_ints(USB_OTG_DeviceTypeDef * dev, USB_OTG_INEndpointTypeDef * in_ep) {
+  // DAINT for a given EP clears when DIEPINTx is cleared.
+  // IEPINT will be cleared when DAINT's out bits are cleared.
+  for(uint8_t n = 0; n < 4; n++) {
+    xfer_ctl_t * xfer = XFER_CTL_BASE(n, TUSB_DIR_IN);
+
+    if(dev->DAINT & (1 << (USB_OTG_DAINT_IEPINT_Pos + n))) {
+      // IN XFER complete (entire xfer).
+      if(in_ep[n].DIEPINT & USB_OTG_DIEPINT_XFRC) {
+        in_ep[n].DIEPINT = USB_OTG_DIEPINT_XFRC;
+        dev->DIEPEMPMSK &= ~(1 << n); // Turn off TXFE b/c xfer inactive.
+        dcd_event_xfer_complete(0, n | TUSB_DIR_IN_MASK, xfer->total_len, XFER_RESULT_SUCCESS, true);
+      }
+
+      // XFER FIFO empty
+      if(in_ep[n].DIEPINT & USB_OTG_DIEPINT_TXFE) {
+        in_ep[n].DIEPINT = USB_OTG_DIEPINT_TXFE;
+        transmit_packet(xfer, &in_ep[n], n);
+      }
+    }
+  }
+}
+
 void OTG_FS_IRQHandler(void) {
   USB_OTG_DeviceTypeDef * dev = DEVICE_BASE;
   USB_OTG_OUTEndpointTypeDef * out_ep = OUT_EP_BASE;
@@ -586,64 +644,12 @@ void OTG_FS_IRQHandler(void) {
 
   // OUT endpoint interrupt handling.
   if(int_status & USB_OTG_GINTSTS_OEPINT) {
-
-    // DAINT for a given EP clears when DOEPINTx is cleared.
-    // OEPINT will be cleared when DAINT's out bits are cleared.
-    for(int n = 0; n < 4; n++) {
-      xfer_ctl_t * xfer = XFER_CTL_BASE(n, TUSB_DIR_OUT);
-      if(dev->DAINT & (1 << (USB_OTG_DAINT_OEPINT_Pos + n))) {
-        // SETUP packet Setup Phase done.
-        if(out_ep[n].DOEPINT & USB_OTG_DOEPINT_STUP) {
-          out_ep[n].DOEPINT =  USB_OTG_DOEPINT_STUP;
-          dcd_event_setup_received(0, (uint8_t*) &_setup_packet[0], true);
-          _setup_offs = 0;
-        }
-
-        // OUT XFER complete (single packet).
-        if(out_ep[n].DOEPINT & USB_OTG_DOEPINT_XFRC) {
-          out_ep[n].DOEPINT = USB_OTG_DOEPINT_XFRC;
-
-          // TODO: Because of endpoint 0's constrained size, we handle XFRC
-          // on a packet-basis. The core can internally handle multiple OUT
-          // packets; it would be more efficient to only trigger XFRC on a
-          // completed transfer for non-0 endpoints.
-          if(xfer->short_packet) {
-            xfer->short_packet = false;
-            dcd_event_xfer_complete(0, n, xfer->queued_len, XFER_RESULT_SUCCESS, true);
-          } else {
-            // Schedule another packet to be received.
-            out_ep[n].DOEPTSIZ = (1 << USB_OTG_DOEPTSIZ_PKTCNT_Pos) | \
-                ((xfer->max_size & USB_OTG_DOEPTSIZ_XFRSIZ_Msk) << USB_OTG_DOEPTSIZ_XFRSIZ_Pos);
-            out_ep[n].DOEPCTL |= USB_OTG_DOEPCTL_EPENA | USB_OTG_DOEPCTL_CNAK;
-          }
-        }
-      }
-    }
+    handle_epout_ints(dev, out_ep);
   }
 
   // IN endpoint interrupt handling.
   if(int_status & USB_OTG_GINTSTS_IEPINT) {
-
-    // DAINT for a given EP clears when DIEPINTx is cleared.
-    // IEPINT will be cleared when DAINT's out bits are cleared.
-    for(uint8_t n = 0; n < 4; n++) {
-      xfer_ctl_t * xfer = XFER_CTL_BASE(n, TUSB_DIR_IN);
-
-      if(dev->DAINT & (1 << (USB_OTG_DAINT_IEPINT_Pos + n))) {
-        // IN XFER complete (entire xfer).
-        if(in_ep[n].DIEPINT & USB_OTG_DIEPINT_XFRC) {
-          in_ep[n].DIEPINT = USB_OTG_DIEPINT_XFRC;
-          dev->DIEPEMPMSK &= ~(1 << n); // Turn off TXFE b/c xfer inactive.
-          dcd_event_xfer_complete(0, n | TUSB_DIR_IN_MASK, xfer->total_len, XFER_RESULT_SUCCESS, true);
-        }
-
-        // XFER FIFO empty
-        if(in_ep[n].DIEPINT & USB_OTG_DIEPINT_TXFE) {
-          in_ep[n].DIEPINT = USB_OTG_DIEPINT_TXFE;
-          transmit_packet(xfer, &in_ep[n], n);
-        }
-      }
-    }
+    handle_epin_ints(dev, in_ep);
   }
 }
 
