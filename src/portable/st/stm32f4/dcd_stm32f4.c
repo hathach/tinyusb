@@ -512,11 +512,51 @@ static void transmit_packet(xfer_ctl_t * xfer, USB_OTG_INEndpointTypeDef * in_ep
   }
 }
 
+static void read_rx_fifo(USB_OTG_OUTEndpointTypeDef * out_ep) {
+  uint32_t * rx_fifo = FIFO_BASE(0);
+
+  // Pop control word off FIFO (completed xfers will have 2 control words,
+  // we only pop one ctl word each interrupt).
+  uint32_t ctl_word = USB_OTG_FS->GRXSTSP;
+  uint8_t pktsts = (ctl_word & USB_OTG_GRXSTSP_PKTSTS_Msk) >> USB_OTG_GRXSTSP_PKTSTS_Pos;
+  uint8_t epnum = (ctl_word &  USB_OTG_GRXSTSP_EPNUM_Msk) >>  USB_OTG_GRXSTSP_EPNUM_Pos;
+  uint16_t bcnt = (ctl_word & USB_OTG_GRXSTSP_BCNT_Msk) >> USB_OTG_GRXSTSP_BCNT_Pos;
+
+  switch(pktsts) {
+    case 0x01: // Global OUT NAK (Interrupt)
+      break;
+    case 0x02: // Out packet recvd
+      {
+        xfer_ctl_t * xfer = XFER_CTL_BASE(epnum, TUSB_DIR_OUT);
+        receive_packet(xfer, bcnt);
+      }
+      break;
+    case 0x03: // Out packet done (Interrupt)
+      break;
+    case 0x04: // Setup packet done (Interrupt)
+      out_ep[epnum].DOEPTSIZ |= (1 << USB_OTG_DOEPTSIZ_STUPCNT_Pos);
+      break;
+    case 0x06: // Setup packet recvd
+      {
+        // For some reason, it's possible to get a mismatch between
+        // how many setup packets were received versus the location
+        // of the Setup packet done word. This leads to situations
+        // where stale setup packets are in the RX FIFO that were received
+        // after the core loaded the Setup packet done word. Workaround by
+        // only accepting one setup packet at a time for now.
+        _setup_packet[0] = (* rx_fifo);
+        _setup_packet[1] = (* rx_fifo);
+      }
+      break;
+    default: // Invalid, do something here, like breakpoint?
+      break;
+  }
+}
+
 void OTG_FS_IRQHandler(void) {
   USB_OTG_DeviceTypeDef * dev = DEVICE_BASE;
   USB_OTG_OUTEndpointTypeDef * out_ep = OUT_EP_BASE;
   USB_OTG_INEndpointTypeDef * in_ep = IN_EP_BASE;
-  uint32_t * rx_fifo = FIFO_BASE(0);
 
   uint32_t int_status = USB_OTG_FS->GINTSTS;
 
@@ -541,49 +581,7 @@ void OTG_FS_IRQHandler(void) {
   }
 
   if(int_status & USB_OTG_GINTSTS_RXFLVL) {
-    USB_OTG_FS->GINTSTS = USB_OTG_GINTSTS_RXFLVL;
-
-    // Receive data before reenabling interrupts.
-    USB_OTG_FS->GINTMSK &= (~USB_OTG_GINTMSK_RXFLVLM);
-
-    // Pop control word off FIFO (completed xfers will have 2 control words,
-    // we only pop one ctl word each interrupt).
-    uint32_t ctl_word = USB_OTG_FS->GRXSTSP;
-    uint8_t pktsts = (ctl_word & USB_OTG_GRXSTSP_PKTSTS_Msk) >> USB_OTG_GRXSTSP_PKTSTS_Pos;
-    uint8_t epnum = (ctl_word &  USB_OTG_GRXSTSP_EPNUM_Msk) >>  USB_OTG_GRXSTSP_EPNUM_Pos;
-    uint16_t bcnt = (ctl_word & USB_OTG_GRXSTSP_BCNT_Msk) >> USB_OTG_GRXSTSP_BCNT_Pos;
-
-    switch(pktsts) {
-      case 0x01: // Global OUT NAK (Interrupt)
-        break;
-      case 0x02: // Out packet recvd
-        {
-          xfer_ctl_t * xfer = XFER_CTL_BASE(epnum, TUSB_DIR_OUT);
-          receive_packet(xfer, bcnt);
-        }
-        break;
-      case 0x03: // Out packet done (Interrupt)
-        break;
-      case 0x04: // Setup packet done (Interrupt)
-        out_ep[epnum].DOEPTSIZ |= (1 << USB_OTG_DOEPTSIZ_STUPCNT_Pos);
-        break;
-      case 0x06: // Setup packet recvd
-        {
-          // For some reason, it's possible to get a mismatch between
-          // how many setup packets were received versus the location
-          // of the Setup packet done word. This leads to situations
-          // where stale setup packets are in the RX FIFO that were received
-          // after the core loaded the Setup packet done word. Workaround by
-          // only accepting one setup packet at a time for now.
-          _setup_packet[0] = (* rx_fifo);
-          _setup_packet[1] = (* rx_fifo);
-        }
-        break;
-      default: // Invalid, do something here, like breakpoint?
-        break;
-    }
-
-    USB_OTG_FS->GINTMSK |= USB_OTG_GINTMSK_RXFLVLM;
+    read_rx_fifo(out_ep);
   }
 
   // OUT endpoint interrupt handling.
