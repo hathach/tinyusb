@@ -2,7 +2,10 @@ include ../../../tools/top.mk
 
 # Select the board to build for.
 ifeq ($(BOARD),)
-  $(error You must provide a BOARD parameter)
+  $(info You must provide a BOARD parameter with 'BOARD=')
+  $(info Possible values are:)
+  $(info $(sort $(subst /.,,$(subst $(TOP)/hw/bsp/,,$(wildcard $(TOP)/hw/bsp/*/.)))))
+  $(error BOARD not defined)
 else
   ifeq ($(wildcard $(TOP)/hw/bsp/$(BOARD)/.),)
     $(error Invalid BOARD specified)
@@ -86,8 +89,11 @@ LIB_SOURCE += \
 
 SRC_C += $(LIB_SOURCE)
 
+# Assembly files can be name with upper case .S, convert it to .s 
+SRC_S := $(SRC_S:.S=.s)
+
 OBJ += $(addprefix $(BUILD)/obj/, $(SRC_C:.c=.o))
-OBJ += $(addprefix $(BUILD)/obj/, $(SRC_S:.S=.o))
+OBJ += $(addprefix $(BUILD)/obj/, $(SRC_S:.s=.o))
 
 all: $(BUILD)/$(BOARD)-firmware.bin size
 
@@ -119,16 +125,17 @@ $(BUILD)/obj/%.o: %.c
 	      -e '/^$$/ d' -e 's/$$/ :/' < $(@:.o=.d) >> $(@:.o=.P); \
 	  $(RM) $(@:.o=.d)
 
-# ASM sources
+# ASM sources lower case .s
 vpath %.s . $(TOP)
 $(BUILD)/obj/%.o: %.s
-	@echo "AS $<"
-	@$(AS) -o $@ $<
+	@echo AS $(notdir $@)
+	$(AS) -o $@ $<
 
-#vpath %.S . $(TOP)
-#$(BUILD)/obj/%.o: %.S
-#	@echo AS $(notdir $@)
-#	@$(CC) -x assembler-with-cpp $(ASFLAGS) -c -o $@ $<
+# ASM sources upper case .S
+vpath %.S . $(TOP)
+$(BUILD)/obj/%.o: %.S
+	@echo AS $(notdir $@)
+	@$(CC) -x assembler-with-cpp $(ASFLAGS) -c -o $@ $<
 
 size: $(BUILD)/$(BOARD)-firmware.elf
 	-@echo ''
