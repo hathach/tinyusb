@@ -620,6 +620,9 @@ bool enum_task(hcd_event_t* event)
  */
 void tuh_task(void)
 {
+  // Skip if stack is not initialized
+  if ( !tusb_inited() ) return;
+
   // Loop until there is no more events in the queue
   while (1)
   {

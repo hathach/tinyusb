@@ -83,7 +83,7 @@ typedef struct {
   uint8_t add_sense_qualifier;
 }mscd_interface_t;
 
-CFG_TUSB_MEM_SECTION CFG_TUSB_MEM_ALIGN static mscd_interface_t _mscd_itf;
+CFG_TUSB_MEM_SECTION CFG_TUSB_MEM_ALIGN static mscd_interface_t _mscd_itf = { 0 };
 CFG_TUSB_MEM_SECTION CFG_TUSB_MEM_ALIGN static uint8_t _mscd_buf[CFG_TUD_MSC_BUFSIZE];
 
 //--------------------------------------------------------------------+
@@ -265,14 +265,20 @@ int32_t proc_builtin_scsi(msc_cbw_t const * p_cbw, uint8_t* buffer, uint32_t buf
           .is_removable         = 1,
           .version              = 2,
           .response_data_format = 2,
-          .vendor_id            = "Adafruit",
-          .product_id           = "Feather52840",
-          .product_rev          = "1.0"
+          // vendor_id, product_id, product_rev is space padded string
+          .vendor_id            = "",
+          .product_id           = "",
+          .product_rev          = "",
       };
 
-      strncpy((char*) inquiry_rsp.vendor_id  , CFG_TUD_MSC_VENDOR     , sizeof(inquiry_rsp.vendor_id));
-      strncpy((char*) inquiry_rsp.product_id , CFG_TUD_MSC_PRODUCT    , sizeof(inquiry_rsp.product_id));
-      strncpy((char*) inquiry_rsp.product_rev, CFG_TUD_MSC_PRODUCT_REV, sizeof(inquiry_rsp.product_rev));
+      memset(inquiry_rsp.vendor_id, ' ', sizeof(inquiry_rsp.vendor_id));
+      memcpy(inquiry_rsp.vendor_id, CFG_TUD_MSC_VENDOR, tu_min32(strlen(CFG_TUD_MSC_VENDOR), sizeof(inquiry_rsp.vendor_id)));
+
+      memset(inquiry_rsp.product_id, ' ', sizeof(inquiry_rsp.product_id));
+      memcpy(inquiry_rsp.product_id, CFG_TUD_MSC_PRODUCT, tu_min32(strlen(CFG_TUD_MSC_PRODUCT), sizeof(inquiry_rsp.product_id)));
+
+      memset(inquiry_rsp.product_rev, ' ', sizeof(inquiry_rsp.product_rev));
+      memcpy(inquiry_rsp.product_rev, CFG_TUD_MSC_PRODUCT_REV, tu_min32(strlen(CFG_TUD_MSC_PRODUCT_REV), sizeof(inquiry_rsp.product_rev)));
 
       ret = sizeof(inquiry_rsp);
       memcpy(buffer, &inquiry_rsp, ret);
@@ -525,6 +531,12 @@ bool mscd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t event, uint32_t
     }
     else
     {
+      // Move to default CMD stage when sending status
+      p_msc->stage = MSC_STAGE_CMD;
+
+      // Send SCSI Status
+      TU_ASSERT( dcd_edpt_xfer(rhport, p_msc->ep_in , (uint8_t*) &p_msc->csw, sizeof(msc_csw_t)) );
+
       // Invoke complete callback if defined
       if ( SCSI_CMD_READ_10 == p_cbw->command[0])
       {
@@ -539,12 +551,7 @@ bool mscd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t event, uint32_t
         if ( tud_msc_scsi_complete_cb ) tud_msc_scsi_complete_cb(p_cbw->lun, p_cbw->command);
       }
 
-      // Move to default CMD stage after sending status
-      p_msc->stage         = MSC_STAGE_CMD;
-
-      TU_ASSERT( dcd_edpt_xfer(rhport, p_msc->ep_in , (uint8_t*) &p_msc->csw, sizeof(msc_csw_t)) );
-
-      //------------- Queue the next CBW -------------//
+      // Queue for the next CBW
       TU_ASSERT( dcd_edpt_xfer(rhport, p_msc->ep_out, (uint8_t*) &p_msc->cbw, sizeof(msc_cbw_t)) );
     }
   }
@@ -594,6 +601,19 @@ static void proc_read10_cmd(uint8_t rhport, mscd_interface_t* p_msc)
 static void proc_write10_cmd(uint8_t rhport, mscd_interface_t* p_msc)
 {
   msc_cbw_t const * p_cbw = &p_msc->cbw;
+  bool writable = true;
+  if (tud_msc_is_writable_cb) {
+    writable = tud_msc_is_writable_cb(p_cbw->lun);
+  }
+  if (!writable) {
+    msc_csw_t* p_csw = &p_msc->csw;
+    p_csw->data_residue = p_cbw->total_bytes;
+    p_csw->status       = MSC_CSW_STATUS_FAILED;
+
+    tud_msc_set_sense(p_cbw->lun, SCSI_SENSE_DATA_PROTECT, 0x27, 0x00); // Sense = Write protected
+    dcd_edpt_stall(rhport, p_msc->ep_out);
+    return;
+  }
 
   // remaining bytes capped at class buffer
   int32_t nbytes = (int32_t) tu_min32(sizeof(_mscd_buf), p_cbw->total_bytes-p_msc->xferred_len);

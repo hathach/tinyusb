@@ -1,0 +1,5 @@
+<!DOCTYPE Board_Memory_Definition_File>
+<root name="nRF52840_xxAA_s140v6">
+  <MemorySegment name="FLASH" start="0x00026000" size="0x000C7000" access="ReadOnly" />
+  <MemorySegment name="RAM" start="0x20004000" size="0x0003C000" access="Read/Write" />
+</root>

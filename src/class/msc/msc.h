@@ -284,8 +284,10 @@ typedef struct ATTR_PACKED
 {
   uint8_t data_len;
   uint8_t medium_type;
-  bool write_protected : 1;
+
   uint8_t reserved : 7;
+  bool write_protected : 1;
+
   uint8_t block_descriptor_len;
 } scsi_mode_sense6_resp_t;
 

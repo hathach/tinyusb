@@ -41,6 +41,12 @@
 #include "nrfx/hal/nrf_gpio.h"
 #include "nrfx/drivers/include/nrfx_power.h"
 #include "nrfx/drivers/include/nrfx_qspi.h"
+
+#ifdef SOFTDEVICE_PRESENT
+#include "nrf_sdm.h"
+#include "nrf_soc.h"
+#endif
+
 #include "tusb.h"
 
 /*------------------------------------------------------------------*/
@@ -105,7 +111,7 @@ void board_init(void)
 #endif
 
 // 64 Mbit qspi flash
-#ifdef BOARD_MSC_FLASH_QSPI
+#if 0 // def BOARD_MSC_FLASH_QSPI
   nrfx_qspi_config_t qspi_cfg = {
     .xip_offset = 0,
     .pins = {
@@ -177,13 +183,32 @@ void board_init(void)
   nrfx_qspi_cinstr_xfer(&cinstr_cfg, &sr_quad_en, NULL);
 #endif
 
+  NVIC_SetPriority(USBD_IRQn, 2);
+
   // USB power may already be ready at this time -> no event generated
   // We need to invoke the handler based on the status initially
   uint32_t usb_reg;
 
 #ifdef SOFTDEVICE_PRESENT
+
+// Enable to test enable SD before USB scenario
+#if 1
+  extern void nrf_error_cb(uint32_t id, uint32_t pc, uint32_t info);
+  nrf_clock_lf_cfg_t clock_cfg =
+  {
+      // LFXO
+      .source        = NRF_CLOCK_LF_SRC_XTAL,
+      .rc_ctiv       = 0,
+      .rc_temp_ctiv  = 0,
+      .accuracy      = NRF_CLOCK_LF_ACCURACY_20_PPM
+  };
+
+  sd_softdevice_enable(&clock_cfg, nrf_error_cb);
+  NVIC_EnableIRQ(SD_EVT_IRQn);
+#endif
+
   uint8_t sd_en = false;
-  (void) sd_softdevice_is_enabled(&sd_en);
+  sd_softdevice_is_enabled(&sd_en);
 
   if ( sd_en ) {
     sd_power_usbdetected_enable(true);
@@ -192,7 +217,7 @@ void board_init(void)
 
     sd_power_usbregstatus_get(&usb_reg);
   }else
-#else
+#endif
   {
     // Power module init
     const nrfx_power_config_t pwr_cfg = { 0 };
@@ -206,7 +231,6 @@ void board_init(void)
 
     usb_reg = NRF_POWER->USBREGSTATUS;
   }
-#endif
 
   if ( usb_reg & POWER_USBREGSTATUS_VBUSDETECT_Msk ) {
     tusb_hal_nrf_power_event(NRFX_POWER_USB_EVT_DETECTED);
@@ -235,7 +259,7 @@ uint32_t board_buttons(void)
   return ret;
 }
 
-uint8_t  board_uart_getchar(void)
+uint8_t board_uart_getchar(void)
 {
   return 0;
 }
@@ -244,5 +268,49 @@ void board_uart_putchar(uint8_t c)
 {
   (void) c;
 }
+
+#ifdef SOFTDEVICE_PRESENT
+
+// process SOC event from SD
+uint32_t proc_soc(void)
+{
+  uint32_t soc_evt;
+  uint32_t err = sd_evt_get(&soc_evt);
+
+  if (NRF_SUCCESS == err)
+  {
+    /*------------- usb power event handler -------------*/
+    int32_t usbevt = (soc_evt == NRF_EVT_POWER_USB_DETECTED   ) ? NRFX_POWER_USB_EVT_DETECTED:
+                     (soc_evt == NRF_EVT_POWER_USB_POWER_READY) ? NRFX_POWER_USB_EVT_READY   :
+                     (soc_evt == NRF_EVT_POWER_USB_REMOVED    ) ? NRFX_POWER_USB_EVT_REMOVED : -1;
+
+    if ( usbevt >= 0) tusb_hal_nrf_power_event(usbevt);
+  }
+
+  return err;
+}
+
+uint32_t proc_ble(void)
+{
+  // do nothing with ble
+  return NRF_ERROR_NOT_FOUND;
+}
+
+void SD_EVT_IRQHandler(void)
+{
+  // process BLE and SOC until there is no more events
+  while( (NRF_ERROR_NOT_FOUND != proc_ble()) || (NRF_ERROR_NOT_FOUND != proc_soc()) )
+  {
+
+  }
+}
+
+void nrf_error_cb(uint32_t id, uint32_t pc, uint32_t info)
+{
+  (void) id;
+  (void) pc;
+  (void) info;
+}
+#endif
 
 #endif
