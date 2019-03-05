@@ -25,6 +25,7 @@ MKDIR = mkdir
 SED = sed
 CP = cp
 RM = rm
+AS = $(CROSS_COMPILE)as
 
 INC += -Isrc \
 	-I$(TOP)/hw \
@@ -58,7 +59,7 @@ else
   CFLAGS += -flto -Os
 endif
 
-CFLAGS += $(INC) -Wall -Werror -std=gnu11 -nostdlib -DBOARD_$(shell echo $(BOARD) | tr a-z A-Z)
+CFLAGS += $(INC) -Wall -Werror -std=gnu11 -nostdlib -DBOARD_$(shell echo $(BOARD) | tr a-z\- A-Z_)
 
 LDFLAGS += $(CFLAGS) -nostartfiles -fshort-enums -Wl,-T,$(TOP)/$(LD_FILE) -Wl,-Map=$@.map -Wl,-cref -Wl,-gc-sections -specs=nosys.specs -specs=nano.specs
 LIBS := -lgcc -lc -lm -lnosys
@@ -119,10 +120,15 @@ $(BUILD)/obj/%.o: %.c
 	  $(RM) $(@:.o=.d)
 
 # ASM sources
-vpath %.S . $(TOP)
-$(BUILD)/obj/%.o: %.S
-	@echo AS $(notdir $@)
-	@$(CC) -x assembler-with-cpp $(ASFLAGS) -c -o $@ $<
+vpath %.s . $(TOP)
+$(BUILD)/obj/%.o: %.s
+	@echo "AS $<"
+	@$(AS) -o $@ $<
+
+#vpath %.S . $(TOP)
+#$(BUILD)/obj/%.o: %.S
+#	@echo AS $(notdir $@)
+#	@$(CC) -x assembler-with-cpp $(ASFLAGS) -c -o $@ $<
 
 size: $(BUILD)/$(BOARD)-firmware.elf
 	-@echo ''

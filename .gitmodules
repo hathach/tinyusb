@@ -7,3 +7,6 @@
 [submodule "tests/vendor/unity"]
 	path = tests/vendor/unity
 	url = https://github.com/ThrowTheSwitch/Unity.git
+[submodule "hw/mcu/st/stm32lib"]
+	path = hw/mcu/st/stm32lib
+	url = https://github.com/micropython/stm32lib.git

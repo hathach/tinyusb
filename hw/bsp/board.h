@@ -77,6 +77,8 @@
   #include "metro_m4_express/board_metro_m4_express.h"
 #elif defined BOARD_METRO_M0_EXPRESS
   #include "metro_m0_express/board_metro_m0_express.h"
+#elif defined BOARD_STM32F407G_DISC1
+  #include "stm32f407g_disc1/board_stm32f407g_disc1.h"
 #else
   #error BOARD is not defined or supported yet
 #endif
