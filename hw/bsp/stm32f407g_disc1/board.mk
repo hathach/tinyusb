@@ -25,3 +25,10 @@ INC += \
 
 VENDOR = st
 CHIP_FAMILY = stm32f4
+
+# Path to STM32 Cube Programmer CLI
+STM32Prog = STM32_Programmer_CLI
+
+# flash target to download
+flash: $(BUILD)/$(BOARD)-firmware.elf
+	$(STM32Prog) --connect port=swd --write $< --go
