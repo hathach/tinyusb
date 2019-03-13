@@ -41,6 +41,7 @@ else
   endif
 endif
 
-# flash target using on-board stlink
+# flash target using on-board stlink or jlink
 flash: $(BUILD)/$(BOARD)-firmware.elf
 	$(STM32Prog) --connect port=swd --write $< --go
+	#JLinkExe 

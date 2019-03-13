@@ -45,8 +45,6 @@
 //--------------------------------------------------------------------+
 // MACRO TYPEDEF CONSTANT ENUM DECLARATION
 //--------------------------------------------------------------------+
-#define LED_STATE_ON  1
-
 void board_init(void)
 {
   // Init the LED on PD14
