@@ -45,9 +45,10 @@ Currently the following OS are supported with tinyusb out of the box with a simp
 
 The stack supports the following MCUs
 
+  - **Nordic:** nRF52840
   - **NXP:** LPC11Uxx, LPC13xx, LPC175x_6x, LPC177x_8x, LPC40xx, LPC43xx
   - **MicroChip:** SAMD21, SAMD51 (device only)
-  - **Nordic:** nRF52840
+  - **ST* STM32F4
 
 [Here is the list of supported Boards](hw/bsp/readme.md)
 
@@ -64,8 +65,8 @@ The stack is developed with GCC compiler, and should be compilable with others. 
 TinyUSB is currently used by these other projects:
 
 * [Adafruit nRF52 Arduino](https://github.com/adafruit/Adafruit_nRF52_Arduino)
+* [Adafruit nRF52 Bootloader](https://github.com/adafruit/Adafruit_nRF52_Bootloader)
 * [CircuitPython](https://github.com/adafruit/circuitpython)
-* [nRF52840 UF2 Bootloader](https://github.com/adafruit/Adafruit_nRF52_Bootloader)
 
 ## Porting
 

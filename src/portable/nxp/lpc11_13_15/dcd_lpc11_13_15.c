@@ -159,7 +159,8 @@ void dcd_set_config(uint8_t rhport, uint8_t config_num)
 
 void dcd_set_address(uint8_t rhport, uint8_t dev_addr)
 {
-  (void) rhport;
+  // Response with status first before changing device address
+  dcd_edpt_xfer(rhport, tu_edpt_addr(0, TUSB_DIR_IN), NULL, 0);
 
   LPC_USB->DEVCMDSTAT &= ~CMDSTAT_DEVICE_ADDR_MASK;
   LPC_USB->DEVCMDSTAT |= dev_addr;
@@ -196,16 +197,9 @@ void dcd_edpt_stall(uint8_t rhport, uint8_t ep_addr)
 {
   (void) rhport;
 
-  if ( tu_edpt_number(ep_addr) == 0 )
-  {
-    // TODO cannot able to STALL Control OUT endpoint !!!!! FIXME try some walk-around
-    _dcd.ep[0][0].stall = _dcd.ep[1][0].stall = 1;
-  }
-  else
-  {
-    uint8_t const ep_id = ep_addr2id(ep_addr);
-    _dcd.ep[ep_id][0].stall = 1;
-  }
+  // TODO cannot able to STALL Control OUT endpoint !!!!! FIXME try some walk-around
+  uint8_t const ep_id = ep_addr2id(ep_addr);
+  _dcd.ep[ep_id][0].stall = 1;
 }
 
 bool dcd_edpt_stalled(uint8_t rhport, uint8_t ep_addr)

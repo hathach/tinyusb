@@ -88,14 +88,14 @@ static const PINMUX_GRP_T pinclockmuxing[] =
 // Invoked by startup code
 void SystemInit(void)
 {
-	/* Setup system level pin muxing */
-	Chip_SCU_SetPinMuxing(pinmuxing, sizeof(pinmuxing) / sizeof(PINMUX_GRP_T));
+  /* Setup system level pin muxing */
+  Chip_SCU_SetPinMuxing(pinmuxing, sizeof(pinmuxing) / sizeof(PINMUX_GRP_T));
 
-	/* Clock pins only, group field not used */
-	for (int i = 0; i < (sizeof(pinclockmuxing) / sizeof(pinclockmuxing[0])); i++)
-	{
-		Chip_SCU_ClockPinMuxSet(pinclockmuxing[i].pinnum, pinclockmuxing[i].modefunc);
-	}
+  /* Clock pins only, group field not used */
+  for (uint32_t i = 0; i < (sizeof(pinclockmuxing) / sizeof(pinclockmuxing[0])); i++)
+  {
+    Chip_SCU_ClockPinMuxSet(pinclockmuxing[i].pinnum, pinclockmuxing[i].modefunc);
+  }
 
   Chip_SetupXtalClocking();
 }
@@ -115,7 +115,7 @@ void board_init(void)
   const uint8_t ledports[] = {6, 6, 6, 6, 6, 4, 4, 4};
   const uint8_t ledbits[] = {24, 25, 26, 27, 28, 12, 13, 14};
 
-  for (int i = 0; i < (sizeof(ledports) / sizeof(ledports[0])); i++) 
+  for (uint32_t i = 0; i < (sizeof(ledports) / sizeof(ledports[0])); i++) 
   {
     Chip_GPIO_SetPinDIROutput(LPC_GPIO_PORT, ledports[i], ledbits[i]);
     Chip_GPIO_SetPinState(LPC_GPIO_PORT, LED_PORT, LED_PIN, false);
@@ -197,10 +197,14 @@ void board_led_control(bool state)
 }
 
 //------------- Buttons -------------//
+/*
 static bool button_read(uint8_t id)
 {
+  (void) id;
 //  return !TU_BIT_TEST( GPIO_ReadValue(buttons[id].gpio_port), buttons[id].gpio_pin ); // button is active low
+  return false;
 }
+*/
 
 uint32_t board_buttons(void)
 {
@@ -216,9 +220,12 @@ uint32_t board_buttons(void)
 uint8_t  board_uart_getchar(void)
 {
   //return UART_ReceiveByte(BOARD_UART_PORT);
+  return 0;
 }
+
 void board_uart_putchar(uint8_t c)
 {
+  (void) c;
   //UART_Send(BOARD_UART_PORT, &c, 1, BLOCKING);
 }
 

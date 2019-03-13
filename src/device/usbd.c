@@ -336,8 +336,8 @@ static bool process_control_request(uint8_t rhport, tusb_control_request_t const
     switch ( p_request->bRequest )
     {
       case TUSB_REQ_SET_ADDRESS:
-        // response with status first before changing device address
-        usbd_control_status(rhport, p_request);
+        // DCD must include zero-length status response since depending on mcu,
+        // status could be sent either before or after changing device address
         dcd_set_address(rhport, (uint8_t) p_request->wValue);
         return true; // skip the rest
       break;

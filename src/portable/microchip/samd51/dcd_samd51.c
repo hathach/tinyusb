@@ -115,10 +115,12 @@ void dcd_int_disable(uint8_t rhport)
 
 void dcd_set_address (uint8_t rhport, uint8_t dev_addr)
 {
-  (void) rhport;
+  // Response with status first before changing device address
+  dcd_edpt_xfer(rhport, tu_edpt_addr(0, TUSB_DIR_IN), NULL, 0);
 
   // Wait for EP0 to finish before switching the address.
   while (USB->DEVICE.DeviceEndpoint[0].EPSTATUS.bit.BK1RDY == 1) {}
+
   USB->DEVICE.DADD.reg = USB_DEVICE_DADD_DADD(dev_addr) | USB_DEVICE_DADD_ADDEN;
 }
 
@@ -234,11 +236,6 @@ void dcd_edpt_stall (uint8_t rhport, uint8_t ep_addr)
       ep->EPSTATUSSET.reg = USB_DEVICE_EPSTATUSSET_STALLRQ1;
   } else {
       ep->EPSTATUSSET.reg = USB_DEVICE_EPSTATUSSET_STALLRQ0;
-
-      // for control, stall both IN & OUT
-      if (ep_addr == 0) {
-        ep->EPSTATUSSET.reg = USB_DEVICE_EPSTATUSSET_STALLRQ1;
-      }
   }
 }
 

@@ -4,7 +4,11 @@
 
 This code base already had supported for a handful of following boards
 
-### NXP MCU ###
+### Nordic nRF5x ###
+
+- [nRF52840-DK (aka pca10056)](https://www.nordicsemi.com/Software-and-Tools/Development-Kits/nRF52840-DK)
+
+### NXP LPC ###
 
 - [LPCXpresso 11U68](https://www.nxp.com/support/developer-resources/evaluation-and-development-boards/lpcxpresso-boards/lpcxpresso-board-for-lpc11u68:OM13058)
 - [LPCXpresso 1347](https://www.nxp.com/support/developer-resources/evaluation-and-development-boards/lpcxpresso-boards/lpcxpresso-board-for-lpc1347:OM13045)
@@ -18,9 +22,9 @@ This code base already had supported for a handful of following boards
 - [Adafruit Metro M0 Express](https://www.adafruit.com/product/3505)
 - [Adafruit Metro M4 Express](https://www.adafruit.com/product/3382)
 
-### Nordic nRF52840 ###
+### ST STM32 ###
 
-- [nRF52840-DK (aka pca10056)](https://www.nordicsemi.com/eng/Products/nRF52840-DK)
+- [STM32F4DISCOVERY](https://www.st.com/en/evaluation-tools/stm32f4discovery.html)
 
 ## Add your own board ##
 

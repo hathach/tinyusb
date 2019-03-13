@@ -94,10 +94,16 @@ TU_VERIFY_STATIC(sizeof(dcd_event_t) <= 12, "size is not correct");
  *------------------------------------------------------------------*/
 bool dcd_init       (uint8_t rhport);
 
+// Enable device interrupt
 void dcd_int_enable (uint8_t rhport);
+
+// Disable device interrupt
 void dcd_int_disable(uint8_t rhport);
 
+// Receive Set Address request, mcu port must also include status IN response
 void dcd_set_address(uint8_t rhport, uint8_t dev_addr);
+
+// Receive Set Config request
 void dcd_set_config (uint8_t rhport, uint8_t config_num);
 
 // Get current frame number
@@ -118,15 +124,13 @@ void dcd_event_setup_received(uint8_t rhport, uint8_t const * setup, bool in_isr
 // helper to send transfer complete event
 void dcd_event_xfer_complete (uint8_t rhport, uint8_t ep_addr, uint32_t xferred_bytes, uint8_t result, bool in_isr);
 
-
 /*------------------------------------------------------------------*/
 /* Endpoint API
  *  - open        : Configure endpoint's registers
  *  - xfer        : Submit a transfer. When complete dcd_event_xfer_complete
  *                  must be called to notify the stack
  *  - busy        : Check if endpoint transferring is complete (TODO remove)
- *  - stall       : stall ep. When control endpoint (addr = 0) is stalled,
- *                  both direction (IN & OUT) of control ep must be stalled.
+ *  - stall       : stall endpoint
  *  - clear_stall : clear stall
  *  - stalled     : check if stalled ( TODO remove )
  *------------------------------------------------------------------*/
