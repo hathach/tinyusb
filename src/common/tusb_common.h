@@ -171,14 +171,14 @@ static inline uint16_t tu_u16_le2be(uint16_t u16)
 }
 
 // Min
-static inline uint8_t  tu_min8(uint8_t x, uint8_t y) { return (x < y) ? x : y; }
-static inline uint16_t tu_min16(uint16_t x, uint16_t y) { return (x < y) ? x : y; }
-static inline uint32_t tu_min32(uint32_t x, uint32_t y) { return (x < y) ? x : y; }
+static inline uint8_t  tu_min8  (uint8_t  x, uint8_t y ) { return (x < y) ? x : y; }
+static inline uint16_t tu_min16 (uint16_t x, uint16_t y) { return (x < y) ? x : y; }
+static inline uint32_t tu_min32 (uint32_t x, uint32_t y) { return (x < y) ? x : y; }
 
 // Max
-static inline uint8_t  tu_max8(uint8_t x, uint8_t y) { return (x > y) ? x : y; }
-static inline uint16_t tu_max16(uint16_t x, uint16_t y) { return (x > y) ? x : y; }
-static inline uint32_t tu_max32(uint32_t x, uint32_t y) { return (x > y) ? x : y; }
+static inline uint8_t  tu_max8  (uint8_t  x, uint8_t y ) { return (x > y) ? x : y; }
+static inline uint16_t tu_max16 (uint16_t x, uint16_t y) { return (x > y) ? x : y; }
+static inline uint32_t tu_max32 (uint32_t x, uint32_t y) { return (x > y) ? x : y; }
 
 // Align
 static inline uint32_t tu_align32 (uint32_t value) { return (value & 0xFFFFFFE0UL); }
