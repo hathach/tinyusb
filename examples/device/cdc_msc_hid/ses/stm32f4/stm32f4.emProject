@@ -19,7 +19,7 @@
       arm_target_device_name="STM32F407VG"
       arm_target_interface_type="SWD"
       c_preprocessor_definitions="STM32F407xx;__STM32F4xx_FAMILY;__STM32F407_SUBFAMILY;ARM_MATH_CM4;FLASH_PLACEMENT=1;CFG_TUSB_MCU=OPT_MCU_STM32F4;HSE_VALUE=8000000;BOARD_STM32F407G_DISC1"
-      c_user_include_directories="../../src;$(rootDir)/src;$(rootDir)/hw;$(ProjectDir)/STM32F4xx/CMSIS/Device/Include;$(rootDir)/hw/mcu/st/cmsis"
+      c_user_include_directories="../../src;$(rootDir)/src;$(rootDir)/hw;$(rootDir)/hw/mcu/st/cmsis;$(rootDir)/hw/mcu/st/stm32lib/CMSIS/STM32F4xx/Include"
       debug_register_definition_file="$(ProjectDir)/STM32F40x_Registers.xml"
       debug_target_connection="J-Link"
       gcc_entry_point="Reset_Handler"
@@ -31,15 +31,6 @@
       project_type="Executable"
       target_reset_script="Reset();"
       target_trace_initialize_script="EnableTrace(&quot;$(TraceInterfaceType)&quot;)" />
-    <folder Name="CMSIS Files">
-      <file file_name="STM32F4xx/CMSIS/Device/Include/stm32f4xx.h" />
-      <file file_name="STM32F4xx/CMSIS/Device/Source/system_stm32f4xx.c">
-        <configuration
-          Name="Common"
-          default_code_section=".init"
-          default_const_section=".init_rodata" />
-      </file>
-    </folder>
     <folder Name="System Files">
       <file file_name="thumb_crt0.s" />
       <file file_name="STM32F4xx_Startup.s" />
@@ -78,7 +69,10 @@
       </folder>
       <folder Name="mcu">
         <folder Name="st">
-          <folder Name="system-init" />
+          <folder Name="system-init">
+            <file file_name="../../../../../hw/mcu/st/system-init/system_stm32f4xx.c" />
+          </folder>
+          <folder Name="stm32lib" />
         </folder>
       </folder>
     </folder>
