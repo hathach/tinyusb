@@ -111,6 +111,10 @@ $(BUILD)/$(BOARD)-firmware.elf: $(OBJ)
 $(BUILD)/$(BOARD)-firmware.bin: $(BUILD)/$(BOARD)-firmware.elf
 	@echo CREATE $@
 	@$(OBJCOPY) -O binary -j .vectors -j .text -j .data $^ $@
+	
+$(BUILD)/$(BOARD)-firmware.hex: $(BUILD)/$(BOARD)-firmware.elf	
+	@echo CREATE $@
+	@$(OBJCOPY) -O ihex $^ $@
 
 # We set vpath to point to the top of the tree so that the source files
 # can be located. By following this scheme, it allows a single build rule
@@ -138,6 +142,20 @@ vpath %.S . $(TOP)
 $(BUILD)/obj/%.o: %.S
 	@echo AS $(notdir $@)
 	@$(CC) -x assembler-with-cpp $(ASFLAGS) -c -o $@ $<
+
+# Flash binary using Jlink
+ifeq ($(OS),Windows_NT)
+  JLINKEXE = JLink.exe
+else 
+  JLINKEXE = JLinkExe
+endif
+
+flash: $(BUILD)/$(BOARD)-firmware.hex
+	@echo halt > $(BUILD)/$(BOARD).jlink
+	@echo loadfile $^ >> $(BUILD)/$(BOARD).jlink
+	@echo go >> $(BUILD)/$(BOARD).jlink
+	@echo exit >> $(BUILD)/$(BOARD).jlink
+	#$(JLINKEXE) -device stm32f407vg -if swd -speed auto -CommandFile $(BUILD)/$(BOARD).jlink
 
 size: $(BUILD)/$(BOARD)-firmware.elf
 	-@echo ''
