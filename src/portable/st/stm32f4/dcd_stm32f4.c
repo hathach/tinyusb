@@ -82,7 +82,7 @@ static void bus_reset(void) {
 
   // Peripheral FIFO architecture (Rev18 RM 29.11)
   //
-  // --------------- 312.5 ( 1250 bytes )
+  // --------------- 320 ( 1280 bytes )
   // | IN FIFO 3  |
   // --------------- y + x + 16 + GRXFSIZ
   // | IN FIFO 2  |
@@ -100,15 +100,11 @@ static void bus_reset(void) {
   // * 10 locations in hardware for setup packets + setup control words
   // (up to 3 setup packets).
   // * 2 locations for OUT endpoint control words.
-  // * 16 + 1 (data + info) for largest packet size of 64 bytes.
+  // * 16 for largest packet size of 64 bytes. ( TODO Highspeed is 512 bytes)
   // * 1 location for global NAK (not required/used here).
   //
-  // However, for OUT FIFO, 10 + 2 + 16 = 28 doesn't seem to work (TODO: why?).
-  // Minimum that works in practice is 35, so allocate 40 32-bit locations
-  // as a buffer.
-  //
   // It is recommended to allocate 2 times the largest packet size, therefore
-  // Recommended value = 10 + 1 + 2 x (16+1) = 45 --> Let's make it 50
+  // Recommended value = 10 + 1 + 2 x (16+2) = 47 --> Let's make it 50
   USB_OTG_FS->GRXFSIZ = 50;
 
   // Control IN uses FIFO 0 with 64 bytes ( 16 32-bit word )
@@ -252,7 +248,7 @@ bool dcd_edpt_open (uint8_t rhport, tusb_desc_endpoint_t const * desc_edpt)
   } else {
     // Peripheral FIFO architecture (Rev18 RM 29.11)
     //
-    // --------------- 312.5 ( 1250 bytes )
+    // --------------- 320 ( 1280 bytes )
     // | IN FIFO 3  |
     // --------------- y + x + 16 + GRXFSIZ
     // | IN FIFO 2  |
@@ -265,7 +261,7 @@ bool dcd_edpt_open (uint8_t rhport, tusb_desc_endpoint_t const * desc_edpt)
     // | ( Shared ) |
     // --------------- 0
     //
-    // Since OUT FIFO = 50, FIFO0 = 16, average of FIFOx = (312-50-16) / 3 = 82 ~ 80
+    // Since OUT FIFO = 50, FIFO 0 = 16, average of FIFOx = (312-50-16) / 3 = 82 ~ 80
 
     in_ep[epnum].DIEPCTL |= (1 << USB_OTG_DIEPCTL_USBAEP_Pos) | \
       (epnum - 1) << USB_OTG_DIEPCTL_TXFNUM_Pos | \
