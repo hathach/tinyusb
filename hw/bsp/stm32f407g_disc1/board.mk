@@ -26,6 +26,8 @@ INC += \
 VENDOR = st
 CHIP_FAMILY = stm32f4
 
+JLINK_DEVICE = stm32f407vg
+
 # Path to STM32 Cube Programmer CLI
 ifeq ($(OS),Windows_NT)
 	STM32Prog = C:/Program Files/STMicroelectronics/STM32Cube/STM32CubeProgrammer/bin/STM32_Programmer_CLI
@@ -42,5 +44,5 @@ else
 endif
 
 # flash target using on-board stlink
-flash-stlink: $(BUILD)/$(BOARD)-firmware.elf
+flash: $(BUILD)/$(BOARD)-firmware.elf
 	$(STM32Prog) --connect port=swd --write $< --go

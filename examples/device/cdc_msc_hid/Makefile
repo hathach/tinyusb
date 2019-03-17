@@ -21,7 +21,6 @@ include $(TOP)/hw/bsp/$(BOARD)/board.mk
 
 CC = $(CROSS_COMPILE)gcc
 CXX = $(CROSS_COMPILE)g++
-LD = $(CROSS_COMPILE)ld
 OBJCOPY = $(CROSS_COMPILE)objcopy
 SIZE = $(CROSS_COMPILE)size
 MKDIR = mkdir
@@ -106,7 +105,7 @@ $(OBJ_DIRS):
 
 $(BUILD)/$(BOARD)-firmware.elf: $(OBJ)
 	@echo LINK $@
-	@$(CC) -o $@ $(LDFLAGS) $^ -Wl,--start-group $(LIBS) -Wl,--end-group
+	$(CC) -o $@ $(LDFLAGS) $^ -Wl,--start-group $(LIBS) -Wl,--end-group
 
 $(BUILD)/$(BOARD)-firmware.bin: $(BUILD)/$(BOARD)-firmware.elf
 	@echo CREATE $@
@@ -136,6 +135,7 @@ vpath %.s . $(TOP)
 $(BUILD)/obj/%.o: %.s
 	@echo AS $(notdir $@)
 	$(AS) -o $@ $<
+	#$(CC) -x assembler-with-cpp $(ASFLAGS) -c -o $@ $<
 
 # ASM sources upper case .S
 vpath %.S . $(TOP)
@@ -150,12 +150,18 @@ else
   JLINKEXE = JLinkExe
 endif
 
-flash: $(BUILD)/$(BOARD)-firmware.hex
+# default jlink interface is swd
+ifeq ($(JLINK_IF),)
+  JLINK_IF = swd
+endif
+
+flash-jlink: $(BUILD)/$(BOARD)-firmware.hex
 	@echo halt > $(BUILD)/$(BOARD).jlink
 	@echo loadfile $^ >> $(BUILD)/$(BOARD).jlink
+	@echo r >> $(BUILD)/$(BOARD).jlink
 	@echo go >> $(BUILD)/$(BOARD).jlink
 	@echo exit >> $(BUILD)/$(BOARD).jlink
-	#$(JLINKEXE) -device stm32f407vg -if swd -speed auto -CommandFile $(BUILD)/$(BOARD).jlink
+	$(JLINKEXE) -device $(JLINK_DEVICE) -if $(JLINK_IF) -speed auto -CommandFile $(BUILD)/$(BOARD).jlink
 
 size: $(BUILD)/$(BOARD)-firmware.elf
 	-@echo ''
