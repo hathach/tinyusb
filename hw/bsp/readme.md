@@ -24,7 +24,7 @@ This code base already had supported for a handful of following boards
 
 ### ST STM32 ###
 
-- [STM32F4DISCOVERY](https://www.st.com/en/evaluation-tools/stm32f4discovery.html)
+- [STM32F4 Discovery](https://www.st.com/en/evaluation-tools/stm32f4discovery.html)
 
 ## Add your own board ##
 

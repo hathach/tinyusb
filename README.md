@@ -45,10 +45,10 @@ Currently the following OS are supported with tinyusb out of the box with a simp
 
 The stack supports the following MCUs
 
-  - **Nordic:** nRF52840
-  - **NXP:** LPC11Uxx, LPC13xx, LPC175x_6x, LPC177x_8x, LPC40xx, LPC43xx
-  - **MicroChip:** SAMD21, SAMD51 (device only)
-  - **ST* STM32F4
+- **Nordic:** nRF52840
+- **NXP:** LPC11Uxx, LPC13xx, LPC175x_6x, LPC177x_8x, LPC40xx, LPC43xx
+- **MicroChip:** SAMD21, SAMD51 (device only)
+- **ST:** STM32F4
 
 [Here is the list of supported Boards](hw/bsp/readme.md)
 
