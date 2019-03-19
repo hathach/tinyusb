@@ -33,3 +33,8 @@ INC += \
 
 VENDOR = microchip
 CHIP_FAMILY = samd21
+
+JLINK_DEVICE = ATSAMD21G18
+
+# flash using jlink
+flash: flash-jlink

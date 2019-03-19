@@ -164,6 +164,9 @@ void dcd_int_disable(uint8_t rhport)
 
 void dcd_set_address(uint8_t rhport, uint8_t dev_addr)
 {
+  // Response with status first before changing device address
+  dcd_edpt_xfer(rhport, tu_edpt_addr(0, TUSB_DIR_IN), NULL, 0);
+
   LPC_USB[rhport]->DEVICEADDR = (dev_addr << 25) | TU_BIT(24);
 }
 
@@ -214,14 +217,7 @@ void dcd_edpt_stall(uint8_t rhport, uint8_t ep_addr)
   uint8_t const epnum  = tu_edpt_number(ep_addr);
   uint8_t const dir    = tu_edpt_dir(ep_addr);
 
-  if ( epnum == 0)
-  {
-    // Stall both Control IN and OUT
-    LPC_USB[rhport]->ENDPTCTRL[epnum] |= ( (ENDPTCTRL_MASK_STALL << 16) || (ENDPTCTRL_MASK_STALL << 0) );
-  }else
-  {
-    LPC_USB[rhport]->ENDPTCTRL[epnum] |= ENDPTCTRL_MASK_STALL << (dir ? 16 : 0);
-  }
+  LPC_USB[rhport]->ENDPTCTRL[epnum] |= ENDPTCTRL_MASK_STALL << (dir ? 16 : 0);
 }
 
 bool dcd_edpt_stalled (uint8_t rhport, uint8_t ep_addr)

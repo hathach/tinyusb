@@ -50,7 +50,7 @@
 #define DEVICE_BASE (USB_OTG_DeviceTypeDef *) (USB_OTG_FS_PERIPH_BASE + USB_OTG_DEVICE_BASE)
 #define OUT_EP_BASE (USB_OTG_OUTEndpointTypeDef *) (USB_OTG_FS_PERIPH_BASE + USB_OTG_OUT_ENDPOINT_BASE)
 #define IN_EP_BASE (USB_OTG_INEndpointTypeDef *) (USB_OTG_FS_PERIPH_BASE + USB_OTG_IN_ENDPOINT_BASE)
-#define FIFO_BASE(_x) (uint32_t *) (USB_OTG_FS_PERIPH_BASE + USB_OTG_FIFO_BASE + _x * USB_OTG_FIFO_SIZE)
+#define FIFO_BASE(_x) (uint32_t *) (USB_OTG_FS_PERIPH_BASE + USB_OTG_FIFO_BASE + (_x) * USB_OTG_FIFO_SIZE)
 
 static ATTR_ALIGNED(4) uint32_t _setup_packet[6];
 static uint8_t _setup_offs; // We store up to 3 setup packets.
@@ -80,20 +80,35 @@ static void bus_reset(void) {
   dev->DOEPMSK |= USB_OTG_DOEPMSK_STUPM | USB_OTG_DOEPMSK_XFRCM;
   dev->DIEPMSK |= USB_OTG_DIEPMSK_TOM | USB_OTG_DIEPMSK_XFRCM;
 
+  // Peripheral FIFO architecture (Rev18 RM 29.11)
+  //
+  // --------------- 320 ( 1280 bytes )
+  // | IN FIFO 3  |
+  // --------------- y + x + 16 + GRXFSIZ
+  // | IN FIFO 2  |
+  // --------------- x + 16 + GRXFSIZ
+  // | IN FIFO 1  |
+  // --------------- 16 + GRXFSIZ
+  // | IN FIFO 0  |
+  // --------------- GRXFSIZ
+  // | OUT FIFO   |
+  // | ( Shared ) |
+  // --------------- 0
+  //
   // FIFO sizes are set up by the following rules (each word 32-bits):
-  // OUT FIFO uses (based on page 1354 of Rev 17 of reference manual):
+  // All EP OUT shared a unique OUT FIFO which uses (based on page 1354 of Rev 17 of reference manual):
   // * 10 locations in hardware for setup packets + setup control words
   // (up to 3 setup packets).
   // * 2 locations for OUT endpoint control words.
-  // * 64 bytes for maximum control packet size.
+  // * 16 for largest packet size of 64 bytes. ( TODO Highspeed is 512 bytes)
   // * 1 location for global NAK (not required/used here).
-  // IN FIFO uses 64 bytes for maximum control packet size.
   //
-  // However, for OUT FIFO, 10 + 2 + 16 = 28 doesn't seem to work (TODO: why?).
-  // Minimum that works in practice is 35, so allocate 40 32-bit locations
-  // as a buffer.
-  USB_OTG_FS->GRXFSIZ = 40;
-  USB_OTG_FS->DIEPTXF0_HNPTXFSIZ |= (16 << USB_OTG_TX0FD_Pos); // 16 32-bit words = 64 bytes
+  // It is recommended to allocate 2 times the largest packet size, therefore
+  // Recommended value = 10 + 1 + 2 x (16+2) = 47 --> Let's make it 50
+  USB_OTG_FS->GRXFSIZ = 50;
+
+  // Control IN uses FIFO 0 with 64 bytes ( 16 32-bit word )
+  USB_OTG_FS->DIEPTXF0_HNPTXFSIZ = (16 << USB_OTG_TX0FD_Pos) | (USB_OTG_FS->GRXFSIZ & 0x0000ffffUL);
 
   out_ep[0].DOEPTSIZ |= (1 << USB_OTG_DOEPTSIZ_STUPCNT_Pos);
 
@@ -182,6 +197,9 @@ void dcd_set_address (uint8_t rhport, uint8_t dev_addr)
   USB_OTG_DeviceTypeDef * dev = DEVICE_BASE;
 
   dev->DCFG |= (dev_addr << USB_OTG_DCFG_DAD_Pos) & USB_OTG_DCFG_DAD_Msk;
+
+  // Response with status after changing device address
+  dcd_edpt_xfer(rhport, tu_edpt_addr(0, TUSB_DIR_IN), NULL, 0);
 }
 
 void dcd_set_config (uint8_t rhport, uint8_t config_num)
@@ -189,6 +207,15 @@ void dcd_set_config (uint8_t rhport, uint8_t config_num)
   (void) rhport;
   (void) config_num;
   // Nothing to do
+}
+
+uint32_t dcd_get_frame_number(uint8_t rhport)
+{
+  (void) rhport;
+
+  USB_OTG_DeviceTypeDef * dev = DEVICE_BASE;
+
+  return (dev->DSTS & USB_OTG_DSTS_FNSOF_Msk) >> USB_OTG_DSTS_FNSOF_Pos;
 }
 
 /*------------------------------------------------------------------*/
@@ -219,13 +246,34 @@ bool dcd_edpt_open (uint8_t rhport, tusb_desc_endpoint_t const * desc_edpt)
       desc_edpt->wMaxPacketSize.size << USB_OTG_DOEPCTL_MPSIZ_Pos;
     dev->DAINTMSK |= (1 << (USB_OTG_DAINTMSK_OEPM_Pos + epnum));
   } else {
+    // Peripheral FIFO architecture (Rev18 RM 29.11)
+    //
+    // --------------- 320 ( 1280 bytes )
+    // | IN FIFO 3  |
+    // --------------- y + x + 16 + GRXFSIZ
+    // | IN FIFO 2  |
+    // --------------- x + 16 + GRXFSIZ
+    // | IN FIFO 1  |
+    // --------------- 16 + GRXFSIZ
+    // | IN FIFO 0  |
+    // --------------- GRXFSIZ
+    // | OUT FIFO   |
+    // | ( Shared ) |
+    // --------------- 0
+    //
+    // Since OUT FIFO = 50, FIFO 0 = 16, average of FIFOx = (312-50-16) / 3 = 82 ~ 80
+
     in_ep[epnum].DIEPCTL |= (1 << USB_OTG_DIEPCTL_USBAEP_Pos) | \
       (epnum - 1) << USB_OTG_DIEPCTL_TXFNUM_Pos | \
       desc_edpt->bmAttributes.xfer << USB_OTG_DIEPCTL_EPTYP_Pos | \
+      (desc_edpt->bmAttributes.xfer != TUSB_XFER_ISOCHRONOUS ? USB_OTG_DOEPCTL_SD0PID_SEVNFRM : 0) | \
       desc_edpt->wMaxPacketSize.size << USB_OTG_DIEPCTL_MPSIZ_Pos;
     dev->DAINTMSK |= (1 << (USB_OTG_DAINTMSK_IEPM_Pos + epnum));
 
-    USB_OTG_FS->DIEPTXF[epnum - 1] = (40 << USB_OTG_DIEPTXF_INEPTXFD_Pos) | (epnum * 0x100);
+    // Both TXFD and TXSA are in unit of 32-bit words
+    uint16_t const fifo_size = 80;
+    uint32_t const fifo_offset = (USB_OTG_FS->GRXFSIZ & 0x0000ffff) + 16 + fifo_size*(epnum-1);
+    USB_OTG_FS->DIEPTXF[epnum - 1] = (80 << USB_OTG_DIEPTXF_INEPTXFD_Pos) | fifo_offset;
   }
 
   return true;
@@ -310,36 +358,46 @@ void dcd_edpt_stall (uint8_t rhport, uint8_t ep_addr)
   uint8_t const dir   = tu_edpt_dir(ep_addr);
 
   if(dir == TUSB_DIR_IN) {
-    // Stop transmitting packets and NAK IN xfers.
-    in_ep[epnum].DIEPCTL |= USB_OTG_DIEPCTL_SNAK;
-    while((in_ep[epnum].DIEPINT & USB_OTG_DIEPINT_INEPNE) == 0);
+    // Only disable currently enabled non-control endpoint
+    if ( (epnum == 0) || !(in_ep[epnum].DIEPCTL & USB_OTG_DIEPCTL_EPENA) ){
+      in_ep[epnum].DIEPCTL |= (USB_OTG_DIEPCTL_SNAK | USB_OTG_DIEPCTL_STALL);
+    }else {
+      // Stop transmitting packets and NAK IN xfers.
+      in_ep[epnum].DIEPCTL |= USB_OTG_DIEPCTL_SNAK;
+      while((in_ep[epnum].DIEPINT & USB_OTG_DIEPINT_INEPNE) == 0);
 
-    // Disable the endpoint. Note that both SNAK and STALL are set here.
-    in_ep[epnum].DIEPCTL |= (USB_OTG_DIEPCTL_SNAK | USB_OTG_DIEPCTL_STALL | \
-      USB_OTG_DIEPCTL_EPDIS);
-    while((in_ep[epnum].DIEPINT & USB_OTG_DIEPINT_EPDISD_Msk) == 0);
-    in_ep[epnum].DIEPINT = USB_OTG_DIEPINT_EPDISD;
+      // Disable the endpoint. Note that both SNAK and STALL are set here.
+      in_ep[epnum].DIEPCTL |= (USB_OTG_DIEPCTL_SNAK | USB_OTG_DIEPCTL_STALL | \
+          USB_OTG_DIEPCTL_EPDIS);
+      while((in_ep[epnum].DIEPINT & USB_OTG_DIEPINT_EPDISD_Msk) == 0);
+      in_ep[epnum].DIEPINT = USB_OTG_DIEPINT_EPDISD;
+    }
 
     // Flush the FIFO, and wait until we have confirmed it cleared.
     USB_OTG_FS->GRSTCTL |= ((epnum - 1) << USB_OTG_GRSTCTL_TXFNUM_Pos);
     USB_OTG_FS->GRSTCTL |= USB_OTG_GRSTCTL_TXFFLSH;
     while((USB_OTG_FS->GRSTCTL & USB_OTG_GRSTCTL_TXFFLSH_Msk) != 0);
   } else {
-    // Asserting GONAK is required to STALL an OUT endpoint.
-    // Simpler to use polling here, we don't use the "B"OUTNAKEFF interrupt
-    // anyway, and it can't be cleared by user code. If this while loop never
-    // finishes, we have bigger problems than just the stack.
-    dev->DCTL |= USB_OTG_DCTL_SGONAK;
-    while((USB_OTG_FS->GINTSTS & USB_OTG_GINTSTS_BOUTNAKEFF_Msk) == 0);
+    // Only disable currently enabled non-control endpoint
+    if ( (epnum == 0) || !(out_ep[epnum].DOEPCTL & USB_OTG_DOEPCTL_EPENA) ){
+      out_ep[epnum].DOEPCTL |= USB_OTG_DIEPCTL_STALL;
+    }else {
+      // Asserting GONAK is required to STALL an OUT endpoint.
+      // Simpler to use polling here, we don't use the "B"OUTNAKEFF interrupt
+      // anyway, and it can't be cleared by user code. If this while loop never
+      // finishes, we have bigger problems than just the stack.
+      dev->DCTL |= USB_OTG_DCTL_SGONAK;
+      while((USB_OTG_FS->GINTSTS & USB_OTG_GINTSTS_BOUTNAKEFF_Msk) == 0);
 
-    // Ditto here- disable the endpoint. Note that only STALL and not SNAK
-    // is set here.
-    out_ep[epnum].DOEPCTL |= (USB_OTG_DOEPCTL_STALL | USB_OTG_DOEPCTL_EPDIS);
-    while((out_ep[epnum].DOEPINT & USB_OTG_DOEPINT_EPDISD_Msk) == 0);
-    out_ep[epnum].DOEPINT = USB_OTG_DOEPINT_EPDISD;
+      // Ditto here- disable the endpoint. Note that only STALL and not SNAK
+      // is set here.
+      out_ep[epnum].DOEPCTL |= (USB_OTG_DOEPCTL_STALL | USB_OTG_DOEPCTL_EPDIS);
+      while((out_ep[epnum].DOEPINT & USB_OTG_DOEPINT_EPDISD_Msk) == 0);
+      out_ep[epnum].DOEPINT = USB_OTG_DOEPINT_EPDISD;
 
-    // Allow other OUT endpoints to keep receiving.
-    dev->DCTL |= USB_OTG_DCTL_CGONAK;
+      // Allow other OUT endpoints to keep receiving.
+      dev->DCTL |= USB_OTG_DCTL_CGONAK;
+    }
   }
 }
 
@@ -574,7 +632,9 @@ static void handle_epout_ints(USB_OTG_DeviceTypeDef * dev, USB_OTG_OUTEndpointTy
         // on a packet-basis. The core can internally handle multiple OUT
         // packets; it would be more efficient to only trigger XFRC on a
         // completed transfer for non-0 endpoints.
-        if(xfer->short_packet) {
+
+        // Transfer complete if short packet or total len is transferred
+        if(xfer->short_packet || (xfer->queued_len == xfer->total_len)) {
           xfer->short_packet = false;
           dcd_event_xfer_complete(0, n, xfer->queued_len, XFER_RESULT_SUCCESS, true);
         } else {

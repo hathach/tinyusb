@@ -199,7 +199,7 @@ bool dcd_init(uint8_t rhport)
   NVIC_ClearPendingIRQ(USB_IRQn);
   NVIC_EnableIRQ(USB_IRQn);
 
-  return TUSB_ERROR_NONE;
+  return true;
 }
 
 void dcd_int_enable(uint8_t rhport)
@@ -216,7 +216,9 @@ void dcd_int_disable(uint8_t rhport)
 
 void dcd_set_address(uint8_t rhport, uint8_t dev_addr)
 {
-  (void) rhport;
+  // Response with status first before changing device address
+  dcd_edpt_xfer(rhport, tu_edpt_addr(0, TUSB_DIR_IN), NULL, 0);
+
   sie_write(SIE_CMDCODE_SET_ADDRESS, 1, 0x80 | dev_addr); // 7th bit is : device_enable
 }
 

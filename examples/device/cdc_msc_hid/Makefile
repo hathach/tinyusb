@@ -21,7 +21,6 @@ include $(TOP)/hw/bsp/$(BOARD)/board.mk
 
 CC = $(CROSS_COMPILE)gcc
 CXX = $(CROSS_COMPILE)g++
-LD = $(CROSS_COMPILE)ld
 OBJCOPY = $(CROSS_COMPILE)objcopy
 SIZE = $(CROSS_COMPILE)size
 MKDIR = mkdir
@@ -63,9 +62,9 @@ else
 endif
 
 CFLAGS += $(INC) -Wall -Werror -std=gnu11 -nostdlib -DBOARD_$(shell echo $(BOARD) | tr a-z\- A-Z_)
-
 LDFLAGS += $(CFLAGS) -nostartfiles -fshort-enums -Wl,-T,$(TOP)/$(LD_FILE) -Wl,-Map=$@.map -Wl,-cref -Wl,-gc-sections -specs=nosys.specs -specs=nano.specs
-LIBS := -lgcc -lc -lm -lnosys
+
+LIBS = -lgcc -lc -lm -lnosys
 
 EXAMPLE_SOURCE += \
 	src/main.c \
@@ -92,9 +91,11 @@ SRC_C += $(LIB_SOURCE)
 # Assembly files can be name with upper case .S, convert it to .s 
 SRC_S := $(SRC_S:.S=.s)
 
-OBJ += $(addprefix $(BUILD)/obj/, $(SRC_C:.c=.o))
 OBJ += $(addprefix $(BUILD)/obj/, $(SRC_S:.s=.o))
+OBJ += $(addprefix $(BUILD)/obj/, $(SRC_C:.c=.o))
 
+# Set all as default goal
+.DEFAULT_GOAL := all
 all: $(BUILD)/$(BOARD)-firmware.bin size
 
 OBJ_DIRS = $(sort $(dir $(OBJ)))
@@ -104,11 +105,15 @@ $(OBJ_DIRS):
 
 $(BUILD)/$(BOARD)-firmware.elf: $(OBJ)
 	@echo LINK $@
-	@$(CC) -o $@ $(LDFLAGS) $^ -Wl,--start-group $(LIBS) -Wl,--end-group
+	$(CC) -o $@ $(LDFLAGS) $^ -Wl,--start-group $(LIBS) -Wl,--end-group
 
 $(BUILD)/$(BOARD)-firmware.bin: $(BUILD)/$(BOARD)-firmware.elf
 	@echo CREATE $@
-	$(OBJCOPY) -O binary -j .vectors -j .text -j .data $^ $@
+	@$(OBJCOPY) -O binary -j .vectors -j .text -j .data $^ $@
+	
+$(BUILD)/$(BOARD)-firmware.hex: $(BUILD)/$(BOARD)-firmware.elf	
+	@echo CREATE $@
+	@$(OBJCOPY) -O ihex $^ $@
 
 # We set vpath to point to the top of the tree so that the source files
 # can be located. By following this scheme, it allows a single build rule
@@ -129,13 +134,34 @@ $(BUILD)/obj/%.o: %.c
 vpath %.s . $(TOP)
 $(BUILD)/obj/%.o: %.s
 	@echo AS $(notdir $@)
-	$(AS) -o $@ $<
+	@$(CC) -x assembler-with-cpp $(ASFLAGS) -c -o $@ $<
 
 # ASM sources upper case .S
 vpath %.S . $(TOP)
 $(BUILD)/obj/%.o: %.S
 	@echo AS $(notdir $@)
 	@$(CC) -x assembler-with-cpp $(ASFLAGS) -c -o $@ $<
+
+# Flash binary using Jlink
+ifeq ($(OS),Windows_NT)
+  JLINKEXE = JLink.exe
+else 
+  JLINKEXE = JLinkExe
+endif
+
+# default jlink interface is swd
+ifeq ($(JLINK_IF),)
+  JLINK_IF = swd
+endif
+
+# Flash using jlink
+flash-jlink: $(BUILD)/$(BOARD)-firmware.hex
+	@echo halt > $(BUILD)/$(BOARD).jlink
+	@echo loadfile $^ >> $(BUILD)/$(BOARD).jlink
+	@echo r >> $(BUILD)/$(BOARD).jlink
+	@echo go >> $(BUILD)/$(BOARD).jlink
+	@echo exit >> $(BUILD)/$(BOARD).jlink
+	$(JLINKEXE) -device $(JLINK_DEVICE) -if $(JLINK_IF) -speed auto -CommandFile $(BUILD)/$(BOARD).jlink
 
 size: $(BUILD)/$(BOARD)-firmware.elf
 	-@echo ''

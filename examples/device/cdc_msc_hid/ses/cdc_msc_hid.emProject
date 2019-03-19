@@ -9,4 +9,5 @@
   <import file_name="lpc11u6x/lpc11u6x.emProject" />
   <import file_name="lpc18xx/lpc18xx.emProject" />
   <import file_name="lpc40xx/lpc40xx.emProject" />
+  <import file_name="stm32f4/stm32f4.emProject" />
 </solution>

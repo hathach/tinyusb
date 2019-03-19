@@ -211,7 +211,7 @@ void dcd_set_address (uint8_t rhport, uint8_t dev_addr)
 {
   (void) rhport;
   (void) dev_addr;
-  // Set Address is automatically update by hw controller
+  // Set Address is automatically update by hw controller, nothing to do
 }
 
 void dcd_set_config (uint8_t rhport, uint8_t config_num)

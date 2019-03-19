@@ -74,7 +74,9 @@ void usbd_control_reset (uint8_t rhport)
 
 void usbd_control_stall(uint8_t rhport)
 {
-  dcd_edpt_stall(rhport, 0);
+  // when stalling control endpoint both IN and OUt will be stalled
+  dcd_edpt_stall(rhport, EDPT_CTRL_OUT);
+  dcd_edpt_stall(rhport, EDPT_CTRL_IN);
 }
 
 bool usbd_control_status(uint8_t rhport, tusb_control_request_t const * request)
