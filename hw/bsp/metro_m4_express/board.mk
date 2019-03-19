@@ -1,4 +1,4 @@
-CFLAGS = \
+CFLAGS += \
 	-DCFG_TUSB_MCU=OPT_MCU_SAMD51 \
 	-D__SAMD51J19A__ \
 	-mthumb \
@@ -7,6 +7,8 @@ CFLAGS = \
 	-mfloat-abi=hard \
 	-mfpu=fpv4-sp-d16 \
 	-nostdlib
+
+CFLAGS += -Wno-error=undef
 
 # All source paths should be relative to the top level.
 LD_FILE = hw/bsp/metro_m4_express/samd51g19a_flash.ld

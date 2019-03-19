@@ -7,6 +7,9 @@ CFLAGS += \
 	-mfloat-abi=hard \
 	-mfpu=fpv4-sp-d16
 
+# nrfx issue undef _ARMCC_VERSION usage https://github.com/NordicSemiconductor/nrfx/issues/49
+CFLAGS += -Wno-error=undef 
+
 # All source paths should be relative to the top level.
 LD_FILE = hw/mcu/nordic/nrfx/mdk/nrf52840_xxaa.ld
 
