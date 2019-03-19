@@ -62,9 +62,9 @@ else
 endif
 
 CFLAGS += $(INC) -Wall -Werror -std=gnu11 -nostdlib -DBOARD_$(shell echo $(BOARD) | tr a-z\- A-Z_)
-
 LDFLAGS += $(CFLAGS) -nostartfiles -fshort-enums -Wl,-T,$(TOP)/$(LD_FILE) -Wl,-Map=$@.map -Wl,-cref -Wl,-gc-sections -specs=nosys.specs -specs=nano.specs
-LIBS := -lgcc -lc -lm -lnosys
+
+LIBS = -lgcc -lc -lm -lnosys
 
 EXAMPLE_SOURCE += \
 	src/main.c \
@@ -91,8 +91,8 @@ SRC_C += $(LIB_SOURCE)
 # Assembly files can be name with upper case .S, convert it to .s 
 SRC_S := $(SRC_S:.S=.s)
 
-OBJ += $(addprefix $(BUILD)/obj/, $(SRC_C:.c=.o))
 OBJ += $(addprefix $(BUILD)/obj/, $(SRC_S:.s=.o))
+OBJ += $(addprefix $(BUILD)/obj/, $(SRC_C:.c=.o))
 
 # Set all as default goal
 .DEFAULT_GOAL := all
@@ -134,8 +134,7 @@ $(BUILD)/obj/%.o: %.c
 vpath %.s . $(TOP)
 $(BUILD)/obj/%.o: %.s
 	@echo AS $(notdir $@)
-	$(AS) -o $@ $<
-	#$(CC) -x assembler-with-cpp $(ASFLAGS) -c -o $@ $<
+	@$(CC) -x assembler-with-cpp $(ASFLAGS) -c -o $@ $<
 
 # ASM sources upper case .S
 vpath %.S . $(TOP)
@@ -155,6 +154,7 @@ ifeq ($(JLINK_IF),)
   JLINK_IF = swd
 endif
 
+# Flash using jlink
 flash-jlink: $(BUILD)/$(BOARD)-firmware.hex
 	@echo halt > $(BUILD)/$(BOARD).jlink
 	@echo loadfile $^ >> $(BUILD)/$(BOARD).jlink
