@@ -2,8 +2,6 @@ CFLAGS += \
 	-DCFG_TUSB_MCU=OPT_MCU_NRF5X \
 	-DNRF52840_XXAA \
 	-mthumb \
-	-Wno-error=undef \
-	-Wno-error=cast-align \
 	-mabi=aapcs \
 	-mcpu=cortex-m4 \
 	-mfloat-abi=hard \
@@ -17,6 +15,9 @@ LDFLAGS += -L$(TOP)/hw/mcu/nordic/nrfx/mdk
 SRC_C += \
 	hw/mcu/nordic/nrfx/drivers/src/nrfx_power.c \
 	hw/mcu/nordic/nrfx/mdk/system_nrf52840.c \
+
+# TODO remove later
+SRC_C += src/portable/$(VENDOR)/$(CHIP_FAMILY)/hal_$(CHIP_FAMILY).c
 
 INC += \
 	-I$(TOP)/hw/cmsis/Include \
@@ -38,3 +39,7 @@ ASFLAGS += -DNRF52840_XXAA
 VENDOR = nordic
 CHIP_FAMILY = nrf5x
 
+JLINK_DEVICE = nRF52840_xxAA
+
+# flash using jlink
+flash: flash-jlink

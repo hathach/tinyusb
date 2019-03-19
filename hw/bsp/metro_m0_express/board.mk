@@ -6,7 +6,8 @@ CFLAGS = \
 	-mabi=aapcs-linux \
 	-mcpu=cortex-m0plus \
 	-msoft-float \
-	-mfloat-abi=soft
+	-mfloat-abi=soft \
+	-nostdlib
 
 # All source paths should be relative to the top level.
 LD_FILE = hw/bsp/metro_m0_express/samd21g18a_flash.ld

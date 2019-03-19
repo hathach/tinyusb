@@ -5,7 +5,8 @@ CFLAGS = \
 	-mabi=aapcs-linux \
 	-mcpu=cortex-m4 \
 	-mfloat-abi=hard \
-	-mfpu=fpv4-sp-d16
+	-mfpu=fpv4-sp-d16 \
+	-nostdlib
 
 # All source paths should be relative to the top level.
 LD_FILE = hw/bsp/metro_m4_express/samd51g19a_flash.ld

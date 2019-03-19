@@ -12,6 +12,13 @@ else
   endif
 endif
 
+# Verbose mode (V=). 0: default, 1: print out CFLAG, LDFLAG 2: print all compile command
+ifeq ("$(V)","2")
+  QUIET =
+else
+  QUIET = @
+endif
+
 # If the build directory is not given, make it reflect the board name.
 BUILD ?= build-$(BOARD)
 
@@ -49,10 +56,12 @@ CFLAGS += \
 	-Wno-deprecated-declarations \
 	-Wnested-externs \
 	-Wunreachable-code \
-	-Wcast-align \
 	-Wno-error=lto-type-mismatch \
 	-ffunction-sections \
 	-fdata-sections
+
+# This causes lots of warning with nrf5x build due to nrfx code
+# CFLAGS += -Wcast-align
 
 #Debugging/Optimization
 ifeq ($(DEBUG), 1)
@@ -61,8 +70,17 @@ else
   CFLAGS += -flto -Os
 endif
 
-CFLAGS += $(INC) -Wall -Werror -std=gnu11 -nostdlib -DBOARD_$(shell echo $(BOARD) | tr a-z\- A-Z_)
-LDFLAGS += $(CFLAGS) -nostartfiles -fshort-enums -Wl,-T,$(TOP)/$(LD_FILE) -Wl,-Map=$@.map -Wl,-cref -Wl,-gc-sections -specs=nosys.specs -specs=nano.specs
+CFLAGS += $(INC) -Wall -Werror -std=gnu11 -DBOARD_$(shell echo $(BOARD) | tr a-z\- A-Z_)
+LDFLAGS += $(CFLAGS) -fshort-enums -Wl,-T,$(TOP)/$(LD_FILE) -Wl,-Map=$@.map -Wl,-cref -Wl,-gc-sections -specs=nosys.specs -specs=nano.specs
+
+ifeq ("$(V)","1")
+$(info CFLAGS  $(CFLAGS))
+$(info )
+$(info LDFLAGS $(LDFLAGS))
+$(info )
+$(info ASFLAGS $(ASFLAGS))
+$(info )
+endif
 
 LIBS = -lgcc -lc -lm -lnosys
 
@@ -91,6 +109,8 @@ SRC_C += $(LIB_SOURCE)
 # Assembly files can be name with upper case .S, convert it to .s 
 SRC_S := $(SRC_S:.S=.s)
 
+# Due to GCC LTO bug https://bugs.launchpad.net/gcc-arm-embedded/+bug/1747966
+# assembly file should be placed first in linking order
 OBJ += $(addprefix $(BUILD)/obj/, $(SRC_S:.s=.o))
 OBJ += $(addprefix $(BUILD)/obj/, $(SRC_C:.c=.o))
 
@@ -105,7 +125,7 @@ $(OBJ_DIRS):
 
 $(BUILD)/$(BOARD)-firmware.elf: $(OBJ)
 	@echo LINK $@
-	$(CC) -o $@ $(LDFLAGS) $^ -Wl,--start-group $(LIBS) -Wl,--end-group
+	$(QUIET)$(CC) -o $@ $(LDFLAGS) $^ -Wl,--start-group $(LIBS) -Wl,--end-group
 
 $(BUILD)/$(BOARD)-firmware.bin: $(BUILD)/$(BOARD)-firmware.elf
 	@echo CREATE $@
@@ -121,7 +141,7 @@ $(BUILD)/$(BOARD)-firmware.hex: $(BUILD)/$(BOARD)-firmware.elf
 vpath %.c . $(TOP)
 $(BUILD)/obj/%.o: %.c
 	@echo CC $(notdir $@)
-	@$(CC) $(CFLAGS) -c -MD -o $@ $<
+	$(QUIET)$(CC) $(CFLAGS) -c -MD -o $@ $<
 	@# The following fixes the dependency file.
 	@# See http://make.paulandlesley.org/autodep.html for details.
 	@# Regex adjusted from the above to play better with Windows paths, etc.
@@ -134,13 +154,13 @@ $(BUILD)/obj/%.o: %.c
 vpath %.s . $(TOP)
 $(BUILD)/obj/%.o: %.s
 	@echo AS $(notdir $@)
-	@$(CC) -x assembler-with-cpp $(ASFLAGS) -c -o $@ $<
+	$(QUIET)$(CC) -x assembler-with-cpp $(ASFLAGS) -c -o $@ $<
 
 # ASM sources upper case .S
 vpath %.S . $(TOP)
 $(BUILD)/obj/%.o: %.S
 	@echo AS $(notdir $@)
-	@$(CC) -x assembler-with-cpp $(ASFLAGS) -c -o $@ $<
+	$(QUIET)$(CC) -x assembler-with-cpp $(ASFLAGS) -c -o $@ $<
 
 # Flash binary using Jlink
 ifeq ($(OS),Windows_NT)
