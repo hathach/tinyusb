@@ -1,6 +1,6 @@
 # TinyUSB
 
-[![Build Status](https://travis-ci.org/hathach/tinyusb.svg?branch=master)](https://travis-ci.org/hathach/tinyusb) [![License](https://img.shields.io/badge/License-BSD%203--Clause-brightgreen.svg)](https://opensource.org/licenses/BSD-3-Clause)
+[![Build Status](https://travis-ci.org/hathach/tinyusb.svg?branch=master)](https://travis-ci.org/hathach/tinyusb) [![License](https://img.shields.io/badge/license-MIT-brightgreen.svg)](https://opensource.org/licenses/MIT)
 
 TinyUSB is an open-source cross-platform USB Host/Device stack for embedded system.
 
@@ -75,4 +75,4 @@ Want to help add TinyUSB support for a new MCU? Read [here](docs/porting.md) for
 
 ## License
 
-BSD license for all tinyusb sources [Full license is here](tinyusb/license.md) and most of the code base. However each file/folder is individually licensed especially those in `lib` and `hw/mcu` folder. Please make sure you understand all the license term for files you use in your project.
+MIT license for all tinyusb sources [Full license is here](tinyusb/license.md) and most of the code base. However each file/folder is individually licensed especially those in `lib` and `hw/mcu` folder. Please make sure you understand all the license term for files you use in your project.
