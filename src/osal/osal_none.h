@@ -24,10 +24,6 @@
  * This file is part of the TinyUSB stack.
  */
 
-/** \ingroup group_osal
- * \defgroup Group_OSNone None OS
- *  @{ */
-
 #ifndef _TUSB_OSAL_NONE_H_
 #define _TUSB_OSAL_NONE_H_
 
@@ -205,5 +201,3 @@ static inline bool osal_queue_receive(osal_queue_t const qhdl, void* data)
 #endif
 
 #endif /* _TUSB_OSAL_NONE_H_ */
-
-/** @} */
