@@ -75,4 +75,4 @@ Want to help add TinyUSB support for a new MCU? Read [here](docs/porting.md) for
 
 ## License
 
-BSD license for all tinyusb sources [Full license is here](tinyusb/license.md) and most of the code base. However each file/folder is individually licensed especially those in `lib` and `hw/mcu` folder. Please make sure you understand all the license term for files you use in your project.
+MIT license for all tinyusb sources [Full license is here](tinyusb/license.md) and most of the code base. However each file/folder is individually licensed especially those in `lib` and `hw/mcu` folder. Please make sure you understand all the license term for files you use in your project.
