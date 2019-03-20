@@ -125,58 +125,45 @@ static inline osal_queue_t osal_queue_create(osal_queue_def_t* qdef)
   return (osal_queue_t) qdef;
 }
 
-static inline void osal_queue_receive (osal_queue_t const queue_hdl, void *p_data, uint32_t msec, tusb_error_t *p_error)
+static inline bool osal_queue_receive(osal_queue_t const qhdl, void* data)
 {
-  (void) msec;
   struct os_event* ev;
+  ev = os_eventq_get(&qhdl->evq);
 
-  if ( msec == 0 )
-  {
-    ev = os_eventq_get_no_wait(&queue_hdl->evq);
-    if ( !ev )
-    {
-      *p_error = TUSB_ERROR_OSAL_TIMEOUT;
-      return;
-    }
-  }else
-  {
-    ev = os_eventq_get(&queue_hdl->evq);
-  }
+  memcpy(data, ev->ev_arg, qhdl->item_sz); // copy message
+  os_memblock_put(&qhdl->mpool, ev->ev_arg); // put back mem block
+  os_memblock_put(&qhdl->epool, ev);         // put back ev block
 
-  memcpy(p_data, ev->ev_arg, queue_hdl->item_sz); // copy message
-  os_memblock_put(&queue_hdl->mpool, ev->ev_arg); // put back mem block
-  os_memblock_put(&queue_hdl->epool, ev);         // put back ev block
-
-  *p_error = TUSB_ERROR_NONE;
+  return true;
 }
 
-static inline bool osal_queue_send(osal_queue_t const queue_hdl, void const * data, bool in_isr)
+static inline bool osal_queue_send(osal_queue_t const qhdl, void const * data, bool in_isr)
 {
   (void) in_isr;
 
   // get a block from mem pool for data
-  void* ptr = os_memblock_get(&queue_hdl->mpool);
+  void* ptr = os_memblock_get(&qhdl->mpool);
   if (!ptr) return false;
-  memcpy(ptr, data, queue_hdl->item_sz);
+  memcpy(ptr, data, qhdl->item_sz);
 
   // get a block from event pool to put into queue
-  struct os_event* ev = (struct os_event*) os_memblock_get(&queue_hdl->epool);
+  struct os_event* ev = (struct os_event*) os_memblock_get(&qhdl->epool);
   if (!ev)
   {
-    os_memblock_put(&queue_hdl->mpool, ptr);
+    os_memblock_put(&qhdl->mpool, ptr);
     return false;
   }
   tu_memclr(ev, sizeof(struct os_event));
   ev->ev_arg = ptr;
 
-  os_eventq_put(&queue_hdl->evq, ev);
+  os_eventq_put(&qhdl->evq, ev);
 
   return true;
 }
 
-static inline void osal_queue_flush(osal_queue_t const queue_hdl)
+static inline void osal_queue_reset(osal_queue_t const queue_hdl)
 {
-
+  // TODO implement later
 }
 
 #ifdef __cplusplus
