@@ -128,15 +128,19 @@ uint32_t board_buttons(void)
 //--------------------------------------------------------------------+
 // UART
 //--------------------------------------------------------------------+
-void board_uart_putchar(uint8_t c)
-{
-  (void) c;
-  //UARTSend(&c, 1);
-}
-
-uint8_t  board_uart_getchar(void)
+int board_uart_read(uint8_t* buf, int len)
 {
 //  *buffer = get_key(); TODO cannot find available code for uart getchar
+  (void) buf;
+  (void) len;
+  return 0;
+}
+
+int board_uart_write(void const * buf, int len)
+{
+  //UARTSend(&c, 1);
+  (void) buf;
+  (void) len;
   return 0;
 }
 

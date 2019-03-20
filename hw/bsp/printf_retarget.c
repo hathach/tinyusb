@@ -168,8 +168,8 @@ size_t __read(int handle, unsigned char *buf, size_t bufSize)
   size_t i;
   for (i=0; i<bufSize; i++)
   {
-    uint8_t ch = board_uart_getchar();
-    if (ch == 0) break;
+    int8_t ch = board_uart_getchar();
+    if (ch == -1) break;
     buf[i] = ch;
   }
 

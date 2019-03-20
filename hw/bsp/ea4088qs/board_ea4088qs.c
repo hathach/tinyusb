@@ -137,18 +137,21 @@ uint32_t board_buttons(void)
   return result;
 }
 
-
 //------------- UART -------------//
-uint8_t  board_uart_getchar(void)
+int board_uart_read(uint8_t* buf, int len)
 {
   //return UART_ReceiveByte(BOARD_UART_PORT);
+  (void) buf;
+  (void) len;
   return 0;
 }
 
-void board_uart_putchar(uint8_t c)
+int board_uart_write(void const * buf, int len)
 {
   //UART_Send(BOARD_UART_PORT, &c, 1, BLOCKING);
-  (void) c;
+  (void) buf;
+  (void) len;
+  return 0;
 }
 
 
