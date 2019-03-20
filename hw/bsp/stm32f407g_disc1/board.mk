@@ -1,4 +1,4 @@
-CFLAGS = \
+CFLAGS += \
 	-DHSE_VALUE=8000000 \
 	-DCFG_TUSB_MCU=OPT_MCU_STM32F4 \
 	-DSTM32F407xx \
@@ -6,7 +6,8 @@ CFLAGS = \
 	-mabi=aapcs-linux \
 	-mcpu=cortex-m4 \
 	-mfloat-abi=hard \
-	-mfpu=fpv4-sp-d16
+	-mfpu=fpv4-sp-d16 \
+	-nostdlib
 
 # All source paths should be relative to the top level.
 LD_FILE = hw/bsp/stm32f407g_disc1/STM32F407VGTx_FLASH.ld

@@ -1,4 +1,4 @@
-CFLAGS = \
+CFLAGS += \
 	-DCFG_TUSB_MCU=OPT_MCU_SAMD21 \
 	-DCONF_DFLL_OVERWRITE_CALIBRATION=0 \
 	-D__SAMD21G18A__ \
@@ -6,7 +6,8 @@ CFLAGS = \
 	-mabi=aapcs-linux \
 	-mcpu=cortex-m0plus \
 	-msoft-float \
-	-mfloat-abi=soft
+	-mfloat-abi=soft \
+	-nostdlib
 
 # All source paths should be relative to the top level.
 LD_FILE = hw/bsp/metro_m0_express/samd21g18a_flash.ld
