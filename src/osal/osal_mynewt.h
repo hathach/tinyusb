@@ -42,6 +42,56 @@ static inline void osal_task_delay(uint32_t msec)
 }
 
 //--------------------------------------------------------------------+
+// Semaphore API
+//--------------------------------------------------------------------+
+typedef struct os_sem  osal_semaphore_def_t;
+typedef struct os_sem* osal_semaphore_t;
+
+static inline osal_semaphore_t osal_semaphore_create(osal_semaphore_def_t* semdef)
+{
+  return (os_sem_init(semdef, 0) == OS_OK) ? (osal_semaphore_t) semdef : NULL;
+}
+
+static inline bool osal_semaphore_post(osal_semaphore_t sem_hdl, bool in_isr)
+{
+  (void) in_isr;
+  return os_sem_release(sem_hdl) == OS_OK;
+}
+
+static inline bool osal_semaphore_wait(osal_semaphore_t sem_hdl, uint32_t msec)
+{
+  uint32_t const ticks = (msec == OSAL_TIMEOUT_WAIT_FOREVER) ? OS_TIMEOUT_NEVER : os_time_ms_to_ticks32(msec);
+  return os_sem_pend(sem_hdl, ticks) == OS_OK;
+}
+
+static inline void osal_semaphore_reset(osal_semaphore_t sem_hdl)
+{
+  // TODO implement later
+}
+
+//--------------------------------------------------------------------+
+// MUTEX API (priority inheritance)
+//--------------------------------------------------------------------+
+typedef struct os_mutex osal_mutex_def_t;
+typedef struct os_mutex* osal_mutex_t;
+
+static inline osal_mutex_t osal_mutex_create(osal_mutex_def_t* mdef)
+{
+  return (os_mutex_init(mdef) == OS_OK) ? (osal_mutex_t) mdef : NULL;
+}
+
+static inline bool osal_mutex_lock(osal_mutex_t mutex_hdl, uint32_t msec)
+{
+  uint32_t const ticks = (msec == OSAL_TIMEOUT_WAIT_FOREVER) ? OS_TIMEOUT_NEVER : os_time_ms_to_ticks32(msec);
+  return os_mutex_pend(mutex_hdl, ticks) == OS_OK;
+}
+
+static inline bool osal_mutex_unlock(osal_mutex_t mutex_hdl)
+{
+  return os_mutex_release(mutex_hdl) == OS_OK;
+}
+
+//--------------------------------------------------------------------+
 // QUEUE API
 //--------------------------------------------------------------------+
 
@@ -128,55 +178,6 @@ static inline void osal_queue_flush(osal_queue_t const queue_hdl)
 {
 
 }
-
-//--------------------------------------------------------------------+
-// Semaphore API
-//--------------------------------------------------------------------+
-typedef struct os_sem  osal_semaphore_def_t;
-typedef struct os_sem* osal_semaphore_t;
-
-static inline osal_semaphore_t osal_semaphore_create(osal_semaphore_def_t* semdef)
-{
-  return (os_sem_init(semdef, 0) == OS_OK) ? (osal_semaphore_t) semdef : NULL;
-}
-
-static inline bool osal_semaphore_post(osal_semaphore_t sem_hdl, bool in_isr)
-{
-  (void) in_isr;
-  return os_sem_release(sem_hdl) == OS_OK;
-}
-
-static inline void osal_semaphore_wait(osal_semaphore_t sem_hdl, uint32_t msec, tusb_error_t *p_error)
-{
-  uint32_t const ticks = (msec == OSAL_TIMEOUT_WAIT_FOREVER) ? OS_TIMEOUT_NEVER : os_time_ms_to_ticks32(msec);
-  (*p_error) = ( (os_sem_pend(sem_hdl, ticks) == OS_OK) ? TUSB_ERROR_NONE : TUSB_ERROR_OSAL_TIMEOUT );
-}
-
-static inline void osal_semaphore_reset_isr(osal_semaphore_t const sem_hdl)
-{
-//  xSemaphoreTakeFromISR(sem_hdl, NULL);
-}
-
-#if 0
-//--------------------------------------------------------------------+
-// MUTEX API (priority inheritance)
-//--------------------------------------------------------------------+
-typedef struct os_mutex osal_mutex_t;
-
-#define osal_mutex_create(x) xSemaphoreCreateMutex()
-
-static inline bool osal_mutex_release(osal_mutex_t mutex_hdl)
-{
-  return xSemaphoreGive(mutex_hdl);
-}
-
-static inline void osal_mutex_wait(osal_mutex_t mutex_hdl, uint32_t msec, tusb_error_t *p_error)
-{
-  uint32_t const ticks = (msec == OSAL_TIMEOUT_WAIT_FOREVER) ? portMAX_DELAY : pdMS_TO_TICKS(msec);
-  (*p_error) = (xSemaphoreTake(mutex_hdl, ticks) ? TUSB_ERROR_NONE : TUSB_ERROR_OSAL_TIMEOUT);
-}
-#endif
-
 
 #ifdef __cplusplus
  }

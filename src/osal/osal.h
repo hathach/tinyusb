@@ -69,7 +69,7 @@ typedef void (*osal_task_func_t)( void * );
    *    osal_semaphore_def_t, osal_semaphore_t
    *    osal_semaphore_t osal_semaphore_create(osal_semaphore_def_t* semdef)
    *    bool osal_semaphore_post(osal_semaphore_t sem_hdl, bool in_isr)
- *    bool osal_semaphore_wait(osal_semaphore_t sem_hdl, uint32_t msec)
+   *    bool osal_semaphore_wait(osal_semaphore_t sem_hdl, uint32_t msec)
    *    void osal_semaphore_reset(osal_semaphore_t const sem_hdl)
    *
    * Mutex

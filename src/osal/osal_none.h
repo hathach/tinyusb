@@ -65,11 +65,6 @@ static inline bool osal_semaphore_post(osal_semaphore_t sem_hdl, bool in_isr)
   return true;
 }
 
-static inline void osal_semaphore_reset(osal_semaphore_t sem_hdl)
-{
-  sem_hdl->count = 0;
-}
-
 // TODO blocking for now
 static inline bool osal_semaphore_wait (osal_semaphore_t sem_hdl, uint32_t msec)
 {
@@ -79,6 +74,11 @@ static inline bool osal_semaphore_wait (osal_semaphore_t sem_hdl, uint32_t msec)
   sem_hdl->count--;
 
   return true;
+}
+
+static inline void osal_semaphore_reset(osal_semaphore_t sem_hdl)
+{
+  sem_hdl->count = 0;
 }
 
 //--------------------------------------------------------------------+
@@ -94,8 +94,8 @@ static inline osal_mutex_t osal_mutex_create(osal_mutex_def_t* mdef)
   return mdef;
 }
 
-#define osal_mutex_unlock(_mutex_hdl)   osal_semaphore_post(_mutex_hdl, false)
 #define osal_mutex_lock                 osal_semaphore_wait
+#define osal_mutex_unlock(_mutex_hdl)   osal_semaphore_post(_mutex_hdl, false)
 
 //--------------------------------------------------------------------+
 // QUEUE API
