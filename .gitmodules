@@ -10,3 +10,6 @@
 [submodule "hw/mcu/st/stm32lib"]
 	path = hw/mcu/st/stm32lib
 	url = https://github.com/micropython/stm32lib.git
+[submodule "hw/mcu/nxp/lpcopen"]
+	path = hw/mcu/nxp/lpcopen
+	url = https://github.com/hathach/lpcopen.git
