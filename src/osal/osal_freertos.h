@@ -24,15 +24,10 @@
  * This file is part of the TinyUSB stack.
  */
 
-/** \ingroup group_osal
- * @{
- *  \defgroup Group_FreeRTOS  FreeRTOS
- *  @{ */
-
 #ifndef _TUSB_OSAL_FREERTOS_H_
 #define _TUSB_OSAL_FREERTOS_H_
 
-//------------- FreeRTOS Headers -------------//
+// FreeRTOS Headers
 #include "FreeRTOS.h"
 #include "semphr.h"
 #include "queue.h"
@@ -40,14 +35,6 @@
 
 #ifdef __cplusplus
 extern "C" {
-#endif
-
-#if 0
-// Helper to determine if we are in ISR to use ISR API (only cover ARM Cortex)
-static inline bool in_isr(void)
-{
-  return (SCB->ICSR & SCB_ICSR_VECTACTIVE_Msk);
-}
 #endif
 
 //--------------------------------------------------------------------+
@@ -148,6 +135,3 @@ static inline void osal_queue_reset(osal_queue_t const queue_hdl)
 #endif
 
 #endif /* _TUSB_OSAL_FREERTOS_H_ */
-
-/** @} */
-/** @} */

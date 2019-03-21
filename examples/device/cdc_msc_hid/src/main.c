@@ -93,6 +93,7 @@ void virtual_com_task(void)
   }
 }
 
+// Invoked when cdc when line state changed e.g connected/disconnected
 void tud_cdc_line_state_cb(uint8_t itf, bool dtr, bool rts)
 {
   (void) itf;
@@ -104,6 +105,13 @@ void tud_cdc_line_state_cb(uint8_t itf, bool dtr, bool rts)
     tud_cdc_write_str("\r\nTinyUSB CDC MSC HID device example\r\n");
   }
 }
+
+// Invoked when CDC interface received data from host
+void tud_cdc_rx_cb(uint8_t itf)
+{
+  (void) itf;
+}
+
 #endif
 
 //--------------------------------------------------------------------+
@@ -168,18 +176,16 @@ void tud_hid_generic_set_report_cb(uint8_t report_id, hid_report_type_t report_t
 //--------------------------------------------------------------------+
 // tinyusb callbacks
 //--------------------------------------------------------------------+
+
+// Invoked when device is mounted
 void tud_mount_cb(void)
 {
 
 }
 
+// Invoked when device is unmounted
 void tud_umount_cb(void)
 {
-}
-
-void tud_cdc_rx_cb(uint8_t itf)
-{
-  (void) itf;
 }
 
 //--------------------------------------------------------------------+

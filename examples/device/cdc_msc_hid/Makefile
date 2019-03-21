@@ -34,7 +34,6 @@ MKDIR = mkdir
 SED = sed
 CP = cp
 RM = rm
-AS = $(CROSS_COMPILE)as
 
 INC += -Isrc \
 	-I$(TOP)/hw \

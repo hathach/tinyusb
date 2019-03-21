@@ -153,14 +153,18 @@ uint32_t board_buttons(void)
 //--------------------------------------------------------------------+
 // UART
 //--------------------------------------------------------------------+
-void board_uart_putchar(uint8_t c)
+int board_uart_read(uint8_t* buf, int len)
 {
-  (void) c;
-//  UARTSend(&c, 1);
+  (void) buf;
+  (void) len;
+  return 0;
 }
 
-uint8_t  board_uart_getchar(void)
+int board_uart_write(void const * buf, int len)
 {
+//  UARTSend(&c, 1);
+  (void) buf;
+  (void) len;
   return 0;
 }
 

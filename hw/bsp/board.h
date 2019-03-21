@@ -65,6 +65,8 @@
   #include "metro_m4_express/board_metro_m4_express.h"
 #elif defined BOARD_METRO_M0_EXPRESS
   #include "metro_m0_express/board_metro_m0_express.h"
+
+// ST STM32
 #elif defined BOARD_STM32F407G_DISC1
   #include "stm32f407g_disc1/board_stm32f407g_disc1.h"
 #else
@@ -76,7 +78,7 @@
 #define board_tick2ms(tck)   ( ( ((uint64_t)(tck)) * 1000) / BOARD_TICKS_HZ )
 
 
-/// Initialize on-board peripherals
+// Initialize on-board peripherals
 void board_init(void);
 
 //--------------------------------------------------------------------+
@@ -104,16 +106,27 @@ static inline void board_led_off(void)
  */
 uint32_t board_buttons(void);
 
-/** Get a character input from UART
- * \return ASCII code of the input character or zero if none.
- */
-uint8_t  board_uart_getchar(void);
+//--------------------------------------------------------------------+
+// UART
+//--------------------------------------------------------------------+
 
-/** Send a character to UART
- * \param[in]  c the character to be sent
- */
-void board_uart_putchar(uint8_t c);
+// Get characters from UART
+int board_uart_read(uint8_t* buf, int len);
 
+// Send characters to UART
+int board_uart_write(void const * buf, int len);
+
+
+static inline int8_t board_uart_getchar(void)
+{
+  uint8_t c;
+  return board_uart_read(&c, 1) ? c : (-1);
+}
+
+static inline int board_uart_putchar(uint8_t c)
+{
+  return board_uart_write(&c, 1);
+}
 
 #ifdef __cplusplus
  }

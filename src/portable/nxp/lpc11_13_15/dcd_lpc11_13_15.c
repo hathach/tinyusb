@@ -30,7 +30,6 @@
 
 #include "chip.h"
 #include "device/dcd.h"
-#include "dcd_lpc11_13_15.h"
 
 //--------------------------------------------------------------------+
 // MACRO CONSTANT TYPEDEF
