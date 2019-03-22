@@ -25,8 +25,7 @@
  */
 
 #include "../board.h"
-
-#include "stm32f4xx.h"
+#include "stm32f3xx.h"
 
 #include "tusb_option.h"
 

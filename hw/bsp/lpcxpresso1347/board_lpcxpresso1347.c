@@ -26,6 +26,7 @@
 
 #ifdef BOARD_LPCXPRESSO1347
 
+#include "chip.h"
 #include "../board.h"
 
 #define LED_PORT    0

@@ -26,8 +26,10 @@
 
 #ifdef BOARD_EA4088QS
 
+#include "chip.h"
 #include "../board.h"
-#include "tusb.h"
+
+#include "tusb_option.h"
 
 #define LED_PORT      2
 #define LED_PIN       19

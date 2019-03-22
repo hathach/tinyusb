@@ -26,6 +26,8 @@
 #ifdef BOARD_PCA10056
 
 #include "bsp/board.h"
+
+#include "nrfx.h"
 #include "nrfx/hal/nrf_gpio.h"
 #include "nrfx/drivers/include/nrfx_power.h"
 #include "nrfx/drivers/include/nrfx_qspi.h"

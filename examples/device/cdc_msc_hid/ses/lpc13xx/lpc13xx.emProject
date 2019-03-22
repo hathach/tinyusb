@@ -18,7 +18,7 @@
       arm_target_device_name="LPC1347"
       arm_target_interface_type="SWD"
       build_treat_warnings_as_errors="Yes"
-      c_preprocessor_definitions="__LPC1347FBD64__;__LPC1300_FAMILY;__LPC134x_SUBFAMILY;ARM_MATH_CM3;FLASH_PLACEMENT=1;CORE_M3;BOARD_LPCXPRESSO1347;CFG_TUSB_MCU=OPT_MCU_LPC13XX;CFG_TUSB_MEM_SECTION= __attribute__((section(&quot;.bss3&quot;)));CFG_TUSB_MEM_ALIGN=__attribute__ ((aligned(64)))"
+      c_preprocessor_definitions="__LPC1347FBD64__;__LPC1300_FAMILY;__LPC134x_SUBFAMILY;ARM_MATH_CM3;FLASH_PLACEMENT=1;CORE_M3;CFG_TUSB_MCU=OPT_MCU_LPC13XX;CFG_TUSB_MEM_SECTION= __attribute__((section(&quot;.bss3&quot;)));CFG_TUSB_MEM_ALIGN=__attribute__ ((aligned(64)))"
       c_user_include_directories="../../src;$(rootDir)/hw;$(rootDir)/hw/mcu/nxp/lpcopen/lpc_chip_13xx/inc;$(rootDir)/src"
       debug_register_definition_file="$(ProjectDir)/LPC13Uxx_Registers.xml"
       debug_target_connection="J-Link"
@@ -107,6 +107,9 @@
       filter="*.c;*.h"
       path="../../../../../lib/segger_rtt"
       recurse="No" />
+    <configuration
+      Name="LPCXpresso 1347"
+      c_preprocessor_definitions="BOARD_LPCXPRESSO1347" />
   </project>
   <configuration
     Name="LPCXpresso 1347"

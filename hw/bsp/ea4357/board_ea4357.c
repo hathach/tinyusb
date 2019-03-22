@@ -26,9 +26,11 @@
 
 #ifdef BOARD_EA4357
 
+#include "chip.h"
 #include "../board.h"
 #include "pca9532.h"
-#include "tusb.h"
+
+#include "tusb_option.h"
 
 #define BOARD_UART_PORT           LPC_USART0
 #define BOARD_UART_PIN_PORT       0x0f

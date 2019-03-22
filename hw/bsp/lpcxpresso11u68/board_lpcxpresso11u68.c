@@ -26,6 +26,7 @@
 
 #ifdef BOARD_LPCXPRESSO11U68
 
+#include "chip.h"
 #include "../board.h"
 
 #define LED_PORT      2

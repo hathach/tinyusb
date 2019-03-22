@@ -26,8 +26,10 @@
 
 #ifdef BOARD_LPCXPRESSO1769
 
+#include "chip.h"
 #include "../board.h"
-#include "tusb.h"
+
+#include "tusb_option.h"
 
 #define LED_PORT      0
 #define LED_PIN       22
