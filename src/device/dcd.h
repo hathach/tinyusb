@@ -98,21 +98,6 @@ void dcd_set_config (uint8_t rhport, uint8_t config_num);
 uint32_t dcd_get_frame_number(uint8_t rhport);
 
 /*------------------------------------------------------------------*/
-/* Event Function
- * Called by DCD to notify USBD
- *------------------------------------------------------------------*/
-void dcd_event_handler(dcd_event_t const * event, bool in_isr);
-
-// helper to send bus signal event
-void dcd_event_bus_signal (uint8_t rhport, dcd_eventid_t eid, bool in_isr);
-
-// helper to send setup received
-void dcd_event_setup_received(uint8_t rhport, uint8_t const * setup, bool in_isr);
-
-// helper to send transfer complete event
-void dcd_event_xfer_complete (uint8_t rhport, uint8_t ep_addr, uint32_t xferred_bytes, uint8_t result, bool in_isr);
-
-/*------------------------------------------------------------------*/
 /* Endpoint API
  *  - open        : Configure endpoint's registers
  *  - xfer        : Submit a transfer. When complete dcd_event_xfer_complete
@@ -129,6 +114,21 @@ bool dcd_edpt_busy        (uint8_t rhport, uint8_t ep_addr);
 void dcd_edpt_stall       (uint8_t rhport, uint8_t ep_addr);
 void dcd_edpt_clear_stall (uint8_t rhport, uint8_t ep_addr);
 bool dcd_edpt_stalled     (uint8_t rhport, uint8_t ep_addr);
+
+/*------------------------------------------------------------------*/
+/* Event Function
+ * Called by DCD to notify USBD
+ *------------------------------------------------------------------*/
+void dcd_event_handler(dcd_event_t const * event, bool in_isr);
+
+// helper to send bus signal event
+void dcd_event_bus_signal (uint8_t rhport, dcd_eventid_t eid, bool in_isr);
+
+// helper to send setup received
+void dcd_event_setup_received(uint8_t rhport, uint8_t const * setup, bool in_isr);
+
+// helper to send transfer complete event
+void dcd_event_xfer_complete (uint8_t rhport, uint8_t ep_addr, uint32_t xferred_bytes, uint8_t result, bool in_isr);
 
 #ifdef __cplusplus
  }

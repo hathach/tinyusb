@@ -25,37 +25,33 @@
  */
 
 #include "../board.h"
-#include "stm32f3xx.h"
-
 #include "tusb_option.h"
+
+#include "stm32f3xx.h"
+#include "stm32f3xx_hal_conf.h"
 
 void board_init(void)
 {
-  // Init the LED on PD14
-  RCC->AHB1ENR |= RCC_AHB1ENR_GPIODEN;
-  GPIOD->MODER |= GPIO_MODER_MODE14_0;
+  RCC_ClkInitTypeDef RCC_ClkInitStruct;
+  RCC_OscInitTypeDef RCC_OscInitStruct;
 
-  // USB Clock init
-  // PLL input- 8 MHz (External oscillator clock; HSI clock tolerance isn't
-  // tight enough- 1%, need 0.25%)
-  // VCO input- 1 to 2 MHz (2 MHz, M = 4)
-  // VCO output- 100 to 432 MHz (144 MHz, N = 72)
-  // Main PLL out- <= 180 MHz (18 MHz, P = 3- divides by 8)
-  // USB PLL out- 48 MHz (Q = 3)
-  RCC->PLLCFGR = RCC_PLLCFGR_PLLSRC_HSE | (3 << RCC_PLLCFGR_PLLQ_Pos) | \
-    (3 << RCC_PLLCFGR_PLLP_Pos) | (72 << RCC_PLLCFGR_PLLN_Pos) | \
-    (4 << RCC_PLLCFGR_PLLM_Pos);
+  /* Enable HSE Oscillator and activate PLL with HSE as source */
+  RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_HSE;
+  RCC_OscInitStruct.HSEState = RCC_HSE_ON;
+  RCC_OscInitStruct.HSEPredivValue = RCC_HSE_PREDIV_DIV1;
+  RCC_OscInitStruct.PLL.PLLState = RCC_PLL_ON;
+  RCC_OscInitStruct.PLL.PLLSource = RCC_PLLSOURCE_HSE;
+  RCC_OscInitStruct.PLL.PLLMUL = RCC_PLL_MUL9;
+  HAL_RCC_OscConfig(&RCC_OscInitStruct);
 
-  // Wait for external clock to become ready
-  RCC->CR |= RCC_CR_HSEON;
-  while(!(RCC->CR & RCC_CR_HSERDY_Msk));
-
-  // Wait for PLL to become ready
-  RCC->CR |= RCC_CR_PLLON;
-  while(!(RCC->CR & RCC_CR_PLLRDY_Msk));
-
-  // Switch clocks!
-  RCC->CFGR |= RCC_CFGR_SW_1;
+  /* Select PLL as system clock source and configure the HCLK, PCLK1 and PCLK2
+     clocks dividers */
+  RCC_ClkInitStruct.ClockType = (RCC_CLOCKTYPE_SYSCLK | RCC_CLOCKTYPE_HCLK | RCC_CLOCKTYPE_PCLK1 | RCC_CLOCKTYPE_PCLK2);
+  RCC_ClkInitStruct.SYSCLKSource = RCC_SYSCLKSOURCE_PLLCLK;
+  RCC_ClkInitStruct.AHBCLKDivider = RCC_SYSCLK_DIV1;
+  RCC_ClkInitStruct.APB1CLKDivider = RCC_HCLK_DIV2;
+  RCC_ClkInitStruct.APB2CLKDivider = RCC_HCLK_DIV1;
+  (void) HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_2);
 
   // Notify runtime of frequency change.
   SystemCoreClockUpdate();
@@ -64,6 +60,19 @@ void board_init(void)
     SysTick_Config(SystemCoreClock / 1000);
   #endif
 
+  /* -1- Enable GPIOE Clock (to be able to program the configuration registers) */
+  __HAL_RCC_GPIOE_CLK_ENABLE();
+
+  /* -2- Configure PE.8 to PE.15 IOs in output push-pull mode to drive external LEDs */
+  static GPIO_InitTypeDef  GPIO_InitStruct;
+  GPIO_InitStruct.Pin = GPIO_PIN_9;
+  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
+  GPIO_InitStruct.Pull = GPIO_PULLUP;
+  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_HIGH;
+
+  HAL_GPIO_Init(GPIOE, &GPIO_InitStruct);
+
+#if 0
   RCC->AHB2ENR |= RCC_AHB2ENR_OTGFSEN;
 
   // USB Pin Init
@@ -79,18 +88,14 @@ void board_init(void)
   // Pullup required on ID, despite the manual claiming there's an
   // internal pullup already (page 1245, Rev 17)
   GPIOA->PUPDR |= GPIO_PUPDR_PUPD10_0;
+#endif
 }
 
 
 void board_led_control(bool state)
 {
-  if (!state) {
-    GPIOD->BSRR = GPIO_BSRR_BR14;
-  } else {
-    GPIOD->BSRR = GPIO_BSRR_BS14;
-  }
+  HAL_GPIO_WritePin(GPIOE, GPIO_PIN_9, state);
 }
-
 
 /*------------------------------------------------------------------*/
 /* TUSB HAL MILLISECOND
