@@ -1,1 +1,1 @@
-Please check out this repo https://github.com/hathach/mynewt-tinyusb-exmaple For mynewt example
+Please check out this repo https://github.com/hathach/mynewt-tinyusb-example For mynewt example
