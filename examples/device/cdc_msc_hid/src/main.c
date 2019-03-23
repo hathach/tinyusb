@@ -124,7 +124,7 @@ void usb_hid_task(void)
   const uint32_t interval_ms = 10;
   static uint32_t start_ms = 0;
 
-  if ( board_noos_millis() < start_ms + interval_ms) return; // not enough time
+  if ( board_millis() < start_ms + interval_ms) return; // not enough time
   start_ms += interval_ms;
 
   uint32_t const btn = board_buttons();
@@ -200,7 +200,7 @@ void led_blinking_task(void)
   static bool led_state = false;
 
   // Blink every 1000 ms
-  if ( board_noos_millis() < start_ms + interval_ms) return; // not enough time
+  if ( board_millis() < start_ms + interval_ms) return; // not enough time
   start_ms += interval_ms;
 
   board_led_control(led_state);

@@ -24,8 +24,6 @@
  * This file is part of the TinyUSB stack.
  */
 
-#ifdef BOARD_LPCXPRESSO11U68
-
 #include "chip.h"
 #include "../board.h"
 
@@ -110,7 +108,7 @@ uint32_t tusb_hal_millis(void)
   return board_tick2ms(system_ticks);
 }
 
-uint32_t board_noos_millis(void)
+uint32_t board_millis(void)
 {
   return system_ticks;
 }
@@ -153,5 +151,3 @@ int board_uart_write(void const * buf, int len)
   (void) len;
   return 0;
 }
-
-#endif

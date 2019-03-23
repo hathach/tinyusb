@@ -150,10 +150,11 @@ void usb_hid_task(void* params)
   (void) params;
 
   // Poll every 10ms
-  static tu_timeout_t tm = { .start = 0, .interval = 10 };
+  const uint32_t interval_ms = 10;
+  static uint32_t start_ms = 0;
 
-  if ( !tu_timeout_expired(&tm) ) return; // not enough time
-  tu_timeout_reset(&tm);
+  if ( board_millis() < start_ms + interval_ms) return; // not enough time
+  start_ms += interval_ms;
 
   uint32_t const btn = board_buttons();
 

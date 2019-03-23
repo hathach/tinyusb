@@ -28,8 +28,6 @@
 
 #include "stm32f4xx.h"
 
-#include "tusb_option.h"
-
 void board_init(void)
 {
   // Init the LED on PD14
@@ -110,7 +108,7 @@ uint32_t tusb_hal_millis(void)
   return board_tick2ms(system_ticks);
 }
 
-uint32_t board_noos_millis(void)
+uint32_t board_millis(void)
 {
   return system_ticks;
 }

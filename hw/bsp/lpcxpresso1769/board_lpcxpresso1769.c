@@ -24,12 +24,8 @@
  * This file is part of the TinyUSB stack.
  */
 
-#ifdef BOARD_LPCXPRESSO1769
-
 #include "chip.h"
 #include "../board.h"
-
-#include "tusb_option.h"
 
 #define LED_PORT      0
 #define LED_PIN       22
@@ -163,7 +159,7 @@ uint32_t tusb_hal_millis(void)
   return board_tick2ms(system_ticks);
 }
 
-uint32_t board_noos_millis(void)
+uint32_t board_millis(void)
 {
   return system_ticks;
 }
@@ -217,5 +213,3 @@ int board_uart_write(void const * buf, int len)
   (void) len;
   return 0;
 }
-
-#endif

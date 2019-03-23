@@ -23,7 +23,6 @@
  *
  * This file is part of the TinyUSB stack.
  */
-#ifdef BOARD_PCA10056
 
 #include "bsp/board.h"
 
@@ -66,7 +65,7 @@ uint32_t tusb_hal_millis(void)
   return board_tick2ms(system_ticks);
 }
 
-uint32_t board_noos_millis(void)
+uint32_t board_millis(void)
 {
   return system_ticks;
 }
@@ -208,6 +207,4 @@ void nrf_error_cb(uint32_t id, uint32_t pc, uint32_t info)
   (void) pc;
   (void) info;
 }
-#endif
-
 #endif

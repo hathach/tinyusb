@@ -25,7 +25,6 @@
  */
 
 #include "../board.h"
-#include "tusb_option.h"
 
 #include "stm32f3xx.h"
 #include "stm32f3xx_hal_conf.h"
@@ -114,7 +113,7 @@ uint32_t tusb_hal_millis(void)
   return board_tick2ms(system_ticks);
 }
 
-uint32_t board_noos_millis(void)
+uint32_t board_millis(void)
 {
   return system_ticks;
 }

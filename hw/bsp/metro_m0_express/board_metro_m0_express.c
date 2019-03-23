@@ -35,8 +35,6 @@
 #include "hpl_pm_config.h"
 #include "hpl/pm/hpl_pm_base.h"
 
-#include "tusb_option.h"
-
 //--------------------------------------------------------------------+
 // MACRO TYPEDEF CONSTANT ENUM DECLARATION
 //--------------------------------------------------------------------+
@@ -120,7 +118,7 @@ uint32_t tusb_hal_millis(void)
   return board_tick2ms(system_ticks);
 }
 
-uint32_t board_noos_millis(void)
+uint32_t board_millis(void)
 {
   return system_ticks;
 }

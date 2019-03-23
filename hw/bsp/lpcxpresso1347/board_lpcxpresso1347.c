@@ -24,8 +24,6 @@
  * This file is part of the TinyUSB stack.
  */
 
-#ifdef BOARD_LPCXPRESSO1347
-
 #include "chip.h"
 #include "../board.h"
 
@@ -84,10 +82,6 @@ void board_init(void)
   SystemCoreClockUpdate();
 
 #if CFG_TUSB_OS == OPT_OS_NONE
-  SysTick_Config(SystemCoreClock / BOARD_TICKS_HZ); // 1 msec tick timer
-#endif
-
-#if CFG_TUSB_OS == OPT_OS_NONE
   // 1ms tick timer
   SysTick_Config(SystemCoreClock / 1000);
 #elif CFG_TUSB_OS == OPT_OS_FREERTOS
@@ -127,7 +121,7 @@ uint32_t tusb_hal_millis(void)
   return board_tick2ms(system_ticks);
 }
 
-uint32_t board_noos_millis(void)
+uint32_t board_millis(void)
 {
   return system_ticks;
 }
@@ -181,5 +175,3 @@ int board_uart_write(void const * buf, int len)
   (void) len;
   return 0;
 }
-
-#endif

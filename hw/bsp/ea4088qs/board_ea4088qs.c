@@ -24,12 +24,8 @@
  * This file is part of the TinyUSB stack.
  */
 
-#ifdef BOARD_EA4088QS
-
 #include "chip.h"
 #include "../board.h"
-
-#include "tusb_option.h"
 
 #define LED_PORT      2
 #define LED_PIN       19
@@ -175,11 +171,9 @@ uint32_t tusb_hal_millis(void)
   return board_tick2ms(system_ticks);
 }
 
-uint32_t board_noos_millis(void)
+uint32_t board_millis(void)
 {
   return system_ticks;
 }
-
-#endif
 
 #endif

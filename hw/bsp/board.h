@@ -40,7 +40,10 @@
 
 #include "ansi_escape.h"
 
+#include "tusb.h"
+
 #define CFG_UART_BAUDRATE    115200
+
 #define BOARD_TICKS_HZ       1000
 #define board_tick2ms(tck)   ( ( ((uint64_t)(tck)) * 1000) / BOARD_TICKS_HZ )
 
@@ -64,8 +67,26 @@ int board_uart_read(uint8_t* buf, int len);
 // Send characters to UART
 int board_uart_write(void const * buf, int len);
 
-// Get current milliseconds with no rtos configure (TUSB_CFG_OS = OPT_OS_NONE)
-uint32_t board_noos_millis(void);
+#if CFG_TUSB_OS == OPT_OS_NONE
+
+// Get current milliseconds, must be implemented in board.c when no OS is used
+uint32_t board_millis(void);
+
+#elif CFG_TUSB_OS == OPT_OS_FREERTOS
+
+static inline uint32_t board_millis(void)
+{
+  return ( ( ((uint64_t) xTaskGetTickCount()) * 1000) / configTICK_RATE_HZ );
+}
+
+#elif CFG_TUSB_OS == OPT_OS_MYNEWT
+
+static inline uint32_t board_millis(void)
+{
+  return os_time_ticks_to_ms32( os_time_get() );
+}
+
+#endif
 
 //--------------------------------------------------------------------+
 // Helper functions
