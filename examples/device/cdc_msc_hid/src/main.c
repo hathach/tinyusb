@@ -193,11 +193,12 @@ void tud_umount_cb(void)
 //--------------------------------------------------------------------+
 void led_blinking_task(void)
 {
-  static tu_timeout_t tm = { .start = 0, .interval = 1000 }; // Blink every 1000 ms
+  static uint32_t start_ms = 0;
   static bool led_state = false;
 
-  if ( !tu_timeout_expired(&tm) ) return; // not enough time
-  tu_timeout_reset(&tm);
+  // Blink every 1000 ms
+  if ( board_noos_millis() < start_ms + 1000) return; // not enough time
+  start_ms += 1000;
 
   board_led_control(led_state);
   led_state = 1 - led_state; // toggle

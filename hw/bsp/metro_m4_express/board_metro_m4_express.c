@@ -63,10 +63,9 @@ void board_init(void)
   gpio_set_pin_direction(LED_PIN, GPIO_DIRECTION_OUT);
   gpio_set_pin_level(LED_PIN, 0);
 
-  // Systick init
 #if CFG_TUSB_OS  == OPT_OS_NONE
-  // Tick init, samd SystemCoreClock may not correct
-  SysTick_Config(SystemCoreClock / 1000);
+  // 1ms tick timer (samd SystemCoreClock may not correct)
+  SysTick_Config(CONF_CPU_FREQUENCY / 1000);
 #endif
 
   /* USB Clock init
@@ -108,5 +107,10 @@ void SysTick_Handler (void)
 uint32_t tusb_hal_millis(void)
 {
   return board_tick2ms(system_ticks);
+}
+
+uint32_t board_noos_millis(void)
+{
+  return system_ticks;
 }
 #endif

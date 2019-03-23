@@ -28,11 +28,11 @@
  *  \defgroup Group_TimeoutTimer timeout timer
  *  @{ */
 
-
 #ifndef _TUSB_TIMEOUT_H_
 #define _TUSB_TIMEOUT_H_
 
-#include "tusb_compiler.h"
+#include <stdbool.h>
+#include <stdint.h>
 
 #ifdef __cplusplus
 extern "C" {

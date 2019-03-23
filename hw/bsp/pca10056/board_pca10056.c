@@ -65,6 +65,12 @@ uint32_t tusb_hal_millis(void)
 {
   return board_tick2ms(system_ticks);
 }
+
+uint32_t board_noos_millis(void)
+{
+  return system_ticks;
+}
+
 #endif
 
 /*------------------------------------------------------------------*/
@@ -89,7 +95,7 @@ void board_init(void)
   for(uint8_t i=0; i<BOARD_BUTTON_COUNT; i++) nrf_gpio_cfg_input(_button_pins[i], NRF_GPIO_PIN_PULLUP);
 
 #if CFG_TUSB_OS  == OPT_OS_NONE
-  // Tick init
+  // 1ms tick timer
   SysTick_Config(SystemCoreClock/1000);
 #endif
 

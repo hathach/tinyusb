@@ -95,7 +95,8 @@ void board_init(void)
   SystemCoreClockUpdate();
 
 #if CFG_TUSB_OS == OPT_OS_NONE
-  SysTick_Config( SystemCoreClock / BOARD_TICKS_HZ );
+  // 1ms tick timer
+  SysTick_Config(SystemCoreClock / 1000);
 #endif
 
   Chip_GPIO_Init(LPC_GPIO_PORT);
@@ -238,6 +239,11 @@ void SysTick_Handler (void)
 uint32_t tusb_hal_millis(void)
 {
   return board_tick2ms(system_ticks);
+}
+
+uint32_t board_noos_millis(void)
+{
+  return system_ticks;
 }
 
 #endif

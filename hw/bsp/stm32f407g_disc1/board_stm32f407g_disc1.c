@@ -60,9 +60,10 @@ void board_init(void)
 
   // Notify runtime of frequency change.
   SystemCoreClockUpdate();
-  // Systick init
+
   #if CFG_TUSB_OS  == OPT_OS_NONE
-    SysTick_Config(SystemCoreClock / 1000);
+  // 1ms tick timer
+  SysTick_Config(SystemCoreClock / 1000);
   #endif
 
   RCC->AHB2ENR |= RCC_AHB2ENR_OTGFSEN;
@@ -107,6 +108,11 @@ void SysTick_Handler (void)
 uint32_t tusb_hal_millis(void)
 {
   return board_tick2ms(system_ticks);
+}
+
+uint32_t board_noos_millis(void)
+{
+  return system_ticks;
 }
 #endif
 

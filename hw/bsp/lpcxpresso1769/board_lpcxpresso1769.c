@@ -85,7 +85,8 @@ void board_init(void)
   SystemCoreClockUpdate();
 
 #if CFG_TUSB_OS == OPT_OS_NONE
-  SysTick_Config(SystemCoreClock / BOARD_TICKS_HZ);
+  // 1ms tick timer
+  SysTick_Config(SystemCoreClock / 1000);
 #elif CFG_TUSB_OS == OPT_OS_FREERTOS
   // If freeRTOS is used, IRQ priority is limit by max syscall ( smaller is higher )
   NVIC_SetPriority(USB_IRQn, configLIBRARY_MAX_SYSCALL_INTERRUPT_PRIORITY );
@@ -160,6 +161,11 @@ void SysTick_Handler (void)
 uint32_t tusb_hal_millis(void)
 {
   return board_tick2ms(system_ticks);
+}
+
+uint32_t board_noos_millis(void)
+{
+  return system_ticks;
 }
 
 #endif

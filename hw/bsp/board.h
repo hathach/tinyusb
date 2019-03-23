@@ -64,6 +64,9 @@ int board_uart_read(uint8_t* buf, int len);
 // Send characters to UART
 int board_uart_write(void const * buf, int len);
 
+// Get current milliseconds with no rtos configure (TUSB_CFG_OS = OPT_OS_NONE)
+uint32_t board_noos_millis(void);
+
 //--------------------------------------------------------------------+
 // Helper functions
 //--------------------------------------------------------------------+
