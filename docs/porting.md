@@ -53,12 +53,6 @@ The OS Abstraction Layer is responsible for providing basic data structures for 
 
 The code is almost entirely agnostic of MCU and lives in `src/osal`.
 
-#### tusb_hal_millis
-
-The OPT_OS_NONE option is the only option which requires an MCU specific function. It needs `tusb_hal_millis` to measure the passage of time. On ARM this is commonly done with SysTick. The function returns the elapsed number of milliseconds since startup.
-
-`tusb_hal_millis` is also provided in `hw/bsp/<board name>/board_<board name>.c` because it may vary with MCU use.
-
 ### Device API
 
 After the USB device is setup, the USB device code works by processing events on the main thread (by calling `tud_task`). These events are queued by the USB interrupt handler. So, there are three parts to the device low-level API: device setup, endpoint setup and interrupt processing.

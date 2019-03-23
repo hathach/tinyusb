@@ -63,7 +63,6 @@
       <folder Name="bsp">
         <folder Name="stm32f407g_disc1">
           <file file_name="../../../../../hw/bsp/stm32f407g_disc1/board_stm32f407g_disc1.c" />
-          <file file_name="../../../../../hw/bsp/stm32f407g_disc1/board_stm32f407g_disc1.h" />
         </folder>
         <file file_name="../../../../../hw/bsp/board.h" />
       </folder>

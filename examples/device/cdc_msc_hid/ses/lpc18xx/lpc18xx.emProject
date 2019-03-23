@@ -54,7 +54,6 @@
         <file file_name="../../../../../hw/bsp/board.h" />
         <folder Name="mcb1800">
           <file file_name="../../../../../hw/bsp/mcb1800/board_mcb1800.c" />
-          <file file_name="../../../../../hw/bsp/mcb1800/board_mcb1800.h" />
         </folder>
       </folder>
       <folder Name="mcu">

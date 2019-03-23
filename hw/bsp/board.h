@@ -86,6 +86,10 @@ static inline uint32_t board_millis(void)
   return os_time_ticks_to_ms32( os_time_get() );
 }
 
+#elif
+
+#error "Need to implement board_millis() for this OS"
+
 #endif
 
 //--------------------------------------------------------------------+

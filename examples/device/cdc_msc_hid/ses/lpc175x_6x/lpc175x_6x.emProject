@@ -47,39 +47,40 @@
         <file file_name="../../../../../hw/bsp/board.h" />
         <folder Name="lpcxpresso1769">
           <file file_name="../../../../../hw/bsp/lpcxpresso1769/board_lpcxpresso1769.c" />
-          <file file_name="../../../../../hw/bsp/lpcxpresso1769/board_lpcxpresso1769.h" />
         </folder>
       </folder>
       <folder Name="mcu">
         <folder Name="nxp">
-          <folder Name="lpc_chip_175x_6x">
-            <folder Name="inc">
-              <file file_name="../../../../../hw/mcu/nxp/lpcopen/lpc_chip_175x_6x/inc/chip.h" />
-              <file file_name="../../../../../hw/mcu/nxp/lpcopen/lpc_chip_175x_6x/inc/chip_lpc175x_6x.h" />
-              <file file_name="../../../../../hw/mcu/nxp/lpcopen/lpc_chip_175x_6x/inc/chip_lpc177x_8x.h" />
-              <file file_name="../../../../../hw/mcu/nxp/lpcopen/lpc_chip_175x_6x/inc/chip_lpc407x_8x.h" />
-              <file file_name="../../../../../hw/mcu/nxp/lpcopen/lpc_chip_175x_6x/inc/clock_17xx_40xx.h" />
-              <file file_name="../../../../../hw/mcu/nxp/lpcopen/lpc_chip_175x_6x/inc/cmsis.h" />
-              <file file_name="../../../../../hw/mcu/nxp/lpcopen/lpc_chip_175x_6x/inc/cmsis_175x_6x.h" />
-              <file file_name="../../../../../hw/mcu/nxp/lpcopen/lpc_chip_175x_6x/inc/core_cm3.h" />
-              <file file_name="../../../../../hw/mcu/nxp/lpcopen/lpc_chip_175x_6x/inc/core_cmFunc.h" />
-              <file file_name="../../../../../hw/mcu/nxp/lpcopen/lpc_chip_175x_6x/inc/core_cmInstr.h" />
-              <file file_name="../../../../../hw/mcu/nxp/lpcopen/lpc_chip_175x_6x/inc/gpio_17xx_40xx.h" />
-              <file file_name="../../../../../hw/mcu/nxp/lpcopen/lpc_chip_175x_6x/inc/gpioint_17xx_40xx.h" />
-              <file file_name="../../../../../hw/mcu/nxp/lpcopen/lpc_chip_175x_6x/inc/iocon_17xx_40xx.h" />
-              <file file_name="../../../../../hw/mcu/nxp/lpcopen/lpc_chip_175x_6x/inc/lpc_types.h" />
-              <file file_name="../../../../../hw/mcu/nxp/lpcopen/lpc_chip_175x_6x/inc/sys_config.h" />
-              <file file_name="../../../../../hw/mcu/nxp/lpcopen/lpc_chip_175x_6x/inc/sysctl_17xx_40xx.h" />
-              <file file_name="../../../../../hw/mcu/nxp/lpcopen/lpc_chip_175x_6x/inc/uart_17xx_40xx.h" />
-            </folder>
-            <folder Name="src">
-              <file file_name="../../../../../hw/mcu/nxp/lpcopen/lpc_chip_175x_6x/src/chip_17xx_40xx.c" />
-              <file file_name="../../../../../hw/mcu/nxp/lpcopen/lpc_chip_175x_6x/src/clock_17xx_40xx.c" />
-              <file file_name="../../../../../hw/mcu/nxp/lpcopen/lpc_chip_175x_6x/src/gpio_17xx_40xx.c" />
-              <file file_name="../../../../../hw/mcu/nxp/lpcopen/lpc_chip_175x_6x/src/iocon_17xx_40xx.c" />
-              <file file_name="../../../../../hw/mcu/nxp/lpcopen/lpc_chip_175x_6x/src/sysctl_17xx_40xx.c" />
-              <file file_name="../../../../../hw/mcu/nxp/lpcopen/lpc_chip_175x_6x/src/sysinit_17xx_40xx.c" />
-              <file file_name="../../../../../hw/mcu/nxp/lpcopen/lpc_chip_175x_6x/src/uart_17xx_40xx.c" />
+          <folder Name="lpcopen">
+            <folder Name="lpc_chip_175x_6x">
+              <folder Name="inc">
+                <file file_name="../../../../../hw/mcu/nxp/lpcopen/lpc_chip_175x_6x/inc/chip.h" />
+                <file file_name="../../../../../hw/mcu/nxp/lpcopen/lpc_chip_175x_6x/inc/chip_lpc175x_6x.h" />
+                <file file_name="../../../../../hw/mcu/nxp/lpcopen/lpc_chip_175x_6x/inc/chip_lpc177x_8x.h" />
+                <file file_name="../../../../../hw/mcu/nxp/lpcopen/lpc_chip_175x_6x/inc/chip_lpc407x_8x.h" />
+                <file file_name="../../../../../hw/mcu/nxp/lpcopen/lpc_chip_175x_6x/inc/clock_17xx_40xx.h" />
+                <file file_name="../../../../../hw/mcu/nxp/lpcopen/lpc_chip_175x_6x/inc/cmsis.h" />
+                <file file_name="../../../../../hw/mcu/nxp/lpcopen/lpc_chip_175x_6x/inc/cmsis_175x_6x.h" />
+                <file file_name="../../../../../hw/mcu/nxp/lpcopen/lpc_chip_175x_6x/inc/core_cm3.h" />
+                <file file_name="../../../../../hw/mcu/nxp/lpcopen/lpc_chip_175x_6x/inc/core_cmFunc.h" />
+                <file file_name="../../../../../hw/mcu/nxp/lpcopen/lpc_chip_175x_6x/inc/core_cmInstr.h" />
+                <file file_name="../../../../../hw/mcu/nxp/lpcopen/lpc_chip_175x_6x/inc/gpio_17xx_40xx.h" />
+                <file file_name="../../../../../hw/mcu/nxp/lpcopen/lpc_chip_175x_6x/inc/gpioint_17xx_40xx.h" />
+                <file file_name="../../../../../hw/mcu/nxp/lpcopen/lpc_chip_175x_6x/inc/iocon_17xx_40xx.h" />
+                <file file_name="../../../../../hw/mcu/nxp/lpcopen/lpc_chip_175x_6x/inc/lpc_types.h" />
+                <file file_name="../../../../../hw/mcu/nxp/lpcopen/lpc_chip_175x_6x/inc/sys_config.h" />
+                <file file_name="../../../../../hw/mcu/nxp/lpcopen/lpc_chip_175x_6x/inc/sysctl_17xx_40xx.h" />
+                <file file_name="../../../../../hw/mcu/nxp/lpcopen/lpc_chip_175x_6x/inc/uart_17xx_40xx.h" />
+              </folder>
+              <folder Name="src">
+                <file file_name="../../../../../hw/mcu/nxp/lpcopen/lpc_chip_175x_6x/src/chip_17xx_40xx.c" />
+                <file file_name="../../../../../hw/mcu/nxp/lpcopen/lpc_chip_175x_6x/src/clock_17xx_40xx.c" />
+                <file file_name="../../../../../hw/mcu/nxp/lpcopen/lpc_chip_175x_6x/src/gpio_17xx_40xx.c" />
+                <file file_name="../../../../../hw/mcu/nxp/lpcopen/lpc_chip_175x_6x/src/iocon_17xx_40xx.c" />
+                <file file_name="../../../../../hw/mcu/nxp/lpcopen/lpc_chip_175x_6x/src/sysctl_17xx_40xx.c" />
+                <file file_name="../../../../../hw/mcu/nxp/lpcopen/lpc_chip_175x_6x/src/sysinit_17xx_40xx.c" />
+                <file file_name="../../../../../hw/mcu/nxp/lpcopen/lpc_chip_175x_6x/src/uart_17xx_40xx.c" />
+              </folder>
             </folder>
           </folder>
         </folder>

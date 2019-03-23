@@ -44,7 +44,6 @@
       <folder Name="bsp">
         <folder Name="pca10056">
           <file file_name="../../../../../hw/bsp/pca10056/board_pca10056.c" />
-          <file file_name="../../../../../hw/bsp/pca10056/board_pca10056.h" />
         </folder>
         <file file_name="../../../../../hw/bsp/ansi_escape.h" />
         <file file_name="../../../../../hw/bsp/board.h" />

@@ -32,8 +32,6 @@
 // INCLUDE
 //--------------------------------------------------------------------+
 #include "common/tusb_common.h"
-#include "tusb_hal.h"
-
 #include "device/dcd.h"
 #include "dcd_lpc18_43.h"
 

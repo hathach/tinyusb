@@ -54,7 +54,6 @@
         <file file_name="../../../../../hw/bsp/board.h" />
         <folder Name="lpcxpresso1347">
           <file file_name="../../../../../hw/bsp/lpcxpresso1347/board_lpcxpresso1347.c" />
-          <file file_name="../../../../../hw/bsp/lpcxpresso1347/board_lpcxpresso1347.h" />
         </folder>
       </folder>
       <folder Name="mcu">

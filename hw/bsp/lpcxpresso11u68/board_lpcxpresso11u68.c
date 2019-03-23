@@ -103,11 +103,6 @@ void SysTick_Handler (void)
   system_ticks++;
 }
 
-uint32_t tusb_hal_millis(void)
-{
-  return board_tick2ms(system_ticks);
-}
-
 uint32_t board_millis(void)
 {
   return system_ticks;

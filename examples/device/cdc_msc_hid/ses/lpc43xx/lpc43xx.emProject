@@ -47,7 +47,6 @@
         <file file_name="../../../../../hw/bsp/board.h" />
         <folder Name="ea4357">
           <file file_name="../../../../../hw/bsp/ea4357/board_ea4357.c" />
-          <file file_name="../../../../../hw/bsp/ea4357/board_ea4357.h" />
           <file file_name="../../../../../hw/bsp/ea4357/pca9532.c" />
           <file file_name="../../../../../hw/bsp/ea4357/pca9532.h" />
         </folder>

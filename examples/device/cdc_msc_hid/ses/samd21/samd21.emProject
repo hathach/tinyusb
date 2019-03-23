@@ -46,7 +46,6 @@
         <file file_name="../../../../../hw/bsp/board.h" />
         <folder Name="metro_m0_express">
           <file file_name="../../../../../hw/bsp/metro_m0_express/board_metro_m0_express.c" />
-          <file file_name="../../../../../hw/bsp/metro_m0_express/board_metro_m0_express.h" />
         </folder>
       </folder>
       <folder Name="mcu">

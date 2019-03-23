@@ -43,6 +43,8 @@ typedef struct {
   uint32_t interval;
 }tu_timeout_t;
 
+#if 0
+
 extern uint32_t tusb_hal_millis(void);
 
 static inline void tu_timeout_set(tu_timeout_t* tt, uint32_t msec)
@@ -66,6 +68,8 @@ static inline void tu_timeout_restart(tu_timeout_t* tt)
 {
   tt->start = tusb_hal_millis();
 }
+
+#endif
 
 #ifdef __cplusplus
  }

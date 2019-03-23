@@ -27,8 +27,6 @@
 #ifndef _TUSB_OSAL_NONE_H_
 #define _TUSB_OSAL_NONE_H_
 
-#include "tusb_hal.h"
-
 #ifdef __cplusplus
  extern "C" {
 #endif
@@ -38,8 +36,11 @@
 //--------------------------------------------------------------------+
 static inline void osal_task_delay(uint32_t msec)
 {
-  uint32_t start = tusb_hal_millis();
-  while ( ( tusb_hal_millis() - start ) < msec ) {}
+  (void) msec;
+  // TODO only used by Host stack, will implement using SOF
+
+//  uint32_t start = tusb_hal_millis();
+//  while ( ( tusb_hal_millis() - start ) < msec ) {}
 }
 
 //--------------------------------------------------------------------+

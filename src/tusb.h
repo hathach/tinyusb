@@ -35,7 +35,6 @@
 // INCLUDE
 //--------------------------------------------------------------------+
 #include "common/tusb_common.h"
-#include "tusb_hal.h"
 #include "osal/osal.h"
 #include "common/tusb_fifo.h"
 

@@ -56,7 +56,6 @@
         <file file_name="../../../../../hw/bsp/board.h" />
         <folder Name="ea4088qs">
           <file file_name="../../../../../hw/bsp/ea4088qs/board_ea4088qs.c" />
-          <file file_name="../../../../../hw/bsp/ea4088qs/board_ea4088qs.h" />
         </folder>
       </folder>
       <folder Name="mcu">
