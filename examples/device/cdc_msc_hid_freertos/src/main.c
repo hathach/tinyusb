@@ -125,6 +125,8 @@ void cdc_task(void* params)
         tud_cdc_write_flush();
       }
     }
+
+    taskYIELD();
   }
 }
 

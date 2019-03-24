@@ -91,6 +91,8 @@ void board_init(void)
   SysTick_Config(SystemCoreClock/1000);
 #endif
 
+  // Priorities 0, 1, 4 (nRF52) are reserved for SoftDevice
+  // 2 is highest for application
   NVIC_SetPriority(USBD_IRQn, 2);
 
   // USB power may already be ready at this time -> no event generated

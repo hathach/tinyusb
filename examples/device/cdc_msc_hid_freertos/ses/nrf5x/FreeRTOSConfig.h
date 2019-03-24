@@ -83,7 +83,7 @@
 
 /* Software timer related definitions. */
 #define configUSE_TIMERS                       1
-#define configTIMER_TASK_PRIORITY              2
+#define configTIMER_TASK_PRIORITY              (configMAX_PRIORITIES-2)
 #define configTIMER_QUEUE_LENGTH               32
 #define configTIMER_TASK_STACK_DEPTH           configMINIMAL_STACK_SIZE
 
