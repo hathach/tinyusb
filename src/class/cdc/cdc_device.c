@@ -75,6 +75,26 @@ typedef struct
 //--------------------------------------------------------------------+
 CFG_TUSB_MEM_SECTION static cdcd_interface_t _cdcd_itf[CFG_TUD_CDC] = { { 0 } };
 
+// TODO will be replaced by dcd_edpt_busy()
+bool pending_read_from_host;
+static void _prep_out_transaction (uint8_t itf)
+{
+  cdcd_interface_t* p_cdc = &_cdcd_itf[itf];
+
+  // skip if previous transfer not complete
+  // dcd_edpt_busy() doesn't work, probably transfer is complete but not properly handled by the stack
+//  if ( dcd_edpt_busy(TUD_OPT_RHPORT, p_cdc->ep_out) ) return;
+  if (pending_read_from_host) return;
+
+  // Prepare for incoming data but only allow what we can store in the ring buffer.
+  uint16_t max_read = tu_fifo_remaining(&p_cdc->rx_ff);
+  if ( max_read >= CFG_TUD_CDC_EPSIZE )
+  {
+    dcd_edpt_xfer(TUD_OPT_RHPORT, p_cdc->ep_out, p_cdc->epout_buf, CFG_TUD_CDC_EPSIZE);
+    pending_read_from_host = true;
+  }
+}
+
 //--------------------------------------------------------------------+
 // APPLICATION API
 //--------------------------------------------------------------------+
@@ -111,12 +131,14 @@ uint32_t tud_cdc_n_available(uint8_t itf)
 char tud_cdc_n_read_char(uint8_t itf)
 {
   char ch;
-  return tu_fifo_read(&_cdcd_itf[itf].rx_ff, &ch) ? ch : (-1);
+  return tud_cdc_n_read(itf, &ch, 1) ? ch : (-1);
 }
 
 uint32_t tud_cdc_n_read(uint8_t itf, void* buffer, uint32_t bufsize)
 {
-  return tu_fifo_read_n(&_cdcd_itf[itf].rx_ff, buffer, bufsize);
+  uint32_t num_read = tu_fifo_read_n(&_cdcd_itf[itf].rx_ff, buffer, bufsize);
+  _prep_out_transaction(itf);
+  return num_read;
 }
 
 char tud_cdc_n_peek(uint8_t itf, int pos)
@@ -128,6 +150,7 @@ char tud_cdc_n_peek(uint8_t itf, int pos)
 void tud_cdc_n_read_flush (uint8_t itf)
 {
   tu_fifo_clear(&_cdcd_itf[itf].rx_ff);
+  _prep_out_transaction(itf);
 }
 
 //--------------------------------------------------------------------+
@@ -195,7 +218,7 @@ void cdcd_init(void)
     p_cdc->line_coding.data_bits = 8;
 
     // config fifo
-    tu_fifo_config(&p_cdc->rx_ff, p_cdc->rx_ff_buf, CFG_TUD_CDC_RX_BUFSIZE, 1, true);
+    tu_fifo_config(&p_cdc->rx_ff, p_cdc->rx_ff_buf, CFG_TUD_CDC_RX_BUFSIZE, 1, false);
     tu_fifo_config(&p_cdc->tx_ff, p_cdc->tx_ff_buf, CFG_TUD_CDC_TX_BUFSIZE, 1, false);
 
 #if CFG_FIFO_MUTEX
@@ -228,11 +251,12 @@ bool cdcd_open(uint8_t rhport, tusb_desc_interface_t const * itf_desc, uint16_t 
 
   // Find available interface
   cdcd_interface_t * p_cdc = NULL;
-  for(uint8_t i=0; i<CFG_TUD_CDC; i++)
+  uint8_t cdc_id;
+  for(cdc_id=0; cdc_id<CFG_TUD_CDC; cdc_id++)
   {
-    if ( _cdcd_itf[i].ep_in == 0 )
+    if ( _cdcd_itf[cdc_id].ep_in == 0 )
     {
-      p_cdc = &_cdcd_itf[i];
+      p_cdc = &_cdcd_itf[cdc_id];
       break;
     }
   }
@@ -278,7 +302,8 @@ bool cdcd_open(uint8_t rhport, tusb_desc_interface_t const * itf_desc, uint16_t 
   }
 
   // Prepare for incoming data
-  TU_ASSERT( dcd_edpt_xfer(rhport, p_cdc->ep_out, p_cdc->epout_buf, CFG_TUD_CDC_EPSIZE) );
+  pending_read_from_host = false;
+  _prep_out_transaction(cdc_id);
 
   return true;
 }
@@ -348,6 +373,7 @@ bool cdcd_control_request(uint8_t rhport, tusb_control_request_t const * request
 
 bool cdcd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint32_t xferred_bytes)
 {
+  (void) rhport;
   (void) result;
 
   // TODO Support multiple interfaces
@@ -371,11 +397,12 @@ bool cdcd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint32_
     // invoke receive callback (if there is still data)
     if (tud_cdc_rx_cb && tu_fifo_count(&p_cdc->rx_ff) ) tud_cdc_rx_cb(itf);
 
-    // prepare for incoming data
-    TU_ASSERT( dcd_edpt_xfer(rhport, p_cdc->ep_out, p_cdc->epout_buf, CFG_TUD_CDC_EPSIZE) );
+    // prepare for OUT transaction
+    pending_read_from_host = false;
+    _prep_out_transaction(itf);
   }
 
-  // nothing to do with in and notif endpoint
+  // nothing to do with in and notif endpoint for now
 
   return true;
 }
