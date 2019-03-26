@@ -153,13 +153,6 @@ void dcd_set_address(uint8_t rhport, uint8_t dev_addr)
   LPC_USB->DEVCMDSTAT |= dev_addr;
 }
 
-uint32_t dcd_get_frame_number(uint8_t rhport)
-{
-  (void) rhport;
-
-  return LPC_USB->INFO & (TU_BIT(11) - 1);
-}
-
 bool dcd_init(uint8_t rhport)
 {
   (void) rhport;

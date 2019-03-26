@@ -114,12 +114,6 @@ void dcd_set_config (uint8_t rhport, uint8_t config_num)
   // Nothing to do
 }
 
-uint32_t dcd_get_frame_number(uint8_t rhport)
-{
-  (void) rhport;
-  return USB->DEVICE.FNUM.bit.FNUM;
-}
-
 /*------------------------------------------------------------------*/
 /* DCD Endpoint port
  *------------------------------------------------------------------*/

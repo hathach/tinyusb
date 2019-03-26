@@ -217,12 +217,6 @@ void dcd_set_config(uint8_t rhport, uint8_t config_num)
   sie_write(SIE_CMDCODE_CONFIGURE_DEVICE, 1, 1);
 }
 
-uint32_t dcd_get_frame_number(uint8_t rhport)
-{
-  (void) rhport;
-  return (uint32_t) sie_read(SIE_CMDCODE_READ_FRAME_NUMBER);
-}
-
 //--------------------------------------------------------------------+
 // CONTROL HELPER
 //--------------------------------------------------------------------+

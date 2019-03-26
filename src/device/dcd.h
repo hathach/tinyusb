@@ -94,9 +94,6 @@ void dcd_set_address(uint8_t rhport, uint8_t dev_addr);
 // Receive Set Config request
 void dcd_set_config (uint8_t rhport, uint8_t config_num);
 
-// Get current frame number
-uint32_t dcd_get_frame_number(uint8_t rhport);
-
 /*------------------------------------------------------------------*/
 /* Endpoint API
  *  - open        : Configure endpoint's registers

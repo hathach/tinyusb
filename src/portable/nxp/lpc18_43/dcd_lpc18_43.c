@@ -163,11 +163,6 @@ void dcd_set_config(uint8_t rhport, uint8_t config_num)
   // nothing to do
 }
 
-uint32_t dcd_get_frame_number(uint8_t rhport)
-{
-  return LPC_USB[rhport]->FRINDEX_D >> 3;
-}
-
 //--------------------------------------------------------------------+
 // HELPER
 //--------------------------------------------------------------------+
