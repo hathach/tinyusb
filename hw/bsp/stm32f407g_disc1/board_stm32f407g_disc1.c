@@ -24,15 +24,10 @@
  * This file is part of the TinyUSB stack.
  */
 
-#include "bsp/board.h"
+#include "../board.h"
 
 #include "stm32f4xx.h"
 
-#include "tusb_option.h"
-
-//--------------------------------------------------------------------+
-// MACRO TYPEDEF CONSTANT ENUM DECLARATION
-//--------------------------------------------------------------------+
 void board_init(void)
 {
   // Init the LED on PD14
@@ -63,9 +58,10 @@ void board_init(void)
 
   // Notify runtime of frequency change.
   SystemCoreClockUpdate();
-  // Systick init
+
   #if CFG_TUSB_OS  == OPT_OS_NONE
-    SysTick_Config(SystemCoreClock / 1000);
+  // 1ms tick timer
+  SysTick_Config(SystemCoreClock / 1000);
   #endif
 
   RCC->AHB2ENR |= RCC_AHB2ENR_OTGFSEN;
@@ -107,9 +103,9 @@ void SysTick_Handler (void)
   system_ticks++;
 }
 
-uint32_t tusb_hal_millis(void)
+uint32_t board_millis(void)
 {
-  return board_tick2ms(system_ticks);
+  return system_ticks;
 }
 #endif
 

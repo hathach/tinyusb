@@ -19,7 +19,7 @@
       arm_target_device_name="LPC11U68"
       arm_target_interface_type="SWD"
       build_treat_warnings_as_errors="Yes"
-      c_preprocessor_definitions="__LPC11U68__;__LPC1100_FAMILY;__LPC11U00_SUBFAMILY;ARM_MATH_CM0PLUS;FLASH_PLACEMENT=1;CORE_M0PLUS;BOARD_LPCXPRESSO11U68;CFG_TUSB_MCU=OPT_MCU_LPC11UXX;CFG_TUSB_MEM_SECTION= __attribute__((section(&quot;.bss3&quot;)));CFG_TUSB_MEM_ALIGN=__attribute__ ((aligned(64)))"
+      c_preprocessor_definitions="__LPC11U68__;__LPC1100_FAMILY;__LPC11U00_SUBFAMILY;ARM_MATH_CM0PLUS;FLASH_PLACEMENT=1;CORE_M0PLUS;CFG_TUSB_MCU=OPT_MCU_LPC11UXX;CFG_TUSB_MEM_SECTION= __attribute__((section(&quot;.bss3&quot;)));CFG_TUSB_MEM_ALIGN=__attribute__ ((aligned(64)))"
       c_user_include_directories="../../src;$(rootDir)/hw;$(rootDir)/hw/mcu/nxp/lpcopen/lpc_chip_11u6x/inc;$(rootDir)/src"
       debug_register_definition_file="$(ProjectDir)/LPC11U6x_Registers.xml"
       debug_target_connection="J-Link"
@@ -47,6 +47,7 @@
     </folder>
     <configuration
       Name="LPCXpresso 11U68"
+      c_preprocessor_definitions="BOARD_LPCXPRESSO11U68"
       link_use_linker_script_file="No"
       linker_section_placement_file="flash_placement.xml" />
     <folder Name="hw">

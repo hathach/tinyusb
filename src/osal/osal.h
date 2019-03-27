@@ -53,8 +53,6 @@ typedef void (*osal_task_func_t)( void * );
 #else
   /* RTOS Porting API
    *
-   * uint32_t tusb_hal_millis(void)
-   *
    * Task
    *    void osal_task_delay(uint32_t msec)
    *

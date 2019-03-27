@@ -164,11 +164,14 @@ void tuh_hid_mouse_isr(uint8_t dev_addr, xfer_result_t event)
 //--------------------------------------------------------------------+
 void led_blinking_task(void)
 {
-  static tu_timeout_t tm = { .start = 0, .interval = 1000 }; // Blink every 1000 ms
+  const uint32_t interval_ms = 1000;
+  static uint32_t start_ms = 0;
+
   static bool led_state = false;
 
-  if ( !tu_timeout_expired(&tm) ) return; // not enough time
-  tu_timeout_reset(&tm);
+  // Blink every 1000 ms
+  if ( board_millis() < start_ms + interval_ms) return; // not enough time
+  start_ms += interval_ms;
 
   board_led_control(led_state);
   led_state = 1 - led_state; // toggle

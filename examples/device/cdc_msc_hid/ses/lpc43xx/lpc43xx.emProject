@@ -19,7 +19,7 @@
       arm_target_device_name="LPC4357_M4"
       arm_target_interface_type="SWD"
       build_treat_warnings_as_errors="Yes"
-      c_preprocessor_definitions="CORE_M4;__LPC4300_FAMILY;__LPC435x_SUBFAMILY;ARM_MATH_CM4;FLASH_PLACEMENT=1;BOARD_EA4357;CFG_TUSB_MCU=OPT_MCU_LPC43XX;CFG_TUSB_MEM_SECTION= __attribute__((section(&quot;.bss2&quot;)))"
+      c_preprocessor_definitions="CORE_M4;__LPC4300_FAMILY;__LPC435x_SUBFAMILY;ARM_MATH_CM4;FLASH_PLACEMENT=1;CFG_TUSB_MCU=OPT_MCU_LPC43XX;CFG_TUSB_MEM_SECTION= __attribute__((section(&quot;.bss2&quot;)))"
       c_user_include_directories="../../src;$(rootDir)/hw;$(rootDir)/hw/mcu/nxp/lpcopen/lpc_chip_43xx/inc;$(rootDir)/hw/mcu/nxp/lpcopen/lpc_chip_43xx/inc/config_43xx;$(rootDir)/src;$(lpcDir)//inc"
       debug_register_definition_file="LPC43xx_Registers.xml"
       debug_target_connection="J-Link"
@@ -47,7 +47,6 @@
         <file file_name="../../../../../hw/bsp/board.h" />
         <folder Name="ea4357">
           <file file_name="../../../../../hw/bsp/ea4357/board_ea4357.c" />
-          <file file_name="../../../../../hw/bsp/ea4357/board_ea4357.h" />
           <file file_name="../../../../../hw/bsp/ea4357/pca9532.c" />
           <file file_name="../../../../../hw/bsp/ea4357/pca9532.h" />
         </folder>
@@ -129,5 +128,7 @@
       filter="*.c;*.h"
       path="../../../../../lib/segger_rtt"
       recurse="No" />
+    <configuration Name="EA4357" c_preprocessor_definitions="BOARD_EA4357" />
   </project>
+  <configuration Name="EA4357" />
 </solution>

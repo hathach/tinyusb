@@ -40,10 +40,8 @@
 #endif
 
 //--------------------------------------------------------------------+
-// RNDIS-CDC Driver API
+// INTERNAL RNDIS-CDC Driver API
 //--------------------------------------------------------------------+
-#ifdef _TINY_USB_SOURCE_FILE_
-
 typedef struct {
   OSAL_SEM_DEF(semaphore_notification);
   osal_semaphore_handle_t sem_notification_hdl;  // used to wait on notification pipe
@@ -55,8 +53,6 @@ void rndish_init(void);
 tusb_error_t rndish_open_subtask(uint8_t dev_addr, cdch_data_t *p_cdc);
 void rndish_xfer_isr(cdch_data_t *p_cdc, pipe_handle_t pipe_hdl, xfer_result_t event, uint32_t xferred_bytes);
 void rndish_close(uint8_t dev_addr);
-
-#endif
 
 #ifdef __cplusplus
  }

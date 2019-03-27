@@ -35,8 +35,6 @@
 #include "hpl_pm_config.h"
 #include "hpl/pm/hpl_pm_base.h"
 
-#include "tusb_option.h"
-
 //--------------------------------------------------------------------+
 // MACRO TYPEDEF CONSTANT ENUM DECLARATION
 //--------------------------------------------------------------------+
@@ -66,8 +64,8 @@ void board_init(void)
   gpio_set_pin_level(LED_PIN, 0);
 
 #if CFG_TUSB_OS  == OPT_OS_NONE
-  // Tick init, samd SystemCoreClock may not correct
-  SysTick_Config(CONF_CPU_FREQUENCY/1000);
+  // 1ms tick timer (samd SystemCoreClock may not correct)
+  SysTick_Config(CONF_CPU_FREQUENCY / 1000);
 #endif
 
   /* USB Clock init
@@ -115,8 +113,10 @@ void SysTick_Handler (void)
   system_ticks++;
 }
 
-uint32_t tusb_hal_millis(void)
+uint32_t board_millis(void)
 {
-  return board_tick2ms(system_ticks);
+  return system_ticks;
 }
+
+
 #endif

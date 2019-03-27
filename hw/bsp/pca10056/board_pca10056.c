@@ -23,9 +23,10 @@
  *
  * This file is part of the TinyUSB stack.
  */
-#ifdef BOARD_PCA10056
 
 #include "bsp/board.h"
+
+#include "nrfx.h"
 #include "nrfx/hal/nrf_gpio.h"
 #include "nrfx/drivers/include/nrfx_power.h"
 #include "nrfx/drivers/include/nrfx_qspi.h"
@@ -34,8 +35,6 @@
 #include "nrf_sdm.h"
 #include "nrf_soc.h"
 #endif
-
-#include "tusb.h"
 
 /*------------------------------------------------------------------*/
 /* MACRO TYPEDEF CONSTANT ENUM
@@ -51,7 +50,7 @@ uint8_t _button_pins[] = { 11, 12, 24, 25 };
 /*------------------------------------------------------------------*/
 /* TUSB HAL MILLISECOND
  *------------------------------------------------------------------*/
-#if CFG_TUSB_OS  == OPT_OS_NONE
+#if CFG_TUSB_OS == OPT_OS_NONE
 volatile uint32_t system_ticks = 0;
 
 void SysTick_Handler (void)
@@ -59,25 +58,19 @@ void SysTick_Handler (void)
   system_ticks++;
 }
 
-uint32_t tusb_hal_millis(void)
+uint32_t board_millis(void)
 {
-  return board_tick2ms(system_ticks);
+  return system_ticks;
 }
+
 #endif
 
 /*------------------------------------------------------------------*/
 /* BOARD API
  *------------------------------------------------------------------*/
-enum {
-  QSPI_CMD_RSTEN = 0x66,
-  QSPI_CMD_RST = 0x99,
-  QSPI_CMD_WRSR = 0x01,
-  QSPI_CMD_READID = 0x90
-};
 
-/* tinyusb function that handles power event (detected, ready, removed)
- * We must call it within SD's SOC event handler, or set it as power event handler if SD is not enabled.
- */
+// tinyusb function that handles power event (detected, ready, removed)
+// We must call it within SD's SOC event handler, or set it as power event handler if SD is not enabled.
 extern void tusb_hal_nrf_power_event(uint32_t event);
 
 void board_init(void)
@@ -93,84 +86,13 @@ void board_init(void)
   // Button
   for(uint8_t i=0; i<BOARD_BUTTON_COUNT; i++) nrf_gpio_cfg_input(_button_pins[i], NRF_GPIO_PIN_PULLUP);
 
-#if CFG_TUSB_OS  == OPT_OS_NONE
-  // Tick init
+#if CFG_TUSB_OS == OPT_OS_NONE
+  // 1ms tick timer
   SysTick_Config(SystemCoreClock/1000);
 #endif
 
-// 64 Mbit qspi flash
-#if 0 // def BOARD_MSC_FLASH_QSPI
-  nrfx_qspi_config_t qspi_cfg = {
-    .xip_offset = 0,
-    .pins = {
-       .sck_pin = 19,
-       .csn_pin = 17,
-       .io0_pin = 20,
-       .io1_pin = 21,
-       .io2_pin = 22,
-       .io3_pin = 23,
-    },
-    .prot_if = {
-      .readoc    = NRF_QSPI_READOC_READ4IO,
-      .writeoc = NRF_QSPI_WRITEOC_PP4IO,
-      .addrmode  = NRF_QSPI_ADDRMODE_24BIT,
-      .dpmconfig = false,  // deep power down
-    },
-    .phy_if = {
-      .sck_freq = NRF_QSPI_FREQ_32MDIV1,
-      .sck_delay = 1,
-      .spi_mode  = NRF_QSPI_MODE_0,
-      .dpmen     = false
-    },
-    .irq_priority   = 7,
-  };
-
-  // NULL callback for blocking API
-  nrfx_qspi_init(&qspi_cfg, NULL, NULL);
-
-  nrf_qspi_cinstr_conf_t cinstr_cfg = {
-    .opcode    = 0,
-    .length    = 0,
-    .io2_level = true,
-    .io3_level = true,
-    .wipwait   = false,
-    .wren      = false
-  };
-
-  // Send reset enable
-  cinstr_cfg.opcode = QSPI_CMD_RSTEN;
-  cinstr_cfg.length = NRF_QSPI_CINSTR_LEN_1B;
-  nrfx_qspi_cinstr_xfer(&cinstr_cfg, NULL, NULL);
-
-  // Send reset command
-  cinstr_cfg.opcode = QSPI_CMD_RST;
-  cinstr_cfg.length = NRF_QSPI_CINSTR_LEN_1B;
-  nrfx_qspi_cinstr_xfer(&cinstr_cfg, NULL, NULL);
-
-  NRFX_DELAY_US(100); // wait for flash reset
-
-  // Send (Read ID + 3 dummy bytes) + Receive 2 bytes of Manufacture + Device ID
-  uint8_t dummy[6] = { 0 };
-  uint8_t id_resp[6] = { 0 };
-  cinstr_cfg.opcode = QSPI_CMD_READID;
-  cinstr_cfg.length = 6;
-
-  // Bug with -nrf_qspi_cinstrdata_get() didn't combine data.
-  // https://devzone.nordicsemi.com/f/nordic-q-a/38540/bug-nrf_qspi_cinstrdata_get-didn-t-collect-data-from-both-cinstrdat1-and-cinstrdat0
-  nrfx_qspi_cinstr_xfer(&cinstr_cfg, dummy, id_resp);
-
-  // Due to the bug, we collect data manually
-  uint8_t dev_id = (uint8_t) NRF_QSPI->CINSTRDAT1;
-  uint8_t mfgr_id = (uint8_t) ( NRF_QSPI->CINSTRDAT0 >> 24 );
-
-  // Switch to quad mode
-  uint16_t sr_quad_en = 0x40;
-  cinstr_cfg.opcode = QSPI_CMD_WRSR;
-  cinstr_cfg.length = 3;
-  cinstr_cfg.wipwait = cinstr_cfg.wren = true;
-  nrfx_qspi_cinstr_xfer(&cinstr_cfg, &sr_quad_en, NULL);
-#endif
-
+  // Priorities 0, 1, 4 (nRF52) are reserved for SoftDevice
+  // 2 is highest for application
   NVIC_SetPriority(USBD_IRQn, 2);
 
   // USB power may already be ready at this time -> no event generated
@@ -178,23 +100,6 @@ void board_init(void)
   uint32_t usb_reg;
 
 #ifdef SOFTDEVICE_PRESENT
-
-// Enable to test enable SD before USB scenario
-#if 1
-  extern void nrf_error_cb(uint32_t id, uint32_t pc, uint32_t info);
-  nrf_clock_lf_cfg_t clock_cfg =
-  {
-      // LFXO
-      .source        = NRF_CLOCK_LF_SRC_XTAL,
-      .rc_ctiv       = 0,
-      .rc_temp_ctiv  = 0,
-      .accuracy      = NRF_CLOCK_LF_ACCURACY_20_PPM
-  };
-
-  sd_softdevice_enable(&clock_cfg, nrf_error_cb);
-  NVIC_EnableIRQ(SD_EVT_IRQn);
-#endif
-
   uint8_t sd_en = false;
   sd_softdevice_is_enabled(&sd_en);
 
@@ -220,13 +125,8 @@ void board_init(void)
     usb_reg = NRF_POWER->USBREGSTATUS;
   }
 
-  if ( usb_reg & POWER_USBREGSTATUS_VBUSDETECT_Msk ) {
-    tusb_hal_nrf_power_event(NRFX_POWER_USB_EVT_DETECTED);
-  }
-
-  if ( usb_reg & POWER_USBREGSTATUS_OUTPUTRDY_Msk ) {
-    tusb_hal_nrf_power_event(NRFX_POWER_USB_EVT_READY);
-  }
+  if ( usb_reg & POWER_USBREGSTATUS_VBUSDETECT_Msk ) tusb_hal_nrf_power_event(NRFX_POWER_USB_EVT_DETECTED);
+  if ( usb_reg & POWER_USBREGSTATUS_OUTPUTRDY_Msk  ) tusb_hal_nrf_power_event(NRFX_POWER_USB_EVT_READY);
 }
 
 void board_led_control(bool state)
@@ -262,7 +162,6 @@ int board_uart_write(void const * buf, int len)
 }
 
 #ifdef SOFTDEVICE_PRESENT
-
 // process SOC event from SD
 uint32_t proc_soc(void)
 {
@@ -303,6 +202,4 @@ void nrf_error_cb(uint32_t id, uint32_t pc, uint32_t info)
   (void) pc;
   (void) info;
 }
-#endif
-
 #endif

@@ -28,8 +28,6 @@
 
 #if TUSB_OPT_HOST_ENABLED
 
-#define _TINY_USB_SOURCE_FILE_
-
 #ifndef CFG_TUH_TASK_QUEUE_SZ
 #define CFG_TUH_TASK_QUEUE_SZ   16
 #endif

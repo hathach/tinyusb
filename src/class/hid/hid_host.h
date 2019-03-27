@@ -193,10 +193,8 @@ void tuh_hid_generic_isr(uint8_t dev_addr, xfer_result_t event);
 /** @} */ // ClassDriver_HID_Generic
 
 //--------------------------------------------------------------------+
-// USBH-CLASS DRIVER API
+// Internal Class Driver API
 //--------------------------------------------------------------------+
-#ifdef _TINY_USB_SOURCE_FILE_
-
 typedef struct {
   pipe_handle_t pipe_hdl;
   uint16_t report_size;
@@ -207,8 +205,6 @@ void hidh_init(void);
 bool hidh_open_subtask(uint8_t dev_addr, tusb_desc_interface_t const *p_interface_desc, uint16_t *p_length);
 void hidh_isr(pipe_handle_t pipe_hdl, xfer_result_t event, uint32_t xferred_bytes);
 void hidh_close(uint8_t dev_addr);
-
-#endif
 
 #ifdef __cplusplus
 }

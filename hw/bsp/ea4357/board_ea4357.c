@@ -24,11 +24,9 @@
  * This file is part of the TinyUSB stack.
  */
 
-#ifdef BOARD_EA4357
-
+#include "chip.h"
 #include "../board.h"
 #include "pca9532.h"
-#include "tusb.h"
 
 #define BOARD_UART_PORT           LPC_USART0
 #define BOARD_UART_PIN_PORT       0x0f
@@ -67,9 +65,9 @@ void SysTick_Handler (void)
   system_ticks++;
 }
 
-uint32_t tusb_hal_millis(void)
+uint32_t board_millis(void)
 {
-  return board_tick2ms(system_ticks);
+  return system_ticks;
 }
 
 #endif
@@ -124,7 +122,8 @@ void board_init(void)
   SystemCoreClockUpdate();
 
 #if CFG_TUSB_OS == OPT_OS_NONE
-  SysTick_Config( SystemCoreClock / BOARD_TICKS_HZ );
+  // 1ms tick timer
+  SysTick_Config(SystemCoreClock / 1000);
 #endif
 
   Chip_GPIO_Init(LPC_GPIO_PORT);
@@ -297,5 +296,3 @@ int board_uart_write(void const * buf, int len)
   (void) len;
   return 0;
 }
-
-#endif

@@ -32,8 +32,6 @@
 // INCLUDE
 //--------------------------------------------------------------------+
 #include "common/tusb_common.h"
-#include "tusb_hal.h"
-
 #include "device/dcd.h"
 #include "dcd_lpc18_43.h"
 
@@ -165,11 +163,6 @@ void dcd_set_config(uint8_t rhport, uint8_t config_num)
   // nothing to do
 }
 
-uint32_t dcd_get_frame_number(uint8_t rhport)
-{
-  return LPC_USB[rhport]->FRINDEX_D >> 3;
-}
-
 //--------------------------------------------------------------------+
 // HELPER
 //--------------------------------------------------------------------+
@@ -206,14 +199,6 @@ void dcd_edpt_stall(uint8_t rhport, uint8_t ep_addr)
   uint8_t const dir    = tu_edpt_dir(ep_addr);
 
   LPC_USB[rhport]->ENDPTCTRL[epnum] |= ENDPTCTRL_MASK_STALL << (dir ? 16 : 0);
-}
-
-bool dcd_edpt_stalled (uint8_t rhport, uint8_t ep_addr)
-{
-  uint8_t const epnum  = tu_edpt_number(ep_addr);
-  uint8_t const dir    = tu_edpt_dir(ep_addr);
-
-  return LPC_USB[rhport]->ENDPTCTRL[epnum] & (ENDPTCTRL_MASK_STALL << (dir ? 16 : 0));
 }
 
 void dcd_edpt_clear_stall(uint8_t rhport, uint8_t ep_addr)

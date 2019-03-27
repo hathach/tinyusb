@@ -28,8 +28,6 @@
 
 #if TUSB_OPT_DEVICE_ENABLED
 
-#define _TINY_USB_SOURCE_FILE_
-
 #include "tusb.h"
 #include "usbd.h"
 #include "device/usbd_pvt.h"
@@ -44,9 +42,11 @@
 typedef struct {
   uint8_t config_num;
 
-  uint8_t itf2drv[16];  // map interface number to driver (0xff is invalid)
-  uint8_t ep2drv[8][2]; // map endpoint to driver ( 0xff is invalid )
+  uint8_t itf2drv[16];      // map interface number to driver (0xff is invalid)
+  uint8_t ep2drv[8][2];     // map endpoint to driver ( 0xff is invalid )
 
+  uint8_t ep_busy_mask[2];  // bit mask for busy endpoint
+  uint8_t ep_stall_mask[2]; // bit mask for stalled endpoint
 }usbd_device_t;
 
 static usbd_device_t _usbd_dev = { 0 };
@@ -101,7 +101,6 @@ static usbd_class_driver_t const usbd_class_drivers[] =
         .reset           = mscd_reset
     },
   #endif
-
 
   #if CFG_TUD_HID
     {
@@ -241,10 +240,12 @@ void tud_task (void)
     switch ( event.event_id )
     {
       case DCD_EVENT_SETUP_RECEIVED:
-        // Process control request, if failed control endpoint is stalled
+        // Process control request
         if ( !process_control_request(event.rhport, &event.setup_received) )
         {
-          usbd_control_stall(event.rhport);
+          // Failed -> stall both control endpoint IN and OUT
+          dcd_edpt_stall(event.rhport, 0);
+          dcd_edpt_stall(event.rhport, 0 | TUSB_DIR_IN_MASK);
         }
       break;
 
@@ -379,7 +380,7 @@ static bool process_control_request(uint8_t rhport, tusb_control_request_t const
     {
       case TUSB_REQ_GET_STATUS:
       {
-        uint16_t status = dcd_edpt_stalled(rhport, tu_u16_low(p_request->wIndex)) ? 0x0001 : 0x0000;
+        uint16_t status = usbd_edpt_stalled(rhport, tu_u16_low(p_request->wIndex)) ? 0x0001 : 0x0000;
         usbd_control_xfer(rhport, p_request, &status, 2);
       }
       break;
@@ -392,7 +393,7 @@ static bool process_control_request(uint8_t rhport, tusb_control_request_t const
 
       case TUSB_REQ_SET_FEATURE:
         // only endpoint feature is halted/stalled
-        dcd_edpt_stall(rhport, tu_u16_low(p_request->wIndex));
+        usbd_edpt_stall(rhport, tu_u16_low(p_request->wIndex));
         usbd_control_status(rhport, p_request);
       break;
 
@@ -648,6 +649,37 @@ void usbd_defer_func(osal_task_func_t func, void* param, bool in_isr)
   event.func_call.param = param;
 
   dcd_event_handler(&event, in_isr);
+}
+
+//--------------------------------------------------------------------+
+// USBD Endpoint API
+//--------------------------------------------------------------------+
+void usbd_edpt_stall(uint8_t rhport, uint8_t ep_addr)
+{
+  uint8_t const epnum = tu_edpt_number(ep_addr);
+  uint8_t const dir   = tu_edpt_dir(ep_addr);
+
+  dcd_edpt_stall(rhport, ep_addr);
+  _usbd_dev.ep_stall_mask[dir] = tu_bit_set(_usbd_dev.ep_stall_mask[dir], epnum);
+}
+
+void usbd_edpt_clear_stall(uint8_t rhport, uint8_t ep_addr)
+{
+  uint8_t const epnum = tu_edpt_number(ep_addr);
+  uint8_t const dir   = tu_edpt_dir(ep_addr);
+
+  dcd_edpt_clear_stall(rhport, ep_addr);
+  _usbd_dev.ep_stall_mask[dir] = tu_bit_clear(_usbd_dev.ep_stall_mask[dir], epnum);
+}
+
+bool usbd_edpt_stalled(uint8_t rhport, uint8_t ep_addr)
+{
+  (void) rhport;
+
+  uint8_t const epnum = tu_edpt_number(ep_addr);
+  uint8_t const dir   = tu_edpt_dir(ep_addr);
+
+  return tu_bit_test(_usbd_dev.ep_stall_mask[dir], epnum);
 }
 
 #endif

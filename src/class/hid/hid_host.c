@@ -28,10 +28,6 @@
 
 #if (TUSB_OPT_HOST_ENABLED && HOST_CLASS_HID)
 
-#define _TINY_USB_SOURCE_FILE_
-//--------------------------------------------------------------------+
-// INCLUDE
-//--------------------------------------------------------------------+
 #include "common/tusb_common.h"
 #include "hid_host.h"
 

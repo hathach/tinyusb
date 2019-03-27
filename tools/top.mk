@@ -11,7 +11,7 @@ TOP := $(patsubst %/tools/top.mk,%,$(THIS_MAKEFILE))
 
 TOP := $(shell realpath $(TOP))
 
-$(info Top directory is $(TOP))
+#$(info Top directory is $(TOP))
 
 CURRENT_PATH := $(shell realpath --relative-to=$(TOP) `pwd`)
-$(info Path from top is $(CURRENT_PATH))
+#$(info Path from top is $(CURRENT_PATH))

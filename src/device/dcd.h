@@ -94,8 +94,21 @@ void dcd_set_address(uint8_t rhport, uint8_t dev_addr);
 // Receive Set Config request
 void dcd_set_config (uint8_t rhport, uint8_t config_num);
 
-// Get current frame number
-uint32_t dcd_get_frame_number(uint8_t rhport);
+/*------------------------------------------------------------------*/
+/* Endpoint API
+ *  - open        : Configure endpoint's registers
+ *  - xfer        : Submit a transfer. When complete dcd_event_xfer_complete
+ *                  must be called to notify the stack
+ *  - busy        : Check if endpoint transferring is complete (TODO remove)
+ *  - stall       : stall endpoint
+ *  - clear_stall : clear stall
+ *------------------------------------------------------------------*/
+bool dcd_edpt_open        (uint8_t rhport, tusb_desc_endpoint_t const * p_endpoint_desc);
+bool dcd_edpt_xfer        (uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t total_bytes);
+bool dcd_edpt_busy        (uint8_t rhport, uint8_t ep_addr);
+
+void dcd_edpt_stall       (uint8_t rhport, uint8_t ep_addr);
+void dcd_edpt_clear_stall (uint8_t rhport, uint8_t ep_addr);
 
 /*------------------------------------------------------------------*/
 /* Event Function
@@ -111,24 +124,6 @@ void dcd_event_setup_received(uint8_t rhport, uint8_t const * setup, bool in_isr
 
 // helper to send transfer complete event
 void dcd_event_xfer_complete (uint8_t rhport, uint8_t ep_addr, uint32_t xferred_bytes, uint8_t result, bool in_isr);
-
-/*------------------------------------------------------------------*/
-/* Endpoint API
- *  - open        : Configure endpoint's registers
- *  - xfer        : Submit a transfer. When complete dcd_event_xfer_complete
- *                  must be called to notify the stack
- *  - busy        : Check if endpoint transferring is complete (TODO remove)
- *  - stall       : stall endpoint
- *  - clear_stall : clear stall
- *  - stalled     : check if stalled ( TODO remove )
- *------------------------------------------------------------------*/
-bool dcd_edpt_open        (uint8_t rhport, tusb_desc_endpoint_t const * p_endpoint_desc);
-bool dcd_edpt_xfer        (uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t total_bytes);
-bool dcd_edpt_busy        (uint8_t rhport, uint8_t ep_addr);
-
-void dcd_edpt_stall       (uint8_t rhport, uint8_t ep_addr);
-void dcd_edpt_clear_stall (uint8_t rhport, uint8_t ep_addr);
-bool dcd_edpt_stalled     (uint8_t rhport, uint8_t ep_addr);
 
 #ifdef __cplusplus
  }

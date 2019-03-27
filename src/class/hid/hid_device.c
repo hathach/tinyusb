@@ -28,7 +28,6 @@
 
 #if (TUSB_OPT_DEVICE_ENABLED && CFG_TUD_HID)
 
-#define _TINY_USB_SOURCE_FILE_
 //--------------------------------------------------------------------+
 // INCLUDE
 //--------------------------------------------------------------------+
@@ -42,7 +41,6 @@
 
 // Max report len is keyboard's one with 8 byte + 1 byte report id
 #define REPORT_BUFSIZE      12
-
 
 #define ITF_IDX_BOOT_KBD   0
 #define ITF_IDX_BOOT_MSE   ( ITF_IDX_BOOT_KBD + (CFG_TUD_HID_KEYBOARD && CFG_TUD_HID_KEYBOARD_BOOT) )
@@ -70,8 +68,10 @@ typedef struct
 
 typedef struct
 {
-  uint8_t usage;     // HID_USAGE_*
-  uint8_t idle_rate; // in unit of 4 ms
+  uint8_t usage;      // HID_USAGE_*
+  uint8_t idle_rate;  // Idle Rate = 0 : only send report if there is changes, i.e skip duplication
+                      // Idle Rate > 0 : skip duplication, but send at least 1 report every idle rate (in unit of 4 ms).
+                      //                 If idle time is less than interrupt polling then use the polling.
 
   uint8_t report_id;
   uint8_t report_len;
@@ -91,7 +91,6 @@ static hidd_report_t _mse_rpt;
 #endif
 
 /*------------- Helpers -------------*/
-
 static inline hidd_interface_t* get_interface_by_itfnum(uint8_t itf_num)
 {
   for (uint8_t i=0; i < ITF_COUNT; i++ )
@@ -151,19 +150,14 @@ static bool hidd_kbd_report(hid_keyboard_report_t const *p_report)
 
   hidd_interface_t * p_hid = _kbd_rpt.itf;
 
-  // Idle Rate = 0 : only send report if there is changes, i.e skip duplication
-  // Idle Rate > 0 : skip duplication, but send at least 1 report every idle rate (in unit of 4 ms).
-  //                 If idle time is less than interrupt polling then use the polling.
-  static tu_timeout_t idle_tm = { 0, 0 };
-
-  if ( (_kbd_rpt.idle_rate == 0) || !tu_timeout_expired(&idle_tm) )
-  {
-    if ( 0 == memcmp(p_hid->report_buf, p_report, sizeof(hid_keyboard_report_t)) ) return true;
-  }
-
-  tu_timeout_set(&idle_tm, _kbd_rpt.idle_rate * 4);
+  // only send report if there is changes, i.e skip duplication
+//  if ( _kbd_rpt.idle_rate == 0 )
+//  {
+//    if ( 0 == memcmp(p_hid->report_buf, p_report, sizeof(hid_keyboard_report_t)) ) return true;
+//  }
 
   memcpy(p_hid->report_buf, p_report, sizeof(hid_keyboard_report_t));
+
   return dcd_edpt_xfer(TUD_OPT_RHPORT, p_hid->ep_in, p_hid->report_buf, sizeof(hid_keyboard_report_t));
 }
 
@@ -195,33 +189,6 @@ bool tud_hid_keyboard_key_press(char ch)
   return tud_hid_keyboard_keycode(modifier, keycode);
 }
 
-#if 0 // should be at application
-bool tud_hid_keyboard_key_sequence(const char* str, uint32_t interval_ms)
-{
-  // Send each key in string
-  char ch;
-  while( (ch = *str++) != 0 )
-  {
-    char lookahead = *str;
-
-    tud_hid_keyboard_key_press(ch);
-
-    // Blocking delay
-    tu_timeout_wait(interval_ms);
-
-    /* Only need to empty report if the next character is NULL or the same with
-     * the current one, else no need to send */
-    if ( lookahead == ch || lookahead == 0 )
-    {
-      tud_hid_keyboard_key_release();
-      tu_timeout_wait(interval_ms);
-    }
-  }
-
-  return true;
-}
-#endif
-
 #endif // CFG_TUD_HID_ASCII_TO_KEYCODE_LOOKUP
 
 #endif // CFG_TUD_HID_KEYBOARD
@@ -246,6 +213,7 @@ static bool hidd_mouse_report(hid_mouse_report_t const *p_report)
   TU_VERIFY( tud_hid_mouse_ready() );
 
   hidd_interface_t * p_hid = _mse_rpt.itf;
+// only send report if there is changes, i.e skip duplication
   memcpy(p_hid->report_buf, p_report, sizeof(hid_mouse_report_t));
 
   return dcd_edpt_xfer(TUD_OPT_RHPORT, p_hid->ep_in, p_hid->report_buf, sizeof(hid_mouse_report_t));

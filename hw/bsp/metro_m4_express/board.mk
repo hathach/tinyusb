@@ -6,7 +6,7 @@ CFLAGS += \
 	-mcpu=cortex-m4 \
 	-mfloat-abi=hard \
 	-mfpu=fpv4-sp-d16 \
-	-nostdlib
+	-nostdlib -nostartfiles
 
 CFLAGS += -Wno-error=undef
 

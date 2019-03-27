@@ -28,8 +28,6 @@
 
 #if TUSB_OPT_DEVICE_ENABLED
 
-#define _TINY_USB_SOURCE_FILE_
-
 #include "tusb.h"
 #include "device/usbd_pvt.h"
 
@@ -58,13 +56,6 @@ void usbd_control_reset (uint8_t rhport)
 {
   (void) rhport;
   tu_varclr(&_control_state);
-}
-
-void usbd_control_stall(uint8_t rhport)
-{
-  // when stalling control endpoint both IN and OUt will be stalled
-  dcd_edpt_stall(rhport, EDPT_CTRL_OUT);
-  dcd_edpt_stall(rhport, EDPT_CTRL_IN);
 }
 
 bool usbd_control_status(uint8_t rhport, tusb_control_request_t const * request)
@@ -147,8 +138,9 @@ bool usbd_control_xfer_cb (uint8_t rhport, uint8_t ep_addr, xfer_result_t result
       TU_ASSERT( usbd_control_status(rhport, &_control_state.request) );
     }else
     {
-      // stall due to callback
-      usbd_control_stall(rhport);
+      // Stall both IN and OUT control endpoint
+      dcd_edpt_stall(rhport, EDPT_CTRL_OUT);
+      dcd_edpt_stall(rhport, EDPT_CTRL_IN);
     }
   }
   else

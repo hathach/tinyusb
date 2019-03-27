@@ -153,13 +153,6 @@ void dcd_set_address(uint8_t rhport, uint8_t dev_addr)
   LPC_USB->DEVCMDSTAT |= dev_addr;
 }
 
-uint32_t dcd_get_frame_number(uint8_t rhport)
-{
-  (void) rhport;
-
-  return LPC_USB->INFO & (TU_BIT(11) - 1);
-}
-
 bool dcd_init(uint8_t rhport)
 {
   (void) rhport;
@@ -187,14 +180,6 @@ void dcd_edpt_stall(uint8_t rhport, uint8_t ep_addr)
   // TODO cannot able to STALL Control OUT endpoint !!!!! FIXME try some walk-around
   uint8_t const ep_id = ep_addr2id(ep_addr);
   _dcd.ep[ep_id][0].stall = 1;
-}
-
-bool dcd_edpt_stalled(uint8_t rhport, uint8_t ep_addr)
-{
-  (void) rhport;
-
-  uint8_t const ep_id = ep_addr2id(ep_addr);
-  return _dcd.ep[ep_id][0].stall;
 }
 
 void dcd_edpt_clear_stall(uint8_t rhport, uint8_t ep_addr)

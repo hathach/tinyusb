@@ -27,7 +27,6 @@
 #include "tusb_option.h"
 
 #if TUSB_OPT_HOST_ENABLED || TUSB_OPT_DEVICE_ENABLED
-#define _TINY_USB_SOURCE_FILE_
 
 #include "tusb.h"
 

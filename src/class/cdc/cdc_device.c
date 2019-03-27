@@ -28,8 +28,6 @@
 
 #if (TUSB_OPT_DEVICE_ENABLED && CFG_TUD_CDC)
 
-#define _TINY_USB_SOURCE_FILE_
-
 #include "cdc_device.h"
 #include "device/usbd_pvt.h"
 

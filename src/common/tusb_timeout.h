@@ -28,11 +28,11 @@
  *  \defgroup Group_TimeoutTimer timeout timer
  *  @{ */
 
-
 #ifndef _TUSB_TIMEOUT_H_
 #define _TUSB_TIMEOUT_H_
 
-#include "tusb_compiler.h"
+#include <stdbool.h>
+#include <stdint.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -42,6 +42,8 @@ typedef struct {
   uint32_t start;
   uint32_t interval;
 }tu_timeout_t;
+
+#if 0
 
 extern uint32_t tusb_hal_millis(void);
 
@@ -66,6 +68,8 @@ static inline void tu_timeout_restart(tu_timeout_t* tt)
 {
   tt->start = tusb_hal_millis();
 }
+
+#endif
 
 #ifdef __cplusplus
  }

@@ -69,7 +69,7 @@ else
   CFLAGS += -flto -Os
 endif
 
-CFLAGS += $(INC) -Wall -Werror -std=gnu11 -DBOARD_$(shell echo $(BOARD) | tr a-z\- A-Z_)
+CFLAGS += $(INC) -Wall -Werror -std=gnu11 -DBOARD_$(shell echo $(BOARD) | tr '[:lower:]' '[:upper:]')
 LDFLAGS += $(CFLAGS) -fshort-enums -Wl,-T,$(TOP)/$(LD_FILE) -Wl,-Map=$@.map -Wl,-cref -Wl,-gc-sections -specs=nosys.specs -specs=nano.specs
 
 ifeq ("$(V)","1")
@@ -161,7 +161,7 @@ $(BUILD)/obj/%.o: %.S
 	@echo AS $(notdir $@)
 	$(QUIET)$(CC) -x assembler-with-cpp $(ASFLAGS) -c -o $@ $<
 
-# Flash binary using Jlink
+# Flash binary using Jlink, should be added into system path 
 ifeq ($(OS),Windows_NT)
   JLINKEXE = JLink.exe
 else 

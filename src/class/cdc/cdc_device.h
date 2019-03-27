@@ -96,18 +96,15 @@ ATTR_WEAK void tud_cdc_line_state_cb(uint8_t itf, bool dtr, bool rts);
 ATTR_WEAK void tud_cdc_line_coding_cb(uint8_t itf, cdc_line_coding_t const* p_line_coding);
 
 //--------------------------------------------------------------------+
-// USBD-CLASS DRIVER API
-//--------------------------------------------------------------------+
-#ifdef _TINY_USB_SOURCE_FILE_
+// INTERNAL USBD-CLASS DRIVER API
 
+//--------------------------------------------------------------------+
 void cdcd_init               (void);
 bool cdcd_open               (uint8_t rhport, tusb_desc_interface_t const * p_interface_desc, uint16_t *p_length);
 bool cdcd_control_request (uint8_t rhport, tusb_control_request_t const * p_request);
 bool cdcd_control_request_complete (uint8_t rhport, tusb_control_request_t const * p_request);
 bool cdcd_xfer_cb            (uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint32_t xferred_bytes);
 void cdcd_reset              (uint8_t rhport);
-
-#endif
 
 #ifdef __cplusplus
  }

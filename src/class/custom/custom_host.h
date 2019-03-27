@@ -57,14 +57,13 @@ static inline bool tusbh_custom_is_mounted(uint8_t dev_addr, uint16_t vendor_id,
 tusb_error_t tusbh_custom_read(uint8_t dev_addr, uint16_t vendor_id, uint16_t product_id, void * p_buffer, uint16_t length);
 tusb_error_t tusbh_custom_write(uint8_t dev_addr, uint16_t vendor_id, uint16_t product_id, void const * p_data, uint16_t length);
 
-#ifdef _TINY_USB_SOURCE_FILE_
-
+//--------------------------------------------------------------------+
+// Internal Class Driver API
+//--------------------------------------------------------------------+
 void         cush_init(void);
 tusb_error_t cush_open_subtask(uint8_t dev_addr, tusb_desc_interface_t const *p_interface_desc, uint16_t *p_length);
 void         cush_isr(pipe_handle_t pipe_hdl, xfer_result_t event);
 void         cush_close(uint8_t dev_addr);
-
-#endif
 
 #ifdef __cplusplus
  }

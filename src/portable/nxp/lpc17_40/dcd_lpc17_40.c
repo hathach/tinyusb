@@ -217,12 +217,6 @@ void dcd_set_config(uint8_t rhport, uint8_t config_num)
   sie_write(SIE_CMDCODE_CONFIGURE_DEVICE, 1, 1);
 }
 
-uint32_t dcd_get_frame_number(uint8_t rhport)
-{
-  (void) rhport;
-  return (uint32_t) sie_read(SIE_CMDCODE_READ_FRAME_NUMBER);
-}
-
 //--------------------------------------------------------------------+
 // CONTROL HELPER
 //--------------------------------------------------------------------+
@@ -348,14 +342,6 @@ void dcd_edpt_clear_stall(uint8_t rhport, uint8_t ep_addr)
   uint8_t ep_id = ep_addr2idx(ep_addr);
 
   sie_write(SIE_CMDCODE_ENDPOINT_SET_STATUS+ep_id, 1, 0);
-}
-
-bool dcd_edpt_stalled (uint8_t rhport, uint8_t ep_addr)
-{
-  (void) rhport;
-
-  uint8_t const ep_state = sie_read(SIE_CMDCODE_ENDPOINT_SELECT +  ep_addr2idx(ep_addr));
-  return (ep_state & SIE_SELECT_ENDPOINT_STALL_MASK) ? true : false;
 }
 
 static bool control_xact(uint8_t rhport, uint8_t dir, uint8_t * buffer, uint8_t len)

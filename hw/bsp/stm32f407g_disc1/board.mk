@@ -7,7 +7,7 @@ CFLAGS += \
 	-mcpu=cortex-m4 \
 	-mfloat-abi=hard \
 	-mfpu=fpv4-sp-d16 \
-	-nostdlib
+	-nostdlib -nostartfiles
 
 # All source paths should be relative to the top level.
 LD_FILE = hw/bsp/stm32f407g_disc1/STM32F407VGTx_FLASH.ld
@@ -29,20 +29,8 @@ CHIP_FAMILY = stm32f4
 
 JLINK_DEVICE = stm32f407vg
 
-# Path to STM32 Cube Programmer CLI
-ifeq ($(OS),Windows_NT)
-	STM32Prog = C:/Program Files/STMicroelectronics/STM32Cube/STM32CubeProgrammer/bin/STM32_Programmer_CLI
-else 
-	UNAME_S := $(shell uname -s)
-	
-  ifeq ($(UNAME_S),Linux)
-  STM32Prog = $(HOME)/STMicroelectronics/STM32Cube/STM32CubeProgrammer/bin/STM32_Programmer_CLI
-  endif
-  
-	ifeq ($(UNAME_S),Darwin)
-	STM32Prog = STM32_Programmer_CLI
-  endif
-endif
+# Path to STM32 Cube Programmer CLI, should be added into system path 
+STM32Prog = STM32_Programmer_CLI
 
 # flash target using on-board stlink
 flash: $(BUILD)/$(BOARD)-firmware.elf

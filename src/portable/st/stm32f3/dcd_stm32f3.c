@@ -23,17 +23,53 @@
  *
  * This file is part of the TinyUSB stack.
  */
-#ifndef BOARD_MCB1800_H_
-#define BOARD_MCB1800_H_
 
-#ifdef __cplusplus
- extern "C" {
+#include "tusb_option.h"
+
+#if TUSB_OPT_DEVICE_ENABLED && CFG_TUSB_MCU == OPT_MCU_STM32F3
+
+#include "device/dcd.h"
+#include "stm32f3xx.h"
+
+//--------------------------------------------------------------------+
+// MACRO TYPEDEF CONSTANT ENUM DECLARATION
+//--------------------------------------------------------------------+
+
+
+bool dcd_init (uint8_t rhport)
+{
+  return true;
+}
+
+// Enable device interrupt
+void dcd_int_enable (uint8_t rhport)
+{}
+
+// Disable device interrupt
+void dcd_int_disable(uint8_t rhport)
+{}
+
+// Receive Set Address request, mcu port must also include status IN response
+void dcd_set_address(uint8_t rhport, uint8_t dev_addr)
+{}
+
+// Receive Set Config request
+void dcd_set_config (uint8_t rhport, uint8_t config_num)
+{}
+
+bool dcd_edpt_open (uint8_t rhport, tusb_desc_endpoint_t const * p_endpoint_desc)
+{
+  return false;
+}
+bool dcd_edpt_xfer (uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t total_bytes)
+{ return false;}
+bool dcd_edpt_busy (uint8_t rhport, uint8_t ep_addr)
+{ return false;}
+
+void dcd_edpt_stall (uint8_t rhport, uint8_t ep_addr)
+{}
+void dcd_edpt_clear_stall (uint8_t rhport, uint8_t ep_addr)
+{}
+
 #endif
 
-#include "chip.h"
-
-#ifdef __cplusplus
- }
-#endif
-
-#endif /* BOARD_MCB1800_H_ */

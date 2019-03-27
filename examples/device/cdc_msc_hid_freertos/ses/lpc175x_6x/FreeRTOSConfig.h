@@ -4,7 +4,7 @@
 //--------------------------------------------------------------------+
 // See http://www.freertos.org/a00110.html.
 //--------------------------------------------------------------------+
-#include "LPC17xx.h"
+#include "chip.h"
 
 #define configCPU_CLOCK_HZ                   SystemCoreClock
 

@@ -40,8 +40,6 @@
 #endif
 
 #include "nrfx_power.h"
-
-#include "tusb_hal.h"
 #include "device/dcd.h"
 
 /*------------------------------------------------------------------*/
