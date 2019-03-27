@@ -44,9 +44,6 @@
 
 #define CFG_UART_BAUDRATE    115200
 
-#define BOARD_TICKS_HZ       1000
-#define board_tick2ms(tck)   ( ( ((uint64_t)(tck)) * 1000) / BOARD_TICKS_HZ )
-
 //--------------------------------------------------------------------+
 // Board Porting API
 //--------------------------------------------------------------------+
