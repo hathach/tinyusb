@@ -99,7 +99,7 @@ static void _prep_out_transaction (uint8_t itf)
 bool tud_cdc_n_connected(uint8_t itf)
 {
   // DTR (bit 0) active  is considered as connected
-  return TU_BIT_TEST(_cdcd_itf[itf].line_state, 0);
+  return tud_mounted() && TU_BIT_TEST(_cdcd_itf[itf].line_state, 0);
 }
 
 uint8_t tud_cdc_n_get_line_state (uint8_t itf)

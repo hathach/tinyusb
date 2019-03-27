@@ -40,7 +40,7 @@
 // Device Data
 //--------------------------------------------------------------------+
 typedef struct {
-  uint8_t config_num;
+  volatile uint8_t config_num;
 
   uint8_t itf2drv[16];      // map interface number to driver (0xff is invalid)
   uint8_t ep2drv[8][2];     // map endpoint to driver ( 0xff is invalid )
@@ -332,7 +332,7 @@ static bool process_control_request(uint8_t rhport, tusb_control_request_t const
       break;
 
       case TUSB_REQ_GET_CONFIGURATION:
-        data_buf = &_usbd_dev.config_num;
+        data_buf = (uint8_t*) &_usbd_dev.config_num;
         data_len = 1;
       break;
 
@@ -543,7 +543,11 @@ void dcd_event_handler(dcd_event_t const * event, bool in_isr)
   switch (event->event_id)
   {
     case DCD_EVENT_BUS_RESET:
+      osal_queue_send(_usbd_q, event, in_isr);
+    break;
+
     case DCD_EVENT_UNPLUGGED:
+      _usbd_dev.config_num = 0; // mark disconnected
       osal_queue_send(_usbd_q, event, in_isr);
     break;
 
