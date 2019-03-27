@@ -193,20 +193,6 @@ bool dcd_edpt_xfer (uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t 
   return true;
 }
 
-bool dcd_edpt_stalled (uint8_t rhport, uint8_t ep_addr)
-{
-  (void) rhport;
-
-  // control is never got halted
-  if ( ep_addr == 0 ) {
-      return false;
-  }
-
-  uint8_t const epnum = tu_edpt_number(ep_addr);
-  UsbDeviceEndpoint* ep = &USB->DEVICE.DeviceEndpoint[epnum];
-  return (tu_edpt_dir(ep_addr) == TUSB_DIR_IN ) ? ep->EPINTFLAG.bit.STALL1 : ep->EPINTFLAG.bit.STALL0;
-}
-
 void dcd_edpt_stall (uint8_t rhport, uint8_t ep_addr)
 {
   (void) rhport;

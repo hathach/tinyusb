@@ -182,14 +182,6 @@ void dcd_edpt_stall(uint8_t rhport, uint8_t ep_addr)
   _dcd.ep[ep_id][0].stall = 1;
 }
 
-bool dcd_edpt_stalled(uint8_t rhport, uint8_t ep_addr)
-{
-  (void) rhport;
-
-  uint8_t const ep_id = ep_addr2id(ep_addr);
-  return _dcd.ep[ep_id][0].stall;
-}
-
 void dcd_edpt_clear_stall(uint8_t rhport, uint8_t ep_addr)
 {
   (void) rhport;

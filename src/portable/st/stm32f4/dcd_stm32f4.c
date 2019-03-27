@@ -299,30 +299,6 @@ bool dcd_edpt_xfer (uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t 
   return true;
 }
 
-bool dcd_edpt_stalled (uint8_t rhport, uint8_t ep_addr)
-{
-  (void) rhport;
-  USB_OTG_OUTEndpointTypeDef * out_ep = OUT_EP_BASE;
-  USB_OTG_INEndpointTypeDef * in_ep = IN_EP_BASE;
-
-  // control is never got halted
-  if(ep_addr == 0) {
-    return false;
-  }
-
-  uint8_t const epnum = tu_edpt_number(ep_addr);
-  uint8_t const dir   = tu_edpt_dir(ep_addr);
-  bool stalled = false;
-
-  if(dir == TUSB_DIR_IN) {
-    stalled = (in_ep[epnum].DIEPCTL & USB_OTG_DIEPCTL_STALL_Msk);
-  } else {
-    stalled = (out_ep[epnum].DOEPCTL & USB_OTG_DOEPCTL_STALL_Msk);
-  }
-
-  return stalled;
-}
-
 // TODO: The logic for STALLing and disabling an endpoint is very similar
 // (send STALL versus NAK handshakes back). Refactor into resuable function.
 void dcd_edpt_stall (uint8_t rhport, uint8_t ep_addr)

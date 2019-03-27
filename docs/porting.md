@@ -147,9 +147,9 @@ The arguments are:
 * the result of the transfer. Failure isn't handled yet.
 * `true` to note the call is from an interrupt handler.
 
-##### dcd_edpt_stall / dcd_edpt_stalled / dcd_edpt_clear_stall
+##### dcd_edpt_stall / dcd_edpt_clear_stall
 
-Stalling is one way an endpoint can indicate failure such as when an unsupported command is transmitted. The trio of `dcd_edpt_stall`, `dcd_edpt_stalled`, `dcd_edpt_clear_stall` help manage the stall state of all endpoints.
+Stalling is one way an endpoint can indicate failure such as when an unsupported command is transmitted. The pair of `dcd_edpt_stall`, `dcd_edpt_clear_stall` help manage the stall state of all endpoints.
 
 ## Woohoo!
 

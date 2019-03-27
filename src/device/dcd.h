@@ -102,7 +102,6 @@ void dcd_set_config (uint8_t rhport, uint8_t config_num);
  *  - busy        : Check if endpoint transferring is complete (TODO remove)
  *  - stall       : stall endpoint
  *  - clear_stall : clear stall
- *  - stalled     : check if stalled ( TODO remove )
  *------------------------------------------------------------------*/
 bool dcd_edpt_open        (uint8_t rhport, tusb_desc_endpoint_t const * p_endpoint_desc);
 bool dcd_edpt_xfer        (uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t total_bytes);
@@ -110,7 +109,6 @@ bool dcd_edpt_busy        (uint8_t rhport, uint8_t ep_addr);
 
 void dcd_edpt_stall       (uint8_t rhport, uint8_t ep_addr);
 void dcd_edpt_clear_stall (uint8_t rhport, uint8_t ep_addr);
-bool dcd_edpt_stalled     (uint8_t rhport, uint8_t ep_addr);
 
 /*------------------------------------------------------------------*/
 /* Event Function

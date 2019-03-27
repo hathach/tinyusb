@@ -201,14 +201,6 @@ void dcd_edpt_stall(uint8_t rhport, uint8_t ep_addr)
   LPC_USB[rhport]->ENDPTCTRL[epnum] |= ENDPTCTRL_MASK_STALL << (dir ? 16 : 0);
 }
 
-bool dcd_edpt_stalled (uint8_t rhport, uint8_t ep_addr)
-{
-  uint8_t const epnum  = tu_edpt_number(ep_addr);
-  uint8_t const dir    = tu_edpt_dir(ep_addr);
-
-  return LPC_USB[rhport]->ENDPTCTRL[epnum] & (ENDPTCTRL_MASK_STALL << (dir ? 16 : 0));
-}
-
 void dcd_edpt_clear_stall(uint8_t rhport, uint8_t ep_addr)
 {
   uint8_t const epnum  = tu_edpt_number(ep_addr);

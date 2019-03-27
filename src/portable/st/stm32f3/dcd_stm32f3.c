@@ -70,9 +70,6 @@ void dcd_edpt_stall (uint8_t rhport, uint8_t ep_addr)
 {}
 void dcd_edpt_clear_stall (uint8_t rhport, uint8_t ep_addr)
 {}
-bool dcd_edpt_stalled (uint8_t rhport, uint8_t ep_addr)
-{
-  return false;}
 
 #endif
 

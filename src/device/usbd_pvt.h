@@ -52,6 +52,11 @@ bool usbd_control_status(uint8_t rhport, tusb_control_request_t const * request)
 // Stall control endpoint (both IN and OUT) until new setup packet arrived
 void usbd_control_stall(uint8_t rhport);
 
+
+void usbd_edpt_stall(uint8_t rhport, uint8_t ep_addr);
+void usbd_edpt_clear_stall(uint8_t rhport, uint8_t ep_addr);
+bool usbd_edpt_stalled(uint8_t rhport, uint8_t ep_addr);
+
 /*------------------------------------------------------------------*/
 /* Helper
  *------------------------------------------------------------------*/

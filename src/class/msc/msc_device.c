@@ -412,7 +412,7 @@ bool mscd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t event, uint32_t
             p_msc->stage = MSC_STAGE_STATUS;
 
             tud_msc_set_sense(p_cbw->lun, SCSI_SENSE_ILLEGAL_REQUEST, 0x20, 0x00); // Sense = Invalid Command Operation
-            dcd_edpt_stall(rhport, p_msc->ep_in);
+            usbd_edpt_stall(rhport, p_msc->ep_in);
           }
         }
       }
@@ -512,7 +512,7 @@ bool mscd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t event, uint32_t
   if ( p_msc->stage == MSC_STAGE_STATUS )
   {
     // Either endpoints is stalled, need to wait until it is cleared by host
-    if ( dcd_edpt_stalled(rhport,  p_msc->ep_in) || dcd_edpt_stalled(rhport,  p_msc->ep_out) )
+    if ( usbd_edpt_stalled(rhport,  p_msc->ep_in) || usbd_edpt_stalled(rhport,  p_msc->ep_out) )
     {
       // simulate an transfer complete with adjusted parameters --> this driver callback will fired again
       dcd_event_xfer_complete(rhport, p_msc->ep_out, 0, XFER_RESULT_SUCCESS, false);
@@ -573,7 +573,7 @@ static void proc_read10_cmd(uint8_t rhport, mscd_interface_t* p_msc)
     p_csw->status       = MSC_CSW_STATUS_FAILED;
 
     tud_msc_set_sense(p_cbw->lun, SCSI_SENSE_ILLEGAL_REQUEST, 0x20, 0x00); // Sense = Invalid Command Operation
-    dcd_edpt_stall(rhport, p_msc->ep_in);
+    usbd_edpt_stall(rhport, p_msc->ep_in);
   }
   else if ( nbytes == 0 )
   {
@@ -599,7 +599,7 @@ static void proc_write10_cmd(uint8_t rhport, mscd_interface_t* p_msc)
     p_csw->status       = MSC_CSW_STATUS_FAILED;
 
     tud_msc_set_sense(p_cbw->lun, SCSI_SENSE_DATA_PROTECT, 0x27, 0x00); // Sense = Write protected
-    dcd_edpt_stall(rhport, p_msc->ep_out);
+    usbd_edpt_stall(rhport, p_msc->ep_out);
     return;
   }
 
