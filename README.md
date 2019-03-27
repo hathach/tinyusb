@@ -51,7 +51,7 @@ The stack supports the following MCUs
 - **MicroChip:** SAMD21, SAMD51 (device only)
 - **ST:** STM32F4
 
-[Here is the list of supported Boards](hw/bsp/readme.md)
+[Here is the list of supported Boards](docs/boards.md)
 
 ## Compiler & IDE
 
