@@ -171,10 +171,8 @@ void tuh_msc_isr(uint8_t dev_addr, xfer_result_t event, uint32_t xferred_bytes);
 
 
 //--------------------------------------------------------------------+
-// USBH-CLASS DRIVER API
+// Internal Class Driver API
 //--------------------------------------------------------------------+
-#ifdef _TINY_USB_SOURCE_FILE_
-
 typedef struct
 {
   uint8_t itf_numr;
@@ -197,8 +195,6 @@ void msch_init(void);
 bool msch_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_interface_t const *itf_desc, uint16_t *p_length);
 void msch_isr(uint8_t dev_addr, uint8_t ep_addr, xfer_result_t event, uint32_t xferred_bytes);
 void msch_close(uint8_t dev_addr);
-
-#endif
 
 #ifdef __cplusplus
  }

@@ -28,11 +28,6 @@
 
 #if (TUSB_OPT_DEVICE_ENABLED && CFG_TUD_MSC)
 
-//--------------------------------------------------------------------+
-// INCLUDE
-//--------------------------------------------------------------------+
-#define _TINY_USB_SOURCE_FILE_
-
 #include "common/tusb_common.h"
 #include "msc_device.h"
 #include "device/usbd_pvt.h"

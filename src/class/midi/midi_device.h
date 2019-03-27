@@ -85,18 +85,14 @@ static inline bool     tud_midi_write_flush     (void)                          
 ATTR_WEAK void tud_midi_rx_cb(uint8_t itf);
 
 //--------------------------------------------------------------------+
-// USBD-CLASS DRIVER API
+// Internal Class Driver API
 //--------------------------------------------------------------------+
-#ifdef _TINY_USB_SOURCE_FILE_
-
-void         midid_init               (void);
+void midid_init               (void);
 bool midid_open               (uint8_t rhport, tusb_desc_interface_t const * p_interface_desc, uint16_t *p_length);
 bool midid_control_request (uint8_t rhport, tusb_control_request_t const * p_request);
 bool midid_control_request_complete (uint8_t rhport, tusb_control_request_t const * p_request);
 bool midid_xfer_cb            (uint8_t rhport, uint8_t edpt_addr, xfer_result_t result, uint32_t xferred_bytes);
-void         midid_reset              (uint8_t rhport);
-
-#endif
+void midid_reset              (uint8_t rhport);
 
 #ifdef __cplusplus
  }

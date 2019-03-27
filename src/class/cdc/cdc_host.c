@@ -28,8 +28,6 @@
 
 #if (TUSB_OPT_HOST_ENABLED && CFG_TUH_CDC)
 
-#define _TINY_USB_SOURCE_FILE_
-
 #include "common/tusb_common.h"
 #include "cdc_host.h"
 
