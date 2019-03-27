@@ -74,10 +74,10 @@ void tud_task (void);
 // APPLICATION CALLBACK (WEAK is optional)
 //--------------------------------------------------------------------+
 
-/** Callback invoked when device is mounted (configured) */
+// Callback invoked when device is mounted (configured)
 ATTR_WEAK void tud_mount_cb(void);
 
-/** Callback invoked when device is unmounted (bus reset/unplugged) */
+// Callback invoked when device is unmounted (bus reset/unplugged)
 ATTR_WEAK void tud_umount_cb(void);
 
 //void tud_device_suspended_cb(void);

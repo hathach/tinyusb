@@ -104,7 +104,6 @@ static usbd_class_driver_t const usbd_class_drivers[] =
     },
   #endif
 
-
   #if CFG_TUD_HID
     {
         .class_code      = TUSB_CLASS_HID,
@@ -243,10 +242,12 @@ void tud_task (void)
     switch ( event.event_id )
     {
       case DCD_EVENT_SETUP_RECEIVED:
-        // Process control request, if failed control endpoint is stalled
+        // Process control request
         if ( !process_control_request(event.rhport, &event.setup_received) )
         {
-          usbd_control_stall(event.rhport);
+          // Failed -> stall both control endpoint IN and OUT
+          dcd_edpt_stall(event.rhport, 0);
+          dcd_edpt_stall(event.rhport, 0 | TUSB_DIR_IN_MASK);
         }
       break;
 
