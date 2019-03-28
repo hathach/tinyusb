@@ -481,7 +481,7 @@ static void bus_event_isr(uint8_t rhport)
   {
     if (dev_status & SIE_DEV_STATUS_SUSPEND_MASK)
     {
-      dcd_event_bus_signal(rhport, DCD_EVENT_SUSPENDED, true);
+      dcd_event_bus_signal(rhport, DCD_EVENT_SUSPEND, true);
     }
     else
     {

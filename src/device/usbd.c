@@ -40,7 +40,7 @@
 // Device Data
 //--------------------------------------------------------------------+
 typedef struct {
-  volatile uint8_t config_num;
+  volatile uint8_t config_num; // 0 is non-configure ~ disconnect
 
   uint8_t itf2drv[16];      // map interface number to driver (0xff is invalid)
   uint8_t ep2drv[8][2];     // map endpoint to driver ( 0xff is invalid )
@@ -555,7 +555,7 @@ void dcd_event_handler(dcd_event_t const * event, bool in_isr)
       // nothing to do now
     break;
 
-    case DCD_EVENT_SUSPENDED:
+    case DCD_EVENT_SUSPEND:
       // TODO support suspended
     break;
 

@@ -339,7 +339,7 @@ void USB_IRQHandler(void)
         // Note: Host may delay more than 3 ms before and/or after bus reset before doing enumeration.
         if (dev_cmd_stat & CMDSTAT_DEVICE_ADDR_MASK)
         {
-          dcd_event_bus_signal(0, DCD_EVENT_SUSPENDED, true);
+          dcd_event_bus_signal(0, DCD_EVENT_SUSPEND, true);
         }
       }
     }

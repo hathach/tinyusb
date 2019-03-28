@@ -303,7 +303,7 @@ void hal_dcd_isr(uint8_t rhport)
       // Note: Host may delay more than 3 ms before and/or after bus reset before doing enumeration.
       if ((lpc_usb->DEVICEADDR >> 25) & 0x0f)
       {
-        dcd_event_bus_signal(rhport, DCD_EVENT_SUSPENDED, true);
+        dcd_event_bus_signal(rhport, DCD_EVENT_SUSPEND, true);
       }
     }
   }

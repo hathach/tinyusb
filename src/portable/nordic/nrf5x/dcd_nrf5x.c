@@ -207,6 +207,13 @@ void dcd_set_config (uint8_t rhport, uint8_t config_num)
   (void) rhport;
   (void) config_num;
   // Nothing to do
+
+  // Clear current pending 
+  NRF_USBD->EVENTCAUSE |= NRF_USBD->EVENTCAUSE;
+  NRF_USBD->EVENTS_USBEVENT = 0;
+
+  // Enable usb event for suspend and resume
+  NRF_USBD->INTENSET = USBD_INTEN_USBEVENT_Msk;
 }
 
 //--------------------------------------------------------------------+
@@ -358,11 +365,32 @@ void USBD_IRQHandler(void)
     }
   }
 
-  /*------------- Interrupt Processing -------------*/
   if ( int_status & USBD_INTEN_USBRESET_Msk )
   {
     bus_reset();
     dcd_event_bus_signal(0, DCD_EVENT_BUS_RESET, true);
+  }
+
+  if ( int_status & USBD_INTEN_SOF_Msk )
+  {
+    dcd_event_bus_signal(0, DCD_EVENT_SOF, true);
+  }
+
+  if ( int_status & USBD_INTEN_USBEVENT_Msk )
+  {
+    uint32_t const evt_cause = NRF_USBD->EVENTCAUSE;
+
+    if ( evt_cause & USBD_EVENTCAUSE_SUSPEND_Msk ) 
+    {
+      dcd_event_bus_signal(0, DCD_EVENT_SUSPEND, true);
+    }
+    
+    if ( evt_cause & USBD_EVENTCAUSE_RESUME_Msk  ) 
+    {
+      dcd_event_bus_signal(0, DCD_EVENT_RESUME , true);
+    }
+
+    NRF_USBD->EVENTCAUSE = evt_cause; // clear interrupt
   }
 
   if ( int_status & EDPT_END_ALL_MASK )
@@ -501,12 +529,6 @@ void USBD_IRQHandler(void)
         }
       }
     }
-  }
-
-  // SOF interrupt
-  if ( int_status & USBD_INTEN_SOF_Msk )
-  {
-    dcd_event_bus_signal(0, DCD_EVENT_SOF, true);
   }
 }
 
