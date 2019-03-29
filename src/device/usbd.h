@@ -34,15 +34,8 @@
  extern "C" {
 #endif
 
-//--------------------------------------------------------------------+
-// INCLUDE
-//--------------------------------------------------------------------+
 #include "common/tusb_common.h"
 #include "device/dcd.h"
-
-//--------------------------------------------------------------------+
-// MACRO CONSTANT TYPEDEF
-//--------------------------------------------------------------------+
 
 /// \brief Descriptor pointer collector to all the needed.
 typedef struct {
@@ -64,7 +57,7 @@ typedef struct {
 extern tud_desc_set_t tud_desc_set;
 
 //--------------------------------------------------------------------+
-// APPLICATION API
+// Application API
 //--------------------------------------------------------------------+
 bool tud_mounted(void);
 void tud_task (void);
@@ -72,7 +65,7 @@ void tud_task (void);
 bool tud_remote_wakeup(void);
 
 //--------------------------------------------------------------------+
-// APPLICATION CALLBACK (WEAK is optional)
+// Application Callbacks (WEAK is optional)
 //--------------------------------------------------------------------+
 
 // Callback invoked when device is mounted (configured)

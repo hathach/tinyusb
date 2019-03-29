@@ -34,6 +34,14 @@
 //--------------------------------------------------------------------+
 // MACRO CONSTANT TYPEDEF PROTYPES
 //--------------------------------------------------------------------+
+
+/* Blink pattern
+ * - 250 ms  : device not mounted
+ * - 1000 ms : device mounted
+ * - 2000 ms : device is suspended
+ */
+static uint32_t blink_interval_ms = 250;
+
 void led_blinking_task(void);
 
 extern void virtual_com_task(void);
@@ -187,18 +195,19 @@ void tud_hid_generic_set_report_cb(uint8_t report_id, hid_report_type_t report_t
 #endif
 
 //--------------------------------------------------------------------+
-// tinyusb callbacks
+// Device callbacks
 //--------------------------------------------------------------------+
 
 // Invoked when device is mounted
 void tud_mount_cb(void)
 {
-
+  blink_interval_ms = 1000;
 }
 
 // Invoked when device is unmounted
 void tud_umount_cb(void)
 {
+  blink_interval_ms = 250;
 }
 
 //--------------------------------------------------------------------+
@@ -206,14 +215,12 @@ void tud_umount_cb(void)
 //--------------------------------------------------------------------+
 void led_blinking_task(void)
 {
-  const uint32_t interval_ms = 1000;
   static uint32_t start_ms = 0;
-
   static bool led_state = false;
 
   // Blink every 1000 ms
-  if ( board_millis() < start_ms + interval_ms) return; // not enough time
-  start_ms += interval_ms;
+  if ( board_millis() < start_ms + blink_interval_ms) return; // not enough time
+  start_ms += blink_interval_ms;
 
   board_led_control(led_state);
   led_state = 1 - led_state; // toggle
