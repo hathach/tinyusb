@@ -167,11 +167,19 @@ bool usbd_control_xfer_cb (uint8_t rhport, uint8_t ep_addr, xfer_result_t event,
 void usbd_control_set_complete_callback( bool (*fp) (uint8_t, tusb_control_request_t const * ) );
 
 //--------------------------------------------------------------------+
-// APPLICATION API
+// Application API
 //--------------------------------------------------------------------+
 bool tud_mounted(void)
 {
   return _usbd_dev.config_num > 0;
+}
+
+bool tud_remote_wakeup(void)
+{
+  // only wake up host if this feature is enabled
+  if (_usbd_dev.remote_wakeup_en ) dcd_remote_wakeup(TUD_OPT_RHPORT);
+
+  return _usbd_dev.remote_wakeup_en;
 }
 
 //--------------------------------------------------------------------+
@@ -357,6 +365,7 @@ static bool process_control_request(uint8_t rhport, tusb_control_request_t const
         if ( TUSB_REQ_FEATURE_REMOTE_WAKEUP == p_request->wValue )
         {
           // Host enable remote wake up before suspending especially HID device
+          _usbd_dev.remote_wakeup_en = true;
         }
       break;
 
@@ -364,6 +373,7 @@ static bool process_control_request(uint8_t rhport, tusb_control_request_t const
         if ( TUSB_REQ_FEATURE_REMOTE_WAKEUP == p_request->wValue )
         {
           // Host disable remote wake up after resuming
+          _usbd_dev.remote_wakeup_en = false;
         }
       break;
 
