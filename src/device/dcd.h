@@ -48,7 +48,7 @@ typedef enum
   DCD_EVENT_SETUP_RECEIVED,
   DCD_EVENT_XFER_COMPLETE,
 
-  USBD_EVT_FUNC_CALL
+  USBD_EVENT_FUNC_CALL
 } dcd_eventid_t;
 
 typedef struct ATTR_ALIGNED(4)
@@ -67,7 +67,7 @@ typedef struct ATTR_ALIGNED(4)
       uint32_t len;
     }xfer_complete;
 
-    // USBD_EVT_FUNC_CALL
+    // USBD_EVENT_FUNC_CALL
     struct {
       void (*func) (void*);
       void* param;

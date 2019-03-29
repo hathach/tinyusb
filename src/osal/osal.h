@@ -61,7 +61,6 @@ typedef void (*osal_task_func_t)( void * );
    *     osal_queue_t osal_queue_create(osal_queue_def_t* qdef)
    *     osal_queue_receive (osal_queue_t const queue_hdl, void *p_data, uint32_t msec, uint32_t *p_error)
    *     bool osal_queue_send(osal_queue_t const queue_hdl, void const * data, bool in_isr)
-   *     osal_queue_reset()
    *
    * Semaphore
    *    osal_semaphore_def_t, osal_semaphore_t

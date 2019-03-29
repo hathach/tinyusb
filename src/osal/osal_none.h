@@ -190,13 +190,6 @@ static inline bool osal_queue_send(osal_queue_t const qhdl, void const * data, b
   return success;
 }
 
-static inline void osal_queue_reset(osal_queue_t const qhdl)
-{
-  // tusb_hal_int_disable_all();
-  tu_fifo_clear(&qhdl->ff);
-  // tusb_hal_int_enable_all();
-}
-
 #ifdef __cplusplus
  }
 #endif

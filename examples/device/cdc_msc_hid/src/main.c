@@ -38,7 +38,7 @@
 /* Blink pattern
  * - 250 ms  : device not mounted
  * - 1000 ms : device mounted
- * - 2000 ms : device is suspended
+ * - 2500 ms : device is suspended
  */
 static uint32_t blink_interval_ms = 250;
 
@@ -208,6 +208,18 @@ void tud_mount_cb(void)
 void tud_umount_cb(void)
 {
   blink_interval_ms = 250;
+}
+
+// Invoked when device is suspended
+void tud_suspend_cb(bool remote_wakeup_en)
+{
+  (void) remote_wakeup_en;
+  blink_interval_ms = 2500;
+}
+
+void tud_resume_cb(void)
+{
+  blink_interval_ms = 1000;
 }
 
 //--------------------------------------------------------------------+

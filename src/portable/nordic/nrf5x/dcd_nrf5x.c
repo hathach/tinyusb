@@ -205,13 +205,14 @@ void dcd_set_config (uint8_t rhport, uint8_t config_num)
 {
   (void) rhport;
   (void) config_num;
-  // Nothing to do
 
-  // Clear current pending 
+  // Enable usbevent for suspend and resume detection
+  // Since the bus signal D+/D- are stable from now on.
+
+  // Clear current pending first
   NRF_USBD->EVENTCAUSE |= NRF_USBD->EVENTCAUSE;
   NRF_USBD->EVENTS_USBEVENT = 0;
 
-  // Enable usb event for suspend and resume
   NRF_USBD->INTENSET = USBD_INTEN_USBEVENT_Msk;
 }
 
@@ -377,19 +378,18 @@ void USBD_IRQHandler(void)
 
   if ( int_status & USBD_INTEN_USBEVENT_Msk )
   {
-    uint32_t const evt_cause = NRF_USBD->EVENTCAUSE;
+    uint32_t const evt_cause = NRF_USBD->EVENTCAUSE & (USBD_EVENTCAUSE_SUSPEND_Msk | USBD_EVENTCAUSE_RESUME_Msk);
+    NRF_USBD->EVENTCAUSE = evt_cause; // clear interrupt
 
-    if ( evt_cause & USBD_EVENTCAUSE_SUSPEND_Msk ) 
+    if ( evt_cause & USBD_EVENTCAUSE_SUSPEND_Msk )
     {
       dcd_event_bus_signal(0, DCD_EVENT_SUSPEND, true);
     }
-    
-    if ( evt_cause & USBD_EVENTCAUSE_RESUME_Msk  ) 
+
+    if ( evt_cause & USBD_EVENTCAUSE_RESUME_Msk  )
     {
       dcd_event_bus_signal(0, DCD_EVENT_RESUME , true);
     }
-
-    NRF_USBD->EVENTCAUSE = evt_cause; // clear interrupt
   }
 
   if ( int_status & EDPT_END_ALL_MASK )
@@ -397,7 +397,7 @@ void USBD_IRQHandler(void)
     // DMA complete move data from SRAM -> Endpoint
     edpt_dma_end();
   }
-
+ 
   // Setup tokens are specific to the Control endpoint.
   if ( int_status & USBD_INTEN_EP0SETUP_Msk )
   {

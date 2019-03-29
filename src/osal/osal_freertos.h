@@ -125,11 +125,6 @@ static inline bool osal_queue_send(osal_queue_t const queue_hdl, void const * da
   return in_isr ? xQueueSendToBackFromISR(queue_hdl, data, NULL) : xQueueSendToBack(queue_hdl, data, OSAL_TIMEOUT_WAIT_FOREVER);
 }
 
-static inline void osal_queue_reset(osal_queue_t const queue_hdl)
-{
-  xQueueReset(queue_hdl);
-}
-
 #ifdef __cplusplus
  }
 #endif

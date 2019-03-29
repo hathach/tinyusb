@@ -40,14 +40,20 @@
 // Device Data
 //--------------------------------------------------------------------+
 typedef struct {
-  volatile uint8_t config_num; // 0 is non-configured ~ disconnect
-  bool remote_wakeup_en;
+  volatile uint8_t config_num;
 
-  uint8_t itf2drv[16];      // map interface number to driver (0xff is invalid)
-  uint8_t ep2drv[8][2];     // map endpoint to driver ( 0xff is invalid )
+  struct ATTR_PACKED
+  {
+      volatile uint8_t connected : 1;
+      volatile uint8_t suspended : 1;
+      uint8_t remote_wakeup_en   : 1;
+  };
 
 //  uint8_t ep_busy_mask[2];  // bit mask for busy endpoint
   uint8_t ep_stall_mask[2]; // bit mask for stalled endpoint
+
+  uint8_t itf2drv[16];      // map interface number to driver (0xff is invalid)
+  uint8_t ep2drv[8][2];     // map endpoint to driver ( 0xff is invalid )
 }usbd_device_t;
 
 static usbd_device_t _usbd_dev = { 0 };
@@ -246,8 +252,27 @@ void tud_task (void)
 
     if ( !osal_queue_receive(_usbd_q, &event) ) return;
 
+    // Skip event if device is not connected except BUS_RESET & UNPLUGGED & FUNC_CALL
+    if ( !(_usbd_dev.connected || event.event_id == DCD_EVENT_UNPLUGGED ||
+        event.event_id == DCD_EVENT_BUS_RESET || event.event_id == USBD_EVENT_FUNC_CALL) )
+    {
+      return;
+    }
+
     switch ( event.event_id )
     {
+      case DCD_EVENT_BUS_RESET:
+        usbd_reset(event.rhport);
+        _usbd_dev.connected = 1; // connected after bus reset
+      break;
+
+      case DCD_EVENT_UNPLUGGED:
+        usbd_reset(event.rhport);
+
+        // invoke callback
+        if (tud_umount_cb) tud_umount_cb();
+      break;
+
       case DCD_EVENT_SETUP_RECEIVED:
         // Process control request
         if ( !process_control_request(event.rhport, &event.setup_received) )
@@ -278,19 +303,15 @@ void tud_task (void)
       }
       break;
 
-      case DCD_EVENT_BUS_RESET:
-        usbd_reset(event.rhport);
-        // TODO remove since if task is too slow, we could clear the event of the new attached
-        osal_queue_reset(_usbd_q);
+      // NOTE: When unplugging device, the D+/D- state are unstable and can accidentally meet the
+      // SUSPEND condition ( Idle for 3ms ). Most likely when this happen both suspend and resume
+      // are submitted by DCD before the actual UNPLUGGED
+      case DCD_EVENT_SUSPEND:
+        if (tud_suspend_cb) tud_suspend_cb( _usbd_dev.remote_wakeup_en );
       break;
 
-      case DCD_EVENT_UNPLUGGED:
-        usbd_reset(event.rhport);
-        // TODO remove since if task is too slow, we could clear the event of the new attached
-        osal_queue_reset(_usbd_q);
-
-        // invoke callback
-        if (tud_umount_cb) tud_umount_cb();
+      case DCD_EVENT_RESUME:
+        if (tud_resume_cb) tud_resume_cb();
       break;
 
       case DCD_EVENT_SOF:
@@ -303,7 +324,7 @@ void tud_task (void)
         }
       break;
 
-      case USBD_EVT_FUNC_CALL:
+      case USBD_EVENT_FUNC_CALL:
         if ( event.func_call.func ) event.func_call.func(event.func_call.param);
       break;
 
@@ -555,9 +576,8 @@ static void const* get_descriptor(tusb_control_request_t const * p_request, uint
       }else
       {
         // out of range
-        /* The 0xEE index string is a Microsoft USB extension.
-         * It can be used to tell Windows what driver it should use for the device !!!
-         */
+        // The 0xEE index string is a Microsoft USB extension.
+        // It can be used to tell Windows what driver it should use for the device !!!
         return NULL;
       }
     break;
@@ -587,7 +607,8 @@ void dcd_event_handler(dcd_event_t const * event, bool in_isr)
     break;
 
     case DCD_EVENT_UNPLUGGED:
-      _usbd_dev.config_num = 0; // mark disconnected
+      _usbd_dev.connected = 0;
+      _usbd_dev.config_num = 0;
       osal_queue_send(_usbd_q, event, in_isr);
     break;
 
@@ -595,9 +616,23 @@ void dcd_event_handler(dcd_event_t const * event, bool in_isr)
       // nothing to do now
     break;
 
+    // NOTE: When unplugging device, the D+/D- state are unstable and can accidentally meet the
+    // SUSPEND condition ( Idle for 3ms ). Most likely when this happen both suspend and resume
+    // are submitted by DCD before the actual UNPLUGGED
     case DCD_EVENT_SUSPEND:
+      if (_usbd_dev.connected ) // skip event if disconnected
+      {
+        _usbd_dev.suspended = 1;
+        osal_queue_send(_usbd_q, event, in_isr);
+      }
+    break;
+
     case DCD_EVENT_RESUME:
-      osal_queue_send(_usbd_q, event, in_isr);
+      if (_usbd_dev.connected ) // skip event if disconnected
+      {
+        _usbd_dev.suspended = 0;
+        osal_queue_send(_usbd_q, event, in_isr);
+      }
     break;
 
     case DCD_EVENT_SETUP_RECEIVED:
@@ -606,14 +641,14 @@ void dcd_event_handler(dcd_event_t const * event, bool in_isr)
 
     case DCD_EVENT_XFER_COMPLETE:
       // skip zero-length control status complete event, should dcd notifies us.
-      if ( 0 == tu_edpt_number(event->xfer_complete.ep_addr) && event->xfer_complete.len == 0) break;
+      if ( (0 == tu_edpt_number(event->xfer_complete.ep_addr)) && (event->xfer_complete.len == 0) ) break;
 
       osal_queue_send(_usbd_q, event, in_isr);
       TU_ASSERT(event->xfer_complete.result == XFER_RESULT_SUCCESS,);
     break;
 
-    // Not an DCD event, just a convenient way to defer ISR function should we need
-    case USBD_EVT_FUNC_CALL:
+    // Not an DCD event, just a convenient way to defer ISR function should we need to
+    case USBD_EVENT_FUNC_CALL:
       osal_queue_send(_usbd_q, event, in_isr);
     break;
 
@@ -683,7 +718,7 @@ void usbd_defer_func(osal_task_func_t func, void* param, bool in_isr)
   dcd_event_t event =
   {
       .rhport   = 0,
-      .event_id = USBD_EVT_FUNC_CALL,
+      .event_id = USBD_EVENT_FUNC_CALL,
   };
 
   event.func_call.func  = func;
