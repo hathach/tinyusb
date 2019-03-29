@@ -121,7 +121,7 @@ static void bus_reset(uint8_t rhport)
 	p_dcd->qhd[0].int_on_setup = 1; // OUT only
 }
 
-bool dcd_init(uint8_t rhport)
+void dcd_init(uint8_t rhport)
 {
   LPC_USBHS_T* const lpc_usb = LPC_USB[rhport];
   dcd_data_t* p_dcd = dcd_data_ptr[rhport];
@@ -134,8 +134,6 @@ bool dcd_init(uint8_t rhport)
 
   lpc_usb->USBCMD_D &= ~0x00FF0000; // Interrupt Threshold Interval = 0
   lpc_usb->USBCMD_D |= TU_BIT(0); // connect
-
-  return true;
 }
 
 void dcd_int_enable(uint8_t rhport)

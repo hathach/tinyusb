@@ -57,7 +57,7 @@ static void bus_reset(void) {
 /*------------------------------------------------------------------*/
 /* Controller API
  *------------------------------------------------------------------*/
-bool dcd_init (uint8_t rhport)
+void dcd_init (uint8_t rhport)
 {
   (void) rhport;
 
@@ -80,8 +80,6 @@ bool dcd_init (uint8_t rhport)
   while (USB->DEVICE.SYNCBUSY.bit.ENABLE == 1) {}
 
   USB->DEVICE.INTENSET.reg = USB_DEVICE_INTENSET_SOF | USB_DEVICE_INTENSET_EORST;
-
-  return true;
 }
 
 void dcd_int_enable(uint8_t rhport)

@@ -80,7 +80,9 @@ TU_VERIFY_STATIC(sizeof(dcd_event_t) <= 12, "size is not correct");
 /*------------------------------------------------------------------*/
 /* Device API
  *------------------------------------------------------------------*/
-bool dcd_init       (uint8_t rhport);
+
+// Initialize controller to device mode
+void dcd_init       (uint8_t rhport);
 
 // Enable device interrupt
 void dcd_int_enable (uint8_t rhport);
@@ -91,8 +93,11 @@ void dcd_int_disable(uint8_t rhport);
 // Receive Set Address request, mcu port must also include status IN response
 void dcd_set_address(uint8_t rhport, uint8_t dev_addr);
 
-// Receive Set Config request
+// Receive Set Configure request
 void dcd_set_config (uint8_t rhport, uint8_t config_num);
+
+// Wake up host
+void dcd_remote_wakeup(uint8_t rhport);
 
 /*------------------------------------------------------------------*/
 /* Endpoint API

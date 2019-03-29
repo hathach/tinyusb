@@ -127,6 +127,7 @@ void usb_hid_task(void)
   if ( board_millis() < start_ms + interval_ms) return; // not enough time
   start_ms += interval_ms;
 
+#if 1
   uint32_t const btn = board_buttons();
 
   /*------------- Keyboard -------------*/
@@ -160,18 +161,29 @@ void usb_hid_task(void)
     if ( btn & 0x04 ) tud_hid_mouse_move(  0   , -DELTA); // up
     if ( btn & 0x08 ) tud_hid_mouse_move(  0   ,  DELTA); // down
   }
+#endif
 }
 
 uint16_t tud_hid_generic_get_report_cb(uint8_t report_id, hid_report_type_t report_type, uint8_t* buffer, uint16_t reqlen)
 {
   // TODO not Implemented
+  (void) report_id;
+  (void) report_type;
+  (void) buffer;
+  (void) reqlen;
+
   return 0;
 }
 
 void tud_hid_generic_set_report_cb(uint8_t report_id, hid_report_type_t report_type, uint8_t const* buffer, uint16_t bufsize)
 {
   // TODO not Implemented
+  (void) report_id;
+  (void) report_type;
+  (void) buffer;
+  (void) bufsize;
 }
+
 #endif
 
 //--------------------------------------------------------------------+

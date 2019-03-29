@@ -105,6 +105,13 @@ typedef enum
 
 typedef enum
 {
+  TUSB_REQ_FEATURE_EDPT_HALT = 0,
+  TUSB_REQ_FEATURE_REMOTE_WAKEUP = 1,
+  TUSB_REQ_FEATURE_TEST_MODE = 2
+}tusb_request_feature_selector_t;
+
+typedef enum
+{
   TUSB_REQ_TYPE_STANDARD = 0,
   TUSB_REQ_TYPE_CLASS,
   TUSB_REQ_TYPE_VENDOR

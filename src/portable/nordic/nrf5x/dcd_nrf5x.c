@@ -177,10 +177,9 @@ static void xact_in_prepare(uint8_t epnum)
 //--------------------------------------------------------------------+
 // Controller API
 //--------------------------------------------------------------------+
-bool dcd_init (uint8_t rhport)
+void dcd_init (uint8_t rhport)
 {
   (void) rhport;
-  return true;
 }
 
 void dcd_int_enable(uint8_t rhport)

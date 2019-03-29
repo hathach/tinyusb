@@ -40,12 +40,13 @@
 // Device Data
 //--------------------------------------------------------------------+
 typedef struct {
-  volatile uint8_t config_num; // 0 is non-configure ~ disconnect
+  volatile uint8_t config_num; // 0 is non-configured ~ disconnect
+  bool remote_wakeup_en;
 
   uint8_t itf2drv[16];      // map interface number to driver (0xff is invalid)
   uint8_t ep2drv[8][2];     // map endpoint to driver ( 0xff is invalid )
 
-  uint8_t ep_busy_mask[2];  // bit mask for busy endpoint
+//  uint8_t ep_busy_mask[2];  // bit mask for busy endpoint
   uint8_t ep_stall_mask[2]; // bit mask for stalled endpoint
 }usbd_device_t;
 
@@ -186,7 +187,7 @@ bool usbd_init (void)
   for (uint8_t i = 0; i < USBD_CLASS_DRIVER_COUNT; i++) usbd_class_drivers[i].init();
 
   // Init device controller driver
-  TU_ASSERT(dcd_init(TUD_OPT_RHPORT));
+  dcd_init(TUD_OPT_RHPORT);
   dcd_int_enable(TUD_OPT_RHPORT);
 
   return true;
@@ -352,6 +353,20 @@ static bool process_control_request(uint8_t rhport, tusb_control_request_t const
         if ( data_buf == NULL || data_len == 0 ) return false;
       break;
 
+      case TUSB_REQ_SET_FEATURE:
+        if ( TUSB_REQ_FEATURE_REMOTE_WAKEUP == p_request->wValue )
+        {
+          // Host enable remote wake up before suspending especially HID device
+        }
+      break;
+
+      case TUSB_REQ_CLEAR_FEATURE:
+        if ( TUSB_REQ_FEATURE_REMOTE_WAKEUP == p_request->wValue )
+        {
+          // Host disable remote wake up after resuming
+        }
+      break;
+
       default:
         TU_BREAKPOINT();
       return false;
@@ -386,15 +401,19 @@ static bool process_control_request(uint8_t rhport, tusb_control_request_t const
       break;
 
       case TUSB_REQ_CLEAR_FEATURE:
-        // only endpoint feature is halted/stalled
-        dcd_edpt_clear_stall(rhport, tu_u16_low(p_request->wIndex));
-        usbd_control_status(rhport, p_request);
+        if ( TUSB_REQ_FEATURE_EDPT_HALT == p_request->wValue )
+        {
+          dcd_edpt_clear_stall(rhport, tu_u16_low(p_request->wIndex));
+          usbd_control_status(rhport, p_request);
+        }
       break;
 
       case TUSB_REQ_SET_FEATURE:
-        // only endpoint feature is halted/stalled
-        usbd_edpt_stall(rhport, tu_u16_low(p_request->wIndex));
-        usbd_control_status(rhport, p_request);
+        if ( TUSB_REQ_FEATURE_EDPT_HALT == p_request->wValue )
+        {
+          usbd_edpt_stall(rhport, tu_u16_low(p_request->wIndex));
+          usbd_control_status(rhport, p_request);
+        }
       break;
 
       default:
@@ -556,11 +575,8 @@ void dcd_event_handler(dcd_event_t const * event, bool in_isr)
     break;
 
     case DCD_EVENT_SUSPEND:
-      // TODO support suspended
-    break;
-
     case DCD_EVENT_RESUME:
-      // TODO support resume
+      osal_queue_send(_usbd_q, event, in_isr);
     break;
 
     case DCD_EVENT_SETUP_RECEIVED:

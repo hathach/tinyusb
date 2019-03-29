@@ -35,10 +35,8 @@
 // MACRO TYPEDEF CONSTANT ENUM DECLARATION
 //--------------------------------------------------------------------+
 
-
-bool dcd_init (uint8_t rhport)
+void dcd_init (uint8_t rhport)
 {
-  return true;
 }
 
 // Enable device interrupt

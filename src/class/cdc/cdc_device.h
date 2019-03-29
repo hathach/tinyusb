@@ -38,7 +38,6 @@
 #define CFG_TUD_CDC_EPSIZE 64
 #endif
 
-
 #ifdef __cplusplus
  extern "C" {
 #endif

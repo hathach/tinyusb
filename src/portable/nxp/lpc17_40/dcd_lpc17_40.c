@@ -166,7 +166,7 @@ static void bus_reset(void)
   tu_memclr(&_dcd, sizeof(dcd_data_t));
 }
 
-bool dcd_init(uint8_t rhport)
+void dcd_init(uint8_t rhport)
 {
   (void) rhport;
 
@@ -186,8 +186,6 @@ bool dcd_init(uint8_t rhport)
   // USB IRQ priority should be set by application previously
   NVIC_ClearPendingIRQ(USB_IRQn);
   NVIC_EnableIRQ(USB_IRQn);
-
-  return true;
 }
 
 void dcd_int_enable(uint8_t rhport)

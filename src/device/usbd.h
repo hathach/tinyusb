@@ -60,7 +60,6 @@ typedef struct {
 
 }tud_desc_set_t;
 
-
 // Must be defined by application
 extern tud_desc_set_t tud_desc_set;
 
@@ -70,6 +69,8 @@ extern tud_desc_set_t tud_desc_set;
 bool tud_mounted(void);
 void tud_task (void);
 
+bool tud_remote_wakeup(void);
+
 //--------------------------------------------------------------------+
 // APPLICATION CALLBACK (WEAK is optional)
 //--------------------------------------------------------------------+
@@ -77,10 +78,14 @@ void tud_task (void);
 // Callback invoked when device is mounted (configured)
 ATTR_WEAK void tud_mount_cb(void);
 
-// Callback invoked when device is unmounted (bus reset/unplugged)
+// Callback invoked when device is unmounted
 ATTR_WEAK void tud_umount_cb(void);
 
-//void tud_device_suspended_cb(void);
+// Callback invoked when device is suspended
+ATTR_WEAK void tud_suspend_cb(bool remote_wakeup_en);
+
+// Callback invoked when device is resumed
+ATTR_WEAK void tud_resume_cb(void);
 
 #ifdef __cplusplus
  }
