@@ -324,118 +324,129 @@ static bool process_control_request(uint8_t rhport, tusb_control_request_t const
 {
   usbd_control_set_complete_callback(NULL);
 
-  if ( TUSB_REQ_RCPT_DEVICE == p_request->bmRequestType_bit.recipient &&
-       TUSB_REQ_TYPE_STANDARD == p_request->bmRequestType_bit.type )
+  switch ( p_request->bmRequestType_bit.recipient )
   {
-    //------------- Standard Device Requests e.g in enumeration -------------//
-    void* data_buf = NULL;
-    uint16_t data_len = 0;
-
-    switch ( p_request->bRequest )
-    {
-      case TUSB_REQ_SET_ADDRESS:
-        // DCD must include zero-length status response since depending on mcu,
-        // status could be sent either before or after changing device address
-        dcd_set_address(rhport, (uint8_t) p_request->wValue);
-        return true; // skip the rest
-      break;
-
-      case TUSB_REQ_GET_CONFIGURATION:
-        data_buf = (uint8_t*) &_usbd_dev.config_num;
-        data_len = 1;
-      break;
-
-      case TUSB_REQ_SET_CONFIGURATION:
+    //------------- Device Requests e.g in enumeration -------------//
+    case TUSB_REQ_RCPT_DEVICE:
+      if ( TUSB_REQ_TYPE_STANDARD != p_request->bmRequestType_bit.type )
       {
-        uint8_t const config = (uint8_t) p_request->wValue;
-
-        dcd_set_config(rhport, config);
-        _usbd_dev.config_num = config;
-
-        TU_ASSERT( TUSB_ERROR_NONE == process_set_config(rhport) );
-      }
-      break;
-
-      case TUSB_REQ_GET_DESCRIPTOR:
-        data_buf = (void*) get_descriptor(p_request, &data_len);
-        if ( data_buf == NULL || data_len == 0 ) return false;
-      break;
-
-      case TUSB_REQ_SET_FEATURE:
-        if ( TUSB_REQ_FEATURE_REMOTE_WAKEUP == p_request->wValue )
-        {
-          // Host enable remote wake up before suspending especially HID device
-          _usbd_dev.remote_wakeup_en = true;
-        }
-      break;
-
-      case TUSB_REQ_CLEAR_FEATURE:
-        if ( TUSB_REQ_FEATURE_REMOTE_WAKEUP == p_request->wValue )
-        {
-          // Host disable remote wake up after resuming
-          _usbd_dev.remote_wakeup_en = false;
-        }
-      break;
-
-      default:
+        // Non standard request is not supported
         TU_BREAKPOINT();
-      return false;
-    }
+        return false;
+      }
 
-    usbd_control_xfer(rhport, p_request, data_buf, data_len);
-  }
-  else if ( TUSB_REQ_RCPT_INTERFACE == p_request->bmRequestType_bit.recipient )
-  {
+      void* data_buf = NULL;
+      uint16_t data_len = 0;
+
+      switch ( p_request->bRequest )
+      {
+        case TUSB_REQ_SET_ADDRESS:
+          // DCD must include zero-length status response since depending on mcu,
+          // status could be sent either before or after changing device address
+          dcd_set_address(rhport, (uint8_t) p_request->wValue);
+          return true; // skip the rest
+        break;
+
+        case TUSB_REQ_GET_CONFIGURATION:
+          data_buf = (uint8_t*) &_usbd_dev.config_num;
+          data_len = 1;
+        break;
+
+        case TUSB_REQ_SET_CONFIGURATION:
+        {
+          uint8_t const config = (uint8_t) p_request->wValue;
+
+          dcd_set_config(rhport, config);
+          _usbd_dev.config_num = config;
+
+          TU_ASSERT( process_set_config(rhport) );
+        }
+        break;
+
+        case TUSB_REQ_GET_DESCRIPTOR:
+          data_buf = (void*) get_descriptor(p_request, &data_len);
+          if ( data_buf == NULL || data_len == 0 ) return false;
+        break;
+
+        case TUSB_REQ_SET_FEATURE:
+          if ( TUSB_REQ_FEATURE_REMOTE_WAKEUP == p_request->wValue )
+          {
+            // Host enable remote wake up before suspending especially HID device
+            _usbd_dev.remote_wakeup_en = true;
+          }
+        break;
+
+        case TUSB_REQ_CLEAR_FEATURE:
+          if ( TUSB_REQ_FEATURE_REMOTE_WAKEUP == p_request->wValue )
+          {
+            // Host disable remote wake up after resuming
+            _usbd_dev.remote_wakeup_en = false;
+          }
+        break;
+
+        // Unknown/Unsupported request
+        default: TU_BREAKPOINT(); return false;
+      }
+
+      usbd_control_xfer(rhport, p_request, data_buf, data_len);
+    break;
+
     //------------- Class/Interface Specific Request -------------//
-    uint8_t const itf = tu_u16_low(p_request->wIndex);
-    uint8_t const drvid = _usbd_dev.itf2drv[ itf ];
-
-    TU_VERIFY(drvid < USBD_CLASS_DRIVER_COUNT);
-
-    usbd_control_set_complete_callback(usbd_class_drivers[drvid].control_request_complete );
-
-    // control endpoint will be stalled if driver return false
-    return usbd_class_drivers[drvid].control_request(rhport, p_request);
-  }
-  else if ( p_request->bmRequestType_bit.recipient == TUSB_REQ_RCPT_ENDPOINT &&
-            p_request->bmRequestType_bit.type == TUSB_REQ_TYPE_STANDARD )
-  {
-    //------------- Endpoint Request -------------//
-    switch ( p_request->bRequest )
+    case TUSB_REQ_RCPT_INTERFACE:
     {
-      case TUSB_REQ_GET_STATUS:
-      {
-        uint16_t status = usbd_edpt_stalled(rhport, tu_u16_low(p_request->wIndex)) ? 0x0001 : 0x0000;
-        usbd_control_xfer(rhport, p_request, &status, 2);
-      }
-      break;
+      uint8_t const itf = tu_u16_low(p_request->wIndex);
+      uint8_t const drvid = _usbd_dev.itf2drv[itf];
 
-      case TUSB_REQ_CLEAR_FEATURE:
-        if ( TUSB_REQ_FEATURE_EDPT_HALT == p_request->wValue )
-        {
-          dcd_edpt_clear_stall(rhport, tu_u16_low(p_request->wIndex));
-          usbd_control_status(rhport, p_request);
-        }
-      break;
+      TU_VERIFY(drvid < USBD_CLASS_DRIVER_COUNT);
 
-      case TUSB_REQ_SET_FEATURE:
-        if ( TUSB_REQ_FEATURE_EDPT_HALT == p_request->wValue )
-        {
-          usbd_edpt_stall(rhport, tu_u16_low(p_request->wIndex));
-          usbd_control_status(rhport, p_request);
-        }
-      break;
+      usbd_control_set_complete_callback(usbd_class_drivers[drvid].control_request_complete );
 
-      default:
-        TU_BREAKPOINT();
-      return false;
+      // stall control endpoint if driver return false
+      return usbd_class_drivers[drvid].control_request(rhport, p_request);
     }
-  }
-  else
-  {
-    //------------- Unsupported Request -------------//
-    TU_BREAKPOINT();
-    return false;
+    break;
+
+    //------------- Endpoint Request -------------//
+    case TUSB_REQ_RCPT_ENDPOINT:
+      if ( TUSB_REQ_TYPE_STANDARD != p_request->bmRequestType_bit.type )
+      {
+        // Non standard request is not supported
+        TU_BREAKPOINT();
+        return false;
+      }
+
+      switch ( p_request->bRequest )
+      {
+        case TUSB_REQ_GET_STATUS:
+        {
+          uint16_t status = usbd_edpt_stalled(rhport, tu_u16_low(p_request->wIndex)) ? 0x0001 : 0x0000;
+          usbd_control_xfer(rhport, p_request, &status, 2);
+        }
+        break;
+
+        case TUSB_REQ_CLEAR_FEATURE:
+          if ( TUSB_REQ_FEATURE_EDPT_HALT == p_request->wValue )
+          {
+            dcd_edpt_clear_stall(rhport, tu_u16_low(p_request->wIndex));
+            usbd_control_status(rhport, p_request);
+          }
+        break;
+
+        case TUSB_REQ_SET_FEATURE:
+          if ( TUSB_REQ_FEATURE_EDPT_HALT == p_request->wValue )
+          {
+            usbd_edpt_stall(rhport, tu_u16_low(p_request->wIndex));
+            usbd_control_status(rhport, p_request);
+          }
+        break;
+
+        // Unknown/Unsupported request
+        default: TU_BREAKPOINT(); return false;
+      }
+    break;
+
+    // Unknown recipient
+    default: TU_BREAKPOINT(); return false;
   }
 
   return true;
@@ -488,7 +499,7 @@ static bool process_set_config(uint8_t rhport)
   // invoke callback
   if (tud_mount_cb) tud_mount_cb();
 
-  return TUSB_ERROR_NONE;
+  return true;
 }
 
 // Helper marking endpoint of interface belongs to class driver
