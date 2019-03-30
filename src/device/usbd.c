@@ -189,7 +189,7 @@ void tud_set_self_powered(bool self_powered)
 bool tud_remote_wakeup(void)
 {
   // only wake up host if this feature is enabled
-  if (_usbd_dev.remote_wakeup_en ) dcd_remote_wakeup(TUD_OPT_RHPORT);
+  if (_usbd_dev.suspended && _usbd_dev.remote_wakeup_en ) dcd_remote_wakeup(TUD_OPT_RHPORT);
 
   return _usbd_dev.remote_wakeup_en;
 }

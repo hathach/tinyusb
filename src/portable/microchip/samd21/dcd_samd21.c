@@ -110,6 +110,18 @@ void dcd_set_config (uint8_t rhport, uint8_t config_num)
   (void) rhport;
   (void) config_num;
   // Nothing to do
+
+#if 0
+  // Enable suspend to detect disconnection
+  // TODO need to distinguish Suspend vs Disconnect
+  USB->DEVICE.INTFLAG.reg = USB_DEVICE_INTENCLR_SUSPEND;
+  USB->DEVICE.INTENSET.reg |= USB_DEVICE_INTENSET_SUSPEND;
+#endif
+}
+
+void dcd_remote_wakeup(uint8_t rhport)
+{
+  (void) rhport;
 }
 
 /*------------------------------------------------------------------*/
@@ -290,13 +302,14 @@ void maybe_transfer_complete(void) {
     }
 }
 
-void USB_Handler(void) {
-  uint32_t int_status = USB->DEVICE.INTFLAG.reg;
+void USB_Handler(void)
+{
+  uint32_t int_status = USB->DEVICE.INTFLAG.reg & USB->DEVICE.INTENSET.reg;
 
   /*------------- Interrupt Processing -------------*/
   if ( int_status & USB_DEVICE_INTFLAG_EORST )
   {
-    USB->DEVICE.INTFLAG.reg = USB_DEVICE_INTENCLR_EORST;
+    USB->DEVICE.INTFLAG.reg = USB_DEVICE_INTFLAG_EORST;
     bus_reset();
     dcd_event_bus_signal(0, DCD_EVENT_BUS_RESET, true);
   }
@@ -306,6 +319,21 @@ void USB_Handler(void) {
     USB->DEVICE.INTFLAG.reg = USB_DEVICE_INTFLAG_SOF;
     dcd_event_bus_signal(0, DCD_EVENT_SOF, true);
   }
+
+#if 0
+  if ( int_status & USB_DEVICE_INTFLAG_SUSPEND )
+  {
+    USB->DEVICE.INTFLAG.reg = USB_DEVICE_INTFLAG_SUSPEND;
+
+    // disable interrupt to prevent it continue to trigger
+    USB->DEVICE.INTENCLR.reg = USB_DEVICE_INTENCLR_SUSPEND;
+
+    // TODO need to distinguish Suspend vs Disconnect
+    // reset address to 0, force host to re-enumerate after resume
+    USB->DEVICE.DADD.reg = 0;
+    dcd_event_bus_signal(0, DCD_EVENT_UNPLUGGED, true);
+  }
+#endif
 
   // Setup packet received.
   maybe_handle_setup_packet();

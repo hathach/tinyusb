@@ -126,33 +126,6 @@ static inline uint8_t ep_addr2id(uint8_t endpoint_addr)
 //--------------------------------------------------------------------+
 // CONTROLLER API
 //--------------------------------------------------------------------+
-void dcd_int_enable(uint8_t rhport)
-{
-  (void) rhport;
-  NVIC_EnableIRQ(USB0_IRQn);
-}
-
-void dcd_int_disable(uint8_t rhport)
-{
-  (void) rhport;
-  NVIC_DisableIRQ(USB0_IRQn);
-}
-
-void dcd_set_config(uint8_t rhport, uint8_t config_num)
-{
-  (void) rhport;
-  (void) config_num;
-}
-
-void dcd_set_address(uint8_t rhport, uint8_t dev_addr)
-{
-  // Response with status first before changing device address
-  dcd_edpt_xfer(rhport, tu_edpt_addr(0, TUSB_DIR_IN), NULL, 0);
-
-  LPC_USB->DEVCMDSTAT &= ~CMDSTAT_DEVICE_ADDR_MASK;
-  LPC_USB->DEVCMDSTAT |= dev_addr;
-}
-
 void dcd_init(uint8_t rhport)
 {
   (void) rhport;
@@ -165,7 +138,39 @@ void dcd_init(uint8_t rhport)
   LPC_USB->DEVCMDSTAT  |= CMDSTAT_DEVICE_ENABLE_MASK | CMDSTAT_DEVICE_CONNECT_MASK |
                           CMDSTAT_RESET_CHANGE_MASK | CMDSTAT_CONNECT_CHANGE_MASK | CMDSTAT_SUSPEND_CHANGE_MASK;
 
+  NVIC_ClearPendingIRQ(USB0_IRQn);
+}
+
+void dcd_int_enable(uint8_t rhport)
+{
+  (void) rhport;
   NVIC_EnableIRQ(USB0_IRQn);
+}
+
+void dcd_int_disable(uint8_t rhport)
+{
+  (void) rhport;
+  NVIC_DisableIRQ(USB0_IRQn);
+}
+
+void dcd_set_address(uint8_t rhport, uint8_t dev_addr)
+{
+  // Response with status first before changing device address
+  dcd_edpt_xfer(rhport, tu_edpt_addr(0, TUSB_DIR_IN), NULL, 0);
+
+  LPC_USB->DEVCMDSTAT &= ~CMDSTAT_DEVICE_ADDR_MASK;
+  LPC_USB->DEVCMDSTAT |= dev_addr;
+}
+
+void dcd_set_config(uint8_t rhport, uint8_t config_num)
+{
+  (void) rhport;
+  (void) config_num;
+}
+
+void dcd_remote_wakeup(uint8_t rhport)
+{
+  (void) rhport;
 }
 
 //--------------------------------------------------------------------+

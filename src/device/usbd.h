@@ -59,11 +59,18 @@ extern tud_desc_set_t tud_desc_set;
 //--------------------------------------------------------------------+
 // Application API
 //--------------------------------------------------------------------+
-bool tud_mounted(void);
+
+// Task function should be called in main/rtos loop
 void tud_task (void);
 
-bool tud_remote_wakeup(void);
+// Check if device is connected and configured
+bool tud_mounted(void);
+
+// Tell stack that device is self or bus powered (default = bus)
 void tud_set_self_powered(bool self_powered);
+
+// Remote wake up host, only if suspended and enabled by host
+bool tud_remote_wakeup(void);
 
 //--------------------------------------------------------------------+
 // Application Callbacks (WEAK is optional)

@@ -185,7 +185,6 @@ void dcd_init(uint8_t rhport)
 
   // USB IRQ priority should be set by application previously
   NVIC_ClearPendingIRQ(USB_IRQn);
-  NVIC_EnableIRQ(USB_IRQn);
 }
 
 void dcd_int_enable(uint8_t rhport)
@@ -213,6 +212,11 @@ void dcd_set_config(uint8_t rhport, uint8_t config_num)
   (void) rhport;
   (void) config_num;
   sie_write(SIE_CMDCODE_CONFIGURE_DEVICE, 1, 1);
+}
+
+void dcd_remote_wakeup(uint8_t rhport)
+{
+  (void) rhport;
 }
 
 //--------------------------------------------------------------------+
