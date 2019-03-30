@@ -76,16 +76,16 @@ bool tud_remote_wakeup(void);
 // Application Callbacks (WEAK is optional)
 //--------------------------------------------------------------------+
 
-// Callback invoked when device is mounted (configured)
+// Invoked when device is mounted (configured)
 ATTR_WEAK void tud_mount_cb(void);
 
-// Callback invoked when device is unmounted
+// Invoked when device is unmounted
 ATTR_WEAK void tud_umount_cb(void);
 
-// Callback invoked when device is suspended
+// Invoked when usb bus is suspended, max bus current draw is 2.5 mA
 ATTR_WEAK void tud_suspend_cb(bool remote_wakeup_en);
 
-// Callback invoked when device is resumed
+// Invoked when usb bus is resumed
 ATTR_WEAK void tud_resume_cb(void);
 
 #ifdef __cplusplus

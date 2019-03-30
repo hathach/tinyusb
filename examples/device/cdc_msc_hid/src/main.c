@@ -210,13 +210,15 @@ void tud_umount_cb(void)
   blink_interval_ms = 250;
 }
 
-// Invoked when device is suspended
+// Invoked when usb bus is suspended
+// USB specs: device can only draw up to 2.5 mA from bus
 void tud_suspend_cb(bool remote_wakeup_en)
 {
   (void) remote_wakeup_en;
   blink_interval_ms = 2500;
 }
 
+// Invoked when usb bus is resumed
 void tud_resume_cb(void)
 {
   blink_interval_ms = 1000;
