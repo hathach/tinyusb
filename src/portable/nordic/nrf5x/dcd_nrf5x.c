@@ -219,6 +219,9 @@ void dcd_set_config (uint8_t rhport, uint8_t config_num)
 void dcd_remote_wakeup(uint8_t rhport)
 {
   (void) rhport;
+
+  NRF_USBD->DPDMVALUE = USBD_DPDMVALUE_STATE_Resume;
+  NRF_USBD->TASKS_DPDMDRIVE = 1;
 }
 
 //--------------------------------------------------------------------+
@@ -389,6 +392,8 @@ void USBD_IRQHandler(void)
     if ( evt_cause & USBD_EVENTCAUSE_SUSPEND_Msk )
     {
       dcd_event_bus_signal(0, DCD_EVENT_SUSPEND, true);
+
+
     }
 
     if ( evt_cause & USBD_EVENTCAUSE_RESUME_Msk  )

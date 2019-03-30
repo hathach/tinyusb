@@ -44,7 +44,7 @@
 
 uint8_t _button_pins[] = { 11, 12, 24, 25 };
 
-#define BOARD_BUTTON_COUNT  sizeof(_button_pins)
+#define BUTTON_COUNT  sizeof(_button_pins)
 
 
 /*------------------------------------------------------------------*/
@@ -84,7 +84,7 @@ void board_init(void)
   board_led_control(false);
 
   // Button
-  for(uint8_t i=0; i<BOARD_BUTTON_COUNT; i++) nrf_gpio_cfg_input(_button_pins[i], NRF_GPIO_PIN_PULLUP);
+  for(uint8_t i=0; i<BUTTON_COUNT; i++) nrf_gpio_cfg_input(_button_pins[i], NRF_GPIO_PIN_PULLUP);
 
 #if CFG_TUSB_OS == OPT_OS_NONE
   // 1ms tick timer
@@ -138,10 +138,10 @@ uint32_t board_buttons(void)
 {
   uint32_t ret = 0;
 
-  for(uint8_t i=0; i<BOARD_BUTTON_COUNT; i++)
+  for(uint8_t i=0; i<BUTTON_COUNT; i++)
   {
     // button is active LOW
-    ret |= ( nrf_gpio_pin_read(_button_pins[i]) ? 0 : (1 << i));
+    ret |= (nrf_gpio_pin_read(_button_pins[i]) ? 0 : (1 << i));
   }
 
   return ret;

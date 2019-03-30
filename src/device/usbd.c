@@ -182,6 +182,11 @@ bool tud_mounted(void)
   return _usbd_dev.configured;
 }
 
+bool tud_suspended(void)
+{
+  return _usbd_dev.suspended;
+}
+
 bool tud_remote_wakeup(void)
 {
   // only wake up host if this feature is supported and enabled and we are suspended
@@ -627,6 +632,7 @@ void dcd_event_handler(dcd_event_t const * event, bool in_isr)
     case DCD_EVENT_UNPLUGGED:
       _usbd_dev.connected = 0;
       _usbd_dev.configured = 0;
+      _usbd_dev.suspended = 0;
       osal_queue_send(_usbd_q, event, in_isr);
     break;
 

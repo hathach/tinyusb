@@ -135,9 +135,16 @@ void usb_hid_task(void)
   if ( board_millis() < start_ms + interval_ms) return; // not enough time
   start_ms += interval_ms;
 
-#if 1
   uint32_t const btn = board_buttons();
 
+  if ( tud_suspended() && btn )
+  {
+    // Wake up host if we are in suspend mode
+    // and REMOTE_WAKEUP feature is enabled by host
+    tud_remote_wakeup();
+  }
+
+#if 0
   /*------------- Keyboard -------------*/
   if ( tud_hid_keyboard_ready() )
   {
@@ -157,8 +164,9 @@ void usb_hid_task(void)
       tud_hid_keyboard_keycode(0, NULL);
     }
   }
+#endif
 
-
+#if 0
   /*------------- Mouse -------------*/
   if ( tud_hid_mouse_ready() )
   {
@@ -211,7 +219,8 @@ void tud_umount_cb(void)
 }
 
 // Invoked when usb bus is suspended
-// USB specs: device can only draw up to 2.5 mA from bus
+// remote_wakeup_en : if host allow us  to perform remote wakeup
+// Within 7ms, device must draw an average of current less than 2.5 mA from bus
 void tud_suspend_cb(bool remote_wakeup_en)
 {
   (void) remote_wakeup_en;

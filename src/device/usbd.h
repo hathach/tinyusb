@@ -66,6 +66,15 @@ void tud_task (void);
 // Check if device is connected and configured
 bool tud_mounted(void);
 
+// Check if device is suspended
+bool tud_suspended(void);
+
+// Check if device is ready to transfer
+static inline bool tud_ready(void)
+{
+  return tud_mounted() && !tud_suspended();
+}
+
 // Remote wake up host, only if suspended and enabled by host
 bool tud_remote_wakeup(void);
 
@@ -79,7 +88,8 @@ ATTR_WEAK void tud_mount_cb(void);
 // Invoked when device is unmounted
 ATTR_WEAK void tud_umount_cb(void);
 
-// Invoked when usb bus is suspended, max bus current draw is 2.5 mA
+// Invoked when usb bus is suspended
+// Within 7ms, device must draw an average of current less than 2.5 mA from bus
 ATTR_WEAK void tud_suspend_cb(bool remote_wakeup_en);
 
 // Invoked when usb bus is resumed
