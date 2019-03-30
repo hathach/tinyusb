@@ -181,6 +181,11 @@ bool tud_mounted(void)
   return _usbd_dev.configured;
 }
 
+void tud_set_self_powered(bool self_powered)
+{
+  _usbd_dev.self_powered = self_powered;
+}
+
 bool tud_remote_wakeup(void)
 {
   // only wake up host if this feature is enabled
@@ -194,6 +199,8 @@ bool tud_remote_wakeup(void)
 //--------------------------------------------------------------------+
 bool usbd_init (void)
 {
+  tu_varclr(&_usbd_dev);
+
   // Init device queue & task
   _usbd_q = osal_queue_create(&_usbd_qdef);
   TU_ASSERT(_usbd_q != NULL);
@@ -210,7 +217,13 @@ bool usbd_init (void)
 
 static void usbd_reset(uint8_t rhport)
 {
+  // self_powered bit is set by application and unchanged
+  bool self_powered = _usbd_dev.self_powered;
+
   tu_varclr(&_usbd_dev);
+
+  _usbd_dev.self_powered = self_powered;
+
   memset(_usbd_dev.itf2drv, 0xff, sizeof(_usbd_dev.itf2drv)); // invalid mapping
   memset(_usbd_dev.ep2drv , 0xff, sizeof(_usbd_dev.ep2drv )); // invalid mapping
 
@@ -304,9 +317,6 @@ void tud_task (void)
       }
       break;
 
-      // NOTE: When unplugging device, the D+/D- state are unstable and can accidentally meet the
-      // SUSPEND condition ( Idle for 3ms ). Most likely when this happen both suspend and resume
-      // are submitted by DCD before the actual UNPLUGGED
       case DCD_EVENT_SUSPEND:
         if (tud_suspend_cb) tud_suspend_cb( _usbd_dev.remote_wakeup_en );
       break;
@@ -357,26 +367,20 @@ static bool process_control_request(uint8_t rhport, tusb_control_request_t const
         return false;
       }
 
-      void* data_buf = NULL;
-      uint16_t data_len = 0;
-
-      uint8_t cfgnum_tmp;
-      (void) cfgnum_tmp; // only used for GET_CONFIGURATION
-
       switch ( p_request->bRequest )
       {
         case TUSB_REQ_SET_ADDRESS:
-          // DCD must include zero-length status response since depending on mcu,
-          // status could be sent either before or after changing device address
+          // Depending on mcu, status phase could be sent either before or after changing device address
+          // Therefore DCD must include zero-length status response
           dcd_set_address(rhport, (uint8_t) p_request->wValue);
-          return true; // skip the rest
+          return true; // skip status
         break;
 
         case TUSB_REQ_GET_CONFIGURATION:
-          cfgnum_tmp = _usbd_dev.configured ? 1 : 0;
-
-          data_buf = &cfgnum_tmp;
-          data_len = 1;
+        {
+          uint8_t cfgnum = _usbd_dev.configured ? 1 : 0;
+          usbd_control_xfer(rhport, p_request, &cfgnum, 1);
+        }
         break;
 
         case TUSB_REQ_SET_CONFIGURATION:
@@ -387,39 +391,51 @@ static bool process_control_request(uint8_t rhport, tusb_control_request_t const
           _usbd_dev.configured = cfg_num ? 1 : 0;
 
           TU_ASSERT( process_set_config(rhport) );
+          usbd_control_status(rhport, p_request);
         }
         break;
 
         case TUSB_REQ_GET_DESCRIPTOR:
-          data_buf = (void*) get_descriptor(p_request, &data_len);
-          if ( data_buf == NULL || data_len == 0 ) return false;
+        {
+          uint16_t len = 0;
+          void* buf = (void*) get_descriptor(p_request, &len);
+          if ( buf == NULL || len == 0 ) return false;
+
+          usbd_control_xfer(rhport, p_request, buf, len);
+        }
         break;
 
         case TUSB_REQ_SET_FEATURE:
-          if ( TUSB_REQ_FEATURE_REMOTE_WAKEUP == p_request->wValue )
-          {
-            // Host enable remote wake up before suspending especially HID device
-            _usbd_dev.remote_wakeup_en = true;
-          }
+          // Only support remote wakeup for device feature
+          TU_VERIFY(TUSB_REQ_FEATURE_REMOTE_WAKEUP == p_request->wValue);
+
+          // Host may enable remote wake up before suspending especially HID device
+          _usbd_dev.remote_wakeup_en = true;
+          usbd_control_status(rhport, p_request);
         break;
 
         case TUSB_REQ_CLEAR_FEATURE:
-          if ( TUSB_REQ_FEATURE_REMOTE_WAKEUP == p_request->wValue )
-          {
-            // Host disable remote wake up after resuming
-            _usbd_dev.remote_wakeup_en = false;
-          }
+          // Only support remote wakeup for device feature
+          TU_VERIFY(TUSB_REQ_FEATURE_REMOTE_WAKEUP == p_request->wValue);
+
+          // Host may disable remote wake up after resuming
+          _usbd_dev.remote_wakeup_en = false;
+          usbd_control_status(rhport, p_request);
         break;
 
         case TUSB_REQ_GET_STATUS:
-
+        {
+          // Device status bit mask
+          // - Bit 0: Self Powered
+          // - Bit 1: Remote Wakeup enabled
+          uint16_t status = (_usbd_dev.self_powered ? 1 : 0) | (_usbd_dev.remote_wakeup_en ? 2 : 0);
+          usbd_control_xfer(rhport, p_request, &status, 2);
+        }
         break;
 
         // Unknown/Unsupported request
         default: TU_BREAKPOINT(); return false;
       }
-
-      usbd_control_xfer(rhport, p_request, data_buf, data_len);
     break;
 
     //------------- Class/Interface Specific Request -------------//
@@ -439,12 +455,8 @@ static bool process_control_request(uint8_t rhport, tusb_control_request_t const
 
     //------------- Endpoint Request -------------//
     case TUSB_REQ_RCPT_ENDPOINT:
-      if ( TUSB_REQ_TYPE_STANDARD != p_request->bmRequestType_bit.type )
-      {
-        // Non standard request is not supported
-        TU_BREAKPOINT();
-        return false;
-      }
+      // Non standard request is not supported
+      TU_VERIFY( TUSB_REQ_TYPE_STANDARD == p_request->bmRequestType_bit.type );
 
       switch ( p_request->bRequest )
       {
@@ -459,16 +471,16 @@ static bool process_control_request(uint8_t rhport, tusb_control_request_t const
           if ( TUSB_REQ_FEATURE_EDPT_HALT == p_request->wValue )
           {
             dcd_edpt_clear_stall(rhport, tu_u16_low(p_request->wIndex));
-            usbd_control_status(rhport, p_request);
           }
+          usbd_control_status(rhport, p_request);
         break;
 
         case TUSB_REQ_SET_FEATURE:
           if ( TUSB_REQ_FEATURE_EDPT_HALT == p_request->wValue )
           {
             usbd_edpt_stall(rhport, tu_u16_low(p_request->wIndex));
-            usbd_control_status(rhport, p_request);
           }
+          usbd_control_status(rhport, p_request);
         break;
 
         // Unknown/Unsupported request
@@ -626,23 +638,17 @@ void dcd_event_handler(dcd_event_t const * event, bool in_isr)
       // nothing to do now
     break;
 
-    // NOTE: When unplugging device, the D+/D- state are unstable and can accidentally meet the
-    // SUSPEND condition ( Idle for 3ms ). Most likely when this happen both suspend and resume
-    // are submitted by DCD before the actual UNPLUGGED
     case DCD_EVENT_SUSPEND:
-      if (_usbd_dev.connected ) // skip event if disconnected
-      {
-        _usbd_dev.suspended = 1;
-        osal_queue_send(_usbd_q, event, in_isr);
-      }
+      // NOTE: When unplugging device, the D+/D- state are unstable and can accidentally meet the
+      // SUSPEND condition ( Idle for 3ms ). Most likely when this happen both suspend and resume
+      // are submitted by DCD before the actual UNPLUGGED
+      _usbd_dev.suspended = 1;
+      osal_queue_send(_usbd_q, event, in_isr);
     break;
 
     case DCD_EVENT_RESUME:
-      if (_usbd_dev.connected ) // skip event if disconnected
-      {
-        _usbd_dev.suspended = 0;
-        osal_queue_send(_usbd_q, event, in_isr);
-      }
+      _usbd_dev.suspended = 0;
+      osal_queue_send(_usbd_q, event, in_isr);
     break;
 
     case DCD_EVENT_SETUP_RECEIVED:

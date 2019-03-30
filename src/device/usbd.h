@@ -63,6 +63,7 @@ bool tud_mounted(void);
 void tud_task (void);
 
 bool tud_remote_wakeup(void);
+void tud_set_self_powered(bool self_powered);
 
 //--------------------------------------------------------------------+
 // Application Callbacks (WEAK is optional)
