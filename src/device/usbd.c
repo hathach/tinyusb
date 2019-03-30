@@ -40,13 +40,14 @@
 // Device Data
 //--------------------------------------------------------------------+
 typedef struct {
-  volatile uint8_t config_num;
-
   struct ATTR_PACKED
   {
-      volatile uint8_t connected : 1;
-      volatile uint8_t suspended : 1;
-      uint8_t remote_wakeup_en   : 1;
+      volatile uint8_t connected  : 1;
+      volatile uint8_t configured : 1;
+      volatile uint8_t suspended  : 1;
+
+      uint8_t remote_wakeup_en    : 1;
+      uint8_t self_powered        : 1;
   };
 
 //  uint8_t ep_busy_mask[2];  // bit mask for busy endpoint
@@ -177,7 +178,7 @@ void usbd_control_set_complete_callback( bool (*fp) (uint8_t, tusb_control_reque
 //--------------------------------------------------------------------+
 bool tud_mounted(void)
 {
-  return _usbd_dev.config_num > 0;
+  return _usbd_dev.configured;
 }
 
 bool tud_remote_wakeup(void)
@@ -359,6 +360,9 @@ static bool process_control_request(uint8_t rhport, tusb_control_request_t const
       void* data_buf = NULL;
       uint16_t data_len = 0;
 
+      uint8_t cfgnum_tmp;
+      (void) cfgnum_tmp; // only used for GET_CONFIGURATION
+
       switch ( p_request->bRequest )
       {
         case TUSB_REQ_SET_ADDRESS:
@@ -369,16 +373,18 @@ static bool process_control_request(uint8_t rhport, tusb_control_request_t const
         break;
 
         case TUSB_REQ_GET_CONFIGURATION:
-          data_buf = (uint8_t*) &_usbd_dev.config_num;
+          cfgnum_tmp = _usbd_dev.configured ? 1 : 0;
+
+          data_buf = &cfgnum_tmp;
           data_len = 1;
         break;
 
         case TUSB_REQ_SET_CONFIGURATION:
         {
-          uint8_t const config = (uint8_t) p_request->wValue;
+          uint8_t const cfg_num = (uint8_t) p_request->wValue;
 
-          dcd_set_config(rhport, config);
-          _usbd_dev.config_num = config;
+          dcd_set_config(rhport, cfg_num);
+          _usbd_dev.configured = cfg_num ? 1 : 0;
 
           TU_ASSERT( process_set_config(rhport) );
         }
@@ -403,6 +409,10 @@ static bool process_control_request(uint8_t rhport, tusb_control_request_t const
             // Host disable remote wake up after resuming
             _usbd_dev.remote_wakeup_en = false;
           }
+        break;
+
+        case TUSB_REQ_GET_STATUS:
+
         break;
 
         // Unknown/Unsupported request
@@ -608,7 +618,7 @@ void dcd_event_handler(dcd_event_t const * event, bool in_isr)
 
     case DCD_EVENT_UNPLUGGED:
       _usbd_dev.connected = 0;
-      _usbd_dev.config_num = 0;
+      _usbd_dev.configured = 0;
       osal_queue_send(_usbd_q, event, in_isr);
     break;
 

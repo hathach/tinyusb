@@ -254,7 +254,7 @@ tusb_desc_device_t const _desc_auto_device =
     .iProduct           = 0x02,
     .iSerialNumber      = 0x03,
 
-    .bNumConfigurations = 0x01 // TODO multiple configurations
+    .bNumConfigurations = 0x01
 };
 
 

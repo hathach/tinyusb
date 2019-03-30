@@ -48,6 +48,7 @@ typedef enum
   DCD_EVENT_SETUP_RECEIVED,
   DCD_EVENT_XFER_COMPLETE,
 
+  // Not an DCD event, just a convenient way to defer ISR function
   USBD_EVENT_FUNC_CALL
 } dcd_eventid_t;
 
