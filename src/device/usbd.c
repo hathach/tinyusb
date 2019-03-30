@@ -42,12 +42,13 @@
 typedef struct {
   struct ATTR_PACKED
   {
-      volatile uint8_t connected  : 1;
-      volatile uint8_t configured : 1;
-      volatile uint8_t suspended  : 1;
+      volatile uint8_t connected    : 1;
+      volatile uint8_t configured   : 1;
+      volatile uint8_t suspended    : 1;
 
-      uint8_t remote_wakeup_en    : 1;
-      uint8_t self_powered        : 1;
+      uint8_t remote_wakeup_en      : 1; // enable/disable by host
+      uint8_t remote_wakeup_support : 1; // configuration descriptor's attribute
+      uint8_t self_powered          : 1; // configuration descriptor's attribute
   };
 
 //  uint8_t ep_busy_mask[2];  // bit mask for busy endpoint
@@ -181,17 +182,12 @@ bool tud_mounted(void)
   return _usbd_dev.configured;
 }
 
-void tud_set_self_powered(bool self_powered)
-{
-  _usbd_dev.self_powered = self_powered;
-}
-
 bool tud_remote_wakeup(void)
 {
-  // only wake up host if this feature is enabled
-  if (_usbd_dev.suspended && _usbd_dev.remote_wakeup_en ) dcd_remote_wakeup(TUD_OPT_RHPORT);
-
-  return _usbd_dev.remote_wakeup_en;
+  // only wake up host if this feature is supported and enabled and we are suspended
+  TU_VERIFY (_usbd_dev.suspended && _usbd_dev.remote_wakeup_support && _usbd_dev.remote_wakeup_en );
+  dcd_remote_wakeup(TUD_OPT_RHPORT);
+  return true;
 }
 
 //--------------------------------------------------------------------+
@@ -217,12 +213,7 @@ bool usbd_init (void)
 
 static void usbd_reset(uint8_t rhport)
 {
-  // self_powered bit is set by application and unchanged
-  bool self_powered = _usbd_dev.self_powered;
-
   tu_varclr(&_usbd_dev);
-
-  _usbd_dev.self_powered = self_powered;
 
   memset(_usbd_dev.itf2drv, 0xff, sizeof(_usbd_dev.itf2drv)); // invalid mapping
   memset(_usbd_dev.ep2drv , 0xff, sizeof(_usbd_dev.ep2drv )); // invalid mapping
@@ -499,13 +490,18 @@ static bool process_control_request(uint8_t rhport, tusb_control_request_t const
 // This function parse configuration descriptor & open drivers accordingly
 static bool process_set_config(uint8_t rhport)
 {
-  uint8_t const * desc_cfg = (uint8_t const *) usbd_desc_set->config;
-  TU_ASSERT(desc_cfg != NULL);
+  tusb_desc_configuration_t const * desc_cfg = (tusb_desc_configuration_t const *) usbd_desc_set->config;
+  TU_ASSERT(desc_cfg != NULL && desc_cfg->bDescriptorType == TUSB_DESC_CONFIGURATION);
 
-  uint8_t const * p_desc = desc_cfg + sizeof(tusb_desc_configuration_t);
-  uint16_t const cfg_len = ((tusb_desc_configuration_t*)desc_cfg)->wTotalLength;
+  // Parse configuration descriptor
+  _usbd_dev.remote_wakeup_support = (desc_cfg->bmAttributes & TUSB_DESC_CONFIG_ATT_REMOTE_WAKEUP) ? 1 : 0;
+  _usbd_dev.self_powered = (desc_cfg->bmAttributes & TUSB_DESC_CONFIG_ATT_SELF_POWERED) ? 1 : 0;
 
-  while( p_desc < desc_cfg + cfg_len )
+  // Parse interface descriptor
+  uint8_t const * p_desc   = ((uint8_t const*) desc_cfg) + sizeof(tusb_desc_configuration_t);
+  uint8_t const * desc_end = ((uint8_t const*) desc_cfg) + desc_cfg->wTotalLength;
+
+  while( p_desc < desc_end )
   {
     // Each interface always starts with Interface or Association descriptor
     if ( TUSB_DESC_INTERFACE_ASSOCIATION == tu_desc_type(p_desc) )

@@ -66,9 +66,6 @@ void tud_task (void);
 // Check if device is connected and configured
 bool tud_mounted(void);
 
-// Tell stack that device is self or bus powered (default = bus)
-void tud_set_self_powered(bool self_powered);
-
 // Remote wake up host, only if suspended and enabled by host
 bool tud_remote_wakeup(void);
 

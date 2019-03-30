@@ -342,7 +342,7 @@ desc_auto_cfg_t const _desc_auto_config_struct =
 
         .bConfigurationValue = 1,
         .iConfiguration      = 0x00,
-        .bmAttributes        = TUSB_DESC_CONFIG_ATT_BUS_POWER,
+        .bmAttributes        = TU_BIT(7) | TUSB_DESC_CONFIG_ATT_REMOTE_WAKEUP,
         .bMaxPower           = TUSB_DESC_CONFIG_POWER_MA(100)
     },
 
