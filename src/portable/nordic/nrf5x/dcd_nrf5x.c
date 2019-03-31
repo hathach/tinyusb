@@ -220,8 +220,15 @@ void dcd_remote_wakeup(uint8_t rhport)
 {
   (void) rhport;
 
+  // Bring controller out of low power mode
+  NRF_USBD->LOWPOWER = 0;
+
+  // Initiate RESUME signal
   NRF_USBD->DPDMVALUE = USBD_DPDMVALUE_STATE_Resume;
   NRF_USBD->TASKS_DPDMDRIVE = 1;
+
+  // TODO There is no USBEVENT Resume interrupt
+  // We may manually raise DCD_EVENT_RESUME event here
 }
 
 //--------------------------------------------------------------------+
@@ -393,7 +400,10 @@ void USBD_IRQHandler(void)
     {
       dcd_event_bus_signal(0, DCD_EVENT_SUSPEND, true);
 
+      // Put controller into low power mode
+      NRF_USBD->LOWPOWER = 1;
 
+      // Leave HFXO disable to application, since it may be used by other
     }
 
     if ( evt_cause & USBD_EVENTCAUSE_RESUME_Msk  )
