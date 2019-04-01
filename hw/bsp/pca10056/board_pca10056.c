@@ -42,10 +42,7 @@
 #define LED_PIN         13
 #define LED_STATE_ON    0
 
-uint8_t _button_pins[] = { 11, 12, 24, 25 };
-
-#define BUTTON_COUNT  sizeof(_button_pins)
-
+#define BUTTON_PIN      11
 
 /*------------------------------------------------------------------*/
 /* TUSB HAL MILLISECOND
@@ -79,12 +76,12 @@ void board_init(void)
   NRF_CLOCK->LFCLKSRC = (uint32_t)((CLOCK_LFCLKSRC_SRC_Xtal << CLOCK_LFCLKSRC_SRC_Pos) & CLOCK_LFCLKSRC_SRC_Msk);
   NRF_CLOCK->TASKS_LFCLKSTART = 1UL;
 
-  // LEDs
+  // LED
   nrf_gpio_cfg_output(LED_PIN);
   board_led_control(false);
 
   // Button
-  for(uint8_t i=0; i<BUTTON_COUNT; i++) nrf_gpio_cfg_input(_button_pins[i], NRF_GPIO_PIN_PULLUP);
+  nrf_gpio_cfg_input(BUTTON_PIN, NRF_GPIO_PIN_PULLUP);
 
 #if CFG_TUSB_OS == OPT_OS_NONE
   // 1ms tick timer
@@ -134,17 +131,10 @@ void board_led_control(bool state)
   nrf_gpio_pin_write(LED_PIN, state ? LED_STATE_ON : (1-LED_STATE_ON));
 }
 
-uint32_t board_buttons(void)
+uint32_t board_button_read(void)
 {
-  uint32_t ret = 0;
-
-  for(uint8_t i=0; i<BUTTON_COUNT; i++)
-  {
-    // button is active LOW
-    ret |= (nrf_gpio_pin_read(_button_pins[i]) ? 0 : (1 << i));
-  }
-
-  return ret;
+  // button is active LOW
+  return (nrf_gpio_pin_read(BUTTON_PIN) ? 0 : 1);
 }
 
 int board_uart_read(uint8_t* buf, int len)

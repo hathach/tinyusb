@@ -144,7 +144,7 @@ static bool button_read(uint8_t id)
 }
 #endif
 
-uint32_t board_buttons(void)
+uint32_t board_button_read(void)
 {
   uint32_t result = 0;
 

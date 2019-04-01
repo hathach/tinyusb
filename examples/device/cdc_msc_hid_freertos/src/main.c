@@ -158,7 +158,7 @@ void usb_hid_task(void* params)
   if ( board_millis() < start_ms + interval_ms) return; // not enough time
   start_ms += interval_ms;
 
-  uint32_t const btn = board_buttons();
+  uint32_t const btn = board_button_read();
 
   /*------------- Keyboard -------------*/
   if ( tud_hid_keyboard_ready() )

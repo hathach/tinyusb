@@ -21,7 +21,8 @@ SRC_C += \
 	hw/mcu/microchip/samd/asf4/samd51/hpl/gclk/hpl_gclk.c \
 	hw/mcu/microchip/samd/asf4/samd51/hpl/mclk/hpl_mclk.c \
 	hw/mcu/microchip/samd/asf4/samd51/hpl/osc32kctrl/hpl_osc32kctrl.c \
-	hw/mcu/microchip/samd/asf4/samd51/hpl/oscctrl/hpl_oscctrl.c
+	hw/mcu/microchip/samd/asf4/samd51/hpl/oscctrl/hpl_oscctrl.c \
+	hw/mcu/microchip/samd/asf4/samd51/hal/src/hal_atomic.c
 
 INC += \
 	-I$(TOP)/hw/mcu/microchip/samd/asf4/samd51/ \

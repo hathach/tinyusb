@@ -135,7 +135,7 @@ void usb_hid_task(void)
   if ( board_millis() < start_ms + interval_ms) return; // not enough time
   start_ms += interval_ms;
 
-  uint32_t const btn = board_buttons();
+  uint32_t const btn = board_button_read();
 
   if ( tud_suspended() && btn )
   {

@@ -67,6 +67,11 @@
                     <file file_name="../../../../../hw/mcu/microchip/samd/asf4/samd21/hpl/sysctrl/hpl_sysctrl.c" />
                   </folder>
                 </folder>
+                <folder Name="hal">
+                  <folder Name="src">
+                    <file file_name="../../../../../hw/mcu/microchip/samd/asf4/samd21/hal/src/hal_atomic.c" />
+                  </folder>
+                </folder>
               </folder>
             </folder>
           </folder>
