@@ -262,18 +262,10 @@ void tud_task (void)
 
     if ( !osal_queue_receive(_usbd_q, &event) ) return;
 
-    // Skip event if device is not connected except BUS_RESET & UNPLUGGED & FUNC_CALL
-    if ( !(_usbd_dev.connected || event.event_id == DCD_EVENT_UNPLUGGED ||
-        event.event_id == DCD_EVENT_BUS_RESET || event.event_id == USBD_EVENT_FUNC_CALL) )
-    {
-      return;
-    }
-
     switch ( event.event_id )
     {
       case DCD_EVENT_BUS_RESET:
         usbd_reset(event.rhport);
-        _usbd_dev.connected = 1; // connected after bus reset
       break;
 
       case DCD_EVENT_UNPLUGGED:
@@ -284,6 +276,10 @@ void tud_task (void)
       break;
 
       case DCD_EVENT_SETUP_RECEIVED:
+        // Mark as connected after receiving 1st setup packet.
+        // But it is easier to set it every time instead of wasting time to check then set
+        _usbd_dev.connected = 1;
+
         // Process control request
         if ( !process_control_request(event.rhport, &event.setup_received) )
         {
@@ -294,27 +290,29 @@ void tud_task (void)
       break;
 
       case DCD_EVENT_XFER_COMPLETE:
-      {
-        // Invoke the class callback associated with the endpoint address
-        uint8_t const ep_addr = event.xfer_complete.ep_addr;
-
-        if ( 0 == tu_edpt_number(ep_addr) )
+        // Only handle xfer callback in ready state
+        // if (_usbd_dev.connected && !_usbd_dev.suspended)
         {
-          // control transfer DATA stage callback
-          usbd_control_xfer_cb(event.rhport, ep_addr, event.xfer_complete.result, event.xfer_complete.len);
-        }
-        else
-        {
-          uint8_t const drv_id = _usbd_dev.ep2drv[tu_edpt_number(ep_addr)][tu_edpt_dir(ep_addr)];
-          TU_ASSERT(drv_id < USBD_CLASS_DRIVER_COUNT,);
+          // Invoke the class callback associated with the endpoint address
+          uint8_t const ep_addr = event.xfer_complete.ep_addr;
 
-          usbd_class_drivers[drv_id].xfer_cb(event.rhport, ep_addr, event.xfer_complete.result, event.xfer_complete.len);
+          if ( 0 == tu_edpt_number(ep_addr) )
+          {
+            // control transfer DATA stage callback
+            usbd_control_xfer_cb(event.rhport, ep_addr, event.xfer_complete.result, event.xfer_complete.len);
+          }
+          else
+          {
+            uint8_t const drv_id = _usbd_dev.ep2drv[tu_edpt_number(ep_addr)][tu_edpt_dir(ep_addr)];
+            TU_ASSERT(drv_id < USBD_CLASS_DRIVER_COUNT,);
+
+            usbd_class_drivers[drv_id].xfer_cb(event.rhport, ep_addr, event.xfer_complete.result, event.xfer_complete.len);
+          }
         }
-      }
       break;
 
       case DCD_EVENT_SUSPEND:
-        if (tud_suspend_cb) tud_suspend_cb( _usbd_dev.remote_wakeup_en );
+        if (tud_suspend_cb) tud_suspend_cb(_usbd_dev.remote_wakeup_en);
       break;
 
       case DCD_EVENT_RESUME:
@@ -641,16 +639,22 @@ void dcd_event_handler(dcd_event_t const * event, bool in_isr)
     break;
 
     case DCD_EVENT_SUSPEND:
-      // NOTE: When unplugging device, the D+/D- state are unstable and can accidentally meet the
-      // SUSPEND condition ( Idle for 3ms ). Most likely when this happen both suspend and resume
-      // are submitted by DCD before the actual UNPLUGGED
-      _usbd_dev.suspended = 1;
-      osal_queue_send(_usbd_q, event, in_isr);
+      // NOTE: When plugging/unplugging device, the D+/D- state are unstable and can accidentally meet the
+      // SUSPEND condition ( Idle for 3ms ). Some MCUs such as samd don't distinguish suspend vs disconnect as well.
+      // We will skip handling SUSPEND/RESUME event if not currently connected
+      if ( _usbd_dev.connected )
+      {
+        _usbd_dev.suspended = 1;
+        osal_queue_send(_usbd_q, event, in_isr);
+      }
     break;
 
     case DCD_EVENT_RESUME:
-      _usbd_dev.suspended = 0;
-      osal_queue_send(_usbd_q, event, in_isr);
+      if ( _usbd_dev.connected )
+      {
+        _usbd_dev.suspended = 0;
+        osal_queue_send(_usbd_q, event, in_isr);
+      }
     break;
 
     case DCD_EVENT_SETUP_RECEIVED:
