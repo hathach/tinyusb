@@ -39,7 +39,7 @@
 // MACRO TYPEDEF CONSTANT ENUM DECLARATION
 //--------------------------------------------------------------------+
 #define LED_PIN      17
-#define BUTTON_PIN   14
+#define BUTTON_PIN   14 // pin D2
 
 /* Referenced GCLKs, should be initialized firstly */
 #define _GCLK_INIT_1ST (1 << 0 | 1 << 1)
