@@ -199,21 +199,21 @@ void dcd_set_address (uint8_t rhport, uint8_t dev_addr)
   (void) rhport;
   (void) dev_addr;
   // Set Address is automatically update by hw controller, nothing to do
-}
-
-void dcd_set_config (uint8_t rhport, uint8_t config_num)
-{
-  (void) rhport;
-  (void) config_num;
 
   // Enable usbevent for suspend and resume detection
-  // Since the bus signal D+/D- are stable from now on.
+  // Since the bus signal D+/D- are stable now.
 
   // Clear current pending first
   NRF_USBD->EVENTCAUSE |= NRF_USBD->EVENTCAUSE;
   NRF_USBD->EVENTS_USBEVENT = 0;
 
   NRF_USBD->INTENSET = USBD_INTEN_USBEVENT_Msk;
+}
+
+void dcd_set_config (uint8_t rhport, uint8_t config_num)
+{
+  (void) rhport;
+  (void) config_num;
 }
 
 void dcd_remote_wakeup(uint8_t rhport)
