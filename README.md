@@ -21,6 +21,8 @@ TinyUSB is an open-source cross-platform USB Host/Device stack for embedded syst
 
 ## Device Stack
 
+Support suspend, resume, remote wakeup with auto generated descritpors
+
 - Human Interface Device (HID): Keyboard, Mouse, Generic
 - Communication Class (CDC)
 - Mass Storage Class (MSC)

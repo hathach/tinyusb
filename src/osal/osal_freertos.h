@@ -83,7 +83,10 @@ static inline osal_mutex_t osal_mutex_create(osal_mutex_def_t* mdef)
   return xSemaphoreCreateMutexStatic(mdef);
 }
 
-#define osal_mutex_lock     osal_semaphore_wait
+static inline bool osal_mutex_lock (osal_mutex_t mutex_hdl, uint32_t msec)
+{
+  return osal_semaphore_wait(mutex_hdl, msec);
+}
 
 static inline bool osal_mutex_unlock(osal_mutex_t mutex_hdl)
 {
