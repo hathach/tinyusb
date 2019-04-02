@@ -44,7 +44,7 @@ One useful clock debugging technique is to set up a PWM output at a known value 
 
 Setup your USB in a crystal-less mode when available. That makes the code easier to port across boards.
 
-#### board_led_control
+#### board_led_write
 Feel free to skip this until you want to verify your demo code is running. To implement, set the pin corresponding to the led to output a value that lights the LED when `state` is true.
 
 ### OS Abstraction Layer (OSAL)

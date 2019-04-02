@@ -248,7 +248,7 @@ void board_init(void)
 }
 
 // LED
-void board_led_control(bool state)
+void board_led_write(bool state)
 {
   if (state)
   {

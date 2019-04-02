@@ -90,7 +90,7 @@ void board_init(void)
   gpio_set_pin_function(PIN_PA25, PINMUX_PA25H_USB_DP);
 }
 
-void board_led_control(bool state)
+void board_led_write(bool state)
 {
   gpio_set_pin_level(LED_PIN, state);
 }

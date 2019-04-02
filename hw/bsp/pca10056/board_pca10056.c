@@ -78,7 +78,7 @@ void board_init(void)
 
   // LED
   nrf_gpio_cfg_output(LED_PIN);
-  board_led_control(false);
+  board_led_write(false);
 
   // Button
   nrf_gpio_cfg_input(BUTTON_PIN, NRF_GPIO_PIN_PULLUP);
@@ -126,7 +126,7 @@ void board_init(void)
   if ( usb_reg & POWER_USBREGSTATUS_OUTPUTRDY_Msk  ) tusb_hal_nrf_power_event(NRFX_POWER_USB_EVT_READY);
 }
 
-void board_led_control(bool state)
+void board_led_write(bool state)
 {
   nrf_gpio_pin_write(LED_PIN, state ? LED_STATE_ON : (1-LED_STATE_ON));
 }

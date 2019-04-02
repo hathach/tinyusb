@@ -53,7 +53,7 @@
 void board_init(void);
 
 // Turn LED on or off
-void board_led_control(bool state);
+void board_led_write(bool state);
 
 // Get the current state of button
 // a '1' means active (pressed), a '0' means inactive.
@@ -87,12 +87,12 @@ int board_uart_write(void const * buf, int len);
 //--------------------------------------------------------------------+
 static inline void board_led_on(void)
 {
-  board_led_control(true);
+  board_led_write(true);
 }
 
 static inline void board_led_off(void)
 {
-  board_led_control(false);
+  board_led_write(false);
 }
 
 static inline int8_t board_uart_getchar(void)
