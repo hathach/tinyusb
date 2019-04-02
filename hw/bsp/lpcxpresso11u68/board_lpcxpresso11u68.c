@@ -121,7 +121,7 @@ void board_led_control(bool state)
 //--------------------------------------------------------------------+
 // Buttons
 //--------------------------------------------------------------------+
-uint32_t board_buttons(void)
+uint32_t board_button_read(void)
 {
 //  for(uint8_t i=0; i<BOARD_BUTTON_COUNT; i++) GPIOGetPinValue(buttons[i].port, buttons[i].pin);
 //  return GPIOGetPinValue(buttons[0].port, buttons[0].pin) ? 0 : 1; // button is active low

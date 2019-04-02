@@ -166,7 +166,7 @@ static void bus_reset(void)
   tu_memclr(&_dcd, sizeof(dcd_data_t));
 }
 
-bool dcd_init(uint8_t rhport)
+void dcd_init(uint8_t rhport)
 {
   (void) rhport;
 
@@ -185,9 +185,6 @@ bool dcd_init(uint8_t rhport)
 
   // USB IRQ priority should be set by application previously
   NVIC_ClearPendingIRQ(USB_IRQn);
-  NVIC_EnableIRQ(USB_IRQn);
-
-  return true;
 }
 
 void dcd_int_enable(uint8_t rhport)
@@ -215,6 +212,11 @@ void dcd_set_config(uint8_t rhport, uint8_t config_num)
   (void) rhport;
   (void) config_num;
   sie_write(SIE_CMDCODE_CONFIGURE_DEVICE, 1, 1);
+}
+
+void dcd_remote_wakeup(uint8_t rhport)
+{
+  (void) rhport;
 }
 
 //--------------------------------------------------------------------+
@@ -481,7 +483,7 @@ static void bus_event_isr(uint8_t rhport)
   {
     if (dev_status & SIE_DEV_STATUS_SUSPEND_MASK)
     {
-      dcd_event_bus_signal(rhport, DCD_EVENT_SUSPENDED, true);
+      dcd_event_bus_signal(rhport, DCD_EVENT_SUSPEND, true);
     }
     else
     {

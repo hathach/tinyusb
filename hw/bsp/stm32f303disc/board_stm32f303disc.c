@@ -97,6 +97,12 @@ void board_led_control(bool state)
   HAL_GPIO_WritePin(GPIOE, GPIO_PIN_9, state);
 }
 
+uint32_t board_button_read(void)
+{
+  // TODO implement
+  return 0;
+}
+
 /*------------------------------------------------------------------*/
 /* TUSB HAL MILLISECOND
  *------------------------------------------------------------------*/

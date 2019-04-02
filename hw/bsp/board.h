@@ -46,6 +46,7 @@
 
 //--------------------------------------------------------------------+
 // Board Porting API
+// For simplicity, only one LED and one Button are used
 //--------------------------------------------------------------------+
 
 // Initialize on-board peripherals : led, button, uart and USB
@@ -54,9 +55,9 @@ void board_init(void);
 // Turn LED on or off
 void board_led_control(bool state);
 
-// Get the current state of buttons on the board
-// \return Bitmask where a '1' means active (pressed), a '0' means inactive.
-uint32_t board_buttons(void);
+// Get the current state of button
+// a '1' means active (pressed), a '0' means inactive.
+uint32_t board_button_read(void);
 
 // Get characters from UART
 int board_uart_read(uint8_t* buf, int len);
@@ -65,28 +66,20 @@ int board_uart_read(uint8_t* buf, int len);
 int board_uart_write(void const * buf, int len);
 
 #if CFG_TUSB_OS == OPT_OS_NONE
-
-// Get current milliseconds, must be implemented in board.c when no OS is used
-uint32_t board_millis(void);
-
+  // Get current milliseconds, must be implemented when no RTOS is used
+  uint32_t board_millis(void);
 #elif CFG_TUSB_OS == OPT_OS_FREERTOS
-
-static inline uint32_t board_millis(void)
-{
-  return ( ( ((uint64_t) xTaskGetTickCount()) * 1000) / configTICK_RATE_HZ );
-}
-
+  static inline uint32_t board_millis(void)
+  {
+    return ( ( ((uint64_t) xTaskGetTickCount()) * 1000) / configTICK_RATE_HZ );
+  }
 #elif CFG_TUSB_OS == OPT_OS_MYNEWT
-
-static inline uint32_t board_millis(void)
-{
-  return os_time_ticks_to_ms32( os_time_get() );
-}
-
+  static inline uint32_t board_millis(void)
+  {
+    return os_time_ticks_to_ms32( os_time_get() );
+  }
 #elif
-
-#error "Need to implement board_millis() for this OS"
-
+  #error "Need to implement board_millis() for this OS"
 #endif
 
 //--------------------------------------------------------------------+

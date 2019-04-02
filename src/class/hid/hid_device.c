@@ -107,7 +107,7 @@ static inline hidd_interface_t* get_interface_by_itfnum(uint8_t itf_num)
 //--------------------------------------------------------------------+
 bool tud_hid_generic_ready(void)
 {
-  return (_hidd_itf[ITF_IDX_GENERIC].ep_in != 0) && !dcd_edpt_busy(TUD_OPT_RHPORT, _hidd_itf[ITF_IDX_GENERIC].ep_in);
+  return tud_ready() && (_hidd_itf[ITF_IDX_GENERIC].ep_in != 0) && !dcd_edpt_busy(TUD_OPT_RHPORT, _hidd_itf[ITF_IDX_GENERIC].ep_in);
 }
 
 bool tud_hid_generic_report(uint8_t report_id, void const* report, uint8_t len)
@@ -265,6 +265,7 @@ void hidd_init(void)
 
 void hidd_reset(uint8_t rhport)
 {
+  (void) rhport;
   tu_memclr(_hidd_itf, sizeof(_hidd_itf));
 
   #if CFG_TUD_HID_KEYBOARD
@@ -447,6 +448,7 @@ bool hidd_control_request(uint8_t rhport, tusb_control_request_t const * p_reque
 // return false to stall control endpoint (e.g Host send non-sense DATA)
 bool hidd_control_request_complete(uint8_t rhport, tusb_control_request_t const * p_request)
 {
+  (void) rhport;
   hidd_interface_t* p_hid = get_interface_by_itfnum( (uint8_t) p_request->wIndex );
   TU_ASSERT(p_hid);
 
@@ -469,6 +471,11 @@ bool hidd_control_request_complete(uint8_t rhport, tusb_control_request_t const 
 bool hidd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t event, uint32_t xferred_bytes)
 {
   // nothing to do
+  (void) rhport;
+  (void) ep_addr;
+  (void) event;
+  (void) xferred_bytes;
+
   return true;
 }
 

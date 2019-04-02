@@ -161,11 +161,6 @@ static inline bool osal_queue_send(osal_queue_t const qhdl, void const * data, b
   return true;
 }
 
-static inline void osal_queue_reset(osal_queue_t const queue_hdl)
-{
-  // TODO implement later
-}
-
 #ifdef __cplusplus
  }
 #endif

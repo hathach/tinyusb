@@ -102,11 +102,6 @@ static inline uint16_t rdwr10_get_blockcount(uint8_t const command[])
 //--------------------------------------------------------------------+
 // APPLICATION API
 //--------------------------------------------------------------------+
-bool tud_msc_ready(void)
-{
-  return ( _mscd_itf.ep_in != 0 ) && ( _mscd_itf.ep_out != 0 ) ;
-}
-
 bool tud_msc_set_sense(uint8_t lun, uint8_t sense_key, uint8_t add_sense_code, uint8_t add_sense_qualifier)
 {
   (void) lun;

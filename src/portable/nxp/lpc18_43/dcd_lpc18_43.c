@@ -121,7 +121,7 @@ static void bus_reset(uint8_t rhport)
 	p_dcd->qhd[0].int_on_setup = 1; // OUT only
 }
 
-bool dcd_init(uint8_t rhport)
+void dcd_init(uint8_t rhport)
 {
   LPC_USBHS_T* const lpc_usb = LPC_USB[rhport];
   dcd_data_t* p_dcd = dcd_data_ptr[rhport];
@@ -134,8 +134,6 @@ bool dcd_init(uint8_t rhport)
 
   lpc_usb->USBCMD_D &= ~0x00FF0000; // Interrupt Threshold Interval = 0
   lpc_usb->USBCMD_D |= TU_BIT(0); // connect
-
-  return true;
 }
 
 void dcd_int_enable(uint8_t rhport)
@@ -161,6 +159,11 @@ void dcd_set_config(uint8_t rhport, uint8_t config_num)
   (void) rhport;
   (void) config_num;
   // nothing to do
+}
+
+void dcd_remote_wakeup(uint8_t rhport)
+{
+  (void) rhport;
 }
 
 //--------------------------------------------------------------------+
@@ -303,7 +306,7 @@ void hal_dcd_isr(uint8_t rhport)
       // Note: Host may delay more than 3 ms before and/or after bus reset before doing enumeration.
       if ((lpc_usb->DEVICEADDR >> 25) & 0x0f)
       {
-        dcd_event_bus_signal(rhport, DCD_EVENT_SUSPENDED, true);
+        dcd_event_bus_signal(rhport, DCD_EVENT_SUSPEND, true);
       }
     }
   }

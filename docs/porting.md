@@ -76,6 +76,9 @@ If your peripheral automatically changes address during enumeration (like the nr
 ##### dcd_set_config
 Called when the device received SET_CONFIG request, you can leave this empty if your peripheral does not require any specific action.
 
+##### dcd_remote_wakeup
+Called to remote wake up host when suspended (e.g hid keyboard)
+
 #### Special events
 You must let TinyUSB know when certain events occur so that it can continue its work. There are a few methods you can call to queue events for TinyUSB to process.
 

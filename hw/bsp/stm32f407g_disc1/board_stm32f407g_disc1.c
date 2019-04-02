@@ -91,6 +91,12 @@ void board_led_control(bool state)
   }
 }
 
+uint32_t board_button_read(void)
+{
+  // TODO implement
+  return 0;
+}
+
 
 /*------------------------------------------------------------------*/
 /* TUSB HAL MILLISECOND

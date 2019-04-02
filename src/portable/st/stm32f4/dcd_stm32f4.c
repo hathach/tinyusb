@@ -128,7 +128,7 @@ static void end_of_reset(void) {
 /*------------------------------------------------------------------*/
 /* Controller API
  *------------------------------------------------------------------*/
-bool dcd_init (uint8_t rhport)
+void dcd_init (uint8_t rhport)
 {
   (void) rhport;
 
@@ -161,8 +161,6 @@ bool dcd_init (uint8_t rhport)
 
   // Enable pullup, enable peripheral.
   USB_OTG_FS->GCCFG |= USB_OTG_GCCFG_VBUSBSEN | USB_OTG_GCCFG_PWRDWN;
-
-  return true;
 }
 
 void dcd_int_enable (uint8_t rhport)
@@ -194,6 +192,11 @@ void dcd_set_config (uint8_t rhport, uint8_t config_num)
   (void) rhport;
   (void) config_num;
   // Nothing to do
+}
+
+void dcd_remote_wakeup(uint8_t rhport)
+{
+  (void) rhport;
 }
 
 /*------------------------------------------------------------------*/

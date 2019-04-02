@@ -177,10 +177,9 @@ static void xact_in_prepare(uint8_t epnum)
 //--------------------------------------------------------------------+
 // Controller API
 //--------------------------------------------------------------------+
-bool dcd_init (uint8_t rhport)
+void dcd_init (uint8_t rhport)
 {
   (void) rhport;
-  return true;
 }
 
 void dcd_int_enable(uint8_t rhport)
@@ -200,13 +199,36 @@ void dcd_set_address (uint8_t rhport, uint8_t dev_addr)
   (void) rhport;
   (void) dev_addr;
   // Set Address is automatically update by hw controller, nothing to do
+
+  // Enable usbevent for suspend and resume detection
+  // Since the bus signal D+/D- are stable now.
+
+  // Clear current pending first
+  NRF_USBD->EVENTCAUSE |= NRF_USBD->EVENTCAUSE;
+  NRF_USBD->EVENTS_USBEVENT = 0;
+
+  NRF_USBD->INTENSET = USBD_INTEN_USBEVENT_Msk;
 }
 
 void dcd_set_config (uint8_t rhport, uint8_t config_num)
 {
   (void) rhport;
   (void) config_num;
-  // Nothing to do
+}
+
+void dcd_remote_wakeup(uint8_t rhport)
+{
+  (void) rhport;
+
+  // Bring controller out of low power mode
+  NRF_USBD->LOWPOWER = 0;
+
+  // Initiate RESUME signal
+  NRF_USBD->DPDMVALUE = USBD_DPDMVALUE_STATE_Resume;
+  NRF_USBD->TASKS_DPDMDRIVE = 1;
+
+  // TODO There is no USBEVENT Resume interrupt
+  // We may manually raise DCD_EVENT_RESUME event here
 }
 
 //--------------------------------------------------------------------+
@@ -358,11 +380,36 @@ void USBD_IRQHandler(void)
     }
   }
 
-  /*------------- Interrupt Processing -------------*/
   if ( int_status & USBD_INTEN_USBRESET_Msk )
   {
     bus_reset();
     dcd_event_bus_signal(0, DCD_EVENT_BUS_RESET, true);
+  }
+
+  if ( int_status & USBD_INTEN_SOF_Msk )
+  {
+    dcd_event_bus_signal(0, DCD_EVENT_SOF, true);
+  }
+
+  if ( int_status & USBD_INTEN_USBEVENT_Msk )
+  {
+    uint32_t const evt_cause = NRF_USBD->EVENTCAUSE & (USBD_EVENTCAUSE_SUSPEND_Msk | USBD_EVENTCAUSE_RESUME_Msk);
+    NRF_USBD->EVENTCAUSE = evt_cause; // clear interrupt
+
+    if ( evt_cause & USBD_EVENTCAUSE_SUSPEND_Msk )
+    {
+      dcd_event_bus_signal(0, DCD_EVENT_SUSPEND, true);
+
+      // Put controller into low power mode
+      NRF_USBD->LOWPOWER = 1;
+
+      // Leave HFXO disable to application, since it may be used by other
+    }
+
+    if ( evt_cause & USBD_EVENTCAUSE_RESUME_Msk  )
+    {
+      dcd_event_bus_signal(0, DCD_EVENT_RESUME , true);
+    }
   }
 
   if ( int_status & EDPT_END_ALL_MASK )
@@ -370,7 +417,7 @@ void USBD_IRQHandler(void)
     // DMA complete move data from SRAM -> Endpoint
     edpt_dma_end();
   }
-
+ 
   // Setup tokens are specific to the Control endpoint.
   if ( int_status & USBD_INTEN_EP0SETUP_Msk )
   {
@@ -501,12 +548,6 @@ void USBD_IRQHandler(void)
         }
       }
     }
-  }
-
-  // SOF interrupt
-  if ( int_status & USBD_INTEN_SOF_Msk )
-  {
-    dcd_event_bus_signal(0, DCD_EVENT_SOF, true);
   }
 }
 

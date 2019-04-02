@@ -126,6 +126,21 @@ static inline uint8_t ep_addr2id(uint8_t endpoint_addr)
 //--------------------------------------------------------------------+
 // CONTROLLER API
 //--------------------------------------------------------------------+
+void dcd_init(uint8_t rhport)
+{
+  (void) rhport;
+
+  LPC_USB->EPLISTSTART  = (uint32_t) _dcd.ep;
+  LPC_USB->DATABUFSTART = SRAM_REGION;
+
+  LPC_USB->INTSTAT      = LPC_USB->INTSTAT; // clear all pending interrupt
+  LPC_USB->INTEN        = INT_DEVICE_STATUS_MASK;
+  LPC_USB->DEVCMDSTAT  |= CMDSTAT_DEVICE_ENABLE_MASK | CMDSTAT_DEVICE_CONNECT_MASK |
+                          CMDSTAT_RESET_CHANGE_MASK | CMDSTAT_CONNECT_CHANGE_MASK | CMDSTAT_SUSPEND_CHANGE_MASK;
+
+  NVIC_ClearPendingIRQ(USB0_IRQn);
+}
+
 void dcd_int_enable(uint8_t rhport)
 {
   (void) rhport;
@@ -138,12 +153,6 @@ void dcd_int_disable(uint8_t rhport)
   NVIC_DisableIRQ(USB0_IRQn);
 }
 
-void dcd_set_config(uint8_t rhport, uint8_t config_num)
-{
-  (void) rhport;
-  (void) config_num;
-}
-
 void dcd_set_address(uint8_t rhport, uint8_t dev_addr)
 {
   // Response with status first before changing device address
@@ -153,21 +162,15 @@ void dcd_set_address(uint8_t rhport, uint8_t dev_addr)
   LPC_USB->DEVCMDSTAT |= dev_addr;
 }
 
-bool dcd_init(uint8_t rhport)
+void dcd_set_config(uint8_t rhport, uint8_t config_num)
 {
   (void) rhport;
+  (void) config_num;
+}
 
-  LPC_USB->EPLISTSTART  = (uint32_t) _dcd.ep;
-  LPC_USB->DATABUFSTART = SRAM_REGION;
-
-  LPC_USB->INTSTAT      = LPC_USB->INTSTAT; // clear all pending interrupt
-  LPC_USB->INTEN        = INT_DEVICE_STATUS_MASK;
-  LPC_USB->DEVCMDSTAT  |= CMDSTAT_DEVICE_ENABLE_MASK | CMDSTAT_DEVICE_CONNECT_MASK |
-                          CMDSTAT_RESET_CHANGE_MASK | CMDSTAT_CONNECT_CHANGE_MASK | CMDSTAT_SUSPEND_CHANGE_MASK;
-
-  NVIC_EnableIRQ(USB0_IRQn);
-
-  return true;
+void dcd_remote_wakeup(uint8_t rhport)
+{
+  (void) rhport;
 }
 
 //--------------------------------------------------------------------+
@@ -339,7 +342,7 @@ void USB_IRQHandler(void)
         // Note: Host may delay more than 3 ms before and/or after bus reset before doing enumeration.
         if (dev_cmd_stat & CMDSTAT_DEVICE_ADDR_MASK)
         {
-          dcd_event_bus_signal(0, DCD_EVENT_SUSPENDED, true);
+          dcd_event_bus_signal(0, DCD_EVENT_SUSPEND, true);
         }
       }
     }

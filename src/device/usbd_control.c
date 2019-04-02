@@ -114,6 +114,7 @@ bool usbd_control_xfer_cb (uint8_t rhport, uint8_t ep_addr, xfer_result_t result
 
   if ( _control_state.request.bmRequestType_bit.direction == TUSB_DIR_OUT )
   {
+    TU_VERIFY(_control_state.buffer);
     memcpy(_control_state.buffer, _usbd_ctrl_buf, xferred_bytes);
   }
 

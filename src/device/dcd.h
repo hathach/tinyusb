@@ -42,13 +42,14 @@ typedef enum
   DCD_EVENT_BUS_RESET = 1,
   DCD_EVENT_UNPLUGGED,
   DCD_EVENT_SOF,
-  DCD_EVENT_SUSPENDED,
+  DCD_EVENT_SUSPEND,
   DCD_EVENT_RESUME,
 
   DCD_EVENT_SETUP_RECEIVED,
   DCD_EVENT_XFER_COMPLETE,
 
-  USBD_EVT_FUNC_CALL
+  // Not an DCD event, just a convenient way to defer ISR function
+  USBD_EVENT_FUNC_CALL
 } dcd_eventid_t;
 
 typedef struct ATTR_ALIGNED(4)
@@ -67,7 +68,7 @@ typedef struct ATTR_ALIGNED(4)
       uint32_t len;
     }xfer_complete;
 
-    // USBD_EVT_FUNC_CALL
+    // USBD_EVENT_FUNC_CALL
     struct {
       void (*func) (void*);
       void* param;
@@ -80,7 +81,9 @@ TU_VERIFY_STATIC(sizeof(dcd_event_t) <= 12, "size is not correct");
 /*------------------------------------------------------------------*/
 /* Device API
  *------------------------------------------------------------------*/
-bool dcd_init       (uint8_t rhport);
+
+// Initialize controller to device mode
+void dcd_init       (uint8_t rhport);
 
 // Enable device interrupt
 void dcd_int_enable (uint8_t rhport);
@@ -91,8 +94,11 @@ void dcd_int_disable(uint8_t rhport);
 // Receive Set Address request, mcu port must also include status IN response
 void dcd_set_address(uint8_t rhport, uint8_t dev_addr);
 
-// Receive Set Config request
+// Receive Set Configure request
 void dcd_set_config (uint8_t rhport, uint8_t config_num);
+
+// Wake up host
+void dcd_remote_wakeup(uint8_t rhport);
 
 /*------------------------------------------------------------------*/
 /* Endpoint API

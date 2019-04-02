@@ -34,6 +34,14 @@
 //--------------------------------------------------------------------+
 // MACRO CONSTANT TYPEDEF PROTYPES
 //--------------------------------------------------------------------+
+
+/* Blink pattern
+ * - 250 ms  : device not mounted
+ * - 1000 ms : device mounted
+ * - 2500 ms : device is suspended
+ */
+static uint32_t blink_interval_ms = 250;
+
 void led_blinking_task(void);
 
 extern void virtual_com_task(void);
@@ -127,8 +135,16 @@ void usb_hid_task(void)
   if ( board_millis() < start_ms + interval_ms) return; // not enough time
   start_ms += interval_ms;
 
-  uint32_t const btn = board_buttons();
+  uint32_t const btn = board_button_read();
 
+  if ( tud_suspended() && btn )
+  {
+    // Wake up host if we are in suspend mode
+    // and REMOTE_WAKEUP feature is enabled by host
+    tud_remote_wakeup();
+  }
+
+#if 0
   /*------------- Keyboard -------------*/
   if ( tud_hid_keyboard_ready() )
   {
@@ -148,8 +164,9 @@ void usb_hid_task(void)
       tud_hid_keyboard_keycode(0, NULL);
     }
   }
+#endif
 
-
+#if 0
   /*------------- Mouse -------------*/
   if ( tud_hid_mouse_ready() )
   {
@@ -160,33 +177,60 @@ void usb_hid_task(void)
     if ( btn & 0x04 ) tud_hid_mouse_move(  0   , -DELTA); // up
     if ( btn & 0x08 ) tud_hid_mouse_move(  0   ,  DELTA); // down
   }
+#endif
 }
 
 uint16_t tud_hid_generic_get_report_cb(uint8_t report_id, hid_report_type_t report_type, uint8_t* buffer, uint16_t reqlen)
 {
   // TODO not Implemented
+  (void) report_id;
+  (void) report_type;
+  (void) buffer;
+  (void) reqlen;
+
   return 0;
 }
 
 void tud_hid_generic_set_report_cb(uint8_t report_id, hid_report_type_t report_type, uint8_t const* buffer, uint16_t bufsize)
 {
   // TODO not Implemented
+  (void) report_id;
+  (void) report_type;
+  (void) buffer;
+  (void) bufsize;
 }
+
 #endif
 
 //--------------------------------------------------------------------+
-// tinyusb callbacks
+// Device callbacks
 //--------------------------------------------------------------------+
 
 // Invoked when device is mounted
 void tud_mount_cb(void)
 {
-
+  blink_interval_ms = 1000;
 }
 
 // Invoked when device is unmounted
 void tud_umount_cb(void)
 {
+  blink_interval_ms = 250;
+}
+
+// Invoked when usb bus is suspended
+// remote_wakeup_en : if host allow us  to perform remote wakeup
+// Within 7ms, device must draw an average of current less than 2.5 mA from bus
+void tud_suspend_cb(bool remote_wakeup_en)
+{
+  (void) remote_wakeup_en;
+  blink_interval_ms = 2500;
+}
+
+// Invoked when usb bus is resumed
+void tud_resume_cb(void)
+{
+  blink_interval_ms = 1000;
 }
 
 //--------------------------------------------------------------------+
@@ -194,14 +238,12 @@ void tud_umount_cb(void)
 //--------------------------------------------------------------------+
 void led_blinking_task(void)
 {
-  const uint32_t interval_ms = 1000;
   static uint32_t start_ms = 0;
-
   static bool led_state = false;
 
   // Blink every 1000 ms
-  if ( board_millis() < start_ms + interval_ms) return; // not enough time
-  start_ms += interval_ms;
+  if ( board_millis() < start_ms + blink_interval_ms) return; // not enough time
+  start_ms += blink_interval_ms;
 
   board_led_control(led_state);
   led_state = 1 - led_state; // toggle

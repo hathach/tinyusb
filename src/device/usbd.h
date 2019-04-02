@@ -34,15 +34,8 @@
  extern "C" {
 #endif
 
-//--------------------------------------------------------------------+
-// INCLUDE
-//--------------------------------------------------------------------+
-#include <common/tusb_common.h>
+#include "common/tusb_common.h"
 #include "device/dcd.h"
-
-//--------------------------------------------------------------------+
-// MACRO CONSTANT TYPEDEF
-//--------------------------------------------------------------------+
 
 /// \brief Descriptor pointer collector to all the needed.
 typedef struct {
@@ -60,27 +53,47 @@ typedef struct {
 
 }tud_desc_set_t;
 
-
 // Must be defined by application
 extern tud_desc_set_t tud_desc_set;
 
 //--------------------------------------------------------------------+
-// APPLICATION API
+// Application API
 //--------------------------------------------------------------------+
-bool tud_mounted(void);
+
+// Task function should be called in main/rtos loop
 void tud_task (void);
 
+// Check if device is connected and configured
+bool tud_mounted(void);
+
+// Check if device is suspended
+bool tud_suspended(void);
+
+// Check if device is ready to transfer
+static inline bool tud_ready(void)
+{
+  return tud_mounted() && !tud_suspended();
+}
+
+// Remote wake up host, only if suspended and enabled by host
+bool tud_remote_wakeup(void);
+
 //--------------------------------------------------------------------+
-// APPLICATION CALLBACK (WEAK is optional)
+// Application Callbacks (WEAK is optional)
 //--------------------------------------------------------------------+
 
-// Callback invoked when device is mounted (configured)
+// Invoked when device is mounted (configured)
 ATTR_WEAK void tud_mount_cb(void);
 
-// Callback invoked when device is unmounted (bus reset/unplugged)
+// Invoked when device is unmounted
 ATTR_WEAK void tud_umount_cb(void);
 
-//void tud_device_suspended_cb(void);
+// Invoked when usb bus is suspended
+// Within 7ms, device must draw an average of current less than 2.5 mA from bus
+ATTR_WEAK void tud_suspend_cb(bool remote_wakeup_en);
+
+// Invoked when usb bus is resumed
+ATTR_WEAK void tud_resume_cb(void);
 
 #ifdef __cplusplus
  }

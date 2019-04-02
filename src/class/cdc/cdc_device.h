@@ -38,7 +38,6 @@
 #define CFG_TUD_CDC_EPSIZE 64
 #endif
 
-
 #ifdef __cplusplus
  extern "C" {
 #endif
@@ -97,7 +96,6 @@ ATTR_WEAK void tud_cdc_line_coding_cb(uint8_t itf, cdc_line_coding_t const* p_li
 
 //--------------------------------------------------------------------+
 // INTERNAL USBD-CLASS DRIVER API
-
 //--------------------------------------------------------------------+
 void cdcd_init               (void);
 bool cdcd_open               (uint8_t rhport, tusb_desc_interface_t const * p_interface_desc, uint16_t *p_length);

@@ -38,26 +38,27 @@ static ATTR_ALIGNED(4) UsbDeviceDescBank sram_registers[8][2];
 static ATTR_ALIGNED(4) uint8_t _setup_packet[8];
 
 // Setup the control endpoint 0.
-static void bus_reset(void) {
-    // Max size of packets is 64 bytes.
-    UsbDeviceDescBank* bank_out = &sram_registers[0][TUSB_DIR_OUT];
-    bank_out->PCKSIZE.bit.SIZE = 0x3;
-    UsbDeviceDescBank* bank_in = &sram_registers[0][TUSB_DIR_IN];
-    bank_in->PCKSIZE.bit.SIZE = 0x3;
+static void bus_reset(void)
+{
+  // Max size of packets is 64 bytes.
+  UsbDeviceDescBank* bank_out = &sram_registers[0][TUSB_DIR_OUT];
+  bank_out->PCKSIZE.bit.SIZE = 0x3;
+  UsbDeviceDescBank* bank_in = &sram_registers[0][TUSB_DIR_IN];
+  bank_in->PCKSIZE.bit.SIZE = 0x3;
 
-    UsbDeviceEndpoint* ep = &USB->DEVICE.DeviceEndpoint[0];
-    ep->EPCFG.reg = USB_DEVICE_EPCFG_EPTYPE0(0x1) | USB_DEVICE_EPCFG_EPTYPE1(0x1);
-    ep->EPINTENSET.reg = USB_DEVICE_EPINTENSET_TRCPT0 | USB_DEVICE_EPINTENSET_TRCPT1 | USB_DEVICE_EPINTENSET_RXSTP;
+  UsbDeviceEndpoint* ep = &USB->DEVICE.DeviceEndpoint[0];
+  ep->EPCFG.reg = USB_DEVICE_EPCFG_EPTYPE0(0x1) | USB_DEVICE_EPCFG_EPTYPE1(0x1);
+  ep->EPINTENSET.reg = USB_DEVICE_EPINTENSET_TRCPT0 | USB_DEVICE_EPINTENSET_TRCPT1 | USB_DEVICE_EPINTENSET_RXSTP;
 
-    // Prepare for setup packet
-    dcd_edpt_xfer(0, 0, _setup_packet, sizeof(_setup_packet));
+  // Prepare for setup packet
+  dcd_edpt_xfer(0, 0, _setup_packet, sizeof(_setup_packet));
 }
 
 
 /*------------------------------------------------------------------*/
 /* Controller API
  *------------------------------------------------------------------*/
-bool dcd_init (uint8_t rhport)
+void dcd_init (uint8_t rhport)
 {
   (void) rhport;
 
@@ -79,9 +80,8 @@ bool dcd_init (uint8_t rhport)
   USB->DEVICE.CTRLA.reg = USB_CTRLA_MODE_DEVICE | USB_CTRLA_ENABLE | USB_CTRLA_RUNSTDBY;
   while (USB->DEVICE.SYNCBUSY.bit.ENABLE == 1) {}
 
+  USB->DEVICE.INTFLAG.reg |= USB->DEVICE.INTFLAG.reg; // clear pending
   USB->DEVICE.INTENSET.reg = USB_DEVICE_INTENSET_SOF | USB_DEVICE_INTENSET_EORST;
-
-  return true;
 }
 
 void dcd_int_enable(uint8_t rhport)
@@ -105,6 +105,10 @@ void dcd_set_address (uint8_t rhport, uint8_t dev_addr)
   while (USB->DEVICE.DeviceEndpoint[0].EPSTATUS.bit.BK1RDY == 1) {}
 
   USB->DEVICE.DADD.reg = USB_DEVICE_DADD_DADD(dev_addr) | USB_DEVICE_DADD_ADDEN;
+
+  // Enable SUSPEND interrupt since the bus signal D+/D- are stable now.
+  USB->DEVICE.INTFLAG.reg = USB_DEVICE_INTENCLR_SUSPEND; // clear pending
+  USB->DEVICE.INTENSET.reg = USB_DEVICE_INTENSET_SUSPEND;
 }
 
 void dcd_set_config (uint8_t rhport, uint8_t config_num)
@@ -112,6 +116,14 @@ void dcd_set_config (uint8_t rhport, uint8_t config_num)
   (void) rhport;
   (void) config_num;
   // Nothing to do
+
+}
+
+void dcd_remote_wakeup(uint8_t rhport)
+{
+  (void) rhport;
+
+  USB->DEVICE.CTRLB.bit.UPRSM = 1;
 }
 
 /*------------------------------------------------------------------*/
@@ -292,21 +304,46 @@ void maybe_transfer_complete(void) {
     }
 }
 
-void USB_Handler(void) {
-  uint32_t int_status = USB->DEVICE.INTFLAG.reg;
+void USB_Handler(void)
+{
+  uint32_t int_status = USB->DEVICE.INTFLAG.reg & USB->DEVICE.INTENSET.reg;
+  USB->DEVICE.INTFLAG.reg = int_status; // clear interrupt
 
   /*------------- Interrupt Processing -------------*/
-  if ( int_status & USB_DEVICE_INTFLAG_EORST )
-  {
-    USB->DEVICE.INTFLAG.reg = USB_DEVICE_INTENCLR_EORST;
-    bus_reset();
-    dcd_event_bus_signal(0, DCD_EVENT_BUS_RESET, true);
-  }
-
   if ( int_status & USB_DEVICE_INTFLAG_SOF )
   {
-    USB->DEVICE.INTFLAG.reg = USB_DEVICE_INTFLAG_SOF;
     dcd_event_bus_signal(0, DCD_EVENT_SOF, true);
+  }
+
+  // SAMD doesn't distinguish between Suspend and Disconnect state.
+  // Both condition will cause SUSPEND interrupt triggered.
+  // To prevent being triggered when D+/D- are not stable, SUSPEND interrupt is only
+  // enabled when we received SET_ADDRESS request and cleared on Bus Reset
+  if ( int_status & USB_DEVICE_INTFLAG_SUSPEND )
+  {
+    // Enable wakeup interrupt
+    USB->DEVICE.INTFLAG.reg = USB_DEVICE_INTFLAG_WAKEUP; // clear pending
+    USB->DEVICE.INTENSET.reg = USB_DEVICE_INTFLAG_WAKEUP;
+
+    dcd_event_bus_signal(0, DCD_EVENT_SUSPEND, true);
+  }
+
+  // Wakeup interrupt is only enabled when we got suspended.
+  // Wakeup interrupt will disable itself
+  if ( int_status & USB_DEVICE_INTFLAG_WAKEUP )
+  {
+    // disable wakeup interrupt itself
+    USB->DEVICE.INTENCLR.reg = USB_DEVICE_INTFLAG_WAKEUP;
+    dcd_event_bus_signal(0, DCD_EVENT_RESUME, true);
+  }
+
+  if ( int_status & USB_DEVICE_INTFLAG_EORST )
+  {
+    // Disable both suspend and wakeup interrupt
+    USB->DEVICE.INTENCLR.reg = USB_DEVICE_INTFLAG_WAKEUP | USB_DEVICE_INTFLAG_SUSPEND;
+
+    bus_reset();
+    dcd_event_bus_signal(0, DCD_EVENT_BUS_RESET, true);
   }
 
   // Setup packet received.
