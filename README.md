@@ -2,7 +2,7 @@
 
 [![Build Status](https://travis-ci.org/hathach/tinyusb.svg?branch=master)](https://travis-ci.org/hathach/tinyusb) [![License](https://img.shields.io/badge/license-MIT-brightgreen.svg)](https://opensource.org/licenses/MIT)
 
-TinyUSB is an open-source cross-platform USB Host/Device stack for embedded system.
+TinyUSB is an open-source cross-platform USB Host/Device stack for embedded system. It is designed to be memory-safe with no dynamic allocation and thread-safe with all interrupt events are deferred then handled in the stack's task function.
 
 ![tinyusb](https://user-images.githubusercontent.com/249515/49858616-f60c9700-fe27-11e8-8627-e76936352ff7.png)
 
@@ -21,10 +21,10 @@ TinyUSB is an open-source cross-platform USB Host/Device stack for embedded syst
 
 ## Device Stack
 
-Support suspend, resume, remote wakeup with auto generated descritpors
+Support multiple device configurations by dynamically changing usb descriptors. Low power functions such as suspend, resume and remote wakeup. Following device classes are supported:
 
-- Human Interface Device (HID): Keyboard, Mouse, Generic
 - Communication Class (CDC)
+- Human Interface Device (HID): Keyboard, Mouse, Generic
 - Mass Storage Class (MSC)
 - Musical Instrument Digital Interface (MIDI)
 
@@ -63,6 +63,14 @@ The stack is developed with GCC compiler, and should be compilable with others. 
 
 [Here is the details for getting started](docs/getting_started.md) with the stack.
 
+## Porting
+
+Want to help add TinyUSB support for a new MCU? Read [here](docs/porting.md) for an explanation on the low-level API needed by TinyUSB.
+
+## License
+
+MIT license for all TinyUSB sources `src` folder, [Full license is here](LICENSE). However each file is individually licensed especially those in `lib` and `hw/mcu` folder. Please make sure you understand all the license term for files you use in your project.
+
 ## Uses
 
 TinyUSB is currently used by these other projects:
@@ -71,10 +79,4 @@ TinyUSB is currently used by these other projects:
 * [Adafruit nRF52 Bootloader](https://github.com/adafruit/Adafruit_nRF52_Bootloader)
 * [CircuitPython](https://github.com/adafruit/circuitpython)
 
-## Porting
-
-Want to help add TinyUSB support for a new MCU? Read [here](docs/porting.md) for an explanation on the low-level API needed by TinyUSB.
-
-## License
-
-MIT license for all tinyusb sources [Full license is here](tinyusb/license.md) and most of the code base. However each file/folder is individually licensed especially those in `lib` and `hw/mcu` folder. Please make sure you understand all the license term for files you use in your project.
+If your project also uses TinyUSB and want to share, feel free to create a pull request.
