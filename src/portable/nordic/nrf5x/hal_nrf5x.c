@@ -32,7 +32,7 @@
 #include "nrf_gpio.h"
 #include "nrf_clock.h"
 #include "nrf_usbd.h"
-#include "nrf_drv_usbd_errata.h"
+#include "nrfx_usbd_errata.h"
 
 #ifdef SOFTDEVICE_PRESENT
 #include "nrf_sdm.h"
@@ -122,7 +122,7 @@ void tusb_hal_nrf_power_event (uint32_t event)
         /* Enable the peripheral */
         // ERRATA 171, 187, 166
 
-        if ( nrf_drv_usbd_errata_187() )
+        if ( nrfx_usbd_errata_187() )
         {
           // CRITICAL_REGION_ENTER();
           if ( *((volatile uint32_t *) (0x4006EC00)) == 0x00000000 )
@@ -138,7 +138,7 @@ void tusb_hal_nrf_power_event (uint32_t event)
           // CRITICAL_REGION_EXIT();
         }
 
-        if ( nrf_drv_usbd_errata_171() )
+        if ( nrfx_usbd_errata_171() )
         {
           // CRITICAL_REGION_ENTER();
           if ( *((volatile uint32_t *) (0x4006EC00)) == 0x00000000 )
@@ -168,7 +168,7 @@ void tusb_hal_nrf_power_event (uint32_t event)
       nrf_usbd_eventcause_clear(USBD_EVENTCAUSE_READY_Msk);
       nrf_usbd_event_clear(USBD_EVENTCAUSE_READY_Msk);
 
-      if ( nrf_drv_usbd_errata_171() )
+      if ( nrfx_usbd_errata_171() )
       {
         // CRITICAL_REGION_ENTER();
         if ( *((volatile uint32_t *) (0x4006EC00)) == 0x00000000 )
@@ -185,7 +185,7 @@ void tusb_hal_nrf_power_event (uint32_t event)
         // CRITICAL_REGION_EXIT();
       }
 
-      if ( nrf_drv_usbd_errata_187() )
+      if ( nrfx_usbd_errata_187() )
       {
         // CRITICAL_REGION_ENTER();
         if ( *((volatile uint32_t *) (0x4006EC00)) == 0x00000000 )
@@ -201,7 +201,7 @@ void tusb_hal_nrf_power_event (uint32_t event)
         // CRITICAL_REGION_EXIT();
       }
 
-      if ( nrf_drv_usbd_errata_166() )
+      if ( nrfx_usbd_errata_166() )
       {
         *((volatile uint32_t *) (NRF_USBD_BASE + 0x800)) = 0x7E3;
         *((volatile uint32_t *) (NRF_USBD_BASE + 0x804)) = 0x40;

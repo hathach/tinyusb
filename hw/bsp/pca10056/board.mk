@@ -29,6 +29,7 @@ INC += \
 	-I$(TOP)/hw/mcu/nordic/nrfx/mdk \
 	-I$(TOP)/hw/mcu/nordic/nrfx/hal \
 	-I$(TOP)/hw/mcu/nordic/nrfx/drivers/include \
+	-I$(TOP)/hw/mcu/nordic/nrfx/drivers/src \
 
 SRC_S += hw/mcu/nordic/nrfx/mdk/gcc_startup_nrf52840.S
 
