@@ -34,7 +34,6 @@
 /** \addtogroup group_osal
  *  @{ */
 
-#include "tusb_option.h"
 #include "common/tusb_common.h"
 
 enum
@@ -48,34 +47,33 @@ enum
 
 typedef void (*osal_task_func_t)( void * );
 
+//--------------------------------------------------------------------+
+// OSAL Porting API
+//--------------------------------------------------------------------+
+#if 0
+void osal_task_delay(uint32_t msec);
+
+//------------- Semaphore -------------//
+osal_semaphore_t osal_semaphore_create(osal_semaphore_def_t* semdef);
+bool osal_semaphore_post(osal_semaphore_t sem_hdl, bool in_isr);
+bool osal_semaphore_wait (osal_semaphore_t sem_hdl, uint32_t msec);
+
+void osal_semaphore_reset(osal_semaphore_t sem_hdl); // TODO removed
+
+//------------- Mutex -------------//
+osal_mutex_t osal_mutex_create(osal_mutex_def_t* mdef);
+bool osal_mutex_lock (osal_mutex_t sem_hdl, uint32_t msec);
+bool osal_mutex_unlock(osal_mutex_t mutex_hdl);
+
+//------------- Queue -------------//
+osal_queue_t osal_queue_create(osal_queue_def_t* qdef);
+bool osal_queue_receive(osal_queue_t const qhdl, void* data);
+bool osal_queue_send(osal_queue_t const qhdl, void const * data, bool in_isr);
+#endif
+
 #if CFG_TUSB_OS == OPT_OS_NONE
   #include "osal_none.h"
 #else
-  /* RTOS Porting API
-   *
-   * Task
-   *    void osal_task_delay(uint32_t msec)
-   *
-   * Queue
-   *     osal_queue_def_t, osal_queue_t
-   *     osal_queue_t osal_queue_create(osal_queue_def_t* qdef)
-   *     osal_queue_receive (osal_queue_t const queue_hdl, void *p_data, uint32_t msec, uint32_t *p_error)
-   *     bool osal_queue_send(osal_queue_t const queue_hdl, void const * data, bool in_isr)
-   *
-   * Semaphore
-   *    osal_semaphore_def_t, osal_semaphore_t
-   *    osal_semaphore_t osal_semaphore_create(osal_semaphore_def_t* semdef)
-   *    bool osal_semaphore_post(osal_semaphore_t sem_hdl, bool in_isr)
-   *    bool osal_semaphore_wait(osal_semaphore_t sem_hdl, uint32_t msec)
-   *    void osal_semaphore_reset(osal_semaphore_t const sem_hdl)
-   *
-   * Mutex
-   *    osal_mutex_t
-   *    osal_mutex_create(osal_mutex_def_t* mdef)
-   *    bool osal_mutex_unlock(osal_mutex_t mutex_hdl)
-   *    void osal_mutex_lock(osal_mutex_t mutex_hdl, uint32_t msec, uint32_t *p_error)
-   */
-
   #if CFG_TUSB_OS == OPT_OS_FREERTOS
     #include "osal_freertos.h"
   #elif CFG_TUSB_OS == OPT_OS_MYNEWT

@@ -245,6 +245,6 @@ void led_blinking_task(void)
   if ( board_millis() < start_ms + blink_interval_ms) return; // not enough time
   start_ms += blink_interval_ms;
 
-  board_led_control(led_state);
+  board_led_write(led_state);
   led_state = 1 - led_state; // toggle
 }

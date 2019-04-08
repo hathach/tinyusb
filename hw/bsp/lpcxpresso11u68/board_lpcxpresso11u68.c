@@ -113,7 +113,7 @@ uint32_t board_millis(void)
 //--------------------------------------------------------------------+
 // LEDS
 //--------------------------------------------------------------------+
-void board_led_control(bool state)
+void board_led_write(bool state)
 {
   Chip_GPIO_SetPinState(LPC_GPIO, LED_PORT, LED_PIN, state ? LED_STATE_ON : (1-LED_STATE_ON));
 }

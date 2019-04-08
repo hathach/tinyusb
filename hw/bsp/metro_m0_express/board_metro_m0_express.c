@@ -101,7 +101,7 @@ void board_init(void)
   _gclk_enable_channel(TCC0_GCLK_ID, GCLK_CLKCTRL_GEN_GCLK0_Val);
 }
 
-void board_led_control(bool state)
+void board_led_write(bool state)
 {
   gpio_set_pin_level(LED_PIN, state);
 }

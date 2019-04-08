@@ -230,6 +230,6 @@ void led_blinky_cb(TimerHandle_t xTimer)
   (void) xTimer;
   static bool led_state = false;
 
-  board_led_control(led_state);
+  board_led_write(led_state);
   led_state = 1 - led_state; // toggle
 }

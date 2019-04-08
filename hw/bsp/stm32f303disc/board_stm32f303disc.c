@@ -92,7 +92,7 @@ void board_init(void)
 }
 
 
-void board_led_control(bool state)
+void board_led_write(bool state)
 {
   HAL_GPIO_WritePin(GPIOE, GPIO_PIN_9, state);
 }
