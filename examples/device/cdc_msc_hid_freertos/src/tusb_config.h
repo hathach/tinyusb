@@ -74,14 +74,8 @@
  */
 #define CFG_TUD_DESC_AUTO           1
 
-/* If USB VID/PID is not defined, tinyusb will use default value
- * Note: different class combination e.g CDC and (CDC + MSC) should have different
- * PID since Host OS will "remembered" device driver after the first plug */
-// #define CFG_TUD_DESC_VID          0xCAFE
-// #define CFG_TUD_DESC_PID          0x0001
-
 // LPC175x_6x's endpoint type (bulk/interrupt/iso) are fixed by its number
-// Therefor we need to force endpoint number to correct type on lpc17xx
+// Therefore we need to force endpoint number to correct type on lpc17xx
 #if CFG_TUSB_MCU == OPT_MCU_LPC175X_6X
 #define CFG_TUD_DESC_CDC_EPNUM_NOTIF      1
 #define CFG_TUD_DESC_CDC_EPNUM            2

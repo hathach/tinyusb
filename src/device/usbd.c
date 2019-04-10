@@ -577,7 +577,7 @@ static void const* get_descriptor(tusb_control_request_t const * p_request, uint
   switch(desc_type)
   {
     case TUSB_DESC_DEVICE:
-      desc_data = (uint8_t const *) usbd_desc_set->device;
+      desc_data = (uint8_t const *) tud_desc_set.device;
       len       = sizeof(tusb_desc_device_t);
     break;
 

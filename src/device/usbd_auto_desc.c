@@ -30,29 +30,10 @@
 
 #include "tusb.h"
 
-//--------------------------------------------------------------------+
-// Auto Description Default Configure & Validation
-//--------------------------------------------------------------------+
 
 // If HID Generic interface is generated
 #define AUTO_DESC_HID_GENERIC    (CFG_TUD_HID && ((CFG_TUD_HID_KEYBOARD && !CFG_TUD_HID_KEYBOARD_BOOT) || \
                                                 (CFG_TUD_HID_MOUSE && !CFG_TUD_HID_MOUSE_BOOT)) )
-/*------------- VID/PID -------------*/
-#ifndef CFG_TUD_DESC_VID
-#define CFG_TUD_DESC_VID       0xCAFE
-#endif
-
-#ifndef CFG_TUD_DESC_PID
-/* A combination of interfaces must have a unique product id, since PC will save device driver after the first plug.
- * Same VID/PID with different interface e.g MSC (first), then CDC (later) will possibly cause system error on PC.
- *
- * Auto ProductID layout's Bitmap:
- *   [MSB]         HID Generic | Boot Mouse | Boot Keyboard | MSC | CDC          [LSB]
- */
-#define _PID_MAP(itf, n)      ( (CFG_TUD_##itf) << (n) )
-#define CFG_TUD_DESC_PID      (0x4000 | _PID_MAP(CDC, 0) | _PID_MAP(MSC, 1) | _PID_MAP(HID, 2) | \
-                               _PID_MAP(HID_KEYBOARD, 2) | _PID_MAP(HID_MOUSE, 3) | (AUTO_DESC_HID_GENERIC << 4) )
-#endif
 
 //--------------------------------------------------------------------+
 // Interface & Endpoint mapping
@@ -61,7 +42,6 @@
 /*------------- Interface Numbering -------------*/
 /* The order as follows: CDC, MSC, Boot Keyboard, Boot Mouse, HID Generic
  * If an interface is not enabled, the later will take its place */
-
 enum
 {
 #if CFG_TUD_CDC
@@ -146,9 +126,9 @@ enum
 #endif
 
 #if TUD_OPT_HIGH_SPEED
-#define EP_MSC_SIZE 512
+  #define EP_MSC_SIZE 512
 #else
-#define EP_MSC_SIZE 64
+  #define EP_MSC_SIZE 64
 #endif
 
 
@@ -172,11 +152,9 @@ enum
 #define EP_HID_GEN              _EP_IN ( ITF_NUM_HID_GEN+1 )
 #define EP_HID_GEN_SIZE         16
 
-
 //--------------------------------------------------------------------+
 // Auto generated HID Report Descriptors
 //--------------------------------------------------------------------+
-
 
 /*------------- Boot Protocol Report Descriptor -------------*/
 #if CFG_TUD_HID_KEYBOARD && CFG_TUD_HID_KEYBOARD_BOOT
@@ -212,50 +190,8 @@ uint8_t const _desc_auto_hid_generic_report[] =
 
 
 /*------------------------------------------------------------------*/
-/* Auto generated Device & Configuration descriptor
+/* Auto generated Configuration descriptor
  *------------------------------------------------------------------*/
-
-// For highspeed device but currently in full speed mode
-//tusb_desc_device_qualifier_t _device_qual =
-//{
-//    .bLength = sizeof(tusb_desc_device_qualifier_t),
-//    .bDescriptorType = TUSB_DESC_DEVICE_QUALIFIER,
-//    .bcdUSB = 0x0200,
-//    .bDeviceClass =
-//};
-
-/*------------- Device Descriptor -------------*/
-tusb_desc_device_t const _desc_auto_device =
-{
-    .bLength            = sizeof(tusb_desc_device_t),
-    .bDescriptorType    = TUSB_DESC_DEVICE,
-    .bcdUSB             = 0x0200,
-
-  #if CFG_TUD_CDC
-    // Use Interface Association Descriptor (IAD) for CDC
-    // As required by USB Specs IAD's subclass must be common class (2) and protocol must be IAD (1)
-    .bDeviceClass       = TUSB_CLASS_MISC,
-    .bDeviceSubClass    = MISC_SUBCLASS_COMMON,
-    .bDeviceProtocol    = MISC_PROTOCOL_IAD,
-  #else
-    .bDeviceClass       = 0x00,
-    .bDeviceSubClass    = 0x00,
-    .bDeviceProtocol    = 0x00,
-  #endif
-
-    .bMaxPacketSize0    = CFG_TUD_ENDOINT0_SIZE,
-
-    .idVendor           = CFG_TUD_DESC_VID,
-    .idProduct          = CFG_TUD_DESC_PID,
-    .bcdDevice          = 0x0100,
-
-    .iManufacturer      = 0x01,
-    .iProduct           = 0x02,
-    .iSerialNumber      = 0x03,
-
-    .bNumConfigurations = 0x01
-};
-
 
 /*------------- Configuration Descriptor -------------*/
 typedef struct ATTR_PACKED
@@ -623,7 +559,7 @@ uint8_t const * const _desc_auto_config = (uint8_t const*) &_desc_auto_config_st
 
 tud_desc_set_t const _usbd_auto_desc_set =
 {
-    .device = &_desc_auto_device,
+    .device = NULL, // no auto device
     .config = &_desc_auto_config_struct,
 
     .hid_report =

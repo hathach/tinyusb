@@ -26,10 +26,53 @@
 
 #include "tusb.h"
 
-//--------------------------------------------------------------------+
-// STRING DESCRIPTORS
-//--------------------------------------------------------------------+
+// If HID Generic interface is generated
+#define AUTO_DESC_HID_GENERIC    (CFG_TUD_HID && ((CFG_TUD_HID_KEYBOARD && !CFG_TUD_HID_KEYBOARD_BOOT) || \
+                                                (CFG_TUD_HID_MOUSE && !CFG_TUD_HID_MOUSE_BOOT)) )
 
+/* A combination of interfaces must have a unique product id, since PC will save device driver after the first plug.
+ * Same VID/PID with different interface e.g MSC (first), then CDC (later) will possibly cause system error on PC.
+ *
+ * Auto ProductID layout's Bitmap:
+ *   [MSB]         HID Generic | Boot Mouse | Boot Keyboard | MSC | CDC          [LSB]
+ */
+#define _PID_MAP(itf, n)      ( (CFG_TUD_##itf) << (n) )
+#define CFG_TUD_DESC_PID      (0x4000 | _PID_MAP(CDC, 0) | _PID_MAP(MSC, 1) | \
+                               _PID_MAP(HID_KEYBOARD, 2) | _PID_MAP(HID_MOUSE, 3) | (AUTO_DESC_HID_GENERIC << 4) )
+
+//------------- Device Descriptors -------------//
+tusb_desc_device_t const desc_device =
+{
+    .bLength            = sizeof(tusb_desc_device_t),
+    .bDescriptorType    = TUSB_DESC_DEVICE,
+    .bcdUSB             = 0x0200,
+
+  #if CFG_TUD_CDC
+    // Use Interface Association Descriptor (IAD) for CDC
+    // As required by USB Specs IAD's subclass must be common class (2) and protocol must be IAD (1)
+    .bDeviceClass       = TUSB_CLASS_MISC,
+    .bDeviceSubClass    = MISC_SUBCLASS_COMMON,
+    .bDeviceProtocol    = MISC_PROTOCOL_IAD,
+  #else
+    .bDeviceClass       = 0x00,
+    .bDeviceSubClass    = 0x00,
+    .bDeviceProtocol    = 0x00,
+  #endif
+
+    .bMaxPacketSize0    = CFG_TUD_ENDOINT0_SIZE,
+
+    .idVendor           = 0xCafe,
+    .idProduct          = CFG_TUD_DESC_PID,
+    .bcdDevice          = 0x0100,
+
+    .iManufacturer      = 0x01,
+    .iProduct           = 0x02,
+    .iSerialNumber      = 0x03,
+
+    .bNumConfigurations = 0x01
+};
+
+//------------- String Descriptors -------------//
 // array of pointer to string descriptors
 uint16_t const * const string_desc_arr [] =
 {
@@ -42,7 +85,7 @@ uint16_t const * const string_desc_arr [] =
     // 2: Product
     TUD_DESC_STRCONV('t', 'i', 'n', 'y', 'u', 's', 'b', ' ', 'd', 'e', 'v', 'i', 'c', 'e'),
 
-    // 3: Serials TODO use chip ID
+    // 3: Serials, should use chip ID
     TUD_DESC_STRCONV('1', '2', '3', '4', '5', '6'),
 
 #if CFG_TUD_CDC
@@ -71,7 +114,7 @@ uint16_t const * const string_desc_arr [] =
 // since CFG_TUD_DESC_AUTO is enabled, we only need to set string_arr 
 tud_desc_set_t tud_desc_set =
 {
-    .device     = NULL,
+    .device     = &desc_device,
     .config     = NULL,
 
     .string_arr   = (uint8_t const **) string_desc_arr,
