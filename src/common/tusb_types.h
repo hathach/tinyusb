@@ -127,25 +127,23 @@ typedef enum
 
 typedef enum
 {
-  TUSB_CLASS_UNSPECIFIED          = 0    , ///< 0
-  TUSB_CLASS_AUDIO                = 1    , ///< 1
-  TUSB_CLASS_CDC                  = 2    , ///< 2
-  TUSB_CLASS_HID                  = 3    , ///< 3
-  TUSB_CLASS_RESERVED_4           = 4    , ///< 4
-  TUSB_CLASS_PHYSICAL             = 5    , ///< 5
-  TUSB_CLASS_IMAGE                = 6    , ///< 6
-  TUSB_CLASS_PRINTER              = 7    , ///< 7
-  TUSB_CLASS_MSC                  = 8    , ///< 8
-  TUSB_CLASS_HUB                  = 9    , ///< 9
-  TUSB_CLASS_CDC_DATA             = 10   , ///< 10
-  TUSB_CLASS_SMART_CARD           = 11   , ///< 11
-  TUSB_CLASS_RESERVED_12          = 12   , ///< 12
-  TUSB_CLASS_CONTENT_SECURITY     = 13   , ///< 13
-  TUSB_CLASS_VIDEO                = 14   , ///< 14
-  TUSB_CLASS_PERSONAL_HEALTHCARE  = 15   , ///< 15
-  TUSB_CLASS_AUDIO_VIDEO          = 16   , ///< 16
-
-  TUSB_CLASS_MAPPED_INDEX_START   = 17   , // TODO Map DIAGNOSTIC, WIRELESS_CONTROLLER, MISC, VENDOR_SPECIFIC to this to minimize the array
+  TUSB_CLASS_UNSPECIFIED          = 0    ,
+  TUSB_CLASS_AUDIO                = 1    ,
+  TUSB_CLASS_CDC                  = 2    ,
+  TUSB_CLASS_HID                  = 3    ,
+  TUSB_CLASS_RESERVED_4           = 4    ,
+  TUSB_CLASS_PHYSICAL             = 5    ,
+  TUSB_CLASS_IMAGE                = 6    ,
+  TUSB_CLASS_PRINTER              = 7    ,
+  TUSB_CLASS_MSC                  = 8    ,
+  TUSB_CLASS_HUB                  = 9    ,
+  TUSB_CLASS_CDC_DATA             = 10   ,
+  TUSB_CLASS_SMART_CARD           = 11   ,
+  TUSB_CLASS_RESERVED_12          = 12   ,
+  TUSB_CLASS_CONTENT_SECURITY     = 13   ,
+  TUSB_CLASS_VIDEO                = 14   ,
+  TUSB_CLASS_PERSONAL_HEALTHCARE  = 15   ,
+  TUSB_CLASS_AUDIO_VIDEO          = 16   ,
 
   TUSB_CLASS_DIAGNOSTIC           = 0xDC ,
   TUSB_CLASS_WIRELESS_CONTROLLER  = 0xE0 ,

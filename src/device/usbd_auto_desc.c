@@ -43,7 +43,6 @@
 #endif
 
 #ifndef CFG_TUD_DESC_PID
-
 /* A combination of interfaces must have a unique product id, since PC will save device driver after the first plug.
  * Same VID/PID with different interface e.g MSC (first), then CDC (later) will possibly cause system error on PC.
  *
@@ -484,7 +483,7 @@ desc_auto_cfg_t const _desc_auto_config_struct =
           .bEndpointAddress = EP_MSC_OUT,
           .bmAttributes     = { .xfer = TUSB_XFER_BULK },
           .wMaxPacketSize   = { .size = EP_MSC_SIZE},
-          .bInterval        = 1
+          .bInterval        = 0
       },
 
       .ep_in =
@@ -494,7 +493,7 @@ desc_auto_cfg_t const _desc_auto_config_struct =
           .bEndpointAddress = EP_MSC_IN,
           .bmAttributes     = { .xfer = TUSB_XFER_BULK },
           .wMaxPacketSize   = { .size = EP_MSC_SIZE},
-          .bInterval        = 1
+          .bInterval        = 0
       }
     },
 #endif // msc

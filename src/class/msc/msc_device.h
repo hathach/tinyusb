@@ -31,6 +31,9 @@
 #include "device/usbd.h"
 #include "msc.h"
 
+#ifdef __cplusplus
+ extern "C" {
+#endif
 
 //--------------------------------------------------------------------+
 // Class Driver Configuration
@@ -57,10 +60,6 @@ TU_VERIFY_STATIC(CFG_TUD_MSC_BUFSIZE < UINT16_MAX, "Size is not correct");
 
 #ifndef CFG_TUD_MSC_PRODUCT_REV
   #error CFG_TUD_MSC_PRODUCT_REV 4-byte string must be defined
-#endif
-
-#ifdef __cplusplus
- extern "C" {
 #endif
 
 /** \addtogroup ClassDriver_MSC

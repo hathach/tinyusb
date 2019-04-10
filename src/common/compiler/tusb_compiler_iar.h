@@ -36,12 +36,8 @@
 //#define ATTR_SECTION(section)      _Pragma((#section))
 #define ATTR_PREPACKED            __packed
 #define ATTR_PACKED
-
-#define ATTR_ALWAYS_INLINE
 #define ATTR_DEPRECATED(mess)
 #define ATTR_WEAK                 __weak
-
-#define ATTR_WARN_UNUSED_RESULT
 #define ATTR_UNUSED
 
 // built-in function to convert 32-bit Big-Endian to Little-Endian
@@ -51,6 +47,8 @@
 
 #define __n2be_16(u16)  ((uint16_t) __REV16(u16))
 #define __be2n_16(u16)  __n2be_16(u16)
+
+#error "IAR won't work due to '__packed' placement before struct"
 
 #ifdef __cplusplus
  }
