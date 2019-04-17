@@ -54,12 +54,36 @@
 //--------------------------------------------------------------------+
 // HID GENERIC API
 //--------------------------------------------------------------------+
-bool tud_hid_generic_ready(void);
-bool tud_hid_generic_report(uint8_t report_id, void const* report, uint8_t len);
+
+/** Check if the interface is ready to use
+ * \returns true if ready, otherwise interface may not be mounted or still busy transferring data
+ * \note    Application must not perform any action if the interface is not ready
+ */
+bool tud_hid_ready(void);
+bool tud_hid_report(uint8_t report_id, void const* report, uint8_t len);
 
 /*------------- Callbacks (Weak is optional) -------------*/
-uint16_t tud_hid_generic_get_report_cb(uint8_t report_id, hid_report_type_t report_type, uint8_t* buffer, uint16_t reqlen);
-void     tud_hid_generic_set_report_cb(uint8_t report_id, hid_report_type_t report_type, uint8_t const* buffer, uint16_t bufsize);
+/** Callback invoked when USB host request \ref HID_REQ_CONTROL_GET_REPORT.
+ * \param[in]   report_type specify which report (INPUT, OUTPUT, FEATURE) that host requests
+ * \param[out]  buffer data that application need to update, value must be accessible by USB controller (see \ref CFG_TUSB_MEM_SECTION)
+ * \param[in]   reqlen  number of bytes that host requested
+ * \retval      non-zero Actual number of bytes in the response's buffer.
+ * \retval      zero  indicates the current request is not supported. Tinyusb device stack will reject the request by
+ *              sending STALL in the data phase.
+ * \note        After this callback, the request is silently executed by the tinyusb stack, thus
+ *              the completion of this control request will not be reported to application.
+ *              For Keyboard, USB host often uses this to turn on/off the LED for CAPLOCKS, NUMLOCK (\ref hid_keyboard_led_bm_t)
+ */
+uint16_t tud_hid_get_report_cb(uint8_t report_id, hid_report_type_t report_type, uint8_t* buffer, uint16_t reqlen);
+
+/** Callback invoked when USB host request \ref HID_REQ_CONTROL_SET_REPORT.
+ * \param[in]   report_type specify which report (INPUT, OUTPUT, FEATURE) that host requests
+ * \param[in]   buffer  containing the report's data
+ * \param[in]   bufsize  number of bytes in the \a buffer
+ * \note        By the time this callback is invoked, the USB control transfer is already completed in the hardware side.
+ *              Application are free to handle data at its own will.
+ */
+void     tud_hid_set_report_cb(uint8_t report_id, hid_report_type_t report_type, uint8_t const* buffer, uint16_t bufsize);
 
 //--------------------------------------------------------------------+
 // KEYBOARD API
@@ -69,13 +93,6 @@ void     tud_hid_generic_set_report_cb(uint8_t report_id, hid_report_type_t repo
  *  @{ */
 /** \defgroup Keyboard_Device Device
  *  @{ */
-
-/** Check if the interface is ready to use
- * \returns true if ready, otherwise interface may not be mounted or still busy transferring data
- * \note    Application must not perform any action if the interface is not ready
- */
-bool tud_hid_keyboard_ready(void);
-bool tud_hid_keyboard_is_boot_protocol(void);
 
 bool tud_hid_keyboard_keycode(uint8_t modifier, uint8_t keycode[6]);
 
@@ -95,29 +112,6 @@ extern const hid_ascii_to_keycode_entry_t HID_ASCII_TO_KEYCODE[128];
 
 /*------------- Callbacks (Weak is optional) -------------*/
 
-/** Callback invoked when USB host request \ref HID_REQ_CONTROL_GET_REPORT.
- * \param[in]   report_type specify which report (INPUT, OUTPUT, FEATURE) that host requests
- * \param[out]  buffer data that application need to update, value must be accessible by USB controller (see \ref CFG_TUSB_MEM_SECTION)
- * \param[in]   reqlen  number of bytes that host requested
- * \retval      non-zero Actual number of bytes in the response's buffer.
- * \retval      zero  indicates the current request is not supported. Tinyusb device stack will reject the request by
- *              sending STALL in the data phase.
- * \note        After this callback, the request is silently executed by the tinyusb stack, thus
- *              the completion of this control request will not be reported to application.
- *              For Keyboard, USB host often uses this to turn on/off the LED for CAPLOCKS, NUMLOCK (\ref hid_keyboard_led_bm_t)
- */
-ATTR_WEAK uint16_t tud_hid_keyboard_get_report_cb(uint8_t report_id, hid_report_type_t report_type, uint8_t* buffer, uint16_t reqlen);
-
-/** Callback invoked when USB host request \ref HID_REQ_CONTROL_SET_REPORT.
- * \param[in]   report_type specify which report (INPUT, OUTPUT, FEATURE) that host requests
- * \param[in]   buffer  containing the report's data
- * \param[in]   bufsize  number of bytes in the \a buffer
- * \note        By the time this callback is invoked, the USB control transfer is already completed in the hardware side.
- *              Application are free to handle data at its own will.
- */
-ATTR_WEAK void tud_hid_keyboard_set_report_cb(uint8_t report_id, hid_report_type_t report_type, uint8_t const* buffer, uint16_t bufsize);
-
-
 //ATTR_WEAK void tud_hid_keyboard_set_protocol_cb(bool boot_protocol);
 
 /** @} */
@@ -132,12 +126,6 @@ ATTR_WEAK void tud_hid_keyboard_set_report_cb(uint8_t report_id, hid_report_type
 /** \defgroup Mouse_Device Device
  *  @{ */
 
-/** \brief      Check if the interface is currently busy or not
- * \retval      true if the interface is busy meaning the stack is still transferring/waiting data from/to host
- * \retval      false if the interface is not busy meaning the stack successfully transferred data from/to host
- * \note        This function is primarily used for polling/waiting result after \ref tusbd_hid_mouse_send.
- */
-bool tud_hid_mouse_ready(void);
 bool tud_hid_mouse_is_boot_protocol(void);
 
 bool tud_hid_mouse_data(uint8_t buttons, int8_t x, int8_t y, int8_t scroll, int8_t pan);
@@ -154,31 +142,6 @@ static inline bool tud_hid_mouse_button_release(void)
 {
   return tud_hid_mouse_data(0, 0, 0, 0, 0);
 }
-
-/*------------- Callbacks (Weak is optional) -------------*/
-
-/**
- * Callback function that is invoked when USB host request \ref HID_REQ_CONTROL_GET_REPORT.
- * \param[in]   report_type specify which report (INPUT, OUTPUT, FEATURE) that host requests
- * \param[out]  buffer  buffer that application need to update, value must be accessible by USB controller (see \ref CFG_TUSB_MEM_SECTION)
- * \param[in]   reqlen  number of bytes that host requested
- * \retval      non-zero Actual number of bytes in the response's buffer.
- * \retval      zero  indicates the current request is not supported. Tinyusb device stack will reject the request by
- *              sending STALL in the data phase.
- * \note        After this callback, the request is silently executed by the tinyusb stack, thus
- *              the completion of this control request will not be reported to application
- */
-ATTR_WEAK uint16_t tud_hid_mouse_get_report_cb(uint8_t report_id, hid_report_type_t report_type, uint8_t* buffer, uint16_t reqlen);
-
-/**
- * Callback function that is invoked when USB host request \ref HID_REQ_CONTROL_SET_REPORT.
- * \param[in]   report_type specify which report (INPUT, OUTPUT, FEATURE) that host requests
- * \param[in]   buffer buffer containing the report's data
- * \param[in]   bufsize  number of bytes in the \a p_report_data
- * \note        By the time this callback is invoked, the USB control transfer is already completed in the hardware side.
- *              Application are free to handle data at its own will.
- */
-ATTR_WEAK void tud_hid_mouse_set_report_cb(uint8_t report_id, hid_report_type_t report_type, uint8_t const* buffer, uint16_t bufsize);
 
 //ATTR_WEAK void tud_hid_mouse_set_protocol_cb(bool boot_protocol);
 

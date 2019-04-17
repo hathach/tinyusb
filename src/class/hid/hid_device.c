@@ -43,57 +43,32 @@
 #define REPORT_BUFSIZE      12
 
 #define ITF_IDX_BOOT_KBD   0
-#define ITF_IDX_BOOT_MSE   ( ITF_IDX_BOOT_KBD + (CFG_TUD_HID_KEYBOARD && CFG_TUD_HID_KEYBOARD_BOOT) )
-#define ITF_IDX_GENERIC    ( ITF_IDX_BOOT_MSE + (CFG_TUD_HID_MOUSE && CFG_TUD_HID_MOUSE_BOOT) )
-#define ITF_COUNT          ( ITF_IDX_GENERIC + 1 )
+#define ITF_IDX_BOOT_MSE   0 // ( ITF_IDX_BOOT_KBD + (CFG_TUD_HID_KEYBOARD && CFG_TUD_HID_KEYBOARD_BOOT) )
+#define ITF_IDX_GENERIC    0 // ( ITF_IDX_BOOT_MSE + (CFG_TUD_HID_MOUSE && CFG_TUD_HID_MOUSE_BOOT) )
 
 typedef struct
 {
   uint8_t itf_num;
   uint8_t ep_in;
 
-  uint8_t idle_rate; // in unit of 4 ms TODO removed
+  uint8_t idle_rate;  // Idle Rate = 0 : only send report if there is changes, i.e skip duplication
+                      // Idle Rate > 0 : skip duplication, but send at least 1 report every idle rate (in unit of 4 ms).
+                      //                 If idle time is less than interrupt polling then use the polling.
+  uint8_t boot_device;
   bool    boot_protocol;
 
   uint16_t desc_len;
   uint8_t const * desc_report;
 
   CFG_TUSB_MEM_ALIGN uint8_t report_buf[REPORT_BUFSIZE];
-
-  // callbacks
-  uint16_t (*get_report_cb) (uint8_t report_id, hid_report_type_t type, uint8_t* buffer, uint16_t reqlen);
-  void     (*set_report_cb) (uint8_t report_id, hid_report_type_t type, uint8_t const* buffer, uint16_t bufsize);
-
 }hidd_interface_t;
 
-typedef struct
-{
-  uint8_t usage;      // HID_USAGE_*
-  uint8_t idle_rate;  // Idle Rate = 0 : only send report if there is changes, i.e skip duplication
-                      // Idle Rate > 0 : skip duplication, but send at least 1 report every idle rate (in unit of 4 ms).
-                      //                 If idle time is less than interrupt polling then use the polling.
-
-  uint8_t report_id;
-  uint8_t report_len;
-
-  hidd_interface_t* itf;
-} hidd_report_t ;
-
-CFG_TUSB_MEM_SECTION static hidd_interface_t _hidd_itf[ITF_COUNT] = { { 0 } };
-
-
-#if CFG_TUD_HID_KEYBOARD
-static hidd_report_t _kbd_rpt;
-#endif
-
-#if CFG_TUD_HID_MOUSE
-static hidd_report_t _mse_rpt;
-#endif
+CFG_TUSB_MEM_SECTION static hidd_interface_t _hidd_itf[CFG_TUD_HID];
 
 /*------------- Helpers -------------*/
 static inline hidd_interface_t* get_interface_by_itfnum(uint8_t itf_num)
 {
-  for (uint8_t i=0; i < ITF_COUNT; i++ )
+  for (uint8_t i=0; i < CFG_TUD_HID; i++ )
   {
     if ( itf_num == _hidd_itf[i].itf_num ) return &_hidd_itf[i];
   }
@@ -101,18 +76,17 @@ static inline hidd_interface_t* get_interface_by_itfnum(uint8_t itf_num)
   return NULL;
 }
 
-
 //--------------------------------------------------------------------+
 // HID GENERIC API
 //--------------------------------------------------------------------+
-bool tud_hid_generic_ready(void)
+bool tud_hid_ready(void)
 {
   return tud_ready() && (_hidd_itf[ITF_IDX_GENERIC].ep_in != 0) && !dcd_edpt_busy(TUD_OPT_RHPORT, _hidd_itf[ITF_IDX_GENERIC].ep_in);
 }
 
-bool tud_hid_generic_report(uint8_t report_id, void const* report, uint8_t len)
+bool tud_hid_report(uint8_t report_id, void const* report, uint8_t len)
 {
-  TU_VERIFY( tud_hid_generic_ready() && (len < REPORT_BUFSIZE) );
+  TU_VERIFY( tud_hid_ready() && (len < REPORT_BUFSIZE) );
 
   hidd_interface_t * p_hid = &_hidd_itf[ITF_IDX_GENERIC];
 
@@ -134,21 +108,10 @@ bool tud_hid_generic_report(uint8_t report_id, void const* report, uint8_t len)
 // KEYBOARD APPLICATION API
 //--------------------------------------------------------------------+
 #if CFG_TUD_HID_KEYBOARD
-bool tud_hid_keyboard_ready(void)
-{
-  return (_kbd_rpt.itf != NULL) && !dcd_edpt_busy(TUD_OPT_RHPORT, _kbd_rpt.itf->ep_in);
-}
-
-bool tud_hid_keyboard_is_boot_protocol(void)
-{
-  return (_kbd_rpt.itf != NULL) && _kbd_rpt.itf->boot_protocol;
-}
-
 static bool hidd_kbd_report(hid_keyboard_report_t const *p_report)
 {
-  TU_VERIFY( tud_hid_keyboard_ready() );
-
-  hidd_interface_t * p_hid = _kbd_rpt.itf;
+  TU_VERIFY( tud_hid_ready() );
+  hidd_interface_t * p_hid = &_hidd_itf[ITF_IDX_GENERIC];
 
   // only send report if there is changes, i.e skip duplication
 //  if ( _kbd_rpt.idle_rate == 0 )
@@ -197,11 +160,6 @@ bool tud_hid_keyboard_key_press(char ch)
 // MOUSE APPLICATION API
 //--------------------------------------------------------------------+
 #if CFG_TUD_HID_MOUSE
-
-bool tud_hid_mouse_ready(void)
-{
-  return (_mse_rpt.itf != NULL) && !dcd_edpt_busy(TUD_OPT_RHPORT, _mse_rpt.itf->ep_in);
-}
 
 bool tud_hid_mouse_is_boot_protocol(void)
 {
@@ -267,14 +225,6 @@ void hidd_reset(uint8_t rhport)
 {
   (void) rhport;
   tu_memclr(_hidd_itf, sizeof(_hidd_itf));
-
-  #if CFG_TUD_HID_KEYBOARD
-  tu_varclr(&_kbd_rpt);
-  #endif
-
-  #if CFG_TUD_HID_MOUSE
-  tu_varclr(&_mse_rpt);
-  #endif
 }
 
 bool hidd_open(uint8_t rhport, tusb_desc_interface_t const * desc_itf, uint16_t *p_len)
@@ -283,6 +233,11 @@ bool hidd_open(uint8_t rhport, tusb_desc_interface_t const * desc_itf, uint16_t 
 
   // TODO support HID OUT Endpoint
   TU_ASSERT(desc_itf->bNumEndpoints == 1);
+
+  // TODO support multiple HID interface
+  hidd_interface_t * p_hid = &_hidd_itf[0];
+
+  if ( desc_itf->bInterfaceSubClass == HID_SUBCLASS_BOOT ) p_hid->boot_device = desc_itf->bInterfaceProtocol;
 
   //------------- HID descriptor -------------//
   p_desc = tu_desc_next(p_desc);
@@ -294,9 +249,8 @@ bool hidd_open(uint8_t rhport, tusb_desc_interface_t const * desc_itf, uint16_t 
   tusb_desc_endpoint_t const *desc_edpt = (tusb_desc_endpoint_t const *) p_desc;
   TU_ASSERT(TUSB_DESC_ENDPOINT == desc_edpt->bDescriptorType);
 
-  hidd_interface_t * p_hid = NULL;
-
   /*------------- Boot protocol only keyboard & mouse -------------*/
+#if 0
   if (desc_itf->bInterfaceSubClass == HID_SUBCLASS_BOOT)
   {
     TU_ASSERT(desc_itf->bInterfaceProtocol == HID_PROTOCOL_KEYBOARD || desc_itf->bInterfaceProtocol == HID_PROTOCOL_MOUSE);
@@ -338,13 +292,12 @@ bool hidd_open(uint8_t rhport, tusb_desc_interface_t const * desc_itf, uint16_t 
   }
   /*------------- Generic (multiple report) -------------*/
   else
+#endif
   {
     // TODO parse report ID for keyboard, mouse
-    p_hid = &_hidd_itf[ITF_IDX_GENERIC];
+//    p_hid = &_hidd_itf[ITF_IDX_GENERIC];
 
-    p_hid->desc_report   = usbd_desc_set->hid_report.generic;
-    p_hid->get_report_cb = tud_hid_generic_get_report_cb;
-    p_hid->set_report_cb = tud_hid_generic_set_report_cb;
+    p_hid->desc_report   = usbd_desc_set->hid_report;
   }
 
   TU_ASSERT(p_hid->desc_report);
@@ -392,17 +345,9 @@ bool hidd_control_request(uint8_t rhport, tusb_control_request_t const * p_reque
         uint8_t const report_type = tu_u16_high(p_request->wValue);
         uint8_t const report_id   = tu_u16_low(p_request->wValue);
 
-        uint16_t xferlen;
-        if ( p_hid->get_report_cb )
-        {
-          xferlen = p_hid->get_report_cb(report_id, (hid_report_type_t) report_type, p_hid->report_buf, p_request->wLength);
-        }else
-        {
-          // For boot Interface only: re-use report_buf -> report has no change
-          xferlen = p_request->wLength;
-        }
-
+        uint16_t xferlen  = tud_hid_get_report_cb(report_id, (hid_report_type_t) report_type, p_hid->report_buf, p_request->wLength);
         TU_ASSERT( xferlen > 0 );
+
         usbd_control_xfer(rhport, p_request, p_hid->report_buf, xferlen);
       }
       break;
@@ -459,10 +404,7 @@ bool hidd_control_request_complete(uint8_t rhport, tusb_control_request_t const 
     uint8_t const report_type = tu_u16_high(p_request->wValue);
     uint8_t const report_id   = tu_u16_low(p_request->wValue);
 
-    if ( p_hid->set_report_cb )
-    {
-      p_hid->set_report_cb(report_id, (hid_report_type_t) report_type, p_hid->report_buf, p_request->wLength);
-    }
+    tud_hid_set_report_cb(report_id, (hid_report_type_t) report_type, p_hid->report_buf, p_request->wLength);
   }
 
   return true;

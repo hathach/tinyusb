@@ -45,11 +45,7 @@ typedef struct {
   uint8_t const** string_arr;     ///< a array of pointers to string descriptors
   uint16_t        string_count;
 
-  struct {
-    uint8_t const* generic;
-    uint8_t const* boot_keyboard;
-    uint8_t const* boot_mouse;
-  } hid_report;
+  uint8_t const*  hid_report;
 
 }tud_desc_set_t;
 

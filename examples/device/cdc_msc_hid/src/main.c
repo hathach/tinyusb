@@ -144,18 +144,14 @@ void usb_hid_task(void)
     tud_remote_wakeup();
   }
 
-#if 0
+#if 1
   /*------------- Keyboard -------------*/
-  if ( tud_hid_keyboard_ready() )
+  if ( tud_hid_ready() )
   {
     if ( btn )
     {
       uint8_t keycode[6] = { 0 };
-
-      for(uint8_t i=0; i < 6; i++)
-      {
-        if ( btn & (1 << i) ) keycode[i] = HID_KEY_A + i;
-      }
+      keycode[0] = HID_KEY_A;
 
       tud_hid_keyboard_keycode(0, keycode);
     }else
@@ -180,7 +176,7 @@ void usb_hid_task(void)
 #endif
 }
 
-uint16_t tud_hid_generic_get_report_cb(uint8_t report_id, hid_report_type_t report_type, uint8_t* buffer, uint16_t reqlen)
+uint16_t tud_hid_get_report_cb(uint8_t report_id, hid_report_type_t report_type, uint8_t* buffer, uint16_t reqlen)
 {
   // TODO not Implemented
   (void) report_id;
@@ -191,7 +187,7 @@ uint16_t tud_hid_generic_get_report_cb(uint8_t report_id, hid_report_type_t repo
   return 0;
 }
 
-void tud_hid_generic_set_report_cb(uint8_t report_id, hid_report_type_t report_type, uint8_t const* buffer, uint16_t bufsize)
+void tud_hid_set_report_cb(uint8_t report_id, hid_report_type_t report_type, uint8_t const* buffer, uint16_t bufsize)
 {
   // TODO not Implemented
   (void) report_id;

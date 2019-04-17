@@ -562,6 +562,9 @@ tud_desc_set_t const _usbd_auto_desc_set =
     .device = NULL, // no auto device
     .config = &_desc_auto_config_struct,
 
+    .hid_report = _desc_auto_hid_boot_kbd_report
+
+#if 0
     .hid_report =
     {
 #if AUTO_DESC_HID_GENERIC
@@ -578,6 +581,7 @@ tud_desc_set_t const _usbd_auto_desc_set =
         .boot_mouse = _desc_auto_hid_boot_mse_report
 #endif
     }
+#endif
 };
 
 #endif
