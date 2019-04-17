@@ -37,7 +37,7 @@
  *   [MSB]         HID Generic | Boot Mouse | Boot Keyboard | MSC | CDC          [LSB]
  */
 #define _PID_MAP(itf, n)      ( (CFG_TUD_##itf) << (n) )
-#define CFG_TUD_DESC_PID      (0x4000 | _PID_MAP(CDC, 0) | _PID_MAP(MSC, 1) | \
+#define USB_PID      (0x4000 | _PID_MAP(CDC, 0) | _PID_MAP(MSC, 1) | \
                                _PID_MAP(HID_KEYBOARD, 2) | _PID_MAP(HID_MOUSE, 3) | (AUTO_DESC_HID_GENERIC << 4) )
 
 //------------- Device Descriptors -------------//
@@ -62,7 +62,7 @@ tusb_desc_device_t const desc_device =
     .bMaxPacketSize0    = CFG_TUD_ENDOINT0_SIZE,
 
     .idVendor           = 0xCafe,
-    .idProduct          = CFG_TUD_DESC_PID,
+    .idProduct          = USB_PID,
     .bcdDevice          = 0x0100,
 
     .iManufacturer      = 0x01,

@@ -94,15 +94,15 @@
 #define CFG_TUD_MIDI                0
 #define CFG_TUD_CUSTOM_CLASS        0
 
-#define CFG_TUD_HID                 0
-#define CFG_TUD_HID_KEYBOARD        0
+#define CFG_TUD_HID                 1
+#define CFG_TUD_HID_KEYBOARD        1
 #define CFG_TUD_HID_MOUSE           0
 
 /* Use Boot Protocol for Keyboard, Mouse. Enable this will create separated HID interface
  * require more IN endpoints. If disabled, they they are all packed into a single
  * multiple report interface called "Generic". */
 #define CFG_TUD_HID_KEYBOARD_BOOT   1
-#define CFG_TUD_HID_MOUSE_BOOT      1
+#define CFG_TUD_HID_MOUSE_BOOT      0
 
 //--------------------------------------------------------------------
 // CDC
