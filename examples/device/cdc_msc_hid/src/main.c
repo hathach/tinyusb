@@ -40,12 +40,18 @@
  * - 1000 ms : device mounted
  * - 2500 ms : device is suspended
  */
-static uint32_t blink_interval_ms = 250;
+enum  {
+  BLINK_NOT_MOUNTED = 250,
+  BLINK_MOUNTED = 1000,
+  BLINK_SUSPENDED = 2500,
+};
+
+static uint32_t blink_interval_ms = BLINK_NOT_MOUNTED;
 
 void led_blinking_task(void);
 
-extern void virtual_com_task(void);
-extern void usb_hid_task(void);
+extern void cdc_task(void);
+extern void hid_task(void);
 
 /*------------- MAIN -------------*/
 int main(void)
@@ -62,11 +68,11 @@ int main(void)
     led_blinking_task();
 
 #if CFG_TUD_CDC
-    virtual_com_task();
+    cdc_task();
 #endif
 
 #if CFG_TUD_HID
-    usb_hid_task();
+    hid_task();
 #endif
   }
 
@@ -77,7 +83,7 @@ int main(void)
 // USB CDC
 //--------------------------------------------------------------------+
 #if CFG_TUD_CDC
-void virtual_com_task(void)
+void cdc_task(void)
 {
   if ( tud_cdc_connected() )
   {
@@ -126,7 +132,15 @@ void tud_cdc_rx_cb(uint8_t itf)
 // USB HID
 //--------------------------------------------------------------------+
 #if CFG_TUD_HID
-void usb_hid_task(void)
+
+// Must match with ID declared by HID Report Descriptor, better to be in header file
+enum
+{
+  REPORT_ID_KEYBOARD = 1,
+  REPORT_ID_MOUSE
+};
+
+void hid_task(void)
 {
   // Poll every 10ms
   const uint32_t interval_ms = 10;
@@ -137,6 +151,7 @@ void usb_hid_task(void)
 
   uint32_t const btn = board_button_read();
 
+  // Remote wakeup
   if ( tud_suspended() && btn )
   {
     // Wake up host if we are in suspend mode
@@ -144,43 +159,43 @@ void usb_hid_task(void)
     tud_remote_wakeup();
   }
 
-#if 0
-  /*------------- Keyboard -------------*/
-  if ( tud_hid_keyboard_ready() )
+  /*------------- Mouse -------------*/
+  if ( tud_hid_ready() )
   {
     if ( btn )
     {
-      uint8_t keycode[6] = { 0 };
+      int8_t const delta = 5;
+      tud_hid_mouse_move(REPORT_ID_MOUSE, delta, delta); // right + down
 
-      for(uint8_t i=0; i < 6; i++)
-      {
-        if ( btn & (1 << i) ) keycode[i] = HID_KEY_A + i;
-      }
-
-      tud_hid_keyboard_keycode(0, keycode);
-    }else
-    {
-      // Null means all zeroes keycodes
-      tud_hid_keyboard_keycode(0, NULL);
+      // delay a bit before attempt to send keyboard report
+      board_delay(2);
     }
   }
-#endif
 
-#if 0
-  /*------------- Mouse -------------*/
-  if ( tud_hid_mouse_ready() )
+  /*------------- Keyboard -------------*/
+  if ( tud_hid_ready() )
   {
-    enum { DELTA  = 5 };
+    // use to avoid send multiple consecutive zero report for keyboard
+    static bool has_key = false;
 
-    if ( btn & 0x01 ) tud_hid_mouse_move(-DELTA,      0); // left
-    if ( btn & 0x02 ) tud_hid_mouse_move( DELTA,      0); // right
-    if ( btn & 0x04 ) tud_hid_mouse_move(  0   , -DELTA); // up
-    if ( btn & 0x08 ) tud_hid_mouse_move(  0   ,  DELTA); // down
+    if ( btn )
+    {
+      uint8_t keycode[6] = { 0 };
+      keycode[0] = HID_KEY_A;
+
+      tud_hid_keyboard_report(REPORT_ID_KEYBOARD, 0, keycode);
+
+      has_key = true;
+    }else
+    {
+      // send empty key report if previously has key pressed
+      if (has_key) tud_hid_keyboard_key_release(REPORT_ID_KEYBOARD);
+      has_key = false;
+    }
   }
-#endif
 }
 
-uint16_t tud_hid_generic_get_report_cb(uint8_t report_id, hid_report_type_t report_type, uint8_t* buffer, uint16_t reqlen)
+uint16_t tud_hid_get_report_cb(uint8_t report_id, hid_report_type_t report_type, uint8_t* buffer, uint16_t reqlen)
 {
   // TODO not Implemented
   (void) report_id;
@@ -191,7 +206,7 @@ uint16_t tud_hid_generic_get_report_cb(uint8_t report_id, hid_report_type_t repo
   return 0;
 }
 
-void tud_hid_generic_set_report_cb(uint8_t report_id, hid_report_type_t report_type, uint8_t const* buffer, uint16_t bufsize)
+void tud_hid_set_report_cb(uint8_t report_id, hid_report_type_t report_type, uint8_t const* buffer, uint16_t bufsize)
 {
   // TODO not Implemented
   (void) report_id;
@@ -209,13 +224,13 @@ void tud_hid_generic_set_report_cb(uint8_t report_id, hid_report_type_t report_t
 // Invoked when device is mounted
 void tud_mount_cb(void)
 {
-  blink_interval_ms = 1000;
+  blink_interval_ms = BLINK_MOUNTED;
 }
 
 // Invoked when device is unmounted
 void tud_umount_cb(void)
 {
-  blink_interval_ms = 250;
+  blink_interval_ms = BLINK_NOT_MOUNTED;
 }
 
 // Invoked when usb bus is suspended
@@ -224,13 +239,13 @@ void tud_umount_cb(void)
 void tud_suspend_cb(bool remote_wakeup_en)
 {
   (void) remote_wakeup_en;
-  blink_interval_ms = 2500;
+  blink_interval_ms = BLINK_SUSPENDED;
 }
 
 // Invoked when usb bus is resumed
 void tud_resume_cb(void)
 {
-  blink_interval_ms = 1000;
+  blink_interval_ms = BLINK_MOUNTED;
 }
 
 //--------------------------------------------------------------------+

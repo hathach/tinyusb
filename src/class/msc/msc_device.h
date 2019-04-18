@@ -31,6 +31,9 @@
 #include "device/usbd.h"
 #include "msc.h"
 
+#ifdef __cplusplus
+ extern "C" {
+#endif
 
 //--------------------------------------------------------------------+
 // Class Driver Configuration
@@ -44,7 +47,7 @@ TU_VERIFY_STATIC(CFG_TUD_MSC_BUFSIZE < UINT16_MAX, "Size is not correct");
 #endif
 
 #ifndef CFG_TUD_MSC_BUFSIZE
-  #error CFG_TUD_MSC_BUFSIZE must be defined, value of CFG_TUD_MSC_BLOCK_SZ should work well, the more the better
+  #error CFG_TUD_MSC_BUFSIZE must be defined, value of a block size should work well, the more the better
 #endif
 
 #ifndef CFG_TUD_MSC_VENDOR
@@ -57,10 +60,6 @@ TU_VERIFY_STATIC(CFG_TUD_MSC_BUFSIZE < UINT16_MAX, "Size is not correct");
 
 #ifndef CFG_TUD_MSC_PRODUCT_REV
   #error CFG_TUD_MSC_PRODUCT_REV 4-byte string must be defined
-#endif
-
-#ifdef __cplusplus
- extern "C" {
 #endif
 
 /** \addtogroup ClassDriver_MSC
@@ -133,7 +132,7 @@ void tud_msc_capacity_cb(uint8_t lun, uint32_t* block_count, uint16_t* block_siz
  */
 int32_t tud_msc_scsi_cb (uint8_t lun, uint8_t const scsi_cmd[16], void* buffer, uint16_t bufsize);
 
-/*------------- Optional callbacks : Could be used by application to free up resources -------------*/
+/*------------- Optional callbacks -------------*/
 
 // Invoked when Read10 command is complete
 ATTR_WEAK void tud_msc_read10_complete_cb(uint8_t lun);
@@ -146,6 +145,23 @@ ATTR_WEAK void tud_msc_scsi_complete_cb(uint8_t lun, uint8_t const scsi_cmd[16])
 
 // Hook to make a mass storage device read-only. TODO remove
 ATTR_WEAK bool tud_msc_is_writable_cb(uint8_t lun);
+
+//--------------------------------------------------------------------+
+// Interface Descriptor Template
+//--------------------------------------------------------------------+
+
+// Length of template descriptor: 23 bytes
+#define TUD_MSC_DESC_LEN    (9 + 7 + 7)
+
+// Interface Number, EP Out & EP In address
+#define TUD_MSC_DESCRIPTOR(_itfnum, _stridx, _epout, _epin, _epsize) \
+  /* Interface */\
+  9, TUSB_DESC_INTERFACE, _itfnum, 0, 2, TUSB_CLASS_MSC, MSC_SUBCLASS_SCSI, MSC_PROTOCOL_BOT, _stridx,\
+  /* Endpoint Out */\
+  7, TUSB_DESC_ENDPOINT, _epout, TUSB_XFER_BULK, U16_TO_U8S_LE(_epsize), 0,\
+  /* Endpoint In */\
+  7, TUSB_DESC_ENDPOINT, _epin, TUSB_XFER_BULK, U16_TO_U8S_LE(_epsize), 0
+
 
 /** @} */
 /** @} */

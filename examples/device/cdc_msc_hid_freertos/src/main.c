@@ -24,9 +24,6 @@
  * This file is part of the TinyUSB stack.
  */
 
-//--------------------------------------------------------------------+
-// INCLUDE
-//--------------------------------------------------------------------+
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
@@ -41,12 +38,22 @@
 #include "tusb.h"
 
 //--------------------------------------------------------------------+
-// MACRO CONSTANT TYPEDEF
+// MACRO CONSTANT TYPEDEF PROTYPES
 //--------------------------------------------------------------------+
 
-//--------------------------------------------------------------------+
-// INTERNAL OBJECT & FUNCTION DECLARATION
-//--------------------------------------------------------------------+
+/* Blink pattern
+ * - 250 ms  : device not mounted
+ * - 1000 ms : device mounted
+ * - 2500 ms : device is suspended
+ */
+enum  {
+  BLINK_NOT_MOUNTED = 250,
+  BLINK_MOUNTED = 1000,
+  BLINK_SUSPENDED = 2500,
+};
+
+TimerHandle_t blink_tm;
+
 void led_blinky_cb(TimerHandle_t xTimer);
 void usb_device_task(void* param);
 
@@ -56,8 +63,8 @@ int main(void)
   board_init();
 
   // soft timer for blinky
-  TimerHandle_t tm_hdl = xTimerCreate(NULL, pdMS_TO_TICKS(1000), true, NULL, led_blinky_cb);
-  xTimerStart(tm_hdl, 0);
+  blink_tm = xTimerCreate(NULL, pdMS_TO_TICKS(BLINK_NOT_MOUNTED), true, NULL, led_blinky_cb);
+  xTimerStart(blink_tm, 0);
 
   tusb_init();
 
@@ -71,7 +78,8 @@ int main(void)
 #endif
 
 #if CFG_TUD_HID
-  extern void usb_hid_task(void* params);
+  extern void hid_task(void* params);
+  xTaskCreate( hid_task, "hid", 256, NULL, configMAX_PRIORITIES-2, NULL);
 #endif
 
   vTaskStartScheduler();
@@ -130,6 +138,7 @@ void cdc_task(void* params)
   }
 }
 
+// Invoked when cdc when line state changed e.g connected/disconnected
 void tud_cdc_line_state_cb(uint8_t itf, bool dtr, bool rts)
 {
   (void) itf;
@@ -141,85 +150,134 @@ void tud_cdc_line_state_cb(uint8_t itf, bool dtr, bool rts)
     tud_cdc_write_str("\r\nTinyUSB CDC MSC HID device with FreeRTOS example\r\n");
   }
 }
+
+// Invoked when CDC interface received data from host
+void tud_cdc_rx_cb(uint8_t itf)
+{
+  (void) itf;
+}
+
 #endif
 
 //--------------------------------------------------------------------+
 // USB HID
 //--------------------------------------------------------------------+
 #if CFG_TUD_HID
-void usb_hid_task(void* params)
+
+// Must match with ID declared by HID Report Descriptor, better to be in header file
+enum
+{
+  REPORT_ID_KEYBOARD = 1,
+  REPORT_ID_MOUSE
+};
+
+void hid_task(void* params)
 {
   (void) params;
 
-  // Poll every 10ms
-  const uint32_t interval_ms = 10;
-  static uint32_t start_ms = 0;
-
-  if ( board_millis() < start_ms + interval_ms) return; // not enough time
-  start_ms += interval_ms;
-
-  uint32_t const btn = board_button_read();
-
-  /*------------- Keyboard -------------*/
-  if ( tud_hid_keyboard_ready() )
+  while (1)
   {
-    if ( btn )
-    {
-      uint8_t keycode[6] = { 0 };
+    // Poll every 10ms
+    vTaskDelay(pdMS_TO_TICKS(10));
 
-      for(uint8_t i=0; i < 6; i++)
-      {
-        if ( btn & (1 << i) ) keycode[i] = HID_KEY_A + i;
-      }
+    uint32_t const btn = board_button_read();
 
-      tud_hid_keyboard_keycode(0, keycode);
-    }else
+    // Remote wakeup
+    if ( tud_suspended() && btn )
     {
-      // Null means all zeroes keycodes
-      tud_hid_keyboard_keycode(0, NULL);
+      // Wake up host if we are in suspend mode
+      // and REMOTE_WAKEUP feature is enabled by host
+      tud_remote_wakeup();
     }
-  }
 
+    /*------------- Mouse -------------*/
+    if ( tud_hid_ready() )
+    {
+      if ( btn )
+      {
+        int8_t const delta = 5;
+        tud_hid_mouse_move(REPORT_ID_MOUSE, delta, delta); // right + down
 
-  /*------------- Mouse -------------*/
-  if ( tud_hid_mouse_ready() )
-  {
-    enum { DELTA  = 5 };
+        // delay a bit before attempt to send keyboard report
+        vTaskDelay(pdMS_TO_TICKS(2));
+      }
+    }
 
-    if ( btn & 0x01 ) tud_hid_mouse_move(-DELTA,      0); // left
-    if ( btn & 0x02 ) tud_hid_mouse_move( DELTA,      0); // right
-    if ( btn & 0x04 ) tud_hid_mouse_move(  0   , -DELTA); // up
-    if ( btn & 0x08 ) tud_hid_mouse_move(  0   ,  DELTA); // down
+    /*------------- Keyboard -------------*/
+    if ( tud_hid_ready() )
+    {
+      // use to avoid send multiple consecutive zero report for keyboard
+      static bool has_key = false;
+
+      if ( btn )
+      {
+        uint8_t keycode[6] = { 0 };
+        keycode[0] = HID_KEY_A;
+
+        tud_hid_keyboard_report(REPORT_ID_KEYBOARD, 0, keycode);
+
+        has_key = true;
+      }else
+      {
+        // send empty key report if previously has key pressed
+        if (has_key) tud_hid_keyboard_key_release(REPORT_ID_KEYBOARD);
+        has_key = false;
+      }
+    }
   }
 }
 
-uint16_t tud_hid_generic_get_report_cb(uint8_t report_id, hid_report_type_t report_type, uint8_t* buffer, uint16_t reqlen)
+uint16_t tud_hid_get_report_cb(uint8_t report_id, hid_report_type_t report_type, uint8_t* buffer, uint16_t reqlen)
 {
   // TODO not Implemented
+  (void) report_id;
+  (void) report_type;
+  (void) buffer;
+  (void) reqlen;
+
   return 0;
 }
 
-void tud_hid_generic_set_report_cb(uint8_t report_id, hid_report_type_t report_type, uint8_t const* buffer, uint16_t bufsize)
+void tud_hid_set_report_cb(uint8_t report_id, hid_report_type_t report_type, uint8_t const* buffer, uint16_t bufsize)
 {
   // TODO not Implemented
+  (void) report_id;
+  (void) report_type;
+  (void) buffer;
+  (void) bufsize;
 }
+
 #endif
 
 //--------------------------------------------------------------------+
-// tinyusb callbacks
+// Device callbacks
 //--------------------------------------------------------------------+
+
+// Invoked when device is mounted
 void tud_mount_cb(void)
 {
-
+  xTimerChangePeriod(blink_tm, pdMS_TO_TICKS(BLINK_MOUNTED), 0);
 }
 
+// Invoked when device is unmounted
 void tud_umount_cb(void)
 {
+  xTimerChangePeriod(blink_tm, pdMS_TO_TICKS(BLINK_NOT_MOUNTED), 0);
 }
 
-void tud_cdc_rx_cb(uint8_t itf)
+// Invoked when usb bus is suspended
+// remote_wakeup_en : if host allow us  to perform remote wakeup
+// Within 7ms, device must draw an average of current less than 2.5 mA from bus
+void tud_suspend_cb(bool remote_wakeup_en)
 {
-  (void) itf;
+  (void) remote_wakeup_en;
+  xTimerChangePeriod(blink_tm, pdMS_TO_TICKS(BLINK_SUSPENDED), 0);
+}
+
+// Invoked when usb bus is resumed
+void tud_resume_cb(void)
+{
+  xTimerChangePeriod(blink_tm, pdMS_TO_TICKS(BLINK_MOUNTED), 0);
 }
 
 //--------------------------------------------------------------------+

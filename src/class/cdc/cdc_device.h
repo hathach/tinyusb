@@ -95,6 +95,41 @@ ATTR_WEAK void tud_cdc_line_state_cb(uint8_t itf, bool dtr, bool rts);
 ATTR_WEAK void tud_cdc_line_coding_cb(uint8_t itf, cdc_line_coding_t const* p_line_coding);
 
 //--------------------------------------------------------------------+
+// Interface Descriptor Template
+//--------------------------------------------------------------------+
+
+// Length of template descriptor: 66 bytes
+#define TUD_CDC_DESC_LEN  (8+9+5+5+4+5+7+9+7+7)
+
+// CDC Descriptor Template
+// interface number, string index, EP notification address and size, EP data address (out,in) and size.
+#define TUD_CDC_DESCRIPTOR(_itfnum, _stridx, _ep_notif, _ep_notif_size, _epout, _epin, _epsize) \
+  /* Interface Associate */\
+  8, TUSB_DESC_INTERFACE_ASSOCIATION, _itfnum, 2, TUSB_CLASS_CDC, CDC_COMM_SUBCLASS_ABSTRACT_CONTROL_MODEL, CDC_COMM_PROTOCOL_ATCOMMAND, 0,\
+  /* CDC Control Interface */\
+  9, TUSB_DESC_INTERFACE, _itfnum, 0, 1, TUSB_CLASS_CDC, CDC_COMM_SUBCLASS_ABSTRACT_CONTROL_MODEL, CDC_COMM_PROTOCOL_ATCOMMAND, _stridx,\
+  /* CDC Header */\
+  5, TUSB_DESC_CLASS_SPECIFIC, CDC_FUNC_DESC_HEADER, U16_TO_U8S_LE(0x0120),\
+  /* CDC Call */\
+  5, TUSB_DESC_CLASS_SPECIFIC, CDC_FUNC_DESC_CALL_MANAGEMENT, 0, (_itfnum) + 1,\
+  /* CDC ACM: support line request */\
+  4, TUSB_DESC_CLASS_SPECIFIC, CDC_FUNC_DESC_ABSTRACT_CONTROL_MANAGEMENT, 2,\
+  /* CDC Union */\
+  5, TUSB_DESC_CLASS_SPECIFIC, CDC_FUNC_DESC_UNION, _itfnum, (_itfnum) + 1,\
+  /* Endpoint Notification */\
+  7, TUSB_DESC_ENDPOINT, _ep_notif, TUSB_XFER_INTERRUPT, U16_TO_U8S_LE(_ep_notif_size), 16,\
+  /* CDC Data Interface */\
+  9, TUSB_DESC_INTERFACE, (_itfnum)+1, 0, 2, TUSB_CLASS_CDC_DATA, 0, 0, 0,\
+  /* Endpoint Out */\
+  7, TUSB_DESC_ENDPOINT, _epout, TUSB_XFER_BULK, U16_TO_U8S_LE(_epsize), 0,\
+  /* Endpoint In */\
+  7, TUSB_DESC_ENDPOINT, _epin, TUSB_XFER_BULK, U16_TO_U8S_LE(_epsize), 0
+
+
+/** @} */
+/** @} */
+
+//--------------------------------------------------------------------+
 // INTERNAL USBD-CLASS DRIVER API
 //--------------------------------------------------------------------+
 void cdcd_init               (void);
@@ -109,6 +144,3 @@ void cdcd_reset              (uint8_t rhport);
 #endif
 
 #endif /* _TUSB_CDC_DEVICE_H_ */
-
-/** @} */
-/** @} */

@@ -157,32 +157,12 @@
     #define CFG_TUD_CTRL_BUFSIZE 256
   #endif
 
-  #ifndef CFG_TUD_DESC_AUTO
-    #define CFG_TUD_DESC_AUTO 0
-  #endif
-
   #ifndef CFG_TUD_CDC
     #define CFG_TUD_CDC            0
   #endif
 
   #ifndef CFG_TUD_MSC
     #define CFG_TUD_MSC          0
-  #endif
-
-  #ifndef CFG_TUD_HID_KEYBOARD
-  #define CFG_TUD_HID_KEYBOARD        0
-  #endif
-
-  #ifndef CFG_TUD_HID_MOUSE
-  #define CFG_TUD_HID_MOUSE           0
-  #endif
-
-  #ifndef CFG_TUD_HID_KEYBOARD_BOOT
-    #define CFG_TUD_HID_KEYBOARD_BOOT 0
-  #endif
-
-  #ifndef CFG_TUD_HID_MOUSE_BOOT
-    #define CFG_TUD_HID_MOUSE_BOOT 0
   #endif
 
 #endif // TUSB_OPT_DEVICE_ENABLED

@@ -85,9 +85,8 @@ LIBS = -lgcc -lc -lm -lnosys
 
 EXAMPLE_SOURCE += \
 	src/main.c \
-	src/msc_app.c \
-	src/msc_disk_ram.c \
-	src/tusb_descriptors.c
+	src/msc_disk.c \
+	src/usb_descriptors.c
 
 SRC_C += $(addprefix $(CURRENT_PATH)/, $(EXAMPLE_SOURCE))
 
@@ -95,7 +94,6 @@ LIB_SOURCE += \
 	hw/bsp/$(BOARD)/board_$(BOARD).c \
 	src/common/tusb_fifo.c \
 	src/device/usbd.c \
-	src/device/usbd_auto_desc.c \
 	src/device/usbd_control.c \
 	src/class/msc/msc_device.c \
 	src/class/cdc/cdc_device.c \

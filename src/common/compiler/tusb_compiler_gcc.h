@@ -35,34 +35,25 @@
  extern "C" {
 #endif
 
-#define ALIGN_OF(x) __alignof__(x)
+#define ALIGN_OF(x)                __alignof__(x)
 
-/// This attribute specifies a minimum alignment for the variable or structure field, measured in bytes
+// Specifies a minimum alignment for the variable or structure field, measured in bytes
 #define ATTR_ALIGNED(Bytes)        __attribute__ ((aligned(Bytes)))
 
-/// Place variable in a specific section
+// Place variable in a specific section
 #define ATTR_SECTION(sec_name)      __attribute__ (( section(#sec_name) ))
 
-/// The packed attribute specifies that a variable or structure field should have
-/// the smallest possible alignment—one byte for a variable, and one bit for a field.
+// Packed struct/variable into smallest possible size
 #define ATTR_PACKED                __attribute__ ((packed))
 #define ATTR_PREPACKED
 
-/// This attribute inlines the function even if no optimization level is specified
-#define ATTR_ALWAYS_INLINE         __attribute__ ((always_inline))
-
-/// The deprecated attribute results in a warning if the function is used anywhere in the source file.
-/// This is useful when identifying functions that are expected to be removed in a future version of a program.
+// The deprecated attribute results in a warning if the function is used.
 #define ATTR_DEPRECATED(mess)      __attribute__ ((deprecated(mess)))
 
-/// The weak attribute causes the declaration to be emitted as a weak symbol rather than a global.
-/// This is primarily useful in defining library functions that can be overridden in user code
+// The weak attribute causes the declaration to be emitted as a weak symbol rather than a global.
 #define ATTR_WEAK                  __attribute__ ((weak))
 
-/// Warn if a caller of the function with this attribute does not use its return value.
-#define ATTR_WARN_UNUSED_RESULT    __attribute__ ((warn_unused_result))
-
-/// Function is meant to be possibly unused. GCC does not produce a warning for this function.
+// Function/Variable is meant to be possibly unused (thus no warning)
 #define ATTR_UNUSED                __attribute__ ((unused))
 
 // TODO mcu specific

@@ -113,7 +113,6 @@
 #include "tusb_option.h"
 #include "tusb_compiler.h"
 #include "tusb_verify.h"
-//#include "binary.h"
 #include "tusb_error.h"
 #include "tusb_timeout.h"
 #include "tusb_types.h"
