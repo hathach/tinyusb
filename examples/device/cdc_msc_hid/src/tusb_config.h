@@ -46,8 +46,8 @@
 #define CFG_TUSB_RHPORT0_MODE       OPT_MODE_DEVICE
 #endif
 
-#define CFG_TUSB_DEBUG              2
 #define CFG_TUSB_OS                 OPT_OS_NONE
+#define CFG_TUSB_DEBUG              2
 
 /* USB DMA on some MCUs can only access a specific SRAM region with restriction on alignment.
  * Tinyusb use follows macros to declare transferring memory so that they can be put
@@ -67,6 +67,7 @@
 //--------------------------------------------------------------------
 // DEVICE CONFIGURATION
 //--------------------------------------------------------------------
+
 #define CFG_TUD_ENDOINT0_SIZE       64
 
 //------------- CLASS -------------//
@@ -88,6 +89,7 @@
 //--------------------------------------------------------------------
 // MSC
 //--------------------------------------------------------------------
+
 // Number of supported Logical Unit Number (At least 1)
 #define CFG_TUD_MSC_MAXLUN          1
 
@@ -112,7 +114,6 @@
  * - tud_hid_keyboard_send_char()
  */
 #define CFG_TUD_HID_ASCII_TO_KEYCODE_LOOKUP 1
-
 
 #ifdef __cplusplus
  }

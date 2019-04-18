@@ -37,8 +37,8 @@
 void print_greeting(void);
 void led_blinking_task(void);
 
-extern void virtual_com_task(void);
-extern void usb_hid_task(void);
+extern void cdc_task(void);
+extern void hid_task(void);
 
 /*------------- MAIN -------------*/
 int main(void)
@@ -56,11 +56,11 @@ int main(void)
     led_blinking_task();
 
 #if CFG_TUH_CDC
-    virtual_com_task();
+    cdc_task();
 #endif
 
 #if CFG_TUD_HID
-    usb_hid_task();
+    hid_task();
 #endif
   }
 
@@ -100,7 +100,7 @@ void tuh_cdc_xfer_isr(uint8_t dev_addr, xfer_result_t event, cdc_pipeid_t pipe_i
   tuh_cdc_receive(dev_addr, serial_in_buffer, sizeof(serial_in_buffer), true); // waiting for next data
 }
 
-void virtual_com_task(void)
+void cdc_task(void)
 {
 
 }
@@ -111,7 +111,7 @@ void virtual_com_task(void)
 // USB HID
 //--------------------------------------------------------------------+
 #if CFG_TUH_HID_KEYBOARD
-void usb_hid_task(void)
+void hid_task(void)
 {
 
 }
