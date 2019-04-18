@@ -126,6 +126,14 @@ void tud_cdc_rx_cb(uint8_t itf)
 // USB HID
 //--------------------------------------------------------------------+
 #if CFG_TUD_HID
+
+// Must match with ID declared by HID Report Descriptor, better to be in header file
+enum
+{
+  REPORT_ID_KEYBOARD = 1,
+  REPORT_ID_MOUSE
+};
+
 void usb_hid_task(void)
 {
   // Poll every 10ms
@@ -137,6 +145,7 @@ void usb_hid_task(void)
 
   uint32_t const btn = board_button_read();
 
+  // Remote wakeup
   if ( tud_suspended() && btn )
   {
     // Wake up host if we are in suspend mode
@@ -144,35 +153,40 @@ void usb_hid_task(void)
     tud_remote_wakeup();
   }
 
-#if 1
+  /*------------- Mouse -------------*/
+  if ( tud_hid_ready() )
+  {
+    if ( btn )
+    {
+      int8_t const delta = 5;
+      tud_hid_mouse_move(REPORT_ID_MOUSE, delta, delta); // right + down
+
+      // delay a bit before attempt to send keyboard report
+      board_delay(2);
+    }
+  }
+
   /*------------- Keyboard -------------*/
   if ( tud_hid_ready() )
   {
+    // use to avoid send multiple consecutive zero report for keyboard
+    static bool has_key = false;
+
     if ( btn )
     {
       uint8_t keycode[6] = { 0 };
       keycode[0] = HID_KEY_A;
 
-      tud_hid_keyboard_report(0, 0, keycode);
+      tud_hid_keyboard_report(REPORT_ID_KEYBOARD, 0, keycode);
+
+      has_key = true;
     }else
     {
-      tud_hid_keyboard_key_release(0);
+      // send empty key report if previously has key pressed
+      if (has_key) tud_hid_keyboard_key_release(REPORT_ID_KEYBOARD);
+      has_key = false;
     }
   }
-#endif
-
-#if 0
-  /*------------- Mouse -------------*/
-  if ( tud_hid_mouse_ready() )
-  {
-    enum { DELTA  = 5 };
-
-    if ( btn & 0x01 ) tud_hid_mouse_move(-DELTA,      0); // left
-    if ( btn & 0x02 ) tud_hid_mouse_move( DELTA,      0); // right
-    if ( btn & 0x04 ) tud_hid_mouse_move(  0   , -DELTA); // up
-    if ( btn & 0x08 ) tud_hid_mouse_move(  0   ,  DELTA); // down
-  }
-#endif
 }
 
 uint16_t tud_hid_get_report_cb(uint8_t report_id, hid_report_type_t report_type, uint8_t* buffer, uint16_t reqlen)

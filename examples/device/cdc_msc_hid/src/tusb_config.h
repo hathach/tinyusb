@@ -76,7 +76,7 @@
  *
  * Note: All CFG_TUD_DESC_* are relevant only if CFG_TUD_DESC_AUTO is enabled
  */
-#define CFG_TUD_DESC_AUTO           1
+#define CFG_TUD_DESC_AUTO           0
 
 // LPC 17xx and 40xx endpoint type (bulk/interrupt/iso) are fixed by its number
 // Therefore we need to force endpoint number to correct type on lpc17xx
@@ -91,18 +91,10 @@
 //------------- CLASS -------------//
 #define CFG_TUD_CDC                 1
 #define CFG_TUD_MSC                 1
+#define CFG_TUD_HID                 1
+
 #define CFG_TUD_MIDI                0
 #define CFG_TUD_CUSTOM_CLASS        0
-
-#define CFG_TUD_HID                 1
-#define CFG_TUD_HID_KEYBOARD        1
-#define CFG_TUD_HID_MOUSE           0
-
-/* Use Boot Protocol for Keyboard, Mouse. Enable this will create separated HID interface
- * require more IN endpoints. If disabled, they they are all packed into a single
- * multiple report interface called "Generic". */
-#define CFG_TUD_HID_KEYBOARD_BOOT   1
-#define CFG_TUD_HID_MOUSE_BOOT      0
 
 //--------------------------------------------------------------------
 // CDC

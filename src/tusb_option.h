@@ -169,22 +169,6 @@
     #define CFG_TUD_MSC          0
   #endif
 
-  #ifndef CFG_TUD_HID_KEYBOARD
-  #define CFG_TUD_HID_KEYBOARD        0
-  #endif
-
-  #ifndef CFG_TUD_HID_MOUSE
-  #define CFG_TUD_HID_MOUSE           0
-  #endif
-
-  #ifndef CFG_TUD_HID_KEYBOARD_BOOT
-    #define CFG_TUD_HID_KEYBOARD_BOOT 0
-  #endif
-
-  #ifndef CFG_TUD_HID_MOUSE_BOOT
-    #define CFG_TUD_HID_MOUSE_BOOT 0
-  #endif
-
 #endif // TUSB_OPT_DEVICE_ENABLED
 
 //--------------------------------------------------------------------

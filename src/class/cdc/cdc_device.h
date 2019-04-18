@@ -95,17 +95,6 @@ ATTR_WEAK void tud_cdc_line_state_cb(uint8_t itf, bool dtr, bool rts);
 ATTR_WEAK void tud_cdc_line_coding_cb(uint8_t itf, cdc_line_coding_t const* p_line_coding);
 
 //--------------------------------------------------------------------+
-// INTERNAL USBD-CLASS DRIVER API
-//--------------------------------------------------------------------+
-void cdcd_init               (void);
-bool cdcd_open               (uint8_t rhport, tusb_desc_interface_t const * p_interface_desc, uint16_t *p_length);
-bool cdcd_control_request (uint8_t rhport, tusb_control_request_t const * p_request);
-bool cdcd_control_request_complete (uint8_t rhport, tusb_control_request_t const * p_request);
-bool cdcd_xfer_cb            (uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint32_t xferred_bytes);
-void cdcd_reset              (uint8_t rhport);
-
-
-//--------------------------------------------------------------------+
 // Interface Descriptor Template
 //--------------------------------------------------------------------+
 
@@ -116,31 +105,42 @@ void cdcd_reset              (uint8_t rhport);
 // interface number, string index, EP notification address and size, EP data address (out,in) and size.
 #define TUD_CDC_DESCRIPTOR(_itfnum, _stridx, _ep_notif, _ep_notif_size, _epout, _epin, _epsize) \
   /* Interface Associate */\
-  0x08, TUSB_DESC_INTERFACE_ASSOCIATION, _itfnum, 0x02, TUSB_CLASS_CDC, CDC_COMM_SUBCLASS_ABSTRACT_CONTROL_MODEL, CDC_COMM_PROTOCOL_ATCOMMAND, 0x00,\
+  8, TUSB_DESC_INTERFACE_ASSOCIATION, _itfnum, 2, TUSB_CLASS_CDC, CDC_COMM_SUBCLASS_ABSTRACT_CONTROL_MODEL, CDC_COMM_PROTOCOL_ATCOMMAND, 0,\
   /* CDC Control Interface */\
-  0x09, TUSB_DESC_INTERFACE, _itfnum, 0x00, 0x01, TUSB_CLASS_CDC, CDC_COMM_SUBCLASS_ABSTRACT_CONTROL_MODEL, CDC_COMM_PROTOCOL_ATCOMMAND, _stridx,\
+  9, TUSB_DESC_INTERFACE, _itfnum, 0, 1, TUSB_CLASS_CDC, CDC_COMM_SUBCLASS_ABSTRACT_CONTROL_MODEL, CDC_COMM_PROTOCOL_ATCOMMAND, _stridx,\
   /* CDC Header */\
-  0x05, TUSB_DESC_CLASS_SPECIFIC, CDC_FUNC_DESC_HEADER, U16_TO_U8S_LE(0x0120),\
+  5, TUSB_DESC_CLASS_SPECIFIC, CDC_FUNC_DESC_HEADER, U16_TO_U8S_LE(0x0120),\
   /* CDC Call */\
-  0x05, TUSB_DESC_CLASS_SPECIFIC, CDC_FUNC_DESC_CALL_MANAGEMENT, 0x00, (_itfnum) + 1,\
+  5, TUSB_DESC_CLASS_SPECIFIC, CDC_FUNC_DESC_CALL_MANAGEMENT, 0, (_itfnum) + 1,\
   /* CDC ACM: support line request */\
-  0x04, TUSB_DESC_CLASS_SPECIFIC, CDC_FUNC_DESC_ABSTRACT_CONTROL_MANAGEMENT, 0x02,\
+  4, TUSB_DESC_CLASS_SPECIFIC, CDC_FUNC_DESC_ABSTRACT_CONTROL_MANAGEMENT, 2,\
   /* CDC Union */\
-  0x05, TUSB_DESC_CLASS_SPECIFIC, CDC_FUNC_DESC_UNION, _itfnum, (_itfnum) + 1,\
+  5, TUSB_DESC_CLASS_SPECIFIC, CDC_FUNC_DESC_UNION, _itfnum, (_itfnum) + 1,\
   /* Endpoint Notification */\
-  0x07, TUSB_DESC_ENDPOINT, _ep_notif, TUSB_XFER_INTERRUPT, U16_TO_U8S_LE(_ep_notif_size), 0x10,\
+  7, TUSB_DESC_ENDPOINT, _ep_notif, TUSB_XFER_INTERRUPT, U16_TO_U8S_LE(_ep_notif_size), 16,\
   /* CDC Data Interface */\
-  0x09, TUSB_DESC_INTERFACE, (_itfnum)+1, 0x00, 0x02, TUSB_CLASS_CDC_DATA, 0x00, 0x00, 0x00,\
+  9, TUSB_DESC_INTERFACE, (_itfnum)+1, 0, 2, TUSB_CLASS_CDC_DATA, 0, 0, 0,\
   /* Endpoint Out */\
-  0x07, TUSB_DESC_ENDPOINT, _epout, TUSB_XFER_BULK, U16_TO_U8S_LE(_epsize), 0x00,\
+  7, TUSB_DESC_ENDPOINT, _epout, TUSB_XFER_BULK, U16_TO_U8S_LE(_epsize), 0,\
   /* Endpoint In */\
-  0x07, TUSB_DESC_ENDPOINT, _epin, TUSB_XFER_BULK, U16_TO_U8S_LE(_epsize), 0x00
+  7, TUSB_DESC_ENDPOINT, _epin, TUSB_XFER_BULK, U16_TO_U8S_LE(_epsize), 0
+
+
+/** @} */
+/** @} */
+
+//--------------------------------------------------------------------+
+// INTERNAL USBD-CLASS DRIVER API
+//--------------------------------------------------------------------+
+void cdcd_init               (void);
+bool cdcd_open               (uint8_t rhport, tusb_desc_interface_t const * p_interface_desc, uint16_t *p_length);
+bool cdcd_control_request (uint8_t rhport, tusb_control_request_t const * p_request);
+bool cdcd_control_request_complete (uint8_t rhport, tusb_control_request_t const * p_request);
+bool cdcd_xfer_cb            (uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint32_t xferred_bytes);
+void cdcd_reset              (uint8_t rhport);
 
 #ifdef __cplusplus
  }
 #endif
 
 #endif /* _TUSB_CDC_DEVICE_H_ */
-
-/** @} */
-/** @} */

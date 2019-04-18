@@ -473,47 +473,6 @@ desc_auto_cfg_t const _desc_auto_config_struct =
     },
 #endif // boot keyboard
 
-  //------------- HID Mouse -------------//
-#if CFG_TUD_HID_MOUSE && CFG_TUD_HID_MOUSE_BOOT
-    .hid_mse_boot =
-    {
-        .itf =
-        {
-          .bLength            = sizeof(tusb_desc_interface_t),
-          .bDescriptorType    = TUSB_DESC_INTERFACE,
-          .bInterfaceNumber   = ITF_NUM_HID_BOOT_MSE,
-          .bAlternateSetting  = 0x00,
-          .bNumEndpoints      = 1,
-          .bInterfaceClass    = TUSB_CLASS_HID,
-          .bInterfaceSubClass = HID_SUBCLASS_BOOT,
-          .bInterfaceProtocol = HID_PROTOCOL_MOUSE,
-          .iInterface         = 0 // 4 + CFG_TUD_CDC + CFG_TUD_MSC + CFG_TUD_HID_KEYBOARD
-        },
-
-        .hid_desc =
-        {
-          .bLength         = sizeof(tusb_hid_descriptor_hid_t),
-          .bDescriptorType = HID_DESC_TYPE_HID,
-          .bcdHID          = 0x0111,
-          .bCountryCode    = HID_Local_NotSupported,
-          .bNumDescriptors = 1,
-          .bReportType     = HID_DESC_TYPE_REPORT,
-          .wReportLength   = sizeof(_desc_auto_hid_boot_mse_report)
-        },
-
-        .ep_in =
-        {
-          .bLength          = sizeof(tusb_desc_endpoint_t),
-          .bDescriptorType  = TUSB_DESC_ENDPOINT,
-          .bEndpointAddress = EP_HID_MSE_BOOT,
-          .bmAttributes     = { .xfer = TUSB_XFER_INTERRUPT },
-          .wMaxPacketSize   = { .size = EP_HID_MSE_BOOT_SZ },
-          .bInterval        = 0x0A
-        },
-    },
-
-#endif // boot mouse
-
 #if AUTO_DESC_HID_GENERIC
     //------------- HID Generic Multiple report -------------//
     .hid_generic =

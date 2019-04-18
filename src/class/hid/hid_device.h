@@ -42,55 +42,31 @@
 #define CFG_TUD_HID_ASCII_TO_KEYCODE_LOOKUP 0
 #endif
 
-#if !CFG_TUD_HID_KEYBOARD && CFG_TUD_HID_KEYBOARD_BOOT
-#error CFG_TUD_HID_KEYBOARD must be enabled
-#endif
-
-#if !CFG_TUD_HID_MOUSE && CFG_TUD_HID_MOUSE_BOOT
-#error CFG_TUD_HID_MOUSE must be enabled
-#endif
-
-
 //--------------------------------------------------------------------+
 // Application API
 //--------------------------------------------------------------------+
 
-/** Check if the interface is ready to use
- * \returns true if ready, otherwise interface may not be mounted or still busy transferring data
- * \note    Application must not perform any action if the interface is not ready
- */
+// Check if the interface is ready to use
 bool tud_hid_ready(void);
-bool tud_hid_report(uint8_t report_id, void const* report, uint8_t len);
 
 // Check if current mode is Boot (true) or Report (false)
 bool tud_hid_boot_mode(void);
 
+// Send report to host
+bool tud_hid_report(uint8_t report_id, void const* report, uint8_t len);
+
 /*------------- Callbacks (Weak is optional) -------------*/
 
-/** Callback invoked when USB host request \ref HID_REQ_CONTROL_GET_REPORT.
- * \param[in]   report_type specify which report (INPUT, OUTPUT, FEATURE) that host requests
- * \param[out]  buffer data that application need to update, value must be accessible by USB controller (see \ref CFG_TUSB_MEM_SECTION)
- * \param[in]   reqlen  number of bytes that host requested
- * \retval      non-zero Actual number of bytes in the response's buffer.
- * \retval      zero  indicates the current request is not supported. Tinyusb device stack will reject the request by
- *              sending STALL in the data phase.
- * \note        After this callback, the request is silently executed by the tinyusb stack, thus
- *              the completion of this control request will not be reported to application.
- *              For Keyboard, USB host often uses this to turn on/off the LED for CAPLOCKS, NUMLOCK (\ref hid_keyboard_led_bm_t)
- */
+// Invoked when receiving GET_REPORT control request
+// Application must fill buffer report's content and return its length.
+// Return zero will cause the stack to STALL request
 uint16_t tud_hid_get_report_cb(uint8_t report_id, hid_report_type_t report_type, uint8_t* buffer, uint16_t reqlen);
 
-/** Callback invoked when USB host request \ref HID_REQ_CONTROL_SET_REPORT.
- * \param[in]   report_type specify which report (INPUT, OUTPUT, FEATURE) that host requests
- * \param[in]   buffer  containing the report's data
- * \param[in]   bufsize  number of bytes in the \a buffer
- * \note        By the time this callback is invoked, the USB control transfer is already completed in the hardware side.
- *              Application are free to handle data at its own will.
- */
-void     tud_hid_set_report_cb(uint8_t report_id, hid_report_type_t report_type, uint8_t const* buffer, uint16_t bufsize);
+// Invoked when receiving SET_REPORT control request
+void tud_hid_set_report_cb(uint8_t report_id, hid_report_type_t report_type, uint8_t const* buffer, uint16_t bufsize);
 
-ATTR_WEAK void tud_hid_mode_changed_cb(uint8_t boot_mode);
-
+// Invoked when host switch mode Boot <-> Report via SET_PROTOCOL request
+void tud_hid_mode_changed_cb(uint8_t boot_mode) ATTR_WEAK;
 
 //--------------------------------------------------------------------+
 // KEYBOARD API
@@ -136,20 +112,38 @@ static inline bool tud_hid_mouse_button_release(uint8_t report_id)
 }
 
 //--------------------------------------------------------------------+
-// HID Report Descriptor Template
+// Interface Descriptor Template
 //--------------------------------------------------------------------+
-/* These template should be used as follow
- * - Only 1 report : no parameter
- *      uint8_t report_desc[] = { ID_REPORT_DESC_KEYBOARD() };
+
+#define TUD_HID_DESC_LEN    (9 + 9 + 7)
+
+#define TUD_HID_DESCRIPTOR(_itfnum, _stridx, _boot_protocol, _report_desc_len, _epin, _epsize, _ep_interval) \
+  /* Interface */\
+  9, TUSB_DESC_INTERFACE, _itfnum, 0, 1, TUSB_CLASS_HID, (_boot_protocol) ? HID_SUBCLASS_BOOT : 0, _boot_protocol, _stridx,\
+  /* HID descriptor */\
+  9, HID_DESC_TYPE_HID, U16_TO_U8S_LE(0x0111), 0, 1, HID_DESC_TYPE_REPORT, U16_TO_U8S_LE(_report_desc_len),\
+  /* Endpoint descriptor */\
+  7, TUSB_DESC_ENDPOINT, _epin, TUSB_XFER_INTERRUPT, U16_TO_U8S_LE(_epsize), _ep_interval
+
+/* --------------------------------------------------------------------+
+ * HID Report Descriptor Template
+ *
+ * Convenient for declaring popular HID device (keyboard, mouse, consumer,
+ * gamepad etc...). Templates take "HID_REPORT_ID(n)," as input, leave
+ * empty if multiple reports is not used
+ *
+ * - Only 1 report: no parameter
+ *      uint8_t const report_desc[] = { HID_REPORT_DESC_KEYBOARD() };
  *
  * - Multiple Reports: "HID_REPORT_ID(ID)," must be passed to template
- *      uint8_t report_desc[] = {
- *          ID_REPORT_DESC_KEYBOARD( HID_REPORT_ID(1) ,) ,
- *          HID_REPORT_DESC_MOUSE  ( HID_REPORT_ID(2) ,)
+ *      uint8_t const report_desc[] =
+ *      {
+ *          HID_REPORT_DESC_KEYBOARD( HID_REPORT_ID(1), ) ,
+ *          HID_REPORT_DESC_MOUSE   ( HID_REPORT_ID(2), )
  *      };
- */
+ *--------------------------------------------------------------------*/
 
-/*------------- Keyboard Descriptor Template -------------*/
+// Keyboard Report Descriptor Template
 #define HID_REPORT_DESC_KEYBOARD(...) \
   HID_USAGE_PAGE ( HID_USAGE_PAGE_DESKTOP     )                    ,\
   HID_USAGE      ( HID_USAGE_DESKTOP_KEYBOARD )                    ,\
@@ -190,7 +184,7 @@ static inline bool tud_hid_mouse_button_release(uint8_t report_id)
       HID_OUTPUT       ( HID_CONSTANT                            ) ,\
   HID_COLLECTION_END \
 
-/*------------- Mouse Descriptor Template -------------*/
+// Mouse Report Descriptor Template
 #define HID_REPORT_DESC_MOUSE(...) \
   HID_USAGE_PAGE ( HID_USAGE_PAGE_DESKTOP      )                    ,\
   HID_USAGE      ( HID_USAGE_DESKTOP_MOUSE     )                    ,\
@@ -230,7 +224,7 @@ static inline bool tud_hid_mouse_button_release(uint8_t report_id)
     HID_COLLECTION_END                                              ,\
   HID_COLLECTION_END \
 
-//------------- Consumer Control Report Template -------------//
+// Consumer Control Report Descriptor Template
 #define HID_REPORT_DESC_CONSUMER(...) \
   HID_USAGE_PAGE ( HID_USAGE_PAGE_CONSUMER    )              ,\
   HID_USAGE      ( HID_USAGE_CONSUMER_CONTROL )              ,\
@@ -245,8 +239,8 @@ static inline bool tud_hid_mouse_button_release(uint8_t report_id)
     HID_INPUT        ( HID_DATA | HID_ARRAY | HID_ABSOLUTE ) ,\
   HID_COLLECTION_END \
 
-//------------- System Control Report Template -------------//
-/* 0x00 - do nothing
+/* System Control Report Descriptor Template
+ * 0x00 - do nothing
  * 0x01 - Power Off
  * 0x02 - Standby
  * 0x04 - Wake Host
@@ -271,8 +265,8 @@ static inline bool tud_hid_mouse_button_release(uint8_t report_id)
     HID_INPUT        ( HID_CONSTANT                        ) ,\
   HID_COLLECTION_END \
 
-//------------- Gamepad Report Template -------------//
-// Gamepad with 16 buttons and 2 joysticks
+// Gamepad Report Descriptor Template
+// with 16 buttons and 2 joysticks with following layout
 // | Button Map (2 bytes) |  X | Y | Z | Rz
 #define HID_REPORT_DESC_GAMEPAD(...) \
   HID_USAGE_PAGE ( HID_USAGE_PAGE_DESKTOP     )        ,\

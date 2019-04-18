@@ -147,6 +147,7 @@ bool tud_hid_keyboard_key_press(uint8_t report_id, char ch)
 //--------------------------------------------------------------------+
 bool tud_hid_mouse_report(uint8_t report_id, uint8_t buttons, int8_t x, int8_t y, int8_t scroll, int8_t pan)
 {
+  (void) pan;
   hid_mouse_report_t report =
   {
     .buttons = buttons,
