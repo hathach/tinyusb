@@ -39,22 +39,23 @@
 // MACRO CONSTANT TYPEDEF
 //--------------------------------------------------------------------+
 
-#define REPORT_BUFSIZE     16
+#ifndef CFG_TUD_HID_BUFSIZE
+#define CFG_TUD_HID_BUFSIZE     16
+#endif
 
 typedef struct
 {
   uint8_t itf_num;
   uint8_t ep_in;
-
-  uint8_t idle_rate;     // Idle Rate = 0 : only send report if there is changes, i.e skip duplication
-                         // Idle Rate > 0 : skip duplication, but send at least 1 report every idle rate (in unit of 4 ms).
-                         //                 If idle time is less than interrupt polling then use the polling.
   uint8_t boot_protocol; // Boot mouse or keyboard
   bool    boot_mode;
 
   uint16_t reprot_desc_len;
+  uint8_t idle_rate;     // Idle Rate = 0 : only send report if there is changes, i.e skip duplication
+                         // Idle Rate > 0 : skip duplication, but send at least 1 report every idle rate (in unit of 4 ms).
+  uint8_t mouse_button;  // caching button for using with tud_hid_mouse_ API
 
-  CFG_TUSB_MEM_ALIGN uint8_t report_buf[REPORT_BUFSIZE];
+  CFG_TUSB_MEM_ALIGN uint8_t report_buf[CFG_TUD_HID_BUFSIZE];
 }hidd_interface_t;
 
 CFG_TUSB_MEM_SECTION static hidd_interface_t _hidd_itf[CFG_TUD_HID];
@@ -71,7 +72,7 @@ static inline hidd_interface_t* get_interface_by_itfnum(uint8_t itf_num)
 }
 
 //--------------------------------------------------------------------+
-// HID GENERIC API
+// APPLICATION API
 //--------------------------------------------------------------------+
 bool tud_hid_ready(void)
 {
@@ -82,7 +83,7 @@ bool tud_hid_ready(void)
 
 bool tud_hid_report(uint8_t report_id, void const* report, uint8_t len)
 {
-  TU_VERIFY( tud_hid_ready() && (len < REPORT_BUFSIZE) );
+  TU_VERIFY( tud_hid_ready() && (len < CFG_TUD_HID_BUFSIZE) );
 
   uint8_t itf = 0;
   hidd_interface_t * p_hid = &_hidd_itf[itf];
@@ -97,8 +98,8 @@ bool tud_hid_report(uint8_t report_id, void const* report, uint8_t len)
     memcpy(p_hid->report_buf, report, len);
   }
 
-  // TODO idle rate
-  return dcd_edpt_xfer(TUD_OPT_RHPORT, p_hid->ep_in, p_hid->report_buf, len + ( report_id ? 1 : 0) );
+  // TODO skip duplication ? and or idle rate
+  return dcd_edpt_xfer(TUD_OPT_RHPORT, p_hid->ep_in, p_hid->report_buf, len + (report_id ? 1 : 0) );
 }
 
 bool tud_hid_boot_mode(void)
@@ -108,30 +109,13 @@ bool tud_hid_boot_mode(void)
 }
 
 //--------------------------------------------------------------------+
-// KEYBOARD APPLICATION API
+// KEYBOARD API
 //--------------------------------------------------------------------+
-#if CFG_TUD_HID_KEYBOARD
-static bool hidd_kbd_report(hid_keyboard_report_t const *p_report)
+bool tud_hid_keyboard_report(uint8_t report_id, uint8_t modifier, uint8_t keycode[6])
 {
-  TU_VERIFY( tud_hid_ready() );
+  hid_keyboard_report_t report;
 
-  uint8_t itf = 0;
-  hidd_interface_t * p_hid = &_hidd_itf[itf];
-
-  // only send report if there is changes, i.e skip duplication
-//  if ( _kbd_rpt.idle_rate == 0 )
-//  {
-//    if ( 0 == memcmp(p_hid->report_buf, p_report, sizeof(hid_keyboard_report_t)) ) return true;
-//  }
-
-  memcpy(p_hid->report_buf, p_report, sizeof(hid_keyboard_report_t));
-
-  return dcd_edpt_xfer(TUD_OPT_RHPORT, p_hid->ep_in, p_hid->report_buf, sizeof(hid_keyboard_report_t));
-}
-
-bool tud_hid_keyboard_keycode(uint8_t modifier, uint8_t keycode[6])
-{
-  hid_keyboard_report_t report = { .modifier = modifier };
+  report.modifier = modifier;
 
   if ( keycode )
   {
@@ -141,12 +125,12 @@ bool tud_hid_keyboard_keycode(uint8_t modifier, uint8_t keycode[6])
     tu_memclr(report.keycode, 6);
   }
 
-  return hidd_kbd_report(&report);
+  // TODO skip duplication ? and or idle rate
+  return tud_hid_report(report_id, &report, sizeof(report));
 }
 
 #if CFG_TUD_HID_ASCII_TO_KEYCODE_LOOKUP
-
-bool tud_hid_keyboard_key_press(char ch)
+bool tud_hid_keyboard_key_press(uint8_t report_id, char ch)
 {
   uint8_t keycode[6] = { 0 };
   uint8_t modifier   = 0;
@@ -154,70 +138,45 @@ bool tud_hid_keyboard_key_press(char ch)
   if ( HID_ASCII_TO_KEYCODE[(uint8_t)ch].shift ) modifier = KEYBOARD_MODIFIER_LEFTSHIFT;
   keycode[0] = HID_ASCII_TO_KEYCODE[(uint8_t)ch].keycode;
 
-  return tud_hid_keyboard_keycode(modifier, keycode);
+  return tud_hid_keyboard_report(report_id, modifier, keycode);
 }
-
 #endif // CFG_TUD_HID_ASCII_TO_KEYCODE_LOOKUP
-
-#endif // CFG_TUD_HID_KEYBOARD
 
 //--------------------------------------------------------------------+
 // MOUSE APPLICATION API
 //--------------------------------------------------------------------+
-#if CFG_TUD_HID_MOUSE
-
-static bool hidd_mouse_report(hid_mouse_report_t const *p_report)
-{
-  TU_VERIFY( tud_hid_ready() );
-
-  uint8_t itf = 0;
-  hidd_interface_t * p_hid = &_hidd_itf[itf];
-
-// only send report if there is changes, i.e skip duplication
-  memcpy(p_hid->report_buf, p_report, sizeof(hid_mouse_report_t));
-
-  return dcd_edpt_xfer(TUD_OPT_RHPORT, p_hid->ep_in, p_hid->report_buf, sizeof(hid_mouse_report_t));
-}
-
-bool tud_hid_mouse_data(uint8_t buttons, int8_t x, int8_t y, int8_t scroll, int8_t pan)
+bool tud_hid_mouse_report(uint8_t report_id, uint8_t buttons, int8_t x, int8_t y, int8_t scroll, int8_t pan)
 {
   hid_mouse_report_t report =
   {
-      .buttons = buttons,
-      .x       = x,
-      .y       = y,
-      .wheel   = scroll,
-//      .pan     = pan
+    .buttons = buttons,
+    .x       = x,
+    .y       = y,
+    .wheel   = scroll,
+    //.pan     = pan
   };
 
-  return hidd_mouse_report( &report );
-}
-
-bool tud_hid_mouse_move(int8_t x, int8_t y)
-{
-  TU_VERIFY( tud_hid_mouse_ready() );
-
   uint8_t itf = 0;
-  hidd_interface_t * p_hid = &_hidd_itf[itf];
+  _hidd_itf[itf].mouse_button = buttons;
 
-  uint8_t prev_buttons = p_hid->report_buf[0];
-
-  return tud_hid_mouse_data(prev_buttons, x, y, 0, 0);
+  return tud_hid_report(report_id, &report, sizeof(report));
 }
 
-bool tud_hid_mouse_scroll(int8_t vertical, int8_t horizontal)
+bool tud_hid_mouse_move(uint8_t report_id, int8_t x, int8_t y)
 {
-  TU_VERIFY( tud_hid_mouse_ready() );
-
   uint8_t itf = 0;
-  hidd_interface_t * p_hid = &_hidd_itf[itf];
+  uint8_t const button = _hidd_itf[itf].mouse_button;
 
-  uint8_t prev_buttons = p_hid->report_buf[0];
-
-  return tud_hid_mouse_data(prev_buttons, 0, 0, vertical, horizontal);
+  return tud_hid_mouse_report(report_id, button, x, y, 0, 0);
 }
 
-#endif // CFG_TUD_HID_MOUSE
+bool tud_hid_mouse_scroll(uint8_t report_id, int8_t scroll, int8_t pan)
+{
+  uint8_t itf = 0;
+  uint8_t const button = _hidd_itf[itf].mouse_button;
+
+  return tud_hid_mouse_report(report_id, button, 0, 0, scroll, pan);
+}
 
 //--------------------------------------------------------------------+
 // USBD-CLASS API
@@ -236,9 +195,6 @@ void hidd_reset(uint8_t rhport)
 bool hidd_open(uint8_t rhport, tusb_desc_interface_t const * desc_itf, uint16_t *p_len)
 {
   uint8_t const *p_desc = (uint8_t const *) desc_itf;
-
-  // TODO support HID OUT Endpoint
-  TU_ASSERT(desc_itf->bNumEndpoints == 1);
 
   //------------- HID descriptor -------------//
   p_desc = tu_desc_next(p_desc);
@@ -381,11 +337,8 @@ bool hidd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t event, uint32_t
 }
 
 
-/*------------------------------------------------------------------*/
-/* Ascii to Keycode
- *------------------------------------------------------------------*/
+//------------- Ascii to Keycode Lookup -------------//
 #if CFG_TUD_HID_ASCII_TO_KEYCODE_LOOKUP
-
 const hid_ascii_to_keycode_entry_t HID_ASCII_TO_KEYCODE[128] =
 {
     {0, 0                     }, // 0x00 Null
@@ -520,7 +473,6 @@ const hid_ascii_to_keycode_entry_t HID_ASCII_TO_KEYCODE[128] =
     {1, HID_KEY_GRAVE         }, // 0x7E ~
     {0, HID_KEY_DELETE        }  // 0x7F Delete
 };
-
-#endif
+#endif // CFG_TUD_HID_ASCII_TO_KEYCODE_LOOKUP
 
 #endif

@@ -153,11 +153,10 @@ void usb_hid_task(void)
       uint8_t keycode[6] = { 0 };
       keycode[0] = HID_KEY_A;
 
-      tud_hid_keyboard_keycode(0, keycode);
+      tud_hid_keyboard_report(0, 0, keycode);
     }else
     {
-      // Null means all zeroes keycodes
-      tud_hid_keyboard_keycode(0, NULL);
+      tud_hid_keyboard_key_release(0);
     }
   }
 #endif

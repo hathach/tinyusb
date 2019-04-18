@@ -66,6 +66,7 @@ bool tud_hid_report(uint8_t report_id, void const* report, uint8_t len);
 bool tud_hid_boot_mode(void);
 
 /*------------- Callbacks (Weak is optional) -------------*/
+
 /** Callback invoked when USB host request \ref HID_REQ_CONTROL_GET_REPORT.
  * \param[in]   report_type specify which report (INPUT, OUTPUT, FEATURE) that host requests
  * \param[out]  buffer data that application need to update, value must be accessible by USB controller (see \ref CFG_TUSB_MEM_SECTION)
@@ -90,16 +91,22 @@ void     tud_hid_set_report_cb(uint8_t report_id, hid_report_type_t report_type,
 
 ATTR_WEAK void tud_hid_mode_changed_cb(uint8_t boot_mode);
 
+
 //--------------------------------------------------------------------+
 // KEYBOARD API
+// Convenient helper to send keyboard report if application use standard/boot
+// layout report as defined by hid_keyboard_report_t
 //--------------------------------------------------------------------+
-#if CFG_TUD_HID_KEYBOARD
-bool tud_hid_keyboard_keycode(uint8_t modifier, uint8_t keycode[6]);
 
-static inline bool tud_hid_keyboard_key_release(void) { return tud_hid_keyboard_keycode(0, NULL); }
+bool tud_hid_keyboard_report(uint8_t report_id, uint8_t modifier, uint8_t keycode[6]);
+
+static inline bool tud_hid_keyboard_key_release(uint8_t report_id)
+{
+  return tud_hid_keyboard_report(report_id, 0, NULL);
+}
 
 #if CFG_TUD_HID_ASCII_TO_KEYCODE_LOOKUP
-bool tud_hid_keyboard_key_press(char ch);
+bool tud_hid_keyboard_key_press(uint8_t report_id, char ch);
 
 typedef struct{
   uint8_t shift;
@@ -108,29 +115,25 @@ typedef struct{
 extern const hid_ascii_to_keycode_entry_t HID_ASCII_TO_KEYCODE[128];
 #endif
 
-#endif
-
 //--------------------------------------------------------------------+
 // MOUSE API
+// Convenient helper to send mouse report if application use standard/boot
+// layout report as defined by hid_mouse_report_t
 //--------------------------------------------------------------------+
-#if CFG_TUD_HID_MOUSE
-bool tud_hid_mouse_data(uint8_t buttons, int8_t x, int8_t y, int8_t scroll, int8_t pan);
 
-bool tud_hid_mouse_move(int8_t x, int8_t y);
-bool tud_hid_mouse_scroll(int8_t vertical, int8_t horizontal);
+bool tud_hid_mouse_report(uint8_t report_id, uint8_t buttons, int8_t x, int8_t y, int8_t scroll, int8_t pan);
+bool tud_hid_mouse_move(uint8_t report_id, int8_t x, int8_t y);
+bool tud_hid_mouse_scroll(uint8_t report_id, int8_t scroll, int8_t pan);
 
-static inline bool tud_hid_mouse_button_press(uint8_t buttons)
+static inline bool tud_hid_mouse_button_press(uint8_t report_id, uint8_t buttons)
 {
-  return tud_hid_mouse_data(buttons, 0, 0, 0, 0);
+  return tud_hid_mouse_report(report_id, buttons, 0, 0, 0, 0);
 }
 
-static inline bool tud_hid_mouse_button_release(void)
+static inline bool tud_hid_mouse_button_release(uint8_t report_id)
 {
-  return tud_hid_mouse_data(0, 0, 0, 0, 0);
+  return tud_hid_mouse_report(report_id, 0, 0, 0, 0, 0);
 }
-
-#endif
-
 
 //--------------------------------------------------------------------+
 // HID Report Descriptor Template

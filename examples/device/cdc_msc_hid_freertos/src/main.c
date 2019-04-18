@@ -172,11 +172,11 @@ void usb_hid_task(void* params)
         if ( btn & (1 << i) ) keycode[i] = HID_KEY_A + i;
       }
 
-      tud_hid_keyboard_keycode(0, keycode);
+      tud_hid_keyboard_report(0, keycode);
     }else
     {
       // Null means all zeroes keycodes
-      tud_hid_keyboard_keycode(0, NULL);
+      tud_hid_keyboard_report(0, NULL);
     }
   }
 
