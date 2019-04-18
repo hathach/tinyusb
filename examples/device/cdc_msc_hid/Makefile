@@ -94,7 +94,6 @@ LIB_SOURCE += \
 	hw/bsp/$(BOARD)/board_$(BOARD).c \
 	src/common/tusb_fifo.c \
 	src/device/usbd.c \
-	src/device/usbd_auto_desc.c \
 	src/device/usbd_control.c \
 	src/class/msc/msc_device.c \
 	src/class/cdc/cdc_device.c \

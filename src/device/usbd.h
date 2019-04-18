@@ -49,7 +49,7 @@ typedef struct {
 
 }tud_desc_set_t;
 
-// Must be defined by application
+// Descriptor collection set, must be defined by application
 extern tud_desc_set_t tud_desc_set;
 
 //--------------------------------------------------------------------+

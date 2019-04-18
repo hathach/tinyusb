@@ -81,26 +81,38 @@ uint8_t const desc_hid_report[] =
 };
 
 //------------- Configuration Descriptor -------------//
-enum {
-#if CFG_TUD_CDC
-  ITF_NUM_CDC = 0,
-  ITF_NUM_CDC_DATA,
-#endif
+enum
+{
+  #if CFG_TUD_CDC
+    ITF_NUM_CDC = 0,
+    ITF_NUM_CDC_DATA,
+  #endif
 
-#if CFG_TUD_MSC
-  ITF_NUM_MSC,
-#endif
+  #if CFG_TUD_MSC
+    ITF_NUM_MSC,
+  #endif
 
-#if CFG_TUD_HID
-  ITF_NUM_HID,
-#endif
+  #if CFG_TUD_HID
+    ITF_NUM_HID,
+  #endif
 
-  ITF_NUM_TOTAL
+    ITF_NUM_TOTAL
 };
 
-enum {
+enum
+{
   CONFIG_DESC_LEN = sizeof(tusb_desc_configuration_t) + CFG_TUD_CDC*TUD_CDC_DESC_LEN + CFG_TUD_MSC*TUD_MSC_DESC_LEN + CFG_TUD_HID*TUD_HID_DESC_LEN
 };
+
+#if CFG_TUSB_MCU == OPT_MCU_LPC175X_6X || CFG_TUSB_MCU == OPT_MCU_LPC177X_8X || CFG_TUSB_MCU == OPT_MCU_LPC40XX
+  // LPC 17xx and 40xx endpoint type (bulk/interrupt/iso) are fixed by its number
+  // 0 control, 1 In, 2 Bulk, 3 Iso, 4 In etc ...
+  // Note: since CDC EP ( 1 & 2), HID (4) are spot-on, thus we only need to force
+  // endpoint number for MSC to 5
+  #define EPNUM_MSC   0x05
+#else
+  #define EPNUM_MSC   0x03
+#endif
 
 uint8_t const desc_configuration[] =
 {
@@ -112,7 +124,7 @@ uint8_t const desc_configuration[] =
 #endif
 
 #if CFG_TUD_MSC
-  TUD_MSC_DESCRIPTOR(ITF_NUM_MSC, 5, 0x03, 0x83, 64), // highspeed 512
+  TUD_MSC_DESCRIPTOR(ITF_NUM_MSC, 5, EPNUM_MSC, 0x80 | EPNUM_MSC, 64), // highspeed 512
 #endif
 
 #if CFG_TUD_HID
@@ -147,7 +159,6 @@ uint16_t const * const string_desc_arr [] =
 };
 
 // tud_desc_set is required by tinyusb stack
-// since CFG_TUD_DESC_AUTO is enabled, we only need to set string_arr 
 tud_desc_set_t tud_desc_set =
 {
     .device     = &desc_device,

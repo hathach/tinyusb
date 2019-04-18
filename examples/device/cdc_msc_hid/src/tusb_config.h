@@ -69,25 +69,6 @@
 //--------------------------------------------------------------------
 #define CFG_TUD_ENDOINT0_SIZE       64
 
-/*------------- Descriptors -------------*/
-
-/* Enable auto generated descriptor, tinyusb will try its best to create
- * descriptor ( device, configuration, hid ) that matches enabled CFG_* in this file
- *
- * Note: All CFG_TUD_DESC_* are relevant only if CFG_TUD_DESC_AUTO is enabled
- */
-#define CFG_TUD_DESC_AUTO           0
-
-// LPC 17xx and 40xx endpoint type (bulk/interrupt/iso) are fixed by its number
-// Therefore we need to force endpoint number to correct type on lpc17xx
-#if CFG_TUSB_MCU == OPT_MCU_LPC175X_6X || CFG_TUSB_MCU == OPT_MCU_LPC177X_8X || CFG_TUSB_MCU == OPT_MCU_LPC40XX
-#define CFG_TUD_DESC_CDC_EPNUM_NOTIF      1
-#define CFG_TUD_DESC_CDC_EPNUM            2
-#define CFG_TUD_DESC_MSC_EPNUM            5
-#define CFG_TUD_DESC_HID_KEYBOARD_EPNUM   4
-#define CFG_TUD_DESC_HID_MOUSE_EPNUM      7
-#endif
-
 //------------- CLASS -------------//
 #define CFG_TUD_CDC                 1
 #define CFG_TUD_MSC                 1
@@ -126,10 +107,9 @@
 // HID
 //--------------------------------------------------------------------
 
-/* Use the HID_ASCII_TO_KEYCODE lookup if CFG_TUD_HID_KEYBOARD is enabled.
- * This will occupies 256 bytes of ROM. It will also enable the use of 2 extra APIs
+/* Use the HID_ASCII_TO_KEYCODE lookup
+ * This will occupies 256 bytes of ROM. It will also enable the use of extra APIs
  * - tud_hid_keyboard_send_char()
- * - tud_hid_keyboard_send_string()
  */
 #define CFG_TUD_HID_ASCII_TO_KEYCODE_LOOKUP 1
 

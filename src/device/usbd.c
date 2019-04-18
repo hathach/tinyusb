@@ -60,14 +60,6 @@ typedef struct {
 
 static usbd_device_t _usbd_dev = { 0 };
 
-// Auto descriptor is enabled, descriptor set point to auto generated one
-#if CFG_TUD_DESC_AUTO
-extern tud_desc_set_t const _usbd_auto_desc_set;
-tud_desc_set_t const* usbd_desc_set = &_usbd_auto_desc_set;
-#else
-tud_desc_set_t const* usbd_desc_set = &tud_desc_set;
-#endif
-
 //--------------------------------------------------------------------+
 // Class Driver
 //--------------------------------------------------------------------+
@@ -493,7 +485,7 @@ static bool process_control_request(uint8_t rhport, tusb_control_request_t const
 // This function parse configuration descriptor & open drivers accordingly
 static bool process_set_config(uint8_t rhport)
 {
-  tusb_desc_configuration_t const * desc_cfg = (tusb_desc_configuration_t const *) usbd_desc_set->config;
+  tusb_desc_configuration_t const * desc_cfg = (tusb_desc_configuration_t const *) tud_desc_set.config;
   TU_ASSERT(desc_cfg != NULL && desc_cfg->bDescriptorType == TUSB_DESC_CONFIGURATION);
 
   // Parse configuration descriptor
@@ -582,7 +574,7 @@ static void const* get_descriptor(tusb_control_request_t const * p_request, uint
     break;
 
     case TUSB_DESC_CONFIGURATION:
-      desc_data = (uint8_t const *) usbd_desc_set->config;
+      desc_data = (uint8_t const *) tud_desc_set.config;
       len       = ((tusb_desc_configuration_t const*) desc_data)->wTotalLength;
     break;
 
