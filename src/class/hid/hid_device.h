@@ -62,6 +62,8 @@
 bool tud_hid_ready(void);
 bool tud_hid_report(uint8_t report_id, void const* report, uint8_t len);
 
+bool tud_hid_boot_mode(void);
+
 /*------------- Callbacks (Weak is optional) -------------*/
 /** Callback invoked when USB host request \ref HID_REQ_CONTROL_GET_REPORT.
  * \param[in]   report_type specify which report (INPUT, OUTPUT, FEATURE) that host requests
@@ -125,8 +127,6 @@ extern const hid_ascii_to_keycode_entry_t HID_ASCII_TO_KEYCODE[128];
  *  @{ */
 /** \defgroup Mouse_Device Device
  *  @{ */
-
-bool tud_hid_mouse_is_boot_protocol(void);
 
 bool tud_hid_mouse_data(uint8_t buttons, int8_t x, int8_t y, int8_t scroll, int8_t pan);
 

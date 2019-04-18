@@ -39,12 +39,9 @@
 // MACRO CONSTANT TYPEDEF
 //--------------------------------------------------------------------+
 
-// Max report len is keyboard's one with 8 byte + 1 byte report id
-#define REPORT_BUFSIZE      12
+#define REPORT_BUFSIZE     16
 
-#define ITF_IDX_BOOT_KBD   0
-#define ITF_IDX_BOOT_MSE   0 // ( ITF_IDX_BOOT_KBD + (CFG_TUD_HID_KEYBOARD && CFG_TUD_HID_KEYBOARD_BOOT) )
-#define ITF_IDX_GENERIC    0 // ( ITF_IDX_BOOT_MSE + (CFG_TUD_HID_MOUSE && CFG_TUD_HID_MOUSE_BOOT) )
+#define ITF_IDX_GENERIC    0
 
 typedef struct
 {
@@ -54,11 +51,10 @@ typedef struct
   uint8_t idle_rate;  // Idle Rate = 0 : only send report if there is changes, i.e skip duplication
                       // Idle Rate > 0 : skip duplication, but send at least 1 report every idle rate (in unit of 4 ms).
                       //                 If idle time is less than interrupt polling then use the polling.
-  uint8_t boot_device;
-  bool    boot_protocol;
+  uint8_t boot_protocol;
+  bool    boot_mode;
 
-  uint16_t desc_len;
-  uint8_t const * desc_report;
+  uint16_t reprot_desc_len;
 
   CFG_TUSB_MEM_ALIGN uint8_t report_buf[REPORT_BUFSIZE];
 }hidd_interface_t;
@@ -81,7 +77,8 @@ static inline hidd_interface_t* get_interface_by_itfnum(uint8_t itf_num)
 //--------------------------------------------------------------------+
 bool tud_hid_ready(void)
 {
-  return tud_ready() && (_hidd_itf[ITF_IDX_GENERIC].ep_in != 0) && !dcd_edpt_busy(TUD_OPT_RHPORT, _hidd_itf[ITF_IDX_GENERIC].ep_in);
+  uint8_t const ep_in = _hidd_itf[ITF_IDX_GENERIC].ep_in;
+  return tud_ready() && (ep_in != 0) && !dcd_edpt_busy(TUD_OPT_RHPORT, ep_in);
 }
 
 bool tud_hid_report(uint8_t report_id, void const* report, uint8_t len)
@@ -102,6 +99,12 @@ bool tud_hid_report(uint8_t report_id, void const* report, uint8_t len)
 
   // TODO idle rate
   return dcd_edpt_xfer(TUD_OPT_RHPORT, p_hid->ep_in, p_hid->report_buf, len + ( report_id ? 1 : 0) );
+}
+
+bool tud_hid_boot_mode(void)
+{
+  hidd_interface_t * p_hid = &_hidd_itf[ITF_IDX_GENERIC];
+  return p_hid->boot_mode;
 }
 
 //--------------------------------------------------------------------+
@@ -161,16 +164,12 @@ bool tud_hid_keyboard_key_press(char ch)
 //--------------------------------------------------------------------+
 #if CFG_TUD_HID_MOUSE
 
-bool tud_hid_mouse_is_boot_protocol(void)
-{
-  return (_mse_rpt.itf != NULL) && _mse_rpt.itf->boot_protocol;
-}
-
 static bool hidd_mouse_report(hid_mouse_report_t const *p_report)
 {
-  TU_VERIFY( tud_hid_mouse_ready() );
+  TU_VERIFY( tud_hid_ready() );
 
-  hidd_interface_t * p_hid = _mse_rpt.itf;
+  hidd_interface_t * p_hid = &_hidd_itf[ITF_IDX_GENERIC];
+
 // only send report if there is changes, i.e skip duplication
   memcpy(p_hid->report_buf, p_report, sizeof(hid_mouse_report_t));
 
@@ -195,7 +194,7 @@ bool tud_hid_mouse_move(int8_t x, int8_t y)
 {
   TU_VERIFY( tud_hid_mouse_ready() );
 
-  hidd_interface_t * p_hid = _mse_rpt.itf;
+  hidd_interface_t * p_hid = &_hidd_itf[ITF_IDX_GENERIC];
   uint8_t prev_buttons = p_hid->report_buf[0];
 
   return tud_hid_mouse_data(prev_buttons, x, y, 0, 0);
@@ -205,7 +204,7 @@ bool tud_hid_mouse_scroll(int8_t vertical, int8_t horizontal)
 {
   TU_VERIFY( tud_hid_mouse_ready() );
 
-  hidd_interface_t * p_hid =  _mse_rpt.itf;
+  hidd_interface_t * p_hid = &_hidd_itf[ITF_IDX_GENERIC];
   uint8_t prev_buttons = p_hid->report_buf[0];
 
   return tud_hid_mouse_data(prev_buttons, 0, 0, vertical, horizontal);
@@ -234,11 +233,6 @@ bool hidd_open(uint8_t rhport, tusb_desc_interface_t const * desc_itf, uint16_t 
   // TODO support HID OUT Endpoint
   TU_ASSERT(desc_itf->bNumEndpoints == 1);
 
-  // TODO support multiple HID interface
-  hidd_interface_t * p_hid = &_hidd_itf[0];
-
-  if ( desc_itf->bInterfaceSubClass == HID_SUBCLASS_BOOT ) p_hid->boot_device = desc_itf->bInterfaceProtocol;
-
   //------------- HID descriptor -------------//
   p_desc = tu_desc_next(p_desc);
   tusb_hid_descriptor_hid_t const *desc_hid = (tusb_hid_descriptor_hid_t const *) p_desc;
@@ -249,63 +243,17 @@ bool hidd_open(uint8_t rhport, tusb_desc_interface_t const * desc_itf, uint16_t 
   tusb_desc_endpoint_t const *desc_edpt = (tusb_desc_endpoint_t const *) p_desc;
   TU_ASSERT(TUSB_DESC_ENDPOINT == desc_edpt->bDescriptorType);
 
-  /*------------- Boot protocol only keyboard & mouse -------------*/
-#if 0
-  if (desc_itf->bInterfaceSubClass == HID_SUBCLASS_BOOT)
-  {
-    TU_ASSERT(desc_itf->bInterfaceProtocol == HID_PROTOCOL_KEYBOARD || desc_itf->bInterfaceProtocol == HID_PROTOCOL_MOUSE);
-
-    #if CFG_TUD_HID_KEYBOARD && CFG_TUD_HID_KEYBOARD_BOOT
-    if (desc_itf->bInterfaceProtocol == HID_PROTOCOL_KEYBOARD)
-    {
-      p_hid = &_hidd_itf[ITF_IDX_BOOT_KBD];
-      p_hid->desc_report   = usbd_desc_set->hid_report.boot_keyboard;
-      p_hid->get_report_cb = tud_hid_keyboard_get_report_cb;
-      p_hid->set_report_cb = tud_hid_keyboard_set_report_cb;
-
-      hidd_report_t* report = &_kbd_rpt;
-      report->usage = HID_USAGE_DESKTOP_KEYBOARD;
-      report->report_id = 0;
-      report->report_len = 8;
-      report->itf = p_hid;
-    }
-    #endif
-
-    #if CFG_TUD_HID_MOUSE && CFG_TUD_HID_MOUSE_BOOT
-    if (desc_itf->bInterfaceProtocol == HID_PROTOCOL_MOUSE)
-    {
-      p_hid = &_hidd_itf[ITF_IDX_BOOT_MSE];
-      p_hid->desc_report   = usbd_desc_set->hid_report.boot_mouse;
-      p_hid->get_report_cb = tud_hid_mouse_get_report_cb;
-      p_hid->set_report_cb = tud_hid_mouse_set_report_cb;
-
-      hidd_report_t* report = &_mse_rpt;
-      report->usage = HID_USAGE_DESKTOP_MOUSE;
-      report->report_id = 0;
-      report->report_len = 4;
-      report->itf = p_hid;
-    }
-    #endif
-
-    TU_ASSERT(p_hid);
-    p_hid->boot_protocol = true; // default mode is BOOT
-  }
-  /*------------- Generic (multiple report) -------------*/
-  else
-#endif
-  {
-    // TODO parse report ID for keyboard, mouse
-//    p_hid = &_hidd_itf[ITF_IDX_GENERIC];
-
-    p_hid->desc_report   = usbd_desc_set->hid_report;
-  }
-
-  TU_ASSERT(p_hid->desc_report);
   TU_ASSERT(dcd_edpt_open(rhport, desc_edpt));
 
+  // TODO support multiple HID interface
+  hidd_interface_t * p_hid = &_hidd_itf[0];
+
+  if ( desc_itf->bInterfaceSubClass == HID_SUBCLASS_BOOT ) p_hid->boot_protocol = desc_itf->bInterfaceProtocol;
+
+  p_hid->boot_mode = false; // default mode is REPORT
   p_hid->itf_num   = desc_itf->bInterfaceNumber;
   p_hid->ep_in     = desc_edpt->bEndpointAddress;
-  p_hid->desc_len  = desc_hid->wReportLength;
+  p_hid->reprot_desc_len  = desc_hid->wReportLength;
 
   *p_len = sizeof(tusb_desc_interface_t) + sizeof(tusb_hid_descriptor_hid_t) + desc_itf->bNumEndpoints*sizeof(tusb_desc_endpoint_t);
 
@@ -328,7 +276,7 @@ bool hidd_control_request(uint8_t rhport, tusb_control_request_t const * p_reque
 
     if (p_request->bRequest == TUSB_REQ_GET_DESCRIPTOR && desc_type == HID_DESC_TYPE_REPORT)
     {
-      usbd_control_xfer(rhport, p_request, (void *)p_hid->desc_report, p_hid->desc_len);
+      usbd_control_xfer(rhport, p_request, (void*) usbd_desc_set->hid_report, p_hid->reprot_desc_len);
     }else
     {
       return false; // stall unsupported request
@@ -369,13 +317,13 @@ bool hidd_control_request(uint8_t rhport, tusb_control_request_t const * p_reque
 
       case HID_REQ_CONTROL_GET_PROTOCOL:
       {
-        uint8_t protocol = 1-p_hid->boot_protocol;   // 0 is Boot, 1 is Report protocol
+        uint8_t protocol = 1-p_hid->boot_mode;   // 0 is Boot, 1 is Report protocol
         usbd_control_xfer(rhport, p_request, &protocol, 1);
       }
       break;
 
       case HID_REQ_CONTROL_SET_PROTOCOL:
-        p_hid->boot_protocol = 1 - p_request->wValue; // 0 is Boot, 1 is Report protocol
+        p_hid->boot_mode = 1 - p_request->wValue; // 0 is Boot, 1 is Report protocol
         usbd_control_status(rhport, p_request);
       break;
 

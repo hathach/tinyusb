@@ -561,27 +561,7 @@ tud_desc_set_t const _usbd_auto_desc_set =
 {
     .device = NULL, // no auto device
     .config = &_desc_auto_config_struct,
-
     .hid_report = _desc_auto_hid_boot_kbd_report
-
-#if 0
-    .hid_report =
-    {
-#if AUTO_DESC_HID_GENERIC
-        .generic = _desc_auto_hid_generic_report,
-#else
-        .generic = NULL,
-#endif
-
-#if CFG_TUD_HID_KEYBOARD && CFG_TUD_HID_KEYBOARD_BOOT
-        .boot_keyboard = _desc_auto_hid_boot_kbd_report,
-#endif
-
-#if CFG_TUD_HID_MOUSE && CFG_TUD_HID_MOUSE_BOOT
-        .boot_mouse = _desc_auto_hid_boot_mse_report
-#endif
-    }
-#endif
 };
 
 #endif
