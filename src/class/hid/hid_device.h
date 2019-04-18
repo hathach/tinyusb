@@ -52,7 +52,7 @@
 
 
 //--------------------------------------------------------------------+
-// HID GENERIC API
+// Application API
 //--------------------------------------------------------------------+
 
 /** Check if the interface is ready to use
@@ -62,6 +62,7 @@
 bool tud_hid_ready(void);
 bool tud_hid_report(uint8_t report_id, void const* report, uint8_t len);
 
+// Check if current mode is Boot (true) or Report (false)
 bool tud_hid_boot_mode(void);
 
 /*------------- Callbacks (Weak is optional) -------------*/
@@ -87,15 +88,12 @@ uint16_t tud_hid_get_report_cb(uint8_t report_id, hid_report_type_t report_type,
  */
 void     tud_hid_set_report_cb(uint8_t report_id, hid_report_type_t report_type, uint8_t const* buffer, uint16_t bufsize);
 
+ATTR_WEAK void tud_hid_mode_changed_cb(uint8_t boot_mode);
+
 //--------------------------------------------------------------------+
 // KEYBOARD API
 //--------------------------------------------------------------------+
 #if CFG_TUD_HID_KEYBOARD
-/** \addtogroup ClassDriver_HID_Keyboard Keyboard
- *  @{ */
-/** \defgroup Keyboard_Device Device
- *  @{ */
-
 bool tud_hid_keyboard_keycode(uint8_t modifier, uint8_t keycode[6]);
 
 static inline bool tud_hid_keyboard_key_release(void) { return tud_hid_keyboard_keycode(0, NULL); }
@@ -112,22 +110,10 @@ extern const hid_ascii_to_keycode_entry_t HID_ASCII_TO_KEYCODE[128];
 
 #endif
 
-/*------------- Callbacks (Weak is optional) -------------*/
-
-//ATTR_WEAK void tud_hid_keyboard_set_protocol_cb(bool boot_protocol);
-
-/** @} */
-/** @} */
-
 //--------------------------------------------------------------------+
 // MOUSE API
 //--------------------------------------------------------------------+
 #if CFG_TUD_HID_MOUSE
-/** \addtogroup ClassDriver_HID_Mouse Mouse
- *  @{ */
-/** \defgroup Mouse_Device Device
- *  @{ */
-
 bool tud_hid_mouse_data(uint8_t buttons, int8_t x, int8_t y, int8_t scroll, int8_t pan);
 
 bool tud_hid_mouse_move(int8_t x, int8_t y);
@@ -142,8 +128,6 @@ static inline bool tud_hid_mouse_button_release(void)
 {
   return tud_hid_mouse_data(0, 0, 0, 0, 0);
 }
-
-//ATTR_WEAK void tud_hid_mouse_set_protocol_cb(bool boot_protocol);
 
 #endif
 
@@ -314,15 +298,11 @@ static inline bool tud_hid_mouse_button_release(void)
     HID_INPUT        ( HID_DATA | HID_VARIABLE | HID_ABSOLUTE ) ,\
   HID_COLLECTION_END \
 
-
-
 /** @} */
 /** @} */
-
-
 
 //--------------------------------------------------------------------+
-// INTERNAL API
+// Internal Class Driver API
 //--------------------------------------------------------------------+
 void hidd_init(void);
 bool hidd_open(uint8_t rhport, tusb_desc_interface_t const * itf_desc, uint16_t *p_length);
