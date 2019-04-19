@@ -21,7 +21,6 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  *
- * This file is part of the TinyUSB stack.
  */
 
 #ifndef _TUSB_CONFIG_H_
@@ -113,7 +112,7 @@
  * This will occupies 256 bytes of ROM. It will also enable the use of extra APIs
  * - tud_hid_keyboard_send_char()
  */
-#define CFG_TUD_HID_ASCII_TO_KEYCODE_LOOKUP 1
+#define CFG_TUD_HID_ASCII_TO_KEYCODE_LOOKUP 0
 
 #ifdef __cplusplus
  }

@@ -95,8 +95,68 @@ ATTR_WEAK void tud_resume_cb(void);
 // Interface Descriptor Template
 //--------------------------------------------------------------------+
 
+#define TUD_CONFIG_DESC_LEN   (9)
+
+// Inteface count, string index, total length, attribute, power in mA
 #define TUD_CONFIG_DESCRIPTOR(_itfcount, _stridx, _total_len, _attribute, _power_ma) \
   9, TUSB_DESC_CONFIGURATION, U16_TO_U8S_LE(_total_len), _itfcount, 1, _stridx, TU_BIT(7) | _attribute, (_power_ma)/2
+
+//------------- CDC -------------//
+
+// Length of template descriptor: 66 bytes
+#define TUD_CDC_DESC_LEN  (8+9+5+5+4+5+7+9+7+7)
+
+// CDC Descriptor Template
+// interface number, string index, EP notification address and size, EP data address (out,in) and size.
+#define TUD_CDC_DESCRIPTOR(_itfnum, _stridx, _ep_notif, _ep_notif_size, _epout, _epin, _epsize) \
+  /* Interface Associate */\
+  8, TUSB_DESC_INTERFACE_ASSOCIATION, _itfnum, 2, TUSB_CLASS_CDC, CDC_COMM_SUBCLASS_ABSTRACT_CONTROL_MODEL, CDC_COMM_PROTOCOL_ATCOMMAND, 0,\
+  /* CDC Control Interface */\
+  9, TUSB_DESC_INTERFACE, _itfnum, 0, 1, TUSB_CLASS_CDC, CDC_COMM_SUBCLASS_ABSTRACT_CONTROL_MODEL, CDC_COMM_PROTOCOL_ATCOMMAND, _stridx,\
+  /* CDC Header */\
+  5, TUSB_DESC_CLASS_SPECIFIC, CDC_FUNC_DESC_HEADER, U16_TO_U8S_LE(0x0120),\
+  /* CDC Call */\
+  5, TUSB_DESC_CLASS_SPECIFIC, CDC_FUNC_DESC_CALL_MANAGEMENT, 0, (_itfnum) + 1,\
+  /* CDC ACM: support line request */\
+  4, TUSB_DESC_CLASS_SPECIFIC, CDC_FUNC_DESC_ABSTRACT_CONTROL_MANAGEMENT, 2,\
+  /* CDC Union */\
+  5, TUSB_DESC_CLASS_SPECIFIC, CDC_FUNC_DESC_UNION, _itfnum, (_itfnum) + 1,\
+  /* Endpoint Notification */\
+  7, TUSB_DESC_ENDPOINT, _ep_notif, TUSB_XFER_INTERRUPT, U16_TO_U8S_LE(_ep_notif_size), 16,\
+  /* CDC Data Interface */\
+  9, TUSB_DESC_INTERFACE, (_itfnum)+1, 0, 2, TUSB_CLASS_CDC_DATA, 0, 0, 0,\
+  /* Endpoint Out */\
+  7, TUSB_DESC_ENDPOINT, _epout, TUSB_XFER_BULK, U16_TO_U8S_LE(_epsize), 0,\
+  /* Endpoint In */\
+  7, TUSB_DESC_ENDPOINT, _epin, TUSB_XFER_BULK, U16_TO_U8S_LE(_epsize), 0
+
+//------------- MSC -------------//
+
+// Length of template descriptor: 23 bytes
+#define TUD_MSC_DESC_LEN    (9 + 7 + 7)
+
+// Interface number, string index, EP Out & EP In address, EP size
+#define TUD_MSC_DESCRIPTOR(_itfnum, _stridx, _epout, _epin, _epsize) \
+  /* Interface */\
+  9, TUSB_DESC_INTERFACE, _itfnum, 0, 2, TUSB_CLASS_MSC, MSC_SUBCLASS_SCSI, MSC_PROTOCOL_BOT, _stridx,\
+  /* Endpoint Out */\
+  7, TUSB_DESC_ENDPOINT, _epout, TUSB_XFER_BULK, U16_TO_U8S_LE(_epsize), 0,\
+  /* Endpoint In */\
+  7, TUSB_DESC_ENDPOINT, _epin, TUSB_XFER_BULK, U16_TO_U8S_LE(_epsize), 0
+
+//------------- HID -------------//
+
+// Length of template descriptor: 25 bytes
+#define TUD_HID_DESC_LEN    (9 + 9 + 7)
+
+// Interface number, string index, protocol, report descriptor len, EP In address, size & polling interval
+#define TUD_HID_DESCRIPTOR(_itfnum, _stridx, _boot_protocol, _report_desc_len, _epin, _epsize, _ep_interval) \
+  /* Interface */\
+  9, TUSB_DESC_INTERFACE, _itfnum, 0, 1, TUSB_CLASS_HID, (_boot_protocol) ? HID_SUBCLASS_BOOT : 0, _boot_protocol, _stridx,\
+  /* HID descriptor */\
+  9, HID_DESC_TYPE_HID, U16_TO_U8S_LE(0x0111), 0, 1, HID_DESC_TYPE_REPORT, U16_TO_U8S_LE(_report_desc_len),\
+  /* Endpoint descriptor */\
+  7, TUSB_DESC_ENDPOINT, _epin, TUSB_XFER_INTERRUPT, U16_TO_U8S_LE(_epsize), _ep_interval
 
 #ifdef __cplusplus
  }

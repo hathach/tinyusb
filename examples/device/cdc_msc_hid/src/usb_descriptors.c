@@ -21,7 +21,6 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  *
- * This file is part of the TinyUSB stack.
  */
 
 #include "tusb.h"
@@ -68,6 +67,7 @@ tusb_desc_device_t const desc_device =
 };
 
 //------------- HID Report Descriptor -------------//
+#if CFG_TUD_HID
 enum
 {
   REPORT_ID_KEYBOARD = 1,
@@ -79,6 +79,7 @@ uint8_t const desc_hid_report[] =
   HID_REPORT_DESC_KEYBOARD( HID_REPORT_ID(REPORT_ID_KEYBOARD), ),
   HID_REPORT_DESC_MOUSE   ( HID_REPORT_ID(REPORT_ID_MOUSE), )
 };
+#endif
 
 //------------- Configuration Descriptor -------------//
 enum
@@ -101,7 +102,7 @@ enum
 
 enum
 {
-  CONFIG_DESC_LEN = sizeof(tusb_desc_configuration_t) + CFG_TUD_CDC*TUD_CDC_DESC_LEN + CFG_TUD_MSC*TUD_MSC_DESC_LEN + CFG_TUD_HID*TUD_HID_DESC_LEN
+  CONFIG_TOTAL_LEN = TUD_CONFIG_DESC_LEN + CFG_TUD_CDC*TUD_CDC_DESC_LEN + CFG_TUD_MSC*TUD_MSC_DESC_LEN + CFG_TUD_HID*TUD_HID_DESC_LEN
 };
 
 #if CFG_TUSB_MCU == OPT_MCU_LPC175X_6X || CFG_TUSB_MCU == OPT_MCU_LPC177X_8X || CFG_TUSB_MCU == OPT_MCU_LPC40XX
@@ -117,7 +118,7 @@ enum
 uint8_t const desc_configuration[] =
 {
   // Config: self-powered with remote wakeup support, max power up to 100 mA
-  TUD_CONFIG_DESCRIPTOR(ITF_NUM_TOTAL, 0, CONFIG_DESC_LEN, TUSB_DESC_CONFIG_ATT_REMOTE_WAKEUP, 100),
+  TUD_CONFIG_DESCRIPTOR(ITF_NUM_TOTAL, 0, CONFIG_TOTAL_LEN, TUSB_DESC_CONFIG_ATT_REMOTE_WAKEUP, 100),
 
 #if CFG_TUD_CDC
   TUD_CDC_DESCRIPTOR(ITF_NUM_CDC, 4, 0x81, 8, 0x02, 0x82, 64),
@@ -167,5 +168,7 @@ tud_desc_set_t tud_desc_set =
     .string_arr   = (uint8_t const **) string_desc_arr,
     .string_count = sizeof(string_desc_arr)/sizeof(string_desc_arr[0]),
 
+#if CFG_TUD_HID
     .hid_report = desc_hid_report,
+#endif
 };

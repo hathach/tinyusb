@@ -111,20 +111,6 @@ static inline bool tud_hid_mouse_button_release(uint8_t report_id)
   return tud_hid_mouse_report(report_id, 0, 0, 0, 0, 0);
 }
 
-//--------------------------------------------------------------------+
-// Interface Descriptor Template
-//--------------------------------------------------------------------+
-
-#define TUD_HID_DESC_LEN    (9 + 9 + 7)
-
-#define TUD_HID_DESCRIPTOR(_itfnum, _stridx, _boot_protocol, _report_desc_len, _epin, _epsize, _ep_interval) \
-  /* Interface */\
-  9, TUSB_DESC_INTERFACE, _itfnum, 0, 1, TUSB_CLASS_HID, (_boot_protocol) ? HID_SUBCLASS_BOOT : 0, _boot_protocol, _stridx,\
-  /* HID descriptor */\
-  9, HID_DESC_TYPE_HID, U16_TO_U8S_LE(0x0111), 0, 1, HID_DESC_TYPE_REPORT, U16_TO_U8S_LE(_report_desc_len),\
-  /* Endpoint descriptor */\
-  7, TUSB_DESC_ENDPOINT, _epin, TUSB_XFER_INTERRUPT, U16_TO_U8S_LE(_epsize), _ep_interval
-
 /* --------------------------------------------------------------------+
  * HID Report Descriptor Template
  *

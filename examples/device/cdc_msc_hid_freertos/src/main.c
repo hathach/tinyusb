@@ -21,7 +21,6 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  *
- * This file is part of the TinyUSB stack.
  */
 
 #include <stdlib.h>
@@ -74,12 +73,12 @@ int main(void)
   // Create task
 #if CFG_TUD_CDC
   extern void cdc_task(void* params);
-  xTaskCreate( cdc_task, "cdc", 256, NULL, configMAX_PRIORITIES-2, NULL);
+  xTaskCreate( cdc_task, "cdc", 128, NULL, configMAX_PRIORITIES-2, NULL);
 #endif
 
 #if CFG_TUD_HID
   extern void hid_task(void* params);
-  xTaskCreate( hid_task, "hid", 256, NULL, configMAX_PRIORITIES-2, NULL);
+  xTaskCreate( hid_task, "hid", 128, NULL, configMAX_PRIORITIES-2, NULL);
 #endif
 
   vTaskStartScheduler();
@@ -100,6 +99,37 @@ void usb_device_task(void* param)
     // tinyusb device task
     tud_task();
   }
+}
+
+//--------------------------------------------------------------------+
+// Device callbacks
+//--------------------------------------------------------------------+
+
+// Invoked when device is mounted
+void tud_mount_cb(void)
+{
+  xTimerChangePeriod(blink_tm, pdMS_TO_TICKS(BLINK_MOUNTED), 0);
+}
+
+// Invoked when device is unmounted
+void tud_umount_cb(void)
+{
+  xTimerChangePeriod(blink_tm, pdMS_TO_TICKS(BLINK_NOT_MOUNTED), 0);
+}
+
+// Invoked when usb bus is suspended
+// remote_wakeup_en : if host allow us  to perform remote wakeup
+// Within 7ms, device must draw an average of current less than 2.5 mA from bus
+void tud_suspend_cb(bool remote_wakeup_en)
+{
+  (void) remote_wakeup_en;
+  xTimerChangePeriod(blink_tm, pdMS_TO_TICKS(BLINK_SUSPENDED), 0);
+}
+
+// Invoked when usb bus is resumed
+void tud_resume_cb(void)
+{
+  xTimerChangePeriod(blink_tm, pdMS_TO_TICKS(BLINK_MOUNTED), 0);
 }
 
 //--------------------------------------------------------------------+
@@ -248,37 +278,6 @@ void tud_hid_set_report_cb(uint8_t report_id, hid_report_type_t report_type, uin
 }
 
 #endif
-
-//--------------------------------------------------------------------+
-// Device callbacks
-//--------------------------------------------------------------------+
-
-// Invoked when device is mounted
-void tud_mount_cb(void)
-{
-  xTimerChangePeriod(blink_tm, pdMS_TO_TICKS(BLINK_MOUNTED), 0);
-}
-
-// Invoked when device is unmounted
-void tud_umount_cb(void)
-{
-  xTimerChangePeriod(blink_tm, pdMS_TO_TICKS(BLINK_NOT_MOUNTED), 0);
-}
-
-// Invoked when usb bus is suspended
-// remote_wakeup_en : if host allow us  to perform remote wakeup
-// Within 7ms, device must draw an average of current less than 2.5 mA from bus
-void tud_suspend_cb(bool remote_wakeup_en)
-{
-  (void) remote_wakeup_en;
-  xTimerChangePeriod(blink_tm, pdMS_TO_TICKS(BLINK_SUSPENDED), 0);
-}
-
-// Invoked when usb bus is resumed
-void tud_resume_cb(void)
-{
-  xTimerChangePeriod(blink_tm, pdMS_TO_TICKS(BLINK_MOUNTED), 0);
-}
 
 //--------------------------------------------------------------------+
 // BLINKING TASK
