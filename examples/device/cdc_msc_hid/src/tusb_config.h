@@ -1,4 +1,4 @@
-/* 
+/*
  * The MIT License (MIT)
  *
  * Copyright (c) 2018, hathach (tinyusb.org)
@@ -107,12 +107,6 @@
 //--------------------------------------------------------------------
 // HID
 //--------------------------------------------------------------------
-
-/* Use the HID_ASCII_TO_KEYCODE lookup
- * This will occupies 256 bytes of ROM. It will also enable the use of extra APIs
- * - tud_hid_keyboard_send_char()
- */
-#define CFG_TUD_HID_ASCII_TO_KEYCODE_LOOKUP 0
 
 #ifdef __cplusplus
  }
