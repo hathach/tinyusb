@@ -25,7 +25,7 @@ Support multiple device configurations by dynamically changing usb descriptors. 
 
 - Communication Class (CDC)
 - Human Interface Device (HID): Keyboard, Mouse, Gamepad etc ...
-- Mass Storage Class (MSC)
+- Mass Storage Class (MSC): with multiple LUNs
 - Musical Instrument Digital Interface (MIDI)
 
 ## Host Stack

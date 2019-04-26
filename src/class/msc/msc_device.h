@@ -40,12 +40,6 @@
 //--------------------------------------------------------------------+
 TU_VERIFY_STATIC(CFG_TUD_MSC_BUFSIZE < UINT16_MAX, "Size is not correct");
 
-#ifndef CFG_TUD_MSC_MAXLUN
-  #define CFG_TUD_MSC_MAXLUN 1
-#elif CFG_TUD_MSC_MAXLUN == 0 || CFG_TUD_MSC_MAXLUN > 16
-  #error MSC Device: Incorrect setting of MAX LUN
-#endif
-
 #ifndef CFG_TUD_MSC_BUFSIZE
   #error CFG_TUD_MSC_BUFSIZE must be defined, value of a block size should work well, the more the better
 #endif
@@ -133,6 +127,9 @@ void tud_msc_capacity_cb(uint8_t lun, uint32_t* block_count, uint16_t* block_siz
 int32_t tud_msc_scsi_cb (uint8_t lun, uint8_t const scsi_cmd[16], void* buffer, uint16_t bufsize);
 
 /*------------- Optional callbacks -------------*/
+
+// Invoked to determine max LUN
+ATTR_WEAK uint8_t tud_msc_maxlun_cb(void);
 
 // Invoked when Read10 command is complete
 ATTR_WEAK void tud_msc_read10_complete_cb(uint8_t lun);

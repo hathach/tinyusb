@@ -80,9 +80,6 @@
 // MSC
 //--------------------------------------------------------------------
 
-// Number of supported Logical Unit Number (At least 1)
-#define CFG_TUD_MSC_MAXLUN          1
-
 // Buffer size of Device Mass storage
 #define CFG_TUD_MSC_BUFSIZE         512
 
