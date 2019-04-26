@@ -84,6 +84,7 @@ endif
 LIBS = -lgcc -lc -lm -lnosys
 
 EXAMPLE_SOURCE += $(wildcard src/*.c)
+
 SRC_C += $(addprefix $(CURRENT_PATH)/, $(EXAMPLE_SOURCE))
 
 LIB_SOURCE += \

@@ -17,8 +17,4 @@ before_script:
   - (! var_search "${TRAVIS_SDK-}" arm || arm-none-eabi-gcc --version)
 
 script:
-  - make -j2 -C examples/device/cdc_msc_hid BOARD=metro_m0_express
-  - make -j2 -C examples/device/cdc_msc_hid BOARD=metro_m4_express
-  - make -j2 -C examples/device/cdc_msc_hid BOARD=stm32f407g_disc1
-  - make -j2 -C examples/device/cdc_msc_hid BOARD=pca10056
-
+  - python3 tools/build_all.py
