@@ -64,7 +64,7 @@ uint16_t tud_hid_get_report_cb(uint8_t report_id, hid_report_type_t report_type,
 void tud_hid_set_report_cb(uint8_t report_id, hid_report_type_t report_type, uint8_t const* buffer, uint16_t bufsize);
 
 // Invoked when host switch mode Boot <-> Report via SET_PROTOCOL request
-void tud_hid_mode_changed_cb(uint8_t boot_mode) ATTR_WEAK;
+ATTR_WEAK void tud_hid_mode_changed_cb(uint8_t boot_mode);
 
 //--------------------------------------------------------------------+
 // KEYBOARD API
@@ -107,18 +107,18 @@ static inline bool tud_hid_mouse_button_release(uint8_t report_id)
  * empty if multiple reports is not used
  *
  * - Only 1 report: no parameter
- *      uint8_t const report_desc[] = { HID_REPORT_DESC_KEYBOARD() };
+ *      uint8_t const report_desc[] = { TUD_HID_REPORT_DESC_KEYBOARD() };
  *
  * - Multiple Reports: "HID_REPORT_ID(ID)," must be passed to template
  *      uint8_t const report_desc[] =
  *      {
- *          HID_REPORT_DESC_KEYBOARD( HID_REPORT_ID(1), ) ,
- *          HID_REPORT_DESC_MOUSE   ( HID_REPORT_ID(2), )
+ *          TUD_HID_REPORT_DESC_KEYBOARD( HID_REPORT_ID(1), ) ,
+ *          TUD_HID_REPORT_DESC_MOUSE   ( HID_REPORT_ID(2), )
  *      };
  *--------------------------------------------------------------------*/
 
 // Keyboard Report Descriptor Template
-#define HID_REPORT_DESC_KEYBOARD(...) \
+#define TUD_HID_REPORT_DESC_KEYBOARD(...) \
   HID_USAGE_PAGE ( HID_USAGE_PAGE_DESKTOP     )                    ,\
   HID_USAGE      ( HID_USAGE_DESKTOP_KEYBOARD )                    ,\
   HID_COLLECTION ( HID_COLLECTION_APPLICATION )                    ,\
@@ -159,7 +159,7 @@ static inline bool tud_hid_mouse_button_release(uint8_t report_id)
   HID_COLLECTION_END \
 
 // Mouse Report Descriptor Template
-#define HID_REPORT_DESC_MOUSE(...) \
+#define TUD_HID_REPORT_DESC_MOUSE(...) \
   HID_USAGE_PAGE ( HID_USAGE_PAGE_DESKTOP      )                    ,\
   HID_USAGE      ( HID_USAGE_DESKTOP_MOUSE     )                    ,\
   HID_COLLECTION ( HID_COLLECTION_APPLICATION  )                    ,\
@@ -199,7 +199,7 @@ static inline bool tud_hid_mouse_button_release(uint8_t report_id)
   HID_COLLECTION_END \
 
 // Consumer Control Report Descriptor Template
-#define HID_REPORT_DESC_CONSUMER(...) \
+#define TUD_HID_REPORT_DESC_CONSUMER(...) \
   HID_USAGE_PAGE ( HID_USAGE_PAGE_CONSUMER    )              ,\
   HID_USAGE      ( HID_USAGE_CONSUMER_CONTROL )              ,\
   HID_COLLECTION ( HID_COLLECTION_APPLICATION )              ,\
@@ -219,7 +219,7 @@ static inline bool tud_hid_mouse_button_release(uint8_t report_id)
  * 0x02 - Standby
  * 0x04 - Wake Host
  */
-#define HID_REPORT_DESC_SYSTEM_CONTROL(...) \
+#define TUD_HID_REPORT_DESC_SYSTEM_CONTROL(...) \
   HID_USAGE_PAGE ( HID_USAGE_PAGE_DESKTOP           )        ,\
   HID_USAGE      ( HID_USAGE_DESKTOP_SYSTEM_CONTROL )        ,\
   HID_COLLECTION ( HID_COLLECTION_APPLICATION       )        ,\
@@ -242,7 +242,7 @@ static inline bool tud_hid_mouse_button_release(uint8_t report_id)
 // Gamepad Report Descriptor Template
 // with 16 buttons and 2 joysticks with following layout
 // | Button Map (2 bytes) |  X | Y | Z | Rz
-#define HID_REPORT_DESC_GAMEPAD(...) \
+#define TUD_HID_REPORT_DESC_GAMEPAD(...) \
   HID_USAGE_PAGE ( HID_USAGE_PAGE_DESKTOP     )        ,\
   HID_USAGE      ( HID_USAGE_DESKTOP_GAMEPAD  )        ,\
   HID_COLLECTION ( HID_COLLECTION_APPLICATION )        ,\
