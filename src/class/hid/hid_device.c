@@ -38,11 +38,6 @@
 //--------------------------------------------------------------------+
 // MACRO CONSTANT TYPEDEF
 //--------------------------------------------------------------------+
-
-#ifndef CFG_TUD_HID_BUFSIZE
-#define CFG_TUD_HID_BUFSIZE     16
-#endif
-
 typedef struct
 {
   uint8_t itf_num;
@@ -53,7 +48,9 @@ typedef struct
   uint8_t idle_rate;     // up to application to handle idle rate
   uint16_t reprot_desc_len;
 
-  CFG_TUSB_MEM_ALIGN uint8_t report_buf[CFG_TUD_HID_BUFSIZE];
+  CFG_TUSB_MEM_ALIGN uint8_t epin_buf[CFG_TUD_HID_BUFSIZE];
+  CFG_TUSB_MEM_ALIGN uint8_t epout_buf[CFG_TUD_HID_BUFSIZE];
+
 }hidd_interface_t;
 
 CFG_TUSB_MEM_SECTION static hidd_interface_t _hidd_itf[CFG_TUD_HID];
@@ -89,14 +86,15 @@ bool tud_hid_report(uint8_t report_id, void const* report, uint8_t len)
   // If report id = 0, skip ID field
   if (report_id)
   {
-    p_hid->report_buf[0] = report_id;
-    memcpy(p_hid->report_buf+1, report, len);
+    p_hid->epin_buf[0] = report_id;
+    memcpy(p_hid->epin_buf+1, report, len);
+    len++;
   }else
   {
-    memcpy(p_hid->report_buf, report, len);
+    memcpy(p_hid->epin_buf, report, len);
   }
 
-  return dcd_edpt_xfer(TUD_OPT_RHPORT, p_hid->ep_in, p_hid->report_buf, len + (report_id ? 1 : 0) );
+  return dcd_edpt_xfer(TUD_OPT_RHPORT, p_hid->ep_in, p_hid->epin_buf, len);
 }
 
 bool tud_hid_boot_mode(void)
@@ -217,15 +215,15 @@ bool hidd_control_request(uint8_t rhport, tusb_control_request_t const * p_reque
         uint8_t const report_type = tu_u16_high(p_request->wValue);
         uint8_t const report_id   = tu_u16_low(p_request->wValue);
 
-        uint16_t xferlen  = tud_hid_get_report_cb(report_id, (hid_report_type_t) report_type, p_hid->report_buf, p_request->wLength);
+        uint16_t xferlen  = tud_hid_get_report_cb(report_id, (hid_report_type_t) report_type, p_hid->epin_buf, p_request->wLength);
         TU_ASSERT( xferlen > 0 );
 
-        usbd_control_xfer(rhport, p_request, p_hid->report_buf, xferlen);
+        usbd_control_xfer(rhport, p_request, p_hid->epin_buf, xferlen);
       }
       break;
 
       case  HID_REQ_CONTROL_SET_REPORT:
-        usbd_control_xfer(rhport, p_request, p_hid->report_buf, p_request->wLength);
+        usbd_control_xfer(rhport, p_request, p_hid->epout_buf, p_request->wLength);
       break;
 
       case HID_REQ_CONTROL_SET_IDLE:
@@ -284,7 +282,7 @@ bool hidd_control_request_complete(uint8_t rhport, tusb_control_request_t const 
     uint8_t const report_type = tu_u16_high(p_request->wValue);
     uint8_t const report_id   = tu_u16_low(p_request->wValue);
 
-    tud_hid_set_report_cb(report_id, (hid_report_type_t) report_type, p_hid->report_buf, p_request->wLength);
+    tud_hid_set_report_cb(report_id, (hid_report_type_t) report_type, p_hid->epout_buf, p_request->wLength);
   }
 
   return true;
