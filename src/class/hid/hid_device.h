@@ -52,7 +52,17 @@ bool tud_hid_boot_mode(void);
 // Send report to host
 bool tud_hid_report(uint8_t report_id, void const* report, uint8_t len);
 
-/*------------- Callbacks (Weak is optional) -------------*/
+// KEYBOARD: convenient helper to send keyboard report if application
+// use template layout report as defined by hid_keyboard_report_t
+bool tud_hid_keyboard_report(uint8_t report_id, uint8_t modifier, uint8_t keycode[6]);
+
+// MOUSE: convenient helper to send mouse report if application
+// use template layout report as defined by hid_mouse_report_t
+bool tud_hid_mouse_report(uint8_t report_id, uint8_t buttons, int8_t x, int8_t y, int8_t vertical, int8_t horizontal);
+
+//--------------------------------------------------------------------+
+// Callbacks (Weak is optional)
+//--------------------------------------------------------------------+
 
 // Invoked when receiving GET_REPORT control request
 // Application must fill buffer report's content and return its length.
@@ -69,20 +79,6 @@ ATTR_WEAK void tud_hid_boot_mode_cb(uint8_t boot_mode);
 // - Idle Rate = 0 : only send report if there is changes, i.e skip duplication
 // - Idle Rate > 0 : skip duplication, but send at least 1 report every idle rate (in unit of 4 ms).
 ATTR_WEAK bool tud_hid_set_idle_cb(uint8_t idle_rate);
-
-//--------------------------------------------------------------------+
-// KEYBOARD: convenient helper to send keyboard report if application
-// use template layout report as defined by hid_keyboard_report_t
-//--------------------------------------------------------------------+
-
-bool tud_hid_keyboard_report(uint8_t report_id, uint8_t modifier, uint8_t keycode[6]);
-
-//--------------------------------------------------------------------+
-// MOUSE: convenient helper to send mouse report if application
-// use template layout report as defined by hid_mouse_report_t
-//--------------------------------------------------------------------+
-
-bool tud_hid_mouse_report(uint8_t report_id, uint8_t buttons, int8_t x, int8_t y, int8_t vertical, int8_t horizontal);
 
 /* --------------------------------------------------------------------+
  * HID Report Descriptor Template
