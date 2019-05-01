@@ -47,16 +47,11 @@ typedef struct
 {
   uint8_t itf_num;
   uint8_t ep_in;
-  uint8_t ep_out; // optional
-
-
+  uint8_t ep_out;        // optional
   uint8_t boot_protocol; // Boot mouse or keyboard
-  bool    boot_mode;
-
+  bool    boot_mode;     // default = false (Report)
+  uint8_t idle_rate;     // up to application to handle idle rate
   uint16_t reprot_desc_len;
-  uint8_t idle_rate;     // Idle Rate = 0 : only send report if there is changes, i.e skip duplication
-                         // Idle Rate > 0 : skip duplication, but send at least 1 report every idle rate (in unit of 4 ms).
-  uint8_t mouse_button;  // caching button for using with tud_hid_mouse_ API
 
   CFG_TUSB_MEM_ALIGN uint8_t report_buf[CFG_TUD_HID_BUFSIZE];
 }hidd_interface_t;
@@ -101,7 +96,6 @@ bool tud_hid_report(uint8_t report_id, void const* report, uint8_t len)
     memcpy(p_hid->report_buf, report, len);
   }
 
-  // TODO skip duplication ? and or idle rate
   return dcd_edpt_xfer(TUD_OPT_RHPORT, p_hid->ep_in, p_hid->report_buf, len + (report_id ? 1 : 0) );
 }
 
@@ -128,7 +122,6 @@ bool tud_hid_keyboard_report(uint8_t report_id, uint8_t modifier, uint8_t keycod
     tu_memclr(report.keycode, 6);
   }
 
-  // TODO skip duplication ? and or idle rate
   return tud_hid_report(report_id, &report, sizeof(report));
 }
 
@@ -146,26 +139,7 @@ bool tud_hid_mouse_report(uint8_t report_id, uint8_t buttons, int8_t x, int8_t y
     .pan     = horizontal
   };
 
-  uint8_t itf = 0;
-  _hidd_itf[itf].mouse_button = buttons;
-
   return tud_hid_report(report_id, &report, sizeof(report));
-}
-
-bool tud_hid_mouse_move(uint8_t report_id, int8_t x, int8_t y)
-{
-  uint8_t itf = 0;
-  uint8_t const button = _hidd_itf[itf].mouse_button;
-
-  return tud_hid_mouse_report(report_id, button, x, y, 0, 0);
-}
-
-bool tud_hid_mouse_scroll(uint8_t report_id, int8_t vertical, int8_t horizontal)
-{
-  uint8_t itf = 0;
-  uint8_t const button = _hidd_itf[itf].mouse_button;
-
-  return tud_hid_mouse_report(report_id, button, 0, 0, vertical, horizontal);
 }
 
 //--------------------------------------------------------------------+

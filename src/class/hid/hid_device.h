@@ -65,42 +65,24 @@ void tud_hid_set_report_cb(uint8_t report_id, hid_report_type_t report_type, uin
 // Invoked when host switch mode Boot <-> Report via SET_PROTOCOL request
 ATTR_WEAK void tud_hid_boot_mode_cb(uint8_t boot_mode);
 
-// Invoked when host send SET_IDLE request
-// return false will stall the request
+// Invoked when host send SET_IDLE request. return false will stall the request
+// - Idle Rate = 0 : only send report if there is changes, i.e skip duplication
+// - Idle Rate > 0 : skip duplication, but send at least 1 report every idle rate (in unit of 4 ms).
 ATTR_WEAK bool tud_hid_set_idle_cb(uint8_t idle_rate);
 
 //--------------------------------------------------------------------+
-// KEYBOARD API
-// Convenient helper to send keyboard report if application use standard/boot
-// layout report as defined by hid_keyboard_report_t
+// KEYBOARD: convenient helper to send keyboard report if application
+// use template layout report as defined by hid_keyboard_report_t
 //--------------------------------------------------------------------+
 
 bool tud_hid_keyboard_report(uint8_t report_id, uint8_t modifier, uint8_t keycode[6]);
 
-static inline bool tud_hid_keyboard_key_release(uint8_t report_id)
-{
-  return tud_hid_keyboard_report(report_id, 0, NULL);
-}
-
 //--------------------------------------------------------------------+
-// MOUSE API
-// Convenient helper to send mouse report if application use standard/boot
-// layout report as defined by hid_mouse_report_t
+// MOUSE: convenient helper to send mouse report if application
+// use template layout report as defined by hid_mouse_report_t
 //--------------------------------------------------------------------+
 
 bool tud_hid_mouse_report(uint8_t report_id, uint8_t buttons, int8_t x, int8_t y, int8_t vertical, int8_t horizontal);
-bool tud_hid_mouse_move(uint8_t report_id, int8_t x, int8_t y);
-bool tud_hid_mouse_scroll(uint8_t report_id, int8_t vertical, int8_t horizontal);
-
-static inline bool tud_hid_mouse_button_press(uint8_t report_id, uint8_t buttons)
-{
-  return tud_hid_mouse_report(report_id, buttons, 0, 0, 0, 0);
-}
-
-static inline bool tud_hid_mouse_button_release(uint8_t report_id)
-{
-  return tud_hid_mouse_report(report_id, 0, 0, 0, 0, 0);
-}
 
 /* --------------------------------------------------------------------+
  * HID Report Descriptor Template

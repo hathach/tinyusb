@@ -226,7 +226,9 @@ void hid_task(void* params)
       if ( btn )
       {
         int8_t const delta = 5;
-        tud_hid_mouse_move(REPORT_ID_MOUSE, delta, delta); // right + down
+
+        // no button, right + down, no scroll pan
+        tud_hid_mouse_report(REPORT_ID_MOUSE, 0x00, delta, delta, 0, 0);
 
         // delay a bit before attempt to send keyboard report
         vTaskDelay(pdMS_TO_TICKS(2));
@@ -250,7 +252,7 @@ void hid_task(void* params)
       }else
       {
         // send empty key report if previously has key pressed
-        if (has_key) tud_hid_keyboard_key_release(REPORT_ID_KEYBOARD);
+        if (has_key) tud_hid_keyboard_report(REPORT_ID_KEYBOARD, 0, NULL);
         has_key = false;
       }
     }
