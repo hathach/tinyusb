@@ -155,7 +155,7 @@ typedef struct ATTR_PACKED
   int8_t  x;       /**< Current delta x movement of the mouse. */
   int8_t  y;       /**< Current delta y movement on the mouse. */
   int8_t  wheel;   /**< Current delta wheel movement on the mouse. */
-//  int8_t  pan;
+  int8_t  pan;     // using AC Pan
 } hid_mouse_report_t;
 
 /// Standard Mouse Buttons Bitmap

@@ -39,7 +39,6 @@
 // Class Driver Default Configure & Validation
 //--------------------------------------------------------------------+
 
-
 //--------------------------------------------------------------------+
 // Application API
 //--------------------------------------------------------------------+
@@ -64,7 +63,11 @@ uint16_t tud_hid_get_report_cb(uint8_t report_id, hid_report_type_t report_type,
 void tud_hid_set_report_cb(uint8_t report_id, hid_report_type_t report_type, uint8_t const* buffer, uint16_t bufsize);
 
 // Invoked when host switch mode Boot <-> Report via SET_PROTOCOL request
-ATTR_WEAK void tud_hid_mode_changed_cb(uint8_t boot_mode);
+ATTR_WEAK void tud_hid_boot_mode_cb(uint8_t boot_mode);
+
+// Invoked when host send SET_IDLE request
+// return false will stall the request
+ATTR_WEAK bool tud_hid_set_idle_cb(uint8_t idle_rate);
 
 //--------------------------------------------------------------------+
 // KEYBOARD API
@@ -85,9 +88,9 @@ static inline bool tud_hid_keyboard_key_release(uint8_t report_id)
 // layout report as defined by hid_mouse_report_t
 //--------------------------------------------------------------------+
 
-bool tud_hid_mouse_report(uint8_t report_id, uint8_t buttons, int8_t x, int8_t y, int8_t scroll, int8_t pan);
+bool tud_hid_mouse_report(uint8_t report_id, uint8_t buttons, int8_t x, int8_t y, int8_t vertical, int8_t horizontal);
 bool tud_hid_mouse_move(uint8_t report_id, int8_t x, int8_t y);
-bool tud_hid_mouse_scroll(uint8_t report_id, int8_t scroll, int8_t pan);
+bool tud_hid_mouse_scroll(uint8_t report_id, int8_t vertical, int8_t horizontal);
 
 static inline bool tud_hid_mouse_button_press(uint8_t report_id, uint8_t buttons)
 {
@@ -160,42 +163,50 @@ static inline bool tud_hid_mouse_button_release(uint8_t report_id)
 
 // Mouse Report Descriptor Template
 #define TUD_HID_REPORT_DESC_MOUSE(...) \
-  HID_USAGE_PAGE ( HID_USAGE_PAGE_DESKTOP      )                    ,\
-  HID_USAGE      ( HID_USAGE_DESKTOP_MOUSE     )                    ,\
-  HID_COLLECTION ( HID_COLLECTION_APPLICATION  )                    ,\
+  HID_USAGE_PAGE ( HID_USAGE_PAGE_DESKTOP      )                   ,\
+  HID_USAGE      ( HID_USAGE_DESKTOP_MOUSE     )                   ,\
+  HID_COLLECTION ( HID_COLLECTION_APPLICATION  )                   ,\
     __VA_ARGS__ \
-    HID_USAGE      ( HID_USAGE_DESKTOP_POINTER )                    ,\
-    HID_COLLECTION ( HID_COLLECTION_PHYSICAL   )                    ,\
-      HID_USAGE_PAGE  ( HID_USAGE_PAGE_BUTTON  )                    ,\
-        HID_USAGE_MIN    ( 1                                      ) ,\
-        HID_USAGE_MAX    ( 3                                      ) ,\
-        HID_LOGICAL_MIN  ( 0                                      ) ,\
-        HID_LOGICAL_MAX  ( 1                                      ) ,\
-        /* Left, Right, Middle, Backward, Forward mouse buttons */   \
-        HID_REPORT_COUNT ( 3                                      ) ,\
-        HID_REPORT_SIZE  ( 1                                      ) ,\
-        HID_INPUT        ( HID_DATA | HID_VARIABLE | HID_ABSOLUTE ) ,\
+    HID_USAGE      ( HID_USAGE_DESKTOP_POINTER )                   ,\
+    HID_COLLECTION ( HID_COLLECTION_PHYSICAL   )                   ,\
+      HID_USAGE_PAGE  ( HID_USAGE_PAGE_BUTTON  )                   ,\
+        HID_USAGE_MIN   ( 1                                      ) ,\
+        HID_USAGE_MAX   ( 5                                      ) ,\
+        HID_LOGICAL_MIN ( 0                                      ) ,\
+        HID_LOGICAL_MAX ( 1                                      ) ,\
+        /* Left, Right, Middle, Backward, Forward buttons */ \
+        HID_REPORT_COUNT( 5                                      ) ,\
+        HID_REPORT_SIZE ( 1                                      ) ,\
+        HID_INPUT       ( HID_DATA | HID_VARIABLE | HID_ABSOLUTE ) ,\
         /* 3 bit padding */ \
-        HID_REPORT_COUNT ( 1                                      ) ,\
-        HID_REPORT_SIZE  ( 5                                      ) ,\
-        HID_INPUT        ( HID_CONSTANT                           ) ,\
-      HID_USAGE_PAGE  ( HID_USAGE_PAGE_DESKTOP )                    ,\
+        HID_REPORT_COUNT( 1                                      ) ,\
+        HID_REPORT_SIZE ( 3                                      ) ,\
+        HID_INPUT       ( HID_CONSTANT                           ) ,\
+      HID_USAGE_PAGE  ( HID_USAGE_PAGE_DESKTOP )                   ,\
         /* X, Y position [-127, 127] */ \
-        HID_USAGE        ( HID_USAGE_DESKTOP_X                    ) ,\
-        HID_USAGE        ( HID_USAGE_DESKTOP_Y                    ) ,\
-        HID_LOGICAL_MIN  ( 0x81                                   ) ,\
-        HID_LOGICAL_MAX  ( 0x7f                                   ) ,\
-        HID_REPORT_COUNT ( 2                                      ) ,\
-        HID_REPORT_SIZE  ( 8                                      ) ,\
-        HID_INPUT        ( HID_DATA | HID_VARIABLE | HID_RELATIVE ) ,\
-        /* Mouse scroll [-127, 127] */ \
+        HID_USAGE       ( HID_USAGE_DESKTOP_X                    ) ,\
+        HID_USAGE       ( HID_USAGE_DESKTOP_Y                    ) ,\
+        HID_LOGICAL_MIN ( 0x81                                   ) ,\
+        HID_LOGICAL_MAX ( 0x7f                                   ) ,\
+        HID_REPORT_COUNT( 2                                      ) ,\
+        HID_REPORT_SIZE ( 8                                      ) ,\
+        HID_INPUT       ( HID_DATA | HID_VARIABLE | HID_RELATIVE ) ,\
+        /* Verital wheel scroll [-127, 127] */ \
         HID_USAGE       ( HID_USAGE_DESKTOP_WHEEL                )  ,\
         HID_LOGICAL_MIN ( 0x81                                   )  ,\
         HID_LOGICAL_MAX ( 0x7f                                   )  ,\
         HID_REPORT_COUNT( 1                                      )  ,\
         HID_REPORT_SIZE ( 8                                      )  ,\
         HID_INPUT       ( HID_DATA | HID_VARIABLE | HID_RELATIVE )  ,\
-    HID_COLLECTION_END                                              ,\
+      HID_USAGE_PAGE  ( HID_USAGE_PAGE_CONSUMER ), \
+       /* Horizontal wheel scroll [-127, 127] */ \
+        HID_USAGE_N     ( HID_USAGE_CONSUMER_AC_PAN, 2           ), \
+        HID_LOGICAL_MIN ( 0x81                                   ), \
+        HID_LOGICAL_MAX ( 0x7f                                   ), \
+        HID_REPORT_COUNT( 1                                      ), \
+        HID_REPORT_SIZE ( 8                                      ), \
+        HID_INPUT       ( HID_DATA | HID_VARIABLE | HID_RELATIVE ), \
+    HID_COLLECTION_END                                            , \
   HID_COLLECTION_END \
 
 // Consumer Control Report Descriptor Template

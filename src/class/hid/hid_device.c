@@ -47,6 +47,9 @@ typedef struct
 {
   uint8_t itf_num;
   uint8_t ep_in;
+  uint8_t ep_out; // optional
+
+
   uint8_t boot_protocol; // Boot mouse or keyboard
   bool    boot_mode;
 
@@ -132,16 +135,15 @@ bool tud_hid_keyboard_report(uint8_t report_id, uint8_t modifier, uint8_t keycod
 //--------------------------------------------------------------------+
 // MOUSE APPLICATION API
 //--------------------------------------------------------------------+
-bool tud_hid_mouse_report(uint8_t report_id, uint8_t buttons, int8_t x, int8_t y, int8_t scroll, int8_t pan)
+bool tud_hid_mouse_report(uint8_t report_id, uint8_t buttons, int8_t x, int8_t y, int8_t vertical, int8_t horizontal)
 {
-  (void) pan;
   hid_mouse_report_t report =
   {
     .buttons = buttons,
     .x       = x,
     .y       = y,
-    .wheel   = scroll,
-    //.pan     = pan
+    .wheel   = vertical,
+    .pan     = horizontal
   };
 
   uint8_t itf = 0;
@@ -158,12 +160,12 @@ bool tud_hid_mouse_move(uint8_t report_id, int8_t x, int8_t y)
   return tud_hid_mouse_report(report_id, button, x, y, 0, 0);
 }
 
-bool tud_hid_mouse_scroll(uint8_t report_id, int8_t scroll, int8_t pan)
+bool tud_hid_mouse_scroll(uint8_t report_id, int8_t vertical, int8_t horizontal)
 {
   uint8_t itf = 0;
   uint8_t const button = _hidd_itf[itf].mouse_button;
 
-  return tud_hid_mouse_report(report_id, button, 0, 0, scroll, pan);
+  return tud_hid_mouse_report(report_id, button, 0, 0, vertical, horizontal);
 }
 
 //--------------------------------------------------------------------+
@@ -257,8 +259,13 @@ bool hidd_control_request(uint8_t rhport, tusb_control_request_t const * p_reque
       break;
 
       case HID_REQ_CONTROL_SET_IDLE:
-        // TODO idle rate of report
         p_hid->idle_rate = tu_u16_high(p_request->wValue);
+        if ( tud_hid_set_idle_cb )
+        {
+          // stall request if callback return false
+          if ( !tud_hid_set_idle_cb(p_hid->idle_rate) ) return false;
+        }
+
         usbd_control_status(rhport, p_request);
       break;
 
@@ -277,7 +284,7 @@ bool hidd_control_request(uint8_t rhport, tusb_control_request_t const * p_reque
       case HID_REQ_CONTROL_SET_PROTOCOL:
         p_hid->boot_mode = 1 - p_request->wValue; // 0 is Boot, 1 is Report protocol
 
-        if (tud_hid_mode_changed_cb) tud_hid_mode_changed_cb(p_hid->boot_mode);
+        if (tud_hid_boot_mode_cb) tud_hid_boot_mode_cb(p_hid->boot_mode);
 
         usbd_control_status(rhport, p_request);
       break;
