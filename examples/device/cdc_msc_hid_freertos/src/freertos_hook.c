@@ -94,10 +94,3 @@ void vApplicationGetTimerTaskMemory( StaticTask_t **ppxTimerTaskTCBBuffer, Stack
     configTIMER_TASK_STACK_DEPTH is specified in words, not bytes. */
   *pulTimerTaskStackSize = configTIMER_TASK_STACK_DEPTH;
 }
-
-
-// executes from within an ISR
-void vApplicationTickHook(void)
-{
-
-}
