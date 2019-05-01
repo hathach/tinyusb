@@ -49,8 +49,8 @@ static uint32_t blink_interval_ms = BLINK_NOT_MOUNTED;
 
 void led_blinking_task(void);
 
-extern void cdc_task(void);
-extern void hid_task(void);
+void cdc_task(void);
+void hid_task(void);
 
 /*------------- MAIN -------------*/
 int main(void)

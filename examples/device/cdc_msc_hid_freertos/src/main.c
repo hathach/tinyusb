@@ -55,6 +55,8 @@ TimerHandle_t blink_tm;
 
 void led_blinky_cb(TimerHandle_t xTimer);
 void usb_device_task(void* param);
+void cdc_task(void* params);
+void hid_task(void* params);
 
 /*------------- MAIN -------------*/
 int main(void)
@@ -72,12 +74,10 @@ int main(void)
 
   // Create task
 #if CFG_TUD_CDC
-  extern void cdc_task(void* params);
   xTaskCreate( cdc_task, "cdc", 128, NULL, configMAX_PRIORITIES-2, NULL);
 #endif
 
 #if CFG_TUD_HID
-  extern void hid_task(void* params);
   xTaskCreate( hid_task, "hid", 128, NULL, configMAX_PRIORITIES-2, NULL);
 #endif
 

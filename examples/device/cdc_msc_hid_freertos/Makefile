@@ -20,7 +20,10 @@ SRC_C += \
 	lib/FreeRTOS/Source/queue.c \
 	lib/FreeRTOS/Source/tasks.c \
 	lib/FreeRTOS/Source/timers.c \
-	lib/FreeRTOS/Source/portable/GCC/$(FREERTOS_PORT)/port.c \
 	lib/FreeRTOS/Source/portable/MemMang/heap_4.c \
+	lib/FreeRTOS/Source/portable/GCC/$(FREERTOS_PORT)/port.c \
+
+# FreeRTOS (lto + Os) linker issue
+LDFLAGS += -Wl,--undefined=vTaskSwitchContext
 
 include ../../rules.mk

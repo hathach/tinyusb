@@ -141,7 +141,6 @@
           <file file_name="../../../../../lib/FreeRTOS/Source/tasks.c" />
           <file file_name="../../../../../lib/FreeRTOS/Source/timers.c" />
         </folder>
-        <file file_name="../../../../../lib/FreeRTOS/freertos_hook.c" />
       </folder>
     </folder>
     <configuration
