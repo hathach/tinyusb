@@ -160,6 +160,10 @@ bool hidd_open(uint8_t rhport, tusb_desc_interface_t const * desc_itf, uint16_t 
 {
   uint8_t const *p_desc = (uint8_t const *) desc_itf;
 
+  // TODO support multiple HID interface
+  uint8_t itf = 0;
+  hidd_interface_t * p_hid = &_hidd_itf[itf];
+
   //------------- HID descriptor -------------//
   p_desc = tu_desc_next(p_desc);
   tusb_hid_descriptor_hid_t const *desc_hid = (tusb_hid_descriptor_hid_t const *) p_desc;
@@ -167,20 +171,12 @@ bool hidd_open(uint8_t rhport, tusb_desc_interface_t const * desc_itf, uint16_t 
 
   //------------- Endpoint Descriptor -------------//
   p_desc = tu_desc_next(p_desc);
-  tusb_desc_endpoint_t const *desc_edpt = (tusb_desc_endpoint_t const *) p_desc;
-  TU_ASSERT(TUSB_DESC_ENDPOINT == desc_edpt->bDescriptorType);
-
-  TU_ASSERT(dcd_edpt_open(rhport, desc_edpt));
-
-  // TODO support multiple HID interface
-  uint8_t itf = 0;
-  hidd_interface_t * p_hid = &_hidd_itf[itf];
+  TU_ASSERT(usbd_open_edpt_pair(rhport, p_desc, desc_itf->bNumEndpoints, TUSB_XFER_INTERRUPT, &p_hid->ep_out, &p_hid->ep_in));
 
   if ( desc_itf->bInterfaceSubClass == HID_SUBCLASS_BOOT ) p_hid->boot_protocol = desc_itf->bInterfaceProtocol;
 
   p_hid->boot_mode = false; // default mode is REPORT
   p_hid->itf_num   = desc_itf->bInterfaceNumber;
-  p_hid->ep_in     = desc_edpt->bEndpointAddress;
   p_hid->reprot_desc_len  = desc_hid->wReportLength;
 
   *p_len = sizeof(tusb_desc_interface_t) + sizeof(tusb_hid_descriptor_hid_t) + desc_itf->bNumEndpoints*sizeof(tusb_desc_endpoint_t);

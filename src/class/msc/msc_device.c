@@ -135,9 +135,8 @@ bool mscd_open(uint8_t rhport, tusb_desc_interface_t const * itf_desc, uint16_t 
 
   mscd_interface_t * p_msc = &_mscd_itf;
 
-  // Open endpoint pair with usbd helper
-  tusb_desc_endpoint_t const *p_desc_ep = (tusb_desc_endpoint_t const *) tu_desc_next( itf_desc );
-  TU_ASSERT( usbd_open_edpt_pair(rhport, p_desc_ep, TUSB_XFER_BULK, &p_msc->ep_out, &p_msc->ep_in) );
+  // Open endpoint pair
+  TU_ASSERT( usbd_open_edpt_pair(rhport, tu_desc_next(itf_desc), 2, TUSB_XFER_BULK, &p_msc->ep_out, &p_msc->ep_in) );
 
   p_msc->itf_num = itf_desc->bInterfaceNumber;
   (*p_len) = sizeof(tusb_desc_interface_t) + 2*sizeof(tusb_desc_endpoint_t);
