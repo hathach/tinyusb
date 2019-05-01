@@ -42,13 +42,9 @@ enum
   MSC_STAGE_STATUS
 };
 
-typedef struct {
-  CFG_TUSB_MEM_ALIGN msc_cbw_t  cbw;
-
-//#if defined (__ICCARM__) && (CFG_TUSB_MCU == OPT_MCU_LPC11UXX || CFG_TUSB_MCU == OPT_MCU_LPC13XX)
-//  uint8_t padding1[64-sizeof(msc_cbw_t)]; // IAR cannot align struct's member
-//#endif
-
+typedef struct
+{
+  CFG_TUSB_MEM_ALIGN msc_cbw_t cbw;
   CFG_TUSB_MEM_ALIGN msc_csw_t csw;
 
   uint8_t  itf_num;
@@ -66,7 +62,7 @@ typedef struct {
   uint8_t add_sense_qualifier;
 }mscd_interface_t;
 
-CFG_TUSB_MEM_SECTION CFG_TUSB_MEM_ALIGN static mscd_interface_t _mscd_itf = { 0 };
+CFG_TUSB_MEM_SECTION CFG_TUSB_MEM_ALIGN static mscd_interface_t _mscd_itf;
 CFG_TUSB_MEM_SECTION CFG_TUSB_MEM_ALIGN static uint8_t _mscd_buf[CFG_TUD_MSC_BUFSIZE];
 
 //--------------------------------------------------------------------+

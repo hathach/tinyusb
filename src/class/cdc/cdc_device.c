@@ -71,7 +71,7 @@ typedef struct
 //--------------------------------------------------------------------+
 // INTERNAL OBJECT & FUNCTION DECLARATION
 //--------------------------------------------------------------------+
-CFG_TUSB_MEM_SECTION static cdcd_interface_t _cdcd_itf[CFG_TUD_CDC] = { { 0 } };
+CFG_TUSB_MEM_SECTION static cdcd_interface_t _cdcd_itf[CFG_TUD_CDC];
 
 // TODO will be replaced by dcd_edpt_busy()
 bool pending_read_from_host;
