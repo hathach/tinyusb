@@ -25,15 +25,21 @@ SRC_S += \
 	hw/mcu/st/startup/stm32f3/startup_stm32f303xc.s
 
 INC += \
-	-I$(TOP)/hw/bsp/stm32f303disc \
- 	-I$(TOP)/hw/mcu/st/cmsis \
-	-I$(TOP)/hw/mcu/st/stm32lib/CMSIS/STM32F3xx/Include \
-	-I$(TOP)/hw/mcu/st/stm32lib/STM32F3xx_HAL_Driver/Inc
+	$(TOP)/hw/bsp/stm32f303disc \
+	$(TOP)/hw/mcu/st/cmsis \
+	$(TOP)/hw/mcu/st/stm32lib/CMSIS/STM32F3xx/Include \
+	$(TOP)/hw/mcu/st/stm32lib/STM32F3xx_HAL_Driver/Inc
 
+# For TinyUSB port source
 VENDOR = st
 CHIP_FAMILY = stm32f3
 
+# For freeRTOS port source
+FREERTOS_PORT = ARM_CM4F
+
+# For flash-jlink target
 JLINK_DEVICE = stm32f303vc
+JLINK_IF = swd
 
 # Path to STM32 Cube Programmer CLI, should be added into system path 
 STM32Prog = STM32_Programmer_CLI

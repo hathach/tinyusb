@@ -21,13 +21,19 @@ SRC_S += \
 	hw/mcu/st/startup/stm32f4/startup_stm32f407xx.s
 
 INC += \
-	-I$(TOP)/hw/mcu/st/stm32lib/CMSIS/STM32F4xx/Include \
-	-I$(TOP)/hw/mcu/st/cmsis
+	$(TOP)/hw/mcu/st/stm32lib/CMSIS/STM32F4xx/Include \
+	$(TOP)/hw/mcu/st/cmsis
 
+# For TinyUSB port source
 VENDOR = st
 CHIP_FAMILY = stm32f4
 
+# For freeRTOS port source
+FREERTOS_PORT = ARM_CM4F
+
+# For flash-jlink target
 JLINK_DEVICE = stm32f407vg
+JLINK_IF = swd
 
 # Path to STM32 Cube Programmer CLI, should be added into system path 
 STM32Prog = STM32_Programmer_CLI

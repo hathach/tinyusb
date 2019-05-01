@@ -25,19 +25,25 @@ SRC_C += \
 	hw/mcu/microchip/samd/asf4/samd51/hal/src/hal_atomic.c
 
 INC += \
-	-I$(TOP)/hw/mcu/microchip/samd/asf4/samd51/ \
-	-I$(TOP)/hw/mcu/microchip/samd/asf4/samd51/config \
-	-I$(TOP)/hw/mcu/microchip/samd/asf4/samd51/include \
-	-I$(TOP)/hw/mcu/microchip/samd/asf4/samd51/hal/include \
-	-I$(TOP)/hw/mcu/microchip/samd/asf4/samd51/hal/utils/include \
-	-I$(TOP)/hw/mcu/microchip/samd/asf4/samd51/hpl/port \
-	-I$(TOP)/hw/mcu/microchip/samd/asf4/samd51/hri \
-	-I$(TOP)/hw/mcu/microchip/samd/asf4/samd51/CMSIS/Include
+	$(TOP)/hw/mcu/microchip/samd/asf4/samd51/ \
+	$(TOP)/hw/mcu/microchip/samd/asf4/samd51/config \
+	$(TOP)/hw/mcu/microchip/samd/asf4/samd51/include \
+	$(TOP)/hw/mcu/microchip/samd/asf4/samd51/hal/include \
+	$(TOP)/hw/mcu/microchip/samd/asf4/samd51/hal/utils/include \
+	$(TOP)/hw/mcu/microchip/samd/asf4/samd51/hpl/port \
+	$(TOP)/hw/mcu/microchip/samd/asf4/samd51/hri \
+	$(TOP)/hw/mcu/microchip/samd/asf4/samd51/CMSIS/Include
 
+# For TinyUSB port source
 VENDOR = microchip
 CHIP_FAMILY = samd51
 
+# For freeRTOS port source
+FREERTOS_PORT = ARM_CM4F
+
+# For flash-jlink target
 JLINK_DEVICE = ATSAMD51J19
+JLINK_IF = swd
 
 # flash using jlink
 flash: flash-jlink
