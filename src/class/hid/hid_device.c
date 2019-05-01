@@ -159,7 +159,7 @@ bool hidd_open(uint8_t rhport, tusb_desc_interface_t const * desc_itf, uint16_t 
   uint8_t const *p_desc = (uint8_t const *) desc_itf;
 
   // TODO support multiple HID interface
-  uint8_t itf = 0;
+  uint8_t const itf = 0;
   hidd_interface_t * p_hid = &_hidd_itf[itf];
 
   //------------- HID descriptor -------------//
@@ -178,6 +178,9 @@ bool hidd_open(uint8_t rhport, tusb_desc_interface_t const * desc_itf, uint16_t 
   p_hid->reprot_desc_len  = desc_hid->wReportLength;
 
   *p_len = sizeof(tusb_desc_interface_t) + sizeof(tusb_hid_descriptor_hid_t) + desc_itf->bNumEndpoints*sizeof(tusb_desc_endpoint_t);
+
+  // Prepare for output endpoint
+  if (p_hid->ep_out) TU_ASSERT(dcd_edpt_xfer(rhport, p_hid->ep_out, p_hid->epout_buf, sizeof(p_hid->epout_buf)));
 
   return true;
 }
@@ -288,13 +291,20 @@ bool hidd_control_request_complete(uint8_t rhport, tusb_control_request_t const 
   return true;
 }
 
-bool hidd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t event, uint32_t xferred_bytes)
+bool hidd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint32_t xferred_bytes)
 {
-  // nothing to do
-  (void) rhport;
-  (void) ep_addr;
-  (void) event;
-  (void) xferred_bytes;
+  (void) result;
+
+  // TODO support multiple HID interface
+  uint8_t const itf = 0;
+  hidd_interface_t * p_hid = &_hidd_itf[itf];
+
+  if (ep_addr == p_hid->ep_out)
+  {
+    if (tud_hid_out_report_cb) tud_hid_out_report_cb(p_hid->epout_buf, xferred_bytes);
+
+    TU_ASSERT(dcd_edpt_xfer(rhport, p_hid->ep_out, p_hid->epout_buf, sizeof(p_hid->epout_buf)));
+  }
 
   return true;
 }
