@@ -64,10 +64,11 @@ TU_VERIFY_STATIC(CFG_TUD_MSC_BUFSIZE < UINT16_MAX, "Size is not correct");
 bool tud_msc_set_sense(uint8_t lun, uint8_t sense_key, uint8_t add_sense_code, uint8_t add_sense_qualifier);
 
 //--------------------------------------------------------------------+
-// APPLICATION CALLBACK (WEAK is optional)
+// Application Callbacks (WEAK is optional)
 //--------------------------------------------------------------------+
+
 /**
- * Callback invoked when received \ref SCSI_CMD_READ_10 command
+ * Invoked when received \ref SCSI_CMD_READ_10 command
  * \param[in]   lun         Logical unit number
  * \param[in]   lba         Logical Block Address to be read
  * \param[in]   offset      Byte offset from LBA
@@ -86,7 +87,7 @@ bool tud_msc_set_sense(uint8_t lun, uint8_t sense_key, uint8_t add_sense_code, u
 int32_t tud_msc_read10_cb (uint8_t lun, uint32_t lba, uint32_t offset, void* buffer, uint32_t bufsize);
 
 /**
- * Callback invoked when received \ref SCSI_CMD_WRITE_10 command
+ * Invoked when received \ref SCSI_CMD_WRITE_10 command
  * \param[in]   lun         Logical unit number
  * \param[in]   lba         Logical Block Address to be write
  * \param[in]   offset      Byte offset from LBA
@@ -104,7 +105,8 @@ int32_t tud_msc_read10_cb (uint8_t lun, uint32_t lba, uint32_t offset, void* buf
  */
 int32_t tud_msc_write10_cb (uint8_t lun, uint32_t lba, uint32_t offset, uint8_t* buffer, uint32_t bufsize);
 
-// Invoked to determine the disk size
+// Invoked when received SCSI_CMD_READ_CAPACITY_10 and SCSI_CMD_READ_FORMAT_CAPACITY to determine the disk size
+// Application update block count and block size
 void tud_msc_capacity_cb(uint8_t lun, uint32_t* block_count, uint16_t* block_size);
 
 /**
@@ -128,13 +130,13 @@ int32_t tud_msc_scsi_cb (uint8_t lun, uint8_t const scsi_cmd[16], void* buffer, 
 
 /*------------- Optional callbacks -------------*/
 
-// Invoked to determine max LUN
+// Invoked when received GET_MAX_LUN request
 ATTR_WEAK uint8_t tud_msc_maxlun_cb(void);
 
 // Invoked when Read10 command is complete
 ATTR_WEAK void tud_msc_read10_complete_cb(uint8_t lun);
 
-// Invoke when Write10 command is complete
+// Invoke when Write10 command is complete, can be used to flush flash caching
 ATTR_WEAK void tud_msc_write10_complete_cb(uint8_t lun);
 
 // Invoked when command in tud_msc_scsi_cb is complete
