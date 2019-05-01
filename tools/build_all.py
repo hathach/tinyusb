@@ -11,3 +11,9 @@ for example in all_device_example:
     for board in all_boards:
         subprocess.run("make -j2 -C examples/device/{} BOARD={} clean".format(example, board), shell=True)
         subprocess.run("make -j2 -C examples/device/{} BOARD={} all".format(example, board), shell=True)
+
+# FreeRTOS example
+example = 'cdc_msc_hid_freertos'
+board = 'pca10056'
+subprocess.run("make -j2 -C examples/device/{} BOARD={} clean".format(example, board), shell=True)
+subprocess.run("make -j2 -C examples/device/{} BOARD={} all".format(example, board), shell=True)
