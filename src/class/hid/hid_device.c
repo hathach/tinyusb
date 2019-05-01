@@ -47,7 +47,7 @@ typedef struct
 {
   uint8_t itf_num;
   uint8_t ep_in;
-  uint8_t ep_out;        // optional
+  uint8_t ep_out;        // optional Out endpoint
   uint8_t boot_protocol; // Boot mouse or keyboard
   bool    boot_mode;     // default = false (Report)
   uint8_t idle_rate;     // up to application to handle idle rate
