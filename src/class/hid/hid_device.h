@@ -73,11 +73,9 @@ bool tud_hid_mouse_report(uint8_t report_id, uint8_t buttons, int8_t x, int8_t y
 // Return zero will cause the stack to STALL request
 uint16_t tud_hid_get_report_cb(uint8_t report_id, hid_report_type_t report_type, uint8_t* buffer, uint16_t reqlen);
 
-// Invoked when received SET_REPORT control request
+// Invoked when received SET_REPORT control request or
+// received data on OUT endpoint ( Report ID = 0, Type = 0 )
 void tud_hid_set_report_cb(uint8_t report_id, hid_report_type_t report_type, uint8_t const* buffer, uint16_t bufsize);
-
-// Invoked when received data on OUT endpoint
-ATTR_WEAK void tud_hid_out_report_cb(uint8_t const* buffer, uint16_t bufsize);
 
 // Invoked when received SET_PROTOCOL request ( mode switch Boot <-> Report )
 ATTR_WEAK void tud_hid_boot_mode_cb(uint8_t boot_mode);

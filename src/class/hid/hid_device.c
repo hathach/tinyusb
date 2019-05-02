@@ -301,8 +301,7 @@ bool hidd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint32_
 
   if (ep_addr == p_hid->ep_out)
   {
-    if (tud_hid_out_report_cb) tud_hid_out_report_cb(p_hid->epout_buf, xferred_bytes);
-
+    tud_hid_set_report_cb(0, HID_REPORT_TYPE_INVALID, p_hid->epout_buf, xferred_bytes);
     TU_ASSERT(dcd_edpt_xfer(rhport, p_hid->ep_out, p_hid->epout_buf, sizeof(p_hid->epout_buf)));
   }
 
