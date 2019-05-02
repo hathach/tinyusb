@@ -39,6 +39,9 @@
 // Class Driver Default Configure & Validation
 //--------------------------------------------------------------------+
 
+#ifndef CFG_TUD_HID_BUFSIZE
+#define CFG_TUD_HID_BUFSIZE     16
+#endif
 
 //--------------------------------------------------------------------+
 // Application API
@@ -53,51 +56,34 @@ bool tud_hid_boot_mode(void);
 // Send report to host
 bool tud_hid_report(uint8_t report_id, void const* report, uint8_t len);
 
-/*------------- Callbacks (Weak is optional) -------------*/
+// KEYBOARD: convenient helper to send keyboard report if application
+// use template layout report as defined by hid_keyboard_report_t
+bool tud_hid_keyboard_report(uint8_t report_id, uint8_t modifier, uint8_t keycode[6]);
 
-// Invoked when receiving GET_REPORT control request
+// MOUSE: convenient helper to send mouse report if application
+// use template layout report as defined by hid_mouse_report_t
+bool tud_hid_mouse_report(uint8_t report_id, uint8_t buttons, int8_t x, int8_t y, int8_t vertical, int8_t horizontal);
+
+//--------------------------------------------------------------------+
+// Callbacks (Weak is optional)
+//--------------------------------------------------------------------+
+
+// Invoked when received GET_REPORT control request
 // Application must fill buffer report's content and return its length.
 // Return zero will cause the stack to STALL request
 uint16_t tud_hid_get_report_cb(uint8_t report_id, hid_report_type_t report_type, uint8_t* buffer, uint16_t reqlen);
 
-// Invoked when receiving SET_REPORT control request
+// Invoked when received SET_REPORT control request or
+// received data on OUT endpoint ( Report ID = 0, Type = 0 )
 void tud_hid_set_report_cb(uint8_t report_id, hid_report_type_t report_type, uint8_t const* buffer, uint16_t bufsize);
 
-// Invoked when host switch mode Boot <-> Report via SET_PROTOCOL request
-void tud_hid_mode_changed_cb(uint8_t boot_mode) ATTR_WEAK;
+// Invoked when received SET_PROTOCOL request ( mode switch Boot <-> Report )
+ATTR_WEAK void tud_hid_boot_mode_cb(uint8_t boot_mode);
 
-//--------------------------------------------------------------------+
-// KEYBOARD API
-// Convenient helper to send keyboard report if application use standard/boot
-// layout report as defined by hid_keyboard_report_t
-//--------------------------------------------------------------------+
-
-bool tud_hid_keyboard_report(uint8_t report_id, uint8_t modifier, uint8_t keycode[6]);
-
-static inline bool tud_hid_keyboard_key_release(uint8_t report_id)
-{
-  return tud_hid_keyboard_report(report_id, 0, NULL);
-}
-
-//--------------------------------------------------------------------+
-// MOUSE API
-// Convenient helper to send mouse report if application use standard/boot
-// layout report as defined by hid_mouse_report_t
-//--------------------------------------------------------------------+
-
-bool tud_hid_mouse_report(uint8_t report_id, uint8_t buttons, int8_t x, int8_t y, int8_t scroll, int8_t pan);
-bool tud_hid_mouse_move(uint8_t report_id, int8_t x, int8_t y);
-bool tud_hid_mouse_scroll(uint8_t report_id, int8_t scroll, int8_t pan);
-
-static inline bool tud_hid_mouse_button_press(uint8_t report_id, uint8_t buttons)
-{
-  return tud_hid_mouse_report(report_id, buttons, 0, 0, 0, 0);
-}
-
-static inline bool tud_hid_mouse_button_release(uint8_t report_id)
-{
-  return tud_hid_mouse_report(report_id, 0, 0, 0, 0, 0);
-}
+// Invoked when received SET_IDLE request. return false will stall the request
+// - Idle Rate = 0 : only send report if there is changes, i.e skip duplication
+// - Idle Rate > 0 : skip duplication, but send at least 1 report every idle rate (in unit of 4 ms).
+ATTR_WEAK bool tud_hid_set_idle_cb(uint8_t idle_rate);
 
 /* --------------------------------------------------------------------+
  * HID Report Descriptor Template
@@ -107,23 +93,24 @@ static inline bool tud_hid_mouse_button_release(uint8_t report_id)
  * empty if multiple reports is not used
  *
  * - Only 1 report: no parameter
- *      uint8_t const report_desc[] = { HID_REPORT_DESC_KEYBOARD() };
+ *      uint8_t const report_desc[] = { TUD_HID_REPORT_DESC_KEYBOARD() };
  *
  * - Multiple Reports: "HID_REPORT_ID(ID)," must be passed to template
  *      uint8_t const report_desc[] =
  *      {
- *          HID_REPORT_DESC_KEYBOARD( HID_REPORT_ID(1), ) ,
- *          HID_REPORT_DESC_MOUSE   ( HID_REPORT_ID(2), )
+ *          TUD_HID_REPORT_DESC_KEYBOARD( HID_REPORT_ID(1), ) ,
+ *          TUD_HID_REPORT_DESC_MOUSE   ( HID_REPORT_ID(2), )
  *      };
  *--------------------------------------------------------------------*/
 
 // Keyboard Report Descriptor Template
-#define HID_REPORT_DESC_KEYBOARD(...) \
+#define TUD_HID_REPORT_DESC_KEYBOARD(...) \
   HID_USAGE_PAGE ( HID_USAGE_PAGE_DESKTOP     )                    ,\
   HID_USAGE      ( HID_USAGE_DESKTOP_KEYBOARD )                    ,\
   HID_COLLECTION ( HID_COLLECTION_APPLICATION )                    ,\
-    /* 8 bits Modifier Keys (Shfit, Control, Alt) */ \
+    /* Report ID if any */\
     __VA_ARGS__ \
+    /* 8 bits Modifier Keys (Shfit, Control, Alt) */ \
     HID_USAGE_PAGE ( HID_USAGE_PAGE_KEYBOARD )                     ,\
       HID_USAGE_MIN    ( 224                                    )  ,\
       HID_USAGE_MAX    ( 231                                    )  ,\
@@ -159,50 +146,60 @@ static inline bool tud_hid_mouse_button_release(uint8_t report_id)
   HID_COLLECTION_END \
 
 // Mouse Report Descriptor Template
-#define HID_REPORT_DESC_MOUSE(...) \
-  HID_USAGE_PAGE ( HID_USAGE_PAGE_DESKTOP      )                    ,\
-  HID_USAGE      ( HID_USAGE_DESKTOP_MOUSE     )                    ,\
-  HID_COLLECTION ( HID_COLLECTION_APPLICATION  )                    ,\
+#define TUD_HID_REPORT_DESC_MOUSE(...) \
+  HID_USAGE_PAGE ( HID_USAGE_PAGE_DESKTOP      )                   ,\
+  HID_USAGE      ( HID_USAGE_DESKTOP_MOUSE     )                   ,\
+  HID_COLLECTION ( HID_COLLECTION_APPLICATION  )                   ,\
+    /* Report ID if any */\
     __VA_ARGS__ \
-    HID_USAGE      ( HID_USAGE_DESKTOP_POINTER )                    ,\
-    HID_COLLECTION ( HID_COLLECTION_PHYSICAL   )                    ,\
-      HID_USAGE_PAGE  ( HID_USAGE_PAGE_BUTTON  )                    ,\
-        HID_USAGE_MIN    ( 1                                      ) ,\
-        HID_USAGE_MAX    ( 3                                      ) ,\
-        HID_LOGICAL_MIN  ( 0                                      ) ,\
-        HID_LOGICAL_MAX  ( 1                                      ) ,\
-        /* Left, Right, Middle, Backward, Forward mouse buttons */   \
-        HID_REPORT_COUNT ( 3                                      ) ,\
-        HID_REPORT_SIZE  ( 1                                      ) ,\
-        HID_INPUT        ( HID_DATA | HID_VARIABLE | HID_ABSOLUTE ) ,\
+    HID_USAGE      ( HID_USAGE_DESKTOP_POINTER )                   ,\
+    HID_COLLECTION ( HID_COLLECTION_PHYSICAL   )                   ,\
+      HID_USAGE_PAGE  ( HID_USAGE_PAGE_BUTTON  )                   ,\
+        HID_USAGE_MIN   ( 1                                      ) ,\
+        HID_USAGE_MAX   ( 5                                      ) ,\
+        HID_LOGICAL_MIN ( 0                                      ) ,\
+        HID_LOGICAL_MAX ( 1                                      ) ,\
+        /* Left, Right, Middle, Backward, Forward buttons */ \
+        HID_REPORT_COUNT( 5                                      ) ,\
+        HID_REPORT_SIZE ( 1                                      ) ,\
+        HID_INPUT       ( HID_DATA | HID_VARIABLE | HID_ABSOLUTE ) ,\
         /* 3 bit padding */ \
-        HID_REPORT_COUNT ( 1                                      ) ,\
-        HID_REPORT_SIZE  ( 5                                      ) ,\
-        HID_INPUT        ( HID_CONSTANT                           ) ,\
-      HID_USAGE_PAGE  ( HID_USAGE_PAGE_DESKTOP )                    ,\
+        HID_REPORT_COUNT( 1                                      ) ,\
+        HID_REPORT_SIZE ( 3                                      ) ,\
+        HID_INPUT       ( HID_CONSTANT                           ) ,\
+      HID_USAGE_PAGE  ( HID_USAGE_PAGE_DESKTOP )                   ,\
         /* X, Y position [-127, 127] */ \
-        HID_USAGE        ( HID_USAGE_DESKTOP_X                    ) ,\
-        HID_USAGE        ( HID_USAGE_DESKTOP_Y                    ) ,\
-        HID_LOGICAL_MIN  ( 0x81                                   ) ,\
-        HID_LOGICAL_MAX  ( 0x7f                                   ) ,\
-        HID_REPORT_COUNT ( 2                                      ) ,\
-        HID_REPORT_SIZE  ( 8                                      ) ,\
-        HID_INPUT        ( HID_DATA | HID_VARIABLE | HID_RELATIVE ) ,\
-        /* Mouse scroll [-127, 127] */ \
+        HID_USAGE       ( HID_USAGE_DESKTOP_X                    ) ,\
+        HID_USAGE       ( HID_USAGE_DESKTOP_Y                    ) ,\
+        HID_LOGICAL_MIN ( 0x81                                   ) ,\
+        HID_LOGICAL_MAX ( 0x7f                                   ) ,\
+        HID_REPORT_COUNT( 2                                      ) ,\
+        HID_REPORT_SIZE ( 8                                      ) ,\
+        HID_INPUT       ( HID_DATA | HID_VARIABLE | HID_RELATIVE ) ,\
+        /* Verital wheel scroll [-127, 127] */ \
         HID_USAGE       ( HID_USAGE_DESKTOP_WHEEL                )  ,\
         HID_LOGICAL_MIN ( 0x81                                   )  ,\
         HID_LOGICAL_MAX ( 0x7f                                   )  ,\
         HID_REPORT_COUNT( 1                                      )  ,\
         HID_REPORT_SIZE ( 8                                      )  ,\
         HID_INPUT       ( HID_DATA | HID_VARIABLE | HID_RELATIVE )  ,\
-    HID_COLLECTION_END                                              ,\
+      HID_USAGE_PAGE  ( HID_USAGE_PAGE_CONSUMER ), \
+       /* Horizontal wheel scroll [-127, 127] */ \
+        HID_USAGE_N     ( HID_USAGE_CONSUMER_AC_PAN, 2           ), \
+        HID_LOGICAL_MIN ( 0x81                                   ), \
+        HID_LOGICAL_MAX ( 0x7f                                   ), \
+        HID_REPORT_COUNT( 1                                      ), \
+        HID_REPORT_SIZE ( 8                                      ), \
+        HID_INPUT       ( HID_DATA | HID_VARIABLE | HID_RELATIVE ), \
+    HID_COLLECTION_END                                            , \
   HID_COLLECTION_END \
 
 // Consumer Control Report Descriptor Template
-#define HID_REPORT_DESC_CONSUMER(...) \
+#define TUD_HID_REPORT_DESC_CONSUMER(...) \
   HID_USAGE_PAGE ( HID_USAGE_PAGE_CONSUMER    )              ,\
   HID_USAGE      ( HID_USAGE_CONSUMER_CONTROL )              ,\
   HID_COLLECTION ( HID_COLLECTION_APPLICATION )              ,\
+    /* Report ID if any */\
     __VA_ARGS__ \
     HID_LOGICAL_MIN  ( 0x00                                ) ,\
     HID_LOGICAL_MAX_N( 0x03FF, 2                           ) ,\
@@ -219,10 +216,11 @@ static inline bool tud_hid_mouse_button_release(uint8_t report_id)
  * 0x02 - Standby
  * 0x04 - Wake Host
  */
-#define HID_REPORT_DESC_SYSTEM_CONTROL(...) \
+#define TUD_HID_REPORT_DESC_SYSTEM_CONTROL(...) \
   HID_USAGE_PAGE ( HID_USAGE_PAGE_DESKTOP           )        ,\
   HID_USAGE      ( HID_USAGE_DESKTOP_SYSTEM_CONTROL )        ,\
   HID_COLLECTION ( HID_COLLECTION_APPLICATION       )        ,\
+    /* Report ID if any */\
     __VA_ARGS__ \
     /* 2 bit system power control */ \
     HID_LOGICAL_MIN  ( 1                                   ) ,\
@@ -242,10 +240,11 @@ static inline bool tud_hid_mouse_button_release(uint8_t report_id)
 // Gamepad Report Descriptor Template
 // with 16 buttons and 2 joysticks with following layout
 // | Button Map (2 bytes) |  X | Y | Z | Rz
-#define HID_REPORT_DESC_GAMEPAD(...) \
+#define TUD_HID_REPORT_DESC_GAMEPAD(...) \
   HID_USAGE_PAGE ( HID_USAGE_PAGE_DESKTOP     )        ,\
   HID_USAGE      ( HID_USAGE_DESKTOP_GAMEPAD  )        ,\
   HID_COLLECTION ( HID_COLLECTION_APPLICATION )        ,\
+    /* Report ID if any */\
     __VA_ARGS__ \
     /* 16 bit Button Map */ \
     HID_USAGE_PAGE   ( HID_USAGE_PAGE_BUTTON                  ) ,\
@@ -268,6 +267,31 @@ static inline bool tud_hid_mouse_button_release(uint8_t report_id)
     HID_REPORT_SIZE  ( 8                                      ) ,\
     HID_INPUT        ( HID_DATA | HID_VARIABLE | HID_ABSOLUTE ) ,\
   HID_COLLECTION_END \
+
+// HID Generic Input & Output
+// - 1st parameter is report size (mandatory)
+// - 2nd parameter is report id HID_REPORT_ID(n) (optional)
+#define TUD_HID_REPORT_DESC_GENERIC_INOUT(report_size, ...) \
+    HID_USAGE_PAGE_N ( HID_USAGE_PAGE_VENDOR, 2   ),\
+    HID_USAGE        ( 0x01                       ),\
+    HID_COLLECTION   ( HID_COLLECTION_APPLICATION ),\
+      /* Report ID if any */\
+      __VA_ARGS__ \
+      /* Input */ \
+      HID_USAGE       ( 0x02                                   ),\
+      HID_LOGICAL_MIN ( 0x00                                   ),\
+      HID_LOGICAL_MAX ( 0xff                                   ),\
+      HID_REPORT_SIZE ( 8                                      ),\
+      HID_REPORT_COUNT( report_size                            ),\
+      HID_INPUT       ( HID_DATA | HID_VARIABLE | HID_ABSOLUTE ),\
+      /* Output */ \
+      HID_USAGE       ( 0x03                                    ),\
+      HID_LOGICAL_MIN ( 0x00                                    ),\
+      HID_LOGICAL_MAX ( 0xff                                    ),\
+      HID_REPORT_SIZE ( 8                                       ),\
+      HID_REPORT_COUNT( report_size                             ),\
+      HID_OUTPUT      ( HID_DATA | HID_VARIABLE | HID_ABSOLUTE  ),\
+    HID_COLLECTION_END \
 
 /*--------------------------------------------------------------------
  * ASCII to KEYCODE Conversion

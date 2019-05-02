@@ -42,13 +42,9 @@ enum
   MSC_STAGE_STATUS
 };
 
-typedef struct {
-  CFG_TUSB_MEM_ALIGN msc_cbw_t  cbw;
-
-//#if defined (__ICCARM__) && (CFG_TUSB_MCU == OPT_MCU_LPC11UXX || CFG_TUSB_MCU == OPT_MCU_LPC13XX)
-//  uint8_t padding1[64-sizeof(msc_cbw_t)]; // IAR cannot align struct's member
-//#endif
-
+typedef struct
+{
+  CFG_TUSB_MEM_ALIGN msc_cbw_t cbw;
   CFG_TUSB_MEM_ALIGN msc_csw_t csw;
 
   uint8_t  itf_num;
@@ -66,7 +62,7 @@ typedef struct {
   uint8_t add_sense_qualifier;
 }mscd_interface_t;
 
-CFG_TUSB_MEM_SECTION CFG_TUSB_MEM_ALIGN static mscd_interface_t _mscd_itf = { 0 };
+CFG_TUSB_MEM_SECTION CFG_TUSB_MEM_ALIGN static mscd_interface_t _mscd_itf;
 CFG_TUSB_MEM_SECTION CFG_TUSB_MEM_ALIGN static uint8_t _mscd_buf[CFG_TUD_MSC_BUFSIZE];
 
 //--------------------------------------------------------------------+
@@ -135,9 +131,8 @@ bool mscd_open(uint8_t rhport, tusb_desc_interface_t const * itf_desc, uint16_t 
 
   mscd_interface_t * p_msc = &_mscd_itf;
 
-  // Open endpoint pair with usbd helper
-  tusb_desc_endpoint_t const *p_desc_ep = (tusb_desc_endpoint_t const *) tu_desc_next( itf_desc );
-  TU_ASSERT( usbd_open_edpt_pair(rhport, p_desc_ep, TUSB_XFER_BULK, &p_msc->ep_out, &p_msc->ep_in) );
+  // Open endpoint pair
+  TU_ASSERT( usbd_open_edpt_pair(rhport, tu_desc_next(itf_desc), 2, TUSB_XFER_BULK, &p_msc->ep_out, &p_msc->ep_in) );
 
   p_msc->itf_num = itf_desc->bInterfaceNumber;
   (*p_len) = sizeof(tusb_desc_interface_t) + 2*sizeof(tusb_desc_endpoint_t);
@@ -163,9 +158,12 @@ bool mscd_control_request(uint8_t rhport, tusb_control_request_t const * p_reque
 
     case MSC_REQ_GET_MAX_LUN:
     {
+      uint8_t maxlun = 1;
+      if (tud_msc_maxlun_cb) maxlun = tud_msc_maxlun_cb();
+      TU_VERIFY(maxlun);
+
       // MAX LUN is minus 1 by specs
-      uint8_t maxlun = 0;
-      if (tud_msc_maxlun_cb) maxlun = tud_msc_maxlun_cb() -1;
+      maxlun--;
 
       usbd_control_xfer(rhport, p_request, &maxlun, 1);
     }

@@ -30,6 +30,15 @@
 #include "bsp/board.h"
 #include "tusb.h"
 
+/* This example demonstrate HID Generic raw Input & Output.
+ * It will receive data from Host (In endpoint) and echo back (Out endpoint).
+ * HID Report descriptor use vendor for usage page (using template TUD_HID_REPORT_DESC_GENERIC_INOUT)
+ *
+ * Run 'python3 hid_test.py' on your PC to send and receive data to this device.
+ * Python and `hid` package is required, for installation please follow
+ * https://pypi.org/project/hid/
+ */
+
 //--------------------------------------------------------------------+
 // MACRO CONSTANT TYPEDEF PROTYPES
 //--------------------------------------------------------------------+
@@ -49,9 +58,6 @@ static uint32_t blink_interval_ms = BLINK_NOT_MOUNTED;
 
 void led_blinking_task(void);
 
-void cdc_task(void);
-void hid_task(void);
-
 /*------------- MAIN -------------*/
 int main(void)
 {
@@ -65,14 +71,6 @@ int main(void)
     tud_task();
 
     led_blinking_task();
-
-#if CFG_TUD_CDC
-    cdc_task();
-#endif
-
-#if CFG_TUD_HID
-    hid_task();
-#endif
   }
 
   return 0;
@@ -109,124 +107,9 @@ void tud_resume_cb(void)
   blink_interval_ms = BLINK_MOUNTED;
 }
 
-
-//--------------------------------------------------------------------+
-// USB CDC
-//--------------------------------------------------------------------+
-#if CFG_TUD_CDC
-void cdc_task(void)
-{
-  if ( tud_cdc_connected() )
-  {
-    // connected and there are data available
-    if ( tud_cdc_available() )
-    {
-      uint8_t buf[64];
-
-      // read and echo back
-      uint32_t count = tud_cdc_read(buf, sizeof(buf));
-
-      for(uint32_t i=0; i<count; i++)
-      {
-        tud_cdc_write_char(buf[i]);
-
-        if ( buf[i] == '\r' ) tud_cdc_write_char('\n');
-      }
-
-      tud_cdc_write_flush();
-    }
-  }
-}
-
-// Invoked when cdc when line state changed e.g connected/disconnected
-void tud_cdc_line_state_cb(uint8_t itf, bool dtr, bool rts)
-{
-  (void) itf;
-
-  // connected
-  if ( dtr && rts )
-  {
-    // print initial message when connected
-    tud_cdc_write_str("\r\nTinyUSB CDC MSC HID device example\r\n");
-  }
-}
-
-// Invoked when CDC interface received data from host
-void tud_cdc_rx_cb(uint8_t itf)
-{
-  (void) itf;
-}
-
-#endif
-
 //--------------------------------------------------------------------+
 // USB HID
 //--------------------------------------------------------------------+
-#if CFG_TUD_HID
-
-// Must match with ID declared by HID Report Descriptor, better to be in header file
-enum
-{
-  REPORT_ID_KEYBOARD = 1,
-  REPORT_ID_MOUSE
-};
-
-void hid_task(void)
-{
-  // Poll every 10ms
-  const uint32_t interval_ms = 10;
-  static uint32_t start_ms = 0;
-
-  if ( board_millis() < start_ms + interval_ms) return; // not enough time
-  start_ms += interval_ms;
-
-  uint32_t const btn = board_button_read();
-
-  // Remote wakeup
-  if ( tud_suspended() && btn )
-  {
-    // Wake up host if we are in suspend mode
-    // and REMOTE_WAKEUP feature is enabled by host
-    tud_remote_wakeup();
-  }
-
-  /*------------- Mouse -------------*/
-  if ( tud_hid_ready() )
-  {
-    if ( btn )
-    {
-      int8_t const delta = 5;
-
-      // no button, right + down, no scroll pan
-      tud_hid_mouse_report(REPORT_ID_MOUSE, 0x00, delta, delta, 0, 0);
-
-      // delay a bit before attempt to send keyboard report
-      board_delay(2);
-    }
-  }
-
-  /*------------- Keyboard -------------*/
-  if ( tud_hid_ready() )
-  {
-    // use to avoid send multiple consecutive zero report for keyboard
-    static bool has_key = false;
-
-    if ( btn )
-    {
-      uint8_t keycode[6] = { 0 };
-      keycode[0] = HID_KEY_A;
-
-      tud_hid_keyboard_report(REPORT_ID_KEYBOARD, 0, keycode);
-
-      has_key = true;
-    }else
-    {
-      // send empty key report if previously has key pressed
-      if (has_key) tud_hid_keyboard_report(REPORT_ID_KEYBOARD, 0, NULL);
-      has_key = false;
-    }
-  }
-}
 
 // Invoked when received GET_REPORT control request
 // Application must fill buffer report's content and return its length.
@@ -246,14 +129,13 @@ uint16_t tud_hid_get_report_cb(uint8_t report_id, hid_report_type_t report_type,
 // received data on OUT endpoint ( Report ID = 0, Type = 0 )
 void tud_hid_set_report_cb(uint8_t report_id, hid_report_type_t report_type, uint8_t const* buffer, uint16_t bufsize)
 {
-  // TODO not Implemented
+  // This example doesn't use multiple report and report ID
   (void) report_id;
   (void) report_type;
-  (void) buffer;
-  (void) bufsize;
-}
 
-#endif
+  // echo back anything we received from host
+  tud_hid_report(0, buffer, bufsize);
+}
 
 //--------------------------------------------------------------------+
 // BLINKING TASK

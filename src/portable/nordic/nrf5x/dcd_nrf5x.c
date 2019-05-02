@@ -489,7 +489,7 @@ void USBD_IRQHandler(void)
       {
         xfer->total_len = xfer->actual_len;
 
-        // BULK/INT OUT complete
+        // CBI OUT complete
         dcd_event_xfer_complete(0, epnum, xfer->actual_len, XFER_RESULT_SUCCESS, true);
       }
     }
@@ -524,7 +524,7 @@ void USBD_IRQHandler(void)
           xact_in_prepare(epnum);
         } else
         {
-          // Bulk/Int IN complete
+          // CBI IN complete
           dcd_event_xfer_complete(0, epnum | TUSB_DIR_IN_MASK, xfer->actual_len, XFER_RESULT_SUCCESS, true);
         }
       }

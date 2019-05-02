@@ -702,25 +702,25 @@ void dcd_event_xfer_complete (uint8_t rhport, uint8_t ep_addr, uint32_t xferred_
 // Helper
 //--------------------------------------------------------------------+
 
-// Helper to parse an pair of endpoint descriptors (IN & OUT)
-bool usbd_open_edpt_pair(uint8_t rhport, tusb_desc_endpoint_t const* ep_desc, uint8_t xfer_type, uint8_t* ep_out, uint8_t* ep_in)
+// Parse consecutive endpoint descriptors (IN & OUT)
+bool usbd_open_edpt_pair(uint8_t rhport, uint8_t const* p_desc, uint8_t ep_count, uint8_t xfer_type, uint8_t* ep_out, uint8_t* ep_in)
 {
-  for(int i=0; i<2; i++)
+  for(int i=0; i<ep_count; i++)
   {
-    TU_ASSERT(TUSB_DESC_ENDPOINT == ep_desc->bDescriptorType &&
-              xfer_type          == ep_desc->bmAttributes.xfer );
+    tusb_desc_endpoint_t const * desc_ep = (tusb_desc_endpoint_t const *) p_desc;
 
-    TU_ASSERT(dcd_edpt_open(rhport, ep_desc));
+    TU_VERIFY(TUSB_DESC_ENDPOINT == desc_ep->bDescriptorType && xfer_type == desc_ep->bmAttributes.xfer);
+    TU_ASSERT(dcd_edpt_open(rhport, desc_ep));
 
-    if ( tu_edpt_dir(ep_desc->bEndpointAddress) == TUSB_DIR_IN )
+    if ( tu_edpt_dir(desc_ep->bEndpointAddress) == TUSB_DIR_IN )
     {
-      (*ep_in) = ep_desc->bEndpointAddress;
+      (*ep_in) = desc_ep->bEndpointAddress;
     }else
     {
-      (*ep_out) = ep_desc->bEndpointAddress;
+      (*ep_out) = desc_ep->bEndpointAddress;
     }
 
-    ep_desc = (tusb_desc_endpoint_t const *) tu_desc_next(ep_desc);
+    p_desc = tu_desc_next(p_desc);
   }
 
   return true;

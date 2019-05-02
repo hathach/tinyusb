@@ -55,6 +55,8 @@ TimerHandle_t blink_tm;
 
 void led_blinky_cb(TimerHandle_t xTimer);
 void usb_device_task(void* param);
+void cdc_task(void* params);
+void hid_task(void* params);
 
 /*------------- MAIN -------------*/
 int main(void)
@@ -72,12 +74,10 @@ int main(void)
 
   // Create task
 #if CFG_TUD_CDC
-  extern void cdc_task(void* params);
   xTaskCreate( cdc_task, "cdc", 128, NULL, configMAX_PRIORITIES-2, NULL);
 #endif
 
 #if CFG_TUD_HID
-  extern void hid_task(void* params);
   xTaskCreate( hid_task, "hid", 128, NULL, configMAX_PRIORITIES-2, NULL);
 #endif
 
@@ -226,7 +226,9 @@ void hid_task(void* params)
       if ( btn )
       {
         int8_t const delta = 5;
-        tud_hid_mouse_move(REPORT_ID_MOUSE, delta, delta); // right + down
+
+        // no button, right + down, no scroll pan
+        tud_hid_mouse_report(REPORT_ID_MOUSE, 0x00, delta, delta, 0, 0);
 
         // delay a bit before attempt to send keyboard report
         vTaskDelay(pdMS_TO_TICKS(2));
@@ -250,13 +252,16 @@ void hid_task(void* params)
       }else
       {
         // send empty key report if previously has key pressed
-        if (has_key) tud_hid_keyboard_key_release(REPORT_ID_KEYBOARD);
+        if (has_key) tud_hid_keyboard_report(REPORT_ID_KEYBOARD, 0, NULL);
         has_key = false;
       }
     }
   }
 }
 
+// Invoked when received GET_REPORT control request
+// Application must fill buffer report's content and return its length.
+// Return zero will cause the stack to STALL request
 uint16_t tud_hid_get_report_cb(uint8_t report_id, hid_report_type_t report_type, uint8_t* buffer, uint16_t reqlen)
 {
   // TODO not Implemented
@@ -268,6 +273,8 @@ uint16_t tud_hid_get_report_cb(uint8_t report_id, hid_report_type_t report_type,
   return 0;
 }
 
+// Invoked when received SET_REPORT control request or
+// received data on OUT endpoint ( Report ID = 0, Type = 0 )
 void tud_hid_set_report_cb(uint8_t report_id, hid_report_type_t report_type, uint8_t const* buffer, uint16_t bufsize)
 {
   // TODO not Implemented

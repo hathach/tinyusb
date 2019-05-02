@@ -76,8 +76,8 @@ enum
 
 uint8_t const desc_hid_report[] =
 {
-  HID_REPORT_DESC_KEYBOARD( HID_REPORT_ID(REPORT_ID_KEYBOARD), ),
-  HID_REPORT_DESC_MOUSE   ( HID_REPORT_ID(REPORT_ID_MOUSE), )
+  TUD_HID_REPORT_DESC_KEYBOARD( HID_REPORT_ID(REPORT_ID_KEYBOARD), ),
+  TUD_HID_REPORT_DESC_MOUSE   ( HID_REPORT_ID(REPORT_ID_MOUSE), )
 };
 #endif
 
@@ -117,19 +117,22 @@ enum
 
 uint8_t const desc_configuration[] =
 {
-  // Config: self-powered with remote wakeup support, max power up to 100 mA
+  // Inteface count, string index, total length, attribute, power in mA
   TUD_CONFIG_DESCRIPTOR(ITF_NUM_TOTAL, 0, CONFIG_TOTAL_LEN, TUSB_DESC_CONFIG_ATT_REMOTE_WAKEUP, 100),
 
 #if CFG_TUD_CDC
+  // Interface number, string index, EP notification address and size, EP data address (out, in) and size.
   TUD_CDC_DESCRIPTOR(ITF_NUM_CDC, 4, 0x81, 8, 0x02, 0x82, 64),
 #endif
 
 #if CFG_TUD_MSC
+  // Interface number, string index, EP Out & EP In address, EP size
   TUD_MSC_DESCRIPTOR(ITF_NUM_MSC, 5, EPNUM_MSC, 0x80 | EPNUM_MSC, 64), // highspeed 512
 #endif
 
 #if CFG_TUD_HID
-  TUD_HID_DESCRIPTOR(ITF_NUM_HID, 6, HID_PROTOCOL_KEYBOARD, sizeof(desc_hid_report), 0x84, 16, 10)
+  // Interface number, string index, protocol, report descriptor len, EP In address, size & polling interval
+  TUD_HID_DESCRIPTOR(ITF_NUM_HID, 6, HID_PROTOCOL_NONE, sizeof(desc_hid_report), 0x84, 16, 10)
 #endif
 };
 
@@ -162,13 +165,13 @@ uint16_t const * const string_desc_arr [] =
 // tud_desc_set is required by tinyusb stack
 tud_desc_set_t tud_desc_set =
 {
-    .device     = &desc_device,
-    .config     = desc_configuration,
+  .device     = &desc_device,
+  .config     = desc_configuration,
 
-    .string_arr   = (uint8_t const **) string_desc_arr,
-    .string_count = sizeof(string_desc_arr)/sizeof(string_desc_arr[0]),
+  .string_arr   = (uint8_t const **) string_desc_arr,
+  .string_count = sizeof(string_desc_arr)/sizeof(string_desc_arr[0]),
 
 #if CFG_TUD_HID
-    .hid_report = desc_hid_report,
+  .hid_report = desc_hid_report,
 #endif
 };

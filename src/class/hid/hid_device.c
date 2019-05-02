@@ -38,24 +38,19 @@
 //--------------------------------------------------------------------+
 // MACRO CONSTANT TYPEDEF
 //--------------------------------------------------------------------+
-
-#ifndef CFG_TUD_HID_BUFSIZE
-#define CFG_TUD_HID_BUFSIZE     16
-#endif
-
 typedef struct
 {
   uint8_t itf_num;
   uint8_t ep_in;
+  uint8_t ep_out;        // optional Out endpoint
   uint8_t boot_protocol; // Boot mouse or keyboard
-  bool    boot_mode;
-
+  bool    boot_mode;     // default = false (Report)
+  uint8_t idle_rate;     // up to application to handle idle rate
   uint16_t reprot_desc_len;
-  uint8_t idle_rate;     // Idle Rate = 0 : only send report if there is changes, i.e skip duplication
-                         // Idle Rate > 0 : skip duplication, but send at least 1 report every idle rate (in unit of 4 ms).
-  uint8_t mouse_button;  // caching button for using with tud_hid_mouse_ API
 
-  CFG_TUSB_MEM_ALIGN uint8_t report_buf[CFG_TUD_HID_BUFSIZE];
+  CFG_TUSB_MEM_ALIGN uint8_t epin_buf[CFG_TUD_HID_BUFSIZE];
+  CFG_TUSB_MEM_ALIGN uint8_t epout_buf[CFG_TUD_HID_BUFSIZE];
+
 }hidd_interface_t;
 
 CFG_TUSB_MEM_SECTION static hidd_interface_t _hidd_itf[CFG_TUD_HID];
@@ -91,15 +86,15 @@ bool tud_hid_report(uint8_t report_id, void const* report, uint8_t len)
   // If report id = 0, skip ID field
   if (report_id)
   {
-    p_hid->report_buf[0] = report_id;
-    memcpy(p_hid->report_buf+1, report, len);
+    p_hid->epin_buf[0] = report_id;
+    memcpy(p_hid->epin_buf+1, report, len);
+    len++;
   }else
   {
-    memcpy(p_hid->report_buf, report, len);
+    memcpy(p_hid->epin_buf, report, len);
   }
 
-  // TODO skip duplication ? and or idle rate
-  return dcd_edpt_xfer(TUD_OPT_RHPORT, p_hid->ep_in, p_hid->report_buf, len + (report_id ? 1 : 0) );
+  return dcd_edpt_xfer(TUD_OPT_RHPORT, p_hid->ep_in, p_hid->epin_buf, len);
 }
 
 bool tud_hid_boot_mode(void)
@@ -125,45 +120,24 @@ bool tud_hid_keyboard_report(uint8_t report_id, uint8_t modifier, uint8_t keycod
     tu_memclr(report.keycode, 6);
   }
 
-  // TODO skip duplication ? and or idle rate
   return tud_hid_report(report_id, &report, sizeof(report));
 }
 
 //--------------------------------------------------------------------+
 // MOUSE APPLICATION API
 //--------------------------------------------------------------------+
-bool tud_hid_mouse_report(uint8_t report_id, uint8_t buttons, int8_t x, int8_t y, int8_t scroll, int8_t pan)
+bool tud_hid_mouse_report(uint8_t report_id, uint8_t buttons, int8_t x, int8_t y, int8_t vertical, int8_t horizontal)
 {
-  (void) pan;
   hid_mouse_report_t report =
   {
     .buttons = buttons,
     .x       = x,
     .y       = y,
-    .wheel   = scroll,
-    //.pan     = pan
+    .wheel   = vertical,
+    .pan     = horizontal
   };
 
-  uint8_t itf = 0;
-  _hidd_itf[itf].mouse_button = buttons;
-
   return tud_hid_report(report_id, &report, sizeof(report));
-}
-
-bool tud_hid_mouse_move(uint8_t report_id, int8_t x, int8_t y)
-{
-  uint8_t itf = 0;
-  uint8_t const button = _hidd_itf[itf].mouse_button;
-
-  return tud_hid_mouse_report(report_id, button, x, y, 0, 0);
-}
-
-bool tud_hid_mouse_scroll(uint8_t report_id, int8_t scroll, int8_t pan)
-{
-  uint8_t itf = 0;
-  uint8_t const button = _hidd_itf[itf].mouse_button;
-
-  return tud_hid_mouse_report(report_id, button, 0, 0, scroll, pan);
 }
 
 //--------------------------------------------------------------------+
@@ -184,6 +158,10 @@ bool hidd_open(uint8_t rhport, tusb_desc_interface_t const * desc_itf, uint16_t 
 {
   uint8_t const *p_desc = (uint8_t const *) desc_itf;
 
+  // TODO support multiple HID interface
+  uint8_t const itf = 0;
+  hidd_interface_t * p_hid = &_hidd_itf[itf];
+
   //------------- HID descriptor -------------//
   p_desc = tu_desc_next(p_desc);
   tusb_hid_descriptor_hid_t const *desc_hid = (tusb_hid_descriptor_hid_t const *) p_desc;
@@ -191,23 +169,18 @@ bool hidd_open(uint8_t rhport, tusb_desc_interface_t const * desc_itf, uint16_t 
 
   //------------- Endpoint Descriptor -------------//
   p_desc = tu_desc_next(p_desc);
-  tusb_desc_endpoint_t const *desc_edpt = (tusb_desc_endpoint_t const *) p_desc;
-  TU_ASSERT(TUSB_DESC_ENDPOINT == desc_edpt->bDescriptorType);
-
-  TU_ASSERT(dcd_edpt_open(rhport, desc_edpt));
-
-  // TODO support multiple HID interface
-  uint8_t itf = 0;
-  hidd_interface_t * p_hid = &_hidd_itf[itf];
+  TU_ASSERT(usbd_open_edpt_pair(rhport, p_desc, desc_itf->bNumEndpoints, TUSB_XFER_INTERRUPT, &p_hid->ep_out, &p_hid->ep_in));
 
   if ( desc_itf->bInterfaceSubClass == HID_SUBCLASS_BOOT ) p_hid->boot_protocol = desc_itf->bInterfaceProtocol;
 
   p_hid->boot_mode = false; // default mode is REPORT
   p_hid->itf_num   = desc_itf->bInterfaceNumber;
-  p_hid->ep_in     = desc_edpt->bEndpointAddress;
   p_hid->reprot_desc_len  = desc_hid->wReportLength;
 
   *p_len = sizeof(tusb_desc_interface_t) + sizeof(tusb_hid_descriptor_hid_t) + desc_itf->bNumEndpoints*sizeof(tusb_desc_endpoint_t);
+
+  // Prepare for output endpoint
+  if (p_hid->ep_out) TU_ASSERT(dcd_edpt_xfer(rhport, p_hid->ep_out, p_hid->epout_buf, sizeof(p_hid->epout_buf)));
 
   return true;
 }
@@ -245,20 +218,25 @@ bool hidd_control_request(uint8_t rhport, tusb_control_request_t const * p_reque
         uint8_t const report_type = tu_u16_high(p_request->wValue);
         uint8_t const report_id   = tu_u16_low(p_request->wValue);
 
-        uint16_t xferlen  = tud_hid_get_report_cb(report_id, (hid_report_type_t) report_type, p_hid->report_buf, p_request->wLength);
+        uint16_t xferlen  = tud_hid_get_report_cb(report_id, (hid_report_type_t) report_type, p_hid->epin_buf, p_request->wLength);
         TU_ASSERT( xferlen > 0 );
 
-        usbd_control_xfer(rhport, p_request, p_hid->report_buf, xferlen);
+        usbd_control_xfer(rhport, p_request, p_hid->epin_buf, xferlen);
       }
       break;
 
       case  HID_REQ_CONTROL_SET_REPORT:
-        usbd_control_xfer(rhport, p_request, p_hid->report_buf, p_request->wLength);
+        usbd_control_xfer(rhport, p_request, p_hid->epout_buf, p_request->wLength);
       break;
 
       case HID_REQ_CONTROL_SET_IDLE:
-        // TODO idle rate of report
         p_hid->idle_rate = tu_u16_high(p_request->wValue);
+        if ( tud_hid_set_idle_cb )
+        {
+          // stall request if callback return false
+          if ( !tud_hid_set_idle_cb(p_hid->idle_rate) ) return false;
+        }
+
         usbd_control_status(rhport, p_request);
       break;
 
@@ -277,7 +255,7 @@ bool hidd_control_request(uint8_t rhport, tusb_control_request_t const * p_reque
       case HID_REQ_CONTROL_SET_PROTOCOL:
         p_hid->boot_mode = 1 - p_request->wValue; // 0 is Boot, 1 is Report protocol
 
-        if (tud_hid_mode_changed_cb) tud_hid_mode_changed_cb(p_hid->boot_mode);
+        if (tud_hid_boot_mode_cb) tud_hid_boot_mode_cb(p_hid->boot_mode);
 
         usbd_control_status(rhport, p_request);
       break;
@@ -307,19 +285,25 @@ bool hidd_control_request_complete(uint8_t rhport, tusb_control_request_t const 
     uint8_t const report_type = tu_u16_high(p_request->wValue);
     uint8_t const report_id   = tu_u16_low(p_request->wValue);
 
-    tud_hid_set_report_cb(report_id, (hid_report_type_t) report_type, p_hid->report_buf, p_request->wLength);
+    tud_hid_set_report_cb(report_id, (hid_report_type_t) report_type, p_hid->epout_buf, p_request->wLength);
   }
 
   return true;
 }
 
-bool hidd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t event, uint32_t xferred_bytes)
+bool hidd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint32_t xferred_bytes)
 {
-  // nothing to do
-  (void) rhport;
-  (void) ep_addr;
-  (void) event;
-  (void) xferred_bytes;
+  (void) result;
+
+  // TODO support multiple HID interface
+  uint8_t const itf = 0;
+  hidd_interface_t * p_hid = &_hidd_itf[itf];
+
+  if (ep_addr == p_hid->ep_out)
+  {
+    tud_hid_set_report_cb(0, HID_REPORT_TYPE_INVALID, p_hid->epout_buf, xferred_bytes);
+    TU_ASSERT(dcd_edpt_xfer(rhport, p_hid->ep_out, p_hid->epout_buf, sizeof(p_hid->epout_buf)));
+  }
 
   return true;
 }

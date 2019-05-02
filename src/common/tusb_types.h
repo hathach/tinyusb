@@ -169,7 +169,7 @@ enum {
 
 #define TUSB_DESC_CONFIG_POWER_MA(x)  ((x)/2)
 
-/// Device State
+/// Device State TODO remove
 typedef enum
 {
   TUSB_DEVICE_STATE_UNPLUG = 0  ,
@@ -184,7 +184,7 @@ typedef enum
   XFER_RESULT_STALLED,
 }xfer_result_t;
 
-enum
+enum // TODO remove
 {
   DESC_OFFSET_LEN  = 0,
   DESC_OFFSET_TYPE = 1

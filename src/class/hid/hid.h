@@ -43,6 +43,20 @@
 /** \defgroup ClassDriver_HID_Common Common Definitions
  *  @{ */
 
+ /// USB HID Descriptor
+typedef struct ATTR_PACKED
+{
+  uint8_t  bLength;         /**< Numeric expression that is the total size of the HID descriptor */
+  uint8_t  bDescriptorType; /**< Constant name specifying type of HID descriptor. */
+
+  uint16_t bcdHID;          /**< Numeric expression identifying the HID Class Specification release */
+  uint8_t  bCountryCode;    /**< Numeric expression identifying country code of the localized hardware.  */
+  uint8_t  bNumDescriptors; /**< Numeric expression specifying the number of class descriptors */
+
+  uint8_t  bReportType;     /**< Type of HID class report. */
+  uint16_t wReportLength;   /**< the total size of the Report descriptor. */
+} tusb_hid_descriptor_hid_t;
+
 /// HID Subclass
 typedef enum
 {
@@ -69,9 +83,10 @@ typedef enum
 /// HID Request Report Type
 typedef enum
 {
-  HID_REPORT_TYPE_INPUT = 1, ///< Input
-  HID_REPORT_TYPE_OUTPUT,    ///< Output
-  HID_REPORT_TYPE_FEATURE    ///< Feature
+  HID_REPORT_TYPE_INVALID = 0,
+  HID_REPORT_TYPE_INPUT,      ///< Input
+  HID_REPORT_TYPE_OUTPUT,     ///< Output
+  HID_REPORT_TYPE_FEATURE     ///< Feature
 }hid_report_type_t;
 
 /// HID Class Specific Control Request
@@ -85,59 +100,45 @@ typedef enum
   HID_REQ_CONTROL_SET_PROTOCOL = 0x0b  ///< Set Protocol
 }hid_request_type_t;
 
-/// USB HID Descriptor
-typedef struct ATTR_PACKED
-{
-  uint8_t  bLength;         /**< Numeric expression that is the total size of the HID descriptor */
-  uint8_t  bDescriptorType; /**< Constant name specifying type of HID descriptor. */
-
-  uint16_t bcdHID;          /**< Numeric expression identifying the HID Class Specification release */
-  uint8_t  bCountryCode;    /**< Numeric expression identifying country code of the localized hardware.  */
-  uint8_t  bNumDescriptors; /**< Numeric expression specifying the number of class descriptors */
-
-  uint8_t  bReportType;     /**< Type of HID class report. */
-  uint16_t wReportLength;   /**< the total size of the Report descriptor. */
-} tusb_hid_descriptor_hid_t;
-
 /// HID Country Code
 typedef enum
 {
-  HID_Local_NotSupported = 0   , ///< NotSupported
-  HID_Local_Arabic             , ///< Arabic
-  HID_Local_Belgian            , ///< Belgian
-  HID_Local_Canadian_Bilingual , ///< Canadian_Bilingual
-  HID_Local_Canadian_French    , ///< Canadian_French
-  HID_Local_Czech_Republic     , ///< Czech_Republic
-  HID_Local_Danish             , ///< Danish
-  HID_Local_Finnish            , ///< Finnish
-  HID_Local_French             , ///< French
-  HID_Local_German             , ///< German
-  HID_Local_Greek              , ///< Greek
-  HID_Local_Hebrew             , ///< Hebrew
-  HID_Local_Hungary            , ///< Hungary
-  HID_Local_International      , ///< International
-  HID_Local_Italian            , ///< Italian
-  HID_Local_Japan_Katakana     , ///< Japan_Katakana
-  HID_Local_Korean             , ///< Korean
-  HID_Local_Latin_American     , ///< Latin_American
-  HID_Local_Netherlands_Dutch  , ///< Netherlands/Dutch
-  HID_Local_Norwegian          , ///< Norwegian
-  HID_Local_Persian_Farsi      , ///< Persian (Farsi)
-  HID_Local_Poland             , ///< Poland
-  HID_Local_Portuguese         , ///< Portuguese
-  HID_Local_Russia             , ///< Russia
-  HID_Local_Slovakia           , ///< Slovakia
-  HID_Local_Spanish            , ///< Spanish
-  HID_Local_Swedish            , ///< Swedish
-  HID_Local_Swiss_French       , ///< Swiss/French
-  HID_Local_Swiss_German       , ///< Swiss/German
-  HID_Local_Switzerland        , ///< Switzerland
-  HID_Local_Taiwan             , ///< Taiwan
-  HID_Local_Turkish_Q          , ///< Turkish-Q
-  HID_Local_UK                 , ///< UK
-  HID_Local_US                 , ///< US
-  HID_Local_Yugoslavia         , ///< Yugoslavia
-  HID_Local_Turkish_F            ///< Turkish-F
+  HID_LOCAL_NotSupported = 0   , ///< NotSupported
+  HID_LOCAL_Arabic             , ///< Arabic
+  HID_LOCAL_Belgian            , ///< Belgian
+  HID_LOCAL_Canadian_Bilingual , ///< Canadian_Bilingual
+  HID_LOCAL_Canadian_French    , ///< Canadian_French
+  HID_LOCAL_Czech_Republic     , ///< Czech_Republic
+  HID_LOCAL_Danish             , ///< Danish
+  HID_LOCAL_Finnish            , ///< Finnish
+  HID_LOCAL_French             , ///< French
+  HID_LOCAL_German             , ///< German
+  HID_LOCAL_Greek              , ///< Greek
+  HID_LOCAL_Hebrew             , ///< Hebrew
+  HID_LOCAL_Hungary            , ///< Hungary
+  HID_LOCAL_International      , ///< International
+  HID_LOCAL_Italian            , ///< Italian
+  HID_LOCAL_Japan_Katakana     , ///< Japan_Katakana
+  HID_LOCAL_Korean             , ///< Korean
+  HID_LOCAL_Latin_American     , ///< Latin_American
+  HID_LOCAL_Netherlands_Dutch  , ///< Netherlands/Dutch
+  HID_LOCAL_Norwegian          , ///< Norwegian
+  HID_LOCAL_Persian_Farsi      , ///< Persian (Farsi)
+  HID_LOCAL_Poland             , ///< Poland
+  HID_LOCAL_Portuguese         , ///< Portuguese
+  HID_LOCAL_Russia             , ///< Russia
+  HID_LOCAL_Slovakia           , ///< Slovakia
+  HID_LOCAL_Spanish            , ///< Spanish
+  HID_LOCAL_Swedish            , ///< Swedish
+  HID_LOCAL_Swiss_French       , ///< Swiss/French
+  HID_LOCAL_Swiss_German       , ///< Swiss/German
+  HID_LOCAL_Switzerland        , ///< Switzerland
+  HID_LOCAL_Taiwan             , ///< Taiwan
+  HID_LOCAL_Turkish_Q          , ///< Turkish-Q
+  HID_LOCAL_UK                 , ///< UK
+  HID_LOCAL_US                 , ///< US
+  HID_LOCAL_Yugoslavia         , ///< Yugoslavia
+  HID_LOCAL_Turkish_F            ///< Turkish-F
 } hid_country_code_t;
 
 /** @} */
@@ -155,7 +156,7 @@ typedef struct ATTR_PACKED
   int8_t  x;       /**< Current delta x movement of the mouse. */
   int8_t  y;       /**< Current delta y movement on the mouse. */
   int8_t  wheel;   /**< Current delta wheel movement on the mouse. */
-//  int8_t  pan;
+  int8_t  pan;     // using AC Pan
 } hid_mouse_report_t;
 
 /// Standard Mouse Buttons Bitmap
@@ -461,7 +462,7 @@ enum {
   HID_USAGE_PAGE_MSR             = 0x8e,
   HID_USAGE_PAGE_CAMERA          = 0x90,
   HID_USAGE_PAGE_ARCADE          = 0x91,
-  HID_USAGE_PAGE_VENDOR          = 0xFFFF // 0xFF00 - 0xFFFF
+  HID_USAGE_PAGE_VENDOR          = 0xFF00 // 0xFF00 - 0xFFFF
 };
 
 /// HID Usage Table - Table 6: Generic Desktop Page

@@ -1,4 +1,4 @@
-/* 
+/*
  * The MIT License (MIT)
  *
  * Copyright (c) 2018, hathach (tinyusb.org)
@@ -45,7 +45,7 @@
 #define CFG_TUSB_RHPORT0_MODE       OPT_MODE_DEVICE
 #endif
 
-#define CFG_TUSB_OS                 OPT_OS_FREERTOS
+#define CFG_TUSB_OS                 OPT_OS_NONE
 #define CFG_TUSB_DEBUG              2
 
 /* USB DMA on some MCUs can only access a specific SRAM region with restriction on alignment.
@@ -70,37 +70,16 @@
 #define CFG_TUD_ENDOINT0_SIZE       64
 
 //------------- CLASS -------------//
-#define CFG_TUD_CDC                 1
-#define CFG_TUD_MSC                 1
+#define CFG_TUD_CDC                 0
+#define CFG_TUD_MSC                 0
 #define CFG_TUD_HID                 1
-
 #define CFG_TUD_MIDI                0
 #define CFG_TUD_CUSTOM_CLASS        0
-
-//------------- CDC -------------//
-
-// FIFO size of CDC TX and RX
-#define CFG_TUD_CDC_RX_BUFSIZE      64
-#define CFG_TUD_CDC_TX_BUFSIZE      64
-
-//------------- MSC -------------//
-
-// Buffer size of Device Mass storage
-#define CFG_TUD_MSC_BUFSIZE         512
-
-// Vendor name included in Inquiry response, max 8 bytes
-#define CFG_TUD_MSC_VENDOR          "tinyusb"
-
-// Product name included in Inquiry response, max 16 bytes
-#define CFG_TUD_MSC_PRODUCT         "tusb msc"
-
-// Product revision string included in Inquiry response, max 4 bytes
-#define CFG_TUD_MSC_PRODUCT_REV     "1.0"
 
 //------------- HID -------------//
 
 // Should be sufficient to hold ID (if any) + Data
-#define CFG_TUD_HID_BUFSIZE         16
+#define CFG_TUD_HID_BUFSIZE         64
 
 #ifdef __cplusplus
  }

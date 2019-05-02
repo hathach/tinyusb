@@ -89,9 +89,17 @@ static inline bool     tud_cdc_write_flush     (void)                           
 //--------------------------------------------------------------------+
 // APPLICATION CALLBACK API (WEAK is optional)
 //--------------------------------------------------------------------+
+
+// Invoked when received new data
 ATTR_WEAK void tud_cdc_rx_cb(uint8_t itf);
+
+// Invoked when received `wanted_char`
 ATTR_WEAK void tud_cdc_rx_wanted_cb(uint8_t itf, char wanted_char);
+
+// Invoked when line state DTR & RTS are changed via SET_CONTROL_LINE_STATE
 ATTR_WEAK void tud_cdc_line_state_cb(uint8_t itf, bool dtr, bool rts);
+
+// Invoked when line coding is change via SET_LINE_CODING
 ATTR_WEAK void tud_cdc_line_coding_cb(uint8_t itf, cdc_line_coding_t const* p_line_coding);
 
 /** @} */
