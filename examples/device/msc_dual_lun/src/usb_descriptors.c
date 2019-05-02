@@ -75,12 +75,11 @@ enum
 
 uint8_t const desc_configuration[] =
 {
-  // Config: self-powered with remote wakeup support, max power up to 100 mA
+  // Inteface count, string index, total length, attribute, power in mA
   TUD_CONFIG_DESCRIPTOR(ITF_NUM_TOTAL, 0, CONFIG_TOTAL_LEN, TUSB_DESC_CONFIG_ATT_REMOTE_WAKEUP, 100),
 
-#if CFG_TUD_MSC
+  // Interface number, string index, EP Out & EP In address, EP size
   TUD_MSC_DESCRIPTOR(ITF_NUM_MSC, 0, EPNUM_MSC, 0x80 | EPNUM_MSC, 64), // highspeed 512
-#endif
 };
 
 //------------- String Descriptors -------------//

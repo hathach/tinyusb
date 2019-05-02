@@ -462,7 +462,7 @@ enum {
   HID_USAGE_PAGE_MSR             = 0x8e,
   HID_USAGE_PAGE_CAMERA          = 0x90,
   HID_USAGE_PAGE_ARCADE          = 0x91,
-  HID_USAGE_PAGE_VENDOR          = 0xFFFF // 0xFF00 - 0xFFFF
+  HID_USAGE_PAGE_VENDOR          = 0xFF00 // 0xFF00 - 0xFFFF
 };
 
 /// HID Usage Table - Table 6: Generic Desktop Page

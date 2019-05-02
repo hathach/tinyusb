@@ -108,8 +108,9 @@ ATTR_WEAK bool tud_hid_set_idle_cb(uint8_t idle_rate);
   HID_USAGE_PAGE ( HID_USAGE_PAGE_DESKTOP     )                    ,\
   HID_USAGE      ( HID_USAGE_DESKTOP_KEYBOARD )                    ,\
   HID_COLLECTION ( HID_COLLECTION_APPLICATION )                    ,\
-    /* 8 bits Modifier Keys (Shfit, Control, Alt) */ \
+    /* Report ID if any */\
     __VA_ARGS__ \
+    /* 8 bits Modifier Keys (Shfit, Control, Alt) */ \
     HID_USAGE_PAGE ( HID_USAGE_PAGE_KEYBOARD )                     ,\
       HID_USAGE_MIN    ( 224                                    )  ,\
       HID_USAGE_MAX    ( 231                                    )  ,\
@@ -149,6 +150,7 @@ ATTR_WEAK bool tud_hid_set_idle_cb(uint8_t idle_rate);
   HID_USAGE_PAGE ( HID_USAGE_PAGE_DESKTOP      )                   ,\
   HID_USAGE      ( HID_USAGE_DESKTOP_MOUSE     )                   ,\
   HID_COLLECTION ( HID_COLLECTION_APPLICATION  )                   ,\
+    /* Report ID if any */\
     __VA_ARGS__ \
     HID_USAGE      ( HID_USAGE_DESKTOP_POINTER )                   ,\
     HID_COLLECTION ( HID_COLLECTION_PHYSICAL   )                   ,\
@@ -197,6 +199,7 @@ ATTR_WEAK bool tud_hid_set_idle_cb(uint8_t idle_rate);
   HID_USAGE_PAGE ( HID_USAGE_PAGE_CONSUMER    )              ,\
   HID_USAGE      ( HID_USAGE_CONSUMER_CONTROL )              ,\
   HID_COLLECTION ( HID_COLLECTION_APPLICATION )              ,\
+    /* Report ID if any */\
     __VA_ARGS__ \
     HID_LOGICAL_MIN  ( 0x00                                ) ,\
     HID_LOGICAL_MAX_N( 0x03FF, 2                           ) ,\
@@ -217,6 +220,7 @@ ATTR_WEAK bool tud_hid_set_idle_cb(uint8_t idle_rate);
   HID_USAGE_PAGE ( HID_USAGE_PAGE_DESKTOP           )        ,\
   HID_USAGE      ( HID_USAGE_DESKTOP_SYSTEM_CONTROL )        ,\
   HID_COLLECTION ( HID_COLLECTION_APPLICATION       )        ,\
+    /* Report ID if any */\
     __VA_ARGS__ \
     /* 2 bit system power control */ \
     HID_LOGICAL_MIN  ( 1                                   ) ,\
@@ -240,6 +244,7 @@ ATTR_WEAK bool tud_hid_set_idle_cb(uint8_t idle_rate);
   HID_USAGE_PAGE ( HID_USAGE_PAGE_DESKTOP     )        ,\
   HID_USAGE      ( HID_USAGE_DESKTOP_GAMEPAD  )        ,\
   HID_COLLECTION ( HID_COLLECTION_APPLICATION )        ,\
+    /* Report ID if any */\
     __VA_ARGS__ \
     /* 16 bit Button Map */ \
     HID_USAGE_PAGE   ( HID_USAGE_PAGE_BUTTON                  ) ,\
@@ -262,6 +267,31 @@ ATTR_WEAK bool tud_hid_set_idle_cb(uint8_t idle_rate);
     HID_REPORT_SIZE  ( 8                                      ) ,\
     HID_INPUT        ( HID_DATA | HID_VARIABLE | HID_ABSOLUTE ) ,\
   HID_COLLECTION_END \
+
+// HID Generic Input & Output
+// - 1st parameter is report size (mandatory)
+// - 2nd parameter is report id HID_REPORT_ID(n) (optional)
+#define TUD_HID_REPORT_DESC_GENERIC_INOUT(report_size, ...) \
+    HID_USAGE_PAGE_N ( HID_USAGE_PAGE_VENDOR, 2   ),\
+    HID_USAGE        ( 0x01                       ),\
+    HID_COLLECTION   ( HID_COLLECTION_APPLICATION ),\
+      /* Report ID if any */\
+      __VA_ARGS__ \
+      /* Input */ \
+      HID_USAGE       ( 0x02                                   ),\
+      HID_LOGICAL_MIN ( 0x00                                   ),\
+      HID_LOGICAL_MAX ( 0xff                                   ),\
+      HID_REPORT_SIZE ( 8                                      ),\
+      HID_REPORT_COUNT( report_size                            ),\
+      HID_INPUT       ( HID_DATA | HID_VARIABLE | HID_ABSOLUTE ),\
+      /* Output */ \
+      HID_USAGE       ( 0x03                                    ),\
+      HID_LOGICAL_MIN ( 0x00                                    ),\
+      HID_LOGICAL_MAX ( 0xff                                    ),\
+      HID_REPORT_SIZE ( 8                                       ),\
+      HID_REPORT_COUNT( report_size                             ),\
+      HID_OUTPUT      ( HID_DATA | HID_VARIABLE | HID_ABSOLUTE  ),\
+    HID_COLLECTION_END \
 
 /*--------------------------------------------------------------------
  * ASCII to KEYCODE Conversion

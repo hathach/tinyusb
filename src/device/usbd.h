@@ -107,7 +107,7 @@ ATTR_WEAK void tud_resume_cb(void);
 #define TUD_CDC_DESC_LEN  (8+9+5+5+4+5+7+9+7+7)
 
 // CDC Descriptor Template
-// interface number, string index, EP notification address and size, EP data address (out,in) and size.
+// Interface number, string index, EP notification address and size, EP data address (out, in) and size.
 #define TUD_CDC_DESCRIPTOR(_itfnum, _stridx, _ep_notif, _ep_notif_size, _epout, _epin, _epsize) \
   /* Interface Associate */\
   8, TUSB_DESC_INTERFACE_ASSOCIATION, _itfnum, 2, TUSB_CLASS_CDC, CDC_COMM_SUBCLASS_ABSTRACT_CONTROL_MODEL, CDC_COMM_PROTOCOL_ATCOMMAND, 0,\
@@ -149,14 +149,30 @@ ATTR_WEAK void tud_resume_cb(void);
 // Length of template descriptor: 25 bytes
 #define TUD_HID_DESC_LEN    (9 + 9 + 7)
 
+// HID Input only descriptor
 // Interface number, string index, protocol, report descriptor len, EP In address, size & polling interval
 #define TUD_HID_DESCRIPTOR(_itfnum, _stridx, _boot_protocol, _report_desc_len, _epin, _epsize, _ep_interval) \
   /* Interface */\
   9, TUSB_DESC_INTERFACE, _itfnum, 0, 1, TUSB_CLASS_HID, (_boot_protocol) ? HID_SUBCLASS_BOOT : 0, _boot_protocol, _stridx,\
   /* HID descriptor */\
   9, HID_DESC_TYPE_HID, U16_TO_U8S_LE(0x0111), 0, 1, HID_DESC_TYPE_REPORT, U16_TO_U8S_LE(_report_desc_len),\
-  /* Endpoint descriptor */\
+  /* Endpoint In */\
   7, TUSB_DESC_ENDPOINT, _epin, TUSB_XFER_INTERRUPT, U16_TO_U8S_LE(_epsize), _ep_interval
+
+// Length of template descriptor: 32 bytes
+#define TUD_HID_INOUT_DESC_LEN    (9 + 9 + 7 + 7)
+
+// HID Input & Output descriptor
+// Interface number, string index, protocol, report descriptor len, EP In & Out address, size & polling interval
+#define TUD_HID_INOUT_DESCRIPTOR(_itfnum, _stridx, _boot_protocol, _report_desc_len, _epin, _epout, _epsize, _ep_interval) \
+  /* Interface */\
+  9, TUSB_DESC_INTERFACE, _itfnum, 0, 2, TUSB_CLASS_HID, (_boot_protocol) ? HID_SUBCLASS_BOOT : 0, _boot_protocol, _stridx,\
+  /* HID descriptor */\
+  9, HID_DESC_TYPE_HID, U16_TO_U8S_LE(0x0111), 0, 1, HID_DESC_TYPE_REPORT, U16_TO_U8S_LE(_report_desc_len),\
+  /* Endpoint In */\
+  7, TUSB_DESC_ENDPOINT, _epin, TUSB_XFER_INTERRUPT, U16_TO_U8S_LE(_epsize), _ep_interval,\
+  /* Endpoint Out */\
+  7, TUSB_DESC_ENDPOINT, _epout, TUSB_XFER_INTERRUPT, U16_TO_U8S_LE(_epsize), _ep_interval
 
 #ifdef __cplusplus
  }
