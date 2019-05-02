@@ -11,6 +11,7 @@ This code base already had supported for a handful of following boards
 
 ### Nordic nRF5x
 
+- [Adafruit Feather nRF52840 Express](https://www.adafruit.com/product/4062)
 - [nRF52840-DK (aka pca10056)](https://www.nordicsemi.com/Software-and-Tools/Development-Kits/nRF52840-DK)
 
 ### NXP LPC

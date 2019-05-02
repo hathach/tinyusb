@@ -5,7 +5,7 @@ import subprocess
 import time
 
 all_device_example = ["cdc_msc_hid", "msc_dual_lun", "hid_generic_inout"]
-all_boards = ["metro_m0_express", "metro_m4_express", "pca10056", "stm32f407g_disc1"]
+all_boards = ["metro_m0_express", "metro_m4_express", "pca10056", "feather_nrf52840_express", "stm32f407g_disc1"]
 
 for example in all_device_example:
     for board in all_boards:

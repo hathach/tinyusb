@@ -30,6 +30,15 @@
 #include "bsp/board.h"
 #include "tusb.h"
 
+/* This example demonstrate HID Generic raw Input & Output.
+ * It will receive data from Host (In endpoint) and echo back (Out endpoint).
+ * HID Report descriptor use vendor for usage page (using template TUD_HID_REPORT_DESC_GENERIC_INOUT)
+ *
+ * Run 'python3 hid_test.py' on your PC to send and receive data to this device.
+ * Python and `hid` package is required, for installation please follow
+ * https://pypi.org/project/hid/
+ */
+
 //--------------------------------------------------------------------+
 // MACRO CONSTANT TYPEDEF PROTYPES
 //--------------------------------------------------------------------+
