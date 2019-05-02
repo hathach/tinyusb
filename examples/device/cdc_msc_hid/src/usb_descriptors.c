@@ -162,13 +162,13 @@ uint16_t const * const string_desc_arr [] =
 // tud_desc_set is required by tinyusb stack
 tud_desc_set_t tud_desc_set =
 {
-    .device     = &desc_device,
-    .config     = desc_configuration,
+  .device     = &desc_device,
+  .config     = desc_configuration,
 
-    .string_arr   = (uint8_t const **) string_desc_arr,
-    .string_count = sizeof(string_desc_arr)/sizeof(string_desc_arr[0]),
+  .string_arr   = (uint8_t const **) string_desc_arr,
+  .string_count = sizeof(string_desc_arr)/sizeof(string_desc_arr[0]),
 
 #if CFG_TUD_HID
-    .hid_report = desc_hid_report,
+  .hid_report = desc_hid_report,
 #endif
 };
