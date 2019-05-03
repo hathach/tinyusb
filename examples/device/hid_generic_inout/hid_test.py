@@ -3,7 +3,9 @@ import hid
 
 USB_VID = 0xcafe
 
-for dict in hid.enumerate(0xcafe):
+print("Openning HID device with VID = 0x%X" % USB_VID)
+
+for dict in hid.enumerate(USB_VID):
     print(dict)
     dev = hid.Device(dict['vendor_id'], dict['product_id'])
     if dev:
