@@ -242,20 +242,14 @@ int32_t proc_builtin_scsi(msc_cbw_t const * p_cbw, uint8_t* buffer, uint32_t buf
           .is_removable         = 1,
           .version              = 2,
           .response_data_format = 2,
-          // vendor_id, product_id, product_rev is space padded string
-          .vendor_id            = "",
-          .product_id           = "",
-          .product_rev          = "",
       };
 
-      memset(inquiry_rsp.vendor_id, ' ', sizeof(inquiry_rsp.vendor_id));
-      memcpy(inquiry_rsp.vendor_id, CFG_TUD_MSC_VENDOR, tu_min32(strlen(CFG_TUD_MSC_VENDOR), sizeof(inquiry_rsp.vendor_id)));
-
-      memset(inquiry_rsp.product_id, ' ', sizeof(inquiry_rsp.product_id));
-      memcpy(inquiry_rsp.product_id, CFG_TUD_MSC_PRODUCT, tu_min32(strlen(CFG_TUD_MSC_PRODUCT), sizeof(inquiry_rsp.product_id)));
-
+      // vendor_id, product_id, product_rev is space padded string
+      memset(inquiry_rsp.vendor_id  , ' ', sizeof(inquiry_rsp.vendor_id));
+      memset(inquiry_rsp.product_id , ' ', sizeof(inquiry_rsp.product_id));
       memset(inquiry_rsp.product_rev, ' ', sizeof(inquiry_rsp.product_rev));
-      memcpy(inquiry_rsp.product_rev, CFG_TUD_MSC_PRODUCT_REV, tu_min32(strlen(CFG_TUD_MSC_PRODUCT_REV), sizeof(inquiry_rsp.product_rev)));
+
+      tud_msc_inquiry_cb(p_cbw->lun, inquiry_rsp.vendor_id, inquiry_rsp.product_id, inquiry_rsp.product_rev);
 
       ret = sizeof(inquiry_rsp);
       memcpy(buffer, &inquiry_rsp, ret);

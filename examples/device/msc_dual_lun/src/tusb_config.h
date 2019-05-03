@@ -81,15 +81,6 @@
 // Buffer size of Device Mass storage
 #define CFG_TUD_MSC_BUFSIZE         512
 
-// Vendor name included in Inquiry response, max 8 bytes
-#define CFG_TUD_MSC_VENDOR          "tinyusb"
-
-// Product name included in Inquiry response, max 16 bytes
-#define CFG_TUD_MSC_PRODUCT         "tusb msc"
-
-// Product revision string included in Inquiry response, max 4 bytes
-#define CFG_TUD_MSC_PRODUCT_REV     "1.0"
-
 #ifdef __cplusplus
  }
 #endif

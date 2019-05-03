@@ -44,18 +44,6 @@ TU_VERIFY_STATIC(CFG_TUD_MSC_BUFSIZE < UINT16_MAX, "Size is not correct");
   #error CFG_TUD_MSC_BUFSIZE must be defined, value of a block size should work well, the more the better
 #endif
 
-#ifndef CFG_TUD_MSC_VENDOR
-  #error CFG_TUD_MSC_VENDOR 8-byte name must be defined
-#endif
-
-#ifndef CFG_TUD_MSC_PRODUCT
-  #error CFG_TUD_MSC_PRODUCT 16-byte name must be defined
-#endif
-
-#ifndef CFG_TUD_MSC_PRODUCT_REV
-  #error CFG_TUD_MSC_PRODUCT_REV 4-byte string must be defined
-#endif
-
 /** \addtogroup ClassDriver_MSC
  *  @{
  * \defgroup MSC_Device Device
@@ -104,6 +92,10 @@ int32_t tud_msc_read10_cb (uint8_t lun, uint32_t lba, uint32_t offset, void* buf
  *                          endpoint and return failed status in command status wrapper phase.
  */
 int32_t tud_msc_write10_cb (uint8_t lun, uint32_t lba, uint32_t offset, uint8_t* buffer, uint32_t bufsize);
+
+// Invoked when received SCSI_CMD_INQUIRY
+// Application fill vendor id, product id and revision with string up to 8, 16, 4 characters respectively
+void tud_msc_inquiry_cb(uint8_t lun, uint8_t vendor_id[8], uint8_t product_id[16], uint8_t product_rev[4]);
 
 // Invoked when received SCSI_CMD_READ_CAPACITY_10 and SCSI_CMD_READ_FORMAT_CAPACITY to determine the disk size
 // Application update block count and block size

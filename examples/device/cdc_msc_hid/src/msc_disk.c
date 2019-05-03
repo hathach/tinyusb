@@ -118,6 +118,30 @@ uint8_t msc_disk[DISK_BLOCK_NUM][DISK_BLOCK_SIZE] =
   README_CONTENTS
 };
 
+// Invoked when received SCSI_CMD_READ_CAPACITY_10 and SCSI_CMD_READ_FORMAT_CAPACITY to determine the disk size
+// Application update block count and block size
+void tud_msc_capacity_cb(uint8_t lun, uint32_t* block_count, uint16_t* block_size)
+{
+  (void) lun;
+
+  *block_count = DISK_BLOCK_NUM;
+  *block_size  = DISK_BLOCK_SIZE;
+}
+
+// Invoked when received SCSI_CMD_INQUIRY
+// Application fill vendor id, product id and revision with string up to 8, 16, 4 characters respectively
+void tud_msc_inquiry_cb(uint8_t lun, uint8_t vendor_id[8], uint8_t product_id[16], uint8_t product_rev[4])
+{
+  (void) lun;
+
+  const char vid[] = "TinyUSB";
+  const char pid[] = "Mass Storage";
+  const char rev[] = "1.0";
+
+  memcpy(vendor_id  , vid, strlen(vid));
+  memcpy(product_id , pid, strlen(pid));
+  memcpy(product_rev, rev, strlen(rev));
+}
 
 // Callback invoked when received READ10 command.
 // Copy disk's data to buffer (up to bufsize) and return number of copied bytes.
@@ -145,15 +169,6 @@ int32_t tud_msc_write10_cb(uint8_t lun, uint32_t lba, uint32_t offset, uint8_t* 
 #endif
 
   return bufsize;
-}
-
-// Callback invoked to determine disk's size
-void tud_msc_capacity_cb(uint8_t lun, uint32_t* block_count, uint16_t* block_size)
-{
-  (void) lun;
-
-  *block_count = DISK_BLOCK_NUM;
-  *block_size  = DISK_BLOCK_SIZE;
 }
 
 // Callback invoked when received an SCSI command not in built-in list below
