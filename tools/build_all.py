@@ -4,6 +4,7 @@ import sys
 import subprocess
 import time
 
+PARALLEL = "-j 4"
 travis = False
 if "TRAVIS" in os.environ and os.environ["TRAVIS"] == "true":
     PARALLEL="-j 2"
@@ -18,7 +19,7 @@ all_boards = ["metro_m0_express", "metro_m4_express", "pca10056", "feather_nrf52
 
 def build_example(example, board):
     subprocess.run("make -C examples/device/{} BOARD={} clean".format(example, board), shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
-    return subprocess.run("make -j 4 -C examples/device/{} BOARD={} all".format(example, board), shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+    return subprocess.run("make {} -C examples/device/{} BOARD={} all".format(PARALLEL, example, board), shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
 
 total_time = time.monotonic()
 

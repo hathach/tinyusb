@@ -15,6 +15,4 @@ tests/build
 .env
 /tests/lpc175x_6x/build/
 /tests/lpc18xx_43xx/build/
-/demos/*/*/Board_*
-/demos/*/*/KeilBuild/
 /examples/*/*/build-*
