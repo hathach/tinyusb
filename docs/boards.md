@@ -1,7 +1,7 @@
 # Boards
 
-The board support code is only used for self-contained examples and testing. It is not used when TinyUSB is part of a larger project. It is responsible for getting the MCU started and the USB peripheral clocked withminimal of on-board devices
-- One LED for status with different blink pattern
+The board support code is only used for self-contained examples and testing. It is not used when TinyUSB is part of a larger project. It is responsible for getting the MCU started and the USB peripheral clocked with minimal of on-board devices
+- One LED for status
 - One Button to get input from user
 - One UART optionally, mostly for host examples
  
