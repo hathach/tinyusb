@@ -46,7 +46,7 @@ for example in all_device_example:
 # FreeRTOS example
 #example = 'cdc_msc_hid_freertos'
 #board = 'pca10056'
-#subprocess.run("make -j2 -C examples/device/{} BOARD={} clean all".format(example, board), shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+#build_example(example, board)
 
 
 total_time = time.monotonic() - total_time

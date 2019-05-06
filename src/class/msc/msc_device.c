@@ -202,8 +202,18 @@ int32_t proc_builtin_scsi(uint8_t lun, uint8_t const scsi_cmd[16], uint8_t* buff
         // not ready response with Failed status and sense key = not ready
         resplen = - 1;
 
-        // Logical Unit Not Ready, Cause Not Reportable
-        tud_msc_set_sense(lun, SCSI_SENSE_NOT_READY, 0x04, 0x00);
+        // If sense key is not set by callback, default to Logical Unit Not Ready, Cause Not Reportable
+        if ( _mscd_itf.sense_key == 0 ) tud_msc_set_sense(lun, SCSI_SENSE_NOT_READY, 0x04, 0x00);
+      }
+    break;
+
+    case SCSI_CMD_START_STOP_UNIT:
+      resplen = 0;
+
+      if (tud_msc_start_stop_cb)
+      {
+        scsi_start_stop_unit_t const * start_stop = (scsi_start_stop_unit_t const *) scsi_cmd;
+        tud_msc_start_stop_cb(lun, start_stop->power_condition, start_stop->start, start_stop->load_eject);
       }
     break;
 
