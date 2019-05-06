@@ -107,7 +107,7 @@ void tud_msc_capacity_cb(uint8_t lun, uint32_t* block_count, uint16_t* block_siz
 
 /**
  * Invoked when received an SCSI command not in built-in list below.
- * - READ_CAPACITY10, READ_FORMAT_CAPACITY, INQUIRY, MODE_SENSE6, REQUEST_SENSE
+ * - READ_CAPACITY10, READ_FORMAT_CAPACITY, INQUIRY, TEST_UNIT_READY, START_STOP_UNIT, MODE_SENSE6, REQUEST_SENSE
  * - READ10 and WRITE10 has their own callbacks
  *
  * \param[in]   lun         Logical unit number
