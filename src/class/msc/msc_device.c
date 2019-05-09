@@ -219,8 +219,6 @@ int32_t proc_builtin_scsi(uint8_t lun, uint8_t const scsi_cmd[16], uint8_t* buff
 
     case SCSI_CMD_READ_CAPACITY_10:
     {
-      scsi_read_capacity10_resp_t read_capa10;
-
       uint32_t block_count;
       uint32_t block_size;
       uint16_t block_size_u16;
@@ -228,11 +226,24 @@ int32_t proc_builtin_scsi(uint8_t lun, uint8_t const scsi_cmd[16], uint8_t* buff
       tud_msc_capacity_cb(lun, &block_count, &block_size_u16);
       block_size = (uint32_t) block_size_u16;
 
-      read_capa10.last_lba = ENDIAN_BE(block_count-1);
-      read_capa10.block_size = ENDIAN_BE(block_size);
+      // Invalid block size/count from callback, possibly unit is not ready
+      // stall this request, set sense key to NOT READY
+      if (block_count == 0 || block_size == 0)
+      {
+        resplen = -1;
 
-      resplen = sizeof(read_capa10);
-      memcpy(buffer, &read_capa10, resplen);
+        // If sense key is not set by callback, default to Logical Unit Not Ready, Cause Not Reportable
+        if ( _mscd_itf.sense_key == 0 ) tud_msc_set_sense(lun, SCSI_SENSE_NOT_READY, 0x04, 0x00);
+      }else
+      {
+        scsi_read_capacity10_resp_t read_capa10;
+
+        read_capa10.last_lba = ENDIAN_BE(block_count-1);
+        read_capa10.block_size = ENDIAN_BE(block_size);
+
+        resplen = sizeof(read_capa10);
+        memcpy(buffer, &read_capa10, resplen);
+      }
     }
     break;
 
@@ -250,11 +261,23 @@ int32_t proc_builtin_scsi(uint8_t lun, uint8_t const scsi_cmd[16], uint8_t* buff
       uint16_t block_size;
 
       tud_msc_capacity_cb(lun, &block_count, &block_size);
-      read_fmt_capa.block_num = ENDIAN_BE(block_count);
-      read_fmt_capa.block_size_u16 = ENDIAN_BE16(block_size);
 
-      resplen = sizeof(read_fmt_capa);
-      memcpy(buffer, &read_fmt_capa, resplen);
+      // Invalid block size/count from callback, possibly unit is not ready
+      // stall this request, set sense key to NOT READY
+      if (block_count == 0 || block_size == 0)
+      {
+        resplen = -1;
+
+        // If sense key is not set by callback, default to Logical Unit Not Ready, Cause Not Reportable
+        if ( _mscd_itf.sense_key == 0 ) tud_msc_set_sense(lun, SCSI_SENSE_NOT_READY, 0x04, 0x00);
+      }else
+      {
+        read_fmt_capa.block_num = ENDIAN_BE(block_count);
+        read_fmt_capa.block_size_u16 = ENDIAN_BE16(block_size);
+
+        resplen = sizeof(read_fmt_capa);
+        memcpy(buffer, &read_fmt_capa, resplen);
+      }
     }
     break;
 
