@@ -227,9 +227,9 @@ void dcd_edpt_clear_stall (uint8_t rhport, uint8_t ep_addr)
   UsbDeviceEndpoint* ep = &USB->DEVICE.DeviceEndpoint[epnum];
 
   if (tu_edpt_dir(ep_addr) == TUSB_DIR_IN) {
-    ep->EPSTATUSCLR.reg = USB_DEVICE_EPSTATUSCLR_STALLRQ1;
+    ep->EPSTATUSCLR.reg = USB_DEVICE_EPSTATUSCLR_STALLRQ1 | USB_DEVICE_EPSTATUSCLR_DTGLIN;
   } else {
-    ep->EPSTATUSCLR.reg = USB_DEVICE_EPSTATUSCLR_STALLRQ0;
+    ep->EPSTATUSCLR.reg = USB_DEVICE_EPSTATUSCLR_STALLRQ0 | USB_DEVICE_EPSTATUSCLR_DTGLOUT;
   }
 }
 
