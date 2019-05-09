@@ -128,7 +128,6 @@
 */
 #ifndef CFG_TUSB_DEBUG
   #define CFG_TUSB_DEBUG 0
-  #warning CFG_TUSB_DEBUG is not defined, default value is 0
 #endif
 
 // place data in accessible RAM for usb controller
@@ -164,6 +163,14 @@
   #ifndef CFG_TUD_MSC
     #define CFG_TUD_MSC          0
   #endif
+
+#ifndef CFG_TUD_MIDI
+  #define CFG_TUD_MIDI            0
+#endif
+
+#ifndef CFG_TUD_CUSTOM_CLASS
+  #define CFG_TUD_CUSTOM_CLASS    0
+#endif
 
 #endif // TUSB_OPT_DEVICE_ENABLED
 
