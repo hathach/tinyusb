@@ -456,7 +456,7 @@ static bool process_control_request(uint8_t rhport, tusb_control_request_t const
         case TUSB_REQ_CLEAR_FEATURE:
           if ( TUSB_REQ_FEATURE_EDPT_HALT == p_request->wValue )
           {
-            dcd_edpt_clear_stall(rhport, tu_u16_low(p_request->wIndex));
+            usbd_edpt_clear_stall(rhport, tu_u16_low(p_request->wIndex));
           }
           usbd_control_status(rhport, p_request);
         break;

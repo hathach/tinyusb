@@ -107,7 +107,7 @@ void dcd_remote_wakeup(uint8_t rhport);
  *                  must be called to notify the stack
  *  - busy        : Check if endpoint transferring is complete (TODO remove)
  *  - stall       : stall endpoint
- *  - clear_stall : clear stall
+ *  - clear_stall : clear stall, data toggle is also reset to DATA0
  *------------------------------------------------------------------*/
 bool dcd_edpt_open        (uint8_t rhport, tusb_desc_endpoint_t const * p_endpoint_desc);
 bool dcd_edpt_xfer        (uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t total_bytes);

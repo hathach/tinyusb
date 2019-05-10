@@ -322,7 +322,12 @@ void dcd_edpt_clear_stall (uint8_t rhport, uint8_t ep_addr)
 
   if ( tu_edpt_number(ep_addr)  )
   {
+    // clear stall
     NRF_USBD->EPSTALL = (USBD_EPSTALL_STALL_UnStall << USBD_EPSTALL_STALL_Pos) | ep_addr;
+
+    // reset data toggle to DATA0
+    NRF_USBD->DTOGGLE = (USBD_DTOGGLE_VALUE_Data0 << USBD_DTOGGLE_VALUE_Pos) | ep_addr;
+
     __ISB(); __DSB();
   }
 }
