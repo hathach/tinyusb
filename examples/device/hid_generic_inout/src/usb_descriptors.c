@@ -88,30 +88,53 @@ uint8_t const desc_configuration[] =
   TUD_HID_INOUT_DESCRIPTOR(ITF_NUM_HID, 0, HID_PROTOCOL_NONE, sizeof(desc_hid_report), 0x80 | EPNUM_HID, EPNUM_HID, 16, 10)
 };
 
-//------------- String Descriptors -------------//
-// array of pointer to string descriptors
-uint16_t const * const string_desc_arr [] =
-{
-  // 0: is supported language = English
-  TUD_DESC_STRCONV(0x0409),
-
-  // 1: Manufacturer
-  TUD_DESC_STRCONV('t', 'i', 'n', 'y', 'u', 's', 'b', '.', 'o', 'r', 'g'),
-
-  // 2: Product
-  TUD_DESC_STRCONV('t', 'i', 'n', 'y', 'u', 's', 'b', ' ', 'd', 'e', 'v', 'i', 'c', 'e'),
-
-  // 3: Serials, should use chip ID
-  TUD_DESC_STRCONV('1', '2', '3', '4', '5', '6'),
-};
 
 // tud_desc_set is required by tinyusb stack
 tud_desc_set_t tud_desc_set =
 {
-  .device       = &desc_device,
-  .config       = desc_configuration,
+    .device     = &desc_device,
+    .config     = desc_configuration,
 
-  .string_arr   = (uint8_t const **) string_desc_arr,
-  .string_count = sizeof(string_desc_arr)/sizeof(string_desc_arr[0]),
-  .hid_report   = desc_hid_report,
+#if CFG_TUD_HID
+    .hid_report = desc_hid_report,
+#endif
 };
+
+//------------- String Descriptors -------------//
+
+// array of pointer to string descriptors
+char const* string_desc_arr [] =
+{
+  (const char[]) { 0x09, 0x04 }, // 0: is supported language is English (0x0409)
+  "TinyUSB",                     // 1: Manufacturer
+  "TinyUSB Device",              // 2: Product
+  "123456",                      // 3: Serials, should use chip ID
+};
+
+// Invoked when received GET_STRING_DESC request
+// max_char is CFG_TUD_ENDOINT0_SIZE/2 -1, typically max_char = 31 if Endpoint0 size is 64
+// Return number of characters. Note usb string is in 16-bits unicode format
+uint8_t tud_descriptor_string_cb(uint8_t index, uint16_t* desc, uint8_t max_char)
+{
+  if ( index == 0)
+  {
+    memcpy(desc, string_desc_arr[0], 2);
+    return 1;
+  }else
+  {
+    if ( !(index < sizeof(string_desc_arr)/sizeof(string_desc_arr[0])) ) return 0;
+
+    const char* str = string_desc_arr[index];
+
+    // Cap at max char
+    uint8_t count = strlen(str);
+    if ( count > max_char ) count = max_char;
+
+    for(uint8_t i=0; i<count; i++)
+    {
+      *desc++ = str[i];
+    }
+
+    return count;
+  }
+}

@@ -39,12 +39,8 @@
 
 /// \brief Descriptor pointer collector to all the needed.
 typedef struct {
-  void const * device;            ///< pointer to device descriptor \ref tusb_desc_device_t
-  void const * config;            ///< pointer to the whole configuration descriptor, starting by \ref tusb_desc_configuration_t
-
-  uint8_t const** string_arr;     ///< a array of pointers to string descriptors
-  uint16_t        string_count;
-
+  void const * device;        ///< pointer to device descriptor \ref tusb_desc_device_t
+  void const * config;        ///< pointer to the whole configuration descriptor, starting by \ref tusb_desc_configuration_t
   uint8_t const*  hid_report;
 
 }tud_desc_set_t;
@@ -77,6 +73,11 @@ bool tud_remote_wakeup(void);
 //--------------------------------------------------------------------+
 // Application Callbacks (WEAK is optional)
 //--------------------------------------------------------------------+
+
+// Invoked when received GET_STRING_DESC request
+// max_char is CFG_TUD_ENDOINT0_SIZE/2 -1, typically max_char = 31 if Endpoint0 size is 64
+// Return number of characters. Note usb string is in 16-bits unicode format
+uint8_t tud_descriptor_string_cb(uint8_t index, uint16_t* desc, uint8_t max_char);
 
 // Invoked when device is mounted (configured)
 ATTR_WEAK void tud_mount_cb(void);

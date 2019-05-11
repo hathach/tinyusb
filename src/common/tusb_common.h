@@ -142,6 +142,11 @@ static inline uint32_t tu_u32_from_u8(uint8_t b1, uint8_t b2, uint8_t b3, uint8_
   return ( ((uint32_t) b1) << 24) + ( ((uint32_t) b2) << 16) + ( ((uint32_t) b3) << 8) + b4;
 }
 
+static inline uint16_t tu_u16_from_u8(uint8_t high, uint8_t low)
+{
+  return (((uint16_t) high) << 8) + low;
+}
+
 static inline uint8_t tu_u16_high(uint16_t u16)
 {
   return (uint8_t) ( ((uint16_t) (u16 >> 8)) & 0x00ff);
