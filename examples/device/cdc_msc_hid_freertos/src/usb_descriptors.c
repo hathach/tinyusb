@@ -79,25 +79,34 @@ uint8_t const desc_hid_report[] =
   TUD_HID_REPORT_DESC_KEYBOARD( HID_REPORT_ID(REPORT_ID_KEYBOARD), ),
   TUD_HID_REPORT_DESC_MOUSE   ( HID_REPORT_ID(REPORT_ID_MOUSE), )
 };
+
+// Invoked when received GET HID REPORT DESCRIPTOR
+// Application return pointer to descriptor
+// Descriptor contents must exist long enough for transfer to complete
+uint8_t const * tud_hid_descriptor_report_cb(void)
+{
+  return desc_hid_report;
+}
+
 #endif
 
 //------------- Configuration Descriptor -------------//
 enum
 {
-  #if CFG_TUD_CDC
-    ITF_NUM_CDC = 0,
-    ITF_NUM_CDC_DATA,
-  #endif
+#if CFG_TUD_CDC
+  ITF_NUM_CDC = 0,
+  ITF_NUM_CDC_DATA,
+#endif
 
-  #if CFG_TUD_MSC
-    ITF_NUM_MSC,
-  #endif
+#if CFG_TUD_MSC
+  ITF_NUM_MSC,
+#endif
 
-  #if CFG_TUD_HID
-    ITF_NUM_HID,
-  #endif
+#if CFG_TUD_HID
+  ITF_NUM_HID,
+#endif
 
-    ITF_NUM_TOTAL
+  ITF_NUM_TOTAL
 };
 
 enum
@@ -136,42 +145,65 @@ uint8_t const desc_configuration[] =
 #endif
 };
 
+// Invoked when received GET DEVICE DESCRIPTOR
+// Application return pointer to descriptor
+uint8_t const * tud_descriptor_device_cb(void)
+{
+  return (uint8_t const *) &desc_device;
+}
+
+// Invoked when received GET CONFIGURATION DESCRIPTOR
+// Application return pointer to descriptor
+// Descriptor contents must exist long enough for transfer to complete
+uint8_t const * tud_descriptor_configuration_cb(void)
+{
+  return desc_configuration;
+}
+
 //------------- String Descriptors -------------//
+
 // array of pointer to string descriptors
-uint16_t const * const string_desc_arr [] =
+char const* string_desc_arr [] =
 {
-  // 0: is supported language = English
-  TUD_DESC_STRCONV(0x0409),
-
-  // 1: Manufacturer
-  TUD_DESC_STRCONV('t', 'i', 'n', 'y', 'u', 's', 'b', '.', 'o', 'r', 'g'),
-
-  // 2: Product
-  TUD_DESC_STRCONV('t', 'i', 'n', 'y', 'u', 's', 'b', ' ', 'd', 'e', 'v', 'i', 'c', 'e'),
-
-  // 3: Serials, should use chip ID
-  TUD_DESC_STRCONV('1', '2', '3', '4', '5', '6'),
-
-  // 4: CDC Interface
-  TUD_DESC_STRCONV('t','u','s','b',' ','c','d','c'),
-
-  // 5: MSC Interface
-  TUD_DESC_STRCONV('t','u','s','b',' ','m','s','c'),
-
-  // 6: HID
-  TUD_DESC_STRCONV('t','u','s','b',' ','h','i','d')
+  (const char[]) { 0x09, 0x04 }, // 0: is supported language is English (0x0409)
+  "TinyUSB",                     // 1: Manufacturer
+  "TinyUSB Device",              // 2: Product
+  "123456",                      // 3: Serials, should use chip ID
+  "TinyUSB CDC",                 // 4: CDC Interface
+  "TinyUSB MSC",                 // 5: MSC Interface
+  "TinyUSB HID"                  // 6: HID
 };
 
-// tud_desc_set is required by tinyusb stack
-tud_desc_set_t tud_desc_set =
+static uint16_t _desc_str[32];
+
+// Invoked when received GET STRING DESCRIPTOR request
+// Application return pointer to descriptor, whose contents must exist long enough for transfer to complete
+uint16_t const* tud_descriptor_string_cb(uint8_t index)
 {
-    .device     = &desc_device,
-    .config     = desc_configuration,
+  uint8_t chr_count;
 
-    .string_arr   = (uint8_t const **) string_desc_arr,
-    .string_count = sizeof(string_desc_arr)/sizeof(string_desc_arr[0]),
+  if ( index == 0)
+  {
+    memcpy(&_desc_str[1], string_desc_arr[0], 2);
+    chr_count = 1;
+  }else
+  {
+    if ( !(index < sizeof(string_desc_arr)/sizeof(string_desc_arr[0])) ) return NULL;
 
-#if CFG_TUD_HID
-    .hid_report = desc_hid_report,
-#endif
-};
+    const char* str = string_desc_arr[index];
+
+    // Cap at max char
+    chr_count = strlen(str);
+    if ( chr_count > 31 ) chr_count = 31;
+
+    for(uint8_t i=0; i<chr_count; i++)
+    {
+      _desc_str[1+i] = str[i];
+    }
+  }
+
+  // first byte is len, second byte is string type
+  _desc_str[0] = TUD_DESC_STR_HEADER(chr_count);
+
+  return _desc_str;
+}

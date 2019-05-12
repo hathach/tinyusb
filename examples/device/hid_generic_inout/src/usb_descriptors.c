@@ -88,30 +88,71 @@ uint8_t const desc_configuration[] =
   TUD_HID_INOUT_DESCRIPTOR(ITF_NUM_HID, 0, HID_PROTOCOL_NONE, sizeof(desc_hid_report), 0x80 | EPNUM_HID, EPNUM_HID, 16, 10)
 };
 
+
+// Invoked when received GET DEVICE DESCRIPTOR
+// Application return pointer to descriptor
+uint8_t const * tud_descriptor_device_cb(void)
+{
+  return (uint8_t const *) &desc_device;
+}
+
+// Invoked when received GET CONFIGURATION DESCRIPTOR
+// Application return pointer to descriptor
+// Descriptor contents must exist long enough for transfer to complete
+uint8_t const * tud_descriptor_configuration_cb(void)
+{
+  return desc_configuration;
+}
+
+// Invoked when received GET HID REPORT DESCRIPTOR
+// Application return pointer to descriptor
+// Descriptor contents must exist long enough for transfer to complete
+uint8_t const * tud_hid_descriptor_report_cb(void)
+{
+  return desc_hid_report;
+}
+
 //------------- String Descriptors -------------//
+
 // array of pointer to string descriptors
-uint16_t const * const string_desc_arr [] =
+char const* string_desc_arr [] =
 {
-  // 0: is supported language = English
-  TUD_DESC_STRCONV(0x0409),
-
-  // 1: Manufacturer
-  TUD_DESC_STRCONV('t', 'i', 'n', 'y', 'u', 's', 'b', '.', 'o', 'r', 'g'),
-
-  // 2: Product
-  TUD_DESC_STRCONV('t', 'i', 'n', 'y', 'u', 's', 'b', ' ', 'd', 'e', 'v', 'i', 'c', 'e'),
-
-  // 3: Serials, should use chip ID
-  TUD_DESC_STRCONV('1', '2', '3', '4', '5', '6'),
+  (const char[]) { 0x09, 0x04 }, // 0: is supported language is English (0x0409)
+  "TinyUSB",                     // 1: Manufacturer
+  "TinyUSB Device",              // 2: Product
+  "123456",                      // 3: Serials, should use chip ID
 };
 
-// tud_desc_set is required by tinyusb stack
-tud_desc_set_t tud_desc_set =
-{
-  .device       = &desc_device,
-  .config       = desc_configuration,
+static uint16_t _desc_str[32];
 
-  .string_arr   = (uint8_t const **) string_desc_arr,
-  .string_count = sizeof(string_desc_arr)/sizeof(string_desc_arr[0]),
-  .hid_report   = desc_hid_report,
-};
+// Invoked when received GET STRING DESCRIPTOR request
+// Application return pointer to descriptor, whose contents must exist long enough for transfer to complete
+uint16_t const* tud_descriptor_string_cb(uint8_t index)
+{
+  uint8_t chr_count;
+
+  if ( index == 0)
+  {
+    memcpy(&_desc_str[1], string_desc_arr[0], 2);
+    chr_count = 1;
+  }else
+  {
+    if ( !(index < sizeof(string_desc_arr)/sizeof(string_desc_arr[0])) ) return NULL;
+
+    const char* str = string_desc_arr[index];
+
+    // Cap at max char
+    chr_count = strlen(str);
+    if ( chr_count > 31 ) chr_count = 31;
+
+    for(uint8_t i=0; i<chr_count; i++)
+    {
+      _desc_str[1+i] = str[i];
+    }
+  }
+
+  // first byte is len, second byte is string type
+  _desc_str[0] = TUD_DESC_STR_HEADER(chr_count);
+
+  return _desc_str;
+}

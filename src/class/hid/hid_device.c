@@ -201,7 +201,8 @@ bool hidd_control_request(uint8_t rhport, tusb_control_request_t const * p_reque
 
     if (p_request->bRequest == TUSB_REQ_GET_DESCRIPTOR && desc_type == HID_DESC_TYPE_REPORT)
     {
-      usbd_control_xfer(rhport, p_request, (void*) tud_desc_set.hid_report, p_hid->reprot_desc_len);
+      uint8_t const * desc_report = tud_hid_descriptor_report_cb();
+      usbd_control_xfer(rhport, p_request, (void*) desc_report, p_hid->reprot_desc_len);
     }else
     {
       return false; // stall unsupported request

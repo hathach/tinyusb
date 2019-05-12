@@ -160,7 +160,7 @@ static osal_queue_t _usbd_q;
 static void mark_interface_endpoint(uint8_t ep2drv[8][2], uint8_t const* p_desc, uint16_t desc_len, uint8_t driver_id);
 static bool process_control_request(uint8_t rhport, tusb_control_request_t const * p_request);
 static bool process_set_config(uint8_t rhport);
-static void const* get_descriptor(tusb_control_request_t const * p_request, uint16_t* desc_len);
+static bool process_get_descriptor(uint8_t rhport, tusb_control_request_t const * p_request);
 
 void usbd_control_reset (uint8_t rhport);
 bool usbd_control_xfer_cb (uint8_t rhport, uint8_t ep_addr, xfer_result_t event, uint32_t xferred_bytes);
@@ -382,13 +382,7 @@ static bool process_control_request(uint8_t rhport, tusb_control_request_t const
         break;
 
         case TUSB_REQ_GET_DESCRIPTOR:
-        {
-          uint16_t len = 0;
-          void* buf = (void*) get_descriptor(p_request, &len);
-          if ( buf == NULL || len == 0 ) return false;
-
-          usbd_control_xfer(rhport, p_request, buf, len);
-        }
+          TU_ASSERT( process_get_descriptor(rhport, p_request) );
         break;
 
         case TUSB_REQ_SET_FEATURE:
@@ -485,7 +479,7 @@ static bool process_control_request(uint8_t rhport, tusb_control_request_t const
 // This function parse configuration descriptor & open drivers accordingly
 static bool process_set_config(uint8_t rhport)
 {
-  tusb_desc_configuration_t const * desc_cfg = (tusb_desc_configuration_t const *) tud_desc_set.config;
+  tusb_desc_configuration_t const * desc_cfg = (tusb_desc_configuration_t const *) tud_descriptor_configuration_cb();
   TU_ASSERT(desc_cfg != NULL && desc_cfg->bDescriptorType == TUSB_DESC_CONFIGURATION);
 
   // Parse configuration descriptor
@@ -556,56 +550,51 @@ static void mark_interface_endpoint(uint8_t ep2drv[8][2], uint8_t const* p_desc,
 }
 
 // return descriptor's buffer and update desc_len
-static void const* get_descriptor(tusb_control_request_t const * p_request, uint16_t* desc_len)
+static bool process_get_descriptor(uint8_t rhport, tusb_control_request_t const * p_request)
 {
   tusb_desc_type_t const desc_type = (tusb_desc_type_t) tu_u16_high(p_request->wValue);
   uint8_t const desc_index = tu_u16_low( p_request->wValue );
 
-  uint8_t const * desc_data = NULL;
-  uint16_t len = 0;
-
-  *desc_len = 0;
-
   switch(desc_type)
   {
     case TUSB_DESC_DEVICE:
-      desc_data = (uint8_t const *) tud_desc_set.device;
-      len       = sizeof(tusb_desc_device_t);
+      return usbd_control_xfer(rhport, p_request, (void*) tud_descriptor_device_cb(), sizeof(tusb_desc_device_t));
     break;
 
     case TUSB_DESC_CONFIGURATION:
-      desc_data = (uint8_t const *) tud_desc_set.config;
-      len       = ((tusb_desc_configuration_t const*) desc_data)->wTotalLength;
+    {
+      tusb_desc_configuration_t const* desc_config = (tusb_desc_configuration_t const*) tud_descriptor_configuration_cb();
+      return usbd_control_xfer(rhport, p_request, (void*) desc_config, desc_config->wTotalLength);
+    }
     break;
 
     case TUSB_DESC_STRING:
       // String Descriptor always uses the desc set from user
-      if ( desc_index < tud_desc_set.string_count )
+      if ( desc_index == 0xEE )
       {
-        desc_data = tud_desc_set.string_arr[desc_index];
-        TU_VERIFY( desc_data != NULL, NULL );
-
-        len  = desc_data[0];  // first byte of descriptor is its size
-      }else
-      {
-        // out of range
         // The 0xEE index string is a Microsoft USB extension.
         // It can be used to tell Windows what driver it should use for the device !!!
-        return NULL;
+        return false;
+      }else
+      {
+        uint8_t const* desc_str = (uint8_t const*) tud_descriptor_string_cb(desc_index);
+        TU_ASSERT(desc_str);
+
+        // first byte of descriptor is its size
+        return usbd_control_xfer(rhport, p_request, (void*) desc_str, desc_str[0]);
       }
     break;
 
     case TUSB_DESC_DEVICE_QUALIFIER:
       // TODO If not highspeed capable stall this request otherwise
       // return the descriptor that could work in highspeed
-      return NULL;
+      return false;
     break;
 
-    default: return NULL;
+    default: return false;
   }
 
-  *desc_len = len;
-  return desc_data;
+  return true;
 }
 
 //--------------------------------------------------------------------+
