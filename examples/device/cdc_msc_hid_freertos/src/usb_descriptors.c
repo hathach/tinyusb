@@ -174,30 +174,36 @@ char const* string_desc_arr [] =
   "TinyUSB HID"                  // 6: HID
 };
 
-// Invoked when received GET_STRING_DESC request
-// max_char is CFG_TUD_ENDOINT0_SIZE/2 -1, typically max_char = 31 if Endpoint0 size is 64
-// Return number of characters. Note usb string is in 16-bits unicode format
-uint8_t tud_descriptor_string_cb(uint8_t index, uint16_t* desc, uint8_t max_char)
+static uint16_t _desc_str[32];
+
+// Invoked when received GET STRING DESCRIPTOR request
+// Application return pointer to descriptor, whose contents must exist long enough for transfer to complete
+uint16_t const* tud_descriptor_string_cb(uint8_t index)
 {
+  uint8_t chr_count;
+
   if ( index == 0)
   {
-    memcpy(desc, string_desc_arr[0], 2);
-    return 1;
+    memcpy(&_desc_str[1], string_desc_arr[0], 2);
+    chr_count = 1;
   }else
   {
-    if ( !(index < sizeof(string_desc_arr)/sizeof(string_desc_arr[0])) ) return 0;
+    if ( !(index < sizeof(string_desc_arr)/sizeof(string_desc_arr[0])) ) return NULL;
 
     const char* str = string_desc_arr[index];
 
     // Cap at max char
-    uint8_t count = strlen(str);
-    if ( count > max_char ) count = max_char;
+    chr_count = strlen(str);
+    if ( chr_count > 31 ) chr_count = 31;
 
-    for(uint8_t i=0; i<count; i++)
+    for(uint8_t i=0; i<chr_count; i++)
     {
-      *desc++ = str[i];
+      _desc_str[1+i] = str[i];
     }
-
-    return count;
   }
+
+  // first byte is len, second byte is string type
+  _desc_str[0] = TUD_DESC_STR_HEADER(chr_count);
+
+  return _desc_str;
 }

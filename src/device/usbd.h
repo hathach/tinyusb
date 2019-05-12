@@ -63,19 +63,17 @@ bool tud_remote_wakeup(void);
 // Application Callbacks (WEAK is optional)
 //--------------------------------------------------------------------+
 
-// Invoked when received GET DEVICE DESCRIPTOR
+// Invoked when received GET DEVICE DESCRIPTOR request
 // Application return pointer to descriptor
 uint8_t const * tud_descriptor_device_cb(void);
 
-// Invoked when received GET CONFIGURATION DESCRIPTOR
-// Application return pointer to descriptor
-// Descriptor contents must exist long enough for transfer to complete
+// Invoked when received GET CONFIGURATION DESCRIPTOR request
+// Application return pointer to descriptor, whose contents must exist long enough for transfer to complete
 uint8_t const * tud_descriptor_configuration_cb(void);
 
-// Invoked when received GET STRING DESC request
-// max_char is CFG_TUD_ENDOINT0_SIZE/2 -1, typically max_char = 31 if Endpoint0 size is 64
-// Return number of characters. Note usb string is in UTF-16 format
-uint8_t tud_descriptor_string_cb(uint8_t index, uint16_t* desc, uint8_t max_char);
+// Invoked when received GET STRING DESCRIPTOR request
+// Application return pointer to descriptor, whose contents must exist long enough for transfer to complete
+uint16_t const* tud_descriptor_string_cb(uint8_t index);
 
 // Invoked when device is mounted (configured)
 ATTR_WEAK void tud_mount_cb(void);

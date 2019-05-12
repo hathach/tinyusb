@@ -577,16 +577,11 @@ static bool process_get_descriptor(uint8_t rhport, tusb_control_request_t const 
         return false;
       }else
       {
-        uint16_t desc_str[CFG_TUD_ENDOINT0_SIZE/2]; // up to endpoint0 size only
-        uint8_t len = 2*tud_descriptor_string_cb(desc_index, desc_str+1, CFG_TUD_ENDOINT0_SIZE/2-1);
+        uint8_t const* desc_str = (uint8_t const*) tud_descriptor_string_cb(desc_index);
+        TU_ASSERT(desc_str);
 
-        TU_ASSERT(len > 0);
-
-        // first byte of descriptor is size, second byte is string type
-        len += 2; // header len
-        desc_str[0] = tu_u16_from_u8(TUSB_DESC_STRING, len);
-
-        return usbd_control_xfer(rhport, p_request, desc_str, len);
+        // first byte of descriptor is its size
+        return usbd_control_xfer(rhport, p_request, (void*) desc_str, desc_str[0]);
       }
     break;
 

@@ -68,9 +68,8 @@ bool tud_hid_mouse_report(uint8_t report_id, uint8_t buttons, int8_t x, int8_t y
 // Callbacks (Weak is optional)
 //--------------------------------------------------------------------+
 
-// Invoked when received GET HID REPORT DESCRIPTOR
-// Application return pointer to descriptor
-// Descriptor contents must exist long enough for transfer to complete
+// Invoked when received GET HID REPORT DESCRIPTOR request
+// Application return pointer to descriptor, whose contents must exist long enough for transfer to complete
 uint8_t const * tud_hid_descriptor_report_cb(void);
 
 // Invoked when received GET_REPORT control request
