@@ -93,8 +93,10 @@ bool usbd_control_xfer(uint8_t rhport, tusb_control_request_t const * request, v
   _control_state.total_len = tu_min16(len, request->wLength);
   _control_state.total_transferred = 0;
 
-  if ( (buffer != NULL) && len )
+  if ( len )
   {
+    TU_ASSERT(buffer);
+
     // Data stage
     TU_ASSERT( start_control_data_xact(rhport) );
   }else

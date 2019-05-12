@@ -82,17 +82,20 @@ uint8_t const desc_configuration[] =
   TUD_MSC_DESCRIPTOR(ITF_NUM_MSC, 0, EPNUM_MSC, 0x80 | EPNUM_MSC, 64), // highspeed 512
 };
 
-
-// tud_desc_set is required by tinyusb stack
-tud_desc_set_t tud_desc_set =
+// Invoked when received GET DEVICE DESCRIPTOR
+// Application return pointer to descriptor
+uint8_t const * tud_descriptor_device_cb(void)
 {
-    .device     = &desc_device,
-    .config     = desc_configuration,
+  return (uint8_t const *) &desc_device;
+}
 
-#if CFG_TUD_HID
-    .hid_report = desc_hid_report,
-#endif
-};
+// Invoked when received GET CONFIGURATION DESCRIPTOR
+// Application return pointer to descriptor
+// Descriptor contents must exist long enough for transfer to complete
+uint8_t const * tud_descriptor_configuration_cb(void)
+{
+  return desc_configuration;
+}
 
 //------------- String Descriptors -------------//
 

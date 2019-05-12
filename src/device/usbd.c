@@ -479,7 +479,7 @@ static bool process_control_request(uint8_t rhport, tusb_control_request_t const
 // This function parse configuration descriptor & open drivers accordingly
 static bool process_set_config(uint8_t rhport)
 {
-  tusb_desc_configuration_t const * desc_cfg = (tusb_desc_configuration_t const *) tud_desc_set.config;
+  tusb_desc_configuration_t const * desc_cfg = (tusb_desc_configuration_t const *) tud_descriptor_configuration_cb();
   TU_ASSERT(desc_cfg != NULL && desc_cfg->bDescriptorType == TUSB_DESC_CONFIGURATION);
 
   // Parse configuration descriptor
@@ -558,11 +558,14 @@ static bool process_get_descriptor(uint8_t rhport, tusb_control_request_t const 
   switch(desc_type)
   {
     case TUSB_DESC_DEVICE:
-      return usbd_control_xfer(rhport, p_request, (void*) tud_desc_set.device, sizeof(tusb_desc_device_t));
+      return usbd_control_xfer(rhport, p_request, (void*) tud_descriptor_device_cb(), sizeof(tusb_desc_device_t));
     break;
 
     case TUSB_DESC_CONFIGURATION:
-      return usbd_control_xfer(rhport, p_request, (void*) tud_desc_set.config, ((tusb_desc_configuration_t const*) tud_desc_set.config)->wTotalLength);
+    {
+      tusb_desc_configuration_t const* desc_config = (tusb_desc_configuration_t const*) tud_descriptor_configuration_cb();
+      return usbd_control_xfer(rhport, p_request, (void*) desc_config, desc_config->wTotalLength);
+    }
     break;
 
     case TUSB_DESC_STRING:

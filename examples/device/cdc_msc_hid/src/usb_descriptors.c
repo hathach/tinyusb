@@ -79,25 +79,34 @@ uint8_t const desc_hid_report[] =
   TUD_HID_REPORT_DESC_KEYBOARD( HID_REPORT_ID(REPORT_ID_KEYBOARD), ),
   TUD_HID_REPORT_DESC_MOUSE   ( HID_REPORT_ID(REPORT_ID_MOUSE), )
 };
+
+// Invoked when received GET HID REPORT DESCRIPTOR
+// Application return pointer to descriptor
+// Descriptor contents must exist long enough for transfer to complete
+uint8_t const * tud_hid_descriptor_report_cb(void)
+{
+  return desc_hid_report;
+}
+
 #endif
 
 //------------- Configuration Descriptor -------------//
 enum
 {
-  #if CFG_TUD_CDC
-    ITF_NUM_CDC = 0,
-    ITF_NUM_CDC_DATA,
-  #endif
+#if CFG_TUD_CDC
+  ITF_NUM_CDC = 0,
+  ITF_NUM_CDC_DATA,
+#endif
 
-  #if CFG_TUD_MSC
-    ITF_NUM_MSC,
-  #endif
+#if CFG_TUD_MSC
+  ITF_NUM_MSC,
+#endif
 
-  #if CFG_TUD_HID
-    ITF_NUM_HID,
-  #endif
+#if CFG_TUD_HID
+  ITF_NUM_HID,
+#endif
 
-    ITF_NUM_TOTAL
+  ITF_NUM_TOTAL
 };
 
 enum
@@ -136,17 +145,20 @@ uint8_t const desc_configuration[] =
 #endif
 };
 
-
-// tud_desc_set is required by tinyusb stack
-tud_desc_set_t tud_desc_set =
+// Invoked when received GET DEVICE DESCRIPTOR
+// Application return pointer to descriptor
+uint8_t const * tud_descriptor_device_cb(void)
 {
-  .device     = &desc_device,
-  .config     = desc_configuration,
+  return (uint8_t const *) &desc_device;
+}
 
-#if CFG_TUD_HID
-  .hid_report = desc_hid_report,
-#endif
-};
+// Invoked when received GET CONFIGURATION DESCRIPTOR
+// Application return pointer to descriptor
+// Descriptor contents must exist long enough for transfer to complete
+uint8_t const * tud_descriptor_configuration_cb(void)
+{
+  return desc_configuration;
+}
 
 //------------- String Descriptors -------------//
 
