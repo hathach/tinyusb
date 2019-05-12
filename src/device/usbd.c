@@ -159,7 +159,7 @@ static osal_queue_t _usbd_q;
 //--------------------------------------------------------------------+
 static void mark_interface_endpoint(uint8_t ep2drv[8][2], uint8_t const* p_desc, uint16_t desc_len, uint8_t driver_id);
 static bool process_control_request(uint8_t rhport, tusb_control_request_t const * p_request);
-static bool process_set_config(uint8_t rhport);
+static bool process_set_config(uint8_t rhport, uint8_t cfg_num);
 static bool process_get_descriptor(uint8_t rhport, tusb_control_request_t const * p_request);
 
 void usbd_control_reset (uint8_t rhport);
@@ -376,7 +376,7 @@ static bool process_control_request(uint8_t rhport, tusb_control_request_t const
           dcd_set_config(rhport, cfg_num);
           _usbd_dev.configured = cfg_num ? 1 : 0;
 
-          TU_ASSERT( process_set_config(rhport) );
+          if ( cfg_num ) TU_ASSERT( process_set_config(rhport, cfg_num) );
           usbd_control_status(rhport, p_request);
         }
         break;
@@ -477,9 +477,9 @@ static bool process_control_request(uint8_t rhport, tusb_control_request_t const
 
 // Process Set Configure Request
 // This function parse configuration descriptor & open drivers accordingly
-static bool process_set_config(uint8_t rhport)
+static bool process_set_config(uint8_t rhport, uint8_t cfg_num)
 {
-  tusb_desc_configuration_t const * desc_cfg = (tusb_desc_configuration_t const *) tud_descriptor_configuration_cb();
+  tusb_desc_configuration_t const * desc_cfg = (tusb_desc_configuration_t const *) tud_descriptor_configuration_cb(cfg_num-1); // index is cfg_num-1
   TU_ASSERT(desc_cfg != NULL && desc_cfg->bDescriptorType == TUSB_DESC_CONFIGURATION);
 
   // Parse configuration descriptor
@@ -563,7 +563,7 @@ static bool process_get_descriptor(uint8_t rhport, tusb_control_request_t const 
 
     case TUSB_DESC_CONFIGURATION:
     {
-      tusb_desc_configuration_t const* desc_config = (tusb_desc_configuration_t const*) tud_descriptor_configuration_cb();
+      tusb_desc_configuration_t const* desc_config = (tusb_desc_configuration_t const*) tud_descriptor_configuration_cb(desc_index);
       return usbd_control_xfer(rhport, p_request, (void*) desc_config, desc_config->wTotalLength);
     }
     break;
