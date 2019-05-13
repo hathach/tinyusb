@@ -99,8 +99,9 @@ uint8_t const * tud_descriptor_device_cb(void)
 // Invoked when received GET CONFIGURATION DESCRIPTOR
 // Application return pointer to descriptor
 // Descriptor contents must exist long enough for transfer to complete
-uint8_t const * tud_descriptor_configuration_cb(void)
+uint8_t const * tud_descriptor_configuration_cb(uint8_t index)
 {
+  (void) index; // for multiple configurations
   return desc_configuration;
 }
 
