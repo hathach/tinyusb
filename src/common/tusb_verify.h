@@ -50,7 +50,7 @@
 //--------------------------------------------------------------------+
 // TU_VERIFY Helper
 //--------------------------------------------------------------------+
-#if CFG_TUSB_DEBUG >= 1
+#if CFG_TUSB_DEBUG
   #include <stdio.h>
   #define _MESS_ERR(_err)         printf("%s: %d: failed, error = %s\n", __func__, __LINE__, tusb_strerr[_err])
   #define _MESS_FAILED()          printf("%s: %d: failed\n", __func__, __LINE__)

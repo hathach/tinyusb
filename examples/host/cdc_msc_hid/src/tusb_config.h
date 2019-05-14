@@ -46,7 +46,7 @@
 #define CFG_TUSB_RHPORT0_MODE       OPT_MODE_HOST
 #endif
 
-#define CFG_TUSB_DEBUG              2
+#define CFG_TUSB_DEBUG              1
 #define CFG_TUSB_OS                 OPT_OS_NONE
 
 /* USB DMA on some MCUs can only access a specific SRAM region with restriction on alignment.

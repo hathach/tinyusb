@@ -111,7 +111,7 @@ bool tuh_hid_keyboard_is_busy(uint8_t dev_addr)
 //--------------------------------------------------------------------+
 #if CFG_TUH_HID_MOUSE
 
-STATIC_VAR hidh_interface_info_t mouseh_data[CFG_TUSB_HOST_DEVICE_MAX]; // does not have addr0, index = dev_address-1
+static hidh_interface_info_t mouseh_data[CFG_TUSB_HOST_DEVICE_MAX]; // does not have addr0, index = dev_address-1
 
 //------------- Public API -------------//
 bool tuh_hid_mouse_is_mounted(uint8_t dev_addr)

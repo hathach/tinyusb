@@ -43,7 +43,7 @@
 CFG_TUSB_MEM_SECTION static uint8_t msg_notification[CFG_TUSB_HOST_DEVICE_MAX][8];
 CFG_TUSB_MEM_SECTION ATTR_ALIGNED(4) static uint8_t msg_payload[RNDIS_MSG_PAYLOAD_MAX];
 
-STATIC_VAR rndish_data_t rndish_data[CFG_TUSB_HOST_DEVICE_MAX];
+static rndish_data_t rndish_data[CFG_TUSB_HOST_DEVICE_MAX];
 
 // TODO Microsoft requires message length for any get command must be at least 4096 bytes
 

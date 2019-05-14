@@ -54,7 +54,7 @@
 //--------------------------------------------------------------------+
 // COMMON CONFIGURATION
 //--------------------------------------------------------------------+
-#define CFG_TUSB_DEBUG                  2
+#define CFG_TUSB_DEBUG                  1
 
 //#define CFG_TUSB_OS                   OPT_OS_NONE // defined using eclipse build
 //#define CFG_TUD_TASK_PRIO         0            // defined using eclipse build

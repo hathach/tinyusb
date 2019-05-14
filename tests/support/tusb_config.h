@@ -47,7 +47,7 @@
 #define CFG_TUH_HID_KEYBOARD        1
 #define CFG_TUH_HID_MOUSE           1
 #define CFG_TUH_MSC                 1
-#define CFG_TUSB_HOST_HID_GENERIC         0
+#define CFG_TUSB_HOST_HID_GENERIC   0
 #define CFG_TUH_CDC                 1
 #define CFG_TUH_CDC_RNDIS           0
 
@@ -71,9 +71,9 @@
 // COMMON CONFIGURATION
 //--------------------------------------------------------------------+
 
-#define CFG_TUSB_DEBUG 3
+#define CFG_TUSB_DEBUG            1
 
-#define CFG_TUSB_OS OPT_OS_NONE
+#define CFG_TUSB_OS               OPT_OS_NONE
 #define CFG_TUSB_MEM_SECTION
 
 #ifdef __cplusplus

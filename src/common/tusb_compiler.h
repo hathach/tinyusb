@@ -52,14 +52,6 @@
   #define TU_VERIFY_STATIC(const_expr, _mess) enum { XSTRING_CONCAT_(_verify_static_, _TU_COUNTER_) = 1/(!!(const_expr)) }
 #endif
 
-// allow debugger to watch any module-wide variables anywhere
-#if CFG_TUSB_DEBUG
-#define STATIC_VAR
-#else
-#define STATIC_VAR static
-#endif
-
-
 #if defined(__GNUC__)
   #include "compiler/tusb_compiler_gcc.h"
 #elif defined __ICCARM__

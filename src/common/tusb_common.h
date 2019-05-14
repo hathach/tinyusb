@@ -67,34 +67,6 @@
 
 #define ENDIAN_BE16(le16) ((uint16_t) ((U16_LOW_U8(le16) << 8) | U16_HIGH_U8(le16)) )
 
-//------------- Binary constant -------------//
-#if defined(__GNUC__) && !defined(__CC_ARM)
-
-#define TU_BIN8(x)               ((uint8_t)  (0b##x))
-#define TU_BIN16(b1, b2)         ((uint16_t) (0b##b1##b2))
-#define TU_BIN32(b1, b2, b3, b4) ((uint32_t) (0b##b1##b2##b3##b4))
-
-#else
-
-//  internal macro of B8, B16, B32
-#define _B8__(x) (((x&0x0000000FUL)?1:0) \
-                +((x&0x000000F0UL)?2:0) \
-                +((x&0x00000F00UL)?4:0) \
-                +((x&0x0000F000UL)?8:0) \
-                +((x&0x000F0000UL)?16:0) \
-                +((x&0x00F00000UL)?32:0) \
-                +((x&0x0F000000UL)?64:0) \
-                +((x&0xF0000000UL)?128:0))
-
-#define TU_BIN8(d) ((uint8_t) _B8__(0x##d##UL))
-#define TU_BIN16(dmsb,dlsb) (((uint16_t)TU_BIN8(dmsb)<<8) + TU_BIN8(dlsb))
-#define TU_BIN32(dmsb,db2,db3,dlsb) \
-            (((uint32_t)TU_BIN8(dmsb)<<24) \
-            + ((uint32_t)TU_BIN8(db2)<<16) \
-            + ((uint32_t)TU_BIN8(db3)<<8) \
-            + TU_BIN8(dlsb))
-#endif
-
 // for declaration of reserved field, make use of _TU_COUNTER_
 #define TU_RESERVED   XSTRING_CONCAT_(reserved, _TU_COUNTER_)
 
@@ -190,7 +162,7 @@ static inline bool tu_within(uint32_t lower, uint32_t value, uint32_t upper)
 }
 
 // log2 of a value is its MSB's position
-// TODO use clz
+// TODO use clz TODO remove
 static inline uint8_t tu_log2(uint32_t value)
 {
   uint8_t result = 0;
@@ -235,6 +207,35 @@ static inline bool tu_bit_test(uint32_t value, uint8_t n) { return (value & TU_B
          29,28,27,26,25,24,23,22,21,20, \
          19,18,17,16,15,14,13,12,11,10, \
          9,8,7,6,5,4,3,2,1,0
+#endif
+
+// To be removed
+//------------- Binary constant -------------//
+#if defined(__GNUC__) && !defined(__CC_ARM)
+
+#define TU_BIN8(x)               ((uint8_t)  (0b##x))
+#define TU_BIN16(b1, b2)         ((uint16_t) (0b##b1##b2))
+#define TU_BIN32(b1, b2, b3, b4) ((uint32_t) (0b##b1##b2##b3##b4))
+
+#else
+
+//  internal macro of B8, B16, B32
+#define _B8__(x) (((x&0x0000000FUL)?1:0) \
+                +((x&0x000000F0UL)?2:0) \
+                +((x&0x00000F00UL)?4:0) \
+                +((x&0x0000F000UL)?8:0) \
+                +((x&0x000F0000UL)?16:0) \
+                +((x&0x00F00000UL)?32:0) \
+                +((x&0x0F000000UL)?64:0) \
+                +((x&0xF0000000UL)?128:0))
+
+#define TU_BIN8(d) ((uint8_t) _B8__(0x##d##UL))
+#define TU_BIN16(dmsb,dlsb) (((uint16_t)TU_BIN8(dmsb)<<8) + TU_BIN8(dlsb))
+#define TU_BIN32(dmsb,db2,db3,dlsb) \
+            (((uint32_t)TU_BIN8(dmsb)<<24) \
+            + ((uint32_t)TU_BIN8(db2)<<16) \
+            + ((uint32_t)TU_BIN8(db3)<<8) \
+            + TU_BIN8(dlsb))
 #endif
 
 #ifdef __cplusplus

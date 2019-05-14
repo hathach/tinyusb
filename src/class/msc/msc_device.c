@@ -80,7 +80,8 @@ static inline uint32_t rdwr10_get_lba(uint8_t const command[])
   uint32_t lba;
   memcpy(&lba, &p_rdwr10->lba, 4);
 
-  return  __be2n(lba);
+  // lba is in Big Endian format
+  return __be2n(lba);
 }
 
 static inline uint16_t rdwr10_get_blockcount(uint8_t const command[])
