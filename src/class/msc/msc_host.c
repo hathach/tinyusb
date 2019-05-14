@@ -233,7 +233,7 @@ tusb_error_t  tuh_msc_read10(uint8_t dev_addr, uint8_t lun, void * p_buffer, uin
   {
       .cmd_code    = SCSI_CMD_READ_10,
       .lba         = tu_htonl(lba),
-      .block_count = tu_u16_le2be(block_count)
+      .block_count = tu_htons(block_count)
   };
 
   memcpy(p_msch->cbw.command, &cmd_read10, p_msch->cbw.cmd_len);
@@ -259,7 +259,7 @@ tusb_error_t tuh_msc_write10(uint8_t dev_addr, uint8_t lun, void const * p_buffe
   {
       .cmd_code    = SCSI_CMD_WRITE_10,
       .lba         = tu_htonl(lba),
-      .block_count = tu_u16_le2be(block_count)
+      .block_count = tu_htons(block_count)
   };
 
   memcpy(p_msch->cbw.command, &cmd_write10, p_msch->cbw.cmd_len);
