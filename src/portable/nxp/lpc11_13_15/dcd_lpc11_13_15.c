@@ -279,7 +279,7 @@ static void process_xfer_isr(uint32_t int_status)
 {
   for(uint8_t ep_id = 0; ep_id < EP_COUNT; ep_id++ )
   {
-    if ( TU_BIT_TEST(int_status, ep_id) )
+    if ( tu_bit_test(int_status, ep_id) )
     {
       ep_cmd_sts_t * ep_cs = &_dcd.ep[ep_id][0];
       xfer_dma_t* xfer_dma = &_dcd.dma[ep_id];
@@ -354,7 +354,7 @@ void USB_IRQHandler(void)
   }
 
   // Setup Receive
-  if ( TU_BIT_TEST(int_status, 0) && (dev_cmd_stat & CMDSTAT_SETUP_RECEIVED_MASK) )
+  if ( tu_bit_test(int_status, 0) && (dev_cmd_stat & CMDSTAT_SETUP_RECEIVED_MASK) )
   {
     // Follow UM flowchart to clear Active & Stall on both Control IN/OUT endpoints
     _dcd.ep[0][0].active = _dcd.ep[1][0].active = 0;
@@ -368,7 +368,7 @@ void USB_IRQHandler(void)
     _dcd.ep[0][1].buffer_offset = get_buf_offset(_dcd.setup_packet);
 
     // clear bit0
-    int_status = TU_BIT_CLEAR(int_status, 0);
+    int_status = tu_bit_clear(int_status, 0);
   }
 
   // Endpoint transfer complete interrupt

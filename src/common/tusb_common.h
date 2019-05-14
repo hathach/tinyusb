@@ -55,11 +55,7 @@
 #define U32_TO_U8S_BE(u32) U32_B1_U8(u32), U32_B2_U8(u32), U32_B3_U8(u32), U32_B4_U8(u32)
 #define U32_TO_U8S_LE(u32) U32_B4_U8(u32), U32_B3_U8(u32), U32_B2_U8(u32), U32_B1_U8(u32)
 
-//------------- Bit -------------//
-#define TU_BIT(n) (1U << (n))                                   ///< n-th Bit
-#define TU_BIT_SET(x, n) ( (x) | TU_BIT(n) )                    ///< set n-th bit of x to 1
-#define TU_BIT_CLEAR(x, n) ( (x) & (~TU_BIT(n)) )               ///< clear n-th bit of x
-#define TU_BIT_TEST(x, n) ( ((x) & TU_BIT(n)) ? true : false )  ///< check if n-th bit of x is 1
+#define TU_BIT(n)           (1U << (n))
 
 // for declaration of reserved field, make use of _TU_COUNTER_
 #define TU_RESERVED   XSTRING_CONCAT_(reserved, _TU_COUNTER_)
@@ -88,14 +84,6 @@
 //--------------------------------------------------------------------+
 #define tu_memclr(buffer, size)  memset((buffer), 0, (size))
 #define tu_varclr(_var)          tu_memclr(_var, sizeof(*(_var)))
-
-static inline bool tu_mem_test_zero (void const* buffer, uint32_t size)
-{
-  uint8_t const* p_mem = (uint8_t const*) buffer;
-  for(uint32_t i=0; i<size; i++) if (p_mem[i] != 0)  return false;
-  return true;
-}
-
 
 //------------- Conversion -------------//
 static inline uint32_t tu_u32_from_u8(uint8_t b1, uint8_t b2, uint8_t b3, uint8_t b4)
@@ -136,9 +124,7 @@ static inline uint32_t tu_max32 (uint32_t x, uint32_t y) { return (x > y) ? x : 
 // Align
 static inline uint32_t tu_align32 (uint32_t value) { return (value & 0xFFFFFFE0UL); }
 static inline uint32_t tu_align16 (uint32_t value) { return (value & 0xFFFFFFF0UL); }
-static inline uint32_t tu_align_n (uint32_t alignment, uint32_t value) { return value & ((uint32_t) ~(alignment-1)); }
 static inline uint32_t tu_align4k (uint32_t value) { return (value & 0xFFFFF000UL); }
-
 static inline uint32_t tu_offset4k(uint32_t value) { return (value & 0xFFFUL); }
 
 //------------- Mathematics -------------//
@@ -164,9 +150,9 @@ static inline uint8_t tu_log2(uint32_t value)
 }
 
 // Bit
-static inline uint32_t tu_bit_set(uint32_t value, uint8_t n) { return value | TU_BIT(n); }
+static inline uint32_t tu_bit_set  (uint32_t value, uint8_t n) { return value | TU_BIT(n); }
 static inline uint32_t tu_bit_clear(uint32_t value, uint8_t n) { return value & (~TU_BIT(n)); }
-static inline bool tu_bit_test(uint32_t value, uint8_t n) { return (value & TU_BIT(n)) ? true : false; }
+static inline bool     tu_bit_test (uint32_t value, uint8_t n) { return (value & TU_BIT(n)) ? true : false; }
 
 /*------------------------------------------------------------------*/
 /* Count number of arguments of __VA_ARGS__

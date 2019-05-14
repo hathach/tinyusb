@@ -391,7 +391,7 @@ bool mscd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t event, uint32_t
         // For other SCSI commands
         // 1. OUT : queue transfer (invoke app callback after done)
         // 2. IN & Zero: Process if is built-in, else Invoke app callback. Skip DATA if zero length
-        if ( (p_cbw->total_bytes > 0 ) && !TU_BIT_TEST(p_cbw->dir, 7) )
+        if ( (p_cbw->total_bytes > 0 ) && !tu_bit_test(p_cbw->dir, 7) )
         {
           // queue transfer
           TU_ASSERT( dcd_edpt_xfer(rhport, p_msc->ep_out, _mscd_buf, p_msc->total_len) );
@@ -440,7 +440,7 @@ bool mscd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t event, uint32_t
 
     case MSC_STAGE_DATA:
       // OUT transfer, invoke callback if needed
-      if ( !TU_BIT_TEST(p_cbw->dir, 7) )
+      if ( !tu_bit_test(p_cbw->dir, 7) )
       {
         if ( SCSI_CMD_WRITE_10 != p_cbw->command[0] )
         {

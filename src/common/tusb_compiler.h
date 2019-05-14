@@ -43,15 +43,16 @@
   #define _TU_COUNTER_ __LINE__
 #endif
 
-//--------------------------------------------------------------------+
-// Compile-time Assert (use TU_VERIFY_STATIC to avoid name conflict)
-//--------------------------------------------------------------------+
+// Compile-time Assert
 #if __STDC_VERSION__ >= 201112L
   #define TU_VERIFY_STATIC   _Static_assert
 #else
   #define TU_VERIFY_STATIC(const_expr, _mess) enum { XSTRING_CONCAT_(_verify_static_, _TU_COUNTER_) = 1/(!!(const_expr)) }
 #endif
 
+//--------------------------------------------------------------------+
+// Compiler porting with Attribute and Endian
+//--------------------------------------------------------------------+
 #if defined(__GNUC__)
   #define ATTR_ALIGNED(Bytes)        __attribute__ ((aligned(Bytes)))
   #define ATTR_SECTION(sec_name)     __attribute__ ((section(#sec_name)))
@@ -61,15 +62,20 @@
   #define ATTR_DEPRECATED(mess)      __attribute__ ((deprecated(mess))) // warn if function with this attribute is used
   #define ATTR_UNUSED                __attribute__ ((unused))           // Function/Variable is meant to be possibly unused
 
-  #if __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
   // Endian conversion use well-known host to network (big endian) naming
-  #define tu_htonl(x)    __builtin_bswap32(x)
-  #define tu_ntohl(x)    tu_htonl(x)
+  #if __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
+    #define tu_htonl(u32)  __builtin_bswap32(u32)
+    #define tu_ntohl(u32)  __builtin_bswap32(u32)
 
-  #define tu_htons(u16)  __builtin_bswap16(u16)
-  #define tu_ntohs(u16)  tu_htons(u16)
+    #define tu_htons(u16)  __builtin_bswap16(u16)
+    #define tu_ntohs(u16)  __builtin_bswap16(u16)
+  #else
+    #define tu_htonl(u32)  (u32)
+    #define tu_ntohl(u32)  (u32)
+
+    #define tu_htons(u16)  (u16)
+    #define tu_ntohs(u16)  (u16)
   #endif
-
 #else
   #error "Compiler attribute porting are required"
 #endif

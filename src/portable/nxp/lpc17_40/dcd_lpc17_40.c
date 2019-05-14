@@ -530,7 +530,7 @@ void hal_dcd_isr(uint8_t rhport)
   {
     for ( uint8_t ep_id = 3; ep_id < DCD_ENDPOINT_MAX; ep_id += 2 )
     {
-      if ( TU_BIT_TEST(ep_int_status, ep_id) )
+      if ( tu_bit_test(ep_int_status, ep_id) )
       {
         LPC_USB->EpIntClr = TU_BIT(ep_id);
 
@@ -553,7 +553,7 @@ void hal_dcd_isr(uint8_t rhport)
 
     for ( uint8_t ep_id = 2; ep_id < DCD_ENDPOINT_MAX; ep_id++ )
     {
-      if ( TU_BIT_TEST(eot, ep_id) )
+      if ( tu_bit_test(eot, ep_id) )
       {
         if ( ep_id & 0x01 )
         {

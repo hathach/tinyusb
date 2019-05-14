@@ -83,7 +83,7 @@ bool hub_port_clear_feature_subtask(uint8_t hub_addr, uint8_t hub_port, uint8_t 
   hub_port_status_response_t * p_port_status;
   p_port_status = (hub_port_status_response_t *) hub_enum_buffer;
 
-  TU_ASSERT( !TU_BIT_TEST(p_port_status->status_change.value, feature-16)  );
+  TU_ASSERT( !tu_bit_test(p_port_status->status_change.value, feature-16)  );
 
   return true;
 }
@@ -211,7 +211,7 @@ void hub_isr(uint8_t dev_addr, uint8_t ep_addr, xfer_result_t event, uint32_t xf
     for (uint8_t port=1; port <= p_hub->port_number; port++)
     {
       // TODO HUB ignore bit0 hub_status_change
-      if ( TU_BIT_TEST(p_hub->status_change, port) )
+      if ( tu_bit_test(p_hub->status_change, port) )
       {
         hcd_event_t event =
         {

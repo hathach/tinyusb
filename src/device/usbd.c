@@ -739,7 +739,7 @@ void usbd_edpt_stall(uint8_t rhport, uint8_t ep_addr)
   uint8_t const dir   = tu_edpt_dir(ep_addr);
 
   dcd_edpt_stall(rhport, ep_addr);
-  _usbd_dev.ep_stall_mask[dir] = tu_bit_set(_usbd_dev.ep_stall_mask[dir], epnum);
+  _usbd_dev.ep_stall_mask[dir] = (uint8_t) tu_bit_set(_usbd_dev.ep_stall_mask[dir], epnum);
 }
 
 void usbd_edpt_clear_stall(uint8_t rhport, uint8_t ep_addr)
@@ -748,7 +748,7 @@ void usbd_edpt_clear_stall(uint8_t rhport, uint8_t ep_addr)
   uint8_t const dir   = tu_edpt_dir(ep_addr);
 
   dcd_edpt_clear_stall(rhport, ep_addr);
-  _usbd_dev.ep_stall_mask[dir] = tu_bit_clear(_usbd_dev.ep_stall_mask[dir], epnum);
+  _usbd_dev.ep_stall_mask[dir] = (uint8_t) tu_bit_clear(_usbd_dev.ep_stall_mask[dir], epnum);
 }
 
 bool usbd_edpt_stalled(uint8_t rhport, uint8_t ep_addr)

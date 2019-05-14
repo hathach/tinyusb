@@ -175,7 +175,7 @@ void board_led_write(bool state)
 #if 0
 static bool button_read(uint8_t id)
 {
-//  return !TU_BIT_TEST( GPIO_ReadValue(buttons[id].port), buttons[id].pin ); // button is active low
+//  return !tu_bit_test( GPIO_ReadValue(buttons[id].port), buttons[id].pin ); // button is active low
   return false;
 }
 #endif

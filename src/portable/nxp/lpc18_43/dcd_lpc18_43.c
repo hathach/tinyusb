@@ -341,7 +341,7 @@ void hal_dcd_isr(uint8_t rhport)
     {
       for(uint8_t ep_idx = 0; ep_idx < QHD_MAX; ep_idx++)
       {
-        if ( TU_BIT_TEST(edpt_complete, ep_idx2bit(ep_idx)) )
+        if ( tu_bit_test(edpt_complete, ep_idx2bit(ep_idx)) )
         {
           // 23.10.12.3 Failed QTD also get ENDPTCOMPLETE set
           dcd_qtd_t * p_qtd = &dcd_data_ptr[rhport]->qtd[ep_idx];
