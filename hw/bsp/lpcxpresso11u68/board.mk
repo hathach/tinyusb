@@ -7,8 +7,8 @@ CFLAGS += \
   -D__VTOR_PRESENT=0 \
   -DCFG_TUSB_MCU=OPT_MCU_LPC11UXX \
   -D__USE_LPCOPEN \
-  '-DCFG_TUSB_MEM_SECTION= __attribute__((section(".data.$RAM3")))' \
-  '-DCFG_TUSB_MEM_ALIGN=__attribute__ ((aligned(64)))' 
+  -DCFG_TUSB_MEM_SECTION='__attribute__((section(".data.$$RAM3")))' \
+  -DCFG_TUSB_MEM_ALIGN='__attribute__((aligned(64)))' 
 
 # All source paths should be relative to the top level.
 LD_FILE = hw/bsp/lpcxpresso11u68/lpc11u68.ld
