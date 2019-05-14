@@ -53,9 +53,24 @@
 #endif
 
 #if defined(__GNUC__)
-  #include "compiler/tusb_compiler_gcc.h"
-#elif defined __ICCARM__
-  #include "compiler/tusb_compiler_iar.h"
+  #define ATTR_ALIGNED(Bytes)        __attribute__ ((aligned(Bytes)))
+  #define ATTR_SECTION(sec_name)     __attribute__ ((section(#sec_name)))
+  #define ATTR_PACKED                __attribute__ ((packed))
+  #define ATTR_PREPACKED
+  #define ATTR_WEAK                  __attribute__ ((weak))
+  #define ATTR_DEPRECATED(mess)      __attribute__ ((deprecated(mess))) // warn if function with this attribute is used
+  #define ATTR_UNUSED                __attribute__ ((unused))           // Function/Variable is meant to be possibly unused
+
+  #if __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
+  #define __n2be(x)       __builtin_bswap32(x) ///< built-in function to convert 32-bit from native to Big Endian
+  #define __be2n(x)       __n2be(x) ///< built-in function to convert 32-bit from Big Endian to native
+
+  #define __n2be_16(u16)  __builtin_bswap16(u16)
+  #define __be2n_16(u16)  __n2be_16(u16)
+  #endif
+
+#else
+  #error "Compiler attribute porting are required"
 #endif
 
 #endif /* _TUSB_COMPILER_H_ */
