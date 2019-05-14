@@ -12,8 +12,6 @@ CFLAGS += \
 # All source paths should be relative to the top level.
 LD_FILE = hw/bsp/stm32f407g_disc1/STM32F407VGTx_FLASH.ld
 
-LDFLAGS += -mthumb -mcpu=cortex-m4
-
 SRC_C += \
 	hw/mcu/st/system-init/system_stm32f4xx.c
 

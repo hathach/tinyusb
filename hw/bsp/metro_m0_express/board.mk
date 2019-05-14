@@ -10,8 +10,6 @@ CFLAGS += \
 # All source paths should be relative to the top level.
 LD_FILE = hw/bsp/metro_m0_express/samd21g18a_flash.ld
 
-LD_FLAGS += -mthumb -mcpu=cortex-m0plus
-
 SRC_C += \
 	hw/mcu/microchip/samd/asf4/samd21/gcc/gcc/startup_samd21.c \
 	hw/mcu/microchip/samd/asf4/samd21/gcc/system_samd21.c \

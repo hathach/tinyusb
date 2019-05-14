@@ -31,6 +31,9 @@ BUILD = build-$(BOARD)
 # Board specific
 include $(TOP)/hw/bsp/$(BOARD)/board.mk
 
+# Include all source C in board folder
+SRC_C += $(subst $(TOP)/,,$(wildcard $(TOP)/hw/bsp/$(BOARD)/*.c))
+
 # Compiler Flags
 CFLAGS += \
 	-fsingle-precision-constant \
