@@ -1,12 +1,12 @@
 CFLAGS += \
-	-mthumb \
-	-mabi=aapcs \
-	-mcpu=cortex-m4 \
-	-mfloat-abi=hard \
-	-mfpu=fpv4-sp-d16 \
-	-DCFG_TUSB_MCU=OPT_MCU_NRF5X \
-	-DNRF52840_XXAA \
-  -DCONFIG_GPIO_AS_PINRESET
+  -mthumb \
+  -mabi=aapcs \
+  -mcpu=cortex-m4 \
+  -mfloat-abi=hard \
+  -mfpu=fpv4-sp-d16 \
+  -DNRF52840_XXAA \
+  -DCONFIG_GPIO_AS_PINRESET \
+  -DCFG_TUSB_MCU=OPT_MCU_NRF5X
 
 # nrfx issue undef _ARMCC_VERSION usage https://github.com/NordicSemiconductor/nrfx/issues/49
 CFLAGS += -Wno-error=undef 
