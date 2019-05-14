@@ -38,27 +38,27 @@
  //--------------------------------------------------------------------+
 // Macros Helper
 //--------------------------------------------------------------------+
-#define TU_ARRAY_SZIE(_arr)      ( sizeof(_arr) / sizeof(_arr[0]) )
-#define TU_MIN(_x, _y)           ( (_x) < (_y) ) ? (_x) : (_y) )
-#define TU_MAX(_x, _y)           ( (_x) > (_y) ) ? (_x) : (_y) )
+#define TU_ARRAY_SZIE(_arr)   ( sizeof(_arr) / sizeof(_arr[0]) )
+#define TU_MIN(_x, _y)        ( (_x) < (_y) ) ? (_x) : (_y) )
+#define TU_MAX(_x, _y)        ( (_x) > (_y) ) ? (_x) : (_y) )
 
-#define U16_HIGH_U8(u16) ((uint8_t) (((u16) >> 8) & 0x00ff))
-#define U16_LOW_U8(u16)  ((uint8_t) ((u16)       & 0x00ff))
-#define U16_TO_U8S_BE(u16)  U16_HIGH_U8(u16), U16_LOW_U8(u16)
-#define U16_TO_U8S_LE(u16)  U16_LOW_U8(u16), U16_HIGH_U8(u16)
+#define TU_U16_HIGH(u16)      ((uint8_t) (((u16) >> 8) & 0x00ff))
+#define TU_U16_LOW(u16)       ((uint8_t) ((u16)       & 0x00ff))
+#define U16_TO_U8S_BE(u16)    TU_U16_HIGH(u16), TU_U16_LOW(u16)
+#define U16_TO_U8S_LE(u16)    TU_U16_LOW(u16), TU_U16_HIGH(u16)
 
-#define U32_B1_U8(u32) ((uint8_t) (((u32) >> 24) & 0x000000ff)) // MSB
-#define U32_B2_U8(u32) ((uint8_t) (((u32) >> 16) & 0x000000ff))
-#define U32_B3_U8(u32) ((uint8_t) (((u32) >>  8) & 0x000000ff))
-#define U32_B4_U8(u32) ((uint8_t) ((u32)        & 0x000000ff)) // LSB
+#define U32_B1_U8(u32)        ((uint8_t) (((u32) >> 24) & 0x000000ff)) // MSB
+#define U32_B2_U8(u32)        ((uint8_t) (((u32) >> 16) & 0x000000ff))
+#define U32_B3_U8(u32)        ((uint8_t) (((u32) >>  8) & 0x000000ff))
+#define U32_B4_U8(u32)        ((uint8_t) ((u32)         & 0x000000ff)) // LSB
 
-#define U32_TO_U8S_BE(u32) U32_B1_U8(u32), U32_B2_U8(u32), U32_B3_U8(u32), U32_B4_U8(u32)
-#define U32_TO_U8S_LE(u32) U32_B4_U8(u32), U32_B3_U8(u32), U32_B2_U8(u32), U32_B1_U8(u32)
+#define U32_TO_U8S_BE(u32)    U32_B1_U8(u32), U32_B2_U8(u32), U32_B3_U8(u32), U32_B4_U8(u32)
+#define U32_TO_U8S_LE(u32)    U32_B4_U8(u32), U32_B3_U8(u32), U32_B2_U8(u32), U32_B1_U8(u32)
 
-#define TU_BIT(n)           (1U << (n))
+#define TU_BIT(n)             (1U << (n))
 
 // for declaration of reserved field, make use of _TU_COUNTER_
-#define TU_RESERVED   XSTRING_CONCAT_(reserved, _TU_COUNTER_)
+#define TU_RESERVED           XSTRING_CONCAT_(reserved, _TU_COUNTER_)
 
 //--------------------------------------------------------------------+
 // INCLUDES
@@ -75,7 +75,7 @@
 #include "tusb_option.h"
 #include "tusb_compiler.h"
 #include "tusb_verify.h"
-#include "tusb_error.h"
+#include "tusb_error.h" // TODO remove
 #include "tusb_timeout.h"
 #include "tusb_types.h"
 
@@ -85,31 +85,18 @@
 #define tu_memclr(buffer, size)  memset((buffer), 0, (size))
 #define tu_varclr(_var)          tu_memclr(_var, sizeof(*(_var)))
 
-//------------- Conversion -------------//
-static inline uint32_t tu_u32_from_u8(uint8_t b1, uint8_t b2, uint8_t b3, uint8_t b4)
+static inline uint32_t tu_u32(uint8_t b1, uint8_t b2, uint8_t b3, uint8_t b4)
 {
   return ( ((uint32_t) b1) << 24) + ( ((uint32_t) b2) << 16) + ( ((uint32_t) b3) << 8) + b4;
 }
 
-static inline uint16_t tu_u16_from_u8(uint8_t high, uint8_t low)
+static inline uint16_t tu_u16(uint8_t high, uint8_t low)
 {
   return (((uint16_t) high) << 8) + low;
 }
 
-static inline uint8_t tu_u16_high(uint16_t u16)
-{
-  return (uint8_t) ( ((uint16_t) (u16 >> 8)) & 0x00ff);
-}
-
-static inline uint8_t tu_u16_low(uint16_t u16)
-{
-  return (uint8_t) (u16 & 0x00ff);
-}
-
-static inline uint16_t tu_u16_le2be(uint16_t u16)
-{
-  return ((uint16_t)(tu_u16_low(u16) << 8)) | tu_u16_high(u16);
-}
+static inline uint8_t tu_u16_high(uint16_t u16) { return (uint8_t) (((uint16_t) (u16 >> 8)) & 0x00ff); }
+static inline uint8_t tu_u16_low (uint16_t u16) { return (uint8_t) (u16 & 0x00ff); }
 
 // Min
 static inline uint8_t  tu_min8  (uint8_t  x, uint8_t y ) { return (x < y) ? x : y; }
