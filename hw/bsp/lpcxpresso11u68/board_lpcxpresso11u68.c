@@ -75,20 +75,18 @@ void board_init(void)
   // LED
   Chip_GPIO_SetPinDIROutput(LPC_GPIO, LED_PORT, LED_PIN);
 
-  // BUTTON
+  // Button
   Chip_GPIO_SetPinDIRInput(LPC_GPIO, BUTTON_PORT, BUTTON_PIN);
 
-  // USB
-  Chip_USB_Init(); // Setup PLL clock, and power
+  // USB: Setup PLL clock, and power
+  Chip_USB_Init();
 }
 
-/*------------------------------------------------------------------*/
-/* TUSB HAL MILLISECOND
- *------------------------------------------------------------------*/
+//--------------------------------------------------------------------+
+// Board porting API
+//--------------------------------------------------------------------+
 #if CFG_TUSB_OS == OPT_OS_NONE
-
 volatile uint32_t system_ticks = 0;
-
 void SysTick_Handler (void)
 {
   system_ticks++;
@@ -98,29 +96,20 @@ uint32_t board_millis(void)
 {
   return system_ticks;
 }
-
 #endif
 
-//--------------------------------------------------------------------+
-// LEDS
-//--------------------------------------------------------------------+
+
 void board_led_write(bool state)
 {
   Chip_GPIO_SetPinState(LPC_GPIO, LED_PORT, LED_PIN, state ? LED_STATE_ON : (1-LED_STATE_ON));
 }
 
-//--------------------------------------------------------------------+
-// Buttons
-//--------------------------------------------------------------------+
 uint32_t board_button_read(void)
 {
   // active low
   return Chip_GPIO_GetPinState(LPC_GPIO, BUTTON_PORT, BUTTON_PIN) ? 0 : 1;
 }
 
-//--------------------------------------------------------------------+
-// UART
-//--------------------------------------------------------------------+
 int board_uart_read(uint8_t* buf, int len)
 {
   (void) buf;

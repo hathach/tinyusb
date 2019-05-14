@@ -13,7 +13,7 @@ fail_count = 0
 exit_status = 0
 
 all_device_example = ["cdc_msc_hid", "msc_dual_lun", "hid_generic_inout"]
-all_boards = ["metro_m0_express", "metro_m4_express", "pca10056", "feather_nrf52840_express", "stm32f407g_disc1", "lpcxpresso11u68"]
+all_boards = ["metro_m0_express", "metro_m4_express", "pca10056", "feather_nrf52840_express", "stm32f407g_disc1", "lpcxpresso11u68", "lpcxpresso1347"]
 
 def build_example(example, board):
     subprocess.run("make -C examples/device/{} BOARD={} clean".format(example, board), shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
