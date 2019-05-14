@@ -31,14 +31,8 @@
 #define LED_PIN       17
 #define LED_STATE_ON  0
 
-static const struct {
-  uint8_t port;
-  uint8_t pin;
-} buttons[] = { { 0, 1 } };
-
-enum {
-  BOARD_BUTTON_COUNT = sizeof(buttons) / sizeof(buttons[0])
-};
+#define BUTTON_PORT   0
+#define BUTTON_PIN    1
 
 /* System oscillator rate and RTC oscillator rate */
 const uint32_t OscRateIn = 12000000;
@@ -78,14 +72,11 @@ void board_init(void)
 
   Chip_GPIO_Init(LPC_GPIO);
 
-  //------------- LED -------------//
+  // LED
   Chip_GPIO_SetPinDIROutput(LPC_GPIO, LED_PORT, LED_PIN);
 
-  //------------- BUTTON -------------//
-  //for(uint8_t i=0; i<BOARD_BUTTON_COUNT; i++) GPIOSetDir(buttons[i].port, buttons[i].pin, 0);
-
-  //------------- UART -------------//
-  //UARTInit(CFG_UART_BAUDRATE);
+  // BUTTON
+  Chip_GPIO_SetPinDIRInput(LPC_GPIO, BUTTON_PORT, BUTTON_PIN);
 
   // USB
   Chip_USB_Init(); // Setup PLL clock, and power
@@ -123,9 +114,8 @@ void board_led_write(bool state)
 //--------------------------------------------------------------------+
 uint32_t board_button_read(void)
 {
-//  for(uint8_t i=0; i<BOARD_BUTTON_COUNT; i++) GPIOGetPinValue(buttons[i].port, buttons[i].pin);
-//  return GPIOGetPinValue(buttons[0].port, buttons[0].pin) ? 0 : 1; // button is active low
-  return 0;
+  // active low
+  return Chip_GPIO_GetPinState(LPC_GPIO, BUTTON_PORT, BUTTON_PIN) ? 0 : 1;
 }
 
 //--------------------------------------------------------------------+
@@ -133,7 +123,6 @@ uint32_t board_button_read(void)
 //--------------------------------------------------------------------+
 int board_uart_read(uint8_t* buf, int len)
 {
-//  *buffer = get_key(); TODO cannot find available code for uart getchar
   (void) buf;
   (void) len;
   return 0;
@@ -141,7 +130,6 @@ int board_uart_read(uint8_t* buf, int len)
 
 int board_uart_write(void const * buf, int len)
 {
-  //UARTSend(&c, 1);
   (void) buf;
   (void) len;
   return 0;
