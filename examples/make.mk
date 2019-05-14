@@ -62,7 +62,7 @@ CFLAGS += \
 
 # Debugging/Optimization
 ifeq ($(DEBUG), 1)
-  CFLAGS += -O0 -ggdb
+  CFLAGS += -O0 -ggdb -DCFG_TUSB_DEBUG=1
 else
   CFLAGS += -flto -Os
 endif
