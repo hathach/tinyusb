@@ -35,9 +35,6 @@ INC += \
 SRC_S += hw/mcu/nordic/nrfx/mdk/gcc_startup_nrf52840.S
 
 ASFLAGS += -D__HEAP_SIZE=0
-ASFLAGS += -DSWI_DISABLE0
-ASFLAGS += -DFLOAT_ABI_HARD
-ASFLAGS += -DNRF52840_XXAA
 
 # For TinyUSB port source
 VENDOR = nordic
