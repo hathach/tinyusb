@@ -62,11 +62,12 @@
   #define ATTR_UNUSED                __attribute__ ((unused))           // Function/Variable is meant to be possibly unused
 
   #if __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
-  #define __n2be(x)       __builtin_bswap32(x) ///< built-in function to convert 32-bit from native to Big Endian
-  #define __be2n(x)       __n2be(x) ///< built-in function to convert 32-bit from Big Endian to native
+  // Endian conversion use well-known host to network (big endian) naming
+  #define tu_htonl(x)    __builtin_bswap32(x)
+  #define tu_ntohl(x)    tu_htonl(x)
 
-  #define __n2be_16(u16)  __builtin_bswap16(u16)
-  #define __be2n_16(u16)  __n2be_16(u16)
+  #define tu_htons(u16)  __builtin_bswap16(u16)
+  #define tu_ntohs(u16)  tu_htons(u16)
   #endif
 
 #else

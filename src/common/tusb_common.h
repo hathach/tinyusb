@@ -61,12 +61,6 @@
 #define TU_BIT_CLEAR(x, n) ( (x) & (~TU_BIT(n)) )               ///< clear n-th bit of x
 #define TU_BIT_TEST(x, n) ( ((x) & TU_BIT(n)) ? true : false )  ///< check if n-th bit of x is 1
 
-//------------- Endian Conversion -------------//
-#define ENDIAN_BE(u32) \
-    (uint32_t) ( (((u32) & 0xFF) << 24) | (((u32) & 0xFF00) << 8) | (((u32) >> 8) & 0xFF00) | (((u32) >> 24) & 0xFF) )
-
-#define ENDIAN_BE16(le16) ((uint16_t) ((U16_LOW_U8(le16) << 8) | U16_HIGH_U8(le16)) )
-
 // for declaration of reserved field, make use of _TU_COUNTER_
 #define TU_RESERVED   XSTRING_CONCAT_(reserved, _TU_COUNTER_)
 
@@ -92,11 +86,6 @@
 //--------------------------------------------------------------------+
 // INLINE FUNCTION
 //--------------------------------------------------------------------+
-#ifndef __n2be_16 // TODO clean up
-#define __n2be_16(u16)  ((uint16_t) ((U16_LOW_U8(u16) << 8) | U16_HIGH_U8(u16)) )
-#define __be2n_16(u16)  __n2be_16(u16)
-#endif
-
 #define tu_memclr(buffer, size)  memset((buffer), 0, (size))
 #define tu_varclr(_var)          tu_memclr(_var, sizeof(*(_var)))
 

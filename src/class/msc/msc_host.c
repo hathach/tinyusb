@@ -232,7 +232,7 @@ tusb_error_t  tuh_msc_read10(uint8_t dev_addr, uint8_t lun, void * p_buffer, uin
   scsi_read10_t cmd_read10 =
   {
       .cmd_code    = SCSI_CMD_READ_10,
-      .lba         = __n2be(lba),
+      .lba         = tu_htonl(lba),
       .block_count = tu_u16_le2be(block_count)
   };
 
@@ -258,7 +258,7 @@ tusb_error_t tuh_msc_write10(uint8_t dev_addr, uint8_t lun, void const * p_buffe
   scsi_write10_t cmd_write10 =
   {
       .cmd_code    = SCSI_CMD_WRITE_10,
-      .lba         = __n2be(lba),
+      .lba         = tu_htonl(lba),
       .block_count = tu_u16_le2be(block_count)
   };
 
@@ -372,8 +372,8 @@ bool msch_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_interface_t const *it
     TU_ASSERT(osal_semaphore_wait(msch_sem_hdl, SCSI_XFER_TIMEOUT));
   }
 
-  p_msc->last_lba   = __be2n( ((scsi_read_capacity10_resp_t*)msch_buffer)->last_lba );
-  p_msc->block_size = (uint16_t) __be2n( ((scsi_read_capacity10_resp_t*)msch_buffer)->block_size );
+  p_msc->last_lba   = tu_ntohl( ((scsi_read_capacity10_resp_t*)msch_buffer)->last_lba );
+  p_msc->block_size = (uint16_t) tu_ntohl( ((scsi_read_capacity10_resp_t*)msch_buffer)->block_size );
 
   p_msc->is_initialized = true;
 

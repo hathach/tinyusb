@@ -81,7 +81,7 @@ static inline uint32_t rdwr10_get_lba(uint8_t const command[])
   memcpy(&lba, &p_rdwr10->lba, 4);
 
   // lba is in Big Endian format
-  return __be2n(lba);
+  return tu_ntohl(lba);
 }
 
 static inline uint16_t rdwr10_get_blockcount(uint8_t const command[])
@@ -93,7 +93,7 @@ static inline uint16_t rdwr10_get_blockcount(uint8_t const command[])
   uint16_t block_count;
   memcpy(&block_count, &p_rdwr10->block_count, 2);
 
-  return __be2n_16(block_count);
+  return tu_ntohs(block_count);
 }
 
 //--------------------------------------------------------------------+
@@ -239,8 +239,8 @@ int32_t proc_builtin_scsi(uint8_t lun, uint8_t const scsi_cmd[16], uint8_t* buff
       {
         scsi_read_capacity10_resp_t read_capa10;
 
-        read_capa10.last_lba = ENDIAN_BE(block_count-1);
-        read_capa10.block_size = ENDIAN_BE(block_size);
+        read_capa10.last_lba = tu_htonl(block_count-1);
+        read_capa10.block_size = tu_htonl(block_size);
 
         resplen = sizeof(read_capa10);
         memcpy(buffer, &read_capa10, resplen);
@@ -273,8 +273,8 @@ int32_t proc_builtin_scsi(uint8_t lun, uint8_t const scsi_cmd[16], uint8_t* buff
         if ( _mscd_itf.sense_key == 0 ) tud_msc_set_sense(lun, SCSI_SENSE_NOT_READY, 0x04, 0x00);
       }else
       {
-        read_fmt_capa.block_num = ENDIAN_BE(block_count);
-        read_fmt_capa.block_size_u16 = ENDIAN_BE16(block_size);
+        read_fmt_capa.block_num = tu_htonl(block_count);
+        read_fmt_capa.block_size_u16 = tu_htons(block_size);
 
         resplen = sizeof(read_fmt_capa);
         memcpy(buffer, &read_fmt_capa, resplen);
