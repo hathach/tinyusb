@@ -90,6 +90,10 @@ void board_init(void)
   gpio_set_pin_function(PIN_PA25, PINMUX_PA25H_USB_DP);
 }
 
+//--------------------------------------------------------------------+
+// Board porting API
+//--------------------------------------------------------------------+
+
 void board_led_write(bool state)
 {
   gpio_set_pin_level(LED_PIN, state);
@@ -101,9 +105,6 @@ uint32_t board_button_read(void)
   return gpio_get_pin_level(BUTTON_PIN) ? 0 : 1;
 }
 
-/*------------------------------------------------------------------*/
-/* TUSB HAL MILLISECOND
- *------------------------------------------------------------------*/
 #if CFG_TUSB_OS  == OPT_OS_NONE
 volatile uint32_t system_ticks = 0;
 

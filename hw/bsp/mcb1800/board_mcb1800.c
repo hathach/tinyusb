@@ -177,19 +177,6 @@ void board_init(void)
 // Board porting API
 //--------------------------------------------------------------------+
 
-#if CFG_TUSB_OS == OPT_OS_NONE
-volatile uint32_t system_ticks = 0;
-void SysTick_Handler (void)
-{
-  system_ticks++;
-}
-
-uint32_t board_millis(void)
-{
-  return system_ticks;
-}
-#endif
-
 void board_led_write(bool state)
 {
   Chip_GPIO_SetPinState(LPC_GPIO_PORT, LED_PORT, LED_PIN, state);
@@ -200,7 +187,6 @@ uint32_t board_button_read(void)
   // active low
   return Chip_GPIO_GetPinState(LPC_GPIO_PORT, BUTTON_PORT, BUTTON_PIN) ? 0 : 1;
 }
-
 
 int board_uart_read(uint8_t* buf, int len)
 {
@@ -218,4 +204,15 @@ int board_uart_write(void const * buf, int len)
   return 0;
 }
 
+#if CFG_TUSB_OS == OPT_OS_NONE
+volatile uint32_t system_ticks = 0;
+void SysTick_Handler (void)
+{
+  system_ticks++;
+}
 
+uint32_t board_millis(void)
+{
+  return system_ticks;
+}
+#endif

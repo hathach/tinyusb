@@ -46,28 +46,6 @@
 
 #define BUTTON_PIN      _PINNUM(1, 02)
 
-/*------------------------------------------------------------------*/
-/* TUSB HAL MILLISECOND
- *------------------------------------------------------------------*/
-#if CFG_TUSB_OS == OPT_OS_NONE
-volatile uint32_t system_ticks = 0;
-
-void SysTick_Handler (void)
-{
-  system_ticks++;
-}
-
-uint32_t board_millis(void)
-{
-  return system_ticks;
-}
-
-#endif
-
-/*------------------------------------------------------------------*/
-/* BOARD API
- *------------------------------------------------------------------*/
-
 // tinyusb function that handles power event (detected, ready, removed)
 // We must call it within SD's SOC event handler, or set it as power event handler if SD is not enabled.
 extern void tusb_hal_nrf_power_event(uint32_t event);
@@ -128,6 +106,10 @@ void board_init(void)
   if ( usb_reg & POWER_USBREGSTATUS_OUTPUTRDY_Msk  ) tusb_hal_nrf_power_event(NRFX_POWER_USB_EVT_READY);
 }
 
+//--------------------------------------------------------------------+
+// Board porting API
+//--------------------------------------------------------------------+
+
 void board_led_write(bool state)
 {
   nrf_gpio_pin_write(LED_PIN, state ? LED_STATE_ON : (1-LED_STATE_ON));
@@ -152,6 +134,19 @@ int board_uart_write(void const * buf, int len)
   (void) len;
   return 0;
 }
+
+#if CFG_TUSB_OS == OPT_OS_NONE
+volatile uint32_t system_ticks = 0;
+void SysTick_Handler (void)
+{
+  system_ticks++;
+}
+
+uint32_t board_millis(void)
+{
+  return system_ticks;
+}
+#endif
 
 #ifdef SOFTDEVICE_PRESENT
 // process SOC event from SD

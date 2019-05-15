@@ -91,6 +91,9 @@ void board_init(void)
 #endif
 }
 
+//--------------------------------------------------------------------+
+// Board porting API
+//--------------------------------------------------------------------+
 
 void board_led_write(bool state)
 {
@@ -103,9 +106,6 @@ uint32_t board_button_read(void)
   return 0;
 }
 
-/*------------------------------------------------------------------*/
-/* TUSB HAL MILLISECOND
- *------------------------------------------------------------------*/
 #if CFG_TUSB_OS  == OPT_OS_NONE
 volatile uint32_t system_ticks = 0;
 

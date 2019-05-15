@@ -85,19 +85,6 @@ void board_init(void)
 //--------------------------------------------------------------------+
 // Board porting API
 //--------------------------------------------------------------------+
-#if CFG_TUSB_OS == OPT_OS_NONE
-volatile uint32_t system_ticks = 0;
-void SysTick_Handler (void)
-{
-  system_ticks++;
-}
-
-uint32_t board_millis(void)
-{
-  return system_ticks;
-}
-#endif
-
 
 void board_led_write(bool state)
 {
@@ -123,3 +110,16 @@ int board_uart_write(void const * buf, int len)
   (void) len;
   return 0;
 }
+
+#if CFG_TUSB_OS == OPT_OS_NONE
+volatile uint32_t system_ticks = 0;
+void SysTick_Handler (void)
+{
+  system_ticks++;
+}
+
+uint32_t board_millis(void)
+{
+  return system_ticks;
+}
+#endif

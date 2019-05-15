@@ -101,6 +101,10 @@ void board_init(void)
   _gclk_enable_channel(TCC0_GCLK_ID, GCLK_CLKCTRL_GEN_GCLK0_Val);
 }
 
+//--------------------------------------------------------------------+
+// Board porting API
+//--------------------------------------------------------------------+
+
 void board_led_write(bool state)
 {
   gpio_set_pin_level(LED_PIN, state);
@@ -114,7 +118,6 @@ uint32_t board_button_read(void)
 
 #if CFG_TUSB_OS  == OPT_OS_NONE
 volatile uint32_t system_ticks = 0;
-
 void SysTick_Handler (void)
 {
   system_ticks++;
@@ -124,5 +127,4 @@ uint32_t board_millis(void)
 {
   return system_ticks;
 }
-
 #endif
