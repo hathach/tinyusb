@@ -131,33 +131,32 @@
 #endif
 
 #ifndef CFG_TUSB_MEM_ALIGN
-#define CFG_TUSB_MEM_ALIGN          ATTR_ALIGNED(4)
+#define CFG_TUSB_MEM_ALIGN        ATTR_ALIGNED(4)
 #endif
 
 #ifndef CFG_TUSB_OS
-#define CFG_TUSB_OS OPT_OS_NONE
+#define CFG_TUSB_OS               OPT_OS_NONE
 #endif
 
 //--------------------------------------------------------------------
 // DEVICE OPTIONS
 //--------------------------------------------------------------------
-#if TUSB_OPT_DEVICE_ENABLED
 
-  #ifndef CFG_TUD_ENDOINT0_SIZE
-    #define CFG_TUD_ENDOINT0_SIZE    64
-  #endif
+#ifndef CFG_TUD_ENDOINT0_SIZE
+  #define CFG_TUD_ENDOINT0_SIZE   64
+#endif
 
-  #ifndef CFG_TUD_CTRL_BUFSIZE
-    #define CFG_TUD_CTRL_BUFSIZE 256
-  #endif
+#ifndef CFG_TUD_CDC
+  #define CFG_TUD_CDC             0
+#endif
 
-  #ifndef CFG_TUD_CDC
-    #define CFG_TUD_CDC            0
-  #endif
+#ifndef CFG_TUD_MSC
+  #define CFG_TUD_MSC             0
+#endif
 
-  #ifndef CFG_TUD_MSC
-    #define CFG_TUD_MSC          0
-  #endif
+#ifndef CFG_TUD_HID
+  #define CFG_TUD_HID             0
+#endif
 
 #ifndef CFG_TUD_MIDI
   #define CFG_TUD_MIDI            0
@@ -167,7 +166,6 @@
   #define CFG_TUD_CUSTOM_CLASS    0
 #endif
 
-#endif // TUSB_OPT_DEVICE_ENABLED
 
 //--------------------------------------------------------------------
 // HOST OPTIONS
