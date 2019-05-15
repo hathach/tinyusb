@@ -1,7 +1,7 @@
 /* 
  * The MIT License (MIT)
  *
- * Copyright (c) 2018, hathach (tinyusb.org)
+ * Copyright (c) 2019 Ha Thach (tinyusb.org)
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -43,28 +43,6 @@
 #define LED_STATE_ON    0
 
 #define BUTTON_PIN      11
-
-/*------------------------------------------------------------------*/
-/* TUSB HAL MILLISECOND
- *------------------------------------------------------------------*/
-#if CFG_TUSB_OS == OPT_OS_NONE
-volatile uint32_t system_ticks = 0;
-
-void SysTick_Handler (void)
-{
-  system_ticks++;
-}
-
-uint32_t board_millis(void)
-{
-  return system_ticks;
-}
-
-#endif
-
-/*------------------------------------------------------------------*/
-/* BOARD API
- *------------------------------------------------------------------*/
 
 // tinyusb function that handles power event (detected, ready, removed)
 // We must call it within SD's SOC event handler, or set it as power event handler if SD is not enabled.
@@ -126,6 +104,10 @@ void board_init(void)
   if ( usb_reg & POWER_USBREGSTATUS_OUTPUTRDY_Msk  ) tusb_hal_nrf_power_event(NRFX_POWER_USB_EVT_READY);
 }
 
+//--------------------------------------------------------------------+
+// Board porting API
+//--------------------------------------------------------------------+
+
 void board_led_write(bool state)
 {
   nrf_gpio_pin_write(LED_PIN, state ? LED_STATE_ON : (1-LED_STATE_ON));
@@ -150,6 +132,19 @@ int board_uart_write(void const * buf, int len)
   (void) len;
   return 0;
 }
+
+#if CFG_TUSB_OS == OPT_OS_NONE
+volatile uint32_t system_ticks = 0;
+void SysTick_Handler (void)
+{
+  system_ticks++;
+}
+
+uint32_t board_millis(void)
+{
+  return system_ticks;
+}
+#endif
 
 #ifdef SOFTDEVICE_PRESENT
 // process SOC event from SD

@@ -1,7 +1,7 @@
 /* 
  * The MIT License (MIT)
  *
- * Copyright (c) 2018, hathach (tinyusb.org)
+ * Copyright (c) 2019 Ha Thach (tinyusb.org)
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -33,55 +33,40 @@
 #define BOARD_UART_PIN_TX         10 // PF.10 : UART0_TXD
 #define BOARD_UART_PIN_RX         11 // PF.11 : UART0_RXD
 
-static const struct {
-  uint8_t mux_port;
-  uint8_t mux_pin;
+// P9_1 joystick down
+#define BUTTON_PORT   4
+#define BUTTON_PIN    13
 
-  uint8_t gpio_port;
-  uint8_t gpio_pin;
-}buttons[] =
-{
-    {0x0a, 3, 4, 10 }, // Joystick up
-    {0x09, 1, 4, 13 }, // Joystick down
-    {0x0a, 2, 4, 9  }, // Joystick left
-    {0x09, 0, 4, 12 }, // Joystick right
-    {0x0a, 1, 4, 8  }, // Joystick press
-    {0x02, 7, 0, 7  }, // SW6
-};
 
-enum {
-  BOARD_BUTTON_COUNT = sizeof(buttons) / sizeof(buttons[0])
-};
-
-/*------------------------------------------------------------------*/
-/* TUSB HAL MILLISECOND
- *------------------------------------------------------------------*/
-#if CFG_TUSB_OS == OPT_OS_NONE
-
-volatile uint32_t system_ticks = 0;
-
-void SysTick_Handler (void)
-{
-  system_ticks++;
-}
-
-uint32_t board_millis(void)
-{
-  return system_ticks;
-}
-
-#endif
+//static const struct {
+//  uint8_t mux_port;
+//  uint8_t mux_pin;
+//
+//  uint8_t gpio_port;
+//  uint8_t gpio_pin;
+//}buttons[] =
+//{
+//    {0x0a, 3, 4, 10 }, // Joystick up
+//    {0x09, 1, 4, 13 }, // Joystick down
+//    {0x0a, 2, 4, 9  }, // Joystick left
+//    {0x09, 0, 4, 12 }, // Joystick right
+//    {0x0a, 1, 4, 8  }, // Joystick press
+//    {0x02, 7, 0, 7  }, // SW6
+//};
 
 /*------------------------------------------------------------------*/
 /* BOARD API
  *------------------------------------------------------------------*/
 
 /* System configuration variables used by chip driver */
-const uint32_t ExtRateIn = 0;
 const uint32_t OscRateIn = 12000000;
+const uint32_t ExtRateIn = 0;
 
 static const PINMUX_GRP_T pinmuxing[] =
 {
+  // Button
+  {0x9, 1,  (SCU_MODE_INBUFF_EN | SCU_MODE_INACT | SCU_MODE_FUNC0 | SCU_MODE_PULLUP)},
+
   // USB
 
   /*  I2S  */
@@ -124,12 +109,14 @@ void board_init(void)
 #if CFG_TUSB_OS == OPT_OS_NONE
   // 1ms tick timer
   SysTick_Config(SystemCoreClock / 1000);
+#elif CFG_TUSB_OS == OPT_OS_FREERTOS
+  // If freeRTOS is used, IRQ priority is limit by max syscall ( smaller is higher )
+  //NVIC_SetPriority(USB0_IRQn, configLIBRARY_MAX_SYSCALL_INTERRUPT_PRIORITY );
 #endif
 
   Chip_GPIO_Init(LPC_GPIO_PORT);
 
-  //------------- LED -------------//
-  /* Init I2C */
+  // LED via pca9532 I2C
   Chip_SCU_I2C0PinConfig(I2C0_STANDARD_FAST_MODE);
   Chip_I2C_Init(I2C0);
   Chip_I2C_SetClockRate(I2C0, 100000);
@@ -137,14 +124,10 @@ void board_init(void)
 
   pca9532_init();
 
-#if 0
-  //------------- BUTTON -------------//
-  for(uint8_t i=0; i<BOARD_BUTTON_COUNT; i++)
-  {
-    scu_pinmux(buttons[i].mux_port, buttons[i].mux_pin, GPIO_NOPULL, FUNC0);
-    GPIO_SetDir(buttons[i].gpio_port, TU_BIT(buttons[i].gpio_pin), 0);
-  }
+  // Button
+  Chip_GPIO_SetPinDIRInput(LPC_GPIO_PORT, BUTTON_PORT, BUTTON_PIN);
 
+#if 0
   //------------- UART -------------//
   scu_pinmux(BOARD_UART_PIN_PORT, BOARD_UART_PIN_TX, MD_PDN, FUNC1);
   scu_pinmux(BOARD_UART_PIN_PORT, BOARD_UART_PIN_RX, MD_PLN | MD_EZI | MD_ZI, FUNC1);
@@ -247,7 +230,10 @@ void board_init(void)
   // TODO Remove R170, R171, solder a pair of 15K to USB1 D+/D- to test with USB1 Host
 }
 
-// LED
+//--------------------------------------------------------------------+
+// Board porting API
+//--------------------------------------------------------------------+
+
 void board_led_write(bool state)
 {
   if (state)
@@ -259,28 +245,12 @@ void board_led_write(bool state)
   }
 }
 
-//--------------------------------------------------------------------+
-// BUTTONS
-//--------------------------------------------------------------------+
-#if 0
-static bool button_read(uint8_t id)
-{
-//  return !TU_BIT_TEST( GPIO_ReadValue(buttons[id].gpio_port), buttons[id].gpio_pin ); // button is active low
-}
-#endif
-
 uint32_t board_button_read(void)
 {
-  uint32_t result = 0;
-
-//  for(uint8_t i=0; i<BOARD_BUTTON_COUNT; i++) result |= (button_read(i) ? TU_BIT(i) : 0);
-
-  return result;
+  // active low
+  return Chip_GPIO_GetPinState(LPC_GPIO_PORT, BUTTON_PORT, BUTTON_PIN) ? 0 : 1;
 }
 
-//--------------------------------------------------------------------+
-// UART
-//--------------------------------------------------------------------+
 int board_uart_read(uint8_t* buf, int len)
 {
   //return UART_ReceiveByte(BOARD_UART_PORT);
@@ -296,3 +266,16 @@ int board_uart_write(void const * buf, int len)
   (void) len;
   return 0;
 }
+
+#if CFG_TUSB_OS == OPT_OS_NONE
+volatile uint32_t system_ticks = 0;
+void SysTick_Handler (void)
+{
+  system_ticks++;
+}
+
+uint32_t board_millis(void)
+{
+  return system_ticks;
+}
+#endif

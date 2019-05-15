@@ -1,7 +1,7 @@
 /* 
  * The MIT License (MIT)
  *
- * Copyright (c) 2018, hathach (tinyusb.org)
+ * Copyright (c) 2019 Ha Thach (tinyusb.org)
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -44,8 +44,8 @@ typedef struct
   uint8_t status_change; // data from status change interrupt endpoint
 }usbh_hub_t;
 
-CFG_TUSB_MEM_SECTION STATIC_VAR usbh_hub_t hub_data[CFG_TUSB_HOST_DEVICE_MAX];
-ATTR_ALIGNED(4) CFG_TUSB_MEM_SECTION STATIC_VAR uint8_t hub_enum_buffer[sizeof(descriptor_hub_desc_t)];
+CFG_TUSB_MEM_SECTION static usbh_hub_t hub_data[CFG_TUSB_HOST_DEVICE_MAX];
+ATTR_ALIGNED(4) CFG_TUSB_MEM_SECTION static uint8_t hub_enum_buffer[sizeof(descriptor_hub_desc_t)];
 
 //OSAL_SEM_DEF(hub_enum_semaphore);
 //static osal_semaphore_handle_t hub_enum_sem_hdl;
@@ -83,7 +83,7 @@ bool hub_port_clear_feature_subtask(uint8_t hub_addr, uint8_t hub_port, uint8_t 
   hub_port_status_response_t * p_port_status;
   p_port_status = (hub_port_status_response_t *) hub_enum_buffer;
 
-  TU_ASSERT( !TU_BIT_TEST(p_port_status->status_change.value, feature-16)  );
+  TU_ASSERT( !tu_bit_test(p_port_status->status_change.value, feature-16)  );
 
   return true;
 }
@@ -211,7 +211,7 @@ void hub_isr(uint8_t dev_addr, uint8_t ep_addr, xfer_result_t event, uint32_t xf
     for (uint8_t port=1; port <= p_hub->port_number; port++)
     {
       // TODO HUB ignore bit0 hub_status_change
-      if ( TU_BIT_TEST(p_hub->status_change, port) )
+      if ( tu_bit_test(p_hub->status_change, port) )
       {
         hcd_event_t event =
         {

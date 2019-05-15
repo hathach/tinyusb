@@ -22,6 +22,7 @@ INC += $(TOP)/src
 #
 CFLAGS += $(addprefix -I,$(INC))
 LDFLAGS += $(CFLAGS) -fshort-enums -Wl,-T,$(TOP)/$(LD_FILE) -Wl,-Map=$@.map -Wl,-cref -Wl,-gc-sections -specs=nosys.specs -specs=nano.specs
+ASFLAGS += $(CFLAGS)
 
 # Assembly files can be name with upper case .S, convert it to .s 
 SRC_S := $(SRC_S:.S=.s)
@@ -108,4 +109,4 @@ flash-jlink: $(BUILD)/$(BOARD)-firmware.hex
 	@echo r >> $(BUILD)/$(BOARD).jlink
 	@echo go >> $(BUILD)/$(BOARD).jlink
 	@echo exit >> $(BUILD)/$(BOARD).jlink
-	$(JLINKEXE) -device $(JLINK_DEVICE) -if $(JLINK_IF) -speed auto -CommandFile $(BUILD)/$(BOARD).jlink
+	$(JLINKEXE) -device $(JLINK_DEVICE) -if $(JLINK_IF) -JTAGConf -1,-1 -speed auto -CommandFile $(BUILD)/$(BOARD).jlink

@@ -1,12 +1,12 @@
 CFLAGS += \
-	-mthumb \
-	-mabi=aapcs \
-	-mcpu=cortex-m4 \
-	-mfloat-abi=hard \
-	-mfpu=fpv4-sp-d16 \
-	-DCFG_TUSB_MCU=OPT_MCU_NRF5X \
-	-DNRF52840_XXAA \
-  -DCONFIG_GPIO_AS_PINRESET
+  -mthumb \
+  -mabi=aapcs \
+  -mcpu=cortex-m4 \
+  -mfloat-abi=hard \
+  -mfpu=fpv4-sp-d16 \
+  -DNRF52840_XXAA \
+  -DCONFIG_GPIO_AS_PINRESET \
+  -DCFG_TUSB_MCU=OPT_MCU_NRF5X
 
 # nrfx issue undef _ARMCC_VERSION usage https://github.com/NordicSemiconductor/nrfx/issues/49
 CFLAGS += -Wno-error=undef 
@@ -35,9 +35,6 @@ INC += \
 SRC_S += hw/mcu/nordic/nrfx/mdk/gcc_startup_nrf52840.S
 
 ASFLAGS += -D__HEAP_SIZE=0
-ASFLAGS += -DSWI_DISABLE0
-ASFLAGS += -DFLOAT_ABI_HARD
-ASFLAGS += -DNRF52840_XXAA
 
 # For TinyUSB port source
 VENDOR = nordic

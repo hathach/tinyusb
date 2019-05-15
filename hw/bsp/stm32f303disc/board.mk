@@ -12,8 +12,6 @@ CFLAGS += \
 # All source paths should be relative to the top level.
 LD_FILE = hw/bsp/stm32f303disc/STM32F303VCTx_FLASH.ld
 
-LDFLAGS += -mthumb -mcpu=cortex-m4
-
 SRC_C += \
 	hw/mcu/st/system-init/system_stm32f3xx.c \
 	hw/mcu/st/stm32lib/STM32F3xx_HAL_Driver/Src/stm32f3xx_hal.c \

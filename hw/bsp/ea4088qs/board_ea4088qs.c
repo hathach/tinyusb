@@ -1,7 +1,7 @@
 /* 
  * The MIT License (MIT)
  *
- * Copyright (c) 2018, hathach (tinyusb.org)
+ * Copyright (c) 2019 Ha Thach (tinyusb.org)
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -30,9 +30,8 @@
 #define LED_PORT      2
 #define LED_PIN       19
 
-//--------------------------------------------------------------------+
-// MACRO TYPEDEF CONSTANT ENUM DECLARATION
-//--------------------------------------------------------------------+
+#define BUTTON_PORT   2
+#define BUTTON_PIN    10
 
 /* System oscillator rate and RTC oscillator rate */
 const uint32_t OscRateIn = 12000000;
@@ -41,8 +40,11 @@ const uint32_t RTCOscRateIn = 32768;
 /* Pin muxing configuration */
 static const PINMUX_GRP_T pinmuxing[] =
 {
-  /* LEDs */
+  // LED
   {2, 19, (IOCON_FUNC0 | IOCON_MODE_INACT)},
+
+  // Button
+  {2, 10, (IOCON_FUNC0 | IOCON_MODE_INACT | IOCON_MODE_PULLUP)},
 };
 
 static const PINMUX_GRP_T pin_usb_mux[] =
@@ -67,7 +69,7 @@ static const PINMUX_GRP_T pin_usb_mux[] =
 // Invoked by startup code
 void SystemInit(void)
 {
-  /* Enable IOCON clock */
+  Chip_IOCON_Init(LPC_IOCON);
   Chip_IOCON_SetPinMuxing(LPC_IOCON, pinmuxing, sizeof(pinmuxing) / sizeof(PINMUX_GRP_T));
   Chip_SetupXtalClocking();
 }
@@ -86,16 +88,17 @@ void board_init(void)
 
   Chip_GPIO_Init(LPC_GPIO);
 
-  //------------- LED -------------//
+  // LED
   Chip_GPIO_SetPinDIROutput(LPC_GPIO, LED_PORT, LED_PIN);
 
-  //------------- BUTTON -------------//
-//  for(uint8_t i=0; i<BOARD_BUTTON_COUNT; i++) GPIO_SetDir(buttons[i].port, TU_BIT(buttons[i].pin), 0);
+  // Button
+  Chip_GPIO_SetPinDIRInput(LPC_GPIO, BUTTON_PORT, BUTTON_PIN);
 
-
-  //------------- UART -------------//
+  // UART
 
   //------------- USB -------------//
+  Chip_IOCON_SetPinMuxing(LPC_IOCON, pin_usb_mux, sizeof(pin_usb_mux) / sizeof(PINMUX_GRP_T));
+
   // Port1 as Host, Port2: Device
   Chip_USB_Init();
 
@@ -108,35 +111,23 @@ void board_init(void)
 
   // USB1 = host, USB2 = device
   LPC_USB->StCtrl = 0x3;
-
-  Chip_IOCON_SetPinMuxing(LPC_IOCON, pin_usb_mux, sizeof(pin_usb_mux) / sizeof(PINMUX_GRP_T));
 }
 
+//--------------------------------------------------------------------+
+// Board porting API
+//--------------------------------------------------------------------+
 
-//------------- LED -------------//
 void board_led_write(bool state)
 {
   Chip_GPIO_SetPinState(LPC_GPIO, LED_PORT, LED_PIN, state);
 }
 
-//------------- Buttons -------------//
-#if 0
-static bool button_read(uint8_t id)
-{
-//  return !TU_BIT_TEST( GPIO_ReadValue(buttons[id].gpio_port), buttons[id].gpio_pin ); // button is active low
-}
-#endif
-
 uint32_t board_button_read(void)
 {
-  uint32_t result = 0;
-
-//  for(uint8_t i=0; i<BOARD_BUTTON_COUNT; i++) result |= (button_read(i) ? TU_BIT(i) : 0);
-
-  return result;
+  // active low
+  return Chip_GPIO_GetPinState(LPC_GPIO, BUTTON_PORT, BUTTON_PIN) ? 0 : 1;
 }
 
-//------------- UART -------------//
 int board_uart_read(uint8_t* buf, int len)
 {
   //return UART_ReceiveByte(BOARD_UART_PORT);
@@ -153,14 +144,8 @@ int board_uart_write(void const * buf, int len)
   return 0;
 }
 
-
-/*------------------------------------------------------------------*/
-/* TUSB HAL MILLISECOND
- *------------------------------------------------------------------*/
 #if CFG_TUSB_OS == OPT_OS_NONE
-
 volatile uint32_t system_ticks = 0;
-
 void SysTick_Handler (void)
 {
   system_ticks++;
@@ -170,5 +155,4 @@ uint32_t board_millis(void)
 {
   return system_ticks;
 }
-
 #endif

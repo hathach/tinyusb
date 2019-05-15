@@ -1,7 +1,7 @@
 /* 
  * The MIT License (MIT)
  *
- * Copyright (c) 2018, hathach (tinyusb.org)
+ * Copyright (c) 2019 Ha Thach (tinyusb.org)
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -119,13 +119,8 @@
 //--------------------------------------------------------------------+
 // COMMON OPTIONS
 //--------------------------------------------------------------------+
-/**
-  determines the debug level for the stack
-  - Level 3: TBD
-  - Level 2: TBD
-  - Level 1: Print out if Assert failed. STATIC_VAR is NULL --> accessible when debugging
-  - Level 0: no debug information is generated
-*/
+
+// Debug enable to print out error message
 #ifndef CFG_TUSB_DEBUG
   #define CFG_TUSB_DEBUG 0
 #endif

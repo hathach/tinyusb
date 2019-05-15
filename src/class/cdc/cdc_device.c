@@ -1,7 +1,7 @@
 /* 
  * The MIT License (MIT)
  *
- * Copyright (c) 2018, hathach (tinyusb.org)
+ * Copyright (c) 2019 Ha Thach (tinyusb.org)
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -99,7 +99,7 @@ static void _prep_out_transaction (uint8_t itf)
 bool tud_cdc_n_connected(uint8_t itf)
 {
   // DTR (bit 0) active  is considered as connected
-  return tud_ready() && TU_BIT_TEST(_cdcd_itf[itf].line_state, 0);
+  return tud_ready() && tu_bit_test(_cdcd_itf[itf].line_state, 0);
 }
 
 uint8_t tud_cdc_n_get_line_state (uint8_t itf)
@@ -358,7 +358,7 @@ bool cdcd_control_request(uint8_t rhport, tusb_control_request_t const * request
       usbd_control_status(rhport, request);
 
       // Invoke callback
-      if ( tud_cdc_line_state_cb) tud_cdc_line_state_cb(itf, TU_BIT_TEST(request->wValue, 0), TU_BIT_TEST(request->wValue, 1));
+      if ( tud_cdc_line_state_cb) tud_cdc_line_state_cb(itf, tu_bit_test(request->wValue, 0), tu_bit_test(request->wValue, 1));
     break;
 
     default: return false; // stall unsupported request

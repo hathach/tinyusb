@@ -1,7 +1,7 @@
 /* 
  * The MIT License (MIT)
  *
- * Copyright (c) 2018, hathach (tinyusb.org)
+ * Copyright (c) 2019 Ha Thach (tinyusb.org)
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -375,7 +375,7 @@ void USBD_IRQHandler(void)
 
   for(uint8_t i=0; i<USBD_INTEN_EPDATA_Pos+1; i++)
   {
-    if ( TU_BIT_TEST(inten, i) && regevt[i]  )
+    if ( tu_bit_test(inten, i) && regevt[i]  )
     {
       int_status |= TU_BIT(i);
 
@@ -477,7 +477,7 @@ void USBD_IRQHandler(void)
    */
   for(uint8_t epnum=0; epnum<8; epnum++)
   {
-    if ( TU_BIT_TEST(int_status, USBD_INTEN_ENDEPOUT0_Pos+epnum))
+    if ( tu_bit_test(int_status, USBD_INTEN_ENDEPOUT0_Pos+epnum))
     {
       xfer_td_t* xfer = get_td(epnum, TUSB_DIR_OUT);
       uint8_t const xact_len = NRF_USBD->EPOUT[epnum].AMOUNT;
@@ -517,7 +517,7 @@ void USBD_IRQHandler(void)
     // CBI In: Endpoint -> Host (transaction complete)
     for(uint8_t epnum=0; epnum<8; epnum++)
     {
-      if ( TU_BIT_TEST(data_status, epnum ) || ( epnum == 0 && is_control_in) )
+      if ( tu_bit_test(data_status, epnum ) || ( epnum == 0 && is_control_in) )
       {
         xfer_td_t* xfer = get_td(epnum, TUSB_DIR_IN);
 
@@ -538,7 +538,7 @@ void USBD_IRQHandler(void)
     // CBI OUT: Host -> Endpoint
     for(uint8_t epnum=0; epnum<8; epnum++)
     {
-      if ( TU_BIT_TEST(data_status, 16+epnum ) || ( epnum == 0 && is_control_out) )
+      if ( tu_bit_test(data_status, 16+epnum ) || ( epnum == 0 && is_control_out) )
       {
         xfer_td_t* xfer = get_td(epnum, TUSB_DIR_OUT);
 

@@ -13,7 +13,11 @@ fail_count = 0
 exit_status = 0
 
 all_device_example = ["cdc_msc_hid", "msc_dual_lun", "hid_generic_inout"]
-all_boards = ["metro_m0_express", "metro_m4_express", "pca10056", "feather_nrf52840_express", "stm32f407g_disc1"]
+
+all_boards = []
+for entry in os.scandir("hw/bsp"):
+    if entry.is_dir():
+        all_boards.append(entry.name)
 
 def build_example(example, board):
     subprocess.run("make -C examples/device/{} BOARD={} clean".format(example, board), shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
@@ -48,8 +52,9 @@ for example in all_device_example:
 #board = 'pca10056'
 #build_example(example, board)
 
-
 total_time = time.monotonic() - total_time
+
+print("Build Sumamary: {} \033[32msucceeded\033[0m, {} \033[31mfailed\033[0m".format(success_count, fail_count))
 print("Total build time took {:.2f}s".format(total_time))
 
 sys.exit(exit_status)

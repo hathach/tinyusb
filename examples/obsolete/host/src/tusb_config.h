@@ -1,7 +1,7 @@
 /* 
  * The MIT License (MIT)
  *
- * Copyright (c) 2018, hathach (tinyusb.org)
+ * Copyright (c) 2019 Ha Thach (tinyusb.org)
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -54,7 +54,7 @@
 //--------------------------------------------------------------------+
 // COMMON CONFIGURATION
 //--------------------------------------------------------------------+
-#define CFG_TUSB_DEBUG                  2
+#define CFG_TUSB_DEBUG                  1
 
 //#define CFG_TUSB_OS                   OPT_OS_NONE // defined using eclipse build
 //#define CFG_TUD_TASK_PRIO         0            // defined using eclipse build

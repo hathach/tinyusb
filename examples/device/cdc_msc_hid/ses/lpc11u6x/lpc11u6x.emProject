@@ -91,7 +91,6 @@
               <file file_name="../../../../../hw/mcu/nxp/lpcopen/lpc_chip_11u6x/src/gpio_11u6x.c" />
               <file file_name="../../../../../hw/mcu/nxp/lpcopen/lpc_chip_11u6x/src/syscon_11u6x.c" />
               <file file_name="../../../../../hw/mcu/nxp/lpcopen/lpc_chip_11u6x/src/sysinit_11u6x.c" />
-              <file file_name="../../../../../hw/mcu/nxp/lpcopen/lpc_chip_11u6x/src/uart_0_11u6x.c" />
               <file file_name="../../../../../hw/mcu/nxp/lpcopen/lpc_chip_11u6x/src/iocon_11u6x.c" />
             </folder>
           </folder>

@@ -1,7 +1,7 @@
 /* 
  * The MIT License (MIT)
  *
- * Copyright (c) 2018, hathach (tinyusb.org)
+ * Copyright (c) 2019 Ha Thach (tinyusb.org)
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -100,20 +100,6 @@ bool tusb_inited(void);
 
 // TODO
 // bool tusb_teardown(void);
-
-
-// backward compatible only. TODO remove later
-ATTR_DEPRECATED("Please use either tud_task() or tuh_task()")
-static inline void tusb_task(void)
-{
-  #if TUSB_OPT_HOST_ENABLED
-  tuh_task();
-  #endif
-
-  #if TUSB_OPT_DEVICE_ENABLED
-  tud_task();
-  #endif
-}
 
 /** @} */
 

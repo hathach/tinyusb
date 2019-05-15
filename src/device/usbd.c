@@ -1,7 +1,7 @@
 /* 
  * The MIT License (MIT)
  *
- * Copyright (c) 2018, hathach (tinyusb.org)
+ * Copyright (c) 2019 Ha Thach (tinyusb.org)
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -382,7 +382,7 @@ static bool process_control_request(uint8_t rhport, tusb_control_request_t const
         break;
 
         case TUSB_REQ_GET_DESCRIPTOR:
-          TU_ASSERT( process_get_descriptor(rhport, p_request) );
+          TU_VERIFY( process_get_descriptor(rhport, p_request) );
         break;
 
         case TUSB_REQ_SET_FEATURE:
@@ -739,7 +739,7 @@ void usbd_edpt_stall(uint8_t rhport, uint8_t ep_addr)
   uint8_t const dir   = tu_edpt_dir(ep_addr);
 
   dcd_edpt_stall(rhport, ep_addr);
-  _usbd_dev.ep_stall_mask[dir] = tu_bit_set(_usbd_dev.ep_stall_mask[dir], epnum);
+  _usbd_dev.ep_stall_mask[dir] = (uint8_t) tu_bit_set(_usbd_dev.ep_stall_mask[dir], epnum);
 }
 
 void usbd_edpt_clear_stall(uint8_t rhport, uint8_t ep_addr)
@@ -748,7 +748,7 @@ void usbd_edpt_clear_stall(uint8_t rhport, uint8_t ep_addr)
   uint8_t const dir   = tu_edpt_dir(ep_addr);
 
   dcd_edpt_clear_stall(rhport, ep_addr);
-  _usbd_dev.ep_stall_mask[dir] = tu_bit_clear(_usbd_dev.ep_stall_mask[dir], epnum);
+  _usbd_dev.ep_stall_mask[dir] = (uint8_t) tu_bit_clear(_usbd_dev.ep_stall_mask[dir], epnum);
 }
 
 bool usbd_edpt_stalled(uint8_t rhport, uint8_t ep_addr)
