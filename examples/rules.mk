@@ -109,4 +109,4 @@ flash-jlink: $(BUILD)/$(BOARD)-firmware.hex
 	@echo r >> $(BUILD)/$(BOARD).jlink
 	@echo go >> $(BUILD)/$(BOARD).jlink
 	@echo exit >> $(BUILD)/$(BOARD).jlink
-	$(JLINKEXE) -device $(JLINK_DEVICE) -if $(JLINK_IF) -speed auto -CommandFile $(BUILD)/$(BOARD).jlink
+	$(JLINKEXE) -device $(JLINK_DEVICE) -if $(JLINK_IF) -JTAGConf -1,-1 -speed auto -CommandFile $(BUILD)/$(BOARD).jlink
