@@ -33,6 +33,11 @@
 #define BOARD_UART_PIN_TX         10 // PF.10 : UART0_TXD
 #define BOARD_UART_PIN_RX         11 // PF.11 : UART0_RXD
 
+// P9_1 joystick down
+#define BUTTON_PORT   4
+#define BUTTON_PIN    13
+
+
 static const struct {
   uint8_t mux_port;
   uint8_t mux_pin;
@@ -54,25 +59,6 @@ enum {
 };
 
 /*------------------------------------------------------------------*/
-/* TUSB HAL MILLISECOND
- *------------------------------------------------------------------*/
-#if CFG_TUSB_OS == OPT_OS_NONE
-
-volatile uint32_t system_ticks = 0;
-
-void SysTick_Handler (void)
-{
-  system_ticks++;
-}
-
-uint32_t board_millis(void)
-{
-  return system_ticks;
-}
-
-#endif
-
-/*------------------------------------------------------------------*/
 /* BOARD API
  *------------------------------------------------------------------*/
 
@@ -82,6 +68,9 @@ const uint32_t OscRateIn = 12000000;
 
 static const PINMUX_GRP_T pinmuxing[] =
 {
+  // Button
+  {0x9, 1,  (SCU_MODE_INBUFF_EN | SCU_MODE_INACT | SCU_MODE_FUNC0 | SCU_MODE_PULLUP)},
+
   // USB
 
   /*  I2S  */
@@ -124,18 +113,23 @@ void board_init(void)
 #if CFG_TUSB_OS == OPT_OS_NONE
   // 1ms tick timer
   SysTick_Config(SystemCoreClock / 1000);
+#elif CFG_TUSB_OS == OPT_OS_FREERTOS
+  // If freeRTOS is used, IRQ priority is limit by max syscall ( smaller is higher )
+  //NVIC_SetPriority(USB0_IRQn, configLIBRARY_MAX_SYSCALL_INTERRUPT_PRIORITY );
 #endif
 
   Chip_GPIO_Init(LPC_GPIO_PORT);
 
-  //------------- LED -------------//
-  /* Init I2C */
+  // LED via pca9532 I2C
   Chip_SCU_I2C0PinConfig(I2C0_STANDARD_FAST_MODE);
   Chip_I2C_Init(I2C0);
   Chip_I2C_SetClockRate(I2C0, 100000);
   Chip_I2C_SetMasterEventHandler(I2C0, Chip_I2C_EventHandlerPolling);
 
   pca9532_init();
+
+  // Button
+  Chip_GPIO_SetPinDIRInput(LPC_GPIO_PORT, BUTTON_PORT, BUTTON_PIN);
 
 #if 0
   //------------- BUTTON -------------//
@@ -247,7 +241,10 @@ void board_init(void)
   // TODO Remove R170, R171, solder a pair of 15K to USB1 D+/D- to test with USB1 Host
 }
 
-// LED
+//--------------------------------------------------------------------+
+// Board porting API
+//--------------------------------------------------------------------+
+
 void board_led_write(bool state)
 {
   if (state)
@@ -259,28 +256,12 @@ void board_led_write(bool state)
   }
 }
 
-//--------------------------------------------------------------------+
-// BUTTONS
-//--------------------------------------------------------------------+
-#if 0
-static bool button_read(uint8_t id)
-{
-//  return !tu_bit_test( GPIO_ReadValue(buttons[id].gpio_port), buttons[id].gpio_pin ); // button is active low
-}
-#endif
-
 uint32_t board_button_read(void)
 {
-  uint32_t result = 0;
-
-//  for(uint8_t i=0; i<BOARD_BUTTON_COUNT; i++) result |= (button_read(i) ? TU_BIT(i) : 0);
-
-  return result;
+  // active low
+  return Chip_GPIO_GetPinState(LPC_GPIO_PORT, BUTTON_PORT, BUTTON_PIN) ? 0 : 1;
 }
 
-//--------------------------------------------------------------------+
-// UART
-//--------------------------------------------------------------------+
 int board_uart_read(uint8_t* buf, int len)
 {
   //return UART_ReceiveByte(BOARD_UART_PORT);
@@ -296,3 +277,16 @@ int board_uart_write(void const * buf, int len)
   (void) len;
   return 0;
 }
+
+#if CFG_TUSB_OS == OPT_OS_NONE
+volatile uint32_t system_ticks = 0;
+void SysTick_Handler (void)
+{
+  system_ticks++;
+}
+
+uint32_t board_millis(void)
+{
+  return system_ticks;
+}
+#endif
