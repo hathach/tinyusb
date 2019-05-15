@@ -30,9 +30,9 @@
 #define LED_PORT      0
 #define LED_PIN       7
 
-// Joytick UP if connected to LPCXpresso Base board
+// Joytick Down if connected to LPCXpresso Base board
 #define BUTTON_PORT   1
-#define BUTTON_PIN    22
+#define BUTTON_PIN    20
 
 //static const struct {
 //  uint8_t port;
@@ -103,6 +103,7 @@ void board_init(void)
 //--------------------------------------------------------------------+
 // Board porting API
 //--------------------------------------------------------------------+
+
 #if CFG_TUSB_OS == OPT_OS_NONE
 volatile uint32_t system_ticks = 0;
 void SysTick_Handler (void)

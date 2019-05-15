@@ -30,6 +30,10 @@
 #define LED_PORT      0
 #define LED_PIN       22
 
+// Joytick Down if connected to LPCXpresso Base board
+#define BUTTON_PORT   0
+#define BUTTON_PIN    15
+
 #define BOARD_UART_PORT   LPC_UART3
 
 /* System oscillator rate and RTC oscillator rate */
@@ -60,20 +64,18 @@ static const PINMUX_GRP_T pin_usb_mux[] =
   {1, 19, IOCON_MODE_INACT | IOCON_FUNC2}, // USB_PPWR
   {1, 22, IOCON_MODE_INACT | IOCON_FUNC2}, // USB_PWRD
 
-	/* VBUS is not connected on this board, so leave the pin at default setting. */
-	/*Chip_IOCON_PinMux(LPC_IOCON, 1, 30, IOCON_MODE_INACT, IOCON_FUNC2);*/ /* USB VBUS */
-};
-
-enum {
-  BOARD_BUTTON_COUNT = 5
+  /* VBUS is not connected on this board, so leave the pin at default setting. */
+  /*Chip_IOCON_PinMux(LPC_IOCON, 1, 30, IOCON_MODE_INACT, IOCON_FUNC2);*/ /* USB VBUS */
 };
 
 // Invoked by startup code
 void SystemInit(void)
 {
-  /* Enable IOCON clock */
   Chip_IOCON_SetPinMuxing(LPC_IOCON, pinmuxing, sizeof(pinmuxing) / sizeof(PINMUX_GRP_T));
   Chip_SetupXtalClocking();
+
+  /* Setup FLASH access to 4 clocks (100MHz clock) */
+//  Chip_SYSCTL_SetFLASHAccess(FLASHTIM_100MHZ_CPU);
 }
 
 void board_init(void)
@@ -90,11 +92,11 @@ void board_init(void)
 
   Chip_GPIO_Init(LPC_GPIO);
 
-  //------------- LED -------------//
+  // LED
   Chip_GPIO_SetPinDIROutput(LPC_GPIO, LED_PORT, LED_PIN);
 
-  //------------- BUTTON -------------//
-//  for(uint8_t i=0; i<BOARD_BUTTON_COUNT; i++) GPIO_SetDir(buttons[i].port, TU_BIT(buttons[i].pin), 0);
+  // Button
+  Chip_GPIO_SetPinDIRInput(LPC_GPIO, BUTTON_PORT, BUTTON_PIN);
 
 #if 0
   //------------- UART -------------//
@@ -142,13 +144,12 @@ void board_init(void)
   Chip_IOCON_SetPinMuxing(LPC_IOCON, pin_usb_mux, sizeof(pin_usb_mux) / sizeof(PINMUX_GRP_T));
 }
 
-/*------------------------------------------------------------------*/
-/* TUSB HAL MILLISECOND
- *------------------------------------------------------------------*/
+//--------------------------------------------------------------------+
+// Board porting API
+//--------------------------------------------------------------------+
+
 #if CFG_TUSB_OS == OPT_OS_NONE
-
 volatile uint32_t system_ticks = 0;
-
 void SysTick_Handler (void)
 {
   system_ticks++;
@@ -158,47 +159,25 @@ uint32_t board_millis(void)
 {
   return system_ticks;
 }
-
 #endif
 
-//--------------------------------------------------------------------+
-// LEDS
-//--------------------------------------------------------------------+
 void board_led_write(bool state)
 {
   Chip_GPIO_SetPinState(LPC_GPIO, LED_PORT, LED_PIN, state);
 }
 
-//--------------------------------------------------------------------+
-// BUTTONS
-//--------------------------------------------------------------------+
-#if 0
-static bool button_read(uint8_t id)
-{
-//  return !tu_bit_test( GPIO_ReadValue(buttons[id].port), buttons[id].pin ); // button is active low
-  return false;
-}
-#endif
-
 uint32_t board_button_read(void)
 {
-  uint32_t result = 0;
-
-//  for(uint8_t i=0; i<BOARD_BUTTON_COUNT; i++) result |= (button_read(i) ? TU_BIT(i) : 0);
-
-  return result;
+  // active low
+  return Chip_GPIO_GetPinState(LPC_GPIO, BUTTON_PORT, BUTTON_PIN) ? 0 : 1;
 }
 
-//--------------------------------------------------------------------+
-// UART
-//--------------------------------------------------------------------+
 int board_uart_read(uint8_t* buf, int len)
 {
 //  return UART_ReceiveByte(BOARD_UART_PORT);
   (void) buf;
   (void) len;
   return 0;
-
 }
 
 int board_uart_write(void const * buf, int len)

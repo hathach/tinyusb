@@ -4,7 +4,6 @@ CFLAGS += \
   -mcpu=cortex-m3 \
   -nostdlib \
   -DCORE_M3 \
-  -D__VTOR_PRESENT=0 \
   -DCFG_TUSB_MCU=OPT_MCU_LPC13XX \
   -D__USE_LPCOPEN \
   -DCFG_TUSB_MEM_SECTION='__attribute__((section(".data.$$RAM3")))' \
