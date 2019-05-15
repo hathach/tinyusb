@@ -38,33 +38,29 @@
 #define BUTTON_PIN    13
 
 
-static const struct {
-  uint8_t mux_port;
-  uint8_t mux_pin;
-
-  uint8_t gpio_port;
-  uint8_t gpio_pin;
-}buttons[] =
-{
-    {0x0a, 3, 4, 10 }, // Joystick up
-    {0x09, 1, 4, 13 }, // Joystick down
-    {0x0a, 2, 4, 9  }, // Joystick left
-    {0x09, 0, 4, 12 }, // Joystick right
-    {0x0a, 1, 4, 8  }, // Joystick press
-    {0x02, 7, 0, 7  }, // SW6
-};
-
-enum {
-  BOARD_BUTTON_COUNT = sizeof(buttons) / sizeof(buttons[0])
-};
+//static const struct {
+//  uint8_t mux_port;
+//  uint8_t mux_pin;
+//
+//  uint8_t gpio_port;
+//  uint8_t gpio_pin;
+//}buttons[] =
+//{
+//    {0x0a, 3, 4, 10 }, // Joystick up
+//    {0x09, 1, 4, 13 }, // Joystick down
+//    {0x0a, 2, 4, 9  }, // Joystick left
+//    {0x09, 0, 4, 12 }, // Joystick right
+//    {0x0a, 1, 4, 8  }, // Joystick press
+//    {0x02, 7, 0, 7  }, // SW6
+//};
 
 /*------------------------------------------------------------------*/
 /* BOARD API
  *------------------------------------------------------------------*/
 
 /* System configuration variables used by chip driver */
-const uint32_t ExtRateIn = 0;
 const uint32_t OscRateIn = 12000000;
+const uint32_t ExtRateIn = 0;
 
 static const PINMUX_GRP_T pinmuxing[] =
 {
@@ -132,13 +128,6 @@ void board_init(void)
   Chip_GPIO_SetPinDIRInput(LPC_GPIO_PORT, BUTTON_PORT, BUTTON_PIN);
 
 #if 0
-  //------------- BUTTON -------------//
-  for(uint8_t i=0; i<BOARD_BUTTON_COUNT; i++)
-  {
-    scu_pinmux(buttons[i].mux_port, buttons[i].mux_pin, GPIO_NOPULL, FUNC0);
-    GPIO_SetDir(buttons[i].gpio_port, TU_BIT(buttons[i].gpio_pin), 0);
-  }
-
   //------------- UART -------------//
   scu_pinmux(BOARD_UART_PIN_PORT, BOARD_UART_PIN_TX, MD_PDN, FUNC1);
   scu_pinmux(BOARD_UART_PIN_PORT, BOARD_UART_PIN_RX, MD_PLN | MD_EZI | MD_ZI, FUNC1);

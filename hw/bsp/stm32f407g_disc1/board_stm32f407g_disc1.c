@@ -34,6 +34,8 @@ void board_init(void)
   RCC->AHB1ENR |= RCC_AHB1ENR_GPIODEN;
   GPIOD->MODER |= GPIO_MODER_MODE14_0;
 
+  // TODO Button
+
   // USB Clock init
   // PLL input- 8 MHz (External oscillator clock; HSI clock tolerance isn't
   // tight enough- 1%, need 0.25%)
@@ -59,10 +61,13 @@ void board_init(void)
   // Notify runtime of frequency change.
   SystemCoreClockUpdate();
 
-  #if CFG_TUSB_OS  == OPT_OS_NONE
+#if CFG_TUSB_OS  == OPT_OS_NONE
   // 1ms tick timer
   SysTick_Config(SystemCoreClock / 1000);
-  #endif
+#elif CFG_TUSB_OS == OPT_OS_FREERTOS
+  // If freeRTOS is used, IRQ priority is limit by max syscall ( smaller is higher )
+  //NVIC_SetPriority(USB0_IRQn, configLIBRARY_MAX_SYSCALL_INTERRUPT_PRIORITY );
+#endif
 
   RCC->AHB2ENR |= RCC_AHB2ENR_OTGFSEN;
 
