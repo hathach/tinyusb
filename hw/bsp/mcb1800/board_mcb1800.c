@@ -27,10 +27,12 @@
 #include "chip.h"
 #include "../board.h"
 
+// PD_10
 #define LED_PORT  6
 #define LED_PIN   24
 
-#define BUTTON_PORT   4
+// P4_0
+#define BUTTON_PORT   2
 #define BUTTON_PIN    0
 
 
@@ -43,7 +45,7 @@ const uint32_t ExtRateIn = 0;
 
 static const PINMUX_GRP_T pinmuxing[] =
 {
-	/* Board LEDs */
+	// LEDs
 	{0xD, 10, (SCU_MODE_INBUFF_EN | SCU_MODE_INACT | SCU_MODE_FUNC4)},
 	{0xD, 11, (SCU_MODE_INBUFF_EN | SCU_MODE_INACT | SCU_MODE_FUNC4 | SCU_MODE_PULLDOWN)},
 	{0xD, 12, (SCU_MODE_INBUFF_EN | SCU_MODE_INACT | SCU_MODE_FUNC4 | SCU_MODE_PULLDOWN)},
@@ -52,6 +54,9 @@ static const PINMUX_GRP_T pinmuxing[] =
 	{0x9, 0,  (SCU_MODE_INBUFF_EN | SCU_MODE_INACT | SCU_MODE_FUNC0 | SCU_MODE_PULLDOWN)},
 	{0x9, 1,  (SCU_MODE_INBUFF_EN | SCU_MODE_INACT | SCU_MODE_FUNC0 | SCU_MODE_PULLDOWN)},
 	{0x9, 2,  (SCU_MODE_INBUFF_EN | SCU_MODE_INACT | SCU_MODE_FUNC0 | SCU_MODE_PULLDOWN)},
+
+	// Button
+	{0x4, 0,  (SCU_MODE_INBUFF_EN | SCU_MODE_INACT | SCU_MODE_FUNC0 | SCU_MODE_PULLUP)},
 
 	/*  I2S  */
 	{0x3, 0,  (SCU_PINIO_FAST | SCU_MODE_FUNC2)},
@@ -93,6 +98,9 @@ void board_init(void)
 #if CFG_TUSB_OS == OPT_OS_NONE
   // 1ms tick timer
   SysTick_Config(SystemCoreClock / 1000);
+#elif CFG_TUSB_OS == OPT_OS_FREERTOS
+  // If freeRTOS is used, IRQ priority is limit by max syscall ( smaller is higher )
+  //NVIC_SetPriority(USB0_IRQn, configLIBRARY_MAX_SYSCALL_INTERRUPT_PRIORITY );
 #endif
 
   Chip_GPIO_Init(LPC_GPIO_PORT);
@@ -189,11 +197,8 @@ void board_led_write(bool state)
 
 uint32_t board_button_read(void)
 {
-  uint32_t result = 0;
-
-//  for(uint8_t i=0; i<BOARD_BUTTON_COUNT; i++) result |= (button_read(i) ? TU_BIT(i) : 0);
-
-  return result;
+  // active low
+  return Chip_GPIO_GetPinState(LPC_GPIO_PORT, BUTTON_PORT, BUTTON_PIN) ? 0 : 1;
 }
 
 
