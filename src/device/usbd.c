@@ -382,7 +382,7 @@ static bool process_control_request(uint8_t rhport, tusb_control_request_t const
         break;
 
         case TUSB_REQ_GET_DESCRIPTOR:
-          TU_ASSERT( process_get_descriptor(rhport, p_request) );
+          TU_VERIFY( process_get_descriptor(rhport, p_request) );
         break;
 
         case TUSB_REQ_SET_FEATURE:

@@ -71,11 +71,9 @@ static const PINMUX_GRP_T pin_usb_mux[] =
 // Invoked by startup code
 void SystemInit(void)
 {
+  Chip_IOCON_Init(LPC_IOCON);
   Chip_IOCON_SetPinMuxing(LPC_IOCON, pinmuxing, sizeof(pinmuxing) / sizeof(PINMUX_GRP_T));
   Chip_SetupXtalClocking();
-
-  /* Setup FLASH access to 4 clocks (100MHz clock) */
-//  Chip_SYSCTL_SetFLASHAccess(FLASHTIM_100MHZ_CPU);
 }
 
 void board_init(void)
@@ -123,6 +121,7 @@ void board_init(void)
 #endif
 
 	//------------- USB -------------//
+  Chip_IOCON_SetPinMuxing(LPC_IOCON, pin_usb_mux, sizeof(pin_usb_mux) / sizeof(PINMUX_GRP_T));
 	Chip_USB_Init();
 
   enum {
@@ -140,8 +139,6 @@ void board_init(void)
   // set portfunc to host !!!
   LPC_USB->StCtrl = 0x3; // should be 1
 #endif
-
-  Chip_IOCON_SetPinMuxing(LPC_IOCON, pin_usb_mux, sizeof(pin_usb_mux) / sizeof(PINMUX_GRP_T));
 }
 
 //--------------------------------------------------------------------+
