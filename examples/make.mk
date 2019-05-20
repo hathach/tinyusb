@@ -12,6 +12,7 @@ MKDIR = mkdir
 SED = sed
 CP = cp
 RM = rm
+PYTHON ?= python
 
 # Select the board to build for.
 ifeq ($(BOARD),)

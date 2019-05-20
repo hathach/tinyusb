@@ -13,3 +13,6 @@
 [submodule "hw/mcu/nxp/lpcopen"]
 	path = hw/mcu/nxp/lpcopen
 	url = https://github.com/hathach/lpcopen.git
+[submodule "tools/uf2"]
+	path = tools/uf2
+	url = https://github.com/microsoft/uf2.git
