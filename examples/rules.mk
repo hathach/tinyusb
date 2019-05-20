@@ -54,7 +54,7 @@ $(BUILD)/$(BOARD)-firmware.elf: $(OBJ)
 
 $(BUILD)/$(BOARD)-firmware.bin: $(BUILD)/$(BOARD)-firmware.elf
 	@echo CREATE $@
-	@$(OBJCOPY) -O binary -j .vectors -j .text -j .data $^ $@
+	@$(OBJCOPY) -O binary $^ $@
 	
 $(BUILD)/$(BOARD)-firmware.hex: $(BUILD)/$(BOARD)-firmware.elf	
 	@echo CREATE $@
