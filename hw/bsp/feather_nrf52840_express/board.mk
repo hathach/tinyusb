@@ -12,7 +12,7 @@ CFLAGS += \
 CFLAGS += -Wno-error=undef 
 
 # All source paths should be relative to the top level.
-LD_FILE = hw/mcu/nordic/nrfx/mdk/nrf52840_xxaa.ld
+LD_FILE = hw/bsp/feather_nrf52840_express/nrf52840_s140_v6.ld
 
 LDFLAGS += -L$(TOP)/hw/mcu/nordic/nrfx/mdk
 
@@ -46,6 +46,9 @@ FREERTOS_PORT = ARM_CM4F
 # For flash-jlink target
 JLINK_DEVICE = nRF52840_xxAA
 JLINK_IF = swd
+
+# For uf2 conversion
+UF2_FAMILY = 0xADA52840
 
 # flash using jlink
 flash: flash-jlink

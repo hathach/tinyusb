@@ -43,6 +43,8 @@ endif
 .DEFAULT_GOAL := all
 all: $(BUILD)/$(BOARD)-firmware.bin size
 
+uf2: $(BUILD)/$(BOARD)-firmware.uf2
+
 OBJ_DIRS = $(sort $(dir $(OBJ)))
 $(OBJ): | $(OBJ_DIRS)
 $(OBJ_DIRS):
@@ -59,6 +61,11 @@ $(BUILD)/$(BOARD)-firmware.bin: $(BUILD)/$(BOARD)-firmware.elf
 $(BUILD)/$(BOARD)-firmware.hex: $(BUILD)/$(BOARD)-firmware.elf	
 	@echo CREATE $@
 	@$(OBJCOPY) -O ihex $^ $@
+
+UF2_FAMILY ?= 0x00
+$(BUILD)/$(BOARD)-firmware.uf2: $(BUILD)/$(BOARD)-firmware.hex
+	@echo CREATE $@
+	$(PYTHON) $(TOP)/tools/uf2/utils/uf2conv.py -f $(UF2_FAMILY) -c -o $@ $^
 
 # We set vpath to point to the top of the tree so that the source files
 # can be located. By following this scheme, it allows a single build rule
