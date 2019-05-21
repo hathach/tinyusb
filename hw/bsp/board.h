@@ -97,8 +97,22 @@ static inline void board_led_off(void)
 
 static inline void board_delay(uint32_t ms)
 {
-  uint32_t start_ms = board_millis();
-  while( board_millis() < start_ms + ms) {}
+  if ( ms == 0 ) return;
+
+  uint64_t end_ms = (uint64_t) board_millis();
+  end_ms += ms;
+
+  // about to overflows
+  if (end_ms > UINT32_MAX)
+  {
+    // first wait for overflow occurs since "ms" is small enough
+    while( board_millis() > ms ) {}
+
+    // then adjust end time
+    end_ms -= UINT32_MAX;
+  }
+
+  while( board_millis() < end_ms ) {}
 }
 
 static inline int8_t board_uart_getchar(void)
