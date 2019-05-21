@@ -177,7 +177,7 @@ void hid_task(void)
   const uint32_t interval_ms = 10;
   static uint32_t start_ms = 0;
 
-  if ( board_millis() < start_ms + interval_ms) return; // not enough time
+  if ( board_millis() - start_ms < interval_ms) return; // not enough time
   start_ms += interval_ms;
 
   uint32_t const btn = board_button_read();
@@ -264,7 +264,7 @@ void led_blinking_task(void)
   static bool led_state = false;
 
   // Blink every 1000 ms
-  if ( board_millis() < start_ms + blink_interval_ms) return; // not enough time
+  if ( board_millis() - start_ms < blink_interval_ms) return; // not enough time
   start_ms += blink_interval_ms;
 
   board_led_write(led_state);

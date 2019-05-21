@@ -146,7 +146,7 @@ void led_blinking_task(void)
   static bool led_state = false;
 
   // Blink every 1000 ms
-  if ( board_millis() < start_ms + blink_interval_ms) return; // not enough time
+  if ( board_millis() - start_ms < blink_interval_ms) return; // not enough time
   start_ms += blink_interval_ms;
 
   board_led_write(led_state);
