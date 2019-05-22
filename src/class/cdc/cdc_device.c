@@ -126,9 +126,9 @@ uint32_t tud_cdc_n_available(uint8_t itf)
   return tu_fifo_count(&_cdcd_itf[itf].rx_ff);
 }
 
-char tud_cdc_n_read_char(uint8_t itf)
+signed char tud_cdc_n_read_char(uint8_t itf)
 {
-  char ch;
+  signed char ch;
   return tud_cdc_n_read(itf, &ch, 1) ? ch : (-1);
 }
 
@@ -139,9 +139,9 @@ uint32_t tud_cdc_n_read(uint8_t itf, void* buffer, uint32_t bufsize)
   return num_read;
 }
 
-char tud_cdc_n_peek(uint8_t itf, int pos)
+signed char tud_cdc_n_peek(uint8_t itf, int pos)
 {
-  char ch;
+  signed char ch;
   return tu_fifo_peek_at(&_cdcd_itf[itf].rx_ff, pos, &ch) ? ch : (-1);
 }
 
