@@ -636,7 +636,7 @@ static inline uint8_t get_new_address(void)
   {
     if (_usbh_devices[addr].state == TUSB_DEVICE_STATE_UNPLUG) return addr;
   }
-  return CFG_TUSB_HOST_DEVICE_MAX;
+  return CFG_TUSB_HOST_DEVICE_MAX+1;
 }
 
 static inline uint8_t get_configure_number_for_device(tusb_desc_device_t* dev_desc)
