@@ -100,7 +100,7 @@ size: $(BUILD)/$(BOARD)-firmware.elf
 	-@echo ''
 
 clean:
-	rm -rf build-$(BOARD)
+	rm -rf $(BUILD)
 	
 # Flash binary using Jlink
 ifeq ($(OS),Windows_NT)
