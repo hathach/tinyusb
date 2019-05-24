@@ -78,7 +78,7 @@ bool tud_hid_ready(void)
 
 bool tud_hid_report(uint8_t report_id, void const* report, uint8_t len)
 {
-  TU_VERIFY( tud_hid_ready() && (len < CFG_TUD_HID_BUFSIZE) );
+  TU_VERIFY( tud_hid_ready() && (len <= CFG_TUD_HID_BUFSIZE) );
 
   uint8_t itf = 0;
   hidd_interface_t * p_hid = &_hidd_itf[itf];

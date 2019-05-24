@@ -27,7 +27,7 @@ else
 endif
 
 # Build directory
-BUILD = build-$(BOARD)
+BUILD = _build/build-$(BOARD)
 
 # Board specific
 include $(TOP)/hw/bsp/$(BOARD)/board.mk
