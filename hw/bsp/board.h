@@ -98,7 +98,11 @@ static inline void board_led_off(void)
 static inline void board_delay(uint32_t ms)
 {
   uint32_t start_ms = board_millis();
-  while( board_millis() - start_ms < ms) {}
+  while (board_millis() - start_ms < ms)
+  {
+    // take chance to run usb background
+    tud_task();
+  }
 }
 
 static inline int8_t board_uart_getchar(void)
