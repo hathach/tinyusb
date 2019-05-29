@@ -100,25 +100,28 @@ void dcd_set_config (uint8_t rhport, uint8_t config_num);
 // Wake up host
 void dcd_remote_wakeup(uint8_t rhport);
 
-/*------------------------------------------------------------------*/
-/* Endpoint API
- *  - open        : Configure endpoint's registers
- *  - xfer        : Submit a transfer. When complete dcd_event_xfer_complete
- *                  must be called to notify the stack
- *  - busy        : Check if endpoint transferring is complete (TODO remove)
- *  - stall       : stall endpoint
- *  - clear_stall : clear stall, data toggle is also reset to DATA0
- *------------------------------------------------------------------*/
+//--------------------------------------------------------------------+
+// Endpoint API
+//--------------------------------------------------------------------+
+
+// Configure endpoint's registers according to descriptor
 bool dcd_edpt_open        (uint8_t rhport, tusb_desc_endpoint_t const * p_endpoint_desc);
+
+// Submit a transfer, When complete dcd_event_xfer_complete() is invoked to notify the stack
 bool dcd_edpt_xfer        (uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t total_bytes);
+
+// Check if endpoint transferring is complete (TODO remove)
 bool dcd_edpt_busy        (uint8_t rhport, uint8_t ep_addr);
 
+// Stall endpoint
 void dcd_edpt_stall       (uint8_t rhport, uint8_t ep_addr);
+
+// clear stall, data toggle is also reset to DATA0
 void dcd_edpt_clear_stall (uint8_t rhport, uint8_t ep_addr);
 
 /*------------------------------------------------------------------*/
 /* Event Function
- * Called by DCD to notify USBD
+ * Called by DCD to notify device stack
  *------------------------------------------------------------------*/
 void dcd_event_handler(dcd_event_t const * event, bool in_isr);
 

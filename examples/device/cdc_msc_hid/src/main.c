@@ -201,7 +201,7 @@ void hid_task(void)
       tud_hid_mouse_report(REPORT_ID_MOUSE, 0x00, delta, delta, 0, 0);
 
       // delay a bit before attempt to send keyboard report
-      board_delay(2);
+      board_delay(10);
     }
   }
 

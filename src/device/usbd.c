@@ -51,8 +51,8 @@ typedef struct {
       uint8_t self_powered          : 1; // configuration descriptor's attribute
   };
 
-//  uint8_t ep_busy_mask[2];  // bit mask for busy endpoint
-  uint8_t ep_stall_mask[2]; // bit mask for stalled endpoint
+  uint8_t ep_busy_map[2];  // bit mask for busy endpoint
+  uint8_t ep_stall_map[2]; // bit map for stalled endpoint
 
   uint8_t itf2drv[16];      // map interface number to driver (0xff is invalid)
   uint8_t ep2drv[8][2];     // map endpoint to driver ( 0xff is invalid )
@@ -287,6 +287,10 @@ void tud_task (void)
         {
           // Invoke the class callback associated with the endpoint address
           uint8_t const ep_addr = event.xfer_complete.ep_addr;
+          uint8_t const epnum = tu_edpt_number(ep_addr);
+          uint8_t const dir   = tu_edpt_dir(ep_addr);
+
+          _usbd_dev.ep_busy_map[dir] = (uint8_t) tu_bit_clear(_usbd_dev.ep_busy_map[dir], epnum);
 
           if ( 0 == tu_edpt_number(ep_addr) )
           {
@@ -621,7 +625,7 @@ void dcd_event_handler(dcd_event_t const * event, bool in_isr)
 
     case DCD_EVENT_SUSPEND:
       // NOTE: When plugging/unplugging device, the D+/D- state are unstable and can accidentally meet the
-      // SUSPEND condition ( Idle for 3ms ). Some MCUs such as samd don't distinguish suspend vs disconnect as well.
+      // SUSPEND condition ( Idle for 3ms ). Some MCUs such as SAMD doesn't distinguish suspend vs disconnect as well.
       // We will skip handling SUSPEND/RESUME event if not currently connected
       if ( _usbd_dev.connected )
       {
@@ -643,7 +647,8 @@ void dcd_event_handler(dcd_event_t const * event, bool in_isr)
     break;
 
     case DCD_EVENT_XFER_COMPLETE:
-      // skip zero-length control status complete event, should dcd notifies us.
+      // skip zero-length control status complete event, should DCD notify us.
+      // TODO could cause issue with actual zero length data used by class such as DFU
       if ( (0 == tu_edpt_number(event->xfer_complete.ep_addr)) && (event->xfer_complete.len == 0) ) break;
 
       osal_queue_send(_usbd_q, event, in_isr);
@@ -733,13 +738,37 @@ void usbd_defer_func(osal_task_func_t func, void* param, bool in_isr)
 //--------------------------------------------------------------------+
 // USBD Endpoint API
 //--------------------------------------------------------------------+
+
+bool usbd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t total_bytes)
+{
+  uint8_t const epnum = tu_edpt_number(ep_addr);
+  uint8_t const dir   = tu_edpt_dir(ep_addr);
+
+  TU_VERIFY( dcd_edpt_xfer(rhport, ep_addr, buffer, total_bytes) );
+
+  _usbd_dev.ep_busy_map[dir] = (uint8_t) tu_bit_set(_usbd_dev.ep_busy_map[dir], epnum);
+
+  return true;
+}
+
+bool usbd_edpt_busy(uint8_t rhport, uint8_t ep_addr)
+{
+  (void) rhport;
+
+  uint8_t const epnum = tu_edpt_number(ep_addr);
+  uint8_t const dir   = tu_edpt_dir(ep_addr);
+
+  return tu_bit_test(_usbd_dev.ep_busy_map[dir], epnum);
+}
+
+
 void usbd_edpt_stall(uint8_t rhport, uint8_t ep_addr)
 {
   uint8_t const epnum = tu_edpt_number(ep_addr);
   uint8_t const dir   = tu_edpt_dir(ep_addr);
 
   dcd_edpt_stall(rhport, ep_addr);
-  _usbd_dev.ep_stall_mask[dir] = (uint8_t) tu_bit_set(_usbd_dev.ep_stall_mask[dir], epnum);
+  _usbd_dev.ep_stall_map[dir] = (uint8_t) tu_bit_set(_usbd_dev.ep_stall_map[dir], epnum);
 }
 
 void usbd_edpt_clear_stall(uint8_t rhport, uint8_t ep_addr)
@@ -748,7 +777,7 @@ void usbd_edpt_clear_stall(uint8_t rhport, uint8_t ep_addr)
   uint8_t const dir   = tu_edpt_dir(ep_addr);
 
   dcd_edpt_clear_stall(rhport, ep_addr);
-  _usbd_dev.ep_stall_mask[dir] = (uint8_t) tu_bit_clear(_usbd_dev.ep_stall_mask[dir], epnum);
+  _usbd_dev.ep_stall_map[dir] = (uint8_t) tu_bit_clear(_usbd_dev.ep_stall_map[dir], epnum);
 }
 
 bool usbd_edpt_stalled(uint8_t rhport, uint8_t ep_addr)
@@ -758,7 +787,7 @@ bool usbd_edpt_stalled(uint8_t rhport, uint8_t ep_addr)
   uint8_t const epnum = tu_edpt_number(ep_addr);
   uint8_t const dir   = tu_edpt_dir(ep_addr);
 
-  return tu_bit_test(_usbd_dev.ep_stall_mask[dir], epnum);
+  return tu_bit_test(_usbd_dev.ep_stall_map[dir], epnum);
 }
 
 #endif

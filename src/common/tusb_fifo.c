@@ -71,6 +71,35 @@ bool tu_fifo_config(tu_fifo_t *f, void* buffer, uint16_t depth, uint16_t item_si
   return true;
 }
 
+// retrieve data from fifo
+static void _tu_ff_pull(tu_fifo_t* f, void * buffer)
+{
+  memcpy(buffer,
+         f->buffer + (f->rd_idx * f->item_size),
+         f->item_size);
+
+  f->rd_idx = (f->rd_idx + 1) % f->depth;
+  f->count--;
+}
+
+// send data to fifo
+static void _tu_ff_push(tu_fifo_t* f, void const * data)
+{
+  memcpy( f->buffer + (f->wr_idx * f->item_size),
+          data,
+          f->item_size);
+
+  f->wr_idx = (f->wr_idx + 1) % f->depth;
+
+  if (tu_fifo_full(f))
+  {
+    f->rd_idx = f->wr_idx; // keep the full state (rd == wr && len = size)
+  }
+  else
+  {
+    f->count++;
+  }
+}
 
 /******************************************************************************/
 /*!
@@ -82,23 +111,19 @@ bool tu_fifo_config(tu_fifo_t *f, void* buffer, uint16_t depth, uint16_t item_si
 
     @param[in]  f
                 Pointer to the FIFO buffer to manipulate
-    @param[in]  p_buffer
+    @param[in]  buffer
                 Pointer to the place holder for data read from the buffer
 
     @returns TRUE if the queue is not empty
 */
 /******************************************************************************/
-bool tu_fifo_read(tu_fifo_t* f, void * p_buffer)
+bool tu_fifo_read(tu_fifo_t* f, void * buffer)
 {
   if( tu_fifo_empty(f) ) return false;
 
   tu_fifo_lock(f);
 
-  memcpy(p_buffer,
-         f->buffer + (f->rd_idx * f->item_size),
-         f->item_size);
-  f->rd_idx = (f->rd_idx + 1) % f->depth;
-  f->count--;
+  _tu_ff_pull(f, buffer);
 
   tu_fifo_unlock(f);
 
@@ -113,7 +138,7 @@ bool tu_fifo_read(tu_fifo_t* f, void * p_buffer)
 
     @param[in]  f
                 Pointer to the FIFO buffer to manipulate
-    @param[in]  p_data
+    @param[in]  buffer
                 The pointer to data location
     @param[in]  count
                 Number of element that buffer can afford
@@ -121,26 +146,27 @@ bool tu_fifo_read(tu_fifo_t* f, void * p_buffer)
     @returns number of items read from the FIFO
 */
 /******************************************************************************/
-uint16_t tu_fifo_read_n (tu_fifo_t* f, void * p_buffer, uint16_t count)
+uint16_t tu_fifo_read_n (tu_fifo_t* f, void * buffer, uint16_t count)
 {
   if( tu_fifo_empty(f) ) return 0;
+
+  tu_fifo_lock(f);
 
   /* Limit up to fifo's count */
   if ( count > f->count ) count = f->count;
 
-  /* Could copy up to 2 portions marked as 'x' if queue is wrapped around
-   * case 1: ....RxxxxW.......
-   * case 2: xxxxxW....Rxxxxxx
-   */
-//  uint16_t index2upper = tu_min16(count, f->count-f->rd_idx);
-
-  uint8_t* p_buf = (uint8_t*) p_buffer;
+  uint8_t* buf8 = (uint8_t*) buffer;
   uint16_t len = 0;
-  while( (len < count) && tu_fifo_read(f, p_buf) )
+
+  while (len < count)
   {
+    _tu_ff_pull(f, buf8);
+
     len++;
-    p_buf += f->item_size;
+    buf8 += f->item_size;
   }
+
+  tu_fifo_unlock(f);
 
   return len;
 }
@@ -182,33 +208,20 @@ bool tu_fifo_peek_at(tu_fifo_t* f, uint16_t pos, void * p_buffer)
 
     @param[in]  f
                 Pointer to the FIFO buffer to manipulate
-    @param[in]  p_data
+    @param[in]  data
                 The byte to add to the FIFO
 
     @returns TRUE if the data was written to the FIFO (overwrittable
              FIFO will always return TRUE)
 */
 /******************************************************************************/
-bool tu_fifo_write (tu_fifo_t* f, const void * p_data)
+bool tu_fifo_write (tu_fifo_t* f, const void * data)
 {
   if ( tu_fifo_full(f) && !f->overwritable ) return false;
 
   tu_fifo_lock(f);
 
-  memcpy( f->buffer + (f->wr_idx * f->item_size),
-          p_data,
-          f->item_size);
-
-  f->wr_idx = (f->wr_idx + 1) % f->depth;
-
-  if (tu_fifo_full(f))
-  {
-    f->rd_idx = f->wr_idx; // keep the full state (rd == wr && len = size)
-  }
-  else
-  {
-    f->count++;
-  }
+  _tu_ff_push(f, data);
 
   tu_fifo_unlock(f);
 
@@ -223,25 +236,34 @@ bool tu_fifo_write (tu_fifo_t* f, const void * p_data)
 
     @param[in]  f
                 Pointer to the FIFO buffer to manipulate
-    @param[in]  p_data
+    @param[in]  data
                 The pointer to data to add to the FIFO
     @param[in]  count
                 Number of element
     @return Number of written elements
 */
 /******************************************************************************/
-uint16_t tu_fifo_write_n (tu_fifo_t* f, const void * p_data, uint16_t count)
+uint16_t tu_fifo_write_n (tu_fifo_t* f, const void * data, uint16_t count)
 {
   if ( count == 0 ) return 0;
 
-  uint8_t const* p_buf = (uint8_t const*) p_data;
+  tu_fifo_lock(f);
 
+  // Not overwritable limit up to full
+  if (!f->overwritable) count = tu_min16(count, tu_fifo_remaining(f));
+
+  uint8_t const* buf8 = (uint8_t const*) data;
   uint16_t len = 0;
-  while( (len < count) && tu_fifo_write(f, p_buf) )
+
+  while (len < count)
   {
+    _tu_ff_push(f, buf8);
+
     len++;
-    p_buf += f->item_size;
+    buf8 += f->item_size;
   }
+
+  tu_fifo_unlock(f);
 
   return len;
 }

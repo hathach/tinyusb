@@ -139,7 +139,7 @@ bool mscd_open(uint8_t rhport, tusb_desc_interface_t const * itf_desc, uint16_t 
   (*p_len) = sizeof(tusb_desc_interface_t) + 2*sizeof(tusb_desc_endpoint_t);
 
   // Prepare for Command Block Wrapper
-  TU_ASSERT( dcd_edpt_xfer(rhport, p_msc->ep_out, (uint8_t*) &p_msc->cbw, sizeof(msc_cbw_t)) );
+  TU_ASSERT( usbd_edpt_xfer(rhport, p_msc->ep_out, (uint8_t*) &p_msc->cbw, sizeof(msc_cbw_t)) );
 
   return true;
 }
@@ -394,7 +394,7 @@ bool mscd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t event, uint32_t
         if ( (p_cbw->total_bytes > 0 ) && !tu_bit_test(p_cbw->dir, 7) )
         {
           // queue transfer
-          TU_ASSERT( dcd_edpt_xfer(rhport, p_msc->ep_out, _mscd_buf, p_msc->total_len) );
+          TU_ASSERT( usbd_edpt_xfer(rhport, p_msc->ep_out, _mscd_buf, p_msc->total_len) );
         }else
         {
           int32_t resplen;
@@ -428,7 +428,7 @@ bool mscd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t event, uint32_t
             if (p_msc->total_len)
             {
               TU_ASSERT( p_cbw->total_bytes >= p_msc->total_len ); // cannot return more than host expect
-              TU_ASSERT( dcd_edpt_xfer(rhport, p_msc->ep_in, _mscd_buf, p_msc->total_len) );
+              TU_ASSERT( usbd_edpt_xfer(rhport, p_msc->ep_in, _mscd_buf, p_msc->total_len) );
             }else
             {
               p_msc->stage = MSC_STAGE_STATUS;
@@ -543,7 +543,7 @@ bool mscd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t event, uint32_t
       p_msc->stage = MSC_STAGE_CMD;
 
       // Send SCSI Status
-      TU_ASSERT( dcd_edpt_xfer(rhport, p_msc->ep_in , (uint8_t*) &p_msc->csw, sizeof(msc_csw_t)) );
+      TU_ASSERT( usbd_edpt_xfer(rhport, p_msc->ep_in , (uint8_t*) &p_msc->csw, sizeof(msc_csw_t)) );
 
       // Invoke complete callback if defined
       if ( SCSI_CMD_READ_10 == p_cbw->command[0])
@@ -560,7 +560,7 @@ bool mscd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t event, uint32_t
       }
 
       // Queue for the next CBW
-      TU_ASSERT( dcd_edpt_xfer(rhport, p_msc->ep_out, (uint8_t*) &p_msc->cbw, sizeof(msc_cbw_t)) );
+      TU_ASSERT( usbd_edpt_xfer(rhport, p_msc->ep_out, (uint8_t*) &p_msc->cbw, sizeof(msc_cbw_t)) );
     }
   }
 
@@ -602,7 +602,7 @@ static void proc_read10_cmd(uint8_t rhport, mscd_interface_t* p_msc)
   }
   else
   {
-    TU_ASSERT( dcd_edpt_xfer(rhport, p_msc->ep_in, _mscd_buf, nbytes), );
+    TU_ASSERT( usbd_edpt_xfer(rhport, p_msc->ep_in, _mscd_buf, nbytes), );
   }
 }
 
@@ -627,7 +627,7 @@ static void proc_write10_cmd(uint8_t rhport, mscd_interface_t* p_msc)
   int32_t nbytes = (int32_t) tu_min32(sizeof(_mscd_buf), p_cbw->total_bytes-p_msc->xferred_len);
 
   // Write10 callback will be called later when usb transfer complete
-  TU_ASSERT( dcd_edpt_xfer(rhport, p_msc->ep_out, _mscd_buf, nbytes), );
+  TU_ASSERT( usbd_edpt_xfer(rhport, p_msc->ep_out, _mscd_buf, nbytes), );
 }
 
 #endif
