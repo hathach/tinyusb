@@ -1,16 +1,16 @@
-// IMPORTANT: install dependency via 'npm i node-hid' in the same location as the script
+// IMPORTANT: install the dependency via 'npm i node-hid' in the same location as the script
 // If the install fails on windows you may need to run 'npm i -g windows-build-tools' first to be able to compile native code needed for this library
 
 var HID = require('node-hid');
 var os = require('os')
+// list of supported devices
+var boards = require('./boards.js')
 
 var isWin = (os.platform() === 'win32');
 var devices = HID.devices();
 
-// choose either of the following supported devices:
-// Metro_nRF52840, Feather_nRF52840
-
-var deviceInfo = devices.find(Feather_nRF52840);
+// this will choose any device found in the boards.js file
+var deviceInfo = devices.find(anySupportedBoard);
 var reportLen = 64;
 
 var message = "Hello World!"
@@ -51,17 +51,21 @@ if( deviceInfo ) {
 }
 
 
-
-
-function Feather_nRF52840(d) {
-    return isDevice(0X239A,0X8029,d)
+function anySupportedBoard(d) {
+	
+	for (var key in boards) {
+	    if (boards.hasOwnProperty(key)) {
+	        if (isDevice(boards[key],d)) {
+	        	console.log("Found " + d.product);
+	        	return true;
+	        }
+	    }
+	}
+	return false;
 }
 
-function Metro_nRF52840(d) {
-    return isDevice(0X239A,0X803F,d)
+
+function isDevice(board,d){
+	return d.vendorId==board[0] && d.productId==board[1];
 }
 
-
-function isDevice(vid,pid,d){
-	return d.vendorId==vid && d.productId==pid;
-}
