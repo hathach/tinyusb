@@ -52,7 +52,7 @@ typedef enum
   USBD_EVENT_FUNC_CALL
 } dcd_eventid_t;
 
-typedef struct ATTR_ALIGNED(4)
+typedef struct TU_ATTR_ALIGNED(4)
 {
   uint8_t rhport;
   uint8_t event_id;

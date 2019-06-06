@@ -32,10 +32,10 @@
 #ifndef _TUSB_COMPILER_H_
 #define _TUSB_COMPILER_H_
 
-#define STRING_(x)            #x                   ///< stringify without expand
-#define XSTRING_(x)           STRING_(x)           ///< expand then stringify
-#define STRING_CONCAT_(a, b)  a##b                 ///< concat without expand
-#define XSTRING_CONCAT_(a, b) STRING_CONCAT_(a, b) ///< expand then concat
+#define TU_STRING(x)      #x              ///< stringify without expand
+#define TU_XSTRING(x)     TU_STRING(x)    ///< expand then stringify
+#define TU_STRCAT(a, b)   a##b            ///< concat without expand
+#define TU_XSTRCAT(a, b)  TU_STRCAT(a, b) ///< expand then concat
 
 #if defined __COUNTER__ && __COUNTER__ != __COUNTER__
   #define _TU_COUNTER_ __COUNTER__
@@ -47,20 +47,23 @@
 #if __STDC_VERSION__ >= 201112L
   #define TU_VERIFY_STATIC   _Static_assert
 #else
-  #define TU_VERIFY_STATIC(const_expr, _mess) enum { XSTRING_CONCAT_(_verify_static_, _TU_COUNTER_) = 1/(!!(const_expr)) }
+  #define TU_VERIFY_STATIC(const_expr, _mess) enum { TU_XSTRCAT(_verify_static_, _TU_COUNTER_) = 1/(!!(const_expr)) }
 #endif
+
+// for declaration of reserved field, make use of _TU_COUNTER_
+#define TU_RESERVED           TU_XSTRCAT(reserved, _TU_COUNTER_)
 
 //--------------------------------------------------------------------+
 // Compiler porting with Attribute and Endian
 //--------------------------------------------------------------------+
 #if defined(__GNUC__)
-  #define ATTR_ALIGNED(Bytes)        __attribute__ ((aligned(Bytes)))
-  #define ATTR_SECTION(sec_name)     __attribute__ ((section(#sec_name)))
-  #define ATTR_PACKED                __attribute__ ((packed))
-  #define ATTR_PREPACKED
-  #define ATTR_WEAK                  __attribute__ ((weak))
-  #define ATTR_DEPRECATED(mess)      __attribute__ ((deprecated(mess))) // warn if function with this attribute is used
-  #define ATTR_UNUSED                __attribute__ ((unused))           // Function/Variable is meant to be possibly unused
+  #define TU_ATTR_ALIGNED(Bytes)        __attribute__ ((aligned(Bytes)))
+  #define TU_ATTR_SECTION(sec_name)     __attribute__ ((section(#sec_name)))
+  #define TU_ATTR_PACKED                __attribute__ ((packed))
+  #define TU_ATTR_PREPACKED
+  #define TU_ATTR_WEAK                  __attribute__ ((weak))
+  #define TU_ATTR_DEPRECATED(mess)      __attribute__ ((deprecated(mess))) // warn if function with this attribute is used
+  #define TU_ATTR_UNUSED                __attribute__ ((unused))           // Function/Variable is meant to be possibly unused
 
   // Endian conversion use well-known host to network (big endian) naming
   #if __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__

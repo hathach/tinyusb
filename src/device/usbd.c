@@ -40,7 +40,7 @@
 // Device Data
 //--------------------------------------------------------------------+
 typedef struct {
-  struct ATTR_PACKED
+  struct TU_ATTR_PACKED
   {
       volatile uint8_t connected    : 1;
       volatile uint8_t configured   : 1;

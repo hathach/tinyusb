@@ -59,7 +59,7 @@ void tearDown(void)
 void test_struct_alignment(void)
 {
   TEST_ASSERT_EQUAL( 32, __alignof__(ehci_qhd_t) );
-//  TEST_ASSERT_EQUAL( 32, __alignof__(ehci_qtd_t) ); ehci_qtd_t is used to declare overlay variable in qhd --> cannot declare with ATTR_ALIGNED(32)
+//  TEST_ASSERT_EQUAL( 32, __alignof__(ehci_qtd_t) ); ehci_qtd_t is used to declare overlay variable in qhd --> cannot declare with TU_ATTR_ALIGNED(32)
 
   TEST_ASSERT_EQUAL( 32, __alignof__(ehci_itd_t) );
   TEST_ASSERT_EQUAL( 32, __alignof__(ehci_sitd_t) );

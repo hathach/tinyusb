@@ -76,17 +76,17 @@ uint8_t const * tud_descriptor_configuration_cb(uint8_t index);
 uint16_t const* tud_descriptor_string_cb(uint8_t index);
 
 // Invoked when device is mounted (configured)
-ATTR_WEAK void tud_mount_cb(void);
+TU_ATTR_WEAK void tud_mount_cb(void);
 
 // Invoked when device is unmounted
-ATTR_WEAK void tud_umount_cb(void);
+TU_ATTR_WEAK void tud_umount_cb(void);
 
 // Invoked when usb bus is suspended
 // Within 7ms, device must draw an average of current less than 2.5 mA from bus
-ATTR_WEAK void tud_suspend_cb(bool remote_wakeup_en);
+TU_ATTR_WEAK void tud_suspend_cb(bool remote_wakeup_en);
 
 // Invoked when usb bus is resumed
-ATTR_WEAK void tud_resume_cb(void);
+TU_ATTR_WEAK void tud_resume_cb(void);
 
 //--------------------------------------------------------------------+
 // Interface Descriptor Template

@@ -95,7 +95,7 @@ typedef union {
 }ehci_link_t;
 
 /// Queue Element Transfer Descriptor
-/// Qtd is used to declare overlay in ehci_qhd_t -> cannot be declared with ATTR_ALIGNED(32)
+/// Qtd is used to declare overlay in ehci_qhd_t -> cannot be declared with TU_ATTR_ALIGNED(32)
 typedef struct
 {
 	// Word 0: Next QTD Pointer
@@ -137,7 +137,7 @@ typedef struct
 TU_VERIFY_STATIC( sizeof(ehci_qtd_t) == 32, "size is not correct" );
 
 /// Queue Head
-typedef struct ATTR_ALIGNED(32)
+typedef struct TU_ATTR_ALIGNED(32)
 {
   // Word 0: Next QHD
 	ehci_link_t next;
@@ -185,7 +185,7 @@ typedef struct ATTR_ALIGNED(32)
 TU_VERIFY_STATIC( sizeof(ehci_qhd_t) == 64, "size is not correct" );
 
 /// Highspeed Isochronous Transfer Descriptor (section 3.3)
-typedef struct ATTR_ALIGNED(32) {
+typedef struct TU_ATTR_ALIGNED(32) {
 	// Word 0: Next Link Pointer
 	ehci_link_t next;
 
@@ -217,7 +217,7 @@ typedef struct ATTR_ALIGNED(32) {
 TU_VERIFY_STATIC( sizeof(ehci_itd_t) == 64, "size is not correct" );
 
 /// Split (Full-Speed) Isochronous Transfer Descriptor
-typedef struct ATTR_ALIGNED(32)
+typedef struct TU_ATTR_ALIGNED(32)
 {
   // Word 0: Next Link Pointer
 	ehci_link_t next;
@@ -442,7 +442,7 @@ typedef struct
   }control[CFG_TUSB_HOST_DEVICE_MAX+1];
 
   ehci_qhd_t qhd_pool[HCD_MAX_ENDPOINT];
-  ehci_qtd_t qtd_pool[HCD_MAX_XFER] ATTR_ALIGNED(32);
+  ehci_qtd_t qtd_pool[HCD_MAX_XFER] TU_ATTR_ALIGNED(32);
 
   ehci_registers_t* regs;
 }ehci_data_t;

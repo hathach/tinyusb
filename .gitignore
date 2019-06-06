@@ -5,6 +5,7 @@ test_old
 tests/build
 *.d
 *.o
+*.P
 *.launch
 *.map
 *.axf

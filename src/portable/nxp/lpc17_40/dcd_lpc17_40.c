@@ -37,7 +37,7 @@
 //--------------------------------------------------------------------+
 #define DCD_ENDPOINT_MAX 32
 
-typedef struct ATTR_ALIGNED(4)
+typedef struct TU_ATTR_ALIGNED(4)
 {
   //------------- Word 0 -------------//
   uint32_t next;
@@ -91,7 +91,7 @@ typedef struct
 
 } dcd_data_t;
 
-CFG_TUSB_MEM_SECTION ATTR_ALIGNED(128) static dcd_data_t _dcd;
+CFG_TUSB_MEM_SECTION TU_ATTR_ALIGNED(128) static dcd_data_t _dcd;
 
 
 //--------------------------------------------------------------------+

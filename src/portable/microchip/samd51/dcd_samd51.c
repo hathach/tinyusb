@@ -35,7 +35,7 @@
 /* MACRO TYPEDEF CONSTANT ENUM
  *------------------------------------------------------------------*/
 static UsbDeviceDescBank sram_registers[8][2];
-static ATTR_ALIGNED(4) uint8_t _setup_packet[8];
+static TU_ATTR_ALIGNED(4) uint8_t _setup_packet[8];
 
 // Setup the control endpoint 0.
 static void bus_reset(void)

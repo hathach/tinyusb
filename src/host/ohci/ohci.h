@@ -65,7 +65,7 @@ typedef struct {
   volatile uint16_t frame_pad;
   volatile uint32_t done_head;
   uint8_t reserved[116+4];  // TODO try to make use of this area if possible, extra 4 byte to make the whole struct size = 256
-}ohci_hcca_t; // ATTR_ALIGNED(256)
+}ohci_hcca_t; // TU_ATTR_ALIGNED(256)
 
 TU_VERIFY_STATIC( sizeof(ohci_hcca_t) == 256, "size is not correct" );
 
@@ -76,7 +76,7 @@ typedef struct {
 }ohci_td_item_t;
 
 
-typedef struct ATTR_ALIGNED(16)
+typedef struct TU_ATTR_ALIGNED(16)
 {
 	// Word 0
 	uint32_t used                    : 1;
@@ -102,7 +102,7 @@ typedef struct ATTR_ALIGNED(16)
 
 TU_VERIFY_STATIC( sizeof(ohci_gtd_t) == 16, "size is not correct" );
 
-typedef struct ATTR_ALIGNED(16)
+typedef struct TU_ATTR_ALIGNED(16)
 {
   // Word 0
 	uint32_t dev_addr          : 7;
@@ -137,7 +137,7 @@ typedef struct ATTR_ALIGNED(16)
 
 TU_VERIFY_STATIC( sizeof(ohci_ed_t) == 16, "size is not correct" );
 
-typedef struct ATTR_ALIGNED(32)
+typedef struct TU_ATTR_ALIGNED(32)
 {
 	/*---------- Word 1 ----------*/
   uint32_t starting_frame          : 16;
@@ -163,7 +163,7 @@ typedef struct ATTR_ALIGNED(32)
 TU_VERIFY_STATIC( sizeof(ochi_itd_t) == 32, "size is not correct" );
 
 // structure with member alignment required from large to small
-typedef struct ATTR_ALIGNED(256)
+typedef struct TU_ATTR_ALIGNED(256)
 {
   ohci_hcca_t hcca;
 

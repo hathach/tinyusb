@@ -67,7 +67,7 @@ enum {
   CMDSTAT_VBUS_DEBOUNCED_MASK = TU_BIT(28),
 };
 
-typedef struct ATTR_PACKED
+typedef struct TU_ATTR_PACKED
 {
   // Bits 21:6 (aligned 64) used in conjunction with bit 31:22 of DATABUFSTART
   volatile uint16_t buffer_offset;
@@ -101,7 +101,7 @@ typedef struct
 
   xfer_dma_t dma[EP_COUNT];
 
-  ATTR_ALIGNED(64) uint8_t setup_packet[8];
+  TU_ATTR_ALIGNED(64) uint8_t setup_packet[8];
 }dcd_data_t;
 
 //--------------------------------------------------------------------+
@@ -109,7 +109,7 @@ typedef struct
 //--------------------------------------------------------------------+
 
 // EP list must be 256-byte aligned
-CFG_TUSB_MEM_SECTION ATTR_ALIGNED(256) static dcd_data_t _dcd;
+CFG_TUSB_MEM_SECTION TU_ATTR_ALIGNED(256) static dcd_data_t _dcd;
 
 static inline uint16_t get_buf_offset(void const * buffer)
 {

@@ -44,7 +44,7 @@
 // INTERNAL OBJECT & FUNCTION DECLARATION
 //--------------------------------------------------------------------+
 // Periodic frame list must be 4K alignment
-CFG_TUSB_MEM_SECTION ATTR_ALIGNED(4096) static ehci_data_t ehci_data;
+CFG_TUSB_MEM_SECTION TU_ATTR_ALIGNED(4096) static ehci_data_t ehci_data;
 
 // EHCI portable
 uint32_t hcd_ehci_register_addr(uint8_t rhport);

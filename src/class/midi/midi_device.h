@@ -82,7 +82,7 @@ static inline bool     tud_midi_write_flush     (void)                          
 //--------------------------------------------------------------------+
 // APPLICATION CALLBACK API (WEAK is optional)
 //--------------------------------------------------------------------+
-ATTR_WEAK void tud_midi_rx_cb(uint8_t itf);
+TU_ATTR_WEAK void tud_midi_rx_cb(uint8_t itf);
 
 //--------------------------------------------------------------------+
 // Internal Class Driver API

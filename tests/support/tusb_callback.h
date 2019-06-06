@@ -48,9 +48,9 @@
 #include "usbh.h"
 
 //------------- core -------------//
-uint8_t      tusbh_device_attached_cb (tusb_desc_device_t const *p_desc_device) ATTR_WEAK;
-void         tusbh_device_mount_succeed_cb (uint8_t dev_addr) ATTR_WEAK;
-void         tusbh_device_mount_failed_cb(tusb_error_t error, tusb_desc_device_t const *p_desc_device) ATTR_WEAK;
+uint8_t      tusbh_device_attached_cb (tusb_desc_device_t const *p_desc_device) TU_ATTR_WEAK;
+void         tusbh_device_mount_succeed_cb (uint8_t dev_addr) TU_ATTR_WEAK;
+void         tusbh_device_mount_failed_cb(tusb_error_t error, tusb_desc_device_t const *p_desc_device) TU_ATTR_WEAK;
 
 #ifdef __cplusplus
  }
