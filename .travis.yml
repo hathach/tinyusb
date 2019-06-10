@@ -5,16 +5,30 @@ compiler:
 env:
   - TRAVIS_SDK=arm
 
+addons:
+  apt:
+    sources:
+      - team-gcc-arm-embedded/ppa
+    packages:
+      - python3
+      - ruby
+      - gcc-arm-embbeded
+
+install:
+  #- wget https://s3.amazonaws.com/adafruit-circuit-python/gcc-arm-embedded_7-2018q2-1~trusty1_amd64.deb
+  #- sudo dpkg -i gcc-arm-embedded*_amd64.deb
+  - gem install ceedling
+      
 before_script:
-  - function var_search () { case "$1" in *$2*) true;; *) false;; esac; }
-  - sudo dpkg --add-architecture i386
+  #- function var_search () { case "$1" in *$2*) true;; *) false;; esac; }
+  #- sudo dpkg --add-architecture i386
 
-  - (! var_search "${TRAVIS_SDK-}" arm || (wget https://s3.amazonaws.com/adafruit-circuit-python/gcc-arm-embedded_7-2018q2-1~trusty1_amd64.deb && sudo dpkg -i gcc-arm-embedded*_amd64.deb))
-  - sudo apt-get install -y realpath
+  #- (! var_search "${TRAVIS_SDK-}" arm || (wget https://s3.amazonaws.com/adafruit-circuit-python/gcc-arm-embedded_7-2018q2-1~trusty1_amd64.deb && sudo dpkg -i gcc-arm-embedded*_amd64.deb))
+  #- sudo apt-get install -y realpath
 
-  - realpath --version
+  #- realpath --version
   - gcc --version
-  - (! var_search "${TRAVIS_SDK-}" arm || arm-none-eabi-gcc --version)
+  #- (! var_search "${TRAVIS_SDK-}" arm || arm-none-eabi-gcc --version)
 
 script:
-  - python3 tools/build_all.py
+  #- python3 tools/build_all.py
