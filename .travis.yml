@@ -8,7 +8,7 @@ env:
 addons:
   apt:
     sources:
-      - team-gcc-arm-embedded/ppa
+      - sourceline: "ppa:team-gcc-arm-embedded/ppa"
     packages:
       - python3
       - ruby
