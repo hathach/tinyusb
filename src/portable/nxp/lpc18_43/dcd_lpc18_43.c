@@ -240,18 +240,6 @@ bool dcd_edpt_open(uint8_t rhport, tusb_desc_endpoint_t const * p_endpoint_desc)
   return true;
 }
 
-bool dcd_edpt_busy(uint8_t rhport, uint8_t ep_addr)
-{
-  uint8_t const epnum  = tu_edpt_number(ep_addr);
-  uint8_t const dir    = tu_edpt_dir(ep_addr);
-  uint8_t const ep_idx = 2*epnum + dir;
-
-  dcd_qtd_t * p_qtd = &dcd_data_ptr[rhport]->qtd[ep_idx];
-
-  return p_qtd->active;
-//  return !p_qhd->qtd_overlay.halted && p_qhd->qtd_overlay.active;
-}
-
 bool dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t total_bytes)
 {
   uint8_t const epnum = tu_edpt_number(ep_addr);

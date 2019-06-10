@@ -397,32 +397,6 @@ void dcd_edpt_clear_stall (uint8_t rhport, uint8_t ep_addr)
   }
 }
 
-bool dcd_edpt_busy (uint8_t rhport, uint8_t ep_addr)
-{
-  (void) rhport;
-  USB_OTG_OUTEndpointTypeDef * out_ep = OUT_EP_BASE;
-  USB_OTG_INEndpointTypeDef * in_ep = IN_EP_BASE;
-
-  // USBD shouldn't check control endpoint state
-  if ( 0 == ep_addr ) return false;
-
-  uint8_t const epnum = tu_edpt_number(ep_addr);
-
-  bool enabled = false;
-  bool xferring = true;
-
-  if (tu_edpt_dir(ep_addr) == TUSB_DIR_IN) {
-    enabled = (in_ep[epnum].DIEPCTL & USB_OTG_DIEPCTL_EPENA_Msk);
-    xferring = (in_ep[epnum].DIEPTSIZ & USB_OTG_DIEPTSIZ_PKTCNT_Msk);
-  } else {
-    enabled = (out_ep[epnum].DOEPCTL & USB_OTG_DOEPCTL_EPENA_Msk);
-    xferring = (out_ep[epnum].DOEPTSIZ & USB_OTG_DOEPTSIZ_PKTCNT_Msk);
-  }
-
-  // TODO: Also check that endpoint is active (not just enabled)?
-  return (enabled && xferring);
-}
-
 /*------------------------------------------------------------------*/
 
 // TODO: Split into "receive on endpoint 0" and "receive generic"; endpoint 0's

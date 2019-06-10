@@ -110,9 +110,6 @@ bool dcd_edpt_open        (uint8_t rhport, tusb_desc_endpoint_t const * p_endpoi
 // Submit a transfer, When complete dcd_event_xfer_complete() is invoked to notify the stack
 bool dcd_edpt_xfer        (uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t total_bytes);
 
-// Check if endpoint transferring is complete (TODO remove)
-bool dcd_edpt_busy        (uint8_t rhport, uint8_t ep_addr);
-
 // Stall endpoint
 void dcd_edpt_stall       (uint8_t rhport, uint8_t ep_addr);
 
