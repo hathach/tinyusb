@@ -11,13 +11,13 @@ addons:
       - sourceline: "ppa:team-gcc-arm-embedded/ppa"
     packages:
       - python3
-      - ruby
+      #- ruby
       - gcc-arm-embbeded
 
 install:
   #- wget https://s3.amazonaws.com/adafruit-circuit-python/gcc-arm-embedded_7-2018q2-1~trusty1_amd64.deb
   #- sudo dpkg -i gcc-arm-embedded*_amd64.deb
-  - gem install ceedling
+  #- gem install ceedling
       
 before_script:
   #- function var_search () { case "$1" in *$2*) true;; *) false;; esac; }
@@ -27,8 +27,8 @@ before_script:
   #- sudo apt-get install -y realpath
 
   #- realpath --version
-  - gcc --version
+  #- gcc --version
   #- (! var_search "${TRAVIS_SDK-}" arm || arm-none-eabi-gcc --version)
 
 script:
-  #- python3 tools/build_all.py
+  - python3 tools/build_all.py
