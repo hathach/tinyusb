@@ -39,21 +39,36 @@ void tearDown(void)
 {
 }
 
+//--------------------------------------------------------------------+
+// Tests
+//--------------------------------------------------------------------+
 void test_normal(void)
 {
-  uint8_t i;
+  for(uint8_t i=0; i < FIFO_SIZE; i++) tu_fifo_write(&ff, &i);
 
-  for(i=0; i < FIFO_SIZE; i++)
-  {
-    tu_fifo_write(&ff, &i);
-  }
-
-  for(i=0; i < FIFO_SIZE; i++)
+  for(uint8_t i=0; i < FIFO_SIZE; i++)
   {
     uint8_t c;
     tu_fifo_read(&ff, &c);
     TEST_ASSERT_EQUAL(i, c);
   }
+}
+
+void test_peek(void)
+{
+  uint8_t temp;
+
+  temp = 10; tu_fifo_write(&ff, &temp);
+  temp = 20; tu_fifo_write(&ff, &temp);
+  temp = 30; tu_fifo_write(&ff, &temp);
+
+  temp = 0;
+
+  tu_fifo_peek(&ff, &temp);
+  TEST_ASSERT_EQUAL(10, temp);
+
+  tu_fifo_peek_at(&ff, 1, &temp);
+  TEST_ASSERT_EQUAL(20, temp);
 }
 
 void test_empty(void)
@@ -66,14 +81,9 @@ void test_empty(void)
 
 void test_full(void)
 {
-  uint8_t i;
-
   TEST_ASSERT_FALSE(tu_fifo_full(&ff));
 
-  for(i=0; i < FIFO_SIZE; i++)
-  {
-    tu_fifo_write(&ff, &i);
-  }
+  for(uint8_t i=0; i < FIFO_SIZE; i++) tu_fifo_write(&ff, &i);
 
   TEST_ASSERT_TRUE(tu_fifo_full(&ff));
 }

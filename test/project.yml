@@ -6,10 +6,10 @@
 # This sample, therefore, only demonstrates running a collection of unit tests.
 
 :project:
-  :use_exceptions: FALSE
+  :use_exceptions: TRUE
   :use_test_preprocessor: TRUE
   :use_auxiliary_dependencies: TRUE
-  :build_root: build
+  :build_root: _build
 #  :release_build: TRUE
   :test_file_prefix: test_
   :which_ceedling: vendor/ceedling

@@ -1,7 +1,7 @@
 html
 latex
+test/_build
 test_old
-tests/build
 *.d
 *.o
 *.P
@@ -13,6 +13,4 @@ tests/build
 *.elf
 *.ind
 .env
-/tests/lpc175x_6x/build/
-/tests/lpc18xx_43xx/build/
 /examples/*/*/build-*
