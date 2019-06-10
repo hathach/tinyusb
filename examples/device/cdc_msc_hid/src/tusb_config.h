@@ -62,7 +62,7 @@
 #endif
 
 #ifndef CFG_TUSB_MEM_ALIGN
-#define CFG_TUSB_MEM_ALIGN          ATTR_ALIGNED(4)
+#define CFG_TUSB_MEM_ALIGN          TU_ATTR_ALIGNED(4)
 #endif
 
 //--------------------------------------------------------------------
@@ -94,6 +94,9 @@
 
 // Should be sufficient to hold ID (if any) + Data
 #define CFG_TUD_HID_BUFSIZE         16
+
+#define CFG_TUD_MIDI_RX_BUFSIZE     512
+#define CFG_TUD_MIDI_TX_BUFSIZE     512
 
 #ifdef __cplusplus
  }

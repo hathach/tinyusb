@@ -73,23 +73,21 @@ typedef struct
 //--------------------------------------------------------------------+
 CFG_TUSB_MEM_SECTION static cdcd_interface_t _cdcd_itf[CFG_TUD_CDC];
 
-// TODO will be replaced by dcd_edpt_busy()
-bool pending_read_from_host;
+//bool pending_read_from_host; TODO remove
 static void _prep_out_transaction (uint8_t itf)
 {
   cdcd_interface_t* p_cdc = &_cdcd_itf[itf];
 
   // skip if previous transfer not complete
-  // dcd_edpt_busy() doesn't work, probably transfer is complete but not properly handled by the stack
-//  if ( dcd_edpt_busy(TUD_OPT_RHPORT, p_cdc->ep_out) ) return;
-  if (pending_read_from_host) return;
+  if ( usbd_edpt_busy(TUD_OPT_RHPORT, p_cdc->ep_out) ) return;
+  //if (pending_read_from_host) return;
 
   // Prepare for incoming data but only allow what we can store in the ring buffer.
   uint16_t max_read = tu_fifo_remaining(&p_cdc->rx_ff);
   if ( max_read >= CFG_TUD_CDC_EPSIZE )
   {
-    dcd_edpt_xfer(TUD_OPT_RHPORT, p_cdc->ep_out, p_cdc->epout_buf, CFG_TUD_CDC_EPSIZE);
-    pending_read_from_host = true;
+    usbd_edpt_xfer(TUD_OPT_RHPORT, p_cdc->ep_out, p_cdc->epout_buf, CFG_TUD_CDC_EPSIZE);
+//    pending_read_from_host = true;
   }
 }
 
@@ -183,13 +181,13 @@ uint32_t tud_cdc_n_write(uint8_t itf, void const* buffer, uint32_t bufsize)
 bool tud_cdc_n_write_flush (uint8_t itf)
 {
   cdcd_interface_t* p_cdc = &_cdcd_itf[itf];
-  TU_VERIFY( !dcd_edpt_busy(TUD_OPT_RHPORT, p_cdc->ep_in) ); // skip if previous transfer not complete
+  TU_VERIFY( !usbd_edpt_busy(TUD_OPT_RHPORT, p_cdc->ep_in) ); // skip if previous transfer not complete
 
   uint16_t count = tu_fifo_read_n(&_cdcd_itf[itf].tx_ff, p_cdc->epin_buf, CFG_TUD_CDC_EPSIZE);
   if ( count )
   {
     TU_VERIFY( tud_cdc_n_connected(itf) ); // fifo is empty if not connected
-    TU_ASSERT( dcd_edpt_xfer(TUD_OPT_RHPORT, p_cdc->ep_in, p_cdc->epin_buf, count) );
+    TU_ASSERT( usbd_edpt_xfer(TUD_OPT_RHPORT, p_cdc->ep_in, p_cdc->epin_buf, count) );
   }
 
   return true;
@@ -298,7 +296,7 @@ bool cdcd_open(uint8_t rhport, tusb_desc_interface_t const * itf_desc, uint16_t 
   }
 
   // Prepare for incoming data
-  pending_read_from_host = false;
+//  pending_read_from_host = false;
   _prep_out_transaction(cdc_id);
 
   return true;
@@ -394,7 +392,7 @@ bool cdcd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint32_
     if (tud_cdc_rx_cb && tu_fifo_count(&p_cdc->rx_ff) ) tud_cdc_rx_cb(itf);
 
     // prepare for OUT transaction
-    pending_read_from_host = false;
+//    pending_read_from_host = false;
     _prep_out_transaction(itf);
   }
 

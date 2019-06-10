@@ -34,9 +34,18 @@
  * It will receive data from Host (In endpoint) and echo back (Out endpoint).
  * HID Report descriptor use vendor for usage page (using template TUD_HID_REPORT_DESC_GENERIC_INOUT)
  *
- * Run 'python3 hid_test.py' on your PC to send and receive data to this device.
- * Python and `hid` package is required, for installation please follow
- * https://pypi.org/project/hid/
+ * There are 2 ways to test the sketch
+ * 1. Using nodejs
+ *    - Install nodejs and nmp to your PC
+ *    - Install execellent node-hid (https://github.com/node-hid/node-hid) by
+ *      $ npm install node-hid
+ *    - Run provided hid test script
+ *      $ node hid_test.js
+ *
+ * 2. Using python hidRun
+ *    - Python and `hid` package is required, for installation please follow https://pypi.org/project/hid/
+ *    - Run provided hid test script to send and receive data to this device.
+ *      $ python3 hid_test.py
  */
 
 //--------------------------------------------------------------------+

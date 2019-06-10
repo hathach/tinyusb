@@ -67,7 +67,7 @@
   #if CFG_TUSB_MCU == OPT_MCU_LPC175X_6X
     #define CFG_TUSB_MEM_SECTION // LPC17xx USB DMA can access all address
   #elif  (CFG_TUSB_MCU == OPT_MCU_LPC43XX)
-    #define CFG_TUSB_MEM_SECTION  ATTR_SECTION(.data.$RAM3)
+    #define CFG_TUSB_MEM_SECTION  TU_ATTR_SECTION(.data.$RAM3)
   #endif
 
 #elif defined __CC_ARM // Compiled with Keil armcc

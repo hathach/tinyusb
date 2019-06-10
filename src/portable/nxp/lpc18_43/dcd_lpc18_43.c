@@ -46,16 +46,16 @@
 
 typedef struct {
   // Must be at 2K alignment
-  dcd_qhd_t qhd[QHD_MAX] ATTR_ALIGNED(64);
-  dcd_qtd_t qtd[QHD_MAX] ATTR_ALIGNED(32);
+  dcd_qhd_t qhd[QHD_MAX] TU_ATTR_ALIGNED(64);
+  dcd_qtd_t qtd[QHD_MAX] TU_ATTR_ALIGNED(32);
 }dcd_data_t;
 
 #if (CFG_TUSB_RHPORT0_MODE & OPT_MODE_DEVICE)
-CFG_TUSB_MEM_SECTION ATTR_ALIGNED(2048) static dcd_data_t dcd_data0;
+CFG_TUSB_MEM_SECTION TU_ATTR_ALIGNED(2048) static dcd_data_t dcd_data0;
 #endif
 
 #if (CFG_TUSB_RHPORT1_MODE & OPT_MODE_DEVICE)
-CFG_TUSB_MEM_SECTION ATTR_ALIGNED(2048) static dcd_data_t dcd_data1;
+CFG_TUSB_MEM_SECTION TU_ATTR_ALIGNED(2048) static dcd_data_t dcd_data1;
 #endif
 
 static LPC_USBHS_T * const LPC_USB[2] = { LPC_USB0, LPC_USB1 };

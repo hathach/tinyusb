@@ -1,0 +1,4 @@
+---
+:plugins:
+  # tell Ceedling we got results display taken care of
+  :display_raw_test_results: FALSE

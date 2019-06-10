@@ -42,7 +42,7 @@
 // FUNCTIONAL DESCRIPTOR (COMMUNICATION INTERFACE)
 //--------------------------------------------------------------------+
 /// Header Functional Descriptor (Communication Interface)
-typedef struct ATTR_PACKED
+typedef struct TU_ATTR_PACKED
 {
   uint8_t bLength            ; ///< Size of this descriptor in bytes.
   uint8_t bDescriptorType    ; ///< Descriptor Type, must be Class-Specific
@@ -52,7 +52,7 @@ typedef struct ATTR_PACKED
 }midi_desc_func_header_t;
 
 /// Union Functional Descriptor (Communication Interface)
-typedef struct ATTR_PACKED
+typedef struct TU_ATTR_PACKED
 {
   uint8_t bLength                  ; ///< Size of this descriptor in bytes.
   uint8_t bDescriptorType          ; ///< Descriptor Type, must be Class-Specific

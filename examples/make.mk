@@ -14,6 +14,13 @@ CP = cp
 RM = rm
 PYTHON ?= python
 
+check_defined = \
+    $(strip $(foreach 1,$1, \
+    $(call __check_defined,$1,$(strip $(value 2)))))
+__check_defined = \
+    $(if $(value $1),, \
+    $(error Undefined make flag: $1$(if $2, ($2))))
+
 # Select the board to build for.
 ifeq ($(BOARD),)
   $(info You must provide a BOARD parameter with 'BOARD=')

@@ -57,9 +57,6 @@
 
 #define TU_BIT(n)             (1U << (n))
 
-// for declaration of reserved field, make use of _TU_COUNTER_
-#define TU_RESERVED           XSTRING_CONCAT_(reserved, _TU_COUNTER_)
-
 //--------------------------------------------------------------------+
 // INCLUDES
 //--------------------------------------------------------------------+

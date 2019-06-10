@@ -1,11 +1,9 @@
-/.metadata
 html
 latex
-test_old
-tests/build
+test/_build
 *.d
 *.o
-*.launch
+*.P
 *.map
 *.axf
 *.jlink
@@ -13,6 +11,4 @@ tests/build
 *.elf
 *.ind
 .env
-/tests/lpc175x_6x/build/
-/tests/lpc18xx_43xx/build/
 /examples/*/*/build-*

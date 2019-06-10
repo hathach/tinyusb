@@ -1,0 +1,66 @@
+---
+
+:tools:
+  :gcov_compiler:
+    :executable: gcc
+    :arguments:
+      - -g
+      - -fprofile-arcs
+      - -ftest-coverage
+      - -I"$": COLLECTION_PATHS_TEST_SUPPORT_SOURCE_INCLUDE_VENDOR
+      - -I"$": COLLECTION_PATHS_TEST_TOOLCHAIN_INCLUDE
+      - -D$: COLLECTION_DEFINES_TEST_AND_VENDOR
+      - -DGCOV_COMPILER
+      - -c "${1}"
+      - -o "${2}"
+  :gcov_linker:
+    :executable: gcc
+    :arguments:
+      - -fprofile-arcs
+      - -ftest-coverage
+      - ${1}
+      - -o ${2}
+  :gcov_fixture:
+    :executable: ${1}
+  :gcov_report:
+    :executable: gcov
+    :arguments:
+      - -n
+      - -p
+      - -b
+      - -o "$": GCOV_BUILD_OUTPUT_PATH
+      - "\"${1}\""
+  :gcov_post_report:
+    :executable: gcovr
+    :optional: TRUE
+    :arguments:
+        - -p
+        - -b
+        - -e "${1}"
+        - --html
+        - -r .
+        - -o GcovCoverageResults.html
+  :gcov_post_report_basic:
+    :executable: gcovr
+    :optional: TRUE
+    :arguments:
+        - -p
+        - -b
+        - -e "${1}"
+        - --html
+        - -r .
+        - -o  "$": GCOV_ARTIFACTS_FILE
+  :gcov_post_report_advanced:
+    :executable: gcovr
+    :optional: TRUE
+    :arguments:
+        - -p
+        - -b
+        - -e "${1}"
+        - --html
+        - --html-details
+        - -r .
+        - -o  "$": GCOV_ARTIFACTS_FILE
+
+
+...
