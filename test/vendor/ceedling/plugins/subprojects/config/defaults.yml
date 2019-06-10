@@ -1,0 +1,33 @@
+---
+#:extension:
+#  :subprojects: '.a'
+
+:subprojects:
+  :paths: []
+#   - :name: subprojectA
+#     :source:
+#       - ./first/subproject/dir
+#       - ./second/subproject/dir
+#     :include:
+#       - ./first/include/dir
+#     :build_root: ./subproject/build/dir
+#     :defines:
+#       - FIRST_DEFINE
+
+:tools:
+  :subprojects_compiler:
+    :executable: gcc
+    :arguments:
+      - -g
+      - -I"$": COLLECTION_PATHS_SUBPROJECTS
+      - -D$: COLLECTION_DEFINES_SUBPROJECTS
+      - -c "${1}"
+      - -o "${2}"
+  :subprojects_linker:
+    :executable: ar
+    :arguments:
+      - rcs
+      - ${2}
+      - ${1}
+
+...

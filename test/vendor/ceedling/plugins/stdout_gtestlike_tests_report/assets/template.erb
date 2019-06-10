@@ -1,0 +1,84 @@
+% ignored        = hash[:results][:counts][:ignored]
+% failed         = hash[:results][:counts][:failed]
+% stdout_count   = hash[:results][:counts][:stdout]
+% header_prepend = ((hash[:header].length > 0) ? "#{hash[:header]}: " : '')
+% banner_width   = 25 + header_prepend.length # widest message
+% results = {}
+% hash[:results][:successes].each do |testresult|
+%   results[ testresult[:source][:file] ] = testresult[:collection]
+%   results[ testresult[:source][:file] ].length.times do |i|
+%     results[ testresult[:source][:file] ][i][:pass] = true
+%   end
+% end
+% hash[:results][:ignores].each do |testresult|
+%   if (results[ testresult[:source][:file] ].nil?)
+%     results[ testresult[:source][:file] ] = testresult[:collection]
+%   else
+%     results[ testresult[:source][:file] ] += testresult[:collection]
+%   end
+%   results[ testresult[:source][:file] ].length.times do |i|
+%     results[ testresult[:source][:file] ][i][:pass] = true
+%   end
+% end
+% hash[:results][:failures].each do |testresult|
+%   if (results[ testresult[:source][:file] ].nil?)
+%     results[ testresult[:source][:file] ] = testresult[:collection]
+%   else
+%     results[ testresult[:source][:file] ] += testresult[:collection]
+%   end
+% end
+
+
+[==========] Running <%=hash[:results][:counts][:total].to_s%> tests from <%=results.length.to_s%> test cases.
+[----------] Global test environment set-up.
+% results.each_pair do |modulename, moduledetails|
+[----------] <%=moduledetails.length.to_s%> tests from <%=modulename%>
+%   moduledetails.each do |item|
+[ RUN      ] <%=modulename%>.<%=item[:test]%>
+%     if (not item[:pass])
+%       if (not item[:message].empty?)
+<%=modulename%>(<%=item[:line]%>): error: <%=item[:message]%>
+
+%         m = item[:message].match(/Expected\s+(.*)\s+Was\s+([^\.]*)\./)
+%         if m.nil?
+ Actual:   FALSE
+ Expected: TRUE
+%         else
+ Actual:   <%=m[2]%>
+ Expected: <%=m[1]%>
+%         end
+%       else
+<%=modulename%>(<%=item[:line]%>): fail: <%=item[:message]%>
+ Actual:   FALSE
+ Expected: TRUE
+%       end
+[  FAILED  ] <%=modulename%>.<%=item[:test]%> (0 ms)
+%     else
+[       OK ] <%=modulename%>.<%=item[:test]%> (0 ms)
+%     end
+%   end
+[----------] <%=moduledetails.length.to_s%> tests from <%=modulename%> (0 ms total)
+% end
+
+% if (hash[:results][:counts][:total] > 0)
+[----------] Global test environment tear-down.
+[==========] <%=hash[:results][:counts][:total].to_s%> tests from <%=hash[:results][:stdout].length.to_s%> test cases ran.
+[  PASSED  ] <%=hash[:results][:counts][:passed].to_s%> tests.
+%   if (failed == 0)
+[  FAILED  ] 0 tests.
+
+ 0 FAILED TESTS
+%   else
+[  FAILED  ] <%=failed.to_s%> tests, listed below:
+%     hash[:results][:failures].each do |failure|
+%       failure[:collection].each do |item|
+[  FAILED  ] <%=failure[:source][:file]%>.<%=item[:test]%>
+%       end
+%     end
+%   end
+
+ <%=failed.to_s%> FAILED TESTS
+% else
+
+No tests executed.
+% end

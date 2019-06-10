@@ -1,0 +1,59 @@
+% ignored        = hash[:results][:counts][:ignored]
+% failed         = hash[:results][:counts][:failed]
+% stdout_count   = hash[:results][:counts][:stdout]
+% header_prepend = ((hash[:header].length > 0) ? "#{hash[:header]}: " : '')
+% banner_width   = 25 + header_prepend.length # widest message
+
+% if (stdout_count > 0)
+<%=@ceedling[:plugin_reportinator].generate_banner(header_prepend + 'TEST OUTPUT')%>
+%   hash[:results][:stdout].each do |string|
+[<%=string[:source][:file]%>]
+%     string[:collection].each do |item|
+  - "<%=item%>"
+%     end
+
+%   end
+% end
+% if (ignored > 0)
+<%=@ceedling[:plugin_reportinator].generate_banner(header_prepend + 'IGNORED TEST SUMMARY')%>
+%   hash[:results][:ignores].each do |ignore|
+[<%=ignore[:source][:file]%>]
+%     ignore[:collection].each do |item|
+  Test: <%=item[:test]%>
+% if (not item[:message].empty?)
+  At line (<%=item[:line]%>): "<%=item[:message]%>"
+% else
+  At line (<%=item[:line]%>)
+% end
+
+%     end
+%   end
+% end
+% if (failed > 0)
+<%=@ceedling[:plugin_reportinator].generate_banner(header_prepend + 'FAILED TEST SUMMARY')%>
+%   hash[:results][:failures].each do |failure|
+[<%=failure[:source][:file]%>]
+%     failure[:collection].each do |item|
+  Test: <%=item[:test]%>
+% if (not item[:message].empty?)
+  At line (<%=item[:line]%>): "<%=item[:message]%>"
+% else
+  At line (<%=item[:line]%>)
+% end
+
+%     end
+%   end
+% end
+% total_string = hash[:results][:counts][:total].to_s
+% format_string = "%#{total_string.length}i"
+<%=@ceedling[:plugin_reportinator].generate_banner(header_prepend + 'OVERALL TEST SUMMARY')%>
+% if (hash[:results][:counts][:total] > 0)
+TESTED:  <%=hash[:results][:counts][:total].to_s%>
+PASSED:  <%=sprintf(format_string, hash[:results][:counts][:passed])%>
+FAILED:  <%=sprintf(format_string, failed)%>
+IGNORED: <%=sprintf(format_string, ignored)%>
+% else
+
+No tests executed.
+% end
+
