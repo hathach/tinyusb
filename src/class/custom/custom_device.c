@@ -70,7 +70,7 @@ bool cusd_open(uint8_t rhport, tusb_desc_interface_t const * p_desc_itf, uint16_
   (*p_len) = sizeof(tusb_desc_interface_t) + 2*sizeof(tusb_desc_endpoint_t);
 
   // TODO Prepare for incoming data
-//  TU_ASSERT( dcd_edpt_xfer(rhport, p_itf->ep_out, (uint8_t*) &p_msc->cbw, sizeof(msc_cbw_t)) );
+//  TU_ASSERT( usbd_edpt_xfer(rhport, p_itf->ep_out, (uint8_t*) &p_msc->cbw, sizeof(msc_cbw_t)) );
 
   return true;
 }

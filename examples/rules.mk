@@ -13,6 +13,7 @@ SRC_C += \
 	src/class/msc/msc_device.c \
 	src/class/cdc/cdc_device.c \
 	src/class/hid/hid_device.c \
+	src/class/midi/midi_device.c \
 	src/tusb.c \
 	src/portable/$(VENDOR)/$(CHIP_FAMILY)/dcd_$(CHIP_FAMILY).c
 

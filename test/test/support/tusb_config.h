@@ -77,7 +77,7 @@
 #define CFG_TUD_MSC                 1
 #define CFG_TUD_HID                 1
 
-#define CFG_TUD_MIDI                0
+#define CFG_TUD_MIDI                1
 #define CFG_TUD_CUSTOM_CLASS        0
 
 //------------- CDC -------------//

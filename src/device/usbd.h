@@ -35,7 +35,7 @@
 #endif
 
 #include "common/tusb_common.h"
-#include "device/dcd.h"
+#include "dcd.h"
 
 //--------------------------------------------------------------------+
 // Application API

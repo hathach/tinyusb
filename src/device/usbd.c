@@ -31,6 +31,7 @@
 #include "tusb.h"
 #include "usbd.h"
 #include "device/usbd_pvt.h"
+#include "dcd.h"
 
 #ifndef CFG_TUD_TASK_QUEUE_SZ
 #define CFG_TUD_TASK_QUEUE_SZ   16
