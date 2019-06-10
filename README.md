@@ -15,7 +15,7 @@ TinyUSB is an open-source cross-platform USB Host/Device stack for embedded syst
 │   └── mcu         # Low level mcu core & peripheral drivers
 ├── lib             # Sources from 3rd party such as freeRTOS, fatfs ...
 ├── src             # All sources files for TinyUSB stack itself.
-├── tests           # Unit tests for the stack
+├── test            # Unit tests for the stack
 └── tools           # Files used internally
 ```
 
@@ -77,6 +77,7 @@ TinyUSB is currently used by these other projects:
 
 * [Adafruit nRF52 Arduino](https://github.com/adafruit/Adafruit_nRF52_Arduino)
 * [Adafruit nRF52 Bootloader](https://github.com/adafruit/Adafruit_nRF52_Bootloader)
+* [Adafruit SAMD Arduino](https://github.com/adafruit/ArduinoCore-samd)
 * [CircuitPython](https://github.com/adafruit/circuitpython)
 * [TinyUSB Arduino Library](https://github.com/adafruit/Adafruit_TinyUSB_Arduino)
 

@@ -1,11 +1,9 @@
 html
 latex
 test/_build
-test_old
 *.d
 *.o
 *.P
-*.launch
 *.map
 *.axf
 *.jlink
