@@ -72,18 +72,24 @@ typedef enum
 /// USB Descriptor Types (section 9.4 table 9-5)
 typedef enum
 {
-  TUSB_DESC_DEVICE                = 0x01 ,
-  TUSB_DESC_CONFIGURATION         = 0x02 ,
-  TUSB_DESC_STRING                = 0x03 ,
-  TUSB_DESC_INTERFACE             = 0x04 ,
-  TUSB_DESC_ENDPOINT              = 0x05 ,
-  TUSB_DESC_DEVICE_QUALIFIER      = 0x06 ,
-  TUSB_DESC_OTHER_SPEED_CONFIG    = 0x07 ,
-  TUSB_DESC_INTERFACE_POWER       = 0x08 ,
-  TUSB_DESC_OTG                   = 0x09 ,
-  TUSB_DESC_DEBUG                 = 0x0A ,
-  TUSB_DESC_INTERFACE_ASSOCIATION = 0x0B ,
-  TUSB_DESC_CLASS_SPECIFIC        = 0x24
+  TUSB_DESC_DEVICE                = 0x01,
+  TUSB_DESC_CONFIGURATION         = 0x02,
+  TUSB_DESC_STRING                = 0x03,
+  TUSB_DESC_INTERFACE             = 0x04,
+  TUSB_DESC_ENDPOINT              = 0x05,
+  TUSB_DESC_DEVICE_QUALIFIER      = 0x06,
+  TUSB_DESC_OTHER_SPEED_CONFIG    = 0x07,
+  TUSB_DESC_INTERFACE_POWER       = 0x08,
+  TUSB_DESC_OTG                   = 0x09,
+  TUSB_DESC_DEBUG                 = 0x0A,
+  TUSB_DESC_INTERFACE_ASSOCIATION = 0x0B,
+
+  // Class Specific Descriptor
+  TUSB_DESC_CS_DEVICE             = 0x21,
+  TUSB_DESC_CS_CONFIGURATION      = 0x22,
+  TUSB_DESC_CS_STRING             = 0x23,
+  TUSB_DESC_CS_INTERFACE          = 0x24,
+  TUSB_DESC_CS_ENDPOINT           = 0x25,
 }tusb_desc_type_t;
 
 typedef enum
@@ -105,9 +111,9 @@ typedef enum
 
 typedef enum
 {
-  TUSB_REQ_FEATURE_EDPT_HALT = 0,
+  TUSB_REQ_FEATURE_EDPT_HALT     = 0,
   TUSB_REQ_FEATURE_REMOTE_WAKEUP = 1,
-  TUSB_REQ_FEATURE_TEST_MODE = 2
+  TUSB_REQ_FEATURE_TEST_MODE     = 2
 }tusb_request_feature_selector_t;
 
 typedef enum

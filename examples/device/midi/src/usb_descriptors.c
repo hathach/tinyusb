@@ -29,7 +29,7 @@
  * Same VID/PID with different interface e.g MSC (first), then CDC (later) will possibly cause system error on PC.
  *
  * Auto ProductID layout's Bitmap:
- *   [MSB]         HID | MSC | CDC          [LSB]
+ *   [MSB]       MIDI | HID | MSC | CDC          [LSB]
  */
 #define _PID_MAP(itf, n)  ( (CFG_TUD_##itf) << (n) )
 #define USB_PID           (0x4000 | _PID_MAP(CDC, 0) | _PID_MAP(MSC, 1) | _PID_MAP(HID, 2) | _PID_MAP(MIDI, 3) )
@@ -40,19 +40,11 @@ tusb_desc_device_t const desc_device =
     .bLength            = sizeof(tusb_desc_device_t),
     .bDescriptorType    = TUSB_DESC_DEVICE,
     .bcdUSB             = 0x0200,
-
-  #if CFG_TUD_CDC
-    // Use Interface Association Descriptor (IAD) for CDC
+    // Use Interface Association Descriptor (IAD) for Audio
     // As required by USB Specs IAD's subclass must be common class (2) and protocol must be IAD (1)
     .bDeviceClass       = TUSB_CLASS_MISC,
     .bDeviceSubClass    = MISC_SUBCLASS_COMMON,
     .bDeviceProtocol    = MISC_PROTOCOL_IAD,
-  #else
-    .bDeviceClass       = 0x00,
-    .bDeviceSubClass    = 0x00,
-    .bDeviceProtocol    = 0x00,
-  #endif
-
     .bMaxPacketSize0    = CFG_TUD_ENDOINT0_SIZE,
 
     .idVendor           = 0xCafe,
@@ -66,83 +58,31 @@ tusb_desc_device_t const desc_device =
     .bNumConfigurations = 0x01
 };
 
-//------------- HID Report Descriptor -------------//
-#if CFG_TUD_HID
-enum
-{
-  REPORT_ID_KEYBOARD = 1,
-  REPORT_ID_MOUSE
-};
-
-uint8_t const desc_hid_report[] =
-{
-  TUD_HID_REPORT_DESC_KEYBOARD( HID_REPORT_ID(REPORT_ID_KEYBOARD), ),
-  TUD_HID_REPORT_DESC_MOUSE   ( HID_REPORT_ID(REPORT_ID_MOUSE), )
-};
-
-// Invoked when received GET HID REPORT DESCRIPTOR
-// Application return pointer to descriptor
-// Descriptor contents must exist long enough for transfer to complete
-uint8_t const * tud_hid_descriptor_report_cb(void)
-{
-  return desc_hid_report;
-}
-
-#endif
-
 //------------- Configuration Descriptor -------------//
 enum
 {
-#if CFG_TUD_CDC
-  ITF_NUM_CDC = 0,
-  ITF_NUM_CDC_DATA,
-#endif
-
-#if CFG_TUD_MSC
-  ITF_NUM_MSC,
-#endif
-
-#if CFG_TUD_HID
-  ITF_NUM_HID,
-#endif
-
+  ITF_NUM_MIDI = 0,
+  ITF_NUM_MIDI_STREAMING,
   ITF_NUM_TOTAL
 };
 
 enum
 {
-  CONFIG_TOTAL_LEN = TUD_CONFIG_DESC_LEN + CFG_TUD_CDC*TUD_CDC_DESC_LEN + CFG_TUD_MSC*TUD_MSC_DESC_LEN + CFG_TUD_HID*TUD_HID_DESC_LEN
+  CONFIG_TOTAL_LEN = TUD_CONFIG_DESC_LEN + TUD_MIDI_DESC_LEN
 };
 
-#if CFG_TUSB_MCU == OPT_MCU_LPC175X_6X || CFG_TUSB_MCU == OPT_MCU_LPC177X_8X || CFG_TUSB_MCU == OPT_MCU_LPC40XX
-  // LPC 17xx and 40xx endpoint type (bulk/interrupt/iso) are fixed by its number
-  // 0 control, 1 In, 2 Bulk, 3 Iso, 4 In etc ...
-  // Note: since CDC EP ( 1 & 2), HID (4) are spot-on, thus we only need to force
-  // endpoint number for MSC to 5
-  #define EPNUM_MSC   0x05
-#else
-  #define EPNUM_MSC   0x03
-#endif
+// Use Endpoint 2 instead of 1 due to NXP MCU
+// LPC 17xx and 40xx endpoint type (bulk/interrupt/iso) are fixed by its number
+// 0 control, 1 In, 2 Bulk, 3 Iso, 4 In etc ...
+#define EPNUM_MIDI   0x02
 
 uint8_t const desc_configuration[] =
 {
   // Interface count, string index, total length, attribute, power in mA
   TUD_CONFIG_DESCRIPTOR(ITF_NUM_TOTAL, 0, CONFIG_TOTAL_LEN, TUSB_DESC_CONFIG_ATT_REMOTE_WAKEUP, 100),
 
-#if CFG_TUD_CDC
-  // Interface number, string index, EP notification address and size, EP data address (out, in) and size.
-  TUD_CDC_DESCRIPTOR(ITF_NUM_CDC, 4, 0x81, 8, 0x02, 0x82, 64),
-#endif
-
-#if CFG_TUD_MSC
   // Interface number, string index, EP Out & EP In address, EP size
-  TUD_MSC_DESCRIPTOR(ITF_NUM_MSC, 5, EPNUM_MSC, 0x80 | EPNUM_MSC, (CFG_TUSB_RHPORT0_MODE & OPT_MODE_HIGH_SPEED) ? 512 : 64),
-#endif
-
-#if CFG_TUD_HID
-  // Interface number, string index, protocol, report descriptor len, EP In address, size & polling interval
-  TUD_HID_DESCRIPTOR(ITF_NUM_HID, 6, HID_PROTOCOL_NONE, sizeof(desc_hid_report), 0x84, 16, 10)
-#endif
+  TUD_MIDI_DESCRIPTOR(ITF_NUM_MIDI, 0, EPNUM_MIDI, 0x80 | EPNUM_MIDI, (CFG_TUSB_RHPORT0_MODE & OPT_MODE_HIGH_SPEED) ? 512 : 64)
 };
 
 // Invoked when received GET DEVICE DESCRIPTOR
@@ -160,6 +100,7 @@ uint8_t const * tud_descriptor_configuration_cb(uint8_t index)
   (void) index; // for multiple configurations
   return desc_configuration;
 }
+
 //------------- String Descriptors -------------//
 
 // array of pointer to string descriptors
@@ -169,9 +110,6 @@ char const* string_desc_arr [] =
   "TinyUSB",                     // 1: Manufacturer
   "TinyUSB Device",              // 2: Product
   "123456",                      // 3: Serials, should use chip ID
-  "TinyUSB CDC",                 // 4: CDC Interface
-  "TinyUSB MSC",                 // 5: MSC Interface
-  "TinyUSB HID"                  // 6: HID
 };
 
 static uint16_t _desc_str[32];

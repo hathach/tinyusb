@@ -265,7 +265,7 @@ bool cdcd_open(uint8_t rhport, tusb_desc_interface_t const * itf_desc, uint16_t 
   (*p_length) = sizeof(tusb_desc_interface_t);
 
   // Communication Functional Descriptors
-  while ( TUSB_DESC_CLASS_SPECIFIC == tu_desc_type(p_desc) )
+  while ( TUSB_DESC_CS_INTERFACE == tu_desc_type(p_desc) )
   {
     (*p_length) += tu_desc_len(p_desc);
     p_desc = tu_desc_next(p_desc);
