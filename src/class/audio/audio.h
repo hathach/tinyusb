@@ -43,7 +43,7 @@ typedef enum
 {
   AUDIO_SUBCLASS_CONTROL = 0x01  , ///< Audio Control
   AUDIO_SUBCLASS_STREAMING       , ///< Audio Streaming
-  AUDIO_SUBCLASS_MIDI_STREAMING  ,  ///< MIDI Streaming
+  AUDIO_SUBCLASS_MIDI_STREAMING  , ///< MIDI Streaming
 } audio_subclass_type_t;
 
 /// Audio Protocol Codes

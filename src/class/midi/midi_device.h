@@ -29,7 +29,9 @@
 
 #include "common/tusb_common.h"
 #include "device/usbd.h"
+
 #include "class/audio/audio.h"
+#include "midi.h"
 
 //--------------------------------------------------------------------+
 // Class Driver Configuration

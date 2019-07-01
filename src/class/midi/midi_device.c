@@ -252,7 +252,7 @@ void midid_reset(uint8_t rhport)
 bool midid_open(uint8_t rhport, tusb_desc_interface_t const * p_interface_desc, uint16_t *p_length)
 {
   // For now handle the audio control interface as well.
-  if ( AUDIO_SUBCLASS_AUDIO_CONTROL == p_interface_desc->bInterfaceSubClass) {
+  if ( AUDIO_SUBCLASS_CONTROL == p_interface_desc->bInterfaceSubClass) {
     uint8_t const * p_desc = tu_desc_next ( (uint8_t const *) p_interface_desc );
     (*p_length) = sizeof(tusb_desc_interface_t);
 
