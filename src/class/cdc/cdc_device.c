@@ -73,21 +73,18 @@ typedef struct
 //--------------------------------------------------------------------+
 CFG_TUSB_MEM_SECTION static cdcd_interface_t _cdcd_itf[CFG_TUD_CDC];
 
-//bool pending_read_from_host; TODO remove
 static void _prep_out_transaction (uint8_t itf)
 {
   cdcd_interface_t* p_cdc = &_cdcd_itf[itf];
 
   // skip if previous transfer not complete
   if ( usbd_edpt_busy(TUD_OPT_RHPORT, p_cdc->ep_out) ) return;
-  //if (pending_read_from_host) return;
 
   // Prepare for incoming data but only allow what we can store in the ring buffer.
   uint16_t max_read = tu_fifo_remaining(&p_cdc->rx_ff);
   if ( max_read >= CFG_TUD_CDC_EPSIZE )
   {
     usbd_edpt_xfer(TUD_OPT_RHPORT, p_cdc->ep_out, p_cdc->epout_buf, CFG_TUD_CDC_EPSIZE);
-//    pending_read_from_host = true;
   }
 }
 
@@ -296,7 +293,6 @@ bool cdcd_open(uint8_t rhport, tusb_desc_interface_t const * itf_desc, uint16_t 
   }
 
   // Prepare for incoming data
-//  pending_read_from_host = false;
   _prep_out_transaction(cdc_id);
 
   return true;
@@ -392,11 +388,16 @@ bool cdcd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint32_
     if (tud_cdc_rx_cb && tu_fifo_count(&p_cdc->rx_ff) ) tud_cdc_rx_cb(itf);
 
     // prepare for OUT transaction
-//    pending_read_from_host = false;
     _prep_out_transaction(itf);
   }
 
-  // nothing to do with in and notif endpoint for now
+  // sent data
+//  if ( ep_addr == p_cdc->ep_in )
+//  {
+//
+//  }
+
+  // nothing to do with notif endpoint for now
 
   return true;
 }

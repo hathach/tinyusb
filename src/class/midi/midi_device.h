@@ -40,7 +40,6 @@
 #define CFG_TUD_MIDI_EPSIZE 64
 #endif
 
-
 #ifdef __cplusplus
  extern "C" {
 #endif
