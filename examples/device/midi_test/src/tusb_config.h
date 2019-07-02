@@ -78,7 +78,7 @@
 #define CFG_TUD_MIDI                1
 #define CFG_TUD_CUSTOM_CLASS        0
 
-//------------- MIDI -------------//
+// MIDI FIFO size of TX and RX
 #define CFG_TUD_MIDI_RX_BUFSIZE     64
 #define CFG_TUD_MIDI_TX_BUFSIZE     64
 

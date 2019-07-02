@@ -79,20 +79,14 @@
 #define CFG_TUD_MIDI                0
 #define CFG_TUD_CUSTOM_CLASS        0
 
-//------------- CDC -------------//
-
-// FIFO size of CDC TX and RX
+// CDC FIFO size of TX and RX
 #define CFG_TUD_CDC_RX_BUFSIZE      64
 #define CFG_TUD_CDC_TX_BUFSIZE      64
 
-//------------- MSC -------------//
-
-// Buffer size of Device Mass storage
+// MSC Buffer size of Device Mass storage
 #define CFG_TUD_MSC_BUFSIZE         512
 
-//------------- HID -------------//
-
-// Should be sufficient to hold ID (if any) + Data
+// HID buffer size Should be sufficient to hold ID (if any) + Data
 #define CFG_TUD_HID_BUFSIZE         16
 
 #ifdef __cplusplus
