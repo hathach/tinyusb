@@ -87,12 +87,6 @@ uint32_t tud_midi_n_available(uint8_t itf, uint8_t jack_id)
   return tu_fifo_count(&_midid_itf[itf].rx_ff);
 }
 
-char tud_midi_n_read_char(uint8_t itf, uint8_t jack_id)
-{
-  char ch;
-  return tu_fifo_read(&_midid_itf[itf].rx_ff, &ch) ? ch : (-1);
-}
-
 uint32_t tud_midi_n_read(uint8_t itf, uint8_t jack_id, void* buffer, uint32_t bufsize)
 {
   return tu_fifo_read_n(&_midid_itf[itf].rx_ff, buffer, bufsize);
@@ -102,7 +96,6 @@ void tud_midi_n_read_flush (uint8_t itf, uint8_t jack_id)
 {
   tu_fifo_clear(&_midid_itf[itf].rx_ff);
 }
-
 
 void midi_rx_done_cb(midid_interface_t* midi, uint8_t const* buffer, uint32_t bufsize) {
   if (bufsize % 4 != 0) {
