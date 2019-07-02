@@ -60,6 +60,8 @@ void     tud_midi_n_read_flush      (uint8_t itf, uint8_t jack_id);
 uint32_t tud_midi_n_write           (uint8_t itf, uint8_t jack_id, uint8_t const* buffer, uint32_t bufsize);
 bool     tud_midi_n_write_flush     (uint8_t itf);
 
+static inline uint32_t tud_midi_n_write24 (uint8_t itf, uint8_t jack_id, uint8_t b1, uint8_t b2, uint8_t b3);
+
 //--------------------------------------------------------------------+
 // Application API (Interface0)
 //--------------------------------------------------------------------+
@@ -68,6 +70,7 @@ static inline uint32_t tud_midi_available   (void);
 static inline uint32_t tud_midi_read        (void* buffer, uint32_t bufsize);
 static inline void     tud_midi_read_flush  (void);
 static inline uint32_t tud_midi_write       (uint8_t jack_id, void const* buffer, uint32_t bufsize);
+static inline uint32_t tudi_midi_write24    (uint8_t jack_id, uint8_t b1, uint8_t b2, uint8_t b3);
 static inline bool     tud_midi_write_flush (void);
 
 //--------------------------------------------------------------------+
@@ -76,8 +79,15 @@ static inline bool     tud_midi_write_flush (void);
 TU_ATTR_WEAK void tud_midi_rx_cb(uint8_t itf);
 
 //--------------------------------------------------------------------+
-// Application API (Interface0) Implementation
+// Inline Functions
 //--------------------------------------------------------------------+
+
+static inline uint32_t tud_midi_n_write24 (uint8_t itf, uint8_t jack_id, uint8_t b1, uint8_t b2, uint8_t b3)
+{
+  uint8_t msg[3] = { b1, b2, b3 };
+  return tud_midi_n_write(itf, jack_id, msg, 3);
+}
+
 static inline bool tud_midi_connected (void)
 {
   return tud_midi_n_connected(0);
@@ -101,6 +111,12 @@ static inline void tud_midi_read_flush (void)
 static inline uint32_t tud_midi_write (uint8_t jack_id, void const* buffer, uint32_t bufsize)
 {
   return tud_midi_n_write(0, jack_id, buffer, bufsize);
+}
+
+static inline uint32_t tudi_midi_write24 (uint8_t jack_id, uint8_t b1, uint8_t b2, uint8_t b3)
+{
+  uint8_t msg[3] = { b1, b2, b3 };
+  return tud_midi_write(jack_id, msg, 3);
 }
 
 static inline bool tud_midi_write_flush (void)

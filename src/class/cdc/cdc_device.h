@@ -103,7 +103,7 @@ TU_ATTR_WEAK void tud_cdc_line_state_cb(uint8_t itf, bool dtr, bool rts);
 TU_ATTR_WEAK void tud_cdc_line_coding_cb(uint8_t itf, cdc_line_coding_t const* p_line_coding);
 
 //--------------------------------------------------------------------+
-// Application API (Interface0) Implementation
+// Inline Functions
 //--------------------------------------------------------------------+
 static inline bool tud_cdc_connected (void)
 {
