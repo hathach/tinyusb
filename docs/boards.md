@@ -25,6 +25,7 @@ This code base already had supported for a handful of following boards
 
 ### MicroChip SAMD
 
+- [Adafruit Feather M4 Express](https://www.adafruit.com/product/3857)
 - [Adafruit Metro M0 Express](https://www.adafruit.com/product/3505)
 - [Adafruit Metro M4 Express](https://www.adafruit.com/product/3382)
 
