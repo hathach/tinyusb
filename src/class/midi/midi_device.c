@@ -74,7 +74,8 @@ typedef struct
 //--------------------------------------------------------------------+
 CFG_TUSB_MEM_SECTION midid_interface_t _midid_itf[CFG_TUD_MIDI];
 
-bool tud_midi_n_connected(uint8_t itf) {
+bool tud_midi_n_mounted (uint8_t itf)
+{
   midid_interface_t* midi = &_midid_itf[itf];
   return midi->itf_num != 0;
 }
@@ -126,15 +127,14 @@ void midi_rx_done_cb(midid_interface_t* midi, uint8_t const* buffer, uint32_t bu
 
 static bool maybe_transmit(midid_interface_t* midi, uint8_t itf_index)
 {
-    TU_VERIFY( !usbd_edpt_busy(TUD_OPT_RHPORT, midi->ep_in) ); // skip if previous transfer not complete
+  TU_VERIFY( !usbd_edpt_busy(TUD_OPT_RHPORT, midi->ep_in) ); // skip if previous transfer not complete
 
-    uint16_t count = tu_fifo_read_n(&midi->tx_ff, midi->epin_buf, CFG_TUD_MIDI_EPSIZE);
-    if (count > 0)
-    {
-      TU_VERIFY( tud_midi_n_connected(itf_index) ); // fifo is empty if not connected
-      TU_ASSERT( usbd_edpt_xfer(TUD_OPT_RHPORT, midi->ep_in, midi->epin_buf, count) );
-    }
-    return true;
+  uint16_t count = tu_fifo_read_n(&midi->tx_ff, midi->epin_buf, CFG_TUD_MIDI_EPSIZE);
+  if (count > 0)
+  {
+    TU_ASSERT( usbd_edpt_xfer(TUD_OPT_RHPORT, midi->ep_in, midi->epin_buf, count) );
+  }
+  return true;
 }
 
 uint32_t tud_midi_n_write(uint8_t itf, uint8_t jack_id, uint8_t const* buffer, uint32_t bufsize)

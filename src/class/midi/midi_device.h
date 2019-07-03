@@ -53,25 +53,23 @@
 // Application API (Multiple Interfaces)
 // CFG_TUD_MIDI > 1
 //--------------------------------------------------------------------+
-bool     tud_midi_n_connected       (uint8_t itf);
+bool     tud_midi_n_mounted         (uint8_t itf);
 uint32_t tud_midi_n_available       (uint8_t itf, uint8_t jack_id);
 uint32_t tud_midi_n_read            (uint8_t itf, uint8_t jack_id, void* buffer, uint32_t bufsize);
 void     tud_midi_n_read_flush      (uint8_t itf, uint8_t jack_id);
 uint32_t tud_midi_n_write           (uint8_t itf, uint8_t jack_id, uint8_t const* buffer, uint32_t bufsize);
-bool     tud_midi_n_write_flush     (uint8_t itf);
 
 static inline uint32_t tud_midi_n_write24 (uint8_t itf, uint8_t jack_id, uint8_t b1, uint8_t b2, uint8_t b3);
 
 //--------------------------------------------------------------------+
 // Application API (Interface0)
 //--------------------------------------------------------------------+
-static inline bool     tud_midi_connected   (void);
+static inline bool     tud_midi_mounted     (void);
 static inline uint32_t tud_midi_available   (void);
 static inline uint32_t tud_midi_read        (void* buffer, uint32_t bufsize);
 static inline void     tud_midi_read_flush  (void);
 static inline uint32_t tud_midi_write       (uint8_t jack_id, uint8_t const* buffer, uint32_t bufsize);
 static inline uint32_t tudi_midi_write24    (uint8_t jack_id, uint8_t b1, uint8_t b2, uint8_t b3);
-static inline bool     tud_midi_write_flush (void);
 
 //--------------------------------------------------------------------+
 // Application Callback API (weak is optional)
@@ -88,9 +86,9 @@ static inline uint32_t tud_midi_n_write24 (uint8_t itf, uint8_t jack_id, uint8_t
   return tud_midi_n_write(itf, jack_id, msg, 3);
 }
 
-static inline bool tud_midi_connected (void)
+static inline bool tud_midi_mounted (void)
 {
-  return tud_midi_n_connected(0);
+  return tud_midi_n_mounted(0);
 }
 
 static inline uint32_t tud_midi_available (void)
@@ -117,11 +115,6 @@ static inline uint32_t tudi_midi_write24 (uint8_t jack_id, uint8_t b1, uint8_t b
 {
   uint8_t msg[3] = { b1, b2, b3 };
   return tud_midi_write(jack_id, msg, 3);
-}
-
-static inline bool tud_midi_write_flush (void)
-{
-  return tud_midi_n_write_flush(0);
 }
 
 //--------------------------------------------------------------------+

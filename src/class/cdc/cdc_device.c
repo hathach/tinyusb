@@ -370,7 +370,7 @@ bool cdcd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint32_
   uint8_t const itf = 0;
   cdcd_interface_t* p_cdc = &_cdcd_itf[itf];
 
-  // receive new data
+  // Received new data
   if ( ep_addr == p_cdc->ep_out )
   {
     for(uint32_t i=0; i<xferred_bytes; i++)
@@ -391,7 +391,9 @@ bool cdcd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint32_
     _prep_out_transaction(itf);
   }
 
-  // sent data
+  // Data sent to host, we could continue to fetch data tx fifo to send.
+  // But it will cause incorrect baudrate set in line coding.
+  // Though maybe the baudrate is not really important !!!
 //  if ( ep_addr == p_cdc->ep_in )
 //  {
 //
