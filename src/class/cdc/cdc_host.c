@@ -142,7 +142,7 @@ bool cdch_open(uint8_t rhport, uint8_t dev_addr, tusb_desc_interface_t const *it
   (*p_length) = sizeof(tusb_desc_interface_t);
 
   // Communication Functional Descriptors
-  while( TUSB_DESC_CLASS_SPECIFIC == p_desc[DESC_OFFSET_TYPE] )
+  while( TUSB_DESC_CS_INTERFACE == p_desc[DESC_OFFSET_TYPE] )
   {
     if ( CDC_FUNC_DESC_ABSTRACT_CONTROL_MANAGEMENT == cdc_functional_desc_typeof(p_desc) )
     {

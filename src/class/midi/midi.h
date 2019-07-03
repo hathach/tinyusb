@@ -39,27 +39,122 @@
 #endif
 
 //--------------------------------------------------------------------+
-// FUNCTIONAL DESCRIPTOR (COMMUNICATION INTERFACE)
+// Class Specific Descriptor
 //--------------------------------------------------------------------+
-/// Header Functional Descriptor (Communication Interface)
+
+typedef enum
+{
+  MIDI_CS_INTERFACE_HEADER    = 0x01,
+  MIDI_CS_INTERFACE_IN_JACK   = 0x02,
+  MIDI_CS_INTERFACE_OUT_JACK  = 0x03,
+  MIDI_CS_INTERFACE_ELEMENT   = 0x04,
+} midi_cs_interface_subtype_t;
+
+typedef enum
+{
+  MIDI_CS_ENDPOINT_GENERAL = 0x01
+} midi_cs_endpoint_subtype_t;
+
+typedef enum
+{
+  MIDI_JACK_EMBEDDED = 0x01,
+  MIDI_JACK_EXTERNAL = 0x02
+} midi_jack_type_t;
+
+/// MIDI Interface Header Descriptor
 typedef struct TU_ATTR_PACKED
 {
   uint8_t bLength            ; ///< Size of this descriptor in bytes.
   uint8_t bDescriptorType    ; ///< Descriptor Type, must be Class-Specific
-  uint8_t bDescriptorSubType ; ///< Descriptor SubType one of above MIDI_FUCN_DESC_
+  uint8_t bDescriptorSubType ; ///< Descriptor SubType
   uint16_t bcdMSC            ; ///< MidiStreaming SubClass release number in Binary-Coded Decimal
   uint16_t wTotalLength      ;
-}midi_desc_func_header_t;
+} midi_desc_header_t;
 
-/// Union Functional Descriptor (Communication Interface)
+/// MIDI In Jack Descriptor
 typedef struct TU_ATTR_PACKED
 {
-  uint8_t bLength                  ; ///< Size of this descriptor in bytes.
-  uint8_t bDescriptorType          ; ///< Descriptor Type, must be Class-Specific
-  uint8_t bDescriptorSubType       ; ///< Descriptor SubType one of above CDC_FUCN_DESC_
-  uint8_t bControlInterface        ; ///< Interface number of Communication Interface
-  uint8_t bSubordinateInterface    ; ///< Array of Interface number of Data Interface
-}cdc_desc_func_union_t;
+  uint8_t bLength            ; ///< Size of this descriptor in bytes.
+  uint8_t bDescriptorType    ; ///< Descriptor Type, must be Class-Specific
+  uint8_t bDescriptorSubType ; ///< Descriptor SubType
+  uint8_t bJackType          ; ///< Embedded or External
+  uint8_t bJackID            ; ///< Unique ID for MIDI IN Jack
+  uint8_t iJack              ; ///< string descriptor
+} midi_desc_in_jack_t;
+
+
+/// MIDI Out Jack Descriptor with single pin
+typedef struct TU_ATTR_PACKED
+{
+  uint8_t bLength            ; ///< Size of this descriptor in bytes.
+  uint8_t bDescriptorType    ; ///< Descriptor Type, must be Class-Specific
+  uint8_t bDescriptorSubType ; ///< Descriptor SubType
+  uint8_t bJackType          ; ///< Embedded or External
+  uint8_t bJackID            ; ///< Unique ID for MIDI IN Jack
+  uint8_t bNrInputPins;
+
+  uint8_t baSourceID;
+  uint8_t baSourcePin;
+
+  uint8_t iJack              ; ///< string descriptor
+} midi_desc_out_jack_t ;
+
+/// MIDI Out Jack Descriptor with multiple pins
+#define midi_desc_out_jack_n_t(input_num) \
+  struct TU_ATTR_PACKED { \
+    uint8_t bLength            ; \
+    uint8_t bDescriptorType    ; \
+    uint8_t bDescriptorSubType ; \
+    uint8_t bJackType          ; \
+    uint8_t bJackID            ; \
+    uint8_t bNrInputPins       ; \
+    struct TU_ATTR_PACKED {      \
+        uint8_t baSourceID;      \
+        uint8_t baSourcePin;     \
+    } pins[input_num];           \
+   uint8_t iJack              ;  \
+  }
+
+/// MIDI Element Descriptor
+typedef struct TU_ATTR_PACKED
+{
+  uint8_t bLength            ; ///< Size of this descriptor in bytes.
+  uint8_t bDescriptorType    ; ///< Descriptor Type, must be Class-Specific
+  uint8_t bDescriptorSubType ; ///< Descriptor SubType
+  uint8_t bElementID;
+
+  uint8_t bNrInputPins;
+  uint8_t baSourceID;
+  uint8_t baSourcePin;
+
+  uint8_t bNrOutputPins;
+  uint8_t bInTerminalLink;
+  uint8_t bOutTerminalLink;
+  uint8_t bElCapsSize;
+
+  uint16_t bmElementCaps;
+  uint8_t  iElement;
+} midi_desc_element_t;
+
+/// MIDI Element Descriptor with multiple pins
+#define midi_desc_element_n_t(input_num) \
+  struct TU_ATTR_PACKED {       \
+    uint8_t bLength;            \
+    uint8_t bDescriptorType;    \
+    uint8_t bDescriptorSubType; \
+    uint8_t bElementID;         \
+    uint8_t bNrInputPins;       \
+    struct TU_ATTR_PACKED {     \
+        uint8_t baSourceID;     \
+        uint8_t baSourcePin;    \
+    } pins[input_num];          \
+    uint8_t bNrOutputPins;      \
+    uint8_t bInTerminalLink;    \
+    uint8_t bOutTerminalLink;   \
+    uint8_t bElCapsSize;        \
+    uint16_t bmElementCaps;     \
+    uint8_t  iElement;          \
+ }
 
 /** @} */
 

@@ -12,7 +12,7 @@ success_count = 0
 fail_count = 0
 exit_status = 0
 
-all_device_example = ["cdc_msc_hid", "msc_dual_lun", "hid_generic_inout"]
+all_device_example = ["cdc_msc_hid", "hid_generic_inout", "midi_test", "msc_dual_lun"]
 
 all_boards = []
 for entry in os.scandir("hw/bsp"):

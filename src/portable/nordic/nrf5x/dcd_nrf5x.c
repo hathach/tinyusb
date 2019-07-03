@@ -332,21 +332,6 @@ void dcd_edpt_clear_stall (uint8_t rhport, uint8_t ep_addr)
   }
 }
 
-bool dcd_edpt_busy (uint8_t rhport, uint8_t ep_addr)
-{
-  (void) rhport;
-
-  // USBD shouldn't check control endpoint state
-  if ( 0 == tu_edpt_number(ep_addr) ) return false;
-
-  uint8_t const epnum = tu_edpt_number(ep_addr);
-  uint8_t const dir   = tu_edpt_dir(ep_addr);
-
-  xfer_td_t* xfer = get_td(epnum, dir);
-
-  return xfer->actual_len < xfer->total_len;
-}
-
 /*------------------------------------------------------------------*/
 /* Interrupt Handler
  *------------------------------------------------------------------*/

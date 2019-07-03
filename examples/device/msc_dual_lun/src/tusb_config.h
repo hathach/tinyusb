@@ -78,9 +78,7 @@
 #define CFG_TUD_MIDI                0
 #define CFG_TUD_CUSTOM_CLASS        0
 
-//------------- MSC -------------//
-
-// Buffer size of Device Mass storage
+// MSC Buffer size of Device Mass storage
 #define CFG_TUD_MSC_BUFSIZE         512
 
 #ifdef __cplusplus

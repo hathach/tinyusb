@@ -48,7 +48,7 @@
  *  @{ */
 
 //--------------------------------------------------------------------+
-// APPLICATION API (Multiple Interfaces)
+// Application API (Multiple Interfaces)
 // CFG_TUD_CDC > 1
 //--------------------------------------------------------------------+
 bool        tud_cdc_n_connected       (uint8_t itf);
@@ -68,26 +68,26 @@ uint32_t    tud_cdc_n_write_str       (uint8_t itf, char const* str);
 bool        tud_cdc_n_write_flush     (uint8_t itf);
 
 //--------------------------------------------------------------------+
-// APPLICATION API (Interface0)
+// Application API (Interface0)
 //--------------------------------------------------------------------+
-static inline bool        tud_cdc_connected       (void)                                 { return tud_cdc_n_connected(0);              }
-static inline uint8_t     tud_cdc_get_line_state  (void)                                 { return tud_cdc_n_get_line_state(0);         }
-static inline void        tud_cdc_get_line_coding (cdc_line_coding_t* coding)            { return tud_cdc_n_get_line_coding(0, coding);}
-static inline void        tud_cdc_set_wanted_char (char wanted)                          { tud_cdc_n_set_wanted_char(0, wanted);       }
+static inline bool        tud_cdc_connected       (void);
+static inline uint8_t     tud_cdc_get_line_state  (void);
+static inline void        tud_cdc_get_line_coding (cdc_line_coding_t* coding);
+static inline void        tud_cdc_set_wanted_char (char wanted);
 
-static inline uint32_t    tud_cdc_available       (void)                                 { return tud_cdc_n_available(0);              }
-static inline signed char tud_cdc_read_char       (void)                                 { return tud_cdc_n_read_char(0);              }
-static inline uint32_t    tud_cdc_read            (void* buffer, uint32_t bufsize)       { return tud_cdc_n_read(0, buffer, bufsize);  }
-static inline void        tud_cdc_read_flush      (void)                                 { tud_cdc_n_read_flush(0);                    }
-static inline signed char tud_cdc_peek            (int pos)                              { return tud_cdc_n_peek(0, pos);              }
+static inline uint32_t    tud_cdc_available       (void);
+static inline signed char tud_cdc_read_char       (void);
+static inline uint32_t    tud_cdc_read            (void* buffer, uint32_t bufsize);
+static inline void        tud_cdc_read_flush      (void);
+static inline signed char tud_cdc_peek            (int pos);
 
-static inline uint32_t    tud_cdc_write_char      (char ch)                              { return tud_cdc_n_write_char(0, ch);         }
-static inline uint32_t    tud_cdc_write           (void const* buffer, uint32_t bufsize) { return tud_cdc_n_write(0, buffer, bufsize); }
-static inline uint32_t    tud_cdc_write_str       (char const* str)                      { return tud_cdc_n_write_str(0, str);         }
-static inline bool        tud_cdc_write_flush     (void)                                 { return tud_cdc_n_write_flush(0);            }
+static inline uint32_t    tud_cdc_write_char      (char ch);
+static inline uint32_t    tud_cdc_write           (void const* buffer, uint32_t bufsize);
+static inline uint32_t    tud_cdc_write_str       (char const* str);
+static inline bool        tud_cdc_write_flush     (void);
 
 //--------------------------------------------------------------------+
-// APPLICATION CALLBACK API (WEAK is optional)
+// Application Callback API (weak is optional)
 //--------------------------------------------------------------------+
 
 // Invoked when received new data
@@ -101,6 +101,74 @@ TU_ATTR_WEAK void tud_cdc_line_state_cb(uint8_t itf, bool dtr, bool rts);
 
 // Invoked when line coding is change via SET_LINE_CODING
 TU_ATTR_WEAK void tud_cdc_line_coding_cb(uint8_t itf, cdc_line_coding_t const* p_line_coding);
+
+//--------------------------------------------------------------------+
+// Inline Functions
+//--------------------------------------------------------------------+
+static inline bool tud_cdc_connected (void)
+{
+  return tud_cdc_n_connected(0);
+}
+
+static inline uint8_t tud_cdc_get_line_state (void)
+{
+  return tud_cdc_n_get_line_state(0);
+}
+
+static inline void tud_cdc_get_line_coding (cdc_line_coding_t* coding)
+{
+  return tud_cdc_n_get_line_coding(0, coding);
+}
+
+static inline void tud_cdc_set_wanted_char (char wanted)
+{
+  tud_cdc_n_set_wanted_char(0, wanted);
+}
+
+static inline uint32_t tud_cdc_available (void)
+{
+  return tud_cdc_n_available(0);
+}
+
+static inline signed char tud_cdc_read_char (void)
+{
+  return tud_cdc_n_read_char(0);
+}
+
+static inline uint32_t tud_cdc_read (void* buffer, uint32_t bufsize)
+{
+  return tud_cdc_n_read(0, buffer, bufsize);
+}
+
+static inline void tud_cdc_read_flush (void)
+{
+  tud_cdc_n_read_flush(0);
+}
+
+static inline signed char tud_cdc_peek (int pos)
+{
+  return tud_cdc_n_peek(0, pos);
+}
+
+static inline uint32_t tud_cdc_write_char (char ch)
+{
+  return tud_cdc_n_write_char(0, ch);
+}
+
+static inline uint32_t tud_cdc_write (void const* buffer, uint32_t bufsize)
+{
+  return tud_cdc_n_write(0, buffer, bufsize);
+}
+
+static inline uint32_t tud_cdc_write_str (char const* str)
+{
+  return tud_cdc_n_write_str(0, str);
+}
+
+static inline bool tud_cdc_write_flush (void)
+{
+  return tud_cdc_n_write_flush(0);
+}
 
 /** @} */
 /** @} */

@@ -78,9 +78,7 @@
 #define CFG_TUD_MIDI                0
 #define CFG_TUD_CUSTOM_CLASS        0
 
-//------------- HID -------------//
-
-// Should be sufficient to hold ID (if any) + Data
+// HID buffer size Should be sufficient to hold ID (if any) + Data
 #define CFG_TUD_HID_BUFSIZE         64
 
 #ifdef __cplusplus

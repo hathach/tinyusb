@@ -74,7 +74,8 @@ typedef struct
 //--------------------------------------------------------------------+
 CFG_TUSB_MEM_SECTION midid_interface_t _midid_itf[CFG_TUD_MIDI];
 
-bool tud_midi_n_connected(uint8_t itf) {
+bool tud_midi_n_mounted (uint8_t itf)
+{
   midid_interface_t* midi = &_midid_itf[itf];
   return midi->itf_num != 0;
 }
@@ -87,12 +88,6 @@ uint32_t tud_midi_n_available(uint8_t itf, uint8_t jack_id)
   return tu_fifo_count(&_midid_itf[itf].rx_ff);
 }
 
-char tud_midi_n_read_char(uint8_t itf, uint8_t jack_id)
-{
-  char ch;
-  return tu_fifo_read(&_midid_itf[itf].rx_ff, &ch) ? ch : (-1);
-}
-
 uint32_t tud_midi_n_read(uint8_t itf, uint8_t jack_id, void* buffer, uint32_t bufsize)
 {
   return tu_fifo_read_n(&_midid_itf[itf].rx_ff, buffer, bufsize);
@@ -102,7 +97,6 @@ void tud_midi_n_read_flush (uint8_t itf, uint8_t jack_id)
 {
   tu_fifo_clear(&_midid_itf[itf].rx_ff);
 }
-
 
 void midi_rx_done_cb(midid_interface_t* midi, uint8_t const* buffer, uint32_t bufsize) {
   if (bufsize % 4 != 0) {
@@ -133,15 +127,14 @@ void midi_rx_done_cb(midid_interface_t* midi, uint8_t const* buffer, uint32_t bu
 
 static bool maybe_transmit(midid_interface_t* midi, uint8_t itf_index)
 {
-    TU_VERIFY( !usbd_edpt_busy(TUD_OPT_RHPORT, midi->ep_in) ); // skip if previous transfer not complete
+  TU_VERIFY( !usbd_edpt_busy(TUD_OPT_RHPORT, midi->ep_in) ); // skip if previous transfer not complete
 
-    uint16_t count = tu_fifo_read_n(&midi->tx_ff, midi->epin_buf, CFG_TUD_MIDI_EPSIZE);
-    if (count > 0)
-    {
-      TU_VERIFY( tud_midi_n_connected(itf_index) ); // fifo is empty if not connected
-      TU_ASSERT( usbd_edpt_xfer(TUD_OPT_RHPORT, midi->ep_in, midi->epin_buf, count) );
-    }
-    return true;
+  uint16_t count = tu_fifo_read_n(&midi->tx_ff, midi->epin_buf, CFG_TUD_MIDI_EPSIZE);
+  if (count > 0)
+  {
+    TU_ASSERT( usbd_edpt_xfer(TUD_OPT_RHPORT, midi->ep_in, midi->epin_buf, count) );
+  }
+  return true;
 }
 
 uint32_t tud_midi_n_write(uint8_t itf, uint8_t jack_id, uint8_t const* buffer, uint32_t bufsize)
@@ -252,7 +245,7 @@ void midid_reset(uint8_t rhport)
 bool midid_open(uint8_t rhport, tusb_desc_interface_t const * p_interface_desc, uint16_t *p_length)
 {
   // For now handle the audio control interface as well.
-  if ( AUDIO_SUBCLASS_AUDIO_CONTROL == p_interface_desc->bInterfaceSubClass) {
+  if ( AUDIO_SUBCLASS_CONTROL == p_interface_desc->bInterfaceSubClass) {
     uint8_t const * p_desc = tu_desc_next ( (uint8_t const *) p_interface_desc );
     (*p_length) = sizeof(tusb_desc_interface_t);
 

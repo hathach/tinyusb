@@ -218,14 +218,6 @@ bool dcd_edpt_open(uint8_t rhport, tusb_desc_endpoint_t const * p_endpoint_desc)
   return true;
 }
 
-bool dcd_edpt_busy(uint8_t rhport, uint8_t ep_addr)
-{
-  (void) rhport;
-
-  uint8_t const ep_id = ep_addr2id(ep_addr);
-  return _dcd.ep[ep_id][0].active;
-}
-
 static void prepare_ep_xfer(uint8_t ep_id, uint16_t buf_offset, uint16_t total_bytes)
 {
   uint16_t const nbytes = tu_min16(total_bytes, DMA_NBYTES_MAX);

@@ -233,22 +233,6 @@ void dcd_edpt_clear_stall (uint8_t rhport, uint8_t ep_addr)
   }
 }
 
-bool dcd_edpt_busy (uint8_t rhport, uint8_t ep_addr)
-{
-  (void) rhport;
-
-  // USBD shouldn't check control endpoint state
-  if ( 0 == ep_addr ) return false;
-
-  uint8_t const epnum = tu_edpt_number(ep_addr);
-  UsbDeviceEndpoint* ep = &USB->DEVICE.DeviceEndpoint[epnum];
-
-  if (tu_edpt_dir(ep_addr) == TUSB_DIR_IN) {
-    return ep->EPINTFLAG.bit.TRCPT1 == 0 && ep->EPSTATUS.bit.BK1RDY == 1;
-  }
-  return ep->EPINTFLAG.bit.TRCPT0 == 0 && ep->EPSTATUS.bit.BK0RDY == 1;
-}
-
 /*------------------------------------------------------------------*/
 
 static bool maybe_handle_setup_packet(void) {

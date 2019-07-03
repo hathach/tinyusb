@@ -41,7 +41,7 @@
 /** \defgroup ClassDriver_CDC_Common Common Definitions
  *  @{ */
 
-
+// TODO remove
 /// CDC Pipe ID, used to indicate which pipe the API is addressing to (Notification, Out, In)
 typedef enum
 {
@@ -52,8 +52,9 @@ typedef enum
 }cdc_pipeid_t;
 
 //--------------------------------------------------------------------+
-// CDC COMMUNICATION INTERFACE CLASS
+// CDC Communication Interface Class
 //--------------------------------------------------------------------+
+
 /// Communication Interface Subclass Codes
 typedef enum
 {
@@ -117,7 +118,7 @@ typedef enum
 }cdc_func_desc_type_t;
 
 //--------------------------------------------------------------------+
-// CDC DATA INTERFACE CLASS
+// CDC Data Interface Class
 //--------------------------------------------------------------------+
 
 // SUBCLASS code of Data Interface is not used and should/must be zero
@@ -138,8 +139,9 @@ typedef enum{
 }cdc_data_protocol_type_t;
 
 //--------------------------------------------------------------------+
-// MANAGEMENT ELEMENT REQUEST (CONTROL ENDPOINT)
+// Management Element Request (Control Endpoint)
 //--------------------------------------------------------------------+
+
 /// Communication Interface Management Element Request Codes
 typedef enum
 {
@@ -189,8 +191,9 @@ typedef enum
 }cdc_management_request_t;
 
 //--------------------------------------------------------------------+
-// MANAGEMENT ELEMENENT NOTIFICATION (NOTIFICATION ENDPOINT)
+// Management Elemenent Notification (Notification Endpoint)
 //--------------------------------------------------------------------+
+
 /// Communication Interface Management Element Notification Codes
 typedef enum
 {
@@ -209,14 +212,15 @@ typedef enum
 }cdc_notification_request_t;
 
 //--------------------------------------------------------------------+
-// FUNCTIONAL DESCRIPTOR (COMMUNICATION INTERFACE)
+// Class Specific Functional Descriptor (Communication Interface)
 //--------------------------------------------------------------------+
+
 /// Header Functional Descriptor (Communication Interface)
 typedef struct TU_ATTR_PACKED
 {
   uint8_t bLength            ; ///< Size of this descriptor in bytes.
   uint8_t bDescriptorType    ; ///< Descriptor Type, must be Class-Specific
-  uint8_t bDescriptorSubType ; ///< Descriptor SubType one of above CDC_FUCN_DESC_
+  uint8_t bDescriptorSubType ; ///< Descriptor SubType one of above CDC_FUNC_DESC_
   uint16_t bcdCDC            ; ///< CDC release number in Binary-Coded Decimal
 }cdc_desc_func_header_t;
 
@@ -246,7 +250,7 @@ typedef struct TU_ATTR_PACKED
   uint8_t bDescriptorType     ; ///< Descriptor Type, must be Class-Specific
   uint8_t bDescriptorSubType  ; ///< Descriptor SubType one of above CDC_FUCN_DESC_
   uint8_t iCountryCodeRelDate ; ///< Index of a string giving the release date for the implemented ISO 3166 Country Codes.
-  uint16_t wCountryCode[]     ; ///< Country code in the format as defined in [ISO3166], release date as specified inoffset 3 for the first supported country.
+  uint16_t wCountryCode       ; ///< Country code in the format as defined in [ISO3166], release date as specified inoffset 3 for the first supported country.
 }cdc_desc_func_country_selection_t;
 
 #define cdc_desc_func_country_selection_n_t(no_country) \

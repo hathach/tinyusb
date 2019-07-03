@@ -316,14 +316,6 @@ bool dcd_edpt_open(uint8_t rhport, tusb_desc_endpoint_t const * p_endpoint_desc)
   return true;
 }
 
-bool dcd_edpt_busy(uint8_t rhport, uint8_t ep_addr)
-{
-  (void) rhport;
-
-  uint8_t ep_id = ep_addr2idx( ep_addr );
-  return (_dcd.udca[ep_id] != NULL && !_dcd.udca[ep_id]->retired);
-}
-
 void dcd_edpt_stall(uint8_t rhport, uint8_t ep_addr)
 {
   (void) rhport;

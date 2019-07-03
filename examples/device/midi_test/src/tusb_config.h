@@ -1,4 +1,4 @@
-/* 
+/*
  * The MIT License (MIT)
  *
  * Copyright (c) 2019 Ha Thach (tinyusb.org)
@@ -45,7 +45,7 @@
 #define CFG_TUSB_RHPORT0_MODE       OPT_MODE_DEVICE
 #endif
 
-#define CFG_TUSB_OS                 OPT_OS_FREERTOS
+#define CFG_TUSB_OS                 OPT_OS_NONE
 
 // CFG_TUSB_DEBUG is defined by compiler in DEBUG build
 // #define CFG_TUSB_DEBUG           0
@@ -72,22 +72,15 @@
 #define CFG_TUD_ENDOINT0_SIZE       64
 
 //------------- CLASS -------------//
-#define CFG_TUD_CDC                 1
-#define CFG_TUD_MSC                 1
-#define CFG_TUD_HID                 1
-
-#define CFG_TUD_MIDI                0
+#define CFG_TUD_CDC                 0
+#define CFG_TUD_MSC                 0
+#define CFG_TUD_HID                 0
+#define CFG_TUD_MIDI                1
 #define CFG_TUD_CUSTOM_CLASS        0
 
-// CDC FIFO size of TX and RX
-#define CFG_TUD_CDC_RX_BUFSIZE      64
-#define CFG_TUD_CDC_TX_BUFSIZE      64
-
-// MSC Buffer size of Device Mass storage
-#define CFG_TUD_MSC_BUFSIZE         512
-
-// HID buffer size Should be sufficient to hold ID (if any) + Data
-#define CFG_TUD_HID_BUFSIZE         16
+// MIDI FIFO size of TX and RX
+#define CFG_TUD_MIDI_RX_BUFSIZE     64
+#define CFG_TUD_MIDI_TX_BUFSIZE     64
 
 #ifdef __cplusplus
  }

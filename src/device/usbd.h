@@ -111,13 +111,13 @@ TU_ATTR_WEAK void tud_resume_cb(void);
   /* CDC Control Interface */\
   9, TUSB_DESC_INTERFACE, _itfnum, 0, 1, TUSB_CLASS_CDC, CDC_COMM_SUBCLASS_ABSTRACT_CONTROL_MODEL, CDC_COMM_PROTOCOL_ATCOMMAND, _stridx,\
   /* CDC Header */\
-  5, TUSB_DESC_CLASS_SPECIFIC, CDC_FUNC_DESC_HEADER, U16_TO_U8S_LE(0x0120),\
+  5, TUSB_DESC_CS_INTERFACE, CDC_FUNC_DESC_HEADER, U16_TO_U8S_LE(0x0120),\
   /* CDC Call */\
-  5, TUSB_DESC_CLASS_SPECIFIC, CDC_FUNC_DESC_CALL_MANAGEMENT, 0, (_itfnum) + 1,\
+  5, TUSB_DESC_CS_INTERFACE, CDC_FUNC_DESC_CALL_MANAGEMENT, 0, (_itfnum) + 1,\
   /* CDC ACM: support line request */\
-  4, TUSB_DESC_CLASS_SPECIFIC, CDC_FUNC_DESC_ABSTRACT_CONTROL_MANAGEMENT, 2,\
+  4, TUSB_DESC_CS_INTERFACE, CDC_FUNC_DESC_ABSTRACT_CONTROL_MANAGEMENT, 2,\
   /* CDC Union */\
-  5, TUSB_DESC_CLASS_SPECIFIC, CDC_FUNC_DESC_UNION, _itfnum, (_itfnum) + 1,\
+  5, TUSB_DESC_CS_INTERFACE, CDC_FUNC_DESC_UNION, _itfnum, (_itfnum) + 1,\
   /* Endpoint Notification */\
   7, TUSB_DESC_ENDPOINT, _ep_notif, TUSB_XFER_INTERRUPT, U16_TO_U8S_LE(_ep_notif_size), 16,\
   /* CDC Data Interface */\
@@ -170,6 +170,43 @@ TU_ATTR_WEAK void tud_resume_cb(void);
   7, TUSB_DESC_ENDPOINT, _epin, TUSB_XFER_INTERRUPT, U16_TO_U8S_LE(_epsize), _ep_interval,\
   /* Endpoint Out */\
   7, TUSB_DESC_ENDPOINT, _epout, TUSB_XFER_INTERRUPT, U16_TO_U8S_LE(_epsize), _ep_interval
+
+//------------- MIDI -------------//
+
+// Length of template descriptor (96 bytes)
+#define TUD_MIDI_DESC_LEN (8 + 9 + 9 + 9 + 7 + 6 + 6 + 9 + 9 + 7 + 5 + 7 + 5)
+
+// MIDI simple descriptor
+// - 1 Embedded Jack In connected to 1 External Jack Out
+// - 1 Embedded Jack out connected to 1 External Jack In
+#define TUD_MIDI_DESCRIPTOR(_itfnum, _stridx, _epin, _epout, _epsize) \
+  /* Interface Associate */\
+  8, TUSB_DESC_INTERFACE_ASSOCIATION, _itfnum, 2, TUSB_CLASS_AUDIO, 0x00, AUDIO_PROTOCOL_V1, 0,\
+  /* Audio Control (AC) Interface */\
+  9, TUSB_DESC_INTERFACE, _itfnum, 0, 0, TUSB_CLASS_AUDIO, AUDIO_SUBCLASS_CONTROL, AUDIO_PROTOCOL_V1, _stridx,\
+  /* AC Header */\
+  9, TUSB_DESC_CS_INTERFACE, AUDIO_CS_INTERFACE_HEADER, U16_TO_U8S_LE(0x0100), U16_TO_U8S_LE(0x0009), 1, _itfnum+1,\
+  /* MIDI Streaming (MS) Interface */\
+  9, TUSB_DESC_INTERFACE, _itfnum+1, 0, 2, TUSB_CLASS_AUDIO, AUDIO_SUBCLASS_MIDI_STREAMING, AUDIO_PROTOCOL_V1, 0,\
+  /* MS Header */\
+  7, TUSB_DESC_CS_INTERFACE, MIDI_CS_INTERFACE_HEADER, U16_TO_U8S_LE(0x0100), U16_TO_U8S_LE(0x0025),\
+  /* MS In Jack (Embedded) */\
+  6, TUSB_DESC_CS_INTERFACE, MIDI_CS_INTERFACE_IN_JACK, MIDI_JACK_EMBEDDED, 1, 0,\
+  /* MS In Jack (External) */\
+  6, TUSB_DESC_CS_INTERFACE, MIDI_CS_INTERFACE_IN_JACK, MIDI_JACK_EXTERNAL, 2, 0,\
+  /* MS Out Jack (Embedded), connected to In Jack External */\
+  9, TUSB_DESC_CS_INTERFACE, MIDI_CS_INTERFACE_OUT_JACK, MIDI_JACK_EMBEDDED, 3, 1, 2, 1, 0,\
+  /* MS Out Jack (External), connected to In Jack Embedded */\
+  9, TUSB_DESC_CS_INTERFACE, MIDI_CS_INTERFACE_OUT_JACK, MIDI_JACK_EXTERNAL, 4, 1, 1, 1, 0,\
+  /* Endpoint Out */\
+  7, TUSB_DESC_ENDPOINT, _epout, TUSB_XFER_BULK, U16_TO_U8S_LE(_epsize), 0,\
+  /* MS Endpoint (connected to embedded jack in) */\
+  5, TUSB_DESC_CS_ENDPOINT, MIDI_CS_ENDPOINT_GENERAL, 1, 1,\
+  /* Endpoint In */\
+  7, TUSB_DESC_ENDPOINT, _epin, TUSB_XFER_BULK, U16_TO_U8S_LE(_epsize), 0,\
+  /* MS Endpoint (connected to embedded jack out) */\
+  5, TUSB_DESC_CS_ENDPOINT, MIDI_CS_ENDPOINT_GENERAL, 1, 3
+
 
 #ifdef __cplusplus
  }
