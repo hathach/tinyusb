@@ -232,60 +232,63 @@ void dcd_edpt_clear_stall (uint8_t rhport, uint8_t ep_addr)
 /*------------------------------------------------------------------*/
 
 static bool maybe_handle_setup_packet(void) {
-    if (USB->DEVICE.DeviceEndpoint[0].EPINTFLAG.bit.RXSTP)
-    {
-        USB->DEVICE.DeviceEndpoint[0].EPINTFLAG.reg = USB_DEVICE_EPINTFLAG_RXSTP;
+  if (USB->DEVICE.DeviceEndpoint[0].EPINTFLAG.bit.RXSTP)
+  {
+    USB->DEVICE.DeviceEndpoint[0].EPINTFLAG.reg = USB_DEVICE_EPINTFLAG_RXSTP;
 
-        // This copies the data elsewhere so we can reuse the buffer.
-        dcd_event_setup_received(0, (uint8_t*) sram_registers[0][0].ADDR.reg, true);
-        return true;
-    }
-    return false;
+    // This copies the data elsewhere so we can reuse the buffer.
+    dcd_event_setup_received(0, (uint8_t*) sram_registers[0][0].ADDR.reg, true);
+    return true;
+  }
+  return false;
 }
 
 void maybe_transfer_complete(void) {
-    uint32_t epints = USB->DEVICE.EPINTSMRY.reg;
-    for (uint8_t epnum = 0; epnum < USB_EPT_NUM; epnum++) {
-        if ((epints & (1 << epnum)) == 0) {
-            continue;
-        }
+  uint32_t epints = USB->DEVICE.EPINTSMRY.reg;
 
-        if (maybe_handle_setup_packet()) {
-            continue;
-        }
-        UsbDeviceEndpoint* ep = &USB->DEVICE.DeviceEndpoint[epnum];
-
-        uint32_t epintflag = ep->EPINTFLAG.reg;
-
-        uint16_t total_transfer_size = 0;
-
-        // Handle IN completions
-        if ((epintflag & USB_DEVICE_EPINTFLAG_TRCPT1) != 0) {
-            ep->EPINTFLAG.reg = USB_DEVICE_EPINTFLAG_TRCPT1;
-
-            UsbDeviceDescBank* bank = &sram_registers[epnum][TUSB_DIR_IN];
-            total_transfer_size = bank->PCKSIZE.bit.BYTE_COUNT;
-
-            uint8_t ep_addr = epnum | TUSB_DIR_IN_MASK;
-            dcd_event_xfer_complete(0, ep_addr, total_transfer_size, XFER_RESULT_SUCCESS, true);
-        }
-
-        // Handle OUT completions
-        if ((epintflag & USB_DEVICE_EPINTFLAG_TRCPT0) != 0) {
-            ep->EPINTFLAG.reg = USB_DEVICE_EPINTFLAG_TRCPT0;
-
-            UsbDeviceDescBank* bank = &sram_registers[epnum][TUSB_DIR_OUT];
-            total_transfer_size = bank->PCKSIZE.bit.BYTE_COUNT;
-
-            uint8_t ep_addr = epnum;
-            dcd_event_xfer_complete(0, ep_addr, total_transfer_size, XFER_RESULT_SUCCESS, true);
-        }
-
-        // just finished status stage (total size = 0), prepare for next setup packet
-        if (epnum == 0 && total_transfer_size == 0) {
-            dcd_edpt_xfer(0, 0, _setup_packet, sizeof(_setup_packet));
-        }
+  for (uint8_t epnum = 0; epnum < USB_EPT_NUM; epnum++) {
+    if ((epints & (1 << epnum)) == 0) {
+      continue;
     }
+
+    if (maybe_handle_setup_packet()) {
+      continue;
+    }
+
+    UsbDeviceEndpoint* ep = &USB->DEVICE.DeviceEndpoint[epnum];
+
+    uint32_t epintflag = ep->EPINTFLAG.reg;
+
+    uint16_t total_transfer_size = 0;
+
+    // Handle IN completions
+    if ((epintflag & USB_DEVICE_EPINTFLAG_TRCPT1) != 0) {
+      ep->EPINTFLAG.reg = USB_DEVICE_EPINTFLAG_TRCPT1;
+
+      UsbDeviceDescBank* bank = &sram_registers[epnum][TUSB_DIR_IN];
+      total_transfer_size = bank->PCKSIZE.bit.BYTE_COUNT;
+
+      uint8_t ep_addr = epnum | TUSB_DIR_IN_MASK;
+      dcd_event_xfer_complete(0, ep_addr, total_transfer_size, XFER_RESULT_SUCCESS, true);
+    }
+
+    // Handle OUT completions
+    if ((epintflag & USB_DEVICE_EPINTFLAG_TRCPT0) != 0) {
+      ep->EPINTFLAG.reg = USB_DEVICE_EPINTFLAG_TRCPT0;
+
+      UsbDeviceDescBank* bank = &sram_registers[epnum][TUSB_DIR_OUT];
+      total_transfer_size = bank->PCKSIZE.bit.BYTE_COUNT;
+
+      uint8_t ep_addr = epnum;
+      dcd_event_xfer_complete(0, ep_addr, total_transfer_size, XFER_RESULT_SUCCESS, true);
+    }
+
+    // Just finished status stage (total size = 0), prepare for next setup packet
+    // TODO could cause issue with actual zero length data used by class such as DFU
+    if (epnum == 0 && total_transfer_size == 0) {
+      dcd_edpt_xfer(0, 0, _setup_packet, sizeof(_setup_packet));
+    }
+  }
 }
 
 void USB_Handler(void)

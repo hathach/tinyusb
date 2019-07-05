@@ -174,14 +174,12 @@ TU_ATTR_WEAK void tud_resume_cb(void);
 //------------- MIDI -------------//
 
 // Length of template descriptor (96 bytes)
-#define TUD_MIDI_DESC_LEN (8 + 9 + 9 + 9 + 7 + 6 + 6 + 9 + 9 + 7 + 5 + 7 + 5)
+#define TUD_MIDI_DESC_LEN (9 + 9 + 9 + 7 + 6 + 6 + 9 + 9 + 7 + 5 + 7 + 5)
 
 // MIDI simple descriptor
 // - 1 Embedded Jack In connected to 1 External Jack Out
 // - 1 Embedded Jack out connected to 1 External Jack In
 #define TUD_MIDI_DESCRIPTOR(_itfnum, _stridx, _epin, _epout, _epsize) \
-  /* Interface Associate */\
-  8, TUSB_DESC_INTERFACE_ASSOCIATION, _itfnum, 2, TUSB_CLASS_AUDIO, 0x00, AUDIO_PROTOCOL_V1, 0,\
   /* Audio Control (AC) Interface */\
   9, TUSB_DESC_INTERFACE, _itfnum, 0, 0, TUSB_CLASS_AUDIO, AUDIO_SUBCLASS_CONTROL, AUDIO_PROTOCOL_V1, _stridx,\
   /* AC Header */\

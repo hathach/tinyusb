@@ -250,15 +250,13 @@ bool midid_open(uint8_t rhport, tusb_desc_interface_t const * p_interface_desc, 
     (*p_length) = sizeof(tusb_desc_interface_t);
 
     // Skip over the class specific descriptor.
-    (*p_length) += p_desc[DESC_OFFSET_LEN];
+    (*p_length) += tu_desc_len(p_desc);
     p_desc = tu_desc_next(p_desc);
     return true;
   }
 
-  if ( AUDIO_SUBCLASS_MIDI_STREAMING != p_interface_desc->bInterfaceSubClass ||
-       p_interface_desc->bInterfaceProtocol != AUDIO_PROTOCOL_V1 ) {
-    return false;
-  }
+  TU_VERIFY(AUDIO_SUBCLASS_MIDI_STREAMING == p_interface_desc->bInterfaceSubClass &&
+            AUDIO_PROTOCOL_V1 == p_interface_desc->bInterfaceProtocol );
 
   // Find available interface
   midid_interface_t * p_midi = NULL;
