@@ -26,5 +26,4 @@ script:
   - ceedling test:all
   
 after_success:
-  # Trigger mynewt-tinyusb-example repo each push
   - source tools/build_sucess.sh
