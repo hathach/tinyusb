@@ -27,4 +27,4 @@ script:
   - cd ..
   
 after_success:
-  - source tools/build_sucess.sh
+  - source tools/build_success.sh
