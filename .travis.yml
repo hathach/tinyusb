@@ -24,6 +24,7 @@ script:
   # Run unit tests
   - cd test
   - ceedling test:all
+  - cd ..
   
 after_success:
   - source tools/build_sucess.sh
