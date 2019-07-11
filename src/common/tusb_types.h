@@ -69,7 +69,7 @@ typedef enum
 }tusb_dir_t;
 
 
-/// USB Descriptor Types (section 9.4 table 9-5)
+/// USB Descriptor Types
 typedef enum
 {
   TUSB_DESC_DEVICE                = 0x01,
@@ -84,29 +84,35 @@ typedef enum
   TUSB_DESC_DEBUG                 = 0x0A,
   TUSB_DESC_INTERFACE_ASSOCIATION = 0x0B,
 
+  TUSB_DESC_BOS                   = 0x0F,
+  TUSB_DESC_DEVICE_CAPABILITY     = 0x10,
+
   // Class Specific Descriptor
   TUSB_DESC_CS_DEVICE             = 0x21,
   TUSB_DESC_CS_CONFIGURATION      = 0x22,
   TUSB_DESC_CS_STRING             = 0x23,
   TUSB_DESC_CS_INTERFACE          = 0x24,
   TUSB_DESC_CS_ENDPOINT           = 0x25,
+
+  TUSB_DESC_SUPERSPEED_ENDPOINT_COMPANION     = 0x30,
+  TUSB_DESC_SUPERSPEED_ISO_ENDPOINT_COMPANION = 0x31
 }tusb_desc_type_t;
 
 typedef enum
 {
-  TUSB_REQ_GET_STATUS =0     , ///< 0
-  TUSB_REQ_CLEAR_FEATURE     , ///< 1
-  TUSB_REQ_RESERVED          , ///< 2
-  TUSB_REQ_SET_FEATURE       , ///< 3
-  TUSB_REQ_RESERVED2         , ///< 4
-  TUSB_REQ_SET_ADDRESS       , ///< 5
-  TUSB_REQ_GET_DESCRIPTOR    , ///< 6
-  TUSB_REQ_SET_DESCRIPTOR    , ///< 7
-  TUSB_REQ_GET_CONFIGURATION , ///< 8
-  TUSB_REQ_SET_CONFIGURATION , ///< 9
-  TUSB_REQ_GET_INTERFACE     , ///< 10
-  TUSB_REQ_SET_INTERFACE     , ///< 11
-  TUSB_REQ_SYNCH_FRAME         ///< 12
+ TUSB_REQ_GET_STATUS        = 0  ,
+ TUSB_REQ_CLEAR_FEATURE     = 1  ,
+ TUSB_REQ_RESERVED          = 2  ,
+ TUSB_REQ_SET_FEATURE       = 3  ,
+ TUSB_REQ_RESERVED2         = 4  ,
+ TUSB_REQ_SET_ADDRESS       = 5  ,
+ TUSB_REQ_GET_DESCRIPTOR    = 6  ,
+ TUSB_REQ_SET_DESCRIPTOR    = 7  ,
+ TUSB_REQ_GET_CONFIGURATION = 8  ,
+ TUSB_REQ_SET_CONFIGURATION = 9  ,
+ TUSB_REQ_GET_INTERFACE     = 10 ,
+ TUSB_REQ_SET_INTERFACE     = 11 ,
+ TUSB_REQ_SYNCH_FRAME       = 12
 }tusb_request_code_t;
 
 typedef enum
@@ -167,6 +173,26 @@ typedef enum
 {
   MISC_PROTOCOL_IAD = 1
 }misc_protocol_type_t;
+
+typedef enum
+{
+  DEVICE_CAPABILITY_WIRELESS_USB               = 0x01,
+  DEVICE_CAPABILITY_USB20_EXTENSION            = 0x02,
+  DEVICE_CAPABILITY_SUPERSPEED_USB             = 0x03,
+  DEVICE_CAPABILITY_CONTAINER_id               = 0x04,
+  DEVICE_CAPABILITY_PLATFORM                   = 0x05,
+  DEVICE_CAPABILITY_POWER_DELIVERY             = 0x06,
+  DEVICE_CAPABILITY_BATTERY_INFO               = 0x07,
+  DEVICE_CAPABILITY_PD_CONSUMER_PORT           = 0x08,
+  DEVICE_CAPABILITY_PD_PROVIDER_PORT           = 0x09,
+  DEVICE_CAPABILITY_SUPERSPEED_PLUS            = 0x0A,
+  DEVICE_CAPABILITY_PRECESION_TIME_MEASUREMENT = 0x0B,
+  DEVICE_CAPABILITY_WIRELESS_USB_EXT           = 0x0C,
+  DEVICE_CAPABILITY_BILLBOARD                  = 0x0D,
+  DEVICE_CAPABILITY_AUTHENTICATION             = 0x0E,
+  DEVICE_CAPABILITY_BILLBOARD_EX               = 0x0F,
+  DEVICE_CAPABILITY_CONFIGURATION_SUMMARY      = 0x10
+}device_capability_type_t;
 
 enum {
   TUSB_DESC_CONFIG_ATT_REMOTE_WAKEUP = TU_BIT(5),
