@@ -40,11 +40,9 @@ tusb_desc_device_t const desc_device =
     .bLength            = sizeof(tusb_desc_device_t),
     .bDescriptorType    = TUSB_DESC_DEVICE,
     .bcdUSB             = 0x0200,
-    // Use Interface Association Descriptor (IAD) for Audio
-    // As required by USB Specs IAD's subclass must be common class (2) and protocol must be IAD (1)
-    .bDeviceClass       = TUSB_CLASS_MISC,
-    .bDeviceSubClass    = MISC_SUBCLASS_COMMON,
-    .bDeviceProtocol    = MISC_PROTOCOL_IAD,
+    .bDeviceClass       = 0x00,
+    .bDeviceSubClass    = 0x00,
+    .bDeviceProtocol    = 0x00,
     .bMaxPacketSize0    = CFG_TUD_ENDOINT0_SIZE,
 
     .idVendor           = 0xCafe,
