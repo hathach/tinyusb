@@ -253,6 +253,14 @@ typedef struct TU_ATTR_PACKED
   uint8_t  bNumConfigurations ; ///< Number of possible configurations.
 } tusb_desc_device_t;
 
+typedef struct TU_ATTR_PACKED
+{
+  uint8_t  bLength         ; ///< Size of this descriptor in bytes
+  uint8_t  bDescriptorType ; ///< CONFIGURATION Descriptor Type
+  uint16_t wTotalLength    ; ///< Total length of data returned for this descriptor
+  uint8_t  bNumDeviceCaps  ; ///< Number of device capability descriptors in the BOS
+} tusb_desc_bos_t;
+
 /// USB Standard Configuration Descriptor (section 9.6.1 table 9-10) */
 typedef struct TU_ATTR_PACKED
 {

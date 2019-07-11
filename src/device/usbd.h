@@ -67,6 +67,10 @@ bool tud_remote_wakeup(void);
 // Application return pointer to descriptor
 uint8_t const * tud_descriptor_device_cb(void);
 
+// Invoked when received GET BOS DESCRIPTOR request
+// Application return pointer to descriptor
+TU_ATTR_WEAK uint8_t const * tud_descriptor_bos_cb(void);
+
 // Invoked when received GET CONFIGURATION DESCRIPTOR request
 // Application return pointer to descriptor, whose contents must exist long enough for transfer to complete
 uint8_t const * tud_descriptor_configuration_cb(uint8_t index);

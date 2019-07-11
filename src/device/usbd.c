@@ -566,10 +566,26 @@ static bool process_get_descriptor(uint8_t rhport, tusb_control_request_t const 
       return usbd_control_xfer(rhport, p_request, (void*) tud_descriptor_device_cb(), sizeof(tusb_desc_device_t));
     break;
 
+    case TUSB_DESC_BOS:
+    {
+      // requested by host if USB > 2.0 ( i.e 2.1 or 3.x )
+      if (!tud_descriptor_bos_cb) return false;
+
+      tusb_desc_bos_t const* desc_bos = (tusb_desc_bos_t const*) tud_descriptor_bos_cb();
+      uint16_t total_len;
+      memcpy(&total_len, &desc_bos->wTotalLength, 2); // possibly mis-aligned memory
+
+      return usbd_control_xfer(rhport, p_request, (void*) desc_bos, total_len);
+    }
+    break;
+
     case TUSB_DESC_CONFIGURATION:
     {
       tusb_desc_configuration_t const* desc_config = (tusb_desc_configuration_t const*) tud_descriptor_configuration_cb(desc_index);
-      return usbd_control_xfer(rhport, p_request, (void*) desc_config, desc_config->wTotalLength);
+      uint16_t total_len;
+      memcpy(&total_len, &desc_config->wTotalLength, 2); // possibly mis-aligned memory
+
+      return usbd_control_xfer(rhport, p_request, (void*) desc_config, total_len);
     }
     break;
 
