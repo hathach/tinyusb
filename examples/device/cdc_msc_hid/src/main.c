@@ -61,9 +61,7 @@ int main(void)
 
   while (1)
   {
-    // tinyusb device task
-    tud_task();
-
+    tud_task(); // tinyusb device task
     led_blinking_task();
 
 #if CFG_TUD_CDC

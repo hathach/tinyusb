@@ -66,11 +66,8 @@ int main(void)
 
   while (1)
   {
-    // tinyusb device task
-    tud_task();
-
+    tud_task(); // tinyusb device task
     led_blinking_task();
-
     midi_task();
   }
 
