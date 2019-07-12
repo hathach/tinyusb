@@ -70,7 +70,7 @@ typedef struct {
   void (* init           ) (void);
   bool (* open           ) (uint8_t rhport, tusb_desc_interface_t const * desc_intf, uint16_t* p_length);
   bool (* control_request ) (uint8_t rhport, tusb_control_request_t const * request);
-  bool (* control_request_complete ) (uint8_t rhport, tusb_control_request_t const * request);
+  bool (* control_complete ) (uint8_t rhport, tusb_control_request_t const * request);
   bool (* xfer_cb        ) (uint8_t rhport, uint8_t ep_addr, xfer_result_t, uint32_t);
   void (* sof            ) (uint8_t rhport);
   void (* reset          ) (uint8_t);
@@ -84,7 +84,7 @@ static usbd_class_driver_t const usbd_class_drivers[] =
         .init            = cdcd_init,
         .open            = cdcd_open,
         .control_request = cdcd_control_request,
-        .control_request_complete = cdcd_control_request_complete,
+        .control_complete = cdcd_control_complete,
         .xfer_cb         = cdcd_xfer_cb,
         .sof             = NULL,
         .reset           = cdcd_reset
@@ -97,7 +97,7 @@ static usbd_class_driver_t const usbd_class_drivers[] =
         .init            = mscd_init,
         .open            = mscd_open,
         .control_request = mscd_control_request,
-        .control_request_complete = mscd_control_request_complete,
+        .control_complete = mscd_control_complete,
         .xfer_cb         = mscd_xfer_cb,
         .sof             = NULL,
         .reset           = mscd_reset
@@ -110,7 +110,7 @@ static usbd_class_driver_t const usbd_class_drivers[] =
         .init            = hidd_init,
         .open            = hidd_open,
         .control_request = hidd_control_request,
-        .control_request_complete = hidd_control_request_complete,
+        .control_complete = hidd_control_complete,
         .xfer_cb         = hidd_xfer_cb,
         .sof             = NULL,
         .reset           = hidd_reset
@@ -123,7 +123,7 @@ static usbd_class_driver_t const usbd_class_drivers[] =
         .init            = midid_init,
         .open            = midid_open,
         .control_request = midid_control_request,
-        .control_request_complete = midid_control_request_complete,
+        .control_complete = midid_control_complete,
         .xfer_cb         = midid_xfer_cb,
         .sof             = NULL,
         .reset           = midid_reset
@@ -136,7 +136,7 @@ static usbd_class_driver_t const usbd_class_drivers[] =
         .init            = cusd_init,
         .open            = cusd_open,
         .control_request = cusd_control_request,
-        .control_request_complete = cusd_control_request_complete,
+        .control_complete = cusd_control_complete,
         .xfer_cb         = cusd_xfer_cb,
         .sof             = NULL,
         .reset           = cusd_reset
@@ -347,6 +347,12 @@ static bool process_control_request(uint8_t rhport, tusb_control_request_t const
 {
   usbd_control_set_complete_callback(NULL);
 
+  // Vendor request
+//  if ( p_request->bmRequestType_bit.type == TUSB_REQ_TYPE_VENDOR )
+//  {
+//
+//  }
+
   switch ( p_request->bmRequestType_bit.recipient )
   {
     //------------- Device Requests e.g in enumeration -------------//
@@ -431,7 +437,7 @@ static bool process_control_request(uint8_t rhport, tusb_control_request_t const
 
       TU_VERIFY(drvid < USBD_CLASS_DRIVER_COUNT);
 
-      usbd_control_set_complete_callback(usbd_class_drivers[drvid].control_request_complete );
+      usbd_control_set_complete_callback(usbd_class_drivers[drvid].control_complete );
 
       // stall control endpoint if driver return false
       return usbd_class_drivers[drvid].control_request(rhport, p_request);

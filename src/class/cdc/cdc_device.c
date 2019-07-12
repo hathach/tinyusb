@@ -300,7 +300,7 @@ bool cdcd_open(uint8_t rhport, tusb_desc_interface_t const * itf_desc, uint16_t 
 
 // Invoked when class request DATA stage is finished.
 // return false to stall control endpoint (e.g Host send non-sense DATA)
-bool cdcd_control_request_complete(uint8_t rhport, tusb_control_request_t const * request)
+bool cdcd_control_complete(uint8_t rhport, tusb_control_request_t const * request)
 {
   (void) rhport;
 

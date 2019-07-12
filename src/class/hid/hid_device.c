@@ -276,7 +276,7 @@ bool hidd_control_request(uint8_t rhport, tusb_control_request_t const * p_reque
 
 // Invoked when class request DATA stage is finished.
 // return false to stall control endpoint (e.g Host send non-sense DATA)
-bool hidd_control_request_complete(uint8_t rhport, tusb_control_request_t const * p_request)
+bool hidd_control_complete(uint8_t rhport, tusb_control_request_t const * p_request)
 {
   (void) rhport;
   hidd_interface_t* p_hid = get_interface_by_itfnum( (uint8_t) p_request->wIndex );

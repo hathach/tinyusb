@@ -51,7 +51,7 @@
 void cusd_init(void);
 bool cusd_open(uint8_t rhport, tusb_desc_interface_t const * itf_desc, uint16_t *p_length);
 bool cusd_control_request_st(uint8_t rhport, tusb_control_request_t const * p_request);
-bool cusd_control_request_complete (uint8_t rhport, tusb_control_request_t const * p_request);
+bool cusd_control_complete (uint8_t rhport, tusb_control_request_t const * p_request);
 bool cusd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t event, uint32_t xferred_bytes);
 void cusd_reset(uint8_t rhport);
 

@@ -77,9 +77,11 @@ uint8_t const * tud_descriptor_device_cb(void)
 // BOS Descriptor is required for webUSB
 uint8_t const desc_bos[] =
 {
+  // total length, number of device caps
   TUD_BOS_DESCRIPTOR(BOS_TOTAL_LEN, 1),
 
-  TUD_BOS_WEBUSB_DESCRIPTOR(0x01, 0)
+  // Vendor Code, iLandingPage
+  TUD_BOS_WEBUSB_DESCRIPTOR(0x01, 1)
 };
 
 uint8_t const * tud_descriptor_bos_cb(void)

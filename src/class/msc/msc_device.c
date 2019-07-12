@@ -178,7 +178,7 @@ bool mscd_control_request(uint8_t rhport, tusb_control_request_t const * p_reque
 
 // Invoked when class request DATA stage is finished.
 // return false to stall control endpoint (e.g Host send non-sense DATA)
-bool mscd_control_request_complete(uint8_t rhport, tusb_control_request_t const * p_request)
+bool mscd_control_complete(uint8_t rhport, tusb_control_request_t const * p_request)
 {
   (void) rhport;
   (void) p_request;

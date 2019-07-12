@@ -300,7 +300,7 @@ bool midid_open(uint8_t rhport, tusb_desc_interface_t const * p_interface_desc, 
   return true;
 }
 
-bool midid_control_request_complete(uint8_t rhport, tusb_control_request_t const * p_request)
+bool midid_control_complete(uint8_t rhport, tusb_control_request_t const * p_request)
 {
   return false;
 }
