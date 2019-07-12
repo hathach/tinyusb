@@ -93,9 +93,21 @@ TU_ATTR_WEAK void tud_suspend_cb(bool remote_wakeup_en);
 TU_ATTR_WEAK void tud_resume_cb(void);
 
 //--------------------------------------------------------------------+
-// Interface Descriptor Template
+// Descriptor Templates
 //--------------------------------------------------------------------+
 
+//------------- Binary Device Object Store (BOS) -------------//
+#define TUD_BOS_DESC_LEN      5
+
+// total length, number of device caps
+#define TUD_BOS_DESCRIPTOR(_total_len, _caps_num) \
+  5, TUSB_DESC_BOS, U16_TO_U8S_LE(_total_len), _caps_num
+
+// Device Capability Platform 128-bit UUID + Data
+#define TUD_BOS_PLATFORM_DESCRIPTOR(...) \
+  4+TU_ARGS_NUM(__VA_ARGS__), TUSB_DESC_DEVICE_CAPABILITY, DEVICE_CAPABILITY_PLATFORM, 0x00, __VA_ARGS__
+
+//------------- Configuration -------------//
 #define TUD_CONFIG_DESC_LEN   (9)
 
 // Interface count, string index, total length, attribute, power in mA
@@ -164,16 +176,16 @@ TU_ATTR_WEAK void tud_resume_cb(void);
 #define TUD_HID_INOUT_DESC_LEN    (9 + 9 + 7 + 7)
 
 // HID Input & Output descriptor
-// Interface number, string index, protocol, report descriptor len, EP In & Out address, size & polling interval
-#define TUD_HID_INOUT_DESCRIPTOR(_itfnum, _stridx, _boot_protocol, _report_desc_len, _epin, _epout, _epsize, _ep_interval) \
+// Interface number, string index, protocol, report descriptor len, EP OUT & IN address, size & polling interval
+#define TUD_HID_INOUT_DESCRIPTOR(_itfnum, _stridx, _boot_protocol, _report_desc_len, _epout, _epin, _epsize, _ep_interval) \
   /* Interface */\
   9, TUSB_DESC_INTERFACE, _itfnum, 0, 2, TUSB_CLASS_HID, (_boot_protocol) ? HID_SUBCLASS_BOOT : 0, _boot_protocol, _stridx,\
   /* HID descriptor */\
   9, HID_DESC_TYPE_HID, U16_TO_U8S_LE(0x0111), 0, 1, HID_DESC_TYPE_REPORT, U16_TO_U8S_LE(_report_desc_len),\
-  /* Endpoint In */\
-  7, TUSB_DESC_ENDPOINT, _epin, TUSB_XFER_INTERRUPT, U16_TO_U8S_LE(_epsize), _ep_interval,\
   /* Endpoint Out */\
-  7, TUSB_DESC_ENDPOINT, _epout, TUSB_XFER_INTERRUPT, U16_TO_U8S_LE(_epsize), _ep_interval
+  7, TUSB_DESC_ENDPOINT, _epout, TUSB_XFER_INTERRUPT, U16_TO_U8S_LE(_epsize), _ep_interval, \
+  /* Endpoint In */\
+  7, TUSB_DESC_ENDPOINT, _epin, TUSB_XFER_INTERRUPT, U16_TO_U8S_LE(_epsize), _ep_interval
 
 //------------- MIDI -------------//
 
@@ -208,6 +220,13 @@ TU_ATTR_WEAK void tud_resume_cb(void);
   7, TUSB_DESC_ENDPOINT, _epin, TUSB_XFER_BULK, U16_TO_U8S_LE(_epsize), 0,\
   /* MS Endpoint (connected to embedded jack out) */\
   5, TUSB_DESC_CS_ENDPOINT, MIDI_CS_ENDPOINT_GENERAL, 1, 3
+
+//------------- WebUSB -------------//
+
+#define TUD_WEBUSB_DESC_LEN
+
+// Interface number, string index, EP Out & IN address, size & polling interval
+#define TUD_WEBUSB_DESCRIPTOR()
 
 
 #ifdef __cplusplus

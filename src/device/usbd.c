@@ -593,8 +593,8 @@ static bool process_get_descriptor(uint8_t rhport, tusb_control_request_t const 
       // String Descriptor always uses the desc set from user
       if ( desc_index == 0xEE )
       {
-        // The 0xEE index string is a Microsoft USB extension.
-        // It can be used to tell Windows what driver it should use for the device !!!
+        // The 0xEE index string is a Microsoft OS Descriptors.
+        // https://docs.microsoft.com/en-us/windows-hardware/drivers/usbcon/microsoft-defined-usb-descriptors
         return false;
       }else
       {

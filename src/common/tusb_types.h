@@ -228,10 +228,10 @@ enum
 };
 
 //--------------------------------------------------------------------+
-// STANDARD DESCRIPTORS
+// USB Standard Descriptors
 //--------------------------------------------------------------------+
 
-/// USB Standard Device Descriptor (section 9.6.1, table 9-8)
+/// USB Device Descriptor
 typedef struct TU_ATTR_PACKED
 {
   uint8_t  bLength            ; ///< Size of this descriptor in bytes.
@@ -253,6 +253,7 @@ typedef struct TU_ATTR_PACKED
   uint8_t  bNumConfigurations ; ///< Number of possible configurations.
 } tusb_desc_device_t;
 
+// USB Binary Device Object Store (BOS) Descriptor
 typedef struct TU_ATTR_PACKED
 {
   uint8_t  bLength         ; ///< Size of this descriptor in bytes
@@ -261,7 +262,7 @@ typedef struct TU_ATTR_PACKED
   uint8_t  bNumDeviceCaps  ; ///< Number of device capability descriptors in the BOS
 } tusb_desc_bos_t;
 
-/// USB Standard Configuration Descriptor (section 9.6.1 table 9-10) */
+/// USB Configuration Descriptor
 typedef struct TU_ATTR_PACKED
 {
   uint8_t  bLength             ; ///< Size of this descriptor in bytes
@@ -275,7 +276,7 @@ typedef struct TU_ATTR_PACKED
   uint8_t  bMaxPower           ; ///< Maximum power consumption of the USB device from the bus in this specific configuration when the device is fully operational. Expressed in 2 mA units (i.e., 50 = 100 mA).
 } tusb_desc_configuration_t;
 
-/// USB Standard Interface Descriptor (section 9.6.1 table 9-12)
+/// USB Interface Descriptor
 typedef struct TU_ATTR_PACKED
 {
   uint8_t  bLength            ; ///< Size of this descriptor in bytes
@@ -290,7 +291,7 @@ typedef struct TU_ATTR_PACKED
   uint8_t  iInterface         ; ///< Index of string descriptor describing this interface
 } tusb_desc_interface_t;
 
-/// USB Standard Endpoint Descriptor (section 9.6.1 table 9-13)
+/// USB Endpoint Descriptor
 typedef struct TU_ATTR_PACKED
 {
   uint8_t  bLength          ; ///< Size of this descriptor in bytes
@@ -314,7 +315,7 @@ typedef struct TU_ATTR_PACKED
   uint8_t  bInterval        ; ///< Interval for polling endpoint for data transfers. Expressed in frames or microframes depending on the device operating speed (i.e., either 1 millisecond or 125 us units). \n- For full-/high-speed isochronous endpoints, this value must be in the range from 1 to 16. The bInterval value is used as the exponent for a \f$ 2^(bInterval-1) \f$ value; e.g., a bInterval of 4 means a period of 8 (\f$ 2^(4-1) \f$). \n- For full-/low-speed interrupt endpoints, the value of this field may be from 1 to 255. \n- For high-speed interrupt endpoints, the bInterval value is used as the exponent for a \f$ 2^(bInterval-1) \f$ value; e.g., a bInterval of 4 means a period of 8 (\f$ 2^(4-1) \f$) . This value must be from 1 to 16. \n- For high-speed bulk/control OUT endpoints, the bInterval must specify the maximum NAK rate of the endpoint. A value of 0 indicates the endpoint never NAKs. Other values indicate at most 1 NAK each bInterval number of microframes. This value must be in the range from 0 to 255. \n Refer to Chapter 5 of USB 2.0 specification for more information.
 } tusb_desc_endpoint_t;
 
-/// USB Other Speed Configuration Descriptor (section 9.6.1 table 9-11)
+/// USB Other Speed Configuration Descriptor
 typedef struct TU_ATTR_PACKED
 {
   uint8_t  bLength             ; ///< Size of descriptor
@@ -328,7 +329,7 @@ typedef struct TU_ATTR_PACKED
   uint8_t  bMaxPower           ; ///< Same as Configuration descriptor
 } tusb_desc_other_speed_t;
 
-/// USB Device Qualifier Descriptor (section 9.6.1 table 9-9)
+/// USB Device Qualifier Descriptor
 typedef struct TU_ATTR_PACKED
 {
   uint8_t  bLength            ; ///< Size of descriptor
@@ -373,6 +374,15 @@ typedef struct TU_ATTR_PACKED
   uint16_t unicode_string[];
 } tusb_desc_string_t;
 
+typedef struct TU_ATTR_PACKED
+{
+  uint8_t bLength;
+  uint8_t bDescriptorType ;
+  uint8_t bDevCapabilityType;
+  uint8_t bReserved;
+  uint8_t PlatformCapabilityUUID[16];
+  uint8_t CapabilityData[];
+} tusb_desc_bos_platform_t;
 
 /*------------------------------------------------------------------*/
 /* Types
@@ -449,7 +459,7 @@ static inline uint8_t tu_desc_len(void const* desc)
 #define TUD_DESC_STR_HEADER(_chr_count)  ( (uint16_t) ( (TUSB_DESC_STRING << 8 ) | TUD_DESC_STRLEN(_chr_count)) )
 
 // Convert comma-separated string to descriptor unicode format
-#define TUD_DESC_STRCONV( ... )     (const uint16_t[]) { TUD_DESC_STR_HEADER(VA_ARGS_NUM_(__VA_ARGS__)), __VA_ARGS__ }
+#define TUD_DESC_STRCONV( ... )     (const uint16_t[]) { TUD_DESC_STR_HEADER(TU_ARGS_NUM(__VA_ARGS__)), __VA_ARGS__ }
 
 #ifdef __cplusplus
  }

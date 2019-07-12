@@ -39,7 +39,7 @@ tusb_desc_device_t const desc_device =
 {
     .bLength            = sizeof(tusb_desc_device_t),
     .bDescriptorType    = TUSB_DESC_DEVICE,
-    .bcdUSB             = 0x0210,
+    .bcdUSB             = 0x0210, // at least 2.1 or 3.x
     .bDeviceClass       = 0x00,
     .bDeviceSubClass    = 0x00,
     .bDeviceProtocol    = 0x00,
@@ -55,6 +55,8 @@ tusb_desc_device_t const desc_device =
 
     .bNumConfigurations = 0x01
 };
+
+// BOS Descriptor: required for webUSB
 
 //------------- Configuration Descriptor -------------//
 enum
