@@ -92,10 +92,8 @@ enum
   ITF_NUM_TOTAL
 };
 
-enum
-{
-  CONFIG_TOTAL_LEN = TUD_CONFIG_DESC_LEN + TUD_HID_INOUT_DESC_LEN
-};
+
+#define  CONFIG_TOTAL_LEN  (TUD_CONFIG_DESC_LEN + TUD_HID_INOUT_DESC_LEN)
 
 // Use Endpoint 2 instead of 1 due to NXP MCU
 // LPC 17xx and 40xx endpoint type (bulk/interrupt/iso) are fixed by its number

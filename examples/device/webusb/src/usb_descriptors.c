@@ -41,7 +41,7 @@ tusb_desc_device_t const desc_device =
 {
     .bLength            = sizeof(tusb_desc_device_t),
     .bDescriptorType    = TUSB_DESC_DEVICE,
-    .bcdUSB             = 0x0210, // at least 2.1 or 3.x
+    .bcdUSB             = 0x0210, // at least 2.1 or 3.x for BOS & webUSB
 
     // Use Interface Association Descriptor (IAD) for CDC
     // As required by USB Specs IAD's subclass must be common class (2) and protocol must be IAD (1)
@@ -72,11 +72,20 @@ uint8_t const * tud_descriptor_device_cb(void)
 // BOS Descriptor
 //--------------------------------------------------------------------+
 
+#define BOS_TOTAL_LEN   (TUD_BOS_DESC_LEN + TUD_BOS_WEBUSB_DESC_LEN)
+
 // BOS Descriptor is required for webUSB
 uint8_t const desc_bos[] =
 {
+  TUD_BOS_DESCRIPTOR(BOS_TOTAL_LEN, 1),
 
+  TUD_BOS_WEBUSB_DESCRIPTOR(0x01, 0)
 };
+
+uint8_t const * tud_descriptor_bos_cb(void)
+{
+  return desc_bos;
+}
 
 //--------------------------------------------------------------------+
 // Configuration Descriptor
@@ -85,13 +94,11 @@ enum
 {
   ITF_NUM_CDC = 0,
   ITF_NUM_CDC_DATA,
+
   ITF_NUM_TOTAL
 };
 
-enum
-{
-  CONFIG_TOTAL_LEN = TUD_CONFIG_DESC_LEN + TUD_CDC_DESC_LEN
-};
+#define CONFIG_TOTAL_LEN    (TUD_CONFIG_DESC_LEN + TUD_CDC_DESC_LEN)
 
 // Use Endpoint 2 instead of 1 due to NXP MCU
 // LPC 17xx and 40xx endpoint type (bulk/interrupt/iso) are fixed by its number

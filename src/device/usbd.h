@@ -223,10 +223,31 @@ TU_ATTR_WEAK void tud_resume_cb(void);
 
 //------------- WebUSB -------------//
 
-#define TUD_WEBUSB_DESC_LEN
+// Descriptor Length
+#define TUD_BOS_WEBUSB_DESC_LEN   24
+
+// Vendor Code, iLandingPage
+#define TUD_BOS_WEBUSB_DESCRIPTOR(_vendor_code, _ipage) \
+  TUD_BOS_PLATFORM_DESCRIPTOR(TUD_BOS_WEBUSB_UUID, U16_TO_U8S_LE(0x0100), _vendor_code, _ipage)
+
+#define TUD_BOS_WEBUSB_UUID   \
+  0x38, 0xB6, 0x08, 0x34, 0xA9, 0x09, 0xA0, 0x47, \
+  0x8B, 0xFD, 0xA0, 0x76, 0x88, 0x15, 0xB6, 0x65
+
+#if 0
+//------------- Custom -------------//
+
+#define TUD_WEBUSB_DESC_LEN  (9+7+7)
 
 // Interface number, string index, EP Out & IN address, size & polling interval
-#define TUD_WEBUSB_DESCRIPTOR()
+#define TUD_WEBUSB_DESCRIPTOR(_itfnum, _stridx) \
+  /* Interface */\
+  9, TUSB_DESC_INTERFACE, _itfnum, 0, 2, TUSB_CLASS_VENDOR_SPECIFIC, 0x00, 0x00, _stridx,\
+  /* Endpoint Out */\
+  7, TUSB_DESC_ENDPOINT, _epout, TUSB_XFER_BULK, U16_TO_U8S_LE(_epsize), 0,\
+  /* Endpoint In */\
+  7, TUSB_DESC_ENDPOINT, _epin, TUSB_XFER_BULK, U16_TO_U8S_LE(_epsize), 0
+#endif
 
 
 #ifdef __cplusplus
