@@ -34,15 +34,20 @@
 #define _PID_MAP(itf, n)  ( (CFG_TUD_##itf) << (n) )
 #define USB_PID           (0x4000 | _PID_MAP(CDC, 0) | _PID_MAP(MSC, 1) | _PID_MAP(HID, 2) | _PID_MAP(MIDI, 3) )
 
-//------------- Device Descriptors -------------//
+//--------------------------------------------------------------------+
+// Device Descriptors
+//--------------------------------------------------------------------+
 tusb_desc_device_t const desc_device =
 {
     .bLength            = sizeof(tusb_desc_device_t),
     .bDescriptorType    = TUSB_DESC_DEVICE,
     .bcdUSB             = 0x0210, // at least 2.1 or 3.x
-    .bDeviceClass       = 0x00,
-    .bDeviceSubClass    = 0x00,
-    .bDeviceProtocol    = 0x00,
+
+    // Use Interface Association Descriptor (IAD) for CDC
+    // As required by USB Specs IAD's subclass must be common class (2) and protocol must be IAD (1)
+    .bDeviceClass       = TUSB_CLASS_MISC,
+    .bDeviceSubClass    = MISC_SUBCLASS_COMMON,
+    .bDeviceProtocol    = MISC_PROTOCOL_IAD,
     .bMaxPacketSize0    = CFG_TUD_ENDOINT0_SIZE,
 
     .idVendor           = 0xCafe,
@@ -56,39 +61,51 @@ tusb_desc_device_t const desc_device =
     .bNumConfigurations = 0x01
 };
 
-// BOS Descriptor: required for webUSB
-
-//------------- Configuration Descriptor -------------//
-enum
-{
-  ITF_NUM_WEBUSB = 0,
-  ITF_NUM_TOTAL
-};
-
-enum
-{
-  CONFIG_TOTAL_LEN = TUD_CONFIG_DESC_LEN + TUD_MIDI_DESC_LEN
-};
-
-// Use Endpoint 2 instead of 1 due to NXP MCU
-// LPC 17xx and 40xx endpoint type (bulk/interrupt/iso) are fixed by its number
-// 0 control, 1 In, 2 Bulk, 3 Iso, 4 In etc ...
-#define EPNUM_MIDI   0x02
-
-uint8_t const desc_configuration[] =
-{
-  // Interface count, string index, total length, attribute, power in mA
-  TUD_CONFIG_DESCRIPTOR(ITF_NUM_TOTAL, 0, CONFIG_TOTAL_LEN, TUSB_DESC_CONFIG_ATT_REMOTE_WAKEUP, 100),
-
-  // Interface number, string index, EP Out & EP In address, EP size
-};
-
 // Invoked when received GET DEVICE DESCRIPTOR
 // Application return pointer to descriptor
 uint8_t const * tud_descriptor_device_cb(void)
 {
   return (uint8_t const *) &desc_device;
 }
+
+//--------------------------------------------------------------------+
+// BOS Descriptor
+//--------------------------------------------------------------------+
+
+// BOS Descriptor is required for webUSB
+uint8_t const desc_bos[] =
+{
+
+};
+
+//--------------------------------------------------------------------+
+// Configuration Descriptor
+//--------------------------------------------------------------------+
+enum
+{
+  ITF_NUM_CDC = 0,
+  ITF_NUM_CDC_DATA,
+  ITF_NUM_TOTAL
+};
+
+enum
+{
+  CONFIG_TOTAL_LEN = TUD_CONFIG_DESC_LEN + TUD_CDC_DESC_LEN
+};
+
+// Use Endpoint 2 instead of 1 due to NXP MCU
+// LPC 17xx and 40xx endpoint type (bulk/interrupt/iso) are fixed by its number
+// 0 control, 1 In, 2 Bulk, 3 Iso, 4 In etc ...
+#define EPNUM_CDC   0x02
+
+uint8_t const desc_configuration[] =
+{
+  // Interface count, string index, total length, attribute, power in mA
+  TUD_CONFIG_DESCRIPTOR(ITF_NUM_TOTAL, 0, CONFIG_TOTAL_LEN, TUSB_DESC_CONFIG_ATT_REMOTE_WAKEUP, 100),
+
+  // Interface number, string index, EP notification address and size, EP data address (out, in) and size.
+  TUD_CDC_DESCRIPTOR(ITF_NUM_CDC, 4, 0x81, 8, EPNUM_CDC, 0x80 | EPNUM_CDC, 64),
+};
 
 // Invoked when received GET CONFIGURATION DESCRIPTOR
 // Application return pointer to descriptor
@@ -99,7 +116,9 @@ uint8_t const * tud_descriptor_configuration_cb(uint8_t index)
   return desc_configuration;
 }
 
-//------------- String Descriptors -------------//
+//--------------------------------------------------------------------+
+// String Descriptors
+//--------------------------------------------------------------------+
 
 // array of pointer to string descriptors
 char const* string_desc_arr [] =
@@ -108,6 +127,7 @@ char const* string_desc_arr [] =
   "TinyUSB",                     // 1: Manufacturer
   "TinyUSB Device",              // 2: Product
   "123456",                      // 3: Serials, should use chip ID
+  "TinyUSB CDC",                 // 4: CDC Interface
 };
 
 static uint16_t _desc_str[32];
