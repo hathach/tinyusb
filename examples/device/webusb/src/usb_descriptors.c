@@ -174,3 +174,41 @@ uint16_t const* tud_descriptor_string_cb(uint8_t index)
 
   return _desc_str;
 }
+
+//--------------------------------------------------------------------+
+// WebUSB URL Descriptor
+//--------------------------------------------------------------------+
+#define URL  "github.com/hathach/tinyusb"
+
+typedef struct TU_ATTR_PACKED
+{
+  uint8_t bLength;
+  uint8_t bDescriptorType;
+  uint8_t bScheme;
+  char    url[];
+} tusb_desc_webusb_url_t;
+
+const tusb_desc_webusb_url_t desc_url =
+{
+  .bLength = 3 + sizeof(URL) - 1,
+  .bDescriptorType = 3, // WEBUSB URL type
+  .bScheme = 1, // 0: http, 1: https
+  .url = URL
+};
+
+bool tud_control_vendor_request_cb(uint8_t rhport, tusb_control_request_t const * request)
+{
+  if ( request->bRequest == 0x01 ) // webusb vendor code
+  {
+    return tud_control_xfer(rhport, request, (void*) &desc_url, desc_url.bLength);
+  }else
+  {
+    return false;
+  }
+}
+
+bool tud_control_vendor_complete_cb(uint8_t rhport, tusb_control_request_t const * request)
+{
+  (void) rhport;
+  return true;
+}

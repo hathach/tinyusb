@@ -154,7 +154,7 @@ bool mscd_control_request(uint8_t rhport, tusb_control_request_t const * p_reque
   {
     case MSC_REQ_RESET:
       // TODO: Actually reset interface.
-      usbd_control_status(rhport, p_request);
+      tud_control_status(rhport, p_request);
     break;
 
     case MSC_REQ_GET_MAX_LUN:
@@ -166,7 +166,7 @@ bool mscd_control_request(uint8_t rhport, tusb_control_request_t const * p_reque
       // MAX LUN is minus 1 by specs
       maxlun--;
 
-      usbd_control_xfer(rhport, p_request, &maxlun, 1);
+      tud_control_xfer(rhport, p_request, &maxlun, 1);
     }
     break;
 

@@ -39,14 +39,6 @@ bool usbd_init (void);
 // USBD Endpoint API
 //--------------------------------------------------------------------+
 
-// Carry out Data and Status stage of control transfer
-// - If len = 0, it is equivalent to sending status only
-// - If len > wLength : it will be truncated
-bool usbd_control_xfer(uint8_t rhport, tusb_control_request_t const * request, void* buffer, uint16_t len);
-
-// Send STATUS (zero length) packet
-bool usbd_control_status(uint8_t rhport, tusb_control_request_t const * request);
-
 // Submit a usb transfer
 bool usbd_edpt_xfer        (uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t total_bytes);
 

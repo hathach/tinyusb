@@ -59,7 +59,7 @@ void usbd_control_reset (uint8_t rhport)
   tu_varclr(&_control_state);
 }
 
-bool usbd_control_status(uint8_t rhport, tusb_control_request_t const * request)
+bool tud_control_status(uint8_t rhport, tusb_control_request_t const * request)
 {
   // status direction is reversed to one in the setup packet
   return dcd_edpt_xfer(rhport, request->bmRequestType_bit.direction ? EDPT_CTRL_OUT : EDPT_CTRL_IN, NULL, 0);
@@ -87,7 +87,7 @@ void usbd_control_set_complete_callback( bool (*fp) (uint8_t, tusb_control_reque
   _control_state.complete_cb = fp;
 }
 
-bool usbd_control_xfer(uint8_t rhport, tusb_control_request_t const * request, void* buffer, uint16_t len)
+bool tud_control_xfer(uint8_t rhport, tusb_control_request_t const * request, void* buffer, uint16_t len)
 {
   _control_state.request = (*request);
   _control_state.buffer = buffer;
@@ -103,7 +103,7 @@ bool usbd_control_xfer(uint8_t rhport, tusb_control_request_t const * request, v
   }else
   {
     // Status stage
-    TU_ASSERT( usbd_control_status(rhport, request) );
+    TU_ASSERT( tud_control_status(rhport, request) );
   }
 
   return true;
@@ -139,7 +139,7 @@ bool usbd_control_xfer_cb (uint8_t rhport, uint8_t ep_addr, xfer_result_t result
     if ( is_ok )
     {
       // Send status
-      TU_ASSERT( usbd_control_status(rhport, &_control_state.request) );
+      TU_ASSERT( tud_control_status(rhport, &_control_state.request) );
     }else
     {
       // Stall both IN and OUT control endpoint
