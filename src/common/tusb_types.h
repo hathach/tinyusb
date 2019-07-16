@@ -228,7 +228,7 @@ enum
 };
 
 //--------------------------------------------------------------------+
-// USB Standard Descriptors
+// USB Descriptors
 //--------------------------------------------------------------------+
 
 /// USB Device Descriptor
@@ -360,13 +360,7 @@ typedef struct TU_ATTR_PACKED
   uint8_t iFunction         ; ///< Index of the string descriptor describing the interface association.
 } tusb_desc_interface_assoc_t;
 
-/// USB Header Descriptor
-typedef struct TU_ATTR_PACKED
-{
-  uint8_t  bLength         ; ///< Size of this descriptor in bytes
-  uint8_t  bDescriptorType ; ///< Descriptor Type
-} tusb_desc_header_t;
-
+// USB String Descriptor
 typedef struct TU_ATTR_PACKED
 {
   uint8_t  bLength         ; ///< Size of this descriptor in bytes
@@ -374,6 +368,7 @@ typedef struct TU_ATTR_PACKED
   uint16_t unicode_string[];
 } tusb_desc_string_t;
 
+// USB Binary Device Object Store (BOS)
 typedef struct TU_ATTR_PACKED
 {
   uint8_t bLength;
@@ -383,6 +378,15 @@ typedef struct TU_ATTR_PACKED
   uint8_t PlatformCapabilityUUID[16];
   uint8_t CapabilityData[];
 } tusb_desc_bos_platform_t;
+
+// USB WebuSB URL Descriptor
+typedef struct TU_ATTR_PACKED
+{
+  uint8_t bLength;
+  uint8_t bDescriptorType;
+  uint8_t bScheme;
+  char    url[];
+} tusb_desc_webusb_url_t;
 
 /*------------------------------------------------------------------*/
 /* Types
