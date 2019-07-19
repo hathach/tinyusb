@@ -43,20 +43,20 @@
 typedef struct {
   struct TU_ATTR_PACKED
   {
-      volatile uint8_t connected    : 1;
-      volatile uint8_t configured   : 1;
-      volatile uint8_t suspended    : 1;
+    volatile uint8_t connected    : 1;
+    volatile uint8_t configured   : 1;
+    volatile uint8_t suspended    : 1;
 
-      uint8_t remote_wakeup_en      : 1; // enable/disable by host
-      uint8_t remote_wakeup_support : 1; // configuration descriptor's attribute
-      uint8_t self_powered          : 1; // configuration descriptor's attribute
+    uint8_t remote_wakeup_en      : 1; // enable/disable by host
+    uint8_t remote_wakeup_support : 1; // configuration descriptor's attribute
+    uint8_t self_powered          : 1; // configuration descriptor's attribute
   };
 
   uint8_t ep_busy_map[2];  // bit mask for busy endpoint
   uint8_t ep_stall_map[2]; // bit map for stalled endpoint
 
-  uint8_t itf2drv[16];      // map interface number to driver (0xff is invalid)
-  uint8_t ep2drv[8][2];     // map endpoint to driver ( 0xff is invalid )
+  uint8_t itf2drv[16];     // map interface number to driver (0xff is invalid)
+  uint8_t ep2drv[8][2];    // map endpoint to driver ( 0xff is invalid )
 }usbd_device_t;
 
 static usbd_device_t _usbd_dev = { 0 };
@@ -71,7 +71,7 @@ typedef struct {
   bool (* open             ) (uint8_t rhport, tusb_desc_interface_t const * desc_intf, uint16_t* p_length);
   bool (* control_request  ) (uint8_t rhport, tusb_control_request_t const * request);
   bool (* control_complete ) (uint8_t rhport, tusb_control_request_t const * request);
-  bool (* xfer_cb          ) (uint8_t rhport, uint8_t ep_addr, xfer_result_t, uint32_t);
+  bool (* xfer_cb          ) (uint8_t rhport, uint8_t ep_addr, xfer_result_t event, uint32_t xferred_bytes);
   void (* sof              ) (uint8_t rhport);
   void (* reset            ) (uint8_t);
 } usbd_class_driver_t;
@@ -79,68 +79,68 @@ typedef struct {
 static usbd_class_driver_t const usbd_class_drivers[] =
 {
   #if CFG_TUD_CDC
-    {
-        .class_code      = TUSB_CLASS_CDC,
-        .init            = cdcd_init,
-        .open            = cdcd_open,
-        .control_request = cdcd_control_request,
-        .control_complete = cdcd_control_complete,
-        .xfer_cb         = cdcd_xfer_cb,
-        .sof             = NULL,
-        .reset           = cdcd_reset
-    },
+  {
+      .class_code       = TUSB_CLASS_CDC,
+      .init             = cdcd_init,
+      .open             = cdcd_open,
+      .control_request  = cdcd_control_request,
+      .control_complete = cdcd_control_complete,
+      .xfer_cb          = cdcd_xfer_cb,
+      .sof              = NULL,
+      .reset            = cdcd_reset
+  },
   #endif
 
   #if CFG_TUD_MSC
-    {
-        .class_code      = TUSB_CLASS_MSC,
-        .init            = mscd_init,
-        .open            = mscd_open,
-        .control_request = mscd_control_request,
-        .control_complete = mscd_control_complete,
-        .xfer_cb         = mscd_xfer_cb,
-        .sof             = NULL,
-        .reset           = mscd_reset
-    },
+  {
+      .class_code       = TUSB_CLASS_MSC,
+      .init             = mscd_init,
+      .open             = mscd_open,
+      .control_request  = mscd_control_request,
+      .control_complete = mscd_control_complete,
+      .xfer_cb          = mscd_xfer_cb,
+      .sof              = NULL,
+      .reset            = mscd_reset
+  },
   #endif
 
   #if CFG_TUD_HID
-    {
-        .class_code      = TUSB_CLASS_HID,
-        .init            = hidd_init,
-        .open            = hidd_open,
-        .control_request = hidd_control_request,
-        .control_complete = hidd_control_complete,
-        .xfer_cb         = hidd_xfer_cb,
-        .sof             = NULL,
-        .reset           = hidd_reset
-    },
+  {
+      .class_code       = TUSB_CLASS_HID,
+      .init             = hidd_init,
+      .open             = hidd_open,
+      .control_request  = hidd_control_request,
+      .control_complete = hidd_control_complete,
+      .xfer_cb          = hidd_xfer_cb,
+      .sof              = NULL,
+      .reset            = hidd_reset
+  },
   #endif
 
   #if CFG_TUD_MIDI
-    {
-        .class_code      = TUSB_CLASS_AUDIO,
-        .init            = midid_init,
-        .open            = midid_open,
-        .control_request = midid_control_request,
-        .control_complete = midid_control_complete,
-        .xfer_cb         = midid_xfer_cb,
-        .sof             = NULL,
-        .reset           = midid_reset
-    },
+  {
+      .class_code       = TUSB_CLASS_AUDIO,
+      .init             = midid_init,
+      .open             = midid_open,
+      .control_request  = midid_control_request,
+      .control_complete = midid_control_complete,
+      .xfer_cb          = midid_xfer_cb,
+      .sof              = NULL,
+      .reset            = midid_reset
+  },
   #endif
 
   #if CFG_TUD_VENDOR
-    {
-        .class_code      = TUSB_CLASS_VENDOR_SPECIFIC,
-        .init            = cusd_init,
-        .open            = cusd_open,
-        .control_request = cusd_control_request,
-        .control_complete = cusd_control_complete,
-        .xfer_cb         = cusd_xfer_cb,
-        .sof             = NULL,
-        .reset           = cusd_reset
-    },
+  {
+      .class_code       = TUSB_CLASS_VENDOR_SPECIFIC,
+      .init             = cusd_init,
+      .open             = cusd_open,
+      .control_request  = cusd_control_request,
+      .control_complete = cusd_control_complete,
+      .xfer_cb          = cusd_xfer_cb,
+      .sof              = NULL,
+      .reset            = cusd_reset
+  },
   #endif
 };
 
