@@ -32,7 +32,7 @@
 // INCLUDE
 //--------------------------------------------------------------------+
 #include "common/tusb_common.h"
-#include "custom_host.h"
+#include "vendor_host.h"
 
 //--------------------------------------------------------------------+
 // MACRO CONSTANT TYPEDEF

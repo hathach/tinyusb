@@ -29,7 +29,7 @@
 #if (TUSB_OPT_DEVICE_ENABLED && CFG_TUD_VENDOR)
 
 #include "common/tusb_common.h"
-#include "custom_device.h"
+#include "vendor_device.h"
 #include "device/usbd_pvt.h"
 
 /*------------------------------------------------------------------*/

@@ -55,7 +55,7 @@
   #endif
 
   #if CFG_TUH_VENDOR
-    #include "class/custom_host.h"
+    #include "class/vendor/vendor_host.h"
   #endif
 
 #endif
@@ -81,7 +81,7 @@
   #endif
 
   #if CFG_TUD_VENDOR
-    #include "class/custom/custom_device.h"
+    #include "class/vendor/vendor_device.h"
   #endif
 #endif
 
