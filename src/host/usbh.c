@@ -84,7 +84,7 @@ static host_class_driver_t const usbh_class_drivers[] =
     },
   #endif
 
-  #if CFG_TUSB_HOST_CUSTOM_CLASS
+  #if CFG_TUH_VENDOR
     {
       .class_code = TUSB_CLASS_VENDOR_SPECIFIC,
       .init       = cush_init,

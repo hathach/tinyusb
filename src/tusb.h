@@ -54,7 +54,7 @@
     #include "class/cdc/cdc_host.h"
   #endif
 
-  #if CFG_TUSB_HOST_CUSTOM_CLASS
+  #if CFG_TUH_VENDOR
     #include "class/custom_host.h"
   #endif
 
