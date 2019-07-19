@@ -161,8 +161,8 @@
   #define CFG_TUD_MIDI            0
 #endif
 
-#ifndef CFG_TUD_CUSTOM_CLASS
-  #define CFG_TUD_CUSTOM_CLASS    0
+#ifndef CFG_TUD_VENDOR
+  #define CFG_TUD_VENDOR    0
 #endif
 
 

@@ -130,7 +130,7 @@ static usbd_class_driver_t const usbd_class_drivers[] =
     },
   #endif
 
-  #if CFG_TUD_CUSTOM_CLASS
+  #if CFG_TUD_VENDOR
     {
         .class_code      = TUSB_CLASS_VENDOR_SPECIFIC,
         .init            = cusd_init,

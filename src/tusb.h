@@ -80,7 +80,7 @@
     #include "class/midi/midi_device.h"
   #endif
 
-  #if CFG_TUD_CUSTOM_CLASS
+  #if CFG_TUD_VENDOR
     #include "class/custom/custom_device.h"
   #endif
 #endif

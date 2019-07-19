@@ -26,7 +26,7 @@
 
 #include "tusb_option.h"
 
-#if (TUSB_OPT_DEVICE_ENABLED && CFG_TUD_CUSTOM_CLASS)
+#if (TUSB_OPT_DEVICE_ENABLED && CFG_TUD_VENDOR)
 
 #include "common/tusb_common.h"
 #include "custom_device.h"
