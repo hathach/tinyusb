@@ -45,21 +45,27 @@ typedef struct {
   uint8_t ep_in;
   uint8_t ep_out;
 
-} cusd_interface_t;
+} vendord_interface_t;
 
-static cusd_interface_t _cusd_itf;
+static vendord_interface_t _vendord_itf;
 
 /*------------------------------------------------------------------*/
 /* FUNCTION DECLARATION
  *------------------------------------------------------------------*/
-void cusd_init(void)
+void vendord_init(void)
 {
-  tu_varclr(&_cusd_itf);
+  tu_varclr(&_vendord_itf);
 }
 
-bool cusd_open(uint8_t rhport, tusb_desc_interface_t const * p_desc_itf, uint16_t *p_len)
+void vendord_reset(uint8_t rhport)
 {
-  cusd_interface_t* p_itf = &_cusd_itf;
+
+}
+
+
+bool vendord_open(uint8_t rhport, tusb_desc_interface_t const * p_desc_itf, uint16_t *p_len)
+{
+  vendord_interface_t* p_itf = &_vendord_itf;
 
   // Open endpoint pair with usbd helper
   tusb_desc_endpoint_t const *p_desc_ep = (tusb_desc_endpoint_t const *) tu_desc_next(p_desc_itf);
@@ -75,19 +81,10 @@ bool cusd_open(uint8_t rhport, tusb_desc_interface_t const * p_desc_itf, uint16_
   return true;
 }
 
-bool cusd_control_request(uint8_t rhport, tusb_control_request_t const * p_request)
-{
-  return false;
-}
-
-bool cusd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t event, uint32_t xferred_bytes)
+bool vendord_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t event, uint32_t xferred_bytes)
 {
   return true;
 }
 
-void cusd_reset(uint8_t rhport)
-{
-
-}
 
 #endif

@@ -40,6 +40,11 @@
 // Should be used with MCU supporting only 1 USB port for code simplicity
 //--------------------------------------------------------------------+
 
+bool tud_vendor_mounted(void);
+
+uint32_t tud_vendor_write(void const* buffer, uint32_t bufsize);
+uint32_t tud_vendor_read(void* buffer, uint32_t bufsize);
+
 
 //--------------------------------------------------------------------+
 // APPLICATION CALLBACK API (WEAK is optional)
@@ -48,11 +53,9 @@
 //--------------------------------------------------------------------+
 // Internal Class Driver API
 //--------------------------------------------------------------------+
-void cusd_init(void);
-bool cusd_open(uint8_t rhport, tusb_desc_interface_t const * itf_desc, uint16_t *p_length);
-bool cusd_control_request_st(uint8_t rhport, tusb_control_request_t const * p_request);
-bool cusd_control_complete (uint8_t rhport, tusb_control_request_t const * p_request);
-bool cusd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t event, uint32_t xferred_bytes);
-void cusd_reset(uint8_t rhport);
+void vendord_init(void);
+void vendord_reset(uint8_t rhport);
+bool vendord_open(uint8_t rhport, tusb_desc_interface_t const * itf_desc, uint16_t *p_length);
+bool vendord_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t event, uint32_t xferred_bytes);
 
 #endif /* _TUSB_CUSTOM_DEVICE_H_ */

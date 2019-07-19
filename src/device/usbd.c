@@ -68,12 +68,12 @@ typedef struct {
   uint8_t class_code;
 
   void (* init             ) (void);
+  void (* reset            ) (uint8_t rhport);
   bool (* open             ) (uint8_t rhport, tusb_desc_interface_t const * desc_intf, uint16_t* p_length);
   bool (* control_request  ) (uint8_t rhport, tusb_control_request_t const * request);
   bool (* control_complete ) (uint8_t rhport, tusb_control_request_t const * request);
   bool (* xfer_cb          ) (uint8_t rhport, uint8_t ep_addr, xfer_result_t event, uint32_t xferred_bytes);
   void (* sof              ) (uint8_t rhport);
-  void (* reset            ) (uint8_t);
 } usbd_class_driver_t;
 
 static usbd_class_driver_t const usbd_class_drivers[] =
@@ -82,12 +82,12 @@ static usbd_class_driver_t const usbd_class_drivers[] =
   {
       .class_code       = TUSB_CLASS_CDC,
       .init             = cdcd_init,
+      .reset            = cdcd_reset,
       .open             = cdcd_open,
       .control_request  = cdcd_control_request,
       .control_complete = cdcd_control_complete,
       .xfer_cb          = cdcd_xfer_cb,
-      .sof              = NULL,
-      .reset            = cdcd_reset
+      .sof              = NULL
   },
   #endif
 
@@ -95,12 +95,12 @@ static usbd_class_driver_t const usbd_class_drivers[] =
   {
       .class_code       = TUSB_CLASS_MSC,
       .init             = mscd_init,
+      .reset            = mscd_reset,
       .open             = mscd_open,
       .control_request  = mscd_control_request,
       .control_complete = mscd_control_complete,
       .xfer_cb          = mscd_xfer_cb,
-      .sof              = NULL,
-      .reset            = mscd_reset
+      .sof              = NULL
   },
   #endif
 
@@ -108,12 +108,12 @@ static usbd_class_driver_t const usbd_class_drivers[] =
   {
       .class_code       = TUSB_CLASS_HID,
       .init             = hidd_init,
+      .reset            = hidd_reset,
       .open             = hidd_open,
       .control_request  = hidd_control_request,
       .control_complete = hidd_control_complete,
       .xfer_cb          = hidd_xfer_cb,
-      .sof              = NULL,
-      .reset            = hidd_reset
+      .sof              = NULL
   },
   #endif
 
@@ -122,24 +122,24 @@ static usbd_class_driver_t const usbd_class_drivers[] =
       .class_code       = TUSB_CLASS_AUDIO,
       .init             = midid_init,
       .open             = midid_open,
+      .reset            = midid_reset,
       .control_request  = midid_control_request,
       .control_complete = midid_control_complete,
       .xfer_cb          = midid_xfer_cb,
-      .sof              = NULL,
-      .reset            = midid_reset
+      .sof              = NULL
   },
   #endif
 
   #if CFG_TUD_VENDOR
   {
       .class_code       = TUSB_CLASS_VENDOR_SPECIFIC,
-      .init             = cusd_init,
-      .open             = cusd_open,
-      .control_request  = cusd_control_request,
-      .control_complete = cusd_control_complete,
-      .xfer_cb          = cusd_xfer_cb,
-      .sof              = NULL,
-      .reset            = cusd_reset
+      .init             = vendord_init,
+      .reset            = vendord_reset,
+      .open             = vendord_open,
+      .control_request  = NULL, // tud_control_vendor_request_cb
+      .control_complete = NULL, // tud_control_vendor_complete_cb
+      .xfer_cb          = vendord_xfer_cb,
+      .sof              = NULL
   },
   #endif
 };
