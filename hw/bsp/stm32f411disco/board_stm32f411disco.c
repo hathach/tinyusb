@@ -27,9 +27,28 @@
 #include "../board.h"
 
 #include "stm32f4xx.h"
+#include "stm32f4xx_hal_conf.h"
+
+#define LED_PORT  GPIOD
+#define LED_PIN   GPIO_PIN_13
 
 void board_init(void)
 {
+  /* Configure the GPIO_LED pin */
+  __HAL_RCC_GPIOD_CLK_ENABLE();
+
+  GPIO_InitTypeDef  GPIO_InitStruct;
+  GPIO_InitStruct.Pin = LED_PIN;
+  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
+  GPIO_InitStruct.Pull = GPIO_PULLUP;
+  GPIO_InitStruct.Speed = GPIO_SPEED_FAST;
+
+  HAL_GPIO_Init(LED_PORT, &GPIO_InitStruct);
+
+  HAL_GPIO_WritePin(LED_PORT, LED_PIN, GPIO_PIN_RESET);
+
+
+#if 0
   // Init the LED on PD14
   RCC->AHB1ENR |= RCC_AHB1ENR_GPIODEN;
   GPIOD->MODER |= GPIO_MODER_MODE14_0;
@@ -84,6 +103,7 @@ void board_init(void)
   // Pullup required on ID, despite the manual claiming there's an
   // internal pullup already (page 1245, Rev 17)
   GPIOA->PUPDR |= GPIO_PUPDR_PUPD10_0;
+#endif
 }
 
 //--------------------------------------------------------------------+
