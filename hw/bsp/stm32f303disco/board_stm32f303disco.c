@@ -34,6 +34,12 @@
 
 void board_init(void)
 {
+  #if CFG_TUSB_OS  == OPT_OS_NONE
+  // 1ms tick timer
+  SysTick_Config(SystemCoreClock / 1000);
+  #endif
+
+  /* Configure the system clock to 72 MHz */
   RCC_ClkInitTypeDef RCC_ClkInitStruct;
   RCC_OscInitTypeDef RCC_OscInitStruct;
 
@@ -58,11 +64,6 @@ void board_init(void)
   // Notify runtime of frequency change.
   SystemCoreClockUpdate();
 
-  #if CFG_TUSB_OS  == OPT_OS_NONE
-  // 1ms tick timer
-  SysTick_Config(SystemCoreClock / 1000);
-  #endif
-
   /* -1- Enable GPIO Clock (to be able to program the configuration registers) */
   __HAL_RCC_GPIOE_CLK_ENABLE();
 
@@ -72,7 +73,6 @@ void board_init(void)
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_PULLUP;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_HIGH;
-
   HAL_GPIO_Init(LED_PORT, &GPIO_InitStruct);
 
   board_led_write(false);

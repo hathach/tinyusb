@@ -14,8 +14,10 @@ LD_FILE = hw/bsp/stm32f411disco/STM32F411VETx_FLASH.ld
 
 SRC_C += \
 	hw/mcu/st/system-init/system_stm32f4xx.c \
-	hw/mcu/st/stm32lib/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_gpio.c \
-	
+	hw/mcu/st/stm32lib/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal.c \
+	hw/mcu/st/stm32lib/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_cortex.c \
+	hw/mcu/st/stm32lib/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_rcc.c \
+	hw/mcu/st/stm32lib/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_gpio.c
 
 SRC_S += \
 	hw/mcu/st/startup/stm32f4/startup_stm32f411xe.s
