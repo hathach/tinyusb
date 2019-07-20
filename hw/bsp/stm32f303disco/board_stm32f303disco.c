@@ -29,6 +29,9 @@
 #include "stm32f3xx.h"
 #include "stm32f3xx_hal_conf.h"
 
+#define LED_PORT  GPIOE
+#define LED_PIN   GPIO_PIN_9
+
 void board_init(void)
 {
   RCC_ClkInitTypeDef RCC_ClkInitStruct;
@@ -60,17 +63,19 @@ void board_init(void)
   SysTick_Config(SystemCoreClock / 1000);
   #endif
 
-  /* -1- Enable GPIOE Clock (to be able to program the configuration registers) */
+  /* -1- Enable GPIO Clock (to be able to program the configuration registers) */
   __HAL_RCC_GPIOE_CLK_ENABLE();
 
   /* -2- Configure PE.8 to PE.15 IOs in output push-pull mode to drive external LEDs */
   static GPIO_InitTypeDef  GPIO_InitStruct;
-  GPIO_InitStruct.Pin = GPIO_PIN_9;
+  GPIO_InitStruct.Pin = LED_PIN;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_PULLUP;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_HIGH;
 
-  HAL_GPIO_Init(GPIOE, &GPIO_InitStruct);
+  HAL_GPIO_Init(LED_PORT, &GPIO_InitStruct);
+
+  board_led_write(false);
 
 #if 0
   RCC->AHB2ENR |= RCC_AHB2ENR_OTGFSEN;
@@ -97,7 +102,7 @@ void board_init(void)
 
 void board_led_write(bool state)
 {
-  HAL_GPIO_WritePin(GPIOE, GPIO_PIN_9, state);
+  HAL_GPIO_WritePin(LED_PORT, LED_PIN, state);
 }
 
 uint32_t board_button_read(void)

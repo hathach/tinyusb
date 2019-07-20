@@ -45,8 +45,7 @@ void board_init(void)
 
   HAL_GPIO_Init(LED_PORT, &GPIO_InitStruct);
 
-  HAL_GPIO_WritePin(LED_PORT, LED_PIN, GPIO_PIN_RESET);
-
+  board_led_write(false);
 
 #if 0
   // Init the LED on PD14
@@ -112,11 +111,7 @@ void board_init(void)
 
 void board_led_write(bool state)
 {
-  if (!state) {
-    GPIOD->BSRR = GPIO_BSRR_BR14;
-  } else {
-    GPIOD->BSRR = GPIO_BSRR_BS14;
-  }
+  HAL_GPIO_WritePin(LED_PORT, LED_PIN, state);
 }
 
 uint32_t board_button_read(void)
