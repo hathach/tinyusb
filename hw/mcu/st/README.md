@@ -47,6 +47,6 @@ these files in one place.
   * ARM-provided headers are stored in the [cmsis](cmsis) directory.
   * The linker script for the STM32F4-DISCOVERY board demo is supplied as
     part of TinyUSB's
-    [Board Support Packages](../../bsp/stm32f407g_disc1/STM32F407VGTx_FLASH.ld).
+    [Board Support Packages](../../bsp/stm32f407disco/STM32F407VGTx_FLASH.ld).
   The above files were extracted from a dummy stm32cube project in February
   2019.
