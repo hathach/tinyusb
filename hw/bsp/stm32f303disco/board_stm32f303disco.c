@@ -68,7 +68,7 @@ void board_init(void)
   __HAL_RCC_GPIOE_CLK_ENABLE();
 
   /* -2- Configure PE.8 to PE.15 IOs in output push-pull mode to drive external LEDs */
-  static GPIO_InitTypeDef  GPIO_InitStruct;
+  GPIO_InitTypeDef  GPIO_InitStruct;
   GPIO_InitStruct.Pin = LED_PIN;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_PULLUP;

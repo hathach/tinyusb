@@ -32,34 +32,28 @@
 #define LED_PORT  GPIOD
 #define LED_PIN   GPIO_PIN_14
 
-void board_init(void)
-{
-
-#if CFG_TUSB_OS  == OPT_OS_NONE
-  // 1ms tick timer
-  SysTick_Config(SystemCoreClock / 1000);
-#elif CFG_TUSB_OS == OPT_OS_FREERTOS
-  // If freeRTOS is used, IRQ priority is limit by max syscall ( smaller is higher )
-  //NVIC_SetPriority(USB0_IRQn, configLIBRARY_MAX_SYSCALL_INTERRUPT_PRIORITY );
-#endif
-
-/** System Clock Configuration
-  * The system Clock is configured as follow :
-  *   System Clock source            = PLL (HSE)
-  *   SYSCLK(Hz)                     = 168000000
-  *   HCLK(Hz)                       = 168000000
-  *   AHB Prescaler                  = 1
-  *   APB1 Prescaler                 = 4
-  *   APB2 Prescaler                 = 2
-  *   HSE Frequency(Hz)              = 8000000
-  *   PLL_M                          = 8
-  *   PLL_N                          = 336
-  *   PLL_P                          = 2
-  *   PLL_Q                          = 7
-  *   VDD(V)                         = 3.3
-  *   Main regulator output voltage  = Scale1 mode
-  *   Flash Latency(WS)              = 5
+/**
+  * @brief  System Clock Configuration
+  *         The system Clock is configured as follow :
+  *            System Clock source            = PLL (HSE)
+  *            SYSCLK(Hz)                     = 168000000
+  *            HCLK(Hz)                       = 168000000
+  *            AHB Prescaler                  = 1
+  *            APB1 Prescaler                 = 4
+  *            APB2 Prescaler                 = 2
+  *            HSE Frequency(Hz)              = 8000000
+  *            PLL_M                          = 8
+  *            PLL_N                          = 336
+  *            PLL_P                          = 2
+  *            PLL_Q                          = 7
+  *            VDD(V)                         = 3.3
+  *            Main regulator output voltage  = Scale1 mode
+  *            Flash Latency(WS)              = 5
+  * @param  None
+  * @retval None
   */
+static void SystemClock_Config(void)
+{
   RCC_ClkInitTypeDef RCC_ClkInitStruct;
   RCC_OscInitTypeDef RCC_OscInitStruct;
 
@@ -90,6 +84,19 @@ void board_init(void)
   RCC_ClkInitStruct.APB1CLKDivider = RCC_HCLK_DIV4;
   RCC_ClkInitStruct.APB2CLKDivider = RCC_HCLK_DIV2;
   HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_5);
+}
+
+void board_init(void)
+{
+#if CFG_TUSB_OS  == OPT_OS_NONE
+  // 1ms tick timer
+  SysTick_Config(SystemCoreClock / 1000);
+#elif CFG_TUSB_OS == OPT_OS_FREERTOS
+  // If freeRTOS is used, IRQ priority is limit by max syscall ( smaller is higher )
+  //NVIC_SetPriority(USB0_IRQn, configLIBRARY_MAX_SYSCALL_INTERRUPT_PRIORITY );
+#endif
+
+  SystemClock_Config();
 
   // Notify runtime of frequency change.
   SystemCoreClockUpdate();
