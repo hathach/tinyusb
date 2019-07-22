@@ -23,10 +23,10 @@ SRC_S += \
 	hw/mcu/st/startup/stm32f4/startup_stm32f411xe.s
 
 INC += \
-	$(TOP)/hw/bsp/stm32f411disco \
+	$(TOP)/hw/mcu/st/cmsis \
 	$(TOP)/hw/mcu/st/stm32lib/CMSIS/STM32F4xx/Include \
 	$(TOP)/hw/mcu/st/stm32lib/STM32F4xx_HAL_Driver/Inc \
-	$(TOP)/hw/mcu/st/cmsis
+	$(TOP)/hw/bsp/stm32f411disco
 
 # For TinyUSB port source
 VENDOR = st

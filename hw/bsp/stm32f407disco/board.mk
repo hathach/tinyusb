@@ -13,14 +13,20 @@ CFLAGS += \
 LD_FILE = hw/bsp/stm32f407disco/STM32F407VGTx_FLASH.ld
 
 SRC_C += \
-	hw/mcu/st/system-init/system_stm32f4xx.c
+	hw/mcu/st/system-init/system_stm32f4xx.c \
+	hw/mcu/st/stm32lib/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal.c \
+	hw/mcu/st/stm32lib/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_cortex.c \
+	hw/mcu/st/stm32lib/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_rcc.c \
+	hw/mcu/st/stm32lib/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_gpio.c	
 
 SRC_S += \
 	hw/mcu/st/startup/stm32f4/startup_stm32f407xx.s
 
 INC += \
+	$(TOP)/hw/mcu/st/cmsis \
 	$(TOP)/hw/mcu/st/stm32lib/CMSIS/STM32F4xx/Include \
-	$(TOP)/hw/mcu/st/cmsis
+	$(TOP)/hw/mcu/st/stm32lib/STM32F4xx_HAL_Driver/Inc \
+	$(TOP)/hw/bsp/stm32f407disco
 
 # For TinyUSB port source
 VENDOR = st
