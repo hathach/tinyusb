@@ -31,7 +31,8 @@ This code base already had supported for a handful of following boards
 
 ### ST STM32
 
-- [STM32F4 Discovery](https://www.st.com/en/evaluation-tools/stm32f4discovery.html)
+- [STM32F407g Discovery](https://www.st.com/en/evaluation-tools/stm32f4discovery.html)
+- [STM32F411e Discovery](https://www.st.com/en/evaluation-tools/32f411ediscovery.html)
 
 ## Add your own board
 

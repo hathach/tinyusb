@@ -77,10 +77,13 @@ enum
 
 #define CONFIG_TOTAL_LEN    (TUD_CONFIG_DESC_LEN + TUD_MSC_DESC_LEN)
 
-// Use Endpoint 2 instead of 1 due to NXP MCU
-// LPC 17xx and 40xx endpoint type (bulk/interrupt/iso) are fixed by its number
-// 0 control, 1 In, 2 Bulk, 3 Iso, 4 In etc ...
-#define EPNUM_MSC   0x02
+#if CFG_TUSB_MCU == OPT_MCU_LPC175X_6X || CFG_TUSB_MCU == OPT_MCU_LPC177X_8X || CFG_TUSB_MCU == OPT_MCU_LPC40XX
+  // LPC 17xx and 40xx endpoint type (bulk/interrupt/iso) are fixed by its number
+  // 0 control, 1 In, 2 Bulk, 3 Iso, 4 In etc ...
+  #define EPNUM_MSC   0x02
+#else
+  #define EPNUM_MSC   0x01
+#endif
 
 uint8_t const desc_configuration[] =
 {

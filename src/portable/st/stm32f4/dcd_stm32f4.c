@@ -160,7 +160,11 @@ void dcd_init (uint8_t rhport)
     USB_OTG_GINTMSK_USBSUSPM */;
 
   // Enable pullup, enable peripheral.
+#ifdef USB_OTG_GCCFG_VBDEN
+  USB_OTG_FS->GCCFG |= USB_OTG_GCCFG_VBDEN | USB_OTG_GCCFG_PWRDWN;
+#else
   USB_OTG_FS->GCCFG |= USB_OTG_GCCFG_VBUSBSEN | USB_OTG_GCCFG_PWRDWN;
+#endif
 }
 
 void dcd_int_enable (uint8_t rhport)

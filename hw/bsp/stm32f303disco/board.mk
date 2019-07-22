@@ -10,7 +10,7 @@ CFLAGS += \
 	-nostdlib -nostartfiles
 
 # All source paths should be relative to the top level.
-LD_FILE = hw/bsp/stm32f303disc/STM32F303VCTx_FLASH.ld
+LD_FILE = hw/bsp/stm32f303disco/STM32F303VCTx_FLASH.ld
 
 SRC_C += \
 	hw/mcu/st/system-init/system_stm32f3xx.c \
@@ -23,7 +23,7 @@ SRC_S += \
 	hw/mcu/st/startup/stm32f3/startup_stm32f303xc.s
 
 INC += \
-	$(TOP)/hw/bsp/stm32f303disc \
+	$(TOP)/hw/bsp/stm32f303disco \
 	$(TOP)/hw/mcu/st/cmsis \
 	$(TOP)/hw/mcu/st/stm32lib/CMSIS/STM32F3xx/Include \
 	$(TOP)/hw/mcu/st/stm32lib/STM32F3xx_HAL_Driver/Inc

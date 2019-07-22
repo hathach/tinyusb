@@ -61,8 +61,8 @@
       recurse="No" />
     <folder Name="hw">
       <folder Name="bsp">
-        <folder Name="stm32f407g_disc1">
-          <file file_name="../../../../../hw/bsp/stm32f407g_disc1/board_stm32f407g_disc1.c" />
+        <folder Name="stm32f407disco">
+          <file file_name="../../../../../hw/bsp/stm32f407disco/board_stm32f407disco.c" />
         </folder>
         <file file_name="../../../../../hw/bsp/board.h" />
       </folder>
@@ -76,11 +76,11 @@
       </folder>
     </folder>
     <configuration
-      Name="stm32f407g_disc1"
+      Name="stm32f407disco"
       c_preprocessor_definitions="BOARD_STM32F407G_DISC1" />
   </project>
   <configuration
-    Name="stm32f407g_disc1"
+    Name="stm32f407disco"
     c_preprocessor_definitions="DEBUG"
     gcc_debugging_level="Level 3"
     gcc_optimization_level="None" />
