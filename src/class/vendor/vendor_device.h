@@ -66,10 +66,6 @@ static inline uint32_t tud_vendor_write      (uint8_t const* buffer, uint32_t bu
 // Application Callback API (weak is optional)
 //--------------------------------------------------------------------+
 
-// Invoked when received control request with VENDOR TYPE
-TU_ATTR_WEAK bool tud_vendor_control_request_cb(uint8_t rhport, tusb_control_request_t const * request);
-TU_ATTR_WEAK bool tud_vendor_control_complete_cb(uint8_t rhport, tusb_control_request_t const * request);
-
 // Invoked when received new data
 TU_ATTR_WEAK void tud_vendor_rx_cb(uint8_t itf);
 

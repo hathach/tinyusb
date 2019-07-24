@@ -100,6 +100,10 @@ TU_ATTR_WEAK void tud_suspend_cb(bool remote_wakeup_en);
 // Invoked when usb bus is resumed
 TU_ATTR_WEAK void tud_resume_cb(void);
 
+// Invoked when received control request with VENDOR TYPE
+TU_ATTR_WEAK bool tud_vendor_control_request_cb(uint8_t rhport, tusb_control_request_t const * request);
+TU_ATTR_WEAK bool tud_vendor_control_complete_cb(uint8_t rhport, tusb_control_request_t const * request);
+
 //--------------------------------------------------------------------+
 // Descriptor Templates
 //--------------------------------------------------------------------+
