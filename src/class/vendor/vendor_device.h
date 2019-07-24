@@ -49,16 +49,18 @@
 //--------------------------------------------------------------------+
 // Application API (Multiple Interfaces)
 //--------------------------------------------------------------------+
+bool     tud_vendor_n_mounted    (uint8_t itf);
+uint32_t tud_vendor_n_available  (uint8_t itf);
+uint32_t tud_vendor_n_read       (uint8_t itf, void* buffer, uint32_t bufsize);
+uint32_t tud_vendor_n_write      (uint8_t itf, uint8_t const* buffer, uint32_t bufsize);
 
 //--------------------------------------------------------------------+
 // Application API (Single Port)
 //--------------------------------------------------------------------+
-
-bool tud_vendor_mounted(void);
-
-uint32_t tud_vendor_write(void const* buffer, uint32_t bufsize);
-uint32_t tud_vendor_read(void* buffer, uint32_t bufsize);
-
+static inline bool     tud_vendor_mounted    (void);
+static inline uint32_t tud_vendor_available  (void);
+static inline uint32_t tud_vendor_read       (void* buffer, uint32_t bufsize);
+static inline uint32_t tud_vendor_write      (uint8_t const* buffer, uint32_t bufsize);
 
 //--------------------------------------------------------------------+
 // Application Callback API (weak is optional)
@@ -71,6 +73,29 @@ TU_ATTR_WEAK bool tud_vendor_control_complete_cb(uint8_t rhport, tusb_control_re
 // Invoked when received new data
 TU_ATTR_WEAK void tud_vendor_rx_cb(uint8_t itf);
 
+//--------------------------------------------------------------------+
+// Inline Functions
+//--------------------------------------------------------------------+
+
+static inline bool tud_vendor_mounted (void)
+{
+  return tud_vendor_n_mounted(0);
+}
+
+static inline uint32_t tud_vendor_available (void)
+{
+  return tud_vendor_n_available(0);
+}
+
+static inline uint32_t tud_vendor_read (void* buffer, uint32_t bufsize)
+{
+  return tud_vendor_n_read(0, buffer, bufsize);
+}
+
+static inline uint32_t tud_vendor_write (uint8_t const* buffer, uint32_t bufsize)
+{
+  return tud_vendor_n_write(0, buffer, bufsize);
+}
 
 //--------------------------------------------------------------------+
 // Internal Class Driver API

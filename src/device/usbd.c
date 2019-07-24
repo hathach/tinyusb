@@ -528,7 +528,7 @@ static bool process_set_config(uint8_t rhport, uint8_t cfg_num)
       _usbd_dev.itf2drv[desc_itf->bInterfaceNumber] = drv_id;
 
       uint16_t itf_len=0;
-      TU_ASSERT( usbd_class_drivers[drv_id].open( rhport, desc_itf, &itf_len ) );
+      TU_ASSERT( usbd_class_drivers[drv_id].open(rhport, desc_itf, &itf_len) );
       TU_ASSERT( itf_len >= sizeof(tusb_desc_interface_t) );
 
       mark_interface_endpoint(_usbd_dev.ep2drv, p_desc, itf_len, drv_id);
