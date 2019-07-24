@@ -188,7 +188,7 @@ const tusb_desc_webusb_url_t desc_url =
   .url             = URL
 };
 
-bool tud_control_vendor_request_cb(uint8_t rhport, tusb_control_request_t const * request)
+bool tud_vendor_control_request_cb(uint8_t rhport, tusb_control_request_t const * request)
 {
   if ( request->bRequest == 0x01 ) // webusb vendor code
   {
@@ -199,7 +199,7 @@ bool tud_control_vendor_request_cb(uint8_t rhport, tusb_control_request_t const 
   }
 }
 
-bool tud_control_vendor_complete_cb(uint8_t rhport, tusb_control_request_t const * request)
+bool tud_vendor_control_complete_cb(uint8_t rhport, tusb_control_request_t const * request)
 {
   (void) rhport;
   return true;

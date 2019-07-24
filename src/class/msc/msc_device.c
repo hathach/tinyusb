@@ -111,7 +111,7 @@ bool tud_msc_set_sense(uint8_t lun, uint8_t sense_key, uint8_t add_sense_code, u
 }
 
 //--------------------------------------------------------------------+
-// USBD-CLASS API
+// USBD Driver API
 //--------------------------------------------------------------------+
 void mscd_init(void)
 {

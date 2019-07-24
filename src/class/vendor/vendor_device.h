@@ -24,20 +24,34 @@
  * This file is part of the TinyUSB stack.
  */
 
-#ifndef _TUSB_CUSTOM_DEVICE_H_
-#define _TUSB_CUSTOM_DEVICE_H_
+#ifndef _TUSB_VENDOR_DEVICE_H_
+#define _TUSB_VENDOR_DEVICE_H_
 
 #include "common/tusb_common.h"
 #include "device/usbd.h"
 
+#ifndef CFG_TUD_VENDOR_EPSIZE
+#define CFG_TUD_VENDOR_EPSIZE     64
+#endif
+
+#ifndef CFG_TUD_VENDOR_RX_BUFSIZE
+#define CFG_TUD_VENDOR_RX_BUFSIZE 0
+#endif
+
+#ifndef CFG_TUD_VENDOR_TX_BUFSIZE
+#define CFG_TUD_VENDOR_TX_BUFSIZE 0
+#endif
+
+#ifdef __cplusplus
+ extern "C" {
+#endif
+
 //--------------------------------------------------------------------+
-// APPLICATION API (Multiple Root Ports)
-// Should be used only with MCU that support more than 1 ports
+// Application API (Multiple Interfaces)
 //--------------------------------------------------------------------+
 
 //--------------------------------------------------------------------+
-// APPLICATION API (Single Port)
-// Should be used with MCU supporting only 1 USB port for code simplicity
+// Application API (Single Port)
 //--------------------------------------------------------------------+
 
 bool tud_vendor_mounted(void);
@@ -47,8 +61,16 @@ uint32_t tud_vendor_read(void* buffer, uint32_t bufsize);
 
 
 //--------------------------------------------------------------------+
-// APPLICATION CALLBACK API (WEAK is optional)
+// Application Callback API (weak is optional)
 //--------------------------------------------------------------------+
+
+// Invoked when received control request with VENDOR TYPE
+TU_ATTR_WEAK bool tud_vendor_control_request_cb(uint8_t rhport, tusb_control_request_t const * request);
+TU_ATTR_WEAK bool tud_vendor_control_complete_cb(uint8_t rhport, tusb_control_request_t const * request);
+
+// Invoked when received new data
+TU_ATTR_WEAK void tud_vendor_rx_cb(uint8_t itf);
+
 
 //--------------------------------------------------------------------+
 // Internal Class Driver API
@@ -58,4 +80,8 @@ void vendord_reset(uint8_t rhport);
 bool vendord_open(uint8_t rhport, tusb_desc_interface_t const * itf_desc, uint16_t *p_length);
 bool vendord_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t event, uint32_t xferred_bytes);
 
-#endif /* _TUSB_CUSTOM_DEVICE_H_ */
+#ifdef __cplusplus
+ }
+#endif
+
+#endif /* _TUSB_VENDOR_DEVICE_H_ */

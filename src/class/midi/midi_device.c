@@ -275,7 +275,8 @@ bool midid_open(uint8_t rhport, tusb_desc_interface_t const * p_interface_desc, 
   (*p_length) = sizeof(tusb_desc_interface_t);
 
   uint8_t found_endpoints = 0;
-  while (found_endpoints < p_interface_desc->bNumEndpoints) {
+  while (found_endpoints < p_interface_desc->bNumEndpoints)
+  {
     if ( TUSB_DESC_ENDPOINT == p_desc[DESC_OFFSET_TYPE])
     {
         TU_ASSERT( dcd_edpt_open(rhport, (tusb_desc_endpoint_t const *) p_desc), false);

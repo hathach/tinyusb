@@ -162,7 +162,7 @@
 #endif
 
 #ifndef CFG_TUD_VENDOR
-  #define CFG_TUD_VENDOR    0
+  #define CFG_TUD_VENDOR          0
 #endif
 
 

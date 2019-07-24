@@ -136,8 +136,8 @@ static usbd_class_driver_t const usbd_class_drivers[] =
       .init             = vendord_init,
       .reset            = vendord_reset,
       .open             = vendord_open,
-      .control_request  = NULL, // tud_control_vendor_request_cb
-      .control_complete = NULL, // tud_control_vendor_complete_cb
+      .control_request  = NULL, // tud_vendor_control_request_cb
+      .control_complete = NULL, // tud_vendor_control_complete_cb
       .xfer_cb          = vendord_xfer_cb,
       .sof              = NULL
   },
@@ -349,10 +349,10 @@ static bool process_control_request(uint8_t rhport, tusb_control_request_t const
   // Vendor request
   if ( p_request->bmRequestType_bit.type == TUSB_REQ_TYPE_VENDOR )
   {
-    TU_VERIFY(tud_control_vendor_request_cb);
+    TU_VERIFY(tud_vendor_control_request_cb);
 
-    if (tud_control_vendor_complete_cb) usbd_control_set_complete_callback(tud_control_vendor_complete_cb);
-    return tud_control_vendor_request_cb(rhport, p_request);
+    if (tud_vendor_control_complete_cb) usbd_control_set_complete_callback(tud_vendor_control_complete_cb);
+    return tud_vendor_control_request_cb(rhport, p_request);
   }
 
   switch ( p_request->bmRequestType_bit.recipient )
