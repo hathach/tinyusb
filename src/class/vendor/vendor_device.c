@@ -28,55 +28,72 @@
 
 #if (TUSB_OPT_DEVICE_ENABLED && CFG_TUD_VENDOR)
 
-#include "common/tusb_common.h"
 #include "vendor_device.h"
 #include "device/usbd_pvt.h"
 
-/*------------------------------------------------------------------*/
-/* MACRO TYPEDEF CONSTANT ENUM
- *------------------------------------------------------------------*/
-
-/*------------------------------------------------------------------*/
-/* VARIABLE DECLARATION
- *------------------------------------------------------------------*/
+//--------------------------------------------------------------------+
+// MACRO CONSTANT TYPEDEF
+//--------------------------------------------------------------------+
 typedef struct {
   uint8_t itf_num;
 
   uint8_t ep_in;
   uint8_t ep_out;
 
+  /*------------- From this point, data is not cleared by bus reset -------------*/
+  tu_fifo_t rx_ff;
+  tu_fifo_t tx_ff;
+
+  // Endpoint Transfer buffer
+  CFG_TUSB_MEM_ALIGN uint8_t epout_buf[CFG_TUD_VENDOR_EPSIZE];
+  CFG_TUSB_MEM_ALIGN uint8_t epin_buf[CFG_TUD_VENDOR_EPSIZE];
+
 } vendord_interface_t;
 
-static vendord_interface_t _vendord_itf;
+static vendord_interface_t _vendord_itf[CFG_TUD_VENDOR];
 
-/*------------------------------------------------------------------*/
-/* FUNCTION DECLARATION
- *------------------------------------------------------------------*/
+#define ITF_MEM_RESET_SIZE   offsetof(vendord_interface_t, rx_ff)
+
+//--------------------------------------------------------------------+
+// USBD Driver API
+//--------------------------------------------------------------------+
 void vendord_init(void)
 {
-  tu_varclr(&_vendord_itf);
+  tu_varclr(_vendord_itf);
 }
 
 void vendord_reset(uint8_t rhport)
 {
+  (void) rhport;
 
+  for(uint8_t i=0; i<CFG_TUD_VENDOR; i++)
+  {
+    tu_memclr(&_vendord_itf[i], ITF_MEM_RESET_SIZE);
+  }
 }
 
-
-bool vendord_open(uint8_t rhport, tusb_desc_interface_t const * p_desc_itf, uint16_t *p_len)
+bool vendord_open(uint8_t rhport, tusb_desc_interface_t const * itf_desc, uint16_t *p_len)
 {
-  vendord_interface_t* p_itf = &_vendord_itf;
+  // Find available interface
+  vendord_interface_t* p_vendor = NULL;
+  for(uint8_t i=0; i<CFG_TUD_VENDOR; i++)
+  {
+    if ( _vendord_itf[i].ep_in == 0 && _vendord_itf[i].ep_out == 0 )
+    {
+      p_vendor = &_vendord_itf[i];
+      break;
+    }
+  }
+  TU_VERIFY(p_vendor);
 
   // Open endpoint pair with usbd helper
-  tusb_desc_endpoint_t const *p_desc_ep = (tusb_desc_endpoint_t const *) tu_desc_next(p_desc_itf);
-  TU_ASSERT( usbd_open_edpt_pair(rhport, p_desc_ep, TUSB_XFER_BULK, &p_itf->ep_out, &p_itf->ep_in) );
+  TU_ASSERT(usbd_open_edpt_pair(rhport, tu_desc_next(itf_desc), 2, TUSB_XFER_BULK, &p_vendor->ep_out, &p_vendor->ep_in));
 
-  p_itf->itf_num = p_desc_itf->bInterfaceNumber;
-
+  p_vendor->itf_num = itf_desc->bInterfaceNumber;
   (*p_len) = sizeof(tusb_desc_interface_t) + 2*sizeof(tusb_desc_endpoint_t);
 
-  // TODO Prepare for incoming data
-//  TU_ASSERT( usbd_edpt_xfer(rhport, p_itf->ep_out, (uint8_t*) &p_msc->cbw, sizeof(msc_cbw_t)) );
+  // Prepare for incoming data
+  TU_ASSERT(usbd_edpt_xfer(rhport, p_vendor->ep_out, p_vendor->epout_buf, sizeof(p_vendor->epout_buf)));
 
   return true;
 }
