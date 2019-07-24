@@ -200,7 +200,7 @@ int32_t proc_builtin_scsi(uint8_t lun, uint8_t const scsi_cmd[16], uint8_t* buff
       resplen = 0;
       if ( !tud_msc_test_unit_ready_cb(lun) )
       {
-        // not ready response with Failed status and sense key = not ready
+        // Failed status response
         resplen = - 1;
 
         // If sense key is not set by callback, default to Logical Unit Not Ready, Cause Not Reportable
@@ -214,7 +214,14 @@ int32_t proc_builtin_scsi(uint8_t lun, uint8_t const scsi_cmd[16], uint8_t* buff
       if (tud_msc_start_stop_cb)
       {
         scsi_start_stop_unit_t const * start_stop = (scsi_start_stop_unit_t const *) scsi_cmd;
-        tud_msc_start_stop_cb(lun, start_stop->power_condition, start_stop->start, start_stop->load_eject);
+        if ( !tud_msc_start_stop_cb(lun, start_stop->power_condition, start_stop->start, start_stop->load_eject) )
+        {
+          // Failed status response
+          resplen = - 1;
+
+          // If sense key is not set by callback, default to Logical Unit Not Ready, Cause Not Reportable
+          if ( _mscd_itf.sense_key == 0 ) tud_msc_set_sense(lun, SCSI_SENSE_NOT_READY, 0x04, 0x00);
+        }
       }
     break;
 
@@ -417,7 +424,7 @@ bool mscd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t event, uint32_t
             // failed but senskey is not set: default to Illegal Request
             if ( p_msc->sense_key == 0 ) tud_msc_set_sense(p_cbw->lun, SCSI_SENSE_ILLEGAL_REQUEST, 0x20, 0x00);
 
-            /// Stall bulk In if needed
+            // Stall bulk In if needed
             if (p_cbw->total_bytes) usbd_edpt_stall(rhport, p_msc->ep_in);
           }
           else

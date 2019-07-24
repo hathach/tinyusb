@@ -155,7 +155,7 @@ void tud_msc_capacity_cb(uint8_t lun, uint32_t* block_count, uint16_t* block_siz
 // Invoked when received Start Stop Unit command
 // - Start = 0 : stopped power mode, if load_eject = 1 : unload disk storage
 // - Start = 1 : active mode, if load_eject = 1 : load disk storage
-void tud_msc_start_stop_cb(uint8_t lun, uint8_t power_condition, bool start, bool load_eject)
+bool tud_msc_start_stop_cb(uint8_t lun, uint8_t power_condition, bool start, bool load_eject)
 {
   (void) lun;
   (void) power_condition;
@@ -170,6 +170,8 @@ void tud_msc_start_stop_cb(uint8_t lun, uint8_t power_condition, bool start, boo
       // unload disk storage
     }
   }
+
+  return true;
 }
 
 // Callback invoked when received READ10 command.
