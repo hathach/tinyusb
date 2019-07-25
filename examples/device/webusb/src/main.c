@@ -49,6 +49,7 @@ static uint32_t blink_interval_ms = BLINK_NOT_MOUNTED;
 
 void led_blinking_task(void);
 void cdc_task(void);
+void webserial_task(void);
 
 /*------------- MAIN -------------*/
 int main(void)
@@ -61,6 +62,7 @@ int main(void)
   {
     tud_task(); // tinyusb device task
     cdc_task();
+    webserial_task();
     led_blinking_task();
   }
 
@@ -101,7 +103,10 @@ void tud_resume_cb(void)
 //--------------------------------------------------------------------+
 // WebUSB
 //--------------------------------------------------------------------+
+void webserial_task(void)
+{
 
+}
 
 //--------------------------------------------------------------------+
 // USB CDC

@@ -32,7 +32,8 @@
  *   [MSB]       MIDI | HID | MSC | CDC          [LSB]
  */
 #define _PID_MAP(itf, n)  ( (CFG_TUD_##itf) << (n) )
-#define USB_PID           (0x4000 | _PID_MAP(CDC, 0) | _PID_MAP(MSC, 1) | _PID_MAP(HID, 2) | _PID_MAP(MIDI, 3) )
+#define USB_PID           (0x4000 | _PID_MAP(CDC, 0) | _PID_MAP(MSC, 1) | _PID_MAP(HID, 2) | \
+                           _PID_MAP(MIDI, 3) | _PID_MAP(VENDOR, 4) )
 
 //--------------------------------------------------------------------+
 // Device Descriptors
@@ -71,6 +72,10 @@ uint8_t const * tud_descriptor_device_cb(void)
 //--------------------------------------------------------------------+
 // BOS Descriptor
 //--------------------------------------------------------------------+
+enum
+{
+  VENDOR_REQUEST_WEBUSB = 1,
+};
 
 #define BOS_TOTAL_LEN   (TUD_BOS_DESC_LEN + TUD_BOS_WEBUSB_DESC_LEN)
 
@@ -81,7 +86,7 @@ uint8_t const desc_bos[] =
   TUD_BOS_DESCRIPTOR(BOS_TOTAL_LEN, 1),
 
   // Vendor Code, iLandingPage
-  TUD_BOS_WEBUSB_DESCRIPTOR(0x01, 1)
+  TUD_BOS_WEBUSB_DESCRIPTOR(VENDOR_REQUEST_WEBUSB, 1)
 };
 
 uint8_t const * tud_descriptor_bos_cb(void)
@@ -96,16 +101,21 @@ enum
 {
   ITF_NUM_CDC = 0,
   ITF_NUM_CDC_DATA,
-
+  ITF_NUM_VENDOR,
   ITF_NUM_TOTAL
 };
 
-#define CONFIG_TOTAL_LEN    (TUD_CONFIG_DESC_LEN + TUD_CDC_DESC_LEN)
+#define CONFIG_TOTAL_LEN    (TUD_CONFIG_DESC_LEN + TUD_CDC_DESC_LEN + TUD_VENDOR_DESC_LEN)
 
-// Use Endpoint 2 instead of 1 due to NXP MCU
-// LPC 17xx and 40xx endpoint type (bulk/interrupt/iso) are fixed by its number
-// 0 control, 1 In, 2 Bulk, 3 Iso, 4 In etc ...
-#define EPNUM_CDC   0x02
+#if CFG_TUSB_MCU == OPT_MCU_LPC175X_6X || CFG_TUSB_MCU == OPT_MCU_LPC177X_8X || CFG_TUSB_MCU == OPT_MCU_LPC40XX
+  // LPC 17xx and 40xx endpoint type (bulk/interrupt/iso) are fixed by its number
+  // 0 control, 1 In, 2 Bulk, 3 Iso, 4 In etc ...
+  #define EPNUM_CDC     2
+  #define EPNUM_VENDOR  5
+#else
+  #define EPNUM_CDC     2
+  #define EPNUM_VENDOR  3
+#endif
 
 uint8_t const desc_configuration[] =
 {
@@ -114,6 +124,9 @@ uint8_t const desc_configuration[] =
 
   // Interface number, string index, EP notification address and size, EP data address (out, in) and size.
   TUD_CDC_DESCRIPTOR(ITF_NUM_CDC, 4, 0x81, 8, EPNUM_CDC, 0x80 | EPNUM_CDC, 64),
+
+  // Interface number, string index, EP Out & IN address, EP size
+  TUD_VENDOR_DESCRIPTOR(ITF_NUM_VENDOR, 5, EPNUM_VENDOR, 0x80 | EPNUM_VENDOR, 64)
 };
 
 // Invoked when received GET CONFIGURATION DESCRIPTOR
@@ -137,6 +150,7 @@ char const* string_desc_arr [] =
   "TinyUSB Device",              // 2: Product
   "123456",                      // 3: Serials, should use chip ID
   "TinyUSB CDC",                 // 4: CDC Interface
+  "TinyUSB WebUSB"               // 5: Vendor Interface
 };
 
 static uint16_t _desc_str[32];
@@ -190,7 +204,7 @@ const tusb_desc_webusb_url_t desc_url =
 
 bool tud_vendor_control_request_cb(uint8_t rhport, tusb_control_request_t const * request)
 {
-  if ( request->bRequest == 0x01 ) // webusb vendor code
+  if ( request->bRequest == VENDOR_REQUEST_WEBUSB )
   {
     return tud_control_xfer(rhport, request, (void*) &desc_url, desc_url.bLength);
   }else
