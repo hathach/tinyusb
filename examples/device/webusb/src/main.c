@@ -86,6 +86,28 @@ int main(void)
   return 0;
 }
 
+// send characters to both CDC and WebUSB
+void echo_all(uint8_t buf[], uint32_t count)
+{
+  // echo to web serial
+  if ( web_serial_connected )
+  {
+    tud_vendor_write(buf, count);
+  }
+
+  // echo to cdc
+  if ( tud_cdc_connected() )
+  {
+    for(uint32_t i=0; i<count; i++)
+    {
+      tud_cdc_write_char(buf[i]);
+
+      if ( buf[i] == '\r' ) tud_cdc_write_char('\n');
+    }
+    tud_cdc_write_flush();
+  }
+}
+
 //--------------------------------------------------------------------+
 // Device callbacks
 //--------------------------------------------------------------------+
@@ -115,28 +137,6 @@ void tud_suspend_cb(bool remote_wakeup_en)
 void tud_resume_cb(void)
 {
   blink_interval_ms = BLINK_MOUNTED;
-}
-
-// send characters to both CDC and WebUSB
-void echo_all(uint8_t buf[], uint32_t count)
-{
-  // echo to web serial
-  if ( web_serial_connected )
-  {
-    tud_vendor_write(buf, count);
-  }
-
-  // echo to cdc
-  if ( tud_cdc_connected() )
-  {
-    for(uint32_t i=0; i<count; i++)
-    {
-      tud_cdc_write_char(buf[i]);
-
-      if ( buf[i] == '\r' ) tud_cdc_write_char('\n');
-    }
-    tud_cdc_write_flush();
-  }
 }
 
 //--------------------------------------------------------------------+

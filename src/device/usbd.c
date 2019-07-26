@@ -439,10 +439,34 @@ static bool process_control_request(uint8_t rhport, tusb_control_request_t const
 
       TU_VERIFY(drvid < USBD_CLASS_DRIVER_COUNT);
 
-      usbd_control_set_complete_callback(usbd_class_drivers[drvid].control_complete);
+      switch ( p_request->bRequest )
+      {
+        case TUSB_REQ_GET_INTERFACE:
+        {
+          // TODO not support alternate interface yet
+          uint8_t alternate = 0;
+          tud_control_xfer(rhport, p_request, &alternate, 1);
+        }
+        break;
 
-      // stall control endpoint if driver return false
-      return usbd_class_drivers[drvid].control_request(rhport, p_request);
+        case TUSB_REQ_SET_INTERFACE:
+        {
+          uint8_t alternate = (uint8_t) p_request->wValue;
+
+          // TODO not support alternate interface yet
+          TU_ASSERT(alternate == 0);
+
+          tud_control_status(rhport, p_request);
+        }
+        break;
+
+        default:
+          // forward to class driver
+          // stall control endpoint if driver return false
+          usbd_control_set_complete_callback(usbd_class_drivers[drvid].control_complete);
+          TU_ASSERT(usbd_class_drivers[drvid].control_request(rhport, p_request));
+        break;
+      }
     }
     break;
 
