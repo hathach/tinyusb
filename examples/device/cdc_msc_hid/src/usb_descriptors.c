@@ -24,6 +24,7 @@
  */
 
 #include "tusb.h"
+#include "usb_descriptors.h"
 
 /* A combination of interfaces must have a unique product id, since PC will save device driver after the first plug.
  * Same VID/PID with different interface e.g MSC (first), then CDC (later) will possibly cause system error on PC.
@@ -79,13 +80,7 @@ uint8_t const * tud_descriptor_device_cb(void)
 //--------------------------------------------------------------------+
 // HID Report Descriptor
 //--------------------------------------------------------------------+
-
 #if CFG_TUD_HID
-enum
-{
-  REPORT_ID_KEYBOARD = 1,
-  REPORT_ID_MOUSE
-};
 
 uint8_t const desc_hid_report[] =
 {

@@ -27,7 +27,8 @@
 
 enum
 {
-  VENDOR_REQUEST_WEBUSB = 1,
+  REPORT_ID_KEYBOARD = 1,
+  REPORT_ID_MOUSE
 };
 
 #endif /* USB_DESCRIPTORS_H_ */
