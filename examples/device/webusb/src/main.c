@@ -42,8 +42,11 @@
  */
 enum  {
   BLINK_NOT_MOUNTED = 250,
-  BLINK_MOUNTED = 1000,
-  BLINK_SUSPENDED = 2500,
+  BLINK_MOUNTED     = 1000,
+  BLINK_SUSPENDED   = 2500,
+
+  BLINK_ALWAYS_ON   = UINT32_MAX,
+  BLINK_ALWAYS_OFF  = 0
 };
 
 static uint32_t blink_interval_ms = BLINK_NOT_MOUNTED;
@@ -153,8 +156,17 @@ bool tud_vendor_control_request_cb(uint8_t rhport, tusb_control_request_t const 
     case 0x22:
       // Webserial simulate the CDC_REQUEST_SET_CONTROL_LINE_STATE (0x22) to
       // connect and disconnect.
-
       web_serial_connected = (request->wValue != 0);
+
+      // Always lit LED if connected
+      if ( web_serial_connected )
+      {
+        board_led_write(true);
+        blink_interval_ms = BLINK_ALWAYS_ON;
+      }else
+      {
+        blink_interval_ms = BLINK_MOUNTED;
+      }
 
       // response with status OK
       return tud_control_status(rhport, request);
