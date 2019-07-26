@@ -24,6 +24,7 @@
  */
 
 #include "tusb.h"
+#include "usb_descriptors.h"
 
 /* A combination of interfaces must have a unique product id, since PC will save device driver after the first plug.
  * Same VID/PID with different interface e.g MSC (first), then CDC (later) will possibly cause system error on PC.
@@ -72,11 +73,6 @@ uint8_t const * tud_descriptor_device_cb(void)
 //--------------------------------------------------------------------+
 // BOS Descriptor
 //--------------------------------------------------------------------+
-enum
-{
-  VENDOR_REQUEST_WEBUSB = 1,
-};
-
 #define BOS_TOTAL_LEN   (TUD_BOS_DESC_LEN + TUD_BOS_WEBUSB_DESC_LEN)
 
 // BOS Descriptor is required for webUSB
@@ -192,29 +188,4 @@ uint16_t const* tud_descriptor_string_cb(uint8_t index)
 //--------------------------------------------------------------------+
 // WebUSB URL Descriptor
 //--------------------------------------------------------------------+
-#define URL  "github.com/hathach/tinyusb"
 
-const tusb_desc_webusb_url_t desc_url =
-{
-  .bLength         = 3 + sizeof(URL) - 1,
-  .bDescriptorType = 3, // WEBUSB URL type
-  .bScheme         = 1, // 0: http, 1: https
-  .url             = URL
-};
-
-bool tud_vendor_control_request_cb(uint8_t rhport, tusb_control_request_t const * request)
-{
-  if ( request->bRequest == VENDOR_REQUEST_WEBUSB )
-  {
-    return tud_control_xfer(rhport, request, (void*) &desc_url, desc_url.bLength);
-  }else
-  {
-    return false;
-  }
-}
-
-bool tud_vendor_control_complete_cb(uint8_t rhport, tusb_control_request_t const * request)
-{
-  (void) rhport;
-  return true;
-}

@@ -29,6 +29,7 @@
 
 #include "bsp/board.h"
 #include "tusb.h"
+#include "usb_descriptors.h"
 
 //--------------------------------------------------------------------+
 // MACRO CONSTANT TYPEDEF PROTYPES
@@ -47,6 +48,19 @@ enum  {
 
 static uint32_t blink_interval_ms = BLINK_NOT_MOUNTED;
 
+#define URL  "github.com/hathach/tinyusb"
+
+const tusb_desc_webusb_url_t desc_url =
+{
+  .bLength         = 3 + sizeof(URL) - 1,
+  .bDescriptorType = 3, // WEBUSB URL type
+  .bScheme         = 1, // 0: http, 1: https
+  .url             = URL
+};
+
+static bool web_serial_connected = false;
+
+//------------- prototypes -------------//
 void led_blinking_task(void);
 void cdc_task(void);
 void webserial_task(void);
@@ -100,13 +114,82 @@ void tud_resume_cb(void)
   blink_interval_ms = BLINK_MOUNTED;
 }
 
+// send characters to both CDC and WebUSB
+void echo_all(uint8_t buf[], uint32_t count)
+{
+  // echo to web serial
+  if ( web_serial_connected )
+  {
+    tud_vendor_write(buf, count);
+  }
+
+  // echo to cdc
+  if ( tud_cdc_connected() )
+  {
+    for(uint32_t i=0; i<count; i++)
+    {
+      tud_cdc_write_char(buf[i]);
+
+      if ( buf[i] == '\r' ) tud_cdc_write_char('\n');
+    }
+    tud_cdc_write_flush();
+  }
+}
+
 //--------------------------------------------------------------------+
-// WebUSB
+// WebUSB use vendor class
 //--------------------------------------------------------------------+
+
+// Invoked when received VENDOR control request
+bool tud_vendor_control_request_cb(uint8_t rhport, tusb_control_request_t const * request)
+{
+  switch (request->bRequest)
+  {
+    case VENDOR_REQUEST_WEBUSB:
+      // match vendor request in BOS descriptor
+      // Get landing page url
+      return tud_control_xfer(rhport, request, (void*) &desc_url, desc_url.bLength);
+
+    case 0x22:
+      // Webserial simulate the CDC_REQUEST_SET_CONTROL_LINE_STATE (0x22) to
+      // connect and disconnect.
+
+      web_serial_connected = (request->wValue != 0);
+
+      // response with status OK
+      return tud_control_status(rhport, request);
+
+    default:
+      // stall unknown request
+      return false;
+  }
+}
+
+// Invoked when DATA Stage of VENDOR's request is complete
+bool tud_vendor_control_complete_cb(uint8_t rhport, tusb_control_request_t const * request)
+{
+  (void) rhport;
+  (void) request;
+
+  // nothing to do
+  return true;
+}
+
 void webserial_task(void)
 {
+  if ( web_serial_connected )
+  {
+    if ( tud_vendor_available() )
+    {
+      uint8_t buf[64];
+      uint32_t count = tud_vendor_read(buf, sizeof(buf));
 
+      // echo back to both web serial and cdc
+      echo_all(buf, count);
+    }
+  }
 }
+
 
 //--------------------------------------------------------------------+
 // USB CDC
@@ -120,17 +203,10 @@ void cdc_task(void)
     {
       uint8_t buf[64];
 
-      // read and echo back
       uint32_t count = tud_cdc_read(buf, sizeof(buf));
 
-      for(uint32_t i=0; i<count; i++)
-      {
-        tud_cdc_write_char(buf[i]);
-
-        if ( buf[i] == '\r' ) tud_cdc_write_char('\n');
-      }
-
-      tud_cdc_write_flush();
+      // echo back to both web serial and cdc
+      echo_all(buf, count);
     }
   }
 }
