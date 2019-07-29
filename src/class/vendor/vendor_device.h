@@ -52,7 +52,9 @@
 bool     tud_vendor_n_mounted    (uint8_t itf);
 uint32_t tud_vendor_n_available  (uint8_t itf);
 uint32_t tud_vendor_n_read       (uint8_t itf, void* buffer, uint32_t bufsize);
-uint32_t tud_vendor_n_write      (uint8_t itf, uint8_t const* buffer, uint32_t bufsize);
+uint32_t tud_vendor_n_write      (uint8_t itf, void const* buffer, uint32_t bufsize);
+
+static inline uint32_t tud_vendor_n_write_str  (uint8_t itf, char const* str);
 
 //--------------------------------------------------------------------+
 // Application API (Single Port)
@@ -60,7 +62,8 @@ uint32_t tud_vendor_n_write      (uint8_t itf, uint8_t const* buffer, uint32_t b
 static inline bool     tud_vendor_mounted    (void);
 static inline uint32_t tud_vendor_available  (void);
 static inline uint32_t tud_vendor_read       (void* buffer, uint32_t bufsize);
-static inline uint32_t tud_vendor_write      (uint8_t const* buffer, uint32_t bufsize);
+static inline uint32_t tud_vendor_write      (void const* buffer, uint32_t bufsize);
+static inline uint32_t tud_vendor_write_str  (char const* str);
 
 //--------------------------------------------------------------------+
 // Application Callback API (weak is optional)
@@ -72,6 +75,11 @@ TU_ATTR_WEAK void tud_vendor_rx_cb(uint8_t itf);
 //--------------------------------------------------------------------+
 // Inline Functions
 //--------------------------------------------------------------------+
+
+static inline uint32_t tud_vendor_n_write_str (uint8_t itf, char const* str)
+{
+  return tud_vendor_n_write(itf, str, strlen(str));
+}
 
 static inline bool tud_vendor_mounted (void)
 {
@@ -88,9 +96,14 @@ static inline uint32_t tud_vendor_read (void* buffer, uint32_t bufsize)
   return tud_vendor_n_read(0, buffer, bufsize);
 }
 
-static inline uint32_t tud_vendor_write (uint8_t const* buffer, uint32_t bufsize)
+static inline uint32_t tud_vendor_write (void const* buffer, uint32_t bufsize)
 {
   return tud_vendor_n_write(0, buffer, bufsize);
+}
+
+static inline uint32_t tud_vendor_write_str (char const* str)
+{
+  return tud_vendor_n_write_str(0, str);
 }
 
 //--------------------------------------------------------------------+

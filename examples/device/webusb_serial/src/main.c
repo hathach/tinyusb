@@ -176,6 +176,8 @@ bool tud_vendor_control_request_cb(uint8_t rhport, tusb_control_request_t const 
       {
         board_led_write(true);
         blink_interval_ms = BLINK_ALWAYS_ON;
+
+        tud_vendor_write_str("\r\nTinyUSB WebUSB device example\r\n");
       }else
       {
         blink_interval_ms = BLINK_MOUNTED;
@@ -247,7 +249,7 @@ void tud_cdc_line_state_cb(uint8_t itf, bool dtr, bool rts)
   if ( dtr && rts )
   {
     // print initial message when connected
-    tud_cdc_write_str("\r\nTinyUSB CDC MSC HID device example\r\n");
+    tud_cdc_write_str("\r\nTinyUSB WebUSB device example\r\n");
   }
 }
 

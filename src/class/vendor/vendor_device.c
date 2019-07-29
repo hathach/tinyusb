@@ -113,7 +113,7 @@ static bool maybe_transmit(vendord_interface_t* p_itf)
   return true;
 }
 
-uint32_t tud_vendor_n_write (uint8_t itf, uint8_t const* buffer, uint32_t bufsize)
+uint32_t tud_vendor_n_write (uint8_t itf, void const* buffer, uint32_t bufsize)
 {
   vendord_interface_t* p_itf = &_vendord_itf[itf];
   uint16_t ret = tu_fifo_write_n(&p_itf->tx_ff, buffer, bufsize);
