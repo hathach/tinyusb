@@ -227,6 +227,20 @@ enum
   INTERFACE_INVALID_NUMBER = 0xff
 };
 
+
+enum
+{
+  MS_OS_20_SET_HEADER_DESCRIPTOR       = 0x00,
+  MS_OS_20_SUBSET_HEADER_CONFIGURATION = 0x01,
+  MS_OS_20_SUBSET_HEADER_FUNCTION      = 0x02,
+  MS_OS_20_FEATURE_COMPATBLE_ID        = 0x03,
+  MS_OS_20_FEATURE_REG_PROPERTY        = 0x04,
+  MS_OS_20_FEATURE_MIN_RESUME_TIME     = 0x05,
+  MS_OS_20_FEATURE_MODEL_ID            = 0x06,
+  MS_OS_20_FEATURE_CCGP_DEVICE         = 0x07,
+  MS_OS_20_FEATURE_VENDOR_REVISION     = 0x08
+}microsoft_os_20_type_t;
+
 //--------------------------------------------------------------------+
 // USB Descriptors
 //--------------------------------------------------------------------+

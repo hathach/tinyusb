@@ -153,6 +153,19 @@ bool tud_vendor_control_request_cb(uint8_t rhport, tusb_control_request_t const 
       // Get landing page url
       return tud_control_xfer(rhport, request, (void*) &desc_url, desc_url.bLength);
 
+    case VENDOR_REQUEST_MICROSOFT:
+      if ( request->wIndex == 7 )
+      {
+        // Get Microsoft OS 2.0 compatible descriptor
+        uint16_t total_len;
+        memcpy(&total_len, desc_ms_os_20+8, 2);
+
+        return tud_control_xfer(rhport, request, (void*) desc_ms_os_20, total_len);
+      }else
+      {
+        return false;
+      }
+
     case 0x22:
       // Webserial simulate the CDC_REQUEST_SET_CONTROL_LINE_STATE (0x22) to
       // connect and disconnect.
@@ -175,6 +188,8 @@ bool tud_vendor_control_request_cb(uint8_t rhport, tusb_control_request_t const 
       // stall unknown request
       return false;
   }
+
+  return true;
 }
 
 // Invoked when DATA Stage of VENDOR's request is complete
