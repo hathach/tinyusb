@@ -51,8 +51,8 @@
 //--------------------------------------------------------------------+
 #if CFG_TUSB_DEBUG
   #include <stdio.h>
-  #define _MESS_ERR(_err)         printf("%s: %d: failed, error = %s\n", __func__, __LINE__, tusb_strerr[_err])
-  #define _MESS_FAILED()          printf("%s: %d: failed\n", __func__, __LINE__)
+  #define _MESS_ERR(_err)   printf("%s: %d: failed, error = %s\n", __func__, __LINE__, tusb_strerr[_err])
+  #define _MESS_FAILED()    printf("%s: %d: failed\n", __func__, __LINE__)
 #else
   #define _MESS_ERR(_err)
   #define _MESS_FAILED()
@@ -61,11 +61,11 @@
 // Halt CPU (breakpoint) when hitting error, only apply for Cortex M3, M4, M7
 #if defined(__ARM_ARCH_7M__) || defined (__ARM_ARCH_7EM__)
 
-#define TU_BREAKPOINT() \
-  do {\
-    volatile uint32_t* ARM_CM_DHCSR =  ((volatile uint32_t*) 0xE000EDF0UL); /* Cortex M CoreDebug->DHCSR */ \
-    if ( (*ARM_CM_DHCSR) & 1UL ) __asm("BKPT #0\n"); /* Only halt mcu if debugger is attached */\
-  } while(0)
+#define TU_BREAKPOINT() do                                                                                \
+{                                                                                                         \
+  volatile uint32_t* ARM_CM_DHCSR =  ((volatile uint32_t*) 0xE000EDF0UL); /* Cortex M CoreDebug->DHCSR */ \
+  if ( (*ARM_CM_DHCSR) & 1UL ) __asm("BKPT #0\n"); /* Only halt mcu if debugger is attached */            \
+} while(0)
 
 #else
 #define TU_BREAKPOINT()
@@ -80,22 +80,23 @@
 #define GET_4TH_ARG(arg1, arg2, arg3, arg4, ...)  arg4
 
 /*------------- Generator for TU_VERIFY and TU_VERIFY_HDLR -------------*/
-#define TU_VERIFY_DEFINE(_cond, _handler, _ret)  do { if ( !(_cond) ) { _handler; return _ret;  } } while(0)
+#define TU_VERIFY_DEFINE(_cond, _handler, _ret)  do            \
+{                                                              \
+  if ( !(_cond) ) { _handler; return _ret;  }                  \
+} while(0)
 
 /*------------- Generator for TU_VERIFY_ERR and TU_VERIFY_ERR_HDLR -------------*/
-#define TU_VERIFY_ERR_DEF2(_error, _handler)  \
-    do {                                              \
-      uint32_t _err = (uint32_t)(_error);             \
-      if ( 0 != _err ) { _MESS_ERR(_err); _handler; return _err; }\
-    } while(0)
+#define TU_VERIFY_ERR_DEF2(_error, _handler)  do               \
+{                                                              \
+  uint32_t _err = (uint32_t)(_error);                          \
+  if ( 0 != _err ) { _MESS_ERR(_err); _handler; return _err; } \
+} while(0)
 
-#define TU_VERIFY_ERR_DEF3(_error, _handler, _ret)  \
-    do {                                              \
-      uint32_t _err = (uint32_t)(_error);             \
-      if ( 0 != _err ) { _MESS_ERR(_err); _handler; return _ret; }\
-    } while(0)
-
-
+#define TU_VERIFY_ERR_DEF3(_error, _handler, _ret) do          \
+{                                                              \
+  uint32_t _err = (uint32_t)(_error);                          \
+  if ( 0 != _err ) { _MESS_ERR(_err); _handler; return _ret; } \
+} while(0)
 
 
 /*------------------------------------------------------------------*/
@@ -139,7 +140,6 @@
 #define TU_VERIFY_ERR_HDLR_3ARGS(_error, _handler, _ret)  TU_VERIFY_ERR_DEF3(_error, _handler, _ret)
 
 #define TU_VERIFY_ERR_HDLR(...)       GET_4TH_ARG(__VA_ARGS__, TU_VERIFY_ERR_HDLR_3ARGS, TU_VERIFY_ERR_HDLR_2ARGS)(__VA_ARGS__)
-
 
 
 /*------------------------------------------------------------------*/

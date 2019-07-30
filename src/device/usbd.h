@@ -59,6 +59,14 @@ static inline bool tud_ready(void)
 // Remote wake up host, only if suspended and enabled by host
 bool tud_remote_wakeup(void);
 
+// Carry out Data and Status stage of control transfer
+// - If len = 0, it is equivalent to sending status only
+// - If len > wLength : it will be truncated
+bool tud_control_xfer(uint8_t rhport, tusb_control_request_t const * request, void* buffer, uint16_t len);
+
+// Send STATUS (zero length) packet
+bool tud_control_status(uint8_t rhport, tusb_control_request_t const * request);
+
 //--------------------------------------------------------------------+
 // Application Callbacks (WEAK is optional)
 //--------------------------------------------------------------------+
@@ -66,6 +74,10 @@ bool tud_remote_wakeup(void);
 // Invoked when received GET DEVICE DESCRIPTOR request
 // Application return pointer to descriptor
 uint8_t const * tud_descriptor_device_cb(void);
+
+// Invoked when received GET BOS DESCRIPTOR request
+// Application return pointer to descriptor
+TU_ATTR_WEAK uint8_t const * tud_descriptor_bos_cb(void);
 
 // Invoked when received GET CONFIGURATION DESCRIPTOR request
 // Application return pointer to descriptor, whose contents must exist long enough for transfer to complete
@@ -88,10 +100,56 @@ TU_ATTR_WEAK void tud_suspend_cb(bool remote_wakeup_en);
 // Invoked when usb bus is resumed
 TU_ATTR_WEAK void tud_resume_cb(void);
 
+// Invoked when received control request with VENDOR TYPE
+TU_ATTR_WEAK bool tud_vendor_control_request_cb(uint8_t rhport, tusb_control_request_t const * request);
+TU_ATTR_WEAK bool tud_vendor_control_complete_cb(uint8_t rhport, tusb_control_request_t const * request);
+
+
 //--------------------------------------------------------------------+
-// Interface Descriptor Template
+// Binary Device Object Store (BOS) Descriptor Templates
 //--------------------------------------------------------------------+
 
+#define TUD_BOS_DESC_LEN      5
+
+// total length, number of device caps
+#define TUD_BOS_DESCRIPTOR(_total_len, _caps_num) \
+  5, TUSB_DESC_BOS, U16_TO_U8S_LE(_total_len), _caps_num
+
+// Device Capability Platform 128-bit UUID + Data
+#define TUD_BOS_PLATFORM_DESCRIPTOR(...) \
+  4+TU_ARGS_NUM(__VA_ARGS__), TUSB_DESC_DEVICE_CAPABILITY, DEVICE_CAPABILITY_PLATFORM, 0x00, __VA_ARGS__
+
+//------------- WebUSB BOS Platform -------------//
+
+// Descriptor Length
+#define TUD_BOS_WEBUSB_DESC_LEN         24
+
+// Vendor Code, iLandingPage
+#define TUD_BOS_WEBUSB_DESCRIPTOR(_vendor_code, _ipage) \
+  TUD_BOS_PLATFORM_DESCRIPTOR(TUD_BOS_WEBUSB_UUID, U16_TO_U8S_LE(0x0100), _vendor_code, _ipage)
+
+#define TUD_BOS_WEBUSB_UUID   \
+  0x38, 0xB6, 0x08, 0x34, 0xA9, 0x09, 0xA0, 0x47, \
+  0x8B, 0xFD, 0xA0, 0x76, 0x88, 0x15, 0xB6, 0x65
+
+//------------- Microsoft OS 2.0 Platform -------------//
+
+#define TUD_BOS_MICROSOFT_OS_DESC_LEN   28
+
+// Total Length of descriptor set, vendor code
+#define TUD_BOS_MS_OS_20_DESCRIPTOR(_desc_set_len, _vendor_code) \
+  TUD_BOS_PLATFORM_DESCRIPTOR(TUD_BOS_MS_OS_20_UUID, U32_TO_U8S_LE(0x06030000), U16_TO_U8S_LE(_desc_set_len), _vendor_code, 0)
+
+#define TUD_BOS_MS_OS_20_UUID \
+  0xDF, 0x60, 0xDD, 0xD8, 0x89, 0x45, 0xC7, 0x4C, \
+  0x9C, 0xD2, 0x65, 0x9D, 0x9E, 0x64, 0x8A, 0x9F
+
+
+//--------------------------------------------------------------------+
+// Configuration & Interface Descriptor Templates
+//--------------------------------------------------------------------+
+
+//------------- Configuration -------------//
 #define TUD_CONFIG_DESC_LEN   (9)
 
 // Interface count, string index, total length, attribute, power in mA
@@ -160,16 +218,16 @@ TU_ATTR_WEAK void tud_resume_cb(void);
 #define TUD_HID_INOUT_DESC_LEN    (9 + 9 + 7 + 7)
 
 // HID Input & Output descriptor
-// Interface number, string index, protocol, report descriptor len, EP In & Out address, size & polling interval
-#define TUD_HID_INOUT_DESCRIPTOR(_itfnum, _stridx, _boot_protocol, _report_desc_len, _epin, _epout, _epsize, _ep_interval) \
+// Interface number, string index, protocol, report descriptor len, EP OUT & IN address, size & polling interval
+#define TUD_HID_INOUT_DESCRIPTOR(_itfnum, _stridx, _boot_protocol, _report_desc_len, _epout, _epin, _epsize, _ep_interval) \
   /* Interface */\
   9, TUSB_DESC_INTERFACE, _itfnum, 0, 2, TUSB_CLASS_HID, (_boot_protocol) ? HID_SUBCLASS_BOOT : 0, _boot_protocol, _stridx,\
   /* HID descriptor */\
   9, HID_DESC_TYPE_HID, U16_TO_U8S_LE(0x0111), 0, 1, HID_DESC_TYPE_REPORT, U16_TO_U8S_LE(_report_desc_len),\
-  /* Endpoint In */\
-  7, TUSB_DESC_ENDPOINT, _epin, TUSB_XFER_INTERRUPT, U16_TO_U8S_LE(_epsize), _ep_interval,\
   /* Endpoint Out */\
-  7, TUSB_DESC_ENDPOINT, _epout, TUSB_XFER_INTERRUPT, U16_TO_U8S_LE(_epsize), _ep_interval
+  7, TUSB_DESC_ENDPOINT, _epout, TUSB_XFER_INTERRUPT, U16_TO_U8S_LE(_epsize), _ep_interval, \
+  /* Endpoint In */\
+  7, TUSB_DESC_ENDPOINT, _epin, TUSB_XFER_INTERRUPT, U16_TO_U8S_LE(_epsize), _ep_interval
 
 //------------- MIDI -------------//
 
@@ -204,6 +262,18 @@ TU_ATTR_WEAK void tud_resume_cb(void);
   7, TUSB_DESC_ENDPOINT, _epin, TUSB_XFER_BULK, U16_TO_U8S_LE(_epsize), 0,\
   /* MS Endpoint (connected to embedded jack out) */\
   5, TUSB_DESC_CS_ENDPOINT, MIDI_CS_ENDPOINT_GENERAL, 1, 3
+
+//------------- Vendor -------------//
+#define TUD_VENDOR_DESC_LEN  (9+7+7)
+
+// Interface number, string index, EP Out & IN address, EP size
+#define TUD_VENDOR_DESCRIPTOR(_itfnum, _stridx, _epout, _epin, _epsize) \
+  /* Interface */\
+  9, TUSB_DESC_INTERFACE, _itfnum, 0, 2, TUSB_CLASS_VENDOR_SPECIFIC, 0x00, 0x00, _stridx,\
+  /* Endpoint Out */\
+  7, TUSB_DESC_ENDPOINT, _epout, TUSB_XFER_BULK, U16_TO_U8S_LE(_epsize), 0,\
+  /* Endpoint In */\
+  7, TUSB_DESC_ENDPOINT, _epin, TUSB_XFER_BULK, U16_TO_U8S_LE(_epsize), 0
 
 
 #ifdef __cplusplus

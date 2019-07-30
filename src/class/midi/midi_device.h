@@ -121,12 +121,12 @@ static inline uint32_t tudi_midi_write24 (uint8_t jack_id, uint8_t b1, uint8_t b
 //--------------------------------------------------------------------+
 // Internal Class Driver API
 //--------------------------------------------------------------------+
-void midid_init               (void);
-bool midid_open               (uint8_t rhport, tusb_desc_interface_t const * p_interface_desc, uint16_t *p_length);
-bool midid_control_request (uint8_t rhport, tusb_control_request_t const * p_request);
-bool midid_control_request_complete (uint8_t rhport, tusb_control_request_t const * p_request);
-bool midid_xfer_cb            (uint8_t rhport, uint8_t edpt_addr, xfer_result_t result, uint32_t xferred_bytes);
-void midid_reset              (uint8_t rhport);
+void midid_init             (void);
+void midid_reset            (uint8_t rhport);
+bool midid_open             (uint8_t rhport, tusb_desc_interface_t const * itf_desc, uint16_t *p_length);
+bool midid_control_request  (uint8_t rhport, tusb_control_request_t const * request);
+bool midid_control_complete (uint8_t rhport, tusb_control_request_t const * request);
+bool midid_xfer_cb          (uint8_t rhport, uint8_t edpt_addr, xfer_result_t result, uint32_t xferred_bytes);
 
 #ifdef __cplusplus
  }

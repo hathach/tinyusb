@@ -62,24 +62,24 @@
 #endif
 
 #ifndef CFG_TUSB_MEM_ALIGN
-#define CFG_TUSB_MEM_ALIGN          TU_ATTR_ALIGNED(4)
+#define CFG_TUSB_MEM_ALIGN          __attribute__ ((aligned(4)))
 #endif
 
 //--------------------------------------------------------------------
 // DEVICE CONFIGURATION
 //--------------------------------------------------------------------
 
-#define CFG_TUD_ENDOINT0_SIZE       64
+#define CFG_TUD_ENDOINT0_SIZE   64
 
 //------------- CLASS -------------//
-#define CFG_TUD_CDC                 0
-#define CFG_TUD_MSC                 1
-#define CFG_TUD_HID                 0
-#define CFG_TUD_MIDI                0
-#define CFG_TUD_CUSTOM_CLASS        0
+#define CFG_TUD_CDC             0
+#define CFG_TUD_MSC             1
+#define CFG_TUD_HID             0
+#define CFG_TUD_MIDI            0
+#define CFG_TUD_VENDOR          0
 
 // MSC Buffer size of Device Mass storage
-#define CFG_TUD_MSC_BUFSIZE         512
+#define CFG_TUD_MSC_BUFSIZE     512
 
 #ifdef __cplusplus
  }

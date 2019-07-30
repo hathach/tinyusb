@@ -12,7 +12,16 @@ success_count = 0
 fail_count = 0
 exit_status = 0
 
-all_device_example = ["cdc_msc_hid", "hid_generic_inout", "midi_test", "msc_dual_lun"]
+all_examples = [];
+for entry in os.scandir("examples/device"):
+    if entry.is_dir():
+        all_examples.append(entry.name)
+
+# mynewt has its own example repo
+all_examples.remove("cdc_msc_hid_mynewt")
+
+# TODO update freeRTOS example to work with all boards (only nrf52840 now)
+all_examples.remove("cdc_msc_hid_freertos")
 
 all_boards = []
 for entry in os.scandir("hw/bsp"):
@@ -25,7 +34,7 @@ def build_example(example, board):
 
 total_time = time.monotonic()
 
-for example in all_device_example:
+for example in all_examples:
     for board in all_boards:
         start_time = time.monotonic()
         build_result = build_example(example, board)

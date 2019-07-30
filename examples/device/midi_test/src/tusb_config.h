@@ -62,25 +62,25 @@
 #endif
 
 #ifndef CFG_TUSB_MEM_ALIGN
-#define CFG_TUSB_MEM_ALIGN          TU_ATTR_ALIGNED(4)
+#define CFG_TUSB_MEM_ALIGN          __attribute__ ((aligned(4)))
 #endif
 
 //--------------------------------------------------------------------
 // DEVICE CONFIGURATION
 //--------------------------------------------------------------------
 
-#define CFG_TUD_ENDOINT0_SIZE       64
+#define CFG_TUD_ENDOINT0_SIZE     64
 
 //------------- CLASS -------------//
-#define CFG_TUD_CDC                 0
-#define CFG_TUD_MSC                 0
-#define CFG_TUD_HID                 0
-#define CFG_TUD_MIDI                1
-#define CFG_TUD_CUSTOM_CLASS        0
+#define CFG_TUD_CDC               0
+#define CFG_TUD_MSC               0
+#define CFG_TUD_HID               0
+#define CFG_TUD_MIDI              1
+#define CFG_TUD_VENDOR            0
 
 // MIDI FIFO size of TX and RX
-#define CFG_TUD_MIDI_RX_BUFSIZE     64
-#define CFG_TUD_MIDI_TX_BUFSIZE     64
+#define CFG_TUD_MIDI_RX_BUFSIZE   64
+#define CFG_TUD_MIDI_TX_BUFSIZE   64
 
 #ifdef __cplusplus
  }

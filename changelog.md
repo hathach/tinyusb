@@ -1,5 +1,7 @@
 # TinyUSB changelog
 
+## New Release
+
 ## 0.5.0 (Initial Release) - 2019.07.10
 
 First release, device stack works great, host stack works but still need improvement. 

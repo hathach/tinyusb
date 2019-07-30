@@ -30,6 +30,8 @@
 #include "bsp/board.h"
 #include "tusb.h"
 
+#include "usb_descriptors.h"
+
 //--------------------------------------------------------------------+
 // MACRO CONSTANT TYPEDEF PROTYPES
 //--------------------------------------------------------------------+
@@ -61,9 +63,7 @@ int main(void)
 
   while (1)
   {
-    // tinyusb device task
-    tud_task();
-
+    tud_task(); // tinyusb device task
     led_blinking_task();
 
 #if CFG_TUD_CDC
@@ -163,13 +163,6 @@ void tud_cdc_rx_cb(uint8_t itf)
 // USB HID
 //--------------------------------------------------------------------+
 #if CFG_TUD_HID
-
-// Must match with ID declared by HID Report Descriptor, better to be in header file
-enum
-{
-  REPORT_ID_KEYBOARD = 1,
-  REPORT_ID_MOUSE
-};
 
 void hid_task(void)
 {

@@ -111,7 +111,7 @@ bool tud_msc_set_sense(uint8_t lun, uint8_t sense_key, uint8_t add_sense_code, u
 }
 
 //--------------------------------------------------------------------+
-// USBD-CLASS API
+// USBD Driver API
 //--------------------------------------------------------------------+
 void mscd_init(void)
 {
@@ -154,7 +154,7 @@ bool mscd_control_request(uint8_t rhport, tusb_control_request_t const * p_reque
   {
     case MSC_REQ_RESET:
       // TODO: Actually reset interface.
-      usbd_control_status(rhport, p_request);
+      tud_control_status(rhport, p_request);
     break;
 
     case MSC_REQ_GET_MAX_LUN:
@@ -166,7 +166,7 @@ bool mscd_control_request(uint8_t rhport, tusb_control_request_t const * p_reque
       // MAX LUN is minus 1 by specs
       maxlun--;
 
-      usbd_control_xfer(rhport, p_request, &maxlun, 1);
+      tud_control_xfer(rhport, p_request, &maxlun, 1);
     }
     break;
 
@@ -178,10 +178,10 @@ bool mscd_control_request(uint8_t rhport, tusb_control_request_t const * p_reque
 
 // Invoked when class request DATA stage is finished.
 // return false to stall control endpoint (e.g Host send non-sense DATA)
-bool mscd_control_request_complete(uint8_t rhport, tusb_control_request_t const * p_request)
+bool mscd_control_complete(uint8_t rhport, tusb_control_request_t const * request)
 {
   (void) rhport;
-  (void) p_request;
+  (void) request;
 
   // nothing to do
   return true;

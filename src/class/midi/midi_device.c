@@ -44,6 +44,7 @@ typedef struct
   uint8_t ep_in;
   uint8_t ep_out;
 
+  /*------------- From this point, data is not cleared by bus reset -------------*/
   // FIFO
   tu_fifo_t rx_ff;
   tu_fifo_t tx_ff;
@@ -77,7 +78,7 @@ CFG_TUSB_MEM_SECTION midid_interface_t _midid_itf[CFG_TUD_MIDI];
 bool tud_midi_n_mounted (uint8_t itf)
 {
   midid_interface_t* midi = &_midid_itf[itf];
-  return midi->itf_num != 0;
+  return midi->ep_in && midi->ep_out;
 }
 
 //--------------------------------------------------------------------+
@@ -127,7 +128,8 @@ void midi_rx_done_cb(midid_interface_t* midi, uint8_t const* buffer, uint32_t bu
 
 static bool maybe_transmit(midid_interface_t* midi, uint8_t itf_index)
 {
-  TU_VERIFY( !usbd_edpt_busy(TUD_OPT_RHPORT, midi->ep_in) ); // skip if previous transfer not complete
+  // skip if previous transfer not complete
+  TU_VERIFY( !usbd_edpt_busy(TUD_OPT_RHPORT, midi->ep_in) );
 
   uint16_t count = tu_fifo_read_n(&midi->tx_ff, midi->epin_buf, CFG_TUD_MIDI_EPSIZE);
   if (count > 0)
@@ -222,6 +224,7 @@ void midid_init(void)
     // config fifo
     tu_fifo_config(&midi->rx_ff, midi->rx_ff_buf, CFG_TUD_MIDI_RX_BUFSIZE, 1, true);
     tu_fifo_config(&midi->tx_ff, midi->tx_ff_buf, CFG_TUD_MIDI_TX_BUFSIZE, 1, true);
+
     #if CFG_FIFO_MUTEX
     tu_fifo_config_mutex(&midi->rx_ff, osal_mutex_create(&midi->rx_ff_mutex));
     tu_fifo_config_mutex(&midi->tx_ff, osal_mutex_create(&midi->tx_ff_mutex));
@@ -275,7 +278,8 @@ bool midid_open(uint8_t rhport, tusb_desc_interface_t const * p_interface_desc, 
   (*p_length) = sizeof(tusb_desc_interface_t);
 
   uint8_t found_endpoints = 0;
-  while (found_endpoints < p_interface_desc->bNumEndpoints) {
+  while (found_endpoints < p_interface_desc->bNumEndpoints)
+  {
     if ( TUSB_DESC_ENDPOINT == p_desc[DESC_OFFSET_TYPE])
     {
         TU_ASSERT( dcd_edpt_open(rhport, (tusb_desc_endpoint_t const *) p_desc), false);
@@ -300,7 +304,7 @@ bool midid_open(uint8_t rhport, tusb_desc_interface_t const * p_interface_desc, 
   return true;
 }
 
-bool midid_control_request_complete(uint8_t rhport, tusb_control_request_t const * p_request)
+bool midid_control_complete(uint8_t rhport, tusb_control_request_t const * p_request)
 {
   return false;
 }
@@ -313,20 +317,20 @@ bool midid_control_request(uint8_t rhport, tusb_control_request_t const * p_requ
   return false;
 }
 
-bool midid_xfer_cb(uint8_t rhport, uint8_t edpt_addr, xfer_result_t result, uint32_t xferred_bytes)
+bool midid_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint32_t xferred_bytes)
 {
   // TODO Support multiple interfaces
   uint8_t const itf = 0;
   midid_interface_t* p_midi = &_midid_itf[itf];
 
   // receive new data
-  if ( edpt_addr == p_midi->ep_out )
+  if ( ep_addr == p_midi->ep_out )
   {
     midi_rx_done_cb(p_midi, p_midi->epout_buf, xferred_bytes);
 
     // prepare for next
     TU_ASSERT( usbd_edpt_xfer(rhport, p_midi->ep_out, p_midi->epout_buf, CFG_TUD_MIDI_EPSIZE), false );
-  } else if ( edpt_addr == p_midi->ep_in ) {
+  } else if ( ep_addr == p_midi->ep_in ) {
     maybe_transmit(p_midi, itf);
   }
 

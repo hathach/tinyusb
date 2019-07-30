@@ -205,7 +205,7 @@ bool hidd_control_request(uint8_t rhport, tusb_control_request_t const * p_reque
     if (p_request->bRequest == TUSB_REQ_GET_DESCRIPTOR && desc_type == HID_DESC_TYPE_REPORT)
     {
       uint8_t const * desc_report = tud_hid_descriptor_report_cb();
-      usbd_control_xfer(rhport, p_request, (void*) desc_report, p_hid->reprot_desc_len);
+      tud_control_xfer(rhport, p_request, (void*) desc_report, p_hid->reprot_desc_len);
     }else
     {
       return false; // stall unsupported request
@@ -225,12 +225,12 @@ bool hidd_control_request(uint8_t rhport, tusb_control_request_t const * p_reque
         uint16_t xferlen  = tud_hid_get_report_cb(report_id, (hid_report_type_t) report_type, p_hid->epin_buf, p_request->wLength);
         TU_ASSERT( xferlen > 0 );
 
-        usbd_control_xfer(rhport, p_request, p_hid->epin_buf, xferlen);
+        tud_control_xfer(rhport, p_request, p_hid->epin_buf, xferlen);
       }
       break;
 
       case  HID_REQ_CONTROL_SET_REPORT:
-        usbd_control_xfer(rhport, p_request, p_hid->epout_buf, p_request->wLength);
+        tud_control_xfer(rhport, p_request, p_hid->epout_buf, p_request->wLength);
       break;
 
       case HID_REQ_CONTROL_SET_IDLE:
@@ -241,18 +241,18 @@ bool hidd_control_request(uint8_t rhport, tusb_control_request_t const * p_reque
           if ( !tud_hid_set_idle_cb(p_hid->idle_rate) ) return false;
         }
 
-        usbd_control_status(rhport, p_request);
+        tud_control_status(rhport, p_request);
       break;
 
       case HID_REQ_CONTROL_GET_IDLE:
         // TODO idle rate of report
-        usbd_control_xfer(rhport, p_request, &p_hid->idle_rate, 1);
+        tud_control_xfer(rhport, p_request, &p_hid->idle_rate, 1);
       break;
 
       case HID_REQ_CONTROL_GET_PROTOCOL:
       {
         uint8_t protocol = 1-p_hid->boot_mode;   // 0 is Boot, 1 is Report protocol
-        usbd_control_xfer(rhport, p_request, &protocol, 1);
+        tud_control_xfer(rhport, p_request, &protocol, 1);
       }
       break;
 
@@ -261,7 +261,7 @@ bool hidd_control_request(uint8_t rhport, tusb_control_request_t const * p_reque
 
         if (tud_hid_boot_mode_cb) tud_hid_boot_mode_cb(p_hid->boot_mode);
 
-        usbd_control_status(rhport, p_request);
+        tud_control_status(rhport, p_request);
       break;
 
       default: return false; // stall unsupported request
@@ -276,7 +276,7 @@ bool hidd_control_request(uint8_t rhport, tusb_control_request_t const * p_reque
 
 // Invoked when class request DATA stage is finished.
 // return false to stall control endpoint (e.g Host send non-sense DATA)
-bool hidd_control_request_complete(uint8_t rhport, tusb_control_request_t const * p_request)
+bool hidd_control_complete(uint8_t rhport, tusb_control_request_t const * p_request)
 {
   (void) rhport;
   hidd_interface_t* p_hid = get_interface_by_itfnum( (uint8_t) p_request->wIndex );

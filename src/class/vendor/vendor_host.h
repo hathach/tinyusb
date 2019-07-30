@@ -24,35 +24,51 @@
  * This file is part of the TinyUSB stack.
  */
 
-#ifndef _TUSB_CUSTOM_DEVICE_H_
-#define _TUSB_CUSTOM_DEVICE_H_
+/** \ingroup group_class
+ *  \defgroup Group_Custom Custom Class (not supported yet)
+ *  @{ */
+
+#ifndef _TUSB_VENDOR_HOST_H_
+#define _TUSB_VENDOR_HOST_H_
 
 #include "common/tusb_common.h"
-#include "device/usbd.h"
+#include "host/usbh.h"
+
+#ifdef __cplusplus
+ extern "C" {
+#endif
+
+typedef struct {
+  pipe_handle_t pipe_in;
+  pipe_handle_t pipe_out;
+}custom_interface_info_t;
 
 //--------------------------------------------------------------------+
-// APPLICATION API (Multiple Root Ports)
-// Should be used only with MCU that support more than 1 ports
+// USBH-CLASS DRIVER API
 //--------------------------------------------------------------------+
+static inline bool tusbh_custom_is_mounted(uint8_t dev_addr, uint16_t vendor_id, uint16_t product_id)
+{
+  (void) vendor_id; // TODO check this later
+  (void) product_id;
+//  return (tusbh_device_get_mounted_class_flag(dev_addr) & TU_BIT(TUSB_CLASS_MAPPED_INDEX_END-1) ) != 0;
+  return false;
+}
 
-//--------------------------------------------------------------------+
-// APPLICATION API (Single Port)
-// Should be used with MCU supporting only 1 USB port for code simplicity
-//--------------------------------------------------------------------+
-
-
-//--------------------------------------------------------------------+
-// APPLICATION CALLBACK API (WEAK is optional)
-//--------------------------------------------------------------------+
+tusb_error_t tusbh_custom_read(uint8_t dev_addr, uint16_t vendor_id, uint16_t product_id, void * p_buffer, uint16_t length);
+tusb_error_t tusbh_custom_write(uint8_t dev_addr, uint16_t vendor_id, uint16_t product_id, void const * p_data, uint16_t length);
 
 //--------------------------------------------------------------------+
 // Internal Class Driver API
 //--------------------------------------------------------------------+
-void cusd_init(void);
-bool cusd_open(uint8_t rhport, tusb_desc_interface_t const * itf_desc, uint16_t *p_length);
-bool cusd_control_request_st(uint8_t rhport, tusb_control_request_t const * p_request);
-bool cusd_control_request_complete (uint8_t rhport, tusb_control_request_t const * p_request);
-bool cusd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t event, uint32_t xferred_bytes);
-void cusd_reset(uint8_t rhport);
+void         cush_init(void);
+tusb_error_t cush_open_subtask(uint8_t dev_addr, tusb_desc_interface_t const *p_interface_desc, uint16_t *p_length);
+void         cush_isr(pipe_handle_t pipe_hdl, xfer_result_t event);
+void         cush_close(uint8_t dev_addr);
 
-#endif /* _TUSB_CUSTOM_DEVICE_H_ */
+#ifdef __cplusplus
+ }
+#endif
+
+#endif /* _TUSB_VENDOR_HOST_H_ */
+
+/** @} */

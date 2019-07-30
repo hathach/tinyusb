@@ -7,6 +7,7 @@ LIBS = -lgcc -lc -lm -lnosys
 
 # TinyUSB Stack source
 SRC_C += \
+	src/tusb.c \
 	src/common/tusb_fifo.c \
 	src/device/usbd.c \
 	src/device/usbd_control.c \
@@ -14,7 +15,7 @@ SRC_C += \
 	src/class/cdc/cdc_device.c \
 	src/class/hid/hid_device.c \
 	src/class/midi/midi_device.c \
-	src/tusb.c \
+	src/class/vendor/vendor_device.c \
 	src/portable/$(VENDOR)/$(CHIP_FAMILY)/dcd_$(CHIP_FAMILY).c
 
 # TinyUSB stack include

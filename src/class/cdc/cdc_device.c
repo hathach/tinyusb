@@ -300,7 +300,7 @@ bool cdcd_open(uint8_t rhport, tusb_desc_interface_t const * itf_desc, uint16_t 
 
 // Invoked when class request DATA stage is finished.
 // return false to stall control endpoint (e.g Host send non-sense DATA)
-bool cdcd_control_request_complete(uint8_t rhport, tusb_control_request_t const * request)
+bool cdcd_control_complete(uint8_t rhport, tusb_control_request_t const * request)
 {
   (void) rhport;
 
@@ -334,11 +334,11 @@ bool cdcd_control_request(uint8_t rhport, tusb_control_request_t const * request
   switch ( request->bRequest )
   {
     case CDC_REQUEST_SET_LINE_CODING:
-      usbd_control_xfer(rhport, request, &p_cdc->line_coding, sizeof(cdc_line_coding_t));
+      tud_control_xfer(rhport, request, &p_cdc->line_coding, sizeof(cdc_line_coding_t));
     break;
 
     case CDC_REQUEST_GET_LINE_CODING:
-      usbd_control_xfer(rhport, request, &p_cdc->line_coding, sizeof(cdc_line_coding_t));
+      tud_control_xfer(rhport, request, &p_cdc->line_coding, sizeof(cdc_line_coding_t));
     break;
 
     case CDC_REQUEST_SET_CONTROL_LINE_STATE:
@@ -349,7 +349,7 @@ bool cdcd_control_request(uint8_t rhport, tusb_control_request_t const * request
       //        This signal corresponds to V.24 signal 105 and RS-232 signal RTS (Request to Send)
       p_cdc->line_state = (uint8_t) request->wValue;
 
-      usbd_control_status(rhport, request);
+      tud_control_status(rhport, request);
 
       // Invoke callback
       if ( tud_cdc_line_state_cb) tud_cdc_line_state_cb(itf, tu_bit_test(request->wValue, 0), tu_bit_test(request->wValue, 1));
