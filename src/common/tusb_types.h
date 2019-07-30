@@ -68,7 +68,6 @@ typedef enum
   TUSB_DIR_IN_MASK = 0x80
 }tusb_dir_t;
 
-
 /// USB Descriptor Types
 typedef enum
 {
@@ -228,7 +227,7 @@ enum
 };
 
 
-enum
+typedef enum
 {
   MS_OS_20_SET_HEADER_DESCRIPTOR       = 0x00,
   MS_OS_20_SUBSET_HEADER_CONFIGURATION = 0x01,
@@ -239,7 +238,7 @@ enum
   MS_OS_20_FEATURE_MODEL_ID            = 0x06,
   MS_OS_20_FEATURE_CCGP_DEVICE         = 0x07,
   MS_OS_20_FEATURE_VENDOR_REVISION     = 0x08
-}microsoft_os_20_type_t;
+} microsoft_os_20_type_t;
 
 //--------------------------------------------------------------------+
 // USB Descriptors
