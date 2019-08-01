@@ -44,7 +44,7 @@ Currently the following OS are supported with tinyusb out of the box with a simp
 
 - **No OS**
 - **FreeRTOS**
-- **MyNewt** (work in progress)
+- **Mynewt** Due to the newt package build system, Mynewt examples are better to be on its [own repo](https://github.com/hathach/mynewt-tinyusb-example) 
 
 ## Supported MCUs
 
