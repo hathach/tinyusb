@@ -34,14 +34,6 @@
 #define CFG_TUD_VENDOR_EPSIZE     64
 #endif
 
-#ifndef CFG_TUD_VENDOR_RX_BUFSIZE
-#define CFG_TUD_VENDOR_RX_BUFSIZE 0
-#endif
-
-#ifndef CFG_TUD_VENDOR_TX_BUFSIZE
-#define CFG_TUD_VENDOR_TX_BUFSIZE 0
-#endif
-
 #ifdef __cplusplus
  extern "C" {
 #endif
@@ -49,21 +41,24 @@
 //--------------------------------------------------------------------+
 // Application API (Multiple Interfaces)
 //--------------------------------------------------------------------+
-bool     tud_vendor_n_mounted    (uint8_t itf);
-uint32_t tud_vendor_n_available  (uint8_t itf);
-uint32_t tud_vendor_n_read       (uint8_t itf, void* buffer, uint32_t bufsize);
-uint32_t tud_vendor_n_write      (uint8_t itf, void const* buffer, uint32_t bufsize);
+bool     tud_vendor_n_mounted   (uint8_t itf);
+uint32_t tud_vendor_n_available (uint8_t itf);
+uint32_t tud_vendor_n_read      (uint8_t itf, void* buffer, uint32_t bufsize);
+bool     tud_vendor_n_peek      (uint8_t itf, int pos, uint8_t* u8);
+uint32_t tud_vendor_n_write     (uint8_t itf, void const* buffer, uint32_t bufsize);
 
-static inline uint32_t tud_vendor_n_write_str  (uint8_t itf, char const* str);
+static inline
+uint32_t tud_vendor_n_write_str (uint8_t itf, char const* str);
 
 //--------------------------------------------------------------------+
 // Application API (Single Port)
 //--------------------------------------------------------------------+
-static inline bool     tud_vendor_mounted    (void);
-static inline uint32_t tud_vendor_available  (void);
-static inline uint32_t tud_vendor_read       (void* buffer, uint32_t bufsize);
-static inline uint32_t tud_vendor_write      (void const* buffer, uint32_t bufsize);
-static inline uint32_t tud_vendor_write_str  (char const* str);
+static inline bool     tud_vendor_mounted   (void);
+static inline uint32_t tud_vendor_available (void);
+static inline uint32_t tud_vendor_read      (void* buffer, uint32_t bufsize);
+static inline bool     tud_vendor_peek      (int pos, uint8_t* u8);
+static inline uint32_t tud_vendor_write     (void const* buffer, uint32_t bufsize);
+static inline uint32_t tud_vendor_write_str (char const* str);
 
 //--------------------------------------------------------------------+
 // Application Callback API (weak is optional)
@@ -94,6 +89,11 @@ static inline uint32_t tud_vendor_available (void)
 static inline uint32_t tud_vendor_read (void* buffer, uint32_t bufsize)
 {
   return tud_vendor_n_read(0, buffer, bufsize);
+}
+
+static inline bool tud_vendor_peek (int pos, uint8_t* u8)
+{
+  return tud_vendor_n_peek(0, pos, u8);
 }
 
 static inline uint32_t tud_vendor_write (void const* buffer, uint32_t bufsize)
