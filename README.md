@@ -83,4 +83,4 @@ TinyUSB is currently used by these other projects:
 * [CircuitPython](https://github.com/adafruit/circuitpython)
 * [TinyUSB Arduino Library](https://github.com/adafruit/Adafruit_TinyUSB_Arduino)
 
-If your project also uses TinyUSB and want to share, feel free to create a pull request.
+Let's me know if your project also uses TinyUSB and want to share.
