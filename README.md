@@ -27,6 +27,8 @@ Support multiple device configurations by dynamically changing usb descriptors. 
 - Human Interface Device (HID): Generic (In & Out), Keyboard, Mouse, Gamepad etc ...
 - Mass Storage Class (MSC): with multiple LUNs
 - Musical Instrument Digital Interface (MIDI)
+- Vendor-specific class support with generic In & Out endpoints. Can be used with MS OS 2.0 compatible descriptor to load winUSB driver without INF file.
+- [WebUSB](https://github.com/WICG/webusb) with vendor-specific class
 
 ## Host Stack
 
