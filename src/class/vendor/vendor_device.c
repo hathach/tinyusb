@@ -62,7 +62,6 @@ CFG_TUSB_MEM_SECTION static vendord_interface_t _vendord_itf[CFG_TUD_VENDOR];
 #define ITF_MEM_RESET_SIZE   offsetof(vendord_interface_t, rx_ff)
 
 
-
 bool tud_vendor_n_mounted (uint8_t itf)
 {
   return _vendord_itf[itf].ep_in && _vendord_itf[itf].ep_out;
@@ -71,6 +70,11 @@ bool tud_vendor_n_mounted (uint8_t itf)
 uint32_t tud_vendor_n_available (uint8_t itf)
 {
   return tu_fifo_count(&_vendord_itf[itf].rx_ff);
+}
+
+bool tud_vendor_n_peek(uint8_t itf, int pos, uint8_t* u8)
+{
+  return tu_fifo_peek_at(&_vendord_itf[itf].rx_ff, pos, u8);
 }
 
 //--------------------------------------------------------------------+

@@ -121,12 +121,6 @@ uint32_t tud_cdc_n_available(uint8_t itf)
   return tu_fifo_count(&_cdcd_itf[itf].rx_ff);
 }
 
-signed char tud_cdc_n_read_char(uint8_t itf)
-{
-  signed char ch;
-  return tud_cdc_n_read(itf, &ch, 1) ? ch : (-1);
-}
-
 uint32_t tud_cdc_n_read(uint8_t itf, void* buffer, uint32_t bufsize)
 {
   uint32_t num_read = tu_fifo_read_n(&_cdcd_itf[itf].rx_ff, buffer, bufsize);
@@ -134,10 +128,9 @@ uint32_t tud_cdc_n_read(uint8_t itf, void* buffer, uint32_t bufsize)
   return num_read;
 }
 
-signed char tud_cdc_n_peek(uint8_t itf, int pos)
+bool tud_cdc_n_peek(uint8_t itf, int pos, uint8_t* chr)
 {
-  signed char ch;
-  return tu_fifo_peek_at(&_cdcd_itf[itf].rx_ff, pos, &ch) ? ch : (-1);
+  return tu_fifo_peek_at(&_cdcd_itf[itf].rx_ff, pos, chr);
 }
 
 void tud_cdc_n_read_flush (uint8_t itf)
@@ -149,17 +142,6 @@ void tud_cdc_n_read_flush (uint8_t itf)
 //--------------------------------------------------------------------+
 // WRITE API
 //--------------------------------------------------------------------+
-
-uint32_t tud_cdc_n_write_char(uint8_t itf, char ch)
-{
-  return tud_cdc_n_write(itf, &ch, 1);
-}
-
-uint32_t tud_cdc_n_write_str (uint8_t itf, char const* str)
-{
-  return tud_cdc_n_write(itf, str, strlen(str));
-}
-
 uint32_t tud_cdc_n_write(uint8_t itf, void const* buffer, uint32_t bufsize)
 {
   uint16_t ret = tu_fifo_write_n(&_cdcd_itf[itf].tx_ff, buffer, bufsize);
@@ -188,6 +170,11 @@ bool tud_cdc_n_write_flush (uint8_t itf)
   }
 
   return true;
+}
+
+uint32_t tud_cdc_n_write_available (uint8_t itf)
+{
+  return tu_fifo_remaining(&_cdcd_itf[itf].tx_ff);
 }
 
 

@@ -27,6 +27,8 @@ Support multiple device configurations by dynamically changing usb descriptors. 
 - Human Interface Device (HID): Generic (In & Out), Keyboard, Mouse, Gamepad etc ...
 - Mass Storage Class (MSC): with multiple LUNs
 - Musical Instrument Digital Interface (MIDI)
+- Vendor-specific class support with generic In & Out endpoints. Can be used with MS OS 2.0 compatible descriptor to load winUSB driver without INF file.
+- [WebUSB](https://github.com/WICG/webusb) with vendor-specific class
 
 ## Host Stack
 
@@ -42,7 +44,7 @@ Currently the following OS are supported with tinyusb out of the box with a simp
 
 - **No OS**
 - **FreeRTOS**
-- **MyNewt** (work in progress)
+- **Mynewt** Due to the newt package build system, Mynewt examples are better to be on its [own repo](https://github.com/hathach/mynewt-tinyusb-example) 
 
 ## Supported MCUs
 
@@ -81,4 +83,4 @@ TinyUSB is currently used by these other projects:
 * [CircuitPython](https://github.com/adafruit/circuitpython)
 * [TinyUSB Arduino Library](https://github.com/adafruit/Adafruit_TinyUSB_Arduino)
 
-If your project also uses TinyUSB and want to share, feel free to create a pull request.
+Let's me know if your project also uses TinyUSB and want to share.

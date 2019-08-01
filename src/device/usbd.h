@@ -133,7 +133,6 @@ TU_ATTR_WEAK bool tud_vendor_control_complete_cb(uint8_t rhport, tusb_control_re
   0x8B, 0xFD, 0xA0, 0x76, 0x88, 0x15, 0xB6, 0x65
 
 //------------- Microsoft OS 2.0 Platform -------------//
-
 #define TUD_BOS_MICROSOFT_OS_DESC_LEN   28
 
 // Total Length of descriptor set, vendor code
@@ -143,7 +142,6 @@ TU_ATTR_WEAK bool tud_vendor_control_complete_cb(uint8_t rhport, tusb_control_re
 #define TUD_BOS_MS_OS_20_UUID \
   0xDF, 0x60, 0xDD, 0xD8, 0x89, 0x45, 0xC7, 0x4C, \
   0x9C, 0xD2, 0x65, 0x9D, 0x9E, 0x64, 0x8A, 0x9F
-
 
 //--------------------------------------------------------------------+
 // Configuration & Interface Descriptor Templates
