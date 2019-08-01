@@ -469,15 +469,6 @@ static inline uint8_t tu_desc_len(void const* desc)
   return ((uint8_t const*) desc)[DESC_OFFSET_LEN];
 }
 
-// Length of the string descriptors in bytes with slen characters
-#define TUD_DESC_STRLEN(_chr_count)      (2*(_chr_count) + 2)
-
-// Header of string descriptors with len + string type
-#define TUD_DESC_STR_HEADER(_chr_count)  ( (uint16_t) ( (TUSB_DESC_STRING << 8 ) | TUD_DESC_STRLEN(_chr_count)) )
-
-// Convert comma-separated string to descriptor unicode format
-#define TUD_DESC_STRCONV( ... )     (const uint16_t[]) { TUD_DESC_STR_HEADER(TU_ARGS_NUM(__VA_ARGS__)), __VA_ARGS__ }
-
 #ifdef __cplusplus
  }
 #endif

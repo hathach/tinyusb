@@ -143,11 +143,6 @@ TU_ATTR_WEAK bool tud_vendor_control_complete_cb(uint8_t rhport, tusb_control_re
   0xDF, 0x60, 0xDD, 0xD8, 0x89, 0x45, 0xC7, 0x4C, \
   0x9C, 0xD2, 0x65, 0x9D, 0x9E, 0x64, 0x8A, 0x9F
 
-//------------- WebUSB URL -------------//
-// used to init tusb_desc_webusb_url_t
-#define TUD_WEBUSB_URL_DESCRIPTOR(_scheme, _url) \
-  { 3 + sizeof(_url) - 1, 3, _scheme, _url }
-
 //--------------------------------------------------------------------+
 // Configuration & Interface Descriptor Templates
 //--------------------------------------------------------------------+
