@@ -20,9 +20,6 @@ SRC_C += \
 	hw/mcu/nordic/nrfx/drivers/src/nrfx_power.c \
 	hw/mcu/nordic/nrfx/mdk/system_nrf52840.c \
 
-# TODO remove later
-SRC_C += src/portable/$(VENDOR)/$(CHIP_FAMILY)/hal_$(CHIP_FAMILY).c
-
 INC += \
 	$(TOP)/hw/cmsis/Include \
 	$(TOP)/hw/mcu/nordic \
