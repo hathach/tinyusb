@@ -619,14 +619,14 @@ void tusb_hal_nrf_power_event (uint32_t event)
 {
   // Value is chosen to be as same as NRFX_POWER_USB_EVT_* in nrfx_power.h
   enum {
-    POWER_USB_EVT_DETECTED = 0,
-    POWER_USB_EVT_REMOVED = 1,
-    POWER_USB_EVT_READY = 2
+    USB_EVT_DETECTED = 0,
+    USB_EVT_REMOVED = 1,
+    USB_EVT_READY = 2
   };
 
   switch ( event )
   {
-    case POWER_USB_EVT_DETECTED:
+    case USB_EVT_DETECTED:
       if ( !NRF_USBD->ENABLE )
       {
         /* Prepare for READY event receiving */
@@ -674,7 +674,7 @@ void tusb_hal_nrf_power_event (uint32_t event)
       }
     break;
 
-    case POWER_USB_EVT_READY:
+    case USB_EVT_READY:
       /* Waiting for USBD peripheral enabled */
       while ( !(USBD_EVENTCAUSE_READY_Msk & NRF_USBD->EVENTCAUSE) ) { }
 
@@ -740,7 +740,7 @@ void tusb_hal_nrf_power_event (uint32_t event)
       nrf_usbd_pullup_enable();
     break;
 
-    case POWER_USB_EVT_REMOVED:
+    case USB_EVT_REMOVED:
       if ( NRF_USBD->ENABLE )
       {
         // Abort all transfers
