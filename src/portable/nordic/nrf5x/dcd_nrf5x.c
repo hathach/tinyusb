@@ -34,8 +34,6 @@
 #include "nrf_usbd.h"
 #include "nrfx_usbd_errata.h"
 
-#include "nrfx_power.h"
-
 #ifdef SOFTDEVICE_PRESENT
 // For enable/disable hfclk with SoftDevice
 #include "nrf_sdm.h"
@@ -607,7 +605,6 @@ static void hfclk_disable(void)
   nrf_clock_task_trigger(NRF_CLOCK_TASK_HFCLKSTOP);
 }
 
-//--------------------------------------------------------------------+
 // Power & Clock Peripheral on nRF5x to manage USB
 //
 // USB Bus power is managed by Power module, there are 3 VBUS power events:
@@ -618,12 +615,18 @@ static void hfclk_disable(void)
 // Therefore this function must be called to handle USB power event by
 // - nrfx_power_usbevt_init() : if Softdevice is not used or enabled
 // - SoftDevice SOC event : if SD is used and enabled
-//--------------------------------------------------------------------+
 void tusb_hal_nrf_power_event (uint32_t event)
 {
+  // Value is chosen to be as same as NRFX_POWER_USB_EVT_* in nrfx_power.h
+  enum {
+    POWER_USB_EVT_DETECTED = 0,
+    POWER_USB_EVT_REMOVED = 1,
+    POWER_USB_EVT_READY = 2
+  };
+
   switch ( event )
   {
-    case NRFX_POWER_USB_EVT_DETECTED:
+    case POWER_USB_EVT_DETECTED:
       if ( !NRF_USBD->ENABLE )
       {
         /* Prepare for READY event receiving */
@@ -671,7 +674,7 @@ void tusb_hal_nrf_power_event (uint32_t event)
       }
     break;
 
-    case NRFX_POWER_USB_EVT_READY:
+    case POWER_USB_EVT_READY:
       /* Waiting for USBD peripheral enabled */
       while ( !(USBD_EVENTCAUSE_READY_Msk & NRF_USBD->EVENTCAUSE) ) { }
 
@@ -737,7 +740,7 @@ void tusb_hal_nrf_power_event (uint32_t event)
       nrf_usbd_pullup_enable();
     break;
 
-    case NRFX_POWER_USB_EVT_REMOVED:
+    case POWER_USB_EVT_REMOVED:
       if ( NRF_USBD->ENABLE )
       {
         // Abort all transfers
