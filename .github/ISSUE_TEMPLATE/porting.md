@@ -7,11 +7,11 @@ assignees: ''
 
 ---
 
-** Porting layer **
+**Porting layer**
  - [ ] Device Controller Driver (DCD)
  - [ ] Host Controller Driver (HCD)
  - [ ] Board Supported Package (BSP)
  - [ ] OS Abstraction Layer (OSAL)
 
-** Description **
+**Description**
 A clear and concise description of what you want to happen.
