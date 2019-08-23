@@ -51,7 +51,7 @@ for example in all_examples:
 
         if build_result.returncode != 0:
             exit_status = build_result.returncode
-            success = "\033[31mfailed\033[0m"
+            success = "\033[31mfailed\033[0m   "
             fail_count += 1
         else:
             success = "\033[32msucceeded\033[0m"
