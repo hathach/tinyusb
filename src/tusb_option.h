@@ -1,4 +1,4 @@
-/* 
+/*
  * The MIT License (MIT)
  *
  * Copyright (c) 2019 Ha Thach (tinyusb.org)
@@ -50,6 +50,7 @@
 
 #define OPT_MCU_STM32F4       300 ///< ST STM32F4
 #define OPT_MCU_STM32F3       301 ///< ST STM32F3
+#define OPT_MCU_STM32H7       302 ///< ST STM32H7
 
 /** @} */
 
