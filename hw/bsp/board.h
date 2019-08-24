@@ -100,8 +100,10 @@ static inline void board_delay(uint32_t ms)
   uint32_t start_ms = board_millis();
   while (board_millis() - start_ms < ms)
   {
+    #if TUSB_OPT_DEVICE_ENABLED
     // take chance to run usb background
     tud_task();
+    #endif
   }
 }
 
