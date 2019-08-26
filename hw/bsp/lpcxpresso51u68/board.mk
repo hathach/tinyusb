@@ -15,7 +15,8 @@ LD_FILE = hw/bsp/lpcxpresso51u68/LPC51U68_flash.ld
 SRC_C += \
 	hw/mcu/nxp/lpcopen/lpc51u6x/system_LPC51U68.c \
 	hw/mcu/nxp/lpcopen/lpc51u6x/drivers/fsl_clock.c \
-	hw/mcu/nxp/lpcopen/lpc51u6x/drivers/fsl_gpio.c
+	hw/mcu/nxp/lpcopen/lpc51u6x/drivers/fsl_gpio.c \
+	hw/mcu/nxp/lpcopen/lpc51u6x/drivers/fsl_reset.c
 
 INC += \
 	$(TOP)/hw/mcu/nxp/lpcopen/lpc51u6x \
