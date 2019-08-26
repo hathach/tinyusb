@@ -53,7 +53,8 @@
   *            PLL1_M                         = 8
   *            PLL1_N                         = 336
   *            PLL1_P                         = 2
-  *            PLL1_Q                         = Unused (TODO: figure out how
+  *            PLL1_Q                         = 7
+  *            PLL1_R                         = Unused (TODO: figure out how
   *                                             to gate from HAL?)
   *            VDD(V)                         = 3.3
   *            Main regulator output voltage  = Scale3 mode
@@ -81,6 +82,7 @@ static void SystemClock_Config(void)
   RCC_OscInitStruct.PLL.PLLM = 8;
   RCC_OscInitStruct.PLL.PLLN = 336;
   RCC_OscInitStruct.PLL.PLLP = 2;
+  RCC_OscInitStruct.PLL.PLLQ = 7;
   RCC_OscInitStruct.PLL.PLLRGE = RCC_PLL1VCIRANGE_0;
   RCC_OscInitStruct.PLL.PLLVCOSEL = RCC_PLL1VCOMEDIUM;
   RCC_OscInitStruct.PLL.PLLFRACN = 0;
@@ -107,7 +109,12 @@ static void SystemClock_Config(void)
   /* Like on F4, on H7, USB's actual peripheral clock and bus clock are
      separate. However, the main system PLL (PLL1) doesn't have a direct
      connection to the USB peripheral clock to generate 48 MHz, so we do this
-     dance. */
+     dance. This will connect PLL1's Q output to the USB peripheral clock. */
+  RCC_PeriphCLKInitTypeDef RCC_PeriphCLKInitStruct;
+
+  RCC_PeriphCLKInitStruct.PeriphClockSelection = RCC_PERIPHCLK_USB;
+  RCC_PeriphCLKInitStruct.UsbClockSelection = RCC_USBCLKSOURCE_PLL;
+  HAL_RCCEx_PeriphCLKConfig(&RCC_PeriphCLKInitStruct);
 }
 
 void board_init(void)
@@ -122,6 +129,32 @@ void board_init(void)
   SystemCoreClockUpdate();
 
   GPIO_InitTypeDef  GPIO_InitStruct;
+
+  // USB Pin Init
+  // PA9- VUSB, PA10- ID, PA11- DM, PA12- DP
+  __HAL_RCC_GPIOA_CLK_ENABLE();
+
+  /* Configure DM DP Pins */
+  GPIO_InitStruct.Pin = GPIO_PIN_11 | GPIO_PIN_12;
+  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_HIGH;
+  GPIO_InitStruct.Mode = GPIO_MODE_AF_PP;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  GPIO_InitStruct.Alternate = GPIO_AF10_OTG2_HS;
+  HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
+
+  /* Configure VBUS Pin */
+  GPIO_InitStruct.Pin = GPIO_PIN_9;
+  GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
+
+  /* This for ID line debug */
+  GPIO_InitStruct.Pin = GPIO_PIN_10;
+  GPIO_InitStruct.Mode = GPIO_MODE_AF_OD;
+  GPIO_InitStruct.Pull = GPIO_PULLUP;
+  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_HIGH;
+  GPIO_InitStruct.Alternate = GPIO_AF10_OTG2_HS;
+  HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
 
   __HAL_RCC_GPIOB_CLK_ENABLE();
 
