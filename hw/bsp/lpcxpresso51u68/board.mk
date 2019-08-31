@@ -13,20 +13,20 @@ CFLAGS += \
 LD_FILE = hw/bsp/lpcxpresso51u68/LPC51U68_flash.ld
 
 SRC_C += \
-	hw/mcu/nxp/lpcopen/lpc51u6x/devices/LPC51U68/system_LPC51U68.c \
-	hw/mcu/nxp/lpcopen/lpc51u6x/drivers/fsl_clock.c \
-	hw/mcu/nxp/lpcopen/lpc51u6x/drivers/fsl_gpio.c \
-	hw/mcu/nxp/lpcopen/lpc51u6x/drivers/fsl_power.c \
-	hw/mcu/nxp/lpcopen/lpc51u6x/drivers/fsl_reset.c
+	hw/mcu/nxp/lpc_driver/lpc51u6x/devices/LPC51U68/system_LPC51U68.c \
+	hw/mcu/nxp/lpc_driver/lpc51u6x/drivers/fsl_clock.c \
+	hw/mcu/nxp/lpc_driver/lpc51u6x/drivers/fsl_gpio.c \
+	hw/mcu/nxp/lpc_driver/lpc51u6x/drivers/fsl_power.c \
+	hw/mcu/nxp/lpc_driver/lpc51u6x/drivers/fsl_reset.c
 
 INC += \
-	$(TOP)/hw/mcu/nxp/lpcopen/lpc51u6x/CMSIS/Include \
-	$(TOP)/hw/mcu/nxp/lpcopen/lpc51u6x/devices/LPC51U68 \
-	$(TOP)/hw/mcu/nxp/lpcopen/lpc51u6x/drivers
+	$(TOP)/hw/mcu/nxp/lpc_driver/lpc51u6x/CMSIS/Include \
+	$(TOP)/hw/mcu/nxp/lpc_driver/lpc51u6x/devices/LPC51U68 \
+	$(TOP)/hw/mcu/nxp/lpc_driver/lpc51u6x/drivers
 
 SRC_S += hw/bsp/lpcxpresso51u68/startup_LPC51U68.S
 
-LIBS += $(TOP)/hw/mcu/nxp/lpcopen/lpc51u6x/devices/LPC51U68/libpower.a
+LIBS += $(TOP)/hw/mcu/nxp/lpc_driver/lpc51u6x/devices/LPC51U68/libpower.a
 
 # For TinyUSB port source
 VENDOR = nxp

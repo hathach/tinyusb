@@ -19,7 +19,7 @@
       arm_target_interface_type="SWD"
       build_treat_warnings_as_errors="Yes"
       c_preprocessor_definitions="__LPC1347FBD64__;__LPC1300_FAMILY;__LPC134x_SUBFAMILY;ARM_MATH_CM3;FLASH_PLACEMENT=1;CORE_M3;CFG_TUSB_MCU=OPT_MCU_LPC13XX;CFG_TUSB_MEM_SECTION= __attribute__((section(&quot;.bss3&quot;)));CFG_TUSB_MEM_ALIGN=__attribute__ ((aligned(64)))"
-      c_user_include_directories="../../src;$(rootDir)/hw;$(rootDir)/hw/mcu/nxp/lpcopen/lpc_chip_13xx/inc;$(rootDir)/src"
+      c_user_include_directories="../../src;$(rootDir)/hw;$(rootDir)/hw/mcu/nxp/lpc_driver/lpc_chip_13xx/inc;$(rootDir)/src"
       debug_register_definition_file="$(ProjectDir)/LPC13Uxx_Registers.xml"
       debug_target_connection="J-Link"
       gcc_enable_all_warnings="Yes"
@@ -53,35 +53,37 @@
         <file file_name="../../../../../hw/bsp/ansi_escape.h" />
         <file file_name="../../../../../hw/bsp/board.h" />
         <folder Name="lpcxpresso1347">
-          <file file_name="../../../../../hw/bsp/lpcxpresso1347/board_lpcxpresso1347.c" />
+          <file file_name="../../../../../hw/bsp/lpcxpresso1347/lpcxpresso1347.c" />
         </folder>
       </folder>
       <folder Name="mcu">
         <folder Name="nxp">
-          <folder Name="lpc_chip_13xx">
-            <folder Name="inc">
-              <file file_name="../../../../../hw/mcu/nxp/lpcopen/lpc_chip_13xx/inc/chip.h" />
-              <file file_name="../../../../../hw/mcu/nxp/lpcopen/lpc_chip_13xx/inc/clock_13xx.h" />
-              <file file_name="../../../../../hw/mcu/nxp/lpcopen/lpc_chip_13xx/inc/cmsis.h" />
-              <file file_name="../../../../../hw/mcu/nxp/lpcopen/lpc_chip_13xx/inc/cmsis_1347.h" />
-              <file file_name="../../../../../hw/mcu/nxp/lpcopen/lpc_chip_13xx/inc/core_cm3.h" />
-              <file file_name="../../../../../hw/mcu/nxp/lpcopen/lpc_chip_13xx/inc/core_cmFunc.h" />
-              <file file_name="../../../../../hw/mcu/nxp/lpcopen/lpc_chip_13xx/inc/core_cmInstr.h" />
-              <file file_name="../../../../../hw/mcu/nxp/lpcopen/lpc_chip_13xx/inc/gpio_13xx_1.h" />
-              <file file_name="../../../../../hw/mcu/nxp/lpcopen/lpc_chip_13xx/inc/gpio_13xx_2.h" />
-              <file file_name="../../../../../hw/mcu/nxp/lpcopen/lpc_chip_13xx/inc/iocon_13xx.h" />
-              <file file_name="../../../../../hw/mcu/nxp/lpcopen/lpc_chip_13xx/inc/lpc_types.h" />
-              <file file_name="../../../../../hw/mcu/nxp/lpcopen/lpc_chip_13xx/inc/sys_config.h" />
-              <file file_name="../../../../../hw/mcu/nxp/lpcopen/lpc_chip_13xx/inc/sysctl_13xx.h" />
-              <file file_name="../../../../../hw/mcu/nxp/lpcopen/lpc_chip_13xx/inc/uart_13xx.h" />
-            </folder>
-            <folder Name="src">
-              <file file_name="../../../../../hw/mcu/nxp/lpcopen/lpc_chip_13xx/src/chip_13xx.c" />
-              <file file_name="../../../../../hw/mcu/nxp/lpcopen/lpc_chip_13xx/src/clock_13xx.c" />
-              <file file_name="../../../../../hw/mcu/nxp/lpcopen/lpc_chip_13xx/src/gpio_13xx_1.c" />
-              <file file_name="../../../../../hw/mcu/nxp/lpcopen/lpc_chip_13xx/src/sysctl_13xx.c" />
-              <file file_name="../../../../../hw/mcu/nxp/lpcopen/lpc_chip_13xx/src/sysinit_13xx.c" />
-              <file file_name="../../../../../hw/mcu/nxp/lpcopen/lpc_chip_13xx/src/iocon_13xx.c" />
+          <folder Name="lpc_driver">
+            <folder Name="lpc_chip_13xx">
+              <folder Name="inc">
+                <file file_name="../../../../../hw/mcu/nxp/lpc_driver/lpc_chip_13xx/inc/chip.h" />
+                <file file_name="../../../../../hw/mcu/nxp/lpc_driver/lpc_chip_13xx/inc/clock_13xx.h" />
+                <file file_name="../../../../../hw/mcu/nxp/lpc_driver/lpc_chip_13xx/inc/cmsis.h" />
+                <file file_name="../../../../../hw/mcu/nxp/lpc_driver/lpc_chip_13xx/inc/cmsis_1347.h" />
+                <file file_name="../../../../../hw/mcu/nxp/lpc_driver/lpc_chip_13xx/inc/core_cm3.h" />
+                <file file_name="../../../../../hw/mcu/nxp/lpc_driver/lpc_chip_13xx/inc/core_cmFunc.h" />
+                <file file_name="../../../../../hw/mcu/nxp/lpc_driver/lpc_chip_13xx/inc/core_cmInstr.h" />
+                <file file_name="../../../../../hw/mcu/nxp/lpc_driver/lpc_chip_13xx/inc/gpio_13xx_1.h" />
+                <file file_name="../../../../../hw/mcu/nxp/lpc_driver/lpc_chip_13xx/inc/gpio_13xx_2.h" />
+                <file file_name="../../../../../hw/mcu/nxp/lpc_driver/lpc_chip_13xx/inc/iocon_13xx.h" />
+                <file file_name="../../../../../hw/mcu/nxp/lpc_driver/lpc_chip_13xx/inc/lpc_types.h" />
+                <file file_name="../../../../../hw/mcu/nxp/lpc_driver/lpc_chip_13xx/inc/sys_config.h" />
+                <file file_name="../../../../../hw/mcu/nxp/lpc_driver/lpc_chip_13xx/inc/sysctl_13xx.h" />
+                <file file_name="../../../../../hw/mcu/nxp/lpc_driver/lpc_chip_13xx/inc/uart_13xx.h" />
+              </folder>
+              <folder Name="src">
+                <file file_name="../../../../../hw/mcu/nxp/lpc_driver/lpc_chip_13xx/src/chip_13xx.c" />
+                <file file_name="../../../../../hw/mcu/nxp/lpc_driver/lpc_chip_13xx/src/clock_13xx.c" />
+                <file file_name="../../../../../hw/mcu/nxp/lpc_driver/lpc_chip_13xx/src/gpio_13xx_1.c" />
+                <file file_name="../../../../../hw/mcu/nxp/lpc_driver/lpc_chip_13xx/src/sysctl_13xx.c" />
+                <file file_name="../../../../../hw/mcu/nxp/lpc_driver/lpc_chip_13xx/src/sysinit_13xx.c" />
+                <file file_name="../../../../../hw/mcu/nxp/lpc_driver/lpc_chip_13xx/src/iocon_13xx.c" />
+              </folder>
             </folder>
           </folder>
         </folder>

@@ -13,15 +13,15 @@ CFLAGS += \
 LD_FILE = hw/bsp/lpcxpresso1347/lpc1347.ld
 
 SRC_C += \
-	hw/mcu/nxp/lpcopen/lpc_chip_13xx/src/chip_13xx.c \
-	hw/mcu/nxp/lpcopen/lpc_chip_13xx/src/clock_13xx.c \
-	hw/mcu/nxp/lpcopen/lpc_chip_13xx/src/gpio_13xx_1.c \
-	hw/mcu/nxp/lpcopen/lpc_chip_13xx/src/iocon_13xx.c \
-	hw/mcu/nxp/lpcopen/lpc_chip_13xx/src/sysctl_13xx.c \
-	hw/mcu/nxp/lpcopen/lpc_chip_13xx/src/sysinit_13xx.c
+	hw/mcu/nxp/lpc_driver/lpc_chip_13xx/src/chip_13xx.c \
+	hw/mcu/nxp/lpc_driver/lpc_chip_13xx/src/clock_13xx.c \
+	hw/mcu/nxp/lpc_driver/lpc_chip_13xx/src/gpio_13xx_1.c \
+	hw/mcu/nxp/lpc_driver/lpc_chip_13xx/src/iocon_13xx.c \
+	hw/mcu/nxp/lpc_driver/lpc_chip_13xx/src/sysctl_13xx.c \
+	hw/mcu/nxp/lpc_driver/lpc_chip_13xx/src/sysinit_13xx.c
 
 INC += \
-	$(TOP)/hw/mcu/nxp/lpcopen/lpc_chip_13xx/inc
+	$(TOP)/hw/mcu/nxp/lpc_driver/lpc_chip_13xx/inc
 
 # For TinyUSB port source
 VENDOR = nxp

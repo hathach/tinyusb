@@ -45,7 +45,7 @@
         <file file_name="../../../../../hw/bsp/ansi_escape.h" />
         <file file_name="../../../../../hw/bsp/board.h" />
         <folder Name="metro_m0_express">
-          <file file_name="../../../../../hw/bsp/metro_m0_express/board_metro_m0_express.c" />
+          <file file_name="../../../../../hw/bsp/metro_m0_express/metro_m0_express.c" />
         </folder>
       </folder>
       <folder Name="mcu">
