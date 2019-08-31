@@ -21,7 +21,8 @@ SRC_C += \
 	hw/mcu/st/stm32lib/STM32H7xx_HAL_Driver/Src/stm32h7xx_hal_cortex.c \
 	hw/mcu/st/stm32lib/STM32H7xx_HAL_Driver/Src/stm32h7xx_hal_rcc.c \
 	hw/mcu/st/stm32lib/STM32H7xx_HAL_Driver/Src/stm32h7xx_hal_rcc_ex.c \
-	hw/mcu/st/stm32lib/STM32H7xx_HAL_Driver/Src/stm32h7xx_hal_gpio.c
+	hw/mcu/st/stm32lib/STM32H7xx_HAL_Driver/Src/stm32h7xx_hal_gpio.c \
+	hw/mcu/st/stm32lib/STM32H7xx_HAL_Driver/Src/stm32h7xx_hal_pwr_ex.c
 
 SRC_S += \
 	hw/mcu/st/startup/stm32h7/startup_stm32h743xx.s

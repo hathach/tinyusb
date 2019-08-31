@@ -163,6 +163,11 @@ void board_init(void)
   GPIO_InitStruct.Pull = GPIO_PULLUP;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_HIGH;
   HAL_GPIO_Init(LED_PORT, &GPIO_InitStruct);
+
+  // https://community.st.com/s/question/0D50X00009XkYZLSA3/stm32h7-nucleo-usb-fs-cdc
+  // TODO: Board init actually works fine without this line.
+  HAL_PWREx_EnableUSBVoltageDetector();
+  __HAL_RCC_USB2_OTG_FS_CLK_ENABLE();
 }
 
 //--------------------------------------------------------------------+

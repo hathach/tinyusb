@@ -34,6 +34,7 @@
 /*------------------------------------------------------------------*/
 /* MACRO TYPEDEF CONSTANT ENUM
  *------------------------------------------------------------------*/
+#define DEVICE_BASE (USB_OTG_DeviceTypeDef *) (USB2_OTG_FS_PERIPH_BASE + USB_OTG_DEVICE_BASE)
 
 /*------------------------------------------------------------------*/
 /* Controller API
@@ -41,6 +42,43 @@
 void dcd_init (uint8_t rhport)
 {
   (void) rhport;
+
+  // Programming model begins on page 2634 of Rev 6 of reference manual.
+  USB2_OTG_FS->GAHBCFG |= USB_OTG_GAHBCFG_TXFELVL | USB_OTG_GAHBCFG_GINT;
+
+  // No HNP/SRP (no OTG support), program timeout later, turnaround
+  // programmed for 32+ MHz.
+  USB2_OTG_FS->GUSBCFG |= (0x06 << USB_OTG_GUSBCFG_TRDT_Pos);
+
+  // Clear all used interrupts
+  USB2_OTG_FS->GINTSTS |= USB_OTG_GINTSTS_OTGINT | USB_OTG_GINTSTS_MMIS | \
+    USB_OTG_GINTSTS_USBRST | USB_OTG_GINTSTS_ENUMDNE | \
+    USB_OTG_GINTSTS_ESUSP | USB_OTG_GINTSTS_USBSUSP | USB_OTG_GINTSTS_SOF;
+
+  // Required as part of core initialization. Disable OTGINT as we don't use
+  // it right now. TODO: How should mode mismatch be handled? It will cause
+  // the core to stop working/require reset.
+  USB2_OTG_FS->GINTMSK |= /* USB_OTG_GINTMSK_OTGINT | */ USB_OTG_GINTMSK_MMISM;
+
+  USB_OTG_DeviceTypeDef * dev = DEVICE_BASE;
+
+  // If USB host misbehaves during status portion of control xfer
+  // (non zero-length packet), send STALL back and discard. Full speed.
+  dev->DCFG |=  USB_OTG_DCFG_NZLSOHSK | (3 << USB_OTG_DCFG_DSPD_Pos);
+
+  USB2_OTG_FS->GINTMSK |= USB_OTG_GINTMSK_USBRST | USB_OTG_GINTMSK_ENUMDNEM | \
+    USB_OTG_GINTMSK_SOFM | USB_OTG_GINTMSK_RXFLVLM /* SB_OTG_GINTMSK_ESUSPM | \
+    USB_OTG_GINTMSK_USBSUSPM */;
+
+  // Enable pullup, enable peripheral.
+#ifdef USB_OTG_GCCFG_VBDEN
+  USB2_OTG_FS->GCCFG |= USB_OTG_GCCFG_VBDEN | USB_OTG_GCCFG_PWRDWN;
+#else
+  USB2_OTG_FS->GCCFG |= USB_OTG_GCCFG_VBUSBSEN | USB_OTG_GCCFG_PWRDWN;
+#endif
+
+  // This step does not appear to be specified in the programmer's model.
+  dev->DCTL &= ~USB_OTG_DCTL_SDIS;
 }
 
 void dcd_int_enable (uint8_t rhport)
