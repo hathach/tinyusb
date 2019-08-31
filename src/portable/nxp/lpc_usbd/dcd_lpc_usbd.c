@@ -26,7 +26,19 @@
 
 #include "tusb_option.h"
 
-#if TUSB_OPT_DEVICE_ENABLED && (CFG_TUSB_MCU == OPT_MCU_LPC11UXX || CFG_TUSB_MCU == OPT_MCU_LPC13XX || CFG_TUSB_MCU == OPT_MCU_LPC51UXX)
+/* Since 2012 starting with LPC11uxx, NXP start to use common USB Device Controller
+ * for almost their new MCUs. Currently supported and tested families are
+ * - LPC11Uxx
+ * - LPC13xx
+ * - LPC51Uxx
+ *
+ * For similar controller of other families, this file may require some minimal changes to work with.
+ * Previous MCUs such as LPC17xx, LPC40xx, LPC18xx, LPC43xx have their own driver implementation.
+ */
+
+#if TUSB_OPT_DEVICE_ENABLED && ( CFG_TUSB_MCU == OPT_MCU_LPC11UXX || \
+                                 CFG_TUSB_MCU == OPT_MCU_LPC13XX  || \
+                                 CFG_TUSB_MCU == OPT_MCU_LPC51UXX )
 
 #if CFG_TUSB_MCU == OPT_MCU_LPC11UXX || CFG_TUSB_MCU == OPT_MCU_LPC13XX
   // LPC11Uxx and LPC13xx use lpcopen
@@ -53,12 +65,15 @@
 #define SRAM_REGION   0x20000000
 
 /* Although device controller are the same. DMA of
- * - LPC11u can only transfer up to nbytes = 64
- * - LPC13 can transfer nbytes = 1023 (maximum)
- * - LPC15 can ???
+ * - M0/M+ can only transfer up to nbytes = 64
+ * - M3/M4 can transfer nbytes = 1023 (maximum)
  */
 enum {
-  DMA_NBYTES_MAX = (CFG_TUSB_MCU == OPT_MCU_LPC11UXX || CFG_TUSB_MCU == OPT_MCU_LPC51UXX) ? 64 : 1023
+  #ifdef __ARM_ARCH_6M__  // Cortex M0/M0+
+    DMA_NBYTES_MAX = 64
+  #else
+    DMA_NBYTES_MAX = 1023
+  #endif
 };
 
 enum {

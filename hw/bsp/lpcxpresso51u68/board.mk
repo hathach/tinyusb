@@ -30,7 +30,7 @@ LIBS += $(TOP)/hw/mcu/nxp/lpc_driver/lpc51u6x/devices/LPC51U68/libpower.a
 
 # For TinyUSB port source
 VENDOR = nxp
-CHIP_FAMILY = lpc11_13_15
+CHIP_FAMILY = lpc_usbd
 
 # For freeRTOS port source
 FREERTOS_PORT = ARM_CM0
