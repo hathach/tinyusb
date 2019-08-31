@@ -53,10 +53,17 @@ void board_init(void)
   NVIC_SetPriority(USB0_IRQn, configLIBRARY_MAX_SYSCALL_INTERRUPT_PRIORITY );
 #endif
 
-  // LED
-  gpio_pin_config_t led_config = { kGPIO_DigitalOutput, 0, };
   GPIO_PortInit(GPIO, LED_PORT);
+  GPIO_PortInit(GPIO, BUTTON_PORT);
+
+  // LED
+  gpio_pin_config_t const led_config = { kGPIO_DigitalOutput, 0};
   GPIO_PinInit(GPIO, LED_PORT, LED_PIN, &led_config);
+  board_led_write(true);
+
+  // Button
+  gpio_pin_config_t const button_config = { kGPIO_DigitalInput, 0};
+  GPIO_PinInit(GPIO, BUTTON_PORT, BUTTON_PIN, &button_config);
 }
 
 //--------------------------------------------------------------------+
@@ -71,8 +78,7 @@ void board_led_write(bool state)
 uint32_t board_button_read(void)
 {
   // active low
-//  return Chip_GPIO_GetPinState(LPC_GPIO, BUTTON_PORT, BUTTON_PIN) ? 0 : 1;
-  return 0;
+  return 1-GPIO_PinRead(GPIO, BUTTON_PORT, BUTTON_PIN);
 }
 
 int board_uart_read(uint8_t* buf, int len)
@@ -91,7 +97,7 @@ int board_uart_write(void const * buf, int len)
 
 #if CFG_TUSB_OS == OPT_OS_NONE
 volatile uint32_t system_ticks = 0;
-void SysTick_Handler (void)
+void SysTick_Handler(void)
 {
   system_ticks++;
 }

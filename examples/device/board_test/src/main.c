@@ -34,45 +34,34 @@
 //--------------------------------------------------------------------+
 
 /* Blink pattern
- * - 250 ms  : device not mounted
- * - 1000 ms : device mounted
- * - 2500 ms : device is suspended
+ * - 250 ms  : button is not pressed
+ * - 1000 ms : button is pressed (and hold)
  */
 enum  {
-  BLINK_NOT_MOUNTED = 250,
-  BLINK_MOUNTED = 1000,
-  BLINK_SUSPENDED = 2500,
+  BLINK_PRESSED = 250,
+  BLINK_UNPRESSED = 1000
 };
 
-static uint32_t blink_interval_ms = BLINK_NOT_MOUNTED;
-
-void led_blinking_task(void);
-
-/*------------- MAIN -------------*/
 int main(void)
 {
   board_init();
 
+  uint32_t start_ms = 0;
+  bool led_state = false;
+
   while (1)
   {
-    led_blinking_task();
+    uint32_t interval_ms = board_button_read() ? BLINK_PRESSED : BLINK_UNPRESSED;
+
+    // Blink every interval ms
+    if ( !(board_millis() - start_ms < interval_ms) )
+    {
+      start_ms = board_millis();
+
+      board_led_write(led_state);
+      led_state = 1 - led_state; // toggle
+    }
   }
 
   return 0;
-}
-
-//--------------------------------------------------------------------+
-// BLINKING TASK
-//--------------------------------------------------------------------+
-void led_blinking_task(void)
-{
-  static uint32_t start_ms = 0;
-  static bool led_state = false;
-
-  // Blink every interval ms
-  if ( board_millis() - start_ms < blink_interval_ms) return; // not enough time
-  start_ms += blink_interval_ms;
-
-  board_led_write(led_state);
-  led_state = 1 - led_state; // toggle
 }
