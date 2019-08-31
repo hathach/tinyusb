@@ -48,7 +48,7 @@ void dcd_init (uint8_t rhport)
 
   // No HNP/SRP (no OTG support), program timeout later, turnaround
   // programmed for 32+ MHz.
-  USB2_OTG_FS->GUSBCFG |= (0x06 << USB_OTG_GUSBCFG_TRDT_Pos);
+  USB2_OTG_FS->GUSBCFG |= (0x06 << USB_OTG_GUSBCFG_TRDT_Pos) | USB_OTG_GUSBCFG_PHYSEL;
 
   // Clear all used interrupts
   USB2_OTG_FS->GINTSTS |= USB_OTG_GINTSTS_OTGINT | USB_OTG_GINTSTS_MMIS | \
