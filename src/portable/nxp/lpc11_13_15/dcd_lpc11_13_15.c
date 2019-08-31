@@ -26,9 +26,19 @@
 
 #include "tusb_option.h"
 
-#if TUSB_OPT_DEVICE_ENABLED && (CFG_TUSB_MCU == OPT_MCU_LPC11UXX || CFG_TUSB_MCU == OPT_MCU_LPC13XX)
+#if TUSB_OPT_DEVICE_ENABLED && (CFG_TUSB_MCU == OPT_MCU_LPC11UXX || CFG_TUSB_MCU == OPT_MCU_LPC13XX || CFG_TUSB_MCU == OPT_MCU_LPC51UXX)
 
-#include "chip.h"
+#if CFG_TUSB_MCU == OPT_MCU_LPC11UXX || CFG_TUSB_MCU == OPT_MCU_LPC13XX
+  // LPC11Uxx and LPC13xx use lpcopen
+  #include "chip.h"
+  #define DCD_REGS        LPC_USB
+  #define DCD_IRQHandler  USB_IRQHandler
+#elif CFG_TUSB_MCU == OPT_MCU_LPC51UXX
+  #include "fsl_device_registers.h"
+  #define DCD_REGS        USB0
+  #define DCD_IRQHandler  USB0_IRQHandler
+#endif
+
 #include "device/dcd.h"
 
 //--------------------------------------------------------------------+
@@ -39,6 +49,7 @@
 #define EP_COUNT 10
 
 // only SRAM1 & USB RAM can be used for transfer
+// 2000 0000 to 203F FFFF
 #define SRAM_REGION   0x20000000
 
 /* Although device controller are the same. DMA of
@@ -47,7 +58,7 @@
  * - LPC15 can ???
  */
 enum {
-  DMA_NBYTES_MAX = (CFG_TUSB_MCU == OPT_MCU_LPC11UXX ? 64 : 1023)
+  DMA_NBYTES_MAX = (CFG_TUSB_MCU == OPT_MCU_LPC11UXX || CFG_TUSB_MCU == OPT_MCU_LPC51UXX) ? 64 : 1023
 };
 
 enum {
@@ -130,12 +141,12 @@ void dcd_init(uint8_t rhport)
 {
   (void) rhport;
 
-  LPC_USB->EPLISTSTART  = (uint32_t) _dcd.ep;
-  LPC_USB->DATABUFSTART = SRAM_REGION;
+  DCD_REGS->EPLISTSTART  = (uint32_t) _dcd.ep;
+  DCD_REGS->DATABUFSTART = SRAM_REGION; // 22-bit alignment
 
-  LPC_USB->INTSTAT      = LPC_USB->INTSTAT; // clear all pending interrupt
-  LPC_USB->INTEN        = INT_DEVICE_STATUS_MASK;
-  LPC_USB->DEVCMDSTAT  |= CMDSTAT_DEVICE_ENABLE_MASK | CMDSTAT_DEVICE_CONNECT_MASK |
+  DCD_REGS->INTSTAT      = DCD_REGS->INTSTAT; // clear all pending interrupt
+  DCD_REGS->INTEN        = INT_DEVICE_STATUS_MASK;
+  DCD_REGS->DEVCMDSTAT  |= CMDSTAT_DEVICE_ENABLE_MASK | CMDSTAT_DEVICE_CONNECT_MASK |
                           CMDSTAT_RESET_CHANGE_MASK | CMDSTAT_CONNECT_CHANGE_MASK | CMDSTAT_SUSPEND_CHANGE_MASK;
 
   NVIC_ClearPendingIRQ(USB0_IRQn);
@@ -158,8 +169,8 @@ void dcd_set_address(uint8_t rhport, uint8_t dev_addr)
   // Response with status first before changing device address
   dcd_edpt_xfer(rhport, tu_edpt_addr(0, TUSB_DIR_IN), NULL, 0);
 
-  LPC_USB->DEVCMDSTAT &= ~CMDSTAT_DEVICE_ADDR_MASK;
-  LPC_USB->DEVCMDSTAT |= dev_addr;
+  DCD_REGS->DEVCMDSTAT &= ~CMDSTAT_DEVICE_ADDR_MASK;
+  DCD_REGS->DEVCMDSTAT |= dev_addr;
 }
 
 void dcd_set_config(uint8_t rhport, uint8_t config_num)
@@ -213,7 +224,7 @@ bool dcd_edpt_open(uint8_t rhport, tusb_desc_endpoint_t const * p_endpoint_desc)
   _dcd.ep[ep_id][0].is_iso = (p_endpoint_desc->bmAttributes.xfer == TUSB_XFER_ISOCHRONOUS);
 
   // Enable EP interrupt
-  LPC_USB->INTEN |= TU_BIT(ep_id);
+  DCD_REGS->INTEN |= TU_BIT(ep_id);
 
   return true;
 }
@@ -258,13 +269,13 @@ static void bus_reset(void)
 
   _dcd.ep[0][1].buffer_offset = get_buf_offset(_dcd.setup_packet);
 
-  LPC_USB->EPINUSE      = 0;
-  LPC_USB->EPBUFCFG     = 0;
-  LPC_USB->EPSKIP       = 0xFFFFFFFF;
+  DCD_REGS->EPINUSE      = 0;
+  DCD_REGS->EPBUFCFG     = 0;
+  DCD_REGS->EPSKIP       = 0xFFFFFFFF;
 
-  LPC_USB->INTSTAT      = LPC_USB->INTSTAT; // clear all pending interrupt
-  LPC_USB->DEVCMDSTAT  |= CMDSTAT_SETUP_RECEIVED_MASK; // clear setup received interrupt
-  LPC_USB->INTEN        = INT_DEVICE_STATUS_MASK | TU_BIT(0) | TU_BIT(1); // enable device status & control endpoints
+  DCD_REGS->INTSTAT      = DCD_REGS->INTSTAT; // clear all pending interrupt
+  DCD_REGS->DEVCMDSTAT  |= CMDSTAT_SETUP_RECEIVED_MASK; // clear setup received interrupt
+  DCD_REGS->INTEN        = INT_DEVICE_STATUS_MASK | TU_BIT(0) | TU_BIT(1); // enable device status & control endpoints
 }
 
 static void process_xfer_isr(uint32_t int_status)
@@ -297,19 +308,19 @@ static void process_xfer_isr(uint32_t int_status)
   }
 }
 
-void USB_IRQHandler(void)
+void DCD_IRQHandler(void)
 {
-  uint32_t const dev_cmd_stat = LPC_USB->DEVCMDSTAT;
+  uint32_t const dev_cmd_stat = DCD_REGS->DEVCMDSTAT;
 
-  uint32_t int_status = LPC_USB->INTSTAT & LPC_USB->INTEN;
-  LPC_USB->INTSTAT = int_status; // Acknowledge handled interrupt
+  uint32_t int_status = DCD_REGS->INTSTAT & DCD_REGS->INTEN;
+  DCD_REGS->INTSTAT = int_status; // Acknowledge handled interrupt
 
   if (int_status == 0) return;
 
   //------------- Device Status -------------//
   if ( int_status & INT_DEVICE_STATUS_MASK )
   {
-    LPC_USB->DEVCMDSTAT |= CMDSTAT_RESET_CHANGE_MASK | CMDSTAT_CONNECT_CHANGE_MASK | CMDSTAT_SUSPEND_CHANGE_MASK;
+    DCD_REGS->DEVCMDSTAT |= CMDSTAT_RESET_CHANGE_MASK | CMDSTAT_CONNECT_CHANGE_MASK | CMDSTAT_SUSPEND_CHANGE_MASK;
     if ( dev_cmd_stat & CMDSTAT_RESET_CHANGE_MASK) // bus reset
     {
       bus_reset();
@@ -352,7 +363,7 @@ void USB_IRQHandler(void)
     _dcd.ep[0][0].active = _dcd.ep[1][0].active = 0;
     _dcd.ep[0][0].stall = _dcd.ep[1][0].stall = 0;
 
-    LPC_USB->DEVCMDSTAT |= CMDSTAT_SETUP_RECEIVED_MASK;
+    DCD_REGS->DEVCMDSTAT |= CMDSTAT_SETUP_RECEIVED_MASK;
 
     dcd_event_setup_received(0, _dcd.setup_packet, true);
 

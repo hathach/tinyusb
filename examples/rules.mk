@@ -3,7 +3,7 @@
 #
 
 # libc
-LIBS = -lgcc -lc -lm -lnosys
+LIBS += -lgcc -lc -lm -lnosys
 
 # TinyUSB Stack source
 SRC_C += \
