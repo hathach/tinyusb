@@ -39,14 +39,16 @@
 #define BUTTON_PIN    24
 
 // IOCON pin mux
-#define IOCON_PIO_DIGITAL_EN          0x80u   /*!< Enables digital function */
-#define IOCON_PIO_FUNC1               0x01u   /*!< Selects pin function 1 */
-#define IOCON_PIO_FUNC7               0x07u   /*!< Selects pin function 7 */
-#define IOCON_PIO_INPFILT_OFF       0x0100u   /*!< Input filter disabled */
-#define IOCON_PIO_INV_DI              0x00u   /*!< Input function is not inverted */
-#define IOCON_PIO_MODE_INACT          0x00u   /*!< No addition pin function */
-#define IOCON_PIO_OPENDRAIN_DI        0x00u   /*!< Open drain is disabled */
-#define IOCON_PIO_SLEW_STANDARD       0x00u   /*!< Standard mode, output slew rate control is enabled */
+#define IOCON_PIO_DIGITAL_EN     0x80u   /*!<@brief Enables digital function */
+#define IOCON_PIO_FUNC0          0x00u
+#define IOCON_PIO_FUNC1          0x01u   /*!<@brief Selects pin function 1 */
+#define IOCON_PIO_FUNC7          0x07u   /*!<@brief Selects pin function 7 */
+#define IOCON_PIO_INPFILT_OFF    0x0100u /*!<@brief Input filter disabled */
+#define IOCON_PIO_INV_DI         0x00u   /*!<@brief Input function is not inverted */
+#define IOCON_PIO_MODE_INACT     0x00u   /*!<@brief No addition pin function */
+#define IOCON_PIO_MODE_PULLUP    0x10u
+#define IOCON_PIO_OPENDRAIN_DI   0x00u   /*!<@brief Open drain is disabled */
+#define IOCON_PIO_SLEW_STANDARD  0x00u   /*!<@brief Standard mode, output slew rate control is enabled */
 
 /****************************************************************
 name: BOARD_BootClockFROHF96M
@@ -72,11 +74,10 @@ void BootClockFROHF96M(void)
 
   /*!< Set up dividers */
   CLOCK_SetClkDiv(kCLOCK_DivAhbClk, 1U, false);     /*!< Set AHBCLKDIV divider to value 1 */
-  CLOCK_SetClkDiv(kCLOCK_DivSystickClk, 0U, true);  /*!< Reset SYSTICKCLKDIV divider counter and halt it */
-  CLOCK_SetClkDiv(kCLOCK_DivSystickClk, 1U, false); /*!< Set SYSTICKCLKDIV divider to value 1 */
 
   /*!< Set up clock selectors - Attach clocks to the peripheries */
   CLOCK_AttachClk(kFRO_HF_to_MAIN_CLK); /*!< Switch MAIN_CLK to FRO_HF */
+
   /*!< Set SystemCoreClock variable. */
   SystemCoreClock = 96000000U;
 }

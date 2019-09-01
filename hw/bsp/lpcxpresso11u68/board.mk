@@ -26,7 +26,7 @@ INC += \
 
 # For TinyUSB port source
 VENDOR = nxp
-CHIP_FAMILY = lpc_usbd
+CHIP_FAMILY = lpc_ip3511
 
 # For freeRTOS port source
 FREERTOS_PORT = ARM_CM0
@@ -35,5 +35,6 @@ FREERTOS_PORT = ARM_CM0
 JLINK_DEVICE = LPC11U68
 JLINK_IF = swd
 
-# flash using jlink
-flash: flash-jlink
+# flash using pyocd 
+flash: $(BUILD)/$(BOARD)-firmware.hex
+	pyocd flash -t lpc11u68 $<

@@ -178,7 +178,7 @@ bool hidd_open(uint8_t rhport, tusb_desc_interface_t const * desc_itf, uint16_t 
 
   p_hid->boot_mode = false; // default mode is REPORT
   p_hid->itf_num   = desc_itf->bInterfaceNumber;
-  p_hid->reprot_desc_len  = desc_hid->wReportLength;
+  memcpy(&p_hid->reprot_desc_len, &desc_hid->wReportLength, 2);
 
   *p_len = sizeof(tusb_desc_interface_t) + sizeof(tusb_hid_descriptor_hid_t) + desc_itf->bNumEndpoints*sizeof(tusb_desc_endpoint_t);
 
