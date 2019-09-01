@@ -62,7 +62,7 @@
     <folder Name="hw">
       <folder Name="bsp">
         <folder Name="stm32f407disco">
-          <file file_name="../../../../../hw/bsp/stm32f407disco/board_stm32f407disco.c" />
+          <file file_name="../../../../../hw/bsp/stm32f407disco/stm32f407disco.c" />
         </folder>
         <file file_name="../../../../../hw/bsp/board.h" />
       </folder>

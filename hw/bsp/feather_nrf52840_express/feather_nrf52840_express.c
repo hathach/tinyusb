@@ -38,10 +38,12 @@
 /*------------------------------------------------------------------*/
 /* MACRO TYPEDEF CONSTANT ENUM
  *------------------------------------------------------------------*/
-#define LED_PIN         13
-#define LED_STATE_ON    0
+#define _PINNUM(port, pin)    ((port)*32 + (pin))
 
-#define BUTTON_PIN      11
+#define LED_PIN         _PINNUM(1, 15)
+#define LED_STATE_ON    1
+
+#define BUTTON_PIN      _PINNUM(1, 02)
 
 // tinyusb function that handles power event (detected, ready, removed)
 // We must call it within SD's SOC event handler, or set it as power event handler if SD is not enabled.
@@ -65,9 +67,11 @@ void board_init(void)
   SysTick_Config(SystemCoreClock/1000);
 #endif
 
+#if TUSB_OPT_DEVICE_ENABLED
   // Priorities 0, 1, 4 (nRF52) are reserved for SoftDevice
   // 2 is highest for application
   NVIC_SetPriority(USBD_IRQn, 2);
+
 
   // USB power may already be ready at this time -> no event generated
   // We need to invoke the handler based on the status initially
@@ -101,6 +105,7 @@ void board_init(void)
 
   if ( usb_reg & POWER_USBREGSTATUS_VBUSDETECT_Msk ) tusb_hal_nrf_power_event(NRFX_POWER_USB_EVT_DETECTED);
   if ( usb_reg & POWER_USBREGSTATUS_OUTPUTRDY_Msk  ) tusb_hal_nrf_power_event(NRFX_POWER_USB_EVT_READY);
+#endif
 }
 
 //--------------------------------------------------------------------+

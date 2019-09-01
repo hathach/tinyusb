@@ -15,16 +15,16 @@ LD_FILE = hw/bsp/ea4088qs/lpc4088.ld
 SRC_C += src/portable/$(VENDOR)/$(CHIP_FAMILY)/hal_$(CHIP_FAMILY).c
 
 SRC_C += \
-	hw/mcu/nxp/lpcopen/lpc_chip_40xx/src/chip_17xx_40xx.c \
-	hw/mcu/nxp/lpcopen/lpc_chip_40xx/src/clock_17xx_40xx.c \
-	hw/mcu/nxp/lpcopen/lpc_chip_40xx/src/gpio_17xx_40xx.c \
-	hw/mcu/nxp/lpcopen/lpc_chip_40xx/src/iocon_17xx_40xx.c \
-	hw/mcu/nxp/lpcopen/lpc_chip_40xx/src/sysctl_17xx_40xx.c \
-	hw/mcu/nxp/lpcopen/lpc_chip_40xx/src/sysinit_17xx_40xx.c \
-	hw/mcu/nxp/lpcopen/lpc_chip_40xx/src/uart_17xx_40xx.c
+	hw/mcu/nxp/lpc_driver/lpc_chip_40xx/src/chip_17xx_40xx.c \
+	hw/mcu/nxp/lpc_driver/lpc_chip_40xx/src/clock_17xx_40xx.c \
+	hw/mcu/nxp/lpc_driver/lpc_chip_40xx/src/gpio_17xx_40xx.c \
+	hw/mcu/nxp/lpc_driver/lpc_chip_40xx/src/iocon_17xx_40xx.c \
+	hw/mcu/nxp/lpc_driver/lpc_chip_40xx/src/sysctl_17xx_40xx.c \
+	hw/mcu/nxp/lpc_driver/lpc_chip_40xx/src/sysinit_17xx_40xx.c \
+	hw/mcu/nxp/lpc_driver/lpc_chip_40xx/src/uart_17xx_40xx.c
 
 INC += \
-	$(TOP)/hw/mcu/nxp/lpcopen/lpc_chip_40xx/inc
+	$(TOP)/hw/mcu/nxp/lpc_driver/lpc_chip_40xx/inc
 
 # For TinyUSB port source
 VENDOR = nxp

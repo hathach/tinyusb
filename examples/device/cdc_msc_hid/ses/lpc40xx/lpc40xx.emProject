@@ -20,7 +20,7 @@
       arm_target_interface_type="SWD"
       build_treat_warnings_as_errors="Yes"
       c_preprocessor_definitions="CORE_M4;__LPC4000_FAMILY;__LPC408x_SUBFAMILY;ARM_MATH_CM4;FLASH_PLACEMENT=1;CFG_TUSB_MCU=OPT_MCU_LPC40XX;CFG_TUSB_MEM_SECTION= __attribute__((section(&quot;.bss2&quot;)))"
-      c_user_include_directories="../../src;$(rootDir)/hw;$(rootDir)/hw/mcu/nxp/lpcopen/lpc_chip_40xx/inc;$(rootDir)/src"
+      c_user_include_directories="../../src;$(rootDir)/hw;$(rootDir)/hw/mcu/nxp/lpc_driver/lpc_chip_40xx/inc;$(rootDir)/src"
       debug_register_definition_file="$(ProjectDir)/LPC408x_7x_Registers.xml"
       debug_target_connection="J-Link"
       gcc_enable_all_warnings="Yes"
@@ -55,39 +55,41 @@
         <file file_name="../../../../../hw/bsp/ansi_escape.h" />
         <file file_name="../../../../../hw/bsp/board.h" />
         <folder Name="ea4088qs">
-          <file file_name="../../../../../hw/bsp/ea4088qs/board_ea4088qs.c" />
+          <file file_name="../../../../../hw/bsp/ea4088qs/ea4088qs.c" />
         </folder>
       </folder>
       <folder Name="mcu">
         <folder Name="nxp">
-          <folder Name="lpc_chip_40xx">
-            <folder Name="inc">
-              <file file_name="../../../../../hw/mcu/nxp/lpcopen/lpc_chip_40xx/inc/chip.h" />
-              <file file_name="../../../../../hw/mcu/nxp/lpcopen/lpc_chip_40xx/inc/chip_lpc175x_6x.h" />
-              <file file_name="../../../../../hw/mcu/nxp/lpcopen/lpc_chip_40xx/inc/chip_lpc177x_8x.h" />
-              <file file_name="../../../../../hw/mcu/nxp/lpcopen/lpc_chip_40xx/inc/chip_lpc407x_8x.h" />
-              <file file_name="../../../../../hw/mcu/nxp/lpcopen/lpc_chip_40xx/inc/clock_17xx_40xx.h" />
-              <file file_name="../../../../../hw/mcu/nxp/lpcopen/lpc_chip_40xx/inc/cmsis.h" />
-              <file file_name="../../../../../hw/mcu/nxp/lpcopen/lpc_chip_40xx/inc/cmsis_40xx.h" />
-              <file file_name="../../../../../hw/mcu/nxp/lpcopen/lpc_chip_40xx/inc/core_cm4.h" />
-              <file file_name="../../../../../hw/mcu/nxp/lpcopen/lpc_chip_40xx/inc/core_cm4_simd.h" />
-              <file file_name="../../../../../hw/mcu/nxp/lpcopen/lpc_chip_40xx/inc/core_cmFunc.h" />
-              <file file_name="../../../../../hw/mcu/nxp/lpcopen/lpc_chip_40xx/inc/core_cmInstr.h" />
-              <file file_name="../../../../../hw/mcu/nxp/lpcopen/lpc_chip_40xx/inc/gpio_17xx_40xx.h" />
-              <file file_name="../../../../../hw/mcu/nxp/lpcopen/lpc_chip_40xx/inc/sys_config.h" />
-              <file file_name="../../../../../hw/mcu/nxp/lpcopen/lpc_chip_40xx/inc/sysctl_17xx_40xx.h" />
-              <file file_name="../../../../../hw/mcu/nxp/lpcopen/lpc_chip_40xx/inc/uart_17xx_40xx.h" />
-              <file file_name="../../../../../hw/mcu/nxp/lpcopen/lpc_chip_40xx/inc/usb_17xx_40xx.h" />
-              <file file_name="../../../../../hw/mcu/nxp/lpcopen/lpc_chip_40xx/inc/iocon_17xx_40xx.h" />
-            </folder>
-            <folder Name="src">
-              <file file_name="../../../../../hw/mcu/nxp/lpcopen/lpc_chip_40xx/src/chip_17xx_40xx.c" />
-              <file file_name="../../../../../hw/mcu/nxp/lpcopen/lpc_chip_40xx/src/clock_17xx_40xx.c" />
-              <file file_name="../../../../../hw/mcu/nxp/lpcopen/lpc_chip_40xx/src/gpio_17xx_40xx.c" />
-              <file file_name="../../../../../hw/mcu/nxp/lpcopen/lpc_chip_40xx/src/iocon_17xx_40xx.c" />
-              <file file_name="../../../../../hw/mcu/nxp/lpcopen/lpc_chip_40xx/src/sysctl_17xx_40xx.c" />
-              <file file_name="../../../../../hw/mcu/nxp/lpcopen/lpc_chip_40xx/src/sysinit_17xx_40xx.c" />
-              <file file_name="../../../../../hw/mcu/nxp/lpcopen/lpc_chip_40xx/src/uart_17xx_40xx.c" />
+          <folder Name="lpc_driver">
+            <folder Name="lpc_chip_40xx">
+              <folder Name="inc">
+                <file file_name="../../../../../hw/mcu/nxp/lpc_driver/lpc_chip_40xx/inc/chip.h" />
+                <file file_name="../../../../../hw/mcu/nxp/lpc_driver/lpc_chip_40xx/inc/chip_lpc175x_6x.h" />
+                <file file_name="../../../../../hw/mcu/nxp/lpc_driver/lpc_chip_40xx/inc/chip_lpc177x_8x.h" />
+                <file file_name="../../../../../hw/mcu/nxp/lpc_driver/lpc_chip_40xx/inc/chip_lpc407x_8x.h" />
+                <file file_name="../../../../../hw/mcu/nxp/lpc_driver/lpc_chip_40xx/inc/clock_17xx_40xx.h" />
+                <file file_name="../../../../../hw/mcu/nxp/lpc_driver/lpc_chip_40xx/inc/cmsis.h" />
+                <file file_name="../../../../../hw/mcu/nxp/lpc_driver/lpc_chip_40xx/inc/cmsis_40xx.h" />
+                <file file_name="../../../../../hw/mcu/nxp/lpc_driver/lpc_chip_40xx/inc/core_cm4.h" />
+                <file file_name="../../../../../hw/mcu/nxp/lpc_driver/lpc_chip_40xx/inc/core_cm4_simd.h" />
+                <file file_name="../../../../../hw/mcu/nxp/lpc_driver/lpc_chip_40xx/inc/core_cmFunc.h" />
+                <file file_name="../../../../../hw/mcu/nxp/lpc_driver/lpc_chip_40xx/inc/core_cmInstr.h" />
+                <file file_name="../../../../../hw/mcu/nxp/lpc_driver/lpc_chip_40xx/inc/gpio_17xx_40xx.h" />
+                <file file_name="../../../../../hw/mcu/nxp/lpc_driver/lpc_chip_40xx/inc/sys_config.h" />
+                <file file_name="../../../../../hw/mcu/nxp/lpc_driver/lpc_chip_40xx/inc/sysctl_17xx_40xx.h" />
+                <file file_name="../../../../../hw/mcu/nxp/lpc_driver/lpc_chip_40xx/inc/uart_17xx_40xx.h" />
+                <file file_name="../../../../../hw/mcu/nxp/lpc_driver/lpc_chip_40xx/inc/usb_17xx_40xx.h" />
+                <file file_name="../../../../../hw/mcu/nxp/lpc_driver/lpc_chip_40xx/inc/iocon_17xx_40xx.h" />
+              </folder>
+              <folder Name="src">
+                <file file_name="../../../../../hw/mcu/nxp/lpc_driver/lpc_chip_40xx/src/chip_17xx_40xx.c" />
+                <file file_name="../../../../../hw/mcu/nxp/lpc_driver/lpc_chip_40xx/src/clock_17xx_40xx.c" />
+                <file file_name="../../../../../hw/mcu/nxp/lpc_driver/lpc_chip_40xx/src/gpio_17xx_40xx.c" />
+                <file file_name="../../../../../hw/mcu/nxp/lpc_driver/lpc_chip_40xx/src/iocon_17xx_40xx.c" />
+                <file file_name="../../../../../hw/mcu/nxp/lpc_driver/lpc_chip_40xx/src/sysctl_17xx_40xx.c" />
+                <file file_name="../../../../../hw/mcu/nxp/lpc_driver/lpc_chip_40xx/src/sysinit_17xx_40xx.c" />
+                <file file_name="../../../../../hw/mcu/nxp/lpc_driver/lpc_chip_40xx/src/uart_17xx_40xx.c" />
+              </folder>
             </folder>
           </folder>
         </folder>

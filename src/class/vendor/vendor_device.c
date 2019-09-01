@@ -125,6 +125,11 @@ uint32_t tud_vendor_n_write (uint8_t itf, void const* buffer, uint32_t bufsize)
   return ret;
 }
 
+uint32_t tud_vendor_n_write_available (uint8_t itf)
+{
+  return tu_fifo_remaining(&_vendord_itf[itf].tx_ff);
+}
+
 //--------------------------------------------------------------------+
 // USBD Driver API
 //--------------------------------------------------------------------+

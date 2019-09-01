@@ -15,16 +15,16 @@ LD_FILE = hw/bsp/lpcxpresso1769/lpc1769.ld
 SRC_C += src/portable/$(VENDOR)/$(CHIP_FAMILY)/hal_$(CHIP_FAMILY).c
 
 SRC_C += \
-	hw/mcu/nxp/lpcopen/lpc_chip_175x_6x/src/chip_17xx_40xx.c \
-	hw/mcu/nxp/lpcopen/lpc_chip_175x_6x/src/clock_17xx_40xx.c \
-	hw/mcu/nxp/lpcopen/lpc_chip_175x_6x/src/gpio_17xx_40xx.c \
-	hw/mcu/nxp/lpcopen/lpc_chip_175x_6x/src/iocon_17xx_40xx.c \
-	hw/mcu/nxp/lpcopen/lpc_chip_175x_6x/src/sysctl_17xx_40xx.c \
-	hw/mcu/nxp/lpcopen/lpc_chip_175x_6x/src/sysinit_17xx_40xx.c \
-	hw/mcu/nxp/lpcopen/lpc_chip_175x_6x/src/uart_17xx_40xx.c
+	hw/mcu/nxp/lpc_driver/lpc_chip_175x_6x/src/chip_17xx_40xx.c \
+	hw/mcu/nxp/lpc_driver/lpc_chip_175x_6x/src/clock_17xx_40xx.c \
+	hw/mcu/nxp/lpc_driver/lpc_chip_175x_6x/src/gpio_17xx_40xx.c \
+	hw/mcu/nxp/lpc_driver/lpc_chip_175x_6x/src/iocon_17xx_40xx.c \
+	hw/mcu/nxp/lpc_driver/lpc_chip_175x_6x/src/sysctl_17xx_40xx.c \
+	hw/mcu/nxp/lpc_driver/lpc_chip_175x_6x/src/sysinit_17xx_40xx.c \
+	hw/mcu/nxp/lpc_driver/lpc_chip_175x_6x/src/uart_17xx_40xx.c
 
 INC += \
-	$(TOP)/hw/mcu/nxp/lpcopen/lpc_chip_175x_6x/inc
+	$(TOP)/hw/mcu/nxp/lpc_driver/lpc_chip_175x_6x/inc
 
 # For TinyUSB port source
 VENDOR = nxp

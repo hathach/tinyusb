@@ -7,9 +7,9 @@
 [submodule "hw/mcu/st/stm32lib"]
 	path = hw/mcu/st/stm32lib
 	url = https://github.com/hathach/stm32lib.git
-[submodule "hw/mcu/nxp/lpcopen"]
-	path = hw/mcu/nxp/lpcopen
-	url = https://github.com/hathach/lpcopen.git
 [submodule "tools/uf2"]
 	path = tools/uf2
 	url = https://github.com/microsoft/uf2.git
+[submodule "hw/mcu/nxp/lpc_driver"]
+	path = hw/mcu/nxp/lpc_driver
+	url = https://github.com/hathach/lpc_driver.git
