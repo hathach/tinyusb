@@ -114,18 +114,18 @@ void board_init(void)
   GPIO_PinInit(GPIO, BUTTON_PORT, BUTTON_PIN, &button_config);
 
   // USB
-//  const uint32_t port1_pin6_config = (
-//    IOCON_PIO_FUNC7       | /* Pin is configured as USB0_VBUS */
-//    IOCON_PIO_MODE_INACT  | /* No addition pin function */
-//    IOCON_PIO_INV_DI      | /* Input function is not inverted */
-//    IOCON_PIO_DIGITAL_EN  | /* Enables digital function */
-//    IOCON_PIO_INPFILT_OFF | /* Input filter disabled */
-//    IOCON_PIO_OPENDRAIN_DI  /* Open drain is disabled */
-//  );
-//  IOCON_PinMuxSet(IOCON, 1, 6, port1_pin6_config); /* PORT1 PIN6 (coords: 26) is configured as USB0_VBUS */
-//
-//  POWER_DisablePD(kPDRUNCFG_PD_USB0_PHY); /*Turn on USB Phy */
-//  CLOCK_EnableUsbfs0Clock(kCLOCK_UsbSrcFro, CLOCK_GetFreq(kCLOCK_FroHf)); /* enable USB IP clock */
+  const uint32_t port1_pin6_config = (
+    IOCON_PIO_FUNC7       | /* Pin is configured as USB0_VBUS */
+    IOCON_PIO_MODE_INACT  | /* No addition pin function */
+    IOCON_PIO_INV_DI      | /* Input function is not inverted */
+    IOCON_PIO_DIGITAL_EN  | /* Enables digital function */
+    IOCON_PIO_INPFILT_OFF | /* Input filter disabled */
+    IOCON_PIO_OPENDRAIN_DI  /* Open drain is disabled */
+  );
+  IOCON_PinMuxSet(IOCON, 1, 6, port1_pin6_config); /* PORT1 PIN6 (coords: 26) is configured as USB0_VBUS */
+
+  POWER_DisablePD(kPDRUNCFG_PD_USB0_PHY); /*Turn on USB Phy */
+  CLOCK_EnableUsbfs0Clock(kCLOCK_UsbSrcFro, CLOCK_GetFreq(kCLOCK_FroHf)); /* enable USB IP clock */
 }
 
 //--------------------------------------------------------------------+

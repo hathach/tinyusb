@@ -38,14 +38,15 @@
 
 #if TUSB_OPT_DEVICE_ENABLED && ( CFG_TUSB_MCU == OPT_MCU_LPC11UXX || \
                                  CFG_TUSB_MCU == OPT_MCU_LPC13XX  || \
-                                 CFG_TUSB_MCU == OPT_MCU_LPC51UXX )
+                                 CFG_TUSB_MCU == OPT_MCU_LPC51UXX || \
+                                 CFG_TUSB_MCU == OPT_MCU_LPC54XXX )
 
 #if CFG_TUSB_MCU == OPT_MCU_LPC11UXX || CFG_TUSB_MCU == OPT_MCU_LPC13XX
   // LPC11Uxx and LPC13xx use lpcopen
   #include "chip.h"
   #define DCD_REGS        LPC_USB
   #define DCD_IRQHandler  USB_IRQHandler
-#elif CFG_TUSB_MCU == OPT_MCU_LPC51UXX
+#elif CFG_TUSB_MCU == OPT_MCU_LPC51UXX || CFG_TUSB_MCU == OPT_MCU_LPC54XXX
   #include "fsl_device_registers.h"
   #define DCD_REGS        USB0
   #define DCD_IRQHandler  USB0_IRQHandler
@@ -60,7 +61,8 @@
 // Number of endpoints
 #define EP_COUNT 10
 
-// only SRAM1 & USB RAM can be used for transfer
+// only SRAM1 & USB RAM can be used for transfer.
+// Used to set DATABUFSTART which is 22-bit aligned
 // 2000 0000 to 203F FFFF
 #define SRAM_REGION   0x20000000
 
