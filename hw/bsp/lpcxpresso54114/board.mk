@@ -40,8 +40,9 @@ CHIP_FAMILY = lpc_usbd
 FREERTOS_PORT = ARM_CM4
 
 # For flash-jlink target
-JLINK_DEVICE = LPC54114
+JLINK_DEVICE = LPC54114J256_M4
 JLINK_IF = swd
 
-# flash using jlink
-#flash: flash-jlink
+# flash using pyocd
+flash: $(BUILD)/$(BOARD)-firmware.elf
+	pyocd flash -v -e auto -t LPC54114 $<

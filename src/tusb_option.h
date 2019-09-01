@@ -43,6 +43,7 @@
 #define OPT_MCU_LPC40XX         7 ///< NXP LPC40xx
 #define OPT_MCU_LPC43XX         8 ///< NXP LPC43xx
 #define OPT_MCU_LPC51UXX        9 ///< NXP LPC51U6x
+#define OPT_MCU_LPC54XXX       10 ///< NXP LPC54xxx
 
 #define OPT_MCU_NRF5X         100 ///< Nordic nRF5x series
 
