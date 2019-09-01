@@ -32,7 +32,7 @@ LIBS += $(TOP)/$(MCU_DIR)/gcc/libpower.a
 
 # For TinyUSB port source
 VENDOR = nxp
-CHIP_FAMILY = lpc_usbd
+CHIP_FAMILY = lpc_ip3511
 
 # For freeRTOS port source
 FREERTOS_PORT = ARM_CM0

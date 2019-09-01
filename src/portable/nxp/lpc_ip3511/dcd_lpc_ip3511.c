@@ -26,7 +26,7 @@
 
 #include "tusb_option.h"
 
-/* Since 2012 starting with LPC11uxx, NXP start to use common USB Device Controller
+/* Since 2012 starting with LPC11uxx, NXP start to use common USB Device Controller with code name LPC IP3511
  * for almost their new MCUs. Currently supported and tested families are
  * - LPC11Uxx
  * - LPC13xx

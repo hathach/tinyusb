@@ -44,6 +44,7 @@ enum
 
 typedef struct
 {
+  // TODO optimize alignment
   CFG_TUSB_MEM_ALIGN msc_cbw_t cbw;
   CFG_TUSB_MEM_ALIGN msc_csw_t csw;
 
