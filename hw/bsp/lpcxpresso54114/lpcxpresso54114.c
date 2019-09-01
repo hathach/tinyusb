@@ -30,8 +30,8 @@
 #include "fsl_power.h"
 #include "fsl_iocon.h"
 
-#define LED_PORT      0
-#define LED_PIN       29
+#define LED_PORT      1
+#define LED_PIN       10
 #define LED_STATE_ON  0
 
 // WAKE button
@@ -72,11 +72,10 @@ void BootClockFROHF96M(void)
 
   /*!< Set up dividers */
   CLOCK_SetClkDiv(kCLOCK_DivAhbClk, 1U, false);     /*!< Set AHBCLKDIV divider to value 1 */
-  CLOCK_SetClkDiv(kCLOCK_DivSystickClk, 0U, true);  /*!< Reset SYSTICKCLKDIV divider counter and halt it */
-  CLOCK_SetClkDiv(kCLOCK_DivSystickClk, 1U, false); /*!< Set SYSTICKCLKDIV divider to value 1 */
 
   /*!< Set up clock selectors - Attach clocks to the peripheries */
   CLOCK_AttachClk(kFRO_HF_to_MAIN_CLK); /*!< Switch MAIN_CLK to FRO_HF */
+
   /*!< Set SystemCoreClock variable. */
   SystemCoreClock = 96000000U;
 }
@@ -113,18 +112,18 @@ void board_init(void)
   GPIO_PinInit(GPIO, BUTTON_PORT, BUTTON_PIN, &button_config);
 
   // USB
-  const uint32_t port1_pin6_config = (
-    IOCON_PIO_FUNC7       | /* Pin is configured as USB0_VBUS */
-    IOCON_PIO_MODE_INACT  | /* No addition pin function */
-    IOCON_PIO_INV_DI      | /* Input function is not inverted */
-    IOCON_PIO_DIGITAL_EN  | /* Enables digital function */
-    IOCON_PIO_INPFILT_OFF | /* Input filter disabled */
-    IOCON_PIO_OPENDRAIN_DI  /* Open drain is disabled */
-  );
-  IOCON_PinMuxSet(IOCON, 1, 6, port1_pin6_config); /* PORT1 PIN6 (coords: 26) is configured as USB0_VBUS */
-
-  POWER_DisablePD(kPDRUNCFG_PD_USB0_PHY); /*Turn on USB Phy */
-  CLOCK_EnableUsbfs0Clock(kCLOCK_UsbSrcFro, CLOCK_GetFreq(kCLOCK_FroHf)); /* enable USB IP clock */
+//  const uint32_t port1_pin6_config = (
+//    IOCON_PIO_FUNC7       | /* Pin is configured as USB0_VBUS */
+//    IOCON_PIO_MODE_INACT  | /* No addition pin function */
+//    IOCON_PIO_INV_DI      | /* Input function is not inverted */
+//    IOCON_PIO_DIGITAL_EN  | /* Enables digital function */
+//    IOCON_PIO_INPFILT_OFF | /* Input filter disabled */
+//    IOCON_PIO_OPENDRAIN_DI  /* Open drain is disabled */
+//  );
+//  IOCON_PinMuxSet(IOCON, 1, 6, port1_pin6_config); /* PORT1 PIN6 (coords: 26) is configured as USB0_VBUS */
+//
+//  POWER_DisablePD(kPDRUNCFG_PD_USB0_PHY); /*Turn on USB Phy */
+//  CLOCK_EnableUsbfs0Clock(kCLOCK_UsbSrcFro, CLOCK_GetFreq(kCLOCK_FroHf)); /* enable USB IP clock */
 }
 
 //--------------------------------------------------------------------+
