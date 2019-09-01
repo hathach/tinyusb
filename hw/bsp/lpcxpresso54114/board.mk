@@ -7,7 +7,6 @@ CFLAGS += \
   -DCORE_M4 \
   -DCFG_TUSB_MCU=OPT_MCU_LPC54XXX \
   -DCPU_LPC54114J256BD64_cm4 \
-  -Wfatal-errors \
   -DCFG_TUSB_MEM_SECTION='__attribute__((section(".data")))' \
   -DCFG_TUSB_MEM_ALIGN='__attribute__((aligned(64)))' 
 
