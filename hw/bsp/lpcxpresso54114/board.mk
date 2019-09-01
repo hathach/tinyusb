@@ -44,5 +44,5 @@ JLINK_DEVICE = LPC54114J256_M4
 JLINK_IF = swd
 
 # flash using pyocd
-flash: $(BUILD)/$(BOARD)-firmware.elf
-	pyocd flash -v -e auto -t LPC54114 $<
+flash: $(BUILD)/$(BOARD)-firmware.hex
+	pyocd flash -t LPC54114 $<
