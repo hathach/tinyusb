@@ -60,15 +60,13 @@
 
 // Halt CPU (breakpoint) when hitting error, only apply for Cortex M3, M4, M7
 #if defined(__ARM_ARCH_7M__) || defined (__ARM_ARCH_7EM__)
-
-#define TU_BREAKPOINT() do                                                                                \
-{                                                                                                         \
-  volatile uint32_t* ARM_CM_DHCSR =  ((volatile uint32_t*) 0xE000EDF0UL); /* Cortex M CoreDebug->DHCSR */ \
-  if ( (*ARM_CM_DHCSR) & 1UL ) __asm("BKPT #0\n"); /* Only halt mcu if debugger is attached */            \
-} while(0)
-
+  #define TU_BREAKPOINT() do                                                                                \
+  {                                                                                                         \
+    volatile uint32_t* ARM_CM_DHCSR =  ((volatile uint32_t*) 0xE000EDF0UL); /* Cortex M CoreDebug->DHCSR */ \
+    if ( (*ARM_CM_DHCSR) & 1UL ) __asm("BKPT #0\n"); /* Only halt mcu if debugger is attached */            \
+  } while(0)
 #else
-#define TU_BREAKPOINT()
+  #define TU_BREAKPOINT()
 #endif
 
 /*------------------------------------------------------------------*/

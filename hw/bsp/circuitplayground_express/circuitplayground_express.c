@@ -39,7 +39,7 @@
 // MACRO TYPEDEF CONSTANT ENUM DECLARATION
 //--------------------------------------------------------------------+
 #define LED_PIN      17
-#define BUTTON_PIN   15 // pin D5
+#define BUTTON_PIN   14 // pin D5
 
 /* Referenced GCLKs, should be initialized firstly */
 #define _GCLK_INIT_1ST (1 << 0 | 1 << 1)
@@ -66,7 +66,7 @@ void board_init(void)
 
   // Button init
   gpio_set_pin_direction(BUTTON_PIN, GPIO_DIRECTION_IN);
-  gpio_set_pin_pull_mode(BUTTON_PIN, GPIO_PULL_UP);
+  gpio_set_pin_pull_mode(BUTTON_PIN, GPIO_PULL_DOWN);
 
 #if CFG_TUSB_OS  == OPT_OS_NONE
   // 1ms tick timer (samd SystemCoreClock may not correct)
@@ -112,8 +112,8 @@ void board_led_write(bool state)
 
 uint32_t board_button_read(void)
 {
-  // button is active low
-  return gpio_get_pin_level(BUTTON_PIN) ? 0 : 1;
+  // button is active high
+  return gpio_get_pin_level(BUTTON_PIN);
 }
 
 #if CFG_TUSB_OS  == OPT_OS_NONE

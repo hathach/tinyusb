@@ -12,6 +12,7 @@ This code base already had supported for a handful of following boards
 ### Nordic nRF5x
 
 - [Adafruit Feather nRF52840 Express](https://www.adafruit.com/product/4062)
+- [Adafruit Circuit Playground Bluefruit](https://www.adafruit.com/product/4333)
 - [Nordic nRF52840 Development Kit (aka pca10056)](https://www.nordicsemi.com/Software-and-Tools/Development-Kits/nRF52840-DK)
 
 ### NXP LPC
@@ -19,15 +20,17 @@ This code base already had supported for a handful of following boards
 - [LPCXpresso 11U68](https://www.nxp.com/support/developer-resources/evaluation-and-development-boards/lpcxpresso-boards/lpcxpresso-board-for-lpc11u68:OM13058)
 - [LPCXpresso 1347](https://www.nxp.com/support/developer-resources/evaluation-and-development-boards/lpcxpresso-boards/lpcxpresso-board-for-lpc1347:OM13045)
 - [LPCXpresso 1769](https://www.nxp.com/support/developer-resources/evaluation-and-development-boards/lpcxpresso-boards/lpcxpresso-board-for-lpc1769:OM13000)
-- [LPCXpresso 51U68](https://www.nxp.com/products/processors-and-microcontrollers/arm-microcontrollers/general-purpose-mcus/lpcxpresso51u68-for-the-lpc51u68-mcus:OM40005)
 - [Keil MCB1800 Evaluation Board](http://www.keil.com/mcb1800)
 - [Embedded Artists LPC4088 Quick Start board](https://www.embeddedartists.com/products/lpc4088-quickstart-board)
 - [Embedded Artists LPC4357 Developer Kit](http://www.embeddedartists.com/products/kits/lpc4357_kit.php)
+- [LPCXpresso 51U68](https://www.nxp.com/products/processors-and-microcontrollers/arm-microcontrollers/general-purpose-mcus/lpcxpresso51u68-for-the-lpc51u68-mcus:OM40005)
 
 ### MicroChip SAMD
 
-- [Adafruit Feather M4 Express](https://www.adafruit.com/product/3857)
+- [Adafruit Circuit Playground Express](https://www.adafruit.com/product/3333)
+- [Adafruit Feather M0 Express](https://www.adafruit.com/product/3403)
 - [Adafruit Metro M0 Express](https://www.adafruit.com/product/3505)
+- [Adafruit Feather M4 Express](https://www.adafruit.com/product/3857)
 - [Adafruit Metro M4 Express](https://www.adafruit.com/product/3382)
 
 ### ST STM32
