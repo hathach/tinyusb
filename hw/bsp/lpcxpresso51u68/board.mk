@@ -10,7 +10,7 @@ CFLAGS += \
   -DCFG_TUSB_MEM_ALIGN='__attribute__((aligned(64)))' 
 
 # All source paths should be relative to the top level.
-LD_FILE = hw/bsp/lpcxpresso51u68/LPC51U68_flash.ld
+LD_FILE = hw/mcu/nxp/lpc_driver/lpc51u6x/devices/LPC51U68/gcc/LPC51U68_flash.ld
 
 SRC_C += \
 	hw/mcu/nxp/lpc_driver/lpc51u6x/devices/LPC51U68/system_LPC51U68.c \
@@ -24,9 +24,9 @@ INC += \
 	$(TOP)/hw/mcu/nxp/lpc_driver/lpc51u6x/devices/LPC51U68 \
 	$(TOP)/hw/mcu/nxp/lpc_driver/lpc51u6x/drivers
 
-SRC_S += hw/bsp/lpcxpresso51u68/startup_LPC51U68.S
+SRC_S += hw/mcu/nxp/lpc_driver/lpc51u6x/devices/LPC51U68/gcc/startup_LPC51U68.S
 
-LIBS += $(TOP)/hw/mcu/nxp/lpc_driver/lpc51u6x/devices/LPC51U68/libpower.a
+LIBS += $(TOP)/hw/mcu/nxp/lpc_driver/lpc51u6x/devices/LPC51U68/gcc/libpower.a
 
 # For TinyUSB port source
 VENDOR = nxp
