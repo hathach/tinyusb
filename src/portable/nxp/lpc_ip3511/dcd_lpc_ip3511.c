@@ -66,15 +66,15 @@
 // 2000 0000 to 203F FFFF
 #define SRAM_REGION   0x20000000
 
-/* Although device controller are the same. DMA of
- * - M0/M+ can only transfer up to nbytes = 64
- * - M3/M4 can transfer nbytes = 1023 (maximum)
+/* Although device controller are the same. Somehow only LPC134x can execute
+ * DMA with 1023 bytes for Bulk/Control. Others (11u, 51u, 54xxx) can only work
+ * with max 64 bytes
  */
 enum {
-  #ifdef __ARM_ARCH_6M__ // Cortex M0/M0+
-    DMA_NBYTES_MAX = 64
-  #else
+  #if CFG_TUSB_MCU == OPT_MCU_LPC13XX
     DMA_NBYTES_MAX = 1023
+  #else
+    DMA_NBYTES_MAX = 64
   #endif
 };
 
