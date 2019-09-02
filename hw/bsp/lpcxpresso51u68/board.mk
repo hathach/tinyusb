@@ -2,7 +2,6 @@ CFLAGS += \
   -mthumb \
   -mabi=aapcs \
   -mcpu=cortex-m0plus \
-  -DCORE_M0PLUS \
   -DCFG_TUSB_MCU=OPT_MCU_LPC51UXX \
   -DCPU_LPC51U68JBD64 \
   -DCFG_TUSB_MEM_SECTION='__attribute__((section(".data")))' \
