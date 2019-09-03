@@ -256,7 +256,7 @@ bool dcd_edpt_xfer (uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t 
     dev->DIEPEMPMSK |= (1 << epnum);
   } else {
     // Each complete packet for OUT xfers triggers XFRC.
-    out_ep[epnum].DOEPTSIZ = (1 << USB_OTG_DOEPTSIZ_PKTCNT_Pos) | \
+    out_ep[epnum].DOEPTSIZ |= (1 << USB_OTG_DOEPTSIZ_PKTCNT_Pos) | \
         ((xfer->max_size & USB_OTG_DOEPTSIZ_XFRSIZ_Msk) << USB_OTG_DOEPTSIZ_XFRSIZ_Pos);
     out_ep[epnum].DOEPCTL |= USB_OTG_DOEPCTL_EPENA | USB_OTG_DOEPCTL_CNAK;
   }
@@ -410,6 +410,7 @@ static void read_rx_fifo(USB_OTG_OUTEndpointTypeDef * out_ep) {
     case 0x06: // Setup packet recvd
       {
         uint8_t setup_left = ((out_ep[epnum].DOEPTSIZ & USB_OTG_DOEPTSIZ_STUPCNT_Msk) >> USB_OTG_DOEPTSIZ_STUPCNT_Pos);
+
         // We can receive up to three setup packets in succession, but
         // only the last one is valid.
         _setup_packet[4 - 2*setup_left] = (* rx_fifo);
@@ -451,7 +452,7 @@ static void handle_epout_ints(USB_OTG_DeviceTypeDef * dev, USB_OTG_OUTEndpointTy
         dcd_event_xfer_complete(0, n, xfer->queued_len, XFER_RESULT_SUCCESS, true);
       } else {
         // Schedule another packet to be received.
-        out_ep[n].DOEPTSIZ = (1 << USB_OTG_DOEPTSIZ_PKTCNT_Pos) | \
+        out_ep[n].DOEPTSIZ |= (1 << USB_OTG_DOEPTSIZ_PKTCNT_Pos) | \
             ((xfer->max_size & USB_OTG_DOEPTSIZ_XFRSIZ_Msk) << USB_OTG_DOEPTSIZ_XFRSIZ_Pos);
         out_ep[n].DOEPCTL |= USB_OTG_DOEPCTL_EPENA | USB_OTG_DOEPCTL_CNAK;
       }
