@@ -32,6 +32,8 @@
 
 #define LED_PORT  GPIOB
 #define LED_PIN   GPIO_PIN_0
+#define BUTTON_PORT GPIOC
+#define BUTTON_PIN  GPIO_PIN_13
 
 /* PWR, RCC, GPIO (All): AHB4 (D3 domain)
    USB{1,2} OTG_{H,F}S: AHB1 (D2 domain)
@@ -164,6 +166,13 @@ void board_init(void)
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_HIGH;
   HAL_GPIO_Init(LED_PORT, &GPIO_InitStruct);
 
+  __HAL_RCC_GPIOC_CLK_ENABLE();
+  GPIO_InitStruct.Pin = BUTTON_PIN;
+  GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_HIGH;
+  HAL_GPIO_Init(BUTTON_PORT, &GPIO_InitStruct);
+
   // https://community.st.com/s/question/0D50X00009XkYZLSA3/stm32h7-nucleo-usb-fs-cdc
   // TODO: Board init actually works fine without this line.
   HAL_PWREx_EnableUSBVoltageDetector();
@@ -181,8 +190,7 @@ void board_led_write(bool state)
 
 uint32_t board_button_read(void)
 {
-  // TODO implement
-  return 0;
+  return HAL_GPIO_ReadPin(BUTTON_PORT, BUTTON_PIN);
 }
 
 int board_uart_read(uint8_t* buf, int len)
