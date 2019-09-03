@@ -217,9 +217,60 @@ void dcd_remote_wakeup(uint8_t rhport)
 bool dcd_edpt_open (uint8_t rhport, tusb_desc_endpoint_t const * desc_edpt)
 {
   (void) rhport;
-  (void) desc_edpt;
+  USB_OTG_DeviceTypeDef * dev = DEVICE_BASE;
+  USB_OTG_OUTEndpointTypeDef * out_ep = OUT_EP_BASE;
+  USB_OTG_INEndpointTypeDef * in_ep = IN_EP_BASE;
 
-  return false;
+  uint8_t const epnum = tu_edpt_number(desc_edpt->bEndpointAddress);
+  uint8_t const dir   = tu_edpt_dir(desc_edpt->bEndpointAddress);
+
+  // Unsupported endpoint numbers/size.
+  if((desc_edpt->wMaxPacketSize.size > 64) || (epnum > 7)) {
+    return false;
+  }
+
+  xfer_ctl_t * xfer = XFER_CTL_BASE(epnum, dir);
+  xfer->max_size = desc_edpt->wMaxPacketSize.size;
+
+  if(dir == TUSB_DIR_OUT) {
+    out_ep[epnum].DOEPCTL |= (1 << USB_OTG_DOEPCTL_USBAEP_Pos) | \
+      desc_edpt->bmAttributes.xfer << USB_OTG_DOEPCTL_EPTYP_Pos | \
+      desc_edpt->wMaxPacketSize.size << USB_OTG_DOEPCTL_MPSIZ_Pos;
+    dev->DAINTMSK |= (1 << (USB_OTG_DAINTMSK_OEPM_Pos + epnum));
+  } else {
+    // Peripheral FIFO architecture (Rev6 RM 56.11.1)
+    //
+    // --------------- 1024 ( 4096 bytes )
+    // | IN FIFO 7  |
+    // ---------------
+    // |    ...     |
+    // --------------- y + x + 16 + GRXFSIZ
+    // | IN FIFO 2  |
+    // --------------- x + 16 + GRXFSIZ
+    // | IN FIFO 1  |
+    // --------------- 16 + GRXFSIZ
+    // | IN FIFO 0  |
+    // --------------- GRXFSIZ
+    // | OUT FIFO   |
+    // | ( Shared ) |
+    // --------------- 0
+    //
+    // Since OUT FIFO = 50, FIFO 0 = 16, average of FIFOx = (1024-50-16) / 7 = 136 ~ 130
+
+    in_ep[epnum].DIEPCTL |= (1 << USB_OTG_DIEPCTL_USBAEP_Pos) | \
+      (epnum - 1) << USB_OTG_DIEPCTL_TXFNUM_Pos | \
+      desc_edpt->bmAttributes.xfer << USB_OTG_DIEPCTL_EPTYP_Pos | \
+      (desc_edpt->bmAttributes.xfer != TUSB_XFER_ISOCHRONOUS ? USB_OTG_DOEPCTL_SD0PID_SEVNFRM : 0) | \
+      desc_edpt->wMaxPacketSize.size << USB_OTG_DIEPCTL_MPSIZ_Pos;
+    dev->DAINTMSK |= (1 << (USB_OTG_DAINTMSK_IEPM_Pos + epnum));
+
+    // Both TXFD and TXSA are in unit of 32-bit words
+    uint16_t const fifo_size = 130;
+    uint32_t const fifo_offset = (USB_OTG_FS->GRXFSIZ & 0x0000ffff) + 16 + fifo_size*(epnum-1);
+    USB_OTG_FS->DIEPTXF[epnum - 1] = (130 << USB_OTG_DIEPTXF_INEPTXFD_Pos) | fifo_offset;
+  }
+
+  return true;
 }
 
 bool dcd_edpt_xfer (uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t total_bytes)
