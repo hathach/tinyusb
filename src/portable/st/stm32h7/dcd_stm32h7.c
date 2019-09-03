@@ -35,9 +35,9 @@
 /* MACRO TYPEDEF CONSTANT ENUM
  *------------------------------------------------------------------*/
 #define DEVICE_BASE (USB_OTG_DeviceTypeDef *) (USB2_OTG_FS_PERIPH_BASE + USB_OTG_DEVICE_BASE)
-#define OUT_EP_BASE (USB_OTG_OUTEndpointTypeDef *) (USB_OTG_FS_PERIPH_BASE + USB_OTG_OUT_ENDPOINT_BASE)
-#define IN_EP_BASE (USB_OTG_INEndpointTypeDef *) (USB_OTG_FS_PERIPH_BASE + USB_OTG_IN_ENDPOINT_BASE)
-#define FIFO_BASE(_x) (uint32_t *) (USB_OTG_FS_PERIPH_BASE + USB_OTG_FIFO_BASE + (_x) * USB_OTG_FIFO_SIZE)
+#define OUT_EP_BASE (USB_OTG_OUTEndpointTypeDef *) (USB2_OTG_FS_PERIPH_BASE + USB_OTG_OUT_ENDPOINT_BASE)
+#define IN_EP_BASE (USB_OTG_INEndpointTypeDef *) (USB2_OTG_FS_PERIPH_BASE + USB_OTG_IN_ENDPOINT_BASE)
+#define FIFO_BASE(_x) (uint32_t *) (USB2_OTG_FS_PERIPH_BASE + USB_OTG_FIFO_BASE + (_x) * USB_OTG_FIFO_SIZE)
 
 static TU_ATTR_ALIGNED(4) uint32_t _setup_packet[6];
 static uint8_t _setup_offs; // We store up to 3 setup packets.
@@ -99,7 +99,7 @@ static void bus_reset(void)
   USB2_OTG_FS->GRXFSIZ = 50;
 
   // Control IN uses FIFO 0 with 64 bytes ( 16 32-bit word )
-  USB2_OTG_FS->DIEPTXF0_HNPTXFSIZ = (16 << USB_OTG_TX0FD_Pos) | (USB_OTG_FS->GRXFSIZ & 0x0000ffffUL);
+  USB2_OTG_FS->DIEPTXF0_HNPTXFSIZ = (16 << USB_OTG_TX0FD_Pos) | (USB2_OTG_FS->GRXFSIZ & 0x0000ffffUL);
 
   out_ep[0].DOEPTSIZ |= (3 << USB_OTG_DOEPTSIZ_STUPCNT_Pos);
 
@@ -266,8 +266,8 @@ bool dcd_edpt_open (uint8_t rhport, tusb_desc_endpoint_t const * desc_edpt)
 
     // Both TXFD and TXSA are in unit of 32-bit words
     uint16_t const fifo_size = 130;
-    uint32_t const fifo_offset = (USB_OTG_FS->GRXFSIZ & 0x0000ffff) + 16 + fifo_size*(epnum-1);
-    USB_OTG_FS->DIEPTXF[epnum - 1] = (130 << USB_OTG_DIEPTXF_INEPTXFD_Pos) | fifo_offset;
+    uint32_t const fifo_offset = (USB2_OTG_FS->GRXFSIZ & 0x0000ffff) + 16 + fifo_size*(epnum-1);
+    USB2_OTG_FS->DIEPTXF[epnum - 1] = (130 << USB_OTG_DIEPTXF_INEPTXFD_Pos) | fifo_offset;
   }
 
   return true;
@@ -343,9 +343,9 @@ void dcd_edpt_stall (uint8_t rhport, uint8_t ep_addr)
     }
 
     // Flush the FIFO, and wait until we have confirmed it cleared.
-    USB_OTG_FS->GRSTCTL |= ((epnum - 1) << USB_OTG_GRSTCTL_TXFNUM_Pos);
-    USB_OTG_FS->GRSTCTL |= USB_OTG_GRSTCTL_TXFFLSH;
-    while((USB_OTG_FS->GRSTCTL & USB_OTG_GRSTCTL_TXFFLSH_Msk) != 0);
+    USB2_OTG_FS->GRSTCTL |= ((epnum - 1) << USB_OTG_GRSTCTL_TXFNUM_Pos);
+    USB2_OTG_FS->GRSTCTL |= USB_OTG_GRSTCTL_TXFFLSH;
+    while((USB2_OTG_FS->GRSTCTL & USB_OTG_GRSTCTL_TXFFLSH_Msk) != 0);
   } else {
     // Only disable currently enabled non-control endpoint
     if ( (epnum == 0) || !(out_ep[epnum].DOEPCTL & USB_OTG_DOEPCTL_EPENA) ){
@@ -356,7 +356,7 @@ void dcd_edpt_stall (uint8_t rhport, uint8_t ep_addr)
       // anyway, and it can't be cleared by user code. If this while loop never
       // finishes, we have bigger problems than just the stack.
       dev->DCTL |= USB_OTG_DCTL_SGONAK;
-      while((USB_OTG_FS->GINTSTS & USB_OTG_GINTSTS_BOUTNAKEFF_Msk) == 0);
+      while((USB2_OTG_FS->GINTSTS & USB_OTG_GINTSTS_BOUTNAKEFF_Msk) == 0);
 
       // Ditto here- disable the endpoint.
       out_ep[epnum].DOEPCTL |= (USB_OTG_DOEPCTL_STALL | USB_OTG_DOEPCTL_EPDIS);
@@ -612,7 +612,7 @@ void OTG_FS_IRQHandler (void)
   USB_OTG_OUTEndpointTypeDef * out_ep = OUT_EP_BASE;
   USB_OTG_INEndpointTypeDef * in_ep = IN_EP_BASE;
 
-  uint32_t int_status = USB_OTG_FS->GINTSTS;
+  uint32_t int_status = USB2_OTG_FS->GINTSTS;
 
   if(int_status & USB_OTG_GINTMSK_USBRST)
   {
@@ -628,7 +628,7 @@ void OTG_FS_IRQHandler (void)
   }
 
   if(int_status & USB_OTG_GINTSTS_SOF) {
-    USB_OTG_FS->GINTSTS = USB_OTG_GINTSTS_SOF;
+    USB2_OTG_FS->GINTSTS = USB_OTG_GINTSTS_SOF;
     dcd_event_bus_signal(0, DCD_EVENT_SOF, true);
   }
 
