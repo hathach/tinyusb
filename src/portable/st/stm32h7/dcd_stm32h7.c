@@ -320,13 +320,85 @@ bool dcd_edpt_xfer (uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t 
 void dcd_edpt_stall (uint8_t rhport, uint8_t ep_addr)
 {
   (void) rhport;
-  (void) ep_addr;
+  USB_OTG_DeviceTypeDef * dev = DEVICE_BASE;
+  USB_OTG_OUTEndpointTypeDef * out_ep = OUT_EP_BASE;
+  USB_OTG_INEndpointTypeDef * in_ep = IN_EP_BASE;
+
+  uint8_t const epnum = tu_edpt_number(ep_addr);
+  uint8_t const dir   = tu_edpt_dir(ep_addr);
+
+  if(dir == TUSB_DIR_IN) {
+    // Only disable currently enabled non-control endpoint
+    if ( (epnum == 0) || !(in_ep[epnum].DIEPCTL & USB_OTG_DIEPCTL_EPENA) ){
+      in_ep[epnum].DIEPCTL |= (USB_OTG_DIEPCTL_SNAK | USB_OTG_DIEPCTL_STALL);
+    } else {
+      // Stop transmitting packets and NAK IN xfers.
+      in_ep[epnum].DIEPCTL |= USB_OTG_DIEPCTL_SNAK;
+      while((in_ep[epnum].DIEPINT & USB_OTG_DIEPINT_INEPNE) == 0);
+
+      // Disable the endpoint.
+      in_ep[epnum].DIEPCTL |= (USB_OTG_DIEPCTL_STALL | USB_OTG_DIEPCTL_EPDIS);
+      while((in_ep[epnum].DIEPINT & USB_OTG_DIEPINT_EPDISD_Msk) == 0);
+      in_ep[epnum].DIEPINT = USB_OTG_DIEPINT_EPDISD;
+    }
+
+    // Flush the FIFO, and wait until we have confirmed it cleared.
+    USB_OTG_FS->GRSTCTL |= ((epnum - 1) << USB_OTG_GRSTCTL_TXFNUM_Pos);
+    USB_OTG_FS->GRSTCTL |= USB_OTG_GRSTCTL_TXFFLSH;
+    while((USB_OTG_FS->GRSTCTL & USB_OTG_GRSTCTL_TXFFLSH_Msk) != 0);
+  } else {
+    // Only disable currently enabled non-control endpoint
+    if ( (epnum == 0) || !(out_ep[epnum].DOEPCTL & USB_OTG_DOEPCTL_EPENA) ){
+      out_ep[epnum].DOEPCTL |= USB_OTG_DOEPCTL_STALL;
+    } else {
+      // Asserting GONAK is required to STALL an OUT endpoint.
+      // Simpler to use polling here, we don't use the "B"OUTNAKEFF interrupt
+      // anyway, and it can't be cleared by user code. If this while loop never
+      // finishes, we have bigger problems than just the stack.
+      dev->DCTL |= USB_OTG_DCTL_SGONAK;
+      while((USB_OTG_FS->GINTSTS & USB_OTG_GINTSTS_BOUTNAKEFF_Msk) == 0);
+
+      // Ditto here- disable the endpoint.
+      out_ep[epnum].DOEPCTL |= (USB_OTG_DOEPCTL_STALL | USB_OTG_DOEPCTL_EPDIS);
+      while((out_ep[epnum].DOEPINT & USB_OTG_DOEPINT_EPDISD_Msk) == 0);
+      out_ep[epnum].DOEPINT = USB_OTG_DOEPINT_EPDISD;
+
+      // Allow other OUT endpoints to keep receiving.
+      dev->DCTL |= USB_OTG_DCTL_CGONAK;
+    }
+  }
 }
 
 void dcd_edpt_clear_stall (uint8_t rhport, uint8_t ep_addr)
 {
   (void) rhport;
-  (void) ep_addr;
+  USB_OTG_OUTEndpointTypeDef * out_ep = OUT_EP_BASE;
+  USB_OTG_INEndpointTypeDef * in_ep = IN_EP_BASE;
+
+  uint8_t const epnum = tu_edpt_number(ep_addr);
+  uint8_t const dir   = tu_edpt_dir(ep_addr);
+
+  if(dir == TUSB_DIR_IN) {
+    in_ep[epnum].DIEPCTL &= ~USB_OTG_DIEPCTL_STALL;
+
+    uint8_t eptype = (in_ep[epnum].DIEPCTL & USB_OTG_DIEPCTL_EPTYP_Msk) >> \
+      USB_OTG_DIEPCTL_EPTYP_Pos;
+    // Required by USB spec to reset DATA toggle bit to DATA0 on interrupt
+    // and bulk endpoints.
+    if(eptype == 2 || eptype == 3) {
+      in_ep[epnum].DIEPCTL |= USB_OTG_DIEPCTL_SD0PID_SEVNFRM;
+    }
+  } else {
+    out_ep[epnum].DOEPCTL &= ~USB_OTG_DOEPCTL_STALL;
+
+    uint8_t eptype = (out_ep[epnum].DOEPCTL & USB_OTG_DOEPCTL_EPTYP_Msk) >> \
+      USB_OTG_DOEPCTL_EPTYP_Pos;
+    // Required by USB spec to reset DATA toggle bit to DATA0 on interrupt
+    // and bulk endpoints.
+    if(eptype == 2 || eptype == 3) {
+      out_ep[epnum].DOEPCTL |= USB_OTG_DOEPCTL_SD0PID_SEVNFRM;
+    }
+  }
 }
 
 /*------------------------------------------------------------------*/
