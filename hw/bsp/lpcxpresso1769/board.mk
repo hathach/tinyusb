@@ -4,8 +4,8 @@ CFLAGS += \
   -mcpu=cortex-m3 \
   -nostdlib \
   -DCORE_M3 \
-  -DCFG_TUSB_MCU=OPT_MCU_LPC175X_6X \
   -D__USE_LPCOPEN \
+  -DCFG_TUSB_MCU=OPT_MCU_LPC175X_6X \
   -DRTC_EV_SUPPORT=0
 
 # All source paths should be relative to the top level.

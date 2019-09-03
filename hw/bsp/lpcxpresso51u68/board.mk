@@ -2,10 +2,13 @@ CFLAGS += \
   -mthumb \
   -mabi=aapcs \
   -mcpu=cortex-m0plus \
-  -DCFG_TUSB_MCU=OPT_MCU_LPC51UXX \
   -DCPU_LPC51U68JBD64 \
+  -DCFG_TUSB_MCU=OPT_MCU_LPC51UXX \
   -DCFG_TUSB_MEM_SECTION='__attribute__((section(".data")))' \
   -DCFG_TUSB_MEM_ALIGN='__attribute__((aligned(64)))' 
+
+# system_LPC51U68.c cause following errors
+CFLAGS += -Wno-error=nested-externs
 
 MCU_DIR = hw/mcu/nxp/lpc_driver/lpc51u6x/devices/LPC51U68
 
@@ -20,7 +23,7 @@ SRC_C += \
 	$(MCU_DIR)/drivers/fsl_reset.c
 
 INC += \
-	$(TOP)/hw/mcu/nxp/lpc_driver/lpc51u6x/CMSIS/Include \
+	$(TOP)/$(MCU_DIR)/../CMSIS/Include \
 	$(TOP)/$(MCU_DIR) \
 	$(TOP)/$(MCU_DIR)/drivers
 
