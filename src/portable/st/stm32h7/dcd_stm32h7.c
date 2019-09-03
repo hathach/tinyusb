@@ -551,6 +551,7 @@ static void handle_epout_ints(USB_OTG_DeviceTypeDef * dev, USB_OTG_OUTEndpointTy
   // OEPINT will be cleared when DAINT's out bits are cleared.
   for(int n = 0; n < 8; n++) {
     xfer_ctl_t * xfer = XFER_CTL_BASE(n, TUSB_DIR_OUT);
+
     if(dev->DAINT & (1 << (USB_OTG_DAINT_OEPINT_Pos + n))) {
       // SETUP packet Setup Phase done.
       if(out_ep[n].DOEPINT & USB_OTG_DOEPINT_STUP) {
@@ -558,26 +559,26 @@ static void handle_epout_ints(USB_OTG_DeviceTypeDef * dev, USB_OTG_OUTEndpointTy
         dcd_event_setup_received(0, (uint8_t*) &_setup_packet[2*_setup_offs], true);
         _setup_offs = 0;
       }
-    }
 
-    // OUT XFER complete (single packet).
-    if(out_ep[n].DOEPINT & USB_OTG_DOEPINT_XFRC) {
-      out_ep[n].DOEPINT = USB_OTG_DOEPINT_XFRC;
+      // OUT XFER complete (single packet).
+      if(out_ep[n].DOEPINT & USB_OTG_DOEPINT_XFRC) {
+        out_ep[n].DOEPINT = USB_OTG_DOEPINT_XFRC;
 
-      // TODO: Because of endpoint 0's constrained size, we handle XFRC
-      // on a packet-basis. The core can internally handle multiple OUT
-      // packets; it would be more efficient to only trigger XFRC on a
-      // completed transfer for non-0 endpoints.
+        // TODO: Because of endpoint 0's constrained size, we handle XFRC
+        // on a packet-basis. The core can internally handle multiple OUT
+        // packets; it would be more efficient to only trigger XFRC on a
+        // completed transfer for non-0 endpoints.
 
-      // Transfer complete if short packet or total len is transferred
-      if(xfer->short_packet || (xfer->queued_len == xfer->total_len)) {
-        xfer->short_packet = false;
-        dcd_event_xfer_complete(0, n, xfer->queued_len, XFER_RESULT_SUCCESS, true);
-      } else {
-        // Schedule another packet to be received.
-        out_ep[n].DOEPTSIZ |= (1 << USB_OTG_DOEPTSIZ_PKTCNT_Pos) | \
-            ((xfer->max_size & USB_OTG_DOEPTSIZ_XFRSIZ_Msk) << USB_OTG_DOEPTSIZ_XFRSIZ_Pos);
-        out_ep[n].DOEPCTL |= USB_OTG_DOEPCTL_EPENA | USB_OTG_DOEPCTL_CNAK;
+        // Transfer complete if short packet or total len is transferred
+        if(xfer->short_packet || (xfer->queued_len == xfer->total_len)) {
+          xfer->short_packet = false;
+          dcd_event_xfer_complete(0, n, xfer->queued_len, XFER_RESULT_SUCCESS, true);
+        } else {
+          // Schedule another packet to be received.
+          out_ep[n].DOEPTSIZ |= (1 << USB_OTG_DOEPTSIZ_PKTCNT_Pos) | \
+              ((xfer->max_size & USB_OTG_DOEPTSIZ_XFRSIZ_Msk) << USB_OTG_DOEPTSIZ_XFRSIZ_Pos);
+          out_ep[n].DOEPCTL |= USB_OTG_DOEPCTL_EPENA | USB_OTG_DOEPCTL_CNAK;
+        }
       }
     }
   }
