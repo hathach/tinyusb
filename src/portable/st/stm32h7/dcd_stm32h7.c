@@ -190,7 +190,13 @@ void dcd_int_disable (uint8_t rhport)
 void dcd_set_address (uint8_t rhport, uint8_t dev_addr)
 {
   (void) rhport;
-  (void) dev_addr;
+
+  USB_OTG_DeviceTypeDef * dev = DEVICE_BASE;
+
+  dev->DCFG |= (dev_addr << USB_OTG_DCFG_DAD_Pos) & USB_OTG_DCFG_DAD_Msk;
+
+  // Response with status after changing device address
+  dcd_edpt_xfer(rhport, tu_edpt_addr(0, TUSB_DIR_IN), NULL, 0);
 }
 
 void dcd_set_config (uint8_t rhport, uint8_t config_num)
