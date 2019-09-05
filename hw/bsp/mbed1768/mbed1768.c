@@ -27,8 +27,8 @@
 #include "chip.h"
 #include "../board.h"
 
-#define LED_PORT              0
-#define LED_PIN               22
+#define LED_PORT              1
+#define LED_PIN               18
 #define LED_STATE_ON          1
 
 // JOYSTICK_DOWN if using LPCXpresso Base Board
@@ -39,22 +39,14 @@
 #define BOARD_UART_PORT   LPC_UART3
 
 /* System oscillator rate and RTC oscillator rate */
-const uint32_t OscRateIn = 12000000;
+const uint32_t OscRateIn = 10000000;
 const uint32_t RTCOscRateIn = 32768;
 
 /* Pin muxing configuration */
 static const PINMUX_GRP_T pinmuxing[] =
 {
-  {0,  0,   IOCON_MODE_INACT | IOCON_FUNC2},	/* TXD3 */
-  {0,  1,   IOCON_MODE_INACT | IOCON_FUNC2},	/* RXD3 */
-  {LED_PORT, LED_PIN,  IOCON_MODE_INACT | IOCON_FUNC0},	/* Led 0 */
-
-  /* Joystick buttons. */
-//  {2, 3,  IOCON_MODE_INACT | IOCON_FUNC0},	/* JOYSTICK_UP */
-  {BUTTON_PORT, BUTTON_PIN, IOCON_FUNC0 | IOCON_MODE_PULLUP},	/* JOYSTICK_DOWN */
-//  {2, 4,  IOCON_MODE_INACT | IOCON_FUNC0},	/* JOYSTICK_LEFT */
-//  {0, 16, IOCON_MODE_INACT | IOCON_FUNC0},	/* JOYSTICK_RIGHT */
-//  {0, 17, IOCON_MODE_INACT | IOCON_FUNC0},	/* JOYSTICK_PRESS */
+  {LED_PORT,  LED_PIN,  IOCON_MODE_INACT | IOCON_FUNC0},
+  {BUTTON_PORT, BUTTON_PIN, IOCON_FUNC0 | IOCON_MODE_PULLUP},
 };
 
 static const PINMUX_GRP_T pin_usb_mux[] =

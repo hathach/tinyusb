@@ -9,7 +9,7 @@ CFLAGS += \
   -DRTC_EV_SUPPORT=0
 
 # All source paths should be relative to the top level.
-LD_FILE = hw/bsp/lpcxpresso1769/lpc1769.ld
+LD_FILE = hw/bsp/mbed1768/lpc1768.ld
 
 MCU_DIR = hw/mcu/nxp/lpc_driver/lpc175x_6x
 
@@ -37,7 +37,7 @@ CHIP_FAMILY = lpc17_40
 FREERTOS_PORT = ARM_CM3
 
 # For flash-jlink target
-JLINK_DEVICE = LPC1769
+JLINK_DEVICE = LPC1768
 JLINK_IF = swd
 
 # flash using jlink

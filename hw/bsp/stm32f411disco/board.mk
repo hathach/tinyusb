@@ -1,12 +1,12 @@
 CFLAGS += \
   -DHSE_VALUE=8000000 \
-  -DCFG_TUSB_MCU=OPT_MCU_STM32F4 \
   -DSTM32F411xE \
   -mthumb \
   -mabi=aapcs-linux \
   -mcpu=cortex-m4 \
   -mfloat-abi=hard \
   -mfpu=fpv4-sp-d16 \
+  -DCFG_TUSB_MCU=OPT_MCU_STM32F4 \
   -nostdlib -nostartfiles
 
 # All source paths should be relative to the top level.
