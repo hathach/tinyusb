@@ -21,11 +21,17 @@ __check_defined = \
     $(if $(value $1),, \
     $(error Undefined make flag: $1$(if $2, ($2))))
 
+
+define newline
+
+
+endef
+
 # Select the board to build for.
 ifeq ($(BOARD),)
   $(info You must provide a BOARD parameter with 'BOARD=')
-  $(info Possible values are:)
-  $(info $(sort $(subst /.,,$(subst $(TOP)/hw/bsp/,,$(wildcard $(TOP)/hw/bsp/*/.)))))
+  $(info Supported boards are:)
+  $(info $(sort $(subst /.,,$(subst $(TOP)/hw/bsp/, $(newline)-,$(wildcard $(TOP)/hw/bsp/*/.)))))
   $(error BOARD not defined)
 else
   ifeq ($(wildcard $(TOP)/hw/bsp/$(BOARD)/.),)

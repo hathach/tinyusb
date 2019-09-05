@@ -4,9 +4,8 @@ CFLAGS += \
   -mcpu=cortex-m4 \
   -mfloat-abi=hard \
   -mfpu=fpv4-sp-d16 \
-  -DCORE_M4 \
-  -DCFG_TUSB_MCU=OPT_MCU_LPC54XXX \
   -DCPU_LPC54114J256BD64_cm4 \
+  -DCFG_TUSB_MCU=OPT_MCU_LPC54XXX \
   -DCFG_TUSB_MEM_SECTION='__attribute__((section(".data")))' \
   -DCFG_TUSB_MEM_ALIGN='__attribute__((aligned(64)))' 
 
@@ -23,7 +22,7 @@ SRC_C += \
 	$(MCU_DIR)/drivers/fsl_reset.c
 
 INC += \
-	$(TOP)/hw/mcu/nxp/lpc_driver/lpc54xxx/CMSIS/Include \
+	$(TOP)/$(MCU_DIR)/../../CMSIS/Include \
 	$(TOP)/$(MCU_DIR) \
 	$(TOP)/$(MCU_DIR)/drivers
 
