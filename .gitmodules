@@ -4,9 +4,6 @@
 [submodule "hw/mcu/microchip/samd/asf4"]
 	path = hw/mcu/microchip/samd/asf4
 	url = https://github.com/adafruit/asf4.git
-[submodule "hw/mcu/st/stm32lib"]
-	path = hw/mcu/st/stm32lib
-	url = https://github.com/hathach/stm32lib.git
 [submodule "tools/uf2"]
 	path = tools/uf2
 	url = https://github.com/microsoft/uf2.git
