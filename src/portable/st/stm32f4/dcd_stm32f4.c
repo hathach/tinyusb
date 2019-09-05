@@ -37,7 +37,7 @@
 #define DEVICE_BASE (USB_OTG_DeviceTypeDef *) (USB_OTG_FS_PERIPH_BASE + USB_OTG_DEVICE_BASE)
 #define OUT_EP_BASE (USB_OTG_OUTEndpointTypeDef *) (USB_OTG_FS_PERIPH_BASE + USB_OTG_OUT_ENDPOINT_BASE)
 #define IN_EP_BASE (USB_OTG_INEndpointTypeDef *) (USB_OTG_FS_PERIPH_BASE + USB_OTG_IN_ENDPOINT_BASE)
-#define FIFO_BASE(_x) (uint32_t *) (USB_OTG_FS_PERIPH_BASE + USB_OTG_FIFO_BASE + (_x) * USB_OTG_FIFO_SIZE)
+#define FIFO_BASE(_x) (volatile uint32_t *) (USB_OTG_FS_PERIPH_BASE + USB_OTG_FIFO_BASE + (_x) * USB_OTG_FIFO_SIZE)
 
 static TU_ATTR_ALIGNED(4) uint32_t _setup_packet[6];
 static uint8_t _setup_offs; // We store up to 3 setup packets.
@@ -49,6 +49,8 @@ typedef struct {
   uint16_t max_size;
   bool short_packet;
 } xfer_ctl_t;
+
+typedef volatile uint32_t * usb_fifo_t;
 
 xfer_ctl_t xfer_status[4][2];
 #define XFER_CTL_BASE(_ep, _dir) &xfer_status[_ep][_dir]
@@ -407,7 +409,7 @@ void dcd_edpt_clear_stall (uint8_t rhport, uint8_t ep_addr)
 // DOEPTSIZ register is smaller than the others, and so is insufficient for
 // determining how much of an OUT transfer is actually remaining.
 static void receive_packet(xfer_ctl_t * xfer, /* USB_OTG_OUTEndpointTypeDef * out_ep, */ uint16_t xfer_size) {
-  uint32_t * rx_fifo = FIFO_BASE(0);
+  usb_fifo_t rx_fifo = FIFO_BASE(0);
 
   // See above TODO
   // uint16_t remaining = (out_ep->DOEPTSIZ & USB_OTG_DOEPTSIZ_XFRSIZ_Msk) >> USB_OTG_DOEPTSIZ_XFRSIZ_Pos;
@@ -465,7 +467,7 @@ static void receive_packet(xfer_ctl_t * xfer, /* USB_OTG_OUTEndpointTypeDef * ou
 }
 
 static void transmit_packet(xfer_ctl_t * xfer, USB_OTG_INEndpointTypeDef * in_ep, uint8_t fifo_num) {
-  uint32_t * tx_fifo = FIFO_BASE(fifo_num);
+  usb_fifo_t tx_fifo = FIFO_BASE(fifo_num);
 
   uint16_t remaining = (in_ep->DIEPTSIZ & USB_OTG_DIEPTSIZ_XFRSIZ_Msk) >> USB_OTG_DIEPTSIZ_XFRSIZ_Pos;
   xfer->queued_len = xfer->total_len - remaining;
@@ -506,7 +508,7 @@ static void transmit_packet(xfer_ctl_t * xfer, USB_OTG_INEndpointTypeDef * in_ep
 }
 
 static void read_rx_fifo(USB_OTG_OUTEndpointTypeDef * out_ep) {
-  uint32_t * rx_fifo = FIFO_BASE(0);
+  usb_fifo_t rx_fifo = FIFO_BASE(0);
 
   // Pop control word off FIFO (completed xfers will have 2 control words,
   // we only pop one ctl word each interrupt).

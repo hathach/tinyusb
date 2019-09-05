@@ -29,8 +29,13 @@
 #include "stm32f3xx.h"
 #include "stm32f3xx_hal_conf.h"
 
-#define LED_PORT  GPIOE
-#define LED_PIN   GPIO_PIN_9
+#define LED_PORT              GPIOE
+#define LED_PIN               GPIO_PIN_9
+#define LED_STATE_ON          1
+
+#define BUTTON_PORT           GPIOA
+#define BUTTON_PIN            GPIO_PIN_0
+#define BUTTON_STATE_ACTIVE   1
 
 void board_init(void)
 {
@@ -64,10 +69,8 @@ void board_init(void)
   // Notify runtime of frequency change.
   SystemCoreClockUpdate();
 
-  /* -1- Enable GPIO Clock (to be able to program the configuration registers) */
+  // LED
   __HAL_RCC_GPIOE_CLK_ENABLE();
-
-  /* -2- Configure PE.8 to PE.15 IOs in output push-pull mode to drive external LEDs */
   GPIO_InitTypeDef  GPIO_InitStruct;
   GPIO_InitStruct.Pin = LED_PIN;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
@@ -75,7 +78,13 @@ void board_init(void)
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_HIGH;
   HAL_GPIO_Init(LED_PORT, &GPIO_InitStruct);
 
-  board_led_write(false);
+  // Button
+  __HAL_RCC_GPIOA_CLK_ENABLE();
+  GPIO_InitStruct.Pin = BUTTON_PIN;
+  GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
+  GPIO_InitStruct.Pull = GPIO_PULLDOWN;
+  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_HIGH;
+  HAL_GPIO_Init(BUTTON_PORT, &GPIO_InitStruct);
 
 #if 0
   RCC->AHB2ENR |= RCC_AHB2ENR_OTGFSEN;
@@ -102,18 +111,16 @@ void board_init(void)
 
 void board_led_write(bool state)
 {
-  HAL_GPIO_WritePin(LED_PORT, LED_PIN, state);
+  HAL_GPIO_WritePin(LED_PORT, LED_PIN, state ? LED_STATE_ON : (1-LED_STATE_ON));
 }
 
 uint32_t board_button_read(void)
 {
-  // TODO implement
-  return 0;
+  return BUTTON_STATE_ACTIVE == HAL_GPIO_ReadPin(BUTTON_PORT, BUTTON_PIN);
 }
 
 #if CFG_TUSB_OS  == OPT_OS_NONE
 volatile uint32_t system_ticks = 0;
-
 void SysTick_Handler (void)
 {
   system_ticks++;

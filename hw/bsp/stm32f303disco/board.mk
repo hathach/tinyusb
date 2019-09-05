@@ -1,32 +1,35 @@
 CFLAGS += \
 	-DHSE_VALUE=8000000 \
-	-DCFG_TUSB_MCU=OPT_MCU_STM32F3 \
 	-DSTM32F303xC \
 	-mthumb \
 	-mabi=aapcs-linux \
 	-mcpu=cortex-m4 \
 	-mfloat-abi=hard \
 	-mfpu=fpv4-sp-d16 \
-	-nostdlib -nostartfiles
+	-nostdlib -nostartfiles \
+	-DCFG_TUSB_MCU=OPT_MCU_STM32F3
+
+ST_HAL_DRIVER = hw/mcu/st/st_driver/STM32F3xx_HAL_Driver
+ST_CMSIS = hw/mcu/st/st_driver/CMSIS/Device/ST/STM32F3xx
 
 # All source paths should be relative to the top level.
 LD_FILE = hw/bsp/stm32f303disco/STM32F303VCTx_FLASH.ld
 
 SRC_C += \
-	hw/mcu/st/system-init/system_stm32f3xx.c \
-	hw/mcu/st/stm32lib/STM32F3xx_HAL_Driver/Src/stm32f3xx_hal.c \
-	hw/mcu/st/stm32lib/STM32F3xx_HAL_Driver/Src/stm32f3xx_hal_cortex.c \
-	hw/mcu/st/stm32lib/STM32F3xx_HAL_Driver/Src/stm32f3xx_hal_rcc.c \
-	hw/mcu/st/stm32lib/STM32F3xx_HAL_Driver/Src/stm32f3xx_hal_gpio.c  
+	$(ST_CMSIS)/Source/Templates/system_stm32f3xx.c \
+	$(ST_HAL_DRIVER)/Src/stm32f3xx_hal.c \
+	$(ST_HAL_DRIVER)/Src/stm32f3xx_hal_cortex.c \
+	$(ST_HAL_DRIVER)/Src/stm32f3xx_hal_rcc.c \
+	$(ST_HAL_DRIVER)/Src/stm32f3xx_hal_gpio.c
 
 SRC_S += \
-	hw/mcu/st/startup/stm32f3/startup_stm32f303xc.s
+	$(ST_CMSIS)/Source/Templates/gcc/startup_stm32f303xc.s
 
 INC += \
-	$(TOP)/hw/bsp/stm32f303disco \
-	$(TOP)/hw/mcu/st/cmsis \
-	$(TOP)/hw/mcu/st/stm32lib/CMSIS/STM32F3xx/Include \
-	$(TOP)/hw/mcu/st/stm32lib/STM32F3xx_HAL_Driver/Inc
+	$(TOP)/hw/mcu/st/st_driver/CMSIS/Include \
+	$(TOP)/$(ST_CMSIS)/Include \
+	$(TOP)/$(ST_HAL_DRIVER)/Inc \
+	$(TOP)/hw/bsp/$(BOARD)
 
 # For TinyUSB port source
 VENDOR = st
