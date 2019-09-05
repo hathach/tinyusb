@@ -39,14 +39,16 @@
 #if TUSB_OPT_DEVICE_ENABLED && ( CFG_TUSB_MCU == OPT_MCU_LPC11UXX || \
                                  CFG_TUSB_MCU == OPT_MCU_LPC13XX  || \
                                  CFG_TUSB_MCU == OPT_MCU_LPC51UXX || \
-                                 CFG_TUSB_MCU == OPT_MCU_LPC54XXX )
+                                 CFG_TUSB_MCU == OPT_MCU_LPC54XXX || \
+                                 CFG_TUSB_MCU == OPT_MCU_LPC55XX)
 
 #if CFG_TUSB_MCU == OPT_MCU_LPC11UXX || CFG_TUSB_MCU == OPT_MCU_LPC13XX
   // LPC11Uxx and LPC13xx use lpcopen
   #include "chip.h"
   #define DCD_REGS        LPC_USB
   #define DCD_IRQHandler  USB_IRQHandler
-#elif CFG_TUSB_MCU == OPT_MCU_LPC51UXX || CFG_TUSB_MCU == OPT_MCU_LPC54XXX
+#elif CFG_TUSB_MCU == OPT_MCU_LPC51UXX || CFG_TUSB_MCU == OPT_MCU_LPC54XXX || \
+      CFG_TUSB_MCU == OPT_MCU_LPC55XX // TODO 55xx has dual usb controllers
   #include "fsl_device_registers.h"
   #define DCD_REGS        USB0
   #define DCD_IRQHandler  USB0_IRQHandler

@@ -108,38 +108,65 @@ void board_init(void)
   board_led_write(true);
 
   // Button
-  const uint32_t port1_pin18_config = (/* Pin is configured as PIO1_18 */
-                                       IOCON_PIO_FUNC0 |
-                                       /* No addition pin function */
-                                       IOCON_PIO_MODE_INACT |
-                                       /* Standard mode, output slew rate control is enabled */
-                                       IOCON_PIO_SLEW_STANDARD |
-                                       /* Input function is not inverted */
-                                       IOCON_PIO_INV_DI |
-                                       /* Enables digital function */
-                                       IOCON_PIO_DIGITAL_EN |
-                                       /* Open drain is disabled */
-                                       IOCON_PIO_OPENDRAIN_DI);
+  const uint32_t port1_pin18_config = (
+      IOCON_PIO_FUNC0         | /* Pin is configured as PIO1_18 */
+      IOCON_PIO_MODE_INACT    | /* No addition pin function */
+      IOCON_PIO_SLEW_STANDARD | /* Standard mode, output slew rate control is enabled */
+      IOCON_PIO_INV_DI        | /* Input function is not inverted */
+      IOCON_PIO_DIGITAL_EN    | /* Enables digital function */
+      IOCON_PIO_OPENDRAIN_DI    /* Open drain is disabled */
+  );
   /* PORT1 PIN18 (coords: 64) is configured as PIO1_18 */
   IOCON_PinMuxSet(IOCON, 1U, 18U, port1_pin18_config);
 
   gpio_pin_config_t const button_config = { kGPIO_DigitalInput, 0};
   GPIO_PinInit(GPIO, BUTTON_PORT, BUTTON_PIN, &button_config);
 
-#if 0
-  // USB
-  const uint32_t port1_pin6_config = (
-    IOCON_PIO_FUNC7       | /* Pin is configured as USB0_VBUS */
-    IOCON_PIO_MODE_INACT  | /* No addition pin function */
-    IOCON_PIO_INV_DI      | /* Input function is not inverted */
-    IOCON_PIO_DIGITAL_EN  | /* Enables digital function */
-    IOCON_PIO_INPFILT_OFF | /* Input filter disabled */
-    IOCON_PIO_OPENDRAIN_DI  /* Open drain is disabled */
+  // USB VBUS
+  const uint32_t port0_pin22_config = (
+      IOCON_PIO_FUNC7         | /* Pin is configured as USB0_VBUS */
+      IOCON_PIO_MODE_INACT    | /* No addition pin function */
+      IOCON_PIO_SLEW_STANDARD | /* Standard mode, output slew rate control is enabled */
+      IOCON_PIO_INV_DI        | /* Input function is not inverted */
+      IOCON_PIO_DIGITAL_EN    | /* Enables digital function */
+      IOCON_PIO_OPENDRAIN_DI    /* Open drain is disabled */
   );
-  IOCON_PinMuxSet(IOCON, 1, 6, port1_pin6_config); /* PORT1 PIN6 (coords: 26) is configured as USB0_VBUS */
+  /* PORT0 PIN22 (coords: 78) is configured as USB0_VBUS */
+  IOCON_PinMuxSet(IOCON, 0U, 22U, port0_pin22_config);
 
-  POWER_DisablePD(kPDRUNCFG_PD_USB0_PHY); /*Turn on USB Phy */
-  CLOCK_EnableUsbfs0Clock(kCLOCK_UsbSrcFro, CLOCK_GetFreq(kCLOCK_FroHf)); /* enable USB IP clock */
+  // USB Controller
+  POWER_DisablePD(kPDRUNCFG_PD_USB0_PHY); /*Turn on USB0 Phy */
+  POWER_DisablePD(kPDRUNCFG_PD_USB1_PHY); /*< Turn on USB1 Phy */
+
+  /* reset the IP to make sure it's in reset state. */
+  RESET_PeripheralReset(kUSB0D_RST_SHIFT_RSTn);
+  RESET_PeripheralReset(kUSB0HSL_RST_SHIFT_RSTn);
+  RESET_PeripheralReset(kUSB0HMR_RST_SHIFT_RSTn);
+  RESET_PeripheralReset(kUSB1H_RST_SHIFT_RSTn);
+  RESET_PeripheralReset(kUSB1D_RST_SHIFT_RSTn);
+  RESET_PeripheralReset(kUSB1_RST_SHIFT_RSTn);
+  RESET_PeripheralReset(kUSB1RAM_RST_SHIFT_RSTn);
+
+#if (defined USB_DEVICE_CONFIG_LPCIP3511HS) && (USB_DEVICE_CONFIG_LPCIP3511HS)
+  CLOCK_EnableClock(kCLOCK_Usbh1);
+  /* Put PHY powerdown under software control */
+  *((uint32_t *)(USBHSH_BASE + 0x50)) = USBHSH_PORTMODE_SW_PDCOM_MASK;
+  /* According to reference mannual, device mode setting has to be set by access usb host register */
+  *((uint32_t *)(USBHSH_BASE + 0x50)) |= USBHSH_PORTMODE_DEV_ENABLE_MASK;
+  /* enable usb1 host clock */
+  CLOCK_DisableClock(kCLOCK_Usbh1);
+#endif
+
+#if 1 || (defined USB_DEVICE_CONFIG_LPCIP3511FS) && (USB_DEVICE_CONFIG_LPCIP3511FS)
+  CLOCK_SetClkDiv(kCLOCK_DivUsb0Clk, 1, false);
+  CLOCK_AttachClk(kFRO_HF_to_USB0_CLK);
+  /* enable usb0 host clock */
+  CLOCK_EnableClock(kCLOCK_Usbhsl0);
+  /*According to reference mannual, device mode setting has to be set by access usb host register */
+  *((uint32_t *)(USBFSH_BASE + 0x5C)) |= USBFSH_PORTMODE_DEV_ENABLE_MASK;
+  /* disable usb0 host clock */
+  CLOCK_DisableClock(kCLOCK_Usbhsl0);
+  CLOCK_EnableUsbfs0DeviceClock(kCLOCK_UsbfsSrcFro, CLOCK_GetFreq(kCLOCK_FroHf)); /* enable USB Device clock */
 #endif
 }
 

@@ -23,7 +23,7 @@ SRC_C += \
 	$(MCU_DIR)/drivers/fsl_reset.c
 
 INC += \
-	$(TOP)/$(MCU_DIR)/../CMSIS/Include \
+	$(TOP)/$(MCU_DIR)/../../CMSIS/Include \
 	$(TOP)/$(MCU_DIR) \
 	$(TOP)/$(MCU_DIR)/drivers
 

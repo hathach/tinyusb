@@ -74,10 +74,10 @@
 //------------- CLASS -------------//
 #define CFG_TUD_CDC              1
 #define CFG_TUD_MSC              1
+
 #if CFG_TUSB_MCU == OPT_MCU_STM32F4
 // STM32F4 does not have enough endpoints (4, including hardcoded control
-// endpoint) to enable CDC, MSC, and HID simultaneously, so disable HID as a
-// compromise.
+// endpoint) to enable CDC, MSC, and HID simultaneously, so disable HID as a compromise.
 #define CFG_TUD_HID              0
 #else
 #define CFG_TUD_HID              1
