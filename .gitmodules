@@ -13,3 +13,6 @@
 [submodule "hw/mcu/nxp/lpc_driver"]
 	path = hw/mcu/nxp/lpc_driver
 	url = https://github.com/hathach/lpc_driver.git
+[submodule "hw/mcu/st/st_driver"]
+	path = hw/mcu/st/st_driver
+	url = https://github.com/hathach/st_driver.git
