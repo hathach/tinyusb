@@ -24,6 +24,8 @@ This code base already had supported for a handful of following boards
 - [Embedded Artists LPC4088 Quick Start board](https://www.embeddedartists.com/products/lpc4088-quickstart-board)
 - [Embedded Artists LPC4357 Developer Kit](http://www.embeddedartists.com/products/kits/lpc4357_kit.php)
 - [LPCXpresso 51U68](https://www.nxp.com/products/processors-and-microcontrollers/arm-microcontrollers/general-purpose-mcus/lpcxpresso51u68-for-the-lpc51u68-mcus:OM40005)
+- [LPCXpresso 54114](https://www.nxp.com/design/microcontrollers-developer-resources/lpcxpresso-boards/lpcxpresso54114-board:OM13089)
+- [LPCXpresso 55s69 EVK](https://www.nxp.com/products/processors-and-microcontrollers/arm-microcontrollers/general-purpose-mcus/lpc5500-cortex-m33/lpcxpresso55s69-development-board:LPC55S69-EVK)
 
 ### MicroChip SAMD
 
@@ -37,6 +39,7 @@ This code base already had supported for a handful of following boards
 
 - [STM32F407g Discovery](https://www.st.com/en/evaluation-tools/stm32f4discovery.html)
 - [STM32F411e Discovery](https://www.st.com/en/evaluation-tools/32f411ediscovery.html)
+- [Nucleo H743zi](https://www.st.com/en/evaluation-tools/nucleo-h743zi.html)
 
 ## Add your own board
 
