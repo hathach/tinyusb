@@ -2,36 +2,39 @@ CFLAGS += \
   -DHSE_VALUE=8000000 \
   -DSTM32H743xx \
   -mthumb \
-  -mabi=aapcs-linux \
+  -mabi=aapcs \
   -mcpu=cortex-m7 \
   -mfloat-abi=hard \
   -mfpu=fpv5-d16 \
   -nostdlib -nostartfiles \
-  -DCFG_TUSB_MCU=OPT_MCU_STM32H7 \
-  -Wno-error=sign-compare
+  -DCFG_TUSB_MCU=OPT_MCU_STM32H7
 
 # The -Wno-error=sign-compare line is required due to STM32H7xx_HAL_Driver.
+CFLAGS += -Wno-error=sign-compare
 
+ST_HAL_DRIVER = hw/mcu/st/st_driver/STM32H7xx_HAL_Driver
+ST_CMSIS = hw/mcu/st/st_driver/CMSIS/Device/ST/STM32H7xx
+  
 # All source paths should be relative to the top level.
 LD_FILE = hw/bsp/stm32h743nucleo/STM32H743ZITx_FLASH.ld
 
 SRC_C += \
-	hw/mcu/st/system-init/system_stm32h7xx.c \
-	hw/mcu/st/stm32lib/STM32H7xx_HAL_Driver/Src/stm32h7xx_hal.c \
-	hw/mcu/st/stm32lib/STM32H7xx_HAL_Driver/Src/stm32h7xx_hal_cortex.c \
-	hw/mcu/st/stm32lib/STM32H7xx_HAL_Driver/Src/stm32h7xx_hal_rcc.c \
-	hw/mcu/st/stm32lib/STM32H7xx_HAL_Driver/Src/stm32h7xx_hal_rcc_ex.c \
-	hw/mcu/st/stm32lib/STM32H7xx_HAL_Driver/Src/stm32h7xx_hal_gpio.c \
-	hw/mcu/st/stm32lib/STM32H7xx_HAL_Driver/Src/stm32h7xx_hal_pwr_ex.c
+	$(ST_CMSIS)/Source/Templates/system_stm32h7xx.c \
+	$(ST_HAL_DRIVER)/Src/stm32h7xx_hal.c \
+	$(ST_HAL_DRIVER)/Src/stm32h7xx_hal_cortex.c \
+	$(ST_HAL_DRIVER)/Src/stm32h7xx_hal_rcc.c \
+	$(ST_HAL_DRIVER)/Src/stm32h7xx_hal_rcc_ex.c \
+	$(ST_HAL_DRIVER)/Src/stm32h7xx_hal_gpio.c \
+	$(ST_HAL_DRIVER)/Src/stm32h7xx_hal_pwr_ex.c
 
 SRC_S += \
-	hw/mcu/st/startup/stm32h7/startup_stm32h743xx.s
+	$(ST_CMSIS)/Source/Templates/gcc/startup_stm32h743xx.s
 
 INC += \
-	$(TOP)/hw/mcu/st/cmsis \
-	$(TOP)/hw/mcu/st/stm32lib/CMSIS/STM32H7xx/Include \
-	$(TOP)/hw/mcu/st/stm32lib/STM32H7xx_HAL_Driver/Inc \
-	$(TOP)/hw/bsp/stm32h743nucleo
+	$(TOP)/hw/mcu/st/st_driver/CMSIS/Include \
+	$(TOP)/$(ST_CMSIS)/Include \
+	$(TOP)/$(ST_HAL_DRIVER)/Inc \
+	$(TOP)/hw/bsp/$(BOARD)
 
 # For TinyUSB port source
 VENDOR = st

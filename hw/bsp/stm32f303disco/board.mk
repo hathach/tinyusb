@@ -23,7 +23,7 @@ SRC_C += \
 	$(ST_HAL_DRIVER)/Src/stm32f3xx_hal_gpio.c
 
 SRC_S += \
-	hw/mcu/st/startup/stm32f3/startup_stm32f303xc.s
+	$(ST_CMSIS)/Source/Templates/gcc/startup_stm32f303xc.s
 
 INC += \
 	$(TOP)/hw/mcu/st/st_driver/CMSIS/Include \
