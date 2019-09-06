@@ -27,12 +27,14 @@
 #include "chip.h"
 #include "../board.h"
 
-#define LED_PORT      2
-#define LED_PIN       17
-#define LED_STATE_ON  0
+#define LED_PORT              2
+#define LED_PIN               17
+#define LED_STATE_ON          0
 
-#define BUTTON_PORT   0
-#define BUTTON_PIN    1
+// Wake up Swtich
+#define BUTTON_PORT           0
+#define BUTTON_PIN            16
+#define BUTTON_STATE_ACTIVE   0
 
 /* System oscillator rate and RTC oscillator rate */
 const uint32_t OscRateIn = 12000000;
@@ -93,8 +95,7 @@ void board_led_write(bool state)
 
 uint32_t board_button_read(void)
 {
-  // active low
-  return Chip_GPIO_GetPinState(LPC_GPIO, BUTTON_PORT, BUTTON_PIN) ? 0 : 1;
+  return BUTTON_STATE_ACTIVE == Chip_GPIO_GetPinState(LPC_GPIO, BUTTON_PORT, BUTTON_PIN);
 }
 
 int board_uart_read(uint8_t* buf, int len)
