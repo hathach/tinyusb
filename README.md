@@ -61,7 +61,7 @@ The stack supports the following MCUs
 
 ## Compiler & IDE
 
-The stack is developed with GCC compiler, and should be compilable with others. Folder `examples` provide Makefile and Segger Embedded Studio build support.
+The stack is developed with GCC compiler, and should be compilable with others. Folder `examples` provide Makefile and Segger Embedded Studio build support. [Here is instruction to build example](examples/readme.md).
 
 ## Getting Started
 
