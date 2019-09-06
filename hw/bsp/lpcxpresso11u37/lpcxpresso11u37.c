@@ -28,7 +28,7 @@
 #include "../board.h"
 
 #define LED_PORT              1
-#define LED_PIN               0
+#define LED_PIN               24
 #define LED_STATE_ON          0
 
 // Wake up Switch
@@ -38,7 +38,7 @@
 
 /* System oscillator rate and RTC oscillator rate */
 const uint32_t OscRateIn = 12000000;
-const uint32_t RTCOscRateIn = 32768;
+const uint32_t ExtRateIn = 0;
 
 /* Pin muxing table, only items that need changing from their default pin
    state are in this table. Not every pin is mapped. */
@@ -59,6 +59,7 @@ static const PINMUX_GRP_T pinmuxing[] =
 };
 
 
+#if 1
 /* Setup system clocking */
 static void SystemSetupClocking(void)
 {
@@ -113,11 +114,13 @@ static void SystemSetupClocking(void)
 	/* Wait for PLL to lock */
 	while (!Chip_Clock_IsUSBPLLLocked()) {}
 }
+#endif
 
 // Invoked by startup code
 void SystemInit(void)
 {
   SystemSetupClocking();
+//  Chip_SystemInit();
   Chip_Clock_EnablePeriphClock(SYSCTL_CLOCK_RAM1);
 
   /* Enable IOCON clock */
