@@ -8,6 +8,9 @@ CFLAGS += \
   -DCFG_TUSB_MEM_SECTION='__attribute__((section(".data.$$RAM2")))' \
   -D__USE_LPCOPEN
 
+# lpc_types.h cause following errors
+CFLAGS += -Wno-error=strict-prototypes
+
 # All source paths should be relative to the top level.
 LD_FILE = hw/bsp/ea4088qs/lpc4088.ld
 
