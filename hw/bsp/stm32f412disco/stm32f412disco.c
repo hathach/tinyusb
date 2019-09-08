@@ -113,6 +113,11 @@ static void SystemClock_Config(void)
 
 void board_init(void)
 {
+  SystemClock_Config();
+
+  // Notify runtime of frequency change.
+  SystemCoreClockUpdate();
+
 #if CFG_TUSB_OS == OPT_OS_NONE
   // 1ms tick timer
   SysTick_Config(SystemCoreClock / 1000);
@@ -121,13 +126,9 @@ void board_init(void)
   //NVIC_SetPriority(USB0_IRQn, configLIBRARY_MAX_SYSCALL_INTERRUPT_PRIORITY );
 #endif
 
-  SystemClock_Config();
-
-  // Notify runtime of frequency change.
-  SystemCoreClockUpdate();
-
   __HAL_RCC_GPIOA_CLK_ENABLE(); // button, USB D+/D-
   __HAL_RCC_GPIOE_CLK_ENABLE(); // LED
+  __HAL_RCC_GPIOG_CLK_ENABLE(); // USB power switch IO pin
 
   GPIO_InitTypeDef  GPIO_InitStruct;
 
@@ -147,9 +148,6 @@ void board_init(void)
   GPIO_InitStruct.Speed = GPIO_SPEED_FAST;
   HAL_GPIO_Init(BUTTON_PORT, &GPIO_InitStruct);
 
-  // Enable USB OTG clock
-  __HAL_RCC_USB_OTG_FS_CLK_ENABLE();
-
   /* Configure USB FS GPIOs */
   /* Configure USB D+ D- Pins */
   GPIO_InitStruct.Pin = GPIO_PIN_11 | GPIO_PIN_12;
@@ -165,13 +163,22 @@ void board_init(void)
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
 
-  /* This for ID line debug */
+  /* ID Pin */
   GPIO_InitStruct.Pin = GPIO_PIN_10;
   GPIO_InitStruct.Mode = GPIO_MODE_AF_OD;
   GPIO_InitStruct.Pull = GPIO_PULLUP;
   GPIO_InitStruct.Speed = GPIO_SPEED_HIGH;
   GPIO_InitStruct.Alternate = GPIO_AF10_OTG_FS;
   HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
+
+  /* Configure POWER_SWITCH IO pin */
+  GPIO_InitStruct.Pin = GPIO_PIN_8;
+  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_OD;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  HAL_GPIO_Init(GPIOG, &GPIO_InitStruct);
+
+  // Enable USB OTG clock
+  __HAL_RCC_USB_OTG_FS_CLK_ENABLE();
 }
 
 //--------------------------------------------------------------------+

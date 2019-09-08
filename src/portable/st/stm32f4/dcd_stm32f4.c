@@ -2,6 +2,7 @@
  * The MIT License (MIT)
  *
  * Copyright (c) 2018 Scott Shawcroft, 2019 William D. Jones for Adafruit Industries
+ * Copyright (c) 2019 Ha Thach (tinyusb.org)
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -39,6 +40,11 @@
 #define IN_EP_BASE (USB_OTG_INEndpointTypeDef *) (USB_OTG_FS_PERIPH_BASE + USB_OTG_IN_ENDPOINT_BASE)
 #define FIFO_BASE(_x) (volatile uint32_t *) (USB_OTG_FS_PERIPH_BASE + USB_OTG_FIFO_BASE + (_x) * USB_OTG_FIFO_SIZE)
 
+// TODO Merge with OTG_HS
+// Max endpoints for each direction
+// USB_OTG_FS_TOTAL_FIFO_SIZE
+#define EP_MAX    USB_OTG_FS_MAX_IN_ENDPOINTS
+
 static TU_ATTR_ALIGNED(4) uint32_t _setup_packet[6];
 static uint8_t _setup_offs; // We store up to 3 setup packets.
 
@@ -52,7 +58,7 @@ typedef struct {
 
 typedef volatile uint32_t * usb_fifo_t;
 
-xfer_ctl_t xfer_status[4][2];
+xfer_ctl_t xfer_status[EP_MAX][2];
 #define XFER_CTL_BASE(_ep, _dir) &xfer_status[_ep][_dir]
 
 
@@ -61,7 +67,7 @@ static void bus_reset(void) {
   USB_OTG_DeviceTypeDef * dev = DEVICE_BASE;
   USB_OTG_OUTEndpointTypeDef * out_ep = OUT_EP_BASE;
 
-  for(int n = 0; n < 4; n++) {
+  for(uint8_t n = 0; n < EP_MAX; n++) {
     out_ep[n].DOEPCTL |= USB_OTG_DOEPCTL_SNAK;
   }
 
@@ -151,7 +157,7 @@ void dcd_init (uint8_t rhport)
   // the core to stop working/require reset.
   USB_OTG_FS->GINTMSK |= /* USB_OTG_GINTMSK_OTGINT | */ USB_OTG_GINTMSK_MMISM;
 
-  USB_OTG_DeviceTypeDef * dev = ((USB_OTG_DeviceTypeDef *) (USB_OTG_FS_PERIPH_BASE + USB_OTG_DEVICE_BASE));
+  USB_OTG_DeviceTypeDef * dev = DEVICE_BASE;
 
   // If USB host misbehaves during status portion of control xfer
   // (non zero-length packet), send STALL back and discard. Full speed.
@@ -161,12 +167,15 @@ void dcd_init (uint8_t rhport)
     USB_OTG_GINTMSK_SOFM | USB_OTG_GINTMSK_RXFLVLM /* SB_OTG_GINTMSK_ESUSPM | \
     USB_OTG_GINTMSK_USBSUSPM */;
 
-  // Enable pullup, enable peripheral.
+  // Enable VBus hardware sensing,
 #ifdef USB_OTG_GCCFG_VBDEN
   USB_OTG_FS->GCCFG |= USB_OTG_GCCFG_VBDEN | USB_OTG_GCCFG_PWRDWN;
 #else
   USB_OTG_FS->GCCFG |= USB_OTG_GCCFG_VBUSBSEN | USB_OTG_GCCFG_PWRDWN;
 #endif
+
+  // Soft Connect -> Enable pullup on D+/D-
+  dev->DCTL &= ~USB_OTG_DCTL_SDIS;
 }
 
 void dcd_int_enable (uint8_t rhport)
@@ -220,7 +229,7 @@ bool dcd_edpt_open (uint8_t rhport, tusb_desc_endpoint_t const * desc_edpt)
   uint8_t const dir   = tu_edpt_dir(desc_edpt->bEndpointAddress);
 
   // Unsupported endpoint numbers/size.
-  if((desc_edpt->wMaxPacketSize.size > 64) || (epnum > 3)) {
+  if((desc_edpt->wMaxPacketSize.size > 64) || (epnum > EP_MAX)) {
     return false;
   }
 
@@ -551,8 +560,9 @@ static void read_rx_fifo(USB_OTG_OUTEndpointTypeDef * out_ep) {
 static void handle_epout_ints(USB_OTG_DeviceTypeDef * dev, USB_OTG_OUTEndpointTypeDef * out_ep) {
   // DAINT for a given EP clears when DOEPINTx is cleared.
   // OEPINT will be cleared when DAINT's out bits are cleared.
-  for(int n = 0; n < 4; n++) {
+  for(uint8_t n = 0; n < EP_MAX; n++) {
     xfer_ctl_t * xfer = XFER_CTL_BASE(n, TUSB_DIR_OUT);
+
     if(dev->DAINT & (1 << (USB_OTG_DAINT_OEPINT_Pos + n))) {
       // SETUP packet Setup Phase done.
       if(out_ep[n].DOEPINT & USB_OTG_DOEPINT_STUP) {
@@ -588,7 +598,7 @@ static void handle_epout_ints(USB_OTG_DeviceTypeDef * dev, USB_OTG_OUTEndpointTy
 static void handle_epin_ints(USB_OTG_DeviceTypeDef * dev, USB_OTG_INEndpointTypeDef * in_ep) {
   // DAINT for a given EP clears when DIEPINTx is cleared.
   // IEPINT will be cleared when DAINT's out bits are cleared.
-  for(uint8_t n = 0; n < 4; n++) {
+  for(uint8_t n = 0; n < EP_MAX; n++) {
     xfer_ctl_t * xfer = XFER_CTL_BASE(n, TUSB_DIR_IN);
 
     if(dev->DAINT & (1 << (USB_OTG_DAINT_IEPINT_Pos + n))) {
