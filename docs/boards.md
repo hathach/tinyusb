@@ -14,6 +14,7 @@ This code base already had supported for a handful of following boards
 - [Adafruit Feather nRF52840 Express](https://www.adafruit.com/product/4062)
 - [Adafruit Circuit Playground Bluefruit](https://www.adafruit.com/product/4333)
 - [Nordic nRF52840 Development Kit (aka pca10056)](https://www.nordicsemi.com/Software-and-Tools/Development-Kits/nRF52840-DK)
+- [Nordic nRF52840 Dongle (aka pca10059)](https://www.nordicsemi.com/Software-and-Tools/Development-Kits/nRF52840-Dongle)
 
 ### NXP LPC
 

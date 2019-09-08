@@ -43,7 +43,7 @@ endif
 
 # Set all as default goal
 .DEFAULT_GOAL := all
-all: $(BUILD)/$(BOARD)-firmware.bin size
+all: $(BUILD)/$(BOARD)-firmware.bin $(BUILD)/$(BOARD)-firmware.hex size
 
 uf2: $(BUILD)/$(BOARD)-firmware.uf2
 
