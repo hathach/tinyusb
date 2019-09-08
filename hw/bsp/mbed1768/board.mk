@@ -8,6 +8,9 @@ CFLAGS += \
   -DCFG_TUSB_MCU=OPT_MCU_LPC175X_6X \
   -DRTC_EV_SUPPORT=0
 
+# startup.c and lpc_types.h cause following errors
+CFLAGS += -Wno-error=nested-externs -Wno-error=strict-prototypes
+
 # All source paths should be relative to the top level.
 LD_FILE = hw/bsp/mbed1768/lpc1768.ld
 

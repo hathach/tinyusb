@@ -30,7 +30,8 @@
 
 // Some MCU doesn't have enough 8KB SRAM to store the whole disk
 // We will use Flash as read-only disk
-#if CFG_TUSB_MCU == OPT_MCU_LPC13XX
+// - LPC1347, LPC11uxx
+#if (CFG_TUSB_MCU == OPT_MCU_LPC13XX) || (CFG_TUSB_MCU == OPT_MCU_LPC11UXX)
 #define DISK_READONLY
 #endif
 

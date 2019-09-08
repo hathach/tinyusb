@@ -7,6 +7,9 @@ CFLAGS += \
   -DCFG_TUSB_MCU=OPT_MCU_LPC18XX \
   -D__USE_LPCOPEN
 
+# lpc_types.h cause following errors
+CFLAGS += -Wno-error=strict-prototypes
+
 # All source paths should be relative to the top level.
 LD_FILE = hw/bsp/mcb1800/lpc1857.ld
 

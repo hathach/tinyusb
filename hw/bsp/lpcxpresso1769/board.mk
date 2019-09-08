@@ -8,6 +8,9 @@ CFLAGS += \
   -DCFG_TUSB_MCU=OPT_MCU_LPC175X_6X \
   -DRTC_EV_SUPPORT=0
 
+# lpc_types.h cause following errors
+CFLAGS += -Wno-error=strict-prototypes
+
 # All source paths should be relative to the top level.
 LD_FILE = hw/bsp/lpcxpresso1769/lpc1769.ld
 

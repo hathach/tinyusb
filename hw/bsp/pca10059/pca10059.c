@@ -38,10 +38,11 @@
 /*------------------------------------------------------------------*/
 /* MACRO TYPEDEF CONSTANT ENUM
  *------------------------------------------------------------------*/
-#define LED_PIN               13
+#define LED_PIN               8
 #define LED_STATE_ON          0
 
-#define BUTTON_PIN            11
+// Button 1
+#define BUTTON_PIN            (32+6) // P1.06
 #define BUTTON_STATE_ACTIVE   0
 
 // tinyusb function that handles power event (detected, ready, removed)
@@ -50,11 +51,8 @@ extern void tusb_hal_nrf_power_event(uint32_t event);
 
 void board_init(void)
 {
-  // stop LF clock just in case we jump from application without reset
-  NRF_CLOCK->TASKS_LFCLKSTOP = 1UL;
-
-  // Use Internal OSC to compatible with all boards
-  NRF_CLOCK->LFCLKSRC = CLOCK_LFCLKSRC_SRC_RC;
+  // Config clock source: XTAL or RC in sdk_config.h
+  NRF_CLOCK->LFCLKSRC = (uint32_t)((CLOCK_LFCLKSRC_SRC_Xtal << CLOCK_LFCLKSRC_SRC_Pos) & CLOCK_LFCLKSRC_SRC_Msk);
   NRF_CLOCK->TASKS_LFCLKSTART = 1UL;
 
   // LED

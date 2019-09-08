@@ -14,11 +14,14 @@ This code base already had supported for a handful of following boards
 - [Adafruit Feather nRF52840 Express](https://www.adafruit.com/product/4062)
 - [Adafruit Circuit Playground Bluefruit](https://www.adafruit.com/product/4333)
 - [Nordic nRF52840 Development Kit (aka pca10056)](https://www.nordicsemi.com/Software-and-Tools/Development-Kits/nRF52840-DK)
+- [Nordic nRF52840 Dongle (aka pca10059)](https://www.nordicsemi.com/Software-and-Tools/Development-Kits/nRF52840-Dongle)
 
 ### NXP LPC
 
-- [LPCXpresso 11U68](https://www.nxp.com/support/developer-resources/evaluation-and-development-boards/lpcxpresso-boards/lpcxpresso-board-for-lpc11u68:OM13058)
+- [LPCXpresso 11u37](https://www.nxp.com/design/microcontrollers-developer-resources/lpcxpresso-boards/lpcxpresso-board-for-lpc11u37h:OM13074)
+- [LPCXpresso 11u68](https://www.nxp.com/support/developer-resources/evaluation-and-development-boards/lpcxpresso-boards/lpcxpresso-board-for-lpc11u68:OM13058)
 - [LPCXpresso 1347](https://www.nxp.com/support/developer-resources/evaluation-and-development-boards/lpcxpresso-boards/lpcxpresso-board-for-lpc1347:OM13045)
+- [ARM mbed LPC1768](https://www.nxp.com/products/processors-and-microcontrollers/arm-microcontrollers/general-purpose-mcus/lpc1700-cortex-m3/arm-mbed-lpc1768-board:OM11043)
 - [LPCXpresso 1769](https://www.nxp.com/support/developer-resources/evaluation-and-development-boards/lpcxpresso-boards/lpcxpresso-board-for-lpc1769:OM13000)
 - [Keil MCB1800 Evaluation Board](http://www.keil.com/mcb1800)
 - [Embedded Artists LPC4088 Quick Start board](https://www.embeddedartists.com/products/lpc4088-quickstart-board)
@@ -39,6 +42,7 @@ This code base already had supported for a handful of following boards
 
 - [STM32F407g Discovery](https://www.st.com/en/evaluation-tools/stm32f4discovery.html)
 - [STM32F411e Discovery](https://www.st.com/en/evaluation-tools/32f411ediscovery.html)
+- [STM32F412g Discovery](https://www.st.com/en/evaluation-tools/32f412gdiscovery.html)
 - [Nucleo H743zi](https://www.st.com/en/evaluation-tools/nucleo-h743zi.html)
 
 ## Add your own board
