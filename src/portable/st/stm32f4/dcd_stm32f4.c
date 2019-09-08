@@ -42,8 +42,8 @@
 
 // TODO Merge with OTG_HS
 // Max endpoints for each direction
-// USB_OTG_FS_TOTAL_FIFO_SIZE
-#define EP_MAX    USB_OTG_FS_MAX_IN_ENDPOINTS
+#define EP_MAX        USB_OTG_FS_MAX_IN_ENDPOINTS
+#define EP_FIFO_SIZE  USB_OTG_FS_TOTAL_FIFO_SIZE
 
 static TU_ATTR_ALIGNED(4) uint32_t _setup_packet[6];
 static uint8_t _setup_offs; // We store up to 3 setup packets.
@@ -75,32 +75,35 @@ static void bus_reset(void) {
   dev->DOEPMSK |= USB_OTG_DOEPMSK_STUPM | USB_OTG_DOEPMSK_XFRCM;
   dev->DIEPMSK |= USB_OTG_DIEPMSK_TOM | USB_OTG_DIEPMSK_XFRCM;
 
-  // Peripheral FIFO architecture (Rev18 RM 29.11)
+  // "USB Data FIFOs" section in reference manual
+  // Peripheral FIFO architecture
   //
-  // --------------- 320 ( 1280 bytes )
-  // | IN FIFO 3  |
+  // --------------- 320 or 1024 ( 1280 or 4096 bytes )
+  // | IN FIFO MAX |
+  // ---------------
+  // |    ...      |
   // --------------- y + x + 16 + GRXFSIZ
-  // | IN FIFO 2  |
+  // | IN FIFO 2   |
   // --------------- x + 16 + GRXFSIZ
-  // | IN FIFO 1  |
+  // | IN FIFO 1   |
   // --------------- 16 + GRXFSIZ
-  // | IN FIFO 0  |
+  // | IN FIFO 0   |
   // --------------- GRXFSIZ
-  // | OUT FIFO   |
-  // | ( Shared ) |
+  // | OUT FIFO    |
+  // | ( Shared )  |
   // --------------- 0
   //
-  // FIFO sizes are set up by the following rules (each word 32-bits):
-  // All EP OUT shared a unique OUT FIFO which uses (based on page 1354 of Rev 17 of reference manual):
-  // * 10 locations in hardware for setup packets + setup control words
-  // (up to 3 setup packets).
-  // * 2 locations for OUT endpoint control words.
-  // * 16 for largest packet size of 64 bytes. ( TODO Highspeed is 512 bytes)
-  // * 1 location for global NAK (not required/used here).
+  // According to "FIFO RAM allocation" section in RM, FIFO RAM are allocated as follows (each word 32-bits):
+  // - Each EP IN needs at least max packet size, 16 words is sufficient for EP0 IN
   //
-  // It is recommended to allocate 2 times the largest packet size, therefore
-  // Recommended value = 10 + 1 + 2 x (16+2) = 47 --> Let's make it 50
-  USB_OTG_FS->GRXFSIZ = 50;
+  // - All EP OUT shared a unique OUT FIFO which uses
+  //   * 10 locations in hardware for setup packets + setup control words (up to 3 setup packets).
+  //   * 2 locations for OUT endpoint control words.
+  //   * 16 for largest packet size of 64 bytes. ( TODO Highspeed is 512 bytes)
+  //   * 1 location for global NAK (not required/used here).
+  //   * It is recommended to allocate 2 times the largest packet size, therefore
+  //   Recommended value = 10 + 1 + 2 x (16+2) = 47 --> Let's make it 52
+  USB_OTG_FS->GRXFSIZ = 52;
 
   // Control IN uses FIFO 0 with 64 bytes ( 16 32-bit word )
   USB_OTG_FS->DIEPTXF0_HNPTXFSIZ = (16 << USB_OTG_TX0FD_Pos) | (USB_OTG_FS->GRXFSIZ & 0x0000ffffUL);
@@ -242,22 +245,27 @@ bool dcd_edpt_open (uint8_t rhport, tusb_desc_endpoint_t const * desc_edpt)
       desc_edpt->wMaxPacketSize.size << USB_OTG_DOEPCTL_MPSIZ_Pos;
     dev->DAINTMSK |= (1 << (USB_OTG_DAINTMSK_OEPM_Pos + epnum));
   } else {
-    // Peripheral FIFO architecture (Rev18 RM 29.11)
+    // "USB Data FIFOs" section in reference manual
+    // Peripheral FIFO architecture
     //
-    // --------------- 320 ( 1280 bytes )
-    // | IN FIFO 3  |
+    // --------------- 320 or 1024 ( 1280 or 4096 bytes )
+    // | IN FIFO MAX |
+    // ---------------
+    // |    ...      |
     // --------------- y + x + 16 + GRXFSIZ
-    // | IN FIFO 2  |
+    // | IN FIFO 2   |
     // --------------- x + 16 + GRXFSIZ
-    // | IN FIFO 1  |
+    // | IN FIFO 1   |
     // --------------- 16 + GRXFSIZ
-    // | IN FIFO 0  |
+    // | IN FIFO 0   |
     // --------------- GRXFSIZ
-    // | OUT FIFO   |
-    // | ( Shared ) |
+    // | OUT FIFO    |
+    // | ( Shared )  |
     // --------------- 0
     //
-    // Since OUT FIFO = 50, FIFO 0 = 16, average of FIFOx = (312-50-16) / 3 = 82 ~ 80
+    // Since OUT FIFO = GRXFSIZ, FIFO 0 = 16, for simplicity, we equally allocated for the rest of endpoints
+    // - Size  : (FIFO_SIZE/4 - GRXFSIZ - 16) / (EP_MAX-1)
+    // - Offset: GRXFSIZ + 16 + Size*(epnum-1)
 
     in_ep[epnum].DIEPCTL |= (1 << USB_OTG_DIEPCTL_USBAEP_Pos) | \
       (epnum - 1) << USB_OTG_DIEPCTL_TXFNUM_Pos | \
@@ -267,9 +275,10 @@ bool dcd_edpt_open (uint8_t rhport, tusb_desc_endpoint_t const * desc_edpt)
     dev->DAINTMSK |= (1 << (USB_OTG_DAINTMSK_IEPM_Pos + epnum));
 
     // Both TXFD and TXSA are in unit of 32-bit words
-    uint16_t const fifo_size = 80;
-    uint32_t const fifo_offset = (USB_OTG_FS->GRXFSIZ & 0x0000ffff) + 16 + fifo_size*(epnum-1);
-    USB_OTG_FS->DIEPTXF[epnum - 1] = (80 << USB_OTG_DIEPTXF_INEPTXFD_Pos) | fifo_offset;
+    uint16_t const allocated_size = (USB_OTG_FS->GRXFSIZ & 0x0000ffff) + 16;
+    uint16_t const fifo_size = (EP_FIFO_SIZE/4 - allocated_size) / (EP_MAX-1);
+    uint32_t const fifo_offset = allocated_size + fifo_size*(epnum-1);
+    USB_OTG_FS->DIEPTXF[epnum - 1] = (fifo_size << USB_OTG_DIEPTXF_INEPTXFD_Pos) | fifo_offset;
   }
 
   return true;
