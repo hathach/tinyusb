@@ -50,7 +50,7 @@ This code base already had supported for a handful of following boards
 If you don't possess any of supported board above. Don't worry you can easily implemented your own one by following this guide as long as the mcu is supported.
 
 - Create new makefile for your board at `hw/bsp/<board name>/board.mk` and linker file as well if needed.
-- Create new source file for your board at `hw/bsp/<board name>/board_<board name>.c` and implement following APIs
+- Create new source file for your board at `hw/bsp/<board name>/<board name>.c` and implement following APIs
 
 ### Board APIs
 
