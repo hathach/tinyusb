@@ -14,7 +14,7 @@ CFLAGS += -Wno-error=sign-compare
 
 ST_HAL_DRIVER = hw/mcu/st/st_driver/STM32H7xx_HAL_Driver
 ST_CMSIS = hw/mcu/st/st_driver/CMSIS/Device/ST/STM32H7xx
-  
+
 # All source paths should be relative to the top level.
 LD_FILE = hw/bsp/stm32h743nucleo/STM32H743ZITx_FLASH.ld
 
@@ -38,4 +38,4 @@ INC += \
 
 # For TinyUSB port source
 VENDOR = st
-CHIP_FAMILY = stm32h7
+CHIP_FAMILY = synopsys

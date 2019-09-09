@@ -30,10 +30,10 @@ INC += \
 	$(TOP)/$(ST_CMSIS)/Include \
 	$(TOP)/$(ST_HAL_DRIVER)/Inc \
 	$(TOP)/hw/bsp/$(BOARD)
-	
+
 # For TinyUSB port source
 VENDOR = st
-CHIP_FAMILY = stm32f4
+CHIP_FAMILY = synopsys
 
 # For freeRTOS port source
 FREERTOS_PORT = ARM_CM4F
@@ -42,7 +42,7 @@ FREERTOS_PORT = ARM_CM4F
 JLINK_DEVICE = stm32f407vg
 JLINK_IF = swd
 
-# Path to STM32 Cube Programmer CLI, should be added into system path 
+# Path to STM32 Cube Programmer CLI, should be added into system path
 STM32Prog = STM32_Programmer_CLI
 
 # flash target using on-board stlink

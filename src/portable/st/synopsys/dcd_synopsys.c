@@ -27,10 +27,24 @@
 
 #include "tusb_option.h"
 
-#if TUSB_OPT_DEVICE_ENABLED && CFG_TUSB_MCU == OPT_MCU_STM32H7
+#if TUSB_OPT_DEVICE_ENABLED && ( CFG_TUSB_MCU == OPT_MCU_STM32F4 || \
+                                 CFG_TUSB_MCU == OPT_MCU_STM32H7 )
+
+#if CFG_TUSB_MCU == OPT_MCU_STM32F4
+  #include "stm32f4xx.h"
+  // TODO Merge with OTG_HS
+  // Max endpoints for each direction
+  #define EP_MAX        USB_OTG_FS_MAX_IN_ENDPOINTS
+  #define EP_FIFO_SIZE  USB_OTG_FS_TOTAL_FIFO_SIZE
+#elif CFG_TUSB_MCU == OPT_MCU_STM32H7
+  #include "stm32h7xx.h"
+  // TODO There is no equivalent macro for max endpoints in H7 header.
+  #define EP_MAX        8
+  #define EP_FIFO_SIZE  4096
+  // TODO The official name of the USB FS peripheral on H7 is "USB2_OTG_FS".
+#endif
 
 #include "device/dcd.h"
-#include "stm32h7xx.h"
 
 /*------------------------------------------------------------------*/
 /* MACRO TYPEDEF CONSTANT ENUM
@@ -39,11 +53,6 @@
 #define OUT_EP_BASE (USB_OTG_OUTEndpointTypeDef *) (USB_OTG_FS_PERIPH_BASE + USB_OTG_OUT_ENDPOINT_BASE)
 #define IN_EP_BASE (USB_OTG_INEndpointTypeDef *) (USB_OTG_FS_PERIPH_BASE + USB_OTG_IN_ENDPOINT_BASE)
 #define FIFO_BASE(_x) (volatile uint32_t *) (USB_OTG_FS_PERIPH_BASE + USB_OTG_FIFO_BASE + (_x) * USB_OTG_FIFO_SIZE)
-
-// TODO Merge with OTG_HS
-// Max endpoints for each direction
-#define EP_MAX        8
-#define EP_FIFO_SIZE  4096
 
 static TU_ATTR_ALIGNED(4) uint32_t _setup_packet[6];
 static uint8_t _setup_offs; // We store up to 3 setup packets.
@@ -149,6 +158,7 @@ void dcd_init (uint8_t rhport)
 
   // No HNP/SRP (no OTG support), program timeout later, turnaround
   // programmed for 32+ MHz.
+  // TODO: PHYSEL is read-only on some cores (STM32F407). Worth gating?
   USB_OTG_FS->GUSBCFG |= (0x06 << USB_OTG_GUSBCFG_TRDT_Pos) | USB_OTG_GUSBCFG_PHYSEL;
 
   // Clear all used interrupts
@@ -222,6 +232,7 @@ void dcd_remote_wakeup(uint8_t rhport)
 /*------------------------------------------------------------------*/
 /* DCD Endpoint port
  *------------------------------------------------------------------*/
+
 bool dcd_edpt_open (uint8_t rhport, tusb_desc_endpoint_t const * desc_edpt)
 {
   (void) rhport;
