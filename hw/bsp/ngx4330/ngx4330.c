@@ -57,6 +57,9 @@ static const PINMUX_GRP_T pinmuxing[] =
   {2, 7,  (SCU_MODE_PULLUP | SCU_MODE_INBUFF_EN | SCU_MODE_ZIF_DIS | SCU_MODE_FUNC0)},
 
   // USB
+  {2, 6, (SCU_MODE_PULLUP | SCU_MODE_INBUFF_EN | SCU_MODE_FUNC4)}, // USB1_PWR_EN
+  {2, 5, (SCU_MODE_INACT | SCU_MODE_INBUFF_EN | SCU_MODE_ZIF_DIS | SCU_MODE_FUNC2)}, // USB1_VBUS
+  {1, 7, (SCU_MODE_PULLUP | SCU_MODE_INBUFF_EN | SCU_MODE_FUNC4)}, // USB0_PWRN_EN
 
   // SPIFI
 	{3, 3,  (SCU_PINIO_FAST | SCU_MODE_FUNC3)},	/* SPIFI CLK */
@@ -122,7 +125,6 @@ void board_init(void)
   // Button
   Chip_GPIO_SetPinDIRInput(LPC_GPIO_PORT, BUTTON_PORT, BUTTON_PIN);
 
-#if 0
 #if 0
   //------------- UART -------------//
   scu_pinmux(BOARD_UART_PIN_PORT, BOARD_UART_PIN_TX, MD_PDN, FUNC1);
@@ -211,19 +213,9 @@ void board_init(void)
 
   // USB1 as fullspeed
   LPC_USB1->PORTSC1_D |= (1<<24);
-#endif
 
-  // USB0 Vbus Power: P2_3 on EA4357 channel B U20 GPIO26 active low (base board)
-  Chip_SCU_PinMuxSet(2, 3, SCU_MODE_PULLUP | SCU_MODE_INBUFF_EN | SCU_MODE_FUNC7);
-
-  #if CFG_TUSB_RHPORT0_MODE & OPT_MODE_DEVICE
-  // P9_5 (GPIO5[18]) (GPIO28 on oem base) as USB connect, active low.
-  Chip_SCU_PinMuxSet(9, 5, SCU_MODE_PULLDOWN | SCU_MODE_FUNC4);
-  Chip_GPIO_SetPinDIROutput(LPC_GPIO_PORT, 5, 18);
-  #endif
-
-  // USB1 Power: EA4357 channel A U20 is enabled by SJ5 connected to pad 1-2, no more action required
-  // TODO Remove R170, R171, solder a pair of 15K to USB1 D+/D- to test with USB1 Host
+//	Chip_GPIO_SetPinDIROutput(LPC_GPIO_PORT, 5, 6);							/* GPIO5[6] = USB1_PWR_EN */
+//	Chip_GPIO_SetPinState(LPC_GPIO_PORT, 5, 6, true);							/* GPIO5[6] output high */
 #endif
 }
 

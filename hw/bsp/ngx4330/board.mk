@@ -24,8 +24,6 @@ SRC_C += \
 	$(MCU_DIR)/src/clock_18xx_43xx.c \
 	$(MCU_DIR)/src/gpio_18xx_43xx.c \
 	$(MCU_DIR)/src/sysinit_18xx_43xx.c \
-	$(MCU_DIR)/src/i2c_18xx_43xx.c \
-	$(MCU_DIR)/src/i2cm_18xx_43xx.c \
 	$(MCU_DIR)/src/uart_18xx_43xx.c
 
 INC += \
