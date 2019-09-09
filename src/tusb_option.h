@@ -145,8 +145,8 @@
 // DEVICE OPTIONS
 //--------------------------------------------------------------------
 
-#ifndef CFG_TUD_ENDOINT0_SIZE
-  #define CFG_TUD_ENDOINT0_SIZE   64
+#ifndef CFG_TUD_ENDPOINT0_SIZE
+  #define CFG_TUD_ENDPOINT0_SIZE   64
 #endif
 
 #ifndef CFG_TUD_CDC
@@ -198,7 +198,7 @@
 //------------------------------------------------------------------
 // Configuration Validation
 //------------------------------------------------------------------
-#if CFG_TUD_ENDOINT0_SIZE > 64
+#if CFG_TUD_ENDPOINT0_SIZE > 64
   #error Control Endpoint Max Packet Size cannot be larger than 64
 #endif
 

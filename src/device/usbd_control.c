@@ -51,7 +51,7 @@ typedef struct
 
 static usbd_control_xfer_t _control_state;
 
-CFG_TUSB_MEM_SECTION CFG_TUSB_MEM_ALIGN uint8_t _usbd_ctrl_buf[CFG_TUD_ENDOINT0_SIZE];
+CFG_TUSB_MEM_SECTION CFG_TUSB_MEM_ALIGN uint8_t _usbd_ctrl_buf[CFG_TUD_ENDPOINT0_SIZE];
 
 void usbd_control_reset (uint8_t rhport)
 {
@@ -68,7 +68,7 @@ bool tud_control_status(uint8_t rhport, tusb_control_request_t const * request)
 // Each transaction is up to endpoint0's max packet size
 static bool start_control_data_xact(uint8_t rhport)
 {
-  uint16_t const xact_len = tu_min16(_control_state.total_len - _control_state.total_transferred, CFG_TUD_ENDOINT0_SIZE);
+  uint16_t const xact_len = tu_min16(_control_state.total_len - _control_state.total_transferred, CFG_TUD_ENDPOINT0_SIZE);
 
   uint8_t ep_addr = EDPT_CTRL_OUT;
 
