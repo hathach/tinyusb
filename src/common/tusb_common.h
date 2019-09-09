@@ -117,7 +117,7 @@ static inline uint32_t tu_align4k (uint32_t value) { return (value & 0xFFFFF000U
 static inline uint32_t tu_offset4k(uint32_t value) { return (value & 0xFFFUL); }
 
 //------------- Mathematics -------------//
-static inline uint32_t tu_abs(int32_t value) { return (value < 0) ? (-value) : value; }
+static inline uint32_t tu_abs(int32_t value) { return (uint32_t)((value < 0) ? (-value) : value); }
 
 /// inclusive range checking
 static inline bool tu_within(uint32_t lower, uint32_t value, uint32_t upper)
