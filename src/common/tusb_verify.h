@@ -105,7 +105,7 @@
 #define TU_VERIFY_1ARGS(_cond)                         TU_VERIFY_DEFINE(_cond, , false)
 #define TU_VERIFY_2ARGS(_cond, _ret)                   TU_VERIFY_DEFINE(_cond, , _ret)
 
-#define TU_VERIFY(...)                   GET_3RD_ARG(__VA_ARGS__, TU_VERIFY_2ARGS, TU_VERIFY_1ARGS)(__VA_ARGS__)
+#define TU_VERIFY(...)                   GET_3RD_ARG(__VA_ARGS__, TU_VERIFY_2ARGS, TU_VERIFY_1ARGS, UNUSED)(__VA_ARGS__)
 
 
 /*------------------------------------------------------------------*/
@@ -116,7 +116,7 @@
 #define TU_VERIFY_HDLR_2ARGS(_cond, _handler)           TU_VERIFY_DEFINE(_cond, _handler, false)
 #define TU_VERIFY_HDLR_3ARGS(_cond, _handler, _ret)     TU_VERIFY_DEFINE(_cond, _handler, _ret)
 
-#define TU_VERIFY_HDLR(...)              GET_4TH_ARG(__VA_ARGS__, TU_VERIFY_HDLR_3ARGS, TU_VERIFY_HDLR_2ARGS)(__VA_ARGS__)
+#define TU_VERIFY_HDLR(...)              GET_4TH_ARG(__VA_ARGS__, TU_VERIFY_HDLR_3ARGS, TU_VERIFY_HDLR_2ARGS,UNUSED)(__VA_ARGS__)
 
 
 /*------------------------------------------------------------------*/
@@ -127,7 +127,7 @@
 #define TU_VERIFY_ERR_1ARGS(_error)                       TU_VERIFY_ERR_DEF2(_error, )
 #define TU_VERIFY_ERR_2ARGS(_error, _ret)                 TU_VERIFY_ERR_DEF3(_error, ,_ret)
 
-#define TU_VERIFY_ERR(...)            GET_3RD_ARG(__VA_ARGS__, TU_VERIFY_ERR_2ARGS, TU_VERIFY_ERR_1ARGS)(__VA_ARGS__)
+#define TU_VERIFY_ERR(...)            GET_3RD_ARG(__VA_ARGS__, TU_VERIFY_ERR_2ARGS, TU_VERIFY_ERR_1ARGS,UNUSED)(__VA_ARGS__)
 
 /*------------------------------------------------------------------*/
 /* TU_VERIFY STATUS WITH HANDLER
@@ -137,7 +137,7 @@
 #define TU_VERIFY_ERR_HDLR_2ARGS(_error, _handler)        TU_VERIFY_ERR_DEF2(_error, _handler)
 #define TU_VERIFY_ERR_HDLR_3ARGS(_error, _handler, _ret)  TU_VERIFY_ERR_DEF3(_error, _handler, _ret)
 
-#define TU_VERIFY_ERR_HDLR(...)       GET_4TH_ARG(__VA_ARGS__, TU_VERIFY_ERR_HDLR_3ARGS, TU_VERIFY_ERR_HDLR_2ARGS)(__VA_ARGS__)
+#define TU_VERIFY_ERR_HDLR(...)       GET_4TH_ARG(__VA_ARGS__, TU_VERIFY_ERR_HDLR_3ARGS, TU_VERIFY_ERR_HDLR_2ARGS,UNUSED)(__VA_ARGS__)
 
 
 /*------------------------------------------------------------------*/
@@ -149,7 +149,7 @@
 #define ASSERT_1ARGS(_cond)            TU_VERIFY_DEFINE(_cond, _MESS_FAILED(); TU_BREAKPOINT(), false)
 #define ASSERT_2ARGS(_cond, _ret)      TU_VERIFY_DEFINE(_cond, _MESS_FAILED(); TU_BREAKPOINT(), _ret)
 
-#define TU_ASSERT(...)             GET_3RD_ARG(__VA_ARGS__, ASSERT_2ARGS, ASSERT_1ARGS)(__VA_ARGS__)
+#define TU_ASSERT(...)             GET_3RD_ARG(__VA_ARGS__, ASSERT_2ARGS, ASSERT_1ARGS,UNUSED)(__VA_ARGS__)
 
 /*------------------------------------------------------------------*/
 /* ASSERT Error
@@ -158,7 +158,7 @@
 #define ASERT_ERR_1ARGS(_error)         TU_VERIFY_ERR_DEF2(_error, TU_BREAKPOINT())
 #define ASERT_ERR_2ARGS(_error, _ret)   TU_VERIFY_ERR_DEF3(_error, TU_BREAKPOINT(), _ret)
 
-#define TU_ASSERT_ERR(...)         GET_3RD_ARG(__VA_ARGS__, ASERT_ERR_2ARGS, ASERT_ERR_1ARGS)(__VA_ARGS__)
+#define TU_ASSERT_ERR(...)         GET_3RD_ARG(__VA_ARGS__, ASERT_ERR_2ARGS, ASERT_ERR_1ARGS,UNUSED)(__VA_ARGS__)
 
 /*------------------------------------------------------------------*/
 /* ASSERT HDLR
