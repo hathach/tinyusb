@@ -3,7 +3,7 @@ CFLAGS += \
 	-DSTM32F070xB \
 	-mthumb \
 	-mabi=aapcs-linux \
-	-mcpu=cortex-m4 \
+	-mcpu=cortex-m0 \
 	-mfloat-abi=soft \
 	-nostdlib -nostartfiles \
 	-DCFG_TUSB_MCU=OPT_MCU_STM32_FSDEV

@@ -125,14 +125,18 @@
  * Checks, structs, defines, function definitions, etc.
  */
 
-#if (MAX_EP_COUNT > 8)
+#if ((MAX_EP_COUNT) > 8)
 #  error Only 8 endpoints supported on the hardware
 #endif
 
-#if ((DCD_STM32_BTABLE_BASE + DCD_STM32_BTABLE_LENGTH)>PMA_LENGTH)
+#if (((DCD_STM32_BTABLE_BASE) + (DCD_STM32_BTABLE_LENGTH))>(PMA_LENGTH))
 #  error BTABLE does not fit in PMA RAM
 #endif
 
+#if (((DCD_STM32_BTABLE_BASE) % 8) != 0)
+// per STM32F3 reference manual
+#error BTABLE must be aligned to 8 bytes
+#endif
 // Max size of a USB FS packet is 64...
 #define MAX_PACKET_SIZE 64
 
