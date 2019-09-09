@@ -35,6 +35,21 @@
 // This file contains source copied from ST's HAL, and thus should have their copyright statement.
 
 
+// PMA_LENGTH is PMA buffer size in bytes.
+
+#if defined(STM32F070xB) | defined(STM32F070x6)
+#include "stm32f0xx.h"
+#define PMA_LENGTH 1024
+#elif defined(STM32F303xB) | defined(STM32F303xC)
+#warning STM32F3 platform is untested.
+#include "stm32f3xx.h"
+#define PMA_LENGTH 512
+#else
+#error You are using an untested or unimplemented STM32 variant
+#endif
+
+
+
 #ifndef PORTABLE_ST_STM32F0_DCD_STM32F0_FSDEV_PVT_ST_H_
 #define PORTABLE_ST_STM32F0_DCD_STM32F0_FSDEV_PVT_ST_H_
 
@@ -217,16 +232,14 @@
 
 #define EPREG(n) (((__IO uint16_t*)USB_BASE)[n*2])
 
-#define USB_ISTR_ALL_EVENTS (USB_ISTR_PMAOVR | USB_ISTR_ERR | USB_ISTR_WKUP | USB_ISTR_SUSP | \
-     USB_ISTR_RESET | USB_ISTR_SOF | USB_ISTR_ESOF | USB_ISTR_L1REQ )
-
-
-// PMA_LENGTH is PMA buffer size in bytes.
-
-#if defined(STM32F070xB) | defined(STM32F070x6)
-#define PMA_LENGTH 1024
+#if defined(USB_ISTR_L1REQ)
+#define USB_ISTR_L1REQ_FORCED USB_ISTR_L1REQ
 #else
-#error You are using an untested or unimplemented STM32 variant
+#define USB_ISTR_L1REQ_FORCED ((uint16_t)0x0000U)
 #endif
+
+#define USB_ISTR_ALL_EVENTS (USB_ISTR_PMAOVR | USB_ISTR_ERR | USB_ISTR_WKUP | USB_ISTR_SUSP | \
+     USB_ISTR_RESET | USB_ISTR_SOF | USB_ISTR_ESOF | USB_ISTR_L1REQ_FORCED )
+
 
 #endif /* PORTABLE_ST_STM32F0_DCD_STM32F0_FSDEV_PVT_ST_H_ */

@@ -1,29 +1,29 @@
 CFLAGS += \
 	-DHSE_VALUE=8000000 \
-	-DSTM32F303xC \
+	-DSTM32F070xB \
 	-mthumb \
 	-mabi=aapcs-linux \
 	-mcpu=cortex-m4 \
-	-mfloat-abi=hard \
-	-mfpu=fpv4-sp-d16 \
+	-mfloat-abi=soft \
 	-nostdlib -nostartfiles \
 	-DCFG_TUSB_MCU=OPT_MCU_STM32_FSDEV
 
-ST_HAL_DRIVER = hw/mcu/st/st_driver/STM32F3xx_HAL_Driver
-ST_CMSIS = hw/mcu/st/st_driver/CMSIS/Device/ST/STM32F3xx
+ST_HAL_DRIVER = hw/mcu/st/st_driver/STM32F0xx_HAL_Driver
+ST_CMSIS = hw/mcu/st/st_driver/CMSIS/Device/ST/STM32F0xx
 
 # All source paths should be relative to the top level.
-LD_FILE = hw/bsp/stm32f303disco/STM32F303VCTx_FLASH.ld
+LD_FILE = hw/bsp/stm32f070rbnucleo/stm32F070rbtx_flash.ld
 
 SRC_C += \
-	$(ST_CMSIS)/Source/Templates/system_stm32f3xx.c \
-	$(ST_HAL_DRIVER)/Src/stm32f3xx_hal.c \
-	$(ST_HAL_DRIVER)/Src/stm32f3xx_hal_cortex.c \
-	$(ST_HAL_DRIVER)/Src/stm32f3xx_hal_rcc.c \
-	$(ST_HAL_DRIVER)/Src/stm32f3xx_hal_gpio.c
+	$(ST_CMSIS)/Source/Templates/system_stm32f0xx.c \
+	$(ST_HAL_DRIVER)/Src/stm32f0xx_hal.c \
+	$(ST_HAL_DRIVER)/Src/stm32f0xx_hal_cortex.c \
+	$(ST_HAL_DRIVER)/Src/stm32f0xx_hal_rcc.c \
+	$(ST_HAL_DRIVER)/Src/stm32f0xx_hal_rcc_ex.c \
+	$(ST_HAL_DRIVER)/Src/stm32f0xx_hal_gpio.c
 
 SRC_S += \
-	$(ST_CMSIS)/Source/Templates/gcc/startup_stm32f303xc.s
+	$(ST_CMSIS)/Source/Templates/gcc/startup_stm32f070xb.s
 
 INC += \
 	$(TOP)/hw/mcu/st/st_driver/CMSIS/Include \

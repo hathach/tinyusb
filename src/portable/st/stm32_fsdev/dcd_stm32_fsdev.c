@@ -99,9 +99,7 @@
 #undef USE_HAL_DRIVER
 
 #include "device/dcd.h"
-#include "stm32f0xx.h"
 #include "portable/st/stm32_fsdev/dcd_stm32_fsdev_pvt_st.h"
-#include "uart_util.h"
 
 
 /*****************************************************
@@ -120,7 +118,7 @@
 #endif
 
 #ifndef DCD_STM32_BTABLE_LENGTH
-#  define DCD_STM32_BTABLE_LENGTH (DCD_STM32_BTABLE_LENGTH - DCD_STM32_BTABLE_BASE)
+#  define DCD_STM32_BTABLE_LENGTH (PMA_LENGTH - DCD_STM32_BTABLE_BASE)
 #endif
 
 /***************************************************
@@ -131,7 +129,7 @@
 #  error Only 8 endpoints supported on the hardware
 #endif
 
-#if ((BTABLE_BASE + BTABLE_LENGTH)>PMA_LENGTH)
+#if ((DCD_STM32_BTABLE_BASE + DCD_STM32_BTABLE_LENGTH)>PMA_LENGTH)
 #  error BTABLE does not fit in PMA RAM
 #endif
 
@@ -157,10 +155,11 @@ static uint8_t newDADDR; // Used to set the new device address during the CTR IR
 // EP Buffers assigned from end of memory location, to minimize their chance of crashing
 // into the stack.
 static uint16_t ep_buf_ptr;
-static void dcd_handle_bus_reset();
+static void dcd_handle_bus_reset(void);
 static void dcd_write_packet_memory(uint16_t dst, const void *__restrict src, size_t wNBytes);
 static void dcd_read_packet_memory(void *__restrict dst, uint16_t src, size_t wNBytes);
 static void dcd_transmit_packet(xfer_ctl_t * xfer, uint16_t ep_ix);
+static uint16_t dcd_ep_ctr_handler(void);
 
 void dcd_init (uint8_t rhport)
 {
@@ -218,15 +217,35 @@ void dcd_init (uint8_t rhport)
 void dcd_int_enable (uint8_t rhport)
 {
   (void)rhport;
+#if defined(STM32F0)
   NVIC_SetPriority(USB_IRQn, 0);
   NVIC_EnableIRQ(USB_IRQn);
+#elif defined(STM32F3)
+#warning need to check these since the F3 can have its USB interrupts remapped.
+  NVIC_SetPriority(USB_HP_CAN_TX_IRQn, 0);
+  NVIC_SetPriority(USB_LP_CAN_RX0_IRQn, 0);
+  NVIC_SetPriority(USBWakeUp_IRQn, 0);
+  NVIC_EnableIRQ(USB_HP_CAN_TX_IRQn);
+  NVIC_EnableIRQ(USB_LP_CAN_RX0_IRQn);
+  NVIC_EnableIRQ(USBWakeUp_IRQn);
+
+#endif
 }
 
 // Disable device interrupt
 void dcd_int_disable(uint8_t rhport)
 {
   (void)rhport;
+#if defined(STM32F0)
   NVIC_DisableIRQ(USB_IRQn);
+#elif defined(STM32F3)
+#warning need to check these since the F3 can have its USB interrupts remapped.
+  NVIC_DisableIRQ(USB_HP_CAN_TX_IRQn);
+  NVIC_DisableIRQ(USB_LP_CAN_RX0_IRQn);
+  NVIC_DisableIRQ(USBWakeUp_IRQn);
+#else
+#error Unknown arch in USB driver
+#endif
 }
 
 // Receive Set Address request, mcu port must also include status IN response
@@ -277,7 +296,7 @@ static const tusb_desc_endpoint_t ep0IN_desc =
 
 #pragma GCC diagnostic pop
 
-static void dcd_handle_bus_reset()
+static void dcd_handle_bus_reset(void)
 {
   //__IO uint16_t * const epreg = &(EPREG(0));
   USB->DADDR = 0u; // disable USB peripheral by clearing the EF flag
@@ -297,7 +316,7 @@ static void dcd_handle_bus_reset()
 }
 
 // FIXME: Defined to return uint16 so that ASSERT can be used, even though a return value is not needed.
-static uint16_t dcd_ep_ctr_handler()
+static uint16_t dcd_ep_ctr_handler(void)
 {
   uint16_t count=0U;
   uint8_t EPindex;
