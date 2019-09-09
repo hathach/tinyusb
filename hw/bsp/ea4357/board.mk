@@ -7,6 +7,11 @@ CFLAGS += \
   -DCFG_TUSB_MCU=OPT_MCU_LPC43XX \
   -D__USE_LPCOPEN
 
+# lpc_types.h cause following errors
+CFLAGS += -Wno-error=strict-prototypes
+
+MCU_DIR = hw/mcu/nxp/lpc_driver/lpc43xx/lpc_chip_43xx
+
 # All source paths should be relative to the top level.
 LD_FILE = hw/bsp/ea4357/lpc4357.ld
 
@@ -14,17 +19,18 @@ LD_FILE = hw/bsp/ea4357/lpc4357.ld
 SRC_C += src/portable/$(VENDOR)/$(CHIP_FAMILY)/hal_$(CHIP_FAMILY).c
 
 SRC_C += \
-	hw/mcu/nxp/lpc_driver/lpc_chip_43xx/src/chip_18xx_43xx.c \
-	hw/mcu/nxp/lpc_driver/lpc_chip_43xx/src/clock_18xx_43xx.c \
-	hw/mcu/nxp/lpc_driver/lpc_chip_43xx/src/gpio_18xx_43xx.c \
-	hw/mcu/nxp/lpc_driver/lpc_chip_43xx/src/sysinit_18xx_43xx.c \
-	hw/mcu/nxp/lpc_driver/lpc_chip_43xx/src/i2c_18xx_43xx.c \
-	hw/mcu/nxp/lpc_driver/lpc_chip_43xx/src/i2cm_18xx_43xx.c \
-	hw/mcu/nxp/lpc_driver/lpc_chip_43xx/src/uart_18xx_43xx.c
+	$(MCU_DIR)/../cr_startup_lpc43xx.c \
+	$(MCU_DIR)/src/chip_18xx_43xx.c \
+	$(MCU_DIR)/src/clock_18xx_43xx.c \
+	$(MCU_DIR)/src/gpio_18xx_43xx.c \
+	$(MCU_DIR)/src/sysinit_18xx_43xx.c \
+	$(MCU_DIR)/src/i2c_18xx_43xx.c \
+	$(MCU_DIR)/src/i2cm_18xx_43xx.c \
+	$(MCU_DIR)/src/uart_18xx_43xx.c
 
 INC += \
-	$(TOP)/hw/mcu/nxp/lpc_driver/lpc_chip_43xx/inc \
-	$(TOP)/hw/mcu/nxp/lpc_driver/lpc_chip_43xx/inc/config_43xx
+	$(TOP)/$(MCU_DIR)/inc \
+	$(TOP)/$(MCU_DIR)/inc/config_43xx
 
 # For TinyUSB port source
 VENDOR = nxp
