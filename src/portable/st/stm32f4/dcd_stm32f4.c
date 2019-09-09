@@ -108,7 +108,7 @@ static void bus_reset(void) {
   // Control IN uses FIFO 0 with 64 bytes ( 16 32-bit word )
   USB_OTG_FS->DIEPTXF0_HNPTXFSIZ = (16 << USB_OTG_TX0FD_Pos) | (USB_OTG_FS->GRXFSIZ & 0x0000ffffUL);
 
-  out_ep[0].DOEPTSIZ |= (1 << USB_OTG_DOEPTSIZ_STUPCNT_Pos);
+  out_ep[0].DOEPTSIZ |= (3 << USB_OTG_DOEPTSIZ_STUPCNT_Pos);
 
   USB_OTG_FS->GINTMSK |= USB_OTG_GINTMSK_OEPINT | USB_OTG_GINTMSK_IEPINT;
 }
@@ -143,12 +143,13 @@ void dcd_init (uint8_t rhport)
 {
   (void) rhport;
 
-  // Programming model begins on page 1336 of Rev 17 of reference manual.
+  // Programming model begins in the last section of the chapter on the USB
+  // peripheral in each Reference Manual.
   USB_OTG_FS->GAHBCFG |= USB_OTG_GAHBCFG_TXFELVL | USB_OTG_GAHBCFG_GINT;
 
   // No HNP/SRP (no OTG support), program timeout later, turnaround
-  // programmed for 18 MHz.
-  USB_OTG_FS->GUSBCFG |= (0x0C << USB_OTG_GUSBCFG_TRDT_Pos);
+  // programmed for 32+ MHz.
+  USB_OTG_FS->GUSBCFG |= (0x06 << USB_OTG_GUSBCFG_TRDT_Pos);
 
   // Clear all used interrupts
   USB_OTG_FS->GINTSTS |= USB_OTG_GINTSTS_OTGINT | USB_OTG_GINTSTS_MMIS | \
@@ -170,14 +171,15 @@ void dcd_init (uint8_t rhport)
     USB_OTG_GINTMSK_SOFM | USB_OTG_GINTMSK_RXFLVLM /* SB_OTG_GINTMSK_ESUSPM | \
     USB_OTG_GINTMSK_USBSUSPM */;
 
-  // Enable VBus hardware sensing,
+  // Enable VBUS hardware sensing, enable pullup, enable peripheral.
 #ifdef USB_OTG_GCCFG_VBDEN
   USB_OTG_FS->GCCFG |= USB_OTG_GCCFG_VBDEN | USB_OTG_GCCFG_PWRDWN;
 #else
   USB_OTG_FS->GCCFG |= USB_OTG_GCCFG_VBUSBSEN | USB_OTG_GCCFG_PWRDWN;
 #endif
 
-  // Soft Connect -> Enable pullup on D+/D-
+  // Soft Connect -> Enable pullup on D+/D-.
+  // This step does not appear to be specified in the programmer's model.
   dev->DCTL &= ~USB_OTG_DCTL_SDIS;
 }
 
@@ -318,7 +320,7 @@ bool dcd_edpt_xfer (uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t 
     dev->DIEPEMPMSK |= (1 << epnum);
   } else {
     // Each complete packet for OUT xfers triggers XFRC.
-    out_ep[epnum].DOEPTSIZ = (1 << USB_OTG_DOEPTSIZ_PKTCNT_Pos) | \
+    out_ep[epnum].DOEPTSIZ |= (1 << USB_OTG_DOEPTSIZ_PKTCNT_Pos) | \
         ((xfer->max_size & USB_OTG_DOEPTSIZ_XFRSIZ_Msk) << USB_OTG_DOEPTSIZ_XFRSIZ_Pos);
     out_ep[epnum].DOEPCTL |= USB_OTG_DOEPCTL_EPENA | USB_OTG_DOEPCTL_CNAK;
   }
@@ -342,14 +344,13 @@ void dcd_edpt_stall (uint8_t rhport, uint8_t ep_addr)
     // Only disable currently enabled non-control endpoint
     if ( (epnum == 0) || !(in_ep[epnum].DIEPCTL & USB_OTG_DIEPCTL_EPENA) ){
       in_ep[epnum].DIEPCTL |= (USB_OTG_DIEPCTL_SNAK | USB_OTG_DIEPCTL_STALL);
-    }else {
+    } else {
       // Stop transmitting packets and NAK IN xfers.
       in_ep[epnum].DIEPCTL |= USB_OTG_DIEPCTL_SNAK;
       while((in_ep[epnum].DIEPINT & USB_OTG_DIEPINT_INEPNE) == 0);
 
-      // Disable the endpoint. Note that both SNAK and STALL are set here.
-      in_ep[epnum].DIEPCTL |= (USB_OTG_DIEPCTL_SNAK | USB_OTG_DIEPCTL_STALL | \
-          USB_OTG_DIEPCTL_EPDIS);
+      // Disable the endpoint.
+      in_ep[epnum].DIEPCTL |= (USB_OTG_DIEPCTL_STALL | USB_OTG_DIEPCTL_EPDIS);
       while((in_ep[epnum].DIEPINT & USB_OTG_DIEPINT_EPDISD_Msk) == 0);
       in_ep[epnum].DIEPINT = USB_OTG_DIEPINT_EPDISD;
     }
@@ -361,8 +362,8 @@ void dcd_edpt_stall (uint8_t rhport, uint8_t ep_addr)
   } else {
     // Only disable currently enabled non-control endpoint
     if ( (epnum == 0) || !(out_ep[epnum].DOEPCTL & USB_OTG_DOEPCTL_EPENA) ){
-      out_ep[epnum].DOEPCTL |= USB_OTG_DIEPCTL_STALL;
-    }else {
+      out_ep[epnum].DOEPCTL |= USB_OTG_DOEPCTL_STALL;
+    } else {
       // Asserting GONAK is required to STALL an OUT endpoint.
       // Simpler to use polling here, we don't use the "B"OUTNAKEFF interrupt
       // anyway, and it can't be cleared by user code. If this while loop never
@@ -370,8 +371,7 @@ void dcd_edpt_stall (uint8_t rhport, uint8_t ep_addr)
       dev->DCTL |= USB_OTG_DCTL_SGONAK;
       while((USB_OTG_FS->GINTSTS & USB_OTG_GINTSTS_BOUTNAKEFF_Msk) == 0);
 
-      // Ditto here- disable the endpoint. Note that only STALL and not SNAK
-      // is set here.
+      // Ditto here- disable the endpoint.
       out_ep[epnum].DOEPCTL |= (USB_OTG_DOEPCTL_STALL | USB_OTG_DOEPCTL_EPDIS);
       while((out_ep[epnum].DOEPINT & USB_OTG_DOEPINT_EPDISD_Msk) == 0);
       out_ep[epnum].DOEPINT = USB_OTG_DOEPINT_EPDISD;
@@ -391,13 +391,6 @@ void dcd_edpt_clear_stall (uint8_t rhport, uint8_t ep_addr)
   uint8_t const epnum = tu_edpt_number(ep_addr);
   uint8_t const dir   = tu_edpt_dir(ep_addr);
 
-  // TODO: Figure out what happens when none of EPENA, SNAK, or STALL are
-  // set. Per manual, page 1364 of rev 17, for OUT endpoints,
-  // you set STALL _instead of_ SNAK when disabling an endpoint during a STALL.
-  // This means when stall is cleared, none of the above bits are set?
-  //
-  // Contrast to IN endpoints, where page 1372 instructs you to set STALL
-  // _and_ SNAK when STALLing IN endpoints.
   if(dir == TUSB_DIR_IN) {
     in_ep[epnum].DIEPCTL &= ~USB_OTG_DIEPCTL_STALL;
 
@@ -547,21 +540,21 @@ static void read_rx_fifo(USB_OTG_OUTEndpointTypeDef * out_ep) {
     case 0x03: // Out packet done (Interrupt)
       break;
     case 0x04: // Setup packet done (Interrupt)
-      out_ep[epnum].DOEPTSIZ |= (1 << USB_OTG_DOEPTSIZ_STUPCNT_Pos);
+      _setup_offs = 2 - ((out_ep[epnum].DOEPTSIZ & USB_OTG_DOEPTSIZ_STUPCNT_Msk) >> USB_OTG_DOEPTSIZ_STUPCNT_Pos);
+      out_ep[epnum].DOEPTSIZ |= (3 << USB_OTG_DOEPTSIZ_STUPCNT_Pos);
       break;
     case 0x06: // Setup packet recvd
       {
-        // For some reason, it's possible to get a mismatch between
-        // how many setup packets were received versus the location
-        // of the Setup packet done word. This leads to situations
-        // where stale setup packets are in the RX FIFO that were received
-        // after the core loaded the Setup packet done word. Workaround by
-        // only accepting one setup packet at a time for now.
-        _setup_packet[0] = (* rx_fifo);
-        _setup_packet[1] = (* rx_fifo);
+        uint8_t setup_left = ((out_ep[epnum].DOEPTSIZ & USB_OTG_DOEPTSIZ_STUPCNT_Msk) >> USB_OTG_DOEPTSIZ_STUPCNT_Pos);
+
+        // We can receive up to three setup packets in succession, but
+        // only the last one is valid.
+        _setup_packet[4 - 2*setup_left] = (* rx_fifo);
+        _setup_packet[5 - 2*setup_left] = (* rx_fifo);
       }
       break;
-    default: // Invalid, do something here, like breakpoint?
+    default: // Invalid
+      TU_BREAKPOINT();
       break;
   }
 }
@@ -576,7 +569,7 @@ static void handle_epout_ints(USB_OTG_DeviceTypeDef * dev, USB_OTG_OUTEndpointTy
       // SETUP packet Setup Phase done.
       if(out_ep[n].DOEPINT & USB_OTG_DOEPINT_STUP) {
         out_ep[n].DOEPINT =  USB_OTG_DOEPINT_STUP;
-        dcd_event_setup_received(0, (uint8_t*) &_setup_packet[0], true);
+        dcd_event_setup_received(0, (uint8_t*) &_setup_packet[2*_setup_offs], true);
         _setup_offs = 0;
       }
 
@@ -595,7 +588,7 @@ static void handle_epout_ints(USB_OTG_DeviceTypeDef * dev, USB_OTG_OUTEndpointTy
           dcd_event_xfer_complete(0, n, xfer->queued_len, XFER_RESULT_SUCCESS, true);
         } else {
           // Schedule another packet to be received.
-          out_ep[n].DOEPTSIZ = (1 << USB_OTG_DOEPTSIZ_PKTCNT_Pos) | \
+          out_ep[n].DOEPTSIZ |= (1 << USB_OTG_DOEPTSIZ_PKTCNT_Pos) | \
               ((xfer->max_size & USB_OTG_DOEPTSIZ_XFRSIZ_Msk) << USB_OTG_DOEPTSIZ_XFRSIZ_Pos);
           out_ep[n].DOEPCTL |= USB_OTG_DOEPCTL_EPENA | USB_OTG_DOEPCTL_CNAK;
         }
