@@ -20,7 +20,7 @@ LD_FILE = hw/bsp/lpcxpresso1769/lpc1769.ld
 SRC_C += src/portable/$(VENDOR)/$(CHIP_FAMILY)/hal_$(CHIP_FAMILY).c
 
 SRC_C += \
-	$(MCU_DIR)/../cr_startup_lpc175x_6x.c \
+	$(MCU_DIR)/../gcc/cr_startup_lpc175x_6x.c \
 	$(MCU_DIR)/src/chip_17xx_40xx.c \
 	$(MCU_DIR)/src/clock_17xx_40xx.c \
 	$(MCU_DIR)/src/gpio_17xx_40xx.c \

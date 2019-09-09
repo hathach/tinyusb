@@ -19,7 +19,7 @@ LD_FILE = hw/bsp/ea4357/lpc4357.ld
 SRC_C += src/portable/$(VENDOR)/$(CHIP_FAMILY)/hal_$(CHIP_FAMILY).c
 
 SRC_C += \
-	$(MCU_DIR)/../cr_startup_lpc43xx.c \
+	$(MCU_DIR)/../gcc/cr_startup_lpc43xx.c \
 	$(MCU_DIR)/src/chip_18xx_43xx.c \
 	$(MCU_DIR)/src/clock_18xx_43xx.c \
 	$(MCU_DIR)/src/gpio_18xx_43xx.c \

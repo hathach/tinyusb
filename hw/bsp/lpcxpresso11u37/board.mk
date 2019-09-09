@@ -18,7 +18,7 @@ MCU_DIR = hw/mcu/nxp/lpc_driver/lpc11uxx/lpc_chip_11uxx
 LD_FILE = hw/bsp/lpcxpresso11u37/lpc11u37.ld
 
 SRC_C += \
-	$(MCU_DIR)/../cr_startup_lpc11xx.c \
+	$(MCU_DIR)/../gcc/cr_startup_lpc11xx.c \
 	$(MCU_DIR)/src/chip_11xx.c \
 	$(MCU_DIR)/src/clock_11xx.c \
 	$(MCU_DIR)/src/gpio_11xx_1.c \
