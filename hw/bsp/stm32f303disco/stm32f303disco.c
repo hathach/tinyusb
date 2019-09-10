@@ -109,31 +109,6 @@ void board_init(void)
 #endif
 }
 
-// USB defaults to using interrupts 19, 20, and 42 (based on SYSCFG_CFGR1.USB_IT_RMP)
-// FIXME: Do all three need to be handled, or just the LP one?
-void dcd_fs_irqHandler(void);
-// USB high-priority interrupt (Channel 19): Triggered only by a correct
-// transfer event for isochronous and double-buffer bulk transfer to reach
-// the highest possible transfer rate.
-void USB_HP_CAN_TX_IRQHandler(void)
-{
-	dcd_fs_irqHandler();
-}
-
-// USB low-priority interrupt (Channel 20): Triggered by all USB events
-// (Correct transfer, USB reset, etc.). The firmware has to check the
-// interrupt source before serving the interrupt.
-void USB_LP_CAN_RX0_IRQHandler(void)
-{
-	dcd_fs_irqHandler();
-}
-// USB wakeup interrupt (Channel 42): Triggered by the wakeup event from the USB
-// Suspend mode.
-void USBWakeUp_IRQHandler(void)
-{
-	dcd_fs_irqHandler();
-}
-
 //--------------------------------------------------------------------+
 // Board porting API
 //--------------------------------------------------------------------+

@@ -103,7 +103,18 @@
 
 #include "tusb_option.h"
 
-#if (TUSB_OPT_DEVICE_ENABLED) && ((CFG_TUSB_MCU) == (OPT_MCU_STM32_FSDEV))
+#if (TUSB_OPT_DEVICE_ENABLED) && ( \
+    ((CFG_TUSB_MCU) == (OPT_MCU_STM32F0x0)) || ((CFG_TUSB_MCU) == (OPT_MCU_STM32F0x2)) || \
+        ((CFG_TUSB_MCU) == (OPT_MCU_STM32F0x8)) || \
+    ((CFG_TUSB_MCU) == (OPT_MCU_STM32F1x2)) || ((CFG_TUSB_MCU) == (OPT_MCU_STM32F1x3)) || \
+    ((CFG_TUSB_MCU) == (OPT_MCU_STM32F3x2)) || ((CFG_TUSB_MCU) == (OPT_MCU_STM32F3x3)) || \
+    ((CFG_TUSB_MCU) == (OPT_MCU_STM32L0x1)) || ((CFG_TUSB_MCU) == (OPT_MCU_STM32L0x2)) || \
+    ((CFG_TUSB_MCU) == (OPT_MCU_STM32L1x0)) || ((CFG_TUSB_MCU) == (OPT_MCU_STM32L1x1)) || \
+        ((CFG_TUSB_MCU) == (OPT_MCU_STM32L1x2))  || \
+    ((CFG_TUSB_MCU) == (OPT_MCU_STM32L4x2)) || ((CFG_TUSB_MCU) == (OPT_MCU_STM32L4x3)) || \
+    ((CFG_TUSB_MCU) == (OPT_MCU_STM32G1x1)) || ((CFG_TUSB_MCU) == (OPT_MCU_STM32G1x3)) || \
+        ((CFG_TUSB_MCU) == (OPT_MCU_STM32G1x4)) \
+    )
 
 // In order to reduce the dependance on HAL, we undefine this.
 // Some definitions are copied to our private include file.
@@ -777,6 +788,57 @@ static void dcd_read_packet_memory(void *__restrict dst, uint16_t src, size_t wN
     *dstVal++ = ((temp >> 0) & 0xFF);
   }
 }
+
+
+// Interrupt handlers
+#if ((CFG_TUSB_MCU) == (OPT_MCU_STM32F0x0)) || ((CFG_TUSB_MCU) == (OPT_MCU_STM32F0x2)) || \
+       ((CFG_TUSB_MCU) == (OPT_MCU_STM32F0x8)) || \
+	  ((CFG_TUSB_MCU) == (OPT_MCU_STM32L0x1)) || ((CFG_TUSB_MCU) == (OPT_MCU_STM32L0x2))
+void USB_IRQHandler(void)
+{
+  dcd_fs_irqHandler();
+}
+
+#elif ((CFG_TUSB_MCU) == (OPT_MCU_STM32F1x2)) || ((CFG_TUSB_MCU) == (OPT_MCU_STM32F1x3))
+void USB_HP_IRQHandler(void)
+{
+  dcd_fs_irqHandler();
+}
+void USB_LP_IRQHandler(void)
+{
+  dcd_fs_irqHandler();
+}
+void USBWakeUp_IRQHandler(void)
+{
+  dcd_fs_irqHandler();
+}
+#elif((CFG_TUSB_MCU) == (OPT_MCU_STM32F3x2)) || ((CFG_TUSB_MCU) == (OPT_MCU_STM32F3x3))
+// USB defaults to using interrupts 19, 20, and 42 (based on SYSCFG_CFGR1.USB_IT_RMP)
+// FIXME: Do all three need to be handled, or just the LP one?
+// USB high-priority interrupt (Channel 19): Triggered only by a correct
+// transfer event for isochronous and double-buffer bulk transfer to reach
+// the highest possible transfer rate.
+void USB_HP_CAN_TX_IRQHandler(void)
+{
+  dcd_fs_irqHandler();
+}
+
+// USB low-priority interrupt (Channel 20): Triggered by all USB events
+// (Correct transfer, USB reset, etc.). The firmware has to check the
+// interrupt source before serving the interrupt.
+void USB_LP_CAN_RX0_IRQHandler(void)
+{
+  dcd_fs_irqHandler();
+}
+// USB wakeup interrupt (Channel 42): Triggered by the wakeup event from the USB
+// Suspend mode.
+void USBWakeUp_IRQHandler(void)
+{
+  dcd_fs_irqHandler();
+}
+#else
+#error Which IRQ handler do you need?
+#endif
 
 #endif
 

@@ -95,12 +95,6 @@ void board_init(void)
   __HAL_RCC_USB_CLK_ENABLE();
 }
 
-void dcd_fs_irqHandler(void);
-void USB_IRQHandler(void)
-{
-	dcd_fs_irqHandler();
-}
-
 //--------------------------------------------------------------------+
 // Board porting API
 //--------------------------------------------------------------------+

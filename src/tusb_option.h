@@ -51,9 +51,29 @@
 #define OPT_MCU_SAMD21        200 ///< MicroChip SAMD21
 #define OPT_MCU_SAMD51        201 ///< MicroChip SAMD51
 
+// ST Synopsis OTG devices
 #define OPT_MCU_STM32F4       300 ///< ST STM32F4
-#define OPT_MCU_STM32_FSDEV   301 ///< ST STM32F3
 #define OPT_MCU_STM32H7       302 ///< ST STM32H7
+// ST FSDEV Devices
+#define OPT_MCU_STM32F0x0     330 ///< ST STM32F0x0
+#define OPT_MCU_STM32F0x2     331 ///< ST STM32F0x2
+#define OPT_MCU_STM32F0x8     332 ///< ST STM32F0x8
+#define OPT_MCU_STM32F1x2     333 ///< ST STM32F1x2
+#define OPT_MCU_STM32F1x3     334 ///< ST STM32F1x3
+#define OPT_MCU_STM32F3x2     335 ///< ST STM32F3x2
+#define OPT_MCU_STM32F3x3     336 ///< ST STM32F3x3
+#define OPT_MCU_STM32L0x1     337 ///< ST STM32L3x1
+#define OPT_MCU_STM32L0x2     338 ///< ST STM32L3x2
+#define OPT_MCU_STM32L1x0     339 ///< ST STM32L1x0
+#define OPT_MCU_STM32L1x1     340 ///< ST STM32L1x1
+#define OPT_MCU_STM32L1x2     341 ///< ST STM32L1x2
+#define OPT_MCU_STM32L4x2     342 ///< ST STM32L4x2
+#define OPT_MCU_STM32L4x3     343 ///< ST STM32L4x3
+#define OPT_MCU_STM32G4x1     344 ///< ST STM32G4x1
+#define OPT_MCU_STM32G4x3     345 ///< ST STM32G4x3
+#define OPT_MCU_STM32G4x4     346 ///< ST STM32G4x4
+
+
 
 /** @} */
 
