@@ -62,17 +62,6 @@
 #define OPT_MCU_STM32F1x3     334 ///< ST STM32F1x3
 #define OPT_MCU_STM32F3x2     335 ///< ST STM32F3x2
 #define OPT_MCU_STM32F3x3     336 ///< ST STM32F3x3
-#define OPT_MCU_STM32L0x1     337 ///< ST STM32L3x1
-#define OPT_MCU_STM32L0x2     338 ///< ST STM32L3x2
-#define OPT_MCU_STM32L1x0     339 ///< ST STM32L1x0
-#define OPT_MCU_STM32L1x1     340 ///< ST STM32L1x1
-#define OPT_MCU_STM32L1x2     341 ///< ST STM32L1x2
-#define OPT_MCU_STM32L4x2     342 ///< ST STM32L4x2
-#define OPT_MCU_STM32L4x3     343 ///< ST STM32L4x3
-#define OPT_MCU_STM32G4x1     344 ///< ST STM32G4x1
-#define OPT_MCU_STM32G4x3     345 ///< ST STM32G4x3
-#define OPT_MCU_STM32G4x4     346 ///< ST STM32G4x4
-
 
 
 /** @} */

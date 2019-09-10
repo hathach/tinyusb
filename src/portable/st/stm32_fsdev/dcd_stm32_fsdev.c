@@ -35,7 +35,7 @@
  * STM32F070RB
  *
  *
- * It also should work with minimal changes for any ST MCU with an "USB A" peripheral. This
+ * It also should work with minimal changes for any ST MCU with an "USB A"/"PCD"/"HCD" peripheral. This
  * covers:
  *
  * F04x, F072, F078, 070x6/B      1024 byte buffer
@@ -44,7 +44,7 @@
  * F302x6/8, F302xD/E2, F303xD/E  1024 byte buffer; no internal D+ pull-up
  * L0x2, L0x3                     1024 byte buffer
  * L1                              512 byte buffer
- * 2L4x2, 2L4x3                   1024 byte buffer
+ * L4x2, L4x3                     1024 byte buffer
  *
  * Assumptions of the driver:
  * - dcd_fs_irqHandler() is called by the USB interrupt handler
@@ -107,13 +107,7 @@
     ((CFG_TUSB_MCU) == (OPT_MCU_STM32F0x0)) || ((CFG_TUSB_MCU) == (OPT_MCU_STM32F0x2)) || \
         ((CFG_TUSB_MCU) == (OPT_MCU_STM32F0x8)) || \
     ((CFG_TUSB_MCU) == (OPT_MCU_STM32F1x2)) || ((CFG_TUSB_MCU) == (OPT_MCU_STM32F1x3)) || \
-    ((CFG_TUSB_MCU) == (OPT_MCU_STM32F3x2)) || ((CFG_TUSB_MCU) == (OPT_MCU_STM32F3x3)) || \
-    ((CFG_TUSB_MCU) == (OPT_MCU_STM32L0x1)) || ((CFG_TUSB_MCU) == (OPT_MCU_STM32L0x2)) || \
-    ((CFG_TUSB_MCU) == (OPT_MCU_STM32L1x0)) || ((CFG_TUSB_MCU) == (OPT_MCU_STM32L1x1)) || \
-        ((CFG_TUSB_MCU) == (OPT_MCU_STM32L1x2))  || \
-    ((CFG_TUSB_MCU) == (OPT_MCU_STM32L4x2)) || ((CFG_TUSB_MCU) == (OPT_MCU_STM32L4x3)) || \
-    ((CFG_TUSB_MCU) == (OPT_MCU_STM32G1x1)) || ((CFG_TUSB_MCU) == (OPT_MCU_STM32G1x3)) || \
-        ((CFG_TUSB_MCU) == (OPT_MCU_STM32G1x4)) \
+    ((CFG_TUSB_MCU) == (OPT_MCU_STM32F3x2)) || ((CFG_TUSB_MCU) == (OPT_MCU_STM32F3x3)) \
     )
 
 // In order to reduce the dependance on HAL, we undefine this.
@@ -792,8 +786,7 @@ static void dcd_read_packet_memory(void *__restrict dst, uint16_t src, size_t wN
 
 // Interrupt handlers
 #if ((CFG_TUSB_MCU) == (OPT_MCU_STM32F0x0)) || ((CFG_TUSB_MCU) == (OPT_MCU_STM32F0x2)) || \
-       ((CFG_TUSB_MCU) == (OPT_MCU_STM32F0x8)) || \
-	  ((CFG_TUSB_MCU) == (OPT_MCU_STM32L0x1)) || ((CFG_TUSB_MCU) == (OPT_MCU_STM32L0x2))
+       ((CFG_TUSB_MCU) == (OPT_MCU_STM32F0x8))
 void USB_IRQHandler(void)
 {
   dcd_fs_irqHandler();

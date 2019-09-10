@@ -78,7 +78,7 @@
 // When CAN clock is enabled, USB can use first 768 bytes ONLY.
 #else
 #error You are using an untested or unimplemented STM32 variant. Please update the driver.
-// This includes for L0x2, L0x3, L1, L4x2 and L4x3
+// This includes L0x2, L0x3, L1x0, L1x1, L1x2, L4x2 and L4x3, G1x1, G1x3, and G1x4
 #endif
 
 // For purposes of accessing the packet
