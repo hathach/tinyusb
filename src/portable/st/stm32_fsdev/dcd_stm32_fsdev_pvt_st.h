@@ -61,7 +61,7 @@
 #error The F102/F103 driver is expected not to work, but it might? Try it?
 
 #elif defined(STM32F302xB) | defined(STM32F302xC) | \
-      defined(STM32F303xB) | defined(STM32F303xC) | \ //good
+      defined(STM32F303xB) | defined(STM32F303xC) | \
       defined(STM32F373xC)
 #include "stm32f3xx.h"
 #define PMA_LENGTH 512u
@@ -70,7 +70,7 @@
 // PMA dedicated to USB (no sharing with CAN)
 #elif defined(STM32F302x6) | defined(STM32F302x8) | \
       defined(STM32F302xD) | defined(STM32F302xE) | \
-      defined(STM32F303xD) | defined(STM32F303xE) | \ //good
+      defined(STM32F303xD) | defined(STM32F303xE) | \
 #include "stm32f3xx.h"
 #define PMA_LENGTH 1024u
 // NO internal Pull-ups
