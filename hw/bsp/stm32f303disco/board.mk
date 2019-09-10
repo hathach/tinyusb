@@ -7,7 +7,7 @@ CFLAGS += \
 	-mfloat-abi=hard \
 	-mfpu=fpv4-sp-d16 \
 	-nostdlib -nostartfiles \
-	-DCFG_TUSB_MCU=OPT_MCU_STM32F3x3
+	-DCFG_TUSB_MCU=OPT_MCU_STM32F3
 
 ST_HAL_DRIVER = hw/mcu/st/st_driver/STM32F3xx_HAL_Driver
 ST_CMSIS = hw/mcu/st/st_driver/CMSIS/Device/ST/STM32F3xx

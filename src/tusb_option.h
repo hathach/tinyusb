@@ -53,15 +53,10 @@
 
 // ST Synopsis OTG devices
 #define OPT_MCU_STM32F4       300 ///< ST STM32F4
+#define OPT_MCU_STM32F3       301 ///< ST STM32F0x0
 #define OPT_MCU_STM32H7       302 ///< ST STM32H7
-// ST FSDEV Devices
-#define OPT_MCU_STM32F0x0     330 ///< ST STM32F0x0
-#define OPT_MCU_STM32F0x2     331 ///< ST STM32F0x2
-#define OPT_MCU_STM32F0x8     332 ///< ST STM32F0x8
-#define OPT_MCU_STM32F1x2     333 ///< ST STM32F1x2
-#define OPT_MCU_STM32F1x3     334 ///< ST STM32F1x3
-#define OPT_MCU_STM32F3x2     335 ///< ST STM32F3x2
-#define OPT_MCU_STM32F3x3     336 ///< ST STM32F3x3
+#define OPT_MCU_STM32F0       303 ///< ST STM32F0
+#define OPT_MCU_STM32F1       304 ///< ST STM32F1
 
 
 /** @} */

@@ -104,10 +104,13 @@
 #include "tusb_option.h"
 
 #if (TUSB_OPT_DEVICE_ENABLED) && ( \
-    ((CFG_TUSB_MCU) == (OPT_MCU_STM32F0x0)) || ((CFG_TUSB_MCU) == (OPT_MCU_STM32F0x2)) || \
-        ((CFG_TUSB_MCU) == (OPT_MCU_STM32F0x8)) || \
-    ((CFG_TUSB_MCU) == (OPT_MCU_STM32F1x2)) || ((CFG_TUSB_MCU) == (OPT_MCU_STM32F1x3)) || \
-    ((CFG_TUSB_MCU) == (OPT_MCU_STM32F3x2)) || ((CFG_TUSB_MCU) == (OPT_MCU_STM32F3x3)) \
+      ((CFG_TUSB_MCU) == OPT_MCU_STM32F0) || \
+      (((CFG_TUSB_MCU) == OPT_MCU_STM32F1) && ( \
+          defined(stm32f102x6) || defined(stm32f102xb) || \
+          defined(stm32f103x6) || defined(stm32f103xb) || \
+          defined(stm32f103xe) || defined(stm32f103xg) \
+      )) || \
+      ((CFG_TUSB_MCU) == OPT_MCU_STM32F3) \
     )
 
 // In order to reduce the dependance on HAL, we undefine this.
@@ -785,14 +788,13 @@ static void dcd_read_packet_memory(void *__restrict dst, uint16_t src, size_t wN
 
 
 // Interrupt handlers
-#if ((CFG_TUSB_MCU) == (OPT_MCU_STM32F0x0)) || ((CFG_TUSB_MCU) == (OPT_MCU_STM32F0x2)) || \
-       ((CFG_TUSB_MCU) == (OPT_MCU_STM32F0x8))
+#if (CFG_TUSB_MCU) == (OPT_MCU_STM32F0)
 void USB_IRQHandler(void)
 {
   dcd_fs_irqHandler();
 }
 
-#elif ((CFG_TUSB_MCU) == (OPT_MCU_STM32F1x2)) || ((CFG_TUSB_MCU) == (OPT_MCU_STM32F1x3))
+#elif (CFG_TUSB_MCU) == (OPT_MCU_STM32F1)
 void USB_HP_IRQHandler(void)
 {
   dcd_fs_irqHandler();
@@ -805,7 +807,8 @@ void USBWakeUp_IRQHandler(void)
 {
   dcd_fs_irqHandler();
 }
-#elif((CFG_TUSB_MCU) == (OPT_MCU_STM32F3x2)) || ((CFG_TUSB_MCU) == (OPT_MCU_STM32F3x3))
+
+#elif (CFG_TUSB_MCU) == (OPT_MCU_STM32F3)
 // USB defaults to using interrupts 19, 20, and 42 (based on SYSCFG_CFGR1.USB_IT_RMP)
 // FIXME: Do all three need to be handled, or just the LP one?
 // USB high-priority interrupt (Channel 19): Triggered only by a correct
