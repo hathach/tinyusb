@@ -36,10 +36,10 @@ VENDOR = st
 CHIP_FAMILY = stm32_fsdev
 
 # For freeRTOS port source
-FREERTOS_PORT = ARM_CM4F
+FREERTOS_PORT = ARM_CM0
 
 # For flash-jlink target
-JLINK_DEVICE = stm32f303vc
+JLINK_DEVICE = stm32f070rb
 JLINK_IF = swd
 
 # Path to STM32 Cube Programmer CLI, should be added into system path 
