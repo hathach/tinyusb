@@ -29,11 +29,17 @@
  */
 
 /**********************************************
- * This driver should work with minimal for the ST Micro "USB A" peripheral. This
- *  covers:
+ * This driver has been tested with the following MCUs:
+ * 
+ * 
+ * STM32F070RB
+ *
+ *
+ * It also should work with minimal changes for any ST MCU with an "USB A" peripheral. This
+ * covers:
  *
  * F04x, F072, F078, 070x6/B      1024 byte buffer
- * F102, F103                      512 byte buffer; no internal D+ pull-up
+ * F102, F103                      512 byte buffer; no internal D+ pull-up (maybe many more changes?)
  * F302xB/C, F303xB/C, F373        512 byte buffer; no internal D+ pull-up
  * F302x6/8, F302xD/E2, F303xD/E  1024 byte buffer; no internal D+ pull-up
  * L0x2, L0x3                     1024 byte buffer
@@ -70,6 +76,11 @@
  * - Minimal error handling
  *   - Perhaps error interrupts sholud be reported to the stack, or cause a device reset?
  * - Assumes a single USB peripheral; I think that no hardware has multiple so this is fine.
+ * - Add a callback for enabling/disabling the D+ PU on devices without an internal PU.
+ * - F3 models use three separate interrupts. I think we could only use the LP interrupt for
+ *     everything?  However, the interrupts are configurable so the DisableInt and EnableInt
+ *     below functions could be adjusting the wrong interrupts (if they had been reconfigured)
+ * - LPM is not used correctly, or at all?
  *
  * USB documentation and Reference implementations
  * - STM32 Reference manuals
@@ -92,7 +103,7 @@
 
 #include "tusb_option.h"
 
-#if TUSB_OPT_DEVICE_ENABLED && CFG_TUSB_MCU == OPT_MCU_STM32_FSDEV
+#if (TUSB_OPT_DEVICE_ENABLED) && ((CFG_TUSB_MCU) == (OPT_MCU_STM32_FSDEV))
 
 // In order to reduce the dependance on HAL, we undefine this.
 // Some definitions are copied to our private include file.
@@ -137,6 +148,7 @@
 // per STM32F3 reference manual
 #error BTABLE must be aligned to 8 bytes
 #endif
+
 // Max size of a USB FS packet is 64...
 #define MAX_PACKET_SIZE 64
 
@@ -204,17 +216,21 @@ void dcd_init (uint8_t rhport)
 
   // Initialize the BTABLE for EP0 at this point (though setting up the EP0R is unneeded)
   // This is actually not necessary, but helps debugging to start with a blank RAM area
-  for(uint16_t i=0;i<(PMA_LENGTH>>1); i++)
+  for(uint16_t i=0;i<(DCD_STM32_BTABLE_LENGTH>>1); i++)
   {
-    ((uint16_t*)USB_PMAADDR)[DCD_STM32_BTABLE_BASE + i] = 0u;
+    pma[PMA_STRIDE*(DCD_STM32_BTABLE_BASE + i)] = 0u;
   }
   USB->CNTR |= USB_CNTR_RESETM | USB_CNTR_SOFM | USB_CNTR_CTRM | USB_CNTR_SUSPM | USB_CNTR_WKUPM;
   dcd_handle_bus_reset();
+
   // And finally enable pull-up, which may trigger the RESET IRQ if the host is connected.
   // (if this MCU has an internal pullup)
 #if defined(USB_BCDR_DPPU)
   USB->BCDR |= USB_BCDR_DPPU;
+#else
+  // FIXME: callback to the user to ask them to twiddle a GPIO to disable/enable D+???
 #endif
+
 }
 
 // Enable device interrupt
@@ -225,14 +241,12 @@ void dcd_int_enable (uint8_t rhport)
   NVIC_SetPriority(USB_IRQn, 0);
   NVIC_EnableIRQ(USB_IRQn);
 #elif defined(STM32F3)
-#warning need to check these since the F3 can have its USB interrupts remapped.
   NVIC_SetPriority(USB_HP_CAN_TX_IRQn, 0);
   NVIC_SetPriority(USB_LP_CAN_RX0_IRQn, 0);
   NVIC_SetPriority(USBWakeUp_IRQn, 0);
   NVIC_EnableIRQ(USB_HP_CAN_TX_IRQn);
   NVIC_EnableIRQ(USB_LP_CAN_RX0_IRQn);
   NVIC_EnableIRQ(USBWakeUp_IRQn);
-
 #endif
 }
 
@@ -243,7 +257,6 @@ void dcd_int_disable(uint8_t rhport)
 #if defined(STM32F0)
   NVIC_DisableIRQ(USB_IRQn);
 #elif defined(STM32F3)
-#warning need to check these since the F3 can have its USB interrupts remapped.
   NVIC_DisableIRQ(USB_HP_CAN_TX_IRQn);
   NVIC_DisableIRQ(USB_LP_CAN_RX0_IRQn);
   NVIC_DisableIRQ(USBWakeUp_IRQn);
@@ -311,7 +324,7 @@ static void dcd_handle_bus_reset(void)
     EPREG(0) = 0u;
   }
 
-  ep_buf_ptr = 8*MAX_EP_COUNT; // 8 bytes per endpoint (two TX and two RX words, each)
+  ep_buf_ptr = DCD_STM32_BTABLE_BASE + 8*MAX_EP_COUNT; // 8 bytes per endpoint (two TX and two RX words, each)
   dcd_edpt_open (0, &ep0OUT_desc);
   dcd_edpt_open (0, &ep0IN_desc);
   newDADDR = 0;
@@ -386,7 +399,7 @@ static uint16_t dcd_ep_ctr_handler(void)
           /* Get SETUP Packet*/
           count = PCD_GET_EP_RX_CNT(USB, EPindex);
           //TU_ASSERT_ERR(count == 8);
-          dcd_read_packet_memory(userMemBuf, *PCD_EP_RX_ADDRESS(USB,EPindex), 8);
+          dcd_read_packet_memory(userMemBuf, *PCD_EP_RX_ADDRESS_PTR(USB,EPindex), 8);
           /* SETUP bit kept frozen while CTR_RX = 1*/
           dcd_event_setup_received(0, (uint8_t*)userMemBuf, true);
           PCD_CLEAR_RX_EP_CTR(USB, EPindex);
@@ -401,7 +414,7 @@ static uint16_t dcd_ep_ctr_handler(void)
 
           if (count != 0U)
           {
-            dcd_read_packet_memory(xfer->buffer, *PCD_EP_RX_ADDRESS(USB,EPindex), count);
+            dcd_read_packet_memory(xfer->buffer, *PCD_EP_RX_ADDRESS_PTR(USB,EPindex), count);
             xfer->queued_len = (uint16_t)(xfer->queued_len + count);
           }
 
@@ -440,7 +453,7 @@ static uint16_t dcd_ep_ctr_handler(void)
         if (count != 0U)
         {
           dcd_read_packet_memory(&(xfer->buffer[xfer->queued_len]),
-              *PCD_EP_RX_ADDRESS(USB,EPindex), count);
+              *PCD_EP_RX_ADDRESS_PTR(USB,EPindex), count);
         }
 
         /*multi-packet on the NON control OUT endpoint */
@@ -568,14 +581,14 @@ bool dcd_edpt_open (uint8_t rhport, tusb_desc_endpoint_t const * p_endpoint_desc
 
   if(dir == TUSB_DIR_IN)
   {
-    *PCD_EP_TX_ADDRESS(USB, epnum) = ep_buf_ptr;
+    *PCD_EP_TX_ADDRESS_PTR(USB, epnum) = ep_buf_ptr;
     PCD_SET_EP_RX_CNT(USB, epnum, p_endpoint_desc->wMaxPacketSize.size);
     PCD_CLEAR_TX_DTOG(USB, epnum);
     PCD_SET_EP_TX_STATUS(USB,epnum,USB_EP_TX_NAK);
   }
   else
   {
-    *PCD_EP_RX_ADDRESS(USB, epnum) = ep_buf_ptr;
+    *PCD_EP_RX_ADDRESS_PTR(USB, epnum) = ep_buf_ptr;
     PCD_SET_EP_RX_CNT(USB, epnum, p_endpoint_desc->wMaxPacketSize.size);
     PCD_CLEAR_RX_DTOG(USB, epnum);
     PCD_SET_EP_RX_STATUS(USB, epnum, USB_EP_RX_NAK);
@@ -596,11 +609,11 @@ static void dcd_transmit_packet(xfer_ctl_t * xfer, uint16_t ep_ix)
   {
     len = 64u;
   }
-  dcd_write_packet_memory(*PCD_EP_TX_ADDRESS(USB,ep_ix), &(xfer->buffer[xfer->queued_len]), len);
+  dcd_write_packet_memory(*PCD_EP_TX_ADDRESS_PTR(USB,ep_ix), &(xfer->buffer[xfer->queued_len]), len);
   xfer->queued_len = (uint16_t)(xfer->queued_len + len);
 
   PCD_SET_EP_TX_CNT(USB,ep_ix,len);
-  PCD_SET_EP_TX_STATUS(USB, ep_ix, USB_EP_TX_VALID)
+  PCD_SET_EP_TX_STATUS(USB, ep_ix, USB_EP_TX_VALID);
 }
 
 bool dcd_edpt_xfer (uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t total_bytes)
@@ -687,8 +700,8 @@ void dcd_edpt_clear_stall (uint8_t rhport, uint8_t ep_addr)
   * @brief Copy a buffer from user memory area to packet memory area (PMA).
   *        This uses byte-access for user memory (so support non-aligned buffers)
   *        and 16-bit access for packet memory.
-  * @param   dst, but not necessary in system-memory addressing
-  * @param   pbUsrBuf pointer to user memory area.
+  * @param   dst, byte address in PMA; must be 16-bit aligned
+  * @param   src pointer to user memory area.
   * @param   wPMABufAddr address into PMA.
   * @param   wNBytes no. of bytes to be copied.
   * @retval None
@@ -699,19 +712,27 @@ static void dcd_write_packet_memory(uint16_t dst, const void *__restrict src, si
   uint32_t i;
   uint16_t temp1, temp2;
   const uint8_t * srcVal;
+
+#ifdef DEBUG
+  if(((dst%2) != 0) ||
+      (dst < DCD_STM32_BTABLE_BASE) ||
+      dst >= (DCD_STM32_BTABLE_BASE + DCD_STM32_BTABLE_LENGTH))
+    while(1) TU_BREAKPOINT();
+#endif
   // The GCC optimizer will combine access to 32-bit sizes if we let it. Force
   // it volatile so that it won't do that.
   __IO uint16_t *pdwVal;
 
   srcVal = src;
-  pdwVal = (__IO uint16_t*)( ((uint8_t*)USB) + 0x400U + dst );
+  pdwVal = &pma[PMA_STRIDE*(dst>>1)];
 
   for (i = n; i != 0; i--)
   {
     temp1 = (uint16_t) *srcVal;
     srcVal++;
     temp2 = temp1 | ((uint16_t)((uint16_t) ((*srcVal) << 8U))) ;
-    *pdwVal++ = temp2;
+    *pdwVal = temp2;
+    pdwVal += PMA_STRIDE;
     srcVal++;
   }
 }
@@ -731,19 +752,28 @@ static void dcd_read_packet_memory(void *__restrict dst, uint16_t src, size_t wN
   __IO const uint16_t *pdwVal;
   uint32_t temp;
 
-  pdwVal = (__IO uint16_t*)( ((uint8_t*)USB) + 0x400U + src );
+#ifdef DEBUG
+  if((src%2) != 0 ||
+      (src < DCD_STM32_BTABLE_BASE) ||
+      src >= (DCD_STM32_BTABLE_BASE + DCD_STM32_BTABLE_LENGTH))
+    while(1) TU_BREAKPOINT();
+#endif
+
+  pdwVal = &pma[PMA_STRIDE*(src>>1)];
   uint8_t *dstVal = (uint8_t*)dst;
 
   for (i = n; i != 0U; i--)
   {
-    temp = *pdwVal++;
+    temp = *pdwVal;
+    pdwVal += PMA_STRIDE;
     *dstVal++ = ((temp >> 0) & 0xFF);
     *dstVal++ = ((temp >> 8) & 0xFF);
   }
 
   if (wNBytes % 2)
   {
-    temp = *pdwVal++;
+    temp = *pdwVal;
+    pdwVal += PMA_STRIDE;
     *dstVal++ = ((temp >> 0) & 0xFF);
   }
 }

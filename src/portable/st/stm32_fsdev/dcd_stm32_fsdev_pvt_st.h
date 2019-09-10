@@ -34,24 +34,64 @@
 
 // This file contains source copied from ST's HAL, and thus should have their copyright statement.
 
-
 // PMA_LENGTH is PMA buffer size in bytes.
-
-#if defined(STM32F070xB) | defined(STM32F070x6)
-#include "stm32f0xx.h"
-#define PMA_LENGTH 1024
-#elif defined(STM32F303xB) | defined(STM32F303xC)
-#warning STM32F3 platform is untested.
-#include "stm32f3xx.h"
-#define PMA_LENGTH 512
-#else
-#error You are using an untested or unimplemented STM32 variant
-#endif
-
-
+// On 512-byte devices, access with a stride of two words (use every other 16-bit address)
+// On 1024-byte devices, access with a stride of one word (use every 16-bit address)
 
 #ifndef PORTABLE_ST_STM32F0_DCD_STM32F0_FSDEV_PVT_ST_H_
 #define PORTABLE_ST_STM32F0_DCD_STM32F0_FSDEV_PVT_ST_H_
+
+#if defined(STM32F042x6) | \
+    defined(STM32F070x6) | defined(STM32F070xB) | \
+    defined(STM32F072xB) | \
+    defined(STM32F078xx)
+#include "stm32f0xx.h"
+#define PMA_LENGTH 1024
+// F0x2 models are crystal-less
+// All have internal D+ pull-up
+// 070RB:    2 x 16 bits/word memory     LPM Support, BCD Support
+// PMA dedicated to USB (no sharing with CAN)
+#elif defined(STM32F102x6) | defined(STM32F102x6) | \
+      defined(STM32F103x6) | defined(STM32F103xB) | \
+      defined(STM32F103xE) | defined(STM32F103xB)
+#include "stm32f1xx.h"
+#define PMA_LENGTH 512u
+// NO internal Pull-ups
+//         *B, and *C:    2 x 16 bits/word
+#error The F102/F103 driver is expected not to work, but it might? Try it?
+
+#elif defined(STM32F302xB) | defined(STM32F302xC) | \
+      defined(STM32F303xB) | defined(STM32F303xC) | \ //good
+      defined(STM32F373xC)
+#include "stm32f3xx.h"
+#define PMA_LENGTH 512u
+// NO internal Pull-ups
+//         *B, and *C:    1 x 16 bits/word
+// PMA dedicated to USB (no sharing with CAN)
+#elif defined(STM32F302x6) | defined(STM32F302x8) | \
+      defined(STM32F302xD) | defined(STM32F302xE) | \
+      defined(STM32F303xD) | defined(STM32F303xE) | \ //good
+#include "stm32f3xx.h"
+#define PMA_LENGTH 1024u
+// NO internal Pull-ups
+// *6, *8, *D, and *E:    2 x 16 bits/word     LPM Support
+// When CAN clock is enabled, USB can use first 768 bytes ONLY.
+#else
+#error You are using an untested or unimplemented STM32 variant. Please update the driver.
+// This includes for L0x2, L0x3, L1, L4x2 and L4x3
+#endif
+
+// For purposes of accessing the packet
+#if ((PMA_LENGTH) == 512u)
+#  define PMA_STRIDE (2u)
+#elif ((PMA_LENGTH) == 1024u)
+#  define PMA_STRIDE (1u)
+#endif
+
+// And for type-safety create a new macro for the volatile address of PMAADDR
+// The compiler should warn us if we cast it to a non-volatile type?
+// Volatile is also needed to prevent the optimizer from changing access to 32-bit (as 32-bit access is forbidden)
+static __IO uint16_t * const pma = (__IO uint16_t*)USB_PMAADDR;
 
 /* SetENDPOINT */
 #define PCD_SET_ENDPOINT(USBx, bEpNum,wRegValue)  (*((__IO uint16_t *)(((uint32_t)(&(USBx)->EP0R + (bEpNum) * 2U))))= (uint16_t)(wRegValue))
@@ -77,8 +117,8 @@
   * @param  bEpNum Endpoint Number.
   * @retval Counter value
   */
-#define PCD_GET_EP_TX_CNT(USBx, bEpNum)((uint16_t)(*PCD_EP_TX_CNT((USBx), (bEpNum))) & 0x3ffU)
-#define PCD_GET_EP_RX_CNT(USBx, bEpNum)((uint16_t)(*PCD_EP_RX_CNT((USBx), (bEpNum))) & 0x3ffU)
+#define PCD_GET_EP_TX_CNT(USBx, bEpNum)((uint16_t)(*PCD_EP_TX_CNT_PTR((USBx), (bEpNum))) & 0x3ffU)
+#define PCD_GET_EP_RX_CNT(USBx, bEpNum)((uint16_t)(*PCD_EP_RX_CNT_PTR((USBx), (bEpNum))) & 0x3ffU)
 
 /**
   * @brief  Sets counter of rx buffer with no. of blocks.
@@ -131,16 +171,18 @@
 #define PCD_SET_EP_ADDRESS(USBx, bEpNum,bAddr) PCD_SET_ENDPOINT((USBx), (bEpNum),\
     USB_EP_CTR_RX|USB_EP_CTR_TX|(((uint32_t)(PCD_GET_ENDPOINT((USBx), (bEpNum)))) & USB_EPREG_MASK) | (bAddr))
 
+#define PCD_BTABLE_WORD_PTR(USBx,x) (&(pma[PMA_STRIDE*((((USBx)->BTABLE)>>1) + x)]))
 
-#define PCD_EP_TX_ADDRESS(USBx, bEpNum) ((__IO uint16_t *)((uint32_t)((((USBx)->BTABLE+(bEpNum)*8u)+     ((uint32_t)(USBx) + 0x400U)))))
-#define PCD_EP_TX_CNT(USBx, bEpNum) ((__IO uint16_t *)((uint32_t)((((USBx)->BTABLE+(bEpNum)*8u+2u)+  ((uint32_t)(USBx) + 0x400U)))))
+// Pointers to the PMA table entries (using the ARM address space)
+#define PCD_EP_TX_ADDRESS_PTR(USBx, bEpNum) (PCD_BTABLE_WORD_PTR(USBx,(bEpNum)*4u + 0u))
+#define PCD_EP_TX_CNT_PTR(USBx, bEpNum)     (PCD_BTABLE_WORD_PTR(USBx,(bEpNum)*4u + 1u))
 
-#define PCD_EP_RX_ADDRESS(USBx, bEpNum) ((__IO uint16_t *)((uint32_t)((((USBx)->BTABLE+(bEpNum)*8u+4u)+ ((uint32_t)(USBx) + 0x400U)))))
-#define PCD_EP_RX_CNT(USBx, bEpNum) ((__IO uint16_t *)((uint32_t)((((USBx)->BTABLE+(bEpNum)*8u+6u)+  ((uint32_t)(USBx) + 0x400U)))))
+#define PCD_EP_RX_ADDRESS_PTR(USBx, bEpNum) (PCD_BTABLE_WORD_PTR(USBx,(bEpNum)*4u + 2u))
+#define PCD_EP_RX_CNT_PTR(USBx, bEpNum)     (PCD_BTABLE_WORD_PTR(USBx,(bEpNum)*4u + 3u))
 
-#define PCD_SET_EP_TX_CNT(USBx, bEpNum,wCount) (*PCD_EP_TX_CNT((USBx), (bEpNum)) = (wCount))
+#define PCD_SET_EP_TX_CNT(USBx, bEpNum,wCount) (*PCD_EP_TX_CNT_PTR((USBx), (bEpNum)) = (wCount))
 #define PCD_SET_EP_RX_CNT(USBx, bEpNum,wCount) do {\
-    __IO uint16_t *pdwReg =PCD_EP_RX_CNT((USBx),(bEpNum)); \
+    __IO uint16_t *pdwReg =PCD_EP_RX_CNT_PTR((USBx),(bEpNum)); \
     PCD_SET_EP_CNT_RX_REG((pdwReg), (wCount))\
   } while(0)
 
@@ -232,8 +274,9 @@
 
 #define EPREG(n) (((__IO uint16_t*)USB_BASE)[n*2])
 
+// This checks if the device has "LPM"
 #if defined(USB_ISTR_L1REQ)
-#define USB_ISTR_L1REQ_FORCED USB_ISTR_L1REQ
+#define USB_ISTR_L1REQ_FORCED (USB_ISTR_L1REQ)
 #else
 #define USB_ISTR_L1REQ_FORCED ((uint16_t)0x0000U)
 #endif

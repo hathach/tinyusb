@@ -89,7 +89,7 @@ static inline uint32_t tu_u32(uint8_t b1, uint8_t b2, uint8_t b3, uint8_t b4)
 
 static inline uint16_t tu_u16(uint8_t high, uint8_t low)
 {
-  return (((uint16_t) high) << 8) + low;
+  return (uint16_t)((((uint16_t) high) << 8) + low);
 }
 
 static inline uint8_t tu_u16_high(uint16_t u16) { return (uint8_t) (((uint16_t) (u16 >> 8)) & 0x00ff); }
