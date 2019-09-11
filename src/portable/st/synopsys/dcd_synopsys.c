@@ -28,20 +28,28 @@
 #include "tusb_option.h"
 
 #if TUSB_OPT_DEVICE_ENABLED && ( CFG_TUSB_MCU == OPT_MCU_STM32F4 || \
-                                 CFG_TUSB_MCU == OPT_MCU_STM32H7 )
+                                 CFG_TUSB_MCU == OPT_MCU_STM32H7 || \
+                                 CFG_TUSB_MCU == OPT_MCU_STM32F7)
 
+// TODO Support OTG_HS
+// EP_MAX       : Max number of bi-directional endpoints including EP0
+// EP_FIFO_SIZE : Size of dedicated USB SRAM
 #if CFG_TUSB_MCU == OPT_MCU_STM32F4
   #include "stm32f4xx.h"
-  // TODO Merge with OTG_HS
-  // Max endpoints for each direction
+
   #define EP_MAX        USB_OTG_FS_MAX_IN_ENDPOINTS
   #define EP_FIFO_SIZE  USB_OTG_FS_TOTAL_FIFO_SIZE
 #elif CFG_TUSB_MCU == OPT_MCU_STM32H7
   #include "stm32h7xx.h"
-  // TODO There is no equivalent macro for max endpoints in H7 header.
-  #define EP_MAX        8
+
+  #define EP_MAX        9
   #define EP_FIFO_SIZE  4096
   // TODO The official name of the USB FS peripheral on H7 is "USB2_OTG_FS".
+#else
+  #include "stm32f7xx.h"
+
+  #define EP_MAX        6
+  #define EP_FIFO_SIZE  1280
 #endif
 
 #include "device/dcd.h"
