@@ -1,8 +1,8 @@
 CFLAGS += \
 	-DHSE_VALUE=8000000 \
-	-DSTM32F070xB \
+	-DSTM32F072xB \
 	-mthumb \
-	-mabi=aapcs-linux \
+	-mabi=aapcs \
 	-mcpu=cortex-m0 \
 	-mfloat-abi=soft \
 	-nostdlib -nostartfiles \
@@ -13,7 +13,7 @@ ST_HAL_DRIVER = hw/mcu/st/st_driver/STM32F0xx_HAL_Driver
 ST_CMSIS = hw/mcu/st/st_driver/CMSIS/Device/ST/STM32F0xx
 
 # All source paths should be relative to the top level.
-LD_FILE = hw/bsp/stm32f070rbnucleo/stm32F070rbtx_flash.ld
+LD_FILE = hw/bsp/$(BOARD)/STM32F072RBTx_FLASH.ld
 
 SRC_C += \
 	$(ST_CMSIS)/Source/Templates/system_stm32f0xx.c \
@@ -24,7 +24,7 @@ SRC_C += \
 	$(ST_HAL_DRIVER)/Src/stm32f0xx_hal_gpio.c
 
 SRC_S += \
-	$(ST_CMSIS)/Source/Templates/gcc/startup_stm32f070xb.s
+	$(ST_CMSIS)/Source/Templates/gcc/startup_stm32f072xb.s
 
 INC += \
 	$(TOP)/hw/mcu/st/st_driver/CMSIS/Include \
@@ -40,7 +40,7 @@ CHIP_FAMILY = stm32_fsdev
 FREERTOS_PORT = ARM_CM0
 
 # For flash-jlink target
-JLINK_DEVICE = stm32f070rb
+JLINK_DEVICE = stm32f072rb
 JLINK_IF = swd
 
 # Path to STM32 Cube Programmer CLI, should be added into system path 

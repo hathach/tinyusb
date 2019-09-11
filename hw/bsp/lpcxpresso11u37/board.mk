@@ -5,6 +5,7 @@ CFLAGS += \
   -nostdlib \
   -DCORE_M0 \
   -D__USE_LPCOPEN \
+  -DCFG_EXAMPLE_MSC_READONLY \
   -DCFG_TUSB_MCU=OPT_MCU_LPC11UXX \
   -DCFG_TUSB_MEM_SECTION='__attribute__((section(".data.$$RAM2")))' \
   -DCFG_TUSB_MEM_ALIGN='__attribute__((aligned(64)))' 
