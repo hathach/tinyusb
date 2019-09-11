@@ -2,7 +2,7 @@ CFLAGS += \
 	-DHSE_VALUE=8000000 \
 	-DSTM32F303xC \
 	-mthumb \
-	-mabi=aapcs-linux \
+	-mabi=aapcs \
 	-mcpu=cortex-m4 \
 	-mfloat-abi=hard \
 	-mfpu=fpv4-sp-d16 \
@@ -20,6 +20,7 @@ SRC_C += \
 	$(ST_HAL_DRIVER)/Src/stm32f3xx_hal.c \
 	$(ST_HAL_DRIVER)/Src/stm32f3xx_hal_cortex.c \
 	$(ST_HAL_DRIVER)/Src/stm32f3xx_hal_rcc.c \
+	$(ST_HAL_DRIVER)/Src/stm32f3xx_hal_rcc_ex.c \
 	$(ST_HAL_DRIVER)/Src/stm32f3xx_hal_gpio.c
 
 SRC_S += \

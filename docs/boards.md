@@ -40,11 +40,13 @@ This code base already had supported for a handful of following boards
 - [Adafruit Metro M4 Express](https://www.adafruit.com/product/3382)
 
 ### ST STM32
-- [STM32F070RB Nucleo](https://www.st.com/en/evaluation-tools/nucleo-f070rb.html)
-- [STM32F072b Discovery](https://www.st.com/en/evaluation-tools/32f072bdiscovery.html)
-- [STM32F407g Discovery](https://www.st.com/en/evaluation-tools/stm32f4discovery.html)
-- [STM32F411e Discovery](https://www.st.com/en/evaluation-tools/32f411ediscovery.html)
-- [STM32F412g Discovery](https://www.st.com/en/evaluation-tools/32f412gdiscovery.html)
+
+- [STM32F070rb Nucleo](https://www.st.com/en/evaluation-tools/nucleo-f070rb.html)
+- [STM32F072rb Discovery](https://www.st.com/en/evaluation-tools/32f072bdiscovery.html)
+- [STM32F303vc Discovery](https://www.st.com/en/evaluation-tools/stm32f3discovery.html)
+- [STM32F407vg Discovery](https://www.st.com/en/evaluation-tools/stm32f4discovery.html)
+- [STM32F411ve Discovery](https://www.st.com/en/evaluation-tools/32f411ediscovery.html)
+- [STM32F412zg Discovery](https://www.st.com/en/evaluation-tools/32f412gdiscovery.html)
 - [Nucleo H743zi](https://www.st.com/en/evaluation-tools/nucleo-h743zi.html)
 
 ## Add your own board
