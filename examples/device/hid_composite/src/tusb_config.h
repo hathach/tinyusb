@@ -69,33 +69,17 @@
 // DEVICE CONFIGURATION
 //--------------------------------------------------------------------
 
-#define CFG_TUD_ENDOINT0_SIZE    64
+#define CFG_TUD_ENDOINT0_SIZE   64
 
 //------------- CLASS -------------//
-#define CFG_TUD_CDC              1
-#define CFG_TUD_MSC              1
-
-// Some STM32 MCUs does not have enough endpoints (4, including control
-// endpoint) to enable CDC, MSC, and HID simultaneously, so disable HID as a compromise.
-#if CFG_TUSB_MCU == OPT_MCU_STM32F4
-  #include "stm32f4xx.h"
-  #define CFG_TUD_HID            ((USB_OTG_FS_MAX_IN_ENDPOINTS > 4) ? 1 : 0)
-#else
-  #define CFG_TUD_HID            1
-#endif
-
-#define CFG_TUD_MIDI             0
-#define CFG_TUD_VENDOR           0
-
-// CDC FIFO size of TX and RX
-#define CFG_TUD_CDC_RX_BUFSIZE   64
-#define CFG_TUD_CDC_TX_BUFSIZE   64
-
-// MSC Buffer size of Device Mass storage
-#define CFG_TUD_MSC_BUFSIZE      512
+#define CFG_TUD_HID             1
+#define CFG_TUD_CDC             0
+#define CFG_TUD_MSC             0
+#define CFG_TUD_MIDI            0
+#define CFG_TUD_VENDOR          0
 
 // HID buffer size Should be sufficient to hold ID (if any) + Data
-#define CFG_TUD_HID_BUFSIZE      16
+#define CFG_TUD_HID_BUFSIZE     16
 
 #ifdef __cplusplus
  }

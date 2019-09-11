@@ -19,9 +19,6 @@ for entry in os.scandir("examples/device"):
     if entry.is_dir():
         all_examples.append(entry.name)
 
-# mynewt has its own example repo
-all_examples.remove("cdc_msc_hid_mynewt")
-
 # TODO update freeRTOS example to work with all boards (only nrf52840 now)
 all_examples.remove("cdc_msc_hid_freertos")
 
