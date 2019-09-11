@@ -21,7 +21,7 @@ SRC_C += \
 	$(ST_HAL_DRIVER)/Src/stm32f4xx_hal_cortex.c \
 	$(ST_HAL_DRIVER)/Src/stm32f4xx_hal_rcc.c \
 	$(ST_HAL_DRIVER)/Src/stm32f4xx_hal_rcc_ex.c \
-	$(ST_HAL_DRIVER)/Src/stm32f4xx_hal_gpio.c	
+	$(ST_HAL_DRIVER)/Src/stm32f4xx_hal_gpio.c
 
 SRC_S += \
 	$(ST_CMSIS)/Source/Templates/gcc/startup_stm32f412zx.s
@@ -34,7 +34,7 @@ INC += \
 
 # For TinyUSB port source
 VENDOR = st
-CHIP_FAMILY = stm32f4
+CHIP_FAMILY = synopsys
 
 # For freeRTOS port source
 FREERTOS_PORT = ARM_CM4F
@@ -43,7 +43,7 @@ FREERTOS_PORT = ARM_CM4F
 JLINK_DEVICE = stm32f41zx
 JLINK_IF = swd
 
-# Path to STM32 Cube Programmer CLI, should be added into system path 
+# Path to STM32 Cube Programmer CLI, should be added into system path
 STM32Prog = STM32_Programmer_CLI
 
 # flash target using on-board stlink
