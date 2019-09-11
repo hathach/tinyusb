@@ -104,7 +104,15 @@ void board_init(void)
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_HIGH;
   HAL_GPIO_Init(BUTTON_PORT, &GPIO_InitStruct);
 
-  // Start USB clock
+  // USB Pins
+  // Configure USB DM and DP pins. This is optional, and maintained only for user guidance.
+  GPIO_InitStruct.Pin = (GPIO_PIN_11 | GPIO_PIN_12);
+  GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_HIGH;
+  HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
+
+  // USB Clock enable
   __HAL_RCC_USB_CLK_ENABLE();
 }
 
