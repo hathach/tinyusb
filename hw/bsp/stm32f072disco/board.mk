@@ -6,6 +6,7 @@ CFLAGS += \
 	-mcpu=cortex-m0 \
 	-mfloat-abi=soft \
 	-nostdlib -nostartfiles \
+	-DCFG_EXAMPLE_MSC_READONLY \
 	-DCFG_TUSB_MCU=OPT_MCU_STM32F0
 
 ST_HAL_DRIVER = hw/mcu/st/st_driver/STM32F0xx_HAL_Driver
