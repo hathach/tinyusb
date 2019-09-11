@@ -29,11 +29,8 @@
 #if CFG_TUD_MSC
 
 // Some MCU doesn't have enough 8KB SRAM to store the whole disk
-// We will use Flash as read-only disk
-// - LPC1347, LPC11uxx
-#if (CFG_TUSB_MCU == OPT_MCU_LPC13XX) || (CFG_TUSB_MCU == OPT_MCU_LPC11UXX)
-#define DISK_READONLY
-#endif
+// We will use Flash as read-only disk with board that has
+// CFG_EXAMPLE_MSC_READONLY defined
 
 #define README_CONTENTS \
 "This is tinyusb's MassStorage Class demo.\r\n\r\n\
@@ -46,7 +43,7 @@ enum
   DISK_BLOCK_SIZE = 512
 };
 
-#ifdef DISK_READONLY
+#ifdef CFG_EXAMPLE_MSC_READONLY
 const
 #endif
 uint8_t msc_disk[DISK_BLOCK_NUM][DISK_BLOCK_SIZE] =
@@ -193,7 +190,7 @@ int32_t tud_msc_write10_cb(uint8_t lun, uint32_t lba, uint32_t offset, uint8_t* 
 {
   (void) lun;
 
-#ifndef DISK_READONLY
+#ifndef CFG_EXAMPLE_MSC_READONLY
   uint8_t* addr = msc_disk[lba] + offset;
   memcpy(addr, buffer, bufsize);
 #else

@@ -50,8 +50,6 @@ enum  {
 static uint32_t blink_interval_ms = BLINK_NOT_MOUNTED;
 
 void led_blinking_task(void);
-
-void cdc_task(void);
 void hid_task(void);
 
 /*------------- MAIN -------------*/
@@ -66,13 +64,7 @@ int main(void)
     tud_task(); // tinyusb device task
     led_blinking_task();
 
-#if CFG_TUD_CDC
-    cdc_task();
-#endif
-
-#if CFG_TUD_HID
     hid_task();
-#endif
   }
 
   return 0;
@@ -109,60 +101,9 @@ void tud_resume_cb(void)
   blink_interval_ms = BLINK_MOUNTED;
 }
 
-
-//--------------------------------------------------------------------+
-// USB CDC
-//--------------------------------------------------------------------+
-#if CFG_TUD_CDC
-void cdc_task(void)
-{
-  if ( tud_cdc_connected() )
-  {
-    // connected and there are data available
-    if ( tud_cdc_available() )
-    {
-      uint8_t buf[64];
-
-      // read and echo back
-      uint32_t count = tud_cdc_read(buf, sizeof(buf));
-
-      for(uint32_t i=0; i<count; i++)
-      {
-        tud_cdc_write_char(buf[i]);
-
-        if ( buf[i] == '\r' ) tud_cdc_write_char('\n');
-      }
-
-      tud_cdc_write_flush();
-    }
-  }
-}
-
-// Invoked when cdc when line state changed e.g connected/disconnected
-void tud_cdc_line_state_cb(uint8_t itf, bool dtr, bool rts)
-{
-  (void) itf;
-
-  // connected
-  if ( dtr && rts )
-  {
-    // print initial message when connected
-    tud_cdc_write_str("\r\nTinyUSB CDC MSC HID device example\r\n");
-  }
-}
-
-// Invoked when CDC interface received data from host
-void tud_cdc_rx_cb(uint8_t itf)
-{
-  (void) itf;
-}
-
-#endif
-
 //--------------------------------------------------------------------+
 // USB HID
 //--------------------------------------------------------------------+
-#if CFG_TUD_HID
 
 void hid_task(void)
 {
@@ -221,6 +162,7 @@ void hid_task(void)
   }
 }
 
+
 // Invoked when received GET_REPORT control request
 // Application must fill buffer report's content and return its length.
 // Return zero will cause the stack to STALL request
@@ -239,14 +181,12 @@ uint16_t tud_hid_get_report_cb(uint8_t report_id, hid_report_type_t report_type,
 // received data on OUT endpoint ( Report ID = 0, Type = 0 )
 void tud_hid_set_report_cb(uint8_t report_id, hid_report_type_t report_type, uint8_t const* buffer, uint16_t bufsize)
 {
-  // TODO not Implemented
+  // TODO set LED based on CAPLOCK, NUMLOCK etc...
   (void) report_id;
   (void) report_type;
   (void) buffer;
   (void) bufsize;
 }
-
-#endif
 
 //--------------------------------------------------------------------+
 // BLINKING TASK

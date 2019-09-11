@@ -1,30 +1,30 @@
 CFLAGS += \
 	-DHSE_VALUE=8000000 \
-	-DSTM32F303xC \
+	-DSTM32F072xB \
 	-mthumb \
 	-mabi=aapcs \
-	-mcpu=cortex-m4 \
-	-mfloat-abi=hard \
-	-mfpu=fpv4-sp-d16 \
+	-mcpu=cortex-m0 \
+	-mfloat-abi=soft \
 	-nostdlib -nostartfiles \
-	-DCFG_TUSB_MCU=OPT_MCU_STM32F3
+	-DCFG_EXAMPLE_MSC_READONLY \
+	-DCFG_TUSB_MCU=OPT_MCU_STM32F0
 
-ST_HAL_DRIVER = hw/mcu/st/st_driver/STM32F3xx_HAL_Driver
-ST_CMSIS = hw/mcu/st/st_driver/CMSIS/Device/ST/STM32F3xx
+ST_HAL_DRIVER = hw/mcu/st/st_driver/STM32F0xx_HAL_Driver
+ST_CMSIS = hw/mcu/st/st_driver/CMSIS/Device/ST/STM32F0xx
 
 # All source paths should be relative to the top level.
-LD_FILE = hw/bsp/stm32f303disco/STM32F303VCTx_FLASH.ld
+LD_FILE = hw/bsp/$(BOARD)/STM32F072RBTx_FLASH.ld
 
 SRC_C += \
-	$(ST_CMSIS)/Source/Templates/system_stm32f3xx.c \
-	$(ST_HAL_DRIVER)/Src/stm32f3xx_hal.c \
-	$(ST_HAL_DRIVER)/Src/stm32f3xx_hal_cortex.c \
-	$(ST_HAL_DRIVER)/Src/stm32f3xx_hal_rcc.c \
-	$(ST_HAL_DRIVER)/Src/stm32f3xx_hal_rcc_ex.c \
-	$(ST_HAL_DRIVER)/Src/stm32f3xx_hal_gpio.c
+	$(ST_CMSIS)/Source/Templates/system_stm32f0xx.c \
+	$(ST_HAL_DRIVER)/Src/stm32f0xx_hal.c \
+	$(ST_HAL_DRIVER)/Src/stm32f0xx_hal_cortex.c \
+	$(ST_HAL_DRIVER)/Src/stm32f0xx_hal_rcc.c \
+	$(ST_HAL_DRIVER)/Src/stm32f0xx_hal_rcc_ex.c \
+	$(ST_HAL_DRIVER)/Src/stm32f0xx_hal_gpio.c
 
 SRC_S += \
-	$(ST_CMSIS)/Source/Templates/gcc/startup_stm32f303xc.s
+	$(ST_CMSIS)/Source/Templates/gcc/startup_stm32f072xb.s
 
 INC += \
 	$(TOP)/hw/mcu/st/st_driver/CMSIS/Include \
@@ -37,10 +37,10 @@ VENDOR = st
 CHIP_FAMILY = stm32_fsdev
 
 # For freeRTOS port source
-FREERTOS_PORT = ARM_CM4F
+FREERTOS_PORT = ARM_CM0
 
 # For flash-jlink target
-JLINK_DEVICE = stm32f303vc
+JLINK_DEVICE = stm32f072rb
 JLINK_IF = swd
 
 # Path to STM32 Cube Programmer CLI, should be added into system path 

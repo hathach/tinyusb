@@ -442,12 +442,12 @@ static inline tusb_dir_t tu_edpt_dir(uint8_t addr)
 // Get Endpoint number from address
 static inline uint8_t tu_edpt_number(uint8_t addr)
 {
-  return addr & (~TUSB_DIR_IN_MASK);
+  return (uint8_t)(addr & (~TUSB_DIR_IN_MASK));
 }
 
 static inline uint8_t tu_edpt_addr(uint8_t num, uint8_t dir)
 {
-  return num | (dir ? TUSB_DIR_IN_MASK : 0);
+  return (uint8_t)(num | (dir ? TUSB_DIR_IN_MASK : 0));
 }
 
 //--------------------------------------------------------------------+

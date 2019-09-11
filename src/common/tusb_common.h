@@ -89,7 +89,7 @@ static inline uint32_t tu_u32(uint8_t b1, uint8_t b2, uint8_t b3, uint8_t b4)
 
 static inline uint16_t tu_u16(uint8_t high, uint8_t low)
 {
-  return (((uint16_t) high) << 8) + low;
+  return (uint16_t)((((uint16_t) high) << 8) + low);
 }
 
 static inline uint8_t tu_u16_high(uint16_t u16) { return (uint8_t) (((uint16_t) (u16 >> 8)) & 0x00ff); }
@@ -117,7 +117,7 @@ static inline uint32_t tu_align4k (uint32_t value) { return (value & 0xFFFFF000U
 static inline uint32_t tu_offset4k(uint32_t value) { return (value & 0xFFFUL); }
 
 //------------- Mathematics -------------//
-static inline uint32_t tu_abs(int32_t value) { return (value < 0) ? (-value) : value; }
+static inline uint32_t tu_abs(int32_t value) { return (uint32_t)((value < 0) ? (-value) : value); }
 
 /// inclusive range checking
 static inline bool tu_within(uint32_t lower, uint32_t value, uint32_t upper)

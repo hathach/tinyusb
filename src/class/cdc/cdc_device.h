@@ -135,7 +135,7 @@ static inline uint8_t tud_cdc_get_line_state (void)
 
 static inline void tud_cdc_get_line_coding (cdc_line_coding_t* coding)
 {
-  return tud_cdc_n_get_line_coding(0, coding);
+  tud_cdc_n_get_line_coding(0, coding);
 }
 
 static inline void tud_cdc_set_wanted_char (char wanted)

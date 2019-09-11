@@ -25,6 +25,7 @@ This code base already had supported for a handful of following boards
 - [LPCXpresso 1769](https://www.nxp.com/support/developer-resources/evaluation-and-development-boards/lpcxpresso-boards/lpcxpresso-board-for-lpc1769:OM13000)
 - [Keil MCB1800 Evaluation Board](http://www.keil.com/mcb1800)
 - [Embedded Artists LPC4088 Quick Start board](https://www.embeddedartists.com/products/lpc4088-quickstart-board)
+- [NGX LPC4330-Xplorer](https://www.nxp.com/design/designs/lpc4330-xplorer-board:OM13027)
 - [Embedded Artists LPC4357 Developer Kit](http://www.embeddedartists.com/products/kits/lpc4357_kit.php)
 - [LPCXpresso 51U68](https://www.nxp.com/products/processors-and-microcontrollers/arm-microcontrollers/general-purpose-mcus/lpcxpresso51u68-for-the-lpc51u68-mcus:OM40005)
 - [LPCXpresso 54114](https://www.nxp.com/design/microcontrollers-developer-resources/lpcxpresso-boards/lpcxpresso54114-board:OM13089)
@@ -40,9 +41,13 @@ This code base already had supported for a handful of following boards
 
 ### ST STM32
 
-- [STM32F407g Discovery](https://www.st.com/en/evaluation-tools/stm32f4discovery.html)
-- [STM32F411e Discovery](https://www.st.com/en/evaluation-tools/32f411ediscovery.html)
-- [STM32F412g Discovery](https://www.st.com/en/evaluation-tools/32f412gdiscovery.html)
+- [STM32F070rb Nucleo](https://www.st.com/en/evaluation-tools/nucleo-f070rb.html)
+- [STM32F072rb Discovery](https://www.st.com/en/evaluation-tools/32f072bdiscovery.html)
+- [STM32F303vc Discovery](https://www.st.com/en/evaluation-tools/stm32f3discovery.html)
+- [STM32F407vg Discovery](https://www.st.com/en/evaluation-tools/stm32f4discovery.html)
+- [STM32F411ve Discovery](https://www.st.com/en/evaluation-tools/32f411ediscovery.html)
+- [STM32F412zg Discovery](https://www.st.com/en/evaluation-tools/32f412gdiscovery.html)
+- [Nucleo STM32F767zi](https://www.st.com/en/evaluation-tools/nucleo-f767zi.html)
 - [Nucleo H743zi](https://www.st.com/en/evaluation-tools/nucleo-h743zi.html)
 
 ## Add your own board
@@ -50,7 +55,7 @@ This code base already had supported for a handful of following boards
 If you don't possess any of supported board above. Don't worry you can easily implemented your own one by following this guide as long as the mcu is supported.
 
 - Create new makefile for your board at `hw/bsp/<board name>/board.mk` and linker file as well if needed.
-- Create new source file for your board at `hw/bsp/<board name>/board_<board name>.c` and implement following APIs
+- Create new source file for your board at `hw/bsp/<board name>/<board name>.c` and implement following APIs
 
 ### Board APIs
 

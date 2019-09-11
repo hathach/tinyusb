@@ -51,9 +51,15 @@
 #define OPT_MCU_SAMD21        200 ///< MicroChip SAMD21
 #define OPT_MCU_SAMD51        201 ///< MicroChip SAMD51
 
-#define OPT_MCU_STM32F4       300 ///< ST STM32F4
-#define OPT_MCU_STM32F3       301 ///< ST STM32F3
-#define OPT_MCU_STM32H7       302 ///< ST STM32H7
+// ST Synopsis OTG devices
+#define OPT_MCU_STM32F0       300 ///< ST STM32F0
+#define OPT_MCU_STM32F1       301 ///< ST STM32F1
+#define OPT_MCU_STM32F2       302 ///< ST STM32F2
+#define OPT_MCU_STM32F3       303 ///< ST STM32F3
+#define OPT_MCU_STM32F4       304 ///< ST STM32F4
+#define OPT_MCU_STM32F7       305 ///< ST STM32F7
+#define OPT_MCU_STM32H7       306 ///< ST STM32H7
+
 
 /** @} */
 
@@ -145,8 +151,8 @@
 // DEVICE OPTIONS
 //--------------------------------------------------------------------
 
-#ifndef CFG_TUD_ENDOINT0_SIZE
-  #define CFG_TUD_ENDOINT0_SIZE   64
+#ifndef CFG_TUD_ENDPOINT0_SIZE
+  #define CFG_TUD_ENDPOINT0_SIZE   64
 #endif
 
 #ifndef CFG_TUD_CDC
@@ -198,7 +204,7 @@
 //------------------------------------------------------------------
 // Configuration Validation
 //------------------------------------------------------------------
-#if CFG_TUD_ENDOINT0_SIZE > 64
+#if CFG_TUD_ENDPOINT0_SIZE > 64
   #error Control Endpoint Max Packet Size cannot be larger than 64
 #endif
 

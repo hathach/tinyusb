@@ -158,6 +158,7 @@ void board_init(void)
   GPIO_InitStruct.Alternate = GPIO_AF10_OTG2_HS;
   HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
 
+  // LED
   __HAL_RCC_GPIOB_CLK_ENABLE();
 
   GPIO_InitStruct.Pin = LED_PIN;
@@ -166,6 +167,7 @@ void board_init(void)
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_HIGH;
   HAL_GPIO_Init(LED_PORT, &GPIO_InitStruct);
 
+  // Button
   __HAL_RCC_GPIOC_CLK_ENABLE();
   GPIO_InitStruct.Pin = BUTTON_PIN;
   GPIO_InitStruct.Mode = GPIO_MODE_INPUT;

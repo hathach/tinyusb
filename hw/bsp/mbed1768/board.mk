@@ -11,26 +11,26 @@ CFLAGS += \
 # startup.c and lpc_types.h cause following errors
 CFLAGS += -Wno-error=nested-externs -Wno-error=strict-prototypes
 
+MCU_DIR = hw/mcu/nxp/lpc_driver/lpc175x_6x/lpc_chip_175x_6x
+
 # All source paths should be relative to the top level.
 LD_FILE = hw/bsp/mbed1768/lpc1768.ld
-
-MCU_DIR = hw/mcu/nxp/lpc_driver/lpc175x_6x
 
 # TODO remove later
 SRC_C += src/portable/$(VENDOR)/$(CHIP_FAMILY)/hal_$(CHIP_FAMILY).c
 
 SRC_C += \
-	$(MCU_DIR)/cr_startup_lpc175x_6x.c \
-	$(MCU_DIR)/lpc_chip_175x_6x/src/chip_17xx_40xx.c \
-	$(MCU_DIR)/lpc_chip_175x_6x/src/clock_17xx_40xx.c \
-	$(MCU_DIR)/lpc_chip_175x_6x/src/gpio_17xx_40xx.c \
-	$(MCU_DIR)/lpc_chip_175x_6x/src/iocon_17xx_40xx.c \
-	$(MCU_DIR)/lpc_chip_175x_6x/src/sysctl_17xx_40xx.c \
-	$(MCU_DIR)/lpc_chip_175x_6x/src/sysinit_17xx_40xx.c \
-	$(MCU_DIR)/lpc_chip_175x_6x/src/uart_17xx_40xx.c
+	$(MCU_DIR)/../gcc/cr_startup_lpc175x_6x.c \
+	$(MCU_DIR)/src/chip_17xx_40xx.c \
+	$(MCU_DIR)/src/clock_17xx_40xx.c \
+	$(MCU_DIR)/src/gpio_17xx_40xx.c \
+	$(MCU_DIR)/src/iocon_17xx_40xx.c \
+	$(MCU_DIR)/src/sysctl_17xx_40xx.c \
+	$(MCU_DIR)/src/sysinit_17xx_40xx.c \
+	$(MCU_DIR)/src/uart_17xx_40xx.c
 
 INC += \
-	$(TOP)/$(MCU_DIR)/lpc_chip_175x_6x/inc
+	$(TOP)/$(MCU_DIR)/inc
 
 # For TinyUSB port source
 VENDOR = nxp
