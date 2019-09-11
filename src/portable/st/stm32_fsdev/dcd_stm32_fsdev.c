@@ -147,18 +147,12 @@
  * Checks, structs, defines, function definitions, etc.
  */
 
-#if ((MAX_EP_COUNT) > 8)
-#  error Only 8 endpoints supported on the hardware
-#endif
+TU_VERIFY_STATIC((MAX_EP_COUNT) <= STFSDEV_EP_COUNT,"Only 8 endpoints supported on the hardware");
 
-#if (((DCD_STM32_BTABLE_BASE) + (DCD_STM32_BTABLE_LENGTH))>(PMA_LENGTH))
-#  error BTABLE does not fit in PMA RAM
-#endif
+TU_VERIFY_STATIC(((DCD_STM32_BTABLE_BASE) + (DCD_STM32_BTABLE_LENGTH))<=(PMA_LENGTH),
+    "BTABLE does not fit in PMA RAM");
 
-#if (((DCD_STM32_BTABLE_BASE) % 8) != 0)
-// per STM32F3 reference manual
-#error BTABLE must be aligned to 8 bytes
-#endif
+TU_VERIFY_STATIC(((DCD_STM32_BTABLE_BASE) % 8) == 0, "BTABLE base must be aligned to 8 bytes");
 
 // Max size of a USB FS packet is 64...
 #define MAX_PACKET_SIZE 64
@@ -177,16 +171,23 @@ static xfer_ctl_t  xfer_status[MAX_EP_COUNT][2];
 
 static TU_ATTR_ALIGNED(4) uint32_t _setup_packet[6];
 
-static uint8_t newDADDR; // Used to set the new device address during the CTR IRQ handler
+static ushort newDADDR; // Used to set the new device address during the CTR IRQ handler
 
 // EP Buffers assigned from end of memory location, to minimize their chance of crashing
 // into the stack.
 static uint16_t ep_buf_ptr;
 static void dcd_handle_bus_reset(void);
-static void dcd_write_packet_memory(uint16_t dst, const void *__restrict src, size_t wNBytes);
-static void dcd_read_packet_memory(void *__restrict dst, uint16_t src, size_t wNBytes);
+static bool dcd_write_packet_memory(uint16_t dst, const void *__restrict src, size_t wNBytes);
+static bool dcd_read_packet_memory(void *__restrict dst, uint16_t src, size_t wNBytes);
 static void dcd_transmit_packet(xfer_ctl_t * xfer, uint16_t ep_ix);
 static uint16_t dcd_ep_ctr_handler(void);
+
+
+// Using a function due to better type checks
+// This seems better than having to do type casts everywhere else
+static inline void reg16_clear_bits(__IO uint16_t *reg, uint16_t mask) {
+  *reg = (uint16_t)(*reg & ~mask);
+}
 
 void dcd_init (uint8_t rhport)
 {
@@ -197,19 +198,19 @@ void dcd_init (uint8_t rhport)
   /* The RM mentions to use a special ordering of PDWN and FRES, but this isn't done in HAL.
    * Here, the RM is followed. */
 
-  for(uint32_t i = 0; i<200; i++) // should be a few us
+  for(uint i = 0; i<200; i++) // should be a few us
   {
     asm("NOP");
   }
 	// Perform USB peripheral reset
   USB->CNTR = USB_CNTR_FRES | USB_CNTR_PDWN;
-  for(uint32_t i = 0; i<200; i++) // should be a few us
+  for(uint i = 0; i<200; i++) // should be a few us
   {
     asm("NOP");
   }
-  USB->CNTR &= ~(USB_CNTR_PDWN);// Remove powerdown
+  reg16_clear_bits(&USB->CNTR, USB_CNTR_PDWN);// Remove powerdown
   // Wait startup time, for F042 and F070, this is <= 1 us.
-  for(uint32_t i = 0; i<200; i++) // should be a few us
+  for(uint i = 0; i<200; i++) // should be a few us
   {
     asm("NOP");
   }
@@ -217,7 +218,7 @@ void dcd_init (uint8_t rhport)
 
   USB->BTABLE = DCD_STM32_BTABLE_BASE;
 
-  USB->ISTR &= ~(USB_ISTR_ALL_EVENTS); // Clear pending interrupts
+  reg16_clear_bits(&USB->ISTR, USB_ISTR_ALL_EVENTS); // Clear pending interrupts
 
   // Reset endpoints to disabled
   for(uint i=0; i<STFSDEV_EP_COUNT; i++)
@@ -228,7 +229,7 @@ void dcd_init (uint8_t rhport)
 
   // Initialize the BTABLE for EP0 at this point (though setting up the EP0R is unneeded)
   // This is actually not necessary, but helps debugging to start with a blank RAM area
-  for(uint16_t i=0;i<(DCD_STM32_BTABLE_LENGTH>>1); i++)
+  for(uint i=0;i<(DCD_STM32_BTABLE_LENGTH>>1); i++)
   {
     pma[PMA_STRIDE*(DCD_STM32_BTABLE_BASE + i)] = 0u;
   }
@@ -339,7 +340,7 @@ static void dcd_handle_bus_reset(void)
   ep_buf_ptr = DCD_STM32_BTABLE_BASE + 8*MAX_EP_COUNT; // 8 bytes per endpoint (two TX and two RX words, each)
   dcd_edpt_open (0, &ep0OUT_desc);
   dcd_edpt_open (0, &ep0IN_desc);
-  newDADDR = 0;
+  newDADDR = 0u;
   USB->DADDR = USB_DADDR_EF; // Set enable flag, and leaving the device address as zero.
   PCD_SET_EP_RX_STATUS(USB, 0, USB_EP_RX_VALID); // And start accepting SETUP on EP0
 }
@@ -379,8 +380,8 @@ static uint16_t dcd_ep_ctr_handler(void)
           if((newDADDR != 0) && ( xfer->total_len == 0U))
           {
             // Delayed setting of the DADDR after the 0-len DATA packet acking the request is sent.
-            USB->DADDR &= ~USB_DADDR_ADD;
-            USB->DADDR |= newDADDR;
+            reg16_clear_bits(&USB->DADDR, USB_DADDR_ADD);
+            USB->DADDR |= (uint16_t)newDADDR; // leave the enable bit set
             newDADDR = 0;
           }
           if(xfer->total_len == 0) // Probably a status message?
@@ -431,14 +432,14 @@ static uint16_t dcd_ep_ctr_handler(void)
           }
 
           /* Process Control Data OUT status Packet*/
-          if(EPindex == 0 && xfer->total_len == 0)
+          if(EPindex == 0u && xfer->total_len == 0u)
           {
              PCD_CLEAR_EP_KIND(USB,0); // Good, so allow non-zero length packets now.
           }
           dcd_event_xfer_complete(0, EPindex, xfer->total_len, XFER_RESULT_SUCCESS, true);
 
           PCD_SET_EP_RX_CNT(USB, EPindex, CFG_TUD_ENDPOINT0_SIZE);
-          if(EPindex == 0 && xfer->total_len == 0)
+          if(EPindex == 0u && xfer->total_len == 0u)
           {
             PCD_SET_EP_RX_STATUS(USB, EPindex, USB_EP_RX_VALID);// Await next SETUP
           }
@@ -511,7 +512,7 @@ static uint16_t dcd_ep_ctr_handler(void)
   return 0;
 }
 
-void dcd_fs_irqHandler(void) {
+static void dcd_fs_irqHandler(void) {
 
   uint16_t int_status = USB->ISTR;
  // unused IRQs: (USB_ISTR_PMAOVR | USB_ISTR_ERR | USB_ISTR_WKUP | USB_ISTR_SUSP | USB_ISTR_ESOF | USB_ISTR_L1REQ )
@@ -521,20 +522,20 @@ void dcd_fs_irqHandler(void) {
     /* servicing of the endpoint correct transfer interrupt */
     /* clear of the CTR flag into the sub */
     dcd_ep_ctr_handler();
-    USB->ISTR &= ~USB_ISTR_CTR;
+    reg16_clear_bits(&USB->ISTR, USB_ISTR_CTR);
   }
   if(int_status & USB_ISTR_RESET) {
     // USBRST is start of reset.
-    USB->ISTR &= ~USB_ISTR_RESET;
+    reg16_clear_bits(&USB->ISTR, USB_ISTR_RESET);
     dcd_handle_bus_reset();
     dcd_event_bus_signal(0, DCD_EVENT_BUS_RESET, true);
   }
   if (int_status & USB_ISTR_WKUP)
   {
 
-    USB->CNTR &= ~USB_CNTR_LPMODE;
-    USB->CNTR &= ~USB_CNTR_FSUSP;
-    USB->ISTR &= ~USB_ISTR_WKUP;
+    reg16_clear_bits(&USB->CNTR, USB_CNTR_LPMODE);
+    reg16_clear_bits(&USB->CNTR, USB_CNTR_FSUSP);
+    reg16_clear_bits(&USB->ISTR, USB_ISTR_WKUP);
   }
 
   if (int_status & USB_ISTR_SUSP)
@@ -544,11 +545,11 @@ void dcd_fs_irqHandler(void) {
     USB->CNTR |= USB_CNTR_LPMODE;
 
     /* clear of the ISTR bit must be done after setting of CNTR_FSUSP */
-    USB->ISTR &= ~USB_ISTR_SUSP;
+    reg16_clear_bits(&USB->ISTR, USB_ISTR_SUSP);
   }
 
   if(int_status & USB_ISTR_SOF) {
-    USB->ISTR &= ~USB_ISTR_SOF;
+    reg16_clear_bits(&USB->ISTR, USB_ISTR_SOF);
     dcd_event_bus_signal(0, DCD_EVENT_SOF, true);
   }
 }
@@ -718,19 +719,20 @@ void dcd_edpt_clear_stall (uint8_t rhport, uint8_t ep_addr)
   * @param   wNBytes no. of bytes to be copied.
   * @retval None
   */
-static void dcd_write_packet_memory(uint16_t dst, const void *__restrict src, size_t wNBytes)
+static bool dcd_write_packet_memory(uint16_t dst, const void *__restrict src, size_t wNBytes)
 {
   uint32_t n =  ((uint32_t)((uint32_t)wNBytes + 1U)) >> 1U;
-  uint32_t i;
+  uint i;
   uint16_t temp1, temp2;
   const uint8_t * srcVal;
 
 #ifdef DEBUG
-  if(((dst%2) != 0) ||
-      (dst < DCD_STM32_BTABLE_BASE) ||
-      dst >= (DCD_STM32_BTABLE_BASE + DCD_STM32_BTABLE_LENGTH))
-    while(1) TU_BREAKPOINT();
+#  if (DCD_STM32_BTABLE_BASE > 0u)
+     TU_ASSERT(dst >= DCD_STM32_BTABLE_BASE);
+#  endif
+  TU_ASSERT(((dst%2) == 0) && (dst + wNBytes) <= (DCD_STM32_BTABLE_BASE + DCD_STM32_BTABLE_LENGTH));
 #endif
+
   // The GCC optimizer will combine access to 32-bit sizes if we let it. Force
   // it volatile so that it won't do that.
   __IO uint16_t *pdwVal;
@@ -747,6 +749,7 @@ static void dcd_write_packet_memory(uint16_t dst, const void *__restrict src, si
     pdwVal += PMA_STRIDE;
     srcVal++;
   }
+  return true;
 }
 
 /**
@@ -755,21 +758,22 @@ static void dcd_write_packet_memory(uint16_t dst, const void *__restrict src, si
   * @param   wNBytes no. of bytes to be copied.
   * @retval None
   */
-static void dcd_read_packet_memory(void *__restrict dst, uint16_t src, size_t wNBytes)
+static bool dcd_read_packet_memory(void *__restrict dst, uint16_t src, size_t wNBytes)
 {
-  uint32_t n = (uint32_t)wNBytes >> 1U;
-  uint32_t i;
+  uint n = (uint32_t)wNBytes >> 1U;
+  uint i;
   // The GCC optimizer will combine access to 32-bit sizes if we let it. Force
   // it volatile so that it won't do that.
   __IO const uint16_t *pdwVal;
   uint32_t temp;
 
 #ifdef DEBUG
-  if((src%2) != 0 ||
-      (src < DCD_STM32_BTABLE_BASE) ||
-      src >= (DCD_STM32_BTABLE_BASE + DCD_STM32_BTABLE_LENGTH))
-    while(1) TU_BREAKPOINT();
+#  if (DCD_STM32_BTABLE_BASE > 0u)
+     TU_ASSERT(src >= DCD_STM32_BTABLE_BASE);
+#  endif
+  TU_ASSERT(((src%2) == 0) && (src + wNBytes) <= (DCD_STM32_BTABLE_BASE + DCD_STM32_BTABLE_LENGTH));
 #endif
+
 
   pdwVal = &pma[PMA_STRIDE*(src>>1)];
   uint8_t *dstVal = (uint8_t*)dst;
@@ -788,6 +792,7 @@ static void dcd_read_packet_memory(void *__restrict dst, uint16_t src, size_t wN
     pdwVal += PMA_STRIDE;
     *dstVal++ = ((temp >> 0) & 0xFF);
   }
+  return true;
 }
 
 
