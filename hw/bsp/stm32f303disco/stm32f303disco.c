@@ -37,16 +37,28 @@
 #define BUTTON_PIN            GPIO_PIN_0
 #define BUTTON_STATE_ACTIVE   1
 
-void board_init(void)
-{
-  #if CFG_TUSB_OS  == OPT_OS_NONE
-  // 1ms tick timer
-  SysTick_Config(SystemCoreClock / 1000);
-  #endif
 
-  /* Configure the system clock to 72 MHz */
+/**
+  * @brief  System Clock Configuration
+  *         The system Clock is configured as follow :
+  *            System Clock source            = PLL (HSE)
+  *            SYSCLK(Hz)                     = 72000000
+  *            HCLK(Hz)                       = 72000000
+  *            AHB Prescaler                  = 1
+  *            APB1 Prescaler                 = 2
+  *            APB2 Prescaler                 = 1
+  *            HSE Frequency(Hz)              = 8000000
+  *            HSE PREDIV                     = 1
+  *            PLLMUL                         = RCC_PLL_MUL9 (9)
+  *            Flash Latency(WS)              = 2
+  * @param  None
+  * @retval None
+  */
+static void SystemClock_Config(void)
+{
   RCC_ClkInitTypeDef RCC_ClkInitStruct;
   RCC_OscInitTypeDef RCC_OscInitStruct;
+  RCC_PeriphCLKInitTypeDef  RCC_PeriphClkInit;
 
   /* Enable HSE Oscillator and activate PLL with HSE as source */
   RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_HSE;
@@ -57,14 +69,32 @@ void board_init(void)
   RCC_OscInitStruct.PLL.PLLMUL = RCC_PLL_MUL9;
   HAL_RCC_OscConfig(&RCC_OscInitStruct);
 
+  /* Configures the USB clock */
+  HAL_RCCEx_GetPeriphCLKConfig(&RCC_PeriphClkInit);
+  RCC_PeriphClkInit.USBClockSelection = RCC_USBCLKSOURCE_PLL_DIV1_5;
+  HAL_RCCEx_PeriphCLKConfig(&RCC_PeriphClkInit);
+
   /* Select PLL as system clock source and configure the HCLK, PCLK1 and PCLK2
-     clocks dividers */
+  clocks dividers */
   RCC_ClkInitStruct.ClockType = (RCC_CLOCKTYPE_SYSCLK | RCC_CLOCKTYPE_HCLK | RCC_CLOCKTYPE_PCLK1 | RCC_CLOCKTYPE_PCLK2);
   RCC_ClkInitStruct.SYSCLKSource = RCC_SYSCLKSOURCE_PLLCLK;
   RCC_ClkInitStruct.AHBCLKDivider = RCC_SYSCLK_DIV1;
   RCC_ClkInitStruct.APB1CLKDivider = RCC_HCLK_DIV2;
   RCC_ClkInitStruct.APB2CLKDivider = RCC_HCLK_DIV1;
-  (void) HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_2);
+  HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_2);
+
+    /* Enable Power Clock */
+  __HAL_RCC_PWR_CLK_ENABLE();
+}
+
+void board_init(void)
+{
+  #if CFG_TUSB_OS  == OPT_OS_NONE
+  // 1ms tick timer
+  SysTick_Config(SystemCoreClock / 1000);
+  #endif
+
+  SystemClock_Config();
 
   // Notify runtime of frequency change.
   SystemCoreClockUpdate();
@@ -86,27 +116,16 @@ void board_init(void)
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_HIGH;
   HAL_GPIO_Init(BUTTON_PORT, &GPIO_InitStruct);
 
+  /* Configure USB DM and DP pins */
+  GPIO_InitStruct.Pin = (GPIO_PIN_11 | GPIO_PIN_12);
+  GPIO_InitStruct.Mode = GPIO_MODE_AF_PP;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_HIGH;
+  GPIO_InitStruct.Alternate = GPIO_AF14_USB;
+  HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
 
-  // Start USB clock
+  // Enable USB clock
   __HAL_RCC_USB_CLK_ENABLE();
-
-#if 0
-  RCC->AHB2ENR |= RCC_AHB2ENR_OTGFSEN;
-
-  // USB Pin Init
-  // PA9- VUSB, PA10- ID, PA11- DM, PA12- DP
-  // PC0- Power on
-  RCC->AHB1ENR |= RCC_AHB1ENR_GPIOAEN;
-  GPIOA->MODER |= GPIO_MODER_MODE9_1 | GPIO_MODER_MODE10_1 | \
-    GPIO_MODER_MODE11_1 | GPIO_MODER_MODE12_1;
-  GPIOA->AFR[1] |= (10 << GPIO_AFRH_AFSEL9_Pos) | \
-    (10 << GPIO_AFRH_AFSEL10_Pos) | (10 << GPIO_AFRH_AFSEL11_Pos) | \
-    (10 << GPIO_AFRH_AFSEL12_Pos);
-
-  // Pullup required on ID, despite the manual claiming there's an
-  // internal pullup already (page 1245, Rev 17)
-  GPIOA->PUPDR |= GPIO_PUPDR_PUPD10_0;
-#endif
 }
 
 //--------------------------------------------------------------------+
