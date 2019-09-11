@@ -106,6 +106,7 @@ void board_init(void)
 
   // USB Pins
   // Configure USB DM and DP pins. This is optional, and maintained only for user guidance.
+  __HAL_RCC_GPIOA_CLK_ENABLE();
   GPIO_InitStruct.Pin = (GPIO_PIN_11 | GPIO_PIN_12);
   GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
   GPIO_InitStruct.Pull = GPIO_NOPULL;

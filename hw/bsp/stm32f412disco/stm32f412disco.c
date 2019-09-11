@@ -126,13 +126,10 @@ void board_init(void)
   //NVIC_SetPriority(USB0_IRQn, configLIBRARY_MAX_SYSCALL_INTERRUPT_PRIORITY );
 #endif
 
-  __HAL_RCC_GPIOA_CLK_ENABLE(); // button, USB D+/D-
-  __HAL_RCC_GPIOE_CLK_ENABLE(); // LED
-  __HAL_RCC_GPIOG_CLK_ENABLE(); // USB power switch IO pin
-
   GPIO_InitTypeDef  GPIO_InitStruct;
 
   // LED
+  __HAL_RCC_GPIOE_CLK_ENABLE();
   GPIO_InitStruct.Pin = LED_PIN;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_PULLUP;
@@ -142,6 +139,7 @@ void board_init(void)
   board_led_write(false);
 
   // Button
+  __HAL_RCC_GPIOA_CLK_ENABLE();
   GPIO_InitStruct.Pin = BUTTON_PIN;
   GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
   GPIO_InitStruct.Pull = GPIO_PULLDOWN;
@@ -150,6 +148,7 @@ void board_init(void)
 
   /* Configure USB FS GPIOs */
   /* Configure USB D+ D- Pins */
+  __HAL_RCC_GPIOA_CLK_ENABLE();
   GPIO_InitStruct.Pin = GPIO_PIN_11 | GPIO_PIN_12;
   GPIO_InitStruct.Speed = GPIO_SPEED_HIGH;
   GPIO_InitStruct.Mode = GPIO_MODE_AF_PP;
@@ -172,6 +171,7 @@ void board_init(void)
   HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
 
   /* Configure POWER_SWITCH IO pin */
+  __HAL_RCC_GPIOG_CLK_ENABLE();
   GPIO_InitStruct.Pin = GPIO_PIN_8;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_OD;
   GPIO_InitStruct.Pull = GPIO_NOPULL;

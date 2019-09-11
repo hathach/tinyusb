@@ -83,7 +83,7 @@ static void SystemClock_Config(void)
   RCC_ClkInitStruct.APB2CLKDivider = RCC_HCLK_DIV1;
   HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_2);
 
-    /* Enable Power Clock */
+  /* Enable Power Clock */
   __HAL_RCC_PWR_CLK_ENABLE();
 }
 
@@ -117,6 +117,7 @@ void board_init(void)
   HAL_GPIO_Init(BUTTON_PORT, &GPIO_InitStruct);
 
   /* Configure USB DM and DP pins */
+  __HAL_RCC_GPIOA_CLK_ENABLE();
   GPIO_InitStruct.Pin = (GPIO_PIN_11 | GPIO_PIN_12);
   GPIO_InitStruct.Mode = GPIO_MODE_AF_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
