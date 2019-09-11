@@ -216,10 +216,11 @@ void dcd_init (uint8_t rhport)
 
   USB->ISTR &= ~(USB_ISTR_ALL_EVENTS); // Clear pending interrupts
 
-  // Clear all EPREG
-  for(uint16_t i=0; i<8; i++)
+  // Reset endpoints to disabled
+  for(uint i=0; i<STFSDEV_EP_COUNT; i++)
   {
-    EPREG(0) = 0u;
+    // This doesn't clear all bits since some bits are "toggle", but does set the type to DISABLED.
+    PCD_GET_ENDPOINT(USB,i) = 0u;
   }
 
   // Initialize the BTABLE for EP0 at this point (though setting up the EP0R is unneeded)
@@ -327,9 +328,9 @@ static void dcd_handle_bus_reset(void)
   USB->DADDR = 0u; // disable USB peripheral by clearing the EF flag
 
   // Clear all EPREG (or maybe this is automatic? I'm not sure)
-  for(uint16_t i=0; i<8; i++)
+  for(uint i=0; i<STFSDEV_EP_COUNT; i++)
   {
-    EPREG(0) = 0u;
+    PCD_GET_ENDPOINT(USB,i) = 0u;
   }
 
   ep_buf_ptr = DCD_STM32_BTABLE_BASE + 8*MAX_EP_COUNT; // 8 bytes per endpoint (two TX and two RX words, each)

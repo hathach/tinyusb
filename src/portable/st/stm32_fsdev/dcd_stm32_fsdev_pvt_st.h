@@ -271,9 +271,6 @@ static __IO uint16_t * const pma = (__IO uint16_t*)USB_PMAADDR;
 #define PCD_CLEAR_EP_KIND(USBx, bEpNum)  (PCD_SET_ENDPOINT((USBx), (bEpNum), \
                                 (USB_EP_CTR_RX|USB_EP_CTR_TX|((((uint32_t)(PCD_GET_ENDPOINT((USBx), (bEpNum)))) & USB_EPKIND_MASK)))))
 
-
-#define EPREG(n) (((__IO uint16_t*)USB_BASE)[n*2])
-
 // This checks if the device has "LPM"
 #if defined(USB_ISTR_L1REQ)
 #define USB_ISTR_L1REQ_FORCED (USB_ISTR_L1REQ)
@@ -284,5 +281,7 @@ static __IO uint16_t * const pma = (__IO uint16_t*)USB_PMAADDR;
 #define USB_ISTR_ALL_EVENTS (USB_ISTR_PMAOVR | USB_ISTR_ERR | USB_ISTR_WKUP | USB_ISTR_SUSP | \
      USB_ISTR_RESET | USB_ISTR_SOF | USB_ISTR_ESOF | USB_ISTR_L1REQ_FORCED )
 
+// Number of endpoints in hardware
+#define STFSDEV_EP_COUNT (8)
 
 #endif /* PORTABLE_ST_STM32F0_DCD_STM32F0_FSDEV_PVT_ST_H_ */
