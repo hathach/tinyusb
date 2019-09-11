@@ -36,7 +36,7 @@
  *
  *
  * It also should work with minimal changes for any ST MCU with an "USB A"/"PCD"/"HCD" peripheral. This
- * covers:
+ *  covers:
  *
  * F04x, F072, F078, 070x6/B      1024 byte buffer
  * F102, F103                      512 byte buffer; no internal D+ pull-up (maybe many more changes?)
@@ -46,9 +46,13 @@
  * L1                              512 byte buffer
  * L4x2, L4x3                     1024 byte buffer
  *
+ * To use this driver, you must:
+ * - Enable USB clock; Perhaps use __HAL_RCC_USB_CLK_ENABLE();
+ * - (Optionally configure GPIO HAL to tell it the USB driver is using the USB pins)
+ * - call tusb_init();
+ * - periodically call tusb_task();
+ *
  * Assumptions of the driver:
- * - dcd_fs_irqHandler() is called by the USB interrupt handler
- * - USB clock enabled before usb_init() is called; Perhaps use __HAL_RCC_USB_CLK_ENABLE();
  * - You are not using CAN (it must share the packet buffer)
  * - APB clock is >= 10 MHz
  * - On some boards, series resistors are required, but not on others.
@@ -59,7 +63,6 @@
  * Current driver limitations (i.e., a list of features for you to add):
  * - STALL handled, but not tested.
  *   - Does it work? No clue.
- * - Only tested on F070RB; other models will have an #error during compilation
  * - All EP BTABLE buffers are created as max 64 bytes.
  *   - Smaller can be requested, but it has to be an even number.
  * - No isochronous endpoints
@@ -74,7 +77,7 @@
  * - No DMA
  * - No provision to control the D+ pull-up using GPIO on devices without an internal pull-up.
  * - Minimal error handling
- *   - Perhaps error interrupts sholud be reported to the stack, or cause a device reset?
+ *   - Perhaps error interrupts should be reported to the stack, or cause a device reset?
  * - Assumes a single USB peripheral; I think that no hardware has multiple so this is fine.
  * - Add a callback for enabling/disabling the D+ PU on devices without an internal PU.
  * - F3 models use three separate interrupts. I think we could only use the LP interrupt for
