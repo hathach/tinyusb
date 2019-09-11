@@ -1,1 +1,0 @@
-Please check out this repo https://github.com/hathach/mynewt-tinyusb-example For mynewt example
