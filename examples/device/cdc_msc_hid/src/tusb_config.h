@@ -74,15 +74,7 @@
 //------------- CLASS -------------//
 #define CFG_TUD_CDC              1
 #define CFG_TUD_MSC              1
-
-// Some STM32 MCUs does not have enough endpoints (4, including control
-// endpoint) to enable CDC, MSC, and HID simultaneously, so disable HID as a compromise.
-#if CFG_TUSB_MCU == OPT_MCU_STM32F4
-  #include "stm32f4xx.h"
-  #define CFG_TUD_HID            ((USB_OTG_FS_MAX_IN_ENDPOINTS > 4) ? 1 : 0)
-#else
-  #define CFG_TUD_HID            1
-#endif
+#define CFG_TUD_HID              0
 
 #define CFG_TUD_MIDI             0
 #define CFG_TUD_VENDOR           0
