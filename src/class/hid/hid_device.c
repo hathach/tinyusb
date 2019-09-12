@@ -205,7 +205,8 @@ bool hidd_control_request(uint8_t rhport, tusb_control_request_t const * p_reque
     if (p_request->bRequest == TUSB_REQ_GET_DESCRIPTOR && desc_type == HID_DESC_TYPE_REPORT)
     {
       uint8_t const * desc_report = tud_hid_descriptor_report_cb();
-      tud_control_xfer(rhport, p_request, (void*) desc_report, p_hid->reprot_desc_len);
+      tud_control_xfer(rhport, p_request, (void*) desc_report, p_hid->reprot_desc_len,
+          p_request->wLength != p_hid->reprot_desc_len);
     }else
     {
       return false; // stall unsupported request
@@ -225,12 +226,12 @@ bool hidd_control_request(uint8_t rhport, tusb_control_request_t const * p_reque
         uint16_t xferlen  = tud_hid_get_report_cb(report_id, (hid_report_type_t) report_type, p_hid->epin_buf, p_request->wLength);
         TU_ASSERT( xferlen > 0 );
 
-        tud_control_xfer(rhport, p_request, p_hid->epin_buf, xferlen);
+        tud_control_xfer(rhport, p_request, p_hid->epin_buf, xferlen, p_request->wLength != xferlen);
       }
       break;
 
       case  HID_REQ_CONTROL_SET_REPORT:
-        tud_control_xfer(rhport, p_request, p_hid->epout_buf, p_request->wLength);
+        tud_control_xfer(rhport, p_request, p_hid->epout_buf, p_request->wLength, false);
       break;
 
       case HID_REQ_CONTROL_SET_IDLE:
@@ -246,13 +247,13 @@ bool hidd_control_request(uint8_t rhport, tusb_control_request_t const * p_reque
 
       case HID_REQ_CONTROL_GET_IDLE:
         // TODO idle rate of report
-        tud_control_xfer(rhport, p_request, &p_hid->idle_rate, 1);
+        tud_control_xfer(rhport, p_request, &p_hid->idle_rate, 1, p_request->wLength != 1);
       break;
 
       case HID_REQ_CONTROL_GET_PROTOCOL:
       {
         uint8_t protocol = 1-p_hid->boot_mode;   // 0 is Boot, 1 is Report protocol
-        tud_control_xfer(rhport, p_request, &protocol, 1);
+        tud_control_xfer(rhport, p_request, &protocol, 1, p_request->wLength != 1);
       }
       break;
 
@@ -306,7 +307,9 @@ bool hidd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint32_
   if (ep_addr == p_hid->ep_out)
   {
     tud_hid_set_report_cb(0, HID_REPORT_TYPE_INVALID, p_hid->epout_buf, xferred_bytes);
-    TU_ASSERT(usbd_edpt_xfer(rhport, p_hid->ep_out, p_hid->epout_buf, sizeof(p_hid->epout_buf)));
+    TU_ASSERT(
+        usbd_edpt_xfer(rhport, p_hid->ep_out, p_hid->epout_buf, sizeof(p_hid->epout_buf))
+        );
   }
 
   return true;

@@ -45,6 +45,7 @@ typedef struct
   void* buffer;
   uint16_t total_len;
   uint16_t total_transferred;
+  bool terminateShortOrZLP; ///< Need to end with a short or ZLP.
 
   bool (*complete_cb) (uint8_t, tusb_control_request_t const *);
 } usbd_control_xfer_t;
@@ -76,6 +77,10 @@ static bool start_control_data_xact(uint8_t rhport)
   {
     ep_addr = EDPT_CTRL_IN;
     memcpy(_usbd_ctrl_buf, _control_state.buffer, xact_len);
+    // Disable ZLP if this is a short transaction
+    if(xact_len < CFG_TUD_ENDPOINT0_SIZE)
+      _control_state.terminateShortOrZLP = false;
+
   }
 
   return dcd_edpt_xfer(rhport, ep_addr, _usbd_ctrl_buf, xact_len);
@@ -87,12 +92,14 @@ void usbd_control_set_complete_callback( bool (*fp) (uint8_t, tusb_control_reque
   _control_state.complete_cb = fp;
 }
 
-bool tud_control_xfer(uint8_t rhport, tusb_control_request_t const * request, void* buffer, uint16_t len)
+bool tud_control_xfer(uint8_t rhport, tusb_control_request_t const * request, void* buffer, uint16_t len,
+    bool terminateShortOrZLP)
 {
   _control_state.request = (*request);
   _control_state.buffer = buffer;
   _control_state.total_len = tu_min16(len, request->wLength);
   _control_state.total_transferred = 0;
+  _control_state.terminateShortOrZLP = terminateShortOrZLP;
 
   if ( len )
   {
@@ -124,7 +131,9 @@ bool usbd_control_xfer_cb (uint8_t rhport, uint8_t ep_addr, xfer_result_t result
   _control_state.total_transferred += xferred_bytes;
   _control_state.buffer += xferred_bytes;
 
-  if ( _control_state.total_len == _control_state.total_transferred || xferred_bytes < CFG_TUD_ENDOINT0_SIZE )
+  if ( (!_control_state.terminateShortOrZLP && (_control_state.total_len == _control_state.total_transferred)) ||
+      (xferred_bytes < CFG_TUD_ENDOINT0_SIZE) // short packet
+      )
   {
     // DATA stage is complete
     bool is_ok = true;

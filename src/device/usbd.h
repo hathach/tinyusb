@@ -62,7 +62,8 @@ bool tud_remote_wakeup(void);
 // Carry out Data and Status stage of control transfer
 // - If len = 0, it is equivalent to sending status only
 // - If len > wLength : it will be truncated
-bool tud_control_xfer(uint8_t rhport, tusb_control_request_t const * request, void* buffer, uint16_t len);
+bool tud_control_xfer(uint8_t rhport, tusb_control_request_t const * request, void* buffer,
+    uint16_t len, bool terminateShortOrZLP);
 
 // Send STATUS (zero length) packet
 bool tud_control_status(uint8_t rhport, tusb_control_request_t const * request);
