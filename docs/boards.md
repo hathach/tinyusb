@@ -9,6 +9,14 @@ The board support code is only used for self-contained examples and testing. It 
 
 This code base already had supported for a handful of following boards
 
+### MicroChip SAMD
+
+- [Adafruit Circuit Playground Express](https://www.adafruit.com/product/3333)
+- [Adafruit Feather M0 Express](https://www.adafruit.com/product/3403)
+- [Adafruit Metro M0 Express](https://www.adafruit.com/product/3505)
+- [Adafruit Feather M4 Express](https://www.adafruit.com/product/3857)
+- [Adafruit Metro M4 Express](https://www.adafruit.com/product/3382)
+
 ### Nordic nRF5x
 
 - [Adafruit Feather nRF52840 Express](https://www.adafruit.com/product/4062)
@@ -30,14 +38,6 @@ This code base already had supported for a handful of following boards
 - [LPCXpresso 51U68](https://www.nxp.com/products/processors-and-microcontrollers/arm-microcontrollers/general-purpose-mcus/lpcxpresso51u68-for-the-lpc51u68-mcus:OM40005)
 - [LPCXpresso 54114](https://www.nxp.com/design/microcontrollers-developer-resources/lpcxpresso-boards/lpcxpresso54114-board:OM13089)
 - [LPCXpresso 55s69 EVK](https://www.nxp.com/products/processors-and-microcontrollers/arm-microcontrollers/general-purpose-mcus/lpc5500-cortex-m33/lpcxpresso55s69-development-board:LPC55S69-EVK)
-
-### MicroChip SAMD
-
-- [Adafruit Circuit Playground Express](https://www.adafruit.com/product/3333)
-- [Adafruit Feather M0 Express](https://www.adafruit.com/product/3403)
-- [Adafruit Metro M0 Express](https://www.adafruit.com/product/3505)
-- [Adafruit Feather M4 Express](https://www.adafruit.com/product/3857)
-- [Adafruit Metro M4 Express](https://www.adafruit.com/product/3382)
 
 ### ST STM32
 
