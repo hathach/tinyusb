@@ -29,13 +29,13 @@
 #include "stm32f0xx.h"
 #include "stm32f0xx_hal_conf.h"
 
-#define LED_PORT              GPIOC
-#define LED_PIN               GPIO_PIN_13
+#define LED_PORT              GPIOA
+#define LED_PIN               GPIO_PIN_5
 #define LED_STATE_ON          1
 
-#define BUTTON_PORT           GPIOA
-#define BUTTON_PIN            GPIO_PIN_5
-#define BUTTON_STATE_ACTIVE   1
+#define BUTTON_PORT           GPIOC
+#define BUTTON_PIN            GPIO_PIN_13
+#define BUTTON_STATE_ACTIVE   0
 
 void board_init(void)
 {
@@ -75,7 +75,7 @@ void board_init(void)
   SystemCoreClockUpdate();
 
   // LED
-  __HAL_RCC_GPIOC_CLK_ENABLE();
+  __HAL_RCC_GPIOA_CLK_ENABLE();
   GPIO_InitTypeDef  GPIO_InitStruct;
   GPIO_InitStruct.Pin = LED_PIN;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
@@ -84,7 +84,7 @@ void board_init(void)
   HAL_GPIO_Init(LED_PORT, &GPIO_InitStruct);
 
   // Button
-  __HAL_RCC_GPIOA_CLK_ENABLE();
+  __HAL_RCC_GPIOC_CLK_ENABLE();
   GPIO_InitStruct.Pin = BUTTON_PIN;
   GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
   GPIO_InitStruct.Pull = GPIO_PULLDOWN;
