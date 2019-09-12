@@ -171,7 +171,7 @@ static xfer_ctl_t  xfer_status[MAX_EP_COUNT][2];
 
 static TU_ATTR_ALIGNED(4) uint32_t _setup_packet[6];
 
-static ushort newDADDR; // Used to set the new device address during the CTR IRQ handler
+static uint8_t newDADDR; // Used to set the new device address during the CTR IRQ handler
 
 // EP Buffers assigned from end of memory location, to minimize their chance of crashing
 // into the stack.
@@ -198,19 +198,19 @@ void dcd_init (uint8_t rhport)
   /* The RM mentions to use a special ordering of PDWN and FRES, but this isn't done in HAL.
    * Here, the RM is followed. */
 
-  for(uint i = 0; i<200; i++) // should be a few us
+  for(uint32_t i = 0; i<200; i++) // should be a few us
   {
     asm("NOP");
   }
 	// Perform USB peripheral reset
   USB->CNTR = USB_CNTR_FRES | USB_CNTR_PDWN;
-  for(uint i = 0; i<200; i++) // should be a few us
+  for(uint32_t i = 0; i<200; i++) // should be a few us
   {
     asm("NOP");
   }
   reg16_clear_bits(&USB->CNTR, USB_CNTR_PDWN);// Remove powerdown
   // Wait startup time, for F042 and F070, this is <= 1 us.
-  for(uint i = 0; i<200; i++) // should be a few us
+  for(uint32_t i = 0; i<200; i++) // should be a few us
   {
     asm("NOP");
   }
@@ -221,7 +221,7 @@ void dcd_init (uint8_t rhport)
   reg16_clear_bits(&USB->ISTR, USB_ISTR_ALL_EVENTS); // Clear pending interrupts
 
   // Reset endpoints to disabled
-  for(uint i=0; i<STFSDEV_EP_COUNT; i++)
+  for(uint32_t i=0; i<STFSDEV_EP_COUNT; i++)
   {
     // This doesn't clear all bits since some bits are "toggle", but does set the type to DISABLED.
     PCD_GET_ENDPOINT(USB,i) = 0u;
@@ -229,7 +229,7 @@ void dcd_init (uint8_t rhport)
 
   // Initialize the BTABLE for EP0 at this point (though setting up the EP0R is unneeded)
   // This is actually not necessary, but helps debugging to start with a blank RAM area
-  for(uint i=0;i<(DCD_STM32_BTABLE_LENGTH>>1); i++)
+  for(uint32_t i=0;i<(DCD_STM32_BTABLE_LENGTH>>1); i++)
   {
     pma[PMA_STRIDE*(DCD_STM32_BTABLE_BASE + i)] = 0u;
   }
@@ -332,7 +332,7 @@ static void dcd_handle_bus_reset(void)
   USB->DADDR = 0u; // disable USB peripheral by clearing the EF flag
 
   // Clear all EPREG (or maybe this is automatic? I'm not sure)
-  for(uint i=0; i<STFSDEV_EP_COUNT; i++)
+  for(uint32_t i=0; i<STFSDEV_EP_COUNT; i++)
   {
     PCD_GET_ENDPOINT(USB,i) = 0u;
   }
@@ -722,7 +722,7 @@ void dcd_edpt_clear_stall (uint8_t rhport, uint8_t ep_addr)
 static bool dcd_write_packet_memory(uint16_t dst, const void *__restrict src, size_t wNBytes)
 {
   uint32_t n =  ((uint32_t)((uint32_t)wNBytes + 1U)) >> 1U;
-  uint i;
+  uint32_t i;
   uint16_t temp1, temp2;
   const uint8_t * srcVal;
 
@@ -760,8 +760,8 @@ static bool dcd_write_packet_memory(uint16_t dst, const void *__restrict src, si
   */
 static bool dcd_read_packet_memory(void *__restrict dst, uint16_t src, size_t wNBytes)
 {
-  uint n = (uint32_t)wNBytes >> 1U;
-  uint i;
+  uint32_t n = (uint32_t)wNBytes >> 1U;
+  uint32_t i;
   // The GCC optimizer will combine access to 32-bit sizes if we let it. Force
   // it volatile so that it won't do that.
   __IO const uint16_t *pdwVal;
