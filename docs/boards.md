@@ -43,6 +43,7 @@ This code base already had supported for a handful of following boards
 
 - [STM32F070rb Nucleo](https://www.st.com/en/evaluation-tools/nucleo-f070rb.html)
 - [STM32F072rb Discovery](https://www.st.com/en/evaluation-tools/32f072bdiscovery.html)
+- [STM32F207zg Nucleo](https://www.st.com/en/evaluation-tools/nucleo-f207zg.html)
 - [STM32F303vc Discovery](https://www.st.com/en/evaluation-tools/stm32f3discovery.html)
 - [STM32F407vg Discovery](https://www.st.com/en/evaluation-tools/stm32f4discovery.html)
 - [STM32F411ve Discovery](https://www.st.com/en/evaluation-tools/32f411ediscovery.html)

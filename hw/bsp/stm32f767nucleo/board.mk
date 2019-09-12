@@ -9,7 +9,7 @@ CFLAGS += \
   -nostdlib -nostartfiles \
   -DCFG_TUSB_MCU=OPT_MCU_STM32F7
 
-# The -Wno-error=sign-compare line is required due to STM32F7xx_HAL_Driver.
+# Suppress following warnings/error is required due to STM32F7xx_HAL_Driver.
 CFLAGS += -Wno-error=shadow 
 
 ST_HAL_DRIVER = hw/mcu/st/st_driver/STM32F7xx_HAL_Driver
