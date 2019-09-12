@@ -78,7 +78,7 @@ int board_uart_write(void const * buf, int len);
   {
     return os_time_ticks_to_ms32( os_time_get() );
   }
-#elif
+#else
   #error "Need to implement board_millis() for this OS"
 #endif
 

@@ -13,7 +13,7 @@ ST_HAL_DRIVER = hw/mcu/st/st_driver/STM32F0xx_HAL_Driver
 ST_CMSIS = hw/mcu/st/st_driver/CMSIS/Device/ST/STM32F0xx
 
 # All source paths should be relative to the top level.
-LD_FILE = hw/bsp/stm32f070rbnucleo/stm32F070rbtx_flash.ld
+LD_FILE = hw/bsp/$(BOARD)/stm32F070rbtx_flash.ld
 
 SRC_C += \
 	$(ST_CMSIS)/Source/Templates/system_stm32f0xx.c \
