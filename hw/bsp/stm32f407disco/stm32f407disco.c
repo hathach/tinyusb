@@ -106,14 +106,10 @@ void board_init(void)
   // Notify runtime of frequency change.
   SystemCoreClockUpdate();
 
-  __HAL_RCC_GPIOA_CLK_ENABLE(); // button, USB D+/D-
-  __HAL_RCC_GPIOD_CLK_ENABLE(); // LED
-
   GPIO_InitTypeDef  GPIO_InitStruct;
 
   // LED
   __HAL_RCC_GPIOD_CLK_ENABLE();
-
   GPIO_InitStruct.Pin = LED_PIN;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_PULLUP;
@@ -123,20 +119,17 @@ void board_init(void)
   board_led_write(false);
 
   // Button
+  __HAL_RCC_GPIOA_CLK_ENABLE();
   GPIO_InitStruct.Pin = BUTTON_PIN;
   GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
   GPIO_InitStruct.Pull = GPIO_PULLDOWN;
   GPIO_InitStruct.Speed = GPIO_SPEED_FAST;
   HAL_GPIO_Init(BUTTON_PORT, &GPIO_InitStruct);
 
-  // Enable USB OTG clock
-  __HAL_RCC_USB_OTG_FS_CLK_ENABLE();
-
   // USB Pin Init
   // PA9- VUSB, PA10- ID, PA11- DM, PA12- DP
-  __HAL_RCC_GPIOA_CLK_ENABLE();
-
   /* Configure DM DP Pins */
+  __HAL_RCC_GPIOA_CLK_ENABLE();
   GPIO_InitStruct.Pin = GPIO_PIN_11 | GPIO_PIN_12;
   GPIO_InitStruct.Speed = GPIO_SPEED_HIGH;
   GPIO_InitStruct.Mode = GPIO_MODE_AF_PP;
@@ -157,6 +150,9 @@ void board_init(void)
   GPIO_InitStruct.Speed = GPIO_SPEED_HIGH;
   GPIO_InitStruct.Alternate = GPIO_AF10_OTG_FS;
   HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
+
+  // Enable USB OTG clock
+  __HAL_RCC_USB_OTG_FS_CLK_ENABLE();
 }
 
 //--------------------------------------------------------------------+

@@ -47,6 +47,7 @@ This code base already had supported for a handful of following boards
 - [STM32F407vg Discovery](https://www.st.com/en/evaluation-tools/stm32f4discovery.html)
 - [STM32F411ve Discovery](https://www.st.com/en/evaluation-tools/32f411ediscovery.html)
 - [STM32F412zg Discovery](https://www.st.com/en/evaluation-tools/32f412gdiscovery.html)
+- [Nucleo STM32F767zi](https://www.st.com/en/evaluation-tools/nucleo-f767zi.html)
 - [Nucleo H743zi](https://www.st.com/en/evaluation-tools/nucleo-h743zi.html)
 
 ## Add your own board
