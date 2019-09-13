@@ -42,7 +42,7 @@
 //--------------------------------------------------------------------+
 
 // Task function should be called in main/rtos loop
-bool tud_task (void);
+void tud_task (void);
 
 // Check if device is connected and configured
 bool tud_mounted(void);

@@ -120,7 +120,7 @@ void dcd_edpt_clear_stall (uint8_t rhport, uint8_t ep_addr);
 /* Event Function
  * Called by DCD to notify device stack
  *------------------------------------------------------------------*/
-bool dcd_event_handler(dcd_event_t const * event, bool in_isr);
+void dcd_event_handler(dcd_event_t const * event, bool in_isr);
 
 // helper to send bus signal event
 void dcd_event_bus_signal (uint8_t rhport, dcd_eventid_t eid, bool in_isr);
