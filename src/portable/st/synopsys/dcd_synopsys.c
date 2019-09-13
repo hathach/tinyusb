@@ -27,10 +27,20 @@
 
 #include "tusb_option.h"
 
-#if TUSB_OPT_DEVICE_ENABLED && ( CFG_TUSB_MCU == OPT_MCU_STM32F2 || \
-                                 CFG_TUSB_MCU == OPT_MCU_STM32F4 || \
-                                 CFG_TUSB_MCU == OPT_MCU_STM32H7 || \
-                                 CFG_TUSB_MCU == OPT_MCU_STM32F7)
+#define STM32L4_SYNOPSYS    (                                                  \
+    defined (STM32L475xx) || defined (STM32L476xx) ||                          \
+    defined (STM32L485xx) || defined (STM32L486xx) || defined (STM32L496xx) || \
+    defined (STM32L4R5xx) || defined (STM32L4R7xx) || defined (STM32L4R9xx) || \
+    defined (STM32L4S5xx) || defined (STM32L4S7xx) || defined (STM32L4S9xx)    \
+)
+
+#if TUSB_OPT_DEVICE_ENABLED && \
+    ( CFG_TUSB_MCU == OPT_MCU_STM32F2 || \
+      CFG_TUSB_MCU == OPT_MCU_STM32F4 || \
+      CFG_TUSB_MCU == OPT_MCU_STM32F7 || \
+      CFG_TUSB_MCU == OPT_MCU_STM32H7 || \
+      (CFG_TUSB_MCU == OPT_MCU_STM32L4 && STM32L4_SYNOPSYS) \
+    )
 
 // TODO Support OTG_HS
 // EP_MAX       : Max number of bi-directional endpoints including EP0
@@ -52,6 +62,10 @@
   #include "stm32f7xx.h"
   #define EP_MAX          6
   #define EP_FIFO_SIZE    1280
+#elif CFG_TUSB_MCU == OPT_MCU_STM32L4
+  #include "stm32l4xx.h"
+  #define EP_MAX          6
+  #define EP_FIFO_SIZE    1280
 #else
   #error "Unsupported MCUs"
 #endif
@@ -61,10 +75,10 @@
 /*------------------------------------------------------------------*/
 /* MACRO TYPEDEF CONSTANT ENUM
  *------------------------------------------------------------------*/
-#define DEVICE_BASE (USB_OTG_DeviceTypeDef *) (USB_OTG_FS_PERIPH_BASE + USB_OTG_DEVICE_BASE)
-#define OUT_EP_BASE (USB_OTG_OUTEndpointTypeDef *) (USB_OTG_FS_PERIPH_BASE + USB_OTG_OUT_ENDPOINT_BASE)
-#define IN_EP_BASE (USB_OTG_INEndpointTypeDef *) (USB_OTG_FS_PERIPH_BASE + USB_OTG_IN_ENDPOINT_BASE)
-#define FIFO_BASE(_x) (volatile uint32_t *) (USB_OTG_FS_PERIPH_BASE + USB_OTG_FIFO_BASE + (_x) * USB_OTG_FIFO_SIZE)
+#define DEVICE_BASE     (USB_OTG_DeviceTypeDef *) (USB_OTG_FS_PERIPH_BASE + USB_OTG_DEVICE_BASE)
+#define OUT_EP_BASE     (USB_OTG_OUTEndpointTypeDef *) (USB_OTG_FS_PERIPH_BASE + USB_OTG_OUT_ENDPOINT_BASE)
+#define IN_EP_BASE      (USB_OTG_INEndpointTypeDef *) (USB_OTG_FS_PERIPH_BASE + USB_OTG_IN_ENDPOINT_BASE)
+#define FIFO_BASE(_x)   ((volatile uint32_t *) (USB_OTG_FS_PERIPH_BASE + USB_OTG_FIFO_BASE + (_x) * USB_OTG_FIFO_SIZE))
 
 static TU_ATTR_ALIGNED(4) uint32_t _setup_packet[6];
 static uint8_t _setup_offs; // We store up to 3 setup packets.
