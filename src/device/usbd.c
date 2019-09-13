@@ -61,6 +61,9 @@ typedef struct {
 
 static usbd_device_t _usbd_dev = { 0 };
 
+// Invalid driver ID in itf2drv[] ep2drv[][] mapping
+enum { DRVID_INVALID = 0xff };
+
 //--------------------------------------------------------------------+
 // Class Driver
 //--------------------------------------------------------------------+
@@ -144,7 +147,7 @@ static usbd_class_driver_t const usbd_class_drivers[] =
   #endif
 };
 
-enum { USBD_CLASS_DRIVER_COUNT = TU_ARRAY_SZIE(usbd_class_drivers) };
+enum { USBD_CLASS_DRIVER_COUNT = TU_ARRAY_SIZE(usbd_class_drivers) };
 
 //--------------------------------------------------------------------+
 // DCD Event
@@ -213,8 +216,8 @@ static void usbd_reset(uint8_t rhport)
 {
   tu_varclr(&_usbd_dev);
 
-  memset(_usbd_dev.itf2drv, 0xff, sizeof(_usbd_dev.itf2drv)); // invalid mapping
-  memset(_usbd_dev.ep2drv , 0xff, sizeof(_usbd_dev.ep2drv )); // invalid mapping
+  memset(_usbd_dev.itf2drv, DRVID_INVALID, sizeof(_usbd_dev.itf2drv)); // invalid mapping
+  memset(_usbd_dev.ep2drv , DRVID_INVALID, sizeof(_usbd_dev.ep2drv )); // invalid mapping
 
   usbd_control_reset(rhport);
 
@@ -287,19 +290,19 @@ void tud_task (void)
         {
           // Invoke the class callback associated with the endpoint address
           uint8_t const ep_addr = event.xfer_complete.ep_addr;
-          uint8_t const epnum = tu_edpt_number(ep_addr);
-          uint8_t const dir   = tu_edpt_dir(ep_addr);
+          uint8_t const epnum   = tu_edpt_number(ep_addr);
+          uint8_t const ep_dir  = tu_edpt_dir(ep_addr);
 
-          _usbd_dev.ep_busy_map[dir] = (uint8_t) tu_bit_clear(_usbd_dev.ep_busy_map[dir], epnum);
+          _usbd_dev.ep_busy_map[ep_dir] = (uint8_t) tu_bit_clear(_usbd_dev.ep_busy_map[ep_dir], epnum);
 
-          if ( 0 == tu_edpt_number(ep_addr) )
+          if ( 0 == epnum )
           {
             // control transfer DATA stage callback
             usbd_control_xfer_cb(event.rhport, ep_addr, event.xfer_complete.result, event.xfer_complete.len);
           }
           else
           {
-            uint8_t const drv_id = _usbd_dev.ep2drv[tu_edpt_number(ep_addr)][tu_edpt_dir(ep_addr)];
+            uint8_t const drv_id = _usbd_dev.ep2drv[epnum][ep_dir];
             TU_ASSERT(drv_id < USBD_CLASS_DRIVER_COUNT,);
 
             usbd_class_drivers[drv_id].xfer_cb(event.rhport, ep_addr, event.xfer_complete.result, event.xfer_complete.len);
@@ -435,7 +438,7 @@ static bool process_control_request(uint8_t rhport, tusb_control_request_t const
     case TUSB_REQ_RCPT_INTERFACE:
     {
       uint8_t const itf = tu_u16_low(p_request->wIndex);
-      TU_VERIFY(itf < TU_ARRAY_SZIE(_usbd_dev.itf2drv));
+      TU_VERIFY(itf < TU_ARRAY_SIZE(_usbd_dev.itf2drv));
 
       uint8_t const drvid = _usbd_dev.itf2drv[itf];
       TU_VERIFY(drvid < USBD_CLASS_DRIVER_COUNT);
@@ -465,18 +468,16 @@ static bool process_control_request(uint8_t rhport, tusb_control_request_t const
           default:
             // forward to class driver: "STD request to Interface"
             // GET HID REPORT DESCRIPTOR falls into this case
-            usbd_control_set_complete_callback(usbd_class_drivers[drvid].control_complete);
-
             // stall control endpoint if driver return false
+            usbd_control_set_complete_callback(usbd_class_drivers[drvid].control_complete);
             TU_ASSERT(usbd_class_drivers[drvid].control_request(rhport, p_request));
           break;
         }
       }else
       {
         // forward to class driver: "non-STD request to Interface"
-        usbd_control_set_complete_callback(usbd_class_drivers[drvid].control_complete);
-
         // stall control endpoint if driver return false
+        usbd_control_set_complete_callback(usbd_class_drivers[drvid].control_complete);
         TU_ASSERT(usbd_class_drivers[drvid].control_request(rhport, p_request));
       }
     }
@@ -484,37 +485,69 @@ static bool process_control_request(uint8_t rhport, tusb_control_request_t const
 
     //------------- Endpoint Request -------------//
     case TUSB_REQ_RCPT_ENDPOINT:
-      // Non standard request is not supported
-      TU_VERIFY( TUSB_REQ_TYPE_STANDARD == p_request->bmRequestType_bit.type );
+    {
+      uint8_t const ep_addr = tu_u16_low(p_request->wIndex);
+      uint8_t const ep_num  = tu_edpt_number(ep_addr);
+      uint8_t const ep_dir  = tu_edpt_dir(ep_addr);
 
-      switch ( p_request->bRequest )
+      TU_ASSERT(ep_num < TU_ARRAY_SIZE(_usbd_dev.ep2drv) );
+
+      uint8_t const drv_id = _usbd_dev.ep2drv[ep_num][ep_dir];
+      TU_ASSERT(drv_id < USBD_CLASS_DRIVER_COUNT);
+
+      // Some classes such as TMC needs to clear/re-init its buffer when receiving CLEAR_FEATURE request
+      // We will forward all request targeted endpoint to its class driver
+      // - For non-standard request: driver can ACK or Stall the request by return true/false
+      // - For standard request: usbd decide the ACK stage regardless of driver return value
+      bool ret;
+
+      if ( TUSB_REQ_TYPE_STANDARD != p_request->bmRequestType_bit.type )
       {
-        case TUSB_REQ_GET_STATUS:
-        {
-          uint16_t status = usbd_edpt_stalled(rhport, tu_u16_low(p_request->wIndex)) ? 0x0001 : 0x0000;
-          tud_control_xfer(rhport, p_request, &status, 2);
-        }
-        break;
-
-        case TUSB_REQ_CLEAR_FEATURE:
-          if ( TUSB_REQ_FEATURE_EDPT_HALT == p_request->wValue )
-          {
-            usbd_edpt_clear_stall(rhport, tu_u16_low(p_request->wIndex));
-          }
-          tud_control_status(rhport, p_request);
-        break;
-
-        case TUSB_REQ_SET_FEATURE:
-          if ( TUSB_REQ_FEATURE_EDPT_HALT == p_request->wValue )
-          {
-            usbd_edpt_stall(rhport, tu_u16_low(p_request->wIndex));
-          }
-          tud_control_status(rhport, p_request);
-        break;
-
-        // Unknown/Unsupported request
-        default: TU_BREAKPOINT(); return false;
+        // complete callback is also capable of stalling/acking the request
+        usbd_control_set_complete_callback(usbd_class_drivers[drv_id].control_complete);
       }
+
+      // Invoke class driver first
+      ret = usbd_class_drivers[drv_id].control_request(rhport, p_request);
+
+      // Then handle if it is standard request
+      if ( TUSB_REQ_TYPE_STANDARD == p_request->bmRequestType_bit.type )
+      {
+        // force return true for standard request
+        ret = true;
+
+        switch ( p_request->bRequest )
+        {
+          case TUSB_REQ_GET_STATUS:
+          {
+            uint16_t status = usbd_edpt_stalled(rhport, ep_addr) ? 0x0001 : 0x0000;
+            tud_control_xfer(rhport, p_request, &status, 2);
+          }
+          break;
+
+          case TUSB_REQ_CLEAR_FEATURE:
+            if ( TUSB_REQ_FEATURE_EDPT_HALT == p_request->wValue )
+            {
+              usbd_edpt_clear_stall(rhport, ep_addr);
+            }
+            tud_control_status(rhport, p_request);
+          break;
+
+          case TUSB_REQ_SET_FEATURE:
+            if ( TUSB_REQ_FEATURE_EDPT_HALT == p_request->wValue )
+            {
+              usbd_edpt_stall(rhport, ep_addr);
+            }
+            tud_control_status(rhport, p_request);
+          break;
+
+          // Unknown/Unsupported request
+          default: TU_BREAKPOINT(); return false;
+        }
+      }
+
+      return ret;
+    }
     break;
 
     // Unknown recipient
@@ -560,7 +593,7 @@ static bool process_set_config(uint8_t rhport, uint8_t cfg_num)
       TU_ASSERT( drv_id < USBD_CLASS_DRIVER_COUNT );
 
       // Interface number must not be used already TODO alternate interface
-      TU_ASSERT( 0xff == _usbd_dev.itf2drv[desc_itf->bInterfaceNumber] );
+      TU_ASSERT( DRVID_INVALID == _usbd_dev.itf2drv[desc_itf->bInterfaceNumber] );
       _usbd_dev.itf2drv[desc_itf->bInterfaceNumber] = drv_id;
 
       uint16_t itf_len=0;
