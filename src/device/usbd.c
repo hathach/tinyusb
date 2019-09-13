@@ -439,33 +439,44 @@ static bool process_control_request(uint8_t rhport, tusb_control_request_t const
 
       TU_VERIFY(drvid < USBD_CLASS_DRIVER_COUNT);
 
-      switch ( p_request->bRequest )
+      if (p_request->bmRequestType_bit.type == TUSB_REQ_TYPE_STANDARD)
       {
-        case TUSB_REQ_GET_INTERFACE:
+        switch ( p_request->bRequest )
         {
-          // TODO not support alternate interface yet
-          uint8_t alternate = 0;
-          tud_control_xfer(rhport, p_request, &alternate, 1);
+          case TUSB_REQ_GET_INTERFACE:
+          {
+            // TODO not support alternate interface yet
+            uint8_t alternate = 0;
+            tud_control_xfer(rhport, p_request, &alternate, 1);
+          }
+          break;
+
+          case TUSB_REQ_SET_INTERFACE:
+          {
+            uint8_t const alternate = (uint8_t) p_request->wValue;
+
+            // TODO not support alternate interface yet
+            TU_ASSERT(alternate == 0);
+            tud_control_status(rhport, p_request);
+          }
+          break;
+
+          default:
+            // forward to class driver: "STD request to Interface"
+            // GET HID REPORT DESCRIPTOR falls into this case
+            usbd_control_set_complete_callback(usbd_class_drivers[drvid].control_complete);
+
+            // stall control endpoint if driver return false
+            TU_ASSERT(usbd_class_drivers[drvid].control_request(rhport, p_request));
+          break;
         }
-        break;
+      }else
+      {
+        // forward to class driver: "non-STD request to Interface"
+        usbd_control_set_complete_callback(usbd_class_drivers[drvid].control_complete);
 
-        case TUSB_REQ_SET_INTERFACE:
-        {
-          uint8_t alternate = (uint8_t) p_request->wValue;
-
-          // TODO not support alternate interface yet
-          TU_ASSERT(alternate == 0);
-
-          tud_control_status(rhport, p_request);
-        }
-        break;
-
-        default:
-          // forward to class driver
-          // stall control endpoint if driver return false
-          usbd_control_set_complete_callback(usbd_class_drivers[drvid].control_complete);
-          TU_ASSERT(usbd_class_drivers[drvid].control_request(rhport, p_request));
-        break;
+        // stall control endpoint if driver return false
+        TU_ASSERT(usbd_class_drivers[drvid].control_request(rhport, p_request));
       }
     }
     break;
