@@ -246,17 +246,17 @@ static void usbd_reset(uint8_t rhport)
     }
     @endcode
  */
-void tud_task (void)
+bool tud_task (void)
 {
   // Skip if stack is not initialized
-  if ( !tusb_inited() ) return;
+  if ( !tusb_inited() ) return false;
 
   // Loop until there is no more events in the queue
   while (1)
   {
     dcd_event_t event;
 
-    if ( !osal_queue_receive(_usbd_q, &event) ) return;
+    if ( !osal_queue_receive(_usbd_q, &event) ) return false;
 
     switch ( event.event_id )
     {
@@ -696,7 +696,7 @@ static bool process_get_descriptor(uint8_t rhport, tusb_control_request_t const 
 //--------------------------------------------------------------------+
 // DCD Event Handler
 //--------------------------------------------------------------------+
-void dcd_event_handler(dcd_event_t const * event, bool in_isr)
+bool dcd_event_handler(dcd_event_t const * event, bool in_isr)
 {
   switch (event->event_id)
   {
@@ -754,6 +754,7 @@ void dcd_event_handler(dcd_event_t const * event, bool in_isr)
 
     default: break;
   }
+  return true;
 }
 
 // helper to send bus signal event
