@@ -435,8 +435,9 @@ static bool process_control_request(uint8_t rhport, tusb_control_request_t const
     case TUSB_REQ_RCPT_INTERFACE:
     {
       uint8_t const itf = tu_u16_low(p_request->wIndex);
-      uint8_t const drvid = _usbd_dev.itf2drv[itf];
+      TU_VERIFY(itf < TU_ARRAY_SZIE(_usbd_dev.itf2drv));
 
+      uint8_t const drvid = _usbd_dev.itf2drv[itf];
       TU_VERIFY(drvid < USBD_CLASS_DRIVER_COUNT);
 
       if (p_request->bmRequestType_bit.type == TUSB_REQ_TYPE_STANDARD)
