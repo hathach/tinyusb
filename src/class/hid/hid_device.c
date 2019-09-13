@@ -230,7 +230,6 @@ bool hidd_control_request(uint8_t rhport, tusb_control_request_t const * p_reque
       break;
 
       case  HID_REQ_CONTROL_SET_REPORT:
-        TU_VERIFY(p_request->wLength <=sizeof(p_hid->epout_buf));
         tud_control_xfer(rhport, p_request, p_hid->epout_buf, p_request->wLength);
       break;
 
