@@ -127,27 +127,15 @@ Also make sure to enable endpoint specific interrupts.
 
 `dcd_edpt_xfer` is used for all endpoints including the control endpoint 0. Make sure to handle the zero-length packet STATUS packet on endpoint 0 correctly. It may be a special transaction to the peripheral.
 
-Besides that, all other transactions are relatively straight-forward. The endpoint address provides the endpoint
-number and direction which usually determines where to write the buffer info. The buffer and its length are usually
-written to a specific location in memory and the peripheral is told the data is valid. (Maybe by writing a 1 to a
-register or setting a counter register to 0 for OUT or length for IN.)
+Besides that, all other transactions are relatively straight-forward. The endpoint address provides the endpoint number and direction which usually determines where to write the buffer info. The buffer and its length are usually written to a specific location in memory and the peripheral is told the data is valid. (Maybe by writing a 1 to a register or setting a counter register to 0 for OUT or length for IN.)
 
-The transmit buffer is NOT guarenteed to be word-aligned.
+TODO: can we promise the buffer is word aligned?
 
-One potential pitfall is that the buffer may be longer than the maximum endpoint size of one USB
-packet. Some peripherals can handle transmitting multiple USB packets for a provided buffer (like the SAMD21).
-Others (like the nRF52) may need each USB packet queued individually. To make this work you'll need to track
-some state for yourself and queue up an intermediate USB packet from the interrupt handler.
+One potential pitfall is that the buffer may be longer than the maximum endpoint size of one USB packet. Some peripherals can handle transmitting multiple USB packets for a provided buffer (like the SAMD21). Others (like the nRF52) may need each USB packet queued individually. To make this work you'll need to track some state for yourself and queue up an intermediate USB packet from the interrupt handler.
 
 Once the transaction is going, the interrupt handler will notify TinyUSB of transfer completion.
-During transmission, the IN data buffer is guarenteed to remain unchanged in memory until the `dcd_xfer_complete` function is called.
 
-The dcd_edpt_xfer function must never add zero-length-packets (ZLP) on its own to a transfer. If a ZLP is required,
-then it must be explicitly sent by the module calling dcd_edpt_xfer(), by calling dcd_edpt_xfer() a second time with len=0.
-For control transfers, this is automatically done in `usbd_control.c`.
-
-At the moment, only a single buffer can be transmitted at once. There is no provision for double-buffering. new dcd_edpt_xfer() will not
-be called again until the driver calls dcd_xfer_complete() (except in cases of USB resets).
+TODO: who handles zero-length data packets?
 
 ##### dcd_xfer_complete
 
