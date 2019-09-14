@@ -1,5 +1,5 @@
 CFLAGS += \
-  -DHSE_VALUE=120000000 \
+  -DHSE_VALUE=12000000 \
   -DSTM32F405xx \
   -mthumb \
   -mabi=aapcs \
