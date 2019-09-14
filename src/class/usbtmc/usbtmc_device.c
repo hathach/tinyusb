@@ -61,6 +61,9 @@
 // FIXME: I shouldn't need to include _pvt headers.
 #include "device/usbd_pvt.h"
 
+static uint8_t termChar;
+static uint8_t termCharRequested = false;
+
 typedef enum
 {
   STATE_IDLE,
@@ -112,6 +115,13 @@ bool usbtmcd_transmit_dev_msg_data(
 {
   TU_ASSERT(usbtmc_state.state == STATE_TX_REQUESTED);
   TU_ASSERT(hdr->TransferSize > 0u);
+
+  if(hdr->bmTransferAttributes.UsingTermChar)
+  {
+    TU_ASSERT(usbtmcd_app_capabilities.bmDevCapabilities.canEndBulkInOnTermChar);
+    TU_ASSERT(termCharRequested);
+    TU_ASSERT(((uint8_t*)data)[hdr->TransferSize-1] == termChar);
+  }
 
   // Copy in the header
   memcpy(usbtmc_state.ep_bulk_in_buf, hdr, sizeof(*hdr));
@@ -260,6 +270,12 @@ static bool handle_devMsgIn(uint8_t rhport, void *data, size_t len)
   TU_VERIFY(usbtmc_state.state == STATE_IDLE);
   usbtmc_state.state = STATE_TX_REQUESTED;
   usbtmc_state.transfer_size_remaining = msg->TransferSize;
+
+  termCharRequested = msg->bmTransferAttributes.TermCharEnabled;
+  termChar = msg->TermChar;
+  if(termCharRequested)
+    TU_VERIFY(usbtmcd_app_capabilities.bmDevCapabilities.canEndBulkInOnTermChar);
+
   TU_VERIFY(usbtmcd_app_msgBulkIn_request(rhport, msg));
   return true;
 }
@@ -310,6 +326,8 @@ bool usbtmcd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint
       TU_VERIFY(handle_devMsgOut(rhport, usbtmc_state.ep_bulk_out_buf, xferred_bytes, xferred_bytes));
       return true;
 
+    case STATE_TX_REQUESTED:
+    case STATE_TX_INITIATED:
     default:
       TU_VERIFY(false);
     }
