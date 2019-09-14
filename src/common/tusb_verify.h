@@ -36,10 +36,34 @@
  * as C++ for the sake of code simplicity. Beware of a headache macro
  * manipulation that you are told to stay away.
  *
- * e.g
  *
- * - TU_VERIFY( cond ) will return false if cond is false
- * - TU_VERIFY( cond, err) will return err instead if cond is false
+ * This contains macros for both VERIFY and ASSERT:
+ * 
+ *   VERIFY: Used when there is an error condition which is not the
+ *           fault of the MCU. For example, bounds checking on data
+ *           sent to the micro over USB should use this function.
+ *           Another example is checking for buffer overflows, where
+ *           returning from the active function causes a NAK.
+ * 
+ *   ASSERT: Used for error conditions that are caused by MCU firmware
+ *           bugs. This is used to discover bugs in the code more
+ *           quickly. One example would be adding assertions in library
+ *           function calls to confirm a function's (untainted)
+ *           parameters are valid.
+ *
+ * 
+ * The difference in behaviour is that ASSERT triggers a breakpoint while
+ * verify does not.
+ *
+ *   #define TU_VERIFY(cond)                  if(cond) return false;
+ *   #define TU_VERIFY(cond,ret)              if(cond) return ret;
+ *   
+ *   #define TU_VERIFY_HDLR(cond,handler)     if(cond) {handler; return false;}
+ *   #define TU_VERIFY_HDLR(cond,ret,handler) if(cond) {handler; return ret;}
+ *
+ *   #define TU_ASSERT(cond)                  if(cond) {_MESS_FAILED(); TU_BREAKPOINT(), return false;}
+ *   #define TU_ASSERT(cond,ret)              if(cond) {_MESS_FAILED(); TU_BREAKPOINT(), return ret;}
+ *  
  *------------------------------------------------------------------*/
 
 #ifdef __cplusplus
