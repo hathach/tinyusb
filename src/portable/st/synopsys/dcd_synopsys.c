@@ -268,21 +268,22 @@ bool dcd_edpt_open (uint8_t rhport, tusb_desc_endpoint_t const * desc_edpt)
 
   uint8_t const epnum = tu_edpt_number(desc_edpt->bEndpointAddress);
   uint8_t const dir   = tu_edpt_dir(desc_edpt->bEndpointAddress);
-
-  // Unsupported endpoint numbers/size.
-  if((desc_edpt->wMaxPacketSize.size > 64) || (epnum > EP_MAX)) {
-    return false;
-  }
-
+  
+  TU_ASSERT((desc_edpt->wMaxPacketSize.size <= 64);
+  TU_ASSERT(epnum < EP_MAX);
+  
   xfer_ctl_t * xfer = XFER_CTL_BASE(epnum, dir);
   xfer->max_size = desc_edpt->wMaxPacketSize.size;
 
-  if(dir == TUSB_DIR_OUT) {
+  if(dir == TUSB_DIR_OUT)
+  {
     out_ep[epnum].DOEPCTL |= (1 << USB_OTG_DOEPCTL_USBAEP_Pos) | \
       desc_edpt->bmAttributes.xfer << USB_OTG_DOEPCTL_EPTYP_Pos | \
       desc_edpt->wMaxPacketSize.size << USB_OTG_DOEPCTL_MPSIZ_Pos;
     dev->DAINTMSK |= (1 << (USB_OTG_DAINTMSK_OEPM_Pos + epnum));
-  } else {
+  }
+  else
+  {
     // "USB Data FIFOs" section in reference manual
     // Peripheral FIFO architecture
     //
