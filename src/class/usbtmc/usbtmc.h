@@ -160,14 +160,14 @@ typedef enum {
   USBTMC_bREQUEST_GET_CAPABILITIES             = 7u,
 
   USBTMC_bREQUEST_INDICATOR_PULSE               = 64u, // Optional
-} usmtmc_request_type_enum;
 
-typedef enum {
+  /****** USBTMC 488 *************/
   USBTMC488_bREQUEST_READ_STATUS_BYTE  = 128u,
   USBTMC488_bREQUEST_REN_CONTROL       = 160u,
   USBTMC488_bREQUEST_GO_TO_LOCAL       = 161u,
   USBTMC488_bREQUEST_LOCAL_LOCKOUT     = 162u,
-} usbtmc_request_type_488_enum;
+
+} usmtmc_request_type_enum;
 
 typedef enum {
   USBTMC_STATUS_SUCCESS = 0x01,

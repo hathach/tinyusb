@@ -97,6 +97,10 @@ static usbtmc_interface_state_t usbtmc_state =
 // I'm not sure if this is really necessary, though.
 TU_VERIFY_STATIC(USBTMCD_MAX_PACKET_SIZE >= 32u,"USBTMC dev EP packet size too small");
 
+
+static bool handle_devMsgOutStart(uint8_t rhport, void *data, size_t len);
+static bool handle_devMsgOut(uint8_t rhport, void *data, size_t len, size_t packetLen);
+
 // called from app
 // We keep a reference to the buffer, so it MUST not change until the app is
 // notified that the transfer is complete.
@@ -140,7 +144,10 @@ bool usbtmcd_transmit_dev_msg_data(
 
 void usbtmcd_init(void)
 {
-
+#if USBTMC_CFG_ENABLE_488
+  if(usbtmcd_app_capabilities.bmIntfcCapabilities488.supportsTrigger)
+    TU_ASSERT(usbtmcd_app_msg_trigger != NULL,);
+#endif
 }
 
 bool usbtmcd_open(uint8_t rhport, tusb_desc_interface_t const * itf_desc, uint16_t *p_length)
@@ -213,32 +220,39 @@ void usbtmcd_reset(uint8_t rhport)
   // FIXME: Do endpoints need to be closed here?
   (void)rhport;
 }
-static bool handle_devMsgOut(uint8_t rhport, void *data, size_t len)
+
+static bool handle_devMsgOutStart(uint8_t rhport, void *data, size_t len)
 {
   (void)rhport;
-  bool shortPacket = (len < USBTMCD_MAX_PACKET_SIZE);
-  if(usbtmc_state.state == STATE_IDLE)
-  {
-    // must be a header, should have been confirmed before calling here.
-    usbtmc_msg_request_dev_dep_out *msg = (usbtmc_msg_request_dev_dep_out*)data;
-    usbtmc_state.transfer_size_remaining = msg->TransferSize;
-    TU_VERIFY(usbtmcd_app_msgBulkOut_start(msg));
-    len -= sizeof(*msg);
-    data = (uint8_t*)data + sizeof(*msg);
-  }
+  TU_VERIFY(usbtmc_state.state == STATE_IDLE);
+  // must be a header, should have been confirmed before calling here.
+  usbtmc_msg_request_dev_dep_out *msg = (usbtmc_msg_request_dev_dep_out*)data;
+  usbtmc_state.transfer_size_remaining = msg->TransferSize;
+  TU_VERIFY(usbtmcd_app_msgBulkOut_start(rhport,msg));
+
+  TU_VERIFY(handle_devMsgOut(rhport, (uint8_t*)data + sizeof(*msg), len - sizeof(*msg), len));
+  return true;
+}
+
+static bool handle_devMsgOut(uint8_t rhport, void *data, size_t len, size_t packetLen)
+{
+  (void)rhport;
+  bool shortPacket = (packetLen < USBTMCD_MAX_PACKET_SIZE);
+
   // Packet is to be considered complete when we get enough data or at a short packet.
   bool atEnd = false;
   if(len >= usbtmc_state.transfer_size_remaining || shortPacket)
     atEnd = true;
   if(len > usbtmc_state.transfer_size_remaining)
     len = usbtmc_state.transfer_size_remaining;
-  usbtmcd_app_msg_data(data, len, atEnd);
+  usbtmcd_app_msg_data(rhport,data, len, atEnd);
   if(atEnd)
     usbtmc_state.state = STATE_IDLE;
   else
     usbtmc_state.state = STATE_RCV;
   return true;
 }
+
 static bool handle_devMsgIn(uint8_t rhport, void *data, size_t len)
 {
   TU_VERIFY(len == sizeof(usbtmc_msg_request_dev_dep_in));
@@ -267,25 +281,34 @@ bool usbtmcd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint
 
       switch(msg->header.MsgID) {
       case USBTMC_MSGID_DEV_DEP_MSG_OUT:
-        TU_VERIFY(handle_devMsgOut(rhport, msg, xferred_bytes));
-        TU_VERIFY(usbd_edpt_xfer(rhport, usbtmc_state.ep_bulk_out, usbtmc_state.ep_bulk_out_buf, 64));
+        TU_VERIFY(handle_devMsgOutStart(rhport, msg, xferred_bytes));
+        TU_VERIFY(usbd_edpt_xfer(rhport, usbtmc_state.ep_bulk_out, usbtmc_state.ep_bulk_out_buf, USBTMCD_MAX_PACKET_SIZE));
         break;
+
       case USBTMC_MSGID_DEV_DEP_MSG_IN:
         TU_VERIFY(handle_devMsgIn(rhport, msg, xferred_bytes));
         break;
+
+#ifdef USBTMC_CFG_ENABLE_488
+      case USBTMC_MSGID_USB488_TRIGGER:
+        // Spec says we halt the EP if we didn't declare we support it.
+        TU_VERIFY(usbtmcd_app_capabilities.bmIntfcCapabilities488.supportsTrigger);
+        TU_VERIFY(usbtmcd_app_msg_trigger(rhport, msg));
+        TU_VERIFY(usbd_edpt_xfer(rhport, usbtmc_state.ep_bulk_out, usbtmc_state.ep_bulk_out_buf, USBTMCD_MAX_PACKET_SIZE));
+
+        break;
+#endif
       case USBTMC_MSGID_VENDOR_SPECIFIC_MSG_OUT:
       case USBTMC_MSGID_VENDOR_SPECIFIC_IN:
-      case USBTMC_MSGID_USB488_TRIGGER:
       default:
         TU_VERIFY(false);
+        return false;
       }
       return true;
 
     case STATE_RCV:
-      TU_VERIFY(handle_devMsgOut(rhport, usbtmc_state.ep_bulk_out_buf, xferred_bytes));
-      TU_VERIFY( usbd_edpt_xfer(rhport, usbtmc_state.ep_bulk_out, usbtmc_state.ep_bulk_out_buf, 64));
+      TU_VERIFY(handle_devMsgOut(rhport, usbtmc_state.ep_bulk_out_buf, xferred_bytes, xferred_bytes));
       return true;
-      break;
 
     default:
       TU_VERIFY(false);
@@ -298,7 +321,7 @@ bool usbtmcd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint
     {
       usbtmc_state.state = STATE_IDLE;
       TU_VERIFY(usbtmcd_app_msgBulkIn_complete(rhport));
-      TU_VERIFY( usbd_edpt_xfer(rhport, usbtmc_state.ep_bulk_out, usbtmc_state.ep_bulk_out_buf, 64));
+      TU_VERIFY( usbd_edpt_xfer(rhport, usbtmc_state.ep_bulk_out, usbtmc_state.ep_bulk_out_buf, USBTMCD_MAX_PACKET_SIZE));
     }
     else if(usbtmc_state.transfer_size_remaining >= USBTMCD_MAX_PACKET_SIZE)
     {

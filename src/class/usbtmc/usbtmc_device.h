@@ -55,18 +55,18 @@ extern usbtmc_response_capabilities_488_t const usbtmcd_app_capabilities;
 extern usbtmc_response_capabilities_t const usbtmcd_app_capabilities;
 #endif
 
-bool usbtmcd_app_msgBulkOut_start(usbtmc_msg_request_dev_dep_out const * msgHeader);
+bool usbtmcd_app_msgBulkOut_start(uint8_t rhport, usbtmc_msg_request_dev_dep_out const * msgHeader);
 
 // transfer_complete does not imply that a message is complete.
-bool usbtmcd_app_msg_data(void *data, size_t len, bool transfer_complete);
+bool usbtmcd_app_msg_data(uint8_t rhport, void *data, size_t len, bool transfer_complete);
 
 bool usbtmcd_app_msgBulkIn_request(uint8_t rhport, usbtmc_msg_request_dev_dep_in const * request);
 
 bool usbtmcd_app_msgBulkIn_complete(uint8_t rhport);
 
 #if (USBTMC_CFG_ENABLE_488)
-uint8_t usbtmcd_app_get_stb(uint8_t rhport, uint8_t *rspResult);
-
+uint8_t usbtmcd_app_get_stb(uint8_t rhport, usbtmc_status_enum *rspResult);
+TU_ATTR_WEAK bool usbtmcd_app_msg_trigger(uint8_t rhport, usbtmc_msg_generic_t* msg);
 //TU_ATTR_WEAK bool usbtmcd_app_go_to_local(uint8_t rhport);
 #endif
 
