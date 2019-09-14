@@ -39,17 +39,18 @@
 
 //Limitations (not planned to be implemented):
 // "vendor-specific" commands are not handled
+// Dealing with "termchar" must be handled by the application layer,
+//    though additional error checking is does in this module.
 
 // TODO:
 // USBTMC 3.2.2 error conditions not strictly followed
 // No local lock-out, REN, or GTL.
-// Cannot issue clear.
-// No "capabilities" supported
-// Interrupt-IN endpoint
-// 488 MsgID=Trigger
+// Cannot handle clear.
+// Not all "capabilities" supported
 // Clear message available status byte at the correct time? (488 4.3.1.3)
 // Split transfers
-// No CLEAR_FEATURE/HALT (yet)
+// No CLEAR_FEATURE/HALT no EP (yet)
+// No aborting transfers.
 
 #if (TUSB_OPT_DEVICE_ENABLED && CFG_TUD_USBTMC)
 
@@ -156,8 +157,11 @@ void usbtmcd_init(void)
 {
 #if USBTMC_CFG_ENABLE_488
   if(usbtmcd_app_capabilities.bmIntfcCapabilities488.supportsTrigger)
-    TU_ASSERT(usbtmcd_app_msg_trigger != NULL,);
+    TU_ASSERT(&usbtmcd_app_msg_trigger != NULL,);
 #endif
+  if(usbtmcd_app_capabilities.bmIntfcCapabilities.supportsIndicatorPulse)
+    TU_ASSERT(&usbtmcd_app_indicator_pluse != NULL,);
+
 }
 
 bool usbtmcd_open(uint8_t rhport, tusb_desc_interface_t const * itf_desc, uint16_t *p_length)
@@ -400,8 +404,9 @@ bool usbtmcd_control_request(uint8_t rhport, tusb_control_request_t const * requ
     return true;
   // USBTMC Optional Requests
   case USBTMC_bREQUEST_INDICATOR_PULSE: // Optional
-    TU_VERIFY(false);
-    return false;
+    TU_VERIFY(usbtmcd_app_capabilities.bmIntfcCapabilities.supportsIndicatorPulse);
+    TU_VERIFY(usbtmcd_app_indicator_pluse(rhport, request));
+    return true;
 
 #if (USBTMC_CFG_ENABLE_488)
     // USB488 required requests

@@ -25,6 +25,7 @@
 
 #include <strings.h>
 #include "class/usbtmc/usbtmc_device.h"
+#include "main.h"
 
 #if (USBTMC_CFG_ENABLE_488)
 usbtmc_response_capabilities_488_t const
@@ -39,7 +40,7 @@ usbtmcd_app_capabilities  =
     {
         .listenOnly = 0,
         .talkOnly = 0,
-        .supportsIndicatorPulse = 0
+        .supportsIndicatorPulse = 1
     },
     .bmDevCapabilities = {
         .canEndBulkInOnTermChar = 0
@@ -63,7 +64,7 @@ usbtmcd_app_capabilities  =
 #endif
 };
 
-static const char idn[] = "TinyUSB,ModelNumber,SerialNumber,FirmwareVer";
+static const char idn[] = "TinyUSB,ModelNumber,SerialNumber,FirmwareVer\n";
 static uint8_t status;
 static bool queryReceived = false;
 
@@ -96,7 +97,7 @@ bool usbtmcd_app_msgBulkIn_complete(uint8_t rhport)
   return true;
 }
 
-static uint8_t noQueryMsg[] = "ERR: No query";
+static uint8_t noQueryMsg[] = "ERR: No query\n";
 bool usbtmcd_app_msgBulkIn_request(uint8_t rhport, usbtmc_msg_request_dev_dep_in const * request)
 {
   usbtmc_msg_dev_dep_msg_in_header_t hdr = {
@@ -127,7 +128,7 @@ bool usbtmcd_app_msgBulkIn_request(uint8_t rhport, usbtmc_msg_request_dev_dep_in
 }
 
 // Return status byte, but put the transfer result status code in the rspResult argument.
-uint8_t usbtmcd_app_get_stb(uint8_t rhport, usbtmc_status_enum *rspResult)
+uint8_t usbtmcd_app_get_stb(uint8_t rhport, uint8_t *rspResult)
 {
   (void)rhport;
   *rspResult = USBTMC_STATUS_SUCCESS;
@@ -137,3 +138,7 @@ uint8_t usbtmcd_app_get_stb(uint8_t rhport, usbtmc_status_enum *rspResult)
   return status;
 }
 
+bool usbtmcd_app_indicator_pluse(uint8_t rhport, tusb_control_request_t const * msg)
+{
+  led_indicator_pulse();
+}

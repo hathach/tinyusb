@@ -64,8 +64,10 @@ bool usbtmcd_app_msgBulkIn_request(uint8_t rhport, usbtmc_msg_request_dev_dep_in
 
 bool usbtmcd_app_msgBulkIn_complete(uint8_t rhport);
 
+TU_ATTR_WEAK bool usbtmcd_app_indicator_pluse(uint8_t rhport, tusb_control_request_t const * msg);
+
 #if (USBTMC_CFG_ENABLE_488)
-uint8_t usbtmcd_app_get_stb(uint8_t rhport, usbtmc_status_enum *rspResult);
+uint8_t usbtmcd_app_get_stb(uint8_t rhport, uint8_t *rspResult);
 TU_ATTR_WEAK bool usbtmcd_app_msg_trigger(uint8_t rhport, usbtmc_msg_generic_t* msg);
 //TU_ATTR_WEAK bool usbtmcd_app_go_to_local(uint8_t rhport);
 #endif
