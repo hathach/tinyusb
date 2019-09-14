@@ -145,6 +145,22 @@ static usbd_class_driver_t const usbd_class_drivers[] =
       .sof              = NULL
   },
   #endif
+
+  #if CFG_TUD_USBTMC
+  // Presently USBTMC is the only defined class with the APP_SPECIFIC class code.
+  // We maybe need to add subclass codes here, or a callback to ask if a driver can
+  // handle a particular interface.
+  {
+      .class_code       = TUSB_CLASS_APPLICATION_SPECIFIC,
+      .init             = usbtmcd_init,
+      .reset            = usbtmcd_reset,
+      .open             = usbtmcd_open,
+      .control_request  = usbtmcd_control_request,
+      .control_complete = usbtmcd_control_complete,
+      .xfer_cb          = usbtmcd_xfer_cb,
+      .sof              = NULL
+  },
+  #endif
 };
 
 enum { USBD_CLASS_DRIVER_COUNT = TU_ARRAY_SIZE(usbd_class_drivers) };
