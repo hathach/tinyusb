@@ -2,8 +2,12 @@
 # Common make definition for all examples
 #
 
-# Compiler 
-CROSS_COMPILE = arm-none-eabi-
+# Compiler
+ifeq ($(BOARD), msp_exp430f5529lp)
+  CROSS_COMPILE = msp430-elf-
+else
+  CROSS_COMPILE = arm-none-eabi-
+endif
 CC = $(CROSS_COMPILE)gcc
 CXX = $(CROSS_COMPILE)g++
 OBJCOPY = $(CROSS_COMPILE)objcopy
@@ -67,9 +71,12 @@ CFLAGS += \
 	-Wno-deprecated-declarations \
 	-Wnested-externs \
 	-Wunreachable-code \
-	-Wno-error=lto-type-mismatch \
 	-ffunction-sections \
 	-fdata-sections
+
+ifneq ($(BOARD), msp_exp430f5529lp)
+  CFLAGS += -Wno-error=lto-type-mismatch
+endif
 
 # This causes lots of warning with nrf5x build due to nrfx code
 # CFLAGS += -Wcast-align
