@@ -49,7 +49,7 @@ usbtmcd_app_capabilities  =
     .bcdUSB488 = USBTMC_488_VERSION,
     .bmIntfcCapabilities488 =
     {
-        .supportsTrigger = 0,
+        .supportsTrigger = 1,
         .supportsREN_GTL_LLO = 0,
         .is488_2 = 1
     },
@@ -68,15 +68,21 @@ static uint8_t status;
 static bool queryReceived = false;
 
 
-bool usbtmcd_app_msgBulkOut_start(usbtmc_msg_request_dev_dep_out const * msgHeader)
+bool usbtmcd_app_msgBulkOut_start(uint8_t rhport, usbtmc_msg_request_dev_dep_out const * msgHeader)
 {
+  (void)rhport;
   (void)msgHeader;
   return true;
 }
+bool usbtmcd_app_msg_trigger(uint8_t rhport, usbtmc_msg_generic_t* msg) {
+  (void)rhport;
+  (void)msg;
+  return true;
+}
 
-
-bool usbtmcd_app_msg_data(void *data, size_t len, bool transfer_complete)
+bool usbtmcd_app_msg_data(uint8_t rhport, void *data, size_t len, bool transfer_complete)
 {
+  (void)rhport;
   (void)transfer_complete;
   if(transfer_complete && (len >=4) && !strncasecmp("*idn?",data,4)) {
     queryReceived = true;
@@ -121,7 +127,7 @@ bool usbtmcd_app_msgBulkIn_request(uint8_t rhport, usbtmc_msg_request_dev_dep_in
 }
 
 // Return status byte, but put the transfer result status code in the rspResult argument.
-uint8_t usbtmcd_app_get_stb(uint8_t rhport, uint8_t *rspResult)
+uint8_t usbtmcd_app_get_stb(uint8_t rhport, usbtmc_status_enum *rspResult)
 {
   (void)rhport;
   *rspResult = USBTMC_STATUS_SUCCESS;
