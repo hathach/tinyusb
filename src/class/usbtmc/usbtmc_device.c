@@ -379,9 +379,11 @@ bool usbtmcd_control_request(uint8_t rhport, tusb_control_request_t const * requ
 #if (USBTMC_CFG_ENABLE_488)
   ushort bTag;
 #endif
-  // We only handle class requests.
+  // We only handle class requests, IN direction.
   if(request->bmRequestType_bit.type != TUSB_REQ_TYPE_CLASS)
+  {
     return false;
+  }
 
   switch(request->bRequest)
   {
@@ -390,27 +392,38 @@ bool usbtmcd_control_request(uint8_t rhport, tusb_control_request_t const * requ
   case USBTMC_bREQUEST_CHECK_ABORT_BULK_OUT_STATUS:
   case USBTMC_bREQUEST_INITIATE_ABORT_BULK_IN:
   case USBTMC_bREQUEST_CHECK_ABORT_BULK_IN_STATUS:
+    TU_VERIFY(request->bmRequestType == 0xA2); // in,class,EP
+    TU_VERIFY(false);
+    break;
+
   case USBTMC_bREQUEST_INITIATE_CLEAR:
   case USBTMC_bREQUEST_CHECK_CLEAR_STATUS:
+    TU_VERIFY(request->bmRequestType == 0xA1); // in,class,interface
     TU_VERIFY(false);
     break;
 
   case USBTMC_bREQUEST_GET_CAPABILITIES:
-    TU_VERIFY(request->bmRequestType == 0xA1);
+    TU_VERIFY(request->bmRequestType == 0xA1); // in,class,interface
     TU_VERIFY(request->wValue == 0x0000);
     TU_VERIFY(request->wIndex == usbtmc_state.itf_id);
     TU_VERIFY(request->wLength == sizeof(usbtmcd_app_capabilities));
     TU_VERIFY(tud_control_xfer(rhport, request, (void*)&usbtmcd_app_capabilities, sizeof(usbtmcd_app_capabilities)));
     return true;
   // USBTMC Optional Requests
+
   case USBTMC_bREQUEST_INDICATOR_PULSE: // Optional
+    TU_VERIFY(request->bmRequestType == 0xA1); // in,class,interface
     TU_VERIFY(usbtmcd_app_capabilities.bmIntfcCapabilities.supportsIndicatorPulse);
-    TU_VERIFY(usbtmcd_app_indicator_pluse(rhport, request));
+    uint8_t tmcResult;
+    TU_VERIFY(usbtmcd_app_indicator_pluse(rhport, request, &tmcResult));
+    TU_VERIFY(tud_control_xfer(rhport, request, (void*)&tmcResult, sizeof(tmcResult)));
+
     return true;
 
 #if (USBTMC_CFG_ENABLE_488)
     // USB488 required requests
   case USBTMC488_bREQUEST_READ_STATUS_BYTE:
+    TU_VERIFY(request->bmRequestType == 0xA1); // in,class,interface
 
     bTag = request->wValue & 0x7F;
     TU_VERIFY(request->bmRequestType == 0xA1);
@@ -444,6 +457,7 @@ bool usbtmcd_control_request(uint8_t rhport, tusb_control_request_t const * requ
   case USBTMC488_bREQUEST_REN_CONTROL:
   case USBTMC488_bREQUEST_GO_TO_LOCAL:
   case USBTMC488_bREQUEST_LOCAL_LOCKOUT:
+    TU_VERIFY(request->bmRequestType == 0xA1); // in,class,interface
     TU_VERIFY(false);
     return false;
 #endif

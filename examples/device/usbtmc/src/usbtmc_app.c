@@ -25,6 +25,7 @@
 
 #include <strings.h>
 #include "class/usbtmc/usbtmc_device.h"
+#include "bsp/board.h"
 #include "main.h"
 
 #if (USBTMC_CFG_ENABLE_488)
@@ -65,9 +66,21 @@ usbtmcd_app_capabilities  =
 };
 
 static const char idn[] = "TinyUSB,ModelNumber,SerialNumber,FirmwareVer\n";
-static uint8_t status;
-static bool queryReceived = false;
+static volatile uint8_t status;
 
+// 0=not query, 1=queried, 2=delay,set(MAV), 3=delay 4=ready?
+// (to simulate delay)
+static volatile uint16_t queryState = 0;
+static volatile uint32_t queryDelayStart;
+static volatile uint32_t bulkInStarted;
+
+static usbtmc_msg_dev_dep_msg_in_header_t rspMsg = {
+    .bmTransferAttributes =
+    {
+      .EOM = 1,
+      .UsingTermChar = 0
+    }
+};
 
 bool usbtmcd_app_msgBulkOut_start(uint8_t rhport, usbtmc_msg_request_dev_dep_out const * msgHeader)
 {
@@ -86,7 +99,7 @@ bool usbtmcd_app_msg_data(uint8_t rhport, void *data, size_t len, bool transfer_
   (void)rhport;
   (void)transfer_complete;
   if(transfer_complete && (len >=4) && !strncasecmp("*idn?",data,4)) {
-    queryReceived = true;
+    queryState = 1;
   }
   return true;
 }
@@ -98,47 +111,73 @@ bool usbtmcd_app_msgBulkIn_complete(uint8_t rhport)
 }
 
 static uint8_t noQueryMsg[] = "ERR: No query\n";
+
 bool usbtmcd_app_msgBulkIn_request(uint8_t rhport, usbtmc_msg_request_dev_dep_in const * request)
 {
-  usbtmc_msg_dev_dep_msg_in_header_t hdr = {
-      .header =
-      {
-          .MsgID = request->header.MsgID,
-          .bTag = request->header.bTag,
-          .bTagInverse = request->header.bTagInverse
-      },
-      .TransferSize = sizeof(idn)-1,
-      .bmTransferAttributes =
-      {
-        .EOM = 1,
-        .UsingTermChar = 0
-      }
-  };
-  if(queryReceived)
+  rspMsg.header.MsgID = request->header.MsgID,
+  rspMsg.header.bTag = request->header.bTag,
+  rspMsg.header.bTagInverse = request->header.bTagInverse;
+  if(queryState != 0)
   {
-    usbtmcd_transmit_dev_msg_data(rhport, &hdr, idn);
+    TU_ASSERT(bulkInStarted == 0);
+    bulkInStarted = 1;
   }
   else
   {
-    hdr.TransferSize = sizeof(noQueryMsg)-1;
-    usbtmcd_transmit_dev_msg_data(rhport, &hdr, noQueryMsg);
+    rspMsg.TransferSize = sizeof(noQueryMsg)-1;
+    usbtmcd_transmit_dev_msg_data(rhport, &rspMsg, noQueryMsg);
   }
-  queryReceived = false;
+  // Always return true indicating not to stall the EP.
   return true;
 }
 
+void usbtmc_app_task_iter(void) {
+  uint8_t const rhport = 0;
+
+  switch(queryState) {
+  case 1:
+    queryDelayStart = board_millis();
+    queryState = 2;
+    break;
+  case 2:
+    if( (board_millis() - queryDelayStart) > 1000u) {
+      queryDelayStart = board_millis();
+      queryState=3;
+      status |= 0x10u; // MAV
+    }
+    break;
+  case 3:
+    if( (board_millis() - queryDelayStart) > 1000u) {
+      queryState = 4;
+    }
+    break;
+  case 4: // time to transmit;
+    if(bulkInStarted) {
+      queryState = 0;
+      bulkInStarted = 0;
+      rspMsg.TransferSize = sizeof(idn)-1;
+      usbtmcd_transmit_dev_msg_data(rhport, &rspMsg, idn);
+      status &= ~(0x10u); // MAV
+    }
+    break;
+  }
+}
+
 // Return status byte, but put the transfer result status code in the rspResult argument.
-uint8_t usbtmcd_app_get_stb(uint8_t rhport, uint8_t *rspResult)
+uint8_t usbtmcd_app_get_stb(uint8_t rhport, uint8_t *tmcResult)
 {
   (void)rhport;
-  *rspResult = USBTMC_STATUS_SUCCESS;
+  *tmcResult = USBTMC_STATUS_SUCCESS;
   // Increment status so that we see different results on each read...
-  status++;
 
   return status;
 }
 
-bool usbtmcd_app_indicator_pluse(uint8_t rhport, tusb_control_request_t const * msg)
+bool usbtmcd_app_indicator_pluse(uint8_t rhport, tusb_control_request_t const * msg, uint8_t *tmcResult)
 {
+  (void)rhport;
+  (void)msg;
   led_indicator_pulse();
+  *tmcResult = USBTMC_STATUS_SUCCESS;
+  return true;
 }

@@ -29,7 +29,7 @@
 
 #include "bsp/board.h"
 #include "tusb.h"
-
+#include "usbtmc_app.h"
 //--------------------------------------------------------------------+
 // MACRO CONSTANT TYPEDEF PROTYPES
 //--------------------------------------------------------------------+
@@ -60,6 +60,7 @@ int main(void)
   {
     tud_task(); // tinyusb device task
     led_blinking_task();
+    usbtmc_app_task_iter();
   }
 
   return 0;
