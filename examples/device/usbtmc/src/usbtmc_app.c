@@ -117,6 +117,7 @@ bool usbtmcd_app_msgBulkIn_complete(uint8_t rhport)
 
 bool usbtmcd_app_msgBulkIn_request(uint8_t rhport, usbtmc_msg_request_dev_dep_in const * request)
 {
+  (void)rhport;
   rspMsg.header.MsgID = request->header.MsgID,
   rspMsg.header.bTag = request->header.bTag,
   rspMsg.header.bTagInverse = request->header.bTagInverse;
@@ -135,6 +136,8 @@ void usbtmc_app_task_iter(void) {
   uint8_t const rhport = 0;
 
   switch(queryState) {
+  case 0:
+    break;
   case 1:
     queryDelayStart = board_millis();
     queryState = 2;
@@ -166,17 +169,33 @@ void usbtmc_app_task_iter(void) {
   }
 }
 
-bool usbtmcd_app_initiate_clear(uint8_t rhport, uint8_t *tmcResult) {
+bool usbtmcd_app_initiate_clear(uint8_t rhport, uint8_t *tmcResult)
+{
   (void)rhport;
   *tmcResult = USBTMC_STATUS_SUCCESS;
+  queryState = 0;
+  bulkInStarted = false;
+  status = 0;
   return true;
 }
 
-bool usbtmcd_app_get_clear_status(uint8_t rhport, usbtmc_get_clear_status_rsp_t *rsp) {
+bool usbtmcd_app_get_clear_status(uint8_t rhport, usbtmc_get_clear_status_rsp_t *rsp)
+{
   (void)rhport;
+  queryState = 0;
+  bulkInStarted = false;
+  status = 0;
   rsp->USBTMC_status = USBTMC_STATUS_SUCCESS;
   rsp->bmClear.BulkInFifoBytes = 0u;
   return true;
+}
+void usmtmcd_app_bulkIn_clearFeature(uint8_t rhport)
+{
+  (void)rhport;
+}
+void usmtmcd_app_bulkOut_clearFeature(uint8_t rhport)
+{
+  (void)rhport;
 }
 
 // Return status byte, but put the transfer result status code in the rspResult argument.
