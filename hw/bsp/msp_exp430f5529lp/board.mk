@@ -4,7 +4,7 @@ CFLAGS += \
 
 # All source paths should be relative to the top level.
 LD_FILE = hw/bsp/msp_exp430f5529lp/msp430f5529.ld
-LDFLAGS += -L$(TOP)/hw/bsp/$(BOARD)
+LDINC += $(TOP)/hw/bsp/$(BOARD)
 
 INC += $(TOP)/hw/bsp/$(BOARD)
 
@@ -12,9 +12,9 @@ INC += $(TOP)/hw/bsp/$(BOARD)
 VENDOR = ti
 CHIP_FAMILY = msp430x5xx
 
-# Path to STM32 Cube Programmer CLI, should be added into system path
+# Path to mspdebug, should be added into system path
 MSPDEBUG = mspdebug
 
-# flash target using on-board stlink
+# flash target using mspdebug.
 flash: $(BUILD)/$(BOARD)-firmware.elf
 	$(MSPDEBUG) tilib "prog $<"

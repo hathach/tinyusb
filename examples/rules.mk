@@ -28,6 +28,7 @@ ifeq ($(BOARD), msp_exp430f5529lp)
 else
   LDFLAGS += $(CFLAGS) -fshort-enums -Wl,-T,$(TOP)/$(LD_FILE) -Wl,-Map=$@.map -Wl,-cref -Wl,-gc-sections -specs=nosys.specs -specs=nano.specs
 endif
+LDFLAGS += $(addprefix -L,$(LDINC))
 ASFLAGS += $(CFLAGS)
 
 # Assembly files can be name with upper case .S, convert it to .s
