@@ -97,7 +97,9 @@ bool usbtmcd_app_msg_trigger(uint8_t rhport, usbtmc_msg_generic_t* msg) {
 bool usbtmcd_app_msg_data(uint8_t rhport, void *data, size_t len, bool transfer_complete)
 {
   (void)rhport;
-  (void)transfer_complete;
+
+  // If transfer isn't finished, we just ignore it (for now)
+
   if(transfer_complete && (len >=4) && !strncasecmp("*idn?",data,4)) {
     queryState = 1;
   }
@@ -107,26 +109,24 @@ bool usbtmcd_app_msg_data(uint8_t rhport, void *data, size_t len, bool transfer_
 bool usbtmcd_app_msgBulkIn_complete(uint8_t rhport)
 {
   (void)rhport;
+
+  status &= (uint8_t)~(0x10u); // clear MAV
+
   return true;
 }
-
-static uint8_t noQueryMsg[] = "ERR: No query\n";
 
 bool usbtmcd_app_msgBulkIn_request(uint8_t rhport, usbtmc_msg_request_dev_dep_in const * request)
 {
   rspMsg.header.MsgID = request->header.MsgID,
   rspMsg.header.bTag = request->header.bTag,
   rspMsg.header.bTagInverse = request->header.bTagInverse;
-  if(queryState != 0)
-  {
-    TU_ASSERT(bulkInStarted == 0);
-    bulkInStarted = 1;
-  }
-  else
-  {
-    rspMsg.TransferSize = sizeof(noQueryMsg)-1;
-    usbtmcd_transmit_dev_msg_data(rhport, &rspMsg, noQueryMsg);
-  }
+
+  TU_ASSERT(bulkInStarted == 0);
+  bulkInStarted = 1;
+
+  // > If a USBTMC interface receives a Bulk-IN request prior to receiving a USBTMC command message
+  //   that expects a response, the device must NAK the request
+
   // Always return true indicating not to stall the EP.
   return true;
 }
@@ -157,10 +157,26 @@ void usbtmc_app_task_iter(void) {
       bulkInStarted = 0;
       rspMsg.TransferSize = sizeof(idn)-1;
       usbtmcd_transmit_dev_msg_data(rhport, &rspMsg, idn);
-      status &= ~(0x10u); // MAV
+      // MAV is cleared in the transfer complete callback.
     }
     break;
+  default:
+    TU_ASSERT(false,);
+    return;
   }
+}
+
+bool usbtmcd_app_initiate_clear(uint8_t rhport, uint8_t *tmcResult) {
+  (void)rhport;
+  *tmcResult = USBTMC_STATUS_SUCCESS;
+  return true;
+}
+
+bool usbtmcd_app_get_clear_status(uint8_t rhport, usbtmc_get_clear_status_rsp_t *rsp) {
+  (void)rhport;
+  rsp->USBTMC_status = USBTMC_STATUS_SUCCESS;
+  rsp->bmClear.BulkInFifoBytes = 0u;
+  return true;
 }
 
 // Return status byte, but put the transfer result status code in the rspResult argument.

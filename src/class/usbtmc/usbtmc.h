@@ -73,23 +73,29 @@ typedef struct TU_ATTR_PACKED
 typedef struct TU_ATTR_PACKED {
 	usbtmc_msg_header_t header ; ///< Header
 	uint32_t TransferSize      ; ///< Transfer size; LSB first
-	struct {
-      uint8_t EOM  : 1         ; ///< EOM set on last byte
+	struct TU_ATTR_PACKED
+	{
+	  unsigned int EOM  : 1         ; ///< EOM set on last byte
   } bmTransferAttributes;
   uint8_t _reserved[3];
 } usbtmc_msg_request_dev_dep_out;
 
+TU_VERIFY_STATIC(sizeof(usbtmc_msg_request_dev_dep_out) == 12u, "struct wrong length");
+
 // Next 8 bytes are message-specific
-typedef struct TU_ATTR_PACKED {
+typedef struct TU_ATTR_PACKED
+{
   usbtmc_msg_header_t header ; ///< Header
   uint32_t TransferSize      ; ///< Transfer size; LSB first
-  struct {
-      uint8_t : 0;
-      uint8_t TermCharEnabled  : 1 ; ///< "The Bulk-IN transfer must terminate on the specified TermChar."; CAPABILITIES must list TermChar
+  struct TU_ATTR_PACKED
+  {
+    unsigned int TermCharEnabled  : 1 ; ///< "The Bulk-IN transfer must terminate on the specified TermChar."; CAPABILITIES must list TermChar
   } bmTransferAttributes;
   uint8_t TermChar;
   uint8_t _reserved[2];
 } usbtmc_msg_request_dev_dep_in;
+
+TU_VERIFY_STATIC(sizeof(usbtmc_msg_request_dev_dep_in) == 12u, "struct wrong length");
 
 /* Bulk-in headers */
 
@@ -97,28 +103,36 @@ typedef struct TU_ATTR_PACKED
 {
   usbtmc_msg_header_t header;
   uint32_t TransferSize;
-  struct {
+  struct TU_ATTR_PACKED
+  {
     uint8_t EOM: 1;           ///< Last byte of transfer is the end of the message
     uint8_t UsingTermChar: 1; ///< Support TermChar && Request.TermCharEnabled && last char in transfer is TermChar
   } bmTransferAttributes;
   uint8_t _reserved[3];
 } usbtmc_msg_dev_dep_msg_in_header_t;
 
+TU_VERIFY_STATIC(sizeof(usbtmc_msg_dev_dep_msg_in_header_t) == 12u, "struct wrong length");
 
 /* Unsupported vendor things.... Are these ever used?*/
 
-typedef struct TU_ATTR_PACKED {
+typedef struct TU_ATTR_PACKED
+{
   usbtmc_msg_header_t header ; ///< Header
   uint32_t TransferSize      ; ///< Transfer size; LSB first
   uint8_t _reserved[4];
 } usbtmc_msg_request_vendor_specific_out;
 
 
-typedef struct TU_ATTR_PACKED {
+TU_VERIFY_STATIC(sizeof(usbtmc_msg_request_vendor_specific_out) == 12u, "struct wrong length");
+
+typedef struct TU_ATTR_PACKED
+{
   usbtmc_msg_header_t header ; ///< Header
   uint32_t TransferSize      ; ///< Transfer size; LSB first
   uint8_t _reserved[4];
 } usbtmc_msg_request_vendor_specific_in;
+
+TU_VERIFY_STATIC(sizeof(usbtmc_msg_request_vendor_specific_in) == 12u, "struct wrong length");
 
 // Control request type should use tusb_control_request_t
 
@@ -187,13 +201,15 @@ typedef struct TU_ATTR_PACKED {
   uint8_t _reserved;
   uint16_t bcdUSBTMC;                    ///< USBTMC_VERSION
 
-  struct {
-    uint8_t listenOnly :1;
-    uint8_t talkOnly :1;
-    uint8_t supportsIndicatorPulse :1;
+  struct TU_ATTR_PACKED
+  {
+    unsigned int listenOnly :1;
+    unsigned int talkOnly :1;
+    unsigned int supportsIndicatorPulse :1;
   } bmIntfcCapabilities;
-  struct {
-    uint8_t canEndBulkInOnTermChar :1;
+  struct TU_ATTR_PACKED
+  {
+    unsigned int canEndBulkInOnTermChar :1;
   } bmDevCapabilities;
   uint8_t _reserved2[6];
   uint8_t _reserved3[12];
@@ -203,38 +219,49 @@ TU_VERIFY_STATIC(sizeof(usbtmc_response_capabilities_t) == 0x18, "struct wrong l
 
 typedef struct TU_ATTR_PACKED
 {
+  uint8_t USBTMC_status;
+  struct TU_ATTR_PACKED
+  {
+    unsigned int BulkInFifoBytes :1;
+  } bmClear;
+} usbtmc_get_clear_status_rsp_t;
+
+TU_VERIFY_STATIC(sizeof(usbtmc_get_clear_status_rsp_t) == 2u, "struct wrong length");
+
+typedef struct TU_ATTR_PACKED
+{
   uint8_t USBTMC_status;                 ///< usbtmc_status_enum
   uint8_t _reserved;
   uint16_t bcdUSBTMC;                    ///< USBTMC_VERSION
 
-  struct
+  struct TU_ATTR_PACKED
   {
-    uint8_t listenOnly :1;
-    uint8_t talkOnly :1;
-    uint8_t supportsIndicatorPulse :1;
+    unsigned int listenOnly :1;
+    unsigned int talkOnly :1;
+    unsigned int supportsIndicatorPulse :1;
   } bmIntfcCapabilities;
 
-  struct
+  struct TU_ATTR_PACKED
   {
-    uint8_t canEndBulkInOnTermChar :1;
+    unsigned int canEndBulkInOnTermChar :1;
   } bmDevCapabilities;
 
   uint8_t _reserved2[6];
   uint16_t bcdUSB488;
 
-  struct
+  struct TU_ATTR_PACKED
   {
-    uint8_t is488_2 :1;
-    uint8_t supportsREN_GTL_LLO :1;
-    uint8_t supportsTrigger :1;
+    unsigned int is488_2 :1;
+    unsigned int supportsREN_GTL_LLO :1;
+    unsigned int supportsTrigger :1;
   } bmIntfcCapabilities488;
 
-  struct
+  struct TU_ATTR_PACKED
   {
-    uint8_t SCPI :1;
-    uint8_t SR1 :1;
-    uint8_t RL1 :1;
-    uint8_t DT1 :1;
+    unsigned int SCPI :1;
+    unsigned int SR1 :1;
+    unsigned int RL1 :1;
+    unsigned int DT1 :1;
   } bmDevCapabilities488;
   uint8_t _reserved3[8];
 } usbtmc_response_capabilities_488_t;
@@ -253,14 +280,15 @@ TU_VERIFY_STATIC(sizeof(usbtmc_read_stb_rsp_488_t) == 3u, "struct wrong length")
 typedef struct TU_ATTR_PACKET
 {
   union {
-    struct {
-      uint8_t bTag : 7;
-      uint8_t one  : 1;
+    struct TU_ATTR_PACKED {
+      unsigned int bTag : 7;
+      unsigned int one  : 1;
     } bNotify1Struct;
     uint8_t bNotify1;
   };
   uint8_t StatusByte;
 } usbtmc_read_stb_interrupt_488_t;
+
 TU_VERIFY_STATIC(sizeof(usbtmc_read_stb_interrupt_488_t) == 2u, "struct wrong length");
 
 #endif

@@ -64,6 +64,10 @@ bool usbtmcd_app_msgBulkIn_request(uint8_t rhport, usbtmc_msg_request_dev_dep_in
 
 bool usbtmcd_app_msgBulkIn_complete(uint8_t rhport);
 
+bool usbtmcd_app_initiate_clear(uint8_t rhport, uint8_t *tmcResult);
+
+bool usbtmcd_app_get_clear_status(uint8_t rhport, usbtmc_get_clear_status_rsp_t *rsp);
+
 // Indicator pulse should be 0.5 to 1.0 seconds long
 TU_ATTR_WEAK bool usbtmcd_app_indicator_pluse(uint8_t rhport, tusb_control_request_t const * msg, uint8_t *tmcResult);
 
