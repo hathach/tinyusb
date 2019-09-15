@@ -1,6 +1,5 @@
 CFLAGS += \
   -D__MSP430F5529__ \
-  -nostdlib -nostartfiles \
   -DCFG_TUSB_MCU=OPT_MCU_MSP430x5xx
 
 # All source paths should be relative to the top level.
