@@ -80,7 +80,7 @@
     return __builtin_bswap16(u16);
   }
 
-  static inline uint16_t tu_bswap32(uint16_t u32)
+  static inline uint32_t tu_bswap32(uint32_t u32)
   {
     return __builtin_bswap32(u32);
   }
@@ -108,7 +108,7 @@
     return __builtin_bswap16(u16);
   }
 
-  static inline uint16_t tu_bswap32(uint16_t u32)
+  static inline uint32_t tu_bswap32(uint32_t u32)
   {
     return __builtin_bswap32(u32);
   }
