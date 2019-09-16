@@ -165,7 +165,7 @@ typedef struct
 
 static xfer_ctl_t xfer_status[MAX_EP_COUNT][2];
 
-static xfer_ctl_t* xfer_ctl_ptr(unsigned int epnum, unsigned int dir)
+static xfer_ctl_t* xfer_ctl_ptr(uint32_t epnum, uint32_t dir)
 {
 #ifndef NDEBUG
   TU_ASSERT(epnum < MAX_EP_COUNT);
@@ -354,7 +354,7 @@ static void dcd_handle_bus_reset(void)
 // FIXME: Defined to return uint16 so that ASSERT can be used, even though a return value is not needed.
 static uint16_t dcd_ep_ctr_handler(void)
 {
-  unsigned int count=0U;
+  uint32_t count=0U;
   uint8_t EPindex;
   __IO uint16_t wIstr;
   __IO uint16_t wEPVal = 0U;

@@ -94,36 +94,36 @@ const size_t PMA_STRIDE = 1u;
 static __IO uint16_t * const pma = (__IO uint16_t*)USB_PMAADDR;
 
 // prototypes
-static inline __IO uint16_t* pcd_ep_rx_cnt_ptr(USB_TypeDef * USBx, unsigned int bEpNum);
-static inline __IO uint16_t* pcd_ep_tx_cnt_ptr(USB_TypeDef * USBx, unsigned int bEpNum);
-static inline void pcd_set_endpoint(USB_TypeDef * USBx, unsigned int bEpNum, unsigned int wRegValue);
+static inline __IO uint16_t* pcd_ep_rx_cnt_ptr(USB_TypeDef * USBx, uint32_t bEpNum);
+static inline __IO uint16_t* pcd_ep_tx_cnt_ptr(USB_TypeDef * USBx, uint32_t bEpNum);
+static inline void pcd_set_endpoint(USB_TypeDef * USBx, uint32_t bEpNum, uint32_t wRegValue);
 
 
 /* SetENDPOINT */
-static inline void pcd_set_endpoint(USB_TypeDef * USBx, unsigned int bEpNum, unsigned int wRegValue)
+static inline void pcd_set_endpoint(USB_TypeDef * USBx, uint32_t bEpNum, uint32_t wRegValue)
 {
   __O uint16_t *reg = (__O uint16_t *)((&USBx->EP0R) + bEpNum*2u);
   *reg = (uint16_t)wRegValue;
 }
 
 /* GetENDPOINT */
-static inline uint16_t pcd_get_endpoint(USB_TypeDef * USBx, unsigned int bEpNum) {
+static inline uint16_t pcd_get_endpoint(USB_TypeDef * USBx, uint32_t bEpNum) {
   __I uint16_t *reg = (__I uint16_t *)((&USBx->EP0R) + bEpNum*2u);
   return *reg;
 }
 
-static inline void pcd_set_eptype(USB_TypeDef * USBx, unsigned int bEpNum, unsigned int wType)
+static inline void pcd_set_eptype(USB_TypeDef * USBx, uint32_t bEpNum, uint32_t wType)
 {
-  unsigned int regVal = pcd_get_endpoint(USBx, bEpNum);
+  uint32_t regVal = pcd_get_endpoint(USBx, bEpNum);
   regVal &= (uint32_t)USB_EP_T_MASK;
   regVal |= wType;
   regVal |= USB_EP_CTR_RX | USB_EP_CTR_TX; // These clear on write0, so must set high
   pcd_set_endpoint(USBx, bEpNum, regVal);
 }
 
-static inline unsigned int pcd_get_eptype(USB_TypeDef * USBx, unsigned int bEpNum)
+static inline uint32_t pcd_get_eptype(USB_TypeDef * USBx, uint32_t bEpNum)
 {
-  unsigned int regVal = pcd_get_endpoint(USBx, bEpNum);
+  uint32_t regVal = pcd_get_endpoint(USBx, bEpNum);
   regVal &= USB_EP_T_FIELD;
   return regVal;
 }
@@ -133,15 +133,15 @@ static inline unsigned int pcd_get_eptype(USB_TypeDef * USBx, unsigned int bEpNu
   * @param  bEpNum Endpoint Number.
   * @retval None
   */
-static inline void pcd_clear_rx_ep_ctr(USB_TypeDef * USBx, unsigned int bEpNum)
+static inline void pcd_clear_rx_ep_ctr(USB_TypeDef * USBx, uint32_t bEpNum)
 {
-  unsigned int regVal = pcd_get_endpoint(USBx, bEpNum);
+  uint32_t regVal = pcd_get_endpoint(USBx, bEpNum);
   regVal &= 0x7FFFu & USB_EPREG_MASK;
   pcd_set_endpoint(USBx, bEpNum, regVal);
 }
-static inline void pcd_clear_tx_ep_ctr(USB_TypeDef * USBx, unsigned int bEpNum)
+static inline void pcd_clear_tx_ep_ctr(USB_TypeDef * USBx, uint32_t bEpNum)
 {
-  unsigned int regVal = pcd_get_endpoint(USBx, bEpNum);
+  uint32_t regVal = pcd_get_endpoint(USBx, bEpNum);
   regVal &= regVal & 0xFF7FU & USB_EPREG_MASK;
   pcd_set_endpoint(USBx, bEpNum,regVal);
 }
@@ -151,13 +151,13 @@ static inline void pcd_clear_tx_ep_ctr(USB_TypeDef * USBx, unsigned int bEpNum)
   * @param  bEpNum Endpoint Number.
   * @retval Counter value
   */
-static inline unsigned int pcd_get_ep_tx_cnt(USB_TypeDef * USBx, unsigned int bEpNum)
+static inline uint32_t pcd_get_ep_tx_cnt(USB_TypeDef * USBx, uint32_t bEpNum)
 {
   __I uint16_t *regPtr = pcd_ep_tx_cnt_ptr(USBx, bEpNum);
   return *regPtr & 0x3ffU;
 }
 
-static inline unsigned int pcd_get_ep_rx_cnt(USB_TypeDef * USBx, unsigned int bEpNum)
+static inline uint32_t pcd_get_ep_rx_cnt(USB_TypeDef * USBx, uint32_t bEpNum)
 {
   __I uint16_t *regPtr = pcd_ep_rx_cnt_ptr(USBx, bEpNum);
   return *regPtr & 0x3ffU;
@@ -172,7 +172,7 @@ static inline unsigned int pcd_get_ep_rx_cnt(USB_TypeDef * USBx, unsigned int bE
   */
 
 static inline void pcd_set_ep_cnt_rx_reg(__O uint16_t * pdwReg, size_t wCount)  {
-  unsigned int wNBlocks;
+  uint32_t wNBlocks;
   if(wCount > 62u)
   {
     wNBlocks = wCount >> 5u;
@@ -203,9 +203,9 @@ static inline void pcd_set_ep_cnt_rx_reg(__O uint16_t * pdwReg, size_t wCount)  
   * @param  bAddr Address.
   * @retval None
   */
-static inline void pcd_set_ep_address(USB_TypeDef * USBx,  unsigned int bEpNum, unsigned int bAddr)
+static inline void pcd_set_ep_address(USB_TypeDef * USBx,  uint32_t bEpNum, uint32_t bAddr)
 {
-  unsigned int regVal = pcd_get_endpoint(USBx, bEpNum);
+  uint32_t regVal = pcd_get_endpoint(USBx, bEpNum);
   regVal &= USB_EPREG_MASK;
   regVal |= bAddr;
   regVal |= USB_EP_CTR_RX|USB_EP_CTR_TX;
@@ -220,31 +220,31 @@ static inline __IO uint16_t * pcd_btable_word_ptr(USB_TypeDef * USBx, size_t x)
 }
 
 // Pointers to the PMA table entries (using the ARM address space)
-static inline __IO uint16_t* pcd_ep_tx_address_ptr(USB_TypeDef * USBx, unsigned int bEpNum)
+static inline __IO uint16_t* pcd_ep_tx_address_ptr(USB_TypeDef * USBx, uint32_t bEpNum)
 {
   return pcd_btable_word_ptr(USBx,(bEpNum)*4u + 0u);
 }
-static inline __IO uint16_t* pcd_ep_tx_cnt_ptr(USB_TypeDef * USBx, unsigned int bEpNum)
+static inline __IO uint16_t* pcd_ep_tx_cnt_ptr(USB_TypeDef * USBx, uint32_t bEpNum)
 {
   return pcd_btable_word_ptr(USBx,(bEpNum)*4u + 1u);
 }
 
-static inline __IO uint16_t* pcd_ep_rx_address_ptr(USB_TypeDef * USBx, unsigned int bEpNum)
+static inline __IO uint16_t* pcd_ep_rx_address_ptr(USB_TypeDef * USBx, uint32_t bEpNum)
 {
   return  pcd_btable_word_ptr(USBx,(bEpNum)*4u + 2u);
 }
 
-static inline __IO uint16_t* pcd_ep_rx_cnt_ptr(USB_TypeDef * USBx, unsigned int bEpNum)
+static inline __IO uint16_t* pcd_ep_rx_cnt_ptr(USB_TypeDef * USBx, uint32_t bEpNum)
 {
   return pcd_btable_word_ptr(USBx,(bEpNum)*4u + 3u);
 }
 
-static inline void pcd_set_ep_tx_cnt(USB_TypeDef * USBx,  unsigned int bEpNum, unsigned int wCount)
+static inline void pcd_set_ep_tx_cnt(USB_TypeDef * USBx,  uint32_t bEpNum, uint32_t wCount)
 {
   *pcd_ep_tx_cnt_ptr(USBx, bEpNum) = (uint16_t)wCount;
 }
 
-static inline void pcd_set_ep_rx_cnt(USB_TypeDef * USBx,  unsigned int bEpNum, unsigned int wCount)
+static inline void pcd_set_ep_rx_cnt(USB_TypeDef * USBx,  uint32_t bEpNum, uint32_t wCount)
 {
   __IO uint16_t *pdwReg = pcd_ep_rx_cnt_ptr((USBx),(bEpNum));
   pcd_set_ep_cnt_rx_reg(pdwReg, wCount);
@@ -257,7 +257,7 @@ static inline void pcd_set_ep_rx_cnt(USB_TypeDef * USBx,  unsigned int bEpNum, u
   * @param  wState new state
   * @retval None
   */
-static inline void pcd_set_ep_tx_status(USB_TypeDef * USBx,  unsigned int bEpNum, unsigned int wState)
+static inline void pcd_set_ep_tx_status(USB_TypeDef * USBx,  uint32_t bEpNum, uint32_t wState)
 {
   uint32_t regVal = pcd_get_endpoint(USBx, bEpNum);
   regVal &= USB_EPTX_DTOGMASK;
@@ -284,7 +284,7 @@ static inline void pcd_set_ep_tx_status(USB_TypeDef * USBx,  unsigned int bEpNum
   * @retval None
   */
 
-static inline void pcd_set_ep_rx_status(USB_TypeDef * USBx,  unsigned int bEpNum, unsigned int wState)
+static inline void pcd_set_ep_rx_status(USB_TypeDef * USBx,  uint32_t bEpNum, uint32_t wState)
 {
   uint32_t regVal = pcd_get_endpoint(USBx, bEpNum);
   regVal &= USB_EPRX_DTOGMASK;
@@ -309,17 +309,17 @@ static inline void pcd_set_ep_rx_status(USB_TypeDef * USBx,  unsigned int bEpNum
   * @param  bEpNum Endpoint Number.
   * @retval None
   */
-static inline void pcd_rx_dtog(USB_TypeDef * USBx,  unsigned int bEpNum)
+static inline void pcd_rx_dtog(USB_TypeDef * USBx,  uint32_t bEpNum)
 {
-  unsigned int regVal = pcd_get_endpoint(USBx, bEpNum);
+  uint32_t regVal = pcd_get_endpoint(USBx, bEpNum);
   regVal &= USB_EPREG_MASK;
   regVal |= USB_EP_CTR_RX|USB_EP_CTR_TX|USB_EP_DTOG_RX;
   pcd_set_endpoint(USBx, bEpNum, regVal);
 }
 
-static inline void pcd_tx_dtog(USB_TypeDef * USBx,  unsigned int bEpNum)
+static inline void pcd_tx_dtog(USB_TypeDef * USBx,  uint32_t bEpNum)
 {
-  unsigned int regVal = pcd_get_endpoint(USBx, bEpNum);
+  uint32_t regVal = pcd_get_endpoint(USBx, bEpNum);
   regVal &= USB_EPREG_MASK;
   regVal |= USB_EP_CTR_RX|USB_EP_CTR_TX|USB_EP_DTOG_TX;
   pcd_set_endpoint(USBx, bEpNum, regVal);
@@ -332,18 +332,18 @@ static inline void pcd_tx_dtog(USB_TypeDef * USBx,  unsigned int bEpNum)
   * @retval None
   */
 
-static inline void pcd_clear_rx_dtog(USB_TypeDef * USBx,  unsigned int bEpNum)
+static inline void pcd_clear_rx_dtog(USB_TypeDef * USBx,  uint32_t bEpNum)
 {
-  unsigned int regVal = pcd_get_endpoint(USBx, bEpNum);
+  uint32_t regVal = pcd_get_endpoint(USBx, bEpNum);
   if((regVal & USB_EP_DTOG_RX) != 0)
   {
     pcd_rx_dtog(USBx,bEpNum);
   }
 }
 
-static inline void pcd_clear_tx_dtog(USB_TypeDef * USBx,  unsigned int bEpNum)
+static inline void pcd_clear_tx_dtog(USB_TypeDef * USBx,  uint32_t bEpNum)
 {
-  unsigned int regVal = pcd_get_endpoint(USBx, bEpNum);
+  uint32_t regVal = pcd_get_endpoint(USBx, bEpNum);
   if((regVal & USB_EP_DTOG_TX) != 0)
   {
     pcd_tx_dtog(USBx,bEpNum);
@@ -357,17 +357,17 @@ static inline void pcd_clear_tx_dtog(USB_TypeDef * USBx,  unsigned int bEpNum)
   * @retval None
   */
 
-static inline void pcd_set_ep_kind(USB_TypeDef * USBx,  unsigned int bEpNum)
+static inline void pcd_set_ep_kind(USB_TypeDef * USBx,  uint32_t bEpNum)
 {
-  unsigned int regVal = pcd_get_endpoint(USBx, bEpNum);
+  uint32_t regVal = pcd_get_endpoint(USBx, bEpNum);
   regVal |= USB_EP_KIND;
   regVal &= USB_EPREG_MASK;
   regVal |= USB_EP_CTR_RX|USB_EP_CTR_TX;
   pcd_set_endpoint(USBx, bEpNum, regVal);
 }
-static inline void pcd_clear_ep_kind(USB_TypeDef * USBx, unsigned int bEpNum)
+static inline void pcd_clear_ep_kind(USB_TypeDef * USBx, uint32_t bEpNum)
 {
-  unsigned int regVal = pcd_get_endpoint(USBx, bEpNum);
+  uint32_t regVal = pcd_get_endpoint(USBx, bEpNum);
   regVal &= USB_EPKIND_MASK;
   regVal |= USB_EP_CTR_RX|USB_EP_CTR_TX;
   pcd_set_endpoint(USBx, bEpNum, regVal);
