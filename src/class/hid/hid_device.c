@@ -192,6 +192,7 @@ bool hidd_open(uint8_t rhport, tusb_desc_interface_t const * desc_itf, uint16_t 
 // return false to stall control endpoint (e.g unsupported request)
 bool hidd_control_request(uint8_t rhport, tusb_control_request_t const * p_request)
 {
+  TU_VERIFY(p_request->bmRequestType_bit.recipient == TUSB_REQ_RCPT_INTERFACE);
   hidd_interface_t* p_hid = get_interface_by_itfnum( (uint8_t) p_request->wIndex );
   TU_ASSERT(p_hid);
 
@@ -206,7 +207,8 @@ bool hidd_control_request(uint8_t rhport, tusb_control_request_t const * p_reque
     {
       uint8_t const * desc_report = tud_hid_descriptor_report_cb();
       tud_control_xfer(rhport, p_request, (void*) desc_report, p_hid->reprot_desc_len);
-    }else
+    }
+    else
     {
       return false; // stall unsupported request
     }

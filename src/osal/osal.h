@@ -40,8 +40,9 @@ enum
 {
   OSAL_TIMEOUT_NOTIMEOUT    = 0,      // return immediately
   OSAL_TIMEOUT_NORMAL       = 10,     // default timeout
-  OSAL_TIMEOUT_WAIT_FOREVER = 0xFFFFFFFFUL
 };
+
+static const uint32_t OSAL_TIMEOUT_WAIT_FOREVER = 0xFFFFFFFFUL;
 
 #define OSAL_TIMEOUT_CONTROL_XFER  OSAL_TIMEOUT_WAIT_FOREVER
 

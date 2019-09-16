@@ -40,17 +40,27 @@
 //--------------------------------------------------------------------+
 // Device Data
 //--------------------------------------------------------------------+
-typedef struct {
-  struct TU_ATTR_PACKED
-  {
-    volatile uint8_t connected    : 1;
-    volatile uint8_t configured   : 1;
-    volatile uint8_t suspended    : 1;
 
-    uint8_t remote_wakeup_en      : 1; // enable/disable by host
-    uint8_t remote_wakeup_support : 1; // configuration descriptor's attribute
-    uint8_t self_powered          : 1; // configuration descriptor's attribute
-  };
+enum
+{
+  STATE_POWERED,
+  STATE_DEFAULT,
+  STATE_ADDRESS,
+  STATE_CONFIGURED
+};
+
+typedef struct {
+  struct
+  {
+    volatile unsigned int state        : 2; // disconnected, default, address, or configured
+    volatile unsigned int suspended    : 1;
+
+    unsigned int remote_wakeup_en      : 1; // enable/disable by host
+    unsigned int remote_wakeup_support : 1; // configuration descriptor's attribute
+    unsigned int self_powered          : 1; // configuration descriptor's attribute
+  } state_bits;
+
+  volatile uint8_t selected_config; // Which configuration has been opened?
 
   uint8_t ep_busy_map[2];  // bit mask for busy endpoint
   uint8_t ep_stall_map[2]; // bit map for stalled endpoint
@@ -175,18 +185,21 @@ void usbd_control_set_complete_callback( bool (*fp) (uint8_t, tusb_control_reque
 //--------------------------------------------------------------------+
 bool tud_mounted(void)
 {
-  return _usbd_dev.configured;
+  return (_usbd_dev.state_bits.state == STATE_CONFIGURED);
 }
 
 bool tud_suspended(void)
 {
-  return _usbd_dev.suspended;
+  return _usbd_dev.state_bits.suspended;
 }
 
 bool tud_remote_wakeup(void)
 {
   // only wake up host if this feature is supported and enabled and we are suspended
-  TU_VERIFY (_usbd_dev.suspended && _usbd_dev.remote_wakeup_support && _usbd_dev.remote_wakeup_en );
+  TU_VERIFY (
+      _usbd_dev.state_bits.suspended &&
+      _usbd_dev.state_bits.remote_wakeup_support &&
+      _usbd_dev.state_bits.remote_wakeup_en );
   dcd_remote_wakeup(TUD_OPT_RHPORT);
   return true;
 }
@@ -273,7 +286,8 @@ void tud_task (void)
       case DCD_EVENT_SETUP_RECEIVED:
         // Mark as connected after receiving 1st setup packet.
         // But it is easier to set it every time instead of wasting time to check then set
-        _usbd_dev.connected = 1;
+        if (_usbd_dev.state_bits.state == STATE_POWERED)
+          _usbd_dev.state_bits.state = STATE_DEFAULT;
 
         // Process control request
         if ( !process_control_request(event.rhport, &event.setup_received) )
@@ -311,7 +325,10 @@ void tud_task (void)
       break;
 
       case DCD_EVENT_SUSPEND:
-        if (tud_suspend_cb) tud_suspend_cb(_usbd_dev.remote_wakeup_en);
+        if (tud_suspend_cb)
+        {
+          tud_suspend_cb(_usbd_dev.state_bits.remote_wakeup_en);
+        }
       break;
 
       case DCD_EVENT_RESUME:
@@ -382,7 +399,9 @@ static bool process_control_request(uint8_t rhport, tusb_control_request_t const
 
         case TUSB_REQ_GET_CONFIGURATION:
         {
-          uint8_t cfgnum = _usbd_dev.configured ? 1 : 0;
+          uint8_t cfgnum = _usbd_dev.selected_config;
+          if(_usbd_dev.state_bits.state != STATE_CONFIGURED)
+            cfgnum = 0;
           tud_control_xfer(rhport, p_request, &cfgnum, 1);
         }
         break;
@@ -392,9 +411,33 @@ static bool process_control_request(uint8_t rhport, tusb_control_request_t const
           uint8_t const cfg_num = (uint8_t) p_request->wValue;
 
           dcd_set_config(rhport, cfg_num);
-          _usbd_dev.configured = cfg_num ? 1 : 0;
 
-          if ( cfg_num ) TU_ASSERT( process_set_config(rhport, cfg_num) );
+          if( cfg_num == 0)
+          {
+            _usbd_dev.state_bits.state = STATE_ADDRESS;
+            if (tud_umount_cb)
+            {
+              tud_umount_cb();
+            }
+          }
+          else
+          {
+            if(_usbd_dev.selected_config != 0)
+            {
+              TU_VERIFY(_usbd_dev.selected_config == cfg_num);
+            }
+            else
+            {
+              TU_VERIFY( process_set_config(rhport, cfg_num) );
+              _usbd_dev.selected_config = cfg_num;
+            }
+            if (tud_mount_cb)
+            {
+              tud_mount_cb();
+            }
+            _usbd_dev.state_bits.state = STATE_CONFIGURED;
+          }
+
           tud_control_status(rhport, p_request);
         }
         break;
@@ -408,7 +451,7 @@ static bool process_control_request(uint8_t rhport, tusb_control_request_t const
           TU_VERIFY(TUSB_REQ_FEATURE_REMOTE_WAKEUP == p_request->wValue);
 
           // Host may enable remote wake up before suspending especially HID device
-          _usbd_dev.remote_wakeup_en = true;
+          _usbd_dev.state_bits.remote_wakeup_en = true;
           tud_control_status(rhport, p_request);
         break;
 
@@ -417,7 +460,7 @@ static bool process_control_request(uint8_t rhport, tusb_control_request_t const
           TU_VERIFY(TUSB_REQ_FEATURE_REMOTE_WAKEUP == p_request->wValue);
 
           // Host may disable remote wake up after resuming
-          _usbd_dev.remote_wakeup_en = false;
+          _usbd_dev.state_bits.remote_wakeup_en = false;
           tud_control_status(rhport, p_request);
         break;
 
@@ -426,7 +469,9 @@ static bool process_control_request(uint8_t rhport, tusb_control_request_t const
           // Device status bit mask
           // - Bit 0: Self Powered
           // - Bit 1: Remote Wakeup enabled
-          uint16_t status = (_usbd_dev.self_powered ? 1 : 0) | (_usbd_dev.remote_wakeup_en ? 2 : 0);
+          uint16_t status = (uint16_t)(
+                (_usbd_dev.state_bits.self_powered ? 1 : 0) | (_usbd_dev.state_bits.remote_wakeup_en ? 2 : 0)
+              );
           tud_control_xfer(rhport, p_request, &status, 2);
         }
         break;
@@ -459,10 +504,12 @@ static bool process_control_request(uint8_t rhport, tusb_control_request_t const
 
           case TUSB_REQ_SET_INTERFACE:
           {
+            // USB 2.0: 9.4.10
+            // TODO: not support alternate interface yet
             uint8_t const alternate = (uint8_t) p_request->wValue;
-
-            // TODO not support alternate interface yet
-            TU_ASSERT(alternate == 0);
+            // Must respond with error in request state (and optionally in default state)
+            TU_VERIFY(_usbd_dev.state_bits.state == STATE_CONFIGURED);
+            TU_VERIFY(alternate == 0);
             tud_control_status(rhport, p_request);
           }
           break;
@@ -566,14 +613,20 @@ static bool process_control_request(uint8_t rhport, tusb_control_request_t const
 
 // Process Set Configure Request
 // This function parse configuration descriptor & open drivers accordingly
+// It assumes (config_index == (config_num - 1))
 static bool process_set_config(uint8_t rhport, uint8_t cfg_num)
 {
-  tusb_desc_configuration_t const * desc_cfg = (tusb_desc_configuration_t const *) tud_descriptor_configuration_cb(cfg_num-1); // index is cfg_num-1
-  TU_ASSERT(desc_cfg != NULL && desc_cfg->bDescriptorType == TUSB_DESC_CONFIGURATION);
+  TU_ASSERT(cfg_num != 0);
+  tusb_desc_configuration_t const * desc_cfg =
+      (tusb_desc_configuration_t const *) tud_descriptor_configuration_cb((uint8_t)(cfg_num-1)); // index is cfg_num-1
+  TU_VERIFY(desc_cfg != NULL);
+  TU_ASSERT(desc_cfg->bDescriptorType == TUSB_DESC_CONFIGURATION && desc_cfg->bConfigurationValue == cfg_num);
 
   // Parse configuration descriptor
-  _usbd_dev.remote_wakeup_support = (desc_cfg->bmAttributes & TUSB_DESC_CONFIG_ATT_REMOTE_WAKEUP) ? 1 : 0;
-  _usbd_dev.self_powered = (desc_cfg->bmAttributes & TUSB_DESC_CONFIG_ATT_SELF_POWERED) ? 1 : 0;
+  _usbd_dev.state_bits.remote_wakeup_support =
+      (desc_cfg->bmAttributes & TUSB_DESC_CONFIG_ATT_REMOTE_WAKEUP) ? 1 : 0;
+  _usbd_dev.state_bits.self_powered =
+      (desc_cfg->bmAttributes & TUSB_DESC_CONFIG_ATT_SELF_POWERED) ? 1 : 0;
 
   // Parse interface descriptor
   uint8_t const * p_desc   = ((uint8_t const*) desc_cfg) + sizeof(tusb_desc_configuration_t);
@@ -613,9 +666,6 @@ static bool process_set_config(uint8_t rhport, uint8_t cfg_num)
     }
   }
 
-  // invoke callback
-  if (tud_mount_cb) tud_mount_cb();
-
   return true;
 }
 
@@ -633,7 +683,7 @@ static void mark_interface_endpoint(uint8_t ep2drv[8][2], uint8_t const* p_desc,
       ep2drv[tu_edpt_number(ep_addr)][tu_edpt_dir(ep_addr)] = driver_id;
     }
 
-    len   += tu_desc_len(p_desc);
+    len   = (uint16_t)(len + tu_desc_len(p_desc));
     p_desc = tu_desc_next(p_desc);
   }
 }
@@ -714,9 +764,9 @@ void dcd_event_handler(dcd_event_t const * event, bool in_isr)
     break;
 
     case DCD_EVENT_UNPLUGGED:
-      _usbd_dev.connected = 0;
-      _usbd_dev.configured = 0;
-      _usbd_dev.suspended = 0;
+      _usbd_dev.state_bits.state = STATE_POWERED;
+      _usbd_dev.selected_config = 0;
+      _usbd_dev.state_bits.suspended = 0;
       osal_queue_send(_usbd_q, event, in_isr);
     break;
 
@@ -728,17 +778,17 @@ void dcd_event_handler(dcd_event_t const * event, bool in_isr)
       // NOTE: When plugging/unplugging device, the D+/D- state are unstable and can accidentally meet the
       // SUSPEND condition ( Idle for 3ms ). Some MCUs such as SAMD doesn't distinguish suspend vs disconnect as well.
       // We will skip handling SUSPEND/RESUME event if not currently connected
-      if ( _usbd_dev.connected )
+      if ( _usbd_dev.state_bits.state != STATE_POWERED )
       {
-        _usbd_dev.suspended = 1;
+        _usbd_dev.state_bits.suspended = 1;
         osal_queue_send(_usbd_q, event, in_isr);
       }
     break;
 
     case DCD_EVENT_RESUME:
-      if ( _usbd_dev.connected )
+      if ( _usbd_dev.state_bits.state != STATE_POWERED )
       {
-        _usbd_dev.suspended = 0;
+        _usbd_dev.state_bits.suspended = 0;
         osal_queue_send(_usbd_q, event, in_isr);
       }
     break;
@@ -798,13 +848,14 @@ void dcd_event_xfer_complete (uint8_t rhport, uint8_t ep_addr, uint32_t xferred_
 //--------------------------------------------------------------------+
 
 // Parse consecutive endpoint descriptors (IN & OUT)
+// May be called with ep_count=1 to open a single endpoint
 bool usbd_open_edpt_pair(uint8_t rhport, uint8_t const* p_desc, uint8_t ep_count, uint8_t xfer_type, uint8_t* ep_out, uint8_t* ep_in)
 {
   for(int i=0; i<ep_count; i++)
   {
     tusb_desc_endpoint_t const * desc_ep = (tusb_desc_endpoint_t const *) p_desc;
 
-    TU_VERIFY(TUSB_DESC_ENDPOINT == desc_ep->bDescriptorType && xfer_type == desc_ep->bmAttributes.xfer);
+    TU_ASSERT(TUSB_DESC_ENDPOINT == desc_ep->bDescriptorType && xfer_type == desc_ep->bmAttributes.xfer);
     TU_ASSERT(dcd_edpt_open(rhport, desc_ep));
 
     if ( tu_edpt_dir(desc_ep->bEndpointAddress) == TUSB_DIR_IN )

@@ -312,7 +312,7 @@ bool cdcd_control_complete(uint8_t rhport, tusb_control_request_t const * reques
 bool cdcd_control_request(uint8_t rhport, tusb_control_request_t const * request)
 {
   //------------- Class Specific Request -------------//
-  TU_ASSERT(request->bmRequestType_bit.type == TUSB_REQ_TYPE_CLASS);
+  TU_VERIFY(request->bmRequestType_bit.type == TUSB_REQ_TYPE_CLASS);
 
   // TODO Support multiple interfaces
   uint8_t const itf = 0;
