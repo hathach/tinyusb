@@ -293,7 +293,7 @@ bool dcd_edpt_open(uint8_t rhport, tusb_desc_endpoint_t const * p_endpoint_desc)
       break;
 
     case TUSB_XFER_ISOCHRONOUS:
-      TU_ASSERT((epnum % 3) == 3 && (epnum != 15));
+      TU_ASSERT((epnum % 3) == 0 && (epnum != 0) && (epnum != 15));
       break;
 
     default:
