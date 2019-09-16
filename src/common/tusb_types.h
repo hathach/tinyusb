@@ -125,7 +125,8 @@ typedef enum
 {
   TUSB_REQ_TYPE_STANDARD = 0,
   TUSB_REQ_TYPE_CLASS,
-  TUSB_REQ_TYPE_VENDOR
+  TUSB_REQ_TYPE_VENDOR,
+  TUSB_REQ_TYPE_INVALID
 } tusb_request_type_t;
 
 typedef enum
