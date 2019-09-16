@@ -75,17 +75,8 @@
     #define TU_BYTE_ORDER TU_BIG_ENDIAN
   #endif
 
-  static inline uint16_t tu_bswap16(uint16_t u16)
-  {
-    return __builtin_bswap16(u16);
-  }
-
-  static inline uint32_t tu_bswap32(uint32_t u32)
-  {
-    return __builtin_bswap32(u32);
-  }
-
-  #define TU_BSWAP16
+#define TU_BSWAP16(u16) (__builtin_bswap16(u16))
+#define TU_BSWAP32(u32) (__builtin_bswap32(u32))
 
 #elif defined(__TI_COMPILER_VERSION__)
   #define TU_ATTR_ALIGNED(Bytes)        __attribute__ ((aligned(Bytes)))
@@ -103,44 +94,41 @@
     #define TU_BYTE_ORDER TU_BIG_ENDIAN
   #endif
 
-  static inline uint16_t tu_bswap16(uint16_t u16)
-  {
-    return __builtin_bswap16(u16);
-  }
+  #define TU_BSWAP16(u16) (__builtin_bswap16(u16))
+  #define TU_BSWAP32(u32) (__builtin_bswap32(u32))
 
-  static inline uint32_t tu_bswap32(uint32_t u32)
-  {
-    return __builtin_bswap32(u32);
-  }
 #else
   #error "Compiler attribute porting is required"
 #endif
 
 #if (TU_BYTE_ORDER == TU_LITTLE_ENDIAN)
-  #define tu_htonl(u32)  tu_bswap32(u32)
-  #define tu_ntohl(u32)  tu_bswap32(u32)
 
-  #define tu_htons(u16)  tu_bswap16(u16)
-  #define tu_ntohs(u16)  tu_bswap16(u16)
+  #define tu_htons(u16)  (TU_BSWAP16(u16))
+  #define tu_ntohs(u16)  (TU_BSWAP16(u16))
 
-  #define tu_htole16(x) (x)
-  #define tu_le16toh(x) (x)
+  #define tu_htonl(u32)  (TU_BSWAP32(u32))
+  #define tu_ntohl(u32)  (TU_BSWAP32(u32))
 
-  #define tu_htole32(x) (x)
-  #define tu_le32toh(x) (x)
+  #define tu_htole16(u16) (u16)
+  #define tu_le16toh(u16) (u16)
+
+  #define tu_htole32(u32) (u32)
+  #define tu_le32toh(u32) (u32)
 
 #elif (TU_BYTE_ORDER == TU_BIG_ENDIAN)
-  #define tu_htonl(u32)  (x)
-  #define tu_ntohl(u32)  (x)
 
-  #define tu_htons(u16)  (x)
-  #define tu_ntohs(u16)  (x)
+  #define tu_htons(u16)  (u16)
+  #define tu_ntohs(u16)  (u16)
 
-  #define tu_htole16(x) tu_bswap16(u32)
-  #define tu_le16toh(x) tu_bswap16(u32)
+  #define tu_htonl(u32)  (u32)
+  #define tu_ntohl(u32)  (u32)
 
-  #define tu_htole32(x) tu_bswap32(u32)
-  #define tu_le32toh(x) tu_bswap32(u32)
+
+  #define tu_htole16(u16) (tu_bswap16(u16))
+  #define tu_le16toh(u16) (tu_bswap16(u16))
+
+  #define tu_htole32(u32) (tu_bswap32(u32))
+  #define tu_le32toh(u32) (tu_bswap32(u32))
 
 #else
   #error Byte order is undefined
