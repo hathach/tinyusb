@@ -595,7 +595,7 @@ bool dcd_edpt_open (uint8_t rhport, tusb_desc_endpoint_t const * p_endpoint_desc
   if(dir == TUSB_DIR_IN)
   {
     *PCD_EP_TX_ADDRESS_PTR(USB, epnum) = ep_buf_ptr;
-    PCD_SET_EP_RX_CNT(USB, epnum, p_endpoint_desc->wMaxPacketSize.size);
+    PCD_SET_EP_TX_CNT(USB, epnum, p_endpoint_desc->wMaxPacketSize.size);
     PCD_CLEAR_TX_DTOG(USB, epnum);
     PCD_SET_EP_TX_STATUS(USB,epnum,USB_EP_TX_NAK);
   }
