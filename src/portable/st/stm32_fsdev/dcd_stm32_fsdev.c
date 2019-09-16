@@ -154,16 +154,13 @@ TU_VERIFY_STATIC(((DCD_STM32_BTABLE_BASE) + (DCD_STM32_BTABLE_LENGTH))<=(PMA_LEN
 
 TU_VERIFY_STATIC(((DCD_STM32_BTABLE_BASE) % 8) == 0, "BTABLE base must be aligned to 8 bytes");
 
-// Max size of a USB FS packet is 64...
-#define MAX_PACKET_SIZE 64
-
-
 // One of these for every EP IN & OUT, uses a bit of RAM....
 typedef struct
 {
   uint8_t * buffer;
   uint16_t total_len;
   uint16_t queued_len;
+  uint16_t max_packet_size;
 } xfer_ctl_t;
 
 static xfer_ctl_t xfer_status[MAX_EP_COUNT][2];
@@ -357,7 +354,7 @@ static void dcd_handle_bus_reset(void)
 // FIXME: Defined to return uint16 so that ASSERT can be used, even though a return value is not needed.
 static uint16_t dcd_ep_ctr_handler(void)
 {
-  uint16_t count=0U;
+  unsigned int count=0U;
   uint8_t EPindex;
   __IO uint16_t wIstr;
   __IO uint16_t wEPVal = 0U;
@@ -390,7 +387,7 @@ static uint16_t dcd_ep_ctr_handler(void)
           {
             // Delayed setting of the DADDR after the 0-len DATA packet acking the request is sent.
             reg16_clear_bits(&USB->DADDR, USB_DADDR_ADD);
-            USB->DADDR |= (uint16_t)newDADDR; // leave the enable bit set
+            USB->DADDR = (uint16_t)(USB->DADDR | newDADDR); // leave the enable bit set
             newDADDR = 0;
           }
           if(xfer->total_len == 0) // Probably a status message?
@@ -481,7 +478,7 @@ static uint16_t dcd_ep_ctr_handler(void)
         /*multi-packet on the NON control OUT endpoint */
         xfer->queued_len = (uint16_t)(xfer->queued_len + count);
 
-        if ((count < 64) || (xfer->queued_len == xfer->total_len))
+        if ((count < xfer->max_packet_size) || (xfer->queued_len == xfer->total_len))
         {
           /* RX COMPLETE */
           dcd_event_xfer_complete(0, EPindex, xfer->queued_len, XFER_RESULT_SUCCESS, true);
@@ -490,9 +487,9 @@ static uint16_t dcd_ep_ctr_handler(void)
         }
         else
         {
-          uint16_t remaining = (uint16_t)(xfer->total_len - xfer->queued_len);
-          if(remaining >=64) {
-            pcd_set_ep_rx_cnt(USB, EPindex,64);
+          uint32_t remaining = (uint32_t)xfer->total_len - (uint32_t)xfer->queued_len;
+          if(remaining >= xfer->max_packet_size) {
+            pcd_set_ep_rx_cnt(USB, EPindex,xfer->max_packet_size);
           } else {
             pcd_set_ep_rx_cnt(USB, EPindex,remaining);
           }
@@ -575,14 +572,33 @@ bool dcd_edpt_open (uint8_t rhport, tusb_desc_endpoint_t const * p_endpoint_desc
   (void)rhport;
   uint8_t const epnum = tu_edpt_number(p_endpoint_desc->bEndpointAddress);
   uint8_t const dir   = tu_edpt_dir(p_endpoint_desc->bEndpointAddress);
-
+  const uint16_t epMaxPktSize = p_endpoint_desc->wMaxPacketSize.size;
   // Isochronous not supported (yet), and some other driver assumptions.
+#ifndef NDEBUG
   TU_ASSERT(p_endpoint_desc->bmAttributes.xfer != TUSB_XFER_ISOCHRONOUS);
-  TU_ASSERT(p_endpoint_desc->wMaxPacketSize.size <= MAX_PACKET_SIZE);
   TU_ASSERT(epnum < MAX_EP_COUNT);
-  TU_ASSERT((p_endpoint_desc->wMaxPacketSize.size %2) == 0);
 
- // __IO uint16_t * const epreg = &(EPREG(epnum));
+  switch(p_endpoint_desc->bmAttributes.xfer) {
+  case TUSB_XFER_CONTROL:
+    // USB 2.0 spec on FS packets, 5.5.3 (control)
+    TU_ASSERT((epMaxPktSize == 8) ||(epMaxPktSize == 16) || (epMaxPktSize == 32) || (epMaxPktSize == 64));
+    break;
+  case TUSB_XFER_ISOCHRONOUS: // FIXME: Not yet supported
+    TU_ASSERT(epMaxPktSize <= 1023);
+    break;
+  case TUSB_XFER_BULK:
+    // USB 2.0 spec on FS packets, 5.8.3 (bulk)
+    TU_ASSERT((epMaxPktSize == 8) ||(epMaxPktSize == 16) ||(epMaxPktSize == 32) ||(epMaxPktSize == 64));
+    break;
+  case TUSB_XFER_INTERRUPT:
+    // USB 2.0 spec on FS packets, 5.5.3 (interrupt); interestingly 0 is allowed.
+    TU_ASSERT(epMaxPktSize <= 64);
+    break;
+  default:
+    TU_ASSERT(false);
+    return false;
+  }
+#endif
 
   // Set type
   switch(p_endpoint_desc->bmAttributes.xfer) {
@@ -626,6 +642,7 @@ bool dcd_edpt_open (uint8_t rhport, tusb_desc_endpoint_t const * p_endpoint_desc
     pcd_set_ep_rx_status(USB, epnum, USB_EP_RX_NAK);
   }
 
+  xfer_ctl_ptr(epnum, dir)->max_packet_size = epMaxPktSize;
   ep_buf_ptr = (uint16_t)(ep_buf_ptr + p_endpoint_desc->wMaxPacketSize.size); // increment buffer pointer
 
   return true;
@@ -637,11 +654,12 @@ static void dcd_transmit_packet(xfer_ctl_t * xfer, uint16_t ep_ix)
 {
   uint16_t len = (uint16_t)(xfer->total_len - xfer->queued_len);
 
-  if(len > 64u) // max packet size for FS transfer
+  if(len > xfer->max_packet_size) // max packet size for FS transfer
   {
-    len = 64u;
+    len = xfer->max_packet_size;
   }
-  dcd_write_packet_memory(*pcd_ep_tx_address_ptr(USB,ep_ix), &(xfer->buffer[xfer->queued_len]), len);
+  uint16_t oldAddr = *pcd_ep_tx_address_ptr(USB,ep_ix);
+  dcd_write_packet_memory(oldAddr, &(xfer->buffer[xfer->queued_len]), len);
   xfer->queued_len = (uint16_t)(xfer->queued_len + len);
 
   pcd_set_ep_tx_cnt(USB,ep_ix,len);
@@ -670,9 +688,9 @@ bool dcd_edpt_xfer (uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t 
         xfer->buffer = (uint8_t*)_setup_packet;
         pcd_set_ep_kind(USB,0); // Expect a zero-byte INPUT
     }
-    if(total_bytes > 64)
+    if(total_bytes > xfer->max_packet_size)
     {
-      pcd_set_ep_rx_cnt(USB,epnum,64);
+      pcd_set_ep_rx_cnt(USB,epnum,xfer->max_packet_size);
     } else {
       pcd_set_ep_rx_cnt(USB,epnum,total_bytes);
     }
@@ -740,16 +758,17 @@ void dcd_edpt_clear_stall (uint8_t rhport, uint8_t ep_addr)
   */
 static bool dcd_write_packet_memory(uint16_t dst, const void *__restrict src, size_t wNBytes)
 {
-  uint32_t n =  ((uint32_t)((uint32_t)wNBytes + 1U)) >> 1U;
+  uint32_t n =  ((uint32_t)wNBytes + 1U) >> 1U;
   uint32_t i;
   uint16_t temp1, temp2;
   const uint8_t * srcVal;
 
-#ifdef DEBUG
+#ifndef NDEBUG
 #  if (DCD_STM32_BTABLE_BASE > 0u)
      TU_ASSERT(dst >= DCD_STM32_BTABLE_BASE);
 #  endif
-  TU_ASSERT(((dst%2) == 0) && (dst + wNBytes) <= (DCD_STM32_BTABLE_BASE + DCD_STM32_BTABLE_LENGTH));
+    TU_ASSERT((dst%2) == 0);
+    TU_ASSERT((dst + wNBytes) <= (DCD_STM32_BTABLE_BASE + DCD_STM32_BTABLE_LENGTH));
 #endif
 
   // The GCC optimizer will combine access to 32-bit sizes if we let it. Force
@@ -786,11 +805,12 @@ static bool dcd_read_packet_memory(void *__restrict dst, uint16_t src, size_t wN
   __IO const uint16_t *pdwVal;
   uint32_t temp;
 
-#ifdef DEBUG
+#ifndef NDEBUG
 #  if (DCD_STM32_BTABLE_BASE > 0u)
      TU_ASSERT(src >= DCD_STM32_BTABLE_BASE);
 #  endif
-  TU_ASSERT(((src%2) == 0) && (src + wNBytes) <= (DCD_STM32_BTABLE_BASE + DCD_STM32_BTABLE_LENGTH));
+    TU_ASSERT((src%2) == 0);
+    TU_ASSERT((src + wNBytes) <= (DCD_STM32_BTABLE_BASE + DCD_STM32_BTABLE_LENGTH));
 #endif
 
 
