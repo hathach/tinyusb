@@ -147,7 +147,7 @@
  * Checks, structs, defines, function definitions, etc.
  */
 
-TU_VERIFY_STATIC((MAX_EP_COUNT) <= STFSDEV_EP_COUNT,"Only 8 endpoints supported on the hardware");
+TU_VERIFY_STATIC((MAX_EP_COUNT) <= STFSDEV_EP_COUNT, "Only 8 endpoints supported on the hardware");
 
 TU_VERIFY_STATIC(((DCD_STM32_BTABLE_BASE) + (DCD_STM32_BTABLE_LENGTH))<=(PMA_LENGTH),
     "BTABLE does not fit in PMA RAM");
@@ -166,8 +166,17 @@ typedef struct
   uint16_t queued_len;
 } xfer_ctl_t;
 
-static xfer_ctl_t  xfer_status[MAX_EP_COUNT][2];
-#define XFER_CTL_BASE(_epnum, _dir) &xfer_status[_epnum][_dir]
+static xfer_ctl_t xfer_status[MAX_EP_COUNT][2];
+
+static xfer_ctl_t* xfer_ctl_ptr(unsigned int epnum, unsigned int dir)
+{
+#ifndef NDEBUG
+  TU_ASSERT(epnum < MAX_EP_COUNT);
+  TU_ASSERT(dir < 2u);
+#endif
+
+  return &xfer_status[epnum][dir];
+}
 
 static TU_ATTR_ALIGNED(4) uint32_t _setup_packet[6];
 
@@ -224,7 +233,7 @@ void dcd_init (uint8_t rhport)
   for(uint32_t i=0; i<STFSDEV_EP_COUNT; i++)
   {
     // This doesn't clear all bits since some bits are "toggle", but does set the type to DISABLED.
-    PCD_GET_ENDPOINT(USB,i) = 0u;
+    pcd_set_endpoint(USB,i,0u);
   }
 
   // Initialize the BTABLE for EP0 at this point (though setting up the EP0R is unneeded)
@@ -334,7 +343,7 @@ static void dcd_handle_bus_reset(void)
   // Clear all EPREG (or maybe this is automatic? I'm not sure)
   for(uint32_t i=0; i<STFSDEV_EP_COUNT; i++)
   {
-    PCD_GET_ENDPOINT(USB,i) = 0u;
+    pcd_set_endpoint(USB,i,0u);
   }
 
   ep_buf_ptr = DCD_STM32_BTABLE_BASE + 8*MAX_EP_COUNT; // 8 bytes per endpoint (two TX and two RX words, each)
@@ -342,7 +351,7 @@ static void dcd_handle_bus_reset(void)
   dcd_edpt_open (0, &ep0IN_desc);
   newDADDR = 0u;
   USB->DADDR = USB_DADDR_EF; // Set enable flag, and leaving the device address as zero.
-  PCD_SET_EP_RX_STATUS(USB, 0, USB_EP_RX_VALID); // And start accepting SETUP on EP0
+  pcd_set_ep_rx_status(USB, 0, USB_EP_RX_VALID); // And start accepting SETUP on EP0
 }
 
 // FIXME: Defined to return uint16 so that ASSERT can be used, even though a return value is not needed.
@@ -370,9 +379,9 @@ static uint16_t dcd_ep_ctr_handler(void)
       {
         /* DIR = 0  => IN  int */
         /* DIR = 0 implies that (EP_CTR_TX = 1) always  */
-        PCD_CLEAR_TX_EP_CTR(USB, 0);
+        pcd_clear_tx_ep_ctr(USB, 0);
 
-        xfer_ctl_t * xfer = XFER_CTL_BASE(EPindex,TUSB_DIR_IN);
+        xfer_ctl_t * xfer = xfer_ctl_ptr(EPindex,TUSB_DIR_IN);
 
         if((xfer->total_len == xfer->queued_len))
         {
@@ -386,7 +395,7 @@ static uint16_t dcd_ep_ctr_handler(void)
           }
           if(xfer->total_len == 0) // Probably a status message?
           {
-            PCD_CLEAR_RX_DTOG(USB,EPindex);
+            pcd_clear_rx_dtog(USB,EPindex);
           }
         }
         else
@@ -399,10 +408,10 @@ static uint16_t dcd_ep_ctr_handler(void)
         /* DIR = 1 & CTR_RX       => SETUP or OUT int */
         /* DIR = 1 & (CTR_TX | CTR_RX) => 2 int pending */
 
-        xfer_ctl_t *xfer = XFER_CTL_BASE(EPindex,TUSB_DIR_OUT);
+        xfer_ctl_t *xfer = xfer_ctl_ptr(EPindex,TUSB_DIR_OUT);
 
         //ep = &hpcd->OUT_ep[0];
-        wEPVal = PCD_GET_ENDPOINT(USB, EPindex);
+        wEPVal = pcd_get_endpoint(USB, EPindex);
 
         if ((wEPVal & USB_EP_SETUP) != 0U) // SETUP
         {
@@ -410,38 +419,38 @@ static uint16_t dcd_ep_ctr_handler(void)
           // user memory, to allow for the 32-bit access that memcpy performs.
           uint8_t userMemBuf[8];
           /* Get SETUP Packet*/
-          count = PCD_GET_EP_RX_CNT(USB, EPindex);
+          count = pcd_get_ep_rx_cnt(USB, EPindex);
           //TU_ASSERT_ERR(count == 8);
-          dcd_read_packet_memory(userMemBuf, *PCD_EP_RX_ADDRESS_PTR(USB,EPindex), 8);
+          dcd_read_packet_memory(userMemBuf, *pcd_ep_rx_address_ptr(USB,EPindex), 8);
           /* SETUP bit kept frozen while CTR_RX = 1*/
           dcd_event_setup_received(0, (uint8_t*)userMemBuf, true);
-          PCD_CLEAR_RX_EP_CTR(USB, EPindex);
+          pcd_clear_rx_ep_ctr(USB, EPindex);
         }
         else if ((wEPVal & USB_EP_CTR_RX) != 0U) // OUT
         {
 
-          PCD_CLEAR_RX_EP_CTR(USB, EPindex);
+          pcd_clear_rx_ep_ctr(USB, EPindex);
 
           /* Get Control Data OUT Packet */
-          count = PCD_GET_EP_RX_CNT(USB,EPindex);
+          count = pcd_get_ep_rx_cnt(USB,EPindex);
 
           if (count != 0U)
           {
-            dcd_read_packet_memory(xfer->buffer, *PCD_EP_RX_ADDRESS_PTR(USB,EPindex), count);
+            dcd_read_packet_memory(xfer->buffer, *pcd_ep_rx_address_ptr(USB,EPindex), count);
             xfer->queued_len = (uint16_t)(xfer->queued_len + count);
           }
 
           /* Process Control Data OUT status Packet*/
           if(EPindex == 0u && xfer->total_len == 0u)
           {
-             PCD_CLEAR_EP_KIND(USB,0); // Good, so allow non-zero length packets now.
+             pcd_clear_ep_kind(USB,0); // Good, so allow non-zero length packets now.
           }
           dcd_event_xfer_complete(0, EPindex, xfer->total_len, XFER_RESULT_SUCCESS, true);
 
-          PCD_SET_EP_RX_CNT(USB, EPindex, CFG_TUD_ENDPOINT0_SIZE);
+          pcd_set_ep_rx_cnt(USB, EPindex, CFG_TUD_ENDPOINT0_SIZE);
           if(EPindex == 0u && xfer->total_len == 0u)
           {
-            PCD_SET_EP_RX_STATUS(USB, EPindex, USB_EP_RX_VALID);// Await next SETUP
+            pcd_set_ep_rx_status(USB, EPindex, USB_EP_RX_VALID);// Await next SETUP
           }
 
         }
@@ -452,21 +461,21 @@ static uint16_t dcd_ep_ctr_handler(void)
     {
 
       /* process related endpoint register */
-      wEPVal = PCD_GET_ENDPOINT(USB, EPindex);
+      wEPVal = pcd_get_endpoint(USB, EPindex);
       if ((wEPVal & USB_EP_CTR_RX) != 0U) // OUT
       {
         /* clear int flag */
-        PCD_CLEAR_RX_EP_CTR(USB, EPindex);
+        pcd_clear_rx_ep_ctr(USB, EPindex);
 
-        xfer_ctl_t * xfer = XFER_CTL_BASE(EPindex,TUSB_DIR_OUT);
+        xfer_ctl_t * xfer = xfer_ctl_ptr(EPindex,TUSB_DIR_OUT);
 
         //ep = &hpcd->OUT_ep[EPindex];
 
-        count = PCD_GET_EP_RX_CNT(USB, EPindex);
+        count = pcd_get_ep_rx_cnt(USB, EPindex);
         if (count != 0U)
         {
           dcd_read_packet_memory(&(xfer->buffer[xfer->queued_len]),
-              *PCD_EP_RX_ADDRESS_PTR(USB,EPindex), count);
+              *pcd_ep_rx_address_ptr(USB,EPindex), count);
         }
 
         /*multi-packet on the NON control OUT endpoint */
@@ -483,12 +492,12 @@ static uint16_t dcd_ep_ctr_handler(void)
         {
           uint16_t remaining = (uint16_t)(xfer->total_len - xfer->queued_len);
           if(remaining >=64) {
-            PCD_SET_EP_RX_CNT(USB, EPindex,64);
+            pcd_set_ep_rx_cnt(USB, EPindex,64);
           } else {
-            PCD_SET_EP_RX_CNT(USB, EPindex,remaining);
+            pcd_set_ep_rx_cnt(USB, EPindex,remaining);
           }
 
-          PCD_SET_EP_RX_STATUS(USB, EPindex, USB_EP_RX_VALID);
+          pcd_set_ep_rx_status(USB, EPindex, USB_EP_RX_VALID);
         }
 
       } /* if((wEPVal & EP_CTR_RX) */
@@ -496,9 +505,9 @@ static uint16_t dcd_ep_ctr_handler(void)
       if ((wEPVal & USB_EP_CTR_TX) != 0U) // IN
       {
         /* clear int flag */
-        PCD_CLEAR_TX_EP_CTR(USB, EPindex);
+        pcd_clear_tx_ep_ctr(USB, EPindex);
 
-        xfer_ctl_t * xfer = XFER_CTL_BASE(EPindex,TUSB_DIR_IN);
+        xfer_ctl_t * xfer = xfer_ctl_ptr(EPindex,TUSB_DIR_IN);
 
         if (xfer->queued_len  != xfer->total_len) // data remaining in transfer?
         {
@@ -578,33 +587,43 @@ bool dcd_edpt_open (uint8_t rhport, tusb_desc_endpoint_t const * p_endpoint_desc
   // Set type
   switch(p_endpoint_desc->bmAttributes.xfer) {
   case TUSB_XFER_CONTROL:
-    PCD_SET_EPTYPE(USB, epnum, USB_EP_CONTROL); break;
-  case TUSB_XFER_ISOCHRONOUS:
-    PCD_SET_EPTYPE(USB, epnum, USB_EP_ISOCHRONOUS); break;
+    pcd_set_eptype(USB, epnum, USB_EP_CONTROL);
+    break;
+#if (0)
+  case TUSB_XFER_ISOCHRONOUS: // FIXME: Not yet supported
+    pcd_set_eptype(USB, epnum, USB_EP_ISOCHRONOUS); break;
+    break;
+#endif
+
   case TUSB_XFER_BULK:
-    PCD_SET_EPTYPE(USB, epnum, USB_EP_BULK); break;
+    pcd_set_eptype(USB, epnum, USB_EP_BULK);
+    break;
+
   case TUSB_XFER_INTERRUPT:
-    PCD_SET_EPTYPE(USB, epnum, USB_EP_INTERRUPT); break;
+    pcd_set_eptype(USB, epnum, USB_EP_INTERRUPT);
+    break;
+
   default:
     TU_ASSERT(false);
+    return false;
   }
 
-  PCD_SET_EP_ADDRESS(USB, epnum, epnum);
-  PCD_CLEAR_EP_KIND(USB,0); // Be normal, for now, instead of only accepting zero-byte packets
+  pcd_set_ep_address(USB, epnum, epnum);
+  pcd_clear_ep_kind(USB,0); // Be normal, for now, instead of only accepting zero-byte packets
 
   if(dir == TUSB_DIR_IN)
   {
-    *PCD_EP_TX_ADDRESS_PTR(USB, epnum) = ep_buf_ptr;
-    PCD_SET_EP_TX_CNT(USB, epnum, p_endpoint_desc->wMaxPacketSize.size);
-    PCD_CLEAR_TX_DTOG(USB, epnum);
-    PCD_SET_EP_TX_STATUS(USB,epnum,USB_EP_TX_NAK);
+    *pcd_ep_tx_address_ptr(USB, epnum) = ep_buf_ptr;
+    pcd_set_ep_tx_cnt(USB, epnum, p_endpoint_desc->wMaxPacketSize.size);
+    pcd_clear_tx_dtog(USB, epnum);
+    pcd_set_ep_tx_status(USB,epnum,USB_EP_TX_NAK);
   }
   else
   {
-    *PCD_EP_RX_ADDRESS_PTR(USB, epnum) = ep_buf_ptr;
-    PCD_SET_EP_RX_CNT(USB, epnum, p_endpoint_desc->wMaxPacketSize.size);
-    PCD_CLEAR_RX_DTOG(USB, epnum);
-    PCD_SET_EP_RX_STATUS(USB, epnum, USB_EP_RX_NAK);
+    *pcd_ep_rx_address_ptr(USB, epnum) = ep_buf_ptr;
+    pcd_set_ep_rx_cnt(USB, epnum, p_endpoint_desc->wMaxPacketSize.size);
+    pcd_clear_rx_dtog(USB, epnum);
+    pcd_set_ep_rx_status(USB, epnum, USB_EP_RX_NAK);
   }
 
   ep_buf_ptr = (uint16_t)(ep_buf_ptr + p_endpoint_desc->wMaxPacketSize.size); // increment buffer pointer
@@ -622,11 +641,11 @@ static void dcd_transmit_packet(xfer_ctl_t * xfer, uint16_t ep_ix)
   {
     len = 64u;
   }
-  dcd_write_packet_memory(*PCD_EP_TX_ADDRESS_PTR(USB,ep_ix), &(xfer->buffer[xfer->queued_len]), len);
+  dcd_write_packet_memory(*pcd_ep_tx_address_ptr(USB,ep_ix), &(xfer->buffer[xfer->queued_len]), len);
   xfer->queued_len = (uint16_t)(xfer->queued_len + len);
 
-  PCD_SET_EP_TX_CNT(USB,ep_ix,len);
-  PCD_SET_EP_TX_STATUS(USB, ep_ix, USB_EP_TX_VALID);
+  pcd_set_ep_tx_cnt(USB,ep_ix,len);
+  pcd_set_ep_tx_status(USB, ep_ix, USB_EP_TX_VALID);
 }
 
 bool dcd_edpt_xfer (uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t total_bytes)
@@ -636,7 +655,7 @@ bool dcd_edpt_xfer (uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t 
   uint8_t const epnum = tu_edpt_number(ep_addr);
   uint8_t const dir   = tu_edpt_dir(ep_addr);
 
-  xfer_ctl_t * xfer = XFER_CTL_BASE(epnum,dir);
+  xfer_ctl_t * xfer = xfer_ctl_ptr(epnum,dir);
 
   xfer->buffer = buffer;
   xfer->total_len = total_bytes;
@@ -649,15 +668,15 @@ bool dcd_edpt_xfer (uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t 
     if (epnum == 0 && buffer == NULL)
     {
         xfer->buffer = (uint8_t*)_setup_packet;
-        PCD_SET_EP_KIND(USB,0); // Expect a zero-byte INPUT
+        pcd_set_ep_kind(USB,0); // Expect a zero-byte INPUT
     }
     if(total_bytes > 64)
     {
-      PCD_SET_EP_RX_CNT(USB,epnum,64);
+      pcd_set_ep_rx_cnt(USB,epnum,64);
     } else {
-      PCD_SET_EP_RX_CNT(USB,epnum,total_bytes);
+      pcd_set_ep_rx_cnt(USB,epnum,total_bytes);
     }
-    PCD_SET_EP_RX_STATUS(USB, epnum, USB_EP_RX_VALID);
+    pcd_set_ep_rx_status(USB, epnum, USB_EP_RX_VALID);
   }
   else // IN
   {
@@ -671,14 +690,14 @@ void dcd_edpt_stall (uint8_t rhport, uint8_t ep_addr)
   (void)rhport;
 
   if (ep_addr == 0) { // CTRL EP0 (OUT for setup)
-    PCD_SET_EP_TX_STATUS(USB,ep_addr, USB_EP_TX_STALL);
+    pcd_set_ep_tx_status(USB,ep_addr, USB_EP_TX_STALL);
   }
 
   if (ep_addr & 0x80) { // IN
     ep_addr &= 0x7F;
-    PCD_SET_EP_TX_STATUS(USB,ep_addr, USB_EP_TX_STALL);
+    pcd_set_ep_tx_status(USB,ep_addr, USB_EP_TX_STALL);
   } else { // OUT
-    PCD_SET_EP_RX_STATUS(USB,ep_addr, USB_EP_RX_STALL);
+    pcd_set_ep_rx_status(USB,ep_addr, USB_EP_RX_STALL);
   }
 }
 
@@ -687,24 +706,24 @@ void dcd_edpt_clear_stall (uint8_t rhport, uint8_t ep_addr)
   (void)rhport;
   if (ep_addr == 0)
   {
-    PCD_SET_EP_TX_STATUS(USB,ep_addr, USB_EP_TX_NAK);
+    pcd_set_ep_tx_status(USB,ep_addr, USB_EP_TX_NAK);
   }
 
   if (ep_addr & 0x80)
   { // IN
     ep_addr &= 0x7F;
 
-    PCD_SET_EP_TX_STATUS(USB,ep_addr, USB_EP_TX_NAK);
+    pcd_set_ep_tx_status(USB,ep_addr, USB_EP_TX_NAK);
 
     /* Reset to DATA0 if clearing stall condition. */
-    PCD_CLEAR_TX_DTOG(USB,ep_addr);
+    pcd_clear_tx_dtog(USB,ep_addr);
   }
   else
   { // OUT
     /* Reset to DATA0 if clearing stall condition. */
-    PCD_CLEAR_RX_DTOG(USB,ep_addr);
+    pcd_clear_rx_dtog(USB,ep_addr);
 
-    PCD_SET_EP_RX_STATUS(USB,ep_addr, USB_EP_RX_VALID);
+    pcd_set_ep_rx_status(USB,ep_addr, USB_EP_RX_VALID);
   }
 }
 
