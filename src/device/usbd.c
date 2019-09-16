@@ -62,7 +62,7 @@ typedef struct {
 static usbd_device_t _usbd_dev = { 0 };
 
 // Invalid driver ID in itf2drv[] ep2drv[][] mapping
-enum { DRVID_INVALID = 0xff };
+enum { DRVID_INVALID = 0xFFu };
 
 //--------------------------------------------------------------------+
 // Class Driver
@@ -365,6 +365,8 @@ static bool process_control_request(uint8_t rhport, tusb_control_request_t const
 {
   usbd_control_set_complete_callback(NULL);
 
+  TU_ASSERT(p_request->bmRequestType_bit.type < TUSB_REQ_TYPE_INVALID);
+
   // Vendor request
   if ( p_request->bmRequestType_bit.type == TUSB_REQ_TYPE_VENDOR )
   {
@@ -486,7 +488,8 @@ static bool process_control_request(uint8_t rhport, tusb_control_request_t const
             // GET HID REPORT DESCRIPTOR falls into this case
             // stall control endpoint if driver return false
             usbd_control_set_complete_callback(usbd_class_drivers[drvid].control_complete);
-            TU_ASSERT(usbd_class_drivers[drvid].control_request(rhport, p_request));
+            TU_ASSERT(usbd_class_drivers[drvid].control_request != NULL &&
+                      usbd_class_drivers[drvid].control_request(rhport, p_request));
           break;
         }
       }else
@@ -494,7 +497,8 @@ static bool process_control_request(uint8_t rhport, tusb_control_request_t const
         // forward to class driver: "non-STD request to Interface"
         // stall control endpoint if driver return false
         usbd_control_set_complete_callback(usbd_class_drivers[drvid].control_complete);
-        TU_ASSERT(usbd_class_drivers[drvid].control_request(rhport, p_request));
+        TU_ASSERT(usbd_class_drivers[drvid].control_request != NULL &&
+                  usbd_class_drivers[drvid].control_request(rhport, p_request));
       }
     }
     break;
@@ -515,7 +519,7 @@ static bool process_control_request(uint8_t rhport, tusb_control_request_t const
       // We will forward all request targeted endpoint to its class driver
       // - For non-standard request: driver can ACK or Stall the request by return true/false
       // - For standard request: usbd decide the ACK stage regardless of driver return value
-      bool ret;
+      bool ret = false;
 
       if ( TUSB_REQ_TYPE_STANDARD != p_request->bmRequestType_bit.type )
       {
@@ -523,8 +527,11 @@ static bool process_control_request(uint8_t rhport, tusb_control_request_t const
         usbd_control_set_complete_callback(usbd_class_drivers[drv_id].control_complete);
       }
 
-      // Invoke class driver first
-      ret = usbd_class_drivers[drv_id].control_request(rhport, p_request);
+      // Invoke class driver first if available
+      if ( usbd_class_drivers[drv_id].control_request )
+      {
+        ret = usbd_class_drivers[drv_id].control_request(rhport, p_request);
+      }
 
       // Then handle if it is standard request
       if ( TUSB_REQ_TYPE_STANDARD == p_request->bmRequestType_bit.type )
