@@ -258,12 +258,8 @@ void dcd_int_enable (uint8_t rhport)
 {
   (void)rhport;
 #if defined(STM32F0)
-  NVIC_SetPriority(USB_IRQn, 0);
   NVIC_EnableIRQ(USB_IRQn);
 #elif defined(STM32F3)
-  NVIC_SetPriority(USB_HP_CAN_TX_IRQn, 0);
-  NVIC_SetPriority(USB_LP_CAN_RX0_IRQn, 0);
-  NVIC_SetPriority(USBWakeUp_IRQn, 0);
   NVIC_EnableIRQ(USB_HP_CAN_TX_IRQn);
   NVIC_EnableIRQ(USB_LP_CAN_RX0_IRQn);
   NVIC_EnableIRQ(USBWakeUp_IRQn);
@@ -283,6 +279,10 @@ void dcd_int_disable(uint8_t rhport)
 #else
 #error Unknown arch in USB driver
 #endif
+  // I'm not convinced that memory synchronization is completely necessary, but
+  // it isn't a bad idea.
+  __DSB();
+  __ISB();
 }
 
 // Receive Set Address request, mcu port must also include status IN response
