@@ -86,8 +86,8 @@ TU_ATTR_WEAK bool usbtmcd_app_msg_trigger(uint8_t rhport, usbtmc_msg_generic_t* 
 
 bool usbtmcd_transmit_dev_msg_data(
     uint8_t rhport,
-    usbtmc_msg_dev_dep_msg_in_header_t const * hdr,
-    const void *data);
+    const void * data, size_t len,
+    bool usingTermChar);
 
 
 /* "callbacks" from USB device core */

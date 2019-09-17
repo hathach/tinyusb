@@ -106,7 +106,7 @@ uint8_t const * tud_hid_descriptor_report_cb(void)
 #if defined(CFG_TUD_USBTMC)
 
 #  define USBTMC_DESC_MAIN(_itfnum,_bNumEndpoints) \
-     USBTMC_IF_DESCRIPTOR(_itfnum, _bNumEndpoints,  /*_stridx = */ 7u, USBTMC_PROTOCOL_USB488), \
+     USBTMC_IF_DESCRIPTOR(_itfnum, _bNumEndpoints,  /*_stridx = */ 4u, USBTMC_PROTOCOL_USB488), \
      USBTMC_BULK_DESCRIPTORS(/* OUT = */0x03, /* IN = */ 0x83)
 
 #if defined(CFG_TUD_USBTMC_ENABLE_INT_EP)
@@ -209,10 +209,7 @@ char const* string_desc_arr [] =
   "TinyUSB",                     // 1: Manufacturer
   "TinyUSB Device",              // 2: Product
   "123456",                      // 3: Serials, should use chip ID
-  "TinyUSB CDC",                 // 4: CDC Interface
-  "TinyUSB MSC",                 // 5: MSC Interface
-  "TinyUSB HID",                 // 6: HID
-  "TinyUSB USBTMC",              // 7: USBTMC
+  "TinyUSB USBTMC",              // 4: USBTMC
 };
 
 static uint16_t _desc_str[32];
@@ -227,7 +224,8 @@ uint16_t const* tud_descriptor_string_cb(uint8_t index)
   {
     memcpy(&_desc_str[1], string_desc_arr[0], 2);
     chr_count = 1;
-  }else
+  }
+  else
   {
     // Convert ASCII string into UTF-16
 
