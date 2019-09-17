@@ -308,6 +308,17 @@ void dcd_set_config (uint8_t rhport, uint8_t config_num)
 void dcd_remote_wakeup(uint8_t rhport)
 {
   (void) rhport;
+  uint32_t start;
+
+  USB->CNTR |= (uint16_t)USB_CNTR_RESUME;
+  /* Wait 1 to 15 ms */
+  /* Busy loop is bad, but the osal_task_delay() isn't implemented for the "none" OSAL */
+  start = board_millis();
+  while ((board_millis() - start) < 2)
+  {
+    ;
+  }
+  USB->CNTR &= (uint16_t)(~USB_CNTR_RESUME);
 }
 
 // I'm getting a weird warning about missing braces here that I don't
@@ -538,10 +549,10 @@ static void dcd_fs_irqHandler(void) {
   }
   if (int_status & USB_ISTR_WKUP)
   {
-
     reg16_clear_bits(&USB->CNTR, USB_CNTR_LPMODE);
     reg16_clear_bits(&USB->CNTR, USB_CNTR_FSUSP);
     reg16_clear_bits(&USB->ISTR, USB_ISTR_WKUP);
+    dcd_event_bus_signal(0, DCD_EVENT_RESUME, true);
   }
 
   if (int_status & USB_ISTR_SUSP)
@@ -552,6 +563,7 @@ static void dcd_fs_irqHandler(void) {
 
     /* clear of the ISTR bit must be done after setting of CNTR_FSUSP */
     reg16_clear_bits(&USB->ISTR, USB_ISTR_SUSP);
+    dcd_event_bus_signal(0, DCD_EVENT_SUSPEND, true);
   }
 
   if(int_status & USB_ISTR_SOF) {
