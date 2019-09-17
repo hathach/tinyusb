@@ -56,13 +56,17 @@ extern usbtmc_response_capabilities_t const usbtmcd_app_capabilities;
 #endif
 
 bool usbtmcd_app_msgBulkOut_start(uint8_t rhport, usbtmc_msg_request_dev_dep_out const * msgHeader);
-
 // transfer_complete does not imply that a message is complete.
 bool usbtmcd_app_msg_data(uint8_t rhport, void *data, size_t len, bool transfer_complete);
+void usmtmcd_app_bulkOut_clearFeature(uint8_t rhport); // Notice to clear and abort the pending BULK out transfer
 
 bool usbtmcd_app_msgBulkIn_request(uint8_t rhport, usbtmc_msg_request_dev_dep_in const * request);
-
 bool usbtmcd_app_msgBulkIn_complete(uint8_t rhport);
+void usmtmcd_app_bulkIn_clearFeature(uint8_t rhport); // Notice to clear and abort the pending BULK out transfer
+
+bool usbtmcd_app_initiate_clear(uint8_t rhport, uint8_t *tmcResult);
+
+bool usbtmcd_app_get_clear_status(uint8_t rhport, usbtmc_get_clear_status_rsp_t *rsp);
 
 // Indicator pulse should be 0.5 to 1.0 seconds long
 TU_ATTR_WEAK bool usbtmcd_app_indicator_pluse(uint8_t rhport, tusb_control_request_t const * msg, uint8_t *tmcResult);
@@ -82,8 +86,8 @@ TU_ATTR_WEAK bool usbtmcd_app_msg_trigger(uint8_t rhport, usbtmc_msg_generic_t* 
 
 bool usbtmcd_transmit_dev_msg_data(
     uint8_t rhport,
-    usbtmc_msg_dev_dep_msg_in_header_t const * hdr,
-    const void *data);
+    const void * data, size_t len,
+    bool usingTermChar);
 
 
 /* "callbacks" from USB device core */
@@ -100,10 +104,10 @@ void usbtmcd_init(void);
  *************************************************************/
 
 #define USBTMC_APP_CLASS    TUSB_CLASS_APPLICATION_SPECIFIC
-#define USBTMC_APP_SUBCLASS 0x03
+#define USBTMC_APP_SUBCLASS 0x03u
 
-#define USBTMC_PROTOCOL_STD    0x00
-#define USBTMC_PROTOCOL_USB488 0x01
+#define USBTMC_PROTOCOL_STD    0x00u
+#define USBTMC_PROTOCOL_USB488 0x01u
 
 //   Interface number, number of endpoints, EP string index, USB_TMC_PROTOCOL*, bulk-out endpoint ID,
 //   bulk-in endpoint ID
