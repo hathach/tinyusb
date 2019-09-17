@@ -202,7 +202,29 @@ bool hidd_control_request(uint8_t rhport, tusb_control_request_t const * p_reque
     uint8_t const desc_index = tu_u16_low (p_request->wValue);
     (void) desc_index;
 
-    if (p_request->bRequest == TUSB_REQ_GET_DESCRIPTOR && desc_type == HID_DESC_TYPE_REPORT)
+    if (p_request->bRequest == TUSB_REQ_GET_DESCRIPTOR && desc_type == HID_DESC_TYPE_HID)
+    {
+      // FIXME: Should check which is the active configuration, but no callback in usbd currently exists to do that
+      tusb_desc_configuration_t const* desc_cfg =
+          (tusb_desc_configuration_t const*) tud_descriptor_configuration_cb(0);
+      uint8_t const * p_desc   = ((uint8_t const*) desc_cfg) + sizeof(tusb_desc_configuration_t);
+      uint8_t const * desc_end = ((uint8_t const*) desc_cfg) + desc_cfg->wTotalLength;
+
+      while( p_desc < desc_end )
+      {
+        tusb_hid_descriptor_hid_t *p_desc_hid =(tusb_hid_descriptor_hid_t*)p_desc;
+        if(p_desc_hid->bDescriptorType == HID_DESC_TYPE_HID) {
+          tud_control_xfer(rhport, p_request, (void*) p_desc_hid, p_desc_hid->bLength);
+          break;
+        }
+        p_desc += p_desc_hid->bLength; // next desc
+      }
+      if(p_desc >= desc_end)
+      {
+        return false;
+      }
+    }
+    else if (p_request->bRequest == TUSB_REQ_GET_DESCRIPTOR && desc_type == HID_DESC_TYPE_REPORT)
     {
       uint8_t const * desc_report = tud_hid_descriptor_report_cb();
       tud_control_xfer(rhport, p_request, (void*) desc_report, p_hid->reprot_desc_len);
