@@ -519,11 +519,12 @@ static bool process_control_request(uint8_t rhport, tusb_control_request_t const
             // GET HID REPORT DESCRIPTOR falls into this case
             // stall control endpoint if driver return false
             usbd_control_set_complete_callback(usbd_class_drivers[drvid].control_complete);
-            TU_ASSERT(usbd_class_drivers[drvid].control_request != NULL &&
+            TU_VERIFY(usbd_class_drivers[drvid].control_request != NULL &&
                       usbd_class_drivers[drvid].control_request(rhport, p_request));
           break;
         }
-      }else
+      }
+      else
       {
         // forward to class driver: "non-STD request to Interface"
         // stall control endpoint if driver return false
@@ -624,9 +625,9 @@ static bool process_set_config(uint8_t rhport, uint8_t cfg_num)
 
   // Parse configuration descriptor
   _usbd_dev.state_bits.remote_wakeup_support =
-      (desc_cfg->bmAttributes & TUSB_DESC_CONFIG_ATT_REMOTE_WAKEUP) ? 1 : 0;
+      (desc_cfg->bmAttributes & TUSB_DESC_CONFIG_ATT_REMOTE_WAKEUP) ? 1u : 0u;
   _usbd_dev.state_bits.self_powered =
-      (desc_cfg->bmAttributes & TUSB_DESC_CONFIG_ATT_SELF_POWERED) ? 1 : 0;
+      (desc_cfg->bmAttributes & TUSB_DESC_CONFIG_ATT_SELF_POWERED) ? 1u : 0u;
 
   // Parse interface descriptor
   uint8_t const * p_desc   = ((uint8_t const*) desc_cfg) + sizeof(tusb_desc_configuration_t);
