@@ -121,6 +121,7 @@
 #undef USE_HAL_DRIVER
 
 #include "device/dcd.h"
+#include "bsp/board.h"
 #include "portable/st/stm32_fsdev/dcd_stm32_fsdev_pvt_st.h"
 
 
