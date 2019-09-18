@@ -237,6 +237,20 @@ typedef struct TU_ATTR_PACKED
 
 TU_VERIFY_STATIC(sizeof(usbtmc_get_clear_status_rsp_t) == 2u, "struct wrong length");
 
+// Used for both check_abort_bulk_in_status and check_abort_bulk_out_status
+typedef struct TU_ATTR_PACKED
+{
+  uint8_t USBTMC_status;
+  struct TU_ATTR_PACKED
+  {
+    unsigned int BulkInFifoBytes : 1; ///< Has queued data or a short packet that is queued
+  } bmAbortBulkIn;
+  uint8_t _reserved[2];               ///< Must be zero
+  uint32_t NBYTES_RXD_TXD;
+} usbtmc_check_abort_bulk_rsp_t;
+
+TU_VERIFY_STATIC(sizeof(usbtmc_check_abort_bulk_rsp_t) == 8u, "struct wrong length");
+
 typedef struct TU_ATTR_PACKED
 {
   uint8_t USBTMC_status;                 ///< usbtmc_status_enum

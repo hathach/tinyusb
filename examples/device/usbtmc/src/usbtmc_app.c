@@ -64,8 +64,8 @@ usbtmcd_app_capabilities  =
     }
 #endif
 };
-//static const char idn[] = "TinyUSB,ModelNumber,SerialNumber,FirmwareVer";
-static const char idn[] = "TinyUSB,ModelNumber,SerialNumber,FirmwareVer and a bunch of other text to make it longer than a packet, perhaps?\n";
+static const char idn[] = "TinyUSB,ModelNumber,SerialNumber,FirmwareVer123456\r\n";
+//static const char idn[] = "TinyUSB,ModelNumber,SerialNumber,FirmwareVer and a bunch of other text to make it longer than a packet, perhaps? lets make it three transfers...\n";
 static volatile uint8_t status;
 
 // 0=not query, 1=queried, 2=delay,set(MAV), 3=delay 4=ready?
@@ -154,14 +154,14 @@ void usbtmc_app_task_iter(void) {
     queryState = 2;
     break;
   case 2:
-    if( (board_millis() - queryDelayStart) > 5u) {
+    if( (board_millis() - queryDelayStart) > 200u) {
       queryDelayStart = board_millis();
       queryState=3;
       status |= 0x10u; // MAV
     }
     break;
   case 3:
-    if( (board_millis() - queryDelayStart) > 10u) {
+    if( (board_millis() - queryDelayStart) > 400u) {
       queryState = 4;
     }
     break;
@@ -169,6 +169,7 @@ void usbtmc_app_task_iter(void) {
     if(bulkInStarted) {
       queryState = 0;
       bulkInStarted = 0;
+      uart_tx_str_sync("usbtmc_app_task_iter: sending rsp!\r\n");
       usbtmcd_transmit_dev_msg_data(rhport, idn,  tu_min32(sizeof(idn)-1,msgReqLen),false);
       // MAV is cleared in the transfer complete callback.
     }
@@ -189,7 +190,7 @@ bool usbtmcd_app_initiate_clear(uint8_t rhport, uint8_t *tmcResult)
   return true;
 }
 
-bool usbtmcd_app_get_clear_status(uint8_t rhport, usbtmc_get_clear_status_rsp_t *rsp)
+bool usbtmcd_app_check_clear(uint8_t rhport, usbtmc_get_clear_status_rsp_t *rsp)
 {
   (void)rhport;
   queryState = 0;
@@ -197,6 +198,27 @@ bool usbtmcd_app_get_clear_status(uint8_t rhport, usbtmc_get_clear_status_rsp_t 
   status = 0;
   rsp->USBTMC_status = USBTMC_STATUS_SUCCESS;
   rsp->bmClear.BulkInFifoBytes = 0u;
+  return true;
+}
+bool usbtmcd_app_initiate_abort_bulk_in(uint8_t rhport, uint8_t *tmcResult)
+{
+  bulkInStarted = 0;
+  *tmcResult = USBTMC_STATUS_SUCCESS;
+  return true;
+}
+bool usbtmcd_app_check_abort_bulk_in(uint8_t rhport, usbtmc_check_abort_bulk_rsp_t *rsp)
+{
+  return true;
+}
+
+bool usbtmcd_app_initiate_abort_bulk_out(uint8_t rhport, uint8_t *tmcResult)
+{
+  *tmcResult = USBTMC_STATUS_SUCCESS;
+  return true;
+
+}
+bool usbtmcd_app_check_abort_bulk_out(uint8_t rhport, usbtmc_check_abort_bulk_rsp_t *rsp)
+{
   return true;
 }
 
