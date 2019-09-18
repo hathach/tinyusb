@@ -86,7 +86,7 @@ bool usbtmcd_app_msgBulkOut_start(uint8_t rhport, usbtmc_msg_request_dev_dep_out
 {
   (void)rhport;
   (void)msgHeader;
-  uart_tx_str_sync("MSG_OUT_DATA: start\r\n");
+  //uart_tx_str_sync("MSG_OUT_DATA: start\r\n");
   return true;
 }
 bool usbtmcd_app_msg_trigger(uint8_t rhport, usbtmc_msg_generic_t* msg) {
@@ -100,12 +100,12 @@ bool usbtmcd_app_msg_data(uint8_t rhport, void *data, size_t len, bool transfer_
   (void)rhport;
 
   // If transfer isn't finished, we just ignore it (for now)
-  uart_tx_str_sync("MSG_OUT_DATA: <<<");
+  /*uart_tx_str_sync("MSG_OUT_DATA: <<<");
   uart_tx_sync(data,len);
   uart_tx_str_sync(">>>\r\n");
   if(transfer_complete)
     uart_tx_str_sync("MSG_OUT_DATA: Complete\r\n");
-
+*/
   if(transfer_complete && (len >=4) && !strncasecmp("*idn?",data,4)) {
     queryState = 1;
   }
@@ -132,7 +132,7 @@ bool usbtmcd_app_msgBulkIn_request(uint8_t rhport, usbtmc_msg_request_dev_dep_in
   rspMsg.header.bTagInverse = request->header.bTagInverse;
   msgReqLen = request->TransferSize;
 
-  uart_tx_str_sync("MSG_IN_DATA: Requested!\r\n");
+  //uart_tx_str_sync("MSG_IN_DATA: Requested!\r\n");
   TU_ASSERT(bulkInStarted == 0);
   bulkInStarted = 1;
 
@@ -169,7 +169,7 @@ void usbtmc_app_task_iter(void) {
     if(bulkInStarted) {
       queryState = 0;
       bulkInStarted = 0;
-      uart_tx_str_sync("usbtmc_app_task_iter: sending rsp!\r\n");
+      //uart_tx_str_sync("usbtmc_app_task_iter: sending rsp!\r\n");
       usbtmcd_transmit_dev_msg_data(rhport, idn,  tu_min32(sizeof(idn)-1,msgReqLen),false);
       // MAV is cleared in the transfer complete callback.
     }
