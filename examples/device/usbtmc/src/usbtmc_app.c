@@ -99,9 +99,6 @@ bool usbtmcd_app_msgBulkOut_start(uint8_t rhport, usbtmc_msg_request_dev_dep_out
 {
   (void)rhport;
   (void)msgHeader;
-#ifdef xDEBUG
-  uart_tx_str_sync("MSG_OUT_DATA: start\r\n");
-#endif
   buffer_len = 0;
   return true;
 }
@@ -111,15 +108,6 @@ bool usbtmcd_app_msg_data(uint8_t rhport, void *data, size_t len, bool transfer_
   (void)rhport;
 
   // If transfer isn't finished, we just ignore it (for now)
-#ifdef xDEBUG
-  uart_tx_str_sync("MSG_OUT_DATA: <<<");
-  uart_tx_sync(data,len);
-  uart_tx_str_sync(">>>\r\n");
-  if(transfer_complete)
-    uart_tx_str_sync("MSG_OUT_DATA: Complete\r\n");
-  sprintf(bigMsg, "len=%u complete=%u\r\n",len,(uint32_t)transfer_complete);
-  uart_tx_str_sync(bigMsg);
-#endif
 
   if(len + buffer_len < sizeof(buffer))
   {
@@ -201,9 +189,7 @@ void usbtmc_app_task_iter(void) {
     if(bulkInStarted) {
       queryState = 0;
       bulkInStarted = 0;
-#ifdef xDEBUG
-      uart_tx_str_sync("usbtmc_app_task_iter: sending rsp!\r\n");
-#endif
+
       if(idnQuery)
       {
       usbtmcd_transmit_dev_msg_data(rhport, idn,  tu_min32(sizeof(idn)-1,msgReqLen),false);
