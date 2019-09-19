@@ -7,15 +7,20 @@ def test_idn():
 	idn = inst.query("*idn?");
 	assert idn == "TinyUSB,ModelNumber,SerialNumber,FirmwareVer123456\r\n"
 
-def test_echo():
-	longstr = "0123456789abcdef" * 50
+def test_echo(m,n):
+	longstr = "0123456789abcdefghijklmnopqrstuvwxyz" * 50
 
 	#Next try echo from 1 to 175 characters (200 is max buffer size on DUT)
-	for i in range(49,175):
+	for i in range(m,n):
+		#print(i)
 		x = longstr[0:i]
 		xt = x + inst.write_termination
 		y = inst.query(x)
-		assert(xt == y), f"echo {i}"
+		#print(x)
+		#print (":".join("{:02x}".format(ord(c)) for c in xt))
+		#print (":".join("{:02x}".format(ord(c)) for c in y))
+		assert(xt == y), f"failed i={i}"
+		inst.read_stb();# Just to make USB logging easier by sending a control query
 
 def test_mav():
 	assert (inst.read_stb() == 0)
@@ -57,12 +62,28 @@ inst = rm.open_resource(reslist[0]);
 inst.timeout = 3000
 inst.clear()
 
-#print(idn);
-inst.clear()
+#print("+ IDN")
+#test_idn()
 
-test_idn()
-test_echo()
+print("+ random trigger")
+#inst.assert_trigger();
+
+print("+ echo delay=0")
+inst.write("delay 0")
+test_echo(1,175)
+
+print("+ echo delay=2")
+inst.write("delay 2")
+test_echo(1,175)
+
+print("+ echo delay=200")
+inst.write("delay 200")
+test_echo(50,90)
+test_echo(165,170)
+
+print("+ MAV")
 test_mav()
+print("+ SRQ")
 test_srq()
 
 inst.close()
