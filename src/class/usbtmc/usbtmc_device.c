@@ -102,7 +102,7 @@ typedef enum
   STATE_CLEARING,
   STATE_ABORTING_BULK_IN,
   STATE_ABORTING_BULK_IN_SHORTED, // aborting, and short packet has been queued for transmission
-  STATE_ABORTING_BULK_IN_ABORTED, // aborting, and short packet has been queued for transmission
+  STATE_ABORTING_BULK_IN_ABORTED, // aborting, and short packet has been transmitted
   STATE_ABORTING_BULK_OUT,
   STATE_NUM_STATES
 } usbtmcd_state_enum;
@@ -384,6 +384,7 @@ static bool handle_devMsgIn(uint8_t rhport, void *data, size_t len)
     usbtmc_state.state = STATE_TX_REQUESTED;
     usbtmc_state.lastBulkInTag = msg->header.bTag;
     usbtmc_state.transfer_size_remaining = msg->TransferSize;
+    usbtmc_state.transfer_size_sent = 0u;
   }
   criticalLeave();
 
@@ -612,8 +613,14 @@ bool usbtmcd_control_request(uint8_t rhport, tusb_control_request_t const * requ
       rsp.USBTMC_status = USBTMC_STATUS_SUCCESS;
     usbtmc_state.transfer_size_remaining = 0;
       // Check if we've queued a short packet
-      usbtmc_state.state = ((usbtmc_state.transfer_size_sent % USBTMCD_MAX_PACKET_SIZE) != 0) ?
+      usbtmc_state.state = ((usbtmc_state.transfer_size_sent % USBTMCD_MAX_PACKET_SIZE) == 0) ?
               STATE_ABORTING_BULK_IN : STATE_ABORTING_BULK_IN_SHORTED;
+      if(usbtmc_state.transfer_size_sent  == 0)
+      {
+        // Send short packet, nothing is in the buffer yet
+        TU_VERIFY( usbd_edpt_xfer(rhport, usbtmc_state.ep_bulk_in, usbtmc_state.ep_bulk_in_buf,(uint16_t)0u));
+        usbtmc_state.state = STATE_ABORTING_BULK_IN_SHORTED;
+      }
       TU_VERIFY(usbtmcd_app_initiate_abort_bulk_in(rhport, &(rsp.USBTMC_status)));
     }
     else if((usbtmc_state.state == STATE_TX_REQUESTED || usbtmc_state.state == STATE_TX_INITIATED))
@@ -638,7 +645,7 @@ bool usbtmcd_control_request(uint8_t rhport, tusb_control_request_t const * requ
         .USBTMC_status = USBTMC_STATUS_FAILED,
         .bmAbortBulkIn =
         {
-            .BulkInFifoBytes = (usbtmc_state.state == STATE_ABORTING_BULK_IN_ABORTED)
+            .BulkInFifoBytes = (usbtmc_state.state != STATE_ABORTING_BULK_IN_ABORTED)
         },
         .NBYTES_RXD_TXD = usbtmc_state.transfer_size_sent,
     };
@@ -647,6 +654,7 @@ bool usbtmcd_control_request(uint8_t rhport, tusb_control_request_t const * requ
     {
     case STATE_ABORTING_BULK_IN_ABORTED:
       rsp.USBTMC_status = USBTMC_STATUS_SUCCESS;
+      usbtmc_state.state = STATE_IDLE;
       break;
     case STATE_ABORTING_BULK_IN:
     case STATE_ABORTING_BULK_OUT:

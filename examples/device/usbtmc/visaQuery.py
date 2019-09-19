@@ -3,6 +3,7 @@ import time
 import sys
 
 
+
 def test_idn():
 	idn = inst.query("*idn?");
 	assert idn == "TinyUSB,ModelNumber,SerialNumber,FirmwareVer123456\r\n"
@@ -60,6 +61,24 @@ def test_srq():
 	rsp = inst.read()
 	assert(rsp == "123\r\n")
 	
+		
+
+def test_read_timeout():
+	inst.timeout = 500
+	# First read with no MAV
+	inst.read_stb()
+	assert (inst.read_stb() == 0)
+	inst.write("delay 500")
+	t0 = time.time()
+	try:
+		rsp = inst.read()
+		assert(false), "Read should have resulted in timeout"
+	except visa.VisaIOError:
+		print("Got expected exception")
+	t = time.time() - t0
+	assert ((t*1000.0) > (inst.timeout - 300))
+	assert ((t*1000.0) < (inst.timeout + 300))
+	print(f"Delay was {t}")
 
 rm = visa.ResourceManager("/c/Windows/system32/visa64.dll")
 reslist = rm.list_resources("USB?::?*::INSTR")
@@ -72,8 +91,11 @@ inst = rm.open_resource(reslist[0]);
 inst.timeout = 3000
 inst.clear()
 
-#print("+ IDN")
-#test_idn()
+print("+ IDN")
+test_idn()
+
+inst.timeout = 3000
+
 
 print("+ echo delay=0")
 inst.write("delay 0")
@@ -87,6 +109,9 @@ print("+ echo delay=150")
 inst.write("delay 150")
 test_echo(53,76)
 test_echo(165,170)
+
+print("+ Read timeout (no MAV")
+test_read_timeout()
 
 print("+ MAV")
 test_mav()

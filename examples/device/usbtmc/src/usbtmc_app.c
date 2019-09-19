@@ -203,7 +203,7 @@ void usbtmc_app_task_iter(void) {
 
       if(idnQuery)
       {
-      usbtmcd_transmit_dev_msg_data(rhport, idn,  tu_min32(sizeof(idn)-1,msgReqLen),false);
+        usbtmcd_transmit_dev_msg_data(rhport, idn,  tu_min32(sizeof(idn)-1,msgReqLen),false);
       }
       else
       {
