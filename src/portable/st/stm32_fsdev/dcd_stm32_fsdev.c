@@ -168,11 +168,6 @@ static xfer_ctl_t xfer_status[MAX_EP_COUNT][2];
 
 static xfer_ctl_t* xfer_ctl_ptr(uint32_t epnum, uint32_t dir)
 {
-#ifndef NDEBUG
-  TU_ASSERT(epnum < MAX_EP_COUNT);
-  TU_ASSERT(dir < 2u);
-#endif
-
   return &xfer_status[epnum][dir];
 }
 
@@ -587,31 +582,9 @@ bool dcd_edpt_open (uint8_t rhport, tusb_desc_endpoint_t const * p_endpoint_desc
   uint8_t const dir   = tu_edpt_dir(p_endpoint_desc->bEndpointAddress);
   const uint16_t epMaxPktSize = p_endpoint_desc->wMaxPacketSize.size;
   // Isochronous not supported (yet), and some other driver assumptions.
-#ifndef NDEBUG
+
   TU_ASSERT(p_endpoint_desc->bmAttributes.xfer != TUSB_XFER_ISOCHRONOUS);
   TU_ASSERT(epnum < MAX_EP_COUNT);
-
-  switch(p_endpoint_desc->bmAttributes.xfer) {
-  case TUSB_XFER_CONTROL:
-    // USB 2.0 spec on FS packets, 5.5.3 (control)
-    TU_ASSERT((epMaxPktSize == 8) ||(epMaxPktSize == 16) || (epMaxPktSize == 32) || (epMaxPktSize == 64));
-    break;
-  case TUSB_XFER_ISOCHRONOUS: // FIXME: Not yet supported
-    TU_ASSERT(epMaxPktSize <= 1023);
-    break;
-  case TUSB_XFER_BULK:
-    // USB 2.0 spec on FS packets, 5.8.3 (bulk)
-    TU_ASSERT((epMaxPktSize == 8) ||(epMaxPktSize == 16) ||(epMaxPktSize == 32) ||(epMaxPktSize == 64));
-    break;
-  case TUSB_XFER_INTERRUPT:
-    // USB 2.0 spec on FS packets, 5.5.3 (interrupt); interestingly 0 is allowed.
-    TU_ASSERT(epMaxPktSize <= 64);
-    break;
-  default:
-    TU_ASSERT(false);
-    return false;
-  }
-#endif
 
   // Set type
   switch(p_endpoint_desc->bmAttributes.xfer) {
@@ -776,14 +749,6 @@ static bool dcd_write_packet_memory(uint16_t dst, const void *__restrict src, si
   uint16_t temp1, temp2;
   const uint8_t * srcVal;
 
-#ifndef NDEBUG
-#  if (DCD_STM32_BTABLE_BASE > 0u)
-     TU_ASSERT(dst >= DCD_STM32_BTABLE_BASE);
-#  endif
-    TU_ASSERT((dst%2) == 0);
-    TU_ASSERT((dst + wNBytes) <= (DCD_STM32_BTABLE_BASE + DCD_STM32_BTABLE_LENGTH));
-#endif
-
   // The GCC optimizer will combine access to 32-bit sizes if we let it. Force
   // it volatile so that it won't do that.
   __IO uint16_t *pdwVal;
@@ -817,15 +782,6 @@ static bool dcd_read_packet_memory(void *__restrict dst, uint16_t src, size_t wN
   // it volatile so that it won't do that.
   __IO const uint16_t *pdwVal;
   uint32_t temp;
-
-#ifndef NDEBUG
-#  if (DCD_STM32_BTABLE_BASE > 0u)
-     TU_ASSERT(src >= DCD_STM32_BTABLE_BASE);
-#  endif
-    TU_ASSERT((src%2) == 0);
-    TU_ASSERT((src + wNBytes) <= (DCD_STM32_BTABLE_BASE + DCD_STM32_BTABLE_LENGTH));
-#endif
-
 
   pdwVal = &pma[PMA_STRIDE*(src>>1)];
   uint8_t *dstVal = (uint8_t*)dst;
