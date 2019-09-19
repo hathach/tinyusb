@@ -37,8 +37,8 @@
 #include "usbtmc.h"
 
 // Enable 488 mode by default
-#if !defined(USBTMC_CFG_ENABLE_488)
-#define USBTMC_CFG_ENABLE_488 (1)
+#if !defined(CFG_USBTMC_CFG_ENABLE_488)
+#define CFG_CFG_USBTMC_CFG_ENABLE_488 (1)
 #endif
 
 // USB spec says that full-speed must be 8,16,32, or 64.
@@ -49,7 +49,7 @@
  *  Functions to be implemeted by the class implementation
  */
 
-#if (USBTMC_CFG_ENABLE_488)
+#if (CFG_USBTMC_CFG_ENABLE_488)
 extern usbtmc_response_capabilities_488_t const usbtmcd_app_capabilities;
 #else
 extern usbtmc_response_capabilities_t const usbtmcd_app_capabilities;
@@ -75,7 +75,7 @@ bool usbtmcd_app_check_clear(uint8_t rhport, usbtmc_get_clear_status_rsp_t *rsp)
 // Indicator pulse should be 0.5 to 1.0 seconds long
 TU_ATTR_WEAK bool usbtmcd_app_indicator_pluse(uint8_t rhport, tusb_control_request_t const * msg, uint8_t *tmcResult);
 
-#if (USBTMC_CFG_ENABLE_488)
+#if (CFG_USBTMC_CFG_ENABLE_488)
 uint8_t usbtmcd_app_get_stb(uint8_t rhport, uint8_t *tmcResult);
 TU_ATTR_WEAK bool usbtmcd_app_msg_trigger(uint8_t rhport, usbtmc_msg_generic_t* msg);
 //TU_ATTR_WEAK bool usbtmcd_app_go_to_local(uint8_t rhport);

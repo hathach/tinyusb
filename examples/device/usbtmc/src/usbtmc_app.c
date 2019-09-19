@@ -29,7 +29,7 @@
 #include "bsp/board.h"
 #include "main.h"
 
-#if (USBTMC_CFG_ENABLE_488)
+#if (CFG_USBTMC_CFG_ENABLE_488)
 usbtmc_response_capabilities_488_t const
 #else
 usbtmc_response_capabilities_t const
@@ -48,7 +48,7 @@ usbtmcd_app_capabilities  =
         .canEndBulkInOnTermChar = 0
     },
 
-#if (USBTMC_CFG_ENABLE_488)
+#if (CFG_USBTMC_CFG_ENABLE_488)
     .bcdUSB488 = USBTMC_488_VERSION,
     .bmIntfcCapabilities488 =
     {

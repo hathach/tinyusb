@@ -227,7 +227,7 @@ bool usbtmcd_transmit_dev_msg_data(
 void usbtmcd_init(void)
 {
 #ifndef NDEBUG
-#  if USBTMC_CFG_ENABLE_488
+#  if CFG_USBTMC_CFG_ENABLE_488
   if(usbtmcd_app_capabilities.bmIntfcCapabilities488.supportsTrigger)
     TU_ASSERT(&usbtmcd_app_msg_trigger != NULL,);
   // Per USB488 spec: table 8
@@ -310,12 +310,13 @@ bool usbtmcd_open(uint8_t rhport, tusb_desc_interface_t const * itf_desc, uint16
   {
     TU_ASSERT(usbtmc_state.ep_int_in != 0);
   }
-
+#if (USBTMC_CFG_ENABLE_488)
   if(usbtmcd_app_capabilities.bmIntfcCapabilities488.is488_2 ||
       usbtmcd_app_capabilities.bmDevCapabilities488.SR1)
   {
     TU_ASSERT(usbtmc_state.ep_int_in != 0);
   }
+#endif
 #endif
   TU_VERIFY( usbd_edpt_xfer(rhport, usbtmc_state.ep_bulk_out, usbtmc_state.ep_bulk_out_buf, 64));
 
@@ -431,7 +432,7 @@ bool usbtmcd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint
         TU_VERIFY(handle_devMsgIn(rhport, msg, xferred_bytes));
         break;
 
-#ifdef USBTMC_CFG_ENABLE_488
+#if (CFG_USBTMC_CFG_ENABLE_488)
       case USBTMC_MSGID_USB488_TRIGGER:
         // Spec says we halt the EP if we didn't declare we support it.
         TU_VERIFY(usbtmcd_app_capabilities.bmIntfcCapabilities488.supportsTrigger);
@@ -524,7 +525,7 @@ bool usbtmcd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint
 bool usbtmcd_control_request(uint8_t rhport, tusb_control_request_t const * request) {
 
   uint8_t tmcStatusCode = USBTMC_STATUS_FAILED;
-#if (USBTMC_CFG_ENABLE_488)
+#if (CFG_USBTMC_CFG_ENABLE_488)
   uint8_t bTag;
 #endif
 
@@ -724,7 +725,7 @@ bool usbtmcd_control_request(uint8_t rhport, tusb_control_request_t const * requ
       TU_VERIFY(tud_control_xfer(rhport, request, (void*)&tmcStatusCode, sizeof(tmcStatusCode)));
       return true;
     }
-#if (USBTMC_CFG_ENABLE_488)
+#if (CFG_USBTMC_CFG_ENABLE_488)
 
     // USB488 required requests
   case USB488_bREQUEST_READ_STATUS_BYTE:
