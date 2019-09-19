@@ -727,7 +727,7 @@ bool usbtmcd_control_request(uint8_t rhport, tusb_control_request_t const * requ
 #if (USBTMC_CFG_ENABLE_488)
 
     // USB488 required requests
-  case USBTMC488_bREQUEST_READ_STATUS_BYTE:
+  case USB488_bREQUEST_READ_STATUS_BYTE:
     {
       usbtmc_read_stb_rsp_488_t rsp;
       TU_VERIFY(request->bmRequestType == 0xA1); // in,class,interface
@@ -763,9 +763,9 @@ bool usbtmcd_control_request(uint8_t rhport, tusb_control_request_t const * requ
       return true;
     }
     // USB488 optional requests
-  case USBTMC488_bREQUEST_REN_CONTROL:
-  case USBTMC488_bREQUEST_GO_TO_LOCAL:
-  case USBTMC488_bREQUEST_LOCAL_LOCKOUT:
+  case USB488_bREQUEST_REN_CONTROL:
+  case USB488_bREQUEST_GO_TO_LOCAL:
+  case USB488_bREQUEST_LOCAL_LOCKOUT:
     {
       TU_VERIFY(request->bmRequestType == 0xA1); // in,class,interface
       TU_VERIFY(false);

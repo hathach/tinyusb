@@ -139,9 +139,9 @@ TU_VERIFY_STATIC(sizeof(usbtmc_msg_request_vendor_specific_in) == 12u, "struct w
 /*
 typedef struct TU_ATTR_PACKED {
   struct {
-    uint8_t Recipient  : 5         ; ///< EOM set on last byte
-    uint8_t Type       : 2         ; ///< EOM set on last byte
-    uint8_t DirectionToHost  : 1   ; ///< 0 is OUT, 1 is IN
+    unsigned int Recipient  : 5         ; ///< EOM set on last byte
+    unsigned int Type       : 2         ; ///< EOM set on last byte
+    unsigned int DirectionToHost  : 1   ; ///< 0 is OUT, 1 is IN
   } bmRequestType;
   uint8_t bRequest                 ; ///< If bmRequestType.Type = Class, see usmtmc_request_type_enum
   uint16_t wValue                  ;
@@ -176,10 +176,10 @@ typedef enum {
   USBTMC_bREQUEST_INDICATOR_PULSE               = 64u, // Optional
 
   /****** USBTMC 488 *************/
-  USBTMC488_bREQUEST_READ_STATUS_BYTE  = 128u,
-  USBTMC488_bREQUEST_REN_CONTROL       = 160u,
-  USBTMC488_bREQUEST_GO_TO_LOCAL       = 161u,
-  USBTMC488_bREQUEST_LOCAL_LOCKOUT     = 162u,
+  USB488_bREQUEST_READ_STATUS_BYTE  = 128u,
+  USB488_bREQUEST_REN_CONTROL       = 160u,
+  USB488_bREQUEST_GO_TO_LOCAL       = 161u,
+  USB488_bREQUEST_LOCAL_LOCKOUT     = 162u,
 
 } usmtmc_request_type_enum;
 
