@@ -22,6 +22,16 @@ def test_echo(m,n):
 		assert(xt == y), f"failed i={i}"
 		inst.read_stb();# Just to make USB logging easier by sending a control query
 
+def test_trig():
+	# clear SRQ
+	inst.read_stb()
+	assert (inst.read_stb() == 0)
+	inst.assert_trigger()
+	time.sleep(0.3) # SRQ may have some delay
+	assert (inst.read_stb() & 0x40), "SRQ not set after 0.3 seconds"
+	assert (inst.read_stb() == 0)
+	
+	
 def test_mav():
 	assert (inst.read_stb() == 0)
 	inst.write("123")
@@ -65,9 +75,6 @@ inst.clear()
 #print("+ IDN")
 #test_idn()
 
-print("+ random trigger")
-#inst.assert_trigger();
-
 print("+ echo delay=0")
 inst.write("delay 0")
 test_echo(1,175)
@@ -76,15 +83,19 @@ print("+ echo delay=2")
 inst.write("delay 2")
 test_echo(1,175)
 
-print("+ echo delay=200")
-inst.write("delay 200")
-test_echo(50,90)
+print("+ echo delay=150")
+inst.write("delay 150")
+test_echo(53,76)
 test_echo(165,170)
 
 print("+ MAV")
 test_mav()
+
 print("+ SRQ")
 test_srq()
+
+print("+ TRIG")
+test_trig()
 
 inst.close()
 print("Test complete")

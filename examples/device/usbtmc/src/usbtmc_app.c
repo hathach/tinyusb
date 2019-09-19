@@ -65,6 +65,12 @@ usbtmcd_app_capabilities  =
     }
 #endif
 };
+
+#define IEEE4882_STB_QUESTIONABLE (0x08u)
+#define IEEE4882_STB_MAV          (0x10u)
+#define IEEE4882_STB_SER          (0x20u)
+#define IEEE4882_STB_SRQ          (0x40u)
+
 static const char idn[] = "TinyUSB,ModelNumber,SerialNumber,FirmwareVer123456\r\n";
 //static const char idn[] = "TinyUSB,ModelNumber,SerialNumber,FirmwareVer and a bunch of other text to make it longer than a packet, perhaps? lets make it three transfers...\n";
 static volatile uint8_t status;
@@ -92,6 +98,8 @@ static usbtmc_msg_dev_dep_msg_in_header_t rspMsg = {
 bool usbtmcd_app_msg_trigger(uint8_t rhport, usbtmc_msg_generic_t* msg) {
   (void)rhport;
   (void)msg;
+  // Let trigger set the SRQ
+  status |= IEEE4882_STB_SRQ;
   return true;
 }
 
@@ -124,9 +132,12 @@ bool usbtmcd_app_msg_data(uint8_t rhport, void *data, size_t len, bool transfer_
   if(transfer_complete && !strncasecmp("delay ",data,5))
   {
     queryState = 0;
-    resp_delay = atoi((char*)data + 5);
-    if(resp_delay > 10000u)
-      resp_delay = 10000u;
+    int d = atoi((char*)data + 5);
+    if(d > 10000)
+      d = 10000;
+    if(d<0)
+      d=0;
+    resp_delay = (uint32_t)d;
   }
   return true;
 }
@@ -135,7 +146,7 @@ bool usbtmcd_app_msgBulkIn_complete(uint8_t rhport)
 {
   (void)rhport;
 
-  status &= (uint8_t)~(0x50u); // clear MAV and SRQ
+  status &= (uint8_t)~(IEEE4882_STB_MAV); // clear MAV
 
   return true;
 }
@@ -237,6 +248,7 @@ bool usbtmcd_app_initiate_abort_bulk_in(uint8_t rhport, uint8_t *tmcResult)
 bool usbtmcd_app_check_abort_bulk_in(uint8_t rhport, usbtmc_check_abort_bulk_rsp_t *rsp)
 {
   (void)rhport;
+  (void)rsp;
   return true;
 }
 
@@ -249,6 +261,8 @@ bool usbtmcd_app_initiate_abort_bulk_out(uint8_t rhport, uint8_t *tmcResult)
 }
 bool usbtmcd_app_check_abort_bulk_out(uint8_t rhport, usbtmc_check_abort_bulk_rsp_t *rsp)
 {
+  (void)rhport;
+  (void)rsp;
   return true;
 }
 
@@ -266,7 +280,7 @@ uint8_t usbtmcd_app_get_stb(uint8_t rhport, uint8_t *tmcResult)
 {
   (void)rhport;
   uint8_t old_status = status;
-  status = status & ~(0x40u); // clear SRQ
+  status = (uint8_t)(status & ~(IEEE4882_STB_SRQ)); // clear SRQ
 
   *tmcResult = USBTMC_STATUS_SUCCESS;
   // Increment status so that we see different results on each read...
