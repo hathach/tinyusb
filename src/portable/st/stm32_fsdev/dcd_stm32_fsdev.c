@@ -121,7 +121,6 @@
 #undef USE_HAL_DRIVER
 
 #include "device/dcd.h"
-#include "bsp/board.h"
 #include "portable/st/stm32_fsdev/dcd_stm32_fsdev_pvt_st.h"
 
 
@@ -174,6 +173,7 @@ static xfer_ctl_t* xfer_ctl_ptr(uint32_t epnum, uint32_t dir)
 static TU_ATTR_ALIGNED(4) uint32_t _setup_packet[6];
 
 static uint8_t newDADDR; // Used to set the new device address during the CTR IRQ handler
+static uint8_t remoteWakeCountdown; // When wake is requested
 
 // EP Buffers assigned from end of memory location, to minimize their chance of crashing
 // into the stack.
@@ -235,7 +235,7 @@ void dcd_init (uint8_t rhport)
   {
     pma[PMA_STRIDE*(DCD_STM32_BTABLE_BASE + i)] = 0u;
   }
-  USB->CNTR |= USB_CNTR_RESETM | USB_CNTR_SOFM | USB_CNTR_CTRM | USB_CNTR_SUSPM | USB_CNTR_WKUPM;
+  USB->CNTR |= USB_CNTR_RESETM | USB_CNTR_SOFM | USB_CNTR_ESOFM | USB_CNTR_CTRM | USB_CNTR_SUSPM | USB_CNTR_WKUPM;
   dcd_handle_bus_reset();
 
   // And finally enable pull-up, which may trigger the RESET IRQ if the host is connected.
@@ -304,17 +304,9 @@ void dcd_set_config (uint8_t rhport, uint8_t config_num)
 void dcd_remote_wakeup(uint8_t rhport)
 {
   (void) rhport;
-  uint32_t start;
 
   USB->CNTR |= (uint16_t)USB_CNTR_RESUME;
-  /* Wait 1 to 15 ms */
-  /* Busy loop is bad, but the osal_task_delay() isn't implemented for the "none" OSAL */
-  start = board_millis();
-  while ((board_millis() - start) < 2)
-  {
-    ;
-  }
-  USB->CNTR &= (uint16_t)(~USB_CNTR_RESUME);
+  remoteWakeCountdown = 4u; // required to be 1 to 15 ms, ESOF should trigger every 1ms.
 }
 
 // I'm getting a weird warning about missing braces here that I don't
@@ -565,6 +557,18 @@ static void dcd_fs_irqHandler(void) {
   if(int_status & USB_ISTR_SOF) {
     reg16_clear_bits(&USB->ISTR, USB_ISTR_SOF);
     dcd_event_bus_signal(0, DCD_EVENT_SOF, true);
+  }
+
+  if(int_status & USB_ISTR_ESOF) {
+    if(remoteWakeCountdown == 1u)
+    {
+      USB->CNTR &= (uint16_t)(~USB_CNTR_RESUME);
+    }
+    if(remoteWakeCountdown > 0u)
+    {
+      remoteWakeCountdown--;
+    }
+    reg16_clear_bits(&USB->ISTR, USB_ISTR_ESOF);
   }
 }
 
