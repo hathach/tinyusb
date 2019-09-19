@@ -105,16 +105,16 @@ uint8_t const * tud_hid_descriptor_report_cb(void)
 
 #if defined(CFG_TUD_USBTMC)
 
-#  define USBTMC_DESC_MAIN(_itfnum,_bNumEndpoints) \
-     USBTMC_IF_DESCRIPTOR(_itfnum, _bNumEndpoints,  /*_stridx = */ 4u, USBTMC_PROTOCOL_USB488), \
-     USBTMC_BULK_DESCRIPTORS(/* OUT = */0x03, /* IN = */ 0x83)
+#  define TUD_USBTMC_DESC_MAIN(_itfnum,_bNumEndpoints) \
+     TUD_USBTMC_IF_DESCRIPTOR(_itfnum, _bNumEndpoints,  /*_stridx = */ 4u, TUD_USBTMC_PROTOCOL_USB488), \
+     TUD_USBTMC_BULK_DESCRIPTORS(/* OUT = */0x03, /* IN = */ 0x83, /* packet size = */USBTMCD_MAX_PACKET_SIZE)
 
 #if defined(CFG_TUD_USBTMC_ENABLE_INT_EP)
 // Interrupt endpoint should be 2 bytes on a FS USB link
-#  define USBTMC_DESC(_itfnum) \
-     USBTMC_DESC_MAIN(_itfnum, /* _epCount = */ 3), \
-     USBTMC_INT_DESCRIPTOR(/* INT ep # */ 0x84, /* epMaxSize = */ 2, /* bInterval = */16u )
-#  define USBTMC_DESC_LEN (USBTMC_IF_DESCRIPTOR_LEN + USBTMC_BULK_DESCRIPTORS_LEN + USBTMC_INT_DESCRIPTOR_LEN)
+#  define TUD_USBTMC_DESC(_itfnum) \
+     TUD_USBTMC_DESC_MAIN(_itfnum, /* _epCount = */ 3), \
+     TUD_USBTMC_INT_DESCRIPTOR(/* INT ep # */ 0x84, /* epMaxSize = */ 2, /* bInterval = */16u )
+#  define USBTMC_DESC_LEN (TUD_USBTMC_IF_DESCRIPTOR_LEN + TUD_USBTMC_BULK_DESCRIPTORS_LEN + TUD_USBTMC_INT_DESCRIPTOR_LEN)
 
 #else
 
@@ -174,7 +174,7 @@ uint8_t const desc_configuration[] =
 #endif
 
 #if CFG_TUD_USBTMC
-  USBTMC_DESC(ITF_NUM_USBTMC),
+  TUD_USBTMC_DESC(ITF_NUM_USBTMC),
 #endif
 
 #if CFG_TUD_MSC
@@ -218,7 +218,7 @@ static uint16_t _desc_str[32];
 // Application return pointer to descriptor, whose contents must exist long enough for transfer to complete
 uint16_t const* tud_descriptor_string_cb(uint8_t index)
 {
-  uint8_t chr_count;
+  size_t chr_count;
 
   if ( index == 0)
   {
@@ -246,7 +246,7 @@ uint16_t const* tud_descriptor_string_cb(uint8_t index)
   }
 
   // first byte is length (including header), second byte is string type
-  _desc_str[0] = (((uint16_t)TUSB_DESC_STRING) << 8 ) | (2u*chr_count + 2u);
+  _desc_str[0] = (uint16_t)((((uint16_t)TUSB_DESC_STRING) << 8 ) | (2u*chr_count + 2u));
 
   return _desc_str;
 }

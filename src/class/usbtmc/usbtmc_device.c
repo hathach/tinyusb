@@ -251,9 +251,9 @@ bool usbtmcd_open(uint8_t rhport, tusb_desc_interface_t const * itf_desc, uint16
   usbtmcd_reset(rhport);
 
   // Perhaps there are other application specific class drivers, so don't assert here.
-  if( itf_desc->bInterfaceClass != USBTMC_APP_CLASS)
+  if( itf_desc->bInterfaceClass != TUD_USBTMC_APP_CLASS)
     return false;
-  if( itf_desc->bInterfaceSubClass != USBTMC_APP_SUBCLASS)
+  if( itf_desc->bInterfaceSubClass != TUD_USBTMC_APP_SUBCLASS)
     return false;
 
   // Only 2 or 3 endpoints are allowed for USBTMC.
@@ -272,6 +272,7 @@ bool usbtmcd_open(uint8_t rhport, tusb_desc_interface_t const * itf_desc, uint16
       tusb_desc_endpoint_t const *ep_desc = (tusb_desc_endpoint_t const *)p_desc;
       switch(ep_desc->bmAttributes.xfer) {
         case TUSB_XFER_BULK:
+          TU_ASSERT(ep_desc->wMaxPacketSize.size == USBTMCD_MAX_PACKET_SIZE);
           if (tu_edpt_dir(ep_desc->bEndpointAddress) == TUSB_DIR_IN)
           {
             usbtmc_state.ep_bulk_in = ep_desc->bEndpointAddress;

@@ -151,7 +151,8 @@ static usbd_class_driver_t const usbd_class_drivers[] =
   // We maybe need to add subclass codes here, or a callback to ask if a driver can
   // handle a particular interface.
   {
-      .class_code       = TUSB_CLASS_APPLICATION_SPECIFIC,
+      .class_code       = TUD_USBTMC_APP_CLASS,
+    //.subclass_code    = TUD_USBTMC_APP_SUBCLASS
       .init             = usbtmcd_init,
       .reset            = usbtmcd_reset,
       .open             = usbtmcd_open,

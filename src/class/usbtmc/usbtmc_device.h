@@ -107,35 +107,5 @@ void usbtmcd_init(void);
  * USBTMC Descriptor Templates
  *************************************************************/
 
-#define USBTMC_APP_CLASS    TUSB_CLASS_APPLICATION_SPECIFIC
-#define USBTMC_APP_SUBCLASS 0x03u
-
-#define USBTMC_PROTOCOL_STD    0x00u
-#define USBTMC_PROTOCOL_USB488 0x01u
-
-//   Interface number, number of endpoints, EP string index, USB_TMC_PROTOCOL*, bulk-out endpoint ID,
-//   bulk-in endpoint ID
-#define USBTMC_IF_DESCRIPTOR(_itfnum, _bNumEndpoints, _stridx, _itfProtocol) \
-/* Interface */ \
-  0x09, TUSB_DESC_INTERFACE, _itfnum, 0x00, _bNumEndpoints, USBTMC_APP_CLASS, USBTMC_APP_SUBCLASS, _itfProtocol, _stridx
-
-#define USBTMC_IF_DESCRIPTOR_LEN 9u
-
-// bulk-out Size must be a multiple of 4 bytes
-#define USBTMC_BULK_DESCRIPTORS(_epout, _epin) \
-/* Endpoint Out */ \
-7, TUSB_DESC_ENDPOINT, _epout, TUSB_XFER_BULK, U16_TO_U8S_LE(USBTMCD_MAX_PACKET_SIZE), 0u, \
-/* Endpoint In */ \
-7, TUSB_DESC_ENDPOINT, _epin, TUSB_XFER_BULK, U16_TO_U8S_LE(USBTMCD_MAX_PACKET_SIZE), 0u
-
-#define USBTMC_BULK_DESCRIPTORS_LEN (7u+7u)
-
-/* optional interrupt endpoint */ \
-// _int_pollingInterval : for LS/FS, expressed in frames (1ms each). 16 may be a good number?
-#define USBTMC_INT_DESCRIPTOR(_ep_interrupt, _ep_interrupt_size, _int_pollingInterval ) \
-7, TUSB_DESC_ENDPOINT, _ep_interrupt, TUSB_XFER_INTERRUPT, U16_TO_U8S_LE(_ep_interrupt_size), 0x16
-
-#define USBTMC_INT_DESCRIPTOR_LEN (7u)
-
 
 #endif /* CLASS_USBTMC_USBTMC_DEVICE_H_ */
