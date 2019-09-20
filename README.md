@@ -53,7 +53,7 @@ Support multiple device configurations by dynamically changing usb descriptors. 
 
 ## OS Abtraction layer
 
-TinyUSB is completely thread-safe by pushing all ISR events into a central queue, then process it later in the non-ISR context. It also uses semphore/mutex to access shared resource such as CDC fifo. Therefore the stack needs to use some of OS's basic APIs. Following OSes are already supported out of the box.
+TinyUSB is completely thread-safe by pushing all ISR events into a central queue, then process it later in the non-ISR context. It also uses semphore/mutex to access shared resource such as CDC FIFO. Therefore the stack needs to use some of OS's basic APIs. Following OSes are already supported out of the box.
 
 - **No OS** : Disabling USB IRQ is used as way to provide mutex
 - **FreeRTOS**
