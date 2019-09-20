@@ -25,7 +25,7 @@
 
 #include <strings.h>
 #include <stdlib.h>     /* atoi */
-#include "class/usbtmc/usbtmc_device.h"
+#include "tusb.h"
 #include "bsp/board.h"
 #include "main.h"
 
@@ -34,7 +34,7 @@ usbtmc_response_capabilities_488_t const
 #else
 usbtmc_response_capabilities_t const
 #endif
-usbtmcd_app_capabilities  =
+tud_usbtmc_app_capabilities  =
 {
     .USBTMC_status = USBTMC_STATUS_SUCCESS,
     .bcdUSBTMC = USBTMC_VERSION,
@@ -95,7 +95,7 @@ static usbtmc_msg_dev_dep_msg_in_header_t rspMsg = {
     }
 };
 
-bool usbtmcd_app_msg_trigger(uint8_t rhport, usbtmc_msg_generic_t* msg) {
+bool tud_usbtmc_app_msg_trigger_cb(uint8_t rhport, usbtmc_msg_generic_t* msg) {
   (void)rhport;
   (void)msg;
   // Let trigger set the SRQ
@@ -103,7 +103,7 @@ bool usbtmcd_app_msg_trigger(uint8_t rhport, usbtmc_msg_generic_t* msg) {
   return true;
 }
 
-bool usbtmcd_app_msgBulkOut_start(uint8_t rhport, usbtmc_msg_request_dev_dep_out const * msgHeader)
+bool tud_usbtmc_app_msgBulkOut_start_cb(uint8_t rhport, usbtmc_msg_request_dev_dep_out const * msgHeader)
 {
   (void)rhport;
   (void)msgHeader;
@@ -111,7 +111,7 @@ bool usbtmcd_app_msgBulkOut_start(uint8_t rhport, usbtmc_msg_request_dev_dep_out
   return true;
 }
 
-bool usbtmcd_app_msg_data(uint8_t rhport, void *data, size_t len, bool transfer_complete)
+bool tud_usbtmc_app_msg_data_cb(uint8_t rhport, void *data, size_t len, bool transfer_complete)
 {
   (void)rhport;
 
@@ -142,7 +142,7 @@ bool usbtmcd_app_msg_data(uint8_t rhport, void *data, size_t len, bool transfer_
   return true;
 }
 
-bool usbtmcd_app_msgBulkIn_complete(uint8_t rhport)
+bool tud_usbtmc_app_msgBulkIn_complete_cb(uint8_t rhport)
 {
   (void)rhport;
 
@@ -153,7 +153,7 @@ bool usbtmcd_app_msgBulkIn_complete(uint8_t rhport)
 
 static unsigned int msgReqLen;
 
-bool usbtmcd_app_msgBulkIn_request(uint8_t rhport, usbtmc_msg_request_dev_dep_in const * request)
+bool tud_usbtmc_app_msgBulkIn_request_cb(uint8_t rhport, usbtmc_msg_request_dev_dep_in const * request)
 {
   (void)rhport;
 
@@ -218,7 +218,7 @@ void usbtmc_app_task_iter(void) {
   }
 }
 
-bool usbtmcd_app_initiate_clear(uint8_t rhport, uint8_t *tmcResult)
+bool tud_usbtmc_app_initiate_clear_cb(uint8_t rhport, uint8_t *tmcResult)
 {
   (void)rhport;
   *tmcResult = USBTMC_STATUS_SUCCESS;
@@ -228,7 +228,7 @@ bool usbtmcd_app_initiate_clear(uint8_t rhport, uint8_t *tmcResult)
   return true;
 }
 
-bool usbtmcd_app_check_clear(uint8_t rhport, usbtmc_get_clear_status_rsp_t *rsp)
+bool tud_usbtmc_app_check_clear_cb(uint8_t rhport, usbtmc_get_clear_status_rsp_t *rsp)
 {
   (void)rhport;
   queryState = 0;
@@ -238,45 +238,45 @@ bool usbtmcd_app_check_clear(uint8_t rhport, usbtmc_get_clear_status_rsp_t *rsp)
   rsp->bmClear.BulkInFifoBytes = 0u;
   return true;
 }
-bool usbtmcd_app_initiate_abort_bulk_in(uint8_t rhport, uint8_t *tmcResult)
+bool tud_usbtmc_app_initiate_abort_bulk_in_cb(uint8_t rhport, uint8_t *tmcResult)
 {
   (void)rhport;
   bulkInStarted = 0;
   *tmcResult = USBTMC_STATUS_SUCCESS;
   return true;
 }
-bool usbtmcd_app_check_abort_bulk_in(uint8_t rhport, usbtmc_check_abort_bulk_rsp_t *rsp)
+bool tud_usbtmc_app_check_abort_bulk_in_cb(uint8_t rhport, usbtmc_check_abort_bulk_rsp_t *rsp)
 {
   (void)rhport;
   (void)rsp;
   return true;
 }
 
-bool usbtmcd_app_initiate_abort_bulk_out(uint8_t rhport, uint8_t *tmcResult)
+bool tud_usbtmc_app_initiate_abort_bulk_out_cb(uint8_t rhport, uint8_t *tmcResult)
 {
   (void)rhport;
   *tmcResult = USBTMC_STATUS_SUCCESS;
   return true;
 
 }
-bool usbtmcd_app_check_abort_bulk_out(uint8_t rhport, usbtmc_check_abort_bulk_rsp_t *rsp)
+bool tud_usbtmc_app_check_abort_bulk_out_cb(uint8_t rhport, usbtmc_check_abort_bulk_rsp_t *rsp)
 {
   (void)rhport;
   (void)rsp;
   return true;
 }
 
-void usmtmcd_app_bulkIn_clearFeature(uint8_t rhport)
+void usmtmcd_app_bulkIn_clearFeature_cb(uint8_t rhport)
 {
   (void)rhport;
 }
-void usmtmcd_app_bulkOut_clearFeature(uint8_t rhport)
+void usmtmcd_app_bulkOut_clearFeature_cb(uint8_t rhport)
 {
   (void)rhport;
 }
 
 // Return status byte, but put the transfer result status code in the rspResult argument.
-uint8_t usbtmcd_app_get_stb(uint8_t rhport, uint8_t *tmcResult)
+uint8_t tud_usbtmc_app_get_stb_cb(uint8_t rhport, uint8_t *tmcResult)
 {
   (void)rhport;
   uint8_t old_status = status;
@@ -288,7 +288,7 @@ uint8_t usbtmcd_app_get_stb(uint8_t rhport, uint8_t *tmcResult)
   return old_status;
 }
 
-bool usbtmcd_app_indicator_pluse(uint8_t rhport, tusb_control_request_t const * msg, uint8_t *tmcResult)
+bool tud_usbtmc_app_indicator_pluse_cb(uint8_t rhport, tusb_control_request_t const * msg, uint8_t *tmcResult)
 {
   (void)rhport;
   (void)msg;

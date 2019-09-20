@@ -300,7 +300,7 @@ typedef struct TU_ATTR_PACKED
 
 TU_VERIFY_STATIC(sizeof(usbtmc_read_stb_rsp_488_t) == 3u, "struct wrong length");
 
-typedef struct TU_ATTR_PACKET
+typedef struct TU_ATTR_PACKED
 {
   struct TU_ATTR_PACKED
   {
