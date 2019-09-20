@@ -310,7 +310,7 @@ bool usbtmcd_open_cb(uint8_t rhport, tusb_desc_interface_t const * itf_desc, uin
   {
     TU_ASSERT(usbtmc_state.ep_int_in != 0);
   }
-#if (USBTMC_CFG_ENABLE_488)
+#if (CFG_USBTMC_CFG_ENABLE_488)
   if(tud_usbtmc_app_capabilities.bmIntfcCapabilities488.is488_2 ||
       tud_usbtmc_app_capabilities.bmDevCapabilities488.SR1)
   {
