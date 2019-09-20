@@ -30,10 +30,7 @@
 
 /**********************************************
  * This driver has been tested with the following MCUs:
- * 
- * 
- * STM32F070RB
- *
+ *  - F070, F072, L053
  *
  * It also should work with minimal changes for any ST MCU with an "USB A"/"PCD"/"HCD" peripheral. This
  *  covers:
