@@ -633,7 +633,7 @@ static void mark_interface_endpoint(uint8_t ep2drv[8][2], uint8_t const* p_desc,
       ep2drv[tu_edpt_number(ep_addr)][tu_edpt_dir(ep_addr)] = driver_id;
     }
 
-    len   += tu_desc_len(p_desc);
+    len   = (uint16_t)(len + tu_desc_len(p_desc));
     p_desc = tu_desc_next(p_desc);
   }
 }
