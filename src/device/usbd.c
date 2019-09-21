@@ -551,7 +551,7 @@ static bool process_control_request(uint8_t rhport, tusb_control_request_t const
 
       if ( usbd_class_drivers[drv_id].control_request )
       {
-        ret = ret | usbd_class_drivers[drv_id].control_request(rhport, p_request);
+        ret = ret || usbd_class_drivers[drv_id].control_request(rhport, p_request);
       }
       return ret;
     }
