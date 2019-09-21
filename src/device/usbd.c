@@ -499,22 +499,12 @@ static bool process_control_request(uint8_t rhport, tusb_control_request_t const
       uint8_t const drv_id = _usbd_dev.ep2drv[ep_num][ep_dir];
       TU_ASSERT(drv_id < USBD_CLASS_DRIVER_COUNT);
 
-      // Some classes such as TMC needs to clear/re-init its buffer when receiving CLEAR_FEATURE request
-      // We will forward all request targeted endpoint to its class driver
-      // - For non-standard request: driver can ACK or Stall the request by return true/false
-      // - For standard request: usbd decide the ACK stage regardless of driver return value
       bool ret = false;
 
       if ( TUSB_REQ_TYPE_STANDARD != p_request->bmRequestType_bit.type )
       {
         // complete callback is also capable of stalling/acking the request
         usbd_control_set_complete_callback(usbd_class_drivers[drv_id].control_complete);
-      }
-
-      // Invoke class driver first if available
-      if ( usbd_class_drivers[drv_id].control_request )
-      {
-        ret = usbd_class_drivers[drv_id].control_request(rhport, p_request);
       }
 
       // Then handle if it is standard request
@@ -552,7 +542,17 @@ static bool process_control_request(uint8_t rhport, tusb_control_request_t const
           default: TU_BREAKPOINT(); return false;
         }
       }
+      // Some classes such as TMC needs to clear/re-init its buffer when receiving CLEAR_FEATURE request
+      // We will forward all request targeted endpoint to its class driver
+      // For class-type requests:  must (call tud_control_status(); return true) or (return false)
+      // For std-type requests:    non-std requests codes are already discarded.
+      //                           must not call tud_control_status(), and return value will have no effect
+      // Invoke class driver last, so that EP is already stalled
 
+      if ( usbd_class_drivers[drv_id].control_request )
+      {
+        ret = ret | usbd_class_drivers[drv_id].control_request(rhport, p_request);
+      }
       return ret;
     }
     break;
