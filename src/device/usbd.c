@@ -545,9 +545,9 @@ static bool process_control_request(uint8_t rhport, tusb_control_request_t const
       // Some classes such as TMC needs to clear/re-init its buffer when receiving CLEAR_FEATURE request
       // We will forward all request targeted endpoint to its class driver
       // For class-type requests:  must (call tud_control_status(); return true) or (return false)
-      // For std-type requests:    non-std requests codes are already discarded.
+      // For std-type requests:    non-std request codes are already discarded.
       //                           must not call tud_control_status(), and return value will have no effect
-      // Invoke class driver last, so that EP is already stalled
+      // class driver is invoked last, so that EP already has EP stall cleared (in event of clear feature EP halt)
 
       if ( usbd_class_drivers[drv_id].control_request )
       {
