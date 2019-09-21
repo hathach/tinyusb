@@ -549,9 +549,10 @@ static bool process_control_request(uint8_t rhport, tusb_control_request_t const
       //                           must not call tud_control_status(), and return value will have no effect
       // class driver is invoked last, so that EP already has EP stall cleared (in event of clear feature EP halt)
 
-      if ( usbd_class_drivers[drv_id].control_request )
+      if ( usbd_class_drivers[drv_id].control_request &&
+           usbd_class_drivers[drv_id].control_request(rhport, p_request))
       {
-        ret = ret || usbd_class_drivers[drv_id].control_request(rhport, p_request);
+        ret = true;
       }
       return ret;
     }
