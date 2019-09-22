@@ -331,7 +331,9 @@ static const tusb_desc_endpoint_t ep0IN_desc =
     .bEndpointAddress = 0x80
 };
 
+#if defined(__GNUC__) && (__GNUC__ >= 7)
 #pragma GCC diagnostic pop
+#endif
 
 static void dcd_handle_bus_reset(void)
 {
@@ -349,7 +351,6 @@ static void dcd_handle_bus_reset(void)
   dcd_edpt_open (0, &ep0IN_desc);
   newDADDR = 0u;
   USB->DADDR = USB_DADDR_EF; // Set enable flag, and leaving the device address as zero.
-  pcd_set_ep_rx_status(USB, 0, USB_EP_RX_VALID); // And start accepting SETUP on EP0
 }
 
 // FIXME: Defined to return uint16 so that ASSERT can be used, even though a return value is not needed.
@@ -518,8 +519,22 @@ static uint16_t dcd_ep_ctr_handler(void)
 
 static void dcd_fs_irqHandler(void) {
 
-  uint16_t int_status = USB->ISTR;
- // unused IRQs: (USB_ISTR_PMAOVR | USB_ISTR_ERR | USB_ISTR_WKUP | USB_ISTR_SUSP | USB_ISTR_ESOF | USB_ISTR_L1REQ )
+  uint32_t int_status = USB->ISTR;
+  //const uint32_t handled_ints = USB_ISTR_CTR | USB_ISTR_RESET | USB_ISTR_WKUP
+  //    | USB_ISTR_SUSP | USB_ISTR_SOF | USB_ISTR_ESOF;
+  // unused IRQs: (USB_ISTR_PMAOVR | USB_ISTR_ERR | USB_ISTR_L1REQ )
+
+  // The ST driver loops here on the CTR bit, but that loop has been moved into the
+  // dcd_ep_ctr_handler(), so less need to loop here. The other interrupts shouldn't
+  // be triggered repeatedly.
+
+  if(int_status & USB_ISTR_RESET) {
+    // USBRST is start of reset.
+    reg16_clear_bits(&USB->ISTR, USB_ISTR_RESET);
+    dcd_handle_bus_reset();
+    dcd_event_bus_signal(0, DCD_EVENT_BUS_RESET, true);
+    return; // Don't do the rest of the things here; perhaps they've been cleared?
+  }
 
   if (int_status & USB_ISTR_CTR)
   {
@@ -528,12 +543,7 @@ static void dcd_fs_irqHandler(void) {
     dcd_ep_ctr_handler();
     reg16_clear_bits(&USB->ISTR, USB_ISTR_CTR);
   }
-  if(int_status & USB_ISTR_RESET) {
-    // USBRST is start of reset.
-    reg16_clear_bits(&USB->ISTR, USB_ISTR_RESET);
-    dcd_handle_bus_reset();
-    dcd_event_bus_signal(0, DCD_EVENT_BUS_RESET, true);
-  }
+
   if (int_status & USB_ISTR_WKUP)
   {
     reg16_clear_bits(&USB->CNTR, USB_CNTR_LPMODE);
@@ -544,6 +554,9 @@ static void dcd_fs_irqHandler(void) {
 
   if (int_status & USB_ISTR_SUSP)
   {
+    /* Suspend is asserted for both suspend and unplug events. without Vbus monitoring,
+     * these events cannot be differentiated, so we only trigger suspend. */
+
     /* Force low-power mode in the macrocell */
     USB->CNTR |= USB_CNTR_FSUSP;
     USB->CNTR |= USB_CNTR_LPMODE;
@@ -696,25 +709,19 @@ void dcd_edpt_stall (uint8_t rhport, uint8_t ep_addr)
 {
   (void)rhport;
 
-  if (ep_addr == 0) { // CTRL EP0 (OUT for setup)
-    pcd_set_ep_tx_status(USB,ep_addr, USB_EP_TX_STALL);
+  if (ep_addr & 0x80)
+  { // IN
+    pcd_set_ep_tx_status(USB, ep_addr & 0x7F, USB_EP_TX_STALL);
   }
-
-  if (ep_addr & 0x80) { // IN
-    ep_addr &= 0x7F;
-    pcd_set_ep_tx_status(USB,ep_addr, USB_EP_TX_STALL);
-  } else { // OUT
-    pcd_set_ep_rx_status(USB,ep_addr, USB_EP_RX_STALL);
+  else
+  { // OUT
+    pcd_set_ep_rx_status(USB, ep_addr, USB_EP_RX_STALL);
   }
 }
 
 void dcd_edpt_clear_stall (uint8_t rhport, uint8_t ep_addr)
 {
   (void)rhport;
-  if (ep_addr == 0)
-  {
-    pcd_set_ep_tx_status(USB,ep_addr, USB_EP_TX_NAK);
-  }
 
   if (ep_addr & 0x80)
   { // IN
@@ -730,7 +737,7 @@ void dcd_edpt_clear_stall (uint8_t rhport, uint8_t ep_addr)
     /* Reset to DATA0 if clearing stall condition. */
     pcd_clear_rx_dtog(USB,ep_addr);
 
-    pcd_set_ep_rx_status(USB,ep_addr, USB_EP_RX_VALID);
+    pcd_set_ep_rx_status(USB,ep_addr, USB_EP_RX_NAK);
   }
 }
 

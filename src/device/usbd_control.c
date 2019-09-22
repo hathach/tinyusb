@@ -122,7 +122,7 @@ bool usbd_control_xfer_cb (uint8_t rhport, uint8_t ep_addr, xfer_result_t result
   }
 
   _control_state.total_transferred += xferred_bytes;
-  _control_state.buffer += xferred_bytes;
+  _control_state.buffer = ((uint8_t*)_control_state.buffer) + xferred_bytes;
 
   if ( _control_state.total_len == _control_state.total_transferred || xferred_bytes < CFG_TUD_ENDOINT0_SIZE )
   {
