@@ -107,13 +107,13 @@ uint8_t const * tud_hid_descriptor_report_cb(void)
 
 #  define TUD_USBTMC_DESC_MAIN(_itfnum,_bNumEndpoints) \
      TUD_USBTMC_IF_DESCRIPTOR(_itfnum, _bNumEndpoints,  /*_stridx = */ 4u, TUD_USBTMC_PROTOCOL_USB488), \
-     TUD_USBTMC_BULK_DESCRIPTORS(/* OUT = */0x03, /* IN = */ 0x83, /* packet size = */USBTMCD_MAX_PACKET_SIZE)
+     TUD_USBTMC_BULK_DESCRIPTORS(/* OUT = */0x01, /* IN = */ 0x81, /* packet size = */USBTMCD_MAX_PACKET_SIZE)
 
 #if defined(CFG_TUD_USBTMC_ENABLE_INT_EP)
 // Interrupt endpoint should be 2 bytes on a FS USB link
 #  define TUD_USBTMC_DESC(_itfnum) \
      TUD_USBTMC_DESC_MAIN(_itfnum, /* _epCount = */ 3), \
-     TUD_USBTMC_INT_DESCRIPTOR(/* INT ep # */ 0x84, /* epMaxSize = */ 2, /* bInterval = */16u )
+     TUD_USBTMC_INT_DESCRIPTOR(/* INT ep # */ 0x82, /* epMaxSize = */ 2, /* bInterval = */16u )
 #  define USBTMC_DESC_LEN (TUD_USBTMC_IF_DESCRIPTOR_LEN + TUD_USBTMC_BULK_DESCRIPTORS_LEN + TUD_USBTMC_INT_DESCRIPTOR_LEN)
 
 #else

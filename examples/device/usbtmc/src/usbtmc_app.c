@@ -84,6 +84,7 @@ static volatile uint32_t idnQuery;
 
 static uint32_t resp_delay = 125u; // Adjustable delay, to allow for better testing
 static size_t buffer_len;
+static size_t buffer_tx_ix; // for transmitting using multiple transfers
 static uint8_t buffer[225]; // A few packets long should be enough.
 
 
@@ -108,6 +109,11 @@ bool tud_usbtmc_app_msgBulkOut_start_cb(uint8_t rhport, usbtmc_msg_request_dev_d
   (void)rhport;
   (void)msgHeader;
   buffer_len = 0;
+  if(msgHeader->TransferSize > sizeof(buffer))
+  {
+
+    return false;
+  }
   return true;
 }
 
@@ -121,6 +127,10 @@ bool tud_usbtmc_app_msg_data_cb(uint8_t rhport, void *data, size_t len, bool tra
   {
     memcpy(&(buffer[buffer_len]), data, len);
     buffer_len += len;
+  }
+  else
+  {
+    return false; // buffer overflow!
   }
   queryState = transfer_complete;
   idnQuery = 0;
@@ -145,8 +155,13 @@ bool tud_usbtmc_app_msg_data_cb(uint8_t rhport, void *data, size_t len, bool tra
 bool tud_usbtmc_app_msgBulkIn_complete_cb(uint8_t rhport)
 {
   (void)rhport;
-
-  status &= (uint8_t)~(IEEE4882_STB_MAV); // clear MAV
+  if((buffer_tx_ix == buffer_len) || idnQuery) // done
+  {
+    status &= (uint8_t)~(IEEE4882_STB_MAV); // clear MAV
+    queryState = 0;
+    bulkInStarted = 0;
+    buffer_tx_ix = 0;
+  }
 
   return true;
 }
@@ -161,15 +176,25 @@ bool tud_usbtmc_app_msgBulkIn_request_cb(uint8_t rhport, usbtmc_msg_request_dev_
   rspMsg.header.bTag = request->header.bTag,
   rspMsg.header.bTagInverse = request->header.bTagInverse;
   msgReqLen = request->TransferSize;
+
 #ifdef xDEBUG
   uart_tx_str_sync("MSG_IN_DATA: Requested!\r\n");
 #endif
-  TU_ASSERT(bulkInStarted == 0);
-  bulkInStarted = 1;
+  if(queryState == 0 || (buffer_tx_ix == 0))
+  {
+    TU_ASSERT(bulkInStarted == 0);
+    bulkInStarted = 1;
 
-  // > If a USBTMC interface receives a Bulk-IN request prior to receiving a USBTMC command message
-  //   that expects a response, the device must NAK the request
-
+    // > If a USBTMC interface receives a Bulk-IN request prior to receiving a USBTMC command message
+    //   that expects a response, the device must NAK the request (*not stall*)
+  }
+  else
+  {
+    size_t txlen = tu_min32(buffer_len-buffer_tx_ix,msgReqLen);
+    usbtmcd_transmit_dev_msg_data(rhport, &buffer[buffer_tx_ix], txlen,
+        (buffer_tx_ix+txlen) == buffer_len, false);
+    buffer_tx_ix += txlen;
+  }
   // Always return true indicating not to stall the EP.
   return true;
 }
@@ -197,17 +222,17 @@ void usbtmc_app_task_iter(void) {
     }
     break;
   case 4: // time to transmit;
-    if(bulkInStarted) {
-      queryState = 0;
-      bulkInStarted = 0;
-
+    if(bulkInStarted && (buffer_tx_ix == 0)) {
       if(idnQuery)
       {
-        usbtmcd_transmit_dev_msg_data(rhport, idn,  tu_min32(sizeof(idn)-1,msgReqLen),false);
+        usbtmcd_transmit_dev_msg_data(rhport, idn,  tu_min32(sizeof(idn)-1,msgReqLen),true,false);
+        queryState = 0;
+        bulkInStarted = 0;
       }
       else
       {
-        usbtmcd_transmit_dev_msg_data(rhport, buffer,  tu_min32(buffer_len,msgReqLen),false);
+        buffer_tx_ix = tu_min32(buffer_len,msgReqLen);
+        usbtmcd_transmit_dev_msg_data(rhport, buffer, buffer_tx_ix, buffer_tx_ix == buffer_len, false);
       }
       // MAV is cleared in the transfer complete callback.
     }

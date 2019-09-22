@@ -6,7 +6,8 @@ import sys
 
 def test_idn():
 	idn = inst.query("*idn?");
-	assert idn == "TinyUSB,ModelNumber,SerialNumber,FirmwareVer123456\r\n"
+	assert (idn == "TinyUSB,ModelNumber,SerialNumber,FirmwareVer123456\r\n")
+	assert (inst.is_4882_compliant)
 
 def test_echo(m,n):
 	longstr = "0123456789abcdefghijklmnopqrstuvwxyz" * 50
@@ -34,6 +35,8 @@ def test_trig():
 	
 	
 def test_mav():
+	inst.write("delay 50")
+	inst.read_stb() # clear STB
 	assert (inst.read_stb() == 0)
 	inst.write("123")
 	time.sleep(0.3)
@@ -60,8 +63,6 @@ def test_srq():
 	
 	rsp = inst.read()
 	assert(rsp == "123\r\n")
-	
-		
 
 def test_read_timeout():
 	inst.timeout = 500
@@ -78,7 +79,53 @@ def test_read_timeout():
 	t = time.time() - t0
 	assert ((t*1000.0) > (inst.timeout - 300))
 	assert ((t*1000.0) < (inst.timeout + 300))
-	print(f"Delay was {t}")
+	print(f"Delay was {t:0.3}")
+	# Response is still in queue, so send a clear (to be more helpful to the next test)
+	inst.clear()
+	time.sleep(0.3)
+	assert(0 ==  (inst.read_stb() & 0x10)), "MAV not reset after clear"
+
+def test_abort_in():
+	inst.timeout = 200
+	# First read with no MAV
+	inst.read_stb()
+	assert (inst.read_stb() == 0)
+	inst.write("delay 500")
+	inst.write("xxx")
+	t0 = time.time()
+	try:
+		rsp = inst.read()
+		assert(false), "Read should have resulted in timeout"
+	except visa.VisaIOError:
+		print("Got expected exception")
+	t = time.time() - t0
+	assert ((t*1000.0) > (inst.timeout - 300))
+	assert ((t*1000.0) < (inst.timeout + 300))
+	print(f"Delay was {t:0.3}")
+	# Response is still in queue, so send a clear (to be more helpful to the next test)
+	inst.timeout = 800
+	y = inst.read()
+	assert(y == "xxx\r\n")
+	
+def test_indicate():
+	# perform indicator pulse
+	usb_iface = inst.get_visa_attribute(visa.constants.VI_ATTR_USB_INTFC_NUM)
+	retv = inst.control_in(request_type_bitmap_field=0xA1, request_id=64, request_value=0x0000, index=usb_iface, length=0x0001)
+	assert((retv[1] == visa.constants.StatusCode(0)) and (retv[0] == b'\x01')), f"indicator pulse failed: retv={retv}"
+	
+	
+def test_multi_read():
+	old_chunk_size = inst.chunk_size
+	longstr = "0123456789abcdefghijklmnopqrstuvwxyz" * 10
+	timeout = 10
+	x = longstr[0:174]
+	inst.chunk_size = 50 # Seems chunk size only applies to read but not write
+	inst.write(x)
+	# I'm not sure how to request just the remaining bit using a max count... so just read it all.
+	y = inst.read()
+	assert (x + "\r\n" == y)
+	#inst.chunk_size = old_chunk_size
+	
 
 rm = visa.ResourceManager("/c/Windows/system32/visa64.dll")
 reslist = rm.list_resources("USB?::?*::INSTR")
@@ -89,12 +136,20 @@ if (len(reslist) == 0):
 	
 inst = rm.open_resource(reslist[0]);
 inst.timeout = 3000
+
 inst.clear()
 
 print("+ IDN")
 test_idn()
 
-inst.timeout = 3000
+print("+test abort in")
+test_abort_in()
+
+
+inst.timeout = 2000
+
+print("+ multi read")
+test_multi_read()
 
 
 print("+ echo delay=0")
@@ -110,7 +165,7 @@ inst.write("delay 150")
 test_echo(53,76)
 test_echo(165,170)
 
-print("+ Read timeout (no MAV")
+print("+ Read timeout (no MAV)")
 test_read_timeout()
 
 print("+ MAV")
@@ -118,6 +173,9 @@ test_mav()
 
 print("+ SRQ")
 test_srq()
+
+print("+ indicate")
+test_indicate()
 
 print("+ TRIG")
 test_trig()
