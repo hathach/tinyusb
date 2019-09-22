@@ -340,8 +340,9 @@ void usbtmcd_reset_cb(uint8_t rhport)
 static bool handle_devMsgOutStart(uint8_t rhport, void *data, size_t len)
 {
   (void)rhport;
-  bool stateChanged = atomicChangeState(STATE_IDLE, STATE_RCV);
-  TU_VERIFY(stateChanged);
+  // return true upon failure, as we can assume error is being handled elsewhere.
+  TU_VERIFY(atomicChangeState(STATE_IDLE, STATE_RCV), true);
+  usbtmc_state.transfer_size_sent = 0u;
 
   // must be a header, should have been confirmed before calling here.
   usbtmc_msg_request_dev_dep_out *msg = (usbtmc_msg_request_dev_dep_out*)data;
@@ -349,30 +350,36 @@ static bool handle_devMsgOutStart(uint8_t rhport, void *data, size_t len)
   TU_VERIFY(tud_usbtmc_app_msgBulkOut_start_cb(rhport,msg));
 
   TU_VERIFY(handle_devMsgOut(rhport, (uint8_t*)data + sizeof(*msg), len - sizeof(*msg), len));
+  usbtmc_state.lastBulkOutTag = msg->header.bTag;
   return true;
 }
 
 static bool handle_devMsgOut(uint8_t rhport, void *data, size_t len, size_t packetLen)
 {
   (void)rhport;
-
-  TU_VERIFY(usbtmc_state.state == STATE_RCV);
+  // return true upon failure, as we can assume error is being handled elsewhere.
+  TU_VERIFY(usbtmc_state.state == STATE_RCV,true);
 
   bool shortPacket = (packetLen < USBTMCD_MAX_PACKET_SIZE);
 
   // Packet is to be considered complete when we get enough data or at a short packet.
   bool atEnd = false;
   if(len >= usbtmc_state.transfer_size_remaining || shortPacket)
+  {
     atEnd = true;
-  if(len > usbtmc_state.transfer_size_remaining)
-    len = usbtmc_state.transfer_size_remaining;
-  TU_VERIFY(tud_usbtmc_app_msg_data_cb(rhport,data, len, atEnd));
-  // TODO: Go to an error state upon failure other than just stalling the EP?
+  }
+
+  len = tu_min32(len, usbtmc_state.transfer_size_remaining);
+
+  if(!tud_usbtmc_app_msg_data_cb(rhport,data, len, atEnd))
+  {
+    // TODO: Go to an error state upon failure other than just stalling the EP?
+    return false;
+  }
 
   usbtmc_state.transfer_size_remaining -= len;
   usbtmc_state.transfer_size_sent += len;
-  bool stateChanged = atomicChangeState(STATE_RCV, atEnd ? STATE_IDLE : STATE_RCV);
-  TU_VERIFY(stateChanged);
+  TU_VERIFY(atomicChangeState(STATE_RCV, atEnd ? STATE_IDLE : STATE_RCV));
 
   return true;
 }
@@ -420,9 +427,11 @@ bool usbtmcd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint
 
       switch(msg->header.MsgID) {
       case USBTMC_MSGID_DEV_DEP_MSG_OUT:
-        usbtmc_state.transfer_size_sent = 0u;
-        TU_VERIFY(handle_devMsgOutStart(rhport, msg, xferred_bytes));
-        usbtmc_state.lastBulkOutTag = msg->header.bTag;
+        if(!handle_devMsgOutStart(rhport, msg, xferred_bytes))
+        {
+          usbd_edpt_stall(rhport, usbtmc_state.ep_bulk_out);
+          TU_VERIFY(false);
+        }
         break;
 
       case USBTMC_MSGID_DEV_DEP_MSG_IN:
@@ -440,7 +449,7 @@ bool usbtmcd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint
       case USBTMC_MSGID_VENDOR_SPECIFIC_MSG_OUT:
       case USBTMC_MSGID_VENDOR_SPECIFIC_IN:
       default:
-
+        usbd_edpt_stall(rhport, usbtmc_state.ep_bulk_out);
         TU_VERIFY(false);
         return false;
       }
@@ -448,7 +457,11 @@ bool usbtmcd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint
       return true;
 
     case STATE_RCV:
-      TU_VERIFY(handle_devMsgOut(rhport, usbtmc_state.ep_bulk_out_buf, xferred_bytes, xferred_bytes));
+      if(!handle_devMsgOut(rhport, usbtmc_state.ep_bulk_out_buf, xferred_bytes, xferred_bytes))
+      {
+        usbd_edpt_stall(rhport, usbtmc_state.ep_bulk_out);
+        TU_VERIFY(false);
+      }
       TU_VERIFY(usbd_edpt_xfer(rhport, usbtmc_state.ep_bulk_out, usbtmc_state.ep_bulk_out_buf, USBTMCD_MAX_PACKET_SIZE));
       return true;
 
