@@ -305,7 +305,11 @@ void tud_task (void)
             uint8_t const drv_id = _usbd_dev.ep2drv[epnum][ep_dir];
             TU_ASSERT(drv_id < USBD_CLASS_DRIVER_COUNT,);
 
-            usbd_class_drivers[drv_id].xfer_cb(event.rhport, ep_addr, event.xfer_complete.result, event.xfer_complete.len);
+            if(!usbd_class_drivers[drv_id].xfer_cb(event.rhport, ep_addr, event.xfer_complete.result, event.xfer_complete.len))
+            {
+              // Stall EP on failure
+              usbd_edpt_stall(event.rhport,ep_addr);
+            }
           }
         }
       break;
