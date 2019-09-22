@@ -58,6 +58,7 @@ CFLAGS += \
 	-Wall \
 	-Werror \
 	-Werror-implicit-function-declaration \
+	-Wfatal-errors \
 	-Wfloat-equal \
 	-Wundef \
 	-Wshadow \

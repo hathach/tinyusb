@@ -30,10 +30,7 @@
 
 /**********************************************
  * This driver has been tested with the following MCUs:
- * 
- * 
- * STM32F070RB
- *
+ *  - F070, F072, L053
  *
  * It also should work with minimal changes for any ST MCU with an "USB A"/"PCD"/"HCD" peripheral. This
  *  covers:
@@ -106,14 +103,17 @@
 
 #include "tusb_option.h"
 
+#define STM32F1_FSDEV   ( \
+    defined(STM32F102x6) || defined(STM32F102xB) || \
+    defined(STM32F103x6) || defined(STM32F103xB) || \
+    defined(STM32F103xE) || defined(STM32F103xG)   \
+)
+
 #if (TUSB_OPT_DEVICE_ENABLED) && ( \
-      ((CFG_TUSB_MCU) == OPT_MCU_STM32F0) || \
-      (((CFG_TUSB_MCU) == OPT_MCU_STM32F1) && ( \
-          defined(stm32f102x6) || defined(stm32f102xb) || \
-          defined(stm32f103x6) || defined(stm32f103xb) || \
-          defined(stm32f103xe) || defined(stm32f103xg) \
-      )) || \
-      ((CFG_TUSB_MCU) == OPT_MCU_STM32F3) \
+      (CFG_TUSB_MCU == OPT_MCU_STM32F0                  ) || \
+      (CFG_TUSB_MCU == OPT_MCU_STM32F1 && STM32F1_FSDEV ) || \
+      (CFG_TUSB_MCU == OPT_MCU_STM32F3                  ) || \
+      (CFG_TUSB_MCU == OPT_MCU_STM32L0                  ) \
     )
 
 // In order to reduce the dependance on HAL, we undefine this.
@@ -165,7 +165,7 @@ typedef struct
 
 static xfer_ctl_t xfer_status[MAX_EP_COUNT][2];
 
-static xfer_ctl_t* xfer_ctl_ptr(uint32_t epnum, uint32_t dir)
+static inline xfer_ctl_t* xfer_ctl_ptr(uint32_t epnum, uint32_t dir)
 {
   return &xfer_status[epnum][dir];
 }
@@ -252,9 +252,10 @@ void dcd_init (uint8_t rhport)
 void dcd_int_enable (uint8_t rhport)
 {
   (void)rhport;
-#if defined(STM32F0)
+
+#if CFG_TUSB_MCU == OPT_MCU_STM32F0 || CFG_TUSB_MCU == OPT_MCU_STM32L0
   NVIC_EnableIRQ(USB_IRQn);
-#elif defined(STM32F3)
+#elif CFG_TUSB_MCU == OPT_MCU_STM32F3
   NVIC_EnableIRQ(USB_HP_CAN_TX_IRQn);
   NVIC_EnableIRQ(USB_LP_CAN_RX0_IRQn);
   NVIC_EnableIRQ(USBWakeUp_IRQn);
@@ -265,14 +266,15 @@ void dcd_int_enable (uint8_t rhport)
 void dcd_int_disable(uint8_t rhport)
 {
   (void)rhport;
-#if defined(STM32F0)
+
+#if CFG_TUSB_MCU == OPT_MCU_STM32F0 || CFG_TUSB_MCU == OPT_MCU_STM32L0
   NVIC_DisableIRQ(USB_IRQn);
-#elif defined(STM32F3)
+#elif CFG_TUSB_MCU == OPT_MCU_STM32F3
   NVIC_DisableIRQ(USB_HP_CAN_TX_IRQn);
   NVIC_DisableIRQ(USB_LP_CAN_RX0_IRQn);
   NVIC_DisableIRQ(USBWakeUp_IRQn);
 #else
-#error Unknown arch in USB driver
+  #error Unknown arch in USB driver
 #endif
   // I'm not convinced that memory synchronization is completely necessary, but
   // it isn't a bad idea.
@@ -305,7 +307,7 @@ void dcd_remote_wakeup(uint8_t rhport)
 {
   (void) rhport;
 
-  USB->CNTR |= (uint16_t)USB_CNTR_RESUME;
+  USB->CNTR |= (uint16_t) USB_CNTR_RESUME;
   remoteWakeCountdown = 4u; // required to be 1 to 15 ms, ESOF should trigger every 1ms.
 }
 
@@ -448,14 +450,11 @@ static uint16_t dcd_ep_ctr_handler(void)
           {
             pcd_set_ep_rx_status(USB, EPindex, USB_EP_RX_VALID);// Await next SETUP
           }
-
         }
-
       }
     }
     else /* Decode and service non control endpoints interrupt  */
     {
-
       /* process related endpoint register */
       wEPVal = pcd_get_endpoint(USB, EPindex);
       if ((wEPVal & USB_EP_CTR_RX) != 0U) // OUT
@@ -809,7 +808,7 @@ static bool dcd_read_packet_memory(void *__restrict dst, uint16_t src, size_t wN
 
 
 // Interrupt handlers
-#if (CFG_TUSB_MCU) == (OPT_MCU_STM32F0)
+#if CFG_TUSB_MCU == OPT_MCU_STM32F0 || CFG_TUSB_MCU == OPT_MCU_STM32L0
 void USB_IRQHandler(void)
 {
   dcd_fs_irqHandler();

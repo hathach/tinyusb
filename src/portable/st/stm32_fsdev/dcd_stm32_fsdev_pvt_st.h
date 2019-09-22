@@ -41,51 +41,56 @@
 #ifndef PORTABLE_ST_STM32F0_DCD_STM32F0_FSDEV_PVT_ST_H_
 #define PORTABLE_ST_STM32F0_DCD_STM32F0_FSDEV_PVT_ST_H_
 
-#if defined(STM32F042x6) | \
-    defined(STM32F070x6) | defined(STM32F070xB) | \
-    defined(STM32F072xB) | \
+#if defined(STM32F042x6) || \
+    defined(STM32F070x6) || defined(STM32F070xB) || \
+    defined(STM32F072xB) || \
     defined(STM32F078xx)
-#include "stm32f0xx.h"
-#define PMA_LENGTH (1024u)
-// F0x2 models are crystal-less
-// All have internal D+ pull-up
-// 070RB:    2 x 16 bits/word memory     LPM Support, BCD Support
-// PMA dedicated to USB (no sharing with CAN)
-#elif defined(STM32F102x6) | defined(STM32F102x6) | \
-      defined(STM32F103x6) | defined(STM32F103xB) | \
-      defined(STM32F103xE) | defined(STM32F103xB)
-#include "stm32f1xx.h"
-#define PMA_LENGTH (512u)
-// NO internal Pull-ups
-//         *B, and *C:    2 x 16 bits/word
-#error The F102/F103 driver is expected not to work, but it might? Try it?
+  #include "stm32f0xx.h"
+  #define PMA_LENGTH (1024u)
+  // F0x2 models are crystal-less
+  // All have internal D+ pull-up
+  // 070RB:    2 x 16 bits/word memory     LPM Support, BCD Support
+  // PMA dedicated to USB (no sharing with CAN)
 
-#elif defined(STM32F302xB) | defined(STM32F302xC) | \
-      defined(STM32F303xB) | defined(STM32F303xC) | \
+#elif STM32F1_FSDEV
+  #include "stm32f1xx.h"
+  #define PMA_LENGTH (512u)
+  // NO internal Pull-ups
+  //         *B, and *C:    2 x 16 bits/word
+  #error The F102/F103 driver is expected not to work, but it might? Try it?
+
+#elif defined(STM32F302xB) || defined(STM32F302xC) || \
+      defined(STM32F303xB) || defined(STM32F303xC) || \
       defined(STM32F373xC)
-#include "stm32f3xx.h"
-#define PMA_LENGTH (512u)
-// NO internal Pull-ups
-//         *B, and *C:    1 x 16 bits/word
-// PMA dedicated to USB (no sharing with CAN)
-#elif defined(STM32F302x6) | defined(STM32F302x8) | \
-      defined(STM32F302xD) | defined(STM32F302xE) | \
-      defined(STM32F303xD) | defined(STM32F303xE) | \
-#include "stm32f3xx.h"
-#define PMA_LENGTH (1024u)
-// NO internal Pull-ups
-// *6, *8, *D, and *E:    2 x 16 bits/word     LPM Support
-// When CAN clock is enabled, USB can use first 768 bytes ONLY.
+  #include "stm32f3xx.h"
+  #define PMA_LENGTH (512u)
+  // NO internal Pull-ups
+  //         *B, and *C:    1 x 16 bits/word
+  // PMA dedicated to USB (no sharing with CAN)
+
+#elif defined(STM32F302x6) || defined(STM32F302x8) || \
+      defined(STM32F302xD) || defined(STM32F302xE) || \
+      defined(STM32F303xD) || defined(STM32F303xE)
+  #include "stm32f3xx.h"
+  #define PMA_LENGTH (1024u)
+  // NO internal Pull-ups
+  // *6, *8, *D, and *E:    2 x 16 bits/word     LPM Support
+  // When CAN clock is enabled, USB can use first 768 bytes ONLY.
+
+#elif CFG_TUSB_MCU == OPT_MCU_STM32L0
+  #include "stm32l0xx.h"
+  #define PMA_LENGTH (1024u)
+
 #else
-#error You are using an untested or unimplemented STM32 variant. Please update the driver.
-// This includes L0x2, L0x3, L1x0, L1x1, L1x2, L4x2 and L4x3, G1x1, G1x3, and G1x4
+  #error You are using an untested or unimplemented STM32 variant. Please update the driver.
+  // This includes L1x0, L1x1, L1x2, L4x2 and L4x3, G1x1, G1x3, and G1x4
 #endif
 
 // For purposes of accessing the packet
 #if ((PMA_LENGTH) == 512u)
-#define PMA_STRIDE  (2u)
+  #define PMA_STRIDE  (2u)
 #elif ((PMA_LENGTH) == 1024u)
-#define PMA_STRIDE  (1u)
+  #define PMA_STRIDE  (1u)
 #endif
 
 // And for type-safety create a new macro for the volatile address of PMAADDR
