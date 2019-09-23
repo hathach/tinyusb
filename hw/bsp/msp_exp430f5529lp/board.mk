@@ -1,6 +1,7 @@
 CFLAGS += \
   -D__MSP430F5529__ \
-  -DCFG_TUSB_MCU=OPT_MCU_MSP430x5xx
+  -DCFG_TUSB_MCU=OPT_MCU_MSP430x5xx \
+	-DCFG_EXAMPLE_MSC_READONLY
 
 # All source paths should be relative to the top level.
 LD_FILE = hw/bsp/msp_exp430f5529lp/msp430f5529.ld
