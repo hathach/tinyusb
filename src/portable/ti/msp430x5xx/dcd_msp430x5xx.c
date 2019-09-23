@@ -43,6 +43,11 @@
 void dcd_init (uint8_t rhport)
 {
   (void) rhport;
+
+  // Enable the module!
+  USBKEYPID = USBKEY;
+  USBCNF |= (PUR_EN | USB_EN);
+  USBKEYPID = 0;
 }
 
 void dcd_int_enable (uint8_t rhport)

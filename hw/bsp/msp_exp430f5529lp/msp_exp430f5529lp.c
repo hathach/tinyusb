@@ -36,6 +36,8 @@
 #define BUTTON_PIN            BIT1
 #define BUTTON_STATE_ACTIVE   1
 
+uint32_t cnt = 0;
+
 static void SystemClock_Config(void)
 {
   WDTCTL = WDTPW + WDTHOLD; // Disable watchdog.
@@ -86,16 +88,45 @@ static void SystemClock_Config(void)
   TA0CCTL0 |= CCIE;
   TA0CCR0 = 999; // 1000 ticks.
   TA0CTL |= TASSEL_2 + ID_3 + MC__UP; // Use SMCLK, divide by 8, start timer.
+
+  // Initialize USB power and PLL.
+  USBKEYPID = USBKEY;
+
+  // VUSB enabled automatically.
+  // Wait two milliseconds to stabilize, per manual recommendation.
+  uint32_t ms_elapsed = board_millis();
+  do
+  {
+    while((board_millis() - ms_elapsed) < 2);
+  }while(!(USBPWRCTL & USBBGVBV));
+
+  // USB uses XT2 (4 MHz) directly. Enable the PLL.
+  USBPLLDIVB |= USBPLL_SETCLK_4_0;
+  USBPLLCTL |= (UPFDEN | UPLLEN);
+
+  // Wait until PLL locks. Check every 2ms, per manual.
+  ms_elapsed = board_millis();
+  do
+  {
+    USBPLLIR &= ~USBOOLIFG;
+    while((board_millis() - ms_elapsed) < 2);
+  }while(USBPLLIR & USBOOLIFG);
+
+  USBKEYPID = 0;
 }
 
 void board_init(void)
 {
-  SystemClock_Config();
   __bis_SR_register(GIE); // Enable interrupts.
+  SystemClock_Config();
 
   P1DIR |= LED_PIN; // LED output.
   P1REN |= BUTTON_PIN; // Internal resistor enable.
   P1OUT |= BUTTON_PIN; // Pullup.
+
+  USBKEYPID = USBKEY;
+  USBPHYCTL |= PUSEL; // Convert USB D+/D- pins to USB functionality.
+  USBKEYPID = 0;
 }
 
 //--------------------------------------------------------------------+
