@@ -38,8 +38,16 @@
 // usbpllir_mirror and usbmaintl_mirror can be added later if needed.
 static volatile uint16_t usbiepie_mirror = 0;
 static volatile uint16_t usboepie_mirror = 0;
-static volatile uint16_t usbie_mirror = 0;
+static volatile uint8_t usbie_mirror = 0;
 static volatile uint16_t usbpwrctl_mirror = 0;
+static bool in_isr = false;
+
+uint8_t _setup_packet[8];
+
+static void bus_reset(void)
+{
+
+}
 
 
 /*------------------------------------------------------------------*/
@@ -49,9 +57,27 @@ void dcd_init (uint8_t rhport)
 {
   (void) rhport;
 
-  // Enable the module!
   USBKEYPID = USBKEY;
-  USBCNF |= (PUR_EN | USB_EN);
+
+  // Enable the module (required to write config regs)!
+  USBCNF |= USB_EN;
+
+  // Reset used interrupts
+  USBOEPIE = 0;
+  USBIEPIE = 0;
+  USBIE = 0;
+  USBOEPIFG = 0;
+  USBIEPIFG = 0;
+  USBIFG = 0;
+  USBPWRCTL &= ~(VUOVLIE | VBONIE | VBOFFIE | VUOVLIFG | VBONIFG | VBOFFIFG);
+  USBVECINT = 0;
+
+  // Enable reset and wait for it before continuing.
+  USBIE |= RSTRIE;
+
+  // Enable pullup.
+  USBCNF |= PUR_EN;
+
   USBKEYPID = 0;
 }
 
@@ -68,10 +94,18 @@ void dcd_int_enable (uint8_t rhport)
   __bic_SR_register(GIE); // Unlikely to be called in ISR, but let's be safe.
                           // Also, this cleanly disables all USB interrupts
                           // atomically from application's POV.
-  USBOEPIE = usboepie_mirror;
-  USBIEPIE = usbiepie_mirror;
-  USBIE = usbie_mirror;
-  USBPWRCTL |= usbpwrctl_mirror;
+
+  // This guard is required because tinyusb can enable interrupts without
+  // having disabled them first.
+  if(in_isr)
+  {
+    USBOEPIE = usboepie_mirror;
+    USBIEPIE = usbiepie_mirror;
+    USBIE = usbie_mirror;
+    USBPWRCTL |= usbpwrctl_mirror;
+  }
+
+  in_isr = false;
   __bis_SR_register(GIE);
 }
 
@@ -88,6 +122,7 @@ void dcd_int_disable (uint8_t rhport)
   USBIEPIE = 0;
   USBIE = 0;
   USBPWRCTL &= ~(VUOVLIE | VBONIE | VBOFFIE);
+  in_isr = true;
   __bis_SR_register(GIE);
 }
 
@@ -145,8 +180,38 @@ void dcd_edpt_clear_stall (uint8_t rhport, uint8_t ep_addr)
 
 /*------------------------------------------------------------------*/
 
+static void handle_setup_packet(void)
+{
+
+}
+
 void __attribute__ ((interrupt(USB_UBM_VECTOR))) USB_UBM_ISR(void)
 {
+  // Setup is special- reading USBVECINT to handle setup packets is done to
+  // stop NAKs on EP0.
+  uint8_t setup_status = USBIFG & SETUPIFG;
+
+  if(setup_status)
+  {
+    handle_setup_packet();
+  }
+
+  uint16_t curr_vector = USBVECINT;
+
+  switch(curr_vector)
+  {
+    case USBVECINT_RSTR:
+      bus_reset();
+      dcd_event_bus_signal(0, DCD_EVENT_BUS_RESET, true);
+      break;
+
+    // Clear the NAK on EP 0 after a SETUP packet is received.
+    case USBVECINT_SETUP_PACKET_RECEIVED:
+      break;
+
+    default:
+      break;
+  }
 
 }
 
