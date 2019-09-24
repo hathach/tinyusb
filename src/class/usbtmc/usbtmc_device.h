@@ -69,11 +69,11 @@ void tud_usbtmc_app_open_cb(uint8_t interface_id);
 bool tud_usbtmc_app_msgBulkOut_start_cb(usbtmc_msg_request_dev_dep_out const * msgHeader);
 // transfer_complete does not imply that a message is complete.
 bool tud_usbtmc_app_msg_data_cb( void *data, size_t len, bool transfer_complete);
-void usmtmcd_app_bulkOut_clearFeature_cb(); // Notice to clear and abort the pending BULK out transfer
+void usmtmcd_app_bulkOut_clearFeature_cb(void); // Notice to clear and abort the pending BULK out transfer
 
 bool tud_usbtmc_app_msgBulkIn_request_cb(usbtmc_msg_request_dev_dep_in const * request);
-bool tud_usbtmc_app_msgBulkIn_complete_cb();
-void usmtmcd_app_bulkIn_clearFeature_cb(); // Notice to clear and abort the pending BULK out transfer
+bool tud_usbtmc_app_msgBulkIn_complete_cb(void);
+void usmtmcd_app_bulkIn_clearFeature_cb(void); // Notice to clear and abort the pending BULK out transfer
 
 bool tud_usbtmc_app_initiate_abort_bulk_in_cb(uint8_t *tmcResult);
 bool tud_usbtmc_app_initiate_abort_bulk_out_cb(uint8_t *tmcResult);
@@ -103,7 +103,7 @@ bool usbtmcd_transmit_dev_msg_data(
     const void * data, size_t len,
     bool endOfMessage, bool usingTermChar);
 
-bool usbtmcd_start_bus_read();
+bool usbtmcd_start_bus_read(void);
 
 
 /* "callbacks" from USB device core */

@@ -511,7 +511,7 @@ bool usbtmcd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint
     switch(usbtmc_state.state) {
     case STATE_TX_SHORTED:
       TU_VERIFY(atomicChangeState(STATE_TX_SHORTED, STATE_NAK));
-      TU_VERIFY(tud_usbtmc_app_msgBulkIn_complete_cb(rhport));
+      TU_VERIFY(tud_usbtmc_app_msgBulkIn_complete_cb());
       break;
 
     case STATE_TX_INITIATED:
@@ -578,11 +578,11 @@ bool usbtmcd_control_request_cb(uint8_t rhport, tusb_control_request_t const * r
       criticalEnter();
       usbtmc_state.state = STATE_NAK; // USBD core has placed EP in NAK state for us
       criticalLeave();
-      usmtmcd_app_bulkOut_clearFeature_cb(rhport);
+      usmtmcd_app_bulkOut_clearFeature_cb();
     }
     else if (ep_addr == usbtmc_state.ep_bulk_in)
     {
-      usmtmcd_app_bulkIn_clearFeature_cb(rhport);
+      usmtmcd_app_bulkIn_clearFeature_cb();
     }
     else
     {
