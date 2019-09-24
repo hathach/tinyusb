@@ -119,6 +119,7 @@ typedef struct
   volatile usbtmcd_state_enum state;
 
   uint8_t itf_id;
+  uint8_t rhport;
   uint8_t ep_bulk_in;
   uint8_t ep_bulk_out;
   uint8_t ep_int_in;
@@ -186,7 +187,6 @@ bool atomicChangeState(usbtmcd_state_enum expectedState, usbtmcd_state_enum newS
 // We can't just send the whole thing at once because we need to concatanate the
 // header with the data.
 bool usbtmcd_transmit_dev_msg_data(
-    uint8_t rhport,
     const void * data, size_t len,
     bool endOfMessage,
     bool usingTermChar)
@@ -229,7 +229,7 @@ bool usbtmcd_transmit_dev_msg_data(
   bool stateChanged =
       atomicChangeState(STATE_TX_REQUESTED, (packetLen >= txBufLen) ? STATE_TX_INITIATED : STATE_TX_SHORTED);
   TU_VERIFY(stateChanged);
-  TU_VERIFY(usbd_edpt_xfer(rhport, usbtmc_state.ep_bulk_in, usbtmc_state.ep_bulk_in_buf, (uint16_t)packetLen));
+  TU_VERIFY(usbd_edpt_xfer(usbtmc_state.rhport, usbtmc_state.ep_bulk_in, usbtmc_state.ep_bulk_in_buf, (uint16_t)packetLen));
   return true;
 }
 
@@ -269,6 +269,7 @@ bool usbtmcd_open_cb(uint8_t rhport, tusb_desc_interface_t const * itf_desc, uin
   p_desc = (uint8_t const *) itf_desc;
 
   usbtmc_state.itf_id = itf_desc->bInterfaceNumber;
+  usbtmc_state.rhport = rhport;
 
   while (found_endpoints < itf_desc->bNumEndpoints)
   {
@@ -324,7 +325,7 @@ bool usbtmcd_open_cb(uint8_t rhport, tusb_desc_interface_t const * itf_desc, uin
 #endif
 #endif
   atomicChangeState(STATE_CLOSED, STATE_NAK);
-  tud_usbtmc_app_open_cb(rhport, itf_desc->iInterface);
+  tud_usbtmc_app_open_cb(itf_desc->iInterface);
 
   return true;
 }
@@ -334,7 +335,7 @@ bool usbtmcd_open_cb(uint8_t rhport, tusb_desc_interface_t const * itf_desc, uin
 // processing a command (such as a clear). Returns true if it was
 // in the NAK state and successfully transitioned to the ACK wait
 // state.
-bool usbtmcd_start_bus_read(uint8_t rhport)
+bool usbtmcd_start_bus_read()
 {
   usbtmcd_state_enum oldState = usbtmc_state.state;
   switch(oldState)
@@ -350,7 +351,7 @@ bool usbtmcd_start_bus_read(uint8_t rhport)
   default:
     TU_VERIFY(false);
   }
-  TU_VERIFY(usbd_edpt_xfer(rhport, usbtmc_state.ep_bulk_out, usbtmc_state.ep_bulk_out_buf, 64));
+  TU_VERIFY(usbd_edpt_xfer(usbtmc_state.rhport, usbtmc_state.ep_bulk_out, usbtmc_state.ep_bulk_out_buf, 64));
   return true;
 }
 
@@ -374,7 +375,7 @@ static bool handle_devMsgOutStart(uint8_t rhport, void *data, size_t len)
   // must be a header, should have been confirmed before calling here.
   usbtmc_msg_request_dev_dep_out *msg = (usbtmc_msg_request_dev_dep_out*)data;
   usbtmc_state.transfer_size_remaining = msg->TransferSize;
-  TU_VERIFY(tud_usbtmc_app_msgBulkOut_start_cb(rhport,msg));
+  TU_VERIFY(tud_usbtmc_app_msgBulkOut_start_cb(msg));
 
   TU_VERIFY(handle_devMsgOut(rhport, (uint8_t*)data + sizeof(*msg), len - sizeof(*msg), len));
   usbtmc_state.lastBulkOutTag = msg->header.bTag;
@@ -403,7 +404,7 @@ static bool handle_devMsgOut(uint8_t rhport, void *data, size_t len, size_t pack
   usbtmc_state.transfer_size_sent += len;
 
   // App may (should?) call the wait_for_bus() command at this point
-  if(!tud_usbtmc_app_msg_data_cb(rhport,data, len, atEnd))
+  if(!tud_usbtmc_app_msg_data_cb(data, len, atEnd))
   {
     // TODO: Go to an error state upon failure other than just stalling the EP?
     return false;
@@ -413,7 +414,7 @@ static bool handle_devMsgOut(uint8_t rhport, void *data, size_t len, size_t pack
   return true;
 }
 
-static bool handle_devMsgIn(uint8_t rhport, void *data, size_t len)
+static bool handle_devMsgIn(void *data, size_t len)
 {
   TU_VERIFY(len == sizeof(usbtmc_msg_request_dev_dep_in));
   usbtmc_msg_request_dev_dep_in *msg = (usbtmc_msg_request_dev_dep_in*)data;
@@ -429,7 +430,7 @@ static bool handle_devMsgIn(uint8_t rhport, void *data, size_t len)
   if(termCharRequested)
     TU_VERIFY(tud_usbtmc_app_capabilities.bmDevCapabilities.canEndBulkInOnTermChar);
 
-  TU_VERIFY(tud_usbtmc_app_msgBulkIn_request_cb(rhport, msg));
+  TU_VERIFY(tud_usbtmc_app_msgBulkIn_request_cb(msg));
   return true;
 }
 
@@ -464,14 +465,14 @@ bool usbtmcd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint
         break;
 
       case USBTMC_MSGID_DEV_DEP_MSG_IN:
-        TU_VERIFY(handle_devMsgIn(rhport, msg, xferred_bytes));
+        TU_VERIFY(handle_devMsgIn(msg, xferred_bytes));
         break;
 
 #if (CFG_USBTMC_CFG_ENABLE_488)
       case USBTMC_MSGID_USB488_TRIGGER:
         // Spec says we halt the EP if we didn't declare we support it.
         TU_VERIFY(tud_usbtmc_app_capabilities.bmIntfcCapabilities488.supportsTrigger);
-        TU_VERIFY(tud_usbtmc_app_msg_trigger_cb(rhport, msg));
+        TU_VERIFY(tud_usbtmc_app_msg_trigger_cb(msg));
 
         break;
 #endif
@@ -626,7 +627,7 @@ bool usbtmcd_control_request_cb(uint8_t rhport, tusb_control_request_t const * r
       criticalEnter();
       usbtmc_state.state = STATE_ABORTING_BULK_OUT;
       criticalLeave();
-      TU_VERIFY(tud_usbtmc_app_initiate_abort_bulk_out_cb(rhport, &(rsp.USBTMC_status)));
+      TU_VERIFY(tud_usbtmc_app_initiate_abort_bulk_out_cb(&(rsp.USBTMC_status)));
       usbd_edpt_stall(rhport, usbtmc_state.ep_bulk_out);
     }
     TU_VERIFY(tud_control_xfer(rhport, request, (void*)&rsp,sizeof(rsp)));
@@ -642,7 +643,7 @@ bool usbtmcd_control_request_cb(uint8_t rhport, tusb_control_request_t const * r
     TU_VERIFY(request->bmRequestType == 0xA2); // in,class,EP
     TU_VERIFY(request->wLength == sizeof(rsp));
     TU_VERIFY(request->wIndex == usbtmc_state.ep_bulk_out);
-    TU_VERIFY(tud_usbtmc_app_check_abort_bulk_out_cb(rhport, &rsp));
+    TU_VERIFY(tud_usbtmc_app_check_abort_bulk_out_cb(&rsp));
     TU_VERIFY(usbd_edpt_xfer(rhport, 0u, (void*)&rsp,sizeof(rsp)));
     return true;
   }
@@ -672,7 +673,7 @@ bool usbtmcd_control_request_cb(uint8_t rhport, tusb_control_request_t const * r
         TU_VERIFY( usbd_edpt_xfer(rhport, usbtmc_state.ep_bulk_in, usbtmc_state.ep_bulk_in_buf,(uint16_t)0u));
         usbtmc_state.state = STATE_ABORTING_BULK_IN_SHORTED;
       }
-      TU_VERIFY(tud_usbtmc_app_initiate_abort_bulk_in_cb(rhport, &(rsp.USBTMC_status)));
+      TU_VERIFY(tud_usbtmc_app_initiate_abort_bulk_in_cb(&(rsp.USBTMC_status)));
     }
     else if((usbtmc_state.state == STATE_TX_REQUESTED || usbtmc_state.state == STATE_TX_INITIATED))
     { // FIXME: Unsure how to check  if the OUT endpoint fifo is non-empty....
@@ -700,7 +701,7 @@ bool usbtmcd_control_request_cb(uint8_t rhport, tusb_control_request_t const * r
         },
         .NBYTES_RXD_TXD = usbtmc_state.transfer_size_sent,
     };
-    TU_VERIFY(tud_usbtmc_app_check_abort_bulk_in_cb(rhport, &rsp));
+    TU_VERIFY(tud_usbtmc_app_check_abort_bulk_in_cb(&rsp));
     criticalEnter();
     switch(usbtmc_state.state)
     {
@@ -732,7 +733,7 @@ bool usbtmcd_control_request_cb(uint8_t rhport, tusb_control_request_t const * r
       criticalEnter();
       usbtmc_state.state = STATE_CLEARING;
       criticalLeave();
-      TU_VERIFY(tud_usbtmc_app_initiate_clear_cb(rhport, &tmcStatusCode));
+      TU_VERIFY(tud_usbtmc_app_initiate_clear_cb(&tmcStatusCode));
       TU_VERIFY(tud_control_xfer(rhport, request, (void*)&tmcStatusCode,sizeof(tmcStatusCode)));
       return true;
     }
@@ -752,7 +753,7 @@ bool usbtmcd_control_request_cb(uint8_t rhport, tusb_control_request_t const * r
       else
       {
         // Let app check if it's clear
-        TU_VERIFY(tud_usbtmc_app_check_clear_cb(rhport, &clearStatusRsp));
+        TU_VERIFY(tud_usbtmc_app_check_clear_cb(&clearStatusRsp));
       }
       if(clearStatusRsp.USBTMC_status == USBTMC_STATUS_SUCCESS)
       {
@@ -778,7 +779,7 @@ bool usbtmcd_control_request_cb(uint8_t rhport, tusb_control_request_t const * r
       TU_VERIFY(request->bmRequestType == 0xA1); // in,class,interface
       TU_VERIFY(request->wLength == sizeof(tmcStatusCode));
       TU_VERIFY(tud_usbtmc_app_capabilities.bmIntfcCapabilities.supportsIndicatorPulse);
-      TU_VERIFY(tud_usbtmc_app_indicator_pulse_cb(rhport, request, &tmcStatusCode));
+      TU_VERIFY(tud_usbtmc_app_indicator_pulse_cb(request, &tmcStatusCode));
       TU_VERIFY(tud_control_xfer(rhport, request, (void*)&tmcStatusCode, sizeof(tmcStatusCode)));
       return true;
     }
@@ -809,13 +810,13 @@ bool usbtmcd_control_request_cb(uint8_t rhport, tusb_control_request_t const * r
               .one = 1,
               .bTag = bTag & 0x7Fu,
           },
-          .StatusByte = tud_usbtmc_app_get_stb_cb(rhport, &(rsp.USBTMC_status))
+          .StatusByte = tud_usbtmc_app_get_stb_cb(&(rsp.USBTMC_status))
         };
         usbd_edpt_xfer(rhport, usbtmc_state.ep_int_in, (void*)&intMsg, sizeof(intMsg));
       }
       else
       {
-        rsp.statusByte = tud_usbtmc_app_get_stb_cb(rhport, &(rsp.USBTMC_status));
+        rsp.statusByte = tud_usbtmc_app_get_stb_cb(&(rsp.USBTMC_status));
       }
       TU_VERIFY(tud_control_xfer(rhport, request, (void*)&rsp, sizeof(rsp)));
       return true;

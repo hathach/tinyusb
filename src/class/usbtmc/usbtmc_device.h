@@ -64,32 +64,32 @@ extern usbtmc_response_capabilities_t const tud_usbtmc_app_capabilities;
 // * (successful) tud_usbtmc_app_check_abort_bulk_in_cb
 // * (successful) usmtmcd_app_bulkOut_clearFeature_cb
 
-void tud_usbtmc_app_open_cb(uint8_t rhport, uint8_t interface_id);
+void tud_usbtmc_app_open_cb(uint8_t interface_id);
 
-bool tud_usbtmc_app_msgBulkOut_start_cb(uint8_t rhport, usbtmc_msg_request_dev_dep_out const * msgHeader);
+bool tud_usbtmc_app_msgBulkOut_start_cb(usbtmc_msg_request_dev_dep_out const * msgHeader);
 // transfer_complete does not imply that a message is complete.
-bool tud_usbtmc_app_msg_data_cb(uint8_t rhport, void *data, size_t len, bool transfer_complete);
-void usmtmcd_app_bulkOut_clearFeature_cb(uint8_t rhport); // Notice to clear and abort the pending BULK out transfer
+bool tud_usbtmc_app_msg_data_cb( void *data, size_t len, bool transfer_complete);
+void usmtmcd_app_bulkOut_clearFeature_cb(); // Notice to clear and abort the pending BULK out transfer
 
-bool tud_usbtmc_app_msgBulkIn_request_cb(uint8_t rhport, usbtmc_msg_request_dev_dep_in const * request);
-bool tud_usbtmc_app_msgBulkIn_complete_cb(uint8_t rhport);
-void usmtmcd_app_bulkIn_clearFeature_cb(uint8_t rhport); // Notice to clear and abort the pending BULK out transfer
+bool tud_usbtmc_app_msgBulkIn_request_cb(usbtmc_msg_request_dev_dep_in const * request);
+bool tud_usbtmc_app_msgBulkIn_complete_cb();
+void usmtmcd_app_bulkIn_clearFeature_cb(); // Notice to clear and abort the pending BULK out transfer
 
-bool tud_usbtmc_app_initiate_abort_bulk_in_cb(uint8_t rhport, uint8_t *tmcResult);
-bool tud_usbtmc_app_initiate_abort_bulk_out_cb(uint8_t rhport, uint8_t *tmcResult);
-bool tud_usbtmc_app_initiate_clear_cb(uint8_t rhport, uint8_t *tmcResult);
+bool tud_usbtmc_app_initiate_abort_bulk_in_cb(uint8_t *tmcResult);
+bool tud_usbtmc_app_initiate_abort_bulk_out_cb(uint8_t *tmcResult);
+bool tud_usbtmc_app_initiate_clear_cb(uint8_t *tmcResult);
 
-bool tud_usbtmc_app_check_abort_bulk_in_cb(uint8_t rhport, usbtmc_check_abort_bulk_rsp_t *rsp);
-bool tud_usbtmc_app_check_abort_bulk_out_cb(uint8_t rhport, usbtmc_check_abort_bulk_rsp_t *rsp);
-bool tud_usbtmc_app_check_clear_cb(uint8_t rhport, usbtmc_get_clear_status_rsp_t *rsp);
+bool tud_usbtmc_app_check_abort_bulk_in_cb(usbtmc_check_abort_bulk_rsp_t *rsp);
+bool tud_usbtmc_app_check_abort_bulk_out_cb(usbtmc_check_abort_bulk_rsp_t *rsp);
+bool tud_usbtmc_app_check_clear_cb(usbtmc_get_clear_status_rsp_t *rsp);
 
 // Indicator pulse should be 0.5 to 1.0 seconds long
-TU_ATTR_WEAK bool tud_usbtmc_app_indicator_pulse_cb(uint8_t rhport, tusb_control_request_t const * msg, uint8_t *tmcResult);
+TU_ATTR_WEAK bool tud_usbtmc_app_indicator_pulse_cb(tusb_control_request_t const * msg, uint8_t *tmcResult);
 
 #if (CFG_USBTMC_CFG_ENABLE_488)
-uint8_t tud_usbtmc_app_get_stb_cb(uint8_t rhport, uint8_t *tmcResult);
-TU_ATTR_WEAK bool tud_usbtmc_app_msg_trigger_cb(uint8_t rhport, usbtmc_msg_generic_t* msg);
-//TU_ATTR_WEAK bool tud_usbtmc_app_go_to_local_cb(uint8_t rhport);
+uint8_t tud_usbtmc_app_get_stb_cb(uint8_t *tmcResult);
+TU_ATTR_WEAK bool tud_usbtmc_app_msg_trigger_cb(usbtmc_msg_generic_t* msg);
+//TU_ATTR_WEAK bool tud_usbtmc_app_go_to_local_cb();
 #endif
 
 /*******************************************
@@ -100,11 +100,10 @@ TU_ATTR_WEAK bool tud_usbtmc_app_msg_trigger_cb(uint8_t rhport, usbtmc_msg_gener
  ******************************************/
 
 bool usbtmcd_transmit_dev_msg_data(
-    uint8_t rhport,
     const void * data, size_t len,
     bool endOfMessage, bool usingTermChar);
 
-bool usbtmcd_start_bus_read(uint8_t rhport);
+bool usbtmcd_start_bus_read();
 
 
 /* "callbacks" from USB device core */

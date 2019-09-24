@@ -96,24 +96,22 @@ static usbtmc_msg_dev_dep_msg_in_header_t rspMsg = {
     }
 };
 
-void tud_usbtmc_app_open_cb(uint8_t rhport, uint8_t interface_id)
+void tud_usbtmc_app_open_cb(uint8_t interface_id)
 {
   (void)interface_id;
-  usbtmcd_start_bus_read(rhport);
+  usbtmcd_start_bus_read();
 }
 
 
-bool tud_usbtmc_app_msg_trigger_cb(uint8_t rhport, usbtmc_msg_generic_t* msg) {
-  (void)rhport;
+bool tud_usbtmc_app_msg_trigger_cb(usbtmc_msg_generic_t* msg) {
   (void)msg;
   // Let trigger set the SRQ
   status |= IEEE4882_STB_SRQ;
   return true;
 }
 
-bool tud_usbtmc_app_msgBulkOut_start_cb(uint8_t rhport, usbtmc_msg_request_dev_dep_out const * msgHeader)
+bool tud_usbtmc_app_msgBulkOut_start_cb(usbtmc_msg_request_dev_dep_out const * msgHeader)
 {
-  (void)rhport;
   (void)msgHeader;
   buffer_len = 0;
   if(msgHeader->TransferSize > sizeof(buffer))
@@ -124,10 +122,8 @@ bool tud_usbtmc_app_msgBulkOut_start_cb(uint8_t rhport, usbtmc_msg_request_dev_d
   return true;
 }
 
-bool tud_usbtmc_app_msg_data_cb(uint8_t rhport, void *data, size_t len, bool transfer_complete)
+bool tud_usbtmc_app_msg_data_cb(void *data, size_t len, bool transfer_complete)
 {
-  (void)rhport;
-
   // If transfer isn't finished, we just ignore it (for now)
 
   if(len + buffer_len < sizeof(buffer))
@@ -156,13 +152,12 @@ bool tud_usbtmc_app_msg_data_cb(uint8_t rhport, void *data, size_t len, bool tra
       d=0;
     resp_delay = (uint32_t)d;
   }
-  usbtmcd_start_bus_read(rhport);
+  usbtmcd_start_bus_read();
   return true;
 }
 
-bool tud_usbtmc_app_msgBulkIn_complete_cb(uint8_t rhport)
+bool tud_usbtmc_app_msgBulkIn_complete_cb()
 {
-  (void)rhport;
   if((buffer_tx_ix == buffer_len) || idnQuery) // done
   {
     status &= (uint8_t)~(IEEE4882_STB_MAV); // clear MAV
@@ -170,17 +165,15 @@ bool tud_usbtmc_app_msgBulkIn_complete_cb(uint8_t rhport)
     bulkInStarted = 0;
     buffer_tx_ix = 0;
   }
-  usbtmcd_start_bus_read(rhport);
+  usbtmcd_start_bus_read();
 
   return true;
 }
 
 static unsigned int msgReqLen;
 
-bool tud_usbtmc_app_msgBulkIn_request_cb(uint8_t rhport, usbtmc_msg_request_dev_dep_in const * request)
+bool tud_usbtmc_app_msgBulkIn_request_cb(usbtmc_msg_request_dev_dep_in const * request)
 {
-  (void)rhport;
-
   rspMsg.header.MsgID = request->header.MsgID,
   rspMsg.header.bTag = request->header.bTag,
   rspMsg.header.bTagInverse = request->header.bTagInverse;
@@ -200,7 +193,7 @@ bool tud_usbtmc_app_msgBulkIn_request_cb(uint8_t rhport, usbtmc_msg_request_dev_
   else
   {
     size_t txlen = tu_min32(buffer_len-buffer_tx_ix,msgReqLen);
-    usbtmcd_transmit_dev_msg_data(rhport, &buffer[buffer_tx_ix], txlen,
+    usbtmcd_transmit_dev_msg_data(&buffer[buffer_tx_ix], txlen,
         (buffer_tx_ix+txlen) == buffer_len, false);
     buffer_tx_ix += txlen;
   }
@@ -209,7 +202,6 @@ bool tud_usbtmc_app_msgBulkIn_request_cb(uint8_t rhport, usbtmc_msg_request_dev_
 }
 
 void usbtmc_app_task_iter(void) {
-  uint8_t const rhport = 0;
   switch(queryState) {
   case 0:
     break;
@@ -234,14 +226,14 @@ void usbtmc_app_task_iter(void) {
     if(bulkInStarted && (buffer_tx_ix == 0)) {
       if(idnQuery)
       {
-        usbtmcd_transmit_dev_msg_data(rhport, idn,  tu_min32(sizeof(idn)-1,msgReqLen),true,false);
+        usbtmcd_transmit_dev_msg_data(idn,  tu_min32(sizeof(idn)-1,msgReqLen),true,false);
         queryState = 0;
         bulkInStarted = 0;
       }
       else
       {
         buffer_tx_ix = tu_min32(buffer_len,msgReqLen);
-        usbtmcd_transmit_dev_msg_data(rhport, buffer, buffer_tx_ix, buffer_tx_ix == buffer_len, false);
+        usbtmcd_transmit_dev_msg_data(buffer, buffer_tx_ix, buffer_tx_ix == buffer_len, false);
       }
       // MAV is cleared in the transfer complete callback.
     }
@@ -252,9 +244,8 @@ void usbtmc_app_task_iter(void) {
   }
 }
 
-bool tud_usbtmc_app_initiate_clear_cb(uint8_t rhport, uint8_t *tmcResult)
+bool tud_usbtmc_app_initiate_clear_cb(uint8_t *tmcResult)
 {
-  (void)rhport;
   *tmcResult = USBTMC_STATUS_SUCCESS;
   queryState = 0;
   bulkInStarted = false;
@@ -262,9 +253,8 @@ bool tud_usbtmc_app_initiate_clear_cb(uint8_t rhport, uint8_t *tmcResult)
   return true;
 }
 
-bool tud_usbtmc_app_check_clear_cb(uint8_t rhport, usbtmc_get_clear_status_rsp_t *rsp)
+bool tud_usbtmc_app_check_clear_cb(usbtmc_get_clear_status_rsp_t *rsp)
 {
-  (void)rhport;
   queryState = 0;
   bulkInStarted = false;
   status = 0;
@@ -274,50 +264,43 @@ bool tud_usbtmc_app_check_clear_cb(uint8_t rhport, usbtmc_get_clear_status_rsp_t
   rsp->bmClear.BulkInFifoBytes = 0u;
   return true;
 }
-bool tud_usbtmc_app_initiate_abort_bulk_in_cb(uint8_t rhport, uint8_t *tmcResult)
+bool tud_usbtmc_app_initiate_abort_bulk_in_cb(uint8_t *tmcResult)
 {
-  (void)rhport;
   bulkInStarted = 0;
   *tmcResult = USBTMC_STATUS_SUCCESS;
   return true;
 }
-bool tud_usbtmc_app_check_abort_bulk_in_cb(uint8_t rhport, usbtmc_check_abort_bulk_rsp_t *rsp)
+bool tud_usbtmc_app_check_abort_bulk_in_cb(usbtmc_check_abort_bulk_rsp_t *rsp)
 {
-  (void)rhport;
   (void)rsp;
-  usbtmcd_start_bus_read(rhport);
+  usbtmcd_start_bus_read();
   return true;
 }
 
-bool tud_usbtmc_app_initiate_abort_bulk_out_cb(uint8_t rhport, uint8_t *tmcResult)
+bool tud_usbtmc_app_initiate_abort_bulk_out_cb(uint8_t *tmcResult)
 {
-  (void)rhport;
   *tmcResult = USBTMC_STATUS_SUCCESS;
   return true;
 
 }
-bool tud_usbtmc_app_check_abort_bulk_out_cb(uint8_t rhport, usbtmc_check_abort_bulk_rsp_t *rsp)
+bool tud_usbtmc_app_check_abort_bulk_out_cb(usbtmc_check_abort_bulk_rsp_t *rsp)
 {
-  (void)rhport;
   (void)rsp;
-  usbtmcd_start_bus_read(rhport);
+  usbtmcd_start_bus_read();
   return true;
 }
 
-void usmtmcd_app_bulkIn_clearFeature_cb(uint8_t rhport)
+void usmtmcd_app_bulkIn_clearFeature_cb(void)
 {
-  (void)rhport;
 }
-void usmtmcd_app_bulkOut_clearFeature_cb(uint8_t rhport)
+void usmtmcd_app_bulkOut_clearFeature_cb(void)
 {
-  (void)rhport;
-  usbtmcd_start_bus_read(rhport);
+  usbtmcd_start_bus_read();
 }
 
 // Return status byte, but put the transfer result status code in the rspResult argument.
-uint8_t tud_usbtmc_app_get_stb_cb(uint8_t rhport, uint8_t *tmcResult)
+uint8_t tud_usbtmc_app_get_stb_cb(uint8_t *tmcResult)
 {
-  (void)rhport;
   uint8_t old_status = status;
   status = (uint8_t)(status & ~(IEEE4882_STB_SRQ)); // clear SRQ
 
@@ -327,9 +310,8 @@ uint8_t tud_usbtmc_app_get_stb_cb(uint8_t rhport, uint8_t *tmcResult)
   return old_status;
 }
 
-bool tud_usbtmc_app_indicator_pulse_cb(uint8_t rhport, tusb_control_request_t const * msg, uint8_t *tmcResult)
+bool tud_usbtmc_app_indicator_pulse_cb(tusb_control_request_t const * msg, uint8_t *tmcResult)
 {
-  (void)rhport;
   (void)msg;
   led_indicator_pulse();
   *tmcResult = USBTMC_STATUS_SUCCESS;
