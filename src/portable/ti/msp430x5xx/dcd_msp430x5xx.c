@@ -35,6 +35,11 @@
 /*------------------------------------------------------------------*/
 /* MACRO TYPEDEF CONSTANT ENUM
  *------------------------------------------------------------------*/
+// usbpllir_mirror and usbmaintl_mirror can be added later if needed.
+static volatile uint16_t usbiepie_mirror = 0;
+static volatile uint16_t usboepie_mirror = 0;
+static volatile uint16_t usbie_mirror = 0;
+static volatile uint16_t usbpwrctl_mirror = 0;
 
 
 /*------------------------------------------------------------------*/
@@ -50,14 +55,40 @@ void dcd_init (uint8_t rhport)
   USBKEYPID = 0;
 }
 
+// There is no "USB peripheral interrupt disable" bit on MSP430, so we have
+// to save the relevant registers individually.
+// WARNING: Unlike the ARM/NVIC routines, these functions are _not_ idempotent
+// if you modified the registers saved in between calls so they don't match
+// the mirrors; mirrors will be updated to reflect most recent register
+// contents.
 void dcd_int_enable (uint8_t rhport)
 {
   (void) rhport;
+
+  __bic_SR_register(GIE); // Unlikely to be called in ISR, but let's be safe.
+                          // Also, this cleanly disables all USB interrupts
+                          // atomically from application's POV.
+  USBOEPIE = usboepie_mirror;
+  USBIEPIE = usbiepie_mirror;
+  USBIE = usbie_mirror;
+  USBPWRCTL |= usbpwrctl_mirror;
+  __bis_SR_register(GIE);
 }
 
 void dcd_int_disable (uint8_t rhport)
 {
   (void) rhport;
+
+  __bic_SR_register(GIE);
+  usboepie_mirror = USBOEPIE;
+  usbiepie_mirror = USBIEPIE;
+  usbie_mirror = USBIE;
+  usbpwrctl_mirror = (USBPWRCTL & (VUOVLIE | VBONIE | VBOFFIE));
+  USBOEPIE = 0;
+  USBIEPIE = 0;
+  USBIE = 0;
+  USBPWRCTL &= ~(VUOVLIE | VBONIE | VBOFFIE);
+  __bis_SR_register(GIE);
 }
 
 void dcd_set_address (uint8_t rhport, uint8_t dev_addr)
