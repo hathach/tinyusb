@@ -61,6 +61,9 @@ static void bus_reset(void)
   // Dedicated buffers in hardware for SETUP and EP0, no setup needed.
   USBOEPCNT_0 &= ~NAK;
   USBIEPCNT_0 &= ~NAK;
+
+  // Now safe to respond to SETUP packets.
+  USBIE |= SETUPIE;
 }
 
 
