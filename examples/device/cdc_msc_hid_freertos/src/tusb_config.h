@@ -1,4 +1,4 @@
-/* 
+/*
  * The MIT License (MIT)
  *
  * Copyright (c) 2019 Ha Thach (tinyusb.org)
@@ -69,7 +69,9 @@
 // DEVICE CONFIGURATION
 //--------------------------------------------------------------------
 
+#ifndef CFG_TUD_ENDOINT0_SIZE
 #define CFG_TUD_ENDOINT0_SIZE    64
+#endif
 
 //------------- CLASS -------------//
 #define CFG_TUD_CDC              1
