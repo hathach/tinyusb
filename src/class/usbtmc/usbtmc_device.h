@@ -55,6 +55,17 @@ extern usbtmc_response_capabilities_488_t const tud_usbtmc_app_capabilities;
 extern usbtmc_response_capabilities_t const tud_usbtmc_app_capabilities;
 #endif
 
+// In order to proceed, app must call call usbtmcd_start_bus_read(rhport) during or soon after:
+// * tud_usbtmc_app_open_cb
+// * tud_usbtmc_app_msg_data_cb
+// * tud_usbtmc_app_msgBulkIn_complete_cb
+// * tud_usbtmc_app_msg_trigger_cb
+// * (successful) tud_usbtmc_app_check_abort_bulk_out_cb
+// * (successful) tud_usbtmc_app_check_abort_bulk_in_cb
+// * (successful) usmtmcd_app_bulkOut_clearFeature_cb
+
+void tud_usbtmc_app_open_cb(uint8_t rhport, uint8_t interface_id);
+
 bool tud_usbtmc_app_msgBulkOut_start_cb(uint8_t rhport, usbtmc_msg_request_dev_dep_out const * msgHeader);
 // transfer_complete does not imply that a message is complete.
 bool tud_usbtmc_app_msg_data_cb(uint8_t rhport, void *data, size_t len, bool transfer_complete);
@@ -73,7 +84,7 @@ bool tud_usbtmc_app_check_abort_bulk_out_cb(uint8_t rhport, usbtmc_check_abort_b
 bool tud_usbtmc_app_check_clear_cb(uint8_t rhport, usbtmc_get_clear_status_rsp_t *rsp);
 
 // Indicator pulse should be 0.5 to 1.0 seconds long
-TU_ATTR_WEAK bool tud_usbtmc_app_indicator_pluse_cb(uint8_t rhport, tusb_control_request_t const * msg, uint8_t *tmcResult);
+TU_ATTR_WEAK bool tud_usbtmc_app_indicator_pulse_cb(uint8_t rhport, tusb_control_request_t const * msg, uint8_t *tmcResult);
 
 #if (CFG_USBTMC_CFG_ENABLE_488)
 uint8_t tud_usbtmc_app_get_stb_cb(uint8_t rhport, uint8_t *tmcResult);
@@ -92,6 +103,8 @@ bool usbtmcd_transmit_dev_msg_data(
     uint8_t rhport,
     const void * data, size_t len,
     bool endOfMessage, bool usingTermChar);
+
+bool usbtmcd_start_bus_read(uint8_t rhport);
 
 
 /* "callbacks" from USB device core */

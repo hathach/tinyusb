@@ -99,9 +99,10 @@ static char logMsg[150];
 
 typedef enum
 {
-  STATE_CLOSED,
-  STATE_IDLE,
-  STATE_RCV,
+  STATE_CLOSED,  // Endpoints have not yet been opened since USB reset
+  STATE_NAK,     // Bulk-out endpoint is in NAK state.
+  STATE_IDLE,    // Bulk-out endpoint is waiting for CMD.
+  STATE_RCV,     // Bulk-out is receiving DEV_DEP message
   STATE_TX_REQUESTED,
   STATE_TX_INITIATED,
   STATE_TX_SHORTED,
@@ -243,7 +244,7 @@ void usbtmcd_init_cb(void)
       TU_ASSERT(!tud_usbtmc_app_capabilities.bmIntfcCapabilities.talkOnly,);
 # endif
     if(tud_usbtmc_app_capabilities.bmIntfcCapabilities.supportsIndicatorPulse)
-      TU_ASSERT(&tud_usbtmc_app_indicator_pluse_cb != NULL,);
+      TU_ASSERT(&tud_usbtmc_app_indicator_pulse_cb != NULL,);
 #endif
 
     usbtmcLock = osal_mutex_create(&usbtmcLockBuffer);
@@ -322,11 +323,37 @@ bool usbtmcd_open_cb(uint8_t rhport, tusb_desc_interface_t const * itf_desc, uin
   }
 #endif
 #endif
-  usbtmc_state.state = STATE_IDLE;
-  TU_VERIFY( usbd_edpt_xfer(rhport, usbtmc_state.ep_bulk_out, usbtmc_state.ep_bulk_out_buf, 64));
+  atomicChangeState(STATE_CLOSED, STATE_NAK);
+  tud_usbtmc_app_open_cb(rhport, itf_desc->iInterface);
 
   return true;
 }
+// Tell USBTMC class to set its bulk-in EP to ACK so that it can
+// receive USBTMC commands.
+// Returns false if it was already in an ACK state or is busy
+// processing a command (such as a clear). Returns true if it was
+// in the NAK state and successfully transitioned to the ACK wait
+// state.
+bool usbtmcd_start_bus_read(uint8_t rhport)
+{
+  usbtmcd_state_enum oldState = usbtmc_state.state;
+  switch(oldState)
+  {
+  // These may transition to IDLE
+  case STATE_NAK:
+  case STATE_ABORTING_BULK_IN_ABORTED:
+    TU_VERIFY(atomicChangeState(oldState, STATE_IDLE));
+    break;
+  // When receiving, let it remain receiving
+  case STATE_RCV:
+    break;
+  default:
+    TU_VERIFY(false);
+  }
+  TU_VERIFY(usbd_edpt_xfer(rhport, usbtmc_state.ep_bulk_out, usbtmc_state.ep_bulk_out_buf, 64));
+  return true;
+}
+
 void usbtmcd_reset_cb(uint8_t rhport)
 {
   (void)rhport;
@@ -367,19 +394,21 @@ static bool handle_devMsgOut(uint8_t rhport, void *data, size_t len, size_t pack
   if(len >= usbtmc_state.transfer_size_remaining || shortPacket)
   {
     atEnd = true;
+    TU_VERIFY(atomicChangeState(STATE_RCV, STATE_NAK));
   }
 
   len = tu_min32(len, usbtmc_state.transfer_size_remaining);
 
+  usbtmc_state.transfer_size_remaining -= len;
+  usbtmc_state.transfer_size_sent += len;
+
+  // App may (should?) call the wait_for_bus() command at this point
   if(!tud_usbtmc_app_msg_data_cb(rhport,data, len, atEnd))
   {
     // TODO: Go to an error state upon failure other than just stalling the EP?
     return false;
   }
 
-  usbtmc_state.transfer_size_remaining -= len;
-  usbtmc_state.transfer_size_sent += len;
-  TU_VERIFY(atomicChangeState(STATE_RCV, atEnd ? STATE_IDLE : STATE_RCV));
 
   return true;
 }
@@ -453,7 +482,6 @@ bool usbtmcd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint
         TU_VERIFY(false);
         return false;
       }
-      TU_VERIFY(usbd_edpt_xfer(rhport, usbtmc_state.ep_bulk_out, usbtmc_state.ep_bulk_out_buf, USBTMCD_MAX_PACKET_SIZE));
       return true;
 
     case STATE_RCV:
@@ -462,7 +490,6 @@ bool usbtmcd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint
         usbd_edpt_stall(rhport, usbtmc_state.ep_bulk_out);
         TU_VERIFY(false);
       }
-      TU_VERIFY(usbd_edpt_xfer(rhport, usbtmc_state.ep_bulk_out, usbtmc_state.ep_bulk_out_buf, USBTMCD_MAX_PACKET_SIZE));
       return true;
 
     case STATE_ABORTING_BULK_OUT:
@@ -482,8 +509,7 @@ bool usbtmcd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint
   {
     switch(usbtmc_state.state) {
     case STATE_TX_SHORTED:
-
-      usbtmc_state.state = STATE_IDLE;
+      TU_VERIFY(atomicChangeState(STATE_TX_SHORTED, STATE_NAK));
       TU_VERIFY(tud_usbtmc_app_msgBulkIn_complete_cb(rhport));
       break;
 
@@ -508,7 +534,7 @@ bool usbtmcd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint
         if(((packetLen % USBTMCD_MAX_PACKET_SIZE) != 0) || (packetLen == 0 ))
         {
           usbtmc_state.state = STATE_TX_SHORTED;
-    }
+        }
       }
       return true;
     case STATE_ABORTING_BULK_IN:
@@ -548,9 +574,10 @@ bool usbtmcd_control_request_cb(uint8_t rhport, tusb_control_request_t const * r
 
     if(ep_addr == usbtmc_state.ep_bulk_out)
     {
+      criticalEnter();
+      usbtmc_state.state = STATE_NAK; // USBD core has placed EP in NAK state for us
+      criticalLeave();
       usmtmcd_app_bulkOut_clearFeature_cb(rhport);
-      // And start a new OUT xfer request now that things are clear
-      TU_ASSERT( usbd_edpt_xfer(rhport, usbtmc_state.ep_bulk_out, usbtmc_state.ep_bulk_out_buf, 64));
     }
     else if (ep_addr == usbtmc_state.ep_bulk_in)
     {
@@ -605,6 +632,7 @@ bool usbtmcd_control_request_cb(uint8_t rhport, tusb_control_request_t const * r
     TU_VERIFY(tud_control_xfer(rhport, request, (void*)&rsp,sizeof(rsp)));
     return true;
   }
+
   case USBTMC_bREQUEST_CHECK_ABORT_BULK_OUT_STATUS:
   {
     usbtmc_check_abort_bulk_rsp_t rsp = {
@@ -750,7 +778,7 @@ bool usbtmcd_control_request_cb(uint8_t rhport, tusb_control_request_t const * r
       TU_VERIFY(request->bmRequestType == 0xA1); // in,class,interface
       TU_VERIFY(request->wLength == sizeof(tmcStatusCode));
       TU_VERIFY(tud_usbtmc_app_capabilities.bmIntfcCapabilities.supportsIndicatorPulse);
-      TU_VERIFY(tud_usbtmc_app_indicator_pluse_cb(rhport, request, &tmcStatusCode));
+      TU_VERIFY(tud_usbtmc_app_indicator_pulse_cb(rhport, request, &tmcStatusCode));
       TU_VERIFY(tud_control_xfer(rhport, request, (void*)&tmcStatusCode, sizeof(tmcStatusCode)));
       return true;
     }

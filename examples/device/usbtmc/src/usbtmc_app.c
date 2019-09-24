@@ -96,6 +96,13 @@ static usbtmc_msg_dev_dep_msg_in_header_t rspMsg = {
     }
 };
 
+void tud_usbtmc_app_open_cb(uint8_t rhport, uint8_t interface_id)
+{
+  (void)interface_id;
+  usbtmcd_start_bus_read(rhport);
+}
+
+
 bool tud_usbtmc_app_msg_trigger_cb(uint8_t rhport, usbtmc_msg_generic_t* msg) {
   (void)rhport;
   (void)msg;
@@ -149,6 +156,7 @@ bool tud_usbtmc_app_msg_data_cb(uint8_t rhport, void *data, size_t len, bool tra
       d=0;
     resp_delay = (uint32_t)d;
   }
+  usbtmcd_start_bus_read(rhport);
   return true;
 }
 
@@ -162,6 +170,7 @@ bool tud_usbtmc_app_msgBulkIn_complete_cb(uint8_t rhport)
     bulkInStarted = 0;
     buffer_tx_ix = 0;
   }
+  usbtmcd_start_bus_read(rhport);
 
   return true;
 }
@@ -259,6 +268,8 @@ bool tud_usbtmc_app_check_clear_cb(uint8_t rhport, usbtmc_get_clear_status_rsp_t
   queryState = 0;
   bulkInStarted = false;
   status = 0;
+  buffer_tx_ix = 0u;
+  buffer_len = 0u;
   rsp->USBTMC_status = USBTMC_STATUS_SUCCESS;
   rsp->bmClear.BulkInFifoBytes = 0u;
   return true;
@@ -274,6 +285,7 @@ bool tud_usbtmc_app_check_abort_bulk_in_cb(uint8_t rhport, usbtmc_check_abort_bu
 {
   (void)rhport;
   (void)rsp;
+  usbtmcd_start_bus_read(rhport);
   return true;
 }
 
@@ -288,6 +300,7 @@ bool tud_usbtmc_app_check_abort_bulk_out_cb(uint8_t rhport, usbtmc_check_abort_b
 {
   (void)rhport;
   (void)rsp;
+  usbtmcd_start_bus_read(rhport);
   return true;
 }
 
@@ -298,6 +311,7 @@ void usmtmcd_app_bulkIn_clearFeature_cb(uint8_t rhport)
 void usmtmcd_app_bulkOut_clearFeature_cb(uint8_t rhport)
 {
   (void)rhport;
+  usbtmcd_start_bus_read(rhport);
 }
 
 // Return status byte, but put the transfer result status code in the rspResult argument.
@@ -313,7 +327,7 @@ uint8_t tud_usbtmc_app_get_stb_cb(uint8_t rhport, uint8_t *tmcResult)
   return old_status;
 }
 
-bool tud_usbtmc_app_indicator_pluse_cb(uint8_t rhport, tusb_control_request_t const * msg, uint8_t *tmcResult)
+bool tud_usbtmc_app_indicator_pulse_cb(uint8_t rhport, tusb_control_request_t const * msg, uint8_t *tmcResult)
 {
   (void)rhport;
   (void)msg;
