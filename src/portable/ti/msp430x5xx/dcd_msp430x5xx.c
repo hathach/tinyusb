@@ -35,6 +35,8 @@
 /*------------------------------------------------------------------*/
 /* MACRO TYPEDEF CONSTANT ENUM
  *------------------------------------------------------------------*/
+#define USB_BUF_PTR(_x) (uint8_t *) ((uint16_t) _x)
+
 // usbpllir_mirror and usbmaintl_mirror can be added later if needed.
 static volatile uint16_t usbiepie_mirror = 0;
 static volatile uint16_t usboepie_mirror = 0;
@@ -46,7 +48,19 @@ uint8_t _setup_packet[8];
 
 static void bus_reset(void)
 {
+  // Enable the control EP 0. Also enable Indication Enable- a guard flag
+  // separate from the Interrupt Enable mask.
+  USBOEPCNF_0 |= (UBME | USBIIE);
+  USBIEPCNF_0 |= (UBME | USBIIE);
 
+  // Enable interrupts for this endpoint.
+  USBOEPIE |= BIT0;
+  USBIEPIE |= BIT0;
+
+  // Clear NAK so packets can be received.
+  // Dedicated buffers in hardware for SETUP and EP0, no setup needed.
+  USBOEPCNT_0 &= ~NAK;
+  USBIEPCNT_0 &= ~NAK;
 }
 
 
@@ -180,9 +194,26 @@ void dcd_edpt_clear_stall (uint8_t rhport, uint8_t ep_addr)
 
 /*------------------------------------------------------------------*/
 
-static void handle_setup_packet(void)
+static void receive_packet(void)
 {
 
+}
+
+static void transmit_packet(void)
+{
+
+}
+
+static void handle_setup_packet(void)
+{
+  volatile uint8_t * setup_buf = &USBSUBLK;
+
+  for(int i = 0; i < 8; i++)
+  {
+    _setup_packet[i] = setup_buf[i];
+  }
+
+  dcd_event_setup_received(0, (uint8_t*) &_setup_packet[0], true);
 }
 
 void __attribute__ ((interrupt(USB_UBM_VECTOR))) USB_UBM_ISR(void)
@@ -207,6 +238,14 @@ void __attribute__ ((interrupt(USB_UBM_VECTOR))) USB_UBM_ISR(void)
 
     // Clear the NAK on EP 0 after a SETUP packet is received.
     case USBVECINT_SETUP_PACKET_RECEIVED:
+      break;
+
+    case USBVECINT_INPUT_ENDPOINT0:
+      transmit_packet();
+      break;
+
+    case USBVECINT_OUTPUT_ENDPOINT0:
+      receive_packet();
       break;
 
     default:
