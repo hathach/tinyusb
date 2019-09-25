@@ -114,6 +114,13 @@ typedef enum
   STATE_NUM_STATES
 } usbtmcd_state_enum;
 
+#if (CFG_TUD_USBTMC_ENABLE_488)
+  typedef usbtmc_response_capabilities_488_t usbtmc_capabilities_specific_t;
+#else
+  typedef usbtmc_response_capabilities_t usbtmc_capabilities_specific_t;
+#endif
+
+
 typedef struct
 {
   volatile usbtmcd_state_enum state;
@@ -135,6 +142,8 @@ typedef struct
   uint8_t lastBulkInTag; // used for aborts (mostly)
 
   uint8_t const * devInBuffer; // pointer to application-layer used for transmissions
+
+  usbtmc_capabilities_specific_t const * capabilities;
 } usbtmc_interface_state_t;
 
 static usbtmc_interface_state_t usbtmc_state =
@@ -199,7 +208,7 @@ bool tud_usbtmc_transmit_dev_msg_data(
   TU_ASSERT(usbtmc_state.transfer_size_sent == 0u);
   if(usingTermChar)
   {
-    TU_ASSERT(tud_usbtmc_app_capabilities.bmDevCapabilities.canEndBulkInOnTermChar);
+    TU_ASSERT(usbtmc_state.capabilities->bmDevCapabilities.canEndBulkInOnTermChar);
     TU_ASSERT(termCharRequested);
     TU_ASSERT(((uint8_t*)data)[len-1u] == termChar);
   }
@@ -235,15 +244,16 @@ bool tud_usbtmc_transmit_dev_msg_data(
 
 void usbtmcd_init_cb(void)
 {
+  usbtmc_state.capabilities = tud_usbtmc_get_capabilities_cb();
 #ifndef NDEBUG
 # if CFG_TUD_USBTMC_ENABLE_488
-    if(tud_usbtmc_app_capabilities.bmIntfcCapabilities488.supportsTrigger)
+    if(usbtmc_state.capabilities->bmIntfcCapabilities488.supportsTrigger)
       TU_ASSERT(&tud_usbtmc_app_msg_trigger_cb != NULL,);
       // Per USB488 spec: table 8
-      TU_ASSERT(!tud_usbtmc_app_capabilities.bmIntfcCapabilities.listenOnly,);
-      TU_ASSERT(!tud_usbtmc_app_capabilities.bmIntfcCapabilities.talkOnly,);
+      TU_ASSERT(!usbtmc_state.capabilities->bmIntfcCapabilities.listenOnly,);
+      TU_ASSERT(!usbtmc_state.capabilities->bmIntfcCapabilities.talkOnly,);
 # endif
-    if(tud_usbtmc_app_capabilities.bmIntfcCapabilities.supportsIndicatorPulse)
+    if(usbtmc_state.capabilities->bmIntfcCapabilities.supportsIndicatorPulse)
       TU_ASSERT(&tud_usbtmc_app_indicator_pulse_cb != NULL,);
 #endif
 
@@ -317,8 +327,8 @@ bool usbtmcd_open_cb(uint8_t rhport, tusb_desc_interface_t const * itf_desc, uin
     TU_ASSERT(usbtmc_state.ep_int_in != 0);
   }
 #if (CFG_TUD_USBTMC_ENABLE_488)
-  if(tud_usbtmc_app_capabilities.bmIntfcCapabilities488.is488_2 ||
-      tud_usbtmc_app_capabilities.bmDevCapabilities488.SR1)
+  if(usbtmc_state.capabilities->bmIntfcCapabilities488.is488_2 ||
+      usbtmc_state.capabilities->bmDevCapabilities488.SR1)
   {
     TU_ASSERT(usbtmc_state.ep_int_in != 0);
   }
@@ -358,9 +368,11 @@ bool tud_usbtmc_start_bus_read()
 void usbtmcd_reset_cb(uint8_t rhport)
 {
   (void)rhport;
+  usbtmc_capabilities_specific_t const * capabilities = tud_usbtmc_get_capabilities_cb();
 
   criticalEnter();
   tu_varclr(&usbtmc_state);
+  usbtmc_state.capabilities = capabilities;
   usbtmc_state.itf_id = 0xFFu;
   criticalLeave();
 }
@@ -428,7 +440,7 @@ static bool handle_devMsgIn(void *data, size_t len)
   termChar = msg->TermChar;
 
   if(termCharRequested)
-    TU_VERIFY(tud_usbtmc_app_capabilities.bmDevCapabilities.canEndBulkInOnTermChar);
+    TU_VERIFY(usbtmc_state.capabilities->bmDevCapabilities.canEndBulkInOnTermChar);
 
   TU_VERIFY(tud_usbtmc_app_msgBulkIn_request_cb(msg));
   return true;
@@ -471,7 +483,7 @@ bool usbtmcd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint
 #if (CFG_TUD_USBTMC_ENABLE_488)
       case USBTMC_MSGID_USB488_TRIGGER:
         // Spec says we halt the EP if we didn't declare we support it.
-        TU_VERIFY(tud_usbtmc_app_capabilities.bmIntfcCapabilities488.supportsTrigger);
+        TU_VERIFY(usbtmc_state.capabilities->bmIntfcCapabilities488.supportsTrigger);
         TU_VERIFY(tud_usbtmc_app_msg_trigger_cb(msg));
 
         break;
@@ -768,8 +780,8 @@ bool usbtmcd_control_request_cb(uint8_t rhport, tusb_control_request_t const * r
   case USBTMC_bREQUEST_GET_CAPABILITIES:
     {
       TU_VERIFY(request->bmRequestType == 0xA1); // in,class,interface
-      TU_VERIFY(request->wLength == sizeof(tud_usbtmc_app_capabilities));
-      TU_VERIFY(tud_control_xfer(rhport, request, (void*)&tud_usbtmc_app_capabilities, sizeof(tud_usbtmc_app_capabilities)));
+      TU_VERIFY(request->wLength == sizeof(*(usbtmc_state.capabilities)));
+      TU_VERIFY(tud_control_xfer(rhport, request, (void*)usbtmc_state.capabilities, sizeof(*usbtmc_state.capabilities)));
       return true;
     }
   // USBTMC Optional Requests
@@ -778,7 +790,7 @@ bool usbtmcd_control_request_cb(uint8_t rhport, tusb_control_request_t const * r
     {
       TU_VERIFY(request->bmRequestType == 0xA1); // in,class,interface
       TU_VERIFY(request->wLength == sizeof(tmcStatusCode));
-      TU_VERIFY(tud_usbtmc_app_capabilities.bmIntfcCapabilities.supportsIndicatorPulse);
+      TU_VERIFY(usbtmc_state.capabilities->bmIntfcCapabilities.supportsIndicatorPulse);
       TU_VERIFY(tud_usbtmc_app_indicator_pulse_cb(request, &tmcStatusCode));
       TU_VERIFY(tud_control_xfer(rhport, request, (void*)&tmcStatusCode, sizeof(tmcStatusCode)));
       return true;

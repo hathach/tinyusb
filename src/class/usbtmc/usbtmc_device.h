@@ -49,12 +49,6 @@
  *  Functions to be implemeted by the class implementation
  */
 
-#if (CFG_TUD_USBTMC_ENABLE_488)
-extern usbtmc_response_capabilities_488_t const tud_usbtmc_app_capabilities;
-#else
-extern usbtmc_response_capabilities_t const tud_usbtmc_app_capabilities;
-#endif
-
 // In order to proceed, app must call call tud_usbtmc_start_bus_read(rhport) during or soon after:
 // * tud_usbtmc_app_open_cb
 // * tud_usbtmc_app_msg_data_cb
@@ -63,6 +57,12 @@ extern usbtmc_response_capabilities_t const tud_usbtmc_app_capabilities;
 // * (successful) tud_usbtmc_app_check_abort_bulk_out_cb
 // * (successful) tud_usbtmc_app_check_abort_bulk_in_cb
 // * (successful) tud_usmtmc_app_bulkOut_clearFeature_cb
+
+#if (CFG_TUD_USBTMC_ENABLE_488)
+usbtmc_response_capabilities_488_t const * tud_usbtmc_get_capabilities_cb(void);
+#else
+usbtmc_response_capabilities_t const * tud_usbtmc_get_capabilities_cb(void);
+#endif
 
 void tud_usbtmc_app_open_cb(uint8_t interface_id);
 

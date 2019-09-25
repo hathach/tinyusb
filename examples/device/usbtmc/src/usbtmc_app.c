@@ -30,9 +30,9 @@
 #include "main.h"
 
 #if (CFG_TUD_USBTMC_ENABLE_488)
-usbtmc_response_capabilities_488_t const
+static usbtmc_response_capabilities_488_t const
 #else
-usbtmc_response_capabilities_t const
+static usbtmc_response_capabilities_t const
 #endif
 tud_usbtmc_app_capabilities  =
 {
@@ -100,6 +100,16 @@ void tud_usbtmc_app_open_cb(uint8_t interface_id)
 {
   (void)interface_id;
   tud_usbtmc_start_bus_read();
+}
+
+#if (CFG_TUD_USBTMC_ENABLE_488)
+usbtmc_response_capabilities_488_t const *
+#else
+usbtmc_response_capabilities_t const *
+#endif
+tud_usbtmc_get_capabilities_cb()
+{
+  return &tud_usbtmc_app_capabilities;
 }
 
 
