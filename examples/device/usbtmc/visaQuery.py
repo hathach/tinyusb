@@ -11,6 +11,7 @@ def test_idn():
 
 def test_echo(m,n):
 	longstr = "0123456789abcdefghijklmnopqrstuvwxyz" * 50
+	t0 = time.monotonic()
 
 	#Next try echo from 1 to 175 characters (200 is max buffer size on DUT)
 	for i in range(m,n):
@@ -22,7 +23,9 @@ def test_echo(m,n):
 		#print (":".join("{:02x}".format(ord(c)) for c in xt))
 		#print (":".join("{:02x}".format(ord(c)) for c in y))
 		assert(xt == y), f"failed i={i}"
-		inst.read_stb();# Just to make USB logging easier by sending a control query
+		#inst.read_stb();# Just to make USB logging easier by sending a control query (bad thing is that this made things slow)
+	t = time.monotonic() - t0
+	print(f"  elapsed: {t:0.3} sec")
 
 def test_trig():
 	# clear SRQ
@@ -70,13 +73,13 @@ def test_read_timeout():
 	inst.read_stb()
 	assert (inst.read_stb() == 0)
 	inst.write("delay 500")
-	t0 = time.time()
+	t0 = time.monotonic()
 	try:
 		rsp = inst.read()
 		assert(false), "Read should have resulted in timeout"
 	except visa.VisaIOError:
-		print("Got expected exception")
-	t = time.time() - t0
+		print("  Got expected exception")
+	t = time.monotonic() - t0
 	assert ((t*1000.0) > (inst.timeout - 300))
 	assert ((t*1000.0) < (inst.timeout + 300))
 	print(f"Delay was {t:0.3}")
@@ -92,16 +95,16 @@ def test_abort_in():
 	assert (inst.read_stb() == 0)
 	inst.write("delay 500")
 	inst.write("xxx")
-	t0 = time.time()
+	t0 = time.monotonic()
 	try:
 		rsp = inst.read()
 		assert(false), "Read should have resulted in timeout"
 	except visa.VisaIOError:
-		print("Got expected exception")
-	t = time.time() - t0
+		print("  Got expected exception")
+	t = time.monotonic() - t0
 	assert ((t*1000.0) > (inst.timeout - 300))
 	assert ((t*1000.0) < (inst.timeout + 300))
-	print(f"Delay was {t:0.3}")
+	print(f"  Delay was {t:0.3}")
 	# Response is still in queue, so send a clear (to be more helpful to the next test)
 	inst.timeout = 800
 	y = inst.read()
@@ -179,6 +182,12 @@ test_indicate()
 
 print("+ TRIG")
 test_trig()
+
+# Untested:
+#  abort bulk out
+#  LLO, GTL, etc
+#  Throughput rate?
+#  Transmitting a message using multiple transfers
 
 inst.close()
 print("Test complete")
