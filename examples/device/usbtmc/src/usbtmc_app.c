@@ -96,7 +96,7 @@ static usbtmc_msg_dev_dep_msg_in_header_t rspMsg = {
     }
 };
 
-void tud_usbtmc_app_open_cb(uint8_t interface_id)
+void tud_usbtmc_open_cb(uint8_t interface_id)
 {
   (void)interface_id;
   tud_usbtmc_start_bus_read();
@@ -113,14 +113,14 @@ tud_usbtmc_get_capabilities_cb()
 }
 
 
-bool tud_usbtmc_app_msg_trigger_cb(usbtmc_msg_generic_t* msg) {
+bool tud_usbtmc_msg_trigger_cb(usbtmc_msg_generic_t* msg) {
   (void)msg;
   // Let trigger set the SRQ
   status |= IEEE4882_STB_SRQ;
   return true;
 }
 
-bool tud_usbtmc_app_msgBulkOut_start_cb(usbtmc_msg_request_dev_dep_out const * msgHeader)
+bool tud_usbtmc_msgBulkOut_start_cb(usbtmc_msg_request_dev_dep_out const * msgHeader)
 {
   (void)msgHeader;
   buffer_len = 0;
@@ -132,7 +132,7 @@ bool tud_usbtmc_app_msgBulkOut_start_cb(usbtmc_msg_request_dev_dep_out const * m
   return true;
 }
 
-bool tud_usbtmc_app_msg_data_cb(void *data, size_t len, bool transfer_complete)
+bool tud_usbtmc_msg_data_cb(void *data, size_t len, bool transfer_complete)
 {
   // If transfer isn't finished, we just ignore it (for now)
 
@@ -166,7 +166,7 @@ bool tud_usbtmc_app_msg_data_cb(void *data, size_t len, bool transfer_complete)
   return true;
 }
 
-bool tud_usbtmc_app_msgBulkIn_complete_cb()
+bool tud_usbtmc_msgBulkIn_complete_cb()
 {
   if((buffer_tx_ix == buffer_len) || idnQuery) // done
   {
@@ -182,7 +182,7 @@ bool tud_usbtmc_app_msgBulkIn_complete_cb()
 
 static unsigned int msgReqLen;
 
-bool tud_usbtmc_app_msgBulkIn_request_cb(usbtmc_msg_request_dev_dep_in const * request)
+bool tud_usbtmc_msgBulkIn_request_cb(usbtmc_msg_request_dev_dep_in const * request)
 {
   rspMsg.header.MsgID = request->header.MsgID,
   rspMsg.header.bTag = request->header.bTag,
@@ -254,7 +254,7 @@ void usbtmc_app_task_iter(void) {
   }
 }
 
-bool tud_usbtmc_app_initiate_clear_cb(uint8_t *tmcResult)
+bool tud_usbtmc_initiate_clear_cb(uint8_t *tmcResult)
 {
   *tmcResult = USBTMC_STATUS_SUCCESS;
   queryState = 0;
@@ -263,7 +263,7 @@ bool tud_usbtmc_app_initiate_clear_cb(uint8_t *tmcResult)
   return true;
 }
 
-bool tud_usbtmc_app_check_clear_cb(usbtmc_get_clear_status_rsp_t *rsp)
+bool tud_usbtmc_check_clear_cb(usbtmc_get_clear_status_rsp_t *rsp)
 {
   queryState = 0;
   bulkInStarted = false;
@@ -274,42 +274,42 @@ bool tud_usbtmc_app_check_clear_cb(usbtmc_get_clear_status_rsp_t *rsp)
   rsp->bmClear.BulkInFifoBytes = 0u;
   return true;
 }
-bool tud_usbtmc_app_initiate_abort_bulk_in_cb(uint8_t *tmcResult)
+bool tud_usbtmc_initiate_abort_bulk_in_cb(uint8_t *tmcResult)
 {
   bulkInStarted = 0;
   *tmcResult = USBTMC_STATUS_SUCCESS;
   return true;
 }
-bool tud_usbtmc_app_check_abort_bulk_in_cb(usbtmc_check_abort_bulk_rsp_t *rsp)
+bool tud_usbtmc_check_abort_bulk_in_cb(usbtmc_check_abort_bulk_rsp_t *rsp)
 {
   (void)rsp;
   tud_usbtmc_start_bus_read();
   return true;
 }
 
-bool tud_usbtmc_app_initiate_abort_bulk_out_cb(uint8_t *tmcResult)
+bool tud_usbtmc_initiate_abort_bulk_out_cb(uint8_t *tmcResult)
 {
   *tmcResult = USBTMC_STATUS_SUCCESS;
   return true;
 
 }
-bool tud_usbtmc_app_check_abort_bulk_out_cb(usbtmc_check_abort_bulk_rsp_t *rsp)
+bool tud_usbtmc_check_abort_bulk_out_cb(usbtmc_check_abort_bulk_rsp_t *rsp)
 {
   (void)rsp;
   tud_usbtmc_start_bus_read();
   return true;
 }
 
-void tud_usbtmc_app_bulkIn_clearFeature_cb(void)
+void tud_usbtmc_bulkIn_clearFeature_cb(void)
 {
 }
-void tud_usmtmc_app_bulkOut_clearFeature_cb(void)
+void tud_usmtmc_bulkOut_clearFeature_cb(void)
 {
   tud_usbtmc_start_bus_read();
 }
 
 // Return status byte, but put the transfer result status code in the rspResult argument.
-uint8_t tud_usbtmc_app_get_stb_cb(uint8_t *tmcResult)
+uint8_t tud_usbtmc_get_stb_cb(uint8_t *tmcResult)
 {
   uint8_t old_status = status;
   status = (uint8_t)(status & ~(IEEE4882_STB_SRQ)); // clear SRQ
@@ -320,7 +320,7 @@ uint8_t tud_usbtmc_app_get_stb_cb(uint8_t *tmcResult)
   return old_status;
 }
 
-bool tud_usbtmc_app_indicator_pulse_cb(tusb_control_request_t const * msg, uint8_t *tmcResult)
+bool tud_usbtmc_indicator_pulse_cb(tusb_control_request_t const * msg, uint8_t *tmcResult)
 {
   (void)msg;
   led_indicator_pulse();
