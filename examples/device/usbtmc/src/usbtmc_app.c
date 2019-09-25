@@ -29,7 +29,7 @@
 #include "bsp/board.h"
 #include "main.h"
 
-#if (CFG_USBTMC_CFG_ENABLE_488)
+#if (CFG_TUD_USBTMC_ENABLE_488)
 usbtmc_response_capabilities_488_t const
 #else
 usbtmc_response_capabilities_t const
@@ -48,7 +48,7 @@ tud_usbtmc_app_capabilities  =
         .canEndBulkInOnTermChar = 0
     },
 
-#if (CFG_USBTMC_CFG_ENABLE_488)
+#if (CFG_TUD_USBTMC_ENABLE_488)
     .bcdUSB488 = USBTMC_488_VERSION,
     .bmIntfcCapabilities488 =
     {
@@ -99,7 +99,7 @@ static usbtmc_msg_dev_dep_msg_in_header_t rspMsg = {
 void tud_usbtmc_app_open_cb(uint8_t interface_id)
 {
   (void)interface_id;
-  usbtmcd_start_bus_read();
+  tud_usbtmc_start_bus_read();
 }
 
 
@@ -152,7 +152,7 @@ bool tud_usbtmc_app_msg_data_cb(void *data, size_t len, bool transfer_complete)
       d=0;
     resp_delay = (uint32_t)d;
   }
-  usbtmcd_start_bus_read();
+  tud_usbtmc_start_bus_read();
   return true;
 }
 
@@ -165,7 +165,7 @@ bool tud_usbtmc_app_msgBulkIn_complete_cb()
     bulkInStarted = 0;
     buffer_tx_ix = 0;
   }
-  usbtmcd_start_bus_read();
+  tud_usbtmc_start_bus_read();
 
   return true;
 }
@@ -193,7 +193,7 @@ bool tud_usbtmc_app_msgBulkIn_request_cb(usbtmc_msg_request_dev_dep_in const * r
   else
   {
     size_t txlen = tu_min32(buffer_len-buffer_tx_ix,msgReqLen);
-    usbtmcd_transmit_dev_msg_data(&buffer[buffer_tx_ix], txlen,
+    tud_usbtmc_transmit_dev_msg_data(&buffer[buffer_tx_ix], txlen,
         (buffer_tx_ix+txlen) == buffer_len, false);
     buffer_tx_ix += txlen;
   }
@@ -226,14 +226,14 @@ void usbtmc_app_task_iter(void) {
     if(bulkInStarted && (buffer_tx_ix == 0)) {
       if(idnQuery)
       {
-        usbtmcd_transmit_dev_msg_data(idn,  tu_min32(sizeof(idn)-1,msgReqLen),true,false);
+        tud_usbtmc_transmit_dev_msg_data(idn,  tu_min32(sizeof(idn)-1,msgReqLen),true,false);
         queryState = 0;
         bulkInStarted = 0;
       }
       else
       {
         buffer_tx_ix = tu_min32(buffer_len,msgReqLen);
-        usbtmcd_transmit_dev_msg_data(buffer, buffer_tx_ix, buffer_tx_ix == buffer_len, false);
+        tud_usbtmc_transmit_dev_msg_data(buffer, buffer_tx_ix, buffer_tx_ix == buffer_len, false);
       }
       // MAV is cleared in the transfer complete callback.
     }
@@ -273,7 +273,7 @@ bool tud_usbtmc_app_initiate_abort_bulk_in_cb(uint8_t *tmcResult)
 bool tud_usbtmc_app_check_abort_bulk_in_cb(usbtmc_check_abort_bulk_rsp_t *rsp)
 {
   (void)rsp;
-  usbtmcd_start_bus_read();
+  tud_usbtmc_start_bus_read();
   return true;
 }
 
@@ -286,16 +286,16 @@ bool tud_usbtmc_app_initiate_abort_bulk_out_cb(uint8_t *tmcResult)
 bool tud_usbtmc_app_check_abort_bulk_out_cb(usbtmc_check_abort_bulk_rsp_t *rsp)
 {
   (void)rsp;
-  usbtmcd_start_bus_read();
+  tud_usbtmc_start_bus_read();
   return true;
 }
 
-void usmtmcd_app_bulkIn_clearFeature_cb(void)
+void tud_usbtmc_app_bulkIn_clearFeature_cb(void)
 {
 }
-void usmtmcd_app_bulkOut_clearFeature_cb(void)
+void tud_usmtmc_app_bulkOut_clearFeature_cb(void)
 {
-  usbtmcd_start_bus_read();
+  tud_usbtmc_start_bus_read();
 }
 
 // Return status byte, but put the transfer result status code in the rspResult argument.

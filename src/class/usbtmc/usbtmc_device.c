@@ -186,7 +186,7 @@ bool atomicChangeState(usbtmcd_state_enum expectedState, usbtmcd_state_enum newS
 
 // We can't just send the whole thing at once because we need to concatanate the
 // header with the data.
-bool usbtmcd_transmit_dev_msg_data(
+bool tud_usbtmc_transmit_dev_msg_data(
     const void * data, size_t len,
     bool endOfMessage,
     bool usingTermChar)
@@ -236,7 +236,7 @@ bool usbtmcd_transmit_dev_msg_data(
 void usbtmcd_init_cb(void)
 {
 #ifndef NDEBUG
-# if CFG_USBTMC_CFG_ENABLE_488
+# if CFG_TUD_USBTMC_ENABLE_488
     if(tud_usbtmc_app_capabilities.bmIntfcCapabilities488.supportsTrigger)
       TU_ASSERT(&tud_usbtmc_app_msg_trigger_cb != NULL,);
       // Per USB488 spec: table 8
@@ -316,7 +316,7 @@ bool usbtmcd_open_cb(uint8_t rhport, tusb_desc_interface_t const * itf_desc, uin
   {
     TU_ASSERT(usbtmc_state.ep_int_in != 0);
   }
-#if (CFG_USBTMC_CFG_ENABLE_488)
+#if (CFG_TUD_USBTMC_ENABLE_488)
   if(tud_usbtmc_app_capabilities.bmIntfcCapabilities488.is488_2 ||
       tud_usbtmc_app_capabilities.bmDevCapabilities488.SR1)
   {
@@ -335,7 +335,7 @@ bool usbtmcd_open_cb(uint8_t rhport, tusb_desc_interface_t const * itf_desc, uin
 // processing a command (such as a clear). Returns true if it was
 // in the NAK state and successfully transitioned to the ACK wait
 // state.
-bool usbtmcd_start_bus_read()
+bool tud_usbtmc_start_bus_read()
 {
   usbtmcd_state_enum oldState = usbtmc_state.state;
   switch(oldState)
@@ -468,7 +468,7 @@ bool usbtmcd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint
         TU_VERIFY(handle_devMsgIn(msg, xferred_bytes));
         break;
 
-#if (CFG_USBTMC_CFG_ENABLE_488)
+#if (CFG_TUD_USBTMC_ENABLE_488)
       case USBTMC_MSGID_USB488_TRIGGER:
         // Spec says we halt the EP if we didn't declare we support it.
         TU_VERIFY(tud_usbtmc_app_capabilities.bmIntfcCapabilities488.supportsTrigger);
@@ -562,7 +562,7 @@ bool usbtmcd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint
 bool usbtmcd_control_request_cb(uint8_t rhport, tusb_control_request_t const * request) {
 
   uint8_t tmcStatusCode = USBTMC_STATUS_FAILED;
-#if (CFG_USBTMC_CFG_ENABLE_488)
+#if (CFG_TUD_USBTMC_ENABLE_488)
   uint8_t bTag;
 #endif
 
@@ -578,11 +578,11 @@ bool usbtmcd_control_request_cb(uint8_t rhport, tusb_control_request_t const * r
       criticalEnter();
       usbtmc_state.state = STATE_NAK; // USBD core has placed EP in NAK state for us
       criticalLeave();
-      usmtmcd_app_bulkOut_clearFeature_cb();
+      tud_usmtmc_app_bulkOut_clearFeature_cb();
     }
     else if (ep_addr == usbtmc_state.ep_bulk_in)
     {
-      usmtmcd_app_bulkIn_clearFeature_cb();
+      tud_usbtmc_app_bulkIn_clearFeature_cb();
     }
     else
     {
@@ -783,7 +783,7 @@ bool usbtmcd_control_request_cb(uint8_t rhport, tusb_control_request_t const * r
       TU_VERIFY(tud_control_xfer(rhport, request, (void*)&tmcStatusCode, sizeof(tmcStatusCode)));
       return true;
     }
-#if (CFG_USBTMC_CFG_ENABLE_488)
+#if (CFG_TUD_USBTMC_ENABLE_488)
 
     // USB488 required requests
   case USB488_bREQUEST_READ_STATUS_BYTE:
