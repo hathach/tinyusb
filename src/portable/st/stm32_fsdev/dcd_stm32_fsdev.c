@@ -252,7 +252,9 @@ void dcd_init (uint8_t rhport)
 void dcd_int_enable (uint8_t rhport)
 {
   (void)rhport;
-
+  // Member here forces write to RAM before allowing ISR to execute
+  __DSB();
+  __ISB();
 #if CFG_TUSB_MCU == OPT_MCU_STM32F0 || CFG_TUSB_MCU == OPT_MCU_STM32L0
   NVIC_EnableIRQ(USB_IRQn);
 #elif CFG_TUSB_MCU == OPT_MCU_STM32F3
@@ -276,10 +278,7 @@ void dcd_int_disable(uint8_t rhport)
 #else
   #error Unknown arch in USB driver
 #endif
-  // I'm not convinced that memory synchronization is completely necessary, but
-  // it isn't a bad idea.
-  __DSB();
-  __ISB();
+  // CMSIS has a membar after disabling interrupts
 }
 
 // Receive Set Address request, mcu port must also include status IN response
@@ -440,10 +439,10 @@ static uint16_t dcd_ep_ctr_handler(void)
           }
 
           /* Process Control Data OUT status Packet*/
-          if(EPindex == 0u && xfer->total_len == 0u)
+          /*if(EPindex == 0u && xfer->total_len == 0u)
           {
              pcd_clear_ep_kind(USB,0); // Good, so allow non-zero length packets now.
-          }
+          }*/
           dcd_event_xfer_complete(0, EPindex, xfer->total_len, XFER_RESULT_SUCCESS, true);
 
           pcd_set_ep_rx_cnt(USB, EPindex, CFG_TUD_ENDPOINT0_SIZE);
@@ -627,7 +626,9 @@ bool dcd_edpt_open (uint8_t rhport, tusb_desc_endpoint_t const * p_endpoint_desc
   }
 
   pcd_set_ep_address(USB, epnum, epnum);
-  pcd_clear_ep_kind(USB,0); // Be normal, for now, instead of only accepting zero-byte packets
+  // Be normal, for now, instead of only accepting zero-byte packets (on control endpoint)
+  // or being double-buffered (bulk endpoints)
+  pcd_clear_ep_kind(USB,0);
 
   if(dir == TUSB_DIR_IN)
   {
@@ -688,7 +689,7 @@ bool dcd_edpt_xfer (uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t 
     if (epnum == 0 && buffer == NULL)
     {
         xfer->buffer = (uint8_t*)_setup_packet;
-        pcd_set_ep_kind(USB,0); // Expect a zero-byte INPUT
+        //pcd_set_ep_kind(USB,0); // Expect a zero-byte INPUT
     }
     if(total_bytes > xfer->max_packet_size)
     {
