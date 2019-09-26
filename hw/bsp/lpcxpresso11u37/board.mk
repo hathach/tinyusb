@@ -10,8 +10,8 @@ CFLAGS += \
   -DCFG_TUSB_MEM_SECTION='__attribute__((section(".data.$$RAM2")))' \
   -DCFG_TUSB_MEM_ALIGN='__attribute__((aligned(64)))' 
 
-# startup.c and lpc_types.h cause following errors
-CFLAGS += -Wno-error=nested-externs -Wno-error=strict-prototypes
+# mcu driver cause following warnings
+CFLAGS += -Wno-error=nested-externs -Wno-error=strict-prototypes -Wno-error=unused-parameter
 
 MCU_DIR = hw/mcu/nxp/lpc_driver/lpc11uxx/lpc_chip_11uxx
 

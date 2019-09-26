@@ -7,8 +7,8 @@ CFLAGS += \
   -DCFG_TUSB_MCU=OPT_MCU_LPC18XX \
   -D__USE_LPCOPEN
 
-# lpc_types.h cause following errors
-CFLAGS += -Wno-error=strict-prototypes
+# mcu driver cause following warnings
+CFLAGS += -Wno-error=unused-parameter -Wno-error=strict-prototypes
 
 MCU_DIR = hw/mcu/nxp/lpc_driver/lpc18xx/lpc_chip_18xx
 

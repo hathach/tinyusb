@@ -9,8 +9,8 @@ CFLAGS += \
   -nostdlib -nostartfiles \
   -DCFG_TUSB_MCU=OPT_MCU_STM32F7
 
-# Suppress following warnings/error is required due to STM32F7xx_HAL_Driver.
-CFLAGS += -Wno-error=shadow 
+# mcu driver cause following warnings
+CFLAGS += -Wno-error=shadow
 
 ST_HAL_DRIVER = hw/mcu/st/st_driver/STM32F7xx_HAL_Driver
 ST_CMSIS = hw/mcu/st/st_driver/CMSIS/Device/ST/STM32F7xx

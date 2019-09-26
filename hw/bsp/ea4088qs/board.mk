@@ -8,8 +8,8 @@ CFLAGS += \
   -DCFG_TUSB_MEM_SECTION='__attribute__((section(".data.$$RAM2")))' \
   -D__USE_LPCOPEN
 
-# lpc_types.h cause following errors
-CFLAGS += -Wno-error=strict-prototypes
+# mcu driver cause following warnings
+CFLAGS += -Wno-error=strict-prototypes -Wno-error=unused-parameter
 
 MCU_DIR = hw/mcu/nxp/lpc_driver/lpc40xx/lpc_chip_40xx
 

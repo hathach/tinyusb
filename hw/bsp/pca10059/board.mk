@@ -9,7 +9,10 @@ CFLAGS += \
   -DCFG_TUSB_MCU=OPT_MCU_NRF5X
 
 # nrfx issue undef _ARMCC_VERSION usage https://github.com/NordicSemiconductor/nrfx/issues/49
-CFLAGS += -Wno-error=undef 
+CFLAGS += -Wno-error=undef -Wno-error=unused-parameter
+
+# due to tusb_hal_nrf_power_event
+CFLAGS += -Wno-error=cast-function-type
 
 # All source paths should be relative to the top level.
 LD_FILE = hw/bsp/$(BOARD)/$(BOARD).ld
