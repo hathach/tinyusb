@@ -418,10 +418,15 @@ static uint16_t dcd_ep_ctr_handler(void)
           uint8_t userMemBuf[8];
           /* Get SETUP Packet*/
           count = pcd_get_ep_rx_cnt(USB, EPindex);
-          //TU_ASSERT_ERR(count == 8);
-          dcd_read_packet_memory(userMemBuf, *pcd_ep_rx_address_ptr(USB,EPindex), 8);
+          if(count == 8) // Setup packet should always be 8 bits. If not, ignore it, and try again.
+          {
+            // Must reset EP to NAK (in case it had been stalling) (though, maybe too late here)
+            pcd_set_ep_rx_status(USB,0u,USB_EP_RX_NAK);
+            pcd_set_ep_tx_status(USB,0u,USB_EP_TX_NAK);
+            dcd_read_packet_memory(userMemBuf, *pcd_ep_rx_address_ptr(USB,EPindex), 8);
+            dcd_event_setup_received(0, (uint8_t*)userMemBuf, true);
+          }
           /* SETUP bit kept frozen while CTR_RX = 1*/
-          dcd_event_setup_received(0, (uint8_t*)userMemBuf, true);
           pcd_clear_rx_ep_ctr(USB, EPindex);
         }
         else if ((wEPVal & USB_EP_CTR_RX) != 0U) // OUT
