@@ -83,6 +83,10 @@
   #if CFG_TUD_VENDOR
     #include "class/vendor/vendor_device.h"
   #endif
+
+  #if CFG_TUD_USBTMC
+    #include "class/usbtmc/usbtmc_device.h"
+  #endif
 #endif
 
 
