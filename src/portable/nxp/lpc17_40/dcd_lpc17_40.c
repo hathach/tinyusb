@@ -172,8 +172,8 @@ void dcd_init(uint8_t rhport)
 
   //------------- user manual 11.13 usb device controller initialization -------------//
   // step 6 : set up control endpoint
-  set_ep_size(0, CFG_TUD_ENDOINT0_SIZE);
-  set_ep_size(1, CFG_TUD_ENDOINT0_SIZE);
+  set_ep_size(0, CFG_TUD_ENDPOINT0_SIZE);
+  set_ep_size(1, CFG_TUD_ENDPOINT0_SIZE);
 
   bus_reset();
 
