@@ -239,13 +239,43 @@ bool dcd_edpt_xfer (uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t 
 void dcd_edpt_stall (uint8_t rhport, uint8_t ep_addr)
 {
   (void) rhport;
-  (void) ep_addr;
+
+  uint8_t const epnum = tu_edpt_number(ep_addr);
+  uint8_t const dir   = tu_edpt_dir(ep_addr);
+
+  if(epnum == 0)
+  {
+    if(dir == TUSB_DIR_OUT)
+    {
+      USBOEPCNT_0 |= NAK;
+      USBOEPCNF_0 |= STALL;
+    }
+    else
+    {
+      USBIEPCNT_0 |= NAK;
+      USBIEPCNF_0 |= STALL;
+    }
+  }
 }
 
 void dcd_edpt_clear_stall (uint8_t rhport, uint8_t ep_addr)
 {
   (void) rhport;
-  (void) ep_addr;
+
+  uint8_t const epnum = tu_edpt_number(ep_addr);
+  uint8_t const dir   = tu_edpt_dir(ep_addr);
+
+  if(epnum == 0)
+  {
+    if(dir == TUSB_DIR_OUT)
+    {
+      USBOEPCNT_0 &= ~NAK;
+    }
+    else
+    {
+      USBIEPCNT_0 &= ~NAK;
+    }
+  }
 }
 
 /*------------------------------------------------------------------*/
