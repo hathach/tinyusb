@@ -50,7 +50,6 @@ typedef struct {
   uint16_t queued_len;
   uint16_t max_size;
   bool short_packet;
-  bool zlp_sent;
 } xfer_ctl_t;
 
 xfer_ctl_t xfer_status[8][2];
@@ -203,8 +202,6 @@ bool dcd_edpt_open (uint8_t rhport, tusb_desc_endpoint_t const * desc_edpt)
   return false;
 }
 
-static volatile uint8_t iepcnt = 0xFF;
-
 bool dcd_edpt_xfer (uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t total_bytes)
 {
   (void) rhport;
@@ -217,7 +214,6 @@ bool dcd_edpt_xfer (uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t 
   xfer->total_len = total_bytes;
   xfer->queued_len = 0;
   xfer->short_packet = false;
-  xfer->zlp_sent = false;
 
   if(epnum == 0)
   {
@@ -266,21 +262,27 @@ static void transmit_packet(uint8_t ep_num)
 
   if(ep_num == 0)
   {
-    bool zlp = (xfer->total_len == 0);
-    if((!zlp && (xfer->total_len == xfer->queued_len)) || xfer->zlp_sent)
+    // First, determine whether we should even send a packet or finish
+    // up the xfer.
+    bool zlp = (xfer->total_len == 0); // By necessity, xfer->total_len will
+                                       // equal xfer->queued_len for ZLPs.
+                                       // Of course a ZLP is a short packet.
+    if((!zlp && (xfer->total_len == xfer->queued_len)) || xfer->short_packet)
     {
       dcd_event_xfer_complete(0, ep_num, xfer->queued_len, XFER_RESULT_SUCCESS, true);
       return;
     }
 
+    // Then actually commit to transmit a packet.
     uint8_t * base = (xfer->buffer + xfer->queued_len);
     uint16_t remaining = xfer->total_len - xfer->queued_len;
     uint8_t xfer_size = (xfer->max_size < xfer->total_len) ? xfer->max_size : remaining;
 
     xfer->queued_len += xfer_size;
-    if(xfer->total_len == 0)
+    if(xfer_size < xfer->max_size)
     {
-      xfer->zlp_sent = true;
+      // Next "xfer complete interrupt", the transfer will end.
+      xfer->short_packet = true;
     }
 
     volatile uint8_t * ep0in_buf = &USBIEP0BUF;
