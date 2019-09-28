@@ -50,6 +50,7 @@ typedef struct {
   uint16_t queued_len;
   uint16_t max_size;
   bool short_packet;
+  bool zlp_sent;
 } xfer_ctl_t;
 
 xfer_ctl_t xfer_status[8][2];
@@ -171,7 +172,11 @@ void dcd_int_disable (uint8_t rhport)
 void dcd_set_address (uint8_t rhport, uint8_t dev_addr)
 {
   (void) rhport;
-  (void) dev_addr;
+
+  USBFUNADR = dev_addr;
+
+  // Response with status after changing device address
+  dcd_edpt_xfer(rhport, tu_edpt_addr(0, TUSB_DIR_IN), NULL, 0);
 }
 
 void dcd_set_config (uint8_t rhport, uint8_t config_num)
@@ -212,6 +217,7 @@ bool dcd_edpt_xfer (uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t 
   xfer->total_len = total_bytes;
   xfer->queued_len = 0;
   xfer->short_packet = false;
+  xfer->zlp_sent = false;
 
   if(epnum == 0)
   {
@@ -260,7 +266,8 @@ static void transmit_packet(uint8_t ep_num)
 
   if(ep_num == 0)
   {
-    if(xfer->total_len == xfer->queued_len)
+    bool zlp = (xfer->total_len == 0);
+    if((!zlp && (xfer->total_len == xfer->queued_len)) || xfer->zlp_sent)
     {
       dcd_event_xfer_complete(0, ep_num, xfer->queued_len, XFER_RESULT_SUCCESS, true);
       return;
@@ -271,6 +278,10 @@ static void transmit_packet(uint8_t ep_num)
     uint8_t xfer_size = (xfer->max_size < xfer->total_len) ? xfer->max_size : remaining;
 
     xfer->queued_len += xfer_size;
+    if(xfer->total_len == 0)
+    {
+      xfer->zlp_sent = true;
+    }
 
     volatile uint8_t * ep0in_buf = &USBIEP0BUF;
     for(int i = 0; i < xfer_size; i++)
