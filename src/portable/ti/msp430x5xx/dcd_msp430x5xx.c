@@ -35,8 +35,6 @@
 /*------------------------------------------------------------------*/
 /* MACRO TYPEDEF CONSTANT ENUM
  *------------------------------------------------------------------*/
-#define USB_BUF_PTR(_x) (uint8_t *) ((uint16_t) _x)
-
 // usbpllir_mirror and usbmaintl_mirror can be added later if needed.
 static volatile uint16_t usbiepie_mirror = 0;
 static volatile uint16_t usboepie_mirror = 0;
@@ -46,8 +44,26 @@ static bool in_isr = false;
 
 uint8_t _setup_packet[8];
 
+typedef struct {
+  uint8_t * buffer;
+  uint16_t total_len;
+  uint16_t queued_len;
+  uint16_t max_size;
+  bool short_packet;
+} xfer_ctl_t;
+
+xfer_ctl_t xfer_status[8][2];
+#define XFER_CTL_BASE(_ep, _dir) &xfer_status[_ep][_dir]
+
+
 static void bus_reset(void)
 {
+  // Hardcoded into the USB core.
+  xfer_status[0][TUSB_DIR_OUT].max_size = 8;
+  xfer_status[0][TUSB_DIR_IN].max_size = 8;
+
+  USBKEYPID = USBKEY;
+
   // Enable the control EP 0. Also enable Indication Enable- a guard flag
   // separate from the Interrupt Enable mask.
   USBOEPCNF_0 |= (UBME | USBIIE);
@@ -57,13 +73,17 @@ static void bus_reset(void)
   USBOEPIE |= BIT0;
   USBIEPIE |= BIT0;
 
-  // Clear NAK so packets can be received.
-  // Dedicated buffers in hardware for SETUP and EP0, no setup needed.
-  USBOEPCNT_0 &= ~NAK;
-  USBIEPCNT_0 &= ~NAK;
+  // Set NAK until a setup packet is received.
+  USBOEPCNT_0 |= NAK;
+  USBIEPCNT_0 |= NAK;
 
+  USBCTL |= FEN; // Enable responding to packets.
+
+  // Dedicated buffers in hardware for SETUP and EP0, no setup needed.
   // Now safe to respond to SETUP packets.
   USBIE |= SETUPIE;
+
+  USBKEYPID = 0;
 }
 
 
@@ -87,6 +107,11 @@ void dcd_init (uint8_t rhport)
   USBIEPIFG = 0;
   USBIFG = 0;
   USBPWRCTL &= ~(VUOVLIE | VBONIE | VBOFFIE | VUOVLIFG | VBONIFG | VBOFFIFG);
+  usboepie_mirror = 0;
+  usbiepie_mirror = 0;
+  usbie_mirror = 0;
+  usbpwrctl_mirror = 0;
+
   USBVECINT = 0;
 
   // Enable reset and wait for it before continuing.
@@ -173,14 +198,40 @@ bool dcd_edpt_open (uint8_t rhport, tusb_desc_endpoint_t const * desc_edpt)
   return false;
 }
 
+static volatile uint8_t iepcnt = 0xFF;
+
 bool dcd_edpt_xfer (uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t total_bytes)
 {
   (void) rhport;
-  (void) ep_addr;
-  (void) buffer;
-  (void) total_bytes;
 
-  return false;
+  uint8_t const epnum = tu_edpt_number(ep_addr);
+  uint8_t const dir   = tu_edpt_dir(ep_addr);
+
+  xfer_ctl_t * xfer = XFER_CTL_BASE(epnum, dir);
+  xfer->buffer = buffer;
+  xfer->total_len = total_bytes;
+  xfer->queued_len = 0;
+  xfer->short_packet = false;
+
+  if(epnum == 0)
+  {
+    if(dir == TUSB_DIR_OUT)
+    {
+      // Interrupt will notify us when data was received.
+      USBCTL &= ~DIR;
+      USBOEPCNT_0 &= ~NAK;
+    }
+    else
+    {
+      // Kickstart the IN packet handler by queuing initial data and calling
+      // the ISR to transmit the first packet.
+      // Interrupt only fires on completed xfer.
+      USBCTL |= DIR;
+      USBIEPIFG |= BIT0;
+    }
+  }
+
+  return true;
 }
 
 void dcd_edpt_stall (uint8_t rhport, uint8_t ep_addr)
@@ -197,14 +248,39 @@ void dcd_edpt_clear_stall (uint8_t rhport, uint8_t ep_addr)
 
 /*------------------------------------------------------------------*/
 
-static void receive_packet(void)
+static void receive_packet(uint8_t ep_num)
 {
+  (void) ep_num;
 
 }
 
-static void transmit_packet(void)
+static void transmit_packet(uint8_t ep_num)
 {
+  xfer_ctl_t * xfer = XFER_CTL_BASE(ep_num, TUSB_DIR_IN);
 
+  if(ep_num == 0)
+  {
+    if(xfer->total_len == xfer->queued_len)
+    {
+      dcd_event_xfer_complete(0, ep_num, xfer->queued_len, XFER_RESULT_SUCCESS, true);
+      return;
+    }
+
+    uint8_t * base = (xfer->buffer + xfer->queued_len);
+    uint16_t remaining = xfer->total_len - xfer->queued_len;
+    uint8_t xfer_size = (xfer->max_size < xfer->total_len) ? xfer->max_size : remaining;
+
+    xfer->queued_len += xfer_size;
+
+    volatile uint8_t * ep0in_buf = &USBIEP0BUF;
+    for(int i = 0; i < xfer_size; i++)
+    {
+      ep0in_buf[i] = base[i];
+    }
+
+    USBIEPCNT_0 = (USBIEPCNT_0 & 0xF0) + xfer_size;
+    USBIEPCNT_0 &= ~NAK;
+  }
 }
 
 static void handle_setup_packet(void)
@@ -244,14 +320,15 @@ void __attribute__ ((interrupt(USB_UBM_VECTOR))) USB_UBM_ISR(void)
       break;
 
     case USBVECINT_INPUT_ENDPOINT0:
-      transmit_packet();
+      transmit_packet(0);
       break;
 
     case USBVECINT_OUTPUT_ENDPOINT0:
-      receive_packet();
+      receive_packet(0);
       break;
 
     default:
+      while(true);
       break;
   }
 
