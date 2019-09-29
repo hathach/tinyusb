@@ -389,7 +389,7 @@ static void transmit_packet(uint8_t ep_num)
                                      // Of course a ZLP is a short packet.
   if((!zlp && (xfer->total_len == xfer->queued_len)) || xfer->short_packet)
   {
-    dcd_event_xfer_complete(0, ep_num, xfer->queued_len, XFER_RESULT_SUCCESS, true);
+    dcd_event_xfer_complete(0, ep_num | TUSB_DIR_IN_MASK, xfer->queued_len, XFER_RESULT_SUCCESS, true);
     return;
   }
 
