@@ -44,7 +44,9 @@ static bool in_isr = false;
 
 uint8_t _setup_packet[8];
 
-typedef struct {
+// Xfer control
+typedef struct
+{
   uint8_t * buffer;
   uint16_t total_len;
   uint16_t queued_len;
@@ -54,6 +56,21 @@ typedef struct {
 
 xfer_ctl_t xfer_status[8][2];
 #define XFER_CTL_BASE(_ep, _dir) &xfer_status[_ep][_dir]
+
+// Accessing endpoint regs
+typedef volatile uint8_t * ep_regs_t;
+
+typedef enum
+{
+  CNF = 0,
+  BBAX = 1,
+  BCTX = 2,
+  BBAY = 5,
+  BCTY = 6,
+  SIZXY = 7
+} ep_regs_index_t;
+
+#define EP_REGS(epnum, dir) &USBOEPCNF_1 + 64*dir + 8*(epnum - 1)
 
 
 static void bus_reset(void)
@@ -197,9 +214,60 @@ void dcd_remote_wakeup(uint8_t rhport)
 bool dcd_edpt_open (uint8_t rhport, tusb_desc_endpoint_t const * desc_edpt)
 {
   (void) rhport;
-  (void) desc_edpt;
 
-  return false;
+  uint8_t const epnum = tu_edpt_number(desc_edpt->bEndpointAddress);
+  uint8_t const dir   = tu_edpt_dir(desc_edpt->bEndpointAddress);
+
+  // Unsupported endpoint numbers/size or type (Iso not supported. Control
+  // not supported on nonzero endpoints).
+  if((desc_edpt->wMaxPacketSize.size > 64) || (epnum > 7) || \
+      (desc_edpt->bmAttributes.xfer == 0) || \
+      (desc_edpt->bmAttributes.xfer == 1)) {
+    return false;
+  }
+
+  // Buffer allocation scheme:
+  // For simplicity, only single buffer for now, since tinyusb currently waits
+  // for an xfer to complete before scheduling another one. This means only
+  // the X buffer is used.
+  //
+  // 1904 bytes are available, the max endpoint size supported on msp430 is
+  // 64 bytes. This is enough RAM for all 14 endpoints enabled _with_ double
+  // bufferring (64*14*2 = 1792 bytes). Extra RAM exists for triple and higher
+  // order bufferring, which must be maintained in software.
+  //
+  // For simplicity, each endpoint gets a hardcoded 64 byte chunk (regardless
+  // of actual wMaxPacketSize) whose start address is the following:
+  // addr = 128 * (epnum - 1) + 64 * dir.
+  //
+  // Double buffering equation:
+  // x_addr = 256 * (epnum - 1) + 128 * dir
+  // y_addr = x_addr + 64
+
+  ep_regs_t ep_regs = EP_REGS(epnum, dir);
+  uint8_t buf_base = (128 * (epnum - 1) + 64 * dir) >> 3;
+
+  // IN and OUT EP registers have the same structure.
+
+  ep_regs[SIZXY] = desc_edpt->wMaxPacketSize.size;
+  ep_regs[BCTX] |= NAK;
+  ep_regs[BBAX] = buf_base;
+  ep_regs[CNF] &= ~TOGGLE; // ISO xfers not supported on MSP430, so no need
+                           // to gate DATA0/1 and frame behavior.
+  ep_regs[CNF] |= (UBME | USBIIE);
+
+  USBKEYPID = USBKEY;
+  if(dir == TUSB_DIR_OUT)
+  {
+    USBOEPIE |= (1 << epnum);
+  }
+  else
+  {
+    USBIEPIE |= (1 << epnum);
+  }
+  USBKEYPID = 0;
+
+  return true;
 }
 
 bool dcd_edpt_xfer (uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t total_bytes)
