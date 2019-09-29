@@ -374,8 +374,69 @@ void dcd_edpt_clear_stall (uint8_t rhport, uint8_t ep_addr)
 
 static void receive_packet(uint8_t ep_num)
 {
-  (void) ep_num;
+  xfer_ctl_t * xfer = XFER_CTL_BASE(ep_num, TUSB_DIR_OUT);
+  ep_regs_t ep_regs = EP_REGS(ep_num, TUSB_DIR_OUT);
+  uint8_t xfer_size;
 
+  if(ep_num == 0)
+  {
+    xfer_size = USBOEPCNT_0 & 0x0F;
+  }
+  else
+  {
+    xfer_size = ep_regs[BCTX] & 0x3F;
+  }
+
+  uint16_t remaining = xfer->total_len - xfer->queued_len;
+  uint16_t to_recv_size;
+
+  if(remaining <= xfer->max_size) {
+    // Avoid buffer overflow.
+    to_recv_size = (xfer_size > remaining) ? remaining : xfer_size;
+  } else {
+    // Room for full packet, choose recv_size based on what the microcontroller
+    // claims.
+    to_recv_size = (xfer_size > xfer->max_size) ? xfer->max_size : xfer_size;
+  }
+
+  uint8_t * base = (xfer->buffer + xfer->queued_len);
+
+  if(ep_num == 0)
+  {
+    volatile uint8_t * ep0out_buf = &USBOEP0BUF;
+    for(uint16_t i = 0; i < to_recv_size; i++)
+    {
+      base[i] = ep0out_buf[i];
+    }
+  }
+  else
+  {
+    volatile uint8_t * ep_buf = &USBSTABUFF + (ep_regs[BBAX] << 3);
+    for(uint16_t i = 0; i < to_recv_size ; i++)
+    {
+      base[i] = ep_buf[i];
+    }
+  }
+
+  xfer->queued_len += xfer_size;
+
+  xfer->short_packet = (xfer_size < xfer->max_size);
+  if((xfer->total_len == xfer->queued_len) || xfer->short_packet)
+  {
+    dcd_event_xfer_complete(0, ep_num, xfer->queued_len, XFER_RESULT_SUCCESS, true);
+  }
+  else
+  {
+    // Schedule to receive another packet.
+    if(ep_num == 0)
+    {
+      USBOEPCNT_0 &= ~NAK;
+    }
+    else
+    {
+      ep_regs[BCTX] &= ~NAK;
+    }
+  }
 }
 
 static void transmit_packet(uint8_t ep_num)
@@ -408,7 +469,7 @@ static void transmit_packet(uint8_t ep_num)
   if(ep_num == 0)
   {
     volatile uint8_t * ep0in_buf = &USBIEP0BUF;
-    for(int i = 0; i < xfer_size; i++)
+    for(uint16_t i = 0; i < xfer_size; i++)
     {
       ep0in_buf[i] = base[i];
     }
@@ -419,9 +480,8 @@ static void transmit_packet(uint8_t ep_num)
   else
   {
     ep_regs_t ep_regs = EP_REGS(ep_num, TUSB_DIR_IN);
-    uint16_t in_buf_base = USBSTABUFF + (ep_regs[BBAX] << 3);
+    volatile uint8_t * ep_buf = &USBSTABUFF + (ep_regs[BBAX] << 3);
 
-    volatile uint8_t * ep_buf = (volatile uint8_t *) (in_buf_base);
     for(int i = 0; i < xfer_size; i++)
     {
       ep_buf[i] = base[i];
