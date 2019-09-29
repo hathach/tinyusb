@@ -382,31 +382,31 @@ static void transmit_packet(uint8_t ep_num)
 {
   xfer_ctl_t * xfer = XFER_CTL_BASE(ep_num, TUSB_DIR_IN);
 
+  // First, determine whether we should even send a packet or finish
+  // up the xfer.
+  bool zlp = (xfer->total_len == 0); // By necessity, xfer->total_len will
+                                     // equal xfer->queued_len for ZLPs.
+                                     // Of course a ZLP is a short packet.
+  if((!zlp && (xfer->total_len == xfer->queued_len)) || xfer->short_packet)
+  {
+    dcd_event_xfer_complete(0, ep_num, xfer->queued_len, XFER_RESULT_SUCCESS, true);
+    return;
+  }
+
+  // Then actually commit to transmit a packet.
+  uint8_t * base = (xfer->buffer + xfer->queued_len);
+  uint16_t remaining = xfer->total_len - xfer->queued_len;
+  uint8_t xfer_size = (xfer->max_size < xfer->total_len) ? xfer->max_size : remaining;
+
+  xfer->queued_len += xfer_size;
+  if(xfer_size < xfer->max_size)
+  {
+    // Next "xfer complete interrupt", the transfer will end.
+    xfer->short_packet = true;
+  }
+
   if(ep_num == 0)
   {
-    // First, determine whether we should even send a packet or finish
-    // up the xfer.
-    bool zlp = (xfer->total_len == 0); // By necessity, xfer->total_len will
-                                       // equal xfer->queued_len for ZLPs.
-                                       // Of course a ZLP is a short packet.
-    if((!zlp && (xfer->total_len == xfer->queued_len)) || xfer->short_packet)
-    {
-      dcd_event_xfer_complete(0, ep_num, xfer->queued_len, XFER_RESULT_SUCCESS, true);
-      return;
-    }
-
-    // Then actually commit to transmit a packet.
-    uint8_t * base = (xfer->buffer + xfer->queued_len);
-    uint16_t remaining = xfer->total_len - xfer->queued_len;
-    uint8_t xfer_size = (xfer->max_size < xfer->total_len) ? xfer->max_size : remaining;
-
-    xfer->queued_len += xfer_size;
-    if(xfer_size < xfer->max_size)
-    {
-      // Next "xfer complete interrupt", the transfer will end.
-      xfer->short_packet = true;
-    }
-
     volatile uint8_t * ep0in_buf = &USBIEP0BUF;
     for(int i = 0; i < xfer_size; i++)
     {
@@ -415,6 +415,20 @@ static void transmit_packet(uint8_t ep_num)
 
     USBIEPCNT_0 = (USBIEPCNT_0 & 0xF0) + xfer_size;
     USBIEPCNT_0 &= ~NAK;
+  }
+  else
+  {
+    ep_regs_t ep_regs = EP_REGS(ep_num, TUSB_DIR_IN);
+    uint16_t in_buf_base = USBSTABUFF + (ep_regs[BBAX] << 3);
+
+    volatile uint8_t * ep_buf = (volatile uint8_t *) (in_buf_base);
+    for(int i = 0; i < xfer_size; i++)
+    {
+      ep_buf[i] = base[i];
+    }
+
+    ep_regs[BCTX] = (ep_regs[BCTX] & 0xF0) + xfer_size;
+    ep_regs[BCTX] &= ~NAK;
   }
 }
 
