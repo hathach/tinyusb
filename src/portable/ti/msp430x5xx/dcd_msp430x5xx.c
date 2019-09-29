@@ -337,11 +337,11 @@ void dcd_edpt_clear_stall (uint8_t rhport, uint8_t ep_addr)
   {
     if(dir == TUSB_DIR_OUT)
     {
-      USBOEPCNT_0 &= ~NAK;
+      USBOEPCNT_0 &= ~STALL;
     }
     else
     {
-      USBIEPCNT_0 &= ~NAK;
+      USBIEPCNT_0 &= ~STALL;
     }
   }
 }
