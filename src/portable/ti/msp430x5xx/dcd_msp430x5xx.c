@@ -226,6 +226,9 @@ bool dcd_edpt_open (uint8_t rhport, tusb_desc_endpoint_t const * desc_edpt)
     return false;
   }
 
+  xfer_ctl_t * xfer = XFER_CTL_BASE(epnum, dir);
+  xfer->max_size = desc_edpt->wMaxPacketSize.size;
+
   // Buffer allocation scheme:
   // For simplicity, only single buffer for now, since tinyusb currently waits
   // for an xfer to complete before scheduling another one. This means only
@@ -243,17 +246,23 @@ bool dcd_edpt_open (uint8_t rhport, tusb_desc_endpoint_t const * desc_edpt)
   // Double buffering equation:
   // x_addr = 256 * (epnum - 1) + 128 * dir
   // y_addr = x_addr + 64
+  // Address is right-shifted by 3 to fit into 8 bits.
 
-  ep_regs_t ep_regs = EP_REGS(epnum, dir);
   uint8_t buf_base = (128 * (epnum - 1) + 64 * dir) >> 3;
 
   // IN and OUT EP registers have the same structure.
+  ep_regs_t ep_regs = EP_REGS(epnum, dir);
 
+  // FIXME: I was able to get into a situation where OUT EP 3 would stall
+  // while debugging, despite stall code never being called. It appears
+  // these registers don't get cleared on reset, being part of RAM.
+  // Investigate and see if I can duplicate.
   ep_regs[SIZXY] = desc_edpt->wMaxPacketSize.size;
   ep_regs[BCTX] |= NAK;
   ep_regs[BBAX] = buf_base;
-  ep_regs[CNF] &= ~TOGGLE; // ISO xfers not supported on MSP430, so no need
-                           // to gate DATA0/1 and frame behavior.
+  ep_regs[CNF] &= ~TOGGLE; // ISO xfers not supported on MSP430,
+                           // so no need to gate DATA0/1 and frame
+                           // behavior.
   ep_regs[CNF] |= (UBME | USBIIE);
 
   USBKEYPID = USBKEY;
@@ -298,6 +307,21 @@ bool dcd_edpt_xfer (uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t 
       // Interrupt only fires on completed xfer.
       USBCTL |= DIR;
       USBIEPIFG |= BIT0;
+    }
+  }
+  else
+  {
+    ep_regs_t ep_regs = EP_REGS(epnum, dir);
+
+    ep_regs[CNF] &= ~TOGGLE; // Bulk and int begin on DATA0.
+
+    if(dir == TUSB_DIR_OUT)
+    {
+      ep_regs[BCTX] &= ~NAK;
+    }
+    else
+    {
+      USBIEPIFG |= (1 << epnum);
     }
   }
 
@@ -437,6 +461,32 @@ void __attribute__ ((interrupt(USB_UBM_VECTOR))) USB_UBM_ISR(void)
     case USBVECINT_OUTPUT_ENDPOINT0:
       receive_packet(0);
       break;
+
+    case USBVECINT_INPUT_ENDPOINT1:
+    case USBVECINT_INPUT_ENDPOINT2:
+    case USBVECINT_INPUT_ENDPOINT3:
+    case USBVECINT_INPUT_ENDPOINT4:
+    case USBVECINT_INPUT_ENDPOINT5:
+    case USBVECINT_INPUT_ENDPOINT6:
+    case USBVECINT_INPUT_ENDPOINT7:
+    {
+      uint8_t ep = ((curr_vector - USBVECINT_INPUT_ENDPOINT1) >> 1) + 1;
+      transmit_packet(ep);
+    }
+    break;
+
+    case USBVECINT_OUTPUT_ENDPOINT1:
+    case USBVECINT_OUTPUT_ENDPOINT2:
+    case USBVECINT_OUTPUT_ENDPOINT3:
+    case USBVECINT_OUTPUT_ENDPOINT4:
+    case USBVECINT_OUTPUT_ENDPOINT5:
+    case USBVECINT_OUTPUT_ENDPOINT6:
+    case USBVECINT_OUTPUT_ENDPOINT7:
+    {
+      uint8_t ep = ((curr_vector - USBVECINT_OUTPUT_ENDPOINT1) >> 1) + 1;
+      receive_packet(ep);
+    }
+    break;
 
     default:
       while(true);
