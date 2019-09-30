@@ -50,7 +50,7 @@ tusb_desc_device_t const desc_device =
     .bDeviceSubClass    = MISC_SUBCLASS_COMMON,
     .bDeviceProtocol    = MISC_PROTOCOL_IAD,
 
-    .bMaxPacketSize0    = CFG_TUD_ENDOINT0_SIZE,
+    .bMaxPacketSize0    = CFG_TUD_ENDPOINT0_SIZE,
 
     .idVendor           = 0xCafe,
     .idProduct          = USB_PID,
