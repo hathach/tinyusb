@@ -7,8 +7,8 @@ CFLAGS += \
   -DCFG_TUSB_MEM_SECTION='__attribute__((section(".data")))' \
   -DCFG_TUSB_MEM_ALIGN='__attribute__((aligned(64)))' 
 
-# system_LPC51U68.c cause following errors
-CFLAGS += -Wno-error=nested-externs
+# mcu driver cause following warnings
+CFLAGS += -Wno-error=nested-externs -Wno-error=unused-parameter
 
 MCU_DIR = hw/mcu/nxp/lpc_driver/lpc51u6x/devices/LPC51U68
 

@@ -103,17 +103,17 @@
 
 #include "tusb_option.h"
 
-#define STM32F1_FSDEV   ( \
-    defined(STM32F102x6) || defined(STM32F102xB) || \
+#if defined(STM32F102x6) || defined(STM32F102xB) || \
     defined(STM32F103x6) || defined(STM32F103xB) || \
-    defined(STM32F103xE) || defined(STM32F103xG)   \
-)
+    defined(STM32F103xE) || defined(STM32F103xG)
+#define STM32F1_FSDEV
+#endif
 
 #if (TUSB_OPT_DEVICE_ENABLED) && ( \
-      (CFG_TUSB_MCU == OPT_MCU_STM32F0                  ) || \
-      (CFG_TUSB_MCU == OPT_MCU_STM32F1 && STM32F1_FSDEV ) || \
-      (CFG_TUSB_MCU == OPT_MCU_STM32F3                  ) || \
-      (CFG_TUSB_MCU == OPT_MCU_STM32L0                  ) \
+      (CFG_TUSB_MCU == OPT_MCU_STM32F0                          ) || \
+      (CFG_TUSB_MCU == OPT_MCU_STM32F1 && defined(STM32F1_FSDEV)) || \
+      (CFG_TUSB_MCU == OPT_MCU_STM32F3                          ) || \
+      (CFG_TUSB_MCU == OPT_MCU_STM32L0                          ) \
     )
 
 // In order to reduce the dependance on HAL, we undefine this.

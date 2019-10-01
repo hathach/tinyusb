@@ -27,19 +27,19 @@
 
 #include "tusb_option.h"
 
-#define STM32L4_SYNOPSYS    (                                                  \
-    defined (STM32L475xx) || defined (STM32L476xx) ||                          \
+#if defined (STM32L475xx) || defined (STM32L476xx) ||                          \
     defined (STM32L485xx) || defined (STM32L486xx) || defined (STM32L496xx) || \
     defined (STM32L4R5xx) || defined (STM32L4R7xx) || defined (STM32L4R9xx) || \
-    defined (STM32L4S5xx) || defined (STM32L4S7xx) || defined (STM32L4S9xx)    \
-)
+    defined (STM32L4S5xx) || defined (STM32L4S7xx) || defined (STM32L4S9xx)
+#define STM32L4_SYNOPSYS
+#endif
 
 #if TUSB_OPT_DEVICE_ENABLED && \
     ( CFG_TUSB_MCU == OPT_MCU_STM32F2 || \
       CFG_TUSB_MCU == OPT_MCU_STM32F4 || \
       CFG_TUSB_MCU == OPT_MCU_STM32F7 || \
       CFG_TUSB_MCU == OPT_MCU_STM32H7 || \
-      (CFG_TUSB_MCU == OPT_MCU_STM32L4 && STM32L4_SYNOPSYS) \
+      (CFG_TUSB_MCU == OPT_MCU_STM32L4 && defined(STM32L4_SYNOPSYS)) \
     )
 
 // TODO Support OTG_HS

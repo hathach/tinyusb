@@ -7,10 +7,10 @@ CFLAGS += \
   -DCPU_LPC55S69JBD100_cm33_core0 \
   -DCFG_TUSB_MCU=OPT_MCU_LPC55XX \
   -DCFG_TUSB_MEM_SECTION='__attribute__((section(".data")))' \
-  -DCFG_TUSB_MEM_ALIGN='__attribute__((aligned(64)))' 
+  -DCFG_TUSB_MEM_ALIGN='__attribute__((aligned(64)))'
 
-# system_LPC55S69_cm33_core0.c cause following errors
-CFLAGS += -Wno-error=float-equal -Wno-error=nested-externs
+# mcu driver cause following warnings
+CFLAGS += -Wno-error=unused-parameter -Wno-error=float-equal -Wno-error=nested-externs
 
 MCU_DIR = hw/mcu/nxp/lpc_driver/lpc55xx/devices/LPC55S69
 

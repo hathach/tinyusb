@@ -52,14 +52,14 @@ typedef struct {
     uint8_t self_powered          : 1; // configuration descriptor's attribute
   };
 
-  uint8_t ep_busy_map[2];  // bit mask for busy endpoint
-  uint8_t ep_stall_map[2]; // bit map for stalled endpoint
+  volatile uint8_t ep_busy_map[2];  // bit mask for busy endpoint
+  volatile uint8_t ep_stall_map[2]; // bit map for stalled endpoint
 
   uint8_t itf2drv[16];     // map interface number to driver (0xff is invalid)
   uint8_t ep2drv[8][2];    // map endpoint to driver ( 0xff is invalid )
 }usbd_device_t;
 
-static usbd_device_t _usbd_dev = { 0 };
+static usbd_device_t _usbd_dev;
 
 // Invalid driver ID in itf2drv[] ep2drv[][] mapping
 enum { DRVID_INVALID = 0xFFu };
