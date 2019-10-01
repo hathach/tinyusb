@@ -12,7 +12,10 @@ CFLAGS += \
 CFLAGS += -Wno-error=undef -Wno-error=unused-parameter
 
 # due to tusb_hal_nrf_power_event
+GCCVERSION = $(firstword $(subst ., ,$(shell arm-none-eabi-gcc -dumpversion)))
+ifeq ($(shell expr $(GCCVERSION) \>= 8), 1)
 CFLAGS += -Wno-error=cast-function-type
+endif
 
 # All source paths should be relative to the top level.
 LD_FILE = hw/bsp/feather_nrf52840_express/nrf52840_s140_v6.ld
