@@ -260,9 +260,9 @@ bool dcd_edpt_open (uint8_t rhport, tusb_desc_endpoint_t const * desc_edpt)
   ep_regs[SIZXY] = desc_edpt->wMaxPacketSize.size;
   ep_regs[BCTX] |= NAK;
   ep_regs[BBAX] = buf_base;
-  ep_regs[CNF] &= ~TOGGLE; // ISO xfers not supported on MSP430,
+  ep_regs[CNF] &= ~(TOGGLE | STALL); // ISO xfers not supported on MSP430,
                            // so no need to gate DATA0/1 and frame
-                           // behavior.
+                           // behavior. Clear stall bit- see above comment.
   ep_regs[CNF] |= (UBME | USBIIE);
 
   USBKEYPID = USBKEY;
@@ -312,8 +312,6 @@ bool dcd_edpt_xfer (uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t 
   else
   {
     ep_regs_t ep_regs = EP_REGS(epnum, dir);
-
-    ep_regs[CNF] &= ~TOGGLE; // Bulk and int begin on DATA0.
 
     if(dir == TUSB_DIR_OUT)
     {
