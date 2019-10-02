@@ -1,7 +1,8 @@
+#!/usr/bin/env python3
+
 import visa
 import time
 import sys
-
 
 
 def test_idn():
@@ -129,6 +130,18 @@ def test_multi_read():
 	assert (x + "\r\n" == y)
 	#inst.chunk_size = old_chunk_size
 	
+def test_stall_ep0():
+	usb_iface = inst.get_visa_attribute(visa.constants.VI_ATTR_USB_INTFC_NUM)
+	inst.read_stb()
+	# This is an invalid request, should create stall.
+	try:
+		retv = inst.control_in(request_type_bitmap_field=0xA1, request_id=60, request_value=0x0000, index=usb_iface, length=0x0001)
+		assert false
+	except visa.VisaIOError:
+		pass
+	
+	assert (inst.read_stb() == 0)
+
 
 rm = visa.ResourceManager("/c/Windows/system32/visa64.dll")
 reslist = rm.list_resources("USB?::?*::INSTR")
@@ -170,6 +183,9 @@ test_echo(165,170)
 
 print("+ Read timeout (no MAV)")
 test_read_timeout()
+
+print("+ Test EP0 stall recovery")
+test_stall_ep0()
 
 print("+ MAV")
 test_mav()
