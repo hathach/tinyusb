@@ -8,7 +8,7 @@ CFLAGS += \
 	-nostdlib -nostartfiles \
 	-DCFG_TUSB_MCU=OPT_MCU_STM32F2
 
-# Suppress following warnings/error is required due to STM32F2xx_HAL_Driver.
+# mcu driver cause following warnings
 CFLAGS += -Wno-error=sign-compare
 
 ST_HAL_DRIVER = hw/mcu/st/st_driver/STM32F2xx_HAL_Driver

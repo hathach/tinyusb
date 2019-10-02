@@ -9,6 +9,9 @@ CFLAGS += \
 	-DCFG_EXAMPLE_MSC_READONLY \
 	-DCFG_TUSB_MCU=OPT_MCU_STM32F0
 
+# mcu driver cause following warnings
+CFLAGS += -Wno-error=unused-parameter
+
 ST_HAL_DRIVER = hw/mcu/st/st_driver/STM32F0xx_HAL_Driver
 ST_CMSIS = hw/mcu/st/st_driver/CMSIS/Device/ST/STM32F0xx
 

@@ -52,7 +52,7 @@
   // 070RB:    2 x 16 bits/word memory     LPM Support, BCD Support
   // PMA dedicated to USB (no sharing with CAN)
 
-#elif STM32F1_FSDEV
+#elif defined(STM32F1_FSDEV)
   #include "stm32f1xx.h"
   #define PMA_LENGTH (512u)
   // NO internal Pull-ups

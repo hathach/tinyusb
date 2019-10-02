@@ -115,7 +115,7 @@ static void bus_reset(uint8_t rhport)
 
   //------------- Set up Control Endpoints (0 OUT, 1 IN) -------------//
 	p_dcd->qhd[0].zero_length_termination = p_dcd->qhd[1].zero_length_termination = 1;
-	p_dcd->qhd[0].max_package_size = p_dcd->qhd[1].max_package_size = CFG_TUD_ENDOINT0_SIZE;
+	p_dcd->qhd[0].max_package_size = p_dcd->qhd[1].max_package_size = CFG_TUD_ENDPOINT0_SIZE;
 	p_dcd->qhd[0].qtd_overlay.next = p_dcd->qhd[1].qtd_overlay.next = QTD_NEXT_INVALID;
 
 	p_dcd->qhd[0].int_on_setup = 1; // OUT only
