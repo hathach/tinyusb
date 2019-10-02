@@ -9,6 +9,9 @@ CFLAGS += \
 	-nostdlib -nostartfiles \
 	-DCFG_TUSB_MCU=OPT_MCU_STM32F3
 
+# mcu driver cause following warnings
+CFLAGS += -Wno-error=unused-parameter
+
 ST_HAL_DRIVER = hw/mcu/st/st_driver/STM32F3xx_HAL_Driver
 ST_CMSIS = hw/mcu/st/st_driver/CMSIS/Device/ST/STM32F3xx
 

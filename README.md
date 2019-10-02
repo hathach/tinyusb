@@ -21,6 +21,17 @@ TinyUSB is an open-source cross-platform USB Host/Device stack for embedded syst
 └── tools           # Files used internally
 ```
 
+## Supported MCUs
+
+The stack supports the following MCUs
+
+- **Nordic:** nRF52840
+- **NXP:** LPC11Uxx, LPC13xx, LPC175x_6x, LPC177x_8x, LPC18xx, LPC40xx, LPC43xx, LPC51Uxx
+- **MicroChip:** SAMD21, SAMD51 (device only)
+- **ST:** STM32 series: L0, F0, F2, F3, F4, F7, H7 (device only)
+
+[Here is the list of supported Boards](docs/boards.md) that can be used with provided examples.
+
 ## Device Stack
 
 Support multiple device configurations by dynamically changing usb descriptors. Low power functions such as suspend, resume and remote wakeup. Following device classes are supported:
@@ -42,22 +53,11 @@ Support multiple device configurations by dynamically changing usb descriptors. 
 
 ## OS Abtraction layer
 
-Currently the following OS are supported with tinyusb out of the box with a simple change of **CFG_TUSB_OS** macro.
+TinyUSB is completely thread-safe by pushing all ISR events into a central queue, then process it later in the non-ISR context. It also uses semphore/mutex to access shared resource such as CDC FIFO. Therefore the stack needs to use some of OS's basic APIs. Following OSes are already supported out of the box.
 
-- **No OS**
+- **No OS** : Disabling USB IRQ is used as way to provide mutex
 - **FreeRTOS**
 - **Mynewt** Due to the newt package build system, Mynewt examples are better to be on its [own repo](https://github.com/hathach/mynewt-tinyusb-example) 
-
-## Supported MCUs
-
-The stack supports the following MCUs
-
-- **Nordic:** nRF52840
-- **NXP:** LPC11Uxx, LPC13xx, LPC175x_6x, LPC177x_8x, LPC18xx, LPC40xx, LPC43xx, LPC51Uxx
-- **MicroChip:** SAMD21, SAMD51 (device only)
-- **ST:** STM32F0, STM32F2, STM32F3, STM32F4, STM32F7, STM32H7 (device only)
-
-[Here is the list of supported Boards](docs/boards.md)
 
 ## Compiler & IDE
 

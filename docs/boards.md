@@ -41,6 +41,9 @@ This code base already had supported for a handful of following boards
 
 ### ST STM32
 
+- Adafruit Feather STM32F405 
+- [Micro Python PyBoard v1.1](https://store.micropython.org/product/PYBv1.1)
+- [STM32 L035c8 Discovery](https://www.st.com/en/evaluation-tools/32l0538discovery.html)
 - [STM32 F070rb Nucleo](https://www.st.com/en/evaluation-tools/nucleo-f070rb.html)
 - [STM32 F072rb Discovery](https://www.st.com/en/evaluation-tools/32f072bdiscovery.html)
 - [STM32 F207zg Nucleo](https://www.st.com/en/evaluation-tools/nucleo-f207zg.html)

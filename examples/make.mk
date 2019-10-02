@@ -56,8 +56,10 @@ CFLAGS += \
 	-Wno-endif-labels \
 	-Wstrict-prototypes \
 	-Wall \
+	-Wextra \
 	-Werror \
 	-Werror-implicit-function-declaration \
+	-Wfatal-errors \
 	-Wfloat-equal \
 	-Wundef \
 	-Wshadow \

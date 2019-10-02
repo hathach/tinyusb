@@ -62,14 +62,19 @@ typedef struct {
 
   volatile uint8_t selected_config; // Which configuration has been opened?
 
-  uint8_t ep_busy_map[2];  // bit mask for busy endpoint
-  uint8_t ep_stall_map[2]; // bit map for stalled endpoint
-
   uint8_t itf2drv[16];     // map interface number to driver (0xff is invalid)
   uint8_t ep2drv[8][2];    // map endpoint to driver ( 0xff is invalid )
+
+  struct TU_ATTR_PACKED
+  {
+    volatile bool busy    : 1;
+    volatile bool stalled : 1;
+
+    // TODO merge ep2drv here, 4-bit should be sufficient
+  }ep_status[8][2];
 }usbd_device_t;
 
-static usbd_device_t _usbd_dev = { 0 };
+static usbd_device_t _usbd_dev;
 
 // Invalid driver ID in itf2drv[] ep2drv[][] mapping
 enum { DRVID_INVALID = 0xFFu };
@@ -152,6 +157,23 @@ static usbd_class_driver_t const usbd_class_drivers[] =
       .control_request  = tud_vendor_control_request_cb,
       .control_complete = tud_vendor_control_complete_cb,
       .xfer_cb          = vendord_xfer_cb,
+      .sof              = NULL
+  },
+  #endif
+
+  #if CFG_TUD_USBTMC
+  // Presently USBTMC is the only defined class with the APP_SPECIFIC class code.
+  // We maybe need to add subclass codes here, or a callback to ask if a driver can
+  // handle a particular interface.
+  {
+      .class_code       = TUD_USBTMC_APP_CLASS,
+    //.subclass_code    = TUD_USBTMC_APP_SUBCLASS
+      .init             = usbtmcd_init_cb,
+      .reset            = usbtmcd_reset_cb,
+      .open             = usbtmcd_open_cb,
+      .control_request  = usbtmcd_control_request_cb,
+      .control_complete = usbtmcd_control_complete_cb,
+      .xfer_cb          = usbtmcd_xfer_cb,
       .sof              = NULL
   },
   #endif
@@ -307,7 +329,7 @@ void tud_task (void)
           uint8_t const epnum   = tu_edpt_number(ep_addr);
           uint8_t const ep_dir  = tu_edpt_dir(ep_addr);
 
-          _usbd_dev.ep_busy_map[ep_dir] = (uint8_t) tu_bit_clear(_usbd_dev.ep_busy_map[ep_dir], epnum);
+          _usbd_dev.ep_status[epnum][ep_dir].busy = false;
 
           if ( 0 == epnum )
           {
@@ -547,22 +569,12 @@ static bool process_control_request(uint8_t rhport, tusb_control_request_t const
       uint8_t const drv_id = _usbd_dev.ep2drv[ep_num][ep_dir];
       TU_ASSERT(drv_id < USBD_CLASS_DRIVER_COUNT);
 
-      // Some classes such as TMC needs to clear/re-init its buffer when receiving CLEAR_FEATURE request
-      // We will forward all request targeted endpoint to its class driver
-      // - For non-standard request: driver can ACK or Stall the request by return true/false
-      // - For standard request: usbd decide the ACK stage regardless of driver return value
       bool ret = false;
 
       if ( TUSB_REQ_TYPE_STANDARD != p_request->bmRequestType_bit.type )
       {
         // complete callback is also capable of stalling/acking the request
         usbd_control_set_complete_callback(usbd_class_drivers[drv_id].control_complete);
-      }
-
-      // Invoke class driver first if available
-      if ( usbd_class_drivers[drv_id].control_request )
-      {
-        ret = usbd_class_drivers[drv_id].control_request(rhport, p_request);
       }
 
       // Then handle if it is standard request
@@ -600,7 +612,18 @@ static bool process_control_request(uint8_t rhport, tusb_control_request_t const
           default: TU_BREAKPOINT(); return false;
         }
       }
+      // Some classes such as TMC needs to clear/re-init its buffer when receiving CLEAR_FEATURE request
+      // We will forward all request targeted endpoint to its class driver
+      // For class-type requests:  must (call tud_control_status(); return true) or (return false)
+      // For std-type requests:    non-std request codes are already discarded.
+      //                           must not call tud_control_status(), and return value will have no effect
+      // class driver is invoked last, so that EP already has EP stall cleared (in event of clear feature EP halt)
 
+      if ( usbd_class_drivers[drv_id].control_request &&
+           usbd_class_drivers[drv_id].control_request(rhport, p_request))
+      {
+        ret = true;
+      }
       return ret;
     }
     break;
@@ -898,8 +921,7 @@ bool usbd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t 
   uint8_t const dir   = tu_edpt_dir(ep_addr);
 
   TU_VERIFY( dcd_edpt_xfer(rhport, ep_addr, buffer, total_bytes) );
-
-  _usbd_dev.ep_busy_map[dir] = (uint8_t) tu_bit_set(_usbd_dev.ep_busy_map[dir], epnum);
+  _usbd_dev.ep_status[epnum][dir].busy = true;
 
   return true;
 }
@@ -911,9 +933,8 @@ bool usbd_edpt_busy(uint8_t rhport, uint8_t ep_addr)
   uint8_t const epnum = tu_edpt_number(ep_addr);
   uint8_t const dir   = tu_edpt_dir(ep_addr);
 
-  return tu_bit_test(_usbd_dev.ep_busy_map[dir], epnum);
+  return _usbd_dev.ep_status[epnum][dir].busy;
 }
-
 
 void usbd_edpt_stall(uint8_t rhport, uint8_t ep_addr)
 {
@@ -921,7 +942,8 @@ void usbd_edpt_stall(uint8_t rhport, uint8_t ep_addr)
   uint8_t const dir   = tu_edpt_dir(ep_addr);
 
   dcd_edpt_stall(rhport, ep_addr);
-  _usbd_dev.ep_stall_map[dir] = (uint8_t) tu_bit_set(_usbd_dev.ep_stall_map[dir], epnum);
+  _usbd_dev.ep_status[epnum][dir].stalled = true;
+  _usbd_dev.ep_status[epnum][dir].busy = true;
 }
 
 void usbd_edpt_clear_stall(uint8_t rhport, uint8_t ep_addr)
@@ -930,7 +952,8 @@ void usbd_edpt_clear_stall(uint8_t rhport, uint8_t ep_addr)
   uint8_t const dir   = tu_edpt_dir(ep_addr);
 
   dcd_edpt_clear_stall(rhport, ep_addr);
-  _usbd_dev.ep_stall_map[dir] = (uint8_t) tu_bit_clear(_usbd_dev.ep_stall_map[dir], epnum);
+  _usbd_dev.ep_status[epnum][dir].stalled = false;
+  _usbd_dev.ep_status[epnum][dir].busy = false;
 }
 
 bool usbd_edpt_stalled(uint8_t rhport, uint8_t ep_addr)
@@ -940,7 +963,7 @@ bool usbd_edpt_stalled(uint8_t rhport, uint8_t ep_addr)
   uint8_t const epnum = tu_edpt_number(ep_addr);
   uint8_t const dir   = tu_edpt_dir(ep_addr);
 
-  return tu_bit_test(_usbd_dev.ep_stall_map[dir], epnum);
+  return _usbd_dev.ep_status[epnum][dir].stalled;
 }
 
 #endif

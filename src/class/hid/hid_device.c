@@ -46,12 +46,13 @@ typedef struct
   uint8_t boot_protocol; // Boot mouse or keyboard
   bool    boot_mode;     // default = false (Report)
   uint8_t idle_rate;     // up to application to handle idle rate
-  uint16_t reprot_desc_len;
+  uint16_t report_desc_len;
 
   CFG_TUSB_MEM_ALIGN uint8_t epin_buf[CFG_TUD_HID_BUFSIZE];
   CFG_TUSB_MEM_ALIGN uint8_t epout_buf[CFG_TUD_HID_BUFSIZE];
 
-}hidd_interface_t;
+  tusb_hid_descriptor_hid_t const * hid_descriptor;
+} hidd_interface_t;
 
 CFG_TUSB_MEM_SECTION static hidd_interface_t _hidd_itf[CFG_TUD_HID];
 
@@ -73,7 +74,7 @@ bool tud_hid_ready(void)
 {
   uint8_t itf = 0;
   uint8_t const ep_in = _hidd_itf[itf].ep_in;
-  return tud_ready() && (ep_in != 0) && !usbd_edpt_busy(TUD_OPT_RHPORT, ep_in);
+  return tud_ready() && (ep_in != 0) && usbd_edpt_ready(TUD_OPT_RHPORT, ep_in);
 }
 
 bool tud_hid_report(uint8_t report_id, void const* report, uint8_t len)
@@ -167,8 +168,8 @@ bool hidd_open(uint8_t rhport, tusb_desc_interface_t const * desc_itf, uint16_t 
 
   //------------- HID descriptor -------------//
   p_desc = tu_desc_next(p_desc);
-  tusb_hid_descriptor_hid_t const *desc_hid = (tusb_hid_descriptor_hid_t const *) p_desc;
-  TU_ASSERT(HID_DESC_TYPE_HID == desc_hid->bDescriptorType);
+  p_hid->hid_descriptor = (tusb_hid_descriptor_hid_t const *) p_desc;
+  TU_ASSERT(HID_DESC_TYPE_HID == p_hid->hid_descriptor->bDescriptorType);
 
   //------------- Endpoint Descriptor -------------//
   p_desc = tu_desc_next(p_desc);
@@ -178,7 +179,7 @@ bool hidd_open(uint8_t rhport, tusb_desc_interface_t const * desc_itf, uint16_t 
 
   p_hid->boot_mode = false; // default mode is REPORT
   p_hid->itf_num   = desc_itf->bInterfaceNumber;
-  memcpy(&p_hid->reprot_desc_len, &desc_hid->wReportLength, 2);
+  memcpy(&p_hid->report_desc_len, &(p_hid->hid_descriptor->wReportLength), 2);
 
   *p_len = sizeof(tusb_desc_interface_t) + sizeof(tusb_hid_descriptor_hid_t) + desc_itf->bNumEndpoints*sizeof(tusb_desc_endpoint_t);
 
@@ -192,7 +193,10 @@ bool hidd_open(uint8_t rhport, tusb_desc_interface_t const * desc_itf, uint16_t 
 // return false to stall control endpoint (e.g unsupported request)
 bool hidd_control_request(uint8_t rhport, tusb_control_request_t const * p_request)
 {
-  TU_VERIFY(p_request->bmRequestType_bit.recipient == TUSB_REQ_RCPT_INTERFACE);
+  if (p_request->bmRequestType_bit.recipient != TUSB_REQ_RCPT_INTERFACE)
+  {
+    return false;
+  }
   hidd_interface_t* p_hid = get_interface_by_itfnum( (uint8_t) p_request->wIndex );
   TU_ASSERT(p_hid);
 
@@ -203,10 +207,15 @@ bool hidd_control_request(uint8_t rhport, tusb_control_request_t const * p_reque
     uint8_t const desc_index = tu_u16_low (p_request->wValue);
     (void) desc_index;
 
-    if (p_request->bRequest == TUSB_REQ_GET_DESCRIPTOR && desc_type == HID_DESC_TYPE_REPORT)
+    if (p_request->bRequest == TUSB_REQ_GET_DESCRIPTOR && desc_type == HID_DESC_TYPE_HID)
+    {
+      TU_VERIFY(p_hid->hid_descriptor != NULL);
+      TU_VERIFY(tud_control_xfer(rhport, p_request, (void*) p_hid->hid_descriptor, p_hid->hid_descriptor->bLength));
+    }
+    else if (p_request->bRequest == TUSB_REQ_GET_DESCRIPTOR && desc_type == HID_DESC_TYPE_REPORT)
     {
       uint8_t const * desc_report = tud_hid_descriptor_report_cb();
-      tud_control_xfer(rhport, p_request, (void*) desc_report, p_hid->reprot_desc_len);
+      tud_control_xfer(rhport, p_request, (void*) desc_report, p_hid->report_desc_len);
     }
     else
     {
@@ -253,7 +262,7 @@ bool hidd_control_request(uint8_t rhport, tusb_control_request_t const * p_reque
 
       case HID_REQ_CONTROL_GET_PROTOCOL:
       {
-        uint8_t protocol = 1-p_hid->boot_mode;   // 0 is Boot, 1 is Report protocol
+        uint8_t protocol = (uint8_t)(1-p_hid->boot_mode);   // 0 is Boot, 1 is Report protocol
         tud_control_xfer(rhport, p_request, &protocol, 1);
       }
       break;

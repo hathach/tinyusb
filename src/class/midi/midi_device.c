@@ -86,16 +86,19 @@ bool tud_midi_n_mounted (uint8_t itf)
 //--------------------------------------------------------------------+
 uint32_t tud_midi_n_available(uint8_t itf, uint8_t jack_id)
 {
+  (void) jack_id;
   return tu_fifo_count(&_midid_itf[itf].rx_ff);
 }
 
 uint32_t tud_midi_n_read(uint8_t itf, uint8_t jack_id, void* buffer, uint32_t bufsize)
 {
+  (void) jack_id;
   return tu_fifo_read_n(&_midid_itf[itf].rx_ff, buffer, bufsize);
 }
 
 void tud_midi_n_read_flush (uint8_t itf, uint8_t jack_id)
 {
+  (void) jack_id;
   tu_fifo_clear(&_midid_itf[itf].rx_ff);
 }
 
@@ -128,6 +131,8 @@ void midi_rx_done_cb(midid_interface_t* midi, uint8_t const* buffer, uint32_t bu
 
 static bool maybe_transmit(midid_interface_t* midi, uint8_t itf_index)
 {
+  (void) itf_index;
+
   // skip if previous transfer not complete
   TU_VERIFY( !usbd_edpt_busy(TUD_OPT_RHPORT, midi->ep_in) );
 
@@ -309,11 +314,15 @@ bool midid_open(uint8_t rhport, tusb_desc_interface_t const * p_interface_desc, 
 
 bool midid_control_complete(uint8_t rhport, tusb_control_request_t const * p_request)
 {
-  return false;
+  (void) rhport;
+  (void) p_request;
+  return true;
 }
 
 bool midid_control_request(uint8_t rhport, tusb_control_request_t const * p_request)
 {
+  (void) rhport;
+
   //------------- Class Specific Request -------------//
   TU_VERIFY(p_request->bmRequestType_bit.type == TUSB_REQ_TYPE_CLASS);
 
@@ -322,6 +331,8 @@ bool midid_control_request(uint8_t rhport, tusb_control_request_t const * p_requ
 
 bool midid_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint32_t xferred_bytes)
 {
+  (void) result;
+
   // TODO Support multiple interfaces
   uint8_t const itf = 0;
   midid_interface_t* p_midi = &_midid_itf[itf];

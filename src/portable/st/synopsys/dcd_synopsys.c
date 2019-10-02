@@ -27,19 +27,19 @@
 
 #include "tusb_option.h"
 
-#define STM32L4_SYNOPSYS    (                                                  \
-    defined (STM32L475xx) || defined (STM32L476xx) ||                          \
+#if defined (STM32L475xx) || defined (STM32L476xx) ||                          \
     defined (STM32L485xx) || defined (STM32L486xx) || defined (STM32L496xx) || \
     defined (STM32L4R5xx) || defined (STM32L4R7xx) || defined (STM32L4R9xx) || \
-    defined (STM32L4S5xx) || defined (STM32L4S7xx) || defined (STM32L4S9xx)    \
-)
+    defined (STM32L4S5xx) || defined (STM32L4S7xx) || defined (STM32L4S9xx)
+#define STM32L4_SYNOPSYS
+#endif
 
 #if TUSB_OPT_DEVICE_ENABLED && \
     ( CFG_TUSB_MCU == OPT_MCU_STM32F2 || \
       CFG_TUSB_MCU == OPT_MCU_STM32F4 || \
       CFG_TUSB_MCU == OPT_MCU_STM32F7 || \
       CFG_TUSB_MCU == OPT_MCU_STM32H7 || \
-      (CFG_TUSB_MCU == OPT_MCU_STM32L4 && STM32L4_SYNOPSYS) \
+      (CFG_TUSB_MCU == OPT_MCU_STM32L4 && defined(STM32L4_SYNOPSYS)) \
     )
 
 // TODO Support OTG_HS
@@ -268,10 +268,10 @@ bool dcd_edpt_open (uint8_t rhport, tusb_desc_endpoint_t const * desc_edpt)
 
   uint8_t const epnum = tu_edpt_number(desc_edpt->bEndpointAddress);
   uint8_t const dir   = tu_edpt_dir(desc_edpt->bEndpointAddress);
-  
+
   TU_ASSERT(desc_edpt->wMaxPacketSize.size <= 64);
   TU_ASSERT(epnum < EP_MAX);
-  
+
   xfer_ctl_t * xfer = XFER_CTL_BASE(epnum, dir);
   xfer->max_size = desc_edpt->wMaxPacketSize.size;
 
@@ -305,18 +305,22 @@ bool dcd_edpt_open (uint8_t rhport, tusb_desc_endpoint_t const * desc_edpt)
     // Since OUT FIFO = GRXFSIZ, FIFO 0 = 16, for simplicity, we equally allocated for the rest of endpoints
     // - Size  : (FIFO_SIZE/4 - GRXFSIZ - 16) / (EP_MAX-1)
     // - Offset: GRXFSIZ + 16 + Size*(epnum-1)
+    // - IN EP 1 gets FIFO 1, IN EP "n" gets FIFO "n".
 
     in_ep[epnum].DIEPCTL |= (1 << USB_OTG_DIEPCTL_USBAEP_Pos) | \
-      (epnum - 1) << USB_OTG_DIEPCTL_TXFNUM_Pos | \
+      epnum << USB_OTG_DIEPCTL_TXFNUM_Pos | \
       desc_edpt->bmAttributes.xfer << USB_OTG_DIEPCTL_EPTYP_Pos | \
       (desc_edpt->bmAttributes.xfer != TUSB_XFER_ISOCHRONOUS ? USB_OTG_DOEPCTL_SD0PID_SEVNFRM : 0) | \
       desc_edpt->wMaxPacketSize.size << USB_OTG_DIEPCTL_MPSIZ_Pos;
     dev->DAINTMSK |= (1 << (USB_OTG_DAINTMSK_IEPM_Pos + epnum));
 
-    // Both TXFD and TXSA are in unit of 32-bit words
+    // Both TXFD and TXSA are in unit of 32-bit words.
+    // IN FIFO 0 was configured during enumeration, hence the "+ 16".
     uint16_t const allocated_size = (USB_OTG_FS->GRXFSIZ & 0x0000ffff) + 16;
     uint16_t const fifo_size = (EP_FIFO_SIZE/4 - allocated_size) / (EP_MAX-1);
     uint32_t const fifo_offset = allocated_size + fifo_size*(epnum-1);
+
+    // DIEPTXF starts at FIFO #1.
     USB_OTG_FS->DIEPTXF[epnum - 1] = (fifo_size << USB_OTG_DIEPTXF_INEPTXFD_Pos) | fifo_offset;
   }
 
