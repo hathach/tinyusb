@@ -394,7 +394,7 @@ static void receive_packet(uint8_t ep_num)
   }
   else
   {
-    xfer_size = ep_regs[BCTX] & 0x3F;
+    xfer_size = ep_regs[BCTX] & 0x7F;
   }
 
   uint16_t remaining = xfer->total_len - xfer->queued_len;
@@ -497,7 +497,7 @@ static void transmit_packet(uint8_t ep_num)
       ep_buf[i] = base[i];
     }
 
-    ep_regs[BCTX] = (ep_regs[BCTX] & 0xF0) + xfer_size;
+    ep_regs[BCTX] = (ep_regs[BCTX] & 0xF0) + (xfer_size & 0x7F);
     ep_regs[BCTX] &= ~NAK;
   }
 }
