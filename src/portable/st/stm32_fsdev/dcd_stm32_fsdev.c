@@ -418,7 +418,7 @@ static uint16_t dcd_ep_ctr_handler(void)
           uint8_t userMemBuf[8];
           /* Get SETUP Packet*/
           count = pcd_get_ep_rx_cnt(USB, EPindex);
-          if(count == 8) // Setup packet should always be 8 bits. If not, ignore it, and try again.
+          if(count == 8) // Setup packet should always be 8 bytes. If not, ignore it, and try again.
           {
             // Must reset EP to NAK (in case it had been stalling) (though, maybe too late here)
             pcd_set_ep_rx_status(USB,0u,USB_EP_RX_NAK);
