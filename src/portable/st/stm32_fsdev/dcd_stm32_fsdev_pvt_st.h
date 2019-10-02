@@ -57,7 +57,9 @@
   #define PMA_LENGTH (512u)
   // NO internal Pull-ups
   //         *B, and *C:    2 x 16 bits/word
-  #error The F102/F103 driver is expected not to work, but it might? Try it?
+
+  // F1 names this differently from the rest
+  #define USB_CNTR_LPMODE   USB_CNTR_LP_MODE
 
 #elif defined(STM32F302xB) || defined(STM32F302xC) || \
       defined(STM32F303xB) || defined(STM32F303xC) || \

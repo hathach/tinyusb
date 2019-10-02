@@ -259,6 +259,12 @@ void dcd_int_enable (uint8_t rhport)
   NVIC_EnableIRQ(USB_HP_CAN_TX_IRQn);
   NVIC_EnableIRQ(USB_LP_CAN_RX0_IRQn);
   NVIC_EnableIRQ(USBWakeUp_IRQn);
+#elif CFG_TUSB_MCU == OPT_MCU_STM32F1
+  NVIC_EnableIRQ(USB_HP_CAN1_TX_IRQn);
+  NVIC_EnableIRQ(USB_LP_CAN1_RX0_IRQn);
+  NVIC_EnableIRQ(USBWakeUp_IRQn);
+#else
+  #error Unknown arch in USB driver
 #endif
 }
 
@@ -273,9 +279,14 @@ void dcd_int_disable(uint8_t rhport)
   NVIC_DisableIRQ(USB_HP_CAN_TX_IRQn);
   NVIC_DisableIRQ(USB_LP_CAN_RX0_IRQn);
   NVIC_DisableIRQ(USBWakeUp_IRQn);
+#elif CFG_TUSB_MCU == OPT_MCU_STM32F1
+  NVIC_DisableIRQ(USB_HP_CAN1_TX_IRQn);
+  NVIC_DisableIRQ(USB_LP_CAN1_RX0_IRQn);
+  NVIC_DisableIRQ(USBWakeUp_IRQn);
 #else
   #error Unknown arch in USB driver
 #endif
+
   // I'm not convinced that memory synchronization is completely necessary, but
   // it isn't a bad idea.
   __DSB();
@@ -821,7 +832,7 @@ void USB_IRQHandler(void)
   dcd_fs_irqHandler();
 }
 
-#elif (CFG_TUSB_MCU) == (OPT_MCU_STM32F1)
+#elif CFG_TUSB_MCU == OPT_MCU_STM32F1
 void USB_HP_IRQHandler(void)
 {
   dcd_fs_irqHandler();
@@ -853,14 +864,16 @@ void USB_LP_CAN_RX0_IRQHandler(void)
 {
   dcd_fs_irqHandler();
 }
+
 // USB wakeup interrupt (Channel 42): Triggered by the wakeup event from the USB
 // Suspend mode.
 void USBWakeUp_IRQHandler(void)
 {
   dcd_fs_irqHandler();
 }
+
 #else
-#error Which IRQ handler do you need?
+  #error Which IRQ handler do you need?
 #endif
 
 #endif

@@ -46,6 +46,7 @@ This code base already had supported for a handful of following boards
 - [STM32 L035c8 Discovery](https://www.st.com/en/evaluation-tools/32l0538discovery.html)
 - [STM32 F070rb Nucleo](https://www.st.com/en/evaluation-tools/nucleo-f070rb.html)
 - [STM32 F072rb Discovery](https://www.st.com/en/evaluation-tools/32f072bdiscovery.html)
+- STM32 F103c Blue Pill
 - [STM32 F207zg Nucleo](https://www.st.com/en/evaluation-tools/nucleo-f207zg.html)
 - [STM32 F303vc Discovery](https://www.st.com/en/evaluation-tools/stm32f3discovery.html)
 - [STM32 F407vg Discovery](https://www.st.com/en/evaluation-tools/stm32f4discovery.html)
