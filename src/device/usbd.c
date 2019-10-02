@@ -52,14 +52,19 @@ typedef struct {
     uint8_t self_powered          : 1; // configuration descriptor's attribute
   };
 
-  uint8_t ep_busy_map[2];  // bit mask for busy endpoint
-  uint8_t ep_stall_map[2]; // bit map for stalled endpoint
-
   uint8_t itf2drv[16];     // map interface number to driver (0xff is invalid)
   uint8_t ep2drv[8][2];    // map endpoint to driver ( 0xff is invalid )
+
+  struct TU_ATTR_PACKED
+  {
+    volatile bool busy    : 1;
+    volatile bool stalled : 1;
+
+    // TODO merge ep2drv here, 4-bit should be sufficient
+  }ep_status[8][2];
 }usbd_device_t;
 
-static usbd_device_t _usbd_dev = { 0 };
+static usbd_device_t _usbd_dev;
 
 // Invalid driver ID in itf2drv[] ep2drv[][] mapping
 enum { DRVID_INVALID = 0xFFu };
@@ -310,7 +315,7 @@ void tud_task (void)
           uint8_t const epnum   = tu_edpt_number(ep_addr);
           uint8_t const ep_dir  = tu_edpt_dir(ep_addr);
 
-          _usbd_dev.ep_busy_map[ep_dir] = (uint8_t) tu_bit_clear(_usbd_dev.ep_busy_map[ep_dir], epnum);
+          _usbd_dev.ep_status[epnum][ep_dir].busy = false;
 
           if ( 0 == epnum )
           {
@@ -864,8 +869,7 @@ bool usbd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t 
   uint8_t const dir   = tu_edpt_dir(ep_addr);
 
   TU_VERIFY( dcd_edpt_xfer(rhport, ep_addr, buffer, total_bytes) );
-
-  _usbd_dev.ep_busy_map[dir] = (uint8_t) tu_bit_set(_usbd_dev.ep_busy_map[dir], epnum);
+  _usbd_dev.ep_status[epnum][dir].busy = true;
 
   return true;
 }
@@ -877,9 +881,8 @@ bool usbd_edpt_busy(uint8_t rhport, uint8_t ep_addr)
   uint8_t const epnum = tu_edpt_number(ep_addr);
   uint8_t const dir   = tu_edpt_dir(ep_addr);
 
-  return tu_bit_test(_usbd_dev.ep_busy_map[dir], epnum);
+  return _usbd_dev.ep_status[epnum][dir].busy;
 }
-
 
 void usbd_edpt_stall(uint8_t rhport, uint8_t ep_addr)
 {
@@ -887,8 +890,8 @@ void usbd_edpt_stall(uint8_t rhport, uint8_t ep_addr)
   uint8_t const dir   = tu_edpt_dir(ep_addr);
 
   dcd_edpt_stall(rhport, ep_addr);
-  _usbd_dev.ep_stall_map[dir] = (uint8_t) tu_bit_set(_usbd_dev.ep_stall_map[dir], epnum);
-  _usbd_dev.ep_busy_map[dir] = (uint8_t) tu_bit_set(_usbd_dev.ep_busy_map[dir], epnum);
+  _usbd_dev.ep_status[epnum][dir].stalled = true;
+  _usbd_dev.ep_status[epnum][dir].busy = true;
 }
 
 void usbd_edpt_clear_stall(uint8_t rhport, uint8_t ep_addr)
@@ -897,8 +900,8 @@ void usbd_edpt_clear_stall(uint8_t rhport, uint8_t ep_addr)
   uint8_t const dir   = tu_edpt_dir(ep_addr);
 
   dcd_edpt_clear_stall(rhport, ep_addr);
-  _usbd_dev.ep_busy_map[dir] = (uint8_t) tu_bit_clear(_usbd_dev.ep_busy_map[dir], epnum);
-  _usbd_dev.ep_stall_map[dir] = (uint8_t) tu_bit_clear(_usbd_dev.ep_stall_map[dir], epnum);
+  _usbd_dev.ep_status[epnum][dir].stalled = false;
+  _usbd_dev.ep_status[epnum][dir].busy = false;
 }
 
 bool usbd_edpt_stalled(uint8_t rhport, uint8_t ep_addr)
@@ -908,7 +911,7 @@ bool usbd_edpt_stalled(uint8_t rhport, uint8_t ep_addr)
   uint8_t const epnum = tu_edpt_number(ep_addr);
   uint8_t const dir   = tu_edpt_dir(ep_addr);
 
-  return tu_bit_test(_usbd_dev.ep_stall_map[dir], epnum);
+  return _usbd_dev.ep_status[epnum][dir].stalled;
 }
 
 #endif

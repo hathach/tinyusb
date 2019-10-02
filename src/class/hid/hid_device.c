@@ -74,7 +74,7 @@ bool tud_hid_ready(void)
 {
   uint8_t itf = 0;
   uint8_t const ep_in = _hidd_itf[itf].ep_in;
-  return tud_ready() && (ep_in != 0) && !usbd_edpt_busy(TUD_OPT_RHPORT, ep_in);
+  return tud_ready() && (ep_in != 0) && usbd_edpt_ready(TUD_OPT_RHPORT, ep_in);
 }
 
 bool tud_hid_report(uint8_t report_id, void const* report, uint8_t len)

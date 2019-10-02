@@ -9,6 +9,8 @@ CFLAGS += \
 	-DCFG_EXAMPLE_MSC_READONLY \
 	-DCFG_TUSB_MCU=OPT_MCU_STM32L0
 
+# mcu driver cause following warnings
+CFLAGS += -Wno-error=unused-parameter -Wno-error=maybe-uninitialized
 
 ST_HAL_DRIVER = hw/mcu/st/st_driver/STM32L0xx_HAL_Driver
 ST_CMSIS = hw/mcu/st/st_driver/CMSIS/Device/ST/STM32L0xx

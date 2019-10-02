@@ -145,6 +145,8 @@ typedef osal_queue_def_t* osal_queue_t;
 // lock queue by disable usb isr
 static inline void _osal_q_lock(osal_queue_t qhdl)
 {
+  (void) qhdl;
+
 #if TUSB_OPT_DEVICE_ENABLED
   if (qhdl->role == OPT_MODE_DEVICE) dcd_int_disable(TUD_OPT_RHPORT);
 #endif
@@ -157,6 +159,8 @@ static inline void _osal_q_lock(osal_queue_t qhdl)
 // unlock queue
 static inline void _osal_q_unlock(osal_queue_t qhdl)
 {
+  (void) qhdl;
+
 #if TUSB_OPT_DEVICE_ENABLED
   if (qhdl->role == OPT_MODE_DEVICE) dcd_int_enable(TUD_OPT_RHPORT);
 #endif

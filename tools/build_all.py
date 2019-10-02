@@ -46,13 +46,13 @@ for example in all_examples:
         build_result = build_example(example, board)
         build_duration = time.monotonic() - start_time
 
-        if build_result.returncode != 0:
+        if build_result.returncode == 0:
+            success = "\033[32msucceeded\033[0m"
+            success_count += 1
+        else:
             exit_status = build_result.returncode
             success = "\033[31mfailed\033[0m   "
             fail_count += 1
-        else:
-            success = "\033[32msucceeded\033[0m"
-            success_count += 1
 
         if travis:
             print('travis_fold:start:build-{}-{}\\r'.format(example, board))
