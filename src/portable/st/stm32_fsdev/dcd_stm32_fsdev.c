@@ -444,10 +444,6 @@ static uint16_t dcd_ep_ctr_handler(void)
           }
 
           /* Process Control Data OUT status Packet*/
-          /*if(EPindex == 0u && xfer->total_len == 0u)
-          {
-             pcd_clear_ep_kind(USB,0); // Good, so allow non-zero length packets now.
-          }*/
           dcd_event_xfer_complete(0, EPindex, xfer->total_len, XFER_RESULT_SUCCESS, true);
 
           pcd_set_ep_rx_cnt(USB, EPindex, CFG_TUD_ENDPOINT0_SIZE);
@@ -694,7 +690,6 @@ bool dcd_edpt_xfer (uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t 
     if (epnum == 0 && buffer == NULL)
     {
         xfer->buffer = (uint8_t*)_setup_packet;
-        //pcd_set_ep_kind(USB,0); // Expect a zero-byte INPUT
     }
     if(total_bytes > xfer->max_packet_size)
     {
