@@ -257,12 +257,16 @@ bool dcd_edpt_open (uint8_t rhport, tusb_desc_endpoint_t const * desc_edpt)
   // while debugging, despite stall code never being called. It appears
   // these registers don't get cleared on reset, being part of RAM.
   // Investigate and see if I can duplicate.
+  // Also, DBUF got set on OUT EP 2 while debugging. Only OUT EPs seem to be
+  // affected at this time. USB RAM directly precedes main RAM; perhaps I'm
+  // overwriting registers via buffer overflow w/ my debugging code?
   ep_regs[SIZXY] = desc_edpt->wMaxPacketSize.size;
   ep_regs[BCTX] |= NAK;
   ep_regs[BBAX] = buf_base;
-  ep_regs[CNF] &= ~(TOGGLE | STALL); // ISO xfers not supported on MSP430,
-                           // so no need to gate DATA0/1 and frame
-                           // behavior. Clear stall bit- see above comment.
+  ep_regs[CNF] &= ~(TOGGLE | STALL | DBUF); // ISO xfers not supported on
+                           // MSP430, so no need to gate DATA0/1 and frame
+                           // behavior. Clear stall and double buffer bit as
+                           // well- see above comment.
   ep_regs[CNF] |= (UBME | USBIIE);
 
   USBKEYPID = USBKEY;
