@@ -1,4 +1,4 @@
-/* 
+/*
  * The MIT License (MIT)
  *
  * Copyright (c) 2019 Ha Thach (tinyusb.org)
@@ -94,7 +94,7 @@ bool tud_control_xfer(uint8_t rhport, tusb_control_request_t const * request, vo
   _control_state.total_len = tu_min16(len, request->wLength);
   _control_state.total_transferred = 0;
 
-  if ( len )
+  if ( _control_state.total_len )
   {
     TU_ASSERT(buffer);
 
