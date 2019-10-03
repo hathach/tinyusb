@@ -96,7 +96,8 @@ void board_init(void)
     nrfx_power_init(&pwr_cfg);
 
     // Register tusb function as USB power handler
-    const nrfx_power_usbevt_config_t config = { .handler = (nrfx_power_usb_event_handler_t) tusb_hal_nrf_power_event };
+    // cause cast-function-type warning
+    const nrfx_power_usbevt_config_t config = { .handler = ((nrfx_power_usb_event_handler_t) tusb_hal_nrf_power_event) };
     nrfx_power_usbevt_init(&config);
 
     nrfx_power_usbevt_enable();

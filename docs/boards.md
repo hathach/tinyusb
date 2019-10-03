@@ -9,6 +9,14 @@ The board support code is only used for self-contained examples and testing. It 
 
 This code base already had supported for a handful of following boards
 
+### MicroChip SAMD
+
+- [Adafruit Circuit Playground Express](https://www.adafruit.com/product/3333)
+- [Adafruit Feather M0 Express](https://www.adafruit.com/product/3403)
+- [Adafruit Metro M0 Express](https://www.adafruit.com/product/3505)
+- [Adafruit Feather M4 Express](https://www.adafruit.com/product/3857)
+- [Adafruit Metro M4 Express](https://www.adafruit.com/product/3382)
+
 ### Nordic nRF5x
 
 - [Adafruit Feather nRF52840 Express](https://www.adafruit.com/product/4062)
@@ -31,24 +39,21 @@ This code base already had supported for a handful of following boards
 - [LPCXpresso 54114](https://www.nxp.com/design/microcontrollers-developer-resources/lpcxpresso-boards/lpcxpresso54114-board:OM13089)
 - [LPCXpresso 55s69 EVK](https://www.nxp.com/products/processors-and-microcontrollers/arm-microcontrollers/general-purpose-mcus/lpc5500-cortex-m33/lpcxpresso55s69-development-board:LPC55S69-EVK)
 
-### MicroChip SAMD
-
-- [Adafruit Circuit Playground Express](https://www.adafruit.com/product/3333)
-- [Adafruit Feather M0 Express](https://www.adafruit.com/product/3403)
-- [Adafruit Metro M0 Express](https://www.adafruit.com/product/3505)
-- [Adafruit Feather M4 Express](https://www.adafruit.com/product/3857)
-- [Adafruit Metro M4 Express](https://www.adafruit.com/product/3382)
-
 ### ST STM32
 
-- [STM32F070rb Nucleo](https://www.st.com/en/evaluation-tools/nucleo-f070rb.html)
-- [STM32F072rb Discovery](https://www.st.com/en/evaluation-tools/32f072bdiscovery.html)
-- [STM32F303vc Discovery](https://www.st.com/en/evaluation-tools/stm32f3discovery.html)
-- [STM32F407vg Discovery](https://www.st.com/en/evaluation-tools/stm32f4discovery.html)
-- [STM32F411ve Discovery](https://www.st.com/en/evaluation-tools/32f411ediscovery.html)
-- [STM32F412zg Discovery](https://www.st.com/en/evaluation-tools/32f412gdiscovery.html)
-- [Nucleo STM32F767zi](https://www.st.com/en/evaluation-tools/nucleo-f767zi.html)
-- [Nucleo H743zi](https://www.st.com/en/evaluation-tools/nucleo-h743zi.html)
+- Adafruit Feather STM32F405 
+- [Micro Python PyBoard v1.1](https://store.micropython.org/product/PYBv1.1)
+- [STM32 L035c8 Discovery](https://www.st.com/en/evaluation-tools/32l0538discovery.html)
+- [STM32 F070rb Nucleo](https://www.st.com/en/evaluation-tools/nucleo-f070rb.html)
+- [STM32 F072rb Discovery](https://www.st.com/en/evaluation-tools/32f072bdiscovery.html)
+- STM32 F103c Blue Pill
+- [STM32 F207zg Nucleo](https://www.st.com/en/evaluation-tools/nucleo-f207zg.html)
+- [STM32 F303vc Discovery](https://www.st.com/en/evaluation-tools/stm32f3discovery.html)
+- [STM32 F407vg Discovery](https://www.st.com/en/evaluation-tools/stm32f4discovery.html)
+- [STM32 F411ve Discovery](https://www.st.com/en/evaluation-tools/32f411ediscovery.html)
+- [STM32 F412zg Discovery](https://www.st.com/en/evaluation-tools/32f412gdiscovery.html)
+- [STM32 F767zi Nucleo](https://www.st.com/en/evaluation-tools/nucleo-f767zi.html)
+- [STM32 H743zi Nucleo](https://www.st.com/en/evaluation-tools/nucleo-h743zi.html)
 
 ## Add your own board
 

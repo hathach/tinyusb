@@ -9,6 +9,9 @@ CFLAGS += \
   -DCFG_TUSB_MEM_SECTION='__attribute__((section(".data")))' \
   -DCFG_TUSB_MEM_ALIGN='__attribute__((aligned(64)))' 
 
+# mcu driver cause following warnings
+CFLAGS += -Wno-error=unused-parameter
+
 MCU_DIR = hw/mcu/nxp/lpc_driver/lpc54xxx/devices/LPC54114
 
 # All source paths should be relative to the top level.

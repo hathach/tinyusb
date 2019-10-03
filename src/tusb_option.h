@@ -35,6 +35,8 @@
 /** \defgroup group_mcu Supported MCU
  * \ref CFG_TUSB_MCU must be defined to one of these
  *  @{ */
+
+// LPC
 #define OPT_MCU_LPC11UXX        1 ///< NXP LPC11Uxx
 #define OPT_MCU_LPC13XX         3 ///< NXP LPC13xx
 #define OPT_MCU_LPC175X_6X      4 ///< NXP LPC175x, LPC176x
@@ -46,12 +48,14 @@
 #define OPT_MCU_LPC54XXX       10 ///< NXP LPC54xxx
 #define OPT_MCU_LPC55XX        11 ///< NXP LPC55xx
 
+// NRF
 #define OPT_MCU_NRF5X         100 ///< Nordic nRF5x series
 
+// SAM
 #define OPT_MCU_SAMD21        200 ///< MicroChip SAMD21
 #define OPT_MCU_SAMD51        201 ///< MicroChip SAMD51
 
-// ST Synopsis OTG devices
+// STM32
 #define OPT_MCU_STM32F0       300 ///< ST STM32F0
 #define OPT_MCU_STM32F1       301 ///< ST STM32F1
 #define OPT_MCU_STM32F2       302 ///< ST STM32F2
@@ -59,6 +63,9 @@
 #define OPT_MCU_STM32F4       304 ///< ST STM32F4
 #define OPT_MCU_STM32F7       305 ///< ST STM32F7
 #define OPT_MCU_STM32H7       306 ///< ST STM32H7
+#define OPT_MCU_STM32L0       307 ///< ST STM32L0
+#define OPT_MCU_STM32L1       308 ///< ST STM32L1
+#define OPT_MCU_STM32L4       309 ///< ST STM32L4
 
 #define OPT_MCU_MSP430x5xx    400 ///< TI MSP430x5xx
 
@@ -175,6 +182,10 @@
 
 #ifndef CFG_TUD_VENDOR
   #define CFG_TUD_VENDOR          0
+#endif
+
+#ifndef CFG_TUD_USBTMC
+  #define CFG_TUD_USBTMC          0
 #endif
 
 

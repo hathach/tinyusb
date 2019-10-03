@@ -9,11 +9,14 @@ CFLAGS += \
   -nostdlib -nostartfiles \
   -DCFG_TUSB_MCU=OPT_MCU_STM32H7
 
+# mcu driver cause following warnings
+CFLAGS += -Wno-error=maybe-uninitialized
+
 ST_HAL_DRIVER = hw/mcu/st/st_driver/STM32H7xx_HAL_Driver
 ST_CMSIS = hw/mcu/st/st_driver/CMSIS/Device/ST/STM32H7xx
 
 # All source paths should be relative to the top level.
-LD_FILE = hw/bsp/stm32h743nucleo/STM32H743ZITx_FLASH.ld
+LD_FILE = hw/bsp/$(BOARD)/STM32H743ZITx_FLASH.ld
 
 SRC_C += \
 	$(ST_CMSIS)/Source/Templates/system_stm32h7xx.c \

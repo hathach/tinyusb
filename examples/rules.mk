@@ -15,6 +15,7 @@ SRC_C += \
 	src/class/cdc/cdc_device.c \
 	src/class/hid/hid_device.c \
 	src/class/midi/midi_device.c \
+	src/class/usbtmc/usbtmc_device.c \
 	src/class/vendor/vendor_device.c \
 	src/portable/$(VENDOR)/$(CHIP_FAMILY)/dcd_$(CHIP_FAMILY).c
 
