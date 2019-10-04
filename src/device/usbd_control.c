@@ -116,7 +116,6 @@ bool tud_control_xfer(uint8_t rhport, tusb_control_request_t const * request, vo
   return true;
 }
 
-volatile int dummy = 0;
 
 // callback when a transaction complete on DATA stage of control endpoint
 bool usbd_control_xfer_cb (uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint32_t xferred_bytes)
@@ -133,13 +132,7 @@ bool usbd_control_xfer_cb (uint8_t rhport, uint8_t ep_addr, xfer_result_t result
   _control_state.total_transferred += xferred_bytes;
   _control_state.buffer = ((uint8_t*)_control_state.buffer) + xferred_bytes;
 
-  if((_control_state.total_transferred >= 144))
-  {
-    dummy = 1;
-  }
-
   if ( (_control_state.requested_len == _control_state.total_transferred) || xferred_bytes < CFG_TUD_ENDPOINT0_SIZE )
-
   {
     // DATA stage is complete
     bool is_ok = true;
