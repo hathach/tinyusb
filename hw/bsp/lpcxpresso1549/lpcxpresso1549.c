@@ -40,23 +40,20 @@ const uint32_t RTCOscRateIn = 32768;
 
 /* Pin muxing table, only items that need changing from their default pin
    state are in this table. */
-static const PINMUX_GRP_T pinmuxing[] = 
+static const PINMUX_GRP_T pinmuxing[] =
 {
-  {1,  11,  (IOCON_MODE_PULLDOWN | IOCON_DIGMODE_EN)},	/* PIO0_3 used for USB_VBUS */
+  {1,  11,  (IOCON_MODE_PULLDOWN | IOCON_DIGMODE_EN)},	/* PIO1_11-ISP_1 (VBUS) */
 };
 
 // Invoked by startup code
 void SystemInit(void)
 {
   Chip_Clock_EnablePeriphClock(SYSCTL_CLOCK_IOCON);
-	Chip_Clock_EnablePeriphClock(SYSCTL_CLOCK_SWM);
-	Chip_SYSCTL_PeriphReset(RESET_IOCON);
+  Chip_Clock_EnablePeriphClock(SYSCTL_CLOCK_SWM);
+  Chip_SYSCTL_PeriphReset(RESET_IOCON);
 
-	// Pin Mux
+  // Pin Mux
   Chip_IOCON_SetPinMuxing(LPC_IOCON, pinmuxing, sizeof(pinmuxing) / sizeof(PINMUX_GRP_T));
-
-  // SWM USB
-  Chip_SWM_MovablePortPinAssign(SWM_USB_VBUS_I, 1, 11);
 
   Chip_SetupXtalClocking();
 }
@@ -82,6 +79,7 @@ void board_init(void)
   Chip_GPIO_SetPinDIRInput(LPC_GPIO, BUTTON_PORT, BUTTON_PIN);
 
   // USB: Setup PLL clock, and power
+  Chip_SWM_MovablePortPinAssign(SWM_USB_VBUS_I, 1, 11);
   Chip_USB_Init();
 }
 

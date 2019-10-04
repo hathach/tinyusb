@@ -58,8 +58,6 @@ static const PINMUX_GRP_T pinmuxing[] =
   {0, 19, (IOCON_FUNC1 | IOCON_MODE_INACT | IOCON_DIGMODE_EN)}, // UART0 TX
 };
 
-
-#if 1
 /* Setup system clocking */
 static void SystemSetupClocking(void)
 {
@@ -114,13 +112,11 @@ static void SystemSetupClocking(void)
 	/* Wait for PLL to lock */
 	while (!Chip_Clock_IsUSBPLLLocked()) {}
 }
-#endif
 
 // Invoked by startup code
 void SystemInit(void)
 {
   SystemSetupClocking();
-//  Chip_SystemInit();
   Chip_Clock_EnablePeriphClock(SYSCTL_CLOCK_RAM1);
 
   /* Enable IOCON clock */

@@ -39,7 +39,7 @@
 // LPC
 #define OPT_MCU_LPC11UXX        1 ///< NXP LPC11Uxx
 #define OPT_MCU_LPC13XX         2 ///< NXP LPC13xx
-#define OPT_MCU_LPC15xx         3 ///< NXP LPC15xx
+#define OPT_MCU_LPC15XX         3 ///< NXP LPC15xx
 #define OPT_MCU_LPC175X_6X      4 ///< NXP LPC175x, LPC176x
 #define OPT_MCU_LPC177X_8X      5 ///< NXP LPC177x, LPC178x
 #define OPT_MCU_LPC18XX         6 ///< NXP LPC18xx

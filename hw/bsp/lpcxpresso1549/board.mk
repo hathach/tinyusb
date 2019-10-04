@@ -5,13 +5,11 @@ CFLAGS += \
   -nostdlib \
   -DCORE_M3 \
   -D__USE_LPCOPEN \
+  -DCFG_EXAMPLE_MSC_READONLY \
   -DCFG_TUSB_MCU=OPT_MCU_LPC15XX \
   -DCFG_TUSB_MEM_ALIGN='__attribute__((aligned(64)))' 
 
-#  -DCFG_TUSB_MEM_SECTION='__attribute__((section(".data.$$RAM3")))' \
-#  -DCFG_EXAMPLE_MSC_READONLY \
-
-# startup.c and lpc_types.h cause following errors
+# mcu driver cause following warnings
 CFLAGS += -Wno-error=strict-prototypes -Wno-error=unused-parameter -Wno-error=unused-variable
 
 MCU_DIR = hw/mcu/nxp/lpc_driver/lpc15xx/lpc_chip_15xx
