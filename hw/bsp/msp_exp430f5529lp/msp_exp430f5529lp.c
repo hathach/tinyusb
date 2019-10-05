@@ -115,15 +115,29 @@ static void SystemClock_Config(void)
   USBKEYPID = 0;
 }
 
+uint32_t wait = 0;
+
 void board_init(void)
 {
   __bis_SR_register(GIE); // Enable interrupts.
   SystemClock_Config();
 
+  // Enable basic I/O.
   P1DIR |= LED_PIN; // LED output.
   P1REN |= BUTTON_PIN; // Internal resistor enable.
   P1OUT |= BUTTON_PIN; // Pullup.
 
+  // Enable the backchannel UART (115200)
+  P4DIR |= BIT5;
+  P4SEL |= (BIT5 | BIT4);
+
+  UCA1CTL1 |= (UCSSEL__SMCLK | UCSWRST); // Hold in reset, use SMCLK.
+  UCA1BRW = 4;
+  UCA1MCTL |= (UCBRF_3 | UCBRS_5 | UCOS16); // Overampling mode, 115200 baud.
+                                            // Copied from manual.
+  UCA1CTL1 &= ~UCSWRST;
+
+  // Set up USB pins.
   USBKEYPID = USBKEY;
   USBPHYCTL |= PUSEL; // Convert USB D+/D- pins to USB functionality.
   USBKEYPID = 0;
@@ -148,6 +162,32 @@ void board_led_write(bool state)
 uint32_t board_button_read(void)
 {
   return (P1IN & BIT1);
+}
+
+int board_uart_read(uint8_t * buf, int len)
+{
+  for(int i = 0; i < len; i++)
+  {
+    // Wait until something to receive (cleared by reading buffer).
+    while(!(UCA1IFG & UCRXIFG));
+    buf[i] = UCA1RXBUF;
+  }
+
+  return 0;
+}
+
+int board_uart_write(void const * buf, int len)
+{
+  const char * char_buf = (const char *) buf;
+
+  for(int i = 0; i < len; i++)
+  {
+    // Wait until TX buffer is empty (cleared by writing buffer).
+    while(!(UCA1IFG & UCTXIFG));
+    UCA1TXBUF = char_buf[i];
+  }
+
+  return 0;
 }
 
 #if CFG_TUSB_OS  == OPT_OS_NONE
