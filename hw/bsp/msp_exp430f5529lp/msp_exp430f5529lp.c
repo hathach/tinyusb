@@ -200,6 +200,15 @@ void __attribute__ ((interrupt(TIMER0_A0_VECTOR))) TIMER0_A0_ISR (void)
 
 uint32_t board_millis(void)
 {
-  return system_ticks;
+  uint32_t systick_mirror;
+
+  // 32-bit update is not atomic on MSP430. We can read the bottom 16-bits,
+  // an interrupt occurs, updates _all_ 32 bits, and then we return a
+  // garbage value. And I've seen it happen!
+  TA0CCTL0 &= ~CCIE;
+  systick_mirror = system_ticks;
+  TA0CCTL0 |= CCIE;
+
+  return systick_mirror;
 }
 #endif
