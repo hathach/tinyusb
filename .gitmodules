@@ -13,3 +13,6 @@
 [submodule "hw/mcu/st/st_driver"]
 	path = hw/mcu/st/st_driver
 	url = https://github.com/hathach/st_driver.git
+[submodule "hw/mcu/ti"]
+	path = hw/mcu/ti
+	url = https://github.com/hathach/ti_driver.git
