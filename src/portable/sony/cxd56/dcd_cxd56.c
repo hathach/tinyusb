@@ -163,12 +163,16 @@ void dcd_init(uint8_t rhport)
 void dcd_int_enable(uint8_t rhport)
 {
   (void) rhport;
+
+  __asm volatile ("cpsie i" : : : "memory");
 }
 
 // Disable device interrupt
 void dcd_int_disable(uint8_t rhport)
 {
   (void) rhport;
+
+  __asm volatile ("cpsid i" : : : "memory");
 }
 
 // Receive Set Address request, mcu port must also include status IN response
