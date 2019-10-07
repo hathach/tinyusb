@@ -141,12 +141,16 @@ static void dcd_suspend(FAR struct usbdevclass_driver_s *driver, FAR struct usbd
 {
   (void) driver;
   (void) dev;
+
+  dcd_event_bus_signal(0, DCD_EVENT_SUSPEND, true);
 }
 
 static void dcd_resume(FAR struct usbdevclass_driver_s *driver, FAR struct usbdev_s *dev)
 {
   (void) driver;
   (void) dev;
+
+  dcd_event_bus_signal(0, DCD_EVENT_RESUME, true);
 }
 
 void dcd_init(uint8_t rhport)
