@@ -30,6 +30,7 @@
 
 #include <errno.h>
 #include <nuttx/usb/usbdev.h>
+#include <nuttx/arch.h>
 
 #include "device/dcd.h"
 
@@ -168,7 +169,7 @@ void dcd_int_enable(uint8_t rhport)
 {
   (void) rhport;
 
-  __asm volatile ("cpsie i" : : : "memory");
+  up_enable_irq(CXD56_IRQ_USB_INT);
 }
 
 // Disable device interrupt
@@ -176,7 +177,7 @@ void dcd_int_disable(uint8_t rhport)
 {
   (void) rhport;
 
-  __asm volatile ("cpsid i" : : : "memory");
+  up_disable_irq(CXD56_IRQ_USB_INT);
 }
 
 // Receive Set Address request, mcu port must also include status IN response
