@@ -80,5 +80,9 @@ CFLAGS += \
 ifeq ($(DEBUG), 1)
   CFLAGS += -O0 -ggdb -DCFG_TUSB_DEBUG=1
 else
+ifneq ($(BOARD), spresense)
   CFLAGS += -flto -Os
+else
+  CFLAGS += -Os
+endif
 endif

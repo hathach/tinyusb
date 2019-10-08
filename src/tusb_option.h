@@ -67,6 +67,8 @@
 #define OPT_MCU_STM32L1       308 ///< ST STM32L1
 #define OPT_MCU_STM32L4       309 ///< ST STM32L4
 
+#define OPT_MCU_CXD56         400 ///< SONY CXD56
+
 /** @} */
 
 /** \defgroup group_supported_os Supported RTOS
