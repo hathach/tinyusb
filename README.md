@@ -28,6 +28,7 @@ The stack supports the following MCUs
 - **Nordic:** nRF52840
 - **NXP:** LPC Series: 11Uxx, 13xx, 175x_6x, 177x_8x, 18xx, 40xx, 43xx, 51Uxx
 - **MicroChip:** SAMD21, SAMD51 (device only)
+- **Sony:** CXD56
 - **ST:** STM32 series: L0, F0, F1, F2, F3, F4, F7, H7 (device only)
 
 [Here is the list of supported Boards](docs/boards.md) that can be used with provided examples.

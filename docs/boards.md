@@ -39,6 +39,10 @@ This code base already had supported for a handful of following boards
 - [LPCXpresso 54114](https://www.nxp.com/design/microcontrollers-developer-resources/lpcxpresso-boards/lpcxpresso54114-board:OM13089)
 - [LPCXpresso 55s69 EVK](https://www.nxp.com/products/processors-and-microcontrollers/arm-microcontrollers/general-purpose-mcus/lpc5500-cortex-m33/lpcxpresso55s69-development-board:LPC55S69-EVK)
 
+### Sony
+
+- [Sony Spresense CXD5602](https://developer.sony.com/develop/spresense)
+
 ### ST STM32
 
 - Adafruit Feather STM32F405 
