@@ -90,9 +90,9 @@ static void bus_reset(void)
   USBOEPIE |= BIT0;
   USBIEPIE |= BIT0;
 
-  // Set NAK until a setup packet is received.
-  USBOEPCNT_0 |= NAK;
-  USBIEPCNT_0 |= NAK;
+  // Clear NAK until a setup packet is received.
+  USBOEPCNT_0 &= ~NAK;
+  USBIEPCNT_0 &= ~NAK;
 
   USBCTL |= FEN; // Enable responding to packets.
 
@@ -515,6 +515,11 @@ static void handle_setup_packet(void)
     _setup_packet[i] = setup_buf[i];
   }
 
+  // The NAK bits must be clear to receive a SETUP packet. Clearing SETUPIFG
+  // by reading USBVECINT does not set NAK, so now that we have a SETUP packet
+  // force NAKs.
+  USBIEPCNT_0 |= NAK;
+  USBOEPCNT_0 |= NAK;
   dcd_event_setup_received(0, (uint8_t*) &_setup_packet[0], true);
 }
 
