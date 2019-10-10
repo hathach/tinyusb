@@ -44,6 +44,21 @@ static inline void osal_task_delay(uint32_t msec)
 }
 
 //--------------------------------------------------------------------+
+// Interrupt API
+//--------------------------------------------------------------------+
+static inline void osal_enter_interrupt(void)
+{
+  //
+}
+
+static inline void osal_leave_interrupt(void)
+{
+  //
+}
+
+
+
+//--------------------------------------------------------------------+
 // Binary Semaphore API
 //--------------------------------------------------------------------+
 typedef struct

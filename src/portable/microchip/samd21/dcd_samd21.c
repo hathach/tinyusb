@@ -30,12 +30,21 @@
 
 #include "device/dcd.h"
 #include "sam.h"
+#include "osal/osal.h"
 
 /*------------------------------------------------------------------*/
 /* MACRO TYPEDEF CONSTANT ENUM
  *------------------------------------------------------------------*/
 static TU_ATTR_ALIGNED(4) UsbDeviceDescBank sram_registers[8][2];
 static TU_ATTR_ALIGNED(4) uint8_t _setup_packet[8];
+
+
+//---------------------
+// Forward declarations
+//---------------------
+void maybe_transfer_complete(void);
+void USB_IRQHandler(void);
+//=====================
 
 // Setup the control endpoint 0.
 static void bus_reset(void)
@@ -291,11 +300,13 @@ void maybe_transfer_complete(void) {
   }
 }
 
-void USB_Handler(void)
+void USB_IRQHandler(void) // Renamed
 {
-  uint32_t int_status = USB->DEVICE.INTFLAG.reg & USB->DEVICE.INTENSET.reg;
+  uint32_t int_status;
+  osal_enter_interrupt();
+  int_status = USB->DEVICE.INTFLAG.reg & USB->DEVICE.INTENSET.reg;
   USB->DEVICE.INTFLAG.reg = int_status; // clear interrupt
-
+  //printf("USB_IRQ %x\r\n", int_status);
   /*------------- Interrupt Processing -------------*/
   if ( int_status & USB_DEVICE_INTFLAG_SOF )
   {
@@ -338,6 +349,7 @@ void USB_Handler(void)
 
   // Handle complete transfer
   maybe_transfer_complete();
+  osal_leave_interrupt();
 }
 
 #endif

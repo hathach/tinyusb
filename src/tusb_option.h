@@ -78,6 +78,7 @@
 #define OPT_OS_NONE       1 ///< No RTOS
 #define OPT_OS_FREERTOS   2 ///< FreeRTOS
 #define OPT_OS_MYNEWT     3 ///< Mynewt OS
+#define OPT_OS_EMBOS      4 ///< Segger embOS
 /** @} */
 
 

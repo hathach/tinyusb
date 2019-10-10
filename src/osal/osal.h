@@ -1,4 +1,4 @@
-/* 
+/*
  * The MIT License (MIT)
  *
  * Copyright (c) 2019 Ha Thach (tinyusb.org)
@@ -53,6 +53,8 @@ typedef void (*osal_task_func_t)( void * );
   #include "osal_freertos.h"
 #elif CFG_TUSB_OS == OPT_OS_MYNEWT
   #include "osal_mynewt.h"
+#elif CFG_TUSB_OS == OPT_OS_EMBOS
+  #include "osal_embos.h"
 #else
   #error OS is not supported yet
 #endif
@@ -61,6 +63,10 @@ typedef void (*osal_task_func_t)( void * );
 // OSAL Porting API
 //--------------------------------------------------------------------+
 static inline void osal_task_delay(uint32_t msec);
+
+//------------- Interrupt -------------//
+static inline void osal_enter_interrupt(void);
+static inline void osal_leave_interrupt(void);
 
 //------------- Semaphore -------------//
 static inline osal_semaphore_t osal_semaphore_create(osal_semaphore_def_t* semdef);
