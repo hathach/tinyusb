@@ -16,3 +16,6 @@
 [submodule "hw/mcu/sony/cxd56/spresense-exported-sdk"]
 	path = hw/mcu/sony/cxd56/spresense-exported-sdk
 	url = https://github.com/sonydevworld/spresense-exported-sdk.git
+[submodule "hw/mcu/ti"]
+	path = hw/mcu/ti
+	url = https://github.com/hathach/ti_driver.git

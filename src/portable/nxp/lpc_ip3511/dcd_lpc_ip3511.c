@@ -28,9 +28,11 @@
 
 /* Since 2012 starting with LPC11uxx, NXP start to use common USB Device Controller with code name LPC IP3511
  * for almost their new MCUs. Currently supported and tested families are
- * - LPC11Uxx
- * - LPC13xx
- * - LPC51Uxx
+ * - LPC11U68, LPC11U37
+ * - LPC1347
+ * - LPC51U68
+ * - LPC54114
+ * - LPC55s69
  *
  * For similar controller of other families, this file may require some minimal changes to work with.
  * Previous MCUs such as LPC17xx, LPC40xx, LPC18xx, LPC43xx have their own driver implementation.
@@ -38,20 +40,23 @@
 
 #if TUSB_OPT_DEVICE_ENABLED && ( CFG_TUSB_MCU == OPT_MCU_LPC11UXX || \
                                  CFG_TUSB_MCU == OPT_MCU_LPC13XX  || \
+                                 CFG_TUSB_MCU == OPT_MCU_LPC15XX  || \
                                  CFG_TUSB_MCU == OPT_MCU_LPC51UXX || \
                                  CFG_TUSB_MCU == OPT_MCU_LPC54XXX || \
                                  CFG_TUSB_MCU == OPT_MCU_LPC55XX)
 
-#if CFG_TUSB_MCU == OPT_MCU_LPC11UXX || CFG_TUSB_MCU == OPT_MCU_LPC13XX
-  // LPC11Uxx and LPC13xx use lpcopen
+#if CFG_TUSB_MCU == OPT_MCU_LPC11UXX || CFG_TUSB_MCU == OPT_MCU_LPC13XX || CFG_TUSB_MCU == OPT_MCU_LPC15XX
+  // LPC 11Uxx, 13xx, 15xx use lpcopen
   #include "chip.h"
   #define DCD_REGS        LPC_USB
   #define DCD_IRQHandler  USB_IRQHandler
+
 #elif CFG_TUSB_MCU == OPT_MCU_LPC51UXX || CFG_TUSB_MCU == OPT_MCU_LPC54XXX || \
       CFG_TUSB_MCU == OPT_MCU_LPC55XX // TODO 55xx has dual usb controllers
   #include "fsl_device_registers.h"
   #define DCD_REGS        USB0
   #define DCD_IRQHandler  USB0_IRQHandler
+
 #endif
 
 #include "device/dcd.h"
@@ -61,6 +66,9 @@
 //--------------------------------------------------------------------+
 
 // Number of endpoints
+// - 11 13 15 51 54 has 5x2 endpoints
+// - 18/43 usb0 & 55s usb1 (HS) has 6x2 endpoints
+// - 18/43 usb1 & 55s usb0 (FS) has 4x2 endpoints
 #define EP_COUNT 10
 
 // only SRAM1 & USB RAM can be used for transfer.
@@ -166,7 +174,7 @@ void dcd_init(uint8_t rhport)
   DCD_REGS->INTSTAT      = DCD_REGS->INTSTAT; // clear all pending interrupt
   DCD_REGS->INTEN        = INT_DEVICE_STATUS_MASK;
   DCD_REGS->DEVCMDSTAT  |= CMDSTAT_DEVICE_ENABLE_MASK | CMDSTAT_DEVICE_CONNECT_MASK |
-                          CMDSTAT_RESET_CHANGE_MASK | CMDSTAT_CONNECT_CHANGE_MASK | CMDSTAT_SUSPEND_CHANGE_MASK;
+                           CMDSTAT_RESET_CHANGE_MASK | CMDSTAT_CONNECT_CHANGE_MASK | CMDSTAT_SUSPEND_CHANGE_MASK;
 
   NVIC_ClearPendingIRQ(USB0_IRQn);
 }
@@ -270,7 +278,7 @@ bool dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t* buffer, uint16_t to
 
   prepare_ep_xfer(ep_id, get_buf_offset(buffer), total_bytes);
 
-	return true;
+  return true;
 }
 
 //--------------------------------------------------------------------+
@@ -329,7 +337,7 @@ static void process_xfer_isr(uint32_t int_status)
 
 void DCD_IRQHandler(void)
 {
-  uint32_t const dev_cmd_stat = DCD_REGS->DEVCMDSTAT;
+  uint32_t const cmd_stat = DCD_REGS->DEVCMDSTAT;
 
   uint32_t int_status = DCD_REGS->INTSTAT & DCD_REGS->INTEN;
   DCD_REGS->INTSTAT = int_status; // Acknowledge handled interrupt
@@ -340,16 +348,16 @@ void DCD_IRQHandler(void)
   if ( int_status & INT_DEVICE_STATUS_MASK )
   {
     DCD_REGS->DEVCMDSTAT |= CMDSTAT_RESET_CHANGE_MASK | CMDSTAT_CONNECT_CHANGE_MASK | CMDSTAT_SUSPEND_CHANGE_MASK;
-    if ( dev_cmd_stat & CMDSTAT_RESET_CHANGE_MASK) // bus reset
+    if ( cmd_stat & CMDSTAT_RESET_CHANGE_MASK) // bus reset
     {
       bus_reset();
       dcd_event_bus_signal(0, DCD_EVENT_BUS_RESET, true);
     }
 
-    if (dev_cmd_stat & CMDSTAT_CONNECT_CHANGE_MASK)
+    if (cmd_stat & CMDSTAT_CONNECT_CHANGE_MASK)
     {
       // device disconnect
-      if (dev_cmd_stat & CMDSTAT_DEVICE_ADDR_MASK)
+      if (cmd_stat & CMDSTAT_DEVICE_ADDR_MASK)
       {
         // debouncing as this can be set when device is powering
         dcd_event_bus_signal(0, DCD_EVENT_UNPLUGGED, true);
@@ -357,12 +365,12 @@ void DCD_IRQHandler(void)
     }
 
     // TODO support suspend & resume
-    if (dev_cmd_stat & CMDSTAT_SUSPEND_CHANGE_MASK)
+    if (cmd_stat & CMDSTAT_SUSPEND_CHANGE_MASK)
     {
-      if (dev_cmd_stat & CMDSTAT_DEVICE_SUSPEND_MASK)
+      if (cmd_stat & CMDSTAT_DEVICE_SUSPEND_MASK)
       { // suspend signal, bus idle for more than 3ms
         // Note: Host may delay more than 3 ms before and/or after bus reset before doing enumeration.
-        if (dev_cmd_stat & CMDSTAT_DEVICE_ADDR_MASK)
+        if (cmd_stat & CMDSTAT_DEVICE_ADDR_MASK)
         {
           dcd_event_bus_signal(0, DCD_EVENT_SUSPEND, true);
         }
@@ -376,7 +384,7 @@ void DCD_IRQHandler(void)
   }
 
   // Setup Receive
-  if ( tu_bit_test(int_status, 0) && (dev_cmd_stat & CMDSTAT_SETUP_RECEIVED_MASK) )
+  if ( tu_bit_test(int_status, 0) && (cmd_stat & CMDSTAT_SETUP_RECEIVED_MASK) )
   {
     // Follow UM flowchart to clear Active & Stall on both Control IN/OUT endpoints
     _dcd.ep[0][0].active = _dcd.ep[1][0].active = 0;
