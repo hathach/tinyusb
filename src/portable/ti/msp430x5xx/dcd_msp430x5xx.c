@@ -501,7 +501,7 @@ static void transmit_packet(uint8_t ep_num)
       ep_buf[i] = base[i];
     }
 
-    ep_regs[BCTX] = (ep_regs[BCTX] & 0xF0) + (xfer_size & 0x7F);
+    ep_regs[BCTX] = (ep_regs[BCTX] & 0x80) + (xfer_size & 0x7F);
     ep_regs[BCTX] &= ~NAK;
   }
 }
