@@ -134,7 +134,7 @@ void board_init(void)
 
   UART_CFG_Type UARTConfigStruct;
   UART_ConfigStructInit(&UARTConfigStruct);
-  UARTConfigStruct.Baud_rate   = CFG_UART_BAUDRATE;
+  UARTConfigStruct.Baud_rate   = CFG_BOARD_UART_BAUDRATE;
   UARTConfigStruct.Clock_Speed = 0;
 
   UART_Init(BOARD_UART_PORT, &UARTConfigStruct);

@@ -46,6 +46,7 @@ BUILD = _build/build-$(BOARD)
 include $(TOP)/hw/bsp/$(BOARD)/board.mk
 
 # Include all source C in board folder
+SRC_C += hw/bsp/board.c
 SRC_C += $(subst $(TOP)/,,$(wildcard $(TOP)/hw/bsp/$(BOARD)/*.c))
 
 # Compiler Flags

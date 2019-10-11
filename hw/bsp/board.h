@@ -42,7 +42,7 @@
 
 #include "tusb.h"
 
-#define CFG_UART_BAUDRATE    115200
+#define CFG_BOARD_UART_BAUDRATE    115200
 
 //--------------------------------------------------------------------+
 // Board Porting API
