@@ -27,6 +27,7 @@ SECTIONS
 		*(.rodata .rodata.* .gnu.linkonce.r.*)
 		*(.rodata1)
 		*(.srodata)
+		. = ALIGN(4);
 		_erodata = .;
 	} > rom
 
@@ -38,12 +39,12 @@ SECTIONS
 		*(.data1)
 		_gp = ALIGN(16);
 		*(.sdata .sdata.* .gnu.linkonce.s.* .sdata2 .sdata2.*)
-		_edata = ALIGN(16); /* Make sure _edata is >= _gp. */
+		. = ALIGN(16);
+		_edata = .; /* Make sure _edata is >= _gp. */
 	} > sram
 
 	.bss :
 	{
-		. = ALIGN(4);
 		_fbss = .;
 		*(.dynsbss)
 		*(.sbss .sbss.* .gnu.linkonce.sb.*)
