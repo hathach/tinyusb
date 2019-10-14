@@ -116,9 +116,11 @@ int board_uart_read(uint8_t* buf, int len)
 
 int board_uart_write(void const * buf, int len)
 {
-  (void) buf;
-  (void) len;
-  return 0;
+  int32_t offset = 0;
+  for (offset = 0; offset < len; offset++)
+    if (! (messible_status_read() & CSR_MESSIBLE_STATUS_FULL_OFFSET))
+      messible_in_write(((uint8_t *)buf)[offset]);
+  return len;
 }
 
 #if CFG_TUSB_OS == OPT_OS_NONE
