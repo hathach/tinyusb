@@ -63,6 +63,7 @@ static void finish_tx(void) {
       return;
   }
 
+  // If the system isn't idle, then something is very wrong.
   uint8_t in_status = usb_in_status_read();
   if (!(in_status & (1 << CSR_USB_IN_STATUS_IDLE_OFFSET)))
     fomu_error(__LINE__);
@@ -92,8 +93,6 @@ static void process_rx(bool in_isr) {
       return;
 
     uint8_t rx_ep = (out_status >> CSR_USB_OUT_STATUS_EPNO_OFFSET) & 0xf;
-    if ((rx_ep != 0) && (rx_ep != 2) && (rx_ep != 3))
-      fomu_error(__LINE__);
 
     // If the destination buffer doesn't exist, don't drain the hardware
     // fifo.  Note that this can cause deadlocks if the host is waiting
@@ -116,9 +115,6 @@ static void process_rx(bool in_isr) {
     rx_buffer_offset[rx_ep] += (total_read - 2);
     if (rx_buffer_offset[rx_ep] > rx_buffer_max[rx_ep])
       rx_buffer_offset[rx_ep] = rx_buffer_max[rx_ep];
-
-    if ((rx_ep == 3) && (rx_buffer[rx_ep][0] == 0x80) && (rx_buffer[rx_ep][1] == 0x25))
-      fomu_error(__LINE__);
 
     if (rx_buffer_max[rx_ep] == rx_buffer_offset[rx_ep]) {
       rx_buffer[rx_ep] = NULL;
@@ -273,6 +269,7 @@ bool dcd_edpt_xfer (uint8_t rhport, uint8_t ep_addr, uint8_t* buffer, uint16_t t
   (void)rhport;
   uint8_t ep_num = tu_edpt_number(ep_addr);
   uint8_t ep_dir = tu_edpt_dir(ep_addr);
+  TU_ASSERT(tx_ep < 16);
 
   // These sorts of transfers are handled in hardware automatically, so simply inform
   // the core that the transfer was processed.
@@ -296,7 +293,9 @@ bool dcd_edpt_xfer (uint8_t rhport, uint8_t ep_addr, uint8_t* buffer, uint16_t t
 
     // Wait for the tx pipe to free up
     uint8_t previous_reset_count = reset_count;
-    while ((tx_buffer != NULL) || !(usb_in_status_read() & (1 << CSR_USB_IN_STATUS_IDLE_OFFSET)))
+    while (!((tx_buffer == NULL)
+          && (usb_in_status_read() & (1 << CSR_USB_IN_STATUS_IDLE_OFFSET))
+          && !(usb_in_status_read() & (1 << CSR_USB_IN_STATUS_HAVE_OFFSET))))
       ;
     // If a reset happens while we're waiting, abort the transfer
     if (previous_reset_count != reset_count)
@@ -315,7 +314,6 @@ bool dcd_edpt_xfer (uint8_t rhport, uint8_t ep_addr, uint8_t* buffer, uint16_t t
   }
   else if (ep_dir == TUSB_DIR_OUT) {
     TU_ASSERT(rx_buffer[ep_num] == NULL);
-    TU_ASSERT((ep_num == 0) || (ep_num == 2) || (ep_num == 3));
 
     rx_buffer_offset[ep_num] = 0;
     rx_buffer_max[ep_num] = total_bytes;
@@ -324,7 +322,8 @@ bool dcd_edpt_xfer (uint8_t rhport, uint8_t ep_addr, uint8_t* buffer, uint16_t t
     // If there's data in the buffer already, we'll try draining it
     // into the current fifo immediately.
     usb_out_ev_enable_write(0);
-    process_rx(false);
+    if (usb_out_status_read() & (1 << CSR_USB_OUT_STATUS_HAVE_OFFSET))
+      process_rx(false);
     usb_out_ev_enable_write(1);
   }
   return true;
