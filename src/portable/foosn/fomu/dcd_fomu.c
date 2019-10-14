@@ -43,31 +43,34 @@ void mputln(const char *str);
 
 #define EP_SIZE 64
 
-static uint16_t volatile rx_buffer_length[16];
-static uint8_t volatile * rx_buffer[16];
-static uint16_t volatile rx_buffer_max[16];
+uint16_t volatile rx_buffer_offset[16];
+uint8_t volatile * rx_buffer[16];
+uint16_t volatile rx_buffer_max[16];
 
-static volatile bool tx_in_progress;
-static volatile uint8_t tx_ep;
-static volatile uint16_t tx_len;
-static uint8_t volatile * tx_buffer;
-static volatile uint16_t tx_offset;
+volatile uint8_t tx_ep;
+volatile uint16_t tx_len;
+uint8_t volatile * tx_buffer;
+volatile uint16_t tx_offset;
+volatile uint8_t reset_count;
 
 //--------------------------------------------------------------------+
 // PIPE HELPER
 //--------------------------------------------------------------------+
 
 static void finish_tx(void) {
-  // Don't send empty data
-  if (!tx_in_progress) {
+  // Ignore "ACK" packets where there was no data to send.
+  if (!tx_buffer) {
       return;
   }
 
+  uint8_t in_status = usb_in_status_read();
+  if (!(in_status & (1 << CSR_USB_IN_STATUS_IDLE_OFFSET)))
+    fomu_error(__LINE__);
+
   tx_offset += EP_SIZE;
   if (tx_offset >= tx_len) {
-    tx_in_progress = 0;
+    dcd_event_xfer_complete(0, tu_edpt_addr(tx_ep, TUSB_DIR_IN), tx_len, XFER_RESULT_SUCCESS, true);
     tx_buffer = NULL;
-    dcd_event_xfer_complete(0, tx_ep, tx_len, XFER_RESULT_SUCCESS, true);
     return;
   }
 
@@ -78,41 +81,49 @@ static void finish_tx(void) {
   }
 
   // Updating the epno queues the data
-  usb_in_ctrl_write(tu_edpt_number(tx_ep) & 0xf);
+  usb_in_ctrl_write(tx_ep & 0xf);
   return;
 }
 
 static void process_rx(bool in_isr) {
-    // If there isn't any data in the FIFO, don't do anything.
-    if (!(usb_out_status_read() & (1 << CSR_USB_OUT_STATUS_HAVE_OFFSET)))
+    // If the OUT handler is still waiting to send, don't do anything.
+    uint8_t out_status = usb_out_status_read();
+    if (!(out_status & (1 << CSR_USB_OUT_STATUS_IDLE_OFFSET)))
       return;
 
-    uint8_t out_ep = (usb_out_status_read() >> CSR_USB_OUT_STATUS_EPNO_OFFSET) & 0xf;
+    uint8_t rx_ep = (out_status >> CSR_USB_OUT_STATUS_EPNO_OFFSET) & 0xf;
+    if ((rx_ep != 0) && (rx_ep != 2) && (rx_ep != 3))
+      fomu_error(__LINE__);
 
     // If the destination buffer doesn't exist, don't drain the hardware
     // fifo.  Note that this can cause deadlocks if the host is waiting
     // on some other endpoint's data!
-    if (rx_buffer[out_ep] == NULL)
+    if (rx_buffer[rx_ep] == NULL)
       return;
 
     uint32_t total_read = 0;
-    uint32_t current_offset = rx_buffer_length[out_ep];
+    uint32_t current_offset = rx_buffer_offset[rx_ep];
+    if (current_offset > rx_buffer_max[rx_ep])
+      fomu_error(__LINE__);
     while (usb_out_status_read() & (1 << CSR_USB_OUT_STATUS_HAVE_OFFSET)) {
       uint8_t c = usb_out_data_read();
       total_read++;
-      if (rx_buffer_length[out_ep] < rx_buffer_max[out_ep])
-        rx_buffer[out_ep][current_offset++] = c;
+      if ((rx_buffer_offset[rx_ep] + current_offset) < rx_buffer_max[rx_ep])
+        rx_buffer[rx_ep][current_offset++] = c;
     }
 
     // Strip off the CRC16
-    rx_buffer_length[out_ep] += (total_read - 2);
-    if (rx_buffer_length[out_ep] > rx_buffer_max[out_ep])
-      rx_buffer_length[out_ep] = rx_buffer_max[out_ep];
+    rx_buffer_offset[rx_ep] += (total_read - 2);
+    if (rx_buffer_offset[rx_ep] > rx_buffer_max[rx_ep])
+      rx_buffer_offset[rx_ep] = rx_buffer_max[rx_ep];
 
-    if (rx_buffer_max[out_ep] == rx_buffer_length[out_ep]) {
-      rx_buffer[out_ep] = NULL;
-      uint16_t len = rx_buffer_length[out_ep];
-      dcd_event_xfer_complete(0, tu_edpt_addr(out_ep, TUSB_DIR_OUT), len, XFER_RESULT_SUCCESS, in_isr);
+    if ((rx_ep == 3) && (rx_buffer[rx_ep][0] == 0x80) && (rx_buffer[rx_ep][1] == 0x25))
+      fomu_error(__LINE__);
+
+    if (rx_buffer_max[rx_ep] == rx_buffer_offset[rx_ep]) {
+      rx_buffer[rx_ep] = NULL;
+      uint16_t len = rx_buffer_offset[rx_ep];
+      dcd_event_xfer_complete(0, tu_edpt_addr(rx_ep, TUSB_DIR_OUT), len, XFER_RESULT_SUCCESS, in_isr);
     }
 
     // Acknowledge having received the data, and re-enable data reception
@@ -125,6 +136,11 @@ static void process_rx(bool in_isr) {
 
 static void dcd_reset(void)
 {
+  reset_count++;
+  usb_setup_ev_enable_write(0);
+  usb_in_ev_enable_write(0);
+  usb_out_ev_enable_write(0);
+
   usb_address_write(0);
 
   // Reset all three FIFO handlers
@@ -132,14 +148,24 @@ static void dcd_reset(void)
   usb_in_ctrl_write(1 << CSR_USB_IN_CTRL_RESET_OFFSET);
   usb_out_ctrl_write(1 << CSR_USB_OUT_CTRL_RESET_OFFSET);
 
-  // Accept incoming data by default.
-  usb_out_ctrl_write(CSR_USB_OUT_CTRL_ENABLE_OFFSET);
-
-  memset(rx_buffer, 0, sizeof(rx_buffer));
-  tx_in_progress = 0;
+  memset((void *)rx_buffer, 0, sizeof(rx_buffer));
+  memset((void *)rx_buffer_max, 0, sizeof(rx_buffer_max));
+  memset((void *)rx_buffer_offset, 0, sizeof(rx_buffer_offset));
   tx_len = 0;
   tx_buffer = NULL;
   tx_offset = 0;
+  tx_ep = 0;
+
+  // Accept incoming data by default.
+  usb_out_ctrl_write(1 << CSR_USB_OUT_CTRL_ENABLE_OFFSET);
+
+  // Enable all event handlers and clear their contents
+  usb_setup_ev_pending_write(usb_setup_ev_pending_read());
+  usb_in_ev_pending_write(usb_in_ev_pending_read());
+  usb_out_ev_pending_write(usb_out_ev_pending_read());
+  usb_in_ev_enable_write(1);
+  usb_out_ev_enable_write(1);
+  usb_setup_ev_enable_write(3);
 
   dcd_event_bus_signal(0, DCD_EVENT_BUS_RESET, true);
 }
@@ -150,10 +176,6 @@ void dcd_init(uint8_t rhport)
   (void) rhport;
 
   usb_pullup_out_write(0);
-
-  usb_setup_ev_enable_write(0);
-  usb_in_ev_enable_write(0);
-  usb_out_ev_enable_write(0);
 
   // Enable all event handlers and clear their contents
   usb_setup_ev_pending_write(usb_setup_ev_pending_read());
@@ -190,7 +212,7 @@ void dcd_set_address(uint8_t rhport, uint8_t dev_addr)
   usb_address_write(dev_addr);
 
   // ACK the transfer (sets the address)
-  usb_setup_ctrl_write(2);
+  usb_setup_ctrl_write(1 << CSR_USB_SETUP_CTRL_HANDLED_OFFSET);
 }
 
 // Called when the device received SET_CONFIG request, you can leave this
@@ -213,9 +235,17 @@ void dcd_remote_wakeup(uint8_t rhport)
 bool dcd_edpt_open(uint8_t rhport, tusb_desc_endpoint_t const * p_endpoint_desc)
 {
   (void) rhport;
+  uint8_t ep_num = tu_edpt_number(p_endpoint_desc->bEndpointAddress);
+  uint8_t ep_dir = tu_edpt_dir(p_endpoint_desc->bEndpointAddress);
 
   if (p_endpoint_desc->bmAttributes.xfer == TUSB_XFER_ISOCHRONOUS)
     return false; // Not supported
+
+  if (ep_dir == TUSB_DIR_OUT) {
+    rx_buffer_offset[ep_num] = 0;
+    rx_buffer_max[ep_num] = 0;
+    rx_buffer[ep_num] = NULL;
+  }
 
   return true;
 }
@@ -238,55 +268,64 @@ void dcd_edpt_clear_stall(uint8_t rhport, uint8_t ep_addr)
   // IN endpoints will get unstalled when more data is written.
 }
 
-__attribute__((used))
-uint8_t *last_tx_buffer;
-__attribute__((used))
-uint16_t last_tx_bytes;
-
 bool dcd_edpt_xfer (uint8_t rhport, uint8_t ep_addr, uint8_t* buffer, uint16_t total_bytes)
 {
   (void)rhport;
+  uint8_t ep_num = tu_edpt_number(ep_addr);
+  uint8_t ep_dir = tu_edpt_dir(ep_addr);
 
-  // These sorts of transfers are handled in hardware
-  if ((tu_edpt_number(ep_addr) == 0) && (total_bytes == 0) && (buffer == NULL)) {
+  // These sorts of transfers are handled in hardware automatically, so simply inform
+  // the core that the transfer was processed.
+  if ((ep_num == 0) && (total_bytes == 0) && (buffer == NULL)) {
     dcd_event_xfer_complete(0, ep_addr, total_bytes, XFER_RESULT_SUCCESS, false);
 
     // An IN packet is sent to acknowledge an OUT token.  Re-enable OUT after this.
-    if (tu_edpt_dir(ep_addr) == TUSB_DIR_IN)
-      usb_out_ctrl_write(1 << CSR_USB_OUT_CTRL_ENABLE_OFFSET);
+    // if (ep_dir == TUSB_DIR_IN) {
+    //   usb_out_ev_enable_write(0);
+    //   process_rx(false);
+    //   usb_out_ev_enable_write(1);
+    // }
     return true;
   }
 
-  if (tu_edpt_dir(ep_addr) == TUSB_DIR_IN) {
+  TU_ASSERT(((uint32_t)buffer) >= 0x10000000);
+  TU_ASSERT(((uint32_t)buffer) <= 0x10020000);
+
+  if (ep_dir == TUSB_DIR_IN) {
     uint32_t offset;
 
     // Wait for the tx pipe to free up
-    while (tx_in_progress)
+    uint8_t previous_reset_count = reset_count;
+    while ((tx_buffer != NULL) || !(usb_in_status_read() & (1 << CSR_USB_IN_STATUS_IDLE_OFFSET)))
       ;
-    tx_in_progress = 1;
-    tx_ep = ep_addr;
+    // If a reset happens while we're waiting, abort the transfer
+    if (previous_reset_count != reset_count)
+      return true;
+
+    tx_ep = ep_num;
     tx_len = total_bytes;
-    tx_buffer = buffer;
     tx_offset = 0;
+    tx_buffer = buffer;
 
     for (offset = 0; (offset < EP_SIZE) && (offset < total_bytes); offset++) {
-        usb_in_data_write(buffer[offset]);
+      usb_in_data_write(buffer[offset]);
     }
     // Updating the epno queues the data
-    usb_in_ctrl_write(tu_edpt_number(ep_addr) & 0xf);
+    usb_in_ctrl_write(ep_num & 0xf);
   }
-  else if (tu_edpt_dir(ep_addr) == TUSB_DIR_OUT) {
-    TU_ASSERT(rx_buffer[tu_edpt_number(ep_addr)] == NULL);
+  else if (ep_dir == TUSB_DIR_OUT) {
+    TU_ASSERT(rx_buffer[ep_num] == NULL);
+    TU_ASSERT((ep_num == 0) || (ep_num == 2) || (ep_num == 3));
 
-    rx_buffer_length[tu_edpt_number(ep_addr)] = 0;
-    rx_buffer_max[tu_edpt_number(ep_addr)] = total_bytes;
-    rx_buffer[tu_edpt_number(ep_addr)] = buffer;
+    rx_buffer_offset[ep_num] = 0;
+    rx_buffer_max[ep_num] = total_bytes;
+    rx_buffer[ep_num] = buffer;
 
     // If there's data in the buffer already, we'll try draining it
-    // into the current fifo immediately.  Note that since this
-    // bit is set, an interrupt won't fire again, so there is
-    // no need for a lock here.
+    // into the current fifo immediately.
+    usb_out_ev_enable_write(0);
     process_rx(false);
+    usb_out_ev_enable_write(1);
   }
   return true;
 }
@@ -311,6 +350,13 @@ void hal_dcd_isr(uint8_t rhport)
     return;
   }
 
+  // An "OUT" transaction just completed so we have new data.
+  // (But only if we can accept the data)
+  // if (out_pending) {
+  if (usb_out_ev_enable_read() && out_pending) {
+    process_rx(true);
+  }
+
   // An "IN" transaction just completed.
   // Note that due to the way tinyusb's callback system is implemented,
   // we must handle IN and OUT packets before we handle SETUP packets.
@@ -322,17 +368,10 @@ void hal_dcd_isr(uint8_t rhport)
     finish_tx();
   } 
 
-  // An "OUT" transaction just completed so we have new data.
-  // (But only if we can accept the data)
-  if (out_pending) {
-    process_rx(true);
-  }
-
   // We got a SETUP packet.  Copy it to the setup buffer and clear
   // the "pending" bit.
   if (setup_pending & 1) {
-    // Setup packets are always 8 bytes, plus two bytes
-    // of crc16
+    // Setup packets are always 8 bytes, plus two bytes of crc16.
     uint8_t setup_packet[10];
     uint32_t setup_length = 0;
 
@@ -354,7 +393,7 @@ void hal_dcd_isr(uint8_t rhport)
       // packet.  If it is, leave it unacknowledged and we'll do this
       // in the `dcd_set_address` function instead.
       if (!((setup_packet[0] == 0x00) && (setup_packet[1] == 0x05)))
-        usb_setup_ctrl_write(2);
+        usb_setup_ctrl_write(1 << CSR_USB_SETUP_CTRL_HANDLED_OFFSET);
     }
     else {
       fomu_error(__LINE__);
