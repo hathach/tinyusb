@@ -25,8 +25,6 @@ Unless, you've read ahead, this will fail miserably. Now, lets get it to fail le
 
 One of the first things to change is the `-DCFG_TUSB_MCU` cflag in the `board.mk` file. This is used to tell TinyUSB what platform is being built. So, add an entry to `src/tusb_option.h` and update the CFLAG to match.
 
-Also, add an entry for the board in `hw/bsp/board.h`. The CFLAG is auto-added.
-
 Update `board.mk`'s VENDOR and CHIP_FAMILY values when creating the directory for the struct files. Duplicate one of the other sources from `src/portable` into `src/portable/<vendor>/<chip_family>` and delete all of the implementation internals. We'll cover what everything there does later. For now, get it compiling.
 
 ## Implementation
@@ -104,7 +102,7 @@ Calls to this look like:
 
     dcd_event_setup_received(0, setup, true);
 
-As before with `dcd_event_bus_signal` the first argument is the USB peripheral number and the third is true to signal its being called from an interrup handler. The middle argument is byte array of length 8 with the contents of the SETUP packet. It can be stack allocated because it is copied into the queue.
+As before with `dcd_event_bus_signal` the first argument is the USB peripheral number and the third is true to signal its being called from an interrupt handler. The middle argument is byte array of length 8 with the contents of the SETUP packet. It can be stack allocated because it is copied into the queue.
 
 #### Endpoints
 
