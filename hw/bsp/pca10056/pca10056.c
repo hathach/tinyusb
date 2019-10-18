@@ -156,6 +156,7 @@ int board_uart_read(uint8_t* buf, int len)
   (void) buf;
   (void) len;
   return 0;
+//  return NRFX_SUCCESS == nrfx_uart_rx(&_uart_id, buf, (size_t) len) ? len : 0;
 }
 
 int board_uart_write(void const * buf, int len)

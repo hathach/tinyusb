@@ -79,7 +79,7 @@ CFLAGS += \
 
 # Debugging/Optimization
 ifeq ($(DEBUG), 1)
-  CFLAGS += -O0 -ggdb -DCFG_TUSB_DEBUG=1
+  CFLAGS += -Og -ggdb -DCFG_TUSB_DEBUG=2
 else
 ifneq ($(BOARD), spresense)
   CFLAGS += -flto -Os

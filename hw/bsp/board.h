@@ -107,10 +107,10 @@ static inline void board_delay(uint32_t ms)
   }
 }
 
-static inline int8_t board_uart_getchar(void)
+static inline int board_uart_getchar(void)
 {
   uint8_t c;
-  return board_uart_read(&c, 1) ? c : (-1);
+  return board_uart_read(&c, 1) ? (int) c : (-1);
 }
 
 static inline int board_uart_putchar(uint8_t c)
