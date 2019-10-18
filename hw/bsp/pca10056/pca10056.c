@@ -29,7 +29,7 @@
 #include "nrfx.h"
 #include "nrfx/hal/nrf_gpio.h"
 #include "nrfx/drivers/include/nrfx_power.h"
-#include "nrfx/drivers/include/nrfx_uart.h"
+#include "nrfx/drivers/include/nrfx_uarte.h"
 
 #ifdef SOFTDEVICE_PRESENT
 #include "nrf_sdm.h"
@@ -48,7 +48,7 @@
 #define UART_RX_PIN           8
 #define UART_TX_PIN           6
 
-static nrfx_uart_t _uart_id = NRFX_UART_INSTANCE(0);
+static nrfx_uarte_t _uart_id = NRFX_UARTE_INSTANCE(0);
 //static void uart_handler(nrfx_uart_event_t const * p_event, void* p_context);
 
 // tinyusb function that handles power event (detected, ready, removed)
@@ -77,19 +77,20 @@ void board_init(void)
 #endif
 
   // UART
-  nrfx_uart_config_t uart_cfg =
+  nrfx_uarte_config_t uart_cfg =
   {
     .pseltxd   = UART_TX_PIN,
     .pselrxd   = UART_RX_PIN,
-    .pselcts   = NRF_UART_PSEL_DISCONNECTED,
-    .pselrts   = NRF_UART_PSEL_DISCONNECTED,
+    .pselcts   = NRF_UARTE_PSEL_DISCONNECTED,
+    .pselrts   = NRF_UARTE_PSEL_DISCONNECTED,
     .p_context = NULL,
-    .hwfc      = NRF_UART_HWFC_DISABLED,
-    .parity    = NRF_UART_PARITY_EXCLUDED,
-    .baudrate  = NRF_UART_BAUDRATE_115200 // CFG_BOARD_UART_BAUDRATE
+    .hwfc      = NRF_UARTE_HWFC_DISABLED,
+    .parity    = NRF_UARTE_PARITY_EXCLUDED,
+    .baudrate  = NRF_UARTE_BAUDRATE_115200, // CFG_BOARD_UART_BAUDRATE
+    .interrupt_priority = 7
   };
 
-  nrfx_uart_init(&_uart_id, &uart_cfg, NULL); //uart_handler);
+  nrfx_uarte_init(&_uart_id, &uart_cfg, NULL); //uart_handler);
 
 #if TUSB_OPT_DEVICE_ENABLED
   // Priorities 0, 1, 4 (nRF52) are reserved for SoftDevice
@@ -161,7 +162,7 @@ int board_uart_read(uint8_t* buf, int len)
 
 int board_uart_write(void const * buf, int len)
 {
-  return (NRFX_SUCCESS == nrfx_uart_tx(&_uart_id, (uint8_t const*) buf, (size_t) len)) ? len : 0;
+  return (NRFX_SUCCESS == nrfx_uarte_tx(&_uart_id, (uint8_t const*) buf, (size_t) len)) ? len : 0;
 }
 
 #if CFG_TUSB_OS == OPT_OS_NONE

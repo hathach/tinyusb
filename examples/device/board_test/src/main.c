@@ -51,7 +51,6 @@ int main(void)
   uint32_t start_ms = 0;
   bool led_state = false;
 
-
   while (1)
   {
     uint32_t interval_ms = board_button_read() ? BLINK_PRESSED : BLINK_UNPRESSED;
